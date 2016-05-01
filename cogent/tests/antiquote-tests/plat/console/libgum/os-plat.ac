@@ -1,0 +1,39 @@
+/*
+ * Copyright 2016, NICTA
+ *
+ * This software may be distributed and modified according to the terms of
+ * the GNU General Public License version 2. Note that NO WARRANTY is provided.
+ * See "LICENSE_GPLv2.txt" for details.
+ *
+ * @TAG(NICTA_GPL)
+ */
+
+struct unit_t $id:(_cogent_debug)(char* str) {
+	unit_t ret;
+	printf ("%s", str);
+	return ret;
+}
+
+struct unit_t $id:(_cogent_debug_u32) (u32 arg) {
+	unit_t ret;
+	printf ("%u", arg);
+	return ret;
+}
+
+struct unit_t $id:(_cogent_debug_u64) (u64 arg) {
+	unit_t ret;
+	printf ("%llu", arg);
+	return ret;
+}
+
+struct unit_t $id:(_cogent_debug_u32_hex) (u32 arg) {
+	unit_t ret;
+	printf ("%x", arg);
+	return ret;
+}
+
+struct unit_t $id:(_cogent_debug_u64_hex) (u64 arg) {
+	unit_t ret;
+	printf ("%llx", arg);
+	return ret;
+}

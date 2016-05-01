@@ -1,0 +1,140 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+include "../libgum/common.cogent"
+
+type Array a
+
+{-# cinline array_create #-}
+{-# fnmacro array_create #-}
+array_create: all (a :< E). (ExState, U32) -> R (ExState, Array a) ExState
+-- array_create(ex, length)
+-- The Error case is always eNoMem
+
+{-# cinline array_remove #-}
+{-# fnmacro array_remove #-}
+array_remove: all(a :< E). (Array a, WordArrayIndex) -> (Array a, Option a)
+-- array_remove(arr, index)
+-- Returns the value at @index or None ()
+type ArrayUseValueF a acc obsv = #{elem:a!, acc:acc, obsv:obsv!} -> acc
+type ArrayUseValueP a acc obsv = #{arr: (Array a)!, idx: WordArrayIndex, f: ArrayUseValueF a acc obsv, acc: acc, obsv: obsv!}
+
+{-# cinline array_use_value #-}
+{-# fnmacro array_use_value #-}
+array_use_value: all(a :< E, acc, obsv). ArrayUseValueP a acc obsv -> acc
+
+type ArrayUseMaybeValueF a acc obsv = #{oelem:Option a!, acc:acc, obsv:obsv!} -> acc
+type ArrayUseMaybeValueP a acc obsv = #{arr: (Array a)!, idx: WordArrayIndex, f: ArrayUseMaybeValueF a acc obsv, acc: acc, obsv: obsv!}
+
+{-# cinline array_use_maybe_value #-}
+{-# fnmacro array_use_maybe_value #-}
+array_use_maybe_value: all(a :< E, acc, obsv). ArrayUseMaybeValueP a acc obsv -> acc
+
+-- array_get_value(arr, index)
+-- Returns the value at @index 
+type ArrayModifyF a acc = OptElemA a acc -> OptElemA a acc
+type ArrayModifyP a acc = #{arr: Array a, idx: WordArrayIndex, f: ArrayModifyF a acc, acc: acc}
+
+{-# cinline array_modify #-}
+{-# fnmacro array_modify #-}
+array_modify: all(a :< E, acc). ArrayModifyP a acc -> ArrA (Array a) acc
+-- array_modify(modifier, arr, index, acc)
+-- Option a may be the previous item in that slot
+--
+-- If the index is out-of-range, the array is returned unmodified
+
+{-# cinline array_length #-}
+{-# fnmacro array_length #-}
+array_length: all(a :< E). (Array a)! -> U32
+-- Returns the length of the array, the count includes empty slots
+
+{-# cinline array_nb_elem #-}
+{-# fnmacro array_nb_elem #-}
+array_nb_elem: all(a :<E). (Array a)! -> U32
+-- Returns the number of element ignoring empty slots
+-- in the array.
+
+{-# cinline array_exists #-}
+{-# fnmacro array_exists #-}
+array_exists: all(a :< E). ((Array a)!, WordArrayIndex) -> Bool
+
+type ArrayFreeP a = #{arr: Array a, f: FreeF a, ex: ExState}
+-- TODO: might want acc for fun as well
+
+{-# cinline array_free #-}
+{-# fnmacro array_free #-}
+array_free: all(a :<E). ArrayFreeP a -> ExState
+-- array_free(freeer, ex, arr)
+-- This ensures that all elements of the array have been removed
+
+-- if (the item exists at the index <idx> given):
+--   remove the item
+--   free it using the given <f>
+--   puts the given, replacement <elem> in the same position
+--   returns the modified array
+-- else
+--   free the given <elem> using <f>
+--   return the array unmodified
+type ArrayReplaceP a = #{arr: Array a, idx: WordArrayIndex, elem: a, f: FreeF a, ex: ExState }
+
+{-# cinline array_replace #-}
+{-# fnmacro array_replace #-}
+array_replace: all (a :< E). ArrayReplaceP a -> RR (ExState, Array a) () ()
+
+type ArrayMapExF a acc obsv rbrk = ElemAO a acc obsv -> LoopResult (ElemA a acc) (ElemB a rbrk)
+type ArrayMapExP a acc obsv rbrk = #{arr:Array a, frm: U32, to:U32, f: ArrayMapExF a acc obsv rbrk, acc:acc, obsv:obsv!}
+
+{-# cinline array_map_ex #-}
+{-# fnmacro array_map_ex #-}
+array_map_ex: all(a :<E,acc,obsv,rbrk). ArrayMapExP a acc obsv rbrk -> LoopResult (ArrA (Array a) acc) (ArrB (Array a) rbrk)
+-- array_iterate_existing(arr, body, acc, observables)
+-- iterates through existing element of the array.
+
+type ArrayMapF a acc obsv rbrk = (OptElemAO a acc obsv) -> LoopResult (Option a, acc) (Option a, rbrk)
+type ArrayMapP a acc obsv rbrk = #{arr: Array a, frm: U32, to:U32, f: ArrayMapF a acc obsv rbrk, acc: acc, obsv:obsv!}
+
+{-# cinline array_map #-}
+{-# fnmacro array_map #-}
+array_map: all(a :<E,acc,obsv,rbrk). ArrayMapP a acc obsv rbrk -> LoopResult (Array a, acc) (Array a, rbrk)
+
+type ArrayMapNoBreakF a acc obsv = (OptElemAO a acc obsv) -> (Option a, acc)
+type ArrayMapNoBreakP a acc obsv = #{arr: Array a, frm: U32, to:U32, f: ArrayMapNoBreakF a acc obsv, acc: acc, obsv:obsv!}
+
+{-# cinline array_map_no_break #-}
+{-# fnmacro array_map_no_break #-}
+array_map_no_break: all(a :<E,acc,obsv). ArrayMapNoBreakP a acc obsv -> (Array a, acc)
+
+type ArrayFilterF a acc obsv = #{elem:a, acc:acc, obsv:obsv!} -> RR acc () a
+type ArrayFilterP a acc obsv = #{arr: Array a, f: ArrayFilterF a acc obsv, acc: acc, obsv: obsv!}
+
+{-# cinline array_filter #-}
+{-# fnmacro array_filter #-}
+array_filter: all(a :< E, acc, obsv). ArrayFilterP a acc obsv -> #{arr: Array a, acc: acc}
+-- Hard to implement in COGENT because  we need to take ex or pass a free callback.
+
+-- array_eraser(eraser, arr, index, acc, val)
+-- Allows erasing an element when iterating.
+
+type ArrayFoldF a acc obsv rbrk = #{elem:a!, acc:acc, obsv:obsv!} -> LoopResult acc rbrk
+type ArrayFoldP a acc obsv rbrk = #{arr:(Array a)!, f:ArrayFoldF a acc obsv rbrk, acc:acc, obsv:obsv!}
+
+{-# cinline array_fold #-}
+{-# fnmacro array_fold #-}
+array_fold: all(a :<E,acc,obsv,rbrk). ArrayFoldP a acc obsv rbrk -> LoopResult acc rbrk
+-- Fold only existing elements.
+
+type ArrayFoldNoBreakF a acc obsv = #{elem:a!, acc:acc, obsv:obsv!} -> acc
+type ArrayFoldNoBreakP a acc obsv = #{arr:(Array a)!, f:ArrayFoldNoBreakF a acc obsv, acc:acc, obsv:obsv!}
+
+{-# cinline array_fold_no_break #-}
+{-# fnmacro array_fold_no_break #-}
+array_fold_no_break: all(a:<E,acc,obsv). ArrayFoldNoBreakP a acc obsv -> acc
+-- Same as above but cannot Break out of the loop
+

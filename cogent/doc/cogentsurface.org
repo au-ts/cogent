@@ -1,0 +1,352 @@
+#
+# Copyright 2016, NICTA
+#
+# This software may be distributed and modified according to the terms of
+# the GNU General Public License version 2. Note that NO WARRANTY is provided.
+# See "LICENSE_GPLv2.txt" for details.
+#
+# @TAG(NICTA_GPL)
+#
+
+
+#+TITLE: COGENT Surface Syntax
+
+* Types 
+Types no longer have attached sigils (~.~, ~#~, or ~*~). (More details shortly on unboxed types)
+
+All type names must begin with an uppercase letter. Tuple, Function, Record and Variant types have special syntax.
+
+** Record Types
+
+Now indicated by a simple series of typing judgements inside braces, e.g
+
+#+BEGIN_SRC 
+{x : A, y : B}
+#+END_SRC
+
+If a field ~f~ is removed by ~take~, the postfix type operator ~take f~ may be used:
+
+#+BEGIN_SRC 
+{x : A, y : B} take x
+#+END_SRC
+
+This works, even if the type on the LHS is a type synonym.
+
+Sugar: Taking multiple fields:
+
+#+BEGIN_SRC 
+{x : A, y : B} take (x,y) -- parens mandatory
+#+END_SRC
+
+#+BEGIN_SRC
+{x : A, y : B} take (..)  -- parens mandatory
+#+END_SRC
+
+This ~(..)~ sugar means to take all currently untaken fields (if any).
+
+Similarly, we can write ~put~ instead of ~take~ with the same syntax. The behaviour is exactly symmetrical to ~take~. One common usage would be
+
+#+BEGIN_SRC
+({x : A, y : B, z : C, u : D, w : E} take (..)) put x
+#+END_SRC
+
+Note that the parens around the record and first ~take~ is mandatory. Arbitrary many levels of nestings is possible.
+
+** Unboxed Records
+
+Note: For new users of this language, it's recommended to skip over this subsection and come back later.
+
+Unboxed records are pretty much like regular records, except that their wrappers (i.e. the unboxed container) are lightweight
+that no allocation is required.
+
+The syntax is simple, just a prefixing ~#~ on its counterpart record type. ~take~, ~put~ operations (and punning) and member extraction 
+are of exactly the same syntax as regular records. As a consequence of its lightweightness, we can construct and deconstruct (by means 
+of pattern matching) unboxed records, just as what we do on tuples (see below for tuples).
+
+E.g.,
+#+BEGIN_SRC
+#{x : A, y : B}  -- type
+#{x = e1, y = e2}  -- expression or pattern
+a.x  -- member
+a {x = f}  -- take and put, same as regular records
+
+-- Wildcard: like regular records, but only available in patterns, so that we can write code like:
+foo :: #{a : A, b : B, c : C} -> T
+foo #{..} = ...  -- a, b, c are in scope, just like c-style arguments
+#+END_SRC
+
+About its kinding rules: the wrapper per se has non-linear kind (K2). If any linear fields exists inside (untaken), then the unboxed record
+becomes linear (K1). Member operation in only freely used if there're no linear fields inside, or let-banged. 
+
+** Unboxed abstract types
+The ~#~ sigil is not put when being declared, but at use sites. E.g.,
+#+BEGIN_SRC
+type A
+type T = {a : #A, b : A}
+#+END_SRC
+In the above case, field ~a~ is unboxed, whereas ~b~ is not. When generating C code, boxed abstract types will be pointers, unboxed are not. 
+Its users' responsibility to keep the C code consistent, as these types are abstract.
+
+N.B. It's the current design, we can fix it if problems pop up.
+
+** Bang
+
+Record types, abstract types and arrays internally have sigils, but outwardly, a Write Sigil is just a plain record type/array and an Observe sigil would be indicated with a postfix bang, for example:
+
+#+BEGIN_SRC 
+{x : A, y : B}!
+#+END_SRC
+
+The postfix bang operator can be applied to any type, which converts all write sigils to observer sigils internally (and any type variables to observer type variables). 
+
+To bang a parametric type, the type must be surrounded by parens, otherwise ~!~ will be applied to the type parameter right before the ~!~ symbol.
+
+** Product Types
+
+Nameless, unboxed tuples may be used everywhere you like. Their syntax is identical to Haskell. A unit type (which is freely discardable and _not_ linear) also exists, ~()~ with a value ~()~. Tuples are right associative, namely ~(a, b, c, d) == (a, (b, (c, d)))~, just as in Isabelle.
+
+** Variant Types
+
+Variant types look like this now.
+
+#+BEGIN_SRC 
+< Ok (Obj, Heap) | Fail Heap >
+#+END_SRC
+
+They can be constructed using ~Ok (obj,h)~, or ~Fail e~.
+
+We can determine from context if ~Identifier~ is a type or a data constructor, much like Haskell. We will have to do a little bit of inference to determine which variant type the thing actually belongs to.
+
+They can have as many alternatives as you like, and there is no restriction on
+what goes inside a variant type (you can even have a unit in one side to give a
+~Maybe~ type, or mutliple types of error returns).
+
+** Polymorphic types:
+Types can now contain variables. Functions may be declared as having polymorphic type, and the signature must now be provided separately to the function implementation:
+
+#+BEGIN_SRC
+length : all (a). Array a -> Int 
+#+END_SRC
+
+_Monomorphic_ functions are now first class, but to get a monomorphic function
+from a polymorphic function requires instantiation, e.g ~length[Int]~.
+
+A type variable under observation (i.e ~let!~ -ed) is annotated with a postfix bang (e.g ~a!~)
+
+*** Kinds
+Kinds are provided for polymorphic signatures as follows:
+
+#+BEGIN_SRC
+length : all (a :< k). Array a -> Int 
+#+END_SRC
+
+Kinds are internally a set of three booleans: whether or not the type can be:
+- ~D~ for Discarded (i.e by weakening) 
+- ~S~ for Shared (i.e by contraction)
+- ~E~ for Escaped (i.e returned from ~let!~)
+
+The kind signature on a type variable is more like a constraint. They are some combination of those three letters. Any type \tau of kind \kappa satisfies a kind constraint \kappa' if \kappa' \land \kappa = \kappa'. If no kind constraint is provided, it is assumed that none of those permissions are required, and the value will be linear and cannot escape a ~let!~.
+
+
+* Typedefs 
+
+Type synonyms may be provided using the new ~type~ keyword as follows:
+
+#+BEGIN_SRC
+type X a b = { foo : a, bar : b, baz : Int }
+#+END_SRC
+
+The type synonym ~X~ must always be fully saturated with its two arguments wherever it is used, however.
+
+Abstract types (defined in C) may also be defined, and they also may take
+parameters. This corresponds to a family of types in C.
+
+#+BEGIN_SRC
+type Buffer
+type Array a
+#+END_SRC
+
+Note that this is unlike COGENT1, where such types are just left unspoken.
+
+* Constants and toplevel definitions
+
+Constants are more or less unchanged, except that they are now typed.
+
+#+BEGIN_SRC 
+abc : U8
+abc = 3
+#+END_SRC
+
+But the right hand side can be much more expressive now, with let bindings and whatnot. We must be able to prevent users from doing side-effects like allocation in the top-level -- see next section.
+
+To make the syntax easier to parse, a function or constant's body must be indented by at least one space. This means that any non-indented bareword is the start of a new definition or signature.
+
+* Effects
+
+Most effects are currently (successfully) modelled via linear types. Not so for allocation, because it is so ubiquitous. However, now we have to eliminate exactly allocation from the things you're allowed to do in a constant's RHS. Moreover, allocation is also the source of nondeterminism in COGENT1, and a cumbersome property that really screws us up.
+
+I propose modelling the heap as an explicit linear value, just as with any other state.
+
+Allocation functions must now take and return a linear heap, as they modify it:
+
+#+BEGIN_SRC 
+allocateobj : Heap -> <Ok (Obj, Heap) | Fail Heap >
+#+END_SRC
+
+As the heap can be modelled as some abstract structure, we have eliminated the nondetermism from the language but not forced the user to specify anything more about the semantics.
+
+Special syntax for allocation functions and automating heap-threading are nice to have, so I welcome proposals.
+
+* Expression Language:
+
+** Matching and Error Handling
+
+Errors are gone, replaced by the now much more expressive variant types.
+
+Matching may be accomplished by the following syntax:
+
+#+BEGIN_SRC 
+f : Heap -> < Ok (Obj, Heap) | Fail Heap >
+f h = allocateobj h 
+    | Ok (obj, h) => allocateobj h
+        | Ok (obj', h) => Ok (mergeObj (obj, obj'), h)
+        | Fail h -> let () = free(obj) in Fail h 
+    | Fail h -> Fail h
+#+END_SRC
+
+
+This is an alignment-based syntax, grouping determined based on the alignment of
+the bars. 
+
+The rightward arrows for each case can either be ~=>~ or ~->~. ~=>~ indicates that
+that branch is likely, to enable compiler optimisations. ~> can also be used to
+indicate an unlikely branch. 
+
+A pattern may be ~_~ but only if the kind of the value allows it to be discarded.
+
+** Patterns
+
+Patterns may be refutable (could fail, e.g ~Ok a~ or ~43~) or irrefutable (always
+match, e.g ~(a,b)~ or ~_~). Refutable patterns can be used in a matching block only,
+but they can only nest irrefutable patterns. So, unlike in Haskell, you can't
+go:
+
+#+BEGIN_SRC
+f x = foo x
+  | Ok (Alt1 3) -> bar 
+  | _ -> baz                   
+#+END_SRC
+
+As this nests a refutable pattern (~3~) inside another refutable pattern (~Alt1 3~)
+inside another refutable pattern (~Ok (Alt1 3)~).
+
+This is forbidden to make compilation much more straightforward in the presence
+of linear types.
+
+** Let binding
+
+Let expressions take the form of ML. They are not ever recursive. Multiple let bindings can be introduced by separating them with ~and~:
+
+#+BEGIN_SRC 
+f () = let x = 3
+       and y = 4 
+        in foo (x,y)
+#+END_SRC 
+
+Is equivalent to:
+
+#+BEGIN_SRC 
+f () = let x = 3
+        in let y = 4 
+            in foo (x,y)
+#+END_SRC 
+
+
+Irrefutable single patterns may occur on the left hand side of let, but refutable patterns must use regular pattern matching.
+
+To force inference to go the way you want, a type signature can be provided for a let binding:
+
+#+BEGIN_SRC 
+f () = let x : U8 = 3
+        in let y : U16 = 4 
+            in foo (x,y)
+#+END_SRC 
+
+** Observation and ~let!~
+
+Variables may be observed using ~!~:
+
+#+BEGIN_SRC 
+f (x, y) = let (a,b) = foo (x, y) !x !y
+            in bar (a, b)
+#+END_SRC 
+
+Postfix ~!~ annotations can be used inline with pattern matching also:
+
+#+BEGIN_SRC 
+f (x,y) = foo(x,y) !x !y
+          | Blah x  => bar x
+          | Blorp z -> baz z
+#+END_SRC 
+
+** Sequencing
+
+Occasionally, it is useful to free a bunch of things, and using let for this
+purpose can be somewhat annoying:
+
+#+BEGIN_SRC 
+f : (Obj, Obj) -> Int
+f (a, b) = let _ = free a
+           and _ = free b
+            in 42 
+#+END_SRC 
+
+So, a little sugar is added for a series of discarding let bindings:
+
+#+BEGIN_SRC 
+f : (Obj, Obj) -> Int
+f (a, b) = free a; free b; 42
+#+END_SRC 
+
+These two expressions are equivalent.
+
+/Note/: I'm not sure if this still applies given our explicit heap model described
+above, but it can't hurt to have this as some additional syntax.
+
+** Take/put
+
+There is pattern syntax for ~take~, and a similar syntax for ~put~:
+
+#+BEGIN_SRC
+f : {a : Foo, b : Bar} -> {a : Foo, b : Bar}
+f (r {a = ra, b = rb}) = r {a = ra, b = rb}
+#+END_SRC
+
+Note: ~take~ is always in pattern (i.e. LHS of ~=~), whereas ~put~ is always in expressions (i.e. RHS of ~=~).
+
+Punning is also allowed
+
+#+BEGIN_SRC
+f : {a : Foo, b : Bar} -> {a : Foo, b : Bar}
+f (r {a, b}) = r {a, b}
+#+END_SRC
+
+(where just ~a~ is equivalent to ~a=a~)
+
+More sugar:
+
+The above example can be equivalently written as:
+
+#+BEGIN_SRC
+f : {a : Foo, b : Bar} -> {a : Foo, b : Bar}
+f (r {..}) = r {..}
+#+END_SRC
+
+The ~{..}~ syntax, similar to its counterpart on type level, just take or put all the untaken or taken fields. ~{..}~ for ~take~ implicitly introduces binders into scope (same names as the fields), and ~{..}~ for ~put~ implicitly requires those variables in scope.
+
+** Arithmetic and comparison operators
+
+Currently COGENT will use the smallest type possible for integer literals and generate upcasts (but not downcasts) automatically when used in a context where they are required.
+
+
+

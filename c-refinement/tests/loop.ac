@@ -1,0 +1,32 @@
+/*
+ * Copyright 2016, NICTA
+ *
+ * This software may be distributed and modified according to the terms of
+ * the GNU General Public License version 2. Note that NO WARRANTY is provided.
+ * See "LICENSE_GPLv2.txt" for details.
+ *
+ * @TAG(NICTA_GPL)
+ */
+
+$esc:(#include "../../cogent/lib/cogent.h")
+$esc:(#include <stdio.h>)
+
+static inline $ty:acc $id:seq32($ty:(Seq32Param acc) args){
+  unsigned i;
+  $ty:(Seq32_bodyParam acc) fargs;
+
+  fargs.acc = args.acc;
+  for (i = args.frm; i < args.to; i++) {
+    fargs.idx = i;
+    fargs.acc = (($spec:(Seq32_body acc))args.f)(fargs);
+	}
+	return fargs.acc;
+}
+
+int main(void) {
+  unsigned i;
+  for (i = 0; i < 10; i++) {
+    printf("triangular(%u) = %u\n", i, triangular(i));
+  }
+  return 0;
+}

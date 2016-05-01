@@ -1,0 +1,25 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+f : <A Bool | B ()> -> <A Bool | B ()>
+f x = let x' = (x
+                | A b -> if b then A (not b) else B ()
+                | B u -> A True)
+                  | A b -> if b then B () else A (not b)
+                  | B u -> A True
+      in if x'
+            | A b -> b
+            | B u -> False
+         then x'
+              | A b -> B ()
+              | B u -> A False
+         else x
+              | A b -> A (not b)
+              | B u -> B u

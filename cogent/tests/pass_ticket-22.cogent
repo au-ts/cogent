@@ -1,0 +1,19 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+type X a b = (a,b)
+
+type Y a b
+
+type R = { f : X U8 U16 }
+
+type Q = { g : Y U8 U16 }
+
+type T = { t : (U16, U32) }

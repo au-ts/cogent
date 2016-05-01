@@ -1,0 +1,233 @@
+/*
+ * Copyright 2016, NICTA
+ *
+ * This software may be distributed and modified according to the terms of
+ * the GNU General Public License version 2. Note that NO WARRANTY is provided.
+ * See "LICENSE_GPLv2.txt" for details.
+ *
+ * @TAG(NICTA_GPL)
+ */
+
+$ty:(ArrA (Array a) acc) $id:array_modify($ty:(ArrayModifyP a acc) args)
+{
+        $ty:(ArrA (Array a) acc) ret;
+        $ty:(OptElemA a acc) fargs;
+        $ty:(OptElemA a acc) fret;
+
+        if (args.idx < args.arr->len) {
+                fargs.acc = args.acc;
+                if (args.arr->values[args.idx] == NULL) {
+                        fargs.oelem.tag = TAG_ENUM_None;
+                } else {
+                        fargs.oelem.tag = TAG_ENUM_Some;
+                        fargs.oelem.Some = args.arr->values[args.idx];
+                }
+                fret = (($spec:(ArrayModifyF a acc)) args.f) (fargs);
+                /* put new thing in */
+                if (fret.oelem.tag == TAG_ENUM_None)
+                        args.arr->values[args.idx] = NULL;
+                else
+                        args.arr->values[args.idx] = fret.oelem.Some;
+                ret.arr = args.arr;
+                ret.acc = fret.acc;
+                return ret;
+        }
+        ret.arr = args.arr;
+        ret.acc = args.acc;
+        return ret;
+}
+
+$ty:((Array a, Option a)) $id:array_remove($ty:((Array a, WordArrayIndex)) args)
+{
+        $ty:((Array a, Option a)) ret;
+
+        ret.p1 = args.p1;
+        if (args.p2 < args.p1->len && args.p1->values[args.p2]) {
+                ret.p2.tag = TAG_ENUM_Some;
+                ret.p2.Some = args.p1->values[args.p2];
+                args.p1->values[args.p2] = NULL;
+        } else {
+                ret.p2.tag = TAG_ENUM_None;
+        }
+        return ret;
+}
+
+$ty:(acc) $id:array_use_value($ty:(ArrayUseValueP a acc obsv) args)
+{
+        if (args.idx < args.arr->len) {
+                $ty:(ElemAO a acc obsv) fargs;
+
+                fargs.elem = args.arr->values[args.idx];
+                if (!fargs.elem)
+                        return args.acc;
+                fargs.acc = args.acc;
+                fargs.obsv = args.obsv;
+                return (($spec:(ArrayUseValueF a acc obsv)) args.f)(fargs);
+        }
+        return args.acc;
+}
+
+u32 $id:array_length($ty:(Array a) arr)
+{
+        return arr->len;
+}
+
+u32 $id:array_nb_elem($ty:(Array a) arr)
+{
+        u32 i;
+        u32 nb_elem = 0;
+
+        for (i = 0; i < arr->len; i++)
+                if (arr->values[i])
+                        nb_elem++;
+        return nb_elem;
+}
+
+#define ArrMapExRet $ty:(LoopResult (ArrA (Array a) acc) (ArrB (Array a) rbrk))
+
+ArrMapExRet $id:array_map_ex($ty:(ArrayMapExP a acc obsv rbrk) args)
+{
+        ArrMapExRet ret;
+        $ty:(ElemAO a acc obsv) fargs;
+        $ty:(LoopResult (ElemA a acc) (ElemB a rbrk)) fret;
+        u32 i;
+        u32 to = args.to < args.arr->len ? args.to : args.arr->len;
+
+        fargs.obsv = args.obsv;
+        fargs.acc = args.acc;
+        for (i = args.frm; i < to; i++) {
+                if (args.arr->values[i]) {
+                        fargs.elem = args.arr->values[i];
+                        fret = (($spec:(ArrayMapExF a acc obsv rbrk)) args.f) (fargs);
+                        if (fret.tag == TAG_ENUM_Break) {
+                               ret.tag = TAG_ENUM_Break; 
+                               args.arr->values[i] = fret.Break.elem;
+                               ret.Break.arr = args.arr;
+                               ret.Break.rbrk = fret.Break.rbrk;
+                               return ret;
+                        } /* iterate */
+                        args.arr->values[i] = fret.Iterate.elem;
+                        fargs.acc = fret.Iterate.acc;
+                }
+        }
+        ret.tag = TAG_ENUM_Iterate;
+        ret.Iterate.arr = args.arr;
+        ret.Iterate.acc = fargs.acc;
+        return ret;
+}
+
+#define ArrMapRet $ty:(LoopResult (Array a, acc) (Array a, rbrk))
+ArrMapRet $id:array_map($ty:(ArrayMapP a acc obsv rbrk) args)
+{
+        ArrMapRet ret;
+        $ty:(OptElemAO a acc obsv) fargs;
+        $ty:(LoopResult (Option a, acc) (Option a, rbrk)) fret;
+        u32 i;
+        u32 to = args.to < args.arr->len ? args.to : args.arr->len;
+
+        fargs.obsv = args.obsv;
+        fargs.acc = args.acc;
+        for (i = args.frm; i < to; i++) {
+                fargs.oelem.Some = args.arr->values[i];
+                fargs.oelem.tag = fargs.oelem.Some ? TAG_ENUM_Some : TAG_ENUM_None;
+                fret = (($spec:(ArrayMapF a acc obsv rbrk)) args.f) (fargs);
+                if (fret.tag == TAG_ENUM_Break) {
+                        if (fret.Break.p1.tag == TAG_ENUM_Some)
+                                args.arr->values[i] = fret.Break.p1.Some;
+                        else
+                                args.arr->values[i] = NULL;
+                        ret.tag = TAG_ENUM_Break; 
+                        ret.Break.p1 = args.arr;
+                        ret.Break.p2 = fret.Break.p2;
+                        return ret;
+                } /* iterate */
+                if (fret.Iterate.p1.tag == TAG_ENUM_Some)
+                        args.arr->values[i] = fret.Iterate.p1.Some;
+                else
+                        args.arr->values[i] = NULL;
+                fargs.acc = fret.Iterate.p2;
+        }
+        ret.tag = TAG_ENUM_Iterate;
+        ret.Iterate.p1 = args.arr;
+        ret.Iterate.p2 = fargs.acc;
+        return ret;
+}
+/*
+type ArrayFoldNoBreakF a acc obsv = #{elem:a!, acc:acc, obsv:obsv!} -> acc
+type ArrayFoldNoBreakP a acc obsv = #{arr:(Array a)!, f:ArrayFoldNoBreakF a acc obsv, acc:acc, obsv:obsv!}
+array_fold_no_break: all(a:<E,acc,obsv). ArrayFoldNoBreakP a acc obsv -> acc
+*/
+$ty:(acc) $id:array_fold_no_break($ty:(ArrayFoldNoBreakP a acc obsv) args)
+{
+        $ty:(ElemAO a acc obsv) fargs;
+        u32 i;
+
+        fargs.obsv = args.obsv;
+        fargs.acc = args.acc;
+        for (i = 0; i < args.arr->len; i++) {
+                if (args.arr->values[i]) {
+                        fargs.elem = args.arr->values[i];
+                        fargs.acc = (($spec:(ArrayFoldNoBreakF a acc obsv)) args.f) (fargs);
+                }
+        }
+        return fargs.acc;
+}
+
+/*
+type ArrayFoldF a acc obsv rbrk = (#{elem:a!, acc:acc, obsv:obsv!} -> LoopResult acc rbrk)
+type ArrayFoldP a acc obsv rbrk = #{arr:(Array a)!, f:ArrayFoldF a acc obsv rbrk, acc:acc, obsv:obsv!}
+array_fold: all(a :<E,acc,obsv,rbrk). ArrayFoldP a acc obsv rbrk -> LoopResult acc rbrk
+*/
+$ty:(LoopResult acc rbrk) $id:array_fold($ty:(ArrayFoldP a acc obsv rbrk) args)
+{
+        $ty:(ElemAO a acc obsv) fargs;
+        $ty:(LoopResult acc rbrk) fret;
+        u32 i;
+
+        fargs.obsv = args.obsv;
+        fargs.acc = args.acc;
+        for (i = 0; i < args.arr->len; i++) {
+                if (args.arr->values[i]) {
+                        fargs.elem = args.arr->values[i];
+                        fret = (($spec:(ArrayFoldF a acc obsv rbrk)) args.f) (fargs);
+                        if (fret.tag == TAG_ENUM_Break)
+                                return fret;
+                        fargs.acc = fret.Iterate;
+                }
+        }
+        fret.tag = TAG_ENUM_Iterate;
+        fret.Iterate = fargs.acc;
+        return fret;
+}
+
+/*
+type ArrayFilterF a acc obsv = #{elem:a, acc:acc, obsv:obsv!} -> R acc (a, acc)
+type ArrayFilterP a acc obsv = #{arr: Array a, f: ArrayFilterF a acc obsv, acc: acc, obsv: obsv!}
+array_filter: all(a :< E, acc, obsv). ArrayFilterP a acc obsv -> #{arr: Array a, acc: acc}
+*/
+$ty:(ArrA (Array a) acc) $id:array_filter($ty:(ArrayFilterP a acc obsv) args)
+{
+        $ty:(ArrA (Array a) acc) ret;
+        $ty:(ElemAO a acc obsv) fargs;
+        $ty:(RR acc () a) fret;
+        u32 i;
+
+        fargs.obsv = args.obsv;
+        fargs.acc = args.acc;
+        for (i = 0; i < args.arr->len; i++) {
+                if (args.arr->values[i]) {
+                        fargs.elem = args.arr->values[i];
+                        fret = (($spec:(ArrayFilterF a acc obsv)) args.f) (fargs);
+                        if (fret.p2.tag == TAG_ENUM_Success) {
+                                args.arr->values[i] = NULL;
+                                fargs.acc = fret.p1;
+                        } else {
+                                args.arr->values[i] = fret.p2.Error;
+                                fargs.acc = fret.p1;
+                        }
+                }
+        }
+        ret.arr = args.arr;
+        ret.acc = fargs.acc;
+        return ret;
+}

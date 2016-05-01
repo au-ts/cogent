@@ -1,0 +1,6 @@
+TRecord [(TPrim (Num U32), False), (TPrim (Num U32), False)] Writable :=: t1
+TRecord [(TRecord [(TPrim (Num U32), False), (TPrim (Num U32), False)] Writable, False), (TPrim Bool, False)] Writable :=: t2
+TRecord [(TRecord [(TPrim (Num U32), False), (TPrim (Num U32), False)] Writable, True), (TPrim Bool, False)] Writable :=: t2
+TRecord [(TRecord [(TRecord [(TPrim (Num U32), False), (TPrim (Num U32), False)] Writable, False), (TPrim Bool, False)] Writable, False), (TPrim Bool, False)] Unboxed :=: t3
+TRecord [(TRecord [(TRecord [(TPrim (Num U32), False), (TPrim (Num U32), False)] Writable, False), (TPrim Bool, False)] Writable, True), (TPrim Bool, False)] Unboxed :=: t3
+TRecord [(TRecord [(TRecord [(TPrim (Num U32), False), (TPrim (Num U32), False)] Writable, True), (TPrim Bool, False)] Writable, False), (TRecord [(TPrim (Num U32), False), (TPrim (Num U32), False)] Writable, False), (TPrim Bool, False), (TPrim (Num U32), False)] Unboxed :=: t4

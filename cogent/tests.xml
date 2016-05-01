@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<!--
+     Copyright 2016, NICTA
+
+     This software may be distributed and modified according to the terms of
+     the GNU General Public License version 2. Note that NO WARRANTY is provided.
+     See "LICENSE_GPLv2.txt" for details.
+
+     @TAG(NICTA_GPL)
+  -->
+
+<testsuite timeout="4800">
+    <!-- artificial dependency on isabelle to fail fast if 
+         isabelle setup doesn't work -->
+    <test name="cogent_compiler" depends="isabelle">./validate.sh -tc -ds -an -mn</test>
+    <test name="cogent_codegen" depends="cogent_compiler">./validate.sh -cg</test>
+    <test name="cogent_gcc" depends="cogent_codegen">./validate.sh -gcc</test>
+    <test name="cogent_antiquote" depends="cogent_gcc">./validate.sh -aq</test>
+</testsuite>

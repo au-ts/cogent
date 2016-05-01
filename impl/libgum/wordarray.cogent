@@ -1,0 +1,167 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+include "../libgum/common.cogent"
+
+-- WordArray is the C primitive types arrays e.g. char[]
+type WordArray a
+
+type CString = WordArray U8
+
+{-# cinline wordarray_create #-}
+{-# fnmacro wordarray_create #-}
+wordarray_create: all (a :< DSE). (ExState, U32) -> R (ExState, WordArray a) ExState
+
+{-# cinline wordarray_create_nz #-}
+{-# fnmacro wordarray_create_nz #-}
+wordarray_create_nz: all (a :< DSE). (ExState, U32) -> R (ExState, WordArray a) ExState
+-- wordarray_create(ex, length)
+-- The Error case is always eNoMem
+
+{-# cinline wordarray_get #-}
+{-# fnmacro wordarray_get #-}
+wordarray_get: all(a :< DSE). ((WordArray a)!, WordArrayIndex) -> a
+
+{-# cinline wordarray_get_bounded #-}
+wordarray_get_bounded: all(a :< DSE). ((WordArray a)!, WordArrayIndex) -> R a ()
+wordarray_get_bounded  (arr, idx) =
+	if idx < wordarray_length[a] (arr) then
+		Success (wordarray_get[a] (arr, idx))
+	else
+		Error ()
+
+-- wordarray_get(arr, index)
+-- If index is out of bound, wordarray_get() returns 0 (user can easily check the bound beforehand)
+
+-- a is just the type of the wordarray, not the full type declaration (ie *not* WordArray a)
+-- the first argument to the accumulator is the value at the given WordArrayIndex
+-- this function just updates one value in the array
+type WordArrayModifyF a acc obsv = ElemAO a acc obsv -> (ElemA a acc)
+type WordArrayModifyP a acc obsv = #{arr: WordArray a, idx: WordArrayIndex, f: WordArrayModifyF a acc obsv, acc: acc, obsv: obsv!}
+
+{-# cinline wordarray_modify #-}
+{-# fnmacro wordarray_modify #-}
+wordarray_modify: all(a:<DSE, acc, obsv). WordArrayModifyP a acc obsv -> ArrA (WordArray a) acc
+
+type WordArrayPutP a = #{arr: WordArray a, idx: WordArrayIndex, val: a}
+
+{-# cinline wordarray_put #-}
+{-# fnmacro wordarray_put #-}
+wordarray_put: all(a :< DSE). WordArrayPutP a -> R (WordArray a) (WordArray a)
+
+{-# cinline wordarray_put2 #-}
+{-# fnmacro wordarray_put2 #-}
+wordarray_put2: all(a :< DSE). WordArrayPutP a -> WordArray a
+-- wordarray_put(arr, index, value)
+-- The Error case is always out-of-bound index error
+
+{-# cinline wordarray_length #-}
+{-# fnmacro wordarray_length #-}
+wordarray_length: all(a :< DSE). (WordArray a)! -> U32
+
+{-# cinline wordarray_free #-}
+{-# fnmacro wordarray_free #-}
+wordarray_free: all(a :< DSE). (ExState,WordArray a) -> ExState
+
+{-# cinline wordarray_free' #-}
+wordarray_free': all(a :< DSE). (#{ex: ExState, obj: WordArray a}) -> ExState
+wordarray_free' (#{ .. }) = wordarray_free[a] (ex, obj)
+
+{-# cinline copy_n #-}
+copy_n: all(a :< DSE). WordArrayMapNoBreakF a U32 ((WordArray a)!)
+copy_n #{elem, acc=idx, obsv=afrm} =
+  (wordarray_get[a](afrm, idx), idx+1)
+
+{-# cinline wordarray_clone #-}
+wordarray_clone: all(a :< DSE). (ExState, (WordArray a)!) -> R (ExState, WordArray a) ExState
+wordarray_clone(ex, src) =
+  let size = wordarray_length[a] src
+  in wordarray_create[a](ex, size)
+  | Error ex -> Error ex
+  | Success (ex, dest) ->
+    Success (ex, wordarray_copy[a] (dest, src, 0, 0, size))
+
+type WordArrayMapNoBreakF a acc obsv = ElemAO a acc obsv -> (a, acc)
+type WordArrayMapNoBreakP a acc obsv = #{arr: WordArray a, frm: WordArrayIndex, to: WordArrayIndex, f: WordArrayMapNoBreakF a acc obsv, acc: acc, obsv: obsv}
+
+{-# cinline wordarray_map_no_break #-}
+{-# fnmacro wordarray_map_no_break #-}
+wordarray_map_no_break: all(a :< DSE,acc,obsv). WordArrayMapNoBreakP a acc obsv -> (WordArray a, acc)
+-- wordarray_map(arr, from, to, modifier, acc, obs) -> (arr', acc')
+-- @from and @to are indices describing the range to map over.
+-- If the range provided by @from and @to (inclusive) covers indices that
+-- go beyond the length of the array, wordarray_map will simply ignore
+-- these indices.
+-- @modifier can modify a wordarray element and the accumulator
+
+type WordArrayMapF a acc obsv rbrk = ElemAO a acc obsv -> LRR (a, acc) rbrk
+type WordArrayMapP a acc obsv rbrk = #{arr: WordArray a, frm: WordArrayIndex, to: WordArrayIndex, f: WordArrayMapF a acc obsv rbrk, acc: acc, obsv: obsv}
+type WordArrayMapRE a acc rbrk = LRR (WordArray a, acc) (rbrk)
+
+{-# cinline wordarray_map #-}
+{-# fnmacro wordarray_map #-}
+wordarray_map: all(a :< DSE,acc,obsv,rbrk). WordArrayMapP a acc obsv rbrk -> WordArrayMapRE a acc rbrk
+
+type WordArrayFoldF a acc obsv rbrk = ElemAO a acc obsv! -> LoopResult acc rbrk
+type WordArrayFoldP a acc obsv rbrk =
+  #{arr: (WordArray a)!,
+    frm: WordArrayIndex, -- Index indicating the beginning of the range
+    to: WordArrayIndex, -- Index indicating the end of the range (inclusive)
+    f: WordArrayFoldF a acc obsv rbrk, -- loop body
+    acc: acc, 
+    obsv: obsv!
+   }
+
+{-# cinline wordarray_fold #-}
+{-# fnmacro wordarray_fold #-}
+wordarray_fold: all(a :< DSE,acc,obsv,rbrk). WordArrayFoldP a acc obsv rbrk -> LoopResult acc rbrk
+
+type WordArrayFoldNoBreakF a acc obsv = ElemAO a acc obsv! -> acc
+type WordArrayFoldNoBreakP a acc obsv =
+  #{arr: (WordArray a)!,
+    frm: WordArrayIndex, -- Index indicating the beginning of the range
+    to: WordArrayIndex, -- Index indicating the end of the range (inclusive)
+    f: WordArrayFoldNoBreakF a acc obsv, -- loop body
+    acc: acc, 
+    obsv: obsv!
+   }
+{-# cinline wordarray_fold #-}
+wordarray_fold_no_break: all(a :< DSE,acc,obsv). WordArrayFoldNoBreakP a acc obsv -> acc 
+
+{-# cinline wordarray_cmp #-}
+{-# fnmacro wordarray_cmp #-}
+wordarray_cmp: ((WordArray U8)!, (WordArray U8)!) -> Bool
+
+-- haystack, needles, offset
+type WordArrayFindSubP a = ((WordArray a)!, (WordArray a)!, U32)
+type FindResult = <Found WordArrayIndex | NotFound () >
+
+wordarray_findsub: all(a :< DSE). WordArrayFindSubP a -> FindResult
+
+-- ex, src, start, end
+type WordArraySliceP a = (ExState, (WordArray a)!, WordArrayIndex, WordArrayIndex)
+wordarray_slice: all(a :< DSE). WordArraySliceP a -> RR ExState (WordArray a) ()
+
+-- TODO: could be implemented in COGENT
+-- same as strtoul
+wordarray_u8_as_u32: (WordArray U8)! -> U32
+
+type WordArrayCloneP a b = (ExState, (WordArray a)!)
+wordarray_clone_rr: all(a :< DSE, b :< DSE). WordArrayCloneP a b -> RR ExState (WordArray b) ()
+
+type WordArraySetP a = (WordArray a, U32, U32, a)
+wordarray_set: all(a :< DSE). WordArraySetP a -> WordArray a
+
+-- dest, src, dest-off, src-off, len
+type WordArrayCopyP a = (WordArray a, (WordArray a)!, WordArrayIndex, WordArrayIndex, U32)
+wordarray_copy: all(a :< DSE). WordArrayCopyP a -> WordArray a
+
+-- Debugging only.  Printk a string.
+wordarray_print: CString! -> ()

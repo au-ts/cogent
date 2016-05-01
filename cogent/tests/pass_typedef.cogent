@@ -1,0 +1,35 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+type T1
+type T2
+type T3
+type S
+
+
+type V = < TAG_t1 T1 | TAG_t2 T2 | TAG_t3 T3 >
+
+type B = { a : U8, b : S } take ()
+
+type A = B
+
+type R = < TAG_t4 T1 | TAG_t5 A >
+
+bar : (A, B!) -> (Bool)
+
+foo : (A, B!, U32, T1!) -> < Fail (U32, U32) 
+                           | Success ({ a : U8, b : S } take (), T1!) >
+foo (x, y, e, t) =
+   let x' { b = vb } = x
+   in (3) == e
+      | True -> Success (let (x) = x' { b = vb } in (x, t))
+      | False -> let (x) = x' { b = vb } in let (z) = bar (x, y) in Fail (e, e)
+
+

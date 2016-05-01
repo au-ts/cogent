@@ -1,0 +1,26 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+include "../libgum/common.cogent"
+
+sum_body: (#{acc: U32, obsv: ()!, idx: U32}) -> LRR U32 ()
+sum_body #{..} = (acc + idx, Iterate())
+
+caller: (ExState) -> Result (ExState) (ExState)
+caller (ex) = 
+	let iter = seq32[U32, (), ()]
+  and (sum,r) = iter(#{frm = 0, to = 21, step = 1, f = sum_body, acc = (0), obsv = ()})
+  in r
+  | Break () -> Error (ex)
+  | Iterate () -> 
+  	let _ = _cogent_debug ("answer was ")
+  	and _ = _cogent_debug_u32 (sum)
+  	and _ = _cogent_debug ("\n")
+  	in Success (ex)

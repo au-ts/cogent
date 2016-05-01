@@ -1,0 +1,33 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+type A
+type B = <T1 U8 | T2 Bool>
+type C a b
+type D a = <T3 () | T4 a>
+type E = {f3 : A, f4 : B}
+
+f0 : all (a, b). C a b -> a
+
+f1 : all (a, b). C a b -> D a
+f1 c = let c' = f0[a,b] c in T4 c' 
+
+f2 : B -> D U8
+f2 | T1 a -> T4 a
+   | T2 b -> if b then T4 1 else T3 ()
+
+caller : C U8 Bool -> U32
+caller c = let x1 = f1[U8, Bool] c
+           and x2 = f2 (T1 3)
+            in x1 | T4 a -> x2 | T4 b -> if a == b then 0 else 1
+                               | T3 _ -> 2
+                  | _ -> 3
+
+

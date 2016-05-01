@@ -1,0 +1,263 @@
+/*
+ * @TAG(OTHER_GPL)
+ */
+
+/*
+Partially adapted from: <linux-kernel>/Documentation/rbtree.txt
+
+  Red-black Trees (rbtree) in Linux
+  January 18, 2007
+  Rob Landley <rob@landley.net>
+*/
+
+
+$ty:k $id:rbtnode_get_key($ty:((RbtNode k v)!) rnode)
+{
+        return rnode->key;
+}
+
+$ty:v $id:rbtnode_get_val($ty:((RbtNode k v)!) rnode)
+{
+        return rnode->value;
+}
+
+$ty:(RbtNode k v) $id:rbtnode_put_val($ty:((RbtNode k v, v)) args)
+{
+        args.p1->value = args.p2;
+        return args.p1;
+}
+
+$ty:(RbtNode k v) $id:rbtnode_put_key($ty:((RbtNode k v, k)) args)
+{
+        args.p1->key = args.p2;
+        return args.p1;
+}
+
+
+$ty:(R v! ()) $id:rbt_get_value($ty:(((Rbt k v)!, k!)) args)
+{
+        $ty:(R v! ()) ret;
+        struct rbt_node *node = args.p1->rbt.root;
+        $ty:(RbtNode k v) xnode;
+
+        while (node) {
+                /*xnode = container_of(node, *$ty:(RbtNode k v), node); */
+                xnode = (/*$ty:(RbtNode k v)*/void*) node;
+                if (args.p2 < xnode->key)
+                        node = node->rbt_left;
+                else if (args.p2 > xnode->key)
+                        node = node->rbt_right;
+                else {
+                        ret.tag = TAG_ENUM_Success;
+                        ret.Success = xnode->value;
+                        return ret;
+                }
+        }
+        ret.tag = TAG_ENUM_Error;
+        return ret;
+}
+
+
+
+/*
+type RbtModifyFP k v acc obsv value = #{prev:Option (RbtNode k v), val:value, acc:acc, obsv:obsv!}
+type RbtModifyF k v acc obsv value = RbtModifyFP k v acc obsv value -> (RbtNode k v, acc)
+type RbtModifyP k v acc obsv value = #{rbt:Rbt k v, key:k!, f: RbtModifyF k v acc obsv value, val:value, acc:acc, obsv:obsv!}
+
+rbt_modify: all (k :< DS, v :< DS,acc,obsv,value). RbtModifyP k v acc obsv value -> (Rbt k v, acc)
+*/
+
+$ty:(RbtModifyR k v acc) $id:rbt_modify($ty:(RbtModifyP k v acc obsv) args)
+{
+        $ty:(RbtModifyR k v acc) ret;
+        $ty:(RbtElemAO k v acc obsv) fargs;
+        $ty:((RbtNode k v, acc)) fret;
+        struct rbt_node **new = &(args.rbt->rbt.root), *parent = NULL;
+        $ty:(RbtNode k v) xnode;
+
+        fargs.acc = args.acc;
+        fargs.obsv = args.obsv;
+        /* Figure out where to put new node */
+        while (*new) {
+                xnode = (/*$ty:(RbtNode k v)*/void*) *new;
+                /* xnode = container_of(*new, struct idx_node, node); */
+
+                parent = *new;
+                if (args.key < xnode->key)
+                        new = &((*new)->rbt_left);
+                else if (args.key > xnode->key)
+                        new = &((*new)->rbt_right);
+                else {
+                        fargs.elem = xnode;
+                        fret = (($spec:(RbtModifyF k v acc obsv)) args.f)(fargs);
+                        /* FIXME If f frees and returns a new node the tree is inconsistent */
+                        /* Fix would be to remove the elem and and it afterwards.. */
+                        /* Or alternatively we could pass a abtract type with no constructor */
+                        ret.rbt = args.rbt;
+                        ret.optnode.tag = TAG_ENUM_Some;
+                        ret.optnode.Some = args.node;
+                        ret.acc = fret.p2;
+                        return ret;
+                }
+        } 
+        fargs.elem = args.node;
+        fret = (($spec:(RbtModifyF k v acc obsv)) args.f)(fargs);
+
+        xnode = fret.p1;
+        /* Add new node and rebalance tree. */
+        rbt_link_node(&xnode->node, parent, new);
+        rbt_insert_color(&xnode->node, &args.rbt->rbt);
+        ret.rbt = args.rbt;
+        ret.optnode.tag = TAG_ENUM_None;
+        ret.acc = fret.p2;
+        return ret;
+}
+
+/*
+rbt_create: all(k:< DS, v:< DS). ExState -> R (ExState, Rbt k v)  ExState
+rbt_free: all(k:< DS, v:< DS). (ExState, Rbt k v) -> ExState
+*/
+$ty:(RbtCreateR k v) $id:rbt_create($ty:(ExState) ex)
+{
+        $ty:(RbtCreateR k v) ret;
+
+        ret.Success.p2 = kzalloc(sizeof(*ret.Success.p2));
+        if (!ret.Success.p2) {
+                ret.tag = TAG_ENUM_Error;
+                ret.Error = ex;
+                return ret;
+        }
+        ret.tag = TAG_ENUM_Success;
+        ret.Success.p1 = ex;
+        return ret;
+}
+
+$ty:(ExState) $id:rbt_free($ty:((ExState, Rbt k v)) args)
+{
+        struct rbt_node *node;
+        for (node = rbt_first(&args.p2->rbt);
+             node;
+             node = rbt_first(&args.p2->rbt)) {
+                rbt_erase(node, &args.p2->rbt);
+                kfree(node);
+        }
+        return args.p1;
+}
+
+/*
+rbt_destroy: all (k :< DS, v :< DS,acc,obsv). #{rbt: Rbt k v, key:k!, f:RbtIterateDestroyF k v acc obsv, acc:acc, obsv:obsv!} -> (Rbt k v, acc)
+*/
+$ty:((Rbt k v, acc)) $id:rbt_cond_erase($ty:(RbtCondEraseP k v acc obsv) args)
+{
+        $ty:(RbtElemAO k v acc obsv) fargs;
+        $ty:((Rbt k v, acc)) fret;
+        struct rbt_node *node = args.rbt->rbt.root;
+        $ty:(RbtNode k v) xnode;
+        struct bool_t cond;
+
+        fret.p1 = args.rbt;
+        fret.p2 = args.acc;
+        while (node) {
+                xnode = ($ty:(RbtNode k v)) node;
+                if (args.key < xnode->key)
+                        node = node->rbt_left;
+                else if (args.key > xnode->key)
+                        node = node->rbt_right;
+                else {
+                        fargs.elem = xnode;
+                        fargs.acc = args.acc;
+                        fargs.obsv = args.obsv;
+                        cond = (($spec:(RbtCondF k v acc obsv)) args.cond)(fargs);
+                        bilbyfs_debug("rbt_cond_erase: found, cond = %d\n", cond.boolean);
+                        if (cond.boolean) {
+                            rbt_erase(node, &args.rbt->rbt);
+                            fret.p2 = (($spec:(RbtConsumeF k v acc obsv)) args.f)(fargs);
+                        }
+                        return fret;
+                }
+        }
+        bilbyfs_debug("rbt_cond_erase: not found\n");
+        return fret;
+}
+
+$ty:(R k ()) $id:rbt_next($ty:(((Rbt k v)!, k!)) args)
+{
+        $ty:(R k ()) ret;
+        struct rbt_node *node;
+        $ty:(RbtNode k v) xnode;
+        $ty:(RbtNode k v) xnode_greater = NULL;
+
+        node = args.p1->rbt.root;
+
+
+        /* Find a elem greater than @id then follow only left branches
+         * to find a lower id closer to @id.
+         */
+        while (node) {
+                xnode = ($ty:(RbtNode k v)) node;
+
+                if (args.p2 < xnode->key) {
+                        xnode_greater = xnode;
+                        node = node->rbt_left;
+                } else if (args.p2 >= xnode->key) {
+                        node = node->rbt_right;
+                }
+        }
+        if (!xnode_greater) {
+                bilbyfs_debug("rbt_next: %llx -> None\n", args.p2);
+                ret.tag = TAG_ENUM_Error;
+                return ret;
+        }
+        ret.tag = TAG_ENUM_Success;
+        ret.Success = xnode_greater->key;
+        bilbyfs_debug("rbt_next: %llx -> %llx\n", args.p2, xnode_greater->key);
+        return ret;
+}
+
+$ty:((Rbt k v, acc)) $id:rbt_filter($ty:(RbtFilterP k v acc obsv) args)
+{
+        $ty:((Rbt k v, acc)) ret;
+        struct rbt_node *node, *frmnode, *nxtnode;
+        $ty:(RbtNode k v) xnode;
+        $ty:(RbtElemAO k v acc obsv) fargs;
+        struct bool_t cond;
+
+        node = args.rbt->rbt.root;
+        while (node) {
+                xnode = ($ty:(RbtNode k v)) node;
+
+                if (args.frm < xnode->key) {
+                        frmnode = node;
+                        node = node->rbt_left;
+                } else if (args.frm > xnode->key) {
+                        node = node->rbt_right;
+                } else {
+                    frmnode = node;
+                    break;
+                }
+        }
+        xnode = ($ty:(RbtNode k v)) frmnode;
+        if (!frmnode || xnode->key > args.to) {
+            ret.p1 = args.rbt;
+            ret.p2 = args.acc;
+            return ret;
+        }
+
+        fargs.acc = args.acc;
+        fargs.obsv = args.obsv;
+        for (node = frmnode; node; node = nxtnode) {
+                nxtnode = rbt_next(node);
+                xnode = ($ty:(RbtNode k v)) node;
+                if (xnode->key > args.to)
+                        break;
+                fargs.elem = xnode;
+                cond = (($spec:(RbtCondF k v acc obsv)) args.cond)(fargs);
+                if (cond.boolean) {
+                        rbt_erase(node, &args.rbt->rbt);
+                        fargs.acc = (($spec:(RbtConsumeF k v acc obsv)) args.f)(fargs);
+                }
+        }
+        ret.p1 = args.rbt;
+        ret.p2 = fargs.acc;
+        return ret;
+}

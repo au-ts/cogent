@@ -1,0 +1,128 @@
+#
+# Copyright 2016, NICTA
+#
+# This software may be distributed and modified according to the terms of
+# the GNU General Public License version 2. Note that NO WARRANTY is provided.
+# See "LICENSE_GPLv2.txt" for details.
+#
+# @TAG(NICTA_GPL)
+#
+
+#+TITLE: COGENT Antiquotation in C
+
+* Cheatsheet (For new users, skip this section)
+
+~$id~: for function identifiers or type identifiers when defining them
+
+~$ty~: refer to a COGENT type
+
+~$exp~: call a COGENT function, which has to have exactly one argument, as in COGENT; any COGENT expressions
+
+~$spec~: specify the COGENT type of a C function (using typecast syntax), which is applied to exactly one argument
+
+
+* Modes in the compiler
+We have two different modes for handling antiquotation. One is "type mode", with command-line argument ~--infer-c-type~. In this mode,
+users can only define abstract parametric COGENT types. The output will be placed to pre-defined directory, one file per
+monomorphised type. Each file is ~#include~'ed by the generated ~.h~ file. Another mode is called "function mode", which comes with
+~--infer-c-func~ argument to the compiler. This mode is for everything else, and the output filename is derived from the input file name.
+
+* Function definition
+We can define an abstract function which has been declared in COGENT. For example, in COGENT we have:
+
+#+BEGIN_SRC
+foo : all (a, b). a -> b
+#+END_SRC
+
+Then in C, we can define function ~foo~ by
+
+#+BEGIN_SRC
+$ty:b $id:foo ($ty:a arg) {
+  // ...
+}
+#+END_SRC
+
+~$id, $ty~ are antiquotes for identifiers and types respectively. If the antiquoted code consists of only one single identifier 
+*starting with a lower-case letter*, then no parens are required (e.g. ~$ty:acc~), otherwise we have to write parens around it, 
+like ~$ty:(R a b)~ and ~$ty:(U32)~. Note: If the antiquoted type is unit or a tuple, then we have to
+have at least two pairs of parens, the inner one for the tuple, and the outer one for antiquotation.
+
+Functions defined using antiquotation have to be parametrically polymorphic or monomorphic. Users don't write ~all~ quantification.
+Type parameters, if any, are introduced implicitly by the corresponding declaration in COGENT, namely ~a~ and ~b~ in the above instance.
+The compiler then will generate one copy for each monomorphisation. Of course the function declarations will be the same as the function prototypes
+generated from COGENT code, which is the point of having this antiquotation mechanism. 
+
+In a function definition, other forms of antiquotes are supported. By ~exp:f~, we can invoke COGENT function ~f~. As in COGENT, if this function
+~f~ is polymorphic, then it has to be fully applied to types. To call higher-order functions, as the function and its argument are usually
+not given by COGENT antiquotes (i.e. they are C expressions), we cannot directly call it using the ~$exp~ antiquotation as above. 
+E.g. we have the following scenario:
+
+#+BEGIN_SRC
+void foo ($ty:((A -> B, A)) arg) {
+  // ...
+}
+#+END_SRC
+
+To apply the first component of the pair ~arg.p1~ to the second ~arg.p2~, in order to generate the dispatch function,
+we have to give the type of the function -- ~arg.p1~ -- to the compiler. We write 
+
+#+BEGIN_SRC
+(($spec:(A -> B)) arg.p1) (arg.p2);  // the parens around type specifier and function is necessary!
+#+END_SRC
+
+The syntax is actually for typecasting in C, we hijack (or better, embed) our semantics in it. This satisfies our principle that everything
+inside an antiquote is valid COGENT code.
+
+One thing also worth mentioning here is that, antiquoted functions (no matter first order or higher order) can only be applied to
+exactly one argument, as in COGENT.
+
+* Type declaration / Typedef
+
+Similarly, we can define *abstract* COGENT types using antiquotation. For example,
+
+#+BEGIN_SRC
+-- COGENT
+type R a b
+type T a b c
+
+// C
+struct $id:(R a b) {
+  // ...
+};
+
+typedef struct $id:(T x y z) {
+  // ...
+} $id:(T x y z);
+
+typedef struct $id:(R a b) $id:(R a b);
+
+#+END_SRC
+
+Most of the knowledge about it can be deduced from previous section, which will not be repeated here. One difference is that
+users need to write fully applied type constructors, namely with type arguements, and they have to be identical to those given in COGENT.
+When using ~typedef~, only one synonym can be given, if it's antiquoted. And it has to be the same as the type it is defined to.
+Something like ~typedef struct $id:(X a) $id:(Y a)~ is invalid.
+
+Non-parametric abstrct types cannot be used in this way, otherwise they will be put to the wrong output file. In order to refer to any
+COGENT types in the definition, what the users can do is to *NOT* antiquote the type name, and use it in the function mode, as the 
+type name in C will be exactly the same as that in COGENT (modulo namespace renaming). E.g.,
+
+#+BEGIN_SRC
+-- COGENT
+type R
+
+-- C
+struct $id:(C) { ... };  // wrong!
+struct C { ... };  // correct!
+#+END_SRC
+
+
+* ~#include~s
+If you have any header files in function mode that don't want to preprocess, use ~$esc:~ antiquote to escape.
+
+* Expressions
+
+We can antiquote any valid COGENT expressions, using ~$exp:~ antiquote. They will be turned to *statement-expression* in C.
+
+
+

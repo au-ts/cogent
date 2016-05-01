@@ -1,0 +1,48 @@
+#
+# Copyright 2016, NICTA
+#
+# This software may be distributed and modified according to the terms of
+# the GNU General Public License version 2. Note that NO WARRANTY is provided.
+# See "LICENSE_GPLv2.txt" for details.
+#
+# @TAG(NICTA_GPL)
+#
+
+./cogent -A SRC.cogent
+ 
+# -A implies:
+#  --table-c-type 
+#  -g 
+#  --type-proof 
+#  --shallow-desugar 
+#  --embedding-normal ===> --deep-normal --shallow-normal --scorres-normal 
+#  --normal-proof
+#  --mono-proof 
+#  --c-refinement ===> --ac-install --corres-setup --corres-proof 
+#  --all-refine
+#  --root 
+#  --build-info  
+
+Flags: [--root-dir=PATH/bilby] (for imports in thy files)  [--normalisation=knf] [--fake-header-dir=PATH/fake]
+       [--dist-dir=PATH/DIST]  [--proof-name=NAME] (for thy files) [--output-name=NAME] (for other files)
+
+-------------------------------------------------------------------------------------------------------
+
+For bilby (extra):
+
+--entry-funcs=FILE  --ext-types=FILE  --infer-c-funcs=FILE.. (.ac)  --infer-c-types=FILE.. (.ah)
+[--cpp=CPP]  [--cpp-args=CPP_ARGS]  [--abs-type-dir=DIR]  --proof-input-c=FILE
+
+-------------------------------------------------------------------------------------------------------
+
+Naming conventions:
+
+input cogent file: path/$SRC.cogent
+
+output c: $dist-dir/$SRC.c  $dist-dir/$SRC.h
+
+c type table: $dist-dir/$SRC.table
+
+Thy files: $dist-dir/$proof-name ++ $suffix (++ stage-suffix) .thy
+
+Default extensions: .afm .atm .sf .table .thy .c. .h .ac .ah

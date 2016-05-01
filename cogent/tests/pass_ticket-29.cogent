@@ -1,0 +1,41 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+type A
+type B
+type C
+type D
+
+type T = {a : A!, b : B!, c : C!, d : D!}
+
+foo : T -> T take (..)
+foo (t {..}) = t
+
+-- bar and baz are the same impl'n
+
+bar : T take (a,c) -> T take (..)
+bar (t {..}) = t
+
+baz : T take (..) -> T take (..)
+baz (t {..}) = t
+
+-- foo' and bar' are the same impl'n
+
+foo' : (T take (..), A!, B!, C!, D!) -> T
+foo' (t,a,b,c,d) = t {..}
+
+bar' : (T take (..), A!, C!) -> T take (b,d)
+bar' (t,a,c) = t {a,c}
+
+baz' : T -> T
+baz' t = t {..}
+
+
+

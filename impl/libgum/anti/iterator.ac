@@ -1,0 +1,110 @@
+/*
+ * Copyright 2016, NICTA
+ *
+ * This software may be distributed and modified according to the terms of
+ * the GNU General Public License version 2. Note that NO WARRANTY is provided.
+ * See "LICENSE_GPLv2.txt" for details.
+ *
+ * @TAG(NICTA_GPL)
+ */
+
+$ty:(IterationResult acc r s)
+$id:iterate ($ty:(#{
+	gen: Generator y r s acc obsv!,
+	cons: Consumer y r s acc obsv!,
+	acc: acc,
+	obsv: obsv!}) args) {
+	$ty:(#{acc: acc, obsv: obsv!}) generator_args = { .acc = args.acc, .obsv = args.obsv };	
+	$ty:(#{obj: y, acc: acc, obsv: obsv!}) consumer_args = { .obsv = args.obsv };
+
+	$ty:(IterationResult acc r s) ret;
+	$ty:(GeneratorResult y r s acc) generator_ret;
+	$ty:(ConsumerResult r s acc) consumer_ret;
+
+	while (1) {
+		// generate [the next] one
+		generator_ret = (($spec:(Generator y r s acc obsv)) args.gen) (generator_args);
+		ret.p1 = generator_ret.p1;
+
+		if (generator_ret.p2.tag == TAG_ENUM_Stop) {
+			ret.p2.tag = TAG_ENUM_Stop;
+			ret.p2.Stop = generator_ret.p2.Stop;
+			return ret;
+		} else if (generator_ret.p2.tag == TAG_ENUM_Return) {
+			ret.p2.tag = TAG_ENUM_Return;
+			ret.p2.Return = generator_ret.p2.Return;
+			return ret;
+		}
+
+		// consume it
+		consumer_args.acc = ret.p1;
+		consumer_args.obj = generator_ret.p2.Yield;
+		consumer_ret = (($spec:(Consumer y r s acc obsv)) args.cons) (consumer_args);
+
+		ret.p1 = consumer_ret.p1;
+
+		if (consumer_ret.p2.tag == TAG_ENUM_Stop) {
+			ret.p2.tag = TAG_ENUM_Stop;
+			ret.p2.Stop = consumer_ret.p2.Stop;
+			return ret;
+		} else if (consumer_ret.p2.tag == TAG_ENUM_Return) {
+			ret.p2.tag = TAG_ENUM_Return;
+			ret.p2.Return = consumer_ret.p2.Return;
+			return ret;
+		}
+
+		// update accumulators
+		generator_args.acc = ret.p1;
+	}
+}
+
+$ty:(IterationResult acc r s) 
+$id:iterate_do ($ty:((#{
+	init: y,
+	gen: Generator y r s acc obsv!,
+	cons: Consumer y r s acc obsv!,
+	acc: acc,
+	obsv: obsv!})) args) {
+	$ty:(#{acc: acc, obsv: obsv!}) generator_args = { .acc = args.acc, .obsv = args.obsv };	
+	$ty:(#{obj: y, acc: acc, obsv: obsv!}) consumer_args = { .obj = args.init, .acc = args.acc, .obsv = args.obsv };
+
+	$ty:(IterationResult acc r s) ret = { .p1 = args.acc };
+	$ty:(GeneratorResult y r s acc) generator_ret;
+	$ty:(ConsumerResult r s acc) consumer_ret;
+
+	while (1) {
+		// consume it
+		consumer_ret = (($spec:(Consumer y r s acc obsv)) args.cons) (consumer_args);
+		ret.p1 = consumer_ret.p1;
+
+		if (consumer_ret.p2.tag == TAG_ENUM_Stop) {
+			ret.p2.tag = TAG_ENUM_Stop;
+			ret.p2.Stop = consumer_ret.p2.Stop;
+			return ret;
+		} else if (consumer_ret.p2.tag == TAG_ENUM_Return) {
+			ret.p2.tag = TAG_ENUM_Return;
+			ret.p2.Return = consumer_ret.p2.Return;
+			return ret;
+		}
+
+		// update accumulators
+		generator_args.acc = ret.p1;
+
+		// generate [the next] one
+		generator_ret = (($spec:(Generator y r s acc obsv)) args.gen) (generator_args);
+		ret.p1 = generator_ret.p1;
+
+		if (generator_ret.p2.tag == TAG_ENUM_Stop) {
+			ret.p2.tag = TAG_ENUM_Stop;
+			ret.p2.Stop = generator_ret.p2.Stop;
+			return ret;
+		} else if (generator_ret.p2.tag == TAG_ENUM_Return) {
+			ret.p2.tag = TAG_ENUM_Return;
+			ret.p2.Return = generator_ret.p2.Return;
+			return ret;
+		}
+
+		consumer_args.obj = generator_ret.p2.Yield;
+		consumer_args.acc = ret.p1;
+	}
+}

@@ -1,0 +1,14 @@
+(*
+ * Copyright 2016, NICTA
+ *
+ * This software may be distributed and modified according to the terms of
+ * the GNU General Public License version 2. Note that NO WARRANTY is provided.
+ * See "LICENSE_GPLv2.txt" for details.
+ *
+ * @TAG(NICTA_GPL)
+ *)
+
+session "COGENTTests" = Deep_C_Static +
+  theories [quick_and_dirty]
+    Case FunFun FunFun2 Loop Middle_C Prim Split TakePut
+    (* FIXME: WordArrayTest *)

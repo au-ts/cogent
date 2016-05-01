@@ -1,0 +1,31 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+type B
+type A = { a : U8, b : B } take ()
+
+foo : (A) -> < Fail (U32, { a : U8, b : B } take (), U32, U16) 
+             | Success ({ a : U8, b : B } take ()) >
+foo (x) =
+   let x' { b = bv } = x
+   in let (x) = x' { b = bv }
+      in (x.a == 2
+         | True -> Success ()
+         | False -> Fail (42)) !x
+           | Success () -> Success (x)
+           | Fail (err) -> Fail (err, x, 2, 1)
+
+bar : (A) -> < Fail (U32, A) | Success (A) >
+bar (x) =
+   Success ((x.a == 2
+   | True -> Success ()
+   | False -> Fail (42)) !x
+   | Success () -> (x)
+   | Fail (err) -> (x))

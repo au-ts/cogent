@@ -1,0 +1,41 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+include "../libgum/common.cogent"
+
+-- FIXME should we use a type Node a = { val : a } instead of a
+
+type ListNode a 
+{-# cinline newListNode #-}
+newListNode: all(a). ExState -> R (ExState, ListNode a)  ExState
+{-# cinline freeListNode #-}
+freeListNode: all(a). (ExState, ListNode a) -> ExState
+
+{-# cinline listnode_get #-}
+listnode_get: all(a). (ListNode a)! -> a
+{-# cinline listnode_put #-}
+listnode_put: all(a). (ListNode a, a) -> ListNode a
+
+type List' a
+type List a = List' (ListNode a)
+{-# cinline list_create #-}
+list_create: all(a). (ExState) -> R (ExState, List a) (ExState) -- creates an empty list does not allocate
+
+type ListFreeP a = #{list:List a, f:FreeF (ListNode a), ex: ExState}
+{-# cinline list_free #-}
+list_free: all(a). ListFreeP a -> ExState -- list free
+{-# cinline list_add_node #-}
+list_add_node: all(a). (List a, ListNode a) -> List a
+
+type ListFoldF a acc obsv = ElemAO ((ListNode a)!) acc obsv -> acc
+type ListFoldP a acc obsv = #{list:(List a)!, f:ListFoldF a acc obsv, acc:acc, obsv:obsv!}
+{-# cinline list_fold #-}
+list_fold: all(a, acc, obsv). ListFoldP a acc obsv -> acc
+

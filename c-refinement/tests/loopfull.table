@@ -1,0 +1,3 @@
+TRecord [(TPrim (Num U32), False), (TPrim (Num U32), False)] Unboxed :=: t1
+TRecord [(TPrim (Num U32), True), (TPrim (Num U32), False)] Unboxed :=: t1
+TRecord [(TPrim (Num U32), False), (TPrim (Num U32), False), (TFun (TRecord [(TPrim (Num U32), False), (TPrim (Num U32), False)] Unboxed) (TPrim (Num U32)), False), (TPrim (Num U32), False)] Unboxed :=: t3

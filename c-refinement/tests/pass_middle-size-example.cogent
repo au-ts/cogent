@@ -1,0 +1,20 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+foo : ({ a : {a1 : U32, a2 : U32}, b : Bool }, Bool)
+       -> ({ a : {a1 : U32, a2 : U32}, b : Bool } take a, {a1 : U32, a2 : U32}, Bool, U32)
+foo (rec {b}, c) =
+  let rec' = if c then rec {b=c} else
+               let rec' {a} = rec {b=True}
+               and a' = a {a1 = 0}
+               in rec' {a = a'}
+   and rec' {a} = rec'
+   and a {a2} = a
+   in (rec', a {a2 = 0}, b, a2)

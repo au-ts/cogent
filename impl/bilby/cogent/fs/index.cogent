@@ -1,0 +1,29 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+include "bilbyfs.cogent"
+
+index_get_addr : (IndexState!, ObjId) -> R ObjAddr ErrCode
+index_get_addr(index_st, oid) =
+  rbt_get_value[ObjId, ObjAddr] (index_st.addrs, oid)
+  | Error () -> Error eNoEnt
+  | Success oaddr -> Success oaddr
+
+index_del_destroyer: RbtConsumeF ObjId ObjAddr ExState ()
+index_del_destroyer #{elem,acc=ex,obsv} =
+  (freeRbtNode[ObjId, ObjAddr](ex, elem))
+
+index_del_addr: (ExState, IndexState, ObjId) -> (ExState, IndexState)
+index_del_addr (ex, index_st {addrs}, oid) =
+  let true = rbtFTrue[ObjId, ObjAddr, ExState, ()]
+  and (addrs, ex) = rbt_cond_erase [ObjId, ObjAddr, ExState, ()]
+                      #{rbt=addrs, key=oid, cond=true, f=index_del_destroyer, acc=ex, obsv=()}
+  in (ex, index_st {addrs})
+  

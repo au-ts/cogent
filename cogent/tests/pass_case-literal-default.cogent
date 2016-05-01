@@ -1,0 +1,18 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+foo : (< TAG_a U8 
+       | TAG_b U16 
+       | TAG_c U32 >) -> < Success (< TAG_x U8 
+                                    | TAG_y < TAG_b U16 | TAG_c U32 > >) >
+foo (v) =
+   v
+   | TAG_a va -> Success (TAG_x va)
+   | d -> Success (TAG_y d)

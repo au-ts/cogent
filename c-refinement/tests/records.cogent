@@ -1,0 +1,49 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+-- Simple record manipulations: take, put, single field, multiple fields,
+-- unboxed, readonly, writable, etc.
+--
+-- Testcase for issue #96.
+--
+-- Build command:
+--   mkdir -p records-build
+--   cogent -A --root-dir=../.. --dist-dir=records-build --proof-name=COGENT_Rec_Test --fake-header-dir=../../cogent/lib tests/records.cogent
+--   isabelle build -d ../../l4v -d ../../cogent/isa -d records-build COGENT_Rec_Test_CorresProof
+
+take_w1: {x: {y: U8}} -> ({y: U8}, {x: {y: U8}} take x)
+take_w1 r {x} = (x, r)
+
+put_w1: ({y: U8}, {x: {y: U8}} take x) -> {x: {y: U8}}
+put_w1 (x, r) = r {x = x}
+
+take_w2: {x1: {y1: U16}, x2: {y2: U16}} -> ({y1: U16}, {x1: {y1: U16}, x2: {y2: U16}} take x1)
+take_w2 r {x1} = (x1, r)
+
+put_w2: ({y1: U16}, {x1: {y1: U16}, x2: {y2: U16}} take x1) -> {x1: {y1: U16}, x2: {y2: U16}}
+put_w2 (x1, r) = r {x1 = x1}
+
+take_r1: {x: {y: U8}}! -> U8
+take_r1 r = r.x.y
+
+take_r2: {x1: {y1: U16}, x2: {y2: U16}}! -> U16
+take_r2 r = r.x1.y1 + r.x2.y2
+
+take_u1: #{x: #{y: U8}} -> #{y: U8}
+take_u1 r {x} = x
+
+put_u1: (U8, #{x: #{y: U8}}) -> #{x: #{y: U8}}
+put_u1 (y, r {x}) = r {x = x {y = y}}
+
+take_u2: #{x1: #{y1: U16}, x2: #{y2: U16}} -> U16
+take_u2 r {x1, x2} = let x1 {y1} = x1 and x2 {y2} = x2 in y1 + y2
+
+put_u2: (U8, #{x1: #{y1: U16}, x2: #{y2: U16}}) -> #{x1: #{y1: U16}, x2: #{y2: U16}}
+put_u2 (y1, r {x1}) = r {x1 = x1 {y1 = y1}}

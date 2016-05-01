@@ -1,0 +1,25 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+type T1 = < Good U8 Bool | Bad >
+type T2 = < SuperGood T1 U32 U32 | KindOfBad U32 | Restart >
+type T3 = < Pretty (S U8 Bool) U32 | Ugly >
+
+type S a b
+
+foo : T1 -> U32
+foo | Good a b -> if b then a else 1
+    | Bad      -> 255
+
+bar : T2 -> T1
+bar t2 = t2
+  | SuperGood t1 n1 n2 -> t1
+  | KindOfBad err -> Bad
+  | Restart -> Good 0 True

@@ -1,0 +1,114 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+include "../libgum/common.cogent"
+
+type RbtNode k v
+{-# cinline newRbtNode #-}
+newRbtNode: all(k:< DS, v:< DS). ExState -> R (ExState, RbtNode k v)  ExState
+{-# cinline freeRbtNode #-}
+freeRbtNode: all(k:< DS, v:< DS). (ExState, RbtNode k v) -> ExState
+
+{-# cinline freeOptRbtNode #-}
+freeOptRbtNode: all(k:< DS, v:< DS). (ExState, Option (RbtNode k v)) -> ExState
+freeOptRbtNode(ex, optnode) =
+  optnode
+  | None () -> ex
+  | Some node ->
+    freeRbtNode[k,v](ex, node)
+
+{-# cinline rbtnode_get_key #-}
+rbtnode_get_key: all(k:< DS, v:<DS). (RbtNode k v)! -> k
+{-# cinline rbtnode_get_val #-}
+rbtnode_get_val: all(k:< DS, v:<DS). (RbtNode k v)! -> v
+{-# cinline rbtnode_put_key #-}
+rbtnode_put_key: all(k:< DS, v:<DS). (RbtNode k v, k) -> RbtNode k v
+{-# cinline rbtnode_put_val #-}
+rbtnode_put_val: all(k:< DS, v:<DS). (RbtNode k v, v) -> RbtNode k v
+
+type Rbt k v -- = #{root:RbtNode k v}
+type RbtCreateR k v = R (ExState, Rbt k v) ExState
+{-# cinline rbt_create #-}
+rbt_create: all(k:< DS, v:< DS). ExState -> RbtCreateR k v
+{-# cinline rbt_free #-}
+rbt_free: all(k:< DS, v:< DS). (ExState, Rbt k v) -> ExState
+
+-- We want to be able to allocate nodes outside this ADT interface
+-- so that we know that some operations like put or insert_or_replace
+-- never return an error.
+
+-- rbt_create(ex) -> Success (ex, rbt) | Error ex
+-- This function allocates a red-black tree, the only possible
+-- error is eNoMem.
+type RbtElemAO k v acc obsv = ElemAO (RbtNode k v) acc obsv
+type RbtModifyF k v acc obsv = RbtElemAO k v acc obsv -> (RbtNode k v, acc)
+type RbtModifyP k v acc obsv = #{rbt:Rbt k v, key:k!, f: RbtModifyF k v acc obsv, node:RbtNode k v, acc:acc, obsv:obsv!}
+type RbtModifyR k v acc = #{rbt:Rbt k v, optnode:Option (RbtNode k v), acc:acc}
+{-# cinline rbt_modify #-}
+rbt_modify: all (k :< DS, v :< DS,acc,obsv). RbtModifyP k v acc obsv -> RbtModifyR k v acc
+-- rbt_modify (rbt, key, modifier, acc, observables) -> rbt
+-- modifier(oldnode, acc, val) -> (newnode, acc)
+-- Assumption: the newnode returned by modifier will have the same key
+-- as @key parameter. If not, tree will become in inconsistent state.
+
+{-# cinline rbt_get_value #-}
+rbt_get_value: all (k :< DS, v :< DS). ((Rbt k v)!, k!) -> R v! ()
+-- rbt_get_value(rbt, key) -> Success value | Error ()
+-- Get a shareable value of from the tree, this operation returns an error if
+-- the key @key is not present in the tree.
+
+-- rbt_insert_or_replace: all (k :< DS, v :< DS). #{rbt:Rbt k v, key:k, node:RbtNode k v} -> 
+
+type RbtIterateF k v acc obsv rbrk = RbtElemAO k v acc obsv -> LoopResult (acc, RbtNode k v) (rbrk, RbtNode k v)
+-- rbt_iterate_loop_body(accumulators, observables, node)
+--   -> Iterate (accumulators, node) | Break (break_accumulators, node)
+{-# cinline rbt_iterate #-}
+rbt_iterate: all (k :< DS, v :< DS, acc, obsv, rbrk). #{rbt:Rbt k v, frm:k, to:k, f:RbtIterateF k v acc obsv rbrk, acc: acc, obsv: obsv!} -> LoopResult (Rbt k v, acc) (Rbt k v, rbrk)
+-- rbt_iterate(loop_body, tree, key_from, key_to, accumulators, obvservables)
+--   -> Iterate (tree, accumulator) | Break (tree, break_accumulator)
+
+type RbtIterateNoBreakF k v acc obsv = RbtElemAO k v acc obsv -> (acc, RbtNode k v)
+type RbtIterateNoBreakP k v acc obsv = #{rbt:Rbt k v, frm:k, to:k, f:RbtIterateNoBreakF k v acc obsv, acc: acc, obsv: obsv!}
+{-# cinline rbt_iterate_no_break #-}
+rbt_iterate_no_break: all (k :< DS, v :< DS, acc, obsv). RbtIterateNoBreakP k v acc obsv -> (Rbt k v, acc)
+-- same but no error/break possible here
+
+{-# cinline rbt_next #-}
+rbt_next: all (k :< DS, v :< DS). ((Rbt k v)!, k!) -> R k ()
+
+-- RbtConsumeF takes a RbtNode as parameter and doesn't return it.
+type RbtConsumeF k v acc obsv = RbtElemAO k v acc obsv -> acc
+type RbtCondF k v acc obsv = (RbtElemAO k v acc obsv)! -> Bool
+
+{-# cinline rbtFTrue #-}
+rbtFTrue: all(k:< DS, v :<DS, acc, obsv). RbtCondF k v acc obsv
+rbtFTrue _ = True
+
+-- rbt_cond_erase: allows removing a single element if the cond function returns true 
+type RbtCondEraseP k v acc obsv =
+  #{rbt: Rbt k v,
+    key:k!,
+    cond:RbtCondF k v acc obsv,
+    f:RbtConsumeF k v acc obsv,
+    acc:acc,
+    obsv:obsv!}
+{-# cinline rbt_cond_erase #-}
+rbt_cond_erase: all (k :< DS, v :< DS,acc,obsv). RbtCondEraseP k v acc obsv -> (Rbt k v, acc)
+
+type RbtFilterP k v acc obsv =
+  #{rbt:Rbt k v,
+    frm:k,
+    to:k,
+    cond:RbtCondF k v acc obsv, -- condition function indicated whether to delete or not (true = delete)
+    f:RbtConsumeF k v acc obsv,
+    acc:acc,
+    obsv:obsv!}
+{-# cinline rbt_filter #-}
+rbt_filter: all (k :< DS, v :< DS,acc,obsv). RbtFilterP k v acc obsv -> (Rbt k v, acc)

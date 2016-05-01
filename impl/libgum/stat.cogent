@@ -1,0 +1,114 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+-- from stat.h
+-- bit mask for the file type bit fields
+s_IFMT: U32
+s_IFMT = 0O170000
+
+-- socket
+s_IFSOCK: U32
+s_IFSOCK = 0O140000
+
+-- symbolic link
+s_IFLNK: U32
+s_IFLNK = 0O120000
+
+-- regular file
+s_IFREG: U32
+s_IFREG = 0O100000
+
+-- FIFO
+s_IFIFO: U32
+s_IFIFO = 0O010000
+
+-- block device
+s_IFBLK : U32
+s_IFBLK = 0O060000
+
+-- directory
+s_IFDIR : U32
+s_IFDIR = 0O040000
+
+-- character device
+s_IFCHR : U32
+s_IFCHR = 0O020000
+
+-- set-user-ID on execution
+s_ISUID : U32
+s_ISUID = 0O004000
+
+-- set-group-ID on execution
+s_ISGID : U32
+s_ISGID = 0O002000
+
+-- on directories, restricted deletion flag
+s_ISVTX : U32
+s_ISVTX = 0O001000 
+
+s_IRWXU : U32
+s_IRWXU = 0O0700
+
+s_IRUSR : U32
+s_IRUSR = 0O0400
+
+s_IWUSR : U32
+s_IWUSR = 0O0200
+
+s_IXUSR : U32
+s_IXUSR = 0O0100
+
+s_IRWXG : U32
+s_IRWXG = 0O0070
+
+s_IRGRP : U32
+s_IRGRP = 0O0040
+
+s_IWGRP : U32
+s_IWGRP = 0O0020
+
+s_IXGRP : U32
+s_IXGRP = 0O0010
+        
+
+s_IRWXO : U32
+s_IRWXO = 0O0007
+
+s_IROTH : U32
+s_IROTH = 0O0004
+
+s_IWOTH : U32
+s_IWOTH = 0O0002
+
+s_IXOTH : U32
+s_IXOTH = 0O0001
+
+s_IRWXUGO : U32
+s_IRWXUGO = (s_IRWXU .|. s_IRWXG .|. s_IRWXO)
+
+s_IRUGO:U32
+s_IRUGO =(s_IRUSR.|.s_IRGRP.|.s_IROTH)
+
+s_IWUGO: U32
+s_IWUGO =(s_IWUSR.|.s_IWGRP.|.s_IWOTH)
+
+s_IXUGO: U32
+s_IXUGO =(s_IXUSR.|.s_IXGRP.|.s_IXOTH)
+
+-- alexh: why x prefix? 
+-- alexh: 128 on Linux
+x_NOCMTIME: U32
+x_NOCMTIME = 0
+
+s_APPEND: U32
+s_APPEND = 4
+
+s_IMMUTABLE: U32
+s_IMMUTABLE = 8

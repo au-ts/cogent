@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<!--
+     Copyright 2016, NICTA
+
+     This software may be distributed and modified according to the terms of
+     the GNU General Public License version 2. Note that NO WARRANTY is provided.
+     See "LICENSE_GPLv2.txt" for details.
+
+     @TAG(NICTA_GPL)
+  -->
+
+<testsuite timeout="600" depends="cogent_compiler">
+    <!-- Simple test, just type-check the source files. -->
+    <test name="libgum_typecheck">./libgum_tc_test.sh</test>
+</testsuite>

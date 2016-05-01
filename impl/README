@@ -1,0 +1,87 @@
+#
+# Copyright 2016, NICTA
+#
+# This software may be distributed and modified according to the terms of
+# the GNU General Public License version 2. Note that NO WARRANTY is provided.
+# See "LICENSE_GPLv2.txt" for details.
+#
+# @TAG(NICTA_GPL)
+#
+
+Implementations of COGENT programs, etc
+======================================
+
+benchenv - Basic COGENT compilation environment for benchmarking, using bridge.py
+bilby   - Bilby filesystem. Includes:
+            * Prototype Linux driver in C
+            * COGENT implementation
+            * Proofs
+            * etc
+
+ext2    - Read/write ext2 implementation in COGENT.
+
+libgum  - Library for most COGENT programs. ADTs implemented in C, and antiquotation.
+
+
+Tutorial: Running BilbyFs on virtual machine
+===============================================
+
+Prerequisite: socat, virtualbox
+
+1. $ mkdir -p ~/vm/debian
+   Get those files from Sidney or Alex and put them into this folder
+    * Debian Testing.vbox
+    * Debian testing.vdi
+    * vmlinux
+    * Snapshots
+2. Run virtualbox
+   Go to "Settings", change the directories their counterparts on your machine
+3. Click "Start"
+   In virtual machine, select kernal-3.14.12-nicta1 in GRUB (need to be quick in order not to miss it)
+4. username and passwords are both "ertos" (without quotes, of course)
+5. Run the following commands in different terminals and keep them open
+   Ter1: $ socat -d -d ~/vm/debian/vmpipetesting pty
+   Ter2: $ socat -d -d ~/vm/debian/syslog stdout
+   The socat commands should return 0
+   Ter3: $ gdb -sil ~/vm/debian/vmlinux
+         (gdb) target remote /dev/pts/X
+   X is a number given by the first `socat' command
+6. In bilby/impl/bilby/cogent, compiler COGENT to C:
+   $ make gen  # to compile COGENT to C
+   In VM, open a terminal do the following: 
+   $ cd /media/sf_bilby/impl/bilby/cogent
+   You may need to run the following
+   $ ./vbpatch os/linux/wrapper_pp_inferred.c
+   Then in VM: 
+   $ make linux
+7. Open another terminal in VM
+   $ cd /home/ertos/test
+   $ ./start
+8. To test bilby, go to /home/ertos/test/disk
+   $ sudo -s
+   Then run:
+   # prove -r /media/sf_bilby/impl/bilby/test/fstest/tests/
+9. Ask Sidney
+
+
+
+Tutorial: Running ext2 on VM
+============================
+
+You will need to `apt-get install python-pycparser`
+
+Similar to the previuos section. In VM, run
+$ ./build linux  # make sure ./build directory has been removed
+$ sudo apt-get install gparted
+$ gparted-pkexec
+Inside the GUI program, choose `Device' --> `Create Partition Table' --> msdos
+Partition it, and apply the scheme.
+$ sudo -s
+Go to bilby/tools
+# ./tools/make-fsimg /dev/sdXY # The device just partitioned
+# insmod build/cogent.ko
+# mount -t cogent /dev/sda1 /mnt/
+To unmount, do
+# umount /mnt
+# rmmod cogent
+Finally, ask Alex

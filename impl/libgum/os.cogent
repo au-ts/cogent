@@ -1,0 +1,57 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+include "common.cogent"
+
+os_PAGE_CACHE_SIZE : U64
+os_PAGE_CACHE_SIZE = 4096
+
+os_PAGE_CACHE_MASK : U64
+os_PAGE_CACHE_MASK = complement (os_PAGE_CACHE_SIZE - 1)
+
+os_PAGE_CACHE_SHIFT: U64
+os_PAGE_CACHE_SHIFT = 12
+
+
+
+os_MAX_LFS_FILESIZE: U64
+
+-- if BITS_PER_LONG == 32
+os_MAX_LFS_FILESIZE = (((os_PAGE_CACHE_SIZE) << (32 - 1)) - 1)
+-- elif BITS_PER_LONG == 64
+--os_MAX_LFS_FILESIZE = 0x7fffffffffffffff
+-- endif
+
+os_MAX_FILESIZE: U64
+os_MAX_FILESIZE = os_MAX_LFS_FILESIZE
+
+type OSTimeSpec = #{
+  tv_sec  : U32,
+  tv_nsec : U32
+}
+
+u64_to_TimeSpec: U64 -> OSTimeSpec
+u64_to_TimeSpec v =
+  #{tv_sec=u64_to_u32(v >> 32), tv_nsec=u64_to_u32 v}
+
+{-# cinline os_get_current_time #-}
+os_get_current_time: ExState -> (ExState, OSTimeSpec)
+{-# cinline os_get_current_fsuid #-}
+os_get_current_fsuid: ExState! -> U32
+{-# cinline os_get_current_fsgid #-}
+os_get_current_fsgid: ExState! -> U32
+
+-- FIXME: should take ExState
+os_get_pid: () -> U32
+
+type OSDirContext
+
+
+type OSPageOffset = U64

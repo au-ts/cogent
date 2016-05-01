@@ -1,0 +1,27 @@
+#
+# Copyright 2016, NICTA
+#
+# This software may be distributed and modified according to the terms of
+# the GNU General Public License version 2. Note that NO WARRANTY is provided.
+# See "LICENSE_GPLv2.txt" for details.
+#
+# @TAG(NICTA_GPL)
+#
+
+How to compile BilbyFs?
+
+# Tested with linux-3.18.22. Similar version should work.
+
+Linux:
+
+1 Download linux sources from <https://www.kernel.org/> and decompress it, then `cd` to the target folder
+
+2 run `make menuconfig` and add MTD, UBI, etc as modules.
+
+3 run `make prepare && make modules_prepare` in the linux sources directory
+
+4 run `export KERNELDIR=path/of/linux/sources`
+
+5 run `make` either in the c/ directory to build bilbyfs.ko,
+  or in the cogent/ directory to build cgbilbyfs.ko.
+

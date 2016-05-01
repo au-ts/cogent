@@ -1,0 +1,28 @@
+/*
+ * Copyright 2016, NICTA
+ *
+ * This software may be distributed and modified according to the terms of
+ * the GNU General Public License version 2. Note that NO WARRANTY is provided.
+ * See "LICENSE_GPLv2.txt" for details.
+ *
+ * @TAG(NICTA_GPL)
+ */
+
+static inline $ty:(R (ExState, CoolType take (..)) (ExState)) $id:malloc_CoolType ($ty:(ExState) arg)
+{
+   $ty:(R (ExState, CoolType take (..)) ExState) ret;
+   ret.tag = TAG_ENUM_Success;
+   ret.Success.p1 = arg;
+   ret.Success.p2 = malloc (sizeof (*(ret.Success.p2)));
+   if (!ret.Success.p2) {
+     ret.tag = TAG_ENUM_Error;
+     ret.Error = arg;
+   }
+   return ret;
+}
+
+static inline $ty:(ExState) $id:free_CoolType ($ty:((ExState, CoolType take (..))) arg)
+{
+   free (arg.p2);
+   return arg.p1;
+}

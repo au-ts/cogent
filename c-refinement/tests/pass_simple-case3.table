@@ -1,0 +1,3 @@
+TSum [(''Atag'', TPrim (Num U8)), (''Btag'', TPrim (Num U8)), (''Ctag'', TPrim (Num U8))] :=: t1
+TSum [(''Btag'', TPrim (Num U8)), (''Ctag'', TPrim (Num U8))] :=: t2
+TSum [(''Ctag'', TPrim (Num U8))] :=: t3

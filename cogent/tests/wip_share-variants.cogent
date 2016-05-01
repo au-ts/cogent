@@ -1,0 +1,92 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+type T1
+type T2
+type T3
+type T4
+
+type V = <A T1 | B <X T2 | Y T3> | X T2 | Y T4>
+type V' = <A T1 | B <X T2 | Y T3> | X #T2 | Y T4>
+
+-- con
+con1 : T1 -> V
+con1 t1 = A t1
+
+con2 : <X T2 | Y T3> -> V
+con2 b = B b
+
+con3 : T2 -> V
+con3 t2 = X t2
+
+-- case/esac
+case1 : V -> <M T1 | N <B <X T2| Y T3> | X T2 | Y T4>>
+case1 | A v -> M v
+      | e'   -> N e'
+
+case2 : V -> <M <X T2| Y T3> | N T1 | L T2 | K T4>
+case2 | B v -> M v
+      | A v -> N v
+      | X v -> L v
+      | Y v -> K v
+
+esac1 : <A T1> -> T1
+esac1 | A v -> v
+
+esac2 : <B <X T2 | Y T3>> -> <X T2| Y T3>
+esac2 | B v -> v
+
+-- prmt
+prmt1 : (U32, <X Bool | Y Char>, U8) -> <A U32 | B <X Bool | Y Char> | X U8>
+prmt1 (a,b,c) = 
+  if a > 2
+    then A a
+    else if c > 3
+         then B b
+         else X c
+
+-- ///////////////////// Use V' ///////////////////////////
+
+-- con
+con1' : T1 -> V'
+con1' t1 = A t1
+
+con2' : <X T2 | Y T3> -> V'
+con2' b = B b
+
+con3' : #T2 -> V'
+con3' t2 = X t2
+
+-- case/esac
+case1' : V' -> <M T1 | N <B <X T2| Y T3> | X #T2 | Y T4>>
+case1' | A v -> M v
+       | e'   -> N e'
+
+case2' : V' -> <M <X T2| Y T3> | N T1 | L #T2 | K T4>
+case2' | B v -> M v
+       | A v -> N v
+       | X v -> L v
+       | Y v -> K v
+
+esac1' : <A T1> -> T1
+esac1' | A v -> v
+
+esac2' : <B <X T2 | Y T3>> -> <X T2| Y T3>
+esac2' | B v -> v
+
+-- prmt
+prmt1' : (U32, <X Bool | Y Char>, U8) -> <A U32 | B <X Bool | Y Char> | X U8>
+prmt1' (a,b,c) = 
+  if a > 2
+    then A a
+    else if c > 3
+         then B b
+         else X c
+

@@ -1,0 +1,25 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+-- Build instructions:
+--   cogent -gfun_dsl --infer-c-func=fun.ac fun.cogent
+--   cat fun_dsl.c fun_pp_inferred.c >fun.c
+--   cogent --type-proof=FunFun fun.cogent >FunFun.thy
+-- (HOL already has a theory named Fun.)
+abs : () -> (() -> ())
+
+f : () -> ()
+f x = abs x x
+
+i : () -> ()
+i x = x
+
+i2 : () -> ()
+i2 x = i x

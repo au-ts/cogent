@@ -1,0 +1,21 @@
+/*
+ * Copyright 2016, NICTA
+ *
+ * This software may be distributed and modified according to the terms of
+ * the GNU General Public License version 2. Note that NO WARRANTY is provided.
+ * See "LICENSE_GPLv2.txt" for details.
+ *
+ * @TAG(NICTA_GPL)
+ */
+
+#define CRCINIT 0xFFFFFFFFU
+$ty:(U32) $id:crc32_buf($ty:(Crc32bufP) args)
+{
+    u32 arrlen = args.buf->data->len;
+    
+    if (!arrlen || args.frm >= args.to)
+        return CRCINIT;
+    if (args.to > arrlen)
+        args.to = arrlen;
+    return crc32(CRCINIT, &args.buf->data->values[args.frm], args.to - args.frm);
+}

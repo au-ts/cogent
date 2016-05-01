@@ -1,0 +1,26 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+e1: #{f1:U32,f2:U64} -> ()
+e1 (u {f1,f2}) = ()
+
+e2: #{f1:U32,f2:U64} -> ()
+e2 u{..} = ()
+
+e3: #{f1:U32,f2:U64} -> ()
+e3 u =
+  if u.f1 == 0 then
+   ()
+  else if u.f2 == 0 then
+   ()
+  else ()
+
+e5 : #{f1:U32,f2:U64} -> U64
+e5 u = u.f1 + u.f2

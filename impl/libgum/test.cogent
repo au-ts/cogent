@@ -1,0 +1,25 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+
+test_stack_probe: () -> ()
+
+test_time_start: () -> ()
+test_time_end: () -> ()
+
+include "common.cogent"
+
+test_FILE_READONLY : U32
+test_FILE_READONLY = 0
+
+type File
+test_file_open: (ExState, String, String) -> R (ExState, File) ExState
+test_file_close: (ExState, File) -> ExState
+test_file_read_next_u32: File -> R (File, U32) File

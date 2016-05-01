@@ -1,0 +1,49 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+type A
+type Option a = <Some a | None>
+
+f : (A, Option A) -> (A, Option A)
+f (a, opt_a) = 
+  let a = opt_a | Some _ -> a
+                | None _ -> a !opt_a
+   in (a, opt_a)
+
+{- Wrong! 
+-- Binding 
+--     opt_a 
+-- cannot escape let-banged opt_a
+
+g : (A, Option A) -> (A, Option A)
+g (a, opt_a) = 
+  let a = opt_a !opt_a | Some _ -> a
+                       | None _ -> a
+   in (a, opt_a)
+-}
+
+sizeA : A ! -> U32
+
+bar : A -> A
+bar a = sizeA a > 4 !a | True -> a
+                       | False -> a
+
+{- Wrong! 
+-- Binding
+--    (sizeA[]) a > 4
+--    | True -> a
+--    | _ -> a
+-- cannot escape let-banged a
+
+baz : A -> A
+baz a = let x = sizeA a > 4 | True -> a
+                            | False -> a !a
+         in x
+-}

@@ -1,0 +1,58 @@
+#!/bin/bash
+#
+# Copyright 2016, NICTA
+#
+# This software may be distributed and modified according to the terms of
+# the GNU General Public License version 2. Note that NO WARRANTY is provided.
+# See "LICENSE_GPLv2.txt" for details.
+#
+# @TAG(NICTA_GPL)
+#
+
+cd "$(dirname "${BASH_SOURCE[0]}")"
+source ../../../build-env.sh
+
+check_output() {
+  local text ret
+  text=$("$@" 2>&1)
+  ret=$?
+  if [[ $ret != 0 ]]
+  then
+    echo "$text"
+  fi
+  return $ret
+}
+
+if [[ $# -lt 1 ]]
+then
+  echo $0 " [tc|shallow] [cogent-flags]"
+  exit 1
+fi
+
+TEST=$1
+shift
+COGENT_FLAGS=$@
+
+case $TEST in
+tc)
+  echo '=== Type-checking BilbyFs and generating C code ==='
+  (cd ../cogent; check_output make gen)
+  r=$?
+  if [[ $r = 0 ]]
+  then
+    echo passed
+  fi
+;;
+
+shallow)
+  echo '=== Generating BilbyFs shallow-embedding and type-check in Isabelle ==='
+  (cd ../proof ; check_output make COGENT_FLAGS=$COGENT_FLAGS)
+  r=$?
+  if [[ $r = 0 ]]
+  then
+    echo passed
+  fi
+;;
+esac
+
+exit $r

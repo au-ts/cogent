@@ -1,0 +1,2 @@
+got item with a = 42 and b = 43
+freeing some element

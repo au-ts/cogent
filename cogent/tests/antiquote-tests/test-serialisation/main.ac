@@ -1,0 +1,25 @@
+/*
+ * Copyright 2016, NICTA
+ *
+ * This software may be distributed and modified according to the terms of
+ * the GNU General Public License version 2. Note that NO WARRANTY is provided.
+ * See "LICENSE_GPLv2.txt" for details.
+ *
+ * @TAG(NICTA_GPL)
+ */
+
+$esc:(#include <adt.h>)
+#include <dummy.h>
+#include <generated.c>
+
+$esc:(#include <adt_platform.c>)
+#include <libgum/wordarray-plat.ac>
+#include <libgum/test.ac>
+#include <libgum/wordarray.ac>
+#include <libgum/alloc-plat.ac>
+#include <libgum/os-plat.ac>
+
+int main(void) {
+ $exp:caller(0);
+ return 0;
+}

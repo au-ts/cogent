@@ -1,0 +1,41 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+include "common.cogent"
+
+_cogent_log: (U32, String) -> ()
+_cogent_log (l, x) = if cmp_log_lvl l then _cogent_debug x else ()
+
+_cogent_log_u64: (U32, U64) -> ()
+_cogent_log_u64 (l, x) = if cmp_log_lvl l then _cogent_debug_u64 x else ()
+
+_cogent_log_u64_hex: (U32, U64) -> ()
+_cogent_log_u64_hex (l, x) = if cmp_log_lvl l then _cogent_debug_u64_hex x else ()
+
+_cogent_log_u32: (U32, U32) -> ()
+_cogent_log_u32 (l, x) = if cmp_log_lvl l then _cogent_debug_u32 x else ()
+
+_cogent_log_u32_hex: (U32, U32) -> ()
+_cogent_log_u32_hex (l, x) = if cmp_log_lvl l then _cogent_debug_u32_hex x else ()
+
+_cogent_log_u32_oct: (U32, U32) -> ()
+_cogent_log_u32_oct (l, x) = if cmp_log_lvl l then _cogent_debug_u32_oct x else ()
+
+_cogent_log_bool: (U32, Bool) -> ()
+_cogent_log_bool (l, bool) = if cmp_log_lvl l then _cogent_debug_bool (bool) else ()
+
+_cogent_log_u16: (U32, U16) -> ()
+_cogent_log_u16 (l, x) = _cogent_log_u32 (l, u16_to_u32 x)
+
+_cogent_log_u8: (U32, U8) -> ()
+_cogent_log_u8 (l, x) = _cogent_log_u32 (l, u8_to_u32 x)
+
+cmp_log_lvl : U32 -> Bool
+cmp_log_lvl l = (l .&. _COGENT_LOG_LEVEL) /= 0

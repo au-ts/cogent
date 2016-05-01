@@ -1,0 +1,138 @@
+/*
+ * Copyright 2016, NICTA
+ *
+ * This software may be distributed and modified according to the terms of
+ * the GNU General Public License version 2. Note that NO WARRANTY is provided.
+ * See "LICENSE_GPLv2.txt" for details.
+ *
+ * @TAG(NICTA_GPL)
+ */
+
+$esc:(#include <adt.h>)
+$esc:(#include <wrapper.h>)
+#include <generated.h>
+
+$ty:(R OSPage ()) $id:ospage_read_mapping ($ty:((VfsMemoryMap, U64)) args) {
+    $ty:(R OSPage ()) ret;
+    unit_t unit;
+
+    struct address_space* mapping = args.p1;
+    // printk ("reading mapping %p\n", mapping);
+    unsigned long n = args.p2;
+
+    if (!mapping) {
+        printk ("read mapping failed - no mapping\n");
+        ret.tag = TAG_ENUM_Error;
+        ret.Error = unit;
+        return ret;
+    }
+    
+    struct page* page = read_mapping_page (mapping, n, NULL);
+    if (IS_ERR (page)) {
+        printk ("failed on page %p\n", page);
+        ospage_release (page);
+
+        ret.tag = TAG_ENUM_Error;
+        ret.Error = unit;
+    } else {
+        printk ("worked! got page %p\n", page);
+        ret.tag = TAG_ENUM_Success;
+        ret.Success = page;
+    }
+
+    return ret;
+}
+
+struct unit_t $id:ospage_release ($ty:(OSPage) page) {
+    struct unit_t ret;
+
+    printk ("releasing page %p\n", page);
+    page_cache_release (page);
+    return ret;
+}
+
+$ty:(R (OSPageBuffer) OSPage) $id:ospage_map ($ty:(OSPage) page) {
+    $ty:(R (OSPageBuffer) OSPage) ret;
+
+    kmap (page);
+    if (PageError (page)) {
+        printk ("had page error on map %p\n", page);
+        kunmap (page);
+
+        ret.tag = TAG_ENUM_Error;
+        ret.Error = page;
+    } else {
+        printk ("kmapped page %p...\n", page);
+        ret.tag = TAG_ENUM_Success;
+        ret.Success = page;
+    }
+
+    return ret;
+}
+
+$ty:(OSPage) $id:ospage_unmap ($ty:(OSPageBuffer) pagebuf) {
+    printk ("unmapping page %p\n", pagebuf);
+    kunmap (pagebuf);
+    return pagebuf;
+}
+
+$ty:(Result (U32, U32) ()) $id:ospagebuffer_deserialise_Ple32 ($ty:((OSPageBuffer!, U32)) args) {
+    $ty:(Result (U32, U32) ()) ret;
+    
+    void* addr = page_address (args.p1);
+    u32* final_addr = (u32*)(addr + args.p2);
+
+    // printk ("getting u32 from page %p @ addr %p + off %d = addr %p\n", args.p1, addr, args.p2, final_addr);
+
+    u32 raw = *final_addr;
+    u32 host = le32_to_cpu (raw);
+
+    // printk ("value was %d\n", host);
+
+    ret.tag = TAG_ENUM_Success;
+    ret.Success.p1 = host;
+    ret.Success.p2 = args.p2 + sizeof (u32);
+
+    return ret;
+}
+
+// deserialise_Ple16: (FsBuffer!, U32) -> Result (U16, U32) ()
+$ty:(Result (U16, U32) ()) $id:ospagebuffer_deserialise_Ple16 ($ty:((OSPageBuffer!, U32)) args) {
+    $ty:(Result (U16, U32) ()) ret;
+    
+    void* addr = page_address (args.p1);
+    u16* final_addr = (u16*)(addr + args.p2);
+
+    // printk ("getting u16 from page %p @ addr %p + off %d = addr %p\n", args.p1, addr, args.p2, final_addr);
+
+    u16 raw = *final_addr;
+    u16 host = le16_to_cpu (raw);
+
+    // printk ("value was %d\n", host);
+
+    ret.tag = TAG_ENUM_Success;
+    ret.Success.p1 = host;
+    ret.Success.p2 = args.p2 + sizeof (u16);
+
+    return ret;
+}
+
+// deserialise_U8 (FsBuffer!, U32) -> Result (U8, U32) ()
+$ty:(Result (U8, U32) ()) $id:ospagebuffer_deserialise_U8 ($ty:((OSPageBuffer!, U32)) args) {
+    $ty:(Result (U8, U32) ()) ret;
+
+    void* addr = page_address (args.p1);
+    u8* final_addr = (u8*)(addr + args.p2);
+
+    // printk ("getting u8 from page %p @ addr %p + off %d = addr %p\n", args.p1, addr, args.p2, final_addr);
+
+    u8 raw = *final_addr;
+
+    // printk ("value was %d\n", raw);
+
+    ret.tag = TAG_ENUM_Success;
+    ret.Success.p1 = raw;
+    ret.Success.p2 = args.p2 + sizeof (u8);
+
+    return ret;
+}

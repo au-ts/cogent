@@ -1,0 +1,73 @@
+/*
+ * Copyright 2016, NICTA
+ *
+ * This software may be distributed and modified according to the terms of
+ * the GNU General Public License version 2. Note that NO WARRANTY is provided.
+ * See "LICENSE_GPLv2.txt" for details.
+ *
+ * @TAG(NICTA_GPL)
+ */
+
+$ty:(R (ExState, List a) ExState) $id:list_create($ty:(ExState) args)
+{
+        $ty:(List a) list = kzalloc(sizeof(*list));
+        $ty:(R (ExState, List a) ExState) ret;
+
+        if (!list) {
+                ret.tag = TAG_ENUM_Error;
+                ret.Error = args;
+                return ret;
+        }
+        ret.tag = TAG_ENUM_Success;
+        ret.Success.p1 = args;
+        ret.Success.p2 = list;
+        return ret;
+} 
+
+$ty:(ExState) $id:list_free($ty:(ListFreeP a) args)
+{
+        $ty:(ListNode a) curr, next;
+
+        for (curr = args.list->head; curr; curr = next) {
+                next = curr->next;
+                kfree(curr);
+                curr = next;
+        }
+        kfree(args.list);
+        return args.ex;
+}
+
+$ty:(List a) $id:list_add_node($ty:((List a, ListNode a)) args)
+{
+        $ty:(List a) list = args.p1;
+        $ty:(ListNode a) node = args.p2;
+
+        node->next = list->head;
+        list->head = node;
+        return list;
+}
+
+$ty:(acc) $id:list_fold($ty:(ListFoldP a acc obsv) args)
+{
+        $ty:(ListNode a) curr;
+        $ty:(ElemAO ((ListNode a)!) acc obsv) fargs;
+
+        fargs.acc = args.acc;
+        fargs.obsv = args.obsv;
+        for (curr = args.list->head; curr; curr = curr->next) {
+                fargs.elem = curr;
+                fargs.acc = (($spec:(ListFoldF a acc obsv)) args.f)(fargs);
+        }
+        return fargs.acc;
+}
+
+$ty:a $id:listnode_get($ty:((ListNode a)!) node)
+{
+	return node->val;
+}
+
+$ty:(ListNode a) $id:listnode_put($ty:((ListNode a, a)) args)
+{
+    args.p1->val = args.p2;
+	return args.p1;
+}

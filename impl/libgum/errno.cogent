@@ -1,0 +1,134 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+include "../libgum/common.cogent"
+
+ePerm : ErrCode
+ePerm = 1
+
+eNoEnt : ErrCode
+eNoEnt = 2
+
+eSrch : ErrCode
+eSrch = 3
+
+eIntr : ErrCode
+eIntr = 4
+
+eIO : ErrCode
+eIO = 5
+
+eNXIO : ErrCode
+eNXIO = 6
+
+eTooBig : ErrCode
+eTooBig = 7
+
+eNoExec : ErrCode
+eNoExec = 8
+
+eBadF : ErrCode
+eBadF = 9
+
+eChild : ErrCode
+eChild = 10
+
+eAgain : ErrCode
+eAgain = 11
+
+eAcces : ErrCode
+eAcces = 13
+
+eNoMem : ErrCode
+eNoMem = 12
+
+eFault : ErrCode
+eFault = 14
+
+eNotBlk : ErrCode
+eNotBlk = 15
+
+eBusy : ErrCode
+eBusy = 16
+
+eExist : ErrCode
+eExist = 17
+
+eXDev : ErrCode
+eXDev = 18
+
+eNoDev : ErrCode
+eNoDev = 19
+
+eNotDir : ErrCode
+eNotDir = 20
+
+eIsDir : ErrCode
+eIsDir = 21
+
+eInval : ErrCode
+eInval = 22
+
+eNFile : ErrCode
+eNFile = 23
+
+eMFile : ErrCode
+eMFile = 24
+
+eNoTty : ErrCode
+eNoTty = 25
+
+eTxtBsy : ErrCode
+eTxtBsy = 26
+
+eFBig : ErrCode
+eFBig = 27
+
+eNoSpc : ErrCode
+eNoSpc = 28
+
+eSPipe : ErrCode
+eSPipe = 29
+
+eRoFs : ErrCode
+eRoFs = 30
+
+eMLink : ErrCode
+eMLink = 31
+
+ePipe : ErrCode
+ePipe = 32
+
+eDom : ErrCode
+eDom = 33
+
+eRange : ErrCode
+eRange = 34
+
+eNameTooLong : ErrCode
+eNameTooLong = 36
+
+eNotEmpty : ErrCode
+eNotEmpty = 39
+
+eNoData: ErrCode
+eNoData = 42
+-- FIXME
+
+eCrap : ErrCode
+eCrap = 66
+
+eOverflow : ErrCode
+eOverflow = 75
+
+eRecover: ErrCode
+-- FIXME
+eRecover = 88
+

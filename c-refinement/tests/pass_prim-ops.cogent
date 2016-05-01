@@ -1,0 +1,93 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+
+ops32 : U32 -> U32
+ops32 x = let
+    y = x + 1
+    and z = y * x
+    and x = z - y
+    and y = x .|. z
+    and z = y .&. x
+    and x = y .^. x
+    and y = complement x
+    and z = x << y
+    and x = y >> z
+    and y = x / z
+    and z = x % y
+    in if x < y && y <= z && x == z
+    then 0
+    else 1
+
+ops16 : U16 -> U16
+ops16 x = let
+    y = x + 1
+    and z = y * x
+    and x = z - y
+    and y = x .|. z
+    and z = y .&. x
+    and x = y .^. x
+    and y = complement x
+    and z = x << y
+    and x = y >> z
+    and y = x / z
+    and z = x % y
+    in if x < y && y <= z && x == z
+    then 0
+    else 1
+
+ops64 : U64 -> U64
+ops64 x = let
+    y = x + 1
+    and z = y * x
+    and x = z - y
+    and y = x .|. z
+    and z = y .&. x
+    and x = y .^. z
+    and y = complement x
+    and z = x << y
+    and x = y >> z
+    and y = x / z
+    and z = x % y
+    in if x < y && y <= z && x == z
+    then 0
+    else 1
+
+
+ops8 : U8 -> U8
+ops8 x = let
+    y = x + 1
+    and z = y * x
+    and x = z - y
+    and y = x .|. z
+    and z = y .&. x
+    and x = y .^. x
+    and y = complement x
+    and z = x << y
+    and x = y >> z
+    and y = x / z
+    and z = x % y
+    in if x < y && y <= z && x == z
+    then 0
+    else 1
+
+bool_ops : U32 -> Bool
+bool_ops x = let
+    y = x + 1
+    and z = y * x
+    and a = x < y
+    and b = y <= z
+    and c = z == x
+    and a = b && c
+    and b = a || c
+    and c = not b || True
+    and a = not c && False
+    in a
+

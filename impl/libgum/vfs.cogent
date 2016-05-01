@@ -1,0 +1,430 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+include "wordarray.cogent"
+include "stat.cogent"
+include "os.cogent"
+
+type VfsInodeAbstract
+
+type VfsInode = {
+  vfs: #VfsInodeAbstract,
+  fs: #FsInode
+}
+
+type VfsMountInfoFlag = U32
+
+vfs_MS_RDONLY : VfsMountInfoFlag
+vfs_MS_RDONLY = 1
+
+type VfsMountInfo = {
+  s_magic : U64,
+  s_flags : VfsMountInfoFlag,
+  s_max_links: U32,
+  s_maxbytes : U64,
+  s_blocksize : U32,
+  s_blocksize_bits : U32
+}
+
+type VfsType = U32
+
+vfs_type_sock: VfsType
+vfs_type_sock = s_IFSOCK
+
+vfs_type_link: VfsType
+vfs_type_link = s_IFLNK
+
+vfs_type_dir: VfsType
+vfs_type_dir = s_IFDIR
+
+vfs_type_reg: VfsType
+vfs_type_reg = s_IFREG
+
+vfs_type_blk: VfsType
+vfs_type_blk = s_IFBLK
+
+vfs_type_chr: VfsType
+vfs_type_chr = s_IFCHR
+
+vfs_type_fifo: VfsType
+vfs_type_fifo = s_IFIFO
+
+type VfsMode = U32
+type VfsSize = U64
+type VfsIno = U32
+
+type VfsDevice
+
+vmode_is_dir: VfsMode -> Bool
+vmode_is_dir mode = (mode .&. s_IFMT) == vfs_type_dir
+
+vmode_is_chr: VfsMode -> Bool
+vmode_is_chr mode = (mode .&. s_IFMT) == vfs_type_chr
+
+vmode_is_blk: VfsMode -> Bool
+vmode_is_blk mode = (mode .&. s_IFMT) == vfs_type_blk
+
+vmode_is_reg: VfsMode -> Bool
+vmode_is_reg mode = (mode .&. s_IFMT) == vfs_type_reg
+
+
+type VfsFlags = U32
+
+vfs_inode_is_sync_dir: (VfsInode!) -> Bool
+vfs_inode_is_sync: (VfsInode!) -> Bool
+
+-- returns a new inode
+{-# cinline vfs_inode_new #-}
+vfs_inode_new: (ExState) -> R (ExState, VfsInode take fs) ExState
+
+{-# cinline vfs_inode_get #-}
+vfs_inode_get: (ExState, VfsIno) -> (ExState, <New (VfsInode take fs) | Existing VfsInode | None ()>)
+
+{-# cinline vfs_inode_put #-}
+vfs_inode_put: (#{ex: ExState, inode: VfsInode}) -> (ExState)
+
+{-# cinline vfs_inode_put_taken #-}
+vfs_inode_put_taken: (#{ex: ExState, inode: VfsInode take fs}) -> (ExState)
+
+-- sugar
+vfs_inode_put_tuple: (ExState, VfsInode) -> ExState
+vfs_inode_put_tuple (ex, inode) = vfs_inode_put #{ex, inode}
+
+{-# cinline vfs_inode_bad #-}
+vfs_inode_bad: (#{ex: ExState, inode: VfsInode}) -> (ExState)
+
+{-# cinline vfs_inode_bad_taken #-}
+vfs_inode_bad_taken: (#{ex: ExState, inode: VfsInode take fs}) -> (ExState)
+
+vfs_inode_make_bad: VfsInode -> VfsInode
+
+{-# cinline vfs_inode_insert #-}
+vfs_inode_insert: (#{ex: ExState, inode: VfsInode}) -> R (ExState, VfsInode) (ExState, VfsInode)
+
+{-# cinline vfs_inode_mark_dirty #-}
+vfs_inode_mark_dirty: (ExState, VfsInode) -> (ExState, VfsInode)
+
+{-# cinline vfs_inode_set_ino #-}
+vfs_inode_set_ino:  (VfsInode, VfsIno) -> (VfsInode)
+{-# cinline vfs_inode_set_mode #-}
+vfs_inode_set_mode:  (VfsInode, VfsMode) -> (VfsInode)
+{-# cinline vfs_inode_set_nlink #-}
+vfs_inode_set_nlink: (VfsInode, U32) -> (VfsInode)
+{-# cinline vfs_inode_set_blocks #-}
+vfs_inode_set_blocks: (VfsInode, U64) -> (VfsInode)
+
+{-# cinline vfs_inode_set_bytes #-}
+-- number of bytes in last block of file
+vfs_inode_set_bytes: (VfsInode, U16) -> (VfsInode)
+
+vfs_inode_link_device: (VfsInode, VfsMode, #VfsDevice) -> VfsInode
+vfs_inode_get_device: (VfsInode!) -> #VfsDevice
+
+{-# cinline vfs_inode_set_size #-}
+vfs_inode_set_size:  (VfsInode, VfsSize) -> (VfsInode)
+{-# cinline vfs_inode_set_atime #-}
+vfs_inode_set_atime: (VfsInode, OSTimeSpec) -> (VfsInode)
+{-# cinline vfs_inode_set_mtime #-}
+vfs_inode_set_mtime: (VfsInode, OSTimeSpec) -> (VfsInode)
+{-# cinline vfs_inode_set_ctime #-}
+vfs_inode_set_ctime: (VfsInode, OSTimeSpec) -> (VfsInode)
+{-# cinline vfs_inode_set_gid #-}
+vfs_inode_set_gid:   (VfsInode, U32) -> (VfsInode)
+{-# cinline vfs_inode_set_uid #-}
+vfs_inode_set_uid:   (VfsInode, U32) -> (VfsInode)
+{-# cinline vfs_inode_set_flags #-}
+vfs_inode_set_flags: (VfsInode, VfsFlags) -> (VfsInode)
+
+{-# cinline vfs_inode_unlock_new #-}
+vfs_inode_unlock_new:    (VfsInode) -> (VfsInode)
+
+{-# cinline vfs_inode_unlock #-}
+vfs_inode_unlock:    (VfsInode) -> (VfsInode)
+
+{-# cinline vfs_inode_lock #-}
+vfs_inode_lock:      (VfsInode) -> (VfsInode)
+
+vfs_inode_sync_metadata: VfsInode -> VfsInode
+
+{-# cinline vfs_inode_inc_nlink #-}
+vfs_inode_inc_nlink: (VfsInode) -> (VfsInode)
+{-# cinline vfs_inode_dec_nlink #-}
+vfs_inode_dec_nlink: (VfsInode) -> (VfsInode)
+
+{-# cinline vfs_inode_get_mode #-}
+vfs_inode_get_mode: (VfsInode!) -> (VfsMode)
+
+{-# cinline vfs_inode_get_mode2 #-}
+vfs_inode_get_mode2: ((VfsInode take fs)!) -> (VfsMode)
+
+{-# cinline vfs_inode_get_nlink #-}
+vfs_inode_get_nlink: (VfsInode!) -> (U32)
+{-# cinline vfs_inode_get_size #-}
+vfs_inode_get_size: (VfsInode!) -> (VfsSize)
+{-# cinline vfs_inode_get_uid #-}
+vfs_inode_get_uid: (VfsInode!) -> (U32)
+{-# cinline vfs_inode_get_gid #-}
+vfs_inode_get_gid: (VfsInode!) -> (U32)
+{-# cinline vfs_inode_get_ino #-}
+vfs_inode_get_ino: (VfsInode!) -> (VfsIno)
+{-# cinline vfs_inode_get_ino2 #-}
+vfs_inode_get_ino2: ((VfsInode take fs)!) -> (VfsIno)
+{-# cinline vfs_inode_get_flags #-}
+vfs_inode_get_flags: (VfsInode!) -> (VfsFlags)
+{-# cinline vfs_inode_get_atime #-}
+vfs_inode_get_atime: (VfsInode!) -> (OSTimeSpec)
+{-# cinline vfs_inode_get_mtime #-}
+vfs_inode_get_mtime: (VfsInode!) -> (OSTimeSpec)
+{-# cinline vfs_inode_get_ctime #-}
+vfs_inode_get_ctime: (VfsInode!) -> (OSTimeSpec)
+{-# cinline vfs_inode_get_blocks #-}
+vfs_inode_get_blocks: (VfsInode!) -> U64
+
+{-# cinline vfs_inode_get_bytes #-}
+-- number of bytes in last block of file
+vfs_inode_get_bytes: (VfsInode!) -> U16
+
+{-# cinline vfs_inode_get_mapping #-}
+vfs_inode_get_mapping: (VfsInode!) -> (VfsMemoryMap) -- FIXME: should be failable
+-- ... and others
+
+-- if you go all the way, dquot stuff calls __inode_add_bytes from stat.c
+-- FIXME: i_bytes is weird/wrong... (NB: it is different from i_size)
+vfs_inode_add_bytes: (VfsInode, U64) -> VfsInode
+vfs_inode_add_bytes (inode, bytes) =
+  let inode = vfs_inode_lock (inode)
+
+  and curblocks = vfs_inode_get_blocks (inode) !inode
+  and newblocks = (curblocks + (bytes >> 9))
+  and inode = vfs_inode_set_blocks (inode, newblocks)
+
+  and bytes = u64_to_u16 (bytes .&. 511)
+  and curbytes = vfs_inode_get_bytes (inode) !inode
+  and newbytes = curbytes + bytes
+  and inode = vfs_inode_set_bytes (inode, newbytes)
+
+  in if newbytes >= 512 then
+    let inode = vfs_inode_set_blocks (inode, newblocks + 1)
+    and inode = vfs_inode_set_bytes (inode, newbytes - 512)
+    in vfs_inode_unlock (inode)
+  else
+    vfs_inode_unlock (inode)
+
+vfs_inode_sub_bytes: (VfsInode, U64) -> VfsInode
+vfs_inode_sub_bytes (inode, bytes) =
+  let inode = vfs_inode_lock (inode)
+
+  and curblocks = vfs_inode_get_blocks (inode) !inode
+  and newblocks = curblocks - (bytes >> 9)
+  and inode = vfs_inode_set_blocks (inode, newblocks)
+
+  and bytes = u64_to_u16 (bytes .&. 511)
+  and curbytes = vfs_inode_get_bytes (inode) !inode
+  and newbytes = curbytes - bytes
+  and inode = vfs_inode_set_bytes (inode, newbytes)
+  in if curbytes < bytes then
+    let inode = vfs_inode_set_blocks (inode, newblocks - 1)
+    and inode = vfs_inode_set_bytes (inode, newbytes + 512)
+    in vfs_inode_unlock (inode)
+  else
+    vfs_inode_unlock (inode)
+
+
+-- FIXME: this should be implemented in COGENT
+vfs_page_symlink: (ExState, VfsInode, CString!) -> RR (ExState, VfsInode) () U32
+
+type VfsDentry = {
+  name: CString,
+  inode: Option VfsInode
+}
+
+type VfsDentryH = {
+  name: CString,
+  inode: VfsInode
+}
+
+type VfsPosition = U64
+
+type VfsRenameDirs = <SrcDest VfsRenameDirsDiff | Dest VfsInode>
+
+type VfsRenameContext = #{
+  dirs: VfsRenameDirs,
+  src_inode: VfsInode,
+  src_name: CString!,
+
+  dest_inode: Option VfsInode,
+  dest_name: CString!
+}
+
+type VfsRenameDirsDiff = #{
+  src_dir: VfsInode,
+  dest_dir: VfsInode
+}
+
+vfs_rename_get_src_dir: VfsRenameContext! -> VfsInode!
+vfs_rename_get_src_dir ctx =
+  ctx.dirs
+  | SrcDest both -> both.src_dir
+  | Dest dest_dir -> dest_dir
+
+vfs_rename_get_dest_dir: VfsRenameContext! -> VfsInode!
+vfs_rename_get_dest_dir ctx =
+  ctx.dirs
+  | SrcDest both -> both.dest_dir
+  | Dest dest_dir -> dest_dir
+
+vfs_rename_get_dest_dir2: VfsRenameDirs! -> VfsInode!
+vfs_rename_get_dest_dir2 dirs =
+  dirs
+  | SrcDest both -> both.dest_dir
+  | Dest dest_dir -> dest_dir
+
+
+type VfsDirContext = {
+  os : OSDirContext,
+  pos: VfsPosition
+}
+
+type VfsDirEmitP = #{
+  dirctx: VfsDirContext,
+  name: CString!,
+  ino: VfsIno,
+  ftype: VfsType}
+
+{-# cinline vfs_dir_emit #-}
+vfs_dir_emit: VfsDirEmitP -> LoopResult (#{dirctx: VfsDirContext}) (#{dirctx: VfsDirContext})
+
+type VfsMemoryMap
+
+type VfsStat
+{-# cinline vfs_stat_set_ino #-}
+vfs_stat_set_ino:  (VfsStat, VfsIno) -> (VfsStat)
+{-# cinline vfs_stat_set_mode #-}
+vfs_stat_set_mode:  (VfsStat, VfsMode) -> (VfsStat)
+{-# cinline vfs_stat_set_nlink #-}
+vfs_stat_set_nlink: (VfsStat, U32) -> (VfsStat)
+{-# cinline vfs_stat_set_blocks #-}
+vfs_stat_set_blocks: (VfsStat, U64) -> (VfsStat)
+{-# cinline vfs_stat_set_size #-}
+vfs_stat_set_size:  (VfsStat, VfsSize) -> (VfsStat)
+{-# cinline vfs_stat_set_atime #-}
+vfs_stat_set_atime: (VfsStat, OSTimeSpec) -> (VfsStat)
+{-# cinline vfs_stat_set_mtime #-}
+vfs_stat_set_mtime: (VfsStat, OSTimeSpec) -> (VfsStat)
+{-# cinline vfs_stat_set_ctime #-}
+vfs_stat_set_ctime: (VfsStat, OSTimeSpec) -> (VfsStat)
+{-# cinline vfs_stat_set_gid #-}
+vfs_stat_set_gid:   (VfsStat, U32) -> (VfsStat)
+{-# cinline vfs_stat_set_uid #-}
+vfs_stat_set_uid:   (VfsStat, U32) -> (VfsStat)
+{-# cinline vfs_stat_set_flags #-}
+vfs_stat_set_flags: (VfsStat, VfsFlags) -> (VfsStat)
+{-# cinline vfs_stat_set_blksize #-}
+vfs_stat_set_blksize: (VfsStat, U32) -> (VfsStat)
+
+type VfsIattr
+
+vfs_ATTR_MODE       :U32
+vfs_ATTR_MODE       = (1 << 0)
+vfs_ATTR_UID        :U32
+vfs_ATTR_UID        = (1 << 1)
+vfs_ATTR_GID        :U32
+vfs_ATTR_GID        = (1 << 2)
+vfs_ATTR_SIZE       :U32
+vfs_ATTR_SIZE       = (1 << 3)
+vfs_ATTR_ATIME      :U32
+vfs_ATTR_ATIME      = (1 << 4)
+vfs_ATTR_MTIME      :U32
+vfs_ATTR_MTIME      = (1 << 5)
+vfs_ATTR_CTIME      :U32
+vfs_ATTR_CTIME      = (1 << 6)
+vfs_ATTR_ATIME_SET  :U32
+vfs_ATTR_ATIME_SET  = (1 << 7)
+vfs_ATTR_MTIME_SET  :U32
+vfs_ATTR_MTIME_SET  = (1 << 8)
+vfs_ATTR_FORCE      :U32
+vfs_ATTR_FORCE      = (1 << 9) -- Not a change, but a change it
+vfs_ATTR_ATTR_FLAG  :U32
+vfs_ATTR_ATTR_FLAG  = (1 << 10)
+vfs_ATTR_KILL_SUID  :U32
+vfs_ATTR_KILL_SUID  = (1 << 11)
+vfs_ATTR_KILL_SGID  :U32
+vfs_ATTR_KILL_SGID  = (1 << 12)
+vfs_ATTR_FILE       :U32
+vfs_ATTR_FILE       = (1 << 13)
+vfs_ATTR_KILL_PRIV  :U32
+vfs_ATTR_KILL_PRIV  = (1 << 14)
+vfs_ATTR_OPEN       :U32
+vfs_ATTR_OPEN       = (1 << 15) -- Truncating from open= (O_TRUNC) 
+vfs_ATTR_TIMES_SET  :U32
+vfs_ATTR_TIMES_SET  = (1 << 16)
+
+{-# cinline vfs_iattr_get_mode #-}
+vfs_iattr_get_mode:  VfsIattr! -> VfsMode
+{-# cinline vfs_iattr_get_uid #-}
+vfs_iattr_get_uid:  VfsIattr! -> U32
+{-# cinline vfs_iattr_get_gid #-}
+vfs_iattr_get_gid:  VfsIattr! -> U32
+{-# cinline vfs_iattr_get_size #-}
+vfs_iattr_get_size:  VfsIattr! -> VfsSize
+{-# cinline vfs_iattr_get_atime #-}
+vfs_iattr_get_atime: VfsIattr! -> OSTimeSpec
+{-# cinline vfs_iattr_get_mtime #-}
+vfs_iattr_get_mtime: VfsIattr! -> OSTimeSpec
+{-# cinline vfs_iattr_get_ctime #-}
+vfs_iattr_get_ctime: VfsIattr! -> OSTimeSpec
+{-# cinline vfs_iattr_get_valid #-}
+vfs_iattr_get_valid: VfsIattr! -> U32
+
+type VfsExtendedInfo = {
+  fs_type: U64,
+  best_blocksize: U64,
+
+  blocks_total: U64,
+  blocks_free: U64,
+  blocks_available: U64, -- for non-superuser
+
+  files_total: U64,
+  files_free: U64,
+
+  max_namelen: U64
+
+  -- don't support fs_id right now because ~~it's a mystery~~
+  -- (sort of; check the man page for `statfs')
+}
+
+-- devices are inherintly OS-specific anyway, but try to make them somewhat abstract...
+type VfsDeviceMajor = U32
+type VfsDeviceMinor = U32
+
+vfs_create_device: (VfsDeviceMajor, VfsDeviceMinor) -> #VfsDevice
+vfs_device_inspect: #VfsDevice -> (VfsDeviceMajor, VfsDeviceMinor)
+
+-- dev_t old_decode_dev(u16 val) from include/linux/kdev_t.h
+linux_decode_device_old: U16 -> (VfsDeviceMajor, VfsDeviceMinor)
+linux_decode_device_old val = ((u16_to_u32 (val) >> 8) .&. 255, u16_to_u32 (val) .&. 255)
+
+linux_decode_device_new: U32 -> (VfsDeviceMajor, VfsDeviceMinor)
+linux_decode_device_new val = ((val .&. 0xfff00) >> 8, (val .&. 0xff) .|. ((val >> 12) .&. 0xfff00))
+
+linux_valid_old_dev: #VfsDevice -> Bool
+linux_valid_old_dev dev = 
+  let (maj, min) = vfs_device_inspect dev
+  in maj < 256 && min < 256
+
+linux_encode_device_old: #VfsDevice -> U16
+linux_encode_device_old dev =
+  let (maj, min) = vfs_device_inspect dev
+  in u32_to_u16 maj << 8 .|. u32_to_u16 min
+
+linux_encode_device_new: #VfsDevice -> U32
+linux_encode_device_new dev =
+  let (maj, min) = vfs_device_inspect dev
+  in (min .&. 0xff) .|. (maj << 8) .|. ((min .&. complement 0xff) << 12)

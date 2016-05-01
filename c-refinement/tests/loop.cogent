@@ -1,0 +1,55 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+-- Calculate triangular numbers, the cool way.
+--
+--   u32 triangular(u32 n) {
+--     u32 r = 0;
+--     for (u32 i = 0; i < n; ++i) {
+--       u32 s = 0;
+--       for (u32 j = 0; j < i; ++j) {
+--         s += 1;
+--       }
+--       r += s;
+--     }
+--     return r;
+--   }
+
+
+id_loopbody: Seq32_bodyParam U32 -> U32
+id_loopbody #{acc, idx} = acc + 1
+
+id_f: U32 -> U32
+id_f n = seq32[U32](#{frm = 0, to = n, f = id_loopbody, acc = 0})
+
+triangular_loopbody: Seq32_bodyParam U32 -> U32
+triangular_loopbody #{acc, idx} = acc + id_f idx
+
+triangular: U32 -> U32
+triangular n =
+  seq32[U32](#{frm = 0, to = n, f = triangular_loopbody, acc = 0})
+
+
+
+-- Loop combinator
+
+-- seq32 begin end increment loop_body accumulators
+type Seq32_bodyParam acc = #{
+  acc: acc,
+  idx: U32
+}
+type Seq32_body acc = Seq32_bodyParam acc -> acc
+type Seq32Param acc = #{
+  frm: U32,
+  to: U32,  -- to is not inclusive. ie we loop over [from, to)
+  f: Seq32_body acc,
+  acc: acc
+}
+seq32: all acc. Seq32Param acc -> acc

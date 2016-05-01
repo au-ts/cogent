@@ -1,0 +1,31 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+include "../libgum/common.cogent"
+
+type AllocPool a
+
+{-# cinline allocpool_create #-}
+allocpool_create: all (a). ExState -> R (ExState, AllocPool a) ExState
+
+{-# cinline allocpool_free #-}
+allocpool_free: all (a). (ExState, AllocPool a) -> ExState
+
+type AllocPoolPreallocP a = #{ex:ExState, pool:AllocPool a, nb:U32}
+{-# cinline allocpool_prealloc #-}
+allocpool_prealloc: all (a). AllocPoolPreallocP a -> RR (ExState, AllocPool a) () ()
+
+type AllocPoolUseF a acc obsv = ElemAO a acc obsv! -> acc
+type AllocPoolUseP a acc obsv = #{pool:AllocPool a, f:AllocPoolUseF a acc obsv, acc:acc, obsv:obsv!}
+{-# cinline allocpool_use #-}
+allocpool_use: all (a, acc, obsv). AllocPoolUseP a acc obsv -> (AllocPool a, acc)
+
+{-# cinline allocpool_clean #-}
+allocpool_clean: all (a). (ExState, AllocPool a) -> (ExState, AllocPool a)
