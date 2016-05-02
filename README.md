@@ -26,7 +26,7 @@ export PATH="$(pwd)/isabelle/bin:$PATH"
 isabelle components -I
 isabelle components -a
 ```
-Note: for running regression tests, see [Regression tests](#Regression tests) below.
+Note: for running regression tests, see [Regression tests](#regression-tests) below.
 
 
 ## Proofs
@@ -77,7 +77,7 @@ For more customised settings, modify `build-env.sh`.
 Run `./run_tests`.
 
 For C-refinement proof(s), which are excluded from the regression tests above because of
-their size, follow instructions in [Proofs](#Proofs) section above.
+their size, follow instructions in [Proofs](#proofs) section above.
 
 ## Directory
 
