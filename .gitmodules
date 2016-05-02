@@ -1,3 +1,6 @@
 [submodule "l4v"]
 	path = l4v
 	url = https://github.com/seL4/l4v.git
+[submodule "isabelle"]
+	path = isabelle
+	url = https://github.com/seL4/isabelle.git
