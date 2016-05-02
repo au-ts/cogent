@@ -26,6 +26,7 @@ export PATH="$(pwd)/isabelle/bin:$PATH"
 isabelle components -I
 isabelle components -a
 ```
+Note: for running regression tests, see [Regression tests](#Regression tests) below.
 
 
 ## Proofs
@@ -63,6 +64,20 @@ regression/run_tests.py -x l4v -x isabelle -v sync iget
 
 See [`impl/bilby/README`](`impl/bilby/README`) for more information
 
+
+## Regression tests
+
+Prerequisites: `l4v` and `isabelle` exist in the top-level directory of this repository.
+If you have them on your machine, you can symlink them and checkout relevant revisions:
+* `l4v`: `ffc7b107e5bd5978295da61f64ea87b9ea3ad4d1`
+* `isabelle`: any Isabelle2015 revision
+
+For more customised settings, modify `build-env.sh`.
+
+Run `./run_tests`.
+
+For C-refinement proof(s), which are excluded from the regression tests above because of
+their size, follow instructions in [Proofs](#Proofs) section above.
 
 ## Directory
 
