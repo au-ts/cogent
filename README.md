@@ -22,10 +22,10 @@ sudo ./install-haskell-platform.sh
 sudo apt-get install libgmp-dev libncurses-dev
 ```
 
-[`l4v`](l4v) and [`isabelle`](isabelle) are two submodules in the repository.
+[`l4v`](https://github.com/seL4/l4v/tree/47d5b746fc2f052586db11aa6048c5ae7c357155) and [`isabelle`](https://github.com/seL4/isabelle/tree/Isabelle2015) are two submodules in the repository.
 To get them: `git submodule update --init --recursive`.
 
-If you already have them on your machine, you can symlink them as [`l4v`](l4v) and [`isabelle`](isabelle) respectively
+If you already have them on your machine, you can symlink them as `l4v` and `isabelle` respectively
 in the top-level directory of this repository and checkout relevant revisions:
 * `l4v`: `ffc7b107e5bd5978295da61f64ea87b9ea3ad4d1`
 * `isabelle`: any Isabelle2015 revision
