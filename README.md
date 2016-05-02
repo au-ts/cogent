@@ -13,7 +13,7 @@ sudo apt-get install python-lxml python-psutil python-pycparser # regression tes
 ```
 
 You need a recent version of Glasgow Haskell Compiler (7.8.4+), cabal-install, alex, and happy.
-For instructions, consult file [`cogent/README`](`cognet/README`) for details. 
+For instructions, consult file [`cogent/README`](cognet/README) for details. 
 Or, if unsure, install Haskell Platform:
 ```
 wget 'https://haskell.org/platform/download/7.10.2/haskell-platform-7.10.2-a-unknown-linux-deb7.tar.gz'
@@ -22,10 +22,10 @@ sudo ./install-haskell-platform.sh
 sudo apt-get install libgmp-dev libncurses-dev
 ```
 
-[`l4v`](`l4v`) and [`isabelle`](`isabelle`) are two submodules in the repository.
+[`l4v`](l4v) and [`isabelle`](isabelle) are two submodules in the repository.
 To get them: `git submodule update --init --recursive`.
 
-If you already have them on your machine, you can symlink them as [`l4v`](`l4v`) and [`isabelle`](`isabelle`) respectively
+If you already have them on your machine, you can symlink them as [`l4v`](l4v) and [`isabelle`](isabelle) respectively
 in the top-level directory of this repository and checkout relevant revisions:
 * `l4v`: `ffc7b107e5bd5978295da61f64ea87b9ea3ad4d1`
 * `isabelle`: any Isabelle2015 revision
@@ -40,7 +40,7 @@ isabelle components -a
 ```
 Consult [Isabelle manual](https://isabelle.in.tum.de/documentation.html) for more information.
 
-For more customised settings to run proofs and regression tests, modify [`build-env.sh`](`build-env.sh`).
+For more customised settings to run proofs and regression tests, modify [`build-env.sh`](build-env.sh).
 
 Note: also see [Proofs](#proofs) and [Regression tests](#regression-tests) below.
 
@@ -74,7 +74,7 @@ isabelle jedit -d impl/bilby/cogent -d cogent/isa -d l4v -l BilbyFS_CorresProof 
 ```
 
 The functional correctness proofs for BilbyFS's `sync` and `iget` operations are in
-[`impl/bilby/proof/`](`impl/bilby/proof/`).
+[`impl/bilby/proof/`](impl/bilby/proof/).
 They are built as part of the [regression tests](#regression-tests), and can be rebuilt with
 
 ```
@@ -84,7 +84,7 @@ regression/run_tests.py -x l4v -x isabelle -v sync iget
 
 ## File system
 
-See [`impl/bilby/README`](`impl/bilby/README`) for more information
+See [`impl/bilby/README`](impl/bilby/README) for more information
 
 
 ## Directory
