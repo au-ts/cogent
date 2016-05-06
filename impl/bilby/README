@@ -14,7 +14,8 @@ How to compile BilbyFs?
 
 Linux:
 
-1 Download linux sources from <https://www.kernel.org/> and decompress it, then `cd` to the target folder
+1 Download linux sources from <https://www.kernel.org/> and decompress it,
+  then `cd` to the target folder
 
 2 run `make menuconfig` and add MTD, UBI, etc as modules.
 
@@ -25,3 +26,15 @@ Linux:
 5 run `make` either in the c/ directory to build bilbyfs.ko,
   or in the cogent/ directory to build cgbilbyfs.ko.
 
+Limitations:
+
+- There is no mkfs for BilbyFs. When mounting BilbyFs for the first time, if
+  the flash is empty, the in-kernel module (both C and cogent versions) will
+  automatically format the flash with BilbyFs format.
+- The cogent and C version of BilbyFs use a slightly different on-flash format.
+  We cannot mount a file system formatted with C version with the Cogent version
+  and vice versa.
+- BilbyFs cogent on-flash garbage collector is not implemented, so currently it
+  does not recycle obsolete parts of the log.
+- The Cogent code can sometimes run out of stack space, hence it's recommended
+  to increase the kernel stack size to run cogent BilbyFs.
