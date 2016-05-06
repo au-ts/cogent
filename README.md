@@ -2,7 +2,8 @@
 
 ## Project homepage
 
-[Trustworthy File Systems](http://ssrg.nicta.com.au/projects/TS/filesystems.pml)
+For general context of this project, motivation, an overview, and published papers, see
+our [project homepage](http://ssrg.nicta.com.au/projects/TS/filesystems.pml).
 
 
 ## Installation
