@@ -1,0 +1,5 @@
+# Files to not clean for regression testing. Treated as git patterns.
+
+# Don't rebuild lens every time
+cogent/.cabal-sandbox
+cogent/cabal.sandbox.config
