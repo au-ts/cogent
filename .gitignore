@@ -27,3 +27,6 @@ isa-parser/dist
 impl/bilby/cogent/abstract/*.h
 impl/bilby/cogent/generated.[ch]
 umm_types.txt
+*.thy
+ROOT
+generated.*

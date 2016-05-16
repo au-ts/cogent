@@ -231,3 +231,72 @@ $ty:(ArrA (Array a) acc) $id:array_filter($ty:(ArrayFilterP a acc obsv) args)
         ret.acc = fargs.acc;
         return ret;
 }
+
+$ty:a $id:array_use_maybe_value($ty:(ArrayUseMaybeValueP a acc obsv) args)
+{
+	$ty:(ArrayUseMaybeValueF a acc obsv) f_args = { .acc = args.acc, .obsv = args.obsv };
+
+	if (args.idx < args.arr->len && args.arr->values[args.idx] != NULL) {
+		f_args.oelem.tag = TAG_ENUM_Some;
+		f_args.oelem.Some = args.arr->values[args.idx];
+	} else {
+		f_args.oelem.tag = TAG_ENUM_None;
+	}
+
+	$ty:a f_ret = (($spec:(ArrayUseMaybeValueF a acc obsv)) args.f) (f_args);
+	return f_ret;
+}
+
+
+$ty:(RR (ExState, Array a) () ()) $id:array_replace($ty:(ArrayReplaceP a) args)
+{
+	$ty:(RR (ExState, Array a) () ()) ret;
+	ret.p1.p1 = args.ex;
+	ret.p1.p2 = args.arr;
+
+	$ty:((ExState, a)) free_args = {.p1 = args.ex};
+
+	if (args.idx < args.arr->len) {
+		if (args.arr->values[args.idx]) {
+			free_args.p2 = args.arr->values[args.idx];
+			(($spec:(FreeF a)) args.f) (free_args);
+		}
+
+		args.arr->values[args.idx] = args.elem;
+		ret.p2.tag = TAG_ENUM_Success;
+	} else {
+		free_args.p2 = args.elem;
+
+        (($spec:(FreeF a)) args.f) (free_args);
+		ret.p2.tag = TAG_ENUM_Error;
+	}
+	return ret;
+}
+
+$ty:((Array a, acc)) $id:array_map_no_break($ty:(ArrayMapNoBreakP a acc obsv) args)
+{
+	$ty:((Array a, acc)) ret;
+	u32 i;
+
+	$ty:(OptElemAO a acc obsv) f_args = {.acc = args.acc, .obsv = args.obsv};
+	$ty:(Option a) oelem;
+
+	$ty:((Option a, acc)) f_ret;
+
+	for (i = args.frm; i < args.to && i < args.arr->len; i++) {
+		oelem.Some = args.arr->values[i];
+		oelem.tag = oelem.Some != NULL ? TAG_ENUM_Some : TAG_ENUM_None;
+
+		f_args.oelem = oelem;
+		f_ret = (($spec:(ArrayMapNoBreakF a acc obsv)) args.f)(f_args);
+
+		args.arr->values[i] = (f_ret.p1.tag == TAG_ENUM_Some) ? f_ret.p1.Some : NULL;
+		f_args.acc = f_ret.p2;
+	}
+
+	ret.p1 = args.arr;
+	ret.p2 = f_args.acc;
+
+	return ret;
+}
+

@@ -9,14 +9,14 @@
  */
 
 #ifndef ABSTRACT_H__
-# define ABSTRACT_H__
+#define ABSTRACT_H__
 
 #include <adt.h>
 
 struct WrapperState {
-	void* priv; // FIXME: unboxed?
-        struct semaphore lock;
-        struct super_block* sb;
+    void* priv; // FIXME: unboxed?
+    struct semaphore lock;
+    struct super_block* sb;
 };
 
 typedef struct inode VfsInodeAbstract;

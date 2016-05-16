@@ -8,9 +8,10 @@
  * @TAG(NICTA_GPL)
  */
 
-struct WordArray_PARAM_TYPE_1 {
-	int len;
-	INFER_TYPE_1* values;
+struct $id:(UArray a) {
+    u32 len;
+    u8 *existence;
+    $ty:a *values;
 };
 
-typedef struct WordArray_PARAM_TYPE_1 WordArray_PARAM_TYPE_1;
+typedef struct $id:(UArray a) $id:(UArray a);

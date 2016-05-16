@@ -1,0 +1,144 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+include "../libgum/common.cogent"
+
+type UArray a
+
+{-# cinline uarray_create #-}
+{-# fnmacro uarray_create #-}
+uarray_create: all (a :< E). (ExState, U32) -> R (ExState, UArray a) ExState
+-- uarray_create(ex, length)
+-- The Error case is always eNoMem
+
+{-# cinline uarray_remove #-}
+{-# fnmacro uarray_remove #-}
+uarray_remove: all(a :< E). (UArray a, WordArrayIndex) -> (UArray a, Option a)
+-- uarray_remove(arr, index)
+-- Returns the value at @index or None ()
+type UArrayUseValueF a acc obsv = #{elem:a!, acc:acc, obsv:obsv!} -> acc
+type UArrayUseValueP a acc obsv = #{arr: (UArray a)!, idx: WordArrayIndex, f: UArrayUseValueF a acc obsv, acc: acc, obsv: obsv!}
+
+{-# cinline uarray_use_value #-}
+{-# fnmacro uarray_use_value #-}
+uarray_use_value: all(a :< E, acc, obsv). UArrayUseValueP a acc obsv -> acc
+
+type UArrayUseMaybeValueF a acc obsv = #{oelem:Option a!, acc:acc, obsv:obsv!} -> acc
+type UArrayUseMaybeValueP a acc obsv = #{arr: (UArray a)!, idx: WordArrayIndex, f: UArrayUseMaybeValueF a acc obsv, acc: acc, obsv: obsv!}
+
+{-# cinline uarray_use_maybe_value #-}
+{-# fnmacro uarray_use_maybe_value #-}
+uarray_use_maybe_value: all(a :< E, acc, obsv). UArrayUseMaybeValueP a acc obsv -> acc
+
+-- uarray_get_value(arr, index)
+-- Returns the value at @index 
+type UArrayModifyF a acc = OptElemA a acc -> OptElemA a acc
+type UArrayModifyP a acc = #{arr: UArray a, idx: WordArrayIndex, f: UArrayModifyF a acc, acc: acc}
+
+{-# cinline uarray_modify #-}
+{-# fnmacro uarray_modify #-}
+uarray_modify: all(a :< E, acc). UArrayModifyP a acc -> ArrA (UArray a) acc
+-- uarray_modify(modifier, arr, index, acc)
+-- Option a may be the previous item in that slot
+--
+-- If the index is out-of-range, the array is returned unmodified
+
+{-# cinline uarray_length #-}
+{-# fnmacro uarray_length #-}
+uarray_length: all(a :< E). (UArray a)! -> U32
+-- Returns the length of the array, the count includes empty slots
+
+{-# cinline uarray_nb_elem #-}
+{-# fnmacro uarray_nb_elem #-}
+uarray_nb_elem: all(a :<E). (UArray a)! -> U32
+-- Returns the number of element ignoring empty slots
+-- in the array.
+
+{-# cinline uarray_exists #-}
+{-# fnmacro uarray_exists #-}
+uarray_exists: all(a :< E). ((UArray a)!, WordArrayIndex) -> Bool
+
+type UArrayFreeP a = #{arr: UArray a, f: FreeF a, ex: ExState}
+type UArrayFreeAccP a acc obsv = #{arr: UArray a, f: FreeAccF a acc obsv, ex: ExState, acc: acc, obsv: obsv!}
+
+{-# cinline uarray_free #-}
+{-# fnmacro uarray_free #-}
+uarray_free: all(a :<E). UArrayFreeP a -> ExState
+-- uarray_free(freeer, ex, arr)
+-- This ensures that all elements of the array have been removed
+
+{-# cinline uarray_freeacc #-}
+{-# fnmacro uarray_freeacc #-}
+uarray_freeacc: all(a :<E, acc, obsv). UArrayFreeAccP a acc obsv -> (ExState, acc)
+
+-- if (the item exists at the index <idx> given):
+--   remove the item
+--   free it using the given <f>
+--   puts the given, replacement <elem> in the same position
+--   returns the modified array
+-- else
+--   free the given <elem> using <f>
+--   return the array unmodified
+type UArrayReplaceP a = #{arr: UArray a, idx: WordArrayIndex, elem: a, f: FreeF a, ex: ExState }
+
+{-# cinline uarray_replace #-}
+{-# fnmacro uarray_replace #-}
+uarray_replace: all (a :< E). UArrayReplaceP a -> RR (ExState, UArray a) () ()
+
+type UArrayMapExF a acc obsv rbrk = ElemAO a acc obsv -> LoopResult (ElemA a acc) (ElemB a rbrk)
+type UArrayMapExP a acc obsv rbrk = #{arr:UArray a, frm: U32, to:U32, f: UArrayMapExF a acc obsv rbrk, acc:acc, obsv:obsv!}
+
+{-# cinline uarray_map_ex #-}
+{-# fnmacro uarray_map_ex #-}
+uarray_map_ex: all(a :<E,acc,obsv,rbrk). UArrayMapExP a acc obsv rbrk -> LoopResult (ArrA (UArray a) acc) (ArrB (UArray a) rbrk)
+-- uarray_iterate_existing(arr, body, acc, observables)
+-- iterates through existing element of the array.
+
+type UArrayMapF a acc obsv rbrk = (OptElemAO a acc obsv) -> LoopResult (Option a, acc) (Option a, rbrk)
+type UArrayMapP a acc obsv rbrk = #{arr: UArray a, frm: U32, to:U32, f: UArrayMapF a acc obsv rbrk, acc: acc, obsv:obsv!}
+
+{-# cinline uarray_map #-}
+{-# fnmacro uarray_map #-}
+uarray_map: all(a :<E,acc,obsv,rbrk). UArrayMapP a acc obsv rbrk -> LoopResult (UArray a, acc) (UArray a, rbrk)
+
+type UArrayMapNoBreakF a acc obsv = (OptElemAO a acc obsv) -> (Option a, acc)
+type UArrayMapNoBreakP a acc obsv = #{arr: UArray a, frm: U32, to:U32, f: UArrayMapNoBreakF a acc obsv, acc: acc, obsv:obsv!}
+
+{-# cinline uarray_map_no_break #-}
+{-# fnmacro uarray_map_no_break #-}
+uarray_map_no_break: all(a :<E,acc,obsv). UArrayMapNoBreakP a acc obsv -> (UArray a, acc)
+
+type UArrayFilterF a acc obsv = #{elem:a, acc:acc, obsv:obsv!} -> RR acc () a
+type UArrayFilterP a acc obsv = #{arr: UArray a, f: UArrayFilterF a acc obsv, acc: acc, obsv: obsv!}
+
+{-# cinline uarray_filter #-}
+{-# fnmacro uarray_filter #-}
+uarray_filter: all(a :< E, acc, obsv). UArrayFilterP a acc obsv -> #{arr: UArray a, acc: acc}
+-- Hard to implement in COGENT because  we need to take ex or pass a free callback.
+
+-- uarray_eraser(eraser, arr, index, acc, val)
+-- Allows erasing an element when iterating.
+
+type UArrayFoldF a acc obsv rbrk = (#{elem:a!, acc:acc, obsv:obsv!} -> LoopResult acc rbrk)
+type UArrayFoldP a acc obsv rbrk = #{arr:(UArray a)!, f:UArrayFoldF a acc obsv rbrk, acc:acc, obsv:obsv!}
+
+{-# cinline uarray_fold #-}
+{-# fnmacro uarray_fold #-}
+uarray_fold: all(a :<E,acc,obsv,rbrk). UArrayFoldP a acc obsv rbrk -> LoopResult acc rbrk
+-- Fold only existing elements.
+
+type UArrayFoldNoBreakF a acc obsv = #{elem:a!, acc:acc, obsv:obsv!} -> acc
+type UArrayFoldNoBreakP a acc obsv = #{arr:(UArray a)!, f:UArrayFoldNoBreakF a acc obsv, acc:acc, obsv:obsv!}
+
+{-# cinline uarray_fold_no_break #-}
+{-# fnmacro uarray_fold_no_break #-}
+uarray_fold_no_break: all(a:<E,acc,obsv). UArrayFoldNoBreakP a acc obsv -> acc
+-- Same as above but cannot Break out of the loop
+

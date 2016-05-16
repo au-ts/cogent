@@ -1,11 +1,11 @@
 umode_t
 sector_t
-WordArray_u8
 match_table_t
 substring_t
 ino_t
 loff_t
 pgoff_t
 bool
+u8
 u32
 u64

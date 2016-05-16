@@ -1,0 +1,94 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+include "vfs.cogent"
+
+type VfsISeekArgs
+type VfsISeekResult
+vfs_default_llseek: VfsISeekArgs -> VfsISeekResult
+
+type VfsIReadlinkArgs
+type VfsIReadlinkResult
+vfs_default_readlink: VfsIReadlinkArgs -> VfsIReadlinkResult
+
+type VfsIFollowLinkArgs
+type VfsIFollowLinkResult
+vfs_default_followlink: VfsIFollowLinkArgs -> VfsIFollowLinkResult
+
+type VfsIPutLinkArgs
+type VfsIPutLinkResult
+vfs_default_putlink: VfsIPutLinkArgs -> VfsIPutLinkResult
+
+type VfsISetAttrArgs
+type VfsISetAttrResult
+vfs_default_setattr: VfsISetAttrArgs -> VfsISetAttrResult
+
+type VfsInodeOperations = #{
+  create: Option ((ExState, FsState, VfsInode, CString!, VfsMode) -> RR (ExState, FsState, VfsInode) VfsInode U32),
+  --lookup: Option ((#{ex: ExState, state: FsState, parent_inode: VfsInode, name: CString!, flags: VfsFlags}) -> RR #{ex: ExState, state: FsState, parent_inode: VfsInode} VfsInode U32),
+  can_lookup: Bool,
+  link: Option ((ExState, FsState, VfsInode, VfsInode, CString!) -> RR (ExState, FsState, VfsInode, VfsInode) () U32),
+  unlink: Option ((ExState, FsState, VfsInode, VfsInode, CString!) -> RR (ExState, FsState, VfsInode, VfsInode) () U32),
+  symlink: Option ((ExState, FsState, VfsInode, CString!) -> RR (ExState, FsState, VfsInode) VfsInode U32),
+  --mkdir: Option ((ExState, FsState, VfsInode, CString!, VfsMode) -> RR (ExState, FsState, VfsInode) VfsInode U32),
+  can_mkdir: Bool,
+  rmdir: Option ((ExState, FsState, VfsInode, VfsInode, CString!) -> RR (ExState, FsState, VfsInode, VfsInode) () U32),
+  rename: Option ((ExState, FsState, VfsRenameContext) -> RR (ExState, FsState, VfsRenameContext) () U32),
+  mknod: Option ((ExState, FsState, VfsInode, CString!, VfsMode, #VfsDevice) -> RR (ExState, FsState, VfsInode) VfsInode U32),
+  readlink: Option (VfsIReadlinkArgs -> VfsIReadlinkResult),
+  followlink: Option (VfsIFollowLinkArgs -> VfsIFollowLinkResult),
+  putlink: Option (VfsIPutLinkArgs -> VfsIPutLinkResult),
+  setattr: Option (VfsISetAttrArgs -> VfsISetAttrResult)
+  -- xattr-related are missing, because we don't support extended attributes yet
+}
+
+type VfsIOpenArgs
+type VfsIOpenResult
+vfs_default_open: VfsIOpenArgs -> VfsIOpenResult
+
+type VfsIMmapArgs
+type VfsIMmapResult
+vfs_default_mmap: VfsIMmapArgs -> VfsIMmapResult
+
+type VfsIFsyncArgs
+type VfsIFsyncResult
+vfs_default_fsync: VfsIFsyncArgs -> VfsIFsyncResult
+
+type VfsIReadArgs
+type VfsIReadResult
+vfs_default_read: VfsIReadArgs -> VfsIReadResult
+vfs_default_read_dir: VfsIReadArgs -> VfsIReadResult
+
+type VfsIWriteArgs
+type VfsIWriteResult
+vfs_default_write: VfsIWriteArgs -> VfsIWriteResult
+
+type VfsFileOperations = #{
+  iterate: Option ((#{ex: ExState, state: FsState, parent_inode: VfsInode, dirctx: VfsDirContext}) -> RR #{ex: ExState, state: FsState, parent_inode: VfsInode, dirctx: VfsDirContext} () U32),
+  llseek: Option (VfsISeekArgs -> VfsISeekResult),
+  open: Option (VfsIOpenArgs -> VfsIOpenResult),
+  mmap: Option (VfsIMmapArgs -> VfsIMmapResult),
+  fsync: Option (VfsIFsyncArgs -> VfsIFsyncResult),
+
+  read: Option (VfsIReadArgs -> VfsIReadResult),
+  --read_iter:
+  --write_iter:
+  
+  write: Option (VfsIWriteArgs -> VfsIWriteResult)
+  --splice_read:
+  --splice_write:   
+}
+
+-- since we do not support cyclic types, we must use ADT setters
+-- i_op on linux
+vfs_inode_set_ops: (VfsInode, VfsInodeOperations!) -> VfsInode
+
+-- i_fop on linux
+vfs_inode_set_fileops: (VfsInode, VfsFileOperations!) -> VfsInode

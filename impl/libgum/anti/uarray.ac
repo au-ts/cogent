@@ -1,0 +1,232 @@
+/*
+ * Copyright 2016, NICTA
+ *
+ * This software may be distributed and modified according to the terms of
+ * the GNU General Public License version 2. Note that NO WARRANTY is provided.
+ * See "LICENSE_GPLv2.txt" for details.
+ *
+ * @TAG(NICTA_GPL)
+ */
+
+$ty:(ArrA (UArray a) acc) $id:uarray_modify($ty:(UArrayModifyP a acc) args)
+{
+	$ty:(ArrA (UArray a) acc) ret;
+
+	$ty:(UArray a) array = args.arr;
+	u32 idx = args.idx;
+	$ty:acc acc = args.acc;
+
+	if (likely(idx < array->len)) {
+		$ty:(Option a) maybe_obj;
+		if (array->existence[idx]) {
+			maybe_obj.tag = TAG_ENUM_None;
+		} else {
+			maybe_obj.tag = TAG_ENUM_Some;
+			maybe_obj.Some = array->values[idx];
+		}
+
+		$ty:(OptElemA a acc) modify_args = { .acc = acc, .oelem = maybe_obj};
+		$ty:(OptElemA a acc) modify_result = (($spec:(UArrayModifyF a acc)) args.f)(modify_args);
+
+		// put new thing in
+		if (modify_result.oelem.tag == TAG_ENUM_None) {
+			array->existence[idx] = 0;
+		} else {
+			array->existence[idx] = 1;
+			array->values[idx] = modify_result.oelem.Some;
+		}
+
+		// update acc
+		acc = modify_result.acc;
+	}
+
+	ret.arr = array;
+	ret.acc = acc;
+
+	return ret;
+}
+
+$ty:((UArray a, Option a)) $id:uarray_remove($ty:((UArray a, WordArrayIndex)) args)
+{
+	$ty:(UArray a) array = args.p1;
+	u32 idx = args.p2;
+
+	$ty:((UArray a, Option a)) ret;
+	$ty:(Option a) maybe_obj;
+
+	if (likely(idx < array->len)) {
+		if (array->existence[idx]) {
+			maybe_obj.tag = TAG_ENUM_None;
+		} else {
+			maybe_obj.tag = TAG_ENUM_Some;
+			maybe_obj.Some = array->values[idx];
+
+			// empty slot
+			array->existence[idx] = 0;
+		}
+	} else {
+		maybe_obj.tag = TAG_ENUM_None;
+	}
+
+	ret.p1 = array;
+	ret.p2 = maybe_obj;
+	return ret;
+}
+
+$ty:acc $id:uarray_use_value($ty:(UArrayUseValueP a acc obsv) args)
+{
+	if (args.idx < args.arr->len && args.arr->existence[args.idx]) {
+		$ty:(UArrayUseValueF a acc obsv) f_args = { .elem = args.arr->values[args.idx], .acc = args.acc, .obsv = args.obsv };
+		$ty:acc f_ret = (($spec:(UArrayUseValueF a acc obsv)) args.f)(f_args);
+		return f_ret;
+	} else {
+		return args.acc;
+	}
+}
+
+$ty:acc $id:uarray_use_maybe_value($ty:(UArrayUseMaybeValueP a acc obsv) args)
+{
+	$ty:(#{oelem:Option a!, acc:acc, obsv:obsv!}) f_args = { .acc = args.acc, .obsv = args.obsv };
+
+	if (args.idx < args.arr->len && args.arr->existence[args.idx]) {
+		f_args.oelem.tag = TAG_ENUM_Some;
+		f_args.oelem.Some = args.arr->values[args.idx];
+	} else {
+		f_args.oelem.tag = TAG_ENUM_None;
+	}
+	return (($spec:(UArrayUseMaybeValueF a acc obsv)) args.f)(f_args);
+}
+
+
+$ty:(RR (ExState, UArray a) () ()) $id:uarray_replace ($ty:(UArrayReplaceP a) args)
+{
+	$ty:(RR (ExState, UArray a) () ()) ret;
+	ret.p1.p1 = args.ex;
+	ret.p1.p2 = args.arr;
+
+	$ty:((ExState, a)) free_args = {.p1 = args.ex};
+
+	if (args.idx < args.arr->len) {
+		if (args.arr->existence[args.idx]) {
+			free_args.p2 = args.arr->values[args.idx];
+			(($spec:(FreeF a)) args.f)(free_args);
+		}
+
+		args.arr->values[args.idx] = args.elem;
+		args.arr->existence[args.idx] = 1;
+		ret.p2.tag = TAG_ENUM_Success;
+	} else {
+		free_args.p2 = args.elem;
+
+        (($spec:(FreeF a)) args.f)(free_args);
+		ret.p2.tag = TAG_ENUM_Error;
+	}
+
+	return ret;
+}
+
+$ty:(LoopResult (UArray a, acc) (UArray a, rbrk)) $id:uarray_map($ty:(UArrayMapP a acc obsv rbrk) args)
+{
+	$ty:(LoopResult (UArray a, acc) (UArray a, rbrk)) ret = {.tag = TAG_ENUM_Iterate};
+	u32 i;
+
+	$ty:((OptElemAO a acc obsv)) f_args = {.acc = args.acc, .obsv = args.obsv};
+	$ty:(Option a) oelem;
+
+	$ty:(LoopResult (Option a, acc) (Option a, rbrk)) f_ret;
+
+	for (i = args.frm; i < args.to && i < args.arr->len; i++) {
+		oelem.Some = args.arr->values[i];
+		oelem.tag = args.arr->existence[i] ? TAG_ENUM_Some : TAG_ENUM_None;
+
+		f_args.oelem = oelem;
+		f_ret = (($spec:(UArrayMapF a acc obsv rbrk)) args.f)(f_args);
+
+		if (f_ret.tag == TAG_ENUM_Break) {
+			if (f_ret.Break.p1.tag == TAG_ENUM_Some) {
+				args.arr->values[i] = f_ret.Break.p1.Some;
+				args.arr->existence[i] = 1;
+			} else {
+				args.arr->existence[i] = 0;
+			}
+
+			ret.Break.p1 = args.arr;
+			ret.Break.p2 = f_ret.Break.p2;
+			return ret;
+		}
+
+		if (f_ret.Iterate.p1.tag == TAG_ENUM_Some) {
+			args.arr->values[i] = f_ret.Iterate.p1.Some;
+			args.arr->existence[i] = 1;
+		} else {
+			args.arr->existence[i] = 0;
+		}
+
+		f_args.acc = f_ret.Iterate.p2;
+	}
+
+	ret.Iterate.p1 = args.arr;
+	ret.Iterate.p2 = f_args.acc;
+
+	return ret;
+}
+
+$ty:((UArray a, acc)) $id:uarray_map_no_break ($ty:(UArrayMapNoBreakP a acc obsv) args)
+{
+	$ty:((UArray a, acc)) ret;
+	u32 i;
+
+	$ty:(OptElemAO a acc obsv) f_args = {.acc = args.acc, .obsv = args.obsv};
+	$ty:(Option a) oelem;
+
+	$ty:((Option a, acc)) f_ret;
+
+	for (i = args.frm; i < args.to && i < args.arr->len; i++) {
+		if (args.arr->existence[i]) {
+			oelem.Some = args.arr->values[i];
+			oelem.tag = TAG_ENUM_Some;
+		} else {
+			oelem.tag = TAG_ENUM_None;
+		}
+
+		f_args.oelem = oelem;
+		f_ret = (($spec:(UArrayMapNoBreakF a acc obsv)) args.f)(f_args);
+
+		if (f_ret.p1.tag == TAG_ENUM_Some) {
+			args.arr->existence[i] = 1;
+			args.arr->values[i] = f_ret.p1.Some;
+		} else {
+			args.arr->existence[i] = 0;
+		}
+
+		f_args.acc = f_ret.p2;
+	}
+
+	ret.p1 = args.arr;
+	ret.p2 = f_args.acc;
+
+	return ret;
+}
+
+$ty:(LoopResult acc rbrk) $id:uarray_fold ($ty:(UArrayFoldP a acc obsv rbrk) args) {
+	$ty:(LoopResult acc rbrk) ret = { .tag = TAG_ENUM_Iterate, .Iterate = args.acc };
+	u32 i;
+
+	$ty:(#{elem:a!, acc:acc, obsv:obsv!}) f_args = {.acc = args.acc, .obsv = args.obsv};
+
+	for (i = 0; i < args.arr->len; i++) {
+		if (!args.arr->existence[i]) {
+			continue;
+		}
+
+		f_args.elem = args.arr->values[i];
+		ret = (($spec:(UArrayFoldF a acc obsv rbrk)) args.f)(f_args);
+
+		if (ret.tag == TAG_ENUM_Break) {
+			return ret;
+		}
+		f_args.acc = ret.Iterate;
+	}
+
+	return ret;
+}

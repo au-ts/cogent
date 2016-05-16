@@ -1,0 +1,111 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+include "os.cogent"
+include "vfs.cogent" -- for VfsMemoryMap
+
+type OSPage
+type OSPageBuffer
+
+type OSPageBufferOffset = U32
+
+type OSPageContext = #{
+    page: OSPage,
+    buf: OSPageBuffer,
+    pos: OSPageBufferOffset
+}
+
+ospagectx_destroy: OSPageContext -> ()
+ospagectx_destroy ctx =
+  let ctx_t { .. } = ctx
+  and page = ospage_unmap (page, buf)
+  in ospagecache_release (page)
+
+{-# cinline ospagecache_read #-}
+ospagecache_read: (VfsMemoryMap, U64) -> R OSPage ()
+{-# cinline ospagecache_grab #-}
+ospagecache_grab: (VfsMemoryMap, U64) -> R OSPage ()
+
+{-# cinline ospagecache_release #-}
+ospagecache_release: (OSPage) -> ()
+
+ospage_unlock: OSPage -> OSPage
+ospage_lock: OSPage -> OSPage
+
+ospage_get_host: OSPage! -> VfsInode
+-- TODO: needs to internally do a __iget to increment
+-- refcounter with lock being held, otherwise
+-- we can't permit iput on it
+
+{-# cinline ospage_map #-}
+ospage_map: OSPage -> R (OSPage, OSPageBuffer) (OSPage)
+{-# cinline ospage_unmap #-}
+ospage_unmap: (OSPage, OSPageBuffer) -> OSPage
+
+-- FIXME: the above can now fail, now that you can pass in an
+-- an arbitrary combination of types
+
+{-# cinline ospagebuffer_memset #-}
+ospagebuffer_memset: (OSPageBuffer, OSPageBufferOffset, U32, U32) -> OSPageBuffer
+
+--page_buffer_to_u32: OSPageBuffer -> U32
+
+--pagebuffer_getobj: all(a). (OSPageBuffer!, U32) -> R a! ()
+--pagebuffer_add: (OSPageBuffer, U32) -> PageBuffer
+
+-- FIXME: later, change types to enforce mutability by type system?
+
+-- FIXME: yuck, this is not OS specific, but VFS specific... 
+--        we may modify fs state, and this actually calls back into COGENT (must then act as a contiuation)
+{-# cinline ospage_write_prepare #-}
+ospage_write_prepare: (ExState, FsState, OSPage, U64, U32) -> RR (ExState, FsState, OSPage) () U32
+{-# cinline ospage_write_commit #-}
+ospage_write_commit: (ExState, FsState, OSPage, U64, U32) -> (ExState, FsState, OSPage)
+
+{-# cinline ospagebuffer_deserialise_Ple32 #-}
+ospagebuffer_deserialise_Ple32: (OSPageBuffer!, OSPageBufferOffset) -> Result (U32, OSPageBufferOffset) ()
+{-# cinline ospagebuffer_deserialise_Ple16 #-}
+ospagebuffer_deserialise_Ple16: (OSPageBuffer!, OSPageBufferOffset) -> Result (U16, OSPageBufferOffset) ()
+{-# cinline ospagebuffer_deserialise_U8 #-}
+ospagebuffer_deserialise_U8: (OSPageBuffer!, OSPageBufferOffset) -> Result (U8, OSPageBufferOffset) ()
+
+{-# cinline ospagebuffer_serialise_Ple32 #-}
+ospagebuffer_serialise_Ple32: (OSPageBuffer, OSPageBufferOffset, U32) -> Result (OSPageBuffer, OSPageBufferOffset) (OSPageBuffer)
+{-# cinline ospagebuffer_serialise_Ple16 #-}
+ospagebuffer_serialise_Ple16: (OSPageBuffer, OSPageBufferOffset, U16) -> Result (OSPageBuffer, OSPageBufferOffset) (OSPageBuffer)
+{-# cinline ospagebuffer_serialise_U8 #-}
+ospagebuffer_serialise_U8: (OSPageBuffer, OSPageBufferOffset, U8) -> Result (OSPageBuffer, OSPageBufferOffset) (OSPageBuffer)
+
+ospagebuffer_serialise_U8_WordArray: WordArrayFoldF U8 (OSPageBuffer, OSPageBufferOffset) () (OSPageBuffer, OSPageBufferOffset)
+ospagebuffer_serialise_U8_WordArray #{elem, acc = (buf, idx), obsv} =
+  ospagebuffer_serialise_U8 (buf, idx, elem)
+  | Success (buf, idx') ->
+    Iterate (buf, idx')
+  | Error buf ->
+    Break (buf, idx)
+
+ospagebuffer_deserialise_Ple32_WordArray: WordArrayMapF U32 U32 OSPageBuffer! ()
+ospagebuffer_deserialise_Ple32_WordArray (#{elem = old, acc = idx, obsv = buf}) =
+  ospagebuffer_deserialise_Ple32 (buf, idx)
+  | Success (elem, idx') ->
+    ((elem, idx'), Iterate ())
+  | Error () ->
+    ((old, idx), Break ())
+
+ospagebuffer_deserialise_U8_WordArray: WordArrayMapF U8 U32 OSPageBuffer! ()
+ospagebuffer_deserialise_U8_WordArray (#{elem = old, acc = idx, obsv = buf}) =
+  ospagebuffer_deserialise_U8 (buf, idx)
+  | Success (elem, idx') ->
+    ((elem, idx'), Iterate ())
+  | Error () ->
+    ((old, idx), Break ())
+
+
+ospage_write: OSPage -> OSPage -- TODO: should be Result

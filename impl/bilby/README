@@ -10,7 +10,7 @@
 
 How to compile BilbyFs?
 
-# Tested with linux-3.18.22. Similar version should work.
+# Tested with linux-3.18.22. Similar versions should work.
 
 Linux:
 
@@ -29,12 +29,12 @@ Linux:
 Limitations:
 
 - There is no mkfs for BilbyFs. When mounting BilbyFs for the first time, if
-  the flash is empty, the in-kernel module (both C and cogent versions) will
+  the flash is empty, the in-kernel module (both C and Cogent versions) will
   automatically format the flash with BilbyFs format.
-- The cogent and C version of BilbyFs use a slightly different on-flash format.
+- The Cogent and C version of BilbyFs use a slightly different on-flash format.
   We cannot mount a file system formatted with C version with the Cogent version
   and vice versa.
-- BilbyFs cogent on-flash garbage collector is not implemented, so currently it
+- BilbyFs Cogent on-flash garbage collector is not implemented, so currently it
   does not recycle obsolete parts of the log.
 - The Cogent code can sometimes run out of stack space, hence it's recommended
-  to increase the kernel stack size to run cogent BilbyFs.
+  to increase the kernel stack size to run Cogent BilbyFs.

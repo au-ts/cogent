@@ -1,0 +1,91 @@
+/*
+ * Copyright 2016, NICTA
+ *
+ * This software may be distributed and modified according to the terms of
+ * the GNU General Public License version 2. Note that NO WARRANTY is provided.
+ * See "LICENSE_GPLv2.txt" for details.
+ *
+ * @TAG(NICTA_GPL)
+ */
+
+// #include <bridge.h>
+// #include <generated.h>
+
+$ty:((a, acc)) $id:dls_uarray ($ty:(#{
+		curdepth: U32,
+		maxdepth: U32,
+		f:  GraphExplorerF (UArray a) a acc obsv,
+		acc: acc,
+		root: a,
+		obsv: obsv
+	}) args) {
+	$ty:a node = args.root;
+	$ty:acc acc = args.acc;
+
+	if (args.curdepth < args.maxdepth) {
+		// setup args for callback
+		$ty:((U32,a,acc,obsv)) f_args = {
+			.p1 = args.curdepth,
+			.p2 = node,
+			.p3 = acc,
+			.p4 = args.obsv
+		};
+
+		$ty:((a, acc, < Expand (UArray a, ContinuationF (UArray a) a acc obsv) | Iterate () >)) f_res = 
+                	(($spec:(GraphExplorerF (UArray a) a acc obsv)) args.f) (f_args);
+
+		node = f_res.p1;
+		acc = f_res.p2;
+
+		// if it returned expand, call self on children
+		// and then call continuation to cleanup and do whatever else
+		if (f_res.p3.tag == TAG_ENUM_Expand) {
+			$ty:(UArray a) array = f_res.p3.Expand.p1;
+
+			int idx;
+
+			for (idx = 0; idx < array->len; idx++) {
+				$ty:a child = array->values[idx];
+
+				// call recursively
+				$ty:(#{
+					curdepth: U32,
+					maxdepth: U32,
+					f:  GraphExplorerF (UArray a) a acc obsv,
+					acc: acc,
+					root: a,
+					obsv: obsv
+				}) self_args = args;
+				self_args.curdepth += 1;
+
+				self_args.root = child; // new root
+				self_args.acc = acc;
+
+                               $ty:((a,acc)) child_ret = $exp:(dls_uarray [a, acc, obsv]) (self_args);
+
+				// put (possibly) modified child back
+				array->values[idx] = child_ret.p1;
+
+				// update threaded acc
+				acc = child_ret.p2;
+			}
+
+			// call the continuation after ALL elements have been iterated over
+			$ty:((U32,a,acc,obsv,UArray a)) continuation_args = {
+				.p1 = args.curdepth,
+				.p2 = node,
+				.p3 = acc,
+				.p4 = args.obsv,
+				.p5 = array
+			};
+
+			$ty:((a,acc)) continuation_ret = 
+				(($spec:(ContinuationF (UArray a) a acc obsv))f_res.p3.Expand.p2) (continuation_args);
+			node = continuation_ret.p1;
+			acc = continuation_ret.p2;
+		}
+	}
+	
+	$ty:((a,acc)) return_obj = { node, acc };
+	return return_obj;
+}

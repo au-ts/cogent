@@ -8,17 +8,13 @@
  * @TAG(NICTA_GPL)
  */
 
-$esc:(#include <adt.h>)
-$esc:(#include <wrapper.h>)
-#include <generated.h>
-
-$ty:(Result (U32, U32) ()) $id:(osbuffer_deserialise_Ple32)($ty:((OSBuffer!, U32)) args) {
-	$ty:(Result (U32, U32) ()) ret;
-	$ty:(OSBuffer!) buf = args.p1;
+$ty:(Result (U32, OSBufferOffset) ()) osbuffer_deserialise_Ple32 ($ty:((OSBuffer!, OSBufferOffset)) args) {
+	$ty:(Result (U32, OSBufferOffset) ()) ret;
+	$ty:(OSBuffer) buf = args.p1;
 
 	// printk ("deser u32 @ offset %d\n", args.p2);
 
-	if (args.p2 >= BLOCK_SIZE) {
+	if (unlikely (args.p2 >= BLOCK_SIZE)) {
 		ret.tag = TAG_ENUM_Error;
 	} else {
 		u32 raw = *((u32*)(buf->b_data + args.p2));
@@ -32,20 +28,18 @@ $ty:(Result (U32, U32) ()) $id:(osbuffer_deserialise_Ple32)($ty:((OSBuffer!, U32
 	return ret;
 }
 
-// deserialise_Ple16: (OSBuffer!, U32) -> Result (U16, U32) ()
-$ty:(Result (U16,U32) ()) $id:osbuffer_deserialise_Ple16 ($ty:((OSBuffer!, U32)) args) {
-	$ty:(Result (U16,U32) ()) ret;
-	$ty:(OSBuffer!) buf = args.p1;
+// deserialise_Ple16: (FsBuffer!, U32) -> Result (U16, U32) ()
+$ty:(Result (U16, OSBufferOffset) ()) osbuffer_deserialise_Ple16 ($ty:((OSBuffer!, OSBufferOffset)) args) {
+	$ty:(Result (U16, OSBufferOffset) ()) ret;
+	$ty:(OSBuffer) buf = args.p1;
 
 	// printk ("deser u16 @ offset %d\n", args.p2);
 
-	if (args.p2 >= BLOCK_SIZE) {
+	if (unlikely (args.p2 >= BLOCK_SIZE)) {
 		ret.tag = TAG_ENUM_Error;
 	} else {
 		u16 raw = *((u16*)(buf->b_data + args.p2));
 		u16 host = le16_to_cpu (raw);
-
-		// printk ("had le16 raw %d, host %d at offset %d\n", raw, host, args.p2);
 
 		ret.tag = TAG_ENUM_Success;
 		ret.Success.p1 = host;
@@ -55,14 +49,14 @@ $ty:(Result (U16,U32) ()) $id:osbuffer_deserialise_Ple16 ($ty:((OSBuffer!, U32))
 	return ret;
 }
 
-// deserialise_U8 (OSBuffer!, U32) -> Result (U8, U32) ()
-$ty:(Result (U8, U32) ()) $id:osbuffer_deserialise_U8 ($ty:((OSBuffer!, U32)) args) {
-	$ty:(Result (U8, U32) ()) ret;
-	$ty:(OSBuffer!) buf = args.p1;
+// deserialise_U8 (FsBuffer!, U32) -> Result (U8, U32) ()
+$ty:(Result (U8, OSBufferOffset) ()) osbuffer_deserialise_U8 ($ty:((OSBuffer!, OSBufferOffset)) args) {
+	$ty:(Result (U8, OSBufferOffset) ()) ret;
+	$ty:(OSBuffer) buf = args.p1;
 
 	// printk ("deser u8 @ offset %d\n", args.p2);
 
-	if (args.p2 >= BLOCK_SIZE) {
+	if (unlikely (args.p2 >= BLOCK_SIZE)) {
 		ret.tag = TAG_ENUM_Error;
 	} else {
 		u8 raw = *((u8*)(buf->b_data + args.p2));
@@ -75,79 +69,197 @@ $ty:(Result (U8, U32) ()) $id:osbuffer_deserialise_U8 ($ty:((OSBuffer!, U32)) ar
 	return ret;
 }
 
-$ty:(Result (#{ex: ExState, buf: OSBuffer}) (ExState)) $id:osbuffer_create ($ty:(ExState) ex) {
-	$ty:(#{ex: ExState, buf: OSBuffer}) success = { .ex = ex, .buf = NULL };
-	$ty:(Result (#{ex: ExState, buf: OSBuffer}) (ExState)) ret = { .tag = TAG_ENUM_Success, .Success = success };
-
-	// printk ("'creating' buffer...\n");
+$ty:(RR ExState (OSBuffer) ()) osbuffer_create ($ty:(ExState) ex) {
+	$ty:(R (OSBuffer) ()) success = { .Success = NULL, .tag = TAG_ENUM_Success };
+	$ty:(RR ExState (OSBuffer) ()) ret = { .p1 = ex, .p2 = success };
 
 	return ret;
 }
 
-$ty:(ExState) $id:osbuffer_destroy ($ty:(#{ex: ExState, buf: OSBuffer}) args) {
+$ty:(ExState) osbuffer_destroy ($ty:((ExState, OSBuffer)) args) {
 	// printk ("brelse %p\n", args.buf);
-	brelse (args.buf);
-	return args.ex;
+	brelse (args.p2);
+	return args.p1;
 }
 
-$ty:(OSBuffer) $id:osbuffer_boundary($ty:(OSBuffer) buf)
-{
+$ty:(OSBuffer) osbuffer_boundary ($ty:(OSBuffer) buf) {
 	set_buffer_boundary (buf);
 	return buf;
 }
 
-$ty:(U32) $id:osbuffer_get_size($ty:(OSBuffer!) buf)
-{
+u32 osbuffer_get_size ($ty:(OSBuffer!) buf) {
 	return buf->b_size;
 }
 
-$ty:(OSBuffer) $id:osbuffer_set_size ($ty:((OSBuffer, U32)) args) {
+$ty:(OSBuffer) osbuffer_set_size ($ty:((OSBuffer, U32)) args) {
 	struct buffer_head *buf = args.p1;
 	buf->b_size = args.p2;
 
-	printk ("set buffer %p size %llu\n", buf, (unsigned long long)buf->b_size);
+	// printk ("set buffer %p size %llu\n", buf, (unsigned long long)buf->b_size);
 
 	return args.p1;
 }
 
-//fs_buffer_read_block: (#{ex: ExState, buf: OSBuffer, blk: U32}) ->
-//	Result 	(ExState, OSBuffer)
-//			(ExState, OSBuffer)
-$ty:(Result (ExState, OSBuffer) (ExState, OSBuffer)) $id:osbuffer_read_block ($ty:(#{ex: ExState, buf: OSBuffer, blk: U32}) args) {
+//fs_buffer_read_block: (#{ex: ExState, buf: FsBuffer, blk: U32}) ->
+//	RR 	(ExState, FsBuffer) () ()
+$ty:(RR (ExState, OSBuffer) () ()) osbuffer_read_block ($ty:((#{ex: ExState, buf: OSBuffer, blk: U32})) args) {
 	// when you read from a block, buf NOW becomes a pointer
 	// it should have been previous NULL
 
 	// UNLESS it was some previously read buffer, in which case we map
 	// into that instead
 
-	$ty:(Result (ExState, OSBuffer) (ExState, OSBuffer)) ret;
+	$ty:((ExState, OSBuffer)) ex_buf_tuple = {.p1 = args.ex, .p2 = args.buf};
+	$ty:(RR (ExState, OSBuffer) () ()) ret = {.p1 = ex_buf_tuple};
+	
 	struct super_block* sb = args.ex->sb;
 
-	if (args.buf != NULL) {
+	if (ret.p1.p2 != NULL) {
 		// had existing buffer, map it into that
-		printk ("reading block %d into existing buffer %p\n", args.blk, args.buf);
-		map_bh (args.buf, sb, (sector_t)args.blk);
+		map_bh (ret.p1.p2, sb, (sector_t)args.blk);
 	} else {
 		// brand new buffer
-		printk ("reading block %d into new buffer\n", args.blk);
 		struct buffer_head* read_buf = sb_bread (sb, (sector_t)args.blk);
-		args.buf = read_buf;
+		ret.p1.p2 = read_buf;
 	}
 
-	// check if we read this new buffer okay, and return
-	// result based on that
-	if (args.buf != NULL) {
-		$ty:((ExState, OSBuffer)) success = { .p1 = args.ex, .p2 = args.buf };
+	if (likely (ret.p1.p2 != NULL)) {
+		ret.p2.tag = TAG_ENUM_Success;
+	} else {
+		printk ("read block failed at block %d\n", args.blk);
+		ret.p2.tag = TAG_ENUM_Error;
+	}
+
+	return ret;
+}
+
+$ty:(Bool) osbuffer_test_bit ($ty:((OSBuffer!, U32)) args) {
+	$ty:(Bool) ret;
+	ret.boolean = -test_bit_le (args.p2, args.p1->b_data);
+	return ret;
+}
+
+/* Clear a bit, return its old value.  The value of a 1-bit signed number is 0 or -1, so negate to get the0 or 1 that DSL expects. */
+$ty:((OSBuffer, Bool)) osbuffer_clear_bit ($ty:((OSBuffer, OSBufferOffset)) args) {
+	$ty:((OSBuffer, Bool)) ret = { .p1 = args.p1 };
+	
+	ret.p2.boolean =  -__test_and_clear_bit_le (args.p2, args.p1->b_data);
+	return ret;
+}
+
+$ty:((OSBuffer, Bool)) osbuffer_set_bit ($ty:((OSBuffer, OSBufferOffset)) args) {
+	$ty:((OSBuffer, Bool)) ret = { .p1 = args.p1 };
+	ret.p2.boolean = -__test_and_set_bit_le (args.p2, args.p1->b_data);
+	return ret;
+}
+
+// FIXME: returns long, but we have u32? okay?
+$ty:(OSBufferOffset) osbuffer_find_next_zero_bit ($ty:((OSBuffer!, U32, OSBufferOffset)) args) {
+	return find_next_zero_bit_le (args.p1->b_data, args.p2, args.p3);
+}
+
+$ty:(ExState) osbuffer_trash ($ty:((ExState, OSBuffer)) args) {
+	bforget (args.p2);
+	return args.p1;
+}
+
+$ty:((ExState, OSBuffer)) osbuffer_dirty ($ty:((ExState, OSBuffer)) args) {
+	mark_buffer_dirty (args.p2);
+	return args;
+}
+
+$ty:(VfsInode) vfs_inode_add_dirty_osbuffer ($ty:((VfsInode, OSBuffer!)) args) {
+	mark_buffer_dirty_inode (args.p2, &(args.p1->vfs.inode_lin));
+	return args.p1;
+}
+
+$ty:((ExState, OSBuffer)) osbuffer_set_new ($ty:((ExState, OSBuffer)) args) {
+	set_buffer_new (args.p2);
+	return args;
+}
+
+$ty:((ExState, OSBuffer)) osbuffer_set_uptodate ($ty:((ExState, OSBuffer)) args) {
+	set_buffer_uptodate (args.p2);
+	return args;
+}
+
+u32 osbuffer_find ($ty:((OSBuffer!, U8, OSBufferOffset, U32)) args) {
+	u32* start = (u32*)args.p1->b_data + args.p3;
+	return start - (u32*)memscan (start, args.p2, args.p4);
+}
+
+$ty:(OSBuffer) osbuffer_memset ($ty:((OSBuffer, OSBufferOffset, U32, U32)) args) {
+	memset (args.p1->b_data + args.p2, args.p3, args.p4);
+	return args.p1;
+}
+
+u32 osbuffer_get_blocknum ($ty:(OSBuffer!) buf) {
+	return buf->b_blocknr;
+}
+
+$ty:(Result (OSBuffer, OSBufferOffset) (OSBuffer)) osbuffer_serialise_Ple32 ($ty:((OSBuffer, OSBufferOffset, U32)) args) {
+	$ty:(Result (OSBuffer, OSBufferOffset) (OSBuffer)) ret;
+	$ty:(OSBuffer) buf = args.p1;
+
+	if (unlikely (args.p2 >= BLOCK_SIZE)) {
+		ret.tag = TAG_ENUM_Error;
+		ret.Error = buf;
+	} else {
+		u32 raw = cpu_to_le32 (args.p3);
+		u32* p = ((u32*)(buf->b_data + args.p2));
+
+		*p = raw;
 
 		ret.tag = TAG_ENUM_Success;
-		ret.Success = success;
-	} else {
-		printk ("read block failed\n");
-		$ty:((ExState, OSBuffer)) error = { .p1 = args.ex, .p2 = args.buf };
-
-		ret.tag = TAG_ENUM_Error;
-		ret.Error = error;
+		ret.Success.p1 = buf;
+		ret.Success.p2 = args.p2 + sizeof (u32);
 	}
 
+	return ret;
+}
+
+$ty:(Result (OSBuffer, OSBufferOffset) (OSBuffer)) osbuffer_serialise_Ple16 ($ty:((OSBuffer, OSBufferOffset, U16)) args) {
+	$ty:(Result (OSBuffer, OSBufferOffset) (OSBuffer)) ret;
+	$ty:(OSBuffer) buf = args.p1;
+
+	if (unlikely (args.p2 >= BLOCK_SIZE)) {
+		ret.tag = TAG_ENUM_Error;
+		ret.Error = buf;
+	} else {
+		u16 raw = cpu_to_le16 (args.p3);
+		u16* p = ((u16*)(buf->b_data + args.p2));
+
+		*p = raw;
+
+		ret.tag = TAG_ENUM_Success;
+		ret.Success.p1 = buf;
+		ret.Success.p2 = args.p2 + sizeof (u16);
+	}
+
+	return ret;
+}
+
+$ty:(OSBuffer) osbuffer_sync_dirty ($ty:(OSBuffer) buf) {
+	sync_dirty_buffer (buf);
+	return buf;
+}
+
+$ty:(ExState) osbuffer_readahead ($ty:((ExState, U32)) args) {
+	sb_breadahead (args.p1->sb, args.p2);
+	return args.p1;
+}
+
+unit_t dump_buffer($ty:(OSPageBuffer!) args) {
+	unit_t ret;
+	$ty:(OSPageBuffer) buf = args;
+	u16 *p = (u16 *)page_address(buf);
+	int i;
+	printk("Directory buffer at %p", p);
+	for (i = 0; i < 0x120/2; i++) {
+		if (i % 8 == 0)
+			printk("\n");
+		printk("%04x ", *p++);
+	}
+	printk("\n");
 	return ret;
 }

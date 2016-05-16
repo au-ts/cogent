@@ -53,7 +53,7 @@ Note: also see [Proofs](#proofs) and [Regression tests](#regression-tests) below
 ## Regression tests
 
 Run build system and regression tests. (ETA: 2–3 CPU hours)
-This also builds the COGENT compiler and Isabelle theories.
+This also builds the Cogent compiler and Isabelle theories.
 If this works, your install is probably ok.
 Run `./run_tests`.
 
@@ -67,18 +67,25 @@ To build the proofs, it is recommended that your machine (or virtual machine)
 provides 32G of memory and 4–8 CPU threads.
 
 ```
-# Build compilation correctness proof for BilbyFS. (ETA: 120 CPU hours)
+# Build compilation correctness proof for ext2. (ETA: 120 CPU hours)
+(cd impl/ext2/cogent;
+ make verification;
+ isabelle build -d plat/verification -d ../../../cogent/isa -d ../../../l4v -b Ext2_AllRefine)
+
+# Build compilation correctness proof for BilbyFs. (ETA: 120 CPU hours)
 (cd impl/bilby/cogent;
  make verification;
  patch <../../../BilbyFS_CorresProof.patch;
  isabelle build -d . -d ../../../cogent/isa -d ../../../l4v -b -o process_output_limit=999 BilbyFS_AllRefine)
 
 # View end-to-end theorems. Each theory has a "print_theorems" command for this.
-# For BilbyFS:
-isabelle jedit -d impl/bilby/cogent -d cogent/isa -d l4v -l BilbyFS_CorresProof impl/bilby/cogent/BilbyFS_AllRefine.thy
+# For ext2:
+isabelle jedit -d impl/ext2/cogent/plat/verification -d cogent/isa -d l4v -l Ext2_CorresProof impl/ext2/cogent/plat/verification/Ext2_AllRefine.thy
+# For BilbyFs:
+isabelle jedit -d impl/bilby/cogent/plat/verification -d cogent/isa -d l4v -l BilbyFS_CorresProof impl/bilby/cogent/plat/verification/BilbyFS_AllRefine.thy
 ```
 
-The functional correctness proofs for BilbyFS's `sync` and `iget` operations are in
+The functional correctness proofs for BilbyFs's `sync` and `iget` operations are in
 [`impl/bilby/proof/`](impl/bilby/proof/).
 They are built as part of the [regression tests](#regression-tests), and can be rebuilt with
 
@@ -87,21 +94,25 @@ regression/run_tests.py -x l4v -x isabelle -v sync iget
 ```
 
 
-## File system
+## File systems
 
-See [`impl/bilby/README`](impl/bilby/README) for more information
+See [`impl/ext2/README`](impl/ext2/README) and [`impl/bilby/README`](impl/bilby/README) for more information on how to build the kernel modules
 
 
 ## Directory
 
-* [`cogent`](cogent/): COGENT compiler
-  * [`isa`](cogent/isa/): Isabelle/HOL semantics for COGENT
+* [`cogent`](cogent/): Cogent compiler
+  * [`isa`](cogent/isa/): Isabelle/HOL semantics for Cogent
   * [`tests`](cogent/tests/): Compiler test suite
-* [`c-refinement`](c-refinement/): Isabelle/HOL theories and proof procedures for COGENT-C refinement
-  * [`tests`](c-refinement/tests/): COGENT test programs for proof procedures
+* [`c-refinement`](c-refinement/): Isabelle/HOL theories and proof procedures for Cogent-C refinement
+  * [`tests`](c-refinement/tests/): Cogent test programs for proof procedures
 * [`isa-parser`](isa-parser/): Haskell library for parsing and pretty-printing Isabelle/HOL
-* [`impl`](impl/): COGENT programs and libraries
-  * [`libgum`](impl/libgum/): Common COGENT and C libraries
+* [`impl`](impl/): Cogent programs and libraries
+  * [`libgum`](impl/libgum/): Common Cogent and C libraries
   * [`bilby`](impl/bilby/): Bilby file system
-    * [`cogent/fs`](impl/bilby/cogent/fs/): COGENT code for BilbyFS
+    * [`cogent`](impl/bilby/cogent/): Cogent code for BilbyFs
+    * [`c`](impl/bilby/c/): C implementation for BilbyFs
+    * [`proof`](impl/bilby/proof/): Functional correctness specs and proofs for BilbyFs
+  * [`ext2`](impl/ext2/): ext2 file system
+    * [`cogent/fs`](impl/bilby/ext2/fs/): Cogent code for ext2
 * [`regression`](regression/): Regression test script

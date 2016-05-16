@@ -1,0 +1,37 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+include "common.cogent"
+include "uarray.cogent"
+include "wordarray.cogent"
+
+type ContinuationF expandT a acc obsv = (U32, a, acc, obsv, expandT) -> (a, acc)
+type GraphExplorerF expandT a acc obsv = (U32, a, acc, obsv) -> (a, acc, < Expand (expandT, ContinuationF expandT a acc obsv) | Iterate () >)
+
+-- acc is an accumulator threaded through the entire call
+-- cacc is a per-continuation (aka per-level) accumulator. the continuation must clean it up (if it's linear)
+dls_uarray: all (a, acc, obsv). #{
+	curdepth: U32, -- XXX: in reality, the ADT should not expose this, and keep this internal
+	maxdepth: U32,
+	f:  GraphExplorerF (UArray a) a acc obsv,
+	acc: acc,
+	root: a,
+	obsv: obsv
+} -> (a, acc)
+
+--dls_wordarray: all (a, acc, cacc, obsv). #{
+--	curdepth: U32, -- XXX: in reality, the ADT should not expose this, and keep this internal
+--	maxdepth: U32,
+--	f:  GraphExplorerF (WordArray a) a acc cacc obsv,
+--	acc: acc,
+--	cacc: cacc,
+--	root: a,
+--	obsv: obsv
+--} -> acc

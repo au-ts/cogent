@@ -8,76 +8,123 @@
  * @TAG(NICTA_GPL)
  */
 
-$esc:(#include <adt.h>)
-$esc:(#include <wrapper.h>)
-#include <generated.h>
+static int ext2fs_readpage_nolock(struct file *file, struct page *page);
+static int ext2fs_writepage_nolock(struct page *page, struct writeback_control *wbc);
+static int ext2fs_writepages_nolock(struct address_space *mapping, struct writeback_control *wbc);
+static int ext2fs_readpages_nolock(struct file *file, struct address_space *mapping,
+                                   struct list_head *pages, unsigned nr_pages);
+static sector_t ext2fs_bmap_nolock(struct address_space *mapping, sector_t block);
+static int ext2fs_write_begin_nolock(struct file *file, struct address_space *mapping,
+                                     loff_t pos, unsigned len, unsigned flags,
+                                     struct page **pagep, void **fsdata);
+static int ext2fs_write_end_nolock(struct file *file, struct address_space *mapping,
+                                   loff_t pos, unsigned len, unsigned copied,
+                                   struct page *page, void *fsdata);
+static int __nolock_write_one_page(struct page *page, int wait);
+int ext2fs_get_block(struct inode *inode, sector_t iblock,
+                     struct buffer_head *bh_result, int create);
 
-$ty:(R OSPage ()) $id:ospage_read_mapping ($ty:((VfsMemoryMap, U64)) args) {
+
+// NOT re-entrant, readpage
+// TODO: probably split this function up into two bits; makes for a weird API
+$ty:(R OSPage ()) ospagecache_read ($ty:((VfsMemoryMap, U64)) args) {
     $ty:(R OSPage ()) ret;
     unit_t unit;
 
     struct address_space* mapping = args.p1;
-    // printk ("reading mapping %p\n", mapping);
     unsigned long n = args.p2;
 
-    if (!mapping) {
+    if (unlikely (!mapping)) {
         printk ("read mapping failed - no mapping\n");
         ret.tag = TAG_ENUM_Error;
         ret.Error = unit;
         return ret;
     }
     
-    struct page* page = read_mapping_page (mapping, n, NULL);
-    if (IS_ERR (page)) {
+    // struct page* page = read_mapping_page (mapping, n, NULL); // re-entrant
+    struct page* page = read_cache_page (mapping, n, (filler_t *)ext2fs_readpage_nolock, NULL);
+
+    if (unlikely (IS_ERR (page))) {
         printk ("failed on page %p\n", page);
-        ospage_release (page);
+        ospagecache_release (page);
 
         ret.tag = TAG_ENUM_Error;
         ret.Error = unit;
     } else {
-        printk ("worked! got page %p\n", page);
         ret.tag = TAG_ENUM_Success;
         ret.Success = page;
     }
 
+    // printk ("read page %p from mapping %p at idx %lu\n", page, mapping, n);
+
     return ret;
 }
 
-struct unit_t $id:ospage_release ($ty:(OSPage) page) {
-    struct unit_t ret;
+$ty:(R OSPage ()) ospagecache_grab ($ty:((VfsMemoryMap, U64)) args) {
+    $ty:(R OSPage ()) ret;
+    unit_t unit;
 
-    printk ("releasing page %p\n", page);
+    struct page* page = grab_cache_page (args.p1, args.p2);
+
+    if (unlikely (IS_ERR (page))) {
+        ospagecache_release (page);
+
+        ret.tag = TAG_ENUM_Error;
+        ret.Error = unit;
+    } else {
+        ret.tag = TAG_ENUM_Success;
+        ret.Success = page;
+    }
+
+    // printk ("grabbed page %p from mapping %p at idx %lu\n", page, args.p1, args.p2);
+
+    return ret;
+}
+
+unit_t ospagecache_release ($ty:(OSPage) page) {
+    unit_t ret;
+
+    // printk ("releasing page %p from pagecache\n", page);
     page_cache_release (page);
+
     return ret;
 }
 
-$ty:(R (OSPageBuffer) OSPage) $id:ospage_map ($ty:(OSPage) page) {
-    $ty:(R (OSPageBuffer) OSPage) ret;
+$ty:(R (OSPage, OSPageBuffer) OSPage) ospage_map ($ty:(OSPage) page) {
+    $ty:(R (OSPage, OSPageBuffer) OSPage) ret;
 
+    // printk ("mapping page %p\n", page);
     kmap (page);
-    if (PageError (page)) {
+
+    if (unlikely (PageError (page))) {
         printk ("had page error on map %p\n", page);
         kunmap (page);
 
         ret.tag = TAG_ENUM_Error;
         ret.Error = page;
     } else {
-        printk ("kmapped page %p...\n", page);
         ret.tag = TAG_ENUM_Success;
-        ret.Success = page;
+        ret.Success.p1 = page;
+        ret.Success.p2 = page; // FIXME: ospagebuffer should just be void* to pagebuf
     }
 
     return ret;
 }
 
-$ty:(OSPage) $id:ospage_unmap ($ty:(OSPageBuffer) pagebuf) {
-    printk ("unmapping page %p\n", pagebuf);
-    kunmap (pagebuf);
-    return pagebuf;
+$ty:(OSPage) ospage_unmap ($ty:((OSPage, OSPageBuffer)) args) {
+
+    // printk ("unmapping page %p\n", args.p1);
+
+    // FIXME: check that .p1 and .p2 are from the same object
+    // and return Error if not?
+
+    kunmap (args.p1);
+    return args.p1;
 }
 
-$ty:(Result (U32, U32) ()) $id:ospagebuffer_deserialise_Ple32 ($ty:((OSPageBuffer!, U32)) args) {
-    $ty:(Result (U32, U32) ()) ret;
+$ty:(Result (U32, OSPageBufferOffset) ())
+ospagebuffer_deserialise_Ple32 ($ty:((OSPageBuffer!, OSPageBufferOffset)) args) {
+    $ty:(Result (U32, OSPageBufferOffset) ()) ret;
     
     void* addr = page_address (args.p1);
     u32* final_addr = (u32*)(addr + args.p2);
@@ -97,8 +144,9 @@ $ty:(Result (U32, U32) ()) $id:ospagebuffer_deserialise_Ple32 ($ty:((OSPageBuffe
 }
 
 // deserialise_Ple16: (FsBuffer!, U32) -> Result (U16, U32) ()
-$ty:(Result (U16, U32) ()) $id:ospagebuffer_deserialise_Ple16 ($ty:((OSPageBuffer!, U32)) args) {
-    $ty:(Result (U16, U32) ()) ret;
+$ty:(Result (U16, OSPageBufferOffset) ())
+ospagebuffer_deserialise_Ple16 ($ty:((OSPageBuffer!, OSPageBufferOffset)) args) {
+    $ty:(Result (U16, OSPageBufferOffset) ()) ret;
     
     void* addr = page_address (args.p1);
     u16* final_addr = (u16*)(addr + args.p2);
@@ -118,8 +166,9 @@ $ty:(Result (U16, U32) ()) $id:ospagebuffer_deserialise_Ple16 ($ty:((OSPageBuffe
 }
 
 // deserialise_U8 (FsBuffer!, U32) -> Result (U8, U32) ()
-$ty:(Result (U8, U32) ()) $id:ospagebuffer_deserialise_U8 ($ty:((OSPageBuffer!, U32)) args) {
-    $ty:(Result (U8, U32) ()) ret;
+$ty:(Result (U8, OSPageBufferOffset) ())
+ospagebuffer_deserialise_U8 ($ty:((OSPageBuffer!, OSPageBufferOffset)) args) {
+    $ty:(Result (U8, OSPageBufferOffset) ()) ret;
 
     void* addr = page_address (args.p1);
     u8* final_addr = (u8*)(addr + args.p2);
@@ -135,4 +184,127 @@ $ty:(Result (U8, U32) ()) $id:ospagebuffer_deserialise_U8 ($ty:((OSPageBuffer!, 
     ret.Success.p2 = args.p2 + sizeof (u8);
 
     return ret;
+}
+
+$ty:(Result (OSPageBuffer, OSPageBufferOffset) (OSPageBuffer))
+ospagebuffer_serialise_Ple32 ($ty:((OSPageBuffer, OSPageBufferOffset, U32)) args) {
+    $ty:(Result (OSPageBuffer, OSPageBufferOffset) (OSPageBuffer)) ret;
+    
+    u8* addr = (u8*)page_address (args.p1) + args.p2;
+    u32* final_addr = (u32*)addr;
+
+    u32 host = args.p3;
+    __le32 raw = cpu_to_le32 (host);
+
+    // printk ("serialise to kaddr %p off %d = %p value %d\n", page_address(args.p1), args.p2, final_addr, args.p3);
+    *final_addr = raw;
+
+    ret.tag = TAG_ENUM_Success;
+    ret.Success.p1 = args.p1;
+    ret.Success.p2 = args.p2 + sizeof (u32);
+
+    return ret;
+}
+
+
+$ty:(Result (OSPageBuffer, OSPageBufferOffset) (OSPageBuffer))
+ospagebuffer_serialise_Ple16 ($ty:((OSPageBuffer, OSPageBufferOffset, U16)) args) {
+    $ty:(Result (OSPageBuffer, OSPageBufferOffset) (OSPageBuffer)) ret;
+    
+    u8* addr = (u8*)page_address (args.p1) + args.p2;
+    u16* final_addr = (u16*)addr;
+
+    u16 host = args.p3;
+    __le16 raw = cpu_to_le16 (host);
+
+    // printk ("serialise to kaddr %p off %d = %p value %d\n", page_address(args.p1), args.p2, final_addr, args.p3);
+    *final_addr = raw;
+
+    ret.tag = TAG_ENUM_Success;
+    ret.Success.p1 = args.p1;
+    ret.Success.p2 = args.p2 + sizeof (u16);
+
+    return ret;
+}
+
+$ty:(Result (OSPageBuffer, OSPageBufferOffset) (OSPageBuffer))
+ospagebuffer_serialise_U8 ($ty:((OSPageBuffer, OSPageBufferOffset, U8)) args) {
+    $ty:(Result (OSPageBuffer, OSPageBufferOffset) (OSPageBuffer)) ret;
+    
+    void* addr = page_address (args.p1);
+    u8* final_addr = (u8*)(addr + args.p2);
+
+    // printk ("serialise to kaddr %p off %d = %p value %d\n", addr, args.p2, final_addr, args.p3);
+    *final_addr = args.p3;
+
+    ret.tag = TAG_ENUM_Success;
+    ret.Success.p1 = args.p1;
+    ret.Success.p2 = args.p2 + sizeof (u8);
+
+    return ret;
+}
+
+$ty:(OSPageBuffer) ospagebuffer_memset ($ty:((OSPageBuffer, OSPageBufferOffset, U32, U32)) args) {
+    void* addr = page_address (args.p1);
+
+    memset (addr + args.p2, args.p3, args.p4);
+    return args.p1;
+}
+
+// NOT re-entrant
+//
+// this assumes that ex, state pointers do not change
+// IF THEY DO, YOU MUST SAVE AND RESTORE THEM FOR THE PARENT CALLER
+// THIS IS NOT A TOP-LEVEL FUNCTION!
+//
+// note we do not lock, since we've already locked from the outside world
+$ty:(RR (ExState, FsState, OSPage) () U32)
+ospage_write_prepare ($ty:((ExState, FsState, OSPage, U64, U32)) args) {
+    $ty:(RR (ExState, FsState, OSPage) () U32) ret;
+    ret.p1.p1 = args.p1;
+    ret.p1.p2 = args.p2;
+    ret.p1.p3 = args.p3;
+
+    int res = __block_write_begin(args.p3, args.p4, args.p5, ext2fs_get_block);
+    if (res == 0) {
+        ret.p2.tag = TAG_ENUM_Success;
+    } else {
+        ret.p2.tag = TAG_ENUM_Error;
+        ret.p2.Error = res;
+    }
+
+    return ret;
+}
+
+// same comment as above
+// not rentrant, from what I can tell?
+$ty:((ExState, FsState, OSPage))
+ospage_write_commit ($ty:((ExState, FsState, OSPage, U64, U32)) args) {
+    $ty:((ExState, FsState, OSPage)) ret = {.p1 = args.p1, .p2 = args.p2, .p3 = args.p3 };
+    block_write_end (NULL, args.p3->mapping, args.p4, args.p5, args.p5, args.p3, NULL);
+
+    return ret;
+}
+
+$ty:(VfsInode) ospage_get_host ($ty:(OSPage!) page) {
+    struct inode* inode = page->mapping->host;
+
+    ihold (inode);
+    return EXT2_I (inode);
+}
+
+$ty:(OSPage) ospage_lock ($ty:(OSPage) args) {
+    lock_page (args);
+    return args;
+}
+
+$ty:(OSPage) ospage_unlock ($ty:(OSPage) args) {
+    unlock_page (args);
+    return args;
+}
+
+// no longer lock re-entrant, writepage
+$ty:(OSPage) ospage_write ($ty:(OSPage) page) {
+    __nolock_write_one_page (page, 1);
+    return page;
 }

@@ -26,7 +26,7 @@ DEFNS=defns.txt
 PROOF_ID=BilbyFS
 
 # ADT headers required by BilbyFs
-AHFILES=$(wildcard abstract/*.ah)
+AHFILES=$(wildcard libgum/abstract/*.ah)
 # ADT C files required by BilbyFs
 ACFILES=$(addprefix libgum/anti/, common.ac wordarray.ac array.ac rbt.ac os.ac list.ac crc32.ac)
 # WARNING: do not modify ACFILES; to include a .ac file, add a #include in wrapper.ac
@@ -51,7 +51,7 @@ EXTRA_CFLAGS+= -O2 -std=gnu99 -Wno-parentheses -Wno-declaration-after-statement 
 COGENT_FLAGS+= -Od --fno-static-inline --fno-fncall-as-macro --fnormalisation=knf --ffunc-purity-attr
 # end of configuration
 
-override COGENT_FLAGS+= -o$(OUTPUT) --root-dir=$(ROOT_DIR) --dist-dir=$(DIST_DIR) --entry-funcs=$(DEFNS) --ext-types=$(TYPES) --infer-c-types="$(AHFILES)" --cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(EXTRA_CFLAGS)"
+override COGENT_FLAGS+= -o$(OUTPUT) --root-dir=$(ROOT_DIR) --dist-dir=$(DIST_DIR) --entry-funcs=$(DEFNS) --ext-types=$(TYPES) --infer-c-types="$(AHFILES)" --cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(EXTRA_CFLAGS)" --abs-type-dir=$(PWD)
 
 COUTPUT=$(addsuffix .c, $(OUTPUT))
 HOUTPUT=$(addsuffix .h, $(OUTPUT))
@@ -71,7 +71,6 @@ ifneq ($(KERNELRELEASE),)
   $(MODULE)-objs := $(OBJ)
 else
 
-KERNELDIR ?= /lib/modules/$(shell uname -r)/build
 PWD:= $(shell pwd)
 
 .PHONY: default cogent clean gen verification

@@ -19,18 +19,17 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with this program; if not, write to th
-e Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-  linux/include/linux/rbtree.h
+linux/include/linux/rbtree.h
 
-  To use rbtrees you'll have to implement your own insert and search cores.
-  This will avoid us to use callbacks and to drop drammatically performances.
-  I know it's not the cleaner way,  but in C (not in C++) to get
-  performances and genericity...
+To use rbtrees you'll have to implement your own insert and search cores.
+This will avoid us to use callbacks and to drop drammatically performances.
+I know it's not the cleaner way,  but in C (not in C++) to get
+performances and genericity...
 
-  See Documentation/rbtree.txt for documentation and samples.
+See Documentation/rbtree.txt for documentation and samples.
 */
 
 #ifndef _RBT_H_

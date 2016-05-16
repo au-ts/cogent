@@ -8,7 +8,7 @@
  * @TAG(NICTA_GPL)
  */
 
-$ty:(LRR acc rbrk) $id:seq32($ty:(Seq32Param acc obsv rbrk) args){
+$ty:(LRR acc rbrk) $id:seq32 ($ty:(Seq32Param acc obsv rbrk) args){
 	u32 i;
 	$ty:(LRR acc rbrk) ret;
 	$ty:(Seq32_bodyParam acc obsv rbrk) fargs;
@@ -31,7 +31,41 @@ $ty:(LRR acc rbrk) $id:seq32($ty:(Seq32Param acc obsv rbrk) args){
 	return ret;
 }
 
-$ty:(acc) $id:seq32_simple ($ty:(Seq32SimpleParam acc) args) {
+// same as seq32, but in reverse
+$ty:(LRR acc rbrk) $id:seq32_rev ($ty:(Seq32Param acc obsv rbrk) args)
+{
+	u32 i;
+	$ty:(LRR acc rbrk) ret;
+	$ty:(Seq32_bodyParam acc obsv rbrk) fargs;
+
+	ret.p2.tag = TAG_ENUM_Iterate;
+	ret.p1 = args.acc;
+
+	fargs.obsv = args.obsv;
+
+	for (i = args.frm; i >= args.to; i -= args.step) {
+		fargs.acc = ret.p1;
+		fargs.idx = i;
+
+		$ty:(LRR acc rbrk) funret = (($spec:(Seq32_body acc obsv rbrk))args.f)(fargs);
+		ret.p1 = funret.p1;
+
+		if (funret.p2.tag == TAG_ENUM_Break) {
+			ret.p2.tag = TAG_ENUM_Break;
+			ret.p2.Break = funret.p2.Break;
+			return ret;
+		}
+
+		if (i == args.to) {
+			// prevent wrap-around
+			break;
+		}
+	}
+
+	return ret;
+}
+
+$ty:acc $id:seq32_simple ($ty:(Seq32SimpleParam acc) args) {
 	u32 i;
 	for (i = args.frm; i < args.to; i += args.step) {
 		args.acc = (($spec:(Seq32_simple_body acc))args.f)(args.acc);
@@ -40,6 +74,34 @@ $ty:(acc) $id:seq32_simple ($ty:(Seq32SimpleParam acc) args) {
 	return args.acc;
 
 }
+
+$ty:(LRR acc rbrk) $id:seq32_stepf ($ty:(Seq32StepFParam acc obsv rbrk) args) {
+	$ty:(LRR acc rbrk) ret;
+        ret.p1 = args.acc;
+        ret.p2.tag = TAG_ENUM_Iterate;
+	u32 i = args.frm;
+
+	$ty:(Seq32_bodyParam acc obsv rbrk) fargs = { .obsv = args.obsv };
+
+	while (i < args.to) {
+		fargs.acc = ret.p1;
+		fargs.idx = i;
+
+		$ty:(LRR acc rbrk) funret = ((($spec:(Seq32_body acc obsv rbrk))args.f))(fargs);
+		ret.p1 = funret.p1;
+
+		if (funret.p2.tag == TAG_ENUM_Break) {
+			ret.p2.tag = TAG_ENUM_Break;
+			ret.p2.Break = funret.p2.Break;
+			return ret;
+		}
+
+		i = (($spec:(Seq32_stepParam))args.stepf)(i);
+	}
+
+	return ret;
+}
+
 $ty:(LRR acc rbrk) $id:seq64($ty:(Seq64Param acc obsv rbrk) args){
 	u64 i;
 	$ty:(LRR acc rbrk) ret;
@@ -66,64 +128,76 @@ $ty:(LRR acc rbrk) $id:seq64($ty:(Seq64Param acc obsv rbrk) args){
 /*
 #define ALIGN(x,a) ((x) % (a) ? (x) + (a) - ((x) % (a)) : (x))
 
-u32 $id:align32($ty:((U32, U32)) args)
+u32 align32($ty:((U32, U32)) args)
 {
 	return ALIGN(args.p1, args.p2);
 }
 
-u64 $id:align64($ty:((U64, U64)) args)
+u64 align64($ty:((U64, U64)) args)
 {
 	return ALIGN(args.p1, args.p2);
 }
 */
 
 //u8_to_u16: U8 -> U16
-u16 $id:u8_to_u16 (u8 x) {
+u16 u8_to_u16 (u8 x) {
 	return (u16)x;
 }
 
 //u8_to_u32: U8 -> U32
-u32 $id:u8_to_u32 (u8 x) {
+u32 u8_to_u32 (u8 x) {
 	return (u32)x;
 }
 
 //u8_to_u64: U8 -> U64
-u64 $id:u8_to_u64 (u8 x) {
+u64 u8_to_u64 (u8 x) {
 	return (u64)x;
 }
 
 //u16_to_u8: U16 -> U8
-u8 $id:u16_to_u8 (u16 x) {
+u8 u16_to_u8 (u16 x) {
 	return (u8)x;
 }
 
 //u16_to_u32: U16 -> U32
-u32 $id:u16_to_u32 (u16 x) {
+u32 u16_to_u32 (u16 x) {
 	return (u32)x;
 }
 
 //u32_to_u8: U32 -> U8
-u8 $id:u32_to_u8 (u32 x) {
+u8 u32_to_u8 (u32 x) {
 	return (u8)x;
 }
 
 //u32_to_u16: U32 -> U16
-u16 $id:u32_to_u16 (u32 x) {
+u16 u32_to_u16 (u32 x) {
 	return (u16)x;
 }
 
 //u32_to_u64: U32 -> U64
-u64 $id:u32_to_u64 (u32 x) {
+u64 u32_to_u64 (u32 x) {
 	return (u64)x;
 }
 
 //u64_to_u32: U64 -> U32
-u32 $id:u64_to_u32 (u64 x) {
+u32 u64_to_u32 (u64 x) {
 	return (u32)x;
 }
 
-u8 $id:u64_to_u8(u64 x)
+u8 u64_to_u8(u64 x)
 {
         return (u8)x;
+}
+
+u16 u64_to_u16(u64 x)
+{
+        return (u16)x;
+}
+
+struct unit_t $id:(_cogent_assert)($ty:(Bool) arg)
+{
+       unit_t ret;
+       BUG_ON(!arg.boolean);
+       return ret;
 }
 

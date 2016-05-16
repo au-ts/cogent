@@ -30,6 +30,3 @@ static inline unit_t cogent_debug_u64_hex (u64 arg) {
 	return unit;
 }
 
-static inline u32 cogent_log2 (u32 arg) {
-	return /*log*/2 /*(arg)*/;
-}
