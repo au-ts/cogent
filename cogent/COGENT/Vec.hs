@@ -195,7 +195,8 @@ splitAt (SSuc n) (Cons x xs) = let (a, b) = splitAt n xs in (Cons x a, b)
 splitAt _ _ = __ghc_t4139 "splitAt"
 #endif
 
-at :: Vec ('Suc a) t -> Fin ( a) -> t
+at :: Vec ( a) t -> Fin ( a) -> t
+at Nil _ = error "impossible branch in at in Vec.hs"
 at (Cons x xs) FZero    = x
 at (Cons x xs) (FSuc s) = at xs s
 #if __GLASGOW_HASKELL__ < 711
@@ -207,7 +208,8 @@ atList [] _ = __impossible "atList"
 atList (x:xs) FZero = x
 atList (x:xs) (FSuc s) = atList xs s
 
-update :: Vec ('Suc a) t -> Fin ( a) -> t -> Vec ('Suc a) t
+update :: Vec a t -> Fin  a -> t -> Vec  a t
+update Nil _ _ = Nil
 update (Cons _ xs) FZero    x' = Cons x' xs
 update (Cons x xs) (FSuc s) x' = Cons x (update xs s x')
 #if __GLASGOW_HASKELL__ < 711
@@ -216,7 +218,7 @@ update _ _ _ = __ghc_t4139 "update"
 
 --modifyAt :: Fin ('Suc a) -> (t -> t) -> Vec ( a) t -> Vec ( a) t
 --modifyAt _empty _f Nil = Nil
-modifyAt :: Fin a -> (t -> t) -> Vec ('Suc a) t -> Vec ('Suc a) t
+modifyAt :: Fin a -> (t -> t) -> Vec ( a) t -> Vec ( a) t
 modifyAt l f v = update v l (f (v `at` l))
 
 findIx :: (Eq t) => t -> Vec a t -> Maybe (Fin a)

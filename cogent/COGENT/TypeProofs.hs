@@ -444,7 +444,9 @@ treeSplit g x y = error $ "bad split: " ++ show (g, x, y)
 treeSplits :: Vec v (Maybe (Type t)) -> Vec v (Maybe (Type t)) -> Vec v (Maybe (Type t)) -> [Maybe TypeSplitKind]
 treeSplits (Cons g gs) (Cons x xs) (Cons y ys) = treeSplit g x y:treeSplits gs xs ys
 treeSplits Nil         Nil         Nil         = []
+#if __GLASGOW_HASKELL__ < 711
 treeSplits _ _ _ = __ghc_t4139 "TypeProofs.treeSplits"
+#endif
 
 treeBang :: Int -> [Int] -> [Maybe TypeSplitKind] -> [Maybe TypeSplitKind]
 treeBang i is (x:xs) | i `elem` is = Just TSK_NS:treeBang (i+1) is xs

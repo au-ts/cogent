@@ -448,8 +448,9 @@ lowerFin _ FZero (FSuc v) = v
 lowerFin _ (FSuc i) FZero = FZero
 lowerFin (SSuc SZero) (FSuc FZero) (FSuc FZero) = __impossible "lowerFin"
 lowerFin (SSuc (SSuc n)) (FSuc i) (FSuc v) = FSuc $ lowerFin (SSuc n) i v
+#if __GLASGOW_HASKELL__ < 711
 lowerFin _ _ _ = __ghc_t4139 "lowerFin"
-
+#endif
 lowerExpr :: (Show a, v ~ Suc v') => SNat v -> Fin (Suc v) -> TypedExpr t (Suc v) a -> TypedExpr t v a
 lowerExpr w i (TE tau (Variable (v,a)))     = TE tau $ Variable (lowerFin w i v, a)
 lowerExpr w i (TE tau (Fun fn tys  note))   = TE tau $ Fun fn tys note
@@ -574,7 +575,9 @@ betaR (TE tau (Member rec fld))   idx n arg ts = TE (substitute ts tau) <$> (Mem
 betaR (TE tau (Take a rec fld e)) idx n arg ts = TE (substitute ts tau) <$> (Take a <$> betaR rec idx n arg ts <*> pure fld <*> betaR e (SSuc (SSuc idx)) n arg ts)
 betaR (TE tau (Put rec fld e))    idx n arg ts = TE (substitute ts tau) <$> (Put <$> betaR rec idx n arg ts <*> pure fld <*> betaR e idx n arg ts)
 betaR (TE tau (Promote ty e))     idx n arg ts = TE (substitute ts tau) <$> (Promote (substitute ts ty) <$> betaR e idx n arg ts)
+#if __GLASGOW_HASKELL__ < 711
 betaR _ _ _ _ _ = __ghc_t4139 "betaR"
+#endif
 
 lookupKind :: Fin t -> Simp t Kind
 lookupKind f = (`V.at` f) <$> use kindEnv

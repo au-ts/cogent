@@ -105,19 +105,19 @@ data Expr t v a e
   | Unit
   | ILit Integer PrimInt
   | SLit String
-  | Let a (e t v a) (e t (Suc v) a)
-  | LetBang [(Fin v, a)] a (e t v a) (e t (Suc v) a)
+  | Let a (e t v a) (e t ('Suc v) a)
+  | LetBang [(Fin v, a)] a (e t v a) (e t ('Suc v) a)
   | Tuple (e t v a) (e t v a)
   | Struct [(FieldName, e t v a)]  -- unboxed record
   | If (e t v a) (e t v a) (e t v a)   -- technically no longer needed as () + () == Bool
-  | Case (e t v a) TagName (Likelihood, a, e t (Suc v) a) (Likelihood, a, e t (Suc v) a)
+  | Case (e t v a) TagName (Likelihood, a, e t ('Suc v) a) (Likelihood, a, e t ('Suc v) a)
   | Esac (e t v a)
-  | Split (a, a) (e t v a) (e t (Suc (Suc v)) a)
+  | Split (a, a) (e t v a) (e t ('Suc ('Suc v)) a)
   | Member (e t v a) FieldIndex
-  | Take (a, a) (e t v a) FieldIndex (e t (Suc (Suc v)) a)
+  | Take (a, a) (e t v a) FieldIndex (e t ('Suc ('Suc v)) a)
   | Put (e t v a) FieldIndex (e t v a)
   | Promote (Type t) (e t v a)
-deriving instance (Show a, Show (e t v a), Show (e t (Suc (Suc v)) a), Show (e t (Suc v) a)) => Show (Expr t v a e)
+deriving instance (Show a, Show (e t v a), Show (e t ('Suc ('Suc v)) a), Show (e t ('Suc v) a)) => Show (Expr t v a e)
   -- constraint no smaller than header, thus UndecidableInstances
 
 data UntypedExpr t v a = E (Expr t v a UntypedExpr) deriving (Show)
@@ -133,13 +133,13 @@ instance Monoid Attr where
   (Attr a1 a2) `mappend` (Attr a1' a2') = Attr (a1 || a1') (a2 || a2')
 
 data Definition e a
-  = forall t. FunDef  Attr FunName (Vec t (TyVarName, Kind)) (Type t) (Type t) (e t (Suc Zero) a)
+  = forall t. FunDef  Attr FunName (Vec t (TyVarName, Kind)) (Type t) (Type t) (e t ('Suc 'Zero) a)
   | forall t. AbsDecl Attr FunName (Vec t (TyVarName, Kind)) (Type t) (Type t)
   | forall t. TypeDef TypeName (Vec t TyVarName) (Maybe (Type t))
 deriving instance Show a => Show (Definition TypedExpr a)
 deriving instance Show a => Show (Definition UntypedExpr a)
 
-type SFConst e = (VarName, e Zero Zero VarName)
+type SFConst e = (VarName, e 'Zero 'Zero VarName)
 
 getDefinitionId :: Definition e a -> String
 getDefinitionId (FunDef  _ fn _ _ _ _) = fn
@@ -256,7 +256,7 @@ untypeD (FunDef  attr fn ts ti to e) = FunDef  attr fn ts ti to (untypeE e)
 untypeD (AbsDecl attr fn ts ti to  ) = AbsDecl attr fn ts ti to
 untypeD (TypeDef tn ts mt) = TypeDef tn ts mt
 
-instance (Functor (e t v), Functor (e t (Suc v)), Functor (e t (Suc (Suc v)))) => Functor (Flip (Expr t v) e) where
+instance (Functor (e t v), Functor (e t ('Suc v)), Functor (e t ('Suc ('Suc v)))) => Functor (Flip (Expr t v) e) where
   fmap f (Flip (Variable v)         ) = Flip $ Variable (second f v)
   fmap f (Flip (Fun fn tys nt)      ) = Flip $ Fun fn tys nt
   fmap f (Flip (Op opr es)          ) = Flip $ Op opr (map (fmap f) es)
@@ -430,7 +430,7 @@ tcConsts ((v,e):ds) reader =
 -- XXX |     v1 = TyVar (FSuc FZero)
 -- XXX |     array = AbstractType "Array" . (:[])
 
-withBinding :: Type t -> TC t (Suc v) x -> TC t v x
+withBinding :: Type t -> TC t ('Suc v) x -> TC t v x
 withBinding t a
   = TC $ do readers <- ask
             st      <- get

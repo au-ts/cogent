@@ -14,7 +14,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE ImpredicativeTypes #-}
+--{-# LANGUAGE ImpredicativeTypes #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
@@ -49,7 +49,7 @@ import Prelude as P
 -- import Debug.Trace
 
 
-type Instance = [Type Zero]
+type Instance = [Type 'Zero]
 
 -- The list of Definitions is pre-ordered, which means that we only need to visit each definition exactly once.
 -- Traversal has to start from the roots of the call trees to collect instances.
@@ -150,7 +150,7 @@ getPrimInt :: TypedExpr t v VarName -> PrimInt
 getPrimInt (TE t _) | TPrim p <- t = p
                     | otherwise = __impossible "getPrimInt"
 
-monoExpr :: TypedExpr t v VarName -> Mono (TypedExpr Zero v VarName)
+monoExpr :: TypedExpr t v VarName -> Mono (TypedExpr 'Zero v VarName)
 monoExpr (TE t e) = TE <$> monoType t <*> monoExpr' e
   where
     monoExpr' (Variable var       ) = pure $ Variable var
@@ -179,7 +179,7 @@ monoExpr (TE t e) = TE <$> monoType t <*> monoExpr' e
     monoExpr' (Put     rec fld e  ) = Put  <$> monoExpr rec <*> pure fld <*> monoExpr e
     monoExpr' (Promote ty e       ) = Promote <$> monoType ty <*> monoExpr e
 
-monoType :: Type t -> Mono (Type Zero)
+monoType :: Type t -> Mono (Type 'Zero)
 monoType (TVar v) = atList <$> ask <*> pure v
 monoType (TVarBang v) = bang <$> (atList <$> ask <*> pure v)
 monoType (TCon n [] s) = do

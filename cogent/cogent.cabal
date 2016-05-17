@@ -117,7 +117,7 @@ executable cogent
     happy
   ghc-options:
     -Wall
-    -Werror
+--    -Werror -- never a nice default
     -fno-warn-name-shadowing
     -fno-warn-missing-signatures
     -fno-warn-unused-matches
