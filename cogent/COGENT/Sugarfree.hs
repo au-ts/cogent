@@ -353,7 +353,7 @@ opType Not [TPrim Boolean] = Just $ TPrim Boolean
 opType Complement [TPrim p] | p /= Boolean = Just $ TPrim p
 opType opr ts = __impossible "opType"
 
-useVariable :: Fin v -> TC (Suc t) ( v) (Maybe (Type ( t)))
+useVariable :: Fin v -> TC t (Suc v) (Maybe (Type t))
 useVariable v = TC $ do ret <- (`at` v) <$> get
                         case ret of
                           Nothing -> return ret
@@ -365,8 +365,8 @@ useVariable v = TC $ do ret <- (`at` v) <$> get
 funType :: FunName -> TC t v (Maybe FunctionType)
 funType v = TC $ (M.lookup v . snd) <$> ask
 
-runTC :: TC (t) ( v) a -> (Vec ( t) Kind, Map FunName FunctionType) -> Vec ( v) (Maybe (Type ( t)))
-      -> Either String (Vec ( v) (Maybe (Type ( t))), a)
+runTC :: TC t v a -> (Vec t Kind, Map FunName FunctionType) -> Vec v (Maybe (Type t))
+      -> Either String (Vec v (Maybe (Type t)), a)
 runTC (TC a) readers st = case runState (runReaderT (runExceptT a) readers) st of
                             (Left x, s)  -> Left x
                             (Right x, s) -> Right (s,x)
@@ -430,14 +430,14 @@ tcConsts ((v,e):ds) reader =
 -- XXX |     v1 = TyVar (FSuc FZero)
 -- XXX |     array = AbstractType "Array" . (:[])
 
-withBinding :: Type t -> TC t (Suc n) a -> TC ( t) ( n) a -- Type t -> TC t ('Suc v) x -> TC t ( v) x
+withBinding :: Type t -> TC t ('Suc n) a -> TC t n a -- Type t -> TC t ('Suc v) x -> TC t ( v) x
 withBinding t a
   = TC $ do readers <- ask
             st      <- get
             case runTC a readers (Cons (Just t) st) of
               Left e -> throwError e
               Right (Cons Nothing s,r)   -> do put s; return r
-              Right ((Cons (Just t) s) , r) -> do
+              Right ((Cons (Just t) s) :: Vec ('Suc n) (Maybe (Type t)), r) -> do
                 ok <- canDiscard <$> unTC (kindcheck t)
                 if ok then do put s; return r
                       else do throwError "Didn't use linear variable"
@@ -456,7 +456,7 @@ withBang vs (TC x) = TC $ do st <- get
 lookupKind :: Fin a -> TC ('Suc a) v Kind -- _  -- :: Fin t -> TC t ('Suc v) Kind
 lookupKind f = TC ((`at` f) . fst <$> ask)
 
-kindcheck :: Type t -> TC (Suc t )( v) Kind
+kindcheck :: Type t -> TC t ('Suc v) Kind
 kindcheck (TVar v)         = lookupKind v
 kindcheck (TVarBang v)     = bangKind <$> lookupKind v
 kindcheck (TUnit)          = return mempty
@@ -468,7 +468,7 @@ kindcheck (TPrim i)        = return mempty
 kindcheck (TString)        = return mempty
 kindcheck (TCon n vs s)    = mapM_ kindcheck vs >> return (sigilKind s)
 
-typecheck ::  UntypedExpr ( t) v a -> TC ( t) v (TypedExpr ( t) v a)
+typecheck :: UntypedExpr t v a -> TC t v (TypedExpr t v a)
 typecheck (E (Op o es))
    = do es' <- mapM typecheck es
         let Just t = opType o (map exprType es')
