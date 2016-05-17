@@ -84,12 +84,12 @@ isUnboxed _ = False
 
 isSubtype :: Type t -> Type t -> Bool
 isSubtype (TPrim p1) (TPrim p2) = isSubtypePrim p1 p2
-isSubtype (TSum  s1) (TSum  s2) | not __cogent_fnew_subtyping 
+isSubtype (TSum  s1) (TSum  s2) | not __cogent_fnew_subtyping
   = (if __cogent_fshare_variants then length s1 == 1 else True) && and (map (flip elem s2) s1)
   -- NOTE: this impl'n means no forms of depth subtyping is allowed. i.e., prim has to be promoted before width subtyping is met / zilinc
                                 | otherwise
   = and $ zipWith (\(c1,(t1,b1)) (c2,(t2,b2)) -> (c1,t1) == (c2,t2) && b1 >= b2) s1 s2
-isSubtype (TRecord r1 s1) (TRecord r2 s2) | __cogent_fnew_subtyping = 
+isSubtype (TRecord r1 s1) (TRecord r2 s2) | __cogent_fnew_subtyping =
   s1 == s2 && and (zipWith (\(f1,(t1,b1)) (f2,(t2,b2)) -> (f1,t1) == (f2,t2) && b1 >= b2) r1 r2)
 isSubtype a b = a == b
 
@@ -304,7 +304,7 @@ bang (TPrim i)        = TPrim i
 bang (TString)        = TString
 bang (TCon n ts s)    = TCon n (map bang ts) (bangSigil s)
 
-substitute :: Vec t (Type u) -> Type t -> Type u
+substitute :: Vec ('Suc t) (Type u) -> Type t -> Type u
 substitute vs (TVar v)         = vs `at` v
 substitute vs (TVarBang v)     = bang (vs `at` v)
 substitute _  (TUnit)          = TUnit
@@ -353,7 +353,7 @@ opType Not [TPrim Boolean] = Just $ TPrim Boolean
 opType Complement [TPrim p] | p /= Boolean = Just $ TPrim p
 opType opr ts = __impossible "opType"
 
-useVariable :: Fin v -> TC t v (Maybe (Type t))
+useVariable :: Fin v -> TC t (Suc v) (Maybe (Type t))
 useVariable v = TC $ do ret <- (`at` v) <$> get
                         case ret of
                           Nothing -> return ret
@@ -430,14 +430,14 @@ tcConsts ((v,e):ds) reader =
 -- XXX |     v1 = TyVar (FSuc FZero)
 -- XXX |     array = AbstractType "Array" . (:[])
 
-withBinding :: Type t -> TC t (Suc v) x -> TC t v x
+withBinding :: Type t -> TC t ('Suc n) a -> TC t n a -- Type t -> TC t ('Suc v) x -> TC t ( v) x
 withBinding t a
   = TC $ do readers <- ask
             st      <- get
             case runTC a readers (Cons (Just t) st) of
               Left e -> throwError e
               Right (Cons Nothing s,r)   -> do put s; return r
-              Right (Cons (Just t) s, r) -> do
+              Right ((Cons (Just t) s) :: Vec ('Suc n) (Maybe (Type t)), r) -> do
                 ok <- canDiscard <$> unTC (kindcheck t)
                 if ok then do put s; return r
                       else do throwError "Didn't use linear variable"
@@ -446,17 +446,17 @@ withBindings :: Vec k (Type t) -> TC t (v :+: k) x -> TC t v x
 withBindings Nil tc = tc
 withBindings (Cons x xs) tc = withBindings xs (withBinding x tc)
 
-withBang :: [Fin v] -> TC t v x -> TC t v x
+withBang :: [Fin v] -> TC t ('Suc v) x -> TC t ('Suc v) x
 withBang vs (TC x) = TC $ do st <- get
                              mapM_ (\v -> modify (modifyAt v (fmap bang))) vs
                              ret <- x
                              mapM_ (\v -> modify (modifyAt v (const $ st `at` v))) vs
                              return ret
 
-lookupKind :: Fin t -> TC t v Kind
+lookupKind :: Fin a -> TC ('Suc a) v Kind -- _  -- :: Fin t -> TC t ('Suc v) Kind
 lookupKind f = TC ((`at` f) . fst <$> ask)
 
-kindcheck :: Type t -> TC t v Kind
+kindcheck :: Type t -> TC t ('Suc v) Kind
 kindcheck (TVar v)         = lookupKind v
 kindcheck (TVarBang v)     = bangKind <$> lookupKind v
 kindcheck (TUnit)          = return mempty
