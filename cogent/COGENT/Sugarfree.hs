@@ -84,12 +84,12 @@ isUnboxed _ = False
 
 isSubtype :: Type t -> Type t -> Bool
 isSubtype (TPrim p1) (TPrim p2) = isSubtypePrim p1 p2
-isSubtype (TSum  s1) (TSum  s2) | not __cogent_fnew_subtyping 
+isSubtype (TSum  s1) (TSum  s2) | not __cogent_fnew_subtyping
   = (if __cogent_fshare_variants then length s1 == 1 else True) && and (map (flip elem s2) s1)
   -- NOTE: this impl'n means no forms of depth subtyping is allowed. i.e., prim has to be promoted before width subtyping is met / zilinc
                                 | otherwise
   = and $ zipWith (\(c1,(t1,b1)) (c2,(t2,b2)) -> (c1,t1) == (c2,t2) && b1 >= b2) s1 s2
-isSubtype (TRecord r1 s1) (TRecord r2 s2) | __cogent_fnew_subtyping = 
+isSubtype (TRecord r1 s1) (TRecord r2 s2) | __cogent_fnew_subtyping =
   s1 == s2 && and (zipWith (\(f1,(t1,b1)) (f2,(t2,b2)) -> (f1,t1) == (f2,t2) && b1 >= b2) r1 r2)
 isSubtype a b = a == b
 
