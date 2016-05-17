@@ -194,11 +194,11 @@ getVOccs v' ma = do (fenv,venv) <- get
                     put (fenv',venv2)
                     return (a,(fenv',venv1))
 
-getVOcc1 :: Occ (Suc v) a -> Occ v (a, OccInfo)
+getVOcc1 :: Occ ('Suc v) a -> Occ v (a, OccInfo)
 getVOcc1 ma = do (a,(_,Cons occ Nil)) <- getVOccs s1 ma
                  return (a,occ)
 
-getVOcc2 :: Occ (Suc (Suc v)) a -> Occ v (a, OccInfo, OccInfo)
+getVOcc2 :: Occ ('Suc ('Suc v)) a -> Occ v (a, OccInfo, OccInfo)
 getVOcc2 ma = do (a,(_,Cons occ1 (Cons occ2 Nil))) <- getVOccs s2 ma
                  return (a,occ1,occ2)
 
@@ -242,7 +242,7 @@ simplify1 (FunDef attr fn tvs ti to e) = do
   return d'
 simplify1 d = pure d
 
-simplifyExpr :: Int -> TypedExpr t (Suc Zero) VarName -> Simp t (TypedExpr t (Suc Zero) VarName)
+simplifyExpr :: Int -> TypedExpr t ('Suc 'Zero) VarName -> Simp t (TypedExpr t ('Suc 'Zero) VarName)
 simplifyExpr 0 e = pure e
 simplifyExpr n e = do fenv <- use funcEnv
                       let (e',(fenv',_)) = runOcc (fenv, emptyOccVec s1) $ markOcc s1 e
@@ -281,7 +281,7 @@ data Context t v = Stop
 
 -- FIXME: basically ignore Context for now, and just do recursion on this function, instead of mutual recursion / zilinc
 -- needs a stats as well (IO)
-simplExpr :: (v ~ Suc v') => SNat v -> Subst t v -> InScopeSet t v -> InExpr t v -> Context t v -> Simp t (OutExpr t v)
+simplExpr :: (v ~ 'Suc v') => SNat v -> Subst t v -> InScopeSet t v -> InExpr t v -> Context t v -> Simp t (OutExpr t v)
 simplExpr sv subst ins (TE tau (Variable (v,(n,o)))) cont = case subst `V.at` v of  -- `v' here is an in-var
   Nothing           -> considerInline sv ins (v,n,tau) cont  -- `v' here is an out-var
   Just (SuspEx e s) -> simplExpr sv s ins e cont
@@ -355,7 +355,7 @@ simplExpr sv subst ins (TE tau (Put rec fld e)) cont = TE tau <$> (Put <$> simpl
 simplExpr sv subst ins (TE tau (Promote ty e)) cont = TE tau . Promote ty <$> simplExpr sv subst ins e cont
 
 -- Ininlining at occurrence site
-considerInline :: (v ~ Suc v') => SNat v -> InScopeSet t v -> (OutVar v, VarName, Type t) -> Context t v -> Simp t (OutExpr t v)
+considerInline :: (v ~ 'Suc v') => SNat v -> InScopeSet t v -> (OutVar v, VarName, Type t) -> Context t v -> Simp t (OutExpr t v)
 considerInline sv ins (v,n,tau) cont = case ins `V.at` v of
   Nothing -> __impossible "considerInline"  -- not in scope
   Just (BoundTo rhs occ) -> do
@@ -438,19 +438,20 @@ smallEnough _ _ = __fixme False
 -- ////////////////////////////////////////////////////////////////////////////
 -- misc.
 
-lowerExpr0 :: (Show a, v ~ Suc v') => SNat v -> TypedExpr t (Suc v) a -> TypedExpr t v a
+lowerExpr0 :: (Show a, v ~ 'Suc v') => SNat v -> TypedExpr t ('Suc v) a -> TypedExpr t v a
 lowerExpr0 v = lowerExpr v f0
 
 -- lowerFin (|var|-1) idx var: if var < idx, then var; otherwise var - 1 (idx /= var)
-lowerFin :: (v ~ Suc v') => SNat v -> Fin (Suc v) -> Fin (Suc v) -> Fin v
+lowerFin :: (v ~ 'Suc v') => SNat v -> Fin ('Suc v) -> Fin ('Suc v) -> Fin v
 lowerFin _ FZero FZero = __impossible "lowerFin"
 lowerFin _ FZero (FSuc v) = v
 lowerFin _ (FSuc i) FZero = FZero
 lowerFin (SSuc SZero) (FSuc FZero) (FSuc FZero) = __impossible "lowerFin"
 lowerFin (SSuc (SSuc n)) (FSuc i) (FSuc v) = FSuc $ lowerFin (SSuc n) i v
+#if __GLASGOW_HASKELL__ < 711
 lowerFin _ _ _ = __ghc_t4139 "lowerFin"
-
-lowerExpr :: (Show a, v ~ Suc v') => SNat v -> Fin (Suc v) -> TypedExpr t (Suc v) a -> TypedExpr t v a
+#endif
+lowerExpr :: (Show a, v ~ 'Suc v') => SNat v -> Fin ('Suc v) -> TypedExpr t ('Suc v) a -> TypedExpr t v a
 lowerExpr w i (TE tau (Variable (v,a)))     = TE tau $ Variable (lowerFin w i v, a)
 lowerExpr w i (TE tau (Fun fn tys  note))   = TE tau $ Fun fn tys note
 lowerExpr w i (TE tau (Op opr es))          = TE tau $ Op opr (L.map (lowerExpr w i) es)
@@ -472,7 +473,7 @@ lowerExpr w i (TE tau (Take a rec fld e))   = TE tau $ Take a (lowerExpr w i rec
 lowerExpr w i (TE tau (Put rec fld e))      = TE tau $ Put (lowerExpr w i rec) fld (lowerExpr w i e)
 lowerExpr w i (TE tau (Promote ty e))       = TE tau $ Promote ty (lowerExpr w i e)
 
-liftExpr :: Show a => Fin (Suc v) -> TypedExpr t v a -> TypedExpr t (Suc v) a
+liftExpr :: Show a => Fin ('Suc v) -> TypedExpr t v a -> TypedExpr t ('Suc v) a
 liftExpr i (TE tau (Variable (v,a)))     = TE tau $ Variable (liftIdx i v,a)
 liftExpr i (TE tau (Fun fn tys note))    = TE tau $ Fun fn tys note
 liftExpr i (TE tau (Op opr es))          = TE tau $ Op opr (L.map (liftExpr i) es)
@@ -494,39 +495,39 @@ liftExpr i (TE tau (Take a rec fld e))   = TE tau $ Take a (liftExpr i rec) fld 
 liftExpr i (TE tau (Put rec fld e))      = TE tau $ Put (liftExpr i rec) fld (liftExpr i e)
 liftExpr i (TE tau (Promote ty e))       = TE tau $ Promote ty (liftExpr i e)
 
-upshiftExpr :: Show a => SNat n -> SNat v -> Fin (Suc v) -> TypedExpr t v a -> TypedExpr t (v :+: n) a
+upshiftExpr :: Show a => SNat n -> SNat v -> Fin ('Suc v) -> TypedExpr t v a -> TypedExpr t (v :+: n) a
 upshiftExpr SZero _ v e = e
 upshiftExpr (SSuc n) sv v e | Refl <- addSucLeft sv n
   = let a = upshiftExpr n sv v e in liftExpr (widenN v n) a
 
-extSubst :: Subst t v -> Subst t (Suc v)
+extSubst :: Subst t v -> Subst t ('Suc v)
 extSubst s = Cons Nothing (fmap (fmap liftSubstRng) s)
 
-liftSubst :: Subst' t (Suc v) v -> Subst t (Suc v)
+liftSubst :: Subst' t ('Suc v) v -> Subst t ('Suc v)
 liftSubst = fmap $ fmap liftSubstRng
 
-liftSubstRng :: SubstRng t v -> SubstRng t (Suc v)
+liftSubstRng :: SubstRng t v -> SubstRng t ('Suc v)
 liftSubstRng (DoneEx e  ) = DoneEx (liftExpr f0 e)
 liftSubstRng (SuspEx e s) = SuspEx (liftExpr f0 e) (extSubst s)
 
-extInScopeSet :: InScopeSet t v -> InScopeSet t (Suc v)
+extInScopeSet :: InScopeSet t v -> InScopeSet t ('Suc v)
 extInScopeSet s = Cons Nothing (fmap (fmap liftVarDef) s)
 
-liftInScopeSet :: InScopeSet' t (Suc v) v -> InScopeSet t (Suc v)
+liftInScopeSet :: InScopeSet' t ('Suc v) v -> InScopeSet t ('Suc v)
 liftInScopeSet = fmap $ fmap liftVarDef
 
-liftVarDef :: VarDef t v -> VarDef t (Suc v)
+liftVarDef :: VarDef t v -> VarDef t ('Suc v)
 liftVarDef (Unknown) = Unknown
 liftVarDef (BoundTo e occ) = BoundTo (liftExpr f0 e) occ
 -- liftVarDef (NotAmong tags) = NotAmong tags
 
-liftContext :: Context t v -> Context t (Suc v)
+liftContext :: Context t v -> Context t ('Suc v)
 liftContext Stop = Stop
 
 -- substFin var (|var_body|-1==idx) |var_arg| arg
 -- It performs substitution [var |-> arg], the substituted variable must be the one of largest index.
 -- Returned env is constituted by `init (var_body) ++ var_arg'
-substFin :: Fin (Suc v') -> SNat v' -> SNat v -> TypedExpr t v VarName -> Either (Fin (v :+: v')) (TypedExpr t (v :+: v') VarName)
+substFin :: Fin ('Suc v') -> SNat v' -> SNat v -> TypedExpr t v VarName -> Either (Fin (v :+: v')) (TypedExpr t (v :+: v') VarName)
 substFin FZero SZero _ arg = Right arg
 substFin FZero (SSuc _) _ _ = Left FZero
 substFin (FSuc _) SZero _ _ = __impossible "substFin"  -- idx must be the largest var
@@ -535,7 +536,7 @@ substFin (FSuc v) (SSuc n') n arg = case substFin v n' n arg of
   Right e -> Right $ liftExpr f0 e
 
 -- betaR body (|var_body|-1==idx) |var_arg| arg ts
-betaR :: (v ~ Suc v0) => TypedExpr t' (Suc v') VarName -> SNat v' -> SNat v -> TypedExpr t v VarName -> Vec t' (Type t) -> Simp t (TypedExpr t (v :+: v') VarName)
+betaR :: (v ~ 'Suc v0) => TypedExpr t' ('Suc v') VarName -> SNat v' -> SNat v -> TypedExpr t v VarName -> Vec t' (Type t) -> Simp t (TypedExpr t (v :+: v') VarName)
 betaR (TE tau (Variable (v,a)))  idx n arg ts
   = case substFin v idx n arg of
       Left v' -> pure $ TE (substitute ts tau) $ Variable (v',a)
@@ -574,7 +575,9 @@ betaR (TE tau (Member rec fld))   idx n arg ts = TE (substitute ts tau) <$> (Mem
 betaR (TE tau (Take a rec fld e)) idx n arg ts = TE (substitute ts tau) <$> (Take a <$> betaR rec idx n arg ts <*> pure fld <*> betaR e (SSuc (SSuc idx)) n arg ts)
 betaR (TE tau (Put rec fld e))    idx n arg ts = TE (substitute ts tau) <$> (Put <$> betaR rec idx n arg ts <*> pure fld <*> betaR e idx n arg ts)
 betaR (TE tau (Promote ty e))     idx n arg ts = TE (substitute ts tau) <$> (Promote (substitute ts ty) <$> betaR e idx n arg ts)
+#if __GLASGOW_HASKELL__ < 711
 betaR _ _ _ _ _ = __ghc_t4139 "betaR"
+#endif
 
 lookupKind :: Fin t -> Simp t Kind
 lookupKind f = (`V.at` f) <$> use kindEnv

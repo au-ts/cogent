@@ -103,7 +103,7 @@ desugar tls pragmas =
   where fromTypeDec  (S.TypeDec tn vs t) = (tn,(vs,t)); fromTypeDec  _ = __impossible "fromTypeDec (in desugarProgram)"
         fromConstDef (S.ConstDef vn t e) = (vn,e)     ; fromConstDef _ = __impossible "fromConstDef (in desguarProgram)"
 
-withTypeBinding :: TyVarName -> DS (Suc t) v a -> DS t v a
+withTypeBinding :: TyVarName -> DS ('Suc t) v a -> DS t v a
 withTypeBinding t ds = do readers <- ask
                           (tenv,venv,enum) <- get
                           let (a, (_,_,enum'), _) = flip3 runRWS (Cons t tenv, venv, enum) readers $ runDS ds
@@ -114,7 +114,7 @@ withTypeBindings :: Vec k TyVarName -> DS (t :+: k) v a -> DS t v a
 withTypeBindings Nil ds = ds
 withTypeBindings (Cons x xs) ds = withTypeBindings xs (withTypeBinding x ds)
 
-withBinding :: VarName -> DS t (Suc v) a -> DS t v a
+withBinding :: VarName -> DS t ('Suc v) a -> DS t v a
 withBinding v ds = do readers <- ask
                       (tenv,venv,enum) <- get
                       let (a, (_,_,enum'), _) = flip3 runRWS (tenv, Cons v venv, enum) readers $ runDS ds
@@ -138,7 +138,7 @@ pragmaToNote (_:pragmas) fn note = pragmaToNote pragmas fn note
 
 desugarTopLevel :: S.TopLevel S.RawType T.TypedName T.TypedExpr
                 -> [Pragma]
-                -> DS Zero Zero (Maybe (Definition UntypedExpr VarName))
+                -> DS 'Zero 'Zero (Maybe (Definition UntypedExpr VarName))
 desugarTopLevel (S.Include s) _ = __impossible "desugarTopLevel"
 desugarTopLevel (S.IncludeStd s) _ = __impossible "desugarTopLevel"
 desugarTopLevel (S.TypeDec tn vs t) _ | ExI (Flip vs') <- Vec.fromList vs
@@ -525,10 +525,10 @@ desugarOp "<<"  = LShift
 desugarOp "complement" = Complement
 desugarOp x     = __impossible "desugarOp"
 
-desugarConst :: (VarName, T.TypedExpr) -> DS Zero Zero (SFConst UntypedExpr)
+desugarConst :: (VarName, T.TypedExpr) -> DS 'Zero 'Zero (SFConst UntypedExpr)
 desugarConst (n,e) = (n,) <$> desugarExpr e
 
 -- NOTE: aseume the first arguments consists of constants only
-desugarConsts :: [S.TopLevel S.RawType T.TypedName T.TypedExpr] -> DS Zero Zero [SFConst UntypedExpr]
+desugarConsts :: [S.TopLevel S.RawType T.TypedName T.TypedExpr] -> DS 'Zero 'Zero [SFConst UntypedExpr]
 desugarConsts = mapM desugarConst . P.map (\(S.ConstDef v _ e) -> (v,e))
 

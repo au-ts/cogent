@@ -268,7 +268,7 @@ mkLet nm t1 t2 =
  else
     mkApp (mkId "HOL.Let") [t1, mkLambda [snm nm] t2]
 
-shallowLet :: VarName -> TypedExpr t v VarName -> TypedExpr t (Suc v) VarName -> SG Term
+shallowLet :: VarName -> TypedExpr t v VarName -> TypedExpr t ('Suc v) VarName -> SG Term
 shallowLet nm e1 e2 = mkLet nm <$> shallowExpr e1 <*> shallowExpr e2
 
 mkStr :: [String] -> Term

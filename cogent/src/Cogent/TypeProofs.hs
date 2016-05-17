@@ -231,7 +231,9 @@ funDefEnv' fs = let binds = mkId $ intercalate " | " (fs ++ ["_ \\<Rightarrow> (
 (<\>) (Cons x xs) (Cons Nothing ys)  = Cons x       $ xs <\> ys
 (<\>) (Cons _ xs) (Cons (Just _) ys) = Cons Nothing $ xs <\> ys
 (<\>) Nil Nil = Nil
+#if __GLASGOW_HASKELL__ < 711
 (<\>) _ _ = error "TypeProofs: unreachable case in <\\>: vectors have mismatching lengths"
+#endif
 
 setAt :: [a] -> Int -> a -> [a]
 setAt (x:xs) 0 v = v:xs
@@ -445,7 +447,9 @@ treeSplit g x y = error $ "bad split: " ++ show (g, x, y)
 treeSplits :: Vec v (Maybe (Type t)) -> Vec v (Maybe (Type t)) -> Vec v (Maybe (Type t)) -> [Maybe TypeSplitKind]
 treeSplits (Cons g gs) (Cons x xs) (Cons y ys) = treeSplit g x y:treeSplits gs xs ys
 treeSplits Nil         Nil         Nil         = []
+#if __GLASGOW_HASKELL__ < 711
 treeSplits _ _ _ = __ghc_t4139 "TypeProofs.treeSplits"
+#endif
 
 treeBang :: Int -> [Int] -> [Maybe TypeSplitKind] -> [Maybe TypeSplitKind]
 treeBang i is (x:xs) | i `elem` is = Just TSK_NS:treeBang (i+1) is xs

@@ -105,5 +105,5 @@ rename funMono = [isaDecl| definition $alist_name :: "$sig" where "$(mkId alist_
                           then [([isaTerm| $(mkString fn) |], [isaTerm| Nil |], [isaTerm| $(mkString fn) |])]
                           else map (\(tys,num) -> ([isaTerm| $(mkString fn) |], mkTyList tys, [isaTerm| $(mkString $ fn ++ "_" ++ show num) |])) insts
 
-    mkTyList :: [SF.Type Zero] -> Term
+    mkTyList :: [SF.Type 'Zero] -> Term
     mkTyList = I.mkList . map (deepType id (empty, 0))

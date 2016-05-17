@@ -99,7 +99,7 @@ normaliseDefinition d = pure d
 normaliseExpr :: SNat v -> UntypedExpr t v VarName -> AN (UntypedExpr t v VarName)
 normaliseExpr v e = normalise v e (\_ x -> return x)
 
-upshiftExpr :: SNat n -> SNat v -> Fin (Suc v) -> UntypedExpr t v a -> UntypedExpr t (v :+: n) a
+upshiftExpr :: SNat n -> SNat v -> Fin ('Suc v) -> UntypedExpr t v a -> UntypedExpr t (v :+: n) a
 upshiftExpr SZero _ _ e = e
 upshiftExpr (SSuc n) sv v e | Refl <- addSucLeft sv n
   = let a = upshiftExpr n sv v e in insertIdxAt (widenN v n) a
@@ -225,10 +225,10 @@ normaliseNames v (e:es) k
       normaliseNames (sadd v n) (map (upshiftExpr n v f0) es) $ \n' es' ->
         withAssoc v n n' $ \Refl -> k (sadd n n') (upshiftExpr n' (sadd v n) f0 e':es')
 
-insertIdxAt :: Fin (Suc v) -> UntypedExpr t v a -> UntypedExpr t (Suc v) a
+insertIdxAt :: Fin ('Suc v) -> UntypedExpr t v a -> UntypedExpr t ('Suc v) a
 insertIdxAt cut (E e) = E $ insertIdxAt' cut e
   where
-    insertIdxAt' :: Fin (Suc v) -> Expr t v a UntypedExpr -> Expr t (Suc v) a UntypedExpr
+    insertIdxAt' :: Fin ('Suc v) -> Expr t v a UntypedExpr -> Expr t ('Suc v) a UntypedExpr
     insertIdxAt' cut (Variable v) = Variable $ (liftIdx cut *** id) v
     insertIdxAt' cut (Fun fn ty nt) = Fun fn ty nt
     insertIdxAt' cut (Op opr es) = Op opr $ map (insertIdxAt cut) es
