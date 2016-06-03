@@ -21,13 +21,13 @@ author:              Liam O'Connor-Davis
                      Zilin Chen
 maintainer:          Zilin Chen <Zilin.Chen@nicta.com.au>
 homepage:            https://ssrg.nicta.com.au/projects/TS/filesystems.pml
-bug-reports:         https://github.inside.nicta.com.au/ts-filesystems/bilby/issues
+bug-reports:         https://github.com/NICTA/cogent/issues
 
 -- copyright:
 -- category:
 build-type:          Custom
 cabal-version:       >=1.18
-tested-with:         GHC==7.8.3, GHC==7.8.4, GHC==7.10.1, GHC==7.10.2, GHC==7.10.3
+tested-with:         GHC==7.8.4, GHC==7.10.1, GHC==7.10.2, GHC==7.10.3
 
 executable cogent
   main-is: COGENT/Main.hs
