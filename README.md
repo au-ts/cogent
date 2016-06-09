@@ -114,5 +114,5 @@ See [`impl/ext2/README`](impl/ext2/README) and [`impl/bilby/README`](impl/bilby/
     * [`c`](impl/bilby/c/): C implementation for BilbyFs
     * [`proof`](impl/bilby/proof/): Functional correctness specs and proofs for BilbyFs
   * [`ext2`](impl/ext2/): ext2 file system
-    * [`cogent/fs`](impl/bilby/ext2/fs/): Cogent code for ext2
+    * [`cogent`](impl/ext2/cogent/): Cogent code for ext2
 * [`regression`](regression/): Regression test script
