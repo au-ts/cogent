@@ -75,14 +75,14 @@ provides 32G of memory and 4–8 CPU threads.
 # Build compilation correctness proof for BilbyFs. (ETA: 120 CPU hours)
 (cd impl/bilby/cogent;
  make verification;
- patch <../../../BilbyFS_CorresProof.patch;
- isabelle build -d . -d ../../../cogent/isa -d ../../../l4v -b -o process_output_limit=999 BilbyFS_AllRefine)
+ patch <../../../BilbyFs_CorresProof.patch;
+ isabelle build -d . -d ../../../cogent/isa -d ../../../l4v -b -o process_output_limit=999 BilbyFs_AllRefine)
 
 # View end-to-end theorems. Each theory has a "print_theorems" command for this.
 # For ext2:
 isabelle jedit -d impl/ext2/cogent/plat/verification -d cogent/isa -d l4v -l Ext2_CorresProof impl/ext2/cogent/plat/verification/Ext2_AllRefine.thy
 # For BilbyFs:
-isabelle jedit -d impl/bilby/cogent/plat/verification -d cogent/isa -d l4v -l BilbyFS_CorresProof impl/bilby/cogent/plat/verification/BilbyFS_AllRefine.thy
+isabelle jedit -d impl/bilby/cogent/plat/verification -d cogent/isa -d l4v -l BilbyFs_CorresProof impl/bilby/cogent/plat/verification/BilbyFs_AllRefine.thy
 ```
 
 The functional correctness proofs for BilbyFs's `sync` and `iget` operations are in

@@ -8,7 +8,7 @@
  * @TAG(NICTA_GPL)
  */
 
-#include <os/linux/wrapper_pp_inferred.c>
+#include <plat/linux/wrapper_pp_inferred.c>
 
 void bilbyfs_kill_super(struct super_block *sb);
 struct dentry *bilbyfs_mount(struct file_system_type *fs_type, int flags,

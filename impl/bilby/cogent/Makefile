@@ -8,30 +8,39 @@
 # @TAG(NICTA_GPL)
 #
 
-ifeq ($(KERNELRELEASE),)
-# this include won't make sense inside the kernel tree
-include ../../../build-env.mk
-endif
-
 MODULE=cgbilbyfs
-SHELL=bash
 
 ROOT_DIR=../../../
+
+ifeq ($(KERNELRELEASE),)
+# this include won't make sense inside the kernel tree
+include $(ROOT_DIR)build-env.mk
+endif
+
 OUTPUT=generated
-DIST_DIR=.
 SRC=fs/fsop.cogent
-OS=linux
 TYPES=types.txt
 DEFNS=defns.txt
-PROOF_ID=BilbyFS
+PROOF_ID=BilbyFs
 
 # ADT headers required by BilbyFs
 AHFILES=$(wildcard libgum/abstract/*.ah)
 # ADT C files required by BilbyFs
-ACFILES=$(addprefix libgum/anti/, common.ac wordarray.ac array.ac rbt.ac os.ac list.ac crc32.ac)
-# WARNING: do not modify ACFILES; to include a .ac file, add a #include in wrapper.ac
-ACFILES=os/linux/wrapper.ac
-#DEBUG=1 # Run make DEBUG=1 or uncomment this line to enable debugging
+LINUX_ACFILES=$(addprefix libgum/anti/, \
+		common.ac \
+		wordarray.ac \
+		array.ac \
+		rbt.ac \
+		os.ac \
+		list.ac \
+		crc32.ac) \
+		plat/linux/wrapper.ac
+# ADT C files required by verification
+VERIF_ACFILES=plat/verification/wrapper.ac
+
+ifndef KERNELDIR
+KERNELDIR:= /lib/modules/$(shell uname -r)/build
+endif
 
 ifeq ($(KERNELRELEASE),)
 PWD:= $(shell pwd)
@@ -41,17 +50,21 @@ EXTRA_CFLAGS+= -DBILBYFS_DEBUG
 COGENT_FLAGS+= --debug
 endif
 
-# include dirs
-EXTRA_CFLAGS+= -I$(PWD)/os/$(OS)/ -I$(PWD) -I$(PWD)/fs -I$(PWD)/lib -I$(PWD)/abstract
-
 # flags to ignores COGENT's compiler messy C code gen
-EXTRA_CFLAGS+= -O2 -std=gnu99 -Wno-parentheses -Wno-declaration-after-statement -Wno-unused-variable -Wno-uninitialized
+COMMON_CFLAGS := -O2 -std=gnu99 -Wno-parentheses -Wno-declaration-after-statement -Wno-unused-variable -Wno-uninitialized
+LINUX_EXTRA_CFLAGS := -I$(PWD)/plat/linux/ -I$(PWD) -I$(PWD)/fs -I$(PWD)/lib -I$(PWD)/abstract $(COMMON_CFLAGS)
+VERIF_EXTRA_CFLAGS := -I$(PWD)/plat/verification/ -I$(PWD) -I$(PWD)/fs -I$(PWD)/lib -I$(PWD)/abstract $(COMMON_CFLAGS)
 
 # COGENT flags
 COGENT_FLAGS+= -Od --fno-static-inline --fno-fncall-as-macro --fnormalisation=knf --ffunc-purity-attr
 # end of configuration
 
-override COGENT_FLAGS+= -o$(OUTPUT) --root-dir=$(ROOT_DIR) --dist-dir=$(DIST_DIR) --entry-funcs=$(DEFNS) --ext-types=$(TYPES) --infer-c-types="$(AHFILES)" --cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(EXTRA_CFLAGS)" --abs-type-dir=$(PWD)
+override COGENT_FLAGS+= -o$(OUTPUT) \
+			--root-dir=$(ROOT_DIR) \
+			--entry-funcs=$(DEFNS) \
+			--ext-types=$(TYPES) \
+			--infer-c-types="$(AHFILES)" \
+			--abs-type-dir=$(PWD)
 
 COUTPUT=$(addsuffix .c, $(OUTPUT))
 HOUTPUT=$(addsuffix .h, $(OUTPUT))
@@ -63,7 +76,28 @@ BUILDSRC=$(wildcard build/*.c)
 # Add C files with no antiquotation to OBJ.
 # Writing these functions in a .ac file would lead defining multiple
 # times the same symbol when parametric polymorphism gets expanded.
-OBJ?=os/$(OS)/module.o os/$(OS)/rbt.o
+OBJ?=plat/linux/module.o plat/linux/rbt.o
+
+
+###########################
+# TARGET-SPECIFIC VARIABLES
+###########################
+# ACFILES
+linux: ACFILES = $(LINUX_ACFILES)
+.c-gen: ACFILES = $(LINUX_ACFILES)
+verification: ACFILES = $(VERIF_ACFILES)
+.verif-gen: ACFILES = $(VERIF_ACFILES)
+# DISTDIR
+linux: DIST_DIR = plat/linux
+.c-gen: DIST_DIR = plat/linux
+verification: DIST_DIR = plat/verification
+.verif-gen: DIST_DIR = plat/verification
+# EXTRA_CFLAGS
+linux: EXTRA_CFLAGS = $(LINUX_EXTRA_CFLAGS)
+.c-gen: EXTRA_CFLAGS = $(LINUX_EXTRA_CFLAGS)
+verification: EXTRA_CFLAGS = $(VERIF_EXTRA_CFLAGS)
+.verif-gen: EXTRA_CFLAGS = $(VERIF_EXTRA_CFLAGS)
+
 
 # call from kernel build system
 ifneq ($(KERNELRELEASE),)
@@ -73,37 +107,77 @@ else
 
 PWD:= $(shell pwd)
 
-.PHONY: default cogent clean gen verification
+.PHONY: default cogent clean .c-gen .verif-gen verification
 
-default: gen linux
+
+default: linux
 
 all: gen $(OBJ)
 	$(CC) -o $(NAME) $(OBJ)
 
-# generate executable C code
-gen:
-	cogent $(SRC) -g $(COGENT_FLAGS) --infer-c-funcs="$(ACFILES)"
-
-# generate verification-clean C code and proof scripts
-verification:
-	cogent $(SRC) -A $(COGENT_FLAGS) \
-		--infer-c-funcs="wrapper-verif.ac" \
-		--proof-name=$(PROOF_ID) \
-		--proof-input-c="wrapper-verif_pp_inferred.c"
-	cp generated.table wrapper-verif_pp_inferred.table
-
 %.c:
 	$(CC) -c $@
 
+# generate executable C code
+.c-gen:
+	cogent $(SRC) -g $(COGENT_FLAGS) \
+                --cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(EXTRA_CFLAGS)" \
+                --dist-dir=$(DIST_DIR) \
+                --infer-c-funcs="$(ACFILES)"
+
+.verif-gen:
+	cogent $(SRC) -A $(COGENT_FLAGS) \
+                --cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(EXTRA_CFLAGS)" \
+                --dist-dir=$(DIST_DIR) \
+                --infer-c-funcs="$(ACFILES)" \
+                --proof-name=$(PROOF_ID) \
+                --proof-input-c="wrapper_pp_inferred.c"
+
+
 # compile Linux kernel module for file system
-linux:
-	$(MAKE) OBJ="$(OBJ)" CFLAGS="$(CFLAGS) $(EXTRA_CFLAGS)" -C $(KERNELDIR) M=$(PWD) modules
+linux: .c-gen
+	$(MAKE) OBJ="$(OBJ)" CFLAGS="$(CFLAGS)" EXTRA_CFLAGS="$(EXTRA_CFLAGS)" -C $(KERNELDIR) M=$(PWD) modules
+
+# generate verification-clean C code and proof scripts
+verification: .verif-gen
+	mv $(DIST_DIR)/generated.table $(DIST_DIR)/wrapper_pp_inferred.table
 
 clean:
 	rm -f $(HOUTPUT)
 	rm -f $(OBJ)
 	rm -f $(RTMPC)
 	rm -f $(RTMPPPC)
-	rm -f $(MODULE).mod.[co] $(MODULE).o
+	rm -f $(MODULE).mod.[co] $(MODULE).o $(MODULE).ko Module.symvers modules.order
 	rm -f abstract/*.h
+	rm -rf *.thy ROOT generated.table BUILD_INFO
+	find . -name *.thy -exec rm -f {} \;
+	find . -name ROOT -exec rm -f {} \;
+	find . -name BUILD_INFO -exec rm -f {} \;
+
+help:
+	@echo "** Cogent bilbyfs build help **"
+	@echo "Run 'make' to build the Linux bilbyfs kernel module."
+	@echo ""
+	@echo "Please run 'make <target>' where target is one of the following:"
+	@echo "* linux"
+	@echo "  Build the Linux kernel module(default)."
+	@echo "  This will build against the kernel headers of the current running kernel."
+	@echo "  Pass KERNELDIR=<path-to-kernel-headers> if you want to build against a different kernel version."
+	@echo "  eg.:"
+	@echo "     make linux"
+	@echo "     make linux KERNELDIR=/usr/src/linux-headers-4.3.0-1-amd64/"
+	@echo ""
+	@echo "* debug"
+	@echo "  Build the Linux kernel module with debugging enabled."
+	@echo "  This is equivalent to running 'make linux DEBUG=1'"
+	@echo ""
+	@echo "* verification"
+	@echo "  Generate verification table."
+	@echo ""
+	@echo "* clean"
+	@echo "  Cleanup."
+	@echo ""
+	@echo "* help"
+	@echo "  Print this help."
+
 endif

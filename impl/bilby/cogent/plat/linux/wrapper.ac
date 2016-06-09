@@ -19,14 +19,14 @@ $esc:(#include <wrapper.h>)
 #include <libgum/anti/list.ac>
 #include <libgum/anti/rbt.ac>
 #include <libgum/anti/os.ac>
-#include <os/linux/alloc.ac>
-#include <os/linux/ubi.ac>
-#include <os/linux/vfs.ac>
-#include <os/linux/allocpool.ac>
-#include <os/linux/inode.ac>
-#include <os/linux/stat.ac>
-#include <os/linux/iattr.ac>
-#include <os/linux/arrayobj.ac>
+#include <plat/linux/alloc.ac>
+#include <plat/linux/ubi.ac>
+#include <plat/linux/vfs.ac>
+#include <plat/linux/allocpool.ac>
+#include <plat/linux/inode.ac>
+#include <plat/linux/stat.ac>
+#include <plat/linux/iattr.ac>
+#include <plat/linux/arrayobj.ac>
 
 typedef $ty:(#VfsInode) BilbyFsVfsInode;
 typedef $ty:(#RbtIndexNode) BilbyFsRbtIndexNode;
