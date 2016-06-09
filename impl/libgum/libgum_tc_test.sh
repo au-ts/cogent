@@ -40,17 +40,17 @@ fi
 
 echo "!! libgum okay, checking examples"
 
-# and try to typecheck examples
-for src in examples/*.cogent
-do
-	if ! cogent -t $src; then
-		code=$?
-	fi
-done
-
-if ! [ $code -eq 0 ]; then
-	echo "!! examples failed"
-	exit $code
-else
-	echo "!! examples okay"
-fi
+# and try to typecheck examples, currently no examples
+# for src in examples/*.cogent
+# do
+# 	if ! cogent -t $src; then
+# 		code=$?
+# 	fi
+# done
+# 
+# if ! [ $code -eq 0 ]; then
+# 	echo "!! examples failed"
+# 	exit $code
+# else
+# 	echo "!! examples okay"
+# fi
