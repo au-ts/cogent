@@ -36,7 +36,7 @@ COGENT_FLAGS=$@
 case $TEST in
 tc)
   echo '=== Type-checking BilbyFs and generating C code ==='
-  (cd ../cogent; check_output make gen)
+  (cd ../cogent; check_output make .c-gen)
   r=$?
   if [[ $r = 0 ]]
   then
