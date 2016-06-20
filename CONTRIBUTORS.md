@@ -17,7 +17,7 @@ repository (in alphabetical order).
 * Japheth Lim, NICTA
 * Toby Murray, NICTA & UNSW
 * Yutaka Nagashima, NICTA
-* Liam O'Connor, NICTA
+* Liam O'Connor, NICTA & UNSW
 * Christine Rizkallah, NICTA & UNSW
 * Leonid Ryzhyk, NICTA & UNSW
 * Sean Seefried, NICTA
