@@ -15,7 +15,7 @@
 ;; Hopefully this is sufficient for now.
 ;;; Code:
 (require 'generic-x) ;; we need this
-    
+
 (define-generic-mode
   'cogent-mode
   '( ("{-" . "-}")
