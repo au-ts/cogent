@@ -8,10 +8,10 @@
 # @TAG(NICTA_GPL)
 #
 
-COGENT Installation
+Cogent Installation
 ------------------
 
-COGENT builds with the Glasgow Haskell Compiler (GHC)
+Cogent builds with the Glasgow Haskell Compiler (GHC)
 
 Also tested with GHC-7.10.1, GHC-7.10.2 and GHC-7.10.3; GHC-7.8.3 has a chance to work.
 
@@ -30,13 +30,13 @@ Also tested with GHC-7.10.1, GHC-7.10.2 and GHC-7.10.3; GHC-7.8.3 has a chance t
            is compatible with your ghc version;
        2): Old versions of cabal-install does not support sandbox. Please update to appropriate version (>= 1.18)
        3): If cabal-install is built against an older version of Cabal, you might get
-             a warning when you build COGENT. To solve it, when you have cabal-install installed, build again against 
+             a warning when you build Cogent. To solve it, when you have cabal-install installed, build again against
              a newer version of Cabal library.
 
-  Install happy and alex, by
+  Install happy and alex:
   $> cabal install happy alex
 
-3. Install COGENT and its dependencies using a sandbox
+3. Install Cogent and its dependencies using a sandbox
 
 * Automatic Installation
 Simply run `./validate [-update-cabal -i]' under cogent folder and just wait with patience...... You're good to go!
@@ -44,7 +44,7 @@ Simply run `./validate [-update-cabal -i]' under cogent folder and just wait wit
 NOTE: `-i' is highly recommanded if you are a human not a robot, because it will ask you when it tries to remove things.
 
 
-* Manuel Installation
+* Manual Installation
 
   $> cabal sandbox init
   $> cabal sandbox add-source ../isa-parser
@@ -69,15 +69,15 @@ Command-line Options
 --------------------
 
 Run `cogent -?' to see the help message
-`cogent --version' will print out the git revision in which you build your COGENT compiler.
+`cogent --version' will print out the git revision in which you build your Cogent compiler.
 
 
 Testing
 -------
 
-1. Run ‘./validate’ (with appropriate arguments) to test COGENT compiler. Test files are in ./tests
+1. Run ‘./validate’ (with appropriate arguments) to test Cogent compiler. Test files are in ./tests
 
-2. COGENT compiler also comes with a small unit-test module. To run that, do this:
+2. Cogent compiler also comes with a small unit-test module. To run that, do this:
   $> cabal configure --enable-tests
   $> cabal build
   $> cabal test
@@ -88,25 +88,25 @@ Note: You might run into this problem: "You need to re-run the 'configure' comma
 Contents in This Directory
 --------------------------
 
-./COGENT:                The COGENT source code
-./cogent.cabal:          The cabal config file
-./cogent.vim:            Vim syntax file for COGENT
-./cogent.el:             Emacs syntax file for COGENT
-./cogent_autocomplete.sh  Bash autocompletion for COGENT
-./isa:                  Isabelle formalisation
-./lib:                  C library for generated C code
-./README:               This file
-./Setup:                runhaskell entrance
-./validate:             Auto-test script for COGENT compiler
-./tests:                COGENT test files (also used as examples)
+./COGENT:                 The Cogent source code
+./cogent.cabal:           The cabal config file
+./cogent.vim:             Vim syntax file for Cogent
+./cogent.el:              Emacs syntax file for Cogent
+./cogent_autocomplete.sh  Bash autocompletion for Cogent
+./isa:                    Isabelle formalisation
+./lib:                    C library for generated C code
+./README:                 This file
+./Setup:                  runhaskell entrance
+./validate:               Auto-test script for Cogent compiler
+./tests:                  Cogent test files (also used as examples)
 
 
 Known Issues
 ----------
 
-* In COGENT, type constructors (type names) and data constructors (tags) don't share
+* In Cogent, type constructors (type names) and data constructors (tags) don't share
 the same namespace. In C parser/AutoCorres, however, they share the same 
-namespace. Which means, if in COGENT, a type and a tag have the same name, 
+namespace. Which means, if in Cogent, a type and a tag have the same name,
 c-refinement proof will fail.
 
 * If warnings are given by the typechecker, Isabelle embedding generation might
@@ -116,19 +116,19 @@ fail.
 cause of the problem is our function calls are not truly function macros -- they
 don't always obey macro's comma-parens separation rule.
 
-* `''s (read: primes) in COGENT identifiers will cause problem: COGENT will turn `'' to
+* `''s (read: primes) in Cogent identifiers will cause problem: Cogent will turn `'' to
 `_prime' in generated C code but not in theory files, whereas C parser/AutoCorres
 doesn't do the same trick.
 
-* Trailing `_'s (read: underscores) in COGENT identifiers are problematic as well.
+* Trailing `_'s (read: underscores) in Cogent identifiers are problematic as well.
 They are not consisdered good names in Isabelle.
 
 * Bool type is defined as u8 in generated C, with 1 being True and 0 False. This may
-introduce inconsistency between COGENT semantics and C semantics. Extra care need be
+introduce inconsistency between Cogent semantics and C semantics. Extra care need be
 taken when writing wrapper code.
 
 * If a function signature is given in .cogent file, but the corresponding definition
-is not given in .ac file, then COGENT compiler may not warn you.
+is not given in .ac file, then Cogent compiler may not warn you.
 
 * $exp antiquote is buggy. It seems to generate things as statements where expressions
 are needed.
@@ -138,7 +138,7 @@ trigger compiler panic because the erroneous value is not (fully) evaluated.
 Deepseq might be the cure. The difficulty is to define instances of NFData.
 
 * $exp cannot call polymorphic functions, because the compiler has no way of knowing
-what type instances are used by looking at the COGENT code. There is no easy cure. COGENT
+what type instances are used by looking at the Cogent code. There is no easy cure. Cogent
 compiler may need to *understand* the .ac files in order to check this. If poly-function
 is called from .ac files, then it's very likely that the compiler will panic when
 doing monomorphisation. The workaround is to define a wrapper function in a cogent program
