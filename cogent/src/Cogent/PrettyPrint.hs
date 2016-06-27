@@ -21,7 +21,7 @@ import Cogent.Compiler (__impossible, __fixme)
 import Cogent.Desugar (desugarOp)
 import Cogent.Reorganizer (ReorganizeError(..), SourceObject(..))
 import Cogent.Surface
-import Cogent.TypeCheck hiding (context)
+import Cogent.TypeCheck --hiding (context)
 
 import Control.Arrow (second)
 import qualified Data.Map as M hiding (foldr)
