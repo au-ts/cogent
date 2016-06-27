@@ -31,3 +31,4 @@ umm_types.txt
 ROOT
 generated.*
 *_flymake.hs
+.stack-work/

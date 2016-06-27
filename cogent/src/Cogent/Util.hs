@@ -26,6 +26,8 @@ import Version_cogent(gitHash)
 
 import Paths_cogent
 
+import qualified Data.Map as M
+import qualified Data.List as L
 --
 -- functors
 
@@ -53,7 +55,7 @@ toIsaName :: String -> String
 toIsaName = cap . map (\c -> if c == '-' then '_' else c)
 
 toCName :: String -> String
-toCName = concat . map (\c -> if c == '\'' then "_prime" else [c])
+toCName = concatMap (\c -> if c == '\'' then "_prime" else [c])
 
 --
 -- file path
@@ -115,6 +117,15 @@ firstM f (x,y) = (,y) <$> f x
 secondM :: Functor f => (b -> f c) -> (a, b) -> f (a, c)
 secondM f (x,y) = (x,) <$> f y
 
+fst3 :: (a,b,c) -> a
+fst3 (a,b,c) = a
+
+snd3 :: (a,b,c) -> b
+snd3 (a,b,c) = b
+
+thd3 :: (a,b,c) -> c
+thd3 (a,b,c) = c
+
 first3 :: (a -> a') -> (a, b, c) -> (a', b, c)
 first3 f (a,b,c) = (f a,b,c)
 
@@ -158,3 +169,15 @@ getStdGumDir = addTrailingPathSeparator <$> overrideStdGumDirWith "COGENT_STD_GU
 
 getStdIncFullPath fp = do sdir <- getStdGumDir
                           return (sdir </> fp)
+
+-- If the domain of some maps contains duplicate keys.
+-- Returns Left ks for overlapping keys ks, Right ks for with the set of non-overlapping keys ks.
+overlapping :: (Eq k) => [M.Map k v] -> Either [k] [k]
+overlapping [] = Right []
+overlapping (m:ms) = do
+  vs <- overlapping ms
+  let cap = vs `L.intersect` M.keys m
+  if null cap then
+    return (vs `L.union` M.keys m)
+  else
+    Left cap
