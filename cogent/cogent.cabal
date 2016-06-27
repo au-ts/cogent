@@ -98,7 +98,7 @@ executable cogent
     pretty-show >= 1.5, 
     process >= 1.2.0.0,
     random >= 1.1,
-    reducers >= 3.10 && < 3.11,
+    reducers >= 3.11 && < 3.13,
     srcloc >= 0.4, 
     syb >= 0.3.7, 
     template-haskell >= 2.9, 

@@ -20,7 +20,7 @@ import COGENT.Compiler (__impossible)
 import COGENT.Desugar (desugarOp)
 import COGENT.Reorganizer (ReorganizeError(..), SourceObject(..))
 import COGENT.Surface
-import COGENT.TypeCheck hiding (context)
+import COGENT.TypeCheck --hiding (context)
 
 import Control.Arrow (second)
 import qualified Data.Map as M hiding (foldr)

@@ -1,0 +1,17 @@
+flags: {}
+extra-package-dbs: []
+packages:
+- '.'
+- '../isa-parser'
+extra-deps: 
+- OneTuple-0.2.1
+- atomic-write-0.2.0.5
+- disassembler-0.2.0.1
+- exception-mtl-0.4.0.1
+- flippers-1.0.1
+- hscurses-1.4.2.0
+- language-c-quote-0.11.6.2
+- mainland-pretty-0.4.1.4
+- symbol-0.2.4
+- tuple-0.3.0.2
+resolver: lts-5.8
