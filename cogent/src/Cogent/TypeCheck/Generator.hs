@@ -114,7 +114,7 @@ cg' (IntLit i) t = do
                       | i < 65536      = "U16"
                       | i < 4294967296 = "U32"
                       | otherwise      = "U64"
-      c = T (TCon minimumBitwidth [] Unboxed) :< t
+      c = T (TCon minimumBitwidth [] Unboxed) :<~ t
       e = TE t (IntLit i)
   return (c,e)
 

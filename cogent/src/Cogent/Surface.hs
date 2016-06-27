@@ -43,6 +43,7 @@ data Pattern pv = PCon TagName [IrrefutablePattern pv]
                 | PIrrefutable (IrrefutablePattern pv)
                 deriving (Show, Functor, Foldable, Traversable, Eq)
 
+
 data Alt pv e = Alt (Pattern pv) Likelihood e deriving (Show, Functor, Foldable,Traversable)
 
 data Binding t pv e = Binding (IrrefutablePattern pv) (Maybe t) e [VarName]
