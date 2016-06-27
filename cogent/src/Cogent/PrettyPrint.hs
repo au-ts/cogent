@@ -14,14 +14,14 @@
 
 module Cogent.PrettyPrint where
 
-import qualified Cogent.Common.Syntax as S (associativity)
-import Cogent.Common.Syntax hiding (associativity)
-import Cogent.Common.Types
-import Cogent.Compiler (__impossible)
-import Cogent.Desugar (desugarOp)
-import Cogent.Reorganizer (ReorganizeError(..), SourceObject(..))
-import Cogent.Surface
-import Cogent.TypeCheck hiding (context)
+import qualified COGENT.Common.Syntax as S (associativity)
+import COGENT.Common.Syntax hiding (associativity)
+import COGENT.Common.Types
+import COGENT.Compiler (__impossible)
+import COGENT.Desugar (desugarOp)
+import COGENT.Reorganizer (ReorganizeError(..), SourceObject(..))
+import COGENT.Surface
+import COGENT.TypeCheck --hiding (context)
 
 import Control.Arrow (second)
 import qualified Data.Map as M hiding (foldr)
