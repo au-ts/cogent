@@ -32,7 +32,14 @@ data TypeError = FunctionNotFound VarName
                | UnknownTypeVariable VarName
                | UnknownTypeConstructor TypeName
                | TypeArgumentMismatch TypeName Int Int
+               | TypeMismatch TCType TCType
+               | RequiredTakenField FieldName TCType
+               | TypeNotShareable TCType Metadata
+               | TypeNotEscapable TCType Metadata
+               | TypeNotDiscardable TCType Metadata
+               | PatternsNotExhaustive TCType [TagName]
                deriving (Show)
+
 
 -- FIXME: More fine-grained context is appreciated. e.g., only show alternatives that don't unify / zilinc
 data ErrorContext = InExpression LocExpr TCType
@@ -46,7 +53,7 @@ data ErrorContext = InExpression LocExpr TCType
 
 type TCTypedName = (VarName, TCType)
 
-data TCType = T (Type TCType) | U Int | RemoveCase (Pattern TCTypedName) TCType deriving (Show)
+data TCType = T (Type TCType) | U Int | RemoveCase (Pattern TCTypedName) TCType deriving (Show, Eq)
 
 data TExpr t = TE { getType :: t, getExpr :: Expr t (VarName, t) (TExpr t) }
              deriving (Show)
@@ -76,6 +83,8 @@ data Metadata = Reused { varName :: VarName, boundAt :: SourcePos, usedAt :: Sou
               | UsedInMember { fieldName :: FieldName }
               | UsedInLetBang
               | TypeParam { functionName :: VarName, typeVarName :: VarName }
+              | ImplicitlyTaken
+              deriving (Show)
 
 data Constraint = (:<) TCType TCType
                 | (:<~) TCType TCType

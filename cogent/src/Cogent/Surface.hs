@@ -32,14 +32,14 @@ data IrrefutablePattern v = PVar v
                           | PUnitel
                           | PTake v [Maybe (FieldName, IrrefutablePattern v)]
                               -- Note: `Nothing' will be desugared to `Just' in TypeCheck / zilinc
-                          deriving (Show, Functor, Foldable, Traversable)
+                          deriving (Show, Functor, Foldable, Traversable, Eq)
 
 data Pattern v = PCon TagName [IrrefutablePattern v]
                | PIntLit Integer
                | PBoolLit Bool
                | PCharLit Char
                | PIrrefutable (IrrefutablePattern v)
-               deriving (Show, Functor, Foldable, Traversable)
+               deriving (Show, Functor, Foldable, Traversable, Eq)
 
 data Alt pv e = Alt (Pattern pv) Likelihood e deriving (Show, Functor, Foldable,Traversable)
 
