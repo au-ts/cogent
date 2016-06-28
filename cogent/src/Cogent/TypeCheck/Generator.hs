@@ -42,12 +42,12 @@ makeLenses ''CGState
 
 type CG x = State CGState x
 
-runCG :: C.Context TCType -> [VarName] -> CG a -> TC a
+runCG :: C.Context TCType -> [VarName] -> CG a -> TC (a, Int)
 runCG g vs a = do
   x <- get
-  let (r, CGS x' _ _ _) = runState a (CGS x g 0 vs)
+  let (r, CGS x' _ f _) = runState a (CGS x g 0 vs)
   put x'
-  return r
+  return (r,f)
 
 fresh :: CG TCType
 fresh = U <$> (flexes <<%= succ)
