@@ -9,6 +9,7 @@
 --
 
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TupleSections #-}
 module COGENT.TypeCheck.Solver where
 
 import COGENT.TypeCheck.Base
@@ -17,13 +18,20 @@ import COGENT.TypeCheck.Base
 import COGENT.Common.Types
 import COGENT.Common.Syntax
 import COGENT.Surface
-
+import Control.Monad.State
 import Data.List(elemIndex)
 import Data.Function(on)
 import Data.Maybe
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Control.Lens hiding ((:<))
+import qualified Data.Foldable as F
+
+data SolverState = SS { _flexes :: Int, _tc :: TCState }
+
+makeLenses ''SolverState
+
+type Solver = State SolverState
 
 data Goal = Goal { _goalContext :: [ErrorContext], _goal :: Constraint }
 
@@ -125,48 +133,69 @@ patternTag _ = Nothing
 -- for that to be true. E.g, (a,b) :< (c,d) becomes a :< c :& b :< d.
 -- Assumes that the input is simped (i.e conjunction and context free, with types in whnf)
 rule :: Constraint -> Maybe Constraint
+
 rule (Exhaustive t ps) | any isIrrefutable ps = Just Sat
+
 rule (Exhaustive (T (TVariant n)) ps)
   | s1 <- S.fromList (mapMaybe patternTag ps)
   , s2 <- M.keysSet n
   = if s1 == s2
     then Just Sat
     else Just $ Unsat (PatternsNotExhaustive (T (TVariant n)) (S.toList (s2 S.\\ s1)))
+
 rule (Exhaustive (T (TCon "Bool" [] Unboxed)) [PBoolLit t, PBoolLit f])
    = if not (t && f) && (t || f) then Just Sat
      else Just $ Unsat $ PatternsNotExhaustive (T (TCon "Bool" [] Unboxed)) []
-rule (Exhaustive t ps) | not (notWhnf t) = Just $ Unsat $ PatternsNotExhaustive t []
+
+rule (Exhaustive t ps)
+  | not (notWhnf t) = Just $ Unsat $ PatternsNotExhaustive t []
+
+rule (x :@ c) = (:@ c) <$> rule x
+rule (x :& y) = (:&) <$> rule x <*> rule y
+
 rule (Unsat {}) = Nothing
 rule (Sat   {}) = Nothing
+
 rule (Share  (T (TVar {})) _) = Nothing
 rule (Drop   (T (TVar {})) _) = Nothing
 rule (Escape (T (TVar {})) _) = Nothing
-rule (x :@ c) = (:@ c) <$> rule x
-rule (x :& y) = (:&) <$> rule x <*> rule y
+
 rule (Share  (T (TTuple xs)) m) = Just $ mconcat $ map (flip Share m) xs
 rule (Escape (T (TTuple xs)) m) = Just $ mconcat $ map (flip Escape m) xs
 rule (Drop   (T (TTuple xs)) m) = Just $ mconcat $ map (flip Drop m) xs
+
 rule (Share  (T TUnit) m) = Just Sat
 rule (Escape (T TUnit) m) = Just Sat
 rule (Drop   (T TUnit) m) = Just Sat
+
 rule (Share  (T (TFun {})) m) = Just Sat
 rule (Escape (T (TFun {})) m) = Just Sat
 rule (Drop   (T (TFun {})) m) = Just Sat
+
 rule (Share  (T (TVariant n)) m) = Just $ foldMap (mconcat . map (flip Share m)) n
 rule (Drop   (T (TVariant n)) m) = Just $ foldMap (mconcat . map (flip Drop  m)) n
 rule (Escape (T (TVariant n)) m) = Just $ foldMap (mconcat . map (flip Escape m)) n
-rule (Share  t@(T (TRecord fs s)) m) | s /= Writable = Just $ foldMap (\(x, t) -> if not t then Share x m else Sat) $ map snd fs
-                                       | otherwise     = Just $ Unsat $ TypeNotShareable t m
-rule (Drop   t@(T (TRecord fs s)) m) | s /= Writable = Just $ foldMap (\(x, t) -> if not t then Drop x m else Sat) $ map snd fs
-                                       | otherwise     = Just $ Unsat $ TypeNotDiscardable t m
-rule (Escape t@(T (TRecord fs s)) m) | s /= ReadOnly = Just $ foldMap (\(x, t) -> if not t then Escape x m else Sat) $ map snd fs
-                                       | otherwise     = Just $ Unsat $ TypeNotEscapable t m
-rule (Share  t@(T (TCon n ts s)) m) | s /= Writable = Just Sat
-                                      | otherwise     = Just $ Unsat $ TypeNotShareable t m
-rule (Drop   t@(T (TCon n ts s)) m) | s /= Writable = Just Sat
-                                      | otherwise     = Just $ Unsat $ TypeNotDiscardable t m
-rule (Escape t@(T (TCon n ts s)) m) | s /= ReadOnly = Just Sat
-                                      | otherwise     = Just $ Unsat $ TypeNotEscapable t m
+
+rule (Share  t@(T (TRecord fs s)) m)
+  | s /= Writable = Just $ foldMap (\(x, t) -> if not t then Share x m else Sat) $ map snd fs
+  | otherwise     = Just $ Unsat $ TypeNotShareable t m
+rule (Drop   t@(T (TRecord fs s)) m)
+  | s /= Writable = Just $ foldMap (\(x, t) -> if not t then Drop x m else Sat) $ map snd fs
+  | otherwise     = Just $ Unsat $ TypeNotDiscardable t m
+rule (Escape t@(T (TRecord fs s)) m)
+  | s /= ReadOnly = Just $ foldMap (\(x, t) -> if not t then Escape x m else Sat) $ map snd fs
+  | otherwise     = Just $ Unsat $ TypeNotEscapable t m
+
+rule (Share  t@(T (TCon n ts s)) m)
+  | s /= Writable = Just Sat
+  | otherwise     = Just $ Unsat $ TypeNotShareable t m
+rule (Drop   t@(T (TCon n ts s)) m)
+  | s /= Writable = Just Sat
+  | otherwise     = Just $ Unsat $ TypeNotDiscardable t m
+rule (Escape t@(T (TCon n ts s)) m)
+  | s /= ReadOnly = Just Sat
+  | otherwise     = Just $ Unsat $ TypeNotEscapable t m
+
 rule (T (TTuple xs) :< T (TTuple ys))
   | length xs /= length ys = Just $ Unsat (TypeMismatch (T (TTuple xs)) (T (TTuple ys))) 
   | otherwise              = Just $ mconcat (zipWith (:<) xs ys)
@@ -176,7 +205,7 @@ rule (T (TVar v b)  :< T (TVar u c))
   | v == u, b == c = Just Sat
   | otherwise      = Just $ Unsat (TypeMismatch (T (TVar v b)) (T (TVar u c)))
 rule (T (TCon n ts s) :< T (TCon m us r))
-  | n == m, ts == us, s == r = Just Sat
+  | n == m, ts == us, s == r = Just $ mconcat (zipWith (:<) ts us ++ zipWith (:<) us ts)
   | otherwise                = Just $ Unsat (TypeMismatch (T (TCon n ts s)) (T (TCon m us r)))
 rule (T (TRecord fs s) :< T (TRecord gs r))
                                          -- TODO: More precise errors
@@ -194,8 +223,10 @@ rule (T (TVariant m) :< T (TVariant n))
   | otherwise = let
       each ts us = mconcat (zipWith (:<) ts us)
     in Just $ mconcat (zipWith (each `on` snd) (M.toList m) (M.toList n))
-rule (a :< b) | notWhnf a || notWhnf b = Nothing
-                | otherwise              = Just $ Unsat (TypeMismatch a b)
+rule (a :< b)
+  | notWhnf a || notWhnf b = Nothing
+  | otherwise              = Just $ Unsat (TypeMismatch a b)
+
 rule (T (TCon n [] Unboxed) :<~ T (TCon m [] Unboxed))
   | Just n' <- elemIndex n primTypeCons
   , Just m' <- elemIndex m primTypeCons
@@ -219,6 +250,7 @@ rule (T (TRecord fs _) :<~ T (TRecord gs s))
        each f (t, True ) (u, False) = Unsat (RequiredTakenField f t)
      in Just $ mconcat (map (\k -> each k (n M.! k) (m M.! k)) $ S.toList ks)
 rule (a :<~ b) = rule (a :< b)
+
 rule _ = Nothing
 
 -- Applys rules and simp as much as possible
@@ -250,20 +282,90 @@ simp (Exhaustive t ps)
   = Exhaustive <$> whnf t
                <*> traverse (traverse (traverse whnf)) ps -- poetry!
 
+fresh :: Solver TCType
+fresh = U <$> (flexes <<%= succ)
+
+-- Constructs a partially specified type that could plausibly be :< the two inputs.
+-- We re-check some basic equalities here for better error messages
+lub :: TCType -> TCType -> Solver (Maybe TCType)
+lub (T (TVariant is)) (T (TVariant js))
+  | M.keysSet is /= M.keysSet js
+  = return Nothing
+  | or (zipWith ((/=) `on` length) (F.toList is) (F.toList js))
+  = return Nothing
+  | otherwise
+  = Just . T . TVariant <$> traverse (\l -> replicateM (length l) fresh) is
+lub (T (TTuple is)) (T (TTuple js))
+  | length is /= length js = return Nothing
+  | otherwise = Just . T . TTuple <$> traverse (const fresh) is
+lub (T (TFun a b)) (T (TFun c d))
+  = Just . T <$> (TFun <$> fresh <*> fresh)
+lub (T (TCon c as s)) (T (TCon d bs r))
+  | c /= d || s /= r       = return Nothing
+  | length as /= length bs = return Nothing
+  | otherwise = Just . T <$> (TCon d <$> traverse (const fresh) as <*> pure r)
+lub (T (TVar a x)) (T (TVar b y))
+  | x /= y || a /= b = return Nothing
+  | otherwise        = return $ Just . T $ TVar a x
+lub (T TUnit) (T TUnit) = return $ Just (T TUnit)
+lub (T (TRecord fs s)) (T (TRecord gs r))
+  | s /= r = return Nothing
+  | map fst fs /= map fst gs = return Nothing
+  | otherwise = let
+      each (f,(_,b)) (_, (_,b')) = (f,) . (,b && b') <$> fresh
+    in Just . T <$> (TRecord <$> zipWithM each fs gs <*> pure s)
+lub _ _ = return Nothing
 
 
 
--- tc :: [(SourcePos, TopLevel LocType VarName LocExpr)]
---    -> ((Either (TypeError, [ErrorContext]) [TopLevel RawType TypedName TypedExpr], WarningErrorLog), TCState)
--- tc defs = undefined
+-- Constructs a partially specified type that the two inputs are plausibly both :<.
+-- Once again we recheck equalities for error message improvements.
+glb :: TCType -> TCType -> Solver (Maybe TCType)
+glb (T (TVariant is)) (T (TVariant js))
+  | M.keysSet is /= M.keysSet js
+  = return Nothing
+  | or (zipWith ((/=) `on` length) (F.toList is) (F.toList js))
+  = return Nothing
+  | otherwise
+  = Just . T . TVariant <$> traverse (\l -> replicateM (length l) fresh) is
+glb (T (TTuple is)) (T (TTuple js))
+  | length is /= length js = return Nothing
+  | otherwise = Just . T . TTuple <$> traverse (const fresh) is
+glb (T (TFun a b)) (T (TFun c d))
+  = Just . T <$> (TFun <$> fresh <*> fresh)
+glb (T (TCon c as s)) (T (TCon d bs r))
+  | c /= d || s /= r       = return Nothing
+  | length as /= length bs = return Nothing
+  | otherwise = Just . T <$> (TCon d <$> traverse (const fresh) as <*> pure r)
+glb (T (TVar a x)) (T (TVar b y))
+  | x /= y || a /= b = return Nothing
+  | otherwise        = return $ Just . T $ TVar a x
+glb (T TUnit) (T TUnit) = return $ Just (T TUnit)
+glb (T (TRecord fs s)) (T (TRecord gs r))
+  | s /= r = return Nothing
+  | map fst fs /= map fst gs = return Nothing
+  | otherwise = let
+      each (f,(_,b)) (_, (_,b')) = (f,) . (,b || b') <$> fresh
+    in Just . T <$> (TRecord <$> zipWithM each fs gs <*> pure s)
+glb _ _ = return Nothing
 
--- data Constraint = (:<) TCType TCType
---                 | (:<~) TCType TCType
---                 | (:&) Constraint Constraint
---                 | Share TCType Metadata
---                 | Drop TCType Metadata
---                 | Escape TCType Metadata
---                 | (:@) Constraint ErrorContext
---                 | Unsat TypeError
---                 | Sat
---                 | Exhaustive TCType [Pattern TCTypedName]
+-- Constructs a partially specified type that the two inputs are plausibly both :<~.
+-- A LUB equivalent isn't needed here, because these constraints only ever appear
+-- with a unification variable on the right, and they expand into regular subtyping constraints with rule.
+-- This is used to essentially "guess" the type when we don't have firm enough information
+-- My intention is to try solving _without_ this entirely and seeing how far I get.
+glb' :: TCType -> TCType -> Solver (Maybe TCType)
+glb' (T (TVariant ts)) (T (TVariant us))
+  = Just . T . TVariant <$> mapM (mapM (const fresh)) (M.union ts us)
+glb' (T (TRecord fs s)) (T (TRecord gs r))
+  | s /= r = return Nothing
+  | fs' <- M.fromList fs, gs' <- M.fromList gs
+  , hs <- M.unionWith (\(t,b) (_,b') -> (t, b || b')) fs' gs'
+  = do hs' <- M.toList <$> traverse (\(_,b) -> (,b) <$> fresh) hs
+       return $ Just $ T $ TRecord hs' s
+glb' (T (TCon n [] Unboxed)) (T (TCon m [] Unboxed))
+  | Just n' <- elemIndex n primTypeCons
+  , Just m' <- elemIndex m primTypeCons
+  = return $ Just (T (TCon (primTypeCons !! max n' m') [] Unboxed))
+glb' a b = glb a b
+
