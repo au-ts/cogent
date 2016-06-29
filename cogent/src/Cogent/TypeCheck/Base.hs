@@ -39,6 +39,7 @@ data TypeError = FunctionNotFound VarName
                | TypeNotDiscardable TCType Metadata
                | PatternsNotExhaustive TCType [TagName]
                | UnsolvedConstraint Constraint
+               | RecordWildcardsNotSupported
                deriving (Show)
 
 
