@@ -129,6 +129,9 @@ thd3 (a,b,c) = c
 first3 :: (a -> a') -> (a, b, c) -> (a', b, c)
 first3 f (a,b,c) = (f a,b,c)
 
+second3 :: (b -> b') -> (a, b, c) -> (a, b', c)
+second3  f (a,b,c) = (a,f b,c)
+
 first4 :: (a -> a') -> (a, b, c, d) -> (a', b, c, d)
 first4 f (a,b,c,d) = (f a,b,c,d)
 

@@ -32,7 +32,7 @@ import           Control.Lens hiding (Context, (:<))
 import           Control.Monad.State
 import           Control.Monad.Except (runExceptT)
 import qualified Data.Map as M
-import           Data.Maybe (catMaybes, isNothing)
+import           Data.Maybe (catMaybes, isNothing, isJust)
 import           Data.Monoid ((<>))
 import           Text.Parsec.Pos
 
@@ -208,7 +208,7 @@ cg' (Put e ls) t | not (any isNothing ls) = do
       e = TE t (Put e' (map Just (zip fs es')))
   return (c,e)
 
-  | otherwise = error "Can't handle record wildcards at the moment!"
+  | otherwise = first (<> Unsat RecordWildcardsNotSupported) <$> cg' (Put e (filter isJust ls)) t
 
 cg' (Let bs e) t = do
   (c, bs', (c', e')) <- withBindings bs (cg e t)
@@ -284,7 +284,7 @@ match (PTuple ps) t = do
        p' = PTuple ps'
        co = case overlapping ss of
               Left (v:vs) -> Unsat $ DuplicateVariableInIrrefPattern v p'
-              Right _     -> Sat
+              _           -> Sat
    return (M.unions ss, co <> mconcat cs <> T (TTuple vs) :< t, p')
 
 match (PUnboxedRecord fs) t | not (any isNothing fs) = do
@@ -296,10 +296,10 @@ match (PUnboxedRecord fs) t | not (any isNothing fs) = do
        p' = PUnboxedRecord (map Just (zip ns ps'))
        co = case overlapping ss of
               Left (v:vs) -> Unsat $ DuplicateVariableInIrrefPattern v p'
-              Right _     -> Sat
+              _           -> Sat
    return (M.unions ss, co <> mconcat cs <> t' :<~ t <> d, p')
 
-   | otherwise = error "Record wildcards not handled ATM!"
+   | otherwise = second3 (:& Unsat RecordWildcardsNotSupported) <$> match (PUnboxedRecord (filter isJust fs)) t
 
 match (PTake r fs) t | not (any isNothing fs) = do
    let (ns, ps) = unzip (catMaybes fs)
@@ -311,10 +311,10 @@ match (PTake r fs) t | not (any isNothing fs) = do
        p' = PTake (r,u) (map Just (zip ns ps'))
        co = case overlapping ss of
               Left (v:vs) -> Unsat $ DuplicateVariableInIrrefPattern v p'
-              Right _     -> Sat
+              _           -> Sat
    return (M.unions (s:ss), co <> mconcat cs <> t' :<~ t, p')
 
-   | otherwise = error "Record wildcards not handled ATM!"
+   | otherwise = second3 (:& Unsat RecordWildcardsNotSupported) <$> match (PTake r (filter isJust fs)) t
 
 withBindings :: (?loc::SourcePos)
   => [Binding LocType VarName LocExpr]
