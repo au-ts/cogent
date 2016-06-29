@@ -25,7 +25,7 @@ import Control.Monad.Except
 import qualified Data.Map as M
 
 data TypeError = FunctionNotFound VarName
-               | TooManyTypeArguments FunName (Polytype RawType)
+               | TooManyTypeArguments FunName (Polytype TCType)
                | NotInScope VarName
                | DuplicateVariableInPattern VarName (Pattern TCTypedName)
                | DuplicateVariableInIrrefPattern VarName (IrrefutablePattern TCTypedName)
@@ -53,6 +53,8 @@ data ErrorContext = InExpression LocExpr TCType
                   | AntiquotedExpr LocExpr
                   deriving (Show)
 
+type ContextualisedError = ([ErrorContext], TypeError)
+
 type TCTypedName = (VarName, TCType)
 
 data TCType = T (Type TCType) | U Int | RemoveCase (Pattern TCTypedName) TCType deriving (Show, Eq)
@@ -71,6 +73,9 @@ type TCExpr    = TExpr TCType
 
 toTCType :: RawType -> TCType
 toTCType (RT x) = T (fmap toTCType x)
+
+toTypedExpr :: TCExpr -> TypedExpr
+toTypedExpr = fmap toRawType
 
 -- Precondition: No unification variables left in the type
 toRawType :: TCType -> RawType
@@ -108,8 +113,9 @@ instance Monoid Constraint where
   mappend x (Unsat r) = Unsat r
   mappend x y = x :& y
 
-data TCState = TCS { _knownFuns    :: M.Map VarName (Polytype RawType)
-                   , _knownTypes   :: [(TypeName, ([VarName], Maybe RawType))]  -- `Nothing' for abstract types
+data TCState = TCS { _knownFuns    :: M.Map VarName (Polytype TCType)
+                   , _knownTypes   :: [(TypeName, ([VarName], Maybe TCType))]  -- `Nothing' for abstract types
+                   , _knownConsts  :: M.Map VarName (TCType, SourcePos)
                    }
 
 makeLenses ''TCState
@@ -128,6 +134,7 @@ substType vs (RemoveCase p x) = RemoveCase (fmap (fmap (substType vs)) p) (subst
 substType vs (T (TVar v False )) | Just x <- lookup v vs = x
 substType vs (T (TVar v True  )) | Just x <- lookup v vs = T (TBang x)
 substType vs (T t) = T (fmap (substType vs) t)
+
 
 validateType :: [VarName] -> RawType -> ExceptT TypeError TC TCType
 validateType vs (RT t) = do

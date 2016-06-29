@@ -1,15 +1,17 @@
-module COGENT.Context where
+module COGENT.Context(Context, Row (..), lookup, contains, use, addScope, dropScope, merge, mode, empty) where
 
 import Prelude hiding (lookup)
 import qualified Data.Map.Strict as M
 import Text.Parsec.Pos
 import COGENT.Common.Syntax
-import Control.Lens hiding (Context)
+import Control.Lens hiding (Context, contains, use)
 import Data.List (foldl', partition)
 
 type Row t = (t, SourcePos, Maybe SourcePos)
-newtype Context t = Context { unwrap :: [M.Map VarName (Row t)]}
+newtype Context t = Context [M.Map VarName (Row t)]
 
+empty :: Context t
+empty = Context []
 
 lookup :: VarName -> Context t -> Maybe (t, SourcePos, Maybe SourcePos)
 lookup v (Context (x:xs)) | Just r <- M.lookup v x = Just r

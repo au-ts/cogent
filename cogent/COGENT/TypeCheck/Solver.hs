@@ -95,7 +95,7 @@ whnf (T (TPut fs t)) = do
 whnf (T (TCon n as b)) = do
   kts <- use knownTypes
   case lookup n kts of
-    Just (as', Just b)  | b' <- toTCType b -> whnf (substType (zip as' as) b')
+    Just (as', Just b) -> whnf (substType (zip as' as) b)
     _ -> return (T (TCon n as b))
 
 whnf (RemoveCase p t) = do
@@ -407,7 +407,6 @@ classify g = case g of
   _                     -> Classes M.empty M.empty M.empty [] [g]
 
 
-type ContextualisedError = ([ErrorContext], TypeError)
 
 
 -- Push type information down from the RHS of :< to the LHS

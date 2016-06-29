@@ -16,6 +16,7 @@ import qualified Data.IntMap as M
 import Data.Monoid
 import Prelude hiding (lookup)
 import Data.Maybe
+import COGENT.Util
 
 newtype Subst = Subst (M.IntMap TCType)
 
@@ -41,6 +42,12 @@ applyC s (Escape t m) = Escape (apply s t) m
 applyC s (Unsat e) = Unsat e
 applyC s Sat = Sat
 applyC s (Exhaustive t ps) = Exhaustive (apply s t) (fmap (fmap (fmap (apply s))) ps)
+
+applyE :: Subst -> TCExpr -> TCExpr
+applyE s (TE t x) = TE (apply s t)
+                     $ fmap (fmap (apply s))
+                     $ ffmap (fmap (apply s))
+                     $ fffmap (apply s) x
 
 singleton :: Int -> TCType -> Subst
 singleton i t = Subst (M.fromList [(i, t)])

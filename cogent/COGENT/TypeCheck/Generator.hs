@@ -30,7 +30,6 @@ import qualified COGENT.Context as C
 import           Control.Arrow (first, second)
 import           Control.Lens hiding (Context, (:<))
 import           Control.Monad.State
-import           Control.Monad.Except (runExceptT)
 import qualified Data.Map as M
 import           Data.Maybe (catMaybes, isNothing, isJust)
 import           Data.Monoid ((<>))
@@ -176,7 +175,7 @@ cg' (TypeApp f as i) t = do
       in do
         (ts,c') <- match vs as'
 
-        let c = c' <> substType ts (toTCType tau) :< t
+        let c = c' <> substType ts tau :< t
             e = TE t (TypeApp f (map snd ts) i)
         return (c, e)
 
@@ -251,7 +250,8 @@ matchA (PCon k is) t = do
       p' = PCon k is'
       co = case overlapping ss of
              Left (v:vs) -> Unsat $ DuplicateVariableInPattern v p'
-             Right _     -> Sat
+             _           -> Sat
+
   return (M.unions ss, co <> mconcat cs <> T (TVariant (M.fromList [(k, vs)])) :<~ t, p')
 
 matchA (PIntLit i) t = do
