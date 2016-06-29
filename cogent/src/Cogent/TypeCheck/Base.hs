@@ -38,6 +38,7 @@ data TypeError = FunctionNotFound VarName
                | TypeNotEscapable TCType Metadata
                | TypeNotDiscardable TCType Metadata
                | PatternsNotExhaustive TCType [TagName]
+               | UnsolvedConstraint Constraint
                deriving (Show)
 
 
@@ -96,6 +97,7 @@ data Constraint = (:<) TCType TCType
                 | Unsat TypeError
                 | Sat
                 | Exhaustive TCType [Pattern TCTypedName]
+                deriving (Show)
 
 instance Monoid Constraint where
   mempty = Sat
@@ -144,3 +146,9 @@ validateType' vs r = runExceptT (validateType vs r)
 
 validateTypes' :: [VarName] -> [RawType] -> TC (Either TypeError [TCType])
 validateTypes' vs rs = runExceptT (traverse (validateType vs) rs)
+
+
+forFlexes :: (Int -> TCType) -> TCType -> TCType
+forFlexes f (U x) = f x
+forFlexes f (RemoveCase p t) = RemoveCase (fmap (fmap (forFlexes f)) p) (forFlexes f t)
+forFlexes f (T x) = T (fmap (forFlexes f) x)
