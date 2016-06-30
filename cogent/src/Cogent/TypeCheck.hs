@@ -9,13 +9,13 @@
 --
 
 {-# LANGUAGE TupleSections #-}
-
+{-# LANGUAGE ImplicitParams #-}
 module Cogent.TypeCheck where
 
 import Cogent.TypeCheck.Generator
 import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Solver
-import Cogent.TypeCheck.Subst (applyE)
+import Cogent.TypeCheck.Subst (applyE, applyAlts)
 import Cogent.Surface
 import Cogent.Compiler
 import Cogent.Common.Syntax
@@ -32,8 +32,8 @@ typecheck = mapM (uncurry checkOne)
 -- TODO: Check for prior definition
 checkOne :: SourcePos -> TopLevel LocType VarName LocExpr
          -> ExceptT [ContextualisedError] TC (TopLevel RawType TypedName TypedExpr)
-checkOne loc (Include _) = __impossible "checkOne"
 checkOne loc d = case d of
+  (Include _) -> __impossible "checkOne"
   (TypeDec n ps t) -> do
     t' <- validateType' ps (stripLocT t)
     knownTypes <>= [(n,(ps, Just t'))]
@@ -56,8 +56,27 @@ checkOne loc d = case d of
       return (ConstDef n (toRawType t') e'')
     else
       throwError (map (_1 %~ (InDefinition loc d:)) errs)
+  (FunDef f (PT vs t) alts) -> do
+    base <- use knownConsts
+    t' <- validateType' (map fst vs) (stripLocT t)
+    (i,o) <- asFunType t'
+    let ctx = C.addScope (fmap (\(t,p) -> (t,p, Just p)) base) C.empty
+    let ?loc = loc
+    ((c, alts'), flx) <- lift (runCG ctx (map fst vs) (cgAlts alts o i))
+    (errs, subst) <- lift (runSolver (solve c) flx vs)
+    if null errs then do
+      knownFuns %= M.insert f (PT vs t')
+      let alts'' = toTypedAlts $ applyAlts subst alts'
+      return (FunDef f (PT vs (toRawType t')) alts'')
+    else
+      throwError (map (_1 %~ (InDefinition loc d:)) errs)
+
   where
     validateType' x = withExceptT (pure . ([InDefinition loc d],)) . validateType x
+
+    asFunType (T (TFun a b)) = return (a, b)
+    asFunType x              = throwError [([InDefinition loc d], NotAFunctionType x)]
+
 -- tc :: [(SourcePos, TopLevel LocType VarName LocExpr)]
 --    -> ((Either (TypeError, [ErrorContext]) [TopLevel RawType TypedName TypedExpr], WarningErrorLog), TCState)
 -- tc defs = undefined
@@ -85,5 +104,4 @@ isSynonym (LocType _ (TCon c _ _)) = lookup c <$> use knownTypes >>= \case
   Just (vs,Nothing) -> return False
 isSynonym (LocType _ t) = foldM (\b a -> (b ||) <$> isSynonym a) False t
 isSynonym _ = __impossible "isSynonym: not a type at all"
-
 
