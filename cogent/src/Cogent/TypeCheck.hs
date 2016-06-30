@@ -49,7 +49,7 @@ checkOne loc d = case d of
     t' <- validateType' [] (stripLocT t)
     let ctx = C.addScope (fmap (\(t,p) -> (t,p, Just p)) base) C.empty
     ((c, e'), f) <- lift (runCG ctx [] (cg e t'))
-    (errs, subst) <- lift (runSolver (solve c) f)
+    (errs, subst) <- lift (runSolver (solve c) f [])
     if null errs then do
       knownConsts %= M.insert n (t', loc)
       let e'' = toTypedExpr $ applyE subst e'
