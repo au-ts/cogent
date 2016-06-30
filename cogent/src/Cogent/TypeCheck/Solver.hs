@@ -30,7 +30,7 @@ import Control.Lens hiding ((:<))
 import qualified Data.Foldable as F
 import Data.Monoid
 
-data SolverState = SS { _flexes :: Int, _tc :: TCState, _substs :: Subst }
+data SolverState = SS { _flexes :: Int, _tc :: TCState, _substs :: Subst, _axioms :: [(VarName, Kind)] }
 
 makeLenses ''SolverState
 
@@ -450,9 +450,25 @@ instantiate (Classes ups downs frags errs rest) = do
   let al = concat (F.toList ups ++ F.toList downs ++ F.toList frags) ++ errs ++ rest
   return (al & map (goal %~ Subst.applyC s))
 
+
+-- Eliminates all known facts about type variables from the goal set.
+assumption :: [Goal] -> Solver [Goal]
+assumption gs = do
+  axs <- use axioms
+  let isKnown :: Constraint -> Bool
+      isKnown (Share  (T (TVar v b)) _)
+        | Just k <- lookup v axs = canShare   (if b then bangKind k else k)
+      isKnown (Drop   (T (TVar v b)) _)
+        | Just k <- lookup v axs = canDiscard (if b then bangKind k else k)
+      isKnown (Escape (T (TVar v b)) _)
+        | Just k <- lookup v axs = canEscape  (if b then bangKind k else k)
+      isKnown _ = False
+  return (filter (not  . isKnown . view goal) gs)
+
 -- Take an assorted list of goals, and break them down into neatly classified, simple flex/rigid goals.
+-- Removes any known facts about type variables.
 explode :: [Goal] -> Solver GoalClasses
-explode = fmap (foldMap classify) . zoom tc . apply auto
+explode = assumption >=> (fmap (foldMap classify) . zoom tc . apply auto)
 
 
 -- In a loop, we:
@@ -505,9 +521,9 @@ solve = zoom tc . crunch >=> explode >=> go
     toError (Goal ctx (Unsat e)) = (ctx, e)
     toError _ = error "Impossible"
 
-runSolver :: Solver a -> Int -> TC (a, Subst)
-runSolver act i = do
+runSolver :: Solver a -> Int -> [(VarName, Kind)] -> TC (a, Subst)
+runSolver act i ks = do
   x <- get
-  let (a, SS _ x' s) = runState act (SS i x mempty)
+  let (a, SS _ x' s _) = runState act (SS i x mempty ks)
   put x'
   return (a,s)
