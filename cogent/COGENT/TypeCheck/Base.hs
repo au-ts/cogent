@@ -40,6 +40,7 @@ data TypeError = FunctionNotFound VarName
                | PatternsNotExhaustive TCType [TagName]
                | UnsolvedConstraint Constraint
                | RecordWildcardsNotSupported
+               | NotAFunctionType TCType
                deriving (Show)
 
 
@@ -76,6 +77,9 @@ toTCType (RT x) = T (fmap toTCType x)
 
 toTypedExpr :: TCExpr -> TypedExpr
 toTypedExpr = fmap toRawType
+
+toTypedAlts :: [Alt TCTypedName TCExpr] -> [Alt TypedName TypedExpr]
+toTypedAlts = fmap (fmap (fmap toRawType) . ffmap (fmap toRawType))
 
 -- Precondition: No unification variables left in the type
 toRawType :: TCType -> RawType

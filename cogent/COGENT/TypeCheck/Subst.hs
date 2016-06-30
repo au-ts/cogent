@@ -13,10 +13,11 @@ module COGENT.TypeCheck.Subst where
 
 import COGENT.TypeCheck.Base
 import qualified Data.IntMap as M
-import Data.Monoid
+import Data.Monoid hiding (Alt)
 import Prelude hiding (lookup)
 import Data.Maybe
 import COGENT.Util
+import COGENT.Surface
 
 newtype Subst = Subst (M.IntMap TCType)
 
@@ -30,6 +31,12 @@ instance Monoid Subst where
 
 apply :: Subst -> TCType -> TCType
 apply = forFlexes . lookup
+
+applyAlts :: Subst -> [Alt TCTypedName TCExpr] -> [Alt TCTypedName TCExpr]
+applyAlts = map . applyAlt
+
+applyAlt :: Subst -> Alt TCTypedName TCExpr -> Alt TCTypedName TCExpr
+applyAlt s = fmap (applyE s) . ffmap (fmap (apply s))
 
 applyC :: Subst -> Constraint -> Constraint
 applyC s (a :< b) = apply s a :< apply s b

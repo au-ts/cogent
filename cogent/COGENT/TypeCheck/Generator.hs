@@ -18,6 +18,7 @@ module COGENT.TypeCheck.Generator
   ( runCG
   , CG
   , cg
+  , cgAlts
   ) where
 
 import           COGENT.Common.Syntax
@@ -216,6 +217,15 @@ cg' (Let bs e) t = do
 cg' (Match e bs alts) top = do
   alpha <- fresh
   (c', e') <- letBang bs (cg e) alpha
+  (c'', alts') <- cgAlts alts top alpha
+
+  let c = c' :& c''
+      e = TE top (Match e' bs alts')
+  return (c, e)
+
+
+cgAlts :: (?loc :: SourcePos) => [Alt VarName LocExpr] -> TCType -> TCType -> CG (Constraint, [Alt TCTypedName TCExpr])
+cgAlts alts top alpha = do
   let
     altPattern (Alt p _ _) = p
 
@@ -231,10 +241,8 @@ cg' (Match e bs alts) top = do
   (c'', blob) <- parallel jobs alpha
 
   let (cs, alts') = unzip blob
-      c = mconcat (Exhaustive alpha (map altPattern alts'):c':c'':cs)
-      e = TE top (Match e' bs alts')
-  return (c, e)
-
+      c = mconcat (Exhaustive alpha (map altPattern alts'):c'':cs)
+  return (c, alts')
 
 matchA :: (?loc :: SourcePos)
        => Pattern VarName -> TCType
