@@ -26,9 +26,11 @@ import Data.Function(on)
 import Data.Maybe
 import qualified Data.Map as M
 import qualified Data.Set as S
+import qualified Data.List as L
 import Control.Lens hiding ((:<))
 import qualified Data.Foldable as F
 import Data.Monoid
+
 --import Debug.Trace
 import Control.Applicative
 data SolverState = SS { _flexes :: Int, _tc :: TCState, _substs :: Subst, _axioms :: [(VarName, Kind)] }
@@ -237,6 +239,15 @@ rule (T (TVariant m) :< T (TVariant n))
   | otherwise = let
       each ts us = mconcat (zipWith (:<) ts us)
     in Just $ mconcat (zipWith (each `on` snd) (M.toList m) (M.toList n))
+-- This rule is a bit dodgy
+rule (T (TTake (Just a) b) :< T (TTake (Just a') c))
+  | x <- L.intersect a a'
+  , not (null x)
+  = let
+      ax  = a L.\\ x
+      a'x = a' L.\\ x
+     in Just $  ((if null ax then id else T . TTake (Just ax)) b)
+             :< ((if null a'x then id else T . TTake (Just a'x)) c)
 rule (a :< b)
   | notWhnf a || notWhnf b = Nothing -- traceShow ("FOO", a :< b) Nothing
   | otherwise              = Just $ Unsat (TypeMismatch a b)
@@ -258,13 +269,12 @@ rule (T (TRecord fs _) :<~ T (TRecord gs s))
   , ks `S.isSubsetOf` M.keysSet m
   , n <- M.fromList fs
   =  let
-       each f (t, False) (u, True ) = (t :< u) :& Drop t ImplicitlyTaken
+       each f (t, True)  (u, False) = (t :< u) :& Drop t ImplicitlyTaken
        each f (t, False) (u, False) = t :< u
        each f (t, True ) (u, True ) = t :< u
-       each f (t, True ) (u, False) = Unsat (RequiredTakenField f t)
+       each f (t, False) (u, True) = Unsat (RequiredTakenField f t)
      in Just $ mconcat (map (\k -> each k (n M.! k) (m M.! k)) $ S.toList ks)
 rule (a :<~ b) = rule (a :< b)
-
 rule c = Nothing
 
 -- Applys rules and simp as much as possible
@@ -480,7 +490,7 @@ instantiate :: GoalClasses -> Solver [Goal]
 instantiate (Classes ups downs frags errs rest) = do
   s <- use substs
   let al = concat (F.toList ups ++ F.toList downs ++ F.toList frags) ++ errs ++ rest
-  return (al & map (goal %~ Subst.applyC s))
+  return (al & map (goal %~ Subst.applyC s) & map (goalContext %~ map (Subst.applyCtx s)))
 
 
 -- Eliminates all known facts about type variables from the goal set.

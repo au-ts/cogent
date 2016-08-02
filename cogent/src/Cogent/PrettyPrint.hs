@@ -369,7 +369,7 @@ instance Pretty TypeError where
                                            <+> int i1 <+> err "arguments, but has been given" <+> int i2
   pretty (TypeMismatch t1 t2)            = err "Mismatch between " <+> pretty t1 <+> err "and" <+> pretty t2
   pretty (RequiredTakenField f t)        = err "Required field" <+> fieldname f
-                                           <+> err "to be untaken in type" <+> pretty t
+                                           <+> err "of type" <+> pretty t <+> err "to be untaken"
   pretty (TypeNotShareable t m)          = err "Cannot share type" <+> pretty t
                                            <+> err "but this is needed as" <+> pretty m
   pretty (TypeNotEscapable t m)          = err "Cannot let type" <+> pretty t <+> err "escape from a !-ed context,"
