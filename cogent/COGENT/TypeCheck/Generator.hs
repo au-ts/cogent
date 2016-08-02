@@ -223,11 +223,13 @@ cg' (If e1 bs e2 e3) t = do
   return (c1 <> c <> c2 <> c3, TE t (If e1' bs e2' e3'))
 
 cg' (Put e ls) t | not (any isNothing ls) = do
+  alpha <- fresh
   let (fs, es) = unzip (catMaybes ls)
-  (c', e') <- cg e (T (TTake (Just fs) t))
+  (c', e') <- cg e alpha -- (T (TTake (Just fs) t))
   (ts, cs, es') <- cgMany es
 
-  let c = c' <> cs <> (T (TRecord (zip fs (map (,True) ts)) Unboxed) :<~ (T (TTake (Just fs) t)))
+  let c = (T (TPut (Just fs) alpha)) :< t <> c' <> cs
+       <> (T (TRecord (zip fs (map (,True) ts)) Unboxed) :<~ alpha)
       e = TE t (Put e' (map Just (zip fs es')))
   return (c,e)
 
