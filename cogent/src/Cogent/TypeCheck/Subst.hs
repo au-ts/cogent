@@ -30,15 +30,37 @@ instance Monoid Subst where
 apply :: Subst -> TCType -> TCType
 apply = forFlexes . lookup
 
+applyAlts :: Subst -> [Alt TCTypedName TCExpr] -> [Alt TCTypedName TCExpr]
+applyAlts = map . applyAlt
+
+applyAlt :: Subst -> Alt TCTypedName TCExpr -> Alt TCTypedName TCExpr
+applyAlt s = fmap (applyE s) . ffmap (fmap (apply s))
+
+applyCtx :: Subst -> ErrorContext -> ErrorContext
+applyCtx s (SolvingConstraint c) = SolvingConstraint (applyC s c)
+applyCtx s (InExpression e t) = InExpression e (apply s t) 
+applyCtx s c = c
+
+applyErr :: Subst -> TypeError -> TypeError
+applyErr s (TypeMismatch t1 t2)     = TypeMismatch (apply s t1) (apply s t2)
+applyErr s (RequiredTakenField f t) = RequiredTakenField f (apply s t)
+applyErr s (TypeNotShareable t m)   = TypeNotShareable (apply s t) m
+applyErr s (TypeNotEscapable t m)   = TypeNotEscapable (apply s t) m
+applyErr s (TypeNotDiscardable t m) = TypeNotDiscardable (apply s t) m
+applyErr s (PatternsNotExhaustive t ts) = PatternsNotExhaustive (apply s t) ts
+applyErr s (UnsolvedConstraint c) = UnsolvedConstraint (applyC s c)
+applyErr s (NotAFunctionType t) = NotAFunctionType (apply s t)
+applyErr s e = e
+
 applyC :: Subst -> Constraint -> Constraint
 applyC s (a :< b) = apply s a :< apply s b
 applyC s (a :<~ b) = apply s a :<~ apply s b
 applyC s (a :& b) = applyC s a :& applyC s b
-applyC s (a :@ c) = applyC s a :@ c
+applyC s (a :@ c) = applyC s a :@ applyCtx s c
 applyC s (Share t m) = Share (apply s t) m
 applyC s (Drop t m) = Drop (apply s t) m
 applyC s (Escape t m) = Escape (apply s t) m
-applyC s (Unsat e) = Unsat e
+applyC s (Unsat e) = Unsat (applyErr s e)
 applyC s Sat = Sat
 applyC s (Exhaustive t ps) = Exhaustive (apply s t) (fmap (fmap (fmap (apply s))) ps)
 
