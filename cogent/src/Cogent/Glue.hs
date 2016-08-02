@@ -38,10 +38,10 @@ import qualified Cogent.Desugar   as DS
 import qualified Cogent.DList     as DList
 import qualified Cogent.Mono      as MN
 import qualified Cogent.Parser    as PS
-import Cogent.PrettyPrint
+-- import Cogent.PrettyPrint
 import qualified Cogent.Sugarfree as SF
 import qualified Cogent.Surface   as SR
-import qualified Cogent.TypeCheck as TC
+import qualified Cogent.TypeCheck.Base as TC
 import Cogent.Util
 import Cogent.Vec as Vec hiding (repeat)
 
@@ -53,8 +53,8 @@ import Control.Monad.Reader
 import Control.Monad.RWS.Strict
 import Control.Monad.State
 import Control.Monad.Trans.Either
-import Control.Monad.Trans.Except
-import Control.Monad.Writer
+--import Control.Monad.Trans.Except
+--import Control.Monad.Writer
 import qualified Data.ByteString.Char8 as B
 import Data.Data
 import Data.Function.Flippers
@@ -180,7 +180,8 @@ parseAnti s parsec loc offset' = do
     Right t  -> return t
 
 tcAnti :: (a -> TC.TC b) -> a -> GlDefn t b
-tcAnti m a = view kenv >>= \(cvtToList -> ts) -> lift . lift $
+tcAnti m a = undefined
+{- view kenv >>= \(cvtToList -> ts) -> lift . lift $
   StateT $ \s -> let state = TC.TCState { TC._knownFuns    = view (tcState.tfuncs) s
                                         , TC._context      = view (tcState.consts) s
                                         , TC._errorContext = []
@@ -192,6 +193,7 @@ tcAnti m a = view kenv >>= \(cvtToList -> ts) -> lift . lift $
                        (_, err) -> throwE $ "Error: Typecheck antiquote failed:\n" ++
                                             show (vsep $ L.map (prettyTWE __cogent_ftc_ctx_len) err)
                                             -- FIXME: may need a pp modifier `plain' / zilinc
+-}
 
 desugarAnti :: (a -> DS.DS t 'Zero b) -> a -> GlDefn t b
 desugarAnti m a = view kenv >>= \(fmap fst -> ts) -> lift . lift $
@@ -236,8 +238,9 @@ traverseAnti m = everywhereM $ mkM $ m
 parseType :: String -> SrcLoc -> GlFile SR.LocType
 parseType s loc = parseAnti s PS.monotype loc 4
 
+
 tcType :: SR.LocType -> GlDefn t SR.RawType
-tcType t = tcAnti (TC.inEContext (TC.AntiquotedType t) . TC.validateType) t
+tcType t = undefined {- tcAnti (TC.inEContext (TC.AntiquotedType t) . TC.validateType) t -}
 
 desugarType :: SR.RawType -> GlDefn t (SF.Type t)
 desugarType = desugarAnti DS.desugarType
@@ -275,12 +278,13 @@ parseFnCall :: String -> SrcLoc -> GlFile SR.LocExpr
 parseFnCall s loc = parseAnti s PS.basicExpr' loc 4
 
 tcFnCall :: SR.LocExpr -> GlDefn t TC.TypedExpr
-tcFnCall e = do
+tcFnCall e = undefined {-  do
   f <- case e of
          SR.LocExpr _ (SR.TypeApp f ts _) -> return f  -- FIXME: make use of Inline to perform glue code inlining / zilinc
          SR.LocExpr _ (SR.Var f) -> return f
          otherwise -> throwError $ "Error: Not a function in $exp antiquote"
   tcAnti (TC.inEContext (TC.AntiquotedExpr e) . TC.infer) e
+-}
 
 genFn :: SF.TypedExpr 'Zero 'Zero VarName -> Gl CS.Exp
 genFn = genAnti $ \case
@@ -320,7 +324,7 @@ parseExp :: String -> SrcLoc -> GlFile SR.LocExpr
 parseExp s loc = parseAnti s (PS.expr 1) loc 4
 
 tcExp :: SR.LocExpr -> GlDefn t TC.TypedExpr
-tcExp e = tcAnti (TC.inEContext (TC.AntiquotedExpr e) . TC.infer) e
+tcExp e = undefined {- tcAnti (TC.inEContext (TC.AntiquotedExpr e) . TC.infer) e -}
 
 desugarExp :: TC.TypedExpr -> GlDefn t (SF.UntypedExpr t 'Zero VarName)
 desugarExp = desugarAnti DS.desugarExpr
@@ -513,7 +517,7 @@ mkGlState :: [SR.TopLevel SR.RawType TC.TypedName TC.TypedExpr]
           -> (MN.FunMono, MN.TypeMono)
           -> CG.GenState
           -> GlState
-mkGlState tced tcState (Last (Just (typedefs, constdefs, _))) ftypes (funMono, typeMono) genState =
+mkGlState tced tcState (Last (Just (typedefs, constdefs, _))) ftypes (funMono, typeMono) genState = undefined {- 
   GlState { _tcDefs  = tced
           , _tcState = TcState { _tfuncs = view TC.knownFuns  tcState
                                , _ttypes = view TC.knownTypes tcState
@@ -531,7 +535,7 @@ mkGlState tced tcState (Last (Just (typedefs, constdefs, _))) ftypes (funMono, t
                                , _localOracle  = view CG.localOracle  genState
                                , _globalOracle = view CG.globalOracle genState
                                }
-          }
+          } -}
 mkGlState _ _ _ _ _ _ = __impossible "mkGlState"
 
 
