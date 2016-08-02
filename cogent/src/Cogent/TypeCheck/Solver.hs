@@ -12,14 +12,14 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE TupleSections #-}
-module COGENT.TypeCheck.Solver (runSolver, solve) where
+module Cogent.TypeCheck.Solver (runSolver, solve) where
 
-import COGENT.TypeCheck.Base
-import qualified COGENT.TypeCheck.Subst as Subst
-import COGENT.TypeCheck.Subst(Subst)
-import COGENT.Common.Types
-import COGENT.Common.Syntax
-import COGENT.Surface
+import Cogent.TypeCheck.Base
+import qualified Cogent.TypeCheck.Subst as Subst
+import Cogent.TypeCheck.Subst(Subst)
+import Cogent.Common.Types
+import Cogent.Common.Syntax
+import Cogent.Surface
 import Control.Monad.State
 import Data.List(elemIndex)
 import Data.Function(on)
@@ -29,7 +29,8 @@ import qualified Data.Set as S
 import Control.Lens hiding ((:<))
 import qualified Data.Foldable as F
 import Data.Monoid
-
+--import Debug.Trace
+import Control.Applicative
 data SolverState = SS { _flexes :: Int, _tc :: TCState, _substs :: Subst, _axioms :: [(VarName, Kind)] }
 
 makeLenses ''SolverState
@@ -37,6 +38,10 @@ makeLenses ''SolverState
 type Solver = State SolverState
 
 data Goal = Goal { _goalContext :: [ErrorContext], _goal :: Constraint }
+
+instance Show Goal where
+  show (Goal _ g) = show g
+
 
 makeLenses ''Goal
 
@@ -76,6 +81,7 @@ whnf (T (TTake fs t)) = do
    t' <- whnf t
    return $ case t' of
      (T (TRecord l s)) -> T (TRecord (takeFields fs l) s)
+     _ | null fs       -> t'
      _                 -> T (TTake fs t')
  where
    takeFields :: Maybe [FieldName] -> [(FieldName, (TCType, Bool))] -> [(FieldName, (TCType, Bool))]
@@ -135,6 +141,8 @@ patternTag _ = Nothing
 -- Explodes a rigid/rigid constraint into subgoals necessary
 -- for that to be true. E.g, (a,b) :< (c,d) becomes a :< c :& b :< d.
 -- Assumes that the input is simped (i.e conjunction and context free, with types in whnf)
+rule' :: Constraint -> Maybe Constraint
+rule' c = fmap (:@ SolvingConstraint c) $ rule c
 rule :: Constraint -> Maybe Constraint
 
 rule (Exhaustive t ps) | any isIrrefutable ps = Just Sat
@@ -154,7 +162,11 @@ rule (Exhaustive t ps)
   | not (notWhnf t) = Just $ Unsat $ PatternsNotExhaustive t []
 
 rule (x :@ c) = (:@ c) <$> rule x
-rule (x :& y) = (:&) <$> rule x <*> rule y
+rule (x :& y) = (:&) <$> x' <*> y'
+             <|> (x :&) <$> y'
+             <|> (:& y) <$> x'
+  where y' = rule y
+        x' = rule x
 
 rule Unsat {} = Nothing
 rule Sat   {} = Nothing
@@ -208,10 +220,9 @@ rule (T (TVar v b)  :< T (TVar u c))
   | v == u, b == c = Just Sat
   | otherwise      = Just $ Unsat (TypeMismatch (T (TVar v b)) (T (TVar u c)))
 rule (T (TCon n ts s) :< T (TCon m us r))
-  | n == m, ts == us, s == r = Just $ mconcat (zipWith (:<) ts us ++ zipWith (:<) us ts)
-  | otherwise                = Just $ Unsat (TypeMismatch (T (TCon n ts s)) (T (TCon m us r)))
+  | n == m, length ts == length us, s == r = Just $ mconcat (zipWith (:<) ts us ++ zipWith (:<) us ts)
+  | otherwise                              = Just $ Unsat (TypeMismatch (T (TCon n ts s)) (T (TCon m us r)))
 rule (T (TRecord fs s) :< T (TRecord gs r))
-                                         -- TODO: More precise errors
   | or (zipWith ((/=) `on` fst) fs gs) = Just $ Unsat (TypeMismatch (T (TRecord fs s)) (T (TRecord gs r)))
   | length fs /= length gs             = Just $ Unsat (TypeMismatch (T (TRecord fs s)) (T (TRecord gs r)))
   | s /= r                             = Just $ Unsat (TypeMismatch (T (TRecord fs s)) (T (TRecord gs r)))
@@ -227,7 +238,7 @@ rule (T (TVariant m) :< T (TVariant n))
       each ts us = mconcat (zipWith (:<) ts us)
     in Just $ mconcat (zipWith (each `on` snd) (M.toList m) (M.toList n))
 rule (a :< b)
-  | notWhnf a || notWhnf b = Nothing
+  | notWhnf a || notWhnf b = Nothing -- traceShow ("FOO", a :< b) Nothing
   | otherwise              = Just $ Unsat (TypeMismatch a b)
 
 rule (T (TCon n [] Unboxed) :<~ T (TCon m [] Unboxed))
@@ -254,13 +265,13 @@ rule (T (TRecord fs _) :<~ T (TRecord gs s))
      in Just $ mconcat (map (\k -> each k (n M.! k) (m M.! k)) $ S.toList ks)
 rule (a :<~ b) = rule (a :< b)
 
-rule _ = Nothing
+rule c = Nothing
 
 -- Applys rules and simp as much as possible
 auto :: Constraint -> TC Constraint
 auto c = do
   c' <- simp c
-  case rule c of
+  case rule' c' of
     Nothing  -> return c'
     Just c'' -> auto c''
 
@@ -358,7 +369,7 @@ lub _ _ = return Nothing
 -- with a unification variable on the right, and they expand into regular subtyping constraints with rule.
 -- This is used to essentially "guess" the type when we don't have firm enough information
 -- My intention is to try solving _without_ this entirely and seeing how far I get.
--- lub' :: TCType -> TCType -> Solver (Maybe TCType)
+lub' :: TCType -> TCType -> Solver (Maybe TCType)
 -- lub' (T (TVariant ts)) (T (TVariant us))
 --   = Just . T . TVariant <$> mapM (mapM (const fresh)) (M.union ts us)
 -- lub' (T (TRecord fs s)) (T (TRecord gs r))
@@ -367,11 +378,11 @@ lub _ _ = return Nothing
 --   , hs <- M.unionWith (\(t,b) (_,b') -> (t, b || b')) fs' gs'
 --   = do hs' <- M.toList <$> traverse (\(_,b) -> (,b) <$> fresh) hs
 --        return $ Just $ T $ TRecord hs' s
--- lub' (T (TCon n [] Unboxed)) (T (TCon m [] Unboxed))
---   | Just n' <- elemIndex n primTypeCons
---   , Just m' <- elemIndex m primTypeCons
---   = return $ Just (T (TCon (primTypeCons !! max n' m') [] Unboxed))
--- lub' a b = lub a b
+lub' (T (TCon n [] Unboxed)) (T (TCon m [] Unboxed))
+     | Just n' <- elemIndex n primTypeCons
+     , Just m' <- elemIndex m primTypeCons
+     = return $ Just (T (TCon (primTypeCons !! max n' m') [] Unboxed))
+lub' a b = return Nothing
 
 
 -- A simple classification scheme for soluble flex/rigid constraints
@@ -384,6 +395,17 @@ data GoalClasses
     , rest :: [Goal]
     }
 
+instance Show GoalClasses where
+  show (Classes u d f un r) = "ups:\n" ++
+                              unlines (map (("  " ++) . show) (F.toList u)) ++
+                              "\ndowns:\n" ++
+                              unlines (map (("  " ++) . show) (F.toList d)) ++
+                              "\nfragments:\n" ++
+                              unlines (map (("  " ++) . show) (F.toList f)) ++
+                              "\nunsats:\n" ++
+                              unlines (map (("  " ++) . show) (F.toList un)) ++
+                              "\nrest:\n" ++
+                              unlines (map (("  " ++) . show) (F.toList r)) 
 instance Monoid GoalClasses where
   Classes u d f e r `mappend` Classes u' d' f' e' r'
     = Classes (M.unionWith (++) u u')
@@ -432,11 +454,21 @@ suggest (Goal x1 (tau :< v) : Goal x2 (tau' :< _) : xs) = do
                   <$> suggest (Goal x2 (tau'' :< v) : xs)
 suggest xs = return xs
 
+
+guess :: [Goal] -> Solver [Goal]
+guess (Goal x1 a@(tau :<~ v) : Goal x2 b@(tau' :<~ _) : xs) = do
+  mt <- lub' tau tau'
+  case mt of
+    Nothing    -> return [Goal x1 (Unsat (UnsolvedConstraint (a :& b)))]
+    Just tau'' -> ([Goal x1 (tau :< tau''), Goal x2 (tau' :< tau'')] ++)
+                  <$> suggest (Goal x2 (tau'' :< v) : xs)
+
+guess xs = return xs
 -- Produce substitutions when it is safe to do so (the variable can't get any more general)
 noBrainers :: [Goal] -> Subst
 noBrainers [Goal _ (U x :<  T t)] = Subst.singleton x (T t)
 noBrainers [Goal _ (T t :<  U x)] = Subst.singleton x (T t)
-noBrainers [Goal _ (T t :<~ U x)] = Subst.singleton x (T t)
+noBrainers [Goal _ (T t@(TCon v [] Unboxed) :<~ U x)] | v `elem` primTypeCons = Subst.singleton x (T t)
 noBrainers _ = mempty
 
 
@@ -486,7 +518,6 @@ solve :: Constraint -> Solver [ContextualisedError]
 solve = zoom tc . crunch >=> explode >=> go
   where
     go :: GoalClasses -> Solver [ContextualisedError]
-
     go g | not (null (unsats g)) = return $ map toError (unsats g)
 
     go g | not (M.null (downs g)) = do
@@ -507,9 +538,16 @@ solve = zoom tc . crunch >=> explode >=> go
           applySubst s
           instantiate g >>= explode >>= go
 
-    go g | not (M.null (fragments g)) =
-      let f (Goal c x) = (c, UnsolvedConstraint x)
-      in  return $ map f $ concat $ F.toList (fragments g)
+    go g | not (M.null (fragments g)) = do
+      let s = foldMap noBrainers (fragments g)
+      if Subst.null s then do
+          g' <- explode =<< concat . F.toList <$> traverse guess (fragments g)
+          go (g' <> g { ups = M.empty } )
+      else do
+          applySubst s
+          instantiate g >>= explode >>= go
+      -- let f (Goal c x) = (c, UnsolvedConstraint x)
+      -- in  return $ map f $ concat $ F.toList (fragments g)
 
     go g | not (null (rest g)) =
       let f (Goal c x) = (c, UnsolvedConstraint x)
