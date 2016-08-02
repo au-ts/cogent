@@ -425,7 +425,7 @@ __cogent_ftc_ctx_len = unsafePerformIO $ readIORef __cogent_ftc_ctx_len_ref
 
 __cogent_ftc_ctx_len_ref :: IORef Int
 {-# NOINLINE __cogent_ftc_ctx_len_ref #-}
-__cogent_ftc_ctx_len_ref = unsafePerformIO $ newIORef 3
+__cogent_ftc_ctx_len_ref = unsafePerformIO $ newIORef 10
 
 __cogent_ftp_with_bodies :: Bool
 __cogent_ftp_with_bodies = unsafePerformIO $ readIORef __cogent_ftp_with_bodies_ref
