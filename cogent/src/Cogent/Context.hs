@@ -1,9 +1,9 @@
-module COGENT.Context where
+module Cogent.Context(Context, Row, lookup, contains, use, addScope, dropScope, merge, mode, empty) where
 
 import Prelude hiding (lookup)
 import qualified Data.Map.Strict as M
 import Text.Parsec.Pos
-import COGENT.Common.Syntax
+import Cogent.Common.Syntax
 import Control.Lens hiding (Context)
 import Data.List (foldl', partition)
 
@@ -33,7 +33,7 @@ dropScope (Context (m:ms)) = Context ms
 dropScope (Context [])     = Context []
 
 mode' :: M.Map VarName x -> [VarName] -> (x -> x) -> (M.Map VarName x, M.Map VarName x -> M.Map VarName x)
-mode' c vs f = 
+mode' c vs f =
   let c' = c & itraversed.indices (`elem` vs) %~ f
       undo d = foldl' (\x v -> x & at v .~ M.lookup v c) d vs
   in (c', undo)
@@ -93,4 +93,3 @@ merge (Context a) (Context b) = let (c, l, r) = go a b in (Context c, l, r)
       (cs, ls, rs) = go as bs
       (c,  l,  r ) = merge' a b
       in (c:cs, l ++ ls, r ++ rs)
-

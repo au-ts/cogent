@@ -8,10 +8,10 @@
 -- @TAG(NICTA_GPL)
 --
 
-module COGENT.TypeCheck.Subst where
+module Cogent.TypeCheck.Subst where
 
 
-import COGENT.TypeCheck.Base
+import Cogent.TypeCheck.Base
 import qualified Data.IntMap as M
 import Data.Monoid
 import Prelude hiding (lookup)

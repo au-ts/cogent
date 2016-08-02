@@ -9,12 +9,12 @@
 --
 
 {-# LANGUAGE TemplateHaskell #-}
-module COGENT.TypeCheck.Base where
+module Cogent.TypeCheck.Base where
 
-import COGENT.Common.Syntax
-import COGENT.Util
-import COGENT.Surface
-import COGENT.Common.Types
+import Cogent.Common.Syntax
+import Cogent.Util
+import Cogent.Surface
+import Cogent.Common.Types
 
 import Control.Monad.State
 import Control.Lens hiding (Context, (:<))
@@ -46,6 +46,7 @@ data TypeError = FunctionNotFound VarName
 -- FIXME: More fine-grained context is appreciated. e.g., only show alternatives that don't unify / zilinc
 data ErrorContext = InExpression LocExpr TCType
                   | ThenBranch | ElseBranch
+                  | SolvingConstraint Constraint
                   | InExpressionOfType LocExpr RawType
                   | NthAlternative Int (Pattern VarName)
                   | InDefinition SourcePos (TopLevel LocType VarName LocExpr)
@@ -76,6 +77,9 @@ toTCType (RT x) = T (fmap toTCType x)
 toRawType :: TCType -> RawType
 toRawType (T x) = RT (fmap toRawType x)
 toRawType _ = error "panic: unification variable found"
+
+toRawExp :: TypedExpr -> RawExpr
+toRawExp (TE t e) = RE (ffmap fst . fmap toRawExp $ e)
 
 data Metadata = Reused { varName :: VarName, boundAt :: SourcePos, usedAt :: SourcePos }
               | Unused { varName :: VarName, boundAt :: SourcePos}

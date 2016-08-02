@@ -14,18 +14,18 @@
 {-# LANGUAGE TupleSections #-}
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 
-module COGENT.TypeCheck.Generator
+module Cogent.TypeCheck.Generator
   ( runCG
   , CG
   , cg
   ) where
 
-import           COGENT.Common.Syntax
-import           COGENT.Common.Types
-import           COGENT.Surface
-import           COGENT.Util hiding (Warning)
-import           COGENT.TypeCheck.Base
-import qualified COGENT.Context as C
+import           Cogent.Common.Syntax
+import           Cogent.Common.Types
+import           Cogent.Surface
+import           Cogent.Util hiding (Warning)
+import           Cogent.TypeCheck.Base
+import qualified Cogent.Context as C
 
 import           Control.Arrow (first, second)
 import           Control.Lens hiding (Context, (:<))
@@ -68,7 +68,30 @@ cgMany es = do
   return (reverse ts, c', reverse es')
 
 cg' :: (?loc :: SourcePos) => Expr LocType VarName LocExpr -> TCType -> CG (Constraint, TCExpr)
-cg' (PrimOp o es) t = undefined
+cg' (PrimOp o [e1, e2]) t
+  | o `elem` words "+ - * / % .&. .|. .^. >> <<"
+  = do (c1, e1') <- cg e1 t
+       (c2, e2') <- cg e2 t
+       return (T (TCon "U8" [] Unboxed) :<~ t :& c1 :& c2, TE t (PrimOp o [e1', e2'] ))
+  | o `elem` words "&& ||"
+  = do (c1, e1') <- cg e1 t
+       (c2, e2') <- cg e2 t
+       return (T (TCon "Bool" [] Unboxed) :< t :& c1 :& c2, TE t (PrimOp o [e1', e2'] ))
+  | o `elem` words "== /= >= <= > <"
+  = do alpha <- fresh
+       (c1, e1') <- cg e1 alpha
+       (c2, e2') <- cg e2 alpha
+       let c  = T (TCon "Bool" [] Unboxed) :< t
+           c' = T (TCon "U8" [] Unboxed) :<~ alpha
+       return (c :& c' :& c1 :& c2, TE t (PrimOp o [e1', e2'] ))
+cg' (PrimOp o [e]) t
+  | o == "complement"  = do
+      (c, e') <- cg e t
+      return (T (TCon "U8" [] Unboxed) :<~ t :& c, TE t (PrimOp o [e']))
+  | o == "not"         = do
+      (c, e') <- cg e t
+      return (T (TCon "Bool" [] Unboxed) :< t :& c, TE t (PrimOp o [e']))
+cg' (PrimOp o _) t = error "impossible"
 cg' (Var n) t = do
   ctx <- use context
 

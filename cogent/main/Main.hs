@@ -54,7 +54,7 @@ import Cogent.Sugarfree     as SF (tc, tc_, tcConsts, retype, untypeD)
 import Cogent.Sugarfree     as SF (isConFun, getDefinitionId)  -- FIXME: zilinc
 import Cogent.SuParser      as SU (parse)
 import Cogent.Surface       as SR (stripAllLoc)
-import Cogent.TypeCheck     as TC (tc, failDueToWerror)
+import Cogent.TypeCheck     as TC (tc)
 import Cogent.TypeProofs    as TP (deepTypeProof)
 import Cogent.GraphGen      as GG
 import Cogent.Util          as UT
@@ -68,6 +68,7 @@ import Control.Applicative (liftA)
 import Control.Error.Util (exceptT)
 import Control.Monad (forM, forM_, unless, when)
 import Control.Monad.Trans.Except (runExceptT)
+-- import Control.Monad.Cont
 import Data.Char (isSpace)
 import Data.Either (lefts)
 import Data.Foldable (fold, foldrM)
@@ -442,7 +443,7 @@ flags =
   , Option []         ["fsimplifier-level"]   1 (ReqArg (set_flag_fsimplifierIterations . read) "NUMBER")  "number of iterations simplifier does (default=4)"
   , Option []         ["fstatic-inline"]      2 (NoArg set_flag_fstaticInline)             "(default) generate static-inlined functions in C"
   , Option []         ["ftuples-as-sugar"]    2 (NoArg set_flag_ftuplesAsSugar)            "(default) treat tuples as syntactic sugar to unboxed records, which gives better performance"
-  , Option []         ["ftc-ctx-len"]    1 (ReqArg (set_flag_ftcCtxLen . read) "NUMBER")   "set the depth for printing error context in typechecker (default=3)"
+  , Option []         ["ftc-ctx-len"]         1 (ReqArg (set_flag_ftcCtxLen . read) "NUMBER")   "set the depth for printing error context in typechecker (default=3)"
   , Option []         ["ftp-with-bodies"]     2 (NoArg set_flag_ftpWithBodies)             "(default) generate type proof with bodies"
   , Option []         ["ftp-with-decls"]      2 (NoArg set_flag_ftpWithDecls)              "(default) generate type proof with declarations"
   , Option []         ["funion-for-variants"] 2 (NoArg set_flag_funionForVariants)         "use union types for variants in C code (cannot be verified)"
@@ -567,7 +568,7 @@ parseArgs args = case getOpt' Permute options args of
       let stg = STGTypeCheck
       putProgressLn "Typechecking..."
       let ((err,we),tcst) = TC.tc reorged ctygen
-      when (not $ null we) $ printError (prettyTWE __cogent_ftc_ctx_len) ((if __cogent_freverse_tc_errors then reverse else id) we)
+      when (not $ null we) $ printError (prettyTWE' __cogent_ftc_ctx_len) ((if __cogent_freverse_tc_errors then reverse else id) we)
       let errs = map fst we
       case null $ lefts errs of  -- NOTE: can not use `case we of Left _ -> .. ; Right _ -> ..' because of `bracketTE'
         False -> when (failDueToWerror errs) (hPutStrLn stderr "Failing due to --Werror.") >> exitFailure
