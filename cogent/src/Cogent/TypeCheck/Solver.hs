@@ -26,7 +26,7 @@ import Data.Function(on)
 import Data.Maybe
 import qualified Data.Map as M
 import qualified Data.Set as S
-import qualified Data.List as L
+--import qualified Data.List as L
 import Control.Lens hiding ((:<))
 import qualified Data.Foldable as F
 import Data.Monoid
@@ -94,7 +94,7 @@ whnf (T (TPut fs t)) = do
    t' <- whnf t
    return $ case t' of
      (T (TRecord l s)) -> T (TRecord (putFields fs l) s)
-     _                 -> T (TTake fs t')
+     _                 -> T (TPut fs t')
  where
    putFields :: Maybe [FieldName] -> [(FieldName, (TCType, Bool))] -> [(FieldName, (TCType, Bool))]
    putFields Nothing   = map (fmap (fmap (const False)))
@@ -240,14 +240,14 @@ rule (T (TVariant m) :< T (TVariant n))
       each ts us = mconcat (zipWith (:<) ts us)
     in Just $ mconcat (zipWith (each `on` snd) (M.toList m) (M.toList n))
 -- This rule is a bit dodgy
-rule (T (TTake (Just a) b) :< T (TTake (Just a') c))
-  | x <- L.intersect a a'
-  , not (null x)
-  = let
-      ax  = a L.\\ x
-      a'x = a' L.\\ x
-     in Just $  ((if null ax then id else T . TTake (Just ax)) b)
-             :< ((if null a'x then id else T . TTake (Just a'x)) c)
+-- rule (T (TTake (Just a) b) :< T (TTake (Just a') c))
+--   | x <- L.intersect a a'
+--   , not (null x)
+--   = let
+--       ax  = a L.\\ x
+--       a'x = a' L.\\ x
+--      in Just $  ((if null ax then id else T . TTake (Just ax)) b)
+--              :< ((if null a'x then id else T . TTake (Just a'x)) c)
 rule (a :< b)
   | notWhnf a || notWhnf b = Nothing -- traceShow ("FOO", a :< b) Nothing
   | otherwise              = Just $ Unsat (TypeMismatch a b)
@@ -528,6 +528,7 @@ solve :: Constraint -> Solver [ContextualisedError]
 solve = zoom tc . crunch >=> explode >=> go
   where
     go :: GoalClasses -> Solver [ContextualisedError]
+   -- go g | traceShow g False = undefined
     go g | not (null (unsats g)) = return $ map toError (unsats g)
 
     go g | not (M.null (downs g)) = do
