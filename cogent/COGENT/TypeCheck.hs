@@ -21,10 +21,17 @@ import COGENT.Compiler
 import COGENT.Common.Syntax
 import Text.Parsec.Pos
 import Control.Monad.Except
+import Control.Monad.State
 import Control.Lens
 
 import qualified COGENT.Context as C
 import qualified Data.Map as M
+tc :: [(SourcePos, TopLevel LocType VarName LocExpr)]
+      -> (Either [ContextualisedError] [TopLevel RawType TypedName TypedExpr ], TCState)
+tc i = runState (runExceptT (typecheck i)) (TCS M.empty knownTypes M.empty)
+  where
+    knownTypes = map (, ([] , Nothing)) $ words "U8 U16 U32 U64 String Bool"
+
 typecheck :: [(SourcePos, TopLevel LocType VarName LocExpr)]
           -> ExceptT [ContextualisedError] TC [TopLevel RawType TypedName TypedExpr]
 typecheck = mapM (uncurry checkOne)
@@ -43,6 +50,7 @@ checkOne loc d = case d of
     return (AbsTypeDec n ps)
   (AbsDec n (PT ps t)) -> do
     t' <- validateType' (map fst ps) (stripLocT t)
+    knownFuns %= M.insert n (PT ps t')
     return (AbsDec n (PT ps (toRawType t')))
   (ConstDef n t e) -> do
     base <- use knownConsts

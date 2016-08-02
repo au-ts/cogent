@@ -1,4 +1,4 @@
-module COGENT.Context(Context, Row (..), lookup, contains, use, addScope, dropScope, merge, mode, empty) where
+module COGENT.Context(Context, Row, lookup, contains, use, addScope, dropScope, merge, mode, empty) where
 
 import Prelude hiding (lookup)
 import qualified Data.Map.Strict as M

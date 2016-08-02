@@ -47,6 +47,7 @@ data TypeError = FunctionNotFound VarName
 -- FIXME: More fine-grained context is appreciated. e.g., only show alternatives that don't unify / zilinc
 data ErrorContext = InExpression LocExpr TCType
                   | ThenBranch | ElseBranch
+                  | SolvingConstraint Constraint
                   | InExpressionOfType LocExpr RawType
                   | NthAlternative Int (Pattern VarName)
                   | InDefinition SourcePos (TopLevel LocType VarName LocExpr)
@@ -85,6 +86,9 @@ toTypedAlts = fmap (fmap (fmap toRawType) . ffmap (fmap toRawType))
 toRawType :: TCType -> RawType
 toRawType (T x) = RT (fmap toRawType x)
 toRawType _ = error "panic: unification variable found"
+
+toRawExp :: TypedExpr -> RawExpr
+toRawExp (TE t e) = RE (ffmap fst . fmap toRawExp $ e)
 
 data Metadata = Reused { varName :: VarName, boundAt :: SourcePos, usedAt :: SourcePos }
               | Unused { varName :: VarName, boundAt :: SourcePos}
