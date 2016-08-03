@@ -182,7 +182,7 @@ parseAnti s parsec loc offset' = do
     Right t  -> return t
 
 tcAnti :: (a -> TC.TC b) -> a -> GlDefn t b
-tcAnti m a = undefined
+tcAnti m a = __todo "Glue: tcAnti"
 {- view kenv >>= \(cvtToList -> ts) -> lift . lift $
   StateT $ \s -> let state = TC.TCState { TC._knownFuns    = view (tcState.tfuncs) s
                                         , TC._context      = view (tcState.consts) s
@@ -243,7 +243,7 @@ parseType s loc = parseAnti s PS.monotype loc 4
 
 
 tcType :: SR.LocType -> GlDefn t SR.RawType
-tcType t = undefined {- tcAnti (TC.inEContext (TC.AntiquotedType t) . TC.validateType) t -}
+tcType t = __todo "Glue: tcType" {- tcAnti (TC.inEContext (TC.AntiquotedType t) . TC.validateType) t -}
 
 desugarType :: SR.RawType -> GlDefn t (SF.Type t)
 desugarType = desugarAnti DS.desugarType
@@ -281,7 +281,7 @@ parseFnCall :: String -> SrcLoc -> GlFile SR.LocExpr
 parseFnCall s loc = parseAnti s PS.basicExpr' loc 4
 
 tcFnCall :: SR.LocExpr -> GlDefn t TC.TypedExpr
-tcFnCall e = undefined {-  do
+tcFnCall e = __todo "Glue: tcFnCall"  {-  do
   f <- case e of
          SR.LocExpr _ (SR.TypeApp f ts _) -> return f  -- FIXME: make use of Inline to perform glue code inlining / zilinc
          SR.LocExpr _ (SR.Var f) -> return f
@@ -327,7 +327,7 @@ parseExp :: String -> SrcLoc -> GlFile SR.LocExpr
 parseExp s loc = parseAnti s (PS.expr 1) loc 4
 
 tcExp :: SR.LocExpr -> GlDefn t TC.TypedExpr
-tcExp e = undefined {- tcAnti (TC.inEContext (TC.AntiquotedExpr e) . TC.infer) e -}
+tcExp e = __todo "Glue: tcExp"  {- tcAnti (TC.inEContext (TC.AntiquotedExpr e) . TC.infer) e -}
 
 desugarExp :: TC.TypedExpr -> GlDefn t (SF.UntypedExpr t 'Zero VarName)
 desugarExp = desugarAnti DS.desugarExpr
@@ -526,7 +526,7 @@ mkGlState :: [SR.TopLevel SR.RawType TC.TypedName TC.TypedExpr]
           -> (MN.FunMono, MN.TypeMono)
           -> CG.GenState
           -> GlState
-mkGlState tced tcState (Last (Just (typedefs, constdefs, _))) ftypes (funMono, typeMono) genState = undefined {- 
+mkGlState tced tcState (Last (Just (typedefs, constdefs, _))) ftypes (funMono, typeMono) genState = __todo "mkGlState"  {- 
   GlState { _tcDefs  = tced
           , _tcState = TcState { _tfuncs = view TC.knownFuns  tcState
                                , _ttypes = view TC.knownTypes tcState
