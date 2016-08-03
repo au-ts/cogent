@@ -36,6 +36,9 @@ import           Data.Maybe (catMaybes, isNothing, isJust)
 import           Data.Monoid ((<>))
 import           Text.Parsec.Pos
 
+-- import Debug.Trace
+-- import Cogent.PrettyPrint()
+-- import Text.PrettyPrint.ANSI.Leijen (Pretty (..))
 data CGState = CGS { _tc :: TCState, _context :: C.Context TCType, _flexes :: Int, _knownTypeVars :: [VarName] }
 
 makeLenses ''CGState
@@ -63,7 +66,7 @@ cgMany es = do
   let each (ts,c,es') e = do
         alpha    <- fresh
         (c', e') <- cg e alpha
-        return (alpha:ts, c, e':es')
+        return (alpha:ts, c' <> c, e':es')
   (ts, c', es') <- foldM each ([], Sat, []) es
   return (reverse ts, c', reverse es')
 
@@ -72,18 +75,19 @@ cg' (PrimOp o [e1, e2]) t
   | o `elem` words "+ - * / % .&. .|. .^. >> <<"
   = do (c1, e1') <- cg e1 t
        (c2, e2') <- cg e2 t
-       return (T (TCon "U8" [] Unboxed) :<~ t :& c1 :& c2, TE t (PrimOp o [e1', e2'] ))
+       -- traceShowM ("Arith op", pretty (stripLocE e1), pretty (stripLocE e2), pretty t, pretty c1, pretty c2)
+       return (T (TCon "U8" [] Unboxed) :<~ t <> c1 <> c2, TE t (PrimOp o [e1', e2'] ))
   | o `elem` words "&& ||"
   = do (c1, e1') <- cg e1 t
        (c2, e2') <- cg e2 t
-       return (T (TCon "Bool" [] Unboxed) :< t :& c1 :& c2, TE t (PrimOp o [e1', e2'] ))
+       return (T (TCon "Bool" [] Unboxed) :< t <> c1 <> c2, TE t (PrimOp o [e1', e2'] ))
   | o `elem` words "== /= >= <= > <"
   = do alpha <- fresh
        (c1, e1') <- cg e1 alpha
        (c2, e2') <- cg e2 alpha
        let c  = T (TCon "Bool" [] Unboxed) :< t
            c' = T (TCon "U8" [] Unboxed) :<~ alpha
-       return (c :& c' :& c1 :& c2, TE t (PrimOp o [e1', e2'] ))
+       return (c <> c' <> c1 <> c2, TE t (PrimOp o [e1', e2'] ))
 cg' (PrimOp o [e]) t
   | o == "complement"  = do
       (c, e') <- cg e t
@@ -171,6 +175,7 @@ cg' (UnboxedRecord fes) t = do
   let e = TE t (UnboxedRecord (zip fs es'))
       r = T (TRecord (zip fs (map (, False) ts)) Unboxed)
       c = c' <> r :< t
+  -- traceShowM ("Checking UnboxedRecord", pretty c)
   return (c,e)
 
 cg' (Seq e1 e2) t = do
