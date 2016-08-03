@@ -373,7 +373,7 @@ desugarType t = typeWHNF t >>= \case
 
 -- What is this even doing here?
 typeWHNF :: S.RawType -> DS t v S.RawType
-typeWHNF = undefined
+typeWHNF = __todo "Desugar: typeWHNF"
 {- 
 typeWHNF x@(S.RT (S.TCon c as s)) = M.lookup c . sel1 <$> ask >>= \case
   Just (vs,t)  -> typeWHNF (T.substType (P.zip vs as) t)
