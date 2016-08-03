@@ -30,8 +30,9 @@ import qualified Data.Set as S
 import Control.Lens hiding ((:<))
 import qualified Data.Foldable as F
 import Data.Monoid
-
---import Debug.Trace
+-- import Debug.Trace
+import Cogent.PrettyPrint()
+import Text.PrettyPrint.ANSI.Leijen (pretty)
 import Control.Applicative
 data SolverState = SS { _flexes :: Int, _tc :: TCState, _substs :: Subst, _axioms :: [(VarName, Kind)] }
 
@@ -42,7 +43,7 @@ type Solver = State SolverState
 data Goal = Goal { _goalContext :: [ErrorContext], _goal :: Constraint }
 
 instance Show Goal where
-  show (Goal _ g) = show g
+  show (Goal c g) = show (pretty g ) --P.<$> (P.vcat $ map (flip prettyCtx True) c))
 
 
 makeLenses ''Goal
@@ -528,7 +529,7 @@ solve :: Constraint -> Solver [ContextualisedError]
 solve = zoom tc . crunch >=> explode >=> go
   where
     go :: GoalClasses -> Solver [ContextualisedError]
-   -- go g | traceShow g False = undefined
+    -- go g | traceShow g False = undefined
     go g | not (null (unsats g)) = return $ map toError (unsats g)
 
     go g | not (M.null (downs g)) = do
