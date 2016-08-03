@@ -211,8 +211,8 @@ instance Pretty RawExpr where
 instance ExprType (TExpr t) where
   levelExpr (TE _ e) = levelExpr e
   isVar (TE _ e)     = isVar e
-instance PrettyName (VarName, t) where
-  prettyName (a, b) = prettyName a
+instance Pretty t => PrettyName (VarName, t) where
+  prettyName (a, b) = prettyName a <+> comment "::" <+> pretty b
   isName (a, b) x = a == x
 
 instance Pretty t => Pretty (TExpr t) where
