@@ -184,3 +184,8 @@ overlapping (m:ms) = do
     return (vs `L.union` M.keys m)
   else
     Left cap
+
+u8MAX, u16MAX, u32MAX :: Integer
+u8MAX  = 256
+u16MAX = 65535
+u32MAX = 4294967296

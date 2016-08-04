@@ -125,7 +125,6 @@ kindToConstraint k t m = (if canEscape  k then Escape t m else Sat)
                       <> (if canDiscard k then Drop   t m else Sat)
                       <> (if canShare   k then Share  t m else Sat)
 
-
 substType :: [(VarName, TCType)] -> TCType -> TCType
 substType vs (U x) = U x
 substType vs (RemoveCase p x) = RemoveCase (fmap (fmap (substType vs)) p) (substType vs x)
@@ -151,7 +150,6 @@ validateType' vs r = runExceptT (validateType vs r)
 
 validateTypes' :: [VarName] -> [RawType] -> TC (Either TypeError [TCType])
 validateTypes' vs rs = runExceptT (traverse (validateType vs) rs)
-
 
 forFlexes :: (Int -> TCType) -> TCType -> TCType
 forFlexes f (U x) = f x
