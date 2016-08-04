@@ -67,6 +67,8 @@ data Expr t pv e = PrimOp OpName [e]
                  | Tuple [e]
                  | UnboxedRecord [(FieldName, e)]
                  | Let [Binding t pv e] e
+                 | Upcast e
+                 | Widen  e
                  | Put e [Maybe (FieldName, e)]  -- Note: `Nothing' will be desugared to `Just' in TypeCheck / zilinc
                  deriving (Show, Functor, Foldable, Traversable)
 
@@ -149,6 +151,8 @@ instance Functor (Flip (Expr t) e) where
   fmap _ (Flip (Tuple es))          = Flip (Tuple es)
   fmap _ (Flip (UnboxedRecord es))  = Flip (UnboxedRecord es)
   fmap _ (Flip (Put e es))          = Flip (Put e es)
+  fmap _ (Flip (Upcast e))          = Flip (Upcast e)
+  fmap _ (Flip (Widen e))           = Flip (Widen e)
 instance Functor (Flip2 Expr p e) where
   fmap f (Flip2 (Let bs e))         = Flip2 (Let (map (fffmap f) bs) e)
   fmap f (Flip2 (TypeApp v ts nt))  = Flip2 (TypeApp v (map f ts) nt)
@@ -169,6 +173,8 @@ instance Functor (Flip2 Expr p e) where
   fmap _ (Flip2 (Tuple es))         = Flip2 (Tuple es)
   fmap _ (Flip2 (UnboxedRecord es)) = Flip2 (UnboxedRecord es)
   fmap _ (Flip2 (Put e es))         = Flip2 (Put e es)
+  fmap _ (Flip2 (Widen e))          = Flip2 (Widen e)
+  fmap _ (Flip2 (Upcast e))         = Flip2 (Upcast e)
 instance Functor (Flip (TopLevel t) e) where
   fmap f (Flip (FunDef v pt alts))  = Flip (FunDef v pt (map (ffmap f) alts))
   fmap _ (Flip (Include s))         = Flip (Include s)

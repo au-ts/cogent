@@ -9,4 +9,4 @@
 --
 
 getu32 : (U8) -> < Success (U16) >
-getu32 (x) = Success (x)
+getu32 (x) = Success (upcast x)

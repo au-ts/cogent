@@ -215,6 +215,8 @@ basicExpr m = do e <- basicExpr'
                   <|> pure e
 basicExpr' = avoidInitial >> buildExpressionParser
             [ [postfix ((\f e -> LocExpr (posOfE e) (Member e f)) <$ reservedOp "." <*> variableName)]
+            , [Prefix (getPosition >>= \p -> reserved "upcast"     *> pure (LocExpr p . Upcast))] 
+            , [Prefix (getPosition >>= \p -> reserved "widen"      *> pure (LocExpr p . Widen ))] 
             , [Prefix (getPosition >>= \p -> reserved "complement" *> pure (LocExpr p . PrimOp "complement" . (:[])))]
             , [Prefix (getPosition >>= \p -> reserved "not" *> pure (LocExpr p . PrimOp "not" . (:[])))]
             , [Infix (pure (\a b -> LocExpr (posOfE a) (App a b))) AssocLeft]

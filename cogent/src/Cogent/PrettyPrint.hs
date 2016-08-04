@@ -178,6 +178,8 @@ instance (ExprType e, Pretty t, PrettyName b, Pretty e) => Pretty (Expr t b e) w
      | NoAssoc   l  <- associativity n = pretty' l a <+> primop n <+> pretty' l  b
   pretty (PrimOp n [e])      = primop n <+> pretty' 1 e
   pretty (PrimOp n es)       = primop n <+> tupled (map pretty es)
+  pretty (Widen e)           = keyword "widen"  <+> pretty' 1 e
+  pretty (Upcast e)          = keyword "upcast" <+> pretty' 1 e
   pretty (App a b)           = pretty' 2 a <+> pretty' 1 b
   pretty (Con n [] )         = tagname n
   pretty (Con n [e])         = tagname n <+> pretty' 1 e
@@ -456,5 +458,5 @@ instance Pretty Constraint where
   pretty (Escape t m)     = warn "Escape" <+> pretty t
   pretty (Unsat e)        = warn "Unsat"
   pretty (Sat)            = warn "Sat"
-  pretty (Exhaustive _ _) = warn "Exhaustive ..."
+  pretty (Exhaustive t p) = warn "Exhaustive" <+> pretty t <+> pretty p
   pretty (x :@ _)         = pretty x

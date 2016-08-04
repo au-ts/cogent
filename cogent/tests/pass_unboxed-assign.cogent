@@ -13,5 +13,5 @@ type C
 type D
 
 foo : #{a : A, b : #{c : C, d : D}} -> #{a : A, b : #{c : C, d : D}}
-foo #{..} = let #{..} = b
+foo #{a,b} = let #{c,d} = b
                        in #{a, b= #{c, d}}

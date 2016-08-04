@@ -117,6 +117,18 @@ cg' (Var n) t = do
     Just (t', p, Just l)  ->
       return (Share t' (Reused n p l) <> t' :< t, e)
 
+cg' (Upcast e) t = do
+  alpha <- fresh
+  (c1, e1') <- cg e alpha
+  let c = (T (TCon "U8" [] Unboxed) :<~ alpha) <> alpha :<~ t <> c1
+  return (c, TE t (Upcast e1'))
+
+cg' (Widen e) t = do
+  alpha <- fresh
+  (c1, e1') <- cg e alpha
+  let c = (T (TVariant M.empty) :<~ alpha) <> (alpha :<~ t) <> c1
+  return (c, TE t (Upcast e1'))
+
 cg' (BoolLit b) t = do
   let c = T (TCon "Bool" [] Unboxed) :< t
       e = TE t (BoolLit b)
@@ -290,7 +302,7 @@ matchA (PIntLit i) t = do
                       | i < u16MAX     = "U16"
                       | i < u32MAX     = "U32"
                       | otherwise      = "U64"
-      c = T (TCon minimumBitwidth [] Unboxed) :< t
+      c = T (TCon minimumBitwidth [] Unboxed) :<~ t
   return (M.empty, c, PIntLit i)
 
 matchA (PBoolLit b) t =
