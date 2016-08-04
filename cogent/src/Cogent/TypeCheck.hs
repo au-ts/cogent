@@ -10,6 +10,7 @@
 
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ImplicitParams #-}
+
 module Cogent.TypeCheck where
 
 import Cogent.TypeCheck.Generator
@@ -28,8 +29,9 @@ import qualified Data.Map as M
 -- import Debug.Trace
 -- import Cogent.PrettyPrint()
 -- import Text.PrettyPrint.ANSI.Leijen
+
 tc :: [(SourcePos, TopLevel LocType VarName LocExpr)]
-      -> (Either [ContextualisedError] [TopLevel RawType TypedName TypedExpr ], TCState)
+      -> (Either [ContextualisedError] [TopLevel RawType TypedName TypedExpr], TCState)
 tc i = runState (runExceptT (typecheck i)) (TCS M.empty knownTypes M.empty)
   where
     knownTypes = map (, ([] , Nothing)) $ words "U8 U16 U32 U64 String Bool"

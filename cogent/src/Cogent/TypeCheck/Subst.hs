@@ -10,7 +10,6 @@
 
 module Cogent.TypeCheck.Subst where
 
-
 import Cogent.TypeCheck.Base
 import qualified Data.IntMap as M
 import Data.Monoid
@@ -38,7 +37,7 @@ applyAlt s = fmap (applyE s) . ffmap (fmap (apply s))
 
 applyCtx :: Subst -> ErrorContext -> ErrorContext
 applyCtx s (SolvingConstraint c) = SolvingConstraint (applyC s c)
-applyCtx s (InExpression e t) = InExpression e (apply s t) 
+applyCtx s (InExpression e t) = InExpression e (apply s t)
 applyCtx s c = c
 
 applyErr :: Subst -> TypeError -> TypeError
