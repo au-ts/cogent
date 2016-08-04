@@ -8,14 +8,14 @@
 -- @TAG(NICTA_GPL)
 --
 
-type T1 = < Good U8 Bool | Bad >
-type T2 = < SuperGood T1 U32 U32 | KindOfBad U32 | Restart >
-type T3 = < Pretty (S U8 Bool) U32 | Ugly >
+type T1 = < Good U8 Bool           | Bad           >
+type T2 = < SuperGood T1 U32 U32   | KindOfBad U32 | Restart >
+type T3 = < Pretty (S U8 Bool) U32 | Ugly          >
 
 type S a b
 
 foo : T1 -> U32
-foo | Good a b -> if b then a else 1
+foo | Good a b -> if b then upcast a else 1
     | Bad      -> 255
 
 bar : T2 -> T1

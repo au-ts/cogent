@@ -13,6 +13,6 @@ f: () -> U32
 
 g: R take(..) -> R
 g r =
-  let a = f()
-  in r {..} 
+  let a = upcast (f())
+  in r {a} 
 

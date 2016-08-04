@@ -502,6 +502,7 @@ desugarExpr (T.TE t (S.Put e [Just (f,a)])) = do
 desugarExpr (T.TE t (S.Put e (fa:fas))) = do
   t' <- typeWHNF t >>= \x -> return $ S.RT (S.TTake (Just $ P.map (fst . fromJust) fas) x)
   desugarExpr $ T.TE t $ S.Put (T.TE t' $ S.Put e [fa]) fas
+desugarExpr _ = undefined
 --desugarExpr (T.Promote t e) = E <$> (Promote <$> desugarType t <*> desugarExpr e)
 --desugarExpr (T.TypeErrorHappened {}) = __impossible "desugarExpr (Error)"
 

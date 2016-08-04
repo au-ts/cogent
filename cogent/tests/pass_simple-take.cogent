@@ -11,4 +11,4 @@
 type A = {a : U8, b : U32}
 
 foo : A -> (A take a, U32)
-foo rec {a} = (rec, a)
+foo rec {a} = (rec, upcast a)

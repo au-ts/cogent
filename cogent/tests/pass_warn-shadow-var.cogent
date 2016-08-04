@@ -10,11 +10,11 @@
 
 foo : #{a : U8, b : U32, c : Bool} -> ()
 foo r = let a = 32
-        and #{..} = r
+        and #{a,b,c} = r
         in ()
 
 
 bar : #{a : U8, b : U32, c : Bool} -> ()
 bar r = let a = 32
-        and r' {b = vb, ..} = r
+        and r' {b = vb, a, c} = r
         in ()

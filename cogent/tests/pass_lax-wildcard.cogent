@@ -16,7 +16,7 @@ type D
 type T = {a : A, b : B, c : C, d : D}
 
 foo : T -> T 
-foo t {a=va, b=vb, ..} = 
-  let a = va in (t {b=vb, ..})
+foo t {a=va, b=vb, c, d} = 
+  let a = va in (t {b=vb, a,c,d})
 
 

@@ -25,9 +25,9 @@ import Control.Monad.State
 import Control.Lens
 import qualified COGENT.Context as C
 import qualified Data.Map as M
--- import Debug.Trace
--- import COGENT.PrettyPrint()
--- import Text.PrettyPrint.ANSI.Leijen
+--import Debug.Trace
+import COGENT.PrettyPrint()
+--import Text.PrettyPrint.ANSI.Leijen
 tc :: [(SourcePos, TopLevel LocType VarName LocExpr)]
       -> (Either [ContextualisedError] [TopLevel RawType TypedName TypedExpr ], TCState)
 tc i = runState (runExceptT (typecheck i)) (TCS M.empty knownTypes M.empty)
@@ -74,8 +74,8 @@ checkOne loc d = case d of
     let ?loc = loc
     ((c, alts'), flx) <- lift (runCG ctx (map fst vs) (cgAlts alts o i))
     (errs, subst) <- lift (runSolver (solve c) flx vs)
-    -- let alts'' = applyAlts subst alts'
-    -- traceShowM ("fun!", pretty c, pretty alts'')
+   -- let alts'' = applyAlts subst alts'
+   -- traceShowM ("fun!", pretty c, pretty alts'')
     if null errs then do
       knownFuns %= M.insert f (PT vs t')
       let alts'' = toTypedAlts $ applyAlts subst alts'

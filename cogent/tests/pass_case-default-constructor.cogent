@@ -14,4 +14,4 @@ foo : Variant -> Variant
 foo v = v
       | Tag_a x -> Tag_a x
       | Tag_b x -> Tag_b x
-      | d       -> d
+      | d       -> widen d
