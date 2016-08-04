@@ -9,4 +9,4 @@
 --
 
 foo : (U32, U16) -> U32
-foo (a, b) = a + b
+foo (a, b) = a + upcast b

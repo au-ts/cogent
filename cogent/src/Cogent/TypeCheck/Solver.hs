@@ -32,10 +32,10 @@ import Control.Lens hiding ((:<))
 import qualified Data.Foldable as F
 import Data.Monoid
 -- import Debug.Trace
-import Cogent.PrettyPrint()
+import Cogent.PrettyPrint(prettyCtx)
 import Text.PrettyPrint.ANSI.Leijen (pretty)
+import qualified Text.PrettyPrint.ANSI.Leijen as P
 import Control.Applicative
-
 
 data SolverState = SS { _flexes :: Int, _tc :: TCState, _substs :: Subst, _axioms :: [(VarName, Kind)] }
 
@@ -46,7 +46,9 @@ type Solver = State SolverState
 data Goal = Goal { _goalContext :: [ErrorContext], _goal :: Constraint }
 
 instance Show Goal where
-  show (Goal c g) = show (pretty g ) --P.<$> (P.vcat $ map (flip prettyCtx True) c))
+  show (Goal c g) = const (show big) big
+    where big = (small P.<$> (P.vcat $ map (flip prettyCtx True) c))
+          small = pretty g
 
 
 makeLenses ''Goal
@@ -118,20 +120,20 @@ whnf t = return t
 
 -- Remove a pattern from a type, for case expressions.
 removeCase :: Pattern x -> TCType -> Maybe TCType
-removeCase (PIrrefutable _) _                       = Just (T (TVariant M.empty))
-removeCase (PIntLit _)      x                       = Just x
-removeCase (PCharLit _)     x                       = Just x
-removeCase (PBoolLit _)     x                       = Just x
-removeCase (PCon t _)       (T (TVariant m))        = Just (T (TVariant (M.delete t m)))
-removeCase _ _                                      = Nothing
+removeCase (PIrrefutable _) _                = Just (T (TVariant M.empty))
+removeCase (PIntLit _)      x                = Just x
+removeCase (PCharLit _)     x                = Just x
+removeCase (PBoolLit _)     x                = Just x
+removeCase (PCon t _)       (T (TVariant m)) = Just (T (TVariant (M.delete t m)))
+removeCase _ _                               = Nothing
 
 -- Used internally in whnf, to check if a type has been normalised. If not,
 -- it means that there is a flex or type variable preventing evaluation.
 notWhnf :: TCType -> Bool
-notWhnf (T TTake  {})  = True
-notWhnf (T TPut   {})  = True
-notWhnf (T TUnbox {})  = True
-notWhnf (T TBang  {})  = True
+notWhnf (T TTake  {})    = True
+notWhnf (T TPut   {})    = True
+notWhnf (T TUnbox {})    = True
+notWhnf (T TBang  {})    = True
 notWhnf (U u)            = True
 notWhnf (RemoveCase t p) = True
 notWhnf _                = False
@@ -144,6 +146,9 @@ patternTag :: Pattern n -> Maybe TagName
 patternTag (PCon t _) = Just t
 patternTag _ = Nothing
 
+isVarCon :: Pattern a -> Bool
+isVarCon (PCon {}) = True
+isVarCon _ = False
 -- Explodes a rigid/rigid constraint into subgoals necessary
 -- for that to be true. E.g, (a,b) :< (c,d) becomes a :< c :& b :< d.
 -- Assumes that the input is simped (i.e conjunction and context free, with types in whnf)
@@ -153,7 +158,6 @@ rule' c = (:@ SolvingConstraint c) <$> rule c
 rule :: Constraint -> Maybe Constraint
 
 rule (Exhaustive t ps) | any isIrrefutable ps = Just Sat
-
 rule (Exhaustive (T (TVariant n)) ps)
   | s1 <- S.fromList (mapMaybe patternTag ps)
   , s2 <- M.keysSet n
@@ -431,6 +435,17 @@ instance Monoid GoalClasses where
 
   mempty = Classes M.empty M.empty M.empty [] []
 
+exhaustives :: Goal -> Solver Goal
+exhaustives (Goal ctx (Exhaustive (U x) ps)) | all isVarCon ps = do
+        ts <- fromPatterns ps
+        return (Goal [] $ U x :< T (TVariant ts))
+  where
+    fromPattern :: Pattern TCTypedName -> Solver (M.Map TagName [TCType])
+    fromPattern (PCon t ps) = M.singleton t <$> (mapM (const fresh) ps)
+    fromPattern _ = error "impossible"
+    fromPatterns ps = mconcat <$> mapM fromPattern ps
+exhaustives x = return x
+
 -- Break goals into their form
 -- Expects all goals to be broken down as far as possible first
 -- Consider using auto first, or using explode instead of this function.
@@ -515,7 +530,7 @@ assumption gs = do
 -- Take an assorted list of goals, and break them down into neatly classified, simple flex/rigid goals.
 -- Removes any known facts about type variables.
 explode :: [Goal] -> Solver GoalClasses
-explode = assumption >=> (fmap (foldMap classify) . zoom tc . apply auto)
+explode = assumption >=> (zoom tc . apply auto) >=> mapM exhaustives >=> (return . foldMap classify)
 
 
 -- In a loop, we:
@@ -533,7 +548,7 @@ solve :: Constraint -> Solver [ContextualisedError]
 solve = zoom tc . crunch >=> explode >=> go
   where
     go :: GoalClasses -> Solver [ContextualisedError]
-    -- go g | traceShow g False = undefined
+    --go g | traceShow g False = undefined
     go g | not (null (unsats g)) = return $ map toError (unsats g)
 
     go g | not (M.null (downs g)) = do

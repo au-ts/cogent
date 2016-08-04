@@ -9,5 +9,5 @@
 --
 
 foo : <Atag U8 | Btag U16> -> U16
-foo | Atag x -> x
+foo | Atag x -> upcast x
     | Btag x -> x + 2

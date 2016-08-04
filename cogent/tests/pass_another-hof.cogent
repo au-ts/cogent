@@ -16,15 +16,15 @@
 type A = (U8, U16 -> U32)
 
 f : U16 -> U32
-f x = x
+f x = upcast x
 
 g : U16 -> U32
-g x = x
+g x = upcast x
 
 fn1 : A -> U32
-fn1 (a, b) = b a  
+fn1 (a, b) = b (upcast a)  
 -- FIXME: If we write fn1 (a,f) = f a then `f' 
 --   is the one defined outside. -zilinc
 
 fn2 : U8 -> U32
-fn2 a = f a
+fn2 a = f (upcast a)
