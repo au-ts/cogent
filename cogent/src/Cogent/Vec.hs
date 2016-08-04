@@ -9,8 +9,8 @@
 --
 
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveFunctor #-}
+{- LANGUAGE DeriveFoldable #-}
+{- LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE PolyKinds #-}
@@ -160,7 +160,7 @@ length Nil = SZero
 length (Cons x xs) = SSuc (length xs)
 
 fromList :: [a] -> Exists (Flip Vec a)
-fromList [] = ExI $ Flip $ Nil
+fromList [] = ExI $ Flip Nil
 fromList (x:xs) | ExI (Flip xs') <- fromList xs = ExI $ Flip $ Cons x xs'
 
 takeFromList :: SNat n -> [a] -> Maybe (Vec n a)

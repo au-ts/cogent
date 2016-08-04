@@ -12,6 +12,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE TupleSections #-}
+
 module Cogent.TypeCheck.Solver (runSolver, solve) where
 
 import Cogent.TypeCheck.Base
@@ -34,6 +35,8 @@ import Data.Monoid
 import Cogent.PrettyPrint()
 import Text.PrettyPrint.ANSI.Leijen (pretty)
 import Control.Applicative
+
+
 data SolverState = SS { _flexes :: Int, _tc :: TCState, _substs :: Subst, _axioms :: [(VarName, Kind)] }
 
 makeLenses ''SolverState
@@ -145,7 +148,8 @@ patternTag _ = Nothing
 -- for that to be true. E.g, (a,b) :< (c,d) becomes a :< c :& b :< d.
 -- Assumes that the input is simped (i.e conjunction and context free, with types in whnf)
 rule' :: Constraint -> Maybe Constraint
-rule' c = fmap (:@ SolvingConstraint c) $ rule c
+rule' c = (:@ SolvingConstraint c) <$> rule c
+
 rule :: Constraint -> Maybe Constraint
 
 rule (Exhaustive t ps) | any isIrrefutable ps = Just Sat
@@ -416,7 +420,7 @@ instance Show GoalClasses where
                               "\nunsats:\n" ++
                               unlines (map (("  " ++) . show) (F.toList un)) ++
                               "\nrest:\n" ++
-                              unlines (map (("  " ++) . show) (F.toList r)) 
+                              unlines (map (("  " ++) . show) (F.toList r))
 instance Monoid GoalClasses where
   Classes u d f e r `mappend` Classes u' d' f' e' r'
     = Classes (M.unionWith (++) u u')

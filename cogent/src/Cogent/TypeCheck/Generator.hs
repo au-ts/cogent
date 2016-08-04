@@ -39,6 +39,7 @@ import           Text.Parsec.Pos
 -- import Debug.Trace
 -- import Cogent.PrettyPrint()
 -- import Text.PrettyPrint.ANSI.Leijen (Pretty (..))
+
 data CGState = CGS { _tc :: TCState, _context :: C.Context TCType, _flexes :: Int, _knownTypeVars :: [VarName] }
 
 makeLenses ''CGState
@@ -137,9 +138,9 @@ cg' Unitel t = do
   return (c,e)
 
 cg' (IntLit i) t = do
-  let minimumBitwidth | i < 256        = "U8"
-                      | i < 65536      = "U16"
-                      | i < 4294967296 = "U32"
+  let minimumBitwidth | i < u8MAX      = "U8"
+                      | i < u16MAX     = "U16"
+                      | i < u32MAX     = "U32"
                       | otherwise      = "U64"
       c = T (TCon minimumBitwidth [] Unboxed) :<~ t
       e = TE t (IntLit i)
@@ -281,13 +282,13 @@ matchA (PCon k is) t = do
       p' = PCon k is'
       co = case overlapping ss of
              Left (v:vs) -> Unsat $ DuplicateVariableInPattern v p'
-             Right _     -> Sat
+             _           -> Sat
   return (M.unions ss, co <> mconcat cs <> T (TVariant (M.fromList [(k, vs)])) :<~ t, p')
 
 matchA (PIntLit i) t = do
-  let minimumBitwidth | i < 256        = "U8"
-                      | i < 65536      = "U16"
-                      | i < 4294967296 = "U32"
+  let minimumBitwidth | i < u8MAX      = "U8"
+                      | i < u16MAX     = "U16"
+                      | i < u32MAX     = "U32"
                       | otherwise      = "U64"
       c = T (TCon minimumBitwidth [] Unboxed) :< t
   return (M.empty, c, PIntLit i)
@@ -387,7 +388,6 @@ parallel ((ct,x):xs) acc = do
   let cls = foldMap (\(n, (t, p, Just p')) -> Drop t (UnusedInOtherBranch n p p')) ls
       crs = foldMap (\(n, (t, p, Just p')) -> Drop t (UnusedInThisBranch  n p p')) rs
   return (c' <> ((cls <> crs) :@ ct) , x':xs')
-
 
 letBang :: (?loc :: SourcePos) => [VarName] -> (TCType -> CG (Constraint, TCExpr)) -> TCType -> CG (Constraint, TCExpr)
 letBang [] x t = x t
