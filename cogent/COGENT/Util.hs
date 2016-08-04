@@ -59,10 +59,10 @@ toCName = concatMap (\c -> if c == '\'' then "_prime" else [c])
 relDir :: FilePath -> FilePath -> FilePath -> FilePath
 relDir src dst pwd
   | isAbsolute src = dropTrailingPathSeparator src
-  | otherwise {- src is relative to pwd -} = 
+  | otherwise {- src is relative to pwd -} =
       if isAbsolute dst
         then dropTrailingPathSeparator $ pwd </> src
-        else {- src' and dst' are both relative -} 
+        else {- src' and dst' are both relative -}
           let src' = norm src
               dst' = norm dst
               pwd' = splitDirectories pwd
@@ -87,7 +87,7 @@ relDir src dst pwd
                   | "."  <- s = error "inverse: path must be norm'ed"
                   | ".." <- s = inverse' ss (init ps) $ last ps </> is
                   | otherwise = inverse' ss undefined $ ".." </> is  -- no ".." should ever appear in ss thus ps is useless
-        
+
         -- norm: similar to System.FilePath.Posix.normalise, but also elimiate ".." as much as possible
         norm (splitDirectories . normalise -> ss) = case ss of
           []  -> error "norm: path cannot be empty"
@@ -153,3 +153,8 @@ overlapping (m:ms) = do
     return (vs `L.union` M.keys m)
   else
     Left cap
+
+u8MAX, u16MAX, u32MAX :: Integer
+u8MAX  = 256
+u16MAX = 65535
+u32MAX = 4294967296
