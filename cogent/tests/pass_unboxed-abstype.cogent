@@ -23,7 +23,7 @@ foo #{a, b, c} = #{b, c}
 -- This is for testing generating different types for 
 --   unboxed and boxed abstract types
 bar : T -> T'
-bar #{..} = let a = mkA()
+bar #{a,b,c} = let a = mkA()
              in #{a, b, c} 
 
 type R a b

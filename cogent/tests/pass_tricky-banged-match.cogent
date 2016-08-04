@@ -13,8 +13,8 @@ type Option a = <Some a | None>
 
 f : (A, Option A) -> (A, Option A)
 f (a, opt_a) = 
-  let a = opt_a | Some _ -> a
-                | None _ -> a !opt_a
+  let a = opt_a | Some x -> a
+                | None -> a !opt_a
    in (a, opt_a)
 
 {- Wrong! 
