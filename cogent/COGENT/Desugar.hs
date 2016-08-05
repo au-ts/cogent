@@ -521,10 +521,9 @@ desugarExpr (B.TE t (S.Put e [Just (f,a)])) = do
   E <$> (Put <$> desugarExpr e <*> pure f' <*> desugarExpr a)
 desugarExpr (B.TE t (S.Put e (fa:fas))) = do
   t' <- typeWHNF t >>= \x -> return $ S.RT (S.TTake (Just $ P.map (fst . fromJust) fas) x)
-  desugarExpr $ T.TE t $ S.Put (T.TE t' $ S.Put e [fa]) fas
-desugarExpr _ = undefined
---desugarExpr (T.Promote t e) = E <$> (Promote <$> desugarType t <*> desugarExpr e)
---desugarExpr (T.TypeErrorHappened {}) = __impossible "desugarExpr (Error)"
+  desugarExpr $ B.TE t $ S.Put (B.TE t' $ S.Put e [fa]) fas
+desugarExpr (B.TE t (S.Upcast e)) = E <$> (Promote <$> desugarType t <*> desugarExpr e)
+desugarExpr (B.TE t (S.Widen  e)) = E <$> (Promote <$> desugarType t <*> desugarExpr e)
 
 desugarOp :: S.OpName -> Op
 desugarOp "+"   = Plus
