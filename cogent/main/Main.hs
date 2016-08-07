@@ -551,8 +551,8 @@ parseArgs args = case getOpt' Permute options args of
       let stg = STGTypeCheck
       putProgressLn "Typechecking..."
       case TC.tc reorged of
-        (Left es,_) -> printError (prettyTWE' __cogent_ftc_ctx_len) 
-                                  ((if __cogent_freverse_tc_errors then reverse else id) es) 
+        (Left es,_) -> printError (prettyTWE' __cogent_ftc_ctx_len)
+                                  ((if __cogent_freverse_tc_errors then reverse else id) es)
                     >> exitFailure
         (Right tced, tcst) ->  do
             when (Ast stg `elem` cmds) $ genAst stg tced

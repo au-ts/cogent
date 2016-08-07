@@ -336,22 +336,23 @@ instance Pretty SourcePos where
   pretty p = position (show p)
 
 instance Pretty Metadata where
+  pretty (Constant {varName})                = err "the binding" <+> funname varName <$> err "is a global constant"
   pretty (Reused {varName, boundAt, usedAt}) = err "the variable" <+> varname varName
-                                               <+> err "(bound at" <+> pretty boundAt <> err ")"
-                                               <+> err "was already used at" <+> pretty usedAt
+                                               <+> err "bound at" <+> pretty boundAt <> err ""
+                                               <$> err "was already used at" <+> pretty usedAt
   pretty (Unused {varName, boundAt}) = err "the variable" <+> varname varName
-                                       <+> err "(bound at" <+> pretty boundAt <> err ")"
-                                       <+> err "was never used."
+                                       <+> err "bound at" <+> pretty boundAt <> err ""
+                                       <$> err "was never used."
   pretty (UnusedInOtherBranch { varName, boundAt, usedAt}) =
     err "the variable" <+> varname varName
-    <+> err "(bound at" <+> pretty boundAt <> err ")"
-    <+> err "was used in another branch of control at" <+> pretty usedAt
-    <+> err "but not this one."
+    <+> err "bound at" <+> pretty boundAt <> err ""
+    <$> err "was used in another branch of control at" <+> pretty usedAt
+    <$> err "but not this one."
   pretty (UnusedInThisBranch { varName, boundAt, usedAt}) =
     err "the variable" <+> varname varName
-    <+> err "(bound at" <+> pretty boundAt <> err ")"
-    <+> err "was used in this branch of control at" <+> pretty usedAt
-    <+> err "but not in all other branches."
+    <+> err "bound at" <+> pretty boundAt <> err ""
+    <$> err "was used in this branch of control at" <+> pretty usedAt
+    <$> err "but not in all other branches."
   pretty Suppressed = err "a binder for a value of this type is being suppressed."
   pretty (UsedInMember { fieldName}) = err "the field" <+> fieldname fieldName
                                        <+> err "is being extracted without taking the field in a pattern."
@@ -361,11 +362,13 @@ instance Pretty Metadata where
   pretty ImplicitlyTaken = err "it is implicitly taken via subtyping."
 
 instance Pretty TypeError where
+  pretty (DuplicateTypeVariable vs)      = err "Duplicate type variable(s)" <+> commaList (map typevar vs)
+  pretty (DuplicateRecordFields fs)      = err "Duplicate record field(s)" <+> commaList (map fieldname fs)
   pretty (FunctionNotFound fn)           = err "Function" <+> funname fn <+> err "not found"
   pretty (TooManyTypeArguments fn pt)    = err "Too many type arguments to function"
                                            <+> funname fn  <+> err "of type" <+> pretty pt
   pretty (NotInScope vn)                 = varname vn <+> err "not in scope"
-  pretty (UnknownTypeVariable vn)        = err "Unknown type variable" <+> varname vn
+  pretty (UnknownTypeVariable vn)        = err "Unknown type variable" <+> typevar vn
   pretty (UnknownTypeConstructor tn)     = err "Unknown type constructor" <+> typename tn
   pretty (TypeArgumentMismatch tn i1 i2) = typename tn <+> err "expects"
                                            <+> int i1 <+> err "arguments, but has been given" <+> int i2
@@ -373,7 +376,7 @@ instance Pretty TypeError where
   pretty (RequiredTakenField f t)        = err "Required field" <+> fieldname f
                                            <+> err "of type" <+> pretty t <+> err "to be untaken"
   pretty (TypeNotShareable t m)          = err "Cannot share type" <+> pretty t
-                                           <+> err "but this is needed as" <+> pretty m
+                                           <$> err "but this is needed as" <+> pretty m
   pretty (TypeNotEscapable t m)          = err "Cannot let type" <+> pretty t <+> err "escape from a !-ed context,"
   pretty (TypeNotDiscardable t m)        = err "Cannot discard type" <+> pretty t
                                            <+> err "but this is needed as" <+> pretty m
@@ -382,9 +385,9 @@ instance Pretty TypeError where
   pretty (UnsolvedConstraint c)          = err "Leftover constraint!" <$> pretty c
   pretty (RecordWildcardsNotSupported)   = err "Record wildcards are not supported"
   pretty (NotAFunctionType t)            = pretty t <+> err "is not a function type"
-  pretty (DuplicateVariableInPattern vn pat)       = err "Duplicate variable " <+> varname vn <+> err "in pattern:"
+  pretty (DuplicateVariableInPattern vn pat)       = err "Duplicate variable" <+> varname vn <+> err "in pattern:"
                                                      <$> pretty pat
-  pretty (DuplicateVariableInIrrefPattern vn ipat) = err "Duplicate variable " <+> varname vn <+> err "in pattern:"
+  pretty (DuplicateVariableInIrrefPattern vn ipat) = err "Duplicate variable" <+> varname vn <+> err "in (irrefutable) pattern:"
                                                      <$> pretty ipat
 instance Pretty ErrorContext where
   pretty _ = error "use `prettyCtx' instead!"
