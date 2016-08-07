@@ -352,7 +352,7 @@ match (PTake r fs) t | not (any isNothing fs) = do
        s  = M.fromList [(r, (u, ?loc, Nothing))]
        u  = T (TTake (Just ns) t)
        p' = PTake (r,u) (map Just (zip ns ps'))
-       co = case overlapping ss of
+       co = case overlapping (s:ss) of
               Left (v:vs) -> Unsat $ DuplicateVariableInIrrefPattern v p'
               _           -> Sat
    return (M.unions (s:ss), co <> mconcat cs <> t' :<~ t, p')
