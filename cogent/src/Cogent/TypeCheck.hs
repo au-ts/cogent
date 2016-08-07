@@ -24,6 +24,8 @@ import Text.Parsec.Pos
 import Control.Monad.Except
 import Control.Monad.State
 import Control.Lens
+import Data.List (nub, (\\))
+import Data.Monoid ((<>))
 import qualified Cogent.Context as C
 import qualified Data.Map as M
 -- import Debug.Trace
@@ -46,13 +48,20 @@ checkOne :: SourcePos -> TopLevel LocType VarName LocExpr
 checkOne loc d = case d of
   (Include _) -> __impossible "checkOne"
   (TypeDec n ps t) -> do
+    let xs = ps \\ nub ps
+    unless (null xs) $ throwError [([InDefinition loc d], DuplicateTypeVariable xs)]
     t' <- validateType' ps (stripLocT t)
     knownTypes <>= [(n,(ps, Just t'))]
     return (TypeDec n ps (toRawType t'))
   (AbsTypeDec n ps) -> do
+    let xs = ps \\ nub ps
+    unless (null xs) $ throwError [([InDefinition loc d], DuplicateTypeVariable xs)]
     knownTypes <>= [(n,(ps, Nothing))]
     return (AbsTypeDec n ps)
   (AbsDec n (PT ps t)) -> do
+    let vs' = map fst ps
+        xs = vs' \\ nub vs'
+    unless (null xs) $ throwError [([InDefinition loc d], DuplicateTypeVariable xs)]
     t' <- validateType' (map fst ps) (stripLocT t)
     knownFuns %= M.insert n (PT ps t')
     return (AbsDec n (PT ps (toRawType t')))
@@ -61,7 +70,8 @@ checkOne loc d = case d of
     t' <- validateType' [] (stripLocT t)
     let ctx = C.addScope (fmap (\(t,p) -> (t,p, Just p)) base) C.empty
     ((c, e'), f) <- lift (runCG ctx [] (cg e t'))
-    (errs, subst) <- lift (runSolver (solve c) f [])
+    let c' = c <> Share t' (Constant n)
+    (errs, subst) <- lift (runSolver (solve c') f [])
     if null errs then do
       knownConsts %= M.insert n (t', loc)
       let e'' = toTypedExpr $ applyE subst e'
@@ -69,6 +79,9 @@ checkOne loc d = case d of
     else
       throwError (map (_1 %~ (InDefinition loc d:)) errs)
   (FunDef f (PT vs t) alts) -> do
+    let vs' = map fst vs
+        xs = vs' \\ nub vs'
+    unless (null xs) $ throwError [([InDefinition loc d], DuplicateTypeVariable xs)]
     base <- use knownConsts
     t' <- validateType' (map fst vs) (stripLocT t)
     (i,o) <- asFunType t'
