@@ -21,6 +21,7 @@ import Control.Lens hiding (Context, (:<))
 import Text.Parsec.Pos
 import Data.Monoid ((<>))
 import Control.Monad.Except
+import Data.List (nub, (\\))
 
 import qualified Data.Map as M
 
@@ -41,6 +42,8 @@ data TypeError = FunctionNotFound VarName
                | UnsolvedConstraint Constraint
                | RecordWildcardsNotSupported
                | NotAFunctionType TCType
+               | DuplicateRecordFields [FieldName]
+               | DuplicateTypeVariable [VarName]
                deriving (Show)
 
 
@@ -99,6 +102,7 @@ data Metadata = Reused { varName :: VarName, boundAt :: SourcePos, usedAt :: Sou
               | UsedInLetBang
               | TypeParam { functionName :: VarName, typeVarName :: VarName }
               | ImplicitlyTaken
+              | Constant { varName :: VarName }
               deriving (Show)
 
 data Constraint = (:<) TCType TCType
@@ -155,6 +159,10 @@ validateType vs (RT t) = do
                 , required <- length vs
                 , provided /= required
                -> throwError (TypeArgumentMismatch t provided required)
+    TRecord ts _ | tags <- map fst ts
+                 , tags' <- nub tags
+                -> if tags' == tags then T <$> traverse (validateType vs) t
+                   else throwError (DuplicateRecordFields (tags \\ tags'))
     _ -> T <$> traverse (validateType vs) t
 
 validateType' :: [VarName] -> RawType -> TC (Either TypeError TCType)
