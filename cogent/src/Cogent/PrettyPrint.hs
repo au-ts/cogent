@@ -18,13 +18,12 @@ module Cogent.PrettyPrint where
 import qualified Cogent.Common.Syntax as S (associativity)
 import Cogent.Common.Syntax hiding (associativity)
 import Cogent.Common.Types
-import Cogent.Compiler (__impossible, __fixme)
+import Cogent.Compiler (__cogent_fshow_types_in_pretty, __fixme, __impossible)
 import Cogent.Desugar (desugarOp)
 import Cogent.Reorganizer (ReorganizeError(..), SourceObject(..))
 import Cogent.Surface
 import Cogent.TypeCheck --hiding (context)
 import Cogent.TypeCheck.Base
-
 import Control.Arrow (second)
 import qualified Data.Map as M hiding (foldr)
 #if __GLASGOW_HASKELL__ < 709
@@ -115,10 +114,6 @@ handlePutAssign Nothing = fieldname ".."
 handlePutAssign (Just (s, e)) | isVar e s = fieldname s
 handlePutAssign (Just (s, e)) = fieldname s <+> symbol "=" <+> pretty e
 
-<<<<<<< e3f961f1b56ee53dea9012d07b49aee1040b5a42
-instance Pretty (IrrefutablePattern VarName) where
-  pretty (PVar v) = varname v
-=======
 
 class PrettyName a where
   prettyName :: a -> Doc
@@ -127,15 +122,14 @@ class PrettyName a where
 instance PrettyName VarName where
   prettyName = varname
   isName s = (==s)
+
 instance Pretty Likelihood where
   pretty Likely   = symbol "=>"
   pretty Unlikely = symbol "~>"
   pretty Regular  = symbol "->"
 
-
 instance PrettyName b => Pretty (IrrefutablePattern b) where
   pretty (PVar v) = prettyName v
->>>>>>> Rudimentary pretty printing; make the thing build through liberal use of undefined; fixed some solver bugs
   pretty (PTuple ps) = tupled (map pretty ps)
   pretty (PUnboxedRecord fs) = string "#" <> record (map handleTakeAssign fs)
   pretty (PUnderscore) = symbol "_"
@@ -221,11 +215,13 @@ instance ExprType (TExpr t) where
   isVar (TE _ e)     = isVar e
 
 instance Pretty t => PrettyName (VarName, t) where
-  prettyName (a, b) = parens $ prettyName a <+> comment "::" <+> pretty b
+  prettyName (a, b) | __cogent_fshow_types_in_pretty = parens $ prettyName a <+> comment "::" <+> pretty b
+                    | otherwise = prettyName a
   isName (a, b) x = a == x
 
 instance Pretty t => Pretty (TExpr t) where
-  pretty (TE t e) = pretty e
+  pretty (TE t e) | __cogent_fshow_types_in_pretty = parens $ pretty e <+> comment "::" <+> pretty t
+                  | otherwise = pretty e
 
 class TypeType t where
   isCon :: t -> Bool
@@ -345,119 +341,6 @@ instance (Pretty t, PrettyName b, Pretty e) => Pretty (TopLevel t b e) where
 instance Pretty SourcePos where
   pretty p = position (show p)
 
-<<<<<<< e3f961f1b56ee53dea9012d07b49aee1040b5a42
-instance Pretty TypeError where
-  pretty (NotAPolymorphicFunction v rt) =  err "The variable" <+> varname v
-                                       <+> err "of type" <+> pretty rt
-                                       <+> err "does not expect a type parameter"
-  pretty (ValueNotAFunction e _) =  err "The expression" <$> indent' (pretty e)
-                                <$> err "of type" <$> indent' (pretty (typeOfTE e))
-                                <$> err "is not a function type, but is applied to an argument"
-  pretty (CannotDiscardValue t) = err "Cannot discard a value of type" <+> pretty t
-  pretty (NotATupleType t) = err "The type" <+> pretty t <+> err "is not a tuple type"
-  pretty (IrrefPatternDoesNotMatchType p t) = err "The irrefutable pattern" <$> indent' (pretty p)
-                                           <$> err "does not match the type" <$> indent' (pretty t)
-  pretty (PatternDoesNotMatchType p t) = err "The pattern" <$> indent' (pretty p)
-                                           <$> err "does not match the type" <$> indent' (pretty t)
-  pretty (SpuriousAlternatives as) = err "Spurious alternatives in match"
-                                  <$> indent' (vcat (map (\(Alt p _ _) -> pretty p) as))
-  pretty (NonExhaustivePattern at) = err "Match not exhaustive. Type remaining:" <$> indent' (pretty at)
-  pretty (NotInScope a) = err "Variable not in scope" <+> varname a
-  pretty (VariableAlreadyUsed p v) = err "Variable" <+> varname v <+> err "already used at" <$> indent' (pretty p)
-  pretty (BindingCannotEscapeLetBang v e) =  err "Binding" <$> indent' (pretty e)
-                                         <$> err "cannot escape let-banged" <+> varname v
-  pretty (MemberAlreadyUsed p f r) =  err "Member" <+> varname f <+> err "of unboxed record"
-                                  <$> indent' (pretty r)
-                                  <$> err "already used at"
-                                  <$> indent' (pretty p)
-  pretty (LinearVariableNotDisposedOf v rt) =  err "Variable" <+> varname v <+> err "is of linear type"
-                                           <$> indent' (pretty rt)
-                                           <$> err "but is not disposed of in scope"
-  pretty (ObservedVariableRemainsUnused v) = err "The !'d variable" <+> varname v <+> err "is not used in a subexpression"
-  pretty (TypeNotFound rt) = err "Unknown type" <+> pretty rt
-  pretty (IncorrectNumberOfTypeParameters c i1 i2) =  err "The type operator" <+> typename c <+> err "takes"
-                                                  <+> pretty i1 <+> err "argument(s), but has been given" <+> pretty i2
-  pretty (IncorrectNumberOfTypeArguments pt i2) =  err "The polymorphic type" <$> indent' (pretty pt)
-                                               <$> err "expects" <+> pretty (numOfArgs pt)
-                                               <+> err "type arguments, but has been given" <+> pretty i2
-  pretty (TypeVariableNotInScope v) = err "Type variable" <+> typevar v <+> err "not in scope"
-  pretty (KindError t k1 k2) =  err "A value of type"
-                            <$> indent' (pretty t <+> err "of kind" <+> brackets (pretty k2))
-                            <$> err "cannot be used as a type argument of kind" <+> brackets (pretty k1)
-  pretty (ConflictingTypeVariables v (Left tn)) =  err "Conflicting type variables" <+> typevar v <+> err "in type declaration"
-                                               <$> indent' (pretty tn)
-  pretty (ConflictingTypeVariables v (Right pt)) =  err "Conflicting type varialbes" <+> typevar v <+> err "in poly-type"
-                                                <$> indent' (pretty pt)
-  pretty (ConflictingDeclarations p v) =  err "Conflicting declarations of" <+> varname v <+> err "in pattern"
-                                      <$> indent' (pretty p)
-  pretty (DuplicateFieldName t f) =  err "Duplicate fieldname" <+> fieldname f <+> err "in type"
-                                 <$> indent' (pretty t)
-  pretty (DuplicateField e f) =  err "Duplicate field" <+> fieldname f <+> err "in expression"
-                             <$> indent' (pretty e)
-  pretty (CannotFindCommonSupertype t1 t2) =  err "Type mismatch. Cannot find common supertype of"
-                                          <$> indent' (pretty t1)
-                                          <$> err "and" <$> indent' (pretty t2)
-  pretty (VariantsHaveDifferentNumOfTypes k vs1 vs2)  = err "Variants"
-                                                     <$> tagname k <+> spaceList (map pretty vs1)
-                                                     <$> err "and"
-                                                     <$> tagname k <+> spaceList (map pretty vs2)
-                                                     <$> err "have different number of type parameters, thus cannot find common supertype"
-  pretty (VariableUsedOnlyOnOneSide v rt p) =  err "The variable" <+> varname v
-                                           <+> err "(used at" <+> pretty p <> err ")"
-                                           <$> indent' (err "of type") <+> pretty rt
-                                           <$> err" is not used in all parallel branches of control flow."
-  pretty (NotAShareableRecord rt) = err "Expected shareable record, not" <+> pretty rt
-  pretty (NotARecord rt) = err "Expected a linear record, not" <+> pretty rt
-  pretty (NonNumericType rt) = err "Expected numeric type, not" <+> pretty rt
-  pretty (FieldNotTaken f rt) =  err "Expected the field" <+> fieldname f <+> err "to be taken in type"
-                             <$> indent' (pretty rt)
-  pretty (RecordTypeMissingField rt f) =  err "The record type" <$> indent' (pretty rt)
-                                      <$> err "is missing the field" <+> fieldname f
-  pretty (RecordFieldTaken rt f) =  err "The record type" <$> indent' (pretty rt)
-                                <$> err "has field" <+> fieldname f <+> err "taken"
-  pretty (RecordFieldUntaken rt f) =  err "The record type" <$> indent' (pretty rt)
-                                  <$> err "has field" <+> fieldname f <+> err "untaken"
-  pretty (CannotPromote rt te) = err "Cannot implicitly promote expression" <$> indent' (pretty (toRawExp te))
-                             <$> err "of type" <$> indent' (pretty (typeOfTE te))
-                             <$> err "to type" <$> indent' (pretty rt)
-  pretty (NotASubtype rt te) = err "The type" <$> indent' (pretty (typeOfTE te))
-                           <$> err "of expression" <$> indent' (pretty (toRawExp te))
-                           <$> err "is not a subtype of" <$> indent' (pretty rt)
-  pretty (NotASubtypeAlts rt1 rt2) =  err "The type of the alternatives" <$> indent' (pretty rt1)
-                                  <$> err "is not a subtype of" <$> indent' (pretty rt2)
-  pretty (ConstantMustBeShareable v rt) =  err "The constant" <+> varname v <+> err "has type"
-                                       <$> indent' (pretty rt) <$> err "which is not shareable"
-  pretty (FunDefNotOfFunType v rt) =  err "The function definition" <+> varname v <+> err "is of type"
-                                  <$> indent' (pretty rt) <$> err "which is not a function type"
-  pretty (DynamicVariantPromotionE e t t')  = err "Dynamically promoting" <+> pretty e
-                                          <+> err "from variant type" <+> pretty t <+> err "to" <+> pretty t'
-                                          <$> err "It is disallowed by --fshare-variants"
-  pretty (UnhandledError str) = err ("The typechecker malfunctioned: " ++ str)
-  pretty (RedefinitionOfType n) = err ("Redefinition of type") <+> typename n
-  pretty (RedefinitionOfFun n) = err ("Redefinition of function") <+> varname n
-  pretty (RedefinitionOfConst n) = err ("Redefinition of constant") <+> varname n
-  pretty (DebugVarTypeNoUnit vn) = err "Debugging variable" <+> varname vn <+> err "must have unit type"
-  pretty (DebugFunctionReturnNoUnit fn) = err "Debugging function" <+> funname fn <+> err "must return unit type"
-  pretty (DebugFunctionHasToBeApplied fn p) = err "Debugging function" <+> funname fn <+> err "has to be fully applied"
-  pretty (DebugFunctionCannotTakeLinear fn t) = err "Debugging function" <+> funname fn <+> err "cannot take linear argument"
-  pretty (CustTyGenIsSynonym t) = err "Type synonyms have to be fully expanded in --cust-ty-gen file:" <$> indent' (pretty t)
-  pretty (CustTyGenIsPolymorphic t) = err "Polymorphic types are not allowed in --cust-ty-gen file:" <$> indent' (pretty t)
-  pretty (WarnError w) = pretty w
-
-instance Pretty Warning where
-  pretty (VariableAlreadyInScope v p)  = warn "Warning: The variable" <+> varname v <+> warn "introduced by pattern"
-                                     <$> indent' (pretty p)
-                                     <$> warn "is already in scope"
-  pretty (ImplicitCastPrimInt e t t')  = warn "Warning: Implicitly upcast expression" <+> pretty e
-                                     <$> warn "from primitive integral type" <+> pretty t <+> warn "to" <+> pretty t'
-  pretty (DynamicVariantPromotionW e t t')  = warn "Warning: Dynamically promoting"
-                                          <$> indent' (pretty e)
-                                          <$> warn "from variant type"
-                                          <$> indent' (pretty t)
-                                          <$> warn "to"
-                                          <$> indent' (pretty t')
-  pretty (UnhandledWarning str) = warn ("Warning: " ++ str)
-=======
 instance Pretty Metadata where
   pretty (Constant {varName})                = err "the binding" <+> funname varName <$> err "is a global constant"
   pretty (Reused {varName, boundAt, usedAt}) = err "the variable" <+> varname varName
@@ -483,7 +366,6 @@ instance Pretty Metadata where
   pretty (TypeParam { functionName , typeVarName }) = err "it is required by the type of" <+> funname functionName
                                                       <+> err "(type variable" <+> typevar typeVarName <+> err ")"
   pretty ImplicitlyTaken = err "it is implicitly taken via subtyping."
->>>>>>> Rudimentary pretty printing; make the thing build through liberal use of undefined; fixed some solver bugs
 
 instance Pretty TypeError where
   pretty (DuplicateTypeVariable vs)      = err "Duplicate type variable(s)" <+> commaList (map typevar vs)
