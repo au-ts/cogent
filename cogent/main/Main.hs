@@ -320,6 +320,7 @@ options = [
   , Option []         ["docgent"]         2 (NoArg $ Documentation)         "generate HTML documentation"
   -- pretty
   , Option ['p']      ["pretty-parse"]    2 (NoArg $ Pretty STGParse)       (prettyMsg STGParse)
+  , Option []         ["pretty-tc"]       2 (NoArg $ Pretty STGTypeCheck)   (prettyMsg STGTypeCheck)
   , Option ['c']      ["pretty-desugar"]  2 (NoArg $ Pretty STGDesugar)     (prettyMsg STGDesugar)
   , Option ['n']      ["pretty-normal"]   2 (NoArg $ Pretty STGNormal)      (prettyMsg STGNormal)
   , Option []         ["pretty-simpl"]    2 (NoArg $ Pretty STGSimplify)    (prettyMsg STGSimplify)
@@ -576,7 +577,7 @@ parseArgs args = case getOpt' Permute options args of
           Left _ -> __impossible "typecheck"
           Right (tced,ctygen') -> do 
             when (Ast stg `elem` cmds) $ genAst stg tced
-            -- TODO: Pretty stg ?? / zilinc
+            when (Pretty stg `elem` cmds) $ genPretty stg tced
             when (Compile (succ stg) `elem` cmds) $ desugar cmds tced ctygen' tcst source (map pragmaOfLP pragmas) buildinfo log
             exitSuccessWithBuildInfo cmds buildinfo
 
