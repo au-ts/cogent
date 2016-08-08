@@ -435,7 +435,7 @@ flags =
   , Option []         ["fsimplifier-level"]   1 (ReqArg (set_flag_fsimplifierIterations . read) "NUMBER")  "number of iterations simplifier does (default=4)"
   , Option []         ["fstatic-inline"]      2 (NoArg set_flag_fstaticInline)             "(default) generate static-inlined functions in C"
   , Option []         ["ftuples-as-sugar"]    2 (NoArg set_flag_ftuplesAsSugar)            "(default) treat tuples as syntactic sugar to unboxed records, which gives better performance"
-  , Option []         ["ftc-ctx-len"]         1 (ReqArg (set_flag_ftcCtxLen . read) "NUMBER")   "set the depth for printing error context in typechecker (default=3)"
+  , Option ['l']      ["ftc-ctx-len"]         1 (ReqArg (set_flag_ftcCtxLen . read) "NUMBER")   "set the depth for printing error context in typechecker (default=3)"
   , Option []         ["ftp-with-bodies"]     2 (NoArg set_flag_ftpWithBodies)             "(default) generate type proof with bodies"
   , Option []         ["ftp-with-decls"]      2 (NoArg set_flag_ftpWithDecls)              "(default) generate type proof with declarations"
   , Option []         ["funion-for-variants"] 2 (NoArg set_flag_funionForVariants)         "use union types for variants in C code (cannot be verified)"

@@ -18,7 +18,7 @@ module Cogent.PrettyPrint where
 import qualified Cogent.Common.Syntax as S (associativity)
 import Cogent.Common.Syntax hiding (associativity)
 import Cogent.Common.Types
-import Cogent.Compiler (__cogent_fshow_types_in_pretty, __impossible)
+import Cogent.Compiler (__cogent_fshow_types_in_pretty, __fixme, __impossible)
 import Cogent.Desugar (desugarOp)
 import Cogent.Reorganizer (ReorganizeError(..), SourceObject(..))
 import Cogent.Surface
@@ -34,38 +34,57 @@ import Prelude hiding ((<$>), foldr)
 import Text.Parsec.Pos
 import Text.PrettyPrint.ANSI.Leijen hiding (tupled,indent)
 
-indentation, ifIndentation :: Int
-indentation = 3
-ifIndentation = 3
+
+-- pretty-printing theme definition
+-- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+-- meta-level constructs
+
 position = string
+err = red . string
+warn = dullyellow . string
+comment = black . string
+context = black . string
+
+-- language ast
+
 varname = string
+letbangvar = dullgreen . string
 primop = blue . string
 keyword = bold . string
+literal = dullcyan
 typevar = blue . string
 typename = blue . bold . string
-literal = dullcyan
-typesymbol = cyan . string
+typesymbol = cyan . string  -- type operators, e.g. !, ->, take
 funname = green . string
 fieldname = magenta . string
 tagname = dullmagenta . string
 symbol = string
 kindsig = red . string
-spaceList = encloseSep empty empty space
-commaList = encloseSep empty empty (comma <> space)
-dotList = encloseSep empty empty (symbol ".")
-tupled = encloseSep lparen rparen (comma <> space)
-tupled1 [x] = x
-tupled1 x = encloseSep lparen rparen (comma <> space) x
 typeargs x = encloseSep lbracket rbracket (comma <> space) x
-err = red . string
-warn = dullyellow . string
-comment = black . string
-context = black . string
-letbangvar = dullgreen . string
 record = encloseSep (lbrace <> space) (space <> rbrace) (comma <> space)
 variant = encloseSep (langle <> space) rangle (symbol "|" <> space) . map (<> space)
+
+-- combinators, helpers
+
+indentation, ifIndentation :: Int
+indentation = 3
+ifIndentation = 3
+
 indent = nest indentation
 indent' = (string (replicate indentation ' ') <>) . nest indentation
+
+tupled = encloseSep lparen rparen (comma <> space)
+-- non-unit tuples. put parens subject to arity
+tupled1 [x] = x
+tupled1 x = encloseSep lparen rparen (comma <> space) x
+
+spaceList = encloseSep empty empty space
+commaList = encloseSep empty empty (comma <> space)
+
+
+-- associativity
+-- ~~~~~~~~~~~~~~~~
 
 level :: Associativity -> Int
 level (LeftAssoc i) = i
@@ -76,11 +95,15 @@ level (Prefix) = 0
 associativity :: String -> Associativity
 associativity = S.associativity . desugarOp
 
+
+-- type classes and instances for different constructs
+-- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 class ExprType a where
-  levelExpr :: a -> Int
+  levelExpr :: a -> Int  -- associativity levels
   isVar :: a -> String -> Bool
 
-instance ExprType (Expr a b c) where
+instance ExprType (Expr t pv e) where
   levelExpr (App {}) = 1
   levelExpr (PrimOp n [_,_]) = level (associativity n)
   levelExpr (Member {}) = 0
@@ -95,23 +118,51 @@ instance ExprType (Expr a b c) where
   isVar (Var n) s = (n == s)
   isVar _ _ = False
 
-pretty'IP e@(PTake {}) = parens (pretty e)
-pretty'IP e = pretty e
+instance ExprType RawExpr where
+  levelExpr (RE e) = levelExpr e
+  isVar (RE e) = isVar e
 
-pretty' :: (Pretty a, ExprType a) => Int -> a -> Doc
-pretty' l x | levelExpr x < l = pretty x
-            | otherwise       = parens (indent (pretty x))
+instance ExprType (TExpr t) where
+  levelExpr (TE _ e) = levelExpr e
+  isVar (TE _ e)     = isVar e
 
-handleTakeAssign :: (PrettyName b) => Maybe (FieldName, IrrefutablePattern b) -> Doc
-handleTakeAssign Nothing = fieldname ".."
-handleTakeAssign (Just (s, PVar x)) | isName x s = fieldname s
-handleTakeAssign (Just (s, e)) = fieldname s <+> symbol "=" <+> pretty e
+-- ------------------------------------
 
-handlePutAssign :: (ExprType e, Pretty e) => Maybe (FieldName, e) -> Doc
-handlePutAssign Nothing = fieldname ".."
-handlePutAssign (Just (s, e)) | isVar e s = fieldname s
-handlePutAssign (Just (s, e)) = fieldname s <+> symbol "=" <+> pretty e
+class TypeType t where
+  isCon :: t -> Bool
+  isTakePut :: t -> Bool
+  isFun :: t -> Bool
+  isAtomic :: t -> Bool
 
+instance TypeType (Type t) where
+  isCon     (TCon {})  = True
+  isCon     _          = False
+  isFun     (TFun {})  = True
+  isFun     _          = False
+  isTakePut (TTake {}) = True
+  isTakePut (TPut  {}) = True
+  isTakePut _          = False
+  isAtomic e | isFun e || isTakePut e = False
+             | TCon _ (_:_) _ <- e = False
+             | otherwise = True
+
+instance TypeType RawType where
+  isCon     (RT t) = isCon     t
+  isTakePut (RT t) = isTakePut t
+  isFun     (RT t) = isFun     t
+  isAtomic  (RT t) = isAtomic  t
+
+instance TypeType TCType where
+  isCon     (T t) = isCon t
+  isCon     _     = False
+  isFun     (T t) = isFun t
+  isFun     _     = False
+  isTakePut (T t) = isTakePut t
+  isTakePut _     = False
+  isAtomic  (T t) = isAtomic t
+  isAtomic  _     = False
+
+-- ------------------------------------
 
 class PrettyName a where
   prettyName :: a -> Doc
@@ -119,14 +170,23 @@ class PrettyName a where
 
 instance PrettyName VarName where
   prettyName = varname
-  isName s = (==s)
+  isName s = (== s)
+
+instance Pretty t => PrettyName (VarName, t) where
+  prettyName (a, b) | __cogent_fshow_types_in_pretty = parens $ prettyName a <+> comment "::" <+> pretty b
+                    | otherwise = prettyName a
+  isName (a, b) x = a == x
+
+-- ------------------------------------
+
+-- class Pretty
+
 instance Pretty Likelihood where
   pretty Likely   = symbol "=>"
   pretty Unlikely = symbol "~>"
   pretty Regular  = symbol "->"
 
-
-instance PrettyName b => Pretty (IrrefutablePattern b) where
+instance PrettyName pv => Pretty (IrrefutablePattern pv) where
   pretty (PVar v) = prettyName v
   pretty (PTuple ps) = tupled (map pretty ps)
   pretty (PUnboxedRecord fs) = string "#" <> record (map handleTakeAssign fs)
@@ -134,33 +194,28 @@ instance PrettyName b => Pretty (IrrefutablePattern b) where
   pretty (PUnitel) = string "()"
   pretty (PTake v fs) = prettyName v <+> record (map handleTakeAssign fs)
 
-instance PrettyName b => Pretty (Pattern b) where
+instance PrettyName pv => Pretty (Pattern pv) where
   pretty (PCon c [] )     = tagname c
-  pretty (PCon c [p])     = tagname c <+> pretty'IP p
-  pretty (PCon c ps )     = tagname c <+> spaceList (map pretty'IP ps)
+  pretty (PCon c [p])     = tagname c <+> prettyIP p
+  pretty (PCon c ps )     = tagname c <+> spaceList (map prettyIP ps)
   pretty (PIntLit i)      = literal (string $ show i)
   pretty (PBoolLit b)     = literal (string $ show b)
   pretty (PCharLit c)     = literal (string $ show c)
   pretty (PIrrefutable p) = pretty p
 
-pretty'B (p, Just t, e) i
-     = group (pretty p <+> symbol ":" <+> pretty t <+> symbol "=" <+> (if i then (pretty' 100) else pretty) e)
-pretty'B (p, Nothing, e) i
-     = group (pretty p <+> symbol "=" <+> (if i then (pretty' 100) else pretty) e)
-
-instance (Pretty t, PrettyName b, Pretty e, ExprType e) => Pretty (Binding t b e) where
-  pretty (Binding p t e []) = pretty'B (p,t,e) False
+instance (Pretty t, PrettyName pv, Pretty e, ExprType e) => Pretty (Binding t pv e) where
+  pretty (Binding p t e []) = prettyB (p,t,e) False
   pretty (Binding p t e bs)
-     = pretty'B (p,t,e) True <+> hsep (map (letbangvar . ('!':)) bs)
+     = prettyB (p,t,e) True <+> hsep (map (letbangvar . ('!':)) bs)
 
-instance (PrettyName b, Pretty e) => Pretty (Alt b e) where
+instance (PrettyName pv, Pretty e) => Pretty (Alt pv e) where
   pretty (Alt p arrow e) = symbol "|" <+> pretty p <+> group (pretty arrow <+> pretty e)
 
 instance Pretty Inline where
   pretty Inline = keyword "inline" <+> empty
   pretty NoInline = empty
 
-instance (ExprType e, Pretty t, PrettyName b, Pretty e) => Pretty (Expr t b e) where
+instance (ExprType e, Pretty t, PrettyName pv, Pretty e) => Pretty (Expr t pv e) where
   pretty (Var x)             = varname x
   pretty (TypeApp x ts note) = pretty note <> varname x <> typeargs (map pretty ts)
   pretty (Member x f)        = pretty' 1 x <> symbol "." <> fieldname f
@@ -201,31 +256,12 @@ instance (ExprType e, Pretty t, PrettyName b, Pretty e) => Pretty (Expr t b e) w
                                              <$> keyword "in" <+> nest 3 (pretty e)
   pretty (Put e fs)          = pretty' 1 e <+> record (map handlePutAssign fs)
 
-instance ExprType RawExpr where
-  levelExpr (RE e) = levelExpr e
-  isVar (RE e) = isVar e
-
 instance Pretty RawExpr where
   pretty (RE e) = pretty e
-
-instance ExprType (TExpr t) where
-  levelExpr (TE _ e) = levelExpr e
-  isVar (TE _ e)     = isVar e
-
-instance Pretty t => PrettyName (VarName, t) where
-  prettyName (a, b) | __cogent_fshow_types_in_pretty = parens $ prettyName a <+> comment "::" <+> pretty b
-                    | otherwise = prettyName a
-  isName (a, b) x = a == x
 
 instance Pretty t => Pretty (TExpr t) where
   pretty (TE t e) | __cogent_fshow_types_in_pretty = parens $ pretty e <+> comment "::" <+> pretty t
                   | otherwise = pretty e
-
-class TypeType t where
-  isCon :: t -> Bool
-  isTakePut :: t -> Bool
-  isFun :: t -> Bool
-  isAtomic :: t -> Bool
 
 instance (Pretty t, TypeType t) => Pretty (Type t) where
   pretty (TCon n [] s) = ($ typename n) (if | s == ReadOnly -> (<> typesymbol "!")
@@ -273,49 +309,13 @@ instance (Pretty t, TypeType t) => Pretty (Type t) where
     where prettyT' e | not $ isAtomic e = parens (pretty e)
                      | otherwise        = pretty e
 
-instance TypeType (Type t) where
-  isCon     (TCon {})  = True
-  isCon     _          = False
-  isFun     (TFun {})  = True
-  isFun     _          = False
-  isTakePut (TTake {}) = True
-  isTakePut (TPut  {}) = True
-  isTakePut _          = False
-  isAtomic e | isFun e || isTakePut e = False
-             | TCon _ (_:_) _ <- e = False
-             | otherwise = True
-
-instance TypeType RawType where
-  isCon     (RT t) = isCon     t
-  isTakePut (RT t) = isTakePut t
-  isFun     (RT t) = isFun     t
-  isAtomic  (RT t) = isAtomic  t
-
 instance Pretty RawType where
   pretty (RT t) = pretty t
-
-instance TypeType TCType where
-  isCon     (T t) = isCon t
-  isCon     _     = False
-  isFun     (T t) = isFun t
-  isFun     _     = False
-  isTakePut (T t) = isTakePut t
-  isTakePut _     = False
-  isAtomic  (T t) = isAtomic t
-  isAtomic  _     = False
 
 instance Pretty TCType where
   pretty (T t) = pretty t
   pretty (U v) = warn ("?" ++ show v)
   pretty (RemoveCase a b) = pretty a <+> string "(without pattern" <+> pretty b <+> string ")"
-
-instance Pretty Kind where
-  pretty k = kindsig (stringFor k)
-    where stringFor k = (if canDiscard k then "D" else "")
-                     ++ (if canShare   k then "S" else "")
-                     ++ (if canEscape  k then "E" else "")
-
-numOfArgs (PT x _) = length x
 
 instance Pretty LocType where
   pretty t = pretty (stripLocT t)
@@ -330,7 +330,7 @@ instance (Pretty t, PrettyName b, Pretty e) => Pretty (TopLevel t b e) where
   pretty (TypeDec n vs t) = keyword "type" <+> typename n <> hcat (map ((space <>) . typevar) vs)
                                            <+> indent (symbol "=" </> pretty t)
   pretty (FunDef v pt [Alt (PIrrefutable p) Regular e]) = vcat [ funname v <+> symbol ":" <+> pretty pt
-                                                               , funname v <+> pretty'IP p <+> group (indent (symbol "=" <$> pretty e))]
+                                                               , funname v <+> prettyIP p <+> group (indent (symbol "=" <$> pretty e))]
   pretty (AbsDec v pt) = funname v <+> symbol ":" <+> pretty pt
   pretty (FunDef v pt alts) = vcat [ funname v <+> symbol ":" <+> pretty pt
                                    , indent (funname v <> mconcat (map ((hardline <>) . indent . pretty) alts))]
@@ -340,6 +340,11 @@ instance (Pretty t, PrettyName b, Pretty e) => Pretty (TopLevel t b e) where
   pretty (ConstDef v t e) = vcat [ funname v <+> symbol ":" <+> pretty t
                                  , funname v <+> group (indent (symbol "=" <+> pretty e))]
 
+instance Pretty Kind where
+  pretty k = kindsig (stringFor k)
+    where stringFor k = (if canDiscard k then "D" else "")
+                     ++ (if canShare   k then "S" else "")
+                     ++ (if canEscape  k then "E" else "")
 
 instance Pretty SourcePos where
   pretty p = position (show p)
@@ -398,11 +403,48 @@ instance Pretty TypeError where
                                                      <$> pretty pat
   pretty (DuplicateVariableInIrrefPattern vn ipat) = err "Duplicate variable" <+> varname vn <+> err "in (irrefutable) pattern:"
                                                      <$> pretty ipat
+<<<<<<< HEAD
 instance Pretty ErrorContext where
   pretty _ = error "use `prettyCtx' instead!"
 prettyCtx (SolvingConstraint c) i = context "from constraint " <+> pretty c
 prettyCtx (ThenBranch) i = context "in the" <+> keyword "then" <+> context "branch"
 prettyCtx (ElseBranch) i = context "in the" <+> keyword "else" <+> context "branch"
+=======
+
+instance Pretty TypeWarning where
+  pretty DummyWarning = __fixme $ warn "WARNING: dummy"
+
+instance Pretty Constraint where
+  pretty (a :<  b)        = pretty a <+> warn ":<"  <+> pretty b
+  pretty (a :<~ b)        = pretty a <+> warn ":<~" <+> pretty b
+  pretty (a :& b)         = pretty a <+> warn ":&" <+> pretty b
+  pretty (Share  t m)     = warn "Share" <+> pretty t
+  pretty (Drop   t m)     = warn "Drop" <+> pretty t
+  pretty (Escape t m)     = warn "Escape" <+> pretty t
+  pretty (Unsat e)        = warn "Unsat"
+  pretty (Sat)            = warn "Sat"
+  pretty (Exhaustive t p) = warn "Exhaustive" <+> pretty t <+> pretty p
+  pretty (x :@ _)         = pretty x
+
+instance Pretty SourceObject where
+  pretty (TypeName n) = typename n
+  pretty (ValName  n) = varname n
+
+instance Pretty ReorganizeError where
+  pretty CyclicDependency = err "cyclic dependency"
+  pretty DuplicateTypeDefinition = err "duplicate type definition"
+  pretty DuplicateValueDefinition = err "duplicate value definition"
+
+
+-- helper functions
+-- ~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+-- ctx -> indent -> doc
+prettyCtx :: ErrorContext -> Bool -> Doc
+prettyCtx (SolvingConstraint c) _ = context "from constraint " <+> pretty c
+prettyCtx (ThenBranch) _ = context "in the" <+> keyword "then" <+> context "branch"
+prettyCtx (ElseBranch) _ = context "in the" <+> keyword "else" <+> context "branch"
+>>>>>>> compiler-pp: clean-up; add shortcut -l for ctx-length
 prettyCtx (InExpression e t) True = context "when checking that the expression at ("
                                                   <> pretty (posOfE e) <> context ")"
                                        <$> (indent' (pretty (stripLocE e)))
@@ -433,24 +475,48 @@ prettyCtx (AntiquotedType t) i = (if i then (<$> indent' (pretty (stripLocT t)))
                                (context "in the antiquoted type at (" <> pretty (posOfT t) <> context ")" )
 prettyCtx (AntiquotedExpr e) i = (if i then (<$> indent' (pretty (stripLocE e))) else id)
                                (context "in the antiquoted expression at (" <> pretty (posOfE e) <> context ")" )
-{- 
-prettyTWE :: Int -> (Either TypeError Warning, [ErrorContext]) -> Doc
-prettyTWE th (Left  e, ctx) = prettyTWE' th (e, ctx)
-prettyTWE th (Right w, ctx) = prettyTWE' th (w, ctx)
--} 
+
+
+-- add parens and indents to expressions depending on level
+pretty' :: (Pretty a, ExprType a) => Int -> a -> Doc
+pretty' l x | levelExpr x < l = pretty x
+            | otherwise       = parens (indent (pretty x))
+
+handleTakeAssign :: (PrettyName pv) => Maybe (FieldName, IrrefutablePattern pv) -> Doc
+handleTakeAssign Nothing = fieldname ".."
+handleTakeAssign (Just (s, PVar x)) | isName x s = fieldname s
+handleTakeAssign (Just (s, e)) = fieldname s <+> symbol "=" <+> pretty e
+
+handlePutAssign :: (ExprType e, Pretty e) => Maybe (FieldName, e) -> Doc
+handlePutAssign Nothing = fieldname ".."
+handlePutAssign (Just (s, e)) | isVar e s = fieldname s
+handlePutAssign (Just (s, e)) = fieldname s <+> symbol "=" <+> pretty e
+
+prettyIP :: (PrettyName pv) => IrrefutablePattern pv -> Doc
+prettyIP e@(PTake {}) = parens (pretty e)
+prettyIP e = pretty e
+
+-- bindings
+prettyB :: (PrettyName pv, Pretty t, Pretty e, ExprType e) 
+        => (IrrefutablePattern pv, Maybe t, e) -> Bool -> Doc
+prettyB (p, Just t, e) i
+     = group (pretty p <+> symbol ":" <+> pretty t <+> symbol "=" <+> (if i then (pretty' 100) else pretty) e)
+prettyB (p, Nothing, e) i
+     = group (pretty p <+> symbol "=" <+> (if i then (pretty' 100) else pretty) e)
+
+
+-- top-level function
+-- ~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 
+prettyTWE :: Int -> ([ErrorContext], Either TypeError TypeWarning) -> Doc
+prettyTWE th (ctx, Left  e) = prettyTWE' th (ctx,e)
+prettyTWE th (ctx, Right w) = prettyTWE' th (ctx,w)
+ 
 prettyTWE' :: Pretty we => Int -> ([ErrorContext], we) -> Doc
 prettyTWE' threshold (ectx, we) = pretty we <$> indent' (vcat (map (flip prettyCtx True ) (take threshold ectx)
                                                             ++ map (flip prettyCtx False) (drop threshold ectx)))
 
-instance Pretty SourceObject where
-  pretty (TypeName n) = typename n
-  pretty (ValName  n) = varname n
-
-instance Pretty ReorganizeError where
-  pretty CyclicDependency = err "cyclic dependency"
-  pretty DuplicateTypeDefinition = err "duplicate type definition"
-  pretty DuplicateValueDefinition = err "duplicate value definition"
-
+-- reorganiser errors
 prettyRE :: (ReorganizeError, [(SourceObject, SourcePos)]) -> Doc
 prettyRE (msg,ps) = pretty msg <$>
                     indent' (vcat (map (\(so,p) -> context "-" <+> pretty so
@@ -460,15 +526,3 @@ prettyPrint :: Pretty a => (Doc -> Doc) -> [a] -> SimpleDoc
 prettyPrint f = renderSmart 1.0 80 . f . vcat . map pretty
 
 
-
-instance Pretty Constraint where
-  pretty (a :<  b)        = pretty a <+> warn ":<"  <+> pretty b
-  pretty (a :<~ b)        = pretty a <+> warn ":<~" <+> pretty b
-  pretty (a :& b)         = pretty a <+> warn ":&" <+> pretty b
-  pretty (Share  t m)     = warn "Share" <+> pretty t
-  pretty (Drop   t m)     = warn "Drop" <+> pretty t
-  pretty (Escape t m)     = warn "Escape" <+> pretty t
-  pretty (Unsat e)        = warn "Unsat"
-  pretty (Sat)            = warn "Sat"
-  pretty (Exhaustive t p) = warn "Exhaustive" <+> pretty t <+> pretty p
-  pretty (x :@ _)         = pretty x

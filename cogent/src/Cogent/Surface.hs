@@ -25,21 +25,21 @@ import Text.Parsec.Pos
 
 type OpName = String
 
-data IrrefutablePattern v = PVar v
-                          | PTuple [IrrefutablePattern v]
-                          | PUnboxedRecord [Maybe (FieldName, IrrefutablePattern v)]
-                          | PUnderscore
-                          | PUnitel
-                          | PTake v [Maybe (FieldName, IrrefutablePattern v)]
-                              -- Note: `Nothing' will be desugared to `Just' in TypeCheck / zilinc
-                          deriving (Show, Functor, Foldable, Traversable, Eq)
+data IrrefutablePattern pv = PVar pv
+                           | PTuple [IrrefutablePattern pv]
+                           | PUnboxedRecord [Maybe (FieldName, IrrefutablePattern pv)]
+                           | PUnderscore
+                           | PUnitel
+                           | PTake pv [Maybe (FieldName, IrrefutablePattern pv)]
+                               -- Note: `Nothing' will be desugared to `Just' in TypeCheck / zilinc
+                           deriving (Show, Functor, Foldable, Traversable, Eq)
 
-data Pattern v = PCon TagName [IrrefutablePattern v]
-               | PIntLit Integer
-               | PBoolLit Bool
-               | PCharLit Char
-               | PIrrefutable (IrrefutablePattern v)
-               deriving (Show, Functor, Foldable, Traversable, Eq)
+data Pattern pv = PCon TagName [IrrefutablePattern pv]
+                | PIntLit Integer
+                | PBoolLit Bool
+                | PCharLit Char
+                | PIrrefutable (IrrefutablePattern pv)
+                deriving (Show, Functor, Foldable, Traversable, Eq)
 
 data Alt pv e = Alt (Pattern pv) Likelihood e deriving (Show, Functor, Foldable,Traversable)
 
@@ -92,6 +92,8 @@ data Type t =
             deriving (Show, Functor, Eq, Foldable, Traversable)
 
 data Polytype t = PT [(TyVarName, Kind)] t deriving (Show, Functor, Foldable, Traversable)
+
+numOfArgs (PT x _) = length x
 
 data TopLevel t pv e = Include String
                      | IncludeStd String
