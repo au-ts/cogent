@@ -17,7 +17,7 @@ module COGENT.PrettyPrint where
 import qualified COGENT.Common.Syntax as S (associativity)
 import COGENT.Common.Syntax hiding (associativity)
 import COGENT.Common.Types
-import COGENT.Compiler (__impossible)
+import COGENT.Compiler (__cogent_fshow_types_in_pretty, __impossible)
 import COGENT.Desugar (desugarOp)
 import COGENT.Reorganizer (ReorganizeError(..), SourceObject(..))
 import COGENT.Surface
@@ -213,11 +213,13 @@ instance ExprType (TExpr t) where
   isVar (TE _ e)     = isVar e
 
 instance Pretty t => PrettyName (VarName, t) where
-  prettyName (a, b) = parens $ prettyName a <+> comment "::" <+> pretty b
+  prettyName (a, b) | __cogent_fshow_types_in_pretty = parens $ prettyName a <+> comment "::" <+> pretty b
+                    | otherwise = prettyName a
   isName (a, b) x = a == x
 
 instance Pretty t => Pretty (TExpr t) where
-  pretty (TE t e) = pretty e
+  pretty (TE t e) | __cogent_fshow_types_in_pretty = parens $ pretty e <+> comment "::" <+> pretty t
+                  | otherwise = pretty e
 
 class TypeType t where
   isCon :: t -> Bool
