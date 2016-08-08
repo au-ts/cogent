@@ -46,6 +46,7 @@ data TypeError = FunctionNotFound VarName
                | DuplicateTypeVariable [VarName]
                deriving (Show)
 
+data TypeWarning = DummyWarning
 
 -- FIXME: More fine-grained context is appreciated. e.g., only show alternatives that don't unify / zilinc
 data ErrorContext = InExpression LocExpr TCType
