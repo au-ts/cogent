@@ -67,10 +67,10 @@ import Control.Applicative (liftA)
 #endif
 import Control.Monad (forM, forM_, unless, when)
 -- import Control.Monad.Cont
-import Control.Monad.Except (runExceptT)
+-- import Control.Monad.Except (runExceptT)
 import Control.Monad.Trans.Either (eitherT, runEitherT)
 import Data.Char (isSpace)
-import Data.Either (lefts)
+-- import Data.Either (lefts)
 import Data.Foldable (foldrM)
 import Data.List as L (find, isPrefixOf, nub)
 import Data.List.Utils (replace)
