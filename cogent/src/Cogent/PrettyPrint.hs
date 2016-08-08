@@ -18,12 +18,11 @@ module Cogent.PrettyPrint where
 import qualified Cogent.Common.Syntax as S (associativity)
 import Cogent.Common.Syntax hiding (associativity)
 import Cogent.Common.Types
-import Cogent.Compiler (__impossible)
+import Cogent.Compiler (__cogent_fshow_types_in_pretty, __impossible)
 import Cogent.Desugar (desugarOp)
 import Cogent.Reorganizer (ReorganizeError(..), SourceObject(..))
 import Cogent.Surface
 import Cogent.TypeCheck.Base
-
 import Control.Arrow (second)
 import qualified Data.Map as M hiding (foldr)
 #if __GLASGOW_HASKELL__ < 709
@@ -214,11 +213,13 @@ instance ExprType (TExpr t) where
   isVar (TE _ e)     = isVar e
 
 instance Pretty t => PrettyName (VarName, t) where
-  prettyName (a, b) = parens $ prettyName a <+> comment "::" <+> pretty b
+  prettyName (a, b) | __cogent_fshow_types_in_pretty = parens $ prettyName a <+> comment "::" <+> pretty b
+                    | otherwise = prettyName a
   isName (a, b) x = a == x
 
 instance Pretty t => Pretty (TExpr t) where
-  pretty (TE t e) = pretty e
+  pretty (TE t e) | __cogent_fshow_types_in_pretty = parens $ pretty e <+> comment "::" <+> pretty t
+                  | otherwise = pretty e
 
 class TypeType t where
   isCon :: t -> Bool
