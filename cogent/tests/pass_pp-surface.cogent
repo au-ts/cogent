@@ -1,0 +1,8 @@
+
+type A x y
+
+f : #(A U8 Bool) -> ()
+
+g : (A U8 Bool) take f1 -> ()
+
+
