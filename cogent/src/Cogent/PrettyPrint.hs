@@ -81,8 +81,6 @@ class ExprType a where
   levelExpr :: a -> Int
   isVar :: a -> String -> Bool
 
-
-
 instance ExprType (Expr a b c) where
   levelExpr (App {}) = 1
   levelExpr (PrimOp n [_,_]) = level (associativity n)
@@ -207,14 +205,16 @@ instance (ExprType e, Pretty t, PrettyName b, Pretty e) => Pretty (Expr t b e) w
 instance ExprType RawExpr where
   levelExpr (RE e) = levelExpr e
   isVar (RE e) = isVar e
+
 instance Pretty RawExpr where
   pretty (RE e) = pretty e
 
 instance ExprType (TExpr t) where
   levelExpr (TE _ e) = levelExpr e
   isVar (TE _ e)     = isVar e
+
 instance Pretty t => PrettyName (VarName, t) where
-  prettyName (a, b) = prettyName a <+> comment "::" <+> pretty b
+  prettyName (a, b) = parens $ prettyName a <+> comment "::" <+> pretty b
   isName (a, b) x = a == x
 
 instance Pretty t => Pretty (TExpr t) where
@@ -224,6 +224,7 @@ class TypeType t where
   isCon :: t -> Bool
   isTakePut :: t -> Bool
   isFun :: t -> Bool
+  isAtomic :: t -> Bool
 
 instance (Pretty t, TypeType t) => Pretty (Type t) where
   pretty (TCon n [] s) = ($ typename n) (if | s == ReadOnly -> (<> typesymbol "!")
@@ -233,8 +234,8 @@ instance (Pretty t, TypeType t) => Pretty (Type t) where
                              | s == Unboxed  -> (typesymbol "#" <>)
                              | otherwise     -> id) $
                          typename n <+> hsep (map prettyT' as)
-    where prettyT' e | isCon e || isTakePut e || isFun e = parens (pretty e)
-                     | otherwise                         = pretty e
+    where prettyT' e | not $ isAtomic e = parens (pretty e)
+                     | otherwise        = pretty e
   pretty (TVar n b)  = typevar n
   pretty (TTuple ts) = tupled (map pretty ts)
   pretty (TUnit)     = typesymbol "()"
@@ -249,27 +250,27 @@ instance (Pretty t, TypeType t) => Pretty (Type t) where
   pretty (TVariant ts) = variant (map (\(a,bs)-> case bs of
                                           [] -> tagname a
                                           _  -> tagname a <+> spaceList (map prettyT' bs)) $ M.toList ts)
-    where prettyT' e | isCon e || isTakePut e || isFun e = parens (pretty e)
-                     | otherwise                         = pretty e
+    where prettyT' e | not $ isAtomic e = parens (pretty e)
+                     | otherwise        = pretty e
   pretty (TFun t t') = prettyT' t <+> typesymbol "->" <+> pretty t'
     where prettyT' e | isFun e   = parens (pretty e)
                      | otherwise = pretty e
   pretty (TUnbox t) = typesymbol "#" <> prettyT' t
-    where prettyT' e | isTakePut e || isFun e = parens (pretty e)
-                     | otherwise              = pretty e
+    where prettyT' e | not $ isAtomic e = parens (pretty e)
+                     | otherwise        = pretty e
   pretty (TBang t) = prettyT' t <> typesymbol "!"
-    where prettyT' e | isCon e || isTakePut e || isFun e = parens (pretty e)
-                     | otherwise                         = pretty e
+    where prettyT' e | not $ isAtomic e = parens (pretty e)
+                     | otherwise        = pretty e
   pretty (TTake fs x) = prettyT' x <+> typesymbol "take"
                                    <+> case fs of Nothing  -> tupled (fieldname ".." : [])
                                                   Just fs' -> tupled1 (map fieldname fs')
-    where prettyT' e | isTakePut e || isFun e = parens (pretty e)
-                     | otherwise              = pretty e
+    where prettyT' e | not $ isAtomic e = parens (pretty e)
+                     | otherwise        = pretty e
   pretty (TPut fs x) = prettyT' x <+> typesymbol "put"
                                   <+> case fs of Nothing -> tupled (fieldname ".." : [])
                                                  Just fs' -> tupled1 (map fieldname fs')
-    where prettyT' e | isTakePut e || isFun e = parens (pretty e)
-                     | otherwise              = pretty e
+    where prettyT' e | not $ isAtomic e = parens (pretty e)
+                     | otherwise        = pretty e
 
 instance TypeType (Type t) where
   isCon     (TCon {})  = True
@@ -279,21 +280,28 @@ instance TypeType (Type t) where
   isTakePut (TTake {}) = True
   isTakePut (TPut  {}) = True
   isTakePut _          = False
+  isAtomic e | isFun e || isTakePut e = False
+             | TCon _ (_:_) _ <- e = False
+             | otherwise = True
 
 instance TypeType RawType where
-  isCon (RT t)     = isCon t
+  isCon     (RT t) = isCon     t
   isTakePut (RT t) = isTakePut t
-  isFun (RT t)     = isFun t
+  isFun     (RT t) = isFun     t
+  isAtomic  (RT t) = isAtomic  t
+
 instance Pretty RawType where
   pretty (RT t) = pretty t
 
-instance TypeType (TCType) where
+instance TypeType TCType where
   isCon     (T t) = isCon t
   isCon     _     = False
   isFun     (T t) = isFun t
   isFun     _     = False
   isTakePut (T t) = isTakePut t
   isTakePut _     = False
+  isAtomic  (T t) = isAtomic t
+  isAtomic  _     = False
 
 instance Pretty TCType where
   pretty (T t) = pretty t
