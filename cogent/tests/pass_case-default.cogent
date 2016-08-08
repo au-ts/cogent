@@ -23,7 +23,7 @@ yyy : (V! @ a banged V argument
            >
 yyy (v, y) =
    v
-   | TAG_b vb -> Success (vb)
+   | TAG_b vb -> Success vb
    | vc -> Fail (42, vc)
 
 @@# Heading 2
@@ -39,14 +39,14 @@ yyy (v, y) =
 xxx : (V!, U32) -> < Fail (U32, T!) | Success U32 >
 xxx (v, y) =
    v
-   | TAG_b vb -> Success (vb)
+   | TAG_b vb -> Success vb
    | TAG_c vc -> Fail (42, vc)
-   | TAG_a va -> Success (y)
+   | TAG_a va -> Success y
 
-foo : (< TAG_a U8 >!) -> < Success (U8) >
-foo (v) =
+foo : < TAG_a U8 >! -> < Success U8 >
+foo v =
    v
-   | TAG_a va -> Success (va)
+   | TAG_a va -> Success va
 
 @@# Heading 3
 
@@ -56,7 +56,7 @@ bar : < TAG_a U8 | TAG_b U16 | TAG_c U32 >! -> < Fail (U32, < TAG_b U16 | TAG_c 
                                                | Success (U8) >
 bar v =
    v
-   | TAG_a va -> Success (va)
+   | TAG_a va -> Success va
    | d -> Fail (42, d)
 
 @@## Subheading 32
