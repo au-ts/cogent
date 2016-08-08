@@ -80,6 +80,7 @@ toTCType (RT x) = T (fmap toTCType x)
 -- Precondition: No unification variables left in the type
 toRawType :: TCType -> RawType
 toRawType (T x) = RT (fmap toRawType x)
+toRawType (RemoveCase p t) = error "panic: removeCase found"
 toRawType _ = error "panic: unification variable found"
 
 toRawExp :: TypedExpr -> RawExpr
@@ -162,5 +163,7 @@ validateTypes' vs rs = runExceptT (traverse (validateType vs) rs)
 
 forFlexes :: (Int -> TCType) -> TCType -> TCType
 forFlexes f (U x) = f x
-forFlexes f (RemoveCase p t) = RemoveCase (fmap (fmap (forFlexes f)) p) (forFlexes f t)
+forFlexes f (RemoveCase p t) = case (forFlexes f t, fmap (fmap (forFlexes f)) p) of
+  (T (TVariant ts), PCon a _) -> T (TVariant (M.delete a ts))
+  (t', p')                    -> RemoveCase p' t'
 forFlexes f (T x) = T (fmap (forFlexes f) x)
