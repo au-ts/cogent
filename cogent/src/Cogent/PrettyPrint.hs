@@ -317,7 +317,7 @@ instance Pretty t => Pretty (Polytype t) where
     where prettyKS (v,K False False False) = typevar v
           prettyKS (v,k) = typevar v <+> symbol ":<" <+> pretty k
 
-instance Pretty (TopLevel RawType VarName RawExpr) where
+instance (Pretty t, PrettyName b, Pretty e) => Pretty (TopLevel t b e) where
   pretty (TypeDec n vs t) = keyword "type" <+> typename n <> hcat (map ((space <>) . typevar) vs)
                                            <+> indent (symbol "=" </> pretty t)
   pretty (FunDef v pt [Alt (PIrrefutable p) Regular e]) = vcat [ funname v <+> symbol ":" <+> pretty pt

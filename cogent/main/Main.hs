@@ -311,6 +311,7 @@ options = [
   , Option []         ["ast-mono"]        2 (NoArg $ Ast STGMono)           (astMsg STGMono)
   -- pretty
   , Option ['p']      ["pretty-parse"]    2 (NoArg $ Pretty STGParse)       (prettyMsg STGParse)
+  , Option []         ["pretty-tc"]       2 (NoArg $ Pretty STGTypeCheck)   (prettyMsg STGTypeCheck)
   , Option ['c']      ["pretty-desugar"]  2 (NoArg $ Pretty STGDesugar)     (prettyMsg STGDesugar)
   , Option ['n']      ["pretty-normal"]   2 (NoArg $ Pretty STGNormal)      (prettyMsg STGNormal)
   , Option []         ["pretty-simpl"]    2 (NoArg $ Pretty STGSimplify)    (prettyMsg STGSimplify)
@@ -555,9 +556,10 @@ parseArgs args = case getOpt' Permute options args of
                                   ((if __cogent_freverse_tc_errors then reverse else id) es)
                     >> exitFailure
         (Right tced, tcst) ->  do
-            when (Ast stg `elem` cmds) $ genAst stg tced
-            when (Compile (succ stg) `elem` cmds) $ desugar cmds tced tcst source (map pragmaOfLP pragmas) buildinfo log
-            exitSuccessWithBuildInfo cmds buildinfo
+          when (Ast stg `elem` cmds) $ genAst stg tced
+          when (Pretty stg `elem` cmds) $ genPretty stg tced
+          when (Compile (succ stg) `elem` cmds) $ desugar cmds tced tcst source (map pragmaOfLP pragmas) buildinfo log
+          exitSuccessWithBuildInfo cmds buildinfo
 
     desugar cmds tced tcst source pragmas buildinfo log = do
       let stg = STGDesugar
