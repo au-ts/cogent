@@ -314,22 +314,7 @@ renderPolytypeHeader vs = keyword "all" <> tupled (map prettyKS vs) <> symbol ".
     where prettyKS (v,K False False False) = typevar v
           prettyKS (v,k) = typevar v <+> symbol ":<" <+> pretty k
 
-instance Pretty t => Pretty (Polytype t) where
-  pretty (PT [] t) = pretty t
-  pretty (PT vs t) = renderPolytypeHeader vs <+> pretty t
-
-renderTypeDecHeader n vs = keyword "type" <+> typename n <> hcat (map ((space <>) . typevar) vs)
-                                          <+> symbol "=" 
-
-prettyFunDef typeSigs v pt [Alt (PIrrefutable p) Regular e] = (if typeSigs then ( funname v <+> symbol ":" <+> pretty pt <$>) else id) $
-                                                                   (funname v <+> pretty'IP p <+> group (indent (symbol "=" <$> pretty e)))
-
-prettyFunDef typeSigs v pt alts = (if typeSigs then ( funname v <+> symbol ":" <+> pretty pt <$>) else id) $
-                                       (indent (funname v <> mconcat (map ((hardline <>) . indent . pretty) alts)))
-prettyConstDef typeSigs v t e  = (if typeSigs then ( funname v <+> symbol ":" <+> pretty t <$>) else id) $
-                                         (funname v <+> group (indent (symbol "=" <+> pretty e)))
-
-instance Pretty e => Pretty (TopLevel RawType VarName e) where
+instance (Pretty t, PrettyName b, Pretty e) => Pretty (TopLevel t b e) where
   pretty (TypeDec n vs t) = keyword "type" <+> typename n <> hcat (map ((space <>) . typevar) vs)
                                            <+> indent (symbol "=" </> pretty t)
   pretty (FunDef v pt alts) = prettyFunDef True v pt alts
