@@ -43,7 +43,6 @@ data Pattern pv = PCon TagName [IrrefutablePattern pv]
                 | PIrrefutable (IrrefutablePattern pv)
                 deriving (Show, Functor, Foldable, Traversable, Eq)
 
-
 data Alt pv e = Alt (Pattern pv) Likelihood e deriving (Show, Functor, Foldable,Traversable)
 
 data Binding t pv e = Binding (IrrefutablePattern pv) (Maybe t) e [VarName]
@@ -95,6 +94,8 @@ data Type t =
             deriving (Show, Functor, Eq, Foldable, Traversable)
 
 data Polytype t = PT [(TyVarName, Kind)] t deriving (Show, Functor, Foldable, Traversable)
+
+numOfArgs (PT x _) = length x
 
 data TopLevel t pv e = Include String
                      | IncludeStd String
