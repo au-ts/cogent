@@ -40,7 +40,11 @@ ffmap f = unflip . fmap f . Flip
 fffmap :: (Functor (Flip2 f a b)) => (c -> c') -> f c b a -> f c' b a
 fffmap f = unflip2 . fmap f . Flip2
 
+ttraverse :: (Traversable (Flip f c), Applicative m) => (a -> m b) -> f a c -> m (f b c)
+ttraverse f = fmap unflip . traverse f . Flip
 --
+tttraverse :: (Traversable (Flip2 f x c), Applicative m) => (a -> m b) -> f a c x -> m (f b c x)
+tttraverse f = fmap unflip2 . traverse f . Flip2
 -- name conversion
 
 cap :: String -> String

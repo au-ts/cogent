@@ -63,6 +63,13 @@ applyC s (Unsat e) = Unsat (applyErr s e)
 applyC s Sat = Sat
 applyC s (Exhaustive t ps) = Exhaustive (apply s t) (fmap (fmap (fmap (apply s))) ps)
 
+applyE :: Subst -> TCExpr -> TCExpr
+applyE s (TE t x p) = TE (apply s t)
+                      ( fmap (fmap (apply s))
+                      $ ffmap (fmap (apply s))
+                      $ fffmap (apply s) x)
+                      p
+
 singleton :: Int -> TCType -> Subst
 singleton i t = Subst (M.fromList [(i, t)])
 

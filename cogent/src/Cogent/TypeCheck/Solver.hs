@@ -89,7 +89,7 @@ whnf (T (TTake fs t)) = do
    t' <- whnf t
    return $ case t' of
      (T (TRecord l s)) -> T (TRecord (takeFields fs l) s)
-     _ | null fs       -> t'
+     _ | Just fs' <- fs, null fs'  -> t'
      _                 -> T (TTake fs t')
  where
    takeFields :: Maybe [FieldName] -> [(FieldName, (TCType, Bool))] -> [(FieldName, (TCType, Bool))]
@@ -100,6 +100,7 @@ whnf (T (TPut fs t)) = do
    t' <- whnf t
    return $ case t' of
      (T (TRecord l s)) -> T (TRecord (putFields fs l) s)
+     _ | Just fs' <- fs, null fs'  -> t'
      _                 -> T (TPut fs t')
  where
    putFields :: Maybe [FieldName] -> [(FieldName, (TCType, Bool))] -> [(FieldName, (TCType, Bool))]
@@ -115,17 +116,8 @@ whnf (T (TCon n as b)) = do
 whnf (RemoveCase p t) = do
   t' <- whnf t
   return $ fromMaybe (RemoveCase p t') (removeCase p t')
-
 whnf t = return t
 
--- Remove a pattern from a type, for case expressions.
-removeCase :: Pattern x -> TCType -> Maybe TCType
-removeCase (PIrrefutable _) _                = Just (T (TVariant M.empty))
-removeCase (PIntLit _)      x                = Just x
-removeCase (PCharLit _)     x                = Just x
-removeCase (PBoolLit _)     x                = Just x
-removeCase (PCon t _)       (T (TVariant m)) = Just (T (TVariant (M.delete t m)))
-removeCase _ _                               = Nothing
 
 -- Used internally in whnf, to check if a type has been normalised. If not,
 -- it means that there is a flex or type variable preventing evaluation.
