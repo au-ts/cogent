@@ -60,7 +60,7 @@ cg :: LocExpr -> TCType -> CG (Constraint, TCExpr)
 cg x@(LocExpr l e) t = do
   let ?loc = l
   (c, e') <- cg' e t
-  return (c :@ InExpression x t, e')
+  return (c :@ InExpression x t, TE t e' l)
 
 cgMany :: (?loc :: SourcePos) => [LocExpr] -> CG ([TCType], Constraint, [TCExpr])
 cgMany es = do
@@ -71,36 +71,36 @@ cgMany es = do
   (ts, c', es') <- foldM each ([], Sat, []) es
   return (reverse ts, c', reverse es')
 
-cg' :: (?loc :: SourcePos) => Expr LocType VarName LocExpr -> TCType -> CG (Constraint, TCExpr)
+cg' :: (?loc :: SourcePos) => Expr LocType VarName LocExpr -> TCType -> CG (Constraint, Expr TCType TCTypedName TCExpr)
 cg' (PrimOp o [e1, e2]) t
   | o `elem` words "+ - * / % .&. .|. .^. >> <<"
   = do (c1, e1') <- cg e1 t
        (c2, e2') <- cg e2 t
        -- traceShowM ("Arith op", pretty (stripLocE e1), pretty (stripLocE e2), pretty t, pretty c1, pretty c2)
-       return (T (TCon "U8" [] Unboxed) :<~ t <> c1 <> c2, TE t (PrimOp o [e1', e2'] ))
+       return (T (TCon "U8" [] Unboxed) :<~ t <> c1 <> c2, PrimOp o [e1', e2'] )
   | o `elem` words "&& ||"
   = do (c1, e1') <- cg e1 t
        (c2, e2') <- cg e2 t
-       return (T (TCon "Bool" [] Unboxed) :< t <> c1 <> c2, TE t (PrimOp o [e1', e2'] ))
+       return (T (TCon "Bool" [] Unboxed) :< t <> c1 <> c2, PrimOp o [e1', e2'] )
   | o `elem` words "== /= >= <= > <"
   = do alpha <- fresh
        (c1, e1') <- cg e1 alpha
        (c2, e2') <- cg e2 alpha
        let c  = T (TCon "Bool" [] Unboxed) :< t
            c' = T (TCon "U8" [] Unboxed) :<~ alpha
-       return (c <> c' <> c1 <> c2, TE t (PrimOp o [e1', e2'] ))
+       return (c <> c' <> c1 <> c2, PrimOp o [e1', e2'] )
 cg' (PrimOp o [e]) t
   | o == "complement"  = do
       (c, e') <- cg e t
-      return (T (TCon "U8" [] Unboxed) :<~ t :& c, TE t (PrimOp o [e']))
+      return (T (TCon "U8" [] Unboxed) :<~ t :& c, PrimOp o [e'])
   | o == "not"         = do
       (c, e') <- cg e t
-      return (T (TCon "Bool" [] Unboxed) :< t :& c, TE t (PrimOp o [e']))
+      return (T (TCon "Bool" [] Unboxed) :< t :& c, PrimOp o [e'])
 cg' (PrimOp o _) t = error "impossible"
 cg' (Var n) t = do
   ctx <- use context
 
-  let e = TE t (Var n)
+  let e = Var n
   case C.lookup n ctx of
     -- Variable not found, see if the user meant a function.
     Nothing ->
@@ -121,32 +121,32 @@ cg' (Upcast e) t = do
   alpha <- fresh
   (c1, e1') <- cg e alpha
   let c = (T (TCon "U8" [] Unboxed) :<~ alpha) <> alpha :<~ t <> c1
-  return (c, TE t (Upcast e1'))
+  return (c, Upcast e1')
 
 cg' (Widen e) t = do
   alpha <- fresh
   (c1, e1') <- cg e alpha
   let c = (T (TVariant M.empty) :<~ alpha) <> (alpha :<~ t) <> c1
-  return (c, TE t (Upcast e1'))
+  return (c, Upcast e1')
 
 cg' (BoolLit b) t = do
   let c = T (TCon "Bool" [] Unboxed) :< t
-      e = TE t (BoolLit b)
+      e = BoolLit b
   return (c,e)
 
 cg' (CharLit l) t = do
   let c = T (TCon "U8" [] Unboxed) :< t
-      e = TE t (CharLit l)
+      e = CharLit l
   return (c,e)
 
 cg' (StringLit l) t = do
   let c = T (TCon "String" [] Unboxed) :< t
-      e = TE t (StringLit l)
+      e = StringLit l
   return (c,e)
 
 cg' Unitel t = do
   let c = T TUnit :< t
-      e = TE t Unitel
+      e = Unitel
   return (c,e)
 
 cg' (IntLit i) t = do
@@ -155,7 +155,7 @@ cg' (IntLit i) t = do
                       | i < u32MAX     = "U32"
                       | otherwise      = "U64"
       c = T (TCon minimumBitwidth [] Unboxed) :<~ t
-      e = TE t (IntLit i)
+      e = IntLit i
   return (c,e)
 
 cg' (App e1 e2) t = do
@@ -164,20 +164,20 @@ cg' (App e1 e2) t = do
   (c2, e2') <- cg e2 alpha
 
   let c = c1 <> c2
-      e = TE t (App e1' e2')
+      e = App e1' e2'
   return (c,e)
 
 cg' (Con k es) t = do
   (ts, c', es') <- cgMany es
 
-  let e = TE t (Con k es')
+  let e = Con k es'
       c = c' <> T (TVariant (M.fromList [(k, ts)])) :<~ t
   return (c,e)
 
 cg' (Tuple es) t = do
   (ts, c', es') <- cgMany es
 
-  let e = TE t (Tuple es')
+  let e = Tuple es'
       c = c' <> T (TTuple ts) :< t
   return (c,e)
 
@@ -185,7 +185,7 @@ cg' (UnboxedRecord fes) t = do
   let (fs, es) = unzip fes
   (ts, c', es') <- cgMany es
 
-  let e = TE t (UnboxedRecord (zip fs es'))
+  let e = UnboxedRecord (zip fs es')
       r = T (TRecord (zip fs (map (, False) ts)) Unboxed)
       c = c' <> r :< t
   -- traceShowM ("Checking UnboxedRecord", pretty c)
@@ -196,7 +196,7 @@ cg' (Seq e1 e2) t = do
   (c1, e1') <- cg e1 alpha
   (c2, e2') <- cg e2 t
 
-  let e = TE t (Seq e1' e2')
+  let e = Seq e1' e2'
       c = c1 <> Drop alpha Suppressed <> c2
   return (c, e)
 
@@ -217,12 +217,12 @@ cg' (TypeApp f as i) t = do
       in do
         (ts,c') <- match vs as'
 
-        let c = c' <> substType ts (toTCType tau) :< t
-            e = TE t (TypeApp f (map snd ts) i)
+        let c = c' <> substType ts tau :< t
+            e = TypeApp f (map snd ts) i
         return (c, e)
 
     Nothing -> do
-      let e = TE t (TypeApp f as' i)
+      let e = TypeApp f as' i
           c = Unsat (FunctionNotFound f)
       return (c, e)
 
@@ -230,7 +230,7 @@ cg' (Member e f) t = do
   alpha <- fresh
   (c', e') <- cg e alpha
 
-  let e = TE t (Member e' f)
+  let e = Member e' f
       x = T (TRecord [(f, (t, False))] Unboxed)
       c = c' <> x :<~ alpha <> Share alpha (UsedInMember f)
   return (c, e)
@@ -238,7 +238,7 @@ cg' (Member e f) t = do
 cg' (If e1 bs e2 e3) t = do
   (c1, e1') <- letBang bs (cg e1) (T (TCon "Bool" [] Unboxed))
   (c, [(c2, e2'), (c3, e3')]) <- parallel' [(ThenBranch, cg e2 t), (ElseBranch, cg e3 t)]
-  return (c1 <> c <> c2 <> c3, TE t (If e1' bs e2' e3'))
+  return (c1 <> c <> c2 <> c3, If e1' bs e2' e3')
 
 cg' (Put e ls) t | not (any isNothing ls) = do
   alpha <- fresh
@@ -248,18 +248,26 @@ cg' (Put e ls) t | not (any isNothing ls) = do
 
   let c = (T (TPut (Just fs) alpha)) :< t <> c' <> cs
        <> (T (TRecord (zip fs (map (,True) ts)) Unboxed) :<~ alpha)
-      e = TE t (Put e' (map Just (zip fs es')))
+      e = Put e' (map Just (zip fs es'))
   return (c,e)
 
   | otherwise = first (<> Unsat RecordWildcardsNotSupported) <$> cg' (Put e (filter isJust ls)) t
 
 cg' (Let bs e) t = do
   (c, bs', (c', e')) <- withBindings bs (cg e t)
-  return (c <> c', TE t (Let bs' e'))
+  return (c <> c', Let bs' e')
 
 cg' (Match e bs alts) top = do
   alpha <- fresh
   (c', e') <- letBang bs (cg e) alpha
+  (c'', alts') <- cgAlts alts top alpha
+
+  let c = c' :& c''
+      e = Match e' bs alts'
+  return (c, e)
+
+cgAlts :: (?loc :: SourcePos) => [Alt VarName LocExpr] -> TCType -> TCType -> CG (Constraint, [Alt TCTypedName TCExpr])
+cgAlts alts top alpha = do
   let
     altPattern (Alt p _ _) = p
 

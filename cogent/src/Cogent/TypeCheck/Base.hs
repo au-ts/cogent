@@ -44,6 +44,9 @@ data TypeError = FunctionNotFound VarName
                | NotAFunctionType TCType
                | DuplicateRecordFields [FieldName]
                | DuplicateTypeVariable [VarName]
+               | TakeFromNonRecord (Maybe [FieldName]) TCType
+               | PutToNonRecord (Maybe [FieldName]) TCType
+               | RemoveCaseFromNonVariant (Pattern TCTypedName) TCType
                deriving (Show)
 
 data TypeWarning = DummyWarning
@@ -63,14 +66,14 @@ type TCTypedName = (VarName, TCType)
 
 data TCType = T (Type TCType) | U Int | RemoveCase (Pattern TCTypedName) TCType deriving (Show, Eq)
 
-data TExpr t = TE { getType :: t, getExpr :: Expr t (VarName, t) (TExpr t) }
+data TExpr t = TE { getType :: t, getExpr :: Expr t (VarName, t) (TExpr t), getLoc :: SourcePos }
              deriving (Show)
 
 
 type TypedName = (VarName, RawType)
 
 instance Functor TExpr where
-  fmap f (TE t e) = TE (f t) (fffmap f $ ffmap (fmap f) $ fmap (fmap f) e)
+  fmap f (TE t e p) = TE (f t) (fffmap f $ ffmap (fmap f) $ fmap (fmap f) e) p
 
 type TypedExpr = TExpr RawType
 type TCExpr    = TExpr TCType
@@ -78,14 +81,27 @@ type TCExpr    = TExpr TCType
 toTCType :: RawType -> TCType
 toTCType (RT x) = T (fmap toTCType x)
 
+toLocExpr :: (SourcePos -> t -> LocType) -> TExpr t -> LocExpr
+toLocExpr f (TE t e p) = LocExpr p (fffmap (f p) $ fmap (toLocExpr f) $ ffmap fst $ e)
+
+toTypedExpr :: TCExpr -> TypedExpr
+toTypedExpr = fmap toRawType
+
+toTypedAlts :: [Alt TCTypedName TCExpr] -> [Alt TypedName TypedExpr]
+toTypedAlts = fmap (fmap (fmap toRawType) . ffmap (fmap toRawType))
+
 -- Precondition: No unification variables left in the type
+toLocType :: SourcePos -> TCType -> LocType
+toLocType l (T x) = LocType l (fmap (toLocType l) x)
+toLocType l (RemoveCase p t) = error "panic: removeCase found"
+toLocType l _ = error "panic: unification variable found"
 toRawType :: TCType -> RawType
 toRawType (T x) = RT (fmap toRawType x)
 toRawType (RemoveCase p t) = error "panic: removeCase found"
 toRawType _ = error "panic: unification variable found"
 
 toRawExp :: TypedExpr -> RawExpr
-toRawExp (TE t e) = RE (ffmap fst . fmap toRawExp $ e)
+toRawExp (TE t e p) = RE (ffmap fst . fmap toRawExp $ e)
 
 data Metadata = Reused { varName :: VarName, boundAt :: SourcePos, usedAt :: SourcePos }
               | Unused { varName :: VarName, boundAt :: SourcePos}
@@ -119,9 +135,12 @@ instance Monoid Constraint where
   mappend x (Unsat r) = Unsat r
   mappend x y = x :& y
 
-data TCState = TCS { _knownFuns    :: M.Map VarName (Polytype RawType)
-                   , _knownTypes   :: [(TypeName, ([VarName], Maybe RawType))]  -- `Nothing' for abstract types
+data TCState = TCS { _knownFuns    :: M.Map VarName (Polytype TCType)
+                   , _knownTypes   :: TypeDict
+                   , _knownConsts  :: M.Map VarName (TCType, SourcePos)
                    }
+
+type TypeDict = [(TypeName, ([VarName], Maybe TCType))]  -- `Nothing' for abstract types
 
 makeLenses ''TCState
 
@@ -162,9 +181,21 @@ validateType' vs r = runExceptT (validateType vs r)
 validateTypes' :: [VarName] -> [RawType] -> TC (Either TypeError [TCType])
 validateTypes' vs rs = runExceptT (traverse (validateType vs) rs)
 
+-- Remove a pattern from a type, for case expressions.
+removeCase :: Pattern x -> TCType -> Maybe TCType
+removeCase (PIrrefutable _) _                = Just (T (TVariant M.empty))
+removeCase (PIntLit _)      x                = Just x
+removeCase (PCharLit _)     x                = Just x
+removeCase (PBoolLit _)     x                = Just x
+removeCase (PCon t _)       (T (TVariant m)) = Just (T (TVariant (M.delete t m)))
+removeCase _ _                               = Nothing
+
 forFlexes :: (Int -> TCType) -> TCType -> TCType
 forFlexes f (U x) = f x
-forFlexes f (RemoveCase p t) = case (forFlexes f t, fmap (fmap (forFlexes f)) p) of
-  (T (TVariant ts), PCon a _) -> T (TVariant (M.delete a ts))
-  (t', p')                    -> RemoveCase p' t'
+forFlexes f (RemoveCase p t) = let
+    p' = fmap (fmap (forFlexes f)) p
+    t' = forFlexes f t
+  in case removeCase p' t' of
+     Just t' -> t'
+     Nothing -> RemoveCase p' t'
 forFlexes f (T x) = T (fmap (forFlexes f) x)
