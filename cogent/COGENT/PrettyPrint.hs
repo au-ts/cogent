@@ -210,14 +210,14 @@ instance Pretty RawExpr where
   pretty (RE e) = pretty e
 
 instance ExprType (TExpr t) where
-  levelExpr (TE _ e) = levelExpr e
-  isVar (TE _ e)     = isVar e
+  levelExpr (TE _ e _) = levelExpr e
+  isVar (TE _ e _)     = isVar e
 instance Pretty t => PrettyName (VarName, t) where
   prettyName (a, b) = prettyName a <+> comment "::" <+> pretty b
   isName (a, b) x = a == x
 
 instance Pretty t => Pretty (TExpr t) where
-  pretty (TE t e) = pretty e
+  pretty (TE t e _) = pretty e
 
 class TypeType t where
   isCon :: t -> Bool
@@ -245,7 +245,7 @@ instance (Pretty t, TypeType t) => Pretty (Type t) where
     | otherwise = pretty (TRecord (map (second . second $ const False) ts) s)
                <+> typesymbol "take" <+> tupled1 (map fieldname tk)
         where tk = map fst $ filter (snd .snd) ts
-  pretty (TVariant ts) = variant (map (\(a,bs)-> case bs of
+  pretty (TVariant ts) = variant (map (\(a,bs) -> case bs of
                                           [] -> tagname a
                                           _  -> tagname a <+> spaceList (map prettyT' bs)) $ M.toList ts)
     where prettyT' e | isCon e || isTakePut e || isFun e = parens (pretty e)
@@ -387,7 +387,17 @@ instance Pretty TypeError where
                                                      <$> pretty pat
   pretty (DuplicateVariableInIrrefPattern vn ipat) = err "Duplicate variable" <+> varname vn <+> err "in (irrefutable) pattern:"
                                                      <$> pretty ipat
-
+  pretty (TakeFromNonRecord fs t)        = err "Cannot" <+> keyword "take" <+> err "fields"
+                                             <+> (case fs of Nothing  -> tupled (fieldname ".." : [])
+                                                             Just fs' -> tupled1 (map fieldname fs'))
+                                             <$> err "from non record type:"
+                                             <$> pretty t
+  pretty (PutToNonRecord fs t)           = err "Cannot" <+> keyword "put" <+> err "fields"
+                                             <+> (case fs of Nothing  -> tupled (fieldname ".." : [])
+                                                             Just fs' -> tupled1 (map fieldname fs'))
+                                             <$> err "into non record type:"
+                                             <$> pretty t
+  pretty (RemoveCaseFromNonVariant p t)  = err "Cannot remove pattern" <$> pretty p <$> err "from type" <$> pretty t
 instance Pretty ErrorContext where
   pretty _ = error "use `prettyCtx' instead!"
 prettyCtx (SolvingConstraint c) i = context "from constraint " <+> pretty c

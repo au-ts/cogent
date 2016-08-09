@@ -15,6 +15,7 @@ module COGENT.TypeCheck where
 import COGENT.TypeCheck.Generator
 import COGENT.TypeCheck.Base
 import COGENT.TypeCheck.Solver
+import COGENT.TypeCheck.Post (postT, postE, postA)
 import COGENT.TypeCheck.Subst (applyE, applyAlts)
 import COGENT.Surface
 import COGENT.Compiler
@@ -62,7 +63,8 @@ checkOne loc d = case d of
     unless (null xs) $ throwError [([InDefinition loc d], DuplicateTypeVariable xs)]
     t' <- validateType' (map fst ps) (stripLocT t)
     knownFuns %= M.insert n (PT ps t')
-    return (AbsDec n (PT ps (toRawType t')))
+    t'' <- postT [InDefinition loc d] t'
+    return (AbsDec n (PT ps t''))
   (ConstDef n t e) -> do
     base <- use knownConsts
     t' <- validateType' [] (stripLocT t)
@@ -72,8 +74,9 @@ checkOne loc d = case d of
     (errs, subst) <- lift (runSolver (solve c') f [])
     if null errs then do
       knownConsts %= M.insert n (t', loc)
-      let e'' = toTypedExpr $ applyE subst e'
-      return (ConstDef n (toRawType t') e'')
+      e'' <- postE [InDefinition loc d] $ applyE subst e'
+      t'' <- postT [InDefinition loc d] t'
+      return (ConstDef n t'' e'')
     else
       throwError (map (_1 %~ (InDefinition loc d:)) errs)
   (FunDef f (PT vs t) alts) -> do
@@ -91,8 +94,9 @@ checkOne loc d = case d of
     -- traceShowM ("fun!", alts'' ) -- vcat (map pretty alts''))
     if null errs then do
       knownFuns %= M.insert f (PT vs t')
-      let alts'' = toTypedAlts $ applyAlts subst alts'
-      return (FunDef f (PT vs (toRawType t')) alts'')
+      alts'' <- postA [InDefinition loc d] $ applyAlts subst alts'
+      t'' <- postT [InDefinition loc d] t'
+      return (FunDef f (PT vs t'') alts'')
     else
       throwError (map (_1 %~ (InDefinition loc d:)) errs)
 
