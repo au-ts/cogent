@@ -124,21 +124,15 @@ monotype = do avoidInitial
   where
     typeA1 = do
       x <- typeA1'
-      t2 <- optionMaybe (avoidInitial >> docHunk)
-      case t2 of Nothing -> return x; Just doc -> do
-                    return (Documentation doc x)
-    typeA2 = do
-      x <- typeA2'
-      t2 <- optionMaybe (avoidInitial >> docHunk)
-      case t2 of Nothing -> return x; Just doc -> do
-                    return (Documentation doc x)
+      t2 <- optionMaybe docHunk
+      case t2 of Nothing -> return x; Just doc -> return (Documentation doc x)
     typeA1' = do avoidInitial
                  try paramtype
-                 <|> (do t <- typeA2'
+                 <|> (do t <- typeA2
                          op <- optionMaybe takeput
                          case op of Nothing -> return t; Just f -> return (f t)
                      )
-    typeA2' = avoidInitial >>
+    typeA2 = avoidInitial >>
                ((unbox >>= \op -> atomtype >>= \at -> return (op at))
            <|>  (atomtype >>= \t -> optionMaybe bang >>= \op -> case op of Nothing -> return t; Just f -> return (f t)))
     paramtype = avoidInitial >> LocType <$> getPosition <*> (TCon <$> typeConName <*> many1 typeA2 <*> pure Writable)
@@ -285,13 +279,8 @@ kindSignature = do n <- variableName
         determineKind _ k = fail "Kinds are made of three letters: D, S, E"
 
 
-
-docBlock = do whiteSpace; _ <- try (string "@@"); x <- manyTill anyChar (newline); whiteSpace; return x
-toplevel = do p <- getPosition
-              (p, "",) <$>  DocBlock <$> unlines <$> many1 docBlock
-                <|> toplevel'
-toplevel' = do
-  docs <- unlines . fromMaybe [] <$> optionMaybe (many1 docHunk)
+toplevel = do
+  docs <- concat . fromMaybe [] <$> optionMaybe (many1 docHunk)
   p <- getPosition
   when (sourceColumn p > 1) $ fail "toplevel entries should start at column 1"
   (p,docs,) <$> (try (Include <$ reserved "include" <*> stringLiteral)
@@ -319,8 +308,14 @@ toplevel' = do
 
 type Parser a t = ParsecT String t Identity a
 
+type DocString = String
 program :: Parser [(SourcePos, DocString, TopLevel LocType VarName LocExpr)] t
-program = whiteSpace *> many1 toplevel <* eof
+program = do
+  { whiteSpace
+  ; v <- many1 ((,) <$> getPosition <*> toplevel)
+  ; eof
+  ; return $ map snd v
+  }
 
 -- XXX | parse file = parseFromFile program file >>= \case
 -- XXX |                Left err   -> return $ Left $ show err
@@ -356,7 +351,7 @@ parseWithIncludes f paths = do
 -- paths: search paths, relative to origin
 -- ro: the path of the current file, relative to original dir
 loadTransitive' :: IORef (S.Set FilePath) -> FilePath -> [FilePath] -> FilePath
-                -> IO (Either String ([(SourcePos, DocString, TopLevel LocType VarName LocExpr)], [PP.LocPragma]))
+                -> IO (Either String ([(SourcePos, DocString,TopLevel LocType VarName LocExpr)], [PP.LocPragma]))
 loadTransitive' r fp paths ro = do
   let fps = map (flip combine fp) (ro:paths)  -- all file paths need to search
       fpdir = takeDirectory (combine ro fp)
