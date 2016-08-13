@@ -115,17 +115,22 @@ pattern = avoidInitial >>
 --            | var
 --            | Con
 
+docHunk = do whiteSpace; reservedOp "@"; manyTill anyChar newline
 monotype = do avoidInitial
               t1 <- typeA1
               t2 <- optionMaybe (reservedOp "->" >> typeA1)
               case t2 of Nothing -> return t1; Just t2' -> return $ LocType (posOfT t1) $ TFun t1 t2'
   where
-    typeA1 = do avoidInitial
-                try paramtype
-                <|> (do t <- typeA2
-                        op <- optionMaybe takeput
-                        case op of Nothing -> return t; Just f -> return (f t)
-                    )
+    typeA1 = do
+      x <- typeA1'
+      t2 <- optionMaybe docHunk
+      case t2 of Nothing -> return x; Just doc -> return (Documentation doc x)
+    typeA1' = do avoidInitial
+                 try paramtype
+                 <|> (do t <- typeA2
+                         op <- optionMaybe takeput
+                         case op of Nothing -> return t; Just f -> return (f t)
+                     )
     typeA2 = avoidInitial >>
                ((unbox >>= \op -> atomtype >>= \at -> return (op at))
            <|>  (atomtype >>= \t -> optionMaybe bang >>= \op -> case op of Nothing -> return t; Just f -> return (f t)))
@@ -272,7 +277,9 @@ kindSignature = do n <- variableName
         determineKind [] k = return k
         determineKind _ k = fail "Kinds are made of three letters: D, S, E"
 
+
 toplevel = do
+  docs <- concat . fromMaybe [] <$> optionMaybe (many1 docHunk)
   p <- getPosition
   when (sourceColumn p > 1) $ fail "toplevel entries should start at column 1"
   (p,) <$> (try(Include <$ reserved "include" <*> stringLiteral)
@@ -300,7 +307,8 @@ toplevel = do
 
 type Parser a t = ParsecT String t Identity a
 
-program :: Parser [(SourcePos, TopLevel LocType VarName LocExpr)] t
+type DocString = String
+program :: Parser [(SourcePos, DocString, TopLevel LocType VarName LocExpr)] t
 program = do
   { whiteSpace
   ; v <- many1 ((,) <$> getPosition <*> toplevel)
@@ -332,7 +340,7 @@ program = do
 --   We can conclude that the search path for b is independent of where a was found
 
 parseWithIncludes :: FilePath -> [FilePath]
-                  -> IO (Either String ([(SourcePos, TopLevel LocType VarName LocExpr)], [PP.LocPragma]))
+                  -> IO (Either String ([(SourcePos, DocString,TopLevel LocType VarName LocExpr)], [PP.LocPragma]))
 parseWithIncludes f paths = do
   r <- newIORef S.empty
   loadTransitive' r f paths "."  -- relative to orig, we're in orig
@@ -342,7 +350,7 @@ parseWithIncludes f paths = do
 -- paths: search paths, relative to origin
 -- ro: the path of the current file, relative to original dir
 loadTransitive' :: IORef (S.Set FilePath) -> FilePath -> [FilePath] -> FilePath
-                -> IO (Either String ([(SourcePos, TopLevel LocType VarName LocExpr)], [PP.LocPragma]))
+                -> IO (Either String ([(SourcePos, DocString,TopLevel LocType VarName LocExpr)], [PP.LocPragma]))
 loadTransitive' r fp paths ro = do
   let fps = map (flip combine fp) (ro:paths)  -- all file paths need to search
       fpdir = takeDirectory (combine ro fp)
@@ -356,9 +364,13 @@ loadTransitive' r fp paths ro = do
                   return ((,) <$> defs <*> pragmas)
                >>= \case
                      Left err -> return $ Left $ show err
-                     Right (defs,pragmas) -> fmap (second (pragmas ++) . mconcat) . sequence <$> mapM (flip transitive fpdir) defs
+                     Right (defs,pragmas) -> do
+                        defs' <- mapM (flip transitive fpdir) defs
+                        let blah = fmap (second (pragmas ++) . mconcat) . sequence $ defs'
+                        return blah
+
   where
-    transitive :: (SourcePos, TopLevel LocType VarName LocExpr)
+    transitive :: (SourcePos, DocString, TopLevel LocType VarName LocExpr)
                -> FilePath
                -> IO (Either String ([(SourcePos, TopLevel LocType VarName LocExpr)], [PP.LocPragma]))
     transitive (p,Include x) curr = loadTransitive' r x (map (combine curr) paths) curr

@@ -125,7 +125,11 @@ absTyDeclId _ _ = False
 
 
 data LocExpr = LocExpr { posOfE :: SourcePos, exprOfLE :: Expr LocType VarName LocExpr } deriving (Show)
-data LocType = LocType { posOfT :: SourcePos, typeOfLT :: Type LocType } deriving (Show)
+data LocType = LocType { posOfT :: SourcePos, typeOfLT' :: Type LocType }
+             | Documentation String LocType deriving (Show)
+
+typeOfLT (LocType _ t) = t
+typeOfLT (Documentation s t) = typeOfLT t
 
 data RawType = RT { unRT :: Type RawType } deriving (Show, Eq)
 data RawExpr = RE { unRE :: Expr RawType VarName RawExpr } deriving Show
