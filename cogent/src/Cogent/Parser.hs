@@ -41,11 +41,11 @@ import qualified Text.Parsec.Token as T
 import System.Directory
 import System.FilePath
 
--- import Debug.Trace
+import Debug.Trace
 
 language :: LanguageDef st
 language = haskellStyle
-           { T.reservedOpNames = [":","=","+","*","/","%","@","!",":<",".","_","..","#",
+           { T.reservedOpNames = [":","=","+","*","/","%","@","!",":<",".","_","..","#", "@",
                                   "&&","||",">=","<=",">","<","==","/=",".&.",".|.",".^.",">>","<<"]
            , T.reservedNames   = ["let","in","type","include","all","take","put","inline",
                                   "if","then","else","not","complement","and","True","False"]
@@ -115,7 +115,7 @@ pattern = avoidInitial >>
 --            | var
 --            | Con
 
-docHunk = do whiteSpace; reservedOp "@"; manyTill anyChar newline
+docHunk = do whiteSpace; reservedOp "@"; x <- manyTill anyChar newline; whiteSpace; return x
 monotype = do avoidInitial
               t1 <- typeA1
               t2 <- optionMaybe (reservedOp "->" >> typeA1)
@@ -123,15 +123,21 @@ monotype = do avoidInitial
   where
     typeA1 = do
       x <- typeA1'
-      t2 <- optionMaybe docHunk
-      case t2 of Nothing -> return x; Just doc -> return (Documentation doc x)
+      t2 <- optionMaybe (avoidInitial >> docHunk)
+      case t2 of Nothing -> return x; Just doc -> do
+                    return (Documentation doc x)
+    typeA2 = do
+      x <- typeA2'
+      t2 <- optionMaybe (avoidInitial >> docHunk)
+      case t2 of Nothing -> return x; Just doc -> do
+                    return (Documentation doc x)
     typeA1' = do avoidInitial
                  try paramtype
-                 <|> (do t <- typeA2
+                 <|> (do t <- typeA2'
                          op <- optionMaybe takeput
                          case op of Nothing -> return t; Just f -> return (f t)
                      )
-    typeA2 = avoidInitial >>
+    typeA2' = avoidInitial >>
                ((unbox >>= \op -> atomtype >>= \at -> return (op at))
            <|>  (atomtype >>= \t -> optionMaybe bang >>= \op -> case op of Nothing -> return t; Just f -> return (f t)))
     paramtype = avoidInitial >> LocType <$> getPosition <*> (TCon <$> typeConName <*> many1 typeA2 <*> pure Writable)
@@ -279,7 +285,7 @@ kindSignature = do n <- variableName
 
 
 toplevel = do
-  docs <- concat . fromMaybe [] <$> optionMaybe (many1 docHunk)
+  docs <- unlines . fromMaybe [] <$> optionMaybe (many1 docHunk)
   p <- getPosition
   when (sourceColumn p > 1) $ fail "toplevel entries should start at column 1"
   (p,) <$> (try(Include <$ reserved "include" <*> stringLiteral)
@@ -307,7 +313,6 @@ toplevel = do
 
 type Parser a t = ParsecT String t Identity a
 
-type DocString = String
 program :: Parser [(SourcePos, DocString, TopLevel LocType VarName LocExpr)] t
 program = do
   { whiteSpace

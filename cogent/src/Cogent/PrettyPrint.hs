@@ -335,25 +335,37 @@ instance Pretty TCType where
 instance Pretty LocType where
   pretty t = pretty (stripLocT t)
 
-instance Pretty t => Pretty (Polytype t) where
-  pretty (PT [] t) = pretty t
-  pretty (PT vs t) = keyword "all" <> tupled (map prettyKS vs) <> symbol "." <+> pretty t
+renderPolytypeHeader vs = keyword "all" <> tupled (map prettyKS vs) <> symbol "." 
     where prettyKS (v,K False False False) = typevar v
           prettyKS (v,k) = typevar v <+> symbol ":<" <+> pretty k
+
+
+instance Pretty t => Pretty (Polytype t) where
+  pretty (PT [] t) = pretty t
+  pretty (PT vs t) = renderPolytypeHeader vs <+> pretty t
+
+renderTypeDecHeader n vs = keyword "type" <+> typename n <> hcat (map ((space <>) . typevar) vs)
+                                          <+> symbol "=" 
+
+
+
+prettyFunDef typeSigs v pt [Alt (PIrrefutable p) Regular e] = (if typeSigs then ( funname v <+> symbol ":" <+> pretty pt <$>) else id) $
+                                                                   (funname v <+> prettyIP p <+> group (indent (symbol "=" <$> pretty e)))
+
+prettyFunDef typeSigs v pt alts = (if typeSigs then ( funname v <+> symbol ":" <+> pretty pt <$>) else id) $
+                                       (indent (funname v <> mconcat (map ((hardline <>) . indent . pretty) alts)))
+prettyConstDef typeSigs v t e  = (if typeSigs then ( funname v <+> symbol ":" <+> pretty t <$>) else id) $
+                                         (funname v <+> group (indent (symbol "=" <+> pretty e)))
 
 instance (Pretty t, PrettyName b, Pretty e) => Pretty (TopLevel t b e) where
   pretty (TypeDec n vs t) = keyword "type" <+> typename n <> hcat (map ((space <>) . typevar) vs)
                                            <+> indent (symbol "=" </> pretty t)
-  pretty (FunDef v pt [Alt (PIrrefutable p) Regular e]) = vcat [ funname v <+> symbol ":" <+> pretty pt
-                                                               , funname v <+> prettyIP p <+> group (indent (symbol "=" <$> pretty e))]
+  pretty (FunDef v pt alts) = prettyFunDef True v pt alts
   pretty (AbsDec v pt) = funname v <+> symbol ":" <+> pretty pt
-  pretty (FunDef v pt alts) = vcat [ funname v <+> symbol ":" <+> pretty pt
-                                   , indent (funname v <> mconcat (map ((hardline <>) . indent . pretty) alts))]
   pretty (Include s) = keyword "include" <+> literal (string $ show s)
   pretty (IncludeStd s) = keyword "include <" <+> literal (string $ show s)
   pretty (AbsTypeDec n vs) = keyword "type" <+> typename n  <> hcat (map ((space <>) . typevar) vs)
-  pretty (ConstDef v t e) = vcat [ funname v <+> symbol ":" <+> pretty t
-                                 , funname v <+> group (indent (symbol "=" <+> pretty e))]
+  pretty (ConstDef v t e) = prettyConstDef True v t e
 
 instance Pretty Kind where
   pretty k = kindsig (stringFor k)
