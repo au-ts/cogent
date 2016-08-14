@@ -285,7 +285,12 @@ kindSignature = do n <- variableName
         determineKind _ k = fail "Kinds are made of three letters: D, S, E"
 
 
-toplevel = do
+
+docBlock = do whiteSpace; _ <- try (string "@@"); x <- manyTill anyChar (newline); whiteSpace; return x
+toplevel = do p <- getPosition
+              (p, "",) <$>  DocBlock <$> unlines <$> many1 docBlock
+                <|> toplevel'
+toplevel' = do
   docs <- unlines . fromMaybe [] <$> optionMaybe (many1 docHunk)
   p <- getPosition
   when (sourceColumn p > 1) $ fail "toplevel entries should start at column 1"

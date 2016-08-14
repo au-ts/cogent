@@ -1,11 +1,11 @@
 {-# LANGUAGE TupleSections #-}
-module COGENT.TypeCheck.Post where
+module Cogent.TypeCheck.Post where
 
-import COGENT.TypeCheck.Base
-import COGENT.Surface
-import COGENT.Common.Syntax
-import COGENT.Common.Types
-import COGENT.Util
+import Cogent.TypeCheck.Base
+import Cogent.Surface
+import Cogent.Common.Syntax
+import Cogent.Common.Types
+import Cogent.Util
 import Control.Monad
 import Control.Lens
 import Control.Monad.Except
