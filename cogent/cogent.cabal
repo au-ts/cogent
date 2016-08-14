@@ -43,6 +43,15 @@ executable cogent
     COGENT.CorresProof
     COGENT.CorresSetup
     COGENT.Deep
+    COGENT.DocGent
+    COGENT.Context
+    COGENT.GraphGen
+    COGENT.Preprocess
+    COGENT.TypeCheck.Base
+    COGENT.TypeCheck.Generator
+    COGENT.TypeCheck.Post
+    COGENT.TypeCheck.Solver
+    COGENT.TypeCheck.Subst
     COGENT.Desugar
     COGENT.DList
     COGENT.GetOpt
@@ -107,7 +116,11 @@ executable cogent
     transformers >= 0.4.2, 
     tuple >= 0.3,
     uniplate >= 1.6, 
-    vector >= 0.10.0.1
+    vector >= 0.10.0.1,
+    shakespeare >= 2.0,
+    blaze-html >= 0.8.1,
+    blaze-markup >= 0.7,
+    markdown >= 0.1.13
 
   default-language: Haskell2010
   default-extensions: CPP

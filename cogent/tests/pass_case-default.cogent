@@ -8,12 +8,18 @@
 -- @TAG(NICTA_GPL)
 --
 
+@ An abstract type
 type T
 
+@ A variant type with `three` _tags_.
 type V = < TAG_a U8 | TAG_b U32 | TAG_c T >
 
-
-yyy : (V!, U32) -> < Fail (U32, < TAG_a U8 | TAG_c T >!) | Success U32 >
+@ A function to test pattern matching *facilities*. 
+yyy : (V! @ a banged V argument
+      , U32 @ *also able to use markdown* 
+      ) -> < Fail (U32, < TAG_a U8 | TAG_c T >!)  @ we failed :(
+           | Success U32 @ we succeeded `yay`
+           >
 yyy (v, y) =
    v
    | TAG_b vb -> Success vb
