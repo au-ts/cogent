@@ -48,6 +48,7 @@ checkOne :: SourcePos -> TopLevel LocType VarName LocExpr
          -> ExceptT [ContextualisedError] TC (TopLevel RawType TypedName TypedExpr)
 checkOne loc d = case d of
   (Include _) -> __impossible "checkOne"
+  (DocBlock s) -> return $ DocBlock s
   (TypeDec n ps t) -> do
     let xs = ps \\ nub ps
     unless (null xs) $ throwError [([InDefinition loc d], DuplicateTypeVariable xs)]

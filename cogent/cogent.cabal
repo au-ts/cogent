@@ -29,6 +29,11 @@ build-type:          Custom
 cabal-version:       >=1.18
 tested-with:         GHC==7.8.4, GHC==7.10.1, GHC==7.10.2, GHC==7.10.3
 
+data-files:
+    static/jquery.min.js
+    static/style.css
+    static/toc.min.js
+    static/logo.png
 executable cogent
   main-is: COGENT/Main.hs
 
@@ -120,7 +125,9 @@ executable cogent
     shakespeare >= 2.0,
     blaze-html >= 0.8.1,
     blaze-markup >= 0.7,
-    markdown >= 0.1.13
+    pandoc >= 1.16,
+    pandoc-types >= 1.16,
+    data-default >=0.5
 
   default-language: Haskell2010
   default-extensions: CPP
