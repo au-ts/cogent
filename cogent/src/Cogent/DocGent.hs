@@ -18,7 +18,10 @@ import Data.String
 import Control.Lens
 import Text.Markdown
 import qualified Data.Text.Lazy as T
-import Data.List (intersperse)
+import Data.List (intersperse, sortBy, groupBy)
+import Data.Ord(comparing)
+import Data.Function(on)
+import System.Directory
 import qualified Data.Foldable as F
 data SGRState = SGRState { _intensity :: ConsoleIntensity, _fg :: (ColorIntensity, Color), _bg :: (ColorIntensity, Color), _italics :: Bool, _underline :: Underlining }
 makeLenses ''SGRState
@@ -176,8 +179,8 @@ genDoc (p,s,(ConstDef n t as)) = let n' x = [shamlet|<table><td class='fg-Vivid-
                                          <div class="docstring">
                                            #{md}
                                          <div .shbutton .bg-Dull-Black .footer>
-                                           <a id="hide#{n}" .hide href="#hide#{n}" >(show source)</a>
-                                           <a id="show#{n}" .show href="#show#{n}" >(hide source)</a>
+                                           <a id="hide-#{n}" .hide href="#hide-#{n}" >(show source)</a>
+                                           <a id="show-#{n}" .show href="#show-#{n}" >(hide source)</a>
                                            <div class="answer">
                                              #{source} |]
 genDoc (p,s,x) = let x' = stripAllLoc x
@@ -316,6 +319,19 @@ template body = [shamlet|
   <body>
     #{body}
 |]
+
+
+foreach :: (SourcePos, DocString, TopLevel LocType VarName LocExpr) -> (SourcePos, Html)
+foreach (p, d, t) = (p, genDoc (p,d,t))
+
+
+
 docGent :: [(SourcePos, DocString, TopLevel LocType VarName LocExpr)] -> IO ()
-docGent input = let html = mconcat $ map genDoc input
-                in  putStrLn $ renderHtml $ template html
+docGent input = let items = map foreach input
+                    items' = sortBy (comparing fst) items
+                    items'' = groupBy ((==) `on` (sourceName . fst) ) items'
+                in flip mapM_ items'' $ \xs@((pos, _):_) -> do
+                     createDirectoryIfMissing True "docgent"
+                     let n = ("docgent/"++) $ (++".html") $ concat $ intersperse "." $ words $ map (\x -> if x `elem` ("./\\" :: String) then ' ' else x) $ sourceName pos
+                     let content = renderHtml $ template (mconcat $ map snd xs)
+                     writeFile n content
