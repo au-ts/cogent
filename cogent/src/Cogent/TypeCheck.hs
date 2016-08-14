@@ -975,3 +975,4 @@ typecheck' (ConstDef n t e) = do
 typecheck :: [(SourcePos, TopLevel LocType VarName LocExpr)] -> TC [TopLevel RawType TypedName TypedExpr]
 typecheck [] = return []
 typecheck ((p,x):xs) = (:) <$> inEContext (InDefinition p x) (typecheck' x) <*> typecheck xs
+
