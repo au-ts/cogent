@@ -79,7 +79,10 @@ import Data.String
 import Control.Lens
 import Text.Markdown
 import qualified Data.Text.Lazy as T
-import Data.List (intersperse)
+import Data.List (intersperse, sortBy, groupBy)
+import Data.Ord(comparing)
+import Data.Function(on)
+import System.Directory
 import qualified Data.Foldable as F
 data SGRState = SGRState { _intensity :: ConsoleIntensity, _fg :: (ColorIntensity, Color), _bg :: (ColorIntensity, Color), _italics :: Bool, _underline :: Underlining }
 makeLenses ''SGRState
@@ -476,4 +479,5 @@ generateIndex dat = do
 -- XXX | eqTopLevelId x (AbsDec fn _) = x == fn
 -- XXX | eqTopLevelId x (FunDef fn _ _) = x == fn
 -- XXX | eqTopLevelId x (ConstDef vn _ _) = x == vn  -- should not matter
+
 
