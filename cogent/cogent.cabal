@@ -41,6 +41,15 @@ Library
               , Cogent.CorresProof
               , Cogent.CorresSetup
               , Cogent.Deep
+              , Cogent.DocGent
+              , Cogent.Context
+              , Cogent.GraphGen
+              , Cogent.Preprocess
+              , Cogent.TypeCheck.Base
+              , Cogent.TypeCheck.Generator
+              , Cogent.TypeCheck.Post
+              , Cogent.TypeCheck.Solver
+              , Cogent.TypeCheck.Subst
               , Cogent.Desugar
               , Cogent.DList
               , Cogent.GetOpt
@@ -114,6 +123,10 @@ Library
               , tuple >= 0.3
               , uniplate >= 1.6
               , vector >= 0.10.0.1
+              , shakespeare >= 2.0
+              , blaze-html >= 0.8.1
+              , blaze-markup >= 0.7
+              , markdown >= 0.1.13
 
   default-language: Haskell2010
   default-extensions: CPP

@@ -17,7 +17,7 @@ module Cogent.Reorganizer where
 import Cogent.Common.Syntax
 import Cogent.Compiler (__impossible)
 import Cogent.Surface
-
+import Cogent.Util
 import Control.Arrow
 import Control.Monad (forM)
 import Data.Foldable hiding (notElem)
@@ -78,9 +78,9 @@ dependencies (FunDef _ pt as) = map TypeName (foldMap (fcT . stripLocT) pt
 dependencies (ConstDef _ t e) = map TypeName (fcT (stripLocT t))
                              ++ map ValName  (fvE (stripLocE e))
 
-classify :: [(SourcePos, TopLevel LocType VarName LocExpr)]
-         -> [(SourceObject, (SourcePos, TopLevel LocType VarName LocExpr))]
-classify = map (\px -> (sourceObject (snd px), px))
+classify :: [(SourcePos, DocString, TopLevel LocType VarName LocExpr)]
+         -> [(SourceObject, (SourcePos, DocString, TopLevel LocType VarName LocExpr))]
+classify = map (\px -> (sourceObject (thd3 px), px))
   where sourceObject (Include _)      = __impossible "sourceObject (in classify)"
         sourceObject (IncludeStd _)   = __impossible "sourceObject (in classify)"
         sourceObject (TypeDec n _ _)  = TypeName n
@@ -92,9 +92,9 @@ classify = map (\px -> (sourceObject (snd px), px))
 graphOf :: Ord a => (b -> [a]) -> [(a, b)] -> G.Graph a b
 graphOf f = G.fromListLenient . map (\(k,v) -> (k, v, f v))
 
-dependencyGraph :: [(SourceObject, (SourcePos, TopLevel LocType VarName LocExpr))]
-                -> G.Graph SourceObject (SourcePos, TopLevel LocType VarName LocExpr)
-dependencyGraph = graphOf (dependencies . snd)
+dependencyGraph :: [(SourceObject, (SourcePos, DocString, TopLevel LocType VarName LocExpr))]
+                -> G.Graph SourceObject (SourcePos, DocString, TopLevel LocType VarName LocExpr)
+dependencyGraph = graphOf (dependencies . thd3)
 
 checkNoNameClashes :: [(SourceObject, SourcePos)]
                    -> M.Map SourceObject SourcePos
@@ -105,14 +105,14 @@ checkNoNameClashes ((s,d):xs) bindings
   | otherwise = checkNoNameClashes xs (M.insert s d bindings)
   where msg = case s of TypeName _ -> DuplicateTypeDefinition; ValName _ -> DuplicateValueDefinition
 
-reorganize :: [(SourcePos, TopLevel LocType VarName LocExpr)]
-           -> Either (ReorganizeError, [(SourceObject, SourcePos)]) [(SourcePos, TopLevel LocType VarName LocExpr)]
+reorganize :: [(SourcePos, DocString, TopLevel LocType VarName LocExpr)]
+           -> Either (ReorganizeError, [(SourceObject, SourcePos)]) [(SourcePos, DocString, TopLevel LocType VarName LocExpr)]
 reorganize bs = do let m = classify bs
                        cs = G.stronglyConnectedComponents (dependencyGraph m)
-                   checkNoNameClashes (map (second fst) m) M.empty
+                   checkNoNameClashes (map (second fst3) m) M.empty
                    forM cs $ \case
                      G.AcyclicSCC i -> Right $ Maybe.fromJust $ lookup i m  -- TODO: don't lookup here, keep i. Then outside this for-loop, do
                                                                             --       a reachability test to find unused definitions / zilinc
                      G.CyclicSCC is -> Left  $ (CyclicDependency, map (id &&& getSourcePos m) is)
-  where getSourcePos m i | Just (p,_) <- lookup i m = p
+  where getSourcePos m i | Just (p,_,_) <- lookup i m = p
                          | otherwise = __impossible "getSourcePos (in reorganize)"
