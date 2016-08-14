@@ -101,6 +101,7 @@ numOfArgs (PT x _) = length x
 
 data TopLevel t pv e = Include String
                      | IncludeStd String
+                     | DocBlock String
                      | TypeDec TypeName [TyVarName] t
                      | AbsTypeDec TypeName [TyVarName]
                      | AbsDec VarName (Polytype t)
@@ -210,6 +211,7 @@ instance Foldable (Flip (TopLevel t) e) where
 instance Traversable (Flip (TopLevel t) e) where
   traverse f (Flip (FunDef v pt alts))  = Flip <$> (FunDef v pt <$> traverse (ttraverse f) alts)
   traverse _ (Flip (Include s))         = pure $ Flip (Include s)
+  traverse _ (Flip (DocBlock s))        = pure $ Flip (DocBlock s)
   traverse _ (Flip (TypeDec n vs t))    = pure $ Flip (TypeDec n vs t)
   traverse _ (Flip (AbsTypeDec n vs))   = pure $ Flip (AbsTypeDec n vs)
   traverse _ (Flip (AbsDec v pt))       = pure $ Flip (AbsDec v pt)
@@ -224,6 +226,7 @@ instance Traversable (Flip2 TopLevel p e) where
   traverse f (Flip2 (ConstDef v t e))   = Flip2 <$> (ConstDef v <$> f t <*> pure e)
   traverse f (Flip2 (TypeDec n vs t))   = Flip2 <$> (TypeDec  n vs <$> f t)
   traverse _ (Flip2 (Include s))        = pure $ Flip2 (Include s)
+  traverse _ (Flip2 (DocBlock s))       = pure $ Flip2 (DocBlock s)
   traverse _ (Flip2 (AbsTypeDec n vs))  = pure $ Flip2 (AbsTypeDec n vs)
 
 stripLocT :: LocType -> RawType

@@ -64,6 +64,7 @@ fcT (RT t) = foldMap fcT t
 
 data SourceObject = TypeName TypeName
                   | ValName  VarName
+                  | DocBlock' String
                   deriving (Eq, Ord)
 
 dependencies :: TopLevel LocType VarName LocExpr -> [SourceObject]
@@ -71,6 +72,7 @@ dependencies (Include _) = __impossible "dependencies"
 dependencies (IncludeStd _) = __impossible "dependencies"
 dependencies (TypeDec _ _ t) = map TypeName (fcT (stripLocT t))
 dependencies (AbsTypeDec _ _) = []
+dependencies (DocBlock _) = []
 dependencies (AbsDec _ pt) = map TypeName (foldMap (fcT . stripLocT) pt)
 dependencies (FunDef _ pt as) = map TypeName (foldMap (fcT . stripLocT) pt
                                            ++ foldMap (fcA . fmap stripLocE) as )
@@ -83,6 +85,7 @@ classify :: [(SourcePos, DocString, TopLevel LocType VarName LocExpr)]
 classify = map (\px -> (sourceObject (thd3 px), px))
   where sourceObject (Include _)      = __impossible "sourceObject (in classify)"
         sourceObject (IncludeStd _)   = __impossible "sourceObject (in classify)"
+        sourceObject (DocBlock s)     = DocBlock' s
         sourceObject (TypeDec n _ _)  = TypeName n
         sourceObject (AbsTypeDec n _) = TypeName n
         sourceObject (AbsDec n _)     = ValName n
@@ -102,8 +105,9 @@ checkNoNameClashes :: [(SourceObject, SourcePos)]
 checkNoNameClashes [] bindings = return ()
 checkNoNameClashes ((s,d):xs) bindings
   | Just x <- M.lookup s bindings = Left (msg, [(s, x), (s, d)])
-  | otherwise = checkNoNameClashes xs (M.insert s d bindings)
-  where msg = case s of TypeName _ -> DuplicateTypeDefinition; ValName _ -> DuplicateValueDefinition
+  | otherwise = let bindings' = case s of DocBlock' _ -> bindings; _ -> M.insert s d bindings
+                 in checkNoNameClashes xs bindings'
+  where msg = case s of TypeName _ -> DuplicateTypeDefinition; ValName _ -> DuplicateValueDefinition; DocBlock' _ -> error "WTF just happened"
 
 reorganize :: [(SourcePos, DocString, TopLevel LocType VarName LocExpr)]
            -> Either (ReorganizeError, [(SourceObject, SourcePos)]) [(SourcePos, DocString, TopLevel LocType VarName LocExpr)]
