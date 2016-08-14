@@ -46,8 +46,8 @@ import Text.Hamlet
 import qualified Text.Pandoc as T
 import qualified Text.Pandoc.Walk as T
 import Text.Parsec
-import Text.PrettyPrint.ANSI.Leijen (SimpleDoc(..), Pretty(..))
 import qualified Text.PrettyPrint.ANSI.Leijen as P
+import Text.PrettyPrint.ANSI.Leijen (SimpleDoc(..), pretty, Pretty())
 
 
 data SGRState = SGRState { _intensity :: ConsoleIntensity, _fg :: (ColorIntensity, Color), _bg :: (ColorIntensity, Color), _italics :: Bool, _underline :: Underlining }
@@ -73,6 +73,19 @@ classesFor (x:xs) | isLower x = pure "fg-Vivid-Green"
 classesFor _ = pure "fg-Vivid-Blue"
 
 currentSpan :: (?knowns :: [(String, SourcePos)]) => String -> S.State SGRState Html
+=======
+import qualified Data.Map as M
+import Data.String
+import Control.Lens
+import Text.Markdown
+import qualified Data.Text.Lazy as T
+import Data.List (intersperse)
+import qualified Data.Foldable as F
+data SGRState = SGRState { _intensity :: ConsoleIntensity, _fg :: (ColorIntensity, Color), _bg :: (ColorIntensity, Color), _italics :: Bool, _underline :: Underlining }
+makeLenses ''SGRState
+
+currentSpan :: String -> S.State SGRState Html
+>>>>>>> Basic renderer for documentation
 currentSpan s = do
   let showColor (a,b) = show a ++ "-" ++ show b
   i <- show <$> use intensity
@@ -80,25 +93,7 @@ currentSpan s = do
   b <- ("bg-" ++ ). showColor <$> use bg
   t <- use italics >>= \x -> return $ if x then "Italics" else ""
   u <- show <$> use underline
-  if (f == "fg-Vivid-Blue") then
-      case lookup s ?knowns of
-        Nothing -> 
-          return $ H.span H.! HA.class_ (fromString $ unwords [i,f,b,t,u]) $ H.string s
-        Just p ->
-          return $ H.a H.! HA.class_ (fromString $ unwords [i,f,b,t,u])
-                       H.! HA.href (fromString $ fileNameFor p ++ "#" ++ s)
-                 $ H.string s
-    else
-      if (f == "fg-Vivid-Green" && u == "SingleUnderline") then
-        case lookup s ?knowns of
-          Nothing ->
-            return $ H.span H.! HA.class_ (fromString $ unwords [i,f,b,t,u]) $ H.string s
-          Just p ->
-            return $ H.a H.! HA.class_ (fromString $ unwords [i,f,b,t,u])
-                         H.! HA.href (fromString $ fileNameFor p ++ "#" ++ s)
-                   $ H.string s
-      else
-        return $ H.span H.! HA.class_ (fromString $ unwords [i,f,b,t,u]) $ H.string s
+  return $ H.span H.! HA.class_ (fromString $ unwords [i,f,b,t,u]) $ H.string s
 defaultState = SGRState NormalIntensity (Dull, White) (Dull, Black) False NoUnderline
 
 prettyFieldNames :: Maybe [String] -> Html
@@ -111,19 +106,18 @@ containsDocumentation :: LocType -> Bool
 containsDocumentation (Documentation {}) = True
 containsDocumentation (LocType _ t) = any containsDocumentation $ F.toList t
 
-listTypes :: (?knowns :: [(String, SourcePos)]) => [LocType] -> Html
+listTypes :: [LocType] -> Html
 listTypes [x] = prettyType x Nothing
 listTypes ts = let row x = let t = prettyType x Nothing in [shamlet|<tr><td>#{t}</td>|]
                    rows = map row ts
                 in [shamlet|<table>#{rows}<td></td>|]
 
-prettyPT :: (?knowns :: [(String, SourcePos)]) => Polytype LocType -> Html
+prettyPT :: Polytype LocType -> Html
 prettyPT (PT [] t) = prettyType t Nothing
 prettyPT (PT vs t) = let top = fst $ runState (displayHTML (prettyPrint id [renderPolytypeHeader vs])) defaultState
                          bottom = prettyType t Nothing
                       in [shamlet| <table><tr><td>#{top}</td><td></td></tr><tr><td>#{bottom}</td></tr>|]
-
-prettyType :: (?knowns :: [(String, SourcePos)]) => LocType -> Maybe Html -> Html
+prettyType :: LocType -> Maybe Html -> Html
 prettyType x y | not (containsDocumentation x)  =  case y of 
                       (Just y) -> fst (runState (displayHTML (prettyPrint id [pretty x])) defaultState) `mappend` y
                       Nothing -> fst (runState (displayHTML (prettyPrint id [pretty x])) defaultState)
@@ -137,7 +131,7 @@ prettyType (LocType _ (TBang t)) x = let rest = foldMap id x in prettyType t (Ju
 prettyType (LocType _ (TUnbox t)) x = let rest = prettyType t x in [shamlet|<table><tr><td class='fg-Vivid-Cyan'>#</td><td>#{rest}</td></tr>|]
 prettyType (Documentation d t) (Just x) = let it = prettyType (Documentation d t) Nothing
                                            in [shamlet|<table><tr><td>(</td><td>#{it} </td><td></td> </tr><tr><td>)</td><td>#{x}</td></tr>|]
-prettyType (Documentation d t) Nothing = let doc = markdown d
+prettyType (Documentation d t) Nothing = let doc = markdown def (T.pack d)
                                           in prettyType t (Just [shamlet|
                                                                         <div .invisibledoc>#{doc}
                                                                         <div .inlinedoc>#{doc} |])
@@ -155,8 +149,7 @@ prettyType (LocType p (TCon t ts ReadOnly)) x = prettyType (LocType p (TBang (Lo
 prettyType (LocType p (TCon t ts Writable)) x | not $ null ts = let rest = foldMap id x
                                                                     row t = let t' = prettyType t Nothing in [shamlet|<tr><td></td><td class='spaced'>#{t'}</td>|]
                                                                     rows = map row ts
-                                                                    t' = withLinking ?knowns t
-                                                                in [shamlet|<table><tr><td class='fg-Vivid-Blue BoldIntensity'>#{t'}</td><td></td><td></td></tr>#{rows}<tr><td></td><td>#{rest}</td></tr>|]
+                                                                in [shamlet|<table><tr><td class='fg-Vivid-Blue BoldIntensity'>#{t}</td><td></td><td></td></tr>#{rows}<tr><td></td><td>#{rest}</td></tr>|]
 prettyType (LocType _ (TVariant ts)) x     = let rest = foldMap id x
                                                  row (g,ts) s = let t' = listTypes ts in [shamlet|<tr><td>#{s}</td><td class='fg-Dull-Magenta spaced'>#{g}</td><td class='spaced'>#{t'}</td>|]
                                                  rows = zipWith row (M.toList ts) $ '<' : repeat '|'
@@ -178,40 +171,6 @@ withLinking s t = case lookup t s of
                      Nothing -> H.toHtml t
   where file p = fileNameFor p
 
-
-data DocExpr = DE { unDE :: Expr RawType VarName DocExpr }
-             | DocFnCall VarName [RawType] Inline deriving Show
-
-instance ExprType DocExpr where
-  levelExpr (DE e) = levelExpr e
-  levelExpr _ = 100
-  isVar (DE e) s = isVar e s
-  isVar _ _ = False
-
-instance Pretty DocExpr where
-  pretty (DE e) = pretty e
-  pretty (DocFnCall x [] note) = pretty note P.<> funname' x
-  pretty (DocFnCall x ts note) = pretty note P.<> funname' x P.<> typeargs (map pretty ts)
-
-resolveNamesA :: [String] -> Alt VarName RawExpr -> Alt VarName DocExpr
-resolveNamesA lcls (Alt pv l e) = Alt pv l $ resolveNames (lcls ++ F.toList pv) e
-resolveNames :: [String] -> RawExpr -> DocExpr
-resolveNames lcls (RE (TypeApp v ts i)) | v `notElem` lcls = DocFnCall v ts i
-                                        | otherwise        = DE (TypeApp v ts i)
-resolveNames lcls (RE (Var v)) | v `notElem` lcls = DocFnCall v [] NoInline
-                               | otherwise = DE (Var v)
-resolveNames lcls (RE (Match e t alts)) = DE (Match (resolveNames lcls e) t (map (resolveNamesA lcls) alts))
-resolveNames lcls (RE (Let bs e)) = let (lcls', bs') = resolveBinders lcls bs in DE (Let bs' $ resolveNames lcls' e)
-resolveNames lcls (RE e) = DE (fmap (resolveNames lcls) e)
-
-resolveBinders :: [String] -> [Binding RawType VarName RawExpr] -> ([String], [Binding RawType VarName DocExpr])
-resolveBinders lcls [] = (lcls, [])
-resolveBinders lcls (x:xs) = let (lcls',x') = resolveBinder lcls x
-                                 (lcls'', xs') = resolveBinders lcls' xs
-                              in (lcls'',x':xs')
-resolveBinder :: [String] -> Binding RawType VarName RawExpr -> ([String], Binding RawType VarName DocExpr)
-resolveBinder lcls (Binding ip t e l) = (lcls ++ F.toList ip, Binding ip t (resolveNames lcls e) l)
-
 adjustSGRs :: SGR -> S.State SGRState ()
 adjustSGRs Reset = put defaultState
 adjustSGRs (SetConsoleIntensity   c) = intensity .= c
@@ -224,7 +183,7 @@ adjustSGRs (SetColor Background i c) = bg .= (i, c)
 adjustSGRs (SetSwapForegroundBackground _) = return ()
 adjustSGRs (SetRGBColor _ _) = __todo "not implemented"
 
-displayHTML :: (?knowns :: [(String, SourcePos)]) => SimpleDoc -> S.State SGRState Html
+displayHTML :: SimpleDoc -> S.State SGRState Html
 displayHTML (SFail) = error ""
 displayHTML (SEmpty) = return mempty
 displayHTML (SChar c d) = mappend <$> currentSpan [c] <*> displayHTML d
@@ -234,7 +193,6 @@ displayHTML (SSGR sgrs d) = mapM_ adjustSGRs sgrs >> displayHTML d
 
 makeHtml :: Html -> Html
 makeHtml content = [shamlet| <pre class="source bg-Dull-Black">#{content}|]
-
 
 
 genDoc :: (?knowns :: [(String, SourcePos)]) => (SourcePos, DocString, TopLevel LocType VarName LocExpr) -> Html
@@ -304,108 +262,138 @@ genDoc (p,s,x@(AbsTypeDec n _)) =
                      str = let ?knowns = [] in runState (displayHTML (prettyPrint id $ return x') ) defaultState
                      md     = markdown s
                   in [shamlet|
-                             #{sourcePosDiv p}
                              <div class="block bg-Dull-Black header">
-                                <a name=#{n}> #{fst str}
+                                #{fst str}
                              <div class="docstring footerds">
                                 #{md}|]
 
-
-template :: String -> String -> Html -> Html
-template "" title body = [shamlet|
-<html>
-  <head>
-    <script type="text/javascript" src="jquery.min.js">
-    <script type="text/javascript" src="toc.min.js">
-    <title>
-      #{title}
-    <script>
-        jQuery(function() {
-          jQuery('#toc').toc();
-        });
-    <link rel="stylesheet" href="style.css" />
-  <body>
-    <div #topmatter>
-      <div .links>
-        <a href="index.html">Contents
-        <a href="binding_index.html">Index
-      <img src="logo.png">
-      <span .pagetitle>#{title}
-      <div #toc>
-    <div #main>
-      #{body}
-|]
-template raw title body = [shamlet|
-<html>
-  <head>
-    <script type="text/javascript" src="jquery.min.js">
-    <script type="text/javascript" src="toc.min.js">
-    <title>
-      #{title}
-    <script>
-        jQuery(function() {
-          jQuery('#toc').toc();
-        });
-    <link rel="stylesheet" href="style.css" />
-  <body>
-    <div #topmatter>
-      <div .links>
-        <a href="index.html">Contents
-        <a href="binding_index.html">Index
-        <a href="#{raw}">Raw
-      <img src="logo.png">
-      <span .pagetitle>#{title}
-      <div #toc>
-    <div #main>
-      #{body}
-|]
-
-rawTemplate :: Html -> Html
-rawTemplate body = [shamlet|
+template body = [shamlet|
 <html>
   <head>
     <style>
-      pre {
-        font-family: PragmataPro, Iosevka, monospace;
+      .block {
+       margin-top: 0px; font-family: PragmataPro, Iosevka, monospace;
+       padding-right: 100px !important;
+       position:relative;
+       display:inline-block;
       }
+      table {
+      border-spacing: 0px;
+      }
+      .block td {
+             vertical-align: top;
+             margin: 0px;
+             padding: 0px 0px 0px 0px;
+             white-space:nowrap;
+
+      }
+      .spaced {
+         padding-left: 5px !important;
+      }
+      .invisibledoc p {
+         display:inherit;
+         margin: 0px;
+      }
+      .show {
+        font-size:11px;
+        color:white;
+        text-decoration: none;
+      }
+      .hide {
+        font-size: 11px;
+        color:white;
+        text-decoration: none;
+      }
+      .answer,
+      .show,
+      .hide:target {
+          display: none;
+      }
+      .hide:target + .show,
+      .hide:target ~ .answer {
+          display: inline;
+      }
+      .invisibledoc {
+      -webkit-user-select: none; /* Chrome/Safari */        
+      -moz-user-select: none; /* Firefox */
+      -ms-user-select: none; /* IE10+ */
+       /* Rules below not implemented in browsers yet */
+       -o-user-select: none;
+       user-select: none;
+         margin-top:0px;
+         margin-bottom:0px;
+         margin-left: 5px;
+         display: inline-block;
+         font-family: sans-serif;
+         color: #2e3436;
+      }
+      .inlinedoc p {
+         display:inherit;
+         margin: 0px;
+      }
+      .inlinedoc {
+         display: inline-block;
+         font-family: sans-serif;
+         color: #eeeecc;
+         position:absolute;
+         right: 10px;
+      }
+      body { background: #192021; color: #eeeeec; }
+      .header {
+      border-radius: 5px 5px 0px 0px;
+      padding:5px;
+      margin-top: 5px;
+      }
+      .footer {
+      border-radius: 0px 0px 5px 5px;
+      padding: 5px;
+      margin-bottom: 5px;
+      }
+      .footerds {
+      border-radius: 0px 5px 5px 5px !important;
+      padding: 5px;
+      margin-bottom: 5px;
+      }
+      .docstring { background: #555753; padding: 5px; font-family: sans-serif; border-radius: 0px 5px 0px 0px; }
+      .docstring p { margin: 0px; }
+      .shbutton { margin-top: 0px; font-family: PragmataPro, Iosevka, monospace; padding: 5px }
+      .source { margin-top: 0px; font-family: PragmataPro, Iosevka, monospace; padding: 5px }
+      .BoldIntensity { font-weight: bold }
+      .fg-Dull-Black { color: #2e3436;}
+      .fg-Dull-Red { color: #cc0000;}
+      .fg-Dull-Green { color: #4e9a06;}
+      .fg-Dull-Yellow { color: #c4a000;}
+      .fg-Dull-Blue { color: #3465a4;}
+      .fg-Dull-Magenta { color: #75507b;}
+      .fg-Vivid-Magenta { color: #06989a;}
+      .fg-Dull-White { color: #d3d7cf;}
+      .fg-Vivid-Black { color: #555753;}
+      .fg-Vivid-Red { color: #ef2929;}
+      .fg-Vivid-Green { color: #8ae234;}
+      .fg-Vivid-Yellow { color: #fce94f;}
+      .fg-Vivid-Blue { color: #729fcf;}
+      .fg-Vivid-Cyan { color: #ad7fa8;}
+      .fg-Vivid-Magenta { color: #34e2e2;}
+      .fg-Vivid-White { color: #eeeeec;}
+      .bg-Dull-Black { background: #2e3436;}
+      .bg-Dull-Red { background: #cc0000;}
+      .bg-Dull-Green { background: #4e9a06;}
+      .bg-Dull-Yellow { background: #c4a000;}
+      .bg-Dull-Blue { background: #3465a4;}
+      .bg-Dull-Magenta { background: #75507b;}
+      .bg-Dull-Cyan { background: #06989a;}
+      .bg-Dull-White { background: #d3d7cf;}
+      .bg-Vivid-Black { background: #555753;}
+      .bg-Vivid-Red { background: #ef2929;}
+      .bg-Vivid-Green { background: #8ae234;}
+      .bg-Vivid-Yellow { background: #fce94f;}
+      .bg-Vivid-Blue { background: #729fcf;}
+      .bg-Vivid-Cyan { background: #ad7fa8;}
+      .bg-Vivid-Magenta { background: #34e2e2;}
+      .bg-Vivid-White { background: #eeeeec;}
   <body>
-    <pre>
-      #{body}
+    #{body}
 |]
-
-
-foreach ::  (?knowns :: [(String,SourcePos)]) => (SourcePos, DocString, TopLevel LocType VarName LocExpr) -> (SourcePos, Html)
-foreach (p, d, t) = (p,  genDoc (p,d,t))
-
-titleFor :: SourcePos -> IO String
-titleFor pos = do
-  x <- canonicalizePath $ sourceName pos
-  x' <- makeRelativeToCurrentDirectory x
-  return x'
-
-fileNameFor pos = (++".html") $ concat $ intersperse "." $ words $ map (\x -> if x `elem` ("./\\" :: String) then ' ' else x) $ sourceName pos
-rawFileNameFor pos = (++".raw.html") $ concat $ intersperse "." $ words $ map (\x -> if x `elem` ("./\\" :: String) then ' ' else x) $ sourceName pos
-
-commonPrefix :: (Eq e) => [e] -> [e] -> [e]
-commonPrefix _ [] = []
-commonPrefix [] _ = []
-commonPrefix (x:xs) (y:ys)
-  | x == y    = x : commonPrefix xs ys
-  | otherwise = []
-
-commonPrefix' :: FilePath -> FilePath -> FilePath
-commonPrefix' p1 p2 = joinPath (commonPrefix (splitDirectories p1) (splitDirectories p2))
-
-commonOfAll :: [FilePath] -> FilePath
-commonOfAll [x] = takeDirectory x
-commonOfAll []  = "."
-commonOfAll rest = foldr1 commonPrefix' rest
-
-sourcePosDiv p = do
-  let f = takeFileName (sourceName p)
-      c = show $ sourceLine p
-      raw = rawFileNameFor p
-   in [shamlet|<div .sourcepos><a href='#{raw}##{c}'>#{f}:#{c}</a>|]
 
 docGent :: [(SourcePos, DocString, TopLevel LocType VarName LocExpr)] -> IO ()
 docGent input = let 
@@ -488,3 +476,4 @@ generateIndex dat = do
 -- XXX | eqTopLevelId x (AbsDec fn _) = x == fn
 -- XXX | eqTopLevelId x (FunDef fn _ _) = x == fn
 -- XXX | eqTopLevelId x (ConstDef vn _ _) = x == vn  -- should not matter
+

@@ -51,6 +51,15 @@ Library
               , Cogent.CorresProof
               , Cogent.CorresSetup
               , Cogent.Deep
+              , Cogent.DocGent
+              , Cogent.Context
+              , Cogent.GraphGen
+              , Cogent.Preprocess
+              , Cogent.TypeCheck.Base
+              , Cogent.TypeCheck.Generator
+              , Cogent.TypeCheck.Post
+              , Cogent.TypeCheck.Solver
+              , Cogent.TypeCheck.Subst
               , Cogent.Desugar
               , Cogent.DocGent
               , Cogent.DList
@@ -136,7 +145,6 @@ Library
   else
     build-depends:
                 pandoc >= 1.16
-
 
   default-language: Haskell2010
   default-extensions: CPP
