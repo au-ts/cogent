@@ -32,6 +32,7 @@ source-repository head
   type:     git
   location: https://github.inside.nicta.com.au/ts-filesystems/bilby
 
+
 Library
   hs-source-dirs: src
   exposed-modules:
@@ -131,7 +132,9 @@ Library
               , shakespeare >= 2.0
               , blaze-html >= 0.8.1
               , blaze-markup >= 0.7
-              , markdown >= 0.1.13
+              , pandoc >= 1.16
+              , pandoc-types >= 1.16
+              , data-default >=0.5
 
   default-language: Haskell2010
   default-extensions: CPP

@@ -57,6 +57,7 @@ typevar = blue . string
 typename = blue . bold . string
 typesymbol = cyan . string  -- type operators, e.g. !, ->, take
 funname = green . string
+funname' = underline . green . string
 fieldname = magenta . string
 tagname = dullmagenta . string
 symbol = string

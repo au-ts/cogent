@@ -7,11 +7,12 @@
 --
 -- @TAG(NICTA_GPL)
 --
-
+@@# Heading 1
+@@## Subheading 1.1
 @ An abstract type
 type T
 
-@ A variant type with `three` _tags_.
+@ A variant type with `three` _tags_, we can also refer to types like `T` and functions like `foo`.
 type V = < TAG_a U8 | TAG_b U32 | TAG_c T >
 
 @ A function to test pattern matching *facilities*. 
@@ -40,7 +41,7 @@ xxx (v, y) =
    v
    | TAG_b vb -> Success vb
    | TAG_c vc -> Fail (42, vc)
-   | TAG_a va -> Success y
+   | TAG_a yyy -> Success (upcast yyy)
 
 foo : < TAG_a U8 >! -> < Success U8 >
 foo v =
