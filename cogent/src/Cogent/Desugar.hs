@@ -371,7 +371,7 @@ desugarType t = typeWHNF t >>= \case
   S.RT (S.TTuple (t1:t2:ts)) | not __cogent_ftuples_as_sugar -> __impossible "desugarType"  -- desugarType $ S.RT $ S.TTuple [t1, S.RT $ S.TTuple (t2:ts)]
   S.RT (S.TTuple ts) | __cogent_ftuples_as_sugar -> TRecord <$> (P.zipWith (\t n -> (n,(t, False))) <$> forM ts desugarType <*> pure (P.map (('p':) . show) [1 :: Integer ..])) <*> pure Unboxed
   S.RT (S.TUnit)   -> return TUnit
-  notInWHNF -> __impossible' "desugarType" (show $ pretty notInWHNF)
+  notInWHNF -> __impossible' "desugarType" ("type" : lines (show (pretty notInWHNF)) ++ ["is not in WHNF"])
 
 substType :: [(VarName, S.RawType)] -> S.RawType -> S.RawType
 substType sigma (S.RT (S.TVar v b)) | Just t <- P.lookup v sigma = t

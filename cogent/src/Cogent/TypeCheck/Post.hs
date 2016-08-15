@@ -80,7 +80,7 @@ normaliseT d (T (TTake fs t)) = do
    t' <- normaliseT d t
    case t' of
      (T (TRecord l s)) -> normaliseT d (T (TRecord (takeFields fs l) s))
-     _ | Just fs' <- fs, null fs'  -> Right t'
+     _ | Just fs' <- fs, null fs' -> Right t'
      e                 -> Left (TakeFromNonRecord fs t)
  where
    takeFields :: Maybe [FieldName] -> [(FieldName, (TCType, Bool))] -> [(FieldName, (TCType, Bool))]
