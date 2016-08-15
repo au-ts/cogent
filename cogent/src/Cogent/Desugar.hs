@@ -31,13 +31,12 @@ module Cogent.Desugar where
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler
+import Cogent.Core hiding (withBinding, withBindings)
 import Cogent.PrettyPrint ()
-import Cogent.Sugarfree hiding (withBinding, withBindings)
 import qualified Cogent.Surface as S
 import qualified Cogent.TypeCheck.Base as B
 import Cogent.Util
 import Cogent.Vec as Vec
-
 import Control.Applicative
 import Control.Arrow ((&&&))
 import Control.Lens
@@ -66,12 +65,12 @@ type Constants  = M.Map VarName  B.TypedExpr  -- This shares namespace with `Ter
 type Enumerator = Int
 
 newtype DS (t :: Nat) (v :: Nat) a = DS { runDS :: RWS (Typedefs, Constants, [Pragma])
-                                                       (Last (Typedefs, Constants, [SFConst UntypedExpr]))  -- NOTE: it's a hack to export the reader! / zilinc
+                                                       (Last (Typedefs, Constants, [CoreConst UntypedExpr]))  -- NOTE: it's a hack to export the reader! / zilinc
                                                        (TypeVars t, TermVars v, Enumerator)
                                                        a }
                                    deriving (Functor, Applicative, Monad,
                                              MonadReader (Typedefs, Constants, [Pragma]),
-                                             MonadWriter (Last (Typedefs, Constants, [SFConst UntypedExpr])),
+                                             MonadWriter (Last (Typedefs, Constants, [CoreConst UntypedExpr])),
                                              MonadState  (TypeVars t, TermVars v, Enumerator))
 
 freshVarPrefix :: String
@@ -86,7 +85,7 @@ freshVars n = do x <- sel3 <$> get
                  return $ P.map ((++) freshVarPrefix . show) $ take n (iterate (+1) x)
 
 desugar :: [S.TopLevel S.RawType B.TypedName B.TypedExpr] -> [Pragma]
-        -> ([Definition UntypedExpr VarName], Last (Typedefs, Constants, [SFConst UntypedExpr]))
+        -> ([Definition UntypedExpr VarName], Last (Typedefs, Constants, [CoreConst UntypedExpr]))
 desugar tls pragmas =
   let fundefs    = filter isFunDef     tls where isFunDef     (S.FunDef   {})   = True; isFunDef     _ = False
       absdecs    = filter isAbsDec     tls where isAbsDec     (S.AbsDec   {})   = True; isAbsDec     _ = False
@@ -537,11 +536,10 @@ desugarExpr (B.TE t (S.Upcast e) _) = E <$> (Promote <$> desugarType t <*> desug
 desugarExpr (B.TE t (S.Widen  e) _) = E <$> (Promote <$> desugarType t <*> desugarExpr e)
 
 
-
-desugarConst :: (VarName, T.TypedExpr) -> DS 'Zero 'Zero (SFConst UntypedExpr)
+desugarConst :: (VarName, B.TypedExpr) -> DS 'Zero 'Zero (CoreConst UntypedExpr)
 desugarConst (n,e) = (n,) <$> desugarExpr e
 
 -- NOTE: aseume the first arguments consists of constants only
-desugarConsts :: [S.TopLevel S.RawType T.TypedName T.TypedExpr] -> DS 'Zero 'Zero [SFConst UntypedExpr]
+desugarConsts :: [S.TopLevel S.RawType B.TypedName B.TypedExpr] -> DS 'Zero 'Zero [CoreConst UntypedExpr]
 desugarConsts = mapM desugarConst . P.map (\(S.ConstDef v _ e) -> (v,e))
 

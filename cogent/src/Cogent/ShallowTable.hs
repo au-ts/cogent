@@ -21,7 +21,7 @@ import Cogent.Common.Syntax
 import Cogent.Common.Types
 -- import Cogent.Compiler
 -- import Cogent.Desugar
-import Cogent.Sugarfree
+import Cogent.Core
 -- import Cogent.Surface
 -- import Cogent.TypeCheck
 

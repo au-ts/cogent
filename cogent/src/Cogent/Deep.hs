@@ -16,10 +16,9 @@ module Cogent.Deep where
 import Cogent.Common.Syntax as CS
 import Cogent.Common.Types
 import Cogent.Compiler
-import Cogent.Sugarfree as S
+import Cogent.Core as CC
 import Cogent.Util (NameMod, Stage(..))
 import Cogent.Vec (cvtToList, Fin, finInt)
-
 import Data.List (sort)
 import qualified Data.Map.Strict as Map
 import Isabelle.ExprTH
@@ -43,7 +42,7 @@ deepSigil Unboxed  = mkId "Unboxed"
 
 type TypeAbbrevs = (Map.Map Term Int, Int)
 
-deepTypeInner :: NameMod -> TypeAbbrevs -> S.Type t -> Term
+deepTypeInner :: NameMod -> TypeAbbrevs -> CC.Type t -> Term
 deepTypeInner mod ta (TVar v) = mkApp (mkId "TVar") [deepIndex v]
 deepTypeInner mod ta (TVarBang v) = mkApp (mkId "TVarBang") [deepIndex v]
 deepTypeInner mod ta (TCon tn ts s) = mkApp (mkId "TCon") [mkString tn, mkList (map (deepType mod ta) ts), deepSigil s]
@@ -61,7 +60,7 @@ mkAbbrevNm mod n = mod $ "abbreviatedType" ++ show n
 mkAbbrevId :: NameMod -> Int -> Term
 mkAbbrevId = (mkId .) . mkAbbrevNm
 
-deepType :: NameMod -> TypeAbbrevs -> S.Type t -> Term
+deepType :: NameMod -> TypeAbbrevs -> CC.Type t -> Term
 deepType mod ta t = case Map.lookup term (fst ta) of
     Just n -> mkAbbrevId mod n
     Nothing -> term
@@ -189,7 +188,7 @@ deepDefinitions mod ta defs = foldr (deepDefinition mod ta defs) [] defs ++
         cogentFuns (FunDef _ fn _ _ _ _ : fns) = fn : cogentFuns fns
         cogentFuns (_ : fns) = cogentFuns fns
 
-scanAggregates :: S.Type t -> [S.Type t]
+scanAggregates :: CC.Type t -> [CC.Type t]
 scanAggregates (TCon tn ts s) = concatMap scanAggregates ts
 scanAggregates (TFun ti to) = scanAggregates ti ++ scanAggregates to
 scanAggregates (TSum alts) = concatMap (scanAggregates . fst . snd) alts ++ [TSum alts]  -- FIXME: cogent.1
@@ -197,7 +196,7 @@ scanAggregates (TProduct t1 t2) = scanAggregates t1 ++ scanAggregates t2
 scanAggregates (TRecord fs s) = concatMap (scanAggregates . fst . snd) fs ++ [TRecord fs s]
 scanAggregates _ = []
 
-addTypeAbbrev :: NameMod -> S.Type t -> TypeAbbrevs -> TypeAbbrevs
+addTypeAbbrev :: NameMod -> CC.Type t -> TypeAbbrevs -> TypeAbbrevs
 addTypeAbbrev mod t ta = case Map.lookup term (fst ta) of
     Just s -> ta
     Nothing -> (Map.insert term (snd ta) (fst ta), snd ta + 1)

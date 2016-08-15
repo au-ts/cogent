@@ -17,9 +17,9 @@ module Cogent.MonoProof where
 
 import Cogent.Common.Syntax
 import Cogent.Compiler
+import Cogent.Core as CC
 import Cogent.Deep hiding (imports)
 import Cogent.Mono
-import Cogent.Sugarfree as SF
 import Cogent.Util
 import Cogent.Vec
 import Isabelle.ExprTH
@@ -105,5 +105,5 @@ rename funMono = [isaDecl| definition $alist_name :: "$sig" where "$(mkId alist_
                           then [([isaTerm| $(mkString fn) |], [isaTerm| Nil |], [isaTerm| $(mkString fn) |])]
                           else map (\(tys,num) -> ([isaTerm| $(mkString fn) |], mkTyList tys, [isaTerm| $(mkString $ fn ++ "_" ++ show num) |])) insts
 
-    mkTyList :: [SF.Type 'Zero] -> Term
+    mkTyList :: [CC.Type 'Zero] -> Term
     mkTyList = I.mkList . map (deepType id (empty, 0))

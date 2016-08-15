@@ -20,9 +20,9 @@ import Cogent.Common.Syntax
 #if __GLASGOW_HASKELL__ < 711
 import Cogent.Compiler
 #endif
+import Cogent.Core
 import Cogent.Vec hiding (splitAt, length, zipWith, zip, unzip)
 import qualified Cogent.Vec as Vec
-import Cogent.Sugarfree
 import Cogent.Deep
 import Cogent.Util
 
