@@ -88,7 +88,7 @@ data Type t =
             | TVariant (M.Map TagName [t])
             | TTuple [t]
             | TUnit
-            -- They will be elimiated at some point / zilinc
+            -- They will be eliminated at some point / zilinc
             | TUnbox   t
             | TBang    t
             | TTake (Maybe [FieldName]) t
@@ -136,6 +136,7 @@ typeOfLT (Documentation s t) = typeOfLT t
 
 data RawType = RT { unRT :: Type RawType } deriving (Show, Eq)
 data RawExpr = RE { unRE :: Expr RawType VarName RawExpr } deriving Show
+
 instance Foldable (Flip Alt e) where
   foldMap f a = getConst $ traverse (Const . f) a
 instance Foldable (Flip (Expr t) e) where
