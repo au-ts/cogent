@@ -16,8 +16,8 @@ module Cogent.GraphGen where
 -- import Cogent.Compiler (__impossible)
 import qualified Cogent.Common.Syntax as CS
 import Cogent.Common.Types as CT
+import Cogent.Core
 import Cogent.Normal
-import Cogent.Sugarfree as S
 import Cogent.Vec
 
 #if __GLASGOW_HASKELL__ < 709

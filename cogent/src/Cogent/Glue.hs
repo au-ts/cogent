@@ -34,12 +34,12 @@ import qualified Cogent.CodeGen as CG
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler
+import qualified Cogent.Core      as CC
 import qualified Cogent.Desugar   as DS
 import qualified Cogent.DList     as DList
 import qualified Cogent.Mono      as MN
 import qualified Cogent.Parser    as PS
 -- import Cogent.PrettyPrint
-import qualified Cogent.Sugarfree as SF
 import qualified Cogent.Surface   as SR
 import qualified Cogent.TypeCheck.Base as TC
 import Cogent.Util
@@ -123,7 +123,7 @@ data DsState = DsState { _typedefs  :: DS.Typedefs
                        , _constdefs :: DS.Constants
                        }
 
-data IcState = IcState { _funtypes :: Map FunName SF.FunctionType }
+data IcState = IcState { _funtypes :: Map FunName CC.FunctionType }
 
 data MnState = MnState { _funMono  :: MN.FunMono
                        , _typeMono :: MN.TypeMono
@@ -132,7 +132,7 @@ data MnState = MnState { _funMono  :: MN.FunMono
 data CgState = CgState { _cTypeDefs    :: [(CG.StrlType, CG.CId)]
                        , _cTypeDefMap  :: M.Map CG.StrlType CG.CId
                        , _typeSynonyms :: M.Map TypeName CG.CType
-                       , _typeCorres   :: DList.DList (CG.CId, SF.Type 'Zero)
+                       , _typeCorres   :: DList.DList (CG.CId, CC.Type 'Zero)
                        , _absTypes     :: M.Map TypeName (S.Set [CG.CId])
                        , _custTypeGen  :: M.Map (SF.Type 'Zero) (CG.CId, CustTyGenInfo)
                        , _funClasses   :: CG.FunClass
@@ -203,10 +203,10 @@ desugarAnti m a = view kenv >>= \(fmap fst -> ts) -> lift . lift $
                      cdefs = view (dsState.constdefs) s
                   in return (fst (flip3 evalRWS (ts, Nil, 0) (tdefs, cdefs, []) $ DS.runDS $ m a), s)  -- FIXME: pragmas / zilinc
 
-icAnti :: (a -> SF.TC t 'Zero b) -> a -> GlDefn t b
+icAnti :: (a -> CC.TC t 'Zero b) -> a -> GlDefn t b
 icAnti m a = view kenv >>= \(fmap snd -> ts) -> lift . lift $
   StateT $ \s -> let reader = (ts, view (icState.funtypes) s)
-                  in case flip evalState Nil $ flip runReaderT reader $ runExceptT $ SF.unTC $ m a of
+                  in case flip evalState Nil $ flip runReaderT reader $ runExceptT $ CC.unTC $ m a of
                        Left  e -> __impossible "icAnti"
                        Right x -> return (x, s)
 
@@ -245,13 +245,13 @@ parseType s loc = parseAnti s PS.monotype loc 4
 tcType :: SR.LocType -> GlDefn t SR.RawType
 tcType t = __todo "Glue: tcType" {- tcAnti (TC.inEContext (TC.AntiquotedType t) . TC.validateType) t -}
 
-desugarType :: SR.RawType -> GlDefn t (SF.Type t)
+desugarType :: SR.RawType -> GlDefn t (CC.Type t)
 desugarType = desugarAnti DS.desugarType
 
-monoType :: SF.Type t -> GlMono t (SF.Type 'Zero)
+monoType :: CC.Type t -> GlMono t (CC.Type 'Zero)
 monoType = monoAnti MN.monoType
 
-genType :: SF.Type 'Zero -> Gl CG.CType
+genType :: CC.Type 'Zero -> Gl CG.CType
 genType = genAnti CG.genType
 
 transDeclSpec :: CS.DeclSpec -> GlMono t CS.DeclSpec
@@ -289,12 +289,12 @@ tcFnCall e = __todo "Glue: tcFnCall"  {-  do
   tcAnti (TC.inEContext (TC.AntiquotedExpr e) . TC.infer) e
 -}
 
-genFn :: SF.TypedExpr 'Zero 'Zero VarName -> Gl CS.Exp
+genFn :: CC.TypedExpr 'Zero 'Zero VarName -> Gl CS.Exp
 genFn = genAnti $ \case
-  SF.TE t (SF.Fun fn _ _) -> return (CS.Var (CS.Id (CG.funEnum fn) noLoc) noLoc)
+  CC.TE t (CC.Fun fn _ _) -> return (CS.Var (CS.Id (CG.funEnum fn) noLoc) noLoc)
   _ -> __impossible "genFn"
 
-genFnCall :: SF.Type 'Zero -> Gl CS.Exp
+genFnCall :: CC.Type 'Zero -> Gl CS.Exp
 genFnCall = genAnti $ \t -> do
     enumt <- CG.typeCId t
     return (CS.Var (CS.Id (CG.funDispatch $ toCName enumt) noLoc) noLoc)
@@ -303,7 +303,7 @@ transFnCall :: CS.Exp -> GlMono t CS.Exp
 transFnCall (CS.FnCall (CS.AntiExp fn loc1) [e] loc0) = do
   e'  <- lift . lift . lift . genFn =<< monoExp =<< lift . icExp =<<
          lift . desugarExp =<< lift . tcFnCall =<< (lift . lift) (parseFnCall fn loc1)
-  fn' <- lift . lift . lift . genFnCall =<< return . SF.exprType =<< monoExp =<< lift . icExp =<<
+  fn' <- lift . lift . lift . genFnCall =<< return . CC.exprType =<< monoExp =<< lift . icExp =<<
          lift . desugarExp =<< lift . tcFnCall =<< (lift . lift) (parseFnCall fn loc1)
   return $ CS.FnCall fn' [e',e] loc0
 transFnCall e = return e
@@ -329,16 +329,16 @@ parseExp s loc = parseAnti s (PS.expr 1) loc 4
 tcExp :: SR.LocExpr -> GlDefn t TC.TypedExpr
 tcExp e = __todo "Glue: tcExp"  {- tcAnti (TC.inEContext (TC.AntiquotedExpr e) . TC.infer) e -}
 
-desugarExp :: TC.TypedExpr -> GlDefn t (SF.UntypedExpr t 'Zero VarName)
+desugarExp :: TC.TypedExpr -> GlDefn t (CC.UntypedExpr t 'Zero VarName)
 desugarExp = desugarAnti DS.desugarExpr
 
-icExp :: SF.UntypedExpr t 'Zero VarName -> GlDefn t (SF.TypedExpr t 'Zero VarName)
-icExp = icAnti SF.typecheck
+icExp :: CC.UntypedExpr t 'Zero VarName -> GlDefn t (CC.TypedExpr t 'Zero VarName)
+icExp = icAnti CC.typecheck
 
-monoExp :: SF.TypedExpr t 'Zero VarName -> GlMono t (SF.TypedExpr 'Zero 'Zero VarName)
+monoExp :: CC.TypedExpr t 'Zero VarName -> GlMono t (CC.TypedExpr 'Zero 'Zero VarName)
 monoExp = monoAnti MN.monoExpr
 
-genExp :: SF.TypedExpr 'Zero 'Zero VarName -> Gl CS.Exp
+genExp :: CC.TypedExpr 'Zero 'Zero VarName -> Gl CS.Exp
 genExp = genAnti $ \e -> do (v,vdecl,vstm,_) <- CG.genExpr Nothing e
                             let bis' = L.map CG.cBlockItem (vdecl ++ vstm)
                                 v'   = CG.cExpr v
@@ -365,7 +365,7 @@ transFuncId d = return d
 parseTypeId :: String -> SrcLoc -> GlFile (TypeName, [TyVarName])
 parseTypeId s loc = parseAnti s ((,) <$> PS.typeConName <*> PP.many PS.variableName) loc 4
 
-genTypeId :: SF.Type 'Zero -> Gl CG.CId
+genTypeId :: CC.Type 'Zero -> Gl CG.CId
 genTypeId = genAnti CG.typeCId
 
 transTypeId :: CS.Definition -> GlMono t (CS.Definition, Maybe String)
@@ -521,8 +521,8 @@ glue s typnames mode filenames = liftA (M.toList . M.fromListWith (flip (++)) . 
 
 mkGlState :: [SR.TopLevel SR.RawType TC.TypedName TC.TypedExpr]
           -> TC.TCState
-          -> Last (DS.Typedefs, DS.Constants, [SF.SFConst SF.UntypedExpr])
-          -> M.Map FunName SF.FunctionType
+          -> Last (DS.Typedefs, DS.Constants, [CC.CoreConst CC.UntypedExpr])
+          -> M.Map FunName CC.FunctionType
           -> (MN.FunMono, MN.TypeMono)
           -> CG.GenState
           -> GlState
@@ -588,7 +588,7 @@ collectFnCall _ = return []
 
 analyseFuncId :: [(String, SrcLoc)] -> GlDefn t [(FunName, MN.Instance)]
 analyseFuncId ss = forM ss $ \(fn, loc) -> flip runReaderT (MonoState ([], Nothing)) $ do
-  (SF.TE _ (SF.Fun fn' ts _)) <- monoExp =<< lift . icExp =<< lift . desugarExp =<<
+  (CC.TE _ (CC.Fun fn' ts _)) <- monoExp =<< lift . icExp =<< lift . desugarExp =<<
                                  lift . tcFnCall =<< (lift . lift) (parseFnCall fn loc)
   return (fn', ts)
 

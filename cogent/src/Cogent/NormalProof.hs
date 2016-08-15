@@ -14,7 +14,7 @@ module Cogent.NormalProof (normalProof) where
 
 import Cogent.Common.Syntax
 import Cogent.Compiler
-import Cogent.Sugarfree
+import Cogent.Core
 import Cogent.Util
 import Cogent.Shallow (MapTypeName)
 import Cogent.ShallowTable (TypeStr (..))
@@ -92,7 +92,7 @@ promoteRules promotes = let
 
 
 {- Rules for CPS-transforming Case expressions that are used as arguments or functions
- - (in the Isabelle/HOL sense, not Sugarfree.Fun).
+ - (in the Isabelle/HOL sense, not Core.Fun).
  - The $ operator is used by the proof procedure to enforce first-order matching. -}
 
 -- S.Set (typeName, tagCount)

@@ -35,7 +35,7 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-orphans -fno-warn-missing-signatures #-}
 
-module Cogent.Sugarfree where
+module Cogent.Core where
 
 import Cogent.Common.Syntax
 import Cogent.Common.Types
@@ -148,7 +148,7 @@ data Definition e a
 deriving instance Show a => Show (Definition TypedExpr a)
 deriving instance Show a => Show (Definition UntypedExpr a)
 
-type SFConst e = (VarName, e 'Zero 'Zero VarName)
+type CoreConst e = (VarName, e 'Zero 'Zero VarName)
 
 getDefinitionId :: Definition e a -> String
 getDefinitionId (FunDef  _ fn _ _ _ _) = fn
@@ -410,7 +410,7 @@ tc = flip tc' M.empty
 tc_ :: [Definition UntypedExpr a] -> Either String [Definition TypedExpr a]
 tc_ = fmap fst . tc
 
-tcConsts :: [SFConst UntypedExpr] -> Map FunName FunctionType -> Either String ([SFConst TypedExpr], Map FunName FunctionType)
+tcConsts :: [CoreConst UntypedExpr] -> Map FunName FunctionType -> Either String ([CoreConst TypedExpr], Map FunName FunctionType)
 tcConsts [] reader = return ([], reader)
 tcConsts ((v,e):ds) reader =
   case runTC (typecheck e) (Nil, reader) Nil of
