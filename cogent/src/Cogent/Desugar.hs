@@ -39,7 +39,7 @@ import Cogent.Util
 import Cogent.Vec as Vec
 
 import Control.Applicative
-import Control.Arrow (first, second, (&&&))
+import Control.Arrow ((&&&))
 import Control.Lens
 import Control.Monad.Reader hiding (forM)
 import Control.Monad.RWS.Strict hiding (forM)
@@ -462,13 +462,15 @@ desugarExpr (B.TE _ (S.Match e vs alts)) = do
 desugarExpr (B.TE _ (S.TypeApp v ts note)) = do
   pragmas <- view _3
   E <$> (Fun v <$> mapM desugarType ts <*> pure (pragmaToNote pragmas v $ desugarNote note))
-desugarExpr (B.TE _ (S.Con c [] )) = return . E $ Con c (E Unit)
-desugarExpr (B.TE _ (S.Con c [e])) = E . Con c <$> desugarExpr e
-desugarExpr (B.TE t (S.Con c es )) = do
-  S.RT (S.TVariant ts) <- typeWHNF t
-  let Just [tes] = M.lookup c ts
-  E . Con c <$> desugarExpr (B.TE tes $ S.Tuple es)
-desugarExpr (B.TE _ (S.Seq e1 e2)) = do
+desugarExpr (B.TE _ (S.Con c []) _) = return . E $ Con c (E Unit)
+desugarExpr (B.TE _ (S.Con c [e]) _) = E . Con c <$> desugarExpr e
+desugarExpr (B.TE (S.RT (S.TVariant ts)) (S.Con c es) l) = do
+    let Just tes = M.lookup c ts
+    E . Con c <$> desugarExpr (B.TE (group tes) (S.Tuple es) l)
+  where group [] = S.RT S.TUnit
+        group (t:[]) = t
+        group ts = S.RT $ S.TTuple ts
+desugarExpr (B.TE _ (S.Seq e1 e2) _) = do
   v <- freshVar
   E <$> (Let v <$> desugarExpr e1 <*> withBinding v (desugarExpr e2))
 desugarExpr (B.TE _ (S.App (B.TE _ (S.TypeApp ('_':_) _ _)) _)) | not __cogent_debug = return (E Unit)
