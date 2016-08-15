@@ -371,69 +371,6 @@ desugarType = \case
   S.RT (S.TUnit)   -> return TUnit
   notInWHNF -> __impossible' "desugarType" ("type" : lines (show (pretty notInWHNF)) ++ ["is not in WHNF"])
 
-{-
-substType :: [(VarName, S.RawType)] -> S.RawType -> S.RawType
-substType sigma (S.RT (S.TVar v b)) | Just t <- P.lookup v sigma = t
-                                    | otherwise = S.RT (S.TVar v b)
-substType sigma (S.RT (S.TFun a b)) = S.RT (S.TFun (substType sigma a) (substType sigma b))
-substType sigma (S.RT (S.TRecord fs s)) = S.RT (S.TRecord (map (second . first $ substType sigma) fs) s)
-substType sigma (S.RT (S.TVariant fs)) = S.RT (S.TVariant (fmap (fmap $ substType sigma) fs))
-substType sigma (S.RT (S.TUnit)) = S.RT S.TUnit
-substType sigma (S.RT (S.TTuple fs)) = S.RT (S.TTuple (map (substType sigma) fs))
-substType sigma (S.RT (S.TUnbox t)) = S.RT (S.TUnbox $ substType sigma t)
-substType sigma (S.RT (S.TBang t)) = S.RT (S.TBang $ substType sigma t)
-substType sigma (S.RT (S.TTake fs t)) = S.RT (S.TTake fs (substType sigma t))
-substType sigma (S.RT (S.TPut  fs t)) = S.RT (S.TPut  fs (substType sigma t))
-substType sigma (S.RT (S.TCon c ts s)) = S.RT (S.TCon c (map (substType sigma) ts) s)
-
-bangType :: S.RawType -> S.RawType
-bangType (S.RT (S.TVar v _)) = S.RT (S.TVar v True)
-bangType (S.RT (S.TRecord fs s)) = S.RT (S.TRecord (map (second . first $ S.RT . S.TBang) fs) $ bangSigil s)
-bangType (S.RT (S.TCon x ts s))= S.RT (S.TCon x (map (S.RT . S.TBang) ts) $ bangSigil s)
-bangType (S.RT (S.TUnit)) = S.RT S.TUnit
-bangType (S.RT (S.TFun a b)) = S.RT (S.TFun a b)
-bangType (S.RT (S.TTuple ts)) = S.RT (S.TTuple (map (S.RT . S.TBang) ts))  -- using `RT . TBang' instead of `bangType' for better errmsgs
-bangType (S.RT (S.TVariant ts)) = S.RT (S.TVariant (fmap (fmap $ S.RT . S.TBang) ts))
-bangType notInWHNF = __impossible "bangType"
-
-typeWHNF :: S.RawType -> DS t v S.RawType
-typeWHNF x@(S.RT (S.TCon c as s)) = M.lookup c . sel1 <$> ask >>= \case
-  Just (vs,t)  -> typeWHNF (substType (P.zip vs as) t)
-  Nothing -> return x
-typeWHNF x@(S.RT (S.TVar {})) = return x
-typeWHNF x@(S.RT (S.TFun {})) = return x
-typeWHNF x@(S.RT (S.TRecord {})) = return x
-typeWHNF x@(S.RT (S.TVariant alts)) = S.RT . S.TVariant <$> (forM alts $ \ts -> (:[]) <$> typeWHNF (S.RT $ S.TTuple ts))
-typeWHNF   (S.RT (S.TTuple [])) = return $ S.RT S.TUnit
-typeWHNF   (S.RT (S.TTuple [t])) = typeWHNF t
-typeWHNF x@(S.RT (S.TTuple [t1,t2])) | not __cogent_ftuples_as_sugar = return x  -- make n-tuples into nested 2-tuples
-typeWHNF   (S.RT (S.TTuple (t:ts@(_:_:_)))) | not __cogent_ftuples_as_sugar = typeWHNF (S.RT $ S.TTuple ts) >>= \ts' -> return $ S.RT $ S.TTuple [t,ts']
-typeWHNF x@(S.RT (S.TTuple _)) = return x  -- | __cogent_ftuples_as_sugar
--- typeWHNF x@(S.RT (S.TTuple (reverse -> (t:ts)))) = case t of
---   (S.RT (S.TTuple ts')) -> typeWHNF (S.RT . S.TTuple $ reverse ts ++ ts')
---   _ -> return x
-typeWHNF x@(S.RT (S.TUnit)) = return x
-typeWHNF x@(S.RT (S.TUnbox t)) = typeWHNF t >>= \case
-  S.RT (S.TCon cn ts s) -> return $ S.RT (S.TCon cn ts Unboxed)
-  S.RT (S.TRecord fs s) -> return $ S.RT (S.TRecord fs Unboxed)
-  x -> __impossible "typeWHNF"
-typeWHNF (S.RT (S.TBang t)) = bangType <$> typeWHNF t
-typeWHNF (S.RT (S.TTake Nothing t)) = typeWHNF t >>= \case  -- take all untaken fields
-  S.RT (S.TRecord fs s) -> return $ S.RT $ S.TRecord (P.map (second . second $ const True) fs) s
-  x -> __impossible "typeWHNF"
-typeWHNF (S.RT (S.TTake (Just []) t)) = typeWHNF t
-typeWHNF (S.RT (S.TTake (Just fs) t)) = typeWHNF t >>= \case  -- take untaken fields
-  S.RT (S.TRecord rs s) -> return $ S.RT $ S.TRecord (P.map (\r@(n,(t,x)) -> if n `elem` fs then (n,(t,True)) else r) rs) s
-  x -> __impossible "typeWHNF"
-typeWHNF (S.RT (S.TPut Nothing t)) = typeWHNF t >>= \case  -- put (a) taken linear fields (b) untaken discardable fields
-  S.RT (S.TRecord fs s) -> return $ S.RT $ S.TRecord (P.map (second . second $ const False) fs) s
-  x -> __impossible "typeWHNF"
-typeWHNF (S.RT (S.TPut (Just []) t)) = typeWHNF t
-typeWHNF (S.RT (S.TPut (Just fs) t)) = typeWHNF t >>= \case
-  S.RT (S.TRecord rs s) -> return $ S.RT $ S.TRecord (P.map (\r@(n,(t,x)) -> if n `elem` fs then (n,(t,False)) else r) rs) s
-  x -> __impossible "typeWHNF"
--}
-
 desugarNote :: S.Inline -> FunNote
 desugarNote S.NoInline = NoInline
 desugarNote S.Inline   = InlinePlease
