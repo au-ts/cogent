@@ -26,10 +26,10 @@ module COGENT.Shallow (shallow, shallowConsts, shallowTuplesProof, MapTypeName) 
 import COGENT.Common.Syntax as CS
 import COGENT.Common.Types
 import COGENT.Compiler
+import COGENT.Core as CC
 import COGENT.Desugar as D (freshVarPrefix)
 import COGENT.Normal as N (freshVarPrefix)
 import COGENT.ShallowTable (TypeStr(..), st, getStrlType, toTypeStr)
-import COGENT.Sugarfree as S
 import COGENT.Util (Stage(..), Warning)
 import COGENT.Vec as Vec
 
@@ -84,13 +84,13 @@ newtype SG a = SG { runSG :: RWS SGTables [Warning] StateGen a }
 shallowTVar :: Int -> String
 shallowTVar v = [chr $ ord 'a' + fromIntegral v]
 
-shallowTypeWithName :: S.Type t -> SG I.Type
+shallowTypeWithName :: CC.Type t -> SG I.Type
 shallowTypeWithName t = shallowType =<< findShortType t
 
-shallowRecTupleType :: [(FieldName, (S.Type t, Bool))] -> SG I.Type
+shallowRecTupleType :: [(FieldName, (CC.Type t, Bool))] -> SG I.Type
 shallowRecTupleType fs = shallowTupleType <$> mapM shallowType (map (fst . snd) fs)
 
-shallowType :: S.Type t -> SG I.Type
+shallowType :: CC.Type t -> SG I.Type
 shallowType (TVar v) = I.TyVar <$> ((!!) <$> asks typeVars <*> pure (finInt v))
 shallowType (TVarBang v) = shallowType (TVar v)
 shallowType (TCon tn ts _) = I.TyDatatype tn <$> mapM shallowType ts
@@ -164,20 +164,20 @@ shallowILit :: Integer -> PrimInt -> Term
 shallowILit n Boolean = if n > 0 then mkTru else mkFls
 shallowILit n v = TermWithType (mkId $ show n) (shallowPrimType v)
 
-findType :: S.Type t -> SG (S.Type t)
+findType :: CC.Type t -> SG (CC.Type t)
 findType t = getStrlType <$> asks typeNameMap <*> asks typeStrs <*> pure t
 
-findShortType :: S.Type t -> SG (S.Type t)
+findShortType :: CC.Type t -> SG (CC.Type t)
 findShortType t = do
   map <- use concTypeSyns
   case M.lookup (hashType t) map of
    Nothing -> findType t
    Just tn -> pure $ TCon tn [] (__impossible "findShortType")
 
-findTypeSyn :: S.Type t -> SG String
+findTypeSyn :: CC.Type t -> SG String
 findTypeSyn t = findType t >>= \(TCon nm _ _) -> pure nm
 
-shallowPromote :: TypeName -> S.Type t -> TypedExpr t v VarName -> SG Term
+shallowPromote :: TypeName -> CC.Type t -> TypedExpr t v VarName -> SG Term
 shallowPromote _ (TPrim pt) (TE _ (ILit n _)) = pure $ shallowILit n pt
 shallowPromote _ (TPrim pt) te = TermWithType <$> (mkApp (mkId "ucast") <$> ((:[]) <$> shallowExpr te)) <*> pure (shallowPrimType pt)
 shallowPromote tnto ty e@(TE t@(TSum alts) _) = do
@@ -284,7 +284,7 @@ isRecTuple fs =
   P.length fs > 1 &&
   filter (\xs -> xs!!0 == 'p' && let ys = drop 1 xs in filter isDigit ys == ys) fs == fs
 
-shallowMaker :: S.Type t -> [(FieldName, TypedExpr t v VarName)] -> SG Term
+shallowMaker :: CC.Type t -> [(FieldName, TypedExpr t v VarName)] -> SG Term
 shallowMaker t fs = do
   tn <- findTypeSyn t
   let fnms = map fst fs
@@ -302,7 +302,7 @@ shallowSetter rec idx e = do
 shallowGetter :: TypedExpr t v VarName -> Int -> Term -> SG Term
 shallowGetter rec idx rect = mkApp <$> (mkId <$> getRecordFieldName (exprType rec) idx) <*> pure [rect]
 
-getRecordFieldName :: S.Type t -> Int -> SG String
+getRecordFieldName :: CC.Type t -> Int -> SG String
 getRecordFieldName t@(TRecord fs _) ind = do
   tn <- findTypeSyn t
   let fnms = map fst fs
@@ -314,7 +314,7 @@ getRecordFieldName _ _ = __impossible "getRecordFieldName"
 typarUpd typar v = v {typeVars = typar}
 
 -- Clear out all taken annotations and mark all sigil as Writable
-sanitizeType :: S.Type t -> S.Type t
+sanitizeType :: CC.Type t -> CC.Type t
 sanitizeType (TSum ts) = TSum (map (\(tn,(t,b)) -> (tn,(sanitizeType t,b))) ts)  -- FIXME: cogent.1
 sanitizeType (TRecord ts _) = TRecord (map (\(tn, (t,_)) -> (tn, (sanitizeType t, False))) ts) Writable
 sanitizeType (TCon tn ts _) = TCon tn (map sanitizeType ts) Writable
@@ -322,12 +322,12 @@ sanitizeType (TFun ti to) = TFun (sanitizeType ti) (sanitizeType to)
 sanitizeType (TProduct t t') = TProduct (sanitizeType t) (sanitizeType t')
 sanitizeType t = t
 
-hashType :: S.Type t -> String
+hashType :: CC.Type t -> String
 hashType (TSum ts)        = show (sanitizeType $ TSum ts)
 hashType (TRecord ts _)   = show (sanitizeType $ TRecord ts Writable)
 hashType _                = error "Should only pass Variant and Record types"
 
-shallowTypeDefSaveSyn:: TypeName -> [TyVarName] -> S.Type t -> SG [TheoryDecl I.Type I.Term]
+shallowTypeDefSaveSyn:: TypeName -> [TyVarName] -> CC.Type t -> SG [TheoryDecl I.Type I.Term]
 shallowTypeDefSaveSyn tn ps r = do
   st <- shallowType r
   let syname = tn ++ subSymStr "T"
@@ -336,7 +336,7 @@ shallowTypeDefSaveSyn tn ps r = do
   unless (P.length ps > 0) (concTypeSyns %= M.insert hash syname)
   pure [TypeSynonym (TypeSyn syname st ps)]
 
-shallowTypeDef :: TypeName -> [TyVarName] -> S.Type t -> SG [TheoryDecl I.Type I.Term]
+shallowTypeDef :: TypeName -> [TyVarName] -> CC.Type t -> SG [TheoryDecl I.Type I.Term]
 shallowTypeDef tn ps (TPrim p) = pure [TypeSynonym (TypeSyn tn (shallowPrimType p) ps)]
 shallowTypeDef tn ps (TRecord fs s) = shallowTypeDefSaveSyn tn ps (TRecord fs s)
 shallowTypeDef tn ps (TSum ts) = shallowTypeDefSaveSyn tn ps (TSum ts)
@@ -539,7 +539,7 @@ data SCorresCaseData = SCCD { bigType :: String
                      deriving (Show, Eq, Ord)
 
 scorresCaseExpr :: MapTypeName -> TypedExpr t v VarName -> S.Set SCorresCaseData
-scorresCaseExpr m = S.foldEPre unwrap scorresCaseExpr'
+scorresCaseExpr m = CC.foldEPre unwrap scorresCaseExpr'
   where
     scorresCaseExpr' (TE t e@(Case (TE bt _) tag (_,_,e1) (_,_,e2)))
       | (tstr@(VariantStr vs):_) <- toTypeStr bt
@@ -749,7 +749,7 @@ shallow recoverTuples thy stg defs log =
       header = (string ("(*\n" ++ log ++ "\n*)\n") L.<$>)
   in (header $ pretty shal, header $ pretty shrd, header $ pretty scor, typeMap)
 
-genConstDecl :: S.SFConst TypedExpr -> SG (TheoryDecl I.Type I.Term)
+genConstDecl :: CC.CoreConst TypedExpr -> SG (TheoryDecl I.Type I.Term)
 genConstDecl (vn, te@(TE ty expr)) = do
   e <- shallowExpr te
   t <- shallowType ty
@@ -757,7 +757,7 @@ genConstDecl (vn, te@(TE ty expr)) = do
       term = [isaTerm| $nm \<equiv> $e |]
   pure $ Definition (Def (Just (Sig (snm vn) (Just t))) term)
 
-shallowConsts :: Bool -> String -> Stage -> [S.SFConst TypedExpr] -> [Definition TypedExpr VarName] -> String -> Doc
+shallowConsts :: Bool -> String -> Stage -> [CC.CoreConst TypedExpr] -> [Definition TypedExpr VarName] -> String -> Doc
 shallowConsts recoverTuples thy stg consts defs log =
   header $ pretty (Theory (thy ++ __cogent_suffix_of_shallow_consts ++ __cogent_suffix_of_stage stg ++
                            (if recoverTuples then __cogent_suffix_of_recover_tuples else ""))

@@ -20,7 +20,7 @@ import COGENT.Common.Syntax
 import COGENT.Common.Types
 -- import COGENT.Compiler
 -- import COGENT.Desugar
-import COGENT.Sugarfree
+import COGENT.Core
 -- import COGENT.Surface
 -- import COGENT.TypeCheck
 

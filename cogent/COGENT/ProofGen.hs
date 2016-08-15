@@ -18,11 +18,11 @@ module COGENT.ProofGen where
 import COGENT.Common.Types
 import COGENT.Common.Syntax
 import COGENT.Compiler
-import COGENT.Vec hiding (splitAt, length, zipWith, zip, unzip)
-import qualified COGENT.Vec as Vec
-import COGENT.Sugarfree
+import COGENT.Core
 import COGENT.Deep
 import COGENT.Util
+import COGENT.Vec hiding (splitAt, length, zipWith, zip, unzip)
+import qualified COGENT.Vec as Vec
 
 import Control.Lens (makeLenses, (%=), (.=), use)
 import Control.Monad.State.Strict

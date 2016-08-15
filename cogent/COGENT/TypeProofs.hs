@@ -48,7 +48,7 @@ import COGENT.Common.Syntax
 import COGENT.Compiler
 import COGENT.Deep (deepDefinitions, deepTypeAbbrevs, getTypeAbbrevs, TypeAbbrevs)
 import COGENT.ProofGen
-import COGENT.Sugarfree
+import COGENT.Core
 import COGENT.Util (NameMod)
 import COGENT.Vec hiding (splitAt, length, zipWith, zip, unzip, head)
 import qualified COGENT.Vec as V
