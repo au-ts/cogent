@@ -31,6 +31,7 @@ module COGENT.Desugar where
 import COGENT.Common.Syntax
 import COGENT.Common.Types
 import COGENT.Compiler
+import COGENT.PrettyPrint ()
 import COGENT.Sugarfree hiding (withBinding, withBindings)
 import qualified COGENT.Surface as S
 import qualified COGENT.TypeCheck.Base as B
@@ -51,6 +52,7 @@ import Data.Maybe
 import Data.Tuple.Select
 import Prelude as P
 import Data.Traversable (forM)
+import Text.PrettyPrint.ANSI.Leijen (pretty)
 -- import qualified Traversable as Trav (mapM)
 
 -- import Debug.Trace
@@ -364,13 +366,13 @@ desugarType t = typeWHNF t >>= \case
   S.RT (S.TFun ti to)    -> TFun <$> desugarType ti <*> desugarType to
   S.RT (S.TRecord fs s)  -> TRecord <$> mapM (\(f,(t,x)) -> (f,) . (,x) <$> desugarType t) fs <*> pure s
   S.RT (S.TVariant alts) -> TSum <$> mapM (\(c,ts) -> (c,) . (,False) <$> desugarType (S.RT $ S.TTuple ts)) (M.toList alts)
-  S.RT (S.TTuple [])     -> __impossible "desugarType (TTuple)"
-  S.RT (S.TTuple (t:[])) -> __impossible "desugarType (TTuple)"
+  S.RT (S.TTuple [])     -> __impossible "desugarType (TTuple 0)"
+  S.RT (S.TTuple (t:[])) -> __impossible "desugarType (TTuple 1)"
   S.RT (S.TTuple (t1:t2:[])) | not __cogent_ftuples_as_sugar -> TProduct <$> desugarType t1 <*> desugarType t2
   S.RT (S.TTuple (t1:t2:ts)) | not __cogent_ftuples_as_sugar -> __impossible "desugarType"  -- desugarType $ S.RT $ S.TTuple [t1, S.RT $ S.TTuple (t2:ts)]
   S.RT (S.TTuple ts) | __cogent_ftuples_as_sugar -> TRecord <$> (P.zipWith (\t n -> (n,(t, False))) <$> forM ts desugarType <*> pure (P.map (('p':) . show) [1 :: Integer ..])) <*> pure Unboxed
   S.RT (S.TUnit)   -> return TUnit
-  notInWHNF -> __impossible $ "desugarType" ++ show notInWHNF
+  notInWHNF -> __impossible' "desugarType" (show $ pretty notInWHNF)
 
 substType :: [(VarName, S.RawType)] -> S.RawType -> S.RawType
 substType sigma (S.RT (S.TVar v b)) | Just t <- P.lookup v sigma = t
@@ -441,7 +443,7 @@ desugarNote S.NoInline = NoInline
 desugarNote S.Inline   = InlinePlease
 
 desugarExpr :: B.TypedExpr -> DS t v (UntypedExpr t v VarName)
-desugarExpr (B.TE _ (S.PrimOp opr es) _) = E . Op (desugarOp opr) <$> mapM desugarExpr es
+desugarExpr (B.TE _ (S.PrimOp opr es) _) = E . Op (symbolOp opr) <$> mapM desugarExpr es
 desugarExpr (B.TE _ (S.Var vn) _) = (findIx vn . sel2 <$> get) >>= \case
   Just v  -> return $ E $ Variable (v, vn)
   Nothing -> do constdefs <- view _2
@@ -530,28 +532,7 @@ desugarExpr (B.TE t (S.Put e (fa:fas)) l) = do
 desugarExpr (B.TE t (S.Upcast e) _) = E <$> (Promote <$> desugarType t <*> desugarExpr e)
 desugarExpr (B.TE t (S.Widen  e) _) = E <$> (Promote <$> desugarType t <*> desugarExpr e)
 
-desugarOp :: S.OpName -> Op
-desugarOp "+"   = Plus
-desugarOp "-"   = Minus
-desugarOp "*"   = Times
-desugarOp "/"   = Divide
-desugarOp "%"   = Mod
-desugarOp "not" = Not
-desugarOp "&&"  = And
-desugarOp "||"  = Or
-desugarOp ">="  = Ge
-desugarOp "<="  = Le
-desugarOp "<"   = Lt
-desugarOp ">"   = Gt
-desugarOp "=="  = Eq
-desugarOp "/="  = NEq
-desugarOp ".&." = BitAnd
-desugarOp ".|." = BitOr
-desugarOp ".^." = BitXor
-desugarOp ">>"  = RShift
-desugarOp "<<"  = LShift
-desugarOp "complement" = Complement
-desugarOp x     = __impossible "desugarOp"
+
 
 desugarConst :: (VarName, B.TypedExpr) -> DS Zero Zero (SFConst UntypedExpr)
 desugarConst (n,e) = (n,) <$> desugarExpr e

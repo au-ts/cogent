@@ -12,6 +12,8 @@
 
 module COGENT.Common.Syntax where
 
+import COGENT.Compiler
+
 #if __GLASGOW_HASKELL__ < 709
 import Data.Monoid
 #endif
@@ -26,6 +28,8 @@ type TyVarName   = String
 type TypeName    = String
 
 type FieldIndex = Int
+
+type OpName = String
 
 data Op
   = Plus | Minus | Times | Divide | Mod
@@ -57,6 +61,29 @@ associativity x | x `elem` [Times, Divide, Mod] = LeftAssoc 3
                 | x `elem` [And] = RightAssoc 11
                 | x `elem` [Or]  = RightAssoc 12
                 | otherwise = Prefix
+
+symbolOp :: OpName -> Op
+symbolOp "+"   = Plus
+symbolOp "-"   = Minus
+symbolOp "*"   = Times
+symbolOp "/"   = Divide
+symbolOp "%"   = Mod
+symbolOp "not" = Not
+symbolOp "&&"  = And
+symbolOp "||"  = Or
+symbolOp ">="  = Ge
+symbolOp "<="  = Le
+symbolOp "<"   = Lt
+symbolOp ">"   = Gt
+symbolOp "=="  = Eq
+symbolOp "/="  = NEq
+symbolOp ".&." = BitAnd
+symbolOp ".|." = BitOr
+symbolOp ".^." = BitXor
+symbolOp ">>"  = RShift
+symbolOp "<<"  = LShift
+symbolOp "complement" = Complement
+symbolOp x     = __impossible "symbolOp"
 
 opSymbol :: Op -> String
 opSymbol Plus  = "+"

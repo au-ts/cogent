@@ -25,8 +25,6 @@ import Data.Traversable
 #endif
 import Text.Parsec.Pos
 
-type OpName = String
-
 data IrrefutablePattern pv = PVar pv
                            | PTuple [IrrefutablePattern pv]
                            | PUnboxedRecord [Maybe (FieldName, IrrefutablePattern pv)]

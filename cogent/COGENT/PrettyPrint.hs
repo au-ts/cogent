@@ -18,7 +18,6 @@ import qualified COGENT.Common.Syntax as S (associativity)
 import COGENT.Common.Syntax hiding (associativity)
 import COGENT.Common.Types
 import COGENT.Compiler (__cogent_fshow_types_in_pretty, __fixme, __impossible)
-import COGENT.Desugar (desugarOp)
 import COGENT.Reorganizer (ReorganizeError(..), SourceObject(..))
 import COGENT.Surface
 import COGENT.TypeCheck.Base
@@ -93,7 +92,7 @@ level (NoAssoc i) = i
 level (Prefix) = 0
 
 associativity :: String -> Associativity
-associativity = S.associativity . desugarOp
+associativity = S.associativity . symbolOp
 
 
 -- type classes and instances for different constructs
