@@ -25,8 +25,6 @@ import Data.Traversable
 #endif
 import Text.Parsec.Pos
 
-type OpName = String
-
 type DocString = String
 
 data IrrefutablePattern pv = PVar pv
