@@ -10,18 +10,18 @@
 
 type V = < TAG_a U8 | TAG_b U8 >
 
-freeV : (V) -> ()
+freeV : V -> ()
 
-freeX : (U8) -> (U8)
+freeX : U8 -> U8
 
-foo : (V, U8) -> < Fail (U32) | Success (< TAG_a U8 | TAG_b U8 >) >
+foo : (V, U8) -> < Fail U32 | Success < TAG_a U8 | TAG_b U8 > >
 foo (v, x) =
    Success (1 == 1
-   | True -> let _ = freeV (v) in (TAG_b x)
-   | False -> let () = freeV (v) in (TAG_a x))
+   | True  -> let _  = freeV v in TAG_b x
+   | False -> let () = freeV v in TAG_a x)
 
 bar : () -> < Fail (U32) | Success () >
 bar () =
    1 == 1
    | True -> Success ()
-   | False -> Fail (1)
+   | False -> Fail 1
