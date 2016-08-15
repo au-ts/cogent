@@ -9,4 +9,4 @@
 --
 
 type B = {a : U32}
-type A = { f : { x : B take (g) }, g : U32 }
+type A = { f : { x : B take g }, g : U32 }
