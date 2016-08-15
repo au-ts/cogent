@@ -401,34 +401,14 @@ tc = flip tc' M.empty
 tc_ :: [Definition UntypedExpr a] -> Either String [Definition TypedExpr a]
 tc_ = fmap fst . tc
 
-tcConsts :: [CoreConst UntypedExpr] -> Map FunName FunctionType -> Either String ([CoreConst TypedExpr], Map FunName FunctionType)
+tcConsts :: [CoreConst UntypedExpr] 
+         -> Map FunName FunctionType 
+         -> Either String ([CoreConst TypedExpr], Map FunName FunctionType)
 tcConsts [] reader = return ([], reader)
 tcConsts ((v,e):ds) reader =
   case runTC (typecheck e) (Nil, reader) Nil of
     Left x -> Left x
     Right (_,e') -> (first ((v,e'):)) <$> tcConsts ds reader
-
--- NOTE: These are no longer defined inside the compiler.
--- XXX | map       :: forall a    . (a -> a, [a]) -> [a]
--- XXX | mapAccum  :: forall a acc. ((a, acc) -> (a, acc), acc, [a]) -> ([a], acc)
--- XXX | foldl     :: forall a acc. ((acc, a!) -> acc, acc, [a]!) -> acc
--- XXX | foldr     :: forall a acc. ((a!, acc) -> acc, acc, [a]!) -> acc
--- XXX | pushAccum :: forall a acc. (acc -> (a, acc), acc, [a]) -> ([a], acc)
--- XXX | popAccum  :: forall a acc. ((a, acc) -> acc, acc, [a]) -> acc
--- XXX | get       :: forall a    . ([a]!, U32) -> a!
--- XXX | set       :: forall a    . ([a], U32, a) -> ([a], a)
-
--- XXX |     funcEnv = M.fromList [("map", FT (Cons kAll Nil) (TProduct [Function v0 v0, array v0 Write]) (array v0 Write)),
--- XXX |                           ("mapAccum", FT (Cons kAll (Cons kAll Nil)) (TProduct [Function (Product [v0, v1]) (Product [v0, v1]), v1, array v0 Write]) (Product [array v0 Write, v1])),
--- XXX |                           ("foldl", FT (Cons kAll (Cons kAll Nil)) (TProduct [Function (Product [v1, v0]) v1, v1, array v0 Observe]) v1),
--- XXX |                           ("foldr", FT (Cons kAll (Cons kAll Nil)) (TProduct [Function (Product [v0, v1]) v1, v1, array v0 Observe]) v1),
--- XXX |                           ("pushAccum", FT (Cons kAll (Cons kAll Nil)) (TProduct [Function v1 (Product [v0, v1]), v1, array v0 Write]) (Product [array v0 Write, v1])),
--- XXX |                           ("popAccum", FT (Cons kAll (Cons kAll Nil)) (TProduct [Function (Product [v0, v1]) v1, v1, array v0 Write]) v1),
--- XXX |                           ("get", FT (Cons kAll Nil) (TProduct [array v0 Observe, TPrim U32]) v0),
--- XXX |                           ("set", FT (Cons kAll Nil) (TProduct [array v0 Write, TPrim U32, v0]) (Product [array v0 Write, v0]))]
--- XXX |     v0 = TyVar FZero
--- XXX |     v1 = TyVar (FSuc FZero)
--- XXX |     array = AbstractType "Array" . (:[])
 
 withBinding :: Type t -> TC t (Suc v) x -> TC t v x
 withBinding t a
