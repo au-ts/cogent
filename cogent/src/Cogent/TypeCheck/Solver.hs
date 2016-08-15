@@ -432,7 +432,7 @@ exhaustives (Goal ctx (Exhaustive (U x) ps)) | all isVarCon ps = do
         ts <- fromPatterns ps
         return (Goal [] $ U x :< T (TVariant ts))
   where
-    fromPattern :: Pattern TCTypedName -> Solver (M.Map TagName [TCType])
+    fromPattern :: Pattern TCName -> Solver (M.Map TagName [TCType])
     fromPattern (PCon t ps) = M.singleton t <$> (mapM (const fresh) ps)
     fromPattern _ = error "impossible"
     fromPatterns ps = mconcat <$> mapM fromPattern ps
