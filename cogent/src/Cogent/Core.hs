@@ -401,7 +401,9 @@ tc = flip tc' M.empty
 tc_ :: [Definition UntypedExpr a] -> Either String [Definition TypedExpr a]
 tc_ = fmap fst . tc
 
-tcConsts :: [CoreConst UntypedExpr] -> Map FunName FunctionType -> Either String ([CoreConst TypedExpr], Map FunName FunctionType)
+tcConsts :: [CoreConst UntypedExpr] 
+         -> Map FunName FunctionType 
+         -> Either String ([CoreConst TypedExpr], Map FunName FunctionType)
 tcConsts [] reader = return ([], reader)
 tcConsts ((v,e):ds) reader =
   case runTC (typecheck e) (Nil, reader) Nil of
