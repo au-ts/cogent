@@ -160,8 +160,8 @@ desugarTopLevel (S.FunDef fn sigma alts) pragmas | S.PT vs t <- sigma
                                                  , ExI (Flip vs') <- Vec.fromList vs
                                                  , Refl <- zeroPlusNEqualsN $ Vec.length vs'
   = withTypeBindings (fmap fst vs') $ do
+      let (S.RT (S.TFun ti _)) = t
       TFun ti' to' <- desugarType t
-      S.RT (S.TFun ti _) <- typeWHNF t
       v <- freshVar
       let e0 = B.TE ti $ S.Var v
       e <- if not __cogent_debug && P.head fn == '_'
@@ -184,15 +184,15 @@ desugarAlts e0@(B.TE t v@(S.Var _)) ((S.Alt p1 l1 e1):alts) =  -- More than one 
   case p1 of
     S.PCon cn1 [S.PVar v1] -> do  -- this is A) for PCon
       e0' <- freshVar
-      S.RT (S.TVariant talts) <- typeWHNF t
-      let t0' = S.RT $ S.TVariant (M.delete cn1 talts)  -- type of e0 without alternative cn
+      let S.RT (S.TVariant talts) = t
+          t0' = S.RT $ S.TVariant (M.delete cn1 talts)  -- type of e0 without alternative cn
       e1' <- withBinding (fst v1) $ desugarExpr e1
       e2' <- withBinding e0' $ desugarAlts (B.TE t0' $ S.Var e0') alts
       E <$> (Case <$> desugarExpr e0 <*> pure cn1 <*> pure (l1,fst v1,e1') <*> pure (mempty,e0',e2'))
     S.PCon cn1 [p1'] -> do  -- This is B) for PCon
       v1 <- freshVar
-      S.RT (S.TVariant talts) <- typeWHNF t
-      let p1'' = S.PVar (v1,t1)
+      let S.RT (S.TVariant talts) = t
+          p1'' = S.PVar (v1,t1)
           Just [t1]  = M.lookup cn1 talts  -- type of v1
           b   = S.Binding p1' Nothing (B.TE t1 $ S.Var v1) []
           e1' = B.TE (B.getType e1) $ S.Let [b] e1
@@ -226,8 +226,8 @@ desugarAlt e0 (S.PCon tag [S.PVar tn]) e =
   --              B) e0 | PCon vn ps  in e ==> e0 | PCon vn [PTuple ps] in e
 desugarAlt e0 (S.PCon tag [p]) e = do  -- Ind. step A)
   v <- freshVar
-  S.RT (S.TVariant alts) <- typeWHNF $ B.getType e0
-  let Just [t] = M.lookup tag alts
+  let S.RT (S.TVariant alts) = B.getType e0
+      Just [t] = M.lookup tag alts
       -- b0 = S.Binding (S.PVar (v,t)) Nothing (B.TE t $ Esac e0) []
       b1 = S.Binding p Nothing (B.TE t (S.Var v)) []
   -- desugarExpr $ B.TE (B.getType e) $ S.Let [b0,b1] e
@@ -268,11 +268,11 @@ desugarAlt e0 (S.PIrrefutable (S.PTuple [S.PVar tn1, S.PVar tn2])) e | not __cog
 desugarAlt e0 (S.PIrrefutable (S.PTuple [p1,p2])) e | not __cogent_ftuples_as_sugar = do
   v1 <- freshVar
   v2 <- freshVar
-  S.RT (S.TTuple [t1,t2]) <- typeWHNF $ B.getType e0
-  let b0 = S.Binding (S.PTuple [S.PVar (v1,t1), S.PVar (v2,t2)]) Nothing e0 []
-      b1 = S.Binding p1 Nothing (B.TE t1 $ S.Var v1) []
-      b2 = S.Binding p2 Nothing (B.TE t2 $ S.Var v2) []
-  desugarExpr $ B.TE (B.getType e) $ S.Let [b0,b1,b2] e  -- Mutual recursion here
+  let S.RT (S.TTuple [t1,t2]) = B.getType e0
+      b0 = S.Binding (S.PTuple [S.PVar (v1,t1), S.PVar (v2,t2)]) Nothing e0 []
+      b1 = S.Binding p1 Nothing (B.TE t1 (S.Var v1) noPos) []
+      b2 = S.Binding p2 Nothing (B.TE t2 (S.Var v2) noPos) []
+  desugarExpr $ B.TE (B.getType e) (S.Let [b0,b1,b2] e) noPos  -- Mutual recursion here
 desugarAlt e0 (S.PIrrefutable (S.PTuple (p1:p2:ps))) e  | not __cogent_ftuples_as_sugar = __impossible "desugarAlt"
   -- let p' = S.PIrrefutable $ S.PTuple [p1, p2']
   --     p2' = S.PTuple $ p2:ps
@@ -301,7 +301,7 @@ desugarAlt e0 (S.PIrrefutable (S.PTuple ps)) e | __cogent_ftuples_as_sugar, and 
           e0' <- freshVar
           E . Take (v,e0') e0 idx <$> withBindings (Cons v (Cons e0' Nil)) (mkTake (E $ Variable (f1, e0')) vs e (idx + 1))
 desugarAlt e0 (S.PIrrefutable (S.PTuple ps)) e | __cogent_ftuples_as_sugar = do
-  S.RT (S.TTuple ts) <- typeWHNF $ B.getType e0
+  let S.RT (S.TTuple ts) = B.getType e0
   __assert (P.length ps == P.length ts) $ "desugarAlt: |ps| /= |ts|\nps = " ++ show ps ++ "\nts = " ++ show ts
   let pts = P.zip ps ts
   vpts <- forM pts $ \(p,t) -> case p of S.PVar (v,_) -> return (v,p,t); _ -> (,p,t) <$> freshVar
@@ -329,15 +329,15 @@ desugarAlt e0 (S.PIrrefutable (S.PTake rec [Just (f, S.PVar v)])) e =
   E <$> (Take (fst v, fst rec) <$> desugarExpr e0 <*> pure fldIdx <*> (withBindings (Cons (fst v) (Cons (fst rec) Nil)) $ desugarExpr e))
 desugarAlt e0 (S.PIrrefutable (S.PTake rec [Just (f,p)])) e = do
   v <- freshVar
-  S.RT (S.TRecord fts s) <- typeWHNF $ snd rec
-  let Just (ft,_) = P.lookup f fts  -- the type of the taken field
+  let S.RT (S.TRecord fts s) = snd rec
+      Just (ft,_) = P.lookup f fts  -- the type of the taken field
       b1 = S.Binding (S.PTake rec [Just (f,S.PVar (v,ft))]) Nothing e0 []
       b2 = S.Binding p Nothing (B.TE ft $ S.Var v) [] -- wrong!
   desugarExpr $ B.TE (B.getType e) $ S.Let [b1,b2] e
 desugarAlt e0 (S.PIrrefutable (S.PTake rec (fp:fps))) e = do
   e1 <- freshVar
-  S.RT (S.TRecord fts s) <- typeWHNF $ snd rec
-  let t1 = S.RT $ S.TRecord (P.map (\ft@(f,(t,x)) -> if f == fst (fromJust fp) then (f,(t,True)) else ft) fts) s  -- type of e1
+  let S.RT (S.TRecord fts s) = snd rec
+      t1 = S.RT $ S.TRecord (P.map (\ft@(f,(t,x)) -> if f == fst (fromJust fp) then (f,(t,True)) else ft) fts) s  -- type of e1
       b0 = S.Binding (S.PTake (e1, t1) [fp]) Nothing e0 []
       bs = S.Binding (S.PTake rec fps) Nothing (B.TE t1 $ S.Var e1) []
   desugarExpr $ B.TE (B.getType e) $ S.Let [b0,bs] e
@@ -352,7 +352,7 @@ desugarPrimInt (S.RT (S.TCon "Bool" [] Unboxed)) = Boolean
 desugarPrimInt _ = __impossible "desugarPrimInt"
 
 desugarType :: S.RawType -> DS t v (Type t)
-desugarType t = typeWHNF t >>= \case
+desugarType = \case
   S.RT (S.TCon "U8"     [] Unboxed) -> return $ TPrim U8
   S.RT (S.TCon "U16"    [] Unboxed) -> return $ TPrim U16
   S.RT (S.TCon "U32"    [] Unboxed) -> return $ TPrim U32
@@ -373,6 +373,7 @@ desugarType t = typeWHNF t >>= \case
   S.RT (S.TUnit)   -> return TUnit
   notInWHNF -> __impossible' "desugarType" ("type" : lines (show (pretty notInWHNF)) ++ ["is not in WHNF"])
 
+{-
 substType :: [(VarName, S.RawType)] -> S.RawType -> S.RawType
 substType sigma (S.RT (S.TVar v b)) | Just t <- P.lookup v sigma = t
                                     | otherwise = S.RT (S.TVar v b)
@@ -522,11 +523,13 @@ desugarExpr (B.TE t (S.Put e [Just (f,a)])) = do
   TRecord fs _ <- desugarType t
   let Just f' = elemIndex f (P.map fst fs)
   E <$> (Put <$> desugarExpr e <*> pure f' <*> desugarExpr a)
-desugarExpr (B.TE t (S.Put e (fa:fas))) = do
-  t' <- typeWHNF t >>= \x -> return $ S.RT (S.TTake (Just $ P.map (fst . fromJust) fas) x)
-  desugarExpr $ B.TE t $ S.Put (B.TE t' $ S.Put e [fa]) fas
-desugarExpr (B.TE t (S.Upcast e)) = E <$> (Promote <$> desugarType t <*> desugarExpr e)
-desugarExpr (B.TE t (S.Widen  e)) = E <$> (Promote <$> desugarType t <*> desugarExpr e)
+desugarExpr (B.TE t (S.Put e (fa@(Just (f0,_)):fas)) l) = do
+  let S.RT (S.TRecord fs s) = t
+      fs' = map (\ft@(f,(t,b)) -> if f == f0 then (f,(t,False)) else ft) fs
+      t' = S.RT (S.TRecord fs' s)
+  desugarExpr $ B.TE t (S.Put (B.TE t' (S.Put e [fa]) l) fas) l
+desugarExpr (B.TE t (S.Upcast e) _) = E <$> (Promote <$> desugarType t <*> desugarExpr e)
+desugarExpr (B.TE t (S.Widen  e) _) = E <$> (Promote <$> desugarType t <*> desugarExpr e)
 
 
 
