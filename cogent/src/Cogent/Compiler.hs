@@ -27,6 +27,9 @@ __impossible msg = error $ msg ++ unlines [ ": the 'impossible' happened!"
                                         , "    <https://github.com/NICTA/cogent/issues>"
                                         ]
 
+__impossible' :: String -> String -> a
+__impossible' mh mb = error $ mh ++ ": the 'impossible' happened!\n" ++ mb
+
 -- This bug has been closed and will be in new GHC / zilinc (16/02/2016)
 #if __GLASGOW_HASKELL__ < 711
 __ghc_t3927 :: String -> a

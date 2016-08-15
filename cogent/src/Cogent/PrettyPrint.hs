@@ -95,7 +95,7 @@ level (NoAssoc i) = i
 level (Prefix) = 0
 
 associativity :: String -> Associativity
-associativity = S.associativity . desugarOp
+associativity = S.associativity . symbolOp
 
 
 -- type classes and instances for different constructs
