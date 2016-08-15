@@ -192,6 +192,7 @@ fail_msg="${bldred}FAIL${txtrst}"
 badpass_msg="${bldred}passed but should FAIL${txtrst}"
 
 
+if [[ -z "$COGENT" ]]; then COGENT=cogent; fi
 if [[ -z "$GHC" ]]; then GHC=ghc; fi
 if [[ -z "$HC_PKG" ]]; then HC_PKG=ghc-pkg; fi
 if [[ -z "$DIST" ]]; then DIST=dist; fi
@@ -215,7 +216,7 @@ if [[ "$TESTSPEC" =~ '--tc--' ]]; then
   do
     echo -n "$source: "
     total+=1
-    if check_output cogent -t "$source" $TCFLAGS
+    if check_output $COGENT -t "$source" $TCFLAGS
       then passed+=1; echo "$pass_msg"
       else echo "$fail_msg"
     fi
@@ -225,7 +226,7 @@ if [[ "$TESTSPEC" =~ '--tc--' ]]; then
   do
     echo -n "$source: "
     total+=1
-    cogent -t "$source" $TCFLAGS 2>/dev/null # avoid check_output
+    $COGENT -t "$source" $TCFLAGS 2>/dev/null # avoid check_output
     ret=$?
     if [ $ret -eq 134 ]
       then passed+=1; echo "$goodfail_msg"
@@ -253,7 +254,7 @@ if [[ "$TESTSPEC" =~ '--ds--' ]]; then
   do
     echo -n "$source: "
     total+=1
-    if check_output cogent --desugar "$source" -w $DSFLAGS
+    if check_output $COGENT --desugar "$source" -w $DSFLAGS
       then passed+=1; echo "$pass_msg"
       else echo "$fail_msg"
     fi
@@ -277,7 +278,7 @@ if [[ "$TESTSPEC" =~ '--an--' ]]; then
   do
     echo -n "$source: "
     total+=1
-    if check_output cogent --normal "$source" -w $ANFLAGS
+    if check_output $COGENT --normal "$source" -w $ANFLAGS
       then passed+=1; echo "$pass_msg"
       else echo "$fail_msg"
     fi
@@ -301,7 +302,7 @@ if [[ "$TESTSPEC" =~ '--mn--' ]]; then
   do
     echo -n "$source: "
     total+=1
-    if check_output cogent --mono "$source" -w $MNFLAGS
+    if check_output $COGENT --mono "$source" -w $MNFLAGS
       then passed+=1; echo "$pass_msg"
       else echo "$fail_msg"
     fi
@@ -330,7 +331,7 @@ if [[ "$TESTSPEC" =~ '--cg--' ]]; then
   do
     echo -n "$source: "
     total+=1
-    if check_output cogent -g "$source" --dist-dir="$COUT" -w $CGFLAGS
+    if check_output $COGENT -g "$source" --dist-dir="$COUT" -w $CGFLAGS
       then passed+=1; echo "$pass_msg"
       else echo "$fail_msg"
     fi
@@ -416,7 +417,7 @@ options [timeout=$ISABELLE_TIMEOUT] theories [quick_and_dirty] \
          echo "$COGENTHEAPSPEC" > "$COUT/ROOT"
          echo "session \"$ISABELLE_SESSION_NAME\" = \"$COGENTHEAPNAME\" + options [timeout=$ISABELLE_TIMEOUT] theories [quick_and_dirty] \"$THYNAME\"" >> "$COUT/ROOT"
 
-         if check_output cogent --type-proof --fml-typing-tree "$source" --root-dir="../../"  --dist-dir="$COUT"
+         if check_output $COGENT --type-proof --fml-typing-tree "$source" --root-dir="../../"  --dist-dir="$COUT"
          then
            sed -i -e 's,"ProofTrace","../isa/ProofTrace",' "$COUT/$THYNAME.thy"
            if check_output $ISABELLE build -d "$COUT" "$ISABELLE_SESSION_NAME"
@@ -450,7 +451,7 @@ if [[ "$TESTSPEC" =~ '--ac--' ]]; then
     do echo -n "${source}: "
        cfile=$(basename $source .cogent).c
        total+=1
-       cogent --c-refinement --proof-input-c="$cfile" --root \
+       $COGENT --c-refinement --proof-input-c="$cfile" --root \
              --dist-dir="$COUT" --root-dir=../../ --proof-name="$ISABELLE_SESSION_NAME" "$source"
        sed -i -e "s/^session ${ISABELLE_SESSION_NAME}_ACInstall = ${ISABELLE_SESSION_NAME}_SCorres_Normal +$/session ${ISABELLE_SESSION_NAME}_ACInstall = AutoCorres +/" "$COUT/ROOT"
        if check_output $ISABELLE_BUILD -d "$L4V_DIR" -d "../isa" -d "$COUT" ${ISABELLE_SESSION_NAME}_ACInstall
@@ -490,7 +491,7 @@ if [[ "$TESTSPEC" =~ '--ee--' ]]; then
        fi
        mkdir -p "$abs" || exit
        echo -n "${outfile}.cogent: "
-       cogent -A --fml-typing-tree --root-dir=../../ --dist-dir="$COUT" "$source" --proof-name="$ISABELLE_SESSION_NAME"
+       $COGENT -A --fml-typing-tree --root-dir=../../ --dist-dir="$COUT" "$source" --proof-name="$ISABELLE_SESSION_NAME"
        sed -i -r 's|^#include <cogent.h>|#include \"../tests/cogent.h\"|' "$hfile"
        sed -i -r "s|^#include <abstract/([^\.]*).h>|#include \"$abs/\1.h\"|g" "$hfile"
        for abstract_h in `egrep "^#include \"$abs\/([^\.]*).h\"" "$hfile" | \
