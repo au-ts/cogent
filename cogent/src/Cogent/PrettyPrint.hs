@@ -284,11 +284,12 @@ instance (Pretty t, TypeType t) => Pretty (Type t) where
                                             | s == Unboxed && (n `notElem` primTypeCons) -> (typesymbol "#" <>)
                                             | otherwise     -> id)
   pretty (TCon n as s) = (if | s == ReadOnly -> (<> typesymbol "!") . parens
-                             | s == Unboxed  -> (typesymbol "#" <>)
+                             | s == Unboxed  -> disamb . (typesymbol "#" <>)
                              | otherwise     -> id) $
                          typename n <+> hsep (map prettyT' as)
     where prettyT' e | not $ isAtomic e = parens (pretty e)
                      | otherwise        = pretty e
+          disamb = if __cogent_fdisambiguate_pp then (<+> comment "{- unboxed-rec -}") else id
   pretty (TVar n b)  = typevar n
   pretty (TTuple ts) = tupled (map pretty ts)
   pretty (TUnit)     = typesymbol "()" & (if __cogent_fdisambiguate_pp then (<+> comment "{- unit -}") else id)

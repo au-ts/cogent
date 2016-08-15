@@ -64,16 +64,18 @@ normaliseT d (T (TUnbox t)) = do
    case t' of
      (T (TCon x ps _)) -> normaliseT d (T (TCon x ps Unboxed))
      (T (TRecord l _)) -> normaliseT d (T (TRecord l Unboxed))
-     (T o)             -> normaliseT d (T (fmap (T . TUnbox) o))
+     (T o)             -> normaliseT d =<< normaliseT d (T $ fmap (T . TUnbox) o)
      _                 -> error "Panic: impossible"
 
 normaliseT d (T (TBang t)) = do
    t' <- normaliseT d t
    case t' of
-     (T (TCon x ps s)) -> normaliseT d (T (TCon x (map (T . TBang) ps) (bangSigil s)))
-     (T (TRecord l s)) -> normaliseT d (T (TRecord (map (fmap (_1 %~ T . TBang)) l) (bangSigil s)))
+     (T (TCon x ps s)) -> mapM (normaliseT d . T . TBang) ps >>= \ps' ->
+                          normaliseT d (T (TCon x ps' (bangSigil s)))
+     (T (TRecord l s)) -> mapM ((secondM . firstM) (normaliseT d . T . TBang)) l >>= \l' ->
+                          normaliseT d (T (TRecord l' (bangSigil s)))
      (T (TVar b _))    -> normaliseT d (T (TVar b True))
-     (T o)             -> normaliseT d (T (fmap (T . TBang) o))
+     (T o)             -> normaliseT d =<< normaliseT d (T $ fmap (T . TBang) o)
      _                 -> error "Panic: impossible"
 
 normaliseT d (T (TTake fs t)) = do
@@ -98,10 +100,10 @@ normaliseT d (T (TPut fs t)) = do
    putFields Nothing   = map (fmap (fmap (const False)))
    putFields (Just fs) = map (\(f, (t, b)) -> (f, (t,  (f `notElem` fs) && b)))
 
-normaliseT d (T (TCon n as b)) = do
+normaliseT d (T (TCon n ts b)) = do
   case lookup n d of
-    Just (as', Just b) -> normaliseT d (substType (zip as' as) b)
-    _ -> return (T (TCon n as b))
+    Just (ts', Just b) -> normaliseT d (substType (zip ts' ts) b)
+    _ -> mapM (normaliseT d) ts >>= \ts' -> return (T (TCon n ts' b))
 
 normaliseT d (RemoveCase p t) = do
   t' <- normaliseT d t
