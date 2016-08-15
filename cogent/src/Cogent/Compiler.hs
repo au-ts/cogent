@@ -23,12 +23,9 @@ import System.IO.Unsafe
 
 __impossible :: String -> a
 __impossible msg = error $ msg ++ unlines [ ": the 'impossible' happened!"
-                                        , "If you see this, please report this bug to"
-                                        , "    <https://github.com/NICTA/cogent/issues>"
-                                        ]
-
-__impossible' :: String -> String -> a
-__impossible' mh mb = error $ mh ++ ": the 'impossible' happened!\n" ++ mb
+                                          , "If you see this, please report this bug to"
+                                          , "    <https://github.com/NICTA/cogent/issues>"
+                                          ]
 
 -- This bug has been closed and will be in new GHC / zilinc (16/02/2016)
 #if __GLASGOW_HASKELL__ < 711
@@ -86,6 +83,7 @@ set_flag_entryFuncs = writeIORef __cogent_entry_funcs_ref . Just
 set_flag_extTypes = writeIORef __cogent_ext_types_ref . Just
 set_flag_fakeHeaderDir dir = writeIORef __cogent_fake_header_dir_ref $ Just (cogentRelDir dir __cogent_dist_dir)
 set_flag_fcheckUndefined = writeIORef __cogent_fcheck_undefined_ref True
+set_flag_fdisambiguatePp = writeIORef __cogent_fdisambiguate_pp_ref True
 set_flag_fdumpToStdout = writeIORef __cogent_fdump_to_stdout_ref True
 set_flag_fflattenNestings = writeIORef __cogent_fflatten_nestings_ref (__fixme False)  -- FIXME after fixing the impl'n
 set_flag_ffncallAsMacro = writeIORef __cogent_ffncall_as_macro_ref True
@@ -304,6 +302,13 @@ __cogent_fcheck_undefined_ref = unsafePerformIO $ newIORef True
 -- __cogent_fcondition_knf = True
 
 -- TODO
+
+__cogent_fdisambiguate_pp :: Bool
+__cogent_fdisambiguate_pp = unsafePerformIO $ readIORef __cogent_fdisambiguate_pp_ref
+
+__cogent_fdisambiguate_pp_ref :: IORef Bool
+{-# NOINLINE __cogent_fdisambiguate_pp_ref #-}
+__cogent_fdisambiguate_pp_ref = unsafePerformIO $ newIORef False
 
 __cogent_fdump_to_stdout :: Bool
 __cogent_fdump_to_stdout = unsafePerformIO $ readIORef __cogent_fdump_to_stdout_ref
