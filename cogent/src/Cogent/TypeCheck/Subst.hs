@@ -29,10 +29,10 @@ instance Monoid Subst where
 apply :: Subst -> TCType -> TCType
 apply = forFlexes . lookup
 
-applyAlts :: Subst -> [Alt TCTypedName TCExpr] -> [Alt TCTypedName TCExpr]
+applyAlts :: Subst -> [Alt TCName TCExpr] -> [Alt TCName TCExpr]
 applyAlts = map . applyAlt
 
-applyAlt :: Subst -> Alt TCTypedName TCExpr -> Alt TCTypedName TCExpr
+applyAlt :: Subst -> Alt TCName TCExpr -> Alt TCName TCExpr
 applyAlt s = fmap (applyE s) . ffmap (fmap (apply s))
 
 applyCtx :: Subst -> ErrorContext -> ErrorContext

@@ -1,3 +1,13 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
 {-# LANGUAGE TupleSections #-}
 module Cogent.TypeCheck.Post where
 
@@ -18,31 +28,35 @@ postT ctx t = do
 postE :: [ErrorContext] -> TCExpr -> ExceptT [ContextualisedError] TC TypedExpr
 postE ctx e = do
   d <- use knownTypes
-  withExceptT pure $ ExceptT (return $ fmap toTypedExpr $ normalise d e)
+  withExceptT pure $ ExceptT (return $ fmap toTypedExpr $ normaliseE d e)
 
-
-postA :: [ErrorContext] -> [Alt TCTypedName TCExpr] -> ExceptT [ContextualisedError] TC [Alt TypedName TypedExpr]
+postA :: [ErrorContext] -> [Alt TCName TCExpr] -> ExceptT [ContextualisedError] TC [Alt TypedName TypedExpr]
 postA ctx as = do
   d <- use knownTypes
   withExceptT pure $ ExceptT (return $ fmap toTypedAlts $ normaliseA d as)
 
+-- not used? / zilinc
 posttc :: TypeDict -> TCExpr -> Either ContextualisedError TypedExpr
-posttc d = fmap toTypedExpr . normalise d
+posttc d = fmap toTypedExpr . normaliseE d
 
 
-
-normaliseA :: TypeDict -> [Alt TCTypedName TCExpr] -> Either ContextualisedError [Alt TCTypedName TCExpr]
-normaliseA d as = traverse (traverse (normalise d) >=> ttraverse (traverse f)) as
+normaliseA :: TypeDict -> [Alt TCName TCExpr] -> Either ContextualisedError [Alt TCName TCExpr]
+normaliseA d as = traverse (traverse (normaliseE d) >=> ttraverse (traverse f)) as
   where f = contextualise . normaliseT d
 
-normalise :: TypeDict -> TCExpr -> Either ContextualisedError TCExpr
-normalise d te@(TE t e p) = case normalise' d e of
+normaliseE :: TypeDict -> TCExpr -> Either ContextualisedError TCExpr
+normaliseE d te@(TE t e p) = case normaliseE' d e of
   Left (es,c) -> Left (ctx:es, c)
   Right e'    -> case normaliseT d t of
-    Left er -> Left ([ctx], er)
+    Left  er -> Left  ([ctx], er)
     Right t' -> Right (TE t' e' p)
   where
     ctx = InExpression (toLocExpr (toLocType) te) t
+
+normaliseE' :: TypeDict -> Expr TCType TCName TCExpr -> Either ContextualisedError (Expr TCType TCName TCExpr)
+normaliseE' d =   traverse (normaliseE d)
+              >=> ttraverse (traverse (contextualise . normaliseT d))
+              >=> tttraverse (contextualise . normaliseT d)
 
 normaliseT :: TypeDict -> TCType -> Either TypeError TCType
 normaliseT d (T (TUnbox t)) = do
@@ -99,12 +113,7 @@ normaliseT d (RemoveCase p t) = do
 normaliseT d (U x) = error "Panic: invalid type to normaliseT"
 normaliseT d (T x) = T <$> traverse (normaliseT d) x
 
-
-normalise' :: TypeDict -> Expr TCType (VarName, TCType) (TExpr TCType) -> Either ContextualisedError (Expr TCType (VarName, TCType) (TExpr TCType))
-normalise' d =   traverse (normalise d)
-             >=> ttraverse (traverse (contextualise . normaliseT d))
-             >=> tttraverse (contextualise . normaliseT d)
-
 contextualise :: Either TypeError x -> Either ContextualisedError x
 contextualise (Left e) = Left ([],e)
 contextualise (Right v) = Right v
+

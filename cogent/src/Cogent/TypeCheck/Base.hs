@@ -28,8 +28,8 @@ import qualified Data.Map as M
 data TypeError = FunctionNotFound VarName
                | TooManyTypeArguments FunName (Polytype RawType)
                | NotInScope VarName
-               | DuplicateVariableInPattern VarName (Pattern TCTypedName)
-               | DuplicateVariableInIrrefPattern VarName (IrrefutablePattern TCTypedName)
+               | DuplicateVariableInPattern VarName (Pattern TCName)
+               | DuplicateVariableInIrrefPattern VarName (IrrefutablePattern TCName)
                | UnknownTypeVariable VarName
                | UnknownTypeConstructor TypeName
                | TypeArgumentMismatch TypeName Int Int
@@ -46,7 +46,7 @@ data TypeError = FunctionNotFound VarName
                | DuplicateTypeVariable [VarName]
                | TakeFromNonRecord (Maybe [FieldName]) TCType
                | PutToNonRecord (Maybe [FieldName]) TCType
-               | RemoveCaseFromNonVariant (Pattern TCTypedName) TCType
+               | RemoveCaseFromNonVariant (Pattern TCName) TCType
                deriving (Show)
 
 data TypeWarning = DummyWarning
@@ -62,21 +62,21 @@ data ErrorContext = InExpression LocExpr TCType
                   | AntiquotedExpr LocExpr
                   deriving (Show)
 
-type TCTypedName = (VarName, TCType)
+type ContextualisedError = ([ErrorContext], TypeError)
 
-data TCType = T (Type TCType) | U Int | RemoveCase (Pattern TCTypedName) TCType deriving (Show, Eq)
+data TCType = T (Type TCType) | U Int | RemoveCase (Pattern TCName) TCType deriving (Show, Eq)
 
 data TExpr t = TE { getType :: t, getExpr :: Expr t (VarName, t) (TExpr t), getLoc :: SourcePos }
              deriving (Show)
 
-
-type TypedName = (VarName, RawType)
-
 instance Functor TExpr where
   fmap f (TE t e p) = TE (f t) (fffmap f $ ffmap (fmap f) $ fmap (fmap f) e) p
 
+type TCName = (VarName, TCType)
+type TCExpr = TExpr TCType
+
+type TypedName = (VarName, RawType)
 type TypedExpr = TExpr RawType
-type TCExpr    = TExpr TCType
 
 toTCType :: RawType -> TCType
 toTCType (RT x) = T (fmap toTCType x)
@@ -87,7 +87,7 @@ toLocExpr f (TE t e p) = LocExpr p (fffmap (f p) $ fmap (toLocExpr f) $ ffmap fs
 toTypedExpr :: TCExpr -> TypedExpr
 toTypedExpr = fmap toRawType
 
-toTypedAlts :: [Alt TCTypedName TCExpr] -> [Alt TypedName TypedExpr]
+toTypedAlts :: [Alt TCName TCExpr] -> [Alt TypedName TypedExpr]
 toTypedAlts = fmap (fmap (fmap toRawType) . ffmap (fmap toRawType))
 
 -- Precondition: No unification variables left in the type
@@ -124,7 +124,7 @@ data Constraint = (:<) TCType TCType
                 | (:@) Constraint ErrorContext
                 | Unsat TypeError
                 | Sat
-                | Exhaustive TCType [Pattern TCTypedName]
+                | Exhaustive TCType [Pattern TCName]
                 deriving (Show)
 
 instance Monoid Constraint where
