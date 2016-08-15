@@ -364,7 +364,10 @@ desugarType = \case
   S.RT (S.TVar vn b)     -> (findIx vn <$> sel1 <$> get) >>= \(Just v) -> return $ if b then TVarBang v else TVar v
   S.RT (S.TFun ti to)    -> TFun <$> desugarType ti <*> desugarType to
   S.RT (S.TRecord fs s)  -> TRecord <$> mapM (\(f,(t,x)) -> (f,) . (,x) <$> desugarType t) fs <*> pure s
-  S.RT (S.TVariant alts) -> TSum <$> mapM (\(c,ts) -> (c,) . (,False) <$> desugarType (S.RT $ S.TTuple ts)) (M.toList alts)
+  S.RT (S.TVariant alts) -> TSum <$> mapM (\(c,ts) -> (c,) . (,False) <$> desugarType (group ts)) (M.toList alts)
+    where group [] = S.RT S.TUnit
+          group (t:[]) = t
+          group ts = S.RT $ S.TTuple ts
   S.RT (S.TTuple [])     -> __impossible "desugarType (TTuple 0)"
   S.RT (S.TTuple (t:[])) -> __impossible "desugarType (TTuple 1)"
   S.RT (S.TTuple (t1:t2:[])) | not __cogent_ftuples_as_sugar -> TProduct <$> desugarType t1 <*> desugarType t2
