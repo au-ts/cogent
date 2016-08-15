@@ -4,7 +4,7 @@
 
 module Cogent.Common.Syntax where
 
-import COGENT.Compiler
+import Cogent.Compiler
 
 #if __GLASGOW_HASKELL__ < 709
 import Data.Monoid
