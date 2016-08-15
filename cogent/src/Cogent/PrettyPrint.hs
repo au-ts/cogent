@@ -18,12 +18,12 @@ module Cogent.PrettyPrint where
 import qualified Cogent.Common.Syntax as S (associativity)
 import Cogent.Common.Syntax hiding (associativity)
 import Cogent.Common.Types
-import Cogent.Compiler (__cogent_fshow_types_in_pretty, __fixme, __impossible)
-import Cogent.Desugar (desugarOp)
+import Cogent.Compiler
 import Cogent.Reorganizer (ReorganizeError(..), SourceObject(..))
 import Cogent.Surface
 import Cogent.TypeCheck.Base
 import Control.Arrow (second)
+import Data.Function ((&))
 import qualified Data.Map as M hiding (foldr)
 #if __GLASGOW_HASKELL__ < 709
 import Data.Monoid (mconcat)
@@ -291,14 +291,15 @@ instance (Pretty t, TypeType t) => Pretty (Type t) where
                      | otherwise        = pretty e
   pretty (TVar n b)  = typevar n
   pretty (TTuple ts) = tupled (map pretty ts)
-  pretty (TUnit)     = typesymbol "()"
+  pretty (TUnit)     = typesymbol "()" & (if __cogent_fdisambiguate_pp then (<+> comment "{- unit -}") else id)
   pretty (TRecord ts s)
     | not . or $ map (snd . snd) ts = (if | s == Unboxed -> (typesymbol "#" <>)
                                           | s == ReadOnly -> (\x -> parens x <> typesymbol "!")
                                           | otherwise -> id) $
         record (map (\(a,(b,c)) -> fieldname a <+> symbol ":" <+> pretty b) ts)  -- all untaken
-    | otherwise = pretty (TRecord (map (second . second $ const False) ts) s)
-               <+> typesymbol "take" <+> tupled1 (map fieldname tk)
+    | otherwise = (pretty (TRecord (map (second . second $ const False) ts) s)
+               <+> typesymbol "take" <+> tupled1 (map fieldname tk)) &
+               (if __cogent_fdisambiguate_pp then (<+> comment "{- rec -}") else id)
         where tk = map fst $ filter (snd .snd) ts
   pretty (TVariant ts) = variant (map (\(a,bs) -> case bs of
                                           [] -> tagname a
