@@ -407,12 +407,12 @@ instance Pretty TypeError where
   pretty (TakeFromNonRecord fs t)        = err "Cannot" <+> keyword "take" <+> err "fields"
                                            <+> (case fs of Nothing  -> tupled (fieldname ".." : [])
                                                            Just fs' -> tupled1 (map fieldname fs'))
-                                           <$> err "from non record type:"
+                                           <+> err "from non record type:"
                                            <$> pretty t
   pretty (PutToNonRecord fs t)           = err "Cannot" <+> keyword "put" <+> err "fields"
                                            <+> (case fs of Nothing  -> tupled (fieldname ".." : [])
                                                            Just fs' -> tupled1 (map fieldname fs'))
-                                           <$> err "into non record type:"
+                                           <+> err "into non record type:"
                                            <$> pretty t
   pretty (RemoveCaseFromNonVariant p t)  = err "Cannot remove pattern" <$> pretty p <$> err "from type" <$> pretty t
 

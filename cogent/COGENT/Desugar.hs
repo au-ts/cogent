@@ -39,7 +39,7 @@ import COGENT.Util
 import COGENT.Vec as Vec
 
 import Control.Applicative
-import Control.Arrow (first, second, (&&&))
+import Control.Arrow ((&&&))
 import Control.Lens
 import Control.Monad.Reader hiding (forM)
 import Control.Monad.RWS.Strict hiding (forM)
@@ -400,9 +400,12 @@ desugarExpr (B.TE _ (S.TypeApp v ts note) _) = do
   E <$> (Fun v <$> mapM desugarType ts <*> pure (pragmaToNote pragmas v $ desugarNote note))
 desugarExpr (B.TE _ (S.Con c []) _) = return . E $ Con c (E Unit)
 desugarExpr (B.TE _ (S.Con c [e]) _) = E . Con c <$> desugarExpr e
-desugarExpr (B.TE (S.RT (S.TVariant ts)) (S.Con c es ) l) = do
-  let Just [tes] = M.lookup c ts 
-  E . Con c <$> desugarExpr (B.TE tes (S.Tuple es) l)
+desugarExpr (B.TE (S.RT (S.TVariant ts)) (S.Con c es) l) = do
+    let Just tes = M.lookup c ts 
+    E . Con c <$> desugarExpr (B.TE (group tes) (S.Tuple es) l)
+  where group [] = S.RT S.TUnit
+        group (t:[]) = t
+        group ts = S.RT $ S.TTuple ts
 desugarExpr (B.TE _ (S.Seq e1 e2) _) = do
   v <- freshVar
   E <$> (Let v <$> desugarExpr e1 <*> withBinding v (desugarExpr e2))
