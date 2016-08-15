@@ -26,7 +26,7 @@ module Cogent.PrettyCore where
 
 import Cogent.Common.Syntax
 import Cogent.Common.Types
-import Cogent.Sugarfree
+import Cogent.Core
 import Cogent.Vec
 
 import System.Console.ANSI (hSetSGR)

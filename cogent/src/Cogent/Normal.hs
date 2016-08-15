@@ -23,7 +23,7 @@ module Cogent.Normal where
 
 import Cogent.Common.Syntax (VarName)
 import Cogent.Compiler
-import Cogent.Sugarfree
+import Cogent.Core
 import Cogent.Vec
 
 import Control.Applicative

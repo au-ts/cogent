@@ -47,13 +47,12 @@ import Text.Printf
 
 import Cogent.Common.Syntax
 import Cogent.Compiler
+import Cogent.Core
 import Cogent.Deep (deepDefinitions, deepTypeAbbrevs, getTypeAbbrevs, TypeAbbrevs)
 import Cogent.ProofGen
-import Cogent.Sugarfree
 import Cogent.Util (NameMod)
 import Cogent.Vec hiding (splitAt, length, zipWith, zip, unzip, head)
 import qualified Cogent.Vec as V
-
 
 data TypeSplitKind = TSK_L | TSK_S | TSK_NS
   deriving Eq

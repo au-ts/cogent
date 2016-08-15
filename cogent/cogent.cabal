@@ -45,6 +45,7 @@ Library
               , Cogent.Compiler
               , Cogent.CorresProof
               , Cogent.CorresSetup
+              , Cogent.Core
               , Cogent.Deep
               , Cogent.DocGent
               , Cogent.Context
@@ -75,7 +76,6 @@ Library
               , Cogent.Shallow
               , Cogent.ShallowTable
               , Cogent.Simplify
-              , Cogent.Sugarfree
               , Cogent.SuParser
               , Cogent.Surface
               , Cogent.TypeCheck
