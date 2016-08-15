@@ -24,9 +24,9 @@ type D = { arr : Arr, c : U8 } take ()
 
 type U = < TAG_a C | TAG_d D >
 
-foo : (D) -> < Fail (U32) | Success (D) >
+foo : D -> < Fail U32 | Success D >
 
-bar : (V, U) -> (U16)
+bar : (V, U) -> U16
 
-blah : (P) -> (P)
-blah (a) = (a)
+blah : P -> P
+blah a = a
