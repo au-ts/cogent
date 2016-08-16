@@ -62,6 +62,7 @@ Library
               , Cogent.Glue
               , Cogent.GraphGen
               , Cogent.Hangman
+              , Cogent.Inference
               , Cogent.Mono
               , Cogent.MonoProof
               , Cogent.Normal

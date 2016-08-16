@@ -30,8 +30,7 @@ import Cogent.AllRefine     as AR (allRefine)
 import Cogent.CallGraph     as CF (daX86, printIntel)
 import Cogent.CodeGen       as CG (gen, printCTable, printATM)
 import Cogent.Compiler
-import Cogent.Core          as CC (tc, tc_, tcConsts, retype, untypeD)
-import Cogent.Core          as CC (isConFun, getDefinitionId)  -- FIXME: zilinc
+import Cogent.Core          as CC (isConFun, getDefinitionId, untypeD)  -- FIXME: zilinc
 import Cogent.CorresProof   as CP (corresProof)
 import Cogent.CorresSetup   as CS (corresSetup)
 import Cogent.Deep          as DP (deep)
@@ -40,6 +39,7 @@ import Cogent.DocGent       as DG (docGent)
 import Cogent.GetOpt
 import Cogent.Glue          as GL (defaultExts, defaultTypnames, GlState, glue, GlueMode(..), mkGlState, parseFile, parseFile')
 import Cogent.Hangman             (hangman)
+import Cogent.Inference     as IN (tc, tc_, tcConsts, retype)
 import Cogent.Mono          as MN (mono, printAFM)
 import Cogent.MonoProof     as MP  -- FIXME: zilinc
 import Cogent.Normal        as NF (normal, verifyNormal)
@@ -575,7 +575,7 @@ parseArgs args = case getOpt' Permute options args of
       let stg = STGDesugar
       putProgressLn "Desugaring and typing..."
       let (desugared, typedefs) = DS.desugar tced pragmas
-      case CC.tc desugared of
+      case IN.tc desugared of
         Left err -> hPutStrLn stderr ("Internal TC failed: " ++ err) >> exitFailure
         Right (desugared',fts) -> do
           when (Ast stg `elem` cmds) $ genAst stg desugared'
@@ -601,7 +601,7 @@ parseArgs args = case getOpt' Permute options args of
                  if not $ verifyNormal nfed
                    then hPutStrLn stderr "Normalisation failed!" >> exitFailure
                    else do putProgressLn "Re-typing NF..."
-                           case CC.tc_ nfed of
+                           case IN.tc_ nfed of
                              Left err -> hPutStrLn stderr ("Re-typing NF failed: " ++ err) >> exitFailure
                              Right nfed' -> return nfed'
       let thy = mkProofName source Nothing
@@ -634,7 +634,7 @@ parseArgs args = case getOpt' Permute options args of
         True  -> do putProgressLn ""
                     let simpled = map untypeD $ SM.simplify nfed'
                     putProgressLn "Re-typing simplified AST..."
-                    case CC.tc_ simpled of
+                    case IN.tc_ simpled of
                       Left err -> hPutStrLn stderr ("Re-typing simplified AST failed: " ++ err) >> exitFailure
                       Right simpled' -> return simpled'
       when (Ast stg `elem` cmds) $ genAst stg simpled'
@@ -818,7 +818,7 @@ parseArgs args = case getOpt' Permute options args of
         output ssfile $ flip LJ.hPutDoc shrd
         writeFileMsg shfile
         output shfile $ flip LJ.hPutDoc shal
-      let constsTypeCheck = CC.tcConsts (sel3 $ fromJust $ getLast typedefs) fts
+      let constsTypeCheck = IN.tcConsts (sel3 $ fromJust $ getLast typedefs) fts
       when ks $ do
         putProgressLn ("Generating shallow constants (" ++ stgMsg stg ++ ")...")
         case constsTypeCheck of
