@@ -37,6 +37,7 @@ import Cogent.Compiler
 import qualified Cogent.Core      as CC
 import qualified Cogent.Desugar   as DS
 import qualified Cogent.DList     as DList
+import qualified Cogent.Inference as IN
 import qualified Cogent.Mono      as MN
 import qualified Cogent.Parser    as PS
 -- import Cogent.PrettyPrint
@@ -203,10 +204,10 @@ desugarAnti m a = view kenv >>= \(fmap fst -> ts) -> lift . lift $
                      cdefs = view (dsState.constdefs) s
                   in return (fst (flip3 evalRWS (ts, Nil, 0) (tdefs, cdefs, []) $ DS.runDS $ m a), s)  -- FIXME: pragmas / zilinc
 
-icAnti :: (a -> CC.TC t 'Zero b) -> a -> GlDefn t b
+icAnti :: (a -> IN.TC t 'Zero b) -> a -> GlDefn t b
 icAnti m a = view kenv >>= \(fmap snd -> ts) -> lift . lift $
   StateT $ \s -> let reader = (ts, view (icState.funtypes) s)
-                  in case flip evalState Nil $ flip runReaderT reader $ runExceptT $ CC.unTC $ m a of
+                  in case flip evalState Nil $ flip runReaderT reader $ runExceptT $ IN.unTC $ m a of
                        Left  e -> __impossible "icAnti"
                        Right x -> return (x, s)
 
@@ -333,7 +334,7 @@ desugarExp :: TC.TypedExpr -> GlDefn t (CC.UntypedExpr t 'Zero VarName)
 desugarExp = desugarAnti DS.desugarExpr
 
 icExp :: CC.UntypedExpr t 'Zero VarName -> GlDefn t (CC.TypedExpr t 'Zero VarName)
-icExp = icAnti CC.typecheck
+icExp = icAnti IN.typecheck
 
 monoExp :: CC.TypedExpr t 'Zero VarName -> GlMono t (CC.TypedExpr 'Zero 'Zero VarName)
 monoExp = monoAnti MN.monoExpr

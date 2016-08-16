@@ -32,6 +32,7 @@ import Cogent.Compiler (__impossible)
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Core
+import Cogent.Inference
 import Cogent.Util (Warning, first3, second3, third3)
 import Cogent.Vec as Vec hiding (head)
 

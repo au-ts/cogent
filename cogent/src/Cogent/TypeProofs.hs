@@ -26,6 +26,16 @@
 
 module Cogent.TypeProofs where
 
+import Cogent.Common.Syntax
+import Cogent.Compiler
+import Cogent.Deep (deepDefinitions, deepTypeAbbrevs, getTypeAbbrevs, TypeAbbrevs)
+import Cogent.ProofGen
+import Cogent.Core
+import Cogent.Inference
+import Cogent.Util (NameMod)
+import Cogent.Vec hiding (splitAt, length, zipWith, zip, unzip, head)
+import qualified Cogent.Vec as V
+
 import Control.Arrow (second)
 import Control.Lens ((^.), use)
 import Control.Monad.State.Strict
@@ -44,15 +54,6 @@ import Prelude hiding ((<$>))
 import System.FilePath ((</>))
 import Text.PrettyPrint.ANSI.Leijen hiding ((</>))
 import Text.Printf
-
-import Cogent.Common.Syntax
-import Cogent.Compiler
-import Cogent.Core
-import Cogent.Deep (deepDefinitions, deepTypeAbbrevs, getTypeAbbrevs, TypeAbbrevs)
-import Cogent.ProofGen
-import Cogent.Util (NameMod)
-import Cogent.Vec hiding (splitAt, length, zipWith, zip, unzip, head)
-import qualified Cogent.Vec as V
 
 data TypeSplitKind = TSK_L | TSK_S | TSK_NS
   deriving Eq
