@@ -207,21 +207,21 @@ instance Pretty a => Pretty (Vec t a) where
   pretty (Cons x xs) = pretty x <> string "," <+> pretty xs
 
 instance (Pretty a, Pretty (e t ('Suc 'Zero) a)) => Pretty (Definition e a) where
-  pretty (FunDef _ fn ts t rt e) = funName fn <+> symbol ":" <+> brackets (pretty ts) <> symbol "." <+>
-                                   parens (pretty t) <+> symbol "->" <+> parens (pretty rt) <+> symbol "=" <$>
-                                   pretty (unsafeCoerce e :: e t ('Suc 'Zero) a)  -- FIXME: Use of `unsafeCoerce' to retain existential type / zilinc
-  pretty (AbsDecl _ fn ts t rt) = funName fn <+> symbol ":" <+> brackets (pretty ts) <> symbol "." <+>
-                                  parens (pretty t) <+> symbol "->" <+> parens (pretty rt)
-  pretty (TypeDef tn ts Nothing) = keyword "type" <+> typename tn <+> pretty ts
+  pretty (FunDef _ fn ts t rt e)  = funName fn <+> symbol ":" <+> brackets (pretty ts) <> symbol "." <+>
+                                    parens (pretty t) <+> symbol "->" <+> parens (pretty rt) <+> symbol "=" <$>
+                                    pretty (unsafeCoerce e :: e t ('Suc 'Zero) a)  -- FIXME: Use of `unsafeCoerce' to retain existential type / zilinc
+  pretty (AbsDecl _ fn ts t rt)   = funName fn <+> symbol ":" <+> brackets (pretty ts) <> symbol "." <+>
+                                    parens (pretty t) <+> symbol "->" <+> parens (pretty rt)
+  pretty (TypeDef tn ts Nothing)  = keyword "type" <+> typename tn <+> pretty ts
   pretty (TypeDef tn ts (Just t)) = keyword "type" <+> typename tn <+> pretty ts <+>
                                     symbol "=" <+> pretty t
 
 displayOneLine :: Handle -> SimpleDoc -> IO ()
 displayOneLine handle simpleDoc = display simpleDoc >> hPutChar handle '\n'
   where
-    display SFail         = error $ "@SFail@ can not appear uncaught in a " ++ "rendered @SimpleDoc@"
+    display SFail          = error $ "@SFail@ can not appear uncaught in a " ++ "rendered @SimpleDoc@"
     display SEmpty         = return ()
-    display (SChar c x)    = do{ hPutChar handle c; display x}
-    display (SText l s x)  = do{ hPutStr handle s; display x}
+    display (SChar c x)    = do{ hPutChar handle c  ; display x}
+    display (SText l s x)  = do{ hPutStr  handle s  ; display x}
     display (SLine i x)    = do{ hPutChar handle ' '; display x}
-    display (SSGR s x)     = do{ hSetSGR handle s; display x}
+    display (SSGR s x)     = do{ hSetSGR  handle s  ; display x}
