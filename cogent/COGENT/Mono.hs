@@ -32,6 +32,7 @@ import COGENT.Compiler (__impossible, __cogent_entry_funcs)
 import COGENT.Common.Syntax
 import COGENT.Common.Types
 import COGENT.Core
+import COGENT.Inference
 import COGENT.Util (Warning)
 import COGENT.Vec as Vec hiding (head)
 

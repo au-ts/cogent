@@ -35,7 +35,8 @@ module COGENT.Simplify where
 import COGENT.Common.Syntax
 import COGENT.Common.Types
 import COGENT.Compiler
-import COGENT.Core hiding (kindcheck, lookupKind, withBinding)
+import COGENT.Core
+import COGENT.Inference hiding (kindcheck, lookupKind, withBinding)
 import COGENT.Util (Flip(..), secondM)
 import COGENT.Vec as V
 

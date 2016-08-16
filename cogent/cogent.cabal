@@ -49,6 +49,7 @@ executable cogent
     COGENT.GetOpt
     COGENT.Glue
     COGENT.Hangman
+    COGENT.Inference
     COGENT.Mono
     COGENT.MonoProof
     COGENT.Normal

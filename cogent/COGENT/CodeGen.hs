@@ -42,9 +42,10 @@ module COGENT.CodeGen where
 import           COGENT.Compiler
 import           COGENT.Common.Syntax  as Syn
 import           COGENT.Common.Types   as Typ
-import           COGENT.Core           as CC hiding (kindcheck, withBindings)
+import           COGENT.Core           as CC
 import           COGENT.Deep
 import qualified COGENT.DList          as DList
+import           COGENT.Inference      hiding (kindcheck, withBindings)
 import           COGENT.Mono                  (Instance)
 import           COGENT.Normal                (isAtom)
 import           COGENT.PrettyCore            (displayOneLine)
