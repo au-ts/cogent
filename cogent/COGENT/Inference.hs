@@ -64,7 +64,7 @@ guardShow :: String -> Bool -> TC t v ()
 guardShow x b = if b then return () else TC (throwError $ "GUARD: " ++ x)
 
 guardShow' :: String -> [String] -> Bool -> TC t v ()
-guardShow' mh mb b = if b then return () else __impossible' ("GUARD: " ++ mh) mb
+guardShow' mh mb b = if b then return () else TC (throwError $ "GUARD: " ++ mh ++ "\n" ++ unlines mb)
 
 isSubtype :: Type t -> Type t -> Bool
 isSubtype (TPrim p1) (TPrim p2) = isSubtypePrim p1 p2
@@ -207,8 +207,8 @@ withBinding t a
               Right (Cons Nothing s,r)   -> do put s; return r
               Right (Cons (Just t) s, r) -> do
                 ok <- canDiscard <$> unTC (kindcheck t)
-                if ok then do put s; return r
-                      else do throwError "Didn't use linear variable"
+                if ok then put s >> return r
+                      else throwError "Didn't use linear variable"
 
 withBindings :: Vec k (Type t) -> TC t (v :+: k) x -> TC t v x
 withBindings Nil tc = tc
