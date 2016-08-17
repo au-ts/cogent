@@ -18,6 +18,8 @@ import Control.Applicative ((<$>))
 import Data.Monoid
 #endif
 import Data.Char
+import qualified Data.Map as M
+import qualified Data.List as L
 import Data.Version (showVersion)
 import System.Environment
 import System.FilePath.Posix
@@ -26,8 +28,6 @@ import Version_cogent(gitHash)
 
 import Paths_cogent
 
-import qualified Data.Map as M
-import qualified Data.List as L
 --
 -- functors
 
@@ -42,9 +42,11 @@ fffmap f = unflip2 . fmap f . Flip2
 
 ttraverse :: (Traversable (Flip f c), Applicative m) => (a -> m b) -> f a c -> m (f b c)
 ttraverse f = fmap unflip . traverse f . Flip
---
+
 tttraverse :: (Traversable (Flip2 f x c), Applicative m) => (a -> m b) -> f a c x -> m (f b c x)
 tttraverse f = fmap unflip2 . traverse f . Flip2
+
+--
 -- name conversion
 
 cap :: String -> String
@@ -195,3 +197,4 @@ u8MAX, u16MAX, u32MAX :: Integer
 u8MAX  = 256
 u16MAX = 65535
 u32MAX = 4294967296
+

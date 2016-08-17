@@ -613,7 +613,8 @@ parseArgs args = case getOpt' Permute options args of
             tpfile = mkThyFileName source suf
             tpthy  = thy ++ suf
         writeFileMsg tpfile
-        output tpfile $ flip LJ.hPutDoc $ deepTypeProof id __cogent_ftp_with_decls __cogent_ftp_with_bodies tpthy nfed' log
+        output tpfile $ flip LJ.hPutDoc $ 
+          deepTypeProof id __cogent_ftp_with_decls __cogent_ftp_with_bodies tpthy nfed' log
       shallowTypeNames <-
         genShallow cmds source stg nfed' typedefs fts log (Shallow stg `elem` cmds,
                                                            SCorres stg `elem` cmds,
