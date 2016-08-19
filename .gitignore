@@ -30,3 +30,5 @@ umm_types.txt
 *.thy
 ROOT
 generated.*
+cogent/.stack-work
+isa-parser/.stack-work

@@ -38,10 +38,10 @@ import qualified COGENT.Desugar   as DS
 import qualified COGENT.DList     as DList
 import qualified COGENT.Mono      as MN
 import qualified COGENT.Parser    as PS
-import COGENT.PrettyPrint
+-- import COGENT.PrettyPrint
 import qualified COGENT.Sugarfree as SF
 import qualified COGENT.Surface   as SR
-import qualified COGENT.TypeCheck as TC
+import qualified COGENT.TypeCheck.Base as TC
 import COGENT.Util
 import COGENT.Vec as Vec hiding (repeat)
 
@@ -53,8 +53,8 @@ import Control.Monad.Reader
 import Control.Monad.RWS.Strict
 import Control.Monad.State
 import Control.Monad.Trans.Either
-import Control.Monad.Trans.Except
-import Control.Monad.Writer
+--import Control.Monad.Trans.Except
+--import Control.Monad.Writer
 import qualified Data.ByteString.Char8 as B
 import Data.Data
 import Data.Function.Flippers
@@ -179,7 +179,8 @@ parseAnti s parsec loc offset' = do
     Right t  -> return t
 
 tcAnti :: (a -> TC.TC b) -> a -> GlDefn t b
-tcAnti m a = view kenv >>= \(cvtToList -> ts) -> lift . lift $
+tcAnti m a = undefined
+{- view kenv >>= \(cvtToList -> ts) -> lift . lift $
   StateT $ \s -> let state = TC.TCState { TC._knownFuns    = view (tcState.tfuncs) s
                                         , TC._context      = view (tcState.consts) s
                                         , TC._errorContext = []
@@ -190,7 +191,7 @@ tcAnti m a = view kenv >>= \(cvtToList -> ts) -> lift . lift $
                        Left  e -> throwE $ "Error: Typecheck antiquote failed: \n" ++ (show $ prettyTWE' __cogent_ftc_ctx_len e)
                                     -- FIXME: may need a pp modifier `plain' / zilinc
                        Right x -> return (x, s)
-
+-}
 desugarAnti :: (a -> DS.DS t Zero b) -> a -> GlDefn t b
 desugarAnti m a = view kenv >>= \(fmap fst -> ts) -> lift . lift $
   StateT $ \s -> let tdefs = view (dsState.typedefs ) s
@@ -234,8 +235,9 @@ traverseAnti m = everywhereM $ mkM $ m
 parseType :: String -> SrcLoc -> GlFile SR.LocType
 parseType s loc = parseAnti s PS.monotype loc 4
 
+
 tcType :: SR.LocType -> GlDefn t SR.RawType
-tcType t = tcAnti (TC.inEContext (TC.AntiquotedType t) . TC.validateType) t
+tcType t = undefined {- tcAnti (TC.inEContext (TC.AntiquotedType t) . TC.validateType) t -}
 
 desugarType :: SR.RawType -> GlDefn t (SF.Type t)
 desugarType = desugarAnti DS.desugarType
@@ -273,12 +275,13 @@ parseFnCall :: String -> SrcLoc -> GlFile SR.LocExpr
 parseFnCall s loc = parseAnti s PS.basicExpr' loc 4
 
 tcFnCall :: SR.LocExpr -> GlDefn t TC.TypedExpr
-tcFnCall e = do
+tcFnCall e = undefined {-  do
   f <- case e of
          SR.LocExpr _ (SR.TypeApp f ts _) -> return f  -- FIXME: make use of Inline to perform glue code inlining / zilinc
          SR.LocExpr _ (SR.Var f) -> return f
          otherwise -> throwError $ "Error: Not a function in $exp antiquote"
   tcAnti (TC.inEContext (TC.AntiquotedExpr e) . TC.infer) e
+-}
 
 genFn :: SF.TypedExpr Zero Zero VarName -> Gl CS.Exp
 genFn = genAnti $ \case
@@ -318,7 +321,7 @@ parseExp :: String -> SrcLoc -> GlFile SR.LocExpr
 parseExp s loc = parseAnti s (PS.expr 1) loc 4
 
 tcExp :: SR.LocExpr -> GlDefn t TC.TypedExpr
-tcExp e = tcAnti (TC.inEContext (TC.AntiquotedExpr e) . TC.infer) e
+tcExp e = undefined {- tcAnti (TC.inEContext (TC.AntiquotedExpr e) . TC.infer) e -}
 
 desugarExp :: TC.TypedExpr -> GlDefn t (SF.UntypedExpr t Zero VarName)
 desugarExp = desugarAnti DS.desugarExpr
@@ -511,7 +514,7 @@ mkGlState :: [SR.TopLevel SR.RawType TC.TypedName TC.TypedExpr]
           -> (MN.FunMono, MN.TypeMono)
           -> CG.GenState
           -> GlState
-mkGlState tced tcState (Last (Just (typedefs, constdefs, _))) ftypes (funMono, typeMono) genState =
+mkGlState tced tcState (Last (Just (typedefs, constdefs, _))) ftypes (funMono, typeMono) genState = undefined {- 
   GlState { _tcDefs  = tced
           , _tcState = TcState { _tfuncs = view TC.knownFuns  tcState
                                , _ttypes = view TC.knownTypes tcState
@@ -529,7 +532,7 @@ mkGlState tced tcState (Last (Just (typedefs, constdefs, _))) ftypes (funMono, t
                                , _localOracle  = view CG.localOracle  genState
                                , _globalOracle = view CG.globalOracle genState
                                }
-          }
+          } -}
 mkGlState _ _ _ _ _ _ = __impossible "mkGlState"
 
 
@@ -559,7 +562,7 @@ collect s typnames mode filenames = do
     Left err  -> hoistEither . Left $ err
 
 collectAnti :: (Typeable a, Data a, Typeable b, Monoid r) => (b -> Gl r) -> a -> Gl r
-collectAnti f a = getApp $ everything mappend (mkQ mempty (Ap . f)) a
+collectAnti f a = getAp $ everything mappend (mkQ mempty (Ap . f)) a
 
 collectFuncId :: CS.Definition -> Gl [(String, SrcLoc)]
 -- collectFuncId (CS.FuncDef (CS.Func _ (CS.AntiId fn loc) _ _ bis _) _) = (fn, loc) : collectAnti collectFnCall bis

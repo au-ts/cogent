@@ -10,4 +10,4 @@
 
 foo : () -> #{a : U32, b : U64}
 foo _ = let a' : U8 = 2
-         in #{a=a', b=43}
+         in #{a=upcast a', b=43}

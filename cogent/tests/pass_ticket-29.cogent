@@ -16,26 +16,26 @@ type D
 type T = {a : A!, b : B!, c : C!, d : D!}
 
 foo : T -> T take (..)
-foo (t {..}) = t
+foo (t {a,b,c,d}) = t
 
 -- bar and baz are the same impl'n
 
 bar : T take (a,c) -> T take (..)
-bar (t {..}) = t
+bar (t {b,d}) = t
 
 baz : T take (..) -> T take (..)
-baz (t {..}) = t
+baz t = t
 
 -- foo' and bar' are the same impl'n
 
 foo' : (T take (..), A!, B!, C!, D!) -> T
-foo' (t,a,b,c,d) = t {..}
+foo' (t,a,b,c,d) = t {a,b,c,d}
 
 bar' : (T take (..), A!, C!) -> T take (b,d)
 bar' (t,a,c) = t {a,c}
 
 baz' : T -> T
-baz' t = t {..}
+baz' t = t
 
 
 

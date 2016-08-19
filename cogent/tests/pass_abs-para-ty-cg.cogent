@@ -17,5 +17,5 @@ type A = (U32, U64)  -- and this are in the wrong order
 
 foo : B A U8 -> U32
 foo #{x=arr,y=b} = let _ = freeArray[A] arr
-                   in b
+                   in upcast b
 
