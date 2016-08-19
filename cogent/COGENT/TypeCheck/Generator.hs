@@ -71,7 +71,7 @@ cgMany es = do
   (ts, c', es') <- foldM each ([], Sat, []) es
   return (reverse ts, c', reverse es')
 
-cg' :: (?loc :: SourcePos) => Expr LocType VarName LocExpr -> TCType -> CG (Constraint, Expr TCType TCTypedName TCExpr)
+cg' :: (?loc :: SourcePos) => Expr LocType VarName LocExpr -> TCType -> CG (Constraint, Expr TCType TCName TCExpr)
 cg' (PrimOp o [e1, e2]) t
   | o `elem` words "+ - * / % .&. .|. .^. >> <<"
   = do (c1, e1') <- cg e1 t
@@ -267,7 +267,7 @@ cg' (Match e bs alts) top = do
   return (c, e)
 
 
-cgAlts :: (?loc :: SourcePos) => [Alt VarName LocExpr] -> TCType -> TCType -> CG (Constraint, [Alt TCTypedName TCExpr])
+cgAlts :: (?loc :: SourcePos) => [Alt VarName LocExpr] -> TCType -> TCType -> CG (Constraint, [Alt TCName TCExpr])
 cgAlts alts top alpha = do
   let
     altPattern (Alt p _ _) = p
@@ -289,7 +289,7 @@ cgAlts alts top alpha = do
 
 matchA :: (?loc :: SourcePos)
        => Pattern VarName -> TCType
-       -> CG (M.Map VarName (C.Row TCType), Constraint, Pattern TCTypedName)
+       -> CG (M.Map VarName (C.Row TCType), Constraint, Pattern TCName)
 
 matchA (PIrrefutable i) t = do
   (s, c, i') <- match i t
@@ -320,7 +320,7 @@ matchA (PCharLit c) t =
 
 match :: (?loc :: SourcePos)
       => IrrefutablePattern VarName -> TCType
-      -> CG (M.Map VarName (C.Row TCType), Constraint, IrrefutablePattern TCTypedName)
+      -> CG (M.Map VarName (C.Row TCType), Constraint, IrrefutablePattern TCName)
 
 match (PVar x) t = return (M.fromList [(x, (t,?loc,Nothing))], Sat, PVar (x,t))
 
@@ -368,7 +368,7 @@ match (PTake r fs) t | not (any isNothing fs) = do
 
 withBindings :: (?loc::SourcePos)
   => [Binding LocType VarName LocExpr]
-  -> CG a -> CG (Constraint, [Binding TCType TCTypedName TCExpr], a)
+  -> CG a -> CG (Constraint, [Binding TCType TCName TCExpr], a)
 withBindings [] a = (Sat, [],) <$> a
 withBindings (Binding pat tau e bs : xs) a = do
   alpha <- fresh

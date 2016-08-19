@@ -45,6 +45,7 @@ executable cogent
     COGENT.Common.Syntax
     COGENT.Common.Types
     COGENT.Compiler
+    COGENT.Core
     COGENT.CorresProof
     COGENT.CorresSetup
     COGENT.Deep
@@ -62,6 +63,7 @@ executable cogent
     COGENT.GetOpt
     COGENT.Glue
     COGENT.Hangman
+    COGENT.Inference
     COGENT.Mono
     COGENT.MonoProof
     COGENT.Normal
@@ -75,7 +77,6 @@ executable cogent
     COGENT.Shallow
     COGENT.ShallowTable
     COGENT.Simplify
-    COGENT.Sugarfree
     COGENT.SuParser
     COGENT.Surface
     COGENT.TypeCheck

@@ -25,6 +25,16 @@
 
 module COGENT.TypeProofs where
 
+import COGENT.Common.Syntax
+import COGENT.Compiler
+import COGENT.Deep (deepDefinitions, deepTypeAbbrevs, getTypeAbbrevs, TypeAbbrevs)
+import COGENT.ProofGen
+import COGENT.Core
+import COGENT.Inference
+import COGENT.Util (NameMod)
+import COGENT.Vec hiding (splitAt, length, zipWith, zip, unzip, head)
+import qualified COGENT.Vec as V
+
 import Control.Arrow (second)
 import Control.Lens ((^.), use)
 import Control.Monad.State.Strict
@@ -43,15 +53,6 @@ import Prelude hiding ((<$>))
 import System.FilePath ((</>))
 import Text.PrettyPrint.ANSI.Leijen hiding ((</>))
 import Text.Printf
-
-import COGENT.Common.Syntax
-import COGENT.Compiler
-import COGENT.Deep (deepDefinitions, deepTypeAbbrevs, getTypeAbbrevs, TypeAbbrevs)
-import COGENT.ProofGen
-import COGENT.Sugarfree
-import COGENT.Util (NameMod)
-import COGENT.Vec hiding (splitAt, length, zipWith, zip, unzip, head)
-import qualified COGENT.Vec as V
 
 
 data TypeSplitKind = TSK_L | TSK_S | TSK_NS

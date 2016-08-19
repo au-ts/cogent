@@ -22,7 +22,7 @@ module COGENT.Normal where
 
 import COGENT.Common.Syntax (VarName)
 import COGENT.Compiler
-import COGENT.Sugarfree
+import COGENT.Core
 import COGENT.Vec
 
 import Control.Applicative

@@ -54,12 +54,15 @@ checkOne loc d = case d of
     unless (null xs) $ throwError [([InDefinition loc d], DuplicateTypeVariable xs)]
     t' <- validateType' ps (stripLocT t)
     knownTypes <>= [(n,(ps, Just t'))]
-    return (TypeDec n ps (toRawType t'))
+    t'' <- postT [InDefinition loc d] t'
+    return (TypeDec n ps t'')
+
   (AbsTypeDec n ps) -> do
     let xs = ps \\ nub ps
     unless (null xs) $ throwError [([InDefinition loc d], DuplicateTypeVariable xs)]
     knownTypes <>= [(n,(ps, Nothing))]
     return (AbsTypeDec n ps)
+
   (AbsDec n (PT ps t)) -> do
     let vs' = map fst ps
         xs = vs' \\ nub vs'
@@ -68,6 +71,7 @@ checkOne loc d = case d of
     knownFuns %= M.insert n (PT ps t')
     t'' <- postT [InDefinition loc d] t'
     return (AbsDec n (PT ps t''))
+
   (ConstDef n t e) -> do
     base <- use knownConsts
     t' <- validateType' [] (stripLocT t)
@@ -82,6 +86,7 @@ checkOne loc d = case d of
       return (ConstDef n t'' e'')
     else
       throwError (map (_1 %~ (InDefinition loc d:)) errs)
+
   (FunDef f (PT vs t) alts) -> do
     let vs' = map fst vs
         xs = vs' \\ nub vs'
@@ -108,3 +113,4 @@ checkOne loc d = case d of
 
     asFunType (T (TFun a b)) = return (a, b)
     asFunType x              = throwError [([InDefinition loc d], NotAFunctionType x)]
+

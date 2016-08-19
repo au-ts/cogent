@@ -19,7 +19,7 @@ import COGENT.Common.Syntax
 import COGENT.Compiler
 import COGENT.Deep hiding (imports)
 import COGENT.Mono
-import COGENT.Sugarfree as SF
+import COGENT.Core as CC
 import COGENT.Util
 import COGENT.Vec
 import Isabelle.ExprTH
@@ -105,5 +105,5 @@ rename funMono = [isaDecl| definition $alist_name :: "$sig" where "$(mkId alist_
                           then [([isaTerm| $(mkString fn) |], [isaTerm| Nil |], [isaTerm| $(mkString fn) |])]
                           else map (\(tys,num) -> ([isaTerm| $(mkString fn) |], mkTyList tys, [isaTerm| $(mkString $ fn ++ "_" ++ show num) |])) insts
 
-    mkTyList :: [SF.Type Zero] -> Term
+    mkTyList :: [CC.Type Zero] -> Term
     mkTyList = I.mkList . map (deepType id (empty, 0))

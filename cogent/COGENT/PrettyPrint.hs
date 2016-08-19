@@ -17,13 +17,13 @@ module COGENT.PrettyPrint where
 import qualified COGENT.Common.Syntax as S (associativity)
 import COGENT.Common.Syntax hiding (associativity)
 import COGENT.Common.Types
-import COGENT.Compiler (__cogent_fshow_types_in_pretty, __fixme, __impossible)
-import COGENT.Desugar (desugarOp)
+import COGENT.Compiler
 import COGENT.Reorganizer (ReorganizeError(..), SourceObject(..))
 import COGENT.Surface
 import COGENT.TypeCheck.Base
 
 import Control.Arrow (second)
+import Data.Function ((&))
 import qualified Data.Map as M hiding (foldr)
 #if __GLASGOW_HASKELL__ < 709
 import Data.Monoid (mconcat)
@@ -94,7 +94,7 @@ level (NoAssoc i) = i
 level (Prefix) = 0
 
 associativity :: String -> Associativity
-associativity = S.associativity . desugarOp
+associativity = S.associativity . symbolOp
 
 
 -- type classes and instances for different constructs
@@ -269,21 +269,23 @@ instance (Pretty t, TypeType t) => Pretty (Type t) where
                                             | s == Unboxed && (n `notElem` primTypeCons) -> (typesymbol "#" <>)
                                             | otherwise     -> id)
   pretty (TCon n as s) = (if | s == ReadOnly -> (<> typesymbol "!") . parens
-                             | s == Unboxed  -> (typesymbol "#" <>)
+                             | s == Unboxed  -> disamb . (typesymbol "#" <>)
                              | otherwise     -> id) $
                          typename n <+> hsep (map prettyT' as)
     where prettyT' e | not $ isAtomic e = parens (pretty e)
                      | otherwise        = pretty e
+          disamb = if __cogent_fdisambiguate_pp then (<+> comment "{- unboxed-rec -}") else id
   pretty (TVar n b)  = typevar n
   pretty (TTuple ts) = tupled (map pretty ts)
-  pretty (TUnit)     = typesymbol "()"
+  pretty (TUnit)     = typesymbol "()" & (if __cogent_fdisambiguate_pp then (<+> comment "{- unit -}") else id)
   pretty (TRecord ts s)
     | not . or $ map (snd . snd) ts = (if | s == Unboxed -> (typesymbol "#" <>)
                                           | s == ReadOnly -> (\x -> parens x <> typesymbol "!")
                                           | otherwise -> id) $
         record (map (\(a,(b,c)) -> fieldname a <+> symbol ":" <+> pretty b) ts)  -- all untaken
-    | otherwise = pretty (TRecord (map (second . second $ const False) ts) s)
-               <+> typesymbol "take" <+> tupled1 (map fieldname tk)
+    | otherwise = (pretty (TRecord (map (second . second $ const False) ts) s)
+               <+> typesymbol "take" <+> tupled1 (map fieldname tk)) &
+               (if __cogent_fdisambiguate_pp then (<+> comment "{- rec -}") else id)
         where tk = map fst $ filter (snd .snd) ts
   pretty (TVariant ts) = variant (map (\(a,bs) -> case bs of
                                           [] -> tagname a
@@ -418,12 +420,12 @@ instance Pretty TypeError where
   pretty (TakeFromNonRecord fs t)        = err "Cannot" <+> keyword "take" <+> err "fields"
                                            <+> (case fs of Nothing  -> tupled (fieldname ".." : [])
                                                            Just fs' -> tupled1 (map fieldname fs'))
-                                           <$> err "from non record type:"
+                                           <+> err "from non record type:"
                                            <$> pretty t
   pretty (PutToNonRecord fs t)           = err "Cannot" <+> keyword "put" <+> err "fields"
                                            <+> (case fs of Nothing  -> tupled (fieldname ".." : [])
                                                            Just fs' -> tupled1 (map fieldname fs'))
-                                           <$> err "into non record type:"
+                                           <+> err "into non record type:"
                                            <$> pretty t
   pretty (RemoveCaseFromNonVariant p t)  = err "Cannot remove pattern" <$> pretty p <$> err "from type" <$> pretty t
 
