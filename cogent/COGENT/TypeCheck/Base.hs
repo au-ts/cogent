@@ -47,6 +47,8 @@ data TypeError = FunctionNotFound VarName
                | TakeFromNonRecord (Maybe [FieldName]) TCType
                | PutToNonRecord (Maybe [FieldName]) TCType
                | RemoveCaseFromNonVariant (Pattern TCName) TCType
+               | DiscardWithoutMatch TagName
+               | RequiredTakenTag TagName
                deriving (Show)
 
 data TypeWarning = DummyWarning
@@ -64,7 +66,9 @@ data ErrorContext = InExpression LocExpr TCType
 
 type ContextualisedError = ([ErrorContext], TypeError)
 
-data TCType = T (Type TCType) | U Int | RemoveCase (Pattern TCName) TCType deriving (Show, Eq)
+data TCType = T (Type TCType) | U Int
+--          | RemoveCase (Pattern TCName) TCType
+            deriving (Show, Eq)
 
 data TExpr t = TE { getType :: t, getExpr :: Expr t (VarName, t) (TExpr t), getLoc :: SourcePos }
              deriving (Show)
@@ -93,11 +97,11 @@ toTypedAlts = fmap (fmap (fmap toRawType) . ffmap (fmap toRawType))
 -- Precondition: No unification variables left in the type
 toLocType :: SourcePos -> TCType -> LocType
 toLocType l (T x) = LocType l (fmap (toLocType l) x)
-toLocType l (RemoveCase p t) = error "panic: removeCase found"
+-- toLocType l (RemoveCase p t) = error "panic: removeCase found"
 toLocType l _ = error "panic: unification variable found"
 toRawType :: TCType -> RawType
 toRawType (T x) = RT (fmap toRawType x)
-toRawType (RemoveCase p t) = error "panic: removeCase found"
+-- toRawType (RemoveCase p t) = error "panic: removeCase found"
 toRawType _ = error "panic: unification variable found"
 
 toRawExp :: TypedExpr -> RawExpr
@@ -153,7 +157,7 @@ kindToConstraint k t m = (if canEscape  k then Escape t m else Sat)
 
 substType :: [(VarName, TCType)] -> TCType -> TCType
 substType vs (U x) = U x
-substType vs (RemoveCase p x) = RemoveCase (fmap (fmap (substType vs)) p) (substType vs x)
+-- substType vs (RemoveCase p x) = RemoveCase (fmap (fmap (substType vs)) p) (substType vs x)
 substType vs (T (TVar v False )) | Just x <- lookup v vs = x
 substType vs (T (TVar v True  )) | Just x <- lookup v vs = T (TBang x)
 substType vs (T t) = T (fmap (substType vs) t)
@@ -182,20 +186,19 @@ validateTypes' :: [VarName] -> [RawType] -> TC (Either TypeError [TCType])
 validateTypes' vs rs = runExceptT (traverse (validateType vs) rs)
 
 -- Remove a pattern from a type, for case expressions.
-removeCase :: Pattern x -> TCType -> Maybe TCType
-removeCase (PIrrefutable _) _                = Just (T (TVariant M.empty))
-removeCase (PIntLit _)      x                = Just x
-removeCase (PCharLit _)     x                = Just x
-removeCase (PBoolLit _)     x                = Just x
-removeCase (PCon t _)       (T (TVariant m)) = Just (T (TVariant (M.delete t m)))
-removeCase _ _                               = Nothing
+removeCase :: Pattern x -> TCType -> TCType
+removeCase (PIrrefutable _) _                = (T (TVariant M.empty))
+removeCase (PIntLit _)      x                = x
+removeCase (PCharLit _)     x                = x
+removeCase (PBoolLit _)     x                = x
+removeCase (PCon t _)       x                = (T (TTake (Just [t]) x))
 
 forFlexes :: (Int -> TCType) -> TCType -> TCType
 forFlexes f (U x) = f x
-forFlexes f (RemoveCase p t) = let
-    p' = fmap (fmap (forFlexes f)) p
-    t' = forFlexes f t
-  in case removeCase p' t' of
-     Just t' -> t'
-     Nothing -> RemoveCase p' t'
+-- forFlexes f (RemoveCase p t) = let
+--     p' = fmap (fmap (forFlexes f)) p
+--     t' = forFlexes f t
+--   in case removeCase p' t' of
+--      Just t' -> t'
+--      Nothing -> RemoveCase p' t'
 forFlexes f (T x) = T (fmap (forFlexes f) x)
