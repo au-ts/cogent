@@ -192,9 +192,9 @@ desugarAlts e0@(B.TE t v@(S.Var _)) ((S.Alt p1 l1 e1):alts) =  -- More than one 
       v1 <- freshVar
       let S.RT (S.TVariant talts) = t
           p1'' = S.PVar (v1,t1)
-          Just [t1]  = M.lookup cn1 talts  -- type of v1
-          b   = S.Binding p1' Nothing (B.TE t1 $ S.Var v1) []
-          e1' = B.TE (B.getType e1) $ S.Let [b] e1
+          Just ([t1],_)  = M.lookup cn1 talts  -- type of v1 -- TODO liamoc just added ,_ to make this compile
+          b   = S.Binding p1' Nothing (B.TE t1 (S.Var v1) noPos) []
+          e1' = B.TE (B.getType e1) (S.Let [b] e1) noPos
       desugarAlts e0 ((S.Alt (S.PCon cn1 [p1'']) l1 e1'):alts)
     S.PCon cn1 ps -> do  -- This is C) for PCon
       t' <- typeWHNF t
@@ -226,7 +226,7 @@ desugarAlt e0 (S.PCon tag [S.PVar tn]) e =
 desugarAlt e0 (S.PCon tag [p]) e = do  -- Ind. step A)
   v <- freshVar
   let S.RT (S.TVariant alts) = B.getType e0
-      Just [t] = M.lookup tag alts
+      Just ([t], b) = M.lookup tag alts -- TODO liamoc just fixed this to compile
       -- b0 = S.Binding (S.PVar (v,t)) Nothing (B.TE t $ Esac e0) []
       b1 = S.Binding p Nothing (B.TE t (S.Var v)) []
   -- desugarExpr $ B.TE (B.getType e) $ S.Let [b0,b1] e
@@ -363,7 +363,8 @@ desugarType = \case
   S.RT (S.TVar vn b)     -> (findIx vn <$> sel1 <$> get) >>= \(Just v) -> return $ if b then TVarBang v else TVar v
   S.RT (S.TFun ti to)    -> TFun <$> desugarType ti <*> desugarType to
   S.RT (S.TRecord fs s)  -> TRecord <$> mapM (\(f,(t,x)) -> (f,) . (,x) <$> desugarType t) fs <*> pure s
-  S.RT (S.TVariant alts) -> TSum <$> mapM (\(c,ts) -> (c,) . (,False) <$> desugarType (group ts)) (M.toList alts)
+  S.RT (S.TVariant alts) -> TSum <$> mapM (\(c,(ts, k)) -> (c,) . (,False) <$> desugarType (group ts)) (M.toList alts)
+  -- TODO liamoc just added the extra pattern here ^^ to make this compile.
     where group [] = S.RT S.TUnit
           group (t:[]) = t
           group ts = S.RT $ S.TTuple ts
@@ -374,68 +375,6 @@ desugarType = \case
   S.RT (S.TTuple ts) | __cogent_ftuples_as_sugar -> TRecord <$> (P.zipWith (\t n -> (n,(t, False))) <$> forM ts desugarType <*> pure (P.map (('p':) . show) [1 :: Integer ..])) <*> pure Unboxed
   S.RT (S.TUnit)   -> return TUnit
   notInWHNF -> __impossible' "desugarType" ("type" : lines (show (pretty notInWHNF)) ++ ["is not in WHNF"])
-
-{-
-substType :: [(VarName, S.RawType)] -> S.RawType -> S.RawType
-substType sigma (S.RT (S.TVar v b)) | Just t <- P.lookup v sigma = t
-                                    | otherwise = S.RT (S.TVar v b)
-substType sigma (S.RT (S.TFun a b)) = S.RT (S.TFun (substType sigma a) (substType sigma b))
-substType sigma (S.RT (S.TRecord fs s)) = S.RT (S.TRecord (map (second . first $ substType sigma) fs) s)
-substType sigma (S.RT (S.TVariant fs)) = S.RT (S.TVariant (fmap (fmap $ substType sigma) fs))
-substType sigma (S.RT (S.TUnit)) = S.RT S.TUnit
-substType sigma (S.RT (S.TTuple fs)) = S.RT (S.TTuple (map (substType sigma) fs))
-substType sigma (S.RT (S.TUnbox t)) = S.RT (S.TUnbox $ substType sigma t)
-substType sigma (S.RT (S.TBang t)) = S.RT (S.TBang $ substType sigma t)
-substType sigma (S.RT (S.TTake fs t)) = S.RT (S.TTake fs (substType sigma t))
-substType sigma (S.RT (S.TPut  fs t)) = S.RT (S.TPut  fs (substType sigma t))
-substType sigma (S.RT (S.TCon c ts s)) = S.RT (S.TCon c (map (substType sigma) ts) s)
-
-bangType :: S.RawType -> S.RawType
-bangType (S.RT (S.TVar v _)) = S.RT (S.TVar v True)
-bangType (S.RT (S.TRecord fs s)) = S.RT (S.TRecord (map (second . first $ S.RT . S.TBang) fs) $ bangSigil s)
-bangType (S.RT (S.TCon x ts s))= S.RT (S.TCon x (map (S.RT . S.TBang) ts) $ bangSigil s)
-bangType (S.RT (S.TUnit)) = S.RT S.TUnit
-bangType (S.RT (S.TFun a b)) = S.RT (S.TFun a b)
-bangType (S.RT (S.TTuple ts)) = S.RT (S.TTuple (map (S.RT . S.TBang) ts))  -- using `RT . TBang' instead of `bangType' for better errmsgs
-bangType (S.RT (S.TVariant ts)) = S.RT (S.TVariant (fmap (fmap $ S.RT . S.TBang) ts))
-bangType notInWHNF = __impossible "bangType"
-
-typeWHNF :: S.RawType -> DS t v S.RawType
-typeWHNF x@(S.RT (S.TCon c as s)) = M.lookup c . sel1 <$> ask >>= \case
-  Just (vs,t)  -> typeWHNF (substType (P.zip vs as) t)
-  Nothing -> return x
-typeWHNF x@(S.RT (S.TVar {})) = return x
-typeWHNF x@(S.RT (S.TFun {})) = return x
-typeWHNF x@(S.RT (S.TRecord {})) = return x
-typeWHNF x@(S.RT (S.TVariant alts)) = S.RT . S.TVariant <$> (forM alts $ \ts -> (:[]) <$> typeWHNF (S.RT $ S.TTuple ts))
-typeWHNF   (S.RT (S.TTuple [])) = return $ S.RT S.TUnit
-typeWHNF   (S.RT (S.TTuple [t])) = typeWHNF t
-typeWHNF x@(S.RT (S.TTuple [t1,t2])) | not __cogent_ftuples_as_sugar = return x  -- make n-tuples into nested 2-tuples
-typeWHNF   (S.RT (S.TTuple (t:ts@(_:_:_)))) | not __cogent_ftuples_as_sugar = typeWHNF (S.RT $ S.TTuple ts) >>= \ts' -> return $ S.RT $ S.TTuple [t,ts']
-typeWHNF x@(S.RT (S.TTuple _)) = return x  -- | __cogent_ftuples_as_sugar
--- typeWHNF x@(S.RT (S.TTuple (reverse -> (t:ts)))) = case t of
---   (S.RT (S.TTuple ts')) -> typeWHNF (S.RT . S.TTuple $ reverse ts ++ ts')
---   _ -> return x
-typeWHNF x@(S.RT (S.TUnit)) = return x
-typeWHNF x@(S.RT (S.TUnbox t)) = typeWHNF t >>= \case
-  S.RT (S.TCon cn ts s) -> return $ S.RT (S.TCon cn ts Unboxed)
-  S.RT (S.TRecord fs s) -> return $ S.RT (S.TRecord fs Unboxed)
-  x -> __impossible "typeWHNF"
-typeWHNF (S.RT (S.TBang t)) = bangType <$> typeWHNF t
-typeWHNF (S.RT (S.TTake Nothing t)) = typeWHNF t >>= \case  -- take all untaken fields
-  S.RT (S.TRecord fs s) -> return $ S.RT $ S.TRecord (P.map (second . second $ const True) fs) s
-  x -> __impossible "typeWHNF"
-typeWHNF (S.RT (S.TTake (Just []) t)) = typeWHNF t
-typeWHNF (S.RT (S.TTake (Just fs) t)) = typeWHNF t >>= \case  -- take untaken fields
-  S.RT (S.TRecord rs s) -> return $ S.RT $ S.TRecord (P.map (\r@(n,(t,x)) -> if n `elem` fs then (n,(t,True)) else r) rs) s
-  x -> __impossible "typeWHNF"
-typeWHNF (S.RT (S.TPut Nothing t)) = typeWHNF t >>= \case  -- put (a) taken linear fields (b) untaken discardable fields
-  S.RT (S.TRecord fs s) -> return $ S.RT $ S.TRecord (P.map (second . second $ const False) fs) s
-  x -> __impossible "typeWHNF"
-typeWHNF (S.RT (S.TPut (Just []) t)) = typeWHNF t
-typeWHNF (S.RT (S.TPut (Just fs) t)) = typeWHNF t >>= \case
-  S.RT (S.TRecord rs s) -> return $ S.RT $ S.TRecord (P.map (\r@(n,(t,x)) -> if n `elem` fs then (n,(t,False)) else r) rs) s
-  x -> __impossible "typeWHNF"
 
 desugarNote :: S.Inline -> FunNote
 desugarNote S.NoInline = NoInline
@@ -464,7 +403,7 @@ desugarExpr (B.TE _ (S.TypeApp v ts note)) = do
 desugarExpr (B.TE _ (S.Con c []) _) = return . E $ Con c (E Unit)
 desugarExpr (B.TE _ (S.Con c [e]) _) = E . Con c <$> desugarExpr e
 desugarExpr (B.TE (S.RT (S.TVariant ts)) (S.Con c es) l) = do
-    let Just tes = M.lookup c ts
+    let Just (tes, k) = M.lookup c ts  -- TODO liamoc just added ,k to make this compile
     E . Con c <$> desugarExpr (B.TE (group tes) (S.Tuple es) l)
   where group [] = S.RT S.TUnit
         group (t:[]) = t
@@ -533,7 +472,7 @@ desugarExpr (B.TE t (S.Put e (fa@(Just (f0,_)):fas)) l) = do
       t' = S.RT (S.TRecord fs' s)
   desugarExpr $ B.TE t (S.Put (B.TE t' (S.Put e [fa]) l) fas) l
 desugarExpr (B.TE t (S.Upcast e) _) = E <$> (Promote <$> desugarType t <*> desugarExpr e)
-desugarExpr (B.TE t (S.Widen  e) _) = E <$> (Promote <$> desugarType t <*> desugarExpr e)
+-- desugarExpr (B.TE t (S.Widen  e) _) = E <$> (Promote <$> desugarType t <*> desugarExpr e)
 
 
 desugarConst :: (VarName, B.TypedExpr) -> DS 'Zero 'Zero (CoreConst UntypedExpr)

@@ -114,7 +114,7 @@ pattern = avoidInitial >>
 --            | var
 --            | Con
 
-docHunk = do whiteSpace; try (string "@"); x <- manyTill anyChar newline; whiteSpace; return x
+docHunk = do whiteSpace; _ <- try (string "@"); x <- manyTill anyChar newline; whiteSpace; return x
 monotype = do avoidInitial
               t1 <- typeA1
               t2 <- optionMaybe (reservedOp "->" >> typeA1)
@@ -157,13 +157,13 @@ monotype = do avoidInitial
               -- <|> TCon <$> typeConName <*> pure [] <*> pure Writable
               <|> tuple <$> parens (monotype `sepBy` comma)
               <|> TRecord <$> braces (commaSep1 ((\a b c -> (a,(b,c))) <$> variableName <* reservedOp ":" <*> monotype <*> pure False)) <*> pure Writable
-              <|> TVariant . M.fromList <$> angles (((,) <$> typeConName <*> many typeA2) `sepBy` reservedOp "|"))
+              <|> TVariant . M.fromList <$> angles (((,) <$> typeConName <*> fmap ((,False)) (many typeA2)) `sepBy` reservedOp "|"))
     tuple [] = TUnit
     tuple [e] = typeOfLT e
     tuple es  = TTuple es
 
-    fList = (Just . (:[])) <$> variableName
-        <|> parens ((reservedOp ".." >> return Nothing) <|> (commaSep variableName >>= return . Just))
+    fList = (Just . (:[])) <$> identifier 
+        <|> parens ((reservedOp ".." >> return Nothing) <|> (commaSep identifier >>= return . Just))
 
 -- XXX | monotype = avoidInitial >> buildExpressionParser
 -- XXX |          [ [Prefix  ((\x -> LocType (posOfT x) (TUnbox x)) <$ reservedOp "#")]
@@ -226,7 +226,7 @@ basicExpr m = do e <- basicExpr'
 basicExpr' = avoidInitial >> buildExpressionParser
             [ [postfix ((\f e -> LocExpr (posOfE e) (Member e f)) <$ reservedOp "." <*> variableName)]
             , [Prefix (getPosition >>= \p -> reserved "upcast"     *> pure (LocExpr p . Upcast))] 
-            , [Prefix (getPosition >>= \p -> reserved "widen"      *> pure (LocExpr p . Widen ))] 
+--            , [Prefix (getPosition >>= \p -> reserved "widen"      *> pure (LocExpr p . Widen ))] 
             , [Prefix (getPosition >>= \p -> reserved "complement" *> pure (LocExpr p . PrimOp "complement" . (:[])))]
             , [Prefix (getPosition >>= \p -> reserved "not" *> pure (LocExpr p . PrimOp "not" . (:[])))]
             , [Infix (pure (\a b -> LocExpr (posOfE a) (App a b))) AssocLeft]
