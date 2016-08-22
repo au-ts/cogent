@@ -131,9 +131,14 @@ prettyType (LocType p (TCon t ts Writable)) x | not $ null ts = let rest = foldM
                                                                     rows = map row ts
                                                                     t' = withLinking ?knowns t
                                                                 in [shamlet|<table><tr><td class='fg-Vivid-Blue BoldIntensity'>#{t'}</td><td></td><td></td></tr>#{rows}<tr><td></td><td>#{rest}</td></tr>|]
-prettyType (LocType _ (TVariant ts)) x     = let rest = foldMap id x
+prettyType (LocType p (TVariant ts)) x | any snd $ (F.toList ts)
+                                       , ls <- map fst $ filter (snd . snd) (M.toList ts)
+                                       , ts' <- fmap (fmap (const False)) ts
+                                           = prettyType (LocType p (TTake (Just ls) (LocType p (TVariant ts' )))) x
+                                       | otherwise
+                                           = let rest = foldMap id x
                                                  row (g,ts) s = let t' = listTypes ts in [shamlet|<tr><td>#{s}</td><td class='fg-Dull-Magenta spaced'>#{g}</td><td class='spaced'>#{t'}</td>|]
-                                                 rows = zipWith row (M.toList ts) $ '<' : repeat '|'
+                                                 rows = zipWith row (M.toList $ fmap fst ts) $ '<' : repeat '|'
                                               in [shamlet|<table>#{rows}<tr><td>></td><td class='spaced' colspan=2>#{rest}</td><td></td></tr>|]
 prettyType (LocType p (TRecord ts Unboxed))  x = prettyType (LocType p (TUnbox (LocType p (TRecord ts Writable)))) x
 prettyType (LocType p (TRecord ts ReadOnly)) x = prettyType (LocType p (TBang (LocType p (TRecord ts Writable)))) x

@@ -9,6 +9,6 @@
 --
 
 foo : < TAG_a U8 | TAG_b U16 | TAG_c U32 > 
-   -> < Success < TAG_x U8 | TAG_y < TAG_b U16 | TAG_c U32 > > >
+   -> < Success < TAG_x U8 | TAG_y (< TAG_a U8 | TAG_b U16 | TAG_c U32 > take TAG_a) > >
 foo | TAG_a va -> Success (TAG_x va)
     | d -> Success (TAG_y d)

@@ -89,10 +89,11 @@ whnf (T (TTake fs t)) = do
    t' <- whnf t
    return $ case t' of
      (T (TRecord l s)) -> T (TRecord (takeFields fs l) s)
+     (T (TVariant l))  -> T (TVariant (M.fromList $ takeFields fs $ M.toList l))
      _ | Just fs' <- fs, null fs'  -> t'
      _                 -> T (TTake fs t')
  where
-   takeFields :: Maybe [FieldName] -> [(FieldName, (TCType, Bool))] -> [(FieldName, (TCType, Bool))]
+   takeFields :: Maybe [FieldName] -> [(FieldName, (a , Bool))] -> [(FieldName, (a, Bool))]
    takeFields Nothing   = map (fmap (fmap (const True)))
    takeFields (Just fs) = map (\(f, (t, b)) -> (f, (t, f `elem` fs || b)))
 
@@ -100,10 +101,11 @@ whnf (T (TPut fs t)) = do
    t' <- whnf t
    return $ case t' of
      (T (TRecord l s)) -> T (TRecord (putFields fs l) s)
+     (T (TVariant l))  -> T (TVariant (M.fromList $ putFields fs $ M.toList l))
      _ | Just fs' <- fs, null fs'  -> t'
      _                 -> T (TPut fs t')
  where
-   putFields :: Maybe [FieldName] -> [(FieldName, (TCType, Bool))] -> [(FieldName, (TCType, Bool))]
+   putFields :: Maybe [FieldName] -> [(FieldName, (a, Bool))] -> [(FieldName, (a, Bool))]
    putFields Nothing   = map (fmap (fmap (const False)))
    putFields (Just fs) = map (\(f, (t, b)) -> (f, (t,  (f `notElem` fs) && b)))
 
@@ -113,9 +115,6 @@ whnf (T (TCon n as b)) = do
     Just (as', Just b)  | b' <- toTCType b -> whnf (substType (zip as' as) b')
     _ -> return (T (TCon n as b))
 
-whnf (RemoveCase p t) = do
-  t' <- whnf t
-  return $ fromMaybe (RemoveCase p t') (removeCase p t')
 whnf t = return t
 
 
@@ -127,7 +126,6 @@ notWhnf (T TPut   {})    = True
 notWhnf (T TUnbox {})    = True
 notWhnf (T TBang  {})    = True
 notWhnf (U u)            = True
-notWhnf (RemoveCase t p) = True
 notWhnf _                = False
 
 isIrrefutable :: Pattern n -> Bool
@@ -152,7 +150,7 @@ rule :: Constraint -> Maybe Constraint
 rule (Exhaustive t ps) | any isIrrefutable ps = Just Sat
 rule (Exhaustive (T (TVariant n)) ps)
   | s1 <- S.fromList (mapMaybe patternTag ps)
-  , s2 <- M.keysSet n
+  , s2 <- S.fromList (map fst $ filter (not . snd . snd) $ M.toList n)
   = if s1 == s2
     then Just Sat
     else Just $ Unsat (PatternsNotExhaustive (T (TVariant n)) (S.toList (s2 S.\\ s1)))
@@ -190,9 +188,9 @@ rule (Share  (T TFun {}) m) = Just Sat
 rule (Escape (T TFun {}) m) = Just Sat
 rule (Drop   (T TFun {}) m) = Just Sat
 
-rule (Share  (T (TVariant n)) m) = Just $ foldMap (mconcat . map (flip Share m)) n
-rule (Drop   (T (TVariant n)) m) = Just $ foldMap (mconcat . map (flip Drop  m)) n
-rule (Escape (T (TVariant n)) m) = Just $ foldMap (mconcat . map (flip Escape m)) n
+rule (Share  (T (TVariant n)) m) = Just $ foldMap (\(ts, t) -> if t then Sat else mconcat $ map (flip Share  m) ts) n
+rule (Drop   (T (TVariant n)) m) = Just $ foldMap (\(ts, t) -> if t then Sat else mconcat $ map (flip Drop   m) ts) n
+rule (Escape (T (TVariant n)) m) = Just $ foldMap (\(ts, t) -> if t then Sat else mconcat $ map (flip Escape m) ts) n
 
 rule (Share  t@(T (TRecord fs s)) m)
   | s /= Writable = Just $ foldMap (\(x, t) -> if not t then Share x m else Sat) $ map snd fs
@@ -238,8 +236,11 @@ rule (T (TRecord fs s) :< T (TRecord gs r))
 rule (T (TVariant m) :< T (TVariant n))
   | M.keys m /= M.keys n = Just $ Unsat (TypeMismatch (T (TVariant m)) (T (TVariant n)))
   | otherwise = let
-      each ts us = mconcat (zipWith (:<) ts us)
-    in Just $ mconcat (zipWith (each `on` snd) (M.toList m) (M.toList n))
+      each (f, (ts, False)) (_, (us, True )) = Unsat (DiscardWithoutMatch f) 
+      each (f, (ts, True )) (_, (us, True )) = mconcat (zipWith (:<) ts us)
+      each (f, (ts, False)) (_, (us, False)) = mconcat (zipWith (:<) ts us)
+      each (f, (ts, True )) (_, (us, False)) = mconcat (zipWith (:<) ts us)
+    in Just $ mconcat (zipWith (each) (M.toList m) (M.toList n))
 -- This rule is a bit dodgy
 -- rule (T (TTake (Just a) b) :< T (TTake (Just a') c))
 --   | x <- L.intersect a a'
@@ -262,8 +263,9 @@ rule (T (TCon n [] Unboxed) :<~ T (TCon m [] Unboxed))
 rule (T (TVariant n) :<~ T (TVariant m))
   | ks <- M.keysSet n
   , ks `S.isSubsetOf` M.keysSet m
-  = let each ts us = mconcat (zipWith (:<) ts us)
-    in Just $ mconcat (map (\k -> each (n M.! k) (m M.! k)) $ S.toList ks)
+  = let each t (ts, _) (us, False)  = mconcat (zipWith (:<) ts us)
+        each t (ts, _) (us, True)   = Unsat (RequiredTakenTag t)
+    in Just $ mconcat (map (\k -> each k (n M.! k) (m M.! k)) $ S.toList ks)
 rule (T (TRecord fs _) :<~ T (TRecord gs s))
   | ks <- S.fromList (map fst fs)
   , m <- M.fromList gs
@@ -320,7 +322,14 @@ glb (T (TVariant is)) (T (TVariant js))
   | or (zipWith ((/=) `on` length) (F.toList is) (F.toList js))
   = return Nothing
   | otherwise
-  = Just . T . TVariant <$> traverse (\l -> replicateM (length l) fresh) is
+  = Just . T . TVariant . M.fromList <$> traverse each (M.keys is)
+  where
+    each :: TagName -> Solver (TagName, ([TCType], Taken))
+    each k = let
+      (i, ib) = is M.! k
+      (j, jb) = js M.! k
+     in do ts <- replicateM (length i) fresh
+           return (k, (ts, ib || jb))
 glb (T (TTuple is)) (T (TTuple js))
   | length is /= length js = return Nothing
   | otherwise = Just . T . TTuple <$> traverse (const fresh) is
@@ -353,7 +362,14 @@ lub (T (TVariant is)) (T (TVariant js))
   | or (zipWith ((/=) `on` length) (F.toList is) (F.toList js))
   = return Nothing
   | otherwise
-  = Just . T . TVariant <$> traverse (\l -> replicateM (length l) fresh) is
+  = Just . T . TVariant . M.fromList <$> traverse each (M.keys is)
+  where
+    each :: TagName -> Solver (TagName, ([TCType], Taken))
+    each k = let
+      (i, ib) = is M.! k
+      (j, jb) = js M.! k
+     in do ts <- replicateM (length i) fresh
+           return (k, (ts, ib && jb))
 lub (T (TTuple is)) (T (TTuple js))
   | length is /= length js = return Nothing
   | otherwise = Just . T . TTuple <$> traverse (const fresh) is
@@ -428,14 +444,14 @@ instance Monoid GoalClasses where
   mempty = Classes M.empty M.empty M.empty [] []
 
 exhaustives :: Goal -> Solver Goal
-exhaustives (Goal ctx (Exhaustive (U x) ps)) | all isVarCon ps = do
-        ts <- fromPatterns ps
-        return (Goal [] $ U x :< T (TVariant ts))
-  where
-    fromPattern :: Pattern TCName -> Solver (M.Map TagName [TCType])
-    fromPattern (PCon t ps) = M.singleton t <$> (mapM (const fresh) ps)
-    fromPattern _ = error "impossible"
-    fromPatterns ps = mconcat <$> mapM fromPattern ps
+-- exhaustives (Goal ctx (Exhaustive (U x) ps)) | all isVarCon ps = do
+--         ts <- fromPatterns ps
+--         return (Goal [] $ U x :< T (TVariant ts))
+--   where
+--     fromPattern :: Pattern TCName -> Solver (M.Map TagName [TCType])
+--     fromPattern (PCon t ps) = M.singleton t <$> (mapM (const fresh) ps)
+--     fromPattern _ = error "impossible"
+--     fromPatterns ps = mconcat <$> mapM fromPattern ps
 exhaustives x = return x
 
 -- Break goals into their form

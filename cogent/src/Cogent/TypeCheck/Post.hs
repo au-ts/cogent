@@ -19,7 +19,7 @@ import Cogent.Util
 import Control.Monad
 import Control.Lens
 import Control.Monad.Except
-
+import qualified Data.Map as M
 postT :: [ErrorContext] -> TCType -> ExceptT [ContextualisedError] TC RawType
 postT ctx t = do
   d <- use knownTypes
@@ -82,10 +82,11 @@ normaliseT d (T (TTake fs t)) = do
    t' <- normaliseT d t
    case t' of
      (T (TRecord l s)) -> normaliseT d (T (TRecord (takeFields fs l) s))
+     (T (TVariant ts)) -> normaliseT d (T (TVariant (M.fromList $ takeFields fs $ M.toList ts)))
      _ | Just fs' <- fs, null fs' -> Right t'
      e                 -> Left (TakeFromNonRecord fs t)
  where
-   takeFields :: Maybe [FieldName] -> [(FieldName, (TCType, Bool))] -> [(FieldName, (TCType, Bool))]
+   takeFields :: Maybe [FieldName] -> [(FieldName, (a, Bool))] -> [(FieldName, (a, Bool))]
    takeFields Nothing   = map (fmap (fmap (const True)))
    takeFields (Just fs) = map (\(f, (t, b)) -> (f, (t, f `elem` fs || b)))
 
@@ -93,10 +94,11 @@ normaliseT d (T (TPut fs t)) = do
    t' <- normaliseT d t
    case t' of
      (T (TRecord l s)) -> normaliseT d (T (TRecord (putFields fs l) s))
+     (T (TVariant ts)) -> normaliseT d (T (TVariant (M.fromList $ putFields fs $ M.toList ts)))
      _ | Just fs' <- fs, null fs'  -> Right t'
      e                 -> Left (PutToNonRecord fs t)
  where
-   putFields :: Maybe [FieldName] -> [(FieldName, (TCType, Bool))] -> [(FieldName, (TCType, Bool))]
+   putFields :: Maybe [FieldName] -> [(FieldName, (a, Bool))] -> [(FieldName, (a, Bool))]
    putFields Nothing   = map (fmap (fmap (const False)))
    putFields (Just fs) = map (\(f, (t, b)) -> (f, (t,  (f `notElem` fs) && b)))
 
@@ -105,12 +107,12 @@ normaliseT d (T (TCon n ts b)) = do
     Just (ts', Just b) -> normaliseT d (substType (zip ts' ts) b)
     _ -> mapM (normaliseT d) ts >>= \ts' -> return (T (TCon n ts' b))
 
-normaliseT d (RemoveCase p t) = do
-  t' <- normaliseT d t
-  p' <- traverse (traverse (normaliseT d)) p
-  case removeCase p' t' of
-    Just t'' -> normaliseT d t''
-    Nothing  -> Left (RemoveCaseFromNonVariant p t)
+-- normaliseT d (RemoveCase p t) = do
+--   t' <- normaliseT d t
+--   p' <- traverse (traverse (normaliseT d)) p
+--   case removeCase p' t' of
+--     Just t'' -> normaliseT d t''
+--     Nothing  -> Left (RemoveCaseFromNonVariant p t)
 
 normaliseT d (U x) = error "Panic: invalid type to normaliseT"
 normaliseT d (T x) = T <$> traverse (normaliseT d) x

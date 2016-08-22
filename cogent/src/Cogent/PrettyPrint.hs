@@ -231,7 +231,7 @@ instance (ExprType e, Pretty t, PrettyName pv, Pretty e) => Pretty (Expr t pv e)
      | NoAssoc   l  <- associativity n = pretty' l a <+> primop n <+> pretty' l  b
   pretty (PrimOp n [e])      = primop n <+> pretty' 1 e
   pretty (PrimOp n es)       = primop n <+> tupled (map pretty es)
-  pretty (Widen e)           = keyword "widen"  <+> pretty' 1 e
+  -- pretty (Widen e)           = keyword "widen"  <+> pretty' 1 e
   pretty (Upcast e)          = keyword "upcast" <+> pretty' 1 e
   pretty (App a b)           = pretty' 2 a <+> pretty' 1 b
   pretty (Con n [] )         = tagname n
@@ -302,9 +302,13 @@ instance (Pretty t, TypeType t) => Pretty (Type t) where
                <+> typesymbol "take" <+> tupled1 (map fieldname tk)) &
                (if __cogent_fdisambiguate_pp then (<+> comment "{- rec -}") else id)
         where tk = map fst $ filter (snd .snd) ts
+  pretty (TVariant ts) | any snd ts = let
+     names = map fst $ filter (snd . snd) $ M.toList ts
+   in pretty (TVariant $ fmap (second (const False)) ts) <+> typesymbol "take"
+                                                         <+> tupled1 (map fieldname names)
   pretty (TVariant ts) = variant (map (\(a,bs) -> case bs of
                                           [] -> tagname a
-                                          _  -> tagname a <+> spaceList (map prettyT' bs)) $ M.toList ts)
+                                          _  -> tagname a <+> spaceList (map prettyT' bs)) $ M.toList (fmap fst ts))
     where prettyT' e | not $ isAtomic e = parens (pretty e)
                      | otherwise        = pretty e
   pretty (TFun t t') = prettyT' t <+> typesymbol "->" <+> pretty t'
@@ -333,7 +337,7 @@ instance Pretty RawType where
 instance Pretty TCType where
   pretty (T t) = pretty t
   pretty (U v) = warn ("?" ++ show v)
-  pretty (RemoveCase a b) = pretty a <+> string "(without pattern" <+> pretty b <+> string ")"
+--  pretty (RemoveCase a b) = pretty a <+> string "(without pattern" <+> pretty b <+> string ")"
 
 instance Pretty LocType where
   pretty t = pretty (stripLocT t)
@@ -361,6 +365,7 @@ prettyConstDef typeSigs v t e  = (if typeSigs then ( funname v <+> symbol ":" <+
                                          (funname v <+> group (indent (symbol "=" <+> pretty e)))
 
 instance (Pretty t, PrettyName b, Pretty e) => Pretty (TopLevel t b e) where
+  pretty (DocBlock {}) = string ""
   pretty (TypeDec n vs t) = keyword "type" <+> typename n <> hcat (map ((space <>) . typevar) vs)
                                            <+> indent (symbol "=" </> pretty t)
   pretty (FunDef v pt alts) = prettyFunDef True v pt alts
@@ -434,22 +439,18 @@ instance Pretty TypeError where
   pretty (DuplicateVariableInIrrefPattern vn ipat) = err "Duplicate variable" <+> varname vn <+> err "in (irrefutable) pattern:"
                                                      <$> pretty ipat
   pretty (TakeFromNonRecord fs t)        = err "Cannot" <+> keyword "take" <+> err "fields"
-                                             <+> (case fs of Nothing  -> tupled (fieldname ".." : [])
-                                                             Just fs' -> tupled1 (map fieldname fs'))
-                                             <$> err "from non record type:"
-                                             <$> pretty t
+                                           <+> (case fs of Nothing  -> tupled (fieldname ".." : [])
+                                                           Just fs' -> tupled1 (map fieldname fs'))
+                                           <+> err "from non record/variant type:"
+                                           <$> pretty t
   pretty (PutToNonRecord fs t)           = err "Cannot" <+> keyword "put" <+> err "fields"
-                                             <+> (case fs of Nothing  -> tupled (fieldname ".." : [])
-                                                             Just fs' -> tupled1 (map fieldname fs'))
-                                             <$> err "into non record type:"
-                                             <$> pretty t
+                                           <+> (case fs of Nothing  -> tupled (fieldname ".." : [])
+                                                           Just fs' -> tupled1 (map fieldname fs'))
+                                           <+> err "into non record/variant type:"
+                                           <$> pretty t
   pretty (RemoveCaseFromNonVariant p t)  = err "Cannot remove pattern" <$> pretty p <$> err "from type" <$> pretty t
-
-instance Pretty ErrorContext where
-  pretty _ = error "use `prettyCtx' instead!"
-prettyCtx (SolvingConstraint c) i = context "from constraint " <+> pretty c
-prettyCtx (ThenBranch) i = context "in the" <+> keyword "then" <+> context "branch"
-prettyCtx (ElseBranch) i = context "in the" <+> keyword "else" <+> context "branch"
+  pretty (DiscardWithoutMatch t)         = err "Variant tag"<+> tagname t <+> err "cannot be discarded without matching on it."
+  pretty (RequiredTakenTag t)            = err "Required variant" <+> tagname t <+> err "but it has already been matched."
 
 instance Pretty TypeWarning where
   pretty DummyWarning = __fixme $ warn "WARNING: dummy"
