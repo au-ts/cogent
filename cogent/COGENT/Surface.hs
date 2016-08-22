@@ -25,6 +25,10 @@ import Data.Traversable
 #endif
 import Text.Parsec.Pos
 
+type OpName = String
+
+type DocString = String
+
 data IrrefutablePattern pv = PVar pv
                            | PTuple [IrrefutablePattern pv]
                            | PUnboxedRecord [Maybe (FieldName, IrrefutablePattern pv)]
@@ -96,6 +100,7 @@ data Polytype t = PT [(TyVarName, Kind)] t deriving (Show, Functor, Foldable, Tr
 numOfArgs (PT x _) = length x
 
 data TopLevel t pv e = Include String
+                     | DocBlock String
                      | TypeDec TypeName [TyVarName] t
                      | AbsTypeDec TypeName [TyVarName]
                      | AbsDec VarName (Polytype t)
@@ -121,7 +126,11 @@ absTyDeclId _ _ = False
 
 
 data LocExpr = LocExpr { posOfE :: SourcePos, exprOfLE :: Expr LocType VarName LocExpr } deriving (Show)
-data LocType = LocType { posOfT :: SourcePos, typeOfLT :: Type LocType } deriving (Show)
+data LocType = LocType { posOfT :: SourcePos, typeOfLT' :: Type LocType }
+             | Documentation String LocType deriving (Show)
+
+typeOfLT (LocType _ t) = t
+typeOfLT (Documentation s t) = typeOfLT t
 
 data RawType = RT { unRT :: Type RawType } deriving (Show, Eq)
 data RawExpr = RE { unRE :: Expr RawType VarName RawExpr } deriving Show
@@ -201,6 +210,7 @@ instance Foldable (Flip (TopLevel t) e) where
 instance Traversable (Flip (TopLevel t) e) where
   traverse f (Flip (FunDef v pt alts))  = Flip <$> (FunDef v pt <$> traverse (ttraverse f) alts)
   traverse _ (Flip (Include s))         = pure $ Flip (Include s)
+  traverse _ (Flip (DocBlock s))        = pure $ Flip (DocBlock s)
   traverse _ (Flip (TypeDec n vs t))    = pure $ Flip (TypeDec n vs t)
   traverse _ (Flip (AbsTypeDec n vs))   = pure $ Flip (AbsTypeDec n vs)
   traverse _ (Flip (AbsDec v pt))       = pure $ Flip (AbsDec v pt)
@@ -215,6 +225,7 @@ instance Traversable (Flip2 TopLevel p e) where
   traverse f (Flip2 (ConstDef v t e))   = Flip2 <$> (ConstDef v <$> f t <*> pure e)
   traverse f (Flip2 (TypeDec n vs t))   = Flip2 <$> (TypeDec  n vs <$> f t)
   traverse _ (Flip2 (Include s))        = pure $ Flip2 (Include s)
+  traverse _ (Flip2 (DocBlock s))       = pure $ Flip2 (DocBlock s)
   traverse _ (Flip2 (AbsTypeDec n vs))  = pure $ Flip2 (AbsTypeDec n vs)
 
 

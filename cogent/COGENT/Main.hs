@@ -44,6 +44,7 @@ import COGENT.MonoProof     as MP  -- FIXME: zilinc
 import COGENT.Normal        as NF (normal, verifyNormal)
 import COGENT.NormalProof   as NP (normalProof)
 import COGENT.Parser        as PA (parseWithIncludes)
+import COGENT.DocGent       as DG (docGent)
 import COGENT.Preprocess    as PR
 import COGENT.PrettyCore          ()  -- imports instances of Pretty
 import COGENT.PrettyPrint   as PP (prettyPrint, prettyRE, prettyTWE')
@@ -118,6 +119,7 @@ data Command = AstC Int
              | ACInstall
              | CorresSetup
              | CorresProof
+             | Documentation
              | CRefinement  -- !
              | Ast       Stage
              | Pretty    Stage
@@ -217,6 +219,7 @@ setActions c@(CodeGen      ) = setActions (Compile STGCodeGen) ++ [c]
 setActions c@(TableCType   ) = setActions (Compile STGCodeGen) ++ [c]
 setActions c@(Compile   stg) = setActions (Compile $ pred stg) ++ [c]
 setActions c@(Ast       stg) = setActions (Compile stg) ++ [c]
+setActions c@(Documentation) = setActions (Compile STGParse) ++ [c]
 setActions c@(Pretty    stg) = setActions (Compile stg) ++ [c]
 setActions c@(Deep      stg) = setActions (Compile stg) ++ [c]
 setActions c@(Shallow   stg) = setActions (Compile stg) ++ [c]
@@ -309,6 +312,8 @@ options = [
   , Option []         ["ast-normal"]      2 (NoArg $ Ast STGNormal)         (astMsg STGNormal)
   , Option []         ["ast-simpl"]       2 (NoArg $ Ast STGSimplify)       (astMsg STGSimplify)
   , Option []         ["ast-mono"]        2 (NoArg $ Ast STGMono)           (astMsg STGMono)
+  -- documentation
+  , Option []         ["docgent"]         2 (NoArg $ Documentation)         "generate HTML documentation"
   -- pretty
   , Option ['p']      ["pretty-parse"]    2 (NoArg $ Pretty STGParse)       (prettyMsg STGParse)
   , Option []         ["pretty-tc"]       2 (NoArg $ Pretty STGTypeCheck)   (prettyMsg STGTypeCheck)
@@ -544,9 +549,11 @@ parseArgs args = case getOpt' Permute options args of
         Right (parsed,pragmas) -> do
           putProgressLn "Resolving dependencies..." >> case reorganize parsed of
             Left err -> printError prettyRE [err] >> exitFailure
-            Right reorged -> do when (Ast stg `elem` cmds) $ genAst stg (map (stripAllLoc . snd) reorged)
-                                when (Pretty stg `elem` cmds) $ genPretty stg (map (stripAllLoc . snd) reorged)
-                                when (Compile (succ stg) `elem` cmds) $ typecheck cmds reorged source pragmas buildinfo log
+            Right reorged -> do when (Ast stg `elem` cmds) $ genAst stg (map (stripAllLoc . thd3) reorged)
+                                when (Pretty stg `elem` cmds) $ genPretty stg (map (stripAllLoc . thd3) reorged)
+                                when (Documentation `elem` cmds) $ DG.docGent reorged
+                                let noDocs (a,_,c) = (a,c)
+                                when (Compile (succ stg) `elem` cmds) $ typecheck cmds (map noDocs reorged) source pragmas buildinfo log
                                 exitSuccessWithBuildInfo cmds buildinfo
 
     typecheck cmds reorged source pragmas buildinfo log = do

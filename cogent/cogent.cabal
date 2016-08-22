@@ -29,6 +29,11 @@ build-type:          Custom
 cabal-version:       >=1.18
 tested-with:         GHC==7.8.4, GHC==7.10.1, GHC==7.10.2, GHC==7.10.3
 
+data-files:
+    static/jquery.min.js
+    static/style.css
+    static/toc.min.js
+    static/logo.png
 executable cogent
   main-is: COGENT/Main.hs
 
@@ -44,6 +49,15 @@ executable cogent
     COGENT.CorresProof
     COGENT.CorresSetup
     COGENT.Deep
+    COGENT.DocGent
+    COGENT.Context
+    COGENT.GraphGen
+    COGENT.Preprocess
+    COGENT.TypeCheck.Base
+    COGENT.TypeCheck.Generator
+    COGENT.TypeCheck.Post
+    COGENT.TypeCheck.Solver
+    COGENT.TypeCheck.Subst
     COGENT.Desugar
     COGENT.DList
     COGENT.GetOpt
@@ -108,7 +122,13 @@ executable cogent
     transformers >= 0.4.2, 
     tuple >= 0.3,
     uniplate >= 1.6, 
-    vector >= 0.10.0.1
+    vector >= 0.10.0.1,
+    shakespeare >= 2.0,
+    blaze-html >= 0.8.1,
+    blaze-markup >= 0.7,
+    pandoc >= 1.16,
+    pandoc-types >= 1.16,
+    data-default >=0.5
 
   default-language: Haskell2010
   default-extensions: CPP
