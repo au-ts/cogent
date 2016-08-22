@@ -70,7 +70,7 @@ data Expr t pv e = PrimOp OpName [e]
                  | UnboxedRecord [(FieldName, e)]
                  | Let [Binding t pv e] e
                  | Upcast e
-                 | Widen  e
+--                 | Widen  e
                  | Put e [Maybe (FieldName, e)]  -- Note: `Nothing' will be desugared to `Just' in TypeCheck / zilinc
                  deriving (Show, Functor, Foldable, Traversable)
 
@@ -83,12 +83,13 @@ data Type t =
             | TVar VarName Banged
             | TFun t t
             | TRecord [(FieldName, (t, Taken))] Sigil
-            | TVariant (M.Map TagName [t])
+            | TVariant (M.Map TagName ([t], Taken))
             | TTuple [t]
             | TUnit
             -- They will be eliminated at some point / zilinc
             | TUnbox   t
             | TBang    t
+            -- Used for both field names in records and tag names in variants
             | TTake (Maybe [FieldName]) t
             | TPut  (Maybe [FieldName]) t
             deriving (Show, Functor, Eq, Foldable, Traversable)
@@ -165,7 +166,7 @@ instance Traversable (Flip (Expr t) e) where
   traverse _ (Flip (UnboxedRecord es))  = pure $ Flip (UnboxedRecord es)
   traverse _ (Flip (Put e es))          = pure $ Flip (Put e es)
   traverse _ (Flip (Upcast e))          = pure $ Flip (Upcast e)
-  traverse _ (Flip (Widen e))           = pure $ Flip (Widen e)
+  -- traverse _ (Flip (Widen e))           = pure $ Flip (Widen e)
 instance Functor (Flip (Binding t) e) where
   fmap f x = runIdentity (traverse (Identity . f) x)
 instance Functor (Flip Alt e) where
@@ -201,7 +202,7 @@ instance Traversable (Flip2 Expr p e) where
   traverse _ (Flip2 (Tuple es))         = pure $ Flip2 (Tuple es)
   traverse _ (Flip2 (UnboxedRecord es)) = pure $ Flip2 (UnboxedRecord es)
   traverse _ (Flip2 (Put e es))         = pure $ Flip2 (Put e es)
-  traverse _ (Flip2 (Widen e))          = pure $ Flip2 (Widen e)
+  --traverse _ (Flip2 (Widen e))          = pure $ Flip2 (Widen e)
   traverse _ (Flip2 (Upcast e))         = pure $ Flip2 (Upcast e)
 instance Functor (Flip (TopLevel t) e) where
   fmap f x = runIdentity (traverse (Identity . f) x)

@@ -12,8 +12,8 @@ type A
 
 type Option a = <None () | Some a>
 
-foo : <Some A> -> #{f1 : U8, f2 : Option A}
-foo a = #{f1 = 8, f2 = widen a}
+foo : (Option A) take None -> #{f1 : U8, f2 : Option A}
+foo a = #{f1 = 8, f2 = a}
 
 bar : <None ()>
 bar = None ()

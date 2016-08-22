@@ -123,11 +123,11 @@ cg' (Upcast e) t = do
   let c = (T (TCon "U8" [] Unboxed) :<~ alpha) <> alpha :<~ t <> c1
   return (c, Upcast e1')
 
-cg' (Widen e) t = do
-  alpha <- fresh
-  (c1, e1') <- cg e alpha
-  let c = (T (TVariant M.empty) :<~ alpha) <> (alpha :<~ t) <> c1
-  return (c, Widen e1')
+-- cg' (Widen e) t = do
+--   alpha <- fresh
+--   (c1, e1') <- cg e alpha
+--   let c = (T (TVariant M.empty) :<~ alpha) <> (alpha :<~ t) <> c1
+--   return (c, Widen e1')
 
 cg' (BoolLit b) t = do
   let c = T (TCon "Bool" [] Unboxed) :< t
@@ -171,7 +171,7 @@ cg' (Con k es) t = do
   (ts, c', es') <- cgMany es
 
   let e = Con k es'
-      c = c' <> T (TVariant (M.fromList [(k, ts)])) :<~ t
+      c = c' <> T (TVariant (M.fromList [(k, (ts, False))])) :<~ t
   return (c,e)
 
 cg' (Tuple es) t = do
@@ -277,7 +277,7 @@ cgAlts alts top alpha = do
       context %= C.addScope s
       (c', e') <- cg e top
       context %= C.dropScope
-      return (RemoveCase p' t, (c <> c', Alt p' like e'))
+      return (removeCase p t, (c <> c', Alt p' like e'))
 
     jobs = map (\(n, alt) -> (NthAlternative n (altPattern alt), f alt)) (zip [1..] alts)
 
@@ -304,7 +304,7 @@ matchA (PCon k is) t = do
       co = case overlapping ss of
              Left (v:vs) -> Unsat $ DuplicateVariableInPattern v p'
              _           -> Sat
-  return (M.unions ss, co <> mconcat cs <> T (TVariant (M.fromList [(k, vs)])) :<~ t, p')
+  return (M.unions ss, co <> mconcat cs <> T (TVariant (M.fromList [(k, (vs, False))])) :<~ t, p')
 
 matchA (PIntLit i) t = do
   let minimumBitwidth | i < u8MAX      = "U8"
