@@ -45,7 +45,6 @@ import           Cogent.Common.Types   as Typ
 import           Cogent.Core           as CC
 import           Cogent.Deep
 import qualified Cogent.DList          as DList
-import           Cogent.Inference      hiding (kindcheck, withBindings)
 import           Cogent.Mono                  (Instance)
 import           Cogent.Normal                (isAtom)
 import           Cogent.PrettyCore            (displayOneLine)
@@ -963,13 +962,7 @@ genExpr mv (TE t (Case e tag (l1,_,e1) (l2,_,e2))) = do  -- NOTE: likelihood `l2
                 else CBIStmt $ CIfStmt (macro1 cnd) (CBlock $ v1stm ++ e1stm) (CBlock $ reststm ++ reststm' ++ e2stm)
   recycleVars (mergePools [ep', intersectPools (mergePools [v1p,e1p]) (mergePools [restp',e2p])])
   return (variable v, vdecl ++ edecl ++ edecl' ++ v1decl ++ e1decl ++ restdecl ++ restdecl' ++ e2decl, vstm ++ estm ++ estm' ++ [ifstm], M.empty)
-genExpr mv (TE _ (Esac e)) | not __cogent_fnew_subtyping = do
-  (e',edecl,estm,ep) <- genExpr_ e
-  let TSum [(tag,(ty,False))] = exprType e
-  ct <- genType ty  -- FIXME: is it useful? / zilinc
-  (v,ass,vp) <- flip (maybeAssign mv) ep $ mkStr3 e' tag
-  return (v, edecl, estm ++ ass, vp)
-genExpr mv (TE _ (Esac e)) = do  -- | __cogent_fnew_subtyping
+genExpr mv (TE _ (Esac e)) = do
   (e',edecl,estm,ep) <- genExpr_ e
   let TSum alts = exprType e
       [(tag,(_,_))] = filter (not . snd . snd) alts

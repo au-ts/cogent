@@ -331,9 +331,7 @@ splitEnv env (TE t (If ec et ee))
 
 splitEnv env (TE t (Case e tag (lt,at,et) (le,ae,ee)))
     = let et' = splitEnv (Cons (fmap fst $ lookup tag ts) env) et
-          restt = if __cogent_fnew_subtyping
-                    then TSum $ adjust tag (second $ const True) ts
-                    else TSum $ remove tag ts
+          restt = TSum $ adjust tag (second $ const True) ts
           ee' = splitEnv (Cons (Just restt) env) ee
           e'  = splitEnv env e
           TSum ts = typeOf e'
@@ -402,9 +400,7 @@ pushDown unused (EE ty (If ec et ee) env)
 pushDown unused (EE ty (Case e tag (lt,at,et) (le,ae,ee)) env)
     = let e'@(EE (TSum ts) _ _) = pushDown (unused <\> env) e
           et' = pushDown (Cons (fmap fst $ lookup tag ts) (peel (envOf ee) <\> peel (envOf et))) et
-          restt = if __cogent_fnew_subtyping
-                    then TSum $ adjust tag (second $ const True) ts
-                    else TSum $ remove tag ts
+          restt = TSum $ adjust tag (second $ const True) ts
           ee' = pushDown (Cons (Just restt) (peel (envOf et) <\> peel (envOf ee))) ee
       in (EE ty (Case e' tag (lt,at,et') (le,ae,ee')) $ unused <|> env)
 

@@ -366,9 +366,6 @@ __cogent_fml_typing_tree_ref :: IORef Bool
 {-# NOINLINE __cogent_fml_typing_tree_ref #-}
 __cogent_fml_typing_tree_ref = unsafePerformIO $ newIORef True
 
--- TODO
-__cogent_fnew_subtyping :: Bool
-__cogent_fnew_subtyping = False
 
 data NF = NoNF | ANF | KNF | LNF deriving (Eq, Show)
 
