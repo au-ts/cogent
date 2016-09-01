@@ -194,7 +194,7 @@ desugarAlts e0@(B.TE t v@(S.Var _) _) ((S.Alt p1 l1 e1):alts) =  -- More than on
       v1 <- freshVar
       let S.RT (S.TVariant talts) = t
           p1'' = S.PVar (v1,t1)
-          Just [t1]  = M.lookup cn1 talts  -- type of v1
+          Just ([t1],_)  = M.lookup cn1 talts  -- type of v1 -- TODO liamoc just added ,_ to make this compile
           b   = S.Binding p1' Nothing (B.TE t1 (S.Var v1) noPos) []
           e1' = B.TE (B.getType e1) (S.Let [b] e1) noPos
       desugarAlts e0 ((S.Alt (S.PCon cn1 [p1'']) l1 e1'):alts)
@@ -227,7 +227,7 @@ desugarAlt e0 (S.PCon tag [S.PVar tn]) e =
 desugarAlt e0 (S.PCon tag [p]) e = do  -- Ind. step A)
   v <- freshVar
   let S.RT (S.TVariant alts) = B.getType e0
-      Just [t] = M.lookup tag alts
+      Just ([t], b) = M.lookup tag alts -- TODO liamoc just fixed this to compile
       -- b0 = S.Binding (S.PVar (v,t)) Nothing (B.TE t $ Esac e0) []
       b1 = S.Binding p Nothing (B.TE t (S.Var v) noPos) []
   -- desugarExpr $ B.TE (B.getType e) $ S.Let [b0,b1] e
@@ -362,7 +362,8 @@ desugarType = \case
   S.RT (S.TVar vn b)     -> (findIx vn <$> sel1 <$> get) >>= \(Just v) -> return $ if b then TVarBang v else TVar v
   S.RT (S.TFun ti to)    -> TFun <$> desugarType ti <*> desugarType to
   S.RT (S.TRecord fs s)  -> TRecord <$> mapM (\(f,(t,x)) -> (f,) . (,x) <$> desugarType t) fs <*> pure s
-  S.RT (S.TVariant alts) -> TSum <$> mapM (\(c,ts) -> (c,) . (,False) <$> desugarType (group ts)) (M.toList alts)
+  S.RT (S.TVariant alts) -> TSum <$> mapM (\(c,(ts, k)) -> (c,) . (,False) <$> desugarType (group ts)) (M.toList alts)
+  -- TODO liamoc just added the extra pattern here ^^ to make this compile.
     where group [] = S.RT S.TUnit
           group (t:[]) = t
           group ts = S.RT $ S.TTuple ts
@@ -401,7 +402,7 @@ desugarExpr (B.TE _ (S.TypeApp v ts note) _) = do
 desugarExpr (B.TE _ (S.Con c []) _) = return . E $ Con c (E Unit)
 desugarExpr (B.TE _ (S.Con c [e]) _) = E . Con c <$> desugarExpr e
 desugarExpr (B.TE (S.RT (S.TVariant ts)) (S.Con c es) l) = do
-    let Just tes = M.lookup c ts 
+    let Just (tes, k) = M.lookup c ts  -- TODO liamoc just added ,k to make this compile
     E . Con c <$> desugarExpr (B.TE (group tes) (S.Tuple es) l)
   where group [] = S.RT S.TUnit
         group (t:[]) = t
@@ -470,7 +471,7 @@ desugarExpr (B.TE t (S.Put e (fa@(Just (f0,_)):fas)) l) = do
       t' = S.RT (S.TRecord fs' s)
   desugarExpr $ B.TE t (S.Put (B.TE t' (S.Put e [fa]) l) fas) l
 desugarExpr (B.TE t (S.Upcast e) _) = E <$> (Promote <$> desugarType t <*> desugarExpr e)
-desugarExpr (B.TE t (S.Widen  e) _) = E <$> (Promote <$> desugarType t <*> desugarExpr e)
+-- desugarExpr (B.TE t (S.Widen  e) _) = E <$> (Promote <$> desugarType t <*> desugarExpr e)
 
 
 

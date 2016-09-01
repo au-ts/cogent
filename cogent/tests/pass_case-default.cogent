@@ -18,7 +18,7 @@ type V = < TAG_a U8 | TAG_b U32 | TAG_c T >
 @ A function to test pattern matching *facilities*. 
 yyy : (V! @ a banged V argument
       , U32 @ *also able to use markdown* 
-      ) -> < Fail (U32, < TAG_a U8 | TAG_c T >!)  @ we failed :(
+      ) -> < Fail (U32, (<TAG_a U8 | TAG_b U32 | TAG_c T > take TAG_b)!)  @ we failed :(
            | Success U32 @ we succeeded `yay`
            >
 yyy (v, y) =
@@ -52,7 +52,7 @@ foo v =
 
 @@## Subheading 31
 
-bar : < TAG_a U8 | TAG_b U16 | TAG_c U32 >! -> < Fail (U32, < TAG_b U16 | TAG_c U32 >!) 
+bar : < TAG_a U8 | TAG_b U16 | TAG_c U32 >! -> < Fail (U32, (< TAG_a U8 | TAG_b U16 | TAG_c U32 > take TAG_a)!) 
                                                | Success (U8) >
 bar v =
    v
