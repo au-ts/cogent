@@ -192,7 +192,7 @@ desugarAlts e0@(B.TE t v@(S.Var _)) ((S.Alt p1 l1 e1):alts) =  -- More than one 
       v1 <- freshVar
       let S.RT (S.TVariant talts) = t
           p1'' = S.PVar (v1,t1)
-          Just ([t1],_)  = M.lookup cn1 talts  -- type of v1 -- TODO liamoc just added ,_ to make this compile
+          Just ([t1], False)  = M.lookup cn1 talts  -- type of v1
           b   = S.Binding p1' Nothing (B.TE t1 (S.Var v1) noPos) []
           e1' = B.TE (B.getType e1) (S.Let [b] e1) noPos
       desugarAlts e0 ((S.Alt (S.PCon cn1 [p1'']) l1 e1'):alts)
@@ -226,7 +226,7 @@ desugarAlt e0 (S.PCon tag [S.PVar tn]) e =
 desugarAlt e0 (S.PCon tag [p]) e = do  -- Ind. step A)
   v <- freshVar
   let S.RT (S.TVariant alts) = B.getType e0
-      Just ([t], b) = M.lookup tag alts -- TODO liamoc just fixed this to compile
+      Just ([t], False) = M.lookup tag alts
       -- b0 = S.Binding (S.PVar (v,t)) Nothing (B.TE t $ Esac e0) []
       b1 = S.Binding p Nothing (B.TE t (S.Var v)) []
   -- desugarExpr $ B.TE (B.getType e) $ S.Let [b0,b1] e
@@ -363,8 +363,7 @@ desugarType = \case
   S.RT (S.TVar vn b)     -> (findIx vn <$> sel1 <$> get) >>= \(Just v) -> return $ if b then TVarBang v else TVar v
   S.RT (S.TFun ti to)    -> TFun <$> desugarType ti <*> desugarType to
   S.RT (S.TRecord fs s)  -> TRecord <$> mapM (\(f,(t,x)) -> (f,) . (,x) <$> desugarType t) fs <*> pure s
-  S.RT (S.TVariant alts) -> TSum <$> mapM (\(c,(ts, k)) -> (c,) . (,False) <$> desugarType (group ts)) (M.toList alts)
-  -- TODO liamoc just added the extra pattern here ^^ to make this compile.
+  S.RT (S.TVariant alts) -> TSum <$> mapM (\(c,(ts,x)) -> (c,) . (,x) <$> desugarType (group ts)) (M.toList alts)
     where group [] = S.RT S.TUnit
           group (t:[]) = t
           group ts = S.RT $ S.TTuple ts

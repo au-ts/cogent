@@ -16,12 +16,12 @@ import Cogent.Util
 import Cogent.Surface
 import Cogent.Common.Types
 
-import Control.Monad.State
 import Control.Lens hiding (Context, (:<))
-import Text.Parsec.Pos
-import Data.Monoid ((<>))
 import Control.Monad.Except
+import Control.Monad.State
 import Data.List (nub, (\\))
+import Data.Monoid ((<>))
+import Text.Parsec.Pos
 
 import qualified Data.Map as M
 
