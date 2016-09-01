@@ -15,28 +15,29 @@
 
 module COGENT.TypeCheck.Solver (runSolver, solve) where
 
-import COGENT.TypeCheck.Base
+import           COGENT.Common.Syntax
+import           COGENT.Common.Types
+import           COGENT.PrettyPrint (prettyCtx)
+import           COGENT.Surface
+import           COGENT.TypeCheck.Base
 import qualified COGENT.TypeCheck.Subst as Subst
-import COGENT.TypeCheck.Subst(Subst)
-import COGENT.Common.Types
-import COGENT.Common.Syntax
-import COGENT.Surface
-import Control.Monad.State
-import Data.List(elemIndex)
-import Data.Function(on)
-import Data.Maybe
-import qualified Data.Map as M
-import qualified Data.Set as S
---import qualified Data.List as L
-import Control.Lens hiding ((:<))
-import qualified Data.Foldable as F
-import Data.Monoid
---import Debug.Trace
-import COGENT.PrettyPrint(prettyCtx)
-import Text.PrettyPrint.ANSI.Leijen (pretty)
-import qualified Text.PrettyPrint.ANSI.Leijen as P
-import Control.Applicative
+import           COGENT.TypeCheck.Subst (Subst)
 
+import           Control.Applicative
+import           Control.Lens hiding ((:<))
+import           Control.Monad.State
+import qualified Data.Foldable as F
+import           Data.Function (on)
+--import qualified Data.List as L
+import           Data.List (elemIndex)
+import qualified Data.Map as M
+import           Data.Maybe
+import           Data.Monoid
+import qualified Data.Set as S
+import qualified Text.PrettyPrint.ANSI.Leijen as P
+import           Text.PrettyPrint.ANSI.Leijen (pretty)
+
+--import Debug.Trace
 
 data SolverState = SS { _flexes :: Int, _tc :: TCState, _substs :: Subst, _axioms :: [(VarName, Kind)] }
 

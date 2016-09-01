@@ -68,12 +68,8 @@ guardShow' mh mb b = if b then return () else TC (throwError $ "GUARD: " ++ mh +
 
 isSubtype :: Type t -> Type t -> Bool
 isSubtype (TPrim p1) (TPrim p2) = isSubtypePrim p1 p2
-isSubtype (TSum  s1) (TSum  s2) | not __cogent_fnew_subtyping 
-  = (if __cogent_fshare_variants then length s1 == 1 else True) && and (map (flip elem s2) s1)
-  -- NOTE: this impl'n means no forms of depth subtyping is allowed. i.e., prim has to be promoted before width subtyping is met / zilinc
-                                | otherwise
-  = and $ zipWith (\(c1,(t1,b1)) (c2,(t2,b2)) -> (c1,t1) == (c2,t2) && b1 >= b2) s1 s2
-isSubtype (TRecord r1 s1) (TRecord r2 s2) | __cogent_fnew_subtyping = 
+isSubtype (TSum  s1) (TSum  s2) = and $ zipWith (\(c1,(t1,b1)) (c2,(t2,b2)) -> (c1,t1) == (c2,t2) && b1 >= b2) s1 s2
+isSubtype (TRecord r1 s1) (TRecord r2 s2) =
   s1 == s2 && and (zipWith (\(f1,(t1,b1)) (f2,(t2,b2)) -> (f1,t1) == (f2,t2) && b1 >= b2) r1 r2)
 isSubtype a b = a == b
 
@@ -229,9 +225,9 @@ kindcheck (TVar v)         = lookupKind v
 kindcheck (TVarBang v)     = bangKind <$> lookupKind v
 kindcheck (TUnit)          = return mempty
 kindcheck (TProduct t1 t2) = mappend <$> kindcheck t1 <*> kindcheck t2
-kindcheck (TSum ts)        = mconcat <$> mapM (kindcheck . fst . snd) (filter (not . snd .snd) ts)
+kindcheck (TSum ts)        = mconcat <$> mapM (kindcheck . fst . snd) (filter (not . snd . snd) ts)
 kindcheck (TFun ti to)     = return mempty
-kindcheck (TRecord ts s)   = mappend (sigilKind s) <$> (mconcat <$> (mapM (kindcheck . fst . snd) (filter (not . snd .snd) ts)))
+kindcheck (TRecord ts s)   = mappend (sigilKind s) <$> (mconcat <$> (mapM (kindcheck . fst . snd) (filter (not . snd . snd) ts)))
 kindcheck (TPrim i)        = return mempty
 kindcheck (TString)        = return mempty
 kindcheck (TCon n vs s)    = mapM_ kindcheck vs >> return (sigilKind s)
@@ -292,9 +288,7 @@ typecheck (E (Case e tag (lt,at,et) (le,ae,ee)))
    = do e' <- typecheck e
         let TSum ts = exprType e'
             Just (t, False) = lookup tag ts  -- must not have been taken
-            restt = if __cogent_fnew_subtyping
-                      then TSum $ adjust tag (second $ const True) ts
-                      else TSum $ remove tag ts
+            restt = TSum $ adjust tag (second $ const True) ts
         (et',ee') <- (,) <$>  withBinding t     (typecheck et)
                          <||> withBinding restt (typecheck ee)
         guardShow' "case" 

@@ -12,15 +12,18 @@
 
 module COGENT.TypeCheck.Post where
 
-import COGENT.TypeCheck.Base
-import COGENT.Surface
 import COGENT.Common.Syntax
 import COGENT.Common.Types
+import COGENT.Surface
+import COGENT.TypeCheck.Base
 import COGENT.Util
+
 import Control.Monad
 import Control.Lens
 import Control.Monad.Except
 import qualified Data.Map as M
+
+
 postT :: [ErrorContext] -> TCType -> ExceptT [ContextualisedError] TC RawType
 postT ctx t = do
   d <- use knownTypes
@@ -36,9 +39,8 @@ postA ctx as = do
   d <- use knownTypes
   withExceptT pure $ ExceptT (return $ fmap toTypedAlts $ normaliseA d as)
 
--- not used? / zilinc
-posttc :: TypeDict -> TCExpr -> Either ContextualisedError TypedExpr
-posttc d = fmap toTypedExpr . normaliseE d
+-- posttc :: TypeDict -> TCExpr -> Either ContextualisedError TypedExpr
+-- posttc d = fmap toTypedExpr . normaliseE d
 
 
 normaliseA :: TypeDict -> [Alt TCName TCExpr] -> Either ContextualisedError [Alt TCName TCExpr]
