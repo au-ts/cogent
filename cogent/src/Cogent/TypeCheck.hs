@@ -8,8 +8,9 @@
 -- @TAG(NICTA_GPL)
 --
 
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ImplicitParams #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE TupleSections #-}
 
 module Cogent.TypeCheck where
 
@@ -112,5 +113,8 @@ checkOne loc d = case d of
     validateType' x = withExceptT (pure . ([InDefinition loc d],)) . validateType x
 
     asFunType (T (TFun a b)) = return (a, b)
-    asFunType x              = throwError [([InDefinition loc d], NotAFunctionType x)]
+    asFunType x@(T (TCon t _ _)) = lookup t <$> use knownTypes >>= \case
+                                     Just (vs, Just t') -> asFunType t'
+                                     _ -> throwError [([InDefinition loc d], NotAFunctionType x)]
+    asFunType x = throwError [([InDefinition loc d], NotAFunctionType x)]
 
