@@ -9,23 +9,24 @@
 --
 
 type B
-type A = { a : U8, b : B } take ()
+type A = { a : U8, b : B }
 
-foo : (A) -> < Fail (U32, { a : U8, b : B } take (), U32, U16) 
-             | Success ({ a : U8, b : B } take ()) >
-foo (x) =
+foo : A -> < Fail (U32, { a : U8, b : B }, U32, U16) 
+             | Success { a : U8, b : B } >
+foo x =
    let x' { b = bv } = x
-   in let (x) = x' { b = bv }
+   in let x = x' { b = bv }
       in (x.a == 2
-         | True -> Success ()
-         | False -> Fail (42)) !x
-           | Success () -> Success (x)
-           | Fail (err) -> Fail (err, x, 2, 1)
+         | True  -> Success ()
+         | False -> Fail 42) !x
+           | Success () -> Success x
+           | Fail   err -> Fail (err, x, 2, 1)
 
-bar : (A) -> < Fail (U32, A) | Success (A) >
-bar (x) =
+-- workaround:
+bar : A -> < Fail (U32, A) | Success (A) >
+bar x =
    Success ((x.a == 2
-   | True -> Success ()
-   | False -> Fail (42)) !x
-   | Success () -> (x)
-   | Fail (err) -> (x))
+   | True  -> let a : <Success () | Fail U8> = Success () in a
+   | False -> Fail 42) !x
+     | Success () -> x
+     | Fail   err -> x)
