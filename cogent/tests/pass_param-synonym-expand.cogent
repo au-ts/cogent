@@ -1,0 +1,4 @@
+type T a b = #{f1 : a, f2 : b} -> ()
+
+foo : T (U8,Bool) U8
+foo #{f1=(n,m), f2} = ()
