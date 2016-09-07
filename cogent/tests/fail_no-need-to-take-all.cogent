@@ -1,0 +1,23 @@
+type T = {a : A, b : B, c : U8, d : Bool}
+
+type A
+type B
+
+freeA : A -> ()
+freeB : B -> ()
+
+freeT : T take (..) -> ()
+
+freeT' : T take (a, b) -> ()
+
+free : T -> ()
+free t {a, b} = let _ = freeA a
+                ; freeB b
+                ; freeT t
+                in ()
+
+free' : T take (c,d) -> ()
+free' t {a, b} = let _ = freeA a
+                 ; freeB b
+                 ; freeT' t
+                 in ()
