@@ -991,24 +991,21 @@ fsop_rename_dir (ex, state, rename_ctx, src_dirent, src_dotdot_dirent, src_dir_p
                         in fsop_rename_dir2 (ex, state, rename_ctx_t, src_dirent, src_dotdot_dirent, src_dir_pagectx, src_dotdot_pagectx, dest_inode, dest_dirent, Dest dest_dir, res)
                     
                 | Error err ->
-                    let rename_ctx_t = rename_ctx_t { dest_inode = Some dest_inode }
-                    and rename_ctx = rename_ctx_t {..}
+                    let rename_ctx = rename_ctx_t { dest_inode = Some dest_inode, src_inode, dirs }
                     and _  = ospagectx_destroy (src_dir_pagectx)
                     and _  = ospagectx_destroy (src_dotdot_pagectx)
                     and ex = destroy_Ext2DirEnt (ex, src_dotdot_dirent)
                     and ex = destroy_Ext2DirEnt (ex, src_dirent)
                     in ((ex, state, rename_ctx), Error err)
             else
-                let rename_ctx_t = rename_ctx_t { dest_inode = Some dest_inode }
-                and rename_ctx = rename_ctx_t {..}
+                let rename_ctx = rename_ctx_t { dest_inode = Some dest_inode, src_inode, dirs }
                 and _  = ospagectx_destroy (src_dir_pagectx)
                 and _  = ospagectx_destroy (src_dotdot_pagectx)
                 and ex = destroy_Ext2DirEnt (ex, src_dotdot_dirent)
                 and ex = destroy_Ext2DirEnt (ex, src_dirent)
                 in ((ex, state, rename_ctx), Error eNotEmpty)
         | Error err ->
-            let rename_ctx_t = rename_ctx_t { dest_inode = Some dest_inode }
-            and rename_ctx = rename_ctx_t {..}
+            let rename_ctx = rename_ctx_t { dest_inode = Some dest_inode, src_inode, dirs }
             and _  = ospagectx_destroy (src_dir_pagectx)
             and _  = ospagectx_destroy (src_dotdot_pagectx)
             and ex = destroy_Ext2DirEnt (ex, src_dotdot_dirent)
@@ -1030,7 +1027,7 @@ fsop_rename_dir (ex, state, rename_ctx, src_dirent, src_dotdot_dirent, src_dir_p
                 and rename_ctx = rename_ctx_t { dest_inode = None (), dirs = SrcDest both }
 
                 in fsop_rename_remove_old_dir (ex, state, rename_ctx, src_dirent, src_dotdot_dirent, src_dir_pagectx, src_dotdot_pagectx)
-            | Error (err) ->
+            | Error err ->
                 let both = both_t { dest_dir }
                 and rename_ctx = rename_ctx_t { dest_inode = None (), dirs = SrcDest both }
 
