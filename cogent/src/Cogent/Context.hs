@@ -1,11 +1,23 @@
-module Cogent.Context(Context, Row, lookup, contains, use, addScope, dropScope, merge, mode, empty) where
+module Cogent.Context
+  ( Context
+  , Row
+  , addScope
+  , contains
+  , dropScope
+  , empty
+  , lookup
+  , merge
+  , mode
+  , use
+) where
 
-import Prelude hiding (lookup)
-import qualified Data.Map.Strict as M
-import Text.Parsec.Pos
 import Cogent.Common.Syntax
-import Control.Lens hiding (Context)
+
+import Control.Lens hiding (Context, contains, use)
 import Data.List (foldl', partition)
+import qualified Data.Map.Strict as M
+import Prelude hiding (lookup)
+import Text.Parsec.Pos
 
 type Row t = (t, SourcePos, Maybe SourcePos)
 newtype Context t = Context { unwrap :: [M.Map VarName (Row t)]}
