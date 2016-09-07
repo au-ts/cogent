@@ -697,11 +697,11 @@ free_indirect_on_shared #{ acc = (ex, state, inode, chain), obsv, idx } =
   let (chain, maybe_indirect, indirect_idx) = chain_pop_indirect (chain)
   in maybe_indirect
   | Some indirect =>
-    let indirect_t { .. } = indirect
+    let indirect_t { blockptr, buf } = indirect
 
     -- buf should exist, it's an indirect
     and (ex, state, inode, root) = ext2_free_branches (ex, state, inode, buf, blockptr + 1, const_addrPerBlock, chain.path.depth - chain.indirect_count) !chain
-    and root_t { .. } = root
+    and root_t { maybe_buf } = root
 
     and (ex, chain) = indirect_restore_taken (ex, chain, indirect_t, indirect_idx)
 
@@ -951,7 +951,7 @@ ext2_free_branch_cleanup (depth, root, (ex, state, inode), maxdepth, children) =
 -- recall, we need to do this per-child (it sits inside the while offset_from < offset_to)
 ext2_free_branch_cleanup2: FreeAccF BranchNode (FsState, VfsInode) ()
 ext2_free_branch_cleanup2 (ex, node, (state, inode), obsv) =
-  let node_t { .. } = node
+  let node_t { maybe_buf, ptr } = node
 
   in maybe_buf
   | Some buf =>
