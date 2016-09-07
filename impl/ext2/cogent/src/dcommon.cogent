@@ -59,7 +59,7 @@ ext2_match (c_name, dirent) =
 
 destroy_Ext2DirEnt: (ExState, Ext2DirEnt) -> ExState
 destroy_Ext2DirEnt (ex, dirent) = 
-    let dirent_t { .. } = dirent
+    let dirent_t { name } = dirent
     and ex = wordarray_free [U8] (ex, name)
     in ex
 

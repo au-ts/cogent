@@ -52,7 +52,7 @@ dispose_existing_dirent: (ExState, Option Ext2DirEnt) -> (ExState)
 dispose_existing_dirent (ex, maybe_de) =
     maybe_de
     | Some de ->
-        let de_t { .. } = de
+        let de_t { name } = de
         and ex = wordarray_free [U8] (ex, name)
         in ex
     | _ -> (ex)
