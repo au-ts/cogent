@@ -190,11 +190,11 @@ ext2_inode_get_buf (ex, state, inode_num) =
         let block_group_num = get_block_group_from_ino2 (state, inode_num) !state
         and ((ex, state), gd) = group_desc_from_block_group (ex, state, block_group_num)
         in gd
-        | Success (group_desc) ->
+        | Success group_desc ->
             let (block_addr, buffer_offset) = ino_block_addr_buffer_offset_from_inotable (state, group_desc.inode_table, inode_num) !state
 
-            and group_desc_t { .. } = group_desc
-            --and ex = free_Ext2GroupDescriptor (ex, group_desc_t)
+            -- and group_desc_t { .. } = group_desc
+            -- and ex = free_Ext2GroupDescriptor (ex, group_desc_t)
             and _ = _cogent_log (dbg_EXT2_INODE_READ, ("ext2_inode_get_buf: inode "))
             and _ = _cogent_log_u32 (dbg_EXT2_INODE_READ, (inode_num))
             and _ = _cogent_log (dbg_EXT2_INODE_READ, (" is part of block group "))
@@ -202,7 +202,7 @@ ext2_inode_get_buf (ex, state, inode_num) =
             and _ = _cogent_log (dbg_EXT2_INODE_READ, ("\n"))
             and (ex, res) = ext2_get_block (ex, block_addr)
             in res
-            | Success (buf_block) ->
+            | Success buf_block ->
                 let _ = _cogent_log (dbg_EXT2_INODE_READ, ("ext2_inode_get_buf: located at block "))
                 and _ = _cogent_log_u32 (dbg_EXT2_INODE_READ, (block_addr))
                 and _ = _cogent_log (dbg_EXT2_INODE_READ, (", offset "))
@@ -219,7 +219,7 @@ ext2_inode_get_buf (ex, state, inode_num) =
             and _ = _cogent_warn_u32 block_group_num
             and _ = _cogent_warn "\n"
 
-            in ((ex, state), Error (eIO))
+            in ((ex, state), Error eIO)
     else
         ((ex, state), Error eNoEnt)     -- reserved inode numbers
 

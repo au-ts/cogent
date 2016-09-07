@@ -40,7 +40,7 @@ path_restore (ex, state, path) =
   and ex = free_option_wordarray (ex, prealloc_offsets)
 
   -- TODO: zero offsets array?
-  and path_t { .. } = path
+  and path_t {offsets} = path
   and state = state { prealloc_offsets = Some offsets }
   in (ex, state)
 

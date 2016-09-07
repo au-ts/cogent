@@ -398,8 +398,9 @@ fs_unmount (#{ex = ex, ..}) =
 
     in ex
 
-malloc_Ext2Superblock: (SysState) -> RR SysState (Ext2Superblock take (..)) ()
-deserialise_into_Ext2Superblock: (SysState, OSBuffer!, Ext2Superblock take (..), U32) -> RR (SysState) (Ext2Superblock, U32) (Ext2Superblock take (..))
+malloc_Ext2Superblock: SysState -> RR SysState (Ext2Superblock take (..)) ()
+
+deserialise_into_Ext2Superblock: (SysState, OSBuffer!, Ext2Superblock take (..), U32) -> RR SysState (Ext2Superblock, U32) (Ext2Superblock take (..))
 deserialise_into_Ext2Superblock (ex, buf, obj_t, idx) =
     osbuffer_deserialise_Ple32 (buf, idx)
     | Success (inode_count, idx) ->
@@ -421,7 +422,18 @@ deserialise_into_Ext2Superblock (ex, buf, obj_t, idx) =
                                     | Success (inodes_per_group, idx) ->
                                         osbuffer_deserialise_Ple16 (buf, idx + (3 * 4)) -- skip 4 fields (2x U16, 2xU32 = 3xU32) 
                                         | Success (magic, idx) ->
-                                            let obj = obj_t { .. }
+                                            let -- obj = obj_t { .. }
+                                                obj = obj_t { inode_count
+                                                            , block_count
+                                                            , free_block_count 
+                                                            , free_inode_count
+                                                            , first_data_block
+                                                            , block_size_lg2
+                                                            , blocks_per_group
+                                                            , fragments_per_group
+                                                            , inodes_per_group
+                                                            , magic
+                                                            }
                                             in (ex, Success (obj, idx))
                                         | Error () -> (ex, Error (obj_t))
                                     | Error () -> (ex, Error (obj_t))

@@ -24,7 +24,7 @@ type OSPageContext = #{
 
 ospagectx_destroy: OSPageContext -> ()
 ospagectx_destroy ctx =
-  let ctx_t { .. } = ctx
+  let ctx_t { page, buf } = ctx
   and page = ospage_unmap (page, buf)
   in ospagecache_release (page)
 
@@ -34,7 +34,7 @@ ospagecache_read: (VfsMemoryMap, U64) -> R OSPage ()
 ospagecache_grab: (VfsMemoryMap, U64) -> R OSPage ()
 
 {-# cinline ospagecache_release #-}
-ospagecache_release: (OSPage) -> ()
+ospagecache_release: OSPage -> ()
 
 ospage_unlock: OSPage -> OSPage
 ospage_lock: OSPage -> OSPage
@@ -45,7 +45,7 @@ ospage_get_host: OSPage! -> VfsInode
 -- we can't permit iput on it
 
 {-# cinline ospage_map #-}
-ospage_map: OSPage -> R (OSPage, OSPageBuffer) (OSPage)
+ospage_map: OSPage -> R (OSPage, OSPageBuffer) OSPage
 {-# cinline ospage_unmap #-}
 ospage_unmap: (OSPage, OSPageBuffer) -> OSPage
 
