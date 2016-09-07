@@ -58,7 +58,7 @@ indirect_from_chain (ex, chain, idx) =
       let ex = osbuffer_destroy (ex, buf)
       in (ex, chain, Some indirect_t)
     | _ -> (ex, chain, Some indirect_t)
-  | none -> (ex, chain, none)
+  | _ -> (ex, chain, None)
 
 indirect_restore: (ExState, Chain, Indirect, U32) -> (ExState, Chain)
 indirect_restore (ex, chain, indirect, idx) =

@@ -166,7 +166,7 @@ chain_init (state, path) =
 
 chain_restore: (ExState, FsState, Chain) -> (ExState, FsState, Path)
 chain_restore (ex, state, chain) = 
-  let chain_t { .. } = chain
+  let chain_t { path, indirects } = chain
   and state_t { prealloc_chain, prealloc_indirects } = state
 
   -- free old ones if there
