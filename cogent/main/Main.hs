@@ -66,6 +66,7 @@ import Control.Applicative (liftA, (<$>))
 #else
 import Control.Applicative (liftA)
 #endif
+import Control.Arrow (first)
 import Control.Monad (forM, forM_, unless, when)
 -- import Control.Monad.Cont
 -- import Control.Monad.Except (runExceptT)
@@ -562,8 +563,9 @@ parseArgs args = case getOpt' Permute options args of
       let stg = STGTypeCheck
       putProgressLn "Typechecking..."
       case TC.tc reorged of
-        (Left es,_) -> printError (prettyTWE' __cogent_ftc_ctx_len)
-                                  ((if __cogent_freverse_tc_errors then reverse else id) es)
+        (Left es,_) -> let es' = map (first reverse) es  -- context is reversed by construction / zilinc
+                       in printError (prettyTWE' __cogent_ftc_ctx_len)
+                                     ((if __cogent_freverse_tc_errors then reverse else id) es')
                     >> exitFailure
         (Right tced, tcst) ->  do
           when (Ast stg `elem` cmds) $ genAst stg tced
