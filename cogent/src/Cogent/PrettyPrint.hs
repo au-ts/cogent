@@ -421,7 +421,7 @@ instance Pretty TypeError where
   pretty (UnknownTypeConstructor tn)     = err "Unknown type constructor" <+> typename tn
   pretty (TypeArgumentMismatch tn i1 i2) = typename tn <+> err "expects"
                                            <+> int i1 <+> err "arguments, but has been given" <+> int i2
-  pretty (TypeMismatch t1 t2)            = err "Mismatch between " <+> pretty t1 <+> err "and" <+> pretty t2
+  pretty (TypeMismatch t1 t2)            = err "Mismatch between" <+> pretty t1 <+> err "and" <+> pretty t2
   pretty (RequiredTakenField f t)        = err "Required field" <+> fieldname f
                                            <+> err "of type" <+> pretty t <+> err "to be untaken"
   pretty (TypeNotShareable t m)          = err "Cannot share type" <+> pretty t
@@ -482,7 +482,7 @@ instance Pretty ReorganizeError where
 
 -- ctx -> indent -> doc
 prettyCtx :: ErrorContext -> Bool -> Doc
-prettyCtx (SolvingConstraint c) _ = context "from constraint " <+> pretty c
+prettyCtx (SolvingConstraint c) _ = context "from constraint" <+> pretty c
 prettyCtx (ThenBranch) _ = context "in the" <+> keyword "then" <+> context "branch"
 prettyCtx (ElseBranch) _ = context "in the" <+> keyword "else" <+> context "branch"
 prettyCtx (InExpression e t) True = context "when checking that the expression at ("
