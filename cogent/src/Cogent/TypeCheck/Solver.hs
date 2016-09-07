@@ -38,9 +38,8 @@ import qualified Data.Set as S
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 import           Text.PrettyPrint.ANSI.Leijen (pretty)
 
---import Debug.Trace
+-- import Debug.Trace
 
->>>>>>> compiler: kind of fix desugarer properly.
 data SolverState = SS { _flexes :: Int, _tc :: TCState, _substs :: Subst, _axioms :: [(VarName, Kind)] }
 
 makeLenses ''SolverState
@@ -470,10 +469,6 @@ classify g = case g of
   (Goal _ Sat)          -> mempty
   _                     -> Classes M.empty M.empty M.empty [] [g]
 
-
-type ContextualisedError = ([ErrorContext], TypeError)
-
-
 -- Push type information down from the RHS of :< to the LHS
 -- Expects a series of goals of the form U x :< tau
 impose :: [Goal] -> Solver [Goal]
@@ -496,7 +491,6 @@ suggest (Goal x1 (tau :< v) : Goal x2 (tau' :< _) : xs) = do
                   <$> suggest (Goal x2 (tau'' :< v) : xs)
 suggest xs = return xs
 
-
 guess :: [Goal] -> Solver [Goal]
 guess (Goal x1 a@(tau :<~ v) : Goal x2 b@(tau' :<~ _) : xs) = do
   mt <- lub' tau tau'
@@ -504,8 +498,8 @@ guess (Goal x1 a@(tau :<~ v) : Goal x2 b@(tau' :<~ _) : xs) = do
     Nothing    -> return [Goal x1 (Unsat (UnsolvedConstraint (a :& b)))]
     Just tau'' -> ([Goal x1 (tau :< tau''), Goal x2 (tau' :< tau'')] ++)
                   <$> suggest (Goal x2 (tau'' :< v) : xs)
-
 guess xs = return xs
+
 -- Produce substitutions when it is safe to do so (the variable can't get any more general)
 noBrainers :: [Goal] -> Subst
 noBrainers [Goal _ (U x :<  T t)] = Subst.singleton x (T t)
