@@ -297,8 +297,9 @@ get_page_and_iterate_dirents (#{acc = (ex, dirctx, offset, inode), obsv = npages
         let _ = _cogent_log (dbg_EXT2_DIR_READ, "get_page_and_iterate_dirents: failed to get page\n")
         in ((ex, dirctx, offset, inode), Break eIO)
 
-fsop_dir_iterate: (#{ex: ExState, state: FsState, parent_inode: VfsInode, dirctx: VfsDirContext}) -> RR #{ex: ExState, state: FsState, parent_inode: VfsInode, dirctx: VfsDirContext} () U32
-fsop_dir_iterate (#{..}) =
+fsop_dir_iterate: #{ex: ExState, state: FsState, parent_inode: VfsInode, dirctx: VfsDirContext} 
+               -> RR #{ex: ExState, state: FsState, parent_inode: VfsInode, dirctx: VfsDirContext} () U32
+fsop_dir_iterate #{ex,state,parent_inode,dirctx} =
     let npages = ext2_dir_pages (parent_inode) !parent_inode
     and dirctx_t { pos } = dirctx
     and offset = pos .&. complement os_PAGE_CACHE_MASK

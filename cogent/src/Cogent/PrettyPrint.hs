@@ -416,7 +416,7 @@ instance Pretty TypeError where
   pretty (FunctionNotFound fn)           = err "Function" <+> funname fn <+> err "not found"
   pretty (TooManyTypeArguments fn pt)    = err "Too many type arguments to function"
                                            <+> funname fn  <+> err "of type" <+> pretty pt
-  pretty (NotInScope vn)                 = varname vn <+> err "not in scope"
+  pretty (NotInScope vn)                 = err "Variable" <+> varname vn <+> err "not in scope"
   pretty (UnknownTypeVariable vn)        = err "Unknown type variable" <+> typevar vn
   pretty (UnknownTypeConstructor tn)     = err "Unknown type constructor" <+> typename tn
   pretty (TypeArgumentMismatch tn i1 i2) = typename tn <+> err "expects"
@@ -433,7 +433,7 @@ instance Pretty TypeError where
                                            <$> err "cases not matched" <+> tupled1 (map tagname tags)
   pretty (UnsolvedConstraint c)          = err "Leftover constraint!" <$> pretty c
   pretty (RecordWildcardsNotSupported)   = err "Record wildcards are not supported"
-  pretty (NotAFunctionType t)            = pretty t <+> err "is not a function type"
+  pretty (NotAFunctionType t)            = err "Type" <+> pretty t <+> err "is not a function type"
   pretty (DuplicateVariableInPattern vn pat)       = err "Duplicate variable" <+> varname vn <+> err "in pattern:"
                                                      <$> pretty pat
   pretty (DuplicateVariableInIrrefPattern vn ipat) = err "Duplicate variable" <+> varname vn <+> err "in (irrefutable) pattern:"

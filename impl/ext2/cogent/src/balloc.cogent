@@ -781,7 +781,7 @@ type BranchNode = #{
 
 branchnode_free: (ExState, BranchNode) -> ExState
 branchnode_free (ex, node) =
-  let node_t { .. } = node
+  let node_t {maybe_buf} = node
   in dispose_existing_buffer (ex, maybe_buf)
 
 _branchnode_debug: (BranchNode!) -> ()
