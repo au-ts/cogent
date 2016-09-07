@@ -14,25 +14,27 @@
 
 module Cogent.TypeCheck where
 
-import Cogent.TypeCheck.Generator
-import Cogent.TypeCheck.Base
-import Cogent.TypeCheck.Solver
-import Cogent.TypeCheck.Post (postT, postE, postA)
-import Cogent.TypeCheck.Subst (applyE, applyAlts)
-import Cogent.Surface
-import Cogent.Compiler
 import Cogent.Common.Syntax
-import Text.Parsec.Pos
+import Cogent.Compiler
+import qualified Cogent.Context as C
+import Cogent.PrettyPrint ()
+import Cogent.Surface
+import Cogent.TypeCheck.Base
+import Cogent.TypeCheck.Generator
+import Cogent.TypeCheck.Post (postT, postE, postA)
+import Cogent.TypeCheck.Solver
+import Cogent.TypeCheck.Subst (applyE, applyAlts)
+
+import Control.Lens
 import Control.Monad.Except
 import Control.Monad.State
-import Control.Lens
 import Data.List (nub, (\\))
-import Data.Monoid ((<>))
-import qualified Cogent.Context as C
 import qualified Data.Map as M
--- import Debug.Trace
-import Cogent.PrettyPrint()
+import Data.Monoid ((<>))
+import Text.Parsec.Pos
 --import Text.PrettyPrint.ANSI.Leijen hiding ((<>))
+
+import Debug.Trace
 
 tc :: [(SourcePos, TopLevel LocType VarName LocExpr)]
       -> (Either [ContextualisedError] [TopLevel RawType TypedName TypedExpr], TCState)
@@ -95,11 +97,15 @@ checkOne loc d = case d of
     base <- use knownConsts
     t' <- validateType' (map fst vs) (stripLocT t)
     (i,o) <- asFunType t'
-    let ctx = C.addScope (fmap (\(t,p) -> (t,p, Just p)) base) C.empty
+    -- traceShowM ("i = ", i)
+    -- traceShowM ("o = ", o)
+    let ctx = C.addScope (fmap (\(t,p) -> (t, p, Just p)) base) C.empty
     let ?loc = loc
     ((c, alts'), flx) <- lift (runCG ctx (map fst vs) (cgAlts alts o i))
     (errs, subst) <- lift (runSolver (solve c) flx vs)
-    -- let alts'' = applyAlts subst alts'
+    let alts'' = applyAlts subst alts'
+    -- traceShowM ("fun@", errs)
+    -- traceShowM ("fun?", alts'  ) -- vcat (map pretty alts''))
     -- traceShowM ("fun!", alts'' ) -- vcat (map pretty alts''))
     if null errs then do
       knownFuns %= M.insert f (PT vs t')
@@ -113,8 +119,8 @@ checkOne loc d = case d of
     validateType' x = withExceptT (pure . ([InDefinition loc d],)) . validateType x
 
     asFunType (T (TFun a b)) = return (a, b)
-    asFunType x@(T (TCon t _ _)) = lookup t <$> use knownTypes >>= \case
-                                     Just (vs, Just t') -> asFunType t'
-                                     _ -> throwError [([InDefinition loc d], NotAFunctionType x)]
+    asFunType x@(T (TCon c as _)) = lookup c <$> use knownTypes >>= \case
+                                      Just (vs, Just t) -> asFunType (substType (zip vs as) t)
+                                      _ -> throwError [([InDefinition loc d], NotAFunctionType x)]
     asFunType x = throwError [([InDefinition loc d], NotAFunctionType x)]
 
