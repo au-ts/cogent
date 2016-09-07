@@ -23,10 +23,11 @@ module COGENT.TypeCheck.Generator
 
 import           COGENT.Common.Syntax
 import           COGENT.Common.Types
-import           COGENT.Surface
-import           COGENT.Util hiding (Warning)
-import           COGENT.TypeCheck.Base
 import qualified COGENT.Context as C
+-- import COGENT.PrettyPrint()
+import           COGENT.Surface
+import           COGENT.TypeCheck.Base
+import           COGENT.Util hiding (Warning)
 
 import           Control.Arrow (first, second)
 import           Control.Lens hiding (Context, (:<))
@@ -35,10 +36,9 @@ import qualified Data.Map as M
 import           Data.Maybe (catMaybes, isNothing, isJust)
 import           Data.Monoid ((<>))
 import           Text.Parsec.Pos
+-- import Text.PrettyPrint.ANSI.Leijen (Pretty (..))
 
 -- import Debug.Trace
--- import COGENT.PrettyPrint()
--- import Text.PrettyPrint.ANSI.Leijen (Pretty (..))
 
 data CGState = CGS { _tc :: TCState, _context :: C.Context TCType, _flexes :: Int, _knownTypeVars :: [VarName] }
 

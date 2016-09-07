@@ -23,6 +23,8 @@ import Data.List (nub, (\\))
 import Data.Monoid ((<>))
 import Text.Parsec.Pos
 
+-- import Debug.Trace
+
 import qualified Data.Map as M
 
 data TypeError = FunctionNotFound VarName
@@ -66,7 +68,8 @@ data ErrorContext = InExpression LocExpr TCType
 
 type ContextualisedError = ([ErrorContext], TypeError)
 
-data TCType = T (Type TCType) | U Int
+data TCType = T (Type TCType)
+            | U Int  -- unifier
 --          | RemoveCase (Pattern TCName) TCType
             deriving (Show, Eq)
 
@@ -139,7 +142,7 @@ instance Monoid Constraint where
   mappend x (Unsat r) = Unsat r
   mappend x y = x :& y
 
-data TCState = TCS { _knownFuns    :: M.Map VarName (Polytype TCType)
+data TCState = TCS { _knownFuns    :: M.Map FunName (Polytype TCType)
                    , _knownTypes   :: TypeDict
                    , _knownConsts  :: M.Map VarName (TCType, SourcePos)
                    }
