@@ -32,7 +32,7 @@ import Prelude hiding (foldr)
 import Prelude hiding ((<$>), foldr)
 #endif
 import Text.Parsec.Pos
-import Text.PrettyPrint.ANSI.Leijen hiding (tupled,indent)
+import Text.PrettyPrint.ANSI.Leijen hiding (tupled, indent)
 
 
 -- pretty-printing theme definition
@@ -75,10 +75,10 @@ ifIndentation = 3
 indent = nest indentation
 indent' = (string (replicate indentation ' ') <>) . nest indentation
 
-tupled = encloseSep lparen rparen (comma <> space)
+tupled = encloseSep (lparen <> space) (rparen <> space) (comma <> space)
 -- non-unit tuples. put parens subject to arity
 tupled1 [x] = x
-tupled1 x = encloseSep lparen rparen (comma <> space) x
+tupled1 x = encloseSep (lparen <> space) (rparen <> space) (comma <> space) x
 
 spaceList = encloseSep empty empty space
 commaList = encloseSep empty empty (comma <> space)
@@ -422,8 +422,8 @@ instance Pretty TypeError where
   pretty (TypeArgumentMismatch tn i1 i2) = typename tn <+> err "expects"
                                            <+> int i1 <+> err "arguments, but has been given" <+> int i2
   pretty (TypeMismatch t1 t2)            = err "Mismatch between" <+> pretty t1 <+> err "and" <+> pretty t2
-  pretty (RequiredTakenField f t)        = err "Required field" <+> fieldname f
-                                           <+> err "of type" <+> pretty t <+> err "to be untaken"
+  pretty (RequiredTakenField f t)        = err "Field" <+> fieldname f <+> err "of type" <+> pretty t
+                                           <+> err "is required, but has been taken"
   pretty (TypeNotShareable t m)          = err "Cannot share type" <+> pretty t
                                            <$> err "but this is needed as" <+> pretty m
   pretty (TypeNotEscapable t m)          = err "Cannot let type" <+> pretty t <+> err "escape from a !-ed context,"
@@ -456,9 +456,9 @@ instance Pretty TypeWarning where
   pretty DummyWarning = __fixme $ warn "WARNING: dummy"
 
 instance Pretty Constraint where
-  pretty (a :<  b)        = pretty a <+> warn ":<"  <+> pretty b
-  pretty (a :<~ b)        = pretty a <+> warn ":<~" <+> pretty b
-  pretty (a :& b)         = pretty a <+> warn ":&" <+> pretty b
+  pretty (a :<  b)        = pretty a </> warn ":<"  </> pretty b
+  pretty (a :<~ b)        = pretty a </> warn ":<~" </> pretty b
+  pretty (a :& b)         = pretty a </> warn ":&"  </> pretty b
   pretty (Share  t m)     = warn "Share" <+> pretty t
   pretty (Drop   t m)     = warn "Drop" <+> pretty t
   pretty (Escape t m)     = warn "Escape" <+> pretty t
@@ -482,7 +482,7 @@ instance Pretty ReorganizeError where
 
 -- ctx -> indent -> doc
 prettyCtx :: ErrorContext -> Bool -> Doc
-prettyCtx (SolvingConstraint c) _ = context "from constraint" <+> pretty c
+prettyCtx (SolvingConstraint c) _ = context "from constraint" <+> indent' (pretty c)
 prettyCtx (ThenBranch) _ = context "in the" <+> keyword "then" <+> context "branch"
 prettyCtx (ElseBranch) _ = context "in the" <+> keyword "else" <+> context "branch"
 prettyCtx (InExpression e t) True = context "when checking that the expression at ("
