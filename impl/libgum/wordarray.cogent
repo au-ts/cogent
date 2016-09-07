@@ -72,7 +72,7 @@ wordarray_free: all(a :< DSE). (ExState,WordArray a) -> ExState
 
 {-# cinline wordarray_free' #-}
 wordarray_free': all(a :< DSE). (#{ex: ExState, obj: WordArray a}) -> ExState
-wordarray_free' (#{ .. }) = wordarray_free[a] (ex, obj)
+wordarray_free' #{ex,obj} = wordarray_free[a] (ex, obj)
 
 {-# cinline copy_n #-}
 copy_n: all(a :< DSE). WordArrayMapNoBreakF a U32 ((WordArray a)!)

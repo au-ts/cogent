@@ -117,7 +117,7 @@ readahead_inode (ex, state, inode) =
         (ex, state)
 
 fsop_inode_write: #{ex: ExState, state: FsState, inode: VfsInode, sync: Bool} -> RR #{ex: ExState, state: FsState, inode: VfsInode} () (U32)
-fsop_inode_write #{..} = 
+fsop_inode_write #{ex,state,inode,sync} = 
     let _ = _cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_write: getting buffer for ino ")
     and _ = _cogent_log_u32 (dbg_EXT2_INODE_WRITE, (vfs_inode_get_ino (inode))) !inode
     and _ = _cogent_log (dbg_EXT2_INODE_WRITE, "\n")

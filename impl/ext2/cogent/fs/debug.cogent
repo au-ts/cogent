@@ -113,7 +113,7 @@ print_chain_indirects arr = array_fold_no_break[Indirect, (), ()] #{
                               }
 
 print_chain_indirect_f : #{elem : Indirect!, acc : (), obsv : ()} -> ()
-print_chain_indirect_f #{..} = print_chain_indirect elem
+print_chain_indirect_f r {elem} = print_chain_indirect elem
 
 print_chain_indirect : Indirect! -> ()
 print_chain_indirect i = 
@@ -141,7 +141,7 @@ print_path_offsets warr = wordarray_fold_no_break[BlockOffset, (), ()] #{
                             }
 
 print_path_offset_f : ElemAO BlockOffset () () -> ()
-print_path_offset_f #{..} = 
+print_path_offset_f r {elem} = 
   let _ = _cogent_log (plvl, "offset = ")
   and _ = _cogent_log_u32 (plvl, elem)
   and _ = _cogent_log (plvl, "\n")

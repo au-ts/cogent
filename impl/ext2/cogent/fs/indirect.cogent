@@ -137,7 +137,7 @@ indirect_set_reference (maybe_buf, inode, offset, ptr) =
 
 indirect_destroy2: (ExState, Indirect) -> ExState
 indirect_destroy2 (ex, indirect) =
-  let indirect_t { .. } = indirect
+  let indirect_t {buf} = indirect
   and ex = free_Indirect (ex, indirect_t)
   in buf
   | Some buf -> osbuffer_destroy (ex, buf)
