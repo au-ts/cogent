@@ -142,6 +142,7 @@ patternTag _ = Nothing
 isVarCon :: Pattern a -> Bool
 isVarCon (PCon {}) = True
 isVarCon _ = False
+
 -- Explodes a rigid/rigid constraint into subgoals necessary
 -- for that to be true. E.g, (a,b) :< (c,d) becomes a :< c :& b :< d.
 -- Assumes that the input is simped (i.e conjunction and context free, with types in whnf)
@@ -149,7 +150,6 @@ rule' :: Constraint -> Maybe Constraint
 rule' c = (:@ SolvingConstraint c) <$> rule c
 
 rule :: Constraint -> Maybe Constraint
-
 rule (Exhaustive t ps) | any isIrrefutable ps = Just Sat
 rule (Exhaustive (T (TVariant n)) ps)
   | s1 <- S.fromList (mapMaybe patternTag ps)
