@@ -66,6 +66,10 @@ data ErrorContext = InExpression LocExpr TCType
                   | AntiquotedExpr LocExpr
                   deriving (Show)
 
+isCtxConstraint :: ErrorContext -> Bool
+isCtxConstraint (SolvingConstraint _) = True
+isCtxConstraint _ = False
+
 type ContextualisedError = ([ErrorContext], TypeError)
 
 data TCType = T (Type TCType)
