@@ -25,6 +25,7 @@ import Cogent.TypeCheck.Post (postT, postE, postA)
 import Cogent.TypeCheck.Solver
 import Cogent.TypeCheck.Subst (applyE, applyAlts)
 
+import Control.Arrow (first, left)
 import Control.Lens
 import Control.Monad.Except
 import Control.Monad.State
@@ -38,9 +39,12 @@ import Debug.Trace
 
 tc :: [(SourcePos, TopLevel LocType VarName LocExpr)]
       -> (Either [ContextualisedError] [TopLevel RawType TypedName TypedExpr], TCState)
-tc i = runState (runExceptT (typecheck i)) (TCS M.empty knownTypes M.empty)
+tc i = (first . left) adjustErrors $ runState (runExceptT (typecheck i)) (TCS M.empty knownTypes M.empty)
   where
     knownTypes = map (, ([] , Nothing)) $ words "U8 U16 U32 U64 String Bool"
+    adjustErrors = (if __cogent_freverse_tc_errors then reverse else id) . adjustContexts
+    adjustContexts = map (first $ reverse . noConstraints)  -- FIXME: context is reversed by construction / zilinc
+    noConstraints = if __cogent_ftc_ctx_constraints then id else filter (not . isCtxConstraint)
 
 typecheck :: [(SourcePos, TopLevel LocType VarName LocExpr)]
           -> ExceptT [ContextualisedError] TC [TopLevel RawType TypedName TypedExpr]
