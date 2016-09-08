@@ -12,15 +12,16 @@
 -- see http://haskell.org/cabal/users-guide/
 
 name:                cogent
-version:             2.0.4
+version:             2.0.5
 -- synopsis:
 -- description:
 -- license:
 -- license-file:        LICENSE
-author:              Liam O'Connor-Davis
+author:              Liam O'Connor
                      Zilin Chen
-maintainer:          Zilin Chen <Zilin.Chen@nicta.com.au>
-homepage:            https://ssrg.nicta.com.au/projects/TS/filesystems.pml
+maintainer:          Liam O'Connor <liamoc@cse.unsw.edu.au>
+                     Zilin Chen <zilin.chen@data61.csiro.au>
+homepage:            https://ts.data61.csiro.au/projects/TS/cogent.pml
 bug-reports:         https://github.com/NICTA/cogent/issues
 
 -- copyright:
