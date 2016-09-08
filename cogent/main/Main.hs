@@ -66,7 +66,6 @@ import Control.Applicative (liftA, (<$>))
 #else
 import Control.Applicative (liftA)
 #endif
-import Control.Arrow (first)
 import Control.Monad (forM, forM_, unless, when)
 -- import Control.Monad.Cont
 -- import Control.Monad.Except (runExceptT)
@@ -425,6 +424,7 @@ flags =
   , Option []         ["fno-show-types-in-pretty"] 2 (NoArg set_flag_fnoShowTypesInPretty) "(default) reverse of --fshow-types-in-pretty"
   , Option []         ["fno-simplifier"]      2 (NoArg set_flag_fnoSimplifier)             "(default) reverse of --fsimplifier"
   , Option []         ["fno-static-inline"]   1 (NoArg set_flag_fnoStaticInline)           "reverse of --fstatic-inline"
+  , Option []         ["fno-tc-ctx-constraints"] 3 (NoArg set_flag_ftcCtxConstraints)      "(default) reverse of --ftc-ctx-constraints"
   , Option []         ["fno-tp-with-bodies"]  1   (NoArg set_flag_fnoTpWithBodies)         "reverse of --ftp-with-bodies"
   , Option []         ["fno-tp-with-decls"]   1   (NoArg set_flag_fnoTpWithDecls)          "reverse of --ftp-with-decls"
   , Option []         ["fno-tuples-as-sugar"] 1 (NoArg set_flag_fnoTuplesAsSugar)          "reverse of --ftuples-as-sugar"
@@ -442,6 +442,7 @@ flags =
   , Option []         ["fsimplifier-level"]   1 (ReqArg (set_flag_fsimplifierIterations . read) "NUMBER")  "number of iterations simplifier does (default=4)"
   , Option []         ["fstatic-inline"]      2 (NoArg set_flag_fstaticInline)             "(default) generate static-inlined functions in C"
   , Option []         ["ftuples-as-sugar"]    2 (NoArg set_flag_ftuplesAsSugar)            "(default) treat tuples as syntactic sugar to unboxed records, which gives better performance"
+  , Option ['C']      ["ftc-ctx-constraints"] 3 (NoArg set_flag_ftcCtxConstraints)         "display constraints in type errors"
   , Option ['l']      ["ftc-ctx-len"]         1 (ReqArg (set_flag_ftcCtxLen . read) "NUMBER")   "set the depth for printing error context in typechecker (default=3)"
   , Option []         ["ftp-with-bodies"]     2 (NoArg set_flag_ftpWithBodies)             "(default) generate type proof with bodies"
   , Option []         ["ftp-with-decls"]      2 (NoArg set_flag_ftpWithDecls)              "(default) generate type proof with declarations"
@@ -563,9 +564,7 @@ parseArgs args = case getOpt' Permute options args of
       let stg = STGTypeCheck
       putProgressLn "Typechecking..."
       case TC.tc reorged of
-        (Left es,_) -> let es' = map (first reverse) es  -- context is reversed by construction / zilinc
-                       in printError (prettyTWE' __cogent_ftc_ctx_len)
-                                     ((if __cogent_freverse_tc_errors then reverse else id) es')
+        (Left es,_) -> printError (prettyTWE' __cogent_ftc_ctx_len) es
                     >> exitFailure
         (Right tced, tcst) ->  do
           when (Ast stg `elem` cmds) $ genAst stg tced

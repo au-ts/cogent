@@ -115,6 +115,7 @@ set_flag_fnoShareVariants = writeIORef __cogent_fshare_variants_ref False
 set_flag_fnoShowTypesInPretty = writeIORef __cogent_fshow_types_in_pretty_ref False
 set_flag_fnoSimplifier = writeIORef __cogent_fsimplifier_ref False
 set_flag_fnoStaticInline = writeIORef __cogent_fstatic_inline_ref False
+set_flag_fnoTcCtxConstraints = writeIORef __cogent_ftc_ctx_constraints_ref False
 set_flag_fnoTpWithBodies = writeIORef __cogent_ftp_with_bodies_ref False
 set_flag_fnoTpWithDecls = writeIORef __cogent_ftp_with_decls_ref False
 set_flag_fnoTuplesAsSugar = writeIORef __cogent_ftuples_as_sugar_ref False
@@ -170,6 +171,7 @@ set_flag_outputName = writeIORef __cogent_output_name_ref . Just . takeBaseName
 set_flag_proofInputC = writeIORef __cogent_proof_input_c_ref . Just
 set_flag_proofName = writeIORef __cogent_proof_name_ref . Just . takeBaseName
 set_flag_rootDir dir = writeIORef __cogent_root_dir_ref (cogentRelDir dir __cogent_dist_dir)
+set_flag_ftcCtxConstraints = writeIORef __cogent_ftc_ctx_constraints_ref True
 set_flag_ftcCtxLen = writeIORef __cogent_ftc_ctx_len_ref
 set_flag_w      = writeIORef __cogent_warning_switch_ref Flag_w
 set_flag_Wall = do set_flag_WdynamicVariantPromotion
@@ -438,6 +440,13 @@ __cogent_fstatic_inline = unsafePerformIO $ readIORef __cogent_fstatic_inline_re
 __cogent_fstatic_inline_ref :: IORef Bool
 {-# NOINLINE __cogent_fstatic_inline_ref #-}
 __cogent_fstatic_inline_ref = unsafePerformIO $ newIORef True
+
+__cogent_ftc_ctx_constraints :: Bool
+__cogent_ftc_ctx_constraints = unsafePerformIO $ readIORef __cogent_ftc_ctx_constraints_ref
+
+__cogent_ftc_ctx_constraints_ref  :: IORef Bool
+{-# NOINLINE __cogent_ftc_ctx_constraints_ref #-}
+__cogent_ftc_ctx_constraints_ref = unsafePerformIO $ newIORef False
 
 __cogent_ftc_ctx_len :: Int
 __cogent_ftc_ctx_len = unsafePerformIO $ readIORef __cogent_ftc_ctx_len_ref
