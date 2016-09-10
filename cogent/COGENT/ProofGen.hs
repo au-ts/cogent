@@ -523,7 +523,9 @@ split k g x y = error $ "bad split: " ++ show (g, x, y)
 splitsHint :: Int -> Vec t Kind -> Vec v (Maybe (Type t)) -> Vec v (Maybe (Type t)) -> Vec v (Maybe (Type t)) -> State TypingSubproofs [(Int, [Tactic])]
 splitsHint n k (Cons g gs) (Cons x xs) (Cons y ys) = liftM2 (++) (splitHint n k g x y) (splitsHint (n+1) k gs xs ys)
 splitsHint _ k Nil         Nil         Nil         = return []
+#if __GLASGOW_HASKELL__ < 711
 splitsHint _ _ _ _ _ = __ghc_t4139 "ProofGen.splitsHint"
+#endif
 
 splitHint :: Int -> Vec t Kind -> Maybe (Type t) -> Maybe (Type t) -> Maybe (Type t) -> State TypingSubproofs [(Int, [Tactic])]
 splitHint _ k Nothing  Nothing  Nothing  = return []
@@ -645,7 +647,9 @@ peel2 = peel . peel
 (<|>) (Cons _ xs)        (Cons (Just y) ys) = Cons (Just y) (xs <|> ys)
 (<|>) (Cons (Just x) xs) (Cons _ ys)        = Cons (Just x) (xs <|> ys)
 (<|>) Nil Nil = Nil
+#if __GLASGOW_HASKELL__ < 711
 (<|>) _ _ = __ghc_t4139 "ProofGen.<|>"
+#endif
 
 cleared :: Vec a (Maybe t) -> Vec a (Maybe t)
 cleared = emptyvec . Vec.length

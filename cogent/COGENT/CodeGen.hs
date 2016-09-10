@@ -16,7 +16,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE ImpredicativeTypes #-}
+--{-# LANGUAGE ImpredicativeTypes #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
@@ -458,7 +458,7 @@ genTyDecl (Variant x, n) _ = case __cogent_funion_for_variants of
             genTySynDecl (n, CStruct n)]
   True  -> [CDecl $ CStructDecl n [(CIdent tagsT, Just fieldTag), (CUnion Nothing $ Just (map swap (M.toList x)), Nothing)],
             genTySynDecl (n, CStruct n)]
-genTyDecl (Function t1 t2, n) tns = 
+genTyDecl (Function t1 t2, n) tns =
   if n `elem` tns then []
                   else [CDecl $ CTypeDecl (CIdent fty) [n]]
   where fty = if __cogent_funtyped_func_enum then untypedFuncEnum else unitT
@@ -968,7 +968,7 @@ genExpr mv (TE _ (Esac e)) | not __cogent_fnew_subtyping = do
   ct <- genType ty  -- FIXME: is it useful? / zilinc
   (v,ass,vp) <- flip (maybeAssign mv) ep $ mkStr3 e' tag
   return (v, edecl, estm ++ ass, vp)
-genExpr mv (TE _ (Esac e)) = do  -- | __cogent_fnew_subtyping 
+genExpr mv (TE _ (Esac e)) = do  -- | __cogent_fnew_subtyping
   (e',edecl,estm,ep) <- genExpr_ e
   let TSum alts = exprType e
       [(tag,(ty,_))] = filter (not . snd . snd) alts
