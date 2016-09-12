@@ -30,3 +30,4 @@ umm_types.txt
 *.thy
 ROOT
 generated.*
+*_flymake.hs

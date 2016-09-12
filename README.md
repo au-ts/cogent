@@ -3,7 +3,7 @@
 ## Project homepage
 
 For general context of this project, motivation, an overview, and published papers, see
-our [project homepage](http://ssrg.nicta.com.au/projects/TS/filesystems.pml).
+our [project homepage](http://ts.data61.csiro.au/projects/TS/cogent.pml).
 
 
 ## Installation
@@ -18,7 +18,7 @@ sudo apt-get install python-lxml python-psutil python-pycparser # regression tes
 ```
 
 You need a recent version of Glasgow Haskell Compiler (7.8.4+), cabal-install, alex, and happy.
-For instructions, consult file [`cogent/README`](cogent/README) for details. 
+For instructions, consult file `cogent/README.md` for details. 
 Or, if unsure, install Haskell Platform:
 ```
 wget 'https://haskell.org/platform/download/7.10.2/haskell-platform-7.10.2-a-unknown-linux-deb7.tar.gz'
@@ -86,7 +86,7 @@ isabelle jedit -d impl/bilby/cogent/plat/verification -d cogent/isa -d l4v -l Bi
 ```
 
 The functional correctness proofs for BilbyFs's `sync` and `iget` operations are in
-[`impl/bilby/proof/`](impl/bilby/proof/).
+`impl/bilby/proof/`.
 They are built as part of the [regression tests](#regression-tests), and can be rebuilt with
 
 ```
@@ -96,23 +96,23 @@ regression/run_tests.py -x l4v -x isabelle -v sync iget
 
 ## File systems
 
-See [`impl/ext2/README`](impl/ext2/README) and [`impl/bilby/README`](impl/bilby/README) for more information on how to build the kernel modules
+See `impl/ext2/README` and `impl/bilby/README` for more information on how to build the kernel modules
 
 
 ## Directory
 
-* [`cogent`](cogent/): Cogent compiler
-  * [`isa`](cogent/isa/): Isabelle/HOL semantics for Cogent
-  * [`tests`](cogent/tests/): Compiler test suite
-* [`c-refinement`](c-refinement/): Isabelle/HOL theories and proof procedures for Cogent-C refinement
-  * [`tests`](c-refinement/tests/): Cogent test programs for proof procedures
-* [`isa-parser`](isa-parser/): Haskell library for parsing and pretty-printing Isabelle/HOL
-* [`impl`](impl/): Cogent programs and libraries
-  * [`libgum`](impl/libgum/): Common Cogent and C libraries
-  * [`bilby`](impl/bilby/): Bilby file system
-    * [`cogent`](impl/bilby/cogent/): Cogent code for BilbyFs
-    * [`c`](impl/bilby/c/): C implementation for BilbyFs
-    * [`proof`](impl/bilby/proof/): Functional correctness specs and proofs for BilbyFs
-  * [`ext2`](impl/ext2/): ext2 file system
-    * [`cogent`](impl/ext2/cogent/): Cogent code for ext2
-* [`regression`](regression/): Regression test script
+* `cogent`: Cogent compiler
+  * `isa`: Isabelle/HOL semantics for Cogent
+  * `tests`: Compiler test suite
+* `c-refinement`: Isabelle/HOL theories and proof procedures for Cogent-C refinement
+  * `tests`: Cogent test programs for proof procedures
+* `isa-parser`: Haskell library for parsing and pretty-printing Isabelle/HOL
+* `impl`: Cogent programs and libraries
+  * `libgum`: Common Cogent and C libraries
+  * `bilby`: Bilby file system
+    * `cogent`: Cogent code for BilbyFs
+    * `c`: C implementation for BilbyFs
+    * `proof`: Functional correctness specs and proofs for BilbyFs
+  * `ext2`: ext2 file system
+    * `cogent`: Cogent code for ext2
+* `regression`: Regression test script

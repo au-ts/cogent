@@ -8,7 +8,7 @@
 -- @TAG(NICTA_GPL)
 --
 
-import COGENT.Util
+import Cogent.Util
 import Prelude hiding (fail)
 import System.Directory
 import System.Exit
@@ -97,7 +97,7 @@ test10 = do let s = "../../"
             check r c "10"
 
 check :: (Eq a, Show a) => a -> a -> String -> IO ()
-check r c m = if r == c then pass ("test" ++ m) else fail ("test" ++ m ++ " (r = " ++ show r ++ " )") 
+check r c m = if r == c then pass ("test" ++ m) else fail ("test" ++ m ++ " (r = " ++ show r ++ " )")
 
 pass m = hPutStrLn stderr ("Passed! " ++ m)
 fail m = hPutStrLn stderr ("Failed! " ++ m) >> exitFailure
