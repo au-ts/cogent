@@ -164,16 +164,16 @@ allocate_the_indirects #{ acc = (ex, indirects), obsv, idx } =
         ((ex, indirects), Break ())
 
 
-fs_mount: (#{ex: SysState, options: (Array (WordArray U8))!}) -> RR SysState (#{state: FsState, mountinfo: #VfsMountInfo}) (U32)
-fs_mount(#{ex = ex, options}) = 
-    let (ex, res) = malloc_FsState (ex)
+fs_mount: #{ex: SysState, options: (Array (WordArray U8))!} -> RR SysState #{state: FsState, mountinfo: #VfsMountInfo} U32
+fs_mount #{ex = ex, options} = 
+    let (ex, res) = malloc_FsState ex
     in res
     | Success (state_t) ->
         let (ex, res) = osbuffer_create ex
         in res
         | Success buf_super ->
             -- find the block the superblock lies in
-            let (ex, sb_num) = get_superblock_num (ex, options)  !options
+            let (ex, sb_num) = get_superblock_num (ex, options) !options
             and (ex, flags) = get_flags (ex, options) !options
 
             and _ = _cogent_log (dbg_EXT2_MOUNT, "fs_mount: mounted with flags ")
@@ -414,29 +414,29 @@ deserialise_into_Ext2Superblock (ex, buf, obj_t, idx) =
                                                             , magic
                                                             }
                                             in (ex, Success (obj, idx))
-                                        | Error () -> (ex, Error (obj_t))
-                                    | Error () -> (ex, Error (obj_t))
-                                | Error () -> (ex, Error (obj_t))
-                            | Error () -> (ex, Error (obj_t))
-                        | Error () -> (ex, Error (obj_t))
-                    | Error () -> (ex, Error (obj_t))
-                | Error () -> (ex, Error (obj_t))
-            | Error () -> (ex, Error (obj_t))
-        | Error () -> (ex, Error (obj_t))
-    | Error () -> (ex, Error (obj_t))
+                                        | Error () -> (ex, Error obj_t)
+                                    | Error () -> (ex, Error obj_t)
+                                | Error () -> (ex, Error obj_t)
+                            | Error () -> (ex, Error obj_t)
+                        | Error () -> (ex, Error obj_t)
+                    | Error () -> (ex, Error obj_t)
+                | Error () -> (ex, Error obj_t)
+            | Error () -> (ex, Error obj_t)
+        | Error () -> (ex, Error obj_t)
+    | Error () -> (ex, Error obj_t)
 
 free_Ext2Superblock: (SysState, Ext2Superblock take (..)) -> SysState
 
-deserialise_Ext2Superblock: (SysState, OSBuffer!, U32) -> RR (SysState) (Ext2Superblock, U32) ()
+deserialise_Ext2Superblock: (SysState, OSBuffer!, U32) -> RR SysState (Ext2Superblock, U32) ()
 deserialise_Ext2Superblock (ex, buf, idx) =
-    let (ex, res) = malloc_Ext2Superblock (ex)
+    let (ex, res) = malloc_Ext2Superblock ex
     in res
-    | Success (obj_t) ->
+    | Success obj_t ->
         let (ex, res) = deserialise_into_Ext2Superblock (ex, buf, obj_t, idx)
         in res
         | Success (obj, idx') ->
             (ex, Success (obj, idx'))
-        | Error (obj_t) ->
+        | Error obj_t ->
             (free_Ext2Superblock (ex, obj_t), Error ())
     | Error () -> (ex, Error ())
 
