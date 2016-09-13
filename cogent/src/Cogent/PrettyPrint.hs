@@ -482,7 +482,7 @@ instance Pretty ReorganizeError where
 
 -- ctx -> indent -> doc
 prettyCtx :: ErrorContext -> Bool -> Doc
-prettyCtx (SolvingConstraint c) _ = context "from constraint" <+> indent' (pretty c)
+prettyCtx (SolvingConstraint c) _ = context "from constraint" <+> indent (pretty c)
 prettyCtx (ThenBranch) _ = context "in the" <+> keyword "then" <+> context "branch"
 prettyCtx (ElseBranch) _ = context "in the" <+> keyword "else" <+> context "branch"
 prettyCtx (InExpression e t) True = context "when checking that the expression at ("
