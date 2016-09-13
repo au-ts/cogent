@@ -35,15 +35,15 @@ type Ext2Inode = {
 }
 
 type FsState = {
-    super               : Ext2Superblock,
-    super_buf           : OSBuffer,
-    superblock_num      : U32,
-    group_count         : U32,
-    inode_tables_per_group: U32,
-    flags               : U32,
-    cur_overhead        : U32,
+    super                  : Ext2Superblock,
+    super_buf              : OSBuffer,
+    superblock_num         : U32,
+    group_count            : U32,
+    inode_tables_per_group : U32,
+    flags                  : U32,
+    cur_overhead           : U32,
 
-    group_desc_array    : Array OSBuffer,
+    group_desc_array       : Array OSBuffer,
 
     -- preallocated objects used during block lookup
     --
