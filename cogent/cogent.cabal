@@ -69,6 +69,11 @@ Library
               , Cogent.Util
               , Cogent.Vec
 
+  other-modules:
+               -- Generated
+                Version_cogent
+              , Paths_cogent
+
   build-depends:
                 ansi-terminal >= 0.6
               , ansi-wl-pprint >= 0.6

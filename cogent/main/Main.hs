@@ -79,8 +79,6 @@ import Data.Monoid (getLast)
 import Data.Time
 import qualified Data.Traversable as T (forM)
 import Data.Tuple.Select (sel3)
-import Data.Version (showVersion)
-import Paths_cogent (version)
 -- import Isabelle.InnerAST (subSymStr)
 import System.AtomicWrite.Writer.String (atomicWithFile)
 -- import System.Console.GetOpt
@@ -857,9 +855,7 @@ parseArgs args = case getOpt' Permute options args of
               "\n" ++
               usageInfoImportant "Flags:" v flags
 
-    versionInfo = "Cogent development ver. " ++ showVersion version -- ++ "\n" ++
-                  -- "(built against git revision #" ++ githash ++ " at " ++ buildtime ++ ")"
-
+    versionInfo = UT.getCogentVersion
     -- Depending on the target of output, switch on or off fonts
     fontSwitch :: Handle -> IO (Doc -> Doc)
     fontSwitch h = hIsTerminalDevice h >>= \isTerminal ->

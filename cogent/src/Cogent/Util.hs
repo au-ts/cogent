@@ -18,7 +18,12 @@ import Control.Applicative ((<$>))
 import Data.Monoid
 #endif
 import Data.Char
+import Data.Version (showVersion)
 import System.FilePath.Posix
+
+import Version_cogent(gitHash)
+
+import Paths_cogent
 
 --
 -- functors
@@ -129,3 +134,11 @@ data Stage = STGParse | STGTypeCheck | STGDesugar | STGNormal | STGSimplify | ST
 
 type NameMod = String -> String
 
+
+-- getCogentVersion - returns the version of Cogent
+getCogentVersion = "Cogent development version: " ++ showVersion version ++ suffix
+  where
+    suffix = if gitHash == "" then "" else "-" ++ gitHash
+
+-- getCogentVersionWithoutGit - return version of Cogent with git hash
+getCogentVersionWithoutGit = "Cogent version: " ++ showVersion version

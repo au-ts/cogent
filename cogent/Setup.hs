@@ -12,77 +12,102 @@
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
 #endif
--- import Data.Time
-import qualified Distribution.ModuleName as ModuleName
-import Distribution.PackageDescription
+
+import Control.Exception (SomeException, catch)
+
 import Distribution.Simple
 import Distribution.Simple.BuildPaths (autogenModulesDir)
-import Distribution.Simple.LocalBuildInfo
-import Distribution.Simple.Setup
-import Distribution.Simple.Utils (createDirectoryIfMissingVerbose, rewriteFile)
-import Distribution.Text (display)
-import System.FilePath ((</>), (<.>))
+import Distribution.Simple.LocalBuildInfo as L
+import qualified Distribution.Simple.Setup as S
+import Distribution.Simple.Utils (createDirectoryIfMissingVerbose, rewriteFile, installOrdinaryFiles, installDirectoryContents)
+
+import Distribution.PackageDescription
+
+import System.FilePath ((</>))
+import qualified System.FilePath.Posix as Px
 import System.Process
-import Control.Exception
 
-main = defaultMainWithHooks hook
+-- Flags
+isRelease :: S.ConfigFlags -> Bool
+isRelease flags =
+  case lookup (FlagName "release") (S.configConfigurationsFlags flags) of
+    Just True -> True
+    Just False -> False
+    Nothing -> False
 
-hook = simpleUserHooks { buildHook = buildCOGENTHook }
+-- Git Hash
+gitHash :: IO String
+gitHash = do h <- Control.Exception.catch (readProcess "git" ["rev-parse", "--short=10", "HEAD"] "")
+               (\e -> let e' = (e :: SomeException) in return "devel")
+             return $ takeWhile (/= '\n') h
 
-buildCOGENTHook :: PackageDescription -> LocalBuildInfo -> UserHooks -> BuildFlags -> IO ()
-buildCOGENTHook pkg lbi hooks flags = do
-  newPkg <- (do
-      githash <- init <$> readProcess "git" ["rev-parse", "--short=10", "HEAD"] []  -- get rid of the newline
-      -- utc <- getCurrentTime
-      -- zone <- getCurrentTimeZone
-      let -- zoned = utcToZonedTime zone utc
-          -- buildtime = formatTime defaultTimeLocale "%a, %-d %b %Y %H:%M:%S %Z" zoned
-          -- modulename = autogenBuildInfoModuleName pkg
-          pId = package pkg
-          ver = pkgVersion pId
-          newVer = ver { versionTags = [githash] }
-          newPId = pId { pkgVersion = newVer }
-          newPkg = pkg { package = newPId }
-      return newPkg)
-      `catch` (\x -> do let _ = (x :: IOError) -- type annotation
-                        putStrLn "Warning: failed to retrieve git hash. Continuing anyway..."
-                        return pkg)
-      -- verbosity = fromFlag (buildVerbosity flags)
-  -- createDirectoryIfMissingVerbose verbosity True (autogenModulesDir lbi)
-  -- rewriteFile (autogenModulesDir lbi </> ModuleName.toFilePath modulename <.> "hs") (generate modulename githash buildtime)
-  buildHook simpleUserHooks newPkg lbi hooks flags
-  -- buildHook simpleUserHooks pkg lbi hooks flags
+-- Version Module
+generateVersionModule verbosity dir release = do
+  hash <- gitHash
+  let versionModulePath = dir </> "Version_cogent" Px.<.> "hs"
+  putStrLn $ "Generating " ++ versionModulePath ++
+    if release then " for release" else " for dev " ++ hash
+  createDirectoryIfMissingVerbose verbosity True dir
+  rewriteFile versionModulePath (versionModuleContents hash)
 
--- |The name of the auto-generated module associated with a package
--- Adapted from Cabal - Distribution.Simple.BuildPaths function `autogenModuleName' / zilinc
-autogenBuildInfoModuleName :: PackageDescription -> ModuleName.ModuleName
-autogenBuildInfoModuleName pkg =
-  ModuleName.fromString $ "BuildInfo_" ++ map fixchar (display (packageName pkg))
-  where fixchar '-' = '_'
-        fixchar c   = c
+  where versionModuleContents h = "module Version_cogent where\n\n" ++
+          "gitHash :: String\n" ++
+          if release
+             then "gitHash = \"\"\n"
+          else "gitHash = \"" ++ h ++ "\"\n"
 
--- ------------------------------------------------------------
--- * Building BuildInfo_<pkg>.hs
--- Adapted from Cabal - Distribution.Simple.Build.PathsModule function of the same name / zilinc
---
--- Copyright   :  Isaac Jones 2003-2005,
---                Ross Paterson 2006,
---                Duncan Coutts 2007-2008, 2012
--- License     :  BSD3 (see bilby/cogent/Cabal_LICENSE)
------------------------------------------------------------------------------
+-- Configure
+cogentConfigure _ flags _ local = do
+  generateVersionModule verbosity (autogenModulesDir local) (isRelease (configFlags local))
+  where
+    verbosity = S.fromFlag $ S.configVerbosity flags
+    version = pkgVersion .package $ localPkgDescr local
 
-generate :: ModuleName.ModuleName -> String -> String -> String
-generate modulename githash buildtime = unlines $
-  [ "module " ++ display modulename ++ " ("
-  , "    githash, buildtime"
-  , "  ) where"
-  , ""
-  , "import Prelude"
-  , ""
-  , "githash :: String"
-  , "githash = \"" ++ githash ++ "\""
-  , ""
-  , "buildtime :: String"
-  , "buildtime = \"" ++ buildtime ++ "\""
-  ]
+-- Install
+cogentInstall verbosity copy pkg local = do
+  installGumHdrs
+  installManPage
+  where
+    installGumHdrs = do
+      let hdrsdest = (datadir $ L.absoluteInstallDirs pkg local copy) ++ "/include"
+      putStrLn $ "Installing Gum headers in " ++ hdrsdest
+      createDirectoryIfMissingVerbose verbosity True hdrsdest
+      installDirectoryContents verbosity "lib" hdrsdest
 
+    installManPage = do
+      let mandest = mandir (L.absoluteInstallDirs pkg local copy) ++ "/man1"
+      putStrLn $ "Copying man page to " ++ mandest
+      installOrdinaryFiles verbosity mandest [("man", "cogent.1")]
+
+-- Test
+-- cabal has two unrelated "dataDir" variables.
+-- We need to use the one in the install directory where cogent is installed.
+fixPkg pkg target = pkg { dataDir = target }
+
+-- "Args" argument of testHooks have been added in cabal 1.22.0
+#if __GLASGOW_HASKELL__ < 710
+originalTestHook _ = testHook simpleUserHooks
+#else
+originalTestHook = testHook simpleUserHooks
+#endif
+
+cogentTestHook args pkg local hooks flags = do
+  let target = datadir $ L.absoluteInstallDirs pkg local NoCopyDest
+  originalTestHook args (fixPkg pkg target) local hooks flags
+
+-- -----
+-- Main
+-- -----
+main = defaultMainWithHooks $ simpleUserHooks
+  { postConf = cogentConfigure
+  , postCopy = \_ flags pkg local ->
+    cogentInstall (S.fromFlag $ S.copyVerbosity flags) (S.fromFlag $ S.copyDest flags) pkg local
+  , postInst = \_ flags pkg local ->
+    cogentInstall (S.fromFlag $ S.installVerbosity flags)
+    NoCopyDest pkg local
+#if __GLASGOW_HASKELL__ < 710
+  , testHook = cogentTestHook ()
+#else
+  , testHook = cogentTestHook
+#endif
+  }
