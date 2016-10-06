@@ -11,8 +11,8 @@ else
 endif
 export E Q
 
-include config.mk
 PWD:=$(shell pwd)
+include $(PWD)/../config.mk
 
 # These file lists are for generating dummy headers for c compilation
 PASS_TEST_COGENT_FILES := $(wildcard tests/pass_*.cogent)
@@ -23,14 +23,14 @@ all: install
 	$(E) "Cogent Compiler successfully built for $(OS)."
 	$(E)
 	$(E) "Add 'cogent' compiler to your path by running:"
-	$(E) '  export PATH=$$PATH:$(PWD)/.cabal-sandbox/bin/'
+	$(E) '  export PATH=$$PATH:$(PWD)/dist/build/cogent'
 	$(E)
 	$(E) "To enable bash auto-completion for 'cogent', please add the following to your .bashrc file:"
 	$(E) "source $(PWD)/misc/cogent_autocomplete.sh"
 	$(E)
 	$(E)
 
-install: build
+install:
 	$(E) "Installing.."
 	$(CABAL) install $(CABALFLAGS)
 
@@ -38,20 +38,26 @@ pinstall: CABALFLAGS += --enable-executable-profiling
 pinstall: setup-config
 	$(CABAL) install $(CABALFLAGS)
 
+isa-parser:
+	cd ../isa-parser && make
+
 build: setup-config
 	$(E) "Building..."
 	$(CABAL) build
 
 configure: install-deps
 	$(E) "Configuring"
+	$(CABAL) configure
+	$(CABAL) build
 
 sandbox:
+	$(E) "Building in a sandbox"
 	$(CABAL) sandbox init
 	$(CABAL) sandbox add-source ../isa-parser
 
 install-deps: sandbox
 	$(E) "Installing dependencies"
-	$(CABAL) install --only-dependencies
+	$(CABAL) install --only-dependencies --force-reinstalls
 
 doc:
 	$(E) "Docs"
@@ -63,6 +69,19 @@ clean:
 	$(Q) rm -rf out/
 	$(Q) rm -rf tests/include
 	$(Q) find . -name "*_flymake.hs" -delete
+
+dev: configure
+	$(CABAL) install $(CABALFLAGS)
+	$(E) "Cogent Compiler successfully built for $(OS)."
+	$(E)
+	$(E) "Add 'cogent' compiler to your path by running:"
+	$(E) '  export PATH=$$PATH:$(PWD)/.cabal-sandbox/bin/'
+	$(E)
+	$(E) "To enable bash auto-completion for 'cogent', please add the following to your .bashrc file:"
+	$(E) "source $(PWD)/misc/cogent_autocomplete.sh"
+	$(E)
+	$(E)
+
 
 tests/include/%_dummy.h: tests/%.cogent
 	$(Q) egrep "^type +([A-Z][a-zA-Z0-9_']*)( [a-z][a-zA-Z0-9_']*)* *$$" $^ | sed -e "s/type \([A-Z][a-zA-Z0-9_']*\).*$$/typedef void* \1;/" > $@
@@ -124,6 +143,9 @@ pkg:
 help:
 	$(E) "** Cogent Compiler **"
 	$(E) "Run 'make' to build the Cogent compiler."
+	$(E) ""
+	$(E) "* make dev"
+	$(E) "  Build and install Cogent in a cabal-sandbox"
 	$(E) ""
 	$(E) "* make clean"
 	$(E) "  Cleanup"
