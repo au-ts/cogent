@@ -16,6 +16,7 @@ import Cogent.Common.Syntax hiding (Prefix)
 import Cogent.Common.Types
 import qualified Cogent.Preprocess as PP
 import Cogent.Surface
+import Cogent.Util (getStdIncFullPath)
 
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative hiding (many, (<|>), optional)
@@ -272,7 +273,8 @@ kindSignature = do n <- variableName
 toplevel = do
   p <- getPosition
   when (sourceColumn p > 1) $ fail "toplevel entries should start at column 1"
-  (p,) <$> (Include <$ reserved "include" <*> stringLiteral
+  (p,) <$> (try(Include <$ reserved "include" <*> stringLiteral)
+        <|> IncludeStd <$ reserved "include" <*> angles (many (noneOf "\r\n>"))
         <|> typeDec <$ reserved "type" <*> typeConName <*> many (avoidInitial >> variableName) <*> optionMaybe (reservedOp "=" *> monotype)
         <|> do n <- variableName
                reservedOp ":"
@@ -348,7 +350,6 @@ loadTransitive' r fp paths ro = do
       True  -> return $ Right ([],[])
       False -> do modifyIORef r (S.insert fpc)
                   pragmas <- parseFromFile PP.program fp'
-                  -- putStrLn (show pragmas)
                   defs <- parseFromFile program fp'
                   return ((,) <$> defs <*> pragmas)
                >>= \case
@@ -359,6 +360,7 @@ loadTransitive' r fp paths ro = do
                -> FilePath
                -> IO (Either String ([(SourcePos, TopLevel LocType VarName LocExpr)], [PP.LocPragma]))
     transitive (p,Include x) curr = loadTransitive' r x (map (combine curr) paths) curr
+    transitive (p,IncludeStd x) curr = do filepath <- (getStdIncFullPath x); loadTransitive' r filepath (map (combine curr) paths) curr
     transitive x _ = return (Right ([x],[]))
 
     findPath :: [FilePath] -> IO (Maybe FilePath)

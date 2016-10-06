@@ -927,6 +927,7 @@ dupTyVarNames [] ctx = return ()
 dupTyVarNames (v:vs) ctx = if v `elem` vs then typeError (ConflictingTypeVariables v ctx) else dupTyVarNames vs ctx
 
 typecheck' (Include _) = __impossible "typecheck'"
+typecheck' (IncludeStd _) = __impossible "typecheck'"
 typecheck' (TypeDec n vs t) = do
   typeOughtToBeUnknown n
   dupTyVarNames vs (Left n)

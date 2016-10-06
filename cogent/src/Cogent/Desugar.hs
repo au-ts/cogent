@@ -140,6 +140,7 @@ desugarTopLevel :: S.TopLevel S.RawType T.TypedName T.TypedExpr
                 -> [Pragma]
                 -> DS Zero Zero (Maybe (Definition UntypedExpr VarName))
 desugarTopLevel (S.Include s) _ = __impossible "desugarTopLevel"
+desugarTopLevel (S.IncludeStd s) _ = __impossible "desugarTopLevel"
 desugarTopLevel (S.TypeDec tn vs t) _ | ExI (Flip vs') <- Vec.fromList vs
                                       , Vec.Refl <- zeroPlusNEqualsN (Vec.length vs') = do
   tenv <- use _1

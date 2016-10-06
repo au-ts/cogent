@@ -92,6 +92,7 @@ data Type t =
 data Polytype t = PT [(TyVarName, Kind)] t deriving (Show, Functor, Foldable, Traversable)
 
 data TopLevel t pv e = Include String
+                     | IncludeStd String
                      | TypeDec TypeName [TyVarName] t
                      | AbsTypeDec TypeName [TyVarName]
                      | AbsDec VarName (Polytype t)
@@ -101,6 +102,7 @@ data TopLevel t pv e = Include String
 
 -- XXX | eqTopLevelId :: String -> TopLevel t pv e -> Bool
 -- XXX | eqTopLevelId x (Include {}) = False
+-- XXX | eqTopLevelId x (IncludeStd {}) = False
 -- XXX | eqTopLevelId x (TypeDec tn _ _) = x == tn
 -- XXX | eqTopLevelId x (AbsTypeDec tn _) = x == tn
 -- XXX | eqTopLevelId x (AbsDec fn _) = x == fn
@@ -170,6 +172,7 @@ instance Functor (Flip2 Expr p e) where
 instance Functor (Flip (TopLevel t) e) where
   fmap f (Flip (FunDef v pt alts))  = Flip (FunDef v pt (map (ffmap f) alts))
   fmap _ (Flip (Include s))         = Flip (Include s)
+  fmap _ (Flip (IncludeStd s))      = Flip (IncludeStd s)
   fmap _ (Flip (TypeDec n vs t))    = Flip (TypeDec n vs t)
   fmap _ (Flip (AbsTypeDec n vs))   = Flip (AbsTypeDec n vs)
   fmap _ (Flip (AbsDec v pt))       = Flip (AbsDec v pt)
@@ -180,6 +183,7 @@ instance Functor (Flip2 TopLevel p e) where
   fmap f (Flip2 (ConstDef v t e))   = Flip2 (ConstDef v (f t) e)
   fmap f (Flip2 (TypeDec n vs t))   = Flip2 (TypeDec n vs (f t))
   fmap _ (Flip2 (Include s))        = Flip2 (Include s)
+  fmap _ (Flip2 (IncludeStd s))     = Flip2 (IncludeStd s)
   fmap _ (Flip2 (AbsTypeDec n vs))  = Flip2 (AbsTypeDec n vs)
 
 

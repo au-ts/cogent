@@ -268,6 +268,7 @@ instance Pretty (TopLevel RawType VarName RawExpr) where
   pretty (FunDef v pt alts) = vcat [ funname v <+> symbol ":" <+> pretty pt
                                    , indent (funname v <> mconcat (map ((hardline <>) . indent . pretty) alts))]
   pretty (Include s) = keyword "include" <+> literal (string $ show s)
+  pretty (IncludeStd s) = keyword "include <" <+> literal (string $ show s)
   pretty (AbsTypeDec n vs) = keyword "type" <+> typename n  <> hcat (map ((space <>) . typevar) vs)
   pretty (ConstDef v t e) = vcat [ funname v <+> symbol ":" <+> pretty t
                                  , funname v <+> group (indent (symbol "=" <+> pretty e))]

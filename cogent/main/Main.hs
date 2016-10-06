@@ -138,6 +138,7 @@ data Command = AstC Int
              | Root
              | BuildInfo
              | All  -- !
+             | StdGumDir
              | Help Verbosity
              | Version
              -- More
@@ -189,6 +190,7 @@ getMode :: Command -> Mode
 getMode (AstC _) = ModeAstC
 getMode (StackUsage _) = ModeStackUsage
 getMode Disassemble = ModeDisassemble
+getMode StdGumDir = ModeAbout
 getMode (Help _) = ModeAbout
 getMode Version = ModeAbout
 getMode _ = ModeCompiler
@@ -198,7 +200,7 @@ ccStandalone c cs | null cs = Nothing
                   | otherwise = Just c
 
 checkConflicts :: Command -> [Command] -> Maybe String
-checkConflicts c cs | isHelp c || c == Version = fmap (("command conflicts with others: " ++) . show) $ ccStandalone c cs
+checkConflicts c cs | isHelp c || c == Version || c == StdGumDir = fmap (("command conflicts with others: " ++) . show) $ ccStandalone c cs
 checkConflicts c cs = Nothing
 
 setActions :: Command -> [Command]
@@ -360,6 +362,7 @@ options = [
   , Option []         ["all-refine"]      1 (NoArg AllRefine)          "generate shallow-to-C refinement proof"
   , Option ['A']      ["all"]             0 (NoArg All)                "generate everything"
   -- info.
+  , Option []         ["stdgum-dir"]      0 (NoArg StdGumDir)          "directory where standard gum headers are installed"
   , Option ['h','?']  ["help"]            0 (OptArg (Help . maybe 1 read) "VERBOSITY")  "display help message (VERBOSITY=0..4, default to 1)"
   , Option ['v','V']  ["version"]         0 (NoArg Version)            "show version number"
   ]
@@ -466,6 +469,7 @@ parseArgs args = case getOpt' Permute options args of
       (_,_,errs)     -> exitErr (concat errs)
 
     noFlagError :: ([Command], Flags, [String], [String]) -> IO ()
+    noFlagError ([StdGumDir],_,_,_) = getStdGumDir >>= putStrLn >> exitSuccess_
     noFlagError ([Help v],_,_,_) = putStr (usage v) >> exitSuccess_
     noFlagError ([Version],_,_,_) = putStrLn versionInfo >> exitSuccess_
     noFlagError (_,_,[],_) = exitErr ("no Cogent file specified\n")

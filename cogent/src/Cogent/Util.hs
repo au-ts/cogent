@@ -19,6 +19,7 @@ import Data.Monoid
 #endif
 import Data.Char
 import Data.Version (showVersion)
+import System.Environment
 import System.FilePath.Posix
 
 import Version_cogent(gitHash)
@@ -142,3 +143,18 @@ getCogentVersion = "Cogent development version: " ++ showVersion version ++ suff
 
 -- getCogentVersionWithoutGit - return version of Cogent with git hash
 getCogentVersionWithoutGit = "Cogent version: " ++ showVersion version
+
+-- getStdGumDir
+getHdrsDir :: IO FilePath
+getHdrsDir = do dir <- getDataDir
+                return (dir ++ "/" ++ "include")
+
+overrideStdGumDirWith :: String -> IO FilePath
+overrideStdGumDirWith envVar = do envValue <- lookupEnv envVar
+                                  maybe getHdrsDir return envValue
+
+getStdGumDir :: IO String
+getStdGumDir = addTrailingPathSeparator <$> overrideStdGumDirWith "COGENT_GUM_INC_DIR"
+
+getStdIncFullPath fp = do sdir <- getStdGumDir
+                          return (sdir </> fp)

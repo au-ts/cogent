@@ -68,6 +68,7 @@ data SourceObject = TypeName TypeName
 
 dependencies :: TopLevel LocType VarName LocExpr -> [SourceObject]
 dependencies (Include _) = __impossible "dependencies"
+dependencies (IncludeStd _) = __impossible "dependencies"
 dependencies (TypeDec _ _ t) = map TypeName (fcT (stripLocT t))
 dependencies (AbsTypeDec _ _) = []
 dependencies (AbsDec _ pt) = map TypeName (foldMap (fcT . stripLocT) pt)
@@ -81,6 +82,7 @@ classify :: [(SourcePos, TopLevel LocType VarName LocExpr)]
          -> [(SourceObject, (SourcePos, TopLevel LocType VarName LocExpr))]
 classify = map (\px -> (sourceObject (snd px), px))
   where sourceObject (Include _)      = __impossible "sourceObject (in classify)"
+        sourceObject (IncludeStd _)   = __impossible "sourceObject (in classify)"
         sourceObject (TypeDec n _ _)  = TypeName n
         sourceObject (AbsTypeDec n _) = TypeName n
         sourceObject (AbsDec n _)     = ValName n
