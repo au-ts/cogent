@@ -41,6 +41,10 @@ pinstall: setup-config
 isa-parser:
 	cd ../isa-parser && make
 
+stack-build:
+	$(E) "Building Cogent using stack."
+	$(STACK) build
+
 build: setup-config
 	$(E) "Building..."
 	$(CABAL) build

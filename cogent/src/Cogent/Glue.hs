@@ -559,7 +559,7 @@ collect s typnames mode filenames = do
     Left err  -> hoistEither . Left $ err
 
 collectAnti :: (Typeable a, Data a, Typeable b, Monoid r) => (b -> Gl r) -> a -> Gl r
-collectAnti f a = getApp $ everything mappend (mkQ mempty (Ap . f)) a
+collectAnti f a = getAp $ everything mappend (mkQ mempty (Ap . f)) a
 
 collectFuncId :: CS.Definition -> Gl [(String, SrcLoc)]
 -- collectFuncId (CS.FuncDef (CS.Func _ (CS.AntiId fn loc) _ _ bis _) _) = (fn, loc) : collectAnti collectFnCall bis
