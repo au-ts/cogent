@@ -75,10 +75,10 @@ ifIndentation = 3
 indent = nest indentation
 indent' = (string (replicate indentation ' ') <>) . nest indentation
 
-tupled = encloseSep (lparen <> space) (rparen <> space) (comma <> space)
+tupled = encloseSep (lparen <> space) (space <> rparen) (comma <> space)
 -- non-unit tuples. put parens subject to arity
 tupled1 [x] = x
-tupled1 x = encloseSep (lparen <> space) (rparen <> space) (comma <> space) x
+tupled1 x = encloseSep (lparen <> space) (space <> rparen) (comma <> space) x
 
 spaceList = encloseSep empty empty space
 commaList = encloseSep empty empty (comma <> space)
@@ -442,12 +442,12 @@ instance Pretty TypeError where
                                            <+> (case fs of Nothing  -> tupled (fieldname ".." : [])
                                                            Just fs' -> tupled1 (map fieldname fs'))
                                            <+> err "from non record/variant type:"
-                                           <$> pretty t
+                                           <$> indent' (pretty t)
   pretty (PutToNonRecord fs t)           = err "Cannot" <+> keyword "put" <+> err "fields"
                                            <+> (case fs of Nothing  -> tupled (fieldname ".." : [])
                                                            Just fs' -> tupled1 (map fieldname fs'))
                                            <+> err "into non record/variant type:"
-                                           <$> pretty t
+                                           <$> indent' (pretty t)
   pretty (RemoveCaseFromNonVariant p t)  = err "Cannot remove pattern" <$> pretty p <$> err "from type" <$> pretty t
   pretty (DiscardWithoutMatch t)         = err "Variant tag"<+> tagname t <+> err "cannot be discarded without matching on it."
   pretty (RequiredTakenTag t)            = err "Required variant" <+> tagname t <+> err "but it has already been matched."
