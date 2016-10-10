@@ -2,9 +2,6 @@ type Ext2Superblock = {inode_count : U32}
 
 type FsState = {super : Ext2Superblock}
 
-type OSBuffer
-type ExState
-
 free_Ext2Superblock: Ext2Superblock take (..) -> ()
 free_FsState: FsState take (..) -> ()
 
