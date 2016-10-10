@@ -1,48 +1,37 @@
-type Ext2Superblock = {
-    inode_count : U32,
-    block_count : U32
-}
+type Ext2Superblock = {inode_count : U32}
 
-type FsState = {
-    super          : Ext2Superblock,
-    superblock_num : U32
-}
+type FsState = {super : Ext2Superblock}
 
 type OSBuffer
 type ExState
 
-free_Ext2Superblock: (ExState, Ext2Superblock take (..)) -> ExState
-free_FsState: (ExState, FsState take (..)) -> ExState
+free_Ext2Superblock: Ext2Superblock take (..) -> ()
+free_FsState: FsState take (..) -> ()
 
-fs_unmount: #{ex: ExState, state: FsState} -> ExState
-fs_unmount #{ex, state} = 
+fs_unmount: FsState -> ()
+fs_unmount state = 
     let state_t {super} = state
-    and ex = free_Ext2Superblock (ex, super)  -- super has all fields untaken, the function requires all taken, but subtyping!
-    and ex = free_FsState (ex, state_t)
-    in ex
-
+    and _ = free_Ext2Superblock super
+    and _ = free_FsState state_t
+    in ()
 
 
 {-
 
-
 Field inode_count of type U32 is required, but has been taken
-   from constraint #{ super : { inode_count : U32
-                              , block_count : U32 } take ( inode_count
-                                                         , block_count)  } :<~      -- what does :<~ operator mean? / zilinc
-      { super : Ext2Superblock, superblock_num : U32 }                              -- should this be unboxed as well?
-   from constraint { inode_count : U32, block_count : U32 } take ( inode_count
-                                                                 , block_count) 
-      :< { inode_count : U32, block_count : U32 }
-   when checking that the expression at ("./tests/pass_weird_ext2_error.cogent" (line 20, column 5))
+   from constraint #{ super : { inode_count : U32 } take inode_count }  -- where is # from?
+      :<~ { super : Ext2Superblock }                                    -- what does :<~ mean?
+   from constraint { inode_count : U32 } take inode_count :<
+      { inode_count : U32 }
+   when checking that the expression at ("./../../../../cogent/tests/pass_weird_ext2_error.cogent" (line 13, column 5))
       let state_t { super } = state
-      and ex = free_Ext2Superblock ( ex, super) 
-      and ex = free_FsState ( ex, state_t) 
-      in ex
+      and _ = free_Ext2Superblock super
+      and _ = free_FsState state_t
+      in ()
    has type
-      ExState
-   in the 1st alternative #{ ex, state }
-   in the definition at ("./tests/pass_weird_ext2_error.cogent" (line 18, column 1))
+      ()
+   in the 1st alternative state
+   in the definition at ("./../../../../cogent/tests/pass_weird_ext2_error.cogent" (line 11, column 1))
    for the function fs_unmount
 Compilation failed!
 
