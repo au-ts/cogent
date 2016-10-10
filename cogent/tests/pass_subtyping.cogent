@@ -25,8 +25,3 @@ qux b = let b'  = b  {f1 = 1}
         and b'' = b' {f1 = 2}
          in b''
 
--- cannot take several times, which makes sense
-baz : B -> B take (f1)
-baz b = let b'   {f1} = b
-        and b''  {f1} = b'
-         in b''
