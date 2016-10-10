@@ -271,15 +271,15 @@ rule (T (TVariant n) :<~ T (TVariant m))
     in Just $ mconcat (map (\k -> each k (n M.! k) (m M.! k)) $ S.toList ks)
 rule (T (TRecord fs _) :<~ T (TRecord gs s))
   | ks <- S.fromList (map fst fs)
-  , m <- M.fromList gs
-  , ks `S.isSubsetOf` M.keysSet m
-  , n <- M.fromList fs
+  , ms <- M.fromList gs
+  , ks `S.isSubsetOf` M.keysSet ms
+  , ns <- M.fromList fs
   =  let
-       each f (t, True)  (u, False) = (t :< u) :& Drop t ImplicitlyTaken
+       each f (t, False) (u, True ) = Unsat (RequiredTakenField f t)
        each f (t, False) (u, False) = t :< u
        each f (t, True ) (u, True ) = t :< u
-       each f (t, False) (u, True) = Unsat (RequiredTakenField f t)
-     in Just $ mconcat (map (\k -> each k (n M.! k) (m M.! k)) $ S.toList ks)
+       each f (t, True ) (u, False) = (t :< u) :& Drop t ImplicitlyTaken
+     in Just $ mconcat (map (\k -> each k (ns M.! k) (ms M.! k)) $ S.toList ks)
 rule (a :<~ b) = rule (a :< b)
 rule c = Nothing
 
