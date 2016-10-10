@@ -65,19 +65,10 @@ typeConName = try (do (x:xs) <- identifier
 
 avoidInitial = do whiteSpace; p <- sourceColumn <$> getPosition; guard (p > 1)
 
-expr m = do avoidInitial; LocExpr <$> getPosition <*>
-                 (Let <$ reserved "let" <*> bindings <* reserved "in" <*> expr m
-              <|> If  <$ reserved "if" <*> expr m <*> many (reservedOp "!" >> variableName)
-                      <* reserved "then" <*> expr m <* reserved "else" <*> expr m)
-    <|> matchExpr m
-    <?> "expression"
-  where binding = Binding <$> irrefutablePattern <*> optionMaybe (reservedOp ":" *> monotype)
-                          <*  reservedOp "=" <*> expr 1 <*> many (reservedOp "!" >> variableName)
-        bindings = binding `sepBy1` reserved "and"
 
 -- TODO: add support for patterns like `_ {f1, f2}', where the record name is anonymous / zilinc
 irrefutablePattern = avoidInitial >>
-            (variableOrRecord <$> variableName <*> optionMaybe (braces recAssignsAndOrWildcard)
+             (variableOrRecord <$> variableName <*> optionMaybe (braces recAssignsAndOrWildcard)
          <|> tuple <$> parens (commaSep irrefutablePattern)
          <|> PUnboxedRecord <$ reservedOp "#" <*> braces recAssignsAndOrWildcard
          <|> PUnderscore <$ reservedOp "_")
@@ -100,95 +91,10 @@ pattern = avoidInitial >>
          <|> PCon <$> typeConName <*> many irrefutablePattern
          <|> PIntLit <$> integer
          <|> PCharLit <$> charLiteral
+         <|> try (parens pattern)
          <|> PIrrefutable <$> irrefutablePattern)
        <?> "pattern"
 
--- monotype ::= typeA1 ("->" typeA1)?
--- typeA1   ::= Con typeA2*
---            | typeA2 (take fList | put fList)?
--- typeA2   ::= "#" atomtype
---            | atomtype "!"?
--- atomtype ::= "(" monotype "," ...")"
---            | "{" fieldname ":" monotype "," ... "}"
---            | "<" Con typeA2 "|" ... ">"
---            | var
---            | Con
-
-docHunk = do whiteSpace; _ <- try (string "@"); x <- manyTill anyChar newline; whiteSpace; return x
-monotype = do avoidInitial
-              t1 <- typeA1
-              t2 <- optionMaybe (reservedOp "->" >> typeA1)
-              case t2 of Nothing -> return t1; Just t2' -> return $ LocType (posOfT t1) $ TFun t1 t2'
-  where
-    typeA1 = do
-      x <- typeA1'
-      t2 <- optionMaybe (avoidInitial >> docHunk)
-      case t2 of Nothing -> return x; Just doc -> do
-                    return (Documentation doc x)
-    typeA2 = do
-      x <- typeA2'
-      t2 <- optionMaybe (avoidInitial >> docHunk)
-      case t2 of Nothing -> return x; Just doc -> do
-                    return (Documentation doc x)
-    typeA1' = do avoidInitial
-                 try paramtype
-                 <|> (do t <- typeA2'
-                         op <- optionMaybe takeput
-                         case op of Nothing -> return t; Just f -> return (f t)
-                     )
-    typeA2' = avoidInitial >>
-               ((unbox >>= \op -> atomtype >>= \at -> return (op at))
-           <|>  (atomtype >>= \t -> optionMaybe bang >>= \op -> case op of Nothing -> return t; Just f -> return (f t)))
-    paramtype = avoidInitial >> LocType <$> getPosition <*> (TCon <$> typeConName <*> many1 typeA2 <*> pure Writable)
-    unbox = avoidInitial >> reservedOp "#" >> return (\x -> LocType (posOfT x) (TUnbox x))
-    bang  = avoidInitial >> reservedOp "!" >> return (\x -> LocType (posOfT x) (TBang x))
-    takeput = avoidInitial >>
-             ((reservedOp "take" >> fList >>= \fs -> return (\x -> LocType (posOfT x) (TTake fs x)))
-          <|> (reservedOp "put"  >> fList >>= \fs -> return (\x -> LocType (posOfT x) (TPut  fs x))))
-    atomtype = avoidInitial >>
-               LocType <$> getPosition <*>
-                 (TVar <$> variableName <*> pure False
-              <|> (do tn <- typeConName
-                      let s = if tn `elem` primTypeCons  -- give correct sigil to primitive types
-                                then Unboxed
-                                else Writable
-                      return $ TCon tn [] s
-                  )
-              -- <|> TCon <$> typeConName <*> pure [] <*> pure Writable
-              <|> tuple <$> parens (monotype `sepBy` comma)
-              <|> TRecord <$> braces (commaSep1 ((\a b c -> (a,(b,c))) <$> variableName <* reservedOp ":" <*> monotype <*> pure False)) <*> pure Writable
-              <|> TVariant . M.fromList <$> angles (((,) <$> typeConName <*> fmap ((,False)) (many typeA2)) `sepBy` reservedOp "|"))
-    tuple [] = TUnit
-    tuple [e] = typeOfLT e
-    tuple es  = TTuple es
-
-    fList = (Just . (:[])) <$> identifier 
-        <|> parens ((reservedOp ".." >> return Nothing) <|> (commaSep identifier >>= return . Just))
-
--- XXX | monotype = avoidInitial >> buildExpressionParser
--- XXX |          [ [Prefix  ((\x -> LocType (posOfT x) (TUnbox x)) <$ reservedOp "#")]
--- XXX |          , [Postfix ((\x -> LocType (posOfT x) (TBang  x)) <$ reservedOp "!")] -- not sure if we want precedence different here.
--- XXX |          , [Postfix ((\rs x -> LocType (posOfT x) (TTake rs x)) <$ reserved "take" <*> fList),
--- XXX |             Postfix ((\rs x -> LocType (posOfT x) (TPut  rs x)) <$ reserved "put"  <*> fList)]
--- XXX |          , [Infix (reservedOp "->" *> pure (\a b -> LocType (posOfT a) (TFun a b))) AssocRight]
--- XXX |          ] typeTerm <?> "monotype"
--- XXX |   where fList = (Just . (:[])) <$> variableName <|>
--- XXX |                 parens ((reservedOp ".." >> return Nothing) <|> (commaSep variableName >>= return . Just))
--- XXX |         typeTerm = avoidInitial >> (try paramType <|> atomType)
--- XXX |         paramType = avoidInitial >> LocType <$> getPosition <*> (TCon <$> typeConName <*> many atomType <*> pure Writable)
--- XXX |         atomType = avoidInitial >>
--- XXX |                    LocType <$> getPosition <*>
--- XXX |                      (TVar <$> variableName <*> pure False
--- XXX |                   <|> TCon <$> typeConName <*> pure [] <*> pure Writable
--- XXX |                   <|> tuple <$> parens (monotype `sepBy` comma)
--- XXX |                   -- NOTE: As suggested by Sidney (also agreed by me), this syntax is misleading given Array is no more builtin / zilinc
--- XXX |                   -- <|> tarray <$> brackets monotype
--- XXX |                   <|> TRecord <$> braces (commaSep1 ((\a b c -> (a,(b,c))) <$> variableName <* reservedOp ":" <*> monotype <*> pure False)) <*> pure Writable
--- XXX |                   <|> TVariant . M.fromList <$> angles (((,) <$> typeConName <*> monotype) `sepBy` reservedOp "|"))
--- XXX |         tuple [] = TUnit
--- XXX |         tuple [e] = typeOfLT e
--- XXX |         tuple es  = TTuple es
--- XXX |         -- tarray e = (TCon "Array" [e])
 
 boolean = True <$ reserved "True"
       <|> False <$ reserved "False"
@@ -250,7 +156,7 @@ basicExpr' = avoidInitial >> buildExpressionParser
                <|> IntLit <$> natural
                <|> CharLit <$> charLiteral
                <|> StringLit <$> stringLiteral
-               <|> tuple <$> parens (expr 1 `sepBy` comma)
+               <|> tuple <$> parens (commaSep $ expr 1)
                <|> UnboxedRecord <$ reservedOp "#" <*> braces (commaSep1 recordAssignment)))
             <?> "term"
         var Nothing  v Nothing = Var v
@@ -268,6 +174,80 @@ basicExpr' = avoidInitial >> buildExpressionParser
         recAssignsAndOrWildcard = ((:[]) <$> wildcard)
                               <|> ((:) <$> recAssign <*> ((++) <$> many (try (comma >> recAssign)) <*> (liftM maybeToList . optionMaybe) (comma >> wildcard)))
 
+expr m = do avoidInitial; LocExpr <$> getPosition <*>
+                 (Let <$ reserved "let" <*> bindings <* reserved "in" <*> expr m
+              <|> If  <$ reserved "if" <*> expr m <*> many (reservedOp "!" >> variableName)
+                      <* reserved "then" <*> expr m <* reserved "else" <*> expr m)
+    <|> matchExpr m
+    <?> "expression"
+  where binding = Binding <$> irrefutablePattern <*> optionMaybe (reservedOp ":" *> monotype)
+                          <*  reservedOp "=" <*> expr 1 <*> many (reservedOp "!" >> variableName)
+        bindings = binding `sepBy1` reserved "and"
+
+
+-- monotype ::= typeA1 ("->" typeA1)?
+-- typeA1   ::= Con typeA2*
+--            | typeA2 (take fList | put fList)?
+-- typeA2   ::= "#" atomtype
+--            | atomtype "!"?
+-- atomtype ::= "(" monotype "," ...")"
+--            | "{" fieldname ":" monotype "," ... "}"
+--            | "<" Con typeA2 "|" ... ">"
+--            | var
+--            | Con
+
+docHunk = do whiteSpace; _ <- try (string "@"); x <- manyTill anyChar newline; whiteSpace; return x
+
+monotype = do avoidInitial
+              t1 <- typeA1
+              t2 <- optionMaybe (reservedOp "->" >> typeA1)
+              case t2 of Nothing -> return t1; Just t2' -> return $ LocType (posOfT t1) $ TFun t1 t2'
+  where
+    typeA1 = do
+      x <- typeA1'
+      t2 <- optionMaybe (avoidInitial >> docHunk)
+      case t2 of Nothing -> return x; Just doc -> do
+                    return (Documentation doc x)
+    typeA2 = do
+      x <- typeA2'
+      t2 <- optionMaybe (avoidInitial >> docHunk)
+      case t2 of Nothing -> return x; Just doc -> do
+                    return (Documentation doc x)
+    typeA1' = do avoidInitial
+                 try paramtype
+                 <|> (do t <- typeA2'
+                         op <- optionMaybe takeput
+                         case op of Nothing -> return t; Just f -> return (f t)
+                     )
+    typeA2' = avoidInitial >>
+               ((unbox >>= \op -> atomtype >>= \at -> return (op at))
+           <|>  (atomtype >>= \t -> optionMaybe bang >>= \op -> case op of Nothing -> return t; Just f -> return (f t)))
+    paramtype = avoidInitial >> LocType <$> getPosition <*> (TCon <$> typeConName <*> many1 typeA2 <*> pure Writable)
+    unbox = avoidInitial >> reservedOp "#" >> return (\x -> LocType (posOfT x) (TUnbox x))
+    bang  = avoidInitial >> reservedOp "!" >> return (\x -> LocType (posOfT x) (TBang x))
+    takeput = avoidInitial >>
+             ((reservedOp "take" >> fList >>= \fs -> return (\x -> LocType (posOfT x) (TTake fs x)))
+          <|> (reservedOp "put"  >> fList >>= \fs -> return (\x -> LocType (posOfT x) (TPut  fs x))))
+    atomtype = avoidInitial >>
+               LocType <$> getPosition <*>
+                 (TVar <$> variableName <*> pure False
+              <|> (do tn <- typeConName
+                      let s = if tn `elem` primTypeCons  -- give correct sigil to primitive types
+                                then Unboxed
+                                else Writable
+                      return $ TCon tn [] s
+                  )
+              -- <|> TCon <$> typeConName <*> pure [] <*> pure Writable
+              <|> tuple <$> parens (commaSep monotype)
+              <|> TRecord <$> braces (commaSep1 ((\a b c -> (a,(b,c))) <$> variableName <* reservedOp ":" <*> monotype <*> pure False)) <*> pure Writable
+              <|> TVariant . M.fromList <$> angles (((,) <$> typeConName <*> fmap ((,False)) (many typeA2)) `sepBy` reservedOp "|"))
+    tuple [] = TUnit
+    tuple [e] = typeOfLT e
+    tuple es  = TTuple es
+
+    fList = (Just . (:[])) <$> identifier 
+        <|> parens ((reservedOp ".." >> return Nothing) <|> (commaSep identifier >>= return . Just))
+
 polytype = PT <$ reserved "all" <*> (((:[]) <$> kindSignature) <|> parens (commaSep1 kindSignature)) <* reservedOp "." <*> monotype
        <|> PT [] <$> monotype
 
@@ -283,11 +263,12 @@ kindSignature = do n <- variableName
         determineKind _ k = fail "Kinds are made of three letters: D, S, E"
 
 
-
 docBlock = do whiteSpace; _ <- try (string "@@"); x <- manyTill anyChar (newline); whiteSpace; return x
-toplevel = do p <- getPosition
-              (p, "",) <$>  DocBlock <$> unlines <$> many1 docBlock
-                <|> toplevel'
+
+toplevel = getPosition >>= \p ->
+                 (p, "",) <$>  DocBlock <$> unlines <$> many1 docBlock
+             <|> toplevel'
+
 toplevel' = do
   docs <- unlines . fromMaybe [] <$> optionMaybe (many1 docHunk)
   p <- getPosition

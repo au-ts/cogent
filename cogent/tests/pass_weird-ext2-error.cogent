@@ -12,7 +12,6 @@ type OSBuffer
 type ExState
 
 free_Ext2Superblock: (ExState, Ext2Superblock take (..)) -> ExState
-osbuffer_destroy : (ExState, OSBuffer) -> ExState
 free_FsState: (ExState, FsState take (..)) -> ExState
 
 fs_unmount: #{ex: ExState, state: FsState} -> ExState
