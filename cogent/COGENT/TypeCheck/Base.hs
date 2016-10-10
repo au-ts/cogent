@@ -142,8 +142,8 @@ instance Monoid Constraint where
   mempty = Sat
   mappend Sat x = x
   mappend x Sat = x
-  mappend (Unsat r) x = Unsat r
-  mappend x (Unsat r) = Unsat r
+  -- mappend (Unsat r) x = Unsat r
+  -- mappend x (Unsat r) = Unsat r
   mappend x y = x :& y
 
 data TCState = TCS { _knownFuns    :: M.Map FunName (Polytype TCType)
