@@ -9,19 +9,12 @@ foo #{f1, f2, f3} = let f3_t { g1 } = f3
                     and _ = free_X f3_t
                      in ()
 
+-- bar : X -> ()
+-- bar x = let x_t { g1 } = x
+--         and _ = free_Y g1
+--         and _ = free_X x_t
+--          in ()
+
 free_X : X take (..) -> ()
-free_Y : Y -> ()
-
-type B = {f1 : U8, f2 : U8, f3 : Bool}
-
-bar : B -> ()
-bar b = free_B b
-
-free_B : B take (..) -> ()
-
--- can put several times
-qux : B take f1 -> B
-qux b = let b'  = b  {f1 = 1}
-        and b'' = b' {f1 = 2}
-         in b''
+free_Y : Y           -> ()
 
