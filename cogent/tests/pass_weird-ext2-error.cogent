@@ -1,4 +1,4 @@
-type Ext2Superblock = {inode_count : U32}
+type Ext2Superblock = {inode_count : U32, x : Bool}
 
 type FsState = {super : Ext2Superblock}
 
@@ -16,8 +16,8 @@ fs_unmount state =
 {-
 
 Field inode_count of type U32 is required, but has been taken
-   from constraint #{ super : { inode_count : U32 } take inode_count }  -- where is # from?
-      :<~ { super : Ext2Superblock }                                    -- what does :<~ mean?
+   from constraint #{ super : { inode_count : U32 } take inode_count }
+      :<~ { super : Ext2Superblock }
    from constraint { inode_count : U32 } take inode_count :<
       { inode_count : U32 }
    when checking that the expression at ("./../../../../cogent/tests/pass_weird_ext2_error.cogent" (line 13, column 5))
