@@ -115,9 +115,9 @@ toRawExp :: TypedExpr -> RawExpr
 toRawExp (TE t e p) = RE (ffmap fst . fmap toRawExp $ e)
 
 data Metadata = Reused { varName :: VarName, boundAt :: SourcePos, usedAt :: SourcePos }
-              | Unused { varName :: VarName, boundAt :: SourcePos}
-              | UnusedInOtherBranch { varName :: VarName, boundAt :: SourcePos, usedAt :: SourcePos}
-              | UnusedInThisBranch  { varName :: VarName, boundAt :: SourcePos, usedAt :: SourcePos}
+              | Unused { varName :: VarName, boundAt :: SourcePos }
+              | UnusedInOtherBranch { varName :: VarName, boundAt :: SourcePos, usedAt :: SourcePos }
+              | UnusedInThisBranch  { varName :: VarName, boundAt :: SourcePos, usedAt :: SourcePos }
               | Suppressed
               | UsedInMember { fieldName :: FieldName }
               | UsedInLetBang
