@@ -11,4 +11,4 @@
 type T = { a : U32, b : U32}
 
 update_b: T -> T
-update_b(t) = t {b = 3}
+update_b t = t {b = 3}
