@@ -154,7 +154,7 @@ overrideStdGumDirWith envVar = do envValue <- lookupEnv envVar
                                   maybe getHdrsDir return envValue
 
 getStdGumDir :: IO String
-getStdGumDir = addTrailingPathSeparator <$> overrideStdGumDirWith "COGENT_GUM_INC_DIR"
+getStdGumDir = addTrailingPathSeparator <$> overrideStdGumDirWith "COGENT_STD_GUM_DIR"
 
 getStdIncFullPath fp = do sdir <- getStdGumDir
                           return (sdir </> fp)

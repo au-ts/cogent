@@ -1,4 +1,5 @@
 CABAL := cabal
+STACK := stack
 
 # Cabal Flags
 CABALFLAGS += --enable-tests --force-reinstalls
