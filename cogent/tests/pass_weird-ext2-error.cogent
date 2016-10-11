@@ -8,6 +8,7 @@ free_FsState: FsState take (..) -> ()
 fs_unmount: FsState -> ()
 fs_unmount state = 
     let state_t {super} = state
+    -- and super {x} = super
     and _ = free_Ext2Superblock super
     and _ = free_FsState state_t
     in ()
