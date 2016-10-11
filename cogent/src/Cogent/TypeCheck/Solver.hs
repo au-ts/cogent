@@ -240,8 +240,8 @@ rule (T (TVariant m) :< T (TVariant n))
   | M.keys m /= M.keys n = Just $ Unsat (TypeMismatch (T (TVariant m)) (T (TVariant n)))
   | otherwise = let
       each (f, (ts, False)) (_, (us, True )) = Unsat (DiscardWithoutMatch f) 
-      each (f, (ts, True )) (_, (us, True )) = mconcat (zipWith (:<) ts us)
       each (f, (ts, False)) (_, (us, False)) = mconcat (zipWith (:<) ts us)
+      each (f, (ts, True )) (_, (us, True )) = mconcat (zipWith (:<) ts us)
       each (f, (ts, True )) (_, (us, False)) = mconcat (zipWith (:<) ts us)
     in Just $ mconcat (zipWith (each) (M.toList m) (M.toList n))
 -- This rule is a bit dodgy
@@ -275,10 +275,10 @@ rule (T (TRecord fs _) :<~ T (TRecord gs s))
   , ks `S.isSubsetOf` M.keysSet ms
   , ns <- M.fromList fs
   =  let
-       each f (t, False) (u, True ) = Unsat (RequiredTakenField f t)
+       each f (t, False) (u, True ) = (t :< u) :& Drop t ImplicitlyTaken
        each f (t, False) (u, False) = t :< u
        each f (t, True ) (u, True ) = t :< u
-       each f (t, True ) (u, False) = (t :< u) :& Drop t ImplicitlyTaken
+       each f (t, True ) (u, False) = Unsat (RequiredTakenField f t)
      in Just $ mconcat (map (\k -> each k (ns M.! k) (ms M.! k)) $ S.toList ks)
 rule (a :<~ b) = rule (a :< b)
 rule c = Nothing
