@@ -17,7 +17,7 @@
 theory WordArrayTest
 imports
   "../TypeProofGen"
-  "../COGENT_Corres"
+  "../Cogent_Corres"
   "../Read_Table"
   "../Type_Relation_Generation"
 begin
@@ -138,13 +138,13 @@ definition
   "safe_add32_type \<equiv> ([], (TProduct (TPrim (Num U32)) (TPrim (Num U32)), abbreviatedType2))"
 
 definition
-  "safe_add32 \<equiv> Split (Var 0) (Let (Prim (Plus U32) [Var 0, Var 1]) (Let (Prim (Lt U32) [Var 0, Var 1]) (Let (Prim (Lt U32) [Var 1, Var 3]) (Let (Prim COGENT.Or [Var 1, Var 0]) (If (Var 0) (Let Unit (Let (Con [(''Error'', TUnit)] ''Error'' (Var 0)) (Promote [(''Error'', TUnit), (''Success'', TPrim (Num U32))] (Var 0)))) (Let (Con [(''Success'', TPrim (Num U32))] ''Success'' (Var 3)) (Promote [(''Error'', TUnit), (''Success'', TPrim (Num U32))] (Var 0))))))))"
+  "safe_add32 \<equiv> Split (Var 0) (Let (Prim (Plus U32) [Var 0, Var 1]) (Let (Prim (Lt U32) [Var 0, Var 1]) (Let (Prim (Lt U32) [Var 1, Var 3]) (Let (Prim Cogent.Or [Var 1, Var 0]) (If (Var 0) (Let Unit (Let (Con [(''Error'', TUnit)] ''Error'' (Var 0)) (Promote [(''Error'', TUnit), (''Success'', TPrim (Num U32))] (Var 0)))) (Let (Con [(''Success'', TPrim (Num U32))] ''Success'' (Var 3)) (Promote [(''Error'', TUnit), (''Success'', TPrim (Num U32))] (Var 0))))))))"
 
 definition
   "safe_add64_type \<equiv> ([], (TProduct (TPrim (Num U64)) (TPrim (Num U64)), abbreviatedType1))"
 
 definition
-  "safe_add64 \<equiv> Split (Var 0) (Let (Prim (Plus U64) [Var 0, Var 1]) (Let (Prim (Lt U64) [Var 0, Var 1]) (Let (Prim (Lt U64) [Var 1, Var 3]) (Let (Prim COGENT.Or [Var 1, Var 0]) (If (Var 0) (Let Unit (Let (Con [(''Error'', TUnit)] ''Error'' (Var 0)) (Promote [(''Error'', TUnit), (''Success'', TPrim (Num U64))] (Var 0)))) (Let (Con [(''Success'', TPrim (Num U64))] ''Success'' (Var 3)) (Promote [(''Error'', TUnit), (''Success'', TPrim (Num U64))] (Var 0))))))))"
+  "safe_add64 \<equiv> Split (Var 0) (Let (Prim (Plus U64) [Var 0, Var 1]) (Let (Prim (Lt U64) [Var 0, Var 1]) (Let (Prim (Lt U64) [Var 1, Var 3]) (Let (Prim Cogent.Or [Var 1, Var 0]) (If (Var 0) (Let Unit (Let (Con [(''Error'', TUnit)] ''Error'' (Var 0)) (Promote [(''Error'', TUnit), (''Success'', TPrim (Num U64))] (Var 0)))) (Let (Con [(''Success'', TPrim (Num U64))] ''Success'' (Var 3)) (Promote [(''Error'', TUnit), (''Success'', TPrim (Num U64))] (Var 0))))))))"
 
 definition
   "safe_sub32_type \<equiv> ([], (TProduct (TPrim (Num U32)) (TPrim (Num U32)), abbreviatedType2))"

@@ -14,7 +14,7 @@ imports Main
       "../impl/BilbyFs_ShallowConsts_Desugar_Tuples"
 begin
 
-text {* Override COGENT defined constructors so that 
+text {* Override Cogent defined constructors so that 
   default Some and None are the option ones.
  *}
 abbreviation Some :: "'a \<Rightarrow> 'a option" where "Some \<equiv> option.Some"

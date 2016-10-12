@@ -15,8 +15,8 @@
 --
 -- Build command:
 --   mkdir -p records-build
---   cogent -A --root-dir=../.. --dist-dir=records-build --proof-name=COGENT_Rec_Test --fake-header-dir=../../cogent/lib tests/records.cogent
---   isabelle build -d ../../l4v -d ../../cogent/isa -d records-build COGENT_Rec_Test_CorresProof
+--   cogent -A --root-dir=../.. --dist-dir=records-build --proof-name=Cogent_Rec_Test --fake-header-dir=../../cogent/lib tests/records.cogent
+--   isabelle build -d ../../l4v -d ../../cogent/isa -d records-build Cogent_Rec_Test_CorresProof
 
 take_w1: {x: {y: U8}} -> ({y: U8}, {x: {y: U8}} take x)
 take_w1 r {x} = (x, r)

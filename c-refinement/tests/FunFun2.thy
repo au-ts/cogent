@@ -15,7 +15,7 @@
  *)
 theory FunFun2
 imports
-  "../COGENT_Corres"
+  "../Cogent_Corres"
   "../Corres_Tac"
   "../TypeProofGen"
   "../Type_Relation_Generation"

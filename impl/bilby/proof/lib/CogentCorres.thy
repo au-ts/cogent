@@ -8,8 +8,8 @@
  * @TAG(NICTA_GPL)
  *)
 
-theory COGENTCorres
-imports "COGENTMonad"
+theory CogentCorres
+imports "CogentMonad"
         "../adt/BilbyT"
 begin
 
@@ -50,9 +50,9 @@ fixes v
 assumes "v\<in>S"
 and "cogent_corres R (a v) c"
 shows
-  "cogent_corres R (COGENTMonad.select S >>= (\<lambda>v. a v)) c"
+  "cogent_corres R (CogentMonad.select S >>= (\<lambda>v. a v)) c"
   using assms
-  unfolding return_def cogent_corres_def COGENTMonad.select_def
+  unfolding return_def cogent_corres_def CogentMonad.select_def
   by (fastforce simp: ex_in_conv[symmetric] bind_def)
 
 lemma cogent_corres_R\<^sub>1\<^sub>1:

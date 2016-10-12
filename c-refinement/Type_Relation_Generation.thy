@@ -10,7 +10,7 @@
 
 theory Type_Relation_Generation
 imports 
- COGENT_Corres 
+ Cogent_Corres 
  Read_Table
 begin
 

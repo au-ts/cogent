@@ -10,7 +10,7 @@
 
 theory FsopIgetR
 imports
-  "../lib/COGENTCorres"
+  "../lib/CogentCorres"
   "../refine/AfsFsopR"
   "../adt/InodeT"
   OstoreReadR

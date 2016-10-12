@@ -8,7 +8,7 @@
  * @TAG(NICTA_GPL)
  *)
 
-theory COGENT_C_Heap_Auto
+theory Cogent_C_Heap_Auto
 imports Read_Table
 begin
 

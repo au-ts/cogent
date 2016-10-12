@@ -18,7 +18,7 @@
 theory Middle_C
 imports
   "../Deep_Embedding_Auto"
-  "../COGENT_Corres"
+  "../Cogent_Corres"
   "../Corres_Tac"
   "../TypeProofGen"
   "../Tidy"
@@ -53,8 +53,8 @@ definition
   "foo \<equiv> Take (Var 0) 0 (Take (Var 1) 1 (Take (Var 2) 1 (If (Var 2) (Let (Put (Var 1) 1 (Var 2)) (Take (Var 0) 0 (Take (Var 0) 1 (Let (Lit (LU8 0)) (Let (Cast U32 (Var 0)) (Let (Put (Var 3) 1 (Var 0)) (Struct [abbreviatedType3, abbreviatedType2, TPrim Bool, TPrim (Num U32)] [Var 6, Var 0, Var 8, Var 3]))))))) (Let (Lit (LBool True)) (Let (Put (Var 2) 1 (Var 0)) (Take (Var 0) 0 (Let (Lit (LU8 0)) (Let (Cast U32 (Var 0)) (Let (Put (Var 2) 0 (Var 0)) (Let (Put (Var 4) 0 (Var 0)) (Take (Var 0) 0 (Take (Var 0) 1 (Let (Lit (LU8 0)) (Let (Cast U32 (Var 0)) (Let (Put (Var 3) 1 (Var 0)) (Struct [abbreviatedType3, abbreviatedType2, TPrim Bool, TPrim (Num U32)] [Var 6, Var 0, Var 15, Var 3]))))))))))))))))"
 
 ML {*
-val COGENT_functions = ["foo"]
-val COGENT_abstract_functions = []
+val Cogent_functions = ["foo"]
+val Cogent_abstract_functions = []
 *}
 
 definition
@@ -369,7 +369,7 @@ definition val_rel_bool_t_C_def:
 instance ..
 end
 
-(* Relation between COGENT and C data *)
+(* Relation between Cogent and C data *)
 local_setup{* local_setup_val_rel_type_rel_put_them_in_buckets "pass_middle-size-example.c" *}
 
 (* Lemma bucket.*)

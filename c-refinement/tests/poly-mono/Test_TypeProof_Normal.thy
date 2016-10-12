@@ -37,7 +37,7 @@ lemmas abbreviated_type_defs =
   abbreviatedType3_def
 
 definition
-  f_type :: " COGENT.kind list \<times>  COGENT.type \<times>  COGENT.type"
+  f_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
 where
   "f_type \<equiv> ([{}, {}], (abbreviatedType3, abbreviatedType3))"
 
@@ -45,7 +45,7 @@ definition
   "f \<equiv> Take (Var 0) 0 (Take (Var 1) 1 (Struct [TVar 0, TVar 1] [Var 2, Var 0]))"
 
 definition
-  g_type :: " COGENT.kind list \<times>  COGENT.type \<times>  COGENT.type"
+  g_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
 where
   "g_type \<equiv> ([{}], (abbreviatedType2, abbreviatedType2))"
 
@@ -53,7 +53,7 @@ definition
   "g \<equiv> Take (Var 0) 0 (Take (Var 1) 1 (Let (Struct [TUnit, TVar 0] [Var 2, Var 0]) (App (Fun f [TUnit, TVar 0]) (Var 0))))"
 
 definition
-  h_type :: " COGENT.kind list \<times>  COGENT.type \<times>  COGENT.type"
+  h_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
 where
   "h_type \<equiv> ([], (abbreviatedType1, abbreviatedType1))"
 
@@ -61,12 +61,12 @@ definition
   "h \<equiv> Take (Var 0) 0 (Take (Var 1) 1 (Let (Struct [TUnit, TUnit] [Var 2, Var 0]) (App (Fun g [TUnit]) (Var 0))))"
 
 ML {*
-val COGENT_functions = ["f","g","h"]
-val COGENT_abstract_functions = []
+val Cogent_functions = ["f","g","h"]
+val Cogent_abstract_functions = []
 *}
 
 definition
-  \<Xi> :: " string \<Rightarrow>  COGENT.kind list \<times>  COGENT.type \<times>  COGENT.type"
+  \<Xi> :: " string \<Rightarrow>  Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
 where
   "\<Xi> func_name' \<equiv> case func_name' of ''f'' \<Rightarrow> f_type | ''g'' \<Rightarrow> g_type | ''h'' \<Rightarrow> h_type"
 

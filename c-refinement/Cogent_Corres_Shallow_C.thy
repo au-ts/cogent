@@ -8,15 +8,15 @@
  * @TAG(NICTA_GPL)
  *)
 
-(* Refinement chain from C to shallow-embedded COGENT. *)
-theory COGENT_Corres_Shallow_C
+(* Refinement chain from C to shallow-embedded Cogent. *)
+theory Cogent_Corres_Shallow_C
 imports
   "Deep_Embedding_Auto"
-  "COGENT_Corres"
+  "Cogent_Corres"
   "Corres_Tac"
   "TypeProofGen"
   "Tidy"
-  "../cogent/isa/COGENT"
+  "../cogent/isa/Cogent"
   "../cogent/isa/shallow/ShallowTuples"
   "../cogent/isa/shallow/Shallow_Tac"
   "../cogent/isa/Util"
@@ -29,7 +29,7 @@ locale correspondence_init =
   correspondence +
   constrains upd_abs_typing :: "abstyp \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> sigil \<Rightarrow> ptrtyp set \<Rightarrow> ptrtyp set \<Rightarrow> bool"
        and abs_repr :: "abstyp \<Rightarrow> name \<times> repr list"
-       and abs_upd_val :: "abstyp \<Rightarrow> 'b \<Rightarrow> char list \<Rightarrow> COGENT.type list \<Rightarrow> sigil \<Rightarrow> 32 word set \<Rightarrow> 32 word set \<Rightarrow> bool" 
+       and abs_upd_val :: "abstyp \<Rightarrow> 'b \<Rightarrow> char list \<Rightarrow> Cogent.type list \<Rightarrow> sigil \<Rightarrow> 32 word set \<Rightarrow> 32 word set \<Rightarrow> bool" 
 
 sublocale correspondence_init \<subseteq> update_sem_init upd_abs_typing abs_repr
   by (unfold_locales)
@@ -176,7 +176,7 @@ lemma corres_shallow_C_intro:
 (* Generate an end-to-end refinement theorem using corres_shallow_C.
  * Resolve as many of its premises as we can. *)
 ML {*
-fun COGENT_to_C_name str =
+fun Cogent_to_C_name str =
       (String.explode str
        |> map (fn c => if c = #"'" then "_prime" else String.implode [c])
        |> String.concat) ^ "'"
@@ -227,7 +227,7 @@ fun make_corres_shallow_C desugar_tup_thy desugar_thy deep_thy ctxt f = let
          Syntax.read_term ctxt (desugar_thy ^ "." ^ f),
            Syntax.read_term ctxt (deep_thy ^ "." ^ f),
              Syntax.read_term ctxt (deep_thy ^ "." ^ f ^ "_type"),
-               Syntax.read_term ctxt (COGENT_to_C_name f),
+               Syntax.read_term ctxt (Cogent_to_C_name f),
                  proc_ctx,
                    poly_mono_rename,
                      state_rel)

@@ -10,7 +10,7 @@
 
 theory Value_Relation_Generation
 imports 
-  "COGENT_Corres"
+  "Cogent_Corres"
   "Specialised_Lemma_Utils"
 begin
 

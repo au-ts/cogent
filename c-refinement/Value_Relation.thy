@@ -10,7 +10,7 @@
 
 (*
  The cogent_C_val class provides val_rel and type_rel,
- generic predicates for matching COGENT and C values and types.
+ generic predicates for matching Cogent and C values and types.
  This file also gives program-independent instances for cogent_C_val.
  *)
 theory Value_Relation

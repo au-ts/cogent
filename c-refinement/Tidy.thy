@@ -8,12 +8,12 @@
  * @TAG(NICTA_GPL)
  *)
 
-(* Preprocess AutoCorres translation of COGENT compiler's output code. *)
+(* Preprocess AutoCorres translation of Cogent compiler's output code. *)
 theory Tidy
 imports "../l4v/tools/autocorres/AutoCorres"
 begin
 
-(* Each COGENT_Corres rule expects (at most) one guard *)
+(* Each Cogent_Corres rule expects (at most) one guard *)
 lemma join_guards:
   "do g1 <- guard G1; g2 <- guard G2; P g1 g2 od
     =
@@ -28,7 +28,7 @@ lemma return_exn_simp:
       gets (\<lambda>_. ret) od = A"
   by simp
 
-(* COGENT function epilogue *)
+(* Cogent function epilogue *)
 lemma return_cogent_simp:
   "do a \<leftarrow> A;
       r \<leftarrow> gets (\<lambda>_. a);
@@ -39,7 +39,7 @@ lemma simp_unit_return:
   "\<And>A. (do (x::unit) \<leftarrow> A; gets (\<lambda>_. ()) od) = A"
   by simp
 
-(* COGENT compiler adds one assignment at the end of every block; remove it *)
+(* Cogent compiler adds one assignment at the end of every block; remove it *)
 definition "simp_last_bind = id"
 
 lemma simp_last_bind:
@@ -85,7 +85,7 @@ fun tidy_C_fun_def f ctxt = let
         |> map (fn thm => Simplifier.rewrite_rule ctxt [thm] @{thm unknown_bind_if_True})
 
   (* Use a schematic lemma to rewrite AutoCorres function defs.
-   * We can assume the COGENT compiler generates all functions with only one argument. *)
+   * We can assume the Cogent compiler generates all functions with only one argument. *)
   val prop = if fun_rec then @{mk_term "Trueprop (?f m arg = ?A)" f} fun_term
                         else @{mk_term "Trueprop (?f arg = ?A)" f} fun_term
 
@@ -101,7 +101,7 @@ fun tidy_C_fun_def f ctxt = let
              THEN subst' @{thms guard_True_bind}     (* remove unnecessary guards *)
              THEN subst @{thms return_exn_simp}      (* remove C parser's function epilogue *)
              (* Remove exactly one bind-gets from the end of the program,
-              * which is inserted by the COGENT code generator *)
+              * which is inserted by the Cogent code generator *)
              THEN rtac (if fun_rec then @{thm simp_last_bind_recI} else @{thm simp_last_bindI}) 1
              THEN subst' @{thms simp_last_bind(1-2) simp_unit_return}
              (* Cleanup any remaining @{term simp_last_bind}s *)

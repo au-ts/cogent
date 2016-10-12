@@ -9,7 +9,7 @@
  *)
 
 theory TypeProofGen imports
-  "../cogent/isa/COGENTHelper"
+  "../cogent/isa/CogentHelper"
   "../cogent/isa/ProofTrace"
 begin
 
@@ -39,9 +39,9 @@ fun is_typing t = head_of t |>
            is_const "TypeTrackingSemantics.ttsplit" h orelse
            is_const "TypeTrackingSemantics.ttsplit_bang" h orelse
            is_const "TypeTrackingSemantics.ttsplit_inner" h orelse
-           is_const "COGENT.typing" h orelse
-           is_const "COGENT.split" h orelse
-           is_const "COGENT.kinding" h);
+           is_const "Cogent.typing" h orelse
+           is_const "Cogent.split" h orelse
+           is_const "Cogent.kinding" h);
 (* NB: flattening the proof tree is unsafe in general, but this program is a small example *)
 fun flatten_Tree (Tree (x, ts)) = x :: List.concat (map flatten_Tree ts);
 fun uniq cmp (x::y::xs) = (case cmp (x,y) of EQUAL => uniq cmp (x::xs)

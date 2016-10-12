@@ -8,7 +8,7 @@
  * @TAG(NICTA_GPL)
  *)
 
-theory COGENTHigherOrder imports
+theory CogentHigherOrder imports
   "TypeProofGen"
   "../l4v/tools/autocorres/AutoCorres"
 begin
@@ -41,11 +41,11 @@ begin
 type_synonym 'f FunCall = "('f, 'f expr) sum"
 
 (*
- * Function value annotations for COGENT values.
- * An InValue lists known function pointers inside a COGENT value and their locations.
+ * Function value annotations for Cogent values.
+ * An InValue lists known function pointers inside a Cogent value and their locations.
  * Each "InData list" contains information about one part of the value, ending in
  * an IsFunction that specifies the function name.
- * (Eg. if nothing is known about a COGENT value, its Invalue is [].)
+ * (Eg. if nothing is known about a Cogent value, its Invalue is [].)
  *)
 datatype 'f  InData = InProduct nat
                     | InRecord nat
@@ -139,7 +139,7 @@ fun funcall_sem :: "'f InValue env \<Rightarrow> 'f expr \<Rightarrow> ('f FunCa
 
 (* Use the simplifier to extract higher-order function call information. *)
 ML {*
-structure COGENTHigherOrder = struct
+structure CogentHigherOrder = struct
 (* ML representation of InData type *)
 datatype InData = InRecord of int
                 | InProduct of int

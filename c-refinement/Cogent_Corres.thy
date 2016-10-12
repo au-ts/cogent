@@ -8,7 +8,7 @@
  * @TAG(NICTA_GPL)
  *)
 
-theory COGENT_Corres
+theory Cogent_Corres
 imports 
   "../cogent/isa/UpdateSemantics"
   "Value_Relation"
@@ -93,7 +93,7 @@ lemma corres_def':
   by (auto simp: corres_def validNF_def valid_def no_fail_def)
 
 
-(* Syntax-directed rules for COGENT *)
+(* Syntax-directed rules for Cogent *)
 lemma corres_var:
   "val_rel (\<gamma>!x) (v'::'a::cogent_C_val) \<Longrightarrow>  (*type_rel t TYPE('a) \<Longrightarrow> *)
    corres srel (Var x) (gets (\<lambda>_. v')) \<xi> \<gamma> \<Xi> \<Gamma> \<sigma> s"
@@ -449,7 +449,7 @@ lemma corres_letbang':
   apply (fastforce intro!: u_sem_letbang)
   done
 
-(* The COGENT compiler wraps x' in a dummy condition to ease pattern matching. *)
+(* The Cogent compiler wraps x' in a dummy condition to ease pattern matching. *)
 lemma corres_letbang:
   assumes split\<Gamma>: "split_bang [] is \<Gamma>' \<Gamma>1 \<Gamma>2"
   assumes typing_x: "\<Xi>', [], \<Gamma>1 \<turnstile> x : t"

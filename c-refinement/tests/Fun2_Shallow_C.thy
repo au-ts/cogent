@@ -12,14 +12,14 @@ theory Fun2_Shallow_C
 imports
   "FunFun2"
   "../../cogent/isa/shallow/tests/Fun2"
-  "../COGENT_Corres_Shallow_C"
+  "../Cogent_Corres_Shallow_C"
 begin
 
 locale fun2_cogent_shallow = 
   "fun2" + correspondence +
   constrains upd_abs_typing :: "abstyp \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> sigil \<Rightarrow> ptrtyp set \<Rightarrow> ptrtyp set \<Rightarrow> bool"
        and abs_repr :: "abstyp \<Rightarrow> name \<times> repr list"
-       and abs_upd_val :: "abstyp \<Rightarrow> 'b \<Rightarrow> char list \<Rightarrow> COGENT.type list \<Rightarrow> sigil \<Rightarrow> 32 word set \<Rightarrow> 32 word set \<Rightarrow> bool" 
+       and abs_upd_val :: "abstyp \<Rightarrow> 'b \<Rightarrow> char list \<Rightarrow> Cogent.type list \<Rightarrow> sigil \<Rightarrow> 32 word set \<Rightarrow> 32 word set \<Rightarrow> bool" 
 
 
 sublocale fun2_cogent_shallow \<subseteq> fun_u_sem _ upd_abs_typing abs_repr

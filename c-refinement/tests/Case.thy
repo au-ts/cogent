@@ -16,7 +16,7 @@
 *)
 theory Case
 imports 
-  "../COGENT_Corres"
+  "../Cogent_Corres"
   "../TypeProofGen" 
   "../Heap_Relation_Generation" "../Type_Relation_Generation"
   "../Deep_Embedding_Auto"

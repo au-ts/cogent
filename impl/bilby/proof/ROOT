@@ -8,10 +8,10 @@
  * @TAG(NICTA_GPL)
  *)
 
-session COGENTUtil = "HOL-Word" +
+session CogentUtil = "HOL-Word" +
   theories "../../../cogent/isa/Util"
 
-session "BilbyFsCode" (main) = "COGENTUtil" +
+session "BilbyFsCode" (main) = "CogentUtil" +
   description {* BilbyFs implementation *}
   theories
   "impl/BilbyFs_Shallow_Desugar_Tuples"

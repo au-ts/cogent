@@ -8,7 +8,7 @@
  * @TAG(NICTA_GPL)
  *)
 
-theory COGENT_C_Val_Auto
+theory Cogent_C_Val_Auto
 imports 
  Value_Relation_Generation
  Type_Relation_Generation

@@ -10,7 +10,7 @@
 
 theory FsopSyncR
 imports
-  "../lib/COGENTCorres"
+  "../lib/CogentCorres"
   "../refine/AfsFsopR"
   "../refine/OstoreR"
 begin

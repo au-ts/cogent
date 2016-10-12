@@ -10,9 +10,9 @@
 
 theory SpecialisedLemmaTactic
 imports
-  "COGENT_Corres"
+  "Cogent_Corres"
   "Specialised_Lemma_Utils"
-  "../cogent/isa/COGENTHelper"
+  "../cogent/isa/CogentHelper"
 begin
 
 context update_sem_init 

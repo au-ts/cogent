@@ -13,7 +13,7 @@ imports
    "../lib/FunBucket"
    "../adt/VfsT"
    "../adt/WordArrayT"
-   "../lib/COGENTMonad"
+   "../lib/CogentMonad"
 begin
 
 text {* High-level Correctness specification types *}
@@ -160,7 +160,7 @@ where
 definition
   nondet_error :: "ErrCode set \<Rightarrow> (ErrCode \<Rightarrow> 'a) \<Rightarrow> 'a cogent_monad"
 where
-  "nondet_error errs f \<equiv> COGENTMonad.select errs >>= (return o f)"
+  "nondet_error errs f \<equiv> CogentMonad.select errs >>= (return o f)"
 
 text {*
  @{term afs_alloc_inum}: We ensure that it only returns inums not already in used

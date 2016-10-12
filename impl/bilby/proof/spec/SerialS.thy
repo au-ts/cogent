@@ -594,7 +594,7 @@ where
    let obj = pObjHeader data offs
    in obj \<lparr>ounion\<^sub>f:= pObjUnion (take (unat offs + unat (Obj.len\<^sub>f obj)) data) (otype\<^sub>f  obj) (Obj.len\<^sub>f obj) (offs+bilbyFsObjHeaderSize)\<rparr>"
 
-text {* This could be implemented in COGENT instead *}
+text {* This could be implemented in Cogent instead *}
 definition serialise_size_summary_Obj :: "ObjSummary\<^sub>T \<Rightarrow> U32"
 where
  "serialise_size_summary_Obj summary \<equiv>

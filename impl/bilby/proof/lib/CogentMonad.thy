@@ -8,7 +8,7 @@
  * @TAG(NICTA_GPL)
  *)
 
-theory COGENTMonad
+theory CogentMonad
 imports Main
 begin
 

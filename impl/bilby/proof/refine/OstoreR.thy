@@ -668,7 +668,7 @@ lemma safe_add64:
   apply safe
     apply (rule err, simp)
    apply (rule err)
-(* FIX COGENT code only one check is needed *)
+(* FIX Cogent code only one check is needed *)
    apply (unat_arith)
   apply (rule suc)
   apply unat_arith
@@ -1638,7 +1638,7 @@ lemma prepare_wbuf_ret:
      apply (simp add: prepared_fsm_padding_obj_def buf_prepared_def padding_obj pad_to_upd)
      apply (simp add: ostore_update_padding_obj' prepared_pad_obj_def Let_def
          bilbyFsObjHeaderSize_def prepared_pad_obj_no_crc_def bilbyFsTransCommit_def  )
- (* FIX COGENT code, currently it updates the otype field but shouldn't because
+ (* FIX Cogent code, currently it updates the otype field but shouldn't because
     the type of opad is part of the invariant *)
       using inv_opadD[OF inv_ostore] apply (clarsimp simp: bilbyFsTransCommit_def)
      using inv_ostore_wbuf_eb_rangeD[OF inv_ostore] apply simp

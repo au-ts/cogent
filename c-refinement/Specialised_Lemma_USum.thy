@@ -93,13 +93,13 @@ ML{* fun mk_case_prop from_uval to_uval field_num file_nm ctxt =
   val from_tag_nms  = get_tag_names from_uval;
   val to_tag_nms    = get_tag_names to_uval;
 
-  val alternative_tys = map (fn n => Free ("alt_ty" ^ string_of_int n, @{typ "COGENT.type"}))
+  val alternative_tys = map (fn n => Free ("alt_ty" ^ string_of_int n, @{typ "Cogent.type"}))
     (1 upto length from_tag_nms)
   val tag_ty_bits    = from_tag_nms ~~ alternative_tys
   val to_tag_ty_bits = to_tag_nms ~~ map (the o AList.lookup (op =) tag_ty_bits) to_tag_nms
-  val from_sumT      = @{term TSum} $ HOLogic.mk_list @{typ "(string \<times> COGENT.type)"}
+  val from_sumT      = @{term TSum} $ HOLogic.mk_list @{typ "(string \<times> Cogent.type)"}
                        (map HOLogic.mk_prod (map (apfst HOLogic.mk_string) tag_ty_bits))
-  val to_sumT        = @{term TSum} $ HOLogic.mk_list @{typ "(string \<times> COGENT.type)"}
+  val to_sumT        = @{term TSum} $ HOLogic.mk_list @{typ "(string \<times> Cogent.type)"}
                        (map HOLogic.mk_prod (map (apfst HOLogic.mk_string) to_tag_ty_bits))
   val dropped_bits   = filter (fn (s, _) => AList.lookup (op =) to_tag_ty_bits s = NONE) tag_ty_bits
   val taken_typ = case dropped_bits of [v] => snd v

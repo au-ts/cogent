@@ -8,7 +8,7 @@
  * @TAG(NICTA_GPL)
  *)
 
-session "COGENTTests" = Deep_C_Static +
+session "CogentTests" = Deep_C_Static +
   theories [quick_and_dirty]
     Case FunFun FunFun2 Loop Middle_C Prim Split TakePut
     (* FIXME: WordArrayTest *)

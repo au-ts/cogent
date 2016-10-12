@@ -10,16 +10,16 @@
 
 theory Corres_Tac
 imports 
-  "COGENT_Corres"
+  "Cogent_Corres"
   "../cogent/isa/ProofTrace"
-  "../cogent/isa/COGENTHelper"
+  "../cogent/isa/CogentHelper"
   Value_Relation_Generation
 
 begin    
 
 (*
- * Fix COGENT/C mismatch caused by unused return values of C blocks.
- * COGENT code can bind a value without using it. This commonly appears in code like
+ * Fix Cogent/C mismatch caused by unused return values of C blocks.
+ * Cogent code can bind a value without using it. This commonly appears in code like
  *
  *   -- first, a message from our sponsors
  *   let debug_output = stuff
@@ -32,7 +32,7 @@ begin
  * When AutoCorres comes across this code, it figures that debug_output is unused,
  * so its generated code for "stuff" appends "gets (\<lambda>_. ())".
  * This breaks Corres_Tac's expectation that the C code for "stuff" returns a value that
- * corresponds to the COGENT code.
+ * corresponds to the Cogent code.
  *
  * We fix that up by walking the AutoCorres output and removing the extra "gets (\<lambda>_. ())",
  * allowing the original return value of "stuff" to be propagated.
@@ -113,8 +113,8 @@ schematic_lemma
 
 (* Apply the rewrite to a corres proof state.
  * In corres_tac, we apply this tactic blindly and it rewrites all unit-returning blocks
- * in the C code. This should be safe because no genuine COGENT code ever returns unit
- * (the unit type in COGENT is currently compiled to unit_t in C, instead of void). *)
+ * in the C code. This should be safe because no genuine Cogent code ever returns unit
+ * (the unit type in Cogent is currently compiled to unit_t in C, instead of void). *)
 (* FIXME: maybe make this part of Tidy *)
 
 context update_sem_init begin
@@ -279,7 +279,7 @@ lemma ucast_up_sle_disgusting[OF refl]:
 (* Corres tactic *)
 
 ML {*
-(* Used to decode COGENT Var indices *)
+(* Used to decode Cogent Var indices *)
 fun decode_isa_nat @{term "0 :: nat"} = 0
   | decode_isa_nat (@{term Suc} $ n) = decode_isa_nat n + 1
   | decode_isa_nat n = HOLogic.dest_number n |> snd
@@ -288,20 +288,20 @@ fun TRY_FST tac1 tac2 st = (tac2 ORELSE ((DETERM tac1) THEN tac2)) st
 fun TRY_FST_N tac1 tac2 st = (tac2 ORELSE (tac1 THEN tac2)) st
 fun TRY_MORE_FST tac1 tac2 st = (tac2 ORELSE ((DETERM tac1) THEN (TRY_MORE_FST tac1 tac2))) st
 
-(* Determine whether a COGENT type contains a TFun anywhere.
+(* Determine whether a Cogent type contains a TFun anywhere.
  * This is used as a crude heuristic for applying corres_let_gets_propagate. *)
-fun COGENT_type_contains_TFun (Const (@{const_name TFun}, _)) = true
-  | COGENT_type_contains_TFun (Abs (_, _, t)) = COGENT_type_contains_TFun t
-  | COGENT_type_contains_TFun (f $ x) = COGENT_type_contains_TFun f orelse COGENT_type_contains_TFun x
-  | COGENT_type_contains_TFun _ = false
+fun Cogent_type_contains_TFun (Const (@{const_name TFun}, _)) = true
+  | Cogent_type_contains_TFun (Abs (_, _, t)) = Cogent_type_contains_TFun t
+  | Cogent_type_contains_TFun (f $ x) = Cogent_type_contains_TFun f orelse Cogent_type_contains_TFun x
+  | Cogent_type_contains_TFun _ = false
 
 (* Matches within a typing judgement. *)
-fun COGENT_typing_returns_TFun (@{term Trueprop} $
+fun Cogent_typing_returns_TFun (@{term Trueprop} $
                                 (Const (@{const_name typing}, _) $ tenv $ kind $ env $ expr $ typ)) =
-      COGENT_type_contains_TFun typ
-  | COGENT_typing_returns_TFun t = raise TERM ("COGENT_typing_returns_TFun: not a typing rule", [t])
+      Cogent_type_contains_TFun typ
+  | Cogent_typing_returns_TFun t = raise TERM ("Cogent_typing_returns_TFun: not a typing rule", [t])
 
-(* Number of expected nondet_monad statements for each COGENT atom in a Let. *)
+(* Number of expected nondet_monad statements for each Cogent atom in a Let. *)
 fun atom_stmts @{const_name Var}     = SOME 1
   | atom_stmts @{const_name Prim}    = NONE
   | atom_stmts @{const_name App}     = SOME 2
@@ -431,7 +431,7 @@ fun corres_tac ctxt
                : tactic =
 let
 
-  fun corres_COGENT_head goal_num st =
+  fun corres_Cogent_head goal_num st =
     Option.map (#2 #> strip_comb #> fst #> dest_Const #> fst) (dest_corres_goal goal_num st)
 
   fun get_thm nm = Proof_Context.get_thm ctxt nm;
@@ -577,7 +577,7 @@ let
      (* For Let (Fun...) and similar constructs, we need to remember the value of the Fun
       * so that we can apply the corres lemma for that function. *)
      fun apply_corres_let n st =
-       (if COGENT_typing_returns_TFun (Thm.prop_of (tree_hd (tree_nth 1))) (* check the type of the bound-expr *)
+       (if Cogent_typing_returns_TFun (Thm.prop_of (tree_hd (tree_nth 1))) (* check the type of the bound-expr *)
         then (print "Debug: using corres_let_propagate" THEN rule corres_let_propagate n) st
         else rule corres_let n st
        ) handle Subscript => (print "Warning: tree_nth failed in apply_corres_let" THEN no_tac) st
@@ -590,7 +590,7 @@ let
       *)
      fun corres_let_tac n st =
       (case dest_corres_goal n st of
-          SOME (_, Const (@{const_name COGENT.Let}, _) $ lhs $ rhs, _, _, _, _, env, _, _) =>
+          SOME (_, Const (@{const_name Cogent.Let}, _) $ lhs $ rhs, _, _, _, _, env, _, _) =>
           (case strip_comb lhs of
             (Const (lhs_head, _), args) =>
               (case atom_stmts' lhs_head args env of
@@ -611,16 +611,16 @@ let
             | _ => no_tac)
         | _ => no_tac) st;
 
-      (* Check the head of the COGENT program before applying a tactic.
+      (* Check the head of the Cogent program before applying a tactic.
        * This is useful when the tactic doesn't fail quickly (eg. for type-specialised rule buckets). *)
-      fun check_COGENT_head head tac st =
-        case corres_COGENT_head 1 st of
+      fun check_Cogent_head head tac st =
+        case corres_Cogent_head 1 st of
            NONE => tac st (* not sure if we'd expect this to work *)
          | SOME head' => if head = head' then tac st else no_tac st;
     in
-      (fn t => case corres_COGENT_head 1 t of SOME h => print ("Proving: " ^ h) t | _ => all_tac t)
+      (fn t => case corres_Cogent_head 1 t of SOME h => print ("Proving: " ^ h) t | _ => all_tac t)
       THEN
-      (* Evaluate COGENT environment lookups (ie. list lookups) eagerly *)
+      (* Evaluate Cogent environment lookups (ie. list lookups) eagerly *)
       ((nth_arg_conv_tac 7 (* \<gamma> *) 1 ctxt (Simplifier.rewrite ctxt)
        THEN nth_arg_conv_tac 9 (* \<Gamma> *) 1 ctxt (Simplifier.rewrite ctxt))
        THEN
@@ -694,14 +694,14 @@ let
          THEN rule_tree 0 1
          THEN subgoal_simp 1)
 
-        ORELSE check_COGENT_head @{const_name App}
+        ORELSE check_Cogent_head @{const_name App}
         (((fn n => rule corres_app_concrete n
                    THEN print "corres_app_concrete"
                    THEN simp n THEN simp n
                    THEN rules fun_corres n)
           THEN_ALL_NEW subgoal_simp_add (@{thm recguard_dec_def} :: fun_corres)) 1)
 
-        ORELSE check_COGENT_head @{const_name App}
+        ORELSE check_Cogent_head @{const_name App}
         (APPEND_LIST (map apply_absfun absfun_corres)
          THEN print "corres_app_abstract")
 
@@ -719,7 +719,7 @@ let
           THEN subgoal_simp 1
          THEN subgoal_val_rel_simp_add [] 1
 
-        ORELSE check_COGENT_head @{const_name Member}
+        ORELSE check_Cogent_head @{const_name Member}
         (corres_member_boxed_rule 1
          THEN print "corres_member_boxed"
                THEN rule_tree 0 1
@@ -734,7 +734,7 @@ let
         (rule (Proof_Context.get_thm ctxt "corres_member_unboxed") 1
          THEN subgoal_val_rel_clarsimp_add [] 1)
 
-        ORELSE check_COGENT_head @{const_name Take}
+        ORELSE check_Cogent_head @{const_name Take}
         (corres_take_unboxed_rule 1
          THEN print "corres_take_unboxed"
                     THEN subgoal_simp 1
@@ -749,7 +749,7 @@ let
            THEN subgoal_simp 1
           THEN TRY (corres_tac_nth 3))
 
-        ORELSE check_COGENT_head @{const_name Take}
+        ORELSE check_Cogent_head @{const_name Take}
         (corres_take_boxed_rule 1
          THEN print "corres_take_boxed"
                     THEN subgoal_simp 1
@@ -773,7 +773,7 @@ let
           THEN TRY (corres_tac_nth 2)
          THEN TRY (corres_tac_nth 3))
 
-        ORELSE check_COGENT_head @{const_name Let}
+        ORELSE check_Cogent_head @{const_name Let}
         (rule corres_let_put_unboxed 1
          THEN print "corres_put_unboxed"
                THEN subgoal_simp 1
@@ -783,7 +783,7 @@ let
            THEN subgoal_val_rel_clarsimp_add [] 1
           THEN TRY (corres_tac_nth 2))
 
-        ORELSE check_COGENT_head @{const_name Put}
+        ORELSE check_Cogent_head @{const_name Put}
         (rule corres_no_let_put_unboxed 1
          THEN print "corres_put_unboxed (no let)"
              THEN subgoal_simp 1
@@ -791,7 +791,7 @@ let
            THEN TRY (TRY (simp 1) THEN SOLVES (rule (tree_hd typing_tree) 1))
           THEN subgoal_val_rel_clarsimp_add [] 1)
 
-        ORELSE check_COGENT_head @{const_name Let}
+        ORELSE check_Cogent_head @{const_name Let}
         (corres_let_put_boxed_rule 1
          THEN print "corres_let_put_boxed"
                   THEN rule_tree 0 1
@@ -804,7 +804,7 @@ let
            THEN subgoal_simp 1
           THEN TRY (corres_tac_nth 2))
 
-        ORELSE check_COGENT_head @{const_name Put}
+        ORELSE check_Cogent_head @{const_name Put}
         (corres_put_boxed_rule 1
          THEN print "corres_put_boxed"
                 THEN rule_tree' (tree_nth 0 handle Subscript => error "tree_nth failed") 0 1
@@ -815,7 +815,7 @@ let
            THEN TRY (TRY_FST (simp 1) (SOLVES (rule (tree_hd typing_tree) 1)))
           THEN subgoal_simp 1)
 
-        ORELSE check_COGENT_head @{const_name Case}
+        ORELSE check_Cogent_head @{const_name Case}
         (rtac (get_thm "corres_simp_cond_gets" RS @{thm iffD2}) 1 THEN
          (corres_case_rule 1
             THEN print "corres_case"
@@ -829,7 +829,7 @@ let
              THEN TRY (corres_tac_nth 2)
             THEN TRY (corres_tac_nth 3)))
 
-        ORELSE check_COGENT_head @{const_name Let}
+        ORELSE check_Cogent_head @{const_name Let}
         (rtac corres_nested_let 1
          THEN print "corres_let (nested)"
              THEN rule_tree 0 1
@@ -839,7 +839,7 @@ let
 
         ORELSE corres_let_tac 1
 
-        ORELSE check_COGENT_head @{const_name LetBang}
+        ORELSE check_Cogent_head @{const_name LetBang}
         ((simp_tac (put_simpset HOL_basic_ss ctxt addsimps [LETBANG_TRUE_def]) 1)
          THEN
          rule corres_letbang 1
@@ -851,7 +851,7 @@ let
            THEN TRY (corres_tac_nth 1)
           THEN TRY (corres_tac_nth 2))
 
-        ORELSE check_COGENT_head @{const_name Split}
+        ORELSE check_Cogent_head @{const_name Split}
         (rtac (get_thm "corres_split") 1
          THEN print "corres_split"
                  THEN rule_tree 0 1
@@ -890,7 +890,7 @@ fun maximum [] = error "maximum: empty list"
   | maximum [x] = x
   | maximum (x::xs) = max x (maximum xs)
 
-fun get_COGENT_funtype ctxt fname = let
+fun get_Cogent_funtype ctxt fname = let
   val simps = Proof_Context.get_thms ctxt "abbreviated_type_defs"
   in
     Proof_Context.get_thm ctxt (fname ^ "_type_def")
@@ -901,8 +901,8 @@ fun get_COGENT_funtype ctxt fname = let
 fun funtype_is_first_order (funtype:term) =
   case funtype of (Const (@{const_name Pair}, _) $ _ $
                     (Const (@{const_name Pair}, _) $ arg $ _)) =>
-                  not (COGENT_type_contains_TFun arg)
-                | _ => raise TERM ("Expected a COGENT type signature", [funtype])
+                  not (Cogent_type_contains_TFun arg)
+                | _ => raise TERM ("Expected a Cogent type signature", [funtype])
 
 (* scrape all direct function calls *)
 val get_simple_function_calls = let
@@ -916,31 +916,31 @@ val get_simple_function_calls = let
 
 (*
  * Infer a call graph. We assume that the program only has:
- *  - first-order COGENT functions,
+ *  - first-order Cogent functions,
  *  - first-order abstract functions, and
- *  - second-order abstract functions with first-order COGENT function arguments.
+ *  - second-order abstract functions with first-order Cogent function arguments.
  *)
-datatype FunType = AbsFun | COGENTFun;
+datatype FunType = AbsFun | CogentFun;
 
-(* Warning: COGENTCallTree inlines a full subtree at each call site.
+(* Warning: CogentCallTree inlines a full subtree at each call site.
  * If this doesn't scale, we will need more indirection. *)
-datatype 'a COGENTCallOrder = FirstOrderCall of 'a COGENTCallTree
-                          | SecondOrderCall of ('a COGENTCallTree * (term * 'a COGENTCallTree) list)
-     and 'a COGENTCallTree = COGENTCallTree of ('a * FunType * string * 'a COGENTCallOrder list);
+datatype 'a CogentCallOrder = FirstOrderCall of 'a CogentCallTree
+                          | SecondOrderCall of ('a CogentCallTree * (term * 'a CogentCallTree) list)
+     and 'a CogentCallTree = CogentCallTree of ('a * FunType * string * 'a CogentCallOrder list);
 
-fun COGENTCallTree_name    (COGENTCallTree (_, _, name, _))  = name
-fun COGENTCallTree_funtype (COGENTCallTree (_, typ, _, _))   = typ
-fun COGENTCallTree_data    (COGENTCallTree (a, _, _, _))     = a
-fun COGENTCallTree_calls   (COGENTCallTree (_, _, _, calls)) = calls
+fun CogentCallTree_name    (CogentCallTree (_, _, name, _))  = name
+fun CogentCallTree_funtype (CogentCallTree (_, typ, _, _))   = typ
+fun CogentCallTree_data    (CogentCallTree (a, _, _, _))     = a
+fun CogentCallTree_calls   (CogentCallTree (_, _, _, calls)) = calls
 
 (* We need a stack of environments \<xi> to verify with higher-order absfuns later on.
  * Each such function call increments \<xi>.
  * Get the stack height and the position of each function in the call tree.
  * Note that a function may appear in multiple environments. *)
-fun calc_call_depth tr = maximum (0 :: map calc_call_order_depth (COGENTCallTree_calls tr))
+fun calc_call_depth tr = maximum (0 :: map calc_call_order_depth (CogentCallTree_calls tr))
 and calc_call_order_depth (FirstOrderCall f) = calc_call_depth f
   | calc_call_order_depth (SecondOrderCall (f, args)) =
-       maximum (map calc_call_depth (f::map snd args)) + (if COGENTCallTree_funtype f = AbsFun then 1 else 0)
+       maximum (map calc_call_depth (f::map snd args)) + (if CogentCallTree_funtype f = AbsFun then 1 else 0)
 
 (*
  * FIXME: this only deals with one function (call tree) at a time.
@@ -948,45 +948,45 @@ and calc_call_order_depth (FirstOrderCall f) = calc_call_depth f
  * to avoid redundant \<xi>'s and subproofs.
  *)
 fun annotate_depth tr = let
-  fun annotate' d (COGENTCallTree ((), ty, name, calls)) = let
-    in COGENTCallTree (d, ty, name, map (annotate_call' d) calls) end
+  fun annotate' d (CogentCallTree ((), ty, name, calls)) = let
+    in CogentCallTree (d, ty, name, map (annotate_call' d) calls) end
   and annotate_call' d (FirstOrderCall f) = FirstOrderCall (annotate' d f)
     | annotate_call' d (SecondOrderCall (f, args)) = let
-        val d' = if COGENTCallTree_funtype f = AbsFun then d-1 else 0
+        val d' = if CogentCallTree_funtype f = AbsFun then d-1 else 0
         in SecondOrderCall (annotate' d f, map (apsnd (annotate' d')) args) end
   in annotate' (calc_call_depth tr) tr end
 
-fun make_call_tree (COGENT_functions, COGENT_abstract_functions) HO_hints ctxt = let
-  val COGENT_abstract_functions_HO =
-      filter_out (get_COGENT_funtype ctxt #> Thm.prop_of #> Utils.rhs_of_eq #> funtype_is_first_order)
-                 COGENT_abstract_functions
+fun make_call_tree (Cogent_functions, Cogent_abstract_functions) HO_hints ctxt = let
+  val Cogent_abstract_functions_HO =
+      filter_out (get_Cogent_funtype ctxt #> Thm.prop_of #> Utils.rhs_of_eq #> funtype_is_first_order)
+                 Cogent_abstract_functions
   val FO_call_graph =
-      COGENT_functions
+      Cogent_functions
       |> map (fn n => (n, Proof_Context.get_thm ctxt (n ^ "_def") |> Thm.prop_of |> Utils.rhs_of_eq
                           |> get_simple_function_calls |> distinct (op =)))
-      |> map (apsnd (filter (fn f => not (exists (fn af => f = af) COGENT_abstract_functions_HO))))
-  val absfun_decls = map (fn name => (name, COGENTCallTree ((), AbsFun, name, []))) COGENT_abstract_functions
+      |> map (apsnd (filter (fn f => not (exists (fn af => f = af) Cogent_abstract_functions_HO))))
+  val absfun_decls = map (fn name => (name, CogentCallTree ((), AbsFun, name, []))) Cogent_abstract_functions
   fun func_name (Left f) = f
     | func_name (Right f) = f
   fun add_fun (name, FO_callees) table = let
         fun subtree f = case Symtab.lookup table f of
                 SOME tr => tr
-              | (* assume that we get COGENT_functions in topological order *)
+              | (* assume that we get Cogent_functions in topological order *)
                 NONE => error ("make_call_tree: " ^ quote name ^ " calls " ^ quote f ^
                                " but we don't know anything about it (yet)")
         val FO_callees' = FO_callees
                           |> map (fn f => FirstOrderCall (subtree f))
         val HO_callees = Symtab.lookup_list HO_hints name
                          |> map (fn (f, args) => SecondOrderCall (subtree (func_name f), map (apsnd (subtree o func_name)) args))
-      in Symtab.update_new (name, COGENTCallTree ((), COGENTFun, name, FO_callees' @ HO_callees)) table end
+      in Symtab.update_new (name, CogentCallTree ((), CogentFun, name, FO_callees' @ HO_callees)) table end
   in
     fold add_fun FO_call_graph (Symtab.make absfun_decls)
   end
 
 (* Obtain the absfuns included in each \<xi>_n, up to the call tree depth. *)
-fun make_uabsfuns_defs (tr as COGENTCallTree (depth, _, _, _)) = let
-      fun collect_absfuns d (COGENTCallTree (d', ty, name, calls)) callees =
-            (if d = d' andalso ty = AbsFun then [(AbsFun, name, map COGENTCallTree_name callees)] else []) @
+fun make_uabsfuns_defs (tr as CogentCallTree (depth, _, _, _)) = let
+      fun collect_absfuns d (CogentCallTree (d', ty, name, calls)) callees =
+            (if d = d' andalso ty = AbsFun then [(AbsFun, name, map CogentCallTree_name callees)] else []) @
             maps (fn c => case c of
                   FirstOrderCall t => collect_absfuns d t []
                 | SecondOrderCall (f, args) => collect_absfuns d f (map snd args) @
@@ -1063,14 +1063,14 @@ fun generate_HO_absfun_corres (xi:term) ctxt (fname:string) (callees:(term * str
     Goal.prove ctxt ["i", "\<gamma>", "\<Gamma>", "v", "v'", "\<sigma>", "s", "m"] [] prop' (K (Skip_Proof.cheat_tac ctxt 1))
   end
 
-fun unfold_abbreviatedType_term ctxt (Const (nm, @{typ "COGENT.type"}))
+fun unfold_abbreviatedType_term ctxt (Const (nm, @{typ "Cogent.type"}))
     = if String.isPrefix "abbreviatedType" (Long_Name.base_name nm)
         then Proof_Context.get_thm ctxt (nm ^ "_def")
             |> safe_mk_meta_eq |> Thm.concl_of |> Logic.dest_equals |> snd |> SOME
         else NONE
   | unfold_abbreviatedType_term _ _ = NONE
 
-(* Generate and prove corres rules for COGENT functions. *)
+(* Generate and prove corres rules for Cogent functions. *)
 fun make_FO_fun_corres_prop xi_index ctxt fname min_measure = let
   val read = Syntax.read_term ctxt
   val Xi = read "\<Xi> :: string \<Rightarrow> poly_type"
@@ -1092,11 +1092,11 @@ fun make_FO_fun_corres_prop xi_index ctxt fname min_measure = let
   in prop |> strip_type |> map_aterms give_xi_type |> Syntax.check_term ctxt end
 
 (* Unfold types in corres rules. *)
-fun unfold_COGENT_simps ctxt =
+fun unfold_Cogent_simps ctxt =
   Proof_Context.get_thms ctxt "fst_conv" @
   Proof_Context.get_thms ctxt "snd_conv" @
   Proof_Context.get_thms ctxt "abbreviated_type_defs"
-fun unfold_COGENT_types ctxt simps fname thm =
+fun unfold_Cogent_types ctxt simps fname thm =
   Local_Defs.unfold ctxt (Proof_Context.get_thms ctxt (fname ^ "_type_def") @ simps) thm
 
 fun mapAccumL _ [] acc = ([], acc)
@@ -1107,7 +1107,7 @@ fun mapAccumL _ [] acc = ([], acc)
 type obligations = (string * FunType * string list * cterm) Symtab.table
 
 fun corres_tree_obligations trs ctxt : obligations = let
-  fun descend (COGENTCallTree ((xi_index, _), AbsFun, name, [])) tab = let
+  fun descend (CogentCallTree ((xi_index, _), AbsFun, name, [])) tab = let
       val thm_name = name ^ "_corres_" ^ string_of_int xi_index in
       if Symtab.defined tab thm_name then (thm_name, tab) else let
       (* generate a fake corres rule and for interesting reasons throw it away *)
@@ -1115,20 +1115,20 @@ fun corres_tree_obligations trs ctxt : obligations = let
                 |> forall_intr_vars
         in tracing ("  adding thm " ^ thm_name);
           (thm_name, Symtab.update (thm_name, (name, AbsFun, [], Thm.cprop_of x)) tab) end end
-    | descend (COGENTCallTree ((xi_index, min_measure), COGENTFun, name, callees)) tab = let
-      (* Calls to COGENTFuns, which we should prove. *)
+    | descend (CogentCallTree ((xi_index, min_measure), CogentFun, name, callees)) tab = let
+      (* Calls to CogentFuns, which we should prove. *)
         val thm_name = name ^ "_corres_" ^ string_of_int xi_index
       in if Symtab.defined tab thm_name then (thm_name, tab) else let
         val (callee_nms, tab) = mapAccumL (fn c => fn tab => case c of
                 FirstOrderCall f => descend f tab
-              | SecondOrderCall (f as COGENTCallTree ((fxi_index, fmin_measure), AbsFun, fname, []), args) => let
+              | SecondOrderCall (f as CogentCallTree ((fxi_index, fmin_measure), AbsFun, fname, []), args) => let
                   (* Second-order AbsFun calls are specialised to their callees. *)
-                  val nm = (space_implode "_" (fname::map (COGENTCallTree_name o snd) args)
+                  val nm = (space_implode "_" (fname::map (CogentCallTree_name o snd) args)
                       ^ "_corres_" ^ string_of_int fxi_index)
                   in if Symtab.defined tab nm then (nm, tab) else let
                     val tab = fold (snd oo descend) (map snd args) tab
                     val f_thm = generate_HO_absfun_corres (Syntax.read_term ctxt ("\<xi>_" ^ string_of_int fxi_index))
-                                                   ctxt fname (map (apsnd COGENTCallTree_name) args) fmin_measure
+                                                   ctxt fname (map (apsnd CogentCallTree_name) args) fmin_measure
                                 |> forall_intr_vars
                     in tracing ("  adding thm " ^ nm);
                        (nm, Symtab.update (nm, (fname, AbsFun, [], Thm.cprop_of f_thm)) tab) end end
@@ -1136,21 +1136,21 @@ fun corres_tree_obligations trs ctxt : obligations = let
               ) callees tab
         val prop = make_FO_fun_corres_prop xi_index ctxt name min_measure
         val _ = tracing ("  adding thm " ^ thm_name)
-        in (thm_name, Symtab.update (thm_name, (name, COGENTFun, callee_nms, Thm.cterm_of ctxt prop)) tab) end end
+        in (thm_name, Symtab.update (thm_name, (name, CogentFun, callee_nms, Thm.cterm_of ctxt prop)) tab) end end
       | descend tr' _ = raise TERM ("descend: tr': " ^ @{make_string} tr', [])
 
   val tab = fold (snd oo descend o snd) (Symtab.dest trs) Symtab.empty
   in tab end
 
 fun corres_tac_driver corres_tac typing_tree_of ctxt (tab : obligations) thm_name
-  = case Symtab.lookup tab thm_name of SOME (fname, COGENTFun, assums, prop) => let
+  = case Symtab.lookup tab thm_name of SOME (fname, CogentFun, assums, prop) => let
     val lookup_assums = map (Symtab.lookup tab #> the) assums
     val (callee_info, callee_abs_info) = lookup_assums
-        |> partition (fn v => #2 v = COGENTFun)
+        |> partition (fn v => #2 v = CogentFun)
     val (callee_names, callee_abs_names) = (callee_info, callee_abs_info) |> apply2 (map #1)
     val (callee_thm_props, callee_abs_thm_props) = (callee_info, callee_abs_info) |> apply2 (map #4)
 
-    val type_unfold_simps = unfold_COGENT_simps ctxt
+    val type_unfold_simps = unfold_Cogent_simps ctxt
 
     val fun_defs = Proof_Context.get_thms ctxt (fname ^ "_def") @
                    Proof_Context.get_thms ctxt (fname ^ "'_def'") @
@@ -1165,9 +1165,9 @@ fun corres_tac_driver corres_tac typing_tree_of ctxt (tab : obligations) thm_nam
             (Thm.term_of prop)
     (fn args => let
         val callee_thms = take (length callee_thm_props) (#prems args) ~~ callee_names
-                          |> map (fn (assum, name) => unfold_COGENT_types ctxt type_unfold_simps name assum)
+                          |> map (fn (assum, name) => unfold_Cogent_types ctxt type_unfold_simps name assum)
         val callee_abs_thms = drop (length callee_thm_props) (#prems args) ~~ callee_abs_names
-                          |> map (fn (assum, name) => simp_xi ctxt assum |> unfold_COGENT_types ctxt type_unfold_simps name)
+                          |> map (fn (assum, name) => simp_xi ctxt assum |> unfold_Cogent_types ctxt type_unfold_simps name)
         val _ = @{trace} ("Assumptions for " ^ thm_name, callee_thms, callee_abs_thms)
       in corres_tac (#context args) (peel_two (typing_tree_of fname))
           fun_defs callee_abs_thms callee_thms end)
@@ -1190,7 +1190,7 @@ fun finalise (tab : obligations) ctxt thm_tab = let
       | NONE => let
         val _ = tracing ("finalise: " ^ nm)
         val assum_nms = Symtab.lookup tab nm |> the |> #3
-        val (concr_assums, abs_assums) = partition (fn n => COGENTFun = (Symtab.lookup tab n |> the |> #2)) assum_nms
+        val (concr_assums, abs_assums) = partition (fn n => CogentFun = (Symtab.lookup tab n |> the |> #2)) assum_nms
         val assum_nms = concr_assums @ abs_assums
         val thm = Symtab.lookup thm_tab nm |> the
         val (assums, ftab) = mapAccumL inner assum_nms ftab
@@ -1213,7 +1213,7 @@ fun all_corres_goals corres_tac typing_tree_of time_limit ctxt (tab : obligation
     val thm_tab = Symtab.make res
   in thm_tab end
 
-(* Top-level driver that attempts to prove a COGENTCallTree.
+(* Top-level driver that attempts to prove a CogentCallTree.
  * For each function in the tree, it proves a corres theorem and assigns a standard name.
  * If a theorem by that name already exists, that is used instead.
  *
@@ -1223,7 +1223,7 @@ fun all_corres_goals corres_tac typing_tree_of time_limit ctxt (tab : obligation
  *
  * Known issues:
  *  - Does not handle C recursion guards.
- *  - Does not handle higher-order COGENTFuns.
+ *  - Does not handle higher-order CogentFuns.
  *  - Should be parallelised.
  *)
 fun corres_tree tr typing_tree_of corres_tac run_proofs skip_initial time_limit ctxt = let
@@ -1237,31 +1237,31 @@ fun corres_tree tr typing_tree_of corres_tac run_proofs skip_initial time_limit 
                                     val (xs', acc'') = mapAccumL f xs acc'
                                 in (x'::xs', acc'') end
 
-  val type_unfold_simps = unfold_COGENT_simps ctxt
+  val type_unfold_simps = unfold_Cogent_simps ctxt
 
   val skip_ctr = Unsynchronized.ref skip_initial
   val failed_proofs = Unsynchronized.ref []
 
-  fun descend (COGENTCallTree (xi_index, AbsFun, name, [])) ctxt = let
+  fun descend (CogentCallTree (xi_index, AbsFun, name, [])) ctxt = let
       (* Simple AbsFun calls. Higher-order calls are handled elsewhere. *)
         val (thm, ctxt) =
           cache_proof ctxt (name ^ "_corres_" ^ string_of_int xi_index) (fn () =>
             [generate_FO_absfun_corres (Syntax.read_term ctxt ("\<xi>_" ^ string_of_int xi_index)) ctxt name
-             |> unfold_COGENT_types ctxt type_unfold_simps name])
-        in (COGENTCallTree ((xi_index, thm), AbsFun, name, []), ctxt) end
-    | descend (COGENTCallTree (xi_index, COGENTFun, name, callees)) ctxt = let
-      (* Calls to COGENTFuns, which we should prove. *)
+             |> unfold_Cogent_types ctxt type_unfold_simps name])
+        in (CogentCallTree ((xi_index, thm), AbsFun, name, []), ctxt) end
+    | descend (CogentCallTree (xi_index, CogentFun, name, callees)) ctxt = let
+      (* Calls to CogentFuns, which we should prove. *)
         val (callees', ctxt) = mapAccumL (fn c => fn ctxt => case c of
                 FirstOrderCall f => descend f ctxt |> apfst FirstOrderCall
-              | SecondOrderCall (f as COGENTCallTree (fxi_index, AbsFun, fname, []), args) => let
+              | SecondOrderCall (f as CogentCallTree (fxi_index, AbsFun, fname, []), args) => let
                   (* Second-order AbsFun calls are specialised to their callees. *)
                   val (args', ctxt) = mapAccumL descend (map snd args) ctxt
                   val (f_thm, ctxt) = cache_proof ctxt
-                        (space_implode "_" (fname::map (COGENTCallTree_name o snd) args) ^ "_corres_" ^ string_of_int fxi_index)
+                        (space_implode "_" (fname::map (CogentCallTree_name o snd) args) ^ "_corres_" ^ string_of_int fxi_index)
                         (fn () => [generate_HO_absfun_corres (Syntax.read_term ctxt ("\<xi>_" ^ string_of_int fxi_index))
-                                                             ctxt fname (map (apsnd COGENTCallTree_name) args) 42
-                                   |> unfold_COGENT_types ctxt type_unfold_simps fname])
-                  in (SecondOrderCall (COGENTCallTree ((fxi_index, f_thm), AbsFun, fname, []), map fst args ~~ args'), ctxt) end)
+                                                             ctxt fname (map (apsnd CogentCallTree_name) args) 42
+                                   |> unfold_Cogent_types ctxt type_unfold_simps fname])
+                  in (SecondOrderCall (CogentCallTree ((fxi_index, f_thm), AbsFun, fname, []), map fst args ~~ args'), ctxt) end)
               callees ctxt
         val thm_name = name ^ "_corres_" ^ string_of_int xi_index
         val _ = if !skip_ctr > 0 then @{trace} ("skipping " ^ string_of_int (!skip_ctr) ^ " more") else ()
@@ -1285,8 +1285,8 @@ fun corres_tree tr typing_tree_of corres_tac run_proofs skip_initial time_limit 
             val (callee_thms, callee_abs_thms) = callees'
                   |> map (fn call => case call of FirstOrderCall f => f
                                                 | SecondOrderCall (f, _) => f)
-                  |> partition (fn tr => COGENTCallTree_funtype tr = COGENTFun)
-                  |> apply2 (map (COGENTCallTree_data #> snd))
+                  |> partition (fn tr => CogentCallTree_funtype tr = CogentFun)
+                  |> apply2 (map (CogentCallTree_data #> snd))
             val (callee_thms, callee_abs_thms) = (List.concat callee_thms, List.concat callee_abs_thms)
 
             val fun_defs = Proof_Context.get_thms ctxt (name ^ "_def") @
@@ -1298,7 +1298,7 @@ fun corres_tree tr typing_tree_of corres_tac run_proofs skip_initial time_limit 
                                 callees = callees
                                           |> map (fn call => case call of FirstOrderCall f => f
                                                                         | SecondOrderCall (f, _) => f)
-                                          |> map COGENTCallTree_name |> commas })
+                                          |> map CogentCallTree_name |> commas })
             fun fallback_thm msg = (warning ("Failed to prove " ^ thm_name ^ "; error: " ^ msg);
                                     failed_proofs := thm_name :: !failed_proofs;
                                     Goal.prove ctxt [] [] prop (K (Skip_Proof.cheat_tac ctxt 1)))
@@ -1315,42 +1315,42 @@ fun corres_tree tr typing_tree_of corres_tac run_proofs skip_initial time_limit 
                  handle TERM t => fallback_thm (@{make_string} (TERM t)))
                  handle ERROR e => fallback_thm (@{make_string} (ERROR e))) ()
                 handle TimeLimit.TimeOut => fallback_thm (@{make_string} TimeLimit.TimeOut))
-                |> unfold_COGENT_types ctxt type_unfold_simps name])
+                |> unfold_Cogent_types ctxt type_unfold_simps name])
             val _ = tracing ("Time for " ^ thm_name ^ ": " ^ Timing.message time)
           in thms end)
-        in (COGENTCallTree ((xi_index, thm), COGENTFun, name, callees'), ctxt) end
+        in (CogentCallTree ((xi_index, thm), CogentFun, name, callees'), ctxt) end
 
   val (tr', ctxt) = descend tr ctxt
   val _ = if null (!failed_proofs) then () else warning ("Failed proofs: " ^ commas_quote (!failed_proofs))
   in (tr', ctxt) end
 
 (* Convenience function for getting the expected corres thm names. *)
-fun callee_corres_thms (COGENTCallTree (_, _, _, callees)) = callees
+fun callee_corres_thms (CogentCallTree (_, _, _, callees)) = callees
       |> map (fn call => case call of
-                 FirstOrderCall f => (f, COGENTCallTree_name f ^ "_corres_" ^ string_of_int (COGENTCallTree_data f))
-               | SecondOrderCall (f, args) => (f, space_implode "_" (map COGENTCallTree_name (f :: map snd args)) ^
-                                                  "_corres_" ^ string_of_int (COGENTCallTree_data f)))
-                  |> partition (fn (tr, _) => COGENTCallTree_funtype tr = COGENTFun)
+                 FirstOrderCall f => (f, CogentCallTree_name f ^ "_corres_" ^ string_of_int (CogentCallTree_data f))
+               | SecondOrderCall (f, args) => (f, space_implode "_" (map CogentCallTree_name (f :: map snd args)) ^
+                                                  "_corres_" ^ string_of_int (CogentCallTree_data f)))
+                  |> partition (fn (tr, _) => CogentCallTree_funtype tr = CogentFun)
                   |> apply2 (map snd)
 
 (* Assign AutoCorres recursion measures.
  * Each second-order function call involves a trip to the dispatcher,
  * meaning that the measure decreases by 2 instead of 1. *)
-fun calc_call_measure tr = maximum (1 :: map calc_call_order_measure (COGENTCallTree_calls tr))
+fun calc_call_measure tr = maximum (1 :: map calc_call_order_measure (CogentCallTree_calls tr))
 and calc_call_order_measure (FirstOrderCall f) = 1 + calc_call_measure f
   | calc_call_order_measure (SecondOrderCall (f, args)) =
        1 + max (maximum (map (calc_call_measure o snd) args) + 2) (calc_call_measure f)
 
 fun annotate_measure tr = let
-  fun annotate' d (COGENTCallTree (x, ty, name, calls)) = let
-    in COGENTCallTree ((x, d), ty, name, map (annotate_call' d) calls) end
+  fun annotate' d (CogentCallTree (x, ty, name, calls)) = let
+    in CogentCallTree ((x, d), ty, name, map (annotate_call' d) calls) end
   and annotate_call' d (FirstOrderCall f) = FirstOrderCall (annotate' (d-1) f)
     | annotate_call' d (SecondOrderCall (f, args)) =
         SecondOrderCall (annotate' (d-1) f, map (apsnd (annotate' (d-3))) args)
   in annotate' (calc_call_measure tr) tr end
 
-fun map_annotations f (COGENTCallTree (a, ty, name, calls)) =
-      COGENTCallTree (f a, ty, name, calls |>
+fun map_annotations f (CogentCallTree (a, ty, name, calls)) =
+      CogentCallTree (f a, ty, name, calls |>
         map (fn c => case c of FirstOrderCall a => FirstOrderCall (map_annotations f a)
                              | SecondOrderCall (a, bs) =>
                                  SecondOrderCall (map_annotations f a, map (apsnd (map_annotations f)) bs)))

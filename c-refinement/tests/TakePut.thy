@@ -16,7 +16,7 @@
 theory TakePut
 imports 
   "../Deep_Embedding_Auto"
-  "../COGENT_Corres"
+  "../Cogent_Corres"
   "../Corres_Tac"
   "TakePut_TP"
   "../Tidy"
@@ -46,7 +46,7 @@ definition val_rel_bool_t_C_def:
 instance ..
 end
 
-(* Relation between COGENT and C data *)
+(* Relation between Cogent and C data *)
 local_setup{* local_setup_val_rel_type_rel_put_them_in_buckets "pass_simple-take-letput.c" *}
 print_theorems
 
