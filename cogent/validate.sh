@@ -175,6 +175,20 @@ check_output() {
   return $ret
 }
 
+gen_test_hdrs() {
+    mkdir -p tests/include
+    pushd tests 2>&1 > /dev/null
+
+    for fname in *.cogent;
+    do
+        dfname="${fname%.*}_dummy.h"
+        echo "Generating include/$dfname from $fname"
+        egrep "^type +([A-Z][a-zA-Z0-9_']*)( [a-z][a-zA-Z0-9_']*)* *$" $fname | sed -e "s/type \([A-Z][a-zA-Z0-9_']*\).*$/typedef void* \1;/" > include/$dfname
+    done
+
+    popd 2>&1 > /dev/null
+}
+
 pass_msg="${bldgrn}pass${txtrst}"
 goodfail_msg="${bldgrn}fail (as expected)${txtrst}"
 fail_msg="${bldred}FAIL${txtrst}"
@@ -301,6 +315,9 @@ if [[ "$TESTSPEC" == '--' ]]; then
   echo "COGENT has been successfully installed! Congrats!"
   exit
 fi
+
+# Generate the test headers
+gen_test_hdrs
 
 declare -i all_passed=0 all_total=0 all_ignored=0
 declare -i passed total
