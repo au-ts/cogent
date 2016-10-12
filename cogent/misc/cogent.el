@@ -9,7 +9,7 @@
 ;;;
 
 ;; cogent.el  --- summary
-;; A COGENT Emacs mode.
+;; A Cogent Emacs mode.
 ;;; Commentary:
 ;; This mode is currently using only the simplest highlighting techniques.
 ;; Hopefully this is sufficient for now.
@@ -43,7 +43,7 @@
    )
   '("\\.cogent$" "\\.cogent$")
   nil
-  "A mode for COGENT files"
+  "A mode for Cogent files"
   )
 
 (provide 'cogent)

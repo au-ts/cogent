@@ -779,7 +779,7 @@ lemma typing_to_kinding_env:
   "\<Xi>, K, \<Gamma> \<turnstile>* es : us \<Longrightarrow> Some t \<in> set \<Gamma>
     \<Longrightarrow> K \<turnstile>  t wellformed"
   by (induct rule: typing_typing_all.inducts,
-    auto simp add: COGENT.empty_def
+    auto simp add: Cogent.empty_def
       dest: split_bang_type_wellformed weakening_type_wellformed split_type_wellformed)
 
 lemma ttyping_type_wellformed:
@@ -840,7 +840,7 @@ lemma let_elaborate_u_tt_sem_pres:
      apply (simp add: composite_anormal_expr_def)
     apply (rule u_sem_var[where \<gamma>="x # xs" and i=0 for x xs, simplified])
    apply simp
-   apply (rule typing_var, simp_all add: weakening_def COGENT.empty_def
+   apply (rule typing_var, simp_all add: weakening_def Cogent.empty_def
              zip_same_conv_map o_def map_replicate_const list_all2_same)
    apply (frule u_tt_sem_pres_type_wellformed2)
    apply (clarsimp simp add: weakening_comp.intros)

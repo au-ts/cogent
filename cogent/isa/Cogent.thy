@@ -8,7 +8,7 @@
  * @TAG(NICTA_GPL)
  *)
 
-theory COGENT 
+theory Cogent
 imports Util
 begin
 
@@ -84,7 +84,7 @@ shows "filter (\<lambda> x. P (fst x)) (map (\<lambda>(a,b). (a, f b)) ls)
      = map (\<lambda>(a,b). (a, f b)) (filter (\<lambda> x. P (fst x)) ls)"
 by (induct_tac ls, auto)
 
-section {* Terms and Types of COGENT *}
+section {* Terms and Types of Cogent *}
 
 type_synonym name = string
 

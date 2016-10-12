@@ -8,7 +8,7 @@
  * @TAG(NICTA_GPL)
  *)
 
-theory COGENTHelper
+theory CogentHelper
 imports "TypeTrackingSemantics"
 keywords "ML_quiet" :: thy_decl % "ML"
 begin
@@ -79,7 +79,7 @@ lemma typing_all_empty'':
   "set \<Gamma> \<subseteq> {None}
     \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile>* [] : []"
   apply (rule typing_all_empty'[where n="length \<Gamma>"])
-  apply (clarsimp simp: COGENT.empty_def list_eq_iff_nth_eq)
+  apply (clarsimp simp: Cogent.empty_def list_eq_iff_nth_eq)
   apply (frule subsetD, erule nth_mem)
   apply simp
   done
@@ -171,9 +171,9 @@ lemma replicate_numeral:
 lemmas replicate_unfold = replicate_numeral replicate_Suc replicate_0 duplicate_list_def append.simps
 
 abbreviation(input)
-  "NoneT == (None :: COGENT.type option)"
+  "NoneT == (None :: Cogent.type option)"
 abbreviation(input)
-  "SomeT == (Some :: COGENT.type \<Rightarrow> _)"
+  "SomeT == (Some :: Cogent.type \<Rightarrow> _)"
 
 lemma list_update_eq_id:
   "length xs = n \<Longrightarrow> (i < n \<Longrightarrow> xs ! i = x) \<Longrightarrow> xs [i := x] = xs"
@@ -385,7 +385,7 @@ fun typing_all_vars ctxt G [] = let
     val G' = map thm_r (0 upto (length G - 1) ~~ G)
     val rest = typing_all_vars ctxt G' ixs
   in [RTac @{thm typing_all_cons}] @ steps @ [RTac @{thm split_empty},
-    RTac @{thm typing_var_weak[unfolded singleton_def COGENT.empty_def]},
+    RTac @{thm typing_var_weak[unfolded singleton_def Cogent.empty_def]},
       RTac (the_G G (nth G ix)), simp, WeakeningTac thms, simp] @ rest end
 
 fun typing (Const (@{const_name Var}, _) $ i) G _ hints = let
@@ -393,7 +393,7 @@ fun typing (Const (@{const_name Var}, _) $ i) G _ hints = let
     val thm = the_G G (nth G i)
     val thms = map_filter I G
     val ([], hints) = typing_hint hints
-  in ([RTac @{thm typing_var_weak[unfolded singleton_def COGENT.empty_def]},
+  in ([RTac @{thm typing_var_weak[unfolded singleton_def Cogent.empty_def]},
       RTac thm, simp, WeakeningTac thms, simp], hints) end
   | typing (Const (@{const_name Struct}, _) $ _ $ xs) G ctxt hints
   = (case dest_all_vars xs of SOME ixs => let
@@ -426,7 +426,7 @@ fun ttyping (Const (@{const_name Split}, _) $ x $ y) tt k ctxt hints = let
     val (y_tac, hints) = ttyping y rtt k ctxt hints
     val (k_tac, hints) = kinding hints
   in ([RTac @{thm ttyping_letb}] @ tsb_tac @ x_tac @ y_tac @ k_tac @ [simp], hints) end
-  | ttyping (Const (@{const_name COGENT.If}, _) $ c $ x $ y) tt k ctxt hints = let
+  | ttyping (Const (@{const_name Cogent.If}, _) $ c $ x $ y) tt k ctxt hints = let
     val (ltt, rtt, hints) = follow_tt tt k ctxt hints
     val (x_tt, y_tt, hints) = follow_tt rtt k ctxt hints
     val split_tac = ttsplit tt

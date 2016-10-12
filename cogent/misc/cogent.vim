@@ -9,7 +9,7 @@
 "
 
 " Vim syntax file
-" Language:		COGENT
+" Language:		Cogent
 " Maintainer:		Zilin Chen <Zilin.Chen@data61.csiro.au>
 " Last Change:		02 Sep 2014
 " Original Author:	Zilin Chen <Zilin.Chen@data61.csiro.au>

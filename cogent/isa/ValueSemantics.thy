@@ -9,7 +9,7 @@
  *)
 
 theory ValueSemantics
-imports COGENT
+imports Cogent
 begin
 
 

@@ -9,7 +9,7 @@
 #
 
 
-#+TITLE: COGENT Surface Syntax
+#+TITLE: Cogent Surface Syntax
 
 * Types 
 Types no longer have attached sigils (~.~, ~#~, or ~*~). (More details shortly on unboxed types)
@@ -166,7 +166,7 @@ type Buffer
 type Array a
 #+END_SRC
 
-Note that this is unlike COGENT1, where such types are just left unspoken.
+Note that this is unlike Cogent1, where such types are just left unspoken.
 
 * Constants and toplevel definitions
 
@@ -183,7 +183,7 @@ To make the syntax easier to parse, a function or constant's body must be indent
 
 * Effects
 
-Most effects are currently (successfully) modelled via linear types. Not so for allocation, because it is so ubiquitous. However, now we have to eliminate exactly allocation from the things you're allowed to do in a constant's RHS. Moreover, allocation is also the source of nondeterminism in COGENT1, and a cumbersome property that really screws us up.
+Most effects are currently (successfully) modelled via linear types. Not so for allocation, because it is so ubiquitous. However, now we have to eliminate exactly allocation from the things you're allowed to do in a constant's RHS. Moreover, allocation is also the source of nondeterminism in Cogent1, and a cumbersome property that really screws us up.
 
 I propose modelling the heap as an explicit linear value, just as with any other state.
 
@@ -346,7 +346,7 @@ The ~{..}~ syntax, similar to its counterpart on type level, just take or put al
 
 ** Arithmetic and comparison operators
 
-Currently COGENT will use the smallest type possible for integer literals and generate upcasts (but not downcasts) automatically when used in a context where they are required.
+Currently Cogent will use the smallest type possible for integer literals and generate upcasts (but not downcasts) automatically when used in a context where they are required.
 
 
 

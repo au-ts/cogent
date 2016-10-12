@@ -63,7 +63,7 @@
   emph={[3]$ty,$id,$func,$spec},
   emphstyle={[3]\color{anticol}}
 }
-\lstdefinelanguage{COGENT}{
+\lstdefinelanguage{Cogent}{
   basicstyle=\ttfamily\small,
   morecomment=[l]{--},
   morekeywords={type, let, in, and, if, then, else},
@@ -76,8 +76,8 @@
 \newcommand{\FIXME}[1]{\textbf{\textsl{\colorbox{yellow}{FIXME:} #1}}}
 \newcommand{\fixme}[1]{\FIXME{#1}}
 
-\newcommand{\cogent}{COGENT\xspace}
-\newcommand{\COGENT}{\cogent\xspace}
+\newcommand{\cogent}{Cogent\xspace}
+\newcommand{\Cogent}{\cogent\xspace}
 
 \begin{document}
 
@@ -414,7 +414,7 @@ no \code{String}-specific operations that you can work on them.
 
 \paragraph{Abstract types} Apart from these primitive types, users can declare their own types, as building blocks, in \cogent.
 They are abstract in the language and their definitions are implemented in C directly. For example, one can do:
-\begin{lstlisting}[language=COGENT]
+\begin{lstlisting}[language=Cogent]
 type T
 \end{lstlisting}
 Now we have a type \code{T} in our program.
@@ -440,7 +440,7 @@ linear object can be freely discarded or duplicated (for the reason we explained
 from linear to read-only, obtaining \code{DS}. But obviously, we cannot simply allow these read-only copies to escape
 this temporary context, otherwise we may have no or multiple references (one read-write, and arbitrarily many read-only) outside. For
 example, consider the following expression:
-\begin{lstlisting}[language=COGENT]
+\begin{lstlisting}[language=Cogent]
 let obj_ro = let (obj_ro1, obj_ro2) = dup obj !obj
               in obj_ro1
  in foo (obj_ro, obj)
@@ -470,7 +470,7 @@ and tuples.
 \paragraph{Record types} Similar to C structs, each record consists of more than 1 field. Fields are order-sensitive.
 For example, \code{\{f1:T1, f2:T2, f3:T3\}} is an intensionally different type to \code{\{f2:T2, f1:T1, f3:T3\}}.
 Records (or sometimes to disambiguate we call them \emph{boxed} records) is a data structure allocated on the heap,
-explicitly, by abstract \COGENT functions. In pure \COGENT (without the help of abstract functions), there is no way to allocate/create 
+explicitly, by abstract \Cogent functions. In pure \Cogent (without the help of abstract functions), there is no way to allocate/create 
 a boxed record, even though you have all the fields at hand, nor a way to free one. Each boxed record comes with
 one reference (to the ``box'' itself because the ``box'' is on the heap) regardless of its fields (which
 are unnecessarily on the heap, depending on each field's type), so every 
@@ -498,7 +498,7 @@ Here, we focus on the other two operators: \code{\#} and \code{!}.
 abstract types and records. For an abstract type \code{A}, \code{\#A} 
 is the unboxed version of it. \code{\#} has to be put at its use site.
 For example, if we have code:
-\begin{lstlisting}[language=COGENT]
+\begin{lstlisting}[language=Cogent]
 type #A
 foo : A -> Bool
 bar : #A -> Bool
@@ -509,7 +509,7 @@ line 3 is an unboxed type. We can tell that type \code{\#A} is of 2-kind.
 If we apply \code{\#} to records, they become unboxed records as described earlier. 
 If the record has a synonyms, then the operator can be put either at definition site
 or use site. For example,
-\begin{lstlisting}[language=COGENT]
+\begin{lstlisting}[language=Cogent]
 type R = {f1 : A, f2 : B}
 foo : #R -> ()
 type S = #{f1 : A, f2 : B}
@@ -610,7 +610,7 @@ The patterns following each guard matches the value of the scrutinee. Pattern ma
 to be exhaustive. For more examples, please see files in directory \texttt{cogent/tests}.
 Since each \cogent function allows at most one definition binding, to pattern match argument, we can write
 a program like:
-\begin{lstlisting}[language=COGENT]
+\begin{lstlisting}[language=Cogent]
 type A
 
 bar : <A U8 | B Bool | C #A> -> ()
@@ -619,7 +619,7 @@ bar | A a -> ()
     | c   -> ()
 \end{lstlisting}
 instead of
-\begin{lstlisting}[language=COGENT]
+\begin{lstlisting}[language=Cogent]
 type A
 
 bar : <A U8 | B Bool | C #A> -> ()
@@ -634,7 +634,7 @@ Each \cogent function takes exactly one argument and returns exactly one resulta
 One way to give multiple parameters is to use unboxed records or tuples, which can be
 pattern matched directly. One reason to use unboxed records is, by name punning,
 we can achieve a C-style function. For instance,
-\begin{lstlisting}[language=COGENT]
+\begin{lstlisting}[language=Cogent]
 foo : #{f1 : A, f2 : B} -> ()
 foo #{..} = ... bar (f1, f2) ...
 -- foo #{f1 = f1_var, f2 = f2_var} = ...
@@ -646,7 +646,7 @@ an unboxed record. The downside of it, however, is that the record is passed by 
 instead of by reference.
 
 Let's take a look at another example:
-\begin{lstlisting}[language=COGENT]
+\begin{lstlisting}[language=Cogent]
 bar : (A, B, C) -> ()
 bar (a, bc) = let (b, c) = bc in ...
 -- bar (a, b, c) = ...
@@ -677,7 +677,7 @@ context in which the bang'ed linear variables are read-only. The language allows
 bang several variable in one go. There are 3 constructs in \cogent that can accommodate bangs ---
 \code{let}, \code{if} and case distinction. The scope of bang'ed variables are highlighted in the following
 (trivial) examples.
-\begin{lstlisting}[language=COGENT,escapechar=?]
+\begin{lstlisting}[language=Cogent,escapechar=?]
 type A
 
 foo : A -> A
@@ -696,9 +696,9 @@ bar' a = ?\colorbox{light-gray}{sizeA a > 4}? !a
 
 
 \subsection{Polymorphic Functions}
-\COGENT supports polymorphic functions. To define one, we need to explicit qualify the type variable
+\Cogent supports polymorphic functions. To define one, we need to explicit qualify the type variable
 in the type signature. E.g.\
-\begin{lstlisting}[language=COGENT]
+\begin{lstlisting}[language=Cogent]
 iterate: all (y, r, s, acc, obsv). #{
 	gen: Generator y r s acc obsv!,
 	cons: Consumer y r s acc obsv!,
@@ -708,7 +708,7 @@ iterate: all (y, r, s, acc, obsv). #{
 In this example, \code{y}, \code{r}, \code{s}, \code{acc} and \code{obsv} are type variables. In some cases,
 we would like to constrain the kind of some type variables, which can be done using kind constraints (\code{:<}).
 For example, 
-\begin{lstlisting}[language=COGENT]
+\begin{lstlisting}[language=Cogent]
 array_create    : all (a :< E  ). (Ex, U32) -> R (Ex, Array     a) Ex
 wordarray_create: all (a :< DSE). (Ex, U32) -> R (Ex, WordArray a) Ex
 \end{lstlisting}
@@ -719,7 +719,7 @@ has to be \code{D}iscardable, \code{S}hareable and \code{E}scapable (which is an
 
 To call a polymorphic function, since \cogent compiler currently lacks the capability of inferring poly-functions (which is
 theoretically possible), the user has to explicitly apply a function to type arguments. For instance,
-\begin{lstlisting}[language=COGENT]
+\begin{lstlisting}[language=Cogent]
 let limit = ext2_last_byte (inode, n) - u16_to_u64 (ext2_dir_rec_len (1)) !inode
 and ((ex, maybe_dirent, kaddr, _), res) = 
       iterate_do [Ext2DirEnt, (), U32, EmptyDirentsInPageAcc, DirentsInPageObsv]

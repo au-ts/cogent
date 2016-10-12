@@ -9,7 +9,7 @@
  *)
 
 (*
- * Proving refinement between COGENT shallow embeddings
+ * Proving refinement between Cogent shallow embeddings
  * with tuples and without tuples (desugared to records).
  *)
 theory ShallowTuples imports

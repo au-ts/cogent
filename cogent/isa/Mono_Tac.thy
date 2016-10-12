@@ -27,14 +27,14 @@ context value_sem begin
  *)
 ML {*
 fun gen_mono_rename
-      (COGENT_functions: string list) (* exclude these non-abstract functions, for performance *)
+      (Cogent_functions: string list) (* exclude these non-abstract functions, for performance *)
       (mapping_assocs: thm)
       (mapping_name: string)
       = let
   val assocs = snd (Logic.dest_equals (Thm.prop_of mapping_assocs))
                |> map HOLogic.dest_prod o HOLogic.dest_list
                |> filter (fn (k, _) => HOLogic.dest_prod k |> fst |> HOLogic.dest_string
-                                       |> not o member op= COGENT_functions)
+                                       |> not o member op= Cogent_functions)
   in if null assocs
      then Local_Theory.define ((Binding.name mapping_name, NoSyn),
                               ((Thm.def_binding (Binding.name mapping_name), []),
@@ -47,7 +47,7 @@ fun gen_mono_rename
 (*
  * Prove equalities of the form
  *   rename_expr rename_fn (monoexpr poly_f) = mono_f
- * for each deeply-embedded COGENT function f \<rightarrow> (poly_f, mono_f).
+ * for each deeply-embedded Cogent function f \<rightarrow> (poly_f, mono_f).
  * "callees" is assumed to be a list of such equalities for
  * the functions called by f.
  *

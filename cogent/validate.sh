@@ -182,7 +182,7 @@ gen_test_hdrs() {
     for fname in *.cogent;
     do
         dfname="${fname%.*}_dummy.h"
-        echo "Generating include/$dfname from $fname"
+        #echo "Generating include/$dfname from $fname"
         egrep "^type +([A-Z][a-zA-Z0-9_']*)( [a-z][a-zA-Z0-9_']*)* *$" $fname | sed -e "s/type \([A-Z][a-zA-Z0-9_']*\).*$/typedef void* \1;/" > include/$dfname
     done
 
