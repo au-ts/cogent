@@ -67,7 +67,7 @@ type FsInode = {
     dtime               : U32
 }
 
-malloc_FsState: (ExState) -> RR (ExState) (FsState take (..)) ()
+malloc_FsState: ExState -> RR ExState (FsState take (..)) ()
 free_FsState: (ExState, FsState take (..)) -> ExState
 
 --malloc_Ext2DirEnt: (ExState) -> Result (ExState, Ext2DirEnt take (..)) (ExState)
