@@ -166,9 +166,9 @@ allocate_the_indirects #{ acc = (ex, indirects), obsv, idx } =
 
 fs_mount: (#{ex: ExState, options: (Array (WordArray U8))!}) -> RR ExState (#{state: FsState, mountinfo: #VfsMountInfo}) U32
 fs_mount(#{ex = ex, options}) = 
-    let (ex, res) = malloc_FsState (ex)
+    let (ex, res) = malloc_FsState ex
     in res
-    | Success (state_t) ->
+    | Success state_t ->
         let (ex, res) = osbuffer_create ex
         in res
         | Success buf_super ->
@@ -181,7 +181,7 @@ fs_mount(#{ex = ex, options}) =
             and _ = _cogent_log (dbg_EXT2_MOUNT, "\n")
 
             and state_t = state_t { superblock_num = sb_num }
-            and ((ex, buf_super), res) = osbuffer_read_block (#{ex, buf = buf_super, blk = sb_num})
+            and ((ex, buf_super), res) = osbuffer_read_block #{ex, buf = buf_super, blk = sb_num}
             in res
             | Success () -> 
                 -- get the superblock from it
@@ -364,7 +364,10 @@ free_option_indirects (ex, maybe_indirects) =
 fs_unmount: #{ex: ExState, state: FsState} -> ExState
 fs_unmount #{ex, state} = 
     let state_t { super, group_desc_array, super_buf, prealloc_offsets, prealloc_indirects, prealloc_chain, prealloc_blockptrs } = state
-    and ex = free_Ext2Superblock (ex, super)
+    -- the line below is terrible. it doesn't benefit from the new subtyping at all! / zilinc
+    and super_t {inode_count, block_count, free_block_count, free_inode_count, first_data_block, 
+                 block_size_lg2, blocks_per_group, fragments_per_group, inodes_per_group, magic} = super
+    and ex = free_Ext2Superblock (ex, super_t)
     and ex = array_free [OSBuffer] #{arr = group_desc_array, f = osbuffer_destroy, ex}
     and ex = osbuffer_destroy (ex, super_buf)
     and ex = free_FsState (ex, state_t)
