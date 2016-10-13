@@ -8,8 +8,8 @@
 -- @TAG(NICTA_GPL)
 --
 
-include "../libgum/array.cogent"
-include "../libgum/test.cogent"
+include <gum/array.cogent>
+include <gum/test.cogent>
 
 const_arraySize: U32
 const_arraySize = 4
@@ -34,7 +34,7 @@ set_array_item (r { acc = (ex, val), .. }) =
 	| _ -> #{oelem = val, acc = (ex, None ())}
 
 free_array_item: FreeF CoolType
-free_array_item (ex, elem) = 
+free_array_item (ex, elem) =
 	let elem_t { .. } = elem
 	and _ = _cogent_debug ("freeing some element\n")
 	in free_CoolType (ex, elem_t)

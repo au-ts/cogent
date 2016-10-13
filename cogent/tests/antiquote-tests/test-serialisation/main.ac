@@ -9,13 +9,13 @@
  */
 
 $esc:(#include <adt.h>)
-#include <dummy.h>
+#include "../common/dummy.h"
 #include <generated.c>
 
 $esc:(#include <adt_platform.c>)
 #include <libgum/wordarray-plat.ac>
-#include <libgum/test.ac>
-#include <libgum/wordarray.ac>
+#include "../common/test.ac"
+#include <wordarray.ac>
 #include <libgum/alloc-plat.ac>
 #include <libgum/os-plat.ac>
 

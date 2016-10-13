@@ -9,14 +9,14 @@
  */
 
 $esc:(#include <adt.h>)
-#include <dummy.h>
+#include "../common/dummy.h"
 #include <generated.c>
 $esc:(#include <adt_platform.c>)
 #include <cool_type.ac>
 #include <libgum/array-plat.ac>
 #include <libgum/os-plat.ac>
-#include <libgum/test.ac>
-#include <libgum/array.ac>
+#include "../common/test.ac"
+#include <array.ac>
 
 
 int main(void) {

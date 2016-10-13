@@ -27,15 +27,15 @@ static inline VfsInode* EXT2_I(struct inode *inode)
     return container_of(abstract, VfsInode, vfs);
 }
 
-#include <libgum/anti/common.ac>
-#include <libgum/anti/iterator.ac>
-#include <libgum/anti/wordarray.ac>
-#include <libgum/anti/array.ac>
-#include <libgum/anti/uarray.ac>
-#include <libgum/anti/dls.ac>
-#include <libgum/anti/os.ac>
-#include <libgum/anti/ospage.ac>
-#include <libgum/anti/osbuffer.ac>
+#include <gum/anti/common.ac>
+#include <gum/anti/iterator.ac>
+#include <gum/anti/wordarray.ac>
+#include <gum/anti/array.ac>
+#include <gum/anti/uarray.ac>
+#include <gum/anti/dls.ac>
+#include <gum/anti/os.ac>
+#include <gum/anti/ospage.ac>
+#include <gum/anti/osbuffer.ac>
 #include <plat/linux/alloc.ac>
 #include <plat/linux/vfs.ac>
 #include <plat/linux/inode.ac>

@@ -9,19 +9,19 @@
 --
 
 -- import libgum
-include "../libgum/common.cogent"
-include "../libgum/log.cogent"
-include "../libgum/array.cogent"
-include "../libgum/uarray.cogent" -- turns out, impl details ARE important
-include "../libgum/wordarray.cogent"
-include "../libgum/errno.cogent"
-include "../libgum/iterator.cogent"
-include "../libgum/vfs.cogent"
-include "../libgum/vfs2.cogent" -- mystery COGENT bug
-include "../libgum/dls.cogent"
+include <gum/common.cogent>
+include <gum/log.cogent>
+include <gum/array.cogent>
+include <gum/uarray.cogent> -- turns out, impl details ARE important
+include <gum/wordarray.cogent>
+include <gum/errno.cogent>
+include <gum/iterator.cogent>
+include <gum/vfs.cogent>
+include <gum/vfs2.cogent> -- mystery COGENT bug
+include <gum/dls.cogent>
 
-include "../libgum/osbuffer.cogent"
-include "../libgum/ospage.cogent"
+include <gum/osbuffer.cogent>
+include <gum/ospage.cogent>
 
 -- import ext2 modules
 include "ext2.cogent"

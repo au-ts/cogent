@@ -15,7 +15,7 @@ OUTPUT=generated # $(SRC:.cogent=-gen)
 COUTPUT=$(addsuffix .c, $(OUTPUT))
 HOUTPUT=$(addsuffix .h, $(OUTPUT))
 
-LIBGUM=../libgum
+STDGUM=$(shell cogent --stdgum-dir)
 PLATLIBGUM=../plat/console/libgum
 
 AHFILES=
@@ -28,7 +28,7 @@ ABSDIR=./abstract
 
 OBJ=$(ACFILES:.ac=_pp_inferred.o)
 
-CFLAGS=-I. -I.. -I../plat/console
+CFLAGS=-I. -I../plat/console -I$(STDGUM) -I$(STDGUM)/gum/anti
 
 .PHONY: default cogent clean gen-anti test
 .SECONDARY:

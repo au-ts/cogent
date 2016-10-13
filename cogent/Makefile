@@ -88,7 +88,7 @@ dev: configure
 
 
 tests/include/%_dummy.h: tests/%.cogent
-	$(Q) egrep "^type +([A-Z][a-zA-Z0-9_']*)( [a-z][a-zA-Z0-9_']*)* *$$" $^ | sed -e "s/type \([A-Z][a-zA-Z0-9_']*\).*$$/typedef void* \1;/" > $@
+	$(Q) egrep "^type +([A-Z][a-zA-Z0-9_']*)( [a-z][a-zA-Z0-9_']*)* *(--.*)?$$" $^ | sed -e "s/type \([A-Z][a-zA-Z0-9_']*\).*$$/typedef void* \1;/" > $@
 
 .gen-types: test-setup $(DUMMY_HEADER_FILES)
 	$(E) "Generated C headers."

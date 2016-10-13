@@ -9,8 +9,8 @@
 --
 
 -- removed debug function calls for c-refinement test
-include "../libgum/wordarray.cogent"
-include "../libgum/test.cogent"
+include <gum/wordarray.cogent>
+include <gum/test.cogent>
 
 const_arraySize: U32
 const_arraySize = 4

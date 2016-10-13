@@ -8,7 +8,7 @@
 -- @TAG(NICTA_GPL)
 --
 
-include "../libgum/iterator.cogent"
+include <gum/iterator.cogent>
 
 seq32_generator: (#{acc: (U32, U32), obsv: U32!}) -> GeneratorResult U32 () () (U32, U32)
 seq32_generator (#{acc = (cur_iter, acc), obsv = max_iter}) = 

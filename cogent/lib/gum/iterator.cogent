@@ -8,7 +8,7 @@
 -- @TAG(NICTA_GPL)
 --
 
-include "../libgum/common.cogent"
+include "common.cogent"
 
 type GeneratorResult y r s acc = (acc, <Return r | Yield y | Stop s>)
 type Generator y r s acc obsv = #{acc: acc, obsv: obsv!} -> GeneratorResult y r s acc
