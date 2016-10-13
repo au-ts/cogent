@@ -197,7 +197,7 @@ if [[ -z "$GHC" ]]; then GHC=ghc; fi
 if [[ -z "$HC_PKG" ]]; then HC_PKG=ghc-pkg; fi
 if [[ -z "$DIST" ]]; then DIST=dist; fi
 if [[ -z "$PACKAGE_DB" ]]; then
-  PACKAGE_DB="${CABAL_SANDBOX}/`arch`-`uname | tr [A-Z] [a-z]`-ghc-`ghc --version | sed -e 's/^.*version //'`-packages.conf.d"
+  PACKAGE_DB="${CABAL_SANDBOX}/`arch`-`uname | tr [A-Z] [a-z]`-ghc-`${GHC} --version | sed -e 's/^.*version //'`-packages.conf.d"
 fi
 
 # Generate the test headers
