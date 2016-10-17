@@ -164,8 +164,8 @@ allocate_the_indirects #{ acc = (ex, indirects), obsv, idx } =
         ((ex, indirects), Break ())
 
 
-fs_mount: (#{ex: ExState, options: (Array (WordArray U8))!}) -> RR ExState (#{state: FsState, mountinfo: #VfsMountInfo}) U32
-fs_mount(#{ex = ex, options}) = 
+fs_mount: #{ex: ExState, options: (Array (WordArray U8))!} -> RR ExState #{state: FsState, mountinfo: #VfsMountInfo} U32
+fs_mount #{ex, options} = 
     let (ex, res) = malloc_FsState ex
     in res
     | Success state_t ->
@@ -237,32 +237,32 @@ fs_mount(#{ex = ex, options}) =
                                                 | Iterate () =>
                                                     -- put everything in our state
                                                     let state = state_t {
-                                                        super,
-                                                        group_count,
-                                                        group_desc_array,
-                                                        inode_tables_per_group,
-                                                        super_buf = buf_super,
-                                                        flags,
-                                                        cur_overhead = 0,
+                                                          super,
+                                                          group_count,
+                                                          group_desc_array,
+                                                          inode_tables_per_group,
+                                                          super_buf = buf_super,
+                                                          flags,
+                                                          cur_overhead = 0,
 
-                                                        prealloc_offsets = Some prealloc_offsets,
-                                                        prealloc_indirects = Some prealloc_indirects,
-                                                        prealloc_chain = Some prealloc_chain,
-                                                        prealloc_blockptrs = Some prealloc_blockptrs
-                                                    }
+                                                          prealloc_offsets = Some prealloc_offsets,
+                                                          prealloc_indirects = Some prealloc_indirects,
+                                                          prealloc_chain = Some prealloc_chain,
+                                                          prealloc_blockptrs = Some prealloc_blockptrs
+                                                        }
 
                                                     -- build mountinfo for vfs
                                                     and mountinfo = #{
-                                                        s_magic = u16_to_u64 const_ext2Magic,
-                                                        s_flags = u8_to_u32 0,
-                                                        s_max_links = const_ext2LinkMax,
-                                                        s_maxbytes = ext2_max_size (u32_to_u64 const_blockSizeBits),
-                                                        s_blocksize = const_blockSize,
-                                                        s_blocksize_bits = const_blockSizeBits
-                                                    }
+                                                          s_magic = u16_to_u64 const_ext2Magic,
+                                                          s_flags = u8_to_u32 0,
+                                                          s_max_links = const_ext2LinkMax,
+                                                          s_maxbytes = ext2_max_size (u32_to_u64 const_blockSizeBits),
+                                                          s_blocksize = const_blockSize,
+                                                          s_blocksize_bits = const_blockSizeBits
+                                                        }
 
                                                     -- and report we mounted!
-                                                    in (ex, Success (#{state, mountinfo}))
+                                                    in (ex, Success #{state, mountinfo})
                                                 | Break () ->
                                                     -- failed to alloc
                                                     let ex = free_Chain (ex, prealloc_chain)
