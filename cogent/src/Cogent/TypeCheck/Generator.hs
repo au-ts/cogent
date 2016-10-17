@@ -388,7 +388,7 @@ withBindings (Binding pat tau e bs : xs) a = do
   context %= C.dropScope
 
   let c = ct <> c1 <> c' <> cp
-      b' = Binding pat' (Just alpha) e' bs
+      b' = Binding pat' (fmap (const alpha) tau) e' bs
   return (c, b':xs', r)
 
 parallel' :: [(ErrorContext, CG (Constraint, a))] -> CG (Constraint, [(Constraint, a)])
