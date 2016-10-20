@@ -230,9 +230,13 @@ cg' (TypeApp f as i) t = do
       in do
         (ts,c') <- match vs as'
 
-        let c = c' <> substType ts tau :< t
+        let c = substType ts tau :< t
             e = TypeApp f (map snd ts) i
-        return (c, e)
+        traceTC "gen" (text "cg for typeapp:" <+> prettyE e
+                 L.<$> text "of type" <+> pretty t <+> semi
+                 L.<$> text "type signature is" <+> pretty (PT vs tau) <+> semi
+                 L.<$> text "generate constraint" <+> pretty c)
+        return (c' <> c, e)
 
     Nothing -> do
       let e = TypeApp f as' i
