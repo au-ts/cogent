@@ -37,7 +37,7 @@ import           Data.Maybe
 import           Data.Monoid
 import qualified Data.Set as S
 import qualified Text.PrettyPrint.ANSI.Leijen as P
-import           Text.PrettyPrint.ANSI.Leijen (pretty)
+import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
 
 -- import Debug.Trace
 
@@ -153,104 +153,109 @@ isVarCon _ = False
 -- Explodes a rigid/rigid constraint into subgoals necessary
 -- for that to be true. E.g, (a,b) :< (c,d) becomes a :< c :& b :< d.
 -- Assumes that the input is simped (i.e conjunction and context free, with types in whnf)
-rule' :: Constraint -> Maybe Constraint
-rule' c = (:@ SolvingConstraint c) <$> rule c
+rule' :: Constraint -> IO (Maybe Constraint)
+rule' c = rule c >>= \c' -> return ((:@ SolvingConstraint c) <$> c')
 
-rule :: Constraint -> Maybe Constraint
-rule (Exhaustive t ps) | any isIrrefutable ps = Just Sat
+rule :: Constraint -> IO (Maybe Constraint)
+rule (Exhaustive t ps) | any isIrrefutable ps = return $ Just Sat
 rule (Exhaustive (T (TVariant n)) ps)
   | s1 <- S.fromList (mapMaybe patternTag ps)
   , s2 <- S.fromList (map fst $ filter (not . snd . snd) $ M.toList n)
-  = if s1 == s2
-    then Just Sat
-    else Just $ Unsat (PatternsNotExhaustive (T (TVariant n)) (S.toList (s2 S.\\ s1)))
+  = return $ if s1 == s2
+               then Just Sat
+               else Just $ Unsat (PatternsNotExhaustive (T (TVariant n)) (S.toList (s2 S.\\ s1)))
 
 rule (Exhaustive (T (TCon "Bool" [] Unboxed)) [PBoolLit t, PBoolLit f])
-   = if not (t && f) && (t || f) then Just Sat
-     else Just $ Unsat $ PatternsNotExhaustive (T (TCon "Bool" [] Unboxed)) []
+   = return $ if not (t && f) && (t || f) then Just Sat
+              else Just $ Unsat $ PatternsNotExhaustive (T (TCon "Bool" [] Unboxed)) []
 
 rule (Exhaustive t ps)
-  | not (notWhnf t) = Just $ Unsat $ PatternsNotExhaustive t []
+  | not (notWhnf t) = return . Just . Unsat $ PatternsNotExhaustive t []
 
-rule (x :@ c) = (:@ c) <$> rule x
-rule (x :& y) = (:&) <$> x' <*> y'
-             <|> (x :&) <$> y'
-             <|> (:& y) <$> x'
-  where y' = rule y
-        x' = rule x
+rule (x :@ c) = return . ((:@ c) <$>) =<< rule x
+rule (x :& y) = do
+  x' <- rule x
+  y' <- rule y
+  return ((:&) <$> x' <*> y'
+      <|> (x :&) <$> y'
+      <|> (:& y) <$> x')
 
-rule Unsat {} = Nothing
-rule Sat   {} = Nothing
+rule Unsat {} = return Nothing
+rule Sat   {} = return Nothing
 
-rule (Share  (T TVar {}) _) = Nothing
-rule (Drop   (T TVar {}) _) = Nothing
-rule (Escape (T TVar {}) _) = Nothing
+rule (Share  (T TVar {}) _) = return Nothing
+rule (Drop   (T TVar {}) _) = return Nothing
+rule (Escape (T TVar {}) _) = return Nothing
 
-rule (Share  (T (TTuple xs)) m) = Just $ mconcat $ map (flip Share m) xs
-rule (Escape (T (TTuple xs)) m) = Just $ mconcat $ map (flip Escape m) xs
-rule (Drop   (T (TTuple xs)) m) = Just $ mconcat $ map (flip Drop m) xs
+rule (Share  (T (TTuple xs)) m) = return . Just . mconcat $ map (flip Share m) xs
+rule (Escape (T (TTuple xs)) m) = return . Just . mconcat $ map (flip Escape m) xs
+rule (Drop   (T (TTuple xs)) m) = return . Just . mconcat $ map (flip Drop m) xs
 
-rule (Share  (T TUnit) m) = Just Sat
-rule (Escape (T TUnit) m) = Just Sat
-rule (Drop   (T TUnit) m) = Just Sat
+rule (Share  (T TUnit) m) = return $ Just Sat
+rule (Escape (T TUnit) m) = return $ Just Sat
+rule (Drop   (T TUnit) m) = return $ Just Sat
 
-rule (Share  (T TFun {}) m) = Just Sat
-rule (Escape (T TFun {}) m) = Just Sat
-rule (Drop   (T TFun {}) m) = Just Sat
+rule (Share  (T TFun {}) m) = return $ Just Sat
+rule (Escape (T TFun {}) m) = return $ Just Sat
+rule (Drop   (T TFun {}) m) = return $ Just Sat
 
-rule (Share  (T (TVariant n)) m) = Just $ foldMap (\(ts, t) -> if t then Sat else mconcat $ map (flip Share  m) ts) n
-rule (Drop   (T (TVariant n)) m) = Just $ foldMap (\(ts, t) -> if t then Sat else mconcat $ map (flip Drop   m) ts) n
-rule (Escape (T (TVariant n)) m) = Just $ foldMap (\(ts, t) -> if t then Sat else mconcat $ map (flip Escape m) ts) n
+rule (Share  (T (TVariant n)) m) = return . Just $ foldMap (\(ts, t) -> if t then Sat else mconcat $ map (flip Share  m) ts) n
+rule (Drop   (T (TVariant n)) m) = return . Just $ foldMap (\(ts, t) -> if t then Sat else mconcat $ map (flip Drop   m) ts) n
+rule (Escape (T (TVariant n)) m) = return . Just $ foldMap (\(ts, t) -> if t then Sat else mconcat $ map (flip Escape m) ts) n
 
 rule (Share  t@(T (TRecord fs s)) m)
-  | s /= Writable = Just $ foldMap (\(x, t) -> if not t then Share x m else Sat) $ map snd fs
-  | otherwise     = Just $ Unsat $ TypeNotShareable t m
+  | s /= Writable = return . Just $ foldMap (\(x, t) -> if not t then Share x m else Sat) $ map snd fs
+  | otherwise     = return . Just $ Unsat $ TypeNotShareable t m
 rule (Drop   t@(T (TRecord fs s)) m)
-  | s /= Writable = Just $ foldMap (\(x, t) -> if not t then Drop x m else Sat) $ map snd fs
-  | otherwise     = Just $ Unsat $ TypeNotDiscardable t m
+  | s /= Writable = return . Just $ foldMap (\(x, t) -> if not t then Drop x m else Sat) $ map snd fs
+  | otherwise     = return . Just $ Unsat $ TypeNotDiscardable t m
 rule (Escape t@(T (TRecord fs s)) m)
-  | s /= ReadOnly = Just $ foldMap (\(x, t) -> if not t then Escape x m else Sat) $ map snd fs
-  | otherwise     = Just $ Unsat $ TypeNotEscapable t m
+  | s /= ReadOnly = return . Just $ foldMap (\(x, t) -> if not t then Escape x m else Sat) $ map snd fs
+  | otherwise     = return . Just $ Unsat $ TypeNotEscapable t m
 
 rule (Share  t@(T (TCon n ts s)) m)
-  | s /= Writable = Just Sat
-  | otherwise     = Just $ Unsat $ TypeNotShareable t m
+  | s /= Writable = return $ Just Sat
+  | otherwise     = return $ Just $ Unsat $ TypeNotShareable t m
 rule (Drop   t@(T (TCon n ts s)) m)
-  | s /= Writable = Just Sat
-  | otherwise     = Just $ Unsat $ TypeNotDiscardable t m
+  | s /= Writable = return $ Just Sat
+  | otherwise     = return $ Just $ Unsat $ TypeNotDiscardable t m
 rule (Escape t@(T (TCon n ts s)) m)
-  | s /= ReadOnly = Just Sat
-  | otherwise     = Just $ Unsat $ TypeNotEscapable t m
+  | s /= ReadOnly = return $ Just Sat
+  | otherwise     = return $ Just $ Unsat $ TypeNotEscapable t m
 
 rule (T (TTuple xs) :< T (TTuple ys))
-  | length xs /= length ys = Just $ Unsat (TypeMismatch (T (TTuple xs)) (T (TTuple ys)))
-  | otherwise              = Just $ mconcat (zipWith (:<) xs ys)
-rule (T (TFun a b)  :< T (TFun c d)) = Just $ (c :< a) :& (b :< d)
-rule (T TUnit       :< T TUnit)      = Just Sat
+  | length xs /= length ys = return $ Just $ Unsat (TypeMismatch (T (TTuple xs)) (T (TTuple ys)))
+  | otherwise              = return $ Just $ mconcat (zipWith (:<) xs ys)
+rule ct@(T (TFun a b)  :< T (TFun c d)) = do
+  let ct' = (c :< a) :& (b :< d)
+  traceTC "sol" (text "constraint" <+> pretty ct <+> text "is decomposed into"
+                 P.<$> pretty ct')
+  return $ Just ct' 
+rule (T TUnit       :< T TUnit)      = return $ Just Sat
 rule (T (TVar v b)  :< T (TVar u c))
-  | v == u, b == c = Just Sat
-  | otherwise      = Just $ Unsat (TypeMismatch (T (TVar v b)) (T (TVar u c)))
+  | v == u, b == c = return $ Just Sat
+  | otherwise      = return $ Just $ Unsat (TypeMismatch (T (TVar v b)) (T (TVar u c)))
 rule (T (TCon n ts s) :< T (TCon m us r))
-  | n == m, length ts == length us, s == r = Just $ mconcat (zipWith (:<) ts us ++ zipWith (:<) us ts)
-  | otherwise                              = Just $ Unsat (TypeMismatch (T (TCon n ts s)) (T (TCon m us r)))
+  | n == m, length ts == length us, s == r = return $ Just $ mconcat (zipWith (:<) ts us ++ zipWith (:<) us ts)
+  | otherwise                              = return $ Just $ Unsat (TypeMismatch (T (TCon n ts s)) (T (TCon m us r)))
 rule (T (TRecord fs s) :< T (TRecord gs r))
-  | or (zipWith ((/=) `on` fst) fs gs) = Just $ Unsat (TypeMismatch (T (TRecord fs s)) (T (TRecord gs r)))
-  | length fs /= length gs             = Just $ Unsat (TypeMismatch (T (TRecord fs s)) (T (TRecord gs r)))
-  | s /= r                             = Just $ Unsat (TypeMismatch (T (TRecord fs s)) (T (TRecord gs r)))
+  | or (zipWith ((/=) `on` fst) fs gs) = return $ Just $ Unsat (TypeMismatch (T (TRecord fs s)) (T (TRecord gs r)))
+  | length fs /= length gs             = return $ Just $ Unsat (TypeMismatch (T (TRecord fs s)) (T (TRecord gs r)))
+  | s /= r                             = return $ Just $ Unsat (TypeMismatch (T (TRecord fs s)) (T (TRecord gs r)))
   | otherwise                          = let
       each (f, (t, False)) (_, (u, True )) = (t :< u) :& Drop t ImplicitlyTaken
       each (f, (t, False)) (_, (u, False)) = t :< u
       each (f, (t, True )) (_, (u, True )) = t :< u
       each (f, (t, True )) (_, (u, False)) = Unsat (RequiredTakenField f t)
-    in Just $ mconcat (zipWith each fs gs)
+    in return $ Just $ mconcat (zipWith each fs gs)
 rule (T (TVariant m) :< T (TVariant n))
-  | M.keys m /= M.keys n = Just $ Unsat (TypeMismatch (T (TVariant m)) (T (TVariant n)))
+  | M.keys m /= M.keys n = return $ Just $ Unsat (TypeMismatch (T (TVariant m)) (T (TVariant n)))
   | otherwise = let
       each (f, (ts, False)) (_, (us, True )) = Unsat (DiscardWithoutMatch f) 
       each (f, (ts, False)) (_, (us, False)) = mconcat (zipWith (:<) ts us)
       each (f, (ts, True )) (_, (us, True )) = mconcat (zipWith (:<) ts us)
       each (f, (ts, True )) (_, (us, False)) = mconcat (zipWith (:<) ts us)
-    in Just $ mconcat (zipWith (each) (M.toList m) (M.toList n))
+    in return $ Just $ mconcat (zipWith (each) (M.toList m) (M.toList n))
 -- This rule is a bit dodgy
 -- rule (T (TTake (Just a) b) :< T (TTake (Just a') c))
 --   | x <- L.intersect a a'
@@ -260,22 +265,27 @@ rule (T (TVariant m) :< T (TVariant n))
 --       a'x = a' L.\\ x
 --      in Just $  ((if null ax then id else T . TTake (Just ax)) b)
 --              :< ((if null a'x then id else T . TTake (Just a'x)) c)
-rule (a :< b)
-  | notWhnf a || notWhnf b = Nothing -- traceShow ("FOO", a :< b) Nothing
-  | otherwise              = Just $ Unsat (TypeMismatch a b)
+rule ct@(a :< b)
+  | notWhnf a || notWhnf b = do
+      traceTC "sol" (text "constraint" <+> pretty ct <+> text "with both sides not in WHNF becomes Nothing")
+      return $ Nothing -- traceShow ("FOO", a :< b) Nothing
+  | otherwise              = return $ Just $ Unsat (TypeMismatch a b)
 
 rule (T (TCon n [] Unboxed) :<~ T (TCon m [] Unboxed))
   | Just n' <- elemIndex n primTypeCons
   , Just m' <- elemIndex m primTypeCons
   , n' <= m'
   , m /= "String"
-  = Just Sat
-rule (T (TVariant n) :<~ T (TVariant m))
+  = return $ Just Sat
+rule ct@(T (TVariant n) :<~ T (TVariant m))
   | ks <- M.keysSet n
   , ks `S.isSubsetOf` M.keysSet m
   = let each t (ts, _) (us, False)  = mconcat (zipWith (:<) ts us)
         each t (ts, _) (us, True)   = Unsat (RequiredTakenTag t)
-    in Just $ mconcat (map (\k -> each k (n M.! k) (m M.! k)) $ S.toList ks)
+    in do let cts = map (\k -> each k (n M.! k) (m M.! k)) $ S.toList ks
+          traceTC "sol" (text "constraint" <+> pretty ct <+> text "is decomposed into"
+                         P.<$> pretty cts)
+          return $ Just $ mconcat cts
 rule (T (TRecord fs _) :<~ T (TRecord gs s))
   | ks <- S.fromList (map fst fs)
   , ms <- M.fromList gs
@@ -286,15 +296,16 @@ rule (T (TRecord fs _) :<~ T (TRecord gs s))
        each f (t, False) (u, False) = t :< u
        each f (t, True ) (u, True ) = t :< u
        each f (t, True ) (u, False) = (t :< u) :& Drop t ImplicitlyTaken
-     in Just $ mconcat (map (\k -> each k (ns M.! k) (ms M.! k)) $ S.toList ks)
+     in return $ Just $ mconcat (map (\k -> each k (ns M.! k) (ms M.! k)) $ S.toList ks)
 rule (a :<~ b) = rule (a :< b)
-rule c = Nothing
+rule c = return Nothing
 
 -- Applies rules and simp as much as possible
 auto :: Constraint -> TC Constraint
 auto c = do
+  traceTC "sol" (text "auto" <+> pretty c)
   c' <- simp c
-  case rule' c' of
+  liftIO (rule' c') >>= \case
     Nothing  -> return c'
     Just c'' -> auto c''
 
@@ -310,8 +321,8 @@ simp :: Constraint -> TC Constraint
 simp (a :< b)     = (:<)   <$> whnf a <*> whnf b
 simp (a :<~ b)    = (:<~)  <$> whnf a <*> whnf b
 simp (a :& b)     = (:&)   <$> simp a <*> simp b
-simp (Share t m)  = Share  <$> whnf t <*> pure m
-simp (Drop  t m)  = Drop   <$> whnf t <*> pure m
+simp (Share  t m) = Share  <$> whnf t <*> pure m
+simp (Drop   t m) = Drop   <$> whnf t <*> pure m
 simp (Escape t m) = Escape <$> whnf t <*> pure m
 simp (a :@ c)     = (:@)   <$> simp a <*> pure c
 simp (Unsat e)    = pure (Unsat e)
@@ -514,7 +525,6 @@ noBrainers [Goal _ (T t :<  U x)] = Subst.singleton x (T t)
 noBrainers [Goal _ (T t@(TCon v [] Unboxed) :<~ U x)] | v `elem` primTypeCons = Subst.singleton x (T t)
 noBrainers _ = mempty
 
-
 applySubst :: Subst -> Solver ()
 applySubst s = substs <>= s
 
@@ -551,11 +561,11 @@ explode = assumption >=> (zoom tc . apply auto) >=> mapM exhaustives >=> (return
 --   2.1. Apply any no-brainer substitutions from the downward goals (? :< R)
 --        If we did any substituting go to 1
 --   2.2. If there are any downward goals,
---          Push type information down from the RHS to the LHS of :< constraints and go to 1
+--          push type information down from the RHS to the LHS of :< constraints and go to 1
 --   3.1. Apply any no-brainer substitutions from the upward goals (R :< ?)
 --        If we did any substituting, go to 1
 --   3.2. If there are any upward goals,
---          Pull type information up from the LHS to the RHS of :< constraints and go to 1
+--          pull type information up from the LHS to the RHS of :< constraints and go to 1
 --   4. If there are any remaining constraints, report unsolved error, otherwise return empty list.
 solve :: Constraint -> Solver [ContextualisedError]
 solve = zoom tc . crunch >=> explode >=> go
@@ -566,6 +576,8 @@ solve = zoom tc . crunch >=> explode >=> go
 
     go g | not (M.null (downs g)) = do
       let s = foldMap noBrainers (downs g)
+      traceTC "sol" (text "solve downward goals" 
+                     P.<$> text "produce subst" <+> pretty s)
       if Subst.null s then do
           g' <- explode =<< concat . F.toList <$> traverse impose (downs g)
           go (g' <> g { downs = M.empty } )
@@ -575,6 +587,8 @@ solve = zoom tc . crunch >=> explode >=> go
 
     go g | not (M.null (ups g)) = do
       let s = foldMap noBrainers (ups g)
+      traceTC "sol" (text "solve upward goals" 
+                     P.<$> text "produce subst" <+> pretty s)
       if Subst.null s then do
           g' <- explode =<< concat . F.toList <$> traverse suggest (ups g)
           go (g' <> g { ups = M.empty } )
@@ -584,6 +598,8 @@ solve = zoom tc . crunch >=> explode >=> go
 
     go g | not (M.null (fragments g)) = do
       let s = foldMap noBrainers (fragments g)
+      traceTC "sol" (text "solve fragment goals" 
+                     P.<$> text "produce subst" <+> pretty s)
       if Subst.null s then do
           g' <- explode =<< concat . F.toList <$> traverse guess (fragments g)
           go (g' <> g { ups = M.empty } )
