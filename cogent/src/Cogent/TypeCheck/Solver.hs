@@ -227,7 +227,7 @@ rule (T (TTuple xs) :< T (TTuple ys))
   | length xs /= length ys = return $ Just $ Unsat (TypeMismatch (T (TTuple xs)) (T (TTuple ys)))
   | otherwise              = return $ Just $ mconcat (zipWith (:<) xs ys)
 rule ct@(T (TFun a b)  :< T (TFun c d)) = do
-  let ct' = (a :< c) :& (d :< b)
+  let ct' = (c :< a) :& (b :< d)
   traceTC "sol" (text "constraint" <+> pretty ct <+> text "is decomposed into"
                  P.<$> pretty ct')
   return $ Just ct' 
