@@ -12,9 +12,10 @@
 module COGENT.TypeCheck.Base where
 
 import COGENT.Common.Syntax
-import COGENT.Util
-import COGENT.Surface
 import COGENT.Common.Types
+import COGENT.Surface
+-- import COGENT.TypeCheck.Util
+import COGENT.Util
 
 import Control.Lens hiding (Context, (:<))
 import Control.Monad.Except
@@ -155,7 +156,7 @@ type TypeDict = [(TypeName, ([VarName], Maybe TCType))]  -- `Nothing' for abstra
 
 makeLenses ''TCState
 
-type TC = State TCState
+type TC = StateT TCState IO
 
 kindToConstraint :: Kind -> TCType -> Metadata -> Constraint
 kindToConstraint k t m = (if canEscape  k then Escape t m else Sat)

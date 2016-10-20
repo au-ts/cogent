@@ -58,6 +58,7 @@ executable cogent
     COGENT.TypeCheck.Post
     COGENT.TypeCheck.Solver
     COGENT.TypeCheck.Subst
+    COGENT.TypeCheck.Util
     COGENT.Desugar
     COGENT.DList
     COGENT.GetOpt
