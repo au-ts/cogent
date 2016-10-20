@@ -101,7 +101,7 @@ cg' (PrimOp o _) t = error "impossible"
 cg' (Var n) t = do
   ctx <- use context
   let e = Var n
-  traceTC "gen" (text "cg for variable" <+> prettyE e L.<$> text "of type" <+> pretty t)
+  traceTC "gen" (text "cg for variable:" <+> prettyE e L.<$> text "of type" <+> pretty t)
   case C.lookup n ctx of
     -- Variable not found, see if the user meant a function.
     Nothing ->
@@ -166,24 +166,31 @@ cg' (App e1 e2) t = do
 
   let c = c1 <> c2
       e = App e1' e2'
-  traceTC "gen" (text "cg for" <+> prettyE e L.<> colon
-           L.<$> text "contract for function:" <+> pretty c1
-           L.<$> text "contract for argument:" <+> pretty c2)
+  traceTC "gen" (text "cg for funapp:" <+> prettyE e
+           L.<$> text "constraint for function:" <+> pretty c1
+           L.<$> text "constraint for argument:" <+> pretty c2)
   return (c,e)
 
 cg' (Con k es) t = do
   (ts, c', es') <- cgMany es
 
   let e = Con k es'
-      c = c' <> T (TVariant (M.fromList [(k, (ts, False))])) :<~ t
-  return (c,e)
+      c = T (TVariant (M.fromList [(k, (ts, False))])) :<~ t
+  traceTC "gen" (text "cg for constructor:" <+> prettyE e
+           L.<$> text "of type" <+> pretty t <+> semi
+           L.<$> text "generate constraint" <+> pretty c)
+  return (c' <> c,e)
 
 cg' (Tuple es) t = do
   (ts, c', es') <- cgMany es
 
   let e = Tuple es'
-      c = c' <> T (TTuple ts) :< t
-  return (c,e)
+      c = T (TTuple ts) :< t
+  traceTC "gen" (text "cg for tuple:" <+> prettyE e
+           L.<$> text "of type" <+> pretty t <+> semi
+           L.<$> text "generate constraint" <+> pretty c <+> semi
+           L.<$> text "constraints for elements are" <+> pretty c')
+  return (c' <> c,e)
 
 cg' (UnboxedRecord fes) t = do
   let (fs, es) = unzip fes
@@ -308,10 +315,12 @@ matchA (PCon k is) t = do
       co = case overlapping ss of
              Left (v:vs) -> Unsat $ DuplicateVariableInPattern v p'
              _           -> Sat
+      c = T (TVariant (M.fromList [(k, (vs, False))])) :<~ t
   traceTC "gen" (text "match constructor pattern:" <+> pretty p'
            L.<$> text "of type" <+> pretty t <+> semi
-           L.<$> text "constraints for type args are:" <+> pretty cs) 
-  return (M.unions ss, co <> mconcat cs <> T (TVariant (M.fromList [(k, (vs, False))])) :<~ t, p')
+           L.<$> text "generate constraint" <+> pretty c <+> semi
+           L.<$> text "constraints for constructor args are:" <+> pretty cs) 
+  return (M.unions ss, co <> mconcat cs <> c, p')
 
 matchA (PIntLit i) t = do
   let minimumBitwidth | i < u8MAX      = "U8"
@@ -331,7 +340,11 @@ match :: (?loc :: SourcePos)
       => IrrefutablePattern VarName -> TCType
       -> CG (M.Map VarName (C.Row TCType), Constraint, IrrefutablePattern TCName)
 
-match (PVar x) t = return (M.fromList [(x, (t,?loc,Nothing))], Sat, PVar (x,t))
+match (PVar x) t = do
+  let p = PVar (x,t)
+  traceTC "gen" (text "match var pattern:" <+> pretty p
+           L.<$> text "of type" <+> pretty t)
+  return (M.fromList [(x, (t,?loc,Nothing))], Sat, p)
 
 match (PUnderscore) t = return (M.empty, Sat, PUnderscore)
 
@@ -344,10 +357,12 @@ match (PTuple ps) t = do
        co = case overlapping ss of
               Left (v:vs) -> Unsat $ DuplicateVariableInIrrefPattern v p'
               _           -> Sat
-   traceTC "gen" (text "match tuple pattern:" <+> pretty p' L.<+> colon
-            L.<$> text "generate constraint" <+> pretty (TTuple vs) <+> text ":<" <+> pretty t <+> semi
+       c = T (TTuple vs) :< t
+   traceTC "gen" (text "match tuple pattern:" <+> pretty p'
+            L.<$> text "of type" <+> pretty t <+> semi
+            L.<$> text "generate constraint" <+> pretty c <+> semi
             L.<$> text "constraints for elements:" <+> pretty cs)
-   return (M.unions ss, co <> mconcat cs <> T (TTuple vs) :< t, p')
+   return (M.unions ss, co <> mconcat cs <> c, p')
 
 match (PUnboxedRecord fs) t | not (any isNothing fs) = do
    let (ns, ps) = unzip (catMaybes fs)
