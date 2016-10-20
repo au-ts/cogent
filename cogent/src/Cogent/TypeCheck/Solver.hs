@@ -290,7 +290,7 @@ rule (T (TRecord fs _) :<~ T (TRecord gs s))
 rule (a :<~ b) = rule (a :< b)
 rule c = Nothing
 
--- Applys rules and simp as much as possible
+-- Applies rules and simp as much as possible
 auto :: Constraint -> TC Constraint
 auto c = do
   c' <- simp c
