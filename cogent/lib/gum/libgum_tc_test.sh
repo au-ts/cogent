@@ -13,7 +13,7 @@ code=0
 TEST_FILE=_regression.cogent
 
 cd "$(dirname "${BASH_SOURCE[0]}")"
-source ../../build-env.sh
+source ../../../build-env.sh
 
 # ensure set
 shopt -s globstar

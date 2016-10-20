@@ -14,11 +14,11 @@
 -- tags that has to be previous fields
 -- deserialise error offset and array index
 
-include "../libgum/wordarray.cogent"
-include "../libgum/array.cogent"
-include "../libgum/buffer.cogent"
-include "../libgum/crc32.cogent"
-include "../libgum/errno.cogent"
+include <gum/wordarray.cogent>
+include <gum/array.cogent>
+include <gum/buffer.cogent>
+include <gum/crc32.cogent>
+include <gum/errno.cogent>
 include "../fs/ubi.cogent"
 
 bilbyFsMagic : U32
