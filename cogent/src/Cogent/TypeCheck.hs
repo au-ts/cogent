@@ -24,6 +24,7 @@ import Cogent.TypeCheck.Generator
 import Cogent.TypeCheck.Post (postT, postE, postA)
 import Cogent.TypeCheck.Solver
 import Cogent.TypeCheck.Subst (applyE, applyAlts)
+import Cogent.TypeCheck.Util
 
 import Control.Arrow (first, left)
 import Control.Lens
@@ -33,7 +34,8 @@ import Data.List (nub, (\\))
 import qualified Data.Map as M
 import Data.Monoid ((<>))
 import Text.Parsec.Pos
---import Text.PrettyPrint.ANSI.Leijen hiding ((<>))
+import qualified Text.PrettyPrint.ANSI.Leijen as L
+import Text.PrettyPrint.ANSI.Leijen hiding ((<>), (<$>))
 
 -- import Debug.Trace
 
@@ -86,6 +88,8 @@ checkOne loc d = case d of
     ((c, e'), f) <- lift (runCG ctx [] (cg e t'))
     let c' = c <> Share t' (Constant n)
     (errs, subst) <- lift (runSolver (solve c') f [])
+    traceTC "tc" (text "subst for const definition" <+> pretty n <+> text "is"
+                  L.<$> pretty subst)
     if null errs then do
       knownConsts %= M.insert n (t', loc)
       e'' <- postE [InDefinition loc d] $ applyE subst e'
@@ -105,6 +109,8 @@ checkOne loc d = case d of
     let ?loc = loc
     ((c, alts'), flx) <- lift (runCG ctx (map fst vs) (cgAlts alts o i))
     (errs, subst) <- lift (runSolver (solve c) flx vs)
+    traceTC "tc" (text "subst for fun definition" <+> pretty f <+> text "is"
+                  L.<$> pretty subst)
     if null errs then do
       knownFuns %= M.insert f (PT vs t')
       alts'' <- postA [InDefinition loc d] $ applyAlts subst alts'

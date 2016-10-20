@@ -10,11 +10,16 @@
 
 module Cogent.TypeCheck.Subst where
 
+import Cogent.Surface
 import Cogent.TypeCheck.Base
+-- import Cogent.TypeCheck.Util
+import Cogent.Util
+
 import qualified Data.IntMap as M
-import Data.Monoid
-import Prelude hiding (lookup)
 import Data.Maybe
+import Data.Monoid hiding (Alt)
+import Prelude hiding (lookup)
+import Text.PrettyPrint.ANSI.Leijen as P hiding ((<>))
 
 newtype Subst = Subst (M.IntMap TCType)
 
@@ -72,7 +77,6 @@ applyE s (TE t x p) = TE (apply s t)
 
 singleton :: Int -> TCType -> Subst
 singleton i t = Subst (M.fromList [(i, t)])
-
 
 null :: Subst -> Bool
 null (Subst x) = M.null x

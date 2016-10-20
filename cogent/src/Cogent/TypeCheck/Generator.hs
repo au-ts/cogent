@@ -167,7 +167,7 @@ cg' (App e1 e2) t = do
   let c = c1 <> c2
       e = App e1' e2'
   traceTC "gen" (text "cg for funapp:" <+> prettyE e
-           L.<$> text "constraint for function:" <+> pretty c1
+           L.<$> text "constraint for function:" <+> pretty c1 <+> semi
            L.<$> text "constraint for argument:" <+> pretty c2)
   return (c,e)
 
@@ -198,9 +198,11 @@ cg' (UnboxedRecord fes) t = do
 
   let e = UnboxedRecord (zip fs es')
       r = T (TRecord (zip fs (map (, False) ts)) Unboxed)
-      c = c' <> r :< t
-  -- traceShowM ("Checking UnboxedRecord", pretty c)
-  return (c,e)
+      c = r :< t
+  traceTC "gen" (text "cg for unboxed record:" <+> prettyE e
+           L.<$> text "of type" <+> pretty t <+> semi
+           L.<$> text "generate constraint" <+> pretty c)
+  return (c' <> c,e)
 
 cg' (Seq e1 e2) t = do
   alpha <- fresh
@@ -414,6 +416,11 @@ withBindings (Binding pat tau e bs : xs) a = do
 
   let c = ct <> c1 <> c' <> cp
       b' = Binding pat' (fmap (const alpha) tau) e' bs
+  traceTC "gen" (text "bound expression" <+> pretty e' <+> text "with banged" <+> pretty bs
+           L.<$> text "of type" <+> pretty alpha <+> semi
+           L.<$> text "generate constraint" <+> pretty c1 <+> semi
+           L.<$> text "constraint for ascribed type:" <+> pretty ct <+> semi
+           L.<$> text "constraint for pattern match:" <+> pretty cp)
   return (c, b':xs', r)
 
 parallel' :: [(ErrorContext, CG (Constraint, a))] -> CG (Constraint, [(Constraint, a)])
