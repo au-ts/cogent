@@ -35,11 +35,11 @@ import Data.Monoid ((<>))
 import Text.Parsec.Pos
 --import Text.PrettyPrint.ANSI.Leijen hiding ((<>))
 
-import Debug.Trace
+-- import Debug.Trace
 
 tc :: [(SourcePos, TopLevel LocType VarName LocExpr)]
-      -> (Either [ContextualisedError] [TopLevel RawType TypedName TypedExpr], TCState)
-tc i = (first . left) adjustErrors $ runState (runExceptT (typecheck i)) (TCS M.empty knownTypes M.empty)
+      -> IO (Either [ContextualisedError] [TopLevel RawType TypedName TypedExpr], TCState)
+tc i = (first . left) adjustErrors <$> runStateT (runExceptT (typecheck i)) (TCS M.empty knownTypes M.empty)
   where
     knownTypes = map (, ([] , Nothing)) $ words "U8 U16 U32 U64 String Bool"
     adjustErrors = (if __cogent_freverse_tc_errors then reverse else id) . adjustContexts
@@ -101,16 +101,10 @@ checkOne loc d = case d of
     base <- use knownConsts
     t' <- validateType' (map fst vs) (stripLocT t)
     (i,o) <- asFunType t'
-    -- traceShowM ("i = ", i)
-    -- traceShowM ("o = ", o)
     let ctx = C.addScope (fmap (\(t,p) -> (t, p, Just p)) base) C.empty
     let ?loc = loc
     ((c, alts'), flx) <- lift (runCG ctx (map fst vs) (cgAlts alts o i))
     (errs, subst) <- lift (runSolver (solve c) flx vs)
-    let alts'' = applyAlts subst alts'
-    -- traceShowM ("fun@", errs)
-    -- traceShowM ("fun?", alts'  ) -- vcat (map pretty alts''))
-    -- traceShowM ("fun!", alts'' ) -- vcat (map pretty alts''))
     if null errs then do
       knownFuns %= M.insert f (PT vs t')
       alts'' <- postA [InDefinition loc d] $ applyAlts subst alts'

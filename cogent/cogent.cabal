@@ -62,6 +62,7 @@ Library
               , Cogent.TypeCheck.Post
               , Cogent.TypeCheck.Solver
               , Cogent.TypeCheck.Subst
+              , Cogent.TypeCheck.Util
               , Cogent.Desugar
               , Cogent.DocGent
               , Cogent.DList
