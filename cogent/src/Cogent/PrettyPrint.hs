@@ -68,17 +68,17 @@ variant = encloseSep (langle <> space) rangle (symbol "|" <> space) . map (<> sp
 
 -- combinators, helpers
 
-indentation, ifIndentation :: Int
+indentation :: Int
 indentation = 3
-ifIndentation = 3
 
 indent = nest indentation
-indent' = (string (replicate indentation ' ') <>) . nest indentation
+indent' = (string (replicate indentation ' ') <>) . indent
 
-tupled = encloseSep (lparen <> space) (space <> rparen) (comma <> space)
+-- FIXME: no spaces within parens where elements are on multiple lines / zilinc
+tupled = __fixme . encloseSep lparen rparen (comma <> space)
 -- non-unit tuples. put parens subject to arity
 tupled1 [x] = x
-tupled1 x = encloseSep (lparen <> space) (space <> rparen) (comma <> space) x
+tupled1 x = __fixme $ encloseSep lparen rparen (comma <> space) x
 
 spaceList = encloseSep empty empty space
 commaList = encloseSep empty empty (comma <> space)
@@ -251,10 +251,10 @@ instance (ExprType e, Pretty t, PrettyName pv, Pretty e) => Pretty (Expr t pv e)
   pretty (Seq a b)           = pretty' 100 a <> symbol ";" <$> pretty b
   pretty (Let []     e)      = __impossible "pretty (in RawExpr)"
   pretty (Let (b:[]) e)      = keyword "let" <+> indent (pretty b)
-                                             <$> keyword "in" <+> nest (ifIndentation) (pretty e)
+                                             <$> keyword "in" <+> indent (pretty e)
   pretty (Let (b:bs) e)      = keyword "let" <+> indent (pretty b)
                                              <$> vsep (map ((keyword "and" <+>) . indent . pretty) bs)
-                                             <$> keyword "in" <+> nest 3 (pretty e)
+                                             <$> keyword "in" <+> indent (pretty e)
   pretty (Put e fs)          = pretty' 1 e <+> record (map handlePutAssign fs)
 
 instance Pretty RawExpr where

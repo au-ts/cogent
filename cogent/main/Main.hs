@@ -394,6 +394,8 @@ flags =
   -- external programs
   , Option []         ["cpp"]            2 (ReqArg (set_flag_cpp) "PROG")                  "set which C-preprocessor to use (default to cpp)"
   , Option []         ["cpp-args"]       2 (ReqArg (set_flag_cppArgs . words) "ARG..")     "arguments given to C-preprocessor (default to $CPPIN -E -P -o $CPPOUT)"
+  -- debugging options
+  , Option []         ["ddump-tc"]       3 (NoArg set_flag_ddumpTc)                        "dump (massive) surface typechecking internals"
   -- behaviour
   , Option []         ["fcheck-undefined"]    2 (NoArg set_flag_fcheckUndefined)           "(default) check for undefined behaviours in C"
   , Option ['B']      ["fdisambiguate-pp"]    3 (NoArg set_flag_fdisambiguatePp)           "when pretty-printing, also display internal representation as comments"
@@ -563,7 +565,7 @@ parseArgs args = case getOpt' Permute options args of
     typecheck cmds reorged source pragmas buildinfo log = do
       let stg = STGTypeCheck
       putProgressLn "Typechecking..."
-      case TC.tc reorged of
+      TC.tc reorged >>= \case
         (Left es,_) -> printError (prettyTWE' __cogent_ftc_ctx_len) es
                     >> exitFailure
         (Right tced, tcst) ->  do
