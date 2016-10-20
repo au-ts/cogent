@@ -14,7 +14,6 @@
 {-# OPTIONS_GHC -fno-warn-orphans -fno-warn-missing-signatures #-}
 
 module Cogent.PrettyPrint where
-
 import qualified Cogent.Common.Syntax as S (associativity)
 import Cogent.Common.Syntax hiding (associativity)
 import Cogent.Common.Types
@@ -22,8 +21,11 @@ import Cogent.Compiler
 import Cogent.Reorganizer (ReorganizeError(..), SourceObject(..))
 import Cogent.Surface
 import Cogent.TypeCheck.Base
+import Cogent.TypeCheck.Subst
+
 import Control.Arrow (second)
 import Data.Function ((&))
+import Data.IntMap as I (IntMap, toList)
 import qualified Data.Map as M hiding (foldr)
 #if __GLASGOW_HASKELL__ < 709
 import Data.Monoid (mconcat)
@@ -476,6 +478,11 @@ instance Pretty ReorganizeError where
   pretty DuplicateTypeDefinition = err "duplicate type definition"
   pretty DuplicateValueDefinition = err "duplicate value definition"
 
+instance Pretty Subst where
+  pretty (Subst m) = pretty m
+
+instance Pretty a => Pretty (I.IntMap a) where
+  pretty = list . map (\(k,v) -> pretty k <+> text "|->" <+> pretty v) . I.toList
 
 -- helper functions
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~~
