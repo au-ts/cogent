@@ -751,7 +751,7 @@ parseArgs args = case getOpt' Permute options args of
         processAcFiles :: [FilePath] -> GL.GlState -> String -> IO Bool
         processAcFiles acfiles glreader log = do
           funcfiles <- forM acfiles $ \funcfile -> do
-            let outfile = replaceBaseName funcfile (takeBaseName funcfile ++ __cogent_suffix_of_pp)
+            let outfile = __cogent_dist_dir `combine` takeFileName (replaceBaseName funcfile (takeBaseName funcfile ++ __cogent_suffix_of_pp))
             putProgressLn $ "Preprocessing C files..."
             let cppargs = map (replace "$CPPIN" funcfile . replace "$CPPOUT" outfile) __cogent_cpp_args
             (cppcode, cppout, cpperr) <- readProcessWithExitCode __cogent_cpp cppargs []
