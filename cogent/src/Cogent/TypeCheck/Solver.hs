@@ -22,6 +22,7 @@ import           Cogent.Surface
 import           Cogent.TypeCheck.Base
 import qualified Cogent.TypeCheck.Subst as Subst
 import           Cogent.TypeCheck.Subst (Subst)
+import           Cogent.TypeCheck.Util
 
 import           Control.Applicative
 import           Control.Lens hiding ((:<))
@@ -44,7 +45,7 @@ data SolverState = SS { _flexes :: Int, _tc :: TCState, _substs :: Subst, _axiom
 
 makeLenses ''SolverState
 
-type Solver = State SolverState
+type Solver = StateT SolverState IO
 
 data Goal = Goal { _goalContext :: [ErrorContext], _goal :: Constraint }
 
@@ -53,8 +54,14 @@ instance Show Goal where
     where big = (small P.<$> (P.vcat $ map (flip prettyCtx True) c))
           small = pretty g
 
-
 makeLenses ''Goal
+
+runSolver :: Solver a -> Int -> [(VarName, Kind)] -> TC (a, Subst)
+runSolver act i ks = do
+  x <- get
+  (a, SS _ x' s _) <- lift $ runStateT act (SS i x mempty ks)
+  put x'
+  return (a,s)
 
 -- Flatten a constraint tree into a set of flat goals
 crunch :: Constraint -> TC [Goal]
@@ -330,7 +337,7 @@ glb (T (TVariant is)) (T (TVariant js))
     each :: TagName -> Solver (TagName, ([TCType], Taken))
     each k = let
       (i, ib) = is M.! k
-      (j, jb) = js M.! k
+      (_, jb) = js M.! k
      in do ts <- replicateM (length i) fresh
            return (k, (ts, ib || jb))
 glb (T (TTuple is)) (T (TTuple js))
@@ -370,7 +377,7 @@ lub (T (TVariant is)) (T (TVariant js))
     each :: TagName -> Solver (TagName, ([TCType], Taken))
     each k = let
       (i, ib) = is M.! k
-      (j, jb) = js M.! k
+      (_, jb) = js M.! k
      in do ts <- replicateM (length i) fresh
            return (k, (ts, ib && jb))
 lub (T (TTuple is)) (T (TTuple js))
@@ -596,9 +603,3 @@ solve = zoom tc . crunch >=> explode >=> go
     toError (Goal ctx (Unsat e)) = (ctx, e)
     toError _ = error "Impossible"
 
-runSolver :: Solver a -> Int -> [(VarName, Kind)] -> TC (a, Subst)
-runSolver act i ks = do
-  x <- get
-  let (a, SS _ x' s _) = runState act (SS i x mempty ks)
-  put x'
-  return (a,s)

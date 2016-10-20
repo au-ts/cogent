@@ -20,23 +20,24 @@ module Cogent.TypeCheck.Generator
   , cg
   ) where
 
-import           Cogent.Common.Syntax
-import           Cogent.Common.Types
+import Cogent.Common.Syntax
+import Cogent.Common.Types
 import qualified Cogent.Context as C
--- import Cogent.PrettyPrint()
-import           Cogent.Surface
-import           Cogent.TypeCheck.Base
-import           Cogent.Util hiding (Warning)
+import Cogent.PrettyPrint ()
+import Cogent.Surface
+import Cogent.TypeCheck.Base
+import Cogent.TypeCheck.Util
+import Cogent.Util hiding (Warning)
 
-import           Control.Arrow (first, second)
-import           Control.Lens hiding (Context, (:<))
-import           Control.Monad.State
-import           Control.Monad.Except (runExceptT)
+import Control.Arrow (first, second)
+import Control.Lens hiding (Context, (:<))
+import Control.Monad.State
 import qualified Data.Map as M
-import           Data.Maybe (catMaybes, isNothing, isJust)
-import           Data.Monoid ((<>))
-import           Text.Parsec.Pos
--- import Text.PrettyPrint.ANSI.Leijen (Pretty (..))
+import Data.Maybe (catMaybes, isNothing, isJust)
+import Data.Monoid ((<>))
+import Text.Parsec.Pos
+import Text.PrettyPrint.ANSI.Leijen hiding ((<>), (<$>))
+import qualified Text.PrettyPrint.ANSI.Leijen as L
 
 -- import Debug.Trace
 
@@ -44,23 +45,17 @@ data CGState = CGS { _tc :: TCState, _context :: C.Context TCType, _flexes :: In
 
 makeLenses ''CGState
 
-type CG x = State CGState x
+type CG = StateT CGState IO
 
 runCG :: C.Context TCType -> [VarName] -> CG a -> TC (a, Int)
 runCG g vs a = do
   x <- get
-  let (r, CGS x' _ f _) = runState a (CGS x g 0 vs)
+  (r, CGS x' _ f _) <- lift $ runStateT a (CGS x g 0 vs)
   put x'
   return (r,f)
 
 fresh :: CG TCType
 fresh = U <$> (flexes <<%= succ)
-
-cg :: LocExpr -> TCType -> CG (Constraint, TCExpr)
-cg x@(LocExpr l e) t = do
-  let ?loc = l
-  (c, e') <- cg' e t
-  return (c :@ InExpression x t, TE t e' l)
 
 cgMany :: (?loc :: SourcePos) => [LocExpr] -> CG ([TCType], Constraint, [TCExpr])
 cgMany es = do
@@ -70,6 +65,12 @@ cgMany es = do
         return (alpha:ts, c' <> c, e':es')
   (ts, c', es') <- foldM each ([], Sat, []) es
   return (reverse ts, c', reverse es')
+
+cg :: LocExpr -> TCType -> CG (Constraint, TCExpr)
+cg x@(LocExpr l e) t = do
+  let ?loc = l
+  (c, e') <- cg' e t
+  return (c :@ InExpression x t, TE t e' l)
 
 cg' :: (?loc :: SourcePos) => Expr LocType VarName LocExpr -> TCType -> CG (Constraint, Expr TCType TCName TCExpr)
 cg' (PrimOp o [e1, e2]) t
@@ -99,8 +100,8 @@ cg' (PrimOp o [e]) t
 cg' (PrimOp o _) t = error "impossible"
 cg' (Var n) t = do
   ctx <- use context
-
   let e = Var n
+  traceTC "gen" (text "cg for variable" <+> prettyE e L.<$> text "of type" <+> pretty t)
   case C.lookup n ctx of
     -- Variable not found, see if the user meant a function.
     Nothing ->
@@ -165,6 +166,9 @@ cg' (App e1 e2) t = do
 
   let c = c1 <> c2
       e = App e1' e2'
+  traceTC "gen" (text "cg for" <+> prettyE e L.<> colon
+           L.<$> text "contract for function:" <+> pretty c1
+           L.<$> text "contract for argument:" <+> pretty c2)
   return (c,e)
 
 cg' (Con k es) t = do
@@ -304,6 +308,9 @@ matchA (PCon k is) t = do
       co = case overlapping ss of
              Left (v:vs) -> Unsat $ DuplicateVariableInPattern v p'
              _           -> Sat
+  traceTC "gen" (text "match constructor pattern:" <+> pretty p'
+           L.<$> text "of type" <+> pretty t <+> semi
+           L.<$> text "constraints for type args are:" <+> pretty cs) 
   return (M.unions ss, co <> mconcat cs <> T (TVariant (M.fromList [(k, (vs, False))])) :<~ t, p')
 
 matchA (PIntLit i) t = do
@@ -337,6 +344,9 @@ match (PTuple ps) t = do
        co = case overlapping ss of
               Left (v:vs) -> Unsat $ DuplicateVariableInIrrefPattern v p'
               _           -> Sat
+   traceTC "gen" (text "match tuple pattern:" <+> pretty p' L.<+> colon
+            L.<$> text "generate constraint" <+> pretty (TTuple vs) <+> text ":<" <+> pretty t <+> semi
+            L.<$> text "constraints for elements:" <+> pretty cs)
    return (M.unions ss, co <> mconcat cs <> T (TTuple vs) :< t, p')
 
 match (PUnboxedRecord fs) t | not (any isNothing fs) = do
@@ -426,5 +436,6 @@ validateVariable v = do
   x <- use context
   return $ if C.contains x v then Sat else Unsat (NotInScope v)
 
-
+prettyE :: Expr TCType TCName TCExpr -> Doc
+prettyE = pretty
 

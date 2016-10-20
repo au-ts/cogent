@@ -79,6 +79,7 @@ set_flag_cpp = writeIORef __cogent_cpp_ref
 set_flag_cppArgs = writeIORef __cogent_cpp_args_ref
 set_flag_quiet = writeIORef __cogent_quiet_ref True
 set_flag_debug = writeIORef __cogent_debug_ref True
+set_flag_ddumpTc = writeIORef __cogent_ddump_tc_ref True
 set_flag_distDir = writeIORef __cogent_dist_dir_ref
 set_flag_entryFuncs = writeIORef __cogent_entry_funcs_ref . Just
 set_flag_extTypes = writeIORef __cogent_ext_types_ref . Just
@@ -217,6 +218,13 @@ __cogent_debug = unsafePerformIO $ readIORef __cogent_debug_ref
 __cogent_debug_ref :: IORef Bool
 {-# NOINLINE __cogent_debug_ref #-}
 __cogent_debug_ref = unsafePerformIO $ newIORef False
+
+__cogent_ddump_tc :: Bool
+__cogent_ddump_tc = unsafePerformIO $ readIORef __cogent_ddump_tc_ref
+
+__cogent_ddump_tc_ref :: IORef Bool
+{-# NOINLINE __cogent_ddump_tc_ref #-}
+__cogent_ddump_tc_ref = unsafePerformIO $ newIORef False
 
 __cogent_dist_dir :: FilePath
 __cogent_dist_dir = unsafePerformIO $ readIORef __cogent_dist_dir_ref
