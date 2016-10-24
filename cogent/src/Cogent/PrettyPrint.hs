@@ -45,6 +45,7 @@ import Text.PrettyPrint.ANSI.Leijen hiding (indent, tupled)
 
 position = string
 err = red . string
+errbd = bold . err
 warn = dullyellow . string
 comment = black . string
 context = black . string
@@ -466,7 +467,7 @@ instance Pretty Constraint where
   pretty (Share  t m)     = warn "Share" <+> pretty t
   pretty (Drop   t m)     = warn "Drop" <+> pretty t
   pretty (Escape t m)     = warn "Escape" <+> pretty t
-  pretty (Unsat e)        = warn "Unsat"
+  pretty (Unsat e)        = errbd "Unsat"
   pretty (Sat)            = warn "Sat"
   pretty (Exhaustive t p) = warn "Exhaustive" <+> pretty t <+> pretty p
   pretty (x :@ _)         = pretty x
