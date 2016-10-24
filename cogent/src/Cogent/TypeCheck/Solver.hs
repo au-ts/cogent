@@ -238,7 +238,7 @@ rule (T (TVar v b)  :< T (TVar u c))
 rule (T (TCon n ts s) :< T (TCon m us r))
   | n == m, length ts == length us, s == r = return $ Just $ mconcat (zipWith (:<) ts us ++ zipWith (:<) us ts)
   | otherwise                              = return $ Just $ Unsat (TypeMismatch (T (TCon n ts s)) (T (TCon m us r)))
-rule (T (TRecord fs s) :< T (TRecord gs r))
+rule ct@(T (TRecord fs s) :< T (TRecord gs r))
   | or (zipWith ((/=) `on` fst) fs gs) = return $ Just $ Unsat (TypeMismatch (T (TRecord fs s)) (T (TRecord gs r)))
   | length fs /= length gs             = return $ Just $ Unsat (TypeMismatch (T (TRecord fs s)) (T (TRecord gs r)))
   | s /= r                             = return $ Just $ Unsat (TypeMismatch (T (TRecord fs s)) (T (TRecord gs r)))
@@ -247,7 +247,13 @@ rule (T (TRecord fs s) :< T (TRecord gs r))
       each (f, (t, False)) (_, (u, False)) = t :< u
       each (f, (t, True )) (_, (u, True )) = t :< u
       each (f, (t, True )) (_, (u, False)) = Unsat (RequiredTakenField f t)
-    in return $ Just $ mconcat (zipWith each fs gs)
+    in do let cs = zipWith each fs gs
+          traceTC "sol" (text "solve each field of constraint" <+> pretty ct
+            P.<$> foldl 
+                    (\b (f,c) -> b P.<> text "field" <+> pretty (fst f) P.<> colon <+> pretty c <+> P.line)
+                    P.empty
+                    (zip fs cs))
+          return . Just $ mconcat cs
 rule (T (TVariant m) :< T (TVariant n))
   | M.keys m /= M.keys n = return $ Just $ Unsat (TypeMismatch (T (TVariant m)) (T (TVariant n)))
   | otherwise = let
@@ -267,8 +273,8 @@ rule (T (TVariant m) :< T (TVariant n))
 --              :< ((if null a'x then id else T . TTake (Just a'x)) c)
 rule ct@(a :< b)
   | notWhnf a || notWhnf b = do
-      traceTC "sol" (text "constraint" <+> pretty ct <+> text "with both sides not in WHNF becomes Nothing")
-      return $ Nothing -- traceShow ("FOO", a :< b) Nothing
+      traceTC "sol" (text "constraint" <+> pretty ct <+> text "with either side in non-WHNF is disregarded")
+      return Nothing
   | otherwise              = return $ Just $ Unsat (TypeMismatch a b)
 
 rule (T (TCon n [] Unboxed) :<~ T (TCon m [] Unboxed))
@@ -282,21 +288,31 @@ rule ct@(T (TVariant n) :<~ T (TVariant m))
   , ks `S.isSubsetOf` M.keysSet m
   = let each t (ts, _) (us, False)  = mconcat (zipWith (:<) ts us)
         each t (ts, _) (us, True)   = Unsat (RequiredTakenTag t)
-    in do let cts = map (\k -> each k (n M.! k) (m M.! k)) $ S.toList ks
-          traceTC "sol" (text "constraint" <+> pretty ct <+> text "is decomposed into"
-                         P.<$> pretty cts)
-          return $ Just $ mconcat cts
-rule (T (TRecord fs _) :<~ T (TRecord gs s))
+    in do let ks' = S.toList ks
+              cs = map (\k -> each k (n M.! k) (m M.! k)) ks'
+          traceTC "sol" (text "solve each tag of constraint" <+> pretty ct
+            P.<$> foldl 
+                    (\b (f,c) -> b P.<> text "tag" <+> pretty f P.<> colon <+> pretty c <+> P.line)
+                    P.empty
+                    (zip ks' cs))
+          return . Just $ mconcat cs
+rule ct@(T (TRecord fs _) :<~ T (TRecord gs s))
   | ks <- S.fromList (map fst fs)
   , ms <- M.fromList gs
   , ks `S.isSubsetOf` M.keysSet ms
   , ns <- M.fromList fs
-  =  let
-       each f (t, False) (u, True ) = Unsat (RequiredTakenField f t)
-       each f (t, False) (u, False) = t :< u
-       each f (t, True ) (u, True ) = t :< u
-       each f (t, True ) (u, False) = (t :< u) :& Drop t ImplicitlyTaken
-     in return $ Just $ mconcat (map (\k -> each k (ns M.! k) (ms M.! k)) $ S.toList ks)
+  = let
+      each f (t, False) (u, True ) = Unsat (RequiredTakenField f t)
+      each f (t, False) (u, False) = t :< u
+      each f (t, True ) (u, True ) = t :< u
+      each f (t, True ) (u, False) = (t :< u) :& Drop t ImplicitlyTaken
+    in do let cs = map (\k -> each k (ns M.! k) (ms M.! k)) $ S.toList ks
+          traceTC "sol" (text "solve each field of constraint" <+> pretty ct
+            P.<$> foldl 
+                    (\b (f,c) -> b P.<> text "field" <+> pretty (fst f) P.<> colon <+> pretty c <+> P.line)
+                    P.empty
+                    (zip fs cs))
+          return . Just $ mconcat cs
 rule (a :<~ b) = rule (a :< b)
 rule c = return Nothing
 
