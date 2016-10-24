@@ -154,7 +154,12 @@ isVarCon _ = False
 -- for that to be true. E.g, (a,b) :< (c,d) becomes a :< c :& b :< d.
 -- Assumes that the input is simped (i.e conjunction and context free, with types in whnf)
 rule' :: Constraint -> IO (Maybe Constraint)
-rule' c = rule c >>= \c' -> return ((:@ SolvingConstraint c) <$> c')
+rule' c = ruleT c >>= \c' -> return ((:@ SolvingConstraint c) <$> c')
+
+ruleT :: Constraint -> IO (Maybe Constraint)
+ruleT c = do
+  traceTC "sol" (text "apply rule to" <+> pretty c)
+  rule c
 
 rule :: Constraint -> IO (Maybe Constraint)
 rule (Exhaustive t ps) | any isIrrefutable ps = return $ Just Sat
@@ -172,10 +177,10 @@ rule (Exhaustive (T (TCon "Bool" [] Unboxed)) [PBoolLit t, PBoolLit f])
 rule (Exhaustive t ps)
   | not (notWhnf t) = return . Just . Unsat $ PatternsNotExhaustive t []
 
-rule (x :@ c) = return . ((:@ c) <$>) =<< rule x
+rule ct@(x :@ c) = return . ((:@ c) <$>) =<< ruleT x
 rule (x :& y) = do
-  x' <- rule x
-  y' <- rule y
+  x' <- ruleT x
+  y' <- ruleT y
   return ((:&) <$> x' <*> y'
       <|> (x :&) <$> y'
       <|> (:& y) <$> x')
@@ -250,7 +255,7 @@ rule ct@(T (TRecord fs s) :< T (TRecord gs r))
     in do let cs = zipWith each fs gs
           traceTC "sol" (text "solve each field of constraint" <+> pretty ct
             P.<$> foldl 
-                    (\b (f,c) -> b P.<> text "field" <+> pretty (fst f) P.<> colon <+> pretty c <+> P.line)
+                    (\a (f,c) -> a P.<$> text "field" <+> pretty (fst f) P.<> colon <+> pretty c)
                     P.empty
                     (zip fs cs))
           return . Just $ mconcat cs
@@ -292,7 +297,7 @@ rule ct@(T (TVariant n) :<~ T (TVariant m))
               cs = map (\k -> each k (n M.! k) (m M.! k)) ks'
           traceTC "sol" (text "solve each tag of constraint" <+> pretty ct
             P.<$> foldl 
-                    (\b (f,c) -> b P.<> text "tag" <+> pretty f P.<> colon <+> pretty c <+> P.line)
+                    (\a (f,c) -> a P.<$> text "tag" <+> pretty f P.<> colon <+> pretty c)
                     P.empty
                     (zip ks' cs))
           return . Just $ mconcat cs
@@ -309,18 +314,18 @@ rule ct@(T (TRecord fs _) :<~ T (TRecord gs s))
     in do let cs = map (\k -> each k (ns M.! k) (ms M.! k)) $ S.toList ks
           traceTC "sol" (text "solve each field of constraint" <+> pretty ct
             P.<$> foldl 
-                    (\b (f,c) -> b P.<> text "field" <+> pretty (fst f) P.<> colon <+> pretty c <+> P.line)
+                    (\a (f,c) -> a P.<$> text "field" <+> pretty (fst f) P.<> colon <+> pretty c)
                     P.empty
                     (zip fs cs))
           return . Just $ mconcat cs
-rule (a :<~ b) = rule (a :< b)
+rule (a :<~ b) = ruleT (a :< b)
 rule c = return Nothing
 
 -- Applies rules and simp as much as possible
 auto :: Constraint -> TC Constraint
 auto c = do
   traceTC "sol" (text "auto" <+> pretty c)
-  c' <- simp c
+  c' <- simpT c
   liftIO (rule' c') >>= \case
     Nothing  -> return c'
     Just c'' -> auto c''
@@ -331,16 +336,20 @@ apply tactic = fmap concat . mapM each
           c' <- tactic c
           map (goalContext %~ (ctx ++)) <$> crunch c'
 
+simpT :: Constraint -> TC Constraint
+simpT c = do
+  traceTC "sol" (text "simp" <+> pretty c)
+  simp c
 
 -- applies whnf to every type in a constraint.
 simp :: Constraint -> TC Constraint
-simp (a :< b)     = (:<)   <$> whnf a <*> whnf b
-simp (a :<~ b)    = (:<~)  <$> whnf a <*> whnf b
-simp (a :& b)     = (:&)   <$> simp a <*> simp b
-simp (Share  t m) = Share  <$> whnf t <*> pure m
-simp (Drop   t m) = Drop   <$> whnf t <*> pure m
-simp (Escape t m) = Escape <$> whnf t <*> pure m
-simp (a :@ c)     = (:@)   <$> simp a <*> pure c
+simp (a :< b)     = (:<)   <$> whnf  a <*> whnf  b
+simp (a :<~ b)    = (:<~)  <$> whnf  a <*> whnf  b
+simp (a :& b)     = (:&)   <$> simpT a <*> simpT b
+simp (Share  t m) = Share  <$> whnf  t <*> pure  m
+simp (Drop   t m) = Drop   <$> whnf  t <*> pure  m
+simp (Escape t m) = Escape <$> whnf  t <*> pure  m
+simp (a :@ c)     = (:@)   <$> simpT a <*> pure  c
 simp (Unsat e)    = pure (Unsat e)
 simp Sat          = pure Sat
 simp (Exhaustive t ps)
@@ -535,11 +544,17 @@ guess (Goal x1 a@(tau :<~ v) : Goal x2 b@(tau' :<~ _) : xs) = do
 guess xs = return xs
 
 -- Produce substitutions when it is safe to do so (the variable can't get any more general)
-noBrainers :: [Goal] -> Subst
-noBrainers [Goal _ (U x :<  T t)] = Subst.singleton x (T t)
-noBrainers [Goal _ (T t :<  U x)] = Subst.singleton x (T t)
-noBrainers [Goal _ (T t@(TCon v [] Unboxed) :<~ U x)] | v `elem` primTypeCons = Subst.singleton x (T t)
-noBrainers _ = mempty
+noBrainers :: [Goal] -> Solver Subst
+noBrainers [Goal _ c@(U x :<  T t)] = do
+  traceTC "sol" (text "apply no brainer to" <+> pretty c)
+  return $ Subst.singleton x (T t)
+noBrainers [Goal _ c@(T t :<  U x)] = do
+  traceTC "sol" (text "apply no brainer to" <+> pretty c)
+  return $ Subst.singleton x (T t)
+noBrainers [Goal _ c@(T t@(TCon v [] Unboxed) :<~ U x)] | v `elem` primTypeCons = do
+  traceTC "sol" (text "apply no brainer to" <+> pretty c)
+  return $ Subst.singleton x (T t)
+noBrainers _ = return mempty
 
 applySubst :: Subst -> Solver ()
 applySubst s = substs <>= s
@@ -590,10 +605,10 @@ solve = zoom tc . crunch >=> explode >=> go
     go g | not (null (unsats g)) = return $ map toError (unsats g)
 
     go g | not (M.null (downs g)) = do
-      let s = foldMap noBrainers (downs g)
+      s <- foldr mappend mempty <$> mapM noBrainers (downs g)  -- FIXME: should have something better, similarly the two below / zilinc
       traceTC "sol" (text "solve downward goals"
-                     P.<$> text (show (downs g))
-                     P.<$> text "produce subst" <+> pretty s)
+                     P.<$> text "produce subst:"
+                     P.<$> pretty s)
       if Subst.null s then do
           g' <- explode =<< concat . F.toList <$> traverse impose (downs g)
           go (g' <> g { downs = M.empty } )
@@ -602,10 +617,10 @@ solve = zoom tc . crunch >=> explode >=> go
           instantiate g >>= explode >>= go
 
     go g | not (M.null (ups g)) = do
-      let s = foldMap noBrainers (ups g)
+      s <- foldr mappend mempty <$> mapM noBrainers (ups g)
       traceTC "sol" (text "solve upward goals" 
-                     P.<$> text (show (ups g))
-                     P.<$> text "produce subst" <+> pretty s)
+                     P.<$> text "produce subst:"
+                     P.<$> pretty s)
       if Subst.null s then do
           g' <- explode =<< concat . F.toList <$> traverse suggest (ups g)
           go (g' <> g { ups = M.empty } )
@@ -614,11 +629,12 @@ solve = zoom tc . crunch >=> explode >=> go
           instantiate g >>= explode >>= go
 
     go g | not (M.null (fragments g)) = do
-      let s = foldMap noBrainers (fragments g)
+      s <- foldr mappend mempty <$> mapM noBrainers (fragments g)
       traceTC "sol" (text "solve fragment goals" 
-                     P.<$> text "produce subst" <+> pretty s)
+                     P.<$> text "produce subst:"
+                     P.<$> pretty s)
       if Subst.null s then do
-          traceTC "sol" (text "call guess here when dealing with constraint" P.<$> text (show g)) -- TODO: a pretty printer / zilinc
+          traceTC "sol" (text "call guess here when dealing with constraint")
           g' <- explode =<< concat . F.toList <$> traverse guess (fragments g)
           go (g' <> g { ups = M.empty } )
       else do

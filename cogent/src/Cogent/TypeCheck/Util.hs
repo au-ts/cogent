@@ -19,7 +19,7 @@ dumpMsg a b | __cogent_ddump_tc = __fixme . liftIO $ displayIO a b
             | otherwise = return ()
 
 traceTC :: MonadIO m => String -> Doc -> m ()
-traceTC s = dumpMsg stdout . renderPretty 1.0 80 . (\d -> indent (text ("[dump-tc/" ++ s ++ "]") <+> d) L.<$> line)
+traceTC s = dumpMsg stdout . renderPretty 1.0 120 . (\d -> indent (text ("[dump-tc/" ++ s ++ "]") <+> d) L.<$> line)
 
 traceTC' :: MonadIO m => String -> String -> m ()
 traceTC' s = traceTC s . text
