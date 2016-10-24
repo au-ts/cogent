@@ -483,7 +483,7 @@ instance Pretty Subst where
   pretty (Subst m) = pretty m
 
 instance Pretty a => Pretty (I.IntMap a) where
-  pretty = list . map (\(k,v) -> pretty k <+> text "|->" <+> pretty v) . I.toList
+  pretty = vcat . map (\(k,v) -> pretty k <+> text "|->" <+> pretty v) . I.toList
 
 -- helper functions
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~~
