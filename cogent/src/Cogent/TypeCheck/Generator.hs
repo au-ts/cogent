@@ -112,10 +112,14 @@ cg' (Var n) t = do
     -- Variable used for the first time, mark the use, and continue
     Just (t', p, Nothing) -> do
       context %= C.use n ?loc
+      traceTC "gen" (text "variable" <+> pretty n <+> text "used for the first time" <+> semi
+               L.<$> text "generate constraint" <+> pretty (t' :< t))
       return (t' :< t, e)
 
     -- Variable already used before, emit a Share constraint.
-    Just (t', p, Just l)  ->
+    Just (t', p, Just l)  -> do
+      traceTC "gen" (text "variable" <+> pretty n <+> text "used before" <+> semi
+               L.<$> text "generate constraint" <+> pretty (t' :< t) <+> text "and shared constraint")
       return (Share t' (Reused n p l) <> t' :< t, e)
 
 cg' (Upcast e) t = do
@@ -201,7 +205,8 @@ cg' (UnboxedRecord fes) t = do
       c = r :< t
   traceTC "gen" (text "cg for unboxed record:" <+> prettyE e
            L.<$> text "of type" <+> pretty t <+> semi
-           L.<$> text "generate constraint" <+> pretty c)
+           L.<$> text "generate constraint" <+> pretty c
+           L.<$> text "constraints for fileds are" <+> pretty c')
   return (c' <> c,e)
 
 cg' (Seq e1 e2) t = do
@@ -260,7 +265,7 @@ cg' (If e1 bs e2 e3) t = do
 cg' (Put e ls) t | not (any isNothing ls) = do
   alpha <- fresh
   let (fs, es) = unzip (catMaybes ls)
-  (c', e') <- cg e alpha -- (T (TTake (Just fs) t))
+  (c', e') <- cg e alpha  -- (T (TTake (Just fs) t))
   (ts, cs, es') <- cgMany es
 
   let c = (T (TPut (Just fs) alpha)) :< t <> c' <> cs
