@@ -551,7 +551,6 @@ instantiate (Classes ups downs frags errs rest) = do
   let al = concat (F.toList ups ++ F.toList downs ++ F.toList frags) ++ errs ++ rest
   return (al & map (goal %~ Subst.applyC s) & map (goalContext %~ map (Subst.applyCtx s)))
 
-
 -- Eliminates all known facts about type variables from the goal set.
 assumption :: [Goal] -> Solver [Goal]
 assumption gs = do
@@ -592,7 +591,8 @@ solve = zoom tc . crunch >=> explode >=> go
 
     go g | not (M.null (downs g)) = do
       let s = foldMap noBrainers (downs g)
-      traceTC "sol" (text "solve downward goals" 
+      traceTC "sol" (text "solve downward goals"
+                     P.<$> text (show (downs g))
                      P.<$> text "produce subst" <+> pretty s)
       if Subst.null s then do
           g' <- explode =<< concat . F.toList <$> traverse impose (downs g)
@@ -604,6 +604,7 @@ solve = zoom tc . crunch >=> explode >=> go
     go g | not (M.null (ups g)) = do
       let s = foldMap noBrainers (ups g)
       traceTC "sol" (text "solve upward goals" 
+                     P.<$> text (show (ups g))
                      P.<$> text "produce subst" <+> pretty s)
       if Subst.null s then do
           g' <- explode =<< concat . F.toList <$> traverse suggest (ups g)
@@ -617,6 +618,7 @@ solve = zoom tc . crunch >=> explode >=> go
       traceTC "sol" (text "solve fragment goals" 
                      P.<$> text "produce subst" <+> pretty s)
       if Subst.null s then do
+          traceTC "sol" (text "call guess here when dealing with constraint" P.<$> text (show g)) -- TODO: a pretty printer / zilinc
           g' <- explode =<< concat . F.toList <$> traverse guess (fragments g)
           go (g' <> g { ups = M.empty } )
       else do
