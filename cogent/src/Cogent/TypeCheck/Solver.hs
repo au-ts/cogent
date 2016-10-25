@@ -282,16 +282,16 @@ rule ct@(a :< b)
       return Nothing
   | otherwise              = return $ Just $ Unsat (TypeMismatch a b)
 
-rule (T (TCon n [] Unboxed) :<~ T (TCon m [] Unboxed))
+rule (Partial (T (TCon n [] Unboxed)) d (T (TCon m [] Unboxed)))
   | Just n' <- elemIndex n primTypeCons
   , Just m' <- elemIndex m primTypeCons
   , n' <= m'
   , m /= "String"
   = return $ Just Sat
-rule ct@(T (TVariant n) :<~ T (TVariant m))
+rule ct@(Partial (T (TVariant n)) d (T (TVariant m)))
   | ks <- M.keysSet n
   , ks `S.isSubsetOf` M.keysSet m
-  = let each t (ts, _) (us, False)  = mconcat (zipWith (:<) ts us)
+  = let each t (ts, _) (us, False)  = mconcat (zipWith (case d of Less -> (:<); _ -> flip (:<)) ts us)
         each t (ts, _) (us, True)   = Unsat (RequiredTakenTag t)
     in do let ks' = S.toList ks
               cs = map (\k -> each k (n M.! k) (m M.! k)) ks'
@@ -301,16 +301,17 @@ rule ct@(T (TVariant n) :<~ T (TVariant m))
                     P.empty
                     (zip ks' cs))
           return . Just $ mconcat cs
-rule ct@(T (TRecord fs _) :<~ T (TRecord gs s))
+rule ct@(Partial (T (TRecord fs _)) d (T (TRecord gs s)))
   | ks <- S.fromList (map fst fs)
   , ms <- M.fromList gs
   , ks `S.isSubsetOf` M.keysSet ms
   , ns <- M.fromList fs
   = let
+      op = case d of Less -> (:<); _ -> flip (:<)
       each f (t, False) (u, True ) = Unsat (RequiredTakenField f t)
-      each f (t, False) (u, False) = t :< u
-      each f (t, True ) (u, True ) = t :< u
-      each f (t, True ) (u, False) = (t :< u) :& Drop t ImplicitlyTaken
+      each f (t, False) (u, False) = t `op` u
+      each f (t, True ) (u, True ) = t `op` u
+      each f (t, True ) (u, False) = (t `op` u) :& Drop t ImplicitlyTaken
     in do let cs = map (\k -> each k (ns M.! k) (ms M.! k)) $ S.toList ks
           traceTC "sol" (text "solve each field of constraint" <+> pretty ct
             P.<$> foldl 
@@ -318,7 +319,7 @@ rule ct@(T (TRecord fs _) :<~ T (TRecord gs s))
                     P.empty
                     (zip fs cs))
           return . Just $ mconcat cs
-rule (a :<~ b) = ruleT (a :< b)
+rule (Partial a d b) = ruleT (case d of Less -> a :< b; _ -> b :< a)
 rule c = return Nothing
 
 -- Applies rules and simp as much as possible
@@ -343,15 +344,15 @@ simpT c = do
 
 -- applies whnf to every type in a constraint.
 simp :: Constraint -> TC Constraint
-simp (a :< b)     = (:<)   <$> whnf  a <*> whnf  b
-simp (a :<~ b)    = (:<~)  <$> whnf  a <*> whnf  b
-simp (a :& b)     = (:&)   <$> simpT a <*> simpT b
-simp (Share  t m) = Share  <$> whnf  t <*> pure  m
-simp (Drop   t m) = Drop   <$> whnf  t <*> pure  m
-simp (Escape t m) = Escape <$> whnf  t <*> pure  m
-simp (a :@ c)     = (:@)   <$> simpT a <*> pure  c
-simp (Unsat e)    = pure (Unsat e)
-simp Sat          = pure Sat
+simp (a :< b)        = (:<)    <$> whnf  a <*> whnf  b
+simp (a :& b)        = (:&)    <$> simpT a <*> simpT b
+simp (Partial a d b) = Partial <$> whnf  a <*> pure d <*> whnf  b
+simp (Share  t m)    = Share   <$> whnf  t <*> pure  m
+simp (Drop   t m)    = Drop    <$> whnf  t <*> pure  m
+simp (Escape t m)    = Escape  <$> whnf  t <*> pure  m
+simp (a :@ c)        = (:@)    <$> simpT a <*> pure  c
+simp (Unsat e)       = pure (Unsat e)
+simp Sat             = pure Sat
 simp (Exhaustive t ps)
   = Exhaustive <$> whnf t
                <*> traverse (traverse (traverse whnf)) ps -- poetry!
@@ -505,12 +506,12 @@ exhaustives x = return x
 -- Consider using auto first, or using explode instead of this function.
 classify :: Goal -> GoalClasses
 classify g = case g of
-  (Goal _ (T _ :< U x)) -> Classes (M.singleton x [g]) M.empty M.empty [] []
-  (Goal _ (U x :< T _)) -> Classes M.empty (M.singleton x [g]) M.empty [] []
-  (Goal _ (_  :<~ U x)) -> Classes M.empty M.empty (M.singleton x [g]) [] []
-  (Goal _ (Unsat _))    -> Classes M.empty M.empty M.empty [g] []
-  (Goal _ Sat)          -> mempty
-  _                     -> Classes M.empty M.empty M.empty [] [g]
+  (Goal _ (T _ :< U x))         -> Classes (M.singleton x [g]) M.empty M.empty [] []
+  (Goal _ (U x :< T _))         -> Classes M.empty (M.singleton x [g]) M.empty [] []
+  (Goal _ (Partial _  _ (U x))) -> Classes M.empty M.empty (M.singleton x [g]) [] []
+  (Goal _ (Unsat _))            -> Classes M.empty M.empty M.empty [g] []
+  (Goal _ Sat)                  -> mempty
+  _                             -> Classes M.empty M.empty M.empty [] [g]
 
 -- Push type information down from the RHS of :< to the LHS
 -- Expects a series of goals of the form U x :< tau
@@ -535,12 +536,15 @@ suggest (Goal x1 (tau :< v) : Goal x2 (tau' :< _) : xs) = do
 suggest xs = return xs
 
 guess :: [Goal] -> Solver [Goal]
-guess (Goal x1 a@(tau :<~ v) : Goal x2 b@(tau' :<~ _) : xs) = do
+guess (Goal x1 a@(Partial tau d v) : Goal x2 b@(Partial tau' d' _) : xs) = do
   mt <- lub' tau tau'
   case mt of
     Nothing    -> return [Goal x1 (Unsat (UnsolvedConstraint (a :& b)))]
-    Just tau'' -> ([Goal x1 (tau :< tau''), Goal x2 (tau' :< tau'')] ++)
-                  <$> suggest (Goal x2 (tau'' :< v) : xs)
+    Just tau'' -> ([Goal x1 (tau `op` tau''), Goal x2 (tau' `op'` tau'')] ++)
+                  <$> suggest (Goal x2 (tau'' `op` v) : Goal x2 (tau'' `op'` v) : xs)
+  where
+    op  = case d  of Less -> (:<); _ -> flip (:<)
+    op' = case d' of Less -> (:<); _ -> flip (:<)
 guess xs = return xs
 
 -- Produce substitutions when it is safe to do so (the variable can't get any more general)
@@ -551,7 +555,7 @@ noBrainers [Goal _ c@(U x :<  T t)] = do
 noBrainers [Goal _ c@(T t :<  U x)] = do
   traceTC "sol" (text "apply no brainer to" <+> pretty c)
   return $ Subst.singleton x (T t)
-noBrainers [Goal _ c@(T t@(TCon v [] Unboxed) :<~ U x)] | v `elem` primTypeCons = do
+noBrainers [Goal _ c@(Partial (T t@(TCon v [] Unboxed)) _ (U x))] | v `elem` primTypeCons = do
   traceTC "sol" (text "apply no brainer to" <+> pretty c)
   return $ Subst.singleton x (T t)
 noBrainers _ = return mempty
