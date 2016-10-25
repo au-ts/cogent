@@ -12,6 +12,7 @@ endif
 export E Q
 
 PWD:=$(shell pwd)
+SCRIPTS_DIR:=$(PWD)/scripts/
 include $(PWD)/../config.mk
 
 # These file lists are for generating dummy headers for c compilation
@@ -86,6 +87,8 @@ dev: configure
 	$(E)
 	$(E)
 
+cabal-update:
+	$(CABAL) update
 
 tests/include/%_dummy.h: tests/%.cogent
 	$(Q) egrep "^type +([A-Z][a-zA-Z0-9_']*)( [a-z][a-zA-Z0-9_']*)* *(--.*)?$$" $^ | sed -e "s/type \([A-Z][a-zA-Z0-9_']*\).*$$/typedef void* \1;/" > $@
@@ -111,33 +114,52 @@ endif
 
 test-tc: .gen-types
 	$(E) "=== Type Checking Tests ==="
+	$(SCRIPTS_DIR)/cogent_validate.sh -tc
 
 test-ds: .gen-types
 	$(E) "=== Desugaring Tests ==="
+	$(SCRIPTS_DIR)/cogent_validate.sh -ds
 
 test-an: .gen-types
 	$(E) "=== A-normal transform Tests ==="
+	$(SCRIPTS_DIR)/cogent_validate.sh -an
 
 test-mn: .gen-types
 	$(E) "=== Monomorphization Tests ==="
+	$(SCRIPTS_DIR)/cogent_validate.sh -mn
 
 test-cg: .gen-types
 	$(E) "=== Code Generation Tests ==="
+	$(SCRIPTS_DIR)/cogent_validate.sh -cg
 
 test-tc-proof: .gen-types
-	$(E) "=== Proof Feneration For Type Checking Tests ==="
+	$(E) "=== Proof Generation For Type Checking Tests ==="
+	$(SCRIPTS_DIR)/cogent_validate.sh -tc-proof
+
+test-ac: .gen-types test-gcc
+	$(E) "=== Isabelle (AutoCorres) test ==="
+	$(SCRIPTS_DIR)/cogent_validate.sh -ac
 
 test-aq: .gen-types
 	$(E) "=== Anti-quotation Tests ==="
+	$(SCRIPTS_DIR)/cogent_validate.sh -aq
 
 test-shallow-proof: .gen-types
 	$(E) "=== Shallow-embedding Proofs Tests ==="
+	$(SCRIPTS_DIR)/cogent_validate.sh -shallow-proof
+
+test-goanna:
+	$(E) "=== Goanna test ==="
+	$(error Goanna tests are not currently supported.)
+	$(SCRIPTS_DIR)/cogent_validate.sh -goanna
 
 test-ee: .gen-types
-	$(E) "=== End-to-end Proofs Tests ==="
+	$(E) "=== End-to-End Proofs Tests ==="
+	$(SCRIPTS_DIR)/cogent_validate.sh -ee
 
-test-gcc: .gen-types
+test-gcc: .gen-types test-cg
 	$(E) "=== Compile generated code using GCC ==="
+	$(SCRIPTS_DIR)/cogent_validate.sh -gcc
 
 setup-config: configure
 	$(CABAL) configure $(CABALFLAGS)
@@ -159,6 +181,48 @@ help:
 	$(E) ""
 	$(E) "* make pkg"
 	$(E) "  Create a source distribution package."
+	$(E) ""
+	$(E) "* make tests"
+	$(E) "  Run all tests."
+	$(E) ""
+	$(E) "* make test-clean"
+	$(E) "  Cleanup artefacts from earlier test runs."
+	$(E) ""
+	$(E) "* make test-tc"
+	$(E) "  Run Type-Checking Tests."
+	$(E) ""
+	$(E) "* make test-ds"
+	$(E) "  Run De-sugaring Tests."
+	$(E) ""
+	$(E) "* make test-an"
+	$(E) "  Run A-Normal Transform Tests."
+	$(E) ""
+	$(E) "* make test-mn"
+	$(E) "  Run Monomorphization Tests."
+	$(E) ""
+	$(E) "* make test-mn"
+	$(E) "  Run Code Generation Tests."
+	$(E) ""
+	$(E) "* make test-mn"
+	$(E) "  Run Proof Generation For Type-Checking Tests."
+	$(E) ""
+	$(E) "* make test-mn"
+	$(E) "  Run Isabelle (AutoCorres) test."
+	$(E) ""
+	$(E) "* make test-mn"
+	$(E) "  Run Anti-Quotation Tests."
+	$(E) ""
+	$(E) "* make test-mn"
+	$(E) "  Run Anti-Shallow-embedding Proofs Tests."
+	$(E) ""
+	$(E) "* make test-goanna"
+	$(E) "  Run Goanna Test [Currently Not Supported]."
+	$(E) ""
+	$(E) "* make test-ee"
+	$(E) "  Run End-to-End Proofs Tests."
+	$(E) ""
+	$(E) "* make test-gcc"
+	$(E) "  Compile generated code using GCC."
 	$(E) ""
 	$(E) "* make help"
 	$(E) "  Print this help."

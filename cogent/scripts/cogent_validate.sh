@@ -10,9 +10,15 @@
 #
 
 cd "$(dirname "${BASH_SOURCE[0]}")"
-source ../build-env.sh || exit
 
-USAGE="Usage: $0 -[tc|ds|an|mn|cg|gcc|tc-proof|ac|aq|shallow-proof|goanna|all|clean] [-q|-i|-cached-cogent|-update-cabal|-keep-sandbox]"
+#Directories
+COGENTDIR=../
+TLD=../../
+
+
+source $TLD/build-env.sh || exit
+
+USAGE="Usage: $0 -[tc|ds|an|mn|cg|gcc|tc-proof|ac|aq|shallow-proof|goanna|all|clean] [-q|-i|]"
 getopt -T >/dev/null
 if [[ $? != 4 ]]
 then
@@ -20,7 +26,7 @@ then
   exit 1
 fi
 
-OPTS=$(getopt -o h --alternative --long tc,ds,an,mn,cg,gcc,tc-proof,ac,aq,shallow-proof,goanna,ee,all,help,clean,cached-cogent,update-cabal,keep-sandbox,q,i -n "$0" -- "$@")
+OPTS=$(getopt -o h --alternative --long tc,ds,an,mn,cg,gcc,tc-proof,ac,aq,shallow-proof,goanna,ee,all,help,clean,q,i -n "$0" -- "$@")
 if [ $? != 0 ]
 then echo "$USAGE" >&2
      exit 1
@@ -29,9 +35,6 @@ eval set -- "$OPTS"
 
 TESTSPEC=''
 DO_CLEAN=0
-CACHED_COGENT=0
-UPDATE_CABAL=0
-KEEP_SANDBOX=0
 QUIET=0
 INTERACTIVE=0
 
@@ -39,7 +42,7 @@ while true; do
   case "$1" in
     -h|--help)
         echo "$USAGE";
-        echo 'Run (one or more) tests for the COGENT compilation tools.'
+        echo 'Run (one or more) tests for the Cogent compilation tools.'
         echo '  -tc      Test type checking'
         echo '  -ds      Test desugaring'
         echo '  -an      Test A-normal transform'
@@ -55,9 +58,6 @@ while true; do
         echo
         echo '  -all     Run all tests'
         echo '  -clean   Delete generated files'
-        echo '  -cached-cogent   Do not rebuild COGENT compiler'
-        echo '  -update-cabal  Update hackage-db'
-        echo '  -keep-sandbox  Keep cabal sandbox, even errors occur'
         echo '  -q       Do not print output for failed tests'
         echo '  -i       Prompt before major removals'
         exit;;
@@ -65,9 +65,6 @@ while true; do
     --q) QUIET=1; shift;;
     --i) INTERACTIVE=1; shift;;
     --clean) DO_CLEAN=1; shift;;
-    --cached-cogent) CACHED_COGENT=1; shift;;
-    --update-cabal) UPDATE_CABAL=1; shift;;
-    --keep-sandbox) KEEP_SANDBOX=1; shift;;
     --all) TESTSPEC='--tc--ds--an--mn--aq--cg--gcc--tc-proof--ac--shallow-proof--goanna--ee'; shift;;
     *) TESTSPEC="${TESTSPEC}$1"; shift;;
   esac
@@ -77,7 +74,7 @@ if [[ $DO_CLEAN = 1 && "$TESTSPEC" != '' ]]
        exit 1
 fi
 # Just compile the compiler if no option is given
-if [[ $DO_CLEAN = 0 && "$TESTSPEC" = '' && $CACHED_COGENT = 1 ]]
+if [[ $DO_CLEAN = 0 && "$TESTSPEC" = '' ]]
   then echo "$USAGE" >&2
        exit 1
 fi
@@ -102,9 +99,9 @@ else
   txtrst=
 fi
 
-TESTS=./tests
-COUT=./out
-ABS=./out/abstract
+TESTS=$COGENTDIR/tests
+COUT=$COGENTDIR/out
+ABS=$COGENTDIR/out/abstract
 : ${CC:=cc}
 
 if [ -z "$CGFLAGS" ]; then CGFLAGS="--fno-static-inline"; fi
@@ -115,7 +112,7 @@ ANFLAGS="$VFLAGS $ANFLAGS"
 MNFLAGS="$VFLAGS $MNFLAGS"
 CGFLAGS="$VFLAGS $CGFLAGS"
 
-ISABELLE_SESSION_NAME=COGENTTestTemporary
+ISABELLE_SESSION_NAME=CogentTestTemporary
 ISABELLE_TIMEOUT=300
 
 if [[ $DO_CLEAN = 1 ]]
@@ -176,7 +173,7 @@ check_output() {
 }
 
 gen_test_hdrs() {
-    mkdir -p tests/include
+    mkdir -p $COGENTDIR/tests/include
     pushd tests 2>&1 > /dev/null
 
     for fname in *.cogent;
@@ -194,7 +191,6 @@ goodfail_msg="${bldgrn}fail (as expected)${txtrst}"
 fail_msg="${bldred}FAIL${txtrst}"
 badpass_msg="${bldred}passed but should FAIL${txtrst}"
 
-CABAL_SANDBOX=".cabal-sandbox"
 
 if [[ -z "$GHC" ]]; then GHC=ghc; fi
 if [[ -z "$HC_PKG" ]]; then HC_PKG=ghc-pkg; fi
@@ -203,121 +199,8 @@ if [[ -z "$PACKAGE_DB" ]]; then
   PACKAGE_DB="${CABAL_SANDBOX}/`arch`-`uname | tr [A-Z] [a-z]`-ghc-`ghc --version | sed -e 's/^.*version //'`-packages.conf.d"
 fi
 
-
-CABAL_CONFIG_FLAGS="--builddir=$DIST"
-CABAL_BUILD_FLAGS="--builddir=$DIST"
-
-create_cabal_config () {
-  echo "with-compiler: ${GHC}" > cabal.config
-  echo "with-hc-pkg: ${HC_PKG}" >> cabal.config
-  echo "package-db: ${PACKAGE_DB}" >> cabal.config
-}
-
-create_cabal_config
-
-if [[ $CACHED_COGENT = 0 ]]
-then
-  echo '=== Building cogent compiler ==='
-  if [[ $UPDATE_CABAL = 1 ]]
-  then cabal update || exit
-  fi
-  if ! [ -d "$CABAL_SANDBOX" ]
-  then cabal sandbox init || exit
-       cabal sandbox add-source ../isa-parser || exit
-       rm -rf ../isa-parser/dist
-  fi
-
-  cabal configure $CABAL_CONFIG_FLAGS
-  if ! cabal install --only-dependencies
-  then
-    echo 'cabal install failed; cleaning sandbox.'
-    echo -n 
-    if [[ $INTERACTIVE -ne 0 ]]
-    then 
-      read -p 'Trying to remove cabal sandbox [y/N]' yn
-      case $yn in
-          [Yy]* ) ;;
-          * ) exit;;
-      esac
-    fi
-    # if [[ -n "$GHC_VER" && -n "$ARCH" ]]; then
-    #   rm -rf ${CABAL_SANDBOX}/lib/${ARCH}-ghc-${GHC_VER}
-    #   rm -rf ${CABAL_SANDBOX}/share/${ARCH}-ghc-${GHC_VER}
-    #   rm -rf ${CABAL_SANDBOX}/${ARCH}-ghc-${GHC_VER}-packages.conf.d
-    # elif [[ $KEEP_SANDBOX -eq 0 ]]; then
-    if [[ $KEEP_SANDBOX -eq 0 ]]; then
-      cabal sandbox delete
-      cabal sandbox init || exit
-      cabal sandbox add-source ../isa-parser || exit
-    fi
-    cabal configure $CABAL_CONFIG_FLAGS
-    cabal install --only-dependencies || \
-    { echo "I'll try one more time."
-      # FIXME: needed --max-backjumps to work around lemma.ertos setup; remove later
-      cabal configure $CABAL_CONFIG_FLAGS
-      cabal install --only-dependencies --force-reinstalls --max-backjumps=99999 || \
-      { echo 'cabal install failed again; giving up.'
-        exit 1
-      }
-    }
-  fi
-  cabal configure $CABAL_CONFIG_FLAGS && cabal build $CABAL_BUILD_FLAGS || \
-  {
-    echo "WTF, it fails again! Resetting..."
-    RM_DIST=1
-    RM_SANDBOX=1
-    RM_CONFIG=1
-    if [[ $INTERACTIVE -ne 0 ]]
-    then
-      read -p 'Trying to remove dist folder [y/N]' yn
-      case $yn in
-          [Yy]* ) ;;
-          * ) RM_DIST=0;;
-      esac
-    fi
-    if [[ $RM_DIST -ne 0 ]]; then 
-      rm -rf dist
-      rm -rf ../isa-parser/dist
-    fi
-
-    if [[ $INTERACTIVE -ne 0 ]]
-    then
-      read -p 'Trying to remove cabal sandbox [y/N]' yn
-      case $yn in
-          [Yy]* ) ;;
-          * ) RM_SANDBOX=0;;
-      esac
-    fi
-    if [[ $RM_SANDBOX -ne 0 && $KEEP_SANDBOX -ne 1 ]]; then rm -rf $CABAL_SANDBOX; fi
-
-    if [[ $INTERACTIVE -ne 0 ]]
-    then
-      read -p 'Trying to remove sandbox config file [y/N]' yn
-      case $yn in
-          [Yy]* ) ;;
-          * ) RM_CONFIG=0;;
-      esac
-    fi
-    if [[ $RM_CONFIG -ne 0 ]]; then rm -f cabal.sandbox.config; fi
-    cabal sandbox init || exit
-    cabal sandbox add-source ../isa-parser || exit
-    # NB: run configure first to build Setup.hs...
-    cabal configure $CABAL_CONFIG_FLAGS
-    # ... then install extra packages (some which may conflict with Setup.hs deps)...
-    cabal install --only-dependencies --force-reinstalls --max-backjumps=99999 || exit
-    # ... then configure again (!)
-    cabal configure --enable-executable-dynamic $CABAL_CONFIG_FLAGS && cabal build $CABAL_BUILD_FLAGS || \
-    { echo 'Failed; giving up!'; exit 1; }
-  }
-fi
-
-if [[ "$TESTSPEC" == '--' ]]; then
-  echo "COGENT has been successfully installed! Congrats!"
-  exit
-fi
-
 # Generate the test headers
-gen_test_hdrs
+#gen_test_hdrs
 
 declare -i all_passed=0 all_total=0 all_ignored=0
 declare -i passed total
@@ -479,9 +362,9 @@ if [[ "$TESTSPEC" =~ '--gcc--' ]]; then
     echo -n "${outfile}.cogent: "
     total+=1
     sed -i -r 's/^#include <cogent.h>/#include \"..\/lib\/cogent.h\"/' "$hfile"
-    sed -i -r "s|^#include <abstract/([^\.]*).h>|#include \"../$abs/\1.h\"|g" "$hfile"
-    for abstract_h in `egrep "^#include \"../$abs\/([^\.]*).h\"" "$hfile" | \
-                       sed -r "s|#include \"../$abs/([^\.]*).h\"|\1|"`; do
+    sed -i -r "s|^#include <abstract/([^\.]*).h>|#include \"$abs/\1.h\"|g" "$hfile"
+    for abstract_h in `egrep "^#include \"$abs\/([^\.]*).h\"" "$hfile" | \
+                       sed -r "s|#include \"$abs/([^\.]*).h\"|\1|"`; do
       echo "typedef void* $abstract_h;" > "$abs/${abstract_h}.h"
     done
     if ! fgrep -q "#include \"../tests/include/${outfile}_dummy.h\"" "$hfile"
@@ -513,15 +396,15 @@ if [[ "$TESTSPEC" =~ '--tc-proof--' ]]; then
   if ! type $ISABELLE >/dev/null 2>&1 # Sanity check
     then echo "${bldred}Error:${txtrst} could not find Isabelle program (check \"$ISABELLE_TOOLDIR\")."
   else
-    COGENTHEAPNAME="COGENTTyping"
-    echo -n '* Preparing COGENT theory heap... '
+    COGENTHEAPNAME="CogentTyping"
+    echo -n '* Preparing Cogent theory heap... '
     COGENTHEAPSPEC="session \"$COGENTHEAPNAME\" = \"HOL-Word\" + \
 options [timeout=$ISABELLE_TIMEOUT] theories [quick_and_dirty] \
-\"../isa/COGENTHelper\""
+\"../isa/CogentHelper\""
     echo "$COGENTHEAPSPEC" > "$COUT/ROOT"
-    if ! check_output $ISABELLE build -d "$COUT" -d "isa" -b "$COGENTHEAPNAME"
+    if ! check_output $ISABELLE build -d "$COUT" -b "$COGENTHEAPNAME"
     then
-      echo "${bldred}failed to build COGENT theory!${txtrst}"
+      echo "${bldred}failed to build Cogent theory!${txtrst}"
     else
       echo "built session $COGENTHEAPNAME"
       for source in "$TESTS"/pass_*.cogent
@@ -533,10 +416,10 @@ options [timeout=$ISABELLE_TIMEOUT] theories [quick_and_dirty] \
          echo "$COGENTHEAPSPEC" > "$COUT/ROOT"
          echo "session \"$ISABELLE_SESSION_NAME\" = \"$COGENTHEAPNAME\" + options [timeout=$ISABELLE_TIMEOUT] theories [quick_and_dirty] \"$THYNAME\"" >> "$COUT/ROOT"
 
-         if check_output cogent --type-proof --fml-typing-tree "$source" --root-dir="../"  --dist-dir="$COUT"
+         if check_output cogent --type-proof --fml-typing-tree "$source" --root-dir="../../"  --dist-dir="$COUT"
          then
            sed -i -e 's,"ProofTrace","../isa/ProofTrace",' "$COUT/$THYNAME.thy"
-           if check_output $ISABELLE build -d "$COUT" -d "isa" "$ISABELLE_SESSION_NAME"
+           if check_output $ISABELLE build -d "$COUT" "$ISABELLE_SESSION_NAME"
            then passed+=1; echo "$pass_msg"
            else echo "$fail_msg"
            fi
@@ -568,9 +451,9 @@ if [[ "$TESTSPEC" =~ '--ac--' ]]; then
        cfile=$(basename $source .cogent).c
        total+=1
        cogent --c-refinement --proof-input-c="$cfile" --root \
-             --dist-dir="$COUT" --root-dir=../ --proof-name="$ISABELLE_SESSION_NAME" "$source"
+             --dist-dir="$COUT" --root-dir=../../ --proof-name="$ISABELLE_SESSION_NAME" "$source"
        sed -i -e "s/^session ${ISABELLE_SESSION_NAME}_ACInstall = ${ISABELLE_SESSION_NAME}_SCorres_Normal +$/session ${ISABELLE_SESSION_NAME}_ACInstall = AutoCorres +/" "$COUT/ROOT"
-       if check_output $ISABELLE_BUILD -d "$L4V_DIR" -d "isa" -d "$COUT" ${ISABELLE_SESSION_NAME}_ACInstall
+       if check_output $ISABELLE_BUILD -d "$L4V_DIR" -d "../isa" -d "$COUT" ${ISABELLE_SESSION_NAME}_ACInstall
         then passed+=1; echo "$pass_msg"
         else echo "$fail_msg"
        fi
@@ -607,11 +490,11 @@ if [[ "$TESTSPEC" =~ '--ee--' ]]; then
        fi
        mkdir -p "$abs" || exit
        echo -n "${outfile}.cogent: "
-       cogent -A --fml-typing-tree --root-dir=../ --dist-dir="$COUT" "$source" --proof-name="$ISABELLE_SESSION_NAME"
+       cogent -A --fml-typing-tree --root-dir=../../ --dist-dir="$COUT" "$source" --proof-name="$ISABELLE_SESSION_NAME"
        sed -i -r 's|^#include <cogent.h>|#include \"../tests/cogent.h\"|' "$hfile"
-       sed -i -r "s|^#include <abstract/([^\.]*).h>|#include \"../$abs/\1.h\"|g" "$hfile"
-       for abstract_h in `egrep "^#include \"../$abs\/([^\.]*).h\"" "$hfile" | \
-                          sed -r "s|#include \"../$abs/([^\.]*).h\"|\1|"`; do
+       sed -i -r "s|^#include <abstract/([^\.]*).h>|#include \"$abs/\1.h\"|g" "$hfile"
+       for abstract_h in `egrep "^#include \"$abs\/([^\.]*).h\"" "$hfile" | \
+                          sed -r "s|#include \"$abs/([^\.]*).h\"|\1|"`; do
          echo "typedef void* $abstract_h;" > "$abs/${abstract_h}.h"
        done
        if ! fgrep -q "#include \"../tests/include/${outfile}_dummy.h\"" "$hfile"
@@ -619,7 +502,7 @@ if [[ "$TESTSPEC" =~ '--ee--' ]]; then
               mv "$hfile.tmp" "$hfile"
        fi
 
-       if check_output $ISABELLE_BUILD -d "$COUT" -d "isa" ${ISABELLE_SESSION_NAME}_AllRefine
+       if check_output $ISABELLE_BUILD -d "$COUT" -d "../isa" ${ISABELLE_SESSION_NAME}_AllRefine
          then passed+=1; echo "$pass_msg"
          else echo "$fail_msg"
        fi
@@ -664,7 +547,7 @@ if [[ "$TESTSPEC" =~ '--shallow-proof--' ]]; then
 
   for i in tests
   do
-     if (cd isa/shallow/tests && check_output make $i)
+     if (cd ../isa/shallow/tests && check_output make $i)
      then
        passed+=1;
        echo "$pass_msg" ;
@@ -677,7 +560,7 @@ if [[ "$TESTSPEC" =~ '--shallow-proof--' ]]; then
     then
       for i in ShallowT
       do
-         if (cd isa/shallow/ && check_output $ISABELLE build -d . -b $i)
+         if (cd ../isa/shallow/ && check_output $ISABELLE build -d ../ -b $i)
          then
            passed+=1;
            echo "$pass_msg" ;
@@ -688,7 +571,7 @@ if [[ "$TESTSPEC" =~ '--shallow-proof--' ]]; then
   fi
 
   # undo all uncomited changes by make [tests|ext2]
-  (cd isa/shallow/ && git checkout .)
+  (cd ../isa/shallow/ && git checkout .)
 
   echo "Passed $passed out of $total."
   if [[ $passed = $total ]]

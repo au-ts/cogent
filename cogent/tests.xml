@@ -10,10 +10,9 @@
   -->
 
 <testsuite timeout="4800">
-    <!-- artificial dependency on isabelle to fail fast if 
-         isabelle setup doesn't work -->
-    <test name="cogent_compiler" depends="isabelle">./validate.sh -tc -ds -an -mn</test>
-    <test name="cogent_codegen" depends="cogent_compiler">./validate.sh -cg</test>
-    <test name="cogent_gcc" depends="cogent_codegen">./validate.sh -gcc</test>
-    <test name="cogent_antiquote" depends="cogent_gcc">./validate.sh -aq</test>
+    <!-- artificial dependency on isabelle to fail fast if isabelle setup doesn't work -->
+    <test name="cogent_compiler" depends="isabelle">make test-tc &amp;&amp; make test-ds &amp;&amp; make test-an &amp;&amp; make test-mn</test>
+    <test name="cogent_codegen" depends="cogent_compiler">make test-cg</test>
+    <test name="cogent_gcc" depends="cogent_codegen">make test-gcc</test>
+    <test name="cogent_antiquote" depends="cogent_gcc">make test-aq</test>
 </testsuite>
