@@ -127,8 +127,11 @@ data Metadata = Reused { varName :: VarName, boundAt :: SourcePos, usedAt :: Sou
               | Constant { varName :: VarName }
               deriving (Show)
 
+
+data Direction = Less | Greater deriving (Show)
+
 data Constraint = (:<) TCType TCType
-                | (:<~) TCType TCType
+                | Partial TCType Direction TCType
                 | (:&) Constraint Constraint
                 | Share TCType Metadata
                 | Drop TCType Metadata
