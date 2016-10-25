@@ -19,7 +19,6 @@ import qualified Data.IntMap as M
 import Data.Maybe
 import Data.Monoid hiding (Alt)
 import Prelude hiding (lookup)
-import Text.PrettyPrint.ANSI.Leijen as P hiding ((<>))
 
 newtype Subst = Subst (M.IntMap TCType)
 
@@ -58,7 +57,7 @@ applyErr s e = e
 
 applyC :: Subst -> Constraint -> Constraint
 applyC s (a :< b) = apply s a :< apply s b
-applyC s (a :<~ b) = apply s a :<~ apply s b
+applyC s (Partial a d b) = Partial (apply s a) d (apply s b)
 applyC s (a :& b) = applyC s a :& applyC s b
 applyC s (a :@ c) = applyC s a :@ applyCtx s c
 applyC s (Share t m) = Share (apply s t) m
