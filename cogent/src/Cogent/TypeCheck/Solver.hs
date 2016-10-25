@@ -605,7 +605,7 @@ solve = zoom tc . crunch >=> explode >=> go
     go g | not (null (unsats g)) = return $ map toError (unsats g)
 
     go g | not (M.null (downs g)) = do
-      s <- foldr mappend mempty <$> mapM noBrainers (downs g)  -- FIXME: should have something better, similarly the two below / zilinc
+      s <- F.fold <$> mapM noBrainers (downs g)
       traceTC "sol" (text "solve downward goals"
                      P.<$> text "produce subst:"
                      P.<$> pretty s)
@@ -617,7 +617,7 @@ solve = zoom tc . crunch >=> explode >=> go
           instantiate g >>= explode >>= go
 
     go g | not (M.null (ups g)) = do
-      s <- foldr mappend mempty <$> mapM noBrainers (ups g)
+      s <- F.fold <$> mapM noBrainers (ups g)
       traceTC "sol" (text "solve upward goals" 
                      P.<$> text "produce subst:"
                      P.<$> pretty s)
@@ -629,7 +629,7 @@ solve = zoom tc . crunch >=> explode >=> go
           instantiate g >>= explode >>= go
 
     go g | not (M.null (fragments g)) = do
-      s <- foldr mappend mempty <$> mapM noBrainers (fragments g)
+      s <- F.fold <$> mapM noBrainers (fragments g)
       traceTC "sol" (text "solve fragment goals" 
                      P.<$> text "produce subst:"
                      P.<$> pretty s)
