@@ -460,7 +460,7 @@ instance Pretty TypeWarning where
 
 instance Pretty Constraint where
   pretty (a :<  b)        = pretty a </> warn ":<"  </> pretty b
-  pretty (a :<~ b)        = pretty a </> warn ":<~" </> pretty b
+  pretty (Partial a d b)  = pretty a </> (case d of Less -> warn ":<~"; Greater -> warn ":>~") </> pretty b
   pretty (a :& b)         = pretty a </> warn ":&"  </> pretty b
   pretty (Share  t m)     = warn "Share" <+> pretty t
   pretty (Drop   t m)     = warn "Drop" <+> pretty t

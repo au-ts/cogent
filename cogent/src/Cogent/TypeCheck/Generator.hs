@@ -78,7 +78,7 @@ cg' (PrimOp o [e1, e2]) t
   = do (c1, e1') <- cg e1 t
        (c2, e2') <- cg e2 t
        -- traceShowM ("Arith op", pretty (stripLocE e1), pretty (stripLocE e2), pretty t, pretty c1, pretty c2)
-       return (T (TCon "U8" [] Unboxed) :<~ t <> c1 <> c2, PrimOp o [e1', e2'] )
+       return (Partial (T (TCon "U8" [] Unboxed)) Less t <> c1 <> c2, PrimOp o [e1', e2'] )
   | o `elem` words "&& ||"
   = do (c1, e1') <- cg e1 t
        (c2, e2') <- cg e2 t
@@ -88,12 +88,12 @@ cg' (PrimOp o [e1, e2]) t
        (c1, e1') <- cg e1 alpha
        (c2, e2') <- cg e2 alpha
        let c  = T (TCon "Bool" [] Unboxed) :< t
-           c' = T (TCon "U8" [] Unboxed) :<~ alpha
+           c' = Partial (T (TCon "U8" [] Unboxed)) Less alpha
        return (c <> c' <> c1 <> c2, PrimOp o [e1', e2'] )
 cg' (PrimOp o [e]) t
   | o == "complement"  = do
       (c, e') <- cg e t
-      return (T (TCon "U8" [] Unboxed) :<~ t :& c, PrimOp o [e'])
+      return (Partial (T (TCon "U8" [] Unboxed)) Less t :& c, PrimOp o [e'])
   | o == "not"         = do
       (c, e') <- cg e t
       return (T (TCon "Bool" [] Unboxed) :< t :& c, PrimOp o [e'])
@@ -125,7 +125,7 @@ cg' (Var n) t = do
 cg' (Upcast e) t = do
   alpha <- fresh
   (c1, e1') <- cg e alpha
-  let c = (T (TCon "U8" [] Unboxed) :<~ alpha) <> alpha :<~ t <> c1
+  let c = (Partial (T (TCon "U8" [] Unboxed)) Less alpha) <> Partial alpha Less t <> c1
   return (c, Upcast e1')
 
 -- cg' (Widen e) t = do
@@ -159,7 +159,7 @@ cg' (IntLit i) t = do
                       | i < u16MAX     = "U16"
                       | i < u32MAX     = "U32"
                       | otherwise      = "U64"
-      c = T (TCon minimumBitwidth [] Unboxed) :<~ t
+      c = Partial (T (TCon minimumBitwidth [] Unboxed)) Less t
       e = IntLit i
   return (c,e)
 
@@ -179,7 +179,7 @@ cg' (Con k es) t = do
   (ts, c', es') <- cgMany es
 
   let e = Con k es'
-      c = T (TVariant (M.fromList [(k, (ts, False))])) :<~ t
+      c = Partial (T (TVariant (M.fromList [(k, (ts, False))]))) Less t
   traceTC "gen" (text "cg for constructor:" <+> prettyE e
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint" <+> pretty c)
@@ -254,7 +254,7 @@ cg' (Member e f) t = do
 
   let e = Member e' f
       x = T (TRecord [(f, (t, False))] Unboxed)
-      c = c' <> x :<~ alpha <> Share alpha (UsedInMember f)
+      c = c' <> Partial x Greater alpha <> Share alpha (UsedInMember f)
   return (c, e)
 
 cg' (If e1 bs e2 e3) t = do
@@ -269,7 +269,7 @@ cg' (Put e ls) t | not (any isNothing ls) = do
   (ts, cs, es') <- cgMany es
 
   let c = (T (TPut (Just fs) alpha)) :< t <> c' <> cs
-       <> (T (TRecord (zip fs (map (,True) ts)) Unboxed) :<~ alpha)
+       <> Partial (T (TRecord (zip fs (map (,True) ts)) Unboxed)) Less alpha
       e = Put e' (map Just (zip fs es'))
   return (c,e)
 
@@ -326,7 +326,7 @@ matchA (PCon k is) t = do
       co = case overlapping ss of
              Left (v:vs) -> Unsat $ DuplicateVariableInPattern v p'
              _           -> Sat
-      c = T (TVariant (M.fromList [(k, (vs, False))])) :<~ t
+      c = Partial (T (TVariant (M.fromList [(k, (vs, False))]))) Greater t
   traceTC "gen" (text "match constructor pattern:" <+> pretty p'
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint" <+> pretty c <> semi
@@ -339,14 +339,14 @@ matchA (PIntLit i) t = do
                       | i < u16MAX     = "U16"
                       | i < u32MAX     = "U32"
                       | otherwise      = "U64"
-      c = T (TCon minimumBitwidth [] Unboxed) :<~ t
+      c = Partial (T (TCon minimumBitwidth [] Unboxed)) Greater t
   return (M.empty, c, PIntLit i)
 
 matchA (PBoolLit b) t =
-  return (M.empty, T (TCon "Bool" [] Unboxed) :< t, PBoolLit b)
+  return (M.empty, t :< T (TCon "Bool" [] Unboxed), PBoolLit b)
 
 matchA (PCharLit c) t =
-  return (M.empty, T (TCon "U8" [] Unboxed) :< t, PCharLit c)
+  return (M.empty, t :< T (TCon "U8" [] Unboxed), PCharLit c)
 
 match :: (?loc :: SourcePos)
       => IrrefutablePattern VarName -> TCType
@@ -360,7 +360,7 @@ match (PVar x) t = do
 
 match (PUnderscore) t = return (M.empty, Sat, PUnderscore)
 
-match (PUnitel) t = return (M.empty, T TUnit :< t, PUnitel)
+match (PUnitel) t = return (M.empty, t :< T TUnit, PUnitel)
 
 match (PTuple ps) t = do
    (vs, blob) <- unzip <$> mapM (\p -> do v <- fresh; (v,) <$> match p v) ps
@@ -369,7 +369,7 @@ match (PTuple ps) t = do
        co = case overlapping ss of
               Left (v:vs) -> Unsat $ DuplicateVariableInIrrefPattern v p'
               _           -> Sat
-       c = T (TTuple vs) :< t
+       c = t :< T (TTuple vs)
    traceTC "gen" (text "match tuple pattern:" <+> pretty p'
             L.<$> text "of type" <+> pretty t <> semi
             L.<$> text "generate constraint" <+> pretty c <> semi
@@ -387,7 +387,7 @@ match (PUnboxedRecord fs) t | not (any isNothing fs) = do
        co = case overlapping ss of
               Left (v:vs) -> Unsat $ DuplicateVariableInIrrefPattern v p'
               _           -> Sat
-   return (M.unions ss, co <> mconcat cs <> t' :<~ t <> d, p')
+   return (M.unions ss, co <> mconcat cs <> Partial t' Greater t <> d, p')
 
    | otherwise = second3 (:& Unsat RecordWildcardsNotSupported) <$> match (PUnboxedRecord (filter isJust fs)) t
 
@@ -402,7 +402,7 @@ match (PTake r fs) t | not (any isNothing fs) = do
        co = case overlapping (s:ss) of
               Left (v:vs) -> Unsat $ DuplicateVariableInIrrefPattern v p'
               _           -> Sat
-   return (M.unions (s:ss), co <> mconcat cs <> t' :<~ t, p')
+   return (M.unions (s:ss), co <> mconcat cs <> Partial t' Greater t, p')
 
    | otherwise = second3 (:& Unsat RecordWildcardsNotSupported) <$> match (PTake r (filter isJust fs)) t
 
