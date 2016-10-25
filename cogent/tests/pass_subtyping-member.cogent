@@ -1,0 +1,9 @@
+type A = {f1 : U32, f2 : Bool}
+type S
+
+free : (S, A take (..)) -> S
+
+foo : (S, A) -> S
+foo (s,a) = let x = a.f1 !a
+            and y = a.f2 !a
+            in free (s,a)
