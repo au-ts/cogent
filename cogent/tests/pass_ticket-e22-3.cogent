@@ -1,0 +1,23 @@
+type ExState
+type RR c a b = (c, <Success a | Error b>)
+type OSBuffer
+
+type Ext2Superblock = {
+    inode_count             : U32,
+    magic                   : U16
+}
+
+deserialise_Ext2Superblock: (ExState, OSBuffer!, U32) -> RR ExState (Ext2Superblock, U32) ()
+
+free_Ext2Superblock  : (ExState, Ext2Superblock take (..)) -> ExState
+free_Ext2Superblock' : (ExState, Ext2Superblock) -> ExState
+
+foo : #{ex: ExState, buf_super : OSBuffer} -> ExState
+foo #{ex, buf_super} = 
+  let (ex, res) = deserialise_Ext2Superblock (ex, buf_super, 0) !buf_super
+  in res
+  | Success (super, _) -> 
+      let xxx = super.magic !super
+      in  free_Ext2Superblock (ex, super)  -- super is all-untaken
+  | Error () -> ex
+      
