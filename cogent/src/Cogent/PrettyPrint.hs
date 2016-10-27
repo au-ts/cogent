@@ -458,10 +458,20 @@ instance Pretty TypeError where
 instance Pretty TypeWarning where
   pretty DummyWarning = __fixme $ warn "WARNING: dummy"
 
+instance (Pretty a, TypeType a) => Pretty (TypeFragment a) where
+  pretty (F t) = pretty t
+  pretty (FVariant ts) = pretty (TVariant ts)
+  pretty (FRecord ts) 
+    | not . or $ map (snd . snd) ts = typesymbol "?" <+>
+        record (map (\(a,(b,c)) -> fieldname a <+> symbol ":" <+> pretty b) ts)  -- all untaken
+    | otherwise = (pretty (FRecord (map (second . second $ const False) ts))
+               <+> typesymbol "take" <+> tupled1 (map fieldname tk)) &
+               (if __cogent_fdisambiguate_pp then (<+> comment "{- rec -}") else id)
+        where tk = map fst $ filter (snd .snd) ts
 instance Pretty Constraint where
-  pretty (a :<  b)        = pretty a </> warn ":<"  </> pretty b
-  pretty (Partial a d b)  = pretty a </> (case d of Less -> warn ":<~"; Greater -> warn ":>~") </> pretty b
-  pretty (a :& b)         = pretty a </> warn ":&"  </> pretty b
+  pretty (a :<  b)        = pretty a </> warn ":<" </> pretty b
+  pretty (a :& b)         = pretty a </> warn ":&" </> pretty b
+  pretty (Upcastable a b) = pretty a </> warn "~>" </> pretty b
   pretty (Share  t m)     = warn "Share" <+> pretty t
   pretty (Drop   t m)     = warn "Drop" <+> pretty t
   pretty (Escape t m)     = warn "Escape" <+> pretty t
