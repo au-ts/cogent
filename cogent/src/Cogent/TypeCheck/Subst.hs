@@ -45,7 +45,7 @@ applyCtx s (InExpression e t) = InExpression e (apply s t)
 applyCtx s c = c
 
 applyErr :: Subst -> TypeError -> TypeError
-applyErr s (TypeMismatch t1 t2)     = TypeMismatch (apply s t1) (apply s t2)
+applyErr s (TypeMismatch t1 t2)     = TypeMismatch (fmap (apply s) t1) (fmap (apply s) t2)
 applyErr s (RequiredTakenField f t) = RequiredTakenField f (apply s t)
 applyErr s (TypeNotShareable t m)   = TypeNotShareable (apply s t) m
 applyErr s (TypeNotEscapable t m)   = TypeNotEscapable (apply s t) m
@@ -56,10 +56,10 @@ applyErr s (NotAFunctionType t) = NotAFunctionType (apply s t)
 applyErr s e = e
 
 applyC :: Subst -> Constraint -> Constraint
-applyC s (a :< b) = apply s a :< apply s b
-applyC s (Partial a d b) = Partial (apply s a) d (apply s b)
+applyC s (a :< b) = fmap (apply s) a :< fmap (apply s) b
 applyC s (a :& b) = applyC s a :& applyC s b
 applyC s (a :@ c) = applyC s a :@ applyCtx s c
+applyC s (Upcastable a b) = apply s a `Upcastable` apply s b
 applyC s (Share t m) = Share (apply s t) m
 applyC s (Drop t m) = Drop (apply s t) m
 applyC s (Escape t m) = Escape (apply s t) m

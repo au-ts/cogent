@@ -78,25 +78,25 @@ cg' (PrimOp o [e1, e2]) t
   = do (c1, e1') <- cg e1 t
        (c2, e2') <- cg e2 t
        -- traceShowM ("Arith op", pretty (stripLocE e1), pretty (stripLocE e2), pretty t, pretty c1, pretty c2)
-       return (Partial (T (TCon "U8" [] Unboxed)) Less t <> c1 <> c2, PrimOp o [e1', e2'] )
+       return (integral t <> c1 <> c2, PrimOp o [e1', e2'] )
   | o `elem` words "&& ||"
   = do (c1, e1') <- cg e1 t
        (c2, e2') <- cg e2 t
-       return (T (TCon "Bool" [] Unboxed) :< t <> c1 <> c2, PrimOp o [e1', e2'] )
+       return (F (T (TCon "Bool" [] Unboxed)) :< F t <> c1 <> c2, PrimOp o [e1', e2'] )
   | o `elem` words "== /= >= <= > <"
   = do alpha <- fresh
        (c1, e1') <- cg e1 alpha
        (c2, e2') <- cg e2 alpha
-       let c  = T (TCon "Bool" [] Unboxed) :< t
-           c' = Partial (T (TCon "U8" [] Unboxed)) Less alpha
+       let c  = F (T (TCon "Bool" [] Unboxed)) :< F t
+           c' = integral alpha
        return (c <> c' <> c1 <> c2, PrimOp o [e1', e2'] )
 cg' (PrimOp o [e]) t
   | o == "complement"  = do
       (c, e') <- cg e t
-      return (Partial (T (TCon "U8" [] Unboxed)) Less t :& c, PrimOp o [e'])
+      return (integral t :& c, PrimOp o [e'])
   | o == "not"         = do
       (c, e') <- cg e t
-      return (T (TCon "Bool" [] Unboxed) :< t :& c, PrimOp o [e'])
+      return (F (T (TCon "Bool" [] Unboxed)) :< F t :& c, PrimOp o [e'])
 cg' (PrimOp o _) t = error "impossible"
 cg' (Var n) t = do
   ctx <- use context
@@ -113,19 +113,19 @@ cg' (Var n) t = do
     Just (t', p, Nothing) -> do
       context %= C.use n ?loc
       traceTC "gen" (text "variable" <+> pretty n <+> text "used for the first time" <> semi
-               L.<$> text "generate constraint" <+> pretty (t' :< t))
-      return (t' :< t, e)
+               L.<$> text "generate constraint" <+> pretty (F t' :< F t))
+      return (F t' :< F t, e)
 
     -- Variable already used before, emit a Share constraint.
     Just (t', p, Just l)  -> do
       traceTC "gen" (text "variable" <+> pretty n <+> text "used before" <> semi
-               L.<$> text "generate constraint" <+> pretty (t' :< t) <+> text "and share constraint")
-      return (Share t' (Reused n p l) <> t' :< t, e)
+               L.<$> text "generate constraint" <+> pretty (F t' :< F t) <+> text "and share constraint")
+      return (Share t' (Reused n p l) <> F t' :< F t, e)
 
 cg' (Upcast e) t = do
   alpha <- fresh
   (c1, e1') <- cg e alpha
-  let c = (Partial (T (TCon "U8" [] Unboxed)) Less alpha) <> Partial alpha Less t <> c1
+  let c = (integral alpha) <> Upcastable alpha t <> c1
   return (c, Upcast e1')
 
 -- cg' (Widen e) t = do
@@ -135,22 +135,22 @@ cg' (Upcast e) t = do
 --   return (c, Widen e1')
 
 cg' (BoolLit b) t = do
-  let c = T (TCon "Bool" [] Unboxed) :< t
+  let c = F (T (TCon "Bool" [] Unboxed)) :< F t
       e = BoolLit b
   return (c,e)
 
 cg' (CharLit l) t = do
-  let c = T (TCon "U8" [] Unboxed) :< t
+  let c = F (T (TCon "U8" [] Unboxed)) :< F t
       e = CharLit l
   return (c,e)
 
 cg' (StringLit l) t = do
-  let c = T (TCon "String" [] Unboxed) :< t
+  let c = F (T (TCon "String" [] Unboxed)) :< F t
       e = StringLit l
   return (c,e)
 
 cg' Unitel t = do
-  let c = T TUnit :< t
+  let c = F (T TUnit) :< F t
       e = Unitel
   return (c,e)
 
@@ -159,7 +159,7 @@ cg' (IntLit i) t = do
                       | i < u16MAX     = "U16"
                       | i < u32MAX     = "U32"
                       | otherwise      = "U64"
-      c = Partial (T (TCon minimumBitwidth [] Unboxed)) Less t
+      c = Upcastable (T (TCon minimumBitwidth [] Unboxed)) t
       e = IntLit i
   return (c,e)
 
@@ -179,7 +179,7 @@ cg' (Con k es) t = do
   (ts, c', es') <- cgMany es
 
   let e = Con k es'
-      c = Partial (T (TVariant (M.fromList [(k, (ts, False))]))) Less t
+      c = FVariant (M.fromList [(k, (ts, False))]) :< F t
   traceTC "gen" (text "cg for constructor:" <+> prettyE e
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint" <+> pretty c)
@@ -189,7 +189,7 @@ cg' (Tuple es) t = do
   (ts, c', es') <- cgMany es
 
   let e = Tuple es'
-      c = T (TTuple ts) :< t
+      c = F (T (TTuple ts)) :< F t
   traceTC "gen" (text "cg for tuple:" <+> prettyE e
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint" <+> pretty c <> semi
@@ -202,7 +202,7 @@ cg' (UnboxedRecord fes) t = do
 
   let e = UnboxedRecord (zip fs es')
       r = T (TRecord (zip fs (map (, False) ts)) Unboxed)
-      c = r :< t
+      c = F r :< F t
   traceTC "gen" (text "cg for unboxed record:" <+> prettyE e
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint" <+> pretty c
@@ -235,7 +235,7 @@ cg' (TypeApp f as i) t = do
       in do
         (ts,c') <- match vs as'
 
-        let c = substType ts tau :< t
+        let c = F (substType ts tau) :< F t
             e = TypeApp f (map snd ts) i
         traceTC "gen" (text "cg for typeapp:" <+> prettyE e
                  L.<$> text "of type" <+> pretty t <> semi
@@ -253,8 +253,8 @@ cg' (Member e f) t = do
   (c', e') <- cg e alpha
 
   let e = Member e' f
-      x = T (TRecord [(f, (t, False))] Unboxed)
-      c = Partial x Greater alpha <> Share alpha (UsedInMember f)
+      x = FRecord [(f, (t, False))]
+      c = F alpha :< x <> Share alpha (UsedInMember f)
   traceTC "gen" (text "cg for member:" <+> prettyE e
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint" <+> pretty c)
@@ -271,8 +271,8 @@ cg' (Put e ls) t | not (any isNothing ls) = do
   (c', e') <- cg e alpha  -- (T (TTake (Just fs) t))
   (ts, cs, es') <- cgMany es
 
-  let c = (T (TPut (Just fs) alpha)) :< t <> c' <> cs
-       <> Partial (T (TRecord (zip fs (map (,True) ts)) Unboxed)) Less alpha
+  let c = F (T (TPut (Just fs) alpha)) :< F t <> c' <> cs
+       <> FRecord (zip fs (map (,True) ts)) :< F alpha
       e = Put e' (map Just (zip fs es'))
   return (c,e)
 
@@ -329,7 +329,7 @@ matchA (PCon k is) t = do
       co = case overlapping ss of
              Left (v:vs) -> Unsat $ DuplicateVariableInPattern v p'
              _           -> Sat
-      c = Partial (T (TVariant (M.fromList [(k, (vs, False))]))) Greater t
+      c = F t :< FVariant (M.fromList [(k, (vs, False))])
   traceTC "gen" (text "match constructor pattern:" <+> pretty p'
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint" <+> pretty c <> semi
@@ -342,14 +342,14 @@ matchA (PIntLit i) t = do
                       | i < u16MAX     = "U16"
                       | i < u32MAX     = "U32"
                       | otherwise      = "U64"
-      c = Partial (T (TCon minimumBitwidth [] Unboxed)) Greater t
+      c = Upcastable (T (TCon minimumBitwidth [] Unboxed)) t
   return (M.empty, c, PIntLit i)
 
 matchA (PBoolLit b) t =
-  return (M.empty, t :< T (TCon "Bool" [] Unboxed), PBoolLit b)
+  return (M.empty, F t :< F (T (TCon "Bool" [] Unboxed)), PBoolLit b)
 
 matchA (PCharLit c) t =
-  return (M.empty, t :< T (TCon "U8" [] Unboxed), PCharLit c)
+  return (M.empty, F t :< F (T (TCon "U8" [] Unboxed)), PCharLit c)
 
 match :: (?loc :: SourcePos)
       => IrrefutablePattern VarName -> TCType
@@ -363,7 +363,7 @@ match (PVar x) t = do
 
 match (PUnderscore) t = return (M.empty, Sat, PUnderscore)
 
-match (PUnitel) t = return (M.empty, t :< T TUnit, PUnitel)
+match (PUnitel) t = return (M.empty, F t :< F (T TUnit), PUnitel)
 
 match (PTuple ps) t = do
    (vs, blob) <- unzip <$> mapM (\p -> do v <- fresh; (v,) <$> match p v) ps
@@ -372,7 +372,7 @@ match (PTuple ps) t = do
        co = case overlapping ss of
               Left (v:vs) -> Unsat $ DuplicateVariableInIrrefPattern v p'
               _           -> Sat
-       c = t :< T (TTuple vs)
+       c = F t :< F (T (TTuple vs))
    traceTC "gen" (text "match tuple pattern:" <+> pretty p'
             L.<$> text "of type" <+> pretty t <> semi
             L.<$> text "generate constraint" <+> pretty c <> semi
@@ -384,13 +384,13 @@ match (PUnboxedRecord fs) t | not (any isNothing fs) = do
    let (ns, ps) = unzip (catMaybes fs)
    (vs, blob) <- unzip <$> mapM (\p -> do v <- fresh; (v,) <$> match p v) ps
    let (ss, cs, ps') = (map fst3 blob, map snd3 blob, map thd3 blob)
-       t' = T (TRecord (zip ns (map (,False) vs)) Unboxed)
+       t' = FRecord (zip ns (map (,False) vs))
        d  = Drop (T (TTake (Just ns) t)) Suppressed
        p' = PUnboxedRecord (map Just (zip ns ps'))
        co = case overlapping ss of
               Left (v:vs) -> Unsat $ DuplicateVariableInIrrefPattern v p'
               _           -> Sat
-   return (M.unions ss, co <> mconcat cs <> Partial t' Greater t <> d, p')
+   return (M.unions ss, co <> mconcat cs <> F t :< t' <> d, p')
 
    | otherwise = second3 (:& Unsat RecordWildcardsNotSupported) <$> match (PUnboxedRecord (filter isJust fs)) t
 
@@ -398,14 +398,14 @@ match (PTake r fs) t | not (any isNothing fs) = do
    let (ns, ps) = unzip (catMaybes fs)
    (vs, blob) <- unzip <$> mapM (\p -> do v <- fresh; (v,) <$> match p v) ps
    let (ss, cs, ps') = (map fst3 blob, map snd3 blob, map thd3 blob)
-       t' = T (TRecord (zip ns (map (,False) vs)) Unboxed)
+       t' = FRecord (zip ns (map (,False) vs))
        s  = M.fromList [(r, (u, ?loc, Nothing))]
        u  = T (TTake (Just ns) t)
        p' = PTake (r,u) (map Just (zip ns ps'))
        co = case overlapping (s:ss) of
               Left (v:vs) -> Unsat $ DuplicateVariableInIrrefPattern v p'
               _           -> Sat
-   return (M.unions (s:ss), co <> mconcat cs <> Partial t' Greater t, p')
+   return (M.unions (s:ss), co <> mconcat cs <> F t :< t', p')
 
    | otherwise = second3 (:& Unsat RecordWildcardsNotSupported) <$> match (PTake r (filter isJust fs)) t
 
@@ -422,7 +422,7 @@ withBindings (Binding pat tau e bs : xs) a = do
       tvs <- use knownTypeVars
       zoom tc (validateType' tvs (stripLocT tau')) >>= \case
         Left e -> return (Unsat e)
-        Right t -> return (alpha :< t)
+        Right t -> return (F alpha :< F t)
   (s, cp, pat') <- match pat alpha
   context %= C.addScope s
   (c', xs', r) <- withBindings xs a

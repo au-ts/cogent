@@ -8,7 +8,7 @@
 -- @TAG(NICTA_GPL)
 --
 
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell, DeriveFunctor, DeriveTraversable #-}
 module Cogent.TypeCheck.Base where
 
 import Cogent.Common.Syntax
@@ -36,7 +36,7 @@ data TypeError = FunctionNotFound VarName
                | UnknownTypeVariable VarName
                | UnknownTypeConstructor TypeName
                | TypeArgumentMismatch TypeName Int Int
-               | TypeMismatch TCType TCType
+               | TypeMismatch (TypeFragment TCType) (TypeFragment TCType)
                | RequiredTakenField FieldName TCType
                | TypeNotShareable TCType Metadata
                | TypeNotEscapable TCType Metadata
@@ -73,9 +73,14 @@ isCtxConstraint _ = False
 
 type ContextualisedError = ([ErrorContext], TypeError)
 
+
+data TypeFragment a = F a
+                    | FRecord [(FieldName, (a, Taken))]
+                    | FVariant (M.Map TagName ([a], Taken))
+                    deriving (Show, Functor, Foldable, Traversable)
+
 data TCType = T (Type TCType)
             | U Int  -- unifier
---          | RemoveCase (Pattern TCName) TCType
             deriving (Show, Eq)
 
 data TExpr t = TE { getType :: t, getExpr :: Expr t (VarName, t) (TExpr t), getLoc :: SourcePos }
@@ -128,11 +133,9 @@ data Metadata = Reused { varName :: VarName, boundAt :: SourcePos, usedAt :: Sou
               deriving (Show)
 
 
-data Direction = Less | Greater deriving (Show)
-
-data Constraint = (:<) TCType TCType
-                | Partial TCType Direction TCType
+data Constraint = (:<) (TypeFragment TCType) (TypeFragment TCType)
                 | (:&) Constraint Constraint
+                | Upcastable TCType TCType
                 | Share TCType Metadata
                 | Drop TCType Metadata
                 | Escape TCType Metadata
@@ -141,6 +144,10 @@ data Constraint = (:<) TCType TCType
                 | Sat
                 | Exhaustive TCType [Pattern TCName]
                 deriving (Show)
+
+
+integral :: TCType -> Constraint
+integral a = Upcastable (T (TCon "U8" [] Unboxed)) a
 
 instance Monoid Constraint where
   mempty = Sat
