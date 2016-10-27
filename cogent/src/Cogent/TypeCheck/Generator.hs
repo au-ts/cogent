@@ -119,7 +119,7 @@ cg' (Var n) t = do
     -- Variable already used before, emit a Share constraint.
     Just (t', p, Just l)  -> do
       traceTC "gen" (text "variable" <+> pretty n <+> text "used before" <> semi
-               L.<$> text "generate constraint" <+> pretty (t' :< t) <+> text "and shared constraint")
+               L.<$> text "generate constraint" <+> pretty (t' :< t) <+> text "and share constraint")
       return (Share t' (Reused n p l) <> t' :< t, e)
 
 cg' (Upcast e) t = do
@@ -254,8 +254,11 @@ cg' (Member e f) t = do
 
   let e = Member e' f
       x = T (TRecord [(f, (t, False))] Unboxed)
-      c = c' <> Partial x Greater alpha <> Share alpha (UsedInMember f)
-  return (c, e)
+      c = Partial x Greater alpha <> Share alpha (UsedInMember f)
+  traceTC "gen" (text "cg for member:" <+> prettyE e
+           L.<$> text "of type" <+> pretty t <> semi
+           L.<$> text "generate constraint" <+> pretty c)
+  return (c' <> c, e)
 
 cg' (If e1 bs e2 e3) t = do
   (c1, e1') <- letBang bs (cg e1) (T (TCon "Bool" [] Unboxed))
