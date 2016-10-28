@@ -287,12 +287,11 @@ instance (Pretty t, TypeType t) => Pretty (Type t) where
                                             | s == Unboxed && (n `notElem` primTypeCons) -> (typesymbol "#" <>)
                                             | otherwise     -> id)
   pretty (TCon n as s) = (if | s == ReadOnly -> (<> typesymbol "!") . parens
-                             | s == Unboxed  -> disamb . (typesymbol "#" <>)
+                             | s == Unboxed  -> (typesymbol "#" <>)
                              | otherwise     -> id) $
                          typename n <+> hsep (map prettyT' as)
     where prettyT' e | not $ isAtomic e = parens (pretty e)
                      | otherwise        = pretty e
-          disamb = if __cogent_fdisambiguate_pp then (<+> comment "{- unboxed-rec -}") else id
   pretty (TVar n b)  = typevar n
   pretty (TTuple ts) = tupled (map pretty ts)
   pretty (TUnit)     = typesymbol "()" & (if __cogent_fdisambiguate_pp then (<+> comment "{- unit -}") else id)
@@ -301,9 +300,8 @@ instance (Pretty t, TypeType t) => Pretty (Type t) where
                                           | s == ReadOnly -> (\x -> parens x <> typesymbol "!")
                                           | otherwise -> id) $
         record (map (\(a,(b,c)) -> fieldname a <+> symbol ":" <+> pretty b) ts)  -- all untaken
-    | otherwise = (pretty (TRecord (map (second . second $ const False) ts) s)
-               <+> typesymbol "take" <+> tupled1 (map fieldname tk)) &
-               (if __cogent_fdisambiguate_pp then (<+> comment "{- rec -}") else id)
+    | otherwise = pretty (TRecord (map (second . second $ const False) ts) s)
+              <+> typesymbol "take" <+> tupled1 (map fieldname tk)
         where tk = map fst $ filter (snd .snd) ts
   pretty (TVariant ts) | any snd ts = let
      names = map fst $ filter (snd . snd) $ M.toList ts
@@ -317,20 +315,22 @@ instance (Pretty t, TypeType t) => Pretty (Type t) where
   pretty (TFun t t') = prettyT' t <+> typesymbol "->" <+> pretty t'
     where prettyT' e | isFun e   = parens (pretty e)
                      | otherwise = pretty e
-  pretty (TUnbox t) = typesymbol "#" <> prettyT' t
+  pretty (TUnbox t) = (typesymbol "#" <> prettyT' t) & (if __cogent_fdisambiguate_pp then (<+> comment "{- unbox -}") else id)
     where prettyT' e | not $ isAtomic e = parens (pretty e)
                      | otherwise        = pretty e
-  pretty (TBang t) = prettyT' t <> typesymbol "!"
+  pretty (TBang t) = (prettyT' t <> typesymbol "!") & (if __cogent_fdisambiguate_pp then (<+> comment "{- bang -}") else id)
     where prettyT' e | not $ isAtomic e = parens (pretty e)
                      | otherwise        = pretty e
-  pretty (TTake fs x) = prettyT' x <+> typesymbol "take"
-                                   <+> case fs of Nothing  -> tupled (fieldname ".." : [])
-                                                  Just fs' -> tupled1 (map fieldname fs')
+  pretty (TTake fs x) = (prettyT' x <+> typesymbol "take"
+                                    <+> case fs of Nothing  -> tupled (fieldname ".." : [])
+                                                   Just fs' -> tupled1 (map fieldname fs'))
+                        & (if __cogent_fdisambiguate_pp then (<+> comment "{- take -}") else id)
     where prettyT' e | not $ isAtomic e = parens (pretty e)
                      | otherwise        = pretty e
-  pretty (TPut fs x) = prettyT' x <+> typesymbol "put"
-                                  <+> case fs of Nothing -> tupled (fieldname ".." : [])
-                                                 Just fs' -> tupled1 (map fieldname fs')
+  pretty (TPut fs x) = (prettyT' x <+> typesymbol "put"
+                                   <+> case fs of Nothing -> tupled (fieldname ".." : [])
+                                                  Just fs' -> tupled1 (map fieldname fs'))
+                       & (if __cogent_fdisambiguate_pp then (<+> comment "{- put -}") else id)
     where prettyT' e | not $ isAtomic e = parens (pretty e)
                      | otherwise        = pretty e
 
@@ -464,9 +464,8 @@ instance (Pretty a, TypeType a) => Pretty (TypeFragment a) where
   pretty (FRecord ts) 
     | not . or $ map (snd . snd) ts = typesymbol "?" <+>
         record (map (\(a,(b,c)) -> fieldname a <+> symbol ":" <+> pretty b) ts)  -- all untaken
-    | otherwise = (pretty (FRecord (map (second . second $ const False) ts))
-               <+> typesymbol "take" <+> tupled1 (map fieldname tk)) &
-               (if __cogent_fdisambiguate_pp then (<+> comment "{- rec -}") else id)
+    | otherwise = pretty (FRecord (map (second . second $ const False) ts))
+              <+> typesymbol "take" <+> tupled1 (map fieldname tk)
         where tk = map fst $ filter (snd .snd) ts
 instance Pretty Constraint where
   pretty (a :<  b)        = pretty a </> warn ":<" </> pretty b
