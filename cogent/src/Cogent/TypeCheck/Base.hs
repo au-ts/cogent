@@ -14,19 +14,16 @@ module Cogent.TypeCheck.Base where
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Surface
--- import Cogent.TypeCheck.Util
 import Cogent.Util
 
 import Control.Lens hiding (Context, (:<))
 import Control.Monad.Except
 import Control.Monad.State
 import Data.List (nub, (\\))
+import qualified Data.Map as M
 import Data.Monoid ((<>))
 import Text.Parsec.Pos
 
--- import Debug.Trace
-
-import qualified Data.Map as M
 
 data TypeError = FunctionNotFound VarName
                | TooManyTypeArguments FunName (Polytype RawType)
@@ -145,10 +142,6 @@ data Constraint = (:<) (TypeFragment TCType) (TypeFragment TCType)
                 | Exhaustive TCType [Pattern TCName]
                 deriving (Show)
 
-
-integral :: TCType -> Constraint
-integral a = Upcastable (T (TCon "U8" [] Unboxed)) a
-
 instance Monoid Constraint where
   mempty = Sat
   mappend Sat x = x
@@ -205,11 +198,11 @@ validateTypes' vs rs = runExceptT (traverse (validateType vs) rs)
 
 -- Remove a pattern from a type, for case expressions.
 removeCase :: Pattern x -> TCType -> TCType
-removeCase (PIrrefutable _) _                = (T (TVariant M.empty))
-removeCase (PIntLit _)      x                = x
-removeCase (PCharLit _)     x                = x
-removeCase (PBoolLit _)     x                = x
-removeCase (PCon t _)       x                = (T (TTake (Just [t]) x))
+removeCase (PIrrefutable _) _ = (T (TVariant M.empty))
+removeCase (PIntLit _)      x = x
+removeCase (PCharLit _)     x = x
+removeCase (PBoolLit _)     x = x
+removeCase (PCon t _)       x = (T (TTake (Just [t]) x))
 
 forFlexes :: (Int -> TCType) -> TCType -> TCType
 forFlexes f (U x) = f x
@@ -220,3 +213,4 @@ forFlexes f (U x) = f x
 --      Just t' -> t'
 --      Nothing -> RemoveCase p' t'
 forFlexes f (T x) = T (fmap (forFlexes f) x)
+
