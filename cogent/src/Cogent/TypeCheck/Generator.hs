@@ -291,6 +291,8 @@ cg' (Match e bs alts) top = do
       e = Match e' bs alts'
   return (c, e)
 
+integral :: TCType -> Constraint
+integral a = Upcastable (T (TCon "U8" [] Unboxed)) a
 
 cgAlts :: (?loc :: SourcePos) => [Alt VarName LocExpr] -> TCType -> TCType -> CG (Constraint, [Alt TCTypedName TCExpr])
 cgAlts alts top alpha = do

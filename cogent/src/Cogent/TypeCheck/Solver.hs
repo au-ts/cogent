@@ -8,10 +8,11 @@
 -- @TAG(NICTA_GPL)
 --
 
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Cogent.TypeCheck.Solver (runSolver, solve) where
 
@@ -39,7 +40,6 @@ import qualified Data.Set as S
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
 
--- import Debug.Trace
 
 data SolverState = SS { _flexes :: Int, _tc :: TCState, _substs :: Subst, _axioms :: [(VarName, Kind)] }
 
@@ -154,7 +154,7 @@ patternTag _ = Nothing
 -- for that to be true. E.g, (a,b) :< (c,d) becomes a :< c :& b :< d.
 -- Assumes that the input is simped (i.e conjunction and context free, with types in whnf)
 rule' :: Constraint -> IO (Maybe Constraint)
-rule' c = ruleT c >>= \c' -> return ((:@ SolvingConstraint c) <$> c')
+rule' c = ruleT c >>= return . ((:@ SolvingConstraint c) <$>)
 
 ruleT :: Constraint -> IO (Maybe Constraint)
 ruleT c = do
@@ -177,7 +177,8 @@ rule (Exhaustive (T (TCon "Bool" [] Unboxed)) [PBoolLit t, PBoolLit f])
 rule (Exhaustive t ps)
   | not (notWhnf t) = return . Just . Unsat $ PatternsNotExhaustive t []
 
-rule ct@(x :@ c) = return . ((:@ c) <$>) =<< ruleT x
+rule (x :@ c) = return . ((:@ c) <$>) =<< ruleT x
+
 rule (x :& y) = do
   x' <- ruleT x
   y' <- ruleT y
@@ -193,16 +194,16 @@ rule (Drop   (T TVar {}) _) = return Nothing
 rule (Escape (T TVar {}) _) = return Nothing
 
 rule (Share  (T (TTuple xs)) m) = return . Just . mconcat $ map (flip Share m) xs
-rule (Escape (T (TTuple xs)) m) = return . Just . mconcat $ map (flip Escape m) xs
 rule (Drop   (T (TTuple xs)) m) = return . Just . mconcat $ map (flip Drop m) xs
+rule (Escape (T (TTuple xs)) m) = return . Just . mconcat $ map (flip Escape m) xs
 
 rule (Share  (T TUnit) m) = return $ Just Sat
-rule (Escape (T TUnit) m) = return $ Just Sat
 rule (Drop   (T TUnit) m) = return $ Just Sat
+rule (Escape (T TUnit) m) = return $ Just Sat
 
 rule (Share  (T TFun {}) m) = return $ Just Sat
-rule (Escape (T TFun {}) m) = return $ Just Sat
 rule (Drop   (T TFun {}) m) = return $ Just Sat
+rule (Escape (T TFun {}) m) = return $ Just Sat
 
 rule (Share  (T (TVariant n)) m) = return . Just $ foldMap (\(ts, t) -> if t then Sat else mconcat $ map (flip Share  m) ts) n
 rule (Drop   (T (TVariant n)) m) = return . Just $ foldMap (\(ts, t) -> if t then Sat else mconcat $ map (flip Drop   m) ts) n
@@ -248,18 +249,18 @@ rule ct@(F (T (TRecord fs s)) :< F (T (TRecord gs r)))
   | or (zipWith ((/=) `on` fst) fs gs) = return $ Just $ Unsat (TypeMismatch (F $ T (TRecord fs s)) (F $ T (TRecord gs r)))
   | length fs /= length gs             = return $ Just $ Unsat (TypeMismatch (F $ T (TRecord fs s)) (F $ T (TRecord gs r)))
   | s /= r                             = return $ Just $ Unsat (TypeMismatch (F $ T (TRecord fs s)) (F $ T (TRecord gs r)))
-  | otherwise                          = let
-      each (f, (t, False)) (_, (u, True )) = (F t :< F u) :& Drop t ImplicitlyTaken
-      each (f, (t, False)) (_, (u, False)) = F t :< F u
-      each (f, (t, True )) (_, (u, True )) = F t :< F u
-      each (f, (t, True )) (_, (u, False)) = Unsat (RequiredTakenField f t)
-    in do let cs = zipWith each fs gs
-          traceTC "sol" (text "solve each field of constraint" <+> pretty ct
-            P.<$> foldl 
-                    (\a (f,c) -> a P.<$> text "field" <+> pretty (fst f) P.<> colon <+> pretty c)
-                    P.empty
-                    (zip fs cs))
-          return . Just $ mconcat cs
+  | otherwise                          = do
+     let each (f, (t, False)) (_, (u, True )) = (F t :< F u) :& Drop t ImplicitlyTaken
+         each (f, (t, False)) (_, (u, False)) = F t :< F u
+         each (f, (t, True )) (_, (u, True )) = F t :< F u
+         each (f, (t, True )) (_, (u, False)) = Unsat (RequiredTakenField f t)
+         cs = zipWith each fs gs
+     traceTC "sol" (text "solve each field of constraint" <+> pretty ct
+       P.<$> foldl 
+               (\a (f,c) -> a P.<$> text "field" <+> pretty (fst f) P.<> colon <+> pretty c)
+               P.empty
+               (zip fs cs))
+     return . Just $ mconcat cs
 rule (F (T (TVariant m)) :< F (T (TVariant n)))
   | M.keys m /= M.keys n = return $ Just $ Unsat (TypeMismatch (F $ T (TVariant m)) (F $ T (TVariant n)))
   | otherwise = let
@@ -279,11 +280,11 @@ rule (F (T (TVariant m)) :< F (T (TVariant n)))
 --              :< ((if null a'x then id else T . TTake (Just a'x)) c)
 rule ct@(F a :< b)
   | notWhnf a = do
-      traceTC "sol" (text "constraint" <+> pretty ct <+> text "with either side in non-WHNF is disregarded")
+      traceTC "sol" (text "constraint" <+> pretty ct <+> text "with left side in non-WHNF is disregarded")
       return Nothing
 rule ct@(b :< F a)
   | notWhnf a = do
-      traceTC "sol" (text "constraint" <+> pretty ct <+> text "with either side in non-WHNF is disregarded")
+      traceTC "sol" (text "constraint" <+> pretty ct <+> text "with right side in non-WHNF is disregarded")
       return Nothing
 rule (Upcastable (T (TCon n [] Unboxed)) (T (TCon m [] Unboxed)))
   | Just n' <- elemIndex n primTypeCons
@@ -292,67 +293,49 @@ rule (Upcastable (T (TCon n [] Unboxed)) (T (TCon m [] Unboxed)))
   , m /= "String"
   = return $ Just Sat
 rule ct@(FVariant n :< F (T (TVariant m)))
-  | ks <- M.keysSet n
-  , ks `S.isSubsetOf` M.keysSet m
-  = let each t (ts, _) (us, False)  = mconcat (zipWith (:<) (map F ts) (map F us))
-        each t (ts, _) (us, True)   = Unsat (RequiredTakenTag t)
-    in do let ks' = S.toList ks
-              cs = map (\k -> each k (n M.! k) (m M.! k)) ks'
-          return . Just $ mconcat cs
+  | ns <- M.keysSet n
+  , ns `S.isSubsetOf` M.keysSet m
+  = parVariants n m ns
 rule ct@(F (T (TVariant n)) :< FVariant m)
-  | ks <- M.keysSet m
-  , ks `S.isSubsetOf` M.keysSet n
-  = let each t (ts, _) (us, False)  = mconcat (zipWith (:<) (map F ts) (map F us))
-        each t (ts, _) (us, True)   = Unsat (RequiredTakenTag t)
-    in do let ks' = S.toList ks
-              cs = map (\k -> each k (n M.! k) (m M.! k)) ks'
-          return . Just $ mconcat cs
+  | ms <- M.keysSet m
+  , ms `S.isSubsetOf` M.keysSet n
+  = parVariants n m ms
 rule ct@(FVariant n :< FVariant m)
-  | kns <- M.keysSet n
-  , kms <- M.keysSet m
-  , kns == kms
-  = let each t (ts, _) (us, False)  = mconcat (zipWith (:<) (map F ts) (map F us))
-        each t (ts, _) (us, True)   = Unsat (RequiredTakenTag t)
-    in do let ks' = S.toList kns
-              cs  = map (\k -> each k (n M.! k) (m M.! k)) ks'
-          return . Just $ mconcat cs
-rule ct@(FRecord fs :< F (T (TRecord gs s)))
-  | ms <- M.fromList gs
-  , ns <- M.fromList fs
-  , M.keysSet ns `S.isSubsetOf` M.keysSet ms
-  = let
-      each f (t, False) (u, True ) = Unsat (RequiredTakenField f t)
-      each f (t, False) (u, False) = F t :< F u
-      each f (t, True ) (u, True ) = F t :< F u
-      each f (t, True ) (u, False) = (F t :< F u) :& Drop t ImplicitlyTaken
-    in do let cs = map (\k -> each k (ns M.! k) (ms M.! k)) $ S.toList $ M.keysSet ns
-          return . Just $ mconcat cs
-rule ct@(F (T (TRecord fs s)) :< FRecord gs)
-  | ms <- M.fromList gs
-  , ns <- M.fromList fs
-  , M.keysSet ms `S.isSubsetOf` M.keysSet ns
-  = let
-      each f (t, False) (u, True ) = Unsat (RequiredTakenField f t)
-      each f (t, False) (u, False) = F t :< F u
-      each f (t, True ) (u, True ) = F t :< F u
-      each f (t, True ) (u, False) = (F t :< F u) :& Drop t ImplicitlyTaken
-    in do let cs = map (\k -> each k (ns M.! k) (ms M.! k)) $ S.toList $ M.keysSet ms
-          return . Just $ mconcat cs
-rule ct@(FRecord fs :< FRecord gs)
-  | ms <- M.fromList gs
-  , ns <- M.fromList fs
-  , M.keysSet ms == M.keysSet ns
-  = let
-      each f (t, False) (u, True ) = Unsat (RequiredTakenField f t)
-      each f (t, False) (u, False) = F t :< F u
-      each f (t, True ) (u, True ) = F t :< F u
-      each f (t, True ) (u, False) = (F t :< F u) :& Drop t ImplicitlyTaken
-    in do let cs = map (\k -> each k (ns M.! k) (ms M.! k)) $ S.toList $ M.keysSet ms
-          return . Just $ mconcat cs
+  | ns <- M.keysSet n
+  , ns == M.keysSet m
+  = parVariants n m ns
+rule ct@(FRecord (M.fromList -> n) :< F (T (TRecord (M.fromList -> m) s)))
+  | ns <- M.keysSet n
+  , ns `S.isSubsetOf` M.keysSet m
+  = parRecords n m ns
+rule ct@(F (T (TRecord (M.fromList -> n) s)) :< FRecord (M.fromList -> m))
+  | ms <- M.keysSet m
+  , ms `S.isSubsetOf` M.keysSet n
+  = parRecords n m ms
+rule ct@(FRecord (M.fromList -> n) :< FRecord (M.fromList -> m))
+  | ns <- M.keysSet n
+  , ns == M.keysSet m
+  = parRecords n m ns
 rule (a :< b) = return $ Just $ Unsat (TypeMismatch a b)
 
 rule c = return Nothing
 
+-- `parRecords' and `parVariant' are used internally in `rule'
+parRecords n m ks =
+  let each f (t, False) (u, True ) = Unsat (RequiredTakenField f t)
+      each f (t, False) (u, False) = F t :< F u
+      each f (t, True ) (u, True ) = F t :< F u
+      each f (t, True ) (u, False) = (F t :< F u) :& Drop t ImplicitlyTaken
+      ks' = S.toList ks 
+      cs  = map (\k -> each k (n M.! k) (m M.! k)) ks'
+  in return . Just $ mconcat cs
+
+parVariants n m ks =
+  let each t (ts, _) (us, False)  = mconcat (zipWith (:<) (map F ts) (map F us))
+      each t (ts, _) (us, True)   = Unsat (RequiredTakenTag t)
+      ks' = S.toList ks
+      cs  = map (\k -> each k (n M.! k) (m M.! k)) ks'
+  in return . Just $ mconcat cs
 
 
 -- Applies rules and simp as much as possible
@@ -423,11 +406,11 @@ glb a@(FRecord isL) b@(F (T (TRecord jsL s)))
   = glb a' b
 glb a@(F (T (TRecord jsL s))) b@(FRecord isL) = glb b a
 glb a@(FRecord is_) b@(FRecord js_) 
-  | isM <- M.fromList is_, jsM <- M.fromList js_
+  | isM <- M.fromList is_
+  , jsM <- M.fromList js_
   , is <- M.union isM jsM
   , js <- M.union jsM isM
-  = let
-      each (f,(_,b)) (_, (_,b')) = (f,) . (,b && b') <$> fresh
+  = let each (f,(_,b)) (_, (_,b')) = (f,) . (,b && b') <$> fresh
     in (, FRecord (M.toList is), FRecord (M.toList js)) . Just <$> (FRecord <$> zipWithM each (M.toList is) (M.toList js))
 glb a b = return (Nothing, a, b)
 
@@ -473,6 +456,7 @@ lubGuess (T (TCon n [] Unboxed)) (T (TCon m [] Unboxed))
         , Just m' <- elemIndex m primTypeCons
         = return $ Just (T (TCon (primTypeCons !! max n' m') [] Unboxed))
 lubGuess _ _ = return Nothing
+
 glbGuess :: TCType -> TCType -> Solver (Maybe TCType)
 glbGuess (T (TCon n [] Unboxed)) (T (TCon m [] Unboxed)) 
         | Just n' <- elemIndex n primTypeCons
