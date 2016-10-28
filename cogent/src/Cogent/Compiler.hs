@@ -306,6 +306,8 @@ __cogent_fcheck_undefined_ref = unsafePerformIO $ newIORef True
 
 -- TODO
 
+-- Mostly used for disambiguating types that are normalised and not;
+-- they look the same in PP but internally distinct / zilinc
 __cogent_fdisambiguate_pp :: Bool
 __cogent_fdisambiguate_pp = unsafePerformIO $ readIORef __cogent_fdisambiguate_pp_ref
 
