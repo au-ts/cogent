@@ -551,6 +551,7 @@ imposeCast (Goal x1 (v `Upcastable` tau) : Goal x2 (_ `Upcastable` tau') : xs) =
     Nothing    -> return [Goal x1 (Unsat (TypeMismatch (F tau) (F tau')))]
     Just tau'' -> imposeCast (Goal x2 (v `Upcastable` tau'') : xs)
 imposeCast xs = return xs
+
 -- Push type information up from the LHS of :< to the RHS
 -- Expects a series of goals of the form tau :< U x
 suggest :: [Goal] -> Solver [Goal]
@@ -569,6 +570,7 @@ suggestCast (Goal x1 (tau `Upcastable` v) : Goal x2 (tau' `Upcastable` _) : xs) 
     Nothing    -> return [Goal x1 (Unsat (TypeMismatch (F tau) (F tau')))]
     Just tau'' -> suggestCast (Goal x2 (tau'' `Upcastable` v) : xs)
 suggestCast xs = return xs
+
 -- guess :: [Goal] -> Solver [Goal]
 -- guess (Goal x1 a@(Partial tau d v) : Goal x2 b@(Partial tau' d' _) : xs) = do
 --   mt <- lub' tau tau'
@@ -581,7 +583,7 @@ suggestCast xs = return xs
 --     op' = case d' of Less -> (:<); _ -> flip (:<)
 -- guess xs = return xs
 
--- Produce substitutions when it is safe to do so (the variable can't get any more general)
+-- Produce substitutions when it is safe to do so (the variable can't get any more general).
 noBrainers :: [Goal] -> Solver Subst
 noBrainers [Goal _ c@(F (U x) :<  F (T t))] = do
   traceTC "sol" (text "apply no brainer to" <+> pretty c)
@@ -626,7 +628,6 @@ assumption gs = do
 explode :: [Goal] -> Solver GoalClasses
 explode = assumption >=> (zoom tc . apply auto) >=> mapM exhaustives >=> (return . foldMap classify)
 
-
 irreducible :: M.Map Int [Goal] -> Bool
 irreducible m | M.null m = True
             | xs <- F.toList m
@@ -643,6 +644,8 @@ irreducible m | M.null m = True
                 (_ :< _)       -> False
                 (_)            -> True
     irreducible' _ = False
+
+
 -- In a loop, we:
 --   1. Smash all goals into smaller, simple flex/rigid goals. Exit if any of them are Unsat, remove any Sat.
 --   2.1. Apply any no-brainer substitutions from the downward goals (? :< R)
@@ -717,5 +720,5 @@ solve = zoom tc . crunch >=> explode >=> go
 
     toError :: Goal -> ContextualisedError
     toError (Goal ctx (Unsat e)) = (ctx, e)
-    toError _ = error "Impossible"
+    toError _ = error "impossible"
 
