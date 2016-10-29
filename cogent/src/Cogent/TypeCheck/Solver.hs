@@ -377,45 +377,52 @@ fresh :: Solver TCType
 fresh = U <$> (flexes <<%= succ)
 
 
+data Bound = GLB | LUB
+
+glb = bound GLB
+lub = bound LUB
+
 -- Constructs a partially specified type that could plausibly be :< the two inputs.
 -- We re-check some basic equalities here for better error messages
-glb :: TypeFragment TCType -> TypeFragment TCType -> Solver (Maybe (TypeFragment TCType), TypeFragment TCType, TypeFragment TCType)
-glb (F a) (F b) = fmap ((, F a, F b) . fmap F) (glb' a b)
-glb (F (T (TVariant js))) (FVariant is) = glb (FVariant is) (F (T (TVariant js))) 
-glb a@(FVariant is) b@(F (T (TVariant js))) 
+bound :: Bound -> TypeFragment TCType -> TypeFragment TCType -> Solver (Maybe (TypeFragment TCType), TypeFragment TCType, TypeFragment TCType)
+bound d (F a) (F b) = fmap ((, F a, F b) . fmap F) (bound' d a b)
+bound d a@(FVariant is) b@(F (T (TVariant js))) 
   | M.keysSet is `S.isSubsetOf` M.keysSet js
   , a' <- F (T (TVariant $ M.union is js))
-  = glb a' b
-glb a@(FVariant is_) b@(FVariant js_) 
+  = bound d a' b
+bound d a@(F (T (TVariant js))) b@(FVariant is) = bound d b a  -- symm
+bound d a@(FVariant is_) b@(FVariant js_) 
   | is <- M.union is_ js_
   , js <- M.union js_ is_
   = if or (zipWith ((/=) `on` length) (F.toList is) (F.toList js)) then return (Nothing, a, b)
     else 
     (,FVariant is, FVariant js) . Just . FVariant . M.fromList <$> traverse (each is js) (M.keys is)
   where
+    op = case d of GLB -> (||); LUB -> (&&)
     each is js k = let
       (i, ib) = is M.! k
       (_, jb) = js M.! k
      in do ts <- replicateM (length i) fresh
-           return (k, (ts, ib || jb))
-glb a@(FRecord isL) b@(F (T (TRecord jsL s)))
+           return (k, (ts, ib `op` jb))
+bound d a@(FRecord isL) b@(F (T (TRecord jsL s)))
   | is <- M.fromList isL
   , js <- M.fromList jsL
   , M.keysSet is `S.isSubsetOf` M.keysSet js
   , a' <- F (T (TRecord (M.toList $ M.union is js) s))
-  = glb a' b
-glb a@(F (T (TRecord jsL s))) b@(FRecord isL) = glb b a
-glb a@(FRecord is_) b@(FRecord js_) 
+  = bound d a' b
+bound d a@(F (T (TRecord jsL s))) b@(FRecord isL) = bound d b a  -- symm
+bound d a@(FRecord is_) b@(FRecord js_) 
   | isM <- M.fromList is_
   , jsM <- M.fromList js_
   , is <- M.union isM jsM
   , js <- M.union jsM isM
-  = let each (f,(_,b)) (_, (_,b')) = (f,) . (,b && b') <$> fresh
+  = let op = case d of GLB -> (&&); LUB -> (||)
+        each (f,(_,b)) (_, (_,b')) = (f,) . (,b `op` b') <$> fresh
     in (, FRecord (M.toList is), FRecord (M.toList js)) . Just <$> (FRecord <$> zipWithM each (M.toList is) (M.toList js))
-glb a b = return (Nothing, a, b)
+bound _ a b = return (Nothing, a, b)
 
-glb' :: TCType -> TCType -> Solver (Maybe TCType)
-glb' (T (TVariant is)) (T (TVariant js))
+bound' :: Bound -> TCType -> TCType -> Solver (Maybe TCType)
+bound' d (T (TVariant is)) (T (TVariant js))
   | M.keysSet is /= M.keysSet js
   = return Nothing
   | or (zipWith ((/=) `on` length) (F.toList is) (F.toList js))
@@ -423,119 +430,46 @@ glb' (T (TVariant is)) (T (TVariant js))
   | otherwise
   = Just . T . TVariant . M.fromList <$> traverse each (M.keys is)
   where
+    op = case d of GLB -> (||); LUB -> (&&)
     each :: TagName -> Solver (TagName, ([TCType], Taken))
     each k = let
       (i, ib) = is M.! k
       (_, jb) = js M.! k
      in do ts <- replicateM (length i) fresh
-           return (k, (ts, ib || jb))
-glb' (T (TTuple is)) (T (TTuple js))
+           return (k, (ts, ib `op` jb))
+bound' _ (T (TTuple is)) (T (TTuple js))
   | length is /= length js = return Nothing
   | otherwise = Just . T . TTuple <$> traverse (const fresh) is
-glb' (T (TFun a b)) (T (TFun c d))
+bound' _ (T (TFun a b)) (T (TFun c d))
   = Just . T <$> (TFun <$> fresh <*> fresh)
-glb' (T (TCon c as s)) (T (TCon d bs r))
+bound' _ (T (TCon c as s)) (T (TCon d bs r))
   | c /= d || s /= r       = return Nothing
   | length as /= length bs = return Nothing
   | otherwise = Just . T <$> (TCon d <$> traverse (const fresh) as <*> pure r)
-glb' (T (TVar a x)) (T (TVar b y))
+bound' _ (T (TVar a x)) (T (TVar b y))
   | x /= y || a /= b = return Nothing
   | otherwise        = return $ Just . T $ TVar a x
-glb' (T TUnit) (T TUnit) = return $ Just (T TUnit)
-glb' (T (TRecord fs s)) (T (TRecord gs r))
+bound' _ (T TUnit) (T TUnit) = return $ Just (T TUnit)
+bound' d (T (TRecord fs s)) (T (TRecord gs r))
   | s /= r = return Nothing
   | map fst fs /= map fst gs = return Nothing
   | otherwise = let
-      each (f,(_,b)) (_, (_,b')) = (f,) . (,b && b') <$> fresh
+      op = case d of GLB -> (&&); LUB -> (||) 
+      each (f,(_,b)) (_, (_,b')) = (f,) . (,b `op` b') <$> fresh
     in Just . T <$> (TRecord <$> zipWithM each fs gs <*> pure s)
-glb' _ _ = return Nothing
+bound' _ _ _ = return Nothing
 
-lubGuess :: TCType -> TCType -> Solver (Maybe TCType)
-lubGuess (T (TCon n [] Unboxed)) (T (TCon m [] Unboxed)) 
-        | Just n' <- elemIndex n primTypeCons
-        , Just m' <- elemIndex m primTypeCons
-        = return $ Just (T (TCon (primTypeCons !! max n' m') [] Unboxed))
-lubGuess _ _ = return Nothing
+primGuess :: Bound -> TCType -> TCType -> Solver (Maybe TCType)
+primGuess d (T (TCon n [] Unboxed)) (T (TCon m [] Unboxed)) 
+  | Just n' <- elemIndex n primTypeCons
+  , Just m' <- elemIndex m primTypeCons
+  = let f = case d of GLB -> min; LUB -> max
+    in return $ Just (T (TCon (primTypeCons !! f n' m') [] Unboxed))
+primGuess _ _ _ = return Nothing
 
-glbGuess :: TCType -> TCType -> Solver (Maybe TCType)
-glbGuess (T (TCon n [] Unboxed)) (T (TCon m [] Unboxed)) 
-        | Just n' <- elemIndex n primTypeCons
-        , Just m' <- elemIndex m primTypeCons
-        = return $ Just (T (TCon (primTypeCons !! min n' m') [] Unboxed))
-glbGuess _ _ = return Nothing
+glbGuess = primGuess GLB
+lubGuess = primGuess LUB
 
--- Constructs a partially specified type that the two inputs are plausibly both :<.
--- Once again we recheck equalities for error message improvements.
-lub :: TypeFragment TCType -> TypeFragment TCType -> Solver (Maybe (TypeFragment TCType), TypeFragment TCType, TypeFragment TCType)
-lub (F a) (F b) = fmap ((, F a, F b) . fmap F) (lub' a b)
-lub (F (T (TVariant js))) (FVariant is) = lub (FVariant is) (F (T (TVariant js))) 
-lub a@(FVariant is) b@(F (T (TVariant js))) 
-  | M.keysSet is `S.isSubsetOf` M.keysSet js
-  , a' <- F (T (TVariant $ M.union is js))
-  = lub a' b
-lub a@(FVariant is_) b@(FVariant js_) 
-  | is <- M.union is_ js_
-  , js <- M.union js_ is_
-  = if or (zipWith ((/=) `on` length) (F.toList is) (F.toList js)) then return (Nothing, a, b)
-    else 
-    (,FVariant is, FVariant js) . Just . FVariant . M.fromList <$> traverse (each is js) (M.keys is)
-  where
-    each is js k = let
-      (i, ib) = is M.! k
-      (_, jb) = js M.! k
-     in do ts <- replicateM (length i) fresh
-           return (k, (ts, ib && jb))
-lub a@(FRecord isL) b@(F (T (TRecord jsL s)))
-  | is <- M.fromList isL
-  , js <- M.fromList jsL
-  , M.keysSet is `S.isSubsetOf` M.keysSet js
-  , a' <- F (T (TRecord (M.toList $ M.union is js) s))
-  = lub a' b
-lub a@(F (T (TRecord jsL s))) b@(FRecord isL) = lub b a
-lub a@(FRecord is_) b@(FRecord js_) 
-  | isM <- M.fromList is_, jsM <- M.fromList js_
-  , is <- M.union isM jsM
-  , js <- M.union jsM isM
-  = let
-      each (f,(_,b)) (_, (_,b')) = (f,) . (,b || b') <$> fresh
-    in (, FRecord (M.toList is), FRecord (M.toList js)) . Just <$> (FRecord <$> zipWithM each (M.toList is) (M.toList js))
-lub a b = return (Nothing, a, b)
-
-lub' :: TCType -> TCType -> Solver (Maybe TCType)
-lub' (T (TVariant is)) (T (TVariant js))
-  | M.keysSet is /= M.keysSet js
-  = return Nothing
-  | or (zipWith ((/=) `on` length) (F.toList is) (F.toList js))
-  = return Nothing
-  | otherwise
-  = Just . T . TVariant . M.fromList <$> traverse each (M.keys is)
-  where
-    each :: TagName -> Solver (TagName, ([TCType], Taken))
-    each k = let
-      (i, ib) = is M.! k
-      (_, jb) = js M.! k
-     in do ts <- replicateM (length i) fresh
-           return (k, (ts, ib && jb))
-lub' (T (TTuple is)) (T (TTuple js))
-  | length is /= length js = return Nothing
-  | otherwise = Just . T . TTuple <$> traverse (const fresh) is
-lub' (T (TFun a b)) (T (TFun c d))
-  = Just . T <$> (TFun <$> fresh <*> fresh)
-lub' (T (TCon c as s)) (T (TCon d bs r))
-  | c /= d || s /= r       = return Nothing
-  | length as /= length bs = return Nothing
-  | otherwise = Just . T <$> (TCon d <$> traverse (const fresh) as <*> pure r)
-lub' (T (TVar a x)) (T (TVar b y))
-  | x /= y || a /= b = return Nothing
-  | otherwise        = return $ Just . T $ TVar a x
-lub' (T TUnit) (T TUnit) = return $ Just (T TUnit)
-lub' (T (TRecord fs s)) (T (TRecord gs r))
-  | s /= r = return Nothing
-  | map fst fs /= map fst gs = return Nothing
-  | otherwise = let
-      each (f,(_,b)) (_, (_,b')) = (f,) . (,b || b') <$> fresh
-    in Just . T <$> (TRecord <$> zipWithM each fs gs <*> pure s)
-lub' _ _ = return Nothing
 
 -- A simple classification scheme for soluble flex/rigid constraints
 data GoalClasses
@@ -750,7 +684,6 @@ solve = zoom tc . crunch >=> explode >=> go
       else do
           applySubst s
           instantiate g >>= explode >>= go
-
 
     go g | not (M.null (downcastables g)) = do
      s <- F.fold <$> mapM noBrainers (downcastables g)
