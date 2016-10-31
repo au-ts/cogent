@@ -416,7 +416,7 @@ bound d a@(FRecord isL) b@(F (T (TRecord jsL s)))
   | is <- M.fromList isL
   , js <- M.fromList jsL
   , M.keysSet is `S.isSubsetOf` M.keysSet js
-  , a' <- F (T (TRecord (M.toList $ M.union is js) s))
+  , a' <- F (T (TRecord (filter (`elem` M.toList (M.union is js)) isL) s))
   = bound d a' b
 bound d a@(F (T (TRecord jsL s))) b@(FRecord isL) = bound d b a  -- symm
 bound d a@(FRecord is_) b@(FRecord js_) 
