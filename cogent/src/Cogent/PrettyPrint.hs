@@ -424,7 +424,8 @@ instance Pretty TypeError where
   pretty (UnknownTypeConstructor tn)     = err "Unknown type constructor" <+> typename tn
   pretty (TypeArgumentMismatch tn i1 i2) = typename tn <+> err "expects"
                                            <+> int i1 <+> err "arguments, but has been given" <+> int i2
-  pretty (TypeMismatch t1 t2)            = err "Mismatch between" <+> pretty t1 <+> err "and" <+> pretty t2
+  pretty (TypeMismatch t1 t2)            = err "Mismatch between" <$> indent' (pretty t1)
+                                           <$> err "and" <$> indent' (pretty t2)
   pretty (RequiredTakenField f t)        = err "Field" <+> fieldname f <+> err "of type" <+> pretty t
                                            <+> err "is required, but has been taken"
   pretty (TypeNotShareable t m)          = err "Cannot share type" <+> pretty t
@@ -474,7 +475,7 @@ instance Pretty Constraint where
   pretty (Share  t m)     = warn "Share" <+> pretty t
   pretty (Drop   t m)     = warn "Drop" <+> pretty t
   pretty (Escape t m)     = warn "Escape" <+> pretty t
-  pretty (Unsat e)        = errbd "Unsat"
+  pretty (Unsat e)        = errbd "Unsat" <$> pretty e
   pretty (Sat)            = warn "Sat"
   pretty (Exhaustive t p) = warn "Exhaustive" <+> pretty t <+> pretty p
   pretty (x :@ _)         = pretty x

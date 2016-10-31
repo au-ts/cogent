@@ -2,11 +2,11 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {- LANGUAGE TypeFamilies #-}
 
-module COGENT.TypeCheck.Util where
+module Cogent.TypeCheck.Util where
 
-import COGENT.Compiler
--- import COGENT.TypeCheck.Base
-import COGENT.PrettyPrint
+import Cogent.Compiler
+-- import Cogent.TypeCheck.Base
+import Cogent.PrettyPrint
 
 import Control.Monad.IO.Class
 -- import Control.Monad.State.Class
