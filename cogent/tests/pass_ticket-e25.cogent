@@ -1,0 +1,35 @@
+type RR c a b = (c, <Success a | Error b>)
+type Result a b = <Success a | Error b>
+
+type OSBuffer
+type OSBufferOffset = U32
+type ExState
+
+type Ext2Superblock = {
+    inode_count             : U32,
+    block_count             : U32,
+    magic                   : U16
+}
+
+{-# cinline osbuffer_deserialise_Ple32 #-}
+osbuffer_deserialise_Ple32: (OSBuffer!, OSBufferOffset) -> Result (U32, OSBufferOffset) ()
+{-# cinline osbuffer_deserialise_Ple16 #-}
+osbuffer_deserialise_Ple16: (OSBuffer!, OSBufferOffset) -> Result (U16, OSBufferOffset) ()
+
+deserialise_into_Ext2Superblock: (ExState, OSBuffer!, Ext2Superblock take (..), U32) -> RR ExState (Ext2Superblock, U32) (Ext2Superblock take (..))
+deserialise_into_Ext2Superblock (ex, buf, obj_t, idx) =
+    osbuffer_deserialise_Ple32 (buf, idx)
+    | Success (inode_count, idx) ->
+        osbuffer_deserialise_Ple32 (buf, idx)
+        | Success (block_count, idx) ->
+            osbuffer_deserialise_Ple16 (buf, idx + (3 * 4)) -- skip 4 fields (2x U16, 2xU32 = 3xU32) 
+            | Success (magic, idx) ->
+                let obj = obj_t { inode_count
+                                , block_count
+                                , magic
+                                }
+                in (ex, Success (obj, idx))
+            | Error () -> (ex, Error obj_t)
+        | Error () -> (ex, Error obj_t)
+    | Error () -> (ex, Error obj_t)
+
