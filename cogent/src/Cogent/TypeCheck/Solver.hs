@@ -18,7 +18,7 @@ module Cogent.TypeCheck.Solver (runSolver, solve) where
 
 import           Cogent.Common.Syntax
 import           Cogent.Common.Types
-import           Cogent.PrettyPrint (prettyCtx)
+import           Cogent.PrettyPrint (errbd, prettyCtx)
 import           Cogent.Surface
 import           Cogent.TypeCheck.Base
 import qualified Cogent.TypeCheck.Subst as Subst
@@ -246,7 +246,10 @@ rule (F (T (TCon n ts s)) :< F (T (TCon m us r)))
                                                                   ++ zipWith (:<) (map F us) (map F ts))
   | otherwise                              = return $ Just $ Unsat (TypeMismatch (F $ T (TCon n ts s)) (F $ T (TCon m us r)))
 rule ct@(F (T (TRecord fs s)) :< F (T (TRecord gs r)))
-  | or (zipWith ((/=) `on` fst) fs gs) = return $ Just $ Unsat (TypeMismatch (F $ T (TRecord fs s)) (F $ T (TRecord gs r)))
+  | or (zipWith ((/=) `on` fst) fs gs) = do
+      traceTC "sol" (text "apply rule to" <+> pretty ct <+> colon
+               P.<$> errbd "record fields do not match")
+      return $ Just $ Unsat (TypeMismatch (F $ T (TRecord fs s)) (F $ T (TRecord gs r)))
   | length fs /= length gs             = return $ Just $ Unsat (TypeMismatch (F $ T (TRecord fs s)) (F $ T (TRecord gs r)))
   | s /= r                             = return $ Just $ Unsat (TypeMismatch (F $ T (TRecord fs s)) (F $ T (TRecord gs r)))
   | otherwise                          = do
@@ -268,7 +271,7 @@ rule (F (T (TVariant m)) :< F (T (TVariant n)))
       each (f, (ts, False)) (_, (us, False)) = mconcat (zipWith (:<) (map F ts) (map F us))
       each (f, (ts, True )) (_, (us, True )) = mconcat (zipWith (:<) (map F ts) (map F us))
       each (f, (ts, True )) (_, (us, False)) = mconcat (zipWith (:<) (map F ts) (map F us))
-    in return $ Just $ mconcat (zipWith (each) (M.toList m) (M.toList n))
+    in return $ Just $ mconcat (zipWith each (M.toList m) (M.toList n))
 -- This rule is a bit dodgy
 -- rule (T (TTake (Just a) b) :< T (TTake (Just a') c))
 --   | x <- L.intersect a a'
@@ -316,9 +319,14 @@ rule ct@(FRecord (M.fromList -> n) :< FRecord (M.fromList -> m))
   | ns <- M.keysSet n
   , ns == M.keysSet m
   = parRecords n m ns
-rule (a :< b) = return $ Just $ Unsat (TypeMismatch a b)
-
-rule c = return Nothing
+rule ct@(a :< b) = do
+  traceTC "sol" (text "apply rule to" <+> pretty ct <+> colon
+           P.<$> text "yield" <+> errbd "type mismatch")
+  return . Just $ Unsat (TypeMismatch a b)
+rule ct = do
+  traceTC "sol" (text "apply rule to" <+> pretty ct <+> colon
+           P.<$> text "yield nothing")
+  return Nothing
 
 -- `parRecords' and `parVariant' are used internally in `rule'
 parRecords n m ks =
@@ -341,7 +349,7 @@ parVariants n m ks =
 -- Applies rules and simp as much as possible
 auto :: Constraint -> TC Constraint
 auto c = do
-  traceTC "sol" (text "auto" <+> pretty c)
+  -- traceTC "sol" (text "auto" <+> pretty c)
   c' <- simpT c
   liftIO (rule' c') >>= \case
     Nothing  -> return c'
@@ -355,7 +363,7 @@ apply tactic = fmap concat . mapM each
 
 simpT :: Constraint -> TC Constraint
 simpT c = do
-  traceTC "sol" (text "simp" <+> pretty c)
+  -- traceTC "sol" (text "simp" <+> pretty c)
   simp c
 
 -- applies whnf to every type in a constraint.
@@ -419,7 +427,13 @@ bound d a@(FRecord is_) b@(FRecord js_)
   = let op = case d of GLB -> (&&); LUB -> (||)
         each (f,(_,b)) (_, (_,b')) = (f,) . (,b `op` b') <$> fresh
     in (, FRecord (M.toList is), FRecord (M.toList js)) . Just <$> (FRecord <$> zipWithM each (M.toList is) (M.toList js))
-bound _ a b = return (Nothing, a, b)
+bound _ a b = do
+  traceTC "sol" (text "calculate bound of"
+           P.<$> pretty a 
+           P.<$> text "and"
+           P.<$> pretty b <+> semi
+           P.<$> errbd "result nothing")
+  return (Nothing, a, b)
 
 bound' :: Bound -> TCType -> TCType -> Solver (Maybe TCType)
 bound' d (T (TVariant is)) (T (TVariant js))
@@ -457,7 +471,13 @@ bound' d (T (TRecord fs s)) (T (TRecord gs r))
       op = case d of GLB -> (&&); LUB -> (||) 
       each (f,(_,b)) (_, (_,b')) = (f,) . (,b `op` b') <$> fresh
     in Just . T <$> (TRecord <$> zipWithM each fs gs <*> pure s)
-bound' _ _ _ = return Nothing
+bound' _ a b = do
+  traceTC "sol" (text "calculate bound (bound') of"
+           P.<$> pretty a 
+           P.<$> text "and"
+           P.<$> pretty b <+> semi
+           P.<$> errbd "result nothing")
+  return Nothing
 
 primGuess :: Bound -> TCType -> TCType -> Solver (Maybe TCType)
 primGuess d (T (TCon n [] Unboxed)) (T (TCon m [] Unboxed)) 
@@ -465,7 +485,13 @@ primGuess d (T (TCon n [] Unboxed)) (T (TCon m [] Unboxed))
   , Just m' <- elemIndex m primTypeCons
   = let f = case d of GLB -> min; LUB -> max
     in return $ Just (T (TCon (primTypeCons !! f n' m') [] Unboxed))
-primGuess _ _ _ = return Nothing
+primGuess _ a b = do
+  traceTC "sol" (text "primitive guess on"
+           P.<$> pretty a
+           P.<$> text "and"
+           P.<$> pretty b <+> semi
+           P.<$> errbd "result nothing")
+  return Nothing
 
 glbGuess = primGuess GLB
 lubGuess = primGuess LUB
