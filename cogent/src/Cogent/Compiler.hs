@@ -8,6 +8,7 @@
 -- @TAG(NICTA_GPL)
 --
 
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Cogent.Compiler where
@@ -16,10 +17,13 @@ import Cogent.Util
 
 import Control.Monad
 import Data.Char
+import Data.Function ((&))
 import Data.IORef
-import System.Directory (getCurrentDirectory)
+import System.Directory (doesFileExist, getCurrentDirectory, removeFile)
 import System.FilePath
+import System.IO
 import System.IO.Unsafe
+import Text.PrettyPrint.ANSI.Leijen (Doc, displayIO, plain, renderPretty)
 
 __impossible :: String -> a
 __impossible msg = __impossible' msg []
@@ -80,6 +84,7 @@ set_flag_cppArgs = writeIORef __cogent_cpp_args_ref
 set_flag_quiet = writeIORef __cogent_quiet_ref True
 set_flag_debug = writeIORef __cogent_debug_ref True
 set_flag_ddumpTc = writeIORef __cogent_ddump_tc_ref True
+set_flag_ddumpToFile = writeIORef __cogent_ddump_to_file_ref . Just
 set_flag_distDir = writeIORef __cogent_dist_dir_ref
 set_flag_entryFuncs = writeIORef __cogent_entry_funcs_ref . Just
 set_flag_extTypes = writeIORef __cogent_ext_types_ref . Just
@@ -225,6 +230,13 @@ __cogent_ddump_tc = unsafePerformIO $ readIORef __cogent_ddump_tc_ref
 __cogent_ddump_tc_ref :: IORef Bool
 {-# NOINLINE __cogent_ddump_tc_ref #-}
 __cogent_ddump_tc_ref = unsafePerformIO $ newIORef False
+
+__cogent_ddump_to_file :: Maybe FilePath
+__cogent_ddump_to_file = unsafePerformIO $ readIORef __cogent_ddump_to_file_ref
+
+__cogent_ddump_to_file_ref :: IORef (Maybe FilePath)
+{-# NOINLINE __cogent_ddump_to_file_ref #-}
+__cogent_ddump_to_file_ref = unsafePerformIO $ newIORef Nothing
 
 __cogent_dist_dir :: FilePath
 __cogent_dist_dir = unsafePerformIO $ readIORef __cogent_dist_dir_ref
@@ -702,3 +714,34 @@ __cogent_current_dir_ref = unsafePerformIO $ getCurrentDirectory >>= newIORef
 __cogent_simpl_cg :: Bool
 __cogent_simpl_cg = (__cogent_fsimplifier && __cogent_fsimplifier_iterations > 0) ||
                   __cogent_fnormalisation == NoNF
+
+__cogent_dump_handle :: IORef Handle
+{-# NOINLINE __cogent_dump_handle #-}
+__cogent_dump_handle = unsafePerformIO $ newIORef stderr
+
+
+--Dump
+
+preDump :: IO ()
+preDump = (case __cogent_ddump_to_file of
+             Nothing -> return stderr
+             Just fp -> doesFileExist fp >>= \case True -> removeFile fp; False -> return ()
+                        >> openFile fp AppendMode) >>=
+          writeIORef __cogent_dump_handle
+
+postDump :: IO ()
+postDump = readIORef __cogent_dump_handle >>= \h ->
+           whenMM (liftM2 (&&)
+                    (hIsOpen h)
+                    (not <$> hIsTerminalDevice h)) $
+             (hClose =<< readIORef __cogent_dump_handle)
+
+dumpMsg :: Doc -> IO ()
+dumpMsg d
+  | __cogent_ddump_tc = do
+      h <- readIORef __cogent_dump_handle
+      b <- hIsTerminalDevice h
+      displayIO h (d & (renderPretty 1.0 120 . if b then id else plain))
+      hFlush h
+  | otherwise = return ()
+
