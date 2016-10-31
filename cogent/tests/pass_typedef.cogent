@@ -28,8 +28,8 @@ foo : (A, B!, U32, T1!) -> < Fail (U32, U32)
                            | Success ({ a : U8, b : S } take (), T1!) >
 foo (x, y, e, t) =
    let x' { b = vb } = x
-   in (3) == e
-      | True -> Success (let (x) = x' { b = vb } in (x, t))
-      | False -> let (x) = x' { b = vb } in let (z) = bar (x, y) in Fail (e, e)
+   in 3 == e
+      | True -> Success (let x = x' { b = vb } in (x, t))
+      | False -> let x = x' { b = vb } in let z = bar (x, y) in Fail (e, e)
 
 

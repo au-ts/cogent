@@ -253,9 +253,9 @@ rule ct@(F (T (TRecord fs s)) :< F (T (TRecord gs r)))
   | length fs /= length gs             = return $ Just $ Unsat (TypeMismatch (F $ T (TRecord fs s)) (F $ T (TRecord gs r)))
   | s /= r                             = return $ Just $ Unsat (TypeMismatch (F $ T (TRecord fs s)) (F $ T (TRecord gs r)))
   | otherwise                          = do
-     let each (f, (t, False)) (_, (u, True )) = (F t :< F u) :& Drop t ImplicitlyTaken
-         each (f, (t, False)) (_, (u, False)) = F t :< F u
-         each (f, (t, True )) (_, (u, True )) = F t :< F u
+     let each (_, (t, False)) (_, (u, True )) = (F t :< F u) :& Drop t ImplicitlyTaken
+         each (_, (t, False)) (_, (u, False)) = F t :< F u
+         each (_, (t, True )) (_, (u, True )) = F t :< F u
          each (f, (t, True )) (_, (u, False)) = Unsat (RequiredTakenField f t)
          cs = zipWith each fs gs
      traceTC "sol" (text "solve each field of constraint" <+> pretty ct
@@ -416,7 +416,7 @@ bound d a@(FRecord isL) b@(F (T (TRecord jsL s)))
   | is <- M.fromList isL
   , js <- M.fromList jsL
   , M.keysSet is `S.isSubsetOf` M.keysSet js
-  , a' <- F (T (TRecord (filter (`elem` M.toList (M.union is js)) isL) s))
+  , a' <- F (T (TRecord (M.toList $ M.union is js) s))
   = bound d a' b
 bound d a@(F (T (TRecord jsL s))) b@(FRecord isL) = bound d b a  -- symm
 bound d a@(FRecord is_) b@(FRecord js_) 
@@ -426,8 +426,8 @@ bound d a@(FRecord is_) b@(FRecord js_)
   , js <- M.union jsM isM
   = let op = case d of GLB -> (&&); LUB -> (||)
         each (f,(_,b)) (_, (_,b')) = (f,) . (,b `op` b') <$> fresh
-        is' = filter (`elem` M.toList is) is_
-        js' = filter (`elem` M.toList js) js_
+        is' = M.toList is
+        js' = M.toList js
     in (, FRecord is', FRecord js') . Just <$> (FRecord <$> zipWithM each is' js')
 bound _ a b = do
   traceTC "sol" (text "calculate bound of"
