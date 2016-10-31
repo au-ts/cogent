@@ -18,7 +18,7 @@ module Cogent.TypeCheck.Solver (runSolver, solve) where
 
 import           Cogent.Common.Syntax
 import           Cogent.Common.Types
-import           Cogent.PrettyPrint (errbd, prettyCtx)
+import           Cogent.PrettyPrint (prettyCtx)
 import           Cogent.Surface
 import           Cogent.TypeCheck.Base
 import qualified Cogent.TypeCheck.Subst as Subst
@@ -248,7 +248,7 @@ rule (F (T (TCon n ts s)) :< F (T (TCon m us r)))
 rule ct@(F (T (TRecord fs s)) :< F (T (TRecord gs r)))
   | or (zipWith ((/=) `on` fst) fs gs) = do
       traceTC "sol" (text "apply rule to" <+> pretty ct <+> colon
-               P.<$> errbd "record fields do not match")
+               P.<$> text "record fields do not match")
       return $ Just $ Unsat (TypeMismatch (F $ T (TRecord fs s)) (F $ T (TRecord gs r)))
   | length fs /= length gs             = return $ Just $ Unsat (TypeMismatch (F $ T (TRecord fs s)) (F $ T (TRecord gs r)))
   | s /= r                             = return $ Just $ Unsat (TypeMismatch (F $ T (TRecord fs s)) (F $ T (TRecord gs r)))
@@ -321,11 +321,11 @@ rule ct@(FRecord (M.fromList -> n) :< FRecord (M.fromList -> m))
   = parRecords n m ns
 rule ct@(a :< b) = do
   traceTC "sol" (text "apply rule to" <+> pretty ct <+> colon
-           P.<$> text "yield" <+> errbd "type mismatch")
+           P.<$> text "yield type mismatch")
   return . Just $ Unsat (TypeMismatch a b)
 rule ct = do
-  traceTC "sol" (text "apply rule to" <+> pretty ct <+> colon
-           P.<$> text "yield nothing")
+  -- traceTC "sol" (text "apply rule to" <+> pretty ct <+> colon
+  --          P.<$> text "yield nothing")
   return Nothing
 
 -- `parRecords' and `parVariant' are used internally in `rule'
@@ -432,7 +432,7 @@ bound _ a b = do
            P.<$> pretty a 
            P.<$> text "and"
            P.<$> pretty b <+> semi
-           P.<$> errbd "result nothing")
+           P.<$> text "result nothing")
   return (Nothing, a, b)
 
 bound' :: Bound -> TCType -> TCType -> Solver (Maybe TCType)
@@ -476,7 +476,7 @@ bound' _ a b = do
            P.<$> pretty a 
            P.<$> text "and"
            P.<$> pretty b <+> semi
-           P.<$> errbd "result nothing")
+           P.<$> text "result nothing")
   return Nothing
 
 primGuess :: Bound -> TCType -> TCType -> Solver (Maybe TCType)
@@ -490,7 +490,7 @@ primGuess _ a b = do
            P.<$> pretty a
            P.<$> text "and"
            P.<$> pretty b <+> semi
-           P.<$> errbd "result nothing")
+           P.<$> text "result nothing")
   return Nothing
 
 glbGuess = primGuess GLB
