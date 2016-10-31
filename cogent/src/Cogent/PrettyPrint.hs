@@ -302,7 +302,7 @@ instance (Pretty t, TypeType t) => Pretty (Type t) where
         record (map (\(a,(b,c)) -> fieldname a <+> symbol ":" <+> pretty b) ts)  -- all untaken
     | otherwise = pretty (TRecord (map (second . second $ const False) ts) s)
               <+> typesymbol "take" <+> tupled1 (map fieldname tk)
-        where tk = map fst $ filter (snd .snd) ts
+        where tk = map fst $ filter (snd . snd) ts
   pretty (TVariant ts) | any snd ts = let
      names = map fst $ filter (snd . snd) $ M.toList ts
    in pretty (TVariant $ fmap (second (const False)) ts) <+> typesymbol "take"
@@ -349,15 +349,12 @@ renderPolytypeHeader vs = keyword "all" <> tupled (map prettyKS vs) <> symbol ".
     where prettyKS (v,K False False False) = typevar v
           prettyKS (v,k) = typevar v <+> symbol ":<" <+> pretty k
 
-
 instance Pretty t => Pretty (Polytype t) where
   pretty (PT [] t) = pretty t
   pretty (PT vs t) = renderPolytypeHeader vs <+> pretty t
 
 renderTypeDecHeader n vs = keyword "type" <+> typename n <> hcat (map ((space <>) . typevar) vs)
                                           <+> symbol "=" 
-
-
 
 prettyFunDef typeSigs v pt [Alt (PIrrefutable p) Regular e] = (if typeSigs then ( funname v <+> symbol ":" <+> pretty pt <$>) else id) $
                                                                    (funname v <+> prettyIP p <+> group (indent (symbol "=" <$> pretty e)))
@@ -460,14 +457,15 @@ instance Pretty TypeWarning where
   pretty DummyWarning = __fixme $ warn "WARNING: dummy"
 
 instance (Pretty a, TypeType a) => Pretty (TypeFragment a) where
-  pretty (F t) = pretty t
-  pretty (FVariant ts) = pretty (TVariant ts)
+  pretty (F t) = pretty t & (if __cogent_fdisambiguate_pp then (<+> comment "{- F -}") else id)
+  pretty (FVariant ts) = typesymbol "?" <> pretty (TVariant ts)
   pretty (FRecord ts) 
-    | not . or $ map (snd . snd) ts = typesymbol "?" <+>
+    | not . or $ map (snd . snd) ts = typesymbol "?" <>
         record (map (\(a,(b,c)) -> fieldname a <+> symbol ":" <+> pretty b) ts)  -- all untaken
     | otherwise = pretty (FRecord (map (second . second $ const False) ts))
               <+> typesymbol "take" <+> tupled1 (map fieldname tk)
         where tk = map fst $ filter (snd .snd) ts
+
 instance Pretty Constraint where
   pretty (a :<  b)        = pretty a </> warn ":<" </> pretty b
   pretty (a :& b)         = pretty a </> warn ":&" </> pretty b
