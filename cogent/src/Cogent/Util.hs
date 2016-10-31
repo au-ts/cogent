@@ -149,6 +149,9 @@ extTup3 d (a,b,c) = (a,b,c,d)
 whenM :: (Monad m, Monoid a) => Bool -> m a -> m a
 whenM b ma = if b then ma else return mempty
 
+whenMM :: (Monad m, Monoid a) => m Bool -> m a -> m a
+whenMM mb ma = mb >>= flip whenM ma
+
 -- stdoutPath = "/dev/stdout"
 -- nullPath = "/dev/null"
 

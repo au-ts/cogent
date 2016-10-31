@@ -396,6 +396,7 @@ flags =
   , Option []         ["cpp-args"]       2 (ReqArg (set_flag_cppArgs . words) "ARG..")     "arguments given to C-preprocessor (default to $CPPIN -E -P -o $CPPOUT)"
   -- debugging options
   , Option []         ["ddump-tc"]       3 (NoArg set_flag_ddumpTc)                        "dump (massive) surface typechecking internals"
+  , Option []         ["ddump-to-file"]  3 (ReqArg set_flag_ddumpToFile "FILE")            "dump debugging output to specific file instead of terminal"
   -- behaviour
   , Option []         ["fcheck-undefined"]    2 (NoArg set_flag_fcheckUndefined)           "(default) check for undefined behaviours in C"
   , Option ['B']      ["fdisambiguate-pp"]    3 (NoArg set_flag_fdisambiguatePp)           "when pretty-printing, also display internal representation as comments"
@@ -504,6 +505,7 @@ parseArgs args = case getOpt' Permute options args of
     runCompiler :: [Command] -> FilePath -> [String] -> IO ()
     runCompiler cmds source args =
       if | Compile STGParse `elem` cmds -> do
+             preDump
              utc <- getCurrentTime
              zone <- getCurrentTimeZone
              let zoned = utcToZonedTime zone utc
@@ -882,10 +884,10 @@ parseArgs args = case getOpt' Permute options args of
     exitErr x = hPutStrLn stderr ("cogent: " ++ x ++ "(run `cogent -h' for help)") >> exitWith (ExitFailure 133)  -- magic number, doesn't mean anything
     -- Compilation success
     exitSuccess_ = exitWith ExitSuccess
-    exitSuccess = putProgressLn "Compilation finished!" >> exitWith ExitSuccess
+    exitSuccess = putProgressLn "Compilation finished!" >> postDump >> exitWith ExitSuccess
     exitSuccessWithBuildInfo cmds buildinfo = genBuildInfo cmds buildinfo >> exitSuccess
     -- Compilation failure
-    exitFailure = hPutStrLn stderr "Compilation failed!" >> exitWith (ExitFailure 134)
+    exitFailure = hPutStrLn stderr "Compilation failed!" >> postDump >> exitWith (ExitFailure 134)
     -- pretty-print
     pretty h a = fontSwitch h >>= \s -> displayIO h (prettyPrint s a) >> hPutStrLn h ""
     -- pretty AST
