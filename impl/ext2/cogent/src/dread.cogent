@@ -10,7 +10,7 @@
 
 type DirentsInPageAcc = (ExState, Option Ext2DirEnt, OSPageBuffer, VfsDirContext, U64)
 type DirentsInPageAccNoDEnt = (ExState, OSPageBuffer, VfsDirContext, U64)
-type DirentsInPageObsv = (U64)
+type DirentsInPageObsv = U64
 
 type EmptyDirentsInPageAcc = (ExState, Option Ext2DirEnt, OSPageBuffer, U32)
 type EmptyDirentsInPageAccNoDirent = (ExState, OSPageBuffer, U32)
@@ -70,7 +70,7 @@ emit_dirent_from_page2 (new_dirent, (ex, pagebuf, dirctx, cur_offset)) =
         in ((ex, Some new_dirent, pagebuf, dirctx, cur_offset), Stop eIO)
 
 emit_dirent_from_page: Consumer Ext2DirEnt () U32 DirentsInPageAcc DirentsInPageObsv
-emit_dirent_from_page (#{ obj = new_dirent, acc = (ex, maybe_prev_dirent, pagebuf, dirctx, offset), obsv = (limit)}) =
+emit_dirent_from_page #{obj = new_dirent, acc = (ex, maybe_prev_dirent, pagebuf, dirctx, offset), obsv = limit} =
     --let _ = _cogent_log (dbg_EXT2_DIR_READ, "emit_dirent_from_page: have dirent @ offset ) 
     --and _ = _cogent_log_u64 (dbg_EXT2_DIR_READ, offse) 
     --and _ = _cogent_log (dbg_EXT2_DIR_READ, "\n") 
