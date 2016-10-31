@@ -1,0 +1,23 @@
+type Option a =  <Some a | None ()>
+type Ext2DirEnt
+type VfsDirContext
+
+
+type Acc = (Option Ext2DirEnt, VfsDirContext)
+type Acc' =                    VfsDirContext
+
+destroy_Ext2DirEnt : Ext2DirEnt -> ()
+
+emit_dirent_from_page2: (Ext2DirEnt, Acc') -> Acc
+
+emit_dirent_from_page: (Ext2DirEnt, Acc) -> Acc
+emit_dirent_from_page (new_dirent, (maybe_prev_dirent, dirctx)) =
+  let dirctx_t { pos } = dirctx
+  and dirctx = dirctx_t { pos }
+  
+  in maybe_prev_dirent
+  | Some prev_dirent ->
+      let _ = destroy_Ext2DirEnt prev_dirent
+      in emit_dirent_from_page2 (new_dirent, dirctx)
+  | None _ ->
+         emit_dirent_from_page2 (new_dirent, dirctx)
