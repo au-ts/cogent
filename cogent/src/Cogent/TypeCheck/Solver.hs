@@ -426,7 +426,9 @@ bound d a@(FRecord is_) b@(FRecord js_)
   , js <- M.union jsM isM
   = let op = case d of GLB -> (&&); LUB -> (||)
         each (f,(_,b)) (_, (_,b')) = (f,) . (,b `op` b') <$> fresh
-    in (, FRecord (M.toList is), FRecord (M.toList js)) . Just <$> (FRecord <$> zipWithM each (M.toList is) (M.toList js))
+        is' = filter (`elem` M.toList is) is_
+        js' = filter (`elem` M.toList js) js_
+    in (, FRecord is', FRecord js') . Just <$> (FRecord <$> zipWithM each is' js')
 bound _ a b = do
   traceTC "sol" (text "calculate bound of"
            P.<$> pretty a 
