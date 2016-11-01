@@ -1,7 +1,7 @@
 type Option a =  <Some a | None ()>
 type Ext2DirEnt
-type VfsDirContext
-
+type VfsDirContext = {os : OSDirContext, pos: U32}
+type OSDirContext
 
 type Acc = (Option Ext2DirEnt, VfsDirContext)
 type Acc' =                    VfsDirContext

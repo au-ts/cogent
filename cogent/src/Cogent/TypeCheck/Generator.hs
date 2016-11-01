@@ -271,10 +271,15 @@ cg' (Put e ls) t | not (any isNothing ls) = do
   (c', e') <- cg e alpha  -- (T (TTake (Just fs) t))
   (ts, cs, es') <- cgMany es
 
-  let c = F (T (TPut (Just fs) alpha)) :< F t <> c' <> cs
-       <> FRecord (zip fs (map (,True) ts)) :< F alpha
+  let c1 = F (T (TPut (Just fs) alpha)) :< F t
+      c2 = FRecord (zip fs (map (,True) ts)) :< F alpha
       e = Put e' (map Just (zip fs es'))
-  return (c,e)
+  traceTC "gen" (text "cg for put:" <+> prettyE e
+           L.<$> text "of type" <+> pretty t <> semi
+           L.<$> text "constraint for record:" <+> pretty c' <> semi
+           L.<$> text "constraints for fields:" <+> pretty cs <> semi
+           L.<$> text "generate constraint:" <+> pretty c1 <+> text "and" <+> pretty c2)
+  return (c1 <> c' <> cs <> c2, e)
 
   | otherwise = first (<> Unsat RecordWildcardsNotSupported) <$> cg' (Put e (filter isJust ls)) t
 
@@ -400,14 +405,19 @@ match (PTake r fs) t | not (any isNothing fs) = do
    let (ns, ps) = unzip (catMaybes fs)
    (vs, blob) <- unzip <$> mapM (\p -> do v <- fresh; (v,) <$> match p v) ps
    let (ss, cs, ps') = (map fst3 blob, map snd3 blob, map thd3 blob)
-       t' = FRecord (zip ns (map (,False) vs))
+       c = F t :< FRecord (zip ns (map (,False) vs))
        s  = M.fromList [(r, (u, ?loc, Nothing))]
        u  = T (TTake (Just ns) t)
        p' = PTake (r,u) (map Just (zip ns ps'))
        co = case overlapping (s:ss) of
               Left (v:vs) -> Unsat $ DuplicateVariableInIrrefPattern v p'
               _           -> Sat
-   return (M.unions (s:ss), co <> mconcat cs <> F t :< t', p')
+   traceTC "gen" (text "match take pattern:" <+> pretty p'
+            L.<$> text "of type" <+> pretty t <> semi
+            L.<$> text "constraints for fields:" <+> pretty cs
+            L.<$> text "generate constraint:" <+> pretty c
+            L.<$> text "and non-overlapping constraints")
+   return (M.unions (s:ss), co <> mconcat cs <> c, p')
 
    | otherwise = second3 (:& Unsat RecordWildcardsNotSupported) <$> match (PTake r (filter isJust fs)) t
 

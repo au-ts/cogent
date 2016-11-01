@@ -247,7 +247,7 @@ rule (F (T (TCon n ts s)) :< F (T (TCon m us r)))
   | otherwise                              = return $ Just $ Unsat (TypeMismatch (F $ T (TCon n ts s)) (F $ T (TCon m us r)))
 rule ct@(F (T (TRecord fs s)) :< F (T (TRecord gs r)))
   | or (zipWith ((/=) `on` fst) fs gs) = do
-      traceTC "sol" (text "apply rule to" <+> pretty ct <+> colon
+      traceTC "sol" (text "apply rule to" <+> pretty ct <> semi
                P.<$> text "record fields do not match")
       return $ Just $ Unsat (TypeMismatch (F $ T (TRecord fs s)) (F $ T (TRecord gs r)))
   | length fs /= length gs             = return $ Just $ Unsat (TypeMismatch (F $ T (TRecord fs s)) (F $ T (TRecord gs r)))
@@ -258,7 +258,7 @@ rule ct@(F (T (TRecord fs s)) :< F (T (TRecord gs r)))
          each (_, (t, True )) (_, (u, True )) = F t :< F u
          each (f, (t, True )) (_, (u, False)) = Unsat (RequiredTakenField f t)
          cs = zipWith each fs gs
-     traceTC "sol" (text "solve each field of constraint" <+> pretty ct
+     traceTC "sol" (text "solve each field of constraint" <+> pretty ct <> colon
        P.<$> foldl 
                (\a (f,c) -> a P.<$> text "field" <+> pretty (fst f) P.<> colon <+> pretty c)
                P.empty
@@ -320,11 +320,11 @@ rule ct@(FRecord (M.fromList -> n) :< FRecord (M.fromList -> m))
   , ns == M.keysSet m
   = parRecords n m ns
 rule ct@(a :< b) = do
-  traceTC "sol" (text "apply rule to" <+> pretty ct <+> colon
+  traceTC "sol" (text "apply rule to" <+> pretty ct <> semi
            P.<$> text "yield type mismatch")
   return . Just $ Unsat (TypeMismatch a b)
 rule ct = do
-  -- traceTC "sol" (text "apply rule to" <+> pretty ct <+> colon
+  -- traceTC "sol" (text "apply rule to" <+> pretty ct <> semi
   --          P.<$> text "yield nothing")
   return Nothing
 
