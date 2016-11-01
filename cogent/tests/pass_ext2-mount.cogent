@@ -1,0 +1,53 @@
+type Result a b = <Success a | Error b>
+
+type Ext2Superblock = {
+    inode_count             : U32,
+    magic                   : U16
+}
+
+type Option a
+type WordArray a
+
+type FsState = {
+    super            : Ext2Superblock,
+    superblock_num   : U32,
+    flags            : U32,
+    prealloc_offsets : Option (WordArray U32)
+}
+
+malloc_FsState: () -> Result (FsState take (..)) ()
+deserialise_Ext2Superblock: () -> Result (Ext2Superblock, U32) ()
+
+wordarray_create : all (a :< DS). () -> Result (WordArray a) ()
+
+free_FsState : FsState take (..) -> ()
+free_Ext2Superblock : Ext2Superblock take (..) -> ()
+
+fs_mount: () -> Result FsState U32
+fs_mount _ =
+    malloc_FsState ()
+    | Success state_t -> 
+        let sb_num = 0
+        and flags  = 0
+
+        and state_t = state_t { superblock_num = sb_num }
+        in deserialise_Ext2Superblock ()
+        | Success (super, _) -> 
+            wordarray_create ()
+            | Success prealloc_offsets =>
+                let state = state_t {
+                      super,
+                      flags,
+                      prealloc_offsets = Some prealloc_offsets
+                    }
+                in Success state
+            | Error _ ->
+                let _ = free_Ext2Superblock super
+                and _ = free_FsState state_t
+                in Error 1
+        | Error _ ->
+            let _ = free_FsState state_t
+            in Error 2
+    | Error _ -> Error 2
+
+
