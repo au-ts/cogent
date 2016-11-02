@@ -18,9 +18,9 @@ include $(ROOT_DIR)build-env.mk
 endif
 
 OUTPUT=generated
-SRC=fs/fsop.cogent
-TYPES=types.txt
-DEFNS=defns.txt
+SRC=src/fsop.cogent
+TYPES=data/types.txt
+DEFNS=data/defns.txt
 PROOF_ID=BilbyFs
 
 # Standard Gum Directory
@@ -155,6 +155,8 @@ clean:
 	find . -name *.thy -exec rm -f {} \;
 	find . -name ROOT -exec rm -f {} \;
 	find . -name BUILD_INFO -exec rm -f {} \;
+	find . -name *_pp* -exec rm -f {} \;
+	find . -name generated.* -exec rm -f {} \;
 
 help:
 	@echo "** Cogent bilbyfs build help **"
