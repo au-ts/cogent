@@ -57,7 +57,6 @@ data TypeWarning = DummyWarning
 data ErrorContext = InExpression LocExpr TCType
                   | ThenBranch | ElseBranch
                   | SolvingConstraint Constraint
-                  | InExpressionOfType LocExpr RawType
                   | NthAlternative Int (Pattern VarName)
                   | InDefinition SourcePos (TopLevel LocType VarName LocExpr)
                   | AntiquotedType LocType
