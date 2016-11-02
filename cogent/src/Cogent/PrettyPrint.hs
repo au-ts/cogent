@@ -507,13 +507,6 @@ prettyCtx (InExpression e t) True = context "when checking that the expression a
                                        <$> context "has type" <$> (indent' (pretty t))
 prettyCtx (InExpression e t) False = context "when checking the expression at ("
                                                   <> pretty (posOfE e) <> context ")"
-prettyCtx (InExpressionOfType e t) True = context "when checking that the expression at ("
-                                                  <> pretty (posOfE e) <> context ")"
-                                       <$> (indent' (pretty (stripLocE e)))
-                                       <$> context "has type" <$> (indent' (pretty t))
-prettyCtx (InExpressionOfType e t) False = context "when checking the expression at ("
-                                                  <> pretty (posOfE e) <> context ")"
-                                       -- <+> context "has type" <$> (indent' (pretty t))
 prettyCtx (NthAlternative n p) _ = context "in the" <+> nth n <+> context "alternative" <+> pretty p
   where  nth 1 = context "1st"
          nth 2 = context "2nd"
