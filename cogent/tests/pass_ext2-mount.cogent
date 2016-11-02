@@ -16,7 +16,7 @@ type FsState = {
 }
 
 malloc_FsState: () -> Result (FsState take (..)) ()
-deserialise_Ext2Superblock: () -> Result (Ext2Superblock, U32) ()
+deserialise_Ext2Superblock: () -> Result Ext2Superblock ()
 
 wordarray_create : all (a :< DS). () -> Result (WordArray a) ()
 
@@ -32,12 +32,13 @@ fs_mount _ =
 
         and state_t = state_t { superblock_num = sb_num }
         in deserialise_Ext2Superblock ()
-        | Success (super, _) -> 
+        | Success super -> 
             wordarray_create ()
             | Success prealloc_offsets =>
                 let state = state_t {
                       super,
                       flags,
+                      -- superblock_num = sb_num,
                       prealloc_offsets = Some prealloc_offsets
                     }
                 in Success state
