@@ -110,20 +110,20 @@ PWD:= $(shell pwd)
 default: linux
 
 all: .c-gen $(OBJ)
-	$(CC) -o $(NAME) $(OBJ)
+	$(Q)$(CC) -o $(NAME) $(OBJ)
 
 %.c:
-	$(CC) -c $@
+	$(Q)$(CC) -c $@
 
 # generate executable C code
 .c-gen:
-	cogent $(SRC) -g $(COGENT_FLAGS) \
+	$(Q)cogent $(SRC) -g $(COGENT_FLAGS) \
 		--cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(EXTRA_CFLAGS)" \
 		--dist-dir=$(DIST_DIR) \
 		--infer-c-funcs="$(ACFILES)"
 
 .verif-gen:
-	cogent $(SRC) -A $(COGENT_FLAGS) \
+	$(Q)cogent $(SRC) -A $(COGENT_FLAGS) \
 		--cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(EXTRA_CFLAGS)" \
 		--dist-dir=$(DIST_DIR) \
 		--infer-c-funcs="$(ACFILES)" \
@@ -132,52 +132,54 @@ all: .c-gen $(OBJ)
 
 # compile Linux kernel module for file system
 linux: .c-gen
-	$(MAKE) OBJ="$(OBJ)" CFLAGS="$(CFLAGS)" EXTRA_CFLAGS="$(EXTRA_CFLAGS)" -C $(KERNELDIR) M=$(PWD) modules
+	$(Q) $(MAKE) OBJ="$(OBJ)" CFLAGS="$(CFLAGS)" EXTRA_CFLAGS="$(EXTRA_CFLAGS)" -C $(KERNELDIR) M=$(PWD) modules
 
 # generate verification-clean C code and proof scripts
 verification: .verif-gen
-	mv $(DIST_DIR)/generated.table $(DIST_DIR)/wrapper_pp_inferred.table
+	$(Q)mv $(DIST_DIR)/generated.table $(DIST_DIR)/wrapper_pp_inferred.table
 
 
 clean:
-	rm -f $(HOUTPUT)
-	rm -f $(OBJ)
-	rm -f $(RTMPC)
-	rm -f $(RTMPPPC)
-	rm -f $(MODULE).mod.[co] $(MODULE).o $(MODULE).ko Module.symvers modules.order
-	rm -f abstract/*.h
-	rm -rf *.thy ROOT generated.table BUILD_INFO
-	find . -name *.thy -exec rm -f {} \;
-	find . -name ROOT -exec rm -f {} \;
-	find . -name BUILD_INFO -exec rm -f {} \;
-	find . -name *_pp* -exec rm -f {} \;
-	find . -name generated.* -exec rm -f {} \;
+	$(E) "Cleaning up.."
+	$(Q) rm -f $(HOUTPUT)
+	$(Q) rm -f $(OBJ)
+	$(Q) rm -f $(RTMPC)
+	$(Q) rm -f $(RTMPPPC)
+	$(Q) rm -f $(MODULE).mod.[co] $(MODULE).o $(MODULE).ko Module.symvers modules.order
+	$(Q) rm -f abstract/*.h
+	$(Q) rm -rf *.thy ROOT generated.table BUILD_INFO
+	$(Q) find . -name *.thy -exec rm -f {} \;
+	$(Q) find . -name ROOT -exec rm -f {} \;
+	$(Q) find . -name BUILD_INFO -exec rm -f {} \;
+	$(Q) find . -name *_pp* -exec rm -f {} \;
+	$(Q) find . -name generated.* -exec rm -f {} \;
+	$(Q)find . -name *.cmd -exec rm -f {} \;
 
 help:
-	@echo "** Cogent skel-fs build help **"
-	@echo "Run 'make' to build the Linux skel-fs kernel module."
-	@echo ""
-	@echo "Please run 'make <target>' where target is one of the following:"
-	@echo "* linux"
-	@echo "  Build the Linux kernel module(default)."
-	@echo "  This will build against the kernel headers of the current running kernel."
-	@echo "  Pass KERNELDIR=<path-to-kernel-headers> if you want to build against a different kernel version."
-	@echo "  eg.:"
-	@echo "     make linux"
-	@echo "     make linux KERNELDIR=/usr/src/linux-headers-4.3.0-1-amd64/"
-	@echo ""
-	@echo "* debug"
-	@echo "  Build the Linux kernel module with debugging enabled."
-	@echo "  This is equivalent to running 'make linux DEBUG=1'"
-	@echo ""
-	@echo "* verification"
-	@echo "  Generate verification table."
-	@echo ""
-	@echo "* clean"
-	@echo "  Cleanup."
-	@echo ""
-	@echo "* help"
-	@echo "  Print this help."
+	$(E) "** Cogent skel-fs build help **"
+	$(E) "Run 'make' to build the Linux skel-fs kernel module."
+	$(E) ""
+	$(E) "Please run 'make <target>' where target is one of the following:"
+	$(E) "* linux"
+	$(E) "  Build the Linux kernel module(default)."
+	$(E) "  This will build against the kernel headers of the current running kernel."
+	$(E) "  Pass KERNELDIR=<path-to-kernel-headers> if you want to build against a different kernel version."
+	$(E) "  eg.:"
+	$(E) "     make linux"
+	$(E) "     make linux KERNELDIR=/usr/src/linux-headers-4.3.0-1-amd64/"
+	$(E) ""
+	$(E) "* debug"
+	$(E) "  Build the Linux kernel module with debugging enabled."
+	$(E) "  This is equivalent to running 'make linux DEBUG=1'"
+	$(E) ""
+	$(E) "* verification"
+	$(E) "  Generate verification table."
+	$(E) ""
+	$(E) "* clean"
+	$(E) "  Cleanup."
+	$(E) ""
+	$(E) "* help"
+	$(E) "  Print this help."
 
 endif
 

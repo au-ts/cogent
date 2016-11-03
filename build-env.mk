@@ -25,3 +25,13 @@ ISABELLE_BUILD:=$(shell source "$(BUILD_ENV_MK_DIR)"/build-env.sh; echo "$$ISABE
 
 export PATH:=$(shell source "$(BUILD_ENV_MK_DIR)"/build-env.sh; echo "$$PATH")
 
+# Silent by default
+V =
+ifeq ($(strip $(V)),)
+        E = @echo
+        Q = @
+else
+        E = @\#
+        Q =
+endif
+export E Q
