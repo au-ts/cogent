@@ -18,7 +18,7 @@ module Cogent.TypeCheck.Solver (runSolver, solve) where
 
 import           Cogent.Common.Syntax
 import           Cogent.Common.Types
-import           Cogent.PrettyPrint (prettyCtx)
+import           Cogent.PrettyPrint (prettyC, prettyCtx)
 import           Cogent.Surface
 import           Cogent.TypeCheck.Base
 import qualified Cogent.TypeCheck.Subst as Subst
@@ -47,7 +47,7 @@ makeLenses ''SolverState
 
 type Solver = StateT SolverState IO
 
-data Goal = Goal { _goalContext :: [ErrorContext], _goal :: Constraint }
+data Goal = Goal { _goalContext :: [ErrorContext], _goal :: Constraint }  -- high-level context at the end of _goalContext
 
 instance Show Goal where
   show (Goal c g) = const (show big) big
@@ -158,7 +158,7 @@ rule' c = ruleT c >>= return . ((:@ SolvingConstraint c) <$>)
 
 ruleT :: Constraint -> IO (Maybe Constraint)
 ruleT c = do
-  traceTC "sol" (text "apply rule to" <+> pretty c)
+  traceTC "sol" (text "apply rule to" <+> prettyC c)
   rule c
 
 rule :: Constraint -> IO (Maybe Constraint)
@@ -234,8 +234,8 @@ rule (F (T (TTuple xs)) :< F (T (TTuple ys)))
   | otherwise              = return $ Just $ mconcat (zipWith (:<) (map F xs) (map F ys))
 rule ct@(F (T (TFun a b))  :< F (T (TFun c d))) = do
   let ct' = (F c :< F a) :& (F b :< F d)
-  traceTC "sol" (text "constraint" <+> pretty ct <+> text "is decomposed into"
-                 P.<$> pretty ct')
+  traceTC "sol" (text "constraint" <+> prettyC ct <+> text "is decomposed into"
+                 P.<$> prettyC ct')
   return $ Just ct' 
 rule (F (T TUnit     )  :< F (T TUnit))      = return $ Just Sat
 rule (F (T (TVar v b))  :< F (T (TVar u c)))
@@ -247,7 +247,7 @@ rule (F (T (TCon n ts s)) :< F (T (TCon m us r)))
   | otherwise                              = return $ Just $ Unsat (TypeMismatch (F $ T (TCon n ts s)) (F $ T (TCon m us r)))
 rule ct@(F (T (TRecord fs s)) :< F (T (TRecord gs r)))
   | or (zipWith ((/=) `on` fst) fs gs) = do
-      traceTC "sol" (text "apply rule to" <+> pretty ct <> semi
+      traceTC "sol" (text "apply rule to" <+> prettyC ct <> semi
                P.<$> text "record fields do not match")
       return $ Just $ Unsat (TypeMismatch (F $ T (TRecord fs s)) (F $ T (TRecord gs r)))
   | length fs /= length gs             = return $ Just $ Unsat (TypeMismatch (F $ T (TRecord fs s)) (F $ T (TRecord gs r)))
@@ -258,9 +258,9 @@ rule ct@(F (T (TRecord fs s)) :< F (T (TRecord gs r)))
          each (_, (t, True )) (_, (u, True )) = F t :< F u
          each (f, (t, True )) (_, (u, False)) = Unsat (RequiredTakenField f t)
          cs = zipWith each fs gs
-     traceTC "sol" (text "solve each field of constraint" <+> pretty ct <> colon
+     traceTC "sol" (text "solve each field of constraint" <+> prettyC ct <> colon
        P.<$> foldl 
-               (\a (f,c) -> a P.<$> text "field" <+> pretty (fst f) P.<> colon <+> pretty c)
+               (\a (f,c) -> a P.<$> text "field" <+> pretty (fst f) P.<> colon <+> prettyC c)
                P.empty
                (zip fs cs))
      return . Just $ mconcat cs
@@ -283,11 +283,11 @@ rule (F (T (TVariant m)) :< F (T (TVariant n)))
 --              :< ((if null a'x then id else T . TTake (Just a'x)) c)
 rule ct@(F a :< b)
   | notWhnf a = do
-      traceTC "sol" (text "constraint" <+> pretty ct <+> text "with left side in non-WHNF is disregarded")
+      traceTC "sol" (text "constraint" <+> prettyC ct <+> text "with left side in non-WHNF is disregarded")
       return Nothing
 rule ct@(b :< F a)
   | notWhnf a = do
-      traceTC "sol" (text "constraint" <+> pretty ct <+> text "with right side in non-WHNF is disregarded")
+      traceTC "sol" (text "constraint" <+> prettyC ct <+> text "with right side in non-WHNF is disregarded")
       return Nothing
 rule (Upcastable (T (TCon n [] Unboxed)) (T (TCon m [] Unboxed)))
   | Just n' <- elemIndex n primTypeCons
@@ -320,11 +320,11 @@ rule ct@(FRecord (M.fromList -> n) :< FRecord (M.fromList -> m))
   , ns == M.keysSet m
   = parRecords n m ns
 rule ct@(a :< b) = do
-  traceTC "sol" (text "apply rule to" <+> pretty ct <> semi
+  traceTC "sol" (text "apply rule to" <+> prettyC ct <> semi
            P.<$> text "yield type mismatch")
   return . Just $ Unsat (TypeMismatch a b)
 rule ct = do
-  -- traceTC "sol" (text "apply rule to" <+> pretty ct <> semi
+  -- traceTC "sol" (text "apply rule to" <+> prettyC ct <> semi
   --          P.<$> text "yield nothing")
   return Nothing
 
@@ -346,10 +346,10 @@ parVariants n m ks =
   in return . Just $ mconcat cs
 
 
--- Applies rules and simp as much as possible
+-- Applies simp and rules as much as possible
 auto :: Constraint -> TC Constraint
 auto c = do
-  -- traceTC "sol" (text "auto" <+> pretty c)
+  -- traceTC "sol" (text "auto" <+> prettyC c)
   c' <- simpT c
   liftIO (rule' c') >>= \case
     Nothing  -> return c'
@@ -359,11 +359,11 @@ apply :: (Constraint -> TC Constraint) -> [Goal] -> TC [Goal]
 apply tactic = fmap concat . mapM each
   where each (Goal ctx c) = do
           c' <- tactic c
-          map (goalContext %~ (ctx ++)) <$> crunch c'
+          map (goalContext %~ (++ ctx)) <$> crunch c'
 
 simpT :: Constraint -> TC Constraint
 simpT c = do
-  -- traceTC "sol" (text "simp" <+> pretty c)
+  -- traceTC "sol" (text "simp" <+> prettyC c)
   simp c
 
 -- applies whnf to every type in a constraint.
@@ -534,16 +534,6 @@ instance Monoid GoalClasses where
 
   mempty = Classes M.empty M.empty M.empty M.empty [] []
 
-exhaustives :: Goal -> Solver Goal
--- exhaustives (Goal ctx (Exhaustive (U x) ps)) | all isVarCon ps = do
---         ts <- fromPatterns ps
---         return (Goal [] $ U x :< T (TVariant ts))
---   where
---     fromPattern :: Pattern TCName -> Solver (M.Map TagName [TCType])
---     fromPattern (PCon t ps) = M.singleton t <$> (mapM (const fresh) ps)
---     fromPattern _ = error "impossible"
---     fromPatterns ps = mconcat <$> mapM fromPattern ps
-exhaustives x = return x
 
 -- Break goals into their form
 -- Expects all goals to be broken down as far as possible first
@@ -614,16 +604,16 @@ suggestCast xs = return xs
 -- Produce substitutions when it is safe to do so (the variable can't get any more general).
 noBrainers :: [Goal] -> Solver Subst
 noBrainers [Goal _ c@(F (U x) :<  F (T t))] = do
-  traceTC "sol" (text "apply no brainer to" <+> pretty c)
+  traceTC "sol" (text "apply no brainer to" <+> prettyC c)
   return $ Subst.singleton x (T t)
 noBrainers [Goal _ c@(F (T t) :<  F (U x))] = do
-  traceTC "sol" (text "apply no brainer to" <+> pretty c)
+  traceTC "sol" (text "apply no brainer to" <+> prettyC c)
   return $ Subst.singleton x (T t)
 noBrainers [Goal _ c@(Upcastable (T t@(TCon v [] Unboxed)) (U x))] | v `elem` primTypeCons = do
-  traceTC "sol" (text "apply no brainer to" <+> pretty c)
+  traceTC "sol" (text "apply no brainer to" <+> prettyC c)
   return $ Subst.singleton x (T t)
 noBrainers [Goal _ c@(Upcastable (U x) (T t@(TCon v [] Unboxed)))] | v `elem` primTypeCons = do
-  traceTC "sol" (text "apply no brainer to" <+> pretty c)
+  traceTC "sol" (text "apply no brainer to" <+> prettyC c)
   return $ Subst.singleton x (T t)
 noBrainers _ = return mempty
 
@@ -654,7 +644,7 @@ assumption gs = do
 -- Take an assorted list of goals, and break them down into neatly classified, simple flex/rigid goals.
 -- Removes any known facts about type variables.
 explode :: [Goal] -> Solver GoalClasses
-explode = assumption >=> (zoom tc . apply auto) >=> mapM exhaustives >=> (return . foldMap classify)
+explode = assumption >=> (zoom tc . apply auto) >=> (return . foldMap classify)
 
 irreducible :: M.Map Int [Goal] -> Bool
 irreducible m | M.null m = True
@@ -689,7 +679,6 @@ solve :: Constraint -> Solver [ContextualisedError]
 solve = zoom tc . crunch >=> explode >=> go
   where
     go :: GoalClasses -> Solver [ContextualisedError]
-    --go g | traceShow g False = undefined
     go g | not (null (unsats g)) = return $ map toError (unsats g)
 
     go g | not (irreducible (downs g)) = do

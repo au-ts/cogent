@@ -17,7 +17,7 @@ module Cogent.TypeCheck where
 import Cogent.Common.Syntax
 import Cogent.Compiler
 import qualified Cogent.Context as C
-import Cogent.PrettyPrint ()
+import Cogent.PrettyPrint (prettyC)
 import Cogent.Surface
 import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Generator
@@ -45,7 +45,7 @@ tc i = (first . left) adjustErrors <$> runStateT (runExceptT (typecheck i)) (TCS
   where
     knownTypes = map (, ([] , Nothing)) $ words "U8 U16 U32 U64 String Bool"
     adjustErrors = (if __cogent_freverse_tc_errors then reverse else id) . adjustContexts
-    adjustContexts = map (first $ reverse . noConstraints)  -- FIXME: context is reversed by construction / zilinc
+    adjustContexts = map (first noConstraints)
     noConstraints = if __cogent_ftc_ctx_constraints then id else filter (not . isCtxConstraint)
 
 typecheck :: [(SourcePos, TopLevel LocType VarName LocExpr)]
@@ -96,7 +96,7 @@ checkOne loc d = case d of
       t'' <- postT [InDefinition loc d] t'
       return (ConstDef n t'' e'')
     else
-      throwError (map (_1 %~ (InDefinition loc d:)) errs)
+      throwError (map (_1 %~ (++ [InDefinition loc d])) errs)
 
   (FunDef f (PT vs t) alts) -> do
     let vs' = map fst vs
@@ -108,6 +108,8 @@ checkOne loc d = case d of
     let ctx = C.addScope (fmap (\(t,p) -> (t, p, Just p)) base) C.empty
     let ?loc = loc
     ((c, alts'), flx) <- lift (runCG ctx (map fst vs) (cgAlts alts o i))
+    traceTC "tc" (text "constraint for fun definition" <+> pretty f <+> text "is"
+                  L.<$> prettyC c)
     (errs, subst) <- lift (runSolver (solve c) flx vs)
     traceTC "tc" (text "subst for fun definition" <+> pretty f <+> text "is"
                   L.<$> pretty subst)
@@ -117,7 +119,7 @@ checkOne loc d = case d of
       t'' <- postT [InDefinition loc d] t'
       return (FunDef f (PT vs t'') alts'')
     else
-      throwError (map (_1 %~ (InDefinition loc d:)) errs)
+      throwError (map (_1 %~ (++ [InDefinition loc d])) errs)
 
   where
     validateType' x = withExceptT (pure . ([InDefinition loc d],)) . validateType x
