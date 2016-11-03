@@ -19,7 +19,7 @@ include <gum/array.cogent>
 include <gum/buffer.cogent>
 include <gum/crc32.cogent>
 include <gum/errno.cogent>
-include "../fs/ubi.cogent"
+include "../src/ubi.cogent"
 
 bilbyFsMagic : U32
 bilbyFsMagic = 0x0b17b9f5
