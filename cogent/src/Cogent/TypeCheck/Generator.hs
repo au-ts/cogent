@@ -23,7 +23,7 @@ module Cogent.TypeCheck.Generator
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 import qualified Cogent.Context as C
-import Cogent.PrettyPrint ()
+import Cogent.PrettyPrint (prettyC)
 import Cogent.Surface
 import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Util
@@ -39,7 +39,6 @@ import Text.Parsec.Pos
 import Text.PrettyPrint.ANSI.Leijen hiding ((<>), (<$>))
 import qualified Text.PrettyPrint.ANSI.Leijen as L
 
--- import Debug.Trace
 
 data CGState = CGS { _tc :: TCState, _context :: C.Context TCType, _flexes :: Int, _knownTypeVars :: [VarName] }
 
@@ -62,7 +61,7 @@ cgMany es = do
   let each (ts,c,es') e = do
         alpha    <- fresh
         (c', e') <- cg e alpha
-        return (alpha:ts, c' <> c, e':es')
+        return (alpha:ts, c <> c', e':es')
   (ts, c', es') <- foldM each ([], Sat, []) es
   return (reverse ts, c', reverse es')
 
@@ -112,14 +111,15 @@ cg' (Var n) t = do
     -- Variable used for the first time, mark the use, and continue
     Just (t', p, Nothing) -> do
       context %= C.use n ?loc
+      let c = F t' :< F t
       traceTC "gen" (text "variable" <+> pretty n <+> text "used for the first time" <> semi
-               L.<$> text "generate constraint" <+> pretty (F t' :< F t))
-      return (F t' :< F t, e)
+               L.<$> text "generate constraint" <+> prettyC c)
+      return (c, e)
 
     -- Variable already used before, emit a Share constraint.
     Just (t', p, Just l)  -> do
       traceTC "gen" (text "variable" <+> pretty n <+> text "used before" <> semi
-               L.<$> text "generate constraint" <+> pretty (F t' :< F t) <+> text "and share constraint")
+               L.<$> text "generate constraint" <+> prettyC (F t' :< F t) <+> text "and share constraint")
       return (Share t' (Reused n p l) <> F t' :< F t, e)
 
 cg' (Upcast e) t = do
@@ -170,9 +170,7 @@ cg' (App e1 e2) t = do
 
   let c = c1 <> c2
       e = App e1' e2'
-  traceTC "gen" (text "cg for funapp:" <+> prettyE e
-           L.<$> text "constraint for function:" <+> pretty c1 <> semi
-           L.<$> text "constraint for argument:" <+> pretty c2)
+  traceTC "gen" (text "cg for funapp:" <+> prettyE e)
   return (c,e)
 
 cg' (Con k es) t = do
@@ -182,7 +180,7 @@ cg' (Con k es) t = do
       c = FVariant (M.fromList [(k, (ts, False))]) :< F t
   traceTC "gen" (text "cg for constructor:" <+> prettyE e
            L.<$> text "of type" <+> pretty t <> semi
-           L.<$> text "generate constraint" <+> pretty c)
+           L.<$> text "generate constraint" <+> prettyC c)
   return (c' <> c,e)
 
 cg' (Tuple es) t = do
@@ -192,8 +190,7 @@ cg' (Tuple es) t = do
       c = F (T (TTuple ts)) :< F t
   traceTC "gen" (text "cg for tuple:" <+> prettyE e
            L.<$> text "of type" <+> pretty t <> semi
-           L.<$> text "generate constraint" <+> pretty c <> semi
-           L.<$> text "constraint for elements:" <+> pretty c')
+           L.<$> text "generate constraint" <+> prettyC c)
   return (c' <> c,e)
 
 cg' (UnboxedRecord fes) t = do
@@ -205,8 +202,7 @@ cg' (UnboxedRecord fes) t = do
       c = F r :< F t
   traceTC "gen" (text "cg for unboxed record:" <+> prettyE e
            L.<$> text "of type" <+> pretty t <> semi
-           L.<$> text "generate constraint" <+> pretty c
-           L.<$> text "constraints for fileds:" <+> pretty c')
+           L.<$> text "generate constraint" <+> prettyC c)
   return (c' <> c,e)
 
 cg' (Seq e1 e2) t = do
@@ -240,7 +236,7 @@ cg' (TypeApp f as i) t = do
         traceTC "gen" (text "cg for typeapp:" <+> prettyE e
                  L.<$> text "of type" <+> pretty t <> semi
                  L.<$> text "type signature is" <+> pretty (PT vs tau) <> semi
-                 L.<$> text "generate constraint" <+> pretty c)
+                 L.<$> text "generate constraint" <+> prettyC c)
         return (c' <> c, e)
 
     Nothing -> do
@@ -257,7 +253,7 @@ cg' (Member e f) t = do
       c = F alpha :< x <> Share alpha (UsedInMember f)
   traceTC "gen" (text "cg for member:" <+> prettyE e
            L.<$> text "of type" <+> pretty t <> semi
-           L.<$> text "generate constraint" <+> pretty c)
+           L.<$> text "generate constraint" <+> prettyC c)
   return (c' <> c, e)
 
 cg' (If e1 bs e2 e3) t = do
@@ -276,9 +272,7 @@ cg' (Put e ls) t | not (any isNothing ls) = do
       e = Put e' (map Just (zip fs es'))
   traceTC "gen" (text "cg for put:" <+> prettyE e
            L.<$> text "of type" <+> pretty t <> semi
-           L.<$> text "constraint for record:" <+> pretty c' <> semi
-           L.<$> text "constraints for fields:" <+> pretty cs <> semi
-           L.<$> text "generate constraint:" <+> pretty c1 <+> text "and" <+> pretty c2)
+           L.<$> text "generate constraint:" <+> prettyC c1 <+> text "and" <+> prettyC c2)
   return (c1 <> c' <> cs <> c2, e)
 
   | otherwise = first (<> Unsat RecordWildcardsNotSupported) <$> cg' (Put e (filter isJust ls)) t
@@ -339,9 +333,7 @@ matchA (PCon k is) t = do
       c = F t :< FVariant (M.fromList [(k, (vs, False))])
   traceTC "gen" (text "match constructor pattern:" <+> pretty p'
            L.<$> text "of type" <+> pretty t <> semi
-           L.<$> text "generate constraint" <+> pretty c <> semi
-           L.<$> text "constraints for constructor args:" 
-           L.<$> vcat (map pretty cs)) 
+           L.<$> text "generate constraint" <+> prettyC c)
   return (M.unions ss, co <> mconcat cs <> c, p')
 
 matchA (PIntLit i) t = do
@@ -382,9 +374,7 @@ match (PTuple ps) t = do
        c = F t :< F (T (TTuple vs))
    traceTC "gen" (text "match tuple pattern:" <+> pretty p'
             L.<$> text "of type" <+> pretty t <> semi
-            L.<$> text "generate constraint" <+> pretty c <> semi
-            L.<$> text "constraints for elements:"
-            L.<$> vcat (map pretty cs))
+            L.<$> text "generate constraint" <+> prettyC c)
    return (M.unions ss, co <> mconcat cs <> c, p')
 
 match (PUnboxedRecord fs) t | not (any isNothing fs) = do
@@ -414,8 +404,7 @@ match (PTake r fs) t | not (any isNothing fs) = do
               _           -> Sat
    traceTC "gen" (text "match take pattern:" <+> pretty p'
             L.<$> text "of type" <+> pretty t <> semi
-            L.<$> text "constraints for fields:" <+> pretty cs
-            L.<$> text "generate constraint:" <+> pretty c
+            L.<$> text "generate constraint:" <+> prettyC c
             L.<$> text "and non-overlapping constraints")
    return (M.unions (s:ss), co <> mconcat cs <> c, p')
 
@@ -444,9 +433,8 @@ withBindings (Binding pat tau e bs : xs) a = do
       b' = Binding pat' (fmap (const alpha) tau) e' bs
   traceTC "gen" (text "bound expression" <+> pretty e' <+> text "with banged" <+> pretty bs
            L.<$> text "of type" <+> pretty alpha <> semi
-           L.<$> text "generate constraint" <+> pretty c1 <> semi
-           L.<$> text "constraint for ascribed type:" <+> pretty ct <> semi
-           L.<$> text "constraint for pattern match:" <+> pretty cp)
+           L.<$> text "generate constraint" <+> prettyC c1 <> semi
+           L.<$> text "constraint for ascribed type:" <+> prettyC ct)
   return (c, b':xs', r)
 
 parallel' :: [(ErrorContext, CG (Constraint, a))] -> CG (Constraint, [(Constraint, a)])

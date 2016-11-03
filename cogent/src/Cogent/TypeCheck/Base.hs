@@ -67,8 +67,8 @@ isCtxConstraint :: ErrorContext -> Bool
 isCtxConstraint (SolvingConstraint _) = True
 isCtxConstraint _ = False
 
+-- high-level context at the end of the list
 type ContextualisedError = ([ErrorContext], TypeError)
-
 
 data TypeFragment a = F a
                     | FRecord [(FieldName, (a, Taken))]
