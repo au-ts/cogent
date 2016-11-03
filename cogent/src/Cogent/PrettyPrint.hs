@@ -468,15 +468,22 @@ instance (Pretty a, TypeType a) => Pretty (TypeFragment a) where
 
 instance Pretty Constraint where
   pretty (a :<  b)        = pretty a </> warn ":<" </> pretty b
-  pretty (a :& b)         = pretty a </> warn ":&" </> pretty b
+  pretty (a :& b)         = pretty a </> warn ":&" <$> pretty b
   pretty (Upcastable a b) = pretty a </> warn "~>" </> pretty b
   pretty (Share  t m)     = warn "Share" <+> pretty t
   pretty (Drop   t m)     = warn "Drop" <+> pretty t
   pretty (Escape t m)     = warn "Escape" <+> pretty t
-  pretty (Unsat e)        = errbd "Unsat" <$> pretty e
+  pretty (Unsat e)        = err  "Unsat"
   pretty (Sat)            = warn "Sat"
   pretty (Exhaustive t p) = warn "Exhaustive" <+> pretty t <+> pretty p
   pretty (x :@ _)         = pretty x
+
+-- a more verbose version of constraint pretty-printer which is mostly used for debugging
+prettyC :: Constraint -> Doc
+prettyC (Unsat e) = errbd "Unsat" <$> pretty e
+prettyC (a :& b) = prettyC a </> warn ":&" <$> prettyC b
+prettyC (x :@ _) = prettyC x -- <+> prettyCtx c False
+prettyC c = pretty c
 
 instance Pretty SourceObject where
   pretty (TypeName n) = typename n
@@ -572,6 +579,6 @@ prettyRE (msg,ps) = pretty msg <$>
                                                <+> context "(" <> pretty p <> context ")") ps))
 
 prettyPrint :: Pretty a => (Doc -> Doc) -> [a] -> SimpleDoc
-prettyPrint f = renderSmart 1.0 80 . f . vcat . map pretty
+prettyPrint f = renderSmart 1.0 120 . f . vcat . map pretty
 
 
