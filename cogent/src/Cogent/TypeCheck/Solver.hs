@@ -346,35 +346,30 @@ parVariants n m ks =
   in return . Just $ mconcat cs
 
 
--- Applies simp and rules as much as possible
-auto :: Constraint -> TC Constraint
-auto c = do
-  -- traceTC "sol" (text "auto" <+> prettyC c)
-  c' <- simpT c
-  liftIO (rule' c') >>= \case
-    Nothing  -> return c'
-    Just c'' -> auto c''
-
 apply :: (Constraint -> TC Constraint) -> [Goal] -> TC [Goal]
 apply tactic = fmap concat . mapM each
   where each (Goal ctx c) = do
           c' <- tactic c
           map (goalContext %~ (++ ctx)) <$> crunch c'
 
-simpT :: Constraint -> TC Constraint
-simpT c = do
-  -- traceTC "sol" (text "simp" <+> prettyC c)
-  simp c
+-- Applies simp and rules as much as possible
+auto :: Constraint -> TC Constraint
+auto c = do
+  -- traceTC "sol" (text "auto" <+> prettyC c)
+  c' <- simp c
+  liftIO (rule' c') >>= \case
+    Nothing  -> return c'
+    Just c'' -> auto c''
 
 -- applies whnf to every type in a constraint.
 simp :: Constraint -> TC Constraint
 simp (a :< b)         = (:<)       <$> traverse whnf a <*> traverse whnf b
-simp (Upcastable a b) = Upcastable <$> whnf  a <*> whnf  b
-simp (a :& b)         = (:&)       <$> simpT a <*> simpT b
-simp (Share  t m)     = Share      <$> whnf  t <*> pure  m
-simp (Drop   t m)     = Drop       <$> whnf  t <*> pure  m
-simp (Escape t m)     = Escape     <$> whnf  t <*> pure  m
-simp (a :@ c)         = (:@)       <$> simpT a <*> pure  c
+simp (Upcastable a b) = Upcastable <$> whnf a <*> whnf b
+simp (a :& b)         = (:&)       <$> simp a <*> simp b
+simp (Share  t m)     = Share      <$> whnf t <*> pure m
+simp (Drop   t m)     = Drop       <$> whnf t <*> pure m
+simp (Escape t m)     = Escape     <$> whnf t <*> pure m
+simp (a :@ c)         = (:@)       <$> simp a <*> pure c
 simp (Unsat e)        = pure (Unsat e)
 simp Sat              = pure Sat
 simp (Exhaustive t ps)
@@ -523,6 +518,7 @@ instance Show GoalClasses where
                               unlines (map (("  " ++) . show) (F.toList un)) ++
                               "\nrest:\n" ++
                               unlines (map (("  " ++) . show) (F.toList r))
+
 instance Monoid GoalClasses where
   Classes u d uc dc e r `mappend` Classes u' d' uc' dc' e' r'
     = Classes (M.unionWith (++) u u')
@@ -531,7 +527,6 @@ instance Monoid GoalClasses where
               (M.unionWith (++) dc dc')
               (e ++ e')
               (r ++ r')
-
   mempty = Classes M.empty M.empty M.empty M.empty [] []
 
 
@@ -664,6 +659,8 @@ irreducible m | M.null m = True
     irreducible' _ = False
 
 
+data GoalClass = UpClass | DownClass | UpcastClass | DowncastClass
+
 -- In a loop, we:
 --   1. Smash all goals into smaller, simple flex/rigid goals. Exit if any of them are Unsat, remove any Sat.
 --   2.1. Apply any no-brainer substitutions from the downward goals (? :< R)
@@ -680,60 +677,32 @@ solve = zoom tc . crunch >=> explode >=> go
   where
     go :: GoalClasses -> Solver [ContextualisedError]
     go g | not (null (unsats g)) = return $ map toError (unsats g)
-
-    go g | not (irreducible (downs g)) = do
-      s <- F.fold <$> mapM noBrainers (downs g)
-      traceTC "sol" (text "solve downward goals"
-                     P.<$> text "produce subst:"
-                     P.<$> pretty s)
-      if Subst.null s then do
-          g' <- explode =<< concat . F.toList <$> traverse impose (downs g)
-          go (g' <> g { downs = M.empty } )
-      else do
-          applySubst s
-          instantiate g >>= explode >>= go
-
-    go g | not (irreducible (ups g)) = do
-      s <- F.fold <$> mapM noBrainers (ups g)
-      traceTC "sol" (text "solve upward goals" 
-                     P.<$> text "produce subst:"
-                     P.<$> pretty s)
-      if Subst.null s then do
-          g' <- explode =<< concat . F.toList <$> traverse suggest (ups g)
-          go (g' <> g { ups = M.empty } )
-      else do
-          applySubst s
-          instantiate g >>= explode >>= go
-
-    go g | not (M.null (downcastables g)) = do
-     s <- F.fold <$> mapM noBrainers (downcastables g)
-     traceTC "sol" (text "solve downcast goals" 
-                    P.<$> text "produce subst:"
-                    P.<$> pretty s)
-     if Subst.null s then do
-         g' <- explode =<< concat . F.toList <$> traverse imposeCast (downcastables g)
-         go (g' <> g { downcastables = M.empty } )
-     else do
-         applySubst s
-         instantiate g >>= explode >>= go
-
-    go g | not (M.null (upcastables g)) = do
-     s <- F.fold <$> mapM noBrainers (upcastables g)
-     traceTC "sol" (text "solve upcast goals" 
-                    P.<$> text "produce subst:"
-                    P.<$> pretty s)
-     if Subst.null s then do
-         g' <- explode =<< concat . F.toList <$> traverse suggestCast (upcastables g)
-         go (g' <> g { upcastables = M.empty } )
-     else do
-         applySubst s
-         instantiate g >>= explode >>= go
-
+    go g | not (irreducible (downs g))    = go' g DownClass 
+    go g | not (irreducible (ups   g))    = go' g UpClass
+    go g | not (M.null (downcastables g)) = go' g DowncastClass
+    go g | not (M.null (upcastables   g)) = go' g UpcastClass
     go g | not (null (rest g)) =
       let f (Goal c x) = (c, UnsolvedConstraint x)
       in  return $ map f (rest g)
-
     go _ = return []
+
+    go' :: GoalClasses -> GoalClass -> Solver [ContextualisedError]
+    go' g c = do
+      let (msg, f, cls, g'') = case c of 
+            UpClass       -> ("upward"  , suggest    , ups          , g { ups           = M.empty })
+            DownClass     -> ("downward", impose     , downs        , g { downs         = M.empty })
+            UpcastClass   -> ("upcast"  , suggestCast, upcastables  , g { upcastables   = M.empty })
+            DowncastClass -> ("downcast", imposeCast , downcastables, g { downcastables = M.empty })
+      s <- F.fold <$> mapM noBrainers (cls g)
+      traceTC "sol" (text "solve" <+> text msg <+> text "goals"
+                     P.<$> text "produce subst:"
+                     P.<$> pretty s)
+      if Subst.null s then do
+          g' <- explode =<< concat . F.toList <$> traverse f (cls g)
+          go (g' <> g'')
+      else do
+          applySubst s
+          instantiate g >>= explode >>= go
 
     toError :: Goal -> ContextualisedError
     toError (Goal ctx (Unsat e)) = (ctx, e)
