@@ -620,7 +620,10 @@ instantiate :: GoalClasses -> Solver [Goal]
 instantiate (Classes ups downs upcasts downcasts errs rest) = do
   s <- use substs
   let al = concat (F.toList ups ++ F.toList downs ++ F.toList upcasts ++ F.toList downcasts) ++ errs ++ rest
-  return (al & map (goal %~ Subst.applyC s) & map (goalContext %~ map (Subst.applyCtx s)))
+      al' = al & map (goal %~ Subst.applyC s) & map (goalContext %~ map (Subst.applyCtx s))
+  -- traceTC "sol" (text "instantiate" <+> pretty (show al) P.<$> text "with substitution" P.<$> pretty s <> semi
+  --                P.<$> text "end up with goals:" <+> pretty (show al'))
+  return al'
 
 -- Eliminates all known facts about type variables from the goal set.
 assumption :: [Goal] -> Solver [Goal]
