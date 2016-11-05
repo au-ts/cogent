@@ -43,10 +43,10 @@ data Pattern pv = PCon TagName [IrrefutablePattern pv]
                 | PIrrefutable (IrrefutablePattern pv)
                 deriving (Show, Functor, Foldable, Traversable, Eq)
 
-data Alt pv e = Alt (Pattern pv) Likelihood e deriving (Show, Functor, Foldable,Traversable)
+data Alt pv e = Alt (Pattern pv) Likelihood e deriving (Eq, Show, Functor, Foldable,Traversable)
 
 data Binding t pv e = Binding (IrrefutablePattern pv) (Maybe t) e [VarName]
-                    deriving (Show, Functor, Foldable, Traversable)
+                    deriving (Eq, Show, Functor, Foldable, Traversable)
 
 data Inline = Inline
             | NoInline
@@ -72,7 +72,7 @@ data Expr t pv e = PrimOp OpName [e]
                  | Upcast e
 --                 | Widen  e
                  | Put e [Maybe (FieldName, e)]  -- Note: `Nothing' will be desugared to `Just' in TypeCheck / zilinc
-                 deriving (Show, Functor, Foldable, Traversable)
+                 deriving (Eq, Show, Functor, Foldable, Traversable)
 
 type Banged = Bool
 type Taken  = Bool
@@ -94,7 +94,7 @@ data Type t =
             | TPut  (Maybe [FieldName]) t
             deriving (Show, Functor, Eq, Foldable, Traversable)
 
-data Polytype t = PT [(TyVarName, Kind)] t deriving (Show, Functor, Foldable, Traversable)
+data Polytype t = PT [(TyVarName, Kind)] t deriving (Eq, Show, Functor, Foldable, Traversable)
 
 numOfArgs (PT x _) = length x
 
@@ -106,7 +106,7 @@ data TopLevel t pv e = Include String
                      | AbsDec VarName (Polytype t)
                      | FunDef VarName (Polytype t) [Alt pv e]
                      | ConstDef VarName t e
-                     deriving (Show, Functor, Foldable, Traversable)
+                     deriving (Eq, Show, Functor, Foldable, Traversable)
 
 -- XXX | eqTopLevelId :: String -> TopLevel t pv e -> Bool
 -- XXX | eqTopLevelId x (Include {}) = False
@@ -126,15 +126,15 @@ absTyDeclId x (AbsTypeDec tn _) = x == tn
 absTyDeclId _ _ = False
 
 
-data LocExpr = LocExpr { posOfE :: SourcePos, exprOfLE :: Expr LocType VarName LocExpr } deriving (Show)
+data LocExpr = LocExpr { posOfE :: SourcePos, exprOfLE :: Expr LocType VarName LocExpr } deriving (Eq, Show)
 data LocType = LocType { posOfT :: SourcePos, typeOfLT' :: Type LocType }
-             | Documentation String LocType deriving (Show)
+             | Documentation String LocType deriving (Eq, Show)
 
 typeOfLT (LocType _ t) = t
 typeOfLT (Documentation s t) = typeOfLT t
 
-data RawType = RT { unRT :: Type RawType } deriving (Show, Eq)
-data RawExpr = RE { unRE :: Expr RawType VarName RawExpr } deriving Show
+data RawType = RT { unRT :: Type RawType } deriving (Eq, Show)
+data RawExpr = RE { unRE :: Expr RawType VarName RawExpr } deriving (Eq, Show)
 
 instance Foldable (Flip Alt e) where
   foldMap f a = getConst $ traverse (Const . f) a

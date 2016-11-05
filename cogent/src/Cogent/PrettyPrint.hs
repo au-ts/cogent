@@ -482,7 +482,7 @@ instance Pretty Constraint where
 prettyC :: Constraint -> Doc
 prettyC (Unsat e) = errbd "Unsat" <$> pretty e
 prettyC (a :& b) = prettyC a </> warn ":&" <$> prettyC b
-prettyC (x :@ _) = prettyC x -- <+> prettyCtx c False
+prettyC (c :@ e) = prettyC c </> prettyCtx e False
 prettyC c = pretty c
 
 instance Pretty SourceObject where
