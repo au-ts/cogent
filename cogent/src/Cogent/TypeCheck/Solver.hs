@@ -65,7 +65,7 @@ runSolver act i ks = do
 
 -- Flatten a constraint tree into a set of flat goals
 crunch :: Constraint -> TC [Goal]
-crunch (x :@ e) = map (goalContext %~ (e:)) <$> crunch x
+crunch (x :@ e) = map (goalContext %~ (++[e])) <$> crunch x
 crunch (x :& y) = (++) <$> crunch x <*> crunch y
 crunch Sat   = return []
 crunch x     = return [Goal [] x]
