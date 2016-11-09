@@ -75,7 +75,7 @@ provides 32G of memory and 4–8 CPU threads.
 # Build compilation correctness proof for BilbyFs. (ETA: 120 CPU hours)
 (cd impl/bilby/cogent;
  make verification;
- patch <../../../BilbyFs_CorresProof.patch;
+ patch -d plat/verification <../../../BilbyFs_CorresProof.patch;
  isabelle build -d . -d ../../../cogent/isa -d ../../../l4v -b -o process_output_limit=999 BilbyFs_AllRefine)
 
 # View end-to-end theorems. Each theory has a "print_theorems" command for this.
