@@ -5,7 +5,7 @@ type Ext2Superblock = {
     magic                   : U16
 }
 
-type Option a
+type Option a = <Some a | None>
 type WordArray a
 
 type FsState = {
