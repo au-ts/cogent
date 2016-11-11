@@ -1,35 +1,24 @@
 type Result a b = <Success a | Error b>
 
-type Option a
 type WordArray a
 
 type FsState = {
     superblock_num   : U32,
-    flags            : U32,
-    prealloc_offsets : Option (WordArray U32)
+    prealloc_offsets : WordArray U32
 }
-
-malloc_FsState: () -> Result (FsState take (..)) ()
 
 wordarray_create : all (a :< DS). () -> Result (WordArray a) ()
 
 free_FsState : FsState take (..) -> ()
 
-fs_mount: () -> Result FsState U32
-fs_mount _ =
-    malloc_FsState ()
-    | Success state_t -> 
-        let state_t = state_t { superblock_num = 1 }
-         in wordarray_create ()
+fs_mount: FsState take (..) -> Result FsState U32
+fs_mount state_t =
+    let state_t = state_t { superblock_num = 1 }
+    in wordarray_create ()
             | Success prealloc_offsets =>
-                let state = state_t {
-                      flags = 2,
-                      prealloc_offsets = Some prealloc_offsets
-                    }
-                in Success state
+                Success (state_t { prealloc_offsets })
             | Error _ ->
                 let _ = free_FsState state_t
                 in Error 1
-    | Error _ -> Error 2
 
 
