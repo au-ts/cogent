@@ -296,16 +296,13 @@ rule (F y :< F (T (TPut fs (U x))))
   = return $ Just $ F (T (TTake fs y)) :<  F (U x)
 rule (F (T (TTake (Just fs) (U x))) :< FVariant vs es)
   = return $ Just $ F ( U x) :< uncurry FVariant (putVariant fs vs es)
-  where
-     putVariant [] vs es = (vs,es)
-     putVariant (f:fs) vs es | f `M.member` vs = putVariant fs (M.adjust (\(t,b) -> (t, True)) f vs ) es
-                             | otherwise       = putVariant fs vs (M.insertWith (||) f True es)
 rule (F (T (TPut (Just fs) (U x))) :< FVariant vs es)
   = return $ Just $ F ( U x) :< uncurry FVariant (takeVariant fs vs es)
-  where
-     takeVariant [] vs es = (vs,es)
-     takeVariant (f:fs) vs es | f `M.member` vs = takeVariant fs (M.adjust (\(t,b) -> (t, False)) f vs ) es
-                              | otherwise       = takeVariant fs vs (M.insertWith (&&) f False es)
+rule ( FVariant vs es :< F (T (TTake (Just fs) (U x))))
+  = return $ Just $ uncurry FVariant (putVariant fs vs es) :< F (U x)
+rule (FVariant vs es :< F (T (TPut (Just fs) (U x))) )
+  = return $ Just $ uncurry FVariant (takeVariant fs vs es) :<  F ( U x) 
+--TODO: rules for records
 rule ct@(F a :< b)
   | notWhnf a = do
       traceTC "sol" (text "constraint" <+> prettyC ct <+> text "with left side in non-WHNF is disregarded")
@@ -379,6 +376,12 @@ parVariants n m ks =
       cs  = map (\k -> each k (n M.! k) (m M.! k)) ks'
   in return . Just $ mconcat cs
 
+putVariant [] vs es = (vs,es)
+putVariant (f:fs) vs es | f `M.member` vs = putVariant fs (M.adjust (\(t,b) -> (t, True)) f vs ) es
+                        | otherwise       = putVariant fs vs (M.insertWith (||) f True es)
+takeVariant [] vs es = (vs,es)
+takeVariant (f:fs) vs es | f `M.member` vs = takeVariant fs (M.adjust (\(t,b) -> (t, False)) f vs ) es
+                         | otherwise       = takeVariant fs vs (M.insertWith (&&) f False es)
 
 apply :: (Constraint -> TC Constraint) -> [Goal] -> TC [Goal]
 apply tactic = fmap concat . mapM each
