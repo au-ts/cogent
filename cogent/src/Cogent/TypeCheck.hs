@@ -110,6 +110,7 @@ checkOne loc d = case d of
     ((c, alts'), flx) <- lift (runCG ctx (map fst vs) (cgAlts alts o i))
     traceTC "tc" (text "constraint for fun definition" <+> pretty f <+> text "is"
                   L.<$> prettyC c)
+    traceTC "tc" (pretty alts')
     (errs, subst) <- lift (runSolver (solve c) flx vs)
     traceTC "tc" (text "subst for fun definition" <+> pretty f <+> text "is"
                   L.<$> pretty subst)

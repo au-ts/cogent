@@ -177,7 +177,7 @@ cg' (Con k es) t = do
   (ts, c', es') <- cgMany es
 
   let e = Con k es'
-      c = FVariant (M.fromList [(k, (ts, False))]) :< F t
+      c = FVariant (M.fromList [(k, (ts, False))]) mempty :< F t
   traceTC "gen" (text "cg for constructor:" <+> prettyE e
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint" <+> prettyC c)
@@ -268,7 +268,7 @@ cg' (Put e ls) t | not (any isNothing ls) = do
   (ts, cs, es') <- cgMany es
 
   let c1 = F (T (TPut (Just fs) alpha)) :< F t
-      c2 = FRecord (zip fs (map (,True) ts)) :< F alpha
+      c2 = F alpha :< FRecord (zip fs (map (,True) ts)) 
       e = Put e' (map Just (zip fs es'))
   traceTC "gen" (text "cg for put:" <+> prettyE e
            L.<$> text "of type" <+> pretty t <> semi
@@ -330,7 +330,7 @@ matchA (PCon k is) t = do
       co = case overlapping ss of
              Left (v:vs) -> Unsat $ DuplicateVariableInPattern v p'
              _           -> Sat
-      c = F t :< FVariant (M.fromList [(k, (vs, False))])
+      c = F t :< FVariant (M.fromList [(k, (vs, False))]) mempty
   traceTC "gen" (text "match constructor pattern:" <+> pretty p'
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint" <+> prettyC c)
@@ -417,14 +417,14 @@ withBindings [] a = (Sat, [],) <$> a
 withBindings (Binding pat tau e bs : xs) a = do
   alpha <- fresh
   (c1, e') <- letBang bs (cg e) alpha
-  ct <- case tau of
-    Nothing -> return Sat
+  (ct, alpha') <- case tau of
+    Nothing -> return (Sat, alpha)
     Just tau' -> do
       tvs <- use knownTypeVars
       zoom tc (validateType' tvs (stripLocT tau')) >>= \case
-        Left e -> return (Unsat e)
-        Right t -> return (F alpha :< F t)
-  (s, cp, pat') <- match pat alpha
+        Left e -> return (Unsat e, alpha)
+        Right t -> return (F alpha :< F t, t)
+  (s, cp, pat') <- match pat alpha'
   context %= C.addScope s
   (c', xs', r) <- withBindings xs a
   context %= C.dropScope

@@ -21,6 +21,7 @@ import Control.Monad.Except
 import Control.Monad.State
 import Data.List (nub, (\\))
 import qualified Data.Map as M
+import qualified Data.Set as S
 import Data.Monoid ((<>))
 import Text.Parsec.Pos
 
@@ -72,7 +73,7 @@ type ContextualisedError = ([ErrorContext], TypeError)
 
 data TypeFragment a = F a
                     | FRecord [(FieldName, (a, Taken))]
-                    | FVariant (M.Map TagName ([a], Taken))
+                    | FVariant (M.Map TagName ([a], Taken)) (M.Map TagName Bool)
                     deriving (Eq, Show, Functor, Foldable, Traversable)
 
 data TCType = T (Type TCType)
