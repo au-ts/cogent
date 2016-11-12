@@ -294,14 +294,14 @@ rule (F y :< F (T (TTake fs (U x))))
 rule (F y :< F (T (TPut fs (U x))))
   | not (notWhnf y)
   = return $ Just $ F (T (TTake fs y)) :<  F (U x)
-rule (F (T (TTake (Just fs) (U x))) :< FVariant vs es)
-  = return $ Just $ F ( U x) :< uncurry FVariant (putVariant fs vs es)
-rule (F (T (TPut (Just fs) (U x))) :< FVariant vs es)
-  = return $ Just $ F ( U x) :< uncurry FVariant (takeVariant fs vs es)
-rule ( FVariant vs es :< F (T (TTake (Just fs) (U x))))
-  = return $ Just $ uncurry FVariant (putVariant fs vs es) :< F (U x)
-rule (FVariant vs es :< F (T (TPut (Just fs) (U x))) )
-  = return $ Just $ uncurry FVariant (takeVariant fs vs es) :<  F ( U x) 
+-- rule (F (T (TTake (Just fs) (U x))) :< FVariant vs es)
+--   = return $ Just $ F ( U x) :< uncurry FVariant (putVariant fs vs es)
+-- rule (F (T (TPut (Just fs) (U x))) :< FVariant vs es)
+--   = return $ Just $ F ( U x) :< uncurry FVariant (takeVariant fs vs es)
+-- rule ( FVariant vs es :< F (T (TTake (Just fs) (U x))))
+--   = return $ Just $ uncurry FVariant (putVariant fs vs es) :< F (U x)
+-- rule (FVariant vs es :< F (T (TPut (Just fs) (U x))) )
+--   = return $ Just $ uncurry FVariant (takeVariant fs vs es) :<  F ( U x) 
 --TODO: rules for records
 rule ct@(F a :< b)
   | notWhnf a = do
@@ -317,23 +317,23 @@ rule (Upcastable (T (TCon n [] Unboxed)) (T (TCon m [] Unboxed)))
   , n' <= m'
   , m /= "String"
   = return $ Just Sat
-rule ct@(FVariant n n' :< F (T (TVariant m)))
-  | ns <- M.keysSet n `S.union` M.keysSet n'
+rule ct@(FVariant n :< F (T (TVariant m)))
+  | ns <- M.keysSet n
   , ns `S.isSubsetOf` M.keysSet m
-  , n'' <- fmap (_1 %~ Just) n `M.union` fmap (Nothing,) n'
+  , n'' <- fmap (_1 %~ Just) n 
   , m'' <- fmap (_1 %~ Just) m
   = parVariants n'' m'' ns
-rule ct@(F (T (TVariant n)) :< FVariant m m')
-  | ms <- M.keysSet m `S.union` M.keysSet m'
+rule ct@(F (T (TVariant n)) :< FVariant m)
+  | ms <- M.keysSet m 
   , ms `S.isSubsetOf` M.keysSet n
   , n'' <- fmap (_1 %~ Just) n
-  , m'' <- fmap (_1 %~ Just) m `M.union` fmap (Nothing,) m'
+  , m'' <- fmap (_1 %~ Just) m
   = parVariants n'' m'' ms
-rule ct@(FVariant n n' :< FVariant m m')
-  | ns <- M.keysSet n `S.union` M.keysSet n'
-  , ns == M.keysSet m `S.union` M.keysSet m'
-  , m'' <- fmap (_1 %~ Just) m `M.union` fmap (Nothing,) m'
-  , n'' <- fmap (_1 %~ Just) n `M.union` fmap (Nothing,) n'
+rule ct@(FVariant n :< FVariant m )
+  | ns <- M.keysSet n
+  , ns == M.keysSet m
+  , m'' <- fmap (_1 %~ Just) m
+  , n'' <- fmap (_1 %~ Just) n
   = parVariants n'' m'' ns
 rule ct@(FRecord (M.fromList -> n) :< F (T (TRecord (M.fromList -> m) s)))
   | ns <- M.keysSet n
@@ -426,20 +426,18 @@ lub = bound LUB
 -- We re-check some basic equalities here for better error messages
 bound :: Bound -> TypeFragment TCType -> TypeFragment TCType -> Solver (Maybe (TypeFragment TCType), TypeFragment TCType, TypeFragment TCType)
 bound d (F a) (F b) = fmap ((, F a, F b) . fmap F) (bound' d a b)
-bound d a@(FVariant is is') b@(F (T (TVariant js))) 
-  | (M.keysSet is `S.union` M.keysSet is') `S.isSubsetOf` M.keysSet js
+bound d a@(FVariant is) b@(F (T (TVariant js))) 
+  | M.keysSet is `S.isSubsetOf` M.keysSet js
   , a' <- F (T (TVariant $ M.union is js))
   = bound d a' b
-bound d a@(F (T (TVariant js))) b@(FVariant is is') = bound d b a  -- symm
-bound d a@(FVariant is_ is_') b@(FVariant js_ js_') 
+bound d a@(F (T (TVariant js))) b@(FVariant is) = bound d b a  -- symm
+bound d a@(FVariant is_) b@(FVariant js_) 
   | is <- M.union is_ js_
   , js <- M.union js_ is_
-  , is' <- M.union is_' js_'
-  , js' <- M.union js_' is_'
   = if or (zipWith ((/=) `on` length) (F.toList is) (F.toList js)) then return (Nothing, a, b)
     else do
        rs <- M.fromList <$> traverse (each is js) (M.keys is)
-       return (Just (FVariant rs (M.unionWith op is' js')),FVariant is is', FVariant js js')
+       return (Just (FVariant rs),FVariant is, FVariant js)
   where
     op = case d of GLB -> (||); LUB -> (&&)
     each is js k = let
@@ -543,8 +541,8 @@ data GoalClasses
     , downcastables :: M.Map Int [Goal]
     , unsats :: [Goal]
     , rest :: [Goal]
-    , upflexes :: M.Map Int [Goal]
-    , downflexes :: M.Map Int [Goal]
+    , upflexes :: S.Set Int
+    , downflexes :: S.Set Int
     }
 
 instance Show GoalClasses where
@@ -573,8 +571,8 @@ instance Monoid GoalClasses where
               (M.unionWith (++) dc dc')
               (e ++ e')
               (r ++ r')
-              (M.unionWith (++) fu fu')
-              (M.unionWith (++) fd fd')
+              (S.union fu fu')
+              (S.union fd fd')
   mempty = Classes M.empty M.empty M.empty M.empty [] [] mempty mempty
 
 
@@ -591,7 +589,11 @@ classify g = case g of
   (Goal _ Sat)                                -> mempty
   (Goal _ (F a :< F b)) | Just a' <- flexOf a
                         , Just b' <- flexOf b
-                        , a' /= b'            -> mempty {upflexes = M.singleton b' [g], downflexes = M.singleton a' [g]}
+                        , a' /= b'            -> mempty {upflexes = S.singleton b', downflexes = S.singleton a', rest = [g]}
+                        | Just a' <- flexOf a
+                        , Nothing <- flexOf b -> mempty {downflexes = S.singleton a', rest = [g]}
+                        | Just b' <- flexOf b
+                        , Nothing <- flexOf a -> mempty {upflexes = S.singleton b', rest = [g]}
   _                                           -> mempty {rest = [g]}
   where
     rigid (F (U x)) = False
@@ -677,7 +679,7 @@ applySubst s = substs <>= s
 instantiate :: GoalClasses -> Solver [Goal]
 instantiate (Classes ups downs upcasts downcasts errs rest upfl downfl) = do
   s <- use substs
-  let al = concat (F.toList ups ++ F.toList downs ++ F.toList upcasts ++ F.toList downcasts) ++ errs ++ rest ++ concat (F.toList upfl)
+  let al = concat (F.toList ups ++ F.toList downs ++ F.toList upcasts ++ F.toList downcasts) ++ errs ++ rest
       al' = al & map (goal %~ Subst.applyC s) & map (goalContext %~ map (Subst.applyCtx s))
   -- traceTC "sol" (text "instantiate" <+> pretty (show al) P.<$> text "with substitution" P.<$> pretty s <> semi
   --                P.<$> text "end up with goals:" <+> pretty (show al'))
@@ -702,7 +704,7 @@ assumption gs = do
 explode :: [Goal] -> Solver GoalClasses
 explode = assumption >=> (zoom tc . apply auto) >=> (return . foldMap classify)
 
-irreducible :: M.Map Int [Goal] -> M.Map Int [Goal] -> Bool
+irreducible :: M.Map Int [Goal] -> S.Set Int -> Bool
 irreducible m ds | M.null m = True
                  | xs <- F.toList m
                  = all irreducible' xs
@@ -713,8 +715,8 @@ irreducible m ds | M.null m = True
     irreducible' [Goal _ c]
             = case c of
                 (F a :< F b) | groundConstraint a b                  -> False
-                             | Just a' <- flexOf a, a' `M.member` ds -> True
-                             | Just b' <- flexOf b, b' `M.member` ds -> True
+                             | Just a' <- flexOf a, a' `S.member` ds -> True
+                             | Just b' <- flexOf b, b' `S.member` ds -> True
                              | otherwise                             -> False
                 (F (U x) :< _) -> True
                 (_ :< F (U x)) -> True
@@ -766,7 +768,7 @@ solve = zoom tc . crunch >=> explode >=> go
           groundNB [Goal _ (F a :< F b)] = groundConstraint a b
           groundNB _                     = False
       let groundKeys = M.keysSet (M.filter groundNB (cls g))
-      s <- F.fold <$> mapM noBrainers (cls g `removeKeys` S.toList (M.keysSet (flexes g) S.\\ groundKeys))
+      s <- F.fold <$> mapM noBrainers (cls g `removeKeys` S.toList (flexes g S.\\ groundKeys))
       traceTC "sol" (text "solve" <+> text msg <+> text "goals"
                      P.<$> text "produce subst:"
                      P.<$> pretty s)

@@ -177,7 +177,7 @@ cg' (Con k es) t = do
   (ts, c', es') <- cgMany es
 
   let e = Con k es'
-      c = FVariant (M.fromList [(k, (ts, False))]) mempty :< F t
+      c = FVariant (M.fromList [(k, (ts, False))]) :< F t
   traceTC "gen" (text "cg for constructor:" <+> prettyE e
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint" <+> prettyC c)
@@ -330,7 +330,7 @@ matchA (PCon k is) t = do
       co = case overlapping ss of
              Left (v:vs) -> Unsat $ DuplicateVariableInPattern v p'
              _           -> Sat
-      c = F t :< FVariant (M.fromList [(k, (vs, False))]) mempty
+      c = F t :< FVariant (M.fromList [(k, (vs, False))]) 
   traceTC "gen" (text "match constructor pattern:" <+> pretty p'
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint" <+> prettyC c)
