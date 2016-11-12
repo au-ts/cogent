@@ -458,7 +458,7 @@ instance Pretty TypeWarning where
 
 instance (Pretty a, TypeType a) => Pretty (TypeFragment a) where
   pretty (F t) = pretty t & (if __cogent_fdisambiguate_pp then (<+> comment "{- F -}") else id)
-  pretty (FVariant ts vs) = typesymbol "?" <> pretty (TVariant ts) <+> tupled (map pretty $ M.keys vs)--TODO.
+  pretty (FVariant ts) = typesymbol "?" <> pretty (TVariant ts)
   pretty (FRecord ts) 
     | not . or $ map (snd . snd) ts = typesymbol "?" <>
         record (map (\(a,(b,c)) -> fieldname a <+> symbol ":" <+> pretty b) ts)  -- all untaken
