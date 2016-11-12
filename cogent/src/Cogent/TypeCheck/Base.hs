@@ -73,7 +73,7 @@ type ContextualisedError = ([ErrorContext], TypeError)
 
 data TypeFragment a = F a
                     | FRecord [(FieldName, (a, Taken))]
-                    | FVariant (M.Map TagName ([a], Taken)) (M.Map TagName Bool)
+                    | FVariant (M.Map TagName ([a], Taken))
                     deriving (Eq, Show, Functor, Foldable, Traversable)
 
 data TCType = T (Type TCType)
