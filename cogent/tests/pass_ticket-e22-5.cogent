@@ -1,41 +1,20 @@
 type Option a = <Some a | None>
 
-type Ext2DirEnt = #{
-    record_length       : U16,
-    name                : WordArray U8
-}
+type Ext2DirEnt
 
 type WordArray a
 
-type OSPageBuffer
-type CString
-
-type CheckMatchingDirentAcc = (FsState, U64, U64)
-type CheckMatchingDirentObsv = (CString, U64, OSPageBuffer)
-
-type ConsumerResult r s acc = (acc, <Return r | Stop s | Next ()>)
-type Consumer y r s acc obsv = #{obj: y, acc: acc, obsv: obsv!} -> ConsumerResult r s acc
-
-ext2_match: (CString!, Ext2DirEnt!) -> Bool
-destroy_Ext2DirEnt : Ext2DirEnt -> ()
-
-type FsState = {
-    prealloc_blockptrs  : Option (WordArray BlockPtr)
-}
+-- type FsState
+type FsState = {prealloc_blockptrs : Option (WordArray BlockPtr)}
 
 type BlockPtr -- = U32
 
-check_matching_and_increment: Consumer Ext2DirEnt (Option Ext2DirEnt) U32 CheckMatchingDirentAcc CheckMatchingDirentObsv
-check_matching_and_increment #{ obj = de, acc = (state, offset, prev_offset), obsv = (name, offset_end, pagebuf)} = 
-    let de_reclen = de.record_length !de
-    in if de_reclen /= 0 then
-        let matched = ext2_match (name, de) !de
-        in if matched then
-            ((state, offset, prev_offset), Return (Some de))
-        else
-            let _ = destroy_Ext2DirEnt de
-            in ((state, offset, prev_offset), Next ())
-    else
-        let _ = destroy_Ext2DirEnt de
-        in ((state, offset, prev_offset), Stop 1)
+foo : #{ obj : Ext2DirEnt, acc : FsState, obsv : U64! } -> (FsState, Option Ext2DirEnt)
+foo #{ obj = de, acc = state, obsv = offset_end } = 
+  if True
+    then
+      if False
+        then (state, Some de)
+        else (state, Some de)
+    else (state, Some de)
 
