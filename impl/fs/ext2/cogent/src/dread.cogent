@@ -355,7 +355,7 @@ get_next_dirent_from_page2(#{acc = (ex, state, offset, prev_offset), obsv = (nam
         ((ex, state, offset, prev_offset), Return (None ()))
 
 check_matching_and_increment: Consumer Ext2DirEnt (Option Ext2DirEnt) U32 CheckMatchingDirentAcc CheckMatchingDirentObsv
-check_matching_and_increment(#{ obj = de, acc = (ex, state, offset, prev_offset), obsv = (name, offset_end, pagebuf)}) = 
+check_matching_and_increment #{ obj = de, acc = (ex, state, offset, prev_offset), obsv = (name, offset_end, pagebuf)} = 
     let de_reclen = de.record_length !de
     in if de_reclen /= 0 then
         let matched = ext2_match (name, de) !de
