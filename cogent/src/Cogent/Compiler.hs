@@ -84,6 +84,7 @@ set_flag_cppArgs = writeIORef __cogent_cpp_args_ref
 set_flag_quiet = writeIORef __cogent_quiet_ref True
 set_flag_debug = writeIORef __cogent_debug_ref True
 set_flag_ddumpTc = writeIORef __cogent_ddump_tc_ref True
+set_flag_ddumpTcCtx = writeIORef __cogent_ddump_tc_ctx_ref True
 set_flag_ddumpTcFilter = writeIORef __cogent_ddump_tc_filter_ref . words
 set_flag_ddumpToFile = writeIORef __cogent_ddump_to_file_ref . Just
 set_flag_distDir = writeIORef __cogent_dist_dir_ref
@@ -231,6 +232,13 @@ __cogent_ddump_tc = unsafePerformIO $ readIORef __cogent_ddump_tc_ref
 __cogent_ddump_tc_ref :: IORef Bool
 {-# NOINLINE __cogent_ddump_tc_ref #-}
 __cogent_ddump_tc_ref = unsafePerformIO $ newIORef False
+
+__cogent_ddump_tc_ctx :: Bool
+__cogent_ddump_tc_ctx = unsafePerformIO $ readIORef __cogent_ddump_tc_ctx_ref
+
+__cogent_ddump_tc_ctx_ref :: IORef Bool
+{-# NOINLINE __cogent_ddump_tc_ctx_ref #-}
+__cogent_ddump_tc_ctx_ref = unsafePerformIO $ newIORef False
 
 __cogent_ddump_tc_filter :: [String]
 __cogent_ddump_tc_filter = unsafePerformIO $ readIORef __cogent_ddump_tc_filter_ref
