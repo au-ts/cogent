@@ -270,7 +270,7 @@ cg' (Put e ls) t | not (any isNothing ls) = do
   (ts, cs, es') <- cgMany es
 
   let c1 = F (T (TPut (Just fs) alpha)) :< F t
-      c2 = F alpha :< FRecord (zip fs (map (,True) ts)) 
+      c2 = F alpha :< FRecord (zip fs (map (,True) ts))
       e = Put e' (map Just (zip fs es'))
   traceTC "gen" (text "cg for put:" <+> prettyE e
            L.<$> text "of type" <+> pretty t <> semi
