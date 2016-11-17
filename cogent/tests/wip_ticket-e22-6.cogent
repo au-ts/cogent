@@ -1,0 +1,137 @@
+type ExState
+
+type BlockPtr = U32
+type FsInode = {
+    --num_physical_blocks : U32,
+    block_pointers      : WordArray BlockPtr,
+    dir_start_lookup    : U64,
+    dtime               : U32
+}
+type VfsInodeAbstract
+type VfsInode = {
+  vfs: #VfsInodeAbstract,
+  fs: #FsInode
+}
+
+type Indirect = {
+  blockptr: BlockPtr,     -- `key' in Linux
+  buf: Option OSBuffer,   -- `bh' in Linux
+                          -- NOTE: IT IS PERFECTLY ACCEPTABLE FOR SOME
+                          -- ELEMENTS NOT EXIST! IN PARTICULAR, IDX = 0
+                          --
+                          -- THIS IS BECAUSE YOU SHOULD UPDATE THE INODE
+                          -- INSTEAD!
+                          --
+                          -- DO NOT HANDLE THIS AS AN ERROR CASE IN THAT
+                          -- SITUATION.
+
+  offset: U32
+}
+type LogicalBlock
+type Option a = <Some a | None>
+type Result a b = <Success a | Error b>
+type RR c a b = (c, Result a b)
+
+osbuffer_serialise_Ple32: (OSBuffer, OSBufferOffset, U32) -> Result (OSBuffer, OSBufferOffset) (OSBuffer)
+type OSBuffer
+type OSBufferOffset = U32
+
+type LRR acc brk = (acc, <Iterate ()|Break brk>)
+
+seq32: all (acc,obsv,rbrk).  Seq32Param acc obsv rbrk -> LRR acc rbrk
+type Seq32_bodyParam acc obsv rbrk = #{
+  acc: acc,
+  obsv: obsv!,
+  idx: U32
+}
+type Seq32_body acc obsv rbrk = Seq32_bodyParam acc obsv rbrk -> LRR acc rbrk
+type Seq32Param acc obsv rbrk = #{
+  frm: U32,
+  to: U32,  -- to is not inclusive. ie we loop over [from, to) incrementing `step'
+  step: U32,
+  f: Seq32_body acc obsv rbrk,
+  acc: acc,
+  obsv: obsv!
+}
+
+splice_put_direct_blocks_buf: Seq32_body (OSBuffer, U32, U32) () ()
+vfs_inode_add_dirty_osbuffer: (VfsInode, OSBuffer!) -> (VfsInode)
+indirect_splice_finish: (ExState, Indirect, VfsInode) -> RR (ExState, Indirect, VfsInode) () U32
+
+type WordArray a
+type WordArrayIndex = U32
+
+type WordArrayPutP a = #{arr: WordArray a, idx: WordArrayIndex, val: a}
+
+wordarray_put2: all(a :< DSE). WordArrayPutP a -> WordArray a
+
+
+type WordArrayMapNoBreakP a acc obsv = #{arr: WordArray a, frm: WordArrayIndex, to: WordArrayIndex, f: WordArrayMapNoBreakF a acc obsv, acc: acc, obsv: obsv}
+wordarray_map_no_break: all(a :< DSE,acc,obsv). WordArrayMapNoBreakP a acc obsv -> (WordArray a, acc)
+
+splice_put_direct_blocks_inode: WordArrayMapNoBreakF U32 U32 ()
+
+type WordArrayMapNoBreakF a acc obsv = ElemAO a acc obsv -> (a, acc)
+
+type ElemAO a acc obsv = #{elem:a, acc:acc, obsv:obsv!}
+
+indirect_splice: (ExState, Indirect, VfsInode, LogicalBlock, U32, U32) -> RR (ExState, Indirect, VfsInode) () U32
+indirect_splice (ex, indirect, inode, iblock, num_direct, num_indirect) =
+  let indirect_t { buf } = indirect
+  in buf
+  | Some buf ->
+    -- perform the splice
+    osbuffer_serialise_Ple32 (buf, indirect_t.offset * 4, indirect_t.blockptr) !indirect_t
+    | Success (buf, _) =>
+      -- fill in any extra indirect blocks we also allocated at the same time
+      let buf = if num_indirect == 0 then
+        let ((buf, _, _), _) = seq32 [(OSBuffer, U32, U32), (), ()] #{
+          frm  = 1,
+          to   = num_direct,
+          step = 1,
+          f    = splice_put_direct_blocks_buf,
+          acc  = (buf, indirect_t.blockptr + 1, indirect_t.offset + 4), 
+          obsv = () } !indirect_t
+        in buf
+        else buf
+
+      -- add buffer to inode's dirty list
+      and inode = vfs_inode_add_dirty_osbuffer (inode, buf) !buf
+      and indirect = indirect_t { buf = Some buf }
+      in indirect_splice_finish (ex, indirect, inode)
+    | Error (buf) ->
+      let indirect = indirect_t { buf = Some buf }
+      in ((ex, indirect, inode), Error 1) -- failed to serialise buffer
+  | None () ->
+    -- was from inode
+    let indirect = indirect_t { buf = None () }
+    and inode_t { fs } = inode
+    and fs_t { block_pointers } = fs
+
+    -- splice it
+    and block_pointers = wordarray_put2 [U32] #{
+      arr = block_pointers,
+      idx = indirect.offset,
+      val = indirect.blockptr } !indirect
+
+    -- fill in any extra indirect blocks we also allocated at the same time
+    in if num_indirect == 0 then
+      let (block_pointers, _) = wordarray_map_no_break [U32, U32, ()] #{
+        arr  = block_pointers,
+        frm  = indirect.offset + 1,
+        to   = indirect.offset + num_direct,
+        f    = splice_put_direct_blocks_inode,
+        acc  = indirect.blockptr + 1,
+        obsv = () } !indirect
+
+      -- same stuff on both branches
+      and fs = fs_t { block_pointers }
+      and inode = inode_t { fs }
+      in indirect_splice_finish (ex, indirect, inode)
+
+    else
+      -- same stuff on both branches
+      let fs = fs_t { block_pointers }
+      and inode = inode_t { fs }
+      in indirect_splice_finish (ex, indirect, inode)
+
