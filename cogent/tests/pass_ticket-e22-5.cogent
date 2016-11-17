@@ -1,20 +1,13 @@
-type Option a = <Some a | None>
+type Array a
 
-type Ext2DirEnt
+type B
 
-type WordArray a
-
--- type FsState
-type FsState = {prealloc_blockptrs : Option (WordArray BlockPtr)}
-
-type BlockPtr -- = U32
-
-foo : #{ obj : Ext2DirEnt, acc : FsState, obsv : U64! } -> (FsState, Option Ext2DirEnt)
-foo #{ obj = de, acc = state, obsv = offset_end } = 
+foo : #{ acc : Array B } -> Array B
+foo #{ acc = state } = 
   if True
     then
       if False
-        then (state, Some de)
-        else (state, Some de)
-    else (state, Some de)
+        then state
+        else state
+    else state
 
