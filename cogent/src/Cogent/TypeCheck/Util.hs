@@ -15,8 +15,8 @@ import Control.Monad.IO.Class
 import Text.PrettyPrint.ANSI.Leijen as L hiding (indent)
 
 traceTC :: MonadIO m => String -> Doc -> m ()
-traceTC s | s `elem` __cogent_ddump_tc_filter = liftIO . dumpMsg . (\d -> indent (text ("[dump-tc/" ++ s ++ "]") <+> d) L.<$> line)
-          | otherwise = const $ return ()
+traceTC s | Just ws <- __cogent_ddump_tc_filter, s `notElem` ws = const $ return ()
+          | otherwise = liftIO . dumpMsg . (\d -> indent (text ("[dump-tc/" ++ s ++ "]") <+> d) L.<$> line)
 
 traceTC' :: MonadIO m => String -> String -> m ()
 traceTC' s = traceTC s . text
