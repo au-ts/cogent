@@ -9,33 +9,40 @@
 --
 
 {-# LANGUAGE TupleSections #-}
-module Cogent.TypeCheck.Post where
+module Cogent.TypeCheck.Post where (
+  postA, postE, postT
+) where
 
 import Cogent.Common.Syntax
 import Cogent.Common.Types
+import Cogent.PrettyPrint ()
 import Cogent.Surface
 import Cogent.TypeCheck.Base
+import Cogent.TypeCheck.Util
 import Cogent.Util
 
 import Control.Monad
 import Control.Lens
 import Control.Monad.Except
 import qualified Data.Map as M
-
+import Text.PrettyPrint.ANSI.Leijen as P hiding ((<$>))
 
 postT :: [ErrorContext] -> TCType -> ExceptT [ContextualisedError] TC RawType
 postT ctx t = do
   d <- use knownTypes
+  traceTC "post" (text "type" <+> pretty t)
   withExceptT (pure . (ctx,)) $ ExceptT (return $ fmap toRawType $ normaliseT d t)
 
 postE :: [ErrorContext] -> TCExpr -> ExceptT [ContextualisedError] TC TypedExpr
 postE ctx e = do
   d <- use knownTypes
+  traceTC "post" (text "expression" <+> pretty e)
   withExceptT pure $ ExceptT (return $ fmap toTypedExpr $ normaliseE d e)
 
 postA :: [ErrorContext] -> [Alt TCName TCExpr] -> ExceptT [ContextualisedError] TC [Alt TypedName TypedExpr]
 postA ctx as = do
   d <- use knownTypes
+  traceTC "post" (text "alternative" <+> pretty as)
   withExceptT pure $ ExceptT (return $ fmap toTypedAlts $ normaliseA d as)
 
 -- posttc :: TypeDict -> TCExpr -> Either ContextualisedError TypedExpr
@@ -116,7 +123,7 @@ normaliseT d (T (TCon n ts b)) = do
 --     Just t'' -> normaliseT d t''
 --     Nothing  -> Left (RemoveCaseFromNonVariant p t)
 
-normaliseT d (U x) = error "Panic: invalid type to normaliseT"
+normaliseT d (U x) = error ("Panic: invalid type to normaliseT (?" ++ show x ++ ")")
 normaliseT d (T x) = T <$> traverse (normaliseT d) x
 
 contextualise :: Either TypeError x -> Either ContextualisedError x
