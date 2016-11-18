@@ -1,0 +1,16 @@
+type FsState = {
+    super      : Ext2Superblock,
+    flags      : U32
+}
+
+type Ext2Superblock = {
+    inode_count      : U32,
+    free_inode_count : U32
+}
+
+fsop_inode_free2: FsState -> FsState
+fsop_inode_free2 state = 
+    let state_t { super } = state
+    and super = super { free_inode_count = 1 }
+    in state_t { super }
+
