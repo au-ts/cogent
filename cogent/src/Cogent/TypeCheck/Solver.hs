@@ -358,10 +358,10 @@ rule ct = do
 
 -- `parRecords' and `parVariant' are used internally in `rule'
 parRecords n m ks =
-  let each f (t, False) (u, True ) = Unsat (RequiredTakenField f t)
+  let each f (t, False) (u, True ) = (F t :< F u) :& Drop t ImplicitlyTaken
       each f (t, False) (u, False) = F t :< F u
       each f (t, True ) (u, True ) = F t :< F u
-      each f (t, True ) (u, False) = (F t :< F u) :& Drop t ImplicitlyTaken
+      each f (t, True ) (u, False) = Unsat (RequiredTakenField f t)
       ks' = S.toList ks
       cs  = map (\k -> each k (n M.! k) (m M.! k)) ks'
   in return . Just $ mconcat cs
@@ -689,10 +689,10 @@ suggestCast xs = return xs
 
 -- Produce substitutions when it is safe to do so (the variable can't get any more general).
 noBrainers :: [Goal] -> Solver Subst
-noBrainers [Goal _ c@(F (U x) :<  F (T t))] = do
+noBrainers [Goal _ c@(F (U x) :<  F (T t))] | Nothing <- flexOf (T t) = do
   traceTC "sol" (text "apply no brainer to" <+> prettyC c)
   return $ Subst.singleton x (T t)
-noBrainers [Goal _ c@(F (T t) :<  F (U x))] = do
+noBrainers [Goal _ c@(F (T t) :<  F (U x))] | Nothing <- flexOf (T t) = do
   traceTC "sol" (text "apply no brainer to" <+> prettyC c)
   return $ Subst.singleton x (T t)
 noBrainers [Goal _ c@(Upcastable (T t@(TCon v [] Unboxed)) (U x))] | v `elem` primTypeCons = do
