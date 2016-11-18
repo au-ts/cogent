@@ -1,0 +1,24 @@
+type ExState
+type VfsInode
+type OSBuffer
+
+type LRR acc brk = (acc, <Iterate|Break brk>)
+
+seq32: all (acc,obsv,rbrk). Seq32Param acc obsv rbrk -> LRR acc rbrk
+type Seq32Param acc obsv rbrk = #{
+  f: Seq32_body acc obsv rbrk,
+  acc: acc,
+  obsv: obsv!
+}
+type Seq32_body acc obsv rbrk = #{acc:acc, obsv:obsv!} -> LRR acc rbrk
+
+bar: Seq32_body OSBuffer () ()
+
+foo : (OSBuffer, VfsInode) -> (OSBuffer, VfsInode)
+foo (buf, inode) =
+  let (buf, _) = seq32 #{
+      f    = bar,
+      acc  = buf, 
+      obsv = () }
+   in (buf, inode)
+ 
