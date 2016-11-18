@@ -23,12 +23,12 @@ import Prelude hiding (lookup)
 newtype Subst = Subst (M.IntMap TCType)
 
 lookup :: Subst -> Int -> TCType
-lookup (Subst m) i = fromMaybe (U i) (M.lookup i m)
+lookup s@(Subst m) i = maybe (U i) (apply s) (M.lookup i m)
 
 instance Monoid Subst where
   mempty = Subst M.empty
   mappend a@(Subst a') b@(Subst b')
-    = Subst (fmap (apply b) a' <> fmap (apply a) b')
+    = Subst (a' <> b')
 
 apply :: Subst -> TCType -> TCType
 apply = forFlexes . lookup
