@@ -184,7 +184,7 @@ ino_block_addr_buffer_offset_from_inotable (state, inode_table, ino) =
     and block_addr = inode_table + block_offset
     in (block_addr, buffer_offset)
 
-ext2_inode_get_buf: (ExState, FsState, U32) -> RR (ExState, FsState) (OSBuffer, U32) (U32)
+ext2_inode_get_buf: (ExState, FsState, U32) -> RR (ExState, FsState) (OSBuffer, U32) U32
 ext2_inode_get_buf (ex, state, inode_num) =
     if inode_num == 2 || inode_num >= 11 then
         let block_group_num = get_block_group_from_ino2 (state, inode_num) !state
@@ -195,27 +195,27 @@ ext2_inode_get_buf (ex, state, inode_num) =
 
             -- and group_desc_t { .. } = group_desc
             -- and ex = free_Ext2GroupDescriptor (ex, group_desc_t)
-            and _ = _cogent_log (dbg_EXT2_INODE_READ, ("ext2_inode_get_buf: inode "))
-            and _ = _cogent_log_u32 (dbg_EXT2_INODE_READ, (inode_num))
-            and _ = _cogent_log (dbg_EXT2_INODE_READ, (" is part of block group "))
-            and _ = _cogent_log_u32 (dbg_EXT2_INODE_READ, (block_group_num))
-            and _ = _cogent_log (dbg_EXT2_INODE_READ, ("\n"))
+            and _ = _cogent_log (dbg_EXT2_INODE_READ, "ext2_inode_get_buf: inode ")
+            and _ = _cogent_log_u32 (dbg_EXT2_INODE_READ, inode_num)
+            and _ = _cogent_log (dbg_EXT2_INODE_READ, " is part of block group ")
+            and _ = _cogent_log_u32 (dbg_EXT2_INODE_READ, block_group_num)
+            and _ = _cogent_log (dbg_EXT2_INODE_READ, "\n")
             and (ex, res) = ext2_get_block (ex, block_addr)
             in res
             | Success buf_block ->
-                let _ = _cogent_log (dbg_EXT2_INODE_READ, ("ext2_inode_get_buf: located at block "))
-                and _ = _cogent_log_u32 (dbg_EXT2_INODE_READ, (block_addr))
-                and _ = _cogent_log (dbg_EXT2_INODE_READ, (", offset "))
-                and _ = _cogent_log_u32_hex (dbg_EXT2_INODE_READ, (buffer_offset))
-                and _ = _cogent_log (dbg_EXT2_INODE_READ, ("\n"))
+                let _ = _cogent_log (dbg_EXT2_INODE_READ, "ext2_inode_get_buf: located at block ")
+                and _ = _cogent_log_u32 (dbg_EXT2_INODE_READ, block_addr)
+                and _ = _cogent_log (dbg_EXT2_INODE_READ, ", offset ")
+                and _ = _cogent_log_u32_hex (dbg_EXT2_INODE_READ, buffer_offset)
+                and _ = _cogent_log (dbg_EXT2_INODE_READ, "\n")
                 in ((ex, state), Success (buf_block, buffer_offset))
             | Error () ->
-                let _ = _cogent_log (dbg_EXT2_INODE_READ, ("ext2_inode_get_buf: couldn't get block "))
+                let _ = _cogent_log (dbg_EXT2_INODE_READ, "ext2_inode_get_buf: couldn't get block ")
                 and _ = _cogent_log_u32 (dbg_EXT2_INODE_READ, block_addr)
                 and _ = _cogent_log (dbg_EXT2_INODE_READ, "\n")
-                in ((ex, state), Error (eIO))
+                in ((ex, state), Error eIO)
         | Error () ->
-            let _ = _cogent_warn ("ext2_inode_get_buf: couldn't get group descriptor\n")
+            let _ = _cogent_warn "ext2_inode_get_buf: couldn't get group descriptor\n"
             and _ = _cogent_warn_u32 block_group_num
             and _ = _cogent_warn "\n"
 
@@ -236,19 +236,20 @@ ext2_inode_get (ex, state, inode_num) =
             in ((ex, state), Success inode)
         | Error () ->
             let ex = osbuffer_destroy (ex, buf_block)
-            and _ = _cogent_log (dbg_EXT2_INODE_READ, ("ext2_inode_get: failed to deserialise inode\n"))
+            and _ = _cogent_log (dbg_EXT2_INODE_READ, "ext2_inode_get: failed to deserialise inode\n")
             in ((ex, state), Error eIO) -- FIXME: bad error code?
     | Error (err) ->
-        let _ = _cogent_log (dbg_EXT2_INODE_READ, ("ext2_inode_get: could not get buf for inode\n"))
+        let _ = _cogent_log (dbg_EXT2_INODE_READ, "ext2_inode_get: could not get buf for inode\n")
         in ((ex, state), Error err)
 
-fsop_get_root_inode: (#{ex: ExState, state: FsState}) -> RR #{ex: ExState, state: FsState} (VfsInode) (U32)
-fsop_get_root_inode (#{ .. }) =
+fsop_get_root_inode: #{ex: ExState, state: FsState} -> RR #{ex: ExState, state: FsState} VfsInode U32
+fsop_get_root_inode #{ex, state} =
     let ((ex, state), res) = ext2_inode_get (ex, state, 2)
     in (#{ex, state}, res)
 
-ext2_inode_is_fast_symlink: (VfsInode!) -> Bool
-ext2_inode_is_fast_symlink (inode) =
-    ((vfs_inode_get_mode (inode) .&. s_IFMT) == vfs_type_link) && (vfs_inode_get_size (inode) <= 15)
+ext2_inode_is_fast_symlink: VfsInode! -> Bool
+ext2_inode_is_fast_symlink inode =
+    ((vfs_inode_get_mode inode .&. s_IFMT) == vfs_type_link) && (vfs_inode_get_size inode <= 15)
 
 -- inode_get_block lives in iwrite.cogent
+

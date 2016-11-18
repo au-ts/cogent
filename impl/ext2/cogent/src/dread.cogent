@@ -540,8 +540,9 @@ ext2_inode_by_name (ex, state, inode, name) =
         --in ((ex, state, inode), Error err)
         in ((ex, state, inode), Error eNoEnt)
 
-fsop_dir_lookup: (#{ex: ExState, state: FsState, parent_inode: VfsInode, name: CString!, flags: VfsFlags}) -> RR #{ex: ExState, state: FsState, parent_inode: VfsInode} VfsInode U32
-fsop_dir_lookup (#{ ex = ex, .. }) = 
+fsop_dir_lookup: #{ex: ExState, state: FsState, parent_inode: VfsInode, name: CString!, flags: VfsFlags}
+              -> RR #{ex: ExState, state: FsState, parent_inode: VfsInode} VfsInode U32
+fsop_dir_lookup #{ex, state, parent_inode, name, flags} = 
     if wordarray_length [U8] name > const_maxNameLen then
         (#{ex, state, parent_inode}, Error eNameTooLong)
     else
@@ -555,7 +556,7 @@ fsop_dir_lookup (#{ ex = ex, .. }) =
             in res
             | Success inode ->
                 let _ = _cogent_log (dbg_EXT2_DIR_READ, "fsop_dir_lookup: gave ino ")
-                and _ = _cogent_log_u32 (dbg_EXT2_DIR_READ, vfs_inode_get_ino (inode)) !inode
+                and _ = _cogent_log_u32 (dbg_EXT2_DIR_READ, vfs_inode_get_ino inode) !inode
                 and _ = _cogent_log (dbg_EXT2_DIR_READ, "\n")
                 in (#{ex, state, parent_inode}, Success inode)
             | Error err -> (#{ex, state, parent_inode}, Error err)
