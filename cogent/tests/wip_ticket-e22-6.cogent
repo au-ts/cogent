@@ -38,10 +38,10 @@ type OSBufferOffset = U32
 
 type LRR acc brk = (acc, <Iterate ()|Break brk>)
 
-seq32: all (acc,obsv,rbrk).  Seq32Param acc obsv rbrk -> LRR acc rbrk
+seq32: all (acc,obsv :< DS,rbrk).  Seq32Param acc obsv rbrk -> LRR acc rbrk
 type Seq32_bodyParam acc obsv rbrk = #{
   acc: acc,
-  obsv: obsv!,
+  obsv: obsv,
   idx: U32
 }
 type Seq32_body acc obsv rbrk = Seq32_bodyParam acc obsv rbrk -> LRR acc rbrk
@@ -51,7 +51,7 @@ type Seq32Param acc obsv rbrk = #{
   step: U32,
   f: Seq32_body acc obsv rbrk,
   acc: acc,
-  obsv: obsv!
+  obsv: obsv
 }
 
 splice_put_direct_blocks_buf: Seq32_body (OSBuffer, U32, U32) () ()
@@ -85,7 +85,7 @@ indirect_splice (ex, indirect, inode, iblock, num_direct, num_indirect) =
     | Success (buf, _) =>
       -- fill in any extra indirect blocks we also allocated at the same time
       let buf = if num_indirect == 0 then
-        let ((buf, _, _), _) = seq32 [(OSBuffer, U32, U32), (), ()] #{
+        let ((buf, _, _), _) = seq32 #{
           frm  = 1,
           to   = num_direct,
           step = 1,
@@ -116,7 +116,7 @@ indirect_splice (ex, indirect, inode, iblock, num_direct, num_indirect) =
 
     -- fill in any extra indirect blocks we also allocated at the same time
     in if num_indirect == 0 then
-      let (block_pointers, _) = wordarray_map_no_break [U32, U32, ()] #{
+      let (block_pointers, _) = wordarray_map_no_break #{
         arr  = block_pointers,
         frm  = indirect.offset + 1,
         to   = indirect.offset + num_direct,
