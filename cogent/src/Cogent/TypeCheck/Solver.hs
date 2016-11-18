@@ -92,6 +92,7 @@ whnf (T (TBang t)) = do
      (T (TCon x ps s)) -> T (TCon x (map (T . TBang) ps) (bangSigil s))
      (T (TRecord l s)) -> T (TRecord (map (fmap (_1 %~ T . TBang)) l) (bangSigil s))
      (T (TVar b _))    -> T (TVar b True)
+     (T (TFun {}))     -> t'
      (T o)             -> T (fmap (T . TBang) o)
      _                 -> error "impossible"
 
