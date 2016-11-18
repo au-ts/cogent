@@ -581,30 +581,30 @@ fsop_dir_unlink (ex, state, parent, inode, name) =
 -- wrapper should should dirty inode, setup inode ops
 fsop_dir_create: (ExState, FsState, VfsInode, CString!, VfsMode) -> RR (ExState, FsState, VfsInode) VfsInode U32
 fsop_dir_create (ex, state, parent_inode, name, mode) =
-    let _ = _cogent_log (dbg_EXT2_DIR_WRITE, ("fsop_dir_create: want to create with mode "))
-    and _ = _cogent_log_u32 (dbg_EXT2_DIR_WRITE, (mode))
-    and _ = _cogent_log (dbg_EXT2_DIR_WRITE, ("\n"))
+    let _ = _cogent_log (dbg_EXT2_DIR_WRITE, "fsop_dir_create: want to create with mode ")
+    and _ = _cogent_log_u32 (dbg_EXT2_DIR_WRITE, mode)
+    and _ = _cogent_log (dbg_EXT2_DIR_WRITE, "\n")
     and ((ex, state), res) = ext2_inode_create (ex, state, parent_inode, mode) !parent_inode
     in res
-    | Success (new_inode) ->
+    | Success new_inode ->
         let new_inode = vfs_inode_set_ops (new_inode, ext2_reg_inode_ops)
         and new_inode = vfs_inode_set_fileops (new_inode, ext2_reg_file_ops)
 
-        and _ = _cogent_log (dbg_EXT2_DIR_WRITE, ("fsop_dir_create: created new inode okay; adding to dir\n"))
+        and _ = _cogent_log (dbg_EXT2_DIR_WRITE, "fsop_dir_create: created new inode okay; adding to dir\n")
         and ((ex, state, parent_inode), res) = ext2_dir_add (ex, state, parent_inode, new_inode, name) !new_inode
         in res
         | Success () ->
-            let _ = _cogent_log (dbg_EXT2_DIR_WRITE, ("fsop_dir_create: success!\n"))
-            and new_inode = vfs_inode_unlock_new (new_inode)
+            let _ = _cogent_log (dbg_EXT2_DIR_WRITE, "fsop_dir_create: success!\n")
+            and new_inode = vfs_inode_unlock_new new_inode
 
             in ((ex, state, parent_inode), Success new_inode)
-        | Error (err) ->
-            let _ = _cogent_log (dbg_EXT2_DIR_WRITE, ("fsop_dir_create: adding new inode to dir failed\n"))
+        | Error err ->
+            let _ = _cogent_log (dbg_EXT2_DIR_WRITE, "fsop_dir_create: adding new inode to dir failed\n")
 
-            and ex = vfs_inode_bad (#{ex, inode = new_inode})
+            and ex = vfs_inode_bad #{ex, inode = new_inode}
             in ((ex, state, parent_inode), Error err)
-    | Error (err) ->
-        let _ = _cogent_log (dbg_EXT2_DIR_WRITE, ("fsop_dir_create: inode creation failed\n"))
+    | Error err ->
+        let _ = _cogent_log (dbg_EXT2_DIR_WRITE, "fsop_dir_create: inode creation failed\n")
         in ((ex, state, parent_inode), Error err)
 
 ------------------------------------------------------------------------------

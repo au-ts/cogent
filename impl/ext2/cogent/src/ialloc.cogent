@@ -363,11 +363,10 @@ ext2_inode_create (ex, state, parent_inode, mode) =
             in ((ex, state), Error eNoSpc)
 
 -- this function only used from console for testing
-fsop_inode_create: #{ex: ExState, state: FsState, parent_inode: VfsInode!, mode: VfsMode} -> RR #{ex: ExState, state: FsState} (VfsInode) (U32)
-fsop_inode_create #{..} = 
+fsop_inode_create: #{ex: ExState, state: FsState, parent_inode: VfsInode!, mode: VfsMode} -> RR #{ex: ExState, state: FsState} VfsInode U32
+fsop_inode_create #{ex, state, parent_inode, mode} = 
     let ((ex, state), res) = ext2_inode_create (ex, state, parent_inode, mode)
     in (#{ex, state}, res)
-
 
 fsop_inode_mknod: (ExState, FsState, VfsInode, CString!, VfsMode, #VfsDevice) -> RR (ExState, FsState, VfsInode) VfsInode U32
 fsop_inode_mknod (ex, state, dir, name, mode, device) =
