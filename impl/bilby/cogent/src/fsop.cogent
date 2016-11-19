@@ -1024,7 +1024,7 @@ fsop_dir_release (ex, opt_rdctx) =
   opt_rdctx
   | None () ->
   ex
-  | Some (v {dentarr,..}) ->
+  | Some (v {dentarr}) ->
     let ex = deep_freeObjDentarr(ex, dentarr)
     in freeBilbyFsReaddirContext(ex, v)
 
@@ -1239,7 +1239,7 @@ newVfsInode: ExState -> R (ExState, VfsInode take (..)) ExState
 freeVfsInode: (ExState, VfsInode take (..)) -> ExState
 
 deep_freeVfsInode: (ExState, VfsInode) -> ExState
-deep_freeVfsInode(ex, v) = let v {..} = v in freeVfsInode(ex, v)
+deep_freeVfsInode(ex, v) = freeVfsInode(ex, v)
 
 -- when we call this function we know that opt_vnode = None ()
 -- see fsop_do_move
@@ -1859,12 +1859,12 @@ get_data_back (ex, dummy_data, opto) =
   | None () ->
     _cogent_assert False ;
     (ex, dummy_data)
-  | Some obj {ounion, ..} ->
+  | Some obj {ounion} ->
     extract_data_from_union (ex, ounion)
     | Error ex ->
       let ex = freeObj(ex, obj)
       in (ex, dummy_data)
-    | Success (ex, od {odata,..}) ->
+    | Success (ex, od {odata}) ->
       let ex = freeObjData(ex, od)
       and ex = freeObj(ex, obj)
       and ex = wordarray_free[U8] (ex, dummy_data)

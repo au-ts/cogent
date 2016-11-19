@@ -620,7 +620,7 @@ update_obj_pad(ex, mount_st, ostore_st {fsm_st,pools}, oaddr) =
   and ostore_st = ostore_st {fsm_st,pools}
   in (ex, ostore_st {oaddr})
 
-trimObjSuper: ObjUnion! -> <TObjDentarr ObjDentarr| TObjInode ObjInode | TObjData ObjData | TObjDel ObjDel | TObjPad ()>!
+trimObjSuper: ObjUnion! -> (ObjUnion take (TObjSummary, TObjSuper))!
 trimObjSuper u = u
   | TObjSummary _   -> TObjPad ()
   | TObjSuper _ -> TObjPad ()
@@ -861,7 +861,7 @@ ostore_free_pools(ex, ostore_st {pools}) =
   in (ex, ostore_st {pools})
 
 ostore_read: (ExState, MountState!, OstoreState, ObjId) -> RR (ExState, OstoreState) Obj ErrCode
-ostore_read(ex, mount_st, ostore_st, oid) =
+ostore_read (ex, mount_st, ostore_st, oid) =
   index_get_addr (ostore_st.index_st, oid) !ostore_st
   | Error err ->
     _cogent_debug "Obj not found in index " ;
