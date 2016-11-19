@@ -1,0 +1,37 @@
+type MountState
+
+type Buffer
+type UbiVol
+type OstoreState = {
+  next_inum : U32
+, rbuf : Buffer
+, wbuf_eb : U32
+, ubi_vol : UbiVol
+}
+
+type ObjId = U64
+type Obj
+
+type R a b = <Success a | Error b>
+type RR c a b = (c, R a b)
+
+type BufOffs = U32
+deep_freeObj: Obj -> ()
+deserialise_Obj: (Buffer!, BufOffs) -> (Obj, BufOffs)
+read_obj_pages_in_buf: (MountState!, UbiVol!, Buffer, ObjAddr!) -> Buffer
+
+type ObjAddr = #{ ebnum : U32, offs : U32, len : U32, sqnum : U64 }
+index_get_addr : () -> ObjAddr
+
+ostore_read: (MountState!, OstoreState, ObjId) -> RR OstoreState Obj ()
+ostore_read (mount_st, ostore_st, oid) =
+  let addr = index_get_addr ()
+  and (ostore_st, r) = 
+     let ostore_st {rbuf} = ostore_st
+     and rbuf = read_obj_pages_in_buf (mount_st, ostore_st.ubi_vol, rbuf, addr) !ostore_st
+     and (obj, sz) = deserialise_Obj (rbuf, 1) !rbuf
+      in (ostore_st {rbuf}, Success obj)
+  in r
+  | Success obj -> let _ = deep_freeObj obj in (ostore_st, Error)
+  | Error -> (ostore_st, Error)
+
