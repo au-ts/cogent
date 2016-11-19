@@ -324,11 +324,10 @@ deserialise_Obj(ex, buf, offs) =
   | Error ex ->
     Error (eNoMem, ex)
   | Success (ex, obj) ->
-    let (obj, r) = deserialise_ObjHeader(buf, offs, obj)
+    let (obj, r) = deserialise_ObjHeader (buf, offs, obj)
     in r
     | Error e ->
-      let obj {offs,..} = obj
-      and ex = freeObj(ex, obj)
+      let ex = freeObj (ex, obj)
       in Error (e, ex)
     | Success offs ->
       deserialise_ObjUnion(ex, buf, offs, (obj.otype,obj.len)) !obj
@@ -336,8 +335,7 @@ deserialise_Obj(ex, buf, offs) =
         _cogent_debug "Could not deserialise Obj_union at " ;
         _cogent_debug_u32 (offs+bilbyFsObjHeaderSize);
         _cogent_debug "\n" ;
-        let obj {offs,..} = obj
-        and ex = freeObj(ex, obj)
+        let ex = freeObj (ex, obj)
         in Error (e, ex)
       | Success (ex, ounion, offs') ->
         _cogent_debug "deserialise_Obj: otype =" ; 
@@ -393,7 +391,7 @@ serialise_ObjUnion(buf, offs, ou, olen) =
 
 {-# cinline deep_freeObjDentry #-}
 deep_freeObjDentry: (ExState, ObjDentry) -> ExState
-deep_freeObjDentry(ex, o {name,..}) =
+deep_freeObjDentry(ex, o {name}) =
   let ex = freeObjDentry(ex, o)
   in wordarray_free[U8](ex, name)
 
@@ -573,7 +571,7 @@ deserialise_ObjDentry(ex, buf, offs, end_offs) =
         let ex = wordarray_free[U8](ex, name)
         in Error (eNoMem, ex)
       | Success (ex, dentry) ->
-        let dentry = dentry {..}
+        let dentry = dentry {ino, dtype, nlen, name}
         in Success (ex, dentry, offs + bilbyFsObjDentryHeaderSize + nlen32)
 
 newObjDentry: ExState -> R (ExState, ObjDentry take(..)) ExState
@@ -747,7 +745,7 @@ summary_init(ex, max_nb_sum_entry) =
         in Success (ex, sum {nb_sum_entry=0, entries, sum_offs}, sum_obj)
 
 summary_clean: (ExState, ObjSummary) -> ExState
-summary_clean(ex, sum {entries,..}) =
+summary_clean(ex, sum {entries}) =
   let ex = wordarray_free[ObjSumEntry] (ex, entries)
   in freeObjSummary(ex, sum)
 
@@ -856,7 +854,7 @@ deserialise_wordarray_ObjSumEntry (entries, buf, offs, nb_sum_entry) =
   
 deserialise_ObjSummary_crc: (ExState, Buffer!, BufOffs, Obj, ObjSummary) -> RR (ExState, Obj, ObjSummary) BufOffs ErrCode
 deserialise_ObjSummary_crc (ex, buf, offs, obj, summary) =
-  let obj {offs=_, ounion, ..} = obj
+  let obj {offs=_, magic, crc, sqnum, len, trans, otype, ounion} = obj
   and ex = deep_freeObjUnion(ex, ounion)
   and (obj, r) = deserialise_ObjHeader(buf, offs, obj)
   in r
@@ -1318,8 +1316,7 @@ serialise_size_ObjUnion  ounion =
 
 {-# cinline deep_freeObjInode #-}
 deep_freeObjInode: (ExState, ObjInode) -> ExState
-deep_freeObjInode(ex, v) =
-  let v {..} = v in freeObjInode(ex, v)
+deep_freeObjInode(ex, v) = freeObjInode(ex, v)
 
 {-# cinline deep_freeObjData #-}
 deep_freeObjData: (ExState, ObjData) -> ExState
@@ -1330,9 +1327,7 @@ deep_freeObjData(ex, v) =
 
 {-# cinline deep_freeObjSuper #-}
 deep_freeObjSuper: (ExState, ObjSuper) -> ExState
-deep_freeObjSuper(ex, v) =
-  let v {..} = v in
-  freeObjSuper(ex, v)
+deep_freeObjSuper(ex, v) = freeObjSuper(ex, v)
 
 serialise_Obj_crc: (Buffer, U32, Obj) -> (Buffer, U32, Obj)
 serialise_Obj_crc (buf, offs, obj) =
