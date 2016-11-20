@@ -16,6 +16,12 @@ type LRR acc brk = (acc, <Iterate ()|Break brk>)
 type R a b = <Success a|Error b>
 type Result a b = R a b
 
+success : all (a, b). a -> R a b
+success a = Success a
+
+error : all (a, b). b -> R a b
+error b = Error b
+
 type RR c a b = (c, <Success a | Error b>)
 
 type ErrCode = U32
