@@ -867,7 +867,7 @@ ostore_read (ex, mount_st, ostore_st, oid) =
     _cogent_debug "Obj not found in index " ;
     _cogent_debug_u64_hex oid ;
     _cogent_debug "\n" ;
-    ((ex, ostore_st), Error err) 
+    ((ex, ostore_st), error err) 
   | Success addr ->
     let wbuf_eb = ostore_st.wbuf_eb !ostore_st
     -- if we are trying to read an object that is in the current write-buffer
@@ -878,10 +878,10 @@ ostore_read (ex, mount_st, ostore_st, oid) =
       | Error (e, ex) ->
         _cogent_debug "ostore_read: deserialise_Obj_crc from buffer failed\n" ;
         let wbuf = wbuf {bound=mount_st.super.eb_size}
-        in ((ex, ostore_st {wbuf}), Error e)
+        in ((ex, ostore_st {wbuf}), error e)
       | Success (ex, obj, sz) ->
         let wbuf = wbuf {bound=mount_st.super.eb_size}
-        in ((ex, ostore_st {wbuf}), Success obj)
+        in ((ex, ostore_st {wbuf}), success obj)
      else
     -- We need to read the object from medium
        let ostore_st {rbuf} = ostore_st
@@ -889,13 +889,13 @@ ostore_read (ex, mount_st, ostore_st, oid) =
        in r
        | Error e ->
          _cogent_debug "ostore_read: read_obj_pages_in_buf failed.\n" ;
-         ((ex, ostore_st {rbuf}), Error e)
+         ((ex, ostore_st {rbuf}), error e)
        | Success () ->
          deserialise_Obj (ex, rbuf, addr.offs) !rbuf
          | Error (e, ex) ->
            _cogent_debug "ostore_read: deserialise_Obj_crc from flash failed.\n" ;
-           ((ex, ostore_st {rbuf}), Error e)
-         | Success (ex, obj, sz) -> ((ex, ostore_st {rbuf}), Success obj)
+           ((ex, ostore_st {rbuf}), error e)
+         | Success (ex, obj, sz) -> ((ex, ostore_st {rbuf}), success obj)
     )
     in r
     | Success obj ->
