@@ -33,7 +33,7 @@ source-repository head
   location: https://github.inside.nicta.com.au/ts-filesystems/bilby
 
 
-Library
+library
   hs-source-dirs: src
   exposed-modules:
                 Cogent.ACInstall
@@ -49,8 +49,6 @@ Library
               , Cogent.Deep
               , Cogent.DocGent
               , Cogent.Context
-              , Cogent.GraphGen
-              , Cogent.Preprocess
               , Cogent.TypeCheck.Base
               , Cogent.TypeCheck.Generator
               , Cogent.TypeCheck.Post

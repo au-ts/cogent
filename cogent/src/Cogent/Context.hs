@@ -1,3 +1,13 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
 module Cogent.Context
   ( Context
   , Row
@@ -20,8 +30,10 @@ import Prelude hiding (lookup)
 import Text.Parsec.Pos
 
 type Row t = (t, SourcePos, Maybe SourcePos)
-newtype Context t = Context { unwrap :: [M.Map VarName (Row t)]}
+newtype Context t = Context [M.Map VarName (Row t)]
 
+empty :: Context t
+empty = Context []
 
 lookup :: VarName -> Context t -> Maybe (t, SourcePos, Maybe SourcePos)
 lookup v (Context (x:xs)) | Just r <- M.lookup v x = Just r

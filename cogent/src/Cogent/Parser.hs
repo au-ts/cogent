@@ -245,7 +245,7 @@ monotype = do avoidInitial
     tuple [e] = typeOfLT e
     tuple es  = TTuple es
 
-    fList = (Just . (:[])) <$> identifier 
+    fList = (Just . (:[])) <$> identifier
         <|> parens ((reservedOp ".." >> return Nothing) <|> (commaSep identifier >>= return . Just))
 
 polytype = PT <$ reserved "all" <*> (((:[]) <$> kindSignature) <|> parens (commaSep1 kindSignature)) <* reservedOp "." <*> monotype
@@ -273,20 +273,20 @@ toplevel' = do
   docs <- unlines . fromMaybe [] <$> optionMaybe (many1 docHunk)
   p <- getPosition
   when (sourceColumn p > 1) $ fail "toplevel entries should start at column 1"
-  (p,docs,) <$> (try (Include <$ reserved "include" <*> stringLiteral)
-             <|> IncludeStd <$ reserved "include" <*> angles (many (noneOf "\r\n>"))
-             <|> typeDec <$ reserved "type" <*> typeConName <*> many (avoidInitial >> variableName) <*> optionMaybe (reservedOp "=" *> monotype)
-             <|> do n <- variableName
-                    reservedOp ":"
-                    tau <- polytype
-                    do try (do n' <- variableName
-                               when (n /= n') $ fail $ "The name in the type signature, `" ++ n
-                                                    ++ "` does not match the name in the equation, `" ++ n' ++ "`." )
-                       let fundef = FunDef n tau <$> (functionAlts <|> (:[]) <$> functionSingle)
-                       case tau of
-                         PT [] t -> (ConstDef n t <$ reservedOp "=" <*> expr 1 <|> fundef)
-                         _       -> fundef
-                     <|> pure (AbsDec n tau))
+  (p,docs,) <$>  (try (Include <$ reserved "include" <*> stringLiteral)
+              <|> IncludeStd <$ reserved "include" <*> angles (many (noneOf "\r\n>"))
+              <|> typeDec <$ reserved "type" <*> typeConName <*> many (avoidInitial >> variableName) <*> optionMaybe (reservedOp "=" *> monotype)
+              <|> do n <- variableName
+                     reservedOp ":"
+                     tau <- polytype
+                     do try (do n' <- variableName
+                                when (n /= n') $ fail $ "The name in the type signature, `" ++ n
+                                                     ++ "` does not match the name in the equation, `" ++ n' ++ "`." )
+                        let fundef = FunDef n tau <$> (functionAlts <|> (:[]) <$> functionSingle)
+                        case tau of
+                          PT [] t -> (ConstDef n t <$ reservedOp "=" <*> expr 1 <|> fundef)
+                          _       -> fundef
+                      <|> pure (AbsDec n tau))
   where
     typeDec n vs Nothing = AbsTypeDec n vs
     typeDec n vs (Just t) = TypeDec n vs t

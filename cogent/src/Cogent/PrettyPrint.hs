@@ -9,7 +9,6 @@
 -- @TAG(NICTA_GPL)
 --
 
-
 {-# LANGUAGE FlexibleInstances, FlexibleContexts, MultiWayIf, ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-orphans -fno-warn-missing-signatures #-}
 
@@ -127,8 +126,8 @@ instance ExprType RawExpr where
   isVar (RE e) = isVar e
 
 instance ExprType (TExpr t) where
-  levelExpr (TE _ e) = levelExpr e
-  isVar (TE _ e)     = isVar e
+  levelExpr (TE _ e _) = levelExpr e
+  isVar (TE _ e _)     = isVar e
 
 -- ------------------------------------
 
@@ -264,23 +263,8 @@ instance Pretty RawExpr where
   pretty (RE e) = pretty e
 
 instance Pretty t => Pretty (TExpr t) where
-  pretty (TE t e) | __cogent_fshow_types_in_pretty = parens $ pretty e <+> comment "::" <+> pretty t
-                  | otherwise = pretty e
-
-instance ExprType (TExpr t) where
-  levelExpr (TE _ e _) = levelExpr e
-  isVar (TE _ e _)     = isVar e
-instance Pretty t => PrettyName (VarName, t) where
-  prettyName (a, b) = prettyName a <+> comment "::" <+> pretty b
-  isName (a, b) x = a == x
-
-instance Pretty t => Pretty (TExpr t) where
-  pretty (TE t e _) = pretty e
-
-class TypeType t where
-  isCon :: t -> Bool
-  isTakePut :: t -> Bool
-  isFun :: t -> Bool
+  pretty (TE t e _) | __cogent_fshow_types_in_pretty = parens $ pretty e <+> comment "::" <+> pretty t
+                    | otherwise = pretty e
 
 instance (Pretty t, TypeType t) => Pretty (Type t) where
   pretty (TCon n [] s) = ($ typename n) (if | s == ReadOnly -> (<> typesymbol "!")
@@ -459,7 +443,7 @@ instance Pretty TypeWarning where
 instance (Pretty a, TypeType a) => Pretty (TypeFragment a) where
   pretty (F t) = pretty t & (if __cogent_fdisambiguate_pp then (<+> comment "{- F -}") else id)
   pretty (FVariant ts) = typesymbol "?" <> pretty (TVariant ts)
-  pretty (FRecord ts) 
+  pretty (FRecord ts)
     | not . or $ map (snd . snd) ts = typesymbol "?" <>
         record (map (\(a,(b,c)) -> fieldname a <+> symbol ":" <+> pretty b) ts)  -- all untaken
     | otherwise = pretty (FRecord (map (second . second $ const False) ts))
@@ -482,7 +466,7 @@ instance Pretty Constraint where
 prettyC :: Constraint -> Doc
 prettyC (Unsat e) = errbd "Unsat" <$> pretty e
 prettyC (a :& b) = prettyC a </> warn ":&" <$> prettyC b
-prettyC (c :@ e) = prettyC c </> prettyCtx e False
+prettyC (c :@ e) = prettyC c & (if __cogent_ddump_tc_ctx then (</> prettyCtx e False) else id)
 prettyC c = pretty c
 
 instance Pretty SourceObject where

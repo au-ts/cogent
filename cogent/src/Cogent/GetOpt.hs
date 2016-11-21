@@ -5,7 +5,7 @@
 -- the GNU General Public License version 2. Note that NO WARRANTY is provided.
 -- See "LICENSE_GPLv2.txt" for details.
 --
--- @TAG(NICTA_GPL)
+-- @TAG(OTHER_BSD)
 --
 
 {-# LANGUAGE Safe #-}
