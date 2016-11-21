@@ -18,7 +18,7 @@ wordarray_get_bounded  (arr, idx) =
 wordarray_length: all(a :< DSE). (WordArray a)! -> U32
 
 type Buffer = {
-  data  : WordArray u8
+  data  : WordArray U8
 , bound : U32
 }
 
