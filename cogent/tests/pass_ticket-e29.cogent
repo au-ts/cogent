@@ -1,0 +1,26 @@
+
+type WordArray a
+
+type WordArrayIndex = U32
+
+type R a b = <Success a | Error b>
+
+
+wordarray_get: all(a :< DSE). ((WordArray a)!, WordArrayIndex) -> a
+
+wordarray_get_bounded: all(a :< DSE). ((WordArray a)!, WordArrayIndex) -> R a ()
+wordarray_get_bounded  (arr, idx) =
+	if idx < wordarray_length[a] (arr) then
+		Success (wordarray_get[a] (arr, idx))
+	else
+		Error ()
+
+wordarray_length: all(a :< DSE). (WordArray a)! -> U32
+
+type Buffer = {
+  data  : WordArray u8
+, bound : U32
+}
+
+buf_length: Buffer! -> U32
+buf_length buf = wordarray_length (buf.data)
