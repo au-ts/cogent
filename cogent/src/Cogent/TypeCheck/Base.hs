@@ -21,13 +21,13 @@ import Control.Monad.Except
 import Control.Monad.State
 import Data.List (nub, (\\))
 import qualified Data.Map as M
-import qualified Data.Set as S
+-- import qualified Data.Set as S
 import Data.Monoid ((<>))
 import Text.Parsec.Pos
 
 
 data TypeError = FunctionNotFound VarName
-               | TooManyTypeArguments FunName (Polytype RawType)
+               | TooManyTypeArguments FunName (Polytype TCType)
                | NotInScope VarName
                | DuplicateVariableInPattern VarName (Pattern TCName)
                | DuplicateVariableInIrrefPattern VarName (IrrefutablePattern TCName)

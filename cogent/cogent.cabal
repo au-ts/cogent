@@ -39,7 +39,7 @@ custom-setup
               , process >= 1.2.0.0
 
 
-Library
+library
   hs-source-dirs: src
   exposed-modules:
                 Cogent.ACInstall
@@ -55,8 +55,6 @@ Library
               , Cogent.Deep
               , Cogent.DocGent
               , Cogent.Context
-              , Cogent.GraphGen
-              , Cogent.Preprocess
               , Cogent.TypeCheck.Base
               , Cogent.TypeCheck.Generator
               , Cogent.TypeCheck.Post

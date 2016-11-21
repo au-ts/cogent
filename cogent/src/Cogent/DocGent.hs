@@ -71,7 +71,7 @@ markdown s = case T.readMarkdown def s
                  Right md -> T.writeHtml def $ T.walk handleInline md
 
 handleInline :: (?knowns :: [(String, SourcePos)]) => T.Inline -> T.Inline
-handleInline x@(T.Code a str) | Just p <- lookup str ?knowns = T.Link ("", classesFor str, []) [x] (fileNameFor p ++ "#" ++ str,str) 
+handleInline x@(T.Code a str) | Just p <- lookup str ?knowns = T.Link ("", classesFor str, []) [x] (fileNameFor p ++ "#" ++ str,str)
 handleInline x = x
 
 classesFor :: String -> [String]
@@ -266,7 +266,7 @@ genDoc (p,s,x@(FunDef n pt as)) =
         md     = markdown s
         str = runState (displayHTML (prettyPrint id $ return $ prettyFunDef False n pt $ map (resolveNamesA [] . fmap stripLocE) as )) defaultState
         source = makeHtml $ fst str
-     in 
+     in
         [shamlet|
                #{sourcePosDiv p}
                <div class="block bg-Dull-Black header">
@@ -416,10 +416,10 @@ sourcePosDiv p = do
    in [shamlet|<div .sourcepos><a href='#{raw}##{c}'>#{f}:#{c}</a>|]
 
 docGent :: [(SourcePos, DocString, TopLevel LocType VarName LocExpr)] -> IO ()
-docGent input = let 
+docGent input = let
                     ?knowns = mapMaybe toKnown input
                 in let
-                    items = map foreach input 
+                    items = map foreach input
                     items' = sortBy (comparing fst) items
                     items'' = groupBy ((==) `on` (sourceName . fst) ) items'
                 in do createDirectoryIfMissing True "docgent"
@@ -491,6 +491,7 @@ generateIndex dat = do
    in writeFile "docgent/binding_index.html" (renderHtml final)
 
 -- XXX | eqTopLevelId x (Include {}) = False
+-- XXX | eqTopLevelId x (IncludeStd {}) = False
 -- XXX | eqTopLevelId x (TypeDec tn _ _) = x == tn
 -- XXX | eqTopLevelId x (AbsTypeDec tn _) = x == tn
 -- XXX | eqTopLevelId x (AbsDec fn _) = x == fn

@@ -82,6 +82,8 @@ checkOne loc d = case d of
     return (AbsDec n (PT ps t''))
 
   (ConstDef n t e) -> do
+    traceTC "tc" (text "typecheck const definition" <+> pretty n
+                  L.<$$> bold (text $ replicate 80 '='))
     base <- use knownConsts
     t' <- validateType' [] (stripLocT t)
     let ctx = C.addScope (fmap (\(t,p) -> (t,p, Just p)) base) C.empty
@@ -99,6 +101,8 @@ checkOne loc d = case d of
       throwError (map (_1 %~ (++ [InDefinition loc d])) errs)
 
   (FunDef f (PT vs t) alts) -> do
+    traceTC "tc" (text "typecheck fun definition" <+> pretty f
+                  L.<$$> bold (text $ replicate 80 '='))
     let vs' = map fst vs
         xs = vs' \\ nub vs'
     unless (null xs) $ throwError [([InDefinition loc d], DuplicateTypeVariable xs)]
@@ -110,7 +114,7 @@ checkOne loc d = case d of
     ((c, alts'), flx) <- lift (runCG ctx (map fst vs) (cgAlts alts o i))
     traceTC "tc" (text "constraint for fun definition" <+> pretty f <+> text "is"
                   L.<$> prettyC c)
-    traceTC "tc" (pretty alts')
+    -- traceTC "tc" (pretty alts')
     (errs, subst) <- lift (runSolver (solve c) flx vs)
     traceTC "tc" (text "subst for fun definition" <+> pretty f <+> text "is"
                   L.<$> pretty subst)
