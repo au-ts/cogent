@@ -24,6 +24,8 @@ import           Cogent.TypeCheck.Base
 import qualified Cogent.TypeCheck.Subst as Subst
 import           Cogent.TypeCheck.Subst (Subst)
 import           Cogent.TypeCheck.Util
+import           Cogent.TypeCheck.GoalSet (Goal (..), goal, goalContext, GoalSet)
+import qualified Cogent.TypeCheck.GoalSet as GS
 
 import           Control.Applicative
 import           Control.Lens hiding ((:<))
@@ -40,21 +42,12 @@ import qualified Data.Set as S
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
 
-
 data SolverState = SS { _flexes :: Int, _tc :: TCState, _substs :: Subst, _axioms :: [(VarName, Kind)] }
 
 makeLenses ''SolverState
 
 type Solver = StateT SolverState IO
 
-data Goal = Goal { _goalContext :: [ErrorContext], _goal :: Constraint }  -- high-level context at the end of _goalContext
-
-instance Show Goal where
-  show (Goal c g) = const (show big) big
-    where big = (small P.<$> (P.vcat $ map (flip prettyCtx True) c))
-          small = pretty g
-
-makeLenses ''Goal
 
 runSolver :: Solver a -> Int -> [(VarName, Kind)] -> TC (a, Subst)
 runSolver act i ks = do
@@ -558,13 +551,16 @@ glbGuess = primGuess GLB
 lubGuess = primGuess LUB
 
 
+
+
+
 -- A simple classification scheme for soluble flex/rigid constraints
 data GoalClasses
   = Classes
-    { ups :: M.Map Int [Goal]
-    , downs :: M.Map Int [Goal]
-    , upcastables :: M.Map Int [Goal]
-    , downcastables :: M.Map Int [Goal]
+    { ups :: M.Map Int GoalSet
+    , downs :: M.Map Int GoalSet
+    , upcastables :: M.Map Int GoalSet
+    , downcastables :: M.Map Int GoalSet
     , unsats :: [Goal]
     , rest :: [Goal]
     , upflexes :: S.Set Int
@@ -591,10 +587,10 @@ instance Show GoalClasses where
 
 instance Monoid GoalClasses where
   Classes u d uc dc e r fu fd `mappend` Classes u' d' uc' dc' e' r' fu' fd'
-    = Classes (M.unionWith (++) u u')
-              (M.unionWith (++) d d')
-              (M.unionWith (++) uc uc')
-              (M.unionWith (++) dc dc')
+    = Classes (M.unionWith (<>) u u')
+              (M.unionWith (<>) d d')
+              (M.unionWith (<>) uc uc')
+              (M.unionWith (<>) dc dc')
               (e ++ e')
               (r ++ r')
               (S.union fu fu')
@@ -613,10 +609,10 @@ flexesIn = F.foldMap f
 -- Consider using auto first, or using explode instead of this function.
 classify :: Goal -> GoalClasses
 classify g = case g of
-  (Goal _ (a       :< F (U x))) | rigid a     -> mempty {ups   = M.singleton x [g], downflexes = flexesIn a }
-  (Goal _ (F (U x) :< b      )) | rigid b     -> mempty {downs = M.singleton x [g], upflexes   = flexesIn b }
-  (Goal _ (b `Upcastable` U x)) | rigid (F b) -> mempty {upcastables = M.singleton x [g] }
-  (Goal _ (U x `Upcastable` b)) | rigid (F b) -> mempty {downcastables = M.singleton x [g] }
+  (Goal _ (a       :< F (U x))) | rigid a     -> mempty {ups   = M.singleton x $ GS.singleton g, downflexes = flexesIn a }
+  (Goal _ (F (U x) :< b      )) | rigid b     -> mempty {downs = M.singleton x $ GS.singleton g, upflexes   = flexesIn b }
+  (Goal _ (b `Upcastable` U x)) | rigid (F b) -> mempty {upcastables = M.singleton x $ GS.singleton g }
+  (Goal _ (U x `Upcastable` b)) | rigid (F b) -> mempty {downcastables = M.singleton x $ GS.singleton g }
   (Goal _ (Unsat _))                          -> mempty {unsats = [g]}
   (Goal _ Sat)                                -> mempty
   (Goal _ (F a :< F b)) | Just a' <- flexOf a
@@ -711,7 +707,7 @@ applySubst s = substs <>= s
 instantiate :: GoalClasses -> Solver [Goal]
 instantiate (Classes ups downs upcasts downcasts errs rest upfl downfl) = do
   s <- use substs
-  let al = concat (F.toList ups ++ F.toList downs ++ F.toList upcasts ++ F.toList downcasts) ++ errs ++ rest
+  let al =  (GS.toList =<< (F.toList =<< [ups, downs, upcasts, downcasts]) ) ++ errs ++ rest
       al' = al & map (goal %~ Subst.applyC s) & map (goalContext %~ map (Subst.applyCtx s))
   -- traceTC "sol" (text "instantiate" <+> pretty (show al) P.<$> text "with substitution" P.<$> pretty s <> semi
   --                P.<$> text "end up with goals:" <+> pretty (show al'))
@@ -781,8 +777,8 @@ solve = zoom tc . crunch >=> explode >=> go
   where
     go :: GoalClasses -> Solver [ContextualisedError]
     go g | not (null (unsats g)) = return $ map toError (unsats g)
-    go g | not (irreducible (downs g) (downflexes g)) = go' g DownClass
-    go g | not (irreducible (ups   g) (upflexes   g)) = go' g UpClass
+    go g | not (irreducible (fmap GS.toList $ downs g) (downflexes g)) = go' g DownClass
+    go g | not (irreducible (fmap GS.toList $ ups   g) (upflexes   g)) = go' g UpClass
     go g | not (M.null (downcastables g)) = go' g DowncastClass
     go g | not (M.null (upcastables   g)) = go' g UpcastClass
     go g | not (null (rest g)) =
@@ -799,13 +795,13 @@ solve = zoom tc . crunch >=> explode >=> go
             DowncastClass -> ("downcast", imposeCast , downcastables, g { downcastables = M.empty }, mempty)
           groundNB [Goal _ (F a :< F b)] = groundConstraint a b
           groundNB _                     = False
-      let groundKeys = M.keysSet (M.filter groundNB (cls g))
-      s <- F.fold <$> mapM noBrainers (cls g `removeKeys` S.toList (flexes g S.\\ groundKeys))
+      let groundKeys = M.keysSet (M.filter (groundNB . GS.toList) (cls g))
+      s <- F.fold <$> mapM (noBrainers . GS.toList) (cls g `removeKeys` S.toList (flexes g S.\\ groundKeys))
       traceTC "sol" (text "solve" <+> text msg <+> text "goals"
                      P.<$> bold (text "produce subst:")
                      P.<$> pretty s)
       if Subst.null s then do
-          g' <- explode =<< concat . F.toList <$> traverse f (cls g)
+          g' <- explode =<< concat . F.toList <$> traverse (f . GS.toList) (cls g)
           go (g' <> g'')
       else do
           applySubst s
