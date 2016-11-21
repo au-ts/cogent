@@ -50,7 +50,7 @@ data TypeError = FunctionNotFound VarName
                | RemoveCaseFromNonVariant (Pattern TCName) TCType
                | DiscardWithoutMatch TagName
                | RequiredTakenTag TagName
-               deriving (Eq, Show)
+               deriving (Eq, Show, Ord)
 
 data TypeWarning = DummyWarning
 
@@ -64,6 +64,9 @@ data ErrorContext = InExpression LocExpr TCType
                   | AntiquotedExpr LocExpr
                   deriving (Eq, Show)
 
+instance Ord ErrorContext where
+  compare _ _ = EQ 
+
 isCtxConstraint :: ErrorContext -> Bool
 isCtxConstraint (SolvingConstraint _) = True
 isCtxConstraint _ = False
@@ -74,11 +77,11 @@ type ContextualisedError = ([ErrorContext], TypeError)
 data TypeFragment a = F a
                     | FRecord [(FieldName, (a, Taken))]
                     | FVariant (M.Map TagName ([a], Taken))
-                    deriving (Eq, Show, Functor, Foldable, Traversable)
+                    deriving (Eq, Show, Functor, Foldable, Traversable, Ord)
 
 data TCType = T (Type TCType)
             | U Int  -- unifier
-            deriving (Show, Eq)
+            deriving (Show, Eq, Ord)
 
 data TExpr t = TE { getType :: t, getExpr :: Expr t (VarName, t) (TExpr t), getLoc :: SourcePos }
              deriving (Show)
@@ -127,7 +130,7 @@ data Metadata = Reused { varName :: VarName, boundAt :: SourcePos, usedAt :: Sou
               | TypeParam { functionName :: VarName, typeVarName :: VarName }
               | ImplicitlyTaken
               | Constant { varName :: VarName }
-              deriving (Eq, Show)
+              deriving (Eq, Show, Ord)
 
 
 data Constraint = (:<) (TypeFragment TCType) (TypeFragment TCType)
@@ -140,7 +143,7 @@ data Constraint = (:<) (TypeFragment TCType) (TypeFragment TCType)
                 | Unsat TypeError
                 | Sat
                 | Exhaustive TCType [Pattern TCName]
-                deriving (Eq, Show)
+                deriving (Eq, Show, Ord)
 
 instance Monoid Constraint where
   mempty = Sat
