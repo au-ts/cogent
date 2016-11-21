@@ -34,14 +34,14 @@ data IrrefutablePattern pv = PVar pv
                            | PUnitel
                            | PTake pv [Maybe (FieldName, IrrefutablePattern pv)]
                                -- Note: `Nothing' will be desugared to `Just' in TypeCheck / zilinc
-                           deriving (Show, Functor, Foldable, Traversable, Eq)
+                           deriving (Show, Functor, Foldable, Traversable, Eq, Ord)
 
 data Pattern pv = PCon TagName [IrrefutablePattern pv]
                 | PIntLit Integer
                 | PBoolLit Bool
                 | PCharLit Char
                 | PIrrefutable (IrrefutablePattern pv)
-                deriving (Show, Functor, Foldable, Traversable, Eq)
+                deriving (Show, Functor, Foldable, Traversable, Eq, Ord)
 
 data Alt pv e = Alt (Pattern pv) Likelihood e deriving (Eq, Show, Functor, Foldable,Traversable)
 
@@ -92,9 +92,9 @@ data Type t =
             -- Used for both field names in records and tag names in variants
             | TTake (Maybe [FieldName]) t
             | TPut  (Maybe [FieldName]) t
-            deriving (Show, Functor, Eq, Foldable, Traversable)
+            deriving (Show, Functor, Eq, Foldable, Traversable, Ord)
 
-data Polytype t = PT [(TyVarName, Kind)] t deriving (Eq, Show, Functor, Foldable, Traversable)
+data Polytype t = PT [(TyVarName, Kind)] t deriving (Eq, Show, Functor, Foldable, Traversable, Ord)
 
 numOfArgs (PT x _) = length x
 

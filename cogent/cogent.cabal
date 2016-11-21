@@ -54,6 +54,7 @@ Library
               , Cogent.TypeCheck.Post
               , Cogent.TypeCheck.Solver
               , Cogent.TypeCheck.Subst
+              , Cogent.TypeCheck.GoalSet
               , Cogent.TypeCheck.Util
               , Cogent.Desugar
               , Cogent.DList
