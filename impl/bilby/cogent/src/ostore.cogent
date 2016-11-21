@@ -184,7 +184,7 @@ ostore_read_sum(ex, mount_st, ostore_st {rbuf}, ebnum) =
         ((ex, ostore_st), Success sum_offs)
 
 ostore_clean: (ExState, OstoreState) -> ExState
-ostore_clean(ex, ostore_st {rbuf,wbuf,opad,pools,fsm_st,index_st,ubi_vol,summary,sum_obj,..}) =
+ostore_clean(ex, ostore_st {rbuf,wbuf,opad,pools,fsm_st,index_st,ubi_vol,summary,sum_obj}) =
   let ex = buf_free(ex, rbuf)
   and ex = buf_free(ex, wbuf)
   and ex = deep_freeObj(ex, opad)
@@ -200,8 +200,8 @@ ostore_clean(ex, ostore_st {rbuf,wbuf,opad,pools,fsm_st,index_st,ubi_vol,summary
   and ex = freeOstoreState(ex, ostore_st)
   in ex
 
-get_obj_oid: (Obj!) -> ObjId
-get_obj_oid(obj) =
+get_obj_oid: Obj! -> ObjId
+get_obj_oid obj =
   obj.ounion
   | TObjInode o -> o.id
   | TObjData o -> o.id
@@ -209,8 +209,8 @@ get_obj_oid(obj) =
   | TObjDel o -> o.id
   | _ -> nilObjId
 
-print_obj_type: (Obj!) -> ()
-print_obj_type(obj) =
+print_obj_type: Obj! -> ()
+print_obj_type obj =
   obj.ounion
   | TObjInode o -> _cogent_debug "inode"
   | TObjData o -> _cogent_debug "data"
@@ -867,7 +867,7 @@ ostore_read (ex, mount_st, ostore_st, oid) =
     _cogent_debug "Obj not found in index " ;
     _cogent_debug_u64_hex oid ;
     _cogent_debug "\n" ;
-    ((ex, ostore_st), error err) 
+    ((ex, ostore_st), error[Obj] err) 
   | Success addr ->
     let wbuf_eb = ostore_st.wbuf_eb !ostore_st
     -- if we are trying to read an object that is in the current write-buffer
@@ -878,10 +878,10 @@ ostore_read (ex, mount_st, ostore_st, oid) =
       | Error (e, ex) ->
         _cogent_debug "ostore_read: deserialise_Obj_crc from buffer failed\n" ;
         let wbuf = wbuf {bound=mount_st.super.eb_size}
-        in ((ex, ostore_st {wbuf}), error e)
+        in ((ex, ostore_st {wbuf}), error[Obj] e)
       | Success (ex, obj, sz) ->
         let wbuf = wbuf {bound=mount_st.super.eb_size}
-        in ((ex, ostore_st {wbuf}), success obj)
+        in ((ex, ostore_st {wbuf}), success[Obj, ErrCode] obj)
      else
     -- We need to read the object from medium
        let ostore_st {rbuf} = ostore_st
@@ -889,13 +889,13 @@ ostore_read (ex, mount_st, ostore_st, oid) =
        in r
        | Error e ->
          _cogent_debug "ostore_read: read_obj_pages_in_buf failed.\n" ;
-         ((ex, ostore_st {rbuf}), error e)
+         ((ex, ostore_st {rbuf}), error[Obj] e)
        | Success () ->
          deserialise_Obj (ex, rbuf, addr.offs) !rbuf
          | Error (e, ex) ->
            _cogent_debug "ostore_read: deserialise_Obj_crc from flash failed.\n" ;
-           ((ex, ostore_st {rbuf}), error e)
-         | Success (ex, obj, sz) -> ((ex, ostore_st {rbuf}), success obj)
+           ((ex, ostore_st {rbuf}), error[Obj] e)
+         | Success (ex, obj, sz) -> ((ex, ostore_st {rbuf}), success[Obj, ErrCode] obj)
     )
     in r
     | Success obj ->
@@ -909,7 +909,7 @@ ostore_read (ex, mount_st, ostore_st, oid) =
         _cogent_assert False ;
         -- Fs should go in read-only mode as we have detected
         -- an inconsistency between index and medium
-        ((deep_freeObj(ex, obj), ostore_st), Error eRoFs)
+        ((deep_freeObj (ex, obj), ostore_st), Error eRoFs)
     | Error e -> ((ex, ostore_st), Error e)
 
 read_obj_pages_in_buf: (ExState, MountState!, UbiVol!, Buffer, ObjAddr!) -> RR (ExState, Buffer) () ErrCode
@@ -1526,7 +1526,6 @@ ostore_write_super (ex, mount_st, ostore_st) =
 
       and ostore_st = ostore_st {wbuf_eb=bilbyFsSuperEbNum,
             used=mount_st.super_offs, sync_offs=mount_st.super_offs} !mount_st
-      and obj {..} = obj
       and obj = obj_init_super(obj, next_sqnum, mount_st.super_offs) !mount_st
       and ostore_st = ostore_st {next_sqnum = next_sqnum+1} 
       and ostore_st {wbuf} = ostore_st
