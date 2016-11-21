@@ -508,8 +508,7 @@ dentarr_read_and_del (ex, mount_st, ostore_st, vdir, name) =
     | Error ex ->
        -- invariant on ostore_read
        _cogent_assert False ;
-       let dentarr_obj {..} = dentarr_obj
-       and ex = freeObj(ex, dentarr_obj)
+       let ex = freeObj(ex, dentarr_obj)
        in ((ex, ostore_st), Error eInval)
     | Success (ex, dentarr) ->
       let (ex, dentarr) = dentarr_del_dentry(ex, dentarr, name)
@@ -517,7 +516,7 @@ dentarr_read_and_del (ex, mount_st, ostore_st, vdir, name) =
       in r
       | Error e ->
         _cogent_debug "dentarr_read_and_del: dentarr_del_calculate_sz_change: failed\n" ;
-        let dentarr_obj {ounion,..} = dentarr_obj
+        let dentarr_obj {ounion} = dentarr_obj
         and ex = deep_freeObjUnion(ex, ounion)
         and ex = freeObj(ex, dentarr_obj)
         in ((ex, ostore_st), Error e)
@@ -1749,8 +1748,7 @@ fsop_iget #{ex, fs_st = fs_st {ostore_st}, inum, vnode} =
     in extract_inode_from_union (ex, ounion)
     | Error ex ->
       _cogent_assert False ;
-      let obj {..} = obj
-      and ex = freeObj(ex, obj)
+      let ex = freeObj(ex, obj)
       in (#{ex, fs_st, vnode}, Error eInval) 
     | Success (ex, oi) ->
       let vnode = vfs_inode_set_ino (vnode, inum_from_obj_id oi.id) !oi
@@ -1793,12 +1791,10 @@ read_block(ex, fs_st {ostore_st}, vnode, buf, block) =
     in extract_data_from_union(ex, ounion)
     | Error ex ->
       _cogent_assert False ;
-      let obj {..} = obj
-      and ex = freeObj(ex, obj)
+      let ex = freeObj(ex, obj)
       in ((ex, fs_st, buf), Error eInval) 
     | Success (ex, od) ->
-      let obj {..} = obj
-      and ex = freeObj(ex, obj)
+      let ex = freeObj(ex, obj)
       and size = wordarray_length[U8] (od.odata) !od
       in if size > bilbyFsBlockSize then
         _cogent_debug "bad object data" ;
@@ -2460,10 +2456,8 @@ fsop_init #{ex,fs_st,name} =
                     and ex = wubi_close (ex, ubivol)
                     in ostore_init(ex, mount_st, ostore_st) !mount_st
                     | Error (err, ex, ostore_st) ->
-                      let mount_st {obj_sup,vol,dev,super,..} = mount_st
-                      and fsop_st {..} = fsop_st
+                      let mount_st {obj_sup,vol,dev,super} = mount_st
                       and ex = deep_freeObjSuper(ex, super)
-                      and obj_sup {..} = obj_sup
                       and ex = freeObj(ex, obj_sup)
                       and ex = freeMountState(ex, mount_st)
                       and ex = freeFsopState(ex, fsop_st)
@@ -2492,15 +2486,13 @@ fsop_unmount #{ex,fs_st} =
 fsop_clean: FsopFsP -> ExState
 fsop_clean #{ex,fs_st} =
   let fs_st {fsop_st, mount_st, ostore_st} = fs_st
-  and mount_st {vol,dev,obj_sup,super,..} = mount_st
+  and mount_st {vol,dev,obj_sup,super} = mount_st
   and ex = deep_freeObjSuper(ex, super)
-  and obj_sup {..} = obj_sup
   and ex = freeObj(ex, obj_sup)
   and ex = freeUbiVolInfo(ex, vol)
   and ex = freeUbiDevInfo(ex, dev)
   and ex = freeMountState(ex, mount_st)
   and ex = ostore_clean(ex, ostore_st)
-  and fsop_st {..} = fsop_st
   and ex = freeFsopState(ex, fsop_st)
   and ex = freeFsState(ex, fs_st)
   in ex
