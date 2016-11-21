@@ -122,7 +122,7 @@ whnf (T (TPut fs t)) = do
 whnf (T (TCon n as b)) = do
   kts <- use knownTypes
   case lookup n kts of
-    Just (as', Just b)  | b' <- toTCType b -> whnf (substType (zip as' as) b')
+    Just (as', Just b) -> whnf (substType (zip as' as) b)
     _ -> return (T (TCon n as b))
 
 whnf t = return t
@@ -243,8 +243,8 @@ rule (F (T (TVar v b))  :< F (T (TVar u c)))
   | v == u, b == c = return $ Just Sat
   | otherwise      = return $ Just $ Unsat (TypeMismatch (F $ T (TVar v b)) (F $ T (TVar u c)))
 rule (F (T (TCon n ts s)) :< F (T (TCon m us r)))
-  | n == m, length ts == length us, s == r = return $ Just $ mconcat (zipWith (:<) (map F ts) (map F us)
-                                                                  ++ zipWith (:<) (map F us) (map F ts))
+  | n == m, length ts == length us, s == r = return $ Just $ mconcat (zipWith (:<) (map F ts) (map F us))
+ --                  ++ zipWith (:<) (map F us) (map F ts))
   | otherwise                              = return $ Just $ Unsat (TypeMismatch (F $ T (TCon n ts s)) (F $ T (TCon m us r)))
 rule ct@(F (T (TRecord fs s)) :< F (T (TRecord gs r)))
   | or (zipWith ((/=) `on` fst) fs gs) = do
@@ -260,7 +260,7 @@ rule ct@(F (T (TRecord fs s)) :< F (T (TRecord gs r)))
          each (f, (t, True )) (_, (u, False)) = Unsat (RequiredTakenField f t)
          cs = zipWith each fs gs
      traceTC "sol" (text "solve each field of constraint" <+> prettyC ct <> colon
-       P.<$> foldl 
+       P.<$> foldl
                (\a (f,c) -> a P.<$> text "field" <+> pretty (fst f) P.<> colon <+> prettyC c)
                P.empty
                (zip fs cs))
@@ -268,7 +268,7 @@ rule ct@(F (T (TRecord fs s)) :< F (T (TRecord gs r)))
 rule (F (T (TVariant m)) :< F (T (TVariant n)))
   | M.keys m /= M.keys n = return $ Just $ Unsat (TypeMismatch (F $ T (TVariant m)) (F $ T (TVariant n)))
   | otherwise = let
-      each (f, (ts, False)) (_, (us, True )) = Unsat (DiscardWithoutMatch f) 
+      each (f, (ts, False)) (_, (us, True )) = Unsat (DiscardWithoutMatch f)
       each (f, (ts, False)) (_, (us, False)) = mconcat (zipWith (:<) (map F ts) (map F us))
       each (f, (ts, True )) (_, (us, True )) = mconcat (zipWith (:<) (map F ts) (map F us))
       each (f, (ts, True )) (_, (us, False)) = mconcat (zipWith (:<) (map F ts) (map F us))
@@ -301,7 +301,7 @@ rule (F y :< F (T (TPut fs (U x))))
 -- rule ( FVariant vs es :< F (T (TTake (Just fs) (U x))))
 --   = return $ Just $ uncurry FVariant (putVariant fs vs es) :< F (U x)
 -- rule (FVariant vs es :< F (T (TPut (Just fs) (U x))) )
---   = return $ Just $ uncurry FVariant (takeVariant fs vs es) :<  F ( U x) 
+--   = return $ Just $ uncurry FVariant (takeVariant fs vs es) :<  F ( U x)
 --TODO: rules for records
 rule ct@(F a :< b)
   | notWhnf a = do
@@ -320,11 +320,11 @@ rule (Upcastable (T (TCon n [] Unboxed)) (T (TCon m [] Unboxed)))
 rule ct@(FVariant n :< F (T (TVariant m)))
   | ns <- M.keysSet n
   , ns `S.isSubsetOf` M.keysSet m
-  , n'' <- fmap (_1 %~ Just) n 
+  , n'' <- fmap (_1 %~ Just) n
   , m'' <- fmap (_1 %~ Just) m
   = parVariants n'' m'' ns
 rule ct@(F (T (TVariant n)) :< FVariant m)
-  | ms <- M.keysSet m 
+  | ms <- M.keysSet m
   , ms `S.isSubsetOf` M.keysSet n
   , n'' <- fmap (_1 %~ Just) n
   , m'' <- fmap (_1 %~ Just) m
@@ -362,7 +362,7 @@ parRecords n m ks =
       each f (t, False) (u, False) = F t :< F u
       each f (t, True ) (u, True ) = F t :< F u
       each f (t, True ) (u, False) = (F t :< F u) :& Drop t ImplicitlyTaken
-      ks' = S.toList ks 
+      ks' = S.toList ks
       cs  = map (\k -> each k (n M.! k) (m M.! k)) ks'
   in return . Just $ mconcat cs
 
@@ -416,8 +416,11 @@ simp (Exhaustive t ps)
 fresh :: Solver TCType
 fresh = U <$> (flexes <<%= succ)
 
-
 data Bound = GLB | LUB
+
+instance Show Bound where
+  show GLB = "lower bound"
+  show LUB = "upper bound"
 
 glb = bound GLB
 lub = bound LUB
@@ -426,17 +429,20 @@ lub = bound LUB
 -- We re-check some basic equalities here for better error messages
 bound :: Bound -> TypeFragment TCType -> TypeFragment TCType -> Solver (Maybe (TypeFragment TCType), TypeFragment TCType, TypeFragment TCType)
 bound d (F a) (F b) = fmap ((, F a, F b) . fmap F) (bound' d a b)
-bound d a@(FVariant is) b@(F (T (TVariant js))) 
+bound d a@(FVariant is) b@(F (T (TVariant js)))
   | M.keysSet is `S.isSubsetOf` M.keysSet js
   , a' <- F (T (TVariant $ M.union is js))
   = bound d a' b
 bound d a@(F (T (TVariant js))) b@(FVariant is) = bound d b a  -- symm
-bound d a@(FVariant is_) b@(FVariant js_) 
+bound d a@(FVariant is_) b@(FVariant js_)
   | is <- M.union is_ js_
   , js <- M.union js_ is_
   = if or (zipWith ((/=) `on` length) (F.toList is) (F.toList js)) then return (Nothing, a, b)
     else do
        rs <- M.fromList <$> traverse (each is js) (M.keys is)
+       traceTC "sol" (text "calculate" <+> text (show b) <+> text "of"
+                      P.<+> pretty a <+> text "and" <+> pretty b <> colon
+                      P.<$> pretty (FVariant rs))
        return (Just (FVariant rs),FVariant is, FVariant js)
   where
     op = case d of GLB -> (||); LUB -> (&&)
@@ -452,7 +458,7 @@ bound d a@(FRecord isL) b@(F (T (TRecord jsL s)))
   , a' <- F (T (TRecord (map (\(k,v) -> (k, case M.lookup k is of Nothing -> v; Just v' -> v')) jsL) s))
   = bound d a' b
 bound d a@(F (T (TRecord jsL s))) b@(FRecord isL) = bound d b a  -- symm
-bound d a@(FRecord is_) b@(FRecord js_) 
+bound d a@(FRecord is_) b@(FRecord js_)
   | isM <- M.fromList is_
   , jsM <- M.fromList js_
   , is <- M.union isM jsM
@@ -461,23 +467,29 @@ bound d a@(FRecord is_) b@(FRecord js_)
         each (f,(_,b)) (_, (_,b')) = (f,) . (,b `op` b') <$> fresh
         is' = M.toList is
         js' = M.toList js
-    in (, FRecord is', FRecord js') . Just <$> (FRecord <$> zipWithM each is' js')
+    in do t <- FRecord <$> zipWithM each is' js'
+          traceTC "sol" (text "calculate" <+> text (show b) <+> text "of"
+                         P.<+> pretty a <+> text "and" <+> pretty b <> colon
+                         P.<$> pretty t)
+          return (Just t, FRecord is', FRecord js')
 bound _ a b = do
   traceTC "sol" (text "calculate bound of"
-           P.<$> pretty a 
-           P.<$> text "and"
-           P.<$> pretty b <+> semi
-           P.<$> text "result nothing")
+                 P.<$> pretty a
+                 P.<$> text "and"
+                 P.<$> pretty b <> semi
+                 P.<$> text "result nothing")
   return (Nothing, a, b)
 
 bound' :: Bound -> TCType -> TCType -> Solver (Maybe TCType)
-bound' d (T (TVariant is)) (T (TVariant js))
-  | M.keysSet is /= M.keysSet js
-  = return Nothing
-  | or (zipWith ((/=) `on` length) (F.toList is) (F.toList js))
-  = return Nothing
-  | otherwise
-  = Just . T . TVariant . M.fromList <$> traverse each (M.keys is)
+bound' d t1@(T (TVariant is)) t2@(T (TVariant js))
+  | M.keysSet is /= M.keysSet js = return Nothing
+  | or (zipWith ((/=) `on` length) (F.toList is) (F.toList js)) = return Nothing
+  | otherwise = do
+      t <- T . TVariant . M.fromList <$> traverse each (M.keys is)
+      traceTC "sol" (text "calculate" <+> text (show d) <+> text "of"
+                     P.<+> pretty t1 <+> text "and" <+> pretty t2 <> colon
+                     P.<$> pretty t)
+      return $ Just t
   where
     op = case d of GLB -> (||); LUB -> (&&)
     each :: TagName -> Solver (TagName, ([TCType], Taken))
@@ -486,36 +498,49 @@ bound' d (T (TVariant is)) (T (TVariant js))
       (_, jb) = js M.! k
      in do ts <- replicateM (length i) fresh
            return (k, (ts, ib `op` jb))
-bound' _ (T (TTuple is)) (T (TTuple js))
+bound' _ t1@(T (TTuple is)) t2@(T (TTuple js))
   | length is /= length js = return Nothing
-  | otherwise = Just . T . TTuple <$> traverse (const fresh) is
-bound' _ (T (TFun a b)) (T (TFun c d))
-  = Just . T <$> (TFun <$> fresh <*> fresh)
-bound' _ (T (TCon c as s)) (T (TCon d bs r))
+  | otherwise = do t <- T . TTuple <$> traverse (const fresh) is
+                   traceTC "sol" (text "calculate bound of" <+> pretty t1 <+> text "and" <+> pretty t2 <> colon
+                                  P.<$> pretty t)
+                   return $ Just t
+bound' _ t1@(T (TFun a b)) t2@(T (TFun c d)) = do
+  t <-  T <$> (TFun <$> fresh <*> fresh)
+  traceTC "sol" (text "calculate bound of" <+> pretty t1 <+> text "and" <+> pretty t2 <> colon
+                 P.<$> pretty t)
+  return $ Just t
+bound' _ t1@(T (TCon c as s)) t2@(T (TCon d bs r))
   | c /= d || s /= r       = return Nothing
   | length as /= length bs = return Nothing
-  | otherwise = Just . T <$> (TCon d <$> traverse (const fresh) as <*> pure r)
+  | otherwise = do
+      t <- T <$> (TCon d <$> traverse (const fresh) as <*> pure r)
+      traceTC "sol" (text "calculate bound of" <+> pretty t1 <+> text "and" <+> pretty t2 <> colon
+                     P.<$> pretty t)
+      return $ Just t
 bound' _ (T (TVar a x)) (T (TVar b y))
   | x /= y || a /= b = return Nothing
   | otherwise        = return $ Just . T $ TVar a x
 bound' _ (T TUnit) (T TUnit) = return $ Just (T TUnit)
-bound' d (T (TRecord fs s)) (T (TRecord gs r))
+bound' d t1@(T (TRecord fs s)) t2@(T (TRecord gs r))
   | s /= r = return Nothing
   | map fst fs /= map fst gs = return Nothing
-  | otherwise = let
-      op = case d of GLB -> (&&); LUB -> (||) 
-      each (f,(_,b)) (_, (_,b')) = (f,) . (,b `op` b') <$> fresh
-    in Just . T <$> (TRecord <$> zipWithM each fs gs <*> pure s)
+  | otherwise = do
+      let op = case d of GLB -> (&&); LUB -> (||)
+          each (f,(_,b)) (_, (_,b')) = (f,) . (,b `op` b') <$> fresh
+      t <- T <$> (TRecord <$> zipWithM each fs gs <*> pure s)
+      traceTC "sol" (text "calculate bound of" <+> pretty t1 <+> text "and" <+> pretty t2 <> colon
+                     P.<$> pretty t)
+      return $ Just t
 bound' _ a b = do
   traceTC "sol" (text "calculate bound (bound') of"
-           P.<$> pretty a 
+           P.<$> pretty a
            P.<$> text "and"
            P.<$> pretty b <+> semi
            P.<$> text "result nothing")
   return Nothing
 
 primGuess :: Bound -> TCType -> TCType -> Solver (Maybe TCType)
-primGuess d (T (TCon n [] Unboxed)) (T (TCon m [] Unboxed)) 
+primGuess d (T (TCon n [] Unboxed)) (T (TCon m [] Unboxed))
   | Just n' <- elemIndex n primTypeCons
   , Just m' <- elemIndex m primTypeCons
   = let f = case d of GLB -> min; LUB -> max
@@ -561,7 +586,7 @@ instance Show GoalClasses where
                               "\nflexUp:\n" ++
                               unlines (map (("  " ++) . show) (F.toList uf))  ++
                               "\nflexDown:\n" ++
-                              unlines (map (("  " ++) . show) (F.toList df)) 
+                              unlines (map (("  " ++) . show) (F.toList df))
 
 instance Monoid GoalClasses where
   Classes u d uc dc e r fu fd `mappend` Classes u' d' uc' dc' e' r' fu' fd'
@@ -576,13 +601,19 @@ instance Monoid GoalClasses where
   mempty = Classes M.empty M.empty M.empty M.empty [] [] mempty mempty
 
 
+
+flexesIn :: TypeFragment TCType -> S.Set Int
+flexesIn = F.foldMap f
+  where f (U x) = S.singleton x
+        f (T y) = F.foldMap f y
+
 -- Break goals into their form
 -- Expects all goals to be broken down as far as possible first
 -- Consider using auto first, or using explode instead of this function.
 classify :: Goal -> GoalClasses
 classify g = case g of
-  (Goal _ (a       :< F (U x))) | rigid a     -> mempty {ups   = M.singleton x [g] }
-  (Goal _ (F (U x) :< b      )) | rigid b     -> mempty {downs = M.singleton x [g] }
+  (Goal _ (a       :< F (U x))) | rigid a     -> mempty {ups   = M.singleton x [g], downflexes = flexesIn a }
+  (Goal _ (F (U x) :< b      )) | rigid b     -> mempty {downs = M.singleton x [g], upflexes   = flexesIn b }
   (Goal _ (b `Upcastable` U x)) | rigid (F b) -> mempty {upcastables = M.singleton x [g] }
   (Goal _ (U x `Upcastable` b)) | rigid (F b) -> mempty {downcastables = M.singleton x [g] }
   (Goal _ (Unsat _))                          -> mempty {unsats = [g]}
@@ -760,7 +791,7 @@ solve = zoom tc . crunch >=> explode >=> go
 
     go' :: GoalClasses -> GoalClass -> Solver [ContextualisedError]
     go' g c = do
-      let (msg, f, cls, g'', flexes) = case c of 
+      let (msg, f, cls, g'', flexes) = case c of
             UpClass       -> ("upward"  , suggest    , ups          , g { ups           = M.empty }, upflexes)
             DownClass     -> ("downward", impose     , downs        , g { downs         = M.empty }, downflexes)
             UpcastClass   -> ("upcast"  , suggestCast, upcastables  , g { upcastables   = M.empty }, mempty)
@@ -770,7 +801,7 @@ solve = zoom tc . crunch >=> explode >=> go
       let groundKeys = M.keysSet (M.filter groundNB (cls g))
       s <- F.fold <$> mapM noBrainers (cls g `removeKeys` S.toList (flexes g S.\\ groundKeys))
       traceTC "sol" (text "solve" <+> text msg <+> text "goals"
-                     P.<$> text "produce subst:"
+                     P.<$> bold (text "produce subst:")
                      P.<$> pretty s)
       if Subst.null s then do
           g' <- explode =<< concat . F.toList <$> traverse f (cls g)
@@ -784,4 +815,3 @@ solve = zoom tc . crunch >=> explode >=> go
     toError _ = error "impossible"
 
     removeKeys = foldr M.delete
-

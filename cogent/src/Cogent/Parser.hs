@@ -245,7 +245,7 @@ monotype = do avoidInitial
     tuple [e] = typeOfLT e
     tuple es  = TTuple es
 
-    fList = (Just . (:[])) <$> identifier 
+    fList = (Just . (:[])) <$> identifier
         <|> parens ((reservedOp ".." >> return Nothing) <|> (commaSep identifier >>= return . Just))
 
 polytype = PT <$ reserved "all" <*> (((:[]) <$> kindSignature) <|> parens (commaSep1 kindSignature)) <* reservedOp "." <*> monotype
@@ -273,7 +273,7 @@ toplevel' = do
   docs <- unlines . fromMaybe [] <$> optionMaybe (many1 docHunk)
   p <- getPosition
   when (sourceColumn p > 1) $ fail "toplevel entries should start at column 1"
-  (p,) <$> (try(Include <$ reserved "include" <*> stringLiteral)
+  (p,docs,) <$> (try(Include <$ reserved "include" <*> stringLiteral)
         <|> IncludeStd <$ reserved "include" <*> angles (many (noneOf "\r\n>"))
         <|> typeDec <$ reserved "type" <*> typeConName <*> many (avoidInitial >> variableName) <*> optionMaybe (reservedOp "=" *> monotype)
         <|> do n <- variableName
@@ -362,9 +362,9 @@ loadTransitive' r fp paths ro = do
   where
     transitive :: (SourcePos, DocString, TopLevel LocType VarName LocExpr)
                -> FilePath
-               -> IO (Either String ([(SourcePos, TopLevel LocType VarName LocExpr)], [PP.LocPragma]))
-    transitive (p,Include x) curr = loadTransitive' r x (map (combine curr) paths) curr
-    transitive (p,IncludeStd x) curr = do filepath <- (getStdIncFullPath x); loadTransitive' r filepath (map (combine curr) paths) curr
+               -> IO (Either String ([(SourcePos, DocString, TopLevel LocType VarName LocExpr)], [PP.LocPragma]))
+    transitive (p,d,Include x) curr = loadTransitive' r x (map (combine curr) paths) curr
+    transitive (p,d,IncludeStd x) curr = do filepath <- (getStdIncFullPath x); loadTransitive' r filepath (map (combine curr) paths) curr
     transitive x _ = return (Right ([x],[]))
 
     findPath :: [FilePath] -> IO (Maybe FilePath)

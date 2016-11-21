@@ -18,6 +18,7 @@ module Cogent.TypeCheck.Generator
   ( runCG
   , CG
   , cg
+  , cgAlts
   ) where
 
 import Cogent.Common.Syntax
@@ -76,7 +77,6 @@ cg' (PrimOp o [e1, e2]) t
   | o `elem` words "+ - * / % .&. .|. .^. >> <<"
   = do (c1, e1') <- cg e1 t
        (c2, e2') <- cg e2 t
-       -- traceShowM ("Arith op", pretty (stripLocE e1), pretty (stripLocE e2), pretty t, pretty c1, pretty c2)
        return (integral t <> c1 <> c2, PrimOp o [e1', e2'] )
   | o `elem` words "&& ||"
   = do (c1, e1') <- cg e1 t
@@ -259,7 +259,9 @@ cg' (Member e f) t = do
 cg' (If e1 bs e2 e3) t = do
   (c1, e1') <- letBang bs (cg e1) (T (TCon "Bool" [] Unboxed))
   (c, [(c2, e2'), (c3, e3')]) <- parallel' [(ThenBranch, cg e2 t), (ElseBranch, cg e3 t)]
-  return (c1 <> c <> c2 <> c3, If e1' bs e2' e3')
+  let e = If e1' bs e2' e3'
+  traceTC "gen" (text "cg for if:" <+> prettyE e)
+  return (c1 <> c <> c2 <> c3, e)
 
 cg' (Put e ls) t | not (any isNothing ls) = do
   alpha <- fresh
@@ -293,7 +295,7 @@ cg' (Match e bs alts) top = do
 integral :: TCType -> Constraint
 integral a = Upcastable (T (TCon "U8" [] Unboxed)) a
 
-cgAlts :: (?loc :: SourcePos) => [Alt VarName LocExpr] -> TCType -> TCType -> CG (Constraint, [Alt TCTypedName TCExpr])
+cgAlts :: (?loc :: SourcePos) => [Alt VarName LocExpr] -> TCType -> TCType -> CG (Constraint, [Alt TCName TCExpr])
 cgAlts alts top alpha = do
   let
     altPattern (Alt p _ _) = p
@@ -310,10 +312,8 @@ cgAlts alts top alpha = do
   (c'', blob) <- parallel jobs alpha
 
   let (cs, alts') = unzip blob
-      c = mconcat (Exhaustive alpha (map altPattern alts'):c':c'':cs)
-      e = TE top (Match e' bs alts')
-  return (c, e)
-
+      c = mconcat (Exhaustive alpha (map altPattern alts'):c'':cs)
+  return (c, alts')
 
 matchA :: (?loc :: SourcePos)
        => Pattern VarName -> TCType
@@ -384,10 +384,15 @@ match (PUnboxedRecord fs) t | not (any isNothing fs) = do
        t' = FRecord (zip ns (map (,False) vs))
        d  = Drop (T (TTake (Just ns) t)) Suppressed
        p' = PUnboxedRecord (map Just (zip ns ps'))
+       c = F t :< t'
        co = case overlapping ss of
               Left (v:vs) -> Unsat $ DuplicateVariableInIrrefPattern v p'
               _           -> Sat
-   return (M.unions ss, co <> mconcat cs <> F t :< t' <> d, p')
+   traceTC "gen" (text "match unboxed record:" <+> pretty p'
+            L.<$> text "of type" <+> pretty t <> semi
+            L.<$> text "generate constraint" <+> prettyC c
+            L.<$> text "non-overlapping, and linearity constraints")
+   return (M.unions ss, co <> mconcat cs <> c <> d, p')
 
    | otherwise = second3 (:& Unsat RecordWildcardsNotSupported) <$> match (PUnboxedRecord (filter isJust fs)) t
 
@@ -474,4 +479,3 @@ validateVariable v = do
 
 prettyE :: Expr TCType TCName TCExpr -> Doc
 prettyE = pretty
-

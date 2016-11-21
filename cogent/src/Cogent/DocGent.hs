@@ -39,7 +39,7 @@ markdown s = case T.readMarkdown def s
                  Right md -> T.writeHtml def $ T.walk handleInline md
 
 handleInline :: (?knowns :: [(String, SourcePos)]) => T.Inline -> T.Inline
-handleInline x@(T.Code a str) | Just p <- lookup str ?knowns = T.Link ("", classesFor str, []) [x] (fileNameFor p ++ "#" ++ str,str) 
+handleInline x@(T.Code a str) | Just p <- lookup str ?knowns = T.Link ("", classesFor str, []) [x] (fileNameFor p ++ "#" ++ str,str)
 handleInline x = x
 
 classesFor :: String -> [String]
@@ -224,6 +224,7 @@ makeHtml content = [shamlet| <pre class="source bg-Dull-Black">#{content}|]
 
 genDoc :: (?knowns :: [(String, SourcePos)]) => (SourcePos, DocString, TopLevel LocType VarName LocExpr) -> Html
 genDoc (p,s,x@(Include {})) = error "Impossible!"
+genDoc (p,s,x@(IncludeStd {})) = error "Impossible!"
 genDoc (p,s,x@(TypeDec n ts t)) =
     let header = let ?knowns = [] in runState (displayHTML (prettyPrint id $ return $ renderTypeDecHeader n ts)) defaultState
         df     = prettyType t Nothing
@@ -241,7 +242,7 @@ genDoc (p,s,x@(FunDef n pt as)) =
         md     = markdown s
         str = runState (displayHTML (prettyPrint id $ return $ prettyFunDef False n pt $ map (resolveNamesA [] . fmap stripLocE) as )) defaultState
         source = makeHtml $ fst str
-     in 
+     in
         [shamlet|
                #{sourcePosDiv p}
                <div class="block bg-Dull-Black header">
@@ -392,16 +393,16 @@ sourcePosDiv p = do
    in [shamlet|<div .sourcepos><a href='#{raw}##{c}'>#{f}:#{c}</a>|]
 
 docGent :: [(SourcePos, DocString, TopLevel LocType VarName LocExpr)] -> IO ()
-docGent input = let 
+docGent input = let
                     ?knowns = mapMaybe toKnown input
                 in let
-                    items = map foreach input 
+                    items = map foreach input
                     items' = sortBy (comparing fst) items
                     items'' = groupBy ((==) `on` (sourceName . fst) ) items'
-                in do jq <- getDataFileName "static/jquery.min.js" 
-                      toc <- getDataFileName "static/toc.min.js" 
-                      sty <- getDataFileName "static/style.css" 
-                      log <- getDataFileName "static/logo.png" 
+                in do jq <- getDataFileName "static/jquery.min.js"
+                      toc <- getDataFileName "static/toc.min.js"
+                      sty <- getDataFileName "static/style.css"
+                      log <- getDataFileName "static/logo.png"
                       copyFile jq "docgent/jquery.min.js"
                       copyFile toc "docgent/toc.min.js"
                       copyFile sty "docgent/style.css"
@@ -421,6 +422,7 @@ docGent input = let
                       generateIndex ?knowns
                       generateContents $ zip titles' (map (fst . head) items'')
   where toKnown (p, _, Include {}) = Nothing
+        toKnown (p, _, IncludeStd {}) = Nothing
         toKnown (p, _, TypeDec tn _ _)  = Just (tn, p)
         toKnown (p, _, AbsTypeDec tn _) = Just (tn, p)
         toKnown (p, _, AbsDec tn _)     = Just (tn, p)
@@ -466,6 +468,7 @@ generateIndex dat = do
    in writeFile "docgent/binding_index.html" (renderHtml final)
 
 -- XXX | eqTopLevelId x (Include {}) = False
+-- XXX | eqTopLevelId x (IncludeStd {}) = False
 -- XXX | eqTopLevelId x (TypeDec tn _ _) = x == tn
 -- XXX | eqTopLevelId x (AbsTypeDec tn _) = x == tn
 -- XXX | eqTopLevelId x (AbsDec fn _) = x == fn
