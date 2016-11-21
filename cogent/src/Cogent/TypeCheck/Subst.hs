@@ -51,7 +51,7 @@ applyErr s (TypeNotShareable t m)   = TypeNotShareable (apply s t) m
 applyErr s (TypeNotEscapable t m)   = TypeNotEscapable (apply s t) m
 applyErr s (TypeNotDiscardable t m) = TypeNotDiscardable (apply s t) m
 applyErr s (PatternsNotExhaustive t ts) = PatternsNotExhaustive (apply s t) ts
-applyErr s (UnsolvedConstraint c) = UnsolvedConstraint (applyC s c)
+applyErr s (UnsolvedConstraint c os) = UnsolvedConstraint (applyC s c) os
 applyErr s (NotAFunctionType t) = NotAFunctionType (apply s t)
 applyErr s e = e
 
