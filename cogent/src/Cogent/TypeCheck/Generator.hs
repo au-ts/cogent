@@ -34,6 +34,7 @@ import Control.Arrow (first, second)
 import Control.Lens hiding (Context, (:<))
 import Control.Monad.State
 import qualified Data.Map as M
+import qualified Data.IntMap as IM
 import Data.Maybe (catMaybes, isNothing, isJust)
 import Data.Monoid ((<>))
 import Text.Parsec.Pos
@@ -41,26 +42,37 @@ import Text.PrettyPrint.ANSI.Leijen hiding ((<>), (<$>))
 import qualified Text.PrettyPrint.ANSI.Leijen as L
 
 
-data CGState = CGS { _tc :: TCState, _context :: C.Context TCType, _flexes :: Int, _knownTypeVars :: [VarName] }
+data CGState = CGS { _tc :: TCState
+                   , _context :: C.Context TCType
+                   , _flexes :: Int
+                   , _knownTypeVars :: [VarName]
+                   , _flexOrigins :: IM.IntMap VarOrigin
+                   }
 
 makeLenses ''CGState
 
 type CG = StateT CGState IO
 
-runCG :: C.Context TCType -> [VarName] -> CG a -> TC (a, Int)
+runCG :: C.Context TCType -> [VarName] -> CG a -> TC (a, Int, IM.IntMap VarOrigin)
 runCG g vs a = do
   x <- get
-  (r, CGS x' _ f _) <- lift $ runStateT a (CGS x g 0 vs)
+  (r, CGS x' _ f _ os) <- lift $ runStateT a (CGS x g 0 vs mempty)
   put x'
-  return (r,f)
+  return (r,f,os)
 
-fresh :: CG TCType
-fresh = U <$> (flexes <<%= succ)
+fresh :: (?loc :: SourcePos) => CG TCType
+fresh = fresh' (ExpressionAt ?loc)
+
+fresh' :: VarOrigin -> CG TCType
+fresh' ctx = do
+  i <- flexes <<%= succ
+  flexOrigins %= IM.insert i ctx
+  return $ U i
 
 cgMany :: (?loc :: SourcePos) => [LocExpr] -> CG ([TCType], Constraint, [TCExpr])
 cgMany es = do
   let each (ts,c,es') e = do
-        alpha    <- fresh
+        alpha    <- fresh 
         (c', e') <- cg e alpha
         return (alpha:ts, c <> c', e':es')
   (ts, c', es') <- foldM each ([], Sat, []) es

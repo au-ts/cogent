@@ -21,6 +21,7 @@ import Control.Monad.Except
 import Control.Monad.State
 import Data.List (nub, (\\))
 import qualified Data.Map as M
+import qualified Data.IntMap as IM
 -- import qualified Data.Set as S
 import Data.Monoid ((<>))
 import Text.Parsec.Pos
@@ -40,7 +41,7 @@ data TypeError = FunctionNotFound VarName
                | TypeNotEscapable TCType Metadata
                | TypeNotDiscardable TCType Metadata
                | PatternsNotExhaustive TCType [TagName]
-               | UnsolvedConstraint Constraint
+               | UnsolvedConstraint Constraint (IM.IntMap VarOrigin)
                | RecordWildcardsNotSupported
                | NotAFunctionType TCType
                | DuplicateRecordFields [FieldName]
@@ -63,6 +64,22 @@ data ErrorContext = InExpression LocExpr TCType
                   | AntiquotedType LocType
                   | AntiquotedExpr LocExpr
                   deriving (Eq, Show)
+
+data Bound = GLB | LUB deriving (Eq, Ord)
+data VarOrigin = ExpressionAt SourcePos
+               | BoundOf (TypeFragment TCType) (TypeFragment TCType) Bound
+               deriving (Eq, Show, Ord)
+
+flexOf (U x) = Just x
+flexOf (T (TTake _ v)) = flexOf v
+flexOf (T (TPut  _ v)) = flexOf v
+flexOf (T (TBang v))   = flexOf v
+flexOf (T (TUnbox v))  = flexOf v
+flexOf _ = Nothing
+
+instance Show Bound where
+  show GLB = "lower bound"
+  show LUB = "upper bound"
 
 instance Ord ErrorContext where
   compare _ _ = EQ 
@@ -152,6 +169,8 @@ instance Monoid Constraint where
   -- mappend (Unsat r) x = Unsat r
   -- mappend x (Unsat r) = Unsat r
   mappend x y = x :& y
+
+
 
 data TCState = TCS { _knownFuns    :: M.Map FunName (Polytype TCType)
                    , _knownTypes   :: TypeDict
