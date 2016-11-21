@@ -24,7 +24,8 @@ import Cogent.TypeCheck.Subst
 
 import Control.Arrow (second)
 import Data.Function ((&))
-import Data.IntMap as I (IntMap, toList)
+import Data.IntMap as I (IntMap, toList, lookup)
+import Data.List(nub)
 import qualified Data.Map as M hiding (foldr)
 #if __GLASGOW_HASKELL__ < 709
 import Data.Monoid (mconcat)
@@ -416,7 +417,7 @@ instance Pretty TypeError where
                                            <+> err "but this is needed as" <+> pretty m
   pretty (PatternsNotExhaustive t tags)  = err "Patterns not exhaustive for type" <+> pretty t
                                            <$> err "cases not matched" <+> tupled1 (map tagname tags)
-  pretty (UnsolvedConstraint c)          = err "Leftover constraint!" <$> pretty c
+  pretty (UnsolvedConstraint c os)       = analyseLeftover c os
   pretty (RecordWildcardsNotSupported)   = err "Record wildcards are not supported"
   pretty (NotAFunctionType t)            = err "Type" <+> pretty t <+> err "is not a function type"
   pretty (DuplicateVariableInPattern vn pat)       = err "Duplicate variable" <+> varname vn <+> err "in pattern:"
@@ -437,6 +438,38 @@ instance Pretty TypeError where
   pretty (DiscardWithoutMatch t)         = err "Variant tag"<+> tagname t <+> err "cannot be discarded without matching on it."
   pretty (RequiredTakenTag t)            = err "Required variant" <+> tagname t <+> err "but it has already been matched."
 
+instance Pretty VarOrigin where
+  pretty (ExpressionAt l) = warn ("the term at location " ++ show l)
+  pretty (BoundOf a b d) = warn ("taking the " ++ show d ++ " of ") <$> pretty a <$> warn "and" <$> pretty b
+
+analyseLeftover :: Constraint -> I.IntMap VarOrigin -> Doc
+analyseLeftover c@(F t :< F u) os | Just t' <- flexOf t
+                                  , Just u' <- flexOf u
+    = vcat $ err "A subtyping constraint " <>  pretty c <> err " can't be solved because both sides are unknown."
+           : map (\i -> warn "-- The unknown" <+> pretty (U i) <+> warn "originates from" <+> pretty (I.lookup i os))
+                 (nub [t',u'])
+    | Just t' <- flexOf t
+    = vcat $ (case t of
+        U _ -> err "Constraint " <> pretty c <> err " can't be solved as another constraint blocks it."
+        _   -> err "A subtyping constraint " <>  pretty c
+          <> err " can't be solved because the LHS is unknown and uses non-injective operators (like !).")
+           : map (\i -> warn "-- The unknown" <+> pretty (U i) <+> warn "originates from" <+> pretty (I.lookup i os)) ([t'])
+    | Just u' <- flexOf u
+    = vcat $ (case u of
+        U _ -> err "Constraint " <> pretty c <> err " can't be solved as another constraint blocks it."
+        _   -> err "A subtyping constraint " <>  pretty c
+          <> err " can't be solved because the RHS is unknown and uses non-injective operators (like !).")
+           : map (\i -> warn "-- The unknown" <+> pretty (U i) <+> warn "originates from" <+> pretty (I.lookup i os)) ([u'])
+analyseLeftover c os = case c of
+    Share x m  | Just x' <- flexOf x -> msg x' m
+    Drop x m   | Just x' <- flexOf x -> msg x' m
+    Escape x m | Just x' <- flexOf x -> msg x' m
+    _ -> err "Leftover constraint!" <$> pretty c
+  where msg i m = vcat $ err "Constraint " <> pretty c <> err " can't be solved as it constrains an unknown."
+                : [warn "-- The unknown" <+> pretty (U i) <+> warn "originates from" <+> pretty (I.lookup i os)
+                  ,err "The constraint was emitted as" <+> pretty m]
+  
+>>>>>>> Better error messages than “Leftover constraint!” in many scenarios.
 instance Pretty TypeWarning where
   pretty DummyWarning = __fixme $ warn "WARNING: dummy"
 

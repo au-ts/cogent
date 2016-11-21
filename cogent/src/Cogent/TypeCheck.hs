@@ -87,9 +87,9 @@ checkOne loc d = case d of
     base <- use knownConsts
     t' <- validateType' [] (stripLocT t)
     let ctx = C.addScope (fmap (\(t,p) -> (t,p, Just p)) base) C.empty
-    ((c, e'), f) <- lift (runCG ctx [] (cg e t'))
+    ((c, e'), f, os) <- lift (runCG ctx [] (cg e t'))
     let c' = c <> Share t' (Constant n)
-    (errs, subst) <- lift (runSolver (solve c') f [])
+    (errs, subst, os') <- lift (runSolver (solve c') f os [])
     traceTC "tc" (text "subst for const definition" <+> pretty n <+> text "is"
                   L.<$> pretty subst)
     if null errs then do
@@ -111,11 +111,11 @@ checkOne loc d = case d of
     (i,o) <- asFunType t'
     let ctx = C.addScope (fmap (\(t,p) -> (t, p, Just p)) base) C.empty
     let ?loc = loc
-    ((c, alts'), flx) <- lift (runCG ctx (map fst vs) (cgAlts alts o i))
+    ((c, alts'), flx, os) <- lift (runCG ctx (map fst vs) (cgAlts alts o i))
     traceTC "tc" (text "constraint for fun definition" <+> pretty f <+> text "is"
                   L.<$> prettyC c)
     -- traceTC "tc" (pretty alts')
-    (errs, subst) <- lift (runSolver (solve c) flx vs)
+    (errs, subst, _) <- lift (runSolver (solve c) flx os vs)
     traceTC "tc" (text "subst for fun definition" <+> pretty f <+> text "is"
                   L.<$> pretty subst)
     if null errs then do

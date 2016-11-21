@@ -36,25 +36,31 @@ import           Data.Function (on)
 import           Data.List (elemIndex)
 
 import qualified Data.Map as M
+import qualified Data.IntMap as IM
 import           Data.Maybe
 import           Data.Monoid
 import qualified Data.Set as S
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
 
-data SolverState = SS { _flexes :: Int, _tc :: TCState, _substs :: Subst, _axioms :: [(VarName, Kind)] }
+data SolverState = SS { _flexes      :: Int
+                      , _tc          :: TCState
+                      , _substs      :: Subst
+                      , _axioms      :: [(VarName, Kind)]
+                      , _flexOrigins :: IM.IntMap VarOrigin
+                      }
 
 makeLenses ''SolverState
 
 type Solver = StateT SolverState IO
 
 
-runSolver :: Solver a -> Int -> [(VarName, Kind)] -> TC (a, Subst)
-runSolver act i ks = do
+runSolver :: Solver a -> Int -> IM.IntMap VarOrigin -> [(VarName, Kind)] -> TC (a, Subst, IM.IntMap VarOrigin)
+runSolver act i os ks = do
   x <- get
-  (a, SS _ x' s _) <- lift $ runStateT act (SS i x mempty ks)
+  (a, SS _ x' s _ o) <- lift $ runStateT act (SS i x mempty ks os)
   put x'
-  return (a,s)
+  return (a,s,o)
 
 -- Flatten a constraint tree into a set of flat goals
 crunch :: Constraint -> TC [Goal]
@@ -407,14 +413,12 @@ simp (Exhaustive t ps)
   = Exhaustive <$> whnf t
                <*> traverse (traverse (traverse whnf)) ps -- poetry!
 
-fresh :: Solver TCType
-fresh = U <$> (flexes <<%= succ)
+fresh :: VarOrigin -> Solver TCType
+fresh ctx = do
+  i <- flexes <<%= succ
+  flexOrigins %= IM.insert i ctx
+  return $ U i
 
-data Bound = GLB | LUB
-
-instance Show Bound where
-  show GLB = "lower bound"
-  show LUB = "upper bound"
 
 glb = bound GLB
 lub = bound LUB
@@ -443,7 +447,7 @@ bound d a@(FVariant is_) b@(FVariant js_)
     each is js k = let
       (i, ib) = is M.! k
       (_, jb) = js M.! k
-     in do ts <- replicateM (length i) fresh
+     in do ts <- replicateM (length i) (fresh $ BoundOf a b d)
            return (k, (ts, ib `op` jb))
 bound d a@(FRecord isL) b@(F (T (TRecord jsL s)))
   | is <- M.fromList isL
@@ -458,7 +462,7 @@ bound d a@(FRecord is_) b@(FRecord js_)
   , is <- M.union isM jsM
   , js <- M.union jsM isM
   = let op = case d of GLB -> (&&); LUB -> (||)
-        each (f,(_,b)) (_, (_,b')) = (f,) . (,b `op` b') <$> fresh
+        each (f,(_,t)) (_, (_,t')) = (f,) . (,t `op` t') <$> fresh (BoundOf a b d)
         is' = M.toList is
         js' = M.toList js
     in do t <- FRecord <$> zipWithM each is' js'
@@ -490,24 +494,24 @@ bound' d t1@(T (TVariant is)) t2@(T (TVariant js))
     each k = let
       (i, ib) = is M.! k
       (_, jb) = js M.! k
-     in do ts <- replicateM (length i) fresh
+     in do ts <- replicateM (length i) (fresh $ BoundOf (F t1) (F t2) d)
            return (k, (ts, ib `op` jb))
-bound' _ t1@(T (TTuple is)) t2@(T (TTuple js))
+bound' d t1@(T (TTuple is)) t2@(T (TTuple js))
   | length is /= length js = return Nothing
-  | otherwise = do t <- T . TTuple <$> traverse (const fresh) is
+  | otherwise = do t <- T . TTuple <$> traverse (const $ (fresh $ BoundOf (F t1) (F t2) d) ) is
                    traceTC "sol" (text "calculate bound of" <+> pretty t1 <+> text "and" <+> pretty t2 <> colon
                                   P.<$> pretty t)
                    return $ Just t
-bound' _ t1@(T (TFun a b)) t2@(T (TFun c d)) = do
-  t <-  T <$> (TFun <$> fresh <*> fresh)
+bound' x t1@(T (TFun a b)) t2@(T (TFun c d)) = do
+  t <-  T <$> (TFun <$> fresh (BoundOf (F t1) (F t2) x) <*> fresh (BoundOf (F t1) (F t2) x))
   traceTC "sol" (text "calculate bound of" <+> pretty t1 <+> text "and" <+> pretty t2 <> colon
                  P.<$> pretty t)
   return $ Just t
-bound' _ t1@(T (TCon c as s)) t2@(T (TCon d bs r))
+bound' x t1@(T (TCon c as s)) t2@(T (TCon d bs r))
   | c /= d || s /= r       = return Nothing
   | length as /= length bs = return Nothing
   | otherwise = do
-      t <- T <$> (TCon d <$> traverse (const fresh) as <*> pure r)
+      t <- T <$> (TCon d <$> traverse (const $ fresh (BoundOf (F t1) (F t2) x)) as <*> pure r)
       traceTC "sol" (text "calculate bound of" <+> pretty t1 <+> text "and" <+> pretty t2 <> colon
                      P.<$> pretty t)
       return $ Just t
@@ -520,7 +524,7 @@ bound' d t1@(T (TRecord fs s)) t2@(T (TRecord gs r))
   | map fst fs /= map fst gs = return Nothing
   | otherwise = do
       let op = case d of GLB -> (&&); LUB -> (||)
-          each (f,(_,b)) (_, (_,b')) = (f,) . (,b `op` b') <$> fresh
+          each (f,(_,b)) (_, (_,b')) = (f,) . (,b `op` b') <$> fresh (BoundOf (F t1) (F t2) d)
       t <- T <$> (TRecord <$> zipWithM each fs gs <*> pure s)
       traceTC "sol" (text "calculate bound of" <+> pretty t1 <+> text "and" <+> pretty t2 <> colon
                      P.<$> pretty t)
@@ -626,13 +630,6 @@ classify g = case g of
   where
     rigid (F (U x)) = False
     rigid _ = True
-
-flexOf (U x) = Just x
-flexOf (T (TTake _ v)) = flexOf v
-flexOf (T (TPut  _ v)) = flexOf v
-flexOf (T (TBang v))   = flexOf v
-flexOf (T (TUnbox v))  = flexOf v
-flexOf _ = Nothing
 
 -- Push type information down from the RHS of :< to the LHS
 -- Expects a series of goals of the form U x :< tau
@@ -781,9 +778,10 @@ solve = zoom tc . crunch >=> explode >=> go
     go g | not (irreducible (fmap GS.toList $ ups   g) (upflexes   g)) = go' g UpClass
     go g | not (M.null (downcastables g)) = go' g DowncastClass
     go g | not (M.null (upcastables   g)) = go' g UpcastClass
-    go g | not (null (rest g)) =
-      let f (Goal c x) = (c, UnsolvedConstraint x)
-      in  return $ map f (rest g)
+    go g | not (null (rest g)) = do
+      os <- use flexOrigins
+      let f (Goal c x) = (c, UnsolvedConstraint x os)
+      return $ map f (rest g)
     go _ = return []
 
     go' :: GoalClasses -> GoalClass -> Solver [ContextualisedError]
