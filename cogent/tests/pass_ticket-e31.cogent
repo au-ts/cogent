@@ -12,7 +12,7 @@ get_Obj : () -> Obj
 type ObjAddr
 index_get_addr : () -> ObjAddr
 
-success : all (a, b). a -> R a b
+success : all (b, a). a -> R a b
 success a = Success a
 
 ostore_read: OstoreState -> RR OstoreState Obj ()
@@ -20,8 +20,16 @@ ostore_read ostore_st =
   let addr = index_get_addr ()
   and (ostore_st, r) = 
      let obj = get_Obj ()
-      in (ostore_st, success obj)
+      in (ostore_st, success[U8] obj)
   in r
   | Success obj -> let _ = deep_freeObj obj in (ostore_st, Error)
   | Error -> (ostore_st, Error)
 
+{--------------------------------------
+     [Notes 21/11/16 by zilinc]
+1. We don't have polymorphic let-binding, thus the free type var `b' is something we never know.
+Workaround: apply the type argumenet. can be anything, really.
+2. We don't guess when infering variant types that could be ambiguous. e.g. <A t1 | B t2> vs.
+<A t1 | B t2 | C t3> take C.
+Workaround: apply type arguments. The trick recorded in #31 also helps, but ends up in 1.
+--------------------------------------}
