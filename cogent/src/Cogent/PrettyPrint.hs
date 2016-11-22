@@ -468,8 +468,6 @@ analyseLeftover c os = case c of
   where msg i m = vcat $ err "Constraint " <> pretty c <> err " can't be solved as it constrains an unknown."
                 : [warn "-- The unknown" <+> pretty (U i) <+> warn "originates from" <+> pretty (I.lookup i os)
                   ,err "The constraint was emitted as" <+> pretty m]
-  
->>>>>>> Better error messages than “Leftover constraint!” in many scenarios.
 instance Pretty TypeWarning where
   pretty DummyWarning = __fixme $ warn "WARNING: dummy"
 

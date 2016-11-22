@@ -14,12 +14,12 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module COGENT.TypeCheck.GoalSet where
+module Cogent.TypeCheck.GoalSet where
 
 import           Control.Lens hiding ((:<))
 import qualified Data.Map as M
-import           COGENT.TypeCheck.Base
-import           COGENT.PrettyPrint
+import           Cogent.TypeCheck.Base
+import           Cogent.PrettyPrint
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
 import qualified Data.Foldable as F

@@ -9,7 +9,8 @@
 --
 
 {-# LANGUAGE TupleSections #-}
-module Cogent.TypeCheck.Post where (
+
+module Cogent.TypeCheck.Post (
   postA, postE, postT
 ) where
 
