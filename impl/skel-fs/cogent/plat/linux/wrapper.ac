@@ -13,3 +13,13 @@ $esc:(#include <wrapper.h>)
 
 #include <abstract.h>
 #include <generated.c>
+
+
+static int skelfs_fill_super(struct super_block *sb, void *data, int silent)
+{
+        int err = -EINVAL;
+
+        /* XXX: Implement this. */
+
+        return err;
+}
