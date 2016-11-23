@@ -307,6 +307,10 @@ cg' (Match e bs alts) top = do
 integral :: TCType -> Constraint
 integral a = Upcastable (T (TCon "U8" [] Unboxed)) a
 
+
+dropConstraintFor :: M.Map VarName (C.Row TCType) -> Constraint
+dropConstraintFor m = foldMap (\(i, (t,x,p)) -> maybe (Drop t (Unused i x)) (const Sat) p) $ M.toList m
+
 cgAlts :: (?loc :: SourcePos) => [Alt VarName LocExpr] -> TCType -> TCType -> CG (Constraint, [Alt TCName TCExpr])
 cgAlts alts top alpha = do
   let
@@ -316,8 +320,8 @@ cgAlts alts top alpha = do
       (s, c, p') <- matchA p t
       context %= C.addScope s
       (c', e') <- cg e top
-      context %= C.dropScope
-      return (removeCase p t, (c <> c', Alt p' like e'))
+      rs <- context %%= C.dropScope
+      return (removeCase p t, (c <> c' <> dropConstraintFor rs, Alt p' like e'))
 
     jobs = map (\(n, alt) -> (NthAlternative n (altPattern alt), f alt)) (zip [1..] alts)
 
@@ -444,9 +448,9 @@ withBindings (Binding pat tau e bs : xs) a = do
   (s, cp, pat') <- match pat alpha'
   context %= C.addScope s
   (c', xs', r) <- withBindings xs a
-  context %= C.dropScope
+  rs <- context %%= C.dropScope
 
-  let c = ct <> c1 <> c' <> cp
+  let c = ct <> c1 <> c' <> cp <> dropConstraintFor rs
       b' = Binding pat' (fmap (const alpha) tau) e' bs
   traceTC "gen" (text "bound expression" <+> pretty e' <+> text "with banged" <+> pretty bs
            L.<$> text "of type" <+> pretty alpha <> semi

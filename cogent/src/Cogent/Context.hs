@@ -52,9 +52,11 @@ use v loc (Context xs) = Context (go xs)
 addScope :: M.Map VarName (Row t) -> Context t -> Context t
 addScope m (Context ms) = Context (m:ms)
 
-dropScope :: Context t -> Context t
-dropScope (Context (m:ms)) = Context ms
-dropScope (Context [])     = Context []
+
+
+dropScope :: Context t -> (M.Map VarName (Row t), Context t)
+dropScope (Context (m:ms)) = (m, Context ms)
+dropScope (Context [])     = error "dropScope of empty context!"
 
 mode' :: M.Map VarName x -> [VarName] -> (x -> x) -> (M.Map VarName x, M.Map VarName x -> M.Map VarName x)
 mode' c vs f =
