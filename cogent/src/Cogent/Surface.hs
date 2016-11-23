@@ -55,7 +55,7 @@ data Inline = Inline
 data Expr t pv e = PrimOp OpName [e]
                  | Var VarName
                  | Match e [VarName] [Alt pv e]
-                 | TypeApp VarName [t] Inline
+                 | TypeApp FunName [Maybe t] Inline
                  | Con TagName [e]
                  | Seq e e
                  | App e e
@@ -185,7 +185,7 @@ instance Functor (Flip2 Expr p e) where
   fmap f x = runIdentity (traverse (Identity . f) x)
 instance Traversable (Flip2 Expr p e) where
   traverse f (Flip2 (Let bs e))         = Flip2 <$> (Let <$> traverse (tttraverse f) bs <*> pure e)
-  traverse f (Flip2 (TypeApp v ts nt))  = Flip2 <$> (TypeApp v <$> traverse f ts <*> pure nt)
+  traverse f (Flip2 (TypeApp v ts nt))  = Flip2 <$> (TypeApp v <$> traverse (traverse f) ts <*> pure nt)
   traverse _ (Flip2 (Match e v alt))    = pure $ Flip2 (Match e v alt)
   traverse _ (Flip2 (PrimOp op e))      = pure $ Flip2 (PrimOp op e)
   traverse _ (Flip2 (Var v))            = pure $ Flip2 (Var v)

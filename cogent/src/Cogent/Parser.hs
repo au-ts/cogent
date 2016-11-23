@@ -150,7 +150,10 @@ basicExpr' = avoidInitial >> buildExpressionParser
   where binary name = Infix (reservedOp name *> pure (\a b -> LocExpr (posOfE a) (PrimOp name [a,b])))
 
         term = avoidInitial >> (LocExpr <$> getPosition <*>
-                  (var <$> optionMaybe (reserved "inline") <*> variableName <*> optionMaybe (brackets (commaSep1 monotype))
+                  (var <$> optionMaybe (reserved "inline")
+                       <*> variableName
+                       <*> optionMaybe (brackets (commaSep1 ((char '_' >> return Nothing)
+                                                         <|> (Just <$> monotype))))
                <|> BoolLit <$> boolean
                <|> Con <$> typeConName <*> many term
                <|> IntLit <$> natural

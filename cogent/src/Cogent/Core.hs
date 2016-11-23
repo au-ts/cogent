@@ -71,7 +71,7 @@ data FunNote = NoInline | InlineMe | MacroCall | InlinePlease  -- order is impor
 
 data Expr t v a e
   = Variable (Fin v, a)
-  | Fun FunName [Type t] FunNote
+  | Fun FunName [Type t] FunNote  -- here do we want to keep partial application and infer again? / zilinc
   | Op Op [e t v a]
   | App (e t v a) (e t v a)
   | Con TagName (e t v a)

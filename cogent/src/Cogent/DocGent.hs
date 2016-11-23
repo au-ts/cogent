@@ -166,7 +166,7 @@ data Type t =
 -}
 
 data DocExpr = DE { unDE :: Expr RawType VarName DocExpr }
-             | DocFnCall VarName [RawType] Inline deriving Show
+             | DocFnCall FunName [Maybe RawType] Inline deriving Show
 
 instance ExprType DocExpr where
   levelExpr (DE e) = levelExpr e

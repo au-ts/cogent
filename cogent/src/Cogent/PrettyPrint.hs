@@ -9,7 +9,7 @@
 -- @TAG(NICTA_GPL)
 --
 
-{-# LANGUAGE FlexibleInstances, FlexibleContexts, MultiWayIf, ViewPatterns #-}
+{-# LANGUAGE FlexibleInstances, FlexibleContexts, LambdaCase, MultiWayIf, ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-orphans -fno-warn-missing-signatures #-}
 
 module Cogent.PrettyPrint where
@@ -221,7 +221,8 @@ instance Pretty Inline where
 
 instance (ExprType e, Pretty t, PrettyName pv, Pretty e) => Pretty (Expr t pv e) where
   pretty (Var x)             = varname x
-  pretty (TypeApp x ts note) = pretty note <> varname x <> typeargs (map pretty ts)
+  pretty (TypeApp x ts note) = pretty note <> varname x
+                                 <> typeargs (map (\case Nothing -> symbol "_"; Just t -> pretty t) ts)
   pretty (Member x f)        = pretty' 1 x <> symbol "." <> fieldname f
   pretty (IntLit i)          = literal (string $ show i)
   pretty (BoolLit b)         = literal (string $ show b)
