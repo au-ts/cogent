@@ -32,38 +32,38 @@ type Buffer = {
     wellformed_buf: wordarray_length buf.data >= buf.bound
 -}
 {-# cinline newBuffer #-}
-newBuffer: (ExState) -> R (ExState, Buffer take (..)) ExState
+newBuffer: ExState -> R (ExState, Buffer take (..)) ExState
 {-# cinline freeBuffer #-}
 freeBuffer: (ExState, Buffer take (..)) -> ExState
 
 {-# cinline buf_create #-}
 buf_create: (ExState, U32) -> R (ExState, Buffer) ExState
-buf_create(ex, buffer_length) =
-  wordarray_create[U8](ex, buffer_length)
+buf_create (ex, buffer_length) =
+  wordarray_create (ex, buffer_length)
   | Error ex -> Error ex
   | Success (ex, data) ->
-      newBuffer(ex)
+      newBuffer ex
       | Success (ex, buf) ->
          Success (ex, buf {data, bound=buffer_length})
       | Error ex ->
-         Error (wordarray_free[U8](ex, data))
+         Error (wordarray_free (ex, data))
 
 {-# cinline buf_free #-}
 buf_free: (ExState, Buffer) -> (ExState)
 buf_free(ex, buf {data,bound}) =
-  let ex = wordarray_free[U8] (ex, data)
+  let ex = wordarray_free (ex, data)
   in freeBuffer(ex, buf)
 
 {-# cinline buf_length #-}
 buf_length: Buffer! -> U32
-buf_length(buf) = wordarray_length[U8](buf.data)
+buf_length buf = wordarray_length (buf.data)
 
 {-# cinline buf_set_bound #-}
 buf_set_bound: (Buffer, BufOffs) -> R Buffer Buffer
-buf_set_bound(buf,newbound) =
+buf_set_bound (buf,newbound) =
 -- This returns an error if @newbound > buf_length(buf), no ErrCode because
 -- there is only one error possible.
-  let len = buf_length(buf) !buf in
+  let len = buf_length buf !buf in
     if newbound > len then
       Error buf
     else
@@ -72,17 +72,16 @@ buf_set_bound(buf,newbound) =
 
 {-# cinline buf_bound #-}
 buf_bound: Buffer! -> BufOffs
-buf_bound(buf) = buf.bound
+buf_bound buf = buf.bound
 
 {-# cinline buffer_memset_loop #-}
-buffer_memset_loop:(#{elem: U8, acc: (), obsv: U8}) -> (U8, ())
-buffer_memset_loop(#{elem=_, acc=_, obsv = val}) =
-  (val, ())
+buffer_memset_loop: #{elem: U8, acc: (), obsv: U8} -> (U8, ())
+buffer_memset_loop #{elem=_, acc=_, obsv = val} = (val, ())
 
 {-# cinline buf_memset #-}
 buf_memset: (Buffer, U32, U32, U8) -> Buffer
 --buf_memset(buf {data}, offs, len, val) =
---  let map = wordarray_map_no_break[U8, (), U8] 
+--  let map = wordarray_map_no_break
 --  and end_offs = (if offs+len < buf.bound then offs+len else buf.bound) !buf
 --  and (data,_) = map #{arr=data, frm=offs, to=end_offs, f=buffer_memset_loop, acc=(), obsv=val}
 --  in buf {data}
@@ -90,5 +89,5 @@ buf_memset: (Buffer, U32, U32, U8) -> Buffer
 buf_memset (buf {data}, frm, len, val) =
   let frm = (if frm < buf.bound then frm else buf.bound) !buf
   and len = (if frm+len < buf.bound then len else buf.bound - frm) !buf
-  and data = wordarray_set[U8] (data, frm, len, val)
-  in buf { data }
+  and data = wordarray_set (data, frm, len, val)
+  in buf {data}

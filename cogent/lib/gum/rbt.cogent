@@ -22,7 +22,7 @@ freeOptRbtNode(ex, optnode) =
   optnode
   | None () -> ex
   | Some node ->
-    freeRbtNode[k,v](ex, node)
+    freeRbtNode (ex, node)
 
 {-# cinline rbtnode_get_key #-}
 rbtnode_get_key: all(k:< DS, v:<DS). (RbtNode k v)! -> k
