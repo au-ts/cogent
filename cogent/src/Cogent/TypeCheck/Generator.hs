@@ -33,6 +33,7 @@ import Cogent.Util hiding (Warning)
 import Control.Arrow (first, second)
 import Control.Lens hiding (Context, (:<))
 import Control.Monad.State
+import Data.Functor.Compose
 import qualified Data.Map as M
 import qualified Data.IntMap as IM
 import Data.Maybe (catMaybes, isNothing, isJust)
@@ -228,23 +229,25 @@ cg' (Seq e1 e2) t = do
 
 cg' (TypeApp f as i) t = do
   tvs <- use knownTypeVars
-  (c,as') <- zoom tc (validateTypes' tvs (map stripLocT as)) >>= \case
+  (c,as') <- zoom tc (validateTypes' tvs (fmap stripLocT $ Compose as)) >>= \case
     Left e -> return (Unsat e, [])
-    Right as -> return (Sat, as)
+    Right ts -> return (Sat, getCompose ts)
   use (tc.knownFuns.at f) >>= \case
 
     Just (PT vs tau) -> let
-        match [] []     = return ([], Sat)
-        match [] (a:as) = return ([], Unsat (TooManyTypeArguments f (PT vs tau)))
-        match vs []     = fresh >>= match vs . return
-        match ((v, k):vs) (a:as) = do
+        match :: [(TyVarName, Kind)] -> [Maybe TCType] -> CG ([(TyVarName, TCType)], Constraint)
+        match [] []    = return ([], Sat)
+        match [] (_:_) = return ([], Unsat (TooManyTypeArguments f (PT vs tau)))
+        match vs []    = fresh >>= match vs . return . Just
+        match (v:vs) (Nothing:as) = fresh >>= \a -> match (v:vs) (Just a:as)
+        match ((v,k):vs) (Just a:as) = do
           (ts, c) <- match vs as
           return ((v,a):ts, kindToConstraint k a (TypeParam f v) <> c)
       in do
         (ts,c') <- match vs as'
 
         let c = F (substType ts tau) :< F t
-            e = TypeApp f (map snd ts) i
+            e = TypeApp f (map (Just . snd) ts) i
         traceTC "gen" (text "cg for typeapp:" <+> prettyE e
                  L.<$> text "of type" <+> pretty t <> semi
                  L.<$> text "type signature is" <+> pretty (PT vs tau) <> semi
@@ -306,7 +309,6 @@ cg' (Match e bs alts) top = do
 
 integral :: TCType -> Constraint
 integral a = Upcastable (T (TCon "U8" [] Unboxed)) a
-
 
 dropConstraintFor :: M.Map VarName (C.Row TCType) -> Constraint
 dropConstraintFor m = foldMap (\(i, (t,x,p)) -> maybe (Drop t (Unused i x)) (const Sat) p) $ M.toList m

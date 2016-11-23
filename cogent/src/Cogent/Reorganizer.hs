@@ -18,9 +18,11 @@ import Cogent.Common.Syntax
 import Cogent.Compiler (__impossible)
 import Cogent.Surface
 import Cogent.Util
+
 import Control.Arrow
 import Control.Monad (forM)
 import Data.Foldable hiding (notElem)
+import Data.Functor.Compose
 import qualified Data.Graph.Wrapper as G
 import qualified Data.Map as M
 import qualified Data.Maybe as Maybe
@@ -46,7 +48,7 @@ fcA (Alt _ _ e) = fcE e
 fcE :: RawExpr -> [TagName]
 fcE (RE (Let bs e)) = fcE e ++ foldMap fcB bs
 fcE (RE (Match e _ as)) = fcE e ++ foldMap fcA as
-fcE (RE (TypeApp _ ts _)) = foldMap fcT ts
+fcE (RE (TypeApp _ ts _)) = foldMap fcT (Compose ts)
 fcE (RE e) = foldMap fcE e
 
 fvE :: RawExpr -> [VarName]

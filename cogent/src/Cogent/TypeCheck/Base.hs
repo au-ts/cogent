@@ -215,7 +215,7 @@ validateType vs (RT t) = do
 validateType' :: [VarName] -> RawType -> TC (Either TypeError TCType)
 validateType' vs r = runExceptT (validateType vs r)
 
-validateTypes' :: [VarName] -> [RawType] -> TC (Either TypeError [TCType])
+validateTypes' :: (Traversable t) => [VarName] -> t RawType -> TC (Either TypeError (t TCType))
 validateTypes' vs rs = runExceptT (traverse (validateType vs) rs)
 
 -- Remove a pattern from a type, for case expressions.

@@ -190,7 +190,7 @@ withLinking s t = case lookup t s of
   where file p = fileNameFor p
 
 data DocExpr = DE { unDE :: Expr RawType VarName DocExpr }
-             | DocFnCall VarName [RawType] Inline deriving Show
+             | DocFnCall FunName [Maybe RawType] Inline deriving Show
 
 instance ExprType DocExpr where
   levelExpr (DE e) = levelExpr e
