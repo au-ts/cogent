@@ -112,7 +112,7 @@ cg' (PrimOp o _) t = error "impossible"
 cg' (Var n) t = do
   ctx <- use context
   let e = Var n
-  traceTC "gen" (text "cg for variable:" <+> prettyE e L.<$> text "of type" <+> pretty t)
+  traceTC "gen" (text "cg for variable" <+> pretty n L.<$> text "of type" <+> pretty t)
   case C.lookup n ctx of
     -- Variable not found, see if the user meant a function.
     Nothing ->
@@ -482,7 +482,11 @@ letBang bs x t = do
   context .= ctx'
   (c', e) <- x t
   context %= undo
-  return (c <> c' <> Escape t UsedInLetBang, e)
+  let c'' = Escape t UsedInLetBang
+  traceTC "gen" (text "let!" <+> pretty bs <+> text "when cg for expression" <+> pretty e
+           L.<$> text "of type" <+> pretty t <> semi
+           L.<$> text "generate constraint" <+> prettyC c'')
+  return (c <> c' <> c'', e)
 
 validateVariable :: VarName -> CG Constraint
 validateVariable v = do
