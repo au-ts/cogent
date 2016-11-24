@@ -53,7 +53,8 @@ data TypeError = FunctionNotFound VarName
                | RequiredTakenTag TagName
                deriving (Eq, Show, Ord)
 
-data TypeWarning = DummyWarning
+data TypeWarning = UnusedLocalBind VarName
+                 deriving (Eq, Show, Ord)
 
 -- FIXME: More fine-grained context is appreciated. e.g., only show alternatives that don't unify / zilinc
 data ErrorContext = InExpression LocExpr TCType
@@ -89,7 +90,8 @@ isCtxConstraint (SolvingConstraint _) = True
 isCtxConstraint _ = False
 
 -- high-level context at the end of the list
-type ContextualisedError = ([ErrorContext], TypeError)
+type ContextualisedError   = ([ErrorContext], TypeError  )
+type ContextualisedWarning = ([ErrorContext], TypeWarning)
 
 data TypeFragment a = F a
                     | FRecord [(FieldName, (a, Taken))]
@@ -149,7 +151,6 @@ data Metadata = Reused { varName :: VarName, boundAt :: SourcePos, usedAt :: Sou
               | Constant { varName :: VarName }
               deriving (Eq, Show, Ord)
 
-
 data Constraint = (:<) (TypeFragment TCType) (TypeFragment TCType)
                 | (:&) Constraint Constraint
                 | Upcastable TCType TCType
@@ -158,6 +159,7 @@ data Constraint = (:<) (TypeFragment TCType) (TypeFragment TCType)
                 | Escape TCType Metadata
                 | (:@) Constraint ErrorContext
                 | Unsat TypeError
+                | SemiSat TypeWarning
                 | Sat
                 | Exhaustive TCType [Pattern TCName]
                 deriving (Eq, Show, Ord)

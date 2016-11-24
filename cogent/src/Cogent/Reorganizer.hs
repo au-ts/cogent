@@ -111,14 +111,15 @@ checkNoNameClashes ((s,d):xs) bindings
                  in checkNoNameClashes xs bindings'
   where msg = case s of TypeName _ -> DuplicateTypeDefinition; ValName _ -> DuplicateValueDefinition; DocBlock' _ -> error "WTF just happened"
 
+-- Note: it doesn't make much sense to check for unused definitions as they may be used
+-- by the FFI. / zilinc
 reorganize :: [(SourcePos, DocString, TopLevel LocType VarName LocExpr)]
            -> Either (ReorganizeError, [(SourceObject, SourcePos)]) [(SourcePos, DocString, TopLevel LocType VarName LocExpr)]
 reorganize bs = do let m = classify bs
                        cs = G.stronglyConnectedComponents (dependencyGraph m)
                    checkNoNameClashes (map (second fst3) m) M.empty
                    forM cs $ \case
-                     G.AcyclicSCC i -> Right $ Maybe.fromJust $ lookup i m  -- TODO: don't lookup here, keep i. Then outside this for-loop, do
-                                                                            --       a reachability test to find unused definitions / zilinc
+                     G.AcyclicSCC i -> Right $ Maybe.fromJust $ lookup i m
                      G.CyclicSCC is -> Left  $ (CyclicDependency, map (id &&& getSourcePos m) is)
   where getSourcePos m i | Just (p,_,_) <- lookup i m = p
                          | otherwise = __impossible "getSourcePos (in reorganize)"

@@ -470,7 +470,7 @@ analyseLeftover c os = case c of
                 : [warn "-- The unknown" <+> pretty (U i) <+> warn "originates from" <+> pretty (I.lookup i os)
                   ,err "The constraint was emitted as" <+> pretty m]
 instance Pretty TypeWarning where
-  pretty DummyWarning = __fixme $ warn "WARNING: dummy"
+  pretty (UnusedLocalBind v) = warn "Defined but not used:" <+> pretty v
 
 instance (Pretty a, TypeType a) => Pretty (TypeFragment a) where
   pretty (F t) = pretty t & (if __cogent_fdisambiguate_pp then (<+> comment "{- F -}") else id)
@@ -490,6 +490,7 @@ instance Pretty Constraint where
   pretty (Drop   t m)     = warn "Drop" <+> pretty t
   pretty (Escape t m)     = warn "Escape" <+> pretty t
   pretty (Unsat e)        = err  "Unsat"
+  pretty (SemiSat w)      = warn "SemiSat"
   pretty (Sat)            = warn "Sat"
   pretty (Exhaustive t p) = warn "Exhaustive" <+> pretty t <+> pretty p
   pretty (x :@ _)         = pretty x
@@ -497,6 +498,7 @@ instance Pretty Constraint where
 -- a more verbose version of constraint pretty-printer which is mostly used for debugging
 prettyC :: Constraint -> Doc
 prettyC (Unsat e) = errbd "Unsat" <$> pretty e
+prettyC (SemiSat w) = warn "SemiSat" -- <$> pretty w
 prettyC (a :& b) = prettyC a </> warn ":&" <$> prettyC b
 prettyC (c :@ e) = prettyC c & (if __cogent_ddump_tc_ctx then (</> prettyCtx e False) else id)
 prettyC c = pretty c
