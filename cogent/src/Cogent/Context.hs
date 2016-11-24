@@ -30,6 +30,7 @@ import Prelude hiding (lookup)
 import Text.Parsec.Pos
 
 type Row t = (t, SourcePos, Maybe SourcePos)
+--                            ^------ the location where it's first used
 newtype Context t = Context [M.Map VarName (Row t)]
 
 empty :: Context t
@@ -45,14 +46,12 @@ contains (Context xs) v = any (M.member v) xs
 
 use :: VarName -> SourcePos -> Context t -> Context t
 use v loc (Context xs) = Context (go xs)
-  where go (x:xs) | M.member v x = M.adjust (\(t, p, p') -> (t, p, Just loc)) v x:xs
+  where go (x:xs) | M.member v x = M.adjust (\(t, p, _) -> (t, p, Just loc)) v x:xs
                   | otherwise    = x:go xs
         go [] = []
 
 addScope :: M.Map VarName (Row t) -> Context t -> Context t
 addScope m (Context ms) = Context (m:ms)
-
-
 
 dropScope :: Context t -> (M.Map VarName (Row t), Context t)
 dropScope (Context (m:ms)) = (m, Context ms)

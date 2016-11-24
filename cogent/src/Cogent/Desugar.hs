@@ -31,7 +31,7 @@ module Cogent.Desugar where
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler
-import Cogent.Core hiding (withBinding, withBindings)
+import Cogent.Core
 import Cogent.PrettyPrint ()
 import qualified Cogent.Surface as S
 import qualified Cogent.TypeCheck.Base as B

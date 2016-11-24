@@ -18,7 +18,7 @@ module Cogent.TypeCheck.Solver (runSolver, solve) where
 
 import           Cogent.Common.Syntax
 import           Cogent.Common.Types
-import           Cogent.PrettyPrint (prettyC, prettyCtx)
+import           Cogent.PrettyPrint (prettyC)
 import           Cogent.Surface
 import           Cogent.TypeCheck.Base
 import qualified Cogent.TypeCheck.Subst as Subst
@@ -34,7 +34,6 @@ import qualified Data.Foldable as F
 import           Data.Function (on)
 --import qualified Data.List as L
 import           Data.List (elemIndex)
-
 import qualified Data.Map as M
 import qualified Data.IntMap as IM
 import           Data.Maybe
@@ -376,12 +375,12 @@ parVariants n m ks =
       cs  = map (\k -> each k (n M.! k) (m M.! k)) ks'
   in return . Just $ mconcat cs
 
-putVariant [] vs es = (vs,es)
-putVariant (f:fs) vs es | f `M.member` vs = putVariant fs (M.adjust (\(t,b) -> (t, True)) f vs ) es
-                        | otherwise       = putVariant fs vs (M.insertWith (||) f True es)
-takeVariant [] vs es = (vs,es)
-takeVariant (f:fs) vs es | f `M.member` vs = takeVariant fs (M.adjust (\(t,b) -> (t, False)) f vs ) es
-                         | otherwise       = takeVariant fs vs (M.insertWith (&&) f False es)
+-- putVariant [] vs es = (vs,es)
+-- putVariant (f:fs) vs es | f `M.member` vs = putVariant fs (M.adjust (\(t,b) -> (t, True)) f vs ) es
+--                         | otherwise       = putVariant fs vs (M.insertWith (||) f True es)
+-- takeVariant [] vs es = (vs,es)
+-- takeVariant (f:fs) vs es | f `M.member` vs = takeVariant fs (M.adjust (\(t,b) -> (t, False)) f vs ) es
+--                          | otherwise       = takeVariant fs vs (M.insertWith (&&) f False es)
 
 apply :: (Constraint -> TC Constraint) -> [Goal] -> TC [Goal]
 apply tactic = fmap concat . mapM each
@@ -555,9 +554,6 @@ glbGuess = primGuess GLB
 lubGuess = primGuess LUB
 
 
-
-
-
 -- A simple classification scheme for soluble flex/rigid constraints
 data GoalClasses
   = Classes
@@ -566,6 +562,7 @@ data GoalClasses
     , upcastables :: M.Map Int GoalSet
     , downcastables :: M.Map Int GoalSet
     , unsats :: [Goal]
+    , semisats :: [Goal]
     , rest :: [Goal]
     , upflexes :: S.Set Int
     , downflexes :: S.Set Int
@@ -772,8 +769,8 @@ data GoalClass = UpClass | DownClass | UpcastClass | DowncastClass
 solve :: Constraint -> Solver [ContextualisedError]
 solve = zoom tc . crunch >=> explode >=> go
   where
-    go :: GoalClasses -> Solver [ContextualisedError]
-    go g | not (null (unsats g)) = return $ map toError (unsats g)
+    go :: GoalClasses -> Solver ([ContextualisedError], [ContextualisedWarning])
+    go g | not (null (unsats g)) = return $ map (\(Goal ctx (Unsat e)) -> (ctx, e)) (unsats g)
     go g | not (irreducible (fmap GS.toList $ downs g) (downflexes g)) = go' g DownClass
     go g | not (irreducible (fmap GS.toList $ ups   g) (upflexes   g)) = go' g UpClass
     go g | not (M.null (downcastables g)) = go' g DowncastClass
@@ -784,7 +781,7 @@ solve = zoom tc . crunch >=> explode >=> go
       return $ map f (rest g)
     go _ = return []
 
-    go' :: GoalClasses -> GoalClass -> Solver [ContextualisedError]
+    go' :: GoalClasses -> GoalClass -> Solver ([ContextualisedError], [ContextualisedWarning])
     go' g c = do
       let (msg, f, cls, g'', flexes) = case c of
             UpClass       -> ("upward"  , suggest    , ups          , g { ups           = M.empty }, upflexes)
@@ -804,9 +801,5 @@ solve = zoom tc . crunch >=> explode >=> go
       else do
           applySubst s
           instantiate g >>= explode >>= go
-
-    toError :: Goal -> ContextualisedError
-    toError (Goal ctx (Unsat e)) = (ctx, e)
-    toError _ = error "impossible"
 
     removeKeys = foldr M.delete
