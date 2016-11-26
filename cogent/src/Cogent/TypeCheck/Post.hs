@@ -28,42 +28,42 @@ import Control.Monad.Except
 import qualified Data.Map as M
 import Text.PrettyPrint.ANSI.Leijen as P hiding ((<$>))
 
-postT :: [ErrorContext] -> TCType -> ExceptT [ContextualisedError] TC RawType
+postT :: [ErrorContext] -> TCType -> ExceptT [ContextualisedEW] TC RawType
 postT ctx t = do
   d <- use knownTypes
   traceTC "post" (text "type" <+> pretty t)
-  withExceptT (pure . (ctx,)) $ ExceptT (return $ fmap toRawType $ normaliseT d t)
+  withExceptT (pure . (ctx,) . Left) $ ExceptT (return $ fmap toRawType $ normaliseT d t)
 
-postE :: [ErrorContext] -> TCExpr -> ExceptT [ContextualisedError] TC TypedExpr
+postE :: [ErrorContext] -> TCExpr -> ExceptT [ContextualisedEW] TC TypedExpr
 postE ctx e = do
   d <- use knownTypes
   traceTC "post" (text "expression" <+> pretty e)
   withExceptT pure $ ExceptT (return $ fmap toTypedExpr $ normaliseE d e)
 
-postA :: [ErrorContext] -> [Alt TCName TCExpr] -> ExceptT [ContextualisedError] TC [Alt TypedName TypedExpr]
+postA :: [ErrorContext] -> [Alt TCName TCExpr] -> ExceptT [ContextualisedEW] TC [Alt TypedName TypedExpr]
 postA ctx as = do
   d <- use knownTypes
   traceTC "post" (text "alternative" <+> pretty as)
   withExceptT pure $ ExceptT (return $ fmap toTypedAlts $ normaliseA d as)
 
--- posttc :: TypeDict -> TCExpr -> Either ContextualisedError TypedExpr
+-- posttc :: TypeDict -> TCExpr -> Either ContextualisedEW TypedExpr
 -- posttc d = fmap toTypedExpr . normaliseE d
 
 
-normaliseA :: TypeDict -> [Alt TCName TCExpr] -> Either ContextualisedError [Alt TCName TCExpr]
+normaliseA :: TypeDict -> [Alt TCName TCExpr] -> Either ContextualisedEW [Alt TCName TCExpr]
 normaliseA d as = traverse (traverse (normaliseE d) >=> ttraverse (traverse f)) as
   where f = contextualise . normaliseT d
 
-normaliseE :: TypeDict -> TCExpr -> Either ContextualisedError TCExpr
+normaliseE :: TypeDict -> TCExpr -> Either ContextualisedEW TCExpr
 normaliseE d te@(TE t e p) = case normaliseE' d e of
   Left (es,c) -> Left (ctx:es, c)
   Right e'    -> case normaliseT d t of
-    Left  er -> Left  ([ctx], er)
+    Left  er -> Left  ([ctx], Left er)
     Right t' -> Right (TE t' e' p)
   where
     ctx = InExpression (toLocExpr (toLocType) te) t
 
-normaliseE' :: TypeDict -> Expr TCType TCName TCExpr -> Either ContextualisedError (Expr TCType TCName TCExpr)
+normaliseE' :: TypeDict -> Expr TCType TCName TCExpr -> Either ContextualisedEW (Expr TCType TCName TCExpr)
 normaliseE' d =   traverse (normaliseE d)
               >=> ttraverse (traverse (contextualise . normaliseT d))
               >=> tttraverse (contextualise . normaliseT d)
@@ -127,7 +127,7 @@ normaliseT d (T (TCon n ts b)) = do
 normaliseT d (U x) = error ("Panic: invalid type to normaliseT (?" ++ show x ++ ")")
 normaliseT d (T x) = T <$> traverse (normaliseT d) x
 
-contextualise :: Either TypeError x -> Either ContextualisedError x
-contextualise (Left e) = Left ([],e)
+contextualise :: Either TypeError x -> Either ContextualisedEW x
+contextualise (Left e) = Left ([],Left e)
 contextualise (Right v) = Right v
 
