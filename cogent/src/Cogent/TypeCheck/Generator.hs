@@ -32,6 +32,7 @@ import Cogent.Util hiding (Warning)
 
 import Control.Arrow (first, second)
 import Control.Lens hiding (Context, (:<))
+import Control.Monad.Except
 import Control.Monad.State
 import Data.Functor.Compose
 import qualified Data.Map as M
@@ -502,3 +503,11 @@ validateVariable v = do
 
 prettyE :: Expr TCType TCName TCExpr -> Doc
 prettyE = pretty
+
+
+validateType' :: [VarName] -> RawType -> TC (Either TypeError TCType)
+validateType' vs r = runExceptT (validateType vs r)
+
+validateTypes' :: (Traversable t) => [VarName] -> t RawType -> TC (Either TypeError (t TCType))
+validateTypes' vs rs = runExceptT (traverse (validateType vs) rs)
+

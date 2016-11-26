@@ -18,6 +18,7 @@ module Cogent.TypeCheck.Solver (runSolver, solve) where
 
 import           Cogent.Common.Syntax
 import           Cogent.Common.Types
+import           Cogent.Compiler (__impossible)
 import           Cogent.PrettyPrint (prettyC)
 import           Cogent.Surface
 import           Cogent.TypeCheck.Base
@@ -407,6 +408,7 @@ simp (Drop   t m)     = Drop       <$> whnf t <*> pure m
 simp (Escape t m)     = Escape     <$> whnf t <*> pure m
 simp (a :@ c)         = (:@)       <$> simp a <*> pure c
 simp (Unsat e)        = pure (Unsat e)
+simp (SemiSat w)      = pure (SemiSat w)
 simp Sat              = pure Sat
 simp (Exhaustive t ps)
   = Exhaustive <$> whnf t
@@ -569,7 +571,7 @@ data GoalClasses
     }
 
 instance Show GoalClasses where
-  show (Classes u d uc dc un r uf df) = "ups:\n" ++
+  show (Classes u d uc dc un ss r uf df) = "ups:\n" ++
                               unlines (map (("  " ++) . show) (F.toList u)) ++
                               "\ndowns:\n" ++
                               unlines (map (("  " ++) . show) (F.toList d)) ++
@@ -579,25 +581,27 @@ instance Show GoalClasses where
                               unlines (map (("  " ++) . show) (F.toList dc)) ++
                               "\nunsats:\n" ++
                               unlines (map (("  " ++) . show) (F.toList un)) ++
+                              "\nsemimsats:\n" ++
+                              unlines (map (("  " ++) . show) (F.toList ss)) ++
                               "\nrest:\n" ++
-                              unlines (map (("  " ++) . show) (F.toList r))  ++
+                              unlines (map (("  " ++) . show) (F.toList r)) ++
                               "\nflexUp:\n" ++
-                              unlines (map (("  " ++) . show) (F.toList uf))  ++
+                              unlines (map (("  " ++) . show) (F.toList uf)) ++
                               "\nflexDown:\n" ++
                               unlines (map (("  " ++) . show) (F.toList df))
 
 instance Monoid GoalClasses where
-  Classes u d uc dc e r fu fd `mappend` Classes u' d' uc' dc' e' r' fu' fd'
+  Classes u d uc dc e s r fu fd `mappend` Classes u' d' uc' dc' e' s' r' fu' fd'
     = Classes (M.unionWith (<>) u u')
               (M.unionWith (<>) d d')
               (M.unionWith (<>) uc uc')
               (M.unionWith (<>) dc dc')
               (e ++ e')
+              (s ++ s')
               (r ++ r')
               (S.union fu fu')
               (S.union fd fd')
-  mempty = Classes M.empty M.empty M.empty M.empty [] [] mempty mempty
-
+  mempty = Classes M.empty M.empty M.empty M.empty [] [] [] mempty mempty
 
 
 flexesIn :: TypeFragment TCType -> S.Set Int
@@ -615,6 +619,7 @@ classify g = case g of
   (Goal _ (b `Upcastable` U x)) | rigid (F b) -> mempty {upcastables = M.singleton x $ GS.singleton g }
   (Goal _ (U x `Upcastable` b)) | rigid (F b) -> mempty {downcastables = M.singleton x $ GS.singleton g }
   (Goal _ (Unsat _))                          -> mempty {unsats = [g]}
+  (Goal _ (SemiSat _))                        -> mempty {semisats = [g]}
   (Goal _ Sat)                                -> mempty
   (Goal _ (F a :< F b)) | Just a' <- flexOf a
                         , Just b' <- flexOf b
@@ -699,9 +704,9 @@ applySubst s = substs <>= s
 
 -- Applies the current substitution to goals.
 instantiate :: GoalClasses -> Solver [Goal]
-instantiate (Classes ups downs upcasts downcasts errs rest upfl downfl) = do
+instantiate (Classes ups downs upcasts downcasts errs semisats rest upfl downfl) = do
   s <- use substs
-  let al =  (GS.toList =<< (F.toList =<< [ups, downs, upcasts, downcasts]) ) ++ errs ++ rest
+  let al =  (GS.toList =<< (F.toList =<< [ups, downs, upcasts, downcasts]) ) ++ errs ++ semisats ++ rest
       al' = al & map (goal %~ Subst.applyC s) & map (goalContext %~ map (Subst.applyCtx s))
   -- traceTC "sol" (text "instantiate" <+> pretty (show al) P.<$> text "with substitution" P.<$> pretty s <> semi
   --                P.<$> text "end up with goals:" <+> pretty (show al'))
@@ -766,22 +771,21 @@ data GoalClass = UpClass | DownClass | UpcastClass | DowncastClass
 --   3.2. If there are any upward goals,
 --          pull type information up from the LHS to the RHS of :< constraints and go to 1
 --   4. If there are any remaining constraints, report unsolved error, otherwise return empty list.
-solve :: Constraint -> Solver [ContextualisedError]
+solve :: Constraint -> Solver [ContextualisedEW]
 solve = zoom tc . crunch >=> explode >=> go
   where
-    go :: GoalClasses -> Solver ([ContextualisedError], [ContextualisedWarning])
-    go g | not (null (unsats g)) = return $ map (\(Goal ctx (Unsat e)) -> (ctx, e)) (unsats g)
+    go :: GoalClasses -> Solver [ContextualisedEW]
+    go g | not (null (unsats g)) = return (map (\(Goal ctx (Unsat e)) -> (ctx, Left e)) (unsats g) ++ map toWarn (semisats g))
     go g | not (irreducible (fmap GS.toList $ downs g) (downflexes g)) = go' g DownClass
     go g | not (irreducible (fmap GS.toList $ ups   g) (upflexes   g)) = go' g UpClass
     go g | not (M.null (downcastables g)) = go' g DowncastClass
     go g | not (M.null (upcastables   g)) = go' g UpcastClass
     go g | not (null (rest g)) = do
       os <- use flexOrigins
-      let f (Goal c x) = (c, UnsolvedConstraint x os)
-      return $ map f (rest g)
-    go _ = return []
+      return (map (\(Goal c x) -> (c, Left $ UnsolvedConstraint x os)) (rest g) ++ map toWarn (semisats g))
+    go g = return $ map toWarn (semisats g)
 
-    go' :: GoalClasses -> GoalClass -> Solver ([ContextualisedError], [ContextualisedWarning])
+    go' :: GoalClasses -> GoalClass -> Solver [ContextualisedEW]
     go' g c = do
       let (msg, f, cls, g'', flexes) = case c of
             UpClass       -> ("upward"  , suggest    , ups          , g { ups           = M.empty }, upflexes)
@@ -803,3 +807,6 @@ solve = zoom tc . crunch >=> explode >=> go
           instantiate g >>= explode >>= go
 
     removeKeys = foldr M.delete
+
+    toWarn (Goal ctx (SemiSat w)) = (ctx, Right w)
+    toWarn _ = __impossible "toWarn (in solve)"

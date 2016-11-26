@@ -56,6 +56,8 @@ data TypeError = FunctionNotFound VarName
 data TypeWarning = UnusedLocalBind VarName
                  deriving (Eq, Show, Ord)
 
+type TypeEW = Either TypeError TypeWarning
+
 -- FIXME: More fine-grained context is appreciated. e.g., only show alternatives that don't unify / zilinc
 data ErrorContext = InExpression LocExpr TCType
                   | ThenBranch | ElseBranch
@@ -90,8 +92,7 @@ isCtxConstraint (SolvingConstraint _) = True
 isCtxConstraint _ = False
 
 -- high-level context at the end of the list
-type ContextualisedError   = ([ErrorContext], TypeError  )
-type ContextualisedWarning = ([ErrorContext], TypeWarning)
+type ContextualisedEW = ([ErrorContext], TypeEW)
 
 data TypeFragment a = F a
                     | FRecord [(FieldName, (a, Taken))]
@@ -213,12 +214,6 @@ validateType vs (RT t) = do
                 -> if tags' == tags then T <$> traverse (validateType vs) t
                    else throwError (DuplicateRecordFields (tags \\ tags'))
     _ -> T <$> traverse (validateType vs) t
-
-validateType' :: [VarName] -> RawType -> TC (Either TypeError TCType)
-validateType' vs r = runExceptT (validateType vs r)
-
-validateTypes' :: (Traversable t) => [VarName] -> t RawType -> TC (Either TypeError (t TCType))
-validateTypes' vs rs = runExceptT (traverse (validateType vs) rs)
 
 -- Remove a pattern from a type, for case expressions.
 removeCase :: Pattern x -> TCType -> TCType
