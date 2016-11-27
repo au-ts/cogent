@@ -1,0 +1,8 @@
+type A
+
+
+get : A -> U32
+
+foo : A -> ()
+foo a = let x = 2 + get a !a
+         in ()

@@ -46,7 +46,7 @@ import Cogent.Normal        as NF (normal, verifyNormal)
 import Cogent.NormalProof   as NP (normalProof)
 import Cogent.Parser        as PA (parseWithIncludes, parseCustTyGen)
 import Cogent.Preprocess    as PR
-import Cogent.PrettyPrint   as PP (prettyPrint, prettyTWE, prettyRE)
+import Cogent.PrettyPrint   as PP (prettyPrint, prettyRE, prettyTWE)
 import Cogent.Reorganizer   as RO (reorganize)
 import Cogent.Root          as RT (root)
 import Cogent.Shallow       as SH (shallowConsts, shallow, shallowTuplesProof)
@@ -54,7 +54,7 @@ import Cogent.ShallowTable  as ST (st, printTable)  -- for debugging only
 import Cogent.Simplify      as SM
 import Cogent.SuParser      as SU (parse)
 import Cogent.Surface       as SR (stripAllLoc)
-import Cogent.TypeCheck     as TC (tc)
+import Cogent.TypeCheck     as TC (tc, isWarnAsError)
 import Cogent.TypeProofs    as TP (deepTypeProof)
 import Cogent.GraphGen      as GG
 import Cogent.Util          as UT
@@ -589,6 +589,7 @@ parseArgs args = case getOpt' Permute options args of
         True -> case err of
           Left _ -> __impossible "typecheck"
           Right (tced,ctygen') -> do 
+            when (not . null $ ews) $ printError (prettyTWE __cogent_ftc_ctx_len) ews
             when (Ast stg `elem` cmds) $ genAst stg tced
             when (Pretty stg `elem` cmds) $ genPretty stg tced
             when (Compile (succ stg) `elem` cmds) $ desugar cmds tced ctygen' tcst source (map pragmaOfLP pragmas) buildinfo log
