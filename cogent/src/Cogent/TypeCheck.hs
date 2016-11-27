@@ -145,5 +145,9 @@ checkOne loc d = case d of
     addCtx :: forall x. ([ErrorContext], x) -> ([ErrorContext], x)
     addCtx = (_1 %~ (++ [InDefinition loc d]))
 
-    liftErr :: ExceptT e m a -> ExceptT () (WriterT e m) a
-    liftErr ex = undefined
+    liftErr :: ExceptT [e] TC a -> ExceptT () (WriterT [e] TC) a
+    liftErr ex = mapExceptT f ex
+      where f :: TC (Either [e] a) -> WriterT [e] TC (Either () a)
+            f tc = WriterT ((,[]) <$> tc) >>= \case
+                           Left  e -> tell e >> return (Left ())
+                           Right a -> return $ Right a

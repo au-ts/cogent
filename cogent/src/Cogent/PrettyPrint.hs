@@ -439,6 +439,13 @@ instance Pretty TypeError where
   pretty (DiscardWithoutMatch t)         = err "Variant tag"<+> tagname t <+> err "cannot be discarded without matching on it."
   pretty (RequiredTakenTag t)            = err "Required variant" <+> tagname t <+> err "but it has already been matched."
 
+instance Pretty TypeWarning where
+  pretty (UnusedLocalBind v) = warn "Defined but not used:" <+> pretty v
+
+instance Pretty TypeEW where
+  pretty (Left e) = pretty e
+  pretty (Right w) = warn "warning:" <+> pretty w
+
 instance Pretty VarOrigin where
   pretty (ExpressionAt l) = warn ("the term at location " ++ show l)
   pretty (BoundOf a b d) = warn ("taking the " ++ show d ++ " of ") <$> pretty a <$> warn "and" <$> pretty b
@@ -469,8 +476,6 @@ analyseLeftover c os = case c of
   where msg i m = vcat $ err "Constraint " <> pretty c <> err " can't be solved as it constrains an unknown."
                 : [warn "-- The unknown" <+> pretty (U i) <+> warn "originates from" <+> pretty (I.lookup i os)
                   ,err "The constraint was emitted as" <+> pretty m]
-instance Pretty TypeWarning where
-  pretty (UnusedLocalBind v) = warn "Defined but not used:" <+> pretty v
 
 instance (Pretty a, TypeType a) => Pretty (TypeFragment a) where
   pretty (F t) = pretty t & (if __cogent_fdisambiguate_pp then (<+> comment "{- F -}") else id)

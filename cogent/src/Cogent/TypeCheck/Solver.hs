@@ -186,8 +186,9 @@ rule (x :& y) = do
       <|> (x :&) <$> y'
       <|> (:& y) <$> x')
 
-rule Unsat {} = return Nothing
-rule Sat   {} = return Nothing
+rule Unsat   {} = return Nothing
+rule SemiSat {} = return Nothing
+rule Sat     {} = return Nothing
 
 rule (Share  (T TVar {}) _) = return Nothing
 rule (Drop   (T TVar {}) _) = return Nothing

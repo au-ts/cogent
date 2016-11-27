@@ -55,6 +55,9 @@ applyErr s (UnsolvedConstraint c os) = UnsolvedConstraint (applyC s c) os
 applyErr s (NotAFunctionType t) = NotAFunctionType (apply s t)
 applyErr s e = e
 
+applyWarn :: Subst -> TypeWarning -> TypeWarning
+applyWarn s (UnusedLocalBind v) = UnusedLocalBind v
+
 applyC :: Subst -> Constraint -> Constraint
 applyC s (a :< b) = fmap (apply s) a :< fmap (apply s) b
 applyC s (a :& b) = applyC s a :& applyC s b
@@ -64,6 +67,7 @@ applyC s (Share t m) = Share (apply s t) m
 applyC s (Drop t m) = Drop (apply s t) m
 applyC s (Escape t m) = Escape (apply s t) m
 applyC s (Unsat e) = Unsat (applyErr s e)
+applyC s (SemiSat w) = SemiSat (applyWarn s w)
 applyC s Sat = Sat
 applyC s (Exhaustive t ps) = Exhaustive (apply s t) (fmap (fmap (fmap (apply s))) ps)
 
