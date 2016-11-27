@@ -12,13 +12,13 @@ deserialise_Ext2Superblock: (ExState, OSBuffer!, U32) -> RR ExState (Ext2Superbl
 free_Ext2Superblock  : (ExState, Ext2Superblock take (..)) -> ExState
 free_Ext2Superblock' : (ExState, Ext2Superblock) -> ExState
 
-foo : #{ex: ExState, buf_super : OSBuffer} -> ExState
+foo : #{ex: ExState, buf_super : OSBuffer} -> (ExState, OSBuffer)
 foo #{ex, buf_super} = 
   let (ex, res) = deserialise_Ext2Superblock (ex, buf_super, 0) !buf_super
   in res
   | Success (super, _) -> 
       -- let super' = super {inode_count = 1, magic = 2}  -- infers super' to be all taken, wrong!
       -- and ex = free_Ext2Superblock (ex, super')
-      free_Ext2Superblock (ex, super)  -- super is all-untaken
-  | Error () -> ex
+      (free_Ext2Superblock (ex, super), buf_super)  -- super is all-untaken
+  | Error () -> (ex, buf_super)
       

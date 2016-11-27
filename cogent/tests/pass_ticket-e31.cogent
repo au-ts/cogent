@@ -10,7 +10,7 @@ deep_freeObj: Obj -> ()
 get_Obj : () -> Obj
 
 type ObjAddr
-index_get_addr : () -> ObjAddr
+index_get_addr : () -> #ObjAddr
 
 success : all (b, a). a -> R a b
 success a = Success a
