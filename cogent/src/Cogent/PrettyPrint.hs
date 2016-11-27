@@ -23,6 +23,7 @@ import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Subst
 
 import Control.Arrow (second)
+import Data.Either (either)
 import Data.Function ((&))
 import Data.IntMap as I (IntMap, toList, lookup)
 import Data.List(nub)
@@ -438,13 +439,13 @@ instance Pretty TypeError where
   pretty (RemoveCaseFromNonVariant p t)  = err "Cannot remove pattern" <$> pretty p <$> err "from type" <$> pretty t
   pretty (DiscardWithoutMatch t)         = err "Variant tag"<+> tagname t <+> err "cannot be discarded without matching on it."
   pretty (RequiredTakenTag t)            = err "Required variant" <+> tagname t <+> err "but it has already been matched."
+  pretty (TypeWarningAsError w)          = pretty w
 
 instance Pretty TypeWarning where
-  pretty (UnusedLocalBind v) = warn "Defined but not used:" <+> pretty v
+  pretty (UnusedLocalBind v) = warn "Warning: [--Wunused-local-bind]" <$$> indent' (warn "Defined but not used:" <+> pretty v)
 
 instance Pretty TypeEW where
-  pretty (Left e) = pretty e
-  pretty (Right w) = warn "warning:" <+> pretty w
+  pretty = either pretty pretty
 
 instance Pretty VarOrigin where
   pretty (ExpressionAt l) = warn ("the term at location " ++ show l)
@@ -587,13 +588,9 @@ prettyB (p, Nothing, e) i
 -- top-level function
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-prettyTWE :: Int -> ([ErrorContext], Either TypeError TypeWarning) -> Doc
-prettyTWE th (ctx, Left  e) = prettyTWE' th (ctx,e)
-prettyTWE th (ctx, Right w) = prettyTWE' th (ctx,w)
-
-prettyTWE' :: Pretty we => Int -> ([ErrorContext], we) -> Doc
-prettyTWE' threshold (ectx, we) = pretty we <$> indent' (vcat (map (flip prettyCtx True ) (take threshold ectx)
-                                                            ++ map (flip prettyCtx False) (drop threshold ectx)))
+prettyTWE :: Int -> ContextualisedEW -> Doc
+prettyTWE th (ectx, we) = pretty we <$> indent' (vcat (map (flip prettyCtx True ) (take th ectx)
+                                                    ++ map (flip prettyCtx False) (drop th ectx)))
 
 -- reorganiser errors
 prettyRE :: (ReorganizeError, [(SourceObject, SourcePos)]) -> Doc

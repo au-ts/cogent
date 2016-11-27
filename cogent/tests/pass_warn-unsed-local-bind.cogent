@@ -1,0 +1,4 @@
+foo : U32 -> U32
+foo x = let y = x + 1
+        and z = y * 2
+         in x + y

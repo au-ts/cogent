@@ -47,7 +47,7 @@ import Cogent.NormalProof   as NP (normalProof)
 import Cogent.Parser        as PA (parseWithIncludes)
 import Cogent.Preprocess    as PR
 import Cogent.PrettyCore          ()  -- imports instances of Pretty
-import Cogent.PrettyPrint   as PP (prettyPrint, prettyRE, prettyTWE')
+import Cogent.PrettyPrint   as PP (prettyPrint, prettyRE, prettyTWE)
 import Cogent.Reorganizer   as RO (reorganize)
 import Cogent.Root          as RT (root)
 import Cogent.Shallow       as SH (shallowConsts, shallow, shallowTuplesProof)
@@ -55,7 +55,7 @@ import Cogent.ShallowTable  as ST (st, printTable)  -- for debugging only
 import Cogent.Simplify      as SM
 import Cogent.SuParser      as SU (parse)
 import Cogent.Surface       as SR (stripAllLoc)
-import Cogent.TypeCheck     as TC (tc)
+import Cogent.TypeCheck     as TC (tc, isWarnAsError)
 import Cogent.TypeProofs    as TP (deepTypeProof)
 import Cogent.GraphGen      as GG
 import Cogent.Util          as UT
@@ -570,10 +570,11 @@ parseArgs args = case getOpt' Permute options args of
       let stg = STGTypeCheck
       putProgressLn "Typechecking..."
       TC.tc reorged >>= \case
-        ((Left _, ews) ,_) -> printError (prettyTWE' __cogent_ftc_ctx_len) ews
-                              >> exitFailure
-        ((Right tced, ews), tcst) ->  do
-          -- TODO: deal with warnings
+        ((Left _, ews) ,_) -> do printError (prettyTWE __cogent_ftc_ctx_len) ews
+                                 when (and $ map isWarnAsError ews) $ hPutStrLn stderr "Failing due to --Werror."
+                                 exitFailure
+        ((Right tced, ews), tcst) -> do
+          when (not . null $ ews) $ printError (prettyTWE __cogent_ftc_ctx_len) ews
           when (Ast stg `elem` cmds) $ genAst stg tced
           when (Pretty stg `elem` cmds) $ genPretty stg tced
           when (Compile (succ stg) `elem` cmds) $ desugar cmds tced tcst source (map pragmaOfLP pragmas) buildinfo log

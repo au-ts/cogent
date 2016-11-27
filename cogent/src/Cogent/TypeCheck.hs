@@ -13,7 +13,9 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TupleSections #-}
 
-module Cogent.TypeCheck where
+module Cogent.TypeCheck (
+  tc, isWarnAsError  
+) where
 
 import Cogent.Common.Syntax
 import Cogent.Compiler
@@ -26,9 +28,8 @@ import Cogent.TypeCheck.Post (postT, postE, postA)
 import Cogent.TypeCheck.Solver
 import Cogent.TypeCheck.Subst (applyE, applyAlts)
 import Cogent.TypeCheck.Util
-import Cogent.Util (first3)
 
-import Control.Arrow (first, second, left, (***))
+import Control.Arrow (first, second, left)
 import Control.Lens
 import Control.Monad.Except
 import Control.Monad.State
@@ -36,7 +37,6 @@ import Control.Monad.Writer
 import Data.Either (lefts)
 import Data.List (nub, (\\))
 import qualified Data.Map as M
-import Data.Monoid ((<>))
 import Text.Parsec.Pos
 import qualified Text.PrettyPrint.ANSI.Leijen as L
 import Text.PrettyPrint.ANSI.Leijen hiding ((<>), (<$>))
@@ -151,3 +151,4 @@ checkOne loc d = case d of
             f tc = WriterT ((,[]) <$> tc) >>= \case
                            Left  e -> tell e >> return (Left ())
                            Right a -> return $ Right a
+

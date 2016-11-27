@@ -13,6 +13,7 @@ module Cogent.TypeCheck.Base where
 
 import Cogent.Common.Syntax
 import Cogent.Common.Types
+import Cogent.Compiler
 import Cogent.Surface
 import Cogent.Util
 
@@ -51,6 +52,7 @@ data TypeError = FunctionNotFound VarName
                | RemoveCaseFromNonVariant (Pattern TCName) TCType
                | DiscardWithoutMatch TagName
                | RequiredTakenTag TagName
+               | TypeWarningAsError TypeWarning
                deriving (Eq, Show, Ord)
 
 data TypeWarning = UnusedLocalBind VarName
@@ -173,7 +175,15 @@ instance Monoid Constraint where
   -- mappend x (Unsat r) = Unsat r
   mappend x y = x :& y
 
+warnToConstraint :: TypeWarning -> Constraint
+warnToConstraint w = case __cogent_warning_switch of
+                       Flag_w -> Sat
+                       Flag_Wwarn -> SemiSat w
+                       Flag_Werror -> Unsat (TypeWarningAsError w)
 
+isWarnAsError :: ContextualisedEW -> Bool
+isWarnAsError (_, Left (TypeWarningAsError _)) = True
+isWarnAsError _ = False
 
 data TCState = TCS { _knownFuns    :: M.Map FunName (Polytype TCType)
                    , _knownTypes   :: TypeDict
