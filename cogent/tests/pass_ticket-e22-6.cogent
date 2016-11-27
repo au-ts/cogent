@@ -27,7 +27,6 @@ type Indirect = {
 
   offset: U32
 }
-type LogicalBlock
 type Option a = <Some a | None>
 type Result a b = <Success a | Error b>
 type RR c a b = (c, Result a b)
@@ -75,8 +74,8 @@ type WordArrayMapNoBreakF a acc obsv = ElemAO a acc obsv -> (a, acc)
 
 type ElemAO a acc obsv = #{elem:a, acc:acc, obsv:obsv!}
 
-indirect_splice: (ExState, Indirect, VfsInode, LogicalBlock, U32, U32) -> RR (ExState, Indirect, VfsInode) () U32
-indirect_splice (ex, indirect, inode, iblock, num_direct, num_indirect) =
+indirect_splice: (ExState, Indirect, VfsInode, U32, U32) -> RR (ExState, Indirect, VfsInode) () U32
+indirect_splice (ex, indirect, inode, num_direct, num_indirect) =
   let indirect_t { buf } = indirect
   in buf
   | Some buf ->
