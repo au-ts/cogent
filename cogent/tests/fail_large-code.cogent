@@ -1,0 +1,331 @@
+type ExState
+
+type Array a
+type Option a = <Some a | None>
+type Result a b = <Success a | Error b>
+type RR c a b = (c, Result a b)
+type WordArray a
+type R a b = Result a b
+
+wordarray_create: all (a :< DSE). (ExState, U32) -> R (ExState, WordArray a) ExState
+type Ext2Inode = {
+    mode                : U16,
+    uid_low             : U16,
+    size                : U32,
+    access_time         : U32,
+    creation_time       : U32,
+    modified_time       : U32,
+    deletion_time       : U32,        
+    gid_low             : U16,
+    link_count          : U16,
+    num_physical_blocks : U32,   -- this is NOT ext2 blocks, but 512-byte blocks
+    flags               : U32,
+    block_pointers      : WordArray U32
+}
+
+type FsState = {
+    super                  : Ext2Superblock,
+    super_buf              : OSBuffer,
+    superblock_num         : U32,
+    group_count            : U32,
+    inode_tables_per_group : U32,
+    flags                  : U32,
+    cur_overhead           : U32,
+
+    group_desc_array       : Array OSBuffer,
+
+    prealloc_offsets    : Option (WordArray BlockOffset),   -- for Path
+    prealloc_indirects  : Option (Array Indirect),          -- for Chain
+    prealloc_chain      : Option (Chain take (..)),
+    prealloc_blockptrs  : Option (WordArray BlockPtr)       -- for block allocation
+}
+
+-- this is the in-memory representation
+type FsInode = {
+    --num_physical_blocks : U32,
+    block_pointers      : WordArray BlockPtr,
+    dir_start_lookup    : U64,
+    dtime               : U32
+}
+type Ext2Superblock = {
+    inode_count             : U32,
+    block_count             : U32,
+    free_block_count        : U32,
+    free_inode_count        : U32,
+    first_data_block        : U32,  -- this is a location
+    block_size_lg2          : U32,  -- block size is 1024 << logsize
+    blocks_per_group        : U32,
+    fragments_per_group     : U32,
+    inodes_per_group        : U32,
+    magic                   : U16
+}
+type OSBuffer
+type Path
+type BlockOffset = U32
+type Indirect = {
+  blockptr: BlockPtr,
+  buf: Option OSBuffer,
+  offset: U32
+}
+type Chain = {
+  path: Path,
+  indirects: Array Indirect,
+  indirect_count: U32
+}
+malloc_Chain: ExState -> RR ExState (Chain take (..)) ()
+
+type BlockPtr = U32
+
+eNoMem : U32
+eIO : U32
+eInval : U32
+const_blockSizeBits : U32
+const_blockSize : U32
+const_ext2LinkMax : U32
+const_ext2Magic : U16
+maxChainSize : U32
+const_sizeof_Inode : U32
+const_maxIndexPathSize : U32
+
+u8_to_u32 : U8 -> U32
+u16_to_u64 : U16 -> U64
+u32_to_u64 : U32 -> U64
+
+ext2_max_size: U64 -> U64
+
+free_FsState: (ExState, FsState take (..)) -> ExState
+osbuffer_destroy: (ExState, OSBuffer) -> (ExState)
+free_Ext2Superblock: (ExState, Ext2Superblock take (..)) -> ExState
+free_Chain: (ExState, Chain take (..)) -> ExState
+indirect_destroy2: (ExState, Indirect) -> ExState
+
+allocate_the_indirects: Seq32_body (ExState, Array Indirect) () ()
+
+type VfsMountInfo = {
+  s_magic : U64,
+  s_flags : U32,
+  s_max_links: U32,
+  s_maxbytes : U64,
+  s_blocksize : U32,
+  s_blocksize_bits : U32
+}
+type ElemA a acc = #{elem: a, acc: acc}
+type ElemB a rbrk = #{elem:a, rbrk:rbrk}
+type ElemAO a acc obsv = #{elem:a, acc:acc, obsv:obsv!}
+type OptElemA a acc = #{oelem: Option a, acc: acc}
+type OptElemAO a acc obsv = #{oelem: Option a, acc: acc, obsv: obsv!}
+type ArrA a acc = #{arr: a, acc: acc}
+type ArrB a rbrk = #{arr:a, rbrk:rbrk}
+type ArrayMapF a acc obsv rbrk = (OptElemAO a acc obsv) -> LoopResult (Option a, acc) (Option a, rbrk)
+type ArrayMapP a acc obsv rbrk = #{arr: Array a, frm: U32, to:U32, f: ArrayMapF a acc obsv rbrk, acc: acc, obsv:obsv!}
+
+type LoopResult a b = <Iterate a|Break b>
+array_map: all(a :<E,acc,obsv,rbrk). ArrayMapP a acc obsv rbrk -> LoopResult (Array a, acc) (Array a, rbrk)
+
+type GroupDescLoaderAcc = (ExState, U32)
+type GroupDescLoaderObsv = (U32, U32, U32)
+
+put_group_desc_in_array: ArrayMapF OSBuffer GroupDescLoaderAcc GroupDescLoaderObsv GroupDescLoaderAcc
+
+get_superblock_num: (ExState, (Array (WordArray U8))!) -> (ExState, U32)
+get_flags: (ExState, (Array (WordArray U8))!) -> (ExState, U32)
+osbuffer_read_block: #{ex: ExState, buf: OSBuffer, blk: U32} -> RR (ExState, OSBuffer) () ()
+deserialise_Ext2Superblock: (ExState, OSBuffer!, U32) -> RR ExState (Ext2Superblock, U32) ()
+
+seq32: all (acc,obsv,rbrk).  Seq32Param acc obsv rbrk -> LRR acc rbrk
+
+type ArrayFreeP a = #{arr: Array a, f: FreeF a, ex: ExState}
+type FreeF a = (ExState, a) -> ExState
+
+wordarray_free: all(a :< DSE). (ExState,WordArray a) -> ExState
+array_free: all(a :<E). ArrayFreeP a -> ExState
+array_create: all (a :< E). (ExState, U32) -> R (ExState, Array a) ExState
+
+
+type Seq32_bodyParam acc obsv rbrk = #{
+  acc: acc,
+  obsv: obsv!,
+  idx: U32
+}
+type Seq32_body acc obsv rbrk = Seq32_bodyParam acc obsv rbrk -> LRR acc rbrk
+type Seq32Param acc obsv rbrk = #{
+  frm: U32,
+  to: U32,  -- to is not inclusive. ie we loop over [from, to) incrementing `step'
+  step: U32,
+  f: Seq32_body acc obsv rbrk,
+  acc: acc,
+  obsv: obsv!
+}
+type LRR acc brk = (acc, <Iterate ()|Break brk>)
+malloc_FsState: ExState -> RR ExState (FsState take (..)) ()
+osbuffer_create: (ExState) -> RR ExState (OSBuffer) ()
+
+fs_mount: #{ex: ExState, options: (Array (WordArray U8))!} -> RR ExState #{state: FsState, mountinfo: #VfsMountInfo} U32
+fs_mount #{ex, options} = 
+    let (ex, res) = malloc_FsState ex
+    in res
+    | Success state_t ->
+        let (ex, res) = osbuffer_create ex
+        in res
+        | Success buf_super ->
+            -- find the block the superblock lies in
+            let (ex, sb_num) = get_superblock_num (ex, options) !options
+            and (ex, flags) = get_flags (ex, options) !options
+
+            and state_t = state_t { superblock_num = sb_num }
+            and ((ex, buf_super), res) = osbuffer_read_block #{ex, buf = buf_super, blk = sb_num}
+            in res
+            | Success () -> 
+                -- get the superblock from it
+                let (ex, res) = deserialise_Ext2Superblock (ex, buf_super, 0) !buf_super
+                in res
+                | Success (super, _) -> 
+                    -- ensure superblock magic matched
+                    let cur_super_magic = super.magic !super
+                    in if cur_super_magic == const_ext2Magic then
+                        -- calculate constants
+                        let group_count = ((super.block_count - super.first_data_block - 1) / super.blocks_per_group + 1) !super
+                        and inodes_per_block = const_blockSize / const_sizeof_Inode
+                        and inode_tables_per_group = super.inodes_per_group / inodes_per_block !super
+
+                        -- prefetch all group descriptor buffers
+                        in array_create  (ex, group_count)
+                        | Success (ex, group_desc_array) ->
+                            array_map #{ arr  = group_desc_array,
+                                         frm  = 0,
+                                         to   = group_count,
+                                         f    = put_group_desc_in_array,
+                                         acc  = (ex, 0),
+                                         obsv = (super.blocks_per_group, super.first_data_block, 1)
+                             } !super
+                            | Iterate (group_desc_array, (ex, _)) ->
+                                -- preallocate other stuff
+                                wordarray_create (ex, maxChainSize)
+                                | Success (ex, prealloc_offsets) =>
+                                    wordarray_create (ex, const_maxIndexPathSize)
+                                    | Success (ex, prealloc_blockptrs) =>
+                                        let (ex, res) = malloc_Chain ex
+                                        in res
+                                        | Success prealloc_chain =>
+                                            array_create (ex, maxChainSize)
+                                            | Success (ex, prealloc_indirects) =>
+                                                -- preallocate the indirects inside array
+                                                let ((ex, prealloc_indirects), res) = seq32 [(ExState, Array Indirect), (), ()] #{
+                                                    frm   = 0,
+                                                    to    = maxChainSize,
+                                                    step  = 1,
+                                                    f     = allocate_the_indirects,
+                                                    acc   = (ex, prealloc_indirects),
+                                                    obsv  = ()
+                                                }
+
+                                                in res
+                                                | Iterate () =>
+                                                    -- put everything in our state
+                                                    let state = state_t {
+                                                          super,
+                                                          group_count,
+                                                          group_desc_array,
+                                                          inode_tables_per_group,
+                                                          super_buf = buf_super,
+                                                          flags,
+                                                          cur_overhead = 0,
+
+                                                          prealloc_offsets = Some prealloc_offsets,
+                                                          prealloc_indirects = Some prealloc_indirects,
+                                                          prealloc_chain = Some prealloc_chain,
+                                                          prealloc_blockptrs = Some prealloc_blockptrs
+                                                        }
+
+                                                    -- build mountinfo for vfs
+                                                    and mountinfo = #{
+                                                          s_magic = u16_to_u64 const_ext2Magic,
+                                                          s_flags = 0,
+                                                          s_max_links = const_ext2LinkMax,
+                                                          s_maxbytes = ext2_max_size (u32_to_u64 const_blockSizeBits),
+                                                          s_blocksize = const_blockSize,
+                                                          s_blocksize_bits = const_blockSizeBits
+                                                        }
+
+                                                    -- and report we mounted!
+                                                    in (ex, Success #{state, mountinfo})
+                                                | Break () ->
+                                                    -- failed to alloc
+                                                    let ex = free_Chain (ex, prealloc_chain)
+                                                    and ex = array_free #{ arr = prealloc_indirects, f = indirect_destroy2, ex }
+                                                    and ex = wordarray_free (ex, prealloc_blockptrs)
+                                                    and ex = wordarray_free (ex, prealloc_offsets)
+
+                                                    and ex = array_free #{arr = group_desc_array, f = osbuffer_destroy, ex}
+                                                    and ex = free_Ext2Superblock (ex, super)
+                                                    and ex = osbuffer_destroy (ex, buf_super)
+                                                    and ex = free_FsState (ex, state_t)
+                                                    in (ex, Error eNoMem)
+                                            | Error ex ->
+                                                -- failed to alloc
+                                                let ex = free_Chain (ex, prealloc_chain)
+                                                and ex = wordarray_free (ex, prealloc_blockptrs)
+                                                and ex = wordarray_free (ex, prealloc_offsets)
+
+                                                and ex = array_free [OSBuffer] #{arr = group_desc_array, f = osbuffer_destroy, ex}
+                                                and ex = free_Ext2Superblock (ex, super)
+                                                and ex = osbuffer_destroy (ex, buf_super)
+                                                and ex = free_FsState (ex, state_t)
+                                                in (ex, Error eNoMem)
+                                        | Error () ->
+                                            -- failed to alloc
+                                            let ex = wordarray_free [BlockPtr] (ex, prealloc_blockptrs)
+                                            and ex = wordarray_free [BlockPtr] (ex, prealloc_offsets)
+
+                                            and ex = array_free [OSBuffer] #{arr = group_desc_array, f = osbuffer_destroy, ex}
+                                            and ex = free_Ext2Superblock (ex, super)
+                                            and ex = osbuffer_destroy (ex, buf_super)
+                                            and ex = free_FsState (ex, state_t)
+                                            in (ex, Error eNoMem)
+                                    | Error ex ->
+                                        -- failed to alloc
+                                        let ex = wordarray_free [BlockPtr] (ex, prealloc_offsets)
+                                        
+                                        and ex = array_free [OSBuffer] #{arr = group_desc_array, f = osbuffer_destroy, ex}
+                                        and ex = free_Ext2Superblock (ex, super)
+                                        and ex = osbuffer_destroy (ex, buf_super)
+                                        and ex = free_FsState (ex, state_t)
+                                        in (ex, Error eNoMem)
+                                | Error ex ->
+                                    -- failed to alloc
+                                    let ex = array_free [OSBuffer] #{arr = group_desc_array, f = osbuffer_destroy, ex}
+                                    and ex = free_Ext2Superblock (ex, super)
+                                    and ex = osbuffer_destroy (ex, buf_super)
+                                    and ex = free_FsState (ex, state_t)
+                                    in (ex, Error eNoMem)
+                            | Break (group_desc_array, (ex, _)) ->
+                                -- failed to load a group desc buffer
+                                let ex = array_free [OSBuffer] #{arr = group_desc_array, f = osbuffer_destroy, ex}
+                                and ex = free_Ext2Superblock (ex, super)
+                                and ex = osbuffer_destroy (ex, buf_super)
+                                and ex = free_FsState (ex, state_t)
+                                in (ex, Error eIO)
+                        | Error ex ->
+                            let ex = free_Ext2Superblock (ex, super)
+                            and ex = free_FsState (ex, state_t)
+                            and ex = osbuffer_destroy (ex, buf_super)
+                            in (ex, Error eInval)
+                    else    
+                        let ex = free_Ext2Superblock (ex, super)
+                        and ex = free_FsState (ex, state_t)
+                        and ex = osbuffer_destroy (ex, buf_super)
+                        in (ex, Error eInval)
+                | Error () ->
+                    let ex = osbuffer_destroy (ex, buf_super)
+                    and ex = free_FsState (ex, state_t)
+                    in (ex, Error eIO)
+            | Error () -> 
+                let ex = osbuffer_destroy (ex, buf_super)
+                and ex = free_FsState (ex, state_t)
+                in (ex, Error eIO)
+        | Error () ->
+            let ex = free_FsState (ex, state_t)
+            in (ex, Error eNoMem)
+    | Error () ->
+        (ex, Error eNoMem)
+

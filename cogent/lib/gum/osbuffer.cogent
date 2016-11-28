@@ -16,23 +16,23 @@ type OSBufferOffset = U32
 -- creates a buffer the size of one block
 -- on linux, this is a no-op, since we get a new buffer created on read
 {-# cinline osbuffer_create #-}
-osbuffer_create: (ExState) -> RR ExState (OSBuffer) ()
+osbuffer_create: ExState -> RR ExState OSBuffer ()
 
 {-# cinline osbuffer_destroy #-}
-osbuffer_destroy: (ExState, OSBuffer) -> (ExState) -- brelse; really should be free
+osbuffer_destroy: (ExState, OSBuffer) -> ExState -- brelse; really should be free
 {-# cinline osbuffer_trash #-}
-osbuffer_trash: (ExState, OSBuffer) -> (ExState) -- bforget; really should be destroy
+osbuffer_trash: (ExState, OSBuffer) -> ExState -- bforget; really should be destroy
 
 {-# cinline osbuffer_read_block #-}
-osbuffer_read_block: (#{ex: ExState, buf: OSBuffer, blk: U32}) -> RR (ExState, OSBuffer) () ()
+osbuffer_read_block: #{ex: ExState, buf: OSBuffer, blk: U32} -> RR (ExState, OSBuffer) () ()
 {-# cinline osbuffer_get_size #-}
-osbuffer_get_size: (OSBuffer!) -> U32
+osbuffer_get_size: OSBuffer! -> U32
 {-# cinline osbuffer_set_size #-}
-osbuffer_set_size: (OSBuffer, U32) -> (OSBuffer)
+osbuffer_set_size: (OSBuffer, U32) -> OSBuffer
 
 -- hint to not reorder this buffer fetch
 {-# cinline osbuffer_boundary #-}
-osbuffer_boundary: (OSBuffer) -> (OSBuffer)
+osbuffer_boundary: OSBuffer -> OSBuffer
 
 {-# cinline osbuffer_get_blocknum #-}
 osbuffer_get_blocknum: OSBuffer! -> U32
@@ -53,21 +53,21 @@ osbuffer_serialise_Ple32_WordArray #{elem, acc = (buf, idx), obsv} =
   | Error buf ->
     Break (buf, idx)
 
-osbuffer_deserialise_Ple32_WordArray: (#{elem: U32, acc: U32, obsv: OSBuffer!}) -> LRR (U32, U32) ()
-osbuffer_deserialise_Ple32_WordArray (#{elem = old, acc = idx, obsv = buf}) =
+osbuffer_deserialise_Ple32_WordArray: #{elem: U32, acc: U32, obsv: OSBuffer!} -> LRR (U32, U32) ()
+osbuffer_deserialise_Ple32_WordArray #{elem = old, acc = idx, obsv = buf} =
   osbuffer_deserialise_Ple32 (buf, idx)
   | Success (elem, idx') ->
-    ((elem, idx'), Iterate ())
+    ((elem, idx'), Iterate)
   | Error () ->
-    ((old, idx), Break ())
+    ((old, idx), Break)
 
-osbuffer_deserialise_U8_WordArray: (#{elem: U8, acc: U32, obsv: OSBuffer!}) -> LRR (U8, U32) ()
-osbuffer_deserialise_U8_WordArray (#{elem = old, acc = idx, obsv = buf}) =
+osbuffer_deserialise_U8_WordArray: #{elem: U8, acc: U32, obsv: OSBuffer!} -> LRR (U8, U32) ()
+osbuffer_deserialise_U8_WordArray #{elem = old, acc = idx, obsv = buf} =
   osbuffer_deserialise_U8 (buf, idx)
   | Success (elem, idx') ->
-    ((elem, idx'), Iterate ())
-  | Error () ->
-    ((old, idx), Break ())
+    ((elem, idx'), Iterate)
+  | Error ->
+    ((old, idx), Break)
 
 {-# cinline osbuffer_deserialise_Ple32 #-}
 osbuffer_deserialise_Ple32: (OSBuffer!, OSBufferOffset) -> Result (U32, OSBufferOffset) ()
@@ -77,11 +77,11 @@ osbuffer_deserialise_Ple16: (OSBuffer!, OSBufferOffset) -> Result (U16, OSBuffer
 osbuffer_deserialise_U8: (OSBuffer!, OSBufferOffset) -> Result (U8, OSBufferOffset) ()
 
 {-# cinline osbuffer_serialise_Ple32 #-}
-osbuffer_serialise_Ple32: (OSBuffer, OSBufferOffset, U32) -> Result (OSBuffer, OSBufferOffset) (OSBuffer)
+osbuffer_serialise_Ple32: (OSBuffer, OSBufferOffset, U32) -> Result (OSBuffer, OSBufferOffset) OSBuffer
 {-# cinline osbuffer_serialise_Ple16 #-}
-osbuffer_serialise_Ple16: (OSBuffer, OSBufferOffset, U16) -> Result (OSBuffer, OSBufferOffset) (OSBuffer)
+osbuffer_serialise_Ple16: (OSBuffer, OSBufferOffset, U16) -> Result (OSBuffer, OSBufferOffset) OSBuffer
 {-# cinline osbuffer_serialise_U8 #-}
-osbuffer_serialise_U8: (OSBuffer, OSBufferOffset, U8) -> Result (OSBuffer, OSBufferOffset) (OSBuffer)
+osbuffer_serialise_U8: (OSBuffer, OSBufferOffset, U8) -> Result (OSBuffer, OSBufferOffset) OSBuffer
 
 -- buf, size, offset
 {-# cinline osbuffer_find_next_zero_bit #-}
