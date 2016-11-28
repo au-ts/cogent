@@ -17,7 +17,9 @@ module Cogent.ProofGen where
 
 import Cogent.Common.Types
 import Cogent.Common.Syntax
+#if __GLASGOW_HASKELL__ < 711
 import Cogent.Compiler
+#endif
 import Cogent.Vec hiding (splitAt, length, zipWith, zip, unzip)
 import qualified Cogent.Vec as Vec
 import Cogent.Sugarfree
@@ -523,7 +525,9 @@ split k g x y = error $ "bad split: " ++ show (g, x, y)
 splitsHint :: Int -> Vec t Kind -> Vec v (Maybe (Type t)) -> Vec v (Maybe (Type t)) -> Vec v (Maybe (Type t)) -> State TypingSubproofs [(Int, [Tactic])]
 splitsHint n k (Cons g gs) (Cons x xs) (Cons y ys) = liftM2 (++) (splitHint n k g x y) (splitsHint (n+1) k gs xs ys)
 splitsHint _ k Nil         Nil         Nil         = return []
+#if __GLASGOW_HASKELL__ < 711
 splitsHint _ _ _ _ _ = __ghc_t4139 "ProofGen.splitsHint"
+#endif
 
 splitHint :: Int -> Vec t Kind -> Maybe (Type t) -> Maybe (Type t) -> Maybe (Type t) -> State TypingSubproofs [(Int, [Tactic])]
 splitHint _ k Nothing  Nothing  Nothing  = return []
@@ -542,8 +546,9 @@ ttsplit_bang k ix ixs (Cons g gs) (Cons Nothing xs) =
     if ix `elem` ixs then error "bad split_bang"
         else ttsplit_bang k (ix + 1) ixs gs xs
 ttsplit_bang k ix ixs Nil Nil = return []
+#if __GLASGOW_HASKELL__ < 711
 ttsplit_bang _ _ _ _ _ = error "bad split_bang end"
-
+#endif
 distinct _ = [simp]
 
 -- K ⊢ τ wellformed ≡ ∃k. K ⊢ τ :κ k
@@ -635,7 +640,7 @@ kindRule (TCon n ts s)    = "kind_tcon"
 envOf = eexprEnv
 typeOf = eexprType
 
-peel :: Vec (Suc v) t -> Vec v t
+peel :: Vec ('Suc v) t -> Vec v t
 peel (Cons x xs) = xs
 
 peel2 = peel . peel
@@ -645,7 +650,9 @@ peel2 = peel . peel
 (<|>) (Cons _ xs)        (Cons (Just y) ys) = Cons (Just y) (xs <|> ys)
 (<|>) (Cons (Just x) xs) (Cons _ ys)        = Cons (Just x) (xs <|> ys)
 (<|>) Nil Nil = Nil
+#if __GLASGOW_HASKELL__ < 711
 (<|>) _ _ = __ghc_t4139 "ProofGen.<|>"
+#endif
 
 cleared :: Vec a (Maybe t) -> Vec a (Maybe t)
 cleared = emptyvec . Vec.length

@@ -16,7 +16,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE ImpredicativeTypes #-}
+--{-# LANGUAGE ImpredicativeTypes #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
@@ -348,7 +348,7 @@ data GenState  = GenState { _cTypeDefs    :: [(StrlType, CId)]
                           , _cTypeDefMap  :: M.Map StrlType CId
                           , _typeSynonyms :: M.Map TypeName CType
                             -- C type names corresponding to Cogent types
-                          , _typeCorres   :: DList.DList (CId, SF.Type Zero)
+                          , _typeCorres   :: DList.DList (CId, SF.Type 'Zero)
                           , _absTypes     :: M.Map TypeName (S.Set [CId])
                           , _funClasses   :: FunClass
                           , _localOracle  :: Integer
@@ -497,7 +497,7 @@ instance Monad (Compose (Gen v) Maybe) where
   (Compose ma) >>= f = Compose (ma >>= \case Nothing -> return Nothing
                                              Just a  -> getCompose (f a))
 
-lookupTypeCId :: SF.Type Zero -> Gen v (Maybe CId)
+lookupTypeCId :: SF.Type 'Zero -> Gen v (Maybe CId)
 lookupTypeCId (TVar     {}) = __impossible "lookupTypeCId"
 lookupTypeCId (TVarBang {}) = __impossible "lookupTypeCId"
 lookupTypeCId (TCon tn [] _) = fmap (const tn) . M.lookup tn <$> use absTypes
@@ -525,12 +525,12 @@ lookupTypeCId t = Just <$> typeCId t
 -- XXX | typeCIdUsage (TRecord fs s) = getMon $ foldReduce (map ((getFirst <$>) . typeCIdUsage . fst . snd) fs :: [Gen v (Maybe CId)])
 -- XXX | typeCIdUsage t = return $ First Nothing  -- base types
 
-typeCId :: SF.Type Zero -> Gen v CId
+typeCId :: SF.Type 'Zero -> Gen v CId
 typeCId t = (if __cogent_fflatten_nestings then typeCIdFlat else typeCId') t >>= \n ->
             when (isUnstable t) (typeCorres %= DList.cons (toCName n, t)) >>
             return n
   where
-    typeCId' :: SF.Type Zero -> Gen v CId
+    typeCId' :: SF.Type 'Zero -> Gen v CId
     typeCId' (TVar     {}) = __impossible "typeCId' (in typeCId)"
     typeCId' (TVarBang {}) = __impossible "typeCId' (in typeCId)"
     typeCId' (TPrim pt) | pt == Boolean = return boolT
@@ -558,7 +558,7 @@ typeCId t = (if __cogent_fflatten_nestings then typeCIdFlat else typeCId') t >>=
     typeCId' (TRecord fs s) = getStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs) <*> pure True
     typeCId' (TUnit) = return unitT
 
-    typeCIdFlat :: SF.Type Zero -> Gen v CId
+    typeCIdFlat :: SF.Type 'Zero -> Gen v CId
     typeCIdFlat (TProduct t1 t2) = do
       ts' <- mapM genType [t1,t2]
       fss <- forM (P.zip3 [p1,p2] [t1,t2] ts') $ \(f,t,t') -> case t' of
@@ -575,12 +575,12 @@ typeCId t = (if __cogent_fflatten_nestings then typeCIdFlat else typeCId') t >>=
       getStrlTypeCId $ Record (concat fss) True
     typeCIdFlat t = typeCId' t
 
-    collFields :: FieldName -> SF.Type Zero -> Gen v [(CId, CType)]
+    collFields :: FieldName -> SF.Type 'Zero -> Gen v [(CId, CType)]
     collFields fn (TProduct t1 t2) = concat <$> zipWithM collFields (P.map ((fn ++ "_") ++) [p1,p2]) [t1,t2]
     collFields fn (TRecord fs s) = let (fns,ts) = P.unzip (P.map (second fst) fs) in concat <$> zipWithM collFields (P.map ((fn ++ "_") ++) fns) ts
     collFields fn t = (:[]) . (fn,) <$> genType t
 
-    isUnstable :: SF.Type Zero -> Bool
+    isUnstable :: SF.Type 'Zero -> Bool
     isUnstable (TCon _ _ _) = True  -- NOTE: we relax the rule here to generate all abstract types in the table / zilinc (28/5/15)
     -- XXX | isUnstable (TCon _ (_:_) _) = True
     isUnstable (TProduct {}) = True
@@ -589,7 +589,7 @@ typeCId t = (if __cogent_fflatten_nestings then typeCIdFlat else typeCId') t >>=
     isUnstable _ = False
 
 -- Made for Glue
-absTypeCId :: SF.Type Zero -> Gen v CId
+absTypeCId :: SF.Type 'Zero -> Gen v CId
 absTypeCId (TCon tn [] s) = return tn
 absTypeCId (TCon tn ts s) = do
   ts' <- forM ts $ \t -> (if isUnboxed t then ('u':) else id) <$> typeCId t
@@ -597,27 +597,27 @@ absTypeCId (TCon tn ts s) = do
 absTypeCId _ = __impossible "absTypeCId"
 
 -- Returns the right C type
-genType :: SF.Type Zero -> Gen v CType
+genType :: SF.Type 'Zero -> Gen v CType
 genType t@(TRecord _ s) | s /= Unboxed = CPtr . CIdent <$> typeCId t
 genType t@(TString)                    = CPtr . CIdent <$> typeCId t
 genType t@(TCon _ _ s)  | s /= Unboxed = CPtr . CIdent <$> typeCId t
 genType t                              =        CIdent <$> typeCId t
 
-genTypeA :: Bool -> SF.Type Zero -> Gen v CType
+genTypeA :: Bool -> SF.Type 'Zero -> Gen v CType
 genTypeA is_arg t@(TRecord _ Unboxed) | is_arg && __cogent_funboxed_arg_by_ref = CPtr . CIdent <$> typeCId t  -- TODO: sizeof
 genTypeA _ t = genType t
 
-lookupType :: SF.Type Zero -> Gen v (Maybe CType)
+lookupType :: SF.Type 'Zero -> Gen v (Maybe CType)
 lookupType t@(TRecord _ s) | s /= Unboxed = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
 lookupType t@(TString)                    = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
 lookupType t@(TCon _ _ s)  | s /= Unboxed = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
 lookupType t                              = getCompose (       CIdent <$> Compose (lookupTypeCId t))
 
 -- Add a type synonym
-genType' :: SF.Type Zero -> TypeName -> Gen v CType
+genType' :: SF.Type 'Zero -> TypeName -> Gen v CType
 genType' = genTypeA' False
 
-genTypeA' :: Bool -> SF.Type Zero -> TypeName -> Gen v CType
+genTypeA' :: Bool -> SF.Type 'Zero -> TypeName -> Gen v CType
 genTypeA' is_arg ty n = do ty' <- genTypeA is_arg ty
                            typeSynonyms %= M.insert n ty'
                            return ty'
@@ -725,7 +725,7 @@ mkConst :: PrimInt -> Integer -> CExpr
 mkConst pt n | pt == Boolean = mkBoolLit (mkConst U8 n)
              | otherwise = CConst $ CNumConst n (CogentPrim pt) DEC
 
-genOp :: Syn.Op -> SF.Type Zero -> [CExpr] -> Gen v CExpr
+genOp :: Syn.Op -> SF.Type 'Zero -> [CExpr] -> Gen v CExpr
 genOp opr (SF.TPrim pt) es =
   let oprf = case opr of
                -- binary
@@ -767,7 +767,7 @@ genOp opr (SF.TPrim pt) es =
         downcast pt e = if pt `elem` [U8, U16] then CTypeCast (CogentPrim pt) e else e
 genOp _ _ _ = __impossible "genOp"
 
-genExpr_ :: TypedExpr Zero v VarName -> Gen v (CExpr, [CBlockItem], [CBlockItem], VarPool)
+genExpr_ :: TypedExpr 'Zero v VarName -> Gen v (CExpr, [CBlockItem], [CBlockItem], VarPool)
 genExpr_ = genExpr Nothing
 
 noDecls :: (CExpr, [CBlockItem], VarPool) -> (CExpr, [CBlockItem], [CBlockItem], VarPool)
@@ -775,7 +775,7 @@ noDecls (e,s,p) = (e,[],s,p)
 
 -- The first argument is the return value on one level up
 -- Returns: (expr, decls, stmts, reusable_var_pool)
-genExpr :: Maybe CId -> TypedExpr Zero v VarName -> Gen v (CExpr, [CBlockItem], [CBlockItem], VarPool)
+genExpr :: Maybe CId -> TypedExpr 'Zero v VarName -> Gen v (CExpr, [CBlockItem], [CBlockItem], VarPool)
 genExpr _ (TE t (Op opr [])) = __impossible "genExpr"
 genExpr mv (TE t (Op opr es@(e1:_))) = do
   (es',decls,stms,ps) <- L.unzip4 <$> mapM genExpr_ es
@@ -1022,15 +1022,15 @@ fnSpecAttrConst (FnSpec st tq ats) = FnSpec st tq (GccAttrs [GccAttr "const" []]
 fnSpecAttrPure  (FnSpec st tq ats) = FnSpec st tq (GccAttrs [GccAttr "pure"  []]:ats)
 
  -- NOTE: This function excessively uses `unsafeCoerce' because of existentials / zilinc
-genDefinition :: Definition TypedExpr VarName -> Gen Zero [CExtDecl]
+genDefinition :: Definition TypedExpr VarName -> Gen 'Zero [CExtDecl]
 genDefinition (FunDef attr fn Nil t rt e) = do
   localOracle .= 0
   varPool .= M.empty
   arg <- freshLocalCId 'a'
-  t' <- genTypeA' True (unsafeCoerce t :: SF.Type Zero) (argOf fn)
+  t' <- genTypeA' True (unsafeCoerce t :: SF.Type 'Zero) (argOf fn)
   (e',edecl,estm,_) <- withBindings (Cons (CVar arg Nothing & if __cogent_funboxed_arg_by_ref then CDeref else id) Nil)
-                         (genExpr Nothing (unsafeCoerce e :: TypedExpr Zero (Suc Zero) VarName))
-  rt' <- genType' (unsafeCoerce rt :: SF.Type Zero) (retOf fn)
+                         (genExpr Nothing (unsafeCoerce e :: TypedExpr 'Zero ('Suc 'Zero) VarName))
+  rt' <- genType' (unsafeCoerce rt :: SF.Type 'Zero) (retOf fn)
   funClasses %= M.alter (insertSetMap (fn,attr)) (Function t' rt')
   body <- case __cogent_fintermediate_vars of
     True  -> do (rv,rvdecl,rvstm) <- declareInit rt' e' M.empty
@@ -1039,18 +1039,18 @@ genDefinition (FunDef attr fn Nil t rt e) = do
   return [CDecl $ CExtFnDecl rt' fn [(t', Nothing)] ((if __cogent_ffunc_purity_attr then fnSpecKind t rt else id) $ fnSpecAttr attr noFnSpec),
           CFnDefn (rt', fn) [(t', arg)] body ((if __cogent_ffunc_purity_attr then fnSpecKind t rt else id) $ fnSpecAttr attr noFnSpec)]
 genDefinition (AbsDecl attr fn Nil t rt)
-  = do t'  <- genType' (unsafeCoerce t  :: SF.Type Zero) (argOf fn)
-       rt' <- genType' (unsafeCoerce rt :: SF.Type Zero) (retOf fn)
+  = do t'  <- genType' (unsafeCoerce t  :: SF.Type 'Zero) (argOf fn)
+       rt' <- genType' (unsafeCoerce rt :: SF.Type 'Zero) (retOf fn)
        funClasses %= M.alter (insertSetMap (fn,attr)) (Function t' rt')
        return [CDecl $ CExtFnDecl rt' fn [(t',Nothing)] (fnSpecAttr attr noFnSpec)]
 -- NOTE: An ad hoc treatment to concreate non-parametric type synonyms / zilinc
-genDefinition (TypeDef tn ins (Just (unsafeCoerce -> ty :: SF.Type Zero)))
+genDefinition (TypeDef tn ins (Just (unsafeCoerce -> ty :: SF.Type 'Zero)))
   -- NOTE: We need to make sure that ty doesn't consist of any function type with no function members / zilinc
   -- NOTE: If the RHS of this (the structural definition) is used at all, we generate the synonym / zilinc (26/08/15)
   | not (isTFun ty) = lookupTypeCId ty >>= mapM_ (const $ genRealSyn ty tn) >> return []
   where
     -- This function generates type synonyms to datatype, not to pointer
-    genRealSyn :: SF.Type Zero -> TypeName -> Gen v ()
+    genRealSyn :: SF.Type 'Zero -> TypeName -> Gen v ()
     genRealSyn ty n = typeCId ty >>= \t -> typeSynonyms %= M.insert n (CIdent t)
 genDefinition _ = return []
 -- genDefinition (TypeDef tn ins _) = __impossible "genDefinition"
@@ -1317,7 +1317,7 @@ cExtDecl (CFnMacro fn as body) = C.EscDef (string1 ++ "\\\n" ++ string2) noLoc
 -- ----------------------------------------------------------------------------
 -- Table generator
 
-newtype TableCTypes = TableCTypes (CId, SF.Type Zero)
+newtype TableCTypes = TableCTypes (CId, SF.Type 'Zero)
 
 table :: TableCTypes -> PP.Doc
 table (TableCTypes entry) = PP.pretty entry
@@ -1327,9 +1327,9 @@ printCTable h m ts log = mapM_ (displayOneLine h . PP.renderPretty 0 80 . m) $
                            L.map (PP.string . ("-- " ++)) (lines log) ++ PP.line : L.map table ts
 
 #if __GLASGOW_HASKELL__ < 709
-instance PP.Pretty (CId, SF.Type Zero) where
+instance PP.Pretty (CId, SF.Type 'Zero) where
 #else
-instance {-# OVERLAPPING #-} PP.Pretty (CId, SF.Type Zero) where
+instance {-# OVERLAPPING #-} PP.Pretty (CId, SF.Type 'Zero) where
 #endif
   pretty (n,t) = PP.pretty (deepType id (M.empty, 0) t) PP.<+> PP.string ":=:" PP.<+> PP.pretty n
 
@@ -1337,7 +1337,7 @@ instance {-# OVERLAPPING #-} PP.Pretty (CId, SF.Type Zero) where
 -- ////////////////////////////////////////////////////////////////////////////
 -- misc.
 
-kindcheck :: Type Zero -> Kind
+kindcheck :: Type 'Zero -> Kind
 kindcheck (TVar v)         = __impossible "kindcheck"
 kindcheck (TVarBang v)     = __impossible "kindcheck"
 kindcheck (TUnit)          = mempty
@@ -1349,11 +1349,11 @@ kindcheck (TPrim i)        = mempty
 kindcheck (TString)        = mempty
 kindcheck (TCon n vs s)    = sigilKind s
 
-isTypeLinear :: Type Zero -> Bool
+isTypeLinear :: Type 'Zero -> Bool
 isTypeLinear = flip isTypeHasKind k1
 
-isTypeInKinds :: Type Zero -> [Kind] -> Bool
+isTypeInKinds :: Type 'Zero -> [Kind] -> Bool
 isTypeInKinds t ks = kindcheck t `elem` ks
 
-isTypeHasKind :: Type Zero -> Kind -> Bool
+isTypeHasKind :: Type 'Zero -> Kind -> Bool
 isTypeHasKind t k = isTypeInKinds t [k]

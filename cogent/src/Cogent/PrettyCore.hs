@@ -121,7 +121,7 @@ instance Pretty a => Pretty (TypedExpr t v a) where
 instance Pretty a => Pretty (UntypedExpr t v a) where
   pretty (E e) = pretty e
 
-instance (Pretty a, PrettyP (e t v a), Pretty (e t (Suc v) a), Pretty (e t (Suc (Suc v)) a))
+instance (Pretty a, PrettyP (e t v a), Pretty (e t ('Suc v) a), Pretty (e t ('Suc ('Suc v)) a))
          => Pretty (Expr t v a e) where
   pretty (Op opr [a,b])
      | LeftAssoc  l <- associativity opr = prettyP (l+1) a <+> primop opr <+> prettyP l b
@@ -206,10 +206,10 @@ instance Pretty a => Pretty (Vec t a) where
   pretty (Cons x Nil) = pretty x
   pretty (Cons x xs) = pretty x <> string "," <+> pretty xs
 
-instance (Pretty a, Pretty (e t (Suc Zero) a)) => Pretty (Definition e a) where
+instance (Pretty a, Pretty (e t ('Suc 'Zero) a)) => Pretty (Definition e a) where
   pretty (FunDef _ fn ts t rt e) = funName fn <+> symbol ":" <+> brackets (pretty ts) <> symbol "." <+>
                                    parens (pretty t) <+> symbol "->" <+> parens (pretty rt) <+> symbol "=" <$>
-                                   pretty (unsafeCoerce e :: e t (Suc Zero) a)  -- FIXME: Use of `unsafeCoerce' to retain existential type / zilinc
+                                   pretty (unsafeCoerce e :: e t ('Suc 'Zero) a)  -- FIXME: Use of `unsafeCoerce' to retain existential type / zilinc
   pretty (AbsDecl _ fn ts t rt) = funName fn <+> symbol ":" <+> brackets (pretty ts) <> symbol "." <+>
                                   parens (pretty t) <+> symbol "->" <+> parens (pretty rt)
   pretty (TypeDef tn ts Nothing) = keyword "type" <+> typename tn <+> pretty ts

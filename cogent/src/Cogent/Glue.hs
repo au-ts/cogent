@@ -130,7 +130,7 @@ data MnState = MnState { _funMono  :: MN.FunMono
 data CgState = CgState { _cTypeDefs    :: [(CG.StrlType, CG.CId)]
                        , _cTypeDefMap  :: M.Map CG.StrlType CG.CId
                        , _typeSynonyms :: M.Map TypeName CG.CType
-                       , _typeCorres   :: DList.DList (CG.CId, SF.Type Zero)
+                       , _typeCorres   :: DList.DList (CG.CId, SF.Type 'Zero)
                        , _absTypes     :: M.Map TypeName (S.Set [CG.CId])
                        , _funClasses   :: CG.FunClass
                        , _localOracle  :: Integer  -- FIXME: should be moved to DefnState
@@ -191,13 +191,13 @@ tcAnti m a = view kenv >>= \(cvtToList -> ts) -> lift . lift $
                                     -- FIXME: may need a pp modifier `plain' / zilinc
                        Right x -> return (x, s)
 
-desugarAnti :: (a -> DS.DS t Zero b) -> a -> GlDefn t b
+desugarAnti :: (a -> DS.DS t 'Zero b) -> a -> GlDefn t b
 desugarAnti m a = view kenv >>= \(fmap fst -> ts) -> lift . lift $
   StateT $ \s -> let tdefs = view (dsState.typedefs ) s
                      cdefs = view (dsState.constdefs) s
                   in return (fst (flip3 evalRWS (ts, Nil, 0) (tdefs, cdefs, []) $ DS.runDS $ m a), s)  -- FIXME: pragmas / zilinc
 
-icAnti :: (a -> SF.TC t Zero b) -> a -> GlDefn t b
+icAnti :: (a -> SF.TC t 'Zero b) -> a -> GlDefn t b
 icAnti m a = view kenv >>= \(fmap snd -> ts) -> lift . lift $
   StateT $ \s -> let reader = (ts, view (icState.funtypes) s)
                   in case flip evalState Nil $ flip runReaderT reader $ runExceptT $ SF.unTC $ m a of
@@ -210,7 +210,7 @@ monoAnti m a = view (inst._1) >>= \is -> lift . lift . lift $
                      tmono = view (mnState.typeMono) s
                   in return (fst (flip3 evalRWS (fmono,tmono) is $ MN.runMono $ m a), s)
 
-genAnti :: (a -> CG.Gen Zero b) -> a -> Gl b
+genAnti :: (a -> CG.Gen 'Zero b) -> a -> Gl b
 genAnti m a =
   StateT $ \s -> let reader = Nil
                      state  = CG.GenState { CG._cTypeDefs    = view (cgState.cTypeDefs   ) s
@@ -240,10 +240,10 @@ tcType t = tcAnti (TC.inEContext (TC.AntiquotedType t) . TC.validateType) t
 desugarType :: SR.RawType -> GlDefn t (SF.Type t)
 desugarType = desugarAnti DS.desugarType
 
-monoType :: SF.Type t -> GlMono t (SF.Type Zero)
+monoType :: SF.Type t -> GlMono t (SF.Type 'Zero)
 monoType = monoAnti MN.monoType
 
-genType :: SF.Type Zero -> Gl CG.CType
+genType :: SF.Type 'Zero -> Gl CG.CType
 genType = genAnti CG.genType
 
 transDeclSpec :: CS.DeclSpec -> GlMono t CS.DeclSpec
@@ -280,12 +280,12 @@ tcFnCall e = do
          otherwise -> throwError $ "Error: Not a function in $exp antiquote"
   tcAnti (TC.inEContext (TC.AntiquotedExpr e) . TC.infer) e
 
-genFn :: SF.TypedExpr Zero Zero VarName -> Gl CS.Exp
+genFn :: SF.TypedExpr 'Zero 'Zero VarName -> Gl CS.Exp
 genFn = genAnti $ \case
   SF.TE t (SF.Fun fn _ _) -> return (CS.Var (CS.Id (CG.funEnum fn) noLoc) noLoc)
   _ -> __impossible "genFn"
 
-genFnCall :: SF.Type Zero -> Gl CS.Exp
+genFnCall :: SF.Type 'Zero -> Gl CS.Exp
 genFnCall = genAnti $ \t -> do
     enumt <- CG.typeCId t
     return (CS.Var (CS.Id (CG.funDispatch $ toCName enumt) noLoc) noLoc)
@@ -320,16 +320,16 @@ parseExp s loc = parseAnti s (PS.expr 1) loc 4
 tcExp :: SR.LocExpr -> GlDefn t TC.TypedExpr
 tcExp e = tcAnti (TC.inEContext (TC.AntiquotedExpr e) . TC.infer) e
 
-desugarExp :: TC.TypedExpr -> GlDefn t (SF.UntypedExpr t Zero VarName)
+desugarExp :: TC.TypedExpr -> GlDefn t (SF.UntypedExpr t 'Zero VarName)
 desugarExp = desugarAnti DS.desugarExpr
 
-icExp :: SF.UntypedExpr t Zero VarName -> GlDefn t (SF.TypedExpr t Zero VarName)
+icExp :: SF.UntypedExpr t 'Zero VarName -> GlDefn t (SF.TypedExpr t 'Zero VarName)
 icExp = icAnti SF.typecheck
 
-monoExp :: SF.TypedExpr t Zero VarName -> GlMono t (SF.TypedExpr Zero Zero VarName)
+monoExp :: SF.TypedExpr t 'Zero VarName -> GlMono t (SF.TypedExpr 'Zero 'Zero VarName)
 monoExp = monoAnti MN.monoExpr
 
-genExp :: SF.TypedExpr Zero Zero VarName -> Gl CS.Exp
+genExp :: SF.TypedExpr 'Zero 'Zero VarName -> Gl CS.Exp
 genExp = genAnti $ \e -> do (v,vdecl,vstm,_) <- CG.genExpr Nothing e
                             let bis' = L.map CG.cBlockItem (vdecl ++ vstm)
                                 v'   = CG.cExpr v
@@ -356,7 +356,7 @@ transFuncId d = return d
 parseTypeId :: String -> SrcLoc -> GlFile (TypeName, [TyVarName])
 parseTypeId s loc = parseAnti s ((,) <$> PS.typeConName <*> PP.many PS.variableName) loc 4
 
-genTypeId :: SF.Type Zero -> Gl CG.CId
+genTypeId :: SF.Type 'Zero -> Gl CG.CId
 genTypeId = genAnti CG.typeCId
 
 transTypeId :: CS.Definition -> GlMono t (CS.Definition, Maybe String)

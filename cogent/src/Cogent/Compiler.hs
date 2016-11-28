@@ -28,6 +28,8 @@ __impossible msg = error $ msg ++ ": the 'impossible' happened!"
 #if __GLASGOW_HASKELL__ < 711
 __ghc_t4139 :: String -> a
 __ghc_t4139 msg = error $ msg ++ ": GHC doesn't get exhaustivity right (see trac #4139)"
+#else
+
 #endif
 
 __exhaustivity :: String -> a
