@@ -33,11 +33,12 @@ import Data.Maybe
 import qualified Data.Set as S
 import Text.Parsec.Char
 import Text.Parsec.Combinator
+import Text.Parsec.Error
 import Text.Parsec.Expr
 import Text.Parsec.Language
 import Text.Parsec.Pos
 import Text.Parsec.Prim
-import Text.Parsec.String (parseFromFile)
+-- import Text.Parsec.String (parseFromFile)
 import qualified Text.Parsec.Token as T
 import System.Directory
 import System.FilePath
@@ -360,7 +361,6 @@ loadTransitive' r fp paths ro = do
                         Right defs -> do
                            defs' <- mapM (flip transitive fpdir) defs
                            return $ fmap (second (pragmas ++) . mconcat) . sequence $ defs'
-
   where
     transitive :: (SourcePos, DocString, TopLevel LocType VarName LocExpr)
                -> FilePath
@@ -390,4 +390,9 @@ tygen = do
   string "<=="
   ty <- monotype  -- NOTE: this syntax is because of the `avoidInitial`s in `monotype` function / zilinc
   return (ty,cty)
+
+parseFromFile :: Parser a () -> FilePath -> IO (Either ParseError a)
+parseFromFile p fname = do
+  input <- readFile fname
+  return $ runP p () (takeFileName fname) input
 
