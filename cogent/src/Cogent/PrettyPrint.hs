@@ -23,7 +23,6 @@ import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Subst
 
 import Control.Arrow (second)
-import Data.Either (either)
 import Data.Function ((&))
 import Data.IntMap as I (IntMap, toList, lookup)
 import Data.List(nub)

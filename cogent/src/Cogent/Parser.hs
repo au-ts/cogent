@@ -32,11 +32,12 @@ import Data.Maybe
 import qualified Data.Set as S
 import Text.Parsec.Char
 import Text.Parsec.Combinator
+import Text.Parsec.Error
 import Text.Parsec.Expr
 import Text.Parsec.Language
 import Text.Parsec.Pos
 import Text.Parsec.Prim
-import Text.Parsec.String (parseFromFile)
+-- import Text.Parsec.String (parseFromFile)
 import qualified Text.Parsec.Token as T
 import System.Directory
 import System.FilePath
@@ -359,8 +360,7 @@ loadTransitive' r fp paths ro = do
                      Left err -> return $ Left $ show err
                      Right (defs,pragmas) -> do
                         defs' <- mapM (flip transitive fpdir) defs
-                        let blah = fmap (second (pragmas ++) . mconcat) . sequence $ defs'
-                        return blah
+                        return $ fmap (second (pragmas ++) . mconcat) . sequence $ defs'
 
   where
     transitive :: (SourcePos, DocString, TopLevel LocType VarName LocExpr)
@@ -376,4 +376,7 @@ loadTransitive' r fp paths ro = do
       False -> findPath paths
       True  -> return $ Just p
 
-
+parseFromFile :: Parser a () -> FilePath -> IO (Either ParseError a)
+parseFromFile p fname = do
+  input <- readFile fname
+  return $ runP p () (takeFileName fname) input
