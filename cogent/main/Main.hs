@@ -461,8 +461,10 @@ flags =
   , Option ['E']      ["Werror"]         1 (NoArg set_flag_Werror)                         "make any warning into a fatal error"
   , Option []         ["Wdynamic-variant-promotion"]  2 (NoArg set_flag_WdynamicVariantPromotion) "enable warning on dynamic variant type promotion"
   , Option []         ["Wimplicit-int-lit-promotion"] 2 (NoArg set_flag_WimplicitIntLitPromotion) "(default) enable warning on implicit integer literal promotion"
+  , Option []         ["Wunused-local-binds"]         2 (NoArg set_flag_WunusedLocalBinds) "warn about unused local binders"
   , Option []         ["Wno-dynamic-variant-promotion"]  2 (NoArg set_flag_WnoDynamicVariantPromotion) "(default) reverse of --Wdynamic-variant-promotion"
   , Option []         ["Wno-implicit-int-lit-promotion"] 2 (NoArg set_flag_WnoImplicitIntLitPromotion) "reverse of --Wimplicit-int-lit-promotion"
+  , Option []         ["Wno-unused-local-binds"]         2 (NoArg set_flag_WnoUnusedLocalBinds) "(default) reverse of --Wunused-local-binds"
   , Option ['w']      ["Wno-warn"]      1 (NoArg set_flag_w)                               "turn off all warnings"
   , Option []         ["Wwarn"]         1 (NoArg set_flag_Wwarn)                           "(default) warnings are treated only as warnings, not as errors"
   -- misc

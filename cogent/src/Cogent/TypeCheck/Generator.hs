@@ -23,6 +23,7 @@ module Cogent.TypeCheck.Generator
 
 import Cogent.Common.Syntax
 import Cogent.Common.Types
+import Cogent.Compiler
 import qualified Cogent.Context as C
 import Cogent.PrettyPrint (prettyC)
 import Cogent.Surface
@@ -324,7 +325,8 @@ cgAlts alts top alpha = do
       context %= C.addScope s
       (c', e') <- cg e top
       rs <- context %%= C.dropScope
-      let unused = flip foldMap (M.toList rs) $ \(v,(_,_,mp)) -> case mp of Nothing -> warnToConstraint (UnusedLocalBind v); _ -> Sat
+      let unused = flip foldMap (M.toList rs) $ \(v,(_,_,mp)) ->
+            case mp of Nothing -> warnToConstraint __cogent_wunused_local_binds (UnusedLocalBind v); _ -> Sat
       return (removeCase p t, (c <> c' <> dropConstraintFor rs <> unused, Alt p' like e'))
 
     jobs = map (\(n, alt) -> (NthAlternative n (altPattern alt), f alt)) (zip [1..] alts)
@@ -453,7 +455,7 @@ withBindings (Binding pat tau e bs : xs) a = do
   context %= C.addScope s
   (c', xs', r) <- withBindings xs a
   rs <- context %%= C.dropScope
-  let unused = flip foldMap (M.toList rs) $ \(v,(_,_,mp)) -> case mp of Nothing -> warnToConstraint (UnusedLocalBind v); _ -> Sat
+  let unused = flip foldMap (M.toList rs) $ \(v,(_,_,mp)) -> case mp of Nothing -> warnToConstraint __cogent_wunused_local_binds (UnusedLocalBind v); _ -> Sat
       c = ct <> c1 <> c' <> cp <> dropConstraintFor rs <> unused
       b' = Binding pat' (fmap (const alpha) tau) e' bs
   traceTC "gen" (text "bound expression" <+> pretty e' <+> text "with banged" <+> pretty bs

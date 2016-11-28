@@ -184,11 +184,14 @@ set_flag_ftcCtxLen = writeIORef __cogent_ftc_ctx_len_ref
 set_flag_w      = writeIORef __cogent_warning_switch_ref Flag_w
 set_flag_Wall = do set_flag_WdynamicVariantPromotion
                    set_flag_WimplicitIntLitPromotion
+                   set_flag_WunusedLocalBinds
 set_flag_Werror = writeIORef __cogent_warning_switch_ref Flag_Werror
 set_flag_WdynamicVariantPromotion = writeIORef __cogent_wdynamic_variant_promotion_ref True
 set_flag_WimplicitIntLitPromotion = writeIORef __cogent_wimplicit_int_lit_promotion_ref True
 set_flag_WnoDynamicVariantPromotion = writeIORef __cogent_wdynamic_variant_promotion_ref False
 set_flag_WnoImplicitIntLitPromotion = writeIORef __cogent_wimplicit_int_lit_promotion_ref False
+set_flag_WnoUnusedLocalBinds = writeIORef __cogent_wunused_local_binds_ref False
+set_flag_WunusedLocalBinds = writeIORef __cogent_wunused_local_binds_ref True
 set_flag_Wwarn  = writeIORef __cogent_warning_switch_ref Flag_Wwarn
 
 __cogent_abs_type_dir :: FilePath
@@ -715,6 +718,13 @@ __cogent_wimplicit_int_lit_promotion = unsafePerformIO $ readIORef __cogent_wimp
 __cogent_wimplicit_int_lit_promotion_ref :: IORef Bool
 {-# NOINLINE __cogent_wimplicit_int_lit_promotion_ref #-}
 __cogent_wimplicit_int_lit_promotion_ref = unsafePerformIO $ newIORef True
+
+__cogent_wunused_local_binds :: Bool
+__cogent_wunused_local_binds = unsafePerformIO $ readIORef __cogent_wunused_local_binds_ref
+
+__cogent_wunused_local_binds_ref :: IORef Bool
+{-# NOINLINE __cogent_wunused_local_binds_ref #-}
+__cogent_wunused_local_binds_ref = unsafePerformIO $ newIORef False
 
 -- Internal flags
 

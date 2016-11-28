@@ -442,7 +442,7 @@ instance Pretty TypeError where
   pretty (TypeWarningAsError w)          = pretty w
 
 instance Pretty TypeWarning where
-  pretty (UnusedLocalBind v) = warn "Warning: [--Wunused-local-bind]" <$$> indent' (warn "Defined but not used:" <+> pretty v)
+  pretty (UnusedLocalBind v) = warn "Warning: [--Wunused-local-binds]" <$$> indent' (warn "Defined but not used:" <+> pretty v)
 
 instance Pretty TypeEW where
   pretty = either pretty pretty
