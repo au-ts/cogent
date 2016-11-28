@@ -108,15 +108,6 @@ data TopLevel t pv e = Include String
                      | ConstDef VarName t e
                      deriving (Eq, Show, Functor, Foldable, Traversable)
 
--- XXX | eqTopLevelId :: String -> TopLevel t pv e -> Bool
--- XXX | eqTopLevelId x (Include {}) = False
--- XXX | eqTopLevelId x (IncludeStd {}) = False
--- XXX | eqTopLevelId x (TypeDec tn _ _) = x == tn
--- XXX | eqTopLevelId x (AbsTypeDec tn _) = x == tn
--- XXX | eqTopLevelId x (AbsDec fn _) = x == fn
--- XXX | eqTopLevelId x (FunDef fn _ _) = x == fn
--- XXX | eqTopLevelId x (ConstDef vn _ _) = x == vn  -- should not matter
-
 absFnDeclId :: String -> TopLevel t pv e -> Bool
 absFnDeclId x (AbsDec fn _) = x == fn
 absFnDeclId _ _ = False
@@ -142,10 +133,21 @@ instance Foldable (Flip (Expr t) e) where
   foldMap f a = getConst $ traverse (Const . f) a
 instance Foldable (Flip (Binding t) e) where
   foldMap f a = getConst $ traverse (Const . f) a
+instance Foldable (Flip2 Binding p e) where
+  foldMap f a = getConst $ traverse (Const . f) a
+instance Foldable (Flip2 Expr p e) where
+  foldMap f a = getConst $ traverse (Const . f) a
+instance Foldable (Flip (TopLevel t) e) where
+  foldMap f a = getConst $ traverse (Const . f) a
+instance Foldable (Flip2 TopLevel p e) where
+  foldMap f a = getConst $ traverse (Const . f) a
+
 instance Traversable (Flip Alt e) where
   traverse f (Flip (Alt p b e)) = Flip <$> (Alt <$> traverse f p <*> pure b <*> pure e)
 instance Traversable (Flip (Binding t) e) where
   traverse f (Flip (Binding p mt e vs)) = Flip <$> (Binding <$> traverse f p <*> pure mt <*> pure e <*> pure vs)
+instance Traversable (Flip2 Binding p e) where
+  traverse f (Flip2 (Binding p mt e vs)) = Flip2 <$> (Binding p <$> traverse f mt <*> pure e <*> pure vs)
 instance Traversable (Flip (Expr t) e) where
   traverse f (Flip (Match e v alt))     = Flip <$> (Match e v <$> traverse (ttraverse f) alt)
   traverse f (Flip (Let bs e))          = Flip <$> (Let  <$> (traverse (ttraverse f) bs) <*> pure e)
@@ -167,22 +169,6 @@ instance Traversable (Flip (Expr t) e) where
   traverse _ (Flip (Put e es))          = pure $ Flip (Put e es)
   traverse _ (Flip (Upcast e))          = pure $ Flip (Upcast e)
   -- traverse _ (Flip (Widen e))           = pure $ Flip (Widen e)
-instance Functor (Flip (Binding t) e) where
-  fmap f x = runIdentity (traverse (Identity . f) x)
-instance Functor (Flip Alt e) where
-  fmap f x = runIdentity (traverse (Identity . f) x)
-instance Functor (Flip (Expr t) e) where
-  fmap f x = runIdentity (traverse (Identity . f) x)
-instance Functor (Flip2 Binding p e) where
-  fmap f x = runIdentity (traverse (Identity . f) x)
-instance Foldable (Flip2 Binding p e) where
-  foldMap f a = getConst $ traverse (Const . f) a
-instance Traversable (Flip2 Binding p e) where
-  traverse f (Flip2 (Binding p mt e vs)) = Flip2 <$> (Binding p <$> traverse f mt <*> pure e <*> pure vs)
-instance Foldable (Flip2 Expr p e) where
-  foldMap f a = getConst $ traverse (Const . f) a
-instance Functor (Flip2 Expr p e) where
-  fmap f x = runIdentity (traverse (Identity . f) x)
 instance Traversable (Flip2 Expr p e) where
   traverse f (Flip2 (Let bs e))         = Flip2 <$> (Let <$> traverse (tttraverse f) bs <*> pure e)
   traverse f (Flip2 (TypeApp v ts nt))  = Flip2 <$> (TypeApp v <$> traverse (traverse f) ts <*> pure nt)
@@ -204,10 +190,6 @@ instance Traversable (Flip2 Expr p e) where
   traverse _ (Flip2 (Put e es))         = pure $ Flip2 (Put e es)
   --traverse _ (Flip2 (Widen e))          = pure $ Flip2 (Widen e)
   traverse _ (Flip2 (Upcast e))         = pure $ Flip2 (Upcast e)
-instance Functor (Flip (TopLevel t) e) where
-  fmap f x = runIdentity (traverse (Identity . f) x)
-instance Foldable (Flip (TopLevel t) e) where
-  foldMap f a = getConst $ traverse (Const . f) a
 instance Traversable (Flip (TopLevel t) e) where
   traverse f (Flip (FunDef v pt alts))  = Flip <$> (FunDef v pt <$> traverse (ttraverse f) alts)
   traverse _ (Flip (Include s))         = pure $ Flip (Include s)
@@ -217,10 +199,6 @@ instance Traversable (Flip (TopLevel t) e) where
   traverse _ (Flip (AbsTypeDec n vs))   = pure $ Flip (AbsTypeDec n vs)
   traverse _ (Flip (AbsDec v pt))       = pure $ Flip (AbsDec v pt)
   traverse _ (Flip (ConstDef v t e))    = pure $ Flip (ConstDef v t e)
-instance Functor (Flip2 TopLevel p e) where
-  fmap f x = runIdentity (traverse (Identity . f) x)
-instance Foldable (Flip2 TopLevel p e) where
-  foldMap f a = getConst $ traverse (Const . f) a
 instance Traversable (Flip2 TopLevel p e) where
   traverse f (Flip2 (FunDef v pt alts)) = Flip2 <$> (FunDef   v <$> traverse f pt <*> pure alts)
   traverse f (Flip2 (AbsDec v pt))      = Flip2 <$> (AbsDec   v <$> traverse f pt)
@@ -230,6 +208,22 @@ instance Traversable (Flip2 TopLevel p e) where
   traverse _ (Flip2 (IncludeStd s))     = pure $ Flip2 (IncludeStd s)
   traverse _ (Flip2 (DocBlock s))       = pure $ Flip2 (DocBlock s)
   traverse _ (Flip2 (AbsTypeDec n vs))  = pure $ Flip2 (AbsTypeDec n vs)
+
+instance Functor (Flip (Binding t) e) where
+  fmap f x = runIdentity (traverse (Identity . f) x)
+instance Functor (Flip Alt e) where
+  fmap f x = runIdentity (traverse (Identity . f) x)
+instance Functor (Flip (Expr t) e) where
+  fmap f x = runIdentity (traverse (Identity . f) x)
+instance Functor (Flip2 Binding p e) where
+  fmap f x = runIdentity (traverse (Identity . f) x)
+instance Functor (Flip2 Expr p e) where
+  fmap f x = runIdentity (traverse (Identity . f) x)
+instance Functor (Flip (TopLevel t) e) where
+  fmap f x = runIdentity (traverse (Identity . f) x)
+instance Functor (Flip2 TopLevel p e) where
+  fmap f x = runIdentity (traverse (Identity . f) x)
+
 
 stripLocT :: LocType -> RawType
 stripLocT = RT . fmap stripLocT . typeOfLT
