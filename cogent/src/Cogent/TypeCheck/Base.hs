@@ -175,11 +175,13 @@ instance Monoid Constraint where
   -- mappend x (Unsat r) = Unsat r
   mappend x y = x :& y
 
-warnToConstraint :: TypeWarning -> Constraint
-warnToConstraint w = case __cogent_warning_switch of
-                       Flag_w -> Sat
-                       Flag_Wwarn -> SemiSat w
-                       Flag_Werror -> Unsat (TypeWarningAsError w)
+warnToConstraint :: Bool -> TypeWarning -> Constraint
+warnToConstraint f w 
+  | f = case __cogent_warning_switch of
+          Flag_w -> Sat
+          Flag_Wwarn -> SemiSat w
+          Flag_Werror -> Unsat (TypeWarningAsError w)
+  | otherwise = Sat
 
 isWarnAsError :: ContextualisedEW -> Bool
 isWarnAsError (_, Left (TypeWarningAsError _)) = True
