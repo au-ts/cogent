@@ -13,6 +13,7 @@
 *.pyc
 ENV
 cogent/.cabal-sandbox
+cogent/.stack-work
 cogent/cabal.sandbox.config
 cogent/cabal.config
 cogent/dist
@@ -21,6 +22,7 @@ cogent/tests/*.h
 cogent/tests/*.tmp
 cogent/out/
 isa-parser/.cabal-sandbox
+isa-parser/.stack-work
 isa-parser/cabal.sandbox.config
 isa-parser/dist
 .DS_Store
