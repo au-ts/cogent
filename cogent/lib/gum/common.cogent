@@ -8,10 +8,10 @@
 -- @TAG(NICTA_GPL)
 --
 
-type Option a = <None () | Some a>
+type Option a = <None|Some a>
 
 type LoopResult a b = <Iterate a|Break b>
-type LRR acc brk = (acc, <Iterate ()|Break brk>)
+type LRR acc brk = (acc, <Iterate|Break brk>)
 
 type R a b = <Success a|Error b>
 type Result a b = R a b
@@ -22,7 +22,7 @@ success a = Success a
 error : all (a, b). b -> R a b
 error b = Error b
 
-type RR c a b = (c, <Success a | Error b>)
+type RR c a b = (c, <Success a|Error b>)
 
 type ErrCode = U32
 type WordArrayIndex = U32
@@ -56,6 +56,7 @@ type Seq32SimpleParam acc = #{
   f: Seq32_simple_body acc,
   acc: acc
 }
+
 {-# cinline seq32_simple #-}
 {-# fnmacro seq32_simple #-}
 seq32_simple: all (acc).  Seq32SimpleParam acc -> acc
@@ -75,13 +76,14 @@ type Seq32Param acc obsv rbrk = #{
   acc: acc,
   obsv: obsv!
 }
+
 {-# cinline seq32 #-}
 {-# fnmacro seq32 #-}
-seq32: all (acc,obsv,rbrk).  Seq32Param acc obsv rbrk -> LRR acc rbrk
+seq32: all (acc,obsv,rbrk). Seq32Param acc obsv rbrk -> LRR acc rbrk
 
 {-# cinline seq32_rev #-}
 {-# fnmacro seq32_rev #-}
-seq32_rev: all (acc,obsv,rbrk).  Seq32Param acc obsv rbrk -> LRR acc rbrk
+seq32_rev: all (acc,obsv,rbrk). Seq32Param acc obsv rbrk -> LRR acc rbrk
 
 type Seq32_stepParam = U32 -> U32
 
@@ -93,9 +95,10 @@ type Seq32StepFParam acc obsv rbrk = #{
   acc: acc,
   obsv: obsv!
 }
+
 {-# cinline seq32_stepf #-}
 {-# fnmacro seq32_stepf #-}
-seq32_stepf: all (acc,obsv,rbrk).  Seq32StepFParam acc obsv rbrk -> LRR acc rbrk
+seq32_stepf: all (acc,obsv,rbrk). Seq32StepFParam acc obsv rbrk -> LRR acc rbrk
 
 -- seq64 begin end increment loop_body accumulators obvservables
 type Seq64_bodyParam acc obsv rbrk = #{
@@ -115,7 +118,7 @@ type Seq64Param acc obsv rbrk = #{
 
 {-# cinline seq64 #-}
 {-# fnmacro seq64 #-}
-seq64: all (acc,obsv,rbrk).  Seq64Param acc obsv rbrk -> LRR acc rbrk
+seq64: all (acc,obsv,rbrk). Seq64Param acc obsv rbrk -> LRR acc rbrk
 
 word64Max : U64
 word64Max = 0xffffffffffffffff
@@ -123,32 +126,24 @@ word64Max = 0xffffffffffffffff
 word32Max : U32
 word32Max = 0xffffffff
 
--- align32(a,b): align a to b, NOTE b must be a power of 2
+-- align32 (a,b): align a to b, NOTE b must be a power of 2
 align32 : (U32, U32) -> U32
-align32(x,powof2) =
+align32 (x,powof2) =
   (x + (powof2 - 1)) .&. complement(powof2 - 1)
 
 align64 : (U64, U64) -> U64
-align64(x,powof2) =
+align64 (x,powof2) =
   (x + (powof2 - 1)) .&. complement(powof2 - 1)
 
 {-# cinline min_u32 #-}
 {-# inline min_u32 #-}
 min_u32: (U32, U32) -> (U32)
-min_u32 (a, b) =
-  if a < b then
-    a
-  else
-    b
+min_u32 (a, b) = if a < b then a else b
 
 {-# cinline min_u64 #-}
 {-# inline min_u64 #-}
 min_u64: (U64, U64) -> (U64)
-min_u64 (a, b) =
-  if a < b then
-    a
-  else
-    b
+min_u64 (a, b) = if a < b then a else b
 
 {-# cinline in_range_u32 #-}
 {-# inline in_range_u32 #-}
@@ -169,10 +164,10 @@ _cogent_debug_u32_hex: U32 -> ()
 _cogent_debug_u32_oct: U32 -> ()
 
 _cogent_debug_u16: U16 -> ()
-_cogent_debug_u16 x = _cogent_debug_u32 (u16_to_u32 x)
+_cogent_debug_u16 x = _cogent_debug_u32 (upcast x)
 
 _cogent_debug_u8: U8 -> ()
-_cogent_debug_u8 x = _cogent_debug_u32 (u8_to_u32 x)
+_cogent_debug_u8 x = _cogent_debug_u32 (upcast x)
 
 _cogent_debug_bool: Bool -> ()
 _cogent_debug_bool bool = if bool then _cogent_debug "true" else _cogent_debug "false"
@@ -180,7 +175,7 @@ _cogent_debug_bool bool = if bool then _cogent_debug "true" else _cogent_debug "
 {-# cinline cogent_log2 #-}
 {-# fnmacro cogent_log2 #-}
 
-cogent_log2: (U32) -> (U32)
+cogent_log2: U32 -> U32
 
 {-# cinline random_u32 #-}
 random_u32: () -> U32
@@ -191,72 +186,34 @@ safe_add32: (U32,U32) -> R U32 ()
 -- an error.
 safe_add32(a, b) =
   let r = a + b
-  in if r < a || r < b then
-    Error ()
-  else
-    Success r
+  in if r < a || r < b
+       then Error else Success r
 
 {-# cinline safe_sub32 #-}
 safe_sub32: (U32,U32) -> R U32 ()
 safe_sub32(a, b) =
   let r = a - b
-  in if r > a then
-    Error ()
-  else
-    Success r
+  in if r > a then Error else Success r
 
 {-# cinline safe_sub64 #-}
 safe_sub64: (U64,U64) -> R U64 ()
 safe_sub64(a, b) =
   let r = a - b
-  in if r > a then
-    Error ()
-  else
-    Success r
+  in if r > a then Error else Success r
 
 {-# cinline safe_add64 #-}
 safe_add64: (U64,U64) -> R U64 ()
-safe_add64(a, b) =
+safe_add64 (a, b) =
   let r = a + b
-  in if r < a || r < b then
-    Error ()
-  else
-    Success r
+  in if r < a || r < b
+       then Error else Success r
 
--- These 3 functions will give you warnings if --Wimplicit-int-lit-promotion is enabled
-
-{-# INLINE to_u16 #-}
-to_u16 : U16 -> U16
-to_u16 x = x
-
-{-# INLINE to_u32 #-}
-to_u32 : U32 -> U32
-to_u32 x = x
-
-{-# INLINE to_u64 #-}
-to_u64 : U64 -> U64
-to_u64 x = x
-
-{-# cinline u8_to_u16 #-}
-u8_to_u16: U8 -> U16
-{-# cinline u8_to_u32 #-}
-u8_to_u32: U8 -> U32
-{-# cinline u8_to_u64 #-}
-u8_to_u64: U8 -> U64
 {-# cinline u16_to_u8 #-}
 u16_to_u8: U16 -> U8
-{-# cinline u16_to_u32 #-}
-u16_to_u32: U16 -> U32
-{-# cinline u16_to_u64 #-}
-u16_to_u64: U16 -> U64
-u16_to_u64 (x) =
-  u32_to_u64 (u16_to_u32 (x))
 {-# cinline u32_to_u8 #-}
 u32_to_u8: U32 -> U8
 {-# cinline u32_to_u16 #-}
 u32_to_u16: U32 -> U16
-{-# cinline u32_to_u64 #-}
-u32_to_u64: U32 -> U64
 {-# cinline u64_to_u32 #-}
 u64_to_u32: U64 -> U32
 {-# cinline u64_to_u16 #-}
@@ -264,10 +221,8 @@ u64_to_u16: U64 -> U16
 
 {-# cinline cogent_low_16_bits #-}
 cogent_low_16_bits: U32 -> U16
-cogent_low_16_bits(x) =
- u32_to_u16 ((x) .&. 0xFFFF)
+cogent_low_16_bits x = u32_to_u16 (x .&. 0xFFFF)
 
 {-# cinline cogent_high_16_bits #-}
 cogent_high_16_bits: U32 -> U16
-cogent_high_16_bits(x) =
-  u32_to_u16 (((x) .&. 0xFFFF0000) >> u8_to_u32 16)
+cogent_high_16_bits x = u32_to_u16 ((x .&. 0xFFFF0000) >> 16)
