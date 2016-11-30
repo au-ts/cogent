@@ -23,7 +23,7 @@ module Cogent.Vec where
 
 import Cogent.Compiler (__impossible)
 #if __GLASGOW_HASKELL__ < 711
-import Cogent.Compiler ( __ghc_t4139)
+import Cogent.Compiler (__ghc_t4139)
 #endif
 import Cogent.Util
 
@@ -195,10 +195,7 @@ splitAt (SSuc n) (Cons x xs) = let (a, b) = splitAt n xs in (Cons x a, b)
 splitAt _ _ = __ghc_t4139 "splitAt"
 #endif
 
-at :: Vec ( a) t -> Fin ( a) -> t
-#if __GLASGOW_HASKELL__ > 711
-at Nil _ = error "impossible branch in at in Vec.HS"
-#endif
+at :: Vec a t -> Fin a -> t
 at (Cons x xs) FZero    = x
 at (Cons x xs) (FSuc s) = at xs s
 #if __GLASGOW_HASKELL__ < 711
@@ -210,19 +207,14 @@ atList [] _ = __impossible "atList"
 atList (x:xs) FZero = x
 atList (x:xs) (FSuc s) = atList xs s
 
-update :: Vec a t -> Fin  a -> t -> Vec  a t
-#if __GLASGOW_HASKELL__ > 711
-update Nil _ _ = Nil
-#endif
+update :: Vec a t -> Fin a -> t -> Vec  a t
 update (Cons _ xs) FZero    x' = Cons x' xs
 update (Cons x xs) (FSuc s) x' = Cons x (update xs s x')
 #if __GLASGOW_HASKELL__ < 711
 update _ _ _ = __ghc_t4139 "update"
 #endif
 
---modifyAt :: Fin ('Suc a) -> (t -> t) -> Vec ( a) t -> Vec ( a) t
---modifyAt _empty _f Nil = Nil
-modifyAt :: Fin a -> (t -> t) -> Vec ( a) t -> Vec ( a) t
+modifyAt :: Fin a -> (t -> t) -> Vec a t -> Vec a t
 modifyAt l f v = update v l (f (v `at` l))
 
 findIx :: (Eq t) => t -> Vec a t -> Maybe (Fin a)
@@ -238,6 +230,7 @@ zipWith f (Cons x xs) (Cons y ys) = Cons (f x y) (zipWith f xs ys)
 #if __GLASGOW_HASKELL__ < 711
 zipWith _ _ _ = __ghc_t4139 "zipWith"
 #endif
+
 zip :: Vec n a -> Vec n b -> Vec n (a,b)
 zip = zipWith (,)
 
@@ -271,3 +264,4 @@ liftIdx (FSuc i) (FSuc v) = FSuc $ liftIdx i v
 maxFin :: SNat n -> Fin ('Suc n)
 maxFin SZero = FZero
 maxFin (SSuc n) = FSuc $ maxFin n
+
