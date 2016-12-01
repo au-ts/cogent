@@ -13,7 +13,7 @@
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TupleSections #-}
-
+{-# LANGUAGE FlexibleContexts #-}
 module Cogent.TypeCheck (
   tc, isWarnAsError  
 ) where

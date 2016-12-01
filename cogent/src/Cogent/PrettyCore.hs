@@ -12,7 +12,9 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE KindSignatures #-}
 #if __GLASGOW_HASKELL__ < 709
 {-# LANGUAGE OverlappingInstances #-}
 #endif
@@ -206,15 +208,23 @@ instance Pretty a => Pretty (Vec t a) where
   pretty (Cons x Nil) = pretty x
   pretty (Cons x xs) = pretty x <> string "," <+> pretty xs
 
-instance (Pretty a, Pretty (e t ('Suc 'Zero) a)) => Pretty (Definition e a) where
+
+class PrettyH e (n :: Nat) a where
+  prettyH :: forall (t :: Nat). e t n a -> Doc
+
+instance Pretty a => PrettyH TypedExpr n a where
+  prettyH = pretty
+  
+instance (Pretty a, PrettyH e ('Suc 'Zero) a) => Pretty (Definition e a) where
   pretty (FunDef _ fn ts t rt e)  = funName fn <+> symbol ":" <+> brackets (pretty ts) <> symbol "." <+>
                                     parens (pretty t) <+> symbol "->" <+> parens (pretty rt) <+> symbol "=" <$>
-                                    pretty (unsafeCoerce e :: e t ('Suc 'Zero) a)  -- FIXME: Use of `unsafeCoerce' to retain existential type / zilinc
+                                    prettyH e  -- FIXME: Use of `unsafeCoerce' to retain existential type / zilinc
   pretty (AbsDecl _ fn ts t rt)   = funName fn <+> symbol ":" <+> brackets (pretty ts) <> symbol "." <+>
                                     parens (pretty t) <+> symbol "->" <+> parens (pretty rt)
   pretty (TypeDef tn ts Nothing)  = keyword "type" <+> typename tn <+> pretty ts
   pretty (TypeDef tn ts (Just t)) = keyword "type" <+> typename tn <+> pretty ts <+>
                                     symbol "=" <+> pretty t
+  prettyList xs = vcat (map (pretty)  xs)
 
 displayOneLine :: Handle -> SimpleDoc -> IO ()
 displayOneLine handle simpleDoc = display simpleDoc >> hPutChar handle '\n'
