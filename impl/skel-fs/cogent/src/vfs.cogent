@@ -1,0 +1,559 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+-- An incomplete VFS implementation in Cogent. It isn't complete for several reasons:
+--   *
+-- TODO: List reasons here.
+
+include <gum/wordarray.cogent>
+include <gum/stat.cogent>
+include <gum/os.cogent>
+
+----------------------------
+-- The abstract inode structure
+----------------------------
+type VfsInodeAbstract
+
+
+----------------------------
+-- VFS MountInfo
+----------------------------
+type VfsMountInfoFlag = U32
+
+vfs_MS_RDONLY : VfsMountInfoFlag
+vfs_MS_RDONLY = 1
+
+type VfsMountInfo = {
+  s_magic : U64,
+  s_flags : VfsMountInfoFlag,
+  s_max_links: U32,
+  s_maxbytes : U64,
+  s_blocksize : U32,
+  s_blocksize_bits : U32
+}
+
+----------------------------
+-- VFS types
+-- The flags are defined in stat.cogent
+----------------------------
+type VfsType = U32
+
+vfs_type_sock: VfsType
+vfs_type_sock = s_IFSOCK
+
+vfs_type_link: VfsType
+vfs_type_link = s_IFLNK
+
+vfs_type_dir: VfsType
+vfs_type_dir = s_IFDIR
+
+vfs_type_reg: VfsType
+vfs_type_reg = s_IFREG
+
+vfs_type_blk: VfsType
+vfs_type_blk = s_IFBLK
+
+vfs_type_chr: VfsType
+vfs_type_chr = s_IFCHR
+
+vfs_type_fifo: VfsType
+vfs_type_fifo = s_IFIFO
+
+----------------------------
+-- VFS Size
+----------------------------
+type VfsSize = U64
+
+
+----------------------------
+-- VFS Inode Num
+----------------------------
+type VfsIno = U32
+
+----------------------------
+-- VFS Modes
+----------------------------
+type VfsMode = U32
+
+vmode_is_dir: VfsMode -> Bool
+vmode_is_dir mode = (mode .&. s_IFMT) == vfs_type_dir
+
+vmode_is_chr: VfsMode -> Bool
+vmode_is_chr mode = (mode .&. s_IFMT) == vfs_type_chr
+
+vmode_is_blk: VfsMode -> Bool
+vmode_is_blk mode = (mode .&. s_IFMT) == vfs_type_blk
+
+vmode_is_reg: VfsMode -> Bool
+vmode_is_reg mode = (mode .&. s_IFMT) == vfs_type_reg
+
+----------------------------
+-- VFS Atributes
+----------------------------
+type VfsIattr
+
+vfs_ATTR_MODE       :U32
+vfs_ATTR_MODE       = (1 << 0)
+vfs_ATTR_UID        :U32
+vfs_ATTR_UID        = (1 << 1)
+vfs_ATTR_GID        :U32
+vfs_ATTR_GID        = (1 << 2)
+vfs_ATTR_SIZE       :U32
+vfs_ATTR_SIZE       = (1 << 3)
+vfs_ATTR_ATIME      :U32
+vfs_ATTR_ATIME      = (1 << 4)
+vfs_ATTR_MTIME      :U32
+vfs_ATTR_MTIME      = (1 << 5)
+vfs_ATTR_CTIME      :U32
+vfs_ATTR_CTIME      = (1 << 6)
+vfs_ATTR_ATIME_SET  :U32
+vfs_ATTR_ATIME_SET  = (1 << 7)
+vfs_ATTR_MTIME_SET  :U32
+vfs_ATTR_MTIME_SET  = (1 << 8)
+vfs_ATTR_FORCE      :U32
+vfs_ATTR_FORCE      = (1 << 9) -- Not a change, but a change it
+vfs_ATTR_ATTR_FLAG  :U32
+vfs_ATTR_ATTR_FLAG  = (1 << 10)
+vfs_ATTR_KILL_SUID  :U32
+vfs_ATTR_KILL_SUID  = (1 << 11)
+vfs_ATTR_KILL_SGID  :U32
+vfs_ATTR_KILL_SGID  = (1 << 12)
+vfs_ATTR_FILE       :U32
+vfs_ATTR_FILE       = (1 << 13)
+vfs_ATTR_KILL_PRIV  :U32
+vfs_ATTR_KILL_PRIV  = (1 << 14)
+vfs_ATTR_OPEN       :U32
+vfs_ATTR_OPEN       = (1 << 15) -- Truncating from open= (O_TRUNC)
+vfs_ATTR_TIMES_SET  :U32
+vfs_ATTR_TIMES_SET  = (1 << 16)
+
+{-# cinline vfs_iattr_get_mode #-}
+vfs_iattr_get_mode:  VfsIattr! -> VfsMode
+{-# cinline vfs_iattr_get_uid #-}
+vfs_iattr_get_uid:  VfsIattr! -> U32
+{-# cinline vfs_iattr_get_gid #-}
+vfs_iattr_get_gid:  VfsIattr! -> U32
+{-# cinline vfs_iattr_get_size #-}
+vfs_iattr_get_size:  VfsIattr! -> VfsSize
+{-# cinline vfs_iattr_get_atime #-}
+vfs_iattr_get_atime: VfsIattr! -> OSTimeSpec
+{-# cinline vfs_iattr_get_mtime #-}
+vfs_iattr_get_mtime: VfsIattr! -> OSTimeSpec
+{-# cinline vfs_iattr_get_ctime #-}
+vfs_iattr_get_ctime: VfsIattr! -> OSTimeSpec
+{-# cinline vfs_iattr_get_valid #-}
+vfs_iattr_get_valid: VfsIattr! -> U32
+
+----------------------------
+-- VFS Flags
+----------------------------
+type VfsFlags = U32
+
+----------------------------
+-- VFS Position
+----------------------------
+type VfsPosition = U64
+
+----------------------------
+-- Rename Context
+----------------------------
+type VfsRenameDirsDiff = #{
+  src_dir: VfsInode,
+  dest_dir: VfsInode
+}
+
+type VfsRenameDirs = <SrcDest VfsRenameDirsDiff | Dest VfsInode>
+
+type VfsRenameContext = #{
+  dirs: VfsRenameDirs,
+  src_inode: VfsInode,
+  src_name: CString!,
+
+  dest_inode: Option VfsInode,
+  dest_name: CString!
+}
+
+----------------------------
+-- Dir Context
+----------------------------
+type VfsDirContext = {
+  os : OSDirContext,
+  pos: VfsPosition
+}
+
+----------------------------
+-- VFS Device
+----------------------------
+type VfsDevice
+
+----------------------------
+-- VFS Inode
+----------------------------
+type VfsInode = {
+  vfs: #VfsInodeAbstract,
+  fs: #FsInode
+}
+
+----------------------------
+-- VFS Inode Operations
+----------------------------
+type VfsIGetLinkArgs
+type VfsIGetLinkResult
+vfs_default_getlink: VfsIGetLinkArgs -> VfsIGetLinkResult
+
+type VfsIPermissionArgs
+type VfsIPermissionResult
+vfs_default_permission: VfsIPermissionArgs -> VfsIPermissionResult
+
+type VfsIGetAclArgs
+type VfsIGetAclResult
+vfs_default_get_acl: VfsIGetAclArgs -> VfsIGetAclResult
+
+type VfsIReadLinkArgs
+type VfsIReadLinkResult
+vfs_default_readlink: VfsIReadLinkArgs -> VfsIReadLinkResult
+
+type VfsISetAttrArgs
+type VfsISetAttrResult
+vfs_default_setattr: VfsISetAttrArgs -> VfsISetAttrResult
+
+type VfsIGetAttrArgs
+type VfsIGetAttrResult
+vfs_default_getattr: VfsIGetAttrArgs -> VfsIGetAttrResult
+
+type VfsIListXAttrArgs
+type VfsIListXAttrResult
+vfs_default_listxattr: VfsIListXAttrArgs -> VfsIListXAttrResult
+
+type VfsIFieMapArgs
+type VfsIFieMapResult
+vfs_default_fiemap: VfsIFieMapArgs -> VfsIFieMapResult
+
+type VfsIUpdateTimeArgs
+type VfsIUpdateTimeResult
+vfs_default_update_time: VfsIUpdateTimeArgs -> VfsIUpdateTimeResult
+
+type VfsIAtomicOpenArgs
+type VfsIAtomicOpenResult
+vfs_default_atomic_open: VfsIAtomicOpenArgs -> VfsIAtomicOpenResult
+
+type VfsITmpFileArgs
+type VfsITmpFileResult
+vfs_default_tmpfile: VfsITmpFileArgs -> VfsITmpFileResult
+
+type VfsISetAclArgs
+type VfsISetAclResult
+vfs_default_set_acl: VfsISetAclArgs -> VfsISetAclResult
+
+
+type VfsInodeOperations = #{
+  lookup: Option ((#{ex: ExState, state: FsState, parent_inode: VfsInode, name: CString!, flags: VfsFlags}) -> RR #{ex: ExState, state: FsState, parent_inode: VfsInode} VfsInode U32),
+  get_link: Option (VfsIGetLinkArgs -> VfsIGetLinkResult),
+  permission: Option (VfsIPermissionArgs -> VfsIPermissionResult),
+  get_acl: Option (VfsIGetAclArgs -> VfsIGetAclResult),
+  readlink: Option(VfsIReadLinkArgs -> VfsIReadLinkResult),
+  create: Option ((ExState, FsState, VfsInode, CString!, VfsMode) -> RR (ExState, FsState, VfsInode) VfsInode U32),
+  link: Option ((ExState, FsState, VfsInode, VfsInode, CString!) -> RR (ExState, FsState, VfsInode, VfsInode) () U32),
+  unlink: Option ((ExState, FsState, VfsInode, VfsInode, CString!) -> RR (ExState, FsState, VfsInode, VfsInode) () U32),
+  symlink: Option ((ExState, FsState, VfsInode, CString!) -> RR (ExState, FsState, VfsInode) VfsInode U32),
+  mkdir: Option ((ExState, FsState, VfsInode, CString!, VfsMode) -> RR (ExState, FsState, VfsInode) VfsInode U32),
+  rmdir: Option ((ExState, FsState, VfsInode, VfsInode, CString!) -> RR (ExState, FsState, VfsInode, VfsInode) () U32),
+  mknod: Option ((ExState, FsState, VfsInode, CString!, VfsMode, #VfsDevice) -> RR (ExState, FsState, VfsInode) VfsInode U32),
+  rename: Option ((ExState, FsState, VfsRenameContext) -> RR (ExState, FsState, VfsRenameContext) () U32),
+  setattr: Option (VfsISetAttrArgs -> VfsISetAttrResult),
+  getattr: Option (VfsIGetAttrArgs -> VfsIGetAttrResult),
+  listxattr: Option (VfsIListXAttrArgs -> VfsIListXAttrResult),
+  fiemap: Option (VfsIFieMapArgs -> VfsIFieMapResult),
+  update_time: Option (VfsIUpdateTimeArgs -> VfsIUpdateTimeResult),
+  atomic_open: Option (VfsIAtomicOpenArgs -> VfsIAtomicOpenResult),
+  tmpfile: Option (VfsITmpFileArgs -> VfsITmpFileResult),
+  set_acl: Option (VfsISetAclArgs -> VfsISetAclResult)
+}
+
+
+-- since we do not support cyclic types, we must use ADT setters
+-- i_op on linux
+vfs_inode_set_ops: (VfsInode, VfsInodeOperations!) -> VfsInode
+
+-- i_fop on linux
+vfs_inode_set_fileops: (VfsInode, VfsFileOperations!) -> VfsInode
+
+----------------------------
+-- VFS File Operations
+----------------------------
+type VfsFLlSeekArgs
+type VfsFLlSeekResult
+vfs_default_llseek: VfsFLlSeekArgs -> VfsFLlSeekResult
+
+type VfsFReadArgs
+type VfsFReadResult
+vfs_default_read: VfsFReadArgs -> VfsFReadResult
+
+type VfsFWriteArgs
+type VfsFWriteResult
+vfs_default_write: VfsFWriteArgs -> VfsFWriteResult
+
+type VfsFPollArgs
+type VfsFPollResult
+vfs_default_poll: VfsFPollArgs -> VfsFPollResult
+
+type VfsFUnlockedIoctlArgs
+type VfsFUnlockedIoctlResult
+vfs_default_unlocked_ioctl: VfsFUnlockedIoctlArgs -> VfsFUnlockedIoctlResult
+
+type VfsFCompatIoctlArgs
+type VfsFCompatIoctlResult
+vfs_default_compat_ioctl: VfsFCompatIoctlArgs -> VfsFCompatIoctlResult
+
+type VfsFMmapArgs
+type VfsFMmapResult
+vfs_default_mmap: VfsFMmapArgs -> VfsFMmapResult
+
+type VfsFOpenArgs
+type VfsFOpenResult
+vfs_default_open: VfsFOpenArgs -> VfsFOpenResult
+
+type VfsFFlushArgs
+type VfsFFlushResult
+vfs_default_flush: VfsFFlushArgs -> VfsFFlushResult
+
+type VfsFReleaseArgs
+type VfsFReleaseResult
+vfs_default_release: VfsFReleaseArgs -> VfsFReleaseResult
+
+type VfsFFsyncArgs
+type VfsFFsyncResult
+vfs_default_fsync: VfsFFsyncArgs -> VfsFFsyncResult
+
+type VfsFFasyncArgs
+type VfsFFasyncResult
+vfs_default_fasync: VfsFFasyncArgs -> VfsFFasyncResult
+
+type VfsFLockArgs
+type VfsFLockResult
+vfs_default_lock: VfsFLockArgs -> VfsFLockResult
+
+type VfsFSendPageArgs
+type VfsFSendPageResult
+vfs_default_sendpage: VfsFSendPageArgs -> VfsFSendPageResult
+
+type VfsFGetUnmappedAreaArgs
+type VfsFGetUnmappedAreaResult
+vfs_default_get_unmapped_area: VfsFGetUnmappedAreaArgs -> VfsFGetUnmappedAreaResult
+
+type VfsFCheckFlagsArgs
+type VfsFCheckFlagsResult
+vfs_default_check_flags: VfsFCheckFlagsArgs -> VfsFCheckFlagsResult
+
+type VfsFFlockArgs
+type VfsFFlockResult
+vfs_default_flock: VfsFFlockArgs -> VfsFFlockResult
+
+type VfsFSpliceWriteArgs
+type VfsFSpliceWriteResult
+vfs_default_splice_write: VfsFSpliceWriteArgs -> VfsFSpliceWriteResult
+
+type VfsFSpliceReadArgs
+type VfsFSpliceReadResult
+vfs_default_splice_read: VfsFSpliceReadArgs -> VfsFSpliceReadResult
+
+type VfsFSetLeaseArgs
+type VfsFSetLeaseResult
+vfs_default_setlease: VfsFSetLeaseArgs -> VfsFSetLeaseResult
+
+type VfsFFallocateArgs
+type VfsFFallocateResult
+vfs_default_fallocate: VfsFFallocateArgs -> VfsFFallocateResult
+
+type VfsFShowFdinfoArgs
+type VfsFShowFdinfoResult
+vfs_default_show_fdinfo: VfsFShowFdinfoArgs -> VfsFShowFdinfoResult
+
+type VfsFMmapCapabilitiesArgs
+type VfsFMmapCapabilitiesResult
+vfs_default_mmap_capabilities: VfsFMmapCapabilitiesArgs -> VfsFMmapCapabilitiesResult
+
+type VfsFCopyFileRangeArgs
+type VfsFCopyFileRangeResult
+vfs_default_copy_file_range: VfsFCopyFileRangeArgs -> VfsFCopyFileRangeResult
+
+
+type VfsFCloneFileRangeArgs
+type VfsFCloneFileRangeResult
+vfs_default_clone_file_range: VfsFCloneFileRangeArgs -> VfsFCloneFileRangeResult
+
+type VfsFDedupeFileRangeArgs
+type VfsFDedupeFileRangeResult
+vfs_default_dedupe_file_range: VfsFDedupeFileRangeArgs -> VfsFDedupeFileRangeResult
+
+
+type VfsFileOperations = #{
+  llseek: Option (VfsFLlSeekArgs -> VfsFLlSeekResult),
+  read: Option (VfsFReadArgs -> VfsFReadResult),
+  write: Option (VfsFWriteArgs -> VfsFWriteResult),
+  read_iterate: Option ((#{ex: ExState, state: FsState, parent_inode: VfsInode, dirctx: VfsDirContext}) -> RR #{ex: ExState, state: FsState, parent_inode: VfsInode, dirctx: VfsDirContext} () U32),
+  write_iterate: Option ((#{ex: ExState, state: FsState, parent_inode: VfsInode, dirctx: VfsDirContext}) -> RR #{ex: ExState, state: FsState, parent_inode: VfsInode, dirctx: VfsDirContext} () U32),
+  iterate: Option ((#{ex: ExState, state: FsState, parent_inode: VfsInode, dirctx: VfsDirContext}) -> RR #{ex: ExState, state: FsState, parent_inode: VfsInode, dirctx: VfsDirContext} () U32),
+  iterate_shared: Option ((#{ex: ExState, state: FsState, parent_inode: VfsInode, dirctx: VfsDirContext}) -> RR #{ex: ExState, state: FsState, parent_inode: VfsInode, dirctx: VfsDirContext} () U32),
+  poll: Option (VfsFPollArgs -> VfsFPollResult),
+  unlocked_ioctl: Option (VfsFUnlockedIoctlArgs -> VfsFUnlockedIoctlResult),
+  compat_ioctl: Option (VfsFCompatIoctlArgs -> VfsFCompatIoctlResult),
+  mmap: Option (VfsFMmapArgs -> VfsFMmapResult),
+  open: Option (VfsFOpenArgs -> VfsFOpenResult),
+  flush: Option (VfsFFlushArgs -> VfsFFlushResult),
+  release: Option (VfsFReleaseArgs -> VfsFReleaseResult),
+  fsync: Option (VfsFFsyncArgs -> VfsFFsyncResult),
+  fasync: Option (VfsFFasyncArgs -> VfsFFasyncResult),
+  lock: Option (VfsFLockArgs -> VfsFLockResult),
+  sendpage: Option (VfsFSendPageArgs -> VfsFSendPageResult),
+  get_unmapped_area: Option (VfsFGetUnmappedAreaArgs -> VfsFGetUnmappedAreaResult),
+  check_flags: Option (VfsFCheckFlagsArgs -> VfsFCheckFlagsResult),
+  flock: Option (VfsFFlockArgs -> VfsFFlockResult),
+  splice_write: Option (VfsFSpliceWriteArgs -> VfsFSpliceWriteResult),
+  splice_read: Option (VfsFSpliceReadArgs -> VfsFSpliceReadResult),
+  setlease: Option (VfsFSetLeaseArgs -> VfsFSetLeaseResult),
+  fallocate: Option (VfsFFallocateArgs -> VfsFFallocateResult),
+  show_fdinfo: Option (VfsFShowFdinfoArgs -> VfsFShowFdinfoResult),
+  mmap_capabilities: Option (VfsFMmapCapabilitiesArgs -> VfsFMmapCapabilitiesResult),
+  copy_file_range: Option (VfsFCopyFileRangeArgs -> VfsFCopyFileRangeResult),
+  clone_file_range: Option (VfsFCloneFileRangeArgs -> VfsFCloneFileRangeResult),
+  dedupe_file_range: Option (VfsFDedupeFileRangeArgs -> VfsFDedupeFileRangeResult)
+}
+
+----------------------------
+-- VFS Superblock Operations
+----------------------------
+type VfsSAllocInodeArgs
+type VfsSAllocInodeResult
+vfs_default_alloc_inode: VfsSAllocInodeArgs -> VfsSAllocInodeResult
+
+type VfsSDestroyInodeArgs
+type VfsSDestroyInodeResult
+vfs_default_destroy_inode: VfsSDestroyInodeArgs -> VfsSDestroyInodeResult
+
+type VfsSDirtyInodeArgs
+type VfsSDirtyInodeResult
+vfs_default_dirty_inode: VfsSDirtyInodeArgs -> VfsSDirtyInodeResult
+
+type VfsSWriteInodeArgs
+type VfsSWriteInodeResult
+vfs_default_write_inode: VfsSWriteInodeArgs -> VfsSWriteInodeResult
+
+type VfsSDropInodeArgs
+type VfsSDropInodeResult
+vfs_default_drop_inode: VfsSDropInodeArgs -> VfsSDropInodeResult
+
+type VfsSEvictInodeArgs
+type VfsSEvictInodeResult
+vfs_default_evict_inode: VfsSEvictInodeArgs -> VfsSEvictInodeResult
+
+type VfsSPutSuperArgs
+type VfsSPutSuperResult
+vfs_default_put_super: VfsSPutSuperArgs -> VfsSPutSuperResult
+
+type VfsSSyncFsArgs
+type VfsSSyncFsResult
+vfs_default_sync_fs: VfsSSyncFsArgs -> VfsSSyncFsResult
+
+type VfsSFreezeSuperArgs
+type VfsSFreezeSuperResult
+vfs_default_freeze_super: VfsSFreezeSuperArgs -> VfsSFreezeSuperResult
+
+type VfsSFreezeFsArgs
+type VfsSFreezeFsResult
+vfs_default_freeze_fs: VfsSFreezeFsArgs -> VfsSFreezeFsResult
+
+type VfsSThawSuperArgs
+type VfsSThawSuperResult
+vfs_default_thaw_super: VfsSThawSuperArgs -> VfsSThawSuperResult
+
+type VfsSUnfreezeFsArgs
+type VfsSUnfreezeFsResult
+vfs_default_unfreeze_fs: VfsSUnfreezeFsArgs -> VfsSUnfreezeFsResult
+
+type VfsSStatFsArgs
+type VfsSStatFsResult
+vfs_default_statfs: VfsSStatFsArgs -> VfsSStatFsResult
+
+type VfsSRemountFsArgs
+type VfsSRemountFsResult
+vfs_default_remount_fs: VfsSRemountFsArgs -> VfsSRemountFsResult
+
+type VfsSUnmountBeginArgs
+type VfsSUnmountBeginResult
+vfs_default_unmount_begin: VfsSUnmountBeginArgs -> VfsSUnmountBeginResult
+
+type VfsSShowOptionsArgs
+type VfsSShowOptionsResult
+vfs_default_show_options: VfsSShowOptionsArgs -> VfsSShowOptionsResult
+
+type VfsSShowDevNameArgs
+type VfsSShowDevNameResult
+vfs_default_show_devname: VfsSShowDevNameArgs -> VfsSShowDevNameResult
+
+type VfsSShowPathArgs
+type VfsSShowPathResult
+vfs_default_show_path: VfsSShowPathArgs -> VfsSShowPathResult
+
+type VfsSShowStatsArgs
+type VfsSShowStatsResult
+vfs_default_show_stats: VfsSShowStatsArgs -> VfsSShowStatsResult
+
+type VfsSQuotaReadArgs
+type VfsSQuotaReadResult
+vfs_default_quota_read: VfsSQuotaReadArgs -> VfsSQuotaReadResult
+
+type VfsSQuotaWriteArgs
+type VfsSQuotaWriteResult
+vfs_default_quota_write: VfsSQuotaWriteArgs -> VfsSQuotaWriteResult
+
+type VfsSGetDquotsArgs
+type VfsSGetDquotsResult
+vfs_default_get_dquots: VfsSGetDquotsArgs -> VfsSGetDquotsResult
+
+type VfsSBdevTryToFreePageArgs
+type VfsSBdevTryToFreePageResult
+vfs_default_bdev_try_to_free_page: VfsSBdevTryToFreePageArgs -> VfsSBdevTryToFreePageResult
+
+type VfsSNrCachedObjectsArgs
+type VfsSNrCachedObjectsResult
+vfs_default_nr_cached_objects: VfsSNrCachedObjectsArgs -> VfsSNrCachedObjectsResult
+
+type VfsSFreeCachedObjectsArgs
+type VfsSFreeCachedObjectsResult
+vfs_default_free_cached_objects: VfsSFreeCachedObjectsArgs -> VfsSFreeCachedObjectsResult
+
+type VfsSuperOperations = #{
+  alloc_inode: Option (VfsSAllocInodeArgs -> VfsSAllocInodeResult),
+  destroy_inode: Option (VfsSDestroyInodeArgs -> VfsSDestroyInodeResult),
+  dirty_inode: Option (VfsSDirtyInodeArgs -> VfsSDirtyInodeResult),
+  write_inode: Option (VfsSWriteInodeArgs -> VfsSWriteInodeResult),
+  drop_inode: Option (VfsSDropInodeArgs -> VfsSDropInodeResult),
+  evict_inode: Option (VfsSEvictInodeArgs -> VfsSEvictInodeResult),
+  put_super: Option (VfsSPutSuperArgs -> VfsSPutSuperResult),
+  sync_fs: Option (VfsSSyncFsArgs -> VfsSSyncFsResult),
+  freeze_super: Option (VfsSFreezeSuperArgs -> VfsSFreezeSuperResult),
+  freeze_fs: Option (VfsSFreezeFsArgs -> VfsSFreezeFsResult),
+  thaw_super: Option (VfsSThawSuperArgs -> VfsSThawSuperResult),
+  unfreeze_fs: Option (VfsSUnfreezeFsArgs -> VfsSUnfreezeFsResult),
+  statfs: Option (VfsSStatFsArgs -> VfsSStatFsResult),
+  remount_fs: Option (VfsSRemountFsArgs -> VfsSRemountFsResult),
+  umount_begin: Option (VfsSUnmountBeginArgs -> VfsSUnmountBeginResult),
+  show_options: Option (VfsSShowOptionsArgs -> VfsSShowOptionsResult),
+  show_devname: Option (VfsSShowDevNameArgs -> VfsSShowDevNameResult),
+  show_path: Option (VfsSShowPathArgs -> VfsSShowPathResult),
+  show_stats: Option (VfsSShowStatsArgs -> VfsSShowStatsResult),
+  quota_read: Option (VfsSQuotaReadArgs -> VfsSQuotaReadResult),
+  quota_write: Option (VfsSQuotaWriteArgs -> VfsSQuotaWriteResult),
+  get_dquots: Option (VfsSGetDquotsArgs -> VfsSGetDquotsResult),
+  bdev_try_to_free_page: Option (VfsSBdevTryToFreePageArgs -> VfsSBdevTryToFreePageResult),
+  nr_cached_objects: Option (VfsSNrCachedObjectsArgs -> VfsSNrCachedObjectsResult),
+  free_cached_objects: Option (VfsSFreeCachedObjectsArgs -> VfsSFreeCachedObjectsResult)
+}

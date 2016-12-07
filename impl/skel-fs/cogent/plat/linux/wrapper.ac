@@ -8,7 +8,7 @@
  * @TAG(NICTA_GPL)
  */
 
-$esc:(#include <adt.h>)
+$esc:(#include <linux_hdrs.h>)
 $esc:(#include <wrapper.h>)
 
 #include <abstract.h>

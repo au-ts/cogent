@@ -2,3 +2,7 @@ A skeleton FS project in Cogent.
 
 This is just a skeleton project, based off which one can implement a filesystem module
 for the Linux kernel.
+
+
+# Source file name restrictions.
+* Cannot have `-` in the filename.

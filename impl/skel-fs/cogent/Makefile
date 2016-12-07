@@ -25,10 +25,17 @@ DEFNS=data/defns.txt
 # Standard Gum Directory
 STDGUM=$(shell cogent --stdgum-dir)
 # ADT headers required by skel-fs
-# AHFILES=$(wildcard $(STDGUM)/gum/abstract/*.ah)
-AHFILES=
+AHFILES=$(wildcard $(STDGUM)/gum/abstract/*.ah)
 # ADT C files required by skel-fs
-LINUX_ACFILES=plat/linux/wrapper.ac
+LINUX_ACFILES=$(addprefix $(STDGUM)/gum/anti/, \
+	common.ac \
+	wordarray.ac \
+	uarray.ac \
+	array.ac \
+	os.ac \
+	iterator.ac \
+	dls.ac) \
+	plat/linux/wrapper.ac
 
 # ADT C files required by verification
 VERIF_ACFILES=plat/verification/wrapper.ac
