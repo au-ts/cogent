@@ -310,10 +310,6 @@ program = do
   ; return $ map snd v
   }
 
--- XXX | parse file = parseFromFile program file >>= \case
--- XXX |                Left err   -> return $ Left $ show err
--- XXX |                Right defs -> return $ Right defs
-
 -- NOTE: It will search for the path provided in the files. If it cannot find anything, it will
 --   check for directories given in the -I arguments, relative to the current working dir.
 --   A path (B) in an include clauses is relative to the file (A) containing the include.

@@ -125,12 +125,12 @@ deserialise_Ext2DirEnt2 (ex, buf, idx) =
             | Success (name_length, idx) ->
                 ospagebuffer_deserialise_U8 (buf, idx)
                 | Success (file_type, idx) ->
-                    wordarray_create_nz[U8] (ex, u8_to_u32 name_length)
+                    wordarray_create_nz[U8] (ex, upcast name_length)
                     | Success (ex, name) ->
                         let ((name, idx), res) = wordarray_map[U8, U32, OSPageBuffer!, ()] (#{
                             arr = name,
                             frm = 0,
-                            to = u8_to_u32 name_length,
+                            to = upcast name_length,
                             f = ospagebuffer_deserialise_U8_WordArray,
                             acc = idx,
                             obsv = buf})
