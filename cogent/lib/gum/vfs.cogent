@@ -409,7 +409,7 @@ vfs_device_inspect: #VfsDevice -> (VfsDeviceMajor, VfsDeviceMinor)
 
 -- dev_t old_decode_dev(u16 val) from include/linux/kdev_t.h
 linux_decode_device_old: U16 -> (VfsDeviceMajor, VfsDeviceMinor)
-linux_decode_device_old val = ((u16_to_u32 (val) >> 8) .&. 255, u16_to_u32 (val) .&. 255)
+linux_decode_device_old val = ((upcast val >> 8) .&. 255, upcast val .&. 255)
 
 linux_decode_device_new: U32 -> (VfsDeviceMajor, VfsDeviceMinor)
 linux_decode_device_new val = ((val .&. 0xfff00) >> 8, (val .&. 0xff) .|. ((val >> 12) .&. 0xfff00))
@@ -428,3 +428,4 @@ linux_encode_device_new: #VfsDevice -> U32
 linux_encode_device_new dev =
   let (maj, min) = vfs_device_inspect dev
   in (min .&. 0xff) .|. (maj << 8) .|. ((min .&. complement 0xff) << 12)
+

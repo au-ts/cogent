@@ -31,7 +31,7 @@ ext2_dir_update (ex, state, dir, dirent, inode, ctx) =
     and _ = _cogent_log_u32 (dbg_EXT2_DIR_WRITE, pos)
     and _ = _cogent_log (dbg_EXT2_DIR_WRITE, "\n")
 
-    and ((ex, state, page_locked), res) = ext2_prepare_chunk (ex, state, page_locked, u32_to_u64 pos, u16_to_u32 reclen)
+    and ((ex, state, page_locked), res) = ext2_prepare_chunk (ex, state, page_locked, upcast pos, upcast reclen)
     in res
     | Success () =>
         -- don't bother cloning
@@ -43,7 +43,7 @@ ext2_dir_update (ex, state, dir, dirent, inode, ctx) =
         and ((ex, buf, _), res) = serialise_Ext2DirEnt2 (ex, inode, reclen, dirent.name, dirent.name_length, buf, pos) !inode
         in res
         | Success () =>
-            let (ex, state, page) = ext2_commit_chunk (ex, state, page_locked, u32_to_u64 pos, u16_to_u32 reclen)
+            let (ex, state, page) = ext2_commit_chunk (ex, state, page_locked, upcast pos, upcast reclen)
 
             and page = ospage_unmap (page, buf)
             and page = ospage_unlock (page)
@@ -96,7 +96,7 @@ get_next_dirent_from_page3(#{acc = (ex, state, prev_offset, offset), obsv = (nam
         let (ex, res) = deserialise_Ext2DirEnt2 (ex, pagebuf, u64_to_u32 offset) -- XXX: shouldn't downcast
         in res
         | Success (dirent, _) ->
-            let new_offset = offset + u16_to_u64 (ext2_rec_len_from_disk (dirent.record_length)) !dirent
+            let new_offset = offset + upcast (ext2_rec_len_from_disk (dirent.record_length)) !dirent
             in ((ex, state, offset, new_offset), Yield dirent)
         | Error () ->
             let _ = _cogent_log (dbg_EXT2_DIR_WRITE, ("get_next_dirent_from_page3: failed to deser dirent while finding fitting\n"))
@@ -108,7 +108,7 @@ get_next_dirent_from_page3(#{acc = (ex, state, prev_offset, offset), obsv = (nam
         and _ = _cogent_log (dbg_EXT2_DIR_WRITE, (" > "))
         and _ = _cogent_log_u64 (dbg_EXT2_DIR_WRITE, (offset_limit))
         and _ = _cogent_log (dbg_EXT2_DIR_WRITE, (")\n"))
-        in ((ex, state, prev_offset, offset), Stop (u8_to_u32 (0)))
+        in ((ex, state, prev_offset, offset), Stop 0)
 
 -- rec_len should be ondisk_reclen
 -- reclen should be required_reclen
@@ -145,7 +145,7 @@ check_dirent_fits #{obj = dirent, acc = (ex, state, offset, new_offset), obsv = 
                 in ((ex, state, offset, new_offset), Stop eExist)
             else
                 -- name_len should be smallest_ondisk_reclen
-                let smallest_ondisk_reclen = ext2_dir_rec_len (u8_to_u16 dirent.name_length) !dirent
+                let smallest_ondisk_reclen = ext2_dir_rec_len (upcast dirent.name_length) !dirent
                 and ondisk_reclen = ext2_rec_len_from_disk (dirent.record_length) !dirent
                 and de_ino = dirent.inode !dirent
                 in if de_ino == 0 && ondisk_reclen >= required_reclen then
@@ -174,10 +174,10 @@ check_dirent_fits #{obj = dirent, acc = (ex, state, offset, new_offset), obsv = 
 update_dir_and_commit: (ExState, FsState, OSPage, OSPageBuffer, VfsInode, U64, U16) -> RR (ExState, FsState, VfsInode) () ()
 update_dir_and_commit (ex, state, page, kaddr, inode, offset, rec_len) =
     -- commit the page
-    let (ex, state, page) = ext2_commit_chunk (ex, state, page, offset, u16_to_u32 rec_len)
+    let (ex, state, page) = ext2_commit_chunk (ex, state, page, offset, upcast rec_len)
 
     -- update mtime, ctime
-    and (ex, now) = os_get_current_time (ex)
+    and (ex, now) = os_get_current_time ex
     and inode = vfs_inode_set_mtime  (inode, now)
     and inode = vfs_inode_set_ctime  (inode, now)
 
@@ -186,7 +186,7 @@ update_dir_and_commit (ex, state, page, kaddr, inode, offset, rec_len) =
 
     -- put the page
     and page' = ospage_unmap (page, kaddr)
-    and _ = ospagecache_release (page') -- why do we not need to unlock??? BECAUSE COMMIT DOES
+    and _ = ospagecache_release page' -- why do we not need to unlock??? BECAUSE COMMIT DOES
 
     in ((ex, state, inode), Success ())
 
@@ -203,15 +203,15 @@ get_page_and_find_space (r {acc = (ex, state, dir_inode), obsv = (rec_len, name,
 
     in ospagecache_read (vfs_inode_get_mapping (dir_inode), n) !dir_inode
     | Success (page) ->
-        let page_locked = ospage_lock (page)
+        let page_locked = ospage_lock page
         in ospage_map (page_locked)
         | Success (page_locked, kaddr) ->
             let (ex, res) = deserialise_Ext2DirEnt2 (ex, kaddr, u64_to_u32 offset) !kaddr  -- XXX: downcast
             in res
             | Success (dirent, _) ->
-                let dir_end:U64 = ext2_last_byte (dir_inode, n) !dir_inode -- dir_end
-                and offset_limit:U64 = os_PAGE_CACHE_SIZE - u16_to_u64 rec_len        -- kaddr
-                and next_offset = u16_to_u64 (ext2_rec_len_from_disk (dirent.record_length)) !dirent
+                let dir_end:U64 = ext2_last_byte (dir_inode, n) !dir_inode  -- dir_end
+                and offset_limit:U64 = os_PAGE_CACHE_SIZE - upcast rec_len  -- kaddr
+                and next_offset = upcast (ext2_rec_len_from_disk dirent.record_length) !dirent
 
                 -- inner while loop line 520
                 and ((ex, state, offset, offset'), res) = iterate_do
@@ -229,7 +229,7 @@ get_page_and_find_space (r {acc = (ex, state, dir_inode), obsv = (rec_len, name,
                     -- needed to stop (either dir_emit told us to break or ran off page)
                     let page_locked = ospage_unmap (page_locked, kaddr)
                     and page = ospage_unlock (page_locked)
-                    and _ = ospagecache_release (page)
+                    and _ = ospagecache_release page
 
                     in if err == 0 then 
                         let _ = _cogent_log (dbg_EXT2_DIR_WRITE, ("get_page_and_find_space: end of this page\n"))
@@ -258,7 +258,7 @@ get_page_and_find_space (r {acc = (ex, state, dir_inode), obsv = (rec_len, name,
                     and _ = _cogent_log (dbg_EXT2_DIR_WRITE, "\n")
 
                     -- we found the place to put the dirent
-                    and ((ex, state, page_locked), res) = ext2_prepare_chunk (ex, state, page_locked, page_pos, u16_to_u32 current_reclen)
+                    and ((ex, state, page_locked), res) = ext2_prepare_chunk (ex, state, page_locked, page_pos, upcast current_reclen)
                     in res
                     | Success () ->
                         let had_ino = de.inode /= 0 !de
@@ -287,8 +287,8 @@ get_page_and_find_space (r {acc = (ex, state, dir_inode), obsv = (rec_len, name,
                             in res
                             | Success () ->
                                 -- and fill in and write new de
-                                let name_len = u32_to_u8 (wordarray_length [U8] (name))
-                                and new_offset = u64_to_u32 (offset + u16_to_u64 compressed_reclen) -- fixme: cast
+                                let name_len = u32_to_u8 (wordarray_length [U8] name)
+                                and new_offset = u64_to_u32 (offset + upcast compressed_reclen) -- fixme: cast
 
                                 and _ = _cogent_log (dbg_EXT2_DIR_WRITE, "get_page_and_find_space: serialising new dirent at page offset ")
                                 and _ = _cogent_log_u32 (dbg_EXT2_DIR_WRITE, new_offset)
@@ -421,7 +421,7 @@ ext2_dir_remove_from_page_finish (ex, state, inode, page_locked, pagebuf, curren
        and _ = _cogent_log (dbg_EXT2_DIR_WRITE, "\n")
        in    ospagebuffer_serialise_Ple32 (pagebuf, current_offset, 0)
     | Success (pagebuf, _) =>
-        let (ex, state, page_locked) = ext2_commit_chunk (ex, state, page_locked, u32_to_u64 from_offset, to_offset - from_offset)
+        let (ex, state, page_locked) = ext2_commit_chunk (ex, state, page_locked, upcast from_offset, to_offset - from_offset)
 
         and (ex, now) = os_get_current_time (ex)
         and inode = vfs_inode_set_ctime (inode, now)
@@ -442,14 +442,14 @@ ext2_dir_remove_from_page_finish (ex, state, inode, page_locked, pagebuf, curren
 ext2_dir_remove_from_page2: (ExState, FsState, VfsInode, OSPage, OSPageBuffer, U32, U32, U32, Option Ext2DirEnt) -> RR (ExState, FsState, VfsInode) () U32
 ext2_dir_remove_from_page2 (ex, state, inode, page, pagebuf, current_offset, from_offset, to_offset, maybe_prev) =
    let
-       _ = _cogent_log (dbg_EXT2_DIR_WRITE, ("ext2_dir_remove_from_page2: from_offset: "))
+       _ = _cogent_log (dbg_EXT2_DIR_WRITE, "ext2_dir_remove_from_page2: from_offset: ")
     and _ = _cogent_log_u32 (dbg_EXT2_DIR_WRITE, from_offset) !from_offset
-    and _ = _cogent_log (dbg_EXT2_DIR_WRITE, (", to_offset = "))
+    and _ = _cogent_log (dbg_EXT2_DIR_WRITE, ", to_offset = ")
     and _ = _cogent_log_u32 (dbg_EXT2_DIR_WRITE, to_offset) !to_offset
-    and _ = _cogent_log (dbg_EXT2_DIR_WRITE, ("\n"))
+    and _ = _cogent_log (dbg_EXT2_DIR_WRITE, "\n")
 
-    and page_locked = ospage_lock (page)
-    and ((ex, state, page_locked), res) = ext2_prepare_chunk (ex, state, page_locked, u32_to_u64 from_offset, to_offset - from_offset)
+    and page_locked = ospage_lock page
+    and ((ex, state, page_locked), res) = ext2_prepare_chunk (ex, state, page_locked, upcast from_offset, to_offset - from_offset)
     in res
     | Success () =>
         -- serialise onto previous dirent
@@ -485,8 +485,8 @@ find_prev_dirent #{ acc = (ex, maybe_de, from_offset), obsv = (current_offset, p
             and ex = dispose_existing_dirent (ex, maybe_de)
             in was_valid
             | True =>
-                let reclen = ext2_rec_len_from_disk (de.record_length) !de
-                in ((ex, Some de, from_offset + u16_to_u32 reclen), Iterate ())
+                let reclen = ext2_rec_len_from_disk de.record_length !de
+                in ((ex, Some de, from_offset + upcast reclen), Iterate)
             | _ ->
                 let _ = _cogent_log (dbg_EXT2_DIR_WRITE, ("had zero-length dir\n"))
                 in ((ex, Some de, from_offset), Break eIO)
@@ -503,8 +503,8 @@ ext2_dir_remove_from_page (ex, state, inode, de, page, pagebuf, current_offset) 
 
     and from_offset = current_offset .&. (complement (chunk_size - 1)) -- get to a block previous of the dirent (since they can expand no larger than this)
     and to_offset =  ospagebuffer_deserialise_Ple16 (pagebuf, current_offset + 4) !pagebuf
-                 | Success (val, _) -> current_offset + u16_to_u32 val
-                 | Error _ -> 0
+                 | Success (val, _) -> current_offset + upcast val
+                 | Error () -> 0
 
     -- start at from_offset, and work out way forwards until we get to current_offset
     -- to try and find the closest dirent BEFORE us
@@ -649,7 +649,7 @@ ext2_dir_make_empty (ex, state, dir_inode, parent_inode) =
                     and _ = _cogent_log (dbg_EXT2_DIR_WRITE, "ext2_dir_make_empty: serialising '..' dirent...\n")
                     and namestr = wordarray_put2 [U8] #{ arr = namestr, idx = 1, val = '.' } -- ..
                     and namestr = wordarray_put2 [U8] #{ arr = namestr, idx = 2, val = '\0' } 
-                    and ((ex, kaddr, _), res) = serialise_Ext2DirEnt2 (ex, parent_inode, u32_to_u16 chunk_size - ext2_dir_rec_len (1), namestr, 2, kaddr, u16_to_u32 (ext2_dir_rec_len (1))) !dir_inode !namestr
+                    and ((ex, kaddr, _), res) = serialise_Ext2DirEnt2 (ex, parent_inode, u32_to_u16 chunk_size - ext2_dir_rec_len 1, namestr, 2, kaddr, upcast (ext2_dir_rec_len 1)) !dir_inode !namestr
 
                     and ex = wordarray_free [U8] (ex, namestr)
 
@@ -682,8 +682,8 @@ ext2_dir_make_empty (ex, state, dir_inode, parent_inode) =
                 and _ = _cogent_log (dbg_EXT2_DIR_WRITE, "\n")
 
                 -- unlock and release
-                and page = ospage_unlock (page)
-                and _ = ospagecache_release (page)
+                and page = ospage_unlock page
+                and _ = ospagecache_release page
 
                 in Error (ex, state, dir_inode)
         | Error () ->
@@ -716,14 +716,14 @@ fsop_dir_mkdir (ex, state, parent_inode, dir_name, mode) =
             and _ = _cogent_log (dbg_EXT2_DIR_WRITE, ("fsop_dir_mkdir: adding to parent\n"))
             and ((ex, state, parent_inode), res) = ext2_dir_add (ex, state, parent_inode, dir_inode, dir_name) !dir_inode
             in res
-            | Success () ->
+            | Success ->
                 -- unlock
                 let dir_inode = vfs_inode_unlock_new dir_inode
 
                 and _ = _cogent_log (dbg_EXT2_DIR_WRITE, "\n")
                 and _ = _cogent_log (dbg_EXT2_DIR_WRITE, ("fsop_dir_mkdir: done + unlocked!\n"))
                 in ((ex, state, parent_inode), Success dir_inode)
-            | Error (err) ->
+            | Error err ->
                 let _ = _cogent_log (dbg_EXT2_DIR_WRITE, ("fsop_dir_mkdir: ERROR: could not add to parent\n"))
                 and dir_inode = vfs_inode_dec_nlink dir_inode       -- undo
                 and ex = vfs_inode_bad #{ex, inode = dir_inode}
@@ -735,7 +735,7 @@ fsop_dir_mkdir (ex, state, parent_inode, dir_name, mode) =
             and ex = vfs_inode_bad #{ex, inode = dir_inode}
             and parent_inode = vfs_inode_dec_nlink parent_inode -- undo
             in ((ex, state, parent_inode), Error eIO) -- FIXME: error code?
-    | Error (err) ->
+    | Error err ->
         let _ = _cogent_log (dbg_EXT2_DIR_WRITE, ("fsop_dir_mkdir: ERROR: could not allocate inode\n"))
         and parent_inode = vfs_inode_dec_nlink parent_inode -- undo
         in ((ex, state, parent_inode), Error err)
@@ -749,7 +749,7 @@ fsop_dir_rmdir (ex, state, parent_inode, dir_inode, name) =
         if was_empty then
             let ((ex, state, parent_inode, dir_inode), res) = fsop_dir_unlink (ex, state, parent_inode, dir_inode, name)
             in res
-            | Success () =>
+            | Success =>
                 let dir_inode = vfs_inode_set_size (dir_inode, 0)
                 and dir_inode = vfs_inode_dec_nlink (dir_inode)
 
@@ -781,7 +781,7 @@ fsop_rename_remove_old_file (ex, state, rename_ctx, src_dirent, src_dir_pagectx)
     and ((ex, state, src_inode), res) = ext2_remove_from_pagectx (ex, state, src_inode, src_dirent, src_dir_pagectx)
     and (ex, src_inode) = vfs_inode_mark_dirty (ex, src_inode)
     in res
-    | Success () ->
+    | Success ->
         -- cool, all done
         let rename_ctx = rename_ctx_t {src_inode}
         in ((ex, state, rename_ctx), Success ())
@@ -793,7 +793,7 @@ fsop_rename_remove_old_dir: (ExState, FsState, VfsRenameContext, Ext2DirEnt, Ext
 fsop_rename_remove_old_dir (ex, state, rename_ctx, src_dirent, src_dotdot_dirent, src_dir_pagectx, src_dotdot_pagectx) =
     let ((ex, state, rename_ctx), res) = fsop_rename_remove_old_file (ex, state, rename_ctx, src_dirent, src_dir_pagectx)
     in res
-    | Success () ->
+    | Success ->
         let rename_ctx_t {dirs, src_inode} = rename_ctx
         in dirs
         | SrcDest different ->
@@ -804,12 +804,12 @@ fsop_rename_remove_old_dir (ex, state, rename_ctx, src_dirent, src_dotdot_dirent
             -- fix .. in moved dir to point to new parent
             and ((ex, state, dest_dir, src_inode), res) = ext2_dir_update (ex, state, src_inode, src_dotdot_dirent, dest_dir, src_dotdot_pagectx) !src_dotdot_dirent
             in res
-            | Success () ->
+            | Success ->
                 let different = different_t { src_dir, dest_dir }
                 and rename_ctx = rename_ctx_t {dirs = SrcDest different, src_inode}
 
                 and ex = destroy_Ext2DirEnt (ex, src_dotdot_dirent)
-                in ((ex, state, rename_ctx), Success ())
+                in ((ex, state, rename_ctx), Success)
             | Error err ->
                 let different = different_t { src_dir, dest_dir }
                 and rename_ctx = rename_ctx_t {dirs = SrcDest different, src_inode}

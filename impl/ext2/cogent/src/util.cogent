@@ -109,7 +109,7 @@ ext2_prepare_chunk (ex, state, page, pos, len) =
     let _ = _cogent_log (dbg_EXT2_BLOCK, "ext2_prepare_chunk: prepare over [")
     and _ = _cogent_log_u64 (dbg_EXT2_BLOCK, pos)
     and _ = _cogent_log (dbg_EXT2_BLOCK, ", ")
-    and _ = _cogent_log_u64 (dbg_EXT2_BLOCK, (pos + u32_to_u64 len))
+    and _ = _cogent_log_u64 (dbg_EXT2_BLOCK, pos + upcast len)
     and _ = _cogent_log (dbg_EXT2_BLOCK, ")\n")
     in ospage_write_prepare (ex, state, page, pos, len)
 
@@ -121,12 +121,12 @@ ext2_commit_chunk2 (ex, state, page, inode) =
         and page = ospage_write (page)
 
         and _ = _cogent_log (dbg_EXT2_BLOCK, "ext2_commit_chunk2: syncing inode because sync requested on dir\n")
-        and inode = vfs_inode_sync_metadata (inode)
+        and inode = vfs_inode_sync_metadata inode
 
         and ex = vfs_inode_put #{ex, inode}
         in (ex, state, page)
     else
-        let page = ospage_unlock (page)
+        let page = ospage_unlock page
         and ex = vfs_inode_put #{ex, inode}
         in (ex, state, page)
 
@@ -136,13 +136,13 @@ ext2_commit_chunk (ex, state, page, pos, len) =
     let _ = _cogent_log (dbg_EXT2_BLOCK, "ext2_commit_chunk: commit over [")
     and _ = _cogent_log_u64 (dbg_EXT2_BLOCK, pos)
     and _ = _cogent_log (dbg_EXT2_BLOCK, ", ")
-    and _ = _cogent_log_u64 (dbg_EXT2_BLOCK, (pos + u32_to_u64 len))
+    and _ = _cogent_log_u64 (dbg_EXT2_BLOCK, pos + upcast len)
     and _ = _cogent_log (dbg_EXT2_BLOCK, ")\n")
 
     and (ex, state, page) = ospage_write_commit (ex, state, page, pos, len)
-    and inode = ospage_get_host (page) !page
-    and cur_size = vfs_inode_get_size (inode) !inode
-    and new_size = pos + u32_to_u64 (len)
+    and inode = ospage_get_host page !page
+    and cur_size = vfs_inode_get_size inode !inode
+    and new_size = pos + upcast len
     and over_size = new_size > cur_size
     in if over_size then
         -- wrote past current directory end; update

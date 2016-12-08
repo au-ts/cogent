@@ -44,7 +44,7 @@ get_next_dirent_from_page4 (#{acc = (ex, maybe_prev_dirent, pagebuf, cur_offset)
         in res
         | Success (new_dirent, _) ->
             ((ex, Some prev_dirent, pagebuf, cur_offset), Yield new_dirent)
-        | Error () ->
+        | Error ->
             ((ex, Some prev_dirent, pagebuf, cur_offset), Stop eIO)
     | _ ->
         -- should never happen
@@ -57,14 +57,14 @@ emit_dirent_from_page2 (new_dirent, (ex, pagebuf, dirctx, cur_offset)) =
     and inode = new_dirent.inode !new_dirent
     in if reclen /= 0 then
         if inode /= 0 then
-            vfs_dir_emit (#{ dirctx, name = new_dirent.name, ino = new_dirent.inode, ftype = u8_to_u32 new_dirent.file_type}) !new_dirent
-            | Break (#{dirctx}) ->
-                ((ex, Some new_dirent, pagebuf, dirctx, cur_offset), Stop (u8_to_u32 (0)))
-            | Iterate (#{dirctx}) -> 
-                ((ex, Some new_dirent, pagebuf, dirctx, cur_offset), Next ())
+            vfs_dir_emit #{ dirctx, name = new_dirent.name, ino = new_dirent.inode, ftype = upcast new_dirent.file_type} !new_dirent
+            | Break #{dirctx} ->
+                ((ex, Some new_dirent, pagebuf, dirctx, cur_offset), Stop 0)
+            | Iterate #{dirctx} -> 
+                ((ex, Some new_dirent, pagebuf, dirctx, cur_offset), Next)
         else
             -- ignore this entry if inode == 0
-            ((ex, Some new_dirent, pagebuf, dirctx, cur_offset), Next ())
+            ((ex, Some new_dirent, pagebuf, dirctx, cur_offset), Next)
     else
         let _ = _cogent_log (dbg_EXT2_DIR_READ, "emit_dirent_from_page2: stopping, dirent had zero-length reclen\n")
         in ((ex, Some new_dirent, pagebuf, dirctx, cur_offset), Stop eIO)
@@ -79,7 +79,7 @@ emit_dirent_from_page #{obj = new_dirent, acc = (ex, maybe_prev_dirent, pagebuf,
         in ((ex, maybe_prev_dirent, pagebuf, dirctx, offset), Return ())
     else
         -- replace prev dirent with new one in accumulator
-        let increment = u16_to_u64 (ext2_rec_len_from_disk (new_dirent.record_length)) !new_dirent
+        let increment = upcast (ext2_rec_len_from_disk new_dirent.record_length) !new_dirent
         and offset = offset + increment
         and dirctx_t { pos } = dirctx
         and pos = pos + increment
@@ -90,7 +90,7 @@ emit_dirent_from_page #{obj = new_dirent, acc = (ex, maybe_prev_dirent, pagebuf,
             --let _ = _cogent_log (dbg_EXT2_DIR_READ, "destroying dirent...")
             let ex = destroy_Ext2DirEnt (ex, prev_dirent)
             in emit_dirent_from_page2 (new_dirent, (ex, pagebuf, dirctx, offset))
-        | None _ ->
+        | None ->
             emit_dirent_from_page2 (new_dirent, (ex, pagebuf, dirctx, offset))
 
 check_dirent_empty2: (Ext2DirEnt, EmptyDirentsInPageAccNoDirent) -> ConsumerResult () U32 EmptyDirentsInPageAcc
@@ -106,15 +106,15 @@ check_dirent_empty2 (new_dirent, (ex, pagebuf, cur_offset)) =
                 namelen
                 | 1 -> ((ex, Some new_dirent, pagebuf, cur_offset), Next ())
                 | 2 ->
-                    let had_second_dot = wordarray_get [U8] (new_dirent.name, 1) == '.' !new_dirent
+                    let had_second_dot = wordarray_get[U8] (new_dirent.name, 1) == '.' !new_dirent
                     in if had_second_dot then
-                      ((ex, Some new_dirent, pagebuf, cur_offset), Next ())
+                      ((ex, Some new_dirent, pagebuf, cur_offset), Next)
                     else
-                      ((ex, Some new_dirent, pagebuf, cur_offset), Stop (u8_to_u32 (0)))
+                      ((ex, Some new_dirent, pagebuf, cur_offset), Stop 0)
                 | _ ->
-                    ((ex, Some new_dirent, pagebuf, cur_offset), Stop (u8_to_u32 (0)))
+                    ((ex, Some new_dirent, pagebuf, cur_offset), Stop 0)
             else
-                ((ex, Some new_dirent, pagebuf, cur_offset), Stop (u8_to_u32 (0)))
+                ((ex, Some new_dirent, pagebuf, cur_offset), Stop 0)
         else
             -- ignore this entry if inode == 0
             ((ex, Some new_dirent, pagebuf, cur_offset), Next ())
@@ -122,8 +122,8 @@ check_dirent_empty2 (new_dirent, (ex, pagebuf, cur_offset)) =
         ((ex, Some new_dirent, pagebuf, cur_offset), Stop eIO)
 
 check_dirent_empty: Consumer Ext2DirEnt () U32 EmptyDirentsInPageAcc DirentsInPageObsv
-check_dirent_empty (#{ obj = new_dirent, acc = (ex, maybe_prev_dirent, pagebuf, offset), obsv = (limit)}) =
-    if u32_to_u64 (offset) > limit then
+check_dirent_empty #{ obj = new_dirent, acc = (ex, maybe_prev_dirent, pagebuf, offset), obsv = limit} =
+    if upcast offset > limit then
         let _ = _cogent_log (dbg_EXT2_DIR_READ, "check_dirent_empty: offset ") 
         and _ = _cogent_log_u32 (dbg_EXT2_DIR_READ, offset)
         and _ = _cogent_log (dbg_EXT2_DIR_READ, " was more than pagemax ") 
@@ -133,14 +133,14 @@ check_dirent_empty (#{ obj = new_dirent, acc = (ex, maybe_prev_dirent, pagebuf, 
         in ((ex, maybe_prev_dirent, pagebuf, offset), Return ())
     else
         -- replace prev dirent with new one in accumulator
-        let increment = u16_to_u32 (ext2_rec_len_from_disk (new_dirent.record_length)) !new_dirent
+        let increment = upcast (ext2_rec_len_from_disk new_dirent.record_length) !new_dirent
         and offset = offset + increment
         
         in maybe_prev_dirent
         | Some prev_dirent ->
             let ex = destroy_Ext2DirEnt (ex, prev_dirent)
             in check_dirent_empty2 (new_dirent, (ex, pagebuf, offset))
-        | None _ ->
+        | None ->
             check_dirent_empty2 (new_dirent, (ex, pagebuf, offset))
 
 type PerPageEmptyAcc = (ExState)
@@ -152,13 +152,13 @@ get_page_and_check_empty (#{acc = (ex), obsv = (npages, inode), idx = n}) =
     and _ = _cogent_log_u64 (dbg_EXT2_DIR_READ,  n) 
     and _ = _cogent_log (dbg_EXT2_DIR_READ, "\n") 
     in ospagecache_read (vfs_inode_get_mapping (inode), n) !inode
-    | Success (page) =>
-        ospage_map (page)
+    | Success page =>
+        ospage_map page
         | Success (page, kaddr) =>
             let (ex, res) = deserialise_Ext2DirEnt2 (ex, kaddr, 0) !kaddr 
             in res
             | Success (dirent, _) ->
-                let limit = ext2_last_byte (inode, n) - u16_to_u64 (ext2_dir_rec_len (1)) !inode
+                let limit = ext2_last_byte (inode, n) - upcast (ext2_dir_rec_len 1) !inode
                 and ((ex, maybe_dirent, kaddr, _), res) = iterate_do [Ext2DirEnt, (), U32, EmptyDirentsInPageAcc, DirentsInPageObsv] (#{
                     init = dirent,
                     gen = get_next_dirent_from_page4,
@@ -176,9 +176,8 @@ get_page_and_check_empty (#{acc = (ex), obsv = (npages, inode), idx = n}) =
                     | Some dirent ->
                         let ex = destroy_Ext2DirEnt (ex, dirent)
                         in (ex, Break (err))
-                    | None _ ->
-                        (ex, Break (err))
-                | Return _ ->
+                    | None -> (ex, Break (err))
+                | Return ->
                     -- ran out of directory entries on this page
                     -- so should get next page and try reading from there
                     let page = ospage_unmap (page, kaddr)
@@ -188,18 +187,17 @@ get_page_and_check_empty (#{acc = (ex), obsv = (npages, inode), idx = n}) =
                     | Some dirent ->
                         let ex = destroy_Ext2DirEnt (ex, dirent)
                         in (ex, Iterate ())
-                    | None _ ->
-                        (ex, Iterate ())
-            | Error () ->
+                    | None -> (ex, Iterate ())
+            | Error ->
                 -- failed to deserialise first dirent
                 let page = ospage_unmap (page, kaddr)
                 and _ = ospagecache_release (page)
                 in (ex, Break eIO)
-        | Error (page) ->
+        | Error page ->
             -- faield to map
             let _ = ospagecache_release (page)
             in (ex, Break eIO)
-    | Error () ->
+    | Error ->
         -- faild to fetch page from mapping
         (ex, Break eIO)
 
@@ -207,13 +205,13 @@ get_page_and_check_empty (#{acc = (ex), obsv = (npages, inode), idx = n}) =
 ext2_dir_is_empty: (ExState, FsState, VfsInode!) -> RR (ExState, FsState) Bool U32
 ext2_dir_is_empty (ex, state, parent_inode) =
     let npages = ext2_dir_pages (parent_inode) !parent_inode
-    and (ex, res) = seq64 [PerPageEmptyAcc, PerPageEmptyObsv, U32] (#{
+    and (ex, res) = seq64 [PerPageEmptyAcc, PerPageEmptyObsv, U32] #{
         frm = 0,
         to = npages,
-        step = u8_to_u64 (1),
+        step = 1,
         f = get_page_and_check_empty,
-        acc = (ex),
-        obsv = (npages, parent_inode) })
+        acc = ex,
+        obsv = (npages, parent_inode) }
 
     in res
     | Iterate () ->
@@ -229,7 +227,7 @@ type PerPageLoopAcc = (ExState, VfsDirContext, U64, VfsInode)
 type PerPageLoopObsv = (U64)
 
 get_page_and_iterate_dirents: Seq64_body PerPageLoopAcc PerPageLoopObsv U32
-get_page_and_iterate_dirents (#{acc = (ex, dirctx, offset, inode), obsv = npages, idx = n}) = 
+get_page_and_iterate_dirents #{acc = (ex, dirctx, offset, inode), obsv = npages, idx = n} = 
     let _ = _cogent_log (dbg_EXT2_DIR_READ, "get_page_and_iterate_dirents: page ") 
     and _ = _cogent_log_u64 (dbg_EXT2_DIR_READ,  n) 
     and _ = _cogent_log (dbg_EXT2_DIR_READ, "\n") 
@@ -241,7 +239,7 @@ get_page_and_iterate_dirents (#{acc = (ex, dirctx, offset, inode), obsv = npages
             let (ex, res) = deserialise_Ext2DirEnt2 (ex, kaddr, u64_to_u32 offset) !kaddr  -- XXX: downcast
             in res
             | Success (dirent, _) ->
-                let limit = ext2_last_byte (inode, n) - u16_to_u64 (ext2_dir_rec_len 1) !inode
+                let limit = ext2_last_byte (inode, n) - upcast (ext2_dir_rec_len 1) !inode
                 --and _ = _cogent_log (dbg_EXT2_DIR_READ, "got the first dirent of the page! gonna emit and fetch loop now\n")
                 and ((ex, maybe_dirent, kaddr, dirctx, offset), res) =
                 iterate_do [Ext2DirEnt, (), U32,
@@ -267,22 +265,20 @@ get_page_and_iterate_dirents (#{acc = (ex, dirctx, offset, inode), obsv = npages
                         else
                             -- actual error occured, we usually break and return from func, so no update
                             ((ex, dirctx, offset, inode), Break err)
-                    | None _ ->
-                        ((ex, dirctx, offset, inode), Break err)
-                | Return _ ->
+                    | None -> ((ex, dirctx, offset, inode), Break err)
+                | Return ->
                     -- ran out of directory entries on this page
                     -- so should get next page and try reading from there
                     let page = ospage_unmap (page, kaddr)
                     and _ = ospagecache_release page
 
-                    and offset = u8_to_u64 0
+                    and offset = 0
                     in maybe_dirent
                     | Some dirent ->
                         let ex = destroy_Ext2DirEnt (ex, dirent)
-                        in ((ex, dirctx, offset, inode), Iterate ())
-                    | None _ ->
-                        ((ex, dirctx, offset, inode), Iterate ())
-            | Error () ->
+                        in ((ex, dirctx, offset, inode), Iterate)
+                    | None -> ((ex, dirctx, offset, inode), Iterate)
+            | Error ->
                 let page = ospage_unmap (page, kaddr)
                 and _ = ospagecache_release page
 
@@ -293,7 +289,7 @@ get_page_and_iterate_dirents (#{acc = (ex, dirctx, offset, inode), obsv = npages
 
             and _ = _cogent_log (dbg_EXT2_DIR_READ, "get_page_and_iterate_dirents: failed to map\n")
             in ((ex, dirctx, offset, inode), Break eIO)
-    | Error () ->
+    | Error ->
         let _ = _cogent_log (dbg_EXT2_DIR_READ, "get_page_and_iterate_dirents: failed to get page\n")
         in ((ex, dirctx, offset, inode), Break eIO)
 
@@ -305,24 +301,24 @@ fsop_dir_iterate #{ex,state,parent_inode,dirctx} =
     and offset = pos .&. complement os_PAGE_CACHE_MASK
     and start_page = pos >> os_PAGE_CACHE_SHIFT
     and inode_size = vfs_inode_get_size (parent_inode) !parent_inode
-    in if pos > inode_size - u16_to_u64 (ext2_dir_rec_len (1)) then
+    in if pos > inode_size - upcast (ext2_dir_rec_len 1) then
         let dirctx = dirctx_t { pos }
-        in (#{ex = ex, state, parent_inode, dirctx}, Success ())
+        in (#{ex = ex, state, parent_inode, dirctx}, Success)
     else
         -- TODO: we don't care about FEATURE_INCOMPAT_FILETYPE right now (or ever?)
         let dirctx = dirctx_t { pos }
         and ((ex, dirctx, offset, parent_inode), res) = seq64 [PerPageLoopAcc,
                 PerPageLoopObsv, U32]
-        (#{
+        #{
             frm = start_page,
             to = npages,
-            step = u8_to_u64 (1),
+            step = 1,
             f = get_page_and_iterate_dirents,
             acc = (ex, dirctx, offset, parent_inode),
-            obsv = (npages)
-        })
+            obsv = npages
+        }
         in res
-        | Iterate () ->
+        | Iterate ->
             (#{ex = ex, state, parent_inode, dirctx}, Success ())
         | Break err ->
             if err == 0 then -- vfs_emit just told us to stop, no problem
@@ -345,7 +341,7 @@ get_next_dirent_from_page2(#{acc = (ex, state, offset, prev_offset), obsv = (nam
         and _ = _cogent_log (dbg_EXT2_DIR_READ, "\n") 
         in res
         | Success (dirent, _) ->
-            let new_offset = offset + u16_to_u64 (ext2_rec_len_from_disk (dirent.record_length)) !dirent
+            let new_offset = offset + upcast (ext2_rec_len_from_disk dirent.record_length) !dirent
             in ((ex, state, new_offset, offset), Yield dirent)
         | Error () ->
             let _ = _cogent_log (dbg_EXT2_DIR_READ, "get_next_dirent_from_page_prime: failed to deser\n")
@@ -393,7 +389,7 @@ check_page_loop (#{obj = (page, pagebuf), acc = (ex, state, n), obsv = (name, di
     let _ = _cogent_log (dbg_EXT2_DIR_READ, "check_page_loop: at page ") 
     and _ = _cogent_log_u64 (dbg_EXT2_DIR_READ, n) 
     and _ = _cogent_log (dbg_EXT2_DIR_READ, "\n") 
-    and offset_end = ext2_last_byte (dir, n) - u16_to_u64 reclen
+    and offset_end = ext2_last_byte (dir, n) - upcast reclen
 
     -- inner loop at line 396
     and ((ex, state, next_offset, prev_offset), res) = iterate [Ext2DirEnt,
@@ -413,7 +409,7 @@ check_page_loop (#{obj = (page, pagebuf), acc = (ex, state, n), obsv = (name, di
             and _ = _cogent_log_u64 (dbg_EXT2_DIR_READ, prev_offset) 
             and _ = _cogent_log (dbg_EXT2_DIR_READ, "\n")
             in ((ex, state, n), Return (de, page, pagebuf, prev_offset))
-        | None _ ->
+        | None ->
             -- no answer, just need the next page
             -- update increment
             let n = n + 1
@@ -458,12 +454,12 @@ ext2_find_entry2 (ex, state, dir, name, reclen, npages, start) =
     and ((ex, state, n), res) = iterate [(OSPage, OSPageBuffer),
             (Ext2DirEnt, OSPage, OSPageBuffer, U64), U32,
             FindEntryAcc, FindEntryObsv]
-    (#{
+    #{
         gen = get_next_page,
         cons = check_page_loop,
         acc = (ex, state, n),
         obsv = (name, dir, reclen, npages, start)
-    }) !dir
+    } !dir
     in res
     | Return (de, page, kaddr, offset) ->
         -- found it, update dir_start_lookup for next time
@@ -490,7 +486,7 @@ ext2_find_entry (ex, state, dir, name) =
     else
         let start = dir.fs.dir_start_lookup !dir
         in if start >= npages then
-            let start = u8_to_u64 0
+            let start = 0
             in ext2_find_entry2 (ex, state, dir, name, reclen, npages, start)
         else
             ext2_find_entry2 (ex, state, dir, name, reclen, npages, start)
@@ -510,7 +506,7 @@ ext2_find_entry_bang (ex, state, dir, name) =
             gen = get_next_page,
             cons = check_page_loop,
             acc = (ex, state, 0),
-            obsv = (name, dir, reclen, npages, u8_to_u64 0)
+            obsv = (name, dir, reclen, npages, 0)
         })
         in res
         | Return (de, page, kaddr, offset) ->

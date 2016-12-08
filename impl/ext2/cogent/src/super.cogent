@@ -253,10 +253,10 @@ fs_mount #{ex, options} =
 
                                                     -- build mountinfo for vfs
                                                     and mountinfo = #{
-                                                          s_magic = u16_to_u64 const_ext2Magic,
-                                                          s_flags = u8_to_u32 0,
+                                                          s_magic = upcast const_ext2Magic,
+                                                          s_flags = 0,
                                                           s_max_links = const_ext2LinkMax,
-                                                          s_maxbytes = ext2_max_size (u32_to_u64 const_blockSizeBits),
+                                                          s_maxbytes = ext2_max_size (upcast const_blockSizeBits),
                                                           s_blocksize = const_blockSize,
                                                           s_blocksize_bits = const_blockSizeBits
                                                         }
@@ -302,7 +302,7 @@ fs_mount #{ex, options} =
                                         
                                         and ex = array_free [OSBuffer] #{arr = group_desc_array, f = osbuffer_destroy, ex}
                                         and ex = free_Ext2Superblock (ex, super)
-                                        and ex = osbuffer_destroy (ex, buf_super)
+                                        and ex = undefined (ex, buf_super)
                                         and ex = free_FsState (ex, state_t)
                                         in (ex, Error eNoMem)
                                 | Error ex ->
@@ -342,6 +342,8 @@ fs_mount #{ex, options} =
             in (ex, Error eNoMem)
     | Error () ->
         (ex, Error eNoMem)
+
+undefined : all (a,b). a -> b
 
 free_option_chain: (ExState, Option (Chain take (..))) -> ExState
 free_option_chain (ex, maybe_chain) =

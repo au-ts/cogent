@@ -33,9 +33,9 @@ deserialise_Ext2Inode_2 (ex, inode, mode) =
 
         and inode = if first_ptr /= 0 then 
                     vfs_inode_link_device (inode, mode, vfs_create_device (linux_decode_device_old (u32_to_u16 first_ptr))) else
-                    vfs_inode_link_device (inode, mode, vfs_create_device (linux_decode_device_new (second_ptr)))
+                    vfs_inode_link_device (inode, mode, vfs_create_device (linux_decode_device_new second_ptr))
 
-        and inode = vfs_inode_unlock_new (inode)
+        and inode = vfs_inode_unlock_new inode
         in (ex, Success inode)
 
 deserialise_Ext2Inode: (ExState, VfsInode take fs, OSBuffer!, U32) -> RR (ExState) VfsInode (VfsInode take fs)
@@ -80,24 +80,24 @@ deserialise_Ext2Inode (ex, inode_t, buf, idx) =
                                                         -- fill out abstract type
                                                         let mem_inode = #{
                                                             block_pointers,
-                                                            dir_start_lookup = u8_to_u64 (0),
+                                                            dir_start_lookup = 0,
                                                             dtime = deletion_time
                                                         }
 
                                                         and inode = inode_t { fs = mem_inode }
 
-                                                        and u32_mode = u16_to_u32 mode
+                                                        and u32_mode = upcast mode
 
                                                         and inode = vfs_inode_set_mode   (inode, u32_mode)
-                                                        and inode = vfs_inode_set_nlink  (inode, u16_to_u32 link_count)
-                                                        and inode = vfs_inode_set_size   (inode, u32_to_u64 size)
+                                                        and inode = vfs_inode_set_nlink  (inode, upcast link_count)
+                                                        and inode = vfs_inode_set_size   (inode, upcast size)
                                                         and inode = vfs_inode_set_atime  (inode, #{tv_sec = access_time, tv_nsec = 0})
                                                         and inode = vfs_inode_set_mtime  (inode, #{tv_sec = modified_time, tv_nsec = 0})
                                                         and inode = vfs_inode_set_ctime  (inode, #{tv_sec = creation_time, tv_nsec = 0})
-                                                        and inode = vfs_inode_set_uid    (inode, u16_to_u32 uid_low)
-                                                        and inode = vfs_inode_set_gid    (inode, u16_to_u32 gid_low)
+                                                        and inode = vfs_inode_set_uid    (inode, upcast uid_low)
+                                                        and inode = vfs_inode_set_gid    (inode, upcast gid_low)
                                                         and inode = vfs_inode_set_flags  (inode, flags)
-                                                        and inode = vfs_inode_set_blocks (inode, u32_to_u64 num_physical_blocks)
+                                                        and inode = vfs_inode_set_blocks (inode, upcast num_physical_blocks)
                                                         --and (ex, inode_t) = fs_inode_set_generation (#{ex, inode = inode_t, val = generation})
 
                                                         in deserialise_Ext2Inode_2 (ex, inode, u32_mode)

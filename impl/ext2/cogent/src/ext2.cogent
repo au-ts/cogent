@@ -207,22 +207,22 @@ ext2_reg_file_ops = #{
 -- We need to be 1 filesystem block less than the 2^32 sector limit.
 ext2_max_size: U64 -> U64
 ext2_max_size bits = 
-  let res = u32_to_u64 const_numDirectBlocks
-  and upper_limit = (u32_to_u64 1 << 32) - 1
+  let res = upcast const_numDirectBlocks
+  and upper_limit = (1 << 32) - 1
   -- total blocks in fs block size
   and upper_limit = upper_limit >> (bits - 9) 
   -- indirect blocks
-  and meta_blocks = u32_to_u64 1
+  and meta_blocks = 1
   -- double indirect blocks
-  and meta_blocks = meta_blocks + 1 + (u32_to_u64 1 << (bits - 2))
+  and meta_blocks = meta_blocks + 1 + (1 << (bits - 2))
   -- triple indirect blocks
-  and meta_blocks = meta_blocks + 1 + (u32_to_u64 1 << (bits - 2)) + (u32_to_u64 1 << (2 * (bits - 2)))
+  and meta_blocks = meta_blocks + 1 + (1 << (bits - 2)) + (1 << (2 * (bits - 2)))
 
   and upper_limit = upper_limit - meta_blocks
   and upper_limit = upper_limit << bits
-  and res = res + (u32_to_u64 1 << (bits - 2))
-  and res = res + (u32_to_u64 1 << (2 * (bits - 2)))
-  and res = res + (u32_to_u64 1 << (3 * (bits - 2)))
+  and res = res + (1 << (bits - 2))
+  and res = res + (1 << (2 * (bits - 2)))
+  and res = res + (1 << (3 * (bits - 2)))
   and res = res << bits
   in if res > upper_limit
        then upper_limit
@@ -232,21 +232,21 @@ ext2_max_size bits =
 
 give_extinfo: (ExState, FsState, VfsExtendedInfo take (..)) -> (ExState, FsState, VfsExtendedInfo)
 give_extinfo (ex, state, info_t) =
-  let blocks_total = u32_to_u64 state.super.block_count - u32_to_u64 state.cur_overhead !state
-  and blocks_free  = u32_to_u64 state.super.free_block_count !state
+  let blocks_total = upcast state.super.block_count - upcast state.cur_overhead !state
+  and blocks_free  = upcast state.super.free_block_count !state
 
   and info = info_t { 
-        fs_type = u16_to_u64 const_ext2Magic,
-        best_blocksize = u32_to_u64 const_blockSize,
+        fs_type = upcast const_ext2Magic,
+        best_blocksize = upcast const_blockSize,
 
         blocks_total,
         blocks_free,
         blocks_available = blocks_free,  -- ignore reserved blocks (TODO: include them in count)
 
-        files_total = u32_to_u64 state.super.inode_count,
-        files_free  = u32_to_u64 state.super.free_inode_count,
+        files_total = upcast state.super.inode_count,
+        files_free  = upcast state.super.free_inode_count,
 
-        max_namelen = u32_to_u64 const_maxNameLen
+        max_namelen = upcast const_maxNameLen
       } !state
 
   in (ex, state, info)

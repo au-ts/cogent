@@ -50,7 +50,7 @@ serialise_ext2_VfsInode (ex, state, buf, inode, idx, sync) =
                                                 in if vmode_is_chr mode_u32 || vmode_is_blk mode_u32 then
                                                     let dev = vfs_inode_get_device inode
                                                     in if linux_valid_old_dev dev then
-                                                        osbuffer_serialise_Ple32 (buf, idx, u16_to_u32 (linux_encode_device_old (dev)))
+                                                        osbuffer_serialise_Ple32 (buf, idx, upcast (linux_encode_device_old dev))
                                                         | Success (buf, idx) ->
                                                             osbuffer_serialise_Ple32 (buf, idx, 0)
                                                             | Success (buf, idx) ->
@@ -213,7 +213,7 @@ fsop_inode_free2 (ex, state, inode_t) =
 fsop_inode_free: (ExState, FsState, VfsInode take fs) -> (ExState, FsState, VfsInode take fs)
 fsop_inode_free (ex, state, inode_t) = 
     let ino = vfs_inode_get_ino2 (inode_t) !inode_t
-    and first_ino = u8_to_u32 2 -- FIXME: when we have a bigger superblock
+    and first_ino = upcast 2 -- FIXME: when we have a bigger superblock
     and valid_inode = ino >= first_ino && ino < state.super.inode_count !state
     in valid_inode
     | True =>
@@ -360,7 +360,7 @@ fsop_inode_get_block #{ ex, state, inode, blk, create, buf } =
                 and indirect_blocks = unallocated_in_chain - 1 -- was: (chain [ptr* to start] + depth) - partial - 1
 
                 -- number of direct blocks
-                and count = chain_blocks_to_allocate (chain, indirect_blocks, u32_to_u64 max_mappable, boundary) !chain
+                and count = chain_blocks_to_allocate (chain, indirect_blocks, upcast max_mappable, boundary) !chain
 
                 and _ = _cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: have ")
                 and _ = _cogent_log_u32 (dbg_EXT2_INODE_WRITE, unallocated_in_chain)

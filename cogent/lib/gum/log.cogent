@@ -32,10 +32,10 @@ _cogent_log_bool: (U32, Bool) -> ()
 _cogent_log_bool (l, bool) = if cmp_log_lvl l then _cogent_debug_bool (bool) else ()
 
 _cogent_log_u16: (U32, U16) -> ()
-_cogent_log_u16 (l, x) = _cogent_log_u32 (l, u16_to_u32 x)
+_cogent_log_u16 (l, x) = _cogent_log_u32 (l, upcast x)
 
 _cogent_log_u8: (U32, U8) -> ()
-_cogent_log_u8 (l, x) = _cogent_log_u32 (l, u8_to_u32 x)
+_cogent_log_u8 (l, x) = _cogent_log_u32 (l, upcast x)
 
 cmp_log_lvl : U32 -> Bool
 cmp_log_lvl l = (l .&. _COGENT_LOG_LEVEL) /= 0

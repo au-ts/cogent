@@ -91,9 +91,9 @@ ext2_inode_create2 (ex, state, parent_inode, mode, group) =
     let num_groups =  state.group_count !state
     and ((ex, state, group), res) = seq32 [FindFreeInoAcc, (), FindFreeInoBrk]
     #{
-        frm = u8_to_u32 0,
+        frm = 0,
         to = num_groups,
-        step = u8_to_u32 1,
+        step = 1,
         f = find_free_inode_in_blockgroups,
         acc = (ex, state, group),
         obsv = ()
@@ -106,25 +106,25 @@ ext2_inode_create2 (ex, state, parent_inode, mode, group) =
             let ino = ino + group * state.super.inodes_per_group + 1 !state
             and inode_count = state.super.inode_count !state 
             --and first_ino = state.super.first_ino !state -- FIXME: when we have a bigger superblock
-            and first_ino = u8_to_u32 2
+            and first_ino = 2
             in if ino > first_ino && ino <= inode_count then
                 wordarray_create [U32] (ex, const_numBlockPointers)
                 | Success (ex, block_pointers) ->
-                    vfs_inode_new (ex)
+                    vfs_inode_new ex
                     | Success (ex, inode_t) ->
                         let mem_inode = #{
                             block_pointers, 
-                            dir_start_lookup = u8_to_u64 (0),
-                            dtime = u8_to_u32 0
+                            dir_start_lookup = 0,
+                            dtime = 0
                         }
 
                         and inode = inode_t { fs = mem_inode }
 
                         and inode = vfs_inode_set_ino    (inode, ino)
 
-                        and inode = vfs_inode_set_nlink  (inode, u16_to_u32 1)
+                        and inode = vfs_inode_set_nlink  (inode, 1)
 
-                        and inode = vfs_inode_set_size   (inode, u32_to_u64 0)
+                        and inode = vfs_inode_set_size   (inode, 0)
                         and inode = vfs_inode_set_blocks (inode, 0)
                         and inode = vfs_inode_set_bytes  (inode, 0)
 
@@ -198,7 +198,7 @@ above_average_blockgroup #{ acc = (ex, state, best_group, best_free_blocks), obs
         and _ = _cogent_log_u16 (dbg_EXT2_INODE_ALLOC, best_free_blocks)
         and _ = _cogent_log (dbg_EXT2_INODE_ALLOC, "\n")
 
-        and was_better = this_free_inodes > 0 && u16_to_u32 this_free_inodes >= avg_free_inodes && (this_free_blocks > best_free_blocks || best_group == 0)
+        and was_better = this_free_inodes > 0 && upcast this_free_inodes >= avg_free_inodes && (this_free_blocks > best_free_blocks || best_group == 0)
         in if was_better then
             let _ = _cogent_log (dbg_EXT2_INODE_ALLOC, "\t** found new best **\n")
             in ((ex, state, group, this_free_blocks), Iterate ())
@@ -312,28 +312,28 @@ find_group_other2 (ex, state, parent, group) =
     -- use a quadratic hash to find a group with a free inode and some free blocks
     and ((ex, state, group), res) = seq32_stepf [FreeBlockHashAcc, U32, ()]
     #{
-        frm   = u8_to_u32 1,
+        frm   = 1,
         to    = ngroups,
         stepf = shift_left, -- i miss my lambda expressions :(
         f     = free_block_hash_body,
         acc   = (ex, state, group),
-        obsv  = (ngroups)
+        obsv  = ngroups
     }
     in res
     | Break () ->
-        ((ex, state), Success (group))
+        ((ex, state), Success group)
     | Iterate () ->
         find_group_other3 (ex, state, parent_group, ngroups)
 
-find_group_other: (ExState, FsState, VfsInode!) -> RR (ExState, FsState) (U32) ()
+find_group_other: (ExState, FsState, VfsInode!) -> RR (ExState, FsState) U32 ()
 find_group_other (ex, state, parent) =
     -- try to place in parent directory
-    let group = get_block_group_from_ino2 (state, vfs_inode_get_ino (parent)) !parent !state   -- FIXME: linux puts this in the inode struct itself
+    let group = get_block_group_from_ino2 (state, vfs_inode_get_ino parent) !parent !state   -- FIXME: linux puts this in the inode struct itself
     and ((ex, state), gd) =  group_desc_from_block_group (ex, state, group)
     in gd
     | Success (desc) ->
         if desc.free_inode_count /= 0 && desc.free_block_count /= 0 then
-            ((ex, state), Success (group))
+            ((ex, state), Success group)
         else
             find_group_other2 (ex, state, parent, group)
     | Error () ->
@@ -342,7 +342,7 @@ find_group_other (ex, state, parent) =
 
 ext2_inode_create: (ExState, FsState, VfsInode!, VfsMode) -> RR (ExState, FsState) (VfsInode) (U32)
 ext2_inode_create (ex, state, parent_inode, mode) =
-    if vmode_is_dir (mode) then
+    if vmode_is_dir mode then
         let _ = _cogent_log (dbg_EXT2_INODE_ALLOC, "ext2_inode_create: was dir, using directory allocator to find goal group\n")
         and ((ex, state), res) = find_group_dir (ex, state, parent_inode)
         --let ((ex, state), res) = find_group_other (ex, state, parent_inode)

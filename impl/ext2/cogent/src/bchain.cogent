@@ -154,7 +154,7 @@ chain_init (state, path) =
   | Some chain_t =>
     prealloc_indirects
     | Some indirects =>
-      let chain = chain_t { path, indirects, indirect_count = u8_to_u32 0 }
+      let chain = chain_t { path, indirects, indirect_count = 0 }
       and state = state { prealloc_chain = None (), prealloc_indirects = None () } -- put None instead, REMEMBER TO PUT BACK LATER
       in (state, Success chain)
     | None () ->
@@ -202,7 +202,7 @@ chain_from_path (ex, chain, inode, depth) =
   and _ = _cogent_log (dbg_EXT2_CHAIN, "\n")
 
   -- add first inode offset to chain
-  and ((ex, chain), res) = indirect_from_inode (ex, chain, inode, u8_to_u32 0) !inode
+  and ((ex, chain), res) = indirect_from_inode (ex, chain, inode, 0) !inode
   in res
   | Success indirect =>
     let lastptr = indirect.blockptr !indirect
@@ -213,9 +213,9 @@ chain_from_path (ex, chain, inode, depth) =
       -- loop over the rest of the offsets, if there were any
       let _ = _cogent_log (dbg_EXT2_CHAIN, "chain_from_path: had non-zero block, going to try and follow indirects...\n")
       and ((ex, chain, _), res) = seq32[FillChainAcc, (), R U32 U32] #{
-        frm  = u8_to_u32 0,
+        frm  = 0,
         to   = depth - 1,
-        step = u8_to_u32 1,
+        step = 1,
         f    = chain_follow_indirects,
         acc  = (ex, chain, lastptr),
         obsv = ()}
@@ -338,18 +338,18 @@ type BlocksToAllocateObsv = (U64, U32, Chain)
 chain_blocks_to_allocate: (Chain!, U32, U64, U32) -> U64
 chain_blocks_to_allocate (chain, indirect, blocks, boundary) = 
   if indirect > 0 then
-    if blocks < u32_to_u64 boundary + 1 then
+    if blocks < upcast boundary + 1 then
       blocks
     else
-      u32_to_u64 boundary + 1
+      upcast boundary + 1
   else
     -- count zero'd blocks down to (incl) boundary
     let count:U64 = 1
-    and bound = min_u64 (blocks, u32_to_u64 boundary + 1)
+    and bound = min_u64 (blocks, upcast boundary + 1)
     and (count, _) = seq64 [U64, BlocksToAllocateObsv, ()] #{
       frm  = count,
       to   = bound,
-      step = u8_to_u64 1,
+      step = 1,
       f    = chain_blocks_to_allocate2,
       acc  = count,
       obsv = (blocks, boundary, chain)
@@ -360,11 +360,11 @@ chain_blocks_to_allocate (chain, indirect, blocks, boundary) =
 chain_blocks_to_allocate2: Seq64_body U64 BlocksToAllocateObsv ()
 chain_blocks_to_allocate2 #{acc = count, obsv = (blocks, boundary, chain), idx} =
   if count < blocks && 
-     count <= u32_to_u64 boundary &&
+     count <= upcast boundary &&
      chain_get_indirect_blockptr (chain, u64_to_u32 count) == 0 then
-    (count + 1, Iterate ())
+    (count + 1, Iterate)
   else
-    (count, Break ())
+    (count, Break)
 
 ------------------------------------------------------------------------------
 -- allocates a given number of indirect and direct inodes for a chain

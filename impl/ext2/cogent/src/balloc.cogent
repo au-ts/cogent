@@ -110,7 +110,7 @@ ext2_write_new_block (ex, state, inode, group_desc_buf, block_group, group_desc,
   and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, dest_block) 
   and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
 
-  and num32 = u16_to_u32 num
+  and num32 : U32 = upcast num
 
   -- check if we're allocating it over a system block
   and was_invalid = in_range_u32 (group_desc.block_bitmap, dest_block, dest_block + num32) || 
@@ -133,7 +133,7 @@ ext2_write_new_block (ex, state, inode, group_desc_buf, block_group, group_desc,
     let (ex, bitmap_buf) = osbuffer_dirty (ex, bitmap_buf)
 
     -- update inode i_blocks and i_bytes (latter is linux only)
-    and inode = vfs_inode_add_bytes (inode, (u16_to_u64 num) << u32_to_u64 const_blockSizeBits)
+    and inode = vfs_inode_add_bytes (inode, upcast num << upcast const_blockSizeBits)
 
     and outside_block_count = dest_block > state.super.block_count !state
     in outside_block_count
@@ -603,7 +603,7 @@ ext2_truncate_blocks2: (ExState, FsState, VfsInode, U64) -> RR (ExState, FsState
 ext2_truncate_blocks2 (ex, state, inode, offset) =
     --let addr_per_block  = const_addrPerBlock
     --let blocksize = const_blockSize
-    let iblock = (offset + u32_to_u64 const_blockSize - 1) >> u32_to_u64 const_blockSizeBits
+    let iblock = (offset + upcast const_blockSize - 1) >> upcast const_blockSizeBits
 
     and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_truncate_blocks2: getting path to logical block ") 
     and _ = _cogent_log_u64 (dbg_EXT2_DIR_BALLOC, iblock) 
@@ -682,7 +682,7 @@ ext2_truncate_blocks_ind_shared (ex, state, inode, offset, chain, partial_idx) =
   and ((ex, state, inode, chain), _) = seq32_rev [(ExState, FsState, VfsInode, Chain), (), ()] #{
     frm = partial_idx,
     to,
-    step = u8_to_u32 1,
+    step = 1,
     f    = free_indirect_on_shared,
     acc  = (ex, state, inode, chain),
     obsv = ()
@@ -809,7 +809,7 @@ ext2_free_branches (ex, state, inode, maybe_buf, offset_from, offset_to, depth) 
   and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
 
   and (root, (ex, state, inode)) = dls_uarray [BranchNode, (ExState, FsState, VfsInode), U32] #{
-    curdepth = u8_to_u32 0,
+    curdepth = 0,
     maxdepth = depth + 1, -- +1 for leaf blocks
     f        = ext2_free_branch,
     acc      = (ex, state, inode),
@@ -1082,7 +1082,7 @@ ext2_free_blocks (ex, state, inode, block, count) =
 
     in if freed > 0 then
       -- update block count
-      let inode = vfs_inode_sub_bytes (inode, (u32_to_u64 freed) << u32_to_u64 const_blockSizeBits)
+      let inode = vfs_inode_sub_bytes (inode, upcast freed << upcast const_blockSizeBits)
 
       -- dirty it
       and (ex, inode) = vfs_inode_mark_dirty (ex, inode)
