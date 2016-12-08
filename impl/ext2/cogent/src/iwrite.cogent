@@ -213,7 +213,7 @@ fsop_inode_free2 (ex, state, inode_t) =
 fsop_inode_free: (ExState, FsState, VfsInode take fs) -> (ExState, FsState, VfsInode take fs)
 fsop_inode_free (ex, state, inode_t) = 
     let ino = vfs_inode_get_ino2 (inode_t) !inode_t
-    and first_ino = upcast 2 -- FIXME: when we have a bigger superblock
+    and first_ino = 2 -- FIXME: when we have a bigger superblock
     and valid_inode = ino >= first_ino && ino < state.super.inode_count !state
     in valid_inode
     | True =>

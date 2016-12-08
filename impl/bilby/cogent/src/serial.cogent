@@ -55,22 +55,22 @@ bilbyFsObjTypeSum : U8
 bilbyFsObjTypeSum = 6
 
 bilbyFsOidMaskDentarr : U64
-bilbyFsOidMaskDentarr = u8_to_u64 bilbyFsObjTypeDentarr << bilbyFsXinfoShift
+bilbyFsOidMaskDentarr = upcast bilbyFsObjTypeDentarr << bilbyFsXinfoShift
 
 bilbyFsOidMaskData : U64
-bilbyFsOidMaskData = u8_to_u64 bilbyFsObjTypeData << bilbyFsXinfoShift
+bilbyFsOidMaskData = upcast bilbyFsObjTypeData << bilbyFsXinfoShift
 
 bilbyFsOidMaskInode : U64
-bilbyFsOidMaskInode = u8_to_u64 bilbyFsObjTypeInode << bilbyFsXinfoShift
+bilbyFsOidMaskInode = upcast bilbyFsObjTypeInode << bilbyFsXinfoShift
 
 bilbyFsOidMaskDel : U64
-bilbyFsOidMaskDel = u8_to_u64 bilbyFsObjTypeDel << bilbyFsXinfoShift
+bilbyFsOidMaskDel = upcast bilbyFsObjTypeDel << bilbyFsXinfoShift
 
 bilbyFsOidMaskPad : U64
-bilbyFsOidMaskPad = u8_to_u64 bilbyFsObjTypePad << bilbyFsXinfoShift
+bilbyFsOidMaskPad = upcast bilbyFsObjTypePad << bilbyFsXinfoShift
 
 bilbyFsOidMaskSum : U64
-bilbyFsOidMaskSum = u8_to_u64 bilbyFsObjTypeSum << bilbyFsXinfoShift
+bilbyFsOidMaskSum = upcast bilbyFsObjTypeSum << bilbyFsXinfoShift
 
 bilbyFsOidMaskAll : U64
 bilbyFsOidMaskAll = 7 << bilbyFsXinfoShift
@@ -86,12 +86,12 @@ obj_id_dentarr_mk(ino, name) =
 {-# cinline obj_id_inode_mk #-}
 obj_id_inode_mk: VfsIno -> ObjId
 obj_id_inode_mk(ino) =
-  ((u32_to_u64 ino) << 32) .|. bilbyFsOidMaskInode
+  (upcast ino << 32) .|. bilbyFsOidMaskInode
 
 {-# cinline obj_id_data_mk #-}
 obj_id_data_mk: (VfsIno, U32) -> ObjId
 obj_id_data_mk(ino, blk) =
-   obj_id_inode_mk(ino) .|. bilbyFsOidMaskData .|. u32_to_u64(blk)
+   obj_id_inode_mk ino .|. bilbyFsOidMaskData .|. upcast blk
 
 {-# cinline obj_id_pad_mk #-}
 obj_id_pad_mk: () -> ObjId
@@ -104,7 +104,7 @@ obj_id_type oid =
 
 obj_id_hash_map: #{elem: U8, acc: U32, obsv: ()} -> LoopResult U32 U32
 obj_id_hash_map #{elem, acc=a, obsv} = 
-  let v = u8_to_u32 elem
+  let v = upcast elem
   and a = a + v << 4
   and a = a + v >> 4
   in Iterate (a * 11)
@@ -119,23 +119,23 @@ obj_id_hash_name nm =
 
 {-# cinline obj_id_end_mk #-}
 obj_id_end_mk: VfsIno -> ObjId
-obj_id_end_mk(ino) =
-   obj_id_inode_mk(ino) .|. u32_to_u64(word32Max)
+obj_id_end_mk ino =
+   obj_id_inode_mk ino .|. upcast word32Max
 
 {-# cinline obj_id_is_inode #-}
 obj_id_is_inode: ObjId -> Bool
 obj_id_is_inode oid =
-   obj_id_type oid == u8_to_u64 bilbyFsObjTypeInode
+   obj_id_type oid == upcast bilbyFsObjTypeInode
 
 {-# cinline obj_id_is_dentarr #-}
 obj_id_is_dentarr: ObjId -> Bool
 obj_id_is_dentarr oid =
-   obj_id_type oid == u8_to_u64 bilbyFsObjTypeDentarr
+   obj_id_type oid == upcast bilbyFsObjTypeDentarr
 
 {-# cinline obj_id_is_data #-}
 obj_id_is_data: ObjId -> Bool
 obj_id_is_data oid =
-   obj_id_type oid == u8_to_u64 bilbyFsObjTypeData
+   obj_id_type oid == upcast bilbyFsObjTypeData
 
 type Obj = {
        magic : U32,
@@ -1052,7 +1052,7 @@ newObjInode: ExState -> R (ExState, ObjInode take(..)) ExState
 freeObjInode: (ExState, ObjInode take (..)) -> ExState
 
 bilbyFsOidMaskInum : U64
-bilbyFsOidMaskInum = u32_to_u64(word32Max) << 32
+bilbyFsOidMaskInum = upcast word32Max << 32
 
 {-
  definition "PObjInode data offs ==

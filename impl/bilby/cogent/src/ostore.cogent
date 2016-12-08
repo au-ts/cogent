@@ -18,7 +18,7 @@ include "fsm.cogent"
 include "wbuf.cogent"
 include "serial.cogent"
 
-ostore_init: (ExState, MountState!, OstoreState take (..)) -> R (ExState, OstoreState take (ubi_vol)) (ErrCode, ExState, OstoreState take (..))
+ostore_init: (ExState, MountState!, OstoreState take (..)) -> R (ExState, OstoreState take ubi_vol) (ErrCode, ExState, OstoreState take (..))
 ostore_init (ex, mount_st, ostore_st) =
   let next_inum = bilbyFsRootIno
   and next_sqnum:U64 = 0
@@ -646,7 +646,7 @@ find_sum_entry_del_f: #{elem: ObjSumEntry!, acc:U32, obsv:(ObjId, U64)} -> LoopR
 find_sum_entry_del_f #{elem=entry, acc=idx, obsv=(oid, sqnum)} =
   let oid_type = obj_id_type oid
   -- FIXME check if this condition is correct (bitfields)
-  in if oid_type == u8_to_u64 bilbyFsObjTypeDentarr then
+  in if oid_type == upcast bilbyFsObjTypeDentarr then
     if oid == entry.id then
       if entry.sqnum > sqnum then
         Break (None ())
@@ -655,7 +655,7 @@ find_sum_entry_del_f #{elem=entry, acc=idx, obsv=(oid, sqnum)} =
     else
       Iterate (idx+1)
   else
-    if inum_from_obj_id oid == inum_from_obj_id (entry.id) && entry.id > oid then
+    if inum_from_obj_id oid == inum_from_obj_id entry.id && entry.id > oid then
       if entry.sqnum > sqnum then
         Break (None ())
       else
@@ -666,7 +666,7 @@ find_sum_entry_del_f #{elem=entry, acc=idx, obsv=(oid, sqnum)} =
 find_sum_entry_f: #{elem: ObjSumEntry!, acc:U32, obsv:(ObjId, U64)} -> LoopResult U32 (Option (U32, U16))
 find_sum_entry_f #{elem=entry, acc=idx, obsv=(oid, sqnum)} =
   let oid_type = obj_id_type oid
-  in if obj_sum_entry_is_del entry && oid_type /= u8_to_u64 bilbyFsObjTypeDentarr then
+  in if obj_sum_entry_is_del entry && oid_type /= upcast bilbyFsObjTypeDentarr then
     Iterate (idx+1)
   else
     if oid == entry.id then
