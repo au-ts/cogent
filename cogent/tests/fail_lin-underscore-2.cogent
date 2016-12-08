@@ -1,0 +1,8 @@
+type A
+type B
+
+mkA : () -> A
+
+bar : () -> ()
+bar v = let _ = mkA ()
+         in ()

@@ -382,7 +382,9 @@ match (PVar x) t = do
            L.<$> text "of type" <+> pretty t)
   return (M.fromList [(x, (t,?loc,Nothing))], Sat, p)
 
-match (PUnderscore) t = return (M.empty, Sat, PUnderscore)
+match (PUnderscore) t = 
+  let c = dropConstraintFor (M.singleton "_" (t, ?loc, Nothing))
+   in return (M.empty, c, PUnderscore)
 
 match (PUnitel) t = return (M.empty, F t :< F (T TUnit), PUnitel)
 
