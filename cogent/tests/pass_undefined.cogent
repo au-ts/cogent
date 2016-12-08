@@ -1,12 +1,14 @@
---
--- Copyright 2016, NICTA
---
--- This software may be distributed and modified according to the terms of
--- the GNU General Public License version 2. Note that NO WARRANTY is provided.
--- See "LICENSE_GPLv2.txt" for details.
---
--- @TAG(NICTA_GPL)
---
+undefined : all (a, b). a -> b
 
-foo : U32 -> U32
-foo x = x / 0 + x / 4 + (x >> 43359395) + (x << 4)
+foo : A -> B
+foo a = undefined a
+
+bar : (A, B, #A) -> #{f1 : A, f2 : A}
+bar a = undefined a
+
+baz : (U16, #A) -> B
+baz _ = undefined ()
+
+
+type A
+type B
