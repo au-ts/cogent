@@ -1,0 +1,20 @@
+type Ext2DirEnt = {
+  record_length : U32
+}
+
+type Option a = <Some a | None>
+
+check_dirent_empty : #{ obj:Ext2DirEnt, acc:Option Ext2DirEnt } -> Option Ext2DirEnt
+check_dirent_empty #{obj = new_dirent, acc = maybe_prev_dirent} =
+        let offset = upcast new_dirent.record_length !new_dirent
+        
+        in maybe_prev_dirent
+        | Some prev_dirent ->
+            let ex = destroy_Ext2DirEnt prev_dirent
+            in check_dirent_empty2 (new_dirent, offset)
+        | None _ ->
+            check_dirent_empty2 (new_dirent, offset)
+
+
+check_dirent_empty2: (Ext2DirEnt, U32) -> Option Ext2DirEnt
+destroy_Ext2DirEnt : Ext2DirEnt -> ()
