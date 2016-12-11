@@ -1,0 +1,15 @@
+type Option a = <Some a | None ()>
+
+type Maybe  a = <Some a | None   >
+
+
+bar : U32 -> Option U32
+baz : U32 -> Maybe  U32
+
+foo : U32 -> U32
+foo a = bar a | Some a -> a
+              | None _ -> a
+
+quux : U32 -> U32
+quux a = baz a | Some a -> a
+               | None   -> a
