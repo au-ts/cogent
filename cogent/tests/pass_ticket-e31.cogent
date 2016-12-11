@@ -22,8 +22,8 @@ ostore_read ostore_st =
      let obj = get_Obj ()
       in (ostore_st, success[U8] obj)
   in r
-  | Success obj -> let _ = deep_freeObj obj in (ostore_st, Error)
-  | Error -> (ostore_st, Error)
+  | Success obj -> let _ = deep_freeObj obj in (ostore_st, Error ())
+  | Error _ -> (ostore_st, Error ())
 
 {--------------------------------------
      [Notes 21/11/16 by zilinc]
