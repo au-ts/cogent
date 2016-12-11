@@ -398,7 +398,7 @@ instance Pretty Metadata where
 
 instance Pretty TypeError where
   pretty (DifferingNumberOfConArgs f n m) = err "Constructor" <+> tagname f 
-                                        <+> err "invoked with differeng number of arguments (" <> int n <> err " vs " <> int m <> err ")"
+                                        <+> err "invoked with differing number of arguments (" <> int n <> err " vs " <> int m <> err ")"
   pretty (DuplicateTypeVariable vs)      = err "Duplicate type variable(s)" <+> commaList (map typevar vs)
   pretty (DuplicateRecordFields fs)      = err "Duplicate record field(s)" <+> commaList (map fieldname fs)
   pretty (FunctionNotFound fn)           = err "Function" <+> funname fn <+> err "not found"
