@@ -270,6 +270,7 @@ rule (F (T (TVariant m)) :< F (T (TVariant n)))
   | M.keys m /= M.keys n = return $ Just $ Unsat (TypeMismatch (F $ T (TVariant m)) (F $ T (TVariant n)))
   | otherwise = let
       each (f, (ts, False)) (_, (us, True )) = Unsat (DiscardWithoutMatch f)
+      each (f, (ts, _)) (_, (us, _)) | length ts /= length us = Unsat (DifferingNumberOfConArgs f (length ts) (length us))
       each (f, (ts, False)) (_, (us, False)) = mconcat (zipWith (:<) (map F ts) (map F us))
       each (f, (ts, True )) (_, (us, True )) = mconcat (zipWith (:<) (map F ts) (map F us))
       each (f, (ts, True )) (_, (us, False)) = mconcat (zipWith (:<) (map F ts) (map F us))
@@ -370,6 +371,7 @@ parRecords n m ks =
 parVariants n m ks =
   let each t (Nothing, _)    (_, False)       = Sat
       each t (Nothing, True) (_, True)        = Sat
+      each t (Just ts, _)    (Just us, _) | length ts /= length us  = Unsat (DifferingNumberOfConArgs t (length ts) (length us))
       each t (Just ts, _)    (Just us, False) = mconcat (zipWith (:<) (map F ts) (map F us))
       each t (Just ts, True) (Just us, True)  = mconcat (zipWith (:<) (map F ts) (map F us))
       each t (_, False)      (_, True)        = Unsat (RequiredTakenTag t)

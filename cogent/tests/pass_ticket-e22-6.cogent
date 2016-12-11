@@ -101,9 +101,9 @@ indirect_splice (ex, indirect, inode, num_direct, num_indirect) =
     | Error (buf) ->
       let indirect = indirect_t { buf = Some buf }
       in ((ex, indirect, inode), Error 1) -- failed to serialise buffer
-  | None () ->
+  | None ->
     -- was from inode
-    let indirect = indirect_t { buf = None () }
+    let indirect = indirect_t { buf = None }
     and inode_t { fs } = inode
     and fs_t { block_pointers } = fs
 

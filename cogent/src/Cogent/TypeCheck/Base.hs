@@ -32,6 +32,7 @@ data TypeError = FunctionNotFound VarName
                | TooManyTypeArguments FunName (Polytype TCType)
                | NotInScope VarName
                | DuplicateVariableInPattern VarName (Pattern TCName)
+               | DifferingNumberOfConArgs TagName Int Int
                | DuplicateVariableInIrrefPattern VarName (IrrefutablePattern TCName)
                | UnknownTypeVariable VarName
                | UnknownTypeConstructor TypeName
