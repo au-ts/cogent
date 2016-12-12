@@ -627,11 +627,8 @@ serialise_size_ObjDentarr dentarr = bilbyFsObjDentarrHeaderSize + serialise_size
 {-# cinline deep_freeOptionObjDentry #-}
 deep_freeOptionObjDentry: (ExState, Option ObjDentry) -> ExState
 deep_freeOptionObjDentry (ex, opt_dent) =
-  opt_dent
-  | None () ->
-    ex
-  | Some o ->
-    deep_freeObjDentry(ex, o)
+  opt_dent | None -> ex
+           | Some o -> deep_freeObjDentry(ex, o)
 
 -- #{oelem:Option ObjDentry, acc: (ExState, U32), obsv: Buffer!} -> LoopResult (Option ObjDentry, (ExState, U32)) (Option ObjDentry, (ErrCode, ExState))
 loop_deserialise_ObjDentry: ArrayMapF ObjDentry (ExState, U32) (Buffer!,U32) (ErrCode, ExState)
@@ -642,7 +639,7 @@ loop_deserialise_ObjDentry #{oelem, acc=(ex,offs), obsv=(buf,end_offs)} =
     _cogent_debug "could not deserialise deserialise_ObjDentry at " ;
     _cogent_debug_u32 offs ;
     _cogent_debug "\n" ;
-    Break (None (), (eInval, ex))
+    Break (None, (eInval, ex))
   | Success (ex, dent, offs) ->
     Iterate (Some dent, (ex, offs))
 

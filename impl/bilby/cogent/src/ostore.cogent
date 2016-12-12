@@ -649,7 +649,7 @@ find_sum_entry_del_f #{elem=entry, acc=idx, obsv=(oid, sqnum)} =
   in if oid_type == upcast bilbyFsObjTypeDentarr then
     if oid == entry.id then
       if entry.sqnum > sqnum then
-        Break (None ())
+        Break None
       else
         Break (Some (idx, entry.count))
     else
@@ -657,7 +657,7 @@ find_sum_entry_del_f #{elem=entry, acc=idx, obsv=(oid, sqnum)} =
   else
     if inum_from_obj_id oid == inum_from_obj_id entry.id && entry.id > oid then
       if entry.sqnum > sqnum then
-        Break (None ())
+        Break None
       else
         Break (Some (idx, entry.count))
     else 
@@ -671,7 +671,7 @@ find_sum_entry_f #{elem=entry, acc=idx, obsv=(oid, sqnum)} =
   else
     if oid == entry.id then
       if entry.sqnum > sqnum then
-        Break (None ())
+        Break None
       else
         Break (Some (idx, entry.count))
     else
@@ -686,7 +686,7 @@ find_sum_entry(summary, oid, sqnum, otype) =
        #{arr=summary.entries, frm=0, to=summary.nb_sum_entry, f=find_sum_entry_f, acc=0, obsv=(oid, sqnum)})
   | Break opt ->
     opt
-    | None () -> Error ()
+    | None -> Error ()
     | Some idx_n_cnt -> Success idx_n_cnt
   | Iterate _ ->
     Success (summary.nb_sum_entry, 0)
@@ -955,7 +955,7 @@ type DelObjs = List DelNode
 deep_opt_freeObj: (ExState, Option Obj) -> ExState
 deep_opt_freeObj(ex, opt_obj) =
   opt_obj
-  | None () -> ex
+  | None -> ex
   | Some o ->
     _cogent_assert False ;
     deep_freeObj(ex, o)
@@ -967,7 +967,7 @@ scan_trans_obj #{oelem=obj_opt, acc=(ex, offs), obsv=(mount_st, buf)} =
   | Error (err, ex) ->
     -- Error happened when deserialising an object
     -- return eRecover
-    Break (None (), Error (eRecover, ex))
+    Break (None, Error (eRecover, ex))
   | Success (ex, obj, offs) ->
     -- Surely there are checks we should do here?
     let trans = obj.trans !obj
@@ -980,7 +980,7 @@ scan_trans_obj #{oelem=obj_opt, acc=(ex, offs), obsv=(mount_st, buf)} =
     -- transaction, something really wrong happened
     -- We return a non-recoverable error for this.
         let ex = deep_freeObj(ex, obj)
-        in Break (None (), Error (eInval, ex))
+        in Break (None, Error (eInval, ex))
       else
         Iterate (Some obj, (ex, offs))
     

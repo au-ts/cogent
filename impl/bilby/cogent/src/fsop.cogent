@@ -115,15 +115,14 @@ add_dentry_modifier #{oelem=old_entry, acc=(ex, opt_newentry)} =
  opt_newentry
  | Some newentry ->
    let ex = free_opt_ObjDentry (ex, old_entry)
-   in #{oelem=Some newentry, acc=(ex, None ())}
- | None () ->
-   #{oelem=old_entry, acc=(ex, None ())}
+   in #{oelem=Some newentry, acc=(ex, None)}
+ | None -> #{oelem=old_entry, acc=(ex, None)}
 
 free_opt_ObjDentry : (ExState, Option ObjDentry) -> ExState
 free_opt_ObjDentry (ex, opt_entry) =
   opt_entry
   | Some old -> deep_freeObjDentry(ex, old)
-  | None () -> ex
+  | None -> ex
 
 dentarr_add_dentry: (ExState, ObjDentarr, VfsInode!, (WordArray U8)!, U8) -> RR (ExState, ObjDentarr) () ErrCode
 dentarr_add_dentry(ex, odent, vnode, name, dtype) =
@@ -171,16 +170,14 @@ set_obj #{oelem=opt_obj, acc=(ex, newopt_obj)} =
     opt_obj
     | Some o ->
       let ex = deep_freeObj(ex, o)
-      in #{oelem=Some newo, acc=(ex, None ())}
-    | None () ->
-      #{oelem=Some newo, acc=(ex, None ())}
-  | None () ->
-      #{oelem=opt_obj, acc=(ex, None ())}
+      in #{oelem=Some newo, acc=(ex, None)}
+    | None -> #{oelem=Some newo, acc=(ex, None)}
+  | None -> #{oelem=opt_obj, acc=(ex, None)}
 
 free_opt_obj: (ExState, Option Obj) -> ExState
 free_opt_obj (ex, opt_obj) =
   opt_obj
-  | None () -> ex
+  | None -> ex
   | Some o -> deep_freeObj (ex, o)
 
 arrayobj_create1: (ExState, Obj) -> R (ExState, Array Obj) ExState
@@ -868,7 +865,7 @@ freeBilbyFsReaddirContext: (ExState, BilbyFsReaddirContext take (..)) -> ExState
 get_rdctx:(ExState, Option BilbyFsReaddirContext, VfsInode!) -> R (ExState, BilbyFsReaddirContext) (ErrCode, ExState)
 get_rdctx(ex, opt_rdctx, vdir) =
   opt_rdctx
-  | None () ->
+  | None ->
     newBilbyFsReaddirContext(ex)
     | Error ex -> Error (eNoMem, ex)
     | Success (ex, rdctx) ->
@@ -996,7 +993,7 @@ fsop_readdir: (ReadDirParams, VfsInode!) -> RR ReadDirParams () ErrCode
 fsop_readdir (#{ex, fs_st, vctx, opt_rdctx}, vdir) =
   get_rdctx(ex, opt_rdctx, vdir)
   | Error (err, ex)  ->
-     (#{ex, fs_st, vctx, opt_rdctx=None ()}, Error err)
+     (#{ex, fs_st, vctx, opt_rdctx=None}, Error err)
   | Success (ex, rdctx) ->
     let fs_st {ostore_st} = fs_st
     and oid = rdctx.dentarr.id !rdctx
@@ -1021,7 +1018,7 @@ fsop_readdir (#{ex, fs_st, vctx, opt_rdctx}, vdir) =
 fsop_dir_release: (ExState, Option BilbyFsReaddirContext) -> ExState
 fsop_dir_release (ex, opt_rdctx) =
   opt_rdctx
-  | None () ->
+  | None ->
   ex
   | Some (v {dentarr}) ->
     let ex = deep_freeObjDentarr(ex, dentarr)
@@ -1092,8 +1089,8 @@ fsop_do_move_helper #{ex, mount_st, ostore_st, old_dent_size, new_dent_size, new
       | Success obj_new_vdir ->
         -- case opt_new_vnode
         opt_new_vnode
-        | None () -> 
-            let opt_new_vnode:Option VfsInode = None ()
+        | None -> 
+            let opt_new_vnode:Option VfsInode = None
             in arrayobj_create5(ex, old_o, obj_old_vdir, obj_old_vnode, new_o, obj_new_vdir)
             | Error ex ->
               (#{ex, ostore_st, old_vdir, old_vnode, new_vdir, opt_new_vnode}, Error eNoMem)
@@ -1224,7 +1221,7 @@ fsop_do_move #{ex, fs_st = fs_st {ostore_st}, old_vdir, old_name, old_vnode, new
       | Success (ex, old_o) ->
         let new_o = new_o {ounion = TObjDentarr new_dent}
         and fs_st {ostore_st} = fs_st
-        and opt_new_vnode:Option VfsInode = None ()
+        and opt_new_vnode:Option VfsInode = None
         and (#{ex, ostore_st, old_vdir, old_vnode, new_vdir, opt_new_vnode}, r) = fsop_do_move_helper #{ex, mount_st = fs_st.mount_st, ostore_st, old_dent_size, new_dent_size, new_o, old_o, old_vdir, old_vnode, new_vdir, opt_new_vnode} !fs_st
         in r
         | Error err ->
@@ -1240,18 +1237,18 @@ freeVfsInode: (ExState, VfsInode take (..)) -> ExState
 deep_freeVfsInode: (ExState, VfsInode) -> ExState
 deep_freeVfsInode(ex, v) = freeVfsInode(ex, v)
 
--- when we call this function we know that opt_vnode = None ()
+-- when we call this function we know that opt_vnode = None
 -- see fsop_do_move
 free_opt_VfsInode: (ExState, Option VfsInode) -> ExState
 free_opt_VfsInode(ex, opt_vnode) =
  opt_vnode
- | None () -> ex
+ | None -> ex
  | Some v -> deep_freeVfsInode(ex, v)
 
 opt_vnode_set_nlink: (Option VfsInode, U32) -> Option VfsInode
 opt_vnode_set_nlink (opt, nlink) =
  opt
- | None () -> None ()
+ | None -> None
  | Some v -> Some (vfs_inode_set_nlink (v, nlink))
 
 -- Move is moving a file/dir from one dir to an other.
@@ -1311,7 +1308,7 @@ fsop_move #{ex, fs_st = fs_st {ostore_st}, old_vdir, old_name, old_vnode, new_vd
           in (#{ex, fs_st, old_vdir, old_vnode, new_vdir, opt_new_vnode}, Error err) 
         | Success () ->
           (#{ex, fs_st, old_vdir, old_vnode, new_vdir, opt_new_vnode}, Success ())
-    | None () ->
+    | None ->
       let fs_st = fs_st {ostore_st}
       -- if old_is_dir then drop_nlink old_vnode
       and old_vnode = vfs_inode_set_nlink(old_vnode, if old_is_dir then old_vnode_nlink - 1 else old_vnode_nlink)
@@ -1333,10 +1330,10 @@ fsop_move #{ex, fs_st = fs_st {ostore_st}, old_vdir, old_name, old_vnode, new_vd
         and old_vdir = vfs_inode_set_mtime(old_vdir, old_vdir_mtime)
         and old_vdir = vfs_inode_set_ctime(old_vdir, old_vdir_ctime)
         and old_vdir = vfs_inode_set_size(old_vdir, old_vdir_size)
-        and opt_new_vnode:Option VfsInode = None ()
+        and opt_new_vnode:Option VfsInode = None
         in (#{ex, fs_st, old_vdir, old_vnode, new_vdir, opt_new_vnode}, Error err) 
       | Success () ->
-        let opt_new_vnode:Option VfsInode = None ()
+        let opt_new_vnode:Option VfsInode = None
         in (#{ex, fs_st, old_vdir, old_vnode, new_vdir, opt_new_vnode}, Success ())
 
 type FsopDoRenameHelper1P = #{ex:ExState, mount_st:MountState!, ostore_st:OstoreState, dent_size: U32, obj:Obj, vdir:VfsInode, old_vnode: VfsInode, opt_new_vnode: Option VfsInode} 
@@ -1366,8 +1363,8 @@ fsop_do_rename_helper1 #{ex, mount_st, ostore_st, dent_size, obj, vdir, old_vnod
     | Success obj_vdir ->
       -- case opt_new_vnode
       opt_new_vnode
-      | None () ->
-          let opt_new_vnode:Option VfsInode = None ()
+      | None ->
+          let opt_new_vnode:Option VfsInode = None
           in arrayobj_create3(ex, obj, obj_vdir, obj_old_vnode)
           | Error ex ->
             (#{ex, ostore_st, vdir, old_vnode, opt_new_vnode}, Error eNoMem) 
@@ -1438,8 +1435,8 @@ fsop_do_rename_helper #{ex, mount_st, ostore_st, old_dent_size, new_dent_size, n
     | Success obj_vdir ->
       -- case opt_new_vnode
       opt_new_vnode
-      | None () ->
-          let opt_new_vnode:Option VfsInode = None ()
+      | None ->
+          let opt_new_vnode:Option VfsInode = None
           in arrayobj_create4(ex, old_o, obj_vdir, obj_old_vnode, new_o)
           | Error ex ->
             (#{ex, ostore_st, vdir, old_vnode, opt_new_vnode}, Error eNoMem)
@@ -1528,7 +1525,7 @@ fsop_do_rename #{ex, fs_st, vdir, old_name, old_vnode, new_name} =
           (#{ex, fs_st, vdir, old_vnode}, Error err) 
         | Success (ex, obj) ->
           let fs_st {ostore_st} = fs_st
-          and opt_new_vnode:Option VfsInode = None ()
+          and opt_new_vnode:Option VfsInode = None
           and (#{ex, ostore_st, vdir, old_vnode, opt_new_vnode}, r) = fsop_do_rename_helper1 #{ex, mount_st = fs_st.mount_st, ostore_st, dent_size, obj, vdir, old_vnode, opt_new_vnode} !fs_st
           in r
           | Error err ->
@@ -1565,7 +1562,7 @@ fsop_do_rename #{ex, fs_st, vdir, old_name, old_vnode, new_name} =
         | Success (ex, old_o) ->
           let new_o = new_o {ounion = TObjDentarr new_dent}
           and fs_st {ostore_st} = fs_st
-          and (#{ex, ostore_st, vdir, old_vnode, opt_new_vnode}, r) = fsop_do_rename_helper #{ex, mount_st = fs_st.mount_st, ostore_st, old_dent_size, new_dent_size, new_o, old_o, vdir, old_vnode, opt_new_vnode = None ()} !fs_st
+          and (#{ex, ostore_st, vdir, old_vnode, opt_new_vnode}, r) = fsop_do_rename_helper #{ex, mount_st = fs_st.mount_st, ostore_st, old_dent_size, new_dent_size, new_o, old_o, vdir, old_vnode, opt_new_vnode = None} !fs_st
           in r
           | Error err ->
             let ex = free_opt_VfsInode(ex, opt_new_vnode)
@@ -1700,7 +1697,7 @@ fsop_rename #{ex, fs_st = fs_st {ostore_st}, vdir, old_name, old_vnode, new_name
           in (#{ex, fs_st, vdir, old_vnode, opt_new_vnode}, Error err) 
         | Success () ->
           (#{ex, fs_st, vdir, old_vnode, opt_new_vnode}, Success ())
-    | None () ->
+    | None ->
       let fs_st = fs_st {ostore_st}
       -- if old_is_dir then drop_nlink old_vnode
       and v_nlink = if old_is_dir then old_vnode_nlink - 1 else old_vnode_nlink
@@ -1719,9 +1716,9 @@ fsop_rename #{ex, fs_st = fs_st {ostore_st}, vdir, old_name, old_vnode, new_name
         and vdir = vfs_inode_set_mtime(vdir, vdir_mtime)
         and vdir = vfs_inode_set_ctime(vdir, vdir_ctime)
         and vdir = vfs_inode_set_size(vdir, vdir_size)
-        in (#{ex, fs_st, vdir, old_vnode, opt_new_vnode = None ()}, Error err)
+        in (#{ex, fs_st, vdir, old_vnode, opt_new_vnode = None}, Error err)
       | Success () ->
-        (#{ex, fs_st, vdir, old_vnode, opt_new_vnode = None ()}, Success ())
+        (#{ex, fs_st, vdir, old_vnode, opt_new_vnode = None}, Success ())
 
 extract_inode_from_union:(ExState, ObjUnion) -> R (ExState, ObjInode) ExState
 extract_inode_from_union(ex, ounion) =
@@ -1852,7 +1849,7 @@ fsop_write_begin #{ex, fs_st, vnode, pos, len, addr} =
 get_data_back: (ExState, WordArray U8, Option Obj) -> (ExState, WordArray U8)
 get_data_back (ex, dummy_data, opto) =
   opto
-  | None () ->
+  | None ->
     _cogent_assert False ;
     (ex, dummy_data)
   | Some obj {ounion} ->
@@ -2071,7 +2068,7 @@ truncate_last_block #{ex, fs_st, vnode, newsize} =
       -- we shrink the last data block simply by changing obj.len
       in (#{ex, fs_st = fs_st {ostore_st}, vnode}, Success (Some obj))
   else
-    (#{ex, fs_st, vnode}, Success (None ()))
+    (#{ex, fs_st, vnode}, Success (None))
 
 truncate_deletion_obj: FsopTruncateP -> RR FsopSetattrRR (Option Obj) ErrCode
 truncate_deletion_obj #{ex, fs_st, vnode, newsize} =
@@ -2087,7 +2084,7 @@ truncate_deletion_obj #{ex, fs_st, vnode, newsize} =
     | Success obj ->
       (#{ex, fs_st, vnode}, Success (Some obj))
   else
-    (#{ex, fs_st, vnode}, Success (None ()))
+    (#{ex, fs_st, vnode}, Success (None))
 
 type FsopTruncateP = #{ex:ExState, fs_st: FsState, vnode: VfsInode, newsize: U64}
 fsop_do_truncate: FsopTruncateP -> RR FsopSetattrRR () ErrCode
@@ -2121,7 +2118,7 @@ fsop_do_truncate #{ex, fs_st, vnode, newsize} =
         in (#{ex, fs_st, vnode}, Error err) 
       | Success optdel ->
         let osw_flag = (optdel
-              | None () -> ostoreWriteDel
+              | None -> ostoreWriteDel
               | Some _ -> ostoreWriteNone) !optdel
         in truncate_arrayobj_create(ex, optlastblock, optdel, oi)
         | Error ex ->

@@ -20,9 +20,8 @@ freeRbtNode: all(k:< DS, v:< DS). (ExState, RbtNode k v) -> ExState
 freeOptRbtNode: all(k:< DS, v:< DS). (ExState, Option (RbtNode k v)) -> ExState
 freeOptRbtNode(ex, optnode) =
   optnode
-  | None () -> ex
-  | Some node ->
-    freeRbtNode (ex, node)
+  | None -> ex
+  | Some node -> freeRbtNode (ex, node)
 
 {-# cinline rbtnode_get_key #-}
 rbtnode_get_key: all(k:< DS, v:<DS). (RbtNode k v)! -> k
