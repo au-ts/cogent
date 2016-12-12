@@ -123,7 +123,7 @@ print_chain_indirect i =
   and _ = _cogent_log (plvl, "block ptr = ")
   and _ = _cogent_log_u32 (plvl, i.blockptr)
   and _ = _cogent_log (plvl, "\nbuf: ")
-  and _ = i.buf | None () -> _cogent_log (plvl, "None")
+  and _ = i.buf | None    -> _cogent_log (plvl, "None")
                 | Some _  -> _cogent_log (plvl, "Some")
   and _ = _cogent_log (plvl, "\noffset = ")
   and _ = _cogent_log_u32 (plvl, i.offset)

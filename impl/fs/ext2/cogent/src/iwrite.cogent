@@ -319,7 +319,7 @@ fsop_inode_get_block #{ ex, state, inode, blk, create, buf } =
         | Success maybe_partial =>
           -- see if we had a full or partial chain
           maybe_partial
-          | None () ->
+          | None ->
             let _ = _cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: was full chain (all blocks allocated)\n")
 
             -- all blocks allocated already, just read the last one into our source buffer
@@ -419,7 +419,7 @@ fsop_inode_get_block #{ ex, state, inode, blk, create, buf } =
                       and (ex, state, path) = chain_restore (ex, state, chain)
                       and (ex, state) = path_restore (ex, state, path)
                       in ((ex, state, buf, inode), Error e)
-                  | None () -> 
+                  | None -> 
                     let _ = _cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: ERROR: had no indirect after alloc?\n")
                     and (ex, state, path) = chain_restore (ex, state, chain)
                     and (ex, state) = path_restore (ex, state, path)
@@ -432,7 +432,7 @@ fsop_inode_get_block #{ ex, state, inode, blk, create, buf } =
                   and (ex, state, path) = chain_restore (ex, state, chain)
                   and (ex, state) = path_restore (ex, state, path)
                   in ((ex, state, buf, inode), Error e)
-              | None () ->
+              | None ->
                 let _ = _cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: ERROR: had no indirect?\n")
                 and (ex, state, path) = chain_restore (ex, state, chain)
                 and (ex, state) = path_restore (ex, state, path)

@@ -148,15 +148,15 @@ ext2_dir_inode_ops = #{
     can_lookup  = True,
     link        = Some fsop_dir_link,
     unlink      = Some fsop_dir_unlink,
-    symlink     = None (), -- Some fsop_dir_symlink,
+    symlink     = None, -- Some fsop_dir_symlink,
     --mkdir       = Some fsop_dir_mkdir,
     can_mkdir   = True,
     rmdir       = Some fsop_dir_rmdir,
     rename      = Some fsop_rename,
     mknod       = Some fsop_inode_mknod,
-    readlink    = None (),
-    followlink  = None (),
-    putlink     = None (),
+    readlink    = None,
+    followlink  = None,
+    putlink     = None,
     setattr     = Some vfs_default_setattr
 }
 
@@ -164,34 +164,34 @@ ext2_dir_file_ops: VfsFileOperations
 ext2_dir_file_ops = #{
     iterate     = Some fsop_dir_iterate,
     llseek      = Some vfs_default_llseek,
-    open        = None (),
-    mmap        = None (),
+    open        = None,
+    mmap        = None,
     fsync       = Some vfs_default_fsync,
     read        = Some vfs_default_read_dir,
-    write       = None ()
+    write       = None
 }
 
 ext2_reg_inode_ops: VfsInodeOperations
 ext2_reg_inode_ops = #{
-    create      = None (),
+    create      = None,
     can_lookup  = False,
-    link        = None (),
-    unlink      = None (),
-    symlink     = None (),
-    --mkdir       = None (),
+    link        = None,
+    unlink      = None,
+    symlink     = None,
+    --mkdir       = None,
     can_mkdir   = False,
-    rmdir       = None (),
-    rename      = None (),
-    mknod       = None (),
-    readlink    = None (),
-    followlink  = None (),
-    putlink     = None (),
+    rmdir       = None,
+    rename      = None,
+    mknod       = None,
+    readlink    = None,
+    followlink  = None,
+    putlink     = None,
     setattr     = Some vfs_default_setattr
 }
 
 ext2_reg_file_ops: VfsFileOperations
 ext2_reg_file_ops = #{
-    iterate     = None (),
+    iterate     = None,
     llseek      = Some vfs_default_llseek,
     open        = Some vfs_default_open,
     mmap        = Some vfs_default_mmap,
