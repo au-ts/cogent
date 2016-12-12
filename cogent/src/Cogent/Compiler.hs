@@ -96,6 +96,7 @@ set_flag_fdisambiguatePp = writeIORef __cogent_fdisambiguate_pp_ref True
 set_flag_fdumpToStdout = writeIORef __cogent_fdump_to_stdout_ref True
 set_flag_fflattenNestings = writeIORef __cogent_fflatten_nestings_ref (__fixme False)  -- FIXME after fixing the impl'n
 set_flag_ffncallAsMacro = writeIORef __cogent_ffncall_as_macro_ref True
+set_flag_ffullSrcPath = writeIORef __cogent_ffull_src_path_ref True
 set_flag_ffuncPurityAttr = writeIORef __cogent_ffunc_purity_attr_ref True
 set_flag_fgenHeader = writeIORef __cogent_fgen_header_ref True
 set_flag_fintermediateVars = writeIORef __cogent_fintermediate_vars_ref True
@@ -140,6 +141,8 @@ set_flag_fshowTypesInPretty = writeIORef __cogent_fshow_types_in_pretty_ref True
 set_flag_fsimplifier = writeIORef __cogent_fsimplifier_ref True
 set_flag_fsimplifierIterations = writeIORef __cogent_fsimplifier_iterations_ref
 set_flag_fstaticInline = writeIORef __cogent_fstatic_inline_ref True
+set_flag_ftcCtxConstraints = writeIORef __cogent_ftc_ctx_constraints_ref True
+set_flag_ftcCtxLen = writeIORef __cogent_ftc_ctx_len_ref
 set_flag_ftpWithBodies = writeIORef __cogent_ftp_with_bodies_ref True
 set_flag_ftpWithDecls = writeIORef __cogent_ftp_with_decls_ref True
 set_flag_ftuplesAsSugar = writeIORef __cogent_ftuples_as_sugar_ref True
@@ -179,8 +182,6 @@ set_flag_outputName = writeIORef __cogent_output_name_ref . Just . takeBaseName
 set_flag_proofInputC = writeIORef __cogent_proof_input_c_ref . Just
 set_flag_proofName = writeIORef __cogent_proof_name_ref . Just . takeBaseName
 set_flag_rootDir dir = writeIORef __cogent_root_dir_ref (cogentRelDir dir __cogent_dist_dir)
-set_flag_ftcCtxConstraints = writeIORef __cogent_ftc_ctx_constraints_ref True
-set_flag_ftcCtxLen = writeIORef __cogent_ftc_ctx_len_ref
 set_flag_w      = writeIORef __cogent_warning_switch_ref Flag_w
 set_flag_Wall = do set_flag_WdynamicVariantPromotion
                    set_flag_WimplicitIntLitPromotion
@@ -366,6 +367,13 @@ __cogent_ffncall_as_macro = unsafePerformIO $ readIORef __cogent_ffncall_as_macr
 __cogent_ffncall_as_macro_ref :: IORef Bool
 {-# NOINLINE __cogent_ffncall_as_macro_ref #-}
 __cogent_ffncall_as_macro_ref = unsafePerformIO $ newIORef False
+
+__cogent_ffull_src_path :: Bool
+__cogent_ffull_src_path = unsafePerformIO $ readIORef __cogent_ffull_src_path_ref
+
+__cogent_ffull_src_path_ref :: IORef Bool
+{-# NOINLINE __cogent_ffull_src_path_ref #-}
+__cogent_ffull_src_path_ref = unsafePerformIO $ newIORef False
 
 __cogent_ffunc_purity_attr :: Bool
 __cogent_ffunc_purity_attr = unsafePerformIO $ readIORef __cogent_ffunc_purity_attr_ref
