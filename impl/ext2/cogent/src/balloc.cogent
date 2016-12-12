@@ -19,7 +19,7 @@ ext2_find_near_2 (state, inode, indirect) =
   -- 2) try location of indirect block, if possible
   indirect.buf
   | Some buf -> osbuffer_get_blocknum buf
-  | None () ->
+  | None ->
     -- 3) referred to from inode; use same cylinder group (colouring it)
     let bg = get_block_group_from_ino (state.super.inodes_per_group, vfs_inode_get_ino (inode))
     and bg_start = group_desc_first_block2 (state, bg)
@@ -305,7 +305,7 @@ ext2_try_to_allocate_with_bitmap3 (ex, state, group, bitmap_buf, num, goal, star
 ext2_try_to_allocate_with_bitmap2: (ExState, FsState, U32, OSBuffer, U32, Option U32, U32, U32) -> RR (ExState, FsState, OSBuffer) (U16, BlockPtr) U32
 ext2_try_to_allocate_with_bitmap2 (ex, state, group, bitmap_buf, num, maybe_goal, start, end) =
   maybe_goal
-  | None () ->
+  | None ->
     let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_try_to_allocate_with_bitmap2: had no goal, finding next usable block\n") 
     in find_next_usable_block (bitmap_buf, start, end) !bitmap_buf
     | Success goal ->
@@ -346,7 +346,7 @@ ext2_try_to_allocate_with_bitmap (ex, state, group, bitmap_buf, num, maybe_goal_
       and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, end) 
       and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, ")\n") 
       in ext2_try_to_allocate_with_bitmap2 (ex, state, group, bitmap_buf, num, maybe_goal_block, 0, end)
-  | None () ->
+  | None ->
     let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_try_to_allocate_with_bitmap: had no goal, using [0, ") 
     and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, end) 
     and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, ")\n") 
@@ -373,7 +373,7 @@ ext2_new_block2 (ex, state, inode, goal_block_group, num) =
     let ((ex, state), res) = get_block_bitmap (ex, state, group_desc.block_bitmap)
     in res
     | Success bitmap_buf =>
-      let ((ex, state, bitmap_buf), res) = ext2_try_to_allocate_with_bitmap (ex, state, block_group, bitmap_buf, num, None ())
+      let ((ex, state, bitmap_buf), res) = ext2_try_to_allocate_with_bitmap (ex, state, block_group, bitmap_buf, num, None)
       in res
       | Success (num', grp_alloc_blk) =>
         if num' > 0 then
@@ -620,7 +620,7 @@ ext2_truncate_blocks2 (ex, state, inode, offset) =
           and frm = wordarray_get [BlockOffset] (path.offsets, 0) !path
           and to = const_numDirectBlocks
 
-          and (ex, state, inode, no_buf) = ext2_free_data (ex, state, inode, None (), frm, to)
+          and (ex, state, inode, no_buf) = ext2_free_data (ex, state, inode, None, frm, to)
           and ex = dispose_existing_buffer (ex, no_buf) -- should actually be None, but ensure it is free'd
           in ext2_truncate_blocks_subtrees (ex, state, inode, offset, path)
         else
@@ -638,7 +638,7 @@ ext2_truncate_blocks2 (ex, state, inode, offset) =
                 if partial_idx == 0 then
                   -- grows from inode
                   let (ex, inode) = vfs_inode_mark_dirty (ex, inode)
-                  and (ex, state, inode, root) = ext2_free_branches (ex, state, inode, None (), top, top + 1, chain.path.depth - partial_idx) !chain
+                  and (ex, state, inode, root) = ext2_free_branches (ex, state, inode, None, top, top + 1, chain.path.depth - partial_idx) !chain
                   and ex = branchnode_free (ex, root) -- should be None, but for type system
 
                   in ext2_truncate_blocks_ind_shared (ex, state, inode, offset, chain, partial_idx)
@@ -646,7 +646,7 @@ ext2_truncate_blocks2 (ex, state, inode, offset) =
                   -- grows from indirect
                   let (ex, inode) = chain_dirty_buffer_inode (ex, chain, partial_idx, inode) !chain -- dirty it
 
-                  and (ex, state, inode, root) = ext2_free_branches (ex, state, inode, None (), top, top + 1, chain.path.depth - partial_idx) !chain
+                  and (ex, state, inode, root) = ext2_free_branches (ex, state, inode, None, top, top + 1, chain.path.depth - partial_idx) !chain
                   and ex = branchnode_free (ex, root) -- should be None, but for type system
 
                   in ext2_truncate_blocks_ind_shared (ex, state, inode, offset, chain, partial_idx)
@@ -711,10 +711,10 @@ free_indirect_on_shared #{ acc = (ex, state, inode, chain), obsv, idx } =
       and ex = osbuffer_destroy (ex, buf)
 
       in ((ex, state, inode, chain), Iterate ())
-    | None () ->
+    | None ->
       -- should've been there, but whatever..
       ((ex, state, inode, chain), Iterate ())
-  | None () ->
+  | None ->
     -- should've been there, but whatever..
     ((ex, state, inode, chain), Iterate ())
 
@@ -764,7 +764,7 @@ kill_subtree (ex, state, inode, idx, depth) =
     and (ex, inode) = vfs_inode_mark_dirty (ex, inode)
 
     -- free the remaining branch
-    and (ex, state, inode, root) = ext2_free_branches (ex, state, inode, None (), nr, nr + 1, depth)
+    and (ex, state, inode, root) = ext2_free_branches (ex, state, inode, None, nr, nr + 1, depth)
     and ex = branchnode_free (ex, root) -- should be None, but type system
 
     in (ex, state, inode)
@@ -795,7 +795,7 @@ _branchnode_debug node =
   and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, " buf=") 
   in node.maybe_buf
   | Some buf -> _cogent_log (dbg_EXT2_DIR_BALLOC, "true") 
-  | None () -> _cogent_log (dbg_EXT2_DIR_BALLOC, "false") 
+  | None -> _cogent_log (dbg_EXT2_DIR_BALLOC, "false") 
 
 -- kicks off the depth limited search over some branches in the tree between [from, to)
 ext2_free_branches: (ExState, FsState, VfsInode, Option OSBuffer, U32, U32, U32) -> (ExState, FsState, VfsInode, BranchNode)
@@ -874,7 +874,7 @@ ext2_free_branch (depth, node, (ex, state, inode), maxdepth) =
 ext2_free_branch_entry: UArrayMapNoBreakF BranchNode (ExState, VfsInode, U32, Option OSBuffer) ()
 ext2_free_branch_entry #{ oelem = no_branchnode, acc = (ex, inode, idx, parent_maybe_buf), obsv } =
   no_branchnode
-  | None () =>
+  | None =>
     -- deref offset to blockptr
     parent_maybe_buf
     | Some buf =>
@@ -900,16 +900,16 @@ ext2_free_branch_entry #{ oelem = no_branchnode, acc = (ex, inode, idx, parent_m
           | Error () ->
             -- if no buffer, warn and iterate
             let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch_entry: failed to get new block\n") 
-            in (None (), (ex, inode, idx + 1, parent_maybe_buf))
+            in (None, (ex, inode, idx + 1, parent_maybe_buf))
         else
           -- if no blockptr, ignore
           let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch_entry: null blockptr WITH parent buffer\n") 
-          in (None (), (ex, inode, idx + 1, Some buf))
+          in (None, (ex, inode, idx + 1, Some buf))
       | Error () ->
         -- failed to read from buf, ignore
         let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch_entry: failed to deserialise from offset\n") 
-        in (None (), (ex, inode, idx + 1, Some buf))
-    | None () ->
+        in (None, (ex, inode, idx + 1, Some buf))
+    | None ->
       if idx /= 0 then
         let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch_entry: had non-zero blockptr ") 
         and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, idx) 
@@ -920,15 +920,15 @@ ext2_free_branch_entry #{ oelem = no_branchnode, acc = (ex, inode, idx, parent_m
         and (ex, res) = ext2_get_block (ex, idx)
         in res
         | Success child_buf =>
-          (Some #{ maybe_buf = Some child_buf, ptr = idx, offset_from = 0, offset_to = const_addrPerBlock }, (ex, inode, idx + 1, None ()))
+          (Some #{ maybe_buf = Some child_buf, ptr = idx, offset_from = 0, offset_to = const_addrPerBlock }, (ex, inode, idx + 1, None))
         | Error () ->
           let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch_entry: failed to get new block\n") 
-          in (None (), (ex, inode, idx + 1, None ()))
+          in (None, (ex, inode, idx + 1, None))
       else
         let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch_entry: null blockptr with NO parent buffer\n") 
 
         -- was null blockptr
-        in (None (), (ex, inode, idx + 1, None ()))
+        in (None, (ex, inode, idx + 1, None))
   | Some bn ->
     let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch_entry: had non-null branchnode? impossible?\n") 
 
@@ -958,7 +958,7 @@ ext2_free_branch_cleanup2 (ex, node, (state, inode), obsv) =
     -- bforget the buffer
     let ex = osbuffer_trash (ex, buf)
     in ext2_free_branch_cleanup3 (ex, state, inode, ptr)
-  | None () ->
+  | None ->
     ext2_free_branch_cleanup3 (ex, state, inode, ptr)
 
 ext2_free_branch_cleanup3: (ExState, FsState, VfsInode, BlockPtr) -> (ExState, (FsState, VfsInode))

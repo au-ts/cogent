@@ -13,7 +13,7 @@ include "common.cogent"
 type GeneratorResult y r s acc = (acc, <Return r | Yield y | Stop s>)
 type Generator y r s acc obsv = #{acc: acc, obsv: obsv!} -> GeneratorResult y r s acc
 
-type ConsumerResult r s acc = (acc, <Return r | Stop s | Next ()>)
+type ConsumerResult r s acc = (acc, <Return r | Stop s | Next >)
 type Consumer y r s acc obsv = #{obj: y, acc: acc, obsv: obsv!} -> ConsumerResult r s acc
 
 -- Return if the body (enumerator) returned a value, or Stop if generator had no more

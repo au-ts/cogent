@@ -168,7 +168,7 @@ check_dirent_fits #{obj = dirent, acc = (ex, state, offset, new_offset), obsv = 
                     else
                         let ex = destroy_Ext2DirEnt (ex, dirent)
                         --and _ = _cogent_log (dbg_EXT2_DIR_WRITE, ("too small\n"))
-                        in ((ex, state, offset, new_offset), Next ())
+                        in ((ex, state, offset, new_offset), Next)
 
 
 update_dir_and_commit: (ExState, FsState, OSPage, OSPageBuffer, VfsInode, U64, U16) -> RR (ExState, FsState, VfsInode) () ()
@@ -464,7 +464,7 @@ ext2_dir_remove_from_page2 (ex, state, inode, page, pagebuf, current_offset, fro
                 and page = ospage_unmap (page, pagebuf)
                 and _ = ospagecache_release (page)
                 in ((ex, state, inode), Error eIO)
-        | None () ->
+        | None ->
             ext2_dir_remove_from_page_finish (ex, state, inode, page_locked, pagebuf, current_offset, from_offset, to_offset)
     | Error err ->
         let ex = dispose_existing_dirent (ex, maybe_prev)
@@ -486,7 +486,7 @@ find_prev_dirent #{ acc = (ex, maybe_de, from_offset), obsv = (current_offset, p
             in was_valid
             | True =>
                 let reclen = ext2_rec_len_from_disk de.record_length !de
-                in ((ex, Some de, from_offset + upcast reclen), Iterate)
+                in ((ex, Some de, from_offset + upcast reclen), Iterate ())
             | _ ->
                 let _ = _cogent_log (dbg_EXT2_DIR_WRITE, ("had zero-length dir\n"))
                 in ((ex, Some de, from_offset), Break eIO)
@@ -516,7 +516,7 @@ ext2_dir_remove_from_page (ex, state, inode, de, page, pagebuf, current_offset) 
         to    = to_offset, 
         step  = 1,
         f     = find_prev_dirent,
-        acc   = (ex, None (), from_offset),
+        acc   = (ex, None, from_offset),
         obsv  = (current_offset, pagebuf)
     } !pagebuf
 
@@ -701,7 +701,7 @@ fsop_dir_mkdir (ex, state, parent_inode, dir_name, mode) =
     and _ = _cogent_log (dbg_EXT2_DIR_WRITE, ("fsop_dir_mkdir: creating inode\n"))
     and ((ex, state), res) = ext2_inode_create (ex, state, parent_inode, dir_mode) !parent_inode
     in res
-    | Success (dir_inode) ->
+    | Success dir_inode ->
         let dir_inode = vfs_inode_set_ops (dir_inode, ext2_dir_inode_ops)
         and dir_inode = vfs_inode_set_fileops (dir_inode, ext2_dir_file_ops)
 
@@ -716,7 +716,7 @@ fsop_dir_mkdir (ex, state, parent_inode, dir_name, mode) =
             and _ = _cogent_log (dbg_EXT2_DIR_WRITE, ("fsop_dir_mkdir: adding to parent\n"))
             and ((ex, state, parent_inode), res) = ext2_dir_add (ex, state, parent_inode, dir_inode, dir_name) !dir_inode
             in res
-            | Success ->
+            | Success () ->
                 -- unlock
                 let dir_inode = vfs_inode_unlock_new dir_inode
 
@@ -749,7 +749,7 @@ fsop_dir_rmdir (ex, state, parent_inode, dir_inode, name) =
         if was_empty then
             let ((ex, state, parent_inode, dir_inode), res) = fsop_dir_unlink (ex, state, parent_inode, dir_inode, name)
             in res
-            | Success =>
+            | Success () =>
                 let dir_inode = vfs_inode_set_size (dir_inode, 0)
                 and dir_inode = vfs_inode_dec_nlink (dir_inode)
 
@@ -781,7 +781,7 @@ fsop_rename_remove_old_file (ex, state, rename_ctx, src_dirent, src_dir_pagectx)
     and ((ex, state, src_inode), res) = ext2_remove_from_pagectx (ex, state, src_inode, src_dirent, src_dir_pagectx)
     and (ex, src_inode) = vfs_inode_mark_dirty (ex, src_inode)
     in res
-    | Success ->
+    | Success () ->
         -- cool, all done
         let rename_ctx = rename_ctx_t {src_inode}
         in ((ex, state, rename_ctx), Success ())
@@ -793,7 +793,7 @@ fsop_rename_remove_old_dir: (ExState, FsState, VfsRenameContext, Ext2DirEnt, Ext
 fsop_rename_remove_old_dir (ex, state, rename_ctx, src_dirent, src_dotdot_dirent, src_dir_pagectx, src_dotdot_pagectx) =
     let ((ex, state, rename_ctx), res) = fsop_rename_remove_old_file (ex, state, rename_ctx, src_dirent, src_dir_pagectx)
     in res
-    | Success ->
+    | Success () ->
         let rename_ctx_t {dirs, src_inode} = rename_ctx
         in dirs
         | SrcDest different ->
@@ -804,12 +804,12 @@ fsop_rename_remove_old_dir (ex, state, rename_ctx, src_dirent, src_dotdot_dirent
             -- fix .. in moved dir to point to new parent
             and ((ex, state, dest_dir, src_inode), res) = ext2_dir_update (ex, state, src_inode, src_dotdot_dirent, dest_dir, src_dotdot_pagectx) !src_dotdot_dirent
             in res
-            | Success ->
+            | Success () ->
                 let different = different_t { src_dir, dest_dir }
                 and rename_ctx = rename_ctx_t {dirs = SrcDest different, src_inode}
 
                 and ex = destroy_Ext2DirEnt (ex, src_dotdot_dirent)
-                in ((ex, state, rename_ctx), Success)
+                in ((ex, state, rename_ctx), Success ())
             | Error err ->
                 let different = different_t { src_dir, dest_dir }
                 and rename_ctx = rename_ctx_t {dirs = SrcDest different, src_inode}
@@ -828,7 +828,7 @@ fsop_rename_remove_old_dir (ex, state, rename_ctx, src_dirent, src_dotdot_dirent
     | Error err ->
         let ex = destroy_Ext2DirEnt (ex, src_dotdot_dirent)
         and _ = ospagectx_destroy (src_dotdot_pagectx)
-        in ((ex, state, rename_ctx), Error (err))
+        in ((ex, state, rename_ctx), Error err)
 
 fsop_rename_file_existing2: (ExState, FsState, VfsRenameContext take (dest_inode, dirs), Ext2DirEnt, VfsInode, Ext2DirEnt, VfsRenameDirs, R () U32, OSPageContext) -> RR (ExState, FsState, VfsRenameContext) () U32
 fsop_rename_file_existing2 (ex, state, rename_ctx_t, src_dirent, dest_inode, dest_dirent, dirs, res, src_dir_pagectx) =
@@ -885,10 +885,10 @@ fsop_rename_file2 (ex, state, rename_ctx_t, src_dirent, dirs, res, src_dir_pagec
     res
     | Success () ->
         -- go remove the old entry
-        let rename_ctx_t = rename_ctx_t { dest_inode = None (), dirs }       
+        let rename_ctx_t = rename_ctx_t { dest_inode = None, dirs }       
         in fsop_rename_remove_old_file (ex, state, rename_ctx_t, src_dirent, src_dir_pagectx)
     | Error (err) ->
-        let rename_ctx = rename_ctx_t { dest_inode = None (), dirs }
+        let rename_ctx = rename_ctx_t { dest_inode = None, dirs }
         and _  = ospagectx_destroy (src_dir_pagectx)
         and ex = destroy_Ext2DirEnt (ex, src_dirent)
         in ((ex, state, rename_ctx), Error err)
@@ -1024,12 +1024,12 @@ fsop_rename_dir (ex, state, rename_ctx, src_dirent, src_dotdot_dirent, src_dir_p
                 let dest_dir = vfs_inode_inc_nlink (dest_dir)
 
                 and both = both_t { dest_dir }
-                and rename_ctx = rename_ctx_t { dest_inode = None (), dirs = SrcDest both }
+                and rename_ctx = rename_ctx_t { dest_inode = None, dirs = SrcDest both }
 
                 in fsop_rename_remove_old_dir (ex, state, rename_ctx, src_dirent, src_dotdot_dirent, src_dir_pagectx, src_dotdot_pagectx)
             | Error err ->
                 let both = both_t { dest_dir }
-                and rename_ctx = rename_ctx_t { dest_inode = None (), dirs = SrcDest both }
+                and rename_ctx = rename_ctx_t { dest_inode = None, dirs = SrcDest both }
 
                 and _  = ospagectx_destroy (src_dir_pagectx)
                 and _  = ospagectx_destroy (src_dotdot_pagectx)
@@ -1043,11 +1043,11 @@ fsop_rename_dir (ex, state, rename_ctx, src_dirent, src_dotdot_dirent, src_dir_p
             | Success () ->
                 let dest_dir = vfs_inode_inc_nlink (dest_dir)
 
-                and rename_ctx = rename_ctx_t { dest_inode = None (), dirs = Dest dest_dir }
+                and rename_ctx = rename_ctx_t { dest_inode = None, dirs = Dest dest_dir }
 
                 in fsop_rename_remove_old_dir (ex, state, rename_ctx, src_dirent, src_dotdot_dirent, src_dir_pagectx, src_dotdot_pagectx)
-            | Error (err) ->
-                let rename_ctx = rename_ctx_t { dest_inode = None (), dirs = Dest dest_dir }
+            | Error err ->
+                let rename_ctx = rename_ctx_t { dest_inode = None, dirs = Dest dest_dir }
 
                 and _  = ospagectx_destroy (src_dir_pagectx)
                 and _  = ospagectx_destroy (src_dotdot_pagectx)

@@ -83,13 +83,13 @@ chain_set_indirect_blockptr (ex, chain, depth, ptr) =
       -- it's guaranteed in this case the old indirects[depth] is empty
       and (ex, chain) = chain_put_indirect (ex, chain, indirect, depth)
       in (ex, chain)
-  | None () -> (ex, chain)
+  | None -> (ex, chain)
 
 chain_dirty_buffer_inode2: ArrayUseValueF Indirect VfsInode ()
 chain_dirty_buffer_inode2 #{ elem = indirect, acc = inode, obsv } =
   indirect.buf
   | Some buf => vfs_inode_add_dirty_osbuffer (inode, buf)
-  | None () -> inode
+  | None -> inode
 
 chain_dirty_buffer_inode: (ExState, Chain!, Depth, VfsInode) -> (ExState, VfsInode)
 chain_dirty_buffer_inode (ex, chain, depth, inode) =
@@ -155,13 +155,13 @@ chain_init (state, path) =
     prealloc_indirects
     | Some indirects =>
       let chain = chain_t { path, indirects, indirect_count = 0 }
-      and state = state { prealloc_chain = None (), prealloc_indirects = None () } -- put None instead, REMEMBER TO PUT BACK LATER
+      and state = state { prealloc_chain = None, prealloc_indirects = None } -- put None instead, REMEMBER TO PUT BACK LATER
       in (state, Success chain)
-    | None () ->
-      let state = state { prealloc_chain = Some chain_t, prealloc_indirects = None () }
+    | None ->
+      let state = state { prealloc_chain = Some chain_t, prealloc_indirects = None }
       in (state, Error path)
-  | None () ->
-    let state = state { prealloc_chain = None (), prealloc_indirects }
+  | None ->
+    let state = state { prealloc_chain = None, prealloc_indirects }
     in (state, Error path)
 
 chain_restore: (ExState, FsState, Chain) -> (ExState, FsState, Path)
@@ -221,7 +221,7 @@ chain_from_path (ex, chain, inode, depth) =
         obsv = ()}
 
       in res
-      | Iterate () -> ((ex, chain), (Success (None ())))
+      | Iterate () -> ((ex, chain), (Success None))
       | Break res ->
         res
         | Success idx => ((ex, chain), Success (Some (1 + idx)))
@@ -267,7 +267,7 @@ chain_follow_indirects #{acc = (ex, chain, lastptr), obsv = (), idx} =
           and _ = _cogent_log (dbg_EXT2_CHAIN, ("\n"))
 
           in ((ex, chain, newptr), Break (Success idx)) -- missing/unallocated block
-      | None () ->
+      | None ->
         let ex = osbuffer_destroy (ex, buffer)
         and _ = _cogent_log (dbg_EXT2_CHAIN, ("chain_follow_indirects: ERROR: no memory\n"))
         in ((ex, chain, newptr), Break (Error eNoMem)) -- no memory
@@ -303,7 +303,7 @@ chain_count_contiguous (ex, chain, inode, max_mappable, boundary) =
 
     and (ex, chain) = chain_put_indirect (ex, chain, last_indirect, last_idx) -- put indirect back
     in (ex, chain, contiguous)
-  | None () ->
+  | None ->
     let _ = _cogent_assert2 ("chain_count_contiguous: no indirects", True)
     in (ex, chain, 0)
 
@@ -320,7 +320,7 @@ chain_count_contiguous2 #{ acc = contiguous, obsv = (chain, inode, maybe_buffer,
         (contiguous, Break ())
     | Error () ->
       (contiguous, Break ())
-  | None () ->
+  | None ->
     -- last ptr was from inode
     let ptr' = wordarray_get[BlockPtr] (inode.fs.block_pointers, last_offset + idx)
     in if ptr' == last_ptr + idx then
@@ -362,9 +362,9 @@ chain_blocks_to_allocate2 #{acc = count, obsv = (blocks, boundary, chain), idx} 
   if count < blocks && 
      count <= upcast boundary &&
      chain_get_indirect_blockptr (chain, u64_to_u32 count) == 0 then
-    (count + 1, Iterate)
+    (count + 1, Iterate ())
   else
-    (count, Break)
+    (count, Break ())
 
 ------------------------------------------------------------------------------
 -- allocates a given number of indirect and direct inodes for a chain
@@ -383,7 +383,7 @@ chain_alloc: (ExState, FsState, Chain, VfsInode, U32, BlockPtr, U32, IndirectIdx
 chain_alloc (ex, state, chain, inode, num_indirect, goal, num_blocks, partial_idx) =
   -- TODO: there is an opportunity to reuse memory here
   let state_t { prealloc_blockptrs } = state
-  and state = state_t { prealloc_blockptrs = None () }
+  and state = state_t { prealloc_blockptrs = None }
 
   in prealloc_blockptrs
   | Some new_blockptrs =>
@@ -438,7 +438,7 @@ chain_alloc (ex, state, chain, inode, num_indirect, goal, num_blocks, partial_id
 
       in ((ex, state, chain, inode), Error e) -- underlying block allocation failed completely
 
-  | None () ->
+  | None ->
     let _ = _cogent_log (dbg_EXT2_CHAIN, "chain_alloc: ERROR: cannot allocate blockptr array\n")
     in ((ex, state, chain, inode), Error eNoMem) -- cannot allocate blockptr array
 
@@ -536,7 +536,7 @@ chain_alloc_connect_indirects2 (ex, chain, inode, blockptr, idx, parent_buf, off
       and (ex, chain) = chain_put_indirect (ex, chain, indirect, indirect_idx)
 
       in ((ex, chain, inode), Iterate ())
-    | None () ->
+    | None ->
       -- TODO: could allocate here as plan B, but hey..
       let _ = _cogent_log (dbg_EXT2_CHAIN, "chain_alloc_connect_indirects2: could not alloc indirect; no memory\n")
       and ex = osbuffer_destroy (ex, parent_buf)
@@ -557,7 +557,7 @@ indirect_was_all_zeroes: ArrayUseValueF Indirect Bool ()
 indirect_was_all_zeroes #{ elem = indirect, acc, obsv } =
   indirect.buf
   | Some buf => osbuffer_all_zeroes (buf, 0, indirect.offset * 4)
-  | None () -> False -- should not happen
+  | None -> False -- should not happen
 
 find_first_non_hole_branch: Seq32_body U32 Chain ()
 find_first_non_hole_branch #{ acc = partial, obsv = chain, idx } =
@@ -579,7 +579,7 @@ chain_find_shared_cleanup2 #{ acc = (ex, chain), obsv = (), idx = _ } =
   | Some indirect =>
     let (ex, chain) = indirect_restore (ex, chain, indirect, idx)
     in ((ex, chain), Iterate ())
-  | None () -> ((ex, chain), Iterate ())
+  | None -> ((ex, chain), Iterate ())
 
 chain_find_shared_cleanup: (ExState, VfsInode, Chain, U32, U32, BlockPtr) -> RR (ExState, VfsInode, Chain) (BlockPtr, IndirectIdx) ()
 chain_find_shared_cleanup (ex, inode, chain, p, partial, top) = 
@@ -600,7 +600,7 @@ chain_find_shared_partial_helper: (Option IndirectIdx, U32) -> IndirectIdx
 chain_find_shared_partial_helper (maybe_indirect, k) =
   maybe_indirect
   | Some indirect -> indirect
-  | None () -> k - 1
+  | None -> k - 1
 
 chain_find_shared: (ExState, VfsInode, Chain) -> RR (ExState, VfsInode, Chain) (BlockPtr, IndirectIdx) ()
 chain_find_shared (ex, inode, chain) =
@@ -658,7 +658,7 @@ chain_find_shared (ex, inode, chain) =
         -- free it, and the rest
         and (ex, chain) = indirect_restore (ex, chain, indirect, p)
         in chain_find_shared_cleanup (ex, inode, chain, p, partial, top)
-      | None () ->
+      | None ->
         -- indirect disappeared under us?
         ((ex, inode, chain), Error ())
   | Error () -> ((ex, inode, chain), Error ())

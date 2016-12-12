@@ -48,26 +48,20 @@ osbuffer_sync_dirty: OSBuffer -> OSBuffer
 osbuffer_serialise_Ple32_WordArray: WordArrayFoldF U32 (OSBuffer, OSBufferOffset) () (OSBuffer, OSBufferOffset)
 osbuffer_serialise_Ple32_WordArray #{elem, acc = (buf, idx), obsv} =
   osbuffer_serialise_Ple32 (buf, idx, elem)
-  | Success (buf, idx') ->
-    Iterate (buf, idx')
-  | Error buf ->
-    Break (buf, idx)
+  | Success (buf, idx') -> Iterate (buf, idx')
+  | Error buf -> Break (buf, idx)
 
 osbuffer_deserialise_Ple32_WordArray: #{elem: U32, acc: U32, obsv: OSBuffer!} -> LRR (U32, U32) ()
 osbuffer_deserialise_Ple32_WordArray #{elem = old, acc = idx, obsv = buf} =
   osbuffer_deserialise_Ple32 (buf, idx)
-  | Success (elem, idx') ->
-    ((elem, idx'), Iterate)
-  | Error () ->
-    ((old, idx), Break)
+  | Success (elem, idx') -> ((elem, idx'), Iterate ())
+  | Error _ -> ((old, idx), Break ())
 
 osbuffer_deserialise_U8_WordArray: #{elem: U8, acc: U32, obsv: OSBuffer!} -> LRR (U8, U32) ()
 osbuffer_deserialise_U8_WordArray #{elem = old, acc = idx, obsv = buf} =
   osbuffer_deserialise_U8 (buf, idx)
-  | Success (elem, idx') ->
-    ((elem, idx'), Iterate)
-  | Error ->
-    ((old, idx), Break)
+  | Success (elem, idx') -> ((elem, idx'), Iterate ())
+  | Error _ -> ((old, idx), Break ())
 
 {-# cinline osbuffer_deserialise_Ple32 #-}
 osbuffer_deserialise_Ple32: (OSBuffer!, OSBufferOffset) -> Result (U32, OSBufferOffset) ()

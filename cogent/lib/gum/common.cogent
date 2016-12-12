@@ -11,7 +11,7 @@
 type Option a = <None|Some a>
 
 type LoopResult a b = <Iterate a|Break b>
-type LRR acc brk = (acc, <Iterate|Break brk>)
+type LRR acc brk = (acc, LoopResult () brk)
 
 type R a b = <Success a|Error b>
 type Result a b = R a b
@@ -187,26 +187,26 @@ safe_add32: (U32,U32) -> R U32 ()
 safe_add32(a, b) =
   let r = a + b
   in if r < a || r < b
-       then Error else Success r
+       then Error () else Success r
 
 {-# cinline safe_sub32 #-}
 safe_sub32: (U32,U32) -> R U32 ()
 safe_sub32(a, b) =
   let r = a - b
-  in if r > a then Error else Success r
+  in if r > a then Error () else Success r
 
 {-# cinline safe_sub64 #-}
 safe_sub64: (U64,U64) -> R U64 ()
 safe_sub64(a, b) =
   let r = a - b
-  in if r > a then Error else Success r
+  in if r > a then Error () else Success r
 
 {-# cinline safe_add64 #-}
 safe_add64: (U64,U64) -> R U64 ()
 safe_add64 (a, b) =
   let r = a + b
   in if r < a || r < b
-       then Error else Success r
+       then Error () else Success r
 
 {-# cinline u16_to_u8 #-}
 u16_to_u8: U16 -> U8

@@ -30,7 +30,7 @@ group_desc_use #{elem = group_buf, acc = (ex, maybe_group_desc), obsv = (offset)
         let _ = _cogent_log (dbg_EXT2_GROUPDESC, "group_desc_use: ERROR: failed to deser group desc at offset ")
         and _ = _cogent_log_u32 (dbg_EXT2_GROUPDESC, (offset * const_sizeof_Ext2GroupDescriptor))
         and _ = _cogent_log (dbg_EXT2_GROUPDESC, "\n")
-        in (ex, None ())
+        in (ex, None)
 
 group_desc_from_block_group: (ExState, FsState, U32) -> RR (ExState, FsState) (Ext2GroupDescriptor) ()
 group_desc_from_block_group (ex, state, block_group_num) =
@@ -45,11 +45,11 @@ group_desc_from_block_group (ex, state, block_group_num) =
 
     and (ex, maybe_group_desc) = array_use_value
         [OSBuffer, GroupDescUseAcc, GroupDescUseObsv]
-        #{arr = state.group_desc_array, idx = group_desc_num, f = group_desc_use, acc = (ex, None ()), obsv = (offset)} !state
+        #{arr = state.group_desc_array, idx = group_desc_num, f = group_desc_use, acc = (ex, None), obsv = (offset)} !state
     in maybe_group_desc
     | Some group_descriptor ->
         ((ex, state), Success (group_descriptor))
-    | None () ->
+    | None ->
         let _ = _cogent_log (dbg_EXT2_GROUPDESC, "group_desc_from_block_group: ERROR: could not get group desc from array\n")
         in ((ex, state), Error ())
 
@@ -81,7 +81,7 @@ group_desc_and_buf_from_block_group (ex, state, block_group_num) =
                 ex }
             and state = state_t { group_desc_array }
             in ((ex, state), Error ())
-    | None () ->
+    | None ->
         let state = state_t { group_desc_array }
         in ((ex, state), Error ())
 
@@ -152,17 +152,17 @@ type GroupDescLoaderObsv = (U32, U32, U32)
 put_group_desc_in_array: ArrayMapF OSBuffer GroupDescLoaderAcc GroupDescLoaderObsv GroupDescLoaderAcc
 put_group_desc_in_array #{oelem = maybe_buffer, acc = (ex, idx), obsv = (blocks_per_group, first_data_block, superblock_num)} =
     maybe_buffer
-    | None () ->
+    | None ->
         let (ex, res) = group_desc_buf_from_block_group (ex, blocks_per_group, first_data_block, idx, superblock_num)
         in res
         | Success desc_buf ->
             Iterate (Some desc_buf, (ex, idx + 1))
         | Error () ->
-            Break (None (), (ex, idx + 1))
+            Break (None, (ex, idx + 1))
     | Some buf ->
         -- should never happen - we've only just allocated the array!
         let ex = osbuffer_destroy (ex, buf)
-        in Break (None (), (ex,  idx + 1))
+        in Break (None, (ex,  idx + 1))
 
 deserialise_Ext2GroupDescriptor: (ExState, OSBuffer!, U32) -> RR (ExState) (#Ext2GroupDescriptor, U32) ()
 deserialise_Ext2GroupDescriptor (ex, buf, idx) =

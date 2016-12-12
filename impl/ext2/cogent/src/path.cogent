@@ -21,13 +21,13 @@ type Path = #{
 path_new_from_block: (ExState, FsState, LogicalBlock) -> RR (ExState, FsState) Path ()
 path_new_from_block (ex, state, block_num) = 
   let state_t { prealloc_offsets } = state
-  and state = state_t { prealloc_offsets = None () }
+  and state = state_t { prealloc_offsets = None }
 
   in prealloc_offsets
   | Some offsets =>
     let path = path_from_block (offsets, block_num)
     in ((ex, state), Success path)
-  | None () -> ((ex, state), Error ())
+  | None -> ((ex, state), Error ())
 
 --path_destroy: (ExState, Path) -> ExState
 --path_destroy (ex, path) =

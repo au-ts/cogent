@@ -35,10 +35,10 @@ indirect_from_inode (ex, chain, inode, depth) =
   and (ex, chain, maybe_indirect) = indirect_from_chain (ex, chain, depth)
   in maybe_indirect
   | Some indirect_t =>
-    let nobuf : Option OSBuffer = None ()
+    let nobuf : Option OSBuffer = None
     and indirect = indirect_t { blockptr = block, buf = nobuf, offset }
     in ((ex, chain), Success indirect)
-  | None () -> ((ex, chain), Error ())
+  | None -> ((ex, chain), Error ())
 
 --indirect_new: (BlockPtr, Option OSBuffer) -> Indirect
 malloc_Indirect: ExState -> RR ExState (Indirect take (..)) ()
@@ -66,15 +66,15 @@ indirect_restore (ex, chain, indirect, idx) =
   in buf
   | Some buf ->
     let ex = osbuffer_destroy (ex, buf)
-    and indirect = indirect_t { blockptr = 0, buf = None (), offset = 0 }
+    and indirect = indirect_t { blockptr = 0, buf = None, offset = 0 }
     in chain_put_indirect (ex, chain, indirect, idx)
   | _ -> 
-    let indirect = indirect_t { blockptr = 0, buf = None (), offset = 0 }
+    let indirect = indirect_t { blockptr = 0, buf = None, offset = 0 }
     in chain_put_indirect (ex, chain, indirect, idx)
 
 indirect_restore_taken: (ExState, Chain, Indirect take (..), U32) -> (ExState, Chain)
 indirect_restore_taken (ex, chain, indirect_t, idx) =
-  let indirect = indirect_t { blockptr = 0, buf = None (), offset = 0 }
+  let indirect = indirect_t { blockptr = 0, buf = None, offset = 0 }
   in chain_put_indirect (ex, chain, indirect, idx)
 
 -- poor man's dereference
@@ -94,7 +94,7 @@ indirect_dereference (maybe_buf, inode, offset) =
     osbuffer_deserialise_Ple32 (buf, offset * 4)
     | Success (ptr, _) => ptr
     | Error () -> let _ = _cogent_assert2 ("indirect_read_blockptr_at: OOB on buffer", True) in 0
-  | None () ->
+  | None ->
     if offset < const_numBlockPointers then
       wordarray_get [BlockPtr] (inode.fs.block_pointers, offset)
     else
@@ -121,7 +121,7 @@ indirect_set_reference (maybe_buf, inode, offset, ptr) =
     | Error buf ->
       let _ = _cogent_assert2 ("indirect_set_blockptr_at: OOB on buffer", True)
       in (Some buf, inode)
-  | None () ->
+  | None ->
     if offset < const_numBlockPointers then
       let inode_t { fs } = inode
       and fs_t { block_pointers } = fs
@@ -130,10 +130,10 @@ indirect_set_reference (maybe_buf, inode, offset, ptr) =
       and fs = fs_t { block_pointers }
       and inode = inode_t { fs }
 
-      in (None (), inode)
+      in (None, inode)
     else
       let _ = _cogent_assert2 ("indirect_set_blockptr_at: OOB on block_pointers", True)
-      in (None (), inode)
+      in (None, inode)
 
 indirect_destroy2: (ExState, Indirect) -> ExState
 indirect_destroy2 (ex, indirect) =
@@ -154,7 +154,7 @@ splice_put_direct_blocks_buf: Seq32_body (OSBuffer, U32, U32) () ()
 splice_put_direct_blocks_buf r { idx, acc = (buf, ptr, offset) } =
   osbuffer_serialise_Ple32 (buf, offset, ptr)
   | Success (buf, _) => ((buf, ptr + 1, offset + 4), Iterate ())
-  | Error (buf) ->
+  | Error buf ->
     let _ = _cogent_assert2 ("splice_put_direct_blocks_buf: OOB on buf", True)
     in ((buf, ptr, offset), Iterate ())
 
@@ -184,13 +184,13 @@ indirect_splice (ex, indirect, inode, iblock, num_direct, num_indirect) =
       and inode = vfs_inode_add_dirty_osbuffer (inode, buf) !buf
       and indirect = indirect_t { buf = Some buf }
       in indirect_splice_finish (ex, indirect, inode)
-    | Error (buf) ->
+    | Error buf ->
       let _ = _cogent_assert2 ("indirect_splice: OOB on indirect buf", True)
       and indirect = indirect_t { buf = Some buf }
       in ((ex, indirect, inode), Error eIO) -- failed to serialise buffer
-  | None () ->
+  | None ->
     -- was from inode
-    let indirect = indirect_t { buf = None () }
+    let indirect = indirect_t { buf = None }
     and inode_t { fs } = inode
     and fs_t { block_pointers } = fs
 

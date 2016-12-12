@@ -157,7 +157,7 @@ allocate_the_indirects #{ acc = (ex, indirects), obsv, idx } =
     let (ex, res) = malloc_Indirect ex
     in res
     | Success indirect_t =>
-        let indirect = indirect_t { blockptr = 0, buf = None (), offset = 0}
+        let indirect = indirect_t { blockptr = 0, buf = None, offset = 0}
         and ((ex, indirects), _) = array_replace[Indirect] #{ arr = indirects, idx, elem = indirect, f = indirect_destroy2, ex }
         in ((ex, indirects), Iterate ())
     | Error () ->
@@ -349,19 +349,19 @@ free_option_chain: (ExState, Option (Chain take (..))) -> ExState
 free_option_chain (ex, maybe_chain) =
     maybe_chain
     | Some chain_t => free_Chain (ex, chain_t)
-    | None () -> ex
+    | None -> ex
 
 free_option_wordarray: (ExState, Option (WordArray U32)) -> ExState
 free_option_wordarray (ex, maybe_wa) =
     maybe_wa
     | Some wa => wordarray_free [U32] (ex, wa)
-    | None () -> ex
+    | None -> ex
 
 free_option_indirects: (ExState, Option (Array Indirect)) -> ExState
 free_option_indirects (ex, maybe_indirects) =
     maybe_indirects
     | Some indirects => array_free [Indirect] #{ arr = indirects, f = indirect_destroy2, ex }
-    | None () -> ex
+    | None -> ex
 
 fs_unmount: #{ex: ExState, state: FsState} -> ExState
 fs_unmount #{ex, state} = 
