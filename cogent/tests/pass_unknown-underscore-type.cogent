@@ -12,7 +12,7 @@ check_dirent_empty #{obj = new_dirent, acc = maybe_prev_dirent} =
         | Some prev_dirent ->
             let ex = destroy_Ext2DirEnt prev_dirent
             in check_dirent_empty2 (new_dirent, offset)
-        | None _ ->
+        | None ->
             check_dirent_empty2 (new_dirent, offset)
 
 

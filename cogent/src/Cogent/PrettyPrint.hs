@@ -278,7 +278,7 @@ instance (Pretty t, TypeType t) => Pretty (Type t) where
                          typename n <+> hsep (map prettyT' as)
     where prettyT' e | not $ isAtomic e = parens (pretty e)
                      | otherwise        = pretty e
-  pretty (TVar n b)  = typevar n
+  pretty (TVar n b)  = typevar n <> (if b then typesymbol "!" else empty)
   pretty (TTuple ts) = tupled (map pretty ts)
   pretty (TUnit)     = typesymbol "()" & (if __cogent_fdisambiguate_pp then (<+> comment "{- unit -}") else id)
   pretty (TRecord ts s)
