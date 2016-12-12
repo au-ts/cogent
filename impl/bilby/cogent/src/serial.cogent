@@ -78,14 +78,14 @@ bilbyFsOidMaskAll = 7 << bilbyFsXinfoShift
 -- TODO rename mk_* instead 
 {-# cinline obj_id_dentarr_mk #-}
 obj_id_dentarr_mk: (VfsIno, (WordArray U8)!) -> ObjId
-obj_id_dentarr_mk(ino, name) =
-  let oid:ObjId = (u32_to_u64 ino) << 32
-  and h = u32_to_u64 (obj_id_hash_name name)
+obj_id_dentarr_mk (ino, name) =
+  let oid:ObjId = upcast ino << 32
+  and h = upcast (obj_id_hash_name name)
   in oid .|. bilbyFsOidMaskDentarr .|. h
 
 {-# cinline obj_id_inode_mk #-}
 obj_id_inode_mk: VfsIno -> ObjId
-obj_id_inode_mk(ino) =
+obj_id_inode_mk ino =
   (upcast ino << 32) .|. bilbyFsOidMaskInode
 
 {-# cinline obj_id_data_mk #-}
@@ -539,7 +539,7 @@ deserialise_ObjDentry(ex, buf, offs, end_offs) =
  -- This has to be checked as we deserialise because nlen
  -- is read from the buffer (as opposed to bound checks
  -- encoded in the preconditions
-  and nlen32 = u16_to_u32 nlen 
+  and nlen32 = upcast nlen 
   and _ = _cogent_debug "deserialise_ObjDentry: nlen=" 
   and _ = _cogent_debug_u16 nlen 
   and _ = _cogent_debug " -- nlen32 "
@@ -792,7 +792,7 @@ serialise_ObjSumEntry(buf, offs, sumentry) =
   _cogent_debug ",offs=" ;
   _cogent_debug_u32 (obj_sum_entry_offs sumentry) ;
   _cogent_debug ",count=" ;
-  _cogent_debug_u32 (u16_to_u32 sumentry.count) ;
+  _cogent_debug_u32 (upcast sumentry.count) ;
   _cogent_debug "}\n" ;
   let buf = serialise_le64(buf, offs, sumentry.id)
   and buf = serialise_le64(buf, offs+8, sumentry.sqnum)
@@ -846,7 +846,7 @@ deserialise_ObjSumEntry_map #{elem=entry, acc=offs, obsv=buf} =
 deserialise_wordarray_ObjSumEntry: (WordArray ObjSumEntry, Buffer!, BufOffs, U32) -> RR (WordArray ObjSumEntry) BufOffs ErrCode
 deserialise_wordarray_ObjSumEntry (entries, buf, offs, nb_sum_entry) =
   let (entries,offs) = wordarray_map_no_break[ObjSumEntry, BufOffs, Buffer!]
-                         #{arr=entries, frm=u8_to_u32 0, to=nb_sum_entry, f=deserialise_ObjSumEntry_map, acc=offs, obsv=buf}
+                         #{arr=entries, frm=0, to=nb_sum_entry, f=deserialise_ObjSumEntry_map, acc=offs, obsv=buf}
   in (entries, Success offs)
   
 deserialise_ObjSummary_crc: (ExState, Buffer!, BufOffs, Obj, ObjSummary) -> RR (ExState, Obj, ObjSummary) BufOffs ErrCode
@@ -1115,7 +1115,7 @@ deserialise_ObjInode: (ExState, Buffer!, BufOffs) -> R (ExState, ObjInode, BufOf
 deserialise_ObjInode(ex, buf, offs) =
   let id = deserialise_le64(buf, offs)
   -- Ensure type of oid is ObjInode and xinfo = 0
-  in if (id  .&. binNot (bilbyFsOidMaskAll .|. (u32_to_u64 word32Max)) .|. bilbyFsOidMaskInode) /= id then
+  in if (id  .&. binNot (bilbyFsOidMaskAll .|. (upcast word32Max)) .|. bilbyFsOidMaskInode) /= id then
       Error (eInval, ex)
   else
     newObjInode ex
@@ -1158,7 +1158,7 @@ deserialise_le16: (Buffer!, BufOffs) -> U16
 deserialise_le16(buf, offs) =
   let b0 = wordarray_get[U8] (buf.data, offs)
   and b1 = wordarray_get[U8] (buf.data, offs + 1)
-  in ((u8_to_u16(b1) << 8) .|. u8_to_u16(b0))
+  in ((upcast b1 << 8) .|. upcast b0)
 
 {-
   (* le32 is undefined if offs + 3 >= buf.bound *)
@@ -1179,8 +1179,8 @@ deserialise_le32 (buf, offs) =
   and b1 = wordarray_get[U8] (buf.data, offs + 1)
   and b2 = wordarray_get[U8] (buf.data, offs + 2)
   and b3 = wordarray_get[U8] (buf.data, offs + 3)
-  in ((u8_to_u32(b3) << 24) .|. (u8_to_u32(b2) << 16) .|.
-      (u8_to_u32(b1) << 8) .|. u8_to_u32(b0))
+  in ((upcast b3 << 24) .|. (upcast b2 << 16) .|.
+      (upcast b1 << 8 ) .|.  upcast b0)
 
 {-# cinline deserialise_le64 #-}
 deserialise_le64: (Buffer!, BufOffs) -> U64
@@ -1193,10 +1193,10 @@ deserialise_le64(buf, offs) =
   and b5 = wordarray_get[U8] (buf.data, offs + 5)
   and b6 = wordarray_get[U8] (buf.data, offs + 6)
   and b7 = wordarray_get[U8] (buf.data, offs + 7)
-  in ((u8_to_u64(b7) << 56) .|. (u8_to_u64(b6) << 48) .|.
-      (u8_to_u64(b5) << 40) .|. (u8_to_u64(b4) << 32) .|.
-      (u8_to_u64(b3) << 24) .|. (u8_to_u64(b2) << 16) .|.
-      (u8_to_u64(b1) << 8) .|. u8_to_u64(b0))
+  in ((upcast b7 << 56) .|. (upcast b6 << 48) .|.
+      (upcast b5 << 40) .|. (upcast b4 << 32) .|.
+      (upcast b3 << 24) .|. (upcast b2 << 16) .|.
+      (upcast b1 << 8 ) .|.  upcast b0)
 -- similar to above
 
 deserialise_Obj_crc: (ExState, Buffer!, BufOffs) -> R (ExState, Obj, BufOffs) (ErrCode, ExState)

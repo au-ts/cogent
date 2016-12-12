@@ -44,11 +44,11 @@ init_vnode(ex, ostore_st, vdir, vnode, mode) =
     _cogent_debug "init_vnode allocate ino " ;
     _cogent_debug_u32 v_ino ;
     _cogent_debug "\n" ;
-    let vnode = vnode { fs = #{a=u8_to_u32 0} }
+    let vnode = vnode { fs = #{a=0} }
     and (ex, vnode) = vnode_init_perm(ex, vdir, vnode, mode)
     and v_flags:VfsMode = 0
     and v_flags = v_flags .|. x_NOCMTIME
-    and (ex, time) = os_get_current_time(ex)
+    and (ex, time) = os_get_current_time ex
     and v_nlink:U32 = 1
     and v_size:U64 = 0
     and vnode = vfs_inode_set_ino (vnode, v_ino)
@@ -58,8 +58,7 @@ init_vnode(ex, ostore_st, vdir, vnode, mode) =
     and vnode = vfs_inode_set_nlink (vnode, v_nlink)
     and vnode = vfs_inode_set_size (vnode, v_size)
     in ((ex, ostore_st, vnode), Success ())
-  | Error err ->
-    ((ex, ostore_st, vnode), Error err)
+  | Error err -> ((ex, ostore_st, vnode), Error err)
 
 extract_dentarr_from_union:(ExState, ObjUnion) -> R (ExState, ObjDentarr) ExState
 extract_dentarr_from_union(ex, ounion) =
@@ -360,21 +359,21 @@ obj_inode_new(ex, vnode) =
       in (ex, Error eNoMem)
     | Success (ex, inode) ->
       let obj = obj_init_default(obj, bilbyFsObjTypeInode)
-      and id = obj_id_inode_mk(vfs_inode_get_ino (vnode))
-      and size = vfs_inode_get_size (vnode)
-      and mtime = vfs_inode_get_mtime (vnode)
-      and ctime = vfs_inode_get_ctime (vnode)
-      and atime_sec = u32_to_u64(mtime.tv_sec)
-      and ctime_sec = u32_to_u64(ctime.tv_sec)
-      and mtime_sec = u32_to_u64(mtime.tv_sec)
-      and nlink = vfs_inode_get_nlink (vnode)
-      and uid = vfs_inode_get_uid (vnode)
-      and gid = vfs_inode_get_gid (vnode)
-      and mode = vfs_inode_get_mode (vnode)
-      and flags  = vfs_inode_get_flags (vnode)
+      and id = obj_id_inode_mk(vfs_inode_get_ino vnode)
+      and size = vfs_inode_get_size vnode
+      and mtime = vfs_inode_get_mtime vnode
+      and ctime = vfs_inode_get_ctime vnode
+      and atime_sec = upcast mtime.tv_sec
+      and ctime_sec = upcast ctime.tv_sec
+      and mtime_sec = upcast mtime.tv_sec
+      and nlink = vfs_inode_get_nlink vnode
+      and uid = vfs_inode_get_uid vnode
+      and gid = vfs_inode_get_gid vnode
+      and mode = vfs_inode_get_mode vnode
+      and flags  = vfs_inode_get_flags vnode
       and inode = inode {id,size,atime_sec,ctime_sec,mtime_sec,nlink,uid,gid,mode,flags}
       and obj  = obj {ounion = TObjInode inode}
-      and len = serialise_size_Obj(obj) !obj
+      and len = serialise_size_Obj obj !obj
       and obj = obj {len}
       in (ex, Success obj)
 
@@ -419,16 +418,16 @@ dentarr_read_and_add (ex, mount_st, ostore_st, vdir, name, vnode, dt) =
       and (dentarr_obj, r) = dentarr_calculate_sz_change(created, dentarr_obj)
       in r
       | Error err ->
-        let ex = deep_freeObj(ex, dentarr_obj)
+        let ex = deep_freeObj (ex, dentarr_obj)
         in ((ex, ostore_st), Error err)
       | Success sz_change ->
-        safe_add64(vfs_inode_get_size vdir, u32_to_u64(sz_change))
+        safe_add64 (vfs_inode_get_size vdir, upcast sz_change)
         | Error () ->
           _cogent_debug "create dir inode size increase overflow" ;
           _cogent_debug " sz_change = " ;
-          _cogent_debug_u32_hex (sz_change) ;
+          _cogent_debug_u32_hex sz_change ;
           _cogent_debug "\n" ;
-          let ex = deep_freeObj(ex, dentarr_obj)
+          let ex = deep_freeObj (ex, dentarr_obj)
           in ((ex, ostore_st), Error eOverflow)
         | Success new_v_size ->
           ((ex, ostore_st), Success (new_v_size, dentarr_obj))
@@ -501,27 +500,27 @@ dentarr_read_and_del (ex, mount_st, ostore_st, vdir, name) =
   | Error e ->
      ((ex, ostore_st), Error e)
   | Success (dentarr_obj {ounion}) ->
-    extract_dentarr_from_union(ex, ounion)
+    extract_dentarr_from_union (ex, ounion)
     | Error ex ->
        -- invariant on ostore_read
        _cogent_assert False ;
-       let ex = freeObj(ex, dentarr_obj)
+       let ex = freeObj (ex, dentarr_obj)
        in ((ex, ostore_st), Error eInval)
     | Success (ex, dentarr) ->
-      let (ex, dentarr) = dentarr_del_dentry(ex, dentarr, name)
-      and ((ex, dentarr_obj), r) = dentarr_del_calculate_sz_change(ex, dentarr_obj, dentarr)
+      let (ex, dentarr) = dentarr_del_dentry (ex, dentarr, name)
+      and ((ex, dentarr_obj), r) = dentarr_del_calculate_sz_change (ex, dentarr_obj, dentarr)
       in r
       | Error e ->
         _cogent_debug "dentarr_read_and_del: dentarr_del_calculate_sz_change: failed\n" ;
         let dentarr_obj {ounion} = dentarr_obj
-        and ex = deep_freeObjUnion(ex, ounion)
-        and ex = freeObj(ex, dentarr_obj)
+        and ex = deep_freeObjUnion (ex, ounion)
+        and ex = freeObj (ex, dentarr_obj)
         in ((ex, ostore_st), Error e)
       | Success sz_change ->
-        safe_sub64(vfs_inode_get_size vdir, u32_to_u64 sz_change)
+        safe_sub64(vfs_inode_get_size vdir, upcast sz_change)
         | Error () ->
           _cogent_debug "dentarr_read_and_del: dir size substraction failed\n" ;
-          let ex = deep_freeObj(ex, dentarr_obj)
+          let ex = deep_freeObj (ex, dentarr_obj)
           in ((ex, ostore_st), Error eOverflow)
         | Success new_v_size ->
           ((ex, ostore_st), Success (new_v_size, dentarr_obj))
@@ -795,7 +794,7 @@ fsop_fill_super #{ex, fs_st = fs_st {mount_st}, vsup, is_silent, root} =
     _cogent_debug "Could not Open UBI device" ;
     (#{ex, vsup, root}, Error #{err=eNoEnt, fs_st = fs_st {mount_st}}) 
   | Success (ex, ubi_vol) ->
-    let s_magic = u32_to_u64 bilbyFsMagic
+    let s_magic = upcast bilbyFsMagic
     and s_blocksize = bilbyFsBlockSize
     and s_blocksize_bits = bilbyFsBlockShift
     and s_maxbytes = os_MAX_FILESIZE
@@ -1053,38 +1052,38 @@ fsop_do_move_helper: FsopDoMoveHelperP -> RR FsopDoMoveHelperRR () ErrCode
 fsop_do_move_helper #{ex, mount_st, ostore_st, old_dent_size, new_dent_size, new_o, old_o, old_vdir, old_vnode, new_vdir, opt_new_vnode} =
   _cogent_debug "fsop_do_move_helper\n" ;
   -- update old_vdir.v_size
-  let old_dent_size' = serialise_size_Obj(old_o) !old_o
+  let old_dent_size' = serialise_size_Obj old_o !old_o
   and old_o = old_o {len=old_dent_size'}
   and old_vdir_size = vfs_inode_get_size old_vdir !old_vdir
-  and old_vdir = vfs_inode_set_size (old_vdir, old_vdir_size - u32_to_u64 old_dent_size + u32_to_u64 old_dent_size')
+  and old_vdir = vfs_inode_set_size (old_vdir, old_vdir_size - upcast old_dent_size + upcast old_dent_size')
   -- update new_vdir.v_size
   and new_dent_size' = serialise_size_Obj(new_o) !new_o
   and new_o = new_o {len=new_dent_size'}
   and new_vdir_size = vfs_inode_get_size new_vdir !new_vdir
-  and new_vdir = vfs_inode_set_size (new_vdir, new_vdir_size - u32_to_u64 new_dent_size + u32_to_u64 new_dent_size')
+  and new_vdir = vfs_inode_set_size (new_vdir, new_vdir_size - upcast new_dent_size + upcast new_dent_size')
 
-  and (ex, r) = obj_inode_new(ex, old_vnode) !old_vnode
+  and (ex, r) = obj_inode_new (ex, old_vnode) !old_vnode
   in r
   | Error err ->
-    let ex = deep_freeObj(ex, old_o)
-    and ex = deep_freeObj(ex, new_o)
+    let ex = deep_freeObj (ex, old_o)
+    and ex = deep_freeObj (ex, new_o)
     in (#{ex, ostore_st, old_vdir, old_vnode, new_vdir, opt_new_vnode}, Error err)
   | Success obj_old_vnode ->
     let (ex, r) = obj_inode_new(ex, old_vdir) !old_vdir
     in r
     | Error err ->
-      let ex = deep_freeObj(ex, old_o)
-      and ex = deep_freeObj(ex, new_o)
-      and ex = deep_freeObj(ex, obj_old_vnode)
+      let ex = deep_freeObj (ex, old_o)
+      and ex = deep_freeObj (ex, new_o)
+      and ex = deep_freeObj (ex, obj_old_vnode)
       in (#{ex, ostore_st, old_vdir, old_vnode, new_vdir, opt_new_vnode}, Error err)
     | Success obj_old_vdir ->
-      let (ex, r) = obj_inode_new(ex, new_vdir) !new_vdir
+      let (ex, r) = obj_inode_new (ex, new_vdir) !new_vdir
       in r
       | Error err ->
-        let ex = deep_freeObj(ex, old_o)
-        and ex = deep_freeObj(ex, new_o)
-        and ex = deep_freeObj(ex, obj_old_vnode)
-        and ex = deep_freeObj(ex, obj_old_vdir)
+        let ex = deep_freeObj (ex, old_o)
+        and ex = deep_freeObj (ex, new_o)
+        and ex = deep_freeObj (ex, obj_old_vnode)
+        and ex = deep_freeObj (ex, obj_old_vdir)
         in (#{ex, ostore_st, old_vdir, old_vnode, new_vdir, opt_new_vnode}, Error err)
       | Success obj_new_vdir ->
         -- case opt_new_vnode
@@ -1343,22 +1342,22 @@ fsop_do_rename_helper1 #{ex, mount_st, ostore_st, dent_size, obj, vdir, old_vnod
 -- old and new are stored in the same dentarr
   _cogent_debug "fsop_do_rename_helper1\n" ;
   -- update old_vdir.v_size
-  let dent_size' = serialise_size_Obj(obj) !obj
+  let dent_size' = serialise_size_Obj obj !obj
   and obj = obj {len=dent_size'}
   and vdir_size = vfs_inode_get_size vdir !vdir
-  and vdir = vfs_inode_set_size (vdir, vdir_size - u32_to_u64 dent_size + u32_to_u64 dent_size') 
+  and vdir = vfs_inode_set_size (vdir, vdir_size - upcast dent_size + upcast dent_size') 
 
-  and (ex, r) = obj_inode_new(ex, old_vnode) !old_vnode
+  and (ex, r) = obj_inode_new (ex, old_vnode) !old_vnode
   in r
   | Error err ->
-    let ex = deep_freeObj(ex, obj)
+    let ex = deep_freeObj (ex, obj)
     in (#{ex, ostore_st, vdir, old_vnode, opt_new_vnode}, Error err) 
   | Success obj_old_vnode ->
-    let (ex, r) = obj_inode_new(ex, vdir) !vdir
+    let (ex, r) = obj_inode_new (ex, vdir) !vdir
     in r
     | Error err ->
-      let ex = deep_freeObj(ex, obj)
-      and ex = deep_freeObj(ex, obj_old_vnode)
+      let ex = deep_freeObj (ex, obj)
+      and ex = deep_freeObj (ex, obj_old_vnode)
       in (#{ex, ostore_st, vdir, old_vnode, opt_new_vnode}, Error err) 
     | Success obj_vdir ->
       -- case opt_new_vnode
@@ -1408,15 +1407,15 @@ fsop_do_rename_helper #{ex, mount_st, ostore_st, old_dent_size, new_dent_size, n
 -- old and new are stored in two different dentarr
   _cogent_debug "fsop_do_rename_helper\n" ;
   -- update old_vdir.v_size
-  let old_dent_size' = serialise_size_Obj(old_o) !old_o
+  let old_dent_size' = serialise_size_Obj old_o !old_o
   and old_o = old_o {len=old_dent_size'}
   and vdir_size = vfs_inode_get_size vdir !vdir
-  and vdir = vfs_inode_set_size (vdir, vdir_size - u32_to_u64 old_dent_size + u32_to_u64 old_dent_size')
+  and vdir = vfs_inode_set_size (vdir, vdir_size - upcast old_dent_size + upcast old_dent_size')
   -- update vdir.v_size with new_o
-  and new_dent_size' = serialise_size_Obj(new_o) !new_o
+  and new_dent_size' = serialise_size_Obj new_o !new_o
   and new_o = new_o {len=new_dent_size'}
   and vdir_size = vfs_inode_get_size vdir !vdir
-  and vdir = vfs_inode_set_size (vdir, vdir_size - u32_to_u64 new_dent_size + u32_to_u64 new_dent_size')
+  and vdir = vfs_inode_set_size (vdir, vdir_size - upcast new_dent_size + upcast new_dent_size')
 
   and (ex, r) = obj_inode_new(ex, old_vnode) !old_vnode
   in r
@@ -1813,19 +1812,17 @@ fsop_readpage: FsopReadPageP -> RR FsopReadPageRR () ErrCode
 fsop_readpage #{ex, fs_st, vnode, block, addr} =
   -- block has to fit in u32
   let size = vfs_inode_get_size(vnode) !vnode
-  and limit = size >> u32_to_u64 bilbyFsBlockShift
+  and limit = size >> upcast bilbyFsBlockShift
   in if block > limit then
    let addr = buf_memset(addr, 0, bilbyFsBlockSize, 0)
    in (#{ex, fs_st, vnode, addr}, Error eNoEnt)
-  else if block == limit && (size % u32_to_u64 bilbyFsBlockSize == 0) then
+  else if block == limit && (size % upcast bilbyFsBlockSize == 0) then
     (#{ex, fs_st, vnode, addr}, Success ())
   else
    let ((ex, fs_st, addr), r) = read_block(ex, fs_st, vnode, addr, block) !vnode
    in r
-   | Error err ->
-     (#{ex, fs_st, vnode, addr}, Error err) 
-   | Success () ->
-     (#{ex, fs_st, vnode, addr}, Success ())
+   | Error err  -> (#{ex, fs_st, vnode, addr}, Error err) 
+   | Success () -> (#{ex, fs_st, vnode, addr}, Success ())
 
 type FsopWriteP = #{ex:ExState, fs_st: FsState, vnode: VfsInode, pos: OSPageOffset, len:U32, addr: Buffer}
 type FsopWriteRR = #{ex:ExState, fs_st: FsState, vnode: VfsInode, addr: Buffer}
@@ -1835,7 +1832,7 @@ fsop_write_begin #{ex, fs_st, vnode, pos, len, addr} =
   in if is_ro then
     (#{ex, fs_st, vnode, addr}, Error eRoFs) 
   else
-    let (#{ex, fs_st, vnode, addr}, r) = fsop_readpage #{ex, fs_st, vnode, block=pos >> u32_to_u64 bilbyFsBlockShift, addr}
+    let (#{ex, fs_st, vnode, addr}, r) = fsop_readpage #{ex, fs_st, vnode, block=pos >> upcast bilbyFsBlockShift, addr}
     in r
     | Error err ->
       if err == eNoEnt then
@@ -1870,7 +1867,7 @@ fsop_write_end #{ex, fs_st, vnode, pos, len, addr} =
     (#{ex, fs_st, vnode, addr}, Error eRoFs)
   else
     let isize = vfs_inode_get_size vnode !vnode
-    and v_size = if pos + u32_to_u64 len > isize then pos + u32_to_u64 len else isize
+    and v_size = if pos + upcast len > isize then pos + upcast len else isize
     and mtime = vfs_inode_get_mtime vnode !vnode
     and (ex, time) = os_get_current_time(ex)
     and vnode = vfs_inode_set_mtime(vnode,time)
@@ -1889,7 +1886,7 @@ fsop_write_end #{ex, fs_st, vnode, pos, len, addr} =
         let ex = deep_freeObj(ex, ovnode)
         in (#{ex, fs_st, vnode, addr}, Error eNoMem)
       | Success (ex, dummy_data) ->
-        let block = u64_to_u32 (pos >> (u32_to_u64 bilbyFsBlockShift))
+        let block = u64_to_u32 (pos >> upcast bilbyFsBlockShift)
         and oid = obj_id_data_mk (vfs_inode_get_ino vnode, block) !vnode
         and start = pos .&. (os_PAGE_CACHE_SIZE - 1)
         and end = u64_to_u32 start + len
@@ -1999,7 +1996,7 @@ fsop_getattr #{ex, fs_st, stat, vnode} =
   and stat = vfs_stat_set_uid (stat, vfs_inode_get_uid vnode)
   and stat = vfs_stat_set_gid (stat, vfs_inode_get_gid vnode)
   and stat = vfs_stat_set_blksize (stat, bilbyFsBlockSize)
-  and size = align64(size, u32_to_u64 bilbyFsBlockSize)
+  and size = align64 (size, upcast bilbyFsBlockSize)
   and blocks = if vmode_is_dir (vfs_inode_get_mode vnode) then 0 else size / 512
   and stat = vfs_stat_set_blocks (stat, blocks)
   in #{ex, fs_st, stat}
@@ -2052,39 +2049,36 @@ truncate_arrayobj_create(ex, o1, o2, o3) =
 truncate_last_block: FsopTruncateP -> RR FsopSetattrRR (Option Obj) ErrCode
 truncate_last_block #{ex, fs_st, vnode, newsize} =
   let oldsize = vfs_inode_get_size vnode !vnode
-  and newsize_aligned = align64(newsize, u32_to_u64 bilbyFsBlockSize)
+  and newsize_aligned = align64 (newsize, upcast bilbyFsBlockSize)
   in if newsize /= newsize_aligned && newsize < oldsize then
-    let block = newsize >> u32_to_u64 bilbyFsBlockShift
-    and oid = obj_id_data_mk(vfs_inode_get_ino vnode, u64_to_u32(block)) !vnode
+    let block = newsize >> upcast bilbyFsBlockShift
+    and oid = obj_id_data_mk(vfs_inode_get_ino vnode, u64_to_u32 block) !vnode
     and fs_st {ostore_st} = fs_st
     and ((ex, ostore_st), r) = ostore_read(ex, fs_st.mount_st, ostore_st, oid) !fs_st
     in r
     | Error err ->
       (#{ex, fs_st = fs_st {ostore_st}, vnode}, Error err) 
     | Success obj ->
-      let szdata = u64_to_u32 (newsize - (newsize_aligned - u32_to_u64 bilbyFsBlockSize))
+      let szdata = u64_to_u32 (newsize - (newsize_aligned - upcast bilbyFsBlockSize))
       and len = bilbyFsObjHeaderSize + 8 + szdata
       and obj = obj {len}
       -- we shrink the last data block simply by changing obj.len
       in (#{ex, fs_st = fs_st {ostore_st}, vnode}, Success (Some obj))
   else
-    (#{ex, fs_st, vnode}, Success (None))
+    (#{ex, fs_st, vnode}, Success None)
 
 truncate_deletion_obj: FsopTruncateP -> RR FsopSetattrRR (Option Obj) ErrCode
 truncate_deletion_obj #{ex, fs_st, vnode, newsize} =
   let oldsize = vfs_inode_get_size vnode !vnode
-  and newsize_aligned = align64(newsize, u32_to_u64 bilbyFsBlockSize)
+  and newsize_aligned = align64 (newsize, upcast bilbyFsBlockSize)
   in if newsize_aligned < oldsize then
-    let block = newsize_aligned >> u32_to_u64 bilbyFsBlockShift
-    and oid = obj_id_data_mk(vfs_inode_get_ino vnode, u64_to_u32(block)) !vnode
+    let block = newsize_aligned >> upcast bilbyFsBlockShift
+    and oid = obj_id_data_mk (vfs_inode_get_ino vnode, u64_to_u32 block) !vnode
     and (ex, r) = obj_del_new (ex,oid)
     in r
-    | Error err ->
-      (#{ex, fs_st, vnode}, Error err) 
-    | Success obj ->
-      (#{ex, fs_st, vnode}, Success (Some obj))
-  else
-    (#{ex, fs_st, vnode}, Success (None))
+    | Error   err -> (#{ex, fs_st, vnode}, Error err) 
+    | Success obj -> (#{ex, fs_st, vnode}, Success (Some obj))
+  else (#{ex, fs_st, vnode}, Success None)
 
 type FsopTruncateP = #{ex:ExState, fs_st: FsState, vnode: VfsInode, newsize: U64}
 fsop_do_truncate: FsopTruncateP -> RR FsopSetattrRR () ErrCode

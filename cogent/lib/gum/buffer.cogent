@@ -56,7 +56,7 @@ buf_free(ex, buf {data,bound}) =
 
 {-# cinline buf_length #-}
 buf_length: Buffer! -> U32
-buf_length buf = wordarray_length (buf.data)
+buf_length buf = wordarray_length[U8] (buf.data)
 
 {-# cinline buf_set_bound #-}
 buf_set_bound: (Buffer, BufOffs) -> R Buffer Buffer
