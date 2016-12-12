@@ -15,6 +15,7 @@ module Cogent.Parser where
 
 import Cogent.Common.Syntax hiding (Prefix)
 import Cogent.Common.Types
+import Cogent.Compiler
 import qualified Cogent.Preprocess as PP
 import Cogent.Surface
 import Cogent.Util (getStdIncFullPath)
@@ -390,5 +391,4 @@ tygen = do
 parseFromFile :: Parser a () -> FilePath -> IO (Either ParseError a)
 parseFromFile p fname = do
   input <- readFile fname
-  return $ runP p () (takeFileName fname) input
-
+  return $ runP p () (if __cogent_ffull_src_path then fname else takeFileName fname) input
