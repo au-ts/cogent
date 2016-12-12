@@ -1,0 +1,13 @@
+type RbtNode k v
+
+type ElemAO a acc obsv = #{elem:a, acc:acc, obsv:obsv!}
+
+type RbtConsumeF k v acc obsv = RbtElemAO k v acc obsv -> acc
+type RbtCondF k v acc obsv = (RbtElemAO k v acc obsv)! -> Bool
+
+type RbtElemAO k v acc obsv = ElemAO (RbtNode k v) acc obsv
+
+rbtFTrue: all(k:< DS, v :<DS, acc, obsv). RbtCondF k v acc obsv
+rbtFTrue _ = True
+
+
