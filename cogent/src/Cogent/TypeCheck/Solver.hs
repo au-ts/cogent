@@ -190,8 +190,10 @@ rule Unsat   {} = return Nothing
 rule SemiSat {} = return Nothing
 rule Sat     {} = return Nothing
 
-rule (Share  (T TVar {}) _) = return Nothing
-rule (Drop   (T TVar {}) _) = return Nothing
+rule (Share  (T (TVar _ s)) _) | s         = return $ Just Sat
+                               | otherwise = return $ Nothing
+rule (Drop   (T (TVar _ s)) _) | s         = return $ Just Sat
+                               | otherwise = return $ Nothing
 rule (Escape (T TVar {}) _) = return Nothing
 
 rule (Share  (T (TTuple xs)) m) = return . Just . mconcat $ map (flip Share m) xs
