@@ -16,11 +16,11 @@ sum_body #{..} = (acc + idx, Iterate())
 caller: (ExState) -> Result (ExState) (ExState)
 caller (ex) = 
 	let iter = seq32[U32, (), ()]
-  and (sum,r) = iter(#{frm = 0, to = 21, step = 1, f = sum_body, acc = (0), obsv = ()})
+  and (sum,r) = iter #{frm = 0, to = 21, step = 1, f = sum_body, acc = 0, obsv = ()}
   in r
-  | Break () -> Error (ex)
+  | Break () -> Error ex
   | Iterate () -> 
-  	let _ = _cogent_debug ("answer was ")
-  	and _ = _cogent_debug_u32 (sum)
-  	and _ = _cogent_debug ("\n")
-  	in Success (ex)
+  	let _ = _cogent_debug "answer was "
+  	and _ = _cogent_debug_u32 sum
+  	and _ = _cogent_debug "\n"
+  	in Success ex

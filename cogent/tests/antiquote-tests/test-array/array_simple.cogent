@@ -39,12 +39,15 @@ free_array_item (ex, elem) =
 	and _ = _cogent_debug ("freeing some element\n")
 	in free_CoolType (ex, elem_t)
 
-caller: (ExState) -> R (ExState) (ExState)
-caller (ex) =
+
+-- type R a b = <Success a | Error b>
+
+caller: ExState -> R ExState ExState
+caller ex =
 	array_create [CoolType] (ex, const_arraySize)
 	| Success (ex, arr) ->
 		-- make a new thing
-		malloc_CoolType (ex)
+		malloc_CoolType ex
 		| Success (ex, thing_t) ->
 			let thing = thing_t { a = 42, b = 43 }
 			and updater = array_modify[CoolType, (ExState, Option CoolType)]
@@ -57,38 +60,37 @@ caller (ex) =
 					| (arr, maybe_item) ->
 						maybe_item
 						| Some item ->
-							let _ = _cogent_debug ("got item with a = ")
-							and _ = _cogent_debug_u32 (item.a) !item
-							and _ = _cogent_debug (" and b = ")
+							let _ = _cogent_debug "got item with a = "
+							and _ = _cogent_debug_u32 item.a !item
+							and _ = _cogent_debug " and b = "
 							and _ = test_stack_probe ()
-							and _ = _cogent_debug_u32 (item.b) !item
-							and _ = _cogent_debug ("\n")
+							and _ = _cogent_debug_u32 item.b !item
+							and _ = _cogent_debug "\n"
 							-- put in slot 0
-							in updater (#{arr, idx = 0, f = set_array_item, acc = (ex, Some item)})
+							in updater #{arr, idx = 0, f = set_array_item, acc = (ex, Some item)}
 							| r { acc = (ex, should_not_val), .. } ->
 								should_not_val
 								| None _ ->
-									let ex = array_free[CoolType] (#{arr, f = free_array_item, ex})
+									let ex = array_free[CoolType] #{arr, f = free_array_item, ex}
 									and _ = test_stack_probe ()
-									in Success (ex)
+									in Success ex
 								| Some val ->
 									-- should not happen
 									let val_t { .. } = val
 									and ex = free_CoolType (ex, val_t)
-									and ex = array_free[CoolType] (#{arr, f = free_array_item, ex})
-									in Error (ex)
+									and ex = array_free[CoolType] #{arr, f = free_array_item, ex}
+									in Error ex
 						| _ ->
-							let _ = _cogent_debug ("item not in arr?")
+							let _ = _cogent_debug "item not in arr?"
 							and ex = array_free[CoolType] (#{arr, f = free_array_item, ex})
 							in Error (ex)
 				| Some val ->
 					-- should not happen
 					let val_t { .. } = val
 					and ex = free_CoolType (ex, val_t)
-					and ex = array_free[CoolType] (#{arr, f = free_array_item, ex})
-					in Error (ex)
-		| Error (ex) ->
-			let ex = array_free[CoolType] (#{arr, f = free_array_item, ex})
-			in Error (ex)
-	| Error (ex) ->
-		Error (ex)
+					and ex = array_free[CoolType] #{arr, f = free_array_item, ex}
+					in Error ex
+		| Error ex ->
+			let ex = array_free[CoolType] #{arr, f = free_array_item, ex}
+			in Error ex
+	| Error ex -> Error ex

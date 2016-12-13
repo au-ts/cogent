@@ -10,12 +10,12 @@
 
 struct $id:(ListNode a) {
    struct $id:(ListNode a)* next;
-   $ty:(a) val;
+   $ty:a val;
 };
 typedef struct $id:(ListNode a) $id:(ListNode a);
 
 struct $id:(List' a) {
-   $ty:(a) head;
+   $ty:a head;
 };
 typedef struct $id:(List' a) $id:(List' a);
 

@@ -26,7 +26,7 @@ listnode_put: all(a). (ListNode a, a) -> ListNode a
 type List' a
 type List a = List' (ListNode a)
 {-# cinline list_create #-}
-list_create: all(a). (ExState) -> R (ExState, List a) (ExState) -- creates an empty list does not allocate
+list_create: all(a). ExState -> R (ExState, List a) ExState  -- creates an empty list does not allocate
 
 type ListFreeP a = #{list:List a, f:FreeF (ListNode a), ex: ExState}
 {-# cinline list_free #-}

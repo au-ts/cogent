@@ -22,7 +22,7 @@ sum_for_n_iters (#{obj = i, acc = (cur_iter, sum), obsv = _}) =
     ((cur_iter, (i + sum)), Next ())
 
 caller: (ExState) -> Result (ExState) (ExState)
-caller (ex) = 
+caller ex = 
 	let iter = iterate[U32, (), (), (U32, U32), U32]
   and ((_,sum), r) = iter(#{
         gen = seq32_generator,
@@ -35,10 +35,10 @@ caller (ex) =
       -- since we always just ask for the next input and update
       -- our iterator
       let _ = _cogent_debug ("had error?")
-      in Error (ex)
+      in Error ex
   | Stop () -> 
       -- iterator exhausted (ie we reached 20 iterations)
       let _ = _cogent_debug ("answer was ")
       and _ = _cogent_debug_u32 (sum)
       and _ = _cogent_debug ("\n")
-      in Success (ex)
+      in Success ex
