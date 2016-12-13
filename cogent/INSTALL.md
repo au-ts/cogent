@@ -21,12 +21,13 @@ _NOTE_: The following steps show manual installation. It's *not* recommanded for
 
   See https://www.haskell.org/cabal/download.html for details
   
-  NOTE 1): Please install `cabal-install`, *not* `Cabal`; be sure that you have a proper version of `cabal-install` which 
-           is compatible with your GHC version;
-       2): Old versions of `cabal-install` does not support sandbox. Please update to appropriate version (>= 1.18)
-       3): If `cabal-install` is built against an older version of Cabal, you might get
-             a warning when you build Cogent. To solve it, when you have `cabal-install` installed, build again against
-             a newer version of Cabal library.
+_NOTE_:
+ * Please install `cabal-install`, *not* `Cabal`; be sure that you have a proper version of `cabal-install` which 
+   is compatible with your GHC version;
+ * Old versions of `cabal-install` does not support sandbox. Please update to appropriate version (>= 1.18)
+ * If `cabal-install` is built against an older version of Cabal, you might get
+   a warning when you build Cogent. To solve it, when you have `cabal-install` installed, build again against
+   a newer version of Cabal library.
 
 In addition to GHC, Cogent also requires `cabal-install`, for building and packaging.
 
@@ -65,3 +66,4 @@ To build Cogent with Stack, run the following command:
 This will install Cogent, and all the related files in `./local/bin` on Linux.
 If you haven't configured already, there might be some configuration/setup related
 to Stack that might be required.
+
