@@ -17,8 +17,8 @@ sudo apt-get install libgmp-dev libncurses5-dev # Haskell
 sudo apt-get install python-lxml python-psutil python-pycparser # regression tester
 ```
 
-You need a recent version of Glasgow Haskell Compiler (7.8.4+), cabal-install, alex, and happy.
-For instructions, consult file `cogent/README.md` for details. 
+You need a recent version of Glasgow Haskell Compiler (7.10.1+), cabal-install, alex, and happy.
+For instructions, consult file [cogent/README.md](./cogent/README.md) for details. 
 Or, if unsure, install Haskell Platform:
 ```
 wget 'https://haskell.org/platform/download/7.10.2/haskell-platform-7.10.2-a-unknown-linux-deb7.tar.gz'
@@ -96,7 +96,7 @@ regression/run_tests.py -x l4v -x isabelle -v sync iget
 
 ## File systems
 
-See `impl/ext2/README` and `impl/bilby/README` for more information on how to build the kernel modules
+See [impl/ext2/README](./impl/ext2/README) and [impl/bilby/README](./impl/bilby/README) for more information on how to build the kernel modules
 
 
 ## Directory
