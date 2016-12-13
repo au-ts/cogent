@@ -230,9 +230,9 @@ instance (ExprType e, Pretty t, PrettyName pv, Pretty e) => Pretty (Expr t pv e)
   pretty (StringLit s)       = literal (string $ show s)
   pretty (Unitel)            = string "()"
   pretty (PrimOp n [a,b])
-     | LeftAssoc l  <- associativity n = pretty' (l+1) a <+> primop n <+> pretty' l b
-     | RightAssoc l <- associativity n = pretty' l a <+> primop n <+> pretty' (l+1)  b
-     | NoAssoc   l  <- associativity n = pretty' l a <+> primop n <+> pretty' l  b
+     | LeftAssoc  l <- associativity n = pretty' (l+1) a <+> primop n <+> pretty' l     b
+     | RightAssoc l <- associativity n = pretty' l     a <+> primop n <+> pretty' (l+1) b
+     | NoAssoc    l <- associativity n = pretty' l     a <+> primop n <+> pretty' l     b
   pretty (PrimOp n [e])      = primop n <+> pretty' 1 e
   pretty (PrimOp n es)       = primop n <+> tupled (map pretty es)
   -- pretty (Widen e)           = keyword "widen"  <+> pretty' 1 e
