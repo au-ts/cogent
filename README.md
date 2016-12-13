@@ -19,13 +19,6 @@ sudo apt-get install python-lxml python-psutil python-pycparser # regression tes
 
 You need a recent version of Glasgow Haskell Compiler (7.10.1+), cabal-install, alex, and happy.
 For instructions, consult file [cogent/README.md](./cogent/README.md) for details. 
-Or, if unsure, install Haskell Platform:
-```
-wget 'https://haskell.org/platform/download/7.10.2/haskell-platform-7.10.2-a-unknown-linux-deb7.tar.gz'
-tar -xzf haskell-platform-7.10.2-a-unknown-linux-deb7.tar.gz
-sudo ./install-haskell-platform.sh
-sudo apt-get install libgmp-dev libncurses-dev
-```
 
 [`l4v`](https://github.com/seL4/l4v/tree/47d5b746fc2f052586db11aa6048c5ae7c357155) and [`isabelle`](https://github.com/seL4/isabelle/tree/Isabelle2015) are two submodules in the repository.
 To get them: `git submodule update --init --recursive`.

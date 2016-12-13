@@ -10,12 +10,24 @@ following version of GHC:
 * 8.0.1
 * 7.8.4 (possibly)
 
-_NOTE_: The following steps show manual installation. It's *not* recommanded for users who are not familiar with Haskell's eco-system.
+### Installing Haskell Compiler
+
+#### From Official Website
+See https://www.haskell.org/downloads for information.
+
+#### Commands for Installing Haskell Platform
+```
+wget 'https://haskell.org/platform/download/7.10.2/haskell-platform-7.10.2-a-unknown-linux-deb7.tar.gz'
+tar -xzf haskell-platform-7.10.2-a-unknown-linux-deb7.tar.gz
+sudo ./install-haskell-platform.sh
+```
+
+#### Instructions for Manual Installation
+_NOTE_: It's *not* recommanded for users who are not familiar with Haskell's eco-system.
 
 1. Install GHC (version 7.10.3 for example)
-
-  a) Download the right GHC distribution from https://www.haskell.org/ghc/download_ghc_7_10_3
-  b) Follow the instructions to install it (details omitted here)
+  * Download the right GHC distribution from https://www.haskell.org/ghc/download_ghc_7_10_3
+  * Follow the instructions to install it (details omitted here)
 
 2. Install cabal-install, and add `~/.cabal/bin` (or the directory in which cabal is installed) to your `$PATH`
 
@@ -29,7 +41,10 @@ _NOTE_:
    a warning when you build Cogent. To solve it, when you have `cabal-install` installed, build again against
    a newer version of Cabal library.
 
+### Other Dependencies
+
 In addition to GHC, Cogent also requires `cabal-install`, for building and packaging.
+(It's likely that `cabal-install` has been installed when you installed GHC)
 
 Cogent has the following dependencies:
 * [alex](https://www.haskell.org/alex/)
@@ -38,6 +53,11 @@ Cogent has the following dependencies:
 To install these dependencies, run:
 
 `$ cabal install happy alex`
+
+The following packages are needed by Cogent:
+```
+sudo apt-get install libgmp-dev libncurses-dev
+```
 
 ## Installing Development Versions
 
