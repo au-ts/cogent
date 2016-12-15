@@ -138,12 +138,12 @@ notWhnf (T TBang  {})    = True
 notWhnf (U u)            = True
 notWhnf _                = False
 
-isIrrefutable :: Pattern n -> Bool
-isIrrefutable (PIrrefutable p) = True
+isIrrefutable :: RawPatn -> Bool
+isIrrefutable (RP (PIrrefutable p)) = True
 isIrrefutable _ = False
 
-patternTag :: Pattern n -> Maybe TagName
-patternTag (PCon t _) = Just t
+patternTag :: RawPatn -> Maybe TagName
+patternTag (RP (PCon t _)) = Just t
 patternTag _ = Nothing
 
 -- isVarCon :: Pattern a -> Bool
@@ -170,7 +170,7 @@ rule (Exhaustive (T (TVariant n)) ps)
                then Just Sat
                else Just $ Unsat (PatternsNotExhaustive (T (TVariant n)) (S.toList (s2 S.\\ s1)))
 
-rule (Exhaustive (T (TCon "Bool" [] Unboxed)) [PBoolLit t, PBoolLit f])
+rule (Exhaustive (T (TCon "Bool" [] Unboxed)) [RP (PBoolLit t), RP (PBoolLit f)])
    = return $ if not (t && f) && (t || f) then Just Sat
               else Just $ Unsat $ PatternsNotExhaustive (T (TCon "Bool" [] Unboxed)) []
 
@@ -405,19 +405,17 @@ auto c = do
 
 -- applies whnf to every type in a constraint.
 simp :: Constraint -> TC Constraint
-simp (a :< b)         = (:<)       <$> traverse whnf a <*> traverse whnf b
-simp (Upcastable a b) = Upcastable <$> whnf a <*> whnf b
-simp (a :& b)         = (:&)       <$> simp a <*> simp b
-simp (Share  t m)     = Share      <$> whnf t <*> pure m
-simp (Drop   t m)     = Drop       <$> whnf t <*> pure m
-simp (Escape t m)     = Escape     <$> whnf t <*> pure m
-simp (a :@ c)         = (:@)       <$> simp a <*> pure c
-simp (Unsat e)        = pure (Unsat e)
-simp (SemiSat w)      = pure (SemiSat w)
-simp Sat              = pure Sat
-simp (Exhaustive t ps)
-  = Exhaustive <$> whnf t
-               <*> traverse (traverse (traverse whnf)) ps -- poetry!
+simp (a :< b)          = (:<)       <$> traverse whnf a <*> traverse whnf b
+simp (Upcastable a b)  = Upcastable <$> whnf a <*> whnf b
+simp (a :& b)          = (:&)       <$> simp a <*> simp b
+simp (Share  t m)      = Share      <$> whnf t <*> pure m
+simp (Drop   t m)      = Drop       <$> whnf t <*> pure m
+simp (Escape t m)      = Escape     <$> whnf t <*> pure m
+simp (a :@ c)          = (:@)       <$> simp a <*> pure c
+simp (Unsat e)         = pure (Unsat e)
+simp (SemiSat w)       = pure (SemiSat w)
+simp Sat               = pure Sat
+simp (Exhaustive t ps) = Exhaustive <$> whnf t <*> pure ps
 
 fresh :: VarOrigin -> Solver TCType
 fresh ctx = do

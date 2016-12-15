@@ -40,33 +40,47 @@ postE ctx e = do
   traceTC "post" (text "expression" <+> pretty e)
   withExceptT pure $ ExceptT (return $ fmap toTypedExpr $ normaliseE d e)
 
-postA :: [ErrorContext] -> [Alt TCName TCExpr] -> ExceptT [ContextualisedEW] TC [Alt TypedName TypedExpr]
+postA :: [ErrorContext] -> [Alt TCPatn TCExpr] -> ExceptT [ContextualisedEW] TC [Alt TypedPatn TypedExpr]
 postA ctx as = do
   d <- use knownTypes
   traceTC "post" (text "alternative" <+> pretty as)
   withExceptT pure $ ExceptT (return $ fmap toTypedAlts $ normaliseA d as)
 
--- posttc :: TypeDict -> TCExpr -> Either ContextualisedEW TypedExpr
--- posttc d = fmap toTypedExpr . normaliseE d
 
-
-normaliseA :: TypeDict -> [Alt TCName TCExpr] -> Either ContextualisedEW [Alt TCName TCExpr]
-normaliseA d as = traverse (traverse (normaliseE d) >=> ttraverse (traverse f)) as
-  where f = contextualise . normaliseT d
+normaliseA :: TypeDict -> [Alt TCPatn TCExpr] -> Either ContextualisedEW [Alt TCPatn TCExpr]
+normaliseA d as = traverse (traverse (normaliseE d) >=> ttraverse (normaliseP d)) as
 
 normaliseE :: TypeDict -> TCExpr -> Either ContextualisedEW TCExpr
-normaliseE d te@(TE t e p) = case normaliseE' d e of
+normaliseE d te@(TE t e l) = case normaliseE' d e of
   Left (es,c) -> Left (ctx:es, c)
   Right e'    -> case normaliseT d t of
     Left  er -> Left  ([ctx], Left er)
-    Right t' -> Right (TE t' e' p)
+    Right t' -> Right (TE t' e' l)
   where
-    ctx = InExpression (toLocExpr (toLocType) te) t
+    ctx = InExpression (toLocExpr toLocType te) t
+    normaliseE' :: TypeDict
+                -> Expr TCType TCPatn TCIrrefPatn TCExpr
+                -> Either ContextualisedEW (Expr TCType TCPatn TCIrrefPatn TCExpr)
+    normaliseE' d =   traverse (normaliseE d)
+                  >=> ttraverse (normaliseIP d)
+                  >=> tttraverse (normaliseP d)
+                  >=> ttttraverse (contextualise . normaliseT d)
 
-normaliseE' :: TypeDict -> Expr TCType TCName TCExpr -> Either ContextualisedEW (Expr TCType TCName TCExpr)
-normaliseE' d =   traverse (normaliseE d)
-              >=> ttraverse (traverse (contextualise . normaliseT d))
-              >=> tttraverse (contextualise . normaliseT d)
+normaliseP :: TypeDict -> TCPatn -> Either ContextualisedEW TCPatn
+normaliseP d tp@(TP p l) = case normaliseP' d p of
+    Left (es,c) -> Left (ctx:es, c)
+    Right p'    -> Right (TP p' l)
+  where ctx = InPattern (toLocPatn toLocType tp)
+        normaliseP' :: TypeDict -> Pattern TCIrrefPatn -> Either ContextualisedEW (Pattern TCIrrefPatn)
+        normaliseP' d = traverse (normaliseIP d)
+
+normaliseIP :: TypeDict -> TCIrrefPatn -> Either ContextualisedEW TCIrrefPatn
+normaliseIP d tip@(TIP ip l) = case normaliseIP' d ip of
+    Left (es,c) -> Left (ctx:es, c)
+    Right ip'   -> Right (TIP ip' l)
+  where ctx = InIrrefutablePattern (toLocIrrefPatn toLocType tip)
+        normaliseIP' :: TypeDict -> IrrefutablePattern TCName TCIrrefPatn -> Either ContextualisedEW (IrrefutablePattern TCName TCIrrefPatn)
+        normaliseIP' d = traverse (normaliseIP d) >=> ttraverse (secondM (contextualise . normaliseT d))
 
 normaliseT :: TypeDict -> TCType -> Either TypeError TCType
 normaliseT d (T (TUnbox t)) = do

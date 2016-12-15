@@ -105,9 +105,9 @@ associativity = S.associativity . symbolOp
 
 class ExprType a where
   levelExpr :: a -> Int  -- associativity levels
-  isVar :: a -> String -> Bool
+  isVar :: a -> VarName -> Bool
 
-instance ExprType (Expr t pv e) where
+instance ExprType (Expr t p ip e) where
   levelExpr (App {}) = 1
   levelExpr (PrimOp n [_,_]) = level (associativity n)
   levelExpr (Member {}) = 0
@@ -129,6 +129,40 @@ instance ExprType RawExpr where
 instance ExprType (TExpr t) where
   levelExpr (TE _ e _) = levelExpr e
   isVar (TE _ e _)     = isVar e
+
+-- ------------------------------------
+
+class PatnType a where
+  isPVar :: a -> VarName -> Bool
+  prettyIP :: a -> Doc
+  prettyB :: (Pretty t, Pretty e, ExprType e) => (a, Maybe t, e) -> Bool -> Doc  -- binding
+
+instance (PrettyName pv, PatnType ip, Pretty ip) => PatnType (IrrefutablePattern pv ip) where
+  isPVar (PVar pv) = isName pv
+  isPVar _ = const False
+
+  prettyIP p@(PTake {}) = parens (pretty p)
+  prettyIP p = pretty p
+
+  prettyB (p, Just t, e) i
+       = group (pretty p <+> symbol ":" <+> pretty t <+> symbol "=" <+> (if i then (pretty' 100) else pretty) e)
+  prettyB (p, Nothing, e) i
+       = group (pretty p <+> symbol "=" <+> (if i then (pretty' 100) else pretty) e)
+
+instance PatnType RawIrrefPatn where
+  isPVar   (RIP p) = isPVar p
+  prettyIP (RIP p) = prettyIP p
+  prettyB  (RIP p,mt,e) = prettyB (p,mt,e)
+
+instance PatnType LocIrrefPatn where
+  isPVar   (LocIrrefPatn _ p) = isPVar p
+  prettyIP (LocIrrefPatn _ p) = prettyIP p
+  prettyB  (LocIrrefPatn _ p,mt,e) = prettyB (p,mt,e)
+
+instance (Pretty t) => PatnType (TIrrefPatn t) where
+  isPVar   (TIP p _) = isPVar p
+  prettyIP (TIP p _) = prettyIP p
+  prettyB  (TIP p _,mt,e) = prettyB (p,mt,e)
 
 -- ------------------------------------
 
@@ -190,15 +224,24 @@ instance Pretty Likelihood where
   pretty Unlikely = symbol "~>"
   pretty Regular  = symbol "->"
 
-instance PrettyName pv => Pretty (IrrefutablePattern pv) where
+instance (PrettyName pv, PatnType ip, Pretty ip) => Pretty (IrrefutablePattern pv ip) where
   pretty (PVar v) = prettyName v
   pretty (PTuple ps) = tupled (map pretty ps)
-  pretty (PUnboxedRecord fs) = string "#" <> record (map handleTakeAssign fs)
+  pretty (PUnboxedRecord fs) = string "#" <> record (fmap handleTakeAssign fs)
   pretty (PUnderscore) = symbol "_"
   pretty (PUnitel) = string "()"
-  pretty (PTake v fs) = prettyName v <+> record (map handleTakeAssign fs)
+  pretty (PTake v fs) = prettyName v <+> record (fmap handleTakeAssign fs)
 
-instance PrettyName pv => Pretty (Pattern pv) where
+instance Pretty RawIrrefPatn where
+  pretty (RIP ip) = pretty ip
+
+instance Pretty LocIrrefPatn where
+  pretty (LocIrrefPatn _ ip) = pretty ip
+
+instance Pretty t => Pretty (TIrrefPatn t) where
+  pretty (TIP ip _) = pretty ip
+
+instance (PatnType ip, Pretty ip) => Pretty (Pattern ip) where
   pretty (PCon c [] )     = tagname c
   pretty (PCon c [p])     = tagname c <+> prettyIP p
   pretty (PCon c ps )     = tagname c <+> spaceList (map prettyIP ps)
@@ -207,19 +250,28 @@ instance PrettyName pv => Pretty (Pattern pv) where
   pretty (PCharLit c)     = literal (string $ show c)
   pretty (PIrrefutable p) = pretty p
 
-instance (Pretty t, PrettyName pv, Pretty e, ExprType e) => Pretty (Binding t pv e) where
+instance Pretty RawPatn where
+  pretty (RP p) = pretty p
+
+instance Pretty LocPatn where
+  pretty (LocPatn _ p) = pretty p
+
+instance Pretty t => Pretty (TPatn t) where
+  pretty (TP p _) = pretty p
+
+instance (Pretty t, PatnType ip, Pretty e, ExprType e) => Pretty (Binding t ip e) where
   pretty (Binding p t e []) = prettyB (p,t,e) False
   pretty (Binding p t e bs)
      = prettyB (p,t,e) True <+> hsep (map (letbangvar . ('!':)) bs)
 
-instance (PrettyName pv, Pretty e) => Pretty (Alt pv e) where
+instance (Pretty p, Pretty e) => Pretty (Alt p e) where
   pretty (Alt p arrow e) = symbol "|" <+> pretty p <+> group (pretty arrow <+> pretty e)
 
 instance Pretty Inline where
   pretty Inline = keyword "inline" <+> empty
   pretty NoInline = empty
 
-instance (ExprType e, Pretty t, PrettyName pv, Pretty e) => Pretty (Expr t pv e) where
+instance (ExprType e, Pretty t, Pretty p, PatnType ip, Pretty ip, Pretty e) => Pretty (Expr t p ip e) where
   pretty (Var x)             = varname x
   pretty (TypeApp x ts note) = pretty note <> varname x
                                  <> typeargs (map (\case Nothing -> symbol "_"; Just t -> pretty t) ts)
@@ -342,15 +394,16 @@ instance Pretty t => Pretty (Polytype t) where
 renderTypeDecHeader n vs = keyword "type" <+> typename n <> hcat (map ((space <>) . typevar) vs)
                                           <+> symbol "=" 
 
-prettyFunDef typeSigs v pt [Alt (PIrrefutable p) Regular e] = (if typeSigs then ( funname v <+> symbol ":" <+> pretty pt <$>) else id) $
-                                                                   (funname v <+> prettyIP p <+> group (indent (symbol "=" <$> pretty e)))
-
-prettyFunDef typeSigs v pt alts = (if typeSigs then ( funname v <+> symbol ":" <+> pretty pt <$>) else id) $
+prettyFunDef :: (Pretty p, Pretty e, Pretty t) => Bool -> FunName -> Polytype t -> [Alt p e] -> Doc
+prettyFunDef typeSigs v pt [Alt p Regular e] = (if typeSigs then (funname v <+> symbol ":" <+> pretty pt <$>) else id)
+                                                 (funname v <+> pretty p <+> group (indent (symbol "=" <$> pretty e)))
+prettyFunDef typeSigs v pt alts = (if typeSigs then (funname v <+> symbol ":" <+> pretty pt <$>) else id) $
                                        (indent (funname v <> mconcat (map ((hardline <>) . indent . pretty) alts)))
-prettyConstDef typeSigs v t e  = (if typeSigs then ( funname v <+> symbol ":" <+> pretty t <$>) else id) $
+
+prettyConstDef typeSigs v t e  = (if typeSigs then (funname v <+> symbol ":" <+> pretty t <$>) else id) $
                                          (funname v <+> group (indent (symbol "=" <+> pretty e)))
 
-instance (Pretty t, PrettyName b, Pretty e) => Pretty (TopLevel t b e) where
+instance (Pretty t, Pretty p, Pretty e) => Pretty (TopLevel t p e) where
   pretty (DocBlock {}) = string ""
   pretty (TypeDec n vs t) = keyword "type" <+> typename n <> hcat (map ((space <>) . typevar) vs)
                                            <+> indent (symbol "=" </> pretty t)
@@ -423,10 +476,11 @@ instance Pretty TypeError where
   pretty (UnsolvedConstraint c os)       = analyseLeftover c os
   pretty (RecordWildcardsNotSupported)   = err "Record wildcards are not supported"
   pretty (NotAFunctionType t)            = err "Type" <+> pretty t <+> err "is not a function type"
-  pretty (DuplicateVariableInPattern vn pat)       = err "Duplicate variable" <+> varname vn <+> err "in pattern:"
-                                                     <$> pretty pat
-  pretty (DuplicateVariableInIrrefPattern vn ipat) = err "Duplicate variable" <+> varname vn <+> err "in (irrefutable) pattern:"
-                                                     <$> pretty ipat
+  pretty (DuplicateVariableInPattern vn) = err "Duplicate variable" <+> varname vn <+> err "in pattern"
+  -- pretty (DuplicateVariableInPattern vn pat)       = err "Duplicate variable" <+> varname vn <+> err "in pattern:"
+  --                                                    <$> pretty pat
+  -- pretty (DuplicateVariableInIrrefPattern vn ipat) = err "Duplicate variable" <+> varname vn <+> err "in (irrefutable) pattern:"
+  --                                                    <$> pretty ipat
   pretty (TakeFromNonRecord fs t)        = err "Cannot" <+> keyword "take" <+> err "fields"
                                            <+> (case fs of Nothing  -> tupled (fieldname ".." : [])
                                                            Just fs' -> tupled1 (map fieldname fs'))
@@ -535,11 +589,22 @@ prettyCtx (SolvingConstraint c) _ = context "from constraint" <+> indent (pretty
 prettyCtx (ThenBranch) _ = context "in the" <+> keyword "then" <+> context "branch"
 prettyCtx (ElseBranch) _ = context "in the" <+> keyword "else" <+> context "branch"
 prettyCtx (InExpression e t) True = context "when checking that the expression at ("
-                                                  <> pretty (posOfE e) <> context ")"
-                                       <$> (indent' (pretty (stripLocE e)))
-                                       <$> context "has type" <$> (indent' (pretty t))
+                                      <> pretty (posOfE e) <> context ")"
+                                      <$> (indent' (pretty (stripLocE e)))
+                                      <$> context "has type" <$> (indent' (pretty t))
 prettyCtx (InExpression e t) False = context "when checking the expression at ("
-                                                  <> pretty (posOfE e) <> context ")"
+                                       <> pretty (posOfE e) <> context ")"
+-- FIXME: more specific info for patterns
+prettyCtx (InPattern p) True = context "when checking the pattern at ("
+                                 <> pretty (posOfP p) <> context ")"
+                                 <$> (indent' (pretty (stripLocP p)))
+prettyCtx (InPattern p) False = context "when checking the pattern at ("
+                                  <> pretty (posOfP p) <> context ")"
+prettyCtx (InIrrefutablePattern ip) True = context "when checking the pattern at ("
+                                             <> pretty (posOfIP ip) <> context ")"
+                                             <$> (indent' (pretty (stripLocIP ip)))
+prettyCtx (InIrrefutablePattern ip) False = context "when checking the pattern at ("
+                                              <> pretty (posOfIP ip) <> context ")"
 prettyCtx (NthAlternative n p) _ = context "in the" <+> nth n <+> context "alternative" <+> pretty p
   where  nth 1 = context "1st"
          nth 2 = context "2nd"
@@ -564,27 +629,15 @@ pretty' :: (Pretty a, ExprType a) => Int -> a -> Doc
 pretty' l x | levelExpr x < l = pretty x
             | otherwise       = parens (indent (pretty x))
 
-handleTakeAssign :: (PrettyName pv) => Maybe (FieldName, IrrefutablePattern pv) -> Doc
+handleTakeAssign :: (PatnType ip, Pretty ip) => Maybe (FieldName, ip) -> Doc
 handleTakeAssign Nothing = fieldname ".."
-handleTakeAssign (Just (s, PVar x)) | isName x s = fieldname s
+handleTakeAssign (Just (s, e)) | isPVar e s = fieldname s
 handleTakeAssign (Just (s, e)) = fieldname s <+> symbol "=" <+> pretty e
 
 handlePutAssign :: (ExprType e, Pretty e) => Maybe (FieldName, e) -> Doc
 handlePutAssign Nothing = fieldname ".."
 handlePutAssign (Just (s, e)) | isVar e s = fieldname s
 handlePutAssign (Just (s, e)) = fieldname s <+> symbol "=" <+> pretty e
-
-prettyIP :: (PrettyName pv) => IrrefutablePattern pv -> Doc
-prettyIP e@(PTake {}) = parens (pretty e)
-prettyIP e = pretty e
-
--- bindings
-prettyB :: (PrettyName pv, Pretty t, Pretty e, ExprType e)
-        => (IrrefutablePattern pv, Maybe t, e) -> Bool -> Doc
-prettyB (p, Just t, e) i
-     = group (pretty p <+> symbol ":" <+> pretty t <+> symbol "=" <+> (if i then (pretty' 100) else pretty) e)
-prettyB (p, Nothing, e) i
-     = group (pretty p <+> symbol "=" <+> (if i then (pretty' 100) else pretty) e)
 
 
 -- top-level function

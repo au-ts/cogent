@@ -33,10 +33,10 @@ instance Monoid Subst where
 apply :: Subst -> TCType -> TCType
 apply = forFlexes . lookup
 
-applyAlts :: Subst -> [Alt TCName TCExpr] -> [Alt TCName TCExpr]
+applyAlts :: Subst -> [Alt TCPatn TCExpr] -> [Alt TCPatn TCExpr]
 applyAlts = map . applyAlt
 
-applyAlt :: Subst -> Alt TCName TCExpr -> Alt TCName TCExpr
+applyAlt :: Subst -> Alt TCPatn TCExpr -> Alt TCPatn TCExpr
 applyAlt s = fmap (applyE s) . ffmap (fmap (apply s))
 
 applyCtx :: Subst -> ErrorContext -> ErrorContext
@@ -69,14 +69,15 @@ applyC s (Escape t m) = Escape (apply s t) m
 applyC s (Unsat e) = Unsat (applyErr s e)
 applyC s (SemiSat w) = SemiSat (applyWarn s w)
 applyC s Sat = Sat
-applyC s (Exhaustive t ps) = Exhaustive (apply s t) (fmap (fmap (fmap (apply s))) ps)
+applyC s (Exhaustive t ps) = Exhaustive (apply s t) ps
 
 applyE :: Subst -> TCExpr -> TCExpr
-applyE s (TE t x p) = TE (apply s t)
-                      ( fmap (fmap (apply s))
-                      $ ffmap (fmap (apply s))
-                      $ fffmap (apply s) x)
-                      p
+applyE s (TE t e l) = TE (apply s t)
+                         ( fmap (fmap (apply s))
+                         $ ffmap (fmap (apply s))
+                         $ fffmap (fmap (apply s))
+                         $ ffffmap (apply s) e)
+                         l
 
 singleton :: Int -> TCType -> Subst
 singleton i t = Subst (M.fromList [(i, t)])

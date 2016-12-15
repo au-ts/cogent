@@ -33,6 +33,7 @@ import Paths_cogent
 
 newtype Flip  f (a :: a') (b :: b') = Flip { unflip :: f b a }
 newtype Flip2 f (a :: a') (b :: b') (c :: c') = Flip2 { unflip2 :: f c b a }
+newtype Flip3 f (a :: a') (b :: b') (c :: c') (d :: d') = Flip3 { unflip3 :: f d c b a }
 
 ffmap :: (Functor (Flip f c)) => (a -> b) -> f a c -> f b c
 ffmap f = unflip . fmap f . Flip
@@ -40,11 +41,17 @@ ffmap f = unflip . fmap f . Flip
 fffmap :: (Functor (Flip2 f a b)) => (c -> c') -> f c b a -> f c' b a
 fffmap f = unflip2 . fmap f . Flip2
 
-ttraverse :: (Traversable (Flip f c), Applicative m) => (a -> m b) -> f a c -> m (f b c)
+ffffmap :: (Functor (Flip3 f a b c)) => (d -> d') -> f d c b a -> f d' c b a
+ffffmap f = unflip3 . fmap f . Flip3
+
+ttraverse :: (Traversable (Flip f b), Applicative m) => (a -> m a') -> f a b -> m (f a' b)
 ttraverse f = fmap unflip . traverse f . Flip
 
-tttraverse :: (Traversable (Flip2 f x c), Applicative m) => (a -> m b) -> f a c x -> m (f b c x)
+tttraverse :: (Traversable (Flip2 f c b), Applicative m) => (a -> m a') -> f a b c -> m (f a' b c)
 tttraverse f = fmap unflip2 . traverse f . Flip2
+
+ttttraverse :: (Traversable (Flip3 f d c b), Applicative m) => (a -> m a') -> f a b c d -> m (f a' b c d)
+ttttraverse f = fmap unflip3 . traverse f . Flip3
 
 --
 -- name conversion
