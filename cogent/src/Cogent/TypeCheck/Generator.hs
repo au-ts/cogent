@@ -65,12 +65,12 @@ runCG g vs a = do
 
 fresh :: (?loc :: SourcePos) => CG TCType
 fresh = fresh' (ExpressionAt ?loc)
-
-fresh' :: VarOrigin -> CG TCType
-fresh' ctx = do
-  i <- flexes <<%= succ
-  flexOrigins %= IM.insert i ctx
-  return $ U i
+  where
+    fresh' :: VarOrigin -> CG TCType
+    fresh' ctx = do
+      i <- flexes <<%= succ
+      flexOrigins %= IM.insert i ctx
+      return $ U i
 
 cgMany :: (?loc :: SourcePos) => [LocExpr] -> CG ([TCType], Constraint, [TCExpr])
 cgMany es = do
