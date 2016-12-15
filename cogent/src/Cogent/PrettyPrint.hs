@@ -443,41 +443,42 @@ instance Pretty TypeError where
   pretty (TypeWarningAsError w)          = pretty w
 
 instance Pretty TypeWarning where
-  pretty (UnusedLocalBind v) = warn "Warning: [--Wunused-local-binds]" <$$> indent' (warn "Defined but not used:" <+> pretty v)
+  pretty (UnusedLocalBind v) = warn "[--Wunused-local-binds]" <$$> indent' (warn "Defined but not used:" <+> pretty v)
 
 instance Pretty TypeEW where
-  pretty = either pretty pretty
+  pretty = either ((err "Error:" <+>) . pretty) ((warn "Warning:" <+>) . pretty)
 
 instance Pretty VarOrigin where
   pretty (ExpressionAt l) = warn ("the term at location " ++ show l)
   pretty (BoundOf a b d) = warn ("taking the " ++ show d ++ " of ") <$> pretty a <$> warn "and" <$> pretty b
 
 analyseLeftover :: Constraint -> I.IntMap VarOrigin -> Doc
-analyseLeftover c@(F t :< F u) os | Just t' <- flexOf t
-                                  , Just u' <- flexOf u
+analyseLeftover c@(F t :< F u) os
+    | Just t' <- flexOf t
+    , Just u' <- flexOf u
     = vcat $ err "A subtyping constraint " <>  pretty c <> err " can't be solved because both sides are unknown."
-           : map (\i -> warn "-- The unknown" <+> pretty (U i) <+> warn "originates from" <+> pretty (I.lookup i os))
+           : map (\i -> warn "• The unknown" <+> pretty (U i) <+> warn "originates from" <+> pretty (I.lookup i os))
                  (nub [t',u'])
     | Just t' <- flexOf t
     = vcat $ (case t of
         U _ -> err "Constraint " <> pretty c <> err " can't be solved as another constraint blocks it."
         _   -> err "A subtyping constraint " <>  pretty c
-          <> err " can't be solved because the LHS is unknown and uses non-injective operators (like !).")
-           : map (\i -> warn "-- The unknown" <+> pretty (U i) <+> warn "originates from" <+> pretty (I.lookup i os)) ([t'])
+            <> err " can't be solved because the LHS is unknown and uses non-injective operators (like !).")
+             : map (\i -> warn "• The unknown" <+> pretty (U i) <+> warn "originates from" <+> pretty (I.lookup i os)) ([t'])
     | Just u' <- flexOf u
     = vcat $ (case u of
         U _ -> err "Constraint " <> pretty c <> err " can't be solved as another constraint blocks it."
         _   -> err "A subtyping constraint " <>  pretty c
-          <> err " can't be solved because the RHS is unknown and uses non-injective operators (like !).")
-           : map (\i -> warn "-- The unknown" <+> pretty (U i) <+> warn "originates from" <+> pretty (I.lookup i os)) ([u'])
+            <> err " can't be solved because the RHS is unknown and uses non-injective operators (like !).")
+             : map (\i -> warn "• The unknown" <+> pretty (U i) <+> warn "originates from" <+> pretty (I.lookup i os)) ([u'])
 analyseLeftover c os = case c of
     Share x m  | Just x' <- flexOf x -> msg x' m
     Drop x m   | Just x' <- flexOf x -> msg x' m
     Escape x m | Just x' <- flexOf x -> msg x' m
     _ -> err "Leftover constraint!" <$> pretty c
-  where msg i m = vcat $ err "Constraint " <> pretty c <> err " can't be solved as it constrains an unknown."
-                : [warn "-- The unknown" <+> pretty (U i) <+> warn "originates from" <+> pretty (I.lookup i os)
-                  ,err "The constraint was emitted as" <+> pretty m]
+  where msg i m = err "Constraint " <> pretty c <> err " can't be solved as it constrains an unknown."
+                <$$> indent' (vcat [ warn "• The unknown" <+> pretty (U i) <+> warn "originates from" <+> pretty (I.lookup i os)
+                                   , err "The constraint was emitted as" <+> pretty m])
 
 instance (Pretty a, TypeType a) => Pretty (TypeFragment a) where
   pretty (F t) = pretty t & (if __cogent_fdisambiguate_pp then (<+> comment "{- F -}") else id)
