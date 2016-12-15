@@ -13,18 +13,20 @@
 
 module Cogent.DocGent where
 
-import Cogent.Compiler (__impossible, __todo)
-import Cogent.PrettyPrint
-import Cogent.Surface
 import Cogent.Common.Syntax
 import Cogent.Common.Types
+import Cogent.Compiler (__impossible, __todo)
+import Cogent.PrettyPrint
+import Cogent.Reorganizer
+import Cogent.Surface
+import Cogent.Util
 import Paths_cogent
 
 import Control.Lens
 import Control.Monad.State as S
 import Data.Char (isLower, toUpper)
-import qualified Data.Foldable as F
 import Data.Default
+import qualified Data.Foldable as F
 import Data.Function (on)
 import Data.List (intersperse, sortBy, groupBy)
 import qualified Data.Map as M
@@ -46,11 +48,16 @@ import Text.Hamlet
 import qualified Text.Pandoc as T
 import qualified Text.Pandoc.Walk as T
 import Text.Parsec
+import Text.PrettyPrint.ANSI.Leijen (SimpleDoc(..), Pretty(..))
 import qualified Text.PrettyPrint.ANSI.Leijen as P
-import Text.PrettyPrint.ANSI.Leijen (SimpleDoc(..), pretty, Pretty())
 
+data SGRState = SGRState { _intensity :: ConsoleIntensity
+                         , _fg :: (ColorIntensity, Color)
+                         , _bg :: (ColorIntensity, Color)
+                         , _italics :: Bool
+                         , _underline :: Underlining
+                         }
 
-data SGRState = SGRState { _intensity :: ConsoleIntensity, _fg :: (ColorIntensity, Color), _bg :: (ColorIntensity, Color), _italics :: Bool, _underline :: Underlining }
 makeLenses ''SGRState
 
 markdown :: (?knowns :: [(String, SourcePos)]) => String -> Html
@@ -189,7 +196,7 @@ withLinking s t = case lookup t s of
                      Nothing -> H.toHtml t
   where file p = fileNameFor p
 
-data DocExpr = DE { unDE :: Expr RawType VarName DocExpr }
+data DocExpr = DE { unDE :: Expr RawType RawPatn RawIrrefPatn DocExpr }
              | DocFnCall FunName [Maybe RawType] Inline deriving Show
 
 instance ExprType DocExpr where
@@ -203,8 +210,9 @@ instance Pretty DocExpr where
   pretty (DocFnCall x [] note) = pretty note P.<> funname' x
   pretty (DocFnCall x ts note) = pretty note P.<> funname' x P.<> typeargs (map pretty ts)
 
-resolveNamesA :: [String] -> Alt VarName RawExpr -> Alt VarName DocExpr
-resolveNamesA lcls (Alt pv l e) = Alt pv l $ resolveNames (lcls ++ F.toList pv) e
+resolveNamesA :: [String] -> Alt RawPatn RawExpr -> Alt RawPatn DocExpr
+resolveNamesA lcls (Alt p l e) = Alt p l $ resolveNames (lcls ++ fvP p) e
+
 resolveNames :: [String] -> RawExpr -> DocExpr
 resolveNames lcls (RE (TypeApp v ts i)) | v `notElem` lcls = DocFnCall v ts i
                                         | otherwise        = DE (TypeApp v ts i)
@@ -214,13 +222,14 @@ resolveNames lcls (RE (Match e t alts)) = DE (Match (resolveNames lcls e) t (map
 resolveNames lcls (RE (Let bs e)) = let (lcls', bs') = resolveBinders lcls bs in DE (Let bs' $ resolveNames lcls' e)
 resolveNames lcls (RE e) = DE (fmap (resolveNames lcls) e)
 
-resolveBinders :: [String] -> [Binding RawType VarName RawExpr] -> ([String], [Binding RawType VarName DocExpr])
+resolveBinders :: [String] -> [Binding RawType RawIrrefPatn RawExpr] -> ([String], [Binding RawType RawIrrefPatn DocExpr])
 resolveBinders lcls [] = (lcls, [])
 resolveBinders lcls (x:xs) = let (lcls',x') = resolveBinder lcls x
                                  (lcls'', xs') = resolveBinders lcls' xs
                               in (lcls'',x':xs')
-resolveBinder :: [String] -> Binding RawType VarName RawExpr -> ([String], Binding RawType VarName DocExpr)
-resolveBinder lcls (Binding ip t e l) = (lcls ++ F.toList ip, Binding ip t (resolveNames lcls e) l)
+
+resolveBinder :: [String] -> Binding RawType RawIrrefPatn RawExpr -> ([String], Binding RawType RawIrrefPatn DocExpr)
+resolveBinder lcls (Binding ip t e l) = (lcls ++ fvIP ip, Binding ip t (resolveNames lcls e) l)
 
 adjustSGRs :: SGR -> S.State SGRState ()
 adjustSGRs Reset = put defaultState
@@ -249,6 +258,7 @@ makeHtml content = [shamlet| <pre class="source bg-Dull-Black">#{content}|]
 genDoc :: (?knowns :: [(String, SourcePos)]) => (SourcePos, DocString, TopLevel LocType VarName LocExpr) -> Html
 genDoc (p,s,x@(Include    {})) = __impossible "genDoc"
 genDoc (p,s,x@(IncludeStd {})) = __impossible "genDoc"
+
 genDoc (p,s,x@(TypeDec n ts t)) =
     let header = let ?knowns = [] in runState (displayHTML (prettyPrint id $ return $ renderTypeDecHeader n ts)) defaultState
         df     = prettyType t Nothing
@@ -263,8 +273,9 @@ genDoc (p,s,x@(TypeDec n ts t)) =
 genDoc (p,s,x@(FunDef n pt as)) =
     let n' x = [shamlet|<table><td class='fg-Vivid-Green'><a name='#{n}'><b>#{n}</b></a></td><td class='spaced'>:</td><td class='spaced'>#{x}</td> |]
         pt' = prettyPT pt
-        md     = markdown s
-        str = runState (displayHTML (prettyPrint id $ return $ prettyFunDef False n pt $ map (resolveNamesA [] . fmap stripLocE) as )) defaultState
+        md  = markdown s
+        str = flip runState defaultState $ 
+                displayHTML (prettyPrint id $ return $ prettyFunDef False n pt $ map (resolveNamesA [] . fmap stripLocE . ffmap stripLocP) as)
         source = makeHtml $ fst str
      in
         [shamlet|
@@ -382,7 +393,8 @@ rawTemplate body = [shamlet|
       #{body}
 |]
 
-foreach ::  (?knowns :: [(String,SourcePos)]) => (SourcePos, DocString, TopLevel LocType VarName LocExpr) -> (SourcePos, Html)
+
+foreach ::  (?knowns :: [(String,SourcePos)]) => (SourcePos, DocString, TopLevel LocType LocPatn LocExpr) -> (SourcePos, Html)
 foreach (p, d, t) = (p,  genDoc (p,d,t))
 
 titleFor :: SourcePos -> IO String
@@ -415,7 +427,7 @@ sourcePosDiv p = do
       raw = rawFileNameFor p
    in [shamlet|<div .sourcepos><a href='#{raw}##{c}'>#{f}:#{c}</a>|]
 
-docGent :: [(SourcePos, DocString, TopLevel LocType VarName LocExpr)] -> IO ()
+docGent :: [(SourcePos, DocString, TopLevel LocType LocPatn LocExpr)] -> IO ()
 docGent input = let
                     ?knowns = mapMaybe toKnown input
                 in let

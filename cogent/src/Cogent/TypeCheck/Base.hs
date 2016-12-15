@@ -8,7 +8,7 @@
 -- @TAG(NICTA_GPL)
 --
 
-{-# LANGUAGE TemplateHaskell, DeriveFunctor, DeriveTraversable #-}
+{-# LANGUAGE TemplateHaskell, DeriveFunctor, DeriveTraversable, StandaloneDeriving #-}
 module Cogent.TypeCheck.Base where
 
 import Cogent.Common.Syntax
@@ -17,6 +17,7 @@ import Cogent.Compiler
 import Cogent.Surface
 import Cogent.Util
 
+import Control.Arrow (second)
 import Control.Lens hiding (Context, (:<))
 import Control.Monad.Except
 import Control.Monad.State
@@ -31,9 +32,9 @@ import Text.Parsec.Pos
 data TypeError = FunctionNotFound VarName
                | TooManyTypeArguments FunName (Polytype TCType)
                | NotInScope VarName
-               | DuplicateVariableInPattern VarName (Pattern TCName)
+               | DuplicateVariableInPattern VarName  -- (Pattern TCName)
                | DifferingNumberOfConArgs TagName Int Int
-               | DuplicateVariableInIrrefPattern VarName (IrrefutablePattern TCName)
+               -- | DuplicateVariableInIrrefPattern VarName (IrrefutablePattern TCName)
                | UnknownTypeVariable VarName
                | UnknownTypeConstructor TypeName
                | TypeArgumentMismatch TypeName Int Int
@@ -50,7 +51,7 @@ data TypeError = FunctionNotFound VarName
                | DuplicateTypeVariable [VarName]
                | TakeFromNonRecord (Maybe [FieldName]) TCType
                | PutToNonRecord (Maybe [FieldName]) TCType
-               | RemoveCaseFromNonVariant (Pattern TCName) TCType
+               | RemoveCaseFromNonVariant TCPatn TCType
                | DiscardWithoutMatch TagName
                | RequiredTakenTag TagName
                | TypeWarningAsError TypeWarning
@@ -63,10 +64,12 @@ type TypeEW = Either TypeError TypeWarning
 
 -- FIXME: More fine-grained context is appreciated. e.g., only show alternatives that don't unify / zilinc
 data ErrorContext = InExpression LocExpr TCType
+                  | InPattern LocPatn
+                  | InIrrefutablePattern LocIrrefPatn
                   | ThenBranch | ElseBranch
                   | SolvingConstraint Constraint
-                  | NthAlternative Int (Pattern VarName)
-                  | InDefinition SourcePos (TopLevel LocType VarName LocExpr)
+                  | NthAlternative Int LocPatn
+                  | InDefinition SourcePos (TopLevel LocType LocPatn LocExpr)
                   | AntiquotedType LocType
                   | AntiquotedExpr LocExpr
                   deriving (Eq, Show)
@@ -102,32 +105,56 @@ data TypeFragment a = F a
                     | FVariant (M.Map TagName ([a], Taken))
                     deriving (Eq, Show, Functor, Foldable, Traversable, Ord)
 
-data TCType = T (Type TCType)
-            | U Int  -- unifier
-            deriving (Show, Eq, Ord)
+data TCType       = T (Type TCType)
+                  | U Int  -- unifier
+                  deriving (Show, Eq, Ord)
 
-data TExpr t = TE { getType :: t, getExpr :: Expr t (VarName, t) (TExpr t), getLoc :: SourcePos }
-             deriving (Show)
+data TExpr      t = TE { getTypeTE :: t, getExpr :: Expr t (TPatn t) (TIrrefPatn t) (TExpr t), getLocTE :: SourcePos }
+deriving instance Show t => Show (TExpr t)
+
+data TPatn      t = TP { getPatn :: Pattern (TIrrefPatn t), getLocTP :: SourcePos }
+deriving instance Eq   t => Eq   (TPatn t)
+deriving instance Ord  t => Ord  (TPatn t)
+deriving instance Show t => Show (TPatn t)
+
+data TIrrefPatn t = TIP { getIrrefPatn :: IrrefutablePattern (VarName, t) (TIrrefPatn t), getLocTIP :: SourcePos }
+deriving instance Eq   t => Eq   (TIrrefPatn t)
+deriving instance Ord  t => Ord  (TIrrefPatn t)
+deriving instance Show t => Show (TIrrefPatn t)
 
 instance Functor TExpr where
-  fmap f (TE t e p) = TE (f t) (fffmap f $ ffmap (fmap f) $ fmap (fmap f) e) p
+  fmap f (TE t e l) = TE (f t) (ffffmap f $ fffmap (fmap f) $ ffmap (fmap f) $ fmap (fmap f) e) l  -- Hmmm!
+instance Functor TPatn where
+  fmap f (TP p l) = TP (fmap (fmap f) p) l
+instance Functor TIrrefPatn where
+  fmap f (TIP ip l) = TIP (ffmap (second f) $ fmap (fmap f) ip) l
 
 type TCName = (VarName, TCType)
 type TCExpr = TExpr TCType
+type TCPatn = TPatn TCType
+type TCIrrefPatn = TIrrefPatn TCType
 
 type TypedName = (VarName, RawType)
 type TypedExpr = TExpr RawType
+type TypedPatn = TPatn RawType
+type TypedIrrefPatn = TIrrefPatn RawType
 
 toTCType :: RawType -> TCType
 toTCType (RT x) = T (fmap toTCType x)
 
 toLocExpr :: (SourcePos -> t -> LocType) -> TExpr t -> LocExpr
-toLocExpr f (TE t e p) = LocExpr p (fffmap (f p) $ fmap (toLocExpr f) $ ffmap fst $ e)
+toLocExpr f (TE t e l) = LocExpr l (ffffmap (f l) $ fffmap (toLocPatn f) $ ffmap (toLocIrrefPatn f) $ fmap (toLocExpr f) e)
+
+toLocPatn :: (SourcePos -> t -> LocType) -> TPatn t -> LocPatn
+toLocPatn f (TP p l) = LocPatn l (fmap (toLocIrrefPatn f) p)
+
+toLocIrrefPatn :: (SourcePos -> t -> LocType) -> TIrrefPatn t -> LocIrrefPatn
+toLocIrrefPatn f (TIP p l) = LocIrrefPatn l (ffmap fst $ fmap (toLocIrrefPatn f) p)
 
 toTypedExpr :: TCExpr -> TypedExpr
 toTypedExpr = fmap toRawType
 
-toTypedAlts :: [Alt TCName TCExpr] -> [Alt TypedName TypedExpr]
+toTypedAlts :: [Alt TCPatn TCExpr] -> [Alt TypedPatn TypedExpr]
 toTypedAlts = fmap (fmap (fmap toRawType) . ffmap (fmap toRawType))
 
 -- Precondition: No unification variables left in the type
@@ -135,13 +162,20 @@ toLocType :: SourcePos -> TCType -> LocType
 toLocType l (T x) = LocType l (fmap (toLocType l) x)
 -- toLocType l (RemoveCase p t) = error "panic: removeCase found"
 toLocType l _ = error "panic: unification variable found"
+
 toRawType :: TCType -> RawType
 toRawType (T x) = RT (fmap toRawType x)
 -- toRawType (RemoveCase p t) = error "panic: removeCase found"
 toRawType _ = error "panic: unification variable found"
 
 toRawExp :: TypedExpr -> RawExpr
-toRawExp (TE t e p) = RE (ffmap fst . fmap toRawExp $ e)
+toRawExp (TE t e _) = RE (fffmap toRawPatn . ffmap toRawIrrefPatn . fmap toRawExp $ e)
+
+toRawPatn :: TypedPatn -> RawPatn
+toRawPatn (TP p _) = RP (fmap toRawIrrefPatn p)
+
+toRawIrrefPatn :: TypedIrrefPatn -> RawIrrefPatn
+toRawIrrefPatn (TIP ip _) = RIP (ffmap fst $ fmap toRawIrrefPatn ip)
 
 data Metadata = Reused { varName :: VarName, boundAt :: SourcePos, usedAt :: SourcePos }
               | Unused { varName :: VarName, boundAt :: SourcePos }
@@ -165,7 +199,7 @@ data Constraint = (:<) (TypeFragment TCType) (TypeFragment TCType)
                 | Unsat TypeError
                 | SemiSat TypeWarning
                 | Sat
-                | Exhaustive TCType [Pattern TCName]
+                | Exhaustive TCType [RawPatn]
                 deriving (Eq, Show, Ord)
 
 instance Monoid Constraint where
@@ -229,12 +263,12 @@ validateType vs (RT t) = do
     _ -> T <$> traverse (validateType vs) t
 
 -- Remove a pattern from a type, for case expressions.
-removeCase :: Pattern x -> TCType -> TCType
-removeCase (PIrrefutable _) _ = (T (TVariant M.empty))
-removeCase (PIntLit _)      x = x
-removeCase (PCharLit _)     x = x
-removeCase (PBoolLit _)     x = x
-removeCase (PCon t _)       x = (T (TTake (Just [t]) x))
+removeCase :: LocPatn -> TCType -> TCType
+removeCase (LocPatn _ (PIrrefutable _)) _ = (T (TVariant M.empty))
+removeCase (LocPatn _ (PIntLit  _))     x = x
+removeCase (LocPatn _ (PCharLit _))     x = x
+removeCase (LocPatn _ (PBoolLit _))     x = x
+removeCase (LocPatn _ (PCon t _))       x = (T (TTake (Just [t]) x))
 
 forFlexes :: (Int -> TCType) -> TCType -> TCType
 forFlexes f (U x) = f x

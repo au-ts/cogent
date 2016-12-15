@@ -141,7 +141,7 @@ data CgState = CgState { _cTypeDefs    :: [(CG.StrlType, CG.CId)]
                        , _globalOracle :: Integer
                        }
 
-data GlState = GlState { _tcDefs   :: [SR.TopLevel SR.RawType TC.TypedName TC.TypedExpr]
+data GlState = GlState { _tcDefs   :: [SR.TopLevel SR.RawType TC.TypedPatn TC.TypedExpr]
                        , _tcState  :: TcState
                        , _dsState  :: DsState
                        , _icState  :: IcState
@@ -520,7 +520,7 @@ glue s typnames mode filenames = liftA (M.toList . M.fromListWith (flip (++)) . 
                                                          , L.map fst ds')]
                     Left err  -> throwE err
 
-mkGlState :: [SR.TopLevel SR.RawType TC.TypedName TC.TypedExpr]
+mkGlState :: [SR.TopLevel SR.RawType TC.TypedPatn TC.TypedExpr]
           -> TC.TCState
           -> Last (DS.Typedefs, DS.Constants, [CC.CoreConst CC.UntypedExpr])
           -> M.Map FunName CC.FunctionType

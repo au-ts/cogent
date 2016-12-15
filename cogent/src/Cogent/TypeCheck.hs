@@ -18,7 +18,6 @@ module Cogent.TypeCheck (
   tc, isWarnAsError  
 ) where
 
-import Cogent.Common.Syntax
 import Cogent.Compiler
 import qualified Cogent.Context as C
 import Cogent.PrettyPrint (prettyC)
@@ -30,7 +29,7 @@ import Cogent.TypeCheck.Solver
 import Cogent.TypeCheck.Subst (applyE, applyAlts)
 import Cogent.TypeCheck.Util
 
-import Control.Arrow (first, second, left)
+import Control.Arrow (first, second)
 import Control.Lens
 import Control.Monad.Except
 import Control.Monad.State
@@ -44,8 +43,8 @@ import Text.PrettyPrint.ANSI.Leijen hiding ((<>), (<$>))
 
 -- import Debug.Trace
 
-tc :: [(SourcePos, TopLevel LocType VarName LocExpr)]
-   -> IO ((Either () [TopLevel RawType TypedName TypedExpr], [ContextualisedEW]), TCState)
+tc :: [(SourcePos, TopLevel LocType LocPatn LocExpr)]
+   -> IO ((Either () [TopLevel RawType TypedPatn TypedExpr], [ContextualisedEW]), TCState)
 tc = ((first . second) adjustErrors <$>) . flip runStateT (TCS M.empty knownTypes M.empty) . runWriterT . runExceptT . typecheck
   where
     knownTypes = map (, ([] , Nothing)) $ words "U8 U16 U32 U64 String Bool"
@@ -53,13 +52,13 @@ tc = ((first . second) adjustErrors <$>) . flip runStateT (TCS M.empty knownType
     adjustContexts = map (first noConstraints)
     noConstraints = if __cogent_ftc_ctx_constraints then id else filter (not . isCtxConstraint)
 
-typecheck :: [(SourcePos, TopLevel LocType VarName LocExpr)]
-          -> ExceptT () (WriterT [ContextualisedEW] TC) [TopLevel RawType TypedName TypedExpr]
+typecheck :: [(SourcePos, TopLevel LocType LocPatn LocExpr)]
+          -> ExceptT () (WriterT [ContextualisedEW] TC) [TopLevel RawType TypedPatn TypedExpr]
 typecheck = mapM (uncurry checkOne)
 
 -- TODO: Check for prior definition
-checkOne :: SourcePos -> TopLevel LocType VarName LocExpr
-         -> ExceptT () (WriterT [ContextualisedEW] TC) (TopLevel RawType TypedName TypedExpr)
+checkOne :: SourcePos -> TopLevel LocType LocPatn LocExpr
+         -> ExceptT () (WriterT [ContextualisedEW] TC) (TopLevel RawType TypedPatn TypedExpr)
 checkOne loc d = case d of
   (Include _) -> __impossible "checkOne"
   (IncludeStd _) -> __impossible "checkOne"

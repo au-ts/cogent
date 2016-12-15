@@ -70,31 +70,33 @@ avoidInitial = do whiteSpace; p <- sourceColumn <$> getPosition; guard (p > 1)
 
 
 -- TODO: add support for patterns like `_ {f1, f2}', where the record name is anonymous / zilinc
-irrefutablePattern = avoidInitial >>
+irrefutablePattern :: Parser LocIrrefPatn t
+irrefutablePattern = avoidInitial >> LocIrrefPatn <$> getPosition <*>
              (variableOrRecord <$> variableName <*> optionMaybe (braces recAssignsAndOrWildcard)
          <|> tuple <$> parens (commaSep irrefutablePattern)
          <|> PUnboxedRecord <$ reservedOp "#" <*> braces recAssignsAndOrWildcard
          <|> PUnderscore <$ reservedOp "_")
        <?> "irrefutable pattern"
   where tuple [] = PUnitel
-        tuple [e] = e
-        tuple es  = PTuple es
+        tuple [LocIrrefPatn _ p] = p
+        tuple ps  = PTuple ps
         variableOrRecord v Nothing = PVar v
         variableOrRecord v (Just rs) = PTake v rs
-        recordAssignment = (\p n m -> (n, fromMaybe (PVar n) m))
+        recordAssignment = (\p n m -> (n, fromMaybe (LocIrrefPatn p $ PVar n) m))
                         <$> getPosition <*> variableName <*> optionMaybe (reservedOp "=" *> irrefutablePattern)
                         <?> "record assignment pattern"
         wildcard = reservedOp ".." >> return Nothing
         recAssign = Just <$> recordAssignment
         recAssignsAndOrWildcard = ((:[]) <$> wildcard)
-                              <|> ((:) <$> recAssign <*> ((++) <$> many (try (comma >> recAssign)) <*> (liftM maybeToList . optionMaybe) (comma >> wildcard)))
+                              <|> ((:) <$> recAssign <*> ((++) <$> many (try (comma >> recAssign))
+                                                               <*> (liftM maybeToList . optionMaybe) (comma >> wildcard)))
 
-pattern = avoidInitial >>
+pattern = avoidInitial >> LocPatn <$> getPosition <*>
             (PBoolLit <$> boolean
          <|> PCon <$> typeConName <*> many irrefutablePattern
          <|> PIntLit <$> integer
          <|> PCharLit <$> charLiteral
-         <|> try (parens pattern)
+         <|> try (patnOfLP <$> parens pattern)
          <|> PIrrefutable <$> irrefutablePattern)
        <?> "pattern"
 
@@ -104,10 +106,10 @@ boolean = True <$ reserved "True"
 
 -- A hack to handle boolean matching exhaustivity :)
 matchExpr m =  flip fmap (matchExpr' m) (\case
-  (LocExpr p (Match e bs [Alt (PBoolLit True) a e1, Alt (PBoolLit False) a' e2])) ->
-     LocExpr p (Match e bs [Alt (PBoolLit True) a e1, Alt (PIrrefutable (PUnderscore)) a' e2])
-  (LocExpr p (Match e bs [Alt (PBoolLit False) a e1, Alt (PBoolLit True) a' e2])) ->
-     LocExpr p (Match e bs [Alt (PBoolLit False) a e1, Alt (PIrrefutable (PUnderscore)) a' e2])
+  (LocExpr p (Match e bs [Alt (LocPatn p1 (PBoolLit True )) a e1, Alt (LocPatn p2 (PBoolLit False)) a' e2])) ->
+   LocExpr p (Match e bs [Alt (LocPatn p1 (PBoolLit True )) a e1, Alt (LocPatn p2 (PIrrefutable (LocIrrefPatn p2 PUnderscore))) a' e2])
+  (LocExpr p (Match e bs [Alt (LocPatn p1 (PBoolLit False)) a e1, Alt (LocPatn p2 (PBoolLit True )) a' e2])) ->
+   LocExpr p (Match e bs [Alt (LocPatn p1 (PBoolLit False)) a e1, Alt (LocPatn p2 (PIrrefutable (LocIrrefPatn p2 PUnderscore))) a' e2])
   e -> e)
 
 matchExpr' m = do
@@ -271,27 +273,27 @@ kindSignature = do n <- variableName
 docBlock = do whiteSpace; _ <- try (reservedOp "@@"); x <- manyTill anyChar (newline); whiteSpace; return x
 
 toplevel = getPosition >>= \p ->
-                 (p, "",) <$>  DocBlock <$> unlines <$> many1 docBlock
+                 (p, "",) <$> DocBlock <$> unlines <$> many1 docBlock
              <|> toplevel'
 
 toplevel' = do
   docs <- unlines . fromMaybe [] <$> optionMaybe (many1 docHunk)
   p <- getPosition
   when (sourceColumn p > 1) $ fail "toplevel entries should start at column 1"
-  (p,docs,) <$>  (try (Include <$ reserved "include" <*> stringLiteral)
-              <|> IncludeStd <$ reserved "include" <*> angles (many (noneOf "\r\n>"))
-              <|> typeDec <$ reserved "type" <*> typeConName <*> many (avoidInitial >> variableName) <*> optionMaybe (reservedOp "=" *> monotype)
-              <|> do n <- variableName
-                     reservedOp ":"
-                     tau <- polytype
-                     do try (do n' <- variableName
-                                when (n /= n') $ fail $ "The name in the type signature, `" ++ n
-                                                     ++ "` does not match the name in the equation, `" ++ n' ++ "`." )
-                        let fundef = FunDef n tau <$> (functionAlts <|> (:[]) <$> functionSingle)
-                        case tau of
-                          PT [] t -> (ConstDef n t <$ reservedOp "=" <*> expr 1 <|> fundef)
-                          _       -> fundef
-                      <|> pure (AbsDec n tau))
+  (p,docs,) <$> (try (Include <$ reserved "include" <*> stringLiteral)
+        <|> IncludeStd <$ reserved "include" <*> angles (many (noneOf "\r\n>"))
+        <|> typeDec <$ reserved "type" <*> typeConName <*> many (avoidInitial >> variableName) <*> optionMaybe (reservedOp "=" *> monotype)
+        <|> do n <- variableName
+               reservedOp ":"
+               tau <- polytype
+               do try (do n' <- variableName
+                          when (n /= n') $ fail $ "The name in the type signature, `" ++ n
+                                               ++ "` does not match the name in the equation, `" ++ n' ++ "`." )
+                  let fundef = FunDef n tau <$> (functionAlts <|> (:[]) <$> functionSingle)
+                  case tau of
+                    PT [] t -> (ConstDef n t <$ reservedOp "=" <*> expr 1 <|> fundef)
+                    _       -> fundef
+                <|> pure (AbsDec n tau))
   where
     typeDec n vs Nothing = AbsTypeDec n vs
     typeDec n vs (Just t) = TypeDec n vs t
@@ -299,7 +301,8 @@ toplevel' = do
       c <- sourceColumn <$> getPosition
       reservedOp "|"
       sepByAligned1 (alternative c) (reservedOp "|") c
-    functionSingle = Alt <$> (PIrrefutable <$> irrefutablePattern) <*> pure Regular <* reservedOp "=" <*> expr 1
+    functionSingle = Alt <$> (LocPatn <$> getPosition <*> (PIrrefutable <$> irrefutablePattern))
+                         <*> pure Regular <* reservedOp "=" <*> expr 1
 
 type Parser a t = ParsecT String t Identity a
 
@@ -326,7 +329,7 @@ program = whiteSpace *> many1 toplevel <* eof
 --   We can conclude that the search path for b is independent of where a was found
 
 parseWithIncludes :: FilePath -> [FilePath]
-                  -> IO (Either String ([(SourcePos, DocString, TopLevel LocType VarName LocExpr)], [PP.LocPragma]))
+                  -> IO (Either String ([(SourcePos, DocString, TopLevel LocType LocPatn LocExpr)], [PP.LocPragma]))
 parseWithIncludes f paths = do
   r <- newIORef S.empty
   loadTransitive' r f paths "."  -- relative to orig, we're in orig
@@ -336,7 +339,7 @@ parseWithIncludes f paths = do
 -- paths: search paths, relative to origin
 -- ro: the path of the current file, relative to original dir
 loadTransitive' :: IORef (S.Set FilePath) -> FilePath -> [FilePath] -> FilePath
-                -> IO (Either String ([(SourcePos, DocString,TopLevel LocType VarName LocExpr)], [PP.LocPragma]))
+                -> IO (Either String ([(SourcePos, DocString, TopLevel LocType LocPatn LocExpr)], [PP.LocPragma]))
 loadTransitive' r fp paths ro = do
   let fps = map (flip combine fp) (ro:paths)  -- all file paths need to search
       fpdir = takeDirectory (combine ro fp)
@@ -354,9 +357,9 @@ loadTransitive' r fp paths ro = do
                            defs' <- mapM (flip transitive fpdir) defs
                            return $ fmap (second (pragmas ++) . mconcat) . sequence $ defs'
   where
-    transitive :: (SourcePos, DocString, TopLevel LocType VarName LocExpr)
+    transitive :: (SourcePos, DocString, TopLevel LocType LocPatn LocExpr)
                -> FilePath
-               -> IO (Either String ([(SourcePos, DocString, TopLevel LocType VarName LocExpr)], [PP.LocPragma]))
+               -> IO (Either String ([(SourcePos, DocString, TopLevel LocType LocPatn LocExpr)], [PP.LocPragma]))
     transitive (p,d,Include x) curr = loadTransitive' r x (map (combine curr) paths) curr
     transitive (p,d,IncludeStd x) curr = do filepath <- (getStdIncFullPath x); loadTransitive' r filepath (map (combine curr) paths) curr
     transitive x _ = return (Right ([x],[]))
@@ -387,3 +390,4 @@ parseFromFile :: Parser a () -> FilePath -> IO (Either ParseError a)
 parseFromFile p fname = do
   input <- readFile fname
   return $ runP p () (if __cogent_ffull_src_path then fname else takeFileName fname) input
+

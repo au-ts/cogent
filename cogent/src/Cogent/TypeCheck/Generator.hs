@@ -87,7 +87,7 @@ cg x@(LocExpr l e) t = do
   (c, e') <- cg' e t
   return (c :@ InExpression x t, TE t e' l)
 
-cg' :: (?loc :: SourcePos) => Expr LocType VarName LocExpr -> TCType -> CG (Constraint, Expr TCType TCName TCExpr)
+cg' :: (?loc :: SourcePos) => Expr LocType LocPatn LocIrrefPatn LocExpr -> TCType -> CG (Constraint, Expr TCType TCPatn TCIrrefPatn TCExpr)
 cg' (PrimOp o [e1, e2]) t
   | o `elem` words "+ - * / % .&. .|. .^. >> <<"
   = do (c1, e1') <- cg e1 t
@@ -315,7 +315,7 @@ integral a = Upcastable (T (TCon "U8" [] Unboxed)) a
 dropConstraintFor :: M.Map VarName (C.Row TCType) -> Constraint
 dropConstraintFor m = foldMap (\(i, (t,x,p)) -> maybe (Drop t (Unused i x)) (const Sat) p) $ M.toList m
 
-cgAlts :: (?loc :: SourcePos) => [Alt VarName LocExpr] -> TCType -> TCType -> CG (Constraint, [Alt TCName TCExpr])
+cgAlts :: [Alt LocPatn LocExpr] -> TCType -> TCType -> CG (Constraint, [Alt TCPatn TCExpr])
 cgAlts alts top alpha = do
   let
     altPattern (Alt p _ _) = p
@@ -334,23 +334,29 @@ cgAlts alts top alpha = do
   (c'', blob) <- parallel jobs alpha
 
   let (cs, alts') = unzip blob
-      c = mconcat (Exhaustive alpha (map altPattern alts'):c'':cs)
+      c = mconcat (Exhaustive alpha (map (toRawPatn . altPattern) $ toTypedAlts alts'):c'':cs)
   return (c, alts')
 
-matchA :: (?loc :: SourcePos)
-       => Pattern VarName -> TCType
-       -> CG (M.Map VarName (C.Row TCType), Constraint, Pattern TCName)
+matchA :: LocPatn -> TCType -> CG (M.Map VarName (C.Row TCType), Constraint, TCPatn)
+matchA x@(LocPatn l p) t = do
+  let ?loc = l
+  (s,c,p') <- matchA' p t
+  return (s, c :@ InPattern x, TP p' l)
 
-matchA (PIrrefutable i) t = do
+matchA' :: (?loc :: SourcePos)
+       => Pattern LocIrrefPatn -> TCType
+       -> CG (M.Map VarName (C.Row TCType), Constraint, Pattern TCIrrefPatn)
+
+matchA' (PIrrefutable i) t = do
   (s, c, i') <- match i t
   return (s, c, PIrrefutable i')
 
-matchA (PCon k is) t = do
+matchA' (PCon k is) t = do
   (vs, blob) <- unzip <$> forM is (\i -> do alpha <- fresh; (alpha,) <$> match i alpha)
   let (ss, cs, is') = (map fst3 blob, map snd3 blob, map thd3 blob)
       p' = PCon k is'
       co = case overlapping ss of
-             Left (v:vs) -> Unsat $ DuplicateVariableInPattern v p'
+             Left (v:vs) -> Unsat $ DuplicateVariableInPattern v  -- p'
              _           -> Sat
       c = F t :< FVariant (M.fromList [(k, (vs, False))]) 
   traceTC "gen" (text "match constructor pattern:" <+> pretty p'
@@ -358,7 +364,7 @@ matchA (PCon k is) t = do
            L.<$> text "generate constraint" <+> prettyC c)
   return (M.unions ss, co <> mconcat cs <> c, p')
 
-matchA (PIntLit i) t = do
+matchA' (PIntLit i) t = do
   let minimumBitwidth | i < u8MAX      = "U8"
                       | i < u16MAX     = "U16"
                       | i < u32MAX     = "U32"
@@ -366,42 +372,48 @@ matchA (PIntLit i) t = do
       c = Upcastable (T (TCon minimumBitwidth [] Unboxed)) t
   return (M.empty, c, PIntLit i)
 
-matchA (PBoolLit b) t =
+matchA' (PBoolLit b) t =
   return (M.empty, F t :< F (T (TCon "Bool" [] Unboxed)), PBoolLit b)
 
-matchA (PCharLit c) t =
+matchA' (PCharLit c) t =
   return (M.empty, F t :< F (T (TCon "U8" [] Unboxed)), PCharLit c)
 
-match :: (?loc :: SourcePos)
-      => IrrefutablePattern VarName -> TCType
-      -> CG (M.Map VarName (C.Row TCType), Constraint, IrrefutablePattern TCName)
+match :: LocIrrefPatn -> TCType -> CG (M.Map VarName (C.Row TCType), Constraint, TCIrrefPatn)
+match x@(LocIrrefPatn l ip) t = do
+  let ?loc = l
+  (s,c,ip') <- match' ip t
+  return (s, c :@ InIrrefutablePattern x, TIP ip' l)
 
-match (PVar x) t = do
+match' :: (?loc :: SourcePos)
+      => IrrefutablePattern VarName LocIrrefPatn -> TCType
+      -> CG (M.Map VarName (C.Row TCType), Constraint, IrrefutablePattern TCName TCIrrefPatn)
+
+match' (PVar x) t = do
   let p = PVar (x,t)
-  traceTC "gen" (text "match var pattern:" <+> pretty p
+  traceTC "gen" (text "match var pattern:" <+> prettyIP p
            L.<$> text "of type" <+> pretty t)
   return (M.fromList [(x, (t,?loc,Nothing))], Sat, p)
 
-match (PUnderscore) t = 
+match' (PUnderscore) t = 
   let c = dropConstraintFor (M.singleton "_" (t, ?loc, Nothing))
    in return (M.empty, c, PUnderscore)
 
-match (PUnitel) t = return (M.empty, F t :< F (T TUnit), PUnitel)
+match' (PUnitel) t = return (M.empty, F t :< F (T TUnit), PUnitel)
 
-match (PTuple ps) t = do
+match' (PTuple ps) t = do
    (vs, blob) <- unzip <$> mapM (\p -> do v <- fresh; (v,) <$> match p v) ps
    let (ss, cs, ps') = (map fst3 blob, map snd3 blob, map thd3 blob)
        p' = PTuple ps'
        co = case overlapping ss of
-              Left (v:vs) -> Unsat $ DuplicateVariableInIrrefPattern v p'
+              Left (v:vs) -> Unsat $ DuplicateVariableInPattern v  -- p'
               _           -> Sat
        c = F t :< F (T (TTuple vs))
-   traceTC "gen" (text "match tuple pattern:" <+> pretty p'
+   traceTC "gen" (text "match tuple pattern:" <+> prettyIP p'
             L.<$> text "of type" <+> pretty t <> semi
             L.<$> text "generate constraint" <+> prettyC c)
    return (M.unions ss, co <> mconcat cs <> c, p')
 
-match (PUnboxedRecord fs) t | not (any isNothing fs) = do
+match' (PUnboxedRecord fs) t | not (any isNothing fs) = do
    let (ns, ps) = unzip (catMaybes fs)
    (vs, blob) <- unzip <$> mapM (\p -> do v <- fresh; (v,) <$> match p v) ps
    let (ss, cs, ps') = (map fst3 blob, map snd3 blob, map thd3 blob)
@@ -410,17 +422,17 @@ match (PUnboxedRecord fs) t | not (any isNothing fs) = do
        p' = PUnboxedRecord (map Just (zip ns ps'))
        c = F t :< t'
        co = case overlapping ss of
-              Left (v:vs) -> Unsat $ DuplicateVariableInIrrefPattern v p'
+              Left (v:vs) -> Unsat $ DuplicateVariableInPattern v  -- p'
               _           -> Sat
-   traceTC "gen" (text "match unboxed record:" <+> pretty p'
+   traceTC "gen" (text "match unboxed record:" <+> prettyIP p'
             L.<$> text "of type" <+> pretty t <> semi
             L.<$> text "generate constraint" <+> prettyC c
             L.<$> text "non-overlapping, and linearity constraints")
    return (M.unions ss, co <> mconcat cs <> c <> d, p')
 
-   | otherwise = second3 (:& Unsat RecordWildcardsNotSupported) <$> match (PUnboxedRecord (filter isJust fs)) t
+   | otherwise = second3 (:& Unsat RecordWildcardsNotSupported) <$> match' (PUnboxedRecord (filter isJust fs)) t
 
-match (PTake r fs) t | not (any isNothing fs) = do
+match' (PTake r fs) t | not (any isNothing fs) = do
    let (ns, ps) = unzip (catMaybes fs)
    (vs, blob) <- unzip <$> mapM (\p -> do v <- fresh; (v,) <$> match p v) ps
    let (ss, cs, ps') = (map fst3 blob, map snd3 blob, map thd3 blob)
@@ -429,7 +441,7 @@ match (PTake r fs) t | not (any isNothing fs) = do
        u  = T (TTake (Just ns) t)
        p' = PTake (r,u) (map Just (zip ns ps'))
        co = case overlapping (s:ss) of
-              Left (v:vs) -> Unsat $ DuplicateVariableInIrrefPattern v p'
+              Left (v:vs) -> Unsat $ DuplicateVariableInPattern v  -- p'
               _           -> Sat
    traceTC "gen" (text "match take pattern:" <+> pretty p'
             L.<$> text "of type" <+> pretty t <> semi
@@ -437,11 +449,11 @@ match (PTake r fs) t | not (any isNothing fs) = do
             L.<$> text "and non-overlapping constraints")
    return (M.unions (s:ss), co <> mconcat cs <> c, p')
 
-   | otherwise = second3 (:& Unsat RecordWildcardsNotSupported) <$> match (PTake r (filter isJust fs)) t
+   | otherwise = second3 (:& Unsat RecordWildcardsNotSupported) <$> match' (PTake r (filter isJust fs)) t
 
 withBindings :: (?loc::SourcePos)
-  => [Binding LocType VarName LocExpr]
-  -> CG a -> CG (Constraint, [Binding TCType TCName TCExpr], a)
+  => [Binding LocType LocIrrefPatn LocExpr]
+  -> CG a -> CG (Constraint, [Binding TCType TCIrrefPatn TCExpr], a)
 withBindings [] a = (Sat, [],) <$> a
 withBindings (Binding pat tau e bs : xs) a = do
   alpha <- fresh
@@ -505,9 +517,14 @@ validateVariable v = do
   x <- use context
   return $ if C.contains x v then Sat else Unsat (NotInScope v)
 
-prettyE :: Expr TCType TCName TCExpr -> Doc
+prettyE :: Expr TCType TCPatn TCIrrefPatn TCExpr -> Doc
 prettyE = pretty
 
+-- prettyP :: Pattern TCIrrefPatn -> Doc
+-- prettyP = pretty
+
+prettyIP :: IrrefutablePattern TCName TCIrrefPatn -> Doc
+prettyIP = pretty
 
 validateType' :: [VarName] -> RawType -> TC (Either TypeError TCType)
 validateType' vs r = runExceptT (validateType vs r)
