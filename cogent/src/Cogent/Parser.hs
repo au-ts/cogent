@@ -304,12 +304,7 @@ toplevel' = do
 type Parser a t = ParsecT String t Identity a
 
 program :: Parser [(SourcePos, DocString, TopLevel LocType VarName LocExpr)] t
-program = do
-  { whiteSpace
-  ; v <- many1 ((,) <$> getPosition <*> toplevel)
-  ; eof
-  ; return $ map snd v
-  }
+program = whiteSpace *> many1 toplevel <* eof
 
 -- NOTE: It will search for the path provided in the files. If it cannot find anything, it will
 --   check for directories given in the -I arguments, relative to the current working dir.
