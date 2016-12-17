@@ -201,7 +201,7 @@ expr m = do avoidInitial; LocExpr <$> getPosition <*>
 --            | var
 --            | Con
 
-docHunk = do whiteSpace; _ <- try (string "@"); x <- manyTill anyChar newline; whiteSpace; return x
+docHunk = do whiteSpace; _ <- try (reservedOp "@"); x <- manyTill anyChar newline; whiteSpace; return x
 
 monotype = do avoidInitial
               t1 <- typeA1
@@ -268,7 +268,7 @@ kindSignature = do n <- variableName
         determineKind _ k = fail "Kinds are made of three letters: D, S, E"
 
 
-docBlock = do whiteSpace; _ <- try (string "@@"); x <- manyTill anyChar (newline); whiteSpace; return x
+docBlock = do whiteSpace; _ <- try (reservedOp "@@"); x <- manyTill anyChar (newline); whiteSpace; return x
 
 toplevel = getPosition >>= \p ->
                  (p, "",) <$>  DocBlock <$> unlines <$> many1 docBlock
