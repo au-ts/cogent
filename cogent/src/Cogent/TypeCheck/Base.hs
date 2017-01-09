@@ -31,7 +31,7 @@ import Text.Parsec.Pos
 
 data TypeError = FunctionNotFound VarName
                | TooManyTypeArguments FunName (Polytype TCType)
-               | NotInScope VarName
+               | NotInScope FuncOrVar VarName
                | DuplicateVariableInPattern VarName  -- (Pattern TCName)
                | DifferingNumberOfConArgs TagName Int Int
                -- | DuplicateVariableInIrrefPattern VarName (IrrefutablePattern TCName)
@@ -108,6 +108,17 @@ data TypeFragment a = F a
 data TCType       = T (Type TCType)
                   | U Int  -- unifier
                   deriving (Show, Eq, Ord)
+
+data FuncOrVar = MustFunc | MustVar | FuncOrVar deriving (Eq, Ord, Show)
+
+funcOrVar :: TCType -> FuncOrVar
+funcOrVar (U _) = FuncOrVar
+funcOrVar (T (TVar  {})) = FuncOrVar
+funcOrVar (T (TUnbox _)) = FuncOrVar
+funcOrVar (T (TBang  _)) = FuncOrVar
+funcOrVar (T (TFun {})) = MustFunc
+funcOrVar _ = MustVar
+
 
 data TExpr      t = TE { getTypeTE :: t, getExpr :: Expr t (TPatn t) (TIrrefPatn t) (TExpr t), getLocTE :: SourcePos }
 deriving instance Show t => Show (TExpr t)
