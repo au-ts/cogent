@@ -121,7 +121,7 @@ cg' (Var n) t = do
     Nothing ->
       use (tc.knownFuns.at n) >>= \case
         Just _  -> cg' (TypeApp n [] NoInline) t
-        Nothing -> return (Unsat (NotInScope n), e)
+        Nothing -> return (Unsat (NotInScope (funcOrVar t) n), e)
 
     -- Variable used for the first time, mark the use, and continue
     Just (t', p, Nothing) -> do
@@ -515,7 +515,7 @@ letBang bs x t = do
 validateVariable :: VarName -> CG Constraint
 validateVariable v = do
   x <- use context
-  return $ if C.contains x v then Sat else Unsat (NotInScope v)
+  return $ if C.contains x v then Sat else Unsat (NotInScope MustVar v)
 
 prettyE :: Expr TCType TCPatn TCIrrefPatn TCExpr -> Doc
 prettyE = pretty
