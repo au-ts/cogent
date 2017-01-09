@@ -26,9 +26,9 @@ yyy (v, y) =
    | TAG_b vb -> Success vb
    | vc -> Fail (42, vc)
 
-@@# Heading 2
+@@ # Heading 2
 
-@@## Subheading 21
+@@ ## Subheading 21
 @@ This here is a standalone documentation block
 @@
 @@ Separate from the documentation for types like `V` or functions like `xxx`
@@ -48,9 +48,9 @@ foo v =
    v
    | TAG_a va -> Success va
 
-@@# Heading 3
+@@ # Heading 3
 
-@@## Subheading 31
+@@ ## Subheading 31
 
 bar : < TAG_a U8 | TAG_b U16 | TAG_c U32 >! -> < Fail (U32, (< TAG_a U8 | TAG_b U16 | TAG_c U32 > take TAG_a)!) 
                                                | Success (U8) >
@@ -59,4 +59,4 @@ bar v =
    | TAG_a va -> Success va
    | d -> Fail (42, d)
 
-@@## Subheading 32
+@@ ## Subheading 32

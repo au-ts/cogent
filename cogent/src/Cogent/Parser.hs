@@ -14,7 +14,6 @@ module Cogent.Parser where
 
 import Cogent.Common.Syntax hiding (Prefix)
 import Cogent.Common.Types
-import Cogent.Compiler
 import qualified Cogent.Preprocess as PP
 import Cogent.Surface
 import Cogent.Util (getStdIncFullPath)
@@ -38,7 +37,7 @@ import Text.Parsec.Expr
 import Text.Parsec.Language
 import Text.Parsec.Pos
 import Text.Parsec.Prim
--- import Text.Parsec.String (parseFromFile)
+import Text.Parsec.String (parseFromFile)
 import qualified Text.Parsec.Token as T
 import System.Directory
 import System.FilePath
@@ -203,7 +202,8 @@ expr m = do avoidInitial; LocExpr <$> getPosition <*>
 --            | var
 --            | Con
 
-docHunk = do whiteSpace; _ <- try (reservedOp "@"); x <- manyTill anyChar newline; whiteSpace; return x
+-- NOTE: use "string" instead of "reservedOp" so that it allows no spaces after "@" / zilinc
+docHunk = do whiteSpace; _ <- try (string "@"); x <- manyTill anyChar newline; whiteSpace; return x
 
 monotype = do avoidInitial
               t1 <- typeA1
@@ -269,8 +269,8 @@ kindSignature = do n <- variableName
         determineKind [] k = return k
         determineKind _ k = fail "Kinds are made of three letters: D, S, E"
 
-
-docBlock = do whiteSpace; _ <- try (reservedOp "@@"); x <- manyTill anyChar (newline); whiteSpace; return x
+-- NOTE: use "string" instead of "reservedOp" so that it allows no spaces after "@@" / zilinc
+docBlock = do whiteSpace; _ <- try (string "@@"); x <- manyTill anyChar newline; whiteSpace; return x
 
 toplevel = getPosition >>= \p ->
                  (p, "",) <$> DocBlock <$> unlines <$> many1 docBlock
@@ -306,7 +306,7 @@ toplevel' = do
 
 type Parser a t = ParsecT String t Identity a
 
-program :: Parser [(SourcePos, DocString, TopLevel LocType VarName LocExpr)] t
+program :: Parser [(SourcePos, DocString, TopLevel LocType LocPatn LocExpr)] t
 program = whiteSpace *> many1 toplevel <* eof
 
 -- NOTE: It will search for the path provided in the files. If it cannot find anything, it will
@@ -370,9 +370,4 @@ loadTransitive' r fp paths ro = do
     findPath (p:paths) = doesFileExist p >>= \case
       False -> findPath paths
       True  -> return $ Just p
-
-parseFromFile :: Parser a () -> FilePath -> IO (Either ParseError a)
-parseFromFile p fname = do
-  input <- readFile fname
-  return $ runP p () (if __cogent_ffull_src_path then fname else takeFileName fname) input
 

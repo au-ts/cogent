@@ -33,6 +33,7 @@ import Prelude hiding (foldr)
 #else
 import Prelude hiding ((<$>), foldr)
 #endif
+import System.FilePath (takeFileName)
 import Text.Parsec.Pos
 import Text.PrettyPrint.ANSI.Leijen hiding (tupled, indent)
 
@@ -421,7 +422,8 @@ instance Pretty Kind where
                      ++ (if canEscape  k then "E" else "")
 
 instance Pretty SourcePos where
-  pretty p = position (show p)
+  pretty p | __cogent_ffull_src_path = position (show p)
+           | otherwise = position $ show $ setSourceName p (takeFileName $ sourceName p)
 
 instance Pretty Metadata where
   pretty (Constant {varName})                = err "the binding" <+> funname varName <$> err "is a global constant"
@@ -449,6 +451,11 @@ instance Pretty Metadata where
                                                       <+> err "(type variable" <+> typevar typeVarName <+> err ")"
   pretty ImplicitlyTaken = err "it is implicitly taken via subtyping."
 
+instance Pretty FuncOrVar where
+  pretty MustFunc  = err "Function"
+  pretty MustVar   = err "Variable"
+  pretty FuncOrVar = err "Variable or function"
+
 instance Pretty TypeError where
   pretty (DifferingNumberOfConArgs f n m) = err "Constructor" <+> tagname f 
                                         <+> err "invoked with differing number of arguments (" <> int n <> err " vs " <> int m <> err ")"
@@ -457,7 +464,7 @@ instance Pretty TypeError where
   pretty (FunctionNotFound fn)           = err "Function" <+> funname fn <+> err "not found"
   pretty (TooManyTypeArguments fn pt)    = err "Too many type arguments to function"
                                            <+> funname fn  <+> err "of type" <+> pretty pt
-  pretty (NotInScope vn)                 = err "Variable" <+> varname vn <+> err "not in scope"
+  pretty (NotInScope fov vn)             = pretty fov <+> varname vn <+> err "not in scope"
   pretty (UnknownTypeVariable vn)        = err "Unknown type variable" <+> typevar vn
   pretty (UnknownTypeConstructor tn)     = err "Unknown type constructor" <+> typename tn
   pretty (TypeArgumentMismatch tn i1 i2) = typename tn <+> err "expects"
