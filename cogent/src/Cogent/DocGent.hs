@@ -435,10 +435,10 @@ docGent input = let
                     items' = sortBy (comparing fst) items
                     items'' = groupBy ((==) `on` (sourceName . fst) ) items'
                 in do createDirectoryIfMissing True "docgent"
-                      jq <- getDataFileName "static/jquery.min.js" 
-                      toc <- getDataFileName "static/toc.min.js" 
-                      sty <- getDataFileName "static/style.css" 
-                      log <- getDataFileName "static/logo.png" 
+                      jq  <- getDataFileName "static/jquery.min.js"
+                      toc <- getDataFileName "static/toc.min.js"
+                      sty <- getDataFileName "static/style.css"
+                      log <- getDataFileName "static/logo.png"
                       copyFile jq "docgent/jquery.min.js"
                       copyFile toc "docgent/toc.min.js"
                       copyFile sty "docgent/style.css"
