@@ -1,0 +1,5 @@
+vfat_create_cog
+vfat_lookup_cog
+vfat_unlink_cog
+vfat_mkdir_cog
+vfat_rmdir_cog

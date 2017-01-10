@@ -8,6 +8,9 @@
  * @TAG(NICTA_GPL)
  */
 
+#include <linux/slab.h>
+#include <linux/time.h>
+
 #ifndef _ADT_LINUX_H
 #define _ADT_LINUX_H
 

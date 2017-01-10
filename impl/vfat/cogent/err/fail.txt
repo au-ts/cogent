@@ -1,0 +1,88 @@
+Parsing...
+Resolving dependencies...
+Typechecking...
+Desugaring and typing...
+Normalising...ANF
+Re-typing NF...
+Simplifying...
+Skipped
+Monomorphising...
+Re-typing monomorphic AST...
+Generating C code...
+  > Writing to file: plat/linux/generated.h
+  > Writing to file: plat/linux/generated.c
+Generating glue code...
+Preprocessing C files...
+  > Writing to file: plat/linux/wrapper_pp.ac
+  > Writing to file: plat/linux/wrapper_pp_inferred.c
+Compilation finished!
+/home/abdul/Desktop/projects_main/csiro/project/cogent/impl/vfat/cogent/plat/linux/module.c:734:12: error: static declaration of ‘vfat_add_entry’ follows non-static declaration
+ static int vfat_add_entry(struct inode *dir, struct qstr *qname, int is_dir,
+            ^
+In file included from /home/abdul/Desktop/projects_main/csiro/project/cogent/impl/vfat/cogent/plat/linux/module.c:11:0:
+/home/abdul/Desktop/projects_main/csiro/project/cogent/impl/vfat/cogent/plat/linux/wrapper_pp_inferred.c:12:12: note: previous declaration of ‘vfat_add_entry’ was here
+ extern int vfat_add_entry(struct inode *dir, struct qstr *qname, int is_dir,
+            ^
+/home/abdul/Desktop/projects_main/csiro/project/cogent/impl/vfat/cogent/plat/linux/module.c: In function ‘vfat_create’:
+/home/abdul/Desktop/projects_main/csiro/project/cogent/impl/vfat/cogent/plat/linux/module.c:811:23: error: ‘sb’ undeclared (first use in this function)
+  mutex_lock(&MSDOS_SB(sb)->s_lock);
+                       ^
+/home/abdul/Desktop/projects_main/csiro/project/cogent/impl/vfat/cogent/plat/linux/module.c:811:23: note: each undeclared identifier is reported only once for each function it appears in
+/home/abdul/Desktop/projects_main/csiro/project/cogent/impl/vfat/cogent/plat/linux/module.c:812:14: error: ‘cog_inode’ undeclared (first use in this function)
+  $ty:(Inode) cog_inode;
+              ^
+/home/abdul/Desktop/projects_main/csiro/project/cogent/impl/vfat/cogent/plat/linux/module.c:814:26: error: ‘struct inode’ has no member named ‘isb’
+  cog_inode -> i_sb = dir -> isb;
+                          ^
+/home/abdul/Desktop/projects_main/csiro/project/cogent/impl/vfat/cogent/plat/linux/module.c:817:2: error: duplicate label ‘$ty’
+  $ty:(Inode) cog_dentry;
+  ^
+/home/abdul/Desktop/projects_main/csiro/project/cogent/impl/vfat/cogent/plat/linux/module.c:812:2: note: previous definition of ‘$ty’ was here
+  $ty:(Inode) cog_inode;
+  ^
+/home/abdul/Desktop/projects_main/csiro/project/cogent/impl/vfat/cogent/plat/linux/module.c:817:14: error: ‘cog_dentry’ undeclared (first use in this function)
+  $ty:(Inode) cog_dentry;
+              ^
+/home/abdul/Desktop/projects_main/csiro/project/cogent/impl/vfat/cogent/plat/linux/module.c:821:2: error: duplicate label ‘$ty’
+  $ty:(R U32 (Dentry, U32)) ret = $exp:(vfat_create_cog((cog_inode, cog_dentry)));
+  ^
+/home/abdul/Desktop/projects_main/csiro/project/cogent/impl/vfat/cogent/plat/linux/module.c:812:2: note: previous definition of ‘$ty’ was here
+  $ty:(Inode) cog_inode;
+  ^
+/home/abdul/Desktop/projects_main/csiro/project/cogent/impl/vfat/cogent/plat/linux/module.c:821:7: error: ‘R’ undeclared (first use in this function)
+  $ty:(R U32 (Dentry, U32)) ret = $exp:(vfat_create_cog((cog_inode, cog_dentry)));
+       ^
+/home/abdul/Desktop/projects_main/csiro/project/cogent/impl/vfat/cogent/plat/linux/module.c:821:9: error: expected ‘)’ before ‘U32’
+  $ty:(R U32 (Dentry, U32)) ret = $exp:(vfat_create_cog((cog_inode, cog_dentry)));
+         ^
+/home/abdul/Desktop/projects_main/csiro/project/cogent/impl/vfat/cogent/plat/linux/module.c:821:28: error: expected ‘;’ before ‘ret’
+  $ty:(R U32 (Dentry, U32)) ret = $exp:(vfat_create_cog((cog_inode, cog_dentry)));
+                            ^
+/home/abdul/Desktop/projects_main/csiro/project/cogent/impl/vfat/cogent/plat/linux/module.c:823:2: error: implicit declaration of function ‘free’ [-Werror=implicit-function-declaration]
+  free(cog_inode);
+  ^
+/home/abdul/Desktop/projects_main/csiro/project/cogent/impl/vfat/cogent/plat/linux/module.c:823:2: warning: incompatible implicit declaration of built-in function ‘free’
+/home/abdul/Desktop/projects_main/csiro/project/cogent/impl/vfat/cogent/plat/linux/module.c:823:2: note: include ‘<stdlib.h>’ or provide a declaration of ‘free’
+/home/abdul/Desktop/projects_main/csiro/project/cogent/impl/vfat/cogent/plat/linux/module.c:825:5: error: ‘ret’ undeclared (first use in this function)
+  if(ret.tag == TAG_ENUM_Success){
+     ^
+/home/abdul/Desktop/projects_main/csiro/project/cogent/impl/vfat/cogent/plat/linux/module.c:812:2: warning: label ‘$ty’ defined but not used [-Wunused-label]
+  $ty:(Inode) cog_inode;
+  ^
+In file included from /home/abdul/Desktop/projects_main/csiro/project/cogent/impl/vfat/cogent/plat/linux/module.c:11:0:
+/home/abdul/Desktop/projects_main/csiro/project/cogent/impl/vfat/cogent/plat/linux/wrapper_pp_inferred.c: In function ‘brelse_cog’:
+/home/abdul/Desktop/projects_main/csiro/project/cogent/impl/vfat/cogent/plat/linux/wrapper_pp_inferred.c:363:1: warning: control reaches end of non-void function [-Wreturn-type]
+ }
+ ^
+/home/abdul/Desktop/projects_main/csiro/project/cogent/impl/vfat/cogent/plat/linux/wrapper_pp_inferred.c: In function ‘d_instantiate_cog’:
+/home/abdul/Desktop/projects_main/csiro/project/cogent/impl/vfat/cogent/plat/linux/wrapper_pp_inferred.c:393:1: warning: control reaches end of non-void function [-Wreturn-type]
+ }
+ ^
+/home/abdul/Desktop/projects_main/csiro/project/cogent/impl/vfat/cogent/plat/linux/module.c: In function ‘vfat_create’:
+/home/abdul/Desktop/projects_main/csiro/project/cogent/impl/vfat/cogent/plat/linux/module.c:830:1: warning: control reaches end of non-void function [-Wreturn-type]
+ }
+ ^
+cc1: some warnings being treated as errors
+make[2]: *** [/home/abdul/Desktop/projects_main/csiro/project/cogent/impl/vfat/cogent/plat/linux/module.o] Error 1
+make[1]: *** [_module_/home/abdul/Desktop/projects_main/csiro/project/cogent/impl/vfat/cogent] Error 2
+make: *** [linux] Error 2

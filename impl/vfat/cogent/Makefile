@@ -42,7 +42,7 @@ PWD:= $(shell pwd)
 endif
 
 ifneq ($(DEBUG),)
-EXTRA_CFLAGS+= -DSKELFS_DEBUG #TODO: FIX THIS
+EXTRA_CFLAGS+= -DSKELFS_DEBUG -g #TODO: FIX THIS
 COGENT_FLAGS+= --debug
 endif
 

@@ -421,6 +421,7 @@ struct inode *fat_iget(struct super_block *sb, loff_t i_pos)
 	spin_unlock(&sbi->inode_hash_lock);
 	return inode;
 }
+EXPORT_SYMBOL_GPL(fat_iget);
 
 static int is_exec(unsigned char *extension)
 {
@@ -508,6 +509,7 @@ int fat_fill_inode(struct inode *inode, struct msdos_dir_entry *de)
 
 	return 0;
 }
+EXPORT_SYMBOL_GPL(fat_fill_inode);
 
 static inline void fat_lock_build_inode(struct msdos_sb_info *sbi)
 {
@@ -529,12 +531,17 @@ struct inode *fat_build_inode(struct super_block *sb,
 
 	fat_lock_build_inode(MSDOS_SB(sb));
 	inode = fat_iget(sb, i_pos);
-	if (inode)
-		goto out;
+	if (inode){
+		// is this an error
+		fat_unlock_build_inode(MSDOS_SB(sb));
+		return inode;
+	}
+
 	inode = new_inode(sb);
 	if (!inode) {
 		inode = ERR_PTR(-ENOMEM);
-		goto out;
+		fat_unlock_build_inode(MSDOS_SB(sb));
+		return inode;
 	}
 	inode->i_ino = iunique(sb, MSDOS_ROOT_INO);
 	inode->i_version = 1;
@@ -542,11 +549,12 @@ struct inode *fat_build_inode(struct super_block *sb,
 	if (err) {
 		iput(inode);
 		inode = ERR_PTR(err);
-		goto out;
+		fat_unlock_build_inode(MSDOS_SB(sb));
+		return inode;
 	}
 	fat_attach(inode, i_pos);
 	insert_inode_hash(inode);
-out:
+
 	fat_unlock_build_inode(MSDOS_SB(sb));
 	return inode;
 }

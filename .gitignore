@@ -34,3 +34,7 @@ ROOT
 generated.*
 *_flymake.hs
 cogent/examples/inprogress/
+impl/vfat/vfat_test/
+impl/vfat_orig/
+impl/vfat/cogent/err/
+impl/vfat/cogent/tmp.tmp*

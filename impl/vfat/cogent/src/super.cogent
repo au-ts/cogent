@@ -8,6 +8,335 @@
 -- @TAG(NICTA_GPL)
 --
 
--- Included something, because the cogent compiler doesn't support an empty
--- cogent source file.
-include <gum/common.cogent>
+-- pointers in U64 (should they be U32? Does it matter? Chose U64 because supertype)
+
+
+-- error-return-values not completely fixed up yet
+
+type VfsInode = U64
+type VfsDentry = U64
+
+type ErrPtr = U64
+
+type R a b = < Success a | Error b >
+
+type Time = #{
+  seconds:  U32,
+  nanoseconds: U32
+}
+
+type SlotInfo = #{
+  i_pos: U64,
+  slot_off: U64,
+  nr_slots: U32,
+  de: U64,
+  bh: U64
+}
+
+-- maybe change locks to linear things so the compiler complains if you forget to unlock
+
+-- maybe just deal with err_ptrs and change to errors in ac?
+
+get_current_time: () -> Time
+get_sb: VfsInode! -> U64
+get_name: VfsDentry -> U64
+set_time: (VfsInode, Time) -> VfsInode
+get_version: VfsInode! -> U64
+set_version: (VfsInode, U64) -> VfsInode
+set_ino: (VfsInode, U64) -> VfsInode
+
+is_dirsync_ac: VfsInode -> R VfsInode VfsInode -- maybe should just be read
+brelse_ac: U64 -> ()
+iput_ac: VfsInode -> ()
+fat_iget_ac: (U64, U64) -> R () ErrPtr
+d_instantiate_ac: (VfsInode, VfsDentry)! -> ()
+is_err: VfsInode -> R VfsInode ErrPtr
+
+flock_buildinode: U64 -> ()
+funlock_buildinode: U64 -> ()
+ulock: U64 -> ()
+slock: U64 -> ()
+
+-- convert later
+new_inode_ac: (U64) -> R VfsInode ErrPtr
+
+-- Check
+fat_fill_inode_ac: (VfsInode, U64) -> R VfsInode (VfsInode, ErrPtr)
+fat_attach_ac: (VfsInode, U64) -> VfsInode
+insert_inode_hash_ac: VfsInode -> VfsInode
+vfat_striptail_len_ac: U64 -> R U32 ErrPtr -- should error be negative?
+vfat_build_slots_ac: (VfsInode, U64, U32, U32, U32, Time) -> R (VfsInode, U64, U32) ErrPtr -- change later to merge slots and nr_slots
+fat_add_entries_ac: (VfsInode, U64, U32) -> R SlotInfo ErrPtr -- maybe define Err as U32 - later get rid of errptr if possible
+fat_sync_inode_ac: VfsInode -> VfsInode
+mark_inode_dirty_ac: VfsInode -> VfsInode
+
+-- ! what you need to ! for future reference
+
+incr_version: VfsInode -> VfsInode
+incr_version inode =
+  let version = get_version(inode) ! inode
+  and version = version + 1
+  in set_version(inode, version)
+
+setup_inode: (VfsInode, VfsDentry!, Time) -> VfsInode
+setup_inode (inode, dentry, ts) = -- double check if time of increasing i_version matters (order!)
+  let inode = incr_version(inode)
+  and inode = set_time(inode, ts)
+  and _ = d_instantiate_ac(inode, dentry) !inode
+  in inode
+
+--printblah: String -> ()
+
+fat_build_inode_cog: (VfsInode, SlotInfo) -> R VfsInode ErrPtr -- GET RID OF VFSINODE need sb instead
+fat_build_inode_cog (inode, sinfo) =
+  let bh = sinfo.bh
+  and _ = brelse_ac(bh)
+  and sb = get_sb(inode) ! inode
+  and i_pos = sinfo.i_pos
+  and de = sinfo.de
+  and _ = flock_buildinode(sb)
+  in fat_iget_ac(sb, i_pos)
+  | Success () ->
+    new_inode_ac (sb)
+    | Success inode ->
+      let inode = set_ino(inode, sb) -- check this
+      and inode = set_version(inode, 1)
+      in fat_fill_inode_ac (inode, de)
+      | Success inode ->
+        let inode = fat_attach_ac (inode, i_pos) -- check if just read!!
+        and inode = insert_inode_hash_ac(inode)
+        and _ = funlock_buildinode(sb)
+        in is_err(inode)
+        | Success inode -> Success inode
+        | Error err_ptr -> Error err_ptr
+      | Error (inode, err_ptr) ->
+        let _ = iput_ac (inode) -- check what this does
+        and _ = funlock_buildinode (sb)
+        in Error err_ptr
+    | Error err_ptr ->
+      let _ = funlock_buildinode(sb)
+      in Error err_ptr
+  | Error err_ptr ->
+    let _ = funlock_buildinode(sb)
+    in Error err_ptr
+
+vfat_add_entry_cog: (VfsInode, U64, U32, U32, Time) -> R (VfsInode, SlotInfo) ErrPtr
+vfat_add_entry_cog (dir, qname, is_dir, cluster, ts) =
+  vfat_striptail_len_ac (qname) ! qname -- redundant because U64 but keep in mind for later
+  | Success len ->
+    vfat_build_slots_ac (dir, qname, len, is_dir, cluster, ts)
+    | Success (dir, slots, nr_slots) -> -- maybe join together slots and nr_slots
+      fat_add_entries_ac (dir, slots, nr_slots)
+      | Success sinfo ->
+        let dir = set_time (dir, ts)
+        in is_dirsync_ac (dir) -- maybe just read? check
+        | Success dir ->
+          let dir = fat_sync_inode_ac (dir)
+          in Success (dir, sinfo)
+        | Error dir ->
+          let dir = mark_inode_dirty_ac (dir)
+          in Success (dir, sinfo)
+      | Error err_ptr -> Error err_ptr
+    | Error err_ptr -> Error err_ptr
+  | Error err_ptr -> Error err_ptr -- remember negative stuff - return pos, trans to neg later
+
+vfat_create_cog: (VfsInode, VfsDentry!) -> R VfsInode ErrPtr
+vfat_create_cog (inode, dentry) =
+  let sb = get_sb(inode) ! inode
+  and _ = slock (sb)
+  and ts = get_current_time ()
+  and name = get_name (dentry)
+  in vfat_add_entry_cog (inode, name, 0, 0, ts)
+  | Success (inode, sinfo) ->
+    let inode = incr_version(inode)
+    in fat_build_inode_cog (inode, sinfo)
+    | Success inode ->
+      let inode = setup_inode(inode, dentry, ts)
+      and _ = ulock(sb)
+      in Success inode
+    | Error err_ptr ->
+      let _ = ulock(sb)
+      in Error err_ptr
+  | Error err ->
+    let _ = ulock(sb)
+    in Error err
+
+-- vfat_lookup
+is_null: VfsInode -> R () ()
+is_noent: ErrPtr -> R () ()
+set_d_time: (VfsDentry, U64) -> VfsDentry
+s_isdir_ac: VfsInode! -> R () ()
+dput_ac: VfsDentry -> ()
+d_move_ac: (VfsInode, VfsDentry) -> ()
+d_unhashed_ac: VfsDentry -> VfsDentry
+d_splice_alias_ac: (VfsInode, VfsDentry) -> VfsDentry
+fat_search_long_ac: (VfsInode, U64, U32) -> R (VfsInode, SlotInfo) ErrPtr
+alias_cond: (VfsInode, VfsDentry) -> R (VfsInode, VfsDentry) (VfsInode, VfsDentry)
+
+vfat_find_cog: (VfsInode, U64)! ->  R (VfsInode, SlotInfo) ErrPtr
+vfat_find_cog (inode, name) =
+  vfat_striptail_len_ac (name) ! name
+  | Success len -> fat_search_long_ac (inode, name, len)
+  | Error err_ptr -> Error err_ptr
+
+-- dentry isn't used everywhere here
+-- check that you're doing everythign in the original function!!
+vfat_lookup_cog: (VfsInode, VfsDentry) -> R VfsDentry ErrPtr -- check if vfs dentry should be banged
+vfat_lookup_cog (dir, dentry) =
+  let sb = get_sb (dir) ! dir
+  and _ = slock(sb)
+  and name = get_name (dentry) ! dentry
+  in vfat_find_cog (dir, name) !dir !name -- pretty sure this reads
+  | Success (dir, sinfo) ->
+    --let bh = sinfo.bh
+    --and _ = brelse_ac (bh) -- maybe put in fat_ build_inode_cog
+    fat_build_inode_cog (dir, sinfo) -- check if error correct
+    | Success inode ->
+      alias_cond (inode, dentry) !dentry -- if statement
+      | Success (inode, alias) ->
+        let alias = d_unhashed_ac (alias)
+        in s_isdir_ac(inode) ! inode
+        | Success () ->
+          let _ = iput_ac(inode)
+          and _ = ulock (sb)
+          in Success alias
+        | Error () ->
+          let _ = d_move_ac (alias, dentry) -- double check if alias is a vfsdentry
+          and _ = iput_ac (inode)
+          and _ = ulock (sb)
+          in Success alias
+      | Error (inode, alias) ->
+        let _ = dput_ac (alias)
+        and _ = ulock(sb)
+        in is_null(inode)
+        | Success () ->
+          let version = get_version (dir)
+          and dentry = set_d_time (dentry, version) -- see if you can swap
+          and dentry = d_splice_alias_ac(inode, dentry)
+          in Success dentry
+        | Error () ->
+          let dentry = d_splice_alias_ac (inode, dentry)
+          in Success dentry
+    | Error err_ptr ->
+      let _ = ulock(sb)
+      in Error err_ptr
+  | Error err_ptr ->
+    is_noent(err_ptr)
+    | Success () ->
+      let _ = ulock(sb)
+      and version = get_version (dir)
+      and dentry = set_d_time (dentry, version)
+      and dentry = d_splice_alias_ac(0, dentry) -- should be NULL!
+      in Success dentry
+    | Error () ->
+      let _ = ulock(sb)
+      in Error err_ptr
+
+-- vfat_unlink
+update_am_time: VfsInode -> VfsInode -- change this
+fat_remove_entries_ac: (VfsInode, SlotInfo) -> R () ErrPtr
+clear_nlink_ac: VfsInode -> VfsInode
+fat_detach_ac: VfsInode -> ()
+d_inode_ac: VfsDentry -> VfsInode
+
+-- maybe change slotinfo to be a poitner
+
+-- UPDATE TIME IS ONLY FOR MTIME AND ATIME
+-- maybe change result to be R VfsInode ErrPtr later to fit into functional thing
+
+vfat_unlink_cog: (VfsInode, VfsDentry) -> R () ErrPtr
+vfat_unlink_cog (dir, dentry) =
+  let inode = d_inode_ac (dentry)
+  and sb = get_sb (dir) ! dir
+  and version = get_version (dir) ! dir
+  and _ = slock (sb)
+  and name = get_name (dentry) ! dentry
+  in vfat_find_cog (dir, name)
+  | Success (dir, sinfo) ->
+    fat_remove_entries_ac (dir, sinfo)
+    | Success () ->
+      let inode = clear_nlink_ac (inode)
+      and inode = update_am_time (inode)
+      and _ = fat_detach_ac(inode)
+      and dentry = set_d_time (dentry, version) -- FIX THIS!!!! need to rearrange for future purposes re: linearity
+      and _ = ulock (sb)
+      in Success ()
+    | Error err_ptr ->
+      let _ = ulock(sb)
+      in Error err_ptr
+  | Error err_ptr ->
+    let _ = ulock(sb)
+    in Error err_ptr
+
+-- vfat_mkdir
+inc_nlink_ac: VfsInode -> VfsInode
+set_nlink_ac: (VfsInode, U32) -> VfsInode -- check this m8
+
+fat_alloc_new_dir_ac: (VfsInode, Time) -> R (VfsInode, U32) ErrPtr
+fat_free_clusters_ac: (VfsInode, U32) -> ()
+
+vfat_mkdir_cog: (VfsInode, VfsDentry) -> R () ErrPtr
+vfat_mkdir_cog (dir, dentry) =
+  let sb = get_sb (dir) ! dir
+  and ts = get_current_time ()
+  and name = get_name (dentry) ! dentry
+  in fat_alloc_new_dir_ac (dir, ts)
+  | Success (dir, cluster) -> -- check if read only
+    vfat_add_entry_cog (dir, name, 1, cluster, ts)
+    | Success (dir, sinfo) ->
+      let dir = incr_version (dir)
+      and dir = inc_nlink_ac (dir)
+      in fat_build_inode_cog (dir, sinfo)
+      | Success inode ->
+      -- replace with setup inode if possible
+        let inode = incr_version (inode)
+        and inode = set_nlink_ac (inode, 2)
+        and inode = set_time (inode, ts)
+        and _ = d_instantiate_ac (inode, dentry)
+        and _ = ulock(sb)
+        in Success ()
+      | Error err_ptr ->
+        let _ = ulock(sb)
+        in Error err_ptr
+    | Error err_ptr ->
+      let _ = fat_free_clusters_ac (dir, cluster) -- LINEARITY WARNING! DIR (in the future be careful)
+      and _ = ulock(sb)
+      in Error err_ptr
+  | Error err_ptr ->
+    let _ = ulock(sb)
+    in Error err_ptr
+
+--vfat_rmdir
+fat_dir_empty_ac: VfsInode -> R VfsInode ErrPtr
+drop_nlink_ac: VfsInode -> ()
+
+-- There was an error ONE time when using this. Not sure how to recreate. Need to check.
+vfat_rmdir_cog: (VfsInode, VfsDentry) -> R () ErrPtr
+vfat_rmdir_cog (dir, dentry) =
+  let inode = d_inode_ac (dentry)
+  and sb = get_sb (dir) ! dir
+  and name = get_name (dentry) ! dentry
+  and _ = slock (sb)
+  in fat_dir_empty_ac (inode) -- clear if read only
+  | Success inode ->
+    vfat_find_cog (dir, name)
+    | Success (dir, sinfo) ->
+      fat_remove_entries_ac(dir, sinfo) -- linearity check!!! for future ref 
+      | Success () ->
+        let version = get_version(dir) ! dir
+        and _ = drop_nlink_ac(dir)
+        and inode = clear_nlink_ac (inode)
+        and inode = update_am_time (inode)
+        and _ = fat_detach_ac (inode)
+        and _ = set_d_time (dentry, version)
+        and _ = ulock (sb)
+        in Success ()
+      | Error err_ptr ->
+        let _ = ulock(sb)
+        in Error err_ptr
+    | Error err_ptr ->
+      let _ = ulock(sb)
+      in Error err_ptr
+  | Error err_ptr ->
+    let _ = ulock(sb)
+    in Error err_ptr
