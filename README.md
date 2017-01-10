@@ -1,3 +1,5 @@
+[![Build Status](https://api.travis-ci.org/NICTA/cogent.svg?branch=master)](https://travis-ci.org/NICTA/cogent)
+
 # Cogent: Code and Proof Co-Generation
 
 ## Project homepage
