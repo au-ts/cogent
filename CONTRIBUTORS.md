@@ -15,11 +15,13 @@ repository (in alphabetical order).
 * Edward Lee, NICTA & UNSW
 * Corey Lewis, NICTA
 * Japheth Lim, NICTA
+* Craige McWhirter
 * Toby Murray, NICTA & UNSW
 * Yutaka Nagashima, NICTA
 * Liam O'Connor, NICTA & UNSW
 * Christine Rizkallah, NICTA & UNSW
 * Leonid Ryzhyk, NICTA & UNSW
+* Carter Tazio Schonwald
 * Sean Seefried, NICTA
 * Thomas Sewell, NICTA & UNSW
 * Partha Susarla, NICTA
