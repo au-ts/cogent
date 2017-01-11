@@ -71,6 +71,7 @@ import "language-c-quote" Language.C.Syntax  as CS
 import System.FilePath (replaceBaseName, replaceExtension, takeBaseName, takeExtension, (<.>))
 import Text.Parsec.Pos (newPos, SourcePos)
 import Text.Parsec.Prim as PP hiding (State)
+import Text.PrettyPrint.ANSI.Leijen (vsep)
 
 -- import Debug.Trace
 
@@ -186,10 +187,11 @@ tcAnti m a = view kenv >>= \(cvtToList -> ts) -> lift . lift $
                                         , TC._kindContext  = ts
                                         , TC._knownTypes   = view (tcState.ttypes) s
                                         }
-                  in case (fst . flip evalState state . runWriterT . runExceptT . TC.runTC $ m a) of
-                       Left  e -> throwE $ "Error: Typecheck antiquote failed: \n" ++ (show $ prettyTWE' __cogent_ftc_ctx_len e)
-                                    -- FIXME: may need a pp modifier `plain' / zilinc
-                       Right x -> return (x, s)
+                  in case (flip evalState state . runWriterT . runExceptT . TC.runTC $ m a) of
+                       (Right x, []) -> return (x, s)
+                       (_, err) -> throwE $ "Error: Typecheck antiquote failed:\n" ++
+                                            show (vsep $ L.map (prettyTWE __cogent_ftc_ctx_len) err)
+                                            -- FIXME: may need a pp modifier `plain' / zilinc
 
 desugarAnti :: (a -> DS.DS t 'Zero b) -> a -> GlDefn t b
 desugarAnti m a = view kenv >>= \(fmap fst -> ts) -> lift . lift $
