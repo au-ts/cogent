@@ -928,6 +928,7 @@ dupTyVarNames (v:vs) ctx = if v `elem` vs then typeError (ConflictingTypeVariabl
 
 typecheck' (Include _) = __impossible "typecheck'"
 typecheck' (IncludeStd _) = __impossible "typecheck'"
+typecheck' (DocBlock s) = return $ DocBlock s
 typecheck' (TypeDec n vs t) = do
   typeOughtToBeUnknown n
   dupTyVarNames vs (Left n)

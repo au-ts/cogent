@@ -393,7 +393,8 @@ docGent input = let
                     items = map foreach input 
                     items' = sortBy (comparing fst) items
                     items'' = groupBy ((==) `on` (sourceName . fst) ) items'
-                in do jq <- getDataFileName "static/jquery.min.js" 
+                in do createDirectoryIfMissing True "docgent"
+                      jq <- getDataFileName "static/jquery.min.js" 
                       toc <- getDataFileName "static/toc.min.js" 
                       sty <- getDataFileName "static/style.css" 
                       log <- getDataFileName "static/logo.png" 
@@ -404,7 +405,6 @@ docGent input = let
                       titles <- mapM (titleFor . fst . head) items''
                       let titles' = map (drop (length (commonOfAll titles))) titles
                       flip mapM_ (zip titles' items'') $ \(title, xs@((pos, _):_)) -> do
-                        createDirectoryIfMissing True "docgent"
                         let n = ("docgent/"++) $ fileNameFor pos
                             rn = ("docgent/"++) $ rawFileNameFor pos
                         let content = renderHtml $ template (rawFileNameFor pos) title (mconcat $ map snd xs)

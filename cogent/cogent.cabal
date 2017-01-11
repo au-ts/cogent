@@ -22,16 +22,15 @@ build-type:          Custom
 cabal-version:       >=1.18
 tested-with:         GHC==7.8.3, GHC==7.8.4, GHC==7.10.1, GHC==7.10.2, GHC==7.10.3
 
-source-repository head
-  type:     git
-  location: https://github.inside.nicta.com.au/ts-filesystems/bilby
-
-
 data-files:
     static/jquery.min.js
     static/style.css
     static/toc.min.js
     static/logo.png
+
+source-repository head
+  type:     git
+  location: https://github.inside.nicta.com.au/ts-filesystems/bilby
 
 Library
   hs-source-dirs: src
@@ -46,16 +45,8 @@ Library
               , Cogent.CorresProof
               , Cogent.CorresSetup
               , Cogent.Deep
-              , Cogent.DocGent
-              , Cogent.Context
-              , Cogent.GraphGen
-              , Cogent.Preprocess
-              , Cogent.TypeCheck.Base
-              , Cogent.TypeCheck.Generator
-              , Cogent.TypeCheck.Post
-              , Cogent.TypeCheck.Solver
-              , Cogent.TypeCheck.Subst
               , Cogent.Desugar
+              , Cogent.DocGent
               , Cogent.DList
               , Cogent.GetOpt
               , Cogent.Glue

@@ -127,6 +127,15 @@ third3  f (a,b,c) = (a,b,f c)
 first4 :: (a -> a') -> (a, b, c, d) -> (a', b, c, d)
 first4 f (a,b,c,d) = (f a,b,c,d)
 
+fst3 :: (a,b,c) -> a
+fst3 (a,b,c) = a
+
+snd3 :: (a,b,c) -> b
+snd3 (a,b,c) = b
+
+thd3 :: (a,b,c) -> c
+thd3 (a,b,c) = c
+
 extTup3 :: d -> (a,b,c) -> (a,b,c,d)
 extTup3 d (a,b,c) = (a,b,c,d)
 

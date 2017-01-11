@@ -177,29 +177,23 @@ instance Functor (Flip2 Expr p e) where
   fmap _ (Flip2 (UnboxedRecord es)) = Flip2 (UnboxedRecord es)
   fmap _ (Flip2 (Put e es))         = Flip2 (Put e es)
 instance Functor (Flip (TopLevel t) e) where
-  fmap f x = runIdentity (traverse (Identity . f) x)
-instance Foldable (Flip (TopLevel t) e) where
-  foldMap f a = getConst $ traverse (Const . f) a
-instance Traversable (Flip (TopLevel t) e) where
-  traverse f (Flip (FunDef v pt alts))  = Flip <$> (FunDef v pt <$> traverse (ttraverse f) alts)
-  traverse _ (Flip (Include s))         = pure $ Flip (Include s)
-  traverse _ (Flip (DocBlock s))        = pure $ Flip (DocBlock s)
-  traverse _ (Flip (TypeDec n vs t))    = pure $ Flip (TypeDec n vs t)
-  traverse _ (Flip (AbsTypeDec n vs))   = pure $ Flip (AbsTypeDec n vs)
-  traverse _ (Flip (AbsDec v pt))       = pure $ Flip (AbsDec v pt)
-  traverse _ (Flip (ConstDef v t e))    = pure $ Flip (ConstDef v t e)
+  fmap f (Flip (FunDef v pt alts))  = Flip (FunDef v pt (map (ffmap f) alts))
+  fmap _ (Flip (Include s))         = Flip (Include s)
+  fmap _ (Flip (IncludeStd s))      = Flip (IncludeStd s)
+  fmap _ (Flip (DocBlock s))        = Flip (DocBlock s)
+  fmap _ (Flip (TypeDec n vs t))    = Flip (TypeDec n vs t)
+  fmap _ (Flip (AbsTypeDec n vs))   = Flip (AbsTypeDec n vs)
+  fmap _ (Flip (AbsDec v pt))       = Flip (AbsDec v pt)
+  fmap _ (Flip (ConstDef v t e))    = Flip (ConstDef v t e)
 instance Functor (Flip2 TopLevel p e) where
-  fmap f x = runIdentity (traverse (Identity . f) x)
-instance Foldable (Flip2 TopLevel p e) where
-  foldMap f a = getConst $ traverse (Const . f) a
-instance Traversable (Flip2 TopLevel p e) where
-  traverse f (Flip2 (FunDef v pt alts)) = Flip2 <$> (FunDef   v <$> traverse f pt <*> pure alts)
-  traverse f (Flip2 (AbsDec v pt))      = Flip2 <$> (AbsDec   v <$> traverse f pt)
-  traverse f (Flip2 (ConstDef v t e))   = Flip2 <$> (ConstDef v <$> f t <*> pure e)
-  traverse f (Flip2 (TypeDec n vs t))   = Flip2 <$> (TypeDec  n vs <$> f t)
-  traverse _ (Flip2 (Include s))        = pure $ Flip2 (Include s)
-  traverse _ (Flip2 (DocBlock s))       = pure $ Flip2 (DocBlock s)
-  traverse _ (Flip2 (AbsTypeDec n vs))  = pure $ Flip2 (AbsTypeDec n vs)
+  fmap f (Flip2 (FunDef v pt alts)) = Flip2 (FunDef v (fmap f pt) alts)
+  fmap f (Flip2 (AbsDec v pt))      = Flip2 (AbsDec v (fmap f pt))
+  fmap f (Flip2 (ConstDef v t e))   = Flip2 (ConstDef v (f t) e)
+  fmap f (Flip2 (TypeDec n vs t))   = Flip2 (TypeDec n vs (f t))
+  fmap _ (Flip2 (Include s))        = Flip2 (Include s)
+  fmap _ (Flip2 (IncludeStd s))     = Flip2 (IncludeStd s)
+  fmap _ (Flip2 (DocBlock s))       = Flip2 (DocBlock s)
+  fmap _ (Flip2 (AbsTypeDec n vs))  = Flip2 (AbsTypeDec n vs)
 
 stripLocT :: LocType -> RawType
 stripLocT = RT . fmap stripLocT . typeOfLT
