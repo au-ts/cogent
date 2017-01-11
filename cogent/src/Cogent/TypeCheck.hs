@@ -928,6 +928,7 @@ dupTyVarNames (v:vs) ctx = if v `elem` vs then typeError (ConflictingTypeVariabl
 
 typecheck' (Include _) = __impossible "typecheck'"
 typecheck' (IncludeStd _) = __impossible "typecheck'"
+typecheck' (DocBlock s) = return $ DocBlock s
 typecheck' (TypeDec n vs t) = do
   typeOughtToBeUnknown n
   dupTyVarNames vs (Left n)
@@ -975,3 +976,4 @@ typecheck' (ConstDef n t e) = do
 typecheck :: [(SourcePos, TopLevel LocType VarName LocExpr)] -> TC [TopLevel RawType TypedName TypedExpr]
 typecheck [] = return []
 typecheck ((p,x):xs) = (:) <$> inEContext (InDefinition p x) (typecheck' x) <*> typecheck xs
+

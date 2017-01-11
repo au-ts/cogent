@@ -41,11 +41,10 @@ import qualified Text.Parsec.Token as T
 import System.Directory
 import System.FilePath
 
--- import Debug.Trace
 
 language :: LanguageDef st
 language = haskellStyle
-           { T.reservedOpNames = [":","=","+","*","/","%","@","!",":<",".","_","..","#",
+           { T.reservedOpNames = [":","=","+","*","/","%","!",":<",".","_","..","#", "@", "@@",
                                   "&&","||",">=","<=",">","<","==","/=",".&.",".|.",".^.",">>","<<"]
            , T.reservedNames   = ["let","in","type","include","all","take","put","inline",
                                   "if","then","else","not","complement","and","True","False"]
@@ -115,18 +114,29 @@ pattern = avoidInitial >>
 --            | var
 --            | Con
 
+docHunk = do whiteSpace; try (string "@"); x <- manyTill anyChar newline; whiteSpace; return x
 monotype = do avoidInitial
               t1 <- typeA1
               t2 <- optionMaybe (reservedOp "->" >> typeA1)
               case t2 of Nothing -> return t1; Just t2' -> return $ LocType (posOfT t1) $ TFun t1 t2'
   where
-    typeA1 = do avoidInitial
-                try paramtype
-                <|> (do t <- typeA2
-                        op <- optionMaybe takeput
-                        case op of Nothing -> return t; Just f -> return (f t)
-                    )
-    typeA2 = avoidInitial >>
+    typeA1 = do
+      x <- typeA1'
+      t2 <- optionMaybe (avoidInitial >> docHunk)
+      case t2 of Nothing -> return x; Just doc -> do
+                    return (Documentation doc x)
+    typeA2 = do
+      x <- typeA2'
+      t2 <- optionMaybe (avoidInitial >> docHunk)
+      case t2 of Nothing -> return x; Just doc -> do
+                    return (Documentation doc x)
+    typeA1' = do avoidInitial
+                 try paramtype
+                 <|> (do t <- typeA2'
+                         op <- optionMaybe takeput
+                         case op of Nothing -> return t; Just f -> return (f t)
+                     )
+    typeA2' = avoidInitial >>
                ((unbox >>= \op -> atomtype >>= \at -> return (op at))
            <|>  (atomtype >>= \t -> optionMaybe bang >>= \op -> case op of Nothing -> return t; Just f -> return (f t)))
     paramtype = avoidInitial >> LocType <$> getPosition <*> (TCon <$> typeConName <*> many1 typeA2 <*> pure Writable)
@@ -270,23 +280,30 @@ kindSignature = do n <- variableName
         determineKind [] k = return k
         determineKind _ k = fail "Kinds are made of three letters: D, S, E"
 
-toplevel = do
+
+
+docBlock = do whiteSpace; _ <- try (string "@@"); x <- manyTill anyChar (newline); whiteSpace; return x
+toplevel = do p <- getPosition
+              (p, "",) <$>  DocBlock <$> unlines <$> many1 docBlock
+                <|> toplevel'
+toplevel' = do
+  docs <- unlines . fromMaybe [] <$> optionMaybe (many1 docHunk)
   p <- getPosition
   when (sourceColumn p > 1) $ fail "toplevel entries should start at column 1"
-  (p,) <$> (try(Include <$ reserved "include" <*> stringLiteral)
-        <|> IncludeStd <$ reserved "include" <*> angles (many (noneOf "\r\n>"))
-        <|> typeDec <$ reserved "type" <*> typeConName <*> many (avoidInitial >> variableName) <*> optionMaybe (reservedOp "=" *> monotype)
-        <|> do n <- variableName
-               reservedOp ":"
-               tau <- polytype
-               do try (do n' <- variableName
-                          when (n /= n') $ fail $ "The name in the type signature, `" ++ n
-                                               ++ "` does not match the name in the equation, `" ++ n' ++ "`." )
-                  let fundef = FunDef n tau <$> (functionAlts <|> (:[]) <$> functionSingle)
-                  case tau of
-                    PT [] t -> (ConstDef n t <$ reservedOp "=" <*> expr 1 <|> fundef)
-                    _       -> fundef
-                <|> pure (AbsDec n tau))
+  (p,docs,) <$> (try (Include <$ reserved "include" <*> stringLiteral)
+             <|> IncludeStd <$ reserved "include" <*> angles (many (noneOf "\r\n>"))
+             <|> typeDec <$ reserved "type" <*> typeConName <*> many (avoidInitial >> variableName) <*> optionMaybe (reservedOp "=" *> monotype)
+             <|> do n <- variableName
+                    reservedOp ":"
+                    tau <- polytype
+                    do try (do n' <- variableName
+                               when (n /= n') $ fail $ "The name in the type signature, `" ++ n
+                                                    ++ "` does not match the name in the equation, `" ++ n' ++ "`." )
+                       let fundef = FunDef n tau <$> (functionAlts <|> (:[]) <$> functionSingle)
+                       case tau of
+                         PT [] t -> (ConstDef n t <$ reservedOp "=" <*> expr 1 <|> fundef)
+                         _       -> fundef
+                     <|> pure (AbsDec n tau))
   where
     typeDec n vs Nothing = AbsTypeDec n vs
     typeDec n vs (Just t) = TypeDec n vs t
@@ -298,13 +315,8 @@ toplevel = do
 
 type Parser a t = ParsecT String t Identity a
 
-program :: Parser [(SourcePos, TopLevel LocType VarName LocExpr)] t
-program = do
-  { whiteSpace
-  ; v <- many1 ((,) <$> getPosition <*> toplevel)
-  ; eof
-  ; return $ map snd v
-  }
+program :: Parser [(SourcePos, DocString, TopLevel LocType VarName LocExpr)] t
+program = whiteSpace *> many1 toplevel <* eof
 
 -- XXX | parse file = parseFromFile program file >>= \case
 -- XXX |                Left err   -> return $ Left $ show err
@@ -330,7 +342,7 @@ program = do
 --   We can conclude that the search path for b is independent of where a was found
 
 parseWithIncludes :: FilePath -> [FilePath]
-                  -> IO (Either String ([(SourcePos, TopLevel LocType VarName LocExpr)], [PP.LocPragma]))
+                  -> IO (Either String ([(SourcePos, DocString, TopLevel LocType VarName LocExpr)], [PP.LocPragma]))
 parseWithIncludes f paths = do
   r <- newIORef S.empty
   loadTransitive' r f paths "."  -- relative to orig, we're in orig
@@ -340,7 +352,7 @@ parseWithIncludes f paths = do
 -- paths: search paths, relative to origin
 -- ro: the path of the current file, relative to original dir
 loadTransitive' :: IORef (S.Set FilePath) -> FilePath -> [FilePath] -> FilePath
-                -> IO (Either String ([(SourcePos, TopLevel LocType VarName LocExpr)], [PP.LocPragma]))
+                -> IO (Either String ([(SourcePos, DocString, TopLevel LocType VarName LocExpr)], [PP.LocPragma]))
 loadTransitive' r fp paths ro = do
   let fps = map (flip combine fp) (ro:paths)  -- all file paths need to search
       fpdir = takeDirectory (combine ro fp)
@@ -354,13 +366,17 @@ loadTransitive' r fp paths ro = do
                   return ((,) <$> defs <*> pragmas)
                >>= \case
                      Left err -> return $ Left $ show err
-                     Right (defs,pragmas) -> fmap (second (pragmas ++) . mconcat) . sequence <$> mapM (flip transitive fpdir) defs
+                     Right (defs,pragmas) -> do
+                        defs' <- mapM (flip transitive fpdir) defs
+                        let blah = fmap (second (pragmas ++) . mconcat) . sequence $ defs'
+                        return blah
+
   where
-    transitive :: (SourcePos, TopLevel LocType VarName LocExpr)
+    transitive :: (SourcePos, DocString, TopLevel LocType VarName LocExpr)
                -> FilePath
-               -> IO (Either String ([(SourcePos, TopLevel LocType VarName LocExpr)], [PP.LocPragma]))
-    transitive (p,Include x) curr = loadTransitive' r x (map (combine curr) paths) curr
-    transitive (p,IncludeStd x) curr = do filepath <- (getStdIncFullPath x); loadTransitive' r filepath (map (combine curr) paths) curr
+               -> IO (Either String ([(SourcePos, DocString, TopLevel LocType VarName LocExpr)], [PP.LocPragma]))
+    transitive (p,d,Include x) curr = loadTransitive' r x (map (combine curr) paths) curr
+    transitive (p,d,IncludeStd x) curr = do filepath <- (getStdIncFullPath x); loadTransitive' r filepath (map (combine curr) paths) curr
     transitive x _ = return (Right ([x],[]))
 
     findPath :: [FilePath] -> IO (Maybe FilePath)

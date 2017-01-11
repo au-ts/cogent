@@ -25,21 +25,23 @@ import Text.Parsec.Pos
 
 type OpName = String
 
-data IrrefutablePattern v = PVar v
-                          | PTuple [IrrefutablePattern v]
-                          | PUnboxedRecord [Maybe (FieldName, IrrefutablePattern v)]
-                          | PUnderscore
-                          | PUnitel
-                          | PTake v [Maybe (FieldName, IrrefutablePattern v)]
-                              -- Note: `Nothing' will be desugared to `Just' in TypeCheck / zilinc
-                          deriving (Show, Functor, Foldable, Traversable)
+type DocString = String
 
-data Pattern v = PCon TagName [IrrefutablePattern v]
-               | PIntLit Integer
-               | PBoolLit Bool
-               | PCharLit Char
-               | PIrrefutable (IrrefutablePattern v)
-               deriving (Show, Functor, Foldable, Traversable)
+data IrrefutablePattern pv = PVar pv
+                           | PTuple [IrrefutablePattern pv]
+                           | PUnboxedRecord [Maybe (FieldName, IrrefutablePattern pv)]
+                           | PUnderscore
+                           | PUnitel
+                           | PTake pv [Maybe (FieldName, IrrefutablePattern pv)]
+                               -- Note: `Nothing' will be desugared to `Just' in TypeCheck / zilinc
+                           deriving (Show, Functor, Foldable, Traversable, Eq)
+
+data Pattern pv = PCon TagName [IrrefutablePattern pv]
+                | PIntLit Integer
+                | PBoolLit Bool
+                | PCharLit Char
+                | PIrrefutable (IrrefutablePattern pv)
+                deriving (Show, Functor, Foldable, Traversable, Eq)
 
 data Alt pv e = Alt (Pattern pv) Likelihood e deriving (Show, Functor, Foldable,Traversable)
 
@@ -93,6 +95,7 @@ data Polytype t = PT [(TyVarName, Kind)] t deriving (Show, Functor, Foldable, Tr
 
 data TopLevel t pv e = Include String
                      | IncludeStd String
+                     | DocBlock String
                      | TypeDec TypeName [TyVarName] t
                      | AbsTypeDec TypeName [TyVarName]
                      | AbsDec VarName (Polytype t)
@@ -119,7 +122,11 @@ absTyDeclId _ _ = False
 
 
 data LocExpr = LocExpr { posOfE :: SourcePos, exprOfLE :: Expr LocType VarName LocExpr } deriving (Show)
-data LocType = LocType { posOfT :: SourcePos, typeOfLT :: Type LocType } deriving (Show)
+data LocType = LocType { posOfT :: SourcePos, typeOfLT' :: Type LocType }
+             | Documentation String LocType deriving (Show)
+
+typeOfLT (LocType _ t) = t
+typeOfLT (Documentation s t) = typeOfLT t
 
 data RawType = RT { unRT :: Type RawType } deriving (Show, Eq)
 data RawExpr = RE { unRE :: Expr RawType VarName RawExpr } deriving Show
@@ -173,6 +180,7 @@ instance Functor (Flip (TopLevel t) e) where
   fmap f (Flip (FunDef v pt alts))  = Flip (FunDef v pt (map (ffmap f) alts))
   fmap _ (Flip (Include s))         = Flip (Include s)
   fmap _ (Flip (IncludeStd s))      = Flip (IncludeStd s)
+  fmap _ (Flip (DocBlock s))        = Flip (DocBlock s)
   fmap _ (Flip (TypeDec n vs t))    = Flip (TypeDec n vs t)
   fmap _ (Flip (AbsTypeDec n vs))   = Flip (AbsTypeDec n vs)
   fmap _ (Flip (AbsDec v pt))       = Flip (AbsDec v pt)
@@ -184,8 +192,8 @@ instance Functor (Flip2 TopLevel p e) where
   fmap f (Flip2 (TypeDec n vs t))   = Flip2 (TypeDec n vs (f t))
   fmap _ (Flip2 (Include s))        = Flip2 (Include s)
   fmap _ (Flip2 (IncludeStd s))     = Flip2 (IncludeStd s)
+  fmap _ (Flip2 (DocBlock s))       = Flip2 (DocBlock s)
   fmap _ (Flip2 (AbsTypeDec n vs))  = Flip2 (AbsTypeDec n vs)
-
 
 stripLocT :: LocType -> RawType
 stripLocT = RT . fmap stripLocT . typeOfLT

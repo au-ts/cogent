@@ -44,8 +44,9 @@ keyword = bold . string
 typevar = blue . string
 typename = blue . bold . string
 literal = dullcyan
-typesymbol = cyan . string
-funname = dullyellow . string
+typesymbol = cyan . string  -- type operators, e.g. !, ->, take
+funname = green . string
+funname' = underline . green . string
 fieldname = magenta . string
 tagname = dullmagenta . string
 symbol = string
@@ -76,23 +77,37 @@ level (Prefix) = 0
 associativity :: String -> Associativity
 associativity = S.associativity . desugarOp
 
-levelExpr :: RawExpr -> Int
-levelExpr (RE (App {})) = 1
-levelExpr (RE (PrimOp n [_,_])) = level (associativity n)
-levelExpr (RE (Member {})) = 0
-levelExpr (RE (Var {})) = 0
-levelExpr (RE (IntLit {})) = 0
-levelExpr (RE (BoolLit {})) = 0
-levelExpr (RE (CharLit {})) = 0
-levelExpr (RE (StringLit {})) = 0
-levelExpr (RE (Tuple {})) = 0
-levelExpr (RE Unitel) = 0
-levelExpr _ = 100
+class ExprType a where
+  levelExpr :: a -> Int  -- associativity levels
+  isVar :: a -> VarName -> Bool
+
+instance ExprType (Expr t b e) where
+  levelExpr (App {}) = 1
+  levelExpr (PrimOp n [_,_]) = level (associativity n)
+  levelExpr (Member {}) = 0
+  levelExpr (Var {}) = 0
+  levelExpr (IntLit {}) = 0
+  levelExpr (BoolLit {}) = 0
+  levelExpr (CharLit {}) = 0
+  levelExpr (StringLit {}) = 0
+  levelExpr (Tuple {}) = 0
+  levelExpr (Unitel) = 0
+  levelExpr _ = 100
+  isVar (Var n) s = (n == s)
+  isVar _ _ = False
+
+instance ExprType RawExpr where
+  levelExpr (RE e) = levelExpr e
+  isVar (RE e) = isVar e
+
+-- instance ExprType (TExpr t) where
+--   levelExpr (TE _ e _) = levelExpr e
+--   -- isVar (TE _ e _)     = isVar e
 
 pretty'IP e@(PTake {}) = parens (pretty e)
 pretty'IP e = pretty e
 
-pretty' :: Int -> RawExpr -> Doc
+pretty' :: (ExprType e, Pretty e) => Int -> e -> Doc
 pretty' l x | levelExpr x < l   = pretty x
             | otherwise = parens (indent (pretty x))
 
@@ -101,9 +116,9 @@ handleTakeAssign Nothing = fieldname ".."
 handleTakeAssign (Just (s, PVar x)) | s == x = fieldname s
 handleTakeAssign (Just (s, e)) = fieldname s <+> symbol "=" <+> pretty e
 
-handlePutAssign :: Maybe (FieldName, RawExpr) -> Doc
+handlePutAssign :: (ExprType e, Pretty e) => Maybe (FieldName, e) -> Doc
 handlePutAssign Nothing = fieldname ".."
-handlePutAssign (Just (s, RE (Var x))) | s == x = fieldname s
+handlePutAssign (Just (s, e)) | isVar e s = fieldname s
 handlePutAssign (Just (s, e)) = fieldname s <+> symbol "=" <+> pretty e
 
 instance Pretty Likelihood where
@@ -133,12 +148,12 @@ pretty'B (p, Just t, e) i
 pretty'B (p, Nothing, e) i
      = group (pretty p <+> symbol "=" <+> (if i then (pretty' 100) else pretty) e)
 
-instance Pretty (Binding RawType VarName RawExpr) where
+instance (Pretty e, ExprType e) => Pretty (Binding RawType VarName e) where
   pretty (Binding p t e []) = pretty'B (p,t,e) False
   pretty (Binding p t e bs)
      = pretty'B (p,t,e) True <+> hsep (map (letbangvar . ('!':)) bs)
 
-instance Pretty (Alt VarName RawExpr) where
+instance Pretty e => Pretty (Alt VarName e) where
   pretty (Alt p arrow e) = symbol "|" <+> pretty p <+> group (pretty arrow <+> pretty e)
 
 instance Pretty Inline where
@@ -146,41 +161,44 @@ instance Pretty Inline where
   pretty NoInline = empty
 
 instance Pretty RawExpr where
-  pretty (RE (Var x)) = varname x
-  pretty (RE (TypeApp x ts note)) = pretty note <> varname x <> typeargs (map pretty ts)
-  pretty (RE (Member x f)) = pretty' 1 x <> symbol "." <> fieldname f
-  pretty (RE (IntLit i)) = literal (string $ show i)
-  pretty (RE (BoolLit b)) = literal (string $ show b)
-  pretty (RE (CharLit c)) = literal (string $ show c)
-  pretty (RE (StringLit s)) = literal (string $ show s)
-  pretty (RE Unitel) = string "()"
-  pretty (RE (PrimOp n [a,b]))
+  pretty (RE e) = pretty e
+
+instance (ExprType e, Pretty e) => Pretty (Expr RawType VarName e) where
+  pretty (Var x) = varname x
+  pretty (TypeApp x ts note) = pretty note <> varname x <> typeargs (map pretty ts)
+  pretty (Member x f) = pretty' 1 x <> symbol "." <> fieldname f
+  pretty (IntLit i) = literal (string $ show i)
+  pretty (BoolLit b) = literal (string $ show b)
+  pretty (CharLit c) = literal (string $ show c)
+  pretty (StringLit s) = literal (string $ show s)
+  pretty Unitel = string "()"
+  pretty (PrimOp n [a,b])
      | LeftAssoc l  <- associativity n = pretty' (l+1) a <+> primop n <+> pretty' l b
      | RightAssoc l <- associativity n = pretty' l a <+> primop n <+> pretty' (l+1)  b
      | NoAssoc   l  <- associativity n = pretty' l a <+> primop n <+> pretty' l  b
-  pretty (RE (PrimOp n [e])) = primop n <+> pretty' 1 e
-  pretty (RE (PrimOp n es)) = primop n <+> tupled (map pretty es)
-  pretty (RE (App a b)) = pretty' 2 a <+> pretty' 1 b
-  pretty (RE (Con n [] )) = tagname n
-  pretty (RE (Con n [e])) = tagname n <+> pretty' 1 e
-  pretty (RE (Con n es )) = tagname n <+> spaceList (map (pretty' 1) es)
-  pretty (RE (Tuple es)) = tupled (map pretty es)
-  pretty (RE (UnboxedRecord fs)) = string "#" <> record (map (handlePutAssign . Just) fs)
-  pretty (RE (If c vs t e)) = group (keyword "if" <+> handleBangedIf vs (pretty' 100 c)
-                                                  <$> indent (keyword "then" </> pretty t)
-                                                  <$> indent (keyword "else" </> pretty e))
+  pretty (PrimOp n [e]) = primop n <+> pretty' 1 e
+  pretty (PrimOp n es) = primop n <+> tupled (map pretty es)
+  pretty (App a b) = pretty' 2 a <+> pretty' 1 b
+  pretty (Con n [] ) = tagname n
+  pretty (Con n [e]) = tagname n <+> pretty' 1 e
+  pretty (Con n es ) = tagname n <+> spaceList (map (pretty' 1) es)
+  pretty (Tuple es) = tupled (map pretty es)
+  pretty (UnboxedRecord fs) = string "#" <> record (map (handlePutAssign . Just) fs)
+  pretty (If c vs t e) = group (keyword "if" <+> handleBangedIf vs (pretty' 100 c)
+                                             <$> indent (keyword "then" </> pretty t)
+                                             <$> indent (keyword "else" </> pretty e))
     where handleBangedIf [] = id
           handleBangedIf vs = (<+> hsep (map (letbangvar . ('!':)) vs))
-  pretty (RE (Match e bs alts)) = handleLetBangs bs (pretty' 100 e)  <> mconcat (map ((hardline <>) . indent . pretty) alts)
+  pretty (Match e bs alts) = handleLetBangs bs (pretty' 100 e)  <> mconcat (map ((hardline <>) . indent . pretty) alts)
     where handleLetBangs [] = id
           handleLetBangs bs = (<+> hsep (map (letbangvar . ('!':)) bs))
-  pretty (RE (Seq a b)) = pretty' 100 a <> symbol ";" <$> pretty b
-  pretty (RE (Let []     e)) = __impossible "pretty (in RawExpr)"
-  pretty (RE (Let (b:[]) e)) = keyword "let" <+> indent (pretty b) <$> keyword "in" <+> nest (ifIndentation) (pretty e)
-  pretty (RE (Let (b:bs) e)) = keyword "let" <+> indent (pretty b)
-                                             <$> vsep (map ((keyword "and" <+>) . indent . pretty) bs)
-                                             <$> keyword "in" <+> nest 3 (pretty e)
-  pretty (RE (Put e fs)) = pretty' 1 e <+> record (map handlePutAssign fs)
+  pretty (Seq a b) = pretty' 100 a <> symbol ";" <$> pretty b
+  pretty (Let []     e) = __impossible "pretty (in RawExpr)"
+  pretty (Let (b:[]) e) = keyword "let" <+> indent (pretty b) <$> keyword "in" <+> nest (ifIndentation) (pretty e)
+  pretty (Let (b:bs) e) = keyword "let" <+> indent (pretty b)
+                                        <$> vsep (map ((keyword "and" <+>) . indent . pretty) bs)
+                                        <$> keyword "in" <+> nest 3 (pretty e)
+  pretty (Put e fs) = pretty' 1 e <+> record (map handlePutAssign fs)
 
 instance Pretty RawType where
   -- pretty (RT (TCon "Array" [t])) = brackets (pretty t)
@@ -253,25 +271,34 @@ numOfArgs (PT x _) = length x
 instance Pretty LocType where
   pretty t = pretty (stripLocT t)
 
-instance Pretty t => Pretty (Polytype t) where
-  pretty (PT [] t) = pretty t
-  pretty (PT vs t) = keyword "all" <> tupled (map prettyKS vs) <> symbol "." <+> pretty t
+renderPolytypeHeader vs = keyword "all" <> tupled (map prettyKS vs) <> symbol "." 
     where prettyKS (v,K False False False) = typevar v
           prettyKS (v,k) = typevar v <+> symbol ":<" <+> pretty k
 
-instance Pretty (TopLevel RawType VarName RawExpr) where
+instance Pretty t => Pretty (Polytype t) where
+  pretty (PT [] t) = pretty t
+  pretty (PT vs t) = renderPolytypeHeader vs <+> pretty t
+
+renderTypeDecHeader n vs = keyword "type" <+> typename n <> hcat (map ((space <>) . typevar) vs)
+                                          <+> symbol "=" 
+
+prettyFunDef typeSigs v pt [Alt (PIrrefutable p) Regular e] = (if typeSigs then ( funname v <+> symbol ":" <+> pretty pt <$>) else id) $
+                                                                   (funname v <+> pretty'IP p <+> group (indent (symbol "=" <$> pretty e)))
+
+prettyFunDef typeSigs v pt alts = (if typeSigs then ( funname v <+> symbol ":" <+> pretty pt <$>) else id) $
+                                       (indent (funname v <> mconcat (map ((hardline <>) . indent . pretty) alts)))
+prettyConstDef typeSigs v t e  = (if typeSigs then ( funname v <+> symbol ":" <+> pretty t <$>) else id) $
+                                         (funname v <+> group (indent (symbol "=" <+> pretty e)))
+
+instance Pretty e => Pretty (TopLevel RawType VarName e) where
   pretty (TypeDec n vs t) = keyword "type" <+> typename n <> hcat (map ((space <>) . typevar) vs)
                                            <+> indent (symbol "=" </> pretty t)
-  pretty (FunDef v pt [Alt (PIrrefutable p) Regular e]) = vcat [ funname v <+> symbol ":" <+> pretty pt
-                                                               , funname v <+> pretty'IP p <+> group (indent (symbol "=" <$> pretty e))]
+  pretty (FunDef v pt alts) = prettyFunDef True v pt alts
   pretty (AbsDec v pt) = funname v <+> symbol ":" <+> pretty pt
-  pretty (FunDef v pt alts) = vcat [ funname v <+> symbol ":" <+> pretty pt
-                                   , indent (funname v <> mconcat (map ((hardline <>) . indent . pretty) alts))]
   pretty (Include s) = keyword "include" <+> literal (string $ show s)
   pretty (IncludeStd s) = keyword "include <" <+> literal (string $ show s)
   pretty (AbsTypeDec n vs) = keyword "type" <+> typename n  <> hcat (map ((space <>) . typevar) vs)
-  pretty (ConstDef v t e) = vcat [ funname v <+> symbol ":" <+> pretty t
-                                 , funname v <+> group (indent (symbol "=" <+> pretty e))]
+  pretty (ConstDef v t e) = prettyConstDef True v t e
 
 instance Pretty TypedExpr where
   pretty e@(TE {}) = if not (isTypeError e) then pretty (toRawExp e) else pretty (TypeErrorHappened undefined)  -- FIXME

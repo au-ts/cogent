@@ -7,19 +7,36 @@
 --
 -- @TAG(NICTA_GPL)
 --
-
+@@# Heading 1
+@@## Subheading 1.1
+@ An abstract type
 type T
 
+@ A variant type with `three` _tags_, we can also refer to types like `T` and functions like `foo`.
 type V = < TAG_a U8 | TAG_b U32 | TAG_c T >
 
-
-yyy : (V!, U32) -> < Fail (U32, < TAG_a U8 | TAG_c T >!) | Success (U32) >
+@ A function to test pattern matching *facilities*. 
+yyy : (V! @ a banged V argument
+      , U32 @ *also able to use markdown* 
+      ) -> < Fail (U32, < TAG_a U8 | TAG_c T >!)  @ we failed :(
+           | Success U32 @ we succeeded `yay`
+           >
 yyy (v, y) =
    v
    | TAG_b vb -> Success (vb)
    | vc -> Fail (42, vc)
 
-xxx : (V!, U32) -> < Fail (U32, T!) | Success (U32) >
+@@# Heading 2
+
+@@## Subheading 21
+@@ This here is a standalone documentation block
+@@
+@@ Separate from the documentation for types like `V` or functions like `xxx`
+
+@ Documentation for this function is separate from the block.
+@
+@ It can span multiple lines
+xxx : (V!, U32) -> < Fail (U32, T!) | Success U32 >
 xxx (v, y) =
    v
    | TAG_b vb -> Success (vb)
@@ -31,12 +48,15 @@ foo (v) =
    v
    | TAG_a va -> Success (va)
 
-bar : (< TAG_a U8 | TAG_b U16 | TAG_c U32 >!) -> < Fail (U32
-                                                        , < TAG_b U16 
-                                                          | TAG_c U32 >!) 
-                                                 | Success (U8) >
-bar (v) =
+@@# Heading 3
+
+@@## Subheading 31
+
+bar : < TAG_a U8 | TAG_b U16 | TAG_c U32 >! -> < Fail (U32, < TAG_b U16 | TAG_c U32 >!) 
+                                               | Success (U8) >
+bar v =
    v
    | TAG_a va -> Success (va)
    | d -> Fail (42, d)
 
+@@## Subheading 32
