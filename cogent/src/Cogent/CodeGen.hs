@@ -1029,7 +1029,7 @@ genDefinition (FunDef attr fn Nil t rt e) = do
   arg <- freshLocalCId 'a'
   t' <- genTypeA' True (unsafeCoerce t :: CC.Type 'Zero) (argOf fn)
   (e',edecl,estm,_) <- withBindings (Cons (CVar arg Nothing & if __cogent_funboxed_arg_by_ref then CDeref else id) Nil)
-                         (genExpr Nothing (unsafeCoerce e :: TypedExpr 'Zero (Suc 'Zero) VarName))
+                         (genExpr Nothing (unsafeCoerce e :: TypedExpr 'Zero ('Suc 'Zero) VarName))
   rt' <- genType' (unsafeCoerce rt :: CC.Type 'Zero) (retOf fn)
   funClasses %= M.alter (insertSetMap (fn,attr)) (Function t' rt')
   body <- case __cogent_fintermediate_vars of
