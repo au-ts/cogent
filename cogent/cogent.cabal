@@ -49,22 +49,14 @@ library
               , Cogent.Common.Syntax
               , Cogent.Common.Types
               , Cogent.Compiler
+              , Cogent.Context
+              , Cogent.Core
               , Cogent.CorresProof
               , Cogent.CorresSetup
-              , Cogent.Core
               , Cogent.Deep
-              , Cogent.DocGent
-              , Cogent.Context
-              , Cogent.TypeCheck.Base
-              , Cogent.TypeCheck.Generator
-              , Cogent.TypeCheck.GoalSet
-              , Cogent.TypeCheck.Post
-              , Cogent.TypeCheck.Solver
-              , Cogent.TypeCheck.Subst
-              , Cogent.TypeCheck.Util
               , Cogent.Desugar
-              , Cogent.DocGent
               , Cogent.DList
+              , Cogent.DocGent
               , Cogent.GetOpt
               , Cogent.Glue
               , Cogent.GraphGen
@@ -86,6 +78,13 @@ library
               , Cogent.SuParser
               , Cogent.Surface
               , Cogent.TypeCheck
+              , Cogent.TypeCheck.Base
+              , Cogent.TypeCheck.Generator
+              , Cogent.TypeCheck.GoalSet
+              , Cogent.TypeCheck.Post
+              , Cogent.TypeCheck.Solver
+              , Cogent.TypeCheck.Subst
+              , Cogent.TypeCheck.Util
               , Cogent.TypeProofs
               , Cogent.Util
               , Cogent.Vec
