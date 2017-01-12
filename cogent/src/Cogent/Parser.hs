@@ -32,7 +32,6 @@ import Data.Maybe
 import qualified Data.Set as S
 import Text.Parsec.Char
 import Text.Parsec.Combinator
-import Text.Parsec.Error
 import Text.Parsec.Expr
 import Text.Parsec.Language
 import Text.Parsec.Pos

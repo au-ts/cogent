@@ -72,7 +72,7 @@ import "language-c-quote" Language.C.Syntax  as CS
 import System.FilePath (replaceBaseName, replaceExtension, takeBaseName, takeExtension, (<.>))
 import Text.Parsec.Pos (newPos, SourcePos)
 import Text.Parsec.Prim as PP hiding (State)
-import Text.PrettyPrint.ANSI.Leijen (vsep)
+-- import Text.PrettyPrint.ANSI.Leijen (vsep)
 
 -- import Debug.Trace
 

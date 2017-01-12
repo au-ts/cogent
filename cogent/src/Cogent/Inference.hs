@@ -194,7 +194,7 @@ tcConsts ((v,e):ds) reader =
     Left x -> Left x
     Right (_,e') -> (first ((v,e'):)) <$> tcConsts ds reader
 
-withBinding :: Type t -> TC t (Suc v) x -> TC t v x
+withBinding :: Type t -> TC t ('Suc v) x -> TC t v x
 withBinding t a
   = TC $ do readers <- ask
             st      <- get

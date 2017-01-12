@@ -35,7 +35,7 @@ newtype Flip  f (a :: a') (b :: b') = Flip { unflip :: f b a }
 newtype Flip2 f (a :: a') (b :: b') (c :: c') = Flip2 { unflip2 :: f c b a }
 newtype Flip3 f (a :: a') (b :: b') (c :: c') (d :: d') = Flip3 { unflip3 :: f d c b a }
 
-ffmap :: (Functor (Flip f c)) => (a -> b) -> f a c -> f b c
+ffmap :: (Functor (Flip f a)) => (b -> b') -> f b a -> f b' a
 ffmap f = unflip . fmap f . Flip
 
 fffmap :: (Functor (Flip2 f a b)) => (c -> c') -> f c b a -> f c' b a
