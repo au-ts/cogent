@@ -24,9 +24,8 @@ import Data.Version (showVersion)
 import System.Environment
 import System.FilePath.Posix
 
-import Version_cogent(gitHash)
-
 import Paths_cogent
+import Version_cogent (gitHash)
 
 --
 -- functors

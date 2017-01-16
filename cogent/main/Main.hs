@@ -894,9 +894,9 @@ parseArgs args = case getOpt' Permute options args of
                      hPutStrLn stderr ""
     usage :: Verbosity -> String
     usage 0 = "Usage: cogent COMMAND.. [FLAG..] FILENAME\n"
-    usage v = usageInfoImportant ("Usage: cogent COMMAND.. [FLAG..] FILENAME\n" ++ "Commands:") v options ++
-              "\n" ++
-              usageInfoImportant "Flags:" v flags
+    usage v = usage 0 ++
+              usageInfoImportant "COMMANDS:" v options ++ "\n" ++
+              usageInfoImportant "FLAGS:" v flags
 
     versionInfo = UT.getCogentVersion
     -- Depending on the target of output, switch on or off fonts
