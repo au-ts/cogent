@@ -15,17 +15,16 @@ import Control.Applicative ((<$>))
 
 import Control.Exception (SomeException, catch)
 
+import Distribution.PackageDescription
 import Distribution.Simple
 import Distribution.Simple.BuildPaths (autogenModulesDir)
 import Distribution.Simple.LocalBuildInfo as L
 import qualified Distribution.Simple.Setup as S
-import Distribution.Simple.Utils (createDirectoryIfMissingVerbose, rewriteFile, installOrdinaryFiles, installDirectoryContents)
-
-import Distribution.PackageDescription
-
-import System.Directory(removeFile)
-import System.FilePath ((</>))
-import qualified System.FilePath.Posix as Px
+import Distribution.Simple.Utils hiding (installDirectoryContents)
+import Distribution.Verbosity (Verbosity)
+import System.Directory (removeFile)
+import System.Exit
+import System.FilePath ((</>), (<.>), takeExtension)
 import System.Process
 
 -- Flags
@@ -45,7 +44,7 @@ gitHash = do h <- Control.Exception.catch (readProcess "git" ["rev-parse", "--sh
 -- Version Module
 generateVersionModule verbosity dir release = do
   hash <- gitHash
-  let versionModulePath = dir </> "Version_cogent" Px.<.> "hs"
+  let versionModulePath = dir </> "Version_cogent" <.> "hs"
   putStrLn $ "Generating " ++ versionModulePath ++
     if release then " for release" else " for dev " ++ hash
   createDirectoryIfMissingVerbose verbosity True dir
@@ -58,31 +57,39 @@ generateVersionModule verbosity dir release = do
           else "gitHash = \"" ++ h ++ "\"\n"
 
 -- Configure
-cogentConfigure _ flags _ local = do
-  generateVersionModule verbosity (autogenModulesDir local) (isRelease (configFlags local))
+cogentConfigure :: Args -> S.ConfigFlags -> PackageDescription -> LocalBuildInfo -> IO ()
+cogentConfigure _ flags _ lbi = do
+  generateVersionModule verbosity (autogenModulesDir lbi) (isRelease (configFlags lbi))
   where
     verbosity = S.fromFlag $ S.configVerbosity flags
-    version = pkgVersion .package $ localPkgDescr local
+    version = pkgVersion .package $ localPkgDescr lbi
+
+-- Copy
+copyGumHdrs :: Verbosity -> PackageDescription -> LocalBuildInfo -> CopyDest -> IO ()
+copyGumHdrs verbosity pkg lbi copy = do
+  let hdrsdest = datadir (L.absoluteInstallDirs pkg lbi copy) </> "include"
+  putStrLn $ "Installing Gum headers in `" ++ hdrsdest ++ "'..."
+  createDirectoryIfMissingVerbose verbosity True hdrsdest
+  installDirectoryContents verbosity "lib" hdrsdest
+    where
+      -- This function is copied from Cabal-1.24.2.0 and modified
+      installDirectoryContents :: Verbosity -> FilePath -> FilePath -> IO ()
+      installDirectoryContents verbosity srcDir destDir = do
+        info verbosity ("copy directory '" ++ srcDir ++ "' to '" ++ destDir ++ "'...")
+        srcFiles <- getDirectoryContentsRecursive srcDir
+        let srcFiles' = filter ((`elem` [".ac", ".ah", ".h", ".cogent", ".c"]) . takeExtension) srcFiles
+        installOrdinaryFiles verbosity destDir [ (srcDir, f) | f <- srcFiles' ]
 
 -- Install
-cogentInstall verbosity copy pkg local = do
-  installGumHdrs
-  installManPage
-  where
-    installGumHdrs = do
-      let hdrsdest = (datadir $ L.absoluteInstallDirs pkg local copy) ++ "/include"
-      putStrLn $ "Installing Gum headers in " ++ hdrsdest
-      createDirectoryIfMissingVerbose verbosity True hdrsdest
-      installDirectoryContents verbosity "lib" hdrsdest
-      -- Need to remove the script file that is installed, there is no way to
-      -- exclude file with installDirectoryContents
-      removeFile (hdrsdest </> "gum" </> "libgum_tc_test.sh")
-      removeFile (hdrsdest </> "gum" </> "tests.xml")
+installManPage :: Verbosity -> PackageDescription -> LocalBuildInfo -> CopyDest -> IO ()
+installManPage verbosity pkg lbi copy = do
+  let mandest = mandir (L.absoluteInstallDirs pkg lbi copy) ++ "/man1"
+  putStrLn $ "Installing man page to `" ++ mandest ++ "'..."
+  r <- rawSystemExitCode verbosity "perl" ["scripts/man-gen.pl", mandest, buildDir lbi </> "cogent/cogent"]
+  case r of
+    ExitSuccess -> return ()
+    ExitFailure n -> putStrLn $ "Installing man page failed: exit code " ++ show n
 
-    installManPage = do
-      let mandest = mandir (L.absoluteInstallDirs pkg local copy) ++ "/man1"
-      putStrLn $ "Copying man page to " ++ mandest
-      installOrdinaryFiles verbosity mandest [("man", "cogent.1")]
 
 -- Test
 -- cabal has two unrelated "dataDir" variables.
@@ -96,20 +103,27 @@ originalTestHook _ = testHook simpleUserHooks
 originalTestHook = testHook simpleUserHooks
 #endif
 
-cogentTestHook args pkg local hooks flags = do
-  let target = datadir $ L.absoluteInstallDirs pkg local NoCopyDest
-  originalTestHook args (fixPkg pkg target) local hooks flags
+cogentTestHook args pkg lbi hooks flags = do
+  let target = datadir $ L.absoluteInstallDirs pkg lbi NoCopyDest
+  originalTestHook args (fixPkg pkg target) lbi hooks flags
 
 -- -----
 -- Main
 -- -----
-main = defaultMainWithHooks $ simpleUserHooks
+main = defaultMainWithHooks $ autoconfUserHooks
   { postConf = cogentConfigure
-  , postCopy = \_ flags pkg local ->
-    cogentInstall (S.fromFlag $ S.copyVerbosity flags) (S.fromFlag $ S.copyDest flags) pkg local
-  , postInst = \_ flags pkg local ->
-    cogentInstall (S.fromFlag $ S.installVerbosity flags)
-    NoCopyDest pkg local
+  -- TODO:
+  -- , postBuild = \_ flags pkg lbi -> do
+  --     copyGumHdrs 
+  --     buildManPage 
+  , postCopy = \_ flags pkg lbi -> do
+      copyGumHdrs (S.fromFlag $ S.copyVerbosity flags) pkg lbi (S.fromFlag $ S.copyDest flags)
+      installManPage (S.fromFlag $ S.copyVerbosity flags) pkg lbi (S.fromFlag $ S.copyDest flags)
+  -- No idea why `postInst' is needed, as it doesn't seem to execute.
+  -- Looking at other packages, they mostly do the same.
+  -- Googled for quite a while and found some questions but no answers. / zilinc
+  , postInst = \_ flags pkg lbi -> do
+      installManPage (S.fromFlag $ S.installVerbosity flags) pkg lbi NoCopyDest
 #if __GLASGOW_HASKELL__ < 710
   , testHook = cogentTestHook ()
 #else
