@@ -134,7 +134,7 @@ library
               , transformers >= 0.4.2
               , tuple >= 0.3
               , uniplate >= 1.6
-              , vector >= 0.10.0.1 && < 0.12
+              , vector >= 0.10.0.1
 
   default-language: Haskell2010
   default-extensions: CPP
