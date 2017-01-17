@@ -8,8 +8,12 @@
 -- @TAG(NICTA_GPL)
 --
 
-type B = {a : U32}
+type A
 
-foo : B -> B
-foo b {r = x} = b {r = x}
+foo : A -> #{x : #{a : U32, b : A}, y : U32}
+foo a = let x = #{a=1,b=a}
+         in #{x, y=32}
 
+bar : A -> ((U32, A), U32)
+bar a = let x :(U32,A) = (1,a)
+         in (x,32)

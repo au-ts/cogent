@@ -8,13 +8,5 @@
 -- @TAG(NICTA_GPL)
 --
 
-type A
-
--- Type inference cannot figure it out
-foo : A -> #{x : #{a : U32, b : A}, y : U32}
-foo a = let x = #{a=1,b=a}
-         in #{x, y=32}
-
-bar : A -> ((U32, A), U32)
-bar a = let x :(U32,A) = (1,a)
-         in (x,32)
+getu32 : U8 -> < Success (U16) >
+getu32 x = Success (upcast x)

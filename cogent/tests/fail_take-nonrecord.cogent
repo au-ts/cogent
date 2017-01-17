@@ -1,5 +1,5 @@
 --
--- Copyright 2016, NICTA
+-- Copyright 2017, NICTA
 --
 -- This software may be distributed and modified according to the terms of
 -- the GNU General Public License version 2. Note that NO WARRANTY is provided.
@@ -8,5 +8,6 @@
 -- @TAG(NICTA_GPL)
 --
 
-getu32 : (U8) -> < Success (U16) >
-getu32 (x) = Success (upcast x)
+type C = <T1 U8 | T2 Bool>
+type D = C take g
+

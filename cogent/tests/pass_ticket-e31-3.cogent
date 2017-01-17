@@ -1,0 +1,6 @@
+type X x = <X x>
+
+undefined : all a. () -> a
+undefined () = 
+  let a : X () = X ()
+   in a | X x -> x
