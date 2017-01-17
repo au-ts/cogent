@@ -9,7 +9,5 @@
 --
 
 type B = {a : U32}
-
-foo : B -> B
-foo b {r = x} = b {r = x}
+type A = { f : { x : B take g }, g : U32 }
 
