@@ -119,6 +119,7 @@ instance ExprType (Expr t p ip e) where
   levelExpr (StringLit {}) = 0
   levelExpr (Tuple {}) = 0
   levelExpr (Unitel) = 0
+  levelExpr (Annot {}) = 50
   levelExpr _ = 100
   isVar (Var n) s = (n == s)
   isVar _ _ = False
@@ -313,6 +314,7 @@ instance (ExprType e, Pretty t, Pretty p, PatnType ip, Pretty ip, Pretty e) => P
                                              <$> vsep (map ((keyword "and" <+>) . indent . pretty) bs)
                                              <$> keyword "in" <+> indent (pretty e)
   pretty (Put e fs)          = pretty' 1 e <+> record (map handlePutAssign fs)
+  pretty (Annot e t)         = pretty' 50 e <+> symbol ":" <+> pretty t
 
 instance Pretty RawExpr where
   pretty (RE e) = pretty e
