@@ -157,7 +157,7 @@ term = avoidInitial >> (LocExpr <$> getPosition <*>
                <*> optionMaybe (brackets (commaSep1 ((char '_' >> return Nothing)
                                                  <|> (Just <$> monotype))))
        <|> BoolLit <$> boolean
-       <|> Con <$> typeConName <*> many (expr 1)
+       <|> Con <$> typeConName <*> many term
        <|> IntLit <$> natural
        <|> CharLit <$> charLiteral
        <|> StringLit <$> stringLiteral
@@ -194,7 +194,7 @@ expr' m = do avoidInitial
                   (Let <$ reserved "let" <*> bindings <* reserved "in" <*> expr m
                <|> try (If <$ reserved "if" <*> parens (expr m) <*> many (reservedOp "!" >> variableName)
                            <* reserved "then" <*> expr m <* reserved "else" <*> expr m)
-               <|> If  <$ reserved "if" <*> expr m <*> pure []
+               <|> If  <$ reserved "if" <*> expr' m <*> many (reservedOp "!" >> variableName)
                        <* reserved "then" <*> expr m <* reserved "else" <*> expr m)
           <|> matchExpr m
           <?> "expression"

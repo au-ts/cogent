@@ -23,5 +23,5 @@ ostore_read ostore_st =
       in (ostore_st, success[U8] obj) : RR OstoreState Obj U8) : RR OstoreState Obj U8 
   in (r : R Obj U8)
   | Success obj -> let _ = deep_freeObj obj in (ostore_st : OstoreState, Error ())
-  | Error _ -> (ostore_st, (Error ()) : R Obj ())
+  | Error _ -> (ostore_st, Error (() : ()) : R Obj ())
 

@@ -119,8 +119,16 @@ instance ExprType (Expr t p ip e) where
   levelExpr (StringLit {}) = 0
   levelExpr (Tuple {}) = 0
   levelExpr (Unitel) = 0
+  levelExpr (Con {}) = 1
   levelExpr (Annot {}) = 50
-  levelExpr _ = 100
+  levelExpr (UnboxedRecord {}) = 100
+  levelExpr (Put {}) = 100
+  levelExpr (TypeApp {}) = 100
+  levelExpr (Upcast {}) = 100
+  levelExpr (Seq {}) = 100
+  levelExpr (Match {}) = 100
+  levelExpr (If {}) = 100
+  levelExpr (Let {}) = 100
   isVar (Var n) s = (n == s)
   isVar _ _ = False
 
