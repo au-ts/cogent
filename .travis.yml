@@ -82,7 +82,7 @@ script:
 - echo 'Installing Cogent'
 - cabal --ignore-sandbox install
 - echo 'Running tests'
-  # - make test-tc
+- make test-tc
   # - make test-ds
   # - make test-an
   # - make test-mn
