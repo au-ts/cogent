@@ -309,6 +309,15 @@ cg' (Match e bs alts) top = do
       e = Match e' bs alts'
   return (c, e)
 
+cg' (Annot e tau) t = do
+  tvs <- use knownTypeVars
+  let t' = stripLocT tau
+  (c,t'') <- zoom tc (validateType' tvs t') >>= \case
+    Left e -> return (Unsat e, t)
+    Right t'' -> return (F t :< F t'', t'')
+  (c', e') <- cg e t''
+  return (c <> c', Annot e' t'')
+
 integral :: TCType -> Constraint
 integral a = Upcastable (T (TCon "U8" [] Unboxed)) a
 

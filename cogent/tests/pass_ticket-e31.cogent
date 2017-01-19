@@ -25,6 +25,17 @@ ostore_read ostore_st =
   | Success obj -> let _ = deep_freeObj obj in (ostore_st, Error ())
   | Error _ -> (ostore_st, Error ())
 
+ostore_read': OstoreState -> RR OstoreState Obj ()
+ostore_read' ostore_st =
+  let addr = index_get_addr ()
+  and (ostore_st, r) = 
+     let obj = get_Obj ()
+      in (ostore_st, Success obj)
+  in r : R Obj ()
+  | Success obj -> let _ = deep_freeObj obj in (ostore_st, Error ())
+  | Error _ -> (ostore_st, Error ())
+
+
 {--------------------------------------
      [Notes 21/11/16 by zilinc]
 1. We don't have polymorphic let-binding, thus the free type var `b' is something we never know.

@@ -72,6 +72,7 @@ data Expr t p ip e = PrimOp OpName [e]
                    | Upcast e
 --                   | Widen  e
                    | Put e [Maybe (FieldName, e)]  -- Note: `Nothing' will be desugared to `Just' in TypeCheck / zilinc
+                   | Annot e t
                    deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
 type Banged = Bool
@@ -182,6 +183,7 @@ instance Traversable (Flip (Expr t p) e) where  -- ip
   traverse _ (Flip (UnboxedRecord es))  = pure $ Flip (UnboxedRecord es)
   traverse _ (Flip (Put e es))          = pure $ Flip (Put e es)
   traverse _ (Flip (Upcast e))          = pure $ Flip (Upcast e)
+  traverse _ (Flip (Annot e t))         = pure $ Flip (Annot e t)
   -- traverse _ (Flip (Widen e))           = pure $ Flip (Widen e)
 instance Traversable (Flip2 (Expr t) e ip) where  -- p
   traverse f (Flip2 (Match e v alt))    = Flip2 <$> (Match e v <$> traverse (ttraverse f) alt)
@@ -203,10 +205,12 @@ instance Traversable (Flip2 (Expr t) e ip) where  -- p
   traverse _ (Flip2 (Put e es))         = pure $ Flip2 (Put e es)
   traverse _ (Flip2 (Let bs e))         = pure $ Flip2 (Let bs e)
   traverse _ (Flip2 (Upcast e))         = pure $ Flip2 (Upcast e)
+  traverse _ (Flip2 (Annot e t))        = pure $ Flip2 (Annot e t)
   --traverse _ (Flip2 (Widen e))          = pure $ Flip2 (Widen e)
 instance Traversable (Flip3 Expr e ip p) where  -- t
   traverse f (Flip3 (Let bs e))          = Flip3 <$> (Let <$> (traverse (tttraverse f) bs) <*> pure e)
   traverse f (Flip3 (TypeApp v ts nt))   = Flip3 <$> (TypeApp v <$> traverse (traverse f) ts <*> pure nt)
+  traverse f (Flip3 (Annot e t))         = Flip3 <$> (Annot <$> pure e <*> f t)
   traverse _ (Flip3 (Match e v alt))     = pure $ Flip3 (Match e v alt)
   traverse _ (Flip3 (Member e f))        = pure $ Flip3 (Member e f)
   traverse _ (Flip3 (PrimOp op e))       = pure $ Flip3 (PrimOp op e)

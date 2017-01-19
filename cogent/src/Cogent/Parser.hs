@@ -148,46 +148,66 @@ basicExpr' = avoidInitial >> buildExpressionParser
             , [binary ">>" AssocLeft, binary "<<" AssocLeft]
             , [binary "&&" AssocRight]
             , [binary "||" AssocRight]
-            ] term <?> "basic expression"
+            ] annot <?> "basic expression"
   where binary name = Infix (reservedOp name *> pure (\a b -> LocExpr (posOfE a) (PrimOp name [a,b])))
 
-        term = avoidInitial >> (LocExpr <$> getPosition <*>
-                  (var <$> optionMaybe (reserved "inline")
-                       <*> variableName
-                       <*> optionMaybe (brackets (commaSep1 ((char '_' >> return Nothing)
-                                                         <|> (Just <$> monotype))))
-               <|> BoolLit <$> boolean
-               <|> Con <$> typeConName <*> many term
-               <|> IntLit <$> natural
-               <|> CharLit <$> charLiteral
-               <|> StringLit <$> stringLiteral
-               <|> tuple <$> parens (commaSep $ expr 1)
-               <|> UnboxedRecord <$ reservedOp "#" <*> braces (commaSep1 recordAssignment)))
-            <?> "term"
-        var Nothing  v Nothing = Var v
-        var (Just _) v Nothing = TypeApp v [] Inline
-        var Nothing  v (Just ts) = TypeApp v ts NoInline
-        var (Just _) v (Just ts) = TypeApp v ts Inline
-        tuple [] = Unitel
-        tuple [e] = exprOfLE e
-        tuple es  = Tuple es
-        recordAssignment = (\p n m -> (n, fromMaybe (LocExpr p (Var n)) m))
-                        <$> getPosition <*> variableName <*> optionMaybe (reservedOp "=" *> expr 1)
-                        <?> "record assignment"
-        wildcard = reservedOp ".." >> return Nothing
-        recAssign = Just <$> recordAssignment
-        recAssignsAndOrWildcard = ((:[]) <$> wildcard)
-                              <|> ((:) <$> recAssign <*> ((++) <$> many (try (comma >> recAssign)) <*> (liftM maybeToList . optionMaybe) (comma >> wildcard)))
+term = avoidInitial >> (LocExpr <$> getPosition <*>
+          (var <$> optionMaybe (reserved "inline")
+               <*> variableName
+               <*> optionMaybe (brackets (commaSep1 ((char '_' >> return Nothing)
+                                                 <|> (Just <$> monotype))))
+       <|> BoolLit <$> boolean
+       <|> Con <$> typeConName <*> many term
+       <|> IntLit <$> natural
+       <|> CharLit <$> charLiteral
+       <|> StringLit <$> stringLiteral
+       <|> tuple <$> parens (commaSep $ expr 1)
+       <|> UnboxedRecord <$ reservedOp "#" <*> braces (commaSep1 recordAssignment)))
+    <?> "term"
 
-expr m = do avoidInitial; LocExpr <$> getPosition <*>
-                 (Let <$ reserved "let" <*> bindings <* reserved "in" <*> expr m
-              <|> If  <$ reserved "if" <*> expr m <*> many (reservedOp "!" >> variableName)
-                      <* reserved "then" <*> expr m <* reserved "else" <*> expr m)
-    <|> matchExpr m
-    <?> "expression"
+var Nothing  v Nothing = Var v
+var (Just _) v Nothing = TypeApp v [] Inline
+var Nothing  v (Just ts) = TypeApp v ts NoInline
+var (Just _) v (Just ts) = TypeApp v ts Inline
+
+tuple [] = Unitel
+tuple [e] = exprOfLE e
+tuple es  = Tuple es
+
+recordAssignment = (\p n m -> (n, fromMaybe (LocExpr p (Var n)) m))
+                <$> getPosition <*> variableName <*> optionMaybe (reservedOp "=" *> expr 1)
+                <?> "record assignment"
+
+wildcard = reservedOp ".." >> return Nothing
+
+recAssign = Just <$> recordAssignment
+
+recAssignsAndOrWildcard = ((:[]) <$> wildcard)
+                      <|> ((:) <$> recAssign
+                               <*> ((++) <$> many (try (comma >> recAssign))
+                                         <*> (liftM maybeToList . optionMaybe) (comma >> wildcard)))
+
+expr m = try (expr' m) <|> annot
+
+expr' m = do avoidInitial
+             LocExpr <$> getPosition <*>
+                  (Let <$ reserved "let" <*> bindings <* reserved "in" <*> expr m
+               <|> try (If <$ reserved "if" <*> parens (expr m) <*> many (reservedOp "!" >> variableName)
+                           <* reserved "then" <*> expr m <* reserved "else" <*> expr m)
+               <|> If  <$ reserved "if" <*> expr' m <*> many (reservedOp "!" >> variableName)
+                       <* reserved "then" <*> expr m <* reserved "else" <*> expr m)
+          <|> matchExpr m
+          <?> "expression"
   where binding = Binding <$> irrefutablePattern <*> optionMaybe (reservedOp ":" *> monotype)
                           <*  reservedOp "=" <*> expr 1 <*> many (reservedOp "!" >> variableName)
         bindings = binding `sepBy1` reserved "and"
+
+annot = do avoidInitial
+           p <- getPosition
+           e <- term
+           mt <- optionMaybe (reservedOp ":" >> monotype)
+           case mt of Nothing -> return e
+                      Just t  -> return $ LocExpr p (Annot e t)
 
 
 -- monotype ::= typeA1 ("->" typeA1)?
