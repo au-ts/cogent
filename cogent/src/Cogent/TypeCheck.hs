@@ -68,7 +68,7 @@ checkOne loc d = case d of
     unless (null xs) $ tell [([InDefinition loc d], Left $ DuplicateTypeVariable xs)] >> throwError ()
     t' <- validateType' ps (stripLocT t)
     knownTypes <>= [(n,(ps, Just t'))]
-    t'' <- liftErr $ postT [InDefinition loc d] t'
+    t'' <- postT [InDefinition loc d] t'
     return $ TypeDec n ps t''
 
   (AbsTypeDec n ps) -> do
@@ -83,7 +83,7 @@ checkOne loc d = case d of
     unless (null xs) $ tell [([InDefinition loc d], Left $ DuplicateTypeVariable xs)] >> throwError ()
     t' <- validateType' (map fst ps) (stripLocT t)
     knownFuns %= M.insert n (PT ps t')
-    t'' <- liftErr $ postT [InDefinition loc d] t'
+    t'' <- postT [InDefinition loc d] t'
     return $ AbsDec n (PT ps t'')
 
   (ConstDef n t e) -> do
@@ -100,8 +100,8 @@ checkOne loc d = case d of
                   L.<$> pretty subst)
     if null (lefts $ map snd ews) then do
       knownConsts %= M.insert n (t', loc)
-      e'' <- liftErr $ postE [InDefinition loc d] $ applyE subst e'
-      t'' <- liftErr $ postT [InDefinition loc d] t'
+      e'' <- postE [InDefinition loc d] $ applyE subst e'
+      t'' <- postT [InDefinition loc d] t'
       return (ConstDef n t'' e'')
     else
       throwError ()
@@ -127,8 +127,8 @@ checkOne loc d = case d of
                   L.<$> pretty subst)
     if null (lefts $ map snd ews) then do
       knownFuns %= M.insert f (PT vs t')
-      alts'' <- liftErr $ postA [InDefinition loc d] $ applyAlts subst alts'
-      t''    <- liftErr $ postT [InDefinition loc d] t'
+      alts'' <- postA [InDefinition loc d] $ applyAlts subst alts'
+      t''    <- postT [InDefinition loc d] t'
       return (FunDef f (PT vs t'') alts'')
     else
       throwError ()
@@ -145,6 +145,7 @@ checkOne loc d = case d of
     addCtx :: forall x. ([ErrorContext], x) -> ([ErrorContext], x)
     addCtx = (_1 %~ (++ [InDefinition loc d]))
 
+    -- liftErr = id
     liftErr :: ExceptT [e] TC a -> ExceptT () (WriterT [e] TC) a
     liftErr ex = mapExceptT f ex
       where f :: TC (Either [e] a) -> WriterT [e] TC (Either () a)

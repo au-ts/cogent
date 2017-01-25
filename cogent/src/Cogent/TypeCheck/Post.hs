@@ -8,6 +8,8 @@
 -- @TAG(NICTA_GPL)
 --
 
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TupleSections #-}
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 
@@ -23,67 +25,67 @@ import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Util
 import Cogent.Util
 
+import Control.Arrow (first)
 import Control.Monad
 import Control.Lens
 import Control.Monad.Except
+import Control.Monad.Writer hiding (Alt)
 import qualified Data.Map as M
 import Text.PrettyPrint.ANSI.Leijen as P hiding ((<$>))
 
-postT :: [ErrorContext] -> TCType -> ExceptT [ContextualisedEW] TC RawType
+
+type Post a = ExceptT () (WriterT [ContextualisedEW] TC) a
+
+postT :: [ErrorContext] -> TCType -> Post RawType
 postT ctx t = do
   d <- use knownTypes
   traceTC "post" (text "type" <+> pretty t)
-  withExceptT (pure . (ctx,) . Left) $ ExceptT (return $ fmap toRawType $ normaliseT d t)
+  censor (map (first $ (ctx++))) (toRawType <$> normaliseT d t)
 
-postE :: [ErrorContext] -> TCExpr -> ExceptT [ContextualisedEW] TC TypedExpr
+postE :: [ErrorContext] -> TCExpr -> Post TypedExpr
 postE ctx e = do
   d <- use knownTypes
   traceTC "post" (text "expression" <+> pretty e)
-  withExceptT pure $ ExceptT (return $ fmap toTypedExpr $ normaliseE d e)
+  censor (map (first $ (ctx++))) (toTypedExpr <$> normaliseE d e)
 
-postA :: [ErrorContext] -> [Alt TCPatn TCExpr] -> ExceptT [ContextualisedEW] TC [Alt TypedPatn TypedExpr]
+postA :: [ErrorContext] -> [Alt TCPatn TCExpr] -> Post [Alt TypedPatn TypedExpr]
 postA ctx as = do
   d <- use knownTypes
   traceTC "post" (text "alternative" <+> pretty as)
-  withExceptT pure $ ExceptT (return $ fmap toTypedAlts $ normaliseA d as)
+  censor (map (first $ (ctx++))) (toTypedAlts <$> normaliseA d as)
 
 
-normaliseA :: TypeDict -> [Alt TCPatn TCExpr] -> Either ContextualisedEW [Alt TCPatn TCExpr]
+normaliseA :: TypeDict -> [Alt TCPatn TCExpr] -> Post [Alt TCPatn TCExpr]
 normaliseA d as = traverse (traverse (normaliseE d) >=> ttraverse (normaliseP d)) as
 
-normaliseE :: TypeDict -> TCExpr -> Either ContextualisedEW TCExpr
-normaliseE d te@(TE t e l) = case normaliseE' d e of
-  Left (es,c) -> Left (ctx:es, c)
-  Right e'    -> case normaliseT d t of
-    Left  er -> Left  ([ctx], Left er)
-    Right t' -> Right (TE t' e' l)
+normaliseE :: TypeDict -> TCExpr -> Post TCExpr
+normaliseE d te@(TE t e l) = do
+  e' <- censor (map (first $ (ctx:))) (normaliseE' d e)
+  t' <- censor (map (first $ (ctx:))) (normaliseT  d t)
+  return $ TE t' e' l
   where
     ctx = InExpression (toLocExpr toLocType te) t
     normaliseE' :: TypeDict
                 -> Expr TCType TCPatn TCIrrefPatn TCExpr
-                -> Either ContextualisedEW (Expr TCType TCPatn TCIrrefPatn TCExpr)
+                -> Post (Expr TCType TCPatn TCIrrefPatn TCExpr)
     normaliseE' d =   traverse (normaliseE d)
                   >=> ttraverse (normaliseIP d)
                   >=> tttraverse (normaliseP d)
-                  >=> ttttraverse (contextualise . normaliseT d)
+                  >=> ttttraverse (normaliseT d)
 
-normaliseP :: TypeDict -> TCPatn -> Either ContextualisedEW TCPatn
-normaliseP d tp@(TP p l) = case normaliseP' d p of
-    Left (es,c) -> Left (ctx:es, c)
-    Right p'    -> Right (TP p' l)
+normaliseP :: TypeDict -> TCPatn -> Post TCPatn
+normaliseP d tp@(TP p l) = TP <$> censor (map (first $ (ctx:))) (normaliseP' d p) <*> pure l
   where ctx = InPattern (toLocPatn toLocType tp)
-        normaliseP' :: TypeDict -> Pattern TCIrrefPatn -> Either ContextualisedEW (Pattern TCIrrefPatn)
+        normaliseP' :: TypeDict -> Pattern TCIrrefPatn -> Post (Pattern TCIrrefPatn)
         normaliseP' d = traverse (normaliseIP d)
 
-normaliseIP :: TypeDict -> TCIrrefPatn -> Either ContextualisedEW TCIrrefPatn
-normaliseIP d tip@(TIP ip l) = case normaliseIP' d ip of
-    Left (es,c) -> Left (ctx:es, c)
-    Right ip'   -> Right (TIP ip' l)
+normaliseIP :: TypeDict -> TCIrrefPatn -> Post TCIrrefPatn
+normaliseIP d tip@(TIP ip l) = TIP <$> censor (map (first $ (ctx:))) (normaliseIP' d ip) <*> pure l
   where ctx = InIrrefutablePattern (toLocIrrefPatn toLocType tip)
-        normaliseIP' :: TypeDict -> IrrefutablePattern TCName TCIrrefPatn -> Either ContextualisedEW (IrrefutablePattern TCName TCIrrefPatn)
-        normaliseIP' d = traverse (normaliseIP d) >=> ttraverse (secondM (contextualise . normaliseT d))
+        normaliseIP' :: TypeDict -> IrrefutablePattern TCName TCIrrefPatn -> Post (IrrefutablePattern TCName TCIrrefPatn)
+        normaliseIP' d = traverse (normaliseIP d) >=> ttraverse (secondM (normaliseT d))
 
-normaliseT :: TypeDict -> TCType -> Either TypeError TCType
+normaliseT :: TypeDict -> TCType -> Post TCType
 normaliseT d (T (TUnbox t)) = do
    t' <- normaliseT d t
    case t' of
@@ -108,11 +110,11 @@ normaliseT d (T (TTake fs t)) = do
    case t' of
      (T (TRecord l s)) -> takeFields fs l t >>= \r -> normaliseT d (T (TRecord r s))
      (T (TVariant ts)) -> takeFields fs (M.toList ts) t' >>= \r -> normaliseT d (T (TVariant (M.fromList r)))
-     e                 -> Left (TakeFromNonRecordOrVariant fs t)
+     e                 -> tell (contextualise $ TakeFromNonRecordOrVariant fs t) >> throwError ()
  where
-   takeFields :: Maybe [FieldName] -> [(FieldName, (a, Bool))] -> TCType -> Either TypeError [(FieldName, (a, Bool))]
-   takeFields Nothing   fs' _  = Right $ map (fmap (fmap (const True))) fs'
-   takeFields (Just fs) fs' t' = do mapM (\f -> when (f `notElem` map fst fs') $ Left $ TakeNonExistingField f t') fs
+   takeFields :: Maybe [FieldName] -> [(FieldName, (a, Bool))] -> TCType -> Post [(FieldName, (a, Bool))]
+   takeFields Nothing   fs' _  = return $ map (fmap (fmap (const True))) fs'
+   takeFields (Just fs) fs' t' = do mapM (\f -> when (f `notElem` map fst fs') $ tell (contextualise (TakeNonExistingField f t')) >> throwError ()) fs
                                     return $ map (\(f, (t, b)) -> (f, (t, f `elem` fs || b))) fs'
 
 normaliseT d (T (TPut fs t)) = do
@@ -120,11 +122,11 @@ normaliseT d (T (TPut fs t)) = do
    case t' of
      (T (TRecord l s)) -> putFields fs l t >>= \r -> normaliseT d (T (TRecord r s))
      (T (TVariant ts)) -> putFields fs (M.toList ts) t' >>= \r -> normaliseT d (T (TVariant (M.fromList r)))
-     e                 -> Left (PutToNonRecordOrVariant fs t)
+     e                 -> tell (contextualise $ PutToNonRecordOrVariant fs t) >> throwError ()
  where
-   putFields :: Maybe [FieldName] -> [(FieldName, (a, Bool))] -> TCType -> Either TypeError [(FieldName, (a, Bool))]
-   putFields Nothing   fs' _  = Right $ map (fmap (fmap (const False))) fs'
-   putFields (Just fs) fs' t' = do mapM (\f -> when (f `notElem` map fst fs') $ Left $ PutNonExistingField f t') fs
+   putFields :: Maybe [FieldName] -> [(FieldName, (a, Bool))] -> TCType -> Post [(FieldName, (a, Bool))]
+   putFields Nothing   fs' _  = return $ map (fmap (fmap (const False))) fs'
+   putFields (Just fs) fs' t' = do mapM (\f -> when (f `notElem` map fst fs') $ tell (contextualise (PutNonExistingField f t')) >> throwError ()) fs
                                    return $ map (\(f, (t, b)) -> (f, (t,  (f `notElem` fs) && b))) fs'
 
 normaliseT d (T (TCon n ts b)) = do
@@ -142,7 +144,6 @@ normaliseT d (T (TCon n ts b)) = do
 normaliseT d (U x) = error ("Panic: invalid type to normaliseT (?" ++ show x ++ ")")
 normaliseT d (T x) = T <$> traverse (normaliseT d) x
 
-contextualise :: Either TypeError x -> Either ContextualisedEW x
-contextualise (Left e) = Left ([],Left e)
-contextualise (Right v) = Right v
+contextualise :: TypeError -> [ContextualisedEW]
+contextualise e = [([], Left e)]
 
