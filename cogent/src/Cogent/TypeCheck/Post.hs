@@ -40,19 +40,19 @@ postT :: [ErrorContext] -> TCType -> Post RawType
 postT ctx t = do
   d <- use knownTypes
   traceTC "post" (text "type" <+> pretty t)
-  censor (map (first $ (ctx++))) (toRawType <$> normaliseT d t)
+  censor (map (first $ (++ctx))) (toRawType <$> normaliseT d t)
 
 postE :: [ErrorContext] -> TCExpr -> Post TypedExpr
 postE ctx e = do
   d <- use knownTypes
   traceTC "post" (text "expression" <+> pretty e)
-  censor (map (first $ (ctx++))) (toTypedExpr <$> normaliseE d e)
+  censor (map (first $ (++ctx))) (toTypedExpr <$> normaliseE d e)
 
 postA :: [ErrorContext] -> [Alt TCPatn TCExpr] -> Post [Alt TypedPatn TypedExpr]
 postA ctx as = do
   d <- use knownTypes
   traceTC "post" (text "alternative" <+> pretty as)
-  censor (map (first $ (ctx++))) (toTypedAlts <$> normaliseA d as)
+  censor (map (first $ (++ctx))) (toTypedAlts <$> normaliseA d as)
 
 
 normaliseA :: TypeDict -> [Alt TCPatn TCExpr] -> Post [Alt TCPatn TCExpr]
@@ -60,11 +60,11 @@ normaliseA d as = traverse (traverse (normaliseE d) >=> ttraverse (normaliseP d)
 
 normaliseE :: TypeDict -> TCExpr -> Post TCExpr
 normaliseE d te@(TE t e l) = do
-  e' <- censor (map (first $ (ctx:))) (normaliseE' d e)
-  t' <- censor (map (first $ (ctx:))) (normaliseT  d t)
+  e' <- censor (map (first $ (++ctx))) (normaliseE' d e)
+  t' <- censor (map (first $ (++ctx))) (normaliseT  d t)
   return $ TE t' e' l
   where
-    ctx = InExpression (toLocExpr toLocType te) t
+    ctx = InExpression (toLocExpr toLocType te) t :[]
     normaliseE' :: TypeDict
                 -> Expr TCType TCPatn TCIrrefPatn TCExpr
                 -> Post (Expr TCType TCPatn TCIrrefPatn TCExpr)
@@ -74,14 +74,14 @@ normaliseE d te@(TE t e l) = do
                   >=> ttttraverse (normaliseT d)
 
 normaliseP :: TypeDict -> TCPatn -> Post TCPatn
-normaliseP d tp@(TP p l) = TP <$> censor (map (first $ (ctx:))) (normaliseP' d p) <*> pure l
-  where ctx = InPattern (toLocPatn toLocType tp)
+normaliseP d tp@(TP p l) = TP <$> censor (map (first $ (++ctx))) (normaliseP' d p) <*> pure l
+  where ctx = InPattern (toLocPatn toLocType tp) :[]
         normaliseP' :: TypeDict -> Pattern TCIrrefPatn -> Post (Pattern TCIrrefPatn)
         normaliseP' d = traverse (normaliseIP d)
 
 normaliseIP :: TypeDict -> TCIrrefPatn -> Post TCIrrefPatn
-normaliseIP d tip@(TIP ip l) = TIP <$> censor (map (first $ (ctx:))) (normaliseIP' d ip) <*> pure l
-  where ctx = InIrrefutablePattern (toLocIrrefPatn toLocType tip)
+normaliseIP d tip@(TIP ip l) = TIP <$> censor (map (first $ (++ctx))) (normaliseIP' d ip) <*> pure l
+  where ctx = InIrrefutablePattern (toLocIrrefPatn toLocType tip) :[]
         normaliseIP' :: TypeDict -> IrrefutablePattern TCName TCIrrefPatn -> Post (IrrefutablePattern TCName TCIrrefPatn)
         normaliseIP' d = traverse (normaliseIP d) >=> ttraverse (secondM (normaliseT d))
 
