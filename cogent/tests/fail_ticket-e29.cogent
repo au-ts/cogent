@@ -9,4 +9,4 @@ type Buffer = {
 }
 
 buf_length: Buffer! -> U32
-buf_length buf = wordarray_length[U8] (buf.data)
+buf_length buf = wordarray_length (buf.data)
