@@ -1,5 +1,5 @@
 --
--- Copyright 2016, NICTA
+-- Copyright 2017, NICTA
 --
 -- This software may be distributed and modified according to the terms of
 -- the GNU General Public License version 2. Note that NO WARRANTY is provided.
@@ -49,9 +49,10 @@ data TypeError = FunctionNotFound VarName
                | NotAFunctionType TCType
                | DuplicateRecordFields [FieldName]
                | DuplicateTypeVariable [VarName]
-               | TakeFromNonRecord (Maybe [FieldName]) TCType
-               | PutToNonRecord (Maybe [FieldName]) TCType
-               | RemoveCaseFromNonVariant TCPatn TCType
+               | TakeFromNonRecordOrVariant (Maybe [FieldName]) TCType
+               | PutToNonRecordOrVariant    (Maybe [FieldName]) TCType
+               | TakeNonExistingField FieldName TCType
+               | PutNonExistingField  FieldName TCType
                | DiscardWithoutMatch TagName
                | RequiredTakenTag TagName
                | TypeWarningAsError TypeWarning

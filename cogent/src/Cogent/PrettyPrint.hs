@@ -500,17 +500,20 @@ instance Pretty TypeError where
   --                                                    <$> pretty pat
   -- pretty (DuplicateVariableInIrrefPattern vn ipat) = err "Duplicate variable" <+> varname vn <+> err "in (irrefutable) pattern:"
   --                                                    <$> pretty ipat
-  pretty (TakeFromNonRecord fs t)        = err "Cannot" <+> keyword "take" <+> err "fields"
-                                           <+> (case fs of Nothing  -> tupled (fieldname ".." : [])
-                                                           Just fs' -> tupled1 (map fieldname fs'))
-                                           <+> err "from non record/variant type:"
-                                           <$> indent' (pretty t)
-  pretty (PutToNonRecord fs t)           = err "Cannot" <+> keyword "put" <+> err "fields"
-                                           <+> (case fs of Nothing  -> tupled (fieldname ".." : [])
-                                                           Just fs' -> tupled1 (map fieldname fs'))
-                                           <+> err "into non record/variant type:"
-                                           <$> indent' (pretty t)
-  pretty (RemoveCaseFromNonVariant p t)  = err "Cannot remove pattern" <$> pretty p <$> err "from type" <$> pretty t
+  pretty (TakeFromNonRecordOrVariant fs t) = err "Cannot" <+> keyword "take" <+> err "fields"
+                                             <+> (case fs of Nothing  -> tupled (fieldname ".." : [])
+                                                             Just fs' -> tupled1 (map fieldname fs'))
+                                             <+> err "from non record/variant type:"
+                                             <$> indent' (pretty t)
+  pretty (PutToNonRecordOrVariant fs t)    = err "Cannot" <+> keyword "put" <+> err "fields"
+                                             <+> (case fs of Nothing  -> tupled (fieldname ".." : [])
+                                                             Just fs' -> tupled1 (map fieldname fs'))
+                                             <+> err "into non record/variant type:"
+                                             <$> indent' (pretty t)
+  pretty (TakeNonExistingField f t)      = err "Cannot" <+> keyword "take" <+> err "non-existing field"
+                                           <+> fieldname f <+> err "from record/variant" <$> indent' (pretty t)
+  pretty (PutNonExistingField f t)       = err "Cannot" <+> keyword "put" <+> err "non-existing field"
+                                           <+> fieldname f <+> err "into record/variant" <$> indent' (pretty t)
   pretty (DiscardWithoutMatch t)         = err "Variant tag"<+> tagname t <+> err "cannot be discarded without matching on it."
   pretty (RequiredTakenTag t)            = err "Required variant" <+> tagname t <+> err "but it has already been matched."
   pretty (TypeWarningAsError w)          = pretty w

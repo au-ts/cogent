@@ -1,5 +1,5 @@
 --
--- Copyright 2016, NICTA
+-- Copyright 2017, NICTA
 --
 -- This software may be distributed and modified according to the terms of
 -- the GNU General Public License version 2. Note that NO WARRANTY is provided.
@@ -9,6 +9,7 @@
 --
 
 {-# LANGUAGE TupleSections #-}
+{-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 
 module Cogent.TypeCheck.Post (
   postA, postE, postT
@@ -105,26 +106,26 @@ normaliseT d (T (TBang t)) = do
 normaliseT d (T (TTake fs t)) = do
    t' <- normaliseT d t
    case t' of
-     (T (TRecord l s)) -> normaliseT d (T (TRecord (takeFields fs l) s))
-     (T (TVariant ts)) -> normaliseT d (T (TVariant (M.fromList $ takeFields fs $ M.toList ts)))
-     _ | Just fs' <- fs, null fs' -> Right t'
-     e                 -> Left (TakeFromNonRecord fs t)
+     (T (TRecord l s)) -> takeFields fs l t >>= \r -> normaliseT d (T (TRecord r s))
+     (T (TVariant ts)) -> takeFields fs (M.toList ts) t' >>= \r -> normaliseT d (T (TVariant (M.fromList r)))
+     e                 -> Left (TakeFromNonRecordOrVariant fs t)
  where
-   takeFields :: Maybe [FieldName] -> [(FieldName, (a, Bool))] -> [(FieldName, (a, Bool))]
-   takeFields Nothing   = map (fmap (fmap (const True)))
-   takeFields (Just fs) = map (\(f, (t, b)) -> (f, (t, f `elem` fs || b)))
+   takeFields :: Maybe [FieldName] -> [(FieldName, (a, Bool))] -> TCType -> Either TypeError [(FieldName, (a, Bool))]
+   takeFields Nothing   fs' _  = Right $ map (fmap (fmap (const True))) fs'
+   takeFields (Just fs) fs' t' = do mapM (\f -> when (f `notElem` map fst fs') $ Left $ TakeNonExistingField f t') fs
+                                    return $ map (\(f, (t, b)) -> (f, (t, f `elem` fs || b))) fs'
 
 normaliseT d (T (TPut fs t)) = do
    t' <- normaliseT d t
    case t' of
-     (T (TRecord l s)) -> normaliseT d (T (TRecord (putFields fs l) s))
-     (T (TVariant ts)) -> normaliseT d (T (TVariant (M.fromList $ putFields fs $ M.toList ts)))
-     _ | Just fs' <- fs, null fs'  -> Right t'
-     e                 -> Left (PutToNonRecord fs t)
+     (T (TRecord l s)) -> putFields fs l t >>= \r -> normaliseT d (T (TRecord r s))
+     (T (TVariant ts)) -> putFields fs (M.toList ts) t' >>= \r -> normaliseT d (T (TVariant (M.fromList r)))
+     e                 -> Left (PutToNonRecordOrVariant fs t)
  where
-   putFields :: Maybe [FieldName] -> [(FieldName, (a, Bool))] -> [(FieldName, (a, Bool))]
-   putFields Nothing   = map (fmap (fmap (const False)))
-   putFields (Just fs) = map (\(f, (t, b)) -> (f, (t,  (f `notElem` fs) && b)))
+   putFields :: Maybe [FieldName] -> [(FieldName, (a, Bool))] -> TCType -> Either TypeError [(FieldName, (a, Bool))]
+   putFields Nothing   fs' _  = Right $ map (fmap (fmap (const False))) fs'
+   putFields (Just fs) fs' t' = do mapM (\f -> when (f `notElem` map fst fs') $ Left $ PutNonExistingField f t') fs
+                                   return $ map (\(f, (t, b)) -> (f, (t,  (f `notElem` fs) && b))) fs'
 
 normaliseT d (T (TCon n ts b)) = do
   case lookup n d of

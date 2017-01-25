@@ -8,6 +8,6 @@
 -- @TAG(NICTA_GPL)
 --
 
-type C = <T1 U8 | T2 Bool>
+type C = (U8, {f : U8, g : Bool})
 type D = C take g
 

@@ -1,5 +1,5 @@
 --
--- Copyright 2016, NICTA
+-- Copyright 2017, NICTA
 --
 -- This software may be distributed and modified according to the terms of
 -- the GNU General Public License version 2. Note that NO WARRANTY is provided.
@@ -8,20 +8,9 @@
 -- @TAG(NICTA_GPL)
 --
 
-type A
-type B
-type C
+foo : all a. a -> a take g
 
-assert : all (a, b). (a, b) -> ()
-foo : (A!, B!) -> C!
+type A = {f : U8, g : Bool}
 
-baz : (A!, B!) -> ()
-baz (a,b) = assert (a,b)
--- baz (a,b) = assert[A!, B!] (a,b)
-
-x : A
-y : B
-
-c : U16
-c = 32
-
+bar : A -> A take g
+bar a = foo a
