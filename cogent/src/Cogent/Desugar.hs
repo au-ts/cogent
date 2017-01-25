@@ -249,7 +249,6 @@ desugarAlt' (B.TE t e0 l) (S.PCon tag ps) e =  -- B2)
   desugarAlt' (B.TE t e0 l) (S.PCon tag [B.TIP (S.PTuple ps) (B.getLocTIP $ P.head ps)]) e
                                                           -- At this point, t and e0 do not match!
                                                           -- but hopefully they will after e0 gets desugared
-
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PVar v) _)) e =
   E <$> (Let (fst v) <$> desugarExpr e0 <*> (withBinding (fst v) $ desugarExpr e))
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple []) _)) e = __impossible "desugarAlt' (Tuple-1)"
@@ -283,7 +282,7 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple [p1,p2]) _)) e | not __cogent_ft
       b1 = S.Binding p1 Nothing (B.TE t1 (S.Var v1) (B.getLocTIP p1)) []
       b2 = S.Binding p2 Nothing (B.TE t2 (S.Var v2) (B.getLocTIP p2)) []
   desugarExpr $ B.TE (B.getTypeTE e) (S.Let [b0,b1,b2] e) noPos  -- Mutual recursion here
-desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple (p1:p2:ps)) _)) e  | not __cogent_ftuples_as_sugar = __impossible "desugarAlt'"
+desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple (p1:p2:ps)) _)) e | not __cogent_ftuples_as_sugar = __impossible "desugarAlt'"
   -- let p' = S.PIrrefutable $ S.PTuple [p1, p2']
   --     p2' = S.PTuple $ p2:ps
   -- in desugarAlt' e0 p' e
@@ -413,7 +412,7 @@ desugarExpr (B.TE _ (S.TypeApp v ts note) _) = do
 desugarExpr (B.TE _ (S.Con c []) _) = return . E $ Con c (E Unit)
 desugarExpr (B.TE _ (S.Con c [e]) _) = E . Con c <$> desugarExpr e
 desugarExpr (B.TE (S.RT (S.TVariant ts)) (S.Con c es) l) = do
-    let Just (tes, k) = M.lookup c ts  -- TODO liamoc just added ,k to make this compile
+    let Just (tes, False) = M.lookup c ts
     E . Con c <$> desugarExpr (B.TE (group tes) (S.Tuple es) l)
   where group [] = S.RT S.TUnit
         group (t:[]) = t
@@ -488,7 +487,7 @@ desugarExpr (B.TE t (S.Upcast e) _) = E <$> (Promote <$> desugarType t <*> desug
 desugarConst :: (VarName, B.TypedExpr) -> DS 'Zero 'Zero (CoreConst UntypedExpr)
 desugarConst (n,e) = (n,) <$> desugarExpr e
 
--- NOTE: aseume the first arguments consists of constants only
+-- NOTE: assume the first argument consists of constants only
 desugarConsts :: [S.TopLevel S.RawType B.TypedPatn B.TypedExpr] -> DS 'Zero 'Zero [CoreConst UntypedExpr]
 desugarConsts = mapM desugarConst . P.map (\(S.ConstDef v _ e) -> (v,e))
 

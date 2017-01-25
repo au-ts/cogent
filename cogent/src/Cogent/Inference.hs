@@ -288,7 +288,7 @@ typecheck (E (Case e tag (lt,at,et) (le,ae,ee)))
    = do e' <- typecheck e
         let TSum ts = exprType e'
             Just (t, False) = lookup tag ts  -- must not have been taken
-            restt = TSum $ adjust tag (second $ const True) ts
+            restt = TSum $ adjust tag (second $ const True) ts  -- set the tag to taken
         (et',ee') <- (,) <$>  withBinding t     (typecheck et)
                          <||> withBinding restt (typecheck ee)
         guardShow' "case" 
