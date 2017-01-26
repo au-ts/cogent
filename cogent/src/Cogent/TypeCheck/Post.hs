@@ -19,6 +19,7 @@ module Cogent.TypeCheck.Post (
 
 import Cogent.Common.Syntax
 import Cogent.Common.Types
+import Cogent.Compiler
 import Cogent.PrettyPrint ()
 import Cogent.Surface
 import Cogent.TypeCheck.Base
@@ -29,12 +30,19 @@ import Control.Arrow (first)
 import Control.Monad
 import Control.Lens
 import Control.Monad.Except
-import Control.Monad.Writer hiding (Alt)
+import Control.Monad.Writer hiding (Alt, censor)
 import qualified Data.Map as M
 import Text.PrettyPrint.ANSI.Leijen as P hiding ((<$>))
 
+-- import Debug.Trace
 
 type Post a = ExceptT () (WriterT [ContextualisedEW] TC) a
+
+mapW :: ([ContextualisedEW] -> [ContextualisedEW]) -> Post a -> Post a
+mapW f m = ExceptT . WriterT $ do (a, w) <- runWriterT $ runExceptT m
+                                  return (a, f w)
+
+censor = mapW
 
 postT :: [ErrorContext] -> TCType -> Post RawType
 postT ctx t = do
@@ -92,7 +100,7 @@ normaliseT d (T (TUnbox t)) = do
      (T (TCon x ps _)) -> normaliseT d (T (TCon x ps Unboxed))
      (T (TRecord l _)) -> normaliseT d (T (TRecord l Unboxed))
      (T o)             -> normaliseT d =<< normaliseT d (T $ fmap (T . TUnbox) o)
-     _                 -> error "Panic: impossible"
+     _                 -> __impossible "normaliseT (TUnbox)"
 
 normaliseT d (T (TBang t)) = do
    t' <- normaliseT d t
@@ -103,7 +111,7 @@ normaliseT d (T (TBang t)) = do
                           normaliseT d (T (TRecord l' (bangSigil s)))
      (T (TVar b _))    -> normaliseT d (T (TVar b True))
      (T o)             -> normaliseT d =<< normaliseT d (T $ fmap (T . TBang) o)
-     _                 -> error "Panic: impossible"
+     _                 -> __impossible "normaliseT (TBang)"
 
 normaliseT d (T (TTake fs t)) = do
    t' <- normaliseT d t
@@ -114,7 +122,7 @@ normaliseT d (T (TTake fs t)) = do
  where
    takeFields :: Maybe [FieldName] -> [(FieldName, (a, Bool))] -> TCType -> Post [(FieldName, (a, Bool))]
    takeFields Nothing   fs' _  = return $ map (fmap (fmap (const True))) fs'
-   takeFields (Just fs) fs' t' = do mapM (\f -> when (f `notElem` map fst fs') $ tell (contextualise (TakeNonExistingField f t')) >> throwError ()) fs
+   takeFields (Just fs) fs' t' = do mapM (\f -> do when (f `notElem` map fst fs') $ tell (contextualise (TakeNonExistingField f t')) >> throwError ()) fs
                                     return $ map (\(f, (t, b)) -> (f, (t, f `elem` fs || b))) fs'
 
 normaliseT d (T (TPut fs t)) = do
@@ -141,7 +149,7 @@ normaliseT d (T (TCon n ts b)) = do
 --     Just t'' -> normaliseT d t''
 --     Nothing  -> Left (RemoveCaseFromNonVariant p t)
 
-normaliseT d (U x) = error ("Panic: invalid type to normaliseT (?" ++ show x ++ ")")
+normaliseT d (U x) = __impossible ("normaliseT: invalid type (?" ++ show x ++ ")")
 normaliseT d (T x) = T <$> traverse (normaliseT d) x
 
 contextualise :: TypeError -> [ContextualisedEW]
