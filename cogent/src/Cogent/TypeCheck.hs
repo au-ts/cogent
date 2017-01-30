@@ -1,5 +1,5 @@
 --
--- Copyright 2016, NICTA
+-- Copyright 2017, NICTA
 --
 -- This software may be distributed and modified according to the terms of
 -- the GNU General Public License version 2. Note that NO WARRANTY is provided.
@@ -51,6 +51,13 @@ tc = ((first . second) adjustErrors <$>) . flip runStateT (TCS M.empty knownType
     adjustErrors = (if __cogent_freverse_tc_errors then reverse else id) . adjustContexts
     adjustContexts = map (first noConstraints)
     noConstraints = if __cogent_ftc_ctx_constraints then id else filter (not . isCtxConstraint)
+    warnsToErrors = case __cogent_warning_switch of
+                      Flag_w -> filter (not . isWarn)
+                      Flag_Wwarn -> id
+                      Flag_Werror -> map warnToError
+    isWarn (_, Right _) = True; isWarn _ = False
+    warnToError (c,Right w) = (c, Left $ TypeWarningAsError w)
+    warnToError ew = ew
 
 typecheck :: [(SourcePos, TopLevel LocType LocPatn LocExpr)]
           -> ExceptT () (WriterT [ContextualisedEW] TC) [TopLevel RawType TypedPatn TypedExpr]
@@ -64,6 +71,8 @@ checkOne loc d = case d of
   (IncludeStd _) -> __impossible "checkOne"
   (DocBlock s) -> return $ DocBlock s
   (TypeDec n ps t) -> do
+    traceTC "tc" $ bold (text $ replicate 80 '=')
+    traceTC "tc" (text "typecheck type definition" <+> pretty n)
     let xs = ps \\ nub ps
     unless (null xs) $ tell [([InDefinition loc d], Left $ DuplicateTypeVariable xs)] >> throwError ()
     t' <- validateType' ps (stripLocT t)
@@ -72,12 +81,16 @@ checkOne loc d = case d of
     return $ TypeDec n ps t''
 
   (AbsTypeDec n ps) -> do
+    traceTC "tc" $ bold (text $ replicate 80 '=')
+    traceTC "tc" (text "typecheck abstract type definition" <+> pretty n)
     let xs = ps \\ nub ps
     unless (null xs) $ tell [([InDefinition loc d], Left $ DuplicateTypeVariable xs)] >> throwError ()
     knownTypes <>= [(n,(ps, Nothing))]
     return $ AbsTypeDec n ps
 
   (AbsDec n (PT ps t)) -> do
+    traceTC "tc" $ bold (text $ replicate 80 '=')
+    traceTC "tc" (text "typecheck abstract function" <+> pretty n)
     let vs' = map fst ps
         xs = vs' \\ nub vs'
     unless (null xs) $ tell [([InDefinition loc d], Left $ DuplicateTypeVariable xs)] >> throwError ()
@@ -87,8 +100,8 @@ checkOne loc d = case d of
     return $ AbsDec n (PT ps t'')
 
   (ConstDef n t e) -> do
-    traceTC "tc" (text "typecheck const definition" <+> pretty n
-                  L.<$$> bold (text $ replicate 80 '='))
+    traceTC "tc" $ bold (text $ replicate 80 '=')
+    traceTC "tc" (text "typecheck const definition" <+> pretty n)
     base <- use knownConsts
     t' <- validateType' [] (stripLocT t)
     let ctx = C.addScope (fmap (\(t,p) -> (t,p, Just p)) base) C.empty
@@ -107,8 +120,8 @@ checkOne loc d = case d of
       throwError ()
 
   (FunDef f (PT vs t) alts) -> do
-    traceTC "tc" (text "typecheck fun definition" <+> pretty f
-                  L.<$$> bold (text $ replicate 80 '='))
+    traceTC "tc" $ bold (text $ replicate 80 '=')
+    traceTC "tc" (text "typecheck fun definition" <+> pretty f)
     let vs' = map fst vs
         xs = vs' \\ nub vs'
     unless (null xs) $ tell [([InDefinition loc d], Left $ DuplicateTypeVariable xs)] >> throwError ()

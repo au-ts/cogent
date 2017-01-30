@@ -9,11 +9,12 @@
 --
 
 {-# LANGUAGE TemplateHaskell, DeriveFunctor, DeriveTraversable, StandaloneDeriving #-}
+
 module Cogent.TypeCheck.Base where
 
 import Cogent.Common.Syntax
 import Cogent.Common.Types
-import Cogent.Compiler
+-- import Cogent.Compiler
 import Cogent.Surface
 import Cogent.Util
 
@@ -21,11 +22,11 @@ import Control.Arrow (second)
 import Control.Lens hiding (Context, (:<))
 import Control.Monad.Except
 import Control.Monad.State
+import qualified Data.IntMap as IM
 import Data.List (nub, (\\))
 import qualified Data.Map as M
-import qualified Data.IntMap as IM
--- import qualified Data.Set as S
 import Data.Monoid ((<>))
+-- import qualified Data.Set as S
 import Text.Parsec.Pos
 
 
@@ -59,6 +60,8 @@ data TypeError = FunctionNotFound VarName
                deriving (Eq, Show, Ord)
 
 data TypeWarning = UnusedLocalBind VarName
+                 | TakeTakenField  FieldName TCType
+                 | PutUntakenField FieldName TCType
                  deriving (Eq, Show, Ord)
 
 type TypeEW = Either TypeError TypeWarning
@@ -223,12 +226,14 @@ instance Monoid Constraint where
   mappend x y = x :& y
 
 warnToConstraint :: Bool -> TypeWarning -> Constraint
-warnToConstraint f w 
-  | f = case __cogent_warning_switch of
-          Flag_w -> Sat
-          Flag_Wwarn -> SemiSat w
-          Flag_Werror -> Unsat (TypeWarningAsError w)
-  | otherwise = Sat
+warnToConstraint f w | f = SemiSat w
+                     | otherwise = Sat
+-- warnToConstraint f w 
+--   | f = case __cogent_warning_switch of
+--           Flag_w -> Sat
+--           Flag_Wwarn -> SemiSat w
+--           Flag_Werror -> Unsat (TypeWarningAsError w)
+--   | otherwise = Sat
 
 isWarnAsError :: ContextualisedEW -> Bool
 isWarnAsError (_, Left (TypeWarningAsError _)) = True

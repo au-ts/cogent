@@ -26,7 +26,7 @@ import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Util
 import Cogent.Util
 
-import Control.Arrow (first, second)
+import Control.Arrow (first)
 import Control.Monad
 import Control.Lens
 import Control.Monad.Except
@@ -122,24 +122,28 @@ normaliseT d (T (TTake fs t)) = do
    case t' of
      (T (TRecord l s)) -> takeFields fs l t >>= \r -> normaliseT d (T (TRecord r s))
      (T (TVariant ts)) -> takeFields fs (M.toList ts) t' >>= \r -> normaliseT d (T (TVariant (M.fromList r)))
-     e                 -> tell (contextualise $ TakeFromNonRecordOrVariant fs t) >> throwError ()
+     e                 -> tell (contextualiseE $ TakeFromNonRecordOrVariant fs t) >> throwError ()
  where
    takeFields :: Maybe [FieldName] -> [(FieldName, (a, Bool))] -> TCType -> Post [(FieldName, (a, Bool))]
    takeFields Nothing   fs' _  = return $ map (fmap (fmap (const True))) fs'
-   takeFields (Just fs) fs' t' = do mapM (\f -> do when (f `notElem` map fst fs') $ tell (contextualise (TakeNonExistingField f t')) >> throwError ()) fs
-                                    return $ map (\(f, (t, b)) -> (f, (t, f `elem` fs || b))) fs'
+   takeFields (Just fs) fs' t' = do 
+     forM fs $ \f -> when (f `notElem` map fst fs') $ tell (contextualiseE (TakeNonExistingField f t')) >> throwError ()
+     forM fs' $ \(f,(t,b)) -> do when (f `elem` fs && b && __cogent_wdodgy_take_put) $ tell (contextualiseW (TakeTakenField f t'))
+                                 return (f, (t, f `elem` fs || b))
 
 normaliseT d (T (TPut fs t)) = do
    t' <- normaliseT d t
    case t' of
      (T (TRecord l s)) -> putFields fs l t >>= \r -> normaliseT d (T (TRecord r s))
      (T (TVariant ts)) -> putFields fs (M.toList ts) t' >>= \r -> normaliseT d (T (TVariant (M.fromList r)))
-     e                 -> tell (contextualise $ PutToNonRecordOrVariant fs t) >> throwError ()
+     e                 -> tell (contextualiseE $ PutToNonRecordOrVariant fs t) >> throwError ()
  where
    putFields :: Maybe [FieldName] -> [(FieldName, (a, Bool))] -> TCType -> Post [(FieldName, (a, Bool))]
    putFields Nothing   fs' _  = return $ map (fmap (fmap (const False))) fs'
-   putFields (Just fs) fs' t' = do mapM (\f -> when (f `notElem` map fst fs') $ tell (contextualise (PutNonExistingField f t')) >> throwError ()) fs
-                                   return $ map (\(f, (t, b)) -> (f, (t,  (f `notElem` fs) && b))) fs'
+   putFields (Just fs) fs' t' = do
+     forM fs $ \f -> when (f `notElem` map fst fs') $ tell (contextualiseE (PutNonExistingField f t')) >> throwError ()
+     forM fs' $ \(f,(t,b)) -> do when (f `elem` fs && not b && __cogent_wdodgy_take_put) $ tell (contextualiseW (PutUntakenField f t'))
+                                 return (f, (t,  (f `notElem` fs) && b))
 
 normaliseT d (T (TCon n ts b)) = do
   case lookup n d of
@@ -156,6 +160,8 @@ normaliseT d (T (TCon n ts b)) = do
 normaliseT d (U x) = __impossible ("normaliseT: invalid type (?" ++ show x ++ ")")
 normaliseT d (T x) = T <$> traverse (normaliseT d) x
 
-contextualise :: TypeError -> [ContextualisedEW]
-contextualise e = [([], Left e)]
+contextualiseE :: TypeError -> [ContextualisedEW]
+contextualiseE e = [([], Left e)]
 
+contextualiseW :: TypeWarning -> [ContextualisedEW]
+contextualiseW w = [([], Right w)]

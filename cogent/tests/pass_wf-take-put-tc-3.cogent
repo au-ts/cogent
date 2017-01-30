@@ -1,5 +1,5 @@
 --
--- Copyright 2016, NICTA
+-- Copyright 2017, NICTA
 --
 -- This software may be distributed and modified according to the terms of
 -- the GNU General Public License version 2. Note that NO WARRANTY is provided.
@@ -27,9 +27,9 @@ x : () -> ()
 x () = bar (foo ())
 
 -- type C = A put (f2)
-type D = (A take (f1, f2)) put (f3)
+-- type D = A take (f1, f2) put (f3)
 
--- type E = ((A take (f2)) put (f1)) take (f2)
+type E = ((A take (..)) put (f1)) take (f2)
 
 type F = (A take (f1, f2)) put (..)
 

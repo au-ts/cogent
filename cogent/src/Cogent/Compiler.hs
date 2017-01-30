@@ -183,12 +183,15 @@ set_flag_proofName = writeIORef __cogent_proof_name_ref . Just . takeBaseName
 set_flag_quiet = writeIORef __cogent_quiet_ref True
 set_flag_rootDir dir = writeIORef __cogent_root_dir_ref (cogentRelDir dir __cogent_dist_dir)
 set_flag_w      = writeIORef __cogent_warning_switch_ref Flag_w
-set_flag_Wall = do set_flag_WdynamicVariantPromotion
+set_flag_Wall = do set_flag_WdodgyTakePut
+                   set_flag_WdynamicVariantPromotion
                    set_flag_WimplicitIntLitPromotion
                    set_flag_WunusedLocalBinds
 set_flag_Werror = writeIORef __cogent_warning_switch_ref Flag_Werror
+set_flag_WdodgyTakePut = writeIORef __cogent_wdodgy_take_put_ref True
 set_flag_WdynamicVariantPromotion = writeIORef __cogent_wdynamic_variant_promotion_ref True
 set_flag_WimplicitIntLitPromotion = writeIORef __cogent_wimplicit_int_lit_promotion_ref True
+set_flag_WnoDodgyTakePut = writeIORef __cogent_wdodgy_take_put_ref False
 set_flag_WnoDynamicVariantPromotion = writeIORef __cogent_wdynamic_variant_promotion_ref False
 set_flag_WnoImplicitIntLitPromotion = writeIORef __cogent_wimplicit_int_lit_promotion_ref False
 set_flag_WnoUnusedLocalBinds = writeIORef __cogent_wunused_local_binds_ref False
@@ -726,6 +729,13 @@ __cogent_warning_switch = unsafePerformIO $ readIORef __cogent_warning_switch_re
 __cogent_warning_switch_ref :: IORef Cogent_WarningSwitch
 {-# NOINLINE __cogent_warning_switch_ref #-}
 __cogent_warning_switch_ref = unsafePerformIO $ newIORef Flag_Wwarn
+
+__cogent_wdodgy_take_put :: Bool
+__cogent_wdodgy_take_put = unsafePerformIO $ readIORef __cogent_wdodgy_take_put_ref
+
+__cogent_wdodgy_take_put_ref :: IORef Bool
+{-# NOINLINE __cogent_wdodgy_take_put_ref #-}
+__cogent_wdodgy_take_put_ref = unsafePerformIO $ newIORef True
 
 __cogent_wdynamic_variant_promotion :: Bool
 __cogent_wdynamic_variant_promotion = unsafePerformIO $ readIORef __cogent_wdynamic_variant_promotion_ref

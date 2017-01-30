@@ -1,5 +1,5 @@
 --
--- Copyright 2016, NICTA
+-- Copyright 2017, NICTA
 --
 -- This software may be distributed and modified according to the terms of
 -- the GNU General Public License version 2. Note that NO WARRANTY is provided.
@@ -130,6 +130,8 @@ reorganize :: [(SourcePos, DocString, TopLevel LocType LocPatn LocExpr)]
 reorganize bs = do let m = classify bs
                        cs = G.stronglyConnectedComponents (dependencyGraph m)
                    checkNoNameClashes (map (second fst3) m) M.empty
+                   -- FIXME: it might be good to preserve the original order as much as possible
+                   -- see file `tests/pass_wf-take-put-tc-2.cogent` as a bad-ish example / zilinc
                    forM cs $ \case
                      G.AcyclicSCC i -> Right $ Maybe.fromJust $ lookup i m
                      G.CyclicSCC is -> Left  $ (CyclicDependency, map (id &&& getSourcePos m) is)

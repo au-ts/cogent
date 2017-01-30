@@ -520,6 +520,10 @@ instance Pretty TypeError where
 
 instance Pretty TypeWarning where
   pretty (UnusedLocalBind v) = warn "[--Wunused-local-binds]" <$$> indent' (warn "Defined but not used:" <+> pretty v)
+  pretty (TakeTakenField f t) = warn "[--Wdodgy-take-put]" <$$> indent' (warn "Take a taken field" <+> fieldname f
+                                  <+> warn "from type" <$> pretty t)
+  pretty (PutUntakenField f t) = warn "[--Wdodgy-take-put]" <$$> indent' (warn "Put an untaken field" <+> fieldname f
+                                  <+> warn "into type" <$> pretty t)
 
 instance Pretty TypeEW where
   pretty = either ((err "Error:" <+>) . pretty) ((warn "Warning:" <+>) . pretty)
