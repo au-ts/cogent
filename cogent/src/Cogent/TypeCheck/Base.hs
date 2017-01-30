@@ -104,6 +104,14 @@ isCtxConstraint _ = False
 -- high-level context at the end of the list
 type ContextualisedEW = ([ErrorContext], TypeEW)
 
+isWarn :: ContextualisedEW -> Bool
+isWarn (_, Right _) = True
+isWarn _ = False
+
+isWarnAsError :: ContextualisedEW -> Bool
+isWarnAsError (_, Left (TypeWarningAsError _)) = True
+isWarnAsError _ = False
+
 data TypeFragment a = F a
                     | FRecord [(FieldName, (a, Taken))]
                     | FVariant (M.Map TagName ([a], Taken))
@@ -234,10 +242,6 @@ warnToConstraint f w | f = SemiSat w
 --           Flag_Wwarn -> SemiSat w
 --           Flag_Werror -> Unsat (TypeWarningAsError w)
 --   | otherwise = Sat
-
-isWarnAsError :: ContextualisedEW -> Bool
-isWarnAsError (_, Left (TypeWarningAsError _)) = True
-isWarnAsError _ = False
 
 data TCState = TCS { _knownFuns    :: M.Map FunName (Polytype TCType)
                    , _knownTypes   :: TypeDict

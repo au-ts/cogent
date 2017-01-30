@@ -33,7 +33,7 @@ import Control.Arrow (first, second)
 import Control.Lens
 import Control.Monad.Except
 import Control.Monad.State
-import Control.Monad.Writer
+import Control.Monad.Writer hiding (censor)
 import Data.Either (lefts)
 import Data.List (nub, (\\))
 import qualified Data.Map as M
@@ -45,23 +45,25 @@ import Text.PrettyPrint.ANSI.Leijen hiding ((<>), (<$>))
 
 tc :: [(SourcePos, TopLevel LocType LocPatn LocExpr)]
    -> IO ((Either () [TopLevel RawType TypedPatn TypedExpr], [ContextualisedEW]), TCState)
-tc = ((first . second) adjustErrors <$>) . flip runStateT (TCS M.empty knownTypes M.empty) . runWriterT . runExceptT . typecheck
+tc = ((first . second) adjustErrors <$>) . flip runStateT (TCS M.empty knownTypes M.empty) . (failError <$>) . runWriterT . runExceptT . typecheck
   where
     knownTypes = map (, ([] , Nothing)) $ words "U8 U16 U32 U64 String Bool"
     adjustErrors = (if __cogent_freverse_tc_errors then reverse else id) . adjustContexts
     adjustContexts = map (first noConstraints)
     noConstraints = if __cogent_ftc_ctx_constraints then id else filter (not . isCtxConstraint)
+    failError (Right _, ews) | or (map isWarnAsError ews), Flag_Werror <- __cogent_warning_switch = (Left (), ews)
+    failError x = x
+
+typecheck :: [(SourcePos, TopLevel LocType LocPatn LocExpr)]
+          -> ExceptT () (WriterT [ContextualisedEW] TC) [TopLevel RawType TypedPatn TypedExpr]
+typecheck = censor warnsToErrors . mapM (uncurry checkOne)
+  where
     warnsToErrors = case __cogent_warning_switch of
                       Flag_w -> filter (not . isWarn)
                       Flag_Wwarn -> id
                       Flag_Werror -> map warnToError
-    isWarn (_, Right _) = True; isWarn _ = False
     warnToError (c,Right w) = (c, Left $ TypeWarningAsError w)
     warnToError ew = ew
-
-typecheck :: [(SourcePos, TopLevel LocType LocPatn LocExpr)]
-          -> ExceptT () (WriterT [ContextualisedEW] TC) [TopLevel RawType TypedPatn TypedExpr]
-typecheck = mapM (uncurry checkOne)
 
 -- TODO: Check for prior definition
 checkOne :: SourcePos -> TopLevel LocType LocPatn LocExpr
