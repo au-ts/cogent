@@ -11,9 +11,9 @@
 type A
 type B = {f1 : U8, f2 : U8, f3 : A}
 
--- cannot take several times, which makes sense
-baz : B -> B take (f1)
-baz b = let b'   {f1} = b
-        and b''  {f1} = b'
+-- can put multiple times
+bar : B take (f1) -> B
+bar b = let b'  = b  {f1 = 1}
+        and b'' = b' {f1 = 2}
          in b''
 
