@@ -44,7 +44,7 @@ static inline loff_t fat_make_i_pos(struct super_block *sb,
 		| (de - (struct msdos_dir_entry *)bh->b_data);
 }
 
-static inline void fat_dir_readahead(struct inode *dir, sector_t iblock,
+void fat_dir_readahead(struct inode *dir, sector_t iblock,
 				     sector_t phys)
 {
 	struct super_block *sb = dir->i_sb;
@@ -66,6 +66,7 @@ static inline void fat_dir_readahead(struct inode *dir, sector_t iblock,
 	}
 	brelse(bh);
 }
+EXPORT_SYMBOL_GPL(fat_dir_readahead);
 
 /* Returns the inode number of the directory entry at offset pos. If bh is
    non-NULL, it is brelse'd before. Pos is incremented. The buffer header is
@@ -113,7 +114,7 @@ next:
 	return 0;
 }
 
-static inline int fat_get_entry(struct inode *dir, loff_t *pos,
+int fat_get_entry(struct inode *dir, loff_t *pos,
 				struct buffer_head **bh,
 				struct msdos_dir_entry **de)
 {
@@ -127,6 +128,8 @@ static inline int fat_get_entry(struct inode *dir, loff_t *pos,
 	}
 	return fat__get_entry(dir, pos, bh, de);
 }
+EXPORT_SYMBOL_GPL(fat_get_entry);
+
 
 /*
  * Convert Unicode 16 to UTF-8, translated Unicode, or ASCII.
@@ -994,7 +997,7 @@ int fat_scan_logstart(struct inode *dir, int i_logstart,
 	return -ENOENT;
 }
 
-static int __fat_remove_entries(struct inode *dir, loff_t pos, int nr_slots)
+int __fat_remove_entries(struct inode *dir, loff_t pos, int nr_slots)
 {
 	struct super_block *sb = dir->i_sb;
 	struct buffer_head *bh;
@@ -1028,6 +1031,7 @@ static int __fat_remove_entries(struct inode *dir, loff_t pos, int nr_slots)
 
 	return err;
 }
+EXPORT_SYMBOL_GPL(__fat_remove_entries);
 
 int fat_remove_entries(struct inode *dir, struct fat_slot_info *sinfo)
 {

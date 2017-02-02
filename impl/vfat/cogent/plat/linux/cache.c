@@ -349,3 +349,4 @@ int fat_bmap(struct inode *inode, sector_t sector, sector_t *phys,
 	}
 	return 0;
 }
+EXPORT_SYMBOL_GPL(fat_bmap);

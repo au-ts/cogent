@@ -54,6 +54,7 @@ void fat_msg(struct super_block *sb, const char *level, const char *fmt, ...)
 	printk("%sFAT-fs (%s): %pV\n", level, sb->s_id, &vaf);
 	va_end(args);
 }
+EXPORT_SYMBOL_GPL(fat_msg);
 
 /* Flushes the number of free clusters on FAT32 */
 /* XXX: Need to write one per FSINFO block.  Currently only writes 1 */

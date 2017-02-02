@@ -1,0 +1,22 @@
+\BOOKMARK [1][-]{section.1}{Surface Syntax}{}% 1
+\BOOKMARK [2][-]{subsection.1.1}{Grammar}{section.1}% 2
+\BOOKMARK [2][-]{subsection.1.2}{Comments}{section.1}% 3
+\BOOKMARK [2][-]{subsection.1.3}{Pragmas}{section.1}% 4
+\BOOKMARK [1][-]{section.2}{Abstract Syntax}{}% 5
+\BOOKMARK [1][-]{section.3}{Surface Type Inference}{}% 6
+\BOOKMARK [1][-]{section.4}{Desugaring}{}% 7
+\BOOKMARK [1][-]{section.5}{Types}{}% 8
+\BOOKMARK [2][-]{subsection.5.1}{Base Types}{section.5}% 9
+\BOOKMARK [2][-]{subsection.5.2}{Linear type system}{section.5}% 10
+\BOOKMARK [2][-]{subsection.5.3}{Composite types}{section.5}% 11
+\BOOKMARK [2][-]{subsection.5.4}{Type Operators}{section.5}% 12
+\BOOKMARK [1][-]{section.6}{Patterns and Expressions}{}% 13
+\BOOKMARK [2][-]{subsection.6.1}{Literals and Variables}{section.6}% 14
+\BOOKMARK [2][-]{subsection.6.2}{Dealing with records}{section.6}% 15
+\BOOKMARK [2][-]{subsection.6.3}{Control Flow and Pattern Matching}{section.6}% 16
+\BOOKMARK [2][-]{subsection.6.4}{Unboxed Records and Tuples}{section.6}% 17
+\BOOKMARK [2][-]{subsection.6.5}{Let}{section.6}% 18
+\BOOKMARK [2][-]{subsection.6.6}{!}{section.6}% 19
+\BOOKMARK [2][-]{subsection.6.7}{Polymorphic Functions}{section.6}% 20
+\BOOKMARK [1][-]{section.7}{Flags in Cogent Compiler}{}% 21
+\BOOKMARK [1][-]{section.8}{How to optimise Cogent programs?}{}% 22

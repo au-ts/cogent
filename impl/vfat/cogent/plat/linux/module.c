@@ -96,7 +96,6 @@ static int vfat_revalidate_ci(struct dentry *dentry, unsigned int flags)
 /* returns the length of a struct qstr, ignoring trailing dots */
 static unsigned int __vfat_striptail_len(unsigned int len, const char *name)
 {
-	// want to implement this in Cogent, but how to iterate?
 	while (len && name[len - 1] == '.')
 		len--;
 	return len;
@@ -669,18 +668,7 @@ int vfat_find(struct inode *dir, struct qstr *qname,
 	return fat_search_long(dir, qname->name, len, sinfo);
 }
 
-/*
- * (nfsd's) anonymous disconnected dentry?
- * NOTE: !IS_ROOT() is not anonymous (i.e. d_splice_alias() did the job).
- */
-int vfat_d_anon_disconn(struct dentry *dentry)
-{
-	return IS_ROOT(dentry) && (dentry->d_flags & DCACHE_DISCONNECTED);
-}
-
-/**================== CHANGED [IN PROGRESS] =================**/
-// adds an entry to an inode
-//CHECK: fix the static issue
+// CHECK: static issue?
 
 int vfat_add_entry(struct inode *dir, struct qstr *qname, int is_dir,
 			  int cluster, struct timespec *ts,
@@ -705,7 +693,7 @@ int vfat_add_entry(struct inode *dir, struct qstr *qname, int is_dir,
 		return err;
 	}
 
-	// what's the point of slots if we always free it at the end? Check!
+	// what's the point of slots? (check)
 	err = fat_add_entries(dir, slots, nr_slots, sinfo);
 	if (err){
 		kfree(slots);
@@ -716,76 +704,10 @@ int vfat_add_entry(struct inode *dir, struct qstr *qname, int is_dir,
 	if (IS_DIRSYNC(dir))
 		(void)fat_sync_inode(dir);
 	else{
-		mark_inode_dirty(dir); // ERROR COMING FROM HERE! [segfault]
+		mark_inode_dirty(dir); // old error came from here [segfault]
 	}
 	kfree(slots);
 	return err;
-}
-
-static struct dentry *vfat_lookup(struct inode *dir, struct dentry *dentry,
-	unsigned int flags)
-	{
-		return vfat_lookup_ac (dir, dentry);
-	}
-
-// Create a new inode associated with the given dentry
-// dir is the parent inode, dentry is the given dentry linked with the inode, rest are irrelevant
-/*static int vfat_create(struct inode *dir, struct dentry *dentry, umode_t mode,
-		       bool excl)
-{
-	struct super_block *sb = dir->i_sb; // gets the superblock
-	struct inode *inode; // will be the new inode
-	struct fat_slot_info sinfo; // disk-related info (?) TODO: Check what this does
-	struct timespec ts;
-	int err;
-
-	//printk(KERN_WARNING "%lu\n", dir->i_ino);
-
-	mutex_lock(&MSDOS_SB(sb)->s_lock);
-
-	ts = CURRENT_TIME_SEC; //time of creation set to now
-
-	err = vfat_add_entry(dir, &dentry->d_name, 0, 0, &ts, &sinfo); //TODO: Check what this does
-	if (err)
-		goto out;
-	dir->i_version++;
-
-	inode = fat_build_inode(sb, sinfo.de, sinfo.i_pos);
-	brelse(sinfo.bh); //TODO: Check what this does
-	if (IS_ERR(inode)) {
-		err = PTR_ERR(inode); //TODO: Check what this does
-		goto out;
-	}
-	inode->i_version++;
-	inode->i_mtime = inode->i_atime = inode->i_ctime = ts;
-	// timestamp is already written, so mark_inode_dirty() is unneeded.
-
-	d_instantiate(dentry, inode);
-out:
-	mutex_unlock(&MSDOS_SB(sb)->s_lock);
-	return err;
-}*/
-
-static int vfat_create(struct inode *dir, struct dentry *dentry, umode_t mode,
-		       bool excl)
-{
-	return vfat_create_ac(dir, dentry);
-}
-/**==================================================**/
-
-static int vfat_rmdir(struct inode *dir, struct dentry *dentry)
-{
-	return vfat_rmdir_ac (dir, dentry);
-}
-
-static int vfat_unlink(struct inode *dir, struct dentry *dentry)
-{
-	return vfat_unlink_ac(dir, dentry);
-}
-
-static int vfat_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
-{
-	return vfat_mkdir_ac (dir, dentry);
 }
 
 static int vfat_rename(struct inode *old_dir, struct dentry *old_dentry,
@@ -917,11 +839,11 @@ error_inode:
 }
 
 static const struct inode_operations vfat_dir_inode_operations = {
-	.create		= vfat_create,
-	.lookup		= vfat_lookup,
-	.unlink		= vfat_unlink,
-	.mkdir		= vfat_mkdir,
-	.rmdir		= vfat_rmdir,
+	.create		= vfat_create_ac,
+	.lookup		= vfat_lookup_ac,
+	.unlink		= vfat_unlink_ac,
+	.mkdir		= vfat_mkdir_ac,
+	.rmdir		= vfat_rmdir_ac,
 	.rename		= vfat_rename,
 	.setattr	= fat_setattr,
 	.getattr	= fat_getattr,

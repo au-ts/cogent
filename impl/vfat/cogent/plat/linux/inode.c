@@ -342,10 +342,11 @@ static void fat_hash_init(struct super_block *sb)
 		INIT_HLIST_HEAD(&sbi->inode_hashtable[i]);
 }
 
-static inline unsigned long fat_hash(loff_t i_pos)
+unsigned long fat_hash(loff_t i_pos)
 {
 	return hash_32(i_pos, FAT_HASH_BITS);
 }
+EXPORT_SYMBOL_GPL(fat_hash);
 
 static void dir_hash_init(struct super_block *sb)
 {
@@ -406,6 +407,7 @@ struct inode *fat_iget(struct super_block *sb, loff_t i_pos)
 {
 	struct msdos_sb_info *sbi = MSDOS_SB(sb);
 	struct hlist_head *head = sbi->inode_hashtable + fat_hash(i_pos);
+	//printk(KERN_WARNING "%llu, %lu, %p\n", i_pos, fat_hash(i_pos), sb);
 	struct msdos_inode_info *i;
 	struct inode *inode = NULL;
 
@@ -747,7 +749,7 @@ static int fat_statfs(struct dentry *dentry, struct kstatfs *buf)
 	return 0;
 }
 
-static int __fat_write_inode(struct inode *inode, int wait)
+int __fat_write_inode(struct inode *inode, int wait)
 {
 	struct super_block *sb = inode->i_sb;
 	struct msdos_sb_info *sbi = MSDOS_SB(sb);
@@ -803,6 +805,7 @@ retry:
 	brelse(bh);
 	return err;
 }
+EXPORT_SYMBOL_GPL(__fat_write_inode);
 
 static int fat_write_inode(struct inode *inode, struct writeback_control *wbc)
 {

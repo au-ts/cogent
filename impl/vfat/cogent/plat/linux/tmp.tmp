@@ -157,3 +157,48 @@ out:
 
 	return err;
 }
+
+
+// Create a new inode associated with the given dentry
+// dir is the parent inode, dentry is the given dentry linked with the inode, rest are irrelevant
+/*static int vfat_create(struct inode *dir, struct dentry *dentry, umode_t mode,
+		       bool excl)
+{
+	struct super_block *sb = dir->i_sb; // gets the superblock
+	struct inode *inode; // will be the new inode
+	struct fat_slot_info sinfo; // disk-related info (?) TODO: Check what this does
+	struct timespec ts;
+	int err;
+
+	//printk(KERN_WARNING "%lu\n", dir->i_ino);
+
+	mutex_lock(&MSDOS_SB(sb)->s_lock);
+
+	ts = CURRENT_TIME_SEC; //time of creation set to now
+
+	err = vfat_add_entry(dir, &dentry->d_name, 0, 0, &ts, &sinfo); //TODO: Check what this does
+	if (err)
+		goto out;
+	dir->i_version++;
+
+	inode = fat_build_inode(sb, sinfo.de, sinfo.i_pos);
+	brelse(sinfo.bh); //TODO: Check what this does
+	if (IS_ERR(inode)) {
+		err = PTR_ERR(inode); //TODO: Check what this does
+		goto out;
+	}
+	inode->i_version++;
+	inode->i_mtime = inode->i_atime = inode->i_ctime = ts;
+	// timestamp is already written, so mark_inode_dirty() is unneeded.
+
+	d_instantiate(dentry, inode);
+out:
+	mutex_unlock(&MSDOS_SB(sb)->s_lock);
+	return err;
+}*/
+
+// maybe change this so that it always calls the ac one
+// int vfat_d_anon_disconn(struct dentry *dentry)
+// {
+// 	return IS_ROOT(dentry) && (dentry->d_flags & DCACHE_DISCONNECTED);
+// }
