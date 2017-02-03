@@ -122,12 +122,11 @@ monoDefinition d =
 
 -- given instances, instantiate a function
 monoDefinitionInsts :: Definition TypedExpr VarName -> [Instance] -> Mono ()
-monoDefinitionInsts d [] = case __cogent_entry_funcs of
-  Just _  -> monoDefinitionInst d []  -- monomorphic function, because only functions in __cogent_entry_funcs get passed to this function
-  Nothing -> if getTypeVarNum d == 0
-              then monoDefinitionInst d []  -- monomorphic function
-              else -- has type variables but no instances are given, so there's just no way to monomorphise it
-                   censor (first $ (("Cannot monomorphise definition `" ++ getDefinitionId d ++ "'") :)) (return ())  -- shouldn't happen if __cogent_entry_funcs /= Nothing
+monoDefinitionInsts d [] =
+  if getTypeVarNum d == 0
+    then monoDefinitionInst d []  -- monomorphic function
+    else -- has type variables but no instances are given, so there's just no way to monomorphise it
+         censor (first $ (("Cannot monomorphise definition `" ++ getDefinitionId d ++ "'") :)) (return ())  -- shouldn't happen if __cogent_entry_funcs /= Nothing
 monoDefinitionInsts d is = flip mapM_ is $ monoDefinitionInst d
 
 monoName :: String -> Maybe Int -> String
