@@ -1,0 +1,53 @@
+include <gum/common.cogent>
+
+type CString
+
+type Index = U32
+type Node = {
+  len : U32
+, key : #CString
+}
+
+type Buffer  -- stores a list of `Node`s
+
+find_str : (ExState, Buffer!, (#CString)!) -> (ExState, Option Node)
+find_str (ex,buf,s) = 
+  let ((ex,_),r) = seq32 [(ExState, Index), (Buffer!, (#CString)!), Node] #{frm = u8_to_u32 0, to = u8_to_u32 3, step = u8_to_u32 1, f = cmp_inc, acc = (ex,0), obsv = (buf,s)}
+   in r | Iterate _   -> (ex, None)
+        | Break node  -> (ex, Some node)
+
+cmp_inc : #{acc : (ExState, Index), obsv : (Buffer!, (#CString)!), idx : U32} -> LRR (ExState, Index) Node
+cmp_inc r {acc=(ex,idx), obsv=(buf,str)} = 
+  let (ex,r) = deserialise_Node (ex,buf,idx)
+   in r | Success (node,idx') -> if string_cmp (node.key, str) !node
+                                   then ((ex,idx'), Break node)  -- found!
+                                   else let node {len, key} = node
+                                        and ex = free_Node (ex,node)
+                                         in ((ex,idx'), Iterate ())
+        | Error err -> ((ex,idx), Iterate ())
+
+
+string_cmp : ((#CString)!, (#CString)!) -> Bool
+
+malloc_Node : ExState -> RR ExState (Node take (..)) ErrCode
+free_Node : (ExState, Node take (..)) -> ExState
+
+free_CString : (ExState, #CString) -> ExState
+
+deserialise_Node : (ExState, Buffer!, Index) -> RR ExState (Node, Index) ErrCode
+deserialise_Node (ex,buf,idx) = 
+  let (ex,r) = malloc_Node ex
+   in r 
+   | Success node -> 
+       let (ex,l,idx') = deserialise_U32 (ex,buf,idx)
+       and (ex,r) = deserialise_CString (ex,buf,idx',l) !node
+        in r
+        | Success (key,idx'') -> (ex, Success (node {len=l,key}, idx''))
+        | Error err -> let ex = free_Node (ex,node)
+                        in (ex, Error err)
+   | Error err -> (ex, Error err)
+
+deserialise_CString : (ExState, Buffer!, Index, U32) -> RR ExState (#CString, Index) ErrCode
+deserialise_U32 : (ExState, Buffer!, Index) -> (ExState, U32, Index)
+
+array_print : (ExState, (#CString)!) -> ExState

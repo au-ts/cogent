@@ -367,7 +367,7 @@ options = [
   , Option []         ["all-refine"]      1 (NoArg AllRefine)          "generate shallow-to-C refinement proof"
   , Option ['A']      ["all"]             0 (NoArg All)                "generate everything"
   -- info.
-  , Option []         ["stdgum-dir"]      0 (NoArg StdGumDir)          "directory where standard gum headers are installed"
+  , Option []         ["stdgum-dir"]      0 (NoArg StdGumDir)          "directory where standard gum headers are installed (can be set by COGENT_STD_GUM_DIR environment variable)"
   , Option ['h','?']  ["help"]            0 (OptArg (Help . maybe 1 read) "VERBOSITY")  "display help message (VERBOSITY=0..4, default to 1)"
   , Option ['v','V']  ["version"]         0 (NoArg Version)            "show version number"
   ]

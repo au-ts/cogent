@@ -1,0 +1,22 @@
+include <gum/common.cogent>
+include <gum/wordarray.cogent>
+
+zero32 : U32
+zero32 = 0
+
+avg : (WordArray U32)! -> R U32 ()
+avg arr = wordarray_fold[U32, (U32, U32), (), ()] #{
+            arr, frm = zero32, to = wordarray_length[U32] arr - 1, f = go, acc = (zero32, zero32), obsv= () 
+          } | Iterate (sum, n) -> safe_div (sum, n)
+                | Some avg -> Success avg
+                | None -> Error ()
+            | Break _ -> Error ()
+
+go : ElemAO U32 (U32, U32) () -> LoopResult (U32, U32) ()
+go #{elem, acc=(sum, n), obsv} = 
+  if elem == 42
+    then Break ()
+    else Iterate (sum + elem, n + 1)
+
+safe_div : (U32, U32) -> Option U32
+safe_div (a,b) = if b == 0 then None else Some (a / b)
