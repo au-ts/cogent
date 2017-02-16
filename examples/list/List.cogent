@@ -1,0 +1,112 @@
+type Node a = {
+  val: a,
+  next: U64,
+  prev: U64
+}
+
+type List a = {
+  head: Node a,
+  length: U32
+}
+
+type R a b = < Success a | Error b >
+type Err = U32
+type ExState = U32
+
+list_create: all(a). () -> R (List a) Err
+list_delete: all(a). (List a) -> ()
+
+list_add: all(a). (List a, a, U32) -> R (List a) (List a)
+list_get: all(a). (List a, U32)! -> R a Err
+list_remove_index: all(a). (List a, U32) -> R (List a) (List a)
+list_remove_value: all(a). (List a, a) -> R (List a) (List a)
+
+print_str: (ExState, String) -> ExState
+
+list_U32_print: (ExState, (List U32)!) -> ExState
+list_str_print: (ExState, (List String)!) -> ExState
+
+test: ExState -> ExState
+test ex =
+  list_create [U32] ()
+  | Success list ->
+    let ex = print_str(ex, "List successfully created.\n")
+    in list_add [U32] (list, 1, 0)
+    | Success list ->
+      let ex = print_str(ex, "Value added successfully.\n")
+      in list_add [U32] (list, 102, 0)
+      | Success list ->
+        let ex = print_str(ex, "Value added successfully.\n")
+        and ex = list_U32_print (ex, list) ! list
+        in list_add [U32] (list, 3, 2)
+        | Success list ->
+          let ex = print_str(ex, "Value added successfully.\n")
+          and ex = list_U32_print (ex, list) ! list
+          in list_remove_index [U32] (list, 0)
+          | Success list ->
+            let ex = print_str(ex, "Value deleted.\n")
+            and ex = list_U32_print (ex, list) ! list
+            in list_remove_index [U32] (list, 2)
+            | Success list ->
+              let ex = print_str(ex, "Value deleted. [Error]\n")
+              and _ = list_delete [U32] (list)
+              in print_str(ex, "List deleted.\n")
+            | Error list ->
+              let ex = print_str(ex, "Value not found.\n")
+              in list_remove_value [U32] (list, 3)
+              | Success list ->
+                let ex = print_str(ex, "Value deleted.\n")
+                and ex = list_U32_print(ex, list) !list
+                in list_remove_value [U32] (list, 2)
+                | Success list ->
+                  let ex = print_str(ex, "Value deleted. [Error]\n")
+                  and _ = list_delete [U32] (list)
+                  in print_str(ex, "List deleted.\n")
+                | Error list ->
+                  let ex = print_str(ex, "Value not found.\n")
+                  and _ = list_delete [U32] (list)
+                  and ex = print_str(ex, "List deleted.\n")
+                  in list_create [String] ()
+                  | Success list ->
+                    list_add [String] (list, "Hello", 0)
+                    | Success list ->
+                      let ex = list_str_print(ex, list) ! list
+                      in list_get [String] (list, 0) !list
+                      | Success a ->
+                        let ex = print_str(ex, a)
+                        and ex = print_str(ex, "\n")
+                        and _ = list_delete[String](list)
+                        in ex
+                      | Error e ->
+                        let ex = print_str(ex, "Failed to get. [Error]\n")
+                        and _ = list_delete [String] (list)
+                        in ex
+                    | Error list ->
+                      let ex = print_str(ex, "Error adding.\n")
+                      and _ = list_delete [String] (list)
+                      in ex
+                  | Error e ->
+                    let ex = print_str(ex, "Could not create new list.\n")
+                    in ex
+              | Error list ->
+                let ex = print_str(ex, "Value not found\n")
+                and _ = list_delete [U32] (list)
+                in print_str(ex, "List deleted.\n")
+          | Error list ->
+            let ex = print_str(ex, "Value does not exist.\n")
+            and _ = list_delete [U32] (list)
+            in print_str(ex, "List deleted.\n")
+        | Error a ->
+          let ex = print_str(ex, "Error adding value.\n")
+          and _ = list_delete [U32] (a)
+          in print_str(ex, "List deleted.\n")
+      | Error a ->
+        let ex = print_str(ex, "Error adding value.\n")
+        and _ = list_delete [U32] (a)
+        in print_str(ex, "List deleted.\n")
+    | Error a ->
+      let ex = print_str(ex, "Error adding value.\n")
+      and _ = list_delete [U32] (a)
+      in print_str(ex, "List deleted.\n")
+  | Error e ->
+    print_str(ex, "Error creating list.\n")

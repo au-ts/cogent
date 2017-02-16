@@ -1,0 +1,207 @@
+$esc:(#include <stdio.h>)
+$esc:(#include <stdlib.h>)
+#include "generated.c"
+
+$ty:(R (List a) Err) $id:list_create(unit_t x){
+  $ty:(R (List a) Err) ret;
+
+  $ty:(List a) list;
+  list = malloc(sizeof(*list));
+
+  if(list != NULL){
+    $ty:(Node a) head;
+    head = malloc(sizeof(*head));
+    if(head != NULL){
+      //Success
+      head->val = 0;
+      head->next = 0;
+      head->prev = 0;
+      list->head = head;
+      list->length = 0;
+      ret.tag = TAG_ENUM_Success;
+      ret.Success = list;
+      return ret;
+    }
+    free(list);
+  }
+
+  // Error
+  ret.tag = TAG_ENUM_Error;
+  ret.Error = 1;
+  return ret;
+}
+
+unit_t $id:list_delete($ty:(List a) list){
+  $ty:(Node a) curr = list->head;
+  while(curr != NULL){
+    $ty:(Node a) tmp = curr;
+    curr = ($ty:(Node a)) curr->next;
+    free(tmp); //TODO: Potentially freeing the value if needed?
+  }
+  free(list);
+}
+
+$ty:(R (List a) (List a)) $id:list_add($ty:((List a, a, U32)) args){
+  $ty:(List a) list = args.p1;
+  $ty:(a) val = args.p2;
+  $ty:(U32) index = args.p3;
+  $ty:(R (List a) (List a)) ret;
+
+  if(index > list->length || index < 0){
+    ret.tag = TAG_ENUM_Error;
+    ret.Error = list;
+    return ret;
+  }
+
+  $ty:(Node a) prev = list->head;
+  for(int i = 0; i < index; i++){
+    prev = ($ty:(Node a)) prev->next;
+  }
+
+  $ty:(Node a) new_node;
+  new_node = malloc(sizeof(*new_node));
+  if(new_node == NULL){
+    ret.tag = TAG_ENUM_Error;
+    ret.Error = list;
+    return ret;
+  }
+
+  new_node->val = val;
+  new_node->next = prev->next;
+  new_node->prev = ($ty:(U64)) prev;
+  $ty:(Node a) next_node = ($ty:(Node a)) prev->next;
+  if(next_node != 0){
+    next_node->prev = ($ty:(U64)) new_node;
+  }
+  prev->next = ($ty:(U64)) new_node;
+  list->length += 1;
+
+  ret.tag = TAG_ENUM_Success;
+  ret.Success = list;
+  return ret;
+}
+
+$ty:(R a Err) $id:list_get($ty:((List a, U32)) args){
+    $ty:(R a Err) ret;
+    $ty:(List a) list = args.p1;
+    $ty:(U32) index = args.p2;
+    if(index >= list->length){
+      ret.tag = TAG_ENUM_Error;
+      ret.Error = 1;
+      return ret;
+    } else {
+      $ty:(Node a) curr = list->head;
+      for(int i = 0; i <= index; i++){
+        curr = ($ty:(Node a)) curr->next;
+      }
+      ret.tag = TAG_ENUM_Success;
+      ret.Success = curr->val;
+      return ret;
+    }
+}
+
+$ty:(R (List a) (List a)) $id:list_remove_index($ty:((List a, U32)) args){
+  $ty:(R (List a) (List a)) ret;
+  $ty:(List a) list = args.p1;
+  $ty:(U32) index = args.p2;
+  if(index >= list->length){
+    ret.tag = TAG_ENUM_Error;
+    ret.Error = list;
+    return ret;
+  } else {
+    $ty:(Node a) curr = list->head;
+    for(int i = 0; i <= index; i++){
+      curr = ($ty:(Node a)) curr->next;
+    }
+    $ty:(Node a) next_node = ($ty:(Node a)) curr->next;
+    $ty:(Node a) prev_node = ($ty:(Node a)) curr->prev;
+    prev_node->next = ($ty:(U64)) next_node;
+    if(next_node != 0){
+      next_node->prev = ($ty:(U64)) prev_node;
+    }
+    free(curr);
+    list->length -= 1;
+    ret.tag = TAG_ENUM_Success;
+    ret.Success = list;
+    return ret;
+  }
+}
+
+$ty:(R (List a) (List a)) $id:list_remove_value($ty:((List a, a)) args){
+  $ty:(List a) list = args.p1;
+  $ty:(a) val = args.p2;
+  $ty:(R (List a) (List a)) ret;
+  $ty:(Node a) node = list->head;
+  if(node->next == 0){
+    ret.tag = TAG_ENUM_Error;
+    ret.Error = list;
+    return ret;
+  } else {
+    node = ($ty:(Node a)) node->next;
+    while(node!=NULL){
+      if(node->val == val){
+        $ty:(Node a) next_node = ($ty:(Node a)) node->next;
+        $ty:(Node a) prev_node = ($ty:(Node a)) node->prev;
+        prev_node->next = ($ty:(U64)) next_node;
+        if(next_node != 0){
+          next_node->prev = ($ty:(U64)) prev_node;
+        }
+        free(node);
+        list->length -= 1;
+        ret.tag = TAG_ENUM_Success;
+        ret.Success = list;
+        return ret;
+      }
+      node = ($ty:(Node a)) node->next;
+    }
+    ret.tag = TAG_ENUM_Error;
+    ret.Error = list;
+    return ret;
+  }
+}
+
+$ty:(ExState) print_str($ty:((ExState, String)) arg){
+  $ty:(ExState) ex = arg.p1;
+  char * str = arg.p2;
+  printf("%s", str);
+  return ex;
+}
+
+$ty:(ExState) $id:list_U32_print($ty:((ExState, List U32)) arg){
+  $ty:(ExState) ex = arg.p1;
+  $ty:(List U32) list = arg.p2;
+  if(list->length == 0){
+    printf("[]\n");
+  } else {
+    $ty:(Node U32) node = ($ty:(Node U32))(list->head)->next;
+    printf("[");
+    while(node->next != 0){
+      printf("%d, ", node->val);
+      node = ($ty:(Node U32)) node->next;
+    }
+    printf("%d]\n", node->val);
+  }
+  return ex;
+}
+
+$ty:(ExState) $id:list_str_print($ty:((ExState, List String)) arg){
+  $ty:(ExState) ex = arg.p1;
+  $ty:(List String) list = arg.p2;
+  if(list->length == 0){
+    printf("[]\n");
+  } else {
+    $ty:(Node String) node = ($ty:(Node String))(list->head)->next;
+    printf("[");
+    while(node->next != 0){
+      printf("'%s', ", node->val);
+      node = ($ty:(Node String)) node->next;
+    }
+    printf("'%s']\n", node->val);
+  }
+  return ex;
+}
+
+int main(void){
+  $exp:test(0);
+  return 0;
+}
