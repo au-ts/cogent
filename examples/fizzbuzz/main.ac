@@ -1,0 +1,31 @@
+$esc:(#include <stdio.h>)
+#include "generated.c"
+#include <gum/anti/iterator.ac>
+
+$ty:(ExSt) $id:print_buzz ($ty:(ExSt) ex){
+  $esc:(printf("Buzz\n"));
+  return ex;
+}
+
+$ty:(ExSt) $id:print_fizz ($ty:(ExSt) ex){
+  $esc:(printf("Fizz\n"));
+  return ex;
+}
+
+$ty:(ExSt) $id:print_fizzbuzz ($ty:(ExSt) ex) {
+  $esc:(printf("FizzBuzz\n"));
+  return ex;
+}
+
+$ty:(ExSt) $id:print_u32 ($ty:((U32, ExSt)) arg){
+  $ty:(U32) val = arg.p1;
+  $esc:(printf("%d\n", val));
+  $ty:(ExSt) ex = arg.p2;
+  return ex;
+}
+
+int main(void){
+  $ty:(ExSt) ex;
+  ex = $exp:fizzbuzz(ex);
+  return 0;
+}

@@ -1,0 +1,50 @@
+include <gum/iterator.cogent>
+type ExSt = U32
+
+-- printing functions
+print_fizz: ExSt -> ExSt
+print_buzz: ExSt -> ExSt
+print_fizzbuzz: ExSt -> ExSt
+print_u32: (U32, ExSt) -> ExSt
+
+-- generator
+fizzbuzz_gen: (#{acc: (U32, ExSt), obsv: U32!}) -> GeneratorResult () () () (U32, ExSt)
+fizzbuzz_gen (#{acc = (curr_num, ex), obsv = max_num}) =
+  if curr_num > max_num then
+    ((curr_num, ex), Stop ())
+  else
+    ((curr_num, ex), Yield ())
+
+-- consumer
+fizzbuzz_cons: (#{obj: (), acc: (U32, ExSt), obsv: U32!}) -> ConsumerResult () () (U32, ExSt)
+fizzbuzz_cons (#{obj = _, acc = (curr_num, ex), obsv = max_num}) =
+  if (curr_num%15 == 0) then
+    let ex = print_fizzbuzz (ex)
+    and new_num = curr_num + 1
+    in ((new_num, ex), Next ())
+  else if (curr_num%5 == 0) then
+    let ex = print_fizz (ex)
+    and new_num = curr_num + 1
+    in ((new_num, ex), Next ())
+  else if  (curr_num%3 == 0) then
+    let ex = print_buzz (ex)
+    and new_num = curr_num + 1
+    in ((new_num, ex), Next ())
+  else
+    let ex = print_u32 (curr_num, ex)
+    and new_num = curr_num + 1
+    in ((new_num, ex), Next ())
+
+-- Prints out all numbers from 1 to 100.
+-- Multiples of 3 replaced by Fizz, multiples of 5 replaced by Buzz
+-- Multiples of both 3 and 5 replaced by FizzBuzz
+fizzbuzz: ExSt -> ExSt
+fizzbuzz ex =
+  let iter = iterate [(), (), (), (U32, ExSt), U32] -- yield, return, stop, acc, obsv
+  and ((_, ex), _) = iter (#{
+    gen = fizzbuzz_gen,
+    cons = fizzbuzz_cons,
+    acc = (1, ex),
+    obsv = 100
+  })
+  in ex
