@@ -1,5 +1,5 @@
 #
-# Copyright 2016, NICTA
+# Copyright 2017, NICTA
 #
 # This software may be distributed and modified according to the terms of
 # the GNU General Public License version 2. Note that NO WARRANTY is provided.
@@ -9,6 +9,9 @@
 #
 
 #+TITLE: Cogent Antiquotation in C
+
+_WARNING:_ Cogent antiquotation does *not* have any sanity checks. So please follow the guide closely otherwise debugging will
+be a huge pain.
 
 * Cheatsheet (For new users, skip this section)
 
@@ -24,8 +27,9 @@
 * Modes in the compiler
 We have two different modes for handling antiquotation. One is "type mode", with command-line argument ~--infer-c-type~. In this mode,
 users can only define abstract parametric Cogent types. The output will be placed to pre-defined directory, one file per
-monomorphised type. Each file is ~#include~'ed by the generated ~.h~ file. Another mode is called "function mode", which comes with
-~--infer-c-func~ argument to the compiler. This mode is for everything else, and the output filename is derived from the input file name.
+monomorphised type. Each file is ~#include~'ed by the generated ~.h~ file. Another mode is "function mode", which is enabled by 
+~--infer-c-func~ flag to the compiler (note: these two modes are not mutually exclusive). This mode is for everything else, and
+the output filename is derived from the input filename.
 
 * Function definition
 We can define an abstract function which has been declared in Cogent. For example, in Cogent we have:
@@ -42,17 +46,23 @@ $ty:b $id:foo ($ty:a arg) {
 }
 #+END_SRC
 
-~$id, $ty~ are antiquotes for identifiers and types respectively. If the antiquoted code consists of only one single identifier 
+~$id~, ~$ty~ are antiquoters for identifiers and types respectively. If the antiquoted code consists of only one single identifier 
 *starting with a lower-case letter*, then no parens are required (e.g. ~$ty:acc~), otherwise we have to write parens around it, 
 like ~$ty:(R a b)~ and ~$ty:(U32)~. Note: If the antiquoted type is unit or a tuple, then we have to
 have at least two pairs of parens, the inner one for the tuple, and the outer one for antiquotation.
 
-Functions defined using antiquotation have to be parametrically polymorphic or monomorphic. Users don't write ~all~ quantification.
-Type parameters, if any, are introduced implicitly by the corresponding declaration in Cogent, namely ~a~ and ~b~ in the above instance.
-The compiler then will generate one copy for each monomorphisation. Of course the function declarations will be the same as the function prototypes
-generated from Cogent code, which is the point of having this antiquotation mechanism. 
+Functions defined using antiquotation have to be parametrically polymorphic or monomorphic. ~$id~ is needed for poly-functions only.
+The reason behind it is, a mono-function will be generated to a C function with exactly the same name (modulo unsupported
+identifier characters), thus the function name will stay intact. For a poly-function, as we can see from the example above, the user
+doesn\'t write ~all~ quantification as in Cogent. Type parameters, if any, are introduced *implicitly* by the corresponding
+declaration in Cogent, namely ~a~ and ~b~ in the above instance. Besides, we need to generate new function names
+according to the instantiation. For these reasons, the compiler needs to know what and where the function name is, in order
+to establish a connection to the Cogent counterpart and to generate new function instantiations. Thus ~$id~ is a needed as a
+signal to the function name. The compiler then will generate one copy for each monomorphisation.
 
-In a function definition, other forms of antiquotes are supported. By ~exp:f~, we can invoke Cogent function ~f~. As in Cogent, if this function
+In a function definition, other forms of antiquotes are supported. By ~exp:f~, we can invoke Cogent function ~f~. (In fact, ~$exp~
+theoretically supports all kinds of Cogent expressions, but this feature is not well tested and largely experimental. Use with care!) 
+As in Cogent, if this function
 ~f~ is polymorphic, then it has to be fully applied to types. To call higher-order functions, as the function and its argument are usually
 not given by Cogent antiquotes (i.e. they are C expressions), we cannot directly call it using the ~$exp~ antiquotation as above. 
 E.g. we have the following scenario:
@@ -74,7 +84,8 @@ The syntax is actually for typecasting in C, we hijack (or better, embed) our se
 inside an antiquote is valid Cogent code.
 
 One thing also worth mentioning here is that, antiquoted functions (no matter first order or higher order) can only be applied to
-exactly one argument, as in Cogent.
+exactly one argument, as in Cogent. Otherwise it will generate totally non-sensical code and the error message from the C compiler
+will not help in general. We are trying to implement some sanity checks in the antiquotation part.
 
 * Type declaration / Typedef
 
@@ -117,12 +128,11 @@ struct C { ... };  // correct!
 #+END_SRC
 
 
-* ~#include~s
-If you have any header files in function mode that don't want to preprocess, use ~$esc:~ antiquote to escape.
+* Escape
+If you have any header files in function mode that don't want to be preprocessed, use ~$esc~ antiquoter to escape.
+Also note that any C code which is beyond the reach of the Haskell C parser (http://hackage.haskell.org/package/language-c-quote)
+can be wrapped by a ~$esc~.
 
 * Expressions
-
-We can antiquote any valid Cogent expressions, using ~$exp:~ antiquote. They will be turned to *statement-expression* in C.
-
-
+We can antiquote any valid Cogent expressions, using ~$exp~ antiquote. They will be turned to *statement-expression* in C.
 
