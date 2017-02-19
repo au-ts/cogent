@@ -1,9 +1,13 @@
 $esc:(#include <stdio.h>)
 $esc:(#include <stdlib.h>)
+
+typedef void *ExState;
+
 #include "generated.c"
 
-$ty:(R (List a) Err) $id:list_create(unit_t x){
-  $ty:(R (List a) Err) ret;
+// add ExState to malloc'ing functions
+$ty:(RR ExState (List a) Err) $id:list_create($ty:(ExState) arg){
+  $ty:(RR ExState (List a) Err) ret;
 
   $ty:(List a) list;
   list = malloc(sizeof(*list));
@@ -18,38 +22,46 @@ $ty:(R (List a) Err) $id:list_create(unit_t x){
       head->prev = 0;
       list->head = head;
       list->length = 0;
-      ret.tag = TAG_ENUM_Success;
-      ret.Success = list;
+      ret.p2.tag = TAG_ENUM_Success;
+      ret.p2.Success = list;
+      ret.p1 = arg;
       return ret;
     }
     free(list);
   }
 
   // Error
-  ret.tag = TAG_ENUM_Error;
-  ret.Error = 1;
+  ret.p2.tag = TAG_ENUM_Error;
+  ret.p2.Error = 1;
+  ret.p1 = arg;
   return ret;
 }
 
-unit_t $id:list_delete($ty:(List a) list){
+$ty:(ExState) $id:list_delete($ty:(((List a), ExState)) arg){
+  $ty:(List a) list = arg.p1;
+  $ty:(ExState) ex = arg.p2;
   $ty:(Node a) curr = list->head;
   while(curr != NULL){
     $ty:(Node a) tmp = curr;
     curr = ($ty:(Node a)) curr->next;
-    free(tmp); //TODO: Potentially freeing the value if needed?
+    free(tmp);
   }
   free(list);
+  return ex;
 }
 
-$ty:(R (List a) (List a)) $id:list_add($ty:((List a, a, U32)) args){
-  $ty:(List a) list = args.p1;
-  $ty:(a) val = args.p2;
-  $ty:(U32) index = args.p3;
-  $ty:(R (List a) (List a)) ret;
+$ty:(RR ExState (List a) (List a)) $id:list_add($ty:((List a, a, U32, ExState)) arg){
+  $ty:(List a) list = arg.p1;
+  $ty:(a) val = arg.p2;
+  $ty:(U32) index = arg.p3;
+  $ty:(ExState) ex = arg.p4;
+
+  $ty:(RR ExState (List a) (List a)) ret;
+  ret.p1 = ex;
 
   if(index > list->length || index < 0){
-    ret.tag = TAG_ENUM_Error;
-    ret.Error = list;
+    ret.p2.tag = TAG_ENUM_Error;
+    ret.p2.Error = list;
     return ret;
   }
 
@@ -61,8 +73,8 @@ $ty:(R (List a) (List a)) $id:list_add($ty:((List a, a, U32)) args){
   $ty:(Node a) new_node;
   new_node = malloc(sizeof(*new_node));
   if(new_node == NULL){
-    ret.tag = TAG_ENUM_Error;
-    ret.Error = list;
+    ret.p2.tag = TAG_ENUM_Error;
+    ret.p2.Error = list;
     return ret;
   }
 
@@ -76,8 +88,8 @@ $ty:(R (List a) (List a)) $id:list_add($ty:((List a, a, U32)) args){
   prev->next = ($ty:(U64)) new_node;
   list->length += 1;
 
-  ret.tag = TAG_ENUM_Success;
-  ret.Success = list;
+  ret.p2.tag = TAG_ENUM_Success;
+  ret.p2.Success = list;
   return ret;
 }
 
@@ -100,13 +112,16 @@ $ty:(R a Err) $id:list_get($ty:((List a, U32)) args){
     }
 }
 
-$ty:(R (List a) (List a)) $id:list_remove_index($ty:((List a, U32)) args){
-  $ty:(R (List a) (List a)) ret;
-  $ty:(List a) list = args.p1;
-  $ty:(U32) index = args.p2;
+$ty:(RR ExState (List a) (List a)) $id:list_remove_index($ty:((List a, U32, ExState)) arg){
+  $ty:(RR ExState (List a) (List a)) ret;
+  $ty:(List a) list = arg.p1;
+  $ty:(U32) index = arg.p2;
+  $ty:(ExState) ex = arg.p3;
+
+  ret.p1 = ex;
   if(index >= list->length){
-    ret.tag = TAG_ENUM_Error;
-    ret.Error = list;
+    ret.p2.tag = TAG_ENUM_Error;
+    ret.p2.Error = list;
     return ret;
   } else {
     $ty:(Node a) curr = list->head;
@@ -121,20 +136,20 @@ $ty:(R (List a) (List a)) $id:list_remove_index($ty:((List a, U32)) args){
     }
     free(curr);
     list->length -= 1;
-    ret.tag = TAG_ENUM_Success;
-    ret.Success = list;
+    ret.p2.tag = TAG_ENUM_Success;
+    ret.p2.Success = list;
     return ret;
   }
 }
 
-$ty:(R (List a) (List a)) $id:list_remove_value($ty:((List a, a)) args){
-  $ty:(List a) list = args.p1;
-  $ty:(a) val = args.p2;
-  $ty:(R (List a) (List a)) ret;
+$ty:(RR ExState (List a) (List a)) $id:list_remove_value($ty:((List a, a, ExState)) arg){
+  $ty:(List a) list = arg.p1;
+  $ty:(a) val = arg.p2;
+  $ty:(RR ExState (List a) (List a)) ret;
   $ty:(Node a) node = list->head;
   if(node->next == 0){
-    ret.tag = TAG_ENUM_Error;
-    ret.Error = list;
+    ret.p2.tag = TAG_ENUM_Error;
+    ret.p2.Error = list;
     return ret;
   } else {
     node = ($ty:(Node a)) node->next;
@@ -148,14 +163,14 @@ $ty:(R (List a) (List a)) $id:list_remove_value($ty:((List a, a)) args){
         }
         free(node);
         list->length -= 1;
-        ret.tag = TAG_ENUM_Success;
-        ret.Success = list;
+        ret.p2.tag = TAG_ENUM_Success;
+        ret.p2.Success = list;
         return ret;
       }
       node = ($ty:(Node a)) node->next;
     }
-    ret.tag = TAG_ENUM_Error;
-    ret.Error = list;
+    ret.p2.tag = TAG_ENUM_Error;
+    ret.p2.Error = list;
     return ret;
   }
 }
@@ -167,7 +182,7 @@ $ty:(ExState) print_str($ty:((ExState, String)) arg){
   return ex;
 }
 
-$ty:(ExState) $id:list_U32_print($ty:((ExState, List U32)) arg){
+$ty:(ExState) list_U32_print($ty:((ExState, List U32)) arg){
   $ty:(ExState) ex = arg.p1;
   $ty:(List U32) list = arg.p2;
   if(list->length == 0){
@@ -184,7 +199,7 @@ $ty:(ExState) $id:list_U32_print($ty:((ExState, List U32)) arg){
   return ex;
 }
 
-$ty:(ExState) $id:list_str_print($ty:((ExState, List String)) arg){
+$ty:(ExState) list_str_print($ty:((ExState, List String)) arg){
   $ty:(ExState) ex = arg.p1;
   $ty:(List String) list = arg.p2;
   if(list->length == 0){

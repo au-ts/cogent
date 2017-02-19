@@ -1,0 +1,26 @@
+$esc:(#include <stdio.h>)
+
+typedef void *ExState;
+
+#include "generated.c"
+#include <gum/anti/iterator.ac>
+
+$ty:(ExState) print_string ($ty:((String, ExState)) arg){
+  char * str = (char *) arg.p1;
+  $ty:(ExState) ex = arg.p2;
+  printf("%s\n", str);
+  return ex;
+}
+
+$ty:(ExState) print_u32 ($ty:((U32, ExState)) arg){
+  $ty:(U32) val = arg.p1;
+  $ty:(ExState) ex = arg.p2;
+  printf("%d\n", val);
+  return ex;
+}
+
+int main(void){
+  $ty:(ExState) ex;
+  ex = $exp:fizzbuzz(ex);
+  return 0;
+}

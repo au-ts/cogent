@@ -1,0 +1,56 @@
+include <gum/iterator.cogent>
+
+-- ac functions
+print_u32: (U32, ExState) -> ExState
+print_string: (String, ExState) -> ExState
+
+-- cogent
+print_fizz: ExState -> ExState
+print_fizz ex =
+  print_string ("Fizz", ex)
+
+print_buzz: ExState -> ExState
+print_buzz ex =
+  print_string ("Buzz", ex)
+
+print_fizzbuzz: ExState -> ExState
+print_fizzbuzz ex =
+  print_string ("FizzBuzz", ex)
+
+-- generator
+fizzbuzz_gen: #{acc: (U32, ExState), obsv: U32} -> GeneratorResult () () () (U32, ExState)
+fizzbuzz_gen #{acc = (curr_num, ex), obsv = max_num} =
+  if curr_num > max_num then
+    ((curr_num, ex), Stop ())
+  else
+    ((curr_num, ex), Yield ())
+
+-- consumer
+fizzbuzz_cons: #{obj: (), acc: (U32, ExState), obsv: U32} -> ConsumerResult () () (U32, ExState)
+fizzbuzz_cons #{obj = _, acc = (curr_num, ex), obsv = max_num} =
+  if curr_num%15 == 0 then
+    let ex = print_fizzbuzz ex
+    in ((curr_num + 1, ex), Next ())
+  else if curr_num%5 == 0 then
+    let ex = print_fizz ex
+    in ((curr_num + 1, ex), Next ())
+  else if  curr_num%3 == 0 then
+    let ex = print_buzz ex
+    in ((curr_num + 1, ex), Next ())
+  else
+    let ex = print_u32 (curr_num, ex)
+    in ((curr_num + 1, ex), Next ())
+
+-- Prints out all numbers from 1 to 100.
+-- Multiples of 3 replaced by Fizz, multiples of 5 replaced by Buzz
+-- Multiples of both 3 and 5 replaced by FizzBuzz
+fizzbuzz: ExState -> ExState
+fizzbuzz ex =
+  let iter = iterate [(), (), (), (U32, ExState), U32] -- yield, return, stop, acc, obsv
+  and ((_, ex), _) = iter #{
+    gen = fizzbuzz_gen,
+    cons = fizzbuzz_cons,
+    acc = (1, ex),
+    obsv = 100
+  }
+  in ex
