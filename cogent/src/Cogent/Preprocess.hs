@@ -18,12 +18,13 @@ import Cogent.Compiler
 import Cogent.Common.Syntax hiding (Prefix)
 
 import Data.Char
+import Language.Preprocessor.Cpphs hiding (pragma)
 import Text.Parsec.Char
 import Text.Parsec.Combinator
+import Text.Parsec.Error (ParseError)
 import Text.Parsec.Language
 import Text.Parsec.Pos
 import Text.Parsec.Prim
-import Text.Parsec.String (parseFromFile)
 import qualified Text.Parsec.Token as T
 
 -- import Debug.Trace
@@ -71,8 +72,12 @@ program | __cogent_fpragmas = do whiteSpace
                                  return $ concat ps
         | otherwise = return []
 
-preprocess :: FilePath -> IO (Either String [LocPragma])
-preprocess filename = parseFromFile program filename >>= \case
-                        Left err -> return $ Left $ show err
-                        Right ps -> return $ Right ps
-
+preprocess :: FilePath -> IO (Either ParseError (String, [LocPragma]))
+preprocess filename =
+  readFile filename >>= \input ->
+  runCpphs cppOptions filename input >>= \input' ->
+  case parse program filename input' of
+    Left err -> return $ Left err
+    Right ps -> return $ Right (input',ps)
+  where cppOptions = defaultCpphsOptions {boolopts = myBoolOptions}
+        myBoolOptions = defaultBoolOptions {macros = False, locations = False}

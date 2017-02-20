@@ -1,0 +1,10 @@
+
+#define PLAT x86
+
+#if PLAT == "x86"
+foo : U32 -> U32
+#else
+foo : U64 -> U64
+#endif
+foo a = a
+
