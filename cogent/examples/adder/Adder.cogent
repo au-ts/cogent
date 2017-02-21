@@ -1,3 +1,13 @@
+--
+-- Copyright 2017, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
 type R a b = < Success a | Error b >
 add: (U32, U32) -> R U32 ()
 add (x, y) =
