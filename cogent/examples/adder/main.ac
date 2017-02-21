@@ -1,0 +1,22 @@
+$esc:(#include <stdio.h>)
+$esc:(#include <stdlib.h>)
+#include "generated.c"
+
+int main(void){
+  $ty:(U32) first_num = 19;
+  $ty:(U32) second_num = 2;
+
+  $ty:((U32, U32)) args;
+  args.p1 = first_num;
+  args.p2 = second_num;
+
+  $ty:(R U32 ()) ret = $exp:add(args);
+  if(ret.tag == TAG_ENUM_Success){
+    u32 sum = ret.Success; // $ty:(U32) <=> u32
+    printf("Sum is %u\n", sum);
+    return 0;
+  } else {
+    printf("Error: Overflow detected.\n");
+    return 1;
+  }
+}
