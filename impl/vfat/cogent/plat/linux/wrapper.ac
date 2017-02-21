@@ -1,5 +1,5 @@
 /*
- * Copyright 2016, NICTA
+ * Copyright 2017, NICTA
  *
  * This software may be distributed and modified according to the terms of
  * the GNU General Public License version 2. Note that NO WARRANTY is provided.
@@ -8,21 +8,14 @@
  * @TAG(NICTA_GPL)
  */
 
-// FOR TESTING:
-// CHECK
-// - inode version numbers (are they increasing as they should?)
-// - overflow stuff - safe_add?
 $esc:(#include <adt.h>)
 $esc:(#include <wrapper.h>)
 $esc:(#include <fat.h>)
 
 $esc:(#include <wraphead.h>)
 
-//typedef struct super_block *Superblock;
-typedef void *ExState;
-
-#include <generated.c>
 #include <abstract.h>
+#include <generated.c>
 #include <gum/anti/iterator.ac>
 
 /*=================*
@@ -47,7 +40,8 @@ Translators
 struct timespec * cog_to_c_time ($ty:(Time) arg){
 	struct timespec * ts = kmalloc(sizeof(struct timespec), GFP_KERNEL);
 	if(!ts){
-		$esc:(printk(KERN_WARNING "ERROR MALLOCING.\n")); //TODO: fix errors
+		printk("ERROR MALLOCING.\n"); //TODO: fix errors
+		// the way Time is handled should be changed
 	}
 	ts->tv_sec = arg.seconds;
 	ts->tv_nsec = arg.nanoseconds;
@@ -55,36 +49,117 @@ struct timespec * cog_to_c_time ($ty:(Time) arg){
 }
 
 /*=================*
-Getters and Setters
+Getters, Setters, and Checkers
 *=================*/
-//TODO: potentially remove one of the fields of timespec when you figure out which is used
-$ty:(Time) $id:get_current_time (unit_t arg){
-  struct timespec ts = CURRENT_TIME_SEC;
-  $ty:(Time) ret;
-  ret.seconds = ts.tv_sec;
-  ret.nanoseconds = ts.tv_nsec;
-  return ret;
-}
-
-$ty:(U64) $id:get_version($ty:(VfsInode!) arg){
+$ty:(U64) get_version($ty:(VfsInode!) arg){
 	struct inode * c_inode = (struct inode *) arg;
 	return c_inode->i_version;
 }
 
-$ty:(U64) $id:get_sb($ty:(VfsInode!) arg){
+$ty:(Superblock) get_sb($ty:(VfsInode!) arg){
 	struct inode * c_inode = (struct inode *) arg;
-	$ty:(U64) ret = ($ty:(U64)) (c_inode->i_sb);
+	$ty:(Superblock) ret = ($ty:(Superblock)) (c_inode->i_sb);
 	return ret;
 }
 
-$ty:(VfsInode) $id:set_version($ty:((VfsInode, U64)) arg){
+$ty:(U64) get_b_data ($ty:(U64) arg){
+	struct buffer_head * bh = (struct buffer_head *) arg;
+	struct msdos_dir_entry * bdat = (struct msdos_dir_entry *) bh->b_data; //check the cast here
+	return ($ty:(U64)) bdat;
+}
+
+$ty:(U64) get_name ($ty:(VfsDentry) dentry){
+	struct dentry * c_dentry = (struct dentry *) dentry;
+	$ty:(U64) ret =  ($ty:(U64)) &(c_dentry->d_name);
+	return ret;
+}
+
+$ty:(VfsDentry) get_parent ($ty:(VfsDentry) arg){
+	struct dentry * dentry = (struct dentry *) arg;
+	struct dentry * parent = dentry->d_parent;
+	return ($ty:(VfsDentry)) parent;
+}
+
+$ty:(U64) get_head ($ty:(VfsInode!) arg){
+	struct inode * inode = (struct inode *) arg;
+	struct msdos_sb_info * sbi = MSDOS_SB(inode->i_sb); //MSDOS_SB is just a getter
+	struct hlist_head * head = sbi->inode_hashtable;
+	return (($ty:(U64)) head);
+}
+
+$ty:(U64) get_dhead ($ty:(VfsInode!) arg){
+	struct inode * inode = (struct inode *) arg;
+	struct msdos_sb_info * sbi = MSDOS_SB(inode->i_sb);
+	return ($ty:(U64)) sbi->dir_hashtable;
+}
+
+$ty:(U64) get_endpoint_ac ($ty:((Superblock!, U64)) arg){
+	struct super_block * sb = (struct super_block *) arg.p1;
+	struct buffer_head * bh = (struct buffer_head *) arg.p2;
+	struct msdos_dir_entry * endp = (struct msdos_dir_entry *)(bh->b_data + sb->s_blocksize);
+	return ($ty:(U64)) endp;
+}
+
+$ty:((ExState, Time)) get_current_time ($ty:(ExState) ex){
+  struct timespec ts = CURRENT_TIME_SEC;
+  $ty:((ExState, Time)) ret;
+	ret.p1 = ex;
+  ret.p2.seconds = ts.tv_sec;
+  ret.p2.nanoseconds = ts.tv_nsec;
+  return ret;
+}
+
+$ty:((VfsInode, U32)) get_logstart ($ty:(VfsInode) arg){
+	struct inode * inode = (struct inode *) arg;
+	struct msdos_inode_info * minfo = MSDOS_I(inode); // need to check if read only
+	int logstart = minfo->i_logstart; //double check if this is right
+	$ty:((VfsInode, U32)) ret;
+	ret.p1 = ($ty:(VfsInode)) inode;
+	ret.p2 = logstart;
+	return ret;
+}
+
+$ty:(String) get_qstr_name ($ty:(U64) arg) {
+	struct qstr * qname = (struct qstr *) arg;
+	const char * name = qname->name;
+	return ($ty:(String)) name;
+}
+
+$ty:(U32) get_qstr_length ($ty:(U64) arg){
+	struct qstr * qname = (struct qstr *) arg;
+	unsigned int len = qname->len;
+	return len;
+}
+
+$ty:(VfsInode) get_null_inode_ac (unit_t arg){
+	$ty:(VfsInode) ret = 0;
+	return ret;
+}
+
+$ty:(U64) get_fat_hash ($ty:(VfsInode) arg){
+	struct inode * inode = (struct inode *) arg;
+	struct msdos_inode_info * minfo = MSDOS_I(inode);
+	struct hlist_node * node_fat_hash = &minfo->i_fat_hash;
+	return (u64) (node_fat_hash);
+}
+
+$ty:(U64) get_dir_hash ($ty:(VfsInode) arg){
+	struct inode * inode = (struct inode *) arg;
+	struct msdos_inode_info * minfo = MSDOS_I(inode);
+	struct hlist_node * node_dir_hash = &minfo->i_dir_hash;
+	return (u64) (node_dir_hash);
+}
+
+// -- setters
+
+$ty:(VfsInode) set_version($ty:((VfsInode, U64)) arg){
 	struct inode * c_inode = (struct inode *) arg.p1;
 	c_inode->i_version = (u64) arg.p2;
 	$ty:(VfsInode) ret = ($ty:(VfsInode)) c_inode;
 	return ret;
 }
 
-$ty:(VfsInode) $id:set_time ($ty:((VfsInode, Time)) arg){
+$ty:(VfsInode) set_time ($ty:((VfsInode, Time)) arg){
   struct inode * node = (struct inode *) (arg.p1);
 
 	$ty:(Time) ts_arg = arg.p2;
@@ -97,58 +172,267 @@ $ty:(VfsInode) $id:set_time ($ty:((VfsInode, Time)) arg){
 	return ret;
 }
 
-$ty:(VfsInode) $id:set_ipos($ty:((VfsInode, U64)) arg) {
+$ty:(VfsInode) set_ipos($ty:((VfsInode, U64)) arg) {
 	struct inode * inode = (struct inode *) arg.p1;
 	loff_t i_pos = arg.p2;
-	MSDOS_I(inode) -> i_pos = i_pos;
+	MSDOS_I(inode)->i_pos = i_pos; // writes to inode?
 	return (($ty:(VfsInode)) inode);
+}
+
+$ty:((VfsInode, Superblock)) set_ino ($ty:((VfsInode, Superblock)) arg){
+	struct inode * inode = (struct inode *) arg.p1;
+	struct super_block * sb = (struct super_block *) arg.p2;
+	inode->i_ino = iunique(sb, MSDOS_ROOT_INO);
+	$ty:((VfsInode, Superblock)) ret;
+	ret.p1 = ($ty:(VfsInode)) inode;
+	ret.p2 = ($ty:(Superblock)) sb;
+	return ret;
+}
+
+$ty:(VfsDentry) set_d_time ($ty:((VfsDentry, U64)) arg){
+	struct dentry * dentry = (struct dentry *) arg.p1;
+	dentry->d_time = arg.p2; //check types
+	return (($ty:(VfsDentry)) dentry);
+}
+
+// -- checkers
+
+$ty:(Bool) ptr_grq_ac ($ty:((U64, U64)) arg){
+	$ty:(Bool) ret;
+	void * first_ptr = (void *) arg.p1;
+	void * second_ptr = (void *) arg.p2;
+	if(first_ptr > second_ptr){
+		ret.boolean = true;
+	} else {
+		ret.boolean = false;
+	}
+	return ret;
+}
+
+$ty:(Bool) ptr_greq_ac ($ty:((U64, U64)) arg){
+	$ty:(Bool) ret;
+	void * first_ptr = (void *) arg.p1;
+	void * second_ptr = (void *) arg.p2;
+	if(first_ptr >= second_ptr) {
+		ret.boolean = true;
+	} else {
+		ret.boolean = false;
+	}
+	return ret;
+}
+
+$ty:(R VfsInode ErrPtr) is_err($ty:(VfsInode) inode){
+  $ty:(R VfsInode ErrPtr) ret;
+  struct inode * c_inode = (struct inode *) inode;
+  if(IS_ERR(c_inode)){
+    ret.tag = TAG_ENUM_Error;
+    ret.Error = ($ty:(ErrPtr)) inode; // double check
+    return ret;
+  } else {
+    ret.tag = TAG_ENUM_Success;
+    ret.Success = inode;
+    return ret;
+  }
+}
+
+$ty:(Bool) is_root_den ($ty:(VfsDentry!) arg){
+	struct dentry * dentry = (struct dentry *) arg;
+	$ty:(Bool) ret;
+	if(IS_ROOT(dentry)){
+		ret.boolean = true;
+	} else {
+		ret.boolean = false;
+	}
+	return ret;
+}
+
+$ty:(Bool) is_root_ino ($ty:((VfsInode!)) arg){
+	$ty:(Bool) ret;
+	struct inode * inode = (struct inode *) arg;
+	if(inode->i_ino != MSDOS_ROOT_INO){
+		ret.boolean = false;
+		return ret;
+	} else {
+		ret.boolean = true;
+		return ret;
+	}
+}
+
+$ty:(Bool) is_nfs ($ty:(VfsInode!) arg){
+	$ty:(Bool) ret;
+	struct inode * inode = (struct inode *) arg;
+	struct msdos_sb_info * sbi = MSDOS_SB(inode->i_sb);
+	if(sbi->options.nfs){
+		ret.boolean = true;
+		return ret;
+	} else {
+		ret.boolean = false;
+		return ret;
+	}
+}
+
+$ty:(Bool) is_dir_ac ($ty:(VfsInode!) arg){
+	$ty:(Bool) ret;
+	struct inode * inode = (struct inode *) arg;
+	if(S_ISDIR(inode->i_mode)){ // reformat
+		ret.boolean = true;
+		return ret;
+	} else {
+		ret.boolean = false;
+		return ret;
+	}
+}
+
+$ty:(Bool) $id:is_null ($ty:(a!) arg){
+	$ty:(Bool) ret;
+	if(!arg){
+		ret.boolean = true;
+		return ret;
+	} else {
+		ret.boolean = false;
+		return ret;
+	}
+}
+
+$ty:(R () ErrPtr) is_noent ($ty:(ErrPtr) errptr){
+	$ty:(R () ErrPtr) ret;
+	int err = PTR_ERR((void *) errptr);
+	if(err == -ENOENT){
+		ret.tag = TAG_ENUM_Success;
+		return ret;
+	} else {
+		ret.tag = TAG_ENUM_Error;
+		ret.Error = errptr;
+		return ret;
+	}
+}
+
+$ty:(Bool) is_equal_den ($ty:((VfsDentry, VfsDentry)) arg){
+	struct dentry * first_den = (struct dentry *) arg.p1;
+	struct dentry * second_den = (struct dentry *) arg.p2;
+	$ty:(Bool) ret;
+	if(first_den == second_den){
+		ret.boolean = true;
+	} else {
+		ret.boolean = false;
+	}
+	return ret;
+}
+
+$ty:(Bool) is_disconnected ($ty:(VfsDentry!) arg){
+	$ty:(Bool) ret;
+	struct dentry * dentry = (struct dentry *) arg;
+	if (dentry->d_flags & DCACHE_DISCONNECTED) {
+		ret.boolean = true;
+	} else {
+		ret.boolean = false;
+	}
+	return ret;
+}
+
+// should definitely be changed later on
+$ty:(Bool) is_dirsync_ac ($ty:(VfsInode!) arg){
+	$ty:(Bool) ret;
+	struct inode * inode = (struct inode *) arg;
+	if(IS_DIRSYNC(inode)){
+		ret.boolean = true;
+	} else {
+		ret.boolean = false;
+	}
+	return ret;
 }
 
 /*=================*
 (Un)Lockers
 *=================*/
-unit_t $id:flock_buildinode($ty:(U64) arg){
-	struct super_block * sb = (struct super_block *) arg;
+$ty:((ExState, Superblock)) flock_buildinode($ty:((ExState, Superblock)) arg){
+	struct super_block * sb = (struct super_block *) arg.p2;
 	fat_lock_build_inode(MSDOS_SB(sb));
-	unit_t ret; return ret;
+	$ty:((ExState, Superblock)) ret;
+	ret.p1 = arg.p1; ret.p2 = ($ty:(Superblock)) sb;
+	return ret;
 }
 
-unit_t $id:funlock_buildinode($ty:(U64) arg){
-	struct super_block * sb = (struct super_block *) arg;
+$ty:((ExState, Superblock)) spdir_lock ($ty:((ExState, Superblock)) arg){
+	struct super_block * sb = (struct super_block *) arg.p2;
+	struct msdos_sb_info * sbi = MSDOS_SB(sb);
+	spin_lock(&sbi->dir_hash_lock);
+	$ty:((ExState, Superblock)) ret;
+	ret.p1 = arg.p1; ret.p2 = ($ty:(Superblock)) sb;
+	return ret;
+}
+
+$ty:((ExState, Superblock)) spinode_lock ($ty:((ExState, Superblock)) arg){
+	struct super_block * sb = (struct super_block *) arg.p2;
+	struct msdos_sb_info * sbi = MSDOS_SB(sb);
+	spin_lock(&sbi->inode_hash_lock);
+	$ty:((ExState, Superblock)) ret;
+	ret.p1 = arg.p1; ret.p2 = ($ty:(Superblock)) sb;
+	return ret;
+}
+
+$ty:((ExState, Superblock)) slock($ty:((ExState, Superblock)) arg){
+	struct super_block * sb = (struct super_block *) arg.p2;
+	mutex_lock(&MSDOS_SB(sb)->s_lock);
+	$ty:((ExState, Superblock)) ret;
+	ret.p1 = arg.p1; ret.p2 = ($ty:(Superblock)) sb;
+	return ret;
+}
+
+$ty:((ExState, Superblock)) funlock_buildinode($ty:((ExState, Superblock)) arg){
+	struct super_block * sb = (struct super_block *) arg.p2;
 	fat_unlock_build_inode(MSDOS_SB(sb));
-	unit_t ret; return ret;
+	$ty:((ExState, Superblock)) ret;
+	ret.p1 = arg.p1; ret.p2 = ($ty:(Superblock)) sb;
+	return ret;
+}
+
+$ty:(ExState) spdir_unlock ($ty:((ExState, Superblock)) arg){
+	struct super_block * sb = (struct super_block *) arg.p2;
+	struct msdos_sb_info * sbi = MSDOS_SB(sb);
+	spin_unlock(&sbi->dir_hash_lock);
+	return arg.p1;
+}
+
+
+$ty:(ExState) spinode_unlock ($ty:((ExState, Superblock)) arg){
+	struct super_block * sb = (struct super_block *) arg.p2;
+	struct msdos_sb_info * sbi = MSDOS_SB(sb);
+	spin_unlock(&sbi->inode_hash_lock);
+	return arg.p1;
+}
+
+$ty:(ExState) ulock($ty:((ExState, Superblock)) arg){
+	$ty:(Superblock) sblock = arg.p2;
+	struct super_block * sb = (struct super_block *) sblock;
+	mutex_unlock(&MSDOS_SB(sb)->s_lock);
+	return arg.p1;
 }
 
 /*=================*
 General Functions
 *=================*/
 
-unit_t printblah ($ty:(String) arg){
-	$esc:(printk(KERN_WARNING "HELLO: %s", arg));
-	unit_t ret; return ret;
-}
-
-$ty:(R (VfsInode, U32) ErrPtr) $id:fat_alloc_new_dir_ac ($ty:((VfsInode, Time)) arg){
-	$ty:(R (VfsInode, U32) ErrPtr) ret;
+$ty:(RR VfsInode U32 ErrPtr) fat_alloc_new_dir_ac ($ty:((VfsInode, Time)) arg){
+	$ty:(RR VfsInode U32 ErrPtr) ret;
 	struct inode * inode = (struct inode *) arg.p1;
 	struct timespec * ts = cog_to_c_time(arg.p2);
 	// check if ts can be freed - assuming it can
 	int cluster = fat_alloc_new_dir (inode, ts);
-	//kfree(ts);
+	kfree(ts);
+	ret.p1 = ($ty:(VfsInode)) inode;
 	if (cluster < 0){
 		$ty:(ErrPtr) err = ($ty:(ErrPtr)) ERR_PTR(cluster);
-		ret.tag = TAG_ENUM_Error;
-		ret.Error = err;
-		return ret;
+		ret.p2.tag = TAG_ENUM_Error;
+		ret.p2.Error = err;
 	} else {
-		ret.tag = TAG_ENUM_Success;
-		ret.Success.p1 = ($ty:(VfsInode)) inode;
-		ret.Success.p2 = cluster;
-		return ret;
+		ret.p2.tag = TAG_ENUM_Success;
+		ret.p2.Success = cluster;
 	}
+	return ret;
 }
 
-$ty:(VfsInode) $id:inc_nlink_ac ($ty:(VfsInode) arg){
+$ty:(VfsInode) inc_nlink_ac ($ty:(VfsInode) arg){
 	struct inode * inode = (struct inode *) arg;
 	inc_nlink(inode);
 	return ($ty:(VfsInode)) inode;
@@ -156,18 +440,18 @@ $ty:(VfsInode) $id:inc_nlink_ac ($ty:(VfsInode) arg){
 
 // fix style to make it consistent
 // check types etc.
-$ty:(VfsInode) $id:set_nlink_ac ($ty:((VfsInode, U32)) arg) {
+$ty:(VfsInode) set_nlink_ac ($ty:((VfsInode, U32)) arg) {
 	set_nlink((struct inode *) arg.p1, arg.p2);
 	return arg.p1;
 }
 
-unit_t $id:fat_free_clusters_ac ($ty:((VfsInode, U32)) arg){
+$ty:(VfsInode) fat_free_clusters_ac ($ty:((VfsInode, U32)) arg){
 	fat_free_clusters((struct inode *) arg.p1, arg.p2);
-	unit_t ret; return ret;
+	return arg.p1;
 }
 
-$ty:(R VfsInode ErrPtr) $id:fat_dir_empty_ac ($ty:(VfsInode) arg){
-	$ty:(R VfsInode ErrPtr) ret;
+$ty:(R () ErrPtr) fat_dir_empty_ac ($ty:(VfsInode) arg){
+	$ty:(R () ErrPtr) ret;
 	struct inode * inode = (struct inode *) arg;
 	int err = fat_dir_empty(inode);
 	if (err) {
@@ -176,34 +460,33 @@ $ty:(R VfsInode ErrPtr) $id:fat_dir_empty_ac ($ty:(VfsInode) arg){
 		return ret;
 	} else {
 		ret.tag = TAG_ENUM_Success;
-		ret.Success = arg;
 		return ret;
 	}
 }
 
 // CREATE a function to translate slot info!!! used a lot
-// check if read only for inode
-$ty:(R (VfsInode, SlotInfo) ErrPtr) $id:fat_search_long_ac ($ty:((VfsInode, U64, U32)) arg){
-	$ty:(R (VfsInode, SlotInfo) ErrPtr) ret;
+// check if read only for inode!!!
+$ty:(RR VfsInode SlotInfo ErrPtr) fat_search_long_ac ($ty:((VfsInode, U64, U32)) arg){
+	$ty:(RR VfsInode SlotInfo ErrPtr) ret;
 	struct inode * inode = (struct inode *) arg.p1;
 	struct qstr * qname = (struct qstr *) arg.p2;
 	int len = arg.p3;
 	struct fat_slot_info sinfo;
 
 	int err = fat_search_long(inode, qname->name, len, &sinfo);
+	ret.p1 = (($ty:(VfsInode)) inode);
 	if(err){
-		ret.tag = TAG_ENUM_Error;
+		ret.p2.tag = TAG_ENUM_Error;
 		void * err_ptr = ERR_PTR(err);
-		ret.Error = (($ty:(ErrPtr)) err_ptr);
+		ret.p2.Error = (($ty:(ErrPtr)) err_ptr);
 		return ret;
 	} else {
-		ret.tag = TAG_ENUM_Success;
-		ret.Success.p1 = (($ty:(VfsInode)) inode);
-		ret.Success.p2.i_pos = ($ty:(U64)) sinfo.i_pos;
-    ret.Success.p2.slot_off = ($ty:(U64)) sinfo.slot_off;
-		ret.Success.p2.nr_slots = ($ty:(U32)) sinfo.nr_slots;
-		ret.Success.p2.de = ($ty:(U64)) sinfo.de;
-		ret.Success.p2.bh = ($ty:(U64)) sinfo.bh;
+		ret.p2.tag = TAG_ENUM_Success;
+		ret.p2.Success.i_pos = ($ty:(U64)) sinfo.i_pos;
+    ret.p2.Success.slot_off = ($ty:(U64)) sinfo.slot_off;
+		ret.p2.Success.nr_slots = ($ty:(U32)) sinfo.nr_slots;
+		ret.p2.Success.de = ($ty:(U64)) sinfo.de;
+		ret.p2.Success.bh = ($ty:(U64)) sinfo.bh;
 		return ret;
 	}
 }
@@ -211,18 +494,19 @@ $ty:(R (VfsInode, SlotInfo) ErrPtr) $id:fat_search_long_ac ($ty:((VfsInode, U64,
 int vfat_unlink_ac(struct inode * inode, struct dentry * dentry){
 	$ty:(VfsInode) inode_cog = ($ty:(VfsInode)) inode;
 	$ty:(VfsDentry) dentry_cog = ($ty:(VfsDentry)) dentry;
-	$ty:((VfsInode, VfsDentry)) arg;
-	arg.p1 = inode_cog;
-	arg.p2 = dentry_cog;
-	$ty:(R () ErrPtr) cog_ret = $exp:vfat_unlink_cog(arg);
-	if(cog_ret.tag == TAG_ENUM_Error){
-		return PTR_ERR((void *) cog_ret.Error);
+	$ty:((ExState, VfsInode, VfsDentry)) arg;
+	arg.p1 = 0;
+	arg.p2 = inode_cog;
+	arg.p3 = dentry_cog;
+	$ty:(RR (ExState, VfsInode, VfsDentry) VfsInode ErrPtr) cog_ret = $exp:vfat_unlink_cog(arg);
+	if(cog_ret.p2.tag == TAG_ENUM_Error){
+		return PTR_ERR((void *) cog_ret.p2.Error);
 	} else {
 		return 0;
 	}
 }
 
-$ty:((VfsInode, U64)) $id:mark_buffer_dirty_inode_ac ($ty:((VfsInode, U64)) arg){
+$ty:((VfsInode, U64)) mark_buffer_dirty_inode_ac ($ty:((VfsInode, U64)) arg){
 	struct buffer_head * bh = (struct buffer_head *) arg.p2;
 	struct inode * inode = (struct inode *) arg.p1;
 	mark_buffer_dirty_inode(bh, inode);
@@ -231,15 +515,7 @@ $ty:((VfsInode, U64)) $id:mark_buffer_dirty_inode_ac ($ty:((VfsInode, U64)) arg)
 	return ret;
 }
 
-$ty:((U64, U64)) $id:get_init_null_bhde (unit_t arg){
-	$ty:((U64, U64)) ret;
-	struct msdos_dir_entry * de;
-	struct buffer_head * bh = NULL;
-	ret.p1 = de; ret.p2 = bh;
-	return ret;
-}
-
-$ty:(RR U64 () ErrPtr) $id:sync_dirty_buffer_ac ($ty:(U64) arg){
+$ty:(RR U64 () ErrPtr) sync_dirty_buffer_ac ($ty:(U64) arg){
 	$ty:(RR U64 () ErrPtr) ret;
 	int err = sync_dirty_buffer ((struct buffer_head *) arg);
 	if(err) {
@@ -254,13 +530,13 @@ $ty:(RR U64 () ErrPtr) $id:sync_dirty_buffer_ac ($ty:(U64) arg){
 	}
 }
 
-$ty:(VfsInode) $id:deep_fat_write_inode_ac ($ty:((VfsInode, U32)) arg){
+$ty:(VfsInode) deep_fat_write_inode_ac ($ty:((VfsInode, U32)) arg){
 	struct inode * inode = (struct inode *) arg.p1;
 	__fat_write_inode (inode, arg.p2); // HOW IS THIS WORKING
 	return ($ty:(VfsInode)) inode;
 }
 
-$ty:(R VfsInode VfsInode) $id:deep_fat_remove_entries_ac ($ty:((VfsInode, U64, U32)) arg){
+$ty:(R VfsInode VfsInode) deep_fat_remove_entries_ac ($ty:((VfsInode, U64, U32)) arg){
 	$ty:(R (VfsInode) (VfsInode)) ret;
  	int err = __fat_remove_entries ((struct inode *) arg.p1, arg.p2, arg.p3);
 	if (!err) {
@@ -274,42 +550,6 @@ $ty:(R VfsInode VfsInode) $id:deep_fat_remove_entries_ac ($ty:((VfsInode, U64, U
 	}
 }
 
-// NEED TO ADD IN BH -> SOME ALIASING MIGHT BE HAPPENING (pointer so coding wise doesnt matter
-// but later on might)
-$ty:((U64, U32)) $id:del_slots_ac ($ty:((U32, U64, U64)) arg){
-	int nr_slots = arg.p1;
-	struct buffer_head * bh = (struct buffer_head *) arg.p2;
-	struct msdos_dir_entry * de = (struct msdos_dir_entry *) arg.p3;
-	while (nr_slots && de >= (struct msdos_dir_entry *)bh->b_data) {
-		de->name[0] = DELETED_FLAG;
-		de--;
-		nr_slots--;
-	}
-	$ty:((U64, U32)) ret;
-	ret.p1 = ($ty:(U64)) de;
-	ret.p2 = ($ty:(U32)) nr_slots;
-	return ret;
-}
-
-$ty:(Bool) $id:ptr_grq_ac ($ty:((U64, U64)) arg){
-	$ty:(Bool) ret;
-	void * first_ptr = (void *) arg.p1;
-	void * second_ptr = (void *) arg.p2;
-	if(first_ptr > second_ptr){
-		ret.boolean = true;
-	} else {
-		ret.boolean = false;
-	}
-	return ret;
-}
-
-$ty:(U64) $id:get_endpoint_ac ($ty:((U64, U64)) arg){
-	struct super_block * sb = (struct super_block *) arg.p1;
-	struct buffer_head * bh = (struct buffer_head *) arg.p2;
-	struct msdos_dir_entry * endp = (struct msdos_dir_entry *)(bh->b_data + sb->s_blocksize);
-	return ($ty:(U64)) endp;
-}
-
 $ty:(U64) $id:slot_offset ($ty:((U32, U32, U64)) arg){
 	int orig_slots = arg.p1;
 	int nr_slots = arg.p2;
@@ -318,261 +558,54 @@ $ty:(U64) $id:slot_offset ($ty:((U32, U32, U64)) arg){
 	return ($ty:(U64)) offset;
 }
 
-$ty:(U64) $id:delete_first_plus ($ty:(U64) arg){
+$ty:(U64) delete_first_plus ($ty:(U64) arg){
 	struct msdos_dir_entry * de = (struct msdos_dir_entry *) arg;
 	de->name[0] = DELETED_FLAG;
 	de++;
 	return ($ty:(U64)) de;
 }
 
-$ty:(R (VfsInode, U64, U64, U64) (VfsInode, ErrPtr)) $id:fat_get_entry_ac ($ty:((VfsInode, U64, U64, U64)) arg){
-	struct inode * dir = (struct inode *) arg.p1;
-	loff_t pos = arg.p2;
-	struct buffer_head * bh = (struct buffer_head *) arg.p3;
-	struct msdos_dir_entry * de = (struct msdos_dir_entry *) arg.p4;
-
-	int res;
-	///
-
-	if (bh && de &&
-		 (de - (struct msdos_dir_entry *)(bh)->b_data) <
-				MSDOS_SB(dir->i_sb)->dir_per_block - 1) {
-		pos += sizeof(struct msdos_dir_entry);
-		(de)++;
-		res = 0;
-	} else {
-		struct super_block *sb = dir->i_sb;
-		sector_t phys, iblock;
-		unsigned long mapped_blocks;
-		int offset;
-
-	next:
-		if (bh)
-			brelse(bh);
-
-		bh = NULL;
-		iblock = pos >> sb->s_blocksize_bits;
-		res = fat_bmap(dir, iblock, &phys, &mapped_blocks, 0);
-		if (res || !phys)
-			res = -1;	/* beyond EOF or error */
-
-		fat_dir_readahead(dir, iblock, phys);
-
-		bh = sb_bread(sb, phys);
-		if (bh == NULL) {
-			$esc:(fat_msg_ratelimit(sb, KERN_ERR, "Directory bread(block %llu) failed", (llu)phys));
-			/* skip this block */
-			pos = (iblock + 1) << sb->s_blocksize_bits;
-			goto next;
-		}
-
-		offset = pos & (sb->s_blocksize - 1);
-		pos += sizeof(struct msdos_dir_entry);
-		de = (struct msdos_dir_entry *)((bh)->b_data + offset);
-
-		res = 0;
-	}
-	///
-
-	$ty:(R (VfsInode, U64, U64, U64) (VfsInode, ErrPtr)) ret;
-	if(res < 0){
-		ret.tag = TAG_ENUM_Error;
-		ret.Error.p1 = ($ty:(VfsInode)) dir;
-		ret.Error.p2 = ($ty:(ErrPtr)) ERR_PTR (-EIO);
-	} else {
-		ret.tag = TAG_ENUM_Success;
-		ret.Success.p1 = ($ty:(VfsInode)) dir;
-		ret.Success.p2 = ($ty:(U64)) pos;
-		ret.Success.p3 = ($ty:(U64)) bh;
-		ret.Success.p4 = ($ty:(U64)) de;
-	}
-	return ret;
-}
-
-/*
-$ty:((U32, U64)) $id:fix_de ($ty:((U32, U64, U64, U64, U64)) arg){
-	int nr_slots = arg.p1;
-	struct msdos_dir_entry * de = (struct msdos_dir_entry *) arg.p2;
-	struct super_block * sb = (struct super_block *) arg.p3;
-	struct buffer_head * bh = (struct buffer_head *) arg.p4;
-	struct msdos_dir_entry * endp = (struct msdos_dir_entry *) arg.p5;
-
-	while (nr_slots && de < endp) {
-		de->name[0] = DELETED_FLAG;
-		de++;
-		nr_slots--;
-	}
-
-	$ty:((U32, U64)) ret;
-	ret.p1 = ($ty:(U32)) nr_slots;
-	ret.p2 = ($ty:(U64)) de;
-	return ret;
-}*/
-
-$ty:(U64) $id:get_b_data ($ty:(U64) arg){
-	struct buffer_head * bh = (struct buffer_head *) arg;
-	struct msdos_dir_entry * bdat = (struct msdos_dir_entry *) bh->b_data; //check the cast here
-	return ($ty:(U64)) bdat;
-}
-
-$ty:(Bool) $id:ptr_greq_ac ($ty:((U64, U64)) arg){
-	$ty:(Bool) ret;
-	void * first_ptr = (void *) arg.p1;
-	void * second_ptr = (void *) arg.p2;
-	if(first_ptr >= second_ptr) {
-		ret.boolean = true;
-	} else {
-		ret.boolean = false;
-	}
-	return ret;
-}
-
-$ty:(U64) $id:delete_first_ac ($ty:(U64) arg){
+$ty:(U64) delete_first_ac ($ty:(U64) arg){
 	struct msdos_dir_entry * de = (struct msdos_dir_entry *) arg;
 	de->name[0] = DELETED_FLAG;
 	de--;
 	return ($ty:(U64)) de;
 }
 
-unit_t $id:fat_msg_ac ($ty:((U64, String)) arg){
-	fat_msg((struct super_block *) arg.p1, KERN_WARNING,
-				 arg.p2);
-	unit_t ret; return ret;
+$ty:(ExState) fat_msg_ac ($ty:((ExState, Superblock, String)) arg){
+	fat_msg((struct super_block *) arg.p2, KERN_WARNING,
+				 arg.p3);
+	$ty:(ExState) ex = arg.p1;
+	return ex;
 }
 
-unit_t $id:drop_nlink_ac ($ty:(VfsInode) arg){
+$ty:(VfsInode) drop_nlink_ac ($ty:(VfsInode) arg){
 	drop_nlink((struct inode *) arg);
-	unit_t ret; return ret;
+	return (($ty:(VfsInode)) arg);
 }
 
-$ty:(VfsInode) $id:d_inode_ac ($ty:(VfsDentry) arg){
+$ty:(VfsInode) d_inode_ac ($ty:(VfsDentry) arg){
 	struct inode * inode = d_inode((struct dentry *) arg);
 	return (($ty:(VfsInode)) inode);
 }
 
-unit_t $id:fat_detach_ac ($ty:(VfsInode) arg){
+unit_t fat_detach_ac ($ty:(VfsInode) arg){
 	struct inode * inode = (struct inode *) arg;
 	fat_detach(inode);
 	unit_t ret; return ret;
 }
 
-$ty:(VfsInode) $id:clear_nlink_ac ($ty:(VfsInode) arg){
+$ty:(VfsInode) clear_nlink_ac ($ty:(VfsInode) arg){
 	struct inode * inode = (struct inode *) arg;
 	clear_nlink(inode);
 	return (($ty:(VfsInode)) inode);
 }
 
-$ty:(R () ErrPtr) $id:fat_remove_entries_ac ($ty:((VfsInode, SlotInfo)) arg){
-	$ty:(R () ErrPtr) ret;
-	struct inode * inode = (struct inode *) arg.p1;
-	$ty:(SlotInfo) sinfo_cog = arg.p2;
-	struct fat_slot_info sinfo;
-	sinfo.i_pos = sinfo_cog.i_pos;
-	sinfo.slot_off = sinfo_cog.slot_off;
-	sinfo.nr_slots = sinfo_cog.nr_slots;
-	sinfo.de = (struct msdos_dir_entry *) sinfo_cog.de;
-	sinfo.bh = (struct buffer_head *) sinfo_cog.bh;
-
-	int err = fat_remove_entries (inode, &sinfo);
-	if(err){
-		ret.tag = TAG_ENUM_Error;
-		ret.Error = ($ty:(ErrPtr)) ERR_PTR(err);
-		return ret;
-	} else {
-		ret.tag = TAG_ENUM_Success;
-		return ret;
-	}
-}
-
-$ty:(Bool) $id:is_root_ino ($ty:((VfsInode!)) arg){
-	$ty:(Bool) ret;
-	struct inode * inode = (struct inode *) arg;
-	if(inode->i_ino != MSDOS_ROOT_INO){
-		ret.boolean = false;
-		return ret;
-	} else {
-		ret.boolean = true;
-		return ret;
-	}
-}
-
-$ty:(U64) $id:get_head ($ty:(VfsInode!) arg){
-	struct inode * inode = (struct inode *) arg;
-	struct msdos_sb_info * sbi = MSDOS_SB(inode->i_sb); //MSDOS_SB is just a getter
-	struct hlist_head * head = sbi->inode_hashtable;
-	return (($ty:(U64)) head);
-}
-
-$ty:(U32) $id:get_logstart ($ty:(VfsInode) arg){
-	struct inode * inode = (struct inode *) arg;
-	struct msdos_inode_info * minfo = MSDOS_I(inode);
-	int logstart = minfo->i_logstart; //double check
-	return logstart;
-}
-
 $ty:(U64) $id:hash_32_ac ($ty:(a) arg){
 	return hash_32((u32) arg, FAT_HASH_BITS);
 }
-// $ty:(U64) $id:fat_hash_ac ($ty:(U64) i_pos){
-// 	return (($ty:(U64)) fat_hash (i_pos)); //calls hash_32 which is too deep
-// }
 
-unit_t $id:spdir_lock ($ty:(VfsInode!) arg){
-	struct inode * inode = (struct inode *) arg;
-	struct msdos_sb_info * sbi = MSDOS_SB(inode->i_sb);
-	spin_lock(&sbi->dir_hash_lock);
-	unit_t ret; return ret;
-}
-
-unit_t $id:spdir_unlock ($ty:(VfsInode!) arg){
-	struct inode * inode = (struct inode *) arg;
-	struct msdos_sb_info * sbi = MSDOS_SB(inode->i_sb);
-	spin_unlock(&sbi->dir_hash_lock);
-	unit_t ret; return ret;
-}
-
-unit_t $id:spinode_lock ($ty:(VfsInode!) arg){
-	struct inode * inode = (struct inode *) arg;
-	struct msdos_sb_info * sbi = MSDOS_SB(inode->i_sb);
-	spin_lock(&sbi->inode_hash_lock);
-	unit_t ret; return ret;
-}
-
-unit_t $id:spinode_unlock ($ty:(VfsInode!) arg){
-	struct inode * inode = (struct inode *) arg;
-	struct msdos_sb_info * sbi = MSDOS_SB(inode->i_sb);
-	spin_unlock(&sbi->inode_hash_lock);
-	unit_t ret; return ret;
-}
-
-$ty:(Bool) $id:is_nfs ($ty:(VfsInode!) arg){
-	$ty:(Bool) ret;
-	struct inode * inode = (struct inode *) arg;
-	struct msdos_sb_info * sbi = MSDOS_SB(inode->i_sb);
-	if(sbi->options.nfs){
-		ret.boolean = true;
-		return ret;
-	} else {
-		ret.boolean = false;
-		return ret;
-	}
-}
-
-$ty:(U64) $id:get_dhead ($ty:(VfsInode) arg){
-	struct inode * inode = (struct inode *) arg;
-	struct msdos_sb_info * sbi = MSDOS_SB(inode->i_sb);
-	return ($ty:(U64)) (sbi->dir_hashtable);
-}
-
-// $ty:(U64) $id:fat_dir_hash_ac ($ty:(VfsInode) arg){
-// 	struct inode * inode = (struct inode *) arg;
-// 	struct msdos_inode_info * minfo = MSDOS_I(inode);
-// 	int logstart = minfo->i_logstart; //double check
-// 	unsigned long hash_val = fat_dir_hash (logstart); // calls hash_32 which is too deep
-// 	return ($ty:(U64)) hash_val;
-// }
-
-$ty:(VfsInode) $id:hlist_add_head_ac ($ty:((VfsInode, U64)) arg){
+$ty:(VfsInode) hlist_add_head_ac ($ty:((VfsInode, U64)) arg){
 	struct inode * inode = (struct inode *) arg.p1;
 	struct msdos_inode_info * minfo = MSDOS_I(inode);
 	struct hlist_node * node = &minfo->i_fat_hash;
@@ -584,145 +617,69 @@ $ty:(VfsInode) $id:hlist_add_head_ac ($ty:((VfsInode, U64)) arg){
 	return ($ty:(VfsInode)) inode;
 }
 
-// GET RID OF THIS LATER - JUST TEMPORARY
-$ty:(VfsInode) $id:update_am_time ($ty:(VfsInode) arg){
+// Possibly split up into seperate setter functions
+$ty:(VfsInode) update_am_time ($ty:(VfsInode) arg){
 	struct inode * inode = (struct inode *) arg;
 	inode->i_mtime = inode->i_atime = CURRENT_TIME_SEC;
 	return (($ty:(VfsInode)) inode);
 }
 
-$ty:(VfsDentry) $id:d_splice_alias_ac ($ty:((VfsInode, VfsDentry)) arg){
+$ty:(VfsDentry) d_splice_alias_ac ($ty:((VfsInode, VfsDentry)) arg){
 	struct inode * inode = (struct inode *) arg.p1;
 	struct dentry * dentry = (struct dentry *) arg.p2;
 	struct dentry * ret = d_splice_alias(inode, dentry);
 	return (($ty:(VfsDentry)) ret);
 }
 
-$ty:(VfsDentry) $id:d_unhashed_ac ($ty:(VfsDentry) arg){
+$ty:(VfsDentry) d_unhashed_ac ($ty:(VfsDentry) arg){
 	struct dentry * alias = (struct dentry *) arg;
 	BUG_ON(d_unhashed(alias));
 	return (($ty:(VfsDentry)) alias);
 }
 
-$ty:(U64) $id:get_fat_hash ($ty:(VfsInode) arg){
-	struct inode * inode = (struct inode *) arg;
-	struct msdos_inode_info * minfo = MSDOS_I(inode);
-	struct hlist_node * node_fat_hash = &minfo->i_fat_hash;
-	return (u64) (node_fat_hash);
-}
-
-$ty:(U64) $id:get_dir_hash ($ty:(VfsInode) arg){
-	struct inode * inode = (struct inode *) arg;
-	struct msdos_inode_info * minfo = MSDOS_I(inode);
-	struct hlist_node * node_dir_hash = &minfo->i_dir_hash;
-	return (u64) (node_dir_hash);
-}
-
-//check if id used for everything
-
-unit_t $id:hlist_del_init_ac ($ty:(U64) arg){
+// check use
+unit_t hlist_del_init_ac ($ty:(U64) arg){
 	hlist_del_init ((struct hlist_node *) arg);
 	unit_t ret; return ret;
 }
 
-$ty:(VfsDentry) $id:d_find_alias_ac ($ty:(VfsInode) arg){
+$ty:((VfsInode, VfsDentry)) d_find_alias_ac ($ty:(VfsInode) arg){
 	struct inode * inode = (struct inode *) arg;
 	struct dentry * alias = d_find_alias (inode);
-	return ($ty:(VfsDentry)) alias;
+	$ty:((VfsInode, VfsDentry)) ret;
+	ret.p1 = ($ty:(VfsInode)) inode;
+	ret.p2 = ($ty:(VfsDentry)) alias;
+	return ret;
 }
 
-$ty:(VfsDentry) $id:get_parent ($ty:(VfsDentry) arg){
-	struct dentry * dentry = (struct dentry *) arg;
-	struct dentry * parent = dentry->d_parent;
-	return ($ty:(VfsDentry)) parent;
-}
-
-// maybe use RR c a b instead of R a b here - same return value
-// $ty:(R (VfsInode, VfsDentry) (VfsInode, VfsDentry)) $id:alias_cond ($ty:((VfsInode, VfsDentry)) arg){
-// 	$ty:(R (VfsInode, VfsDentry) (VfsInode, VfsDentry)) ret;
-// 	struct inode * inode = (struct inode *) arg.p1;
-// 	struct dentry * dentry = (struct dentry *) arg.p2;
-// 	struct dentry * alias = d_find_alias(inode);
-// 	if(alias && alias->d_parent == dentry->d_parent && !vfat_d_anon_disconn(alias)){
-// 		ret.tag = TAG_ENUM_Success;
-// 		ret.Success.p1 = ($ty:(VfsInode)) inode;
-// 		ret.Success.p2 = ($ty:(VfsDentry)) alias;
-// 		return ret;
-// 	} else {
-// 		ret.tag = TAG_ENUM_Error;
-// 		ret.Error.p1 = ($ty:(VfsInode)) inode;
-// 		ret.Error.p2 = ($ty:(VfsDentry)) alias;
-// 		return ret;
-// 	}
-// }
-
-$ty:(Bool) $id:is_dir_ac ($ty:(VfsInode!) arg){
-	$ty:(Bool) ret;
-	struct inode * inode = (struct inode *) arg;
-	if(S_ISDIR(inode->i_mode)){ // reformat
-		ret.boolean = true;
-		return ret;
-	} else {
-		ret.boolean = false;
-		return ret;
-	}
-}
-
-$ty:(Bool) $id:is_null ($ty:(VfsInode) inode){
-	$ty:(Bool) ret;
-	if(!inode){
-		ret.boolean = true;
-		return ret;
-	} else {
-		ret.boolean = false;
-		return ret;
-	}
-}
-
-$ty:(Bool) $id:is_noent ($ty:(ErrPtr) errptr){
-	$ty:(Bool) ret;
-	int err = PTR_ERR((void *) errptr);
-	if(err == -ENOENT){
-		ret.boolean = true;
-		return ret;
-	} else {
-		ret.boolean = true;
-		return ret;
-	}
-}
-
-$ty:(VfsDentry) $id:set_d_time ($ty:((VfsDentry, U64)) arg){
-	struct dentry * dentry = (struct dentry *) arg.p1;
-	dentry->d_time = arg.p2; //check types
-	return (($ty:(VfsDentry)) dentry);
-}
-
-unit_t $id:dput_ac ($ty:(VfsDentry) arg){
+unit_t dput_ac ($ty:(VfsDentry) arg){
 	struct dentry * dentry = (struct dentry *) arg;
 	dput(dentry);
 	unit_t ret; return ret;
 }
 
-unit_t $id:d_move_ac ($ty:((VfsDentry, VfsDentry)) arg){
+$ty:((VfsDentry, VfsDentry)) d_move_ac ($ty:((VfsDentry, VfsDentry)) arg){
 	struct dentry * alias = (struct dentry *) arg.p1;
 	struct dentry * dentry = (struct dentry *) arg.p2;
+	$ty:((VfsDentry, VfsDentry)) ret;
 	d_move(alias, dentry);
-	unit_t ret; return ret;
+	ret.p1 = ($ty:(VfsDentry)) alias; ret.p2 = ($ty:(VfsDentry)) dentry;
+	return ret;
 }
 
-$ty:(VfsInode) $id:mark_inode_dirty_ac ($ty:(VfsInode) arg){
+$ty:(VfsInode) mark_inode_dirty_ac ($ty:(VfsInode) arg){
 	struct inode * inode = (struct inode *) arg;
 	mark_inode_dirty(inode);
 	return (($ty:(VfsInode)) inode);
 }
 
-$ty:(VfsInode) $id:fat_sync_inode_ac ($ty:(VfsInode) arg){
+$ty:(VfsInode) fat_sync_inode_ac ($ty:(VfsInode) arg){
 	struct inode * inode = (struct inode *) arg;
 	(void)fat_sync_inode(inode);
 	return (($ty:(VfsInode)) inode);
 }
 
-$ty:(Bool) $id:last_char_dot_ac ($ty:((String, U32)) arg){
+$ty:(Bool) last_char_dot_ac ($ty:((String, U32)) arg){
 	$ty:(Bool) ret;
 	char * name = (char *) arg.p1;
 	$ty:(U32) len = arg.p2;
@@ -734,65 +691,18 @@ $ty:(Bool) $id:last_char_dot_ac ($ty:((String, U32)) arg){
 	return ret;
 }
 
-$ty:(String) $id:get_qstr_name ($ty:(U64) arg) {
-	struct qstr * qname = (struct qstr *) arg;
-	const char * name = qname->name;
-	return ($ty:(String)) name;
-}
-
-$ty:(U32) $id:get_qstr_length ($ty:(U64) arg){
-	struct qstr * qname = (struct qstr *) arg;
-	unsigned int len = qname->len;
-	return len;
-}
-
-// should definitely be changed later on
-$ty:(R VfsInode VfsInode) $id:is_dirsync_ac ($ty:(VfsInode) arg){
-	$ty:(R VfsInode VfsInode) ret;
-	struct inode * inode = (struct inode *) arg;
-	if(IS_DIRSYNC(inode)){
-		ret.tag = TAG_ENUM_Success;
-		ret.Success = ($ty:(VfsInode)) inode;
-		return ret;
-	} else {
-		ret.tag = TAG_ENUM_Error;
-		ret.Error = ($ty:(VfsInode)) inode;
-		return ret;
-	}
-}
-
-$ty:(ErrPtr) $id:noent_ac (unit_t arg) {
+$ty:(ErrPtr) noent_ac (unit_t arg) {
 	$ty:(ErrPtr) ret;
 	ret = ($ty:(ErrPtr)) ERR_PTR(-ENOENT);
 	return ret;
 }
 
-/*
-$ty:(R U32 ErrPtr) $id:vfat_striptail_len_ac ($ty:(U64) arg){
-	$ty:(R U32 ErrPtr) ret;
-	struct qstr * qname = (struct qstr *) arg;
-	unsigned int len = qname->len;
-	const char * name = qname->name;
-	while(len && name[len - 1] == '.'){
-		len--;
-	}
-	if (len == 0){
-		ret.tag = TAG_ENUM_Error;
-		ret.Error = ($ty:(ErrPtr)) ERR_PTR(-ENOENT); // POSITIVE NOT NEGATIVE?!
-		return ret;
-	} else {
-		ret.tag = TAG_ENUM_Success;
-		ret.Success = len;
-		return ret;
-	}
-}*/
-
-$ty:(U32) $id:decrementU32 ($ty:(U32) arg){
+$ty:(U32) decrementU32 ($ty:(U32) arg){
 	return (arg-1);
 }
 
-$ty:(R SlotInfo ErrPtr) $id:fat_add_entries_ac ($ty:((VfsInode, U64, U32)) arg){
-	$ty:(R SlotInfo ErrPtr) ret;
+$ty:(RR VfsInode SlotInfo ErrPtr) fat_add_entries_ac ($ty:((VfsInode, U64, U32)) arg){
+	$ty:(RR VfsInode SlotInfo ErrPtr) ret;
 	struct inode * inode = (struct inode *) arg.p1;
 	struct msdos_dir_slot * slots = (struct msdos_dir_slot *) arg.p2;
 	int nr_slots = arg.p3;
@@ -801,44 +711,25 @@ $ty:(R SlotInfo ErrPtr) $id:fat_add_entries_ac ($ty:((VfsInode, U64, U32)) arg){
 
 	int err = fat_add_entries (inode, slots, nr_slots, &sinfo);
 	kfree(slots);
+
+	ret.p1 = ($ty:(VfsInode)) inode;
 	if(err){
-		ret.tag = TAG_ENUM_Error;
-		ret.Error = ($ty:(ErrPtr)) (ERR_PTR(err));
+		ret.p2.tag = TAG_ENUM_Error;
+		ret.p2.Error = ($ty:(ErrPtr)) (ERR_PTR(err));
 		return ret;
 	} else {
-		ret.tag = TAG_ENUM_Success;
-		ret.Success.i_pos = ($ty:(U64)) sinfo.i_pos;
-		ret.Success.slot_off = ($ty:(U64)) sinfo.slot_off;
-		ret.Success.nr_slots = ($ty:(U32)) sinfo.nr_slots;
-		ret.Success.de = ($ty:(U64)) sinfo.de;
-		ret.Success.bh = ($ty:(U64)) sinfo.bh;
+		ret.p2.tag = TAG_ENUM_Success;
+		ret.p2.Success.i_pos = ($ty:(U64)) sinfo.i_pos;
+		ret.p2.Success.slot_off = ($ty:(U64)) sinfo.slot_off;
+		ret.p2.Success.nr_slots = ($ty:(U32)) sinfo.nr_slots;
+		ret.p2.Success.de = ($ty:(U64)) sinfo.de;
+		ret.p2.Success.bh = ($ty:(U64)) sinfo.bh;
 		return ret;
 	}
 }
 
-$ty:(Bool) $id:is_disconnected ($ty:(VfsDentry) arg){
-	$ty:(Bool) ret;
-	struct dentry * dentry = (struct dentry *) arg;
-	if (dentry->d_flags & DCACHE_DISCONNECTED) {
-		ret.boolean = true;
-	} else {
-		ret.boolean = false;
-	}
-	return ret;
-}
-// $ty:(Bool) $id:vfat_d_anon_disconn_ac ($ty:(VfsDentry) arg){
-// 	$ty:(Bool) ret;
-// 	struct dentry * dentry = (struct dentry *) arg;
-// 	if(vfat_d_anon_disconn(dentry)){
-// 		ret.boolean = true;
-// 	} else {
-// 		ret.boolean = false;
-// 	}
-// 	return ret;
-// }
-
-$ty:(R (VfsInode, U64, U32) ErrPtr) $id:vfat_build_slots_ac ($ty:((VfsInode, U64, U32, U32, U32, Time)) arg){
-	$ty:(R (VfsInode, U64, U32) ErrPtr) ret;
+$ty:(RR VfsInode (U64, U32) ErrPtr) vfat_build_slots_ac ($ty:((VfsInode, U64, U32, U32, U32, Time)) arg){
+	$ty:(RR VfsInode (U64, U32) ErrPtr) ret;
 	struct inode * inode = (struct inode *) arg.p1;
 	const char * name = ((struct qstr *) arg.p2)->name;
 	int len = arg.p3;
@@ -849,11 +740,13 @@ $ty:(R (VfsInode, U64, U32) ErrPtr) $id:vfat_build_slots_ac ($ty:((VfsInode, U64
 	int nr_slots;
 	struct msdos_dir_slot *slots;
 
+	ret.p1 = ($ty:(VfsInode)) inode;
+
 	slots = kmalloc(sizeof(*slots) * MSDOS_SLOTS, GFP_NOFS);
 
 	if (slots == NULL){
-		ret.tag = TAG_ENUM_Error;
-		ret.Error = ($ty:(ErrPtr)) ERR_PTR(-ENOMEM); // negative?!
+		ret.p2.tag = TAG_ENUM_Error;
+		ret.p2.Error = ($ty:(ErrPtr)) ERR_PTR(-ENOMEM); // negative?!
 		return ret;
 	}
 
@@ -862,28 +755,15 @@ $ty:(R (VfsInode, U64, U32) ErrPtr) $id:vfat_build_slots_ac ($ty:((VfsInode, U64
 
 	if(err){
 		kfree(slots);
-		ret.tag = TAG_ENUM_Error;
-		ret.Error = ($ty:(ErrPtr)) ERR_PTR(err);
+		ret.p2.tag = TAG_ENUM_Error;
+		ret.p2.Error = ($ty:(ErrPtr)) ERR_PTR(err);
 		return ret;
 	} else {
-		ret.tag = TAG_ENUM_Success;
-		ret.Success.p1 = ($ty:(VfsInode)) inode;
-		ret.Success.p2 = ($ty:(U64)) slots;
-		ret.Success.p3 = nr_slots;
+		ret.p2.tag = TAG_ENUM_Success;
+		ret.p2.Success.p1 = ($ty:(U64)) slots;
+		ret.p2.Success.p2 = nr_slots;
 		return ret;
 	}
-}
-
-unit_t $id:slock($ty:(U64) sblock){
-	struct super_block * sb = (struct super_block *) sblock;
-	mutex_lock(&MSDOS_SB(sb)->s_lock);
-	unit_t ret; return ret;
-}
-
-unit_t $id:ulock($ty:(U64) sblock){
-	struct super_block * sb = (struct super_block *) sblock;
-	mutex_unlock(&MSDOS_SB(sb)->s_lock);
-	unit_t ret; return ret;
 }
 
 $ty:(R (VfsInode, SlotInfo) ErrPtr) $id:vfat_add_entry_ac ($ty:((VfsInode, U64, U32, U32, Time)) arg){
@@ -914,46 +794,42 @@ $ty:(R (VfsInode, SlotInfo) ErrPtr) $id:vfat_add_entry_ac ($ty:((VfsInode, U64, 
 	}
 }
 
-$ty:(R VfsInode ErrPtr) $id:new_inode_ac ($ty:(U64) arg){
-	$ty:(R VfsInode ErrPtr) ret;
+$ty:(RR Superblock VfsInode ErrPtr) new_inode_ac ($ty:(Superblock) arg){
+	$ty:(RR Superblock VfsInode ErrPtr) ret;
 	struct super_block * sb = (struct super_block *) arg;
 	struct inode * newinode = new_inode(sb);
+	ret.p1 = ($ty:(Superblock)) sb;
 	if(!newinode){
-		 ret.tag = TAG_ENUM_Error;
-		 ret.Error = ($ty:(ErrPtr)) ERR_PTR(-ENOMEM);
+		 ret.p2.tag = TAG_ENUM_Error;
+		 ret.p2.Error = ($ty:(ErrPtr)) ERR_PTR(-ENOMEM);
 		 return ret;
 	} else {
-		ret.tag = TAG_ENUM_Success;
-		ret.Success = ($ty:(VfsInode)) newinode;
+		ret.p2.tag = TAG_ENUM_Success;
+		ret.p2.Success = ($ty:(VfsInode)) newinode;
 		return ret;
 	}
 }
 
-// will change later
-$ty:(R () ErrPtr) $id:fat_iget_ac ($ty:((U64, U64)) arg){
-	$ty:(R () ErrPtr) ret;
+// possibly change later
+$ty:(RR Superblock () ErrPtr) fat_iget_ac ($ty:((Superblock, U64)) arg){
+	$ty:(RR Superblock () ErrPtr) ret;
 	struct super_block * sb = (struct super_block *) arg.p1;
 	loff_t i_pos = arg.p2;
 
 	struct inode * inode = fat_iget(sb, i_pos);
+	ret.p1 = ($ty:(Superblock)) sb;
+
 	if(inode){
-		ret.tag = TAG_ENUM_Error;
-		ret.Error = ($ty:(ErrPtr)) inode;
+		ret.p2.tag = TAG_ENUM_Error;
+		ret.p2.Error = ($ty:(ErrPtr)) inode;
 		return ret;
 	} else {
-		ret.tag = TAG_ENUM_Success;
+		ret.p2.tag = TAG_ENUM_Success;
 		return ret;
 	}
 }
 
-$ty:(VfsInode) $id:set_ino ($ty:((VfsInode, U64)) arg){
-	struct inode * inode = (struct inode *) arg.p1;
-	struct super_block * sb = (struct super_block *) arg.p2;
-	inode->i_ino = iunique(sb, MSDOS_ROOT_INO);
-	return (($ty:(VfsInode)) inode);
-}
-
-$ty:(R VfsInode (VfsInode, ErrPtr)) $id:fat_fill_inode_ac ($ty:((VfsInode, U64)) arg){
+$ty:(R VfsInode (VfsInode, ErrPtr)) fat_fill_inode_ac ($ty:((VfsInode, U64)) arg){
 	$ty:(R VfsInode (VfsInode, ErrPtr)) ret;
 	struct inode * inode = (struct inode *) arg.p1;
 	struct msdos_dir_entry * de = (struct msdos_dir_entry *) arg.p2;
@@ -970,19 +846,19 @@ $ty:(R VfsInode (VfsInode, ErrPtr)) $id:fat_fill_inode_ac ($ty:((VfsInode, U64))
 	}
 }
 
-$ty:(VfsInode) $id:insert_inode_hash_ac ($ty:(VfsInode) arg){
+$ty:(VfsInode) insert_inode_hash_ac ($ty:(VfsInode) arg){
 	struct inode * inode = (struct inode *) arg;
 	insert_inode_hash(inode);
 	return (($ty:(VfsInode)) inode);
 }
 
-unit_t $id:iput_ac ($ty:(VfsInode) arg){
+unit_t iput_ac ($ty:(VfsInode) arg){
 	struct inode * inode = (struct inode *) arg;
 	iput(inode);
 	unit_t ret; return ret;
 }
 
-$ty:(U32) $id:ptr_err_ac ($ty:(ErrPtr) arg){
+$ty:(U32) ptr_err_ac ($ty:(ErrPtr) arg){
 	void * err_ptr = (void *) arg;
 	return PTR_ERR(err_ptr);
 }
@@ -992,113 +868,207 @@ int vfat_create_ac(struct inode *dir, struct dentry *dentry, umode_t mode, bool 
 	$ty:(VfsInode) cog_inode = ($ty:(VfsInode)) dir;
 	$ty:(VfsDentry) cog_dentry = ($ty:(VfsDentry)) dentry;
 
-	$ty:((VfsInode, VfsDentry)) arg;
-	arg.p1 = cog_inode;
-	arg.p2 = cog_dentry;
-	$ty:(R VfsInode ErrPtr) ret = $exp:vfat_create_cog(arg);
+	$ty:((ExState, VfsInode, VfsDentry)) arg;
+	arg.p1 = 0;
+	arg.p2 = cog_inode;
+	arg.p3 = cog_dentry;
+	$ty:(RR (ExState, VfsInode, VfsDentry) VfsInode ErrPtr) ret = $exp:vfat_create_cog(arg);
 
-	if(ret.tag == TAG_ENUM_Success){
+	if(ret.p2.tag == TAG_ENUM_Success){
 		return 0;
 	} else {
-		return PTR_ERR((void *) ret.Error);
+		return PTR_ERR((void *) ret.p2.Error);
 	}
 }
 
-$ty:(VfsInode) $id:fat_build_inode_ac ($ty:((VfsInode, SlotInfo)) arg){
-	$ty:(SlotInfo) sinfo = arg.p2;
-	long long int i_pos = sinfo.i_pos;
-	struct msdos_dir_entry * mdentry = (struct msdos_dir_entry*) sinfo.de;
-	struct buffer_head * bh = (struct buffer_head *) sinfo.bh;
-  struct super_block * sb = (struct super_block *) (((struct inode *)(arg.p1))->i_sb);
-
-  struct inode * inode_new = fat_build_inode(sb, mdentry, i_pos);
-
-	brelse(bh);
-
-	$ty:(VfsInode) ret = ($ty:(VfsInode)) inode_new;
-
-	return ret;
-}
-
-$ty:(U64) $id:brelse_ac ($ty:(U64) arg){
+$ty:(U64) brelse_ac ($ty:(U64) arg){
 	struct buffer_head * bh = (struct buffer_head *) arg;
 	brelse(bh);
 	return arg;
 }
 
-$ty:(U64) $id:get_name ($ty:(VfsDentry) dentry){
-	struct dentry * c_dentry = (struct dentry *) dentry;
-	$ty:(U64) ret =  ($ty:(U64)) &(c_dentry->d_name);
+$ty:((VfsInode, VfsDentry)) d_instantiate_ac($ty:((VfsInode, VfsDentry)) arg){
+	struct inode * inode = (struct inode *) arg.p1;
+	struct dentry * dentry = (struct dentry *) arg.p2;
+  d_instantiate(dentry, inode); // check if this writes - fix in the future
+	$ty:((VfsInode, VfsDentry)) ret;
+	ret.p1 = ($ty:(VfsInode)) inode; ret.p2 = ($ty:(VfsDentry)) dentry;
 	return ret;
-}
 
-// unit_t - reached end of non-void function
-unit_t $id:d_instantiate_ac($ty:((VfsInode, VfsDentry)!) arg){
-	// Have a bang in the argument, so why is this -> instead of .
-	struct inode * inode_ptr = (struct inode *) arg.p1;
-  struct dentry * dentry_ptr = (struct dentry *) arg.p2;
-  d_instantiate(dentry_ptr, inode_ptr); // check if this writes - fix in the future
-
-	// TODO: Check if this writes - unlikely, but if it does then need to add in this code and change the return value
-	//arg.p1->i_sb = ($ty:(U64)) inode_ptr->i_sb;
-	//arg.p2->dname = ($ty:(U64)) &dentry_ptr->d_name;
-	unit_t ret; return ret;
-
-}
-
-$ty:(R VfsInode ErrPtr) $id:is_err($ty:(VfsInode) inode){
-  $ty:(R VfsInode ErrPtr) ret;
-  struct inode * c_inode = (struct inode *) inode;
-  if(IS_ERR(c_inode)){
-    ret.tag = TAG_ENUM_Error;
-    ret.Error = inode; // double check if this writes anything - unlikely
-    return ret;
-  } else {
-    ret.tag = TAG_ENUM_Success;
-    ret.Success = inode;
-    return ret;
-  }
 }
 
 struct dentry *vfat_lookup_ac(struct inode *dir, struct dentry *dentry, unsigned int flags)
 {
 	$ty:(VfsInode) cog_dir = ($ty:(VfsInode)) dir;
 	$ty:(VfsDentry) cog_dentry = ($ty:(VfsDentry)) dentry;
-	$ty:((VfsInode, VfsDentry)) arg;
-	arg.p1 = cog_dir; arg.p2 = cog_dentry;
-	$ty:(R VfsDentry ErrPtr) res = $exp:vfat_lookup_cog(arg);
-	if (res.tag == TAG_ENUM_Success){
-		return (struct dentry *) res.Success;
-	} else {
-		return (struct dentry *) res.Error;
+	$ty:((ExState, VfsInode, VfsDentry)) arg;
+	arg.p1 = 0; arg.p2 = cog_dir; arg.p3 = cog_dentry;
+	$ty:(RR (ExState, VfsInode, VfsDentry) (Option VfsDentry) ErrPtr) ret = $exp:vfat_lookup_cog(arg);
+
+	// if successful: return the alias if present, otherwise the returned dentry
+	// if error: return the error
+	$ty:(R (Option VfsDentry) ErrPtr) result = ret.p2;
+	if(result.tag == TAG_ENUM_Success) {
+		if(result.Success.tag == TAG_ENUM_Some) {
+			return (struct dentry *) result.Success.Some;
+		} else {
+			return (struct dentry *) ret.p1.p3;
+		}
+	} else{
+		return (struct dentry *) result.Error; // check correctness
 	}
 }
 
-$ty:(U64) $id:incr_head_pointer($ty:((U64, U64)) arg){
+$ty:(U64) incr_head_pointer($ty:((U64, U64)) arg){
 	struct hlist_head * ptr = (struct hlist_head*) arg.p1;
 	return (($ty:(U64)) (ptr + arg.p2));
 }
 
 int vfat_mkdir_ac (struct inode * inode, struct dentry * dentry, umode_t mode){
-	$ty:((VfsInode, VfsDentry)) arg;
-	arg.p1 = ($ty:(VfsInode)) inode;
-	arg.p2 = ($ty:(VfsDentry)) dentry;
-	$ty:(R () ErrPtr) cog_ret = $exp:vfat_mkdir_cog (arg);
-	if (cog_ret.tag == TAG_ENUM_Success){
+	$ty:((ExState, VfsInode, VfsDentry)) arg;
+	arg.p1 = 0;
+	arg.p2 = ($ty:(VfsInode)) inode;
+	arg.p3 = ($ty:(VfsDentry)) dentry;
+	$ty:(RR (ExState, VfsInode, VfsDentry) VfsInode ErrPtr) cog_ret = $exp:vfat_mkdir_cog (arg);
+	if (cog_ret.p2.tag == TAG_ENUM_Success){
 		return 0;
 	} else {
-		return PTR_ERR((void *) cog_ret.Error);
+		return PTR_ERR((void *) cog_ret.p2.Error);
 	}
 }
 
 int vfat_rmdir_ac(struct inode *dir, struct dentry *dentry){
-	$ty:((VfsInode, VfsDentry)) arg;
-	arg.p1 = ($ty:(VfsInode)) dir;
-	arg.p2 = ($ty:(VfsDentry)) dentry;
-	$ty:(R () ErrPtr) cog_ret = $exp:vfat_rmdir_cog (arg);
-	if (cog_ret.tag == TAG_ENUM_Success){
+	$ty:((ExState, VfsInode, VfsDentry)) arg;
+	arg.p1 = ($ty:(ExState)) 0;
+	arg.p2 = ($ty:(VfsInode)) dir;
+	arg.p3 = ($ty:(VfsDentry)) dentry;
+	$ty:(RR (ExState, VfsInode, VfsDentry) VfsInode ErrPtr) cog_ret = $exp:vfat_rmdir_cog (arg);
+	if (cog_ret.p2.tag == TAG_ENUM_Success){
 		return 0;
 	} else {
-		return PTR_ERR((void *) cog_ret.Error);
+		return PTR_ERR((void *) cog_ret.p2.Error);
 	}
 }
+
+// ==== in progress ====
+
+// for deep_fat_remove_entries_cog
+/*
+$ty:((U32, U64)) $id:fix_de ($ty:((U32, U64, U64, U64, U64)) arg){
+	int nr_slots = arg.p1;
+	struct msdos_dir_entry * de = (struct msdos_dir_entry *) arg.p2;
+	struct super_block * sb = (struct super_block *) arg.p3;
+	struct buffer_head * bh = (struct buffer_head *) arg.p4;
+	struct msdos_dir_entry * endp = (struct msdos_dir_entry *) arg.p5;
+
+	while (nr_slots && de < endp) {
+		de->name[0] = DELETED_FLAG;
+		de++;
+		nr_slots--;
+	}
+
+	$ty:((U32, U64)) ret;
+	ret.p1 = ($ty:(U32)) nr_slots;
+	ret.p2 = ($ty:(U64)) de;
+	return ret;
+}*/
+
+// $ty:(R (VfsInode, U64, U64, U64) (VfsInode, ErrPtr)) $id:fat_get_entry_ac ($ty:((VfsInode, U64, U64, U64)) arg){
+// 	struct inode * dir = (struct inode *) arg.p1;
+// 	loff_t pos = arg.p2;
+// 	struct buffer_head * bh = (struct buffer_head *) arg.p3;
+// 	struct msdos_dir_entry * de = (struct msdos_dir_entry *) arg.p4;
+//
+// 	int res;
+// 	///
+//
+// 	if (bh && de &&
+// 		 (de - (struct msdos_dir_entry *)(bh)->b_data) <
+// 				MSDOS_SB(dir->i_sb)->dir_per_block - 1) {
+// 		pos += sizeof(struct msdos_dir_entry);
+// 		(de)++;
+// 		res = 0;
+// 	} else {
+// 		struct super_block *sb = dir->i_sb;
+// 		sector_t phys, iblock;
+// 		unsigned long mapped_blocks;
+// 		int offset;
+//
+// 	next:
+// 		if (bh)
+// 			brelse(bh);
+//
+// 		bh = NULL;
+// 		iblock = pos >> sb->s_blocksize_bits;
+// 		res = fat_bmap(dir, iblock, &phys, &mapped_blocks, 0);
+// 		if (res || !phys)
+// 			res = -1;	/* beyond EOF or error */
+//
+// 		fat_dir_readahead(dir, iblock, phys);
+//
+// 		bh = sb_bread(sb, phys);
+// 		if (bh == NULL) {
+// 			$esc:(fat_msg_ratelimit(sb, KERN_ERR, "Directory bread(block %llu) failed", (llu)phys));
+// 			/* skip this block */
+// 			pos = (iblock + 1) << sb->s_blocksize_bits;
+// 			goto next;
+// 		}
+//
+// 		offset = pos & (sb->s_blocksize - 1);
+// 		pos += sizeof(struct msdos_dir_entry);
+// 		de = (struct msdos_dir_entry *)((bh)->b_data + offset);
+//
+// 		res = 0;
+// 	}
+// 	///
+//
+// 	$ty:(R (VfsInode, U64, U64, U64) (VfsInode, ErrPtr)) ret;
+// 	if(res < 0){
+// 		ret.tag = TAG_ENUM_Error;
+// 		ret.Error.p1 = ($ty:(VfsInode)) dir;
+// 		ret.Error.p2 = ($ty:(ErrPtr)) ERR_PTR (-EIO);
+// 	} else {
+// 		ret.tag = TAG_ENUM_Success;
+// 		ret.Success.p1 = ($ty:(VfsInode)) dir;
+// 		ret.Success.p2 = ($ty:(U64)) pos;
+// 		ret.Success.p3 = ($ty:(U64)) bh;
+// 		ret.Success.p4 = ($ty:(U64)) de;
+// 	}
+// 	return ret;
+// }
+
+
+// ------------------------
+
+// For testing:
+// - inode version numbers (are they increasing as they should?)
+// - overflow stuff - safe_add?
+
+/*
+$ty:((U64, U64)) get_init_null_bhde (unit_t arg){
+	$ty:((U64, U64)) ret;
+	struct msdos_dir_entry * de;
+	struct buffer_head * bh = NULL;
+	ret.p1 = de; ret.p2 = bh;
+	return ret;
+}*/ // check this
+
+// -------------------------
+// old functions - check if needed again later
+
+// NEED TO ADD IN BH -> SOME ALIASING MIGHT BE HAPPENING (pointer so coding wise doesnt matter
+// but later on might)
+// $ty:((U64, U32)) del_slots_ac ($ty:((U32, U64, U64)) arg){
+// 	int nr_slots = arg.p1;
+// 	struct buffer_head * bh = (struct buffer_head *) arg.p2;
+// 	struct msdos_dir_entry * de = (struct msdos_dir_entry *) arg.p3;
+// 	while (nr_slots && de >= (struct msdos_dir_entry *)bh->b_data) {
+// 		de->name[0] = DELETED_FLAG;
+// 		de--;
+// 		nr_slots--;
+// 	}
+// 	$ty:((U64, U32)) ret;
+// 	ret.p1 = ($ty:(U64)) de;
+// 	ret.p2 = ($ty:(U32)) nr_slots;
+// 	return ret;
+// }

@@ -1,16 +1,18 @@
 /*
- *  linux/fs/fat/dir.c
+ * linux/fs/fat/dir.c
  *
- *  directory handling functions for fat-based filesystems
+ * directory handling functions for fat-based filesystems
  *
- *  Written 1992,1993 by Werner Almesberger
+ * Written 1992,1993 by Werner Almesberger
  *
- *  Hidden files 1995 by Albert Cahalan <albert@ccs.neu.edu> <adc@coe.neu.edu>
+ * Hidden files 1995 by Albert Cahalan <albert@ccs.neu.edu> <adc@coe.neu.edu>
  *
- *  VFAT extensions by Gordon Chaffee <chaffee@plateau.cs.berkeley.edu>
- *  Merged with msdos fs by Henrik Storner <storner@osiris.ping.dk>
- *  Rewritten for constant inumbers. Plugged buffer overrun in readdir(). AV
- *  Short name translation 1999, 2001 by Wolfram Pienkoss <wp@bszh.de>
+ * VFAT extensions by Gordon Chaffee <chaffee@plateau.cs.berkeley.edu>
+ * Merged with msdos fs by Henrik Storner <storner@osiris.ping.dk>
+ * Rewritten for constant inumbers. Plugged buffer overrun in readdir(). AV
+ * Short name translation 1999, 2001 by Wolfram Pienkoss <wp@bszh.de>
+ *
+ * @TAG(OTHER_GPL)
  */
 
 #include <linux/slab.h>

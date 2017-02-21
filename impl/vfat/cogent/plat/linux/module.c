@@ -1,5 +1,5 @@
 /*
- * Copyright 2016, NICTA
+ * Copyright 2017, NICTA
  *
  * This software may be distributed and modified according to the terms of
  * the GNU General Public License version 2. Note that NO WARRANTY is provided.
@@ -7,6 +7,24 @@
  *
  * @TAG(NICTA_GPL)
  */
+
+/*
+ *  Based on linux/fs/vfat/namei.c
+ *
+ *  Written 1992,1993 by Werner Almesberger
+ *
+ *  Windows95/Windows NT compatible extended MSDOS filesystem
+ *    by Gordon Chaffee Copyright (C) 1995.  Send bug reports for the
+ *    VFAT filesystem to <chaffee@cs.berkeley.edu>.  Specify
+ *    what file operation caused you trouble and if you can duplicate
+ *    the problem, send a script that demonstrates it.
+ *
+ *  Short name translation 1999, 2001 by Wolfram Pienkoss <wp@bszh.de>
+ *
+ *  Support Multibyte characters and cleanup by
+ *                              OGAWA Hirofumi <hirofumi@mail.parknet.co.jp>
+ */
+
 
 #include <plat/linux/wrapper_pp_inferred.c>
 
@@ -19,14 +37,6 @@
 #include <linux/slab.h>
 #include <linux/namei.h>
 #include "fat.h"
-
-/*
-#undef CONFIG_FS_POSIX_ACL
-#undef CONFIG_SECURITY
-#undef __NEED_I_SIZE_ORDERED
-#undef CONFIG_CGROUP_WRITEBACK
-#undef CONFIG_IMA
-#undef CONFIG_FSNOTIFY*/
 
 /*
  * If new entry was created in the parent, it could create the 8.3
@@ -875,7 +885,7 @@ static struct dentry *vfat_mount(struct file_system_type *fs_type, int flags,
 
 static void kill_vfat_super(struct super_block *sb)
 {
-        /* TODO: implement filesystem specific super block tear-down here. */
+        // implement filesystem specific super block tear-down here.
         kill_block_super(sb);
 }
 
@@ -893,7 +903,7 @@ static int __init init_vfat(void)
 
         printk(KERN_INFO "Registering VFAT\n");
 
-        /* TODO: Implement filesystem specific init functions here. */
+        // Implement filesystem specific init functions here.
         err = register_filesystem(&vfat_fs_type);
 
         return err;
@@ -904,7 +914,7 @@ static void __exit exit_vfat(void)
 {
         printk(KERN_INFO "Un-Registering VFAT\n");
 
-        /* TODO: Implement filesystem specific tear-down functions here. */
+        // Implement filesystem specific tear-down functions here.
         unregister_filesystem(&vfat_fs_type);
 }
 

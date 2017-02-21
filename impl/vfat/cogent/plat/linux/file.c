@@ -1,9 +1,11 @@
 /*
- *  linux/fs/fat/file.c
+ * linux/fs/fat/file.c
  *
- *  Written 1992,1993 by Werner Almesberger
+ * Written 1992,1993 by Werner Almesberger
  *
- *  regular file handling primitives for fat-based filesystems
+ * regular file handling primitives for fat-based filesystems
+ *
+ * @TAG(OTHER_GPL)
  */
 
 #include <linux/capability.h>

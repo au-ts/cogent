@@ -1,13 +1,13 @@
 /*
- *  linux/fs/fat/inode.c
+ * linux/fs/fat/inode.c
  *
- *  Written 1992,1993 by Werner Almesberger
- *  VFAT extensions by Gordon Chaffee, merged with msdos fs by Henrik Storner
- *  Rewritten for the constant inumbers support by Al Viro
+ * Written 1992,1993 by Werner Almesberger
+ * VFAT extensions by Gordon Chaffee, merged with msdos fs by Henrik Storner
+ * Rewritten for the constant inumbers support by Al Viro
  *
- *  Fixes:
+ * Fixes:
  *
- *	Max Cohan: Fixed invalid FSINFO offset when info_sector is 0
+ * Max Cohan: Fixed invalid FSINFO offset when info_sector is 0
  */
 
 #include <linux/module.h>

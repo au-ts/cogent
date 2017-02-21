@@ -1,4 +1,6 @@
-finding functions: http://lxr.free-electrons.com/ident?v=4.4;i=sb_bread
+Notes [made early on for initial design plan]
+
+http://lxr.free-electrons.com/ident?v=4.4;i=sb_bread
 ----------
 SUPERBLOCK
 ----------
@@ -23,10 +25,10 @@ READ
 	fat_read_bpb, fat_read_static_bpb
 	fat_build_inode
 
-wrapperreadfunctions
+
 	calc_fat_clusters
 
-inheaderssoeh
+[in headers]
 	sb_bread
 	sb_min_blocksize [WRITE]
 	sb_set_blocksize [WRITE]
@@ -47,13 +49,13 @@ type R a b = < Success a | Error b >
 		excl doesn't seem to be used, nor does mode
 		Q: WHATS the point of the dentry here?
 
-	vfat_create: (Inode, Dentry) -> R (Inode, Dentry) U32
+	vfat_create: (Inode, Dentry) -> RR (Inode, Dentry) Inode U32
 		Creates an inode, returns the inode if successful or an error number if not
 
 2. R - vfat_lookup [46]
 	vfat_lookup(inode, dentry, flags)
 
-	vfat_lookup: (Inode, Dentry)! -> R (Dentry) U32
+	vfat_lookup: (Inode, Dentry)! -> RR (Inode, Dentry) (Dentry) U32 --? 
 
 3. W - vfat_unlink [46, 49]
 	vfat_unlink(dir, dentry)
@@ -205,90 +207,6 @@ SUPERBLOCK FUNCTIONS IN MODULE.C:
 ===============
 Find out which functions read, which functions write, etc.
 			
-
-
 ===============
 module.c
 	NOTE: Baseline for everything. Everything defined here should be used. 
-	Q: If something is not used or defined here (at least indirectly), is it unneccessary?
-	Q: Do I eventually want just one C file, like the rest of the modules, or? 
-	
-	structures:
-		
-
-		instances:
-			difference between these:? 
-			- vfat_dentry_ops
-				vfat_cmp
-				vfat_hash
-				vfat_revalidate
-
-			- vfat_ci_dentry_ops
-				vfat_revalidate_ci
-				vfat_hashi	
-				vfat_cmpi
-
-
-	functions:
-		revalidating functions:
-			TODO: what do these do
-
-			- vfat_revalidate_shortname
-			- vfat_revalidate
-			- vfat_revalidate_ci
-
-		unknown:
-			- __vfat_striptail_len
-			
-		hashing functions:
-			- vfat_hash
-			- vfat_hashi
-			- vfat_cmpi
-		
-		comparison:
-			- vfat_cmp
-				Case sensitive comparison of two vfat names
-			-
-		
-
-cache.c
-	structures
-		- fat_cache
-		- fat_cache_id
-	functions
-		- fat_max_cache
-		- fat_cache_cachep
-		- init_once
-		- fat_cache_init
-		- fat_cache_destroy
-		- fat_cache_alloc
-		- fat_cache_free
-		- fat_cache_update_lru
-		- fat_cache_lookup
-		- fat_cache_merge
-		- fat_cache_add
-		- __fat_cache_inval_inode
-		- fat_cache_inval_inode
-		- cache_contiguous
-		- cache_init
-		- fat_get_cluster
-		- fat_bmap_cluster
-		- ... continue ...
-	NOTE: Leave this for now
-	
-
-dir.c
-
-fat.h
-
-fatent.c
-
-file.c
-
-inode.c
-
-misc.c
-
-module.c
-
-nfs.c

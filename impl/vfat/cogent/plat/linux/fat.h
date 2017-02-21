@@ -1,3 +1,9 @@
+/*
+ * linux/fs/fat/fat.h
+ *
+ * @TAG(OTHER_GPL)
+ */
+
 #ifndef _FAT_H
 #define _FAT_H
 

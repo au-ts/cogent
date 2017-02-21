@@ -1,11 +1,13 @@
 /*
- *  linux/fs/fat/cache.c
+ * linux/fs/fat/cache.c
  *
- *  Written 1992,1993 by Werner Almesberger
+ * Written 1992,1993 by Werner Almesberger
  *
- *  Mar 1999. AV. Changed cache, so that it uses the starting cluster instead
- *	of inode number.
- *  May 1999. AV. Fixed the bogosity with FAT32 (read "FAT28"). Fscking lusers.
+ * Mar 1999. AV. Changed cache, so that it uses the starting cluster instead
+ * of inode number.
+ * May 1999. AV. Fixed the bogosity with FAT32 (read "FAT28"). Fscking lusers.
+ *
+ * @TAG(OTHER_GPL)
  */
 
 #include <linux/slab.h>

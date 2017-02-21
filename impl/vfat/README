@@ -1,4 +1,5 @@
-A skeleton FS project in Cogent.
+# Implementation of the VFAT file system in Cogent
 
-This is just a skeleton project, based off which one can implement a filesystem module
-for the Linux kernel.
+To compile cogent-vfat, run `make` in the cogent/ directory.
+At this point, the module has been tested against Linux kernel version 4.4.0-64.
+See the `TODO` file for remaining plans.

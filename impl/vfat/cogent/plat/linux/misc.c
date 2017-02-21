@@ -1,9 +1,9 @@
 /*
- *  linux/fs/fat/misc.c
+ * linux/fs/fat/misc.c
  *
- *  Written 1992,1993 by Werner Almesberger
- *  22/11/2000 - Fixed fat_date_unix2dos for dates earlier than 01/01/1980
- *		 and date_dos2unix for date==0 by Igor Zhbanov(bsg@uniyar.ac.ru)
+ * Written 1992,1993 by Werner Almesberger
+ * 22/11/2000 - Fixed fat_date_unix2dos for dates earlier than 01/01/1980
+ * and date_dos2unix for date==0 by Igor Zhbanov(bsg@uniyar.ac.ru)
  */
 
 #include "fat.h"

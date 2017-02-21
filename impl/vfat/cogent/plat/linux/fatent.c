@@ -1,6 +1,10 @@
 /*
+ * linux/fs/fat/fatent.c
+ *
  * Copyright (C) 2004, OGAWA Hirofumi
  * Released under GPL v2.
+ *
+ * @TAG(OTHER_GPL)
  */
 
 #include <linux/blkdev.h>
