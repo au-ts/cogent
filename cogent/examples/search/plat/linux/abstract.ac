@@ -1,0 +1,67 @@
+/*
+ * Copyright 2017, NICTA
+ *
+ * This software may be distributed and modified according to the terms of
+ * the GNU General Public License version 2. Note that NO WARRANTY is provided.
+ * See "LICENSE_GPLv2.txt" for details.
+ *
+ * @TAG(NICTA_GPL)
+ */
+
+$ty:(RR ExState (#CString, Index) ErrCode) deserialise_CString ($ty:((ExState, Buffer!, Index, U32)) args) {
+  deserialise_CString_ret ret;
+  char* dst = malloc (sizeof (char) * args.p4);
+  memcpy (dst, args.p2 + args.p3, args.p4);
+  ret.p1 = args.p1;
+  ret.p2.tag = TAG_ENUM_Success;
+  $ty:(#CString) wa = dst;
+  ret.p2.Success.p1 = wa;
+  ret.p2.Success.p2 = args.p3 + args.p4 * sizeof (char);
+  return ret;
+}
+
+$ty:((ExState, U32, Index)) deserialise_U32 ($ty:((ExState, Buffer!, Index)) args) {
+  $ty:((ExState, U32, Index)) ret;
+  ret.p1 = args.p1;
+  ret.p2 = ((char*)args.p2)[args.p3];
+  ret.p3 = args.p3 + sizeof ($ty:(U32));
+  return ret;
+}
+
+$ty:(RR ExState (Node take (..)) ErrCode) malloc_Node ($ty:(ExState) args) {
+  $ty:(RR ExState (Node take (..)) ErrCode) ret;
+  $ty:(Node take (..)) node = malloc (sizeof ($ty:(Node)));
+  ret.p1 = args;
+  if (node) {
+    ret.p2.tag = TAG_ENUM_Success;
+    ret.p2.Success = node;
+  } else {
+    ret.p2.tag = TAG_ENUM_Error;
+    ret.p2.Error = 1;
+  }
+  return ret;
+}
+
+$ty:(ExState) free_Node ($ty:((ExState, Node take (..))) args) {
+  $ty:(ExState) ret = args.p1;
+  free (args.p2);
+  return ret;
+}
+
+$ty:(ExState) free_CString ($ty:((ExState, #CString)) args) {
+  $ty:(ExState) ret = args.p1;
+  free (args.p2);
+  return ret;
+}
+
+$ty:(Bool) string_cmp ($ty:(((#CString)!, (#CString)!)) args) {
+  printf ("Comparing: %s ?== %s\n", args.p1, args.p2);
+  int r = strcmp (args.p1, args.p2);
+  if (r == 0)  return $exp:(True);
+    else return $exp:(False);
+}
+
+$ty:(ExState) array_print ($ty:((ExState, (#CString)!)) args) {
+  printf ("%s", args.p2);
+  return (args.p1);
+}

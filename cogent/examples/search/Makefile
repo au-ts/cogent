@@ -8,17 +8,16 @@
 # @TAG(NICTA_GPL)
 #
 
-NAME=fizzbuzz
+NAME=search
 
-SRC=FizzBuzz.cogent
+SRC=Search.cogent
 OUTPUT=generated # $(SRC:.cogent=-gen)
 COUTPUT=$(addsuffix .c, $(OUTPUT))
 HOUTPUT=$(addsuffix .h, $(OUTPUT))
 
 STDGUM=$(shell cogent --stdgum-dir)
-PLATLIBGUM=../plat/console/libgum
 
-#AHFILES=$(STDGUM)/gum/anti/abstract/Array.ah
+AHFILES= # $(STDGUM)/gum/anti/abstract/WordArray.ah
 ACFILES=main.ac
 
 PP=$(ACFILES:.ac=_pp.ac)
@@ -28,7 +27,7 @@ ABSDIR=./abstract
 
 OBJ=$(PPINFER:.c=.o)
 
-CFLAGS=-I. -I../plat/console -I$(STDGUM) -I$(STDGUM)/gum/anti
+CFLAGS=-I. -I$(STDGUM) -I$(STDGUM)/gum/anti
 
 .PHONY: default cogent clean gen-anti test
 .SECONDARY:
@@ -49,10 +48,11 @@ gen-anti:
 		--Wno-warn --infer-c-funcs="$(ACFILES)" \
 		--cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
 		--ext-types=types.cfg \
-		--entry-funcs=entrypoints.cfg \
+		--entry-funcs=entrypoints.cfg
 
 clean:
 	rm -f $(COUTPUT) $(HOUTPUT) $(PP) $(PPINFER) $(OBJ)
 	@# rm -f *-gen.*
 	rm -f $(ABSDIR)/*.h
 	rm -f $(NAME)
+

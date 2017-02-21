@@ -250,16 +250,6 @@ $ty:(FindResult) $id:wordarray_findsub ($ty:(WordArrayFindSubP a) args)
 	return ret;
 }
 
-unit_t $id:wordarray_print($ty:(CString!) args)
-{
-  unit_t ret;
-  int len = args->len;
-  if (len > 71)
-    len = 71;
-  printk("%.*s", len, args->values);
-  return ret;
-}
-
 u32 $id:wordarray_u8_as_u32($ty:((WordArray U8)!) args)
 {
 	unsigned int result = 0;

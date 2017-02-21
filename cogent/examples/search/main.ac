@@ -1,0 +1,71 @@
+/*
+ * Copyright 2017, NICTA
+ *
+ * This software may be distributed and modified according to the terms of
+ * the GNU General Public License version 2. Note that NO WARRANTY is provided.
+ * See "LICENSE_GPLv2.txt" for details.
+ *
+ * @TAG(NICTA_GPL)
+ */
+
+$esc:(#include <stdlib.h>)
+$esc:(#include <stdio.h>)
+$esc:(#include <string.h>)
+
+#include "plat/linux/abstract.h"
+
+#include <generated.c>
+
+#include "plat/linux/abstract.ac"
+#include <common.ac>
+
+int main(void) {
+  // setup the buffer and its content
+  $ty:(#Node) n1, n2, n3;
+  n1.len = 7;
+  n2.len = 3;
+  n3.len = 7;
+  n1.key = "Data61";
+  n2.key = "TS";
+  n3.key = "Cogent";
+  $ty:(Buffer) buf = malloc (100);
+  if (!buf) return 1;
+  memset(buf, '\0', 100);
+  $ty:(Buffer) curr = buf;
+
+  memcpy(curr, &n1, sizeof($ty:(U32)));
+  curr += sizeof($ty:(U32));
+  memcpy(curr, n1.key, n1.len);
+  curr += n1.len;
+
+  memcpy(curr, &n2, sizeof($ty:(U32)));
+  curr += sizeof($ty:(U32));
+  memcpy(curr, n2.key, n2.len);
+  curr += n2.len;
+
+  memcpy(curr, &n3, sizeof($ty:(U32)));
+  curr += sizeof($ty:(U32));
+  memcpy(curr, n3.key, n3.len);
+  curr += n3.len;
+
+  $ty:(ExState) ex;
+
+  // find
+  $ty:((ExState, Buffer!, (#CString)!)) find_args;
+  find_args.p1 = ex;
+  find_args.p2 = buf;
+  find_args.p3 = "Cogent";
+  $ty:((ExState, Option Node)) r = $exp:find_str (find_args);
+  if (r.p2.tag == TAG_ENUM_None) {
+    printf ("Not found!\n");
+  } else {
+    printf ("Found element ");
+    $ty:((ExState, #CString)) print_arg;
+    print_arg.p1 = r.p1;
+    print_arg.p2 = r.p2.Some->key;
+    $exp:array_print (print_arg);
+    printf ("\n");
+  }
+  return 0;
+}
+
