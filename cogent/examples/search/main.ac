@@ -33,7 +33,6 @@ int main(void) {
   memset(buf, '\0', 100);
   $ty:(Buffer) curr = buf;
 
-  /**/
   memcpy(curr, &n1, sizeof($ty:(U32)));
   curr += sizeof($ty:(U32));
   memcpy(curr, n1.key, n1.len);
@@ -69,9 +68,4 @@ int main(void) {
   }
   return 0;
 }
-
-
-// deserialise_Array : all (a :< E). (ExState, Buffer, Index) -> RR ExState (Array a, Index) ErrCode
-
-
 
