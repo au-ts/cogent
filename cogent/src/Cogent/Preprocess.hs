@@ -17,6 +17,9 @@ module Cogent.Preprocess where
 import Cogent.Compiler
 import Cogent.Common.Syntax hiding (Prefix)
 
+import Control.Arrow ((+++))
+import Control.Monad.IO.Class
+import Control.Monad.Trans.Class
 import Data.Char
 import Language.Preprocessor.Cpphs hiding (pragma)
 import Text.Parsec.Char
@@ -72,12 +75,21 @@ program | __cogent_fpragmas = do whiteSpace
                                  return $ concat ps
         | otherwise = return []
 
-preprocess :: FilePath -> IO (Either ParseError (String, [LocPragma]))
-preprocess filename =
-  readFile filename >>= \input ->
-  runCpphs cppOptions filename input >>= \input' ->
-  case parse program filename input' of
-    Left err -> return $ Left err
-    Right ps -> return $ Right (input',ps)
-  where cppOptions = defaultCpphsOptions {boolopts = myBoolOptions}
-        myBoolOptions = defaultBoolOptions {macros = False, locations = False}
+preprocess :: FilePath -> IO (Either String (String, [LocPragma]))
+preprocess filename = do
+  input <- readFile filename
+  opts <- return $ if not (null __cogent_cogent_pp_args)
+                     then parseOptions __cogent_cogent_pp_args
+                     else Right myCpphsOptions
+  case opts of
+    Left err -> return $ Left $ "Invalid arguments to Cogent preprocessor (cpphs --help): " ++ err
+    Right opts' -> do
+      input' <- liftIO $ runCpphs opts' filename input
+      -- (s1,tab) <- runCpphsReturningSymTab opts' filename input
+      -- putStrLn "-----------------------------"
+      -- putStrLn $ show tab
+      -- putStrLn "-----------------------------"
+      return . (show +++ (input',)) $ parse program filename input'
+  where 
+    myCpphsOptions = defaultCpphsOptions {boolopts = myBoolOptions}
+    myBoolOptions = defaultBoolOptions {macros = False, locations = False}

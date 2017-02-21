@@ -70,6 +70,7 @@ mkThyFileName src suffix =
 data Cogent_WarningSwitch = Flag_w | Flag_Wwarn | Flag_Werror
 
 set_flag_absTypeDir = writeIORef __cogent_abs_type_dir_ref
+set_flag_cogentPpArgs = writeIORef __cogent_cogent_pp_args_ref . words
 set_flag_cpp = writeIORef __cogent_cpp_ref
 set_flag_cppArgs = writeIORef __cogent_cpp_args_ref
 set_flag_quiet = writeIORef __cogent_quiet_ref True
@@ -179,6 +180,13 @@ __cogent_abs_type_dir = unsafePerformIO $ readIORef __cogent_abs_type_dir_ref
 __cogent_abs_type_dir_ref :: IORef FilePath
 {-# NOINLINE __cogent_abs_type_dir_ref #-}
 __cogent_abs_type_dir_ref = unsafePerformIO $ newIORef "."
+
+__cogent_cogent_pp_args :: [String]
+__cogent_cogent_pp_args = unsafePerformIO $ readIORef __cogent_cogent_pp_args_ref
+
+__cogent_cogent_pp_args_ref :: IORef [String]
+{-# NOINLINE __cogent_cogent_pp_args_ref #-}
+__cogent_cogent_pp_args_ref = unsafePerformIO $ newIORef []
 
 __cogent_cpp :: FilePath
 __cogent_cpp = unsafePerformIO $ readIORef __cogent_cpp_ref

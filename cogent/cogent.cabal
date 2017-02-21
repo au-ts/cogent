@@ -89,7 +89,7 @@ Library
               , bytestring >= 0.10
               , containers >= 0.5
               , cpphs >=1.19
-              , directory >=1.2 && <= 1.2.2.0
+              , directory >=1.2
               , disassembler >= 0.2.0.0
               , either >= 4.3.2
               , extra >= 1.3
