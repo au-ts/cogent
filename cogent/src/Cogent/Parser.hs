@@ -361,15 +361,14 @@ loadTransitive' r fp paths ro = do
     Just fp' -> canonicalizePath fp' >>= \fpc -> (S.member fpc <$> readIORef r) >>= \case
       True  -> return $ Right ([],[])
       False -> do modifyIORef r (S.insert fpc)
-                  pragmas <- parseFromFile PP.program fp'
-                  defs <- parseFromFile program fp'
-                  return ((,) <$> defs <*> pragmas)
-               >>= \case
-                     Left err -> return $ Left $ show err
-                     Right (defs,pragmas) -> do
-                        defs' <- mapM (flip transitive fpdir) defs
-                        let blah = fmap (second (pragmas ++) . mconcat) . sequence $ defs'
-                        return blah
+                  PP.preprocess fp' >>= \case
+                    Left err -> return $ Left $ "Preprocessor failed: " ++ err
+                    Right (cpped,pragmas) -> do
+                      case parse program fp' cpped of
+                        Left err -> return $ Left $ "Parser failed: " ++ show err
+                        Right defs -> do
+                           defs' <- mapM (flip transitive fpdir) defs
+                           return $ fmap (second (pragmas ++) . mconcat) . sequence $ defs'
 
   where
     transitive :: (SourcePos, DocString, TopLevel LocType VarName LocExpr)
