@@ -161,6 +161,14 @@ test-gcc: .gen-types test-cg
 	$(E) "=== Compile generated code using GCC ==="
 	$(SCRIPTS_DIR)/cogent_validate.sh -gcc
 
+examples: .test-cogent
+	$(E) "=== Build Cogent examples ==="
+	$(SCRIPTS_DIR)/build_examples.sh
+
+examples-clean:
+	$(E) "=== Build Cogent examples ==="
+	$(SCRIPTS_DIR)/build_examples.sh clean
+
 setup-config: configure
 	$(CABAL) configure $(CABALFLAGS)
 
@@ -223,6 +231,12 @@ help:
 	$(E) ""
 	$(E) "* make test-gcc"
 	$(E) "  Compile generated code using GCC."
+	$(E) ""
+	$(E) "* make examples"
+	$(E) "  Compile Cogent examples."
+	$(E) ""
+	$(E) "* make examples-clean"
+	$(E) "  Clean up earlier build of examples."
 	$(E) ""
 	$(E) "* make help"
 	$(E) "  Print this help."

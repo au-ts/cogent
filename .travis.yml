@@ -88,6 +88,8 @@ script:
 - make test-mn
 - make test-cg
 - make test-aq
+- echo 'Building Cogent examples'
+- make examples
 - popd
 notifications:
   hipchat:
