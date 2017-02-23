@@ -114,7 +114,7 @@ PWD:= $(shell pwd)
 
 default: linux
 
-all: gen $(OBJ)
+all: .c-gen $(OBJ)
 	$(Q)$(CC) -o $(NAME) $(OBJ)
 
 %.c:
