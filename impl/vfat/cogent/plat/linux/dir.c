@@ -1,4 +1,8 @@
 /*
+ * @TAG(OTHER_GPL)
+ */
+
+/*
  * linux/fs/fat/dir.c
  *
  * directory handling functions for fat-based filesystems
@@ -12,7 +16,6 @@
  * Rewritten for constant inumbers. Plugged buffer overrun in readdir(). AV
  * Short name translation 1999, 2001 by Wolfram Pienkoss <wp@bszh.de>
  *
- * @TAG(OTHER_GPL)
  */
 
 #include <linux/slab.h>

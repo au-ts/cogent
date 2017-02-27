@@ -1,3 +1,7 @@
+/*
+ * @TAG(OTHER_GPL)
+ */
+
 /* fs/fat/nfs.c
  *
  * This software is licensed under the terms of the GNU General Public

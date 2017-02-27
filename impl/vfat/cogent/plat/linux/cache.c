@@ -1,4 +1,8 @@
 /*
+ * @TAG(OTHER_GPL)
+ */
+
+/*
  * linux/fs/fat/cache.c
  *
  * Written 1992,1993 by Werner Almesberger
@@ -7,7 +11,6 @@
  * of inode number.
  * May 1999. AV. Fixed the bogosity with FAT32 (read "FAT28"). Fscking lusers.
  *
- * @TAG(OTHER_GPL)
  */
 
 #include <linux/slab.h>
