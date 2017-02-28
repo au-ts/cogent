@@ -8,6 +8,29 @@
 -- @TAG(NICTA_GPL)
 --
 
--- Included something, because the cogent compiler doesn't support an empty
--- cogent source file.
 include <gum/common.cogent>
+include <gum/log.cogent>
+
+include <gum/array.cogent>
+include <gum/uarray.cogent>
+include <gum/wordarray.cogent>
+
+
+
+-- osbuffer.cogent isn't include, since it includes a vfs function.
+-- need to fix that.
+-- include <gum/osbuffer.cogent>
+
+-- ospage.cogent isn't included, because it includes 'vfs.cogent'
+--  from the standard path, which we currently don't want.
+--include <gum/ospage.cogent>
+
+include <gum/errno.cogent>
+
+include "vfs.cogent"
+include "skelfs.cogent"
+
+
+-- util.cogent has definitions for the following:
+--   * _COGENT_LOG_LEVEL (needed by log.cogent).
+include "util.cogent"

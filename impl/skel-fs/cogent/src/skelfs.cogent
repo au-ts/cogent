@@ -1,0 +1,29 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+
+-- A pseudo Inode structure for skelfs
+-- This is the on-disk representation
+type SkelFSInode = {
+  mode  : U16,
+  flags : U32
+}
+
+-- The in-memory representation of skelfs's inode.
+type FsInode = {
+  dtime : U32
+}
+
+
+-- The FsState structure, that is needed/used by VFS(vfs.cogent)
+-- This structure is carried around and is needed by all functions
+type FsState = {
+  flags : U32
+}
