@@ -361,7 +361,7 @@ if [[ "$TESTSPEC" =~ '--gcc--' ]]; then
     mkdir -p "$abs" || exit
     echo -n "${outfile}.cogent: "
     total+=1
-    sed -i -r 's/^#include <cogent.h>/#include \"..\/lib\/cogent.h\"/' "$hfile"
+    sed -i -r 's/^#include <cogent-defns.h>/#include \"..\/lib\/cogent-defns.h\"/' "$hfile"
     sed -i -r "s|^#include <abstract/([^\.]*).h>|#include \"$abs/\1.h\"|g" "$hfile"
     for abstract_h in `egrep "^#include \"$abs\/([^\.]*).h\"" "$hfile" | \
                        sed -r "s|#include \"$abs/([^\.]*).h\"|\1|"`; do
@@ -491,7 +491,7 @@ if [[ "$TESTSPEC" =~ '--ee--' ]]; then
        mkdir -p "$abs" || exit
        echo -n "${outfile}.cogent: "
        cogent -A --fml-typing-tree --root-dir=../../ --dist-dir="$COUT" "$source" --proof-name="$ISABELLE_SESSION_NAME"
-       sed -i -r 's|^#include <cogent.h>|#include \"../tests/cogent.h\"|' "$hfile"
+       sed -i -r 's|^#include <cogent-defns.h>|#include \"../test/cogent.h\"|' "$hfile"
        sed -i -r "s|^#include <abstract/([^\.]*).h>|#include \"$abs/\1.h\"|g" "$hfile"
        for abstract_h in `egrep "^#include \"$abs\/([^\.]*).h\"" "$hfile" | \
                           sed -r "s|#include \"$abs/([^\.]*).h\"|\1|"`; do

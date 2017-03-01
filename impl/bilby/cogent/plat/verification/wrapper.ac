@@ -12,7 +12,7 @@
  * Template for verification build, with dummy type definitions.
  */
 
-#include <cogent.h>
+#include <cogent-defns.h>
 
 struct rbt_node {
     struct unit_t unit;

@@ -387,12 +387,12 @@ genEnum = do
              enumMembers = P.map (,Nothing) $ S.toList tags
          in return $ [CDecl $ CEnumDecl (Just tagsT) enumMembers, CDecl $ CTypeDecl (CEnum tagsT) [tagsT]]
 
--- NOTE: It's not used becuase it's defined in cogent.h / zilinc
+-- NOTE: It's not used becuase it's defined in cogent-defns.h / zilinc
 genBool :: Gen v [CExtDecl]
 genBool = pure [ CDecl $ CStructDecl boolT [(CogentPrim U8, Just boolField)]
                , CDecl $ CTypeDecl (CStruct boolT) [boolT]]
 
--- NOTE: It's not used becuase it's defined in cogent.h / zilinc
+-- NOTE: It's not used becuase it's defined in cogent-defns.h / zilinc
 genUnit :: Gen v [CExtDecl]
 genUnit = pure [ CDecl $ CStructDecl unitT [(CInt True CIntT, Just dummyField)]  -- NOTE: now the dummy field is an int for verification / zilinc
                , CDecl $ CTypeDecl (CStruct unitT) [unitT]]
@@ -1109,7 +1109,7 @@ gen hfn defs insts log =
       C.EscDef "" noLoc :
       C.EscDef ("#ifndef " ++ gn) noLoc :
       C.EscDef ("#define " ++ gn ++ "\n") noLoc :
-      C.EscDef ("#include <cogent.h>  /* FIXME: Change to or search for the proper path */\n") noLoc :
+      C.EscDef ("#include <cogent-defns.h>\n") noLoc :
       -- NOTE: These two lines are not useful because AlexH has the Python program to resolve names / zilinc
       -- concat (map cFunMacro (M.toList insts)) ++  -- macros for function names
       -- catMaybes (map cDispatchMacro stbns') ++    -- macros for dispatch functions

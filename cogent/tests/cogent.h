@@ -8,6 +8,9 @@
  * @TAG(NICTA_GPL)
  */
 
-#include "../lib/cogent.h"
+/*
+  NOTE: Do not delete this file, it is needed for verification purposes.
+ */
+#include "../lib/cogent-defns.h"
 
 void dummyFunction (void) {return;}
