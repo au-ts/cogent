@@ -28,7 +28,7 @@ data-files:
 
 source-repository head
   type:     git
-  location: https://github.inside.nicta.com.au/ts-filesystems/bilby
+  location: https://github.com/NICTA/cogent/
 
 Library
   hs-source-dirs: src
