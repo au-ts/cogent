@@ -29,7 +29,7 @@
 
 */
 
-#include <lib/rbt.h>
+#include <lib/c/rbt.h>
 
 void rbt_link_node(struct rbt_node * node, struct rbt_node * parent,
                   struct rbt_node ** rbt_link)

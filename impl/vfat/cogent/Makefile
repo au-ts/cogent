@@ -25,7 +25,7 @@ DEFNS=data/defns.txt
 # Standard Gum Directory
 STDGUM=$(shell cogent --stdgum-dir)
 # ADT headers required by vfat
-# AHFILES=$(wildcard $(STDGUM)/gum/abstract/*.ah)
+# AHFILES=$(wildcard $(STDGUM)/gum/anti/abstract/*.ah)
 AHFILES=
 # ADT C files required by vfat
 LINUX_ACFILES=plat/linux/wrapper.ac

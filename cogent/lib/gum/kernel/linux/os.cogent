@@ -8,7 +8,7 @@
 -- @TAG(NICTA_GPL)
 --
 
-include "common.cogent"
+include "../../common/common.cogent"
 
 os_PAGE_CACHE_SIZE : U64
 os_PAGE_CACHE_SIZE = 4096

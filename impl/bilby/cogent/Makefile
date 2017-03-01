@@ -26,7 +26,7 @@ PROOF_ID=BilbyFs
 # Standard Gum Directory
 STDGUM=$(shell cogent --stdgum-dir)
 # ADT headers required by BilbyFs
-AHFILES=$(wildcard $(STDGUM)/gum/abstract/*.ah)
+AHFILES=$(wildcard $(STDGUM)/gum/anti/abstract/*.ah)
 # ADT C files required by BilbyFs
 LINUX_ACFILES=$(addprefix $(STDGUM)/gum/anti/, \
 		common.ac \

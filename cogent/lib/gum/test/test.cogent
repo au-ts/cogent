@@ -14,7 +14,7 @@ test_stack_probe: () -> ()
 test_time_start: () -> ()
 test_time_end: () -> ()
 
-include "common.cogent"
+include "../common/common.cogent"
 
 test_FILE_READONLY : U32
 test_FILE_READONLY = 0

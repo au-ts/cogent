@@ -8,9 +8,9 @@
 -- @TAG(NICTA_GPL)
 --
 
-include <gum/wordarray.cogent>
-include <gum/buffer.cogent>
-include <gum/common.cogent>
+include <gum/common/wordarray.cogent>
+include <gum/common/buffer.cogent>
+include <gum/common/common.cogent>
 
 const_arraySize: U32
 const_arraySize = 4

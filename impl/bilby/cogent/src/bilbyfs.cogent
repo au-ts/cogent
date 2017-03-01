@@ -8,12 +8,12 @@
 -- @TAG(NICTA_GPL)
 --
 
-include <gum/common.cogent>
-include <gum/errno.cogent>
-include <gum/vfs.cogent>
+include <gum/common/common.cogent>
+include <gum/kernel/linux/errno.cogent>
+include <gum/fs/linux/vfs.cogent>
 include <gum/allocpool.cogent>
-include <gum/buffer.cogent>
-include <gum/rbt.cogent>
+include <gum/common/buffer.cogent>
+include <gum/common/rbt.cogent>
 include "serial.cogent"
 include "ubi.cogent"
 

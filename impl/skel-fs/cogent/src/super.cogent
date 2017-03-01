@@ -10,4 +10,4 @@
 
 -- Included something, because the cogent compiler doesn't support an empty
 -- cogent source file.
-include <gum/common.cogent>
+include <gum/common/common.cogent>

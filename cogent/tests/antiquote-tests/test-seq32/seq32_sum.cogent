@@ -8,7 +8,7 @@
 -- @TAG(NICTA_GPL)
 --
 
-include <gum/common.cogent>
+include <gum/common/common.cogent>
 
 sum_body: (#{acc: U32, obsv: ()!, idx: U32}) -> LRR U32 ()
 sum_body #{..} = (acc + idx, Iterate())

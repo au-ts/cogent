@@ -8,9 +8,9 @@
 -- @TAG(NICTA_GPL)
 --
 
-include "wordarray.cogent"
+include "../../common/wordarray.cogent"
 include "stat.cogent"
-include "os.cogent"
+include "../../kernel/linux/os.cogent"
 
 type VfsInodeAbstract
 

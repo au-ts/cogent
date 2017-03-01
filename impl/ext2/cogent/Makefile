@@ -26,7 +26,7 @@ PROOF_ID=Ext2
 # Standard Gum Directory
 STDGUM=$(shell cogent --stdgum-dir)
 # ADT headers required by Ext2fs
-AHFILES=$(wildcard $(STDGUM)/gum/abstract/*.ah)
+AHFILES=$(wildcard $(STDGUM)/gum/anti/abstract/*.ah)
 # ADT C files required by Ext2fs
 LINUX_ACFILES=$(addprefix $(STDGUM)/gum/anti/, \
 	common.ac \

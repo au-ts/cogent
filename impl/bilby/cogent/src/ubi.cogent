@@ -8,8 +8,8 @@
 -- @TAG(NICTA_GPL)
 --
 
-include <gum/common.cogent>
-include <gum/buffer.cogent>
+include <gum/common/common.cogent>
+include <gum/kernel/linux/buffer.cogent>
 include "bilbyfs.cogent"
 
 type EbNum = U32

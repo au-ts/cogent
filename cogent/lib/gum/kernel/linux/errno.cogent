@@ -8,7 +8,7 @@
 -- @TAG(NICTA_GPL)
 --
 
-include "common.cogent"
+include "../../common/common.cogent"
 
 ePerm : ErrCode
 ePerm = 1
