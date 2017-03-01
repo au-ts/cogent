@@ -9,7 +9,7 @@
 --
 
 include "os.cogent"
-include "vfs.cogent" -- for VfsMemoryMap
+include "../../fs/linux/vfs.cogent" -- for VfsMemoryMap
 
 type OSPage
 type OSPageBuffer

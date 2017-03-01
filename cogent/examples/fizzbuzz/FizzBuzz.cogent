@@ -8,7 +8,7 @@
 -- @TAG(NICTA_GPL)
 --
 
-include <gum/iterator.cogent>
+include <gum/common/iterator.cogent>
 
 -- ac functions
 print_u32: (U32, ExState) -> ExState

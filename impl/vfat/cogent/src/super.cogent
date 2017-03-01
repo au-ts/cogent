@@ -8,7 +8,7 @@
 -- @TAG(NICTA_GPL)
 --
 
-include <gum/iterator.cogent>
+include <gum/common/iterator.cogent>
 -- Defined in common.cogent (included by iterator.cogent):
 --  type ExState = U64
 --  type R a b = < Success a | Error b >

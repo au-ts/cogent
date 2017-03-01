@@ -8,7 +8,7 @@
 -- @TAG(NICTA_GPL)
 --
 
-include <gum/common.cogent>
+include <gum/common/common.cogent>
 
 type CString
 

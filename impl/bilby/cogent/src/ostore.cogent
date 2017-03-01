@@ -9,9 +9,9 @@
 --
 
 include "bilbyfs.cogent"
-include <gum/allocpool.cogent>
-include <gum/list.cogent>
-include <gum/common.cogent>
+include <gum/common/allocpool.cogent>
+include <gum/common/list.cogent>
+include <gum/common/common.cogent>
 include "ubi.cogent"
 include "index.cogent"
 include "fsm.cogent"
