@@ -1,0 +1,195 @@
+--
+-- Copyright 2017, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+--
+-- These are wrapper functions for struct buffer_head in the linux kernel.
+--
+
+include "../../common/wordarray.cogent" -- wordarray.cogent includes common.cogent
+
+-- BufferHead is an abstract type that is defined typedef'ed to `struct buffer_head`
+-- on Linux.
+type BufferHead
+type BufferHeadOffset = U32
+
+-- buffer_head_new:
+--  Although we never 'create' a buffer, this just acts as a 'no-op'
+{-# cinline buffer_head_new #-}
+buffer_head_new: SysState -> RR SysState BufferHead ()
+
+-- buffer_head_free:
+--  This function calls brelse()
+{-# cinline buffer_head_free #-}
+buffer_head_free: (SysState, BufferHead) -> SysState
+
+-- buffer_head_forget:
+--  buffer_head_forget() is like buffer_head_free() except that it discards
+--  any potentially dirty data, as it calls bforget()
+{-# cinline buffer_head_forget #-}
+buffer_head_forget: (SysState, BufferHead) -> SysState
+
+-- buffer_head_get_size:
+--
+{-# cinline buffer_head_get_size #-}
+buffer_head_get_size: BufferHead! -> U32
+
+-- buffer_head_set_size:
+--
+{-# cinline buffer_head_set_size #-}
+buffer_head_set_size: (BufferHead, U32) -> BufferHead
+
+-- buffer_head_get_blocknum
+--
+{-# cinline buffer_head_get_blocknum #-}
+buffer_head_get_blocknum: BufferHead! -> U64
+
+-- buffer_head_read_block:
+--
+{-# cinline buffer_head_read_block #-}
+buffer_head_read_block: (#{st: SysState, sb: VfsSuperBlock, bh: BufferHead, blknr: U64}) -> RR (SysState, VfsSuperBlock, BufferHead) () ()
+
+-- buffer_head_boundary:
+--  sets that the block is followed by a discontiguity.
+--  This calls set_buffer_boundary(), A function that is defined in buffer_head.h
+--  in the Linux kernel using the macro BUFFER_FNS().
+{-# cinline buffer_head_boundary #-}
+buffer_head_boundary: BufferHead -> BufferHead
+
+-- buffer_head_readahead:
+--
+{-# cinline buffer_head_readahead #-}
+buffer_head_readahead: (SysState, VfsSuperBlock, U32) -> (SysState, VfsSuperBlock)
+
+-- buffer_head_sync_dirty:
+--  We need to have ref on the BufferHead
+{-# cinline buffer_head_sync_dirty #-}
+buffer_head_sync_dirty: (SysState, BufferHead) -> (SysState, BufferHead)
+
+-- buffer_head_mark_dirty:
+--
+{-# cinline buffer_head_mark_dirty #-}
+buffer_head_mark_dirty: (SysState, BufferHead) -> (SysState, BufferHead)
+
+-- buffer_head_set_new:
+--  This calls set_buffer_new(), A function that is defined in buffer_head.h
+--  in the Linux kernel using the macro BUFFER_FNS().
+{-# cinline buffer_head_set_new #-}
+buffer_head_set_new: (SysState, BufferHead) -> (SysState, BufferHead)
+
+-- buffer_head_set_uptodate:
+--  This calls set_buffer_uptodate(), A function that is defined in buffer_head.h
+--  in the Linux kernel using the macro BUFFER_FNS().
+{-# cinline buffer_head_set_uptodate #-}
+buffer_head_set_uptodate: (SysState, BufferHead) -> (SysState, BufferHead)
+
+
+
+--
+-- Serialisation and Deserialisation functions
+--
+
+-- buffer_head_serialise_Ple32_WordArray
+--
+buffer_head_serialise_Ple32_WordArray: WordArrayFoldF U32 (BufferHead, BufferHeadOffset) () (BufferHead, BufferHeadOffset)
+buffer_head_serialise_Ple32_WordArray #{elem, acc = (bh, idx), obsv} =
+  buffer_head_serialise_Ple32 (bh, idx, elem)
+  | Success (bh, idx') ->
+    Iterate (bh, idx')
+  | Error bh ->
+    Break (bh, idx)
+
+-- buffer_head_deserialise_Ple32_WordArray
+--
+buffer_head_deserialise_Ple32_WordArray: (#{elem: U32, acc: U32, obsv: BufferHead!}) -> LRR (U32, U32) ()
+buffer_head_deserialise_Ple32_WordArray (#{elem = old, acc = idx, obsv = bh}) =
+  buffer_head_deserialise_Ple32 (bh, idx)
+  | Success (elem, idx') ->
+    ((elem, idx'), Iterate ())
+  | Error () ->
+    ((old, idx), Break ())
+
+-- buffer_head_deserialise_U8_WordArray
+--
+buffer_head_deserialise_U8_WordArray: (#{elem: U8, acc: U32, obsv: BufferHead!}) -> LRR (U8, U32) ()
+buffer_head_deserialise_U8_WordArray (#{elem = old, acc = idx, obsv = bh}) =
+  buffer_head_deserialise_U8 (bh, idx)
+  | Success (elem, idx') ->
+    ((elem, idx'), Iterate ())
+  | Error () ->
+    ((old, idx), Break ())
+
+-- buffer_head_serialise_Ple32
+--
+{-# cinline buffer_head_serialise_Ple32 #-}
+buffer_head_serialise_Ple32: (BufferHead, BufferHeadOffset, U32) -> Result (BufferHead, BufferHeadOffset) (BufferHead)
+
+-- buffer_head_deserialise_Ple32
+--
+{-# cinline buffer_head_deserialise_Ple32 #-}
+buffer_head_deserialise_Ple32: (BufferHead!, BufferHeadOffset) -> Result (U32, BufferHeadOffset) ()
+
+-- buffer_head_serialise_Ple16
+--
+{-# cinline buffer_head_serialise_Ple16 #-}
+buffer_head_serialise_Ple16: (BufferHead, BufferHeadOffset, U16) -> Result (BufferHead, BufferHeadOffset) (BufferHead)
+
+-- buffer_head_deserialise_Ple16
+--
+{-# cinline buffer_head_deserialise_Ple16 #-}
+buffer_head_deserialise_Ple16: (BufferHead!, BufferHeadOffset) -> Result (U16, BufferHeadOffset) ()
+
+-- buffer_head_serialise_U8
+--
+{-# cinline buffer_head_serialise_U8 #-}
+buffer_head_serialise_U8: (BufferHead, BufferHeadOffset, U8) -> Result (BufferHead, BufferHeadOffset) (BufferHead)
+
+-- buffer_head_deserialise_U8
+--
+{-# cinline buffer_head_deserialise_U8 #-}
+buffer_head_deserialise_U8: (BufferHead!, BufferHeadOffset) -> Result (U8, BufferHeadOffset) ()
+
+
+--
+-- Helper functions
+--
+-- buffer_head_find:
+--  This function takes 4 arguments: (haystack, needle, offset, length) to find
+--  the buffer
+{-# cinline buffer_head_find #-}
+buffer_head_find: (BufferHead!, U8, BufferHead, U32) -> U32
+
+-- buffer_head_memset:
+--
+{-# cinline buffer_head_memset #-}
+buffer_head_memset: (BufferHead, BufferHeadOffset, U32, U32) -> BufferHead
+
+-- buffer_head_all_zeroes:
+-- check if a buffer was all zeroes between [from, to)
+buffer_head_all_zeroes: (BufferHead!, BufferHeadOffset, U32) -> Bool
+buffer_head_all_zeroes (buf, from, to) = buffer_head_find (buf, 0, from, to - from) >= to
+
+-- buffer_head_find_next_zero_bit:
+--
+{-# cinline buffer_head_find_next_zero_bit #-}
+buffer_head_find_next_zero_bit: (BufferHead!, U32, BufferHeadOffset) -> BufferHeadOffset
+
+-- buffer_head_set_bit:
+--
+{-# cinline buffer_head_set_bit #-}
+buffer_head_set_bit: (BufferHead, BufferHeadOffset) -> (BufferHead, Bool)
+
+-- buffer_head_clear_bit:
+--
+{-# cinline buffer_head_clear_bit #-}
+buffer_head_clear_bit: (BufferHead, BufferHeadOffset) -> (BufferHead, Bool)
+
+-- buffer_head_test_bit:
+--
+{-# cinline buffer_head_test_bit #-}
+buffer_head_test_bit: (BufferHead!, U32) -> Bool

@@ -1,0 +1,264 @@
+/*
+ * Copyright 2017, NICTA
+ *
+ * This software may be distributed and modified according to the terms of
+ * the GNU General Public License version 2. Note that NO WARRANTY is provided.
+ * See "LICENSE_GPLv2.txt" for details.
+ *
+ * @TAG(NICTA_GPL)
+ */
+/*
+ * For documentation on these functions look in bufferhead.cogent
+ */
+
+$ty:(RR SysState BufferHead ()) buffer_head_new($ty:(SysState) st)
+{
+        $ty:(R BufferHead ()) success = { .Success = NULL, .tag = TAG_ENUM_Success };
+        $ty:(RR SysState BufferHead ()) ret = { .p1 = st, .p2 = success };
+
+        return ret;
+}
+
+$ty:(SysState) buffer_head_free($ty:((SysState, BufferHead)) args)
+{
+        brelse(args.p2);
+        return args.p1;
+}
+
+$ty:(SysState) buffer_head_forget($ty:((SysState, BufferHead)) args)
+{
+        bforget(args.p2);
+        return args.p1;
+}
+
+$ty:(U32) buffer_head_get_size($ty:(BufferHead!) bh)
+{
+        return bh->b_size;
+}
+
+$ty:(BufferHead) buffer_head_set_size($ty:((BufferHead, U32)) args)
+{
+        struct buffer_head *bh = args.p1;
+        bh->b_size = args.p2;
+
+        return args.p1;
+}
+
+$ty:(U64) buffer_head_get_blocknum($ty:(BufferHead!) bh)
+{
+        return bh->b_blocknr;
+}
+
+$ty:(RR (SysState, VfsSuperBlock, BufferHead) () ())buffer_head_read_block($ty:((#{st: SysState, sb: VfsSuperBlock,  bh: BufferHead, blknr: U64})) args)
+{
+        $ty:((SysState, VfsSuperBlock, BufferHead)) st_sb_bh_tuple = {.p1 = args.st, .p2 = args.sb, .p3 = args.bh};
+        $ty:(RR (SysState, BufferHead) () ()) ret = {.p1 = st_sb_bh_tuple};
+
+        if (ret.p1.p3 != NULL) {
+                /* existing buffer, map */
+                map_bh(ret.p1.p3, args.sb, (sector_t)args.blk);
+        } else {
+                /* new buffer, read */
+                ret.p1.p3 = sb_bread(args.sb, (sector_t)args.blk);
+        }
+
+        if (likely (ret.p1.p3 != NULL)) {
+                ret.p3.tag = TAG_ENUM_Success;
+        } else {
+                /* Reading block failed at block : args.blk */
+                ret.p3.tag = TAG_ENUM_Error;
+        }
+
+        return ret;
+
+}
+
+$ty:(BufferHead) buffer_head_boundary($ty:(BufferHead) bh)
+{
+        set_buffer_boundary(bh);
+        return buf;
+}
+
+$ty:((SysState, VfsSuperBlock)) buffer_head_readahead($ty:((SysState, VfsSuperBlock, U64)) args)
+{
+        $ty:((SysState, VfsSuperBlock)) ret = {.p1 = args.p1, .p2 = args.p2};
+        sb_breadahead(args.p2, args.p3);
+        return ret;
+}
+
+$ty:(SysState, BufferHead) buffer_head_sync_dirty($ty:(SysState, BufferHead) args)
+{
+        sync_dirty_buffer(args.p2);
+        return args;
+}
+
+$ty:((SysState, BufferHead)) buffer_head_mark_dirty($ty:((SysState, BufferHead)) args)
+{
+        mark_buffer_dirty(args.p2);
+        return args;
+}
+
+$ty:((SysState, BufferHead)) buffer_head_set_new($ty:((SysState, BufferHead)) args)
+{
+        set_buffer_new(args.p2);
+        return args;
+}
+
+$ty:((SysState, BufferHead)) buffer_head_set_uptodate($ty:((SysState, BufferHead)) args)
+{
+        set_buffer_uptodate(args.p2);
+        return args;
+}
+
+$ty:(Result (BufferHead, BufferHeadOffset) (BufferHead)) buffer_head_serialise_Ple32($ty:((BufferHead, BufferHeadOffset, U32)) args)
+{
+        $ty:(Result (BufferHead, BufferHeadOffset) (BufferHead)) ret;
+        $ty:(BufferHead) buf = args.p1;
+
+        if (unlikely(args.p2 >= BLOCK_SIZE)) {
+                ret.tag = TAG_ENUM_Error;
+                ret.Error = buf;
+        } else {
+                u32 raw = cpu_to_le32(args.p3);
+                u32* p = ((u32*)(buf->b_data + args.p2));
+
+                *p = raw;
+
+                ret.tag = TAG_ENUM_Success;
+                ret.Success.p1 = buf;
+                ret.Success.p2 = args.p2 + sizeof(u32);
+        }
+
+        return ret;
+}
+
+$ty:(Result (U32, BufferHeadOffset) ()) buffer_head_deserialise_Ple32($ty:((BufferHead!, BufferHeadOffset)) args)
+{
+        $ty:(Result (U32, BufferHeadOffset) ()) ret;
+        $ty:(BufferHead) buf = args.p1;
+
+
+        if (unlikely(args.p2 >= BLOCK_SIZE)) {
+                ret.tag = TAG_ENUM_Error;
+        } else {
+                u32 raw = *((u32*)(buf->b_data + args.p2));
+                u32 host = le32_to_cpu(raw);
+
+                ret.tag = TAG_ENUM_Success;
+                ret.Success.p1 = host;
+                ret.Success.p2 = args.p2 + sizeof(u32);
+        }
+
+        return ret;
+}
+
+$ty:(Result (BufferHead, BufferHeadOffset) (BufferHead)) buffer_head_serialise_Ple16($ty:((BufferHead, BufferHeadOffset, U16)) args)
+{
+        $ty:(Result (BufferHead, BufferHeadOffset) (BufferHead)) ret;
+        $ty:(BufferHead) buf = args.p1;
+
+        if (unlikely(args.p2 >= BLOCK_SIZE)) {
+                ret.tag = TAG_ENUM_Error;
+                ret.Error = buf;
+        } else {
+                u16 raw = cpu_to_le16(args.p3);
+                u16* p = ((u16*)(buf->b_data + args.p2));
+
+                *p = raw;
+
+                ret.tag = TAG_ENUM_Success;
+                ret.Success.p1 = buf;
+                ret.Success.p2 = args.p2 + sizeof(u16);
+        }
+
+        return ret;
+}
+
+$ty:(Result (U16, BufferHeadOffset) ()) buffer_head_deserialise_Ple16($ty:((BufferHead!, BufferHeadOffset)) args)
+{
+        $ty:(Result (U16, BufferHeadOffset) ()) ret;
+        $ty:(BufferHead) buf = args.p1;
+
+        if (unlikely(args.p2 >= BLOCK_SIZE)) {
+                ret.tag = TAG_ENUM_Error;
+        } else {
+                u16 raw = *((u16*)(buf->b_data + args.p2));
+                u16 host = le16_to_cpu(raw);
+
+                ret.tag = TAG_ENUM_Success;
+                ret.Success.p1 = host;
+                ret.Success.p2 = args.p2 + sizeof(u16);
+        }
+
+        return ret;
+}
+
+$ty:(Result (BufferHead, BufferHeadOffset) (BufferHead)) buffer_head_serialise_U8($ty:((BufferHead, BufferHeadOffset, U8)) args)
+{
+        $ty:(Result (BufferHead, BufferHeadOffset) (BufferHead)) ret;
+        $ty:(BufferHead) buf = args.p1;
+
+        /* TODO: Implement this */
+        return ret;
+}
+
+$ty:(Result (U8, BufferHeadOffset) ()) buffer_head_deserialise_U8($ty:((BufferHead!, BufferHeadOffset)) args)
+{
+        $ty:(Result (U8, BufferHeadOffset) ()) ret;
+        $ty:(BufferHead) buf = args.p1;
+
+        if (unlikely(args.p2 >= BLOCK_SIZE)) {
+                ret.tag = TAG_ENUM_Error;
+        } else {
+                u8 raw = *((u8*)(buf->b_data + args.p2));
+
+                ret.tag = TAG_ENUM_Success;
+                ret.Success.p1 = raw;
+                ret.Success.p2 = args.p2 + sizeof(u8);
+        }
+
+        return ret;
+}
+
+$ty:(U32) buffer_head_find($ty:((BufferHead!, U8, BufferHeadOffset, U32)) args)
+{
+        u32* start = (u32*)args.p1->b_data + args.p3;
+        return start - (u32*)memscan(start, args.p2, args.p4);
+}
+
+$ty:(BufferHead) buffer_head_memset($ty:((BufferHead, BufferHeadOffset, U32, U32)) args)
+{
+        memset(args.p1->b_data + args.p2, args.p3, args.p4);
+        return args.p1;
+}
+
+$ty:(BufferHeadOffset) buffer_head_find_next_zero_bit($ty:((BufferHead!, U32, BufferHeadOffset)) args)
+{
+        return find_next_zero_bit_le(args.p1->b_data, args.p2, args.p3);
+}
+
+/*
+  NOTE: In the following functions we return a negative number because the value
+  of a 1-bit signed number is either 0 or -1, so we negate the resultant 0 or 1
+  that the DSL expects.
+ */
+$ty:((BufferHead, Bool)) buffer_head_set_bit ($ty:((BufferHead, BufferHeadOffset)) args)
+{
+        $ty:((BufferHead, Bool)) ret = { .p1 = args.p1 };
+        ret.p2.boolean = -__test_and_set_bit_le(args.p2, args.p1->b_data);
+        return ret;
+}
+
+$ty:((BufferHead, Bool)) buffer_head_clear_bit ($ty:((BufferHead, BufferHeadOffset)) args) {
+        $ty:((BufferHead, Bool)) ret = { .p1 = args.p1 };
+
+        ret.p2.boolean =  -__test_and_clear_bit_le (args.p2, args.p1->b_data);
+        return ret;
+}
+
+$ty:(Bool) buffer_head_test_bit($ty:((BufferHead!, U32)) args)
+{
+        $ty:(Bool) ret;
+        ret.boolean = -test_bit_le(args.p2, args.p1->b_data);
+        return ret;
+}
