@@ -1,5 +1,5 @@
 --
--- Copyright 2016, NICTA
+-- Copyright 2017, NICTA
 --
 -- This software may be distributed and modified according to the terms of
 -- the GNU General Public License version 2. Note that NO WARRANTY is provided.
@@ -21,6 +21,12 @@ type RR c a b = (c, <Success a | Error b>)
 type ErrCode = U32
 type WordArrayIndex = U32
 type ExState
+
+-- SysState is the state that we will be carrying around and used in all functions
+-- that modify an external state in the system. This will abstract away, from Cogent,
+-- all the side effects that are caused by IO or something similar.
+-- This is an abstract type and needs to be defined in the implementation.
+type SysState
 
 type ElemA a acc = #{elem: a, acc: acc}
 type ElemB a rbrk = #{elem:a, rbrk:rbrk}
