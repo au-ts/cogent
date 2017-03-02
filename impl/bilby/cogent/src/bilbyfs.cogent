@@ -11,7 +11,7 @@
 include <gum/common/common.cogent>
 include <gum/kernel/linux/errno.cogent>
 include <gum/fs/linux/vfs.cogent>
-include <gum/allocpool.cogent>
+include <gum/common/allocpool.cogent>
 include <gum/common/buffer.cogent>
 include <gum/common/rbt.cogent>
 include "serial.cogent"
