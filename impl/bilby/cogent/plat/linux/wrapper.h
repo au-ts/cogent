@@ -12,7 +12,7 @@
 # define _WRAP_LINUX_H_
 
 #include <adt.h>
-#include <lib/c/rbt.h>
+#include <lib/rbt.h>
 
 #define bilbyfs_assert(v) BUG_ON(!(v))
 
