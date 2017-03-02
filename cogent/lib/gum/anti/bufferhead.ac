@@ -49,7 +49,7 @@ $ty:(U64) buffer_head_get_blocknum($ty:(BufferHead!) bh)
         return bh->b_blocknr;
 }
 
-$ty:(RR (SysState, VfsSuperBlock, BufferHead) () ())buffer_head_read_block($ty:((#{st: SysState, sb: VfsSuperBlock,  bh: BufferHead, blknr: U64})) args)
+$ty:(RR (SysState, VfsSuperBlock, BufferHead) () ()) buffer_head_read_block($ty:(#{st: SysState, sb: VfsSuperBlock, bh: BufferHead, blknr: U64}) args)
 {
         $ty:((SysState, VfsSuperBlock, BufferHead)) st_sb_bh_tuple = {.p1 = args.st, .p2 = args.sb, .p3 = args.bh};
         $ty:(RR (SysState, BufferHead) () ()) ret = {.p1 = st_sb_bh_tuple};
