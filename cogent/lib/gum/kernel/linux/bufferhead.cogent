@@ -16,6 +16,10 @@ include "../../common/wordarray.cogent" -- wordarray.cogent includes common.coge
 -- BufferHead is an abstract type that is defined typedef'ed to `struct buffer_head`
 -- on Linux.
 type BufferHead
+
+-- BufferHeadPtr is struct buffer_head *
+type BufferHeadPtr
+
 type BufferHeadOffset = U32
 
 -- buffer_head_new:
@@ -162,7 +166,7 @@ buffer_head_deserialise_U8: (BufferHead!, BufferHeadOffset) -> Result (U8, Buffe
 --  This function takes 4 arguments: (haystack, needle, offset, length) to find
 --  the buffer
 {-# cinline buffer_head_find #-}
-buffer_head_find: (BufferHead!, U8, BufferHead, U32) -> U32
+buffer_head_find: (BufferHead!, U8, BufferHeadOffset, U32) -> U32
 
 -- buffer_head_memset:
 --
