@@ -1,5 +1,5 @@
 /*
- * Copyright 2016, NICTA
+ * Copyright 2017, NICTA
  *
  * This software may be distributed and modified according to the terms of
  * the GNU General Public License version 2. Note that NO WARRANTY is provided.
@@ -8,7 +8,7 @@
  * @TAG(NICTA_GPL)
  */
 
-$ty:((ExState, OSTimeSpec)) os_get_current_time ($ty:(ExState) args)
+$ty:((ExState, OSTimeSpec)) os_get_current_time($ty:(ExState) args)
 {
     $ty:((ExState, OSTimeSpec)) ret;
 
@@ -21,17 +21,31 @@ $ty:((ExState, OSTimeSpec)) os_get_current_time ($ty:(ExState) args)
     return ret;
 }
 
-u32 os_get_current_fsgid ($ty:(ExState!) args)
+u32 os_get_current_fsgid($ty:(ExState!) args)
 {
-    return from_kgid (&init_user_ns, current_fsgid());
+    return from_kgid(&init_user_ns, current_fsgid());
 }
 
-u32 os_get_current_fsuid ($ty:(ExState!) args)
+u32 os_get_current_fsuid($ty:(ExState!) args)
 {
-    return from_kuid (&init_user_ns, current_fsuid());
+    return from_kuid(&init_user_ns, current_fsuid());
 }
 
-u32 os_get_pid ($ty:(()) args)
+u32 os_get_pid($ty:(ExState!) args)
 {
     return current->pid;
+}
+
+$ty:((ExState, #SpinLock)) os_spin_lock($ty:((ExState, #SpinLock)) args)
+{
+        spin_lock(&args.p2);
+
+        return args;
+}
+
+$ty:((ExState, #SpinLock)) os_spin_unlock($ty:((ExState, #SpinLock)) args)
+{
+        spin_unlock(&args.p2);
+
+        return args;
 }
