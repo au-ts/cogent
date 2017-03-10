@@ -56,7 +56,7 @@ buffer_head_get_blocknum: BufferHead! -> U64
 -- buffer_head_read_block:
 --
 {-# cinline buffer_head_read_block #-}
-buffer_head_read_block: (#{st: SysState, sb: VfsSuperBlock, bh: BufferHead, blknr: U64}) -> RR (SysState, VfsSuperBlock, BufferHead) () ()
+buffer_head_read_block: (#{st: SysState, sb: VfsSuperBlock!, bh: BufferHead, blknr: U64}) -> RR (SysState, BufferHead) () ()
 
 -- buffer_head_boundary:
 --  sets that the block is followed by a discontiguity.
