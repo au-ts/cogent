@@ -38,7 +38,7 @@ $ty:(U32) buffer_head_get_size($ty:(BufferHead!) bh)
 
 $ty:(BufferHead) buffer_head_set_size($ty:((BufferHead, U32)) args)
 {
-        struct buffer_head *bh = args.p1;
+        $ty:(BufferHead) bh = args.p1;
         bh->b_size = args.p2;
 
         return args.p1;
@@ -49,24 +49,24 @@ $ty:(U64) buffer_head_get_blocknum($ty:(BufferHead!) bh)
         return bh->b_blocknr;
 }
 
-$ty:(RR (SysState, VfsSuperBlock, BufferHead) () ()) buffer_head_read_block($ty:(#{st: SysState, sb: VfsSuperBlock, bh: BufferHead, blknr: U64}) args)
+$ty:(RR (SysState, BufferHead) () ()) buffer_head_read_block($ty:(#{st: SysState, sb: VfsSuperBlock!, bh: BufferHead, blknr: U64}) args)
 {
-        $ty:((SysState, VfsSuperBlock, BufferHead)) st_sb_bh_tuple = {.p1 = args.st, .p2 = args.sb, .p3 = args.bh};
+        $ty:((SysState, BufferHead)) st_sb_bh_tuple = {.p1 = args.st, .p2 = args.bh};
         $ty:(RR (SysState, BufferHead) () ()) ret = {.p1 = st_sb_bh_tuple};
 
-        if (ret.p1.p3 != NULL) {
+        if (ret.p1.p2 != NULL) {
                 /* existing buffer, map */
-                map_bh(ret.p1.p3, args.sb, (sector_t)args.blk);
+                map_bh(ret.p1.p2, args.sb, (sector_t)args.blknr);
         } else {
                 /* new buffer, read */
-                ret.p1.p3 = sb_bread(args.sb, (sector_t)args.blk);
+                ret.p1.p2 = sb_bread(args.sb, (sector_t)args.blknr);
         }
 
-        if (likely (ret.p1.p3 != NULL)) {
-                ret.p3.tag = TAG_ENUM_Success;
+        if (likely (ret.p1.p2 != NULL)) {
+                ret.p2.tag = TAG_ENUM_Success;
         } else {
                 /* Reading block failed at block : args.blk */
-                ret.p3.tag = TAG_ENUM_Error;
+                ret.p2.tag = TAG_ENUM_Error;
         }
 
         return ret;
@@ -76,7 +76,7 @@ $ty:(RR (SysState, VfsSuperBlock, BufferHead) () ()) buffer_head_read_block($ty:
 $ty:(BufferHead) buffer_head_boundary($ty:(BufferHead) bh)
 {
         set_buffer_boundary(bh);
-        return buf;
+        return bh;
 }
 
 $ty:((SysState, VfsSuperBlock)) buffer_head_readahead($ty:((SysState, VfsSuperBlock, U64)) args)
@@ -86,7 +86,7 @@ $ty:((SysState, VfsSuperBlock)) buffer_head_readahead($ty:((SysState, VfsSuperBl
         return ret;
 }
 
-$ty:(SysState, BufferHead) buffer_head_sync_dirty($ty:(SysState, BufferHead) args)
+$ty:((SysState, BufferHead)) buffer_head_sync_dirty($ty:((SysState, BufferHead)) args)
 {
         sync_dirty_buffer(args.p2);
         return args;
