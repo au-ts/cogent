@@ -32,7 +32,7 @@ import Cogent.Compiler (__impossible, __cogent_entry_funcs)
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Sugarfree
-import Cogent.Util (Warning)
+import Cogent.Util (Warning, first3, second3, third3)
 import Cogent.Vec as Vec hiding (head)
 
 import Control.Applicative
@@ -58,12 +58,12 @@ type FunMono  = M.Map FunName  (M.Map Instance Int)  -- [] can never be an eleme
 type TypeMono = M.Map TypeName (S.Set Instance)      -- as above
 
 newtype Mono a = Mono { runMono :: RWS Instance
-                                       ([Warning], [Definition TypedExpr VarName])
+                                       ([Warning], [Definition TypedExpr VarName], [(Type 'Zero, String)])
                                        (FunMono, TypeMono)
                                        a }
                deriving (Functor, Applicative, Monad,
                          MonadReader Instance,
-                         MonadWriter ([Warning], [Definition TypedExpr VarName]),
+                         MonadWriter ([Warning], [Definition TypedExpr VarName], [(Type 'Zero, String)]),
                          MonadState  (FunMono, TypeMono))
 
 -- Returns: (monomorphic abstract functions, poly-abs-funcs)
@@ -86,8 +86,11 @@ absFunMono (M.toList -> l) (absFuns -> (ms,ps)) = M.fromList . catMaybes $ flip 
 printAFM :: FunMono -> [Definition TypedExpr VarName] -> String
 printAFM = ((unlines . P.map (\(n,i) -> n ++ ", " ++ show i) . M.toList) .) . absFunMono
 
-mono :: [Definition TypedExpr VarName] -> Maybe (FunMono, TypeMono) -> ((FunMono, TypeMono), ([Warning], [Definition TypedExpr VarName]))
-mono ds initmap = (second . second $ reverse) . (flip3 execRWS initmap' []) . runMono $ monoDefinitions (reverse ds)
+mono :: [Definition TypedExpr VarName]
+     -> [(SupposedlyMonoType, String)]
+     -> Maybe (FunMono, TypeMono)
+     -> ((FunMono, TypeMono), ([Warning], [Definition TypedExpr VarName], [(Type 'Zero, String)]))
+mono ds ctygen initmap = (second . second3 $ reverse) . (flip3 execRWS initmap' []) . runMono $ monoDefinitions (reverse ds) >> monoCustTyGen ctygen
   where initmap' :: (FunMono, TypeMono)  -- a map consists of all function names, each of which has no instances
         initmap' = case initmap of
                      Nothing -> ( M.fromList $ P.zip (catMaybes $ P.map getFuncId ds) (P.repeat M.empty)  -- [] can never appear in the map
@@ -98,8 +101,8 @@ monoDefinitions :: [Definition TypedExpr VarName] -> Mono ()
 monoDefinitions = mapM_ monoDefinition
 
 monoDefinition :: Definition TypedExpr VarName -> Mono ()
--- monoDefinition d@(TypeDef {}) = censor (second $ (d:)) (return ())  -- types are all structural, no need to monomorphise
-monoDefinition d@(TypeDef _ Vec.Nil _) = censor (second $ (d:)) $ return ()  -- Only add non-parametric types to CG
+-- monoDefinition d@(TypeDef {}) = censor (second3 $ (d:)) (return ())  -- types are all structural, no need to monomorphise
+monoDefinition d@(TypeDef _ Vec.Nil _) = censor (second3 $ (d:)) $ return ()  -- Only add non-parametric types to CG
   -- FIXME: It seems that this problem have been subsumed and fixed by #84 / zilinc (03/09/15)
   -- FIXME: No matter whether we use --entry-funcs, this problem persists.
   --        In this case, the missing type should be provided by the user, manually / zilinc
@@ -117,7 +120,7 @@ monoDefinition d@(TypeDef {}) = return ()  -- NOTE: Only monomorphic program can
 monoDefinition d =
   let fn = getDefinitionId d
    in M.lookup fn . fst <$> get >>= \case
-        Nothing -> censor (first $ (("Function `" ++ fn ++ "' not used within Cogent, discarded") :)) (return ())  -- shouldn't happen if __cogent_entry_funcs == Nothing
+        Nothing -> censor (first3 $ (("Function `" ++ fn ++ "' not used within Cogent, discarded") :)) (return ())  -- shouldn't happen if __cogent_entry_funcs == Nothing
         Just is -> monoDefinitionInsts d $ M.keys is
 
 -- given instances, instantiate a function
@@ -138,11 +141,11 @@ monoDefinitionInst :: Definition TypedExpr VarName -> Instance -> Mono ()
 monoDefinitionInst (FunDef attr fn tvs t rt e) i = do
   idx <- if P.null i then return Nothing else M.lookup i . fromJust . M.lookup fn . fst <$> get
   d' <- Mono $ local (const i) (runMono $ FunDef attr (monoName fn idx) Nil <$> monoType t <*> monoType rt <*> monoExpr e)
-  censor (second $ (d':)) (return ())
+  censor (second3 $ (d':)) (return ())
 monoDefinitionInst (AbsDecl attr fn tvs t rt) i = do
   idx <- if P.null i then return Nothing else M.lookup i . fromJust . M.lookup fn . fst <$> get
   d' <- Mono $ local (const i) (runMono $ AbsDecl attr (monoName fn idx) Nil <$> monoType t <*> monoType rt)
-  censor (second $ (d':)) (return ())
+  censor (second3 $ (d':)) (return ())
 monoDefinitionInst (TypeDef tn tvs t) i = __impossible "monoDefinitionInst"
 
 getPrimInt :: TypedExpr t v VarName -> PrimInt
@@ -200,3 +203,28 @@ monoType (TSum alts) = do
 monoType (TProduct t1 t2) = TProduct <$> monoType t1 <*> monoType t2
 monoType (TRecord fs s) = TRecord <$> mapM (\(f,(t,b)) -> (f,) <$> (,b) <$> monoType t) fs <*> pure s
 monoType (TUnit) = pure TUnit
+
+-- ----------------------------------------------------------------------------
+-- custTyGen
+
+monoCustTyGen :: [(SupposedlyMonoType, String)] -> Mono ()
+monoCustTyGen = mapM_ checkMonoType
+
+checkMonoType :: (SupposedlyMonoType, String) -> Mono ()
+checkMonoType (SMT t, cty) =
+  if isMonoType t
+    then monoType t >>= \t' -> censor (third3 $ ((t',cty):)) (return ())
+    else censor (first3 $ (("Invalid polymorphic type found in --cust-ty-gen file! Ignoring it."):)) $ return () 
+           -- FIXME: don't have surface type info to print out which one! / zilinc
+
+isMonoType :: Type t -> Bool
+isMonoType (TVar _) = False
+isMonoType (TVarBang _) = False
+isMonoType (TCon _ ts _)= and $ P.map isMonoType ts
+isMonoType (TFun t1 t2) = isMonoType t1 && isMonoType t2
+isMonoType (TPrim _) = True
+isMonoType (TString) = True
+isMonoType (TSum alts) = and $ P.map (isMonoType . fst . snd) alts
+isMonoType (TProduct t1 t2) = isMonoType t1 && isMonoType t2
+isMonoType (TRecord fs _) = and $ P.map (isMonoType . fst . snd) fs
+isMonoType (TUnit) = True

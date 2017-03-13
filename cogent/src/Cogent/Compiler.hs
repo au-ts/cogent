@@ -73,7 +73,7 @@ set_flag_absTypeDir = writeIORef __cogent_abs_type_dir_ref
 set_flag_cogentPpArgs = writeIORef __cogent_cogent_pp_args_ref . words
 set_flag_cpp = writeIORef __cogent_cpp_ref
 set_flag_cppArgs = writeIORef __cogent_cpp_args_ref
-set_flag_quiet = writeIORef __cogent_quiet_ref True
+set_flag_custTyGen = writeIORef __cogent_cust_ty_gen_ref . Just
 set_flag_debug = writeIORef __cogent_debug_ref True
 set_flag_distDir = writeIORef __cogent_dist_dir_ref
 set_flag_entryFuncs = writeIORef __cogent_entry_funcs_ref . Just
@@ -162,6 +162,7 @@ set_flag_O (Just n :: Maybe String)
 set_flag_outputName = writeIORef __cogent_output_name_ref . Just . takeBaseName
 set_flag_proofInputC = writeIORef __cogent_proof_input_c_ref . Just
 set_flag_proofName = writeIORef __cogent_proof_name_ref . Just . takeBaseName
+set_flag_quiet = writeIORef __cogent_quiet_ref True
 set_flag_rootDir dir = writeIORef __cogent_root_dir_ref (cogentRelDir dir __cogent_dist_dir)
 set_flag_ftcCtxLen = writeIORef __cogent_ftc_ctx_len_ref
 set_flag_w      = writeIORef __cogent_warning_switch_ref Flag_w
@@ -202,12 +203,12 @@ __cogent_cpp_args_ref :: IORef [String]
 {-# NOINLINE __cogent_cpp_args_ref #-}
 __cogent_cpp_args_ref = unsafePerformIO $ newIORef ["$CPPIN", "-o", "$CPPOUT", "-E", "-P"]
 
-__cogent_quiet :: Bool
-__cogent_quiet = unsafePerformIO $ readIORef __cogent_quiet_ref
+__cogent_cust_ty_gen :: Maybe FilePath
+__cogent_cust_ty_gen = unsafePerformIO $ readIORef __cogent_cust_ty_gen_ref
 
-__cogent_quiet_ref :: IORef Bool
-{-# NOINLINE __cogent_quiet_ref #-}
-__cogent_quiet_ref = unsafePerformIO $ newIORef False
+__cogent_cust_ty_gen_ref :: IORef (Maybe FilePath)
+{-# NOINLINE __cogent_cust_ty_gen_ref #-}
+__cogent_cust_ty_gen_ref = unsafePerformIO $ newIORef Nothing
 
 __cogent_debug :: Bool
 __cogent_debug = unsafePerformIO $ readIORef __cogent_debug_ref
@@ -552,6 +553,13 @@ __cogent_proof_name = unsafePerformIO $ readIORef __cogent_proof_name_ref
 __cogent_proof_name_ref :: IORef (Maybe String)
 {-# NOINLINE __cogent_proof_name_ref #-}
 __cogent_proof_name_ref = unsafePerformIO $ newIORef Nothing
+
+__cogent_quiet :: Bool
+__cogent_quiet = unsafePerformIO $ readIORef __cogent_quiet_ref
+
+__cogent_quiet_ref :: IORef Bool
+{-# NOINLINE __cogent_quiet_ref #-}
+__cogent_quiet_ref = unsafePerformIO $ newIORef False
 
 __cogent_root_name :: String
 __cogent_root_name = "ROOT"  -- TODO

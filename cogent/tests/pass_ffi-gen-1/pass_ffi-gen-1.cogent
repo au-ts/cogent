@@ -1,0 +1,16 @@
+type T = {
+  f1 : #A
+, f2 : #B
+, f3 : C
+}
+
+type A
+type B
+type C
+
+type X
+
+foo : T -> X
+foo x = f x
+
+f : T -> X

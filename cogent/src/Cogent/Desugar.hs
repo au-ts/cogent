@@ -83,9 +83,11 @@ freshVars n = do x <- sel3 <$> get
                  modify (\(a,b,c) -> (a,b,c+n))
                  return $ P.map ((++) freshVarPrefix . show) $ take n (iterate (+1) x)
 
-desugar :: [S.TopLevel S.RawType T.TypedName T.TypedExpr] -> [Pragma]
-        -> ([Definition UntypedExpr VarName], Last (Typedefs, Constants, [SFConst UntypedExpr]))
-desugar tls pragmas =
+desugar :: [S.TopLevel S.RawType T.TypedName T.TypedExpr]
+        -> [(S.RawType, String)]
+        -> [Pragma]
+        -> (([Definition UntypedExpr VarName], [(SupposedlyMonoType, String)]), Last (Typedefs, Constants, [SFConst UntypedExpr]))
+desugar tls ctygen pragmas =
   let fundefs    = filter isFunDef     tls where isFunDef     (S.FunDef   {})   = True; isFunDef     _ = False
       absdecs    = filter isAbsDec     tls where isAbsDec     (S.AbsDec   {})   = True; isAbsDec     _ = False
       typedecs   = filter isTypeDec    tls where isTypeDec    (S.TypeDec  {})   = True; isTypeDec    _ = False
@@ -97,8 +99,9 @@ desugar tls pragmas =
        runDS (do defs' <- catMaybes <$> (mapM (\x -> put initialState >> desugarTopLevel x pragmas) $ abstydecs ++ typedecs ++ absdecs ++ fundefs)
                  write <- ask
                  consts' <- desugarConsts constdefs
+                 ctygen' <- desugarCustTyGen ctygen
                  tell $ Last (Just (write^._1, write^._2, consts'))
-                 return defs'
+                 return (defs',ctygen')
              )
   where fromTypeDec  (S.TypeDec tn vs t) = (tn,(vs,t)); fromTypeDec  _ = __impossible "fromTypeDec (in desugarProgram)"
         fromConstDef (S.ConstDef vn t e) = (vn,e)     ; fromConstDef _ = __impossible "fromConstDef (in desguarProgram)"
@@ -531,4 +534,10 @@ desugarConst (n,e) = (n,) <$> desugarExpr e
 -- NOTE: aseume the first arguments consists of constants only
 desugarConsts :: [S.TopLevel S.RawType T.TypedName T.TypedExpr] -> DS 'Zero 'Zero [SFConst UntypedExpr]
 desugarConsts = mapM desugarConst . P.map (\(S.ConstDef v _ e) -> (v,e))
+
+-- ----------------------------------------------------------------------------
+-- custTyGen
+
+desugarCustTyGen :: [(S.RawType, String)] -> DS t v [(SupposedlyMonoType, String)]
+desugarCustTyGen = mapM $ firstM (return . SMT <=< desugarType)
 

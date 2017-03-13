@@ -95,3 +95,14 @@ instance Abelian Likelihood
 tagSuccess = "Success" :: TagName
 tagFail    = "Fail"    :: TagName
 
+-- ----------------------------------------------------------------------------
+-- custTyGen
+
+data CustTyGenInfo = CTGI  deriving (Show) -- TODO: info like field mapping, etc.
+
+-- ex1 :: M.Map (Type 'Zero) (String, CustTypeGenInfo)
+-- ex1 = M.singleton (TRecord [("f1", (TCon "A" [] Unboxed, False)), 
+--                             ("f2", (TCon "B" [] Unboxed, False)),
+--                             ("f3", (TCon "C" [] Writable, False))] Writable) ("T_c_t", CTGI)
+
+

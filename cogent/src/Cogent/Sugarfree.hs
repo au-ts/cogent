@@ -73,6 +73,8 @@ data Type t
   | TUnit
   deriving (Show, Eq, Ord)
 
+data SupposedlyMonoType = forall (t :: Nat). SMT (Type t)
+
 isTFun :: Type t -> Bool
 isTFun (TFun {}) = True
 isTFun _ = False

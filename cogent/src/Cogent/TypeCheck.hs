@@ -155,8 +155,9 @@ data TCState = TCState { _knownFuns    :: [(VarName, Polytype RawType)]
 makeLenses ''TCState
 
 tc :: [(SourcePos, TopLevel LocType VarName LocExpr)]
-   -> ((Either (TypeError, [ErrorContext]) [TopLevel RawType TypedName TypedExpr], WarningErrorLog), TCState)
-tc defs = runAllTCs (typecheck defs) initialState
+   -> [(LocType, String)]
+   -> ((Either (TypeError, [ErrorContext]) ([TopLevel RawType TypedName TypedExpr], [(RawType, String)]), WarningErrorLog), TCState)
+tc defs ctygen = runAllTCs ((,) <$> typecheck defs <*> typecheckCustTyGen ctygen) initialState
 
 initialState = TCState [] [] [] [] (("Char", ([], Just $ RT (TCon "U8" [] Unboxed))) : map prim primTypeCons)
   where prim = (,([],Nothing))
@@ -977,3 +978,8 @@ typecheck :: [(SourcePos, TopLevel LocType VarName LocExpr)] -> TC [TopLevel Raw
 typecheck [] = return []
 typecheck ((p,x):xs) = (:) <$> inEContext (InDefinition p x) (typecheck' x) <*> typecheck xs
 
+-- ----------------------------------------------------------------------------
+-- custTyGen
+
+typecheckCustTyGen :: [(LocType, String)] -> TC [(RawType, String)]
+typecheckCustTyGen = mapM $ firstM validateType  -- TODO: also check monomorphism
