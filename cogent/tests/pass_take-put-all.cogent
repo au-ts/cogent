@@ -33,6 +33,7 @@ x () = bar (foo ())
 type F = (A take (f1, f2)) put (..)
 
 id : all (a). a -> a
+id x = x
 
-test : A -> A
+test : F -> A
 test y = id[A] y
