@@ -211,20 +211,16 @@ monoCustTyGen :: [(SupposedlyMonoType, String)] -> Mono ()
 monoCustTyGen = mapM_ checkMonoType
 
 checkMonoType :: (SupposedlyMonoType, String) -> Mono ()
-checkMonoType (SMT t, cty) =
-  if isMonoType t
-    then monoType t >>= \t' -> censor (third3 $ ((t',cty):)) (return ())
-    else censor (first3 $ (("Invalid polymorphic type found in --cust-ty-gen file! Ignoring it."):)) $ return () 
-           -- FIXME: don't have surface type info to print out which one! / zilinc
+checkMonoType (SMT t, cty) = monoType t >>= \t' -> censor (third3 $ ((t',cty):)) (return ())
 
-isMonoType :: Type t -> Bool
-isMonoType (TVar _) = False
-isMonoType (TVarBang _) = False
-isMonoType (TCon _ ts _)= and $ P.map isMonoType ts
-isMonoType (TFun t1 t2) = isMonoType t1 && isMonoType t2
-isMonoType (TPrim _) = True
-isMonoType (TString) = True
-isMonoType (TSum alts) = and $ P.map (isMonoType . fst . snd) alts
-isMonoType (TProduct t1 t2) = isMonoType t1 && isMonoType t2
-isMonoType (TRecord fs _) = and $ P.map (isMonoType . fst . snd) fs
-isMonoType (TUnit) = True
+-- XXX | isMonoType :: Type t -> Bool
+-- XXX | isMonoType (TVar _) = False
+-- XXX | isMonoType (TVarBang _) = False
+-- XXX | isMonoType (TCon _ ts _)= and $ P.map isMonoType ts
+-- XXX | isMonoType (TFun t1 t2) = isMonoType t1 && isMonoType t2
+-- XXX | isMonoType (TPrim _) = True
+-- XXX | isMonoType (TString) = True
+-- XXX | isMonoType (TSum alts) = and $ P.map (isMonoType . fst . snd) alts
+-- XXX | isMonoType (TProduct t1 t2) = isMonoType t1 && isMonoType t2
+-- XXX | isMonoType (TRecord fs _) = and $ P.map (isMonoType . fst . snd) fs
+-- XXX | isMonoType (TUnit) = True

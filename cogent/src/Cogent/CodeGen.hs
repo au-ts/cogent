@@ -86,7 +86,7 @@ import           System.IO (Handle)
 import qualified Text.PrettyPrint.ANSI.Leijen as PP hiding ((<$>), (<>))
 import qualified Text.PrettyPrint.Mainland as ML
 
-import Debug.Trace
+-- import Debug.Trace
 import Unsafe.Coerce (unsafeCoerce)
 
 -- ****************************************************************************
