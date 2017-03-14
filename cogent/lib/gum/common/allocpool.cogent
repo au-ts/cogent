@@ -13,14 +13,14 @@ include "common.cogent"
 type AllocPool a
 
 {-# cinline allocpool_create #-}
-allocpool_create: all (a). ExState -> R (ExState, AllocPool a) ExState
+allocpool_create: all (a). SysState -> R (SysState, AllocPool a) SysState
 
 {-# cinline allocpool_free #-}
-allocpool_free: all (a). (ExState, AllocPool a) -> ExState
+allocpool_free: all (a). (SysState, AllocPool a) -> SysState
 
-type AllocPoolPreallocP a = #{ex:ExState, pool:AllocPool a, nb:U32}
+type AllocPoolPreallocP a = #{ex:SysState, pool:AllocPool a, nb:U32}
 {-# cinline allocpool_prealloc #-}
-allocpool_prealloc: all (a). AllocPoolPreallocP a -> RR (ExState, AllocPool a) () ()
+allocpool_prealloc: all (a). AllocPoolPreallocP a -> RR (SysState, AllocPool a) () ()
 
 type AllocPoolUseF a acc obsv = ElemAO a acc obsv! -> acc
 type AllocPoolUseP a acc obsv = #{pool:AllocPool a, f:AllocPoolUseF a acc obsv, acc:acc, obsv:obsv!}
@@ -28,4 +28,4 @@ type AllocPoolUseP a acc obsv = #{pool:AllocPool a, f:AllocPoolUseF a acc obsv, 
 allocpool_use: all (a, acc, obsv). AllocPoolUseP a acc obsv -> (AllocPool a, acc)
 
 {-# cinline allocpool_clean #-}
-allocpool_clean: all (a). (ExState, AllocPool a) -> (ExState, AllocPool a)
+allocpool_clean: all (a). (SysState, AllocPool a) -> (SysState, AllocPool a)

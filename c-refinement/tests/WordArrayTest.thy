@@ -87,16 +87,16 @@ definition
   "test_file_read_next_u32_type \<equiv> ([], (TCon ''File'' [] Writable, TSum [(''Error'', TCon ''File'' [] Writable), (''Success'', TProduct (TCon ''File'' [] Writable) (TPrim (Num U32)))]))"
 
 definition
-  "test_file_close_type \<equiv> ([], (TProduct (TCon ''ExState'' [] Writable) (TCon ''File'' [] Writable), TCon ''ExState'' [] Writable))"
+  "test_file_close_type \<equiv> ([], (TProduct (TCon ''SysState'' [] Writable) (TCon ''File'' [] Writable), TCon ''SysState'' [] Writable))"
 
 definition
-  "test_file_open_type \<equiv> ([], (TProduct (TCon ''ExState'' [] Writable) (TProduct (TPrim String) (TPrim String)), TSum [(''Error'', TCon ''ExState'' [] Writable), (''Success'', TProduct (TCon ''ExState'' [] Writable) (TCon ''File'' [] Writable))]))"
+  "test_file_open_type \<equiv> ([], (TProduct (TCon ''SysState'' [] Writable) (TProduct (TPrim String) (TPrim String)), TSum [(''Error'', TCon ''SysState'' [] Writable), (''Success'', TProduct (TCon ''SysState'' [] Writable) (TCon ''File'' [] Writable))]))"
 
 definition
-  "wordarray_create_0_type \<equiv> ([], (TProduct (TCon ''ExState'' [] Writable) (TPrim (Num U32)), TSum [(''Error'', TCon ''ExState'' [] Writable), (''Success'', TProduct (TCon ''ExState'' [] Writable) (TCon ''WordArray'' [TPrim (Num U32)] Writable))]))"
+  "wordarray_create_0_type \<equiv> ([], (TProduct (TCon ''SysState'' [] Writable) (TPrim (Num U32)), TSum [(''Error'', TCon ''SysState'' [] Writable), (''Success'', TProduct (TCon ''SysState'' [] Writable) (TCon ''WordArray'' [TPrim (Num U32)] Writable))]))"
 
 definition
-  "wordarray_free_0_type \<equiv> ([], (TProduct (TCon ''ExState'' [] Writable) (TCon ''WordArray'' [TPrim (Num U32)] Writable), TCon ''ExState'' [] Writable))"
+  "wordarray_free_0_type \<equiv> ([], (TProduct (TCon ''SysState'' [] Writable) (TCon ''WordArray'' [TPrim (Num U32)] Writable), TCon ''SysState'' [] Writable))"
 
 definition
   "u16_to_u64_type \<equiv> ([], (TPrim (Num U16), TPrim (Num U64)))"
@@ -159,7 +159,7 @@ definition
   "safe_sub64 \<equiv> Split (Var 0) (Let (Prim (Minus U64) [Var 0, Var 1]) (Let (Prim (Gt U64) [Var 0, Var 1]) (If (Var 0) (Let Unit (Let (Con [(''Error'', TUnit)] ''Error'' (Var 0)) (Promote [(''Error'', TUnit), (''Success'', TPrim (Num U64))] (Var 0)))) (Let (Con [(''Success'', TPrim (Num U64))] ''Success'' (Var 1)) (Promote [(''Error'', TUnit), (''Success'', TPrim (Num U64))] (Var 0))))))"
 
 definition
-  "caller_type \<equiv> ([], (TCon ''ExState'' [] Writable, TCon ''ExState'' [] Writable))"
+  "caller_type \<equiv> ([], (TCon ''SysState'' [] Writable, TCon ''SysState'' [] Writable))"
 
 definition
   "caller \<equiv> Let (Var 0) (Let (Lit (LU8 4)) (Let (Cast U32 (Var 0)) (Let (Tuple (Var 2) (Var 0)) (Let (App (AFun ''wordarray_create_0'' []) (Var 0)) (Case (Var 0) ''Success'' (Split (Var 0) (Let (Lit (LU8 0)) (Let (App (AFun ''u8_to_u32'' []) (Var 0)) (Let (Lit (LU8 42)) (Let (App (AFun ''u8_to_u32'' []) (Var 0)) (Let (Struct [TCon ''WordArray'' [TPrim (Num U32)] Writable, TPrim (Num U32), TPrim (Num U32)] [Var 5, Var 2, Var 0]) (Let (App (AFun ''wordarray_put_0'' []) (Var 0)) (Case (Var 0) ''Success'' (LetBang (set [0]) (Let (Lit (LU8 0)) (Let (Cast U32 (Var 0)) (Let (Tuple (Var 2) (Var 0)) (App (AFun ''wordarray_get_0'' []) (Var 0))))) (Let (Tuple (Var 8) (Var 1)) (App (AFun ''wordarray_free_0'' []) (Var 0)))) (Let (Esac (Var 0)) (Let (Tuple (Var 8) (Var 0)) (App (AFun ''wordarray_free_0'' []) (Var 0)))))))))))) (Let (Esac (Var 0)) (Var 0)))))))"
@@ -198,7 +198,7 @@ definition
   "safe_sub64_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some (TPrim (Num U64)), Some (TPrim (Num U64))] (TyTrSplit (Cons (Some TSK_S) (Cons (Some TSK_L) (Cons None []))) [] TyTrLeaf [Some (TPrim (Num U64))] (TyTrSplit (Cons (Some TSK_S) (Cons (Some TSK_L) (append (replicate 2 None) []))) [] TyTrLeaf [Some (TPrim Bool)] (TyTrSplit (Cons (Some TSK_L) (append (replicate 4 None) [])) [] TyTrLeaf [] (TyTrSplit (Cons None (Cons (Some TSK_S) (append (replicate 3 None) []))) [] (TyTrSplit (Cons None (Cons (Some TSK_L) (append (replicate 3 None) []))) [] TyTrLeaf [Some TUnit] (TyTrSplit (Cons (Some TSK_L) (append (replicate 5 None) [])) [] TyTrLeaf [Some (TSum [(''Error'', TUnit)])] TyTrLeaf)) [] (TyTrSplit (Cons None (Cons (Some TSK_L) (append (replicate 3 None) []))) [] TyTrLeaf [Some (TSum [(''Success'', TPrim (Num U64))])] TyTrLeaf)))))"
 
 definition
-  "caller_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some (TCon ''ExState'' [] Writable)] (TyTrSplit (append (replicate 2 None) []) [] TyTrLeaf [Some (TPrim (Num U8))] (TyTrSplit (Cons (Some TSK_L) (append (replicate 2 None) [])) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_L) (Cons None (Cons (Some TSK_L) (Cons None [])))) [] TyTrLeaf [Some (TProduct (TCon ''ExState'' [] Writable) (TPrim (Num U32)))] (TyTrSplit (Cons (Some TSK_L) (append (replicate 4 None) [])) [] TyTrLeaf [Some (TSum [(''Error'', TCon ''ExState'' [] Writable), (''Success'', TProduct (TCon ''ExState'' [] Writable) (TCon ''WordArray'' [TPrim (Num U32)] Writable))])] (TyTrSplit (Cons (Some TSK_L) (append (replicate 5 None) [])) [] TyTrLeaf [] (TyTrSplit (append (replicate 6 None) []) [Some (TProduct (TCon ''ExState'' [] Writable) (TCon ''WordArray'' [TPrim (Num U32)] Writable))] (TyTrSplit (Cons (Some TSK_L) (append (replicate 6 None) [])) [] TyTrLeaf [Some (TCon ''ExState'' [] Writable), Some (TCon ''WordArray'' [TPrim (Num U32)] Writable)] (TyTrSplit (append (replicate 9 None) []) [] TyTrLeaf [Some (TPrim (Num U8))] (TyTrSplit (Cons (Some TSK_L) (append (replicate 9 None) [])) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (append (replicate 11 None) []) [] TyTrLeaf [Some (TPrim (Num U8))] (TyTrSplit (Cons (Some TSK_L) (append (replicate 11 None) [])) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_L) (Cons None (Cons (Some TSK_L) (append (replicate 2 None) (Cons (Some TSK_L) (append (replicate 7 None) [])))))) [] TyTrLeaf [Some (TRecord [(TCon ''WordArray'' [TPrim (Num U32)] Writable, False), (TPrim (Num U32), False), (TPrim (Num U32), False)] Unboxed)] (TyTrSplit (Cons (Some TSK_L) (append (replicate 13 None) [])) [] TyTrLeaf [Some (TSum [(''Error'', TCon ''WordArray'' [TPrim (Num U32)] Writable), (''Success'', TCon ''WordArray'' [TPrim (Num U32)] Writable)])] (TyTrSplit (Cons (Some TSK_L) (append (replicate 14 None) [])) [] TyTrLeaf [] (TyTrSplit (append (replicate 6 None) (Cons (Some TSK_S) (append (replicate 8 None) []))) [Some (TCon ''WordArray'' [TPrim (Num U32)] Writable)] (TyTrSplit (Cons (Some TSK_NS) (append (replicate 15 None) [])) [] (TyTrSplit (append (replicate 16 None) []) [] TyTrLeaf [Some (TPrim (Num U8))] (TyTrSplit (Cons (Some TSK_L) (append (replicate 16 None) [])) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_L) (Cons None (Cons (Some TSK_L) (append (replicate 15 None) [])))) [] TyTrLeaf [Some (TProduct (TCon ''WordArray'' [TPrim (Num U32)] ReadOnly) (TPrim (Num U32)))] TyTrLeaf))) [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_L) (append (replicate 6 None) (Cons (Some TSK_L) (append (replicate 8 None) []))))) [] TyTrLeaf [Some (TProduct (TCon ''ExState'' [] Writable) (TCon ''WordArray'' [TPrim (Num U32)] Writable))] TyTrLeaf)) [Some (TSum [(''Error'', TCon ''WordArray'' [TPrim (Num U32)] Writable)])] (TyTrSplit (Cons (Some TSK_L) (append (replicate 15 None) [])) [] TyTrLeaf [Some (TCon ''WordArray'' [TPrim (Num U32)] Writable)] (TyTrSplit (Cons (Some TSK_L) (append (replicate 7 None) (Cons (Some TSK_L) (append (replicate 8 None) [])))) [] TyTrLeaf [Some (TProduct (TCon ''ExState'' [] Writable) (TCon ''WordArray'' [TPrim (Num U32)] Writable))] TyTrLeaf))))))))))) [Some (TSum [(''Error'', TCon ''ExState'' [] Writable)])] (TyTrSplit (Cons (Some TSK_L) (append (replicate 6 None) [])) [] TyTrLeaf [Some (TCon ''ExState'' [] Writable)] TyTrLeaf)))))))"
+  "caller_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some (TCon ''SysState'' [] Writable)] (TyTrSplit (append (replicate 2 None) []) [] TyTrLeaf [Some (TPrim (Num U8))] (TyTrSplit (Cons (Some TSK_L) (append (replicate 2 None) [])) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_L) (Cons None (Cons (Some TSK_L) (Cons None [])))) [] TyTrLeaf [Some (TProduct (TCon ''SysState'' [] Writable) (TPrim (Num U32)))] (TyTrSplit (Cons (Some TSK_L) (append (replicate 4 None) [])) [] TyTrLeaf [Some (TSum [(''Error'', TCon ''SysState'' [] Writable), (''Success'', TProduct (TCon ''SysState'' [] Writable) (TCon ''WordArray'' [TPrim (Num U32)] Writable))])] (TyTrSplit (Cons (Some TSK_L) (append (replicate 5 None) [])) [] TyTrLeaf [] (TyTrSplit (append (replicate 6 None) []) [Some (TProduct (TCon ''SysState'' [] Writable) (TCon ''WordArray'' [TPrim (Num U32)] Writable))] (TyTrSplit (Cons (Some TSK_L) (append (replicate 6 None) [])) [] TyTrLeaf [Some (TCon ''SysState'' [] Writable), Some (TCon ''WordArray'' [TPrim (Num U32)] Writable)] (TyTrSplit (append (replicate 9 None) []) [] TyTrLeaf [Some (TPrim (Num U8))] (TyTrSplit (Cons (Some TSK_L) (append (replicate 9 None) [])) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (append (replicate 11 None) []) [] TyTrLeaf [Some (TPrim (Num U8))] (TyTrSplit (Cons (Some TSK_L) (append (replicate 11 None) [])) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_L) (Cons None (Cons (Some TSK_L) (append (replicate 2 None) (Cons (Some TSK_L) (append (replicate 7 None) [])))))) [] TyTrLeaf [Some (TRecord [(TCon ''WordArray'' [TPrim (Num U32)] Writable, False), (TPrim (Num U32), False), (TPrim (Num U32), False)] Unboxed)] (TyTrSplit (Cons (Some TSK_L) (append (replicate 13 None) [])) [] TyTrLeaf [Some (TSum [(''Error'', TCon ''WordArray'' [TPrim (Num U32)] Writable), (''Success'', TCon ''WordArray'' [TPrim (Num U32)] Writable)])] (TyTrSplit (Cons (Some TSK_L) (append (replicate 14 None) [])) [] TyTrLeaf [] (TyTrSplit (append (replicate 6 None) (Cons (Some TSK_S) (append (replicate 8 None) []))) [Some (TCon ''WordArray'' [TPrim (Num U32)] Writable)] (TyTrSplit (Cons (Some TSK_NS) (append (replicate 15 None) [])) [] (TyTrSplit (append (replicate 16 None) []) [] TyTrLeaf [Some (TPrim (Num U8))] (TyTrSplit (Cons (Some TSK_L) (append (replicate 16 None) [])) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_L) (Cons None (Cons (Some TSK_L) (append (replicate 15 None) [])))) [] TyTrLeaf [Some (TProduct (TCon ''WordArray'' [TPrim (Num U32)] ReadOnly) (TPrim (Num U32)))] TyTrLeaf))) [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_L) (append (replicate 6 None) (Cons (Some TSK_L) (append (replicate 8 None) []))))) [] TyTrLeaf [Some (TProduct (TCon ''SysState'' [] Writable) (TCon ''WordArray'' [TPrim (Num U32)] Writable))] TyTrLeaf)) [Some (TSum [(''Error'', TCon ''WordArray'' [TPrim (Num U32)] Writable)])] (TyTrSplit (Cons (Some TSK_L) (append (replicate 15 None) [])) [] TyTrLeaf [Some (TCon ''WordArray'' [TPrim (Num U32)] Writable)] (TyTrSplit (Cons (Some TSK_L) (append (replicate 7 None) (Cons (Some TSK_L) (append (replicate 8 None) [])))) [] TyTrLeaf [Some (TProduct (TCon ''SysState'' [] Writable) (TCon ''WordArray'' [TPrim (Num U32)] Writable))] TyTrLeaf))))))))))) [Some (TSum [(''Error'', TCon ''SysState'' [] Writable)])] (TyTrSplit (Cons (Some TSK_L) (append (replicate 6 None) [])) [] TyTrLeaf [Some (TCon ''SysState'' [] Writable)] TyTrLeaf)))))))"
 
 ML {* open TTyping_Tactics *}
 
@@ -430,7 +430,7 @@ val typing_helper_17_script : tac list = [
 
 
 lemma typing_helper_17[unfolded abbreviated_type_defs] :
-  "kinding [] (TCon ''ExState'' [] Writable) {E}"
+  "kinding [] (TCon ''SysState'' [] Writable) {E}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic {* map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_17_script |> EVERY *})
   done
@@ -456,7 +456,7 @@ val typing_helper_19_script : tac list = [
 
 
 lemma typing_helper_19[unfolded abbreviated_type_defs] :
-  "kinding [] (TProduct (TCon ''ExState'' [] Writable) (TPrim (Num U32))) {E}"
+  "kinding [] (TProduct (TCon ''SysState'' [] Writable) (TPrim (Num U32))) {E}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic {* map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_19_script |> EVERY *})
   done
@@ -486,7 +486,7 @@ val typing_helper_21_script : tac list = [
 
 
 lemma typing_helper_21[unfolded abbreviated_type_defs] :
-  "kinding [] (TProduct (TCon ''ExState'' [] Writable) (TCon ''WordArray'' [TPrim (Num U32)] Writable)) {E}"
+  "kinding [] (TProduct (TCon ''SysState'' [] Writable) (TCon ''WordArray'' [TPrim (Num U32)] Writable)) {E}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic {* map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_21_script |> EVERY *})
   done
@@ -505,7 +505,7 @@ val typing_helper_22_script : tac list = [
 
 
 lemma typing_helper_22[unfolded abbreviated_type_defs] :
-  "kinding [] (TSum [(''Error'', TCon ''ExState'' [] Writable), (''Success'', TProduct (TCon ''ExState'' [] Writable) (TCon ''WordArray'' [TPrim (Num U32)] Writable))]) {E}"
+  "kinding [] (TSum [(''Error'', TCon ''SysState'' [] Writable), (''Success'', TProduct (TCon ''SysState'' [] Writable) (TCon ''WordArray'' [TPrim (Num U32)] Writable))]) {E}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic {* map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_22_script |> EVERY *})
   done
@@ -519,7 +519,7 @@ val typing_helper_23_script : tac list = [
 
 
 lemma typing_helper_23[unfolded abbreviated_type_defs] :
-  "kinding [] (TFun (TProduct (TCon ''ExState'' [] Writable) (TPrim (Num U32))) (TSum [(''Error'', TCon ''ExState'' [] Writable), (''Success'', TProduct (TCon ''ExState'' [] Writable) (TCon ''WordArray'' [TPrim (Num U32)] Writable))])) {E, S, D}"
+  "kinding [] (TFun (TProduct (TCon ''SysState'' [] Writable) (TPrim (Num U32))) (TSum [(''Error'', TCon ''SysState'' [] Writable), (''Success'', TProduct (TCon ''SysState'' [] Writable) (TCon ''WordArray'' [TPrim (Num U32)] Writable))])) {E, S, D}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic {* map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_23_script |> EVERY *})
   done
@@ -642,7 +642,7 @@ val typing_helper_31_script : tac list = [
 
 
 lemma typing_helper_31[unfolded abbreviated_type_defs] :
-  "kinding [] (TFun (TProduct (TCon ''ExState'' [] Writable) (TCon ''WordArray'' [TPrim (Num U32)] Writable)) (TCon ''ExState'' [] Writable)) {E, S, D}"
+  "kinding [] (TFun (TProduct (TCon ''SysState'' [] Writable) (TCon ''WordArray'' [TPrim (Num U32)] Writable)) (TCon ''SysState'' [] Writable)) {E, S, D}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic {* map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_31_script |> EVERY *})
   done
@@ -676,7 +676,7 @@ val typing_helper_33_script : tac list = [
 
 
 lemma typing_helper_33[unfolded abbreviated_type_defs] :
-  "kinding [] (TSum [(''Error'', TCon ''ExState'' [] Writable)]) {E}"
+  "kinding [] (TSum [(''Error'', TCon ''SysState'' [] Writable)]) {E}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic {* map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_33_script |> EVERY *})
   done
@@ -1174,11 +1174,11 @@ instantiation WordArray_u32_C :: cogent_C_val begin
   instance ..
 end
 
-instantiation ExState_t_C :: cogent_C_val begin
-  definition type_rel_ExState_t_C_def:
-    "type_rel r (_ :: ExState_t_C itself) \<equiv> r = RCon ''ExState'' []"
-  definition val_rel_ExState_t_C_def:
-    "val_rel uv (_ :: ExState_t_C) \<equiv> uv = UAbstract Abstyp_ExState"
+instantiation SysState_t_C :: cogent_C_val begin
+  definition type_rel_SysState_t_C_def:
+    "type_rel r (_ :: SysState_t_C itself) \<equiv> r = RCon ''SysState'' []"
+  definition val_rel_SysState_t_C_def:
+    "val_rel uv (_ :: SysState_t_C) \<equiv> uv = UAbstract Abstyp_SysState"
   instance ..
 end
 
@@ -1230,14 +1230,14 @@ locale WordArrayTest = wordarraytest begin
   definition "abs_repr' a \<equiv> case a of
       Abstyp_WordArray_U8 _ \<Rightarrow> (''WordArray'', [RPrim (Num U8)])
     | Abstyp_WordArray_U32 _ \<Rightarrow> (''WordArray'', [RPrim (Num U32)])
-    | Abstyp_ExState \<Rightarrow> (''ExState'', [])"
+    | Abstyp_SysState \<Rightarrow> (''SysState'', [])"
 
   definition "abs_typing' a name \<tau>s sig (r :: ptrtyp set) (w :: ptrtyp set) \<equiv>
     r = {} \<and> w = {} \<and> sig \<noteq> Unboxed \<and>
     (case a of
       Abstyp_WordArray_U8 _ \<Rightarrow> name = ''WordArray'' \<and> \<tau>s = [TPrim (Num U8)]
     | Abstyp_WordArray_U32 _ \<Rightarrow> name = ''WordArray'' \<and> \<tau>s = [TPrim (Num U32)]
-    | Abstyp_ExState \<Rightarrow> name = ''ExState'' \<and> \<tau>s = [])"
+    | Abstyp_SysState \<Rightarrow> name = ''SysState'' \<and> \<tau>s = [])"
 end
 
 sublocale WordArrayTest \<subseteq>
@@ -1628,8 +1628,8 @@ lemma u8_to_u32_corres:
 
 lemma corres_case_t13_C_Success:
   "\<lbrakk> x < length \<Gamma>';
-     \<Gamma>' ! x = Some (TSum [(''Error'', TCon ''ExState'' [] Writable),
-                          (''Success'', TProduct (TCon ''ExState'' [] Writable)
+     \<Gamma>' ! x = Some (TSum [(''Error'', TCon ''SysState'' [] Writable),
+                          (''Success'', TProduct (TCon ''SysState'' [] Writable)
                                                  (TCon ''WordArray'' [TPrim (Num U32)] Writable))]);
      [] \<turnstile> \<Gamma>' \<leadsto> \<Gamma>1 | \<Gamma>2;
      val_rel (\<gamma> ! x) x';
@@ -1641,19 +1641,19 @@ lemma corres_case_t13_C_Success:
                val_rel (USum vtag vval [x\<leftarrow>vtyps . fst x \<noteq> ''Success''])
                 (t123_C.Error_C_update (\<lambda>_. t13_C.Error_C x')
                    (t123_C.tag_C_update (\<lambda>_. t13_C.tag_C x') (t123_C 0 NULL)));
-     \<Xi>', [], \<Gamma>1 \<turnstile> Var x : TSum [(''Error'', TCon ''ExState'' [] Writable),
-                                 (''Success'', TProduct (TCon ''ExState'' [] Writable)
+     \<Xi>', [], \<Gamma>1 \<turnstile> Var x : TSum [(''Error'', TCon ''SysState'' [] Writable),
+                                 (''Success'', TProduct (TCon ''SysState'' [] Writable)
                                                         (TCon ''WordArray'' [TPrim (Num U32)] Writable))];
-     \<Xi>', [], Some (TProduct (TCon ''ExState'' [] Writable)
+     \<Xi>', [], Some (TProduct (TCon ''SysState'' [] Writable)
                             (TCon ''WordArray'' [TPrim (Num U32)] Writable)) # \<Gamma>2 \<turnstile> match : t;
-     \<Xi>', [], Some (TSum [(''Error'', TCon ''ExState'' [] Writable)]) # \<Gamma>2 \<turnstile> not_match : t;
+     \<Xi>', [], Some (TSum [(''Error'', TCon ''SysState'' [] Writable)]) # \<Gamma>2 \<turnstile> not_match : t;
      \<And>a a'. val_rel a a' \<Longrightarrow>
              corres srel match (match' a') \<xi>' (a # \<gamma>) \<Xi>'
-               (Some (TProduct (TCon ''ExState'' [] Writable)
+               (Some (TProduct (TCon ''SysState'' [] Writable)
                                (TCon ''WordArray'' [TPrim (Num U32)] Writable)) # \<Gamma>2) \<sigma> s;
      \<And>r r'. val_rel r r' \<Longrightarrow>
              corres srel not_match (not_match' r') \<xi>' (r # \<gamma>) \<Xi>'
-               (Some (TSum [(''Error'', TCon ''ExState'' [] Writable)]) # \<Gamma>2) \<sigma> s
+               (Some (TSum [(''Error'', TCon ''SysState'' [] Writable)]) # \<Gamma>2) \<sigma> s
      \<rbrakk> \<Longrightarrow>
      corres srel
        (Case (Var x) ''Success'' match not_match)
@@ -1665,8 +1665,8 @@ lemma corres_case_t13_C_Success:
          \<xi>' \<gamma> \<Xi>' \<Gamma>' \<sigma> s"
   apply simp
   apply (rule corres_case
-    [where \<tau>s = "[(''Error'', TCon ''ExState'' [] Writable),
-                  (''Success'', TProduct (TCon ''ExState'' [] Writable)
+    [where \<tau>s = "[(''Error'', TCon ''SysState'' [] Writable),
+                  (''Success'', TProduct (TCon ''SysState'' [] Writable)
                                          (TCon ''WordArray'' [TPrim (Num U32)] Writable))]"
        and tag = "''Success''" and tag' = "TAG_ENUM_Success"
        and get_tag' = "t13_C.tag_C" and get_A' = "t13_C.Success_C"

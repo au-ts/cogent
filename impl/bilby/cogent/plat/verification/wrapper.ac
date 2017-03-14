@@ -34,9 +34,9 @@ typedef struct VfsIattr {
 typedef struct OSBuffer {
   int dummy;
 } OSBuffer;
-typedef struct ExState {
+typedef struct SysState {
   int dummy;
-} ExState;
+} SysState;
 typedef struct WrapperState {
   int dummy;
 } WrapperState;

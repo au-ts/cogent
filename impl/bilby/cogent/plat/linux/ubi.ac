@@ -96,9 +96,9 @@ struct ubi_volume_desc *open_ubi(const char *name, int mode)
         return ERR_PTR(-EINVAL);
 }
 
-$ty:(R (ExState, UbiVol) ExState) $id:wubi_open($ty:(WubiOpenP) args)
+$ty:(R (SysState, UbiVol) SysState) $id:wubi_open($ty:(WubiOpenP) args)
 {
-        $ty:(R (ExState, UbiVol) ExState) ret;
+        $ty:(R (SysState, UbiVol) SysState) ret;
         $ty:(UbiVol) vold;
    
         vold = open_ubi(args.name->values, wubimode_to_ubimode(args.mode));
@@ -113,16 +113,16 @@ $ty:(R (ExState, UbiVol) ExState) $id:wubi_open($ty:(WubiOpenP) args)
         return ret;
 }
 
-$ty:(ExState) $id:wubi_close($ty:((ExState, UbiVol)) args)
+$ty:(SysState) $id:wubi_close($ty:((SysState, UbiVol)) args)
 {
         if (args.p2)
                 ubi_close_volume(args.p2);
         return args.p1;
 }
 
-$ty:(R (ExState, UbiVol) ExState) $id:wubi_open_volume($ty:(WubiOpenVolumeP) args)
+$ty:(R (SysState, UbiVol) SysState) $id:wubi_open_volume($ty:(WubiOpenVolumeP) args)
 {
-        $ty:(R (ExState, UbiVol) ExState) ret;
+        $ty:(R (SysState, UbiVol) SysState) ret;
         $ty:(UbiVol) vold;
    
         vold = ubi_open_volume(args.ubi_num, args.vol_id, wubimode_to_ubimode(args.mode));
@@ -180,11 +180,11 @@ $ty:(WubiGetDevInfoR) $id:wubi_get_dev_info($ty:((UbiNum, UbiDevInfo)) args)
 }
 
 /* 
-type WubiIsMappedR = RR ExState Bool ErrCode
+type WubiIsMappedR = RR SysState Bool ErrCode
 */
 $ty:(WubiIsMappedR) $id:wubi_is_mapped($ty:(WubiIsMappedP) args)
 {
-       $ty:(RR ExState Bool ErrCode) ret; 
+       $ty:(RR SysState Bool ErrCode) ret; 
        int err;
 
        err = ubi_is_mapped(args.ubi_vol, args.ebnum);
@@ -200,7 +200,7 @@ $ty:(WubiIsMappedR) $id:wubi_is_mapped($ty:(WubiIsMappedP) args)
 }
 
 /*
-type WubiLebReadR = RR (ExState, UbiVol, Buffer) () ErrCode
+type WubiLebReadR = RR (SysState, UbiVol, Buffer) () ErrCode
 */
 $ty:(WubiLebReadR) $id:wubi_leb_read($ty:(WubiLebReadP) args)
 {

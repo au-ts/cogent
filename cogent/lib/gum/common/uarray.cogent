@@ -14,7 +14,7 @@ type UArray a
 
 {-# cinline uarray_create #-}
 {-# fnmacro uarray_create #-}
-uarray_create: all (a :< E). (ExState, U32) -> R (ExState, UArray a) ExState
+uarray_create: all (a :< E). (SysState, U32) -> R (SysState, UArray a) SysState
 -- uarray_create(ex, length)
 -- The Error case is always eNoMem
 
@@ -65,18 +65,18 @@ uarray_nb_elem: all(a :<E). (UArray a)! -> U32
 {-# fnmacro uarray_exists #-}
 uarray_exists: all(a :< E). ((UArray a)!, WordArrayIndex) -> Bool
 
-type UArrayFreeP a = #{arr: UArray a, f: FreeF a, ex: ExState}
-type UArrayFreeAccP a acc obsv = #{arr: UArray a, f: FreeAccF a acc obsv, ex: ExState, acc: acc, obsv: obsv!}
+type UArrayFreeP a = #{arr: UArray a, f: FreeF a, ex: SysState}
+type UArrayFreeAccP a acc obsv = #{arr: UArray a, f: FreeAccF a acc obsv, ex: SysState, acc: acc, obsv: obsv!}
 
 {-# cinline uarray_free #-}
 {-# fnmacro uarray_free #-}
-uarray_free: all(a :<E). UArrayFreeP a -> ExState
+uarray_free: all(a :<E). UArrayFreeP a -> SysState
 -- uarray_free(freeer, ex, arr)
 -- This ensures that all elements of the array have been removed
 
 {-# cinline uarray_freeacc #-}
 {-# fnmacro uarray_freeacc #-}
-uarray_freeacc: all(a :<E, acc, obsv). UArrayFreeAccP a acc obsv -> (ExState, acc)
+uarray_freeacc: all(a :<E, acc, obsv). UArrayFreeAccP a acc obsv -> (SysState, acc)
 
 -- if (the item exists at the index <idx> given):
 --   remove the item
@@ -86,11 +86,11 @@ uarray_freeacc: all(a :<E, acc, obsv). UArrayFreeAccP a acc obsv -> (ExState, ac
 -- else
 --   free the given <elem> using <f>
 --   return the array unmodified
-type UArrayReplaceP a = #{arr: UArray a, idx: WordArrayIndex, elem: a, f: FreeF a, ex: ExState }
+type UArrayReplaceP a = #{arr: UArray a, idx: WordArrayIndex, elem: a, f: FreeF a, ex: SysState }
 
 {-# cinline uarray_replace #-}
 {-# fnmacro uarray_replace #-}
-uarray_replace: all (a :< E). UArrayReplaceP a -> RR (ExState, UArray a) () ()
+uarray_replace: all (a :< E). UArrayReplaceP a -> RR (SysState, UArray a) () ()
 
 type UArrayMapExF a acc obsv rbrk = ElemAO a acc obsv -> LoopResult (ElemA a acc) (ElemB a rbrk)
 type UArrayMapExP a acc obsv rbrk = #{arr:UArray a, frm: U32, to:U32, f: UArrayMapExF a acc obsv rbrk, acc:acc, obsv:obsv!}

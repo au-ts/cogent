@@ -82,34 +82,34 @@ vfs_inode_is_sync: (VfsInode!) -> Bool
 
 -- returns a new inode
 {-# cinline vfs_inode_new #-}
-vfs_inode_new: (ExState) -> R (ExState, VfsInode take fs) ExState
+vfs_inode_new: (SysState) -> R (SysState, VfsInode take fs) SysState
 
 {-# cinline vfs_inode_get #-}
-vfs_inode_get: (ExState, VfsIno) -> (ExState, <New (VfsInode take fs) | Existing VfsInode | None ()>)
+vfs_inode_get: (SysState, VfsIno) -> (SysState, <New (VfsInode take fs) | Existing VfsInode | None ()>)
 
 {-# cinline vfs_inode_put #-}
-vfs_inode_put: (#{ex: ExState, inode: VfsInode}) -> (ExState)
+vfs_inode_put: (#{ex: SysState, inode: VfsInode}) -> (SysState)
 
 {-# cinline vfs_inode_put_taken #-}
-vfs_inode_put_taken: (#{ex: ExState, inode: VfsInode take fs}) -> (ExState)
+vfs_inode_put_taken: (#{ex: SysState, inode: VfsInode take fs}) -> (SysState)
 
 -- sugar
-vfs_inode_put_tuple: (ExState, VfsInode) -> ExState
+vfs_inode_put_tuple: (SysState, VfsInode) -> SysState
 vfs_inode_put_tuple (ex, inode) = vfs_inode_put #{ex, inode}
 
 {-# cinline vfs_inode_bad #-}
-vfs_inode_bad: (#{ex: ExState, inode: VfsInode}) -> (ExState)
+vfs_inode_bad: (#{ex: SysState, inode: VfsInode}) -> (SysState)
 
 {-# cinline vfs_inode_bad_taken #-}
-vfs_inode_bad_taken: (#{ex: ExState, inode: VfsInode take fs}) -> (ExState)
+vfs_inode_bad_taken: (#{ex: SysState, inode: VfsInode take fs}) -> (SysState)
 
 vfs_inode_make_bad: VfsInode -> VfsInode
 
 {-# cinline vfs_inode_insert #-}
-vfs_inode_insert: (#{ex: ExState, inode: VfsInode}) -> R (ExState, VfsInode) (ExState, VfsInode)
+vfs_inode_insert: (#{ex: SysState, inode: VfsInode}) -> R (SysState, VfsInode) (SysState, VfsInode)
 
 {-# cinline vfs_inode_mark_dirty #-}
-vfs_inode_mark_dirty: (ExState, VfsInode) -> (ExState, VfsInode)
+vfs_inode_mark_dirty: (SysState, VfsInode) -> (SysState, VfsInode)
 
 {-# cinline vfs_inode_set_ino #-}
 vfs_inode_set_ino:  (VfsInode, VfsIno) -> (VfsInode)
@@ -238,7 +238,7 @@ vfs_inode_sub_bytes (inode, bytes) =
 
 
 -- FIXME: this should be implemented in COGENT
-vfs_page_symlink: (ExState, VfsInode, CString!) -> RR (ExState, VfsInode) () U32
+vfs_page_symlink: (SysState, VfsInode, CString!) -> RR (SysState, VfsInode) () U32
 
 type VfsDentry = {
   name: CString,

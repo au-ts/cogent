@@ -8,9 +8,9 @@
  * @TAG(NICTA_GPL)
  */
 
-$ty:(R (ExState, Array a) ExState) $id:array_create($ty:((ExState, U32)) args)
+$ty:(R (SysState, Array a) SysState) $id:array_create($ty:((SysState, U32)) args)
 {
-	$ty:(R ((ExState, Array a)) ExState) ret;
+	$ty:(R ((SysState, Array a)) SysState) ret;
 	u32 len = args.p2;
 
 	// this assignment is here for type inference to work
@@ -39,20 +39,20 @@ $ty:(R (ExState, Array a) ExState) $id:array_create($ty:((ExState, U32)) args)
 	return ret;
 }
 
-$ty:(ExState) $id:array_free($ty:(ArrayFreeP a) args)
+$ty:(SysState) $id:array_free($ty:(ArrayFreeP a) args)
 {
 	$ty:(Array a) array = args.arr;
 	u32 i;
 
 	$ty:(FreeF a) freeFunc = args.f;
-	$ty:(ExState) h = args.ex; // FIXME: should work with explicit Heap*
+	$ty:(SysState) h = args.ex; // FIXME: should work with explicit Heap*
 
 	// loop over each element, and free it
 	if (array->values) {
 		for (i = 0; i < array->len; i++) {
 			if (array->values[i] != NULL) {
 				// note: we use a tuple here
-				$ty:((ExState, a)) heap_array = {.p1 = h, .p2 = array->values[i]};
+				$ty:((SysState, a)) heap_array = {.p1 = h, .p2 = array->values[i]};
 				h = (($spec:(FreeF a))freeFunc) (heap_array);
 			}
 		}

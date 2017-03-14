@@ -9,9 +9,9 @@
  */
 
 #define GEN_ALLOC(TYPE) \
-$ty:(R (ExState, TYPE) ExState) $id:(new##TYPE)($ty:(ExState) ex) \
+$ty:(R (SysState, TYPE) SysState) $id:(new##TYPE)($ty:(SysState) ex) \
 { \
-    $ty:(R (ExState, TYPE) ExState) ret; \
+    $ty:(R (SysState, TYPE) SysState) ret; \
         ret.Success.p2 = malloc(sizeof(*ret.Success.p2)); \
  \
     if (ret.Success.p2 == NULL) { \
@@ -24,7 +24,7 @@ $ty:(R (ExState, TYPE) ExState) $id:(new##TYPE)($ty:(ExState) ex) \
     return ret; \
 } \
  \
-$ty:(ExState) $id:(free##TYPE)($ty:((ExState, TYPE)) args) \
+$ty:(SysState) $id:(free##TYPE)($ty:((SysState, TYPE)) args) \
 { \
     free(args.p2); \
     return args.p1; \

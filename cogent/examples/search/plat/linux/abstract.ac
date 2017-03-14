@@ -8,7 +8,7 @@
  * @TAG(NICTA_GPL)
  */
 
-$ty:(RR ExState (#CString, Index) ErrCode) deserialise_CString ($ty:((ExState, Buffer!, Index, U32)) args) {
+$ty:(RR SysState (#CString, Index) ErrCode) deserialise_CString ($ty:((SysState, Buffer!, Index, U32)) args) {
   deserialise_CString_ret ret;
   char* dst = malloc (sizeof (char) * args.p4);
   memcpy (dst, args.p2 + args.p3, args.p4);
@@ -20,16 +20,16 @@ $ty:(RR ExState (#CString, Index) ErrCode) deserialise_CString ($ty:((ExState, B
   return ret;
 }
 
-$ty:((ExState, U32, Index)) deserialise_U32 ($ty:((ExState, Buffer!, Index)) args) {
-  $ty:((ExState, U32, Index)) ret;
+$ty:((SysState, U32, Index)) deserialise_U32 ($ty:((SysState, Buffer!, Index)) args) {
+  $ty:((SysState, U32, Index)) ret;
   ret.p1 = args.p1;
   ret.p2 = ((char*)args.p2)[args.p3];
   ret.p3 = args.p3 + sizeof ($ty:(U32));
   return ret;
 }
 
-$ty:(RR ExState (Node take (..)) ErrCode) malloc_Node ($ty:(ExState) args) {
-  $ty:(RR ExState (Node take (..)) ErrCode) ret;
+$ty:(RR SysState (Node take (..)) ErrCode) malloc_Node ($ty:(SysState) args) {
+  $ty:(RR SysState (Node take (..)) ErrCode) ret;
   $ty:(Node take (..)) node = malloc (sizeof ($ty:(Node)));
   ret.p1 = args;
   if (node) {
@@ -42,14 +42,14 @@ $ty:(RR ExState (Node take (..)) ErrCode) malloc_Node ($ty:(ExState) args) {
   return ret;
 }
 
-$ty:(ExState) free_Node ($ty:((ExState, Node take (..))) args) {
-  $ty:(ExState) ret = args.p1;
+$ty:(SysState) free_Node ($ty:((SysState, Node take (..))) args) {
+  $ty:(SysState) ret = args.p1;
   free (args.p2);
   return ret;
 }
 
-$ty:(ExState) free_CString ($ty:((ExState, #CString)) args) {
-  $ty:(ExState) ret = args.p1;
+$ty:(SysState) free_CString ($ty:((SysState, #CString)) args) {
+  $ty:(SysState) ret = args.p1;
   free (args.p2);
   return ret;
 }
@@ -61,7 +61,7 @@ $ty:(Bool) string_cmp ($ty:(((#CString)!, (#CString)!)) args) {
     else return $exp:(False);
 }
 
-$ty:(ExState) array_print ($ty:((ExState, (#CString)!)) args) {
+$ty:(SysState) array_print ($ty:((SysState, (#CString)!)) args) {
   printf ("%s", args.p2);
   return (args.p1);
 }

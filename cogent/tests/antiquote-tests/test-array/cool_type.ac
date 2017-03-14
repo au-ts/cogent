@@ -8,10 +8,10 @@
  * @TAG(NICTA_GPL)
  */
 
-// malloc_CoolType: ExState -> R (ExState, CoolType take (..)) (ExState)
-static inline $ty:(R (ExState, CoolType take (..)) ExState) $id:malloc_CoolType ($ty:(ExState) arg)
+// malloc_CoolType: SysState -> R (SysState, CoolType take (..)) (SysState)
+static inline $ty:(R (SysState, CoolType take (..)) SysState) $id:malloc_CoolType ($ty:(SysState) arg)
 {
-   $ty:(R (ExState, CoolType take (..)) ExState) ret;
+   $ty:(R (SysState, CoolType take (..)) SysState) ret;
    ret.tag = TAG_ENUM_Success;
    ret.Success.p1 = arg;
    ret.Success.p2 = malloc (sizeof (*(ret.Success.p2)));
@@ -22,8 +22,8 @@ static inline $ty:(R (ExState, CoolType take (..)) ExState) $id:malloc_CoolType 
    return ret;
 }
 
-// free_CoolType: (ExState, CoolType take (..)) -> ExState
-static inline $ty:(ExState) $id:free_CoolType ($ty:((ExState, CoolType take (..))) arg)
+// free_CoolType: (SysState, CoolType take (..)) -> SysState
+static inline $ty:(SysState) $id:free_CoolType ($ty:((SysState, CoolType take (..))) arg)
 {
    free (arg.p2);
    return arg.p1;

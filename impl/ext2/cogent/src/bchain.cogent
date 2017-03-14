@@ -25,7 +25,7 @@ type Chain = {
 -- chain stack operations
 ------------------------------------------------------------------------------
 
-chain_push_indirect: (ExState, Chain, Indirect) -> (ExState, Chain)
+chain_push_indirect: (SysState, Chain, Indirect) -> (SysState, Chain)
 chain_push_indirect (ex, chain, indirect) =
   let depth = chain.indirect_count !chain
   and _ = _cogent_log (dbg_EXT2_CHAIN, "chain_push_indirect: blockptr=")
@@ -41,7 +41,7 @@ chain_push_indirect (ex, chain, indirect) =
   and chain = chain { indirect_count = depth + 1 }
   in (ex, chain)
 
-chain_put_indirect: (ExState, Chain, Indirect, Depth) -> (ExState, Chain)
+chain_put_indirect: (SysState, Chain, Indirect, Depth) -> (SysState, Chain)
 chain_put_indirect (ex, chain, indirect, depth) =
   let chain_t { indirects } = chain
   and ic = chain_t.indirect_count !chain_t
@@ -72,7 +72,7 @@ chain_get_indirect_blockptr (chain, depth) =
 
   in blockptr
 
-chain_set_indirect_blockptr: (ExState, Chain, Depth, BlockPtr) -> (ExState, Chain)
+chain_set_indirect_blockptr: (SysState, Chain, Depth, BlockPtr) -> (SysState, Chain)
 chain_set_indirect_blockptr (ex, chain, depth, ptr) =
   let _ = _cogent_assert2 ("chain_set_indirect_blockptr (1): depth < chain.indirect_count", True) !chain
   and (chain, maybe_indirect) = chain_take_indirect (chain, depth)  -- we have checked depth is in bound in this func call
@@ -91,7 +91,7 @@ chain_dirty_buffer_inode2 #{ elem = indirect, acc = inode, obsv } =
   | Some buf => vfs_inode_add_dirty_osbuffer (inode, buf)
   | None () -> inode
 
-chain_dirty_buffer_inode: (ExState, Chain!, Depth, VfsInode) -> (ExState, VfsInode)
+chain_dirty_buffer_inode: (SysState, Chain!, Depth, VfsInode) -> (SysState, VfsInode)
 chain_dirty_buffer_inode (ex, chain, depth, inode) =
   let _ = _cogent_assert (depth < chain.indirect_count) !chain
 
@@ -134,8 +134,8 @@ chain_pop_indirect chain =
 
   in (chain, maybe_indirect, idx)
 
-malloc_Chain: ExState -> RR ExState (Chain take (..)) ()
-free_Chain: (ExState, Chain take (..)) -> ExState
+malloc_Chain: SysState -> RR SysState (Chain take (..)) ()
+free_Chain: (SysState, Chain take (..)) -> SysState
 
 
 --chain_was_full: (Chain!, U32) -> Bool
@@ -145,7 +145,7 @@ free_Chain: (ExState, Chain take (..)) -> ExState
 -- building a chain from a list of offsets, and a starting block pointer
 ------------------------------------------------------------------------------
 
-type FillChainAcc = (ExState, Chain, LogicalBlock)
+type FillChainAcc = (SysState, Chain, LogicalBlock)
 
 chain_init: (FsState, Path) -> (FsState, R Chain Path)
 chain_init (state, path) = 
@@ -164,7 +164,7 @@ chain_init (state, path) =
     let state = state { prealloc_chain = None (), prealloc_indirects }
     in (state, Error path)
 
-chain_restore: (ExState, FsState, Chain) -> (ExState, FsState, Path)
+chain_restore: (SysState, FsState, Chain) -> (SysState, FsState, Path)
 chain_restore (ex, state, chain) = 
   let chain_t { .. } = chain
   and state_t { prealloc_chain, prealloc_indirects } = state
@@ -179,10 +179,10 @@ chain_restore (ex, state, chain) =
   in (ex, state, path)
 
 
---chain_destroy_emergency: (ExState, Chain) -> ExState
+--chain_destroy_emergency: (SysState, Chain) -> SysState
 --chain_destroy_emergency (ex, chain) = path_destroy (chain_free (ex, chain))
 
---chain_free_emergency: (ExState, Chain) -> (ExState, Path, Array Indirect)
+--chain_free_emergency: (SysState, Chain) -> (SysState, Path, Array Indirect)
 --chain_free (ex, chain) = 
 --  let chain_t { .. } = chain
 --  and ex = free_chain (ex, chain_t)
@@ -190,7 +190,7 @@ chain_restore (ex, state, chain) =
 
 -- note: this does NOT read the final block
 -- however, its LogicalBlock is placed in the Chain for you to read from disk
-chain_from_path: (ExState, Chain, VfsInode!, Depth) -> RR (ExState, Chain) (Option IndirectIdx) ()
+chain_from_path: (SysState, Chain, VfsInode!, Depth) -> RR (SysState, Chain) (Option IndirectIdx) ()
 chain_from_path (ex, chain, inode, depth) =
   -- create empty chain
   let _ = _cogent_assert (depth <= chain.path.depth) !chain
@@ -286,7 +286,7 @@ chain_follow_indirects #{acc = (ex, chain, lastptr), obsv = (), idx} =
 
 type CheckContiguousObsv = (Chain!, VfsInode!, (Option OSBuffer)!, U32, U32)
 
-chain_count_contiguous: (ExState, Chain, VfsInode!, U32, U32) -> (ExState, Chain, U32)
+chain_count_contiguous: (SysState, Chain, VfsInode!, U32, U32) -> (SysState, Chain, U32)
 chain_count_contiguous (ex, chain, inode, max_mappable, boundary) =
   let limit = min_u32 (max_mappable, boundary + 1)
   and last_offset = path_peek_offset (chain.path) !chain
@@ -370,7 +370,7 @@ chain_blocks_to_allocate2 #{acc = count, obsv = (blocks, boundary, chain), idx} 
 -- allocates a given number of indirect and direct inodes for a chain
 ------------------------------------------------------------------------------
 
-type ChainAllocIndirectAcc = (ExState, Chain, VfsInode)
+type ChainAllocIndirectAcc = (SysState, Chain, VfsInode)
 type ChainAllocIndirectObsv = (U32, U32, WordArray BlockPtr, IndirectIdx)
 
 -- branch == use partial idx from Chain
@@ -379,7 +379,7 @@ type ChainAllocIndirectObsv = (U32, U32, WordArray BlockPtr, IndirectIdx)
 --
 -- allocate and setup all n blocks in a chain
 -- fills same purpose as ext2_alloc_branch in linux
-chain_alloc: (ExState, FsState, Chain, VfsInode, U32, BlockPtr, U32, IndirectIdx) -> RR (ExState, FsState, Chain, VfsInode) U32 U32
+chain_alloc: (SysState, FsState, Chain, VfsInode, U32, BlockPtr, U32, IndirectIdx) -> RR (SysState, FsState, Chain, VfsInode) U32 U32
 chain_alloc (ex, state, chain, inode, num_indirect, goal, num_blocks, partial_idx) =
   -- TODO: there is an opportunity to reuse memory here
   let state_t { prealloc_blockptrs } = state
@@ -510,7 +510,7 @@ write_data_blockptr_many #{ acc = (parent_buf, current_block), obsv = buf_offset
     ((parent_buf, current_block + 1), Break ())
 
 -- setting up indirects from alloc_branch (inode.c:500)
-chain_alloc_connect_indirects2: (ExState, Chain, VfsInode, BlockPtr, U32, OSBuffer, U32, U32) -> LRR (ExState, Chain, VfsInode) U32
+chain_alloc_connect_indirects2: (SysState, Chain, VfsInode, BlockPtr, U32, OSBuffer, U32, U32) -> LRR (SysState, Chain, VfsInode) U32
 chain_alloc_connect_indirects2 (ex, chain, inode, blockptr, idx, parent_buf, offset, partial_idx) =
   -- we mark uptodate because then we say it's all zero'd?
     let (ex, parent_buf) = osbuffer_set_uptodate (ex, parent_buf)
@@ -572,7 +572,7 @@ find_first_non_hole_branch #{ acc = partial, obsv = chain, idx } =
   else
     (idx, Break ())
 
-chain_find_shared_cleanup2: Seq32_body (ExState, Chain) () ()
+chain_find_shared_cleanup2: Seq32_body (SysState, Chain) () ()
 chain_find_shared_cleanup2 #{ acc = (ex, chain), obsv = (), idx = _ } =
   let (chain, maybe_indirect, idx) = chain_pop_indirect chain
   in maybe_indirect
@@ -581,10 +581,10 @@ chain_find_shared_cleanup2 #{ acc = (ex, chain), obsv = (), idx = _ } =
     in ((ex, chain), Iterate ())
   | None () -> ((ex, chain), Iterate ())
 
-chain_find_shared_cleanup: (ExState, VfsInode, Chain, U32, U32, BlockPtr) -> RR (ExState, VfsInode, Chain) (BlockPtr, IndirectIdx) ()
+chain_find_shared_cleanup: (SysState, VfsInode, Chain, U32, U32, BlockPtr) -> RR (SysState, VfsInode, Chain) (BlockPtr, IndirectIdx) ()
 chain_find_shared_cleanup (ex, inode, chain, p, partial, top) = 
   -- keep popping until partial == p
-  let ((ex, chain), _) = seq32_rev [(ExState, Chain), (), ()] #{
+  let ((ex, chain), _) = seq32_rev [(SysState, Chain), (), ()] #{
     frm   = p,
     to    = partial,
     step  = 1,
@@ -602,7 +602,7 @@ chain_find_shared_partial_helper (maybe_indirect, k) =
   | Some indirect -> indirect
   | None () -> k - 1
 
-chain_find_shared: (ExState, VfsInode, Chain) -> RR (ExState, VfsInode, Chain) (BlockPtr, IndirectIdx) ()
+chain_find_shared: (SysState, VfsInode, Chain) -> RR (SysState, VfsInode, Chain) (BlockPtr, IndirectIdx) ()
 chain_find_shared (ex, inode, chain) =
   -- look to find the deepest node that has an offset that is non-zero
   -- ie a blockptr that isn't located at the beginning of the indirect

@@ -35,8 +35,8 @@ type MountState = {
   dev : UbiDevInfo,
   no_summary : Bool
 }
-newMountState: ExState -> R (ExState, MountState take (..)) ExState
-freeMountState: (ExState, MountState take (..)) -> ExState
+newMountState: SysState -> R (SysState, MountState take (..)) SysState
+freeMountState: (SysState, MountState take (..)) -> SysState
 
 type DelNode = #{
   id : ObjId,
@@ -53,8 +53,8 @@ type RbtGimNode = RbtNode ObjId GimNode
 idx_to_gim_node: RbtIndexNode -> RbtGimNode
 
 type FsopState = { is_ro : Bool } 
-newFsopState: ExState -> R (ExState, FsopState take (..)) ExState
-freeFsopState: (ExState, FsopState take (..)) -> ExState
+newFsopState: SysState -> R (SysState, FsopState take (..)) SysState
+freeFsopState: (SysState, FsopState take (..)) -> SysState
 
 
 type EbAddr = #{ ebnum : U32, offs : U32 } 
@@ -67,8 +67,8 @@ type FsmState = { nb_free_eb : U32
                 , used_eb : WordArray U8
                 , dirty_space : WordArray U32
                 , gim : Rbt ObjId GimNode } 
-newFsmState: (ExState) -> R (ExState, FsmState take (..)) ExState
-freeFsmState: (ExState, FsmState take (..)) -> ExState
+newFsmState: (SysState) -> R (SysState, FsmState take (..)) SysState
+freeFsmState: (SysState, FsmState take (..)) -> SysState
 
 -- Invariant on OstoreState:
 --   All objects in the index that have ostore_st.cur_eb
@@ -98,14 +98,14 @@ type OstoreState = {
 , summary : ObjSummary
 , sum_obj : Obj
 }
-newOstoreState: (ExState) -> R (ExState, OstoreState take (..)) ExState
-freeOstoreState: (ExState, OstoreState take (..)) -> ExState
+newOstoreState: (SysState) -> R (SysState, OstoreState take (..)) SysState
+freeOstoreState: (SysState, OstoreState take (..)) -> SysState
 
 type FsState = { fsop_st : FsopState
                , mount_st : MountState
                , ostore_st : OstoreState } 
-newFsState: (ExState) -> R (ExState, FsState take (..)) ExState
-freeFsState: (ExState, FsState take (..)) -> ExState
+newFsState: (SysState) -> R (SysState, FsState take (..)) SysState
+freeFsState: (SysState, FsState take (..)) -> SysState
 
 ostoreWriteNone : U32
 ostoreWriteNone = 0

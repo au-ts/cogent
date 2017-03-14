@@ -8,8 +8,8 @@
 -- @TAG(NICTA_GPL)
 --
 
--- if this fails, try (ExState, VfsInode) and return Success from caller
-deserialise_Ext2Inode_2: (ExState, VfsInode, U32) -> RR (ExState) VfsInode (VfsInode take fs)
+-- if this fails, try (SysState, VfsInode) and return Success from caller
+deserialise_Ext2Inode_2: (SysState, VfsInode, U32) -> RR (SysState) VfsInode (VfsInode take fs)
 deserialise_Ext2Inode_2 (ex, inode, mode) =
     mode .&. s_IFMT
     | 0O100000 -> -- s_IFREG (regular file)
@@ -38,7 +38,7 @@ deserialise_Ext2Inode_2 (ex, inode, mode) =
         and inode = vfs_inode_unlock_new (inode)
         in (ex, Success inode)
 
-deserialise_Ext2Inode: (ExState, VfsInode take fs, OSBuffer!, U32) -> RR (ExState) VfsInode (VfsInode take fs)
+deserialise_Ext2Inode: (SysState, VfsInode take fs, OSBuffer!, U32) -> RR (SysState) VfsInode (VfsInode take fs)
 deserialise_Ext2Inode (ex, inode_t, buf, idx) =
     let block_pointers_size = const_numBlockPointers
     in wordarray_create_nz[U32] (ex, block_pointers_size)
@@ -141,7 +141,7 @@ deserialise_Ext2Inode (ex, inode_t, buf, idx) =
         (ex, Error inode_t)
 
 -- TODO: reorder deser/inode_get so we don't deserialise if we already have a whole inode
-deserialise_Inode: (ExState, OSBuffer!, U32, U32) -> RR (ExState) (VfsInode) ()
+deserialise_Inode: (SysState, OSBuffer!, U32, U32) -> RR (SysState) (VfsInode) ()
 deserialise_Inode (ex, buf, offset, num) =
     let _ = _cogent_log (dbg_EXT2_INODE_READ, ("deserialise_Inode: deserialising inode "))
     and _ = _cogent_log_u32 (dbg_EXT2_INODE_READ, (num))
@@ -184,7 +184,7 @@ ino_block_addr_buffer_offset_from_inotable (state, inode_table, ino) =
     and block_addr = inode_table + block_offset
     in (block_addr, buffer_offset)
 
-ext2_inode_get_buf: (ExState, FsState, U32) -> RR (ExState, FsState) (OSBuffer, U32) (U32)
+ext2_inode_get_buf: (SysState, FsState, U32) -> RR (SysState, FsState) (OSBuffer, U32) (U32)
 ext2_inode_get_buf (ex, state, inode_num) =
     if inode_num == 2 || inode_num >= 11 then
         let block_group_num = get_block_group_from_ino2 (state, inode_num) !state
@@ -223,7 +223,7 @@ ext2_inode_get_buf (ex, state, inode_num) =
     else
         ((ex, state), Error eNoEnt)     -- reserved inode numbers
 
-ext2_inode_get: (ExState, FsState, U32) -> RR (ExState, FsState) (VfsInode) (U32)
+ext2_inode_get: (SysState, FsState, U32) -> RR (SysState, FsState) (VfsInode) (U32)
 ext2_inode_get (ex, state, inode_num) = 
     let ((ex, state), res) = ext2_inode_get_buf (ex, state, inode_num)
     in res
@@ -242,7 +242,7 @@ ext2_inode_get (ex, state, inode_num) =
         let _ = _cogent_log (dbg_EXT2_INODE_READ, ("ext2_inode_get: could not get buf for inode\n"))
         in ((ex, state), Error err)
 
-fsop_get_root_inode: (#{ex: ExState, state: FsState}) -> RR #{ex: ExState, state: FsState} (VfsInode) (U32)
+fsop_get_root_inode: (#{ex: SysState, state: FsState}) -> RR #{ex: SysState, state: FsState} (VfsInode) (U32)
 fsop_get_root_inode (#{ .. }) =
     let ((ex, state), res) = ext2_inode_get (ex, state, 2)
     in (#{ex, state}, res)

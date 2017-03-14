@@ -18,7 +18,7 @@ include "fsm.cogent"
 include "wbuf.cogent"
 include "serial.cogent"
 
-ostore_init: (ExState, MountState!, OstoreState take (..)) -> R (ExState, OstoreState take (ubi_vol)) (ErrCode, ExState, OstoreState take (..))
+ostore_init: (SysState, MountState!, OstoreState take (..)) -> R (SysState, OstoreState take (ubi_vol)) (ErrCode, SysState, OstoreState take (..))
 ostore_init (ex, mount_st, ostore_st) =
   let next_inum = bilbyFsRootIno
   and next_sqnum:U64 = 0
@@ -120,7 +120,7 @@ ostore_init (ex, mount_st, ostore_st) =
                        pools, oaddr, fsm_st, index_st, summary, sum_obj}
                     in Success (ex, ostore_st)
 
-ostore_read_sum_f: #{acc:(ExState, Buffer, BufOffs), obsv:(U32, U32, UbiVol!), idx:U32} -> LRR (ExState, Buffer, BufOffs) ErrCode
+ostore_read_sum_f: #{acc:(SysState, Buffer, BufOffs), obsv:(U32, U32, UbiVol!), idx:U32} -> LRR (SysState, Buffer, BufOffs) ErrCode
 ostore_read_sum_f #{acc=(ex, rbuf, offs), obsv=(ebnum, io_size, ubi_vol), idx} =
   let ((ex, rbuf), r) = wubi_leb_read #{ex, ubi_vol, ebnum, buf=rbuf, buf_offs=offs, nb_bytes=io_size}
   in r
@@ -129,7 +129,7 @@ ostore_read_sum_f #{acc=(ex, rbuf, offs), obsv=(ebnum, io_size, ubi_vol), idx} =
     ((ex, rbuf, offs + io_size), Iterate ())
 
 
-ostore_read_sum_extra_pages: (ExState, MountState!, OstoreState, U32, U32) -> RR (ExState, OstoreState) () ErrCode
+ostore_read_sum_extra_pages: (SysState, MountState!, OstoreState, U32, U32) -> RR (SysState, OstoreState) () ErrCode
 ostore_read_sum_extra_pages (ex, mount_st, ostore_st {rbuf}, ebnum, sum_offs) =
 -- we know that the last page was loaded by ostore_read_sum
   let io_size = mount_st.super.io_size
@@ -146,7 +146,7 @@ ostore_read_sum_extra_pages (ex, mount_st, ostore_st {rbuf}, ebnum, sum_offs) =
     and _ = _cogent_debug_u32 nb_pages
     and _ = _cogent_debug "\n"
     and ((ex, rbuf, _), r) =
-          seq32[(ExState, Buffer, BufOffs), (U32,U32,UbiVol), ErrCode]
+          seq32[(SysState, Buffer, BufOffs), (U32,U32,UbiVol), ErrCode]
             #{frm=0, to=nb_pages, step=1, f=ostore_read_sum_f,
               acc=(ex, rbuf, offs), obsv=(ebnum, io_size, ostore_st.ubi_vol)} !ostore_st
     in r
@@ -157,7 +157,7 @@ ostore_read_sum_extra_pages (ex, mount_st, ostore_st {rbuf}, ebnum, sum_offs) =
   else
     ((ex, ostore_st {rbuf}), Success ())
 
-ostore_read_sum: (ExState, MountState!, OstoreState, U32) -> RR (ExState, OstoreState) U32 ErrCode
+ostore_read_sum: (SysState, MountState!, OstoreState, U32) -> RR (SysState, OstoreState) U32 ErrCode
 ostore_read_sum(ex, mount_st, ostore_st {rbuf}, ebnum) =
   let offs = mount_st.super.eb_size - mount_st.super.io_size
   and io_size = mount_st.super.io_size
@@ -183,7 +183,7 @@ ostore_read_sum(ex, mount_st, ostore_st {rbuf}, ebnum) =
       | Success _ ->
         ((ex, ostore_st), Success sum_offs)
 
-ostore_clean: (ExState, OstoreState) -> ExState
+ostore_clean: (SysState, OstoreState) -> SysState
 ostore_clean(ex, ostore_st {rbuf,wbuf,opad,pools,fsm_st,index_st,ubi_vol,summary,sum_obj,..}) =
   let ex = buf_free(ex, rbuf)
   and ex = buf_free(ex, wbuf)
@@ -282,7 +282,7 @@ padding_to(mount_st, ostore_st, osw_flags) =
   else
     align32(ostore_st.used, mount_st.super.io_size)
 
-prepare_wbuf: (ExState, MountState!, OstoreState, U32) -> RR (ExState,OstoreState) () ErrCode
+prepare_wbuf: (SysState, MountState!, OstoreState, U32) -> RR (SysState,OstoreState) () ErrCode
 prepare_wbuf(ex, mount_st, ostore_st {wbuf}, pad_to) =
   let pad_sz = pad_to - ostore_st.used !ostore_st
   in if pad_sz < bilbyFsObjHeaderSize then
@@ -312,7 +312,7 @@ prepare_wbuf(ex, mount_st, ostore_st {wbuf}, pad_to) =
       and ostore_st = ostore_st {summary}
       in ((ex, ostore_st), Success ())
 
-ostore_write_buf: (ExState, MountState!, OstoreState, U32, U32, U32) -> RR (ExState, OstoreState) () ErrCode
+ostore_write_buf: (SysState, MountState!, OstoreState, U32, U32, U32) -> RR (SysState, OstoreState) () ErrCode
 ostore_write_buf(ex, mount_st, ostore_st {ubi_vol}, sync_offs, nb_bytes, osw_flags) =
   if nb_bytes > 0 then
     let ((ex, ubi_vol), r) = (
@@ -325,7 +325,7 @@ ostore_write_buf(ex, mount_st, ostore_st {ubi_vol}, sync_offs, nb_bytes, osw_fla
   else
     ((ex, ostore_st {ubi_vol}), Success ())
 
-ostore_sync_summary_if_eb_new: (ExState, MountState!, OstoreState, U32) -> RR (ExState, OstoreState) () ErrCode
+ostore_sync_summary_if_eb_new: (SysState, MountState!, OstoreState, U32) -> RR (SysState, OstoreState) () ErrCode
 ostore_sync_summary_if_eb_new(ex, mount_st, ostore_st, osw_flags) =
   let used = ostore_st.used !ostore_st
   and sqnum = ostore_st.next_sqnum !ostore_st
@@ -347,7 +347,7 @@ ostore_sync_summary_if_eb_new(ex, mount_st, ostore_st, osw_flags) =
   else
     ((ex, ostore_st), Success ())
 
-ostore_sync:(ExState, MountState!, OstoreState, U32) -> RR (ExState, OstoreState) () ErrCode
+ostore_sync:(SysState, MountState!, OstoreState, U32) -> RR (SysState, OstoreState) () ErrCode
 ostore_sync(ex, mount_st, ostore_st, osw_flags) =
 -- Writes everything from sync_offs to align(used, io_size)
 -- Uses padding objects to fill up align(used,io_size) - used
@@ -402,7 +402,7 @@ ostore_sync(ex, mount_st, ostore_st, osw_flags) =
           and ostore_st = ostore_st {sync_offs=used}
           in ((ex, ostore_st), Success ())
 
-ostore_sync_new_eb:(ExState, MountState!, OstoreState, U32) -> RR (ExState, OstoreState) () ErrCode
+ostore_sync_new_eb:(SysState, MountState!, OstoreState, U32) -> RR (SysState, OstoreState) () ErrCode
 ostore_sync_new_eb(ex, mount_st, ostore_st, osw_flags) =
   let ((ex, ostore_st), r) = ostore_sync (ex, mount_st, ostore_st, osw_flags) 
   and used = ostore_st.used !ostore_st
@@ -432,7 +432,7 @@ ostore_get_trans_size(arr) =
   let trans_size:U32 = 0
   in array_fold_no_break[Obj,U32,()] #{arr, f=trans_size_loop_body, acc=trans_size, obsv=()}
 
-sync_if_trans_too_big: (ExState, MountState!, OstoreState, U32, U32) -> RR (ExState, OstoreState) () ErrCode
+sync_if_trans_too_big: (SysState, MountState!, OstoreState, U32, U32) -> RR (SysState, OstoreState) () ErrCode
 sync_if_trans_too_big(ex, mount_st, ostore_st, osw_flags, trans_size) =
   let used = ostore_st.used !ostore_st
   and next_sqnum = ostore_st.next_sqnum !ostore_st
@@ -462,7 +462,7 @@ sync_if_trans_too_big(ex, mount_st, ostore_st, osw_flags, trans_size) =
     else
       ((ex, ostore_st), Success ())
     
-sync_if_no_trans_fit: (ExState, MountState!, OstoreState, U32) -> RR (ExState, OstoreState) () ErrCode
+sync_if_no_trans_fit: (SysState, MountState!, OstoreState, U32) -> RR (SysState, OstoreState) () ErrCode
 sync_if_no_trans_fit(ex, mount_st, ostore_st, osw_flags) =
 -- Synchronise if no more transaction can fit in the erase-block
 -- Note that bilbyFsObjHeaderSize is not enough to fit a useful transaction
@@ -524,7 +524,7 @@ set_node(node, oid, oaddr) =
   let node = rbtnode_put_key[ObjId, ObjAddr](node, oid)
   in rbtnode_put_val[ObjId, ObjAddr](node, oaddr)
 
-update_obj_modifier: #{elem:RbtIndexNode, acc:(AllocPool RbtGimNode, FsmState, ExState), obsv:(MountState, ObjId, ObjAddr)!} -> (RbtIndexNode, (AllocPool RbtGimNode, FsmState, ExState))
+update_obj_modifier: #{elem:RbtIndexNode, acc:(AllocPool RbtGimNode, FsmState, SysState), obsv:(MountState, ObjId, ObjAddr)!} -> (RbtIndexNode, (AllocPool RbtGimNode, FsmState, SysState))
 update_obj_modifier #{elem=oldnode, acc=(gimpool, fsm_st, ex), obsv=(mount_st, oid, oaddr)} =
   let val = rbtnode_get_val[ObjId, ObjAddr] oldnode !oldnode
   and oldsqnum = val.sqnum
@@ -543,31 +543,31 @@ update_obj_modifier #{elem=oldnode, acc=(gimpool, fsm_st, ex), obsv=(mount_st, o
     _cogent_debug "\n" ;
     (oldnode, (gimpool,fsm_st,ex))
 
-update_obj_use: #{elem:RbtIndexNode, acc:(Rbt ObjId ObjAddr, AllocPool RbtGimNode, FsmState, ExState), obsv:(MountState, ObjId, ObjAddr)!} -> (Rbt ObjId ObjAddr, AllocPool RbtGimNode, FsmState, ExState)
+update_obj_use: #{elem:RbtIndexNode, acc:(Rbt ObjId ObjAddr, AllocPool RbtGimNode, FsmState, SysState), obsv:(MountState, ObjId, ObjAddr)!} -> (Rbt ObjId ObjAddr, AllocPool RbtGimNode, FsmState, SysState)
 update_obj_use #{elem=node, acc=(addrs, gimpool,  fsm_st, ex), obsv=(mount_st, oid, oaddr)} =
   _cogent_debug "update_obj_use " ;
   _cogent_debug_u64_hex oid ;
   _cogent_debug "\n" ;
   let node = rbtnode_put_val[ObjId, ObjAddr](node, mkObjAddr)
   and #{rbt=addrs, optnode, acc=(gimpool, fsm_st, ex)} =
-        rbt_modify[ObjId, ObjAddr,(AllocPool RbtGimNode, FsmState, ExState),(MountState, ObjId, ObjAddr)]
+        rbt_modify[ObjId, ObjAddr,(AllocPool RbtGimNode, FsmState, SysState),(MountState, ObjId, ObjAddr)]
           #{rbt=addrs, key=oid, f=update_obj_modifier, node, acc=(gimpool,fsm_st,ex), obsv=(mount_st, oid, oaddr)}
   and ex = freeOptRbtNode[ObjId, ObjAddr](ex, optnode)
   in (addrs, gimpool, fsm_st, ex)
 
-update_obj:(ExState, MountState!, OstoreState take (oaddr, summary), ObjId, ObjAddr) -> (ExState, OstoreState take (summary))
+update_obj:(SysState, MountState!, OstoreState take (oaddr, summary), ObjId, ObjAddr) -> (SysState, OstoreState take (summary))
 update_obj(ex, mount_st, ostore_st {index_st,fsm_st,pools}, oid, oaddr) =
   let index_st {addrs} = index_st
   and pools {idx,gim} = pools
   and (idx, (addrs, gim, fsm_st, ex)) =
-        allocpool_use[RbtIndexNode, (Rbt ObjId ObjAddr, AllocPool RbtGimNode, FsmState, ExState), (MountState!, U64, ObjAddr!)]
+        allocpool_use[RbtIndexNode, (Rbt ObjId ObjAddr, AllocPool RbtGimNode, FsmState, SysState), (MountState!, U64, ObjAddr!)]
           #{pool=idx, f=update_obj_use, acc=(addrs, gim, fsm_st, ex), obsv=(mount_st, oid, oaddr)} !oaddr
   and pools = pools {idx, gim}
   and index_st = index_st {addrs}
   and ostore_st = ostore_st {index_st, fsm_st, pools}
   in (ex, ostore_st {oaddr})
 
-type DeleteObjAccs = (ExState, FsmState, AllocPool RbtGimNode)
+type DeleteObjAccs = (SysState, FsmState, AllocPool RbtGimNode)
 
 should_delete: (#{elem:RbtIndexNode, acc:DeleteObjAccs, obsv:(MountState, ObjAddr)!})! -> Bool
 should_delete #{elem = node, acc=(ex, fsm_st, gimpool), obsv=(mount_st, oaddr)} =
@@ -589,7 +589,7 @@ delete_single_obj #{elem = node, acc=(ex, fsm_st, gimpool), obsv=(mount_st, oadd
   and (ex, fsm_st) = fsm_mark_dirty_recycle(ex, mount_st, fsm_st, oid, val, idx_to_gim_node node)
   in (ex, fsm_st, gimpool)
 
-delete_obj:(ExState, MountState!, OstoreState take(oaddr, summary), ObjId, ObjAddr) -> (ExState, OstoreState take (summary))
+delete_obj:(SysState, MountState!, OstoreState take(oaddr, summary), ObjId, ObjAddr) -> (SysState, OstoreState take (summary))
 delete_obj(ex, mount_st, ostore_st {index_st,fsm_st,pools}, oid, oaddr) =
   let index_st {addrs} = index_st
   in if obj_id_is_dentarr(oid) then
@@ -612,7 +612,7 @@ delete_obj(ex, mount_st, ostore_st {index_st,fsm_st,pools}, oid, oaddr) =
     and index_st = index_st {addrs}
     in (ex, ostore_st {index_st, fsm_st, pools, oaddr})
 
-update_obj_pad:(ExState, MountState!, OstoreState take(oaddr, summary), ObjAddr) -> (ExState, OstoreState take(summary))
+update_obj_pad:(SysState, MountState!, OstoreState take(oaddr, summary), ObjAddr) -> (SysState, OstoreState take(summary))
 update_obj_pad(ex, mount_st, ostore_st {fsm_st,pools}, oaddr) =
   let pools {gim} = pools
   and (ex, fsm_st, gim) = fsm_mark_dirty(ex, mount_st, fsm_st, gim, nilObjId, oaddr) !oaddr
@@ -626,7 +626,7 @@ trimObjSuper u = u
   | TObjSuper _ -> TObjPad ()
   | o -> o
 
-proc_obj: (ExState, MountState!, OstoreState take (summary), Obj!, U32) -> (ExState, OstoreState take (summary))
+proc_obj: (SysState, MountState!, OstoreState take (summary), Obj!, U32) -> (SysState, OstoreState take (summary))
 proc_obj(ex, mount_st, ostore_st {oaddr}, obj, ebnum) =
   let oaddr {ebnum=_,sqnum=_,offs=_,len=_} = oaddr
   and oaddr = oaddr {ebnum, sqnum=obj.sqnum, offs=obj.offs, len=obj.len} !ostore_st
@@ -691,7 +691,7 @@ find_sum_entry(summary, oid, sqnum, otype) =
   | Iterate _ ->
     Success (summary.nb_sum_entry, 0)
 
-proc_obj_sum: (ExState, MountState!, OstoreState, Obj!) -> (ExState, OstoreState)
+proc_obj_sum: (SysState, MountState!, OstoreState, Obj!) -> (SysState, OstoreState)
 proc_obj_sum(ex, mount_st, ostore_st, obj) =
 -- This is a totally unoptimised version of summary processing, but it should be functionally correct.
   let _ = _cogent_debug "proc_obj_sum (oid="
@@ -734,7 +734,7 @@ proc_obj_sum_f: #{elem:ObjSumEntry, acc:(), obsv:ObjSumEntry} -> #{elem:ObjSumEn
 proc_obj_sum_f #{elem=_, acc=_, obsv=sum_entry} =
   #{elem=sum_entry, acc=()}
 
-proc_sum_entry: (ExState, MountState!, OstoreState take (summary), ObjSumEntry, U32) -> (ExState, OstoreState take (summary))
+proc_sum_entry: (SysState, MountState!, OstoreState take (summary), ObjSumEntry, U32) -> (SysState, OstoreState take (summary))
 proc_sum_entry(ex, mount_st, ostore_st, entry, ebnum) =
   let ostore_st {oaddr} = ostore_st
   and oaddr = oaddr {ebnum, offs=obj_sum_entry_offs entry, len=entry.len, sqnum=entry.sqnum}
@@ -746,7 +746,7 @@ proc_sum_entry(ex, mount_st, ostore_st, entry, ebnum) =
             ())
   in (ex, ostore_st {oaddr})
 
-ostore_update_loop_body: #{elem:Obj!, acc:(ExState, OstoreState), obsv:MountState!} -> (ExState, OstoreState)
+ostore_update_loop_body: #{elem:Obj!, acc:(SysState, OstoreState), obsv:MountState!} -> (SysState, OstoreState)
 ostore_update_loop_body #{elem=obj, acc=(ex, ostore_st), obsv=mount_st} =
   let eb = ostore_st.wbuf_eb !ostore_st
   and ostore_st {summary} = ostore_st 
@@ -754,12 +754,12 @@ ostore_update_loop_body #{elem=obj, acc=(ex, ostore_st), obsv=mount_st} =
   and (ex,ostore_st) = proc_obj_sum(ex, mount_st, ostore_st {summary}, obj)
   in (ex, ostore_st)
 
-ostore_update: (ExState, MountState!, OstoreState, (Array Obj)!) -> (ExState, OstoreState)
+ostore_update: (SysState, MountState!, OstoreState, (Array Obj)!) -> (SysState, OstoreState)
 ostore_update(ex, mount_st, ostore_st, arr) =
   _cogent_debug "ostore_update arr.len = " ;
   _cogent_debug_u32 (array_length[Obj] arr) ;
   _cogent_debug "\n" ;
-  array_fold_no_break[Obj, (ExState,OstoreState), MountState]
+  array_fold_no_break[Obj, (SysState,OstoreState), MountState]
     #{arr, f=ostore_update_loop_body, acc=(ex, ostore_st), obsv=mount_st}
 
 {-
@@ -792,7 +792,7 @@ read-only mode if a software induced error occurs (e.g. memory allocation).
 -- fsm_st (i.e. is_used flag is set for wbuf_eb), and other parts of ostore_st.
 -- 
 -- See invariant on OstoreState, ostore_write() preserves that invariant.
-ostore_write: (ExState, MountState!, OstoreState, Array Obj, U32) -> RR (ExState, OstoreState, Array Obj) () ErrCode
+ostore_write: (SysState, MountState!, OstoreState, Array Obj, U32) -> RR (SysState, OstoreState, Array Obj) () ErrCode
 ostore_write(ex, mount_st, ostore_st, arr, osw_flags) =
   let next_sqnum = ostore_st.next_sqnum !ostore_st
   and trans_size = ostore_get_trans_size(arr) !arr
@@ -830,7 +830,7 @@ ostore_write(ex, mount_st, ostore_st, arr, osw_flags) =
           and (ex, ostore_st) = ostore_free_pools(ex, ostore_st)
           in ((ex, ostore_st, arr), Success ())
 
-ostore_alloc_pools: (ExState, OstoreState, U32) -> RR (ExState, OstoreState) () ErrCode
+ostore_alloc_pools: (SysState, OstoreState, U32) -> RR (SysState, OstoreState) () ErrCode
 ostore_alloc_pools(ex, ostore_st {pools}, nb_nodes) =
   _cogent_debug "preallocating " ;
   _cogent_debug_u32 nb_nodes ; 
@@ -852,7 +852,7 @@ ostore_alloc_pools(ex, ostore_st {pools}, nb_nodes) =
       let pools = pools {idx, gim}
       in ((ex, ostore_st {pools}), Success ())
 
-ostore_free_pools: (ExState, OstoreState) -> (ExState, OstoreState)
+ostore_free_pools: (SysState, OstoreState) -> (SysState, OstoreState)
 ostore_free_pools(ex, ostore_st {pools}) =
   let pools {idx,gim} = pools
   and (ex, idx) = allocpool_clean[RbtIndexNode](ex, idx)
@@ -860,7 +860,7 @@ ostore_free_pools(ex, ostore_st {pools}) =
   and pools = pools {idx, gim}
   in (ex, ostore_st {pools})
 
-ostore_read: (ExState, MountState!, OstoreState, ObjId) -> RR (ExState, OstoreState) Obj ErrCode
+ostore_read: (SysState, MountState!, OstoreState, ObjId) -> RR (SysState, OstoreState) Obj ErrCode
 ostore_read(ex, mount_st, ostore_st, oid) =
   index_get_addr (ostore_st.index_st, oid) !ostore_st
   | Error err ->
@@ -912,7 +912,7 @@ ostore_read(ex, mount_st, ostore_st, oid) =
         ((deep_freeObj(ex, obj), ostore_st), Error eRoFs)
     | Error e -> ((ex, ostore_st), Error e)
 
-read_obj_pages_in_buf: (ExState, MountState!, UbiVol!, Buffer, ObjAddr!) -> RR (ExState, Buffer) () ErrCode
+read_obj_pages_in_buf: (SysState, MountState!, UbiVol!, Buffer, ObjAddr!) -> RR (SysState, Buffer) () ErrCode
 read_obj_pages_in_buf (ex, mount_st, ubi_vol, buf, addr) =
   let io_size = mount_st.super.io_size
   and offs_in_page = addr.offs % io_size
@@ -925,7 +925,7 @@ read_obj_pages_in_buf (ex, mount_st, ubi_vol, buf, addr) =
   | Error e ->
     ((ex, buf), Error e)
 
-check_flash_empty_loop: #{acc:(ExState), obsv:(UbiVol!), idx:U32} -> LRR ExState ErrCode
+check_flash_empty_loop: #{acc:(SysState), obsv:(UbiVol!), idx:U32} -> LRR SysState ErrCode
 check_flash_empty_loop #{acc=ex, obsv=ubi_vol, idx=i} =
   let (ex, r) = wubi_is_mapped #{ex, ubi_vol, ebnum=i}
   in r
@@ -937,9 +937,9 @@ check_flash_empty_loop #{acc=ex, obsv=ubi_vol, idx=i} =
     else
       (ex, Iterate ())
 
-check_flash_is_empty: (ExState, MountState!, UbiVol!) -> RR ExState Bool ErrCode
+check_flash_is_empty: (SysState, MountState!, UbiVol!) -> RR SysState Bool ErrCode
 check_flash_is_empty(ex, mount_st, ubi_vol) =
-  let (ex, r) = seq32[ExState, UbiVol, ErrCode]
+  let (ex, r) = seq32[SysState, UbiVol, ErrCode]
                   #{frm=0, to=mount_st.super.nb_eb, step=1, f=check_flash_empty_loop, acc=ex, obsv=ubi_vol}
   in r
   | Break err ->
@@ -952,7 +952,7 @@ check_flash_is_empty(ex, mount_st, ubi_vol) =
 
 type DelObjs = List DelNode
 
-deep_opt_freeObj: (ExState, Option Obj) -> ExState
+deep_opt_freeObj: (SysState, Option Obj) -> SysState
 deep_opt_freeObj(ex, opt_obj) =
   opt_obj
   | None () -> ex
@@ -960,7 +960,7 @@ deep_opt_freeObj(ex, opt_obj) =
     _cogent_assert False ;
     deep_freeObj(ex, o)
 
-scan_trans_obj: #{oelem:Option Obj, acc:(ExState, U32), obsv:(MountState, Buffer)!} -> LoopResult (Option Obj, (ExState, U32)) (Option Obj, R (ExState, U32) (ErrCode, ExState))
+scan_trans_obj: #{oelem:Option Obj, acc:(SysState, U32), obsv:(MountState, Buffer)!} -> LoopResult (Option Obj, (SysState, U32)) (Option Obj, R (SysState, U32) (ErrCode, SysState))
 scan_trans_obj #{oelem=obj_opt, acc=(ex, offs), obsv=(mount_st, buf)} =
   let ex = deep_opt_freeObj(ex, obj_opt)
   in deserialise_Obj_crc(ex, buf, offs)
@@ -984,11 +984,11 @@ scan_trans_obj #{oelem=obj_opt, acc=(ex, offs), obsv=(mount_st, buf)} =
       else
         Iterate (Some obj, (ex, offs))
     
-object_eraser: #{elem:Obj, acc:ExState, obsv:()} -> RR ExState () Obj
+object_eraser: #{elem:Obj, acc:SysState, obsv:()} -> RR SysState () Obj
 object_eraser #{elem=obj, acc=ex, obsv=_} =
   (deep_freeObj(ex, obj), Success ())
 
-new_delnode_init: (ExState, Obj!, U32) -> R (ExState, ListNode DelNode) ExState 
+new_delnode_init: (SysState, Obj!, U32) -> R (SysState, ListNode DelNode) SysState 
 new_delnode_init(ex, obj, ebnum) =
   newListNode[DelNode](ex)
   | Error ex -> Error ex
@@ -997,7 +997,7 @@ new_delnode_init(ex, obj, ebnum) =
       and del = listnode_put[DelNode](del, #{id=get_obj_oid(obj),oaddr})
       in  Success (ex, del)
 
-proc_obj_or_objsdel_loop: #{elem:Obj!, acc:(ExState, OstoreState take (summary), DelObjs), obsv:(MountState, U32)!} -> LoopResult (ExState, OstoreState take (summary), DelObjs) (ExState, OstoreState take (summary), DelObjs)
+proc_obj_or_objsdel_loop: #{elem:Obj!, acc:(SysState, OstoreState take (summary), DelObjs), obsv:(MountState, U32)!} -> LoopResult (SysState, OstoreState take (summary), DelObjs) (SysState, OstoreState take (summary), DelObjs)
 proc_obj_or_objsdel_loop #{elem=obj, acc=(ex, ostore_st, objsdel), obsv=(mount_st,eb)} =
  let is_del =
    (obj.ounion
@@ -1013,10 +1013,10 @@ proc_obj_or_objsdel_loop #{elem=obj, acc=(ex, ostore_st, objsdel), obsv=(mount_s
     let (ex,ostore_st) = proc_obj(ex, mount_st, ostore_st, obj, eb)
     in Iterate (ex, ostore_st, objsdel)
 
-scan_transaction: (ExState, MountState!, OstoreState, DelObjs, Array Obj, U32, U32) -> RR (ExState, OstoreState, DelObjs, Array Obj) U32 ErrCode
+scan_transaction: (SysState, MountState!, OstoreState, DelObjs, Array Obj, U32, U32) -> RR (SysState, OstoreState, DelObjs, Array Obj) U32 ErrCode
 scan_transaction(ex, mount_st, ostore_st, objsdel, objs, eb, offs) =
   let len = array_length[Obj] objs !objs
-  in array_map[Obj, (ExState,U32), (MountState, Buffer), R (ExState, U32) (ErrCode,ExState)]
+  in array_map[Obj, (SysState,U32), (MountState, Buffer), R (SysState, U32) (ErrCode,SysState)]
        #{arr=objs, frm=0, to=len, f=scan_trans_obj, acc=(ex, offs), obsv=(mount_st, ostore_st.rbuf)} !ostore_st
   -- has to set objs.offs correctly
   | Iterate (objs, (ex, offs)) ->
@@ -1037,8 +1037,8 @@ scan_transaction(ex, mount_st, ostore_st, objsdel, objs, eb, offs) =
       | Success () ->
       -- Process the transaction to update the OstoreState (i.e. Index & Fsm)
         let ostore_st {summary} = ostore_st
-        in array_fold[Obj, (ExState, OstoreState take (summary), DelObjs),
-                      (MountState, U32), (ExState, OstoreState take (summary), DelObjs)]
+        in array_fold[Obj, (SysState, OstoreState take (summary), DelObjs),
+                      (MountState, U32), (SysState, OstoreState take (summary), DelObjs)]
              #{arr=objs, f=proc_obj_or_objsdel_loop, acc=(ex, ostore_st, objsdel), obsv=(mount_st, eb)} !objs
         | Break (ex, ostore_st, objsdel) ->
           let ostore_st = ostore_st {summary}
@@ -1052,8 +1052,8 @@ scan_transaction(ex, mount_st, ostore_st, objsdel, objs, eb, offs) =
           -- sucessfully
           in ((ex, ostore_st, objsdel, objs), Success offs)
 
-scan_transaction_loop: #{acc:(ExState, OstoreState, DelObjs, Array Obj, U32), obsv:(MountState, U32)!, idx:U32} ->
-    LRR (ExState, OstoreState, DelObjs, Array Obj, U32) (R () ErrCode)
+scan_transaction_loop: #{acc:(SysState, OstoreState, DelObjs, Array Obj, U32), obsv:(MountState, U32)!, idx:U32} ->
+    LRR (SysState, OstoreState, DelObjs, Array Obj, U32) (R () ErrCode)
 scan_transaction_loop #{acc=(ex, ostore_st, objsdel, objs, offs), obsv=(mount_st, eb), idx=nb_trans} =
 -- objs array comes in "empty" (i.e. all entries are None) and has
 -- to come out "empty".
@@ -1065,7 +1065,7 @@ scan_transaction_loop #{acc=(ex, ostore_st, objsdel, objs, offs), obsv=(mount_st
     _cogent_debug " err=" ;
     _cogent_debug_u32 err ;
     _cogent_debug "\n" ;
-    let #{arr=objs, acc=ex} = array_filter[Obj, ExState, ()] #{arr=objs, f=object_eraser, acc=ex, obsv=()}
+    let #{arr=objs, acc=ex} = array_filter[Obj, SysState, ()] #{arr=objs, f=object_eraser, acc=ex, obsv=()}
     -- Could not parse transaction at offset offs
     -- Check if we landed in a padding area (i.e. area of padding too small for an ObjPad)
     and aligned_offs = align32(offs, mount_st.super.io_size)
@@ -1088,7 +1088,7 @@ scan_transaction_loop #{acc=(ex, ostore_st, objsdel, objs, offs), obsv=(mount_st
       let _ = _cogent_debug "Detected invalid transaction on flash, this might be recoverable\n"
       in ((ex, ostore_st, objsdel, objs, offs), Break (Error err))
   | Success offs' ->
-    let #{arr=objs, acc=ex} = array_filter[Obj, ExState, ()] #{arr=objs, f=object_eraser, acc=ex, obsv=()}
+    let #{arr=objs, acc=ex} = array_filter[Obj, SysState, ()] #{arr=objs, f=object_eraser, acc=ex, obsv=()}
     -- We successfully parsed and processed transaction
     in if offs' < mount_st.super.eb_size then
       _cogent_debug "scan_transaction_loop: OK, next trans in block\n" ;
@@ -1098,14 +1098,14 @@ scan_transaction_loop #{acc=(ex, ostore_st, objsdel, objs, offs), obsv=(mount_st
       _cogent_debug "scan_transaction_loop: OK, we reached end of erase-block\n" ;
       ((ex, ostore_st, objsdel, objs, 0), Break (Success ())) -- offs is unused when we break
 
-mount_scan_rbuf: (ExState, MountState!, OstoreState, DelObjs, Array Obj, U32) -> RR (ExState, OstoreState, DelObjs, Array Obj) () (ErrCode, U32)
+mount_scan_rbuf: (SysState, MountState!, OstoreState, DelObjs, Array Obj, U32) -> RR (SysState, OstoreState, DelObjs, Array Obj) () (ErrCode, U32)
 mount_scan_rbuf(ex, mount_st, ostore_st, objsdel, objs, eb) =
   let offs:U32 = 0
  -- This is the upper limit of the number of transaction, if they are
  -- all of size bilbyFsObjHeaderSize
   and max_nb_trans = mount_st.super.eb_size / bilbyFsObjHeaderSize
   and ((ex, ostore_st, objsdel, objs, offs), r) =
-        seq32[(ExState, OstoreState, DelObjs, Array Obj, U32), (MountState,U32), (R () ErrCode)]
+        seq32[(SysState, OstoreState, DelObjs, Array Obj, U32), (MountState,U32), (R () ErrCode)]
           #{frm=0, to=max_nb_trans + 1, step=1, f=scan_transaction_loop, acc=(ex, ostore_st, objsdel, objs, offs), obsv=(mount_st, eb)}
   in r
   | Iterate () ->
@@ -1121,7 +1121,7 @@ mount_scan_rbuf(ex, mount_st, ostore_st, objsdel, objs, eb) =
     | Success () ->
       ((ex, ostore_st, objsdel, objs), Success ())
 
-new_delnode_sum_init: (ExState, ObjSumEntry, U32) -> R (ExState, ListNode DelNode) ExState 
+new_delnode_sum_init: (SysState, ObjSumEntry, U32) -> R (SysState, ListNode DelNode) SysState 
 new_delnode_sum_init(ex, sum_entry, ebnum) =
   newListNode[DelNode](ex)
   | Error ex -> Error ex
@@ -1130,7 +1130,7 @@ new_delnode_sum_init(ex, sum_entry, ebnum) =
       and del = listnode_put[DelNode](del, #{id=sum_entry.id,oaddr})
       in  Success (ex, del)
 
-type SumLoopAcc = (ExState, U32, OstoreState take (summary), DelObjs) 
+type SumLoopAcc = (SysState, U32, OstoreState take (summary), DelObjs) 
 scan_summary_proc_entry: #{elem:ObjSumEntry, acc:SumLoopAcc, obsv:(MountState, U32)!} -> LoopResult SumLoopAcc (SumLoopAcc, ErrCode)
 scan_summary_proc_entry #{elem=sum_entry, acc=(ex, tot_used, ostore_st, objsdel), obsv=(mount_st,eb)} =
   -- FIXME sanity check sum_entry
@@ -1149,7 +1149,7 @@ scan_summary_proc_entry #{elem=sum_entry, acc=(ex, tot_used, ostore_st, objsdel)
       let objsdel = list_add_node[DelNode](objsdel, node)
       in Iterate (ex, tot_used+sum_entry.len, ostore_st, objsdel)
 
-mount_scan_summary: #{acc:(ExState, MountState, OstoreState, DelObjs), obsv:(), idx:U32} -> LRR (ExState, MountState, OstoreState, DelObjs) ErrCode
+mount_scan_summary: #{acc:(SysState, MountState, OstoreState, DelObjs), obsv:(), idx:U32} -> LRR (SysState, MountState, OstoreState, DelObjs) ErrCode
 mount_scan_summary #{acc=(ex, mount_st, ostore_st {fsm_st}, objsdel), obsv=_, idx=eb} =
   let fsm_st = fsm_mark_used(mount_st, fsm_st, eb) !mount_st
   and ostore_st = ostore_st {fsm_st}
@@ -1179,7 +1179,7 @@ mount_scan_summary #{acc=(ex, mount_st, ostore_st {fsm_st}, objsdel), obsv=_, id
         and (ex, ostore_st) = ostore_free_pools(ex, ostore_st {fsm_st})
         in ((ex, mount_st, ostore_st, objsdel), Iterate ())
 
-mount_scan_full_eb: #{acc:(ExState, MountState, OstoreState, DelObjs, Array Obj), obsv:(), idx:U32} -> LRR (ExState, MountState, OstoreState, DelObjs, Array Obj) ErrCode
+mount_scan_full_eb: #{acc:(SysState, MountState, OstoreState, DelObjs, Array Obj), obsv:(), idx:U32} -> LRR (SysState, MountState, OstoreState, DelObjs, Array Obj) ErrCode
 mount_scan_full_eb #{acc=(ex, mount_st, ostore_st, objsdel, objs), obsv=_, idx=eb} =
   let ostore_st {fsm_st} = ostore_st
   and fsm_st = fsm_mark_used(mount_st, fsm_st, eb) !mount_st
@@ -1216,7 +1216,7 @@ mount_scan_full_eb #{acc=(ex, mount_st, ostore_st, objsdel, objs), obsv=_, idx=e
        ((ex, mount_st, ostore_st, objsdel, objs), Iterate ())
 
 
-mount_scan_loop: #{acc:(ExState, MountState, OstoreState, DelObjs, Array Obj), obsv:(), idx:U32} -> LRR (ExState, MountState, OstoreState, DelObjs, Array Obj) ErrCode
+mount_scan_loop: #{acc:(SysState, MountState, OstoreState, DelObjs, Array Obj), obsv:(), idx:U32} -> LRR (SysState, MountState, OstoreState, DelObjs, Array Obj) ErrCode
 mount_scan_loop #{acc=(ex, mount_st, ostore_st, objsdel, objs), obsv=(), idx=eb} =
   let (ex, r) = wubi_is_mapped #{ex, ubi_vol=ostore_st.ubi_vol, ebnum=eb} !ostore_st
   and no_summary = mount_st.no_summary !mount_st
@@ -1248,15 +1248,15 @@ mount_scan_loop #{acc=(ex, mount_st, ostore_st, objsdel, objs), obsv=(), idx=eb}
       | Iterate () ->
         ((ex, mount_st, ostore_st, objsdel, objs), Iterate ())
 
-fold_delete_obj: #{elem:(ListNode DelNode)!, acc:(ExState, OstoreState), obsv:MountState!} -> (ExState, OstoreState)
+fold_delete_obj: #{elem:(ListNode DelNode)!, acc:(SysState, OstoreState), obsv:MountState!} -> (SysState, OstoreState)
 fold_delete_obj #{elem=delnode, acc=(ex, ostore_st {oaddr, summary}), obsv=mount_st} =
   let node = listnode_get[DelNode] delnode
   and (ex, ostore_st) = delete_obj(ex, mount_st, ostore_st, node.id, node.oaddr)
   in (ex, ostore_st {oaddr, summary})
   
-proc_objsdel: (ExState, MountState!, OstoreState, DelObjs!) -> (ExState, OstoreState)
+proc_objsdel: (SysState, MountState!, OstoreState, DelObjs!) -> (SysState, OstoreState)
 proc_objsdel(ex, mount_st, ostore_st, objsdel) =
-  list_fold[DelNode, (ExState, OstoreState), MountState]
+  list_fold[DelNode, (SysState, OstoreState), MountState]
     #{list=objsdel, f=fold_delete_obj, acc=(ex, ostore_st), obsv=mount_st}
 
 is_0xff: #{elem:U8, acc:(), obsv:()} -> LoopResult () ()
@@ -1269,7 +1269,7 @@ eb_empty_pages_from(buf, offs) =
  | Break () -> False
  | Iterate () -> True
 
-mount_recover: (ExState, MountState, OstoreState) -> RR (ExState, MountState, OstoreState) Bool ErrCode
+mount_recover: (SysState, MountState, OstoreState) -> RR (SysState, MountState, OstoreState) Bool ErrCode
 mount_recover(ex, mount_st, ostore_st) =
   -- _cogent_assert (mount_st.eb_recovery_offs == align32(mount_st.eb_recovery_offs)) !mount_st ; 
   -- _cogent_assert (mount_st.eb_recovery_offs /= mount_st.eb_size) !mount_st ; 
@@ -1325,7 +1325,7 @@ mount_recover(ex, mount_st, ostore_st) =
             in ((ex, mount_st, ostore_st {ubi_vol, wbuf, used, sync_offs = used}), Success allocneweb)
 
 -- Success Bool indicates whether we need to allocate a new erase-block
-mount_scan: (ExState, MountState, OstoreState) -> RR (ExState, MountState, OstoreState) Bool ErrCode
+mount_scan: (SysState, MountState, OstoreState) -> RR (SysState, MountState, OstoreState) Bool ErrCode
 mount_scan(ex, mount_st, ostore_st) =
   list_create[DelNode](ex)
   | Error ex ->
@@ -1340,7 +1340,7 @@ mount_scan(ex, mount_st, ostore_st) =
       in ((ex, mount_st, ostore_st), Error eNoMem)
     | Success (ex, objs) ->
       let ((ex, mount_st, ostore_st, objsdel, objs), r) =
-            seq32[(ExState, MountState, OstoreState, DelObjs, Array Obj), (), ErrCode]
+            seq32[(SysState, MountState, OstoreState, DelObjs, Array Obj), (), ErrCode]
               #{frm=bilbyFsFirstLogEbNum, to=nb_eb, step=1, f=mount_scan_loop, acc=(ex, mount_st, ostore_st, objsdel, objs), obsv=()}
       in r
       | Break err ->
@@ -1369,7 +1369,7 @@ mount_scan(ex, mount_st, ostore_st) =
              and ex = array_free[Obj] #{arr=objs, f=deep_freeObj, ex}
              in ((ex, mount_st, ostore_st), Success alloc_neweb)
 
-extract_super_from_union:(ExState, ObjUnion) -> R (ExState, ObjSuper) ExState
+extract_super_from_union:(SysState, ObjUnion) -> R (SysState, ObjSuper) SysState
 extract_super_from_union(ex, ounion) =
   ounion
   | TObjPad _       -> Error ex
@@ -1380,7 +1380,7 @@ extract_super_from_union(ex, ounion) =
   | TObjSummary sum -> Error (summary_clean(ex, sum))
   | TObjSuper sup   -> Success (ex, sup)
 
-read_super_loop: #{acc:(ExState, Obj, U32), obsv:(MountState, Buffer)!, idx:U32} -> LRR (ExState, Obj, U32) ()
+read_super_loop: #{acc:(SysState, Obj, U32), obsv:(MountState, Buffer)!, idx:U32} -> LRR (SysState, Obj, U32) ()
 read_super_loop #{acc=(ex, obj, offs), obsv=(mount_st, rbuf), idx=nb_trans} =
   deserialise_Obj_crc(ex, rbuf, offs)
   | Error (err, ex) ->
@@ -1397,7 +1397,7 @@ read_super_loop #{acc=(ex, obj, offs), obsv=(mount_st, rbuf), idx=nb_trans} =
       let ex = deep_freeObj(ex, obj)
       in ((ex, obj', offs), Iterate ())
 
-mount_read_super: (ExState, MountState, OstoreState) -> RR (ExState, MountState, OstoreState) () ErrCode
+mount_read_super: (SysState, MountState, OstoreState) -> RR (SysState, MountState, OstoreState) () ErrCode
 mount_read_super(ex, mount_st, ostore_st {rbuf}) =
 -- Success means that mount_st.super is the one stored on-flash and
 -- mount_st.super_offs corresponds to the offset.
@@ -1419,7 +1419,7 @@ mount_read_super(ex, mount_st, ostore_st {rbuf}) =
      -- all of size bilbyFsObjHeaderSize
       and max_nb_trans = mount_st.super.eb_size / bilbyFsObjHeaderSize !mount_st
       and ((ex, obj, offs), r) =
-            seq32[(ExState, Obj, U32), (MountState, Buffer), ()]
+            seq32[(SysState, Obj, U32), (MountState, Buffer), ()]
               #{frm=0, to=max_nb_trans + 1, step=1, f=read_super_loop, acc=(ex, obj, offs), obsv=(mount_st, ostore_st.rbuf)} !ostore_st !mount_st
       in r
       | Iterate () ->
@@ -1464,7 +1464,7 @@ ostore_next_obj_id(mount_st, ostore_st, oid) =
       _cogent_debug "but is for another inode\n" ;
       Error ()
 
-ostore_mount: (ExState, MountState, OstoreState) -> RR (ExState, MountState, OstoreState) () ErrCode
+ostore_mount: (SysState, MountState, OstoreState) -> RR (SysState, MountState, OstoreState) () ErrCode
 ostore_mount(ex, mount_st, ostore_st) =
   let (ex, r) = check_flash_is_empty(ex, mount_st, ostore_st.ubi_vol) !mount_st !ostore_st
   in r
@@ -1506,7 +1506,7 @@ obj_init_super(obj, sqnum, offs) =
 -- ostore_write_super is only called in umount and fsop_format_default
 -- we can assume that the ostore_st.wbuf_eb and .used and .sync_offs
 -- is gonna be updated afterwards (unless it doesn't matter)
-ostore_write_super: (ExState, MountState, OstoreState) -> RR (ExState, MountState, OstoreState) () ErrCode
+ostore_write_super: (SysState, MountState, OstoreState) -> RR (SysState, MountState, OstoreState) () ErrCode
 ostore_write_super (ex, mount_st, ostore_st) =
   let ((ex, ostore_st), r) = ostore_sync (ex, mount_st, ostore_st, ostoreWriteNone) !mount_st
   in r
@@ -1546,7 +1546,7 @@ ostore_write_super (ex, mount_st, ostore_st) =
       | Success () ->
         ((ex, mount_st, ostore_st), Success ())
 
-ostore_umount: (ExState, MountState, OstoreState) -> RR (ExState, MountState, OstoreState) () ErrCode
+ostore_umount: (SysState, MountState, OstoreState) -> RR (SysState, MountState, OstoreState) () ErrCode
 ostore_umount(ex, mount_st, ostore_st) =
   let sqnum = ostore_st.next_sqnum !ostore_st
   and sup_sqnum = mount_st.super.next_sqnum !mount_st

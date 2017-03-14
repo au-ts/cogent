@@ -179,9 +179,9 @@ $ty:(VfsInode)INFER_TYPE_RET vfs_inode_unlock ($ty:(VfsInode)INFER_TYPE_ARGS ino
 	return inode;
 }
 
-//fs_inode_get: (#{: ExState, ino: U32}) -> 
-//	Result (#{ex: ExState, inode: Inode take (fs)}) 
-//	(ExState)
+//fs_inode_get: (#{: SysState, ino: U32}) -> 
+//	Result (#{ex: SysState, inode: Inode take (fs)}) 
+//	(SysState)
 INFER_TYPE_RET vfs_inode_get (INFER_TYPE_ARGS args) {
 	INFER_TYPE_RET ret;
 	struct inode *inode;

@@ -14,9 +14,9 @@ include "common.cogent"
 
 type ListNode a 
 {-# cinline newListNode #-}
-newListNode: all(a). ExState -> R (ExState, ListNode a)  ExState
+newListNode: all(a). SysState -> R (SysState, ListNode a)  SysState
 {-# cinline freeListNode #-}
-freeListNode: all(a). (ExState, ListNode a) -> ExState
+freeListNode: all(a). (SysState, ListNode a) -> SysState
 
 {-# cinline listnode_get #-}
 listnode_get: all(a). (ListNode a)! -> a
@@ -26,11 +26,11 @@ listnode_put: all(a). (ListNode a, a) -> ListNode a
 type List' a
 type List a = List' (ListNode a)
 {-# cinline list_create #-}
-list_create: all(a). ExState -> R (ExState, List a) ExState  -- creates an empty list does not allocate
+list_create: all(a). SysState -> R (SysState, List a) SysState  -- creates an empty list does not allocate
 
-type ListFreeP a = #{list:List a, f:FreeF (ListNode a), ex: ExState}
+type ListFreeP a = #{list:List a, f:FreeF (ListNode a), ex: SysState}
 {-# cinline list_free #-}
-list_free: all(a). ListFreeP a -> ExState -- list free
+list_free: all(a). ListFreeP a -> SysState -- list free
 {-# cinline list_add_node #-}
 list_add_node: all(a). (List a, ListNode a) -> List a
 

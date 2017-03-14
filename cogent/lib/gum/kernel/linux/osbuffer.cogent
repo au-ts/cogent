@@ -16,15 +16,15 @@ type OSBufferOffset = U32
 -- creates a buffer the size of one block
 -- on linux, this is a no-op, since we get a new buffer created on read
 {-# cinline osbuffer_create #-}
-osbuffer_create: (ExState) -> RR ExState (OSBuffer) ()
+osbuffer_create: (SysState) -> RR SysState (OSBuffer) ()
 
 {-# cinline osbuffer_destroy #-}
-osbuffer_destroy: (ExState, OSBuffer) -> (ExState) -- brelse; really should be free
+osbuffer_destroy: (SysState, OSBuffer) -> (SysState) -- brelse; really should be free
 {-# cinline osbuffer_trash #-}
-osbuffer_trash: (ExState, OSBuffer) -> (ExState) -- bforget; really should be destroy
+osbuffer_trash: (SysState, OSBuffer) -> (SysState) -- bforget; really should be destroy
 
 {-# cinline osbuffer_read_block #-}
-osbuffer_read_block: (#{ex: ExState, buf: OSBuffer, blk: U32}) -> RR (ExState, OSBuffer) () ()
+osbuffer_read_block: (#{ex: SysState, buf: OSBuffer, blk: U32}) -> RR (SysState, OSBuffer) () ()
 {-# cinline osbuffer_get_size #-}
 osbuffer_get_size: (OSBuffer!) -> U32
 {-# cinline osbuffer_set_size #-}
@@ -38,7 +38,7 @@ osbuffer_boundary: (OSBuffer) -> (OSBuffer)
 osbuffer_get_blocknum: OSBuffer! -> U32
 
 {-# cinline osbuffer_readahead #-}
-osbuffer_readahead: (ExState, U32) -> ExState
+osbuffer_readahead: (SysState, U32) -> SysState
 
 -- type WordArrayFoldF a acc obsv rbrk = ElemAO a acc obsv! -> LoopResult acc rbrk
 --type ElemAO a acc obsv = #{elem:a, acc:acc, obsv:obsv!}
@@ -93,11 +93,11 @@ osbuffer_set_bit: (OSBuffer, OSBufferOffset) -> (OSBuffer, Bool)
 osbuffer_clear_bit: (OSBuffer, OSBufferOffset) -> (OSBuffer, Bool)
 
 {-# cinline osbuffer_dirty #-}
-osbuffer_dirty: (ExState, OSBuffer) -> (ExState, OSBuffer)
+osbuffer_dirty: (SysState, OSBuffer) -> (SysState, OSBuffer)
 {-# cinline osbuffer_set_new #-}
-osbuffer_set_new: (ExState, OSBuffer) -> (ExState, OSBuffer)
+osbuffer_set_new: (SysState, OSBuffer) -> (SysState, OSBuffer)
 
-osbuffer_set_uptodate: (ExState, OSBuffer) -> (ExState, OSBuffer) -- FIXME: kinda linux-specific
+osbuffer_set_uptodate: (SysState, OSBuffer) -> (SysState, OSBuffer) -- FIXME: kinda linux-specific
 {-# cinline osbuffer_find_u32 #-}
 osbuffer_find: (OSBuffer!, U8, OSBufferOffset, U32) -> U32
 -- haystack, needle, offset, length

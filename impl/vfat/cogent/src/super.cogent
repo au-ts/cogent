@@ -10,7 +10,7 @@
 
 include <gum/common/iterator.cogent>
 -- Defined in common.cogent (included by iterator.cogent):
---  type ExState = U64
+--  type SysState = U64
 --  type R a b = < Success a | Error b >
 --  type RR a b c = (c, R a b)
 --  type Option a = < None () | Some a >
@@ -68,20 +68,20 @@ is_null: all a. a! -> Bool
 is_noent: ErrPtr -> R () ErrPtr
 is_disconnected: VfsDentry! -> Bool
 
-flock_buildinode: (ExState, Superblock) -> (ExState, Superblock)
-funlock_buildinode: (ExState, Superblock) -> (ExState, Superblock)
-ulock: (ExState, Superblock) -> ExState
-slock: (ExState, Superblock) -> (ExState, Superblock)
-spinode_unlock: (ExState, Superblock) -> ExState
-spinode_lock: (ExState, Superblock) -> (ExState, Superblock)
-spdir_lock: (ExState, Superblock) -> (ExState, Superblock)
-spdir_unlock: (ExState, Superblock) -> ExState
+flock_buildinode: (SysState, Superblock) -> (SysState, Superblock)
+funlock_buildinode: (SysState, Superblock) -> (SysState, Superblock)
+ulock: (SysState, Superblock) -> SysState
+slock: (SysState, Superblock) -> (SysState, Superblock)
+spinode_unlock: (SysState, Superblock) -> SysState
+spinode_lock: (SysState, Superblock) -> (SysState, Superblock)
+spdir_lock: (SysState, Superblock) -> (SysState, Superblock)
+spdir_unlock: (SysState, Superblock) -> SysState
 
 decrementU32: U32 -> U32
 incr_head_pointer: (U64, U64) -> U64
 inc_nlink_ac: VfsInode -> VfsInode
 set_nlink_ac: (VfsInode, U32) -> VfsInode -- check?
-fat_msg_ac: (ExState, Superblock, String) -> ExState -- check?
+fat_msg_ac: (SysState, Superblock, String) -> SysState -- check?
 
 noent_ac: () -> ErrPtr
 
@@ -113,7 +113,7 @@ is_equal_den: (VfsDentry, VfsDentry) -> Bool
 set_time: (VfsInode, Time) -> VfsInode
 update_am_time: VfsInode -> VfsInode
 set_d_time: (VfsDentry, U64) -> VfsDentry -- check the ac function
-get_current_time: ExState -> (ExState, Time) -- function possibly exists already
+get_current_time: SysState -> (SysState, Time) -- function possibly exists already
 
 -- ==========
 -- iteration-related functions
@@ -193,7 +193,7 @@ vfat_striptail_len_cog qname =
     in Error err_ptr
   | False -> Success len
 
-add_head_cog: (ExState, VfsInode, U64) -> (ExState, VfsInode)
+add_head_cog: (SysState, VfsInode, U64) -> (SysState, VfsInode)
 add_head_cog (ex, inode, i_pos) =
   is_root_ino inode ! inode
   | True -> (ex, inode)
@@ -209,7 +209,7 @@ add_head_cog (ex, inode, i_pos) =
     in (ex, inode)
 
 -- want to get rid of the one in inode.c but native fat is exporting...
-fat_attach_cog: (ExState, VfsInode, U64) -> (ExState, VfsInode)
+fat_attach_cog: (SysState, VfsInode, U64) -> (SysState, VfsInode)
 fat_attach_cog (ex, inode, i_pos) =
   let (ex, inode) = add_head_cog (ex, inode, i_pos) -- check if read only
   in is_dir_ac inode ! inode
@@ -235,7 +235,7 @@ sync_inode_cog dir =
   | False -> mark_inode_dirty_ac dir
 
 -- Original sets some things to NULL in sinfo - check if this is an issue
-fat_remove_entries_cog: (ExState, VfsInode, SlotInfo) -> RR (ExState, VfsInode) () ErrPtr
+fat_remove_entries_cog: (SysState, VfsInode, SlotInfo) -> RR (SysState, VfsInode) () ErrPtr
 fat_remove_entries_cog (ex, dir, sinfo) =
   let (de, nr_slots') = del_slots_cog (sinfo.nr_slots, sinfo.bh, sinfo.de)
   and (dir, bh') = mark_buffer_dirty_inode_ac (dir, sinfo.bh) -- check what is needed
@@ -293,7 +293,7 @@ fat_dir_hash_cog inode =
     let (inode, logstart) = get_logstart inode
     in (inode, hash_32_ac [U32] logstart)
 
-fat_detach_cog: (ExState, VfsInode) -> (ExState, VfsInode)
+fat_detach_cog: (SysState, VfsInode) -> (SysState, VfsInode)
 fat_detach_cog (ex, inode) =
   let sb = get_sb inode ! inode
   and (ex, sb) = spinode_lock (ex, sb)
@@ -327,7 +327,7 @@ setup_inode (inode, dentry, ts) = -- check if order of when increasing i_version
   and (inode, dentry) = d_instantiate_ac (inode, dentry)
   in (inode, dentry)
 
-fat_build_inode_cog: (ExState, Superblock, SlotInfo) -> RR (ExState, Superblock) VfsInode ErrPtr
+fat_build_inode_cog: (SysState, Superblock, SlotInfo) -> RR (SysState, Superblock) VfsInode ErrPtr
 fat_build_inode_cog (ex, sb, sinfo) =
   let _ = brelse_ac sinfo.bh
   and i_pos = sinfo.i_pos
@@ -386,7 +386,7 @@ vfat_add_entry_cog (dir, qname, is_dir, cluster, ts) =
     | Error err_ptr -> (dir, Error err_ptr)
   | Error err_ptr -> (dir, Error err_ptr)
 
-vfat_create_cog: (ExState, VfsInode, VfsDentry) -> RR (ExState, VfsInode, VfsDentry) VfsInode ErrPtr
+vfat_create_cog: (SysState, VfsInode, VfsDentry) -> RR (SysState, VfsInode, VfsDentry) VfsInode ErrPtr
 vfat_create_cog (ex, inode, dentry) =
   let sb = get_sb inode ! inode
   and (ex, sb) = slock (ex, sb)
@@ -442,7 +442,7 @@ alias_cond (inode, dentry) =
     | False -> Error (inode, alias)
 
 -- check correctness
-vfat_lookup_cog: (ExState, VfsInode, VfsDentry) -> RR (ExState, VfsInode, VfsDentry) (Option VfsDentry) ErrPtr
+vfat_lookup_cog: (SysState, VfsInode, VfsDentry) -> RR (SysState, VfsInode, VfsDentry) (Option VfsDentry) ErrPtr
 vfat_lookup_cog (ex, dir, dentry) =
   let sb = get_sb dir ! dir
   and (ex, sb) = slock (ex, sb)
@@ -496,7 +496,7 @@ vfat_lookup_cog (ex, dir, dentry) =
       let ex = ulock (ex, sb)
       in ((ex, dir, dentry), Error err_ptr)
 
-vfat_unlink_cog: (ExState, VfsInode, VfsDentry) -> RR (ExState, VfsInode, VfsDentry) VfsInode ErrPtr
+vfat_unlink_cog: (SysState, VfsInode, VfsDentry) -> RR (SysState, VfsInode, VfsDentry) VfsInode ErrPtr
 vfat_unlink_cog (ex, dir, dentry) =
   let sb = get_sb dir ! dir
   and version = get_version dir ! dir
@@ -524,7 +524,7 @@ vfat_unlink_cog (ex, dir, dentry) =
 
 -- vfat_mkdir
 -- should return VfsInode -- fix this up
-vfat_mkdir_cog: (ExState, VfsInode, VfsDentry) -> RR (ExState, VfsInode, VfsDentry) VfsInode ErrPtr
+vfat_mkdir_cog: (SysState, VfsInode, VfsDentry) -> RR (SysState, VfsInode, VfsDentry) VfsInode ErrPtr
 vfat_mkdir_cog (ex, dir, dentry) =
   let sb = get_sb dir ! dir
   and (ex, ts) = get_current_time ex
@@ -560,7 +560,7 @@ vfat_mkdir_cog (ex, dir, dentry) =
 
 -- vfat_rmdir
 -- There was an error ONE time early on using this. Not sure how to recreate. Need to check.
-vfat_rmdir_cog: (ExState, VfsInode, VfsDentry) -> RR (ExState, VfsInode, VfsDentry) VfsInode ErrPtr
+vfat_rmdir_cog: (SysState, VfsInode, VfsDentry) -> RR (SysState, VfsInode, VfsDentry) VfsInode ErrPtr
 vfat_rmdir_cog (ex, dir, dentry) =
   let inode = d_inode_ac dentry ! dentry
   and sb = get_sb dir ! dir

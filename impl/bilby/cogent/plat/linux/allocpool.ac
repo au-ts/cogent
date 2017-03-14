@@ -10,9 +10,9 @@
 
 $esc:(#include <lib/allocpool.h>)
 
-$ty:(R (ExState, AllocPool a) ExState) $id:allocpool_create($ty:(ExState) args)
+$ty:(R (SysState, AllocPool a) SysState) $id:allocpool_create($ty:(SysState) args)
 {
-    $ty:(R (ExState, AllocPool a) ExState) ret;
+    $ty:(R (SysState, AllocPool a) SysState) ret;
 	$ty:(AllocPool a) apool = kzalloc(sizeof(*apool));
     
     if (!apool) {
@@ -26,14 +26,14 @@ $ty:(R (ExState, AllocPool a) ExState) $id:allocpool_create($ty:(ExState) args)
     return ret;
 }
 
-$ty:(ExState) $id:allocpool_free($ty:((ExState, AllocPool a)) args)
+$ty:(SysState) $id:allocpool_free($ty:((SysState, AllocPool a)) args)
 {
     kfree(args.p2->pool);
     kfree(args.p2);
     return args.p1;
 }
 
-$ty:((ExState, AllocPool a)) $id:allocpool_clean($ty:((ExState, AllocPool a)) args)
+$ty:((SysState, AllocPool a)) $id:allocpool_clean($ty:((SysState, AllocPool a)) args)
 {
     $ty:(AllocPool a) apool = args.p2;
     int i;
@@ -47,9 +47,9 @@ $ty:((ExState, AllocPool a)) $id:allocpool_clean($ty:((ExState, AllocPool a)) ar
     return args;
 }
 
-$ty:(RR (ExState, AllocPool a) () ()) $id:allocpool_prealloc($ty:(AllocPoolPreallocP a) args)
+$ty:(RR (SysState, AllocPool a) () ()) $id:allocpool_prealloc($ty:(AllocPoolPreallocP a) args)
 {
-    $ty:(RR (ExState, AllocPool a) () ())  ret;
+    $ty:(RR (SysState, AllocPool a) () ())  ret;
     $ty:(AllocPool a) apool = args.pool;
     int i;
 
@@ -65,7 +65,7 @@ $ty:(RR (ExState, AllocPool a) () ()) $id:allocpool_prealloc($ty:(AllocPoolPreal
             for (i = 0; i < apool->len; i++) {
                     apool->pool[i] = kmem_cache_alloc(node_slab, GFP_NOFS);
                     if (!apool->pool[i]) {
-                            $ty:((ExState, AllocPool a)) fargs;
+                            $ty:((SysState, AllocPool a)) fargs;
                             fargs.p1 = args.ex;
                             fargs.p2 = apool;
                             $exp:(allocpool_clean[a])(fargs);

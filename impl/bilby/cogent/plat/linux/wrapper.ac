@@ -353,8 +353,8 @@ static int bilbyfs_setattr(struct dentry *dentry, struct iattr *attr)
 }
 
 /*
-type FsopGetattrP = #{ex:ExState, fs_st: FsState, stat: VfsStat, vnode: VfsInode!}
-type FsopGetattrR = #{ex:ExState, fs_st: FsState, stat: VfsStat}
+type FsopGetattrP = #{ex:SysState, fs_st: FsState, stat: VfsStat, vnode: VfsInode!}
+type FsopGetattrR = #{ex:SysState, fs_st: FsState, stat: VfsStat}
 fsop_getattr: FsopGetattrP -> FsopGetattrR
 */
 static int bilbyfs_getattr(struct vfsmount *mnt, struct dentry *dentry,
@@ -380,7 +380,7 @@ static int bilbyfs_getattr(struct vfsmount *mnt, struct dentry *dentry,
 
 
 /*
-type FsopCreateP = #{ex:ExState, fs_st: FsState, vdir: VfsInode, name: (WordArray U8)!, mode: VfsMode, vnode: VfsInode take fs}
+type FsopCreateP = #{ex:SysState, fs_st: FsState, vdir: VfsInode, name: (WordArray U8)!, mode: VfsMode, vnode: VfsInode take fs}
 fsop_create : FsopCreateP -> RR FsopRR () ErrCode
 */
 static inline int wfsop_create(struct wrapper_data *wd, struct inode *dir, const char *name, umode_t mode, bool excl, struct inode *inode)
@@ -428,8 +428,8 @@ static int bilbyfs_create(struct inode *dir, struct dentry *dentry,
 }
 
 /*
-type FsopUnlinkP = #{ex:ExState, fs_st:FsState, vdir:VfsInode, name:(WordArray U8)!, vnode:VfsInode}
-type FsopE' = #{err:ErrCode, ex:ExState, fs_st:FsState, vdir:VfsInode, vnode:VfsInode}
+type FsopUnlinkP = #{ex:SysState, fs_st:FsState, vdir:VfsInode, name:(WordArray U8)!, vnode:VfsInode}
+type FsopE' = #{err:ErrCode, ex:SysState, fs_st:FsState, vdir:VfsInode, vnode:VfsInode}
 fsop_unlink : FsopUnlinkP -> R FsopR FsopE'
 */
 
@@ -458,9 +458,9 @@ static int bilbyfs_unlink(struct inode *dir, struct dentry *dentry)
 }
 
 /*
-type FsopRenameP = #{ex:ExState, fs_st:FsState, vdir:VfsInode, old_name:(WordArray U8)!, old_vnode:VfsInode, new_name: (WordArray U8)!, opt_new_vnode: Option VfsInode}
-type FsopRenameR = #{ex:ExState, fs_st:FsState, vdir:VfsInode, old_vnode:VfsInode, opt_new_vnode: Option VfsInode}
-type FsopRenameE = #{err:ErrCode, ex: ExState, fs_st:FsState, vdir:VfsInode, old_vnode:VfsInode, opt_new_vnode: Option VfsInode}
+type FsopRenameP = #{ex:SysState, fs_st:FsState, vdir:VfsInode, old_name:(WordArray U8)!, old_vnode:VfsInode, new_name: (WordArray U8)!, opt_new_vnode: Option VfsInode}
+type FsopRenameR = #{ex:SysState, fs_st:FsState, vdir:VfsInode, old_vnode:VfsInode, opt_new_vnode: Option VfsInode}
+type FsopRenameE = #{err:ErrCode, ex: SysState, fs_st:FsState, vdir:VfsInode, old_vnode:VfsInode, opt_new_vnode: Option VfsInode}
 fsop_rename: FsopRenameP -> R FsopRenameR FsopRenameE
 
 RR FsopRenameRR () ErrCode
@@ -551,9 +551,9 @@ static int bilbyfs_rename(struct inode *old_dir, struct dentry *old_dentry,
 }
 
 /*
-type FsopReadPageP = #{ex:ExState, fs_st: FsState, vnode: VfsInode, block: OSPageOffset, addr: Buffer}
-type FsopReadPageR = #{ex:ExState, fs_st: FsState, vnode: VfsInode, addr: Buffer}
-type FsopReadPageE = #{err:ErrCode, ex:ExState, fs_st: FsState, vnode: VfsInode, addr: Buffer}
+type FsopReadPageP = #{ex:SysState, fs_st: FsState, vnode: VfsInode, block: OSPageOffset, addr: Buffer}
+type FsopReadPageR = #{ex:SysState, fs_st: FsState, vnode: VfsInode, addr: Buffer}
+type FsopReadPageE = #{err:ErrCode, ex:SysState, fs_st: FsState, vnode: VfsInode, addr: Buffer}
 
 fsop_readpage: FsopReadPageP -> RR FsopReadPageRR () ErrCode 
 */
@@ -614,9 +614,9 @@ static int bilbyfs_readpage(struct file *filp, struct page *page)
 }
 
 /*
-type FsopWriteP = #{ex:ExState, fs_st: FsState, vnode: VfsInode, pos: OSPageOffset, len:U32, addr: Buffer}
-type FsopWriteR = #{ex:ExState, fs_st: FsState, vnode: VfsInode, addr: Buffer}
-type FsopWriteE = #{err:ErrCode, ex:ExState, fs_st: FsState, vnode: VfsInode, addr: Buffer}
+type FsopWriteP = #{ex:SysState, fs_st: FsState, vnode: VfsInode, pos: OSPageOffset, len:U32, addr: Buffer}
+type FsopWriteR = #{ex:SysState, fs_st: FsState, vnode: VfsInode, addr: Buffer}
+type FsopWriteE = #{err:ErrCode, ex:SysState, fs_st: FsState, vnode: VfsInode, addr: Buffer}
 fsop_write_begin: FsopWriteP -> RR FsopWriteRR () ErrCode
 */
 static inline int wfsop_write_begin(struct wrapper_data *wd, struct inode *inode, loff_t pos, unsigned len, void *addr)
@@ -723,9 +723,9 @@ static int bilbyfs_write_end_writeback(struct file *filp, struct address_space *
 }
 
 /*
-type FsopWriteP = #{ex:ExState, fs_st: FsState, vnode: VfsInode, pos: OSPageOffset, len:U32, addr: Buffer}
-type FsopWriteR = #{ex:ExState, fs_st: FsState, vnode: VfsInode, addr: Buffer}
-type FsopWriteE = #{err:ErrCode, ex:ExState, fs_st: FsState, vnode: VfsInode, addr: Buffer}
+type FsopWriteP = #{ex:SysState, fs_st: FsState, vnode: VfsInode, pos: OSPageOffset, len:U32, addr: Buffer}
+type FsopWriteR = #{ex:SysState, fs_st: FsState, vnode: VfsInode, addr: Buffer}
+type FsopWriteE = #{err:ErrCode, ex:SysState, fs_st: FsState, vnode: VfsInode, addr: Buffer}
 fsop_write_end: FsopWriteP -> RR FsopWriteRR () ErrCode
 fsop_write_end #{ex, fs_st, vnode, pos, len, addr} =
 */
@@ -792,8 +792,8 @@ static int bilbyfs_writepage(struct page *page, struct writeback_control *wbc)
 }
 
 /*
-type FsopFollowLinkP = #{ex:ExState, fs_st: FsState, vnode: VfsInode, path: Buffer}
-type FsopFollowLinkE = #{err:ErrCode, ex:ExState, fs_st: FsState, vnode: VfsInode, path: Buffer}
+type FsopFollowLinkP = #{ex:SysState, fs_st: FsState, vnode: VfsInode, path: Buffer}
+type FsopFollowLinkE = #{err:ErrCode, ex:SysState, fs_st: FsState, vnode: VfsInode, path: Buffer}
 fsop_follow_link: FsopFollowLinkP -> RR FsopFollowLinkP () ErrCode
 */
 static int wfsop_follow_link(struct wrapper_data *wd, struct inode *inode, void *page)
@@ -839,7 +839,7 @@ static void *bilbyfs_follow_link(struct dentry *dentry, struct nameidata *nd)
         return NULL;
 }
 /*
-type ReadDirParams = #{ex:ExState, fs_st:FsState, vctx:VfsDirContext, opt_rdctx: Option BilbyFsReaddirContext}
+type ReadDirParams = #{ex:SysState, fs_st:FsState, vctx:VfsDirContext, opt_rdctx: Option BilbyFsReaddirContext}
 fsop_readdir: (ReadDirParams, VfsInode!) -> RR ReadDirParams () ErrCode
 */
 static int wfsop_readdir(struct wrapper_data *wd, struct inode *dir, struct dir_context *ctx,
@@ -898,7 +898,7 @@ static int bilbyfs_readdir(struct file *file, struct dir_context *ctx)
 static int bilbyfs_dir_release(struct inode *dir, struct file *file)
 {
         struct wrapper_data *wd = dir->i_sb->s_fs_info;
-        $ty:((ExState, Option BilbyFsReaddirContext)) fargs;
+        $ty:((SysState, Option BilbyFsReaddirContext)) fargs;
 
         fargs.p1 = NULL;
         if (file->private_data) {
@@ -970,8 +970,8 @@ int bilbyfs_statfs(struct dentry *dentry, struct kstatfs *kstat)
 }
 
 /*
-type FsopFsP = #{ex:ExState, fs_st: FsState}
-type FsopFsE = #{err:ErrCode, ex:ExState, fs_st: FsState}
+type FsopFsP = #{ex:SysState, fs_st: FsState}
+type FsopFsE = #{err:ErrCode, ex:SysState, fs_st: FsState}
 fsop_sync_fs: FsopFsP -> R FsopFsP FsopFsE
 */
 static int wfsop_sync_fs(struct wrapper_data *wd, struct super_block *sb, int wait)
@@ -1051,8 +1051,8 @@ static struct inode *bilbyfs_iget(struct wrapper_data *wd, unsigned long inum)
 
 /*
 
-type FsopLookupP = #{ex:ExState, fs_st:FsState, vdir:VfsInode, name:CString!}
-type FsopLookupRR = #{ex:ExState, fs_st:FsState, vdir:VfsInode}
+type FsopLookupP = #{ex:SysState, fs_st:FsState, vdir:VfsInode, name:CString!}
+type FsopLookupRR = #{ex:SysState, fs_st:FsState, vdir:VfsInode}
 fsop_lookup: FsopLookupP -> RR FsopLookupRR VfsIno ErrCode
 */
 static inline int wfsop_lookup(struct wrapper_data *wd, struct inode *dir, const char*name, ino_t *inum)
@@ -1174,8 +1174,8 @@ static int bilbyfs_parse_options(struct wrapper_data *wd, char *options)
 }
 
 /*
-type FsopVfsInodeP = #{ex: ExState, fs_st: FsState, vnode: VfsInode}
-type FsopVfsInodeE = #{err: ErrCode, ex: ExState, fs_st: FsState, vnode: VfsInode}
+type FsopVfsInodeP = #{ex: SysState, fs_st: FsState, vnode: VfsInode}
+type FsopVfsInodeE = #{err: ErrCode, ex: SysState, fs_st: FsState, vnode: VfsInode}
 */
 static void bilbyfs_evict_inode(struct inode *inode)
 {
@@ -1198,8 +1198,8 @@ static void bilbyfs_evict_inode(struct inode *inode)
 }
 
 /*
-type FsopFsP = #{ex:ExState, fs_st: FsState}
-type FsopFsE = #{err:ErrCode, ex:ExState, fs_st: FsState}
+type FsopFsP = #{ex:SysState, fs_st: FsState}
+type FsopFsE = #{err:ErrCode, ex:SysState, fs_st: FsState}
 fsop_sync_fs: FsopFsP -> R FsopFsP FsopFsE
 */
 static int bilbyfs_fsync(struct file *filp, loff_t start, loff_t end, int datasync)
@@ -1253,9 +1253,9 @@ static const struct super_operations bilbyfs_super_operations;
 #define BILBYFS_BD_MAX_NLEN 16
 
 /*
-type FsopInitP = #{ex:ExState, fs_st: FsState'Taken, name: CString!}
-type FsopFs'P = #{ex:ExState, fs_st: FsState'}
-type FsopFs'E = #{err:ErrCode, ex:ExState, fs_st: FsState'Taken}
+type FsopInitP = #{ex:SysState, fs_st: FsState'Taken, name: CString!}
+type FsopFs'P = #{ex:SysState, fs_st: FsState'}
+type FsopFs'E = #{err:ErrCode, ex:SysState, fs_st: FsState'Taken}
 */
 static inline int wfsop_init($ty:(FsState) fs_st, const char *name, char *bd_name)
 {
@@ -1298,8 +1298,8 @@ static inline void super_block_to_VfsMountInfo(struct super_block *sb, $ty:(VfsM
       vmi->s_blocksize_bits = sb->s_blocksize_bits;
 }
 /*
-type FsopFillSuperP = #{ex:ExState, fs_st:FsState', vsup:VfsMountInfo, is_silent:Bool, root:VfsInode}
-type FsopFillSuperRR = #{ex:ExState, vsup:VfsMountInfo, root:VfsInode}
+type FsopFillSuperP = #{ex:SysState, fs_st:FsState', vsup:VfsMountInfo, is_silent:Bool, root:VfsInode}
+type FsopFillSuperRR = #{ex:SysState, vsup:VfsMountInfo, root:VfsInode}
 type FsopFillSuperE = #{err:ErrCode, fs_st:FsState'}
 fsop_fill_super: FsopFillSuperP -> RR FsopFillSuperRR FsState FsopFillSuperE
 */

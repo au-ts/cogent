@@ -10,7 +10,7 @@
 
 include "bilbyfs.cogent"
 
-fsm_init : (ExState, MountState!, FsmState take (..)) -> RR ExState FsmState (ErrCode, FsmState take(..)) 
+fsm_init : (SysState, MountState!, FsmState take (..)) -> RR SysState FsmState (ErrCode, FsmState take(..)) 
 fsm_init(ex, mount_st, fsm_st) =
   _cogent_debug "fsm_init " ;
   _print_obj_super mount_st.super ;
@@ -33,7 +33,7 @@ fsm_init(ex, mount_st, fsm_st) =
         let nb_free_eb = mount_st.super.nb_eb - bilbyFsFirstLogEbNum
         in (ex, Success (fsm_st {used_eb, dirty_space, gim, nb_free_eb}))
 
-fsm_clean : (ExState, FsmState) -> ExState
+fsm_clean : (SysState, FsmState) -> SysState
 fsm_clean(ex, fsm_st {gim, dirty_space, used_eb, nb_free_eb}) =
   let ex = wordarray_free[U8](ex, used_eb)
   and ex = wordarray_free[U32](ex, dirty_space)
@@ -118,25 +118,25 @@ fsm_mark_ebnum_dirty(fsm_st {dirty_space}, ebnum, len) =
   let #{arr=dirty_space, acc=()} = wordarray_modify[U32, (), U32] #{arr=dirty_space, idx=ebnum, f=mark_dirty_modifier, acc=(), obsv=len}
   in fsm_st {dirty_space}
 
-fsm_mark_dirty_use: #{elem:RbtGimNode, acc:(ExState, Rbt ObjId GimNode), obsv:(ObjId, U64, U16)} -> (ExState, Rbt ObjId GimNode)
+fsm_mark_dirty_use: #{elem:RbtGimNode, acc:(SysState, Rbt ObjId GimNode), obsv:(ObjId, U64, U16)} -> (SysState, Rbt ObjId GimNode)
 fsm_mark_dirty_use #{elem=node, acc=(ex, gim), obsv=(oid, sqnum, count)} =
   let #{rbt=gim, optnode, acc=_} = rbt_modify[ObjId, GimNode, (), (ObjId, U64, U16)]
                                      #{rbt=gim, key=oid, f=gim_modifier, node, acc=(), obsv=(oid, sqnum, count)}
   and ex = freeOptRbtNode[ObjId, GimNode](ex, optnode)
   in (ex, gim)
   
-fsm_mark_dirty : (ExState, MountState!, FsmState, AllocPool RbtGimNode, ObjId, ObjAddr!) -> (ExState, FsmState, AllocPool RbtGimNode)
+fsm_mark_dirty : (SysState, MountState!, FsmState, AllocPool RbtGimNode, ObjId, ObjAddr!) -> (SysState, FsmState, AllocPool RbtGimNode)
 fsm_mark_dirty(ex, mount_st, fsm_st, gimpool, oid, oaddr) =
   let fsm_st = fsm_mark_ebnum_dirty(fsm_st, oaddr.ebnum, oaddr.len)
   and fsm_st {gim} = fsm_st
   in if oid /= nilObjId then
-    let (gimpool, (ex, gim)) = allocpool_use[RbtGimNode, (ExState, Rbt ObjId GimNode), (ObjId, U64, U16)]
+    let (gimpool, (ex, gim)) = allocpool_use[RbtGimNode, (SysState, Rbt ObjId GimNode), (ObjId, U64, U16)]
                                  #{pool=gimpool, f=fsm_mark_dirty_use, acc=(ex, gim), obsv=(oid, oaddr.sqnum, 1)}
     in (ex, fsm_st {gim}, gimpool)
   else
     (ex, fsm_st {gim}, gimpool)
 
-fsm_mark_dirty_recycle: (ExState, MountState!, FsmState, ObjId, ObjAddr!, RbtGimNode) -> (ExState, FsmState)
+fsm_mark_dirty_recycle: (SysState, MountState!, FsmState, ObjId, ObjAddr!, RbtGimNode) -> (SysState, FsmState)
 fsm_mark_dirty_recycle(ex, mount_st, fsm_st, oid, oaddr, node) =
   let fsm_st = fsm_mark_ebnum_dirty(fsm_st, oaddr.ebnum, oaddr.len)
   and fsm_st {gim} = fsm_st
@@ -145,9 +145,9 @@ fsm_mark_dirty_recycle(ex, mount_st, fsm_st, oid, oaddr, node) =
   and ex = freeOptRbtNode[ObjId, GimNode](ex, optnode)
   in (ex, fsm_st {gim})
   
-fsm_set_garbage : (ExState, MountState!, FsmState, AllocPool RbtGimNode, ObjId, U64, U16) -> (ExState, FsmState, AllocPool RbtGimNode)
+fsm_set_garbage : (SysState, MountState!, FsmState, AllocPool RbtGimNode, ObjId, U64, U16) -> (SysState, FsmState, AllocPool RbtGimNode)
 fsm_set_garbage(ex, mount_st, fsm_st, gimpool, oid, sqnum, count) =
   let fsm_st {gim} = fsm_st
-  and (gimpool, (ex, gim)) = allocpool_use[RbtGimNode, (ExState, Rbt ObjId GimNode), (ObjId, U64, U16)]
+  and (gimpool, (ex, gim)) = allocpool_use[RbtGimNode, (SysState, Rbt ObjId GimNode), (ObjId, U64, U16)]
                                #{pool=gimpool, f=fsm_mark_dirty_use, acc=(ex, gim), obsv=(oid, sqnum, count)}
   in (ex, fsm_st {gim}, gimpool)

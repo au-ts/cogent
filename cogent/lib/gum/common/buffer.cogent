@@ -32,12 +32,12 @@ type Buffer = {
     wellformed_buf: wordarray_length buf.data >= buf.bound
 -}
 {-# cinline newBuffer #-}
-newBuffer: (ExState) -> R (ExState, Buffer take (..)) ExState
+newBuffer: (SysState) -> R (SysState, Buffer take (..)) SysState
 {-# cinline freeBuffer #-}
-freeBuffer: (ExState, Buffer take (..)) -> ExState
+freeBuffer: (SysState, Buffer take (..)) -> SysState
 
 {-# cinline buf_create #-}
-buf_create: (ExState, U32) -> R (ExState, Buffer) ExState
+buf_create: (SysState, U32) -> R (SysState, Buffer) SysState
 buf_create(ex, buffer_length) =
   wordarray_create[U8](ex, buffer_length)
   | Error ex -> Error ex
@@ -49,7 +49,7 @@ buf_create(ex, buffer_length) =
          Error (wordarray_free[U8](ex, data))
 
 {-# cinline buf_free #-}
-buf_free: (ExState, Buffer) -> (ExState)
+buf_free: (SysState, Buffer) -> (SysState)
 buf_free(ex, buf {data,bound}) =
   let ex = wordarray_free[U8] (ex, data)
   in freeBuffer(ex, buf)

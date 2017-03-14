@@ -21,7 +21,7 @@ sum_for_n_iters: (#{obj: U32, acc: (U32, U32), obsv: U32!}) -> ConsumerResult ()
 sum_for_n_iters (#{obj = i, acc = (cur_iter, sum), obsv = _}) =
     ((cur_iter, (i + sum)), Next ())
 
-caller: (ExState) -> Result (ExState) (ExState)
+caller: (SysState) -> Result (SysState) (SysState)
 caller ex = 
 	let iter = iterate[U32, (), (), (U32, U32), U32]
   and ((_,sum), r) = iter(#{

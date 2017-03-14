@@ -248,13 +248,13 @@ $ty:a $id:array_use_maybe_value($ty:(ArrayUseMaybeValueP a acc obsv) args)
 }
 
 
-$ty:(RR (ExState, Array a) () ()) $id:array_replace($ty:(ArrayReplaceP a) args)
+$ty:(RR (SysState, Array a) () ()) $id:array_replace($ty:(ArrayReplaceP a) args)
 {
-	$ty:(RR (ExState, Array a) () ()) ret;
+	$ty:(RR (SysState, Array a) () ()) ret;
 	ret.p1.p1 = args.ex;
 	ret.p1.p2 = args.arr;
 
-	$ty:((ExState, a)) free_args = {.p1 = args.ex};
+	$ty:((SysState, a)) free_args = {.p1 = args.ex};
 
 	if (args.idx < args.arr->len) {
 		if (args.arr->values[args.idx]) {

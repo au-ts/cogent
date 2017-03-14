@@ -8,13 +8,13 @@
 -- @TAG(NICTA_GPL)
 --
 
-type ExState
+type SysState
 type R a b = <Success a | Error b>
 
 nested_caller: (U32, U32, U32) -> U32
 nested_caller (_, _, val) =	val
 
-caller: ExState -> R ExState ExState
+caller: SysState -> R SysState SysState
 caller ex = nested_caller (0, 0, 42)
 	            | 42 -> Success ex
 	            | _ -> Error ex

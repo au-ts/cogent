@@ -17,11 +17,11 @@ type CString = WordArray U8
 
 {-# cinline wordarray_create #-}
 {-# fnmacro wordarray_create #-}
-wordarray_create: all (a :< DSE). (ExState, U32) -> R (ExState, WordArray a) ExState
+wordarray_create: all (a :< DSE). (SysState, U32) -> R (SysState, WordArray a) SysState
 
 {-# cinline wordarray_create_nz #-}
 {-# fnmacro wordarray_create_nz #-}
-wordarray_create_nz: all (a :< DSE). (ExState, U32) -> R (ExState, WordArray a) ExState
+wordarray_create_nz: all (a :< DSE). (SysState, U32) -> R (SysState, WordArray a) SysState
 -- wordarray_create(ex, length)
 -- The Error case is always eNoMem
 
@@ -68,10 +68,10 @@ wordarray_length: all(a :< DSE). (WordArray a)! -> U32
 
 {-# cinline wordarray_free #-}
 {-# fnmacro wordarray_free #-}
-wordarray_free: all(a :< DSE). (ExState,WordArray a) -> ExState
+wordarray_free: all(a :< DSE). (SysState,WordArray a) -> SysState
 
 {-# cinline wordarray_free' #-}
-wordarray_free': all(a :< DSE). (#{ex: ExState, obj: WordArray a}) -> ExState
+wordarray_free': all(a :< DSE). (#{ex: SysState, obj: WordArray a}) -> SysState
 wordarray_free' (#{ .. }) = wordarray_free[a] (ex, obj)
 
 {-# cinline copy_n #-}
@@ -80,7 +80,7 @@ copy_n #{elem, acc=idx, obsv=afrm} =
   (wordarray_get[a](afrm, idx), idx+1)
 
 {-# cinline wordarray_clone #-}
-wordarray_clone: all(a :< DSE). (ExState, (WordArray a)!) -> R (ExState, WordArray a) ExState
+wordarray_clone: all(a :< DSE). (SysState, (WordArray a)!) -> R (SysState, WordArray a) SysState
 wordarray_clone(ex, src) =
   let size = wordarray_length[a] src
   in wordarray_create[a](ex, size)
@@ -146,15 +146,15 @@ type FindResult = <Found WordArrayIndex | NotFound () >
 wordarray_findsub: all(a :< DSE). WordArrayFindSubP a -> FindResult
 
 -- ex, src, start, end
-type WordArraySliceP a = (ExState, (WordArray a)!, WordArrayIndex, WordArrayIndex)
-wordarray_slice: all(a :< DSE). WordArraySliceP a -> RR ExState (WordArray a) ()
+type WordArraySliceP a = (SysState, (WordArray a)!, WordArrayIndex, WordArrayIndex)
+wordarray_slice: all(a :< DSE). WordArraySliceP a -> RR SysState (WordArray a) ()
 
 -- TODO: could be implemented in COGENT
 -- same as strtoul
 wordarray_u8_as_u32: (WordArray U8)! -> U32
 
-type WordArrayCloneP a b = (ExState, (WordArray a)!)
-wordarray_clone_rr: all(a :< DSE, b :< DSE). WordArrayCloneP a b -> RR ExState (WordArray b) ()
+type WordArrayCloneP a b = (SysState, (WordArray a)!)
+wordarray_clone_rr: all(a :< DSE, b :< DSE). WordArrayCloneP a b -> RR SysState (WordArray b) ()
 
 type WordArraySetP a = (WordArray a, U32, U32, a)
 wordarray_set: all(a :< DSE). WordArraySetP a -> WordArray a

@@ -226,7 +226,7 @@ serialise_Obj(buf, offs, o) =
   let (buf, offs) = serialise_ObjHeader(buf, offs, o)
   in serialise_ObjUnion(buf, offs, o.ounion, o.len)
 
-deserialise_ObjUnion: (ExState, Buffer!, U32, (ObjType, U32)) -> R (ExState, ObjUnion, U32) (ErrCode, ExState)
+deserialise_ObjUnion: (SysState, Buffer!, U32, (ObjType, U32)) -> R (SysState, ObjUnion, U32) (ErrCode, SysState)
 deserialise_ObjUnion(ex, buf, offs, (otype, olen)) =
   if otype == bilbyFsObjTypeInode then
     deserialise_ObjInode(ex, buf, offs)
@@ -318,7 +318,7 @@ deserialise_ObjHeader (buf, offs, obj) =
   else
     (obj, Success (offs + bilbyFsObjHeaderSize))
 
-deserialise_Obj: (ExState, Buffer!, BufOffs) -> R (ExState, Obj, BufOffs) (ErrCode, ExState)
+deserialise_Obj: (SysState, Buffer!, BufOffs) -> R (SysState, Obj, BufOffs) (ErrCode, SysState)
 deserialise_Obj(ex, buf, offs) =
   newObj ex
   | Error ex ->
@@ -346,11 +346,11 @@ deserialise_Obj(ex, buf, offs) =
         and _ = _cogent_debug "\n"
         in Success (ex, obj, offs')
 
-newObj: ExState -> R (ExState, Obj take(..)) ExState
-freeObj: (ExState, Obj take(..)) -> ExState
+newObj: SysState -> R (SysState, Obj take(..)) SysState
+freeObj: (SysState, Obj take(..)) -> SysState
 
 {-# cinline deep_freeObj #-}
-deep_freeObj: (ExState, Obj) -> ExState
+deep_freeObj: (SysState, Obj) -> SysState
 deep_freeObj(ex, obj) =
   let obj {magic, crc, sqnum, offs, len, trans, otype, ounion} = obj
   and ex = deep_freeObjUnion(ex, ounion)
@@ -372,7 +372,7 @@ serialise_ObjPad(buf, offs, olen) =
  in (buf, offs + padlen)
 
 {-# cinline deserialise_ObjPad #-}
-deserialise_ObjPad: (ExState, Buffer!, BufOffs, U32) -> R (ExState, (), BufOffs) (ErrCode, ExState)
+deserialise_ObjPad: (SysState, Buffer!, BufOffs, U32) -> R (SysState, (), BufOffs) (ErrCode, SysState)
 deserialise_ObjPad(ex, buf, offs, olen) =
   let len = olen - bilbyFsObjHeaderSize
   in if len > olen then
@@ -392,19 +392,19 @@ serialise_ObjUnion(buf, offs, ou, olen) =
   | TObjPad _ -> serialise_ObjPad(buf, offs, olen)
 
 {-# cinline deep_freeObjDentry #-}
-deep_freeObjDentry: (ExState, ObjDentry) -> ExState
+deep_freeObjDentry: (SysState, ObjDentry) -> SysState
 deep_freeObjDentry(ex, o {name,..}) =
   let ex = freeObjDentry(ex, o)
   in wordarray_free[U8](ex, name)
 
 {-# cinline deep_freeObjDentarr #-}
-deep_freeObjDentarr: (ExState, ObjDentarr) -> ExState
+deep_freeObjDentarr: (SysState, ObjDentarr) -> SysState
 deep_freeObjDentarr(ex, o {id,nb_dentry,entries}) =
   let ex = freeObjDentarr(ex, o)
   in array_free[ObjDentry] #{arr=entries, f=deep_freeObjDentry, ex}
 
 {-# cinline deep_freeObjUnion #-}
-deep_freeObjUnion: (ExState, ObjUnion) -> ExState
+deep_freeObjUnion: (SysState, ObjUnion) -> SysState
 deep_freeObjUnion(ex, ounion) =
  ounion
  | TObjDentarr o -> deep_freeObjDentarr(ex, o)
@@ -444,7 +444,7 @@ serialise_ObjDel(buf, offs, od) =
 serialise_size_ObjDel: ObjDel! -> U32
 serialise_size_ObjDel _ = bilbyFsObjDelSize
 
-deserialise_ObjDel: (ExState, Buffer!, BufOffs) -> R (ExState, ObjDel, BufOffs) (ErrCode, ExState)
+deserialise_ObjDel: (SysState, Buffer!, BufOffs) -> R (SysState, ObjDel, BufOffs) (ErrCode, SysState)
 deserialise_ObjDel(ex, buf, offs) =
   let id = deserialise_le64(buf, offs)
   -- Ensure type of oid is ObjData
@@ -531,7 +531,7 @@ serialise_size_ObjDentry dent = bilbyFsObjDentryHeaderSize + wordarray_length[U8
   else
     Success (h, PObjDentry buf.data offs, offs + 8 + nlen32)
 -}
-deserialise_ObjDentry: (ExState, Buffer!, BufOffs, U32) -> R (ExState, ObjDentry, BufOffs) (ErrCode, ExState)
+deserialise_ObjDentry: (SysState, Buffer!, BufOffs, U32) -> R (SysState, ObjDentry, BufOffs) (ErrCode, SysState)
 deserialise_ObjDentry(ex, buf, offs, end_offs) =
   let ino = deserialise_le32(buf, offs)
   and dtype = deserialise_u8(buf, offs+4)
@@ -576,16 +576,16 @@ deserialise_ObjDentry(ex, buf, offs, end_offs) =
         let dentry = dentry {..}
         in Success (ex, dentry, offs + bilbyFsObjDentryHeaderSize + nlen32)
 
-newObjDentry: ExState -> R (ExState, ObjDentry take(..)) ExState
-freeObjDentry: (ExState, ObjDentry take (..)) -> ExState
+newObjDentry: SysState -> R (SysState, ObjDentry take(..)) SysState
+freeObjDentry: (SysState, ObjDentry take (..)) -> SysState
 
 type ObjDentarr = {
   id : ObjId,
   nb_dentry : U32,
   entries : Array ObjDentry
 }
-newObjDentarr: ExState -> R (ExState, ObjDentarr take(..)) ExState
-freeObjDentarr: (ExState, ObjDentarr take (..)) -> ExState
+newObjDentarr: SysState -> R (SysState, ObjDentarr take(..)) SysState
+freeObjDentarr: (SysState, ObjDentarr take (..)) -> SysState
 
 {-# cinline serialise_Arr_ObjDentry_f #-}
 serialise_Arr_ObjDentry_f: #{elem:ObjDentry!, acc:(Buffer, BufOffs), obsv:()} -> (Buffer, BufOffs)
@@ -627,7 +627,7 @@ serialise_size_ObjDentarr: ObjDentarr! -> U32
 serialise_size_ObjDentarr dentarr = bilbyFsObjDentarrHeaderSize + serialise_size_Array_ObjDentry dentarr.entries
 
 {-# cinline deep_freeOptionObjDentry #-}
-deep_freeOptionObjDentry: (ExState, Option ObjDentry) -> ExState
+deep_freeOptionObjDentry: (SysState, Option ObjDentry) -> SysState
 deep_freeOptionObjDentry (ex, opt_dent) =
   opt_dent
   | None () ->
@@ -635,8 +635,8 @@ deep_freeOptionObjDentry (ex, opt_dent) =
   | Some o ->
     deep_freeObjDentry(ex, o)
 
--- #{oelem:Option ObjDentry, acc: (ExState, U32), obsv: Buffer!} -> LoopResult (Option ObjDentry, (ExState, U32)) (Option ObjDentry, (ErrCode, ExState))
-loop_deserialise_ObjDentry: ArrayMapF ObjDentry (ExState, U32) (Buffer!,U32) (ErrCode, ExState)
+-- #{oelem:Option ObjDentry, acc: (SysState, U32), obsv: Buffer!} -> LoopResult (Option ObjDentry, (SysState, U32)) (Option ObjDentry, (ErrCode, SysState))
+loop_deserialise_ObjDentry: ArrayMapF ObjDentry (SysState, U32) (Buffer!,U32) (ErrCode, SysState)
 loop_deserialise_ObjDentry #{oelem, acc=(ex,offs), obsv=(buf,end_offs)} =
   let ex = deep_freeOptionObjDentry(ex, oelem) 
   in deserialise_ObjDentry(ex, buf, offs, end_offs)
@@ -648,7 +648,7 @@ loop_deserialise_ObjDentry #{oelem, acc=(ex,offs), obsv=(buf,end_offs)} =
   | Success (ex, dent, offs) ->
     Iterate (Some dent, (ex, offs))
 
-deserialise_Array_ObjDentry: (ExState, Buffer!, BufOffs, U32, U32) -> R (ExState, Array ObjDentry, BufOffs) (ErrCode, ExState)
+deserialise_Array_ObjDentry: (SysState, Buffer!, BufOffs, U32, U32) -> R (SysState, Array ObjDentry, BufOffs) (ErrCode, SysState)
 deserialise_Array_ObjDentry(ex, buf, offs, nb_dentry, end_offs) =
   -- we always allocate an extra slot for potentially adding an entry
   array_create[ObjDentry] (ex, nb_dentry + 1)
@@ -658,7 +658,7 @@ deserialise_Array_ObjDentry(ex, buf, offs, nb_dentry, end_offs) =
     _cogent_debug ")\n" ;
     Error (eNoMem, ex)
   | Success (ex, arr) ->
-    array_map[ObjDentry, (ExState, U32), (Buffer!,U32), (ErrCode, ExState)]
+    array_map[ObjDentry, (SysState, U32), (Buffer!,U32), (ErrCode, SysState)]
       #{arr, frm=0, to=nb_dentry, f=loop_deserialise_ObjDentry, acc=(ex, offs), obsv=(buf,end_offs)}
     | Break (arr, (err, ex)) ->
       let ex = array_free[ObjDentry] #{arr, f=deep_freeObjDentry, ex}
@@ -666,7 +666,7 @@ deserialise_Array_ObjDentry(ex, buf, offs, nb_dentry, end_offs) =
     | Iterate (arr, (ex, offs)) ->
       Success (ex, arr, offs)
 
-deserialise_ObjDentarr: (ExState, Buffer!, BufOffs, U32) -> R (ExState, ObjDentarr, BufOffs) (ErrCode, ExState) 
+deserialise_ObjDentarr: (SysState, Buffer!, BufOffs, U32) -> R (SysState, ObjDentarr, BufOffs) (ErrCode, SysState) 
 deserialise_ObjDentarr(ex, buf, offs, olen) =
   let id = deserialise_le64(buf, offs)
   and nb_dentry = deserialise_le32(buf, offs+8)
@@ -721,10 +721,10 @@ bilbyFsObjSummaryHeaderSize = 4
 bilbyFsObjSummaryOffsSize: U32
 bilbyFsObjSummaryOffsSize = 4
 
-newObjSummary: ExState -> R (ExState, ObjSummary take(..)) ExState
-freeObjSummary: (ExState, ObjSummary take (..)) -> ExState
+newObjSummary: SysState -> R (SysState, ObjSummary take(..)) SysState
+freeObjSummary: (SysState, ObjSummary take (..)) -> SysState
 
-summary_init: (ExState, U32) -> R (ExState, ObjSummary, Obj) ExState
+summary_init: (SysState, U32) -> R (SysState, ObjSummary, Obj) SysState
 summary_init(ex, max_nb_sum_entry) =
   newObjSummary ex
   | Error ex ->
@@ -746,7 +746,7 @@ summary_init(ex, max_nb_sum_entry) =
         and sum_offs:U32 = 0
         in Success (ex, sum {nb_sum_entry=0, entries, sum_offs}, sum_obj)
 
-summary_clean: (ExState, ObjSummary) -> ExState
+summary_clean: (SysState, ObjSummary) -> SysState
 summary_clean(ex, sum {entries,..}) =
   let ex = wordarray_free[ObjSumEntry] (ex, entries)
   in freeObjSummary(ex, sum)
@@ -854,7 +854,7 @@ deserialise_wordarray_ObjSumEntry (entries, buf, offs, nb_sum_entry) =
                          #{arr=entries, frm=u8_to_u32 0, to=nb_sum_entry, f=deserialise_ObjSumEntry_map, acc=offs, obsv=buf}
   in (entries, Success offs)
   
-deserialise_ObjSummary_crc: (ExState, Buffer!, BufOffs, Obj, ObjSummary) -> RR (ExState, Obj, ObjSummary) BufOffs ErrCode
+deserialise_ObjSummary_crc: (SysState, Buffer!, BufOffs, Obj, ObjSummary) -> RR (SysState, Obj, ObjSummary) BufOffs ErrCode
 deserialise_ObjSummary_crc (ex, buf, offs, obj, summary) =
   let obj {offs=_, ounion, ..} = obj
   and ex = deep_freeObjUnion(ex, ounion)
@@ -943,7 +943,7 @@ deserialise_waU8_map #{elem=_, acc=offs, obsv=data} =
 -- We can't make this function polymorphic because we
 -- don't have a polymorphic function to deserialise
 -- array elements
-deserialise_wordarray_U8: (ExState, Buffer!, BufOffs, U32) -> R (ExState, WordArray U8) (ErrCode, ExState)
+deserialise_wordarray_U8: (SysState, Buffer!, BufOffs, U32) -> R (SysState, WordArray U8) (ErrCode, SysState)
 deserialise_wordarray_U8 (ex, buf, offs, len) =
   wordarray_create[U8] (ex, len)
   | Error ex -> Error (eNoMem, ex) 
@@ -960,7 +960,7 @@ postcondition:
   else
     Success (h, PObjData buf.data offs, offs + 8 + len)
 -}
-deserialise_ObjData: (ExState, Buffer!, BufOffs, U32) -> R (ExState, ObjData, BufOffs) (ErrCode, ExState)
+deserialise_ObjData: (SysState, Buffer!, BufOffs, U32) -> R (SysState, ObjData, BufOffs) (ErrCode, SysState)
 deserialise_ObjData(ex, buf, offs, olen) =
   let len = olen - bilbyFsObjHeaderSize - 8
   in if len > olen then
@@ -977,7 +977,7 @@ deserialise_ObjData(ex, buf, offs, olen) =
           let od:ObjData = #{id,odata}
           in Success (ex, od, offs + 8 + len)
 
-freeObjData: (ExState, ObjData take (..)) -> ExState
+freeObjData: (SysState, ObjData take (..)) -> SysState
 freeObjData(ex, od) = ex
 
 type ObjSuper = { nb_eb : U32
@@ -990,8 +990,8 @@ type ObjSuper = { nb_eb : U32
                 , last_inum : U32
                 , next_sqnum : U64
 }
-newObjSuper: ExState -> R (ExState, ObjSuper take(..)) ExState
-freeObjSuper: (ExState, ObjSuper take (..)) -> ExState
+newObjSuper: SysState -> R (SysState, ObjSuper take(..)) SysState
+freeObjSuper: (SysState, ObjSuper take (..)) -> SysState
 
 mkObjSuper: (ObjSuper take(..), UbiVolInfo!, UbiDevInfo!) -> ObjSuper
 mkObjSuper (sup, vol, dev) = sup {nb_eb=wubi_vol_size vol,
@@ -1018,7 +1018,7 @@ serialise_ObjSuper(buf, offs, os) =
 serialise_size_ObjSuper: ObjSuper! -> U32
 serialise_size_ObjSuper _ = bilbyFsObjSuperSize
 
-deserialise_ObjSuper: (ExState, Buffer!, BufOffs) -> R (ExState, ObjSuper, BufOffs) (ErrCode, ExState)
+deserialise_ObjSuper: (SysState, Buffer!, BufOffs) -> R (SysState, ObjSuper, BufOffs) (ErrCode, SysState)
 deserialise_ObjSuper(ex, buf, offs) =
   newObjSuper ex
   | Error ex ->
@@ -1050,8 +1050,8 @@ type ObjInode = {id : ObjId
            , flags : ObjInodeFlags
            -- , pad : U64
 }
-newObjInode: ExState -> R (ExState, ObjInode take(..)) ExState
-freeObjInode: (ExState, ObjInode take (..)) -> ExState
+newObjInode: SysState -> R (SysState, ObjInode take(..)) SysState
+freeObjInode: (SysState, ObjInode take (..)) -> SysState
 
 bilbyFsOidMaskInum : U64
 bilbyFsOidMaskInum = u32_to_u64(word32Max) << 32
@@ -1116,7 +1116,7 @@ binNot w = word64Max .^. w
   else
     r = Success (h, PObjInode buf.data offs, offs + 56)
 -}
-deserialise_ObjInode: (ExState, Buffer!, BufOffs) -> R (ExState, ObjInode, BufOffs) (ErrCode, ExState)
+deserialise_ObjInode: (SysState, Buffer!, BufOffs) -> R (SysState, ObjInode, BufOffs) (ErrCode, SysState)
 deserialise_ObjInode(ex, buf, offs) =
   let id = deserialise_le64(buf, offs)
   -- Ensure type of oid is ObjInode and xinfo = 0
@@ -1204,7 +1204,7 @@ deserialise_le64(buf, offs) =
       (u8_to_u64(b1) << 8) .|. u8_to_u64(b0))
 -- similar to above
 
-deserialise_Obj_crc: (ExState, Buffer!, BufOffs) -> R (ExState, Obj, BufOffs) (ErrCode, ExState)
+deserialise_Obj_crc: (SysState, Buffer!, BufOffs) -> R (SysState, Obj, BufOffs) (ErrCode, SysState)
 deserialise_Obj_crc(ex, buf, offs) =
   _cogent_debug "deserialise_Obj_crc offs=" ;
   _cogent_debug_u32 offs ;
@@ -1317,19 +1317,19 @@ serialise_size_ObjUnion  ounion =
  | TObjPad o -> 0
 
 {-# cinline deep_freeObjInode #-}
-deep_freeObjInode: (ExState, ObjInode) -> ExState
+deep_freeObjInode: (SysState, ObjInode) -> SysState
 deep_freeObjInode(ex, v) =
   let v {..} = v in freeObjInode(ex, v)
 
 {-# cinline deep_freeObjData #-}
-deep_freeObjData: (ExState, ObjData) -> ExState
+deep_freeObjData: (SysState, ObjData) -> SysState
 deep_freeObjData(ex, v) =
   let v {odata,id} = v
   and ex = wordarray_free[U8] (ex, odata) in
   freeObjData(ex, v)
 
 {-# cinline deep_freeObjSuper #-}
-deep_freeObjSuper: (ExState, ObjSuper) -> ExState
+deep_freeObjSuper: (SysState, ObjSuper) -> SysState
 deep_freeObjSuper(ex, v) =
   let v {..} = v in
   freeObjSuper(ex, v)
@@ -1346,7 +1346,7 @@ serialise_Obj_crc (buf, offs, obj) =
 -- This is silly but we can't build a complete Obj
 -- otherwise we can't guarantee that we will get
 -- ObjSuper back
-serialise_Obj_Super_crc: (ExState,Buffer, U32, Obj take (ounion), ObjSuper!) -> (ExState, Buffer, U32, Obj take (ounion))
+serialise_Obj_Super_crc: (SysState,Buffer, U32, Obj take (ounion), ObjSuper!) -> (SysState, Buffer, U32, Obj take (ounion))
 serialise_Obj_Super_crc (ex,buf, offs, obj, sup) =
   let obj = obj {ounion = TObjPad ()}
   and (buf, offs') = serialise_ObjHeader(buf, offs, obj) !obj

@@ -14,7 +14,7 @@ include "ostore.cogent"
 set_read_only_mode : FsopState -> FsopState
 set_read_only_mode(fsop_st {is_ro}) = fsop_st { is_ro = True }
 
-obj_dentry_new_init: (ExState, VfsIno, (WordArray U8)!, U8) -> RR ExState ObjDentry ErrCode
+obj_dentry_new_init: (SysState, VfsIno, (WordArray U8)!, U8) -> RR SysState ObjDentry ErrCode
 obj_dentry_new_init(ex, ino, name, dtype) =
   newObjDentry(ex)
   | Error ex -> (ex, Error eNoMem)
@@ -25,7 +25,7 @@ obj_dentry_new_init(ex, ino, name, dtype) =
       let nlen = u32_to_u16(wordarray_length[U8] name) !name
       in (ex, Success (odent {dtype,ino,nlen,name}))
 
-vnode_init_perm: (ExState, VfsInode!, VfsInode, VfsMode) -> (ExState, VfsInode)
+vnode_init_perm: (SysState, VfsInode!, VfsInode, VfsMode) -> (SysState, VfsInode)
 vnode_init_perm (ex, vdir, inode, mode) =
   let v_uid = os_get_current_fsuid(ex) !ex
   and is_gid = is_set ((vfs_inode_get_mode vdir), s_ISGID)
@@ -36,7 +36,7 @@ vnode_init_perm (ex, vdir, inode, mode) =
   and inode = vfs_inode_set_mode (inode, mode)
   in (ex, inode)
 
-init_vnode: (ExState, OstoreState, VfsInode!, VfsInode, VfsMode) -> RR (ExState, OstoreState, VfsInode) () ErrCode
+init_vnode: (SysState, OstoreState, VfsInode!, VfsInode, VfsMode) -> RR (SysState, OstoreState, VfsInode) () ErrCode
 init_vnode(ex, ostore_st, vdir, vnode, mode) =
   let (ostore_st, r) = ostore_alloc_inode(ostore_st)
   in r
@@ -61,7 +61,7 @@ init_vnode(ex, ostore_st, vdir, vnode, mode) =
   | Error err ->
     ((ex, ostore_st, vnode), Error err)
 
-extract_dentarr_from_union:(ExState, ObjUnion) -> R (ExState, ObjDentarr) ExState
+extract_dentarr_from_union:(SysState, ObjUnion) -> R (SysState, ObjDentarr) SysState
 extract_dentarr_from_union(ex, ounion) =
   ounion
   | TObjPad _       -> Error ex
@@ -72,7 +72,7 @@ extract_dentarr_from_union(ex, ounion) =
   | TObjSummary v   -> Error (summary_clean(ex,v))
   | TObjDentarr odent -> Success (ex, odent)
 
-read_or_create_dentarr:(ExState, MountState!, OstoreState, ObjId) -> RR (ExState, OstoreState) (Obj take (ounion),  ObjDentarr, Bool) ErrCode
+read_or_create_dentarr:(SysState, MountState!, OstoreState, ObjId) -> RR (SysState, OstoreState) (Obj take (ounion),  ObjDentarr, Bool) ErrCode
 read_or_create_dentarr(ex, mount_st, ostore_st, oid) =
   let ((ex, ostore_st), r) = ostore_read(ex, mount_st, ostore_st, oid)
   in r
@@ -110,7 +110,7 @@ read_or_create_dentarr(ex, mount_st, ostore_st, oid) =
             -- obj.len is updated everytime we touch dentarrs.
             in ((ex, ostore_st), Success (obj, dentarr, True))
 
-add_dentry_modifier: #{oelem: Option ObjDentry, acc:(ExState, Option ObjDentry)} -> #{oelem: Option ObjDentry, acc: (ExState, Option ObjDentry)}
+add_dentry_modifier: #{oelem: Option ObjDentry, acc:(SysState, Option ObjDentry)} -> #{oelem: Option ObjDentry, acc: (SysState, Option ObjDentry)}
 add_dentry_modifier #{oelem=old_entry, acc=(ex, opt_newentry)} =
  opt_newentry
  | Some newentry ->
@@ -119,13 +119,13 @@ add_dentry_modifier #{oelem=old_entry, acc=(ex, opt_newentry)} =
  | None () ->
    #{oelem=old_entry, acc=(ex, None ())}
 
-free_opt_ObjDentry : (ExState, Option ObjDentry) -> ExState
+free_opt_ObjDentry : (SysState, Option ObjDentry) -> SysState
 free_opt_ObjDentry (ex, opt_entry) =
   opt_entry
   | Some old -> deep_freeObjDentry(ex, old)
   | None () -> ex
 
-dentarr_add_dentry: (ExState, ObjDentarr, VfsInode!, (WordArray U8)!, U8) -> RR (ExState, ObjDentarr) () ErrCode
+dentarr_add_dentry: (SysState, ObjDentarr, VfsInode!, (WordArray U8)!, U8) -> RR (SysState, ObjDentarr) () ErrCode
 dentarr_add_dentry(ex, odent, vnode, name, dtype) =
   let nb_dentry = odent.nb_dentry !odent
   and name_len = wordarray_length[U8](name)
@@ -142,13 +142,13 @@ dentarr_add_dentry(ex, odent, vnode, name, dtype) =
       let odent {id, entries} = odent
       -- Mark this as a bug found via verification.
       and last_index = array_length[ObjDentry] entries - 1 !entries
-      and #{arr=entries, acc=(ex, opt_entry)} = array_modify[ObjDentry, (ExState, Option ObjDentry)]
+      and #{arr=entries, acc=(ex, opt_entry)} = array_modify[ObjDentry, (SysState, Option ObjDentry)]
                                                   #{arr=entries, idx=last_index, f=add_dentry_modifier, acc=(ex, Some newentry)}
       and nb_dentry = nb_dentry + 1
       and ex = free_opt_ObjDentry (ex, opt_entry)
       in ((ex, odent {id, nb_dentry, entries}), Success ())
 
-del_dentry_modifier: #{elem:ObjDentry, acc: ExState, obsv: (WordArray U8)!} -> RR ExState () ObjDentry
+del_dentry_modifier: #{elem:ObjDentry, acc: SysState, obsv: (WordArray U8)!} -> RR SysState () ObjDentry
 del_dentry_modifier #{elem=dentry, acc=ex, obsv=name} =
   let same_names = wordarray_cmp(name, dentry.name) !dentry in
   if same_names then
@@ -157,14 +157,14 @@ del_dentry_modifier #{elem=dentry, acc=ex, obsv=name} =
   else
     (ex, Error dentry)
 
-dentarr_del_dentry: (ExState, ObjDentarr, (WordArray U8)!) -> (ExState, ObjDentarr)
+dentarr_del_dentry: (SysState, ObjDentarr, (WordArray U8)!) -> (SysState, ObjDentarr)
 dentarr_del_dentry(ex, odent {entries}, name) =
-  let #{arr=entries, acc=ex} = array_filter[ObjDentry, ExState, WordArray U8]
+  let #{arr=entries, acc=ex} = array_filter[ObjDentry, SysState, WordArray U8]
                                  #{arr=entries, f=del_dentry_modifier, acc=ex, obsv=name}
   and nb_dentry = odent.nb_dentry - 1 !odent
   in (ex, odent {nb_dentry, entries})
 
-set_obj: #{oelem: Option Obj, acc: (ExState, Option Obj)} -> #{oelem:Option Obj, acc:(ExState, Option Obj)}
+set_obj: #{oelem: Option Obj, acc: (SysState, Option Obj)} -> #{oelem:Option Obj, acc:(SysState, Option Obj)}
 set_obj #{oelem=opt_obj, acc=(ex, newopt_obj)} =
   newopt_obj
   | Some newo ->
@@ -177,13 +177,13 @@ set_obj #{oelem=opt_obj, acc=(ex, newopt_obj)} =
   | None () ->
       #{oelem=opt_obj, acc=(ex, None ())}
 
-free_opt_obj: (ExState, Option Obj) -> ExState
+free_opt_obj: (SysState, Option Obj) -> SysState
 free_opt_obj (ex, opt_obj) =
   opt_obj
   | None () -> ex
   | Some o -> deep_freeObj (ex, o)
 
-arrayobj_create1: (ExState, Obj) -> R (ExState, Array Obj) ExState
+arrayobj_create1: (SysState, Obj) -> R (SysState, Array Obj) SysState
 {-
 arrayobj_create1(ex, o1) =
   array_create[Obj] (ex, 1)
@@ -191,28 +191,28 @@ arrayobj_create1(ex, o1) =
     let ex = deep_freeObj(ex, o1)
     in (Error ex)
   | Success (ex, arr) ->
-    let array_modify' = array_modify[Obj, (ExState, Option Obj)]
+    let array_modify' = array_modify[Obj, (SysState, Option Obj)]
     and #{arr, acc=(ex, opt1)} = array_modify' #{arr=arr, idx=0, f=set_obj, acc=(ex, Some o1)}
     and ex = free_opt_obj (ex, opt1)
     in Success (ex, arr)
     -}
 
-arrayobj_create2: (ExState, Obj, Obj) -> R (ExState, Array Obj) (ExState, Obj)
+arrayobj_create2: (SysState, Obj, Obj) -> R (SysState, Array Obj) (SysState, Obj)
 arrayobj_create2(ex, o1, o2) =
   array_create[Obj] (ex, 2)
   | Error (ex) ->
     let ex = deep_freeObj(ex, o1)
     in Error (ex, o2)
   | Success (ex, arr) ->
-    let #{arr=arr, acc=(ex, opt1)} = array_modify[Obj, (ExState, Option Obj)]
+    let #{arr=arr, acc=(ex, opt1)} = array_modify[Obj, (SysState, Option Obj)]
                                        #{arr=arr, idx=0, f=set_obj, acc=(ex, Some o1)}
-    and #{arr=arr, acc=(ex, opt2)} = array_modify[Obj, (ExState, Option Obj)]
+    and #{arr=arr, acc=(ex, opt2)} = array_modify[Obj, (SysState, Option Obj)]
                                        #{arr=arr, idx=1, f=set_obj, acc=(ex, Some o2)}
     and ex = free_opt_obj (ex, opt1)
     and ex = free_opt_obj (ex, opt2)
     in Success (ex, arr)
 
-arrayobj_create3: (ExState, Obj, Obj, Obj) -> R (ExState, Array Obj) ExState
+arrayobj_create3: (SysState, Obj, Obj, Obj) -> R (SysState, Array Obj) SysState
 {-
 arrayobj_create3(ex, o1, o2, o3) =
   array_create[Obj] (ex, 3)
@@ -222,11 +222,11 @@ arrayobj_create3(ex, o1, o2, o3) =
     and ex = deep_freeObj(ex, o3)
     in Error ex
   | Success (ex, arr) ->
-    let #{arr=arr, acc=(ex, opt1)} = array_modify[Obj, (ExState, Option Obj)]
+    let #{arr=arr, acc=(ex, opt1)} = array_modify[Obj, (SysState, Option Obj)]
                                        #{arr=arr, idx=0, f=set_obj, acc=(ex, Some o1)}
-    and #{arr=arr, acc=(ex, opt2)} = array_modify[Obj, (ExState, Option Obj)]
+    and #{arr=arr, acc=(ex, opt2)} = array_modify[Obj, (SysState, Option Obj)]
                                        #{arr=arr, idx=1, f=set_obj, acc=(ex, Some o2)}
-    and #{arr=arr, acc=(ex, opt3)} = array_modify[Obj, (ExState, Option Obj)]
+    and #{arr=arr, acc=(ex, opt3)} = array_modify[Obj, (SysState, Option Obj)]
                                        #{arr=arr, idx=2, f=set_obj, acc=(ex, Some o3)}
     and ex = free_opt_obj (ex, opt1)
     and ex = free_opt_obj (ex, opt2)
@@ -234,8 +234,8 @@ arrayobj_create3(ex, o1, o2, o3) =
     in Success (ex, arr)
 -}
 
-arrayobj_create4_ret2: (ExState, Obj, Obj, Obj, Obj) -> R (ExState, Array Obj) (ExState, Obj)
-arrayobj_create4: (ExState, Obj, Obj, Obj, Obj) -> R (ExState, Array Obj) ExState
+arrayobj_create4_ret2: (SysState, Obj, Obj, Obj, Obj) -> R (SysState, Array Obj) (SysState, Obj)
+arrayobj_create4: (SysState, Obj, Obj, Obj, Obj) -> R (SysState, Array Obj) SysState
 {-
 arrayobj_create4(ex, o1, o2, o3, o4) =
   array_create[Obj] (ex, 4)
@@ -246,13 +246,13 @@ arrayobj_create4(ex, o1, o2, o3, o4) =
     and ex = deep_freeObj(ex, o4)
     in Error ex
   | Success (ex, arr) ->
-    let #{arr=arr, acc=(ex, opt1)} = array_modify[Obj, (ExState, Option Obj)]
+    let #{arr=arr, acc=(ex, opt1)} = array_modify[Obj, (SysState, Option Obj)]
                                        #{arr=arr, idx=0, f=set_obj, acc=(ex, Some o1)}
-    and #{arr=arr, acc=(ex, opt2)} = array_modify[Obj, (ExState, Option Obj)]
+    and #{arr=arr, acc=(ex, opt2)} = array_modify[Obj, (SysState, Option Obj)]
                                         #{arr=arr, idx=1, f=set_obj, acc=(ex, Some o2)}
-    and #{arr=arr, acc=(ex, opt3)} = array_modify[Obj, (ExState, Option Obj)]
+    and #{arr=arr, acc=(ex, opt3)} = array_modify[Obj, (SysState, Option Obj)]
                                         #{arr=arr, idx=2, f=set_obj, acc=(ex, Some o3)}
-    and #{arr=arr, acc=(ex, opt4)} = array_modify[Obj, (ExState, Option Obj)]
+    and #{arr=arr, acc=(ex, opt4)} = array_modify[Obj, (SysState, Option Obj)]
                                         #{arr=arr, idx=3, f=set_obj, acc=(ex, Some o4)}
     and ex = free_opt_obj (ex, opt1)
     and ex = free_opt_obj (ex, opt2)
@@ -261,7 +261,7 @@ arrayobj_create4(ex, o1, o2, o3, o4) =
     in Success (ex, arr)
 -}
 
-arrayobj_create5: (ExState, Obj, Obj, Obj, Obj, Obj) -> R (ExState, Array Obj) ExState
+arrayobj_create5: (SysState, Obj, Obj, Obj, Obj, Obj) -> R (SysState, Array Obj) SysState
 {-
 arrayobj_create5(ex, o1, o2, o3, o4, o5) =
   array_create[Obj] (ex, 5)
@@ -273,15 +273,15 @@ arrayobj_create5(ex, o1, o2, o3, o4, o5) =
     and ex = deep_freeObj(ex, o5)
     in Error ex
   | Success (ex, arr) ->
-    let #{arr=arr, acc=(ex, opt1)} = array_modify[Obj, (ExState, Option Obj)]
+    let #{arr=arr, acc=(ex, opt1)} = array_modify[Obj, (SysState, Option Obj)]
                                         #{arr=arr, idx=0, f=set_obj, acc=(ex, Some o1)}
-    and #{arr=arr, acc=(ex, opt2)} = array_modify[Obj, (ExState, Option Obj)]
+    and #{arr=arr, acc=(ex, opt2)} = array_modify[Obj, (SysState, Option Obj)]
                                         #{arr=arr, idx=1, f=set_obj, acc=(ex, Some o2)}
-    and #{arr=arr, acc=(ex, opt3)} = array_modify[Obj, (ExState, Option Obj)]
+    and #{arr=arr, acc=(ex, opt3)} = array_modify[Obj, (SysState, Option Obj)]
                                         #{arr=arr, idx=2, f=set_obj, acc=(ex, Some o3)}
-    and #{arr=arr, acc=(ex, opt4)} = array_modify[Obj, (ExState, Option Obj)]
+    and #{arr=arr, acc=(ex, opt4)} = array_modify[Obj, (SysState, Option Obj)]
                                         #{arr=arr, idx=3, f=set_obj, acc=(ex, Some o4)}
-    and #{arr=arr, acc=(ex, opt5)} = array_modify[Obj, (ExState, Option Obj)]
+    and #{arr=arr, acc=(ex, opt5)} = array_modify[Obj, (SysState, Option Obj)]
                                         #{arr=arr, idx=4, f=set_obj, acc=(ex, Some o5)}
     and ex = free_opt_obj (ex, opt1)
     and ex = free_opt_obj (ex, opt2)
@@ -291,7 +291,7 @@ arrayobj_create5(ex, o1, o2, o3, o4, o5) =
     in Success (ex, arr)
 -}
 
-arrayobj_create6: (ExState, Obj, Obj, Obj, Obj, Obj, Obj) -> R (ExState, Array Obj) ExState
+arrayobj_create6: (SysState, Obj, Obj, Obj, Obj, Obj, Obj) -> R (SysState, Array Obj) SysState
 {-
 arrayobj_create6(ex, o1, o2, o3, o4, o5, o6) =
   array_create[Obj] (ex, 6)
@@ -304,17 +304,17 @@ arrayobj_create6(ex, o1, o2, o3, o4, o5, o6) =
     and ex = deep_freeObj(ex, o6)
     in Error ex
   | Success (ex, arr) ->
-    let #{arr=arr, acc=(ex, opt1)} = array_modify[Obj, (ExState, Option Obj)]
+    let #{arr=arr, acc=(ex, opt1)} = array_modify[Obj, (SysState, Option Obj)]
                                        #{arr=arr, idx=0, f=set_obj, acc=(ex, Some o1)}
-    and #{arr=arr, acc=(ex, opt2)} = array_modify[Obj, (ExState, Option Obj)]
+    and #{arr=arr, acc=(ex, opt2)} = array_modify[Obj, (SysState, Option Obj)]
                                         #{arr=arr, idx=1, f=set_obj, acc=(ex, Some o2)}
-    and #{arr=arr, acc=(ex, opt3)} = array_modify[Obj, (ExState, Option Obj)]
+    and #{arr=arr, acc=(ex, opt3)} = array_modify[Obj, (SysState, Option Obj)]
                                         #{arr=arr, idx=2, f=set_obj, acc=(ex, Some o3)}
-    and #{arr=arr, acc=(ex, opt4)} = array_modify[Obj, (ExState, Option Obj)]
+    and #{arr=arr, acc=(ex, opt4)} = array_modify[Obj, (SysState, Option Obj)]
                                         #{arr=arr, idx=3, f=set_obj, acc=(ex, Some o4)}
-    and #{arr=arr, acc=(ex, opt5)} = array_modify[Obj, (ExState, Option Obj)]
+    and #{arr=arr, acc=(ex, opt5)} = array_modify[Obj, (SysState, Option Obj)]
                                         #{arr=arr, idx=4, f=set_obj, acc=(ex, Some o5)}
-    and #{arr=arr, acc=(ex, opt6)} = array_modify[Obj, (ExState, Option Obj)]
+    and #{arr=arr, acc=(ex, opt6)} = array_modify[Obj, (SysState, Option Obj)]
                                         #{arr=arr, idx=5, f=set_obj, acc=(ex, Some o6)}
     and ex = free_opt_obj (ex, opt1)
     and ex = free_opt_obj (ex, opt2)
@@ -339,11 +339,11 @@ dentarr_calculate_sz_change(created, objdent) =
   else
     (objdent {len=sz}, Success sz)
 
-dentarr_del_calculate_sz_change: (ExState, Obj take (ounion), ObjDentarr) -> RR (ExState, Obj) U32 ErrCode
+dentarr_del_calculate_sz_change: (SysState, Obj take (ounion), ObjDentarr) -> RR (SysState, Obj) U32 ErrCode
 dentarr_del_calculate_sz_change(ex, obj, dentarr) =
   let is_del = (array_nb_elem[ObjDentry] dentarr.entries) == 0 !dentarr
   and id = dentarr.id !dentarr
-  and (ex, ounion):(ExState, ObjUnion) =
+  and (ex, ounion):(SysState, ObjUnion) =
       if is_del then (deep_freeObjDentarr (ex, dentarr), let v:ObjDel = #{id} in TObjDel v) else (ex, TObjDentarr dentarr)
   and obj = obj {ounion}
   and len = serialise_size_Obj(obj) !obj
@@ -352,7 +352,7 @@ dentarr_del_calculate_sz_change(ex, obj, dentarr) =
   | Success sz_change ->
     ((ex, obj {len}), Success sz_change)
 
-obj_inode_new: (ExState, VfsInode!) -> RR ExState Obj ErrCode
+obj_inode_new: (SysState, VfsInode!) -> RR SysState Obj ErrCode
 obj_inode_new(ex, vnode) =
   newObj(ex)
   | Error ex -> (ex, Error eNoMem)
@@ -381,7 +381,7 @@ obj_inode_new(ex, vnode) =
       and obj = obj {len}
       in (ex, Success obj)
 
-obj_data_new: (ExState, ObjId, U32, WordArray U8) -> RR ExState Obj (ErrCode, WordArray U8)
+obj_data_new: (SysState, ObjId, U32, WordArray U8) -> RR SysState Obj (ErrCode, WordArray U8)
 obj_data_new(ex, id, len, odata) =
   newObj(ex)
   | Error ex -> (ex, Error (eNoMem, odata))
@@ -391,7 +391,7 @@ obj_data_new(ex, id, len, odata) =
     and obj = obj {len = bilbyFsObjHeaderSize + 8 + len}
     in (ex, Success (obj {ounion = TObjData od}))
 
-obj_del_new: (ExState, ObjId) -> RR ExState Obj ErrCode
+obj_del_new: (SysState, ObjId) -> RR SysState Obj ErrCode
 obj_del_new(ex, id) =
   newObj(ex)
     | Error ex -> (ex, Error eNoMem)
@@ -403,7 +403,7 @@ obj_del_new(ex, id) =
       and obj = obj {len}
       in (ex, Success obj)
 
-dentarr_read_and_add: (ExState, MountState!, OstoreState, VfsInode!, CString!, VfsInode!, U8) -> RR (ExState, OstoreState) (U64, Obj) ErrCode
+dentarr_read_and_add: (SysState, MountState!, OstoreState, VfsInode!, CString!, VfsInode!, U8) -> RR (SysState, OstoreState) (U64, Obj) ErrCode
 dentarr_read_and_add (ex, mount_st, ostore_st, vdir, name, vnode, dt) =
   let oid = obj_id_dentarr_mk(vfs_inode_get_ino vdir, name)
   and ((ex, ostore_st), r) = read_or_create_dentarr(ex, mount_st, ostore_st, oid)
@@ -436,8 +436,8 @@ dentarr_read_and_add (ex, mount_st, ostore_st, vdir, name, vnode, dt) =
         | Success new_v_size ->
           ((ex, ostore_st), Success (new_v_size, dentarr_obj))
 
-type FsopCreateP = #{ex:ExState, fs_st: FsState, vdir: VfsInode, name: (WordArray U8)!, mode: VfsMode, vnode: VfsInode}
-type FsopRR = #{ex:ExState, fs_st:FsState, vdir:VfsInode, vnode:VfsInode}
+type FsopCreateP = #{ex:SysState, fs_st: FsState, vdir: VfsInode, name: (WordArray U8)!, mode: VfsMode, vnode: VfsInode}
+type FsopRR = #{ex:SysState, fs_st:FsState, vdir:VfsInode, vnode:VfsInode}
 fsop_create : FsopCreateP -> RR FsopRR () ErrCode
 fsop_create #{ex, fs_st = fs_st {ostore_st}, vdir, name, mode, vnode} =
   let is_ro = fs_st.fsop_st.is_ro !fs_st
@@ -496,7 +496,7 @@ fsop_create #{ex, fs_st = fs_st {ostore_st}, vdir, name, mode, vnode} =
                  let ex = array_free[Obj] #{arr=arr, f=deep_freeObj, ex}
                  in (#{ex, fs_st = fs_st {ostore_st}, vdir, vnode}, Success ())
 
-dentarr_read_and_del: (ExState, MountState!, OstoreState, VfsInode!, CString!) -> RR (ExState, OstoreState) (U64, Obj) ErrCode
+dentarr_read_and_del: (SysState, MountState!, OstoreState, VfsInode!, CString!) -> RR (SysState, OstoreState) (U64, Obj) ErrCode
 dentarr_read_and_del (ex, mount_st, ostore_st, vdir, name) =
   let oid = obj_id_dentarr_mk(vfs_inode_get_ino vdir, name)
   and ((ex, ostore_st), r) = ostore_read(ex, mount_st, ostore_st, oid)
@@ -530,7 +530,7 @@ dentarr_read_and_del (ex, mount_st, ostore_st, vdir, name) =
         | Success new_v_size ->
           ((ex, ostore_st), Success (new_v_size, dentarr_obj))
 
-type FsopUnlinkP = #{ex:ExState, fs_st:FsState, vdir:VfsInode, name:(WordArray U8)!, vnode:VfsInode}
+type FsopUnlinkP = #{ex:SysState, fs_st:FsState, vdir:VfsInode, name:(WordArray U8)!, vnode:VfsInode}
 fsop_unlink : FsopUnlinkP -> RR FsopRR () ErrCode
 fsop_unlink #{ex, fs_st = fs_st {ostore_st}, vdir, name, vnode} =
 -- invariant on fs_st
@@ -749,10 +749,10 @@ type FsState' = {
   mount_st : MountState,
   ostore_st : OstoreState take (ubi_vol)
 }
-freeFsState2: (ExState, FsState' take(..)) -> ExState
+freeFsState2: (SysState, FsState' take(..)) -> SysState
 
-type FsopLookupP = #{ex:ExState, fs_st:FsState, vdir:VfsInode, name:CString!}
-type FsopLookupRR = #{ex:ExState, fs_st:FsState, vdir:VfsInode}
+type FsopLookupP = #{ex:SysState, fs_st:FsState, vdir:VfsInode, name:CString!}
+type FsopLookupRR = #{ex:SysState, fs_st:FsState, vdir:VfsInode}
 fsop_lookup: FsopLookupP -> RR FsopLookupRR VfsIno ErrCode
 fsop_lookup #{ex, fs_st = fs_st {mount_st, ostore_st}, vdir, name} =
   if wordarray_length[U8] name > bilbyFsMaxNameLen + 1 then -- wordarray_length counts the \0
@@ -787,8 +787,8 @@ find_name #{elem=de, acc=_, obsv=name} =
   else
     Iterate ()
 
-type FsopFillSuperP = #{ex:ExState, fs_st:FsState', vsup:VfsMountInfo, is_silent:Bool, root:VfsInode}
-type FsopFillSuperRR = #{ex:ExState, vsup:VfsMountInfo, root:VfsInode}
+type FsopFillSuperP = #{ex:SysState, fs_st:FsState', vsup:VfsMountInfo, is_silent:Bool, root:VfsInode}
+type FsopFillSuperRR = #{ex:SysState, vsup:VfsMountInfo, root:VfsInode}
 type FsopFillSuperE = #{err:ErrCode, fs_st:FsState'}
 fsop_fill_super: FsopFillSuperP -> RR FsopFillSuperRR FsState FsopFillSuperE
 fsop_fill_super #{ex, fs_st = fs_st {mount_st}, vsup, is_silent, root} =
@@ -863,10 +863,10 @@ type BilbyFsReaddirContext = {
   dentarr : ObjDentarr,
   cur_dentry : U32
 }
-newBilbyFsReaddirContext: ExState -> R (ExState, BilbyFsReaddirContext take(..)) ExState
-freeBilbyFsReaddirContext: (ExState, BilbyFsReaddirContext take (..)) -> ExState
+newBilbyFsReaddirContext: SysState -> R (SysState, BilbyFsReaddirContext take(..)) SysState
+freeBilbyFsReaddirContext: (SysState, BilbyFsReaddirContext take (..)) -> SysState
 
-get_rdctx:(ExState, Option BilbyFsReaddirContext, VfsInode!) -> R (ExState, BilbyFsReaddirContext) (ErrCode, ExState)
+get_rdctx:(SysState, Option BilbyFsReaddirContext, VfsInode!) -> R (SysState, BilbyFsReaddirContext) (ErrCode, SysState)
 get_rdctx(ex, opt_rdctx, vdir) =
   opt_rdctx
   | None () ->
@@ -900,7 +900,7 @@ next_inode_id(oid) =
   else
     obj_id_inode_mk(inum + 1)
 
-read_next_dentry: (ExState, MountState!, OstoreState, BilbyFsReaddirContext) -> RR (ExState, OstoreState, BilbyFsReaddirContext) Bool ErrCode
+read_next_dentry: (SysState, MountState!, OstoreState, BilbyFsReaddirContext) -> RR (SysState, OstoreState, BilbyFsReaddirContext) Bool ErrCode
 read_next_dentry(ex, mount_st, ostore_st, rdctx) =
   let cur_dentry = rdctx.cur_dentry !rdctx
   and len_dentarr = array_nb_elem[ObjDentry] rdctx.dentarr.entries !rdctx
@@ -963,7 +963,7 @@ emit_dir #{elem=dentry, acc=(vctx, _), obsv=()} =
   | Break #{dirctx=vctx} -> (vctx, True)
   | Iterate #{dirctx=vctx} -> (vctx, False)
 
-type ReadDirLoopParams = (ExState, OstoreState, VfsDirContext, BilbyFsReaddirContext)
+type ReadDirLoopParams = (SysState, OstoreState, VfsDirContext, BilbyFsReaddirContext)
 readdir_loop: #{acc:ReadDirLoopParams, obsv:MountState!, idx:U64} ->
     LRR ReadDirLoopParams (R Bool ErrCode)
 readdir_loop #{acc=(ex, ostore_st, vctx, rdctx), obsv=mount_st, idx} =
@@ -992,7 +992,7 @@ readdir_loop #{acc=(ex, ostore_st, vctx, rdctx), obsv=mount_st, idx} =
       else -- We can keep going
         ((ex, ostore_st, vctx, rdctx), Iterate ())
 
-type ReadDirParams = #{ex:ExState, fs_st:FsState, vctx:VfsDirContext, opt_rdctx: Option BilbyFsReaddirContext}
+type ReadDirParams = #{ex:SysState, fs_st:FsState, vctx:VfsDirContext, opt_rdctx: Option BilbyFsReaddirContext}
 fsop_readdir: (ReadDirParams, VfsInode!) -> RR ReadDirParams () ErrCode
 fsop_readdir (#{ex, fs_st, vctx, opt_rdctx}, vdir) =
   get_rdctx(ex, opt_rdctx, vdir)
@@ -1019,7 +1019,7 @@ fsop_readdir (#{ex, fs_st, vctx, opt_rdctx}, vdir) =
         let fs_st = fs_st {ostore_st}
         in (#{ex, fs_st, vctx, opt_rdctx=Some rdctx}, Success ())
 
-fsop_dir_release: (ExState, Option BilbyFsReaddirContext) -> ExState
+fsop_dir_release: (SysState, Option BilbyFsReaddirContext) -> SysState
 fsop_dir_release (ex, opt_rdctx) =
   opt_rdctx
   | None () ->
@@ -1039,7 +1039,7 @@ check_dir_empty #{mount_st, ostore_st, vdir} =
     | Error () -> True
     | Success nxt -> not (obj_id_is_dentarr nxt)
 
-obj_dentarr_or_del_new: (ExState, Obj take (ounion), ObjDentarr) -> R (ExState, Obj) (ErrCode, ExState)
+obj_dentarr_or_del_new: (SysState, Obj take (ounion), ObjDentarr) -> R (SysState, Obj) (ErrCode, SysState)
 obj_dentarr_or_del_new(ex, odent, dent) =
   let len = array_nb_elem[ObjDentry] dent.entries !dent
   in if len > 0 then
@@ -1051,8 +1051,8 @@ obj_dentarr_or_del_new(ex, odent, dent) =
     and ex = deep_freeObjDentarr(ex, dent)
     in Success (ex, odent {len, ounion=TObjDel odel, otype = bilbyFsObjTypeDel})
 
-type FsopDoMoveHelperP = #{ex:ExState, mount_st:MountState!, ostore_st:OstoreState, old_dent_size: U32, new_dent_size: U32, new_o:Obj, old_o:Obj, old_vdir:VfsInode, old_vnode: VfsInode, new_vdir: VfsInode, opt_new_vnode: Option VfsInode} 
-type FsopDoMoveHelperRR = #{ex:ExState, ostore_st:OstoreState, old_vdir:VfsInode, old_vnode: VfsInode, new_vdir: VfsInode, opt_new_vnode: Option VfsInode}
+type FsopDoMoveHelperP = #{ex:SysState, mount_st:MountState!, ostore_st:OstoreState, old_dent_size: U32, new_dent_size: U32, new_o:Obj, old_o:Obj, old_vdir:VfsInode, old_vnode: VfsInode, new_vdir: VfsInode, opt_new_vnode: Option VfsInode} 
+type FsopDoMoveHelperRR = #{ex:SysState, ostore_st:OstoreState, old_vdir:VfsInode, old_vnode: VfsInode, new_vdir: VfsInode, opt_new_vnode: Option VfsInode}
 fsop_do_move_helper: FsopDoMoveHelperP -> RR FsopDoMoveHelperRR () ErrCode
 fsop_do_move_helper #{ex, mount_st, ostore_st, old_dent_size, new_dent_size, new_o, old_o, old_vdir, old_vnode, new_vdir, opt_new_vnode} =
   _cogent_debug "fsop_do_move_helper\n" ;
@@ -1132,7 +1132,7 @@ fsop_do_move_helper #{ex, mount_st, ostore_st, old_dent_size, new_dent_size, new
                 let ex = array_free[Obj] #{arr=arr, f=deep_freeObj, ex}
                 in (#{ex, ostore_st, old_vdir, old_vnode, new_vdir, opt_new_vnode}, Success ())
 
-move_read_or_create_dentarrs: (ExState, MountState!, OstoreState, VfsInode!, VfsInode!, CString!, CString!) -> RR (ExState, OstoreState) (Obj take (ounion), Obj take (ounion), ObjDentarr, ObjDentarr, U32, U32) ErrCode
+move_read_or_create_dentarrs: (SysState, MountState!, OstoreState, VfsInode!, VfsInode!, CString!, CString!) -> RR (SysState, OstoreState) (Obj take (ounion), Obj take (ounion), ObjDentarr, ObjDentarr, U32, U32) ErrCode
 move_read_or_create_dentarrs(ex, mount_st, ostore_st, old_vdir, new_vdir, old_name, new_name) =
   _cogent_debug "move_read_or_create_dentarrs\n" ;
   let oldoid = obj_id_dentarr_mk (vfs_inode_get_ino old_vdir, old_name)
@@ -1155,8 +1155,8 @@ move_read_or_create_dentarrs(ex, mount_st, ostore_st, old_vdir, new_vdir, old_na
       let new_dent_size = if created then 0 else new_o.len !new_o
       in ((ex, ostore_st), Success (old_o, new_o, old_dent, new_dent, old_dent_size, new_dent_size))
 
-type FsopDoMoveDelP = #{ex:ExState, fs_st:FsState, old_vdir:VfsInode, old_name:(WordArray U8)!, old_vnode:VfsInode, new_vdir: VfsInode, new_name: (WordArray U8)!, new_vnode: VfsInode}
-type FsopDoMoveDelRR = #{ex:ExState, fs_st:FsState, old_vdir:VfsInode, old_vnode:VfsInode, new_vdir: VfsInode, opt_new_vnode: Option VfsInode}
+type FsopDoMoveDelP = #{ex:SysState, fs_st:FsState, old_vdir:VfsInode, old_name:(WordArray U8)!, old_vnode:VfsInode, new_vdir: VfsInode, new_name: (WordArray U8)!, new_vnode: VfsInode}
+type FsopDoMoveDelRR = #{ex:SysState, fs_st:FsState, old_vdir:VfsInode, old_vnode:VfsInode, new_vdir: VfsInode, opt_new_vnode: Option VfsInode}
 fsop_do_move_del: FsopDoMoveDelP -> RR FsopDoMoveDelRR () ErrCode
 -- we need to delete the new_vnode
 fsop_do_move_del #{ex, fs_st = fs_st {ostore_st}, old_vdir, old_name, old_vnode, new_vdir, new_name, new_vnode} = 
@@ -1195,8 +1195,8 @@ fsop_do_move_del #{ex, fs_st = fs_st {ostore_st}, old_vdir, old_name, old_vnode,
         | Success () ->
           (#{ex, fs_st = fs_st {ostore_st}, old_vdir, old_vnode, new_vdir, opt_new_vnode}, Success ())
 
-type FsopDoMoveP = #{ex:ExState, fs_st:FsState, old_vdir:VfsInode, old_name:(WordArray U8)!, old_vnode:VfsInode, new_vdir: VfsInode, new_name: (WordArray U8)!}
-type FsopDoMoveRR = #{ex:ExState, fs_st:FsState, old_vdir:VfsInode, old_vnode:VfsInode, new_vdir: VfsInode}
+type FsopDoMoveP = #{ex:SysState, fs_st:FsState, old_vdir:VfsInode, old_name:(WordArray U8)!, old_vnode:VfsInode, new_vdir: VfsInode, new_name: (WordArray U8)!}
+type FsopDoMoveRR = #{ex:SysState, fs_st:FsState, old_vdir:VfsInode, old_vnode:VfsInode, new_vdir: VfsInode}
 fsop_do_move: FsopDoMoveP -> RR FsopDoMoveRR () ErrCode
 fsop_do_move #{ex, fs_st = fs_st {ostore_st}, old_vdir, old_name, old_vnode, new_vdir, new_name} =
   _cogent_debug "fsop_do_move\n" ;
@@ -1235,15 +1235,15 @@ fsop_do_move #{ex, fs_st = fs_st {ostore_st}, old_vdir, old_name, old_vnode, new
           let ex = free_opt_VfsInode (ex, opt_new_vnode)
           in (#{ex, fs_st = fs_st {ostore_st}, old_vdir, old_vnode, new_vdir}, Success ())
 
-newVfsInode: ExState -> R (ExState, VfsInode take (..)) ExState
-freeVfsInode: (ExState, VfsInode take (..)) -> ExState
+newVfsInode: SysState -> R (SysState, VfsInode take (..)) SysState
+freeVfsInode: (SysState, VfsInode take (..)) -> SysState
 
-deep_freeVfsInode: (ExState, VfsInode) -> ExState
+deep_freeVfsInode: (SysState, VfsInode) -> SysState
 deep_freeVfsInode(ex, v) = let v {..} = v in freeVfsInode(ex, v)
 
 -- when we call this function we know that opt_vnode = None ()
 -- see fsop_do_move
-free_opt_VfsInode: (ExState, Option VfsInode) -> ExState
+free_opt_VfsInode: (SysState, Option VfsInode) -> SysState
 free_opt_VfsInode(ex, opt_vnode) =
  opt_vnode
  | None () -> ex
@@ -1256,8 +1256,8 @@ opt_vnode_set_nlink (opt, nlink) =
  | Some v -> Some (vfs_inode_set_nlink (v, nlink))
 
 -- Move is moving a file/dir from one dir to an other.
-type FsopMoveP = #{ex:ExState, fs_st:FsState, old_vdir:VfsInode, old_name:(WordArray U8)!, old_vnode:VfsInode, new_vdir: VfsInode, new_name: (WordArray U8)!, opt_new_vnode: Option VfsInode}
-type FsopMoveRR = #{ex:ExState, fs_st:FsState, old_vdir:VfsInode, old_vnode:VfsInode, new_vdir: VfsInode, opt_new_vnode: Option VfsInode}
+type FsopMoveP = #{ex:SysState, fs_st:FsState, old_vdir:VfsInode, old_name:(WordArray U8)!, old_vnode:VfsInode, new_vdir: VfsInode, new_name: (WordArray U8)!, opt_new_vnode: Option VfsInode}
+type FsopMoveRR = #{ex:SysState, fs_st:FsState, old_vdir:VfsInode, old_vnode:VfsInode, new_vdir: VfsInode, opt_new_vnode: Option VfsInode}
 fsop_move: FsopMoveP -> RR FsopMoveRR () ErrCode
 fsop_move #{ex, fs_st = fs_st {ostore_st}, old_vdir, old_name, old_vnode, new_vdir, new_name, opt_new_vnode} =
   _cogent_debug "fsop_move\n" ;
@@ -1340,8 +1340,8 @@ fsop_move #{ex, fs_st = fs_st {ostore_st}, old_vdir, old_name, old_vnode, new_vd
         let opt_new_vnode:Option VfsInode = None ()
         in (#{ex, fs_st, old_vdir, old_vnode, new_vdir, opt_new_vnode}, Success ())
 
-type FsopDoRenameHelper1P = #{ex:ExState, mount_st:MountState!, ostore_st:OstoreState, dent_size: U32, obj:Obj, vdir:VfsInode, old_vnode: VfsInode, opt_new_vnode: Option VfsInode} 
-type FsopDoRenameHelper1R = #{ex:ExState, ostore_st:OstoreState, vdir:VfsInode, old_vnode: VfsInode, opt_new_vnode: Option VfsInode}
+type FsopDoRenameHelper1P = #{ex:SysState, mount_st:MountState!, ostore_st:OstoreState, dent_size: U32, obj:Obj, vdir:VfsInode, old_vnode: VfsInode, opt_new_vnode: Option VfsInode} 
+type FsopDoRenameHelper1R = #{ex:SysState, ostore_st:OstoreState, vdir:VfsInode, old_vnode: VfsInode, opt_new_vnode: Option VfsInode}
 fsop_do_rename_helper1: FsopDoRenameHelper1P -> RR FsopDoRenameHelper1R () ErrCode
 fsop_do_rename_helper1 #{ex, mount_st, ostore_st, dent_size, obj, vdir, old_vnode, opt_new_vnode} =
 -- old and new are stored in the same dentarr
@@ -1405,8 +1405,8 @@ fsop_do_rename_helper1 #{ex, mount_st, ostore_st, dent_size, obj, vdir, old_vnod
               let ex = array_free[Obj] #{arr=arr, f=deep_freeObj, ex}
               in (#{ex, ostore_st, vdir, old_vnode, opt_new_vnode}, Success ())
 
-type FsopDoRenameHelperP = #{ex:ExState, mount_st:MountState!, ostore_st:OstoreState, old_dent_size: U32, new_dent_size: U32, new_o:Obj, old_o:Obj, vdir:VfsInode, old_vnode: VfsInode, opt_new_vnode: Option VfsInode}
-type FsopDoRenameHelperRR = #{ex:ExState, ostore_st:OstoreState, vdir:VfsInode, old_vnode: VfsInode, opt_new_vnode: Option VfsInode}
+type FsopDoRenameHelperP = #{ex:SysState, mount_st:MountState!, ostore_st:OstoreState, old_dent_size: U32, new_dent_size: U32, new_o:Obj, old_o:Obj, vdir:VfsInode, old_vnode: VfsInode, opt_new_vnode: Option VfsInode}
+type FsopDoRenameHelperRR = #{ex:SysState, ostore_st:OstoreState, vdir:VfsInode, old_vnode: VfsInode, opt_new_vnode: Option VfsInode}
 fsop_do_rename_helper: FsopDoRenameHelperP -> RR FsopDoRenameHelperRR () ErrCode
 fsop_do_rename_helper #{ex, mount_st, ostore_st, old_dent_size, new_dent_size, new_o, old_o, vdir, old_vnode, opt_new_vnode} =
 -- old and new are stored in two different dentarr
@@ -1478,7 +1478,7 @@ fsop_do_rename_helper #{ex, mount_st, ostore_st, old_dent_size, new_dent_size, n
               let ex = array_free[Obj] #{arr=arr, f=deep_freeObj, ex}
               in (#{ex, ostore_st, vdir, old_vnode, opt_new_vnode}, Success ())
 
-rename_read_or_create_dentarrs: (ExState, MountState!, OstoreState, ObjId, ObjId) -> RR (ExState, OstoreState) (Obj take (ounion), Obj take (ounion), ObjDentarr, ObjDentarr, U32, U32) ErrCode
+rename_read_or_create_dentarrs: (SysState, MountState!, OstoreState, ObjId, ObjId) -> RR (SysState, OstoreState) (Obj take (ounion), Obj take (ounion), ObjDentarr, ObjDentarr, U32, U32) ErrCode
 rename_read_or_create_dentarrs(ex, mount_st, ostore_st, oldoid, newoid) =
   _cogent_debug "rename_read_or_create_dentarrs\n" ;
 -- we know that oldoid and newoid have to be different.
@@ -1499,8 +1499,8 @@ rename_read_or_create_dentarrs(ex, mount_st, ostore_st, oldoid, newoid) =
       let new_dent_size = if created then 0 else new_o.len !new_o
       in ((ex, ostore_st), Success (old_o, new_o, old_dent, new_dent, old_dent_size, new_dent_size))
 
-type FsopDoRenameP = #{ex:ExState, fs_st:FsState, vdir:VfsInode, old_name:(WordArray U8)!, old_vnode:VfsInode, new_name: (WordArray U8)!}
-type FsopDoRenameRR = #{ex:ExState, fs_st:FsState, vdir:VfsInode, old_vnode:VfsInode}
+type FsopDoRenameP = #{ex:SysState, fs_st:FsState, vdir:VfsInode, old_name:(WordArray U8)!, old_vnode:VfsInode, new_name: (WordArray U8)!}
+type FsopDoRenameRR = #{ex:SysState, fs_st:FsState, vdir:VfsInode, old_vnode:VfsInode}
 fsop_do_rename: FsopDoRenameP -> RR FsopDoRenameRR () ErrCode
 fsop_do_rename #{ex, fs_st, vdir, old_name, old_vnode, new_name} =
   _cogent_debug "fsop_do_rename\n" ;
@@ -1575,8 +1575,8 @@ fsop_do_rename #{ex, fs_st, vdir, old_name, old_vnode, new_name} =
             let ex = free_opt_VfsInode(ex, opt_new_vnode)
             in (#{ex, fs_st = fs_st {ostore_st}, vdir, old_vnode}, Success ())
 
-type FsopDoRenameDelP = #{ex:ExState, fs_st:FsState, vdir:VfsInode, old_name:(WordArray U8)!, old_vnode:VfsInode, new_name: (WordArray U8)!, new_vnode: VfsInode}
-type FsopDoRenameDelRR = #{ex:ExState, fs_st:FsState, vdir:VfsInode, old_vnode:VfsInode, opt_new_vnode: Option VfsInode}
+type FsopDoRenameDelP = #{ex:SysState, fs_st:FsState, vdir:VfsInode, old_name:(WordArray U8)!, old_vnode:VfsInode, new_name: (WordArray U8)!, new_vnode: VfsInode}
+type FsopDoRenameDelRR = #{ex:SysState, fs_st:FsState, vdir:VfsInode, old_vnode:VfsInode, opt_new_vnode: Option VfsInode}
 fsop_do_rename_del: FsopDoRenameDelP -> RR FsopDoRenameDelRR () ErrCode
 fsop_do_rename_del #{ex, fs_st, vdir, old_name, old_vnode, new_name, new_vnode} =
   _cogent_debug "fsop_do_rename_del\n" ;
@@ -1647,8 +1647,8 @@ fsop_do_rename_del #{ex, fs_st, vdir, old_name, old_vnode, new_name, new_vnode} 
             (#{ex, fs_st = fs_st {ostore_st}, vdir, old_vnode, opt_new_vnode}, Success ())
 
 -- Rename is changing the name of a file/dir to another in the same directory
-type FsopRenameP = #{ex:ExState, fs_st:FsState, vdir:VfsInode, old_name:(WordArray U8)!, old_vnode:VfsInode, new_name: (WordArray U8)!, opt_new_vnode: Option VfsInode}
-type FsopRenameRR = #{ex:ExState, fs_st:FsState, vdir:VfsInode, old_vnode:VfsInode, opt_new_vnode: Option VfsInode}
+type FsopRenameP = #{ex:SysState, fs_st:FsState, vdir:VfsInode, old_name:(WordArray U8)!, old_vnode:VfsInode, new_name: (WordArray U8)!, opt_new_vnode: Option VfsInode}
+type FsopRenameRR = #{ex:SysState, fs_st:FsState, vdir:VfsInode, old_vnode:VfsInode, opt_new_vnode: Option VfsInode}
 fsop_rename: FsopRenameP -> RR FsopRenameRR () ErrCode
 fsop_rename #{ex, fs_st = fs_st {ostore_st}, vdir, old_name, old_vnode, new_name, opt_new_vnode} =
   _cogent_debug "fsop_rename\n" ;
@@ -1724,7 +1724,7 @@ fsop_rename #{ex, fs_st = fs_st {ostore_st}, vdir, old_name, old_vnode, new_name
       | Success () ->
         (#{ex, fs_st, vdir, old_vnode, opt_new_vnode = None ()}, Success ())
 
-extract_inode_from_union:(ExState, ObjUnion) -> R (ExState, ObjInode) ExState
+extract_inode_from_union:(SysState, ObjUnion) -> R (SysState, ObjInode) SysState
 extract_inode_from_union(ex, ounion) =
   ounion
   | TObjPad _       -> Error ex
@@ -1735,8 +1735,8 @@ extract_inode_from_union(ex, ounion) =
   | TObjDentarr v   -> Error (deep_freeObjDentarr(ex,v))
   | TObjInode v     -> Success (ex, v)
 
-type FsopIgetP = #{ex:ExState, fs_st: FsState, inum:VfsIno, vnode: VfsInode} 
-type FsopIgetRR = #{ex:ExState, fs_st: FsState, vnode: VfsInode} 
+type FsopIgetP = #{ex:SysState, fs_st: FsState, inum:VfsIno, vnode: VfsInode} 
+type FsopIgetRR = #{ex:SysState, fs_st: FsState, vnode: VfsInode} 
 fsop_iget: FsopIgetP -> RR FsopIgetRR () ErrCode
 fsop_iget #{ex, fs_st = fs_st {ostore_st}, inum, vnode} =
   let oid = obj_id_inode_mk inum
@@ -1765,7 +1765,7 @@ fsop_iget #{ex, fs_st = fs_st {ostore_st}, inum, vnode} =
       and ex = deep_freeObj(ex, obj {ounion = TObjInode oi})
       in (#{ex, fs_st, vnode}, Success ())
 
-extract_data_from_union:(ExState, ObjUnion) -> R (ExState, ObjData) ExState
+extract_data_from_union:(SysState, ObjUnion) -> R (SysState, ObjData) SysState
 extract_data_from_union(ex, ounion) =
   ounion
   | TObjPad _       -> Error ex
@@ -1776,7 +1776,7 @@ extract_data_from_union(ex, ounion) =
   | TObjDentarr v   -> Error (deep_freeObjDentarr(ex,v))
   | TObjData v      -> Success (ex, v)
 
-read_block:(ExState, FsState, VfsInode!, Buffer, OSPageOffset) -> RR (ExState, FsState, Buffer) () ErrCode
+read_block:(SysState, FsState, VfsInode!, Buffer, OSPageOffset) -> RR (SysState, FsState, Buffer) () ErrCode
 read_block(ex, fs_st {ostore_st}, vnode, buf, block) =
   let oid = obj_id_data_mk(vfs_inode_get_ino(vnode), u64_to_u32(block)) !vnode
   and ((ex, ostore_st), r) = ostore_read(ex, fs_st.mount_st, ostore_st, oid) !fs_st
@@ -1813,8 +1813,8 @@ read_block(ex, fs_st {ostore_st}, vnode, buf, block) =
         and ex = deep_freeObjData(ex, od)
         in ((ex, fs_st, buf), Success ())
 
-type FsopReadPageP = #{ex:ExState, fs_st: FsState, vnode: VfsInode, block: OSPageOffset, addr: Buffer}
-type FsopReadPageRR = #{ex:ExState, fs_st: FsState, vnode: VfsInode, addr: Buffer}
+type FsopReadPageP = #{ex:SysState, fs_st: FsState, vnode: VfsInode, block: OSPageOffset, addr: Buffer}
+type FsopReadPageRR = #{ex:SysState, fs_st: FsState, vnode: VfsInode, addr: Buffer}
 
 fsop_readpage: FsopReadPageP -> RR FsopReadPageRR () ErrCode 
 fsop_readpage #{ex, fs_st, vnode, block, addr} =
@@ -1834,8 +1834,8 @@ fsop_readpage #{ex, fs_st, vnode, block, addr} =
    | Success () ->
      (#{ex, fs_st, vnode, addr}, Success ())
 
-type FsopWriteP = #{ex:ExState, fs_st: FsState, vnode: VfsInode, pos: OSPageOffset, len:U32, addr: Buffer}
-type FsopWriteRR = #{ex:ExState, fs_st: FsState, vnode: VfsInode, addr: Buffer}
+type FsopWriteP = #{ex:SysState, fs_st: FsState, vnode: VfsInode, pos: OSPageOffset, len:U32, addr: Buffer}
+type FsopWriteRR = #{ex:SysState, fs_st: FsState, vnode: VfsInode, addr: Buffer}
 fsop_write_begin: FsopWriteP -> RR FsopWriteRR () ErrCode
 fsop_write_begin #{ex, fs_st, vnode, pos, len, addr} =
   let is_ro = fs_st.fsop_st.is_ro !fs_st
@@ -1853,7 +1853,7 @@ fsop_write_begin #{ex, fs_st, vnode, pos, len, addr} =
     | Success () ->
       (#{ex, fs_st, vnode, addr}, Success ())
 
-get_data_back: (ExState, WordArray U8, Option Obj) -> (ExState, WordArray U8)
+get_data_back: (SysState, WordArray U8, Option Obj) -> (SysState, WordArray U8)
 get_data_back (ex, dummy_data, opto) =
   opto
   | None () ->
@@ -1930,8 +1930,8 @@ fsop_write_end #{ex, fs_st, vnode, pos, len, addr} =
             | Success () ->
               (#{ex, fs_st = fs_st {ostore_st}, vnode, addr}, Success ())
 
-type FsopVfsInodeP = #{ex: ExState, fs_st: FsState, vnode: VfsInode}
-type FsopVfsInodeE = #{err: ErrCode, ex: ExState, fs_st: FsState, vnode: VfsInode}
+type FsopVfsInodeP = #{ex: SysState, fs_st: FsState, vnode: VfsInode}
+type FsopVfsInodeE = #{err: ErrCode, ex: SysState, fs_st: FsState, vnode: VfsInode}
 fsop_evict_inode: FsopVfsInodeP -> RR FsopVfsInodeP () ErrCode
 fsop_evict_inode #{ex, fs_st, vnode} =
   let is_ro = fs_st.fsop_st.is_ro !fs_st
@@ -1981,7 +1981,7 @@ fsop_write_inode #{ex, fs_st, vnode} =
         let ex = array_free[Obj] #{arr=arr, f=deep_freeObj, ex}
         in (#{ex, fs_st = fs_st {ostore_st}, vnode}, Success ())
 
-type FsopFollowLinkP = #{ex:ExState, fs_st: FsState, vnode: VfsInode, path: Buffer}
+type FsopFollowLinkP = #{ex:SysState, fs_st: FsState, vnode: VfsInode, path: Buffer}
 fsop_follow_link: FsopFollowLinkP -> RR FsopFollowLinkP () ErrCode
 fsop_follow_link #{ex, fs_st, vnode, path} =
   let ((ex, fs_st, path), r) = read_block(ex, fs_st, vnode, path, 0) !vnode
@@ -1991,8 +1991,8 @@ fsop_follow_link #{ex, fs_st, vnode, path} =
   | Success () ->
     (#{ex, fs_st, vnode, path}, Success ())
 
-type FsopGetattrP = #{ex:ExState, fs_st: FsState, stat: VfsStat, vnode: VfsInode!}
-type FsopGetattrR = #{ex:ExState, fs_st: FsState, stat: VfsStat}
+type FsopGetattrP = #{ex:SysState, fs_st: FsState, stat: VfsStat, vnode: VfsInode!}
+type FsopGetattrR = #{ex:SysState, fs_st: FsState, stat: VfsStat}
 fsop_getattr: FsopGetattrP -> FsopGetattrR
 fsop_getattr #{ex, fs_st, stat, vnode} =
   let stat = vfs_stat_set_ino (stat, vfs_inode_get_ino(vnode))
@@ -2011,8 +2011,8 @@ fsop_getattr #{ex, fs_st, stat, vnode} =
   and stat = vfs_stat_set_blocks (stat, blocks)
   in #{ex, fs_st, stat}
 
-type FsopSetattrP = #{ex:ExState, fs_st: FsState, iattr: VfsIattr!, vnode: VfsInode}
-type FsopSetattrRR = #{ex:ExState, fs_st: FsState, vnode: VfsInode}
+type FsopSetattrP = #{ex:SysState, fs_st: FsState, iattr: VfsIattr!, vnode: VfsInode}
+type FsopSetattrRR = #{ex:SysState, fs_st: FsState, vnode: VfsInode}
 fsop_do_setattr: FsopSetattrP -> RR FsopSetattrRR () ErrCode
 fsop_do_setattr #{ex, fs_st, iattr, vnode} =
   let mode = vfs_inode_get_mode vnode !vnode
@@ -2038,7 +2038,7 @@ fsop_do_setattr #{ex, fs_st, iattr, vnode} =
   | Success () ->
     (#{ex, fs_st, vnode}, Success ())
 
-truncate_arrayobj_create: (ExState, Option Obj, Option Obj, Obj) -> R (ExState, Array Obj) ExState
+truncate_arrayobj_create: (SysState, Option Obj, Option Obj, Obj) -> R (SysState, Array Obj) SysState
 truncate_arrayobj_create(ex, o1, o2, o3) =
   array_create[Obj] (ex, 3)
   | Error ex ->
@@ -2047,9 +2047,9 @@ truncate_arrayobj_create(ex, o1, o2, o3) =
     and ex = deep_freeObj (ex, o3)
     in Error ex
   | Success (ex, arr) ->
-    let #{arr=arr, acc=(ex, opt1)} = array_modify[Obj, (ExState, Option Obj)] #{arr=arr, idx=0, f=set_obj, acc=(ex, o1)}
-    and #{arr=arr, acc=(ex, opt2)} = array_modify[Obj, (ExState, Option Obj)] #{arr=arr, idx=1, f=set_obj, acc=(ex, o2)}
-    and #{arr=arr, acc=(ex, opt3)} = array_modify[Obj, (ExState, Option Obj)] #{arr=arr, idx=2, f=set_obj, acc=(ex, Some o3)}
+    let #{arr=arr, acc=(ex, opt1)} = array_modify[Obj, (SysState, Option Obj)] #{arr=arr, idx=0, f=set_obj, acc=(ex, o1)}
+    and #{arr=arr, acc=(ex, opt2)} = array_modify[Obj, (SysState, Option Obj)] #{arr=arr, idx=1, f=set_obj, acc=(ex, o2)}
+    and #{arr=arr, acc=(ex, opt3)} = array_modify[Obj, (SysState, Option Obj)] #{arr=arr, idx=2, f=set_obj, acc=(ex, Some o3)}
     and ex = free_opt_obj (ex, opt1)
     and ex = free_opt_obj (ex, opt2)
     and ex = free_opt_obj (ex, opt3)
@@ -2093,7 +2093,7 @@ truncate_deletion_obj #{ex, fs_st, vnode, newsize} =
   else
     (#{ex, fs_st, vnode}, Success (None ()))
 
-type FsopTruncateP = #{ex:ExState, fs_st: FsState, vnode: VfsInode, newsize: U64}
+type FsopTruncateP = #{ex:SysState, fs_st: FsState, vnode: VfsInode, newsize: U64}
 fsop_do_truncate: FsopTruncateP -> RR FsopSetattrRR () ErrCode
 fsop_do_truncate #{ex, fs_st, vnode, newsize} =
   _cogent_debug "fsop_do_truncate " ;
@@ -2156,7 +2156,7 @@ fsop_setattr #{ex, fs_st, iattr, vnode} =
   else
     fsop_do_setattr #{ex, fs_st, iattr, vnode}
 
-type FsopFsP = #{ex:ExState, fs_st: FsState}
+type FsopFsP = #{ex:SysState, fs_st: FsState}
 fsop_sync_fs: FsopFsP -> RR FsopFsP () ErrCode
 fsop_sync_fs #{ex, fs_st} =
   let is_ro = fs_st.fsop_st.is_ro !fs_st
@@ -2171,8 +2171,8 @@ fsop_sync_fs #{ex, fs_st} =
     | Success () ->
       (#{ex, fs_st = fs_st {ostore_st,fsop_st} }, Success ())
 
-type FsopSymlinkP = #{ex:ExState, fs_st: FsState, vdir: VfsInode, name: (WordArray U8)!, symname: (WordArray U8), vnode: VfsInode}
-type FsopSymlinkRR = #{ex:ExState, fs_st:FsState, vdir:VfsInode, symname:WordArray U8, vnode:VfsInode}
+type FsopSymlinkP = #{ex:SysState, fs_st: FsState, vdir: VfsInode, name: (WordArray U8)!, symname: (WordArray U8), vnode: VfsInode}
+type FsopSymlinkRR = #{ex:SysState, fs_st:FsState, vdir:VfsInode, symname:WordArray U8, vnode:VfsInode}
 fsop_symlink : FsopSymlinkP -> RR FsopSymlinkRR () ErrCode
 fsop_symlink #{ex, fs_st = fs_st {ostore_st}, vdir, name, symname, vnode} =
   let is_ro = fs_st.fsop_st.is_ro !fs_st
@@ -2259,7 +2259,7 @@ fsop_symlink #{ex, fs_st = fs_st {ostore_st}, vdir, name, symname, vnode} =
                    let ex = array_free[Obj] #{arr=arr, f=deep_freeObj, ex}
                    in (#{ex, fs_st, vdir, symname, vnode}, Success ())
 
-type FsopLinkP = #{ex:ExState, fs_st: FsState, vdir: VfsInode, name: (WordArray U8)!, vnode: VfsInode}
+type FsopLinkP = #{ex:SysState, fs_st: FsState, vdir: VfsInode, name: (WordArray U8)!, vnode: VfsInode}
 fsop_link : FsopLinkP -> RR FsopRR () ErrCode
 fsop_link #{ex, fs_st = fs_st {ostore_st}, vdir, name, vnode} =
   let is_ro = fs_st.fsop_st.is_ro !fs_st
@@ -2373,9 +2373,9 @@ fsop_test_is_mount(fs_st1, fs_st2) =
 -- to be able to detect if the device is already mounted by another
 -- instance of BilbyFs.
 type FsState'Taken = FsState' take (..)
-type FsopInitP = #{ex:ExState, fs_st: FsState'Taken, name: CString!}
-type FsopFs'P = #{ex:ExState, fs_st: FsState'}
-type FsopFs'E = #{err:ErrCode, ex:ExState, fs_st: FsState'Taken}
+type FsopInitP = #{ex:SysState, fs_st: FsState'Taken, name: CString!}
+type FsopFs'P = #{ex:SysState, fs_st: FsState'}
+type FsopFs'E = #{err:ErrCode, ex:SysState, fs_st: FsState'Taken}
 fsop_init: FsopInitP -> R FsopFs'P FsopFs'E
 fsop_init #{ex,fs_st,name} =
   newMountState ex
@@ -2489,7 +2489,7 @@ fsop_unmount #{ex,fs_st} =
    | Success () ->
      (#{ex,fs_st = fs_st {mount_st,ostore_st}}, Success ())
 
-fsop_clean: FsopFsP -> ExState
+fsop_clean: FsopFsP -> SysState
 fsop_clean #{ex,fs_st} =
   let fs_st {fsop_st, mount_st, ostore_st} = fs_st
   and mount_st {vol,dev,obj_sup,super,..} = mount_st

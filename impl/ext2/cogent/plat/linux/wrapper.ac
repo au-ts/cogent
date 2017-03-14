@@ -68,7 +68,7 @@ int ext2fs_write_inode_nolock(struct inode *inode, struct writeback_control *wbc
     Ext2State *state = inode->i_sb->s_fs_info;
     VfsInode *vfs_inode = EXT2_I(inode);
     int err = 0;
-    $ty:(RR #{ex: ExState, state: FsState, inode: VfsInode} () (U32)) iwrite_ret;
+    $ty:(RR #{ex: SysState, state: FsState, inode: VfsInode} () (U32)) iwrite_ret;
 
     if (IS_ERR(inode)) {
         return -EIO;
@@ -76,7 +76,7 @@ int ext2fs_write_inode_nolock(struct inode *inode, struct writeback_control *wbc
 
     bool_t sync = {.boolean = wbc->sync_mode == WB_SYNC_ALL };
 
-    $ty:(#{ex: ExState, state: FsState, inode: VfsInode, sync: Bool}) iwrite_args = {
+    $ty:(#{ex: SysState, state: FsState, inode: VfsInode, sync: Bool}) iwrite_args = {
         .ex = state,
         .state = state->priv,
         .inode = vfs_inode,
@@ -117,7 +117,7 @@ void ext2fs_truncate(struct inode *inode, loff_t offset)
 {
     Ext2State *state = inode->i_sb->s_fs_info;
     VfsInode *vfs_inode = EXT2_I (inode);
-    $ty:((ExState, FsState, VfsInode, U64)) truncate_args = {
+    $ty:((SysState, FsState, VfsInode, U64)) truncate_args = {
         .p1 = state,
         .p2 = state->priv,
         .p3 = vfs_inode,
@@ -134,8 +134,8 @@ int ext2fs_can_truncate(struct inode *inode)
     Ext2State *state = inode->i_sb->s_fs_info;
     VfsInode *vfs_inode = EXT2_I(inode);
     int err = 0;
-    $ty:(((ExState, FsState), R () U32)) can_truncate_res;
-    $ty:((ExState, FsState, VfsInode!)) can_truncate_args = {
+    $ty:(((SysState, FsState), R () U32)) can_truncate_res;
+    $ty:((SysState, FsState, VfsInode!)) can_truncate_args = {
         .p1 = state,
         .p2 = state->priv,
         .p3 = vfs_inode
@@ -246,7 +246,7 @@ void ext2fs_evict_inode_nolock(struct inode *inode)
         /* printk ("cogent: WANT DELETE FOR INODE %d\n", inode->i_ino); */
     }
 
-    $ty:((ExState, FsState, VfsInode, Bool)) evict_args = ($ty:((ExState, FsState, VfsInode, Bool))){
+    $ty:((SysState, FsState, VfsInode, Bool)) evict_args = ($ty:((SysState, FsState, VfsInode, Bool))){
         .p1 = state,
         .p2 = state->priv,
         .p3 = vfs_inode,
@@ -260,7 +260,7 @@ void ext2fs_evict_inode_nolock(struct inode *inode)
     invalidate_inode_buffers(inode);
     clear_inode(inode);
 
-    $ty:((ExState, FsState, VfsInode take fs)) free_args = {
+    $ty:((SysState, FsState, VfsInode take fs)) free_args = {
         .p1 = state,
         .p2 = state->priv,
         .p3 = vfs_inode,
@@ -293,7 +293,7 @@ int ext2fs_mknod(struct inode * dir, struct dentry *dentry, umode_t mode, dev_t 
     Ext2State *state = dir->i_sb->s_fs_info;
     VfsInode *vfs_inode = EXT2_I (dir);
     int err = 0;
-    $ty:(RR (ExState, FsState, VfsInode) VfsInode U32) mknod_res;
+    $ty:(RR (SysState, FsState, VfsInode) VfsInode U32) mknod_res;
 
     if (!new_valid_dev(rdev)) {
         return -EINVAL;
@@ -304,7 +304,7 @@ int ext2fs_mknod(struct inode * dir, struct dentry *dentry, umode_t mode, dev_t 
       stack */
     WordArray_u8 name_array = {.len = dentry->d_name.len, .values = (u8*)dentry->d_name.name };
 
-    $ty:((ExState, FsState, VfsInode, CString!, VfsMode, #VfsDevice)) mknod_args = {
+    $ty:((SysState, FsState, VfsInode, CString!, VfsMode, #VfsDevice)) mknod_args = {
         .p1 = state,
         .p2 = state->priv,
         .p3 = vfs_inode,
@@ -351,9 +351,9 @@ int ext2fs_link(struct dentry * old_dentry, struct inode * dir, struct dentry *d
       cogent compiler to use the pointer type. We want to allocate the wordarray on the
       stack */
     WordArray_u8 name_array = {.len = dentry->d_name.len, .values = (u8*)dentry->d_name.name };
-    $ty:(RR (ExState, FsState, VfsInode, VfsInode) () U32) link_ret;
+    $ty:(RR (SysState, FsState, VfsInode, VfsInode) () U32) link_ret;
 
-    $ty:((ExState, FsState, VfsInode, VfsInode, CString!)) link_args = {
+    $ty:((SysState, FsState, VfsInode, VfsInode, CString!)) link_args = {
         .p1 = state,
         .p2 = state->priv,
         .p3 = vfs_parent,
@@ -406,9 +406,9 @@ int ext2fs_unlink(struct inode * dir, struct dentry * dentry)
       stack */
     WordArray_u8 name_array = {.len = dentry->d_name.len, .values = (u8*)dentry->d_name.name };
 
-    $ty:(RR (ExState, FsState, VfsInode, VfsInode) () U32) unlink_ret;
+    $ty:(RR (SysState, FsState, VfsInode, VfsInode) () U32) unlink_ret;
 
-    $ty:((ExState, FsState, VfsInode, VfsInode, CString!)) unlink_args = {
+    $ty:((SysState, FsState, VfsInode, VfsInode, CString!)) unlink_args = {
         .p1 = state,
         .p2 = state->priv,
         .p3 = vfs_dir_inode,
@@ -467,7 +467,7 @@ int ext2fs_rename(struct inode * old_dir, struct dentry * old_dentry,
     WordArray_u8 dest_name_array = {.len = new_dentry->d_name.len, .values = (u8*)new_dentry->d_name.name };
     $ty:(VfsRenameDirs) dirs;
     $ty:(Option VfsInode) option_dest;
-    $ty:(RR (ExState, FsState, VfsRenameContext) () U32) rename_ret;
+    $ty:(RR (SysState, FsState, VfsRenameContext) () U32) rename_ret;
 
     /* construct VfsRenameDirsDiff, if required */
     if (src_dir != dest_dir) {
@@ -503,7 +503,7 @@ int ext2fs_rename(struct inode * old_dir, struct dentry * old_dentry,
     rename_ctx.dirs = dirs;
     rename_ctx.dest_inode = option_dest;
 
-    $ty:((ExState, FsState, VfsRenameContext)) rename_args = {
+    $ty:((SysState, FsState, VfsRenameContext)) rename_args = {
         .p1 = state,
         .p2 = state->priv,
         .p3 = rename_ctx
@@ -552,13 +552,13 @@ int ext2fs_create(struct inode * dir, struct dentry * dentry, umode_t mode, bool
     VfsInode *vfs_dir_inode = EXT2_I (dir);
     int err = 0;
 
-    $ty:(RR (ExState, FsState, VfsInode) VfsInode U32) create_ret;
+    $ty:(RR (SysState, FsState, VfsInode) VfsInode U32) create_ret;
     /* NOTE:We use WordArray_u8 instead of $ty:(WordArray U8) because we do not want the
       cogent compiler to use the pointer type. We want to allocate the wordarray on the
       stack */
     WordArray_u8 name_array = {.len = dentry->d_name.len, .values = (u8*)dentry->d_name.name };
 
-    $ty:((ExState, FsState, VfsInode, CString!, VfsMode)) create_args = {
+    $ty:((SysState, FsState, VfsInode, CString!, VfsMode)) create_args = {
         .p1 = state,
         .p2 = state->priv,
         .p3 = vfs_dir_inode,
@@ -595,13 +595,13 @@ int ext2fs_mkdir(struct inode * dir, struct dentry * dentry, umode_t mode)
     VfsInode *vfs_dir_inode = EXT2_I (dir);
     int err = 0;
 
-    $ty:(RR (ExState, FsState, VfsInode) VfsInode U32) ret;
+    $ty:(RR (SysState, FsState, VfsInode) VfsInode U32) ret;
     /* NOTE:We use WordArray_u8 instead of $ty:(WordArray U8) because we do not want the
       cogent compiler to use the pointer type. We want to allocate the wordarray on the
       stack */
     WordArray_u8 name_array = {.len = dentry->d_name.len, .values = (u8*)dentry->d_name.name };
 
-    $ty:((ExState, FsState, VfsInode, CString!, VfsMode)) args = {
+    $ty:((SysState, FsState, VfsInode, CString!, VfsMode)) args = {
         .p1 = state,
         .p2 = state->priv,
         .p3 = vfs_dir_inode,
@@ -640,13 +640,13 @@ int ext2fs_rmdir(struct inode * dir, struct dentry *dentry)
     VfsInode * vfs_parent_inode = EXT2_I (dir);
     VfsInode * vfs_dir_inode = EXT2_I (dentry->d_inode);
 
-    $ty:(RR (ExState, FsState, VfsInode, VfsInode) () U32) rmdir_ret;
+    $ty:(RR (SysState, FsState, VfsInode, VfsInode) () U32) rmdir_ret;
     /* NOTE:We use WordArray_u8 instead of $ty:(WordArray U8) because we do not want the
       cogent compiler to use the pointer type. We want to allocate the wordarray on the
       stack */
     WordArray_u8 name_array = {.len = dentry->d_name.len, .values = (u8*)dentry->d_name.name };
 
-    $ty:((ExState, FsState, VfsInode, VfsInode, CString!)) rmdir_args = {
+    $ty:((SysState, FsState, VfsInode, VfsInode, CString!)) rmdir_args = {
         .p1 = state,
         .p2 = state->priv,
         .p3 = vfs_parent_inode,
@@ -683,7 +683,7 @@ void ext2fs_put_super(struct super_block * sb)
         ws->sb = sb;
 
         if (ws->priv) {
-            $ty:((#{ex: ExState, state: FsState})) unmount_args = {
+            $ty:((#{ex: SysState, state: FsState})) unmount_args = {
                 .ex = ws,
                 .state = ws->priv
             };
@@ -713,13 +713,13 @@ struct dentry *ext2fs_lookup(struct inode *dir, struct dentry *dentry, unsigned 
 
     VfsInode *abstract_inode = EXT2_I (dir);
 
-    $ty:(RR #{ex: ExState, state: FsState, parent_inode: VfsInode} VfsInode U32) lookup_ret;
+    $ty:(RR #{ex: SysState, state: FsState, parent_inode: VfsInode} VfsInode U32) lookup_ret;
     /* NOTE:We use WordArray_u8 instead of $ty:(WordArray U8) because we do not want the
       cogent compiler to use the pointer type. We want to allocate the wordarray on the
       stack */
     WordArray_u8 name_array = {.len = dentry->d_name.len, .values = (u8*)dentry->d_name.name };
 
-    $ty:((#{ex: ExState, state: FsState, parent_inode: VfsInode, name: CString!, flags: VfsFlags})) lookup_args = {
+    $ty:((#{ex: SysState, state: FsState, parent_inode: VfsInode, name: CString!, flags: VfsFlags})) lookup_args = {
         .ex = ws,
         .state = ws->priv,
         .parent_inode = abstract_inode,
@@ -771,7 +771,7 @@ int ext2fs_iterate(struct file *file, struct dir_context *ctx)
     struct super_block *sb = dir_inode->i_sb;
     VfsInode *abstract_inode = EXT2_I (dir_inode);
 
-    $ty:(RR #{ex: ExState, state: FsState, parent_inode: VfsInode, dirctx: VfsDirContext} () U32) iterate_ret;
+    $ty:(RR #{ex: SysState, state: FsState, parent_inode: VfsInode, dirctx: VfsDirContext} () U32) iterate_ret;
     Ext2State *ws = sb->s_fs_info;
 
     ws->sb = sb;
@@ -781,7 +781,7 @@ int ext2fs_iterate(struct file *file, struct dir_context *ctx)
         .pos = ctx->pos
     };
 
-    $ty:((#{ex: ExState, state: FsState, parent_inode: VfsInode, dirctx: VfsDirContext})) iterate_args = {
+    $ty:((#{ex: SysState, state: FsState, parent_inode: VfsInode, dirctx: VfsDirContext})) iterate_args = {
         .ex = ws,
         .state = ws->priv,
         .parent_inode = abstract_inode,
@@ -820,13 +820,13 @@ int ext2fs_get_block(struct inode *inode, sector_t iblock,
     struct super_block *sb = inode->i_sb;
     ws->sb = sb;
 
-    $ty:(RR (ExState, FsState, OSBuffer, VfsInode) () (U32)) getblock_ret;
+    $ty:(RR (SysState, FsState, OSBuffer, VfsInode) () (U32)) getblock_ret;
     VfsInode *abstract_inode = EXT2_I (inode);
     int err = 0;
 
     bool_t create_bool = { .boolean = !!create };
 
-    $ty:((#{ex: ExState, state: FsState, inode: VfsInode, blk: U32, create: Bool, buf: OSBuffer})) getblock_args = {
+    $ty:((#{ex: SysState, state: FsState, inode: VfsInode, blk: U32, create: Bool, buf: OSBuffer})) getblock_args = {
         .ex = ws,
         .state = ws->priv,
         .inode = abstract_inode,
@@ -868,7 +868,7 @@ static int ext2fs_statfs(struct dentry * dentry, struct kstatfs * buf)
         .max_namelen=0,
     };
 
-    $ty:((ExState, FsState, VfsExtendedInfo take (..))) statfs_args = {
+    $ty:((SysState, FsState, VfsExtendedInfo take (..))) statfs_args = {
         .p1 = ws,
         .p2 = ws->priv,
         .p3 = &ei
@@ -945,8 +945,8 @@ int ext2fs_fill_super(struct super_block *sb, void *data,
     Ext2State* ws;
     int blocksize;
 
-    $ty:(RR ExState (#{state: FsState, mountinfo: #VfsMountInfo}) U32) mount_ret;
-    $ty:(RR #{ex: ExState, state: FsState} VfsInode U32) root_ret;
+    $ty:(RR SysState (#{state: FsState, mountinfo: #VfsMountInfo}) U32) mount_ret;
+    $ty:(RR #{ex: SysState, state: FsState} VfsInode U32) root_ret;
 
     ws = kmalloc(sizeof (struct Ext2State), GFP_NOFS);
     if (!ws) {
@@ -1031,7 +1031,7 @@ int ext2fs_fill_super(struct super_block *sb, void *data,
     /* attempt mount with options array, and Ext2State as "state"
      * if you need to get Ext2State back, you can get it inside
      * state */
-    $ty:(#{ex: ExState, options: (Array (WordArray U8))!}) mount_args = {
+    $ty:(#{ex: SysState, options: (Array (WordArray U8))!}) mount_args = {
         .ex = ws,
         .options = &cogent_options
     };
@@ -1068,7 +1068,7 @@ int ext2fs_fill_super(struct super_block *sb, void *data,
     sb->s_op = &ext2fs_super_operations;
 
     /* get the root inode */
-    $ty:((#{ex: ExState, state: FsState})) get_root_args = {
+    $ty:((#{ex: SysState, state: FsState})) get_root_args = {
         .ex = ws,
         .state = ws->priv
     };

@@ -31,8 +31,8 @@
 // typedef int Foo; 
 // typedef int Y_u8_u16;
 
-struct ExState_t { char dummy; };
-typedef struct ExState_t ExState;
+struct SysState_t { char dummy; };
+typedef struct SysState_t SysState;
 
 static inline void dummyFunction (void) {return;}
 

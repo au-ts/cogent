@@ -8,9 +8,9 @@
  * @TAG(NICTA_GPL)
  */
 
-$ty:(R (ExState, Array Obj) ExState) arrayobj_alloc(int len)
+$ty:(R (SysState, Array Obj) SysState) arrayobj_alloc(int len)
 {
-        $ty:(R (ExState, Array Obj) ExState) ret;
+        $ty:(R (SysState, Array Obj) SysState) ret;
 
         ret.Success.p1 = NULL;
         ret.Success.p2 = kzalloc(sizeof(*ret.Success.p2));
@@ -31,14 +31,14 @@ $ty:(R (ExState, Array Obj) ExState) arrayobj_alloc(int len)
         return ret;
 }
 /*
-arrayobj_create1: (ExState, Obj) -> R (ExState, Array Obj) ExState
+arrayobj_create1: (SysState, Obj) -> R (SysState, Array Obj) SysState
 */
-$ty:(R (ExState, Array Obj) ExState) $id:arrayobj_create1($ty:((ExState, Obj)) args)
+$ty:(R (SysState, Array Obj) SysState) $id:arrayobj_create1($ty:((SysState, Obj)) args)
 {
-        $ty:(R (ExState, Array Obj) ExState) ret = arrayobj_alloc(1);
+        $ty:(R (SysState, Array Obj) SysState) ret = arrayobj_alloc(1);
 
         if (ret.tag == TAG_ENUM_Error) {
-                $ty:((ExState, Obj)) fargs;
+                $ty:((SysState, Obj)) fargs;
                 fargs.p1 = args.p1;
                 fargs.p2 = args.p2;
                 $exp:deep_freeObj(fargs);
@@ -48,14 +48,14 @@ $ty:(R (ExState, Array Obj) ExState) $id:arrayobj_create1($ty:((ExState, Obj)) a
         return ret;
 }
 /*
-arrayobj_create3: (ExState, Obj, Obj, Obj) -> R (ExState, Array Obj) ExState
+arrayobj_create3: (SysState, Obj, Obj, Obj) -> R (SysState, Array Obj) SysState
 */
-$ty:(R (ExState, Array Obj) ExState) $id:arrayobj_create3($ty:((ExState, Obj, Obj, Obj)) args)
+$ty:(R (SysState, Array Obj) SysState) $id:arrayobj_create3($ty:((SysState, Obj, Obj, Obj)) args)
 {
-        $ty:(R (ExState, Array Obj) ExState) ret = arrayobj_alloc(3);
+        $ty:(R (SysState, Array Obj) SysState) ret = arrayobj_alloc(3);
 
         if (ret.tag == TAG_ENUM_Error) {
-                $ty:((ExState, Obj)) fargs;
+                $ty:((SysState, Obj)) fargs;
 
                 fargs.p1 = args.p1;
                 fargs.p2 = args.p2;
@@ -73,14 +73,14 @@ $ty:(R (ExState, Array Obj) ExState) $id:arrayobj_create3($ty:((ExState, Obj, Ob
 }
 
 /*
-arrayobj_create4: (ExState, Obj, Obj, Obj, Obj) -> R (ExState, Array Obj) ExState
+arrayobj_create4: (SysState, Obj, Obj, Obj, Obj) -> R (SysState, Array Obj) SysState
 */
-$ty:(R (ExState, Array Obj) ExState) $id:arrayobj_create4($ty:((ExState, Obj, Obj, Obj, Obj)) args)
+$ty:(R (SysState, Array Obj) SysState) $id:arrayobj_create4($ty:((SysState, Obj, Obj, Obj, Obj)) args)
 {
-        $ty:(R (ExState, Array Obj) ExState) ret = arrayobj_alloc(4);
+        $ty:(R (SysState, Array Obj) SysState) ret = arrayobj_alloc(4);
 
         if (ret.tag == TAG_ENUM_Error) {
-                $ty:((ExState, Obj)) fargs;
+                $ty:((SysState, Obj)) fargs;
 
                 fargs.p1 = args.p1;
                 fargs.p2 = args.p2;
@@ -101,19 +101,19 @@ $ty:(R (ExState, Array Obj) ExState) $id:arrayobj_create4($ty:((ExState, Obj, Ob
 }
 
 /*
-arrayobj_create4_ret2: (ExState, Obj, Obj, Obj, Obj) -> R (ExState, Array Obj) (ExState, Obj)
+arrayobj_create4_ret2: (SysState, Obj, Obj, Obj, Obj) -> R (SysState, Array Obj) (SysState, Obj)
  Returns the second object in case of error.
 */
-$ty:(R (ExState, Array Obj) (ExState, Obj)) $id:(arrayobj_create4_ret2)($ty:((ExState, Obj, Obj, Obj, Obj)) args)
+$ty:(R (SysState, Array Obj) (SysState, Obj)) $id:(arrayobj_create4_ret2)($ty:((SysState, Obj, Obj, Obj, Obj)) args)
 {
-        $ty:(R (ExState, Array Obj) ExState) reta = arrayobj_alloc(4);
-        $ty:(R (ExState, Array Obj) (ExState, Obj)) ret;
+        $ty:(R (SysState, Array Obj) SysState) reta = arrayobj_alloc(4);
+        $ty:(R (SysState, Array Obj) (SysState, Obj)) ret;
 
         ret.tag = reta.tag;
         ret.Success = reta.Success;
 
         if (ret.tag == TAG_ENUM_Error) {
-                $ty:((ExState, Obj)) fargs;
+                $ty:((SysState, Obj)) fargs;
 
                 fargs.p1 = args.p1;
                 fargs.p2 = args.p2;
@@ -135,14 +135,14 @@ $ty:(R (ExState, Array Obj) (ExState, Obj)) $id:(arrayobj_create4_ret2)($ty:((Ex
         return ret;
 }
 /*
-arrayobj_create5: (ExState, Obj, Obj, Obj, Obj, Obj) -> R (ExState, Array Obj) ExState
+arrayobj_create5: (SysState, Obj, Obj, Obj, Obj, Obj) -> R (SysState, Array Obj) SysState
 */
-$ty:(R (ExState, Array Obj) ExState) $id:arrayobj_create5($ty:((ExState, Obj, Obj, Obj, Obj, Obj)) args)
+$ty:(R (SysState, Array Obj) SysState) $id:arrayobj_create5($ty:((SysState, Obj, Obj, Obj, Obj, Obj)) args)
 {
-        $ty:(R (ExState, Array Obj) ExState) ret = arrayobj_alloc(5);
+        $ty:(R (SysState, Array Obj) SysState) ret = arrayobj_alloc(5);
 
         if (ret.tag == TAG_ENUM_Error) {
-                $ty:((ExState, Obj)) fargs;
+                $ty:((SysState, Obj)) fargs;
 
                 fargs.p1 = args.p1;
                 fargs.p2 = args.p2;
@@ -165,14 +165,14 @@ $ty:(R (ExState, Array Obj) ExState) $id:arrayobj_create5($ty:((ExState, Obj, Ob
         return ret;
 }
 /*
-arrayobj_create6: (ExState, Obj, Obj, Obj, Obj, Obj, Obj) -> R (ExState, Array Obj) ExState
+arrayobj_create6: (SysState, Obj, Obj, Obj, Obj, Obj, Obj) -> R (SysState, Array Obj) SysState
 */
-$ty:(R (ExState, Array Obj) ExState) $id:arrayobj_create6($ty:((ExState, Obj, Obj, Obj, Obj, Obj, Obj)) args)
+$ty:(R (SysState, Array Obj) SysState) $id:arrayobj_create6($ty:((SysState, Obj, Obj, Obj, Obj, Obj, Obj)) args)
 {
-        $ty:(R (ExState, Array Obj) ExState) ret = arrayobj_alloc(6);
+        $ty:(R (SysState, Array Obj) SysState) ret = arrayobj_alloc(6);
 
         if (ret.tag == TAG_ENUM_Error) {
-                $ty:((ExState, Obj)) fargs;
+                $ty:((SysState, Obj)) fargs;
 
                 fargs.p1 = args.p1;
                 fargs.p2 = args.p2;

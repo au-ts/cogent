@@ -8,12 +8,12 @@
 -- @TAG(NICTA_GPL)
 --
 
-type DirentsInPageAcc = (ExState, Option Ext2DirEnt, OSPageBuffer, VfsDirContext, U64)
-type DirentsInPageAccNoDEnt = (ExState, OSPageBuffer, VfsDirContext, U64)
+type DirentsInPageAcc = (SysState, Option Ext2DirEnt, OSPageBuffer, VfsDirContext, U64)
+type DirentsInPageAccNoDEnt = (SysState, OSPageBuffer, VfsDirContext, U64)
 type DirentsInPageObsv = (U64)
 
-type EmptyDirentsInPageAcc = (ExState, Option Ext2DirEnt, OSPageBuffer, U32)
-type EmptyDirentsInPageAccNoDirent = (ExState, OSPageBuffer, U32)
+type EmptyDirentsInPageAcc = (SysState, Option Ext2DirEnt, OSPageBuffer, U32)
+type EmptyDirentsInPageAccNoDirent = (SysState, OSPageBuffer, U32)
 
 get_next_dirent_from_page: Generator Ext2DirEnt () U32 DirentsInPageAcc DirentsInPageObsv
 get_next_dirent_from_page (#{acc = (ex, maybe_prev_dirent, pagebuf, dirctx, cur_offset), obsv = (limit)}) = 
@@ -143,7 +143,7 @@ check_dirent_empty (#{ obj = new_dirent, acc = (ex, maybe_prev_dirent, pagebuf, 
         | None _ ->
             check_dirent_empty2 (new_dirent, (ex, pagebuf, offset))
 
-type PerPageEmptyAcc = (ExState)
+type PerPageEmptyAcc = (SysState)
 type PerPageEmptyObsv = (U64, VfsInode)
 
 get_page_and_check_empty: Seq64_body PerPageEmptyAcc PerPageEmptyObsv U32
@@ -204,7 +204,7 @@ get_page_and_check_empty (#{acc = (ex), obsv = (npages, inode), idx = n}) =
         (ex, Break eIO)
 
 -- yet another page loop, eugh..
-ext2_dir_is_empty: (ExState, FsState, VfsInode!) -> RR (ExState, FsState) Bool U32
+ext2_dir_is_empty: (SysState, FsState, VfsInode!) -> RR (SysState, FsState) Bool U32
 ext2_dir_is_empty (ex, state, parent_inode) =
     let npages = ext2_dir_pages (parent_inode) !parent_inode
     and (ex, res) = seq64 [PerPageEmptyAcc, PerPageEmptyObsv, U32] (#{
@@ -225,7 +225,7 @@ ext2_dir_is_empty (ex, state, parent_inode) =
         else
             ((ex, state), Error err)
 
-type PerPageLoopAcc = (ExState, VfsDirContext, U64, VfsInode)
+type PerPageLoopAcc = (SysState, VfsDirContext, U64, VfsInode)
 type PerPageLoopObsv = (U64)
 
 get_page_and_iterate_dirents: Seq64_body PerPageLoopAcc PerPageLoopObsv U32
@@ -297,7 +297,7 @@ get_page_and_iterate_dirents (#{acc = (ex, dirctx, offset, inode), obsv = npages
         let _ = _cogent_log (dbg_EXT2_DIR_READ, "get_page_and_iterate_dirents: failed to get page\n")
         in ((ex, dirctx, offset, inode), Break eIO)
 
-fsop_dir_iterate: (#{ex: ExState, state: FsState, parent_inode: VfsInode, dirctx: VfsDirContext}) -> RR #{ex: ExState, state: FsState, parent_inode: VfsInode, dirctx: VfsDirContext} () U32
+fsop_dir_iterate: (#{ex: SysState, state: FsState, parent_inode: VfsInode, dirctx: VfsDirContext}) -> RR #{ex: SysState, state: FsState, parent_inode: VfsInode, dirctx: VfsDirContext} () U32
 fsop_dir_iterate (#{..}) =
     let npages = ext2_dir_pages (parent_inode) !parent_inode
     and dirctx_t { pos } = dirctx
@@ -331,7 +331,7 @@ fsop_dir_iterate (#{..}) =
 
 ---------------
 
-type CheckMatchingDirentAcc = (ExState, FsState, U64, U64)
+type CheckMatchingDirentAcc = (SysState, FsState, U64, U64)
 type CheckMatchingDirentObsv = (CString, U64, OSPageBuffer)
 
 -- inner loop at dir.c:396
@@ -368,7 +368,7 @@ check_matching_and_increment(#{ obj = de, acc = (ex, state, offset, prev_offset)
         and _ = _cogent_log (dbg_EXT2_DIR_READ, "check_matching_and_increment: zero-length dir\n")
         in ((ex, state, offset, prev_offset), Stop eInval)
 
-type FindEntryAcc = (ExState, FsState, U64)
+type FindEntryAcc = (SysState, FsState, U64)
 type FindEntryObsv = (CString, VfsInode, U16, U64, U64)
 
 get_next_page: Generator (OSPage, OSPageBuffer) (Ext2DirEnt, OSPage, OSPageBuffer, U64) U32 FindEntryAcc FindEntryObsv
@@ -446,7 +446,7 @@ check_page_loop (#{obj = (page, pagebuf), acc = (ex, state, n), obsv = (name, di
 
         in ((ex, state, n), Stop err)
     
-ext2_find_entry2: (ExState, FsState, VfsInode, CString!, U16, U64, U64) -> RR (ExState, FsState, VfsInode) (Ext2DirEnt, OSPage, OSPageBuffer, U32) (U32)
+ext2_find_entry2: (SysState, FsState, VfsInode, CString!, U16, U64, U64) -> RR (SysState, FsState, VfsInode) (Ext2DirEnt, OSPage, OSPageBuffer, U32) (U32)
 ext2_find_entry2 (ex, state, dir, name, reclen, npages, start) = 
     let n = start
     and _ = _cogent_log (dbg_EXT2_DIR_READ, "ext2_find_entry2: starting at page ")
@@ -479,7 +479,7 @@ ext2_find_entry2 (ex, state, dir, name, reclen, npages, start) =
 -- basically, we use dir_start_lookup to cache where we last were in
 -- find_entry. this is to increase performance when we're attempting to
 -- lookup sequential items. we round this to the nearest page
-ext2_find_entry: (ExState, FsState, VfsInode, CString!) -> RR (ExState, FsState, VfsInode) (Ext2DirEnt, OSPage, OSPageBuffer, U32) (U32)
+ext2_find_entry: (SysState, FsState, VfsInode, CString!) -> RR (SysState, FsState, VfsInode) (Ext2DirEnt, OSPage, OSPageBuffer, U32) (U32)
 ext2_find_entry (ex, state, dir, name) =
     let reclen = ext2_dir_rec_len (u32_to_u16 (wordarray_length[U8] (name))) !name -- XXX: downcast, but necessary
     and npages = ext2_dir_pages (dir) !dir
@@ -494,7 +494,7 @@ ext2_find_entry (ex, state, dir, name) =
         else
             ext2_find_entry2 (ex, state, dir, name, reclen, npages, start)
 
-ext2_find_entry_bang: (ExState, FsState, VfsInode!, CString!) -> RR (ExState, FsState) (Ext2DirEnt, OSPage, OSPageBuffer, U32) (U32)
+ext2_find_entry_bang: (SysState, FsState, VfsInode!, CString!) -> RR (SysState, FsState) (Ext2DirEnt, OSPage, OSPageBuffer, U32) (U32)
 ext2_find_entry_bang (ex, state, dir, name) =
     let reclen = ext2_dir_rec_len (u32_to_u16 (wordarray_length[U8] (name))) -- XXX: downcast, but necessary
     and npages = ext2_dir_pages (dir)
@@ -518,7 +518,7 @@ ext2_find_entry_bang (ex, state, dir, name) =
             -- didn't find it, or some other error occured
             ((ex, state), Error err)
 
-ext2_inode_by_name: (ExState, FsState, VfsInode, CString!) -> RR (ExState, FsState, VfsInode) (VfsIno) (U32)
+ext2_inode_by_name: (SysState, FsState, VfsInode, CString!) -> RR (SysState, FsState, VfsInode) (VfsIno) (U32)
 ext2_inode_by_name (ex, state, inode, name) =
     let ((ex, state, inode), m) = ext2_find_entry (ex, state, inode, name)
     in m
@@ -539,7 +539,7 @@ ext2_inode_by_name (ex, state, inode, name) =
         --in ((ex, state, inode), Error err)
         in ((ex, state, inode), Error eNoEnt)
 
-fsop_dir_lookup: (#{ex: ExState, state: FsState, parent_inode: VfsInode, name: CString!, flags: VfsFlags}) -> RR #{ex: ExState, state: FsState, parent_inode: VfsInode} VfsInode U32
+fsop_dir_lookup: (#{ex: SysState, state: FsState, parent_inode: VfsInode, name: CString!, flags: VfsFlags}) -> RR #{ex: SysState, state: FsState, parent_inode: VfsInode} VfsInode U32
 fsop_dir_lookup (#{ ex = ex, .. }) = 
     if wordarray_length [U8] name > const_maxNameLen then
         (#{ex, state, parent_inode}, Error eNameTooLong)

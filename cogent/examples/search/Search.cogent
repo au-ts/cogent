@@ -20,13 +20,13 @@ type Node = {
 
 type Buffer  -- stores a list of `Node`s
 
-find_str : (ExState, Buffer!, (#CString)!) -> (ExState, Option Node)
+find_str : (SysState, Buffer!, (#CString)!) -> (SysState, Option Node)
 find_str (ex,buf,s) = 
-  let ((ex,_),r) = seq32 [(ExState, Index), (Buffer!, (#CString)!), Node] #{frm = u8_to_u32 0, to = u8_to_u32 3, step = u8_to_u32 1, f = cmp_inc, acc = (ex,0), obsv = (buf,s)}
+  let ((ex,_),r) = seq32 [(SysState, Index), (Buffer!, (#CString)!), Node] #{frm = u8_to_u32 0, to = u8_to_u32 3, step = u8_to_u32 1, f = cmp_inc, acc = (ex,0), obsv = (buf,s)}
    in r | Iterate _   -> (ex, None)
         | Break node  -> (ex, Some node)
 
-cmp_inc : #{acc : (ExState, Index), obsv : (Buffer!, (#CString)!), idx : U32} -> LRR (ExState, Index) Node
+cmp_inc : #{acc : (SysState, Index), obsv : (Buffer!, (#CString)!), idx : U32} -> LRR (SysState, Index) Node
 cmp_inc r {acc=(ex,idx), obsv=(buf,str)} = 
   let (ex,r) = deserialise_Node (ex,buf,idx)
    in r | Success (node,idx') -> if string_cmp (node.key, str) !node
@@ -39,12 +39,12 @@ cmp_inc r {acc=(ex,idx), obsv=(buf,str)} =
 
 string_cmp : ((#CString)!, (#CString)!) -> Bool
 
-malloc_Node : ExState -> RR ExState (Node take (..)) ErrCode
-free_Node : (ExState, Node take (..)) -> ExState
+malloc_Node : SysState -> RR SysState (Node take (..)) ErrCode
+free_Node : (SysState, Node take (..)) -> SysState
 
-free_CString : (ExState, #CString) -> ExState
+free_CString : (SysState, #CString) -> SysState
 
-deserialise_Node : (ExState, Buffer!, Index) -> RR ExState (Node, Index) ErrCode
+deserialise_Node : (SysState, Buffer!, Index) -> RR SysState (Node, Index) ErrCode
 deserialise_Node (ex,buf,idx) = 
   let (ex,r) = malloc_Node ex
    in r 
@@ -57,7 +57,7 @@ deserialise_Node (ex,buf,idx) =
                         in (ex, Error err)
    | Error err -> (ex, Error err)
 
-deserialise_CString : (ExState, Buffer!, Index, U32) -> RR ExState (#CString, Index) ErrCode
-deserialise_U32 : (ExState, Buffer!, Index) -> (ExState, U32, Index)
+deserialise_CString : (SysState, Buffer!, Index, U32) -> RR SysState (#CString, Index) ErrCode
+deserialise_U32 : (SysState, Buffer!, Index) -> (SysState, U32, Index)
 
-array_print : (ExState, (#CString)!) -> ExState
+array_print : (SysState, (#CString)!) -> SysState

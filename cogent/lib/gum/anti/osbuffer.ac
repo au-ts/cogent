@@ -69,14 +69,14 @@ $ty:(Result (U8, OSBufferOffset) ()) osbuffer_deserialise_U8 ($ty:((OSBuffer!, O
 	return ret;
 }
 
-$ty:(RR ExState (OSBuffer) ()) osbuffer_create ($ty:(ExState) ex) {
+$ty:(RR SysState (OSBuffer) ()) osbuffer_create ($ty:(SysState) ex) {
 	$ty:(R (OSBuffer) ()) success = { .Success = NULL, .tag = TAG_ENUM_Success };
-	$ty:(RR ExState (OSBuffer) ()) ret = { .p1 = ex, .p2 = success };
+	$ty:(RR SysState (OSBuffer) ()) ret = { .p1 = ex, .p2 = success };
 
 	return ret;
 }
 
-$ty:(ExState) osbuffer_destroy ($ty:((ExState, OSBuffer)) args) {
+$ty:(SysState) osbuffer_destroy ($ty:((SysState, OSBuffer)) args) {
 	// printk ("brelse %p\n", args.buf);
 	brelse (args.p2);
 	return args.p1;
@@ -100,17 +100,17 @@ $ty:(OSBuffer) osbuffer_set_size ($ty:((OSBuffer, U32)) args) {
 	return args.p1;
 }
 
-//fs_buffer_read_block: (#{ex: ExState, buf: FsBuffer, blk: U32}) ->
-//	RR 	(ExState, FsBuffer) () ()
-$ty:(RR (ExState, OSBuffer) () ()) osbuffer_read_block ($ty:((#{ex: ExState, buf: OSBuffer, blk: U32})) args) {
+//fs_buffer_read_block: (#{ex: SysState, buf: FsBuffer, blk: U32}) ->
+//	RR 	(SysState, FsBuffer) () ()
+$ty:(RR (SysState, OSBuffer) () ()) osbuffer_read_block ($ty:((#{ex: SysState, buf: OSBuffer, blk: U32})) args) {
 	// when you read from a block, buf NOW becomes a pointer
 	// it should have been previous NULL
 
 	// UNLESS it was some previously read buffer, in which case we map
 	// into that instead
 
-	$ty:((ExState, OSBuffer)) ex_buf_tuple = {.p1 = args.ex, .p2 = args.buf};
-	$ty:(RR (ExState, OSBuffer) () ()) ret = {.p1 = ex_buf_tuple};
+	$ty:((SysState, OSBuffer)) ex_buf_tuple = {.p1 = args.ex, .p2 = args.buf};
+	$ty:(RR (SysState, OSBuffer) () ()) ret = {.p1 = ex_buf_tuple};
 	
 	struct super_block* sb = args.ex->sb;
 
@@ -158,12 +158,12 @@ $ty:(OSBufferOffset) osbuffer_find_next_zero_bit ($ty:((OSBuffer!, U32, OSBuffer
 	return find_next_zero_bit_le (args.p1->b_data, args.p2, args.p3);
 }
 
-$ty:(ExState) osbuffer_trash ($ty:((ExState, OSBuffer)) args) {
+$ty:(SysState) osbuffer_trash ($ty:((SysState, OSBuffer)) args) {
 	bforget (args.p2);
 	return args.p1;
 }
 
-$ty:((ExState, OSBuffer)) osbuffer_dirty ($ty:((ExState, OSBuffer)) args) {
+$ty:((SysState, OSBuffer)) osbuffer_dirty ($ty:((SysState, OSBuffer)) args) {
 	mark_buffer_dirty (args.p2);
 	return args;
 }
@@ -173,12 +173,12 @@ $ty:(VfsInode) vfs_inode_add_dirty_osbuffer ($ty:((VfsInode, OSBuffer!)) args) {
 	return args.p1;
 }
 
-$ty:((ExState, OSBuffer)) osbuffer_set_new ($ty:((ExState, OSBuffer)) args) {
+$ty:((SysState, OSBuffer)) osbuffer_set_new ($ty:((SysState, OSBuffer)) args) {
 	set_buffer_new (args.p2);
 	return args;
 }
 
-$ty:((ExState, OSBuffer)) osbuffer_set_uptodate ($ty:((ExState, OSBuffer)) args) {
+$ty:((SysState, OSBuffer)) osbuffer_set_uptodate ($ty:((SysState, OSBuffer)) args) {
 	set_buffer_uptodate (args.p2);
 	return args;
 }
@@ -244,7 +244,7 @@ $ty:(OSBuffer) osbuffer_sync_dirty ($ty:(OSBuffer) buf) {
 	return buf;
 }
 
-$ty:(ExState) osbuffer_readahead ($ty:((ExState, U32)) args) {
+$ty:(SysState) osbuffer_readahead ($ty:((SysState, U32)) args) {
 	sb_breadahead (args.p1->sb, args.p2);
 	return args.p1;
 }

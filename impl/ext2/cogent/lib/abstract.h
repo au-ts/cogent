@@ -54,14 +54,14 @@ typedef void VfsISetAttrArgs;
 
 // really all of type `enum untyped_func_enum' but can't forward declare enums (because size unknown)
 struct cogent_inode_operations {
-	int create; // Option ((ExState, FsState, VfsInode, CString!, VfsMode) -> RR (ExState, FsState, VfsInode) VfsInode U32),
-  	int link; // Option ((ExState, FsState, VfsInode, VfsInode, CString!) -> RR (ExState, FsState, VfsInode, VfsInode) () U32),
-	int unlink; // Option ((ExState, FsState, VfsInode, VfsInode, CString!) -> RR (ExState, FsState, VfsInode, VfsInode) () U32),
-	int symlink; // Option ((ExState, FsState, VfsInode, CString!) -> RR (ExState, FsState, VfsInode) VfsInode U32),
-	int mkdir; // Option ((ExState, FsState, VfsInode, CString!, VfsMode) -> RR (ExState, FsState, VfsInode) VfsInode U32),
-	int rmdir; // Option ((ExState, FsState, VfsInode, VfsInode, CString!) -> RR (ExState, FsState, VfsInode, VfsInode) () U32),
-	int rename; // Option ((ExState, FsState, VfsRenameContext) -> RR (ExState, FsState, VfsRenameContext) () U32),
-	int mknod; // Option ((ExState, FsState, VfsInode, CString!, VfsMode, #VfsDevice) -> RR (ExState, FsState, VfsInode) VfsInode U32),
+	int create; // Option ((SysState, FsState, VfsInode, CString!, VfsMode) -> RR (SysState, FsState, VfsInode) VfsInode U32),
+  	int link; // Option ((SysState, FsState, VfsInode, VfsInode, CString!) -> RR (SysState, FsState, VfsInode, VfsInode) () U32),
+	int unlink; // Option ((SysState, FsState, VfsInode, VfsInode, CString!) -> RR (SysState, FsState, VfsInode, VfsInode) () U32),
+	int symlink; // Option ((SysState, FsState, VfsInode, CString!) -> RR (SysState, FsState, VfsInode) VfsInode U32),
+	int mkdir; // Option ((SysState, FsState, VfsInode, CString!, VfsMode) -> RR (SysState, FsState, VfsInode) VfsInode U32),
+	int rmdir; // Option ((SysState, FsState, VfsInode, VfsInode, CString!) -> RR (SysState, FsState, VfsInode, VfsInode) () U32),
+	int rename; // Option ((SysState, FsState, VfsRenameContext) -> RR (SysState, FsState, VfsRenameContext) () U32),
+	int mknod; // Option ((SysState, FsState, VfsInode, CString!, VfsMode, #VfsDevice) -> RR (SysState, FsState, VfsInode) VfsInode U32),
 
 	int readlink; // Option (VfsIReadlinkArgs -> VfsIReadlinkResult),
 	int followlink; // Option (VfsIFollowLinkArgs -> VfsIFollowLinkResult),
@@ -69,7 +69,7 @@ struct cogent_inode_operations {
 };
 
 struct cogent_file_operations {
-	int iterate; // Option ((#{ex: ExState, state: FsState, parent_inode: VfsInode, dirctx: VfsDirContext}) -> RR #{ex: ExState, state: FsState, parent_inode: VfsInode, dirctx: VfsDirContext} () U32),
+	int iterate; // Option ((#{ex: SysState, state: FsState, parent_inode: VfsInode, dirctx: VfsDirContext}) -> RR #{ex: SysState, state: FsState, parent_inode: VfsInode, dirctx: VfsDirContext} () U32),
 
 	// the rest are bools
 	int llseek; // Option (VfsISeekArgs -> VfsISeekResult),
@@ -105,7 +105,7 @@ struct VfsInodeAbstract {
 typedef struct VfsInodeAbstract VfsInodeAbstract;
 
 typedef struct buffer_head OSBuffer;
-typedef struct Ext2State ExState;
+typedef struct Ext2State SysState;
 typedef struct Ext2State Ext2State;
 typedef struct dir_context OSDirContext;
 typedef dev_t VfsDevice;

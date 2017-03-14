@@ -11,8 +11,8 @@
 // #include <bridge.h>
 // #include <generated.h>
 
-$ty:(R (ExState, Buffer take (..)) ExState) newBuffer ($ty:(ExState) heap) {
-	$ty:(R (ExState, Buffer take (..)) ExState) ret;
+$ty:(R (SysState, Buffer take (..)) SysState) newBuffer ($ty:(SysState) heap) {
+	$ty:(R (SysState, Buffer take (..)) SysState) ret;
 	ret.tag = TAG_ENUM_Error;
 	ret.Error = heap;
 
@@ -23,7 +23,7 @@ $ty:(R (ExState, Buffer take (..)) ExState) newBuffer ($ty:(ExState) heap) {
 	return ret;
 }
 
-$ty:(ExState) freeBuffer ($ty:((ExState, Buffer take (..))) args) {
+$ty:(SysState) freeBuffer ($ty:((SysState, Buffer take (..))) args) {
 	// printf ("!!! freeBuffer called\n");
 	return args.p1;
 }

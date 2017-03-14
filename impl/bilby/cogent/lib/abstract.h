@@ -24,7 +24,7 @@ typedef struct kstat VfsStat;
 typedef struct iattr VfsIattr;
 
 typedef struct buffer_head OSBuffer;
-typedef struct WrapperState ExState;
+typedef struct WrapperState SysState;
 typedef struct WrapperState WrapperState;
 typedef struct dir_context OSDirContext;
 typedef struct page OSPageBuffer;
