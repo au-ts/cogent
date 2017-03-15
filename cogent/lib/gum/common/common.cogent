@@ -20,7 +20,6 @@ type RR c a b = (c, <Success a | Error b>)
 
 type ErrCode = U32
 type WordArrayIndex = U32
-type SysState
 
 -- SysState is the state that we will be carrying around and used in all functions
 -- that modify an external state in the system. This will abstract away, from Cogent,
