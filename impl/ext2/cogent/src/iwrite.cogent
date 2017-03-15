@@ -8,7 +8,7 @@
 -- @TAG(NICTA_GPL)
 --
 
-serialise_ext2_VfsInode: (ExState, FsState!, OSBuffer, VfsInode!, U32, Bool) -> RR (ExState) (OSBuffer, U32) (OSBuffer, U32)
+serialise_ext2_VfsInode: (SysState, FsState!, OSBuffer, VfsInode!, U32, Bool) -> RR (SysState) (OSBuffer, U32) (OSBuffer, U32)
 serialise_ext2_VfsInode (ex, state, buf, inode, idx, sync) =
     let uid = vfs_inode_get_uid (inode)
     and gid = vfs_inode_get_gid (inode)
@@ -103,7 +103,7 @@ serialise_ext2_VfsInode (ex, state, buf, inode, idx, sync) =
         (ex, Error (buf, idx))
 
 -- see ialloc:165
-readahead_inode: (ExState, FsState, VfsInode!) -> (ExState, FsState)
+readahead_inode: (SysState, FsState, VfsInode!) -> (SysState, FsState)
 readahead_inode (ex, state, inode) =
     let ino = vfs_inode_get_ino (inode)
     and block_group = get_block_group_from_ino2 (state, ino) !state
@@ -116,7 +116,7 @@ readahead_inode (ex, state, inode) =
     | Error () ->
         (ex, state)
 
-fsop_inode_write: #{ex: ExState, state: FsState, inode: VfsInode, sync: Bool} -> RR #{ex: ExState, state: FsState, inode: VfsInode} () (U32)
+fsop_inode_write: #{ex: SysState, state: FsState, inode: VfsInode, sync: Bool} -> RR #{ex: SysState, state: FsState, inode: VfsInode} () (U32)
 fsop_inode_write #{..} = 
     let _ = _cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_write: getting buffer for ino ")
     and _ = _cogent_log_u32 (dbg_EXT2_INODE_WRITE, (vfs_inode_get_ino (inode))) !inode
@@ -151,14 +151,14 @@ fsop_inode_write #{..} =
         in (#{ex, state, inode}, Error err)
 
 -- frees inode (TODO: maybe put in fsop_inode_free?)
-fsop_inode_evict2: (ExState, FsState, VfsInode) -> (ExState, FsState, VfsInode take fs) 
+fsop_inode_evict2: (SysState, FsState, VfsInode) -> (SysState, FsState, VfsInode take fs) 
 fsop_inode_evict2 (ex, state, inode) =
     let inode_t { fs } = inode
     and fs_t { block_pointers } = fs
     and ex = wordarray_free [U32] (ex, block_pointers)
     in (ex, state, inode_t)
 
-fsop_inode_evict: (ExState, FsState, VfsInode, Bool) -> (ExState, FsState, VfsInode take fs)
+fsop_inode_evict: (SysState, FsState, VfsInode, Bool) -> (SysState, FsState, VfsInode take fs)
 fsop_inode_evict (ex, state, inode, want_delete) =
     if want_delete then
         -- set deletion time
@@ -193,7 +193,7 @@ fsop_inode_evict (ex, state, inode, want_delete) =
     else
         fsop_inode_evict2 (ex, state, inode)
 
-fsop_inode_free2: (ExState, FsState, VfsInode take fs) -> (ExState, FsState, VfsInode take fs)
+fsop_inode_free2: (SysState, FsState, VfsInode take fs) -> (SysState, FsState, VfsInode take fs)
 fsop_inode_free2 (ex, state, inode_t) = 
     -- FIXME: sync buffer if we're mounted sync
 
@@ -210,7 +210,7 @@ fsop_inode_free2 (ex, state, inode_t) =
     in (ex, state, inode_t)
 
 -- free the inode on disk
-fsop_inode_free: (ExState, FsState, VfsInode take fs) -> (ExState, FsState, VfsInode take fs)
+fsop_inode_free: (SysState, FsState, VfsInode take fs) -> (SysState, FsState, VfsInode take fs)
 fsop_inode_free (ex, state, inode_t) = 
     let ino = vfs_inode_get_ino2 (inode_t) !inode_t
     and first_ino = u8_to_u32 2 -- FIXME: when we have a bigger superblock
@@ -287,8 +287,8 @@ fsop_inode_free (ex, state, inode_t) =
 
 -- ext2/inode.c#L766: ext2_get_block
 -- we don't destroy the buffer here. caller does this
-fsop_inode_get_block: (#{ex: ExState, state: FsState, inode: VfsInode, blk: U32, create: Bool, buf: OSBuffer}) 
-                   -> RR (ExState, FsState, OSBuffer, VfsInode) () (U32)
+fsop_inode_get_block: (#{ex: SysState, state: FsState, inode: VfsInode, blk: U32, create: Bool, buf: OSBuffer}) 
+                   -> RR (SysState, FsState, OSBuffer, VfsInode) () (U32)
 fsop_inode_get_block #{..} =
   let max_mappable = osbuffer_get_size buf >> const_blockSizeBits !buf
   and _ = _cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: getting path from blk ")
@@ -456,7 +456,7 @@ fsop_inode_get_block #{..} =
     let _ = _cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: ERROR: could not create path from block\n")
     in ((ex, state, buf, inode), Error eNoMem)
 
-fsop_inode_truncate: (ExState, FsState, VfsInode, U64) -> (ExState, FsState, VfsInode)
+fsop_inode_truncate: (SysState, FsState, VfsInode, U64) -> (SysState, FsState, VfsInode)
 fsop_inode_truncate (ex, state, inode, size) =
     let (res, _) = ext2_truncate_blocks2 (ex, state, inode, size)
     in res

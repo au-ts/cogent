@@ -48,19 +48,19 @@ int main(void) {
   memcpy(curr, n3.key, n3.len);
   curr += n3.len;
 
-  $ty:(ExState) ex;
+  $ty:(SysState) ex;
 
   // find
-  $ty:((ExState, Buffer!, (#CString)!)) find_args;
+  $ty:((SysState, Buffer!, (#CString)!)) find_args;
   find_args.p1 = ex;
   find_args.p2 = buf;
   find_args.p3 = "Cogent";
-  $ty:((ExState, Option Node)) r = $exp:find_str (find_args);
+  $ty:((SysState, Option Node)) r = $exp:find_str (find_args);
   if (r.p2.tag == TAG_ENUM_None) {
     printf ("Not found!\n");
   } else {
     printf ("Found element ");
-    $ty:((ExState, #CString)) print_arg;
+    $ty:((SysState, #CString)) print_arg;
     print_arg.p1 = r.p1;
     print_arg.p2 = r.p2.Some->key;
     $exp:array_print (print_arg);

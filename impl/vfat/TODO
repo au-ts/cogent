@@ -6,7 +6,7 @@ TODO:
 * time:
     * main: fix up how timespec/Time are treated in C
     * (consider) merge or split up time-setting functions
-* continue adding in ExState - currently incrementally adding it in everywhere
+* continue adding in SysState - currently incrementally adding it in everywhere
 * change VfsInode, VfsDentry, Superblock into concrete Cogent types
 
 Iteration-Related Functions:

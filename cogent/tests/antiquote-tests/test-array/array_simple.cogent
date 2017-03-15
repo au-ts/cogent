@@ -19,10 +19,10 @@ type CoolType = {
 	b: U32
 }
 
-malloc_CoolType: ExState -> R (ExState, CoolType take (..)) (ExState)
-free_CoolType: (ExState, CoolType take (..)) -> ExState
+malloc_CoolType: SysState -> R (SysState, CoolType take (..)) (SysState)
+free_CoolType: (SysState, CoolType take (..)) -> SysState
 
-set_array_item: ArrayModifyF CoolType (ExState, Option CoolType)
+set_array_item: ArrayModifyF CoolType (SysState, Option CoolType)
 set_array_item (r { acc = (ex, val), .. }) =
 	oelem
 	| Some elem' ->
@@ -42,7 +42,7 @@ free_array_item (ex, elem) =
 
 -- type R a b = <Success a | Error b>
 
-caller: ExState -> R ExState ExState
+caller: SysState -> R SysState SysState
 caller ex =
 	array_create [CoolType] (ex, const_arraySize)
 	| Success (ex, arr) ->
@@ -50,7 +50,7 @@ caller ex =
 		malloc_CoolType ex
 		| Success (ex, thing_t) ->
 			let thing = thing_t { a = 42, b = 43 }
-			and updater = array_modify[CoolType, (ExState, Option CoolType)]
+			and updater = array_modify[CoolType, (SysState, Option CoolType)]
 			in updater (#{arr, idx = const_arraySize - 1, f = set_array_item, acc = (ex, Some thing)})
 			| r { acc = (ex, should_not_val), .. } ->
 				-- and get a shared copy back out

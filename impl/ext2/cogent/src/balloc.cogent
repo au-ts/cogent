@@ -69,7 +69,7 @@ ext2_find_goal (state, inode, iblock, indirect) =
 -- block allocation and placement algorithms
 ------------------------------------------------------------------------------
 
-type FindFreeBlockgroupAcc = (ExState, FsState, U32)
+type FindFreeBlockgroupAcc = (SysState, FsState, U32)
 type FindFreeBlockgroupRet = (Ext2GroupDescriptor, OSBuffer)
 
 find_free_blockgroup: Seq32_body FindFreeBlockgroupAcc () FindFreeBlockgroupRet
@@ -97,7 +97,7 @@ find_free_blockgroup #{acc = (ex, state, block_group), obsv = (), idx} =
   | Error () ->
     ((ex, state, block_group), Iterate ())
 
-ext2_write_new_block: (ExState, FsState, VfsInode, OSBuffer, U32, Ext2GroupDescriptor, OSBuffer, U32, U16) -> RR (ExState, FsState, VfsInode) (U32, BlockPtr) U32
+ext2_write_new_block: (SysState, FsState, VfsInode, OSBuffer, U32, Ext2GroupDescriptor, OSBuffer, U32, U16) -> RR (SysState, FsState, VfsInode) (U32, BlockPtr) U32
 ext2_write_new_block (ex, state, inode, group_desc_buf, block_group, group_desc, bitmap_buf, grp_alloc_blk, num) =
   let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_write_new_block: using block group ") 
   and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, block_group) 
@@ -268,7 +268,7 @@ allocate_find_first #{ acc = (buf, allocated, _), obsv, idx } =
 
 -- NOTE: we do *not* handle retrying block allocation as Linux does, since we expect that there is a single
 -- thread running this code. if this becomes not the case, you must implement a check when doing set_bit. see balloc.c:718
-ext2_try_to_allocate_with_bitmap3: (ExState, FsState, U32, OSBuffer, U32, U32, U32, U32) -> RR (ExState, FsState, OSBuffer) (U16, BlockPtr) U32
+ext2_try_to_allocate_with_bitmap3: (SysState, FsState, U32, OSBuffer, U32, U32, U32, U32) -> RR (SysState, FsState, OSBuffer) (U16, BlockPtr) U32
 ext2_try_to_allocate_with_bitmap3 (ex, state, group, bitmap_buf, num, goal, start, end) =
   let allocated:U32 = 0
 
@@ -302,7 +302,7 @@ ext2_try_to_allocate_with_bitmap3 (ex, state, group, bitmap_buf, num, goal, star
     let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_try_to_allocate_with_bitmap3: could not find free bit in range\n") 
     in ((ex, state, bitmap_buf), Success (0, goal))
 
-ext2_try_to_allocate_with_bitmap2: (ExState, FsState, U32, OSBuffer, U32, Option U32, U32, U32) -> RR (ExState, FsState, OSBuffer) (U16, BlockPtr) U32
+ext2_try_to_allocate_with_bitmap2: (SysState, FsState, U32, OSBuffer, U32, Option U32, U32, U32) -> RR (SysState, FsState, OSBuffer) (U16, BlockPtr) U32
 ext2_try_to_allocate_with_bitmap2 (ex, state, group, bitmap_buf, num, maybe_goal, start, end) =
   maybe_goal
   | None () ->
@@ -329,7 +329,7 @@ ext2_try_to_allocate_with_bitmap2 (ex, state, group, bitmap_buf, num, maybe_goal
     ext2_try_to_allocate_with_bitmap3 (ex, state, group, bitmap_buf, num, goal, goal, end)
 
 -- try to allocate at `num' blocks in a given block group
-ext2_try_to_allocate_with_bitmap: (ExState, FsState, U32, OSBuffer, U32, Option U32) -> RR (ExState, FsState, OSBuffer) (U16, BlockPtr) U32
+ext2_try_to_allocate_with_bitmap: (SysState, FsState, U32, OSBuffer, U32, Option U32) -> RR (SysState, FsState, OSBuffer) (U16, BlockPtr) U32
 ext2_try_to_allocate_with_bitmap (ex, state, group, bitmap_buf, num, maybe_goal_block) =
   let end = state.super.blocks_per_group !state
   in maybe_goal_block
@@ -353,7 +353,7 @@ ext2_try_to_allocate_with_bitmap (ex, state, group, bitmap_buf, num, maybe_goal_
     in ext2_try_to_allocate_with_bitmap2 (ex, state, group, bitmap_buf, num, maybe_goal_block, 0, end)
 
 -- loop through the rest of the groups to find a free block
-ext2_new_block2: (ExState, FsState, VfsInode, U32, U32) -> RR (ExState, FsState, VfsInode) (U32, BlockPtr) U32
+ext2_new_block2: (SysState, FsState, VfsInode, U32, U32) -> RR (SysState, FsState, VfsInode) (U32, BlockPtr) U32
 ext2_new_block2 (ex, state, inode, goal_block_group, num) =
   let group_count = state.group_count !state
 
@@ -401,7 +401,7 @@ ext2_new_block2 (ex, state, inode, goal_block_group, num) =
 
 -- TODO: reservation windows
 -- TODO: check reserved blocks for root
-ext2_new_blocks: (ExState, FsState, VfsInode, BlockPtr, U32) -> RR (ExState, FsState, VfsInode) (U32, BlockPtr) U32
+ext2_new_blocks: (SysState, FsState, VfsInode, BlockPtr, U32) -> RR (SysState, FsState, VfsInode) (U32, BlockPtr) U32
 ext2_new_blocks (ex, state, inode, goal, num) =
   let outside_range = goal < state.super.first_data_block || goal >= state.super.block_count !state
   and goal = if outside_range then state.super.first_data_block else goal !state
@@ -489,7 +489,7 @@ ext2_alloc_block_many #{ acc = (ptrs, count, indirect_index, current_block), obs
   else
     ((ptrs, count, indirect_index, current_block), Break ())
 
-ext2_alloc_block: Seq32_body (ExState, FsState, VfsInode, WordArray BlockPtr, U32, U32, U32, BlockPtr) (BlockPtr, U32) U32
+ext2_alloc_block: Seq32_body (SysState, FsState, VfsInode, WordArray BlockPtr, U32, U32, U32, BlockPtr) (BlockPtr, U32) U32
 ext2_alloc_block #{ acc = (ex, state, inode, ptrs, target, count, indirect_index, current_block), obsv = (goal, indirect_blocks), idx } =
   let count = target
 
@@ -529,7 +529,7 @@ ext2_alloc_block #{ acc = (ex, state, inode, ptrs, target, count, indirect_index
     ((ex, state, inode, ptrs, target, count, indirect_index, current_block), Break e)
 
 -- just do the allocation for n blocks
-ext2_alloc_blocks: (ExState, FsState, VfsInode, WordArray BlockPtr, U32, BlockPtr, U32) -> RR (ExState, FsState, VfsInode, WordArray BlockPtr) U32 U32
+ext2_alloc_blocks: (SysState, FsState, VfsInode, WordArray BlockPtr, U32, BlockPtr, U32) -> RR (SysState, FsState, VfsInode, WordArray BlockPtr) U32 U32
 ext2_alloc_blocks (ex, state, inode, blockptrs, num_indirect, goal, num_blocks) =
   let target = num_blocks + num_indirect
 
@@ -537,7 +537,7 @@ ext2_alloc_blocks (ex, state, inode, blockptrs, num_indirect, goal, num_blocks) 
   and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, target) 
   and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, " block total\n") 
 
-  and ((ex, state, inode, blockptrs, _, count, indirect_index, current_block), res) = seq32 [(ExState, FsState, VfsInode, WordArray BlockOffset, U32, U32, U32, U32), (U32, U32), U32] #{
+  and ((ex, state, inode, blockptrs, _, count, indirect_index, current_block), res) = seq32 [(SysState, FsState, VfsInode, WordArray BlockOffset, U32, U32, U32, U32), (U32, U32), U32] #{
     frm  = 0,
     to   = target,
     step = 1,
@@ -556,7 +556,7 @@ ext2_alloc_blocks (ex, state, inode, blockptrs, num_indirect, goal, num_blocks) 
       -- FIXME: handle error case properly and deallocate blocks we just allocated!
       ((ex, state, inode, blockptrs), Error e)
 
-ext2_alloc_blocks_last: (ExState, FsState, VfsInode, WordArray BlockPtr, U32, BlockPtr, U32) -> RR (ExState, FsState, VfsInode, WordArray BlockPtr) U32 U32
+ext2_alloc_blocks_last: (SysState, FsState, VfsInode, WordArray BlockPtr, U32, BlockPtr, U32) -> RR (SysState, FsState, VfsInode, WordArray BlockPtr) U32 U32
 ext2_alloc_blocks_last (ex, state, inode, blockptrs, indirect_index, current_block, count) =
   let blockptrs = wordarray_put2 [BlockPtr] #{ arr = blockptrs, idx = indirect_index, val = current_block }
   in ((ex, state, inode, blockptrs), Success count)
@@ -565,13 +565,13 @@ ext2_alloc_blocks_last (ex, state, inode, blockptrs, indirect_index, current_blo
 -- block deallocation
 ------------------------------------------------------------------------------
 
-ext2_free_data_inode: (ExState, FsState, VfsInode, U32, U32) -> (ExState, FsState, VfsInode)
+ext2_free_data_inode: (SysState, FsState, VfsInode, U32, U32) -> (SysState, FsState, VfsInode)
 
 ------------------------------------------------------------------------------
 -- truncation
 ------------------------------------------------------------------------------
 
-fsop_can_truncate: (ExState, FsState, VfsInode!) -> ((ExState, FsState), R () U32)
+fsop_can_truncate: (SysState, FsState, VfsInode!) -> ((SysState, FsState), R () U32)
 fsop_can_truncate (ex, state, inode) =
     let mode = vfs_inode_get_mode (inode) .&. s_IFMT
     in if not (mode == vfs_type_reg || mode == vfs_type_dir || mode == vfs_type_link) then
@@ -588,7 +588,7 @@ fsop_can_truncate (ex, state, inode) =
         else
           ((ex, state), Success ())
 
-ext2_truncate_blocks: (ExState, FsState, VfsInode, U64) -> RR (ExState, FsState, VfsInode) () U32
+ext2_truncate_blocks: (SysState, FsState, VfsInode, U64) -> RR (SysState, FsState, VfsInode) () U32
 ext2_truncate_blocks (ex, state, inode, new_size) =
     let ((ex, state), res) = fsop_can_truncate (ex, state, inode) !inode
     in res
@@ -599,7 +599,7 @@ ext2_truncate_blocks (ex, state, inode, new_size) =
       ((ex, state, inode), Error err)
 
 -- aka __ext2_truncate_blocks in Linux
-ext2_truncate_blocks2: (ExState, FsState, VfsInode, U64) -> RR (ExState, FsState, VfsInode) () U32
+ext2_truncate_blocks2: (SysState, FsState, VfsInode, U64) -> RR (SysState, FsState, VfsInode) () U32
 ext2_truncate_blocks2 (ex, state, inode, offset) =
     --let addr_per_block  = const_addrPerBlock
     --let blocksize = const_blockSize
@@ -674,12 +674,12 @@ ext2_truncate_blocks2 (ex, state, inode, offset) =
       let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_truncate_blocks2: failed to get path\n") 
       in ((ex, state, inode), Success ())
 
-ext2_truncate_blocks_ind_shared: (ExState, FsState, VfsInode, U64, Chain, IndirectIdx) -> RR (ExState, FsState, VfsInode) () U32
+ext2_truncate_blocks_ind_shared: (SysState, FsState, VfsInode, U64, Chain, IndirectIdx) -> RR (SysState, FsState, VfsInode) () U32
 ext2_truncate_blocks_ind_shared (ex, state, inode, offset, chain, partial_idx) =
   -- clear ends of indirect blocks on shared branch
   let to:U32 = 1
 
-  and ((ex, state, inode, chain), _) = seq32_rev [(ExState, FsState, VfsInode, Chain), (), ()] #{
+  and ((ex, state, inode, chain), _) = seq32_rev [(SysState, FsState, VfsInode, Chain), (), ()] #{
     frm = partial_idx,
     to,
     step = u8_to_u32 1,
@@ -692,7 +692,7 @@ ext2_truncate_blocks_ind_shared (ex, state, inode, offset, chain, partial_idx) =
   and (ex, state, path) = chain_restore (ex, state, chain)
   in ext2_truncate_blocks_subtrees (ex, state, inode, offset, path)
 
-free_indirect_on_shared: Seq32_body (ExState, FsState, VfsInode, Chain) () ()
+free_indirect_on_shared: Seq32_body (SysState, FsState, VfsInode, Chain) () ()
 free_indirect_on_shared #{ acc = (ex, state, inode, chain), obsv, idx } = 
   let (chain, maybe_indirect, indirect_idx) = chain_pop_indirect (chain)
   in maybe_indirect
@@ -719,7 +719,7 @@ free_indirect_on_shared #{ acc = (ex, state, inode, chain), obsv, idx } =
     ((ex, state, inode, chain), Iterate ())
 
 -- from do_indirects goto label
-ext2_truncate_blocks_subtrees: (ExState, FsState, VfsInode, U64, Path) -> RR (ExState, FsState, VfsInode) () U32
+ext2_truncate_blocks_subtrees: (SysState, FsState, VfsInode, U64, Path) -> RR (SysState, FsState, VfsInode) () U32
 ext2_truncate_blocks_subtrees (ex, state, inode, offset, path) =
   let first_offset = wordarray_get[BlockOffset] (path.offsets, 0) !path
   and (ex, state) = path_restore (ex, state, path)
@@ -747,7 +747,7 @@ ext2_truncate_blocks_subtrees (ex, state, inode, offset, path) =
     and (ex, state, inode) = kill_subtree (ex, state, inode, const_doubleIndirectIdx, 2)
     in                       (kill_subtree (ex, state, inode, const_tripleIndirectIdx, 3), Success ())
 
-kill_subtree: (ExState, FsState, VfsInode, U32, Depth) -> (ExState, FsState, VfsInode)
+kill_subtree: (SysState, FsState, VfsInode, U32, Depth) -> (SysState, FsState, VfsInode)
 kill_subtree (ex, state, inode, idx, depth) =
   let nr = wordarray_get [BlockPtr] (inode.fs.block_pointers, idx) !inode
   in if nr /= 0 then
@@ -779,7 +779,7 @@ type BranchNode = #{
   offset_to:    OSBufferOffset
 }
 
-branchnode_free: (ExState, BranchNode) -> ExState
+branchnode_free: (SysState, BranchNode) -> SysState
 branchnode_free (ex, node) =
   let node_t { .. } = node
   in dispose_existing_buffer (ex, maybe_buf)
@@ -798,7 +798,7 @@ _branchnode_debug node =
   | None () -> _cogent_log (dbg_EXT2_DIR_BALLOC, "false") 
 
 -- kicks off the depth limited search over some branches in the tree between [from, to)
-ext2_free_branches: (ExState, FsState, VfsInode, Option OSBuffer, U32, U32, U32) -> (ExState, FsState, VfsInode, BranchNode)
+ext2_free_branches: (SysState, FsState, VfsInode, Option OSBuffer, U32, U32, U32) -> (SysState, FsState, VfsInode, BranchNode)
 ext2_free_branches (ex, state, inode, maybe_buf, offset_from, offset_to, depth) =
   let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branches: freeing [") 
   and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, offset_from) 
@@ -808,7 +808,7 @@ ext2_free_branches (ex, state, inode, maybe_buf, offset_from, offset_to, depth) 
   and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, depth) 
   and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
 
-  and (root, (ex, state, inode)) = dls_uarray [BranchNode, (ExState, FsState, VfsInode), U32] #{
+  and (root, (ex, state, inode)) = dls_uarray [BranchNode, (SysState, FsState, VfsInode), U32] #{
     curdepth = u8_to_u32 0,
     maxdepth = depth + 1, -- +1 for leaf blocks
     f        = ext2_free_branch,
@@ -820,7 +820,7 @@ ext2_free_branches (ex, state, inode, maybe_buf, offset_from, offset_to, depth) 
   in (ex, state, inode, root)
 
 -- recursive function that frees a branch, and sub-branches
-ext2_free_branch: GraphExplorerF (UArray BranchNode) BranchNode (ExState, FsState, VfsInode) (U32)
+ext2_free_branch: GraphExplorerF (UArray BranchNode) BranchNode (SysState, FsState, VfsInode) (U32)
 ext2_free_branch (depth, node, (ex, state, inode), maxdepth) =
   let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch: depth ") 
   and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, depth) 
@@ -839,7 +839,7 @@ ext2_free_branch (depth, node, (ex, state, inode), maxdepth) =
     | Success (ex, children) =>
       let node_t { maybe_buf } = node
 
-      and (children, (ex, inode, _, maybe_buf)) = uarray_map_no_break [BranchNode, (ExState, VfsInode, U32, Option OSBuffer), ()] #{
+      and (children, (ex, inode, _, maybe_buf)) = uarray_map_no_break [BranchNode, (SysState, VfsInode, U32, Option OSBuffer), ()] #{
         arr    = children,
         frm    = 0,
         to     = childnode_array_size,
@@ -871,7 +871,7 @@ ext2_free_branch (depth, node, (ex, state, inode), maxdepth) =
     in (node, (ex, state, inode), Iterate ())
 
 -- generates a single child for a given branch (called over a map)
-ext2_free_branch_entry: UArrayMapNoBreakF BranchNode (ExState, VfsInode, U32, Option OSBuffer) ()
+ext2_free_branch_entry: UArrayMapNoBreakF BranchNode (SysState, VfsInode, U32, Option OSBuffer) ()
 ext2_free_branch_entry #{ oelem = no_branchnode, acc = (ex, inode, idx, parent_maybe_buf), obsv } =
   no_branchnode
   | None () =>
@@ -937,7 +937,7 @@ ext2_free_branch_entry #{ oelem = no_branchnode, acc = (ex, inode, idx, parent_m
     in (Some bn, (ex, inode, idx + 1, parent_maybe_buf))
 
 -- you CAN'T do this per node because the DLS API doesn't know that each node needs to be cleaned up multiple times.
-ext2_free_branch_cleanup: ContinuationF (UArray BranchNode) BranchNode (ExState, FsState, VfsInode) (U32)
+ext2_free_branch_cleanup: ContinuationF (UArray BranchNode) BranchNode (SysState, FsState, VfsInode) (U32)
 ext2_free_branch_cleanup (depth, root, (ex, state, inode), maxdepth, children) =
   let (ex, (state, inode)) = uarray_freeacc [BranchNode, (FsState, VfsInode), ()] #{
     arr  = children,
@@ -961,7 +961,7 @@ ext2_free_branch_cleanup2 (ex, node, (state, inode), obsv) =
   | None () ->
     ext2_free_branch_cleanup3 (ex, state, inode, ptr)
 
-ext2_free_branch_cleanup3: (ExState, FsState, VfsInode, BlockPtr) -> (ExState, (FsState, VfsInode))
+ext2_free_branch_cleanup3: (SysState, FsState, VfsInode, BlockPtr) -> (SysState, (FsState, VfsInode))
 ext2_free_branch_cleanup3 (ex, state, inode, blockptr) =
   -- finally, release this block
   let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch_cleanup3: finally releasing block ") 
@@ -976,7 +976,7 @@ ext2_free_branch_cleanup3 (ex, state, inode, blockptr) =
 
 
 -- attempts to group consecutive blocks together where possible, and free them
-ext2_free_data: (ExState, FsState, VfsInode, Option OSBuffer, OSBufferOffset, OSBufferOffset) -> (ExState, FsState, VfsInode, Option OSBuffer)
+ext2_free_data: (SysState, FsState, VfsInode, Option OSBuffer, OSBufferOffset, OSBufferOffset) -> (SysState, FsState, VfsInode, Option OSBuffer)
 ext2_free_data (ex, state, inode, maybe_buffer, from, to) =
   let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_data: freeing from ") 
   and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, from) 
@@ -984,7 +984,7 @@ ext2_free_data (ex, state, inode, maybe_buffer, from, to) =
   and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, to) 
   and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "; checking contiguous\n") 
 
-  and ((ex, state, inode, maybe_buffer, count, block_to_free), _) = seq32 [(ExState, FsState, VfsInode, Option OSBuffer, U32, U32), (), ()] #{
+  and ((ex, state, inode, maybe_buffer, count, block_to_free), _) = seq32 [(SysState, FsState, VfsInode, Option OSBuffer, U32, U32), (), ()] #{
     frm  = from,
     to,
     step = 1,
@@ -1007,7 +1007,7 @@ ext2_free_data (ex, state, inode, maybe_buffer, from, to) =
     let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_data: all were zero'd?\n") 
     in (ex, state, inode, maybe_buffer)
 
-free_data_consecutive: Seq32_body (ExState, FsState, VfsInode, Option OSBuffer, U32, U32) () ()
+free_data_consecutive: Seq32_body (SysState, FsState, VfsInode, Option OSBuffer, U32, U32) () ()
 free_data_consecutive #{ acc = (ex, state, inode, maybe_buf, count, block_to_free), obsv = (), idx } =
   let ptr = indirect_dereference (maybe_buf, inode, idx) !maybe_buf !inode
   in if ptr /= 0 then
@@ -1057,7 +1057,7 @@ free_data_consecutive #{ acc = (ex, state, inode, maybe_buf, count, block_to_fre
     ((ex, state, inode, maybe_buf, count, block_to_free), Iterate ())
 
 -- actually deallocates a group of blocks
-ext2_free_blocks: (ExState, FsState, VfsInode, BlockPtr, U32) -> (ExState, FsState, VfsInode)
+ext2_free_blocks: (SysState, FsState, VfsInode, BlockPtr, U32) -> (SysState, FsState, VfsInode)
 ext2_free_blocks (ex, state, inode, block, count) =
   if block < state.super.first_data_block ||
    block + count < block || -- wrap around
@@ -1071,7 +1071,7 @@ ext2_free_blocks (ex, state, inode, block, count) =
 
     in (ex, state, inode)
   else
-    let ((ex, state, block, count, freed), res) = seq32 [(ExState, FsState, U32, U32, U32), (), ()] #{
+    let ((ex, state, block, count, freed), res) = seq32 [(SysState, FsState, U32, U32, U32), (), ()] #{
       frm   = 0,
       to    = count, -- upper bound IS ACTUALLY THE NUMBER OF BLOCK GROUPS!!!
       step  = 1,
@@ -1091,7 +1091,7 @@ ext2_free_blocks (ex, state, inode, block, count) =
       let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_blocks: warning: free'd 0 blocks\n") 
       in (ex, state, inode)
 
-ext2_free_blocks2: Seq32_body (ExState, FsState, U32, U32, U32) () ()
+ext2_free_blocks2: Seq32_body (SysState, FsState, U32, U32, U32) () ()
 ext2_free_blocks2 #{ acc = (ex, state, block, count, freed), obsv = (), idx } =
   let overflow:U32 = 0
   and block_group = (block - state.super.first_data_block) / state.super.blocks_per_group !state
@@ -1116,7 +1116,7 @@ ext2_free_blocks2 #{ acc = (ex, state, block, count, freed), obsv = (), idx } =
   else
     ext2_free_blocks3 (ex, state, overflow, block, block_group, bit, count, freed)
 
-ext2_free_blocks3: (ExState, FsState, U32, U32, U32, U32, U32, U32) -> LRR (ExState, FsState, U32, U32, U32) ()
+ext2_free_blocks3: (SysState, FsState, U32, U32, U32, U32, U32, U32) -> LRR (SysState, FsState, U32, U32, U32) ()
 ext2_free_blocks3 (ex, state, overflow, block, block_group, bit, count, freed) =
   let ((ex, state), res) = group_desc_and_buf_from_block_group (ex, state, block_group)
   in res
@@ -1191,7 +1191,7 @@ ext2_free_blocks3 (ex, state, overflow, block, block_group, bit, count, freed) =
     and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
     in ((ex, state, block, count, freed), Break ()) -- error_return
 
-group_adjust_blocks: (ExState, FsState, U32, Ext2GroupDescriptor, OSBuffer, U32) -> (ExState, FsState)
+group_adjust_blocks: (SysState, FsState, U32, Ext2GroupDescriptor, OSBuffer, U32) -> (SysState, FsState)
 group_adjust_blocks (ex, state, block_group, group_desc, group_desc_buf, count) =
   if count > 0 then
       let prev_block_count = group_desc.free_block_count !group_desc

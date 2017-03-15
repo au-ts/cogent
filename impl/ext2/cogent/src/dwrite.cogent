@@ -8,7 +8,7 @@
 -- @TAG(NICTA_GPL)
 --
 
-type FittingDirentsInPageAcc = (ExState, FsState, U64, U64)
+type FittingDirentsInPageAcc = (SysState, FsState, U64, U64)
 type FittingDirentsInPageObsv = (CString!, U64, U16, OSPageBuffer, U64)
 type FittingDirentsInPageRet = (U16, U16, Ext2DirEnt)
 
@@ -20,7 +20,7 @@ type FittingDirentsInPageRet = (U16, U16, Ext2DirEnt)
 -- you usually use this to update a link to a different inode (aka ext2_set_link on LIN)
 -- otherwise, dirent remains the same
 -- TODO: rename (parent, dirent, target, dirent_context)
-ext2_dir_update: (ExState, FsState, VfsInode, Ext2DirEnt!, VfsInode, OSPageContext) -> RR (ExState, FsState, VfsInode, VfsInode) () (U32)
+ext2_dir_update: (SysState, FsState, VfsInode, Ext2DirEnt!, VfsInode, OSPageContext) -> RR (SysState, FsState, VfsInode, VfsInode) () (U32)
 ext2_dir_update (ex, state, dir, dirent, inode, ctx) =
     let ctx_t { .. } = ctx
     and reclen = ext2_rec_len_from_disk (dirent.record_length)
@@ -66,7 +66,7 @@ ext2_dir_update (ex, state, dir, dirent, inode, ctx) =
         in ((ex, state, dir, inode), Error err)
 
 -- linux assumes that the first directory entry is always .. -- we don't (because it's a dumb assumption)
-ext2_dir_get_parent: (ExState, FsState, VfsInode!) -> Result (ExState, FsState, Ext2DirEnt, OSPageContext) (ExState, FsState, U32)
+ext2_dir_get_parent: (SysState, FsState, VfsInode!) -> Result (SysState, FsState, Ext2DirEnt, OSPageContext) (SysState, FsState, U32)
 ext2_dir_get_parent (ex, state, inode) =
     wordarray_create_nz[U8] (ex, 2)
     | Success (ex, dotdot) =>
@@ -171,7 +171,7 @@ check_dirent_fits #{obj = dirent, acc = (ex, state, offset, new_offset), obsv = 
                         in ((ex, state, offset, new_offset), Next ())
 
 
-update_dir_and_commit: (ExState, FsState, OSPage, OSPageBuffer, VfsInode, U64, U16) -> RR (ExState, FsState, VfsInode) () ()
+update_dir_and_commit: (SysState, FsState, OSPage, OSPageBuffer, VfsInode, U64, U16) -> RR (SysState, FsState, VfsInode) () ()
 update_dir_and_commit (ex, state, page, kaddr, inode, offset, rec_len) =
     -- commit the page
     let (ex, state, page) = ext2_commit_chunk (ex, state, page, offset, u16_to_u32 rec_len)
@@ -190,7 +190,7 @@ update_dir_and_commit (ex, state, page, kaddr, inode, offset, rec_len) =
 
     in ((ex, state, inode), Success ())
 
-type FindSpaceAcc = (ExState, FsState, VfsInode)
+type FindSpaceAcc = (SysState, FsState, VfsInode)
 type FindSpaceObsv = (U16, CString!, VfsInode!)
 
 get_page_and_find_space: Seq64_body FindSpaceAcc FindSpaceObsv U32
@@ -378,7 +378,7 @@ get_page_and_find_space (r {acc = (ex, state, dir_inode), obsv = (rec_len, name,
 
 -- ext2_add_link + ext2_add_nondir
 -- YOU MUST, however, unlock inode yourself!
-ext2_dir_add: (ExState, FsState, VfsInode, VfsInode!, CString!) -> RR (ExState, FsState, VfsInode) () (U32)
+ext2_dir_add: (SysState, FsState, VfsInode, VfsInode!, CString!) -> RR (SysState, FsState, VfsInode) () (U32)
 ext2_dir_add (ex, state, dir_inode, inode, name) =
     let name_len = wordarray_length[U8] (name)
     and chunk_size = const_blockSize
@@ -413,7 +413,7 @@ ext2_dir_add (ex, state, dir_inode, inode, name) =
 -- removing from directory
 ------------------------------------------------------------------------------
 
-ext2_dir_remove_from_page_finish: (ExState, FsState, VfsInode, OSPage, OSPageBuffer, U32, U32, U32) -> RR (ExState, FsState, VfsInode) () U32
+ext2_dir_remove_from_page_finish: (SysState, FsState, VfsInode, OSPage, OSPageBuffer, U32, U32, U32) -> RR (SysState, FsState, VfsInode) () U32
 ext2_dir_remove_from_page_finish (ex, state, inode, page_locked, pagebuf, current_offset, from_offset, to_offset) =
 	   -- serialise current de's inode to 0
    let _ = _cogent_log (dbg_EXT2_DIR_WRITE, ("ext2_dir_remov_from_page_finish: current offset: "))
@@ -439,7 +439,7 @@ ext2_dir_remove_from_page_finish (ex, state, inode, page_locked, pagebuf, curren
         and _ = ospagecache_release (page)
         in ((ex, state, inode), Error eIO)
 
-ext2_dir_remove_from_page2: (ExState, FsState, VfsInode, OSPage, OSPageBuffer, U32, U32, U32, Option Ext2DirEnt) -> RR (ExState, FsState, VfsInode) () U32
+ext2_dir_remove_from_page2: (SysState, FsState, VfsInode, OSPage, OSPageBuffer, U32, U32, U32, Option Ext2DirEnt) -> RR (SysState, FsState, VfsInode) () U32
 ext2_dir_remove_from_page2 (ex, state, inode, page, pagebuf, current_offset, from_offset, to_offset, maybe_prev) =
    let
        _ = _cogent_log (dbg_EXT2_DIR_WRITE, ("ext2_dir_remove_from_page2: from_offset: "))
@@ -474,7 +474,7 @@ ext2_dir_remove_from_page2 (ex, state, inode, page, pagebuf, current_offset, fro
         and _ = ospagecache_release (page)
         in ((ex, state, inode), Error err)
 
-find_prev_dirent: Seq32_body (ExState, Option Ext2DirEnt, U32) (U32, OSPageBuffer!) U32
+find_prev_dirent: Seq32_body (SysState, Option Ext2DirEnt, U32) (U32, OSPageBuffer!) U32
 find_prev_dirent #{ acc = (ex, maybe_de, from_offset), obsv = (current_offset, pagebuf), idx } =
     if from_offset < current_offset then
         -- deser at from_offset
@@ -497,7 +497,7 @@ find_prev_dirent #{ acc = (ex, maybe_de, from_offset), obsv = (current_offset, p
         let _ = _cogent_log (dbg_EXT2_DIR_WRITE, ("from_offset >= current_offset; breaking\n"))
         in ((ex, maybe_de, from_offset), Break 0)
 
-ext2_dir_remove_from_page: (ExState, FsState, VfsInode, Ext2DirEnt, OSPage, OSPageBuffer, U32) -> RR (ExState, FsState, VfsInode) () U32
+ext2_dir_remove_from_page: (SysState, FsState, VfsInode, Ext2DirEnt, OSPage, OSPageBuffer, U32) -> RR (SysState, FsState, VfsInode) () U32
 ext2_dir_remove_from_page (ex, state, inode, de, page, pagebuf, current_offset) =
     let chunk_size = const_blockSize
 
@@ -511,7 +511,7 @@ ext2_dir_remove_from_page (ex, state, inode, de, page, pagebuf, current_offset) 
 
     and ex = destroy_Ext2DirEnt (ex, de)
 
-    and ((ex, maybe_prev, from_offset), res) = seq32 [(ExState, Option Ext2DirEnt, U32), (U32, OSPageBuffer!), U32] #{
+    and ((ex, maybe_prev, from_offset), res) = seq32 [(SysState, Option Ext2DirEnt, U32), (U32, OSPageBuffer!), U32] #{
         frm   = 0,
         to    = to_offset, 
         step  = 1,
@@ -538,7 +538,7 @@ ext2_dir_remove_from_page (ex, state, inode, de, page, pagebuf, current_offset) 
         ext2_dir_remove_from_page2 (ex, state, inode, page, pagebuf, current_offset, from_offset, to_offset, maybe_prev)
 
 -- wrapper code MUST do ihold (inode) because in success case we put in the dcache
-fsop_dir_link: (ExState, FsState, VfsInode, VfsInode, CString!) -> RR (ExState, FsState, VfsInode, VfsInode) () U32
+fsop_dir_link: (SysState, FsState, VfsInode, VfsInode, CString!) -> RR (SysState, FsState, VfsInode, VfsInode) () U32
 fsop_dir_link (ex, state, parent, inode, name) =
     let (ex, now) = os_get_current_time (ex)
 
@@ -554,7 +554,7 @@ fsop_dir_link (ex, state, parent, inode, name) =
         in ((ex, state, parent, inode), Error err)
 
 -- ex, state, parent, inode, name
-fsop_dir_unlink: (ExState, FsState, VfsInode, VfsInode, CString!) -> RR (ExState, FsState, VfsInode, VfsInode) () U32
+fsop_dir_unlink: (SysState, FsState, VfsInode, VfsInode, CString!) -> RR (SysState, FsState, VfsInode, VfsInode) () U32
 fsop_dir_unlink (ex, state, parent, inode, name) =
     let ((ex, state, parent), res) = ext2_find_entry (ex, state, parent, name)
     in res
@@ -579,7 +579,7 @@ fsop_dir_unlink (ex, state, parent, inode, name) =
 ------------------------------------------------------------------------------
 
 -- wrapper should should dirty inode, setup inode ops
-fsop_dir_create: (ExState, FsState, VfsInode, CString!, VfsMode) -> RR (ExState, FsState, VfsInode) VfsInode U32
+fsop_dir_create: (SysState, FsState, VfsInode, CString!, VfsMode) -> RR (SysState, FsState, VfsInode) VfsInode U32
 fsop_dir_create (ex, state, parent_inode, name, mode) =
     let _ = _cogent_log (dbg_EXT2_DIR_WRITE, ("fsop_dir_create: want to create with mode "))
     and _ = _cogent_log_u32 (dbg_EXT2_DIR_WRITE, (mode))
@@ -613,7 +613,7 @@ fsop_dir_create (ex, state, parent_inode, name, mode) =
 
 -- puts . and .. in new directory
 -- ex, dir, parent (for .. link)
-ext2_dir_make_empty: (ExState, FsState, VfsInode, VfsInode!) -> Result (ExState, FsState, VfsInode) (ExState, FsState, VfsInode)
+ext2_dir_make_empty: (SysState, FsState, VfsInode, VfsInode!) -> Result (SysState, FsState, VfsInode) (SysState, FsState, VfsInode)
 ext2_dir_make_empty (ex, state, dir_inode, parent_inode) = 
     wordarray_create_nz[U8] (ex, 4)
     | Success (ex, namestr) =>
@@ -694,7 +694,7 @@ ext2_dir_make_empty (ex, state, dir_inode, parent_inode) =
     | Error ex ->
         Error (ex, state, dir_inode) -- THIS one is ENOMEM (but linux doesn't have this call)
 
-fsop_dir_mkdir: (ExState, FsState, VfsInode, CString!, VfsMode) -> RR (ExState, FsState, VfsInode) VfsInode U32
+fsop_dir_mkdir: (SysState, FsState, VfsInode, CString!, VfsMode) -> RR (SysState, FsState, VfsInode) VfsInode U32
 fsop_dir_mkdir (ex, state, parent_inode, dir_name, mode) =
     let dir_mode = mode .|. s_IFDIR
     and parent_inode = vfs_inode_inc_nlink parent_inode -- child now points to parent
@@ -741,7 +741,7 @@ fsop_dir_mkdir (ex, state, parent_inode, dir_name, mode) =
         in ((ex, state, parent_inode), Error err)
 
 -- and decrement the link count on it and the parent dir
-fsop_dir_rmdir: (ExState, FsState, VfsInode, VfsInode, CString!) -> RR (ExState, FsState, VfsInode, VfsInode) () U32
+fsop_dir_rmdir: (SysState, FsState, VfsInode, VfsInode, CString!) -> RR (SysState, FsState, VfsInode, VfsInode) () U32
 fsop_dir_rmdir (ex, state, parent_inode, dir_inode, name) = 
     let ((ex, state), res) = ext2_dir_is_empty (ex, state, dir_inode) !dir_inode
     in res
@@ -768,13 +768,13 @@ fsop_dir_rmdir (ex, state, parent_inode, dir_inode, name) =
 -- rename
 ------------------------------------------------------------------------------
 
-ext2_remove_from_pagectx: (ExState, FsState, VfsInode, Ext2DirEnt, OSPageContext) -> RR (ExState, FsState, VfsInode) () U32
+ext2_remove_from_pagectx: (SysState, FsState, VfsInode, Ext2DirEnt, OSPageContext) -> RR (SysState, FsState, VfsInode) () U32
 ext2_remove_from_pagectx (ex, state, parent, de, ctx) =
     let ctx_t { .. } = ctx
     in ext2_dir_remove_from_page (ex, state, parent, de, page, buf, pos)
 
 -- second half of a rename operation: removing the old entry
-fsop_rename_remove_old_file: (ExState, FsState, VfsRenameContext, Ext2DirEnt, OSPageContext) -> RR (ExState, FsState, VfsRenameContext) () (U32)
+fsop_rename_remove_old_file: (SysState, FsState, VfsRenameContext, Ext2DirEnt, OSPageContext) -> RR (SysState, FsState, VfsRenameContext) () (U32)
 fsop_rename_remove_old_file (ex, state, rename_ctx, src_dirent, src_dir_pagectx) = 
     -- FIXME: update ctime
     let rename_ctx_t { .. } = rename_ctx
@@ -789,7 +789,7 @@ fsop_rename_remove_old_file (ex, state, rename_ctx, src_dirent, src_dir_pagectx)
         let rename_ctx = rename_ctx_t {..}
         in ((ex, state, rename_ctx), Error err)
 
-fsop_rename_remove_old_dir: (ExState, FsState, VfsRenameContext, Ext2DirEnt, Ext2DirEnt, OSPageContext, OSPageContext) -> RR (ExState, FsState, VfsRenameContext) () (U32)
+fsop_rename_remove_old_dir: (SysState, FsState, VfsRenameContext, Ext2DirEnt, Ext2DirEnt, OSPageContext, OSPageContext) -> RR (SysState, FsState, VfsRenameContext) () (U32)
 fsop_rename_remove_old_dir (ex, state, rename_ctx, src_dirent, src_dotdot_dirent, src_dir_pagectx, src_dotdot_pagectx) =
     let ((ex, state, rename_ctx), res) = fsop_rename_remove_old_file (ex, state, rename_ctx, src_dirent, src_dir_pagectx)
     in res
@@ -830,7 +830,7 @@ fsop_rename_remove_old_dir (ex, state, rename_ctx, src_dirent, src_dotdot_dirent
         and _ = ospagectx_destroy (src_dotdot_pagectx)
         in ((ex, state, rename_ctx), Error (err))
 
-fsop_rename_file_existing2: (ExState, FsState, VfsRenameContext take (dest_inode, dirs), Ext2DirEnt, VfsInode, Ext2DirEnt, VfsRenameDirs, R () U32, OSPageContext) -> RR (ExState, FsState, VfsRenameContext) () U32
+fsop_rename_file_existing2: (SysState, FsState, VfsRenameContext take (dest_inode, dirs), Ext2DirEnt, VfsInode, Ext2DirEnt, VfsRenameDirs, R () U32, OSPageContext) -> RR (SysState, FsState, VfsRenameContext) () U32
 fsop_rename_file_existing2 (ex, state, rename_ctx_t, src_dirent, dest_inode, dest_dirent, dirs, res, src_dir_pagectx) =
     res
     | Success () ->
@@ -850,7 +850,7 @@ fsop_rename_file_existing2 (ex, state, rename_ctx_t, src_dirent, dest_inode, des
         and ex = destroy_Ext2DirEnt (ex, src_dirent)
         in ((ex, state, rename_ctx), Error err)
 
-fsop_rename_file_existing: (ExState, FsState, VfsRenameContext take (dest_inode, dirs), Ext2DirEnt, VfsInode, VfsRenameDirs, OSPageContext) -> RR (ExState, FsState, VfsRenameContext) () U32
+fsop_rename_file_existing: (SysState, FsState, VfsRenameContext take (dest_inode, dirs), Ext2DirEnt, VfsInode, VfsRenameDirs, OSPageContext) -> RR (SysState, FsState, VfsRenameContext) () U32
 fsop_rename_file_existing (ex, state, rename_ctx_t, src_dirent, dest_inode, dirs, src_dir_pagectx) =
     -- existing inode, just update the existing dir entry to point to the right inode, first decrementing target link count
 
@@ -883,7 +883,7 @@ fsop_rename_file_existing (ex, state, rename_ctx_t, src_dirent, dest_inode, dirs
         in ((ex, state, rename_ctx), Error err)
 
 -- src_dirent may have changed in-buffer, need to re-read.
-fsop_rename_file2: (ExState, FsState, VfsRenameContext take (dest_inode, dirs), Ext2DirEnt, VfsRenameDirs, R () U32, OSPageContext) -> RR (ExState, FsState, VfsRenameContext) () (U32)
+fsop_rename_file2: (SysState, FsState, VfsRenameContext take (dest_inode, dirs), Ext2DirEnt, VfsRenameDirs, R () U32, OSPageContext) -> RR (SysState, FsState, VfsRenameContext) () (U32)
 fsop_rename_file2 (ex, state, rename_ctx_t, src_dirent, dirs, res, src_dir_pagectx) =
     res
     | Success () ->
@@ -898,7 +898,7 @@ fsop_rename_file2 (ex, state, rename_ctx_t, src_dirent, dirs, res, src_dir_pagec
 
 -- first half of a rename operation: add the new entry
 -- no existing inode, just add link to dest
-fsop_rename_file: (ExState, FsState, VfsRenameContext, Ext2DirEnt, OSPageContext) -> RR (ExState, FsState, VfsRenameContext) () U32
+fsop_rename_file: (SysState, FsState, VfsRenameContext, Ext2DirEnt, OSPageContext) -> RR (SysState, FsState, VfsRenameContext) () U32
 fsop_rename_file (ex, state, rename_ctx, src_dirent, src_dir_pagectx) =
     let rename_ctx_t { dest_inode = maybe_dest_inode, dirs } = rename_ctx
     in maybe_dest_inode
@@ -925,7 +925,7 @@ fsop_rename_file (ex, state, rename_ctx, src_dirent, src_dir_pagectx) =
             in fsop_rename_file2 (ex, state, rename_ctx_t, src_dirent, Dest dest_dir, res, src_dir_pagectx)
 
 -- this is from the "have new_inode" case: renaming over an existing link
-fsop_rename_dir2: (ExState, FsState, VfsRenameContext take (dest_inode, dirs), Ext2DirEnt, Ext2DirEnt, OSPageContext, OSPageContext, VfsInode, Ext2DirEnt, VfsRenameDirs, R () U32) -> RR (ExState, FsState, VfsRenameContext) () (U32)
+fsop_rename_dir2: (SysState, FsState, VfsRenameContext take (dest_inode, dirs), Ext2DirEnt, Ext2DirEnt, OSPageContext, OSPageContext, VfsInode, Ext2DirEnt, VfsRenameDirs, R () U32) -> RR (SysState, FsState, VfsRenameContext) () (U32)
 fsop_rename_dir2 (ex, state, rename_ctx_t, src_dirent, src_dotdot_dirent, src_dir_pagectx, src_dotdot_pagectx, dest_inode, dest_dirent, dirs, res) =
     -- drop nlink on just-replaced inode
     let dest_inode = vfs_inode_set_nlink (dest_inode, 0)
@@ -956,7 +956,7 @@ fsop_rename_dir2 (ex, state, rename_ctx_t, src_dirent, src_dotdot_dirent, src_di
 --      src_dir_pagectx -- (page, buf, offset) of raw (on-disk) (name, inum)
 --      src_dotdot_pagectx -- (page, buf, offset) of raw (on-disk) parent's link
 
-fsop_rename_dir: (ExState, FsState, VfsRenameContext, Ext2DirEnt, Ext2DirEnt, OSPageContext, OSPageContext) -> RR (ExState, FsState, VfsRenameContext) () (U32)
+fsop_rename_dir: (SysState, FsState, VfsRenameContext, Ext2DirEnt, Ext2DirEnt, OSPageContext, OSPageContext) -> RR (SysState, FsState, VfsRenameContext) () (U32)
 fsop_rename_dir (ex, state, rename_ctx, src_dirent, src_dotdot_dirent, src_dir_pagectx, src_dotdot_pagectx) =
     let rename_ctx_t { dest_inode = maybe_dest_inode, dirs} = rename_ctx
     in maybe_dest_inode
@@ -1070,7 +1070,7 @@ fsop_rename_dir (ex, state, rename_ctx, src_dirent, src_dotdot_dirent, src_dir_p
 --
 -- * have a dest_entry in dest_dir, if inode exists, or
 -- * have a src_inode with name dest_name in dest_dir if it doesn't.
-fsop_rename: (ExState, FsState, VfsRenameContext) -> RR (ExState, FsState, VfsRenameContext) () U32
+fsop_rename: (SysState, FsState, VfsRenameContext) -> RR (SysState, FsState, VfsRenameContext) () U32
 fsop_rename (ex, state, rename_ctx) =
     -- find the entry for the source in its current dir
     let ((ex, state), res) = ext2_find_entry_bang (ex, state, vfs_rename_get_src_dir (rename_ctx), rename_ctx.src_name) !rename_ctx

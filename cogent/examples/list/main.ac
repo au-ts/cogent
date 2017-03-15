@@ -11,13 +11,13 @@
 $esc:(#include <stdio.h>)
 $esc:(#include <stdlib.h>)
 
-typedef void *ExState;
+typedef void *SysState;
 
 #include "generated.c"
 
-// add ExState to malloc'ing functions
-$ty:(RR ExState (List a) Err) $id:list_create($ty:(ExState) arg){
-  $ty:(RR ExState (List a) Err) ret;
+// add SysState to malloc'ing functions
+$ty:(RR SysState (List a) Err) $id:list_create($ty:(SysState) arg){
+  $ty:(RR SysState (List a) Err) ret;
 
   $ty:(List a) list;
   list = malloc(sizeof(*list));
@@ -47,9 +47,9 @@ $ty:(RR ExState (List a) Err) $id:list_create($ty:(ExState) arg){
   return ret;
 }
 
-$ty:(ExState) $id:list_delete($ty:(((List a), ExState)) arg){
+$ty:(SysState) $id:list_delete($ty:(((List a), SysState)) arg){
   $ty:(List a) list = arg.p1;
-  $ty:(ExState) ex = arg.p2;
+  $ty:(SysState) ex = arg.p2;
   $ty:(Node a) curr = list->head;
   while(curr != NULL){
     $ty:(Node a) tmp = curr;
@@ -60,13 +60,13 @@ $ty:(ExState) $id:list_delete($ty:(((List a), ExState)) arg){
   return ex;
 }
 
-$ty:(RR ExState (List a) (List a)) $id:list_add($ty:((List a, a, U32, ExState)) arg){
+$ty:(RR SysState (List a) (List a)) $id:list_add($ty:((List a, a, U32, SysState)) arg){
   $ty:(List a) list = arg.p1;
   $ty:(a) val = arg.p2;
   $ty:(U32) index = arg.p3;
-  $ty:(ExState) ex = arg.p4;
+  $ty:(SysState) ex = arg.p4;
 
-  $ty:(RR ExState (List a) (List a)) ret;
+  $ty:(RR SysState (List a) (List a)) ret;
   ret.p1 = ex;
 
   if(index > list->length || index < 0){
@@ -122,11 +122,11 @@ $ty:(R a Err) $id:list_get($ty:((List a, U32)) args){
     }
 }
 
-$ty:(RR ExState (List a) (List a)) $id:list_remove_index($ty:((List a, U32, ExState)) arg){
-  $ty:(RR ExState (List a) (List a)) ret;
+$ty:(RR SysState (List a) (List a)) $id:list_remove_index($ty:((List a, U32, SysState)) arg){
+  $ty:(RR SysState (List a) (List a)) ret;
   $ty:(List a) list = arg.p1;
   $ty:(U32) index = arg.p2;
-  $ty:(ExState) ex = arg.p3;
+  $ty:(SysState) ex = arg.p3;
 
   ret.p1 = ex;
   if(index >= list->length){
@@ -152,10 +152,10 @@ $ty:(RR ExState (List a) (List a)) $id:list_remove_index($ty:((List a, U32, ExSt
   }
 }
 
-$ty:(RR ExState (List a) (List a)) $id:list_remove_value($ty:((List a, a, ExState)) arg){
+$ty:(RR SysState (List a) (List a)) $id:list_remove_value($ty:((List a, a, SysState)) arg){
   $ty:(List a) list = arg.p1;
   $ty:(a) val = arg.p2;
-  $ty:(RR ExState (List a) (List a)) ret;
+  $ty:(RR SysState (List a) (List a)) ret;
   $ty:(Node a) node = list->head;
   if(node->next == 0){
     ret.p2.tag = TAG_ENUM_Error;
@@ -185,15 +185,15 @@ $ty:(RR ExState (List a) (List a)) $id:list_remove_value($ty:((List a, a, ExStat
   }
 }
 
-$ty:(ExState) print_str($ty:((ExState, String)) arg){
-  $ty:(ExState) ex = arg.p1;
+$ty:(SysState) print_str($ty:((SysState, String)) arg){
+  $ty:(SysState) ex = arg.p1;
   char * str = arg.p2;
   printf("%s", str);
   return ex;
 }
 
-$ty:(ExState) list_U32_print($ty:((ExState, List U32)) arg){
-  $ty:(ExState) ex = arg.p1;
+$ty:(SysState) list_U32_print($ty:((SysState, List U32)) arg){
+  $ty:(SysState) ex = arg.p1;
   $ty:(List U32) list = arg.p2;
   if(list->length == 0){
     printf("[]\n");
@@ -209,8 +209,8 @@ $ty:(ExState) list_U32_print($ty:((ExState, List U32)) arg){
   return ex;
 }
 
-$ty:(ExState) list_str_print($ty:((ExState, List String)) arg){
-  $ty:(ExState) ex = arg.p1;
+$ty:(SysState) list_str_print($ty:((SysState, List String)) arg){
+  $ty:(SysState) ex = arg.p1;
   $ty:(List String) list = arg.p2;
   if(list->length == 0){
     printf("[]\n");

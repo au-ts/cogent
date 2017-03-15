@@ -9,9 +9,9 @@
  */
 
 #define GEN_ALLOC(TYPE) \
-$ty:(RR (ExState) (TYPE) ()) $id:(malloc_##TYPE)($ty:(ExState) heap) \
+$ty:(RR (SysState) (TYPE) ()) $id:(malloc_##TYPE)($ty:(SysState) heap) \
 { \
-    $ty:(RR (ExState) (TYPE) ()) ret = {.p1 = heap}; \
+    $ty:(RR (SysState) (TYPE) ()) ret = {.p1 = heap}; \
  \
     ret.p2.Success = kmalloc(sizeof (*(ret.p2.Success)), GFP_NOFS); \
     if (unlikely(ret.p2.Success == NULL)) \
@@ -21,7 +21,7 @@ $ty:(RR (ExState) (TYPE) ()) $id:(malloc_##TYPE)($ty:(ExState) heap) \
     return ret; \
 } \
  \
-$ty:(ExState) $id:(free_##TYPE)($ty:((ExState, TYPE take (..))) args) \
+$ty:(SysState) $id:(free_##TYPE)($ty:((SysState, TYPE take (..))) args) \
 { \
     kfree(args.p2); \
     return args.p1; \
@@ -33,11 +33,11 @@ GEN_ALLOC(Indirect)
 GEN_ALLOC(Ext2Superblock)
 
 
-$ty:(R (ExState, WordArray a) ExState) $id:wordarray_create_nz($ty:((ExState, U32)) args)
+$ty:(R (SysState, WordArray a) SysState) $id:wordarray_create_nz($ty:((SysState, U32)) args)
 {
-    $ty:(ExState) h = args.p1;
+    $ty:(SysState) h = args.p1;
     u32 size = args.p2;
-    $ty:(R (ExState, WordArray a) ExState) ret;
+    $ty:(R (SysState, WordArray a) SysState) ret;
 
     $ty:(WordArray a) array = kmalloc(sizeof *array +
                                   size * sizeof *array->values, GFP_NOFS);
@@ -61,11 +61,11 @@ $ty:(R (ExState, WordArray a) ExState) $id:wordarray_create_nz($ty:((ExState, U3
  * Can't work out how to call word_array_create_nz and then bzero,
  * so repeating the code. Yuck.
  */
-$ty:(R (ExState, WordArray a) ExState) $id:wordarray_create($ty:((ExState, U32)) args)
+$ty:(R (SysState, WordArray a) SysState) $id:wordarray_create($ty:((SysState, U32)) args)
 {
-    $ty:(ExState) h = args.p1;
+    $ty:(SysState) h = args.p1;
     u32 size = args.p2;
-    $ty:(R (ExState, WordArray a) ExState) ret;
+    $ty:(R (SysState, WordArray a) SysState) ret;
 
     ret.Success.p2 = kmalloc(sizeof(*ret.Success.p2) +
                size * sizeof(*(ret.Success.p2->values)), GFP_NOFS);
@@ -84,15 +84,15 @@ $ty:(R (ExState, WordArray a) ExState) $id:wordarray_create($ty:((ExState, U32))
     return ret;
 }
 
-$ty:(ExState) $id:wordarray_free($ty:((ExState, WordArray a)) args)
+$ty:(SysState) $id:wordarray_free($ty:((SysState, WordArray a)) args)
 {
     kfree(args.p2);
     return args.p1;
 }
 
-$ty:(R (ExState, Array a) ExState) $id:array_create($ty:((ExState, U32)) args)
+$ty:(R (SysState, Array a) SysState) $id:array_create($ty:((SysState, U32)) args)
 {
-	$ty:(R ((ExState, Array a)) ExState) ret;
+	$ty:(R ((SysState, Array a)) SysState) ret;
 $ty:(Array a) array = kmalloc(sizeof(*array), GFP_NOFS);
 	u32 size = args.p2;
 
@@ -116,12 +116,12 @@ $ty:(Array a) array = kmalloc(sizeof(*array), GFP_NOFS);
 	return ret;
 }
 
-$ty:(ExState) $id:array_free($ty:(ArrayFreeP a) args) {
+$ty:(SysState) $id:array_free($ty:(ArrayFreeP a) args) {
         int i;
 
         if (args.arr->values) {
             for (i = 0; i < args.arr->len; i++) {
-                $ty:((ExState, a)) fargs;
+                $ty:((SysState, a)) fargs;
 
                 fargs.p1 = args.ex;
                 fargs.p2 = args.arr->values[i];
@@ -135,11 +135,11 @@ $ty:(ExState) $id:array_free($ty:(ArrayFreeP a) args) {
         return args.ex;
 }
 
-$ty:(R (ExState, UArray a) ExState) $id:uarray_create($ty:((ExState, U32)) args)
+$ty:(R (SysState, UArray a) SysState) $id:uarray_create($ty:((SysState, U32)) args)
 {
-    $ty:(ExState) h = args.p1;
+    $ty:(SysState) h = args.p1;
     u32 size = args.p2;
-    $ty:(R (ExState, UArray a) ExState) ret;
+    $ty:(R (SysState, UArray a) SysState) ret;
 
     ret.Success.p2 = kmalloc(sizeof(*ret.Success.p2) +
                size * sizeof(*(ret.Success.p2->values)), GFP_NOFS);
@@ -158,20 +158,20 @@ $ty:(R (ExState, UArray a) ExState) $id:uarray_create($ty:((ExState, U32)) args)
     return ret;
 }
 
-$ty:(ExState) $id:uarray_free($ty:((ExState, UArray a)) args)
+$ty:(SysState) $id:uarray_free($ty:((SysState, UArray a)) args)
 {
     kfree(args.p2);
     return args.p1;
 }
 
 
-$ty:((ExState, acc)) $id:uarray_freeacc($ty:((UArrayFreeAccP a acc obsv)) args)
+$ty:((SysState, acc)) $id:uarray_freeacc($ty:((UArrayFreeAccP a acc obsv)) args)
 {
     $ty:(UArray a) array = args.arr;
     u32 i;
 
     $ty:(FreeAccF a acc obsv) freeFunc = args.f;
-    $ty:(ExState) h = args.ex;
+    $ty:(SysState) h = args.ex;
     $ty:acc acc = args.acc;
 
     // loop over each element, and free it
@@ -179,14 +179,14 @@ $ty:((ExState, acc)) $id:uarray_freeacc($ty:((UArrayFreeAccP a acc obsv)) args)
         for (i = 0; i < array->len; i++) {
             if (array->existence[i]) {
                 // note: we use a tuple here
-                $ty:((ExState, a, acc, obsv!)) heap_array = {
+                $ty:((SysState, a, acc, obsv!)) heap_array = {
                     .p1 = h,
                     .p2 = array->values[i],
                     .p3 = acc,
                     .p4 = args.obsv
                 };
 
-                $ty:((ExState, acc)) free_res = (($spec:(FreeAccF a acc obsv))freeFunc)(heap_array);
+                $ty:((SysState, acc)) free_res = (($spec:(FreeAccF a acc obsv))freeFunc)(heap_array);
                 h = free_res.p1;
                 acc = free_res.p2;
             }
@@ -197,6 +197,6 @@ $ty:((ExState, acc)) $id:uarray_freeacc($ty:((UArrayFreeAccP a acc obsv)) args)
 
     kfree (array);
 
-    $ty:((ExState, acc)) ret = { h, acc };
+    $ty:((SysState, acc)) ret = { h, acc };
     return ret;
 }

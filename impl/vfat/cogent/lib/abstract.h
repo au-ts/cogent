@@ -15,7 +15,7 @@
 #define unlikely(x)     __builtin_expect(!!(x), 0)
 
 typedef struct super_block *Superblock;
-typedef void *ExState;
+typedef void *SysState;
 typedef struct inode *VfsInode;
 typedef void *ErrPtr;
 typedef struct dentry *VfsDentry;

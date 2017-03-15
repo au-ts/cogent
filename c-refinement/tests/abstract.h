@@ -11,6 +11,6 @@
 #ifndef ABSTRACT_H__
 #define ABSTRACT_H__
 
-typedef void *ExState;
+typedef void *SysState;
 
 #endif

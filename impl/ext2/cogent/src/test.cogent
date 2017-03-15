@@ -33,7 +33,7 @@
 const_NUM_TEST_INODES: U32
 const_NUM_TEST_INODES = 6
 
-test_allocation: (ExState, FsState, Array VfsInode, VfsInode!) -> RR (ExState, FsState, Array VfsInode) () ()
+test_allocation: (SysState, FsState, Array VfsInode, VfsInode!) -> RR (SysState, FsState, Array VfsInode) () ()
 test_allocation (ex, state, arr, root) =
   let ((ex, state), res) = ext2_inode_create (ex, state, root, 420 .|. vfs_type_reg) -- 644 in octal
   in res
@@ -214,7 +214,7 @@ test_state_compare (mem, disk) =
 
 -- group desc 3-15 should have 2048 free inodes, 7932 free blocks, 0 dirs
 -- group desc 15 has one less free block
-test_state_was_ok: Seq32_body (ExState, FsState) () ()
+test_state_was_ok: Seq32_body (SysState, FsState) () ()
 test_state_was_ok #{ acc = (ex, state), obsv, idx } =
   let free_blocks = 7932
   and free_blocks = if idx == 15 then free_blocks - 1 else free_blocks
@@ -224,7 +224,7 @@ test_state_was_ok #{ acc = (ex, state), obsv, idx } =
 
   in if res then ((ex, state), Iterate ()) else ((ex, state), Break ())
 
-test_state_check: (ExState, FsState, GroupDescState, U32) -> (ExState, FsState, Bool)
+test_state_check: (SysState, FsState, GroupDescState, U32) -> (SysState, FsState, Bool)
 test_state_check (ex, state, check_state, idx) =
   let ((ex, state), res) = group_desc_from_block_group (ex, state, idx)
   in res
@@ -242,7 +242,7 @@ test_state_check (ex, state, check_state, idx) =
     and _ = _cogent_log (dbg_EXT2_TEST, "\n")
     in (ex, state, False)
 
-test_state: (ExState, FsState, GroupDescState, GroupDescState, GroupDescState) -> RR (ExState, FsState) () ()
+test_state: (SysState, FsState, GroupDescState, GroupDescState, GroupDescState) -> RR (SysState, FsState) () ()
 test_state (ex, state, a, b, c) =
   let ngroups = state.group_count !state
   and _ = _cogent_assert (ngroups >= 3)
@@ -254,7 +254,7 @@ test_state (ex, state, a, b, c) =
 
   -- check the rest
   in if res then
-    let ((ex, state), res) = seq32 [(ExState, FsState), (), ()] #{
+    let ((ex, state), res) = seq32 [(SysState, FsState), (), ()] #{
       frm  = 3,
       to   = ngroups,
       step = 1,
@@ -269,7 +269,7 @@ test_state (ex, state, a, b, c) =
   else
     ((ex, state), Error ())
 
-test_initial_state: (ExState, FsState) -> RR (ExState, FsState) () ()
+test_initial_state: (SysState, FsState) -> RR (SysState, FsState) () ()
 test_initial_state (ex, state) =
   let group_0 = #{ free_blocks = 7919, free_inodes = 2037, dir_count = u8_to_u16 2 }
   and group_1 = #{ free_blocks = 7932, free_inodes = 2048, dir_count = u8_to_u16 0 }
@@ -278,7 +278,7 @@ test_initial_state (ex, state) =
   -- TODO: also test initial directory contents are correct, as are inode sizes
   in test_state (ex, state, group_0, group_1, group_2)
 
-test_post_alloc_state: (ExState, FsState) -> RR (ExState, FsState) () ()
+test_post_alloc_state: (SysState, FsState) -> RR (SysState, FsState) () ()
 test_post_alloc_state (ex, state) = 
   let group_0 = #{ free_blocks = 7919, free_inodes = 2035, dir_count = u8_to_u16 2 } -- 2 allocs (2x file)
   and group_1 = #{ free_blocks = 7932, free_inodes = 2045, dir_count = u8_to_u16 2 } -- 3 allocs (2x dir, 1x file)
@@ -286,7 +286,7 @@ test_post_alloc_state (ex, state) =
 
   in test_state (ex, state, group_0, group_1, group_2)
 
-test_path_one2: (ExState, FsState, Path, U32, VfsInode) -> (ExState, FsState, Path, VfsInode, Bool)
+test_path_one2: (SysState, FsState, Path, U32, VfsInode) -> (SysState, FsState, Path, VfsInode, Bool)
 test_path_one2 (ex, state, path, blk, inode) =
   let depth = path.depth !path
   and boundary = path.boundary !path
@@ -395,7 +395,7 @@ check_blockContents (buf, frm_idx, to_idx, val) =
   | Iterate () -> True
   | Break () -> False
 
-test_path_two2: (ExState, FsState, Path, U32, VfsInode) -> (ExState, FsState, Path, VfsInode, Bool)
+test_path_two2: (SysState, FsState, Path, U32, VfsInode) -> (SysState, FsState, Path, VfsInode, Bool)
 test_path_two2 (ex, state, path, blk, inode) =
   let depth = path.depth !path
   and boundary = path.boundary !path
@@ -529,7 +529,7 @@ test_path_two2 (ex, state, path, blk, inode) =
     let _ = _cogent_log (dbg_EXT2_TEST, "test_path_two2: failed to create chain from path\n")
     in (ex, state, path, inode, False)
 
-test_path_three2: (ExState, FsState, Path, U32, VfsInode) -> (ExState, FsState, Path, VfsInode, Bool)
+test_path_three2: (SysState, FsState, Path, U32, VfsInode) -> (SysState, FsState, Path, VfsInode, Bool)
 test_path_three2 (ex, state, path, blk, inode) =
   let depth = path.depth !path
   and boundary = path.boundary !path
@@ -720,7 +720,7 @@ test_path_three2 (ex, state, path, blk, inode) =
     let _ = _cogent_log (dbg_EXT2_TEST, "test_path_three2: failed to create chain from path\n")
     in (ex, state, path, inode, False)
 
-test_path_one: (ExState, FsState, VfsInode) -> RR (ExState, FsState, VfsInode) () ()
+test_path_one: (SysState, FsState, VfsInode) -> RR (SysState, FsState, VfsInode) () ()
 test_path_one (ex, state, inode) =
   -- what we're going to do is to do ~basically~ what fsop_get_block would do in the case of creating a
   -- block, but assert things as we go with regards to inode 12
@@ -774,7 +774,7 @@ test_path_one (ex, state, inode) =
     let _ = _cogent_log (dbg_EXT2_TEST, "could not create path\n")
     in ((ex, state, inode), Error ())
 
-test_dir_add_remove: (ExState, FsState, VfsInode) -> RR (ExState, FsState, VfsInode) () ()
+test_dir_add_remove: (SysState, FsState, VfsInode) -> RR (SysState, FsState, VfsInode) () ()
 --test_dir_add_remove (ex, state, root) =
 --  -- make our test dir first
 --  let ((ex, state, root), res) = fsop_dir_mkdir (ex, state, root, "dirtest", 511) -- mode 777
@@ -789,7 +789,7 @@ test_dir_add_remove: (ExState, FsState, VfsInode) -> RR (ExState, FsState, VfsIn
 --    in ((ex, state, root), Error ())
 test_dir_add_remove (ex, state, inode) = ((ex, state, inode), Success ())
 
-test_block_was_free: (ExState, FsState, BlockPtr) -> (ExState, FsState, Bool)
+test_block_was_free: (SysState, FsState, BlockPtr) -> (SysState, FsState, Bool)
 test_block_was_free (ex, state, blk) =
   let block_group = (blk - state.super.first_data_block) / state.super.blocks_per_group !state
   and ((ex, state), res) = group_desc_and_buf_from_block_group (ex, state, block_group)
@@ -823,7 +823,7 @@ test_block_was_free (ex, state, blk) =
 
 
 
-test_free_one: (ExState, FsState, VfsInode, VfsInode!) -> RR (ExState, FsState) () ()
+test_free_one: (SysState, FsState, VfsInode, VfsInode!) -> RR (SysState, FsState) () ()
 test_free_one (ex, state, inode, root) =
   let (ex, state, inode_t) = fsop_inode_evict (ex, state, inode, True)
 
@@ -903,7 +903,7 @@ test_free_one (ex, state, inode, root) =
     and ex = vfs_inode_put_taken #{ ex, inode = inode_t }
     in ((ex, state), Error ())
 
-fsop_run_tests: (ExState, FsState, VfsInode) -> RR (ExState, FsState, VfsInode) () ()
+fsop_run_tests: (SysState, FsState, VfsInode) -> RR (SysState, FsState, VfsInode) () ()
 fsop_run_tests (ex, state, root) =
   -- check initial block groups
   let ((ex, state), res) = test_initial_state (ex, state)
@@ -958,5 +958,5 @@ fsop_run_tests (ex, state, root) =
     in ((ex, state, root), Error ())
 -}
 
-fsop_run_tests: (ExState, FsState, VfsInode) -> RR (ExState, FsState, VfsInode) () ()
+fsop_run_tests: (SysState, FsState, VfsInode) -> RR (SysState, FsState, VfsInode) () ()
 fsop_run_tests (ex, state, root) = ((ex, state, root), Success ())

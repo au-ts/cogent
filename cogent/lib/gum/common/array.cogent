@@ -14,7 +14,7 @@ type Array a
 
 {-# cinline array_create #-}
 {-# fnmacro array_create #-}
-array_create: all (a :< E). (ExState, U32) -> R (ExState, Array a) ExState
+array_create: all (a :< E). (SysState, U32) -> R (SysState, Array a) SysState
 -- array_create(ex, length)
 -- The Error case is always eNoMem
 
@@ -65,12 +65,12 @@ array_nb_elem: all(a :<E). (Array a)! -> U32
 {-# fnmacro array_exists #-}
 array_exists: all(a :< E). ((Array a)!, WordArrayIndex) -> Bool
 
-type ArrayFreeP a = #{arr: Array a, f: FreeF a, ex: ExState}
+type ArrayFreeP a = #{arr: Array a, f: FreeF a, ex: SysState}
 -- TODO: might want acc for fun as well
 
 {-# cinline array_free #-}
 {-# fnmacro array_free #-}
-array_free: all(a :<E). ArrayFreeP a -> ExState
+array_free: all(a :<E). ArrayFreeP a -> SysState
 -- array_free(freeer, ex, arr)
 -- This ensures that all elements of the array have been removed
 
@@ -82,11 +82,11 @@ array_free: all(a :<E). ArrayFreeP a -> ExState
 -- else
 --   free the given <elem> using <f>
 --   return the array unmodified
-type ArrayReplaceP a = #{arr: Array a, idx: WordArrayIndex, elem: a, f: FreeF a, ex: ExState }
+type ArrayReplaceP a = #{arr: Array a, idx: WordArrayIndex, elem: a, f: FreeF a, ex: SysState }
 
 {-# cinline array_replace #-}
 {-# fnmacro array_replace #-}
-array_replace: all (a :< E). ArrayReplaceP a -> RR (ExState, Array a) () ()
+array_replace: all (a :< E). ArrayReplaceP a -> RR (SysState, Array a) () ()
 
 type ArrayMapExF a acc obsv rbrk = ElemAO a acc obsv -> LoopResult (ElemA a acc) (ElemB a rbrk)
 type ArrayMapExP a acc obsv rbrk = #{arr:Array a, frm: U32, to:U32, f: ArrayMapExF a acc obsv rbrk, acc:acc, obsv:obsv!}

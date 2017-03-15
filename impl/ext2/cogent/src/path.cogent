@@ -18,7 +18,7 @@ type Path = #{
   boundary  : Boundary
 }
 
-path_new_from_block: (ExState, FsState, LogicalBlock) -> RR (ExState, FsState) Path ()
+path_new_from_block: (SysState, FsState, LogicalBlock) -> RR (SysState, FsState) Path ()
 path_new_from_block (ex, state, block_num) = 
   let state_t { prealloc_offsets } = state
   and state = state_t { prealloc_offsets = None () }
@@ -29,12 +29,12 @@ path_new_from_block (ex, state, block_num) =
     in ((ex, state), Success path)
   | None () -> ((ex, state), Error ())
 
---path_destroy: (ExState, Path) -> ExState
+--path_destroy: (SysState, Path) -> SysState
 --path_destroy (ex, path) =
 --  let path_t { .. } = path
 --  in wordarray_free [BlockOffset] (ex, offsets)
 
-path_restore: (ExState, FsState, Path) -> (ExState, FsState)
+path_restore: (SysState, FsState, Path) -> (SysState, FsState)
 path_restore (ex, state, path) =
   let state { prealloc_offsets } = state
   and ex = free_option_wordarray (ex, prealloc_offsets)

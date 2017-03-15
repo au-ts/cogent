@@ -258,9 +258,9 @@ $ty:(OSPageBuffer) ospagebuffer_memset ($ty:((OSPageBuffer, OSPageBufferOffset, 
 // THIS IS NOT A TOP-LEVEL FUNCTION!
 //
 // note we do not lock, since we've already locked from the outside world
-$ty:(RR (ExState, FsState, OSPage) () U32)
-ospage_write_prepare ($ty:((ExState, FsState, OSPage, U64, U32)) args) {
-    $ty:(RR (ExState, FsState, OSPage) () U32) ret;
+$ty:(RR (SysState, FsState, OSPage) () U32)
+ospage_write_prepare ($ty:((SysState, FsState, OSPage, U64, U32)) args) {
+    $ty:(RR (SysState, FsState, OSPage) () U32) ret;
     ret.p1.p1 = args.p1;
     ret.p1.p2 = args.p2;
     ret.p1.p3 = args.p3;
@@ -278,9 +278,9 @@ ospage_write_prepare ($ty:((ExState, FsState, OSPage, U64, U32)) args) {
 
 // same comment as above
 // not rentrant, from what I can tell?
-$ty:((ExState, FsState, OSPage))
-ospage_write_commit ($ty:((ExState, FsState, OSPage, U64, U32)) args) {
-    $ty:((ExState, FsState, OSPage)) ret = {.p1 = args.p1, .p2 = args.p2, .p3 = args.p3 };
+$ty:((SysState, FsState, OSPage))
+ospage_write_commit ($ty:((SysState, FsState, OSPage, U64, U32)) args) {
+    $ty:((SysState, FsState, OSPage)) ret = {.p1 = args.p1, .p2 = args.p2, .p3 = args.p3 };
     block_write_end (NULL, args.p3->mapping, args.p4, args.p5, args.p5, args.p3, NULL);
 
     return ret;

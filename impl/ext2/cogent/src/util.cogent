@@ -48,7 +48,7 @@ _COGENT_LOG_LEVEL: U32
 _COGENT_LOG_LEVEL = 0x0
 
 
-dispose_existing_dirent: (ExState, Option Ext2DirEnt) -> (ExState)
+dispose_existing_dirent: (SysState, Option Ext2DirEnt) -> (SysState)
 dispose_existing_dirent (ex, maybe_de) =
     maybe_de
     | Some de ->
@@ -58,7 +58,7 @@ dispose_existing_dirent (ex, maybe_de) =
     | _ -> (ex)
 
 
-dispose_existing_buffer: (ExState, Option OSBuffer) -> (ExState)
+dispose_existing_buffer: (SysState, Option OSBuffer) -> (SysState)
 dispose_existing_buffer (ex, maybe_buffer) =
     maybe_buffer
     | Some buffer -> osbuffer_destroy (ex, buffer)
@@ -68,7 +68,7 @@ shift_left: (U32) -> U32
 shift_left (x) = x << 1
 
 -- helper to create buffer and read into it at the same time
-ext2_get_block: (ExState, U32) -> RR ExState (OSBuffer) ()
+ext2_get_block: (SysState, U32) -> RR SysState (OSBuffer) ()
 ext2_get_block (ex, blocknum) =
     let (ex, res) = osbuffer_create (ex)
     in res
@@ -81,7 +81,7 @@ ext2_get_block (ex, blocknum) =
             in (ex, Error ())
     | Error () -> (ex, Error ())
 
---ext2_get_or_create_page: (ExState, VfsInode!, U64) -> R (ExState, OSPage) (ExState)
+--ext2_get_or_create_page: (SysState, VfsInode!, U64) -> R (SysState, OSPage) (SysState)
 --ext2_get_or_create_page (ex, inode, n) =
 --    ospage_read_or_create_mapping (vfs_inode_get_mapping (inode), n)
 --    | Success (page) ->
@@ -90,7 +90,7 @@ ext2_get_block (ex, blocknum) =
 --    | Error _ ->
 --        Error (ex)
 
---ext2_get_page: (ExState, VfsInode!, U64) -> R (ExState, OSPage) (ExState)
+--ext2_get_page: (SysState, VfsInode!, U64) -> R (SysState, OSPage) (SysState)
 --ext2_get_page (ex, inode, n) =
 --    ospage_read_mapping (vfs_inode_get_mapping (inode), n)
 --    | Success (page) ->
@@ -99,12 +99,12 @@ ext2_get_block (ex, blocknum) =
 --    | Error _ ->
 --        Error (ex)
 
---ext2_put_page: (ExState, OSPage) -> ExState
+--ext2_put_page: (SysState, OSPage) -> SysState
 --ext2_put_page (ex, page) =
 --    let _ = ospage_release (page)
 --    in ex
 
-ext2_prepare_chunk: (ExState, FsState, OSPage, U64, U32) -> RR (ExState, FsState, OSPage) () U32
+ext2_prepare_chunk: (SysState, FsState, OSPage, U64, U32) -> RR (SysState, FsState, OSPage) () U32
 ext2_prepare_chunk (ex, state, page, pos, len) =
     let _ = _cogent_log (dbg_EXT2_BLOCK, "ext2_prepare_chunk: prepare over [")
     and _ = _cogent_log_u64 (dbg_EXT2_BLOCK, pos)
@@ -113,7 +113,7 @@ ext2_prepare_chunk (ex, state, page, pos, len) =
     and _ = _cogent_log (dbg_EXT2_BLOCK, ")\n")
     in ospage_write_prepare (ex, state, page, pos, len)
 
-ext2_commit_chunk2: (ExState, FsState, OSPage, VfsInode) -> (ExState, FsState, OSPage)
+ext2_commit_chunk2: (SysState, FsState, OSPage, VfsInode) -> (SysState, FsState, OSPage)
 ext2_commit_chunk2 (ex, state, page, inode) =
     let is_sync = vfs_inode_is_sync_dir inode !inode
     in if is_sync then
@@ -130,7 +130,7 @@ ext2_commit_chunk2 (ex, state, page, inode) =
         and ex = vfs_inode_put #{ex, inode}
         in (ex, state, page)
 
-ext2_commit_chunk: (ExState, FsState, OSPage, U64, U32) -> (ExState, FsState, OSPage)
+ext2_commit_chunk: (SysState, FsState, OSPage, U64, U32) -> (SysState, FsState, OSPage)
 ext2_commit_chunk (ex, state, page, pos, len) =
     -- TODO: increment i_version
     let _ = _cogent_log (dbg_EXT2_BLOCK, "ext2_commit_chunk: commit over [")

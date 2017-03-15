@@ -114,10 +114,10 @@ $ty:(RbtModifyR k v acc) $id:rbt_modify($ty:(RbtModifyP k v acc obsv) args)
 }
 
 /*
-rbt_create: all(k:< DS, v:< DS). ExState -> R (ExState, Rbt k v)  ExState
-rbt_free: all(k:< DS, v:< DS). (ExState, Rbt k v) -> ExState
+rbt_create: all(k:< DS, v:< DS). SysState -> R (SysState, Rbt k v)  SysState
+rbt_free: all(k:< DS, v:< DS). (SysState, Rbt k v) -> SysState
 */
-$ty:(RbtCreateR k v) $id:rbt_create($ty:(ExState) ex)
+$ty:(RbtCreateR k v) $id:rbt_create($ty:(SysState) ex)
 {
         $ty:(RbtCreateR k v) ret;
 
@@ -132,7 +132,7 @@ $ty:(RbtCreateR k v) $id:rbt_create($ty:(ExState) ex)
         return ret;
 }
 
-$ty:(ExState) $id:rbt_free($ty:((ExState, Rbt k v)) args)
+$ty:(SysState) $id:rbt_free($ty:((SysState, Rbt k v)) args)
 {
         struct rbt_node *node;
         for (node = rbt_first(&args.p2->rbt);

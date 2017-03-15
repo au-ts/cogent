@@ -31,17 +31,17 @@ type VfsISetAttrResult
 vfs_default_setattr: VfsISetAttrArgs -> VfsISetAttrResult
 
 type VfsInodeOperations = #{
-  create: Option ((ExState, FsState, VfsInode, CString!, VfsMode) -> RR (ExState, FsState, VfsInode) VfsInode U32),
-  --lookup: Option ((#{ex: ExState, state: FsState, parent_inode: VfsInode, name: CString!, flags: VfsFlags}) -> RR #{ex: ExState, state: FsState, parent_inode: VfsInode} VfsInode U32),
+  create: Option ((SysState, FsState, VfsInode, CString!, VfsMode) -> RR (SysState, FsState, VfsInode) VfsInode U32),
+  --lookup: Option ((#{ex: SysState, state: FsState, parent_inode: VfsInode, name: CString!, flags: VfsFlags}) -> RR #{ex: SysState, state: FsState, parent_inode: VfsInode} VfsInode U32),
   can_lookup: Bool,
-  link: Option ((ExState, FsState, VfsInode, VfsInode, CString!) -> RR (ExState, FsState, VfsInode, VfsInode) () U32),
-  unlink: Option ((ExState, FsState, VfsInode, VfsInode, CString!) -> RR (ExState, FsState, VfsInode, VfsInode) () U32),
-  symlink: Option ((ExState, FsState, VfsInode, CString!) -> RR (ExState, FsState, VfsInode) VfsInode U32),
-  --mkdir: Option ((ExState, FsState, VfsInode, CString!, VfsMode) -> RR (ExState, FsState, VfsInode) VfsInode U32),
+  link: Option ((SysState, FsState, VfsInode, VfsInode, CString!) -> RR (SysState, FsState, VfsInode, VfsInode) () U32),
+  unlink: Option ((SysState, FsState, VfsInode, VfsInode, CString!) -> RR (SysState, FsState, VfsInode, VfsInode) () U32),
+  symlink: Option ((SysState, FsState, VfsInode, CString!) -> RR (SysState, FsState, VfsInode) VfsInode U32),
+  --mkdir: Option ((SysState, FsState, VfsInode, CString!, VfsMode) -> RR (SysState, FsState, VfsInode) VfsInode U32),
   can_mkdir: Bool,
-  rmdir: Option ((ExState, FsState, VfsInode, VfsInode, CString!) -> RR (ExState, FsState, VfsInode, VfsInode) () U32),
-  rename: Option ((ExState, FsState, VfsRenameContext) -> RR (ExState, FsState, VfsRenameContext) () U32),
-  mknod: Option ((ExState, FsState, VfsInode, CString!, VfsMode, #VfsDevice) -> RR (ExState, FsState, VfsInode) VfsInode U32),
+  rmdir: Option ((SysState, FsState, VfsInode, VfsInode, CString!) -> RR (SysState, FsState, VfsInode, VfsInode) () U32),
+  rename: Option ((SysState, FsState, VfsRenameContext) -> RR (SysState, FsState, VfsRenameContext) () U32),
+  mknod: Option ((SysState, FsState, VfsInode, CString!, VfsMode, #VfsDevice) -> RR (SysState, FsState, VfsInode) VfsInode U32),
   readlink: Option (VfsIReadlinkArgs -> VfsIReadlinkResult),
   followlink: Option (VfsIFollowLinkArgs -> VfsIFollowLinkResult),
   putlink: Option (VfsIPutLinkArgs -> VfsIPutLinkResult),
@@ -71,7 +71,7 @@ type VfsIWriteResult
 vfs_default_write: VfsIWriteArgs -> VfsIWriteResult
 
 type VfsFileOperations = #{
-  iterate: Option ((#{ex: ExState, state: FsState, parent_inode: VfsInode, dirctx: VfsDirContext}) -> RR #{ex: ExState, state: FsState, parent_inode: VfsInode, dirctx: VfsDirContext} () U32),
+  iterate: Option ((#{ex: SysState, state: FsState, parent_inode: VfsInode, dirctx: VfsDirContext}) -> RR #{ex: SysState, state: FsState, parent_inode: VfsInode, dirctx: VfsDirContext} () U32),
   llseek: Option (VfsISeekArgs -> VfsISeekResult),
   open: Option (VfsIOpenArgs -> VfsIOpenResult),
   mmap: Option (VfsIMmapArgs -> VfsIMmapResult),

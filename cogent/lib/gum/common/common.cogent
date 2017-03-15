@@ -20,7 +20,7 @@ type RR c a b = (c, <Success a | Error b>)
 
 type ErrCode = U32
 type WordArrayIndex = U32
-type ExState
+type SysState
 
 -- SysState is the state that we will be carrying around and used in all functions
 -- that modify an external state in the system. This will abstract away, from Cogent,
@@ -36,8 +36,8 @@ type OptElemAO a acc obsv = #{oelem: Option a, acc: acc, obsv: obsv!}
 type ArrA a acc = #{arr: a, acc: acc}
 type ArrB a rbrk = #{arr:a, rbrk:rbrk}
 
-type FreeF a = (ExState, a) -> ExState
-type FreeAccF a acc obsv = (ExState, a, acc, obsv!) -> (ExState, acc)
+type FreeF a = (SysState, a) -> SysState
+type FreeAccF a acc obsv = (SysState, a, acc, obsv!) -> (SysState, acc)
 
 -- This will disapear when generating C code
 -- It is just a way to indicate what code path should

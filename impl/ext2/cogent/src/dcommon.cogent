@@ -57,14 +57,14 @@ ext2_match (c_name, dirent) =
     dirent.inode /= 0 && wordarray_cmp (c_name, dirent.name)
 
 
-destroy_Ext2DirEnt: (ExState, Ext2DirEnt) -> ExState
+destroy_Ext2DirEnt: (SysState, Ext2DirEnt) -> SysState
 destroy_Ext2DirEnt (ex, dirent) = 
     let dirent_t { .. } = dirent
     and ex = wordarray_free [U8] (ex, name)
     in ex
 
 -- NOTE: ignores name_length
-serialise_Ext2DirEnt: (ExState, Ext2DirEnt!, OSPageBuffer, U32) -> RR (ExState, OSPageBuffer, U32) () ()
+serialise_Ext2DirEnt: (SysState, Ext2DirEnt!, OSPageBuffer, U32) -> RR (SysState, OSPageBuffer, U32) () ()
 serialise_Ext2DirEnt (ex, de, page, idx) =
     ospagebuffer_serialise_Ple32 (page, idx, de.inode)
     | Success (buf, idx) ->
@@ -89,7 +89,7 @@ serialise_Ext2DirEnt (ex, de, page, idx) =
         | Error (buf) -> ((ex, buf, idx), Error ())
     | Error (buf) -> ((ex, buf, idx), Error ())
 
-serialise_Ext2DirEnt2: (ExState, VfsInode!, U16, CString!, U8, OSPageBuffer, U32) -> RR (ExState, OSPageBuffer, U32) () ()
+serialise_Ext2DirEnt2: (SysState, VfsInode!, U16, CString!, U8, OSPageBuffer, U32) -> RR (SysState, OSPageBuffer, U32) () ()
 serialise_Ext2DirEnt2 (ex, inode, reclen, name, namelen, page, idx) =
     ospagebuffer_serialise_Ple32 (page, idx, vfs_inode_get_ino (inode))
     | Success (buf, idx) ->
@@ -115,7 +115,7 @@ serialise_Ext2DirEnt2 (ex, inode, reclen, name, namelen, page, idx) =
     | Error (buf) -> ((ex, buf, idx), Error ())
 
 -- for use with pages:
-deserialise_Ext2DirEnt2: (ExState, OSPageBuffer!, U32) -> RR (ExState) (Ext2DirEnt, U32) ()
+deserialise_Ext2DirEnt2: (SysState, OSPageBuffer!, U32) -> RR (SysState) (Ext2DirEnt, U32) ()
 deserialise_Ext2DirEnt2 (ex, buf, idx) =
     ospagebuffer_deserialise_Ple32 (buf, idx)
     | Success (inode, idx) ->

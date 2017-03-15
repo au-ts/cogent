@@ -74,9 +74,9 @@ typedef struct OSPage {
   int dummy;
 } OSPage;
 
-typedef struct ExState {
+typedef struct SysState {
   int dummy;
-} ExState;
+} SysState;
 typedef struct Ext2State {
   int dummy;
 } Ext2State;

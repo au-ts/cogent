@@ -26,7 +26,7 @@ type Indirect = {
   offset: U32
 }
 
-indirect_from_inode: (ExState, Chain, VfsInode!, Depth) -> RR (ExState, Chain) Indirect ()
+indirect_from_inode: (SysState, Chain, VfsInode!, Depth) -> RR (SysState, Chain) Indirect ()
 indirect_from_inode (ex, chain, inode, depth) =
   let offset = wordarray_get [U32] (chain.path.offsets, depth) !chain
   and block = wordarray_get [BlockPtr] (inode.fs.block_pointers, offset) !chain
@@ -41,10 +41,10 @@ indirect_from_inode (ex, chain, inode, depth) =
   | None () -> ((ex, chain), Error ())
 
 --indirect_new: (BlockPtr, Option OSBuffer) -> Indirect
-malloc_Indirect: ExState -> RR ExState (Indirect take (..)) ()
-free_Indirect: (ExState, Indirect take (..)) -> ExState
+malloc_Indirect: SysState -> RR SysState (Indirect take (..)) ()
+free_Indirect: (SysState, Indirect take (..)) -> SysState
 
-indirect_from_chain: (ExState, Chain, U32) -> (ExState, Chain, Option (Indirect take (..)))
+indirect_from_chain: (SysState, Chain, U32) -> (SysState, Chain, Option (Indirect take (..)))
 indirect_from_chain (ex, chain, idx) =
   let chain_t { indirects } = chain
   and (indirects, maybe_indirect) = array_remove [Indirect] (indirects, idx)
@@ -60,7 +60,7 @@ indirect_from_chain (ex, chain, idx) =
     | _ -> (ex, chain, Some indirect_t)
   | none -> (ex, chain, none)
 
-indirect_restore: (ExState, Chain, Indirect, U32) -> (ExState, Chain)
+indirect_restore: (SysState, Chain, Indirect, U32) -> (SysState, Chain)
 indirect_restore (ex, chain, indirect, idx) =
   let indirect_t { .. } = indirect
   in buf
@@ -72,7 +72,7 @@ indirect_restore (ex, chain, indirect, idx) =
     let indirect = indirect_t { blockptr = 0, buf = None (), offset = 0}
     in chain_put_indirect (ex, chain, indirect, idx)
 
-indirect_restore_taken: (ExState, Chain, Indirect take (..), U32) -> (ExState, Chain)
+indirect_restore_taken: (SysState, Chain, Indirect take (..), U32) -> (SysState, Chain)
 indirect_restore_taken (ex, chain, indirect_t, idx) =
   let indirect = indirect_t { blockptr = 0, buf = None (), offset = 0}
   in chain_put_indirect (ex, chain, indirect, idx)
@@ -135,7 +135,7 @@ indirect_set_reference (maybe_buf, inode, offset, ptr) =
       let _ = _cogent_assert2 ("indirect_set_blockptr_at: OOB on block_pointers", True)
       in (None (), inode)
 
-indirect_destroy2: (ExState, Indirect) -> ExState
+indirect_destroy2: (SysState, Indirect) -> SysState
 indirect_destroy2 (ex, indirect) =
   let indirect_t { .. } = indirect
   and ex = free_Indirect (ex, indirect_t)
@@ -160,7 +160,7 @@ splice_put_direct_blocks_buf r { idx, acc = (buf, ptr, offset) } =
 
 -- connects an allocated branch onto an inode
 -- actual connection is atomic
-indirect_splice: (ExState, Indirect, VfsInode, LogicalBlock, U32, U32) -> RR (ExState, Indirect, VfsInode) () U32
+indirect_splice: (SysState, Indirect, VfsInode, LogicalBlock, U32, U32) -> RR (SysState, Indirect, VfsInode) () U32
 indirect_splice (ex, indirect, inode, iblock, num_direct, num_indirect) =
   let indirect_t { buf } = indirect
   in buf
@@ -221,7 +221,7 @@ indirect_splice (ex, indirect, inode, iblock, num_direct, num_indirect) =
       and inode = inode_t { fs }
       in indirect_splice_finish (ex, indirect, inode)
 
-indirect_splice_finish: (ExState, Indirect, VfsInode) -> RR (ExState, Indirect, VfsInode) () U32
+indirect_splice_finish: (SysState, Indirect, VfsInode) -> RR (SysState, Indirect, VfsInode) () U32
 indirect_splice_finish (ex, indirect, inode) =
   -- TODO: check if inode had SYNC flag (and if so, sync)
 

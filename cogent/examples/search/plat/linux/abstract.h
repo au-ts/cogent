@@ -8,8 +8,8 @@
  * @TAG(NICTA_GPL)
  */
 
-struct ExState_t { char dummy; };
-typedef struct ExState_t ExState;
+struct SysState_t { char dummy; };
+typedef struct SysState_t SysState;
 
 typedef void Buffer;
 typedef char* CString;

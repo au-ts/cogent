@@ -34,8 +34,8 @@ lemma select_in_val:
  "\<lbrakk> \<forall>v\<in>S. P v; S \<noteq> {} \<rbrakk>  \<Longrightarrow>  P(snd (select (h, S)))"
  using select_in by metis
 
-consts malloc :: "ExState \<Rightarrow> (ExState \<times> 'a Option\<^sub>T)"
-       free :: "'a \<Rightarrow> ExState \<Rightarrow> ExState"
+consts malloc :: "SysState \<Rightarrow> (SysState \<times> 'a Option\<^sub>T)"
+       free :: "'a \<Rightarrow> SysState \<Rightarrow> SysState"
 
 type_synonym U8 = "8 word"
 type_synonym U16 = "16 word"

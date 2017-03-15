@@ -19,25 +19,25 @@ type List a = {
   length: U32
 }
 
-type ExState
+type SysState
 type R a b = < Success a | Error b >
 type RR c a b = (c, R a b)
 type Err = U32
 
-list_create: all(a). ExState -> RR ExState (List a) Err
-list_delete: all(a). ((List a), ExState)-> ExState
+list_create: all(a). SysState -> RR SysState (List a) Err
+list_delete: all(a). ((List a), SysState)-> SysState
 
-list_add: all(a). (List a, a, U32, ExState) -> RR ExState (List a) (List a)
+list_add: all(a). (List a, a, U32, SysState) -> RR SysState (List a) (List a)
 list_get: all(a). (List a, U32)! -> R a Err
-list_remove_index: all(a). (List a, U32, ExState) -> RR ExState (List a) (List a)
-list_remove_value: all(a). (List a, a, ExState) -> RR ExState (List a) (List a)
+list_remove_index: all(a). (List a, U32, SysState) -> RR SysState (List a) (List a)
+list_remove_value: all(a). (List a, a, SysState) -> RR SysState (List a) (List a)
 
-print_str: (ExState, String) -> ExState
+print_str: (SysState, String) -> SysState
 
-list_U32_print: (ExState, (List U32)!) -> ExState
-list_str_print: (ExState, (List String)!) -> ExState
+list_U32_print: (SysState, (List U32)!) -> SysState
+list_str_print: (SysState, (List String)!) -> SysState
 
-test: ExState -> ExState
+test: SysState -> SysState
 test ex =
   let (ex, res) = list_create [U32] (ex)
   in res

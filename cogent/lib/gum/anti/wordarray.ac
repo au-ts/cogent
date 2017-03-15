@@ -260,10 +260,10 @@ u32 $id:wordarray_u8_as_u32($ty:((WordArray U8)!) args)
 	return result;
 }
 
-// (ExState, WordArray!, start, end) -> RR ExState WordArray ()
-$ty:(RR ExState (WordArray a) ()) $id:wordarray_slice($ty:(WordArraySliceP a) args)
+// (SysState, WordArray!, start, end) -> RR SysState WordArray ()
+$ty:(RR SysState (WordArray a) ()) $id:wordarray_slice($ty:(WordArraySliceP a) args)
 {
-	$ty:(RR ExState (WordArray a) ()) ret = { .p1 = args.p1 };
+	$ty:(RR SysState (WordArray a) ()) ret = { .p1 = args.p1 };
 
 	u32 start = args.p3;
 	u32 end = args.p4;

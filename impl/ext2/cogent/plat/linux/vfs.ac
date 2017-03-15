@@ -36,16 +36,16 @@ VfsDirEmitR vfs_dir_emit($ty:(VfsDirEmitP) args)
 }
 
 
-$ty:((ExState, VfsInode)) vfs_inode_mark_dirty ($ty:((ExState, VfsInode)) args) {
+$ty:((SysState, VfsInode)) vfs_inode_mark_dirty ($ty:((SysState, VfsInode)) args) {
     // printk ("vfs_inode_mark_dirty: dirtied %p ino %d\n", &args.p2->vfs.inode_lin, args.p2->vfs.inode_lin.i_ino);
     mark_inode_dirty (&(args.p2->vfs.inode_lin));
     return args;
 }
 
 // shouldn't be re-entrnat?
-$ty:(R (ExState, VfsInode) (ExState, VfsInode)) vfs_inode_insert($ty:(#{ex: ExState, inode: VfsInode}) args)
+$ty:(R (SysState, VfsInode) (SysState, VfsInode)) vfs_inode_insert($ty:(#{ex: SysState, inode: VfsInode}) args)
 {
-    $ty:(R (ExState, VfsInode) (ExState, VfsInode)) ret;
+    $ty:(R (SysState, VfsInode) (SysState, VfsInode)) ret;
 
     if (insert_inode_locked (&(args.inode->vfs.inode_lin)) == 0) {
         /* printk ("vfs_inode_insert: inserted %p ino %d\n", 
@@ -79,8 +79,8 @@ bool_t vfs_inode_is_sync ($ty:(VfsInode!)inode) {
 
 /*
 // FIXME: re-entrant, but may lock
-$ty:(RR (ExState, VfsInode) () U32) vfs_page_symlink ($ty:((ExState, VfsInode, CString!)) args) {
-    $ty:(RR (ExState, VfsInode) () U32) ret;
+$ty:(RR (SysState, VfsInode) () U32) vfs_page_symlink ($ty:((SysState, VfsInode, CString!)) args) {
+    $ty:(RR (SysState, VfsInode) () U32) ret;
     ret.p1.p1 = args.p1;
     ret.p1.p2 = args.p2;
 

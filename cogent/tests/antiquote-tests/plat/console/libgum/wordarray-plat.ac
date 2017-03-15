@@ -8,9 +8,9 @@
  * @TAG(NICTA_GPL)
  */
 
-#define RET $ty:(R (ExState, WordArray a) ExState)
-RET $id:wordarray_create($ty:((ExState, U32)) args) {
-	$ty:(ExState) h = args.p1;
+#define RET $ty:(R (SysState, WordArray a) SysState)
+RET $id:wordarray_create($ty:((SysState, U32)) args) {
+	$ty:(SysState) h = args.p1;
 	u32 size = args.p2;
 	RET ret;
 
@@ -39,7 +39,7 @@ RET $id:wordarray_create($ty:((ExState, U32)) args) {
 	return ret;
 }
 
-$ty:(ExState) $id:wordarray_free($ty:((ExState, WordArray a)) args) {
+$ty:(SysState) $id:wordarray_free($ty:((SysState, WordArray a)) args) {
 	$ty:(WordArray a) array = args.p2;
 
 	if (array->values) {

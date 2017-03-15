@@ -65,9 +65,9 @@ ospagebuffer_memset: (OSPageBuffer, OSPageBufferOffset, U32, U32) -> OSPageBuffe
 -- FIXME: yuck, this is not OS specific, but VFS specific... 
 --        we may modify fs state, and this actually calls back into COGENT (must then act as a contiuation)
 {-# cinline ospage_write_prepare #-}
-ospage_write_prepare: (ExState, FsState, OSPage, U64, U32) -> RR (ExState, FsState, OSPage) () U32
+ospage_write_prepare: (SysState, FsState, OSPage, U64, U32) -> RR (SysState, FsState, OSPage) () U32
 {-# cinline ospage_write_commit #-}
-ospage_write_commit: (ExState, FsState, OSPage, U64, U32) -> (ExState, FsState, OSPage)
+ospage_write_commit: (SysState, FsState, OSPage, U64, U32) -> (SysState, FsState, OSPage)
 
 {-# cinline ospagebuffer_deserialise_Ple32 #-}
 ospagebuffer_deserialise_Ple32: (OSPageBuffer!, OSPageBufferOffset) -> Result (U32, OSPageBufferOffset) ()

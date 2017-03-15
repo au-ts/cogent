@@ -328,7 +328,7 @@ $ty:(VfsInode) vfs_inode_inc_nlink ($ty:(VfsInode) inode) {
     return inode;
 }
 
-$ty:(ExState) vfs_inode_bad ($ty:((#{ex: ExState, inode: VfsInode})) args) {
+$ty:(SysState) vfs_inode_bad ($ty:((#{ex: SysState, inode: VfsInode})) args) {
     args.inode->vfs.inode_lin.i_private = NULL; // no longer freeable from COGENT (take fs)
     // FIXME: oh shit actually we need a lock in private so that we
     // don't try to free when fs is taken
@@ -341,7 +341,7 @@ $ty:(ExState) vfs_inode_bad ($ty:((#{ex: ExState, inode: VfsInode})) args) {
     return args.ex;
 }
 
-$ty:(ExState) vfs_inode_bad_taken ($ty:((#{ex: ExState, inode: VfsInode take fs})) args) {
+$ty:(SysState) vfs_inode_bad_taken ($ty:((#{ex: SysState, inode: VfsInode take fs})) args) {
     args.inode->vfs.inode_lin.i_private = NULL; // no longer freeable from COGENT (take fs)
 
     printk ("vfs_inode_bad_taken: iget_failed %p ino %lu\n", args.inode, args.inode->vfs.inode_lin.i_ino);
@@ -357,7 +357,7 @@ $ty:(VfsInode) vfs_inode_make_bad ($ty:(VfsInode) inode) {
 
 // re-entrant; write_inode, write_pages, drop_inode
 // FIXME: doesn't have to be, if we ihold before we do any COGENT
-$ty:(ExState) vfs_inode_put ($ty:((#{ex: ExState, inode: VfsInode})) args) {
+$ty:(SysState) vfs_inode_put ($ty:((#{ex: SysState, inode: VfsInode})) args) {
     args.inode->vfs.inode_lin.i_private = 1; // mark as now being freeable from COGENT
 
     // printk ("vfs_inode_put: iput %p ino %d\n", &(args.inode->vfs.inode_lin), args.inode->vfs.inode_lin.i_ino);
@@ -386,8 +386,8 @@ $ty:(VfsInode) vfs_inode_lock ($ty:(VfsInode) inode) {
     return inode;
 }
 
-$ty:(R (ExState, VfsInode take fs) ExState) vfs_inode_new ($ty:(ExState) ex) {
-$ty:(R (ExState, VfsInode take fs) ExState) ret;
+$ty:(R (SysState, VfsInode take fs) SysState) vfs_inode_new ($ty:(SysState) ex) {
+$ty:(R (SysState, VfsInode take fs) SysState) ret;
 
     struct inode* inode = new_inode (ex->sb);
     if (!inode) {
@@ -412,9 +412,9 @@ $ty:(R (ExState, VfsInode take fs) ExState) ret;
     return ret;
 }
 
-// vfs_inode_get: (ExState, VfsIno) -> (ExState, <New VfsInode take fs | Existing VfsInode | None ()>)
-$ty:((ExState, <New (VfsInode take fs) | Existing VfsInode | None ()>)) vfs_inode_get ($ty:((ExState, VfsIno)) args) {
-$ty:((ExState, <New (VfsInode take fs) | Existing VfsInode | None ()>)) ret = { .p1 = args.p1 };
+// vfs_inode_get: (SysState, VfsIno) -> (SysState, <New VfsInode take fs | Existing VfsInode | None ()>)
+$ty:((SysState, <New (VfsInode take fs) | Existing VfsInode | None ()>)) vfs_inode_get ($ty:((SysState, VfsIno)) args) {
+$ty:((SysState, <New (VfsInode take fs) | Existing VfsInode | None ()>)) ret = { .p1 = args.p1 };
     struct inode *inode;
     int err = 0;
 

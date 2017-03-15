@@ -49,19 +49,19 @@ u64_to_TimeSpec v =
   #{tv_sec=u64_to_u32(v >> 32), tv_nsec=u64_to_u32 v}
 
 {-# cinline os_get_current_time #-}
-os_get_current_time: ExState -> (ExState, OSTimeSpec)
+os_get_current_time: SysState -> (SysState, OSTimeSpec)
 
 {-# cinline os_get_current_fsuid #-}
-os_get_current_fsuid: ExState! -> U32
+os_get_current_fsuid: SysState! -> U32
 
 {-# cinline os_get_current_fsgid #-}
-os_get_current_fsgid: ExState! -> U32
+os_get_current_fsgid: SysState! -> U32
 
 {-# cinline os_get_pid #-}
-os_get_pid: ExState! -> U32
+os_get_pid: SysState! -> U32
 
 {-# cinline os_spin_lock #-}
-os_spin_lock: (ExState, #SpinLock) -> (ExState, #SpinLock)
+os_spin_lock: (SysState, #SpinLock) -> (SysState, #SpinLock)
 
 {-# cinline os_spin_unlock #-}
-os_spin_unlock: (ExState, #SpinLock) -> (ExState, #SpinLock)
+os_spin_unlock: (SysState, #SpinLock) -> (SysState, #SpinLock)

@@ -14,7 +14,7 @@ include <gum/common/common.cogent>
 const_arraySize: U32
 const_arraySize = 4
 
-caller: (ExState) -> (ExState)
+caller: (SysState) -> (SysState)
 caller (h) =
     -- make it
     wordarray_create[U32] (h, const_arraySize)

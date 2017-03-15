@@ -53,7 +53,7 @@ deserialise_le64(buf, offs) =
 
 val: U64
 val = 0x11223344aabbccdd
-caller: (ExState) -> (ExState)
+caller: (SysState) -> (SysState)
 caller (h) =
     -- make it
     buf_create (h, 42)

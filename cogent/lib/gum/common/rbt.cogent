@@ -12,12 +12,12 @@ include "common.cogent"
 
 type RbtNode k v
 {-# cinline newRbtNode #-}
-newRbtNode: all(k:< DS, v:< DS). ExState -> R (ExState, RbtNode k v)  ExState
+newRbtNode: all(k:< DS, v:< DS). SysState -> R (SysState, RbtNode k v)  SysState
 {-# cinline freeRbtNode #-}
-freeRbtNode: all(k:< DS, v:< DS). (ExState, RbtNode k v) -> ExState
+freeRbtNode: all(k:< DS, v:< DS). (SysState, RbtNode k v) -> SysState
 
 {-# cinline freeOptRbtNode #-}
-freeOptRbtNode: all(k:< DS, v:< DS). (ExState, Option (RbtNode k v)) -> ExState
+freeOptRbtNode: all(k:< DS, v:< DS). (SysState, Option (RbtNode k v)) -> SysState
 freeOptRbtNode(ex, optnode) =
   optnode
   | None () -> ex
@@ -34,11 +34,11 @@ rbtnode_put_key: all(k:< DS, v:<DS). (RbtNode k v, k) -> RbtNode k v
 rbtnode_put_val: all(k:< DS, v:<DS). (RbtNode k v, v) -> RbtNode k v
 
 type Rbt k v -- = #{root:RbtNode k v}
-type RbtCreateR k v = R (ExState, Rbt k v) ExState
+type RbtCreateR k v = R (SysState, Rbt k v) SysState
 {-# cinline rbt_create #-}
-rbt_create: all(k:< DS, v:< DS). ExState -> RbtCreateR k v
+rbt_create: all(k:< DS, v:< DS). SysState -> RbtCreateR k v
 {-# cinline rbt_free #-}
-rbt_free: all(k:< DS, v:< DS). (ExState, Rbt k v) -> ExState
+rbt_free: all(k:< DS, v:< DS). (SysState, Rbt k v) -> SysState
 
 -- We want to be able to allocate nodes outside this ADT interface
 -- so that we know that some operations like put or insert_or_replace

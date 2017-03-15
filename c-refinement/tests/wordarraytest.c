@@ -9,10 +9,10 @@
  */
 
 #include <adt.h>
-struct ExState_t {
+struct SysState_t {
     char dummy;
 };
-typedef struct ExState_t ExState;
+typedef struct SysState_t SysState;
 static inline void dummyFunction(void)
 {
     return;
@@ -214,7 +214,7 @@ struct t6 {
 };
 typedef struct t6 t6;
 struct t7 {
-    ExState* p1;
+    SysState* p1;
     File* p2;
 };
 typedef struct t7 t7;
@@ -224,29 +224,29 @@ struct t8 {
 };
 typedef struct t8 t8;
 struct t9 {
-    ExState* p1;
+    SysState* p1;
     t8 p2;
 };
 typedef struct t9 t9;
 struct t10 {
     tag_t tag;
-    ExState* Error;
+    SysState* Error;
     t7 Success;
 };
 typedef struct t10 t10;
 struct t11 {
-    ExState* p1;
+    SysState* p1;
     u32 p2;
 };
 typedef struct t11 t11;
 struct t12 {
-    ExState* p1;
+    SysState* p1;
     WordArray_u32* p2;
 };
 typedef struct t12 t12;
 struct t13 {
     tag_t tag;
-    ExState* Error;
+    SysState* Error;
     t12 Success;
 };
 typedef struct t13 t13;
@@ -294,7 +294,7 @@ struct t119 {
 typedef struct t119 t119;
 struct t123 {
     tag_t tag;
-    ExState* Error;
+    SysState* Error;
 };
 typedef struct t123 t123;
 static inline u64 u8_to_u64(u8);
@@ -322,10 +322,10 @@ static inline bool_t wordarray_cmp(t1);
 static inline u32 wordarray_get_0(t2);
 static inline t4 wordarray_put_0(t3);
 static inline t6 test_file_read_next_u32(File*);
-static inline ExState* test_file_close(t7);
+static inline SysState* test_file_close(t7);
 static inline t10 test_file_open(t9);
 static inline t13 wordarray_create_0(t11);
-static inline ExState* wordarray_free_0(t12);
+static inline SysState* wordarray_free_0(t12);
 static inline u64 u16_to_u64(u16);
 static inline u32 min_u32(t18);
 static inline u16 cogent_low_16_bits(u32);
@@ -338,8 +338,8 @@ static inline t61 safe_add32(t18);
 static inline t75 safe_add64(t40);
 static inline t61 safe_sub32(t18);
 static inline t75 safe_sub64(t40);
-static inline ExState* caller(ExState*);
-static inline ExState* dispatch_t126(t126 a127, ExState* a128)
+static inline SysState* caller(SysState*);
+static inline SysState* dispatch_t126(t126 a127, SysState* a128)
 {
     return caller(a128);
 }
@@ -363,7 +363,7 @@ static inline t13 dispatch_t141(t141 a142, t11 a143)
 {
     return wordarray_create_0(a143);
 }
-static inline ExState* dispatch_t144(t144 a145, t12 a146)
+static inline SysState* dispatch_t144(t144 a145, t12 a146)
 {
     return wordarray_free_0(a146);
 }
@@ -415,7 +415,7 @@ static inline u64 dispatch_t162(t162 a163, t40 a164)
 {
     return align64(a164);
 }
-static inline ExState* dispatch_t165(t165 a166, t7 a167)
+static inline SysState* dispatch_t165(t165 a166, t7 a167)
 {
     return test_file_close(a167);
 }
@@ -542,8 +542,8 @@ typedef t18 align32_arg;
 typedef u32 align32_ret;
 typedef t40 align64_arg;
 typedef u64 align64_ret;
-typedef ExState* caller_arg;
-typedef ExState* caller_ret;
+typedef SysState* caller_arg;
+typedef SysState* caller_ret;
 typedef bool_t cogent_assert_arg;
 typedef unit_t cogent_assert_ret;
 typedef char* cogent_debug_arg;
@@ -581,7 +581,7 @@ typedef t61 safe_sub32_ret;
 typedef t40 safe_sub64_arg;
 typedef t75 safe_sub64_ret;
 typedef t7 test_file_close_arg;
-typedef ExState* test_file_close_ret;
+typedef SysState* test_file_close_ret;
 typedef t9 test_file_open_arg;
 typedef t10 test_file_open_ret;
 typedef File* test_file_read_next_u32_arg;
@@ -617,7 +617,7 @@ typedef bool_t wordarray_cmp_ret;
 typedef t11 wordarray_create_0_arg;
 typedef t13 wordarray_create_0_ret;
 typedef t12 wordarray_free_0_arg;
-typedef ExState* wordarray_free_0_ret;
+typedef SysState* wordarray_free_0_ret;
 typedef t2 wordarray_get_0_arg;
 typedef u32 wordarray_get_0_ret;
 typedef t3 wordarray_put_0_arg;
@@ -811,14 +811,14 @@ static inline t75 safe_sub64(t40 a92)
     }
     return r95;
 }
-static inline ExState* caller(ExState* a101)
+static inline SysState* caller(SysState* a101)
 {
-    ExState* r102 = a101;
+    SysState* r102 = a101;
     u8 r103 = 4U;
     u32 r104 = (u32) r103;
     t11 r105 = (t11) {.p1 = r102, .p2 = r104};
     t13 r106 = wordarray_create_0(r105);
-    ExState* r107;
+    SysState* r107;
     
     if (r106.tag == TAG_ENUM_Success) {
         u8 r108 = 0U;
@@ -845,7 +845,7 @@ static inline ExState* caller(ExState* a101)
         }
     } else {
         t123 r124 = {.tag =r106.tag, .Error =r106.Error};
-        ExState* r125 = r124.Error;
+        SysState* r125 = r124.Error;
         
         r107 = r125;
     }
@@ -855,7 +855,7 @@ struct unit_t unit;
 #include <adt_platform.c>
 t13 wordarray_create_0(t11 args)
 {
-    ExState* h = args.p1;
+    SysState* h = args.p1;
     u32 size = args.p2;
     t13 ret;
     WordArray_u32* array = ret.Success.p2;
@@ -879,7 +879,7 @@ t13 wordarray_create_0(t11 args)
     }
     return ret;
 }
-ExState* wordarray_free_0(t12 args)
+SysState* wordarray_free_0(t12 args)
 {
     WordArray_u32* array = args.p2;
     

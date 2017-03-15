@@ -67,11 +67,11 @@ type FsInode = {
     dtime               : U32
 }
 
-malloc_FsState: (ExState) -> RR (ExState) (FsState take (..)) ()
-free_FsState: (ExState, FsState take (..)) -> ExState
+malloc_FsState: (SysState) -> RR (SysState) (FsState take (..)) ()
+free_FsState: (SysState, FsState take (..)) -> SysState
 
---malloc_Ext2DirEnt: (ExState) -> Result (ExState, Ext2DirEnt take (..)) (ExState)
---free_Ext2DirEnt: (ExState, Ext2DirEnt take (..)) -> ExState
+--malloc_Ext2DirEnt: (SysState) -> Result (SysState, Ext2DirEnt take (..)) (SysState)
+--free_Ext2DirEnt: (SysState, Ext2DirEnt take (..)) -> SysState
 
 const_defaultSuperblock : U32
 const_defaultSuperblock = 1
@@ -230,7 +230,7 @@ ext2_max_size bits =
          then os_MAX_FILESIZE
          else res
 
-give_extinfo: (ExState, FsState, VfsExtendedInfo take (..)) -> (ExState, FsState, VfsExtendedInfo)
+give_extinfo: (SysState, FsState, VfsExtendedInfo take (..)) -> (SysState, FsState, VfsExtendedInfo)
 give_extinfo (ex, state, info_t) =
   let blocks_total = u32_to_u64 state.super.block_count - u32_to_u64 state.cur_overhead !state
   and blocks_free  = u32_to_u64 state.super.free_block_count !state
@@ -251,7 +251,7 @@ give_extinfo (ex, state, info_t) =
 
   in (ex, state, info)
 
-fsop_get_extended_info: (ExState, FsState, VfsExtendedInfo take (..)) -> (ExState, FsState, VfsExtendedInfo)
+fsop_get_extended_info: (SysState, FsState, VfsExtendedInfo take (..)) -> (SysState, FsState, VfsExtendedInfo)
 fsop_get_extended_info (ex, state, info_t) =
   -- calculate overhead if not done before, since it's constant on blockgroup count
   --

@@ -86,7 +86,7 @@ const_defaultSuperBlockNum = 1
 const_defaultFlags: U32
 const_defaultFlags = 0
 
-get_u32_for_arg: ArrayFoldF (WordArray U8) ExState (WordArray U8) (ExState, U32)
+get_u32_for_arg: ArrayFoldF (WordArray U8) SysState (WordArray U8) (SysState, U32)
 get_u32_for_arg #{ elem = option, acc = ex, obsv = compare } =
     wordarray_findsub [U8] (option, compare, 0)
     | Found idx -> idx
@@ -102,7 +102,7 @@ get_u32_for_arg #{ elem = option, acc = ex, obsv = compare } =
         | _ -> Iterate ex
     | _ -> Iterate ex
 
-get_superblock_num: (ExState, (Array (WordArray U8))!) -> (ExState, U32)
+get_superblock_num: (SysState, (Array (WordArray U8))!) -> (SysState, U32)
 get_superblock_num (ex, options) =
     wordarray_create_nz[U8] (ex, 6)
     | Success (ex, compare) =>
@@ -113,7 +113,7 @@ get_superblock_num (ex, options) =
         and compare = wordarray_put2[U8] #{ arr = compare, idx = 4, val = 'r' }
         and compare = wordarray_put2[U8] #{ arr = compare, idx = 5, val = '=' }
 
-        in array_fold [(WordArray U8), ExState, (WordArray U8), (ExState, U32)] #{
+        in array_fold [(WordArray U8), SysState, (WordArray U8), (SysState, U32)] #{
             arr  = options,
             f    = get_u32_for_arg,
             acc  = ex,
@@ -127,7 +127,7 @@ get_superblock_num (ex, options) =
     | Error ex ->
         (ex, const_defaultSuperBlockNum)
 
-get_flags: (ExState, (Array (WordArray U8))!) -> (ExState, U32)
+get_flags: (SysState, (Array (WordArray U8))!) -> (SysState, U32)
 get_flags (ex, options) =
     wordarray_create_nz[U8] (ex, 6)
     | Success (ex, compare) =>
@@ -138,7 +138,7 @@ get_flags (ex, options) =
         and compare = wordarray_put2[U8] #{ arr = compare, idx = 4, val = 's' }
         and compare = wordarray_put2[U8] #{ arr = compare, idx = 5, val = '=' }
 
-        in array_fold [(WordArray U8), ExState, (WordArray U8), (ExState, U32)] #{
+        in array_fold [(WordArray U8), SysState, (WordArray U8), (SysState, U32)] #{
             arr  = options,
             f    = get_u32_for_arg,
             acc  = ex,
@@ -152,7 +152,7 @@ get_flags (ex, options) =
     | Error (ex) ->
         (ex, const_defaultFlags)
 
-allocate_the_indirects: Seq32_body (ExState, Array Indirect) () ()
+allocate_the_indirects: Seq32_body (SysState, Array Indirect) () ()
 allocate_the_indirects #{ acc = (ex, indirects), obsv, idx } =
     let (ex, res) = malloc_Indirect ex
     in res
@@ -164,7 +164,7 @@ allocate_the_indirects #{ acc = (ex, indirects), obsv, idx } =
         ((ex, indirects), Break ())
 
 
-fs_mount: (#{ex: ExState, options: (Array (WordArray U8))!}) -> RR ExState (#{state: FsState, mountinfo: #VfsMountInfo}) (U32)
+fs_mount: (#{ex: SysState, options: (Array (WordArray U8))!}) -> RR SysState (#{state: FsState, mountinfo: #VfsMountInfo}) (U32)
 fs_mount(#{ex = ex, options}) = 
     let (ex, res) = malloc_FsState (ex)
     in res
@@ -225,7 +225,7 @@ fs_mount(#{ex = ex, options}) =
                                             array_create [Indirect] (ex, maxChainSize)
                                             | Success (ex, prealloc_indirects) =>
                                                 -- preallocate the indirects inside array
-                                                let ((ex, prealloc_indirects), res) = seq32 [(ExState, Array Indirect), (), ()] #{
+                                                let ((ex, prealloc_indirects), res) = seq32 [(SysState, Array Indirect), (), ()] #{
                                                     frm   = 0,
                                                     to    = maxChainSize,
                                                     step  = 1,
@@ -362,25 +362,25 @@ fs_mount(#{ex = ex, options}) =
     | Error () ->
         (ex, Error eNoMem)
 
-free_option_chain: (ExState, Option (Chain take (..))) -> ExState
+free_option_chain: (SysState, Option (Chain take (..))) -> SysState
 free_option_chain (ex, maybe_chain) =
     maybe_chain
     | Some chain_t => free_Chain (ex, chain_t)
     | None () -> ex
 
-free_option_wordarray: (ExState, Option (WordArray U32)) -> ExState
+free_option_wordarray: (SysState, Option (WordArray U32)) -> SysState
 free_option_wordarray (ex, maybe_wa) =
     maybe_wa
     | Some wa => wordarray_free [U32] (ex, wa)
     | None () -> ex
 
-free_option_indirects: (ExState, Option (Array Indirect)) -> ExState
+free_option_indirects: (SysState, Option (Array Indirect)) -> SysState
 free_option_indirects (ex, maybe_indirects) =
     maybe_indirects
     | Some indirects => array_free [Indirect] #{ arr = indirects, f = indirect_destroy2, ex }
     | None () -> ex
 
-fs_unmount: (#{ex: ExState, state: FsState}) -> ExState
+fs_unmount: (#{ex: SysState, state: FsState}) -> SysState
 fs_unmount (#{ex = ex, ..}) = 
     let state_t { super, superblock_num, group_count, group_desc_array, inode_tables_per_group, super_buf, flags, cur_overhead, .. } = state
     and super_t { .. } = super
@@ -398,8 +398,8 @@ fs_unmount (#{ex = ex, ..}) =
 
     in ex
 
-malloc_Ext2Superblock: (ExState) -> RR ExState (Ext2Superblock take (..)) ()
-deserialise_into_Ext2Superblock: (ExState, OSBuffer!, Ext2Superblock take (..), U32) -> RR (ExState) (Ext2Superblock, U32) (Ext2Superblock take (..))
+malloc_Ext2Superblock: (SysState) -> RR SysState (Ext2Superblock take (..)) ()
+deserialise_into_Ext2Superblock: (SysState, OSBuffer!, Ext2Superblock take (..), U32) -> RR (SysState) (Ext2Superblock, U32) (Ext2Superblock take (..))
 deserialise_into_Ext2Superblock (ex, buf, obj_t, idx) =
     osbuffer_deserialise_Ple32 (buf, idx)
     | Success (inode_count, idx) ->
@@ -434,9 +434,9 @@ deserialise_into_Ext2Superblock (ex, buf, obj_t, idx) =
         | Error () -> (ex, Error (obj_t))
     | Error () -> (ex, Error (obj_t))
 
-free_Ext2Superblock: (ExState, Ext2Superblock take (..)) -> ExState
+free_Ext2Superblock: (SysState, Ext2Superblock take (..)) -> SysState
 
-deserialise_Ext2Superblock: (ExState, OSBuffer!, U32) -> RR (ExState) (Ext2Superblock, U32) ()
+deserialise_Ext2Superblock: (SysState, OSBuffer!, U32) -> RR (SysState) (Ext2Superblock, U32) ()
 deserialise_Ext2Superblock (ex, buf, idx) =
     let (ex, res) = malloc_Ext2Superblock (ex)
     in res
@@ -449,14 +449,14 @@ deserialise_Ext2Superblock (ex, buf, idx) =
             (free_Ext2Superblock (ex, obj_t), Error ())
     | Error () -> (ex, Error ())
 
-super_set_free_block_count: (ExState, OSBuffer, U32) -> (ExState, OSBuffer)
+super_set_free_block_count: (SysState, OSBuffer, U32) -> (SysState, OSBuffer)
 super_set_free_block_count (ex, buf, free_block_count) =
     osbuffer_serialise_Ple32 (buf, (4 * 3), free_block_count)
     | Success (buf, _) => 
         osbuffer_dirty (ex, buf)
     | Error buf -> (ex, buf)
 
-super_set_free_inode_count: (ExState, OSBuffer, U32) -> (ExState, OSBuffer)
+super_set_free_inode_count: (SysState, OSBuffer, U32) -> (SysState, OSBuffer)
 super_set_free_inode_count (ex, buf, free_block_count) =
     osbuffer_serialise_Ple32 (buf, (4 * 4), free_block_count)
     | Success (buf, _) => 

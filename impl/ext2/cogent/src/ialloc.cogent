@@ -9,7 +9,7 @@
 --
 
 -- last field overloaded for Break type too
-type FindFreeInoAcc = (ExState, FsState, U32)
+type FindFreeInoAcc = (SysState, FsState, U32)
 type FindFreeInoBrk = R (U32, U32, Ext2GroupDescriptor, OSBuffer) ()
 
 find_free_inode_in_blockgroups: Seq32_body FindFreeInoAcc () FindFreeInoBrk
@@ -50,7 +50,7 @@ find_free_inode_in_blockgroups #{acc = (ex, state, group), obsv, idx} =
     | Error () ->
         ((ex, state, group), Break (Error ()))
 
-ext2_inode_init_owner: (ExState, VfsInode, VfsInode!, U32) -> (ExState, VfsInode, U32)
+ext2_inode_init_owner: (SysState, VfsInode, VfsInode!, U32) -> (SysState, VfsInode, U32)
 ext2_inode_init_owner(ex, inode, parent, mode) =
     let inode = vfs_inode_set_uid (inode, os_get_current_fsuid (ex)) !ex
     and was_gid = vfs_inode_get_mode (parent) .&. s_ISGID !parent
@@ -64,7 +64,7 @@ ext2_inode_init_owner(ex, inode, parent, mode) =
         let inode = vfs_inode_set_gid (inode, os_get_current_fsgid (ex)) !ex
         in (ex, inode, mode)
 
-ext2_inode_create3: (ExState, FsState, VfsInode) -> RR (ExState, FsState) VfsInode U32
+ext2_inode_create3: (SysState, FsState, VfsInode) -> RR (SysState, FsState) VfsInode U32
 ext2_inode_create3 (ex, state, inode) =
     -- update super's inode, free inode counters
     let state_t { super, super_buf } = state
@@ -85,7 +85,7 @@ ext2_inode_create3 (ex, state, inode) =
         and _ = _cogent_log (dbg_EXT2_INODE_ALLOC, ("failed to insert\n"))
         in ((ex, state), Error eIO)
 
-ext2_inode_create2: (ExState, FsState, VfsInode!, VfsMode, U32) -> RR (ExState, FsState) (VfsInode) (U32)
+ext2_inode_create2: (SysState, FsState, VfsInode!, VfsMode, U32) -> RR (SysState, FsState) (VfsInode) (U32)
 ext2_inode_create2 (ex, state, parent_inode, mode, group) =
     -- search inode bitmap in all group descriptors from `group' onwards
     let num_groups =  state.group_count !state
@@ -176,7 +176,7 @@ ext2_inode_create2 (ex, state, parent_inode, mode, group) =
         let _ = _cogent_log (dbg_EXT2_INODE_ALLOC, ("ext2_inode_create2: ERROR: no free ino in all block groups\n"))
         in ((ex, state), Error eNoSpc)
 
-type AboveAverageBlockAcc = (ExState, FsState, U32, U16)
+type AboveAverageBlockAcc = (SysState, FsState, U32, U16)
 
 above_average_blockgroup: Seq32_body AboveAverageBlockAcc U32 ()
 above_average_blockgroup #{ acc = (ex, state, best_group, best_free_blocks), obsv = avg_free_inodes, idx = group } =
@@ -208,7 +208,7 @@ above_average_blockgroup #{ acc = (ex, state, best_group, best_free_blocks), obs
         ((ex, state, best_group, best_free_blocks), Iterate ())
 
 -- linear search and find one that has above average free space
-find_group_dir: (ExState, FsState, VfsInode!) -> RR (ExState, FsState) (U32) ()
+find_group_dir: (SysState, FsState, VfsInode!) -> RR (SysState, FsState) (U32) ()
 find_group_dir (ex, state, parent) =
     let ngroups = state.group_count !state
     and avg_free_inodes = (state.super.free_inode_count / ngroups) !state
@@ -242,7 +242,7 @@ find_group_dir (ex, state, parent) =
         let _ = _cogent_log (dbg_EXT2_INODE_ALLOC, "find_group_dir: ERROR: 'best blockgroup' had 0 free blocks!\n")
         in ((ex, state), Error ())
 
-type FreeBlockHashAcc = (ExState, FsState, U32)
+type FreeBlockHashAcc = (SysState, FsState, U32)
 type FreeBlockLinearAcc = FreeBlockHashAcc
 
 free_block_hash_body: Seq32_body FreeBlockHashAcc U32 ()
@@ -275,7 +275,7 @@ free_block_linear_body #{acc = (ex, state, group), obsv = ngroups, idx} =
         -- shug it off, try the next one
         ((ex, state, group), Iterate ())
 
-find_group_other3: (ExState, FsState, U32, U32) -> RR (ExState, FsState) (U32) ()
+find_group_other3: (SysState, FsState, U32, U32) -> RR (SysState, FsState) (U32) ()
 find_group_other3 (ex, state, parent_group, ngroups) =
     -- that failed; try linear search for a free inode, even if that group has
     -- no free blocks.
@@ -294,7 +294,7 @@ find_group_other3 (ex, state, parent_group, ngroups) =
     | Break () -> ((ex, state), Success (group))
     | Iterate () -> ((ex, state), Error ()) -- no more space left for an inode!
 
-find_group_other2: (ExState, FsState, VfsInode!, U32) -> RR (ExState, FsState) (U32) ()
+find_group_other2: (SysState, FsState, VfsInode!, U32) -> RR (SysState, FsState) (U32) ()
 find_group_other2 (ex, state, parent, group) =
     -- we're going to place this inode in a different blockgroup from its parent
     -- we want to cause files in a common direcory to all land in the same block
@@ -325,7 +325,7 @@ find_group_other2 (ex, state, parent, group) =
     | Iterate () ->
         find_group_other3 (ex, state, parent_group, ngroups)
 
-find_group_other: (ExState, FsState, VfsInode!) -> RR (ExState, FsState) (U32) ()
+find_group_other: (SysState, FsState, VfsInode!) -> RR (SysState, FsState) (U32) ()
 find_group_other (ex, state, parent) =
     -- try to place in parent directory
     let group = get_block_group_from_ino2 (state, vfs_inode_get_ino (parent)) !parent !state   -- FIXME: linux puts this in the inode struct itself
@@ -340,7 +340,7 @@ find_group_other (ex, state, parent) =
         find_group_other2 (ex, state, parent, group)
 
 
-ext2_inode_create: (ExState, FsState, VfsInode!, VfsMode) -> RR (ExState, FsState) (VfsInode) (U32)
+ext2_inode_create: (SysState, FsState, VfsInode!, VfsMode) -> RR (SysState, FsState) (VfsInode) (U32)
 ext2_inode_create (ex, state, parent_inode, mode) =
     if vmode_is_dir (mode) then
         let _ = _cogent_log (dbg_EXT2_INODE_ALLOC, "ext2_inode_create: was dir, using directory allocator to find goal group\n")
@@ -363,13 +363,13 @@ ext2_inode_create (ex, state, parent_inode, mode) =
             in ((ex, state), Error eNoSpc)
 
 -- this function only used from console for testing
-fsop_inode_create: #{ex: ExState, state: FsState, parent_inode: VfsInode!, mode: VfsMode} -> RR #{ex: ExState, state: FsState} (VfsInode) (U32)
+fsop_inode_create: #{ex: SysState, state: FsState, parent_inode: VfsInode!, mode: VfsMode} -> RR #{ex: SysState, state: FsState} (VfsInode) (U32)
 fsop_inode_create #{..} = 
     let ((ex, state), res) = ext2_inode_create (ex, state, parent_inode, mode)
     in (#{ex, state}, res)
 
 
-fsop_inode_mknod: (ExState, FsState, VfsInode, CString!, VfsMode, #VfsDevice) -> RR (ExState, FsState, VfsInode) VfsInode U32
+fsop_inode_mknod: (SysState, FsState, VfsInode, CString!, VfsMode, #VfsDevice) -> RR (SysState, FsState, VfsInode) VfsInode U32
 fsop_inode_mknod (ex, state, dir, name, mode, device) =
     let ((ex, state), res) = ext2_inode_create (ex, state, dir, mode) !dir
     in res
