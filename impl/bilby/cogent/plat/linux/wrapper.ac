@@ -11,6 +11,7 @@
 $esc:(#include <adt.h>)
 $esc:(#include <wrapper.h>)
 #include <abstract.h>
+#include <c/linux/abstract-defns.h> /* In lib gum */
 #include <generated.c>
 #include <gum/anti/common.ac>
 #include <gum/anti/crc32.ac>

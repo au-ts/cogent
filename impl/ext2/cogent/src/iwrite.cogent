@@ -346,7 +346,7 @@ fsop_inode_get_block #{..} =
               | Some indirect =>
                 let _ = _cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: searching for a goal to target block...\n")
 
-                and goal = ext2_find_goal (state, inode, blk, indirect) !inode !state !indirect
+                and (ex, goal) = ext2_find_goal (ex, state, inode, blk, indirect) !inode !state !indirect
                 and (ex, chain) = chain_put_indirect (ex, chain, indirect, partial_idx)
 
                 and _ = _cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: found goal block ")

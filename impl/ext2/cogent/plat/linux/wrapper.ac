@@ -12,6 +12,7 @@ $esc:(#include <adt.h>)
 $esc:(#include <wrapper.h>)
 
 #include <abstract.h>
+#include <c/linux/abstract-defns.h> /* In lib gum */
 #include <generated.c>
 
 /*

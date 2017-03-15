@@ -57,7 +57,7 @@ COGENT_FLAGS+= --debug
 endif
 
 # flags to ignores COGENT's compiler messy C code gen
-COMMON_CFLAGS := -O2 -std=gnu99 -Wno-parentheses -Wno-declaration-after-statement -Wno-unused-variable -Wno-uninitialized
+COMMON_CFLAGS := -O2 -Wno-parentheses -Wno-declaration-after-statement -Wno-unused-variable -Wno-uninitialized
 LINUX_EXTRA_CFLAGS := -I$(PWD)/plat/linux/ -I$(PWD) -I$(PWD)/src -I$(PWD)/lib -I$(PWD)/abstract $(COMMON_CFLAGS) -I$(STDGUM)
 VERIF_EXTRA_CFLAGS := -I$(PWD)/plat/verification/ -I$(PWD) -I$(PWD)/src -I$(PWD)/lib -I$(PWD)/abstract -I$(STDGUM) $(COMMON_CFLAGS)
 
@@ -126,15 +126,20 @@ all: .c-gen $(OBJ)
 	$(Q)$(CC) -c $@
 
 # generate executable C code
+# NOTE: We run cpp with in c99 mode, as the default mode that cpp runs in is gnu99,
+#       which has an issue when parsing. It replaces anything 'linux' with a '1'.
+#       More details here: http://stackoverflow.com/questions/19210935/why-does-the-c-preprocessor-interpret-the-word-linux-as-the-constant-1
+#       So we use c99 mode here and when building the generated C code(make modules), we
+#       use `gnu99` mode.
 .c-gen:
 	$(Q)cogent $(SRC) -g $(COGENT_FLAGS) \
-		--cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(EXTRA_CFLAGS)" \
+		--cpp-args="-std=c99 \$$CPPIN -o \$$CPPOUT -E -P $(EXTRA_CFLAGS)" \
 		--dist-dir=$(DIST_DIR) \
 		--infer-c-funcs="$(ACFILES)"
 
 .verif-gen:
 	$(Q)cogent $(SRC) -A $(COGENT_FLAGS) \
-		--cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(EXTRA_CFLAGS)" \
+		--cpp-args="-std=c99 \$$CPPIN -o \$$CPPOUT -E -P $(EXTRA_CFLAGS)" \
 		--dist-dir=$(DIST_DIR) \
 		--infer-c-funcs="$(ACFILES)" \
 		--proof-name=$(PROOF_ID) \
@@ -142,7 +147,7 @@ all: .c-gen $(OBJ)
 
 # compile Linux kernel module for file system
 linux: .c-gen
-	$(Q)$(MAKE) OBJ="$(OBJ)" CFLAGS="$(CFLAGS)" EXTRA_CFLAGS="$(EXTRA_CFLAGS)" -C $(KERNELDIR) M=$(PWD) modules
+	$(Q)$(MAKE) OBJ="$(OBJ)" CFLAGS="$(CFLAGS)" EXTRA_CFLAGS="-std=gnu99 $(EXTRA_CFLAGS)" -C $(KERNELDIR) M=$(PWD) modules
 
 # generate verification-clean C code and proof scripts
 verification: .verif-gen

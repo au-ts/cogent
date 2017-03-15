@@ -91,13 +91,13 @@ script:
 - echo 'Building Cogent examples'
 - make examples
 - popd
-- echo 'Building ext2 (Cogent)'
+- echo 'Generating ext2fs C code from Cogent'
 - pushd impl/ext2/cogent
-- make
+- make .c-gen
 - popd
-- echo 'Building BilbyFs (Cogent)'
+- echo 'Generating BilbyFs C code from Cogent'
 - pushd impl/bilby/cogent
-- make
+- make .c-gen
 - popd
 notifications:
   hipchat:
