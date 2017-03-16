@@ -8,7 +8,7 @@
 # @TAG(NICTA_GPL)
 #
 
-include ../../../build-env.mk
+include ../../../../build-env.mk
 
 COGENT_FLAGS ?=
 

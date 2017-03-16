@@ -10,7 +10,7 @@
 
 MODULE=cgskelfs
 
-ROOT_DIR=../../../
+ROOT_DIR=../../../../
 
 ifeq ($(KERNELRELEASE),)
 # this include won't make sense inside the kernel tree
