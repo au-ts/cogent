@@ -14,26 +14,26 @@
 
 type NonZeroObsv = (VfsInode!, Indirect!)
 
-ext2_find_near_2: (FsState!, VfsInode!, Indirect!) -> BlockPtr
-ext2_find_near_2 (state, inode, indirect) =
+ext2_find_near_2: (SysState, FsState!, VfsInode!, Indirect!) -> (SysState, BlockPtr)
+ext2_find_near_2 (st, state, inode, indirect) =
   -- 2) try location of indirect block, if possible
   indirect.buf
-  | Some buf -> osbuffer_get_blocknum buf
+  | Some buf -> (st, osbuffer_get_blocknum buf)
   | None () ->
     -- 3) referred to from inode; use same cylinder group (colouring it)
     let bg = get_block_group_from_ino (state.super.inodes_per_group, vfs_inode_get_ino (inode))
     and bg_start = group_desc_first_block2 (state, bg)
 
-    and colour = (os_get_pid () % 16) * (state.super.blocks_per_group / 16)
-    in (bg_start + colour)
+    and colour = (os_get_pid (st) % 16) * (state.super.blocks_per_group / 16) !st
+    in (st, bg_start + colour)
 
 is_block_nonzero: Seq32_body () NonZeroObsv BlockPtr
 is_block_nonzero #{acc, obsv = (inode, indirect), idx} =
   let blockptr = indirect_read_blockptr_at (indirect, inode, idx)
   in if blockptr /= 0 then ((), Break blockptr) else ((), Iterate ())
 
-ext2_find_near: (FsState!, VfsInode!, Indirect!) -> BlockPtr
-ext2_find_near (state, inode, indirect) =   
+ext2_find_near: (SysState, FsState!, VfsInode!, Indirect!) -> (SysState, BlockPtr)
+ext2_find_near (st, state, inode, indirect) =
   -- 1) look at block pointer data (either bh or inode blocks)
   --    to the left of us, and search for one that's non-zero,
   --    and try to allocate near that
@@ -49,21 +49,21 @@ ext2_find_near (state, inode, indirect) =
         obsv = (inode, indirect)}
 
     in res
-    | Break blockptr -> blockptr
+    | Break blockptr -> (st, blockptr)
     | Iterate () ->
       -- no luck, try second rule
-      ext2_find_near_2 (state, inode, indirect)
+      ext2_find_near_2 (st, state, inode, indirect)
   else
-    ext2_find_near_2 (state, inode, indirect)
+    ext2_find_near_2 (st, state, inode, indirect)
 
-ext2_find_goal: (FsState!, VfsInode!, U32, Indirect!) -> U32
-ext2_find_goal (state, inode, iblock, indirect) =
+ext2_find_goal: (SysState, FsState!, VfsInode!, U32, Indirect!) -> (SysState, U32)
+ext2_find_goal (st, state, inode, iblock, indirect) =
   -- TODO: implement this!
   -- check inode's internal block allocator
   -- and try to allocate sequentially
 
   -- otherwise, just try and settle for something nearby
-  ext2_find_near (state, inode, indirect)
+  ext2_find_near (st, state, inode, indirect)
 
 ------------------------------------------------------------------------------
 -- block allocation and placement algorithms

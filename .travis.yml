@@ -30,17 +30,17 @@ matrix:
         - alex-3.1.7
         sources:
         - hvr-ghc
-  - env: BUILD=cabal GHCVER=head  CABALVER=head
-    compiler: ": #GHC HEAD"
-    addons:
-      apt:
-        packages:
-        - cabal-install-head
-        - ghc-head
-        sources:
-        - hvr-ghc
-  allow_failures:
-  - env: BUILD=cabal GHCVER=head  CABALVER=head
+    # - env: BUILD=cabal GHCVER=head  CABALVER=head
+    # - compiler: ": #GHC HEAD"
+    # - addons:
+    # -   apt:
+    # -     packages:
+    # -     - cabal-install-head
+    # -     - ghc-head
+    # -     sources:
+    # -     - hvr-ghc
+  # allow_failures:
+  # - env: BUILD=cabal GHCVER=head CABALVER=head
   fast_finish: true
 before_install:
 - unset CC
@@ -74,23 +74,25 @@ install:
 - popd
 script:
 - ORIGINAL_DIR=$(pwd)
-- pushd cogent
-- echo 'Configuring Cogent'
-- cabal --ignore-sandbox configure --enable-tests
-- echo 'Building Cogent'
+# - echo 'Configuring Cogent'
+- cd cogent && cabal --ignore-sandbox configure --enable-tests
+# - echo 'Building Cogent'
 - cabal --ignore-sandbox build
-- echo 'Installing Cogent'
+# - echo 'Installing Cogent'
 - cabal --ignore-sandbox install
-- echo 'Running tests'
+# - echo 'Running tests'
 - make test-tc
 - make test-ds
 - make test-an
 - make test-mn
 - make test-cg
 - make test-aq
-- echo 'Building Cogent examples'
+# - echo 'Building Cogent examples'
 - make examples
-- popd
+# - echo 'Generating ext2fs C code from Cogent'
+- cd "$ORIGINAL_DIR"/impl/ext2/cogent && make .c-gen
+# - echo 'Generating BilbyFs C code from Cogent'
+- cd "$ORIGINAL_DIR"/impl/bilby/cogent && make .c-gen
 notifications:
   hipchat:
     rooms:

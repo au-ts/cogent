@@ -24,3 +24,5 @@ fsop_getattr
 fsop_setattr
 fsop_symlink
 fsop_link
+os_spin_lock
+os_spin_unlock

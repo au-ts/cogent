@@ -14,6 +14,14 @@ include "../../common/common.cogent"
 -- spinlock_t
 type SpinLock
 
+-- Linux types (endian)
+type LE16
+type LE32
+type LE64
+type BE16
+type BE32
+type BE64
+
 -- This is the abstract type for struct dir_context
 type OSDirContext
 type OSPageOffset = U64

@@ -47,3 +47,6 @@ fs_unmount
 -- vfs_inode_get
 -- vfs_inode_bad_taken
 -- vfs_inode_add_dirty_osbuffer
+
+os_spin_lock
+os_spin_unlock
