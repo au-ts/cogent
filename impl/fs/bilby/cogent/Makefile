@@ -8,9 +8,9 @@
 # @TAG(NICTA_GPL)
 #
 
-MODULE=cogent-vfat
+MODULE=cgbilbyfs
 
-ROOT_DIR=../../../
+ROOT_DIR=../../../../
 
 ifeq ($(KERNELRELEASE),)
 # this include won't make sense inside the kernel tree
@@ -18,18 +18,25 @@ include $(ROOT_DIR)build-env.mk
 endif
 
 OUTPUT=generated
-SRC=src/super.cogent
+SRC=src/fsop.cogent
 TYPES=data/types.txt
 DEFNS=data/defns.txt
+PROOF_ID=BilbyFs
 
 # Standard Gum Directory
 STDGUM=$(shell cogent --stdgum-dir)
-# ADT headers required by vfat
-# AHFILES=$(wildcard $(STDGUM)/gum/anti/abstract/*.ah)
-AHFILES=
-# ADT C files required by vfat
-LINUX_ACFILES=plat/linux/wrapper.ac
-
+# ADT headers required by BilbyFs
+AHFILES=$(wildcard $(STDGUM)/gum/anti/abstract/*.ah)
+# ADT C files required by BilbyFs
+LINUX_ACFILES=$(addprefix $(STDGUM)/gum/anti/, \
+		common.ac \
+		wordarray.ac \
+		array.ac \
+		rbt.ac \
+		os.ac \
+		list.ac \
+		crc32.ac) \
+		plat/linux/wrapper.ac
 # ADT C files required by verification
 VERIF_ACFILES=plat/verification/wrapper.ac
 
@@ -40,9 +47,8 @@ endif
 ifeq ($(KERNELRELEASE),)
 PWD:= $(shell pwd)
 endif
-
 ifneq ($(DEBUG),)
-EXTRA_CFLAGS+= -DSKELFS_DEBUG -g #TODO: FIX THIS
+EXTRA_CFLAGS+= -DBILBYFS_DEBUG
 COGENT_FLAGS+= --debug
 endif
 
@@ -52,7 +58,7 @@ LINUX_EXTRA_CFLAGS := -I$(PWD)/plat/linux/ -I$(PWD) -I$(PWD)/src -I$(PWD)/lib -I
 VERIF_EXTRA_CFLAGS := -I$(PWD)/plat/verification/ -I$(PWD) -I$(PWD)/src -I$(PWD)/lib -I$(PWD)/abstract -I$(STDGUM) $(COMMON_CFLAGS)
 
 # COGENT flags
-COGENT_FLAGS+= -Od --fno-static-inline --fno-fncall-as-macro --ffunc-purity-attr
+COGENT_FLAGS+= -Od --fno-static-inline --fno-fncall-as-macro --fnormalisation=knf --ffunc-purity-attr
 # end of configuration
 
 override COGENT_FLAGS+= -o$(OUTPUT) \
@@ -69,12 +75,10 @@ RTMPC=$(ACFILES:.ac=_pp_inferred.c)
 RTMPPPC=$(COUTPUT) $(ACFILES:.ac=_pp.ac)
 
 BUILDSRC=$(wildcard build/*.c)
-
 # Add C files with no antiquotation to OBJ.
 # Writing these functions in a .ac file would lead defining multiple
 # times the same symbol when parametric polymorphism gets expanded.
-# NOTE: A module.o is relevant only for the linux platform
-OBJ?=plat/linux/module.o
+OBJ?=plat/linux/module.o plat/linux/rbt.o
 
 
 ###########################
@@ -99,17 +103,14 @@ verification: EXTRA_CFLAGS = $(VERIF_EXTRA_CFLAGS)
 
 # call from kernel build system
 ifneq ($(KERNELRELEASE),)
-	obj-m+= cogent-fat.o
-	obj-m+= $(MODULE).o
-
-#$(MODULE)-objs := $(OBJ)
-	cogent-fat-y := plat/linux/cache.o plat/linux/dir.o plat/linux/fatent.o plat/linux/file.o plat/linux/inode.o plat/linux/misc.o plat/linux/nfs.o
-	$(MODULE)-y := plat/linux/module.o
+  obj-m	+= $(MODULE).o
+  $(MODULE)-objs := $(OBJ)
 else
 
 PWD:= $(shell pwd)
 
 .PHONY: default cogent clean .c-gen .verif-gen verification
+
 
 default: linux
 
@@ -119,7 +120,7 @@ all: .c-gen $(OBJ)
 %.c:
 	$(Q)$(CC) -c $@
 
-# generate executable C cod
+# generate executable C code
 # NOTE: We run cpp with in c99 mode, as the default mode that cpp runs in is gnu99,
 #       which has an issue when parsing. It replaces anything 'linux' with a '1'.
 #       More details here: http://stackoverflow.com/questions/19210935/why-does-the-c-preprocessor-interpret-the-word-linux-as-the-constant-1
@@ -127,47 +128,46 @@ all: .c-gen $(OBJ)
 #       use `gnu99` mode.
 .c-gen:
 	$(Q)cogent $(SRC) -g $(COGENT_FLAGS) \
-		--cpp-args="-std=c99 \$$CPPIN -o \$$CPPOUT -E -P $(EXTRA_CFLAGS)" \
-		--dist-dir=$(DIST_DIR) \
-		--infer-c-funcs="$(ACFILES)"
+                --cpp-args="-std=c99 \$$CPPIN -o \$$CPPOUT -E -P $(EXTRA_CFLAGS)" \
+                --dist-dir=$(DIST_DIR) \
+                --infer-c-funcs="$(ACFILES)"
 
 .verif-gen:
 	$(Q)cogent $(SRC) -A $(COGENT_FLAGS) \
-		--cpp-args="-std=c99 \$$CPPIN -o \$$CPPOUT -E -P $(EXTRA_CFLAGS)" \
-		--dist-dir=$(DIST_DIR) \
-		--infer-c-funcs="$(ACFILES)" \
-		--proof-name=$(PROOF_ID) \
-		--proof-input-c="wrapper_pp_inferred.c"
+                --cpp-args="-std=c99 \$$CPPIN -o \$$CPPOUT -E -P $(EXTRA_CFLAGS)" \
+                --dist-dir=$(DIST_DIR) \
+                --infer-c-funcs="$(ACFILES)" \
+                --proof-name=$(PROOF_ID) \
+                --proof-input-c="wrapper_pp_inferred.c"
+
 
 # compile Linux kernel module for file system
 linux: .c-gen
-	make -C  $(KERNELDIR) CFLAGS="$(CFLAGS)" EXTRA_CFLAGS="-std=gnu99 $(EXTRA_CFLAGS)" M=$(PWD) modules
-	#$(Q) $(MAKE) OBJ="$(OBJ)" CFLAGS="$(CFLAGS)" EXTRA_CFLAGS="$(EXTRA_CFLAGS)" -C $(KERNELDIR) M=$(PWD) modules
+	$(Q)$(MAKE) OBJ="$(OBJ)" CFLAGS="$(CFLAGS)" EXTRA_CFLAGS="-std=gnu99 $(EXTRA_CFLAGS)" -C $(KERNELDIR) M=$(PWD) modules
+
 # generate verification-clean C code and proof scripts
 verification: .verif-gen
 	$(Q)mv $(DIST_DIR)/generated.table $(DIST_DIR)/wrapper_pp_inferred.table
 
-
 clean:
-	$(E) "Cleaning up..."
-	$(Q) make -C $(KERNELDIR) M=$(PWD) clean
-	$(Q) rm -f $(HOUTPUT)
-	$(Q) rm -f $(OBJ)
-	$(Q) rm -f $(RTMPC)
-	$(Q) rm -f $(RTMPPPC)
-	$(Q) rm -f $(MODULE).mod.[co] $(MODULE).o $(MODULE).ko Module.symvers modules.order
-	$(Q) rm -f abstract/*.h
-	$(Q) rm -rf *.thy ROOT generated.table BUILD_INFO
-	$(Q) find . -name *.thy -exec rm -f {} \;
-	$(Q) find . -name ROOT -exec rm -f {} \;
-	$(Q) find . -name BUILD_INFO -exec rm -f {} \;
-	$(Q) find . -name *_pp* -exec rm -f {} \;
-	$(Q) find . -name generated.* -exec rm -f {} \;
+	$(E) "Cleaning up.."
+	$(Q)rm -f $(HOUTPUT)
+	$(Q)rm -f $(OBJ)
+	$(Q)rm -f $(RTMPC)
+	$(Q)rm -f $(RTMPPPC)
+	$(Q)rm -f $(MODULE).mod.[co] $(MODULE).o $(MODULE).ko Module.symvers modules.order
+	$(Q)rm -f abstract/*.h
+	$(Q)rm -rf *.thy ROOT generated.table BUILD_INFO
+	$(Q)find . -name *.thy -exec rm -f {} \;
+	$(Q)find . -name ROOT -exec rm -f {} \;
+	$(Q)find . -name BUILD_INFO -exec rm -f {} \;
+	$(Q)find . -name *_pp* -exec rm -f {} \;
+	$(Q)find . -name generated.* -exec rm -f {} \;
 	$(Q)find . -name *.cmd -exec rm -f {} \;
 
 help:
-	$(E) "** Cogent vfat build help **"
-	$(E) "Run 'make' to build the Linux vfat kernel module."
+	$(E) "** Cogent bilbyfs build help **"
+	$(E) "Run 'make' to build the Linux bilbyfs kernel module."
 	$(E) ""
 	$(E) "Please run 'make <target>' where target is one of the following:"
 	$(E) "* linux"

@@ -8,9 +8,9 @@
 # @TAG(NICTA_GPL)
 #
 
-MODULE=cgext2fs
+MODULE=cogent-vfat
 
-ROOT_DIR=../../../
+ROOT_DIR=../../../../
 
 ifeq ($(KERNELRELEASE),)
 # this include won't make sense inside the kernel tree
@@ -21,24 +21,14 @@ OUTPUT=generated
 SRC=src/super.cogent
 TYPES=data/types.txt
 DEFNS=data/defns.txt
-PROOF_ID=Ext2
 
 # Standard Gum Directory
 STDGUM=$(shell cogent --stdgum-dir)
-# ADT headers required by Ext2fs
-AHFILES=$(wildcard $(STDGUM)/gum/anti/abstract/*.ah)
-# ADT C files required by Ext2fs
-LINUX_ACFILES=$(addprefix $(STDGUM)/gum/anti/, \
-	common.ac \
-	wordarray.ac \
-	uarray.ac \
-	array.ac \
-	os.ac \
-	ospage.ac \
-	osbuffer.ac \
-	iterator.ac \
-	dls.ac) \
-	plat/linux/wrapper.ac
+# ADT headers required by vfat
+# AHFILES=$(wildcard $(STDGUM)/gum/anti/abstract/*.ah)
+AHFILES=
+# ADT C files required by vfat
+LINUX_ACFILES=plat/linux/wrapper.ac
 
 # ADT C files required by verification
 VERIF_ACFILES=plat/verification/wrapper.ac
@@ -52,7 +42,7 @@ PWD:= $(shell pwd)
 endif
 
 ifneq ($(DEBUG),)
-EXTRA_CFLAGS+= -DEXT2FS_DEBUG
+EXTRA_CFLAGS+= -DSKELFS_DEBUG -g #TODO: FIX THIS
 COGENT_FLAGS+= --debug
 endif
 
@@ -109,8 +99,12 @@ verification: EXTRA_CFLAGS = $(VERIF_EXTRA_CFLAGS)
 
 # call from kernel build system
 ifneq ($(KERNELRELEASE),)
+	obj-m+= cogent-fat.o
 	obj-m+= $(MODULE).o
-	$(MODULE)-objs := $(OBJ)
+
+#$(MODULE)-objs := $(OBJ)
+	cogent-fat-y := plat/linux/cache.o plat/linux/dir.o plat/linux/fatent.o plat/linux/file.o plat/linux/inode.o plat/linux/misc.o plat/linux/nfs.o
+	$(MODULE)-y := plat/linux/module.o
 else
 
 PWD:= $(shell pwd)
@@ -125,7 +119,7 @@ all: .c-gen $(OBJ)
 %.c:
 	$(Q)$(CC) -c $@
 
-# generate executable C code
+# generate executable C cod
 # NOTE: We run cpp with in c99 mode, as the default mode that cpp runs in is gnu99,
 #       which has an issue when parsing. It replaces anything 'linux' with a '1'.
 #       More details here: http://stackoverflow.com/questions/19210935/why-does-the-c-preprocessor-interpret-the-word-linux-as-the-constant-1
@@ -147,32 +141,33 @@ all: .c-gen $(OBJ)
 
 # compile Linux kernel module for file system
 linux: .c-gen
-	$(Q)$(MAKE) OBJ="$(OBJ)" CFLAGS="$(CFLAGS)" EXTRA_CFLAGS="-std=gnu99 $(EXTRA_CFLAGS)" -C $(KERNELDIR) M=$(PWD) modules
-
+	make -C  $(KERNELDIR) CFLAGS="$(CFLAGS)" EXTRA_CFLAGS="-std=gnu99 $(EXTRA_CFLAGS)" M=$(PWD) modules
+	#$(Q) $(MAKE) OBJ="$(OBJ)" CFLAGS="$(CFLAGS)" EXTRA_CFLAGS="$(EXTRA_CFLAGS)" -C $(KERNELDIR) M=$(PWD) modules
 # generate verification-clean C code and proof scripts
 verification: .verif-gen
 	$(Q)mv $(DIST_DIR)/generated.table $(DIST_DIR)/wrapper_pp_inferred.table
 
 
 clean:
-	$(E) "Cleaning up.."
-	$(Q)rm -f $(HOUTPUT)
-	$(Q)rm -f $(OBJ)
-	$(Q)rm -f $(RTMPC)
-	$(Q)rm -f $(RTMPPPC)
-	$(Q)rm -f $(MODULE).mod.[co] $(MODULE).o $(MODULE).ko Module.symvers modules.order
-	$(Q)rm -f abstract/*.h
-	$(Q)rm -rf *.thy ROOT generated.table BUILD_INFO
-	$(Q)find . -name *.thy -exec rm -f {} \;
-	$(Q)find . -name ROOT -exec rm -f {} \;
-	$(Q)find . -name BUILD_INFO -exec rm -f {} \;
-	$(Q)find . -name *_pp* -exec rm -f {} \;
-	$(Q)find . -name generated.* -exec rm -f {} \;
+	$(E) "Cleaning up..."
+	$(Q) make -C $(KERNELDIR) M=$(PWD) clean
+	$(Q) rm -f $(HOUTPUT)
+	$(Q) rm -f $(OBJ)
+	$(Q) rm -f $(RTMPC)
+	$(Q) rm -f $(RTMPPPC)
+	$(Q) rm -f $(MODULE).mod.[co] $(MODULE).o $(MODULE).ko Module.symvers modules.order
+	$(Q) rm -f abstract/*.h
+	$(Q) rm -rf *.thy ROOT generated.table BUILD_INFO
+	$(Q) find . -name *.thy -exec rm -f {} \;
+	$(Q) find . -name ROOT -exec rm -f {} \;
+	$(Q) find . -name BUILD_INFO -exec rm -f {} \;
+	$(Q) find . -name *_pp* -exec rm -f {} \;
+	$(Q) find . -name generated.* -exec rm -f {} \;
 	$(Q)find . -name *.cmd -exec rm -f {} \;
 
 help:
-	$(E) "** Cogent ext2fs build help **"
-	$(E) "Run 'make' to build the Linux ext2fs kernel module."
+	$(E) "** Cogent vfat build help **"
+	$(E) "Run 'make' to build the Linux vfat kernel module."
 	$(E) ""
 	$(E) "Please run 'make <target>' where target is one of the following:"
 	$(E) "* linux"

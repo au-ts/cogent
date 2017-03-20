@@ -8,9 +8,9 @@
 # @TAG(NICTA_GPL)
 #
 
-MODULE=cgbilbyfs
+MODULE=cgext2fs
 
-ROOT_DIR=../../../
+ROOT_DIR=../../../../
 
 ifeq ($(KERNELRELEASE),)
 # this include won't make sense inside the kernel tree
@@ -18,25 +18,28 @@ include $(ROOT_DIR)build-env.mk
 endif
 
 OUTPUT=generated
-SRC=src/fsop.cogent
+SRC=src/super.cogent
 TYPES=data/types.txt
 DEFNS=data/defns.txt
-PROOF_ID=BilbyFs
+PROOF_ID=Ext2
 
 # Standard Gum Directory
 STDGUM=$(shell cogent --stdgum-dir)
-# ADT headers required by BilbyFs
+# ADT headers required by Ext2fs
 AHFILES=$(wildcard $(STDGUM)/gum/anti/abstract/*.ah)
-# ADT C files required by BilbyFs
+# ADT C files required by Ext2fs
 LINUX_ACFILES=$(addprefix $(STDGUM)/gum/anti/, \
-		common.ac \
-		wordarray.ac \
-		array.ac \
-		rbt.ac \
-		os.ac \
-		list.ac \
-		crc32.ac) \
-		plat/linux/wrapper.ac
+	common.ac \
+	wordarray.ac \
+	uarray.ac \
+	array.ac \
+	os.ac \
+	ospage.ac \
+	osbuffer.ac \
+	iterator.ac \
+	dls.ac) \
+	plat/linux/wrapper.ac
+
 # ADT C files required by verification
 VERIF_ACFILES=plat/verification/wrapper.ac
 
@@ -47,8 +50,9 @@ endif
 ifeq ($(KERNELRELEASE),)
 PWD:= $(shell pwd)
 endif
+
 ifneq ($(DEBUG),)
-EXTRA_CFLAGS+= -DBILBYFS_DEBUG
+EXTRA_CFLAGS+= -DEXT2FS_DEBUG
 COGENT_FLAGS+= --debug
 endif
 
@@ -58,7 +62,7 @@ LINUX_EXTRA_CFLAGS := -I$(PWD)/plat/linux/ -I$(PWD) -I$(PWD)/src -I$(PWD)/lib -I
 VERIF_EXTRA_CFLAGS := -I$(PWD)/plat/verification/ -I$(PWD) -I$(PWD)/src -I$(PWD)/lib -I$(PWD)/abstract -I$(STDGUM) $(COMMON_CFLAGS)
 
 # COGENT flags
-COGENT_FLAGS+= -Od --fno-static-inline --fno-fncall-as-macro --fnormalisation=knf --ffunc-purity-attr
+COGENT_FLAGS+= -Od --fno-static-inline --fno-fncall-as-macro --ffunc-purity-attr
 # end of configuration
 
 override COGENT_FLAGS+= -o$(OUTPUT) \
@@ -75,10 +79,12 @@ RTMPC=$(ACFILES:.ac=_pp_inferred.c)
 RTMPPPC=$(COUTPUT) $(ACFILES:.ac=_pp.ac)
 
 BUILDSRC=$(wildcard build/*.c)
+
 # Add C files with no antiquotation to OBJ.
 # Writing these functions in a .ac file would lead defining multiple
 # times the same symbol when parametric polymorphism gets expanded.
-OBJ?=plat/linux/module.o plat/linux/rbt.o
+# NOTE: A module.o is relevant only for the linux platform
+OBJ?=plat/linux/module.o
 
 
 ###########################
@@ -103,14 +109,13 @@ verification: EXTRA_CFLAGS = $(VERIF_EXTRA_CFLAGS)
 
 # call from kernel build system
 ifneq ($(KERNELRELEASE),)
-  obj-m	+= $(MODULE).o
-  $(MODULE)-objs := $(OBJ)
+	obj-m+= $(MODULE).o
+	$(MODULE)-objs := $(OBJ)
 else
 
 PWD:= $(shell pwd)
 
 .PHONY: default cogent clean .c-gen .verif-gen verification
-
 
 default: linux
 
@@ -128,18 +133,17 @@ all: .c-gen $(OBJ)
 #       use `gnu99` mode.
 .c-gen:
 	$(Q)cogent $(SRC) -g $(COGENT_FLAGS) \
-                --cpp-args="-std=c99 \$$CPPIN -o \$$CPPOUT -E -P $(EXTRA_CFLAGS)" \
-                --dist-dir=$(DIST_DIR) \
-                --infer-c-funcs="$(ACFILES)"
+		--cpp-args="-std=c99 \$$CPPIN -o \$$CPPOUT -E -P $(EXTRA_CFLAGS)" \
+		--dist-dir=$(DIST_DIR) \
+		--infer-c-funcs="$(ACFILES)"
 
 .verif-gen:
 	$(Q)cogent $(SRC) -A $(COGENT_FLAGS) \
-                --cpp-args="-std=c99 \$$CPPIN -o \$$CPPOUT -E -P $(EXTRA_CFLAGS)" \
-                --dist-dir=$(DIST_DIR) \
-                --infer-c-funcs="$(ACFILES)" \
-                --proof-name=$(PROOF_ID) \
-                --proof-input-c="wrapper_pp_inferred.c"
-
+		--cpp-args="-std=c99 \$$CPPIN -o \$$CPPOUT -E -P $(EXTRA_CFLAGS)" \
+		--dist-dir=$(DIST_DIR) \
+		--infer-c-funcs="$(ACFILES)" \
+		--proof-name=$(PROOF_ID) \
+		--proof-input-c="wrapper_pp_inferred.c"
 
 # compile Linux kernel module for file system
 linux: .c-gen
@@ -148,6 +152,7 @@ linux: .c-gen
 # generate verification-clean C code and proof scripts
 verification: .verif-gen
 	$(Q)mv $(DIST_DIR)/generated.table $(DIST_DIR)/wrapper_pp_inferred.table
+
 
 clean:
 	$(E) "Cleaning up.."
@@ -166,8 +171,8 @@ clean:
 	$(Q)find . -name *.cmd -exec rm -f {} \;
 
 help:
-	$(E) "** Cogent bilbyfs build help **"
-	$(E) "Run 'make' to build the Linux bilbyfs kernel module."
+	$(E) "** Cogent ext2fs build help **"
+	$(E) "Run 'make' to build the Linux ext2fs kernel module."
 	$(E) ""
 	$(E) "Please run 'make <target>' where target is one of the following:"
 	$(E) "* linux"
