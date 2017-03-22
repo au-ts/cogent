@@ -73,10 +73,10 @@ Library
               , Cogent.Vec
 
   other-modules:
-              Data.Monoid.Cancellative
-               -- Generated
-              , Version_cogent
+                Data.Monoid.Cancellative
+              -- Generated
               , Paths_cogent
+              , Version_cogent
 
   build-depends:
                 ansi-terminal >= 0.6
