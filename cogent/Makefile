@@ -1,4 +1,4 @@
-.PHONY: build configure doc install pinstall gen-types
+.PHONY: build configure doc install gen-types
 
 ## Silent by default
 V =
@@ -20,63 +20,59 @@ PASS_TEST_COGENT_FILES := $(wildcard tests/pass_*.cogent)
 FAIL_TEST_COGENT_FILES := $(wildcard tests/fail_*.cogent)
 DUMMY_HEADER_FILES := $(addprefix tests/include/,$(notdir $(PASS_TEST_COGENT_FILES:.cogent=_dummy.h)))
 
-all: install
-	$(E) "Cogent Compiler successfully built for $(OS)."
-	$(E)
-	$(E) "Add 'cogent' compiler to your path by running:"
-	$(E) '  export PATH=$$PATH:$(PWD)/dist/build/cogent'
-	$(E)
-	$(E) "To enable bash auto-completion for 'cogent', please add the following to your .bashrc file:"
-	$(E) "source $(PWD)/misc/cogent_autocomplete.sh"
-	$(E)
-	$(E)
+all: install-dev
 
-install:
+.install:
 	$(E) "Installing.."
-	$(CABAL) install $(CABALFLAGS)
-
-pinstall: CABALFLAGS += --enable-executable-profiling
-pinstall: setup-config
-	$(CABAL) install $(CABALFLAGS)
+	$(CABAL) install $(INSTALL_FLAGS)
 
 isa-parser:
-	cd ../isa-parser && make
+	$(Q) make -C ../isa-parser
 
 stack-build:
 	$(E) "Building Cogent using stack."
 	$(STACK) build
 
-build: setup-config
+build:
 	$(E) "Building..."
 	$(CABAL) build
 
-configure: install-deps
+configure:
 	$(E) "Configuring"
 	$(CABAL) configure
-	$(CABAL) build
 
 sandbox:
-	$(E) "Building in a sandbox"
+ifneq ($(wildcard .cabal-sandbox/),)
+	$(E) "Using Existing sandbox..."
+else
+	$(E) "Building in a sandbox..."
 	$(CABAL) sandbox init
 	$(CABAL) sandbox add-source ../isa-parser
+endif
 
-install-deps: sandbox
+.install-deps:
 	$(E) "Installing dependencies"
-	$(CABAL) install --only-dependencies --force-reinstalls
+	$(CABAL) install --only-dependencies
 
 doc:
-	$(E) "Docs"
+	$(E) "Building Cogent docs..."
+	$(Q) make -C doc
 
 clean:
-	$(E) "Cleaning"
-	$(Q) cabal sandbox delete -v0
+	$(Q) $(CABAL) clean
+	$(Q) make -C doc clean
+	$(Q) find . -name "*_flymake.hs" -delete
+
+full-clean: clean
+	$(Q) $(CABAL) sandbox delete -v0
 	$(Q) rm -rf .cabal-sandbox/ dist/ ../isa-parser/dist
 	$(Q) rm -rf out/
 	$(Q) rm -rf tests/include
 	$(Q) find . -name "*_flymake.hs" -delete
 
-dev: configure
-	$(CABAL) install $(CABALFLAGS)
+
+install-dev: sandbox cabal-update .install-deps configure build
+	$(CABAL) install $(INSTALL_FLAGS)
 	$(E) "Cogent Compiler successfully built for $(OS)."
 	$(E)
 	$(E) "Add 'cogent' compiler to your path by running:"
@@ -169,20 +165,20 @@ examples-clean:
 	$(E) "=== Build Cogent examples ==="
 	$(SCRIPTS_DIR)/build_examples.sh clean
 
-setup-config: configure
-	$(CABAL) configure $(CABALFLAGS)
-
 pkg:
 	$(CABAL) sdist
 help:
 	$(E) "** Cogent Compiler **"
 	$(E) "Run 'make' to build the Cogent compiler."
 	$(E) ""
-	$(E) "* make dev"
+	$(E) "* make"
 	$(E) "  Build and install Cogent in a cabal-sandbox"
 	$(E) ""
 	$(E) "* make clean"
 	$(E) "  Cleanup"
+	$(E) ""
+	$(E) "* make full-clean"
+	$(E) "  Cleanup (removes sandbox)."
 	$(E) ""
 	$(E) "* make tests"
 	$(E) "  Run all tests."
@@ -237,6 +233,9 @@ help:
 	$(E) ""
 	$(E) "* make examples-clean"
 	$(E) "  Clean up earlier build of examples."
+	$(E) ""
+	$(E) "* make doc"
+	$(E) "  Build Cogent docs."
 	$(E) ""
 	$(E) "* make help"
 	$(E) "  Print this help."

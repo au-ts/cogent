@@ -2,7 +2,8 @@ CABAL := cabal
 STACK := stack
 
 # Cabal Flags
-CABALFLAGS += --enable-tests --force-reinstalls
+INSTALL_FLAGS += --enable-tests --force-reinstalls
+CONFIG_FLAGS +=
 
 
 MACHINE := $(shell $(CC) -dumpmachine)
