@@ -10,7 +10,7 @@
 #
 
 cd "$(dirname "${BASH_SOURCE[0]}")"
-source ../../../build-env.sh
+source ../../../../build-env.sh
 
 check_output() {
   local text ret

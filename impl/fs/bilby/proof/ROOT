@@ -9,7 +9,7 @@
  *)
 
 session CogentUtil = "HOL-Word" +
-  theories "../../../cogent/isa/Util"
+  theories "../../../../cogent/isa/Util"
 
 session "BilbyFsCode" (main) = "CogentUtil" +
   description {* BilbyFs implementation *}
