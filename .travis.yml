@@ -17,7 +17,13 @@ cache:
 
 before_cache:
   - rm -fv $HOME/.cabal/packages/hackage.haskell.org/build-reports.log
-  - rm -fv $HOME/.cabal/packages/hackage.haskell.org/00-index.tar
+  # - rm -fv $HOME/.cabal/packages/hackage.haskell.org/00-index.tar
+  - rm -fv $HOME/.cabal/packages/hackage.haskell.org/00-index.*
+  - rm -fv $HOME/.cabal/packages/hackage.haskell.org/*.json
+  - rm -fv $HOME/.cabal/packages/hackage.haskell.org/01-index.cache
+  - rm -fv $HOME/.cabal/packages/hackage.haskell.org/01-index.tar
+  - rm -fv $HOME/.cabal/packages/hackage.haskell.org/01-index.tar.idx
+
 
 env:
   global:
@@ -43,17 +49,17 @@ before_install:
  - unset CC
  - export ALEXVER=3.1.7
  - export HAPPYVER=1.19.5
- - export PATH=~/.cabal/bin:/opt/ghc-ppa-tools/bin:/opt/ghc/$GHCVER/bin:/opt/happy/$HAPPYVER/bin:/opt/alex/$ALEXVER/bin:$REPO/cogent/$SANDBOX/bin:$PATH
+ - export PATH=~/.cabal/bin:/opt/ghc/bin:/opt/ghc-ppa-tools/bin:/opt/ghc/$GHCVER/bin:/opt/happy/$HAPPYVER/bin:/opt/alex/$ALEXVER/bin:$REPO/cogent/$SANDBOX/bin:$PATH
 
 install:
  - cabal --version
  - echo "$(ghc --version) [$(ghc --print-project-git-commit-id 2> /dev/null || echo '?')]"
- - if [ -f $HOME/.cabal/packages/hackage.haskell.org/00-index.tar.gz ];
-   then
-     echo "==== Hackage index file found ===="
-     zcat $HOME/.cabal/packages/hackage.haskell.org/00-index.tar.gz >
-          $HOME/.cabal/packages/hackage.haskell.org/00-index.tar;
-   fi
+ # - if [ -f $HOME/.cabal/packages/hackage.haskell.org/00-index.tar.gz ];
+ # - then
+ # -   echo "==== Hackage index file found ===="
+ # -   zcat $HOME/.cabal/packages/hackage.haskell.org/00-index.tar.gz >
+ # -        $HOME/.cabal/packages/hackage.haskell.org/00-index.tar;
+ # - fi
  - travis_retry cabal update # -v
  - cd cogent
  - cabal sandbox init
