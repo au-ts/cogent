@@ -523,7 +523,7 @@ if [[ "$TESTSPEC" =~ '--aq--' ]]; then
   passed=0
   total=0
 
-  for dir in "$TESTS"/antiquote-tests/test-*
+  for dir in "$TESTS"/antiquote-tests/pass_*
   do
     echo -n "$dir: "
     total+=1
