@@ -1,99 +1,134 @@
+# This file has been generated -- see https://github.com/hvr/multi-ghc-travis
+language: c
 sudo: false
-language: generic
+
+git:
+  submodules: false
+
 cache:
   directories:
-  - "$HOME/.cabal/packages"
+    - $HOME/.cabsnap
+    - $HOME/.ghc
+    - $HOME/.cabal/lib
+    - $HOME/.cabal/share
+    - $HOME/.cabal/packages
+    - $HOME/.cabal/bin
+    # - $REPO/cogent/$SANDBOX
+
 before_cache:
-- rm -fv $HOME/.cabal/packages/hackage.haskell.org/build-reports.log
-- rm -fv $HOME/.cabal/packages/hackage.haskell.org/00-index.tar
+  - rm -fv $HOME/.cabal/packages/hackage.haskell.org/build-reports.log
+  # - rm -fv $HOME/.cabal/packages/hackage.haskell.org/00-index.tar
+  - rm -fv $HOME/.cabal/packages/hackage.haskell.org/00-index.*
+  - rm -fv $HOME/.cabal/packages/hackage.haskell.org/*.json
+  - rm -fv $HOME/.cabal/packages/hackage.haskell.org/01-index.cache
+  - rm -fv $HOME/.cabal/packages/hackage.haskell.org/01-index.tar
+  - rm -fv $HOME/.cabal/packages/hackage.haskell.org/01-index.tar.idx
+
+
+env:
+  global:
+    - SANDBOX=".cabal-sandbox"
+    - REPO=$TRAVIS_BUILD_DIR
+
 matrix:
   include:
-  - env: BUILD=cabal GHCVER=7.10.3 CABALVER=1.22
-    compiler: ": #GHC 7.10.3"
-    addons:
-      apt:
-        packages:
-        - cabal-install-1.22
-        - ghc-7.10.3
-        - happy-1.19.5
-        - alex-3.1.7
-        sources:
-        - hvr-ghc
-  - env: BUILD=cabal GHCVER=8.0.1 CABALVER=1.24
-    compiler: ": #GHC 8.0.1"
-    addons:
-      apt:
-        packages:
-        - cabal-install-1.24
-        - ghc-8.0.1
-        - happy-1.19.5
-        - alex-3.1.7
-        sources:
-        - hvr-ghc
-    # - env: BUILD=cabal GHCVER=head  CABALVER=head
-    # - compiler: ": #GHC HEAD"
-    # - addons:
-    # -   apt:
-    # -     packages:
-    # -     - cabal-install-head
-    # -     - ghc-head
-    # -     sources:
-    # -     - hvr-ghc
-  # allow_failures:
-  # - env: BUILD=cabal GHCVER=head CABALVER=head
+    - env: GHCVER=7.10.3
+      compiler: ": #GHC 7.10.3"
+      addons: {apt: {packages: [ghc-ppa-tools,cabal-install-head,ghc-7.10.3,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
+    - env: GHCVER=8.0.1
+      compiler: ": #GHC 8.0.1"
+      addons: {apt: {packages: [ghc-ppa-tools,cabal-install-head,ghc-8.0.1,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
+    - env: GHCVER=8.0.2
+      compiler: ": #GHC 8.0.2"
+      addons: {apt: {packages: [ghc-ppa-tools,cabal-install-head,ghc-8.0.2,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
+  allow_failures:
+    - env: GHCVER=8.0.2  # there's some upstream problem right now
   fast_finish: true
+
 before_install:
-- unset CC
-- if [[ $TRAVIS_OS_NAME == 'linux' ]]; then export PATH=/opt/alex/3.1.7/bin:/opt/happy/1.19.5/bin:/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$HOME/.cabal/bin:$PATH;
-  export SED=sed; export ZCAT=zcat; fi
-- env
-- CABALARGS=""
-- if [ "x$GHCVER" = "xhead" ]; then CABALARGS=--allow-newer; fi
+ - unset CC
+ - export ALEXVER=3.1.7
+ - export HAPPYVER=1.19.5
+ - export PATH=~/.cabal/bin:/opt/ghc/bin:/opt/ghc-ppa-tools/bin:/opt/ghc/$GHCVER/bin:/opt/happy/$HAPPYVER/bin:/opt/alex/$ALEXVER/bin:$REPO/cogent/$SANDBOX/bin:$PATH
+
 install:
-- which cabal
-- cabal --version
-- which ghc
-- echo "$(ghc --version) [$(ghc --print-project-git-commit-id 2> /dev/null || echo
-  '?')]"
-- if [ -f $HOME/.cabal/packages/hackage.haskell.org/00-index.tar.gz ]; then $ZCAT
-  $HOME/.cabal/packages/hackage.haskell.org/00-index.tar.gz > $HOME/.cabal/packages/hackage.haskell.org/00-index.tar;
-  fi
-- travis_retry cabal --ignore-sandbox update -v
-- "$SED -i -r 's/(^jobs:).*/\\1 2/' $HOME/.cabal/config"
-- pushd isa-parser
-- cabal --ignore-sandbox install --only-dependencies --enable-tests
-- echo 'Configuring isa-parser'
-- cabal --ignore-sandbox configure
-- echo 'Building isa-parser'
-- cabal --ignore-sandbox build
-- echo 'Installing isa-parser'
-- cabal --ignore-sandbox install
-- popd
-- pushd cogent
-- cabal --ignore-sandbox install --only-dependencies --enable-tests;
-- popd
+ - cabal --version
+ - echo "$(ghc --version) [$(ghc --print-project-git-commit-id 2> /dev/null || echo '?')]"
+ # - if [ -f $HOME/.cabal/packages/hackage.haskell.org/00-index.tar.gz ];
+ # - then
+ # -   echo "==== Hackage index file found ===="
+ # -   zcat $HOME/.cabal/packages/hackage.haskell.org/00-index.tar.gz >
+ # -        $HOME/.cabal/packages/hackage.haskell.org/00-index.tar;
+ # - fi
+ - travis_retry cabal update # -v
+ - cd cogent
+ - cabal sandbox init
+ - cabal sandbox add-source ../isa-parser
+ - "sed -i 's/^jobs:.*$/jobs: 2/' $HOME/.cabal/config"
+ # - sed -i 's/^jobs:/ jobs:/' ${HOME}/.cabal/config
+ - |
+   if cabal install --only-dependencies --enable-tests --dry -v > installplan.txt;
+   then
+     sed -i -e '1,/^Resolving /d' installplan.txt;
+     echo "==== Succeeded to generate an install plan. ====";
+     cat installplan.txt;  # Debugging
+   else
+     echo "==== Failed to generate an install plan. ====";
+     cat installplan.txt;  # Display errors
+   fi
+
+# check whether current requested install-plan matches cached package-db snapshot
+ - |
+   if diff -u $HOME/.cabsnap/installplan.txt installplan.txt;
+   then
+     echo "==== cabal build-cache HIT ====";  # so copy cached sandbox (and maybe the config file)
+     rm -rf $SANDBOX
+     cp -a $HOME/.cabsnap/$SANDBOX $REPO/cogent/
+   else
+     echo "==== cabal build-cache MISS ====";
+     rm -rf $HOME/.cabsnap;
+     # mkdir -p $HOME/.ghc $HOME/.cabal/lib $HOME/.cabal/share $HOME/.cabal/bin;
+     cabal install --only-dependencies;  # --enable-tests;
+   fi
+
+# snapshot package-db on cache miss
+ - |
+   if [ ! -d $HOME/.cabsnap ];
+   then
+      echo "==== snapshotting package-db to build-cache ====";
+      mkdir $HOME/.cabsnap;
+      cp installplan.txt $HOME/.cabsnap/.
+      cp -a $SANDBOX $HOME/.cabsnap/
+   fi
+
+# Here starts the actual work to be performed for the package under test;
+# any command which exits with a non-zero exit code causes the build to fail.
 script:
-- ORIGINAL_DIR=$(pwd)
-# - echo 'Configuring Cogent'
-- cd cogent && cabal --ignore-sandbox configure --enable-tests
-# - echo 'Building Cogent'
-- cabal --ignore-sandbox build
-# - echo 'Installing Cogent'
-- cabal --ignore-sandbox install
-# - echo 'Running tests'
-- make test-tc
-- make test-ds
-- make test-an
-- make test-mn
-- make test-cg
-- make test-aq
-# - echo 'Building Cogent examples'
-- make examples
-# - echo 'Generating ext2fs C code from Cogent'
-- cd "$ORIGINAL_DIR"/impl/fs/ext2/cogent && make .c-gen
-# - echo 'Generating BilbyFs C code from Cogent'
-- cd "$ORIGINAL_DIR"/impl/fs/bilby/cogent && make .c-gen
+ - cd $REPO/cogent
+ # - echo 'Configuring Cogent'
+ - cabal configure # --enable-tests  # or -v2 to provide useful information for debugging
+ # - echo 'Installing Cogent'
+ - cabal install # --enable-tests
+ # - cabal build   # this builds all libraries and executables (including tests/benchmarks)
+ # - cabal test  # this rarely changes, so disabled for now to save some time / zilinc
+ # - cabal check
+ # - echo 'Running tests'
+ - make test-tc
+ - make test-ds
+ - make test-an
+ - make test-mn
+ - make test-cg
+ - make test-aq
+ # - echo 'Building Cogent examples'
+ - make examples
+ # - echo 'Generating ext2fs C code from Cogent'
+ - cd $REPO/impl/ext2/cogent && make .c-gen
+ # - echo 'Generating BilbyFs C code from Cogent'
+ - cd $REPO/impl/bilby/cogent && make .c-gen
+
 notifications:
   hipchat:
     rooms:
       secure: BbgWKKsYcSrujfxOS7bHn9oKhTIAOsG0WbTkFybIfcTL3Ma3EhlGRr6Kj2S2f9Qf8SpewEcCBFbCCBqX0lb0vpbopEyRXnlA85k9WsJWC6Xxy/LbPDRXw54OeKnyO3w17FuvvzXIT62eBN1s7HeRDAU4UzLHbehhmmLBN8dn8PeEt4U4bXqHhpIJrFhNDvQY20KJDYzgQFbZPkF36XW3UGYumOE8YYwgwipIchpFmWanhydIKRPd7E4XlT61C+9d3awcxNpmRpx/G3nrxmea4kQDokrbBxrZvc/2xKGYHo+demsLz7d3NQROSeilOkrxZW41Sb4lFzw5yTY82qOfuR3hpZtGXDmKYeJ4xIuX8cGhPEtsO1ZqFqk6uHUjMCu+Q057R+918AeNqyjPcrcFn+kLnhWhcHbIGeJf4JRsC+jNP14M6BBYsjxVeWiTz3TzCUtMSMSh8sMIMCef40V7gUf32sDk/wR8j8cfkjK2BENprzKgqsnxiseDggEHTRKSoysXUiIPYs6+IDQSS178xJXzWy2V8TzLEEPvyuyUzSyVsvjYQ6TeNgkwxhk7Z4XYH0w5x1LCOgV0PWX/g00Wp08zMwv5I7JOUi4PkyzEP2zGPg6GQN9Ar9NRYbFbjBCv8I1XeCpTeFzwBeReNHTWRHh+YVrgmiAADCIsC+3GjfQ=
+
+# EOF
