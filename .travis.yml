@@ -26,24 +26,24 @@ env:
 
 matrix:
   include:
-    - env: CABALVER=1.22 GHCVER=7.10.3
+    - env: GHCVER=7.10.3
       compiler: ": #GHC 7.10.3"
-      addons: {apt: {packages: [cabal-install-1.22,ghc-7.10.3,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
-    - env: CABALVER=1.24 GHCVER=8.0.1
+      addons: {apt: {packages: [ghc-ppa-tools,cabal-install-head,ghc-7.10.3,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
+    - env: GHCVER=8.0.1
       compiler: ": #GHC 8.0.1"
-      addons: {apt: {packages: [cabal-install-1.24,ghc-8.0.1,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
-    - env: CABALVER=1.24 GHCVER=8.0.2
+      addons: {apt: {packages: [ghc-ppa-tools,cabal-install-head,ghc-8.0.1,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
+    - env: GHCVER=8.0.2
       compiler: ": #GHC 8.0.2"
-      addons: {apt: {packages: [cabal-install-1.24,ghc-8.0.2,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
+      addons: {apt: {packages: [ghc-ppa-tools,cabal-install-head,ghc-8.0.2,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
   allow_failures:
-    - env: CABALVER=1.24 GHCVER=8.0.2  # there's some upstream problem right now
+    - env: GHCVER=8.0.2  # there's some upstream problem right now
   fast_finish: true
 
 before_install:
  - unset CC
  - export ALEXVER=3.1.7
  - export HAPPYVER=1.19.5
- - export PATH=~/.cabal/bin:/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:/opt/happy/$HAPPYVER/bin:/opt/alex/$ALEXVER/bin:$REPO/cogent/$SANDBOX/bin:$PATH
+ - export PATH=~/.cabal/bin:/opt/ghc-ppa-tools/bin:/opt/ghc/$GHCVER/bin:/opt/happy/$HAPPYVER/bin:/opt/alex/$ALEXVER/bin:$REPO/cogent/$SANDBOX/bin:$PATH
 
 install:
  - cabal --version
