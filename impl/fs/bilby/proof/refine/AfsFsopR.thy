@@ -36,8 +36,8 @@ that satisfy the relation afs_fsop_sr.
 definition
  obj_inode_type_to_afs_type :: "ObjInode\<^sub>T \<Rightarrow> afs_inode \<Rightarrow> afs_inode_type"
 where
-  "obj_inode_type_to_afs_type i afsinode \<equiv> (if S_ISREG (mode\<^sub>f i) then IReg (i_data afsinode) else
-                (if S_ISDIR (mode\<^sub>f i) then IDir (i_dir afsinode) else
+  "obj_inode_type_to_afs_type i afsinode \<equiv> (if S_ISREG (ObjInode.mode\<^sub>f i) then IReg (i_data afsinode) else
+                (if S_ISDIR (ObjInode.mode\<^sub>f i) then IDir (i_dir afsinode) else
                  ((*if S_ISLNK (mode\<^sub>f i) then *)ILnk (i_path afsinode)(* else
                    undefined*))))" 
 
@@ -48,14 +48,14 @@ where
     (let i = obj_oinode obj in
      \<lparr>i_type = obj_inode_type_to_afs_type i afsinode,
       i_ino = inum_from_obj_id $ ObjInode.id\<^sub>f i,
-      i_nlink = nlink\<^sub>f i,
-      i_size = size\<^sub>f i,
-      i_mtime = mtime_sec\<^sub>f i,
-      i_ctime = ctime_sec\<^sub>f i,
-      i_uid = uid\<^sub>f i,
-      i_gid = gid\<^sub>f i,
-      i_mode = mode\<^sub>f i,
-      i_flags = flags\<^sub>f i\<rparr>)"
+      i_nlink = ObjInode.nlink\<^sub>f i,
+      i_size = ObjInode.size\<^sub>f i,
+      i_mtime = ObjInode.mtime_sec\<^sub>f i,
+      i_ctime = ObjInode.ctime_sec\<^sub>f i,
+      i_uid = ObjInode.uid\<^sub>f i,
+      i_gid = ObjInode.gid\<^sub>f i,
+      i_mode = ObjInode.mode\<^sub>f i,
+      i_flags = ObjInode.flags\<^sub>f i\<rparr>)"
       
 
 text {*
