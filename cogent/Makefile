@@ -1,4 +1,4 @@
-.PHONY: build configure doc install pinstall gen-types
+.PHONY: build configure install doc
 
 ## Silent by default
 V =
@@ -20,83 +20,87 @@ PASS_TEST_COGENT_FILES := $(wildcard tests/pass_*.cogent)
 FAIL_TEST_COGENT_FILES := $(wildcard tests/fail_*.cogent)
 DUMMY_HEADER_FILES := $(addprefix tests/include/,$(notdir $(PASS_TEST_COGENT_FILES:.cogent=_dummy.h)))
 
-all: install
+all: .sandbox .cabal-update .install-deps .configure .install
 	$(E) "Cogent Compiler successfully built for $(OS)."
 	$(E)
 	$(E) "Add 'cogent' compiler to your path by running:"
-	$(E) '  export PATH=$$PATH:$(PWD)/dist/build/cogent'
+	$(E) '  export PATH=$(PWD)/.cabal-sandbox/bin/:$$PATH'
 	$(E)
 	$(E) "To enable bash auto-completion for 'cogent', please add the following to your .bashrc file:"
 	$(E) "source $(PWD)/misc/cogent_autocomplete.sh"
 	$(E)
 	$(E)
 
-install:
-	$(E) "Installing.."
-	$(CABAL) install $(CABALFLAGS)
-
-pinstall: CABALFLAGS += --enable-executable-profiling
-pinstall: setup-config
-	$(CABAL) install $(CABALFLAGS)
-
-isa-parser:
-	cd ../isa-parser && make
 
 stack-build:
 	$(E) "Building Cogent using stack."
 	$(STACK) build
 
-build: setup-config
-	$(E) "Building..."
-	$(CABAL) build
-
-configure: install-deps
-	$(E) "Configuring"
-	$(CABAL) configure
-	$(CABAL) build
-
-sandbox:
-	$(E) "Building in a sandbox"
+.sandbox:
+ifneq ($(wildcard .cabal-sandbox/),)
+	$(E) "Using Existing sandbox..."
+else
+	$(E) "Building in a sandbox..."
 	$(CABAL) sandbox init
 	$(CABAL) sandbox add-source ../isa-parser
+endif
 
-install-deps: sandbox
+.install-deps:
 	$(E) "Installing dependencies"
-	$(CABAL) install --only-dependencies --force-reinstalls
+	$(CABAL) install --only-dependencies
+
+.configure:
+	$(E) "Configuring..."
+	$(CABAL) configure $(CONFIG_FLAGS)
+
+.build:
+	$(E) "Building..."
+	$(CABAL) build $(BUILD_FLAGS)
+
+.install:
+	$(E) "Installing.."
+	$(CABAL) install $(INSTALL_FLAGS)
 
 doc:
-	$(E) "Docs"
+	$(E) "Building Cogent docs..."
+	$(Q) make -C doc
 
 clean:
-	$(E) "Cleaning"
-	$(Q) cabal sandbox delete -v0
-	$(Q) rm -rf .cabal-sandbox/ dist/ ../isa-parser/dist
+	$(Q) $(CABAL) clean
+	$(Q) make -C doc clean
 	$(Q) rm -rf out/
 	$(Q) rm -rf tests/include
 	$(Q) find . -name "*_flymake.hs" -delete
 
-dev: configure
-	$(CABAL) install $(CABALFLAGS)
+full-clean: clean
+	$(Q) $(CABAL) sandbox delete -v0
+	$(Q) rm -rf .cabal-sandbox/ dist/ ../isa-parser/dist
+
+
+dev: .sandbox .cabal-update .install-deps .configure .build
 	$(E) "Cogent Compiler successfully built for $(OS)."
 	$(E)
 	$(E) "Add 'cogent' compiler to your path by running:"
-	$(E) '  export PATH=$$PATH:$(PWD)/.cabal-sandbox/bin/'
+	$(E) '  export PATH=$(PWD)/dist/build/cogent:$$PATH'
+	$(E)
+	$(E) "_Or_ make a symlink to the executable in ~/.cabal/bin by running:"
+	$(E) '  ln -s $(PWD)/dist/build/cogent/cogent $$HOME/.cabal/bin/cogent' 
 	$(E)
 	$(E) "To enable bash auto-completion for 'cogent', please add the following to your .bashrc file:"
 	$(E) "source $(PWD)/misc/cogent_autocomplete.sh"
 	$(E)
 	$(E)
 
-cabal-update:
+.cabal-update:
 	$(CABAL) update
 
 tests/include/%_dummy.h: tests/%.cogent
 	$(Q) egrep "^type +([A-Z][a-zA-Z0-9_']*)( [a-z][a-zA-Z0-9_']*)* *(--.*)?$$" $^ | sed -e "s/type \([A-Z][a-zA-Z0-9_']*\).*$$/typedef void* \1;/" > $@
 
-.gen-types: test-setup $(DUMMY_HEADER_FILES)
+.gen-types: .test-setup $(DUMMY_HEADER_FILES)
 	$(E) "Generated C headers."
 
-test-setup:
+.test-setup:
 	$(Q)mkdir -p tests/include
 
 tests: test-clean .test-cogent test-tc test-ds test-an test-mn test-cg \
@@ -169,26 +173,24 @@ examples-clean:
 	$(E) "=== Build Cogent examples ==="
 	$(SCRIPTS_DIR)/build_examples.sh clean
 
-setup-config: configure
-	$(CABAL) configure $(CABALFLAGS)
-
-pkg:
-	$(CABAL) sdist
 help:
 	$(E) "** Cogent Compiler **"
 	$(E) "Run 'make' to build the Cogent compiler."
 	$(E) ""
+	$(E) "* make"
+	$(E) "  Install Cogent in a cabal-sandbox"
+	$(E) ""
 	$(E) "* make dev"
-	$(E) "  Build and install Cogent in a cabal-sandbox"
+	$(E) "  Build Cogent with a cabal-sandbox"
 	$(E) ""
 	$(E) "* make clean"
 	$(E) "  Cleanup"
 	$(E) ""
+	$(E) "* make full-clean"
+	$(E) "  Cleanup (removes sandbox)."
+	$(E) ""
 	$(E) "* make tests"
 	$(E) "  Run all tests."
-	$(E) ""
-	$(E) "* make pkg"
-	$(E) "  Create a source distribution package."
 	$(E) ""
 	$(E) "* make tests"
 	$(E) "  Run all tests."
@@ -237,6 +239,9 @@ help:
 	$(E) ""
 	$(E) "* make examples-clean"
 	$(E) "  Clean up earlier build of examples."
+	$(E) ""
+	$(E) "* make doc"
+	$(E) "  Build Cogent docs."
 	$(E) ""
 	$(E) "* make help"
 	$(E) "  Print this help."

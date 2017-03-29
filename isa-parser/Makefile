@@ -14,17 +14,20 @@ export E Q
 PWD:=$(shell pwd)
 include $(PWD)/../config.mk
 
-install:
+install: deps
 	$(E) "Installing.."
-	$(CABAL) install $(CABALFLAGS)
+	$(CABAL) install $(INSTALL_FLAGS)
 
-pinstall: CABALFLAGS += --enable-executable-profiling
+pinstall: CONFIG_FLAGS += --enable-executable-profiling
 pinstall: setup-config
-	$(CABAL) install $(CABALFLAGS)
+	$(CABAL) install $(CONFIG_FLAGS)
+
+deps:
+	$(CABAL) install --only-dependencies
 
 build: setup-config
 	$(E) "Building..."
 	$(CABAL) build
 
-setup-config: configure
-	$(CABAL) configure $(CABALFLAGS)
+setup-config:
+	$(CABAL) configure $(CONFIG_FLAGS)
