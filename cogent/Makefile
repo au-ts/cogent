@@ -1,4 +1,4 @@
-.PHONY: build configure doc install gen-types
+.PHONY: build configure install doc
 
 ## Silent by default
 V =
@@ -20,28 +20,23 @@ PASS_TEST_COGENT_FILES := $(wildcard tests/pass_*.cogent)
 FAIL_TEST_COGENT_FILES := $(wildcard tests/fail_*.cogent)
 DUMMY_HEADER_FILES := $(addprefix tests/include/,$(notdir $(PASS_TEST_COGENT_FILES:.cogent=_dummy.h)))
 
-all: install-dev
+all: .sandbox .cabal-update .install-deps .configure .install
+	$(E) "Cogent Compiler successfully built for $(OS)."
+	$(E)
+	$(E) "Add 'cogent' compiler to your path by running:"
+	$(E) '  export PATH=$(PWD)/.cabal-sandbox/bin/:$$PATH'
+	$(E)
+	$(E) "To enable bash auto-completion for 'cogent', please add the following to your .bashrc file:"
+	$(E) "source $(PWD)/misc/cogent_autocomplete.sh"
+	$(E)
+	$(E)
 
-.install:
-	$(E) "Installing.."
-	$(CABAL) install $(INSTALL_FLAGS)
-
-isa-parser:
-	$(Q) make -C ../isa-parser
 
 stack-build:
 	$(E) "Building Cogent using stack."
 	$(STACK) build
 
-build:
-	$(E) "Building..."
-	$(CABAL) build
-
-configure:
-	$(E) "Configuring"
-	$(CABAL) configure
-
-sandbox:
+.sandbox:
 ifneq ($(wildcard .cabal-sandbox/),)
 	$(E) "Using Existing sandbox..."
 else
@@ -54,6 +49,18 @@ endif
 	$(E) "Installing dependencies"
 	$(CABAL) install --only-dependencies
 
+.configure:
+	$(E) "Configuring..."
+	$(CABAL) configure $(CONFIG_FLAGS)
+
+.build:
+	$(E) "Building..."
+	$(CABAL) build $(BUILD_FLAGS)
+
+.install:
+	$(E) "Installing.."
+	$(CABAL) install $(INSTALL_FLAGS)
+
 doc:
 	$(E) "Building Cogent docs..."
 	$(Q) make -C doc
@@ -61,38 +68,39 @@ doc:
 clean:
 	$(Q) $(CABAL) clean
 	$(Q) make -C doc clean
+	$(Q) rm -rf out/
+	$(Q) rm -rf tests/include
 	$(Q) find . -name "*_flymake.hs" -delete
 
 full-clean: clean
 	$(Q) $(CABAL) sandbox delete -v0
 	$(Q) rm -rf .cabal-sandbox/ dist/ ../isa-parser/dist
-	$(Q) rm -rf out/
-	$(Q) rm -rf tests/include
-	$(Q) find . -name "*_flymake.hs" -delete
 
 
-install-dev: sandbox cabal-update .install-deps configure build
-	$(CABAL) install $(INSTALL_FLAGS)
+dev: .sandbox .cabal-update .install-deps .configure .build
 	$(E) "Cogent Compiler successfully built for $(OS)."
 	$(E)
 	$(E) "Add 'cogent' compiler to your path by running:"
-	$(E) '  export PATH=$$PATH:$(PWD)/.cabal-sandbox/bin/'
+	$(E) '  export PATH=$(PWD)/dist/build/cogent:$$PATH'
+	$(E)
+	$(E) "_Or_ make a symlink to the executable in ~/.cabal/bin by running:"
+	$(E) '  ln -s $(PWD)/dist/build/cogent/cogent $$HOME/.cabal/bin/cogent' 
 	$(E)
 	$(E) "To enable bash auto-completion for 'cogent', please add the following to your .bashrc file:"
 	$(E) "source $(PWD)/misc/cogent_autocomplete.sh"
 	$(E)
 	$(E)
 
-cabal-update:
+.cabal-update:
 	$(CABAL) update
 
 tests/include/%_dummy.h: tests/%.cogent
 	$(Q) egrep "^type +([A-Z][a-zA-Z0-9_']*)( [a-z][a-zA-Z0-9_']*)* *(--.*)?$$" $^ | sed -e "s/type \([A-Z][a-zA-Z0-9_']*\).*$$/typedef void* \1;/" > $@
 
-.gen-types: test-setup $(DUMMY_HEADER_FILES)
+.gen-types: .test-setup $(DUMMY_HEADER_FILES)
 	$(E) "Generated C headers."
 
-test-setup:
+.test-setup:
 	$(Q)mkdir -p tests/include
 
 tests: test-clean .test-cogent test-tc test-ds test-an test-mn test-cg \
@@ -165,14 +173,15 @@ examples-clean:
 	$(E) "=== Build Cogent examples ==="
 	$(SCRIPTS_DIR)/build_examples.sh clean
 
-pkg:
-	$(CABAL) sdist
 help:
 	$(E) "** Cogent Compiler **"
 	$(E) "Run 'make' to build the Cogent compiler."
 	$(E) ""
 	$(E) "* make"
-	$(E) "  Build and install Cogent in a cabal-sandbox"
+	$(E) "  Install Cogent in a cabal-sandbox"
+	$(E) ""
+	$(E) "* make dev"
+	$(E) "  Build Cogent with a cabal-sandbox"
 	$(E) ""
 	$(E) "* make clean"
 	$(E) "  Cleanup"
@@ -182,9 +191,6 @@ help:
 	$(E) ""
 	$(E) "* make tests"
 	$(E) "  Run all tests."
-	$(E) ""
-	$(E) "* make pkg"
-	$(E) "  Create a source distribution package."
 	$(E) ""
 	$(E) "* make tests"
 	$(E) "  Run all tests."
