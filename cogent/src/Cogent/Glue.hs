@@ -133,6 +133,7 @@ data CgState = CgState { _cTypeDefs    :: [(CG.StrlType, CG.CId)]
                        , _typeSynonyms :: M.Map TypeName CG.CType
                        , _typeCorres   :: DList.DList (CG.CId, SF.Type 'Zero)
                        , _absTypes     :: M.Map TypeName (S.Set [CG.CId])
+                       , _custTypeGen  :: M.Map (SF.Type 'Zero) (CG.CId, CustTyGenInfo)
                        , _funClasses   :: CG.FunClass
                        , _localOracle  :: Integer  -- FIXME: should be moved to DefnState
                        , _globalOracle :: Integer
@@ -220,6 +221,7 @@ genAnti m a =
                                           , CG._typeSynonyms = view (cgState.typeSynonyms) s
                                           , CG._typeCorres   = view (cgState.typeCorres  ) s
                                           , CG._absTypes     = view (cgState.absTypes    ) s
+                                          , CG._custTypeGen  = view (cgState.custTypeGen ) s
                                           , CG._funClasses   = view (cgState.funClasses  ) s
                                           , CG._localOracle  = view (cgState.localOracle ) s   -- FIXME
                                           , CG._globalOracle = view (cgState.globalOracle) s
@@ -527,6 +529,7 @@ mkGlState tced tcState (Last (Just (typedefs, constdefs, _))) ftypes (funMono, t
                                , _typeSynonyms = view CG.typeSynonyms genState
                                , _typeCorres   = view CG.typeCorres   genState
                                , _absTypes     = view CG.absTypes     genState
+                               , _custTypeGen  = view CG.custTypeGen  genState
                                , _funClasses   = view CG.funClasses   genState
                                , _localOracle  = view CG.localOracle  genState
                                , _globalOracle = view CG.globalOracle genState

@@ -22,7 +22,7 @@ import Cogent.Util (getStdIncFullPath)
 import Control.Applicative hiding (many, (<|>), optional)
 import Data.Monoid (mconcat)
 #endif
-import Control.Arrow (second)
+import Control.Arrow (left, second)
 import Control.Monad
 import Control.Monad.Identity
 import Data.Char
@@ -115,6 +115,7 @@ pattern = avoidInitial >>
 --            | Con
 
 docHunk = do whiteSpace; try (string "@"); x <- manyTill anyChar newline; whiteSpace; return x
+
 monotype = do avoidInitial
               t1 <- typeA1
               t2 <- optionMaybe (reservedOp "->" >> typeA1)
@@ -384,4 +385,19 @@ loadTransitive' r fp paths ro = do
       False -> findPath paths
       True  -> return $ Just p
 
+-- ----------------------------------------------------------------------------
+-- custTyGen
+
+parseCustTyGen :: FilePath -> IO (Either String [(LocType, String)])
+parseCustTyGen = return . left show <=< parseFromFile tygenfile
+
+tygenfile = whiteSpace *> many tygen <* eof
+
+tygen = do
+  p <- getPosition
+  when (sourceColumn p > 1) $ fail "Customised type generation info should start at column 1"
+  cty <- identifier  -- FIXME: not quite the character set for C identifiers / zilinc
+  string "<=="
+  ty <- monotype  -- NOTE: this syntax is because of the `avoidInitial`s in `monotype` function / zilinc
+  return (ty,cty)
 

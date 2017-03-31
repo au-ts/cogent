@@ -99,6 +99,8 @@ data TypeError = NotAPolymorphicFunction VarName RawType
                | DebugFunctionReturnNoUnit FunName
                | DebugFunctionHasToBeApplied FunName SourcePos
                | DebugFunctionCannotTakeLinear FunName RawType
+               | CustTyGenIsSynonym LocType
+               | CustTyGenIsPolymorphic LocType
                | UnhandledError String
                | WarnError Warning
                deriving (Show)
@@ -155,8 +157,9 @@ data TCState = TCState { _knownFuns    :: [(VarName, Polytype RawType)]
 makeLenses ''TCState
 
 tc :: [(SourcePos, TopLevel LocType VarName LocExpr)]
-   -> ((Either (TypeError, [ErrorContext]) [TopLevel RawType TypedName TypedExpr], WarningErrorLog), TCState)
-tc defs = runAllTCs (typecheck defs) initialState
+   -> [(LocType, String)]
+   -> ((Either (TypeError, [ErrorContext]) ([TopLevel RawType TypedName TypedExpr], [(RawType, String)]), WarningErrorLog), TCState)
+tc defs ctygen = runAllTCs ((,) <$> typecheck defs <*> typecheckCustTyGen ctygen) initialState
 
 initialState = TCState [] [] [] [] (("Char", ([], Just $ RT (TCon "U8" [] Unboxed))) : map prim primTypeCons)
   where prim = (,([],Nothing))
@@ -977,3 +980,24 @@ typecheck :: [(SourcePos, TopLevel LocType VarName LocExpr)] -> TC [TopLevel Raw
 typecheck [] = return []
 typecheck ((p,x):xs) = (:) <$> inEContext (InDefinition p x) (typecheck' x) <*> typecheck xs
 
+-- ----------------------------------------------------------------------------
+-- custTyGen
+
+typecheckCustTyGen :: [(LocType, String)] -> TC [(RawType, String)]
+typecheckCustTyGen = mapM $ firstM $ \t ->
+  if not (isMonoType t)
+    then typeError (CustTyGenIsPolymorphic t)
+    else isSynonym t >>= \case
+           True -> typeError (CustTyGenIsSynonym t)
+           _    -> validateType t
+
+isMonoType :: LocType -> Bool
+isMonoType (LocType _ (TVar {})) = False
+isMonoType (LocType _ t) = getAll $ foldMap (All . isMonoType) t
+
+isSynonym :: LocType -> TC Bool
+isSynonym (LocType _ (TCon c _ _)) = lookup c <$> use knownTypes >>= \case
+  Nothing -> __impossible "isSynonym"
+  Just (vs,Just _ ) -> return True
+  Just (vs,Nothing) -> return False
+isSynonym (LocType _ t) = foldM (\b a -> (b ||) <$> isSynonym a) False t

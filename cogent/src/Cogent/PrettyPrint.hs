@@ -402,6 +402,8 @@ instance Pretty TypeError where
   pretty (DebugFunctionReturnNoUnit fn) = err "Debugging function" <+> funname fn <+> err "must return unit type"
   pretty (DebugFunctionHasToBeApplied fn p) = err "Debugging function" <+> funname fn <+> err "has to be fully applied"
   pretty (DebugFunctionCannotTakeLinear fn t) = err "Debugging function" <+> funname fn <+> err "cannot take linear argument"
+  pretty (CustTyGenIsSynonym t) = err "Type synonyms have to be fully expanded in --cust-ty-gen file:" <$> indent' (pretty t)
+  pretty (CustTyGenIsPolymorphic t) = err "Polymorphic types are not allowed in --cust-ty-gen file:" <$> indent' (pretty t)
   pretty (WarnError w) = pretty w
 
 instance Pretty Warning where

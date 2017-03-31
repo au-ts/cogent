@@ -344,12 +344,13 @@ p2 = "p2"
 type FunClass  = M.Map StrlType (S.Set (FunName, Attr))  -- c_strl_type |-> funnames
 type VarPool   = M.Map CType [CId]  -- vars available (ty_id |-> [var_id])
 type GenRead v = Vec v CExpr
+
 data GenState  = GenState { _cTypeDefs    :: [(StrlType, CId)]
                           , _cTypeDefMap  :: M.Map StrlType CId
                           , _typeSynonyms :: M.Map TypeName CType
-                            -- C type names corresponding to Cogent types
-                          , _typeCorres   :: DList.DList (CId, SF.Type 'Zero)
+                          , _typeCorres   :: DList.DList (CId, SF.Type 'Zero)  -- C type names corresponding to Cogent types
                           , _absTypes     :: M.Map TypeName (S.Set [CId])
+                          , _custTypeGen  :: M.Map (SF.Type 'Zero) (CId, CustTyGenInfo)
                           , _funClasses   :: FunClass
                           , _localOracle  :: Integer
                           , _globalOracle :: Integer
@@ -526,9 +527,13 @@ lookupTypeCId t = Just <$> typeCId t
 -- XXX | typeCIdUsage t = return $ First Nothing  -- base types
 
 typeCId :: SF.Type 'Zero -> Gen v CId
-typeCId t = (if __cogent_fflatten_nestings then typeCIdFlat else typeCId') t >>= \n ->
-            when (isUnstable t) (typeCorres %= DList.cons (toCName n, t)) >>
-            return n
+typeCId t = use custTypeGen >>= \ctg ->
+            case M.lookup t ctg of
+              Just (n,_) -> return n
+              Nothing -> 
+                (if __cogent_fflatten_nestings then typeCIdFlat else typeCId') t >>= \n ->
+                when (isUnstable t) (typeCorres %= DList.cons (toCName n, t)) >>
+                return n
   where
     typeCId' :: SF.Type 'Zero -> Gen v CId
     typeCId' (TVar     {}) = __impossible "typeCId' (in typeCId)"
@@ -1049,7 +1054,7 @@ genDefinition (TypeDef tn ins (Just (unsafeCoerce -> ty :: SF.Type 'Zero)))
   -- NOTE: If the RHS of this (the structural definition) is used at all, we generate the synonym / zilinc (26/08/15)
   | not (isTFun ty) = lookupTypeCId ty >>= mapM_ (const $ genRealSyn ty tn) >> return []
   where
-    -- This function generates type synonyms to datatype, not to pointer
+    -- This function generates a type synonym to a datatype, not to a pointer
     genRealSyn :: SF.Type 'Zero -> TypeName -> Gen v ()
     genRealSyn ty n = typeCId ty >>= \t -> typeSynonyms %= M.insert n (CIdent t)
 genDefinition _ = return []
@@ -1079,9 +1084,13 @@ printATM = L.concat . L.map (\(tn,S.toList -> ls) -> tn ++ "\n" ++
 -- ----------------------------------------------------------------------------
 
 -- Returns a tuple (.h file, .c file, abstract types and their c names, table-c-type, state for Glue)
-gen :: FilePath -> [Definition TypedExpr VarName] -> M.Map FunName (M.Map Instance Int) -> String
+gen :: FilePath
+    -> [Definition TypedExpr VarName]
+    -> [(Type 'Zero, String)]
+    -> M.Map FunName (M.Map Instance Int)
+    -> String
     -> ([C.Definition], [C.Definition], [(TypeName, S.Set [CId])], [TableCTypes], GenState)
-gen hfn defs insts log =
+gen hfn defs ctygen insts log =
   let (tdefs, fdefs) = L.partition isTypeDef defs
       (extDecls, st, ()) = runRWS (runGen $
         concat <$> mapM genDefinition (fdefs ++ tdefs)  -- `fdefs' will collect the types that are used in the program, and `tdefs' can generate synonyms
@@ -1090,6 +1099,7 @@ gen hfn defs insts log =
                         , _typeSynonyms = M.empty
                         , _typeCorres   = DList.empty
                         , _absTypes     = M.empty
+                        , _custTypeGen  = M.fromList $ P.map (second $ (,CTGI)) ctygen
                         , _funClasses   = M.empty
                         , _localOracle  = 0
                         , _globalOracle = 0

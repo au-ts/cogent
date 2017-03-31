@@ -41,7 +41,7 @@ import Cogent.Mono          as MN (mono, printAFM)
 import Cogent.MonoProof     as MP  -- FIXME: zilinc
 import Cogent.Normal        as NF (normal, verifyNormal)
 import Cogent.NormalProof   as NP (normalProof)
-import Cogent.Parser        as PA (parseWithIncludes)
+import Cogent.Parser        as PA (parseWithIncludes, parseCustTyGen)
 import Cogent.Preprocess    as PR
 import Cogent.PrettyCore          ()  -- imports instances of Pretty
 import Cogent.PrettyPrint   as PP (prettyPrint, prettyTWE, prettyRE)
@@ -71,7 +71,7 @@ import Control.Monad (forM, forM_, unless, when)
 import Control.Monad.Trans.Either (eitherT, runEitherT)
 import Data.Char (isSpace)
 import Data.Either (lefts)
-import Data.Foldable (foldrM)
+import Data.Foldable (fold, foldrM)
 import Data.List as L (find, isPrefixOf, nub)
 import Data.List.Utils (replace)
 import Data.Map (empty, fromList)
@@ -383,7 +383,8 @@ flags =
   , Option []         ["dist-dir"]        1 (ReqArg set_flag_distDir "PATH")               "specify path to all output files (default=./)"
   , Option []         ["fake-header-dir"] 1 (ReqArg set_flag_fakeHeaderDir "PATH")         "specify path to fake c header files"
   , Option []         ["root-dir"]        1 (ReqArg set_flag_rootDir "PATH")               "specify path to top-level directory (for imports in theory files only, default=./)"
-  -- I/O files
+  -- config and other output files
+  , Option []         ["cust-ty-gen"]    1 (ReqArg set_flag_custTyGen "FILE")              "config file to customise type generation"
   , Option []         ["entry-funcs"]    1 (ReqArg set_flag_entryFuncs "FILE")             "give a list of Cogent functions that are only called from outside"
   , Option []         ["ext-types"]      1 (ReqArg set_flag_extTypes "FILE")               "give external type names to C parser"
   , Option []         ["infer-c-funcs"]  1 (ReqArg (set_flag_inferCFunc . words) "FILE..") "infer Cogent abstract function definitions"
@@ -551,28 +552,33 @@ parseArgs args = case getOpt' Permute options args of
                                 when (Pretty stg `elem` cmds) $ genPretty stg (map (stripAllLoc . thd3) reorged)
                                 when (Documentation `elem` cmds) $ DG.docGent reorged
                                 let noDocs (a,_,c) = (a,c)
-                                when (Compile (succ stg) `elem` cmds) $ typecheck cmds (map noDocs reorged) source pragmas buildinfo log
+                                when (Compile (succ stg) `elem` cmds) $ do
+                                  ctygen <- mapM parseCustTyGen __cogent_cust_ty_gen
+                                  case sequence ctygen of
+                                    Left err -> hPutStrLn stderr err >> exitFailure
+                                    Right ctygen' -> typecheck cmds (map noDocs reorged) (fold ctygen') source pragmas buildinfo log
                                 exitSuccessWithBuildInfo cmds buildinfo
 
-    typecheck cmds reorged source pragmas buildinfo log = do
+    typecheck cmds reorged ctygen source pragmas buildinfo log = do
       let stg = STGTypeCheck
       putProgressLn "Typechecking..."
-      let ((err,we),tcst) = TC.tc reorged
+      let ((err,we),tcst) = TC.tc reorged ctygen
       when (not $ null we) $ printError (prettyTWE __cogent_ftc_ctx_len) ((if __cogent_freverse_tc_errors then reverse else id) we)
       let errs = map fst we
       case null $ lefts errs of  -- NOTE: can not use `case we of Left _ -> .. ; Right _ -> ..' because of `bracketTE'
         False -> when (failDueToWerror errs) (hPutStrLn stderr "Failing due to --Werror.") >> exitFailure
         True -> case err of
           Left _ -> __impossible "typecheck"
-          Right tced -> do when (Ast stg `elem` cmds) $ genAst stg tced
-                           -- TODO: Pretty stg ?? / zilinc
-                           when (Compile (succ stg) `elem` cmds) $ desugar cmds tced tcst source (map pragmaOfLP pragmas) buildinfo log
-                           exitSuccessWithBuildInfo cmds buildinfo
+          Right (tced,ctygen') -> do 
+            when (Ast stg `elem` cmds) $ genAst stg tced
+            -- TODO: Pretty stg ?? / zilinc
+            when (Compile (succ stg) `elem` cmds) $ desugar cmds tced ctygen' tcst source (map pragmaOfLP pragmas) buildinfo log
+            exitSuccessWithBuildInfo cmds buildinfo
 
-    desugar cmds tced tcst source pragmas buildinfo log = do
+    desugar cmds tced ctygen tcst source pragmas buildinfo log = do
       let stg = STGDesugar
       putProgressLn "Desugaring and typing..."
-      let (desugared, typedefs) = DS.desugar tced pragmas
+      let ((desugared,ctygen'),typedefs) = DS.desugar tced ctygen pragmas
       case SF.tc desugared of
         Left err -> hPutStrLn stderr ("Internal TC failed: " ++ err) >> exitFailure
         Right (desugared',fts) -> do
@@ -586,16 +592,16 @@ parseArgs args = case getOpt' Permute options args of
                                                                        ShallowConstsTuples `elem` cmds,
                                                                        ShallowTuplesProof `elem` cmds)
           when (TableShallow `elem` cmds) $ putProgressLn ("Generating shallow table...") >> putStrLn (printTable $ st desugared')
-          when (Compile (succ stg) `elem` cmds) $ normal cmds desugared' source tced tcst typedefs fts buildinfo log
+          when (Compile (succ stg) `elem` cmds) $ normal cmds desugared' ctygen' source tced tcst typedefs fts buildinfo log
           exitSuccessWithBuildInfo cmds buildinfo
 
-    normal cmds desugared' source tced tcst typedefs fts buildinfo log = do
+    normal cmds desugared ctygen source tced tcst typedefs fts buildinfo log = do
       let stg = STGNormal
       putProgress "Normalising..."
       nfed' <- case __cogent_fnormalisation of
-        NoNF -> putProgressLn "Skipped" >> return desugared'
+        NoNF -> putProgressLn "Skipped" >> return desugared
         nf -> do putProgressLn (show nf)
-                 let nfed = NF.normal $ map untypeD desugared'
+                 let nfed = NF.normal $ map untypeD desugared
                  if not $ verifyNormal nfed
                    then hPutStrLn stderr "Normalisation failed!" >> exitFailure
                    else do putProgressLn "Re-typing NF..."
@@ -621,36 +627,36 @@ parseArgs args = case getOpt' Permute options args of
         let npfile = mkThyFileName source __cogent_suffix_of_normal_proof
         writeFileMsg npfile
         output npfile $ flip LJ.hPutDoc $ normalProof thy shallowTypeNames nfed' log
-      when (Compile (succ stg) `elem` cmds) $ simpl cmds nfed' source tced tcst typedefs fts buildinfo log
+      when (Compile (succ stg) `elem` cmds) $ simpl cmds nfed' ctygen source tced tcst typedefs fts buildinfo log
       exitSuccessWithBuildInfo cmds buildinfo
 
-    simpl cmds nfed' source tced tcst typedefs fts buildinfo log = do
+    simpl cmds nfed ctygen source tced tcst typedefs fts buildinfo log = do
       let stg = STGSimplify
       putProgressLn "Simplifying..."
       simpled' <- case __cogent_fsimplifier of
-        False -> putProgressLn "Skipped" >> return nfed'
+        False -> putProgressLn "Skipped" >> return nfed
         True  -> do putProgressLn ""
-                    let simpled = map untypeD $ SM.simplify nfed'
+                    let simpled = map untypeD $ SM.simplify nfed
                     putProgressLn "Re-typing simplified AST..."
                     case SF.tc_ simpled of
                       Left err -> hPutStrLn stderr ("Re-typing simplified AST failed: " ++ err) >> exitFailure
                       Right simpled' -> return simpled'
       when (Ast stg `elem` cmds) $ genAst stg simpled'
       when (Pretty stg `elem` cmds) $ genPretty stg simpled'
-      when (Compile (succ stg) `elem` cmds) $ mono cmds simpled' source tced tcst typedefs fts buildinfo log
+      when (Compile (succ stg) `elem` cmds) $ mono cmds simpled' ctygen source tced tcst typedefs fts buildinfo log
       exitSuccessWithBuildInfo cmds buildinfo
 
-    mono cmds simpled' source tced tcst typedefs fts buildinfo log = do
+    mono cmds simpled ctygen source tced tcst typedefs fts buildinfo log = do
       let stg = STGMono
       putProgressLn "Monomorphising..."
       entryFuncs <- T.forM __cogent_entry_funcs $
                       liftA ((,empty) . fromList . flip zip (repeat empty) . parseEntryFuncs) . readFile
-      let (insts,(warnings,monoed)) = MN.mono simpled' entryFuncs
+      let (insts,(warnings,monoed,ctygen')) = MN.mono simpled ctygen entryFuncs
       when (TableAbsFuncMono `elem` cmds) $ do
         let afmfile = mkFileName source Nothing __cogent_ext_of_afm
         putProgressLn "Generating table for monomorphised abstract functions..."
         writeFileMsg afmfile
-        output afmfile $ flip hPutStrLn (printAFM (fst insts) simpled')
+        output afmfile $ flip hPutStrLn (printAFM (fst insts) simpled)
       putProgressLn "Re-typing monomorphic AST..."
       case retype monoed of
         Left err -> hPutStrLn stderr ("Re-typing monomorphic AST failed: " ++ err) >> exitFailure
@@ -663,7 +669,7 @@ parseArgs args = case getOpt' Permute options args of
                                                                     SCorres stg `elem` cmds,
                                                                     ShallowConsts stg `elem` cmds,
                                                                     False, False, False)
-          when (Compile (succ stg) `elem` cmds) $ cg cmds monoed' insts source tced tcst typedefs fts buildinfo log
+          when (Compile (succ stg) `elem` cmds) $ cg cmds monoed' ctygen' insts source tced tcst typedefs fts buildinfo log
           c_refinement source monoed' insts log (ACInstall `elem` cmds, CorresSetup `elem` cmds, CorresProof `elem` cmds)
           when (MonoProof `elem` cmds) $ do
             let mpfile = mkThyFileName source __cogent_suffix_of_mono_proof
@@ -685,9 +691,9 @@ parseArgs args = case getOpt' Permute options args of
           when (GraphGen `elem` cmds) $ putProgressLn ("Generating graph...") >> graphGen monoed' log
           exitSuccessWithBuildInfo cmds buildinfo
 
-    cg cmds monoed' insts source tced tcst typedefs fts buildinfo log = do
+    cg cmds monoed ctygen insts source tced tcst typedefs fts buildinfo log = do
       let hfile = mkOutputName source Nothing <.> __cogent_ext_of_h
-          (h,c,atm,ct,genst) = gen hfile monoed' (fst insts) log
+          (h,c,atm,ct,genst) = gen hfile monoed ctygen (fst insts) log
       when (TableAbsTypeMono `elem` cmds) $ do
         let atmfile = mkFileName source Nothing __cogent_ext_of_atm
         putProgressLn "Generating table for monomorphised asbtract types..."
@@ -706,11 +712,12 @@ parseArgs args = case getOpt' Permute options args of
         output hf $ flip M.hPutDoc (ppr h </> M.line)       -- .h file gen
         writeFileMsg cf
         output cf $ flip M.hPutDoc (ppr c </> M.line)       -- .c file gen
-        unless (null $ __cogent_infer_c_func_files ++ __cogent_infer_c_type_files) $ glue cmds tced tcst typedefs fts insts genst buildinfo log
+        unless (null $ __cogent_infer_c_func_files ++ __cogent_infer_c_type_files) $
+          glue cmds tced tcst typedefs fts insts genst buildinfo log
 
-    c_refinement source monoed' insts log (False,False,False) = return ()
-    c_refinement source monoed' insts log (ac,cs,cp) = do
-      let confns = map getDefinitionId $ filter isConFun monoed'
+    c_refinement source monoed insts log (False,False,False) = return ()
+    c_refinement source monoed insts log (ac,cs,cp) = do
+      let confns = map getDefinitionId $ filter isConFun monoed
           acfile = mkThyFileName source __cogent_suffix_of_ac_install
           csfile = mkThyFileName source __cogent_suffix_of_corres_setup
           cpfile = mkThyFileName source __cogent_suffix_of_corres_proof
