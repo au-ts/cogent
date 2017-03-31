@@ -144,6 +144,10 @@ test-ac: .gen-types test-gcc
 	$(E) "=== Isabelle (AutoCorres) test ==="
 	$(SCRIPTS_DIR)/cogent_validate.sh -ac
 
+test-ffi-gen: .gen-types
+	$(E) "=== FFI-generator Tests ==="
+	$(SCRIPTS_DIR)/cogent_validate.sh -ffi-gen
+
 test-aq: .gen-types
 	$(E) "=== Anti-quotation Tests ==="
 	$(SCRIPTS_DIR)/cogent_validate.sh -aq
@@ -218,6 +222,9 @@ help:
 	$(E) ""
 	$(E) "* make test-ac"
 	$(E) "  Run Isabelle (AutoCorres) test."
+	$(E) ""
+	$(E) "* make test-ffi-gen"
+	$(E) "  Run FFI-generator Tests."
 	$(E) ""
 	$(E) "* make test-aq"
 	$(E) "  Run Anti-Quotation Tests."

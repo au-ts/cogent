@@ -18,7 +18,7 @@ TLD=../../
 
 source $TLD/build-env.sh || exit
 
-USAGE="Usage: $0 -[tc|ds|an|mn|cg|gcc|tc-proof|ac|aq|shallow-proof|goanna|all|clean] [-q|-i|]"
+USAGE="Usage: $0 -[tc|ds|an|mn|cg|gcc|tc-proof|ac|ffi-gen|aq|shallow-proof|goanna|all|clean] [-q|-i|]"
 getopt -T >/dev/null
 if [[ $? != 4 ]]
 then
@@ -26,7 +26,7 @@ then
   exit 1
 fi
 
-OPTS=$(getopt -o h --alternative --long tc,ds,an,mn,cg,gcc,tc-proof,ac,aq,shallow-proof,goanna,ee,all,help,clean,q,i -n "$0" -- "$@")
+OPTS=$(getopt -o h --alternative --long tc,ds,an,mn,cg,gcc,tc-proof,ac,ffi-gen,aq,shallow-proof,goanna,ee,all,help,clean,q,i -n "$0" -- "$@")
 if [ $? != 0 ]
 then echo "$USAGE" >&2
      exit 1
@@ -51,6 +51,7 @@ while true; do
         echo '  -gcc     Compile generated code using GCC'
         echo '  -tc-proof  Test proof generation for type checking'
         echo '  -ac      Read generated code using Isabelle'
+        echo '  -ffi-gen Test FFI-generator'
         echo '  -aq      Test antiquotation'
         echo '  -shallow-proof Test shallow-emdedding proofs'
         echo '  -goanna  Check generated code using Goanna (dependency: Goanna)'
@@ -65,7 +66,7 @@ while true; do
     --q) QUIET=1; shift;;
     --i) INTERACTIVE=1; shift;;
     --clean) DO_CLEAN=1; shift;;
-    --all) TESTSPEC='--tc--ds--an--mn--aq--cg--gcc--tc-proof--ac--shallow-proof--goanna--ee'; shift;;
+    --all) TESTSPEC='--tc--ds--an--mn--aq--cg--gcc--tc-proof--ffi-gen--ac--shallow-proof--goanna--ee'; shift;;
     *) TESTSPEC="${TESTSPEC}$1"; shift;;
   esac
 done
@@ -515,6 +516,28 @@ if [[ "$TESTSPEC" =~ '--ee--' ]]; then
   fi
 fi
 
+
+if [[ "$TESTSPEC" =~ '--ffi-gen--' ]]; then
+  echo '=== FFI-generator ==='
+  all_total+=1
+  passed=0
+  total=0
+
+  for dir in "$TESTS"/pass_ffi-gen-*
+  do
+    echo -n "$dir: "
+    total+=1
+    if (cd "$dir" && check_output sh BUILD)
+    then passed+=1; echo "$pass_msg"
+    else echo "$fail_msg"
+    fi
+  done
+
+  echo "Passed $passed out of $total."
+  if [[ $passed -eq $total ]]
+  then all_passed+=1
+  fi
+fi
 
 
 if [[ "$TESTSPEC" =~ '--aq--' ]]; then
