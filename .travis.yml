@@ -106,6 +106,7 @@ script:
  # - cabal build   # this builds all libraries and executables (including tests/benchmarks)
  # - cabal test  # this rarely changes, so disabled for now to save some time / zilinc
  # - cabal check
+ - pwd
  - find . -name cogent
  # - echo 'Running tests'
  - make test-tc
