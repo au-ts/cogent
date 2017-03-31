@@ -23,7 +23,8 @@ L4V_DIR:=$(shell source "$(BUILD_ENV_MK_DIR)"/build-env.sh; echo "$$L4V_DIR")
 ISABELLE:=$(shell source "$(BUILD_ENV_MK_DIR)"/build-env.sh; echo "$$ISABELLE")
 ISABELLE_BUILD:=$(shell source "$(BUILD_ENV_MK_DIR)"/build-env.sh; echo "$$ISABELLE_BUILD")
 
-export PATH:=$(shell source "$(BUILD_ENV_MK_DIR)"/build-env.sh; echo "$$PATH")
+PATH:=$(shell source "$(BUILD_ENV_MK_DIR)"/build-env.sh; echo "$$PATH")
+COGENT_STD_GUM_DIR:=$(shell source "$(BUILD_ENV_MK_DIR)"/build-env.sh; echo "$$COGENT_STD_GUM_DIR")
 
 # Silent by default
 V =
@@ -34,4 +35,3 @@ else
         E = @\#
         Q =
 endif
-export E Q

@@ -19,12 +19,11 @@ endif
 
 OUTPUT=generated
 SRC=src/fsop.cogent
-TYPES=data/types.txt
 DEFNS=data/defns.txt
 PROOF_ID=BilbyFs
 
 # Standard Gum Directory
-STDGUM=$(shell cogent --stdgum-dir)
+STDGUM=$(COGENT_STD_GUM_DIR)
 # ADT headers required by BilbyFs
 AHFILES=$(wildcard $(STDGUM)/gum/anti/abstract/*.ah)
 # ADT C files required by BilbyFs
@@ -39,6 +38,8 @@ LINUX_ACFILES=$(addprefix $(STDGUM)/gum/anti/, \
 		plat/linux/wrapper.ac
 # ADT C files required by verification
 VERIF_ACFILES=plat/verification/wrapper.ac
+LINUX_TYPES=plat/linux/data/types.txt
+VERIF_TYPES=plat/verification/data/types.txt
 
 ifndef KERNELDIR
 KERNELDIR:= /lib/modules/$(shell uname -r)/build
@@ -64,7 +65,6 @@ COGENT_FLAGS+= -Od --fno-static-inline --fno-fncall-as-macro --fnormalisation=kn
 override COGENT_FLAGS+= -o$(OUTPUT) \
 			--root-dir=$(ROOT_DIR) \
 			--entry-funcs=$(DEFNS) \
-			--ext-types=$(TYPES) \
 			--infer-c-types="$(AHFILES)" \
 			--abs-type-dir=$(PWD)
 
@@ -130,13 +130,15 @@ all: .c-gen $(OBJ)
 	$(Q)cogent $(SRC) -g $(COGENT_FLAGS) \
                 --cpp-args="-std=c99 \$$CPPIN -o \$$CPPOUT -E -P $(EXTRA_CFLAGS)" \
                 --dist-dir=$(DIST_DIR) \
-                --infer-c-funcs="$(ACFILES)"
+                --infer-c-funcs="$(ACFILES)" \
+								--ext-types="$(LINUX_TYPES)"
 
 .verif-gen:
 	$(Q)cogent $(SRC) -A $(COGENT_FLAGS) \
                 --cpp-args="-std=c99 \$$CPPIN -o \$$CPPOUT -E -P $(EXTRA_CFLAGS)" \
                 --dist-dir=$(DIST_DIR) \
                 --infer-c-funcs="$(ACFILES)" \
+								--ext-types="$(VERIF_TYPES)" \
                 --proof-name=$(PROOF_ID) \
                 --proof-input-c="wrapper_pp_inferred.c"
 
