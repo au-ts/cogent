@@ -10,6 +10,6 @@
   -->
 
 <testsuite>
-    <test timeout="3600" name="cogent_corres" depends="cogent_compiler">source ../build-env.sh &amp;&amp; $ISABELLE_BUILD -d ../cogent/isa -d tests CogentTests</test>
-    <test timeout="3600" name="cogent_corres_E2E" depends="cogent_corres">source ../build-env.sh &amp;&amp; cogent --dist-dir=tests/middle-e2e -A tests/pass_middle-size-example.cogent --root-dir=.. --output-name=generated --proof-name=Middle --fake-header-dir=../cogent/lib &amp;&amp; $ISABELLE_BUILD -d ../cogent/isa -D tests/middle-e2e</test>
+    <test timeout="3600" name="cogent_corres" depends="cogent_compiler">source ../build-env.sh &amp;&amp; $ISABELLE_BUILD -d "$L4V_DIR" -d ../cogent/isa -d tests CogentTests</test>
+    <test timeout="3600" name="cogent_corres_E2E" depends="cogent_corres">source ../build-env.sh &amp;&amp; cogent --dist-dir=tests/middle-e2e -A tests/pass_middle-size-example.cogent --root-dir=.. --output-name=generated --proof-name=Middle --fake-header-dir=../cogent/lib &amp;&amp; $ISABELLE_BUILD -d "$L4V_DIR" -d ../cogent/isa -D tests/middle-e2e</test>
 </testsuite>

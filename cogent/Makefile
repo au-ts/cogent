@@ -66,13 +66,13 @@ doc:
 	$(Q) make -C doc
 
 clean:
-	$(Q) $(CABAL) clean
 	$(Q) make -C doc clean
 	$(Q) rm -rf out/
 	$(Q) rm -rf tests/include
 	$(Q) find . -name "*_flymake.hs" -delete
 
 full-clean: clean
+	$(Q) $(CABAL) clean
 	$(Q) $(CABAL) sandbox delete -v0
 	$(Q) rm -rf .cabal-sandbox/ dist/ ../isa-parser/dist
 
@@ -140,7 +140,7 @@ test-tc-proof: .gen-types
 	$(E) "=== Proof Generation For Type Checking Tests ==="
 	$(SCRIPTS_DIR)/cogent_validate.sh -tc-proof
 
-test-ac: .gen-types test-gcc
+test-ac: .gen-types
 	$(E) "=== Isabelle (AutoCorres) test ==="
 	$(SCRIPTS_DIR)/cogent_validate.sh -ac
 
@@ -165,9 +165,13 @@ test-ee: .gen-types
 	$(E) "=== End-to-End Proofs Tests ==="
 	$(SCRIPTS_DIR)/cogent_validate.sh -ee
 
-test-gcc: .gen-types test-cg
+test-gcc: .gen-types
 	$(E) "=== Compile generated code using GCC ==="
 	$(SCRIPTS_DIR)/cogent_validate.sh -gcc
+
+test-libgum:
+	$(E) "=== Typechecking libgum ==="
+	$(SCRIPTS_DIR)/cogent_validate.sh -libgum
 
 examples: .test-cogent
 	$(E) "=== Build Cogent examples ==="
@@ -203,25 +207,25 @@ help:
 	$(E) "  Cleanup artefacts from earlier test runs."
 	$(E) ""
 	$(E) "* make test-tc"
-	$(E) "  Run Type-Checking Tests."
+	$(E) "  Run Typechecking Tests."
 	$(E) ""
 	$(E) "* make test-ds"
-	$(E) "  Run De-sugaring Tests."
+	$(E) "  Run Desugaring Tests."
 	$(E) ""
 	$(E) "* make test-an"
-	$(E) "  Run A-Normal Transform Tests."
+	$(E) "  Run A-Normalisation Tests."
 	$(E) ""
 	$(E) "* make test-mn"
-	$(E) "  Run Monomorphization Tests."
+	$(E) "  Run Monomorphisation Tests."
 	$(E) ""
 	$(E) "* make test-cg"
 	$(E) "  Run Code Generation Tests."
 	$(E) ""
 	$(E) "* make test-tc-proof"
-	$(E) "  Run Proof Generation For Type-Checking Tests."
+	$(E) "  Run Typechecking Proof Generation Tests."
 	$(E) ""
 	$(E) "* make test-ac"
-	$(E) "  Run Isabelle (AutoCorres) test."
+	$(E) "  Run AutoCorres test."
 	$(E) ""
 	$(E) "* make test-ffi-gen"
 	$(E) "  Run FFI-generator Tests."
@@ -230,7 +234,7 @@ help:
 	$(E) "  Run Anti-Quotation Tests."
 	$(E) ""
 	$(E) "* make test-shallow-proof"
-	$(E) "  Run Anti-Shallow-embedding Proofs Tests."
+	$(E) "  Run Shallow Embedding Proofs Tests."
 	$(E) ""
 	$(E) "* make test-goanna"
 	$(E) "  Run Goanna Test [Currently Not Supported]."
@@ -240,6 +244,9 @@ help:
 	$(E) ""
 	$(E) "* make test-gcc"
 	$(E) "  Compile generated code using GCC."
+	$(E) ""
+	$(E) "* make test-libgum"
+	$(E) "  Run libgum Typechecking Tests."
 	$(E) ""
 	$(E) "* make examples"
 	$(E) "  Compile Cogent examples."

@@ -18,7 +18,7 @@ TLD=../../
 
 source $TLD/build-env.sh || exit
 
-USAGE="Usage: $0 -[tc|ds|an|mn|cg|gcc|tc-proof|ac|ffi-gen|aq|shallow-proof|goanna|all|clean] [-q|-i|]"
+USAGE="Usage: $0 -[tc|ds|an|mn|cg|gcc|tc-proof|ac|ffi-gen|aq|shallow-proof|goanna|libgum|all|clean] [-q|-i|]"
 getopt -T >/dev/null
 if [[ $? != 4 ]]
 then
@@ -26,7 +26,7 @@ then
   exit 1
 fi
 
-OPTS=$(getopt -o h --alternative --long tc,ds,an,mn,cg,gcc,tc-proof,ac,ffi-gen,aq,shallow-proof,goanna,ee,all,help,clean,q,i -n "$0" -- "$@")
+OPTS=$(getopt -o h --alternative --long tc,ds,an,mn,cg,gcc,tc-proof,ac,ffi-gen,aq,shallow-proof,goanna,ee,libgum,all,help,clean,q,i -n "$0" -- "$@")
 if [ $? != 0 ]
 then echo "$USAGE" >&2
      exit 1
@@ -56,6 +56,7 @@ while true; do
         echo '  -shallow-proof Test shallow-emdedding proofs'
         echo '  -goanna  Check generated code using Goanna (dependency: Goanna)'
         echo '  -ee      Test end-to-end proof'
+        echo '  -libgum  Test shared library'
         echo
         echo '  -all     Run all tests'
         echo '  -clean   Delete generated files'
@@ -66,7 +67,7 @@ while true; do
     --q) QUIET=1; shift;;
     --i) INTERACTIVE=1; shift;;
     --clean) DO_CLEAN=1; shift;;
-    --all) TESTSPEC='--tc--ds--an--mn--aq--cg--gcc--tc-proof--ffi-gen--ac--shallow-proof--goanna--ee'; shift;;
+    --all) TESTSPEC='--tc--ds--an--mn--aq--cg--gcc--tc-proof--ffi-gen--ac--shallow-proof--goanna--ee--libgum'; shift;;
     *) TESTSPEC="${TESTSPEC}$1"; shift;;
   esac
 done
@@ -326,7 +327,7 @@ if [[ "$TESTSPEC" =~ '--cg--' ]]; then
     then echo "rm -r $COUT"
          rm -r "$COUT"
   fi
-  mkdir -p "$COUT" || exit
+  mkdir -p "$COUT" || exit  # code-gen will keep `out' directory
   for source in "$TESTS"/pass_*.cogent
   do
     echo -n "$source: "
@@ -448,12 +449,13 @@ if [[ "$TESTSPEC" =~ '--ac--' ]]; then
     then echo "${bldred}Error:${txtrst} could not find Isabelle program (check \"$ISABELLE_TOOLDIR\")."
   else
     for source in "$TESTS"/pass_*.cogent
-    do echo -n "${source}: "
+    do echo "${source}: "
        cfile=$(basename $source .cogent).c
        total+=1
        cogent --c-refinement --proof-input-c="$cfile" --root \
              --dist-dir="$COUT" --root-dir=../../ --proof-name="$ISABELLE_SESSION_NAME" "$source"
        sed -i -e "s/^session ${ISABELLE_SESSION_NAME}_ACInstall = ${ISABELLE_SESSION_NAME}_SCorres_Normal +$/session ${ISABELLE_SESSION_NAME}_ACInstall = AutoCorres +/" "$COUT/ROOT"
+
        if check_output $ISABELLE_BUILD -d "$L4V_DIR" -d "../isa" -d "$COUT" ${ISABELLE_SESSION_NAME}_ACInstall
         then passed+=1; echo "$pass_msg"
         else echo "$fail_msg"
@@ -503,7 +505,7 @@ if [[ "$TESTSPEC" =~ '--ee--' ]]; then
               mv "$hfile.tmp" "$hfile"
        fi
 
-       if check_output $ISABELLE_BUILD -d "$COUT" -d "../isa" ${ISABELLE_SESSION_NAME}_AllRefine
+       if check_output $ISABELLE_BUILD -d "$L4V_DIR" -d "$COUT" -d "../isa" ${ISABELLE_SESSION_NAME}_AllRefine
          then passed+=1; echo "$pass_msg"
          else echo "$fail_msg"
        fi
@@ -619,6 +621,40 @@ if [[ "$TESTSPEC" =~ '--goanna--' ]]; then
   fi
 fi
 
+if [[ "$TESTSPEC" =~ '--libgum--' ]]; then
+  all_total+=1
+  TEST_FILE=_regression.cogent
+  
+  pushd "$COGENTDIR"/lib
+
+  # ensure set
+  shopt -s globstar
+  
+  # since some libgum stuff depends on this type
+  echo $'type FsInode\ntype FsState\n_COGENT_LOG_LEVEL: U32\n_COGENT_LOG_LEVEL = 0' > "$TEST_FILE"
+  
+  flist=`find gum -name *.cogent`
+  # include everything
+  for src in $flist
+  do
+    echo "include <$src>" >> "$TEST_FILE"
+  done
+  
+  # typecheck, and save result
+  cogent -t "$TEST_FILE"
+  code=$?
+  
+  rm "$TEST_FILE"
+  
+  echo -n "libgum typechecking: " 
+  if [ $code -eq 0 ]; then
+  	all_passed+=1
+    echo "$pass_msg"
+  else
+    echo "$fail_msg"
+  fi
+  
+fi
 
 
 SUMMARY="Test suites: $all_total; passed: $all_passed"

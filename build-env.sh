@@ -46,18 +46,21 @@ set_build_env()
   # Location of Isabelle (sub-module)
   : ${ISABELLE_TOOLDIR:="$SCRIPT_DIR/isabelle/bin"}
   : ${ISABELLE:="$ISABELLE_TOOLDIR/isabelle"}
-  : ${ISABELLE_BUILD:="$ISABELLE build -v -d $L4V_DIR"}
+  : ${ISABELLE_BUILD:="$ISABELLE build -v"}
 
   [ -d "$L4V_DIR"  ] || {
 	echo >&2 "Cannot find \$L4V_DIR"
 	exit 1
   }
 
-  # Location of COGENT compiler (if not already defined)
+  # Location of Cogent compiler (if not already defined)
   : ${COGENT_TOOLDIR:="$SCRIPT_DIR/cogent/dist/build/cogent"}
   if ! type cogent >/dev/null 2>&1
   then PATH="$COGENT_TOOLDIR:$PATH"
   fi
+
+  # Location of Cogent shared library
+  : ${COGENT_STD_GUM_DIR:="$SCRIPT_DIR/cogent/lib"}
 }
 
 set_build_env

@@ -74,10 +74,6 @@ cogentInstall verbosity copy pkg local = do
       putStrLn $ "Installing Gum headers in " ++ hdrsdest
       createDirectoryIfMissingVerbose verbosity True hdrsdest
       installDirectoryContents verbosity "lib" hdrsdest
-      -- Need to remove the script file that is installed, there is no way to
-      -- exclude file with installDirectoryContents
-      removeFile (hdrsdest </> "gum" </> "libgum_tc_test.sh")
-      removeFile (hdrsdest </> "gum" </> "tests.xml")
 
     installManPage = do
       let mandest = mandir (L.absoluteInstallDirs pkg local copy) ++ "/man1"

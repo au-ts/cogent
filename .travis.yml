@@ -114,6 +114,8 @@ script:
  - make test-mn
  - make test-cg
  - make test-aq
+ # - echo 'Typechecking libgum'
+ - make test-libgum
  # - echo 'Building Cogent examples'
  - make examples
  # - echo 'Generating ext2fs C code from Cogent'
