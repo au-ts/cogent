@@ -1,11 +1,5 @@
 --
--- Copyright 2016, NICTA
---
--- This software may be distributed and modified according to the terms of
--- the GNU General Public License version 2. Note that NO WARRANTY is provided.
--- See "LICENSE_GPLv2.txt" for details.
---
--- @TAG(NICTA_GPL)
+-- @TAG(OTHER_BSD)
 --
 
 {-# LANGUAGE Safe #-}
@@ -49,7 +43,11 @@ over 1100 lines, we need only 195 here, including a 46 line example!
 :-)
 -}
 
--- Copied from base, Modified by Zilin Chen
+{- 
+Copied from base, with minor modification made by Zilin Chen.
+The modification mainly adds support for verbosity levels to
+options, and differentiates commands and options.
+-}
 
 module Cogent.GetOpt (
    -- * GetOpt
