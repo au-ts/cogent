@@ -10,7 +10,7 @@
 
 theory
  FsopS
-imports BilbyTypes
+imports "../adt/BilbyT"
 begin
 
 text {* The specification of the Fsop component is in Afs.thy.
