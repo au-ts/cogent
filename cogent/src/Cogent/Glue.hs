@@ -410,6 +410,12 @@ transEsc :: CS.Definition -> CS.Definition
 transEsc (CS.AntiEsc s l) = CS.EscDef s l
 transEsc d = d
 
+transEscStm :: CS.Stm -> CS.Stm
+transEscStm (CS.AntiEscStm s l) = CS.EscStm s l
+transEscStm d = d
+
+traverseEscStm :: CS.Definition -> GlMono t CS.Definition
+traverseEscStm = traverseAnti $ return . transEscStm
 
 -- Definition
 
@@ -421,7 +427,7 @@ traversals insts d = forM insts $ \inst ->
                          (traverseDecl >=> traverseDeclSpec >=> traverseType >=>
                          traverseFnCall >=> traverseDispatch >=> traverseExp >=>
                            -- NOTE: `traverseExp' has to be after `traverseFnCall' because they overlap / zilinc
-                         return . transEsc >=>
+                         return . transEsc >=> traverseEscStm >=>
                          transFuncId >=> transTypeId >=> firstM traverseTypeId') d
 
 traverseOneFunc :: String -> CS.Definition -> GlFile [(CS.Definition, Maybe String)]

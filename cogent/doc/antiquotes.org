@@ -133,6 +133,11 @@ Any C code which is beyond the reach of the Haskell C parser (http://hackage.has
 should be wrapped by a ~$esc~. In particular, if you have any ~#include~'ed files that don't want to be preprocessed (usually for the
 reason that they contain some language extensions which our C parser does not support), use ~$esc~ antiquoter to escape.
 
+Cogent also suppports conditional compilation in the style of _cpp_ (C preprocessor). Directives (e.g. ~#define~, ~#if~, etc.) should also
+be wrapped in ~$esc~ so that they are left to the C compiler, instead of (mistakenly) being processed by Cogent's C preprocessor.
+For statement level directives, you need the alternative ~escstm~ antiquote specifier rather than ~$esc~.
+
+
 * Expressions
 We can antiquote any valid Cogent expressions, using ~$exp~ antiquote. They will be turned to *statement-expression* in C.
 
