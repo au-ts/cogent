@@ -1,5 +1,5 @@
 "
-" Copyright 2016, NICTA
+" Copyright 2017, NICTA
 "
 " This software may be distributed and modified according to the terms of
 " the GNU General Public License version 2. Note that NO WARRANTY is provided.
@@ -11,7 +11,7 @@
 " Vim syntax file
 " Language:		Cogent
 " Maintainer:		Zilin Chen <Zilin.Chen@data61.csiro.au>
-" Last Change:		02 Sep 2014
+" Last Change:		10 Apr 2017
 " Original Author:	Zilin Chen <Zilin.Chen@data61.csiro.au>
 "
 "
@@ -19,13 +19,12 @@
 if exists("b:current_syntax")
   finish
 endif
-
-
+ 
 " Identifiers
 syn match cogentTypeId "\<[A-Z][a-zA-Z0-9_']*"
 syn match cogentVarDef "^[a-z_][a-zA-Z0-9_']*"
 syn match cogentFieldId "\<[a-z][a-zA-Z0-9_']*" contained nextgroup=cogentFieldColon skipwhite
-" syn match cogentTag "[A-Z][a-zA-Z0-9_']*" contained nextgroup=cogentTypeId,cogentRecord,cogentVariant skipwhite
+syn match cogentTag "[A-Z][a-zA-Z0-9_']*" contained nextgroup=cogentTypeId,cogentRecord,cogentVariant skipwhite
 
 " Definitions
 syn region cogentDefinition keepend start="^[a-z_][a-zA-Z0-9_']*\(.*=\|\s|\)"rs=s skip="\n\s" end="$" contains=cogentLetBang,cogentLineComment,cogentBlockComment,cogentBoolean,cogentSpecialChar,cogentCharacter,cogentString,cogentNumber,cogentOperator,cogentBar,cogentCaseArr,cogentSemiColon,cogentComma,cogentKeyword,cogentTypeId,cogentVarDef,cogentTakePut transparent
@@ -67,13 +66,13 @@ syn match cogentDot "\."
 
 syn match cogentFieldColon contained ":"
 
-" Constants
-syn match cogentBoolean "\<\(True\|False\)\>"
-syn match cogentSpecialChar "\\\([0-9]\+\|o[0-7]\+\|x[0-9a-fA-F]\+\|[\"\\'&\\abfnrtv]\|^[A-Z^_\[\\\]]\)"
-syn match cogentCharacter "[^a-zA-Z0-9_']'\([^\\]\|\\[^']\+\|\\'\)'"lc=1 contains=cogentSpecialChar
-syn match cogentCharacter "^'\([^\\]\|\\[^']\+\|\\'\)'" contains=cogentSpecialChar
-syn region cogentString start=+"+ skip=+\\\\\|\\"+ end=+"+ contains=cogentSpecialChar
-syn match cogentNumber "\<[0-9]\+\>\|\<0[xX][0-9a-fA-F]\+\>\|\<0[oO][0-7]\+\>"
+" " Constants
+" syn match cogentBoolean "\<\(True\|False\)\>"
+" syn match cogentSpecialChar "\\\([0-9]\+\|o[0-7]\+\|x[0-9a-fA-F]\+\|[\"\\'&\\abfnrtv]\|^[A-Z^_\[\\\]]\)"
+" syn match cogentCharacter "[^a-zA-Z0-9_']'\([^\\]\|\\[^']\+\|\\'\)'"lc=1 contains=cogentSpecialChar
+" syn match cogentCharacter "^'\([^\\]\|\\[^']\+\|\\'\)'" contains=cogentSpecialChar
+" syn region cogentString start=+"+ skip=+\\\\\|\\"+ end=+"+ contains=cogentSpecialChar
+" syn match cogentNumber "\<[0-9]\+\>\|\<0[xX][0-9a-fA-F]\+\>\|\<0[oO][0-7]\+\>"
 
 " Delimiter
 syn match cogentBar "|"
@@ -84,11 +83,11 @@ syn match cogentComma ","
 " Operators
 syn match cogentOperator "[+\-*/%><]\([^+\-*/%><]\|\n\)"he=s+1
 syn match cogentOperator ">=\|<=\|==\|/=\|&&\|||\|\.&\.\|\.|\.\|\.\^\.\|>>\|<<"
-syn keyword cogentOperator not
+syn keyword cogentOperator not complement
 
 " Keywords
 " syn keyword cogentType type
-syn keyword cogentInclude include
+" syn keyword cogentInclude include
 syn keyword cogentKeyword and in if then else let
 
 " Comments
@@ -97,42 +96,47 @@ syn keyword cogentDev contained TODO FIXME XXX NOTE ASSERT containedin=cogentLin
 syn match   cogentLineComment      "--.*$" contains=cogentDev
 syn region  cogentBlockComment     start="{-"  end="-}" contains=cogentBlockComment,cogentDev
 
+" Include
+syn match  cogentIncludeLine display "^include\>\s*["<]" contains=cogentIncludeStr
+syn region cogentIncludeStr display start=+"+ skip=+\\\\\|\\+ end=+"+
+syn match  cogentIncludeStr display contained "<[^>]*>" containedin=cogentIncludeLine
+
 
 command -nargs=+ HiLink hi def link <args>
 
-HiLink cogentType			  Keyword
+HiLink cogentType			    Keyword
 HiLink cogentInclude			Keyword
 HiLink cogentKeyword			Keyword
-HiLink cogentDev				  Todo
+HiLink cogentDev				Todo
 
 HiLink cogentTypdefTypeKw		Keyword
 HiLink cogentTypdefTypeId		Type
 
 HiLink cogentTypeSigVarId		Identifier
 
-HiLink cogentTypeId			Type
-HiLink cogentTakeT			  PreProc
-HiLink cogentUnitT			  PreProc
-HiLink cogentArrowT			PreProc
-HiLink cogentBangT			  PreProc
-HiLink cogentUnboxT			PreProc
-HiLink cogentInKind			PreProc
-HiLink cogentVariantBar	PreProc
+HiLink cogentTypeId             Type
+HiLink cogentTakeT		        PreProc
+HiLink cogentUnitT              PreProc
+HiLink cogentArrowT		    	PreProc
+HiLink cogentBangT              PreProc
+HiLink cogentUnboxT		    	PreProc
+HiLink cogentInKind		    	PreProc
+HiLink cogentVariantBar	        PreProc
 
-HiLink cogentKinds			  PreProc
+HiLink cogentKinds			    PreProc
 
 HiLink cogentLetBang			PreProc
 
-HiLink cogentOpenBrace		Keyword
-HiLink cogentCloseBrace	Keyword
+HiLink cogentOpenBrace		    Keyword
+HiLink cogentCloseBrace     	Keyword
 
-HiLink cogentVarDef			Identifier
+HiLink cogentVarDef		        Identifier
 
 HiLink cogentBoolean			Boolean
-HiLink cogentSpecialChar	SpecialChar
-HiLink cogentCharacter		Character
-HiLink cogentString			String
-HiLink cogentNumber			Number
+HiLink cogentSpecialChar	    SpecialChar
+HiLink cogentCharacter		    Character
+HiLink cogentString			    String
+HiLink cogentNumber			    Number
 
 HiLink cogentOperator			Special
 
@@ -140,7 +144,10 @@ HiLink cogentOperator			Special
 HiLink cogentTag				Tag
 
 HiLink cogentBlockComment		Comment
-HiLink cogentLineComment			Comment
+HiLink cogentLineComment        Comment
+
+HiLink cogentIncludeStr         String
+HiLink cogentIncludeLine        Keyword
 
 delcommand HiLink
 
