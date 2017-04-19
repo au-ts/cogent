@@ -1,4 +1,9 @@
-module TypBucket where
+module TypBucket (
+  module TypBucket
+, module BilbyFs_ShallowConsts_Desugar_Tuples  
+) where
+
+import BilbyFs_ShallowConsts_Desugar_Tuples
 
 -- FIXME
 type U8  = Int
