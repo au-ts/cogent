@@ -22,7 +22,13 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Cogent.Shallow (shallow, shallowConsts, shallowTuplesProof, MapTypeName) where
+module Cogent.Shallow
+--   ( shallow
+--   , shallowConsts
+--   , shallowTuplesProof
+--   , MapTypeName
+--   ) 
+  where
 
 import Cogent.Common.Syntax as CS
 import Cogent.Common.Types

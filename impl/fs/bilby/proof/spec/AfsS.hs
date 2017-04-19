@@ -1,8 +1,11 @@
+{-# LANGUAGE MultiWayIf #-}
 
 module AfsS where
 
+import FunBucket
 import VfsT
 
+import Data.Bits
 import qualified Data.Map as M
 
 type Byte = U8
@@ -78,4 +81,44 @@ i_path_update :: ([Byte] -> [Byte]) -> Afs_inode -> Afs_inode
 i_path_update m i = i { i_type = ILnk (m $ i_path i) }
 
 
--- up to L115
+i_size_from_afs_inode_type :: Afs_inode_type -> U64
+i_size_from_afs_inode_type (IDir dir) = undefined
+i_size_from_afs_inode_type (IReg dat) = count (concat dat)
+i_size_from_afs_inode_type (ILnk path) = count path
+
+i_size_from_type :: Afs_inode -> U64
+i_size_from_type = i_size_from_afs_inode_type . i_type
+
+afs_inode_to_vnode :: Afs_inode -> VfsInode
+afs_inode_to_vnode i = VfsInode {
+    v_ino = i_ino i
+  , v_nlink = i_nlink i
+  , v_size = i_size i
+  , v_mtime = i_mtime i
+  , v_ctime = i_ctime i
+  , v_uid = i_uid i
+  , v_gid = i_gid i
+  , v_mode = i_mode i
+  , v_flags = i_flags i
+  }
+
+afs_inode_from_vnode :: Vnode -> Afs_inode
+afs_inode_from_vnode v = Afs_inode {
+    i_type = if | v_mode v .&. s_IFREG /= 0 -> IReg [] 
+                | v_mode v .&. s_IFDIR /= 0 -> IDir M.empty
+                | otherwise -> ILnk []
+  , i_ino = v_ino v
+  , i_nlink = v_nlink v
+  , i_size = v_size v
+  , i_mtime = v_mtime v
+  , i_ctime = v_ctime v
+  , i_uid = v_uid v
+  , i_gid = v_gid v
+  , i_mode = v_mode v
+  , i_flags = v_flags v
+  }
+
+error_if_readonly :: Afs_state -> Cogent_monad (R11 (ErrCode, Afs_state) Afs_state)
+error_if_readonly as = return $ if a_is_readonly as
+                                  then Error (eRoFs, as)
+                                  else Success as

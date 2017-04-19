@@ -52,6 +52,7 @@ import Cogent.PrettyPrint    as PP (prettyPrint, prettyRE, prettyTWE)
 import Cogent.Reorganizer    as RO (reorganize)
 import Cogent.Root           as RT (root)
 import Cogent.Shallow        as SH (shallowConsts, shallow, shallowTuplesProof)
+import Cogent.ShallowHaskell
 import Cogent.ShallowTable   as ST (st, printTable)  -- for debugging only
 import Cogent.Simplify       as SM
 import Cogent.SuParser       as SU (parse)
