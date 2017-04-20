@@ -1,5 +1,5 @@
 --
--- Copyright 2016, NICTA
+-- Copyright 2017, NICTA
 --
 -- This software may be distributed and modified according to the terms of
 -- the GNU General Public License version 2. Note that NO WARRANTY is provided.
@@ -50,7 +50,7 @@ import Control.Lens hiding (Context)
 import Control.Monad.RWS hiding (Product, Sum, mapM)
 import Control.Monad.State
 import Control.Monad.Writer (Writer, runWriter)
-import Data.Char (ord,chr,intToDigit,isDigit)
+import Data.Char (ord, chr, intToDigit, isDigit)
 import Data.Either (lefts, rights)
 import Data.Function (on)
 import Data.List (isPrefixOf, stripPrefix, partition, sortBy, minimumBy, groupBy, unzip5, intercalate)
@@ -394,7 +394,7 @@ recTupleDecls :: [FieldName] -> [(TheoryDecl I.Type I.Term, Name)]
 recTupleDecls fs = concat $ map (recTupleAccessors fs) fs
 
 shallowTupleType :: [I.Type] -> I.Type
-shallowTupleType [] = error "Record should have at least 2 fields"
+shallowTupleType [] = error "Record should have at least 2 fields"  -- FIXME: does this error msg make sense? / zilinc
 shallowTupleType [x] = x
 shallowTupleType (x:xs) = I.TyTuple x (shallowTupleType xs)
 
