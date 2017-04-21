@@ -61,7 +61,7 @@ import Numeric
 import Prelude as P
 import System.FilePath ((</>))
 import Text.PrettyPrint.ANSI.Leijen (Doc, pretty, string)
-import qualified Text.PrettyPrint.ANSI.Leijen as L ((<$>))
+import qualified Text.PrettyPrint.ANSI.Leijen as L ((<$$>))
 
 -- import Debug.Trace
 
@@ -753,7 +753,7 @@ shallow recoverTuples thy stg defs log =
   let (shal,shrd,scor,typeMap) = fst $ evalRWS (runSG (shallowFile thy stg defs))
                                                (SGTables (st defs) (stsyn defs) [] recoverTuples)
                                                (StateGen 0 M.empty)
-      header = (string ("(*\n" ++ log ++ "\n*)\n") L.<$>)
+      header = (string ("(*\n" ++ log ++ "\n*)\n") L.<$$>)
   in (header $ pretty shal, header $ pretty shrd, header $ pretty scor, typeMap)
 
 genConstDecl :: S.SFConst TypedExpr -> SG (TheoryDecl I.Type I.Term)
@@ -775,7 +775,7 @@ shallowConsts recoverTuples thy stg consts defs log =
                                      (SGTables (st defs) (stsyn defs) [] recoverTuples)
                                      (StateGen 0 M.empty)
        shallowConsts cs = mapM genConstDecl cs
-       header = (string ("(*\n" ++ log ++ "\n*)\n") L.<$>)
+       header = (string ("(*\n" ++ log ++ "\n*)\n") L.<$$>)
 
 
 
@@ -803,7 +803,7 @@ shallowTuplesProof baseName sharedDefThy defThy tupSharedDefThy tupDefThy typeMa
     thyBase = mkProofName baseName Nothing
     ruleBucket = "ShallowTuplesRules_" ++ thyBase
     proofBucket = "ShallowTuplesThms_" ++ thyBase
-    header = (string ("(*\n" ++ log ++ "\n*)\n") L.<$>)
+    header = (string ("(*\n" ++ log ++ "\n*)\n") L.<$$>)
 
     -- Set up the lemma buckets.
     theorySetup =

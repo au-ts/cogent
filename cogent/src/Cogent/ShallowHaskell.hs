@@ -16,6 +16,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeOperators #-}
 
 
 module Cogent.ShallowHaskell where
@@ -25,8 +26,12 @@ import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Desugar as D (freshVarPrefix)
 import Cogent.Shallow 
-  (SG(..), SGTables(..), StateGen(..), 
-   typarUpd, varNameGen, isRecTuple, findShortType)
+  ( SG(..), SGTables(..), StateGen(..)
+  , MapTypeName
+  , typarUpd, varNameGen, isRecTuple, findShortType
+  , stsyn
+  )
+import Cogent.ShallowTable (TypeStr(..), st, getStrlType, toTypeStr)
 import Cogent.Sugarfree as S
 import Cogent.Util (Stage(..), Warning)
 import Cogent.Vec as Vec
@@ -39,38 +44,31 @@ import Data.Char (ord, chr, intToDigit, isDigit)
 import Data.Either (lefts, rights)
 import Data.Foldable (foldr')
 import Data.List as L
+import qualified Data.Map as M
 import Data.Maybe (catMaybes)
 -- import Language.Haskell.TH.Quote  as TH
 import Language.Haskell.TH.Syntax as TH
+import Language.Haskell.TH.Ppr    as PP
+import Language.Haskell.TH.PprLib as PP
 import Prelude as P
 
-data HaskellModule = HM Module ModuleInfo [Dec]
-                   deriving (Show)
-
 -- package name, module names
-pkg  = mkPkgName "TODO"
 shmn = mkModName "TODO"
 ssmn = mkModName "TODO"
-
-shhm :: Module
-shhm = Module pkg shmn
-
-sshm :: Module
-sshm = Module pkg ssmn
 
 snm :: String -> String
 snm = id
 
 
 -- ----------------------------------------------------------------------------
--- type generator
+-- type generators
 --
 
-mkTCon :: Name -> [TH.Type] -> TH.Type
-mkTCon n ts = foldr' (flip AppT) (ConT n) ts
+mkConT :: Name -> [TH.Type] -> TH.Type
+mkConT n ts = foldr' (flip AppT) (ConT n) ts
 
-mkTuple :: [TH.Type] -> TH.Type
-mkTuple ts = foldl' AppT (TupleT $ P.length ts) ts
+mkTupleT :: [TH.Type] -> TH.Type
+mkTupleT ts = foldl' AppT (TupleT $ P.length ts) ts
 
 shallowTVar :: Int -> String
 shallowTVar v = [chr $ ord 'a' + fromIntegral v]
@@ -83,17 +81,17 @@ shallowRecTupleType fs = shallowTupleType <$> mapM shallowType (map (fst . snd) 
 
 shallowTupleType :: [TH.Type] -> TH.Type
 shallowTupleType [] = error "Record should have at least 2 fields"
-shallowTupleType ts = mkTuple ts
+shallowTupleType ts = mkTupleT ts
 
 shallowType :: S.Type t -> SG TH.Type
 shallowType (TVar v) = VarT . mkName <$> ((!!) <$> asks typeVars <*> pure (finInt v))
 shallowType (TVarBang v) = shallowType (TVar v)
-shallowType (TCon tn ts _) = mkTCon (mkName tn) <$> mapM shallowType ts
+shallowType (TCon tn ts _) = mkConT (mkName tn) <$> mapM shallowType ts
 shallowType (TFun t1 t2) = AppT <$> (AppT ArrowT <$> shallowType t1) <*> shallowType t2
 shallowType (TPrim pt) = pure $ shallowPrimType pt
 shallowType (TString) = pure $ ConT $ mkName "String"
 shallowType (TSum alts) = shallowTypeWithName (TSum alts)
-shallowType (TProduct t1 t2) = mkTuple <$> sequence [shallowType t1, shallowType t2]
+shallowType (TProduct t1 t2) = mkTupleT <$> sequence [shallowType t1, shallowType t2]
 shallowType (TRecord fs s) = do
   tuples <- asks recoverTuples
   if tuples && isRecTuple (map fst fs)then
@@ -110,34 +108,30 @@ shallowPrimType U64 = ConT $ mkName "Int"  -- I.TyDatatype "word" [I.AntiType "6
 shallowPrimType Boolean = ConT $ mkName "Bool"
 
 -- ----------------------------------------------------------------------------
--- expression generator
+-- expression generators
 --
 
 mkApp :: Exp -> [Exp] -> Exp
 mkApp e es = foldl' AppE e es
 
-
-mkShallowOpApp :: Exp -> [Exp] -> Exp
-mkShallowOpApp o es = mkApp o es
-
 shallowPrimOp :: Op -> [Exp] -> Exp
-shallowPrimOp CS.Plus   es = mkShallowOpApp (VarE $ mkName "GHC.Num.+") es
-shallowPrimOp CS.Minus  es = mkShallowOpApp (VarE $ mkName "GHC.Num.-") es
-shallowPrimOp CS.Times  es = mkShallowOpApp (VarE $ mkName "GHC.Num.*") es
+shallowPrimOp CS.Plus   es = mkApp (VarE $ mkName "GHC.Num.+") es
+shallowPrimOp CS.Minus  es = mkApp (VarE $ mkName "GHC.Num.-") es
+shallowPrimOp CS.Times  es = mkApp (VarE $ mkName "GHC.Num.*") es
 shallowPrimOp CS.Divide es = mkApp (VarE $ mkName "GHC.Real.div") es
 shallowPrimOp CS.Mod    es = mkApp (VarE $ mkName "GHC.Real.mod") es
 shallowPrimOp CS.Not    es = mkApp (VarE $ mkName "GHC.Classes.not") es
 shallowPrimOp CS.And    es = mkApp (VarE $ mkName "GHC.Classes.&&") es 
 shallowPrimOp CS.Or     es = mkApp (VarE $ mkName "GHC.Classes.||") es 
-shallowPrimOp CS.Gt     es = mkShallowOpApp (VarE $ mkName "GHC.Classes.>" ) es
-shallowPrimOp CS.Lt     es = mkShallowOpApp (VarE $ mkName "GHC.Classes.<" ) es
-shallowPrimOp CS.Le     es = mkShallowOpApp (VarE $ mkName "GHC.Classes.<=") es
-shallowPrimOp CS.Ge     es = mkShallowOpApp (VarE $ mkName "GHC.Classes.>=") es
-shallowPrimOp CS.Eq     es = mkShallowOpApp (VarE $ mkName "GHC.Classes.=" ) es
-shallowPrimOp CS.NEq    es = mkShallowOpApp (VarE $ mkName "GHC.Classes./=") es
-shallowPrimOp CS.BitAnd es = mkShallowOpApp (VarE $ mkName "Data.Bits..&.") es
-shallowPrimOp CS.BitOr  es = mkShallowOpApp (VarE $ mkName "Data.Bits..|.") es
-shallowPrimOp CS.BitXor es = mkShallowOpApp (VarE $ mkName "Data.Bits.xor") es
+shallowPrimOp CS.Gt     es = mkApp (VarE $ mkName "GHC.Classes.>" ) es
+shallowPrimOp CS.Lt     es = mkApp (VarE $ mkName "GHC.Classes.<" ) es
+shallowPrimOp CS.Le     es = mkApp (VarE $ mkName "GHC.Classes.<=") es
+shallowPrimOp CS.Ge     es = mkApp (VarE $ mkName "GHC.Classes.>=") es
+shallowPrimOp CS.Eq     es = mkApp (VarE $ mkName "GHC.Classes.=" ) es
+shallowPrimOp CS.NEq    es = mkApp (VarE $ mkName "GHC.Classes./=") es
+shallowPrimOp CS.BitAnd es = mkApp (VarE $ mkName "Data.Bits..&.") es
+shallowPrimOp CS.BitOr  es = mkApp (VarE $ mkName "Data.Bits..|.") es
+shallowPrimOp CS.BitXor es = mkApp (VarE $ mkName "Data.Bits.xor") es
 shallowPrimOp CS.LShift [e1,e2] = mkApp (VarE $ mkName "Data.Bits.shiftL") [e1,e2]
 shallowPrimOp CS.RShift [e1,e2] = mkApp (VarE $ mkName "Data.Bits.shiftR") [e1,e2]
 shallowPrimOp CS.LShift _ = __impossible "shallowPrimOp"
@@ -145,6 +139,16 @@ shallowPrimOp CS.RShift _ = __impossible "shallowPrimOp"
 shallowPrimOp CS.Complement [e] = mkApp (VarE $ mkName "Data.Bits.complement") [e]
 shallowPrimOp CS.Complement _ = __impossible "shallowPrimOp"
 
+shallowILit :: Integer -> PrimInt -> Exp
+shallowILit n Boolean = ConE . mkName $ if n > 0 then "True" else "False"
+shallowILit n v = SigE (LitE $ IntegerL n) (shallowPrimType v)  -- FIXME: IntegerL or IntPrimL? / zilinc
+
+-- makes `let p = e1 in e2'
+shallowLet :: SNat n -> Pat -> TypedExpr t v VarName -> TypedExpr t (v :+: n) VarName -> SG Exp
+shallowLet _ p e1 e2 = do
+  e1' <- shallowExpr e1
+  e2' <- shallowExpr e2
+  pure $ LetE [ValD p (NormalB e1') []] e2'
 
 shallowExpr :: TypedExpr t v VarName -> SG Exp
 shallowExpr (TE _ (Variable (_,v))) = pure $ VarE $ mkName (snm v)
@@ -160,13 +164,13 @@ shallowExpr (TE _ (App f arg)) = mkApp <$> shallowExpr f <*> (mapM shallowExpr [
 -- shallowExpr (TE _ (Promote ty e)) = findTypeSyn ty >>= \tn -> shallowPromote tn ty e
 -- shallowExpr (TE t (Struct fs)) = shallowMaker t fs
 -- shallowExpr (TE _ (Member rec fld)) = shallowExpr rec >>= \e -> shallowGetter rec fld e
--- shallowExpr (TE _ (Unit)) = pure $ mkId "()"
--- shallowExpr (TE _ (ILit n pt)) = pure $ shallowILit n pt
--- shallowExpr (TE _ (SLit s)) = pure $ mkString s
--- shallowExpr (TE _ (Tuple e1 e2)) = mkApp <$> (pure $ mkId "Pair") <*> (mapM shallowExpr [e1, e2])
+shallowExpr (TE _ (Unit)) = pure $ ConE $ mkName "GHC.Tuple.()"
+shallowExpr (TE _ (ILit n pt)) = pure $ shallowILit n pt
+shallowExpr (TE _ (SLit s)) = pure $ LitE $ StringL s
+shallowExpr (TE _ (Tuple e1 e2)) = TupE <$> mapM shallowExpr [e1,e2]
 -- shallowExpr (TE _ (Put rec fld e)) = shallowSetter rec fld e
--- shallowExpr (TE _ (Let nm e1 e2)) = shallowLet nm e1 e2
--- shallowExpr (TE _ (LetBang vs nm e1 e2)) = shallowLet nm e1 e2
+shallowExpr (TE _ (Let nm e1 e2)) = shallowLet s1 (VarP $ mkName nm) e1 e2
+shallowExpr (TE _ (LetBang vs nm e1 e2)) = shallowLet s1 (VarP $ mkName nm) e1 e2
 -- shallowExpr (TE t (Case e tag (_,n1,e1) (_,n2,e2))) = do
 --   ecase <- shallowExpr e
 --   tn <- findTypeSyn $ exprType e
@@ -202,21 +206,28 @@ shallowExpr (TE _ (App f arg)) = mkApp <$> shallowExpr f <*> (mapM shallowExpr [
 --   tn <- findTypeSyn $ exprType e
 --   e' <- shallowExpr e
 --   pure $ mkApp (mkStr ["case_",tn]) [mkId "Fun.id", e']
--- shallowExpr (TE _ (If c th el)) = mkApp <$> (pure $ mkId "HOL.If") <*> mapM shallowExpr [c, th, el]
+shallowExpr (TE _ (If c th el)) = do
+  [c',th',el'] <- mapM shallowExpr [c, th, el]
+  pure $ CondE c' th' el'
 -- shallowExpr (TE _ (Take (n1,n2) rec fld e)) = do
 --   erec <- shallowExpr rec
 --   efield <- mkId <$> getRecordFieldName (exprType rec) fld
 --   take <- pure $ mkApp (mkId $ "take" ++ subSymStr "cogent") [erec, efield]
 --   let pp = mkPrettyPair n1 n2
 --   mkLet pp take <$> shallowExpr e
--- shallowExpr (TE _ (Split (n1,n2) e1 e2)) = mkApp <$> mkLambdaE [mkPrettyPair n1 n2] e2 <*> mapM shallowExpr [e1]
+shallowExpr (TE _ (Split (n1,n2) e1 e2)) = shallowLet s2 (TupP [VarP $ mkName n1, VarP $ mkName n2]) e1 e2
 
 
 -- ----------------------------------------------------------------------------
--- ??
+-- top-level generators
 --
 
-shallowTypeDef = undefined
+shallowTypeDef :: TypeName -> [TyVarName] -> S.Type t -> SG [Dec]
+shallowTypeDef _ _ _ = __fixme $ pure []
+
+shallowTypeFromTable :: SG ([Dec], [Dec], MapTypeName)
+shallowTypeFromTable = __fixme $ pure ([], [], undefined)
+
 
 shallowDefinition :: Definition TypedExpr VarName
                   -> SG ([Either [Dec] [Dec]], Maybe FunName)
@@ -243,7 +254,7 @@ shallowDefinition (TypeDef tn ps Nothing) =
      in local (typarUpd typar) $ pure ([Right [dec]], Nothing)
   where typar = Vec.cvtToList ps
 shallowDefinition (TypeDef tn ps (Just t)) =
-    local (typarUpd typar) $ (, Nothing) <$> (shallowTypeDef tn typar t >>= return . map Right)
+    local (typarUpd typar) $ (, Nothing) <$> ((:[]) . Right <$> shallowTypeDef tn typar t)
   where typar = Vec.cvtToList ps
 
 
@@ -251,7 +262,23 @@ shallowDefinitions :: [Definition TypedExpr VarName]
                     -> SG ([Either [Dec] [Dec]], [FunName])
 shallowDefinitions = (((concat *** catMaybes) . P.unzip) <$>) . mapM ((varNameGen .= 0 >>) . shallowDefinition)
 
-shallowTypeFromTable = undefined
+
+data HaskellModule = HM ModName ModuleInfo [[Dec]] deriving (Show)
+
+pprModule :: ModName -> Doc
+pprModule (ModName s) = text "module" <+> text s <+> text "where\n"
+
+pprImports :: ModuleInfo -> Doc
+pprImports (ModuleInfo []) = PP.empty
+pprImports (ModuleInfo ms) = PP.vcat (P.map pprImport ms) PP.<> text "\n"
+
+pprImport :: Module -> Doc
+pprImport (Module _ (ModName s)) = text "import" <+> text s
+
+instance Ppr HaskellModule where
+  ppr (HM mn info decs) = pprModule mn
+                      $+$ pprImports info
+                      $+$ vcat (P.map ((PP.<> text "\n") . ppr) decs)
 
 shallowFile :: String -> Stage -> [Definition TypedExpr VarName]
             -> SG (HaskellModule, HaskellModule)
@@ -260,9 +287,15 @@ shallowFile name stg defs = do
   (htdecls,_) <- shallowDefinitions typedecls
   (htypes,_,_) <- shallowTypeFromTable
   (hdefs,_) <- shallowDefinitions defs'
-  return ( HM shhm (ModuleInfo []) $ concat $ lefts hdefs
-         , HM sshm (ModuleInfo []) $ concat (rights htdecls) ++ htypes ++ concat (rights hdefs)
+  return ( HM shmn (ModuleInfo []) $ lefts hdefs
+         , HM ssmn (ModuleInfo []) $ rights htdecls ++ [htypes] ++ rights hdefs
          )
 
-
+shallow :: Bool -> String -> Stage -> [Definition TypedExpr VarName] -> String -> (Doc, Doc)
+shallow recoverTuples hs stg defs log =
+  let (shal,shrd) = fst $ evalRWS (runSG (shallowFile hs stg defs))
+                                         (SGTables (st defs) (stsyn defs) [] recoverTuples)
+                                         (StateGen 0 M.empty)
+      header = (PP.text ("{-\n" ++ log ++ "\n-}\n") PP.$+$)
+   in (header $ ppr shal, header $ ppr shrd)
 
