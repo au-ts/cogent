@@ -52,7 +52,7 @@ import Cogent.PrettyPrint    as PP (prettyPrint, prettyRE, prettyTWE)
 import Cogent.Reorganizer    as RO (reorganize)
 import Cogent.Root           as RT (root)
 import Cogent.Shallow        as SH (shallowConsts, shallow, shallowTuplesProof)
-import Cogent.ShallowHaskell
+import Cogent.ShallowHaskell as SHHS
 import Cogent.ShallowTable   as ST (st, printTable)  -- for debugging only
 import Cogent.Simplify       as SM
 import Cogent.SuParser       as SU (parse)
@@ -89,6 +89,7 @@ import Data.Time
 import qualified Data.Traversable as T (forM)
 import Data.Tuple.Select (sel3)
 -- import Isabelle.InnerAST (subSymStr)
+import Language.Haskell.TH.Ppr ()
 import Prelude hiding (mapM_)
 import System.AtomicWrite.Writer.String (atomicWithFile)
 -- import System.Console.GetOpt
@@ -841,8 +842,10 @@ parseArgs args = case getOpt' Permute options args of
           ks_tupfile = mkThyFileName source (__cogent_suffix_of_shallow_consts ++ __cogent_suffix_of_stage STGDesugar ++ __cogent_suffix_of_recover_tuples)
           tup_prooffile = mkThyFileName source __cogent_suffix_of_shallow_tuples_proof
           thy = mkProofName source Nothing
-          (shal,shrd,scorr,shallowTypeNames) = shallow False thy stg defns log
-          (shal_tup,shrd_tup,_,_) = shallow True thy STGDesugar defns log
+          hs  = "XXXXX"
+          (shal,shrd,scorr,shallowTypeNames) = SH.shallow False thy stg defns log
+          (shalhs,shrdhs) = SHHS.shallow False hs stg defns log
+          (shal_tup,shrd_tup,_,_) = SH.shallow True thy STGDesugar defns log
           tup_proof_thy = shallowTuplesProof thy
                             (mkProofName source (Just $ __cogent_suffix_of_shallow_shared))
                             (mkProofName source (Just $ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage stg))
@@ -855,7 +858,17 @@ parseArgs args = case getOpt' Permute options args of
         output ssfile $ flip LJ.hPutDoc shrd
         writeFileMsg shfile
         output shfile $ flip LJ.hPutDoc shal
-      let constsTypeCheck = IN.tcConsts (sel3 $ fromJust $ getLast typedefs) fts
+
+  ----- experimental ------------------
+        let sshsfile = Just "XXXXXShallowShared"
+            shhsfile = Just "XXXXXShallow"
+        putProgressLn ("Generating Haskell shallow embedding (" ++ stgMsg stg ++ ")...")
+        writeFileMsg sshsfile
+        output sshsfile $ flip hPutStrLn (show shrdhs)
+        writeFileMsg shfile
+        output shhsfile $ flip hPutStrLn (show shalhs)
+  ----- experimental ------------------
+      let constsTypeCheck = SF.tcConsts (sel3 $ fromJust $ getLast typedefs) fts
       when ks $ do
         putProgressLn ("Generating shallow constants (" ++ stgMsg stg ++ ")...")
         case constsTypeCheck of
