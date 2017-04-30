@@ -108,7 +108,7 @@ shallowType (TSum alts) = shallowTypeWithName (TSum alts)
 shallowType (TProduct t1 t2) = I.TyTuple <$> shallowType t1 <*> shallowType t2
 shallowType (TRecord fs s) = do
   tuples <- asks recoverTuples
-  if tuples && isRecTuple (map fst fs)then
+  if tuples && isRecTuple (map fst fs) then
     shallowRecTupleType fs
   else
     shallowTypeWithName (TRecord fs s)

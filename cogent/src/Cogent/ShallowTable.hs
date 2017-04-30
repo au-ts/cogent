@@ -141,6 +141,3 @@ printTable :: [TypeStr] -> String
 printTable table = unlines $ P.zipWith (\i t -> 'T':show i ++ " :-> " ++ show t) [1::Int ..] table
 
 
--- ////////////////////////////////////////////////////////////////////////////
--- Constants
-
