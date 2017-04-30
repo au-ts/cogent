@@ -25,12 +25,12 @@ import Cogent.Common.Syntax as CS
 import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Desugar as D (freshVarPrefix)
-import Cogent.Shallow 
-  ( SG(..), SGTables(..), StateGen(..)
-  , MapTypeName
-  , typarUpd, varNameGen, isRecTuple, findShortType
-  , stsyn
-  )
+import Cogent.Shallow ()
+  -- ( SG(..), SGTables(..), StateGen(..)
+  -- , MapTypeName
+  -- , typarUpd, varNameGen, isRecTuple, findShortType
+  -- , stsyn
+  -- )
 import Cogent.ShallowTable (TypeStr(..), st, getStrlType, toTypeStr)
 import Cogent.Sugarfree as S
 import Cogent.Util (Stage(..), Warning)
@@ -51,6 +51,22 @@ import Language.Haskell.TH.Syntax as TH
 import Language.Haskell.TH.Ppr    as PP
 import Language.Haskell.TH.PprLib as PP
 import Prelude as P
+
+
+data StateGen = StateGen {
+    _definedSynonyms :: M.Map (S.Type t) (S.Type t)
+  , _createdSynonyms :: M.Map (S.Type t) (S.Type t)
+  }
+
+newtype SG a = SG { runSG :: RWS [TypeStr] () () a }
+             deriving (Functor, Applicative, Monad,
+                       MonadReader [TypeStr],
+                       MonadWriter (),
+                       MonadState  ())
+
+
+
+
 
 -- package name, module names
 shmn = mkModName "TODO"
@@ -94,7 +110,7 @@ shallowType (TSum alts) = shallowTypeWithName (TSum alts)
 shallowType (TProduct t1 t2) = mkTupleT <$> sequence [shallowType t1, shallowType t2]
 shallowType (TRecord fs s) = do
   tuples <- asks recoverTuples
-  if tuples && isRecTuple (map fst fs)then
+  if tuples && isRecTuple (map fst fs) then
     shallowRecTupleType fs
   else
     shallowTypeWithName (TRecord fs s)
