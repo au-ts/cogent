@@ -89,7 +89,7 @@ import Data.Time
 import qualified Data.Traversable as T (forM)
 import Data.Tuple.Select (sel3)
 -- import Isabelle.InnerAST (subSymStr)
-import Language.Haskell.TH.Ppr ()
+-- import Language.Haskell.TH.Ppr ()
 import Prelude hiding (mapM_)
 import System.AtomicWrite.Writer.String (atomicWithFile)
 -- import System.Console.GetOpt
@@ -844,7 +844,9 @@ parseArgs args = case getOpt' Permute options args of
           thy = mkProofName source Nothing
           hs  = "XXXXX"
           (shal,shrd,scorr,shallowTypeNames) = SH.shallow False thy stg defns log
-          (shalhs,shrdhs) = SHHS.shallow False hs stg defns log
+------- experimental ------------------
+          shalhs = SHHS.shallow False hs stg defns log
+------- experimental ------------------
           (shal_tup,shrd_tup,_,_) = SH.shallow True thy STGDesugar defns log
           tup_proof_thy = shallowTuplesProof thy
                             (mkProofName source (Just $ __cogent_suffix_of_shallow_shared))
@@ -858,16 +860,13 @@ parseArgs args = case getOpt' Permute options args of
         output ssfile $ flip LJ.hPutDoc shrd
         writeFileMsg shfile
         output shfile $ flip LJ.hPutDoc shal
-
-  ----- experimental ------------------
-        let sshsfile = Just "XXXXXShallowShared"
-            shhsfile = Just "XXXXXShallow"
+------- experimental ------------------
+        let shhsfile = Just "XXXXXShallow"
         putProgressLn ("Generating Haskell shallow embedding (" ++ stgMsg stg ++ ")...")
-        writeFileMsg sshsfile
-        output sshsfile $ flip hPutStrLn (show shrdhs)
         writeFileMsg shfile
         output shhsfile $ flip hPutStrLn (show shalhs)
-  ----- experimental ------------------
+------- experimental ------------------
+
       let constsTypeCheck = SF.tcConsts (sel3 $ fromJust $ getLast typedefs) fts
       when ks $ do
         putProgressLn ("Generating shallow constants (" ++ stgMsg stg ++ ")...")

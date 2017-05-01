@@ -25,7 +25,13 @@ import Cogent.Common.Syntax as CS
 import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Desugar as D (freshVarPrefix)
-import Cogent.Shallow ()
+import Cogent.Shallow
+  ( MapTypeName
+  , StateGen (..)
+  , varNameGen, concTypeSyns
+  , hashType
+  , isRecTuple
+  )
   -- ( SG(..), SGTables(..), StateGen(..)
   -- , MapTypeName
   -- , typarUpd, varNameGen, isRecTuple, findShortType
@@ -52,17 +58,26 @@ import Language.Haskell.TH.Ppr    as PP
 import Language.Haskell.TH.PprLib as PP
 import Prelude as P
 
+data ReaderGen = ReaderGen { typeStrs :: [TypeStr]
+                           , typeVars :: [TyVarName]
+                           , recoverTuples :: Bool
+                           }
 
-data StateGen = StateGen {
-    _definedSynonyms :: M.Map (S.Type t) (S.Type t)
-  , _createdSynonyms :: M.Map (S.Type t) (S.Type t)
-  }
 
-newtype SG a = SG { runSG :: RWS [TypeStr] () () a }
+typarUpd typar v = v {typeVars = typar}
+
+data WriterGen = WriterGen { datatypes :: [TH.Dec]
+                           }
+
+instance Monoid WriterGen where
+  mempty = WriterGen mempty
+  (WriterGen ds1) `mappend` (WriterGen ds2) = WriterGen (ds1 `mappend` ds2)
+
+newtype SG a = SG { runSG :: RWS ReaderGen WriterGen StateGen a }
              deriving (Functor, Applicative, Monad,
-                       MonadReader [TypeStr],
-                       MonadWriter (),
-                       MonadState  ())
+                       MonadReader ReaderGen,
+                       MonadWriter WriterGen,
+                       MonadState  StateGen )
 
 
 
@@ -76,9 +91,16 @@ snm :: String -> String
 snm = id
 
 
+
+
+
 -- ----------------------------------------------------------------------------
 -- type generators
 --
+
+recTypeName = "R"
+varTypeName = "V"
+typeparam   = "t"
 
 mkConT :: Name -> [TH.Type] -> TH.Type
 mkConT n ts = foldr' (flip AppT) (ConT n) ts
@@ -89,6 +111,42 @@ mkTupleT ts = foldl' AppT (TupleT $ P.length ts) ts
 shallowTVar :: Int -> String
 shallowTVar v = [chr $ ord 'a' + fromIntegral v]
 
+isRecOrVar :: S.Type t -> Bool
+isRecOrVar (TRecord {}) = True
+isRecOrVar (TSum {}) = True
+isRecOrVar _ = False
+
+-- ASSUME: isRecOrVar input == True
+findShortType :: S.Type t -> SG (S.Type t)
+findShortType t = do
+  map <- use concTypeSyns
+  case M.lookup (hashType t) map of
+   Nothing -> makeShortType t
+   Just tn -> pure $ TCon tn [] (__impossible "shouldn't need this")
+
+-- ASSUME: isRecOrVar input == True
+makeShortType :: S.Type t -> SG (S.Type t)
+makeShortType t = do
+  (tn,dec) <- shallowStrType t
+  tell (WriterGen [dec])
+  return $ TCon tn [] (__impossible "shouldn't need this")
+  
+shallowStrType :: S.Type t -> SG (TypeName, TH.Dec)
+shallowStrType (TRecord fs _) = do
+  vn <- varNameGen <<+= 1
+  let tn = recTypeName ++ show vn
+  vbt <- mapM (\(f,(t,_)) -> (mkName f, defaultBang,) <$> shallowType t) fs
+  return $ (tn,) $ DataD [] (mkName tn) (P.zipWith (\_ n -> PlainTV (mkName $ typeparam ++ show n)) fs [1..]) Nothing [RecC (mkName tn) vbt] []
+shallowStrType (TSum alts) = do
+  vn <- varNameGen <<+= 1
+  let tn = varTypeName ++ show vn
+  cs <- mapM (\(f,(t,_)) -> NormalC (mkName f) . (:[]) . (defaultBang,) <$> shallowType t) alts
+  return $ (tn,) $ DataD [] (mkName tn) (P.zipWith (\_ n -> PlainTV (mkName $ typeparam ++ show n)) alts [1..]) Nothing cs []
+shallowStrType _ = __impossible "should be a record or variant type"
+
+defaultBang = TH.Bang NoSourceUnpackedness NoSourceStrictness  -- NOTE: this requires template-haskell >= 2.11 / zilinc
+
+-- ASSUME: isRecOrVar input == True
 shallowTypeWithName :: S.Type t -> SG TH.Type
 shallowTypeWithName t = shallowType =<< findShortType t
 
@@ -239,21 +297,23 @@ shallowExpr (TE _ (Split (n1,n2) e1 e2)) = shallowLet s2 (TupP [VarP $ mkName n1
 --
 
 shallowTypeDef :: TypeName -> [TyVarName] -> S.Type t -> SG [Dec]
-shallowTypeDef _ _ _ = __fixme $ pure []
+shallowTypeDef tn tvs t | isRecOrVar t = __fixme $ pure []
+shallowTypeDef tn tvs t = do
+  t' <- shallowType t
+  pure $ [TySynD (mkName tn) (P.map (PlainTV . mkName) tvs) t']
 
 shallowTypeFromTable :: SG ([Dec], [Dec], MapTypeName)
 shallowTypeFromTable = __fixme $ pure ([], [], undefined)
 
 
-shallowDefinition :: Definition TypedExpr VarName
-                  -> SG ([Either [Dec] [Dec]], Maybe FunName)
+shallowDefinition :: Definition TypedExpr VarName -> SG ([[Dec]], Maybe FunName)
 shallowDefinition (FunDef _ fn ps ti to e) =
     local (typarUpd typar) $ do
     e' <- shallowExpr e
     ty <- shallowType $ TFun ti to
     let sig = SigD fn' ty
         dec = FunD fn' [Clause [VarP arg0] (NormalB e') []]
-    pure ([Left [sig,dec]], Just $ snm fn)
+    pure ([[sig,dec]], Just $ snm fn)
   where fn'   = mkName $ snm fn
         arg0  = mkName $ snm $ D.freshVarPrefix ++ "0"
         typar = map fst $ Vec.cvtToList ps
@@ -262,20 +322,18 @@ shallowDefinition (AbsDecl _ fn ps ti to) =
       ty <- shallowType $ TFun ti to
       let sig = SigD fn' ty
           dec = FunD fn' [Clause [] (NormalB $ VarE $ mkName "undefined") []]
-      pure ([Right [sig,dec]], Nothing)
+      pure ([[sig,dec]], Nothing)
   where fn' = mkName $ snm fn
         typar = map fst $ Vec.cvtToList ps
 shallowDefinition (TypeDef tn ps Nothing) =
     let dec = DataD [] (mkName tn) (P.map (PlainTV . mkName) typar) Nothing [] []
-     in local (typarUpd typar) $ pure ([Right [dec]], Nothing)
+     in local (typarUpd typar) $ pure ([[dec]], Nothing)
   where typar = Vec.cvtToList ps
-shallowDefinition (TypeDef tn ps (Just t)) =
-    local (typarUpd typar) $ (, Nothing) <$> ((:[]) . Right <$> shallowTypeDef tn typar t)
+shallowDefinition (TypeDef tn ps (Just t)) = do
+    local (typarUpd typar) $ (, Nothing) <$> ((:[]) <$> shallowTypeDef tn typar t)
   where typar = Vec.cvtToList ps
 
-
-shallowDefinitions :: [Definition TypedExpr VarName] 
-                    -> SG ([Either [Dec] [Dec]], [FunName])
+shallowDefinitions :: [Definition TypedExpr VarName] -> SG ([[Dec]], [FunName])
 shallowDefinitions = (((concat *** catMaybes) . P.unzip) <$>) . mapM ((varNameGen .= 0 >>) . shallowDefinition)
 
 
@@ -296,22 +354,19 @@ instance Ppr HaskellModule where
                       $+$ pprImports info
                       $+$ vcat (P.map ((PP.<> text "\n") . ppr) decs)
 
-shallowFile :: String -> Stage -> [Definition TypedExpr VarName]
-            -> SG (HaskellModule, HaskellModule)
+shallowFile :: String -> Stage -> [Definition TypedExpr VarName] -> SG HaskellModule
 shallowFile name stg defs = do
   let (typedecls,defs') = L.partition isAbsTyp defs
   (htdecls,_) <- shallowDefinitions typedecls
   (htypes,_,_) <- shallowTypeFromTable
   (hdefs,_) <- shallowDefinitions defs'
-  return ( HM shmn (ModuleInfo []) $ lefts hdefs
-         , HM ssmn (ModuleInfo []) $ rights htdecls ++ [htypes] ++ rights hdefs
-         )
+  return $ HM shmn (ModuleInfo []) $ hdefs ++ [htypes] ++ hdefs
 
-shallow :: Bool -> String -> Stage -> [Definition TypedExpr VarName] -> String -> (Doc, Doc)
+shallow :: Bool -> String -> Stage -> [Definition TypedExpr VarName] -> String -> Doc
 shallow recoverTuples hs stg defs log =
-  let (shal,shrd) = fst $ evalRWS (runSG (shallowFile hs stg defs))
-                                         (SGTables (st defs) (stsyn defs) [] recoverTuples)
-                                         (StateGen 0 M.empty)
+  let shal = fst $ evalRWS (runSG (shallowFile hs stg defs))
+                                  (ReaderGen [] [] recoverTuples)  -- FIXME!
+                                  (StateGen 0 M.empty)
       header = (PP.text ("{-\n" ++ log ++ "\n-}\n") PP.$+$)
-   in (header $ ppr shal, header $ ppr shrd)
+   in header $ ppr shal
 
