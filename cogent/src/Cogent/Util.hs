@@ -140,6 +140,11 @@ snd3 (a,b,c) = b
 thd3 :: (a,b,c) -> c
 thd3 (a,b,c) = c
 
+infixr 3 ***^^
+
+(***^^) :: Applicative f => (a -> f a') -> (b -> f b') -> (a, b) -> f (a', b')
+(***^^) fa fb (x,y) = (,) <$> fa x <*> fb y
+
 first3 :: (a -> a') -> (a, b, c) -> (a', b, c)
 first3 =  (_1 %~)
 
@@ -174,6 +179,10 @@ whenMM mb ma = mb >>= flip whenM ma
 nubByM :: (Monad m) => (a -> a -> m Bool) -> [a] -> m [a]
 nubByM f [] = return []
 nubByM f (x:xs) = liftM (x:) $ filterM (return . not <=< f x) xs >>= nubByM f
+
+-- borrowed from The definitive-base package <http://hackage.haskell.org/package/definitive-base-2.3>
+(<*=) :: Monad m => m a -> (a -> m b) -> m a
+a <*= f = a >>= ((>>) <$> f <*> return)
 
 -- stdoutPath = "/dev/stdout"
 -- nullPath = "/dev/null"
