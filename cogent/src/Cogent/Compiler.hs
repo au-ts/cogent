@@ -65,6 +65,10 @@ mkThyFileName :: FilePath -> String -> Maybe FilePath
 mkThyFileName src suffix =
   if __cogent_fdump_to_stdout then Nothing else Just $ __cogent_dist_dir `combine` (mkProofName src $ Just suffix) <.> __cogent_ext_of_thy
 
+mkHsFileName :: FilePath -> String -> Maybe FilePath
+mkHsFileName src suffix = 
+  if __cogent_fdump_to_stdout then Nothing else Just $ __cogent_dist_dir `combine` (mkProofName src $ Just suffix) <.> __cogent_ext_of_hs
+
 -- Cogent Flags
 
 data Cogent_WarningSwitch = Flag_w | Flag_Wwarn | Flag_Werror
@@ -266,6 +270,9 @@ __cogent_ext_of_c = "c"
 
 __cogent_ext_of_h :: String
 __cogent_ext_of_h = "h"
+
+__cogent_ext_of_hs :: String
+__cogent_ext_of_hs = "hs"
 
 __cogent_ext_of_thy :: String
 __cogent_ext_of_thy = "thy"

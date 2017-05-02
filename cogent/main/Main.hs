@@ -114,6 +114,7 @@ type Verbosity = Int
 
 -- Commands.
 -- Multiple commands may be given, but they must all have the same Mode (wrt. getMode).
+-- `!' means collective command
 data Command = AstC Int
              | StackUsage (Maybe FilePath)
              | Disassemble
@@ -126,11 +127,13 @@ data Command = AstC Int
              | CRefinement  -- !
              | Ast       Stage
              | Pretty    Stage
+             | HsShallow Stage
+             | HsShallowTuples
              | Deep      Stage
              | Shallow   Stage
              | ShallowTuples -- STGDesugar
              | SCorres   Stage
-             | Embedding Stage  -- !
+             | Embedding Stage  -- ! (excl. HsShallow*)
              | ShallowConsts Stage
              | ShallowConstsTuples -- STGDesugar
              | TableCType
@@ -226,9 +229,11 @@ setActions c@(Compile   stg) = setActions (Compile $ pred stg) ++ [c]
 setActions c@(Ast       stg) = setActions (Compile stg) ++ [c]
 setActions c@(Documentation) = setActions (Compile STGParse) ++ [c]
 setActions c@(Pretty    stg) = setActions (Compile stg) ++ [c]
+setActions c@(HsShallow stg) = setActions (Compile stg) ++ [c]
+setActions c@(HsShallowTuples) = setActions (Compile STGDesugar) ++ [c]
 setActions c@(Deep      stg) = setActions (Compile stg) ++ [c]
 setActions c@(Shallow   stg) = setActions (Compile stg) ++ [c]
-setActions c@ShallowTuples   = setActions (Compile STGDesugar) ++ [c]
+setActions c@(ShallowTuples) = setActions (Compile STGDesugar) ++ [c]
 setActions c@(SCorres   stg) = setActions (Compile stg) ++ [c]
 setActions c@(Embedding stg) = setActions (Compile stg) ++ [Deep stg, Shallow stg, SCorres stg]
 setActions c@(ShallowConsts stg) = setActions (Compile stg) ++ [c]
@@ -284,6 +289,8 @@ stgCmd _          = __impossible "stgCmd"
 
 astMsg s       = "display core langauge AST (" ++ stgMsg s ++ ")"
 prettyMsg s    = "pretty-print core language (" ++ stgMsg s ++ ")"
+hsShallowMsg s tup = "generate Haskell shallow embedding (" ++ stgMsg s ++
+                     (if tup then ", with Haskell Tuples" else "") ++ ")"
 deepMsg s      = "generate Isabelle deep embedding (" ++ stgMsg s ++ ")"
 shallowMsg s tup = "generate Isabelle shallow embedding (" ++ stgMsg s ++
                    (if tup then ", with HOL tuples" else "") ++ ")"
@@ -325,6 +332,9 @@ options = [
   , Option ['n']      ["pretty-normal"]   2 (NoArg $ Pretty STGNormal)      (prettyMsg STGNormal)
   , Option []         ["pretty-simpl"]    2 (NoArg $ Pretty STGSimplify)    (prettyMsg STGSimplify)
   , Option []         ["pretty-mono"]     2 (NoArg $ Pretty STGMono)        (prettyMsg STGMono)
+  -- Haskell shallow
+  , Option []         ["hs-shallow-desugar"]         2 (NoArg (HsShallow STGDesugar))  (hsShallowMsg STGDesugar False)
+  , Option []         ["hs-shallow-desugar-tuples"]  2 (NoArg HsShallowTuples)  (hsShallowMsg STGDesugar True)
   -- deep
   , Option ['D']      ["deep-desugar"]    1 (NoArg (Deep STGDesugar))       (deepMsg STGDesugar)
   , Option ['N']      ["deep-normal"]     1 (NoArg (Deep STGNormal ))       (deepMsg STGNormal)
@@ -596,7 +606,9 @@ parseArgs args = case getOpt' Permute options args of
                                                                        ShallowConsts stg `elem` cmds,
                                                                        ShallowTuples `elem` cmds,
                                                                        ShallowConstsTuples `elem` cmds,
-                                                                       ShallowTuplesProof `elem` cmds)
+                                                                       ShallowTuplesProof `elem` cmds,
+                                                                       HsShallow stg `elem` cmds,
+                                                                       HsShallowTuples `elem` cmds)
           when (TableShallow `elem` cmds) $ putProgressLn ("Generating shallow table...") >> putStrLn (printTable $ st desugared')
           when (Compile (succ stg) `elem` cmds) $ normal cmds desugared' ctygen' source tced tcst typedefs fts buildinfo log
           exitSuccessWithBuildInfo cmds buildinfo
@@ -628,7 +640,7 @@ parseArgs args = case getOpt' Permute options args of
         genShallow cmds source stg nfed' typedefs fts log (Shallow stg `elem` cmds,
                                                            SCorres stg `elem` cmds,
                                                            ShallowConsts stg `elem` cmds,
-                                                           False, False, False)
+                                                           False, False, False, False, False)
       when (NormalProof `elem` cmds) $ do
         let npfile = mkThyFileName source __cogent_suffix_of_normal_proof
         writeFileMsg npfile
@@ -674,7 +686,7 @@ parseArgs args = case getOpt' Permute options args of
           _ <- genShallow cmds source stg monoed' typedefs fts log (Shallow stg `elem` cmds,
                                                                     SCorres stg `elem` cmds,
                                                                     ShallowConsts stg `elem` cmds,
-                                                                    False, False, False)
+                                                                    False, False, False, False, False)
           when (Compile (succ stg) `elem` cmds) $ cg cmds monoed' ctygen' insts source tced tcst typedefs fts buildinfo log
           c_refinement source monoed' insts log (ACInstall `elem` cmds, CorresSetup `elem` cmds, CorresProof `elem` cmds)
           when (MonoProof `elem` cmds) $ do
@@ -803,24 +815,25 @@ parseArgs args = case getOpt' Permute options args of
       writeFileMsg dpfile
       output dpfile $ flip LJ.hPutDoc de
 
-    genShallow cmds source stg defns typedefs fts log (False,False,False,False,False,False) = return empty
-    genShallow cmds source stg defns typedefs fts log (sh,sc,ks,sh_tup,ks_tup,tup_proof) = do
+    genShallow cmds source stg defns typedefs fts log (False,False,False,False,False,False,False,False) = return empty
+    genShallow cmds source stg defns typedefs fts log (sh,sc,ks,sh_tup,ks_tup,tup_proof,shhs,shhs_tup) = do
       let shfile = mkThyFileName source (__cogent_suffix_of_shallow ++ __cogent_suffix_of_stage stg)
           ssfile = mkThyFileName source (__cogent_suffix_of_shallow_shared)
           scfile = mkThyFileName source (__cogent_suffix_of_scorres ++ __cogent_suffix_of_stage stg)
           ksfile = mkThyFileName source (__cogent_suffix_of_shallow_consts ++ __cogent_suffix_of_stage stg)
+          shhsfile = mkHsFileName source (__cogent_suffix_of_shallow ++ __cogent_suffix_of_stage stg)
 
           sh_tupfile = mkThyFileName source (__cogent_suffix_of_shallow ++ __cogent_suffix_of_stage STGDesugar ++ __cogent_suffix_of_recover_tuples)
           ss_tupfile = mkThyFileName source (__cogent_suffix_of_shallow_shared ++ __cogent_suffix_of_recover_tuples)
           ks_tupfile = mkThyFileName source (__cogent_suffix_of_shallow_consts ++ __cogent_suffix_of_stage STGDesugar ++ __cogent_suffix_of_recover_tuples)
           tup_prooffile = mkThyFileName source __cogent_suffix_of_shallow_tuples_proof
+          shhs_tupfile = mkHsFileName source (__cogent_suffix_of_shallow ++ __cogent_suffix_of_stage STGDesugar ++ __cogent_suffix_of_recover_tuples)
+
           thy = mkProofName source Nothing
-          hs  = "XXXXX"
           (shal,shrd,scorr,shallowTypeNames) = SH.shallow False thy stg defns log
-------- experimental ------------------
-          shalhs = SHHS.shallow False hs stg defns log
-------- experimental ------------------
           (shal_tup,shrd_tup,_,_) = SH.shallow True thy STGDesugar defns log
+          shalhs     = SHHS.shallow False thy stg defns log  -- experimental!!!
+          shalhs_tup = SHHS.shallow True  thy stg defns log  -- experimental!!!
           tup_proof_thy = shallowTuplesProof thy
                             (mkProofName source (Just $ __cogent_suffix_of_shallow_shared))
                             (mkProofName source (Just $ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage stg))
@@ -833,13 +846,10 @@ parseArgs args = case getOpt' Permute options args of
         output ssfile $ flip LJ.hPutDoc shrd
         writeFileMsg shfile
         output shfile $ flip LJ.hPutDoc shal
-------- experimental ------------------
-        let shhsfile = Just "XXXXXShallow"
+      when shhs $ do
         putProgressLn ("Generating Haskell shallow embedding (" ++ stgMsg stg ++ ")...")
-        writeFileMsg shfile
+        writeFileMsg shhsfile
         output shhsfile $ flip hPutStrLn (show shalhs)
-------- experimental ------------------
-
       let constsTypeCheck = SF.tcConsts (sel3 $ fromJust $ getLast typedefs) fts
       when ks $ do
         putProgressLn ("Generating shallow constants (" ++ stgMsg stg ++ ")...")
@@ -857,6 +867,10 @@ parseArgs args = case getOpt' Permute options args of
         output ss_tupfile $ flip LJ.hPutDoc shrd_tup
         writeFileMsg sh_tupfile
         output sh_tupfile $ flip LJ.hPutDoc shal_tup
+      when shhs_tup $ do
+        putProgressLn ("Generating Haskell shallow embedding (with Haskell tuples)...")
+        writeFileMsg shhs_tupfile
+        output shhs_tupfile $ flip hPutStrLn (show shalhs_tup)
       when ks_tup $ do
         putProgressLn ("Generating shallow constants (with HOL tuples)...")
         case constsTypeCheck of
