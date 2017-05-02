@@ -115,6 +115,11 @@ firstM f (x,y) = (,y) <$> f x
 secondM :: Functor f => (b -> f c) -> (a, b) -> f (a, c)
 secondM f (x,y) = (x,) <$> f y
 
+infixr 3 ***^^
+
+(***^^) :: Applicative f => (a -> f a') -> (b -> f b') -> (a, b) -> f (a', b')
+(***^^) fa fb (x,y) = (,) <$> fa x <*> fb y
+
 first3 :: (a -> a') -> (a, b, c) -> (a', b, c)
 first3 f (a,b,c) = (f a,b,c)
 
@@ -141,6 +146,10 @@ extTup3 d (a,b,c) = (a,b,c,d)
 
 whenM :: (Monad m, Monoid a) => Bool -> m a -> m a
 whenM b ma = if b then ma else return mempty
+
+-- borrowed from The definitive-base package <http://hackage.haskell.org/package/definitive-base-2.3>
+(<*=) :: Monad m => m a -> (a -> m b) -> m a
+a <*= f = a >>= ((>>) <$> f <*> return)
 
 -- stdoutPath = "/dev/stdout"
 -- nullPath = "/dev/null"
