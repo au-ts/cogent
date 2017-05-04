@@ -49,7 +49,8 @@ toTypeStr (TVar v)         = []
 toTypeStr (TVarBang v)     = []
 toTypeStr (TUnit)          = []
 toTypeStr (TProduct t1 t2) = nub $ toTypeStr t1 ++ toTypeStr t2
-toTypeStr (TSum ts)        = nub $ VariantStr (sort $ P.map fst ts) : concat (P.map (toTypeStr . fst . snd) ts)  -- alternatives are sorted  -- FIXME: cogent.1
+toTypeStr (TSum ts)        = nub $ VariantStr (sort $ P.map fst ts) : concat (P.map (toTypeStr . fst . snd) ts)
+   -- ^ NOTE: alternatives are sorted, however they should have been sorted by desugarer, `toList' / zilinc  -- FIXME: cogent.1
 toTypeStr (TFun ti to)     = nub $ toTypeStr ti ++ toTypeStr to
 toTypeStr (TRecord ts s)   = nub $ RecordStr (P.map fst ts) : concat (P.map (toTypeStr . fst . snd) ts)
 toTypeStr (TPrim i)        = []
@@ -125,16 +126,11 @@ stType (toTypeStr -> ts) = forM_ ts $ \t -> do
     Nothing -> put $ t:table
     Just _  -> return ()
 
-eqTypeStr :: TypeStr -> TypeStr -> Bool
-eqTypeStr (RecordStr  v1) (RecordStr  v2) = v1 == v2
-eqTypeStr (VariantStr v1) (VariantStr v2) = v1 == v2
-eqTypeStr _ _ = False
-
 findIndex :: TypeStr -> [TypeStr] -> Int
-findIndex = (fromJust .) . L.findIndex . eqTypeStr
+findIndex = (fromJust .) . L.findIndex . (==)
 
 lookupTypeStr :: TypeStr -> [TypeStr] -> Maybe TypeStr
-lookupTypeStr = find . eqTypeStr
+lookupTypeStr = find . (==)
 
 -- For debugging
 printTable :: [TypeStr] -> String
