@@ -31,6 +31,7 @@ import Cogent.Sugarfree as S
 import Cogent.Util (Stage(..), (***^^))
 import Cogent.Vec as Vec
 
+import Control.Arrow (second)
 import Control.Applicative
 import Control.Lens hiding (Context, (<*=))
 import Control.Monad.RWS hiding (Product, Sum, mapM)
@@ -41,7 +42,7 @@ import Data.List as L
 import qualified Data.Map as M
 import Data.Set as Set (empty, fromList, insert, isSubsetOf)
 -- import GHC.LanguageExtensions.Type
-import Language.Haskell.TH.LanguageExtensions
+-- import Language.Haskell.TH.LanguageExtensions
 import Language.Haskell.TH.Syntax as TH
 import Language.Haskell.TH.Ppr    as PP
 import Language.Haskell.TH.PprLib as PP
@@ -69,8 +70,15 @@ data WriterGen = WriterGen { datatypes :: [TH.Dec]
 
 data StateGen = StateGen { _freshInt :: Int
                          , _nominalTypes :: M.Map TypeStr TypeName
-                         , _subtypes :: M.Map TypeStr TypeStr  -- a map from subtypes to their supertypes
+                         , _subtypes :: M.Map TypeStr (TypeStr, [Bool])  -- a map from subtypes to their supertypes and a list of type vars (False for hidden). see NOTE below
                          }
+
+-- NOTE:
+-- To elaborate, if the subtype is <A t1 | B t2> and supertype is <A t1 | B t2 | C t3>, then
+-- the entry in map will be <A|B> |-> (<A|B|C>,[True,True,False]) to indicate that the 3rd
+-- type argument of the supertype is absent in the subtype. This is based on the assumption that
+-- the tags are sorted / zilinc
+
 
 makeLenses ''StateGen
 
@@ -125,19 +133,24 @@ compTypes (TRecord fs _) = P.map (fst . snd) fs
 compTypes (TSum alts) = P.map (fst . snd) $ sortBy (compare `on` fst) alts  -- NOTE: this sorting must stay in-sync with the algorithm `toTypeStr` in ShallowTable.hs / zilinc
 compTypes _ = __impossible "Precondition failed: isRecOrVar input == True"
 
+typeStrFields :: TypeStr -> [String]
+typeStrFields (RecordStr fs) = fs
+typeStrFields (VariantStr alts) = alts
+
 -- ASSUME: isRecOrVar input == True
-findShortType :: S.Type t -> SG TypeName
+findShortType :: S.Type t -> SG (TypeName, [Bool])
 findShortType = findShortTypeStr . typeSkel
 
-findShortTypeStr :: TypeStr -> SG TypeName
+findShortTypeStr :: TypeStr -> SG (TypeName, [Bool])
 findShortTypeStr st = do
   map <- use nominalTypes
   case M.lookup st map of
     Nothing -> do subs <- use subtypes
                   case M.lookup st subs of
                     Nothing -> __impossible "should find a type"
-                    Just t' -> findShortTypeStr t'
-    Just tn -> pure tn
+                    Just (t',vts) -> second (const vts) <$> findShortTypeStr t'
+    Just tn -> pure (tn, P.map (const True) (typeStrFields st))
+
 
 defaultBang = TH.Bang NoSourceUnpackedness NoSourceStrictness  -- NOTE: this requires template-haskell >= 2.11 / zilinc
 
@@ -154,8 +167,11 @@ defaultBang = TH.Bang NoSourceUnpackedness NoSourceStrictness  -- NOTE: this req
 
 -- ASSUME: isRecOrVar input == True
 shallowTypeWithName :: S.Type t -> SG TH.Type
-shallowTypeWithName t =
-  mkConT <$> (mkName <$> findShortType t) <*> forM (compTypes t) shallowType
+shallowTypeWithName t = do
+  (tn,vts) <- findShortType t
+  ts <- forM (compTypes t) shallowType
+  __assert (P.length vts == P.length ts) "|vts| == |ts|"
+  pure $ mkConT (mkName tn) $ P.zipWith (\v t -> if v then t else WildCardT) vts ts
 
 decTypeStr :: TypeStr -> SG TypeName
 decTypeStr (RecordStr fs) = do
@@ -195,7 +211,11 @@ shallowTypesFromTable = do
   forM_ subs $ \t -> do  -- find supertypes
     case find (t `isSubtypeStr`) sups of
       Nothing  -> __impossible "should find a supertype"
-      Just sup -> subtypes %= (M.insert t sup)
+      Just sup -> subtypes %= (M.insert t (sup, compareTypeStrFields t sup))
+
+compareTypeStrFields :: TypeStr -> TypeStr -> [Bool]
+compareTypeStrFields (VariantStr subs) (VariantStr sups) = P.map (`elem` subs) sups
+compareTypeStrFields _ _ = __impossible "it is not a subtype of anything"
 
 shallowRecTupleType :: [(FieldName, (S.Type t, Bool))] -> SG TH.Type
 shallowRecTupleType fs = shallowTupleType <$> mapM shallowType (map (fst . snd) fs)
@@ -287,7 +307,7 @@ shallowGetter' :: TypedExpr t v VarName -> FieldIndex -> Exp -> SG Exp  -- use p
 shallowGetter' rec idx rec' = do
   let t@(TRecord fs _) = exprType rec
   vs <- mapM (\_ -> freshInt <<+= 1) fs
-  tn <- findShortType t
+  (tn,_) <- findShortType t
   let bs = P.map (\v -> mkName $ internalVar ++ show v) vs
       p' = RecP (mkName tn) (P.zipWith (\(f,_) b -> (mkName $ snm f, VarP b)) fs bs)
   pure $ mkLet [(p',rec')] $ VarE (bs !! idx)
@@ -311,10 +331,10 @@ shallowExpr (TE _ (Con cn e))  = do
   pure $ AppE (ConE $ mkName cn) e'
 shallowExpr (TE _ (Promote ty e)) = shallowPromote e ty
 shallowExpr (TE t (Struct fs)) = do 
-  tn <- findShortType t
+  (tn,_) <- findShortType t
   RecConE (mkName tn) <$> mapM (pure . mkName . snm ***^^ shallowExpr) fs
 shallowExpr (TE _ (Member rec fld)) = shallowGetter' rec fld =<< shallowExpr rec
-shallowExpr (TE _ (Unit)) = pure $ ConE $ mkName "GHC.Tuple.()"
+shallowExpr (TE _ (Unit)) = pure $ ConE $ mkName "()"
 shallowExpr (TE _ (ILit n pt)) = pure $ shallowILit n pt
 shallowExpr (TE _ (SLit s)) = pure $ LitE $ StringL s
 shallowExpr (TE _ (Tuple e1 e2)) = TupE <$> mapM shallowExpr [e1,e2]
@@ -389,17 +409,30 @@ shallowDefinitions :: [Definition TypedExpr VarName] -> SG [[Dec]]
 shallowDefinitions = (concat <$>) . mapM shallowDefinition
 
 
-data HaskellModule = HM LanguageExtensions ModName ModuleInfo [[Dec]]
+data HaskellModule = HM LanguageExtensions ModName [ImportedModule] [[Dec]]
 
 pprModule :: ModName -> Doc
 pprModule (ModName s) = text "module" <+> text s <+> text "where\n"
 
-pprImports :: ModuleInfo -> Doc
-pprImports (ModuleInfo []) = PP.empty
-pprImports (ModuleInfo ms) = PP.vcat (P.map pprImport ms) PP.<> text "\n"
+-- module-name, qualified name, imported ids
+data ImportedModule = ImportedModule String (Maybe (Bool, String)) (Maybe [String])  -- a bit hacky but works
 
-pprImport :: Module -> Doc
-pprImport (Module _ (ModName s)) = text "import" <+> text s
+pprImports :: [ImportedModule] -> Doc
+pprImports [] = PP.empty
+pprImports ms = PP.vcat (P.map pprImport ms) PP.<> text "\n"
+
+pprImport :: ImportedModule -> Doc
+pprImport (ImportedModule n qn fs) = 
+  let (qualified, alias) = case qn of
+        Nothing -> ((PP.empty PP.<>), (PP.empty PP.<>)) 
+        Just (q,s) -> (if q then (text "qualified" <+>) else (PP.empty PP.<>), (text "as" <+> text s <+>))
+      fs' = case fs of
+              Nothing -> PP.empty
+              Just fs -> parens (sepBy comma $ P.map text fs)
+   in text "import" <+> qualified (text n) <+> alias fs'
+  where sepBy d [] = PP.empty
+        sepBy d [f] = f
+        sepBy d (f:fs) = f PP.<> hcat (P.map (d <+>) fs)
 
 instance Ppr HaskellModule where
   ppr (HM exts mn info decs) = ppr exts
@@ -407,11 +440,12 @@ instance Ppr HaskellModule where
                            $+$ pprImports info
                            $+$ vcat (P.map ((PP.<> text "\n") . ppr) decs)
 
-data LanguageExtensions = LanguageExtensions [Extension]
+data LanguageExtensions = LanguageExtensions [String]  -- NOTE: not using `LanguageExtension's from template-haskell
+                                                       -- because they're not consistent with GHC / zilinc
 
 instance Ppr LanguageExtensions where
   ppr (LanguageExtensions []) = PP.empty
-  ppr (LanguageExtensions es) = PP.vcat (P.map (\e -> text $ "{-# LANGUAGE " ++ show e ++ " #-}") es) PP.<> text "\n"
+  ppr (LanguageExtensions es) = PP.vcat (P.map (\e -> text $ "{-# LANGUAGE " ++ e ++ " #-}") es) PP.<> text "\n"
 
 -- removeSubtypes :: [TypeStr] -> [TypeStr]
 -- removeSubtypes ts = filter (\t -> not $ or $ P.map (t `isSubtypeStr`) ts) ts
@@ -433,6 +467,9 @@ shallow tuples name stg defs log =
       tds = P.map (:[]) (datatypes w)
       header = (PP.text ("{-\n" ++ log ++ "\n-}\n") PP.$+$)
       shhs = name ++ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage stg ++ (if tuples then __cogent_suffix_of_recover_tuples else [])
-      imps = [Module (PkgName "containers") (ModName "Data.Bits")]
-   in header . ppr $ HM (LanguageExtensions [DisambiguateRecordFields, RecordWildCards, RecordPuns]) (ModName shhs) (ModuleInfo imps) $ decs ++ tds
+      imps = [ ImportedModule "Data.Bits" Nothing Nothing
+             , ImportedModule "Prelude"   Nothing (Just ["(+)", "(-)", "(*)", "div", "(&&)", "(||)", "not", "(>)", "(>=)", "(<)", "(<=)", "(==)", "(/=)", "Bool(..)", "Char", "String", "Int", "undefined"])
+             ]
+      exts = ["DisambiguateRecordFields", "DuplicateRecordFields", "NamedFieldPuns", "NoImplicitPrelude", "PartialTypeSignatures"]
+   in header . ppr $ HM (LanguageExtensions exts) (ModName shhs) imps $ decs ++ tds
 
