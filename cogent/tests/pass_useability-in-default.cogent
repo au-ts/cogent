@@ -1,5 +1,5 @@
 --
--- Copyright 2016, NICTA
+-- Copyright 2017, NICTA
 --
 -- This software may be distributed and modified according to the terms of
 -- the GNU General Public License version 2. Note that NO WARRANTY is provided.
@@ -14,11 +14,11 @@ type A
 
 type B = < TAG_t1 T1 | TAG_t2 T2 >
 
-type T = { a : A, b : B } take ()
+type T = { a : A, b : B }
 
-foo : (T) -> < Fail (U32, { a : A, b : B } take b, < TAG_t2 T2 >) 
+foo : T -> < Fail (U32, { a : A, b : B } take b, < TAG_t2 T2 >) 
              | Success ({ a : A, b : B } take b, T1) >
-foo (t) =
+foo t =
    let x { b } = t
    in b
       | TAG_t1 t1 -> Success (x, t1)

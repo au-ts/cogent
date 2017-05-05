@@ -18,7 +18,7 @@ TLD=../../
 
 source $TLD/build-env.sh || exit
 
-USAGE="Usage: $0 -[tc|ds|an|mn|cg|gcc|tc-proof|ac|ffi-gen|aq|shallow-proof|goanna|libgum|all|clean] [-q|-i|]"
+USAGE="Usage: $0 -[tc|ds|an|mn|cg|gcc|tc-proof|ac|ffi-gen|aq|shallow-proof|hs-shallow|goanna|libgum|all|clean] [-q|-i|]"
 getopt -T >/dev/null
 if [[ $? != 4 ]]
 then
@@ -26,7 +26,7 @@ then
   exit 1
 fi
 
-OPTS=$(getopt -o h --alternative --long tc,ds,an,mn,cg,gcc,tc-proof,ac,ffi-gen,aq,shallow-proof,goanna,ee,libgum,all,help,clean,q,i -n "$0" -- "$@")
+OPTS=$(getopt -o h --alternative --long tc,ds,an,mn,cg,gcc,tc-proof,ac,ffi-gen,aq,shallow-proof,hs-shallow,goanna,ee,libgum,all,help,clean,q,i -n "$0" -- "$@")
 if [ $? != 0 ]
 then echo "$USAGE" >&2
      exit 1
@@ -54,6 +54,7 @@ while true; do
         echo '  -ffi-gen Test FFI-generator'
         echo '  -aq      Test antiquotation'
         echo '  -shallow-proof Test shallow-emdedding proofs'
+        echo '  -hs-shallow Test Haskell shallow embedding generation and compiler with GHC'
         echo '  -goanna  Check generated code using Goanna (dependency: Goanna)'
         echo '  -ee      Test end-to-end proof'
         echo '  -libgum  Test shared library'
@@ -67,7 +68,7 @@ while true; do
     --q) QUIET=1; shift;;
     --i) INTERACTIVE=1; shift;;
     --clean) DO_CLEAN=1; shift;;
-    --all) TESTSPEC='--tc--ds--an--mn--aq--cg--gcc--tc-proof--ffi-gen--ac--shallow-proof--goanna--ee--libgum'; shift;;
+    --all) TESTSPEC='--tc--ds--an--mn--aq--cg--gcc--tc-proof--ffi-gen--ac--shallow-proof--hs-shallow--goanna--ee--libgum'; shift;;
     *) TESTSPEC="${TESTSPEC}$1"; shift;;
   esac
 done
@@ -603,6 +604,34 @@ if [[ "$TESTSPEC" =~ '--shallow-proof--' ]]; then
     then all_passed+=1
   fi
 fi
+
+
+if [[ "$TESTSPEC" =~ '--hs-shallow' ]]; then
+  echo "=== Haskell shallow embedding ==="
+  all_total+=1
+  passed=0
+  total=0
+
+  if [[ ! -e "$COUT" ]]; then
+    mkdir "$COUT"
+  fi
+
+  for source in "$TESTS"/pass_*.cogent
+  do
+    echo $source
+    total+=1
+    if check_output cogent --hs-shallow-desugar --dist-dir="$COUT" --proof-name="Hs_Temp" $source
+      then ghc -w "$COUT"/Hs_Temp_Shallow_Desugar.hs && passed+=1
+    fi
+  done
+
+  echo "Passed $passed out of $total."
+  if [[ $passed = $total ]]
+    then all_passed+=1
+  fi
+
+fi
+
 
 if [[ "$TESTSPEC" =~ '--goanna--' ]]; then
   echo '=== Goanna test ==='
