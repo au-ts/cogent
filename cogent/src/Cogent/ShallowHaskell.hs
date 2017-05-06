@@ -28,7 +28,7 @@ import Cogent.Desugar as D (freshVarPrefix)
 import Cogent.Shallow (isRecTuple)
 import Cogent.ShallowTable (TypeStr(..), st)
 import Cogent.Sugarfree as S
-import Cogent.Util (Stage(..), (***^^))
+import Cogent.Util (Stage(..), (***^^), secondM)
 import Cogent.Vec as Vec
 
 import Control.Arrow (second)
@@ -48,7 +48,7 @@ import Language.Haskell.TH.Ppr    as PP
 import Language.Haskell.TH.PprLib as PP
 import Prelude as P
 
--- import Debug.Trace
+import Debug.Trace
 
 -- NOTE:
 -- This module assumes:
@@ -70,15 +70,8 @@ data WriterGen = WriterGen { datatypes :: [TH.Dec]
 
 data StateGen = StateGen { _freshInt :: Int
                          , _nominalTypes :: M.Map TypeStr TypeName
-                         , _subtypes :: M.Map TypeStr (TypeStr, [Bool])  -- a map from subtypes to their supertypes and a list of type vars (False for hidden). see NOTE below
+                         , _subtypes :: M.Map TypeStr (TypeStr, [String])  -- a map from subtypes to their supertypes and a list of fields that correspond to typevars.
                          }
-
--- NOTE:
--- To elaborate, if the subtype is <A t1 | B t2> and supertype is <A t1 | B t2 | C t3>, then
--- the entry in map will be <A|B> |-> (<A|B|C>,[True,True,False]) to indicate that the 3rd
--- type argument of the supertype is absent in the subtype. This is based on the assumption that
--- the tags are sorted / zilinc
-
 
 makeLenses ''StateGen
 
@@ -128,9 +121,9 @@ isRecOrVar (TSum {}) = True
 isRecOrVar _ = False
 
 -- ASSUME: isRecOrVar input == True
-compTypes :: S.Type t -> [S.Type t]
-compTypes (TRecord fs _) = P.map (fst . snd) fs
-compTypes (TSum alts) = P.map (fst . snd) $ sortBy (compare `on` fst) alts  -- NOTE: this sorting must stay in-sync with the algorithm `toTypeStr` in ShallowTable.hs / zilinc
+compTypes :: S.Type t -> [(String, S.Type t)]
+compTypes (TRecord fs _) = P.map (second fst) fs
+compTypes (TSum alts) = P.map (second fst) $ sortBy (compare `on` fst) alts  -- NOTE: this sorting must stay in-sync with the algorithm `toTypeStr` in ShallowTable.hs / zilinc
 compTypes _ = __impossible "Precondition failed: isRecOrVar input == True"
 
 typeStrFields :: TypeStr -> [String]
@@ -138,18 +131,20 @@ typeStrFields (RecordStr fs) = fs
 typeStrFields (VariantStr alts) = alts
 
 -- ASSUME: isRecOrVar input == True
-findShortType :: S.Type t -> SG (TypeName, [Bool])
+findShortType :: S.Type t -> SG (TypeName, [String])
 findShortType = findShortTypeStr . typeSkel
 
-findShortTypeStr :: TypeStr -> SG (TypeName, [Bool])
+findShortTypeStr :: TypeStr -> SG (TypeName, [String])
 findShortTypeStr st = do
   map <- use nominalTypes
   case M.lookup st map of
     Nothing -> do subs <- use subtypes
                   case M.lookup st subs of
                     Nothing -> __impossible "should find a type"
-                    Just (t',vts) -> second (const vts) <$> findShortTypeStr t'
-    Just tn -> pure (tn, P.map (const True) (typeStrFields st))
+                    Just (t',vts) -> do (t'',vts') <- findShortTypeStr t'
+                                        __assert (P.length vts == P.length vts') "|vts| == |vts'|"
+                                        pure $ (t'',vts)
+    Just tn -> pure (tn, typeStrFields st)
 
 
 defaultBang = TH.Bang NoSourceUnpackedness NoSourceStrictness  -- NOTE: this requires template-haskell >= 2.11 / zilinc
@@ -168,10 +163,9 @@ defaultBang = TH.Bang NoSourceUnpackedness NoSourceStrictness  -- NOTE: this req
 -- ASSUME: isRecOrVar input == True
 shallowTypeWithName :: S.Type t -> SG TH.Type
 shallowTypeWithName t = do
-  (tn,vts) <- findShortType t
-  ts <- forM (compTypes t) shallowType
-  __assert (P.length vts == P.length ts) "|vts| == |ts|"
-  pure $ mkConT (mkName tn) $ P.zipWith (\v t -> if v then t else WildCardT) vts ts
+  (tn,fs) <- findShortType t
+  nts <- forM (compTypes t) (secondM shallowType)
+  pure $ mkConT (mkName tn) $ P.map (\f -> case L.lookup f nts of Nothing -> WildCardT; Just t -> t) fs
 
 decTypeStr :: TypeStr -> SG TypeName
 decTypeStr (RecordStr fs) = do
@@ -213,8 +207,8 @@ shallowTypesFromTable = do
       Nothing  -> __impossible "should find a supertype"
       Just sup -> subtypes %= (M.insert t (sup, compareTypeStrFields t sup))
 
-compareTypeStrFields :: TypeStr -> TypeStr -> [Bool]
-compareTypeStrFields (VariantStr subs) (VariantStr sups) = P.map (`elem` subs) sups
+compareTypeStrFields :: TypeStr -> TypeStr -> [String]
+compareTypeStrFields (VariantStr subs) (VariantStr sups) = sups
 compareTypeStrFields _ _ = __impossible "it is not a subtype of anything"
 
 shallowRecTupleType :: [(FieldName, (S.Type t, Bool))] -> SG TH.Type
