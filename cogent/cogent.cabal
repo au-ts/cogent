@@ -115,6 +115,7 @@ library
               , flippers >= 1.0.0
               , graph-wrapper >= 0.2
               , groups >= 0.4.0.0
+              , haskell-src-exts >= 1.19
               , hscurses >= 1.4
               , isa-parser >= 0.1.0.0
               , language-c >= 0.4
