@@ -849,7 +849,7 @@ parseArgs args = case getOpt' Permute options args of
       when shhs $ do
         putProgressLn ("Generating Haskell shallow embedding (" ++ stgMsg stg ++ ")...")
         writeFileMsg shhsfile
-        output shhsfile $ flip hPutStrLn (show shalhs)
+        output shhsfile $ flip hPutStrLn shalhs
       let constsTypeCheck = SF.tcConsts (sel3 $ fromJust $ getLast typedefs) fts
       when ks $ do
         putProgressLn ("Generating shallow constants (" ++ stgMsg stg ++ ")...")
@@ -870,7 +870,7 @@ parseArgs args = case getOpt' Permute options args of
       when shhs_tup $ do
         putProgressLn ("Generating Haskell shallow embedding (with Haskell tuples)...")
         writeFileMsg shhs_tupfile
-        output shhs_tupfile $ flip hPutStrLn (show shalhs_tup)
+        output shhs_tupfile $ flip hPutStrLn shalhs_tup
       when ks_tup $ do
         putProgressLn ("Generating shallow constants (with HOL tuples)...")
         case constsTypeCheck of
