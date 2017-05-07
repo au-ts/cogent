@@ -297,8 +297,10 @@ shallowGetter' rec idx rec' = do
       p' = PRec () (UnQual () $ mkName tn) (P.zipWith (\(f,_) b -> PFieldPat () (UnQual () . mkName $ snm f) (mkVarP b)) fs bs)
   pure $ mkLetE [(p',rec')] $ mkVarE (bs !! idx)
 
-shallowSetter :: TypedExpr t v VarName -> FieldIndex -> Exp () -> Exp () -> Exp ()
-shallowSetter rec idx rec' e' = RecUpdate () rec' [FieldUpdate () (UnQual () . mkName . snm $ getRecordFieldName rec idx) e']
+-- the type signature is required due to GHC T11343
+shallowSetter :: TypedExpr t v VarName -> FieldIndex -> Exp () -> HS.Type () -> Exp () -> Exp ()
+shallowSetter rec idx rec' rect' e' = RecUpdate () (Paren () $ ExpTypeSig () rec' rect') 
+                                        [FieldUpdate () (UnQual () . mkName . snm $ getRecordFieldName rec idx) e']
 
 shallowPromote :: TypedExpr t v VarName -> S.Type t -> SG (Exp ())
 shallowPromote e (TSum _) = shallowExpr e
@@ -324,7 +326,7 @@ shallowExpr (TE _ (S.Unit)) = pure $ HS.Con () $ Special () $ UnitCon ()
 shallowExpr (TE _ (S.ILit n pt)) = pure $ shallowILit n pt
 shallowExpr (TE _ (S.SLit s)) = pure $ Lit () $ String () s s
 shallowExpr (TE _ (S.Tuple e1 e2)) = HS.Tuple () Boxed <$> mapM shallowExpr [e1,e2]
-shallowExpr (TE _ (S.Put rec fld e)) = shallowSetter rec fld <$> shallowExpr rec <*> shallowExpr e
+shallowExpr (TE _ (S.Put rec fld e)) = shallowSetter rec fld <$> shallowExpr rec <*> shallowType (exprType rec) <*> shallowExpr e
 shallowExpr (TE _ (S.Let nm e1 e2)) = shallowLet s1 (mkVarP $ mkName $ snm nm) e1 e2
 shallowExpr (TE _ (S.LetBang vs nm e1 e2)) = shallowLet s1 (mkVarP $ mkName $ snm nm) e1 e2
 shallowExpr (TE t (S.Case e tag (_,n1,e1) (_,n2,e2))) = do
