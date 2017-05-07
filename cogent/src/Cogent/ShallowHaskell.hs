@@ -423,7 +423,7 @@ shallow tuples name stg defs log =
              , ImportDecl () (ModuleName () "Prelude"  ) False False False Nothing Nothing (Just $ ImportSpecList () False import_prelude)
              ]
       in header $ prettyPrintStyleMode
-                    (style {lineLength = 1000000, ribbonsPerLine = 0.1})  -- nearly infinitely long lines
+                    (style {lineLength = 220, ribbonsPerLine = 0.1})  -- if using https://github.com/zilinc/haskell-src-exts, no need for very long lines
                     (defaultMode {caseIndent = 2})
                     (Module () (Just mh) exts imps $ decs ++ tds)
 
