@@ -1,12 +1,19 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE RankNTypes #-}
 
 module AfsS where
 
+import CogentMonad as C
+import qualified Fsop_Shallow_Desugar as D
 import FunBucket
 import VfsT
 
 import Data.Bits
 import qualified Data.Map as M
+import Data.Maybe (fromJust)
+import Data.Set as S (Set, singleton, map, fromList)
+import Prelude as P
 
 type Byte = U8
 type Page = [U8]
@@ -45,7 +52,7 @@ data Afs_state = Afs_state {
 }
 
 a_afs_update_n :: Int -> Afs_map -> [Afs_map -> Afs_map] -> Afs_map
-a_afs_update_n n afs_st updates = foldr id afs_st (take n updates)
+a_afs_update_n n afs_st updates = foldr P.id afs_st (take n updates)
 
 a_afs_updated :: Afs_map -> [Afs_map -> Afs_map] -> Afs_map
 a_afs_updated afs_st updates = a_afs_update_n (length updates) afs_st updates
@@ -118,7 +125,40 @@ afs_inode_from_vnode v = Afs_inode {
   , i_flags = v_flags v
   }
 
-error_if_readonly :: Afs_state -> Cogent_monad (R11 (ErrCode, Afs_state) Afs_state)
+error_if_readonly :: Afs_state -> Cogent_monad (D.R Afs_state (D.ErrCode, Afs_state))
 error_if_readonly as = return $ if a_is_readonly as
-                                  then Error (eRoFs, as)
-                                  else Success as
+                                  then D.Error (eRoFs, as)
+                                  else D.Success as
+
+nondet_error :: Set D.ErrCode -> (D.ErrCode -> a) -> Cogent_monad a
+nondet_error errs f = C.select errs >>= (return . f)
+
+afs_alloc_inum :: Afs_map -> Cogent_monad (D.R Ino ())
+afs_alloc_inum as = do
+  let avail_inums = S.map negate $ M.keysSet as
+  opt_inum <- select $ S.singleton Nothing `union` (Just `image` avail_inums)
+  return $ if opt_inum == Nothing then D.Error () else D.Success (fromJust opt_inum)
+
+afs_get_current_time :: Afs_state -> Cogent_monad (Afs_state, TimeT)
+afs_get_current_time afs = do
+  time' <- return $ a_current_time afs
+  time <- select (S.fromList [ i | i <- [time' ..] ])
+  return (afs {a_current_time = time}, time')
+
+afs_init_inode :: Afs_state -> Vnode -> Vnode -> D.VfsMode
+               -> Cogent_monad (D.R (Afs_state, Vnode) (Afs_state, Vnode))
+afs_init_inode adata vdir vnode mode = do
+  (adata, time) <- afs_get_current_time adata
+  uid <- return (v_uid vdir)
+  gid <- return (v_gid vdir)
+  vnode <- return (vnode {v_ctime = time, v_mtime = time, v_uid = uid, v_gid = gid, 
+                          v_mode = mode, v_nlink = 1, v_size = 0})
+  r <- afs_alloc_inum (updated_afs adata)
+  return (case r of D.Error () -> D.Error (adata, vnode)
+                    D.Success inum -> D.Success (adata, vnode {v_ino = inum}))
+
+read_afs_inode :: Afs_state -> Ino -> Cogent_monad (D.R Afs_inode ErrCode)
+read_afs_inode adata ino = return (D.Success $ fromJust $ ino `M.lookup` updated_afs adata) `alternative`
+                           nondet_error (fromList [eIO, eNoMem, eInval, eBadF]) D.Error
+
+-- L219 of AfsS.thy
