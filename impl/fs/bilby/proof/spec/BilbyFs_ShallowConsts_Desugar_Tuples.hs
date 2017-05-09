@@ -23,3 +23,15 @@ eInval = 22
 
 eIO :: Word32
 eIO = 5
+
+eNoSpc :: Word32
+eNoSpc = 28
+
+eNameTooLong :: Word32
+eNameTooLong = 36
+
+eOverflow :: Word32
+eOverflow = 75
+
+eNFile :: Word32
+eNFile = 23

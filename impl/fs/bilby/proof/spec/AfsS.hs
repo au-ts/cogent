@@ -7,7 +7,9 @@ module AfsS where
 import CogentMonad as C
 import qualified Fsop_Shallow_Desugar as D
 import FunBucket
+import List
 import VfsT
+import WordArrayT
 
 import Data.Bits
 import qualified Data.Map as M
@@ -50,6 +52,15 @@ data Afs_state = Afs_state {
 , a_medium_afs :: Afs_map
 , a_medium_updates :: [Afs_map -> Afs_map]
 }
+
+a_medium_afs_update :: (Afs_map -> Afs_map) -> Afs_state -> Afs_state
+a_medium_afs_update f s = let Afs_state a b c d = s
+                           in Afs_state a b (f c) d
+
+a_medium_updates_update :: ([Afs_map -> Afs_map] -> [Afs_map -> Afs_map]) -> Afs_state -> Afs_state
+a_medium_updates_update f s = let Afs_state a b c d = s
+                               in Afs_state a b c (f d)
+
 
 a_afs_update_n :: Int -> Afs_map -> [Afs_map -> Afs_map] -> Afs_map
 a_afs_update_n n afs_st updates = foldr P.id afs_st (take n updates)
@@ -161,4 +172,65 @@ read_afs_inode :: Afs_state -> Ino -> Cogent_monad (D.R Afs_inode ErrCode)
 read_afs_inode adata ino = return (D.Success $ fromJust $ ino `M.lookup` updated_afs adata) `alternative`
                            nondet_error (fromList [eIO, eNoMem, eInval, eBadF]) D.Error
 
--- L219 of AfsS.thy
+afs_apply_updates_nondet :: Afs_state -> Cogent_monad Afs_state
+afs_apply_updates_nondet afs = do
+  let upds = a_medium_updates afs
+  (to_apply, updates) <- fmap (\i -> splitAt i upds) (fromList [0 .. length upds - 1])
+  return $ afs {a_medium_afs = fold P.id to_apply (a_medium_afs afs),
+                a_medium_updates = updates}
+
+afs_update :: Afs_state -> (Afs_map -> Afs_map) -> Cogent_monad (Afs_state, D.R () D.ErrCode)
+afs_update afs upd = do
+  afs <- afs_apply_updates_nondet (afs {a_medium_updates = a_medium_updates afs ++ [upd]})
+  if null $ a_medium_updates afs
+    then return (afs, D.Success ())
+    else return (afs, D.Success ()) `alternative`
+         nondet_error (fromList $ [eIO, eNoSpc, eNoMem]) (\e -> (afs {a_medium_updates = butlast (a_medium_updates afs)}, D.Error e))
+
+afs_create :: Afs_state -> Vnode -> D.WordArray U8 -> D.VfsMode -> Vnode
+           -> Cogent_monad ((Afs_state, Vnode, Vnode), D.R () D.ErrCode)
+afs_create afs parentdir name mode vnode =
+  if a_is_readonly afs
+    then return ((afs, parentdir, vnode), D.Error eRoFs)
+    else do
+      r <- afs_init_inode afs parentdir vnode (mode .|. s_IFREG)
+      case r of
+        D.Error (afs, vnode) -> return ((afs, parentdir, vnode), D.Error eNFile)
+        D.Success (afs, vnode) -> do
+          r <- read_afs_inode afs (v_ino parentdir)
+          case r of
+            D.Error e -> return ((afs, parentdir, vnode), D.Error e)
+            D.Success dir -> do
+              r <- return (D.Success $ i_dir_update (\d -> M.adjust (\_ -> v_ino vnode) (alpha_wa name) d) dir) `alternative` return (D.Error eNameTooLong)
+              case r of
+                D.Error e -> return ((afs, parentdir, vnode), D.Error e)
+                D.Success dir -> do
+                  r <- select (D.Success `image` fromList [ sz | sz <- [v_size parentdir .. ] ]) `alternative`
+                       return (D.Error eOverflow)
+                  case r of
+                    D.Error e -> return ((afs, parentdir, vnode), D.Error e)
+                    D.Success newsz -> do
+                      time <- return $ v_ctime vnode
+                      dir <- return $ dir {i_ctime = time, i_mtime = time}
+                      inode <- return $ afs_inode_from_vnode vnode
+                      (afs, r) <- afs_update afs (\f -> M.adjust (flip const inode) (i_ino inode) $
+                                                          M.adjust (flip const dir) (i_ino dir) f)
+                      case r of
+                        D.Error e -> return ((afs, parentdir, vnode), D.Error e)
+                        D.Success () -> return ((afs, parentdir {v_ctime = time, v_mtime = time, v_size = newsz}, vnode), D.Success ())
+
+afs_sync :: Afs_state -> Cogent_monad (Afs_state, D.R () D.ErrCode)
+afs_sync afs = 
+  if a_is_readonly afs
+    then return (afs, D.Error eRoFs)
+    else do
+      n <- select $ fromList [0 .. length (a_medium_updates afs)]
+      updates <- return $ a_medium_updates afs
+      (to_apply, updates) <- return (take n updates, drop n updates)
+      afs <- return $ a_medium_afs_update (fold (\upd med -> upd med) to_apply) afs
+      afs <- return $ a_medium_updates_update (\_ -> updates) afs
+      if null updates
+        then return (afs, D.Success ())
+        else do
+          e <- select $ fromList [eIO, eNoMem, eNoSpc, eOverflow]
+          return (afs {a_is_readonly = (e == eIO)}, D.Error e)
