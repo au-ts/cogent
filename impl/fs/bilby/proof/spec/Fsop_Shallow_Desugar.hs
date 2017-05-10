@@ -14,6 +14,522 @@ module Fsop_Shallow_Desugar where
 import Data.Bits ((.&.), (.|.), complement, xor, shiftL, shiftR)
 import Prelude (not, div, mod, undefined, (+), (-), (*), (&&), (||), (>), (>=), (<), (<=), (==), (/=), Char, String, Int, Bool(..))
 
+x_NOCMTIME :: Int
+x_NOCMTIME = (0 :: Int) :: Int
+
+word64Max :: Int
+word64Max = (18446744073709551615 :: Int)
+
+word32Max :: Int
+word32Max = (4294967295 :: Int)
+
+vfs_ATTR_UID :: Int
+vfs_ATTR_UID = (((1 :: Int) :: Int) `shiftL` ((1 :: Int) :: Int))
+
+vfs_ATTR_TIMES_SET :: Int
+vfs_ATTR_TIMES_SET = (((1 :: Int) :: Int) `shiftL` ((16 :: Int) :: Int))
+
+vfs_ATTR_SIZE :: Int
+vfs_ATTR_SIZE = (((1 :: Int) :: Int) `shiftL` ((3 :: Int) :: Int))
+
+vfs_ATTR_OPEN :: Int
+vfs_ATTR_OPEN = (((1 :: Int) :: Int) `shiftL` ((15 :: Int) :: Int))
+
+vfs_ATTR_MTIME_SET :: Int
+vfs_ATTR_MTIME_SET = (((1 :: Int) :: Int) `shiftL` ((8 :: Int) :: Int))
+
+vfs_ATTR_MTIME :: Int
+vfs_ATTR_MTIME = (((1 :: Int) :: Int) `shiftL` ((5 :: Int) :: Int))
+
+vfs_ATTR_MODE :: Int
+vfs_ATTR_MODE = (((1 :: Int) :: Int) `shiftL` ((0 :: Int) :: Int))
+
+vfs_ATTR_KILL_SUID :: Int
+vfs_ATTR_KILL_SUID = (((1 :: Int) :: Int) `shiftL` ((11 :: Int) :: Int))
+
+vfs_ATTR_KILL_SGID :: Int
+vfs_ATTR_KILL_SGID = (((1 :: Int) :: Int) `shiftL` ((12 :: Int) :: Int))
+
+vfs_ATTR_KILL_PRIV :: Int
+vfs_ATTR_KILL_PRIV = (((1 :: Int) :: Int) `shiftL` ((14 :: Int) :: Int))
+
+vfs_ATTR_GID :: Int
+vfs_ATTR_GID = (((1 :: Int) :: Int) `shiftL` ((2 :: Int) :: Int))
+
+vfs_ATTR_FORCE :: Int
+vfs_ATTR_FORCE = (((1 :: Int) :: Int) `shiftL` ((9 :: Int) :: Int))
+
+vfs_ATTR_FILE :: Int
+vfs_ATTR_FILE = (((1 :: Int) :: Int) `shiftL` ((13 :: Int) :: Int))
+
+vfs_ATTR_CTIME :: Int
+vfs_ATTR_CTIME = (((1 :: Int) :: Int) `shiftL` ((6 :: Int) :: Int))
+
+vfs_ATTR_ATTR_FLAG :: Int
+vfs_ATTR_ATTR_FLAG = (((1 :: Int) :: Int) `shiftL` ((10 :: Int) :: Int))
+
+vfs_ATTR_ATIME_SET :: Int
+vfs_ATTR_ATIME_SET = (((1 :: Int) :: Int) `shiftL` ((7 :: Int) :: Int))
+
+vfs_ATTR_ATIME :: Int
+vfs_ATTR_ATIME = (((1 :: Int) :: Int) `shiftL` ((4 :: Int) :: Int))
+
+s_IXUSR :: Int
+s_IXUSR = (64 :: Int) :: Int
+
+s_IXOTH :: Int
+s_IXOTH = (1 :: Int) :: Int
+
+s_IXGRP :: Int
+s_IXGRP = (8 :: Int) :: Int
+
+s_IXUGO :: Int
+s_IXUGO = ((((64 :: Int) :: Int) .|. ((8 :: Int) :: Int)) .|. ((1 :: Int) :: Int))
+
+s_IWUSR :: Int
+s_IWUSR = (128 :: Int) :: Int
+
+s_IWOTH :: Int
+s_IWOTH = (2 :: Int) :: Int
+
+s_IWGRP :: Int
+s_IWGRP = (16 :: Int) :: Int
+
+s_IWUGO :: Int
+s_IWUGO = ((((128 :: Int) :: Int) .|. ((16 :: Int) :: Int)) .|. ((2 :: Int) :: Int))
+
+s_ISVTX :: Int
+s_ISVTX = (512 :: Int) :: Int
+
+s_ISUID :: Int
+s_ISUID = (2048 :: Int) :: Int
+
+s_ISGID :: Int
+s_ISGID = (1024 :: Int) :: Int
+
+s_IRWXU :: Int
+s_IRWXU = (448 :: Int) :: Int
+
+s_IRWXO :: Int
+s_IRWXO = (7 :: Int) :: Int
+
+s_IRWXG :: Int
+s_IRWXG = (56 :: Int) :: Int
+
+s_IRWXUGO :: Int
+s_IRWXUGO = ((((448 :: Int) :: Int) .|. ((56 :: Int) :: Int)) .|. ((7 :: Int) :: Int))
+
+s_IRUSR :: Int
+s_IRUSR = (256 :: Int) :: Int
+
+s_IROTH :: Int
+s_IROTH = (4 :: Int) :: Int
+
+s_IRGRP :: Int
+s_IRGRP = (32 :: Int) :: Int
+
+s_IRUGO :: Int
+s_IRUGO = ((((256 :: Int) :: Int) .|. ((32 :: Int) :: Int)) .|. ((4 :: Int) :: Int))
+
+s_IMMUTABLE :: Int
+s_IMMUTABLE = (8 :: Int) :: Int
+
+s_IFSOCK :: Int
+s_IFSOCK = (49152 :: Int) :: Int
+
+s_IFREG :: Int
+s_IFREG = (32768 :: Int) :: Int
+
+s_IFMT :: Int
+s_IFMT = (61440 :: Int) :: Int
+
+s_IFLNK :: Int
+s_IFLNK = (40960 :: Int) :: Int
+
+s_IFIFO :: Int
+s_IFIFO = (4096 :: Int) :: Int
+
+s_IFDIR :: Int
+s_IFDIR = (16384 :: Int) :: Int
+
+s_IFCHR :: Int
+s_IFCHR = (8192 :: Int) :: Int
+
+s_IFBLK :: Int
+s_IFBLK = (24576 :: Int) :: Int
+
+s_APPEND :: Int
+s_APPEND = (4 :: Int) :: Int
+
+ostoreWriteNone :: Int
+ostoreWriteNone = (0 :: Int) :: Int
+
+ostoreWriteNewEb :: Int
+ostoreWriteNewEb = (4 :: Int) :: Int
+
+ostoreWriteGC :: Int
+ostoreWriteGC = (1 :: Int) :: Int
+
+ostoreWriteForceSync :: Int
+ostoreWriteForceSync = (16 :: Int) :: Int
+
+ostoreWriteDel :: Int
+ostoreWriteDel = (2 :: Int) :: Int
+
+ostoreWriteAtomEb :: Int
+ostoreWriteAtomEb = (8 :: Int) :: Int
+
+os_PAGE_CACHE_SIZE :: Int
+os_PAGE_CACHE_SIZE = (4096 :: Int) :: Int
+
+os_PAGE_CACHE_SHIFT :: Int
+os_PAGE_CACHE_SHIFT = (12 :: Int) :: Int
+
+os_PAGE_CACHE_MASK :: Int
+os_PAGE_CACHE_MASK = complement (((4096 :: Int) :: Int) - ((1 :: Int) :: Int))
+
+os_MAX_LFS_FILESIZE :: Int
+os_MAX_LFS_FILESIZE = ((((4096 :: Int) :: Int) `shiftL` (((32 :: Int) :: Int) - ((1 :: Int) :: Int))) - ((1 :: Int) :: Int))
+
+os_MAX_FILESIZE :: Int
+os_MAX_FILESIZE = ((((4096 :: Int) :: Int) `shiftL` (((32 :: Int) :: Int) - ((1 :: Int) :: Int))) - ((1 :: Int) :: Int))
+
+nilObjId :: Int
+nilObjId = (18446744073709551615 :: Int)
+
+bilbyFsXinfoShift :: Int
+bilbyFsXinfoShift = (29 :: Int) :: Int
+
+bilbyFsXinfoMask :: Int
+bilbyFsXinfoMask = (536870911 :: Int) :: Int
+
+bilbyFsSuperEbNum :: Int
+bilbyFsSuperEbNum = (0 :: Int) :: Int
+
+bilbyFsSumEntryDelFlagMask :: Int
+bilbyFsSumEntryDelFlagMask = (2147483648 :: Int)
+
+bilbyFsRootIno :: Int
+bilbyFsRootIno = (24 :: Int) :: Int
+
+bilbyFsPadByte :: Int
+bilbyFsPadByte = (66 :: Int)
+
+bilbyFsOidMaskInum :: Int
+bilbyFsOidMaskInum = (u32_to_u64 (4294967295 :: Int) `shiftL` ((32 :: Int) :: Int))
+
+bilbyFsOidMaskAll :: Int
+bilbyFsOidMaskAll = (((7 :: Int) :: Int) `shiftL` ((29 :: Int) :: Int))
+
+bilbyFsObjTypeSuper :: Int
+bilbyFsObjTypeSuper = (4 :: Int)
+
+bilbyFsObjTypeSum :: Int
+bilbyFsObjTypeSum = (6 :: Int)
+
+bilbyFsOidMaskSum :: Int
+bilbyFsOidMaskSum = (u8_to_u64 (6 :: Int) `shiftL` ((29 :: Int) :: Int))
+
+bilbyFsObjTypePad :: Int
+bilbyFsObjTypePad = (5 :: Int)
+
+bilbyFsOidMaskPad :: Int
+bilbyFsOidMaskPad = (u8_to_u64 (5 :: Int) `shiftL` ((29 :: Int) :: Int))
+
+bilbyFsObjTypeInode :: Int
+bilbyFsObjTypeInode = (0 :: Int)
+
+bilbyFsOidMaskInode :: Int
+bilbyFsOidMaskInode = (u8_to_u64 (0 :: Int) `shiftL` ((29 :: Int) :: Int))
+
+bilbyFsObjTypeDentarr :: Int
+bilbyFsObjTypeDentarr = (2 :: Int)
+
+bilbyFsOidMaskDentarr :: Int
+bilbyFsOidMaskDentarr = (u8_to_u64 (2 :: Int) `shiftL` ((29 :: Int) :: Int))
+
+bilbyFsObjTypeDel :: Int
+bilbyFsObjTypeDel = (3 :: Int)
+
+bilbyFsOidMaskDel :: Int
+bilbyFsOidMaskDel = (u8_to_u64 (3 :: Int) `shiftL` ((29 :: Int) :: Int))
+
+bilbyFsObjTypeData :: Int
+bilbyFsObjTypeData = (1 :: Int)
+
+bilbyFsOidMaskData :: Int
+bilbyFsOidMaskData = (u8_to_u64 (1 :: Int) `shiftL` ((29 :: Int) :: Int))
+
+bilbyFsObjSuperSize :: Int
+bilbyFsObjSuperSize = (40 :: Int) :: Int
+
+bilbyFsObjSummaryOffsSize :: Int
+bilbyFsObjSummaryOffsSize = (4 :: Int) :: Int
+
+bilbyFsObjSummaryHeaderSize :: Int
+bilbyFsObjSummaryHeaderSize = (4 :: Int) :: Int
+
+bilbyFsObjSumEntrySize :: Int
+bilbyFsObjSumEntrySize = (26 :: Int) :: Int
+
+bilbyFsObjInode :: Int
+bilbyFsObjInode = (60 :: Int) :: Int
+
+bilbyFsObjHeaderSize :: Int
+bilbyFsObjHeaderSize = (24 :: Int) :: Int
+
+bilbyFsObjDentryHeaderSize :: Int
+bilbyFsObjDentryHeaderSize = (8 :: Int) :: Int
+
+bilbyFsObjDentarrHeaderSize :: Int
+bilbyFsObjDentarrHeaderSize = (12 :: Int) :: Int
+
+bilbyFsObjDelSize :: Int
+bilbyFsObjDelSize = (8 :: Int) :: Int
+
+bilbyFsObjDataHeaderSize :: Int
+bilbyFsObjDataHeaderSize = (8 :: Int) :: Int
+
+bilbyFsMaxObjPerTrans :: Int
+bilbyFsMaxObjPerTrans = (2048 :: Int) :: Int
+
+bilbyFsMaxNbDentarrEntries :: Int
+bilbyFsMaxNbDentarrEntries = (16 :: Int) :: Int
+
+bilbyFsMaxNameLen :: Int
+bilbyFsMaxNameLen = (255 :: Int) :: Int
+
+bilbyFsMaxInum :: Int
+bilbyFsMaxInum = (4294967295 :: Int)
+
+bilbyFsMagic :: Int
+bilbyFsMagic = (186104309 :: Int)
+
+bilbyFsItypeSock :: Int
+bilbyFsItypeSock = (6 :: Int)
+
+bilbyFsItypeReg :: Int
+bilbyFsItypeReg = (0 :: Int)
+
+bilbyFsItypeLnk :: Int
+bilbyFsItypeLnk = (2 :: Int)
+
+bilbyFsItypeFifo :: Int
+bilbyFsItypeFifo = (5 :: Int)
+
+bilbyFsItypeDir :: Int
+bilbyFsItypeDir = (1 :: Int)
+
+bilbyFsItypeChr :: Int
+bilbyFsItypeChr = (4 :: Int)
+
+bilbyFsItypeBlk :: Int
+bilbyFsItypeBlk = (3 :: Int)
+
+bilbyFsITypeSock :: Int
+bilbyFsITypeSock = (6 :: Int)
+
+bilbyFsITypeReg :: Int
+bilbyFsITypeReg = (0 :: Int)
+
+bilbyFsITypeLnk :: Int
+bilbyFsITypeLnk = (2 :: Int)
+
+bilbyFsITypeFifo :: Int
+bilbyFsITypeFifo = (5 :: Int)
+
+bilbyFsITypeDir :: Int
+bilbyFsITypeDir = (1 :: Int)
+
+bilbyFsITypeCnt :: Int
+bilbyFsITypeCnt = (7 :: Int)
+
+bilbyFsITypeChr :: Int
+bilbyFsITypeChr = (4 :: Int)
+
+bilbyFsITypeBlk :: Int
+bilbyFsITypeBlk = (3 :: Int)
+
+bilbyFsFirstLogEbNum :: Int
+bilbyFsFirstLogEbNum = (2 :: Int) :: Int
+
+bilbyFsDefaultNbReservedGc :: Int
+bilbyFsDefaultNbReservedGc = (3 :: Int) :: Int
+
+bilbyFsDefaultNbReservedDel :: Int
+bilbyFsDefaultNbReservedDel = (3 :: Int) :: Int
+
+bilbyFsBlockSize :: Int
+bilbyFsBlockSize = (4096 :: Int) :: Int
+
+bilbyFsBlockShift :: Int
+bilbyFsBlockShift = (12 :: Int) :: Int
+
+vfs_type_blk :: Int
+vfs_type_blk = (24576 :: Int) :: Int
+
+vfs_type_chr :: Int
+vfs_type_chr = (8192 :: Int) :: Int
+
+vfs_type_dir :: Int
+vfs_type_dir = (16384 :: Int) :: Int
+
+vfs_type_fifo :: Int
+vfs_type_fifo = (4096 :: Int) :: Int
+
+vfs_type_link :: Int
+vfs_type_link = (40960 :: Int) :: Int
+
+vfs_type_reg :: Int
+vfs_type_reg = (32768 :: Int) :: Int
+
+vfs_type_sock :: Int
+vfs_type_sock = (49152 :: Int) :: Int
+
+vfs_MS_RDONLY :: Int
+vfs_MS_RDONLY = (1 :: Int) :: Int
+
+ubiExclusive :: Int
+ubiExclusive = (3 :: Int) :: Int
+
+ubiReadOnly :: Int
+ubiReadOnly = (1 :: Int) :: Int
+
+ubiReadWrite :: Int
+ubiReadWrite = (2 :: Int) :: Int
+
+bilbyFsTransCommit :: Int
+bilbyFsTransCommit = (2 :: Int)
+
+bilbyFsTransIn :: Int
+bilbyFsTransIn = (1 :: Int)
+
+bilbyFsPadObjId :: Int
+bilbyFsPadObjId = (18446744073709551615 :: Int)
+
+mkObjAddr :: R21 Int Int Int Int
+mkObjAddr = R21{ebnum = (0 :: Int) :: Int, offs = (0 :: Int) :: Int, len = (0 :: Int) :: Int, sqnum = (0 :: Int) :: Int}
+
+eAcces :: Int
+eAcces = (13 :: Int) :: Int
+
+eAgain :: Int
+eAgain = (11 :: Int) :: Int
+
+eBadF :: Int
+eBadF = (9 :: Int) :: Int
+
+eBusy :: Int
+eBusy = (16 :: Int) :: Int
+
+eChild :: Int
+eChild = (10 :: Int) :: Int
+
+eCrap :: Int
+eCrap = (66 :: Int) :: Int
+
+eDom :: Int
+eDom = (33 :: Int) :: Int
+
+eExist :: Int
+eExist = (17 :: Int) :: Int
+
+eFBig :: Int
+eFBig = (27 :: Int) :: Int
+
+eFault :: Int
+eFault = (14 :: Int) :: Int
+
+eIO :: Int
+eIO = (5 :: Int) :: Int
+
+eIntr :: Int
+eIntr = (4 :: Int) :: Int
+
+eInval :: Int
+eInval = (22 :: Int) :: Int
+
+eIsDir :: Int
+eIsDir = (21 :: Int) :: Int
+
+eMFile :: Int
+eMFile = (24 :: Int) :: Int
+
+eMLink :: Int
+eMLink = (31 :: Int) :: Int
+
+eNFile :: Int
+eNFile = (23 :: Int) :: Int
+
+eNXIO :: Int
+eNXIO = (6 :: Int) :: Int
+
+eNameTooLong :: Int
+eNameTooLong = (36 :: Int) :: Int
+
+eNoData :: Int
+eNoData = (42 :: Int) :: Int
+
+eNoDev :: Int
+eNoDev = (19 :: Int) :: Int
+
+eNoEnt :: Int
+eNoEnt = (2 :: Int) :: Int
+
+eNoExec :: Int
+eNoExec = (8 :: Int) :: Int
+
+eNoMem :: Int
+eNoMem = (12 :: Int) :: Int
+
+eNoSpc :: Int
+eNoSpc = (28 :: Int) :: Int
+
+eNoTty :: Int
+eNoTty = (25 :: Int) :: Int
+
+eNotBlk :: Int
+eNotBlk = (15 :: Int) :: Int
+
+eNotDir :: Int
+eNotDir = (20 :: Int) :: Int
+
+eNotEmpty :: Int
+eNotEmpty = (39 :: Int) :: Int
+
+eOverflow :: Int
+eOverflow = (75 :: Int) :: Int
+
+ePerm :: Int
+ePerm = (1 :: Int) :: Int
+
+ePipe :: Int
+ePipe = (32 :: Int) :: Int
+
+eRange :: Int
+eRange = (34 :: Int) :: Int
+
+eRecover :: Int
+eRecover = (88 :: Int) :: Int
+
+eRoFs :: Int
+eRoFs = (30 :: Int) :: Int
+
+eSPipe :: Int
+eSPipe = (29 :: Int) :: Int
+
+eSrch :: Int
+eSrch = (3 :: Int) :: Int
+
+eTooBig :: Int
+eTooBig = (7 :: Int) :: Int
+
+eTxtBsy :: Int
+eTxtBsy = (26 :: Int) :: Int
+
+eXDev :: Int
+eXDev = (18 :: Int) :: Int
+
 data WordArray a
 
 data VfsStat
