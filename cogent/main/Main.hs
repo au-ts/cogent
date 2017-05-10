@@ -831,8 +831,9 @@ parseArgs args = case getOpt' Permute options args of
           thy = mkProofName source Nothing
           (shal,shrd,scorr,shallowTypeNames) = SH.shallow False thy stg defns log
           (shal_tup,shrd_tup,_,_) = SH.shallow True thy STGDesugar defns log
-          shalhs     = SHHS.shallow False thy stg defns log  -- experimental!!!
-          shalhs_tup = SHHS.shallow True  thy stg defns log  -- experimental!!!
+          constsTypeCheck = SF.tcConsts (sel3 $ fromJust $ getLast typedefs) fts
+          shalhs     consts = SHHS.shallow False thy stg defns consts log  -- experimental!!!
+          shalhs_tup consts = SHHS.shallow True  thy stg defns consts log  -- experimental!!!
           tup_proof_thy = shallowTuplesProof thy
                             (mkProofName source (Just $ __cogent_suffix_of_shallow_shared))
                             (mkProofName source (Just $ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage stg))
@@ -847,9 +848,10 @@ parseArgs args = case getOpt' Permute options args of
         output shfile $ flip LJ.hPutDoc shal
       when shhs $ do
         putProgressLn ("Generating Haskell shallow embedding (" ++ stgMsg stg ++ ")...")
-        writeFileMsg shhsfile
-        output shhsfile $ flip hPutStrLn shalhs
-      let constsTypeCheck = SF.tcConsts (sel3 $ fromJust $ getLast typedefs) fts
+        case constsTypeCheck of
+          Left err -> hPutStrLn stderr ("Internal TC failed: " ++ err) >> exitFailure
+          Right (cs,_) -> do writeFileMsg shhsfile
+                             output shhsfile $ flip hPutStrLn (shalhs cs)
       when ks $ do
         putProgressLn ("Generating shallow constants (" ++ stgMsg stg ++ ")...")
         case constsTypeCheck of
@@ -868,8 +870,10 @@ parseArgs args = case getOpt' Permute options args of
         output sh_tupfile $ flip LJ.hPutDoc shal_tup
       when shhs_tup $ do
         putProgressLn ("Generating Haskell shallow embedding (with Haskell tuples)...")
-        writeFileMsg shhs_tupfile
-        output shhs_tupfile $ flip hPutStrLn shalhs_tup
+        case constsTypeCheck of
+          Left err -> hPutStrLn stderr ("Internal TC failed: " ++ err) >> exitFailure
+          Right (cs,_) -> do writeFileMsg shhs_tupfile
+                             output shhs_tupfile $ flip hPutStrLn (shalhs_tup cs)
       when ks_tup $ do
         putProgressLn ("Generating shallow constants (with HOL tuples)...")
         case constsTypeCheck of

@@ -34,6 +34,7 @@ import Cogent.Vec as Vec
 import Control.Arrow (second)
 import Control.Applicative
 import Control.Lens hiding (Context, (<*=))
+import Control.Monad.Extra (concatMapM)
 import Control.Monad.RWS hiding (Product, Sum, mapM)
 -- import Data.Char (ord, chr)
 import Data.Foldable (toList)
@@ -396,11 +397,18 @@ shallowDefinition (TypeDef tn ps (Just t)) = do
 shallowDefinitions :: [Definition TypedExpr VarName] -> SG [Decl ()]
 shallowDefinitions = (concat <$>) . mapM shallowDefinition
 
-shallow :: Bool -> String -> Stage -> [Definition TypedExpr VarName] -> String -> String
-shallow tuples name stg defs log =
-  let (decs,w) = evalRWS (runSG (shallowTypesFromTable >> shallowDefinitions defs))
-                                (ReaderGen (st defs) [] tuples)
-                                (StateGen 0 M.empty M.empty)
+shallowConst :: S.SFConst TypedExpr -> SG [HS.Decl ()]
+shallowConst (n, te@(TE t _)) = do
+  e' <- shallowExpr te
+  t' <- shallowType t
+  let n' = mkName $ snm n
+  pure $ [TypeSig () [n'] t', FunBind () [Match () n' [] (UnGuardedRhs () e') Nothing]]
+
+shallow :: Bool -> String -> Stage -> [Definition TypedExpr VarName] -> [S.SFConst TypedExpr] -> String -> String
+shallow tuples name stg defs consts log =
+  let (decs,w) = evalRWS (runSG (shallowTypesFromTable >> ((++) <$> concatMapM shallowConst consts <*> shallowDefinitions defs)))
+                         (ReaderGen (st defs) [] tuples)
+                         (StateGen 0 M.empty M.empty)
       tds = datatypes w
       header = (("{-\n" ++ log ++ "\n-}\n") ++)
       shhs = name ++ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage stg ++ (if tuples then __cogent_suffix_of_recover_tuples else [])
