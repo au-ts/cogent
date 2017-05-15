@@ -10,10 +10,19 @@ Isabelle input files).
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module Search_Shallow_Desugar where
 import Data.Bits ((.&.), (.|.), complement, xor, shiftL, shiftR)
 import Data.Word (Word8, Word16, Word32, Word64)
 import Prelude (not, div, mod, fromIntegral, undefined, (+), (-), (*), (&&), (||), (>), (>=), (<), (<=), (==), (/=), Char, String, Int, Bool(..))
+import qualified Prelude
+import Data.Foldable (foldl')
+
+import Debug.Trace
+
+import Util
 
 word64Max :: Word64
 word64Max = (18446744073709551615 :: Word64)
@@ -91,7 +100,7 @@ u8_to_u64 :: Word8 -> Word64
 u8_to_u64 = undefined
 
 u8_to_u32 :: Word8 -> Word32
-u8_to_u32 = undefined
+u8_to_u32 = fromIntegral
 
 u8_to_u16 :: Word8 -> Word16
 u8_to_u16 = undefined
@@ -126,8 +135,14 @@ cogent_log2 = undefined
 seq32_simple :: R6 Word32 Word32 Word32 (acc -> acc) acc -> acc
 seq32_simple = undefined
 
-seq32 :: R7 Word32 Word32 Word32 (R0 acc obsv Word32 -> R12 acc (V15 rbrk ())) acc obsv -> R12 acc (V15 rbrk ())
-seq32 = undefined
+seq32 :: forall acc obsv rbrk. R7 Word32 Word32 Word32 (R0 acc obsv Word32 -> R12 acc (V15 rbrk ())) acc obsv -> R12 acc (V15 rbrk ())
+seq32 R7 {..} = let (acc',r') = seq32' (fromIntegral frm) (fromIntegral to) (fromIntegral step) acc obsv f'
+                 in R12 acc' r'
+  where seq32' :: Int -> Int -> Int -> acc -> obsv -> (acc -> obsv -> Int -> (acc, V15 rbrk ())) -> (acc, V15 rbrk ())
+        seq32' fr to stp acc obsv f = let itr = [fr, fr + stp .. (to - 1)]
+                                       in foldl' (\(a,r) idx -> case r of Iterate _ -> f a obsv idx; Break b -> (a,r)) (acc, Iterate ()) itr
+        f' :: acc -> obsv -> Int -> (acc, V15 rbrk ())
+        f' acc obsv idx = let R12 {..} = f (R0 acc obsv (fromIntegral idx)) in (p1, p2)
 
 seq32_rev :: R7 Word32 Word32 Word32 (R0 acc obsv Word32 -> R12 acc (V15 rbrk ())) acc obsv -> R12 acc (V15 rbrk ())
 seq32_rev = undefined
@@ -139,25 +154,33 @@ seq64 :: R7 Word64 Word64 Word64 (R0 acc obsv Word64 -> R12 acc (V15 rbrk ())) a
 seq64 = undefined
 
 free_Node :: R12 SysState (R9 Word32 CString) -> SysState
-free_Node = undefined
+free_Node _ = ()
 
 malloc_Node :: SysState -> R12 SysState (V16 Word32 (R9 Word32 CString))
-malloc_Node = undefined
+malloc_Node _ = R12 {p1 = (), p2 = Success (R9 undefined undefined)}
 
 array_print :: R12 SysState CString -> SysState
 array_print = undefined
 
 free_CString :: R12 SysState CString -> SysState
-free_CString = undefined
+free_CString _ = ()
 
 string_cmp :: R12 CString CString -> Bool
-string_cmp = undefined
+string_cmp (R12 {..}) = p1 == p2
 
 deserialise_CString :: R14 SysState Buffer Word32 Word32 -> R12 SysState (V16 Word32 (R12 CString Word32))
-deserialise_CString = undefined
+deserialise_CString (R14 {..}) =
+  let buf = Prelude.drop (fromIntegral p3) p2
+   in if fromIntegral p4 > Prelude.length buf
+        then R12 () (Error (fromIntegral 1))
+        else let s = Prelude.take (fromIntegral p4) buf
+                 s' = Prelude.map (Prelude.toEnum Prelude.. fromIntegral) s
+              in R12 () (Success (R12 s' (p4 + p3)))
 
 deserialise_U32 :: R13 SysState Buffer Word32 -> R13 SysState Word32 Word32
-deserialise_U32 = undefined
+deserialise_U32 (R13 {..}) =
+  let buf = Prelude.drop (fromIntegral p3) p2
+   in case buf of (b0:b1:b2:b3:bs) -> R13 {p1 = (), p2 = buildWord32 b0 b1 b2 b3, p3 = p3 + fromIntegral 4}
 
 u16_to_u64 :: Word16 -> Word64
 u16_to_u64 __ds_var_0 = let x = __ds_var_0 in u32_to_u64 (u16_to_u32 x)
