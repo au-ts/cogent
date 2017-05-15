@@ -20,6 +20,7 @@ $ty:(RR SysState (#CString, Index) ErrCode) deserialise_CString ($ty:((SysState,
   return ret;
 }
 
+// can this function ever fail due to going out of buffer range???
 $ty:((SysState, U32, Index)) deserialise_U32 ($ty:((SysState, Buffer!, Index)) args) {
   $ty:((SysState, U32, Index)) ret;
   ret.p1 = args.p1;
