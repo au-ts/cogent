@@ -2,13 +2,16 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE PartialTypeSignatures #-}
- 
+{-# LANGUAGE TemplateHaskell #-}
+
 module Main where
 
 import Control.Arrow    (first)
 import Data.Foldable    (foldl')
 import Data.Monoid
 import Data.Word
+import Test.QuickCheck hiding (Success)
+import Test.QuickCheck.Gen
 
 import Search_Shallow_Desugar
 import Util
@@ -36,8 +39,47 @@ main =
               ++ [b20,b21,b22,b23] ++ map (fromIntegral . fromEnum) "TS"     ++ [0]
               ++ [b30,b31,b32,b33] ++ map (fromIntegral . fromEnum) "Cogent" ++ [0]
 
+keys :: [String]
+keys = words "libpam-pwquality libpam-runtime libpam-sss libpam0g libpango-1.0-0 libpango1.0-0 libpangocairo-1.0-0 \
+  \ libpangoft2-1.0-0 libpangox-1.0-0 libpangoxft-1.0-0 libparams-validationcompiler-perl \
+  \ libparse-debianchangelog-perl libparted-fs-resize0 libparted2 libpath-tiny-perl libpci3 libpciaccess0 \
+  \ libpcre16-3 libpcre2-8-0 libpcre3 libpcsclite1 libpeas-1.0-0 libperl5.24 libplist3 libplot2c2 libpng12-0 \
+  \ libpng16-16 libpopt0 libpostproc54 libpotrace0 libprotobuf10 libproxy-tools libproxy1v5 libpst4 libptexenc1 \
+  \ libpulse-mainloop-glib0 libpulse0 libpulsedsp libpwquality1 libpython-all-dev libpython-dev \
+  \ libpython-stdlib libpython2.7 libpython2.7-dev libpython2.7-minimal libpython2.7-stdlib libpython3-stdlib \
+  \ libpython3.5 libpython3.5-minimal libpython3.5-stdlib libqca2 libqca2-plugins libqt5dbus5 libqt5network5 \
+  \ libqt5opengl5 libqt5printsupport5 libqt5svg5 libqt5xml5 libqtwebkit4 libquadmath0 libraptor2-0 librasqal3 \
+  \ libraw1394-11 libraw15 librdf0 libreadline7 libroar2 librsvg2-2 librsvg2-common librtmp1 librubberband2 \
+  \ libsamplerate0 libsane libsane-common libsane-extras libsane-extras-common libsasl2-2 libsasl2-modules \
+  \ libsasl2-modules-db libsasl2-modules-gssapi-mit libscalar-list-utils-perl libsdl-image1.2 libsdl2-2.0-0 \
+  \ libsecret-1-0 libsecret-common libselinux1 libsemanage-common libsemanage1 libsepol1 libsm6 libsmartcols1 \
+  \ libsmbclient libsndfile1 libsodium18 libsombok3 libsoprano4 libsoup-gnome2.4-1 libsoup2.4-1 libsoxr0 \
+  \ libspecio-perl libspeechd2 libspeex1 libspeexdsp1 libsqlite3-0 libss2 libssh-gcrypt-4 libssl1.0.0 \
+  \ libssl1.0.2 libssl1.1 libsss-idmap0 libsss-nss-idmap0 libsss-sudo libstartup-notification0 libstdc++-6-dev"
 
+bufGen :: [CString] -> Gen Buffer
+bufGen ws = frequency [(1, badBufGen ws), (3, goodBufGen ws)]
 
+goodBufGen ws = do
+  ns <- elements [1..10] 
+  ws' <- take ns <$> shuffle ws
+  let ls = map ((\(b0,b1,b2,b3) -> b0:b1:b2:b3:[]) . readWord32 . fromIntegral . length) ws' :: [[Word8]]
+      ks = map (map (fromIntegral . fromEnum)) ws' :: [[Word8]]
+  return . concat $ zipWith (++) ls ks
+
+badBufGen  ws = shuffle =<< goodBufGen ws
+
+keyGen :: [CString] -> Gen CString
+keyGen = elements
+
+prop_find_str_refinement = forAll (bufGen keys) $ \buf ->
+                           forAll (keyGen keys) $ \key ->
+                             spec_find_str buf key `match_results` find_str (R13 () buf key)
+
+match_results :: Maybe Node -> R12 SysState (V17 () (R9 Word32 CString)) -> Bool
+match_results (Just n1) (R12 _ (Some n2)) = len n1 == len n2 && key n1 == key n2
+match_results Nothing (R12 _ (None ())) = True
+match_results _ _ = False
 
 
 spec_find_str :: [Word8] -> CString -> Maybe Node
