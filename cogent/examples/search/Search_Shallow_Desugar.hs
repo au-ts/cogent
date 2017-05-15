@@ -21,11 +21,11 @@ word64Max = (18446744073709551615 :: Word64)
 word32Max :: Word32
 word32Max = (4294967295 :: Word32)
 
-data SysState
+type SysState = ()
 
-data CString
+type CString = [Char]
 
-data Buffer
+type Buffer = [Word8]
 
 type WordArrayIndex = Word32
 
