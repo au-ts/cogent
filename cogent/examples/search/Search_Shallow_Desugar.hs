@@ -17,7 +17,7 @@ module Search_Shallow_Desugar where
 import Data.Bits ((.&.), (.|.), complement, xor, shiftL, shiftR)
 import Data.Word (Word8, Word16, Word32, Word64)
 import Prelude (not, div, mod, fromIntegral, undefined, (+), (-), (*), (&&), (||), (>), (>=), (<), (<=), (==), (/=), Char, String, Int, Bool(..))
-import qualified Prelude
+import qualified Prelude as P
 import Data.Foldable (foldl')
 
 import Debug.Trace
@@ -170,17 +170,17 @@ string_cmp (R12 {..}) = p1 == p2
 
 deserialise_CString :: R14 SysState Buffer Word32 Word32 -> R12 SysState (V16 Word32 (R12 CString Word32))
 deserialise_CString (R14 {..}) =
-  let buf = Prelude.drop (fromIntegral p3) p2
-   in if fromIntegral p4 > Prelude.length buf
+  let buf = P.drop (fromIntegral p3) p2
+   in if fromIntegral p4 > P.length buf
         then R12 () (Error (fromIntegral 1))
-        else let s = Prelude.take (fromIntegral p4) buf
-                 s' = Prelude.map (Prelude.toEnum Prelude.. fromIntegral) s
+        else let s = P.take (fromIntegral p4) buf
+                 s' = P.map (P.toEnum P.. fromIntegral) s
               in R12 () (Success (R12 s' (p4 + p3)))
 
 deserialise_U32 :: R13 SysState Buffer Word32 -> R13 SysState Word32 Word32
 deserialise_U32 (R13 {..}) =
-  let buf = Prelude.drop (fromIntegral p3) p2
-   in case buf of (b0:b1:b2:b3:bs) -> R13 {p1 = (), p2 = buildWord32 b0 b1 b2 b3, p3 = p3 + fromIntegral 4}
+  let buf = P.drop (fromIntegral p3) p2
+   in case buf of (b0:b1:b2:b3:bs) -> R13 {p1 = (), p2 = let len = buildWord32 b0 b1 b2 b3 in len, p3 = p3 + fromIntegral 4}
 
 u16_to_u64 :: Word16 -> Word64
 u16_to_u64 __ds_var_0 = let x = __ds_var_0 in u32_to_u64 (u16_to_u32 x)
@@ -432,13 +432,13 @@ data R7 t1 t2 t3 t4 t5 t6 = R7{frm :: t1, to :: t2, step :: t3, f :: t4, acc :: 
 
 data R8 t1 t2 t3 t4 t5 t6 = R8{frm :: t1, to :: t2, stepf :: t3, f :: t4, acc :: t5, obsv :: t6}
 
-data R9 t1 t2 = R9{len :: t1, key :: t2}
+data R9 t1 t2 = R9{len :: t1, key :: t2} deriving P.Show
 
 data R10 t1 t2 = R10{oelem :: t1, acc :: t2}
 
 data R11 t1 t2 t3 = R11{oelem :: t1, acc :: t2, obsv :: t3}
 
-data R12 t1 t2 = R12{p1 :: t1, p2 :: t2}
+data R12 t1 t2 = R12{p1 :: t1, p2 :: t2} deriving P.Show
 
 data R13 t1 t2 t3 = R13{p1 :: t1, p2 :: t2, p3 :: t3}
 
@@ -452,3 +452,4 @@ data V16 t1 t2 = Error t1
 
 data V17 t1 t2 = None t1
                | Some t2
+               deriving P.Show
