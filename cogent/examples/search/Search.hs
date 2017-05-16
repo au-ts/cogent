@@ -1,12 +1,15 @@
 {-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 
 module Main where
 
 import Control.Arrow    (first)
+import Data.Char        (isPrint)
 import Data.Foldable    (foldl')
 import Data.Monoid
 import Data.Word
@@ -39,7 +42,22 @@ main =
               ++ [b20,b21,b22,b23] ++ map (fromIntegral . fromEnum) "TS"     ++ [0]
               ++ [b30,b31,b32,b33] ++ map (fromIntegral . fromEnum) "Cogent" ++ [0]
 
-keys :: [String]
+
+buffer_1 = [9,0,0,0,108,105,98,115,101,112,111,108,49,13,0,0,0,108,105,98,112,114,111,116,111,98,117,102,49,48,19,0,0,0,108,105,98,112,97,110,103,111,99,97,105,114,111,45,49,46,48,45,48,24,0,0,0,108,105,98,115,116,97,114,116,117,112,45,110,111,116,105,102,105,99,97,116,105,111,110,48,10,0,0,0,108,105,98,115,111,109,98,111,107,51,20,0,0,0,108,105,98,112,121,116,104,111,110,51,46,53,45,109,105,110,105,109,97,108,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+
+-- should find it!!!
+bad_main = do
+  let str = "libstartup-notification0"
+      (R12 _ r) = find_str (R13 () buffer_1 str)
+  case r of
+    None _  -> putStrLn "Not found!"
+    Some nd -> putStrLn $ key nd
+
+
+pretty cs = concat $ map (\c -> let c' = (toEnum . fromIntegral $ c) in if isPrint c' then [c',','] else 'd':show c ++ ",") cs
+
+
+keys :: [CString]
 keys = words "libpam-pwquality libpam-runtime libpam-sss libpam0g libpango-1.0-0 libpango1.0-0 libpangocairo-1.0-0 \
   \ libpangoft2-1.0-0 libpangox-1.0-0 libpangoxft-1.0-0 libparams-validationcompiler-perl \
   \ libparse-debianchangelog-perl libparted-fs-resize0 libparted2 libpath-tiny-perl libpci3 libpciaccess0 \
@@ -61,11 +79,11 @@ bufGen :: [CString] -> Gen Buffer
 bufGen ws = frequency [(1, badBufGen ws), (3, goodBufGen ws)]
 
 goodBufGen ws = do
-  ns <- elements [1..10] 
+  ns <- elements [1..6] 
   ws' <- take ns <$> shuffle ws
   let ls = map ((\(b0,b1,b2,b3) -> b0:b1:b2:b3:[]) . readWord32 . fromIntegral . length) ws' :: [[Word8]]
       ks = map (map (fromIntegral . fromEnum)) ws' :: [[Word8]]
-  return . concat $ zipWith (++) ls ks
+  return $ concat (zipWith (++) ls ks) ++ replicate 500 0   -- assumptions is that the buffer is long enough
 
 badBufGen  ws = shuffle =<< goodBufGen ws
 
@@ -83,7 +101,7 @@ match_results _ _ = False
 
 
 spec_find_str :: [Word8] -> CString -> Maybe Node
-spec_find_str buf s = snd $ foldl' (\(restb, found) _ -> spec_cmp_inc restb found s) (buf, Nothing) buf
+spec_find_str buf s = snd $ foldl' (\(restb, found) _ -> spec_cmp_inc restb found s) (buf, Nothing) [0,1,2]
 
 spec_cmp_inc :: [Word8] -> Maybe Node -> CString -> ([Word8], Maybe Node)
 spec_cmp_inc buf (Just n) _ = (buf, Just n)
