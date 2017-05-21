@@ -13,8 +13,14 @@ int ext2fs_mkdir(struct inode * dir, struct dentry * dentry, umode_t mode);
 int ext2fs_link(struct dentry * old_dentry, struct inode * dir, struct dentry *dentry);
 int ext2fs_unlink(struct inode * dir, struct dentry * dentry);
 int ext2fs_rmdir(struct inode * dir, struct dentry *dentry);
+$esc:(#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0))
 int ext2fs_rename(struct inode * old_dir, struct dentry * old_dentry,
-		  struct inode * new_dir, struct dentry * new_dentry);
+                  struct inode * new_dir, struct dentry * new_dentry);
+$esc:(#else)
+int ext2fs_rename(struct inode * old_dir, struct dentry * old_dentry,
+                  struct inode * new_dir, struct dentry * new_dentry,
+                  unsigned int flags);
+$esc:(#endif)
 int ext2fs_mknod(struct inode * dir, struct dentry *dentry, umode_t mode, dev_t rdev);
 int ext2fs_setattr(struct dentry *dentry, struct iattr *iattr);
 int ext2fs_iterate(struct file *file, struct dir_context *ctx);

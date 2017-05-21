@@ -270,7 +270,7 @@ struct inode *fat_rebuild_parent(struct super_block *sb, int parent_logstart)
  * Find the parent for a directory that is not currently connected to
  * the filesystem root.
  *
- * On entry, the caller holds d_inode(child_dir)->i_mutex.
+ * On entry, the caller holds lock on d_inode(child_dir)
  */
 static struct dentry *fat_get_parent(struct dentry *child_dir)
 {

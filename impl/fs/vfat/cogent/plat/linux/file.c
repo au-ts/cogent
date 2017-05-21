@@ -25,9 +25,17 @@ static int fat_ioctl_get_attributes(struct inode *inode, u32 __user *user_attr)
 {
 	u32 attr;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
 	mutex_lock(&inode->i_mutex);
+#else
+        inode_lock_shared(inode);
+#endif
 	attr = fat_make_attrs(inode);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
 	mutex_unlock(&inode->i_mutex);
+#else
+        inode_unlock_shared(inode);
+#endif
 
 	return put_user(attr, user_attr);
 }
@@ -48,7 +56,12 @@ static int fat_ioctl_set_attributes(struct file *file, u32 __user *user_attr)
 	err = mnt_want_write_file(file);
 	if (err)
 		goto out;
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
 	mutex_lock(&inode->i_mutex);
+#else
+        inode_lock_shared(inode);
+#endif
 
 	/*
 	 * ATTR_VOLUME and ATTR_DIR cannot be changed; this also
@@ -110,7 +123,11 @@ static int fat_ioctl_set_attributes(struct file *file, u32 __user *user_attr)
 	fat_save_attrs(inode, attr);
 	mark_inode_dirty(inode);
 out_unlock_inode:
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
 	mutex_unlock(&inode->i_mutex);
+#else
+        inode_unlock_shared(inode);
+#endif
 	mnt_drop_write_file(file);
 out:
 	return err;
@@ -394,7 +411,11 @@ int fat_setattr(struct dentry *dentry, struct iattr *attr)
 			attr->ia_valid &= ~TIMES_SET_FLAGS;
 	}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
 	error = inode_change_ok(inode, attr);
+#else
+        error = setattr_prepare(dentry, attr);
+#endif
 	attr->ia_valid = ia_valid;
 	if (error) {
 		if (sbi->options.quiet)

@@ -39,7 +39,11 @@ static int __nolock_write_one_page(struct page *page, int wait)
         wait_on_page_writeback(page);
 
     if (clear_page_dirty_for_io(page)) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
         page_cache_get(page);
+#else
+        get_page(page);
+#endif
         /* ret = mapping->a_ops->writepage(page, &wbc); */
         ret = ext2fs_writepage_nolock (page, &wbc);
         if (ret == 0 && wait) {
@@ -47,7 +51,11 @@ static int __nolock_write_one_page(struct page *page, int wait)
            if (PageError(page))
               ret = -EIO;
         }
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
         page_cache_release(page);
+#else
+        put_page(page);
+#endif
     } else {
         unlock_page(page);
     }
@@ -250,6 +258,7 @@ static ssize_t ext2fs_direct_IO_nolock(int rw, struct kiocb *iocb,
     struct address_space *mapping = file->f_mapping;
     struct inode *inode = mapping->host;
     size_t count = iov_iter_count(iter);
+    loff_t offset = iocb->ki_pos;
     ssize_t ret;
 
     ret = blockdev_direct_IO(rw, iocb, inode, iter, offset, ext2fs_get_block);
@@ -283,65 +292,23 @@ static ssize_t ext2fs_direct_IO(int rw, struct kiocb *iocb, struct iov_iter *ite
     return ret;
 }
 
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 0)
-
-static ssize_t ext2fs_direct_IO_nolock(int rw, struct kiocb *iocb, const struct iovec *iov,
-                                       loff_t offset, unsigned long nr_segs)
-{
-    struct file *file = iocb->ki_filp;
-    struct address_space *mapping = file->f_mapping;
-    struct inode *inode = mapping->host;
-    ssize_t ret;
-
-    ret = blockdev_direct_IO(rw, iocb, inode, iov, offset, nr_segs, ext2fs_get_block);
-    if (ret < 0 && (rw & WRITE)) {
-        truncate_pagecache(inode, inode->i_size);
-        if (ext2fs_can_truncate(inode) == 0) {
-            ext2fs_truncate(inode, inode->i_size);
-        }
-    }
-
-    return ret;
-}
-
-static ssize_t ext2fs_direct_IO(int rw, struct kiocb *iocb, const struct iovec *iov,
-                                loff_t offset, unsigned long nr_segs)
-{
-    ssize_t ret;
-    struct file *file = iocb->ki_filp;
-    struct address_space *mapping = file->f_mapping;
-    struct inode *inode = mapping->host;
-    Ext2State *state = inode->i_sb->s_fs_info;
-
-    down(&state->iop_lock); /* aop */
-    take_inode_addrspace(inode);
-
-    ret = ext2fs_direct_IO_nolock(rw, iocb, iov, offset, nr_segs);
-
-    release_inode_addrspace(inode);
-    up(&state->iop_lock); /* aop */
-
-    return ret;
-}
-
 #else /* KERNEL_VERSION > KERNEL_VERSION_CODE(4, 0, 0) */
-
-static ssize_t ext2fs_direct_IO_nolock(struct kiocb *iocb, struct iov_iter *iter, loff_t offset)
+static ssize_t ext2fs_direct_IO_nolock(struct kiocb *iocb, struct iov_iter *iter)
 {
     struct file *file = iocb->ki_filp;
     struct address_space *mapping = file->f_mapping;
     struct inode *inode = mapping->host;
     size_t count = iov_iter_count(iter);
+    loff_t offset = iocb->ki_pos;
     ssize_t ret;
 
-    ret = blockdev_direct_IO(iocb, inode, iter, offset,
-                                 ext2fs_get_block);
+    ret = blockdev_direct_IO(iocb, inode, iter, ext2fs_get_block);
     if (ret < 0 && iov_iter_rw(iter) == WRITE)
             ext2fs_write_failed(mapping, offset + count);
     return ret;
 }
 
-static ssize_t ext2fs_direct_IO(struct kiocb *iocb, struct iov_iter *iter, loff_t offset)
+static ssize_t ext2fs_direct_IO(struct kiocb *iocb, struct iov_iter *iter)
 {
     ssize_t ret;
     struct file *file = iocb->ki_filp;
@@ -352,7 +319,7 @@ static ssize_t ext2fs_direct_IO(struct kiocb *iocb, struct iov_iter *iter, loff_
     down (&state->iop_lock); /* aop */
     take_inode_addrspace(inode);
 
-    ret = ext2fs_direct_IO_nolock(iocb, iter, offset);
+    ret = ext2fs_direct_IO_nolock(iocb, iter);
 
     release_inode_addrspace(inode);
     up (&state->iop_lock); /* aop */
