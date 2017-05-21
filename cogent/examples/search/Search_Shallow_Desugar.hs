@@ -432,7 +432,7 @@ data R7 t1 t2 t3 t4 t5 t6 = R7{frm :: t1, to :: t2, step :: t3, f :: t4, acc :: 
 
 data R8 t1 t2 t3 t4 t5 t6 = R8{frm :: t1, to :: t2, stepf :: t3, f :: t4, acc :: t5, obsv :: t6}
 
-data R9 t1 t2 = R9{len :: t1, key :: t2} deriving P.Show
+data R9 t1 t2 = R9{len :: t1, key :: t2} deriving (P.Show, P.Eq)
 
 data R10 t1 t2 = R10{oelem :: t1, acc :: t2}
 
