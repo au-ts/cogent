@@ -242,14 +242,21 @@ static int fat_write_end(struct file *file, struct address_space *mapping,
 	return err;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
 static ssize_t fat_direct_IO(struct kiocb *iocb, struct iov_iter *iter,
 			     loff_t offset)
+#else
+static ssize_t fat_direct_IO(struct kiocb *iocb, struct iov_iter *iter)
+#endif
 {
 	struct file *file = iocb->ki_filp;
 	struct address_space *mapping = file->f_mapping;
 	struct inode *inode = mapping->host;
 	size_t count = iov_iter_count(iter);
 	ssize_t ret;
+#if LINUX_VERSION_CODE > KERNEL_VERSION(4,4,0)
+        loff_t offset = iocb->ki_pos;
+#endif
 
 	if (iov_iter_rw(iter) == WRITE) {
 		/*
@@ -270,7 +277,11 @@ static ssize_t fat_direct_IO(struct kiocb *iocb, struct iov_iter *iter,
 	 * FAT need to use the DIO_LOCKING for avoiding the race
 	 * condition of fat_get_block() and ->truncate().
 	 */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
 	ret = blockdev_direct_IO(iocb, inode, iter, offset, fat_get_block);
+#else
+	ret = blockdev_direct_IO(iocb, inode, iter, fat_get_block);
+#endif
 	if (ret < 0 && iov_iter_rw(iter) == WRITE)
 		fat_write_failed(mapping, offset + count);
 

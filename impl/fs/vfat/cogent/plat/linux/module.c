@@ -124,7 +124,11 @@ unsigned int vfat_striptail_len(const struct qstr *qstr)
  */
 static int vfat_hash(const struct dentry *dentry, struct qstr *qstr)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
 	qstr->hash = full_name_hash(qstr->name, vfat_striptail_len(qstr));
+#else
+        qstr->hash = full_name_hash(dentry, qstr->name, vfat_striptail_len(qstr));
+#endif
 	return 0;
 }
 
@@ -144,7 +148,11 @@ static int vfat_hashi(const struct dentry *dentry, struct qstr *qstr)
 	name = qstr->name;
 	len = vfat_striptail_len(qstr);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
 	hash = init_name_hash();
+#else
+        hash = init_name_hash(dentry);
+#endif
 	while (len--)
 		hash = partial_name_hash(nls_tolower(t, *name++), hash);
 	qstr->hash = end_name_hash(hash);
@@ -155,10 +163,20 @@ static int vfat_hashi(const struct dentry *dentry, struct qstr *qstr)
 /*
  * Case insensitive compare of two vfat names.
  */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
 static int vfat_cmpi(const struct dentry *parent, const struct dentry *dentry,
 		unsigned int len, const char *str, const struct qstr *name)
+#else
+static int vfat_cmpi(const struct dentry *dentry, unsigned int len,
+                     const char *str, const struct qstr *name)
+
+#endif
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
 	struct nls_table *t = MSDOS_SB(parent->d_sb)->nls_io;
+#else
+        struct nls_table *t = MSDOS_SB(dentry->d_sb)->nls_io;
+#endif
 	unsigned int alen, blen;
 
 	/* A filename cannot end in '.' or we treat it like it has none */
@@ -174,8 +192,13 @@ static int vfat_cmpi(const struct dentry *parent, const struct dentry *dentry,
 /*
  * Case sensitive compare of two vfat names.
  */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
 static int vfat_cmp(const struct dentry *parent, const struct dentry *dentry,
 		unsigned int len, const char *str, const struct qstr *name)
+#else
+static int vfat_cmp(const struct dentry *dentry, unsigned int len,
+                    const char *str, const struct qstr *name)
+#endif
 {
 	unsigned int alen, blen;
 
@@ -720,8 +743,14 @@ int vfat_add_entry(struct inode *dir, struct qstr *qname, int is_dir,
 	return err;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
 static int vfat_rename(struct inode *old_dir, struct dentry *old_dentry,
 		       struct inode *new_dir, struct dentry *new_dentry)
+#else
+ static int vfat_rename(struct inode *old_dir, struct dentry *old_dentry,
+                        struct inode *new_dir, struct dentry *new_dentry,
+                        unsigned int flags)
+#endif
 {
 	struct buffer_head *dotdot_bh;
 	struct msdos_dir_entry *dotdot_de;
