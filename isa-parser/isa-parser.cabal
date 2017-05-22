@@ -34,9 +34,9 @@ library
 
   build-depends:       
     ansi-wl-pprint >= 0.6,
-    base >= 4.7, 
+    base >= 4.7 && < 4.10,
     haskell-src-meta >= 0.6,
-    mtl >= 2.1 && < 2.3, 
+    mtl >= 2.2.1 && < 2.3,
     parsec >= 3.1,
     syb >= 0.4,
     template-haskell >= 2.9
