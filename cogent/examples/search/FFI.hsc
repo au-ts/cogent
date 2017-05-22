@@ -33,7 +33,7 @@ data Ctag = TAG_ENUM_Break
 
 newtype Ctag_t = Ctag_t CInt deriving Storable
 newtype Cunit_t = Cunit_t { dummy :: CInt } deriving Storable
-data Ct4  = Ct4  { len :: Word32, key :: CCString }
+data Ct4  = Ct4  { len :: CInt, key :: CCString }  -- use CInt for Word32 as in C it's defined as int
 data Ct28 = Ct28 { tag :: Ctag_t, none :: Cunit_t, some :: Ptr Ct4 }
 data Ct29 = Ct29 { p1 :: Ptr CSysState, p2 :: Ct28 }
 

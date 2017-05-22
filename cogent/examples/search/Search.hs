@@ -117,13 +117,10 @@ foreign import ccall unsafe "main_pp_inferred.c ffi_find_str"
 
 cogent_find_str :: [Word8] -> CString -> IO (Maybe Node)
 cogent_find_str buf s = do
-  pstate <- malloc
-  pbuf   <- malloc
-  pokeArray (castPtr pbuf) buf
+  pstate <- (malloc :: IO (Ptr CSysState))
+  pbuf   <- newArray buf
   cstr <- newCString s
-  let args = Ct27 pstate pbuf cstr
-  pargs <- malloc
-  poke pargs args
+  pargs <- new $ Ct27 pstate (castPtr pbuf) cstr
   prets <- c_find_str pargs
   Ct29 _ (Ct28 (Ctag_t tag) none some) <- peek prets
   -- free pstate
@@ -135,7 +132,7 @@ cogent_find_str buf s = do
       then do
         Ct4 l k <- peek some
         k' <- peekCString k
-        return $ Just $ R9 l k'
+        return $ Just $ R9 (fromIntegral l) k'
       else undefined   -- impossible!
 
 spec_find_str :: [Word8] -> CString -> Maybe Node
