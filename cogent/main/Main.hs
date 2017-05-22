@@ -91,7 +91,8 @@ import System.IO
 import System.Process (readProcessWithExitCode)
 import Text.Show.Pretty (ppShow)
 import Text.PrettyPrint.ANSI.Leijen as LJ (displayIO, Doc, hPutDoc, plain)
-import Text.PrettyPrint.Mainland as M (ppr, hPutDoc, line, string, (</>))
+import Text.PrettyPrint.Mainland as M (hPutDoc, line, string, (</>))
+import Text.PrettyPrint.Mainland.Class as MC (ppr)
 import Prelude hiding (mapM_)
 
 -- import Debug.Trace
@@ -747,7 +748,7 @@ parseArgs args = case getOpt' Permute options args of
         Left err -> hPutStrLn stderr ("Glue code (types) generation failed: \n" ++ err) >> exitFailure
         Right infed -> do forM_ infed $ \(filename, defs) -> do
                             writeFileMsg $ Just filename
-                            output (Just filename) $ flip M.hPutDoc (M.ppr defs </> M.line)
+                            output (Just filename) $ flip M.hPutDoc (MC.ppr defs </> M.line)
       resAcFiles <- processAcFiles __cogent_infer_c_func_files glreader log
       if not __cogent_interactive
         then earlyExit resAcFiles
@@ -778,7 +779,7 @@ parseArgs args = case getOpt' Permute options args of
             Left err -> hPutStrLn stderr ("Glue code (functions) generation failed: \n" ++ err) >> return False
             Right infed -> do forM_ infed $ \(filename, defs) -> do
                                 writeFileMsg (Just filename)
-                                output (Just filename) $ flip M.hPutDoc (M.string ("/*\n" ++ log ++ "\n*/\n") </> M.ppr defs </> M.line)
+                                output (Just filename) $ flip M.hPutDoc (M.string ("/*\n" ++ log ++ "\n*/\n") </> MC.ppr defs </> M.line)
                               return True
         earlyExit :: Bool -> IO ()
         earlyExit x = if x then return () else exitFailure
