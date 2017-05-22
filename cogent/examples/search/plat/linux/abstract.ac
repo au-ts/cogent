@@ -56,7 +56,7 @@ $ty:(SysState) free_CString ($ty:((SysState, #CString)) args) {
 }
 
 $ty:(Bool) string_cmp ($ty:(((#CString)!, (#CString)!)) args) {
-  printf ("Comparing: %s ?== %s\n", args.p1, args.p2);
+  // printf ("Comparing: %s ?== %s\n", args.p1, args.p2);
   int r = strcmp (args.p1, args.p2);
   if (r == 0)  return $exp:(True);
     else return $exp:(False);
