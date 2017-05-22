@@ -560,7 +560,7 @@ SysState *free_CString(t12 args)
 }
 bool_t string_cmp(t13 args)
 {
-    printf("Comparing: %s ?== %s\n", args.p1, args.p2);
+    // printf("Comparing: %s ?== %s\n", args.p1, args.p2);
     
     int r = strcmp(args.p1, args.p2);
     
