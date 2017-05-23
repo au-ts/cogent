@@ -135,7 +135,7 @@ reason that they contain some language extensions which our C parser does not su
 
 Cogent also suppports conditional compilation in the style of _cpp_ (C preprocessor). Directives (e.g. ~#define~, ~#if~, etc.) should also
 be wrapped in ~$esc~ so that they are left to the C compiler, instead of (mistakenly) being processed by Cogent's C preprocessor.
-For statement level directives, you need the alternative ~escstm~ antiquote specifier rather than ~$esc~.
+For statement level directives, you need the alternative ~$escstm~ antiquote specifier rather than ~$esc~.
 
 
 * Expressions
