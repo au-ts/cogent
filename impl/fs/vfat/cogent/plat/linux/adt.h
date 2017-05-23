@@ -22,6 +22,7 @@
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/fs.h>
+#include <linux/version.h>
 #endif  /* __KERNEL__ */
 
 #endif /* _ADT_LINUX_H */

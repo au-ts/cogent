@@ -15,6 +15,7 @@
 #include <linux/hash.h>
 #include <linux/ratelimit.h>
 #include <linux/msdos_fs.h>
+#include <linux/version.h>
 
 /*
  * vfat shortname flags
@@ -124,7 +125,7 @@ struct msdos_inode_info {
 	/* for avoiding the race between fat_free() and fat_get_cluster() */
 	unsigned int cache_valid_id;
 
-	/* NOTE: mmu_private is 64bits, so must hold ->i_mutex to access */
+	/* NOTE: mmu_private is 64bits, so must hold inode lock to access */
 	loff_t mmu_private;	/* physically allocated size */
 
 	int i_start;		/* first cluster or 0 */

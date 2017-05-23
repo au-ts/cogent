@@ -85,6 +85,7 @@ import           Prelude             as P    hiding (mapM)
 import           System.IO (Handle)
 import qualified Text.PrettyPrint.ANSI.Leijen as PP hiding ((<$>), (<>))
 import qualified Text.PrettyPrint.Mainland as ML
+import qualified Text.PrettyPrint.Mainland.Class as MLC
 
 -- import Debug.Trace
 import Unsafe.Coerce (unsafeCoerce)
@@ -1319,7 +1320,7 @@ cExtDecl (CMacro s) = C.EscDef s noLoc
 cExtDecl (CFnMacro fn as body) = C.EscDef (string1 ++ "\\\n" ++ string2) noLoc
   where macro1, macro2 :: ML.Doc
         macro1 = ML.string "#define" ML.<+> ML.string fn ML.<> ML.parens (ML.commasep $ L.map ML.string as)
-        macro2 = ML.ppr [citems| $items:(L.map cBlockItem body) |]
+        macro2 = MLC.ppr [citems| $items:(L.map cBlockItem body) |]
         string1, string2 :: String
         string1 = L.filter (/= '\n') $ ML.pretty 100 macro1
         string2 = concat $ map (\c -> if c == '\n' then "\\\n" else [c]) $ ML.pretty 100 macro2
