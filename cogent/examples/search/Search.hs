@@ -1,5 +1,6 @@
 {-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE EmptyCase #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -7,6 +8,7 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Main where
 
@@ -14,6 +16,7 @@ import Control.Arrow    (first)
 import Data.Char        (isPrint)
 import Data.Foldable    (foldl')
 import Data.Monoid
+import Data.List        (find)
 import Data.Word
 import Foreign
 import Foreign.C.String hiding (CString)
@@ -123,9 +126,9 @@ cogent_find_str buf s = do
   pargs <- new $ Ct27 pstate (castPtr pbuf) cstr
   prets <- c_find_str pargs
   Ct29 _ (Ct28 (Ctag_t tag) none some) <- peek prets
-  -- free pstate
-  -- free pbuf
-  -- free pargs
+  free pstate
+  free pbuf
+  free pargs
   if fromEnum tag == fromEnum tagEnumNone
     then return Nothing
     else if fromEnum tag == fromEnum tagEnumSome
@@ -133,7 +136,11 @@ cogent_find_str buf s = do
         Ct4 l k <- peek some
         k' <- peekCString k
         return $ Just $ R9 (fromIntegral l) k'
-      else undefined   -- impossible!
+      else case fromEnum tag of {}  -- impossible
+
+
+hl_find_str :: [Node] -> CString -> Maybe Node
+hl_find_str (take 3 -> ns) s = find (\n -> (key :: Node -> CString) n == s) ns
 
 spec_find_str :: [Word8] -> CString -> Maybe Node
 spec_find_str buf s = snd $ foldl' (\(restb, found) _ -> spec_cmp_inc restb found s) (buf, Nothing) [0,1,2]
