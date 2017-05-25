@@ -85,6 +85,9 @@ import           Prelude             as P    hiding (mapM)
 import           System.IO (Handle)
 import qualified Text.PrettyPrint.ANSI.Leijen as PP hiding ((<$>), (<>))
 import qualified Text.PrettyPrint.Mainland as ML
+#if MIN_VERSION_mainland_pretty(0,6,0)
+import qualified Text.PrettyPrint.Mainland.Class as ML
+#endif
 
 -- import Debug.Trace
 import Unsafe.Coerce (unsafeCoerce)

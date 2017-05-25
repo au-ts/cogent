@@ -777,7 +777,11 @@ static int fat_ioctl_readdir(struct inode *inode, struct file *file,
 
 	buf.dirent = dirent;
 	buf.result = 0;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
 	mutex_lock(&inode->i_mutex);
+#else
+       inode_lock_shared(inode);
+#endif
 	buf.ctx.pos = file->f_pos;
 	ret = -ENOENT;
 	if (!IS_DEADDIR(inode)) {
@@ -785,7 +789,11 @@ static int fat_ioctl_readdir(struct inode *inode, struct file *file,
 				    short_only, both ? &buf : NULL);
 		file->f_pos = buf.ctx.pos;
 	}
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
 	mutex_unlock(&inode->i_mutex);
+#else
+        inode_unlock_shared(inode);
+#endif
 	if (ret >= 0)
 		ret = buf.result;
 	return ret;

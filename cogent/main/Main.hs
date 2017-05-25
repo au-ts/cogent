@@ -81,6 +81,7 @@ import Data.Time
 import qualified Data.Traversable as T (forM)
 import Data.Tuple.Select (sel3)
 -- import Isabelle.InnerAST (subSymStr)
+import Prelude hiding (mapM_)
 import System.AtomicWrite.Writer.String (atomicWithFile)
 -- import System.Console.GetOpt
 import System.Directory
@@ -91,8 +92,12 @@ import System.IO
 import System.Process (readProcessWithExitCode)
 import Text.Show.Pretty (ppShow)
 import Text.PrettyPrint.ANSI.Leijen as LJ (displayIO, Doc, hPutDoc, plain)
+#if MIN_VERSION_mainland_pretty(0,6,0)
+import Text.PrettyPrint.Mainland as M (hPutDoc, line, string, (</>))
+import Text.PrettyPrint.Mainland.Class as M (ppr)
+#else
 import Text.PrettyPrint.Mainland as M (ppr, hPutDoc, line, string, (</>))
-import Prelude hiding (mapM_)
+#endif
 
 -- import Debug.Trace
 

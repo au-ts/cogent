@@ -84,8 +84,11 @@ $ty:(R OSPage ()) ospagecache_grab ($ty:((VfsMemoryMap, U64)) args) {
 unit_t ospagecache_release ($ty:(OSPage) page) {
     unit_t ret;
 
-    // printk ("releasing page %p from pagecache\n", page);
-    page_cache_release (page);
+$escstm:(#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0))
+    page_cache_release(page);
+$escstm:(#else)
+    put_page(page);
+$escstm:(#endif)
 
     return ret;
 }
