@@ -48,7 +48,7 @@ before_install:
  - unset CC
  - export ALEXVER=3.1.7
  - export HAPPYVER=1.19.5
- - export PATH=~/.cabal/bin:/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:/opt/happy/$HAPPYVER/bin:/opt/alex/$ALEXVER/bin:$REPO/cogent/$SANDBOX/bin:$PATH
+ - export PATH=~/.cabal/bin:/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:/opt/happy/$HAPPYVER/bin:/opt/alex/$ALEXVER/bin:$REPO/cogent/cogent/$SANDBOX/bin:$PATH
 
 install:
  - cabal --version
@@ -111,6 +111,8 @@ script:
  # - cabal build   # this builds all libraries and executables (including tests/benchmarks)
  # - cabal test  # this rarely changes, so disabled for now to save some time / zilinc
  # - cabal check
+ - pwd
+ - find . -name cogent
  # - echo 'Running tests'
  - make test-tc
  - make test-ds
