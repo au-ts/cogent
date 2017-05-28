@@ -43,6 +43,16 @@ main =
        None _  -> putStrLn "Not found!"
        Some nd -> putStrLn $ (key :: Node -> CString) nd
 
+-- should find it!!!
+bad_main = do
+  let str = "libstartup-notification0"
+      (R12 _ r) = find_str (R13 () buffer_1 str)
+  case r of
+    None _  -> putStrLn "Not found!"
+    Some nd -> putStrLn $ (key :: Node -> CString) nd
+
+-- -----------------------------------------------
+
 buffer :: Buffer
 buffer = [b10,b11,b12,b13] ++ map (fromIntegral . fromEnum) "Data61" ++ [0]
       ++ [b20,b21,b22,b23] ++ map (fromIntegral . fromEnum) "TS"     ++ [0]
@@ -53,17 +63,7 @@ buffer = [b10,b11,b12,b13] ++ map (fromIntegral . fromEnum) "Data61" ++ [0]
 
 buffer_1 = [9,0,0,0,108,105,98,115,101,112,111,108,49,13,0,0,0,108,105,98,112,114,111,116,111,98,117,102,49,48,19,0,0,0,108,105,98,112,97,110,103,111,99,97,105,114,111,45,49,46,48,45,48,24,0,0,0,108,105,98,115,116,97,114,116,117,112,45,110,111,116,105,102,105,99,97,116,105,111,110,48,10,0,0,0,108,105,98,115,111,109,98,111,107,51,20,0,0,0,108,105,98,112,121,116,104,111,110,51,46,53,45,109,105,110,105,109,97,108,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
 
--- should find it!!!
-bad_main = do
-  let str = "libstartup-notification0"
-      (R12 _ r) = find_str (R13 () buffer_1 str)
-  case r of
-    None _  -> putStrLn "Not found!"
-    Some nd -> putStrLn $ (key :: Node -> CString) nd
-
-
 pretty cs = concat $ map (\c -> let c' = (toEnum . fromIntegral $ c) in if isPrint c' then [c',','] else 'd':show c ++ ",") cs
-
 
 keys :: [CString]
 keys = words "libpam-pwquality libpam-runtime libpam-sss libpam0g libpango-1.0-0 libpango1.0-0 libpangocairo-1.0-0 \
@@ -83,6 +83,8 @@ keys = words "libpam-pwquality libpam-runtime libpam-sss libpam0g libpango-1.0-0
   \ libspecio-perl libspeechd2 libspeex1 libspeexdsp1 libsqlite3-0 libss2 libssh-gcrypt-4 libssl1.0.0 \
   \ libssl1.0.2 libssl1.1 libsss-idmap0 libsss-nss-idmap0 libsss-sudo libstartup-notification0 libstdc++-6-dev"
 
+-- -----------------------------------------------
+
 bufGen :: [CString] -> Gen Buffer
 bufGen ws = frequency [(1, badBufGen ws), (3, goodBufGen ws)]
 
@@ -98,22 +100,49 @@ badBufGen  ws = shuffle =<< goodBufGen ws
 keyGen :: [CString] -> Gen CString
 keyGen = elements
 
-prop_find_str_refinement' = forAll (bufGen keys) $ \buf ->
-                            forAll (keyGen keys) $ \key ->
-                              spec_find_str buf key `match_results` find_str (R13 () buf key)
+-- -----------------------------------------------
+-- properties
 
-prop_find_str_refinement = monadicIO $ 
-                             forAllM (bufGen keys) $ \buf ->
-                             forAllM (keyGen keys) $ \key -> run $ do
-                               let r1 = spec_find_str buf key
-                               r2 <- cogent_find_str buf key
-                               return $ r1 == r2
+-- spec vs. haskell embedding (not very useful for our purpose)
+prop_cogent_eq_haskell = forAll (bufGen keys) $ \buf ->
+                         forAll (keyGen keys) $ \key ->
+                           spec_find_str buf key `match_results` find_str (R13 () buf key)
+  where
+    match_results :: Maybe Node -> R12 SysState (V17 () (R9 Word32 CString)) -> Bool
+    match_results (Just n1) (R12 _ (Some n2)) = (len :: Node -> Word32) n1 == (len :: Node -> Word32) n2 && (key :: Node -> CString) n1 == (key :: Node -> CString) n2
+    match_results Nothing (R12 _ (None ())) = True
+    match_results _ _ = False
 
-match_results :: Maybe Node -> R12 SysState (V17 () (R9 Word32 CString)) -> Bool
-match_results (Just n1) (R12 _ (Some n2)) = (len :: Node -> Word32) n1 == (len :: Node -> Word32) n2 && (key :: Node -> CString) n1 == (key :: Node -> CString) n2
-match_results Nothing (R12 _ (None ())) = True
-match_results _ _ = False
+-- exe spec vs. cogent impl'n
+prop_model_to_cogent = monadicIO $ 
+                         forAllM (bufGen keys) $ \buf ->
+                         forAllM (keyGen keys) $ \key -> run $ do
+                           let r1 = spec_find_str buf key
+                           r2 <- cogent_find_str buf key
+                           return $ r1 == r2
 
+-- the refinement theorem. (now equiv. in the prop)
+-- forall c'. c' = fc c, alpha c = a ===> exists a'. a' = fa a
+-- abs spec vs. exe spec
+prop_abs_to_model = forAll (bufGen keys) $ \buf ->
+                    forAll (keyGen keys) $ \key ->
+                      spec_find_str buf key == abs_find_str (alpha buf) key
+
+-- -----------------------------------------------
+-- data refinement
+
+alpha :: [Word8] -> [Node]
+alpha buf = undefined  -- TODO
+
+
+-- -----------------------------------------------
+-- abstract spec
+
+abs_find_str :: [Node] -> CString -> Maybe Node
+abs_find_str (take 3 -> ns) s = find (\n -> (key :: Node -> CString) n == s) ns
+
+-- -----------------------------------------------
+-- concrete impl'n
 
 foreign import ccall unsafe "main_pp_inferred.c ffi_find_str"
   c_find_str :: Ptr Ct27 -> IO (Ptr Ct29)
@@ -139,8 +168,8 @@ cogent_find_str buf s = do
       else case fromEnum tag of {}  -- impossible
 
 
-hl_find_str :: [Node] -> CString -> Maybe Node
-hl_find_str (take 3 -> ns) s = find (\n -> (key :: Node -> CString) n == s) ns
+-- -----------------------------------------------
+-- executable spec
 
 spec_find_str :: [Word8] -> CString -> Maybe Node
 spec_find_str buf s = snd $ foldl' (\(restb, found) _ -> spec_cmp_inc restb found s) (buf, Nothing) [0,1,2]
@@ -149,27 +178,8 @@ spec_cmp_inc :: [Word8] -> Maybe Node -> CString -> ([Word8], Maybe Node)
 spec_cmp_inc buf (Just n) _ = (buf, Just n)
 spec_cmp_inc buf Nothing  s = 
   case spec_deserialise_Node buf of
-    Success (n, buf') -> if s `spec_string_cmp` (key :: Node -> CString) n then (buf', Just n) else (buf', Nothing)
+    Success (n, buf') -> if s == (key :: Node -> CString) n then (buf', Just n) else (buf', Nothing)
     Error   err       -> (buf, Nothing)
-
-spec_string_cmp :: CString -> CString -> Bool
-spec_string_cmp = (==)
-
-
-instance Functor (V16 e) where
-  fmap _ (Error   e) = Error e
-  fmap f (Success a) = Success (f a)
-
-instance Applicative (V16 e) where
-  pure = Success
-  Error   e <*> _ = Error e
-  Success f <*> a = fmap f a
-
-instance Monad (V16 e) where
-  return = pure
-  Error e   >>= _ = Error e
-  Success a >>= f = f a
-
 
 spec_deserialise_Node :: [Word8] -> R (Node, [Word8]) ErrCode
 spec_deserialise_Node buf = do
@@ -186,3 +196,20 @@ spec_deserialise_CString buf len =
   if fromIntegral len > length buf
     then Error 1
     else return $ (first $ map (toEnum . fromIntegral)) $ splitAt (fromIntegral len) buf
+
+instance Functor (V16 e) where
+  fmap _ (Error   e) = Error e
+  fmap f (Success a) = Success (f a)
+
+instance Applicative (V16 e) where
+  pure = Success
+  Error   e <*> _ = Error e
+  Success f <*> a = fmap f a
+
+instance Monad (V16 e) where
+  return = pure
+  Error e   >>= _ = Error e
+  Success a >>= f = f a
+
+
+
