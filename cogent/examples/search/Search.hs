@@ -126,14 +126,19 @@ prop_model_to_cogent = monadicIO $
 -- abs spec vs. exe spec
 prop_abs_to_model = forAll (bufGen keys) $ \buf ->
                     forAll (keyGen keys) $ \key ->
-                      spec_find_str buf key == abs_find_str (alpha buf) key
+                      case alpha buf of
+                        Nothing -> spec_find_str buf key == Nothing
+                        Just ns -> spec_find_str buf key == abs_find_str ns key
 
 -- -----------------------------------------------
 -- data refinement
 
-alpha :: [Word8] -> [Node]
-alpha buf = undefined  -- TODO
-
+alpha :: [Word8] -> Maybe [Node]
+alpha buf = snd $ foldl' (\(restb,mns) _ -> case mns of
+                                      Nothing -> (restb, Nothing);
+                                      Just ns -> case spec_deserialise_Node restb of
+                                        Error _ -> (restb, Nothing)
+                                        Success (n,buf') -> (buf', Just $ n:ns)) (buf,Just []) [0,1,2]
 
 -- -----------------------------------------------
 -- abstract spec
