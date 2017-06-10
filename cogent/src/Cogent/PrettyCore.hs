@@ -13,7 +13,7 @@ module Cogent.PrettyCore where
 
 import System.Console.ANSI (hSetSGR)
 import System.IO (Handle, hPutChar, hPutStr)
-import Text.PrettyPrint.ANSI.Leijen hiding
+import Text.PrettyPrint.ANSI.Leijen
 
 -- FIXME: where is this code from? why do we need it? / zilinc
 displayOneLine :: Handle -> SimpleDoc -> IO ()
