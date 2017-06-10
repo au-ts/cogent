@@ -1,5 +1,5 @@
 --
--- Copyright 2016, NICTA
+-- Copyright 2017, NICTA
 --
 -- This software may be distributed and modified according to the terms of
 -- the GNU General Public License version 2. Note that NO WARRANTY is provided.
@@ -32,7 +32,7 @@ import Prelude hiding (foldr)
 import Prelude hiding ((<$>), foldr)
 #endif
 import Text.Parsec.Pos
-import Text.PrettyPrint.ANSI.Leijen hiding (tupled,indent)
+import Text.PrettyPrint.ANSI.Leijen hiding (indent, tupled)
 
 indentation, ifIndentation :: Int
 indentation = 3
@@ -120,11 +120,6 @@ handlePutAssign :: (ExprType e, Pretty e) => Maybe (FieldName, e) -> Doc
 handlePutAssign Nothing = fieldname ".."
 handlePutAssign (Just (s, e)) | isVar e s = fieldname s
 handlePutAssign (Just (s, e)) = fieldname s <+> symbol "=" <+> pretty e
-
-instance Pretty Likelihood where
-  pretty Likely = symbol "=>"
-  pretty Unlikely = symbol "~>"
-  pretty Regular = symbol "->"
 
 instance Pretty (IrrefutablePattern VarName) where
   pretty (PVar v) = varname v

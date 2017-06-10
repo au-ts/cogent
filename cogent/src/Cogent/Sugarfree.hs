@@ -1,5 +1,5 @@
 --
--- Copyright 2016, NICTA
+-- Copyright 2017, NICTA
 --
 -- This software may be distributed and modified according to the terms of
 -- the GNU General Public License version 2. Note that NO WARRANTY is provided.
@@ -8,7 +8,7 @@
 -- @TAG(NICTA_GPL)
 --
 
-{- LANGUAGE AllowAmbiguousTypes -}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE DataKinds #-}
 {- LANGUAGE DeriveDataTypeable -}
 {-# LANGUAGE DeriveFunctor #-}
@@ -20,6 +20,9 @@
 {- LANGUAGE InstanceSigs -}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE LambdaCase #-}
+#if __GLASGOW_HASKELL__ < 709
+{-# LANGUAGE OverlappingInstances #-}
+#endif
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE Rank2Types #-}
@@ -29,6 +32,8 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE ViewPatterns #-}
+{-# OPTIONS_GHC -fno-warn-orphans -fno-warn-missing-signatures #-}
 
 module Cogent.Sugarfree where
 
@@ -39,8 +44,8 @@ import Cogent.Util
 import Cogent.Vec hiding (splitAt, length, zipWith, zip, unzip)
 import qualified Cogent.Vec as Vec
 
-import Control.Applicative
-import Control.Arrow
+import Control.Applicative hiding (empty)
+import Control.Arrow hiding ((<+>))
 import Control.Monad.Except hiding (fmap, forM_)
 import Control.Monad.Reader hiding (fmap, forM_)
 import Control.Monad.State hiding (fmap, forM_)
@@ -53,6 +58,8 @@ import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Monoid
 -- import Data.Monoid.Cancellative
+import Text.PrettyPrint.ANSI.Leijen hiding (indent, tupled, (<>), (<$>))
+import qualified Text.PrettyPrint.ANSI.Leijen as L
 import qualified Unsafe.Coerce as Unsafe (unsafeCoerce)  -- NOTE: used safely to coerce phantom types only
 
 -- import Debug.Trace
@@ -135,9 +142,9 @@ instance Monoid Attr where
   (Attr a1 a2) `mappend` (Attr a1' a2') = Attr (a1 || a1') (a2 || a2')
 
 data Definition e a
-  = forall t. FunDef  Attr FunName (Vec t (TyVarName, Kind)) (Type t) (Type t) (e t ('Suc 'Zero) a)
-  | forall t. AbsDecl Attr FunName (Vec t (TyVarName, Kind)) (Type t) (Type t)
-  | forall t. TypeDef TypeName (Vec t TyVarName) (Maybe (Type t))
+  = forall t. (Pretty a, Pretty (e t ('Suc 'Zero) a)) => FunDef  Attr FunName (Vec t (TyVarName, Kind)) (Type t) (Type t) (e t ('Suc 'Zero) a)
+  | forall t. (Pretty a, Pretty (e t ('Suc 'Zero) a)) => AbsDecl Attr FunName (Vec t (TyVarName, Kind)) (Type t) (Type t)
+  | forall t. (Pretty a, Pretty (e t ('Suc 'Zero) a)) => TypeDef TypeName (Vec t TyVarName) (Maybe (Type t))
 deriving instance Show a => Show (Definition TypedExpr a)
 deriving instance Show a => Show (Definition UntypedExpr a)
 
@@ -283,13 +290,13 @@ instance (Functor (e t v), Functor (e t ('Suc v)), Functor (e t ('Suc ('Suc v)))
 instance Functor (TypedExpr t v) where
   fmap f (TE t e) = TE t $ ffmap f e
 
-instance Functor (Definition TypedExpr) where
-  fmap f (FunDef  attr fn ts ti to e) = FunDef  attr fn ts ti to (fmap f e)
-  fmap f (AbsDecl attr fn ts ti to)   = AbsDecl attr fn ts ti to
-  fmap f (TypeDef tn ts mt)      = TypeDef tn ts mt
-
-stripNameTD :: Definition TypedExpr VarName -> Definition TypedExpr ()
-stripNameTD = fmap $ const ()
+-- instance Functor (Definition TypedExpr) where
+--   fmap f (FunDef  attr fn ts ti to e) = FunDef  attr fn ts ti to (fmap f e)
+--   fmap f (AbsDecl attr fn ts ti to)   = AbsDecl attr fn ts ti to
+--   fmap f (TypeDef tn ts mt)      = TypeDef tn ts mt
+-- 
+-- stripNameTD :: Definition TypedExpr VarName -> Definition TypedExpr ()
+-- stripNameTD = fmap $ const ()
 
 -- ----------------------------------------------------------------------------
 -- Type reconstruction
@@ -572,4 +579,185 @@ typecheck (E (Promote ty e))
    = do (TE t e') <- typecheck e
         guardShow "promote" $ t `isSubtype` ty
         return $ TE ty (Promote ty $ TE t e')
+
+
+-- /////////////////////////////////////////////////////////////////////////////
+
+
+indentation, ifIndentation :: Int
+indentation = 3
+ifIndentation = 3
+position = string
+varName = string
+primop = blue . (pretty :: Op -> Doc)
+keyword = bold . string
+typevar = blue . string
+typename = blue . bold . string
+literal = dullcyan
+typesymbol = cyan . string
+kind = bold . typesymbol
+funName = dullyellow . string
+fieldName = magenta . string
+fieldIndex = magenta . string . ('.':) . show
+tagName = dullmagenta . string
+symbol = string
+kindsig = red . string
+commaList = encloseSep empty empty (comma L.<> space)
+dotList = encloseSep empty empty (symbol ".")
+tupled = encloseSep lparen rparen (comma L.<> space)
+tupled1 [x] = x
+tupled1 x = encloseSep lparen rparen (comma L.<> space) x
+typeargs x = encloseSep lbracket rbracket (comma L.<> space) x
+err = red . string
+comment = black . string
+context = black . string
+letbangvar = dullgreen . string
+record = encloseSep (lbrace L.<> space) (space L.<> rbrace) (comma L.<> space)
+variant = encloseSep (langle L.<> space) rangle (symbol "|" L.<> space) . map (L.<> space)
+indent = nest indentation
+
+level :: Associativity -> Int
+level (LeftAssoc i) = i
+level (RightAssoc i) = i
+level (NoAssoc i) = i
+level (Prefix) = 0
+
+levelE :: Expr t v a e -> Int
+levelE (Op opr [_,_]) = level (associativity opr)
+levelE (ILit {}) = 0
+levelE (Variable {}) = 0
+levelE (Fun {}) = 0
+levelE (App {}) = 1
+levelE (Tuple {}) = 0
+levelE (Con {}) = 0
+levelE (Esac {}) = 0
+levelE (Member {}) = 0
+levelE (Take {}) = 0
+levelE (Put {}) = 1
+levelE (Promote {}) = 0
+levelE _ = 100
+
+class Pretty a => PrettyP a where
+  prettyP :: Int -> a -> Doc
+
+instance (Pretty a, Pretty (Expr t v a e)) => PrettyP (Expr t v a e) where
+  prettyP l x | levelE x < l   = pretty x
+              | otherwise = parens (pretty x)
+
+instance (Pretty a, Pretty (TypedExpr t v a)) => PrettyP (TypedExpr t v a) where
+  prettyP i (TE _ x) = prettyP i x
+instance (Pretty a, Pretty (UntypedExpr t v a)) => PrettyP (UntypedExpr t v a) where
+  prettyP i (E x) = prettyP i x
+
+instance Pretty Likelihood where
+  pretty Likely = symbol "=>"
+  pretty Unlikely = symbol "~>"
+  pretty Regular = symbol "->"
+
+-- prettyL :: Likelihood -> Doc
+-- prettyL Likely = symbol "+%"
+-- prettyL Regular = empty
+-- prettyL Unlikely = symbol "-%"
+
+prettyV = dullblue  . string . ("_v" ++) . show . finInt
+prettyT = dullgreen . string . ("_t" ++) . show . finInt
+
+instance Pretty a => Pretty (TypedExpr t v a) where
+  pretty (TE _ e) = pretty e
+instance Pretty a => Pretty (UntypedExpr t v a) where
+  pretty (E e) = pretty e
+
+instance (Pretty a, PrettyP (e t v a), Pretty (e t ('Suc v) a), Pretty (e t ('Suc ('Suc v)) a))
+         => Pretty (Expr t v a e) where
+  pretty (Op opr [a,b])
+     | LeftAssoc  l <- associativity opr = prettyP (l+1) a <+> primop opr <+> prettyP l b
+     | RightAssoc l <- associativity opr = prettyP l a <+> primop opr <+> prettyP (l+1)  b
+     | NoAssoc    l <- associativity opr = prettyP l a <+> primop opr <+> prettyP l  b
+  pretty (Op opr [e]) = primop opr <+> prettyP 1 e
+  pretty (Op opr es)  = primop opr <+> tupled (map pretty es)
+  pretty (ILit i pt) = literal (string $ show i) <+> symbol "::" <+> pretty pt
+  pretty (SLit s) = literal $ string s
+  pretty (Variable x) = pretty (snd x) L.<> angles (prettyV $ fst x)
+  pretty (Fun fn ins nt) = pretty nt L.<> funName fn <+> pretty ins
+  pretty (App a b) = prettyP 2 a <+> prettyP 1 b
+  pretty (Let a e1 e2) = align (keyword "let" <+> pretty a <+> symbol "=" <+> pretty e1 L.<$>
+                                keyword "in" <+> pretty e2)
+  pretty (LetBang bs a e1 e2) = align (keyword "let!" <+> tupled (map (prettyV . fst) bs) <+> pretty a <+> symbol "=" <+> pretty e1 L.<$>
+                                       keyword "in" <+> pretty e2)
+  pretty (Unit) = tupled []
+  pretty (Tuple e1 e2) = tupled (map pretty [e1, e2])
+  pretty (Struct fs) = symbol "#" L.<> record (map (\(n,e) -> fieldName n <+> symbol "=" <+> pretty e) fs)
+  pretty (Con tn e) = tagName tn <+> prettyP 1 e
+  pretty (If c t e) = group . align $ (keyword "if" <+> pretty c
+                                       L.<$> indent (keyword "then" </> align (pretty t))
+                                       L.<$> indent (keyword "else" </> align (pretty e)))
+  pretty (Case e tn (l1,_,a1) (l2,_,a2)) = align (keyword "case" <+> pretty e <+> keyword "of"
+                                                  L.<$> indent (tagName tn <+> pretty l1 <+> align (pretty a1))
+                                                  L.<$> indent (symbol "*" <+> pretty l2 <+> align (pretty a2)))
+  pretty (Esac e) = keyword "esac" <+> parens (pretty e)
+  pretty (Split _ e1 e2) = align (keyword "split" <+> pretty e1 L.<$>
+                                  keyword "in" <+> pretty e2)
+  pretty (Member x f) = prettyP 1 x L.<> symbol "." L.<> fieldIndex f
+  pretty (Take (a,b) rec f e) = align (keyword "take" <+> tupled [pretty a, pretty b] <+> symbol "="
+                                                      <+> prettyP 1 rec <+> record (fieldIndex f:[]) L.<$>
+                                       keyword "in" <+> pretty e)
+  pretty (Put rec f v) = prettyP 1 rec <+> record [fieldIndex f <+> symbol "=" <+> pretty v]
+  pretty (Promote t e) = prettyP 1 e <+> symbol "::" <+> pretty t
+
+instance Pretty FunNote where
+  pretty NoInline = empty
+  pretty InlineMe = comment "{-# INLINE #-}" <+> empty
+  pretty MacroCall = comment "{-# FNMACRO #-}" <+> empty
+  pretty InlinePlease = comment "inline" <+> empty
+
+instance Pretty (Type t) where
+  pretty (TVar v) = prettyT v
+  pretty (TVarBang v) = prettyT v L.<> typesymbol "!"
+  pretty (TPrim pt) = pretty pt
+  pretty (TString) = typename "String"
+  pretty (TUnit) = typename "()"
+  pretty (TProduct t1 t2) = tupled (map pretty [t1, t2])
+  pretty (TSum alts) = variant (map (\(n,(t,_)) -> tagName n <+> pretty t) alts)  -- FIXME: cogent.1
+  pretty (TFun t1 t2) = prettyT' t1 <+> typesymbol "->" <+> pretty t2
+     where prettyT' e@(TFun {}) = parens (pretty e)
+           prettyT' e           = pretty e
+  pretty (TRecord fs s) = record (map (\(f,(t,b)) -> fieldName f <+> symbol ":" L.<> prettyTaken b <+> pretty t) fs) L.<> pretty s
+  pretty (TCon tn [] s) = typename tn L.<> pretty s
+  pretty (TCon tn ts s) = typename tn L.<> pretty s <+> typeargs (map pretty ts)
+
+prettyTaken :: Bool -> Doc
+prettyTaken True  = symbol "*"
+prettyTaken False = empty
+
+instance Pretty Sigil where
+  pretty Writable = empty
+  pretty ReadOnly = typesymbol "!"
+  pretty Unboxed  = typesymbol "#"
+
+#if __GLASGOW_HASKELL__ < 709
+instance Pretty (TyVarName, Kind) where
+#else
+instance {-# OVERLAPPING #-} Pretty (TyVarName, Kind) where
+#endif
+  pretty (v,k) = pretty v L.<> typesymbol ":<" L.<> prettyKind k
+
+prettyKind (K False False False) = string "()"
+prettyKind (K e s d) = if e then kind "E" else empty L.<>
+                       if s then kind "S" else empty L.<>
+                       if d then kind "D" else empty
+
+instance Pretty a => Pretty (Vec t a) where
+  pretty Nil = empty
+  pretty (Cons x Nil) = pretty x
+  pretty (Cons x xs) = pretty x L.<> string "," <+> pretty xs
+
+instance (Pretty a) => Pretty (Definition e a) where
+  pretty (FunDef _ fn ts t rt e) = funName fn <+> symbol ":" <+> brackets (pretty ts) L.<> symbol "." <+>
+                                   parens (pretty t) <+> symbol "->" <+> parens (pretty rt) <+> symbol "=" L.<$>
+                                   pretty e
+  pretty (AbsDecl _ fn ts t rt) = funName fn <+> symbol ":" <+> brackets (pretty ts) L.<> symbol "." <+>
+                                  parens (pretty t) <+> symbol "->" <+> parens (pretty rt)
+  pretty (TypeDef tn ts Nothing) = keyword "type" <+> typename tn <+> pretty ts
+  pretty (TypeDef tn ts (Just t)) = keyword "type" <+> typename tn <+> pretty ts <+>
+                                    symbol "=" <+> pretty t
 
