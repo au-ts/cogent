@@ -3,7 +3,7 @@
 
 Cogent builds with the Glasgow Haskell Compiler (GHC)
 
-Tested with GHC-7.10.3 and GHC-8.0.1. Similar versions have a chance to work.
+Tested with GHC-7.10.3, GHC-8.0.1 and GHC-8.0.2. Similar versions have a chance to work (if you wish to fix breakage).
 
 See [INSTALL.md](./INSTALL.md) for details.
 

@@ -40,7 +40,6 @@ matrix:
       compiler: ": #GHC 8.2.1"
       addons: {apt: {packages: [cabal-install-1.24,ghc-8.2.1,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
   allow_failures:
-    - env: CABALVER=1.24 GHCVER=8.0.2  # there's some upstream problem right now
     - env: CABALVER=1.24 GHCVER=8.2.1  # still release-rc right now
   fast_finish: true
 

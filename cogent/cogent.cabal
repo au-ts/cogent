@@ -18,7 +18,7 @@ bug-reports:         https://github.com/NICTA/cogent/issues
 -- category:
 build-type:          Custom
 cabal-version:       >=1.18
-tested-with:         GHC==7.10.3, GHC==8.0.1
+tested-with:         GHC==7.10.3, GHC==8.0.1, GHC==8.0.2
 
 data-files:
     static/jquery.min.js
