@@ -1,5 +1,5 @@
 --
--- Copyright 2016, NICTA
+-- Copyright 2017, NICTA
 --
 -- This software may be distributed and modified according to the terms of
 -- the GNU General Public License version 2. Note that NO WARRANTY is provided.
@@ -46,8 +46,6 @@ import           Cogent.Deep
 import qualified Cogent.DList          as DList
 import           Cogent.Mono                  (Instance)
 import           Cogent.Normal                (isAtom)
-import           Cogent.PrettyCore            (displayOneLine)
-import           Cogent.PrettyCore            ()
 -- import           Cogent.PrettyPrint           ()
 import           Cogent.Sugarfree      as SF  hiding (kindcheck, withBindings)
 import           Cogent.Util                  (extTup3, first3, secondM, toCName, whenM)
@@ -82,7 +80,7 @@ import           Prelude             as P    hiding (mapM, mapM_)
 #else
 import           Prelude             as P    hiding (mapM)
 #endif
-import           System.IO (Handle)
+import           System.IO (Handle, hPutChar)
 import qualified Text.PrettyPrint.ANSI.Leijen as PP hiding ((<$>), (<>))
 import qualified Text.PrettyPrint.Mainland as ML
 #if MIN_VERSION_mainland_pretty(0,6,0)
@@ -1336,7 +1334,7 @@ table :: TableCTypes -> PP.Doc
 table (TableCTypes entry) = PP.pretty entry
 
 printCTable :: Handle -> (PP.Doc -> PP.Doc) -> [TableCTypes] -> String -> IO ()
-printCTable h m ts log = mapM_ (displayOneLine h . PP.renderPretty 0 80 . m) $
+printCTable h m ts log = mapM_ ((>> hPutChar h '\n') . PP.displayIO h . PP.renderPretty 0 80 . m) $
                            L.map (PP.string . ("-- " ++)) (lines log) ++ PP.line : L.map table ts
 
 #if __GLASGOW_HASKELL__ < 709

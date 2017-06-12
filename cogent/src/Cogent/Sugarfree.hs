@@ -582,7 +582,7 @@ typecheck (E (Promote ty e))
 
 
 -- /////////////////////////////////////////////////////////////////////////////
-
+-- Core-lang pretty-printing
 
 indentation, ifIndentation :: Int
 indentation = 3

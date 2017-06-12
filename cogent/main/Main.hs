@@ -43,7 +43,6 @@ import Cogent.Normal        as NF (normal, verifyNormal)
 import Cogent.NormalProof   as NP (normalProof)
 import Cogent.Parser        as PA (parseWithIncludes, parseCustTyGen)
 import Cogent.Preprocess    as PR
-import Cogent.PrettyCore          ()  -- imports instances of Pretty
 import Cogent.PrettyPrint   as PP (prettyPrint, prettyTWE, prettyRE)
 import Cogent.Reorganizer   as RO (reorganize)
 import Cogent.Root          as RT (root)

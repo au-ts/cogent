@@ -55,7 +55,6 @@ Library
               , Cogent.Normal
               , Cogent.NormalProof
               , Cogent.Parser
-              , Cogent.PrettyCore
               , Cogent.PrettyPrint
               , Cogent.Preprocess
               , Cogent.ProofGen
