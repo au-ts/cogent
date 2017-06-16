@@ -1,5 +1,5 @@
 --
--- Copyright 2016, NICTA
+-- Copyright 2017, NICTA
 --
 -- This software may be distributed and modified according to the terms of
 -- the GNU General Public License version 2. Note that NO WARRANTY is provided.
@@ -28,7 +28,7 @@
 
 module Cogent.Mono where
 
-import Cogent.Compiler (__impossible, __cogent_entry_funcs)
+import Cogent.Compiler (__impossible)
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Sugarfree

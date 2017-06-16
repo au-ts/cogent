@@ -1,5 +1,5 @@
 --
--- Copyright 2016, NICTA
+-- Copyright 2017, NICTA
 --
 -- This software may be distributed and modified according to the terms of
 -- the GNU General Public License version 2. Note that NO WARRANTY is provided.
@@ -61,7 +61,7 @@ data TypingTree t = TyTrLeaf
                   | TyTrSplit [Maybe TypeSplitKind] (TreeCtx t) (TreeCtx t)
 type TreeCtx t = ([Maybe (Type t)], TypingTree t)
 
-deepTypeProof :: Show a => NameMod -> Bool -> Bool -> String -> [Definition TypedExpr a] -> String -> Doc
+deepTypeProof :: NameMod -> Bool -> Bool -> String -> [Definition TypedExpr a] -> String -> Doc
 deepTypeProof mod withDecls withBodies thy decls log =
   let header = (string ("(*\n" ++ log ++ "\n*)\n") <$>)
       ta = getTypeAbbrevs mod decls
@@ -251,7 +251,6 @@ unbangEnv :: Vec v (Maybe (Type t)) -> Vec v (Maybe (Type t)) -> Vec v (Maybe (T
 unbangEnv Nil Nil = Nil
 unbangEnv (Cons (Just _) bs) (Cons e es) = Cons e (unbangEnv bs es)
 unbangEnv (Cons Nothing bs)  (Cons _ es) = Cons Nothing (unbangEnv bs es)
-unbangEnv _ _ = undefined
 
 selectEnv :: [(Fin v, a)] -> Vec v (Maybe (Type t)) -> Vec v (Maybe (Type t))
 selectEnv [] env = cleared env

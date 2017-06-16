@@ -1,5 +1,5 @@
 --
--- Copyright 2016, NICTA
+-- Copyright 2017, NICTA
 --
 -- This software may be distributed and modified according to the terms of
 -- the GNU General Public License version 2. Note that NO WARRANTY is provided.
@@ -19,12 +19,10 @@ import Cogent.Common.Syntax hiding (Prefix)
 
 import Control.Arrow ((+++))
 import Control.Monad.IO.Class
-import Control.Monad.Trans.Class
 import Data.Char
 import Language.Preprocessor.Cpphs hiding (pragma)
 import Text.Parsec.Char
 import Text.Parsec.Combinator
-import Text.Parsec.Error (ParseError)
 import Text.Parsec.Language
 import Text.Parsec.Pos
 import Text.Parsec.Prim

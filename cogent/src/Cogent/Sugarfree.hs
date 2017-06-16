@@ -618,7 +618,7 @@ levelE _ = 100
 class Pretty a => PrettyP a where
   prettyP :: Int -> a -> Doc
 
-instance (Pretty a, Pretty (Expr t v a e)) => PrettyP (Expr t v a e) where
+instance (Pretty (Expr t v a e)) => PrettyP (Expr t v a e) where
   prettyP l x | levelE x < l   = pretty x
               | otherwise = parens (pretty x)
 
@@ -729,7 +729,7 @@ instance Pretty a => Pretty (Vec t a) where
   pretty (Cons x Nil) = pretty x
   pretty (Cons x xs) = pretty x L.<> string "," <+> pretty xs
 
-instance (Pretty a) => Pretty (Definition e a) where
+instance Pretty (Definition e a) where
   pretty (FunDef _ fn ts t rt e) = funName fn <+> symbol ":" <+> brackets (pretty ts) L.<> symbol "." <+>
                                    parens (pretty t) <+> symbol "->" <+> parens (pretty rt) <+> symbol "=" L.<$>
                                    pretty e
