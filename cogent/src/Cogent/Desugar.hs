@@ -81,7 +81,7 @@ freshVar = P.head <$> freshVars 1
 freshVars :: Int -> DS t v [VarName]
 freshVars n = do x <- sel3 <$> get
                  modify (\(a,b,c) -> (a,b,c+n))
-                 return $ P.map ((++) freshVarPrefix . show) $ take n (iterate (+1) x)
+                 return $ P.map ((++) freshVarPrefix . show) $ P.take n (iterate (+1) x)
 
 desugar :: [S.TopLevel S.RawType T.TypedName T.TypedExpr]
         -> [(S.RawType, String)]
