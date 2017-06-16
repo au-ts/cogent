@@ -122,9 +122,9 @@ script:
  # - echo 'Building Cogent examples'
  - make examples
  # - echo 'Generating ext2fs C code from Cogent'
- - cd $REPO/impl/fs/ext2/cogent && make .c-gen
+ - cd $REPO/impl/fs/ext2/cogent && travis_wait make .c-gen
  # - echo 'Generating BilbyFs C code from Cogent'
- - cd $REPO/impl/fs/bilby/cogent && make .c-gen
+ - cd $REPO/impl/fs/bilby/cogent && travis_wait make .c-gen
 
 notifications:
   hipchat:
