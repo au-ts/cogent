@@ -2159,8 +2159,7 @@ fsop_setattr #{ex, fs_st, iattr, vnode} =
 type FsopFsP = #{ex:SysState, fs_st: FsState}
 fsop_sync_fs: FsopFsP -> RR FsopFsP () ErrCode
 fsop_sync_fs #{ex, fs_st} =
-  let is_ro = fs_st.fsop_st.is_ro !fs_st
-  in if is_ro then
+  if fs_st.fsop_st.is_ro !fs_st then
     (#{ex, fs_st}, Error eRoFs)
   else
     let fs_st {ostore_st,fsop_st} = fs_st
