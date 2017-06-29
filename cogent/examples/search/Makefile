@@ -50,6 +50,11 @@ gen-anti:
 		--ext-types=types.cfg \
 		--entry-funcs=entrypoints.cfg
 
+proof:
+	cogent --shallow-consts-desugar-tuples --shallow-desugar-tuples \
+		--proof-name=Search Search.cogent
+
+
 clean:
 	rm -f $(COUTPUT) $(HOUTPUT) $(PP) $(PPINFER) $(OBJ)
 	@# rm -f *-gen.*

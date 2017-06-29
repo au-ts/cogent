@@ -16,14 +16,14 @@ index_get_addr(index_st, oid) =
   | Error () -> Error eNoEnt
   | Success oaddr -> Success oaddr
 
-index_del_destroyer: RbtConsumeF ObjId ObjAddr SysState ()
-index_del_destroyer #{elem,acc=ex,obsv} =
-  (freeRbtNode[ObjId, ObjAddr](ex, elem))
-
-index_del_addr: (SysState, IndexState, ObjId) -> (SysState, IndexState)
-index_del_addr (ex, index_st {addrs}, oid) =
-  let true = rbtFTrue[ObjId, ObjAddr, SysState, ()]
-  and (addrs, ex) = rbt_cond_erase [ObjId, ObjAddr, SysState, ()]
-                      #{rbt=addrs, key=oid, cond=true, f=index_del_destroyer, acc=ex, obsv=()}
-  in (ex, index_st {addrs})
+-- index_del_destroyer: RbtConsumeF ObjId ObjAddr SysState ()
+-- index_del_destroyer #{elem,acc=ex,obsv} =
+--   (freeRbtNode[ObjId, ObjAddr](ex, elem))
+-- 
+-- index_del_addr: (SysState, IndexState, ObjId) -> (SysState, IndexState)
+-- index_del_addr (ex, index_st {addrs}, oid) =
+--   let true = rbtFTrue[ObjId, ObjAddr, SysState, ()]
+--   and (addrs, ex) = rbt_cond_erase [ObjId, ObjAddr, SysState, ()]
+--                       #{rbt=addrs, key=oid, cond=true, f=index_del_destroyer, acc=ex, obsv=()}
+--   in (ex, index_st {addrs})
   
