@@ -35,7 +35,7 @@ newtype Tag = Tag Int deriving (Enum)
 
 newtype Ctag_t = Ctag_t CInt deriving Storable
 newtype Cunit_t = Cunit_t { dummy :: CInt } deriving Storable
-newtyoe Cbool_t = Cbool_t { boolean :: CUChar } deriving Storable
+newtype Cbool_t = Cbool_t { boolean :: CUChar } deriving Storable
 
 type Cu8  = CUChar
 type Cu16 = CUShort 
@@ -243,34 +243,36 @@ data Crbt_node = Crbt_node {
   }
 
 
-instance Storable Ct27 where
-  sizeOf    _ = (#size t27)
-  alignment _ = (#alignment t27)
-  peek ptr = Ct27 <$> (#peek t27, p1) ptr <*> (#peek t27, p2) ptr <*> (#peek t27, p3) ptr
-  poke ptr (Ct27 p1 p2 p3) = do
-    (#poke t27, p1) ptr p1
-    (#poke t27, p2) ptr p2
-    (#poke t27, p3) ptr p3
+deriving instance Storable Crbt_node
 
-instance Storable Ct4 where
-  sizeOf    _ = (#size t4)
-  alignment _ = (#alignment t4)
-  peek ptr = Ct4 <$> (#peek t4, len) ptr <*> (#peek t4, key) ptr
-  poke ptr (Ct4 len key) = (#poke t4, len) ptr len >> (#poke t4, key) ptr key
-
-instance Storable Ct28 where
-  sizeOf    _ = (#size t28)
-  alignment _ = (#alignment t28)
-  peek ptr = Ct28 <$> (#peek t28, tag) ptr <*> (#peek t28, None) ptr <*> (#peek t28, Some) ptr
-  poke ptr (Ct28 tag none some) = do
-    (#poke t28, tag ) ptr tag
-    (#poke t28, None) ptr none
-    (#poke t28, Some) ptr some
-
-instance Storable Ct29 where
-  sizeOf    _ = (#size t29)
-  alignment _ = (#alignment t29)
-  peek ptr = Ct29 <$> (#peek t29, p1) ptr <*> (#peek t29, p2) ptr
-  poke ptr (Ct29 p1 p2) = do
-    (#poke t29, p1) ptr p1
-    (#poke t29, p2) ptr p2
+--  instance Storable Ct27 where
+--    sizeOf    _ = (#size t27)
+--    alignment _ = (#alignment t27)
+--    peek ptr = Ct27 <$> (#peek t27, p1) ptr <*> (#peek t27, p2) ptr <*> (#peek t27, p3) ptr
+--    poke ptr (Ct27 p1 p2 p3) = do
+--      (#poke t27, p1) ptr p1
+--      (#poke t27, p2) ptr p2
+--      (#poke t27, p3) ptr p3
+--  
+--  instance Storable Ct4 where
+--    sizeOf    _ = (#size t4)
+--    alignment _ = (#alignment t4)
+--    peek ptr = Ct4 <$> (#peek t4, len) ptr <*> (#peek t4, key) ptr
+--    poke ptr (Ct4 len key) = (#poke t4, len) ptr len >> (#poke t4, key) ptr key
+--  
+--  instance Storable Ct28 where
+--    sizeOf    _ = (#size t28)
+--    alignment _ = (#alignment t28)
+--    peek ptr = Ct28 <$> (#peek t28, tag) ptr <*> (#peek t28, None) ptr <*> (#peek t28, Some) ptr
+--    poke ptr (Ct28 tag none some) = do
+--      (#poke t28, tag ) ptr tag
+--      (#poke t28, None) ptr none
+--      (#poke t28, Some) ptr some
+--  
+--  instance Storable Ct29 where
+--    sizeOf    _ = (#size t29)
+--    alignment _ = (#alignment t29)
+--    peek ptr = Ct29 <$> (#peek t29, p1) ptr <*> (#peek t29, p2) ptr
+--    poke ptr (Ct29 p1 p2) = do
+--      (#poke t29, p1) ptr p1
+--      (#poke t29, p2) ptr p2
