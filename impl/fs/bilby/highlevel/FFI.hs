@@ -21,7 +21,7 @@ tag_ENUM_Some        = Tag 4
 tag_ENUM_Success     = Tag 5
 tag_ENUM_TObjData    = Tag 6
 tag_ENUM_TObjDel     = Tag 7
-tag_ENUM_TObjDentar  = Tag 8
+tag_ENUM_TObjDentarr = Tag 8
 tag_ENUM_TObjInode   = Tag 9
 tag_ENUM_TObjPad     = Tag 10
 tag_ENUM_TObjSummary = Tag 11
@@ -29,11 +29,21 @@ tag_ENUM_TObjSuper   = Tag 12
 
 newtype CSysState = CSysState { dummy :: CChar } deriving Storable
 
+dummyCSysState :: CSysState
+dummyCSysState = CSysState $ CChar 0
+
+pDummyCSysState :: IO (Ptr CSysState)
+pDummyCSysState = new dummyCSysState
+
 newtype Tag = Tag Int deriving (Enum)
 
 newtype Ctag_t = Ctag_t CInt deriving Storable
 newtype Cunit_t = Cunit_t { dummy :: CInt } deriving Storable
 newtype Cbool_t = Cbool_t { boolean :: CUChar } deriving Storable
+
+const_unit = Cunit_t $ CInt 0
+const_true  = Cbool_t $ CUChar 1
+const_false = Cbool_t $ CUChar 0
 
 type Cu8  = CUChar
 type Cu16 = CUShort 
@@ -90,7 +100,7 @@ data Ct72 = Ct72 {
     eb_recovery      :: Cu32
   , eb_recovery_offs :: Cu32
   , super            :: Ptr Ct39
-  , obh_sup          :: Ptr Ct66
+  , obj_sup          :: Ptr Ct66
   , super_offs       :: Cu32
   , vol              :: Ptr CUbiVolInfo
   , dev              :: Ptr CUbiDevInfo
