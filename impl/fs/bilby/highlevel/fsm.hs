@@ -17,7 +17,7 @@ import Test.QuickCheck.Gen
 import Test.QuickCheck.Monadic
 
 import CogentMonad
-import FFI
+import FFI (Ct432, Ct435)
 import Fsop_Shallow_Desugar 
 import WordArray
 
@@ -29,7 +29,7 @@ hs_fsm_init mount_st fsm_st = do
 
 
 r_result :: Either ErrCode FsmState -> Cogent_monad (Either ErrCode FsmState) -> Bool
-r_result r1 r2 = undefined
+r_result r1 r2 = r1 `member` r2
 
 gen_MountState :: Gen MountState
 gen_MountState = undefined
@@ -44,13 +44,13 @@ prop_fsm_init_refine = forAll (gen_MountState) $ \mount_st ->
 foreign import ccall unsafe "wrapper_pp_inferred.c fsm_init"
   c_fsm_init :: Ptr Ct432 -> IO (Ptr Ct435)
 
+mk_fsm_init_arg :: MountState -> FsmState -> Ct432
+mk_fsm_init_arg = undefined
+
+mk_fsm_init_ret :: Ct432 -> Either ErrCode FsmState
+mk_fsm_init_ret = undefined
+
+
 cogent_fsm_init :: MountState -> FsmState -> Either ErrCode FsmState
 cogent_fsm_init = undefined
 
-instance Show MountState where
-  show _ = undefined
-
-instance Show FsmState where
-  show _ = undefined
-
-data Ct432 
