@@ -12,8 +12,10 @@ Isabelle input files).
 {-# LANGUAGE PartialTypeSignatures #-}
 module Fsop_Shallow_Desugar where
 import Data.Bits ((.&.), (.|.), complement, xor, shiftL, shiftR)
+import qualified Data.Map as M
 import Data.Word (Word8, Word16, Word32, Word64)
-import Prelude (not, div, mod, fromIntegral, undefined, (+), (-), (*), (&&), (||), (>), (>=), (<), (<=), (==), (/=), Char, String, Int, Bool(..))
+import FFI (CUbiVolInfo, CUbiDevInfo)
+import Prelude (not, div, mod, fromIntegral, undefined, (+), (-), (*), (&&), (||), (>), (>=), (<), (<=), (==), (/=), Char, String, Int, Bool(..), Eq, Ord, Show)
 
 x_NOCMTIME :: Word32
 x_NOCMTIME = fromIntegral (0 :: Word8) :: Word32
@@ -531,7 +533,7 @@ eTxtBsy = fromIntegral (26 :: Word8) :: Word32
 eXDev :: Word32
 eXDev = fromIntegral (18 :: Word8) :: Word32
 
-data WordArray a
+type WordArray a = [a]
 
 data VfsStat
 
@@ -543,11 +545,11 @@ data VfsIattr
 
 data VfsDevice
 
-data UbiVolInfo
+type UbiVolInfo = CUbiVolInfo
 
 data UbiVol
 
-data UbiDevInfo
+type UbiDevInfo = CUbiDevInfo
 
 data SysState
 
@@ -555,7 +557,7 @@ data SpinLock
 
 data RbtNode k v
 
-data Rbt k v
+type Rbt k v = M.Map k v
 
 data OSDirContext
 
@@ -575,7 +577,7 @@ data BE32
 
 data BE16
 
-data Array a
+type Array a = [a]
 
 data AllocPool a
 
@@ -38059,7 +38061,7 @@ data R11 t1 t2 = R11{arr :: t1, rbrk :: t2}
 
 data R12 t1 t2 t3 = R12{buf :: t1, frm :: t2, to :: t3}
 
-data R13 t1 t2 = R13{count :: t1, sqnum :: t2}
+data R13 t1 t2 = R13{count :: t1, sqnum :: t2} deriving (Eq, Ord, Show)
 
 data R14 t1 t2 = R14{data_ :: t1, bound :: t2}
 
@@ -38071,7 +38073,7 @@ data R17 t1 t2 t3 t4 = R17{dirctx :: t1, name :: t2, ino :: t3, ftype :: t4}
 
 data R18 t1 t2 t3 t4 t5 = R18{dirs :: t1, src_inode :: t2, src_name :: t3, dest_inode :: t4, dest_name :: t5}
 
-data R19 t1 t2 t3 t4 t5 t6 t7 t8 = R19{eb_recovery :: t1, eb_recovery_offs :: t2, super :: t3, obj_sup :: t4, super_offs :: t5, vol :: t6, dev :: t7, no_summary :: t8}
+data R19 t1 t2 t3 t4 t5 t6 t7 t8 = R19{eb_recovery :: t1, eb_recovery_offs :: t2, super :: t3, obj_sup :: t4, super_offs :: t5, vol :: t6, dev :: t7, no_summary :: t8} deriving (Show)
 
 data R20 t1 t2 = R20{ebnum :: t1, offs :: t2}
 
@@ -38192,21 +38194,21 @@ data R77 t1 t2 t3 t4 t5 t6 t7 t8 = R77{fs_type :: t1, best_blocksize :: t2, bloc
 
 data R78 t1 t2 t3 = R78{fsop_st :: t1, mount_st :: t2, ostore_st :: t3}
 
-data R79 t1 = R79{id :: t1}
+data R79 t1 = R79{id :: t1} deriving (Show)
 
-data R80 t1 t2 t3 = R80{id :: t1, nb_dentry :: t2, entries :: t3}
+data R80 t1 t2 t3 = R80{id :: t1, nb_dentry :: t2, entries :: t3} deriving (Show)
 
 data R81 t1 t2 = R81{id :: t1, oaddr :: t2}
 
-data R82 t1 t2 = R82{id :: t1, odata :: t2}
+data R82 t1 t2 = R82{id :: t1, odata :: t2} deriving (Show)
 
-data R83 t1 t2 t3 t4 t5 t6 t7 t8 t9 t10 = R83{id :: t1, size :: t2, atime_sec :: t3, ctime_sec :: t4, mtime_sec :: t5, nlink :: t6, uid :: t7, gid :: t8, mode :: t9, flags :: t10}
+data R83 t1 t2 t3 t4 t5 t6 t7 t8 t9 t10 = R83{id :: t1, size :: t2, atime_sec :: t3, ctime_sec :: t4, mtime_sec :: t5, nlink :: t6, uid :: t7, gid :: t8, mode :: t9, flags :: t10} deriving (Show)
 
-data R84 t1 t2 t3 t4 t5 = R84{id :: t1, sqnum :: t2, len :: t3, del_flags_and_offs :: t4, count :: t5}
+data R84 t1 t2 t3 t4 t5 = R84{id :: t1, sqnum :: t2, len :: t3, del_flags_and_offs :: t4, count :: t5} deriving (Show)
 
 data R85 t1 t2 = R85{idx :: t1, gim :: t2}
 
-data R86 t1 t2 t3 t4 = R86{ino :: t1, dtype :: t2, nlen :: t3, name :: t4}
+data R86 t1 t2 t3 t4 = R86{ino :: t1, dtype :: t2, nlen :: t3, name :: t4} deriving (Show)
 
 data R87 t1 = R87{is_ro :: t1}
 
@@ -38214,17 +38216,17 @@ data R88 t1 t2 t3 t4 = R88{list :: t1, f :: t2, acc :: t3, obsv :: t4}
 
 data R89 t1 t2 t3 = R89{list :: t1, f :: t2, ex :: t3}
 
-data R90 t1 t2 t3 t4 t5 t6 t7 t8 = R90{magic :: t1, crc :: t2, sqnum :: t3, offs :: t4, len :: t5, trans :: t6, otype :: t7, ounion :: t8}
+data R90 t1 t2 t3 t4 t5 t6 t7 t8 = R90{magic :: t1, crc :: t2, sqnum :: t3, offs :: t4, len :: t5, trans :: t6, otype :: t7, ounion :: t8} deriving (Show)
 
 data R91 t1 t2 t3 = R91{mount_st :: t1, ostore_st :: t2, vdir :: t3}
 
 data R92 t1 t2 = R92{name :: t1, inode :: t2}
 
-data R93 t1 t2 t3 t4 t5 t6 t7 t8 t9 = R93{nb_eb :: t1, eb_size :: t2, io_size :: t3, nb_reserved_gc :: t4, nb_reserved_del :: t5, cur_eb :: t6, cur_offs :: t7, last_inum :: t8, next_sqnum :: t9}
+data R93 t1 t2 t3 t4 t5 t6 t7 t8 t9 = R93{nb_eb :: t1, eb_size :: t2, io_size :: t3, nb_reserved_gc :: t4, nb_reserved_del :: t5, cur_eb :: t6, cur_offs :: t7, last_inum :: t8, next_sqnum :: t9} deriving (Show)
 
-data R94 t1 t2 t3 t4 = R94{nb_free_eb :: t1, used_eb :: t2, dirty_space :: t3, gim :: t4}
+data R94 t1 t2 t3 t4 = R94{nb_free_eb :: t1, used_eb :: t2, dirty_space :: t3, gim :: t4} deriving (Eq, Ord, Show)
 
-data R95 t1 t2 t3 = R95{nb_sum_entry :: t1, entries :: t2, sum_offs :: t3}
+data R95 t1 t2 t3 = R95{nb_sum_entry :: t1, entries :: t2, sum_offs :: t3} deriving (Show)
 
 data R96 t1 t2 t3 t4 t5 t6 t7 t8 t9 t10 t11 t12 t13 t14 t15 = R96{next_inum :: t1, next_sqnum :: t2, rbuf :: t3, wbuf_eb :: t4, wbuf :: t5, used :: t6, sync_offs :: t7, opad :: t8, pools :: t9, oaddr :: t10,
                                                                   fsm_st :: t11, index_st :: t12, ubi_vol :: t13, summary :: t14, sum_obj :: t15}
@@ -38293,3 +38295,4 @@ data V122 t1 t2 t3 t4 t5 t6 t7 = TObjData t1
                                | TObjPad t5
                                | TObjSummary t6
                                | TObjSuper t7
+                               deriving (Show)
