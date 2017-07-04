@@ -10,6 +10,7 @@ Isabelle input files).
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 module Fsop_Shallow_Desugar where
 import Data.Bits ((.&.), (.|.), complement, xor, shiftL, shiftR)
 import qualified Data.Map as M
