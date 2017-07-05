@@ -130,9 +130,9 @@ instance Storable Ct72 where
 
 data Ct68 = Ct68 {
     nb_free_eb  :: Cu32
-  , used_eb     :: Ptr CWordArray_u8
-  , dirty_space :: Ptr CWordArray_u32
-  , gim         :: Ptr CRbt_u64_ut18
+  , used_eb     :: Ptr (CWordArray Cu8 )
+  , dirty_space :: Ptr (CWordArray Cu32)
+  , gim         :: Ptr (CRbt Cu64 Ct18)
   }
 
 instance Storable Ct68 where
@@ -212,7 +212,7 @@ instance Storable Ct65 where
 data Ct64 = Ct64 {
     id        :: Cu64
   , nb_dentry :: Cu32
-  , entries   :: Ptr CArray_t48
+  , entries   :: Ptr (CArray Ct48)
   }
 
 instance Storable Ct64 where
@@ -229,7 +229,7 @@ instance Storable Ct64 where
 
 newtype Ct63 = Ct63 { id :: Cu64 } deriving (Storable)
 
-data Ct62 = Ct62 { id :: Cu64, odata :: Ptr CWordArray_u8 }
+data Ct62 = Ct62 { id :: Cu64, odata :: Ptr (CWordArray Cu8) }
 
 instance Storable Ct62 where
   sizeOf    _ = 16
@@ -241,7 +241,7 @@ data Ct48 = Ct48 {
     ino   :: Cu32
   , dtype :: Cu8
   , nlen  :: Cu16
-  , name  :: Ptr CWordArray_u8
+  , name  :: Ptr (CWordArray Cu8)
   }
 
 instance Storable Ct48 where
@@ -297,7 +297,7 @@ instance Storable Ct45 where
 
 data Ct42 = Ct42 {
     nb_sum_entry :: Cu32
-  , entries      :: Ptr CWordArray_ut10
+  , entries      :: Ptr (CWordArray Ct10)
   , sum_offs     :: Cu32
   }
 
@@ -347,6 +347,17 @@ instance Storable Ct39 where
     (\p -> pokeByteOff p 24) ptr f7
     (\p -> pokeByteOff p 28) ptr f8
     (\p -> pokeByteOff p 32) ptr f9
+
+data Ct18 = Ct18 {
+    count :: Cu16
+  , sqnum :: Cu64
+  }
+
+instance Storable Ct18 where
+  sizeOf    _ = 16
+  alignment _ = 8
+  peek ptr = Ct18 <$> (\p -> peekByteOff p 0) ptr <*> (\p -> peekByteOff p 8) ptr
+  poke ptr (Ct18 count sqnum) = (\p -> pokeByteOff p 0) ptr count >> (\p -> pokeByteOff p 8) ptr sqnum
 
 data Ct10 = Ct10 {
     id    :: Cu64
@@ -485,63 +496,35 @@ struct ubi_device_info {
 };
 -}
 
-data CArray_t48 = CArray_t48 {
+data CArray t = CArray {
     len    :: CInt
-  , values :: Ptr (Ptr Ct48)
+  , values :: Ptr (Ptr t)
   }
 
-instance Storable CArray_t48 where
+instance Storable t => Storable (CArray t) where
   sizeOf    _ = 16
   alignment _ = 8
-  peek ptr = CArray_t48 <$> (\p -> peekByteOff p 0) ptr
+  peek ptr = CArray <$> (\p -> peekByteOff p 0) ptr
+                    <*> (\p -> peekByteOff p 8) ptr
+  poke ptr (CArray len values) = do
+    (\p -> pokeByteOff p 0) ptr len
+    (\p -> pokeByteOff p 8) ptr values
+
+data CWordArray t = CWordArray {
+    len    :: CInt
+  , values :: Ptr t
+  }
+
+instance (Storable t) => Storable (CWordArray t) where
+  sizeOf    _ = 16
+  alignment _ = 8
+  peek ptr = CWordArray <$> (\p -> peekByteOff p 0) ptr
                         <*> (\p -> peekByteOff p 8) ptr
-  poke ptr (CArray_t48 len values) = do
+  poke ptr (CWordArray len values) = do
     (\p -> pokeByteOff p 0) ptr len
     (\p -> pokeByteOff p 8) ptr values
 
-data CWordArray_u8 = CWordArray_u8 {
-    len    :: CInt
-  , values :: Ptr Cu8
-  }
-
-instance Storable CWordArray_u8 where
-  sizeOf    _ = 16
-  alignment _ = 8
-  peek ptr = CWordArray_u8 <$> (\p -> peekByteOff p 0) ptr
-                          <*> (\p -> peekByteOff p 8) ptr
-  poke ptr (CWordArray_u8 len values) = do
-    (\p -> pokeByteOff p 0) ptr len
-    (\p -> pokeByteOff p 8) ptr values
-
-data CWordArray_ut10 = CWordArray_ut10 {
-    len    :: CInt
-  , values :: Ptr Ct10
-  }
-
-instance Storable CWordArray_ut10 where
-  sizeOf    _ = 16
-  alignment _ = 8
-  peek ptr = CWordArray_ut10 <$> (\p -> peekByteOff p 0) ptr
-                             <*> (\p -> peekByteOff p 8) ptr
-  poke ptr (CWordArray_ut10 len values) = do
-    (\p -> pokeByteOff p 0) ptr len
-    (\p -> pokeByteOff p 8) ptr values
-
-data CWordArray_u32 = CWordArray_u32 {
-    len    :: CInt
-  , values :: Ptr Cu32
-  }
-
-instance Storable CWordArray_u32 where
-  sizeOf    _ = 16
-  alignment _ = 8
-  peek ptr = CWordArray_u32 <$> (\p -> peekByteOff p 0) ptr
-                            <*> (\p -> peekByteOff p 8) ptr
-  poke ptr (CWordArray_u32 len values) = do
-    (\p -> pokeByteOff p 0) ptr len
-    (\p -> pokeByteOff p 8) ptr values
-
-newtype CRbt_u64_ut18 = CRbt_u64_ut18 { rbt :: Crbt_root } deriving (Storable)
+newtype CRbt k v = CRbt { rbt :: Crbt_root } deriving (Storable)
 
 newtype Crbt_root = Crbt_root { root :: Crbt_node } deriving (Storable)
 

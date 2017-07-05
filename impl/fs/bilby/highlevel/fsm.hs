@@ -68,18 +68,30 @@ conv_ObjSuper (R93 {..}) =
 
 conv_ObjData :: ObjData -> IO FFI.Ct62
 conv_ObjData (R82 {..}) = do
-  p_odata <- new =<< conv_WordArray_u8 odata
+  p_odata <- new =<< conv_WordArray (return . fromIntegral) odata
   return $ FFI.Ct62 (fromIntegral id) p_odata
 
 conv_ObjDel :: ObjDel -> IO FFI.Ct63
 conv_ObjDel (R79 x) = return $ FFI.Ct63 $ fromIntegral x
 
-conv_Array_ObjDentry :: Array ObjDentry -> IO FFI.CArray_t48
-conv_Array_ObjDentry = undefined
+conv_ObjDentry :: ObjDentry -> IO FFI.Ct48
+conv_ObjDentry (R86 {..}) = do
+  p_name <- new =<< conv_WordArray (return . fromIntegral) name
+  return $ FFI.Ct48 { FFI.ino   = fromIntegral ino
+                    , FFI.dtype = fromIntegral dtype
+                    , FFI.nlen  = fromIntegral nlen
+                    , FFI.name  = p_name
+                    }
+
+conv_Array :: (Storable t') => (t -> IO t') -> Array t -> IO (FFI.CArray t')
+conv_Array f xs = do
+  p_values   <- newArray =<< mapM f xs
+  p_p_values <- new p_values
+  return $ FFI.CArray (CInt $ fromIntegral $ length xs) p_p_values
 
 conv_ObjDentarr :: ObjDentarr -> IO FFI.Ct64
 conv_ObjDentarr (R80 {..}) = do
-  p_entries <- new =<< conv_Array_ObjDentry entries
+  p_entries <- new =<< conv_Array conv_ObjDentry entries
   return $ FFI.Ct64 { id = fromIntegral id
                     , nb_dentry = fromIntegral nb_dentry
                     , entries = p_entries
@@ -99,14 +111,23 @@ conv_ObjInode (R83 {..}) =
                     , FFI.flags     = fromIntegral flags
                     }
 
-conv_WordArray_ObjSumEntry :: WordArray ObjSumEntry -> IO FFI.CWordArray_ut10
-conv_WordArray_ObjSumEntry = undefined
+conv_WordArray :: (Storable t') => (t -> IO t') -> WordArray t -> IO (FFI.CWordArray t')
+conv_WordArray f xs = FFI.CWordArray (fromIntegral $ length xs) <$> (newArray =<< mapM f xs)
+
+conv_ObjSumEntry :: ObjSumEntry -> IO (FFI.Ct10)
+conv_ObjSumEntry (R84 {..}) = 
+  return $ FFI.Ct10 { FFI.id    = fromIntegral id
+                    , FFI.sqnum = fromIntegral sqnum
+                    , FFI.len   = fromIntegral len
+                    , FFI.del_flags_and_offs = fromIntegral del_flags_and_offs
+                    , FFI.count = fromIntegral count
+                    }
 
 conv_ObjSummary :: ObjSummary -> IO FFI.Ct42
 conv_ObjSummary (R95 {..}) = do
-  p_entries <- new =<< conv_WordArray_ObjSumEntry entries
+  p_entries <- new =<< conv_WordArray conv_ObjSumEntry entries
   return $ FFI.Ct42 { FFI.nb_sum_entry = fromIntegral nb_sum_entry
-                    , FFI.entries      = p_entries  -- :: Ptr FFI.CWordArray_ut10,
+                    , FFI.entries      = p_entries
                     , FFI.sum_offs     = fromIntegral sum_offs
                     }
 
@@ -155,20 +176,17 @@ conv_MountState (R19 {..}) = do
                     , no_summary       = FFI.Cbool_t $ CUChar $ fromIntegral $ fromEnum no_summary
                     }
 
-conv_WordArray_u8 :: WordArray Word8 -> IO FFI.CWordArray_u8
-conv_WordArray_u8 = undefined
+conv_GimNode :: GimNode -> IO FFI.Ct18
+conv_GimNode (R13 {..}) = return $ FFI.Ct18 (fromIntegral count) (fromIntegral sqnum)
 
-conv_WordArray_u32 :: WordArray Word32 -> IO FFI.CWordArray_u32
-conv_WordArray_u32 = undefined
-
-conv_Rbt_ObjId_GimNode :: Rbt ObjId GimNode -> IO FFI.CRbt_u64_ut18
-conv_Rbt_ObjId_GimNode = undefined
+conv_Rbt :: (Storable k', Storable v') => (k -> IO k') -> (v -> IO v') -> Rbt k v -> IO (FFI.CRbt k' v')
+conv_Rbt = undefined
 
 conv_FsmState :: FsmState -> IO FFI.Ct68
 conv_FsmState (R94 {..}) = do
-  p_used_eb     <- new =<< conv_WordArray_u8 used_eb
-  p_dirty_space <- new =<< conv_WordArray_u32 dirty_space
-  p_gim         <- new =<< conv_Rbt_ObjId_GimNode gim
+  p_used_eb     <- new =<< conv_WordArray (return . fromIntegral) used_eb
+  p_dirty_space <- new =<< conv_WordArray (return . fromIntegral) dirty_space
+  p_gim         <- new =<< conv_Rbt (return . fromIntegral) conv_GimNode gim
   return $ FFI.Ct68 { nb_free_eb  = fromIntegral nb_free_eb
                     , used_eb     = p_used_eb
                     , dirty_space = p_dirty_space
@@ -185,20 +203,20 @@ mk_fsm_init_arg mount_st fsm_st = do
 conv_Ct433 :: FFI.Ct433 -> IO ErrCode
 conv_Ct433 (FFI.Ct433 {..}) = return $ fromIntegral p1
 
-conv_CWordArray_u8 :: FFI.CWordArray_u8 -> IO (WordArray Word8)
-conv_CWordArray_u8 = undefined
+conv_CWordArray :: (Storable t) => (t -> IO t') -> FFI.CWordArray t -> IO (WordArray t')
+conv_CWordArray f (FFI.CWordArray {..}) = mapM f =<< peekArray (fromIntegral len) values
 
-conv_CWordArray_u32 :: FFI.CWordArray_u32 -> IO (WordArray Word32)
-conv_CWordArray_u32 = undefined
+conv_Ct18 :: FFI.Ct18 -> IO GimNode
+conv_Ct18 (FFI.Ct18 {..}) = return $ R13 (fromIntegral count) (fromIntegral sqnum)
 
-conv_CRbt_u64_ut18 :: FFI.CRbt_u64_ut18 -> IO (Rbt ObjId GimNode)
-conv_CRbt_u64_ut18 = undefined
+conv_CRbt :: (Storable k, Storable v) => (k -> IO k') -> (v -> IO v') -> FFI.CRbt k v -> IO (Rbt k' v')
+conv_CRbt = undefined
 
 conv_Ct68 :: FFI.Ct68 -> IO FsmState
 conv_Ct68 (FFI.Ct68 {..}) = do
-  p_used_eb     <- peek used_eb     >>= conv_CWordArray_u8
-  p_dirty_space <- peek dirty_space >>= conv_CWordArray_u32
-  p_gim         <- peek gim         >>= conv_CRbt_u64_ut18
+  p_used_eb     <- peek used_eb     >>= conv_CWordArray (return . fromIntegral)
+  p_dirty_space <- peek dirty_space >>= conv_CWordArray (return . fromIntegral)
+  p_gim         <- peek gim         >>= conv_CRbt (return . fromIntegral) conv_Ct18
   return $ R94 (fromIntegral nb_free_eb) p_used_eb p_dirty_space p_gim
 
 conv_Ct434 :: FFI.Ct434 -> IO (Either ErrCode FsmState)
