@@ -26,7 +26,7 @@ import FFI (Ct432(..), Ct435(..), pDummyCSysState, dummyCSysState, const_unit, c
 import qualified FFI as FFI
 import Fsop_Shallow_Desugar 
 -- import WordArray
-
+import Util
 
 hs_fsm_init :: MountState -> FsmState -> Cogent_monad (Either ErrCode FsmState)
 hs_fsm_init mount_st fsm_st = do
@@ -179,8 +179,9 @@ conv_MountState (R19 {..}) = do
 conv_GimNode :: GimNode -> IO FFI.Ct18
 conv_GimNode (R13 {..}) = return $ FFI.Ct18 (fromIntegral count) (fromIntegral sqnum)
 
+-- Rbt is not refined
 conv_Rbt :: (Storable k', Storable v') => (k -> IO k') -> (v -> IO v') -> Rbt k v -> IO (FFI.CRbt k' v')
-conv_Rbt = undefined
+conv_Rbt fk fv t = ttraverse fk =<< traverse fv t
 
 conv_FsmState :: FsmState -> IO FFI.Ct68
 conv_FsmState (R94 {..}) = do
@@ -210,7 +211,7 @@ conv_Ct18 :: FFI.Ct18 -> IO GimNode
 conv_Ct18 (FFI.Ct18 {..}) = return $ R13 (fromIntegral count) (fromIntegral sqnum)
 
 conv_CRbt :: (Storable k, Storable v) => (k -> IO k') -> (v -> IO v') -> FFI.CRbt k v -> IO (Rbt k' v')
-conv_CRbt = undefined
+conv_CRbt fk fv t = ttraverse fk =<< traverse fv t
 
 conv_Ct68 :: FFI.Ct68 -> IO FsmState
 conv_Ct68 (FFI.Ct68 {..}) = do

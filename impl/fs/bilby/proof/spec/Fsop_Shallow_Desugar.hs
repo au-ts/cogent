@@ -15,7 +15,7 @@ module Fsop_Shallow_Desugar where
 import Data.Bits ((.&.), (.|.), complement, xor, shiftL, shiftR)
 import qualified Data.Map as M
 import Data.Word (Word8, Word16, Word32, Word64)
-import FFI (CUbiVolInfo, CUbiDevInfo)
+import FFI (CUbiVolInfo, CUbiDevInfo, CRbt)
 import Prelude (not, div, mod, fromIntegral, undefined, (+), (-), (*), (&&), (||), (>), (>=), (<), (<=), (==), (/=), Char, String, Int, Bool(..), Eq, Ord, Show)
 
 x_NOCMTIME :: Word32
@@ -558,7 +558,8 @@ data SpinLock
 
 data RbtNode k v
 
-type Rbt k v = M.Map k v
+type Rbt k v = CRbt k v
+-- type Rbt k v = M.Map k v
 
 data OSDirContext
 

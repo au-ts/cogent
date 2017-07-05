@@ -1,17 +1,24 @@
-
-{- LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StandaloneDeriving #-}
 
 module FFI where
 
+import Data.Functor.Const (Const(..))
 import Foreign
 import Foreign.Ptr
 import Foreign.C.String
 import Foreign.C.Types
+
+import Util
+
+-- /////////////////////////////////////////////////////////////////////////////
 
 tag_ENUM_Break       = Tag 0
 tag_ENUM_Error       = Tag 1
@@ -431,24 +438,6 @@ instance Storable Cubi_volume_info where
     (\p -> pokeByteOff p 56) ptr f12
     (\p -> pokeByteOff p 64) ptr f13
 
-{-
-struct ubi_volume_info {
-	int ubi_num;
-	int vol_id;
-	int size;
-	long long used_bytes;
-	int used_ebs;
-	int vol_type;
-	int corrupted;
-	int upd_marker;
-	int alignment;
-	int usable_leb_size;
-	int name_len;
-	const char *name;
-	dev_t cdev;
-};
--}
-
 type Cdev_t = C__kernel_dev_t
 type C__kernel_dev_t = C__u32
 type C__u32 = Word32
@@ -484,18 +473,6 @@ instance Storable Cubi_device_info where
     (\p -> pokeByteOff p 20) ptr f6
     (\p -> pokeByteOff p 24) ptr f7
 
-{-
-struct ubi_device_info {
-	int ubi_num;
-	int leb_size;
-	int leb_start;
-	int min_io_size;
-	int max_write_size;
-	int ro_mode;
-	dev_t cdev;
-};
--}
-
 data CArray t = CArray {
     len    :: CInt
   , values :: Ptr (Ptr t)
@@ -524,15 +501,24 @@ instance (Storable t) => Storable (CWordArray t) where
     (\p -> pokeByteOff p 0) ptr len
     (\p -> pokeByteOff p 8) ptr values
 
-newtype CRbt k v = CRbt { rbt :: Crbt_root } deriving (Storable)
+newtype CRbt k v = CRbt { rbt :: Crbt_root } deriving (Eq, Ord, Show, Storable, Functor, Traversable, Foldable)
 
-newtype Crbt_root = Crbt_root { root :: Crbt_node } deriving (Storable)
+instance Functor (Flip CRbt v) where
+  fmap _ (Flip (CRbt r)) = Flip (CRbt r)
+
+instance Traversable (Flip CRbt v) where
+  traverse _ (Flip (CRbt r)) = pure $ Flip (CRbt r)
+
+instance Foldable (Flip CRbt v) where
+  foldMap f a = getConst $ traverse (Const . f) a
+
+newtype Crbt_root = Crbt_root { root :: Crbt_node } deriving (Eq, Ord, Show, Storable)
 
 data Crbt_node = Crbt_node {
     rbt_parent_color :: CULong
   , rbt_left         :: Ptr Crbt_node
   , rbt_right        :: Ptr Crbt_node
-  }
+  } deriving (Eq, Ord, Show)
 
 instance Storable Crbt_node where
   sizeOf    _ = 24
