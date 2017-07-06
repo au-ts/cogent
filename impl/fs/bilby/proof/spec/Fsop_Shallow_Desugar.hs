@@ -11,12 +11,16 @@ Isabelle input files).
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
+{-# OPTIONS_GHC -F -pgmFderive -optF-F #-}
+
 module Fsop_Shallow_Desugar where
 import Data.Bits ((.&.), (.|.), complement, xor, shiftL, shiftR)
 import qualified Data.Map as M
 import Data.Word (Word8, Word16, Word32, Word64)
 import FFI (CUbiVolInfo, CUbiDevInfo, CRbt)
-import Prelude (not, div, mod, fromIntegral, undefined, (+), (-), (*), (&&), (||), (>), (>=), (<), (<=), (==), (/=), Char, String, Int, Bool(..), Eq, Ord, Show)
+import Prelude (not, div, mod, fromIntegral, undefined, (+), (-), (*), (&&), (||), (>), (>=), (<), (<=), (==), (/=), Char, String, Int, Bool(..), Eq, Ord, Show, return, error)
+import Test.QuickCheck.Arbitrary
+import Test.QuickCheck.Gen
 
 x_NOCMTIME :: Word32
 x_NOCMTIME = fromIntegral (0 :: Word8) :: Word32
@@ -38298,3 +38302,22 @@ data V122 t1 t2 t3 t4 t5 t6 t7 = TObjData t1
                                | TObjSummary t6
                                | TObjSuper t7
                                deriving (Show)
+
+{-!
+deriving instance Arbitrary (R93  t1 t2 t3 t4 t5 t6 t7 t8 t9)
+deriving instance Arbitrary (R82  t1 t2)
+deriving instance Arbitrary (R79  t1)
+deriving instance Arbitrary (R86  t1 t2 t3 t4)
+deriving instance Arbitrary (R80  t1 t2 t3)
+deriving instance Arbitrary (R83  t1 t2 t3 t4 t5 t6 t7 t8 t9 t10)
+deriving instance Arbitrary (R84  t1 t2 t3 t4 t5)
+deriving instance Arbitrary (R95  t1 t2 t3)
+deriving instance Arbitrary (V122 t1 t2 t3 t4 t5 t6 t7)
+deriving instance Arbitrary (R90  t1 t2 t3 t4 t5 t6 t7 t8)
+deriving instance Arbitrary (R19  t1 t2 t3 t4 t5 t6 t7 t8 t9)
+deriving instance Arbitrary (R13  t1 t2)
+deriving instance Arbitrary (R94  t1 t2 t3 t4)
+!-}
+
+
+

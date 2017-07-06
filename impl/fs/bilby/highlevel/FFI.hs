@@ -7,6 +7,7 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# OPTIONS_GHC -F -pgmFderive -optF-F #-}
 
 module FFI where
 
@@ -15,6 +16,9 @@ import Foreign
 import Foreign.Ptr
 import Foreign.C.String
 import Foreign.C.Types
+import System.IO.Unsafe
+import Test.QuickCheck.Arbitrary
+import Test.QuickCheck.Gen
 
 import Util
 
@@ -36,6 +40,9 @@ tag_ENUM_TObjSuper   = Tag 12
 
 newtype CSysState = CSysState { dummy :: CChar } deriving Storable
 
+instance Arbitrary CSysState where
+  arbitrary = return dummyCSysState
+
 dummyCSysState :: CSysState
 dummyCSysState = CSysState $ CChar 0
 
@@ -44,9 +51,22 @@ pDummyCSysState = new dummyCSysState
 
 newtype Tag = Tag Int deriving (Enum)
 
+instance Bounded Tag where
+  maxBound = tag_ENUM_TObjSuper
+  minBound = tag_ENUM_Break
+
 newtype Ctag_t = Ctag_t CInt deriving Storable
 newtype Cunit_t = Cunit_t { dummy :: CInt } deriving Storable
 newtype Cbool_t = Cbool_t { boolean :: CUChar } deriving Storable
+
+instance Arbitrary Ctag_t where
+  arbitrary = Ctag_t <$> elements [minBound .. maxBound]
+
+instance Arbitrary Cunit_t where
+  arbitrary = return const_unit
+
+instance Arbitrary Cbool_t where
+  arbitrary = elements [const_true, const_false]
 
 const_unit = Cunit_t $ CInt 0
 const_true  = Cbool_t $ CUChar 1
@@ -407,6 +427,10 @@ data Cubi_volume_info = Cubi_volume_info {
   , cdev            :: Cdev_t
   } deriving (Show)
 
+{-!
+deriving instance Arbitrary Cubi_volume_info
+!-}
+
 instance Storable Cubi_volume_info where
   sizeOf    _ = 72
   alignment _ = 8
@@ -473,6 +497,10 @@ instance Storable Cubi_device_info where
     (\p -> pokeByteOff p 20) ptr f6
     (\p -> pokeByteOff p 24) ptr f7
 
+{-!
+deriving instance Arbitrary Cubi_device_info
+!-}
+
 data CArray t = CArray {
     len    :: CInt
   , values :: Ptr (Ptr t)
@@ -520,6 +548,12 @@ data Crbt_node = Crbt_node {
   , rbt_right        :: Ptr Crbt_node
   } deriving (Eq, Ord, Show)
 
+{-!
+deriving instance Arbitrary (CRbt k v)
+deriving instance Arbitrary Crbt_root
+deriving instance Arbitrary Crbt_node
+!-}
+
 instance Storable Crbt_node where
   sizeOf    _ = 24
   alignment _ = 8
@@ -530,4 +564,7 @@ instance Storable Crbt_node where
     (\p -> pokeByteOff p 0 ) ptr rbt_parent_color
     (\p -> pokeByteOff p 8 ) ptr rbt_left
     (\p -> pokeByteOff p 16) ptr rbt_right
+
+instance (Arbitrary t, Storable t) => Arbitrary (Ptr t) where
+  arbitrary = arbitrary >>= \x -> return (unsafePerformIO (new x))  -- FIXME
 
