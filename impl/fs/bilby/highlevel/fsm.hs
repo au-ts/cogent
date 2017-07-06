@@ -1,3 +1,4 @@
+{- LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -6,9 +7,11 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RecordWildCards #-}
+{- LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
 {-# OPTIONS_GHC -Wno-missing-fields #-}
+{- OPTIONS_GHC -F -pgmFderive -optF-F #-}
 
 import Foreign
 import Foreign.C.String hiding (CString)
@@ -18,6 +21,7 @@ import Foreign.Ptr
 import Foreign.Storable
 import Data.Set as S
 import Test.QuickCheck hiding (Success)
+import Test.QuickCheck.Arbitrary
 import Test.QuickCheck.Gen
 import Test.QuickCheck.Monadic
 
@@ -38,10 +42,10 @@ r_result :: Either ErrCode FsmState -> Cogent_monad (Either ErrCode FsmState) ->
 r_result r1 r2 = r1 `member` r2
 
 gen_MountState :: Gen MountState
-gen_MountState = undefined
+gen_MountState = arbitrary
 
 gen_FsmState :: Gen FsmState
-gen_FsmState = undefined
+gen_FsmState = arbitrary
 
 prop_fsm_init_refine = monadicIO $ forAllM (gen_MountState) $ \mount_st ->
                                    forAllM (gen_FsmState) $ \fsm_st -> run $ do
