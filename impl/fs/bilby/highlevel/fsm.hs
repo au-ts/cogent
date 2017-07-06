@@ -32,6 +32,9 @@ import Fsop_Shallow_Desugar
 -- import WordArray
 import Util
 
+main = quickCheck prop_fsm_init_refine
+
+
 hs_fsm_init :: MountState -> FsmState -> Cogent_monad (Either ErrCode FsmState)
 hs_fsm_init mount_st fsm_st = do
   nb_free_eb <- return $ nb_eb (super mount_st) - bilbyFsFirstLogEbNum
@@ -53,7 +56,7 @@ prop_fsm_init_refine = monadicIO $ forAllM (gen_MountState) $ \mount_st ->
                                      rc <- return $ hs_fsm_init mount_st fsm_st
                                      return $ ra `r_result` rc
 
-foreign import ccall unsafe "wrapper_pp_inferred.c fsm_init"
+foreign import ccall unsafe "generated.h fsm_init"
   c_fsm_init :: Ptr Ct432 -> IO (Ptr Ct435)
 
 
