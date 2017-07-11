@@ -1,0 +1,14 @@
+$esc:(#include <adt.h>)
+$esc:(#include <rbt.h>)
+#include <abstract.h>
+#include <generated.c>
+#include <gum/anti/common.ac>
+#include <gum/anti/wordarray.ac>
+#include <gum/anti/array.ac>
+#include <gum/anti/rbt.ac>
+// #include <gum/anti/os.ac>
+#include <alloc.ac>
+
+
+// $ty:(RR SysState FsmState (ErrCode, FsmState take(..))) $id:fsm_init ($ty:(SysState, MountState!, FsmState take (..)) arg)
+
