@@ -1,0 +1,167 @@
+include <gum/common/wordarray.cogent>
+include <gum/common/array.cogent>
+include <gum/common/rbt.cogent>
+-- include <gum/kernel/linux/errno.cogent>
+-- include <gum/kernel/linux/os.cogent>
+
+-- //////////// kernel
+
+eNoMem : ErrCode
+eNoMem = 12
+
+
+-- //////////// common
+
+-- type SysState
+-- type RR c a b = (c, <Success a | Error b>)
+-- type ErrCode = U32
+
+-- /////////// bilbyfs
+
+bilbyFsFirstLogEbNum : U32
+bilbyFsFirstLogEbNum = 2
+
+type MountState = {
+  eb_recovery: U32,
+  eb_recovery_offs: U32,
+  super : ObjSuper,
+  obj_sup: Obj take (ounion),
+  super_offs: U32,
+  vol : UbiVolInfo,
+  dev : UbiDevInfo,
+  no_summary : Bool
+}
+
+type ObjSuper = { nb_eb : U32
+                , eb_size : U32
+                , io_size : U32
+                , nb_reserved_gc : U32
+                , nb_reserved_del : U32
+                , cur_eb : U32
+                , cur_offs : U32
+                , last_inum : U32
+                , next_sqnum : U64
+}
+
+type Obj = {
+       magic : U32,
+       crc : U32,
+       sqnum : U64,
+       offs : U32, -- in-mem only field
+       len : U32,
+      -- , pad1 : U8
+      -- , pad2 : U8
+       trans : ObjTrans,
+       otype : ObjType,
+       ounion : ObjUnion
+}
+
+type ObjDel = #{ id : ObjId } take ()
+
+type ObjDentarr = {
+  id : ObjId,
+  nb_dentry : U32,
+  entries : Array ObjDentry
+}
+
+type ObjDentry = {
+  ino : U32,
+  dtype : U8,
+  -- pad : U8,
+  nlen : U16,
+  name : WordArray U8
+}
+
+type ObjInodeFlags = U32
+
+type ObjInode = {id : ObjId
+           , size : U64
+           , atime_sec : U64
+           , ctime_sec : U64
+           , mtime_sec : U64
+           , nlink : U32
+           , uid : U32
+           , gid : U32
+           , mode : U32
+           , flags : ObjInodeFlags
+           -- , pad : U64
+}
+
+type ObjSummary = {
+  nb_sum_entry : U32, -- nb_sum_entry must be <= wordarray_length sum.entries
+                   -- the wordarray is ususally larger than what's get serialised.
+                   -- Using an array for this would be too inefficient.
+  entries : WordArray ObjSumEntry, -- only @nb_sum_entry element get serialised on medium
+  -- At the very end of the summary is the offset of the summary itself.
+  sum_offs : U32
+}
+
+type ObjSumEntry = #{
+  id : U64,
+  sqnum : U64,
+  len : U32,
+  del_flags_and_offs : U32,
+  count : U16 -- nb of object covered by the deletion object
+}
+
+
+
+type ObjUnion = <TObjDentarr ObjDentarr
+  | TObjInode ObjInode
+  | TObjData ObjData
+  | TObjDel ObjDel
+  | TObjSuper ObjSuper
+  | TObjSummary ObjSummary
+  | TObjPad ()>
+
+type ObjData = #{
+  id : ObjId,
+  odata : WordArray U8
+}
+
+
+type ObjType = U8
+type ObjTrans = U8
+type ObjId = U64
+type ObjIdDentarr = U64
+type ObjIdData = U64
+type ObjIdInode = U64
+
+-- ////////// ubi
+
+type UbiVolInfo
+type UbiDevInfo
+
+
+-- /////////// fsm
+
+type FsmState = { nb_free_eb : U32
+                , used_eb : WordArray U8
+                , dirty_space : WordArray U32
+                , gim : Rbt ObjId GimNode } 
+
+type GimNode = #{ count : U16, sqnum : U64 } 
+type RbtGimNode = RbtNode ObjId GimNode
+
+
+fsm_init : (SysState, MountState!, FsmState take (..)) -> RR SysState FsmState (ErrCode, FsmState take(..)) 
+fsm_init(ex, mount_st, fsm_st) =
+  let nb_eb = mount_st.super.nb_eb
+  in wordarray_create[U8] (ex, nb_eb)
+  | Error ex -> (ex, Error (eNoMem, fsm_st))
+  | Success (ex, used_eb) ->
+    wordarray_create[U32] (ex, nb_eb)
+    | Error ex ->
+      let ex = wordarray_free[U8](ex, used_eb)
+      in (ex, Error (eNoMem, fsm_st))
+    | Success (ex, dirty_space) ->
+      rbt_create[ObjId,GimNode] ex
+      | Error ex ->
+        let ex = wordarray_free[U8](ex, used_eb)
+        and ex = wordarray_free[U32](ex, dirty_space)
+        in (ex, Error (eNoMem, fsm_st))
+      | Success (ex, gim) ->
+        let nb_free_eb = mount_st.super.nb_eb - bilbyFsFirstLogEbNum
+        in (ex, Success (fsm_st {used_eb, dirty_space, gim, nb_free_eb}))
+
+
