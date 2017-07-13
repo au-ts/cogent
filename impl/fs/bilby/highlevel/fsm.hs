@@ -139,15 +139,23 @@ conv_ObjSummary (R95 {..}) = do
                     }
 
 conv_ObjUnion :: ObjUnion -> IO FFI.Ct65
-conv_ObjUnion ounion =
+conv_ObjUnion ounion = do
+  let def_data    = FFI.Ct62 {id = 0, odata = nullPtr}
+      def_del     = FFI.Ct63 {id = 0}
+      def_dentarr = nullPtr
+      def_inode   = nullPtr
+      def_pad     = const_unit
+      def_summary = nullPtr
+      def_super   = nullPtr
+      o = FFI.Ct65 undefined def_data def_del def_dentarr def_inode def_pad def_summary def_super
   case ounion of
-    TObjData    t -> conv_ObjData    t         >>= \x -> return $ FFI.Ct65 { FFI.tag = FFI.Ctag_t $ fromIntegral $ fromEnum FFI.tag_ENUM_TObjData   , tObjData    = x }
-    TObjDel     t -> conv_ObjDel     t         >>= \x -> return $ FFI.Ct65 { FFI.tag = FFI.Ctag_t $ fromIntegral $ fromEnum FFI.tag_ENUM_TObjDel    , tObjDel     = x }
-    TObjDentarr t -> conv_ObjDentarr t >>= new >>= \x -> return $ FFI.Ct65 { FFI.tag = FFI.Ctag_t $ fromIntegral $ fromEnum FFI.tag_ENUM_TObjDentarr, tObjDentarr = x }
-    TObjInode   t -> conv_ObjInode   t >>= new >>= \x -> return $ FFI.Ct65 { FFI.tag = FFI.Ctag_t $ fromIntegral $ fromEnum FFI.tag_ENUM_TObjInode  , tObjInode   = x }
-    TObjPad     t ->                                     return $ FFI.Ct65 { FFI.tag = FFI.Ctag_t $ fromIntegral $ fromEnum FFI.tag_ENUM_TObjPad    , tObjPad     = const_unit }
-    TObjSummary t -> conv_ObjSummary t >>= new >>= \x -> return $ FFI.Ct65 { FFI.tag = FFI.Ctag_t $ fromIntegral $ fromEnum FFI.tag_ENUM_TObjSummary, tObjSummary = x }
-    TObjSuper   t -> conv_ObjSuper   t >>= new >>= \x -> return $ FFI.Ct65 { FFI.tag = FFI.Ctag_t $ fromIntegral $ fromEnum FFI.tag_ENUM_TObjSuper  , tObjSuper   = x }
+    TObjData    t -> conv_ObjData    t         >>= \x -> return $ o { FFI.tag = FFI.Ctag_t $ fromIntegral $ fromEnum FFI.tag_ENUM_TObjData   , FFI.tObjData    = x }
+    TObjDel     t -> conv_ObjDel     t         >>= \x -> return $ o { FFI.tag = FFI.Ctag_t $ fromIntegral $ fromEnum FFI.tag_ENUM_TObjDel    , FFI.tObjDel     = x }
+    TObjDentarr t -> conv_ObjDentarr t >>= new >>= \x -> return $ o { FFI.tag = FFI.Ctag_t $ fromIntegral $ fromEnum FFI.tag_ENUM_TObjDentarr, FFI.tObjDentarr = x }
+    TObjInode   t -> conv_ObjInode   t >>= new >>= \x -> return $ o { FFI.tag = FFI.Ctag_t $ fromIntegral $ fromEnum FFI.tag_ENUM_TObjInode  , FFI.tObjInode   = x }
+    TObjPad     t ->                                     return $ o { FFI.tag = FFI.Ctag_t $ fromIntegral $ fromEnum FFI.tag_ENUM_TObjPad    , FFI.tObjPad     = const_unit }
+    TObjSummary t -> conv_ObjSummary t >>= new >>= \x -> return $ o { FFI.tag = FFI.Ctag_t $ fromIntegral $ fromEnum FFI.tag_ENUM_TObjSummary, FFI.tObjSummary = x }
+    TObjSuper   t -> conv_ObjSuper   t >>= new >>= \x -> return $ o { FFI.tag = FFI.Ctag_t $ fromIntegral $ fromEnum FFI.tag_ENUM_TObjSuper  , FFI.tObjSuper   = x }
 
 conv_Obj :: Obj -> IO FFI.Ct66
 conv_Obj (R90 {..}) = do
