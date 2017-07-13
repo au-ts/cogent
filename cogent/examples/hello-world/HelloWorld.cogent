@@ -1,0 +1,25 @@
+--
+-- Copyright 2017, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+
+-- common.cogent is where `SysState` as an abstract type is declared.
+-- The actual definition of `SysState` is made in `main.ac` in our case
+-- [or in any antiquoted C(ac) file].
+include <gum/common/common.cogent>
+
+
+-- Forward declaration of `print_string`, so that we can use this function
+-- here. The actual implementation of this function is in the antiquoted C
+-- file, since it does IO.
+print_string: (SysState, String) -> SysState
+
+helloworld: SysState -> SysState
+helloworld st =
+  print_string (st, "Hello, World!")
