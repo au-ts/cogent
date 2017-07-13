@@ -55,9 +55,9 @@ instance Bounded Tag where
   maxBound = tag_ENUM_TObjSuper
   minBound = tag_ENUM_Break
 
-newtype Ctag_t = Ctag_t CInt deriving Storable
-newtype Cunit_t = Cunit_t { dummy :: CInt } deriving Storable
-newtype Cbool_t = Cbool_t { boolean :: CUChar } deriving Storable
+newtype Ctag_t = Ctag_t CInt deriving (Show, Storable)
+newtype Cunit_t = Cunit_t { dummy :: CInt } deriving (Show, Storable)
+newtype Cbool_t = Cbool_t { boolean :: CUChar } deriving (Show, Storable)
 
 instance Arbitrary Ctag_t where
   arbitrary = Ctag_t <$> elements [minBound .. maxBound]
@@ -132,7 +132,7 @@ data Ct72 = Ct72 {
   , vol              :: Ptr CUbiVolInfo
   , dev              :: Ptr CUbiDevInfo
   , no_summary       :: Cbool_t
-  }
+  } deriving Show
 
 instance Storable Ct72 where
   sizeOf    _ = 56
@@ -160,7 +160,7 @@ data Ct68 = Ct68 {
   , used_eb     :: Ptr (CWordArray Cu8 )
   , dirty_space :: Ptr (CWordArray Cu32)
   , gim         :: Ptr (CRbt Cu64 Ct18)
-  }
+  } deriving Show
 
 instance Storable Ct68 where
   sizeOf    _ = 32
@@ -529,32 +529,51 @@ instance (Storable t) => Storable (CWordArray t) where
     (\p -> pokeByteOff p 0) ptr len
     (\p -> pokeByteOff p 8) ptr values
 
-newtype CRbt k v = CRbt { rbt :: Crbt_root } deriving (Eq, Ord, Show, Storable, Functor, Traversable, Foldable)
+newtype CRbt k v = CRbt { rbt :: Crbt_root k v } deriving (Eq, Ord, Show, Storable, Functor, Traversable, Foldable)
 
 instance Functor (Flip CRbt v) where
-  fmap _ (Flip (CRbt r)) = Flip (CRbt r)
+  fmap f (Flip (CRbt r)) = Flip (CRbt $ ffmap f r)
 
 instance Traversable (Flip CRbt v) where
-  traverse _ (Flip (CRbt r)) = pure $ Flip (CRbt r)
+  traverse f (Flip (CRbt r)) = Flip <$> (CRbt <$> ttraverse f r)
 
 instance Foldable (Flip CRbt v) where
   foldMap f a = getConst $ traverse (Const . f) a
 
-newtype Crbt_root = Crbt_root { root :: Crbt_node } deriving (Eq, Ord, Show, Storable)
+newtype Crbt_root k v = Crbt_root { root :: Ptr (Crbt_node k v) } deriving (Eq, Ord, Show, Storable)
 
-data Crbt_node = Crbt_node {
+instance Functor (Crbt_root k) where
+  fmap _ (Crbt_root r) = Crbt_root $ castPtr r
+instance Functor (Flip Crbt_root v) where
+  fmap _ (Flip (Crbt_root r)) = Flip (Crbt_root $ castPtr r)
+
+instance Traversable (Crbt_root k) where
+  traverse _ (Crbt_root r) = pure $ Crbt_root $ castPtr r
+instance Traversable (Flip Crbt_root v) where
+  traverse _ (Flip (Crbt_root r)) = pure $ Flip $ Crbt_root $ castPtr r
+
+instance Foldable (Crbt_root k) where
+  foldMap f a = getConst $ traverse (Const . f) a
+instance Foldable (Flip Crbt_root v) where
+  foldMap f a = getConst $ traverse (Const . f) a
+
+
+data Crbt_node k v = Crbt_node {
     rbt_parent_color :: CULong
-  , rbt_left         :: Ptr Crbt_node
-  , rbt_right        :: Ptr Crbt_node
+  , rbt_left         :: Ptr (Crbt_node k v)
+  , rbt_right        :: Ptr (Crbt_node k v)
   } deriving (Eq, Ord, Show)
 
-{-!
-deriving instance Arbitrary (CRbt k v)
-deriving instance Arbitrary Crbt_root
-deriving instance Arbitrary Crbt_node
-!-}
+instance (Arbitrary k, Arbitrary v) => Arbitrary (CRbt k v) where
+  arbitrary = undefined  -- TODO: how to generate a struct of k and v, without knowing whether they're pointers?
 
-instance Storable Crbt_node where
+instance (Arbitrary k, Arbitrary v) => Arbitrary (Crbt_root k v) where
+  arbitrary = undefined  -- TODO
+
+instance (Arbitrary k, Arbitrary v) => Arbitrary (Crbt_node k v) where
+  arbitrary = undefined  -- TODO
+
+instance Storable (Crbt_node k v) where
   sizeOf    _ = 24
   alignment _ = 8
   peek ptr = Crbt_node <$> (\p -> peekByteOff p 0 ) ptr
