@@ -2,7 +2,9 @@
 
 A collection of example Cogent programs demonstrating common features in Cogent and how it integrates with non-Cogent code (such as C).
 
-It contains three examples:
+It contains the following examples:
+* **hello-world**:
+  A very basic "Hello World" example with dedicated comments for new users.
 * **adder**:
 	Adds two given unsigned 32 bit integers.
 * **list**:
