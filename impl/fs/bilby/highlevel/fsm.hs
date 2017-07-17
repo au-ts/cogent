@@ -37,7 +37,8 @@ import Fsop_Shallow_Desugar
 -- import WordArray
 import Util
 
-main = quickCheck prop_fsm_init_refine
+main = do quickCheck prop_fsm_init_refine
+          quickCheck prop_fsm_init_nb_free_eb
 
 run_cogent_fsm_init = do
   mnt_st <- generate gen_MountState
@@ -67,13 +68,21 @@ gen_MountState = arbitrary
 gen_FsmState :: Gen FsmState
 gen_FsmState = arbitrary
 
-prop_fsm_init_refine = monadicIO $ forAllM (gen_MountState) $ \mount_st ->
-                                   forAllM (gen_FsmState) $ \fsm_st -> run $ do
+prop_fsm_init_refine = monadicIO $ forAllM gen_MountState $ \mount_st ->
+                                   forAllM gen_FsmState   $ \fsm_st   -> run $ do
                                      ra <- cogent_fsm_init mount_st fsm_st
                                      rc <- return $ hs_fsm_init mount_st fsm_st
                                      r  <- return $ ra `r_result` rc
                                      release_fsm_init ra
                                      return r
+
+prop_fsm_init_nb_free_eb = forAll gen_MountState $ \mount_st ->
+                           forAll gen_FsmState   $ \fsm_st   -> 
+                             nb_eb (super mount_st) >= bilbyFsFirstLogEbNum ==>
+                             let rs = hs_fsm_init mount_st fsm_st
+                              in all (\r -> case r of
+                                              Left _  -> True
+                                              Right s -> nb_free_eb s <= nb_eb (super mount_st)) rs
 
 foreign import ccall unsafe "fsm_wrapper_pp_inferred.c ffi_fsm_init"
   c_fsm_init :: Ptr Ct432 -> IO (Ptr Ct435)
