@@ -24,19 +24,15 @@ import Util
 
 -- /////////////////////////////////////////////////////////////////////////////
 
-tag_ENUM_Break       = Tag 0
-tag_ENUM_Error       = Tag 1
-tag_ENUM_Iterate     = Tag 2
-tag_ENUM_None        = Tag 3
-tag_ENUM_Some        = Tag 4
-tag_ENUM_Success     = Tag 5
-tag_ENUM_TObjData    = Tag 6
-tag_ENUM_TObjDel     = Tag 7
-tag_ENUM_TObjDentarr = Tag 8
-tag_ENUM_TObjInode   = Tag 9
-tag_ENUM_TObjPad     = Tag 10
-tag_ENUM_TObjSummary = Tag 11
-tag_ENUM_TObjSuper   = Tag 12
+tag_ENUM_Error       = Tag 0
+tag_ENUM_Success     = Tag 1
+tag_ENUM_TObjData    = Tag 2
+tag_ENUM_TObjDel     = Tag 3
+tag_ENUM_TObjDentarr = Tag 4
+tag_ENUM_TObjInode   = Tag 5
+tag_ENUM_TObjPad     = Tag 5
+tag_ENUM_TObjSummary = Tag 6
+tag_ENUM_TObjSuper   = Tag 7
 
 newtype CSysState = CSysState { dummy :: CChar } deriving Storable
 
@@ -53,7 +49,7 @@ newtype Tag = Tag Int deriving (Enum)
 
 instance Bounded Tag where
   maxBound = tag_ENUM_TObjSuper
-  minBound = tag_ENUM_Break
+  minBound = tag_ENUM_Error
 
 newtype Ctag_t = Ctag_t CInt deriving (Show, Storable)
 newtype Cunit_t = Cunit_t { dummy :: CInt } deriving (Show, Storable)
@@ -77,7 +73,7 @@ type Cu16 = CUShort
 type Cu32 = CUInt
 type Cu64 = CULLong
 
-data Ct435 = Ct435 { p1 :: Ptr CSysState, p2 :: Ct434 }
+data Ct435 = Ct435 { p1 :: Ptr CSysState, p2 :: Ct434 } deriving Show
 
 instance Storable Ct435 where
   sizeOf    _ = 40
@@ -89,7 +85,7 @@ data Ct434 = Ct434 {
     tag     :: Ctag_t
   , error   :: Ct433
   , success :: Ptr Ct68
-}
+} deriving Show
 
 instance Storable Ct434 where
   sizeOf    _ = 32
@@ -102,7 +98,7 @@ instance Storable Ct434 where
     (\p -> pokeByteOff p 8 ) ptr f2
     (\p -> pokeByteOff p 24) ptr f3
 
-data Ct433 = Ct433 { p1 :: Cu32, p2 :: Ptr Ct68 }
+data Ct433 = Ct433 { p1 :: Cu32, p2 :: Ptr Ct68 } deriving Show
 
 instance Storable Ct433 where
   sizeOf    _ = 16
@@ -110,7 +106,7 @@ instance Storable Ct433 where
   peek ptr = Ct433 <$> (\p -> peekByteOff p 0) ptr <*> (\p -> peekByteOff p 8) ptr
   poke ptr (Ct433 p1 p2) = (\p -> pokeByteOff p 0) ptr p1 >> (\p -> pokeByteOff p 8) ptr p2
 
-data Ct432 = Ct432 { p1 :: Ptr CSysState, p2 :: Ptr Ct72, p3 :: Ptr Ct68 }
+data Ct432 = Ct432 { p1 :: Ptr CSysState, p2 :: Ptr Ct72, p3 :: Ptr Ct68 } deriving Show
 
 instance Storable Ct432 where
   sizeOf    _ = 24
@@ -565,10 +561,10 @@ data Crbt_node k v = Crbt_node {
   } deriving (Eq, Ord, Show)
 
 instance (Arbitrary k, Arbitrary v) => Arbitrary (CRbt k v) where
-  arbitrary = undefined  -- TODO: how to generate a struct of k and v, without knowing whether they're pointers?
+  arbitrary = CRbt <$> arbitrary
 
 instance (Arbitrary k, Arbitrary v) => Arbitrary (Crbt_root k v) where
-  arbitrary = undefined  -- TODO
+  arbitrary = pure $ Crbt_root nullPtr
 
 instance (Arbitrary k, Arbitrary v) => Arbitrary (Crbt_node k v) where
   arbitrary = undefined  -- TODO

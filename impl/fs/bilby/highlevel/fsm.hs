@@ -5,7 +5,10 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{- LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE RebindableSyntax #-}
+{- LANGUAGE ImplicitPrelude #-}
 {-# LANGUAGE RecordWildCards #-}
 {- LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeSynonymInstances #-}
@@ -20,12 +23,14 @@ import Foreign.Marshal.Alloc
 import Foreign.Ptr
 import Foreign.Storable
 import Data.Set as S
+import Prelude
 import Test.QuickCheck hiding (Success)
 import Test.QuickCheck.Arbitrary
 import Test.QuickCheck.Gen
 import Test.QuickCheck.Monadic
 
-import CogentMonad
+import CogentMonad hiding (return, (>>=))
+import qualified CogentMonad as CogentMonad
 import FFI (Ct432(..), Ct435(..), pDummyCSysState, dummyCSysState, const_unit, const_true, const_false)
 import qualified FFI as FFI
 import Fsop_Shallow_Desugar 
@@ -34,15 +39,27 @@ import Util
 
 main = quickCheck prop_fsm_init_refine
 
+run_cogent_fsm_init = do
+  mnt_st <- generate gen_MountState
+  fsm_st <- generate gen_FsmState
+  cogent_fsm_init mnt_st fsm_st
+
+
+-- infixl 1 >>=, >>
 
 hs_fsm_init :: MountState -> FsmState -> Cogent_monad (Either ErrCode FsmState)
 hs_fsm_init mount_st fsm_st = do
   nb_free_eb <- return $ nb_eb (super mount_st) - bilbyFsFirstLogEbNum
   (return $ Left eNoMem) `alternative` (return $ Right $ fsm_st { nb_free_eb })
-
+    where (>>=)  = (CogentMonad.>>=)
+          return = CogentMonad.return
 
 r_result :: Either ErrCode FsmState -> Cogent_monad (Either ErrCode FsmState) -> Bool
-r_result r1 r2 = r1 `member` r2
+r_result r1 r2 = any (fsm_init_ret_eq r1) $ toList r2
+  where fsm_init_ret_eq :: Either ErrCode FsmState -> Either ErrCode FsmState -> Bool
+        fsm_init_ret_eq (Left l1) (Left l2) = l1 == l2
+        fsm_init_ret_eq (Right (R94 f1 f2 f3 f4)) (Right (R94 f1' f2' f3' f4')) = f1 == f1'
+        fsm_init_ret_eq _ _ = False
 
 gen_MountState :: Gen MountState
 gen_MountState = arbitrary
@@ -54,11 +71,19 @@ prop_fsm_init_refine = monadicIO $ forAllM (gen_MountState) $ \mount_st ->
                                    forAllM (gen_FsmState) $ \fsm_st -> run $ do
                                      ra <- cogent_fsm_init mount_st fsm_st
                                      rc <- return $ hs_fsm_init mount_st fsm_st
-                                     return $ ra `r_result` rc
+                                     r  <- return $ ra `r_result` rc
+                                     release_fsm_init ra
+                                     return r
 
-foreign import ccall unsafe "generated.h fsm_init"
+foreign import ccall unsafe "fsm_wrapper_pp_inferred.c ffi_fsm_init"
   c_fsm_init :: Ptr Ct432 -> IO (Ptr Ct435)
 
+release_fsm_init :: Either ErrCode FsmState -> IO ()
+release_fsm_init (Left _) = return ()
+release_fsm_init (Right r) = conv_FsmState r >>= new >>= c_destroy_Ct68
+
+foreign import ccall unsafe "fsm_wrapper_pp_inferred.c ffi_destroy_Ct68"
+  c_destroy_Ct68 :: Ptr FFI.Ct68 -> IO ()
 
 conv_ObjSuper :: ObjSuper -> IO FFI.Ct39
 conv_ObjSuper (R93 {..}) = 
@@ -238,8 +263,9 @@ conv_Ct68 (FFI.Ct68 {..}) = do
 conv_Ct434 :: FFI.Ct434 -> IO (Either ErrCode FsmState)
 conv_Ct434 (FFI.Ct434 {..}) = do
   let FFI.Ctag_t t = tag
-  if | fromIntegral t == fromEnum FFI.tag_ENUM_Success -> conv_Ct433 error >>= return . Left
-     | fromIntegral t == fromEnum FFI.tag_ENUM_Error   -> (conv_Ct68 =<< peek success) >>= return . Right
+  if | fromIntegral t == fromEnum FFI.tag_ENUM_Error   -> conv_Ct433 error >>= return . Left
+     | fromIntegral t == fromEnum FFI.tag_ENUM_Success -> (conv_Ct68 =<< peek success) >>= return . Right
+     | otherwise -> Prelude.error $ "Tag is " ++ show (fromIntegral t)
 
 conv_Ct435 :: Ct435 -> IO (Either ErrCode FsmState)
 conv_Ct435 (Ct435 {..}) = conv_Ct434 p2
@@ -251,6 +277,7 @@ cogent_fsm_init :: MountState -> FsmState -> IO (Either ErrCode FsmState)
 cogent_fsm_init mount_st fsm_st = do
   p_arg <- new =<< mk_fsm_init_arg mount_st fsm_st
   p_ret <- c_fsm_init p_arg
+  -- putStrLn $ "p_ret = " ++ show p_ret
   ret <- peek p_ret
+  -- putStrLn $ "ret = " ++ show ret
   mk_fsm_init_ret ret
-
