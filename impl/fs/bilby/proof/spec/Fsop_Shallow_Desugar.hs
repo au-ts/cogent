@@ -7,9 +7,11 @@ Isabelle input files).
 -}
 {-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 {-# OPTIONS_GHC -F -pgmFderive -optF-F #-}
 
@@ -18,7 +20,8 @@ import Data.Bits ((.&.), (.|.), complement, xor, shiftL, shiftR)
 import qualified Data.Map as M
 import Data.Word (Word8, Word16, Word32, Word64)
 import FFI (CUbiVolInfo, CUbiDevInfo, CRbt)
-import Prelude (not, div, mod, fromIntegral, undefined, (+), (-), (*), (&&), (||), (>), (>=), (<), (<=), (==), (/=), Char, String, Int, Bool(..), Eq, Ord, Show, return, error)
+import Prelude (not, div, mod, fromIntegral, undefined, (+), (-), (*), (&&), (||), (>), (>=), (<), (<=), (==), (/=),
+                Char, String, Int, Bool(..), Eq, Ord, Show, return, error, (<$>), (<*>))
 import Test.QuickCheck.Arbitrary
 import Test.QuickCheck.Gen
 
@@ -38303,8 +38306,19 @@ data V122 t1 t2 t3 t4 t5 t6 t7 = TObjData t1
                                | TObjSuper t7
                                deriving (Show)
 
+-- deriving instance Arbitrary (R93  t1 t2 t3 t4 t5 t6 t7 t8 t9)
+instance Arbitrary ObjSuper where
+  arbitrary = R93 <$> frequency [(2, return 0), (8, elements [0..1000])]
+                  <*> arbitrary
+                  <*> arbitrary
+                  <*> arbitrary
+                  <*> arbitrary
+                  <*> arbitrary
+                  <*> arbitrary
+                  <*> arbitrary
+                  <*> arbitrary
+
 {-!
-deriving instance Arbitrary (R93  t1 t2 t3 t4 t5 t6 t7 t8 t9)
 deriving instance Arbitrary (R82  t1 t2)
 deriving instance Arbitrary (R79  t1)
 deriving instance Arbitrary (R86  t1 t2 t3 t4)
