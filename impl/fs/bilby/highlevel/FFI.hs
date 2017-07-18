@@ -583,3 +583,13 @@ instance Storable (Crbt_node k v) where
 instance (Arbitrary t, Storable t) => Arbitrary (Ptr t) where
   arbitrary = arbitrary >>= \x -> return (unsafePerformIO (new x))  -- FIXME
 
+data Cffi_fsm_init_ds = Cffi_fsm_init_ds { ret :: Ptr Ct435, ds :: Ptr Bool }
+
+instance Storable Cffi_fsm_init_ds where
+  sizeOf    _ = 16
+  alignment _ = 8
+  peek ptr = Cffi_fsm_init_ds <$> (\p -> peekByteOff p 0) ptr
+                              <*> (\p -> peekByteOff p 8) ptr
+  poke ptr (Cffi_fsm_init_ds ret ds) = do
+    (\p -> pokeByteOff p 0) ptr ret
+    (\p -> pokeByteOff p 8) ptr ds

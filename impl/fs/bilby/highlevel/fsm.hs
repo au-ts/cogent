@@ -13,6 +13,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {- LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
 {-# OPTIONS_GHC -Wno-missing-fields #-}
@@ -24,6 +25,7 @@ import Foreign.C.Types
 import Foreign.Marshal.Alloc
 import Foreign.Ptr
 import Foreign.Storable
+import Control.Monad.State
 import Data.Set as S
 import Prelude
 import Test.QuickCheck hiding (Success)
@@ -33,14 +35,11 @@ import Test.QuickCheck.Monadic
 
 import CogentMonad hiding (return, (>>=))
 import qualified CogentMonad as CogentMonad
-import FFI (Ct432(..), Ct435(..), pDummyCSysState, dummyCSysState, const_unit, const_true, const_false)
+import FFI (pDummyCSysState, dummyCSysState, const_unit, const_true, const_false)
 import qualified FFI as FFI
 import Fsop_Shallow_Desugar 
 -- import WordArray
 import Util
-
-main = do quickCheck prop_fsm_init_refine
-          quickCheck prop_fsm_init_nb_free_eb
 
 run_cogent_fsm_init = do
   mnt_st <- generate gen_MountState
@@ -65,12 +64,29 @@ hs_fsm_init_nd mount_st fsm_st = do
         return = CogentMonad.return
         x >> y = x >>= \_ -> y
 
+hs_fsm_init :: MountState -> FsmState -> State [Bool] (Either ErrCode FsmState)
+hs_fsm_init mount_st fsm_st = do
+  let nb_eb' = nb_eb (super mount_st)
+  d <- pop
+  if | not d -> return $ Left eNoMem
+     | otherwise -> do
+       let used_eb = replicate (fromIntegral nb_eb') 0
+       d <- pop
+       if | not d -> return $ Left eNoMem
+          | otherwise -> do
+            let dirty_space = replicate (fromIntegral nb_eb') 0
+                nb_free_eb = nb_eb' - bilbyFsFirstLogEbNum
+            return $ Right $ fsm_st { used_eb, dirty_space, nb_free_eb }
+  where
+    pop = get >>= \(d:ds) -> put ds >> return d 
+
 r_result :: Either ErrCode FsmState -> Cogent_monad (Either ErrCode FsmState) -> Bool
 r_result r1 r2 = any (fsm_init_ret_eq r1) $ toList r2
-  where fsm_init_ret_eq :: Either ErrCode FsmState -> Either ErrCode FsmState -> Bool
-        fsm_init_ret_eq (Left l1) (Left l2) = l1 == l2
-        fsm_init_ret_eq (Right (R94 f1 f2 f3 f4)) (Right (R94 f1' f2' f3' f4')) = f1 == f1'
-        fsm_init_ret_eq _ _ = False
+
+fsm_init_ret_eq :: Either ErrCode FsmState -> Either ErrCode FsmState -> Bool
+fsm_init_ret_eq (Left l1) (Left l2) = l1 == l2
+fsm_init_ret_eq (Right (R94 f1 f2 f3 f4)) (Right (R94 f1' f2' f3' f4')) = f1 == f1'
+fsm_init_ret_eq _ _ = False
 
 gen_MountState :: Gen MountState
 gen_MountState = arbitrary
@@ -80,11 +96,19 @@ gen_FsmState = arbitrary
 
 prop_fsm_init_refine = monadicIO $ forAllM gen_MountState $ \mount_st ->
                                    forAllM gen_FsmState   $ \fsm_st   -> run $ do
-                                     ra <- cogent_fsm_init mount_st fsm_st
+                                     (ra,_) <- cogent_fsm_init mount_st fsm_st
                                      rc <- return $ hs_fsm_init_nd mount_st fsm_st
                                      r  <- return $ ra `r_result` rc
                                      release_fsm_init ra
                                      return r
+
+prop_fsm_init_refine' = monadicIO $ forAllM gen_MountState $ \mount_st ->
+                                    forAllM gen_FsmState   $ \fsm_st   -> run $ do
+                                      (ra,ds) <- cogent_fsm_init mount_st fsm_st
+                                      rc <- return $ evalState (hs_fsm_init mount_st fsm_st) ds
+                                      r  <- return $ ra `fsm_init_ret_eq` rc
+                                      release_fsm_init ra
+                                      return r
 
 prop_fsm_init_nb_free_eb = forAll gen_MountState $ \mount_st ->
                            forAll gen_FsmState   $ \fsm_st   -> 
@@ -95,7 +119,7 @@ prop_fsm_init_nb_free_eb = forAll gen_MountState $ \mount_st ->
                                               Right s -> nb_free_eb s <= nb_eb (super mount_st)) rs
 
 foreign import ccall unsafe "fsm_wrapper_pp_inferred.c ffi_fsm_init"
-  c_fsm_init :: Ptr Ct432 -> IO (Ptr Ct435)
+  c_fsm_init :: Ptr FFI.Ct432 -> IO (Ptr FFI.Cffi_fsm_init_ds)
 
 release_fsm_init :: Either ErrCode FsmState -> IO ()
 release_fsm_init (Left _) = return ()
@@ -253,12 +277,12 @@ conv_FsmState (R94 {..}) = do
                     , gim         = p_gim
                     }
 
-mk_fsm_init_arg :: MountState -> FsmState -> IO Ct432
+mk_fsm_init_arg :: MountState -> FsmState -> IO FFI.Ct432
 mk_fsm_init_arg mount_st fsm_st = do
   p_sys_st   <- pDummyCSysState
   p_mount_st <- new =<< conv_MountState mount_st
   p_fsm_st   <- new =<< conv_FsmState fsm_st
-  return $ Ct432 { p1 = p_sys_st, p2 = p_mount_st, p3 = p_fsm_st }
+  return $ FFI.Ct432 { p1 = p_sys_st, p2 = p_mount_st, p3 = p_fsm_st }
 
 conv_Ct433 :: FFI.Ct433 -> IO ErrCode
 conv_Ct433 (FFI.Ct433 {..}) = return $ fromIntegral p1
@@ -286,17 +310,27 @@ conv_Ct434 (FFI.Ct434 {..}) = do
      | fromIntegral t == fromEnum FFI.tag_ENUM_Success -> (conv_Ct68 =<< peek success) >>= return . Right
      | otherwise -> Prelude.error $ "Tag is " ++ show (fromIntegral t)
 
-conv_Ct435 :: Ct435 -> IO (Either ErrCode FsmState)
-conv_Ct435 (Ct435 {..}) = conv_Ct434 p2
+conv_Ct435 :: FFI.Ct435 -> IO (Either ErrCode FsmState)
+conv_Ct435 (FFI.Ct435 {..}) = conv_Ct434 p2
 
-mk_fsm_init_ret :: Ct435 -> IO (Either ErrCode FsmState)
-mk_fsm_init_ret = conv_Ct435
+mk_fsm_init_ret :: FFI.Cffi_fsm_init_ds -> IO (Either ErrCode FsmState, [Bool])
+mk_fsm_init_ret (FFI.Cffi_fsm_init_ds p_ret p_ds) = do
+  ret <- peek p_ret
+  ret' <- conv_Ct435 ret
+  ds'  <- peekArray 2 p_ds
+  return $ (ret', ds')
 
-cogent_fsm_init :: MountState -> FsmState -> IO (Either ErrCode FsmState)
+cogent_fsm_init :: MountState -> FsmState -> IO (Either ErrCode FsmState, [Bool])
 cogent_fsm_init mount_st fsm_st = do
   p_arg <- new =<< mk_fsm_init_arg mount_st fsm_st
   p_ret <- c_fsm_init p_arg
   -- putStrLn $ "p_ret = " ++ show p_ret
-  ret <- peek p_ret
+  rets <- peek p_ret
   -- putStrLn $ "ret = " ++ show ret
-  mk_fsm_init_ret ret
+  mk_fsm_init_ret rets
+
+
+
+return []
+main = $quickCheckAll
+
