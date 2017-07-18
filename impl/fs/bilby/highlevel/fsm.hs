@@ -3,6 +3,7 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {- LANGUAGE NoMonomorphismRestriction #-}
@@ -10,6 +11,7 @@
 {-# LANGUAGE RebindableSyntax #-}
 {- LANGUAGE ImplicitPrelude #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {- LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
@@ -48,12 +50,20 @@ run_cogent_fsm_init = do
 
 -- infixl 1 >>=, >>
 
-hs_fsm_init :: MountState -> FsmState -> Cogent_monad (Either ErrCode FsmState)
-hs_fsm_init mount_st fsm_st = do
-  nb_free_eb <- return $ nb_eb (super mount_st) - bilbyFsFirstLogEbNum
-  (return $ Left eNoMem) `alternative` (return $ Right $ fsm_st { nb_free_eb })
-    where (>>=)  = (CogentMonad.>>=)
-          return = CogentMonad.return
+hs_fsm_init_nd :: MountState -> FsmState -> Cogent_monad (Either ErrCode FsmState)
+hs_fsm_init_nd mount_st fsm_st = do
+  let nb_eb' = nb_eb (super mount_st)
+  ((return $ Left eNoMem) `alternative` (return $ Right $ replicate (fromIntegral nb_eb') 0)) >>= \case
+    Left e -> return $ Left e
+    Right used_eb -> 
+      ((return $ Left eNoMem) `alternative` (return $ Right $ replicate (fromIntegral nb_eb') 0)) >>= \case
+        Left e -> return $ Left e
+        Right dirty_space ->
+          let nb_free_eb = nb_eb' - bilbyFsFirstLogEbNum in
+          (return $ Left eNoMem) `alternative` (return $ Right $ fsm_st { used_eb, dirty_space, nb_free_eb })
+  where (>>=)  = (CogentMonad.>>=)
+        return = CogentMonad.return
+        x >> y = x >>= \_ -> y
 
 r_result :: Either ErrCode FsmState -> Cogent_monad (Either ErrCode FsmState) -> Bool
 r_result r1 r2 = any (fsm_init_ret_eq r1) $ toList r2
@@ -71,7 +81,7 @@ gen_FsmState = arbitrary
 prop_fsm_init_refine = monadicIO $ forAllM gen_MountState $ \mount_st ->
                                    forAllM gen_FsmState   $ \fsm_st   -> run $ do
                                      ra <- cogent_fsm_init mount_st fsm_st
-                                     rc <- return $ hs_fsm_init mount_st fsm_st
+                                     rc <- return $ hs_fsm_init_nd mount_st fsm_st
                                      r  <- return $ ra `r_result` rc
                                      release_fsm_init ra
                                      return r
@@ -79,7 +89,7 @@ prop_fsm_init_refine = monadicIO $ forAllM gen_MountState $ \mount_st ->
 prop_fsm_init_nb_free_eb = forAll gen_MountState $ \mount_st ->
                            forAll gen_FsmState   $ \fsm_st   -> 
                              nb_eb (super mount_st) >= bilbyFsFirstLogEbNum ==>
-                             let rs = hs_fsm_init mount_st fsm_st
+                             let rs = hs_fsm_init_nd mount_st fsm_st
                               in all (\r -> case r of
                                               Left _  -> True
                                               Right s -> nb_free_eb s <= nb_eb (super mount_st)) rs
