@@ -11,7 +11,7 @@ git:
 
 # branches:
 #   except:
-#   - tc-new-rebase
+#   - branch-name
 
 cache:
   directories:
