@@ -94,6 +94,24 @@ gen_MountState = arbitrary
 gen_FsmState :: Gen FsmState
 gen_FsmState = arbitrary
 
+{-
+ 
+NOTE: the refinement between Cogent/C implementation and Haskell specs:
+
+  non-det version of HS spec
+             ^
+             | refines
+             |
+det version of HS executable spec
+             ^
+             | refines
+             |
+  Cogent/C implementation
+
+-}
+
+
+
 prop_fsm_init_refine = monadicIO $ forAllM gen_MountState $ \mount_st ->
                                    forAllM gen_FsmState   $ \fsm_st   -> run $ do
                                      (ra,_) <- cogent_fsm_init mount_st fsm_st
@@ -109,6 +127,14 @@ prop_fsm_init_refine' = monadicIO $ forAllM gen_MountState $ \mount_st ->
                                       r  <- return $ ra `fsm_init_ret_eq` rc
                                       release_fsm_init ra
                                       return r
+
+prop_fsm_init_det_refine_det = forAll gen_MountState $ \mount_st -> 
+                               forAll gen_FsmState   $ \fsm_st   -> 
+                               forAll (vectorOf 2 (arbitrary :: Gen Bool)) $ \ds -> do
+                                 let rnd = hs_fsm_init_nd mount_st fsm_st
+                                     rd  = evalState (hs_fsm_init mount_st fsm_st) ds
+                                  in rd `r_result` rnd
+
 
 prop_fsm_init_nb_free_eb = forAll gen_MountState $ \mount_st ->
                            forAll gen_FsmState   $ \fsm_st   -> 
