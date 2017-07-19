@@ -6,6 +6,10 @@ sudo: false
 git:
   submodules: false
 
+branches:
+  except:
+  - high-level
+
 cache:
   directories:
     - $HOME/.cabsnap
