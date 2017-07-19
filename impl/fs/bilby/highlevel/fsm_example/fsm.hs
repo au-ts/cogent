@@ -33,7 +33,7 @@ import Test.QuickCheck.Arbitrary
 import Test.QuickCheck.Gen
 import Test.QuickCheck.Monadic
 
-import CogentMonad hiding (return, (>>=))
+import CogentMonad hiding (return, (>>=), (>>))
 import qualified CogentMonad as CogentMonad
 import FFI (pDummyCSysState, dummyCSysState, const_unit, const_true, const_false)
 import qualified FFI as FFI
@@ -47,7 +47,6 @@ run_cogent_fsm_init = do
   cogent_fsm_init mnt_st fsm_st
 
 
--- infixl 1 >>=, >>
 
 hs_fsm_init_nd :: MountState -> FsmState -> Cogent_monad (Either ErrCode FsmState)
 hs_fsm_init_nd mount_st fsm_st = do
@@ -85,7 +84,7 @@ r_result r1 r2 = any (fsm_init_ret_eq r1) $ toList r2
 
 fsm_init_ret_eq :: Either ErrCode FsmState -> Either ErrCode FsmState -> Bool
 fsm_init_ret_eq (Left l1) (Left l2) = l1 == l2
-fsm_init_ret_eq (Right (R94 f1 f2 f3 f4)) (Right (R94 f1' f2' f3' f4')) = f1 == f1'
+fsm_init_ret_eq (Right (R94 f1 f2 f3 f4)) (Right (R94 f1' f2' f3' f4')) = f1 == f1' && f2 == f2' && f3 == f3'
 fsm_init_ret_eq _ _ = False
 
 gen_MountState :: Gen MountState
