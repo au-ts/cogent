@@ -103,10 +103,10 @@ all: c-gen o-gen
 #       use `gnu99` mode.
 c-gen:
 	$(Q)cogent $(SRC) -g $(COGENT_FLAGS) \
-                --cpp-args="-std=c99 \$$CPPIN -o \$$CPPOUT -E -P $(EXTRA_CFLAGS)" \
-                --dist-dir=$(DIST_DIR) \
-                --infer-c-funcs="$(ACFILES)" \
-								--ext-types="$(LINUX_TYPES)"
+				--cpp-args="-std=c99 \$$CPPIN -o \$$CPPOUT -E -P $(EXTRA_CFLAGS)" \
+				--dist-dir=$(DIST_DIR) \
+				--infer-c-funcs="$(ACFILES)" \
+				--ext-types="$(LINUX_TYPES)"
 
 o-gen:
 	$(Q)$(CC) -c $(DIST_DIR)/fsm_wrapper_pp_inferred.c -o $(DIST_DIR)/fsm.o -I$(DIST_DIR) -I$(PWD) -fPIC
