@@ -6,7 +6,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE NamedFieldPuns #-}
-{- LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RebindableSyntax #-}
 {- LANGUAGE ImplicitPrelude #-}
@@ -60,8 +60,8 @@ hs_fsm_init_nd mount_st fsm_st = do
           let nb_free_eb = nb_eb' - bilbyFsFirstLogEbNum in
           (return $ Left eNoMem) `alternative` (return $ Right $ fsm_st { used_eb, dirty_space, nb_free_eb })
   where (>>=)  = (CogentMonad.>>=)
-        return = CogentMonad.return
-        x >> y = x >>= \_ -> y
+        return = (CogentMonad.return)
+        (>>)   = (CogentMonad.>>)
 
 hs_fsm_init :: MountState -> FsmState -> State [Bool] (Either ErrCode FsmState)
 hs_fsm_init mount_st fsm_st = do
@@ -77,6 +77,7 @@ hs_fsm_init mount_st fsm_st = do
                 nb_free_eb = nb_eb' - bilbyFsFirstLogEbNum
             return $ Right $ fsm_st { used_eb, dirty_space, nb_free_eb }
   where
+    pop :: State [a] a
     pop = get >>= \(d:ds) -> put ds >> return d 
 
 r_result :: Either ErrCode FsmState -> Cogent_monad (Either ErrCode FsmState) -> Bool
