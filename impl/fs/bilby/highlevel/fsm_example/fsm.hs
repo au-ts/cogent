@@ -94,21 +94,35 @@ gen_MountState = arbitrary
 gen_FsmState :: Gen FsmState
 gen_FsmState = arbitrary
 
-{-
- 
-NOTE: the refinement between Cogent/C implementation and Haskell specs:
+{-------------------------------------------------------------------------------
 
-  non-det version of HS spec
-             ^
-             | refines
-             |
-det version of HS executable spec
-             ^
-             | refines
-             |
-  Cogent/C implementation
++-------------------------+
+| abstract Isabelle specs |
++-------------------------+
+          ^
+          | refines (proof)
+          |
++-------------------------+    generates    +----------------------------+
+|   Isabelle embedding    |<~~~~~~~~~~~~~~~~| non-det version of Hs spec |<------+
++-------------------------+                 +----------------------------+       |
+                                                         ^                       |
+                                                         | refines (qc)          |
+                                                         |                       |
+                                        +-----------------------------------+    |
+                                        | det version of Hs executable spec |<---+ generates with hints
+                                        +-----------------------------------+    |
+                                                         ^                       /
+                                                         | refines (qc)         /
+                                                         |                     /
++-------------------------+       generates    +-------------------+          /
+| Cogent/C implementation | ~~~~~~~~~~~~~~~~~~>| Haskell embedding | (QC arbitrary gen here)
++-------------------------+                    +-------------------+          |
+            ^                                                                 |
+            |                        generates                                |
+            \-----------------------------------------------------------------/
 
--}
+
+-------------------------------------------------------------------------------}
 
 
 
