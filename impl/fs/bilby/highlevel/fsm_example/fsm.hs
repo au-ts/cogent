@@ -19,14 +19,14 @@
 {-# OPTIONS_GHC -Wno-missing-fields #-}
 {- OPTIONS_GHC -F -pgmFderive -optF-F #-}
 
+import Control.Monad.State
+import Data.Set as S
 import Foreign
 import Foreign.C.String hiding (CString)
 import Foreign.C.Types
 import Foreign.Marshal.Alloc
 import Foreign.Ptr
 import Foreign.Storable
-import Control.Monad.State
-import Data.Set as S
 import Prelude
 import Test.QuickCheck hiding (Success)
 import Test.QuickCheck.Arbitrary
@@ -35,6 +35,7 @@ import Test.QuickCheck.Monadic
 
 import CogentMonad hiding (return, (>>=), (>>))
 import qualified CogentMonad as CogentMonad
+import Corres
 import FFI (pDummyCSysState, dummyCSysState, const_unit, const_true, const_false)
 import qualified FFI as FFI
 import Fsop_Shallow_Desugar 
@@ -80,13 +81,10 @@ hs_fsm_init mount_st fsm_st = do
     pop :: State [a] a
     pop = get >>= \(d:ds) -> put ds >> return d 
 
-r_result :: Either ErrCode FsmState -> Cogent_monad (Either ErrCode FsmState) -> Bool
-r_result r1 r2 = any (fsm_init_ret_eq r1) $ toList r2
-
-fsm_init_ret_eq :: Either ErrCode FsmState -> Either ErrCode FsmState -> Bool
-fsm_init_ret_eq (Left l1) (Left l2) = l1 == l2
-fsm_init_ret_eq (Right (R94 f1 f2 f3 f4)) (Right (R94 f1' f2' f3' f4')) = f1 == f1' && f2 == f2' && f3 == f3'
-fsm_init_ret_eq _ _ = False
+fsm_init_ret_rel :: Either ErrCode FsmState -> Either ErrCode FsmState -> Bool
+fsm_init_ret_rel (Left l1) (Left l2) = l1 == l2
+fsm_init_ret_rel (Right (R94 f1 f2 f3 f4)) (Right (R94 f1' f2' f3' f4')) = f1 == f1' && f2 == f2' && f3 == f3'
+fsm_init_ret_rel _ _ = False
 
 gen_MountState :: Gen MountState
 gen_MountState = arbitrary
@@ -126,28 +124,28 @@ gen_FsmState = arbitrary
 
 
 
-prop_fsm_init_refine = monadicIO $ forAllM gen_MountState $ \mount_st ->
+prop_fsm_init_corres = monadicIO $ forAllM gen_MountState $ \mount_st ->
                                    forAllM gen_FsmState   $ \fsm_st   -> run $ do
-                                     (ra,_) <- cogent_fsm_init mount_st fsm_st
-                                     rc <- return $ hs_fsm_init_nd mount_st fsm_st
-                                     r  <- return $ ra `r_result` rc
-                                     release_fsm_init ra
+                                     (rc,_) <- cogent_fsm_init mount_st fsm_st
+                                     ra <- return $ hs_fsm_init_nd mount_st fsm_st
+                                     r  <- return $ corres fsm_init_ret_rel ra rc
+                                     release_fsm_init rc
                                      return r
 
-prop_fsm_init_refine' = monadicIO $ forAllM gen_MountState $ \mount_st ->
+prop_fsm_init_corres' = monadicIO $ forAllM gen_MountState $ \mount_st ->
                                     forAllM gen_FsmState   $ \fsm_st   -> run $ do
                                       (ra,ds) <- cogent_fsm_init mount_st fsm_st
                                       rc <- return $ evalState (hs_fsm_init mount_st fsm_st) ds
-                                      r  <- return $ ra `fsm_init_ret_eq` rc
+                                      r  <- return $ corres' fsm_init_ret_rel ra rc
                                       release_fsm_init ra
                                       return r
 
-prop_fsm_init_det_refine_det = forAll gen_MountState $ \mount_st -> 
+prop_fsm_init_det_corres_det = forAll gen_MountState $ \mount_st -> 
                                forAll gen_FsmState   $ \fsm_st   -> 
                                forAll (vectorOf 2 (arbitrary :: Gen Bool)) $ \ds -> do
                                  let rnd = hs_fsm_init_nd mount_st fsm_st
                                      rd  = evalState (hs_fsm_init mount_st fsm_st) ds
-                                  in rd `r_result` rnd
+                                  in corres fsm_init_ret_rel rnd rd
 
 
 prop_fsm_init_nb_free_eb = forAll gen_MountState $ \mount_st ->
