@@ -8,5 +8,5 @@ PATH="`pwd`/../.cabal-sandbox/bin:$PATH"
 
 make o-gen V=1
 
-ghci-8.0.1 -i../../proof/spec -i../ -package=extra -package=QuickCheck -Wno-partial-type-signatures -package-db=../.cabal-sandbox/x86_64-linux-ghc-8.0.1-packages.conf.d/ build/fsm.o fsm.hs 
+ghci-8.0.1 -i../ -i./build/ -package=extra -package=QuickCheck -Wno-partial-type-signatures -package-db=../.cabal-sandbox/x86_64-linux-ghc-8.0.1-packages.conf.d/ build/fsm.o fsm.hs 
 
