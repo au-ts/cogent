@@ -25,7 +25,7 @@ DEFNS=defns.txt
 STDGUM=$(COGENT_STD_GUM_DIR)
 # ADT headers required by BilbyFs
 AHFILES=$(addprefix $(STDGUM)/gum/anti/abstract/, \
-				WordArray.ah)
+	WordArray.ah)
 # ADT C files required by BilbyFs
 LINUX_ACFILES=$(addprefix $(STDGUM)/gum/anti/, \
 		common.ac \
@@ -33,10 +33,6 @@ LINUX_ACFILES=$(addprefix $(STDGUM)/gum/anti/, \
 		wa_wrapper.ac
 # ADT C files required by verification
 LINUX_TYPES=types.txt
-
-ifndef KERNELDIR
-KERNELDIR:= /lib/modules/$(shell uname -r)/build
-endif
 
 ifeq ($(KERNELRELEASE),)
 PWD:= $(shell pwd)
@@ -87,11 +83,11 @@ else
 
 PWD:= $(shell pwd)
 
-.PHONY: default all clean c-gen o-gen
+.PHONY: default all clean c-gen o-gen hs-gen
 
 
-default: c-gen o-gen
-all: c-gen o-gen
+default: c-gen o-gen hs-gen
+all: c-gen o-gen hs-gen
 
 # generate executable C code
 # NOTE: We run cpp with in c99 mode, as the default mode that cpp runs in is gnu99,
@@ -109,20 +105,13 @@ c-gen:
 o-gen:
 	$(Q)$(CC) -c $(DIST_DIR)/wa_wrapper_pp_inferred.c -o $(DIST_DIR)/wa.o -I$(DIST_DIR) -I$(PWD) -fPIC
 
+hs-gen:
+	$(Q)cogent $(SRC) --hs-shallow-desugar $(COGENT_FLAGS) \
+				--dist-dir=$(DIST_DIR)
 
 clean:
 	$(E) "Cleaning up.."
 	$(Q)rm -f abstract/*.h
 	$(Q)rm -rf $(DIST_DIR)
-
-help:
-	$(E) "** Cogent bilbyfs build help **"
-	$(E) "Run 'make' to build the Linux bilbyfs kernel module."
-	$(E) ""
-	$(E) "* clean"
-	$(E) "  Cleanup."
-	$(E) ""
-	$(E) "* help"
-	$(E) "  Print this help."
 
 endif

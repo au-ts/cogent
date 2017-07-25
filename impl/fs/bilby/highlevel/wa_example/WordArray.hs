@@ -41,44 +41,62 @@ import qualified CogentMonad as CogentMonad
 import Corres
 -- import FFI (pDummyCSysState, dummyCSysState, const_unit, const_true, const_false)
 -- import qualified FFI as FFI
-import Fsop_Shallow_Desugar 
+import Wa_Shallow_Desugar 
 -- import WordArray
 import Util
 
 
-type WordArray a = [a]
-type CString = WordArray U8
+prop_wordarray_create_corres =
+  forallM (arbitrary :: Gen (Small Word32)) $ \(Small l) -> run $ do
+    rc <- cogent_wordarray_create_u8 i
+    ra <- return $ hs_wordarray_create i
+    corres wordarray_create_corres ra rc
 
-wordarray_create_nz :: U32 -> WordArray a
-wordarray_create_nz l = repeat l 0
+wordarray_length_corres :: WordArray a -> WordArray a -> Bool
+wordarray_length_corres ra rb = length ra == length rb
 
-wordarray_get :: Num a => WordArray a -> Int -> a
-wordarray_get xs i | is_inbound xs i = xs !! i
-                   | otherwise = 0
+foreign ccall unsafe "ffi_wordarray_create_u8"
+  c_wordarray_create_u8 :: Ptr CSysState -> IO (Ptr Ct3)
 
-wordarray_get_bounded :: Num a => WordArray a -> Int -> Maybe a
-wordarray_get_bounded xs i =
-  if is_inbound xs i then Just $ wordarray_get xs i
+cogent_wordarray_create_u8 :: Word32 -> Either Word32 (WordArray Word8)
+cogent_wordarray_create_u8 l = undefined
+
+hs_wordarray_create :: (Integral a) => Word32 -> WordArray a  -- TODO: non-det
+hs_wordarray_create l = hs_wordarray_create_nz l  -- FIXME
+
+hs_wordarray_free :: WordArray a -> ()
+hs_wordarray_free _ = ()
+
+hs_wordarray_create_nz :: (Integral a) => Word32 -> WordArray a
+hs_wordarray_create_nz l = replicate l (fromIntegral 0)
+
+hs_wordarray_get :: Integral a => WordArray a -> Word32 -> a
+hs_wordarray_get xs i | is_inbound xs i = xs !! i
+                      | otherwise = 0
+
+hs_wordarray_get_bounded :: Integral a => WordArray a -> Word32 -> Maybe a
+hs_wordarray_get_bounded xs i =
+  if is_inbound xs i then Just $ hs_wordarray_get xs i
                      else Nothing
 
-wordarray_modify :: WordArray a -> Int -> ((a, acc, obsv) -> (a, acc)) -> acc -> obsv -> (WordArray a, acc)
-wordarray_modify xs i f acc obsv = 
+hs_wordarray_modify :: WordArray a -> Word32 -> ((a, acc, obsv) -> (a, acc)) -> acc -> obsv -> (WordArray a, acc)
+hs_wordarray_modify xs i f acc obsv = 
   let (xs1,x:xs2) = splitAt i xs
       (x',acc') = f (x,acc,obsv)
    in (xs1 ++ x':xs2, acc')
 
-is_inbound :: WordArray a -> Int -> Bool
+is_inbound :: WordArray a -> Word32 -> Bool
 is_inbound xs i = i < length xs
 
-wordarray_put :: WordArray a -> Int -> a -> Either (WordArray a) (WordArray a)
-wordarray_put xs i _ | not (is_inbound xs i) = Left xs
-wordarray_put xs i a = let (xs1,x:xs2) = splitAt i xs
-                        in Right (xs1 ++ a:xs2)
+hs_wordarray_put :: WordArray a -> Word32 -> a -> Either (WordArray a) (WordArray a)
+hs_wordarray_put xs i _ | not (is_inbound xs i) = Left xs
+hs_wordarray_put xs i a = let (xs1,x:xs2) = splitAt i xs
+                           in Right (xs1 ++ a:xs2)
 
-wordarray_put2 :: WordArray a -> Int -> a -> WordArray a
-wordarray_put2 = ((fromEither .) .) . wordarray_put
+hs_wordarray_put2 :: WordArray a -> Word32 -> a -> WordArray a
+hs_wordarray_put2 = ((fromEither .) .) . hs_wordarray_put
 
-wordarray_length :: WordArray a -> Int
-wordarray_length = length
+hs_wordarray_length :: WordArray a -> Word32
+hs_wordarray_length = length
 
 
