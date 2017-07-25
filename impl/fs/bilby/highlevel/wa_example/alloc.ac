@@ -1,0 +1,48 @@
+/*
+ * Copyright 2016, NICTA
+ *
+ * This software may be distributed and modified according to the terms of
+ * the GNU General Public License version 2. Note that NO WARRANTY is provided.
+ * See "LICENSE_GPLv2.txt" for details.
+ *
+ * @TAG(NICTA_GPL)
+ */
+
+$ty:(R (SysState, WordArray a) SysState) $id:wordarray_create($ty:((SysState, U32)) args) {
+	$ty:(SysState) ex = args.p1;
+	u32 size = args.p2;
+	$ty:(R (SysState, WordArray a) SysState) ret;
+
+	$ty:(WordArray a) array = kmalloc(sizeof(*array));
+
+	if (array == NULL || !size) {
+		ret.tag = TAG_ENUM_Error;
+		ret.Error = ex;
+	} else {
+		array->values = kzalloc(size * sizeof (*(array->values)));
+		if (array->values == NULL) {
+			kfree(array);
+			ret.tag = TAG_ENUM_Error;
+			ret.Error = ex;
+		} else {
+			array->len = size;
+
+			ret.tag = TAG_ENUM_Success;
+			ret.Success.p1 = ex;
+			ret.Success.p2 = array;
+		}
+	}
+	return ret;
+}
+
+$ty:(SysState) $id:wordarray_free($ty:((SysState, WordArray a)) args)
+{
+	$ty:(WordArray a) array = args.p2;
+
+	if (array->values)
+		kfree(array->values);
+	kfree(array);
+
+	return args.p1;
+}
+
