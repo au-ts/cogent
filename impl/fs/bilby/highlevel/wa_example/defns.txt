@@ -1,0 +1,10 @@
+wordarray_create_u8
+wordarray_free_u8
+wordarray_create_nz_u8 
+wordarray_get_bounded_u8 
+wordarray_modify_u8 
+wordarray_put_u8 
+wordarray_length_u8 
+wordarray_clone_u8 
+wordarray_map_u8
+map_body_f

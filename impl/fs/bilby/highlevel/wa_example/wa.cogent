@@ -1,0 +1,36 @@
+include <gum/common/wordarray.cogent>
+
+wordarray_create_u8 : SysState -> R (SysState, WordArray U8) SysState
+wordarray_create_u8 ex = wordarray_create [U8] (ex, 1)
+
+wordarray_create_nz_u8 : SysState -> R (SysState, WordArray U8) SysState
+wordarray_create_nz_u8 ex = wordarray_create_nz [U8] (ex, 1)
+
+wordarray_free_u8 : (SysState, WordArray U8) -> SysState
+wordarray_free_u8 arg = wordarray_free [U8] arg
+
+wordarray_get_bounded_u8 : ((WordArray U8)!, WordArrayIndex) -> R U8 ()
+wordarray_get_bounded_u8 arg = wordarray_get_bounded [U8] arg
+
+-- Bool for whether to modify
+wordarray_modify_u8 : WordArrayModifyP U8 U8 Bool -> ArrA (WordArray U8) U8
+wordarray_modify_u8 arg = wordarray_modify [U8, U8, Bool] arg
+ 
+wordarray_put_u8 : WordArrayPutP U8 -> R (WordArray U8) (WordArray U8)
+wordarray_put_u8 arg = wordarray_put [U8] arg
+
+wordarray_length_u8 : (WordArray U8)! -> U32
+wordarray_length_u8 arg = wordarray_length [U8] arg
+
+wordarray_clone_u8 : (SysState, (WordArray U8)!) -> R (SysState, WordArray U8) SysState
+wordarray_clone_u8 arg = wordarray_clone [U8] arg
+
+-- Bool for whether stop at the end
+wordarray_map_u8 : WordArrayMapP U8 U8 U8 () -> WordArrayMapRE U8 U8 ()
+wordarray_map_u8 arg = wordarray_map [U8, U8, U8, ()] arg
+
+map_body_f : ElemAO U8 U8 U8 -> LRR (U8, U8) ()
+map_body_f #{elem, acc, obsv} = 
+  let acc' = acc + elem in
+  if acc' < obsv then ((acc', acc'), Iterate ())
+                 else ((elem, acc ), Break ())
