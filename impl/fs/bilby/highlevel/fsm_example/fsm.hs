@@ -38,7 +38,7 @@ import qualified CogentMonad as CogentMonad
 import Corres
 import FFI (pDummyCSysState, dummyCSysState, const_unit, const_true, const_false)
 import qualified FFI as FFI
-import Fsop_Shallow_Desugar 
+import Fsm_Shallow_Desugar 
 -- import WordArray
 import Util
 
@@ -83,7 +83,7 @@ hs_fsm_init mount_st fsm_st = do
 
 fsm_init_ret_rel :: Either ErrCode FsmState -> Either ErrCode FsmState -> Bool
 fsm_init_ret_rel (Left l1) (Left l2) = l1 == l2
-fsm_init_ret_rel (Right (R94 f1 f2 f3 f4)) (Right (R94 f1' f2' f3' f4')) = f1 == f1' && f2 == f2' && f3 == f3'
+fsm_init_ret_rel (Right (R27 f1 f2 f3 f4)) (Right (R27 f1' f2' f3' f4')) = f1 == f1' && f2 == f2' && f3 == f3'
 fsm_init_ret_rel _ _ = False
 
 gen_MountState :: Gen MountState
@@ -167,7 +167,7 @@ foreign import ccall unsafe "fsm_wrapper_pp_inferred.c ffi_destroy_Ct68"
   c_destroy_Ct68 :: Ptr FFI.Ct68 -> IO ()
 
 conv_ObjSuper :: ObjSuper -> IO FFI.Ct39
-conv_ObjSuper (R93 {..}) = 
+conv_ObjSuper (R26 {..}) = 
   return $ FFI.Ct39 { FFI.nb_eb           = fromIntegral nb_eb
                     , FFI.eb_size         = fromIntegral eb_size
                     , FFI.io_size         = fromIntegral io_size
@@ -180,15 +180,15 @@ conv_ObjSuper (R93 {..}) =
                     }
 
 conv_ObjData :: ObjData -> IO FFI.Ct62
-conv_ObjData (R82 {..}) = do
+conv_ObjData (R21 {..}) = do
   p_odata <- new =<< conv_WordArray (return . fromIntegral) odata
   return $ FFI.Ct62 (fromIntegral id) p_odata
 
 conv_ObjDel :: ObjDel -> IO FFI.Ct63
-conv_ObjDel (R79 x) = return $ FFI.Ct63 $ fromIntegral x
+conv_ObjDel (R19 x) = return $ FFI.Ct63 $ fromIntegral x
 
 conv_ObjDentry :: ObjDentry -> IO FFI.Ct48
-conv_ObjDentry (R86 {..}) = do
+conv_ObjDentry (R24 {..}) = do
   p_name <- new =<< conv_WordArray (return . fromIntegral) name
   return $ FFI.Ct48 { FFI.ino   = fromIntegral ino
                     , FFI.dtype = fromIntegral dtype
@@ -203,7 +203,7 @@ conv_Array f xs = do
   return $ FFI.CArray (CInt $ fromIntegral $ length xs) p_p_values
 
 conv_ObjDentarr :: ObjDentarr -> IO FFI.Ct64
-conv_ObjDentarr (R80 {..}) = do
+conv_ObjDentarr (R20 {..}) = do
   p_entries <- new =<< conv_Array conv_ObjDentry entries
   return $ FFI.Ct64 { id = fromIntegral id
                     , nb_dentry = fromIntegral nb_dentry
@@ -211,7 +211,7 @@ conv_ObjDentarr (R80 {..}) = do
                     }
 
 conv_ObjInode :: ObjInode -> IO FFI.Ct45
-conv_ObjInode (R83 {..}) = 
+conv_ObjInode (R22 {..}) = 
   return $ FFI.Ct45 { FFI.id        = fromIntegral id
                     , FFI.size      = fromIntegral size
                     , FFI.atime_sec = fromIntegral atime_sec
@@ -228,7 +228,7 @@ conv_WordArray :: (Storable t') => (t -> IO t') -> WordArray t -> IO (FFI.CWordA
 conv_WordArray f xs = FFI.CWordArray (fromIntegral $ length xs) <$> (newArray =<< mapM f xs)
 
 conv_ObjSumEntry :: ObjSumEntry -> IO (FFI.Ct10)
-conv_ObjSumEntry (R84 {..}) = 
+conv_ObjSumEntry (R23 {..}) = 
   return $ FFI.Ct10 { FFI.id    = fromIntegral id
                     , FFI.sqnum = fromIntegral sqnum
                     , FFI.len   = fromIntegral len
@@ -237,7 +237,7 @@ conv_ObjSumEntry (R84 {..}) =
                     }
 
 conv_ObjSummary :: ObjSummary -> IO FFI.Ct42
-conv_ObjSummary (R95 {..}) = do
+conv_ObjSummary (R28 {..}) = do
   p_entries <- new =<< conv_WordArray conv_ObjSumEntry entries
   return $ FFI.Ct42 { FFI.nb_sum_entry = fromIntegral nb_sum_entry
                     , FFI.entries      = p_entries
@@ -264,7 +264,7 @@ conv_ObjUnion ounion = do
     TObjSuper   t -> conv_ObjSuper   t >>= new >>= \x -> return $ o { FFI.tag = FFI.Ctag_t $ fromIntegral $ fromEnum FFI.tag_ENUM_TObjSuper  , FFI.tObjSuper   = x }
 
 conv_Obj :: Obj -> IO FFI.Ct66
-conv_Obj (R90 {..}) = do
+conv_Obj (R25 {..}) = do
   ounion' <- conv_ObjUnion ounion
   return $ FFI.Ct66 { FFI.magic  = fromIntegral magic
                     , FFI.crc    = fromIntegral crc
@@ -282,7 +282,7 @@ conv_UbiDevInfo :: UbiDevInfo -> IO FFI.CUbiDevInfo
 conv_UbiDevInfo = return
 
 conv_MountState :: MountState -> IO FFI.Ct72
-conv_MountState (R19 {..}) = do
+conv_MountState (R11 {..}) = do
   p_super   <- new =<< conv_ObjSuper super
   p_obj_sup <- new =<< conv_Obj obj_sup
   p_vol     <- new =<< conv_UbiVolInfo vol
@@ -298,14 +298,14 @@ conv_MountState (R19 {..}) = do
                     }
 
 conv_GimNode :: GimNode -> IO FFI.Ct18
-conv_GimNode (R13 {..}) = return $ FFI.Ct18 (fromIntegral count) (fromIntegral sqnum)
+conv_GimNode (R10 {..}) = return $ FFI.Ct18 (fromIntegral count) (fromIntegral sqnum)
 
 -- Rbt is not refined
 conv_Rbt :: (Storable k', Storable v') => (k -> IO k') -> (v -> IO v') -> Rbt k v -> IO (FFI.CRbt k' v')
 conv_Rbt fk fv t = ttraverse fk =<< traverse fv t
 
 conv_FsmState :: FsmState -> IO FFI.Ct68
-conv_FsmState (R94 {..}) = do
+conv_FsmState (R27 {..}) = do
   p_used_eb     <- new =<< conv_WordArray (return . fromIntegral) used_eb
   p_dirty_space <- new =<< conv_WordArray (return . fromIntegral) dirty_space
   p_gim         <- new =<< conv_Rbt (return . fromIntegral) conv_GimNode gim
@@ -329,7 +329,7 @@ conv_CWordArray :: (Storable t) => (t -> IO t') -> FFI.CWordArray t -> IO (WordA
 conv_CWordArray f (FFI.CWordArray {..}) = mapM f =<< peekArray (fromIntegral len) values
 
 conv_Ct18 :: FFI.Ct18 -> IO GimNode
-conv_Ct18 (FFI.Ct18 {..}) = return $ R13 (fromIntegral count) (fromIntegral sqnum)
+conv_Ct18 (FFI.Ct18 {..}) = return $ R10 (fromIntegral count) (fromIntegral sqnum)
 
 conv_CRbt :: (Storable k, Storable v) => (k -> IO k') -> (v -> IO v') -> FFI.CRbt k v -> IO (Rbt k' v')
 conv_CRbt fk fv t = ttraverse fk =<< traverse fv t
@@ -339,7 +339,7 @@ conv_Ct68 (FFI.Ct68 {..}) = do
   p_used_eb     <- peek used_eb     >>= conv_CWordArray (return . fromIntegral)
   p_dirty_space <- peek dirty_space >>= conv_CWordArray (return . fromIntegral)
   p_gim         <- peek gim         >>= conv_CRbt (return . fromIntegral) conv_Ct18
-  return $ R94 (fromIntegral nb_free_eb) p_used_eb p_dirty_space p_gim
+  return $ R27 (fromIntegral nb_free_eb) p_used_eb p_dirty_space p_gim
 
 conv_Ct434 :: FFI.Ct434 -> IO (Either ErrCode FsmState)
 conv_Ct434 (FFI.Ct434 {..}) = do
