@@ -49,8 +49,8 @@ import Util
 type WordArray a = [a]
 type CString = WordArray U8
 
--- wordarray_create_nz
---
+wordarray_create_nz :: U32 -> WordArray a
+wordarray_create_nz l = repeat l 0
 
 wordarray_get :: Num a => WordArray a -> Int -> a
 wordarray_get xs i | is_inbound xs i = xs !! i
