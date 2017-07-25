@@ -73,67 +73,67 @@ type Cu16 = CUShort
 type Cu32 = CUInt
 type Cu64 = CULLong
 
-data Ct435 = Ct435 { p1 :: Ptr CSysState, p2 :: Ct434 } deriving Show
+data Ct24 = Ct24 { p1 :: Ptr CSysState, p2 :: Ct23 } deriving Show
 
-instance Storable Ct435 where
+instance Storable Ct24 where
   sizeOf    _ = 40
   alignment _ = 8
-  peek ptr = Ct435 <$> (\p -> peekByteOff p 0) ptr <*> (\p -> peekByteOff p 8) ptr
-  poke ptr (Ct435 f1 f2) = (\p -> pokeByteOff p 0) ptr f1 >> (\p -> pokeByteOff p 8) ptr f2
+  peek ptr = Ct24 <$> (\p -> peekByteOff p 0) ptr <*> (\p -> peekByteOff p 8) ptr
+  poke ptr (Ct24 f1 f2) = (\p -> pokeByteOff p 0) ptr f1 >> (\p -> pokeByteOff p 8) ptr f2
 
-data Ct434 = Ct434 {
+data Ct23 = Ct23 {
     tag     :: Ctag_t
-  , error   :: Ct433
-  , success :: Ptr Ct68
+  , error   :: Ct22
+  , success :: Ptr Ct20
 } deriving Show
 
-instance Storable Ct434 where
+instance Storable Ct23 where
   sizeOf    _ = 32
   alignment _ = 8
-  peek ptr = Ct434 <$> (\p -> peekByteOff p 0 ) ptr
-                   <*> (\p -> peekByteOff p 8 ) ptr
-                   <*> (\p -> peekByteOff p 24) ptr
-  poke ptr (Ct434 f1 f2 f3) = do
+  peek ptr = Ct23 <$> (\p -> peekByteOff p 0 ) ptr
+                  <*> (\p -> peekByteOff p 8 ) ptr
+                  <*> (\p -> peekByteOff p 24) ptr
+  poke ptr (Ct23 f1 f2 f3) = do
     (\p -> pokeByteOff p 0 ) ptr f1
     (\p -> pokeByteOff p 8 ) ptr f2
     (\p -> pokeByteOff p 24) ptr f3
 
-data Ct433 = Ct433 { p1 :: Cu32, p2 :: Ptr Ct68 } deriving Show
+data Ct22 = Ct22 { p1 :: Cu32, p2 :: Ptr Ct20 } deriving Show
 
-instance Storable Ct433 where
+instance Storable Ct22 where
   sizeOf    _ = 16
   alignment _ = 8
-  peek ptr = Ct433 <$> (\p -> peekByteOff p 0) ptr <*> (\p -> peekByteOff p 8) ptr
-  poke ptr (Ct433 p1 p2) = (\p -> pokeByteOff p 0) ptr p1 >> (\p -> pokeByteOff p 8) ptr p2
+  peek ptr = Ct22 <$> (\p -> peekByteOff p 0) ptr <*> (\p -> peekByteOff p 8) ptr
+  poke ptr (Ct22 p1 p2) = (\p -> pokeByteOff p 0) ptr p1 >> (\p -> pokeByteOff p 8) ptr p2
 
-data Ct432 = Ct432 { p1 :: Ptr CSysState, p2 :: Ptr Ct72, p3 :: Ptr Ct68 } deriving Show
+data Ct21 = Ct21 { p1 :: Ptr CSysState, p2 :: Ptr Ct19, p3 :: Ptr Ct20 } deriving Show
 
-instance Storable Ct432 where
+instance Storable Ct21 where
   sizeOf    _ = 24
   alignment _ = 8
-  peek ptr = Ct432 <$> (\p -> peekByteOff p 0 ) ptr
-                   <*> (\p -> peekByteOff p 8 ) ptr
-                   <*> (\p -> peekByteOff p 16) ptr
-  poke ptr (Ct432 p1 p2 p3) = do
+  peek ptr = Ct21 <$> (\p -> peekByteOff p 0 ) ptr
+                  <*> (\p -> peekByteOff p 8 ) ptr
+                  <*> (\p -> peekByteOff p 16) ptr
+  poke ptr (Ct21 p1 p2 p3) = do
     (\p -> pokeByteOff p 0 ) ptr p1
     (\p -> pokeByteOff p 8 ) ptr p2
     (\p -> pokeByteOff p 16) ptr p3
 
-data Ct72 = Ct72 {
+data Ct19 = Ct19 {
     eb_recovery      :: Cu32
   , eb_recovery_offs :: Cu32
-  , super            :: Ptr Ct39
-  , obj_sup          :: Ptr Ct66
+  , super            :: Ptr Ct9
+  , obj_sup          :: Ptr Ct18
   , super_offs       :: Cu32
   , vol              :: Ptr CUbiVolInfo
   , dev              :: Ptr CUbiDevInfo
   , no_summary       :: Cbool_t
   } deriving Show
 
-instance Storable Ct72 where
+instance Storable Ct19 where
   sizeOf    _ = 56
   alignment _ = 8
-  peek ptr = Ct72 <$> (\p -> peekByteOff p 0 ) ptr
+  peek ptr = Ct19 <$> (\p -> peekByteOff p 0 ) ptr
                   <*> (\p -> peekByteOff p 4 ) ptr
                   <*> (\p -> peekByteOff p 8 ) ptr
                   <*> (\p -> peekByteOff p 16) ptr
@@ -141,7 +141,7 @@ instance Storable Ct72 where
                   <*> (\p -> peekByteOff p 32) ptr
                   <*> (\p -> peekByteOff p 40) ptr
                   <*> (\p -> peekByteOff p 48) ptr
-  poke ptr (Ct72 f1 f2 f3 f4 f5 f6 f7 f8) = do
+  poke ptr (Ct19 f1 f2 f3 f4 f5 f6 f7 f8) = do
     (\p -> pokeByteOff p 0 ) ptr f1
     (\p -> pokeByteOff p 4 ) ptr f2
     (\p -> pokeByteOff p 8 ) ptr f3
@@ -151,47 +151,47 @@ instance Storable Ct72 where
     (\p -> pokeByteOff p 40) ptr f7
     (\p -> pokeByteOff p 48) ptr f8
 
-data Ct68 = Ct68 {
+data Ct20 = Ct20 {
     nb_free_eb  :: Cu32
   , used_eb     :: Ptr (CWordArray Cu8 )
   , dirty_space :: Ptr (CWordArray Cu32)
-  , gim         :: Ptr (CRbt Cu64 Ct18)
+  , gim         :: Ptr (CRbt Cu64 Ct3)
   } deriving Show
 
-instance Storable Ct68 where
+instance Storable Ct20 where
   sizeOf    _ = 32
   alignment _ = 8
-  peek ptr = Ct68 <$> (\p -> peekByteOff p 0 ) ptr
+  peek ptr = Ct20 <$> (\p -> peekByteOff p 0 ) ptr
                   <*> (\p -> peekByteOff p 8 ) ptr
                   <*> (\p -> peekByteOff p 16) ptr
                   <*> (\p -> peekByteOff p 24) ptr
-  poke ptr (Ct68 f1 f2 f3 f4) = do
+  poke ptr (Ct20 f1 f2 f3 f4) = do
     (\p -> pokeByteOff p 0 ) ptr f1
     (\p -> pokeByteOff p 8 ) ptr f2
     (\p -> pokeByteOff p 16) ptr f3
     (\p -> pokeByteOff p 24) ptr f4
 
-data Ct66 = Ct66 {
+data Ct18 = Ct18 {
     magic  :: Cu32
   , crc    :: Cu32
   , sqnum  :: Cu64
   , offs   :: Cu32
   , trans  :: Cu8
   , otype  :: Cu8
-  , ounion :: Ct65
+  , ounion :: Ct17
   }
 
-instance Storable Ct66 where
+instance Storable Ct18 where
   sizeOf    _ = 96
   alignment _ = 8
-  peek ptr = Ct66 <$> (\p -> peekByteOff p 0 ) ptr
+  peek ptr = Ct18 <$> (\p -> peekByteOff p 0 ) ptr
                   <*> (\p -> peekByteOff p 4 ) ptr
                   <*> (\p -> peekByteOff p 8 ) ptr
                   <*> (\p -> peekByteOff p 16) ptr
                   <*> (\p -> peekByteOff p 20) ptr
                   <*> (\p -> peekByteOff p 22) ptr
                   <*> (\p -> peekByteOff p 24) ptr
-  poke ptr (Ct66 f1 f2 f3 f4 f5 f6 f7) = do
+  poke ptr (Ct18 f1 f2 f3 f4 f5 f6 f7) = do
     (\p -> pokeByteOff p 0 ) ptr f1
     (\p -> pokeByteOff p 4 ) ptr f2
     (\p -> pokeByteOff p 8 ) ptr f3
@@ -200,21 +200,21 @@ instance Storable Ct66 where
     (\p -> pokeByteOff p 22) ptr f6
     (\p -> pokeByteOff p 24) ptr f7
 
-data Ct65 = Ct65 {
+data Ct17 = Ct17 {
     tag         :: Ctag_t
-  , tObjData    :: Ct62
-  , tObjDel     :: Ct63
-  , tObjDentarr :: Ptr Ct64
-  , tObjInode   :: Ptr Ct45
+  , tObjData    :: Ct10
+  , tObjDel     :: Ct11
+  , tObjDentarr :: Ptr Ct13
+  , tObjInode   :: Ptr Ct14
   , tObjPad     :: Cunit_t
-  , tObjSummary :: Ptr Ct42
-  , tObjSuper   :: Ptr Ct39
+  , tObjSummary :: Ptr Ct16
+  , tObjSuper   :: Ptr Ct9
   }
 
-instance Storable Ct65 where
+instance Storable Ct17 where
   sizeOf    _ = 72
   alignment _ = 8
-  peek ptr = Ct65 <$> (\p -> peekByteOff p 0 ) ptr
+  peek ptr = Ct17 <$> (\p -> peekByteOff p 0 ) ptr
                   <*> (\p -> peekByteOff p 8 ) ptr
                   <*> (\p -> peekByteOff p 24) ptr
                   <*> (\p -> peekByteOff p 32) ptr
@@ -222,7 +222,7 @@ instance Storable Ct65 where
                   <*> (\p -> peekByteOff p 48) ptr
                   <*> (\p -> peekByteOff p 56) ptr
                   <*> (\p -> peekByteOff p 64) ptr
-  poke ptr (Ct65 f1 f2 f3 f4 f5 f6 f7 f8) = do
+  poke ptr (Ct17 f1 f2 f3 f4 f5 f6 f7 f8) = do
     (\p -> pokeByteOff p 0 ) ptr f1
     (\p -> pokeByteOff p 8 ) ptr f2
     (\p -> pokeByteOff p 24) ptr f3
@@ -232,55 +232,55 @@ instance Storable Ct65 where
     (\p -> pokeByteOff p 56) ptr f7
     (\p -> pokeByteOff p 64) ptr f8
 
-data Ct64 = Ct64 {
+data Ct13 = Ct13 {
     id        :: Cu64
   , nb_dentry :: Cu32
-  , entries   :: Ptr (CArray Ct48)
+  , entries   :: Ptr (CArray Ct12)
   }
 
-instance Storable Ct64 where
+instance Storable Ct13 where
   sizeOf    _ = 24
   alignment _ = 8
-  peek ptr = Ct64 <$> (\p -> peekByteOff p 0 ) ptr
+  peek ptr = Ct13 <$> (\p -> peekByteOff p 0 ) ptr
                   <*> (\p -> peekByteOff p 8 ) ptr
                   <*> (\p -> peekByteOff p 16) ptr
-  poke ptr (Ct64 f1 f2 f3) = do
+  poke ptr (Ct13 f1 f2 f3) = do
     (\p -> pokeByteOff p 0 ) ptr f1
     (\p -> pokeByteOff p 8 ) ptr f2
     (\p -> pokeByteOff p 16) ptr f3
 
 
-newtype Ct63 = Ct63 { id :: Cu64 } deriving (Storable)
+newtype Ct11 = Ct11 { id :: Cu64 } deriving (Storable)
 
-data Ct62 = Ct62 { id :: Cu64, odata :: Ptr (CWordArray Cu8) }
+data Ct10 = Ct10 { id :: Cu64, odata :: Ptr (CWordArray Cu8) }
 
-instance Storable Ct62 where
+instance Storable Ct10 where
   sizeOf    _ = 16
   alignment _ = 8
-  peek ptr = Ct62 <$> (\p -> peekByteOff p 0) ptr <*> (\p -> peekByteOff p 8) ptr
-  poke ptr (Ct62 id odata) = (\p -> pokeByteOff p 0) ptr id >> (\p -> pokeByteOff p 8) ptr odata
+  peek ptr = Ct10 <$> (\p -> peekByteOff p 0) ptr <*> (\p -> peekByteOff p 8) ptr
+  poke ptr (Ct10 id odata) = (\p -> pokeByteOff p 0) ptr id >> (\p -> pokeByteOff p 8) ptr odata
 
-data Ct48 = Ct48 { 
+data Ct12 = Ct12 { 
     ino   :: Cu32
   , dtype :: Cu8
   , nlen  :: Cu16
   , name  :: Ptr (CWordArray Cu8)
   }
 
-instance Storable Ct48 where
+instance Storable Ct12 where
   sizeOf    _ = 16
   alignment _ = 8
-  peek ptr = Ct48 <$> (\p -> peekByteOff p 0 ) ptr
+  peek ptr = Ct12 <$> (\p -> peekByteOff p 0 ) ptr
                   <*> (\p -> peekByteOff p 4 ) ptr
                   <*> (\p -> peekByteOff p 6 ) ptr
                   <*> (\p -> peekByteOff p 8 ) ptr
-  poke ptr (Ct48 f1 f2 f3 f4) = do
+  poke ptr (Ct12 f1 f2 f3 f4) = do
     (\p -> pokeByteOff p 0) ptr f1
     (\p -> pokeByteOff p 4) ptr f2
     (\p -> pokeByteOff p 6) ptr f3
     (\p -> pokeByteOff p 8) ptr f4
 
-data Ct45 = Ct45 {
+data Ct14 = Ct14 {
     id        :: Cu64
   , size      :: Cu64
   , atime_sec :: Cu64
@@ -293,10 +293,10 @@ data Ct45 = Ct45 {
   , flags     :: Cu32
   }
 
-instance Storable Ct45 where
+instance Storable Ct14 where
   sizeOf    _ = 64
   alignment _ = 8
-  peek ptr = Ct45 <$> (\p -> peekByteOff p 0 ) ptr
+  peek ptr = Ct14 <$> (\p -> peekByteOff p 0 ) ptr
                   <*> (\p -> peekByteOff p 8 ) ptr
                   <*> (\p -> peekByteOff p 16) ptr
                   <*> (\p -> peekByteOff p 24) ptr
@@ -306,7 +306,7 @@ instance Storable Ct45 where
                   <*> (\p -> peekByteOff p 48) ptr
                   <*> (\p -> peekByteOff p 52) ptr
                   <*> (\p -> peekByteOff p 56) ptr
-  poke ptr (Ct45 f1 f2 f3 f4 f5 f6 f7 f8 f9 f10) = do
+  poke ptr (Ct14 f1 f2 f3 f4 f5 f6 f7 f8 f9 f10) = do
     (\p -> pokeByteOff p 0 ) ptr f1
     (\p -> pokeByteOff p 8 ) ptr f2
     (\p -> pokeByteOff p 16) ptr f3
@@ -318,25 +318,25 @@ instance Storable Ct45 where
     (\p -> pokeByteOff p 52) ptr f9
     (\p -> pokeByteOff p 56) ptr f10
 
-data Ct42 = Ct42 {
+data Ct16 = Ct16 {
     nb_sum_entry :: Cu32
-  , entries      :: Ptr (CWordArray Ct10)
+  , entries      :: Ptr (CWordArray Ct15)
   , sum_offs     :: Cu32
   }
 
-instance Storable Ct42 where
+instance Storable Ct16 where
   sizeOf    _ = 24
   alignment _ = 8
-  peek ptr = Ct42 <$> (\p -> peekByteOff p 0 ) ptr
+  peek ptr = Ct16 <$> (\p -> peekByteOff p 0 ) ptr
                   <*> (\p -> peekByteOff p 8 ) ptr
                   <*> (\p -> peekByteOff p 16) ptr
-  poke ptr (Ct42 f1 f2 f3) = do
+  poke ptr (Ct16 f1 f2 f3) = do
     (\p -> pokeByteOff p 0 ) ptr f1
     (\p -> pokeByteOff p 8 ) ptr f2
     (\p -> pokeByteOff p 16) ptr f3
 
 
-data Ct39 = Ct39 {
+data Ct9 = Ct9 {
     nb_eb           :: Cu32
   , eb_size         :: Cu32
   , io_size         :: Cu32
@@ -348,10 +348,10 @@ data Ct39 = Ct39 {
   , next_sqnum      :: Cu64
   }
 
-instance Storable Ct39 where
+instance Storable Ct9 where
   sizeOf    _ = 40
   alignment _ = 8
-  peek ptr = Ct39 <$> (\p -> peekByteOff p 0 ) ptr
+  peek ptr = Ct9 <$> (\p -> peekByteOff p 0 ) ptr
                   <*> (\p -> peekByteOff p 4 ) ptr
                   <*> (\p -> peekByteOff p 8 ) ptr
                   <*> (\p -> peekByteOff p 12) ptr
@@ -360,7 +360,7 @@ instance Storable Ct39 where
                   <*> (\p -> peekByteOff p 24) ptr
                   <*> (\p -> peekByteOff p 28) ptr
                   <*> (\p -> peekByteOff p 32) ptr
-  poke ptr (Ct39 f1 f2 f3 f4 f5 f6 f7 f8 f9) = do
+  poke ptr (Ct9 f1 f2 f3 f4 f5 f6 f7 f8 f9) = do
     (\p -> pokeByteOff p 0 ) ptr f1
     (\p -> pokeByteOff p 4 ) ptr f2
     (\p -> pokeByteOff p 8 ) ptr f3
@@ -371,18 +371,18 @@ instance Storable Ct39 where
     (\p -> pokeByteOff p 28) ptr f8
     (\p -> pokeByteOff p 32) ptr f9
 
-data Ct18 = Ct18 {
+data Ct3 = Ct3 {
     count :: Cu16
   , sqnum :: Cu64
   }
 
-instance Storable Ct18 where
+instance Storable Ct3 where
   sizeOf    _ = 16
   alignment _ = 8
-  peek ptr = Ct18 <$> (\p -> peekByteOff p 0) ptr <*> (\p -> peekByteOff p 8) ptr
-  poke ptr (Ct18 count sqnum) = (\p -> pokeByteOff p 0) ptr count >> (\p -> pokeByteOff p 8) ptr sqnum
+  peek ptr = Ct3 <$> (\p -> peekByteOff p 0) ptr <*> (\p -> peekByteOff p 8) ptr
+  poke ptr (Ct3 count sqnum) = (\p -> pokeByteOff p 0) ptr count >> (\p -> pokeByteOff p 8) ptr sqnum
 
-data Ct10 = Ct10 {
+data Ct15 = Ct15 {
     id    :: Cu64
   , sqnum :: Cu64
   , len   :: Cu32
@@ -390,15 +390,15 @@ data Ct10 = Ct10 {
   , count :: Cu16
   }
 
-instance Storable Ct10 where
+instance Storable Ct15 where
   sizeOf    _ = 32
   alignment _ = 8
-  peek ptr = Ct10 <$> (\p -> peekByteOff p 0 ) ptr
+  peek ptr = Ct15 <$> (\p -> peekByteOff p 0 ) ptr
                   <*> (\p -> peekByteOff p 8 ) ptr
                   <*> (\p -> peekByteOff p 16) ptr
                   <*> (\p -> peekByteOff p 20) ptr
                   <*> (\p -> peekByteOff p 24) ptr
-  poke ptr (Ct10 f1 f2 f3 f4 f5) = do
+  poke ptr (Ct15 f1 f2 f3 f4 f5) = do
     (\p -> pokeByteOff p 0 ) ptr f1
     (\p -> pokeByteOff p 8 ) ptr f2
     (\p -> pokeByteOff p 16) ptr f3 
@@ -583,7 +583,7 @@ instance Storable (Crbt_node k v) where
 instance (Arbitrary t, Storable t) => Arbitrary (Ptr t) where
   arbitrary = arbitrary >>= \x -> return (unsafePerformIO (new x))  -- FIXME
 
-data Cffi_fsm_init_ds = Cffi_fsm_init_ds { ret :: Ptr Ct435, ds :: Ptr Bool }
+data Cffi_fsm_init_ds = Cffi_fsm_init_ds { ret :: Ptr Ct24, ds :: Ptr Bool }
 
 instance Storable Cffi_fsm_init_ds where
   sizeOf    _ = 16
