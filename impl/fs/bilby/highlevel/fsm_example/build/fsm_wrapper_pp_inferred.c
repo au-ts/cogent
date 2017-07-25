@@ -296,7 +296,7 @@ struct ffi_fsm_init_ds {
   int *ds;
 };
 struct ffi_fsm_init_ds *ffi_fsm_init(t21 *);
-void ffi_destroy_Ct68 (t20 *);
+void ffi_destroy_Ct20 (t20 *);
 static inline t5 dispatch_t30(untyped_func_enum a2, SysState *a3)
 {
     return rbt_create_0(a3);
@@ -656,7 +656,7 @@ struct ffi_fsm_init_ds *ffi_fsm_init(t21 *a1)
     return rets;
 }
 
-void ffi_destroy_Ct68 (t20 *args)
+void ffi_destroy_Ct20 (t20 *args)
 {
   // u32 nb_free_eb;
   WordArray_u8 *used_eb = args->used_eb;
