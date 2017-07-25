@@ -82,6 +82,17 @@ trigger compiler panic because the erroneous value is not (fully) evaluated.
 what type instances are used by looking at the Cogent code. There is no easy cure. Cogent
 compiler may need to *understand* the `.ac` files in order to check this. If poly-function
 is called from `.ac` files, then it's very likely that the compiler will panic when
-doing monomorphisation. The workaround is to define a wrapper function in a cogent program
+doing monomorphisation. The workaround is to define a wrapper function in a Cogent program
 which calls and instantiates the poly-function.
 
+* The `-entry-funcs` flag takes a file with a list of entry functions. These functions must
+be monomorphic at the moment. This is unnecessary technically --- if we had a better parser
+then we can easily allow poly-functions (instantiated, of course). This flag is only used in
+monomorphisation phase and is large indenpendent of code generation or glue code. Current
+workaround, as stated in the previous point, is to have wrapper functions in Cogent to
+instantiate entry poly-functions. [TODO, LOW-HANGING]
+
+* If any of the abstract Cogent functions is higher-order and the .ac file implements it, then
+there must be at least one function which can serve as the argument to that higher-order
+function, otherwise the generated C code will end up with undefined type (the type of the input
+function).

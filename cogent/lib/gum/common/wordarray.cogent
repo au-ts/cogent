@@ -68,7 +68,7 @@ wordarray_length: all(a :< DSE). (WordArray a)! -> U32
 
 {-# cinline wordarray_free #-}
 {-# fnmacro wordarray_free #-}
-wordarray_free: all(a :< DSE). (SysState,WordArray a) -> SysState
+wordarray_free: all(a :< DSE). (SysState, WordArray a) -> SysState
 
 {-# cinline wordarray_free' #-}
 wordarray_free': all(a :< DSE). (#{ex: SysState, obj: WordArray a}) -> SysState

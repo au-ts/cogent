@@ -18,22 +18,25 @@ include $(ROOT_DIR)build-env.mk
 endif
 
 OUTPUT=generated
-SRC=fsm.cogent
+SRC=wa.cogent
 DEFNS=defns.txt
 
 # Standard Gum Directory
 STDGUM=$(COGENT_STD_GUM_DIR)
 # ADT headers required by BilbyFs
-AHFILES=$(wildcard $(STDGUM)/gum/anti/abstract/*.ah)
+AHFILES=$(addprefix $(STDGUM)/gum/anti/abstract/, \
+				WordArray.ah)
 # ADT C files required by BilbyFs
 LINUX_ACFILES=$(addprefix $(STDGUM)/gum/anti/, \
 		common.ac \
-		wordarray.ac \
-		array.ac \
-		rbt.ac ) \
-		fsm_wrapper.ac
+		wordarray.ac) \
+		wa_wrapper.ac
 # ADT C files required by verification
 LINUX_TYPES=types.txt
+
+ifndef KERNELDIR
+KERNELDIR:= /lib/modules/$(shell uname -r)/build
+endif
 
 ifeq ($(KERNELRELEASE),)
 PWD:= $(shell pwd)
@@ -104,7 +107,7 @@ c-gen:
 				--ext-types="$(LINUX_TYPES)"
 
 o-gen:
-	$(Q)$(CC) -c $(DIST_DIR)/fsm_wrapper_pp_inferred.c -o $(DIST_DIR)/fsm.o -I$(DIST_DIR) -I$(PWD) -fPIC
+	$(Q)$(CC) -c $(DIST_DIR)/wa_wrapper_pp_inferred.c -o $(DIST_DIR)/wa.o -I$(DIST_DIR) -I$(PWD) -fPIC
 
 
 clean:
