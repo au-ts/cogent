@@ -48,9 +48,8 @@ enum untyped_func_enum {
 typedef enum untyped_func_enum untyped_func_enum;
 typedef untyped_func_enum t14;
 typedef untyped_func_enum t15;
-typedef untyped_func_enum t16;
 typedef untyped_func_enum t8;
-typedef untyped_func_enum t17;
+typedef untyped_func_enum t16;
 struct WordArray_u8 {
     int len;
     u8 *values;
@@ -127,14 +126,10 @@ static inline SysState *wordarray_free_0(t1);
 static inline t3 wordarray_create_0(t2);
 static inline t11 wordarray_map_0(t9);
 SysState *wordarray_free_u8(t1);
-t3 wordarray_create_u8(SysState *);
+t3 wordarray_create_u8(t2);
 t11 wordarray_map_u8(t9);
 __attribute__((const)) t7 map_body_f(t4);
-static inline t3 dispatch_t14(untyped_func_enum a2, SysState *a3)
-{
-    return wordarray_create_u8(a3);
-}
-static inline SysState *dispatch_t15(untyped_func_enum a2, t1 a3)
+static inline SysState *dispatch_t14(untyped_func_enum a2, t1 a3)
 {
     switch (a2) {
         
@@ -145,15 +140,22 @@ static inline SysState *dispatch_t15(untyped_func_enum a2, t1 a3)
         return wordarray_free_u8(a3);
     }
 }
-static inline t3 dispatch_t16(untyped_func_enum a2, t2 a3)
+static inline t3 dispatch_t15(untyped_func_enum a2, t2 a3)
 {
-    return wordarray_create_0(a3);
+    switch (a2) {
+        
+      case FUN_ENUM_wordarray_create_0:
+        return wordarray_create_0(a3);
+        
+      default:
+        return wordarray_create_u8(a3);
+    }
 }
 static inline t7 dispatch_t8(untyped_func_enum a2, t4 a3)
 {
     return map_body_f(a3);
 }
-static inline t11 dispatch_t17(untyped_func_enum a2, t9 a3)
+static inline t11 dispatch_t16(untyped_func_enum a2, t9 a3)
 {
     switch (a2) {
         
@@ -171,7 +173,7 @@ typedef t4 map_body_f_arg;
 typedef t7 map_body_f_ret;
 typedef t2 wordarray_create_0_arg;
 typedef t3 wordarray_create_0_ret;
-typedef SysState *wordarray_create_u8_arg;
+typedef t2 wordarray_create_u8_arg;
 typedef t3 wordarray_create_u8_ret;
 typedef t1 wordarray_free_0_arg;
 typedef SysState *wordarray_free_0_ret;
@@ -188,15 +190,12 @@ SysState *wordarray_free_u8(t1 a1)
     
     return r3;
 }
-t3 wordarray_create_u8(SysState *a1)
+t3 wordarray_create_u8(t2 a1)
 {
-    SysState *r2 = a1;
-    u8 r3 = 1U;
-    u32 r4 = (u32) r3;
-    t2 r5 = (t2) {.p1 = r2, .p2 = r4};
-    t3 r6 = wordarray_create_0(r5);
+    t2 r2 = a1;
+    t3 r3 = wordarray_create_0(r2);
     
-    return r6;
+    return r3;
 }
 t11 wordarray_map_u8(t9 a1)
 {

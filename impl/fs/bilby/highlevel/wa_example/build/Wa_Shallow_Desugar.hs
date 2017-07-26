@@ -21,7 +21,7 @@ word64Max = (18446744073709551615 :: Word64)
 word32Max :: Word32
 word32Max = (4294967295 :: Word32)
 
-type WordArray a = [a]
+data WordArray a
 
 data SysState
 
@@ -358,23 +358,25 @@ wordarray_clone __ds_var_0
         let size = wordarray_length src in
           let __ds_var_3 = wordarray_create R15{p1 = ex, p2 = size} in
             case __ds_var_3 of
-              Error ex72 -> Error ex72
-              __ds_var_4 -> let __ds_var_5 = (\ (Success __shallow_v73) -> __shallow_v73) __ds_var_4 in
-                              let __ds_var_6 = __ds_var_5
-                                  ex74 = let R15{p1 = __shallow_v75, p2 = __shallow_v76} = __ds_var_5 in __shallow_v75
-                                in
-                                let __ds_var_7 = __ds_var_6
-                                    dest = let R15{p1 = __shallow_v77, p2 = __shallow_v78} = __ds_var_6 in __shallow_v78
-                                  in Success R15{p1 = ex74, p2 = wordarray_copy R18{p1 = dest, p2 = src, p3 = fromIntegral (0 :: Word8) :: Word32, p4 = fromIntegral (0 :: Word8) :: Word32, p5 = size}}
+              Error ex72 ->
+                Error ex72
+              __ds_var_4 ->
+                let __ds_var_5 = (\ (Success __shallow_v73) -> __shallow_v73) __ds_var_4 in
+                  let __ds_var_6 = __ds_var_5
+                      ex74 = let R15{p1 = __shallow_v75, p2 = __shallow_v76} = __ds_var_5 in __shallow_v75
+                    in
+                    let __ds_var_7 = __ds_var_6
+                        dest = let R15{p1 = __shallow_v77, p2 = __shallow_v78} = __ds_var_6 in __shallow_v78
+                      in Success R15{p1 = ex74, p2 = wordarray_copy R18{p1 = dest, p2 = src, p3 = fromIntegral (0 :: Word8) :: Word32, p4 = fromIntegral (0 :: Word8) :: Word32, p5 = size}}
 
 wordarray_clone_u8 :: R15 SysState (WordArray Word8) -> V20 SysState (R15 SysState (WordArray Word8))
 wordarray_clone_u8 __ds_var_0 = let arg = __ds_var_0 in wordarray_clone arg
 
-wordarray_create_nz_u8 :: SysState -> V20 SysState (R15 SysState (WordArray Word8))
-wordarray_create_nz_u8 __ds_var_0 = let ex = __ds_var_0 in wordarray_create_nz R15{p1 = ex, p2 = fromIntegral (1 :: Word8) :: Word32}
+wordarray_create_nz_u8 :: R15 SysState Word32 -> V20 SysState (R15 SysState (WordArray Word8))
+wordarray_create_nz_u8 __ds_var_0 = let arg = __ds_var_0 in wordarray_create_nz arg
 
-wordarray_create_u8 :: SysState -> V20 SysState (R15 SysState (WordArray Word8))
-wordarray_create_u8 __ds_var_0 = let ex = __ds_var_0 in wordarray_create R15{p1 = ex, p2 = fromIntegral (1 :: Word8) :: Word32}
+wordarray_create_u8 :: R15 SysState Word32 -> V20 SysState (R15 SysState (WordArray Word8))
+wordarray_create_u8 __ds_var_0 = let arg = __ds_var_0 in wordarray_create arg
 
 wordarray_get_bounded :: R15 (WordArray a) Word32 -> V20 () a
 wordarray_get_bounded __ds_var_0
