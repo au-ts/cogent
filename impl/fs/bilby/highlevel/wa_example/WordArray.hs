@@ -30,17 +30,16 @@ import Foreign.C.Types
 import Foreign.Marshal.Alloc
 import Foreign.Ptr
 import Foreign.Storable
-import Prelude hiding ((>>), (>>=), return)
-import qualified Prelude as P
+import Prelude as P
 import Test.QuickCheck hiding (Success)
 import Test.QuickCheck.Arbitrary
 import Test.QuickCheck.Gen
 import Test.QuickCheck.Monadic
 
-import CogentMonad -- hiding (return, (>>=), (>>))
+import CogentMonad hiding (return, (>>=), (>>))
 import qualified CogentMonad as CogentMonad
 import Corres
--- import FFI (pDummyCSysState, dummyCSysState, const_unit, const_true, const_false)
+import FFI
 -- import qualified FFI as FFI
 import Wa_Shallow_Desugar 
 -- import WordArray
@@ -49,42 +48,43 @@ import Util
 
 ifThenElse c e1 e2 = case c of True -> e1; False -> e2
 
--- infixl 1 >>, >>=
--- (>>=)  = (CogentMonad.>>=)
--- (>>)   = (CogentMonad.>>)
--- return = CogentMonad.return
-
-
 prop_wordarray_create_corres =
-  forAllM (arbitrary :: Gen (Small Word32)) $ \(Small l) -> run $ do
-    rc <- cogent_wordarray_create_u8 l
-    ra <- return $ hs_wordarray_create l
-    return $ corres wordarray_create_corres ra rc
-  where (>>=) = (P.>>=)
-        (>>)  = (P.>>)
-        return = P.return
+  forAllM (arbitrary :: Gen (R15 SysState Word32)) $ \arg -> run $ do
+    rc <- cogent_wordarray_create_u8 (toC_wordarray_create_u8_arg arg)
+    ra <- return $ hs_wordarray_create (abs_wordarray_create_u8_arg arg)
+    corresM wordarray_create_corres ra rc
 
-wordarray_create_corres :: Maybe (WordArray Word8) -> Maybe (WordArray Word8) -> Bool
-wordarray_create_corres (Just wa) (Just wc) = wa `wordarray_length_corres` wc
-wordarray_create_corres a c = a == c
+toC_wordarray_create_u8_arg :: R15 SysState Word32 -> Ct4
+toC_wordarray_create_u8_arg = undefined
 
-wordarray_length_corres :: WordArray a -> WordArray a -> Bool
-wordarray_length_corres ra rb = length ra == length rb
+abs_wordarray_create_u8_arg :: R15 SysState Word32 -> Word32
+abs_wordarray_create_u8_arg (R15 _ p2) = p2
+
+wordarray_create_corres :: Maybe (WordArray Word8) -> Ct5 -> IO Bool
+wordarray_create_corres Nothing    (Ct5 {..}) | fromEnum tag == fromEnum tagEnumError = pure True
+wordarray_create_corres (Just arr) (Ct5 {..}) | fromEnum tag == fromEnum tagEnumSuccess = do
+  let Ct3 _ p_arr = success
+  c_arr <- peek p_arr
+  hs_arr <- peekArray (fromIntegral $ len c_arr) (values c_arr)
+  return $ hs_arr == P.map fromIntegral arr
 
 foreign import ccall unsafe "ffi_wordarray_create_u8"
-  c_wordarray_create_u8 :: Ptr Ct2 -> IO (Ptr Ct3)
+  c_wordarray_create_u8 :: Ptr Ct4 -> IO (Ptr Ct5)
 
-cogent_wordarray_create_u8 :: Word32 -> IO (Maybe (WordArray Word8))
-cogent_wordarray_create_u8 l = undefined
+cogent_wordarray_create_u8 :: Ct4 -> IO Ct5
+cogent_wordarray_create_u8 arg = do
+  p_arg <- new arg
+  p_ret <- c_wordarray_create_u8 p_arg
+  peek p_ret
 
 hs_wordarray_create :: (Integral a) => Word32 -> Cogent_monad (Maybe (WordArray a))
-hs_wordarray_create l = hs_wordarray_create_nz l
+hs_wordarray_create l = (return . Just $ replicate (fromIntegral l) (fromIntegral 0)) `alternative` (return Nothing)
+  where return = CogentMonad.return
+        (>>=)  = (CogentMonad.>>=)
+        (>>)   = (CogentMonad.>>)
 
 hs_wordarray_free :: WordArray a -> ()
 hs_wordarray_free _ = ()
-
-hs_wordarray_create_nz :: (Integral a) => Word32 -> Cogent_monad (Maybe (WordArray a))
-hs_wordarray_create_nz l = (return . Just $ replicate (fromIntegral l) (fromIntegral 0)) `alternative` (return Nothing)
 
 hs_wordarray_get :: Integral a => WordArray a -> Word32 -> a
 hs_wordarray_get xs i | is_inbound xs i = xs !! (fromIntegral i)

@@ -36,14 +36,14 @@ dummyCSysState = CSysState $ CChar 0
 pDummyCSysState :: IO (Ptr CSysState)
 pDummyCSysState = new dummyCSysState
 
-newtype Tag = Tag Int deriving (Enum)
+newtype Tag = Tag Int deriving (Enum)  -- hs type
+newtype Ctag_t = Ctag_t CInt deriving (Enum, Show, Storable)  -- c type equiv.
 
-newtype Ctag_t = Ctag_t CInt deriving (Show, Storable)
+newtype FuncEnum = FuncEnum Int deriving (Enum)
+newtype Cuntyped_func_enum = Cuntyped_func_enum CInt deriving (Enum, Show, Storable)
+
 newtype Cunit_t = Cunit_t { dummy :: CInt } deriving (Show, Storable)
 newtype Cbool_t = Cbool_t { boolean :: CUChar } deriving (Show, Storable)
-
-instance Arbitrary Ctag_t where
-  arbitrary = Ctag_t <$> elements [minBound .. maxBound]
 
 instance Arbitrary Cunit_t where
   arbitrary = return const_unit

@@ -34,11 +34,6 @@ tag_ENUM_TObjPad     = Tag 5
 tag_ENUM_TObjSummary = Tag 6
 tag_ENUM_TObjSuper   = Tag 7
 
-
-instance Bounded Tag where
-  maxBound = tag_ENUM_TObjSuper
-  minBound = tag_ENUM_Error
-
 data Ct24 = Ct24 { p1 :: Ptr CSysState, p2 :: Ct23 } deriving Show
 
 instance Storable Ct24 where
