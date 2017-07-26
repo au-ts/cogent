@@ -10,10 +10,13 @@ Isabelle input files).
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# OPTIONS_GHC -F -pgmFderive -optF-F #-}
+
 module Wa_Shallow_Desugar where
 import Data.Bits ((.&.), (.|.), complement, xor, shiftL, shiftR)
 import Data.Word (Word8, Word16, Word32, Word64)
-import Prelude (not, div, mod, fromIntegral, undefined, (+), (-), (*), (&&), (||), (>), (>=), (<), (<=), (==), (/=), Char, String, Int, Bool(..))
+import Prelude (not, div, mod, fromIntegral, undefined, (+), (-), (*), (&&), (||), (>), (>=), (<), (<=), (==), (/=), Char, String, Int, Bool(..), Show, return)
+import Test.QuickCheck.Arbitrary
 
 word64Max :: Word64
 word64Max = (18446744073709551615 :: Word64)
@@ -21,9 +24,9 @@ word64Max = (18446744073709551615 :: Word64)
 word32Max :: Word32
 word32Max = (4294967295 :: Word32)
 
-data WordArray a
+type WordArray a = [a]
 
-data SysState
+type SysState = ()
 
 type WordArrayIndex = Word32
 
@@ -453,7 +456,7 @@ data R13 t1 t2 = R13{oelem :: t1, acc :: t2}
 
 data R14 t1 t2 t3 = R14{oelem :: t1, acc :: t2, obsv :: t3}
 
-data R15 t1 t2 = R15{p1 :: t1, p2 :: t2}
+data R15 t1 t2 = R15{p1 :: t1, p2 :: t2} deriving (Show)
 
 data R16 t1 t2 t3 = R16{p1 :: t1, p2 :: t2, p3 :: t3}
 
@@ -472,3 +475,8 @@ data V21 t1 t2 = Found t1
 
 data V22 t1 t2 = None t1
                | Some t2
+
+
+{-!
+deriving instance Arbitrary (R15 p1 p2)
+!-}
