@@ -20,6 +20,16 @@ newtype Tag = Tag Int deriving (Enum)
 newtype Ctag_t = Ctag_t CInt deriving Storable
 newtype Cunit_t = Cunit_t { dummy :: CInt } deriving Storable
 
+data CWordArray a = CWordArray { len :: CInt, values :: Ptr a }
+
+data Ct1 = Ct1 { p1 :: Ptr CSysState, p2 :: Ptr CWordArray CUInt8 }
+
+data Ct2 = Ct2 {}
+
+
+
+
+
 instance Storable Ct27 where
   sizeOf    _ = (#size t27)
   alignment _ = (#alignment t27)

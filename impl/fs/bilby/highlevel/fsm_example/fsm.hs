@@ -36,11 +36,11 @@ import Test.QuickCheck.Monadic
 import CogentMonad hiding (return, (>>=), (>>))
 import qualified CogentMonad as CogentMonad
 import Corres
-import FFI (pDummyCSysState, dummyCSysState, const_unit, const_true, const_false)
 import qualified FFI as FFI
 import Fsm_Shallow_Desugar 
 -- import WordArray
 import Util
+
 
 run_cogent_fsm_init = do
   mnt_st <- generate gen_MountState
@@ -81,16 +81,26 @@ hs_fsm_init mount_st fsm_st = do
     pop :: State [a] a
     pop = get >>= \(d:ds) -> put ds >> return d 
 
-fsm_init_ret_rel :: Either ErrCode FsmState -> Either ErrCode FsmState -> Bool
-fsm_init_ret_rel (Left l1) (Left l2) = l1 == l2
-fsm_init_ret_rel (Right (R27 f1 f2 f3 f4)) (Right (R27 f1' f2' f3' f4')) = f1 == f1' && f2 == f2' && f3 == f3'
-fsm_init_ret_rel _ _ = False
+cogent_fsm_init :: MountState -> FsmState -> IO (Either ErrCode FsmState, [Bool])
+cogent_fsm_init mount_st fsm_st = do
+  p_arg <- new =<< mk_fsm_init_arg mount_st fsm_st
+  p_ret <- c_fsm_init p_arg
+  -- putStrLn $ "p_ret = " ++ show p_ret
+  rets <- peek p_ret
+  -- putStrLn $ "ret = " ++ show ret
+  mk_fsm_init_ret rets
 
-gen_MountState :: Gen MountState
-gen_MountState = arbitrary
+foreign import ccall unsafe "fsm_wrapper_pp_inferred.c ffi_fsm_init"
+  c_fsm_init :: Ptr FFI.Ct21 -> IO (Ptr FFI.Cffi_fsm_init_ds)
 
-gen_FsmState :: Gen FsmState
-gen_FsmState = arbitrary
+release_fsm_init :: Either ErrCode FsmState -> IO ()
+release_fsm_init (Left _) = return ()
+release_fsm_init (Right r) = conv_FsmState r >>= new >>= c_destroy_Ct20
+
+foreign import ccall unsafe "fsm_wrapper_pp_inferred.c ffi_destroy_Ct20"
+  c_destroy_Ct20 :: Ptr FFI.Ct20 -> IO ()
+
+
 
 {-------------------------------------------------------------------------------
 
@@ -124,6 +134,14 @@ gen_FsmState = arbitrary
 
 
 
+gen_MountState :: Gen MountState
+gen_MountState = arbitrary
+
+gen_FsmState :: Gen FsmState
+gen_FsmState = arbitrary
+
+
+{- This is an instance of the core corres theorem -}
 prop_fsm_init_corres = monadicIO $ forAllM gen_MountState $ \mount_st ->
                                    forAllM gen_FsmState   $ \fsm_st   -> run $ do
                                      (rc,_) <- cogent_fsm_init mount_st fsm_st
@@ -131,6 +149,12 @@ prop_fsm_init_corres = monadicIO $ forAllM gen_MountState $ \mount_st ->
                                      r  <- return $ corres fsm_init_ret_rel ra rc
                                      release_fsm_init rc
                                      return r
+
+fsm_init_ret_rel :: Either ErrCode FsmState -> Either ErrCode FsmState -> Bool
+fsm_init_ret_rel (Left l1) (Left l2) = l1 == l2
+fsm_init_ret_rel (Right (R27 f1 f2 f3 f4)) (Right (R27 f1' f2' f3' f4')) = f1 == f1' && f2 == f2' && f3 == f3'
+fsm_init_ret_rel _ _ = False
+
 
 prop_fsm_init_corres' = monadicIO $ forAllM gen_MountState $ \mount_st ->
                                     forAllM gen_FsmState   $ \fsm_st   -> run $ do
@@ -147,7 +171,7 @@ prop_fsm_init_det_corres_det = forAll gen_MountState $ \mount_st ->
                                      rd  = evalState (hs_fsm_init mount_st fsm_st) ds
                                   in corres fsm_init_ret_rel rnd rd
 
-
+{- Some trivial properties on top of the non-det Hs spec -}
 prop_fsm_init_nb_free_eb = forAll gen_MountState $ \mount_st ->
                            forAll gen_FsmState   $ \fsm_st   -> 
                              nb_eb (super mount_st) >= bilbyFsFirstLogEbNum ==>
@@ -156,15 +180,8 @@ prop_fsm_init_nb_free_eb = forAll gen_MountState $ \mount_st ->
                                               Left _  -> True
                                               Right s -> nb_free_eb s <= nb_eb (super mount_st)) rs
 
-foreign import ccall unsafe "fsm_wrapper_pp_inferred.c ffi_fsm_init"
-  c_fsm_init :: Ptr FFI.Ct21 -> IO (Ptr FFI.Cffi_fsm_init_ds)
-
-release_fsm_init :: Either ErrCode FsmState -> IO ()
-release_fsm_init (Left _) = return ()
-release_fsm_init (Right r) = conv_FsmState r >>= new >>= c_destroy_Ct20
-
-foreign import ccall unsafe "fsm_wrapper_pp_inferred.c ffi_destroy_Ct20"
-  c_destroy_Ct20 :: Ptr FFI.Ct20 -> IO ()
+-- ////////////////////////////////////////////////////////////////////////////
+-- data conversion functions
 
 conv_ObjSuper :: ObjSuper -> IO FFI.Ct9
 conv_ObjSuper (R26 {..}) = 
@@ -255,13 +272,13 @@ conv_ObjUnion ounion = do
       def_super   = nullPtr
       o = FFI.Ct17 undefined def_data def_del def_dentarr def_inode def_pad def_summary def_super
   case ounion of
-    TObjData    t -> conv_ObjData    t         >>= \x -> return $ o { FFI.tag = FFI.Ctag_t $ fromIntegral $ fromEnum FFI.tag_ENUM_TObjData   , FFI.tObjData    = x }
-    TObjDel     t -> conv_ObjDel     t         >>= \x -> return $ o { FFI.tag = FFI.Ctag_t $ fromIntegral $ fromEnum FFI.tag_ENUM_TObjDel    , FFI.tObjDel     = x }
-    TObjDentarr t -> conv_ObjDentarr t >>= new >>= \x -> return $ o { FFI.tag = FFI.Ctag_t $ fromIntegral $ fromEnum FFI.tag_ENUM_TObjDentarr, FFI.tObjDentarr = x }
-    TObjInode   t -> conv_ObjInode   t >>= new >>= \x -> return $ o { FFI.tag = FFI.Ctag_t $ fromIntegral $ fromEnum FFI.tag_ENUM_TObjInode  , FFI.tObjInode   = x }
-    TObjPad     t ->                                     return $ o { FFI.tag = FFI.Ctag_t $ fromIntegral $ fromEnum FFI.tag_ENUM_TObjPad    , FFI.tObjPad     = const_unit }
-    TObjSummary t -> conv_ObjSummary t >>= new >>= \x -> return $ o { FFI.tag = FFI.Ctag_t $ fromIntegral $ fromEnum FFI.tag_ENUM_TObjSummary, FFI.tObjSummary = x }
-    TObjSuper   t -> conv_ObjSuper   t >>= new >>= \x -> return $ o { FFI.tag = FFI.Ctag_t $ fromIntegral $ fromEnum FFI.tag_ENUM_TObjSuper  , FFI.tObjSuper   = x }
+    TObjData    t -> conv_ObjData    t         >>= \x -> return $ o { FFI.tag = Ctag_t $ fromIntegral $ fromEnum FFI.tag_ENUM_TObjData   , FFI.tObjData    = x }
+    TObjDel     t -> conv_ObjDel     t         >>= \x -> return $ o { FFI.tag = Ctag_t $ fromIntegral $ fromEnum FFI.tag_ENUM_TObjDel    , FFI.tObjDel     = x }
+    TObjDentarr t -> conv_ObjDentarr t >>= new >>= \x -> return $ o { FFI.tag = Ctag_t $ fromIntegral $ fromEnum FFI.tag_ENUM_TObjDentarr, FFI.tObjDentarr = x }
+    TObjInode   t -> conv_ObjInode   t >>= new >>= \x -> return $ o { FFI.tag = Ctag_t $ fromIntegral $ fromEnum FFI.tag_ENUM_TObjInode  , FFI.tObjInode   = x }
+    TObjPad     t ->                                     return $ o { FFI.tag = Ctag_t $ fromIntegral $ fromEnum FFI.tag_ENUM_TObjPad    , FFI.tObjPad     = const_unit }
+    TObjSummary t -> conv_ObjSummary t >>= new >>= \x -> return $ o { FFI.tag = Ctag_t $ fromIntegral $ fromEnum FFI.tag_ENUM_TObjSummary, FFI.tObjSummary = x }
+    TObjSuper   t -> conv_ObjSuper   t >>= new >>= \x -> return $ o { FFI.tag = Ctag_t $ fromIntegral $ fromEnum FFI.tag_ENUM_TObjSuper  , FFI.tObjSuper   = x }
 
 conv_Obj :: Obj -> IO FFI.Ct18
 conv_Obj (R25 {..}) = do
@@ -294,7 +311,7 @@ conv_MountState (R11 {..}) = do
                     , super_offs       = fromIntegral super_offs
                     , vol              = p_vol
                     , dev              = p_dev
-                    , no_summary       = FFI.Cbool_t $ CUChar $ fromIntegral $ fromEnum no_summary
+                    , no_summary       = Cbool_t $ CUChar $ fromIntegral $ fromEnum no_summary
                     }
 
 conv_GimNode :: GimNode -> IO FFI.Ct3
@@ -343,7 +360,7 @@ conv_Ct20 (FFI.Ct20 {..}) = do
 
 conv_Ct23 :: FFI.Ct23 -> IO (Either ErrCode FsmState)
 conv_Ct23 (FFI.Ct23 {..}) = do
-  let FFI.Ctag_t t = tag
+  let Ctag_t t = tag
   if | fromIntegral t == fromEnum FFI.tag_ENUM_Error   -> conv_Ct22 error >>= return . Left
      | fromIntegral t == fromEnum FFI.tag_ENUM_Success -> (conv_Ct20 =<< peek success) >>= return . Right
      | otherwise -> Prelude.error $ "Tag is " ++ show (fromIntegral t)
@@ -358,16 +375,9 @@ mk_fsm_init_ret (FFI.Cffi_fsm_init_ds p_ret p_ds) = do
   ds'  <- peekArray 2 p_ds
   return $ (ret', ds')
 
-cogent_fsm_init :: MountState -> FsmState -> IO (Either ErrCode FsmState, [Bool])
-cogent_fsm_init mount_st fsm_st = do
-  p_arg <- new =<< mk_fsm_init_arg mount_st fsm_st
-  p_ret <- c_fsm_init p_arg
-  -- putStrLn $ "p_ret = " ++ show p_ret
-  rets <- peek p_ret
-  -- putStrLn $ "ret = " ++ show ret
-  mk_fsm_init_ret rets
 
-
+-- ////////////////////////////////////////////////////////////////////////////
+-- main function
 
 return []
 main = $quickCheckAll
