@@ -1,10 +1,10 @@
 include <gum/common/wordarray.cogent>
 
-wordarray_create_u8 : SysState -> R (SysState, WordArray U8) SysState
-wordarray_create_u8 ex = wordarray_create [U8] (ex, 1)
+wordarray_create_u8 : (SysState, U32) -> R (SysState, WordArray U8) SysState
+wordarray_create_u8 arg = wordarray_create [U8] arg
 
-wordarray_create_nz_u8 : SysState -> R (SysState, WordArray U8) SysState
-wordarray_create_nz_u8 ex = wordarray_create_nz [U8] (ex, 1)
+wordarray_create_nz_u8 : (SysState, U32) -> R (SysState, WordArray U8) SysState
+wordarray_create_nz_u8 arg = wordarray_create_nz [U8] arg
 
 wordarray_free_u8 : (SysState, WordArray U8) -> SysState
 wordarray_free_u8 arg = wordarray_free [U8] arg

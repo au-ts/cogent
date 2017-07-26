@@ -34,44 +34,10 @@ tag_ENUM_TObjPad     = Tag 5
 tag_ENUM_TObjSummary = Tag 6
 tag_ENUM_TObjSuper   = Tag 7
 
-newtype CSysState = CSysState { dummy :: CChar } deriving Storable
-
-instance Arbitrary CSysState where
-  arbitrary = return dummyCSysState
-
-dummyCSysState :: CSysState
-dummyCSysState = CSysState $ CChar 0
-
-pDummyCSysState :: IO (Ptr CSysState)
-pDummyCSysState = new dummyCSysState
-
-newtype Tag = Tag Int deriving (Enum)
 
 instance Bounded Tag where
   maxBound = tag_ENUM_TObjSuper
   minBound = tag_ENUM_Error
-
-newtype Ctag_t = Ctag_t CInt deriving (Show, Storable)
-newtype Cunit_t = Cunit_t { dummy :: CInt } deriving (Show, Storable)
-newtype Cbool_t = Cbool_t { boolean :: CUChar } deriving (Show, Storable)
-
-instance Arbitrary Ctag_t where
-  arbitrary = Ctag_t <$> elements [minBound .. maxBound]
-
-instance Arbitrary Cunit_t where
-  arbitrary = return const_unit
-
-instance Arbitrary Cbool_t where
-  arbitrary = elements [const_true, const_false]
-
-const_unit = Cunit_t $ CInt 0
-const_true  = Cbool_t $ CUChar 1
-const_false = Cbool_t $ CUChar 0
-
-type Cu8  = CUChar
-type Cu16 = CUShort 
-type Cu32 = CUInt
-type Cu64 = CULLong
 
 data Ct24 = Ct24 { p1 :: Ptr CSysState, p2 :: Ct23 } deriving Show
 
