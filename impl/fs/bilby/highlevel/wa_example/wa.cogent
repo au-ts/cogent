@@ -16,6 +16,11 @@ wordarray_get_bounded_u8 arg = wordarray_get_bounded [U8] arg
 wordarray_modify_u8 : WordArrayModifyP U8 U8 Bool -> ArrA (WordArray U8) U8
 wordarray_modify_u8 arg = wordarray_modify [U8, U8, Bool] arg
  
+modify_body_f : ElemAO U8 U8 Bool -> ElemA U8 U8
+modify_body_f #{elem, acc, obsv} =
+  if obsv then #{elem = elem + acc, acc = elem + acc}
+          else #{elem, acc}
+
 wordarray_put_u8 : WordArrayPutP U8 -> R (WordArray U8) (WordArray U8)
 wordarray_put_u8 arg = wordarray_put [U8] arg
 
