@@ -96,3 +96,6 @@ instantiate entry poly-functions. [TODO, LOW-HANGING]
 there must be at least one function which can serve as the argument to that higher-order
 function, otherwise the generated C code will end up with undefined type (the type of the input
 function).
+
+* BE VERY CAREFUL potential trailing whitespaces in the --entry-funcs file! The parser does not
+eliminate them and will be counted as part of the function name. [LOW-HANGING]

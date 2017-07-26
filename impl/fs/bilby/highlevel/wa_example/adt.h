@@ -2,6 +2,7 @@
 #define ADT_H__
 
 #include <stdlib.h>
+#include <string.h>
 
 #define kmalloc(size) malloc(size)
 #define kzalloc(size) calloc(size, sizeof (char))
