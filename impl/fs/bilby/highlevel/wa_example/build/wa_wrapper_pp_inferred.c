@@ -219,26 +219,28 @@ struct t27 {
 } ;
 typedef struct t27 t27;
 WordArray_u8 *wordarray_copy_0(t1);
-static inline u8 wordarray_get_0(t2);
-static inline u32 wordarray_length_0(WordArray_u8 *);
-static inline SysState *wordarray_free_0(t3);
-static inline t5 wordarray_create_0(t4);
-static inline t7 wordarray_put_0(t6);
-static inline t15 wordarray_map_0(t13);
-static inline t20 wordarray_modify_0(t19);
+u8 ffi_wordarray_get_0(t2*);
+u8 wordarray_get_0(t2);
+u32 wordarray_length_0(WordArray_u8 *);
+SysState *wordarray_free_0(t3);
+t5 wordarray_create_0(t4);
+t7 wordarray_put_0(t6);
+t15 wordarray_map_0(t13);
+t20 wordarray_modify_0(t19);
 __attribute__((pure)) u32 wordarray_length_u8(WordArray_u8 *);
 SysState *wordarray_free_u8(t3);
-static inline t5 wordarray_clone_0(t3);
+t5 wordarray_clone_0(t3);
 t5 wordarray_clone_u8(t3);
+t5 *ffi_wordarray_create_u8(t4*);
 t5 wordarray_create_u8(t4);
-static inline __attribute__((pure)) t23 wordarray_get_bounded_0(t2);
+__attribute__((pure)) t23 wordarray_get_bounded_0(t2);
 __attribute__((pure)) t23 wordarray_get_bounded_u8(t2);
 t7 wordarray_put_u8(t6);
 t15 wordarray_map_u8(t13);
 __attribute__((const)) t11 map_body_f(t8);
 __attribute__((const)) t17 modify_body_f(t16);
 t20 wordarray_modify_u8(t19);
-static inline u32 dispatch_t28(untyped_func_enum a2, WordArray_u8 *a3)
+u32 dispatch_t28(untyped_func_enum a2, WordArray_u8 *a3)
 {
     switch (a2) {
         
@@ -249,11 +251,11 @@ static inline u32 dispatch_t28(untyped_func_enum a2, WordArray_u8 *a3)
         return wordarray_length_u8(a3);
     }
 }
-static inline WordArray_u8 *dispatch_t29(untyped_func_enum a2, t1 a3)
+WordArray_u8 *dispatch_t29(untyped_func_enum a2, t1 a3)
 {
     return wordarray_copy_0(a3);
 }
-static inline t15 dispatch_t30(untyped_func_enum a2, t13 a3)
+t15 dispatch_t30(untyped_func_enum a2, t13 a3)
 {
     switch (a2) {
         
@@ -264,11 +266,11 @@ static inline t15 dispatch_t30(untyped_func_enum a2, t13 a3)
         return wordarray_map_u8(a3);
     }
 }
-static inline t17 dispatch_t18(untyped_func_enum a2, t16 a3)
+t17 dispatch_t18(untyped_func_enum a2, t16 a3)
 {
     return modify_body_f(a3);
 }
-static inline t20 dispatch_t31(untyped_func_enum a2, t19 a3)
+t20 dispatch_t31(untyped_func_enum a2, t19 a3)
 {
     switch (a2) {
         
@@ -279,7 +281,7 @@ static inline t20 dispatch_t31(untyped_func_enum a2, t19 a3)
         return wordarray_modify_u8(a3);
     }
 }
-static inline t23 dispatch_t32(untyped_func_enum a2, t2 a3)
+t23 dispatch_t32(untyped_func_enum a2, t2 a3)
 {
     switch (a2) {
         
@@ -290,11 +292,11 @@ static inline t23 dispatch_t32(untyped_func_enum a2, t2 a3)
         return wordarray_get_bounded_u8(a3);
     }
 }
-static inline u8 dispatch_t33(untyped_func_enum a2, t2 a3)
+u8 dispatch_t33(untyped_func_enum a2, t2 a3)
 {
     return wordarray_get_0(a3);
 }
-static inline SysState *dispatch_t34(untyped_func_enum a2, t3 a3)
+SysState *dispatch_t34(untyped_func_enum a2, t3 a3)
 {
     switch (a2) {
         
@@ -305,7 +307,7 @@ static inline SysState *dispatch_t34(untyped_func_enum a2, t3 a3)
         return wordarray_free_u8(a3);
     }
 }
-static inline t5 dispatch_t35(untyped_func_enum a2, t3 a3)
+t5 dispatch_t35(untyped_func_enum a2, t3 a3)
 {
     switch (a2) {
         
@@ -316,7 +318,7 @@ static inline t5 dispatch_t35(untyped_func_enum a2, t3 a3)
         return wordarray_clone_u8(a3);
     }
 }
-static inline t5 dispatch_t36(untyped_func_enum a2, t4 a3)
+t5 dispatch_t36(untyped_func_enum a2, t4 a3)
 {
     switch (a2) {
         
@@ -327,7 +329,7 @@ static inline t5 dispatch_t36(untyped_func_enum a2, t4 a3)
         return wordarray_create_u8(a3);
     }
 }
-static inline t7 dispatch_t37(untyped_func_enum a2, t6 a3)
+t7 dispatch_t37(untyped_func_enum a2, t6 a3)
 {
     switch (a2) {
         
@@ -338,7 +340,7 @@ static inline t7 dispatch_t37(untyped_func_enum a2, t6 a3)
         return wordarray_put_u8(a3);
     }
 }
-static inline t11 dispatch_t12(untyped_func_enum a2, t8 a3)
+t11 dispatch_t12(untyped_func_enum a2, t8 a3)
 {
     return map_body_f(a3);
 }
@@ -399,7 +401,7 @@ SysState *wordarray_free_u8(t3 a1)
     
     return r3;
 }
-static inline t5 wordarray_clone_0(t3 a1)
+t5 wordarray_clone_0(t3 a1)
 {
     SysState *r2 = a1.p1;
     WordArray_u8 *r3 = a1.p2;
@@ -447,6 +449,14 @@ t5 wordarray_clone_u8(t3 a1)
     
     return r3;
 }
+
+t5 *ffi_wordarray_create_u8(t4 *arg)
+{
+  t5 *ret = malloc (sizeof (t5));
+  *ret = wordarray_create_u8 (*arg);
+  return ret;
+}
+
 t5 wordarray_create_u8(t4 a1)
 {
     t4 r2 = a1;
@@ -454,7 +464,7 @@ t5 wordarray_create_u8(t4 a1)
     
     return r3;
 }
-static inline __attribute__((pure)) t23 wordarray_get_bounded_0(t2 a1)
+__attribute__((pure)) t23 wordarray_get_bounded_0(t2 a1)
 {
     WordArray_u8 *r2 = a1.p1;
     u32 r3 = a1.p2;
@@ -598,6 +608,10 @@ u8 u64_to_u8(u64 x)
 u16 u64_to_u16(u64 x)
 {
     return (u16) x;
+}
+u8 ffi_wordarray_get_0(t2* arg)
+{
+  wordarray_get_0 (*arg);
 }
 u8 wordarray_get_0(t2 args)
 {

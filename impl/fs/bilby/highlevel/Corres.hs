@@ -14,3 +14,6 @@ corresM rrel ma c = anyM (`rrel` c) $ toList ma
 
 corres' :: (a -> c -> Bool) -> a -> c -> Bool
 corres' rrel a c = a `rrel` c
+
+corresM' :: (Monad m) => (a -> c -> m Bool) -> a -> c -> m Bool
+corresM' rrel a c = a `rrel` c

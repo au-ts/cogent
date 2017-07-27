@@ -6,7 +6,7 @@
 # we need to install `derive' and put it in $PATH
 PATH="`pwd`/../.cabal-sandbox/bin:$PATH"
 
-# make o-gen V=1
+make o-gen V=1
 
 hsc2hs FFI.hsc -I. -I./build
 
