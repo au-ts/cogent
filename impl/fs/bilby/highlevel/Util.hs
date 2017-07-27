@@ -39,7 +39,7 @@ pDummyCSysState = new dummyCSysState
 newtype Tag = Tag Int deriving (Enum)  -- hs type
 newtype Ctag_t = Ctag_t CInt deriving (Enum, Show, Storable)  -- c type equiv.
 
-newtype FuncEnum = FuncEnum Int deriving (Enum)
+newtype FuncEnum = FuncEnum Int deriving (Enum, Show)
 newtype Cuntyped_func_enum = Cuntyped_func_enum CInt deriving (Enum, Show, Storable)
 
 newtype Cunit_t = Cunit_t { dummy :: CInt } deriving (Show, Storable)

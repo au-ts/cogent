@@ -239,6 +239,7 @@ t7 wordarray_put_u8(t6);
 t15 wordarray_map_u8(t13);
 __attribute__((const)) t11 map_body_f(t8);
 __attribute__((const)) t17 modify_body_f(t16);
+t20 *ffi_wordarray_modify_u8(t19*);
 t20 wordarray_modify_u8(t19);
 u32 dispatch_t28(untyped_func_enum a2, WordArray_u8 *a3)
 {
@@ -557,6 +558,12 @@ __attribute__((const)) t17 modify_body_f(t16 a1)
     t17 r8 = r5;
     
     return r8;
+}
+t20 *ffi_wordarray_modify_u8(t19* arg)
+{
+  t20 *ret = malloc (sizeof (t20));
+  *ret = wordarray_modify_u8 (*arg);
+  return ret;
 }
 t20 wordarray_modify_u8(t19 a1)
 {
