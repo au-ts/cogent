@@ -53,6 +53,10 @@ data Ct4 = Ct4 { p1 :: Ptr CSysState, p2 :: Cu32 }
 
 data Ct5 = Ct5 { tag :: Ctag_t, error :: Ptr CSysState, success :: Ct3 }
 
+data Ct6 = Ct6 { arr :: Ptr (CWordArray Cu8), idx :: Cu32, val :: Cu8 }
+
+data Ct7 = Ct7 { tag :: Ctag_t, error :: Ptr (CWordArray Cu8), success :: Ptr (CWordArray Cu8) }
+
 type Ct18 = Cuntyped_func_enum
 
 data Ct19 = Ct19 { arr  :: Ptr (CWordArray Cu8)
@@ -121,6 +125,24 @@ instance Storable Ct5 where
     (#poke t5, tag    ) ptr f1
     (#poke t5, Error  ) ptr f2
     (#poke t5, Success) ptr f3
+
+instance Storable Ct6 where
+  sizeOf    _ = (#size t6)
+  alignment _ = (#alignment t6)
+  peek ptr = Ct6 <$> (#peek t6, arr) ptr <*> (#peek t6, idx) ptr <*> (#peek t6, val) ptr
+  poke ptr (Ct6 p1 p2 p3) = do
+    (#poke t6, arr) ptr p1
+    (#poke t6, idx) ptr p2
+    (#poke t6, val) ptr p3
+
+instance Storable Ct7 where
+  sizeOf    _ = (#size t7)
+  alignment _ = (#alignment t7)
+  peek ptr = Ct7 <$> (#peek t7, tag) ptr <*> (#peek t7, Error) ptr <*> (#peek t7, Success) ptr
+  poke ptr (Ct7 f1 f2 f3) = do
+    (#poke t7, tag    ) ptr f1
+    (#poke t7, Error  ) ptr f2
+    (#poke t7, Success) ptr f3
 
 instance Storable Ct19 where
   sizeOf    _ = (#size t19)
