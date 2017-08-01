@@ -199,6 +199,58 @@ hs_wordarray_modify xs i f acc obsv
 
 -- /////////////////////////////////////////////////////////////////////////////
 
+prop_wordarray_put_u8_corres = monadicIO $
+  forAllM gen_wordarray_put_u8_arg $ \arg -> run $ do
+    rc <- cogent_wordarray_put_u8 =<< toC_wordarray_put_u8_arg arg
+    let (arr,idx,val) = abs_wordarray_put_u8_arg arg
+    ra <- return $ hs_wordarray_put arr idx val
+    corresM' wordarray_put_u8_corres ra rc
+
+prop_wordarray_get_put = 
+  forAll (listOf (arbitrary :: Gen Word8)) $ \arr ->
+    forAll (elements [0 .. 2 * fromIntegral (length arr)]) $ \idx ->
+      forAll (arbitrary :: Gen Word8) $ \val ->
+        if idx < fromIntegral (length arr)
+           then let Right arr' = hs_wordarray_put arr idx val in hs_wordarray_get arr' idx === val
+           else Left arr === hs_wordarray_put arr idx val
+
+gen_wordarray_put_u8_arg :: Gen (R4 (WordArray Word8) Word32 Word8)
+gen_wordarray_put_u8_arg = do
+  arr <- listOf (arbitrary :: Gen Word8)
+  idx <- elements [0 .. 2 * fromIntegral (length arr)]
+  val <- arbitrary
+  return $ R4 arr idx val
+
+toC_wordarray_put_u8_arg :: R4 (WordArray Word8) Word32 Word8 -> IO Ct6
+toC_wordarray_put_u8_arg (R4 {..}) = do
+  p_arr <- new =<< toC_wordarray_u8 arr
+  c_idx <- return $ fromIntegral idx
+  c_val <- return $ fromIntegral val
+  return $ Ct6 p_arr c_idx c_val
+
+abs_wordarray_put_u8_arg :: R4 (WordArray Word8) Word32 Word8 -> (WordArray Word8, Word32, Word8)
+abs_wordarray_put_u8_arg (R4 {..}) = (arr, idx, val)
+
+wordarray_put_u8_corres :: (Either (WordArray Word8) (WordArray Word8)) -> Ct7 -> IO Bool
+wordarray_put_u8_corres (Left arr) (Ct7 tag error _) | fromEnum tag == fromEnum tagEnumError = 
+  wordarray_u8_corres arr =<< peek error
+wordarray_put_u8_corres (Right arr) (Ct7 tag _ success) | fromEnum tag == fromEnum tagEnumSuccess =
+  wordarray_u8_corres arr =<< peek success
+wordarray_put_u8_corres _ _ = return False
+
+foreign import ccall unsafe "ffi_wordarray_put_u8"
+  c_wordarray_put_u8 :: Ptr Ct6 -> IO (Ptr Ct7)
+
+cogent_wordarray_put_u8 :: Ct6 -> IO Ct7
+cogent_wordarray_put_u8 arg = peek =<< c_wordarray_put_u8 =<< new arg
+
+hs_wordarray_put :: WordArray a -> Word32 -> a -> Either (WordArray a) (WordArray a)
+hs_wordarray_put xs i _ | not (is_inbound xs i) = Left xs
+hs_wordarray_put xs i a = let (xs1,x:xs2) = splitAt (fromIntegral i) xs
+                           in Right (xs1 ++ a:xs2)
+
+-- /////////////////////////////////////////////////////////////////////////////
+
 hs_wordarray_free :: WordArray a -> ()
 hs_wordarray_free _ = ()
 
@@ -209,11 +261,6 @@ hs_wordarray_get_bounded xs i =
 
 is_inbound :: WordArray a -> Word32 -> Bool
 is_inbound xs i = i < (fromIntegral $ length xs)
-
-hs_wordarray_put :: WordArray a -> Word32 -> a -> Either (WordArray a) (WordArray a)
-hs_wordarray_put xs i _ | not (is_inbound xs i) = Left xs
-hs_wordarray_put xs i a = let (xs1,x:xs2) = splitAt (fromIntegral i) xs
-                           in Right (xs1 ++ a:xs2)
 
 hs_wordarray_put2 :: WordArray a -> Word32 -> a -> WordArray a
 hs_wordarray_put2 = ((fromEither .) .) . hs_wordarray_put
