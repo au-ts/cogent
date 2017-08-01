@@ -214,6 +214,22 @@ prop_wordarray_get_put =
            then let Right arr' = hs_wordarray_put arr idx val in hs_wordarray_get arr' idx === val
            else Left arr === hs_wordarray_put arr idx val
 
+-- This is useless, but looks really weird
+prop_wordarray_get_put_c = monadicIO $
+  forAllM (listOf (arbitrary :: Gen Word8)) $ \arr ->
+    forAllM (elements [0 .. 2 * fromIntegral (length arr)]) $ \idx ->
+      forAllM (arbitrary :: Gen Word8) $ \val -> run $ do
+        p_arr <- new =<< toC_wordarray_u8 arr
+        c_idx <- return $ fromIntegral idx
+        c_val <- return $ fromIntegral val
+        Ct7 tag error success <- cogent_wordarray_put_u8 (Ct6 p_arr c_idx c_val)
+        let p_arr' = if fromEnum tag == fromEnum tagEnumError
+                       then error else success
+        ret <- cogent_wordarray_get_u8 (Ct2 p_arr' idx)
+        if idx < fromIntegral (length arr)
+           then return $ ret === c_val
+           else return $ p_arr' === p_arr
+
 gen_wordarray_put_u8_arg :: Gen (R4 (WordArray Word8) Word32 Word8)
 gen_wordarray_put_u8_arg = do
   arr <- listOf (arbitrary :: Gen Word8)
