@@ -235,6 +235,7 @@ t5 *ffi_wordarray_create_u8(t4*);
 t5 wordarray_create_u8(t4);
 __attribute__((pure)) t23 wordarray_get_bounded_0(t2);
 __attribute__((pure)) t23 wordarray_get_bounded_u8(t2);
+t7 *ffi_wordarray_put_u8(t6*);
 t7 wordarray_put_u8(t6);
 t15 wordarray_map_u8(t13);
 __attribute__((const)) t11 map_body_f(t8);
@@ -497,6 +498,13 @@ __attribute__((pure)) t23 wordarray_get_bounded_u8(t2 a1)
     
     return r3;
 }
+t7 *ffi_wordarray_put_u8(t6* a1)
+{
+  t7 *ret = malloc (sizeof (t7));
+  *ret = wordarray_put_u8 (*a1);
+  return ret;
+}
+
 t7 wordarray_put_u8(t6 a1)
 {
     t6 r2 = a1;

@@ -434,7 +434,7 @@ data R2 t1 t2 t3 t4 t5 t6 = R2{arr :: t1, frm :: t2, to :: t3, f :: t4, acc :: t
 
 data R3 t1 t2 t3 t4 t5 = R3{arr :: t1, idx :: t2, f :: t3, acc :: t4, obsv :: t5} deriving (Show)
 
-data R4 t1 t2 t3 = R4{arr :: t1, idx :: t2, val :: t3}
+data R4 t1 t2 t3 = R4{arr :: t1, idx :: t2, val :: t3} deriving (Show)
 
 data R5 t1 t2 = R5{arr :: t1, rbrk :: t2}
 
