@@ -140,6 +140,17 @@ gen_MountState = arbitrary
 gen_FsmState :: Gen FsmState
 gen_FsmState = arbitrary
 
+-- the following two functions are for performance testing
+prop_hs_fsm_init = monadicIO $ forAllM gen_MountState $ \mount_st ->
+                               forAllM gen_FsmState   $ \fsm_st   -> run $ do
+                                 ra <- return $ hs_fsm_init_nd mount_st fsm_st
+                                 return $ ra `seq` True
+
+prop_cogent_fsm_init = monadicIO $ forAllM gen_MountState $ \mount_st ->
+                                   forAllM gen_FsmState   $ \fsm_st   -> run $ do
+                                     (rc,_) <- cogent_fsm_init mount_st fsm_st
+                                     release_fsm_init rc
+                                     return True
 
 {- This is an instance of the core corres theorem -}
 prop_fsm_init_corres = monadicIO $ forAllM gen_MountState $ \mount_st ->
