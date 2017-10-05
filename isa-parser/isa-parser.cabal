@@ -8,12 +8,12 @@ version:             0.1.0.0
 -- license:             
 -- license-file:        LICENSE
 author:              Sean Seefried
-maintainer:          Zilin.Chen@nicta.com.au
+maintainer:          Zilin.Chen@data61.csiro.au
 -- copyright:           
 category:            Language
 build-type:          Simple
 -- extra-source-files:  
-cabal-version:       >=1.18
+cabal-version:       >=1.24
 
 -- executable isa-parser
 
@@ -34,9 +34,9 @@ library
 
   build-depends:       
     ansi-wl-pprint >= 0.6,
-    base >= 4.7 && < 4.10,
+    base >= 4.7,
     haskell-src-meta >= 0.6,
-    mtl >= 2.2.1 && < 2.3,
+    mtl >= 2.2.1,
     parsec >= 3.1,
     syb >= 0.4,
     template-haskell >= 2.9

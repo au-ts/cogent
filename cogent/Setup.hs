@@ -16,7 +16,11 @@ import Control.Applicative ((<$>))
 import Control.Exception (SomeException, catch)
 
 import Distribution.Simple
+#if MIN_VERSION_Cabal (2,0,0)
+import Distribution.Simple.BuildPaths (autogenModulesDir, autogenPackageModulesDir)
+#else
 import Distribution.Simple.BuildPaths (autogenModulesDir)
+#endif
 import Distribution.Simple.LocalBuildInfo as L
 import qualified Distribution.Simple.Setup as S
 import Distribution.Simple.Utils (createDirectoryIfMissingVerbose, rewriteFile, installOrdinaryFiles, installDirectoryContents)
@@ -26,14 +30,17 @@ import Distribution.PackageDescription
 import System.Directory(removeFile)
 import System.FilePath ((</>))
 import qualified System.FilePath.Posix as Px
-import System.Process
+import System.Process (readProcess)
 
 -- Flags
 isRelease :: S.ConfigFlags -> Bool
 isRelease flags =
+#if MIN_VERSION_Cabal (2,0,0)
+  case lookup (mkFlagName "release") (S.configConfigurationsFlags flags) of
+#else
   case lookup (FlagName "release") (S.configConfigurationsFlags flags) of
-    Just True -> True
-    Just False -> False
+#endif
+    Just x  -> x
     Nothing -> False
 
 -- Git Hash
@@ -59,7 +66,11 @@ generateVersionModule verbosity dir release = do
 
 -- Configure
 cogentConfigure _ flags _ local = do
+#if MIN_VERSION_Cabal (2,0,0)
+  generateVersionModule verbosity (autogenPackageModulesDir local) (isRelease (configFlags local))
+#else
   generateVersionModule verbosity (autogenModulesDir local) (isRelease (configFlags local))
+#endif
   where
     verbosity = S.fromFlag $ S.configVerbosity flags
     version = pkgVersion .package $ localPkgDescr local

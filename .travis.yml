@@ -27,20 +27,17 @@ env:
 
 matrix:
   include:
-    - env: CABALVER=1.22 GHCVER=7.10.3
-      compiler: ": #GHC 7.10.3"
-      addons: {apt: {packages: [cabal-install-1.22,ghc-7.10.3,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
     - env: CABALVER=1.24 GHCVER=8.0.1
       compiler: ": #GHC 8.0.1"
       addons: {apt: {packages: [cabal-install-1.24,ghc-8.0.1,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
     - env: CABALVER=1.24 GHCVER=8.0.2
       compiler: ": #GHC 8.0.2"
       addons: {apt: {packages: [cabal-install-1.24,ghc-8.0.2,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
-    - env: CABALVER=1.24 GHCVER=8.2.1
+    - env: CABALVER=2.0 GHCVER=8.2.1
       compiler: ": #GHC 8.2.1"
-      addons: {apt: {packages: [cabal-install-1.24,ghc-8.2.1,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
-  allow_failures:
-    - env: CABALVER=1.24 GHCVER=8.2.1  # still release-rc right now
+      addons: {apt: {packages: [cabal-install-2.0,ghc-8.2.1,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
+  # allow_failures:
+  #   - env: CABALVER=1.24 GHCVER=8.2.1
   fast_finish: true
 
 before_install:
@@ -65,7 +62,7 @@ install:
  - "sed -i 's/^jobs:.*$/jobs: 2/' $HOME/.cabal/config"
  # - sed -i 's/^jobs:/ jobs:/' ${HOME}/.cabal/config
  - |
-   if cabal install --only-dependencies --enable-tests --dry -v > installplan.txt;
+   if cabal install --only-dependencies --force-reinstalls --enable-tests --dry -v > installplan.txt;
    then
      sed -i -e '1,/^Resolving /d' installplan.txt;
      echo "==== Succeeded to generate an install plan. ====";
@@ -77,7 +74,7 @@ install:
 
 # check whether current requested install-plan matches cached package-db snapshot
  - |
-   if diff -u $HOME/.cabsnap/installplan.txt installplan.txt;
+   if [ -e $HOME/.cabsnap/installplan.txt ] && [ diff -u $HOME/.cabsnap/installplan.txt installplan.txt ];
    then
      echo "==== cabal build-cache HIT ====";  # so copy cached sandbox (and maybe the config file)
      rm -rf $SANDBOX
@@ -86,7 +83,7 @@ install:
      echo "==== cabal build-cache MISS ====";
      rm -rf $HOME/.cabsnap;
      # mkdir -p $HOME/.ghc $HOME/.cabal/lib $HOME/.cabal/share $HOME/.cabal/bin;
-     cabal install --only-dependencies;  # --enable-tests;
+     cabal install --only-dependencies --force-reinstalls;  # --enable-tests;
    fi
 
 # snapshot package-db on cache miss
@@ -106,7 +103,7 @@ script:
  # - echo 'Configuring Cogent'
  - cabal configure # --enable-tests  # or -v2 to provide useful information for debugging
  # - echo 'Installing Cogent'
- - cabal install # --enable-tests
+ - cabal install --force-reinstalls # --enable-tests
  # - cabal build   # this builds all libraries and executables (including tests/benchmarks)
  # - cabal test  # this rarely changes, so disabled for now to save some time / zilinc
  # - cabal check
