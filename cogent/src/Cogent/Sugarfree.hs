@@ -368,7 +368,7 @@ useVariable v = TC $ do ret <- (`at` v) <$> get
                           Nothing -> return ret
                           Just t  -> do
                             ok <- canShare <$> (unTC (kindcheck t))
-                            when (not ok) $ modify (\s -> update s v Nothing)
+                            unless (ok || __cogent_fno_linear) $ modify (\s -> update s v Nothing)
                             return ret
 
 funType :: FunName -> TC t v (Maybe FunctionType)
@@ -426,8 +426,9 @@ withBinding t a
               Right (Cons Nothing s,r)   -> do put s; return r
               Right (Cons (Just t) s, r) -> do
                 ok <- canDiscard <$> unTC (kindcheck t)
-                if ok then do put s; return r
-                      else do throwError "Didn't use linear variable"
+                unless (ok || __cogent_fno_linear) $ throwError "Didn't use linear variable"
+                put s
+                return r
 
 withBindings :: Vec k (Type t) -> TC t (v :+: k) x -> TC t v x
 withBindings Nil tc = tc
@@ -469,12 +470,13 @@ typecheck (E (Fun f ts note))
    | ExI (Flip ts') <- Vec.fromList ts
    = do Just (FT ks ti to) <- funType f
         case Vec.length ts' =? Vec.length ks
-          of Just Refl -> let ti' = substitute ts' ti
-                              to' = substitute ts' to
-                           in do forM_ (Vec.zip ts' ks) $ \(t, k) -> do
-                                   k' <- kindcheck t
-                                   when ((k <> k') /= k) $ fail "kind not matched in type instantiation"
-                                 return $ TE (TFun ti' to') (Fun f ts note)
+          of Just Refl ->
+               let ti' = substitute ts' ti
+                   to' = substitute ts' to
+                in do forM_ (Vec.zip ts' ks) $ \(t, k) -> do
+                        k' <- kindcheck t
+                        when ((k <> k') /= k && not __cogent_fno_linear) $ fail "kind not matched in type instantiation"
+                      return $ TE (TFun ti' to') (Fun f ts note)
              Nothing -> fail "lengths don't match"
 typecheck (E (App e1 e2))
    = do e1'@(TE (TFun ti to) _) <- typecheck e1
@@ -488,7 +490,7 @@ typecheck (E (Let a e1 e2))
 typecheck (E (LetBang vs a e1 e2))
    = do e1' <- withBang (map fst vs) (typecheck e1)
         k <- kindcheck (exprType e1')
-        guardShow "let!" $ canEscape k
+        guardShow "let!" $ canEscape k && not __cogent_fno_linear
         e2' <- withBinding (exprType e1') (typecheck e2)
         return $ TE (exprType e2') (LetBang vs a e1' e2')
 typecheck (E Unit) = return $ TE TUnit Unit
@@ -526,10 +528,10 @@ typecheck (E (Split a e1 e2))
         return $ TE (exprType e2') (Split a e1' e2')
 typecheck (E (Member e f))
    = do e'@(TE t@(TRecord ts s) _) <- typecheck e  -- canShare
-        guardShow "member-1" . canShare =<< kindcheck t
+        guardShow "member-1" . (&& not __cogent_fno_linear) . canShare =<< kindcheck t
         guardShow "member-2" $ f < length ts
         let (_,(tau,c)) = ts !! f
-        guardShow "member-3" $ not c  -- not taken
+        guardShow "member-3" $ not c && not __cogent_fno_linear  -- not taken
         return $ TE tau (Member e' f)
 typecheck (E (Struct fs))
    = do let (ns,es) = unzip fs
@@ -542,14 +544,16 @@ typecheck (E (Take a e f e2))
         guardShow "take-2" $ f < length ts
         let (init, (fn,(tau,False)):rest) = splitAt f ts
         k <- kindcheck tau
-        e2' <- withBindings (Cons tau (Cons (TRecord (init ++ (fn,(tau,True )):rest) s) Nil)) (typecheck e2)  -- take that field regardless of its shareability
+        e2' <- withBindings (Cons tau (Cons (TRecord (init ++ (fn,(tau,True)):rest) s) Nil)) (typecheck e2)
+          -- ^ take that field regardless of its shareability
         return $ TE (exprType e2') (Take a e' f e2')
 typecheck (E (Put e1 f e2))
    = do e1'@(TE (TRecord ts s) _) <- typecheck e1
         guardShow "put-1" $ f < length ts
         let (init, (fn,(tau,taken)):rest) = splitAt f ts
         k <- kindcheck tau
-        when (not taken) $ guardShow "put-2" $ canDiscard k  -- if it's not taken, then it has to be discardable; if taken, then just put
+        when (not taken) $ guardShow "put-2" $ canDiscard k && not __cogent_fno_linear
+          -- ^ if it's not taken, then it has to be discardable; if taken, then just put
         e2' <- typecheck e2
         guardShow "put-3" $ exprType e2' == tau
         return $ TE (TRecord (init ++ (fn,(tau,False)):rest) s) (Put e1' f e2')  -- put it regardless

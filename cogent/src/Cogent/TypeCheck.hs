@@ -348,7 +348,7 @@ canPutField r@(RT (TRecord rs s)) f
       = if taken && not __cogent_fno_linear
           then return tau
           else do b <- canDiscard <$> kindcheck tau
-                  if b then return tau else typeError (RecordFieldUntaken r f)
+                  if b || __cogent_fno_linear then return tau else typeError (RecordFieldUntaken r f)
   | otherwise = typeError (RecordTypeMissingField r f)
 canPutField r _ = typeError (NotARecord r)
 
@@ -491,8 +491,8 @@ typeDNF t = typeWHNF t >>= \case
 isSubtype :: Bool -> RawType -> RawType -> TC Bool
 isSubtype proper a' b' = (,) <$> fmap unwrap  (typeDNF a') <*> fmap unwrap (typeDNF b') >>= \case
   (a,b) | a == b -> if proper then return False else return True
-  (TCon a [] s1,TCon b [] s2) | s1 == s2 -> return $ a <: b   -- int subtyping
-  p@(TVariant as, TVariant bs)                                -- variant subtyping
+  (TCon a [] s1,TCon b [] s2) | s1 == s2 || __cogent_fno_linear -> return $ a <: b  -- int subtyping
+  p@(TVariant as, TVariant bs)  -- variant subtyping
     | all (`elem` M.keys bs) (M.keys as) -> do  -- all as'es keys are in bs
       bools <- forM (M.keys as) $ \a -> let Just ta = M.lookup a as
                                             Just tb = M.lookup a bs
@@ -501,8 +501,9 @@ isSubtype proper a' b' = (,) <$> fmap unwrap  (typeDNF a') <*> fmap unwrap (type
     | otherwise -> return False
   (TTuple as, TTuple bs) | length as == length bs -> and <$> zipWithM (isSubtype False) as bs  -- tuple subtyping.
   -- NOTE: we now allow the same in unboxed records / zilinc
-  (TRecord fs1 Unboxed, TRecord fs2 Unboxed)
-    | length fs1 == length fs2
+  (TRecord fs1 s1, TRecord fs2 s2)
+    | (s1 == Unboxed && s2 == Unboxed) || __cogent_fno_linear
+    , length fs1 == length fs2
     , fs1' <- M.fromList fs1, fs2' <- M.fromList fs2
     , and $ zipWith ((==) `on` fst) fs1 fs2 -> do
     bools <- forM (M.keys fs1') $ \f -> let Just (ta,_) = M.lookup f fs1'
@@ -666,7 +667,8 @@ matchIrrefPattern (PUnboxedRecord (map fromJust -> ips)) rt@(RT (TRecord ts Unbo
         ip' <- matchIrrefPattern ip =<< typeWHNF tau
         return $ Just (f,ip'))
 matchIrrefPattern (PTake rv []) rt = matchIrrefPattern (PVar rv) rt
-matchIrrefPattern p@(PTake rv ips) rt@(RT (TRecord ts s)) | Nothing <- last ips , s /= ReadOnly = do
+matchIrrefPattern p@(PTake rv ips) rt@(RT (TRecord ts s))
+  | Nothing <- last ips , s /= ReadOnly || __cogent_fno_linear = do
       let ipsInit = init ips
           -- get the ones that are not taken and also not explicitly mentioned
           ts' = filter ((`notElem` (map (fst . fromJust) ipsInit)) . fst) $ filter (not . snd . snd) ts
@@ -674,13 +676,14 @@ matchIrrefPattern p@(PTake rv ips) rt@(RT (TRecord ts s)) | Nothing <- last ips 
                               Just _ -> warning (VariableAlreadyInScope f p)
                               Nothing -> return ()
       matchIrrefPattern (PTake rv $ ipsInit ++ map (Just . (id &&& PVar) . fst) ts') rt
-matchIrrefPattern (PTake rv (map fromJust -> ips)) rt@(RT (TRecord ts s)) | s /= ReadOnly = do
-  (ips', rt') <- flip runStateT rt $ forM ips $ \(f,ip) -> do
-    tau <- lift . (`canTakeField` f) =<< get
-    ip' <- lift (matchIrrefPattern ip =<< typeWHNF tau)
-    get >>= lift . typeWHNF . RT . TTake (Just [f]) >>= put
-    return $ Just (f,ip')
-  return (PTake (rv,rt') ips')
+matchIrrefPattern (PTake rv (map fromJust -> ips)) rt@(RT (TRecord ts s))
+  | s /= ReadOnly || __cogent_fno_linear = do
+      (ips', rt') <- flip runStateT rt $ forM ips $ \(f,ip) -> do
+        tau <- lift . (`canTakeField` f) =<< get
+        ip' <- lift (matchIrrefPattern ip =<< typeWHNF tau)
+        get >>= lift . typeWHNF . RT . TTake (Just [f]) >>= put
+        return $ Just (f,ip')
+      return (PTake (rv,rt') ips')
 matchIrrefPattern x y = typeError (IrrefPatternDoesNotMatchType x y)
 
 withIrrefPattern :: IrrefutablePattern VarName -> RawType -> TC a
@@ -982,7 +985,7 @@ typecheck' (ConstDef n t e) = do
   t' <- validateType t
   e' <- check e t'
   x <- canShare <$> kindcheck t'
-  when (not x) $ typeError (ConstantMustBeShareable n t')
+  unless (x || __cogent_fno_linear) $ typeError (ConstantMustBeShareable n t')
   context <>= ([(n,Right t')])
   return (ConstDef n t' e')
 

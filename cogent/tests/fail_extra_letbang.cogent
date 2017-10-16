@@ -11,16 +11,16 @@
 type A
 type B
 
-freeA : (A!) -> < Success () >
+freeA : A! -> < Success () >
 
-freeB : (B!) -> < Success () >
+freeB : B! -> < Success () >
 
-freeX : (({ a : A, b : B } take (a, b))!) -> < Success () >
+freeX : ({ a : A, b : B } take (a, b))! -> < Success () >
 
-aaa : (({ a : A, b : B } take ())!) -> < Fail (U32) | Success (U8) >
-aaa (x) =
+aaa : { a : A, b : B }! -> < Fail U32 | Success U8 >
+aaa x =
    let x' { a = va, b = vb } = x
-   in let () = freeA (va)
-      in let () = freeB (vb)
-         in let () = freeX (x')
-            in Success (0)
+   and _ = freeA va
+   and _ = freeB vb
+   and _ = freeX x'
+    in Success 0
