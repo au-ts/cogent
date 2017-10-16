@@ -176,11 +176,9 @@ newtype TC a = TC { runTC :: ExceptT (TypeError, [ErrorContext])
                       , MonadWriter WarningErrorLog
                       )
 
--- FIXME: Is it correct? / zilinc
---
---   a ---Ok----> c a' -------> b a'  .---> result
---   |                     '----------'
---   `---Fail---> error
+-- TC a      : computation to run first / acquire resource
+-- a -> TC b : computation to run last  / release resource
+-- a -> TC c : computation to run in-between / do the work
 bracketTE :: TC a -> (a -> TC b) -> (a -> TC c) -> TC c
 bracketTE a b c = do a' <- a
                      catchError (Left <$> c a') (return . Right) >>= \case
@@ -202,9 +200,8 @@ useVar p v = lookup v <$> use context >>= \case
    Nothing -> typeError (NotInScope v)
    Just (Left l) -> typeError (VariableAlreadyUsed l v)
    Just (Right tau) -> canShare <$> kindcheck tau >>= \case
-     True -> return tau
-     False -> context %= updateAssoc v (Left p)
-           >> return tau
+     False | not __cogent_fno_linear -> context %= updateAssoc v (Left p) >> return tau
+     _ -> return tau
 
 inEContext :: ErrorContext -> TC a -> TC a
 inEContext c a = bracketTE (errorContext %= (c:)) (const $ errorContext %= tail) (const a)
@@ -226,12 +223,13 @@ withBinds :: [(VarName, RawType)] -> TC a -> TC a
 withBinds bs a = bracketTE (context %= (map (fmap Right) bs ++))
                            (const $ let nbs = length bs
                              in do drops <- take nbs <$> (context <<%= drop nbs)
+                                     -- (<<%=_ modifies the state and returns the *old* value
                                    mapM_ checkOK drops)
                            (const a)
   where checkOK :: (VarName, Either SourcePos RawType) -> TC ()
         checkOK (x, Right t) = canDiscard <$> kindcheck t >>= \case
-                                 True -> return ()
-                                 False -> typeError (LinearVariableNotDisposedOf x t)
+                                 False | not __cogent_fno_linear -> typeError (LinearVariableNotDisposedOf x t)
+                                 _ -> return ()
         checkOK (x, Left _ ) = return ()
 
 ensureUsed :: [VarName] -> TC ()
@@ -257,11 +255,11 @@ letBang' x a = do
                                       (const $ context %= updateAssoc x (Right t))
                                       (const a)
   k <- kindcheck (typeOfTE te)
-  when (not $ canEscape k) $ typeError (BindingCannotEscapeLetBang x te)
+  unless (canEscape k || __cogent_fno_linear) $ typeError (BindingCannotEscapeLetBang x te)
   return te
 
--- First use typeWHNF to check for well-formedness, then this function returns
--- the kind of the input type
+-- First use typeWHNF to check for well-formedness (the exception is TVar),
+-- then this function returns the kind of the input type
 kindcheck :: RawType -> TC Kind
 kindcheck tau = typeWHNF tau >>= \case
   (RT (TCon cn ts s)) -> mapM kindcheck ts >> return (sigilKind s)
@@ -327,8 +325,9 @@ typeWHNF (RT (TPut (Just fs) t)) = typeWHNF t >>= \case
 -- Returns the type of the field to be taken
 canTakeField :: RawType -> FieldName -> TC RawType
 canTakeField r@(RT (TRecord rs s)) f
-  | Just (tau,taken) <- lookup f rs = if taken then typeError (RecordFieldTaken r f)
-                                               else return tau
+  | Just (tau,taken) <- lookup f rs = if taken && not __cogent_fno_linear
+                                        then typeError (RecordFieldTaken r f)
+                                        else return tau
   | otherwise               = typeError (RecordTypeMissingField r f)
 canTakeField r _ = typeError (NotARecord r)
 
@@ -346,9 +345,10 @@ canTakeFields _ _ = __impossible "canTakeFields"
 canPutField :: RawType -> FieldName -> TC RawType
 canPutField r@(RT (TRecord rs s)) f
   | Just (tau,taken) <- lookup f rs
-      = if taken then return tau
-                 else do b <- canDiscard <$> kindcheck tau
-                         if b then return tau else typeError (RecordFieldUntaken r f)
+      = if taken && not __cogent_fno_linear
+          then return tau
+          else do b <- canDiscard <$> kindcheck tau
+                  if b then return tau else typeError (RecordFieldUntaken r f)
   | otherwise = typeError (RecordTypeMissingField r f)
 canPutField r _ = typeError (NotARecord r)
 
@@ -646,8 +646,8 @@ matchIrrefPattern (PTuple ps) (RT (TTuple ts)) | length ps == length ts =  -- | 
 --           PTuple ps' -> pTupleWHNF' $ PTuple $ reverse ps ++ ps'; _ -> x
 --         pTupleWHNF' _ = __impossible "pTupleWHNF' (in matchIrrefPattern)"
 matchIrrefPattern (PUnderscore) tau = canDiscard <$> kindcheck tau >>= \case
-                                        True -> return PUnderscore
-                                        False -> typeError (CannotDiscardValue tau)
+                                        False | not __cogent_fno_linear -> typeError (CannotDiscardValue tau)
+                                        _ -> return PUnderscore
 matchIrrefPattern PUnitel (RT TUnit) = return PUnitel
 matchIrrefPattern (PUnboxedRecord []) _ = __impossible "matchIrrefPattern"
 matchIrrefPattern p@(PUnboxedRecord ips) rt@(RT (TRecord ts Unboxed)) | Nothing <- last ips = do
@@ -748,30 +748,35 @@ infer' p (TypeApp fn ts note) = resolveName p fn >>= \case
   Function q -> do ts' <- mapM validateType ts
                    tau <- applyTypes q ts'
                    return $ TE tau (TypeApp fn ts' note)
-infer' _ (Con name es) = do es' <- mapM infer es
-                            return $ TE (RT $ TVariant $ M.fromList [(name, map typeOfTE es')]) (Con name es')
-infer' p' (App (LocExpr p (Var vn@('_':_))) e2) | not __cogent_debug = infer' p' $ App (LocExpr p $ TypeApp vn [] NoInline) e2
+infer' _ (Con name es) = do
+  es' <- mapM infer es
+  return $ TE (RT $ TVariant $ M.fromList [(name, map typeOfTE es')]) (Con name es')
+infer' p' (App (LocExpr p (Var vn@('_':_))) e2) | not __cogent_debug =
+  infer' p' $ App (LocExpr p $ TypeApp vn [] NoInline) e2
 infer' _ (App (LocExpr p (TypeApp fn@('_':_) ts note)) e2) | not __cogent_debug = resolveName p fn >>= \case
   Value x -> typeError (NotAPolymorphicFunction fn x)
-  Function q -> do ts' <- mapM validateType ts
-                   tau <- applyTypes q ts'
-                   RT (TFun t1 t2) <- typeDNF tau
-                   -- CASE: tests/fail_ticket-93.cogent
-                   canDiscard <$> kindcheck t1 >>= flip unless (typeError $ DebugFunctionCannotTakeLinear fn t1)
-                   when (t2 /= RT TUnit) $ typeError (DebugFunctionReturnNoUnit fn)
-                   e1' <- return $ TE tau (TypeApp fn ts' note)
-                   return . TE t2 . App e1' =<< check e2 t1
-infer' _ (App e1 e2) = do e1' <- infer e1
-                          tau <- typeWHNF $ typeOfTE e1'
-                          case tau of
-                             RT (TFun t1 t2) -> return . TE t2 . App e1' =<< check e2 t1
-                             _ -> typeError $ ValueNotAFunction e1' e2
-infer' _ (If c vs t e) = do c' <- letBang vs $ check c (RT $ TCon "Bool" [] Unboxed)
-                            (t', e') <- parallel' (infer t) (infer e)
-                            tau <- typeOfTE t' `lub` typeOfTE e'
-                            t'' <- promote tau t'
-                            e'' <- promote tau e'
-                            return (TE tau $ If c' vs t'' e'')
+  Function q -> do
+    ts' <- mapM validateType ts
+    tau <- applyTypes q ts'
+    RT (TFun t1 t2) <- typeDNF tau
+    -- CASE: tests/fail_ticket-93.cogent
+    canDiscard <$> kindcheck t1 >>= flip unless (typeError $ DebugFunctionCannotTakeLinear fn t1)
+    when (t2 /= RT TUnit) $ typeError (DebugFunctionReturnNoUnit fn)
+    e1' <- return $ TE tau (TypeApp fn ts' note)
+    return . TE t2 . App e1' =<< check e2 t1
+infer' _ (App e1 e2) = do
+  e1' <- infer e1
+  tau <- typeWHNF $ typeOfTE e1'
+  case tau of
+    RT (TFun t1 t2) -> return . TE t2 . App e1' =<< check e2 t1
+    _ -> typeError $ ValueNotAFunction e1' e2
+infer' _ (If c vs t e) = do
+  c' <- letBang vs $ check c (RT $ TCon "Bool" [] Unboxed)
+  (t', e') <- parallel' (infer t) (infer e)
+  tau <- typeOfTE t' `lub` typeOfTE e'
+  t'' <- promote tau t'
+  e'' <- promote tau e'
+  return (TE tau $ If c' vs t'' e'')
 infer' _ (Unitel) = return (TE (RT $ TUnit) Unitel)
 infer' _ (IntLit i) = return (TE (RT $ TCon minimumBitwidth [] Unboxed) $ IntLit i)
   where minimumBitwidth | i < 256        = "U8"
@@ -795,34 +800,39 @@ infer' l (Tuple (e1:es@(_:_:_))) | not __cogent_ftuples_as_sugar = do
 infer' l (Tuple es) = do  -- | __cogent_ftuples_as_sugar
   es' <- mapM infer es
   return $ TE (RT $ TTuple $ map typeOfTE es') $ Tuple es'
-infer' l e@(UnboxedRecord fs) = do ns <- go $ map fst fs
-                                   ts <- mapM (infer . snd) fs
-                                   return . TE (RT $ TRecord (zip ns $ zip (map typeOfTE ts) (repeat False)) Unboxed) $
-                                     UnboxedRecord $ zip ns ts
+infer' l e@(UnboxedRecord fs) = do
+  ns <- go $ map fst fs
+  ts <- mapM (infer . snd) fs
+  return . TE (RT $ TRecord (zip ns $ zip (map typeOfTE ts) (repeat False)) Unboxed) $
+    UnboxedRecord $ zip ns ts
   where go :: [FieldName] -> TC [FieldName]
         go [] = return []
         go (x:xs) = if x `elem` xs then typeError (DuplicateField (stripLocE $ LocExpr l e) x)
                                    else (x:) <$> go xs
-infer' _ (Seq e1 e2) = do e1' <- infer e1
-                          canDiscard <$> kindcheck (typeOfTE e1')
-                            >>= flip unless (typeError $ CannotDiscardValue $ typeOfTE e1')
-                          e2' <- infer e2
-                          return $ TE (typeOfTE e2') (Seq e1' e2')
-infer' _ (Match e vs alts) = do e' <- letBang vs (infer e)
-                                (tau, alts') <- inferAlts 1 (typeOfTE e') alts
-                                ensureUsed vs
-                                return $ TE tau (Match e' vs alts')
-infer' _ (Let bs e) = do (bs', e') <- tcBindings bs (infer e)
-                         return $ TE (typeOfTE e') (Let bs' e')
-infer' _ (Member e f) = do e' <- infer e
-                           typeWHNF (typeOfTE e') >>= \case
-                             tau@(RT (TRecord fs s)) -> do
-                               canShare <$> kindcheck tau >>= \case
-                                 True -> do
-                                   ft <- tau `canTakeField` f  -- checks if f exists as a field
-                                   return $ TE ft $ Member e' f
-                                 False -> typeError (NotAShareableRecord tau)  -- not shareable
-                             tau -> typeError (NotAShareableRecord tau)  -- not a record
+infer' _ (Seq e1 e2) = do
+  e1' <- infer e1
+  (__cogent_fno_linear ||) <$> (canDiscard <$> kindcheck (typeOfTE e1'))
+    >>= flip unless (typeError $ CannotDiscardValue $ typeOfTE e1')
+  e2' <- infer e2
+  return $ TE (typeOfTE e2') (Seq e1' e2')
+infer' _ (Match e vs alts) = do
+  e' <- letBang vs (infer e)
+  (tau, alts') <- inferAlts 1 (typeOfTE e') alts
+  ensureUsed vs
+  return $ TE tau (Match e' vs alts')
+infer' _ (Let bs e) = do
+  (bs', e') <- tcBindings bs (infer e)
+  return $ TE (typeOfTE e') (Let bs' e')
+infer' _ (Member e f) = do
+  e' <- infer e
+  typeWHNF (typeOfTE e') >>= \case
+    tau@(RT (TRecord fs s)) -> do
+      canShare <$> kindcheck tau >>= \case
+        False | not __cogent_fno_linear -> typeError (NotAShareableRecord tau)  -- not shareable
+        _ -> do
+          ft <- tau `canTakeField` f  -- checks if f exists as a field
+          return $ TE ft $ Member e' f
+    tau -> typeError (NotAShareableRecord tau)  -- not a record
 infer' _ (Put e []) = __impossible "infer'"
 infer' p (Put e as) | Nothing <- last as = do
   e' <- infer e
@@ -839,7 +849,7 @@ infer' p (Put e as) | Nothing <- last as = do
       (as',st) <- flip runStateT canput $ forM as_ $ \(f,x) -> do
         tau <- lift $ et `canPutField` f
         ch <- elem f <$> get
-        unless ch $ lift $ typeError (FieldNotTaken f et)
+        unless (ch || __cogent_fno_linear) $ lift $ typeError (FieldNotTaken f et)
         modify (delete f)
         x' <- lift $ check x tau
         return $ Just (f,x')
@@ -857,7 +867,7 @@ infer' _ (Put e (map fromJust -> as)) = do
       (as',st) <- flip runStateT canput $ forM as $ \(f,x) -> do
         tau <- lift $ et `canPutField` f
         ch <- elem f <$> get
-        unless ch $ lift $ typeError (FieldNotTaken f et)
+        unless (ch || __cogent_fno_linear) $ lift $ typeError (FieldNotTaken f et)
         modify (delete f)
         x' <- lift $ check x tau
         return $ Just (f,x')

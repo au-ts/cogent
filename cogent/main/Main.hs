@@ -430,6 +430,7 @@ flags =
   , Option []         ["fno-let-in-if"]          1 (NoArg set_flag_fnoLetInIf)             "reverse of --flet-in-if"
   , Option []         ["fno-letbang-in-if"]      1 (NoArg set_flag_fnoLetbangInIf)         "reverse of --fletbang-in-if"
   , Option []         ["fno-ml-typing-tree"]     2 (NoArg set_flag_fnoMlTypingTree)        "reverse of --fml-typing-tree"
+  , Option []         ["fno-linear"]             1 (NoArg set_flag_fnoLinear)              "use non-linear version of Cogent (highly experimental)"
   , Option []         ["fno-normalisation"]      1 (NoArg set_flag_fnoNormalisation)       "reverse of --fnormalisation"
   , Option []         ["fno-pragmas"]            1 (NoArg set_flag_fnoPragmas)             "reverse of --fpragmas"
   , Option []         ["fno-pretty-errmsgs"]     3 (NoArg set_flag_fnoPrettyErrmsgs)       "reverse of --fpretty-errmsgs"

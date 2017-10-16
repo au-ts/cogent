@@ -101,6 +101,7 @@ set_flag_fnoGenHeader = writeIORef __cogent_fgen_header_ref False
 set_flag_fnoIntermediateVars = writeIORef __cogent_fintermediate_vars_ref False
 set_flag_fnoLetInIf = writeIORef __cogent_flet_in_if_ref False
 set_flag_fnoLetbangInIf = writeIORef __cogent_fletbang_in_if_ref False
+set_flag_fnoLinear = writeIORef __cogent_fno_linear_ref True
 set_flag_fnoMlTypingTree = writeIORef __cogent_fml_typing_tree_ref False
 set_flag_fnoNormalisation = writeIORef __cogent_fnormalisation_ref NoNF
 set_flag_fnoPragmas = writeIORef __cogent_fpragmas_ref False
@@ -379,6 +380,14 @@ __cogent_fnormalisation = unsafePerformIO $ readIORef __cogent_fnormalisation_re
 __cogent_fnormalisation_ref :: IORef NF
 {-# NOINLINE __cogent_fnormalisation_ref #-}
 __cogent_fnormalisation_ref = unsafePerformIO $ newIORef ANF
+
+-- !!! This flag completely changes the bahaviour of the language!
+__cogent_fno_linear :: Bool
+__cogent_fno_linear = unsafePerformIO $ readIORef __cogent_fno_linear_ref
+
+__cogent_fno_linear_ref :: IORef Bool
+{-# NOINLINE __cogent_fno_linear_ref #-}
+__cogent_fno_linear_ref = unsafePerformIO $ newIORef False
 
 __cogent_fpragmas :: Bool
 __cogent_fpragmas = unsafePerformIO $ readIORef __cogent_fpragmas_ref
