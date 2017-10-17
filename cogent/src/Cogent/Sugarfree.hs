@@ -490,7 +490,7 @@ typecheck (E (Let a e1 e2))
 typecheck (E (LetBang vs a e1 e2))
    = do e1' <- withBang (map fst vs) (typecheck e1)
         k <- kindcheck (exprType e1')
-        guardShow "let!" $ canEscape k && not __cogent_fno_linear
+        guardShow "let!" $ canEscape k || __cogent_fno_linear
         e2' <- withBinding (exprType e1') (typecheck e2)
         return $ TE (exprType e2') (LetBang vs a e1' e2')
 typecheck (E Unit) = return $ TE TUnit Unit
@@ -528,10 +528,10 @@ typecheck (E (Split a e1 e2))
         return $ TE (exprType e2') (Split a e1' e2')
 typecheck (E (Member e f))
    = do e'@(TE t@(TRecord ts s) _) <- typecheck e  -- canShare
-        guardShow "member-1" . (&& not __cogent_fno_linear) . canShare =<< kindcheck t
+        guardShow "member-1" . (|| __cogent_fno_linear) . canShare =<< kindcheck t
         guardShow "member-2" $ f < length ts
         let (_,(tau,c)) = ts !! f
-        guardShow "member-3" $ not c && not __cogent_fno_linear  -- not taken
+        guardShow "member-3" $ not c || __cogent_fno_linear  -- not taken
         return $ TE tau (Member e' f)
 typecheck (E (Struct fs))
    = do let (ns,es) = unzip fs
@@ -552,7 +552,7 @@ typecheck (E (Put e1 f e2))
         guardShow "put-1" $ f < length ts
         let (init, (fn,(tau,taken)):rest) = splitAt f ts
         k <- kindcheck tau
-        when (not taken) $ guardShow "put-2" $ canDiscard k && not __cogent_fno_linear
+        when (not taken) $ guardShow "put-2" $ canDiscard k || __cogent_fno_linear
           -- ^ if it's not taken, then it has to be discardable; if taken, then just put
         e2' <- typecheck e2
         guardShow "put-3" $ exprType e2' == tau
