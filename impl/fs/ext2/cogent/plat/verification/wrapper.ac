@@ -80,6 +80,9 @@ typedef struct SysState {
 typedef struct Ext2State {
   int dummy;
 } Ext2State;
+typedef struct SpinLock {
+  int dummy;
+} SpinLock;
 
 #define printk(...) (void*)0
 
