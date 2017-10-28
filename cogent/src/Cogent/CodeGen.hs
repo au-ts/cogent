@@ -47,6 +47,7 @@ import           Cogent.Common.Types   as Typ
 import           Cogent.Core           as CC
 import           Cogent.Deep
 import qualified Cogent.DList          as DList
+import qualified Cogent.HscSyntax      as Hsc
 import           Cogent.Mono                  (Instance)
 import           Cogent.Normal                (isAtom)
 -- import           Cogent.PrettyPrint           ()
@@ -1122,6 +1123,15 @@ gen hfn defs ctygen insts log =
       map TableCTypes tycorr,  -- table of Cogent types |-> C types
       st''
      )
+
+
+-- ****************************************************************************
+-- Haskell FFI generator
+
+-- Generate hsc2hs
+
+
+
 
 
 -- ****************************************************************************
