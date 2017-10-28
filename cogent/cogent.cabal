@@ -58,6 +58,7 @@ Library
               , Cogent.Glue
               , Cogent.GraphGen
               , Cogent.Hangman
+              , Cogent.HscSyntax
               , Cogent.Mono
               , Cogent.MonoProof
               , Cogent.Normal
