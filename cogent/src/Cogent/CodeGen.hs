@@ -1131,7 +1131,15 @@ gen hfn defs ctygen insts log =
 -- Generate hsc2hs
 
 
+hscModule :: String -> [(StrlType, CId)] -> HscModule
+hscModule name ctys = HscModule pragmas name (concatMap hscType ctys)
+  where pragmas = map LanguagePragma [ "DisambiguateRecordFields"
+                                     , "DuplicateRecordFields"
+                                     , "ForeignFunctionInterface"
+                                     , "GeneralizedNewtypeDeriving" ]
 
+hscTypes :: (StrlType, CId) -> [Declaration]
+hscTypes (t,n) = []  -- TODO
 
 
 -- ****************************************************************************
