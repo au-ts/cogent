@@ -1131,16 +1131,57 @@ gen hfn defs ctygen insts log =
 -- Generate hsc2hs
 
 
-hscModule :: String -> [(StrlType, CId)] -> HscModule
-hscModule name ctys = HscModule pragmas name (concatMap hscType ctys)
-  where pragmas = map LanguagePragma [ "DisambiguateRecordFields"
-                                     , "DuplicateRecordFields"
-                                     , "ForeignFunctionInterface"
-                                     , "GeneralizedNewtypeDeriving" ]
+hscModule :: String -> [CExtDecl] -> [CExtDecl] -> Hsc.HscModule
+hscModule name ctys cenums = Hsc.HscModule pragmas name (concatMap hscEnum cenums ++ concatMap hscTyDecl ctys)
+  where pragmas = map Hsc.LanguagePragma [ "DisambiguateRecordFields"
+                                         , "DuplicateRecordFields"
+                                         , "ForeignFunctionInterface"
+                                         , "GeneralizedNewtypeDeriving" ]
 
-hscTypes :: (StrlType, CId) -> [Declaration]
-hscTypes (t,n) = []  -- TODO
+hscTagsT = "Tag"
+hscUntypedFuncEnum = "FuncEnum"
 
+toHscName = ("C" ++)
+
+hscEnum :: CExtDecl -> [Hsc.Declaration]
+hscEnum (CDecl (CEnumDecl (Just ((==) tagsT -> True)) ms)) = [Hsc.HscDecl $ Hsc.HashEnum hscTagsT hscTagsT $ map hscTag ms]
+hscEnum (CDecl (CEnumDecl (Just ((==) untypedFuncEnum -> True)) ms)) = [Hsc.HscDecl $ Hsc.HashEnum hscUntypedFuncEnum hscUntypedFuncEnum $ map hscTag ms]
+hscEnum _ = []
+
+hscTag :: (CId, Maybe CExpr) -> (Hsc.TagName, Maybe Hsc.Expression)
+hscTag (n, me) = (n, fmap hscExpr me)
+
+hscExpr :: CExpr -> Hsc.Expression
+hscExpr (CConst (CNumConst i _ DEC)) = Hsc.ELit $ Hsc.LitInt i
+hscExpr _ = __todo "hscExpr: other expressions have not been implemented"
+
+hscTyDecl :: CExtDecl -> [Hsc.Declaration]
+hscTyDecl (CDecl (CStructDecl n flds)) = [Hsc.HsDecl $ Hsc.DataDecl (toHscName n) [] [Hsc.DataCon (toHscName n) $ flds']]
+  where flds' = map (\(t, Just f) -> (f, hscType t)) flds  -- TODO: it does not support --funion-for-variants yet
+hscTyDecl _ = []
+
+hscType :: CType -> Hsc.Type
+hscType (CInt signed intt) = Hsc.TyCon (toHscName $ s signed $ i intt) []
+  where s True = id; s False = ('U':)
+        i CCharT  = "Char"
+        i CShortT = "Short"
+        i CIntT   = "Int"
+        i CLongT  = "Long"
+        i CLongLongT = "LLong"
+hscType (CogentPrim pt) = hscPrimType pt
+hscType (CBool) = Hsc.TyCon (toHscName boolT) []
+hscType (CChar) = Hsc.TyCon "CChar" []
+hscType (CStruct tn) = Hsc.TyCon (toHscName tn) []
+hscType (CUnion {}) = __todo "hscType: c union types"
+hscType (CEnum tn) = Hsc.TyCon (toHscName tn) []
+hscType (CPtr t) = Hsc.TyCon "Ptr" [hscType t]
+hscType (CIdent tn) = Hsc.TyCon (toHscName tn) []
+hscType (CFunction t1 t2) = __todo "hscType: c function types"
+hscType (CVoid) = Hsc.TyCon (toHscName unitT) []
+
+hscPrimType :: PrimInt -> Hsc.Type
+hscPrimType Boolean = Hsc.TyCon (toHscName boolT) []
+hscPrimType t = Hsc.TyCon (toHscName $ primCId t) []
 
 -- ****************************************************************************
 -- The back-end: pretty-printers

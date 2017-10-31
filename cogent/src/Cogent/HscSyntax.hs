@@ -36,6 +36,7 @@ data Pattern = PVar VarName
              | PCon ConsName [Pattern]
 
 data Expression = EVar VarName
+                | ELit Literal
                 | EDo [DoStatement]
                 | EOp OpName [Expression]
                 | ECon ConsName [Expression]
@@ -44,6 +45,8 @@ data Expression = EVar VarName
                 | ELet [Binding] Expression
                 | EHsc HscSymbol Expression
                 | ETuple [Expression]
+
+data Literal = LitInt Integer | LitChar Char | LitBool Bool
 
 data HscSymbol = HscPeek | HscPoke | HscSize | HscAlignment
 
@@ -55,8 +58,9 @@ data DataCon = DataCon ConsName [(FieldName, Type)]
 
 data Type = TyCon ConsName [Type]
           | TyVar TyVarName
+          | TyTuple [Type]
 
-data HscDecl = HashInclude String | HashEnum TypeName ConsName [TagName]
+data HscDecl = HashInclude String | HashEnum TypeName ConsName [(TagName, Maybe Expression)]
 
 type ModuleName = String
 type VarName    = String
@@ -96,7 +100,9 @@ instance Pretty Declaration where
   prettyList ds = vsep $ map pretty ds
 
 instance Pretty HsDecl where
-  pretty (DataDecl tn tvs datacons) = undefined
+  pretty (DataDecl tn tvs []) = text "data" <+> pretty tn <+> hsep (map pretty tvs)
+  pretty (DataDecl tn tvs datacons) = text "data" <+> pretty tn <+> hsep (map pretty tvs) <+> text "="
+                                  <+> align (prettyList datacons)
   pretty (TypeDecl tn tvs ty) = text "type" <+> pretty tn <+> hsep (map pretty tvs) <+> text "=" <+> pretty ty
   pretty (InstDecl cl ctxs ty bindings) = text "instance" <+> prettyList ctxs <+> text "=>" <+> text cl <+> pretty ty <+> text "where"
                                      <$$> prettyList bindings
@@ -121,6 +127,7 @@ instance Pretty Pattern where
 -- Expression
 instance Pretty Expression where
   pretty (EVar v) = text v
+  pretty (ELit l) = pretty l
   pretty (EDo ds) = text "do"
                <$> align (prettyList ds)
   pretty (EOp o es) = parens (text o) <+> prettyList es
@@ -133,6 +140,11 @@ instance Pretty Expression where
   pretty (ETuple es) = tupled $ map pretty es
 
   prettyList es = hsep $ map pretty es
+
+instance Pretty Literal where
+  pretty (LitInt  i) = integer i
+  pretty (LitChar c) = char c
+  pretty (LitBool b) = bool b
 
 instance Pretty HscSymbol where
   pretty HscPeek = text "#peek"
@@ -148,17 +160,21 @@ instance Pretty DoStatement where
 
 instance Pretty DataCon where
   pretty (DataCon cn fts) = text cn <+> encloseSep lbrace rbrace comma (map (\(f,t) -> text f <+> text "::" <+> pretty t) fts)
+  prettyList ds = vsep $ map pretty ds
 
 instance Pretty Type where
   pretty (TyCon cn ts) = text cn <+> prettyList ts
   pretty (TyVar v) = text v
+  pretty (TyTuple ts) = tupled $ map pretty ts
 
   prettyList ts = hsep $ map pretty ts
 
 instance Pretty HscDecl where
   pretty (HashInclude s) = text "#include" <+> dquotes (text s)
   pretty (HashEnum tn cn tags) = text "#enum" <+> text tn <> comma <+> text cn <> comma
-                             <+> align (vsep $ punctuate (comma <+> text "\\") $ map text tags)
+                             <+> align (vsep $ punctuate (comma <+> text "\\") $ map prettyTag tags)
+    where prettyTag (n, Nothing) = pretty n
+          prettyTag (n, Just e ) = pretty n <+> text "=" <+> pretty e
 
 
 
