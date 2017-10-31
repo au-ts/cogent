@@ -65,7 +65,7 @@ import           Data.Function.Flippers      (flip3)
 import qualified Data.List           as L
 import           Data.Loc                    (noLoc)
 import qualified Data.Map            as M
-import           Data.Maybe                  (fromJust)
+import           Data.Maybe                  (catMaybes, fromJust)
 import           Data.Monoid                 ((<>))
 import           Data.Semigroup.Monad
 -- import           Data.Semigroup.Reducer      (foldReduce)
@@ -1154,21 +1154,22 @@ gen hfn defs ctygen insts log =
 
 
 hscModule :: String -> [CExtDecl] -> [CExtDecl] -> Hsc.HscModule
-hscModule name ctys cenums = Hsc.HscModule pragmas name (concatMap hscEnum cenums ++ concatMap hscTyDecl ctys)
+hscModule name ctys cenums = Hsc.HscModule pragmas name (imports ++ catMaybes (map hscEnum cenums ++ map hscTyDecl ctys ++ map hscStorageInst ctys))
   where pragmas = map Hsc.LanguagePragma [ "DisambiguateRecordFields"
                                          , "DuplicateRecordFields"
                                          , "ForeignFunctionInterface"
                                          , "GeneralizedNewtypeDeriving" ]
+        imports = __todo "import list"
 
 hscTagsT = "Tag"
 hscUntypedFuncEnum = "FuncEnum"
 
 toHscName = ("C" ++)
 
-hscEnum :: CExtDecl -> [Hsc.Declaration]
-hscEnum (CDecl (CEnumDecl (Just ((==) tagsT -> True)) ms)) = [Hsc.HscDecl $ Hsc.HashEnum hscTagsT hscTagsT $ map hscTag ms]
-hscEnum (CDecl (CEnumDecl (Just ((==) untypedFuncEnum -> True)) ms)) = [Hsc.HscDecl $ Hsc.HashEnum hscUntypedFuncEnum hscUntypedFuncEnum $ map hscTag ms]
-hscEnum _ = []
+hscEnum :: CExtDecl -> Maybe Hsc.Declaration
+hscEnum (CDecl (CEnumDecl (Just ((==) tagsT -> True)) ms)) = Just . Hsc.HscDecl $ Hsc.HashEnum hscTagsT hscTagsT $ map hscTag ms
+hscEnum (CDecl (CEnumDecl (Just ((==) untypedFuncEnum -> True)) ms)) = Just . Hsc.HscDecl $ Hsc.HashEnum hscUntypedFuncEnum hscUntypedFuncEnum $ map hscTag ms
+hscEnum _ = Nothing
 
 hscTag :: (CId, Maybe CExpr) -> (Hsc.TagName, Maybe Hsc.Expression)
 hscTag (n, me) = (n, fmap hscExpr me)
@@ -1177,10 +1178,10 @@ hscExpr :: CExpr -> Hsc.Expression
 hscExpr (CConst (CNumConst i _ DEC)) = Hsc.ELit $ Hsc.LitInt i
 hscExpr _ = __todo "hscExpr: other expressions have not been implemented"
 
-hscTyDecl :: CExtDecl -> [Hsc.Declaration]
-hscTyDecl (CDecl (CStructDecl n flds)) = [Hsc.HsDecl $ Hsc.DataDecl (toHscName n) [] [Hsc.DataCon (toHscName n) $ flds']]
+hscTyDecl :: CExtDecl -> Maybe Hsc.Declaration
+hscTyDecl (CDecl (CStructDecl n flds)) = Just . Hsc.HsDecl $ Hsc.DataDecl (toHscName n) [] [Hsc.DataCon (toHscName n) $ flds']
   where flds' = map (\(t, Just f) -> (f, hscType t)) flds  -- TODO: it does not support --funion-for-variants yet
-hscTyDecl _ = []
+hscTyDecl _ = Nothing
 
 hscType :: CType -> Hsc.Type
 hscType (CInt signed intt) = Hsc.TyCon (toHscName $ s signed $ i intt) []
@@ -1199,11 +1200,28 @@ hscType (CEnum tn) = Hsc.TyCon (toHscName tn) []
 hscType (CPtr t) = Hsc.TyCon "Ptr" [hscType t]
 hscType (CIdent tn) = Hsc.TyCon (toHscName tn) []
 hscType (CFunction t1 t2) = __todo "hscType: c function types"
-hscType (CVoid) = Hsc.TyCon (toHscName unitT) []
+hscType (CVoid) = __impossible "hscType: void type shouldn't appear"  -- Hsc.TyTuple []
 
 hscPrimType :: PrimInt -> Hsc.Type
 hscPrimType Boolean = Hsc.TyCon (toHscName boolT) []
 hscPrimType t = Hsc.TyCon (toHscName $ primCId t) []
+
+hscPtr = "ptr"
+
+
+hscStorageInst :: CExtDecl -> Maybe Hsc.Declaration
+hscStorageInst (CDecl (CStructDecl n flds)) = Just . Hsc.HsDecl $ Hsc.InstDecl "Storage" [] (Hsc.TyCon (toHscName n) []) bindings
+  where bindings = [sizeof, alignement, peek, poke]
+        sizeof = Hsc.Binding "sizeOf" [Hsc.PUnderscore] $ Hsc.ETuple [Hsc.EHsc Hsc.HashSize n]
+        alignement = Hsc.Binding "alignment" [Hsc.PUnderscore] $ Hsc.ETuple [Hsc.EHsc Hsc.HashAlignment n]
+        peek = Hsc.Binding "peek" [Hsc.PVar hscPtr] $ Hsc.EApplicative (Hsc.ECon (toHscName n) []) peekFields
+        peekFields = map peekField flds
+        peekField (_, Just cid) = Hsc.EApp (Hsc.ETuple [Hsc.EHsc Hsc.HashPeek n, Hsc.EVar cid]) [Hsc.EVar hscPtr]  -- No funion-for-variants support
+        poke = Hsc.Binding "poke" [Hsc.PVar hscPtr, Hsc.PCon (toHscName n) fnames] $ Hsc.EDo pokeFields
+        fnames = map (Hsc.PVar . fromJust . snd) flds
+        pokeFields = map pokeField flds
+        pokeField (_, Just cid) = Hsc.DoBind [] $ Hsc.EApp (Hsc.ETuple [Hsc.EHsc Hsc.HashPoke n, Hsc.EVar cid]) [Hsc.EVar hscPtr, Hsc.EVar cid]
+hscStorageInst _ = Nothing
 
 -- ****************************************************************************
 -- The back-end: pretty-printers
