@@ -11,6 +11,8 @@
 
 module Cogent.HscSyntax where
 
+import Cogent.Compiler (__impossible)
+
 import Prelude hiding ((<$>))
 import Text.PrettyPrint.ANSI.Leijen as PP
 
@@ -24,9 +26,12 @@ data ModulePragma = LanguagePragma String
 
 data Declaration = HsDecl HsDecl | HscDecl HscDecl
 
-data HsDecl = DataDecl TypeName [TyVarName] [DataCon]
+data HsDecl = ImportDecl ModuleName Qualified (Maybe ModuleName) [VarName] [VarName]  -- ImportDecl name is-qualified? short-name include-list exclude-list
+            | DataDecl TypeName [TyVarName] [DataCon]
             | TypeDecl TypeName [TyVarName] Type
             | InstDecl ClassName [Context] Type [Binding]
+
+type Qualified = Bool
 
 data Context = Context ClassName Type
 
@@ -34,21 +39,23 @@ data Binding = Binding VarName [Pattern] Expression
 
 data Pattern = PVar VarName
              | PCon ConsName [Pattern]
+             | PUnderscore
 
 data Expression = EVar VarName
                 | ELit Literal
                 | EDo [DoStatement]
+                | EApplicative Expression [Expression]
                 | EOp OpName [Expression]
                 | ECon ConsName [Expression]
                 | EApp Expression [Expression]
                 | EAbs [Pattern] Expression
                 | ELet [Binding] Expression
-                | EHsc HscSymbol Expression
+                | EHsc HscSymbol TypeName
                 | ETuple [Expression]
 
 data Literal = LitInt Integer | LitChar Char | LitBool Bool
 
-data HscSymbol = HscPeek | HscPoke | HscSize | HscAlignment
+data HscSymbol = HashPeek | HashPoke | HashSize | HashAlignment
 
 data DoStatement = DoBind [Pattern] Expression
                  | DoLet  [Binding]
@@ -100,6 +107,11 @@ instance Pretty Declaration where
   prettyList ds = vsep $ map pretty ds
 
 instance Pretty HsDecl where
+  pretty (ImportDecl mn q msn incs excs) = text "import" <+> qualif q (text mn) <+> alias msn <> incs' <> excs'
+    where qualif True = (text "qualified" <+>); qualif False = id 
+          alias Nothing = empty; alias (Just sn) = text "as" <+> text sn
+          incs' = case incs of [] -> space; xs -> tupled (map text incs)
+          excs' = case incs of [] -> space; xs -> text "hiding" <+> tupled (map text excs)
   pretty (DataDecl tn tvs []) = text "data" <+> pretty tn <+> hsep (map pretty tvs)
   pretty (DataDecl tn tvs datacons) = text "data" <+> pretty tn <+> hsep (map pretty tvs) <+> text "="
                                   <+> align (prettyList datacons)
@@ -121,6 +133,7 @@ instance Pretty Binding where
 instance Pretty Pattern where
   pretty (PVar v) = text v
   pretty (PCon cn ps) = text cn <+> prettyList ps
+  pretty (PUnderscore) = text "_"
 
   prettyList ps  = hsep $ map pretty ps
 
@@ -130,13 +143,15 @@ instance Pretty Expression where
   pretty (ELit l) = pretty l
   pretty (EDo ds) = text "do"
                <$> align (prettyList ds)
+  pretty (EApplicative f []) = __impossible "EApplicative must have at least one argument"
+  pretty (EApplicative f (e:es)) = pretty f <+> text "<$>" <+> pretty e <+> sep (punctuate (text "<*>") $ map pretty es)
   pretty (EOp o es) = parens (text o) <+> prettyList es
   pretty (ECon cn es) = text cn <+> prettyList es
   pretty (EApp f es) = pretty f <+> prettyList es
   pretty (EAbs ps e) = text "\\" <> prettyList ps <+> text "->" <+> pretty e
   pretty (ELet bs e) = text "let" <+> align (prettyList bs)
                    <$> text "in" <+> pretty e
-  pretty (EHsc s e) = pretty s <+> pretty e
+  pretty (EHsc s tn) = pretty s <+> text tn
   pretty (ETuple es) = tupled $ map pretty es
 
   prettyList es = hsep $ map pretty es
@@ -147,12 +162,13 @@ instance Pretty Literal where
   pretty (LitBool b) = bool b
 
 instance Pretty HscSymbol where
-  pretty HscPeek = text "#peek"
-  pretty HscPoke = text "#poke"
-  pretty HscSize = text "#size"
-  pretty HscAlignment = text "#alignment"
+  pretty HashSize = text "#size"
+  pretty HashAlignment = text "#alignment"
+  pretty HashPeek = text "#peek"
+  pretty HashPoke = text "#poke"
 
 instance Pretty DoStatement where
+  pretty (DoBind [] e) = pretty e
   pretty (DoBind ps e) = prettyList ps <+> text "<-" <+> pretty e
   pretty (DoLet bs) = prettyList bs
 
