@@ -24,7 +24,7 @@ data HscModule = HscModule [ModulePragma] ModuleName [Declaration]
 
 data ModulePragma = LanguagePragma String
 
-data Declaration = HsDecl HsDecl | HscDecl HscDecl
+data Declaration = HsDecl HsDecl | HscDecl HscDecl | EmptyDecl
 
 data HsDecl = ImportDecl ModuleName Qualified (Maybe ModuleName) [VarName] [VarName]  -- ImportDecl name is-qualified? short-name include-list exclude-list
             | DataDecl TypeName [TyVarName] [DataCon]
@@ -103,6 +103,7 @@ instance Pretty ModulePragma where
 instance Pretty Declaration where
   pretty (HsDecl  d) = pretty d
   pretty (HscDecl d) = pretty d
+  pretty (EmptyDecl) = line
   
   prettyList ds = vsep $ map pretty ds
 
@@ -116,8 +117,8 @@ instance Pretty HsDecl where
   pretty (DataDecl tn tvs datacons) = text "data" <+> pretty tn <+> hsep (map pretty tvs) <+> text "="
                                   <+> align (prettyList datacons)
   pretty (TypeDecl tn tvs ty) = text "type" <+> pretty tn <+> hsep (map pretty tvs) <+> text "=" <+> pretty ty
-  pretty (InstDecl cl ctxs ty bindings) = text "instance" <+> prettyList ctxs <+> text "=>" <+> text cl <+> pretty ty <+> text "where"
-                                     <$$> prettyList bindings
+  pretty (InstDecl cl ctxs ty bindings) = text "instance" <+> prettyList ctxs <> (if null ctxs then empty else text "=>" <> space) <> text cl <+> pretty ty <+> text "where"
+                                     <$$> indent 2 (prettyList bindings)
 
 instance Pretty Context where
   pretty (Context cl ty) = text cl <+> pretty ty
@@ -142,10 +143,11 @@ instance Pretty Expression where
   pretty (EVar v) = text v
   pretty (ELit l) = pretty l
   pretty (EDo ds) = text "do"
-               <$> align (prettyList ds)
+               <$> indent 2 (prettyList ds)
   pretty (EApplicative f []) = __impossible "EApplicative must have at least one argument"
-  pretty (EApplicative f (e:es)) = pretty f <+> text "<$>" <+> pretty e <+> sep (punctuate (text "<*>") $ map pretty es)
+  pretty (EApplicative f (e:es)) = pretty f <+> text "<$>" <+> pretty e <+> sep (map ((text "<*>" <+>) . pretty) es)
   pretty (EOp o es) = parens (text o) <+> prettyList es
+  pretty (ECon cn []) = text cn
   pretty (ECon cn es) = text cn <+> prettyList es
   pretty (EApp f es) = pretty f <+> prettyList es
   pretty (EAbs ps e) = text "\\" <> prettyList ps <+> text "->" <+> pretty e
@@ -179,6 +181,7 @@ instance Pretty DataCon where
   prettyList ds = vsep $ map pretty ds
 
 instance Pretty Type where
+  pretty (TyCon cn []) = text cn
   pretty (TyCon cn ts) = text cn <+> prettyList ts
   pretty (TyVar v) = text v
   pretty (TyTuple ts) = tupled $ map pretty ts

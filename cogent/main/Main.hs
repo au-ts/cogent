@@ -100,7 +100,7 @@ import System.FilePath hiding ((</>))
 import System.IO
 import System.Process (readProcessWithExitCode)
 import Text.Show.Pretty (ppShow)
-import Text.PrettyPrint.ANSI.Leijen as LJ (displayIO, Doc, hPutDoc, plain)
+import Text.PrettyPrint.ANSI.Leijen as LJ (displayIO, Doc, hPutDoc, plain, pretty)
 #if MIN_VERSION_mainland_pretty(0,6,0)
 import Text.PrettyPrint.Mainland as M (hPutDoc, line, string, (</>))
 import Text.PrettyPrint.Mainland.Class as M (ppr)
@@ -137,6 +137,7 @@ data Command = AstC Int
              | Pretty    Stage
              | HsShallow Stage
              | HsShallowTuples
+             | HscGen
              | Deep      Stage
              | Shallow   Stage
              | ShallowTuples -- STGDesugar
@@ -157,6 +158,7 @@ data Command = AstC Int
              | Root
              | BuildInfo
              | All  -- !
+             | QuickCheck  -- !
              | StdGumDir
              | Help Verbosity
              | Version
@@ -240,6 +242,7 @@ setActions c@(Documentation) = setActions (Compile STGParse) ++ [c]
 setActions c@(Pretty    stg) = setActions (Compile stg) ++ [c]
 setActions c@(HsShallow stg) = setActions (Compile stg) ++ [c]
 setActions c@(HsShallowTuples) = setActions (Compile STGDesugar) ++ [c]
+setActions c@(HscGen       ) = setActions (Compile STGCodeGen) ++ [c]
 setActions c@(Deep      stg) = setActions (Compile stg) ++ [c]
 setActions c@(Shallow   stg) = setActions (Compile stg) ++ [c]
 setActions c@(ShallowTuples) = setActions (Compile STGDesugar) ++ [c]
@@ -266,6 +269,10 @@ setActions c@(AllRefine    ) = setActions (Compile STGMono)    ++ [c]
 setActions c@(Root         ) = setActions (Compile STGMono)    ++ [c]  -- FIXME: can be earlier / zilinc
 setActions c@(BuildInfo    ) = setActions (Compile STGMono)    ++ [c]
 setActions c@(GraphGen     ) = setActions (Compile STGMono)    ++ [c]
+setActions c@(QuickCheck   ) = nub $ setActions (HscGen) ++
+                                     setActions (HsShallow STGDesugar) ++
+                                     setActions (HsShallowTuples) ++
+                                     setActions (ShallowTuplesProof)
 setActions c@(All          ) = nub $ setActions (TableCType) ++
                                      setActions (CodeGen) ++
                                      setActions (ShallowTuplesProof) ++
@@ -345,6 +352,8 @@ options = [
   -- Haskell shallow
   , Option []         ["hs-shallow-desugar"]         2 (NoArg (HsShallow STGDesugar))  (hsShallowMsg STGDesugar False)
   , Option []         ["hs-shallow-desugar-tuples"]  2 (NoArg HsShallowTuples)  (hsShallowMsg STGDesugar True)
+  -- FFI
+  , Option []         ["ffi-hsc"]         2 (NoArg HscGen)                  "generate a .hsc module for Haskell's FFI"
   -- deep
   , Option ['D']      ["deep-desugar"]    1 (NoArg (Deep STGDesugar))       (deepMsg STGDesugar)
   , Option ['N']      ["deep-normal"]     1 (NoArg (Deep STGNormal ))       (deepMsg STGNormal)
@@ -392,6 +401,7 @@ options = [
   -- top level
   , Option []         ["all-refine"]      1 (NoArg AllRefine)          "generate shallow-to-C refinement proof"
   , Option ['A']      ["all"]             0 (NoArg All)                "generate everything"
+  , Option ['Q']      ["quickcheck"]      0 (NoArg QuickCheck)         "generate QuickCheck related artifacts"
   -- info.
   , Option []         ["stdgum-dir"]      0 (NoArg StdGumDir)          "directory where standard gum headers are installed (can be set by COGENT_STD_GUM_DIR environment variable)"
   , Option ['h','?']  ["help"]            0 (OptArg (Help . maybe 1 read) "VERBOSITY")  "display help message (VERBOSITY=0..4, default to 1)"
@@ -738,7 +748,7 @@ parseArgs args = case getOpt' Permute options args of
 
     cg cmds monoed ctygen insts source tced tcst typedefs fts buildinfo log = do
       let hfile = mkOutputName source Nothing <.> __cogent_ext_of_h
-          (h,c,atm,ct,genst) = gen hfile monoed ctygen (fst insts) log
+          (h,c,atm,ct,hsc,genst) = gen hfile monoed ctygen (fst insts) log
       when (TableAbsTypeMono `elem` cmds) $ do
         let atmfile = mkFileName source Nothing __cogent_ext_of_atm
         putProgressLn "Generating table for monomorphised asbtract types..."
@@ -749,6 +759,11 @@ parseArgs args = case getOpt' Permute options args of
         putProgressLn "Generating table for C-Cogent type correspondence..."
         writeFileMsg ctyfile
         output ctyfile $ \h -> fontSwitch h >>= \s -> printCTable h s ct log
+      when (HscGen `elem` cmds) $ do
+        putProgressLn "Generating Hsc file..."
+        let hscf = mkFileName source Nothing "hsc"
+        writeFileMsg hscf
+        output hscf $ flip LJ.hPutDoc $ LJ.pretty hsc
       when (CodeGen `elem` cmds) $ do
         putProgressLn "Generating C code..."
         let hf = mkFileName source Nothing __cogent_ext_of_h
