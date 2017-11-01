@@ -270,6 +270,7 @@ setActions c@(Root         ) = setActions (Compile STGMono)    ++ [c]  -- FIXME:
 setActions c@(BuildInfo    ) = setActions (Compile STGMono)    ++ [c]
 setActions c@(GraphGen     ) = setActions (Compile STGMono)    ++ [c]
 setActions c@(QuickCheck   ) = nub $ setActions (HscGen) ++
+                                     setActions (CodeGen) ++
                                      setActions (HsShallow STGDesugar) ++
                                      setActions (HsShallowTuples) ++
                                      setActions (ShallowTuplesProof)
@@ -761,7 +762,7 @@ parseArgs args = case getOpt' Permute options args of
         output ctyfile $ \h -> fontSwitch h >>= \s -> printCTable h s ct log
       when (HscGen `elem` cmds) $ do
         putProgressLn "Generating Hsc file..."
-        let hscf = mkFileName source Nothing "hsc"
+        let hscf = Just $ __cogent_dist_dir `combine` "FFI" <.> "hsc"  -- FIXME
         writeFileMsg hscf
         output hscf $ flip LJ.hPutDoc $ LJ.pretty hsc
       when (CodeGen `elem` cmds) $ do

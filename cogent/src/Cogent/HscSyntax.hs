@@ -50,7 +50,7 @@ data Expression = EVar VarName
                 | EApp Expression [Expression]
                 | EAbs [Pattern] Expression
                 | ELet [Binding] Expression
-                | EHsc HscSymbol TypeName
+                | EHsc HscSymbol [String]
                 | ETuple [Expression]
 
 data Literal = LitInt Integer | LitChar Char | LitBool Bool
@@ -91,7 +91,7 @@ class Pretty t => Pretty' t where
   level :: t -> Int
 
 instance Pretty HscModule where
-  pretty (HscModule pragmas name decls) = prettyList pragmas
+  pretty (HscModule pragmas name decls) = prettyList pragmas <> line
                                      <$$> text "module" <+> text name <+> text "where"
                                      <$$> empty
                                      <$$> prettyList decls
@@ -108,16 +108,18 @@ instance Pretty Declaration where
   prettyList ds = vsep $ map pretty ds
 
 instance Pretty HsDecl where
-  pretty (ImportDecl mn q msn incs excs) = text "import" <+> qualif q (text mn) <+> alias msn <> incs' <> excs'
+  pretty (ImportDecl mn q msn incs excs) = text "import" <+> qualif q (text mn) <> alias msn <> incs' <> excs'
     where qualif True = (text "qualified" <+>); qualif False = id 
-          alias Nothing = empty; alias (Just sn) = text "as" <+> text sn
-          incs' = case incs of [] -> space; xs -> tupled (map text incs)
-          excs' = case incs of [] -> space; xs -> text "hiding" <+> tupled (map text excs)
+          alias Nothing = empty; alias (Just sn) = space <> text "as" <+> text sn
+          incs' = case incs of [] -> empty; xs -> space <> tupled (map text incs)
+          excs' = case incs of [] -> empty; xs -> space <> text "hiding" <+> tupled (map text excs)
   pretty (DataDecl tn tvs []) = text "data" <+> pretty tn <+> hsep (map pretty tvs)
   pretty (DataDecl tn tvs datacons) = text "data" <+> pretty tn <+> hsep (map pretty tvs) <+> text "="
                                   <+> align (prettyList datacons)
   pretty (TypeDecl tn tvs ty) = text "type" <+> pretty tn <+> hsep (map pretty tvs) <+> text "=" <+> pretty ty
-  pretty (InstDecl cl ctxs ty bindings) = text "instance" <+> prettyList ctxs <> (if null ctxs then empty else text "=>" <> space) <> text cl <+> pretty ty <+> text "where"
+  pretty (InstDecl cl ctxs ty bindings) = text "instance" <+> prettyList ctxs 
+                                       <> (if null ctxs then empty else text "=>" <> space) 
+                                       <> text cl <+> pretty ty <+> text "where"
                                      <$$> indent 2 (prettyList bindings)
 
 instance Pretty Context where
@@ -142,10 +144,11 @@ instance Pretty Pattern where
 instance Pretty Expression where
   pretty (EVar v) = text v
   pretty (ELit l) = pretty l
-  pretty (EDo ds) = text "do"
-               <$> indent 2 (prettyList ds)
+  pretty (EDo ds) = text "do" <$> indent 2 (prettyList ds)
   pretty (EApplicative f []) = __impossible "EApplicative must have at least one argument"
-  pretty (EApplicative f (e:es)) = pretty f <+> text "<$>" <+> pretty e <+> sep (map ((text "<*>" <+>) . pretty) es)
+  pretty (EApplicative f (e:es)) = nest 2 (pretty f <+> text "<$>"
+                                       <+> pretty e 
+                                       <+> sep (map ((text "<*>" <+>) . pretty) es))
   pretty (EOp o es) = parens (text o) <+> prettyList es
   pretty (ECon cn []) = text cn
   pretty (ECon cn es) = text cn <+> prettyList es
@@ -153,7 +156,7 @@ instance Pretty Expression where
   pretty (EAbs ps e) = text "\\" <> prettyList ps <+> text "->" <+> pretty e
   pretty (ELet bs e) = text "let" <+> align (prettyList bs)
                    <$> text "in" <+> pretty e
-  pretty (EHsc s tn) = pretty s <+> text tn
+  pretty (EHsc s ss) = parens (pretty s <+> hsep (punctuate comma $ map pretty ss))
   pretty (ETuple es) = tupled $ map pretty es
 
   prettyList es = hsep $ map pretty es
