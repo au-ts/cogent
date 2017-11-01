@@ -48,7 +48,7 @@ COMMON_CFLAGS := -O2 -Wno-parentheses -Wno-declaration-after-statement -Wno-unus
 LINUX_EXTRA_CFLAGS := -I$(PWD) -I$(PWD)/build -I$(PWD)/abstract $(COMMON_CFLAGS) -I$(STDGUM)
 
 # COGENT flags
-COGENT_FLAGS+= -Od --fno-static-inline --fno-fncall-as-macro --fnormalisation=knf --ffunc-purity-attr
+COGENT_FLAGS+= -Od --fno-static-inline --fno-fncall-as-macro --fnormalisation=knf --ffunc-purity-attr --fffi-c-functions
 # end of configuration
 
 override COGENT_FLAGS+= -o$(OUTPUT) \

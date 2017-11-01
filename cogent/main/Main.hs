@@ -439,6 +439,7 @@ flags =
   -- behaviour
   , Option []         ["fcheck-undefined"]    2 (NoArg set_flag_fcheckUndefined)           "(default) check for undefined behaviours in C"
   , Option ['B']      ["fdisambiguate-pp"]    3 (NoArg set_flag_fdisambiguatePp)           "when pretty-printing, also display internal representation as comments"
+  , Option []         ["fffi-c-functions"]    1 (NoArg set_flag_fffiCFunctions)            "generate FFI functions in the C code (should be used when -Q)"
   , Option []         ["fflatten-nestings"]   2 (NoArg set_flag_fflattenNestings)          "flatten out nested structs in C code (does nothing)"
   , Option []         ["ffncall-as-macro"]    3 (NoArg set_flag_ffncallAsMacro)            "generate macros instead of real function calls"
   , Option []         ["ffull-src-path"]      2 (NoArg set_flag_ffullSrcPath)              "display full path for source file locations"
