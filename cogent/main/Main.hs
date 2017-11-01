@@ -422,6 +422,7 @@ flags =
   , Option []         ["cpp-args"]       2 (ReqArg (set_flag_cppArgs . words) "ARG..")     "arguments given to C-preprocessor (default to $CPPIN -E -P -o $CPPOUT)"
   -- behaviour
   , Option []         ["fcheck-undefined"]    2 (NoArg set_flag_fcheckUndefined)           "(default) check for undefined behaviours in C"
+  , Option []         ["fffi-c-functions"]    1 (NoArg set_flag_fffiCFunctions)            "generate FFI functions in the C code (should be used when -Q)"
   , Option []         ["fflatten-nestings"]   2 (NoArg set_flag_fflattenNestings)          "flatten out nested structs in C code (does nothing)"
   , Option []         ["ffncall-as-macro"]    1 (NoArg set_flag_ffncallAsMacro)            "generate macros instead of real function calls"
   , Option []         ["ffunc-purity-attr"]   2 (NoArg set_flag_ffuncPurityAttr)           "(default) generate GCC attributes to classify purity of Cogent functions"

@@ -1028,6 +1028,31 @@ fnSpecKind ti to = (if | isTypeHasKind ti k2 && isTypeHasKind to k2 -> fnSpecAtt
 fnSpecAttrConst (FnSpec st tq ats) = FnSpec st tq (GccAttrs [GccAttr "const" []]:ats)
 fnSpecAttrPure  (FnSpec st tq ats) = FnSpec st tq (GccAttrs [GccAttr "pure"  []]:ats)
 
+
+genFfiFunc :: CType -> CId -> [CType] -> Gen 'Zero [CExtDecl]
+genFfiFunc rt fn [t]
+    | [rtm,tm] <- map isPotentiallyUnmarshallable [rt,t], or [rtm,tm] = do
+        arg <- freshLocalCId 'a'
+        ret <- freshLocalCId 'r'
+        let body = [ CBIDecl $ CVarDecl (ref rt) ret True Nothing
+                   , if rtm then CBIStmt $ CAssignFnCall (Just $ variable ret) (variable "malloc") [CSizeofTy rt]
+                            else CBIStmt CEmptyStmt -- if output needs indirection
+                   , CBIStmt $ CAssignFnCall (Just $ if rtm then CDeref (variable ret) else variable ret)
+                                             (variable fn)
+                                             [if tm then CDeref (variable arg) else variable arg]
+                   , CBIStmt $ CReturn (Just $ variable ret)
+                   ]
+        return [ CDecl $ CExtFnDecl (ref rt) ("ffi_" ++ fn) [(ref t,Nothing)] noFnSpec
+               , CFnDefn (ref rt, "ffi_" ++ fn) [(ref t,arg)] body noFnSpec
+               ]
+    | otherwise = return []
+  where isPotentiallyUnmarshallable (CStruct {}) = True
+        isPotentiallyUnmarshallable (CIdent  {}) = True
+        isPotentiallyUnmarshallable _            = False
+        ref t | isPotentiallyUnmarshallable t = CPtr t
+              | otherwise = t
+genFfiFunc _ _ _ = __impossible "genFfiFunc: generated C functions should always have 1 argument"
+
  -- NOTE: This function excessively uses `unsafeCoerce' because of existentials / zilinc
 genDefinition :: Definition TypedExpr VarName -> Gen 'Zero [CExtDecl]
 genDefinition (FunDef attr fn Nil t rt e) = do
@@ -1035,7 +1060,7 @@ genDefinition (FunDef attr fn Nil t rt e) = do
   varPool .= M.empty
   arg <- freshLocalCId 'a'
   t' <- genTypeA' True (unsafeCoerce t :: SF.Type 'Zero) (argOf fn)
-  (e',edecl,estm,_) <- withBindings (Cons (CVar arg Nothing & if __cogent_funboxed_arg_by_ref then CDeref else id) Nil)
+  (e',edecl,estm,_) <- withBindings (Cons (variable arg & if __cogent_funboxed_arg_by_ref then CDeref else id) Nil)
                          (genExpr Nothing (unsafeCoerce e :: TypedExpr 'Zero ('Suc 'Zero) VarName))
   rt' <- genType' (unsafeCoerce rt :: SF.Type 'Zero) (retOf fn)
   funClasses %= M.alter (insertSetMap (fn,attr)) (Function t' rt')
@@ -1043,8 +1068,10 @@ genDefinition (FunDef attr fn Nil t rt e) = do
     True  -> do (rv,rvdecl,rvstm) <- declareInit rt' e' M.empty
                 return $ edecl ++ rvdecl ++ estm ++ rvstm ++ [CBIStmt $ CReturn $ Just (variable rv)]
     False -> return $ edecl ++ estm ++ [CBIStmt $ CReturn $ Just e']
-  return [CDecl $ CExtFnDecl rt' fn [(t', Nothing)] ((if __cogent_ffunc_purity_attr then fnSpecKind t rt else id) $ fnSpecAttr attr noFnSpec),
-          CFnDefn (rt', fn) [(t', arg)] body ((if __cogent_ffunc_purity_attr then fnSpecKind t rt else id) $ fnSpecAttr attr noFnSpec)]
+  ffifunc <- if __cogent_fffi_c_functions then genFfiFunc rt' fn [t'] else return []
+  let fnspec = ((if __cogent_ffunc_purity_attr then fnSpecKind t rt else id) $ fnSpecAttr attr noFnSpec)
+  return $ ffifunc ++ [ CDecl $ CExtFnDecl rt' fn [(t',Nothing)] fnspec
+                      , CFnDefn (rt',fn) [(t',arg)] body fnspec ]
 genDefinition (AbsDecl attr fn Nil t rt)
   = do t'  <- genType' (unsafeCoerce t  :: SF.Type 'Zero) (argOf fn)
        rt' <- genType' (unsafeCoerce rt :: SF.Type 'Zero) (retOf fn)
@@ -1233,11 +1260,13 @@ hscStorageInst (CDecl (CStructDecl n flds)) = Just . Hsc.HsDecl $ Hsc.InstDecl "
         alignement = Hsc.Binding "alignment" [Hsc.PUnderscore] $ Hsc.EHsc Hsc.HashAlignment [n]
         peek = Hsc.Binding "peek" [Hsc.PVar hscPtr] $ Hsc.EApplicative (Hsc.ECon (toHscName n) []) peekFields
         peekFields = map peekField flds
-        peekField (_, Just cid) = Hsc.EApp (Hsc.EHsc Hsc.HashPeek [n, cid]) [Hsc.EVar hscPtr]  -- No funion-for-variants support
+        peekField (_, Just cid) = Hsc.EApp (Hsc.EHsc Hsc.HashPeek [n, cid]) [Hsc.EVar hscPtr]
+        peekField _ = __todo "peekField: no support for --funion-for-variants yet"
         poke = Hsc.Binding "poke" [Hsc.PVar hscPtr, Hsc.PCon (toHscName n) fnames] $ Hsc.EDo pokeFields
         fnames = map (Hsc.PVar . decap . fromJust . snd) flds
         pokeFields = map pokeField flds
         pokeField (_, Just cid) = Hsc.DoBind [] $ Hsc.EApp (Hsc.EHsc Hsc.HashPoke [n, cid]) [Hsc.EVar hscPtr, Hsc.EVar cid]
+        pokeField _ = __todo "pokeField: no support for --funion-for-variants yet"
 hscStorageInst _ = Nothing
 
 -- ****************************************************************************

@@ -88,6 +88,7 @@ set_flag_extTypes = writeIORef __cogent_ext_types_ref . Just
 set_flag_fakeHeaderDir dir = writeIORef __cogent_fake_header_dir_ref $ Just (cogentRelDir dir __cogent_dist_dir)
 set_flag_fcheckUndefined = writeIORef __cogent_fcheck_undefined_ref True
 set_flag_fdumpToStdout = writeIORef __cogent_fdump_to_stdout_ref True
+set_flag_fffiCFunctions = writeIORef __cogent_fffi_c_functions_ref True
 set_flag_fflattenNestings = writeIORef __cogent_fflatten_nestings_ref (__fixme False)  -- FIXME after fixing the impl'n
 set_flag_ffncallAsMacro = writeIORef __cogent_ffncall_as_macro_ref True
 set_flag_ffuncPurityAttr = writeIORef __cogent_ffunc_purity_attr_ref True
@@ -313,6 +314,13 @@ __cogent_fdump_to_stdout = unsafePerformIO $ readIORef __cogent_fdump_to_stdout_
 __cogent_fdump_to_stdout_ref :: IORef Bool
 {-# NOINLINE __cogent_fdump_to_stdout_ref #-}
 __cogent_fdump_to_stdout_ref = unsafePerformIO $ newIORef False
+
+__cogent_fffi_c_functions :: Bool
+__cogent_fffi_c_functions = unsafePerformIO $ readIORef __cogent_fffi_c_functions_ref
+
+__cogent_fffi_c_functions_ref :: IORef Bool
+{-# NOINLINE __cogent_fffi_c_functions_ref #-}
+__cogent_fffi_c_functions_ref = unsafePerformIO $ newIORef False
 
 __cogent_fflatten_nestings :: Bool
 __cogent_fflatten_nestings = unsafePerformIO $ readIORef __cogent_fflatten_nestings_ref
