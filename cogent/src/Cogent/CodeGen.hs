@@ -49,7 +49,7 @@ import           Cogent.Mono                  (Instance)
 import           Cogent.Normal                (isAtom)
 -- import           Cogent.PrettyPrint           ()
 import           Cogent.Sugarfree      as SF  hiding (kindcheck, withBindings)
-import           Cogent.Util                  (extTup3, first3, secondM, toCName, whenM)
+import           Cogent.Util                  (decap, extTup3, first3, secondM, toCName, whenM)
 import           Cogent.Vec            as Vec hiding (repeat, zipWith)
 
 import           Control.Applicative         hiding (empty)
@@ -1144,7 +1144,7 @@ gen hfn defs ctygen insts log =
       map cExtDecl fndefns,
       absts',  -- table of abstract types
       map TableCTypes tycorr,  -- table of Cogent types |-> C types
-      hscModule "FFI" tdefs'' (enum ++ fenums),  -- FFI file in hsc
+      hscModule "FFI" "FIXME: user supplied" tdefs'' (enum ++ fenums),  -- FFI file in hsc
       st''
      )
 
@@ -1155,10 +1155,14 @@ gen hfn defs ctygen insts log =
 -- Generate hsc2hs
 
 
-hscModule :: String -> [CExtDecl] -> [CExtDecl] -> Hsc.HscModule
-hscModule name ctys cenums =
+
+
+hscModule :: String -> String -> [CExtDecl] -> [CExtDecl] -> Hsc.HscModule
+hscModule name cname ctys cenums =
   Hsc.HscModule pragmas name $
-    imports ++ L.intersperse Hsc.EmptyDecl (catMaybes (map hscEnum cenums ++ map hscTyDecl ctys ++ map hscStorageInst ctys))
+    imports ++
+    include ++
+    L.intersperse Hsc.EmptyDecl (catMaybes (map hscEnum cenums ++ map hscTyDecl ctys ++ map hscStorageInst ctys))
   where pragmas = map Hsc.LanguagePragma [ "DisambiguateRecordFields"
                                          , "DuplicateRecordFields"
                                          , "ForeignFunctionInterface"
@@ -1170,6 +1174,7 @@ hscModule name ctys cenums =
                     , Hsc.ImportDecl "Foreign.C.Types" False Nothing [] []
                     , Hsc.ImportDecl "Util" False Nothing [] [] ]
                   ++ [Hsc.EmptyDecl]
+        include = [Hsc.HscDecl $ Hsc.HashInclude cname, Hsc.EmptyDecl]
 
 hscTagsT = "Tag"
 hscUntypedFuncEnum = "FuncEnum"
@@ -1192,7 +1197,7 @@ hscExpr _ = __todo "hscExpr: other expressions have not been implemented"
 
 hscTyDecl :: CExtDecl -> Maybe Hsc.Declaration
 hscTyDecl (CDecl (CStructDecl n flds)) = Just . Hsc.HsDecl $ Hsc.DataDecl (toHscName n) [] [Hsc.DataCon (toHscName n) $ flds']
-  where flds' = map (\(t, Just f) -> (f, hscType t)) flds  -- TODO: it does not support --funion-for-variants yet
+  where flds' = map (\(t, Just f) -> (decap f, hscType t)) flds  -- TODO: it does not support --funion-for-variants yet
 hscTyDecl _ = Nothing
 
 hscType :: CType -> Hsc.Type
@@ -1224,15 +1229,15 @@ hscPtr = "ptr"
 hscStorageInst :: CExtDecl -> Maybe Hsc.Declaration
 hscStorageInst (CDecl (CStructDecl n flds)) = Just . Hsc.HsDecl $ Hsc.InstDecl "Storage" [] (Hsc.TyCon (toHscName n) []) bindings
   where bindings = [sizeof, alignement, peek, poke]
-        sizeof = Hsc.Binding "sizeOf" [Hsc.PUnderscore] $ Hsc.ETuple [Hsc.EHsc Hsc.HashSize n]
-        alignement = Hsc.Binding "alignment" [Hsc.PUnderscore] $ Hsc.ETuple [Hsc.EHsc Hsc.HashAlignment n]
+        sizeof = Hsc.Binding "sizeOf" [Hsc.PUnderscore] $ Hsc.EHsc Hsc.HashSize [n]
+        alignement = Hsc.Binding "alignment" [Hsc.PUnderscore] $ Hsc.EHsc Hsc.HashAlignment [n]
         peek = Hsc.Binding "peek" [Hsc.PVar hscPtr] $ Hsc.EApplicative (Hsc.ECon (toHscName n) []) peekFields
         peekFields = map peekField flds
-        peekField (_, Just cid) = Hsc.EApp (Hsc.ETuple [Hsc.EHsc Hsc.HashPeek n, Hsc.EVar cid]) [Hsc.EVar hscPtr]  -- No funion-for-variants support
+        peekField (_, Just cid) = Hsc.EApp (Hsc.EHsc Hsc.HashPeek [n, cid]) [Hsc.EVar hscPtr]  -- No funion-for-variants support
         poke = Hsc.Binding "poke" [Hsc.PVar hscPtr, Hsc.PCon (toHscName n) fnames] $ Hsc.EDo pokeFields
-        fnames = map (Hsc.PVar . fromJust . snd) flds
+        fnames = map (Hsc.PVar . decap . fromJust . snd) flds
         pokeFields = map pokeField flds
-        pokeField (_, Just cid) = Hsc.DoBind [] $ Hsc.EApp (Hsc.ETuple [Hsc.EHsc Hsc.HashPoke n, Hsc.EVar cid]) [Hsc.EVar hscPtr, Hsc.EVar cid]
+        pokeField (_, Just cid) = Hsc.DoBind [] $ Hsc.EApp (Hsc.EHsc Hsc.HashPoke [n, cid]) [Hsc.EVar hscPtr, Hsc.EVar cid]
 hscStorageInst _ = Nothing
 
 -- ****************************************************************************
