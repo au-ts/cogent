@@ -86,7 +86,7 @@ type TagName    = String
 
 class Pretty t => Pretty' t where
   pretty' :: Int -> t -> Doc
-  pretty' l x = if l > level x then parens (pretty x) else pretty x
+  pretty' l x = if l > level x then pretty x else parens (pretty x)
 
   level :: t -> Int
 
@@ -119,11 +119,11 @@ instance Pretty HsDecl where
   pretty (TypeDecl tn tvs ty) = text "type" <+> pretty tn <+> hsep (map pretty tvs) <+> text "=" <+> pretty ty
   pretty (InstDecl cl ctxs ty bindings) = text "instance" <+> prettyList ctxs 
                                        <> (if null ctxs then empty else text "=>" <> space) 
-                                       <> text cl <+> pretty ty <+> text "where"
+                                       <> text cl <+> pretty' 10 ty <+> text "where"
                                      <$$> indent 2 (prettyList bindings)
 
 instance Pretty Context where
-  pretty (Context cl ty) = text cl <+> pretty ty
+  pretty (Context cl ty) = text cl <+> pretty' 10 ty
   
   prettyList []  = empty
   prettyList [c] = pretty c
@@ -138,7 +138,12 @@ instance Pretty Pattern where
   pretty (PCon cn ps) = text cn <+> prettyList ps
   pretty (PUnderscore) = text "_"
 
-  prettyList ps  = hsep $ map pretty ps
+  prettyList ps  = hsep $ map (pretty' 10) ps
+
+instance Pretty' Pattern where
+  level (PCon _ []) = 0
+  level (PCon _ _ ) = 10
+  level _ = 0
 
 -- Expression
 instance Pretty Expression where
@@ -146,20 +151,29 @@ instance Pretty Expression where
   pretty (ELit l) = pretty l
   pretty (EDo ds) = text "do" <$> indent 2 (prettyList ds)
   pretty (EApplicative f []) = __impossible "EApplicative must have at least one argument"
-  pretty (EApplicative f (e:es)) = nest 2 (pretty f <+> text "<$>"
-                                       <+> pretty e 
-                                       <+> sep (map ((text "<*>" <+>) . pretty) es))
+  pretty (EApplicative f (e:es)) = nest 2 (pretty' 15 f <+> text "<$>"
+                                       <+> pretty' 15 e 
+                                       <+> sep (map ((text "<*>" <+>) . pretty' 15) es))
   pretty (EOp o es) = parens (text o) <+> prettyList es
   pretty (ECon cn []) = text cn
   pretty (ECon cn es) = text cn <+> prettyList es
   pretty (EApp f es) = pretty f <+> prettyList es
-  pretty (EAbs ps e) = text "\\" <> prettyList ps <+> text "->" <+> pretty e
+  pretty (EAbs ps e) = text "\\" <> prettyList ps <+> text "->" <+> pretty' 12 e
   pretty (ELet bs e) = text "let" <+> align (prettyList bs)
-                   <$> text "in" <+> pretty e
+                   <$> text "in" <+> pretty' 15 e
   pretty (EHsc s ss) = parens (pretty s <+> hsep (punctuate comma $ map pretty ss))
   pretty (ETuple es) = tupled $ map pretty es
 
-  prettyList es = hsep $ map pretty es
+  prettyList es = hsep $ map (pretty' 10) es
+
+instance Pretty' Expression where
+  level (EDo {}) = 20
+  level (ECon _ []) = 0
+  level (ECon _ _ ) = 10
+  level (EApp _ _ ) = 10
+  level (EAbs _ _ ) = 12
+  level (ELet _ _ ) = 15
+  level _ = 0
 
 instance Pretty Literal where
   pretty (LitInt  i) = integer i
@@ -190,6 +204,11 @@ instance Pretty Type where
   pretty (TyTuple ts) = tupled $ map pretty ts
 
   prettyList ts = hsep $ map pretty ts
+
+instance Pretty' Type where
+  level (TyCon _ []) = 0
+  level (TyCon _ _ ) = 10
+  level _ = 0
 
 instance Pretty HscDecl where
   pretty (HashInclude s) = text "#include" <+> dquotes (text s)
