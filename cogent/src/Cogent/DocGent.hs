@@ -40,13 +40,25 @@ import Data.Default
 import Data.Char (isLower, toUpper)
 import Paths_cogent
 import System.FilePath
+#if MIN_VERSION_pandoc(2,0,0)
+import Data.Text (pack)
+import Control.Monad.Error
+#else
+#endif
+
 data SGRState = SGRState { _intensity :: ConsoleIntensity, _fg :: (ColorIntensity, Color), _bg :: (ColorIntensity, Color), _italics :: Bool, _underline :: Underlining }
 makeLenses ''SGRState
 
 markdown :: (?knowns :: [(String, SourcePos)]) => String -> Html
-markdown s = case T.readMarkdown def s
-              of Left e -> fromString $ show e
-                 Right md -> T.writeHtml def $ T.walk handleInline md
+#if MIN_VERSION_pandoc(2,0,0)
+markdown s = case T.runPure (T.readMarkdown def (pack s) >>= \md -> T.writeHtml5 def (T.walk handleInline md)) of
+               Left e -> fromString $ show e
+               Right html -> html
+#else
+markdown s = case T.readMarkdown def s of
+               Left e -> fromString $ show e
+               Right md -> T.writeHtml def $ T.walk handleInline md
+#endif
 
 handleInline :: (?knowns :: [(String, SourcePos)]) => T.Inline -> T.Inline
 handleInline x@(T.Code a str) | Just p <- lookup str ?knowns = T.Link ("", classesFor str, []) [x] (fileNameFor p ++ "#" ++ str,str) 
@@ -161,14 +173,7 @@ withLinking s t = case lookup t s of
                      Just p -> [shamlet|<a href="#{file p}##{t}">#{t} |]
                      Nothing -> H.toHtml t
   where file p = fileNameFor p
-{- 
-data Type t =
-            -- They are in WHNF
-            | TRecord [(FieldName, (t, Taken))] Sigil
-            | TVariant (M.Map TagName [t])
-            -- They will be elimiated at some point / zilinc
-            deriving (Show, Functor, Eq, Foldable, Traversable)
--}
+
 
 data DocExpr = DE { unDE :: Expr RawType VarName DocExpr }
              | DocFnCall VarName [RawType] Inline deriving Show
