@@ -29,6 +29,7 @@ type DocString = String
 
 data IrrefutablePattern pv = PVar pv
                            | PTuple [IrrefutablePattern pv]
+                           | PSequence [IrrefutablePattern pv] (IrrefutablePattern pv)
                            | PUnboxedRecord [Maybe (FieldName, IrrefutablePattern pv)]
                            | PUnderscore
                            | PUnitel
@@ -67,6 +68,7 @@ data Expr t pv e = PrimOp OpName [e]
                  | CharLit Char
                  | StringLit String
                  | Tuple [e]
+                 | Sequence [e]
                  | UnboxedRecord [(FieldName, e)]
                  | Let [Binding t pv e] e
                  | Put e [Maybe (FieldName, e)]  -- Note: `Nothing' will be desugared to `Just' in TypeCheck / zilinc
@@ -83,6 +85,7 @@ data Type t =
             | TRecord [(FieldName, (t, Taken))] Sigil
             | TVariant (M.Map TagName [t])
             | TTuple [t]
+            | TSequence Int t
             | TUnit
             -- They will be elimiated at some point / zilinc
             | TUnbox   t
@@ -154,6 +157,7 @@ instance Functor (Flip (Expr t) e) where
   fmap _ (Flip (CharLit l))         = Flip (CharLit l)
   fmap _ (Flip (StringLit l))       = Flip (StringLit l)
   fmap _ (Flip (Tuple es))          = Flip (Tuple es)
+  fmap _ (Flip (Sequence es))       = Flip (Sequence es)
   fmap _ (Flip (UnboxedRecord es))  = Flip (UnboxedRecord es)
   fmap _ (Flip (Put e es))          = Flip (Put e es)
 instance Functor (Flip2 Expr p e) where
@@ -174,6 +178,7 @@ instance Functor (Flip2 Expr p e) where
   fmap _ (Flip2 (CharLit l))        = Flip2 (CharLit l)
   fmap _ (Flip2 (StringLit l))      = Flip2 (StringLit l)
   fmap _ (Flip2 (Tuple es))         = Flip2 (Tuple es)
+  fmap _ (Flip2 (Sequence es))      = Flip2 (Sequence es)
   fmap _ (Flip2 (UnboxedRecord es)) = Flip2 (UnboxedRecord es)
   fmap _ (Flip2 (Put e es))         = Flip2 (Put e es)
 instance Functor (Flip (TopLevel t) e) where

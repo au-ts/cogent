@@ -267,6 +267,7 @@ kindcheck tau = typeWHNF tau >>= \case
   (RT (TCon cn ts s)) -> mapM kindcheck ts >> return (sigilKind s)
   (RT (TUnit))  -> return (K True True True)
   (RT (TTuple ts)) -> mconcat <$> mapM kindcheck ts
+  (RT (TSequence _ t)) -> kindcheck t
   (RT (TVariant ts)) -> fold <$> mapM ((mconcat <$>) . mapM kindcheck) ts
   (RT (TRecord fs s)) -> (mappend $ sigilKind s) . mconcat <$> mapM (kindcheck . fst . snd) (filter (not . snd .snd) fs)  -- only untaken fields count
   (RT (TFun a b)) -> kindcheck a >> kindcheck b >> return (K True True True)
@@ -301,6 +302,7 @@ typeWHNF   (RT (TTuple (t:ts@(_:_:_)))) | not __cogent_ftuples_as_sugar = typeWH
 --   (RT (TTuple ts')) -> typeWHNF (RT . TTuple $ reverse ts ++ ts')
 --   _ -> return x
 typeWHNF x@(RT (TTuple _)) = return x  -- | __cogent_ftuples_as_sugar
+typeWHNF x@(RT (TSequence {})) = return x
 typeWHNF x@(RT (TUnit)) = return x
 typeWHNF x@(RT (TUnbox t)) = typeWHNF t >>= \case
   RT (TCon cn ts s) -> return $ RT (TCon cn ts Unboxed)
@@ -367,6 +369,7 @@ substType sigma (RT (TRecord fs s)) = RT (TRecord (map (second . first $ substTy
 substType sigma (RT (TVariant fs)) = RT (TVariant (fmap (fmap $ substType sigma) fs))
 substType sigma (RT (TUnit)) = RT TUnit
 substType sigma (RT (TTuple fs)) = RT (TTuple (map (substType sigma) fs))
+substType sigma (RT (TSequence l t)) = RT (TSequence l $ substType sigma t)
 substType sigma (RT (TUnbox t)) = RT (TUnbox $ substType sigma t)
 substType sigma (RT (TBang t)) = RT (TBang $ substType sigma t)
 substType sigma (RT (TTake fs t)) = RT (TTake fs (substType sigma t))
@@ -381,6 +384,7 @@ bangType (RT (TCon x ts s))= RT (TCon x (map (RT . TBang) ts) $ bangSigil s)
 bangType (RT TUnit) = RT TUnit
 bangType (RT (TFun a b)) = RT (TFun a b)
 bangType (RT (TTuple ts)) = RT (TTuple (map (RT . TBang) ts))  -- using `RT . TBang' instead of `bangType' for better errmsgs
+bangType (RT (TSequence l t)) = RT (TSequence l $ RT . TBang $ t)
 bangType (RT (TVariant ts)) = RT (TVariant (fmap (fmap $ RT . TBang) ts))
 bangType notInWHNF = __impossible "bangType"
 
@@ -462,6 +466,7 @@ lub a' b' = (,) <$> fmap unwrap (typeWHNF a') <*> fmap unwrap (typeWHNF b') >>= 
                                       (k,) <$> mapM (uncurry lub) (zip vs1 vs2)
                                     ) <&> (RT . TVariant . M.fromList)
   (TTuple as, TTuple bs) | length as == length bs -> RT . TTuple <$> zipWithM lub as bs
+  (TSequence l a, TSequence m b) | l == m -> RT . TSequence l <$> lub a b
   _ -> typeError $ CannotFindCommonSupertype a' b'
  where unwrap (RT x) = x
 
@@ -484,6 +489,7 @@ typeDNF t = typeWHNF t >>= \case
   (RT (TVariant mts)) -> let (vs',ts) = unzip (M.toList mts)
                           in RT . TVariant . M.fromList . zip vs' <$> mapM (mapM typeDNF) ts
   (RT (TTuple ts)) -> RT . TTuple <$> mapM typeDNF ts
+  (RT (TSequence l t)) -> RT . TSequence l <$> typeDNF t
   x -> return x
 
 -- FIXME: use `typeWHNF' instead to get better errmsgs / zilinc
@@ -500,6 +506,7 @@ isSubtype proper a' b' = (,) <$> fmap unwrap  (typeDNF a') <*> fmap unwrap (type
       return (and bools)
     | otherwise -> return False
   (TTuple as, TTuple bs) | length as == length bs -> and <$> zipWithM (isSubtype False) as bs  -- tuple subtyping.
+  (TSequence l a, TSequence m b) | l == m -> isSubtype proper a b
   -- NOTE: we now allow the same in unboxed records / zilinc
   (TRecord fs1 Unboxed, TRecord fs2 Unboxed)
     | length fs1 == length fs2

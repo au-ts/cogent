@@ -76,7 +76,7 @@ data Type t
   | TString
   | TSum [(TagName, (Type t, Bool))]  -- True means taken (since 2.0.4)
   | TProduct (Type t) (Type t)
-  | TSequence (Type t)
+  | TSequence Int (Type t)
   | TRecord [(FieldName, (Type t, Bool))] Sigil  -- True means taken
   | TUnit
   deriving (Show, Eq, Ord)
@@ -317,7 +317,7 @@ bang (TVar v)         = TVarBang v
 bang (TVarBang v)     = TVarBang v
 bang (TUnit)          = TUnit
 bang (TProduct t1 t2) = TProduct (bang t1) (bang t2)
-bang (TSequence t)    = TSequence (bang t)
+bang (TSequence l t)    = TSequence l (bang t)
 bang (TSum ts)        = TSum (map (second $ first bang) ts)
 bang (TFun ti to)     = TFun ti to
 bang (TRecord ts s)   = TRecord (map (second $ first bang) ts) (bangSigil s)
@@ -330,7 +330,7 @@ substitute vs (TVar v)         = vs `at` v
 substitute vs (TVarBang v)     = bang (vs `at` v)
 substitute _  (TUnit)          = TUnit
 substitute vs (TProduct t1 t2) = TProduct (substitute vs t1) (substitute vs t2)
-substitute vs (TSequence t)    = TSequence (substitute vs t)
+substitute vs (TSequence l t)  = TSequence l (substitute vs t)
 substitute vs (TSum ts)        = TSum (map (second (first $ substitute vs)) ts)
 substitute vs (TFun ti to)     = TFun (substitute vs ti) (substitute vs to)
 substitute vs (TRecord ts t)   = TRecord (map (second (first $ substitute vs)) ts) t
@@ -461,7 +461,7 @@ kindcheck (TVar v)         = lookupKind v
 kindcheck (TVarBang v)     = bangKind <$> lookupKind v
 kindcheck (TUnit)          = return mempty
 kindcheck (TProduct t1 t2) = mappend <$> kindcheck t1 <*> kindcheck t2
-kindcheck (TSequence t)    = kindcheck t
+kindcheck (TSequence _ t)  = kindcheck t
 kindcheck (TSum ts)        = mconcat <$> mapM (kindcheck . fst . snd) (filter (not . snd .snd) ts)
 kindcheck (TFun ti to)     = return mempty
 kindcheck (TRecord ts s)   = mappend (sigilKind s) <$> (mconcat <$> (mapM (kindcheck . fst . snd) (filter (not . snd .snd) ts)))
@@ -512,9 +512,9 @@ typecheck (E (Tuple e1 e2))
        return $ TE (TProduct (exprType e1') (exprType e2')) (Tuple e1' e2')
 typecheck (E (Sequence e1 e2))
   = do e1'@(TE t1 _) <- typecheck e1
-       e2'@(TE t2 _) <- typecheck e2
-       guardShow "list" $ t2 == TSequence t1
-       return $ TE t2 (Sequence e1' e2')
+       e2'@(TE (TSequence l2 t) _) <- typecheck e2
+       guardShow "list" $ t == t1
+       return $ TE (TSequence (l2 + 1) t) (Sequence e1' e2')
 typecheck (E (Con tag e))
   = do e' <- typecheck e
        return $ TE (TSum [(tag, (exprType e', False))]) (Con tag e')
@@ -544,8 +544,8 @@ typecheck (E (Split a e1 e2))
        e2' <- withBindings (Cons t1 (Cons t2 Nil)) (typecheck e2)
        return $ TE (exprType e2') (Split a e1' e2')
 typecheck (E (Head a e1 e2))
-  = do e1'@(TE t1 _) <- typecheck e1
-       e2' <- withBindings (Cons t1 (Cons (TSequence t1) Nil)) (typecheck e2)
+  = do e1'@(TE t1@(TSequence l t) _) <- typecheck e1
+       e2' <- withBindings (Cons t1 (Cons (TSequence (l-1) t1) Nil)) (typecheck e2)
        return $ TE (exprType e2') (Head a e1' e2')
 typecheck (E (Member e f))
   = do e'@(TE t@(TRecord ts s) _) <- typecheck e  -- canShare
@@ -722,7 +722,7 @@ instance Pretty (Type t) where
   pretty (TString) = typename "String"
   pretty (TUnit) = typename "()"
   pretty (TProduct t1 t2) = tupled (map pretty [t1, t2])
-  pretty (TSequence t) = list [pretty t]
+  pretty (TSequence l t) = typename "Seq" <+> int l <+> parens (pretty t)
   pretty (TSum alts) = variant (map (\(n,(t,_)) -> tagName n <+> pretty t) alts)  -- FIXME: cogent.1
   pretty (TFun t1 t2) = prettyT' t1 <+> typesymbol "->" <+> pretty t2
      where prettyT' e@(TFun {}) = parens (pretty e)
