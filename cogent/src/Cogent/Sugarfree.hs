@@ -76,6 +76,7 @@ data Type t
   | TString
   | TSum [(TagName, (Type t, Bool))]  -- True means taken (since 2.0.4)
   | TProduct (Type t) (Type t)
+  | TSequence (Type t)
   | TRecord [(FieldName, (Type t, Bool))] Sigil  -- True means taken
   | TUnit
   deriving (Show, Eq, Ord)
@@ -117,11 +118,13 @@ data Expr t v a e
   | Let a (e t v a) (e t ('Suc v) a)
   | LetBang [(Fin v, a)] a (e t v a) (e t ('Suc v) a)
   | Tuple (e t v a) (e t v a)
+  | Sequence (e t v a) (e t v a)
   | Struct [(FieldName, e t v a)]  -- unboxed record
   | If (e t v a) (e t v a) (e t v a)   -- technically no longer needed as () + () == Bool
   | Case (e t v a) TagName (Likelihood, a, e t ('Suc v) a) (Likelihood, a, e t ('Suc v) a)
   | Esac (e t v a)
   | Split (a, a) (e t v a) (e t ('Suc ('Suc v)) a)
+  | Head (a, a) (e t v a) (e t ('Suc ('Suc v)) a)
   | Member (e t v a) FieldIndex
   | Take (a, a) (e t v a) FieldIndex (e t ('Suc ('Suc v)) a)
   | Put (e t v a) FieldIndex (e t v a)
@@ -201,15 +204,17 @@ traverseE f (SLit s)             = pure $ SLit s
 traverseE f (Let a e1 e2)        = Let a  <$> f e1 <*> f e2
 traverseE f (LetBang vs a e1 e2) = LetBang vs a <$> f e1 <*> f e2
 traverseE f (Tuple e1 e2)        = Tuple <$> f e1 <*> f e2
+traverseE f (Sequence e1 e2)     = Sequence <$> f e1 <*> f e2
 traverseE f (Struct fs)          = Struct <$> traverse (traverse f) fs
 traverseE f (If e1 e2 e3)        = If <$> f e1 <*> f e2 <*> f e3
 traverseE f (Case e tn (l1,a1,e1) (l2,a2,e2)) = Case <$> f e <*> pure tn <*> ((l1, a1,) <$> f e1)  <*> ((l2, a2,) <$> f e2)
-traverseE f (Esac e)             = Esac <$> (f e)
-traverseE f (Split a e1 e2)      = Split a <$> (f e1) <*> (f e2)
-traverseE f (Member rec fld)     = Member <$> (f rec) <*> pure fld
-traverseE f (Take a rec fld e)   = Take a <$> (f rec) <*> pure fld <*> (f e)
-traverseE f (Put rec fld v)      = Put <$> (f rec) <*> pure fld <*> (f v)
-traverseE f (Promote ty e)       = Promote ty <$> (f e)
+traverseE f (Esac e)             = Esac <$> f e
+traverseE f (Split a e1 e2)      = Split a <$> f e1 <*> f e2
+traverseE f (Head a e1 e2)       = Head a <$> f e1 <*> f e2
+traverseE f (Member rec fld)     = Member <$> f rec <*> pure fld
+traverseE f (Take a rec fld e)   = Take a <$> f rec <*> pure fld <*> f e
+traverseE f (Put rec fld v)      = Put <$> f rec <*> pure fld <*> f v
+traverseE f (Promote ty e)       = Promote ty <$> f e
 
 -- pre-order fold over Expr wrapper
 foldEPre :: (Monoid b) => (forall t v. e1 t v a -> Expr t v a e1) -> (forall t v. e1 t v a -> b) -> e1 t v a -> b
@@ -225,11 +230,13 @@ foldEPre unwrap f e = case unwrap e of
   (Let _ e1 e2)       -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
   (LetBang _ _ e1 e2) -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
   (Tuple e1 e2)       -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
+  (Sequence e1 e2)    -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
   (Struct fs)         -> mconcat $ f e : map (foldEPre unwrap f . snd) fs
   (If e1 e2 e3)       -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2, foldEPre unwrap f e3]
   (Case e1 _ (_,_,e2) (_,_,e3)) -> mconcat $ [f e, foldEPre unwrap f e1, foldEPre unwrap f e2, foldEPre unwrap f e3]
   (Esac e1)           -> f e `mappend` foldEPre unwrap f e1
   (Split _ e1 e2)     -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
+  (Head _ e1 e2)      -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
   (Member e1 _)       -> f e `mappend` foldEPre unwrap f e1
   (Take _ e1 _ e2)    -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
   (Put e1 _ e2)       -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
@@ -247,11 +254,13 @@ fmapE f (SLit s)             = SLit s
 fmapE f (Let a e1 e2)        = Let a (f e1) (f e2)
 fmapE f (LetBang vs a e1 e2) = LetBang vs a (f e1) (f e2)
 fmapE f (Tuple e1 e2)        = Tuple (f e1) (f e2)
+fmapE f (Sequence e1 e2)     = Sequence (f e1) (f e2)
 fmapE f (Struct fs)          = Struct (map (second f) fs)
 fmapE f (If e1 e2 e3)        = If (f e1) (f e2) (f e3)
 fmapE f (Case e tn (l1,a1,e1) (l2,a2,e2)) = Case (f e) tn (l1, a1, f e1) (l2, a2, f e2)
 fmapE f (Esac e)             = Esac (f e)
 fmapE f (Split a e1 e2)      = Split a (f e1) (f e2)
+fmapE f (Head a e1 e2)       = Head a (f e1) (f e2)
 fmapE f (Member rec fld)     = Member (f rec) fld
 fmapE f (Take a rec fld e)   = Take a (f rec) fld (f e)
 fmapE f (Put rec fld v)      = Put (f rec) fld (f v)
@@ -277,11 +286,13 @@ instance (Functor (e t v), Functor (e t ('Suc v)), Functor (e t ('Suc ('Suc v)))
   fmap f (Flip (Let a e1 e2)        ) = Flip $ Let (f a) (fmap f e1) (fmap f e2)
   fmap f (Flip (LetBang vs a e1 e2) ) = Flip $ LetBang (map (second f) vs) (f a) (fmap f e1) (fmap f e2)
   fmap f (Flip (Tuple e1 e2)        ) = Flip $ Tuple (fmap f e1) (fmap f e2)
+  fmap f (Flip (Sequence e1 e2)     ) = Flip $ Sequence (fmap f e1) (fmap f e2)
   fmap f (Flip (Struct fs)          ) = Flip $ Struct (map (second $ fmap f) fs)
   fmap f (Flip (If e1 e2 e3)        ) = Flip $ If (fmap f e1) (fmap f e2) (fmap f e3)
   fmap f (Flip (Case e tn (l1,a1,e1) (l2,a2,e2))) = Flip $ Case (fmap f e) tn (l1, f a1, fmap f e1) (l2, f a2, fmap f e2)
   fmap f (Flip (Esac e)             ) = Flip $ Esac (fmap f e)
   fmap f (Flip (Split a e1 e2)      ) = Flip $ Split ((f *** f) a) (fmap f e1) (fmap f e2)
+  fmap f (Flip (Head a e1 e2)       ) = Flip $ Head ((f *** f) a) (fmap f e1) (fmap f e2)
   fmap f (Flip (Member rec fld)     ) = Flip $ Member (fmap f rec) fld
   fmap f (Flip (Take a rec fld e)   ) = Flip $ Take ((f *** f) a) (fmap f rec) fld (fmap f e)
   fmap f (Flip (Put rec fld v)      ) = Flip $ Put (fmap f rec) fld (fmap f v)
@@ -306,6 +317,7 @@ bang (TVar v)         = TVarBang v
 bang (TVarBang v)     = TVarBang v
 bang (TUnit)          = TUnit
 bang (TProduct t1 t2) = TProduct (bang t1) (bang t2)
+bang (TSequence t)    = TSequence (bang t)
 bang (TSum ts)        = TSum (map (second $ first bang) ts)
 bang (TFun ti to)     = TFun ti to
 bang (TRecord ts s)   = TRecord (map (second $ first bang) ts) (bangSigil s)
@@ -318,6 +330,7 @@ substitute vs (TVar v)         = vs `at` v
 substitute vs (TVarBang v)     = bang (vs `at` v)
 substitute _  (TUnit)          = TUnit
 substitute vs (TProduct t1 t2) = TProduct (substitute vs t1) (substitute vs t2)
+substitute vs (TSequence t)    = TSequence (substitute vs t)
 substitute vs (TSum ts)        = TSum (map (second (first $ substitute vs)) ts)
 substitute vs (TFun ti to)     = TFun (substitute vs ti) (substitute vs to)
 substitute vs (TRecord ts t)   = TRecord (map (second (first $ substitute vs)) ts) t
@@ -448,6 +461,7 @@ kindcheck (TVar v)         = lookupKind v
 kindcheck (TVarBang v)     = bangKind <$> lookupKind v
 kindcheck (TUnit)          = return mempty
 kindcheck (TProduct t1 t2) = mappend <$> kindcheck t1 <*> kindcheck t2
+kindcheck (TSequence t)    = kindcheck t
 kindcheck (TSum ts)        = mconcat <$> mapM (kindcheck . fst . snd) (filter (not . snd .snd) ts)
 kindcheck (TFun ti to)     = return mempty
 kindcheck (TRecord ts s)   = mappend (sigilKind s) <$> (mconcat <$> (mapM (kindcheck . fst . snd) (filter (not . snd .snd) ts)))
@@ -457,106 +471,115 @@ kindcheck (TCon n vs s)    = mapM_ kindcheck vs >> return (sigilKind s)
 
 typecheck :: UntypedExpr t v a -> TC t v (TypedExpr t v a)
 typecheck (E (Op o es))
-   = do es' <- mapM typecheck es
-        let Just t = opType o (map exprType es')
-        return (TE t (Op o es'))
+  = do es' <- mapM typecheck es
+       let Just t = opType o (map exprType es')
+       return (TE t (Op o es'))
 typecheck (E (ILit i t)) = return (TE (TPrim t) (ILit i t))
 typecheck (E (SLit s)) = return (TE TString (SLit s))
 typecheck (E (Variable v))
-   = do Just t <- useVariable (fst v)
-        return (TE t (Variable v))
+  = do Just t <- useVariable (fst v)
+       return (TE t (Variable v))
 typecheck (E (Fun f ts note))
-   | ExI (Flip ts') <- Vec.fromList ts
-   = do Just (FT ks ti to) <- funType f
-        case Vec.length ts' =? Vec.length ks
-          of Just Refl -> let ti' = substitute ts' ti
-                              to' = substitute ts' to
-                           in do forM_ (Vec.zip ts' ks) $ \(t, k) -> do
-                                   k' <- kindcheck t
-                                   when ((k <> k') /= k) $ fail "kind not matched in type instantiation"
-                                 return $ TE (TFun ti' to') (Fun f ts note)
-             Nothing -> fail "lengths don't match"
+  | ExI (Flip ts') <- Vec.fromList ts
+  = do Just (FT ks ti to) <- funType f
+       case Vec.length ts' =? Vec.length ks
+         of Just Refl -> let ti' = substitute ts' ti
+                             to' = substitute ts' to
+                          in do forM_ (Vec.zip ts' ks) $ \(t, k) -> do
+                                  k' <- kindcheck t
+                                  when ((k <> k') /= k) $ fail "kind not matched in type instantiation"
+                                return $ TE (TFun ti' to') (Fun f ts note)
+            Nothing -> fail "lengths don't match"
 typecheck (E (App e1 e2))
-   = do e1'@(TE (TFun ti to) _) <- typecheck e1
-        e2'@(TE ti' _) <- typecheck e2
-        guardShow "app" $ ti' == ti
-        return $ TE to (App e1' e2')
+  = do e1'@(TE (TFun ti to) _) <- typecheck e1
+       e2'@(TE ti' _) <- typecheck e2
+       guardShow "app" $ ti' == ti
+       return $ TE to (App e1' e2')
 typecheck (E (Let a e1 e2))
-   = do e1' <- typecheck e1
-        e2' <- withBinding (exprType e1') (typecheck e2)
-        return $ TE (exprType e2') (Let a e1' e2')
+  = do e1' <- typecheck e1
+       e2' <- withBinding (exprType e1') (typecheck e2)
+       return $ TE (exprType e2') (Let a e1' e2')
 typecheck (E (LetBang vs a e1 e2))
-   = do e1' <- withBang (map fst vs) (typecheck e1)
-        k <- kindcheck (exprType e1')
-        guardShow "let!" $ canEscape k
-        e2' <- withBinding (exprType e1') (typecheck e2)
-        return $ TE (exprType e2') (LetBang vs a e1' e2')
+  = do e1' <- withBang (map fst vs) (typecheck e1)
+       k <- kindcheck (exprType e1')
+       guardShow "let!" $ canEscape k
+       e2' <- withBinding (exprType e1') (typecheck e2)
+       return $ TE (exprType e2') (LetBang vs a e1' e2')
 typecheck (E Unit) = return $ TE TUnit Unit
 typecheck (E (Tuple e1 e2))
-   = do e1' <- typecheck e1
-        e2' <- typecheck e2
-        return $ TE (TProduct (exprType e1') (exprType e2')) (Tuple e1' e2')
+  = do e1' <- typecheck e1
+       e2' <- typecheck e2
+       return $ TE (TProduct (exprType e1') (exprType e2')) (Tuple e1' e2')
+typecheck (E (Sequence e1 e2))
+  = do e1'@(TE t1 _) <- typecheck e1
+       e2'@(TE t2 _) <- typecheck e2
+       guardShow "list" $ t2 == TSequence t1
+       return $ TE t2 (Sequence e1' e2')
 typecheck (E (Con tag e))
-   = do e' <- typecheck e
-        return $ TE (TSum [(tag, (exprType e', False))]) (Con tag e')
+  = do e' <- typecheck e
+       return $ TE (TSum [(tag, (exprType e', False))]) (Con tag e')
 typecheck (E (If ec et ee))
-   = do ec' <- typecheck ec
-        guardShow "if-1" $ exprType ec' == TPrim Boolean
-        (et', ee') <- (,) <$> typecheck et <||> typecheck ee  -- have to use applicative functor, as they share the same initial env
-        guardShow "if-2" $ exprType et' == exprType ee'  -- promoted
-        return $ TE (exprType et') (If ec' et' ee')
+  = do ec' <- typecheck ec
+       guardShow "if-1" $ exprType ec' == TPrim Boolean
+       (et', ee') <- (,) <$> typecheck et <||> typecheck ee  -- have to use applicative functor, as they share the same initial env
+       guardShow "if-2" $ exprType et' == exprType ee'  -- promoted
+       return $ TE (exprType et') (If ec' et' ee')
 typecheck (E (Case e tag (lt,at,et) (le,ae,ee)))
-   = do e' <- typecheck e
-        let TSum ts = exprType e'
-            Just (t, False) = lookup tag ts  -- must not have been taken
-            restt = if __cogent_fnew_subtyping
-                      then TSum $ adjust tag (second $ const True) ts
-                      else TSum $ remove tag ts
-        (et',ee') <- (,) <$>  withBinding t     (typecheck et)
-                         <||> withBinding restt (typecheck ee)
-        guardShow "case" $ exprType et' == exprType ee'  -- promoted
-        return $ TE (exprType et') (Case e' tag (lt,at,et') (le,ae,ee'))
+  = do e' <- typecheck e
+       let TSum ts = exprType e'
+           Just (t, False) = lookup tag ts  -- must not have been taken
+           restt = if __cogent_fnew_subtyping
+                     then TSum $ adjust tag (second $ const True) ts
+                     else TSum $ remove tag ts
+       (et',ee') <- (,) <$>  withBinding t     (typecheck et)
+                        <||> withBinding restt (typecheck ee)
+       guardShow "case" $ exprType et' == exprType ee'  -- promoted
+       return $ TE (exprType et') (Case e' tag (lt,at,et') (le,ae,ee'))
 typecheck (E (Esac e))
-   = do e'@(TE (TSum [(_,(t,False))]) _) <- typecheck e
-        return $ TE t (Esac e')
+  = do e'@(TE (TSum [(_,(t,False))]) _) <- typecheck e
+       return $ TE t (Esac e')
 typecheck (E (Split a e1 e2))
-   = do e1' <- typecheck e1
-        let (TProduct t1 t2) = exprType e1'
-        e2' <- withBindings (Cons t1 (Cons t2 Nil)) (typecheck e2)
-        return $ TE (exprType e2') (Split a e1' e2')
+  = do e1' <- typecheck e1
+       let (TProduct t1 t2) = exprType e1'
+       e2' <- withBindings (Cons t1 (Cons t2 Nil)) (typecheck e2)
+       return $ TE (exprType e2') (Split a e1' e2')
+typecheck (E (Head a e1 e2))
+  = do e1'@(TE t1 _) <- typecheck e1
+       e2' <- withBindings (Cons t1 (Cons (TSequence t1) Nil)) (typecheck e2)
+       return $ TE (exprType e2') (Head a e1' e2')
 typecheck (E (Member e f))
-   = do e'@(TE t@(TRecord ts s) _) <- typecheck e  -- canShare
-        guardShow "member-1" . canShare =<< kindcheck t
-        guardShow "member-2" $ f < length ts
-        let (_,(tau,c)) = ts !! f
-        guardShow "member-3" $ not c  -- not taken
-        return $ TE tau (Member e' f)
+  = do e'@(TE t@(TRecord ts s) _) <- typecheck e  -- canShare
+       guardShow "member-1" . canShare =<< kindcheck t
+       guardShow "member-2" $ f < length ts
+       let (_,(tau,c)) = ts !! f
+       guardShow "member-3" $ not c  -- not taken
+       return $ TE tau (Member e' f)
 typecheck (E (Struct fs))
-   = do let (ns,es) = unzip fs
-        es' <- mapM typecheck es
-        return $ TE (TRecord (zipWith (\n e' -> (n, (exprType e', False))) ns es') Unboxed) $ Struct $ zip ns es'
+  = do let (ns,es) = unzip fs
+       es' <- mapM typecheck es
+       return $ TE (TRecord (zipWith (\n e' -> (n, (exprType e', False))) ns es') Unboxed) $ Struct $ zip ns es'
 typecheck (E (Take a e f e2))
-   = do e' <- typecheck e
-        let (TE (TRecord ts s) _) = e'
-        guardShow "take-1" $ s /= ReadOnly
-        guardShow "take-2" $ f < length ts
-        let (init, (fn,(tau,False)):rest) = splitAt f ts
-        k <- kindcheck tau
-        e2' <- withBindings (Cons tau (Cons (TRecord (init ++ (fn,(tau,True )):rest) s) Nil)) (typecheck e2)  -- take that field regardless of its shareability
-        return $ TE (exprType e2') (Take a e' f e2')
+  = do e' <- typecheck e
+       let (TE (TRecord ts s) _) = e'
+       guardShow "take-1" $ s /= ReadOnly
+       guardShow "take-2" $ f < length ts
+       let (init, (fn,(tau,False)):rest) = splitAt f ts
+       k <- kindcheck tau
+       e2' <- withBindings (Cons tau (Cons (TRecord (init ++ (fn,(tau,True )):rest) s) Nil)) (typecheck e2)  -- take that field regardless of its shareability
+       return $ TE (exprType e2') (Take a e' f e2')
 typecheck (E (Put e1 f e2))
-   = do e1'@(TE (TRecord ts s) _) <- typecheck e1
-        guardShow "put-1" $ f < length ts
-        let (init, (fn,(tau,taken)):rest) = splitAt f ts
-        k <- kindcheck tau
-        when (not taken) $ guardShow "put-2" $ canDiscard k  -- if it's not taken, then it has to be discardable; if taken, then just put
-        e2' <- typecheck e2
-        guardShow "put-3" $ exprType e2' == tau
-        return $ TE (TRecord (init ++ (fn,(tau,False)):rest) s) (Put e1' f e2')  -- put it regardless
+  = do e1'@(TE (TRecord ts s) _) <- typecheck e1
+       guardShow "put-1" $ f < length ts
+       let (init, (fn,(tau,taken)):rest) = splitAt f ts
+       k <- kindcheck tau
+       when (not taken) $ guardShow "put-2" $ canDiscard k  -- if it's not taken, then it has to be discardable; if taken, then just put
+       e2' <- typecheck e2
+       guardShow "put-3" $ exprType e2' == tau
+       return $ TE (TRecord (init ++ (fn,(tau,False)):rest) s) (Put e1' f e2')  -- put it regardless
 typecheck (E (Promote ty e))
-   = do (TE t e') <- typecheck e
-        guardShow "promote" $ t `isSubtype` ty
-        return $ TE ty (Promote ty $ TE t e')
+  = do (TE t e') <- typecheck e
+       guardShow "promote" $ t `isSubtype` ty
+       return $ TE ty (Promote ty $ TE t e')
 
 
 -- /////////////////////////////////////////////////////////////////////////////
@@ -607,6 +630,7 @@ levelE (Variable {}) = 0
 levelE (Fun {}) = 0
 levelE (App {}) = 1
 levelE (Tuple {}) = 0
+levelE (Sequence {}) = 10
 levelE (Con {}) = 0
 levelE (Esac {}) = 0
 levelE (Member {}) = 0
@@ -653,7 +677,7 @@ instance (Pretty a, PrettyP (e t v a), Pretty (e t ('Suc v) a), Pretty (e t ('Su
      | NoAssoc    l <- associativity opr = prettyP l a <+> primop opr <+> prettyP l  b
   pretty (Op opr [e]) = primop opr <+> prettyP 1 e
   pretty (Op opr es)  = primop opr <+> tupled (map pretty es)
-  pretty (ILit i pt) = literal (string $ show i) <+> symbol "::" <+> pretty pt
+  pretty (ILit i pt) = literal (string $ show i) <+> symbol ":" <+> pretty pt
   pretty (SLit s) = literal $ string s
   pretty (Variable x) = pretty (snd x) L.<> angles (prettyV $ fst x)
   pretty (Fun fn ins nt) = pretty nt L.<> funName fn <+> pretty ins
@@ -664,6 +688,7 @@ instance (Pretty a, PrettyP (e t v a), Pretty (e t ('Suc v) a), Pretty (e t ('Su
                                        keyword "in" <+> pretty e2)
   pretty (Unit) = tupled []
   pretty (Tuple e1 e2) = tupled (map pretty [e1, e2])
+  pretty (Sequence e1 e2) = prettyP 10 e1 <+> symbol "::" <+> prettyP 10 e2
   pretty (Struct fs) = symbol "#" L.<> record (map (\(n,e) -> fieldName n <+> symbol "=" <+> pretty e) fs)
   pretty (Con tn e) = tagName tn <+> prettyP 1 e
   pretty (If c t e) = group . align $ (keyword "if" <+> pretty c
@@ -673,14 +698,16 @@ instance (Pretty a, PrettyP (e t v a), Pretty (e t ('Suc v) a), Pretty (e t ('Su
                                                   L.<$> indent (tagName tn <+> pretty l1 <+> align (pretty a1))
                                                   L.<$> indent (symbol "*" <+> pretty l2 <+> align (pretty a2)))
   pretty (Esac e) = keyword "esac" <+> parens (pretty e)
-  pretty (Split _ e1 e2) = align (keyword "split" <+> pretty e1 L.<$>
-                                  keyword "in" <+> pretty e2)
+  pretty (Split (a1,a2) e1 e2) = align (keyword "let" <+> tupled (map pretty [a1,a2]) <+> symbol "=" <+> pretty e1 L.<$>
+                                        keyword "in" <+> pretty e2)
+  pretty (Head (a,as) e1 e2) = align (keyword "let" <+> pretty a <> symbol "::" <> pretty as <+> symbol "=" <+> pretty e1 L.<$>
+                                      keyword "in" <+> pretty e2)
   pretty (Member x f) = prettyP 1 x L.<> symbol "." L.<> fieldIndex f
   pretty (Take (a,b) rec f e) = align (keyword "take" <+> tupled [pretty a, pretty b] <+> symbol "="
                                                       <+> prettyP 1 rec <+> record (fieldIndex f:[]) L.<$>
                                        keyword "in" <+> pretty e)
   pretty (Put rec f v) = prettyP 1 rec <+> record [fieldIndex f <+> symbol "=" <+> pretty v]
-  pretty (Promote t e) = prettyP 1 e <+> symbol "::" <+> pretty t
+  pretty (Promote t e) = prettyP 1 e <+> symbol ":" <+> pretty t
 
 instance Pretty FunNote where
   pretty NoInline = empty
@@ -695,6 +722,7 @@ instance Pretty (Type t) where
   pretty (TString) = typename "String"
   pretty (TUnit) = typename "()"
   pretty (TProduct t1 t2) = tupled (map pretty [t1, t2])
+  pretty (TSequence t) = list [pretty t]
   pretty (TSum alts) = variant (map (\(n,(t,_)) -> tagName n <+> pretty t) alts)  -- FIXME: cogent.1
   pretty (TFun t1 t2) = prettyT' t1 <+> typesymbol "->" <+> pretty t2
      where prettyT' e@(TFun {}) = parens (pretty e)
