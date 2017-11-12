@@ -89,6 +89,8 @@ data TypeError = NotAPolymorphicFunction VarName RawType
                | CannotPromote RawType TypedExpr
                | NotASubtype RawType TypedExpr
                | NotASubtypeAlts RawType RawType
+               | SequenceCannotBeEmpty SourcePos
+               | SequenceTooShortToMatch (IrrefutablePattern VarName) Int
                | ConstantMustBeShareable VarName RawType
                | FunDefNotOfFunType VarName RawType
                | DynamicVariantPromotionE TypedExpr RawType RawType
@@ -555,6 +557,7 @@ promote t e@(TE te _) = inEContext (InExpressionOfType (dummyLocE $ toRawExp e) 
         promote' t (TE te (Seq e1 e2)) = TE t <$> (Seq e1 <$> promote t e2)
         promote' t (TE te (If c vs th el)) = TE t <$> (If c vs <$> promote t th <*> promote t el)
         promote' t (TE te (Tuple es)) = TE t <$> (Tuple <$> zipWithM promote ts es) where RT (TTuple ts) = t
+        promote' t (TE te (Sequence es)) = TE t <$> (Sequence <$> mapM (promote telem) es) where RT (TSequence _ telem) = t
         promote' t (TE te (UnboxedRecord fs)) = TE t <$> (UnboxedRecord <$> zipWithM (\t' (n,e) -> (n,) <$> promote t' e) ts fs)
           where RT (TRecord rs Unboxed) = t
                 ts = map (fst . snd) rs
@@ -652,6 +655,12 @@ matchIrrefPattern (PTuple ps) (RT (TTuple ts)) | length ps == length ts =  -- | 
 --         pTupleWHNF' x@(PTuple (reverse -> (p:ps))) = case p of
 --           PTuple ps' -> pTupleWHNF' $ PTuple $ reverse ps ++ ps'; _ -> x
 --         pTupleWHNF' _ = __impossible "pTupleWHNF' (in matchIrrefPattern)"
+matchIrrefPattern pseq@(PSequence ps p) (RT (TSequence l t)) = do
+  let l' = l - length ps
+  unless (l' >= 1) $ typeError (SequenceTooShortToMatch pseq l)
+  ps' <- mapM (flip matchIrrefPattern t) ps
+  p'  <- matchIrrefPattern p (RT $ TSequence l' t)
+  return $ PSequence ps' p'
 matchIrrefPattern (PUnderscore) tau = canDiscard <$> kindcheck tau >>= \case
                                         True -> return PUnderscore
                                         False -> typeError (CannotDiscardValue tau)
@@ -802,6 +811,11 @@ infer' l (Tuple (e1:es@(_:_:_))) | not __cogent_ftuples_as_sugar = do
 infer' l (Tuple es) = do  -- | __cogent_ftuples_as_sugar
   es' <- mapM infer es
   return $ TE (RT $ TTuple $ map typeOfTE es') $ Tuple es'
+infer' l (Sequence []) = typeError $ SequenceCannotBeEmpty l
+infer' l (Sequence (e1:es)) = do
+  e1'@(TE t1 _) <- infer e1
+  es' <- forM es $ flip check t1
+  return $ TE (RT $ TSequence (length $ e1:es) t1) (Sequence $ e1':es') 
 infer' l e@(UnboxedRecord fs) = do ns <- go $ map fst fs
                                    ts <- mapM (infer . snd) fs
                                    return . TE (RT $ TRecord (zip ns $ zip (map typeOfTE ts) (repeat False)) Unboxed) $
