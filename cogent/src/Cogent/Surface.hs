@@ -33,6 +33,7 @@ data IrrefutablePattern pv = PVar pv
                            | PUnboxedRecord [Maybe (FieldName, IrrefutablePattern pv)]
                            | PUnderscore
                            | PUnitel
+                           | PEmptySequence
                            | PTake pv [Maybe (FieldName, IrrefutablePattern pv)]
                                -- Note: `Nothing' will be desugared to `Just' in TypeCheck / zilinc
                            deriving (Show, Functor, Foldable, Traversable, Eq)
@@ -63,12 +64,13 @@ data Expr t pv e = PrimOp OpName [e]
                  | If e [VarName] e e
                  | Member e FieldName
                  | Unitel
+                 | EmptySequence
                  | IntLit Integer
                  | BoolLit Bool
                  | CharLit Char
                  | StringLit String
                  | Tuple [e]
-                 | Sequence [e]
+                 | Sequence [e] e
                  | UnboxedRecord [(FieldName, e)]
                  | Let [Binding t pv e] e
                  | Put e [Maybe (FieldName, e)]  -- Note: `Nothing' will be desugared to `Just' in TypeCheck / zilinc
@@ -151,13 +153,14 @@ instance Functor (Flip (Expr t) e) where
   fmap _ (Flip (If c vs e e'))      = Flip (If c vs e e')
   fmap _ (Flip (App e e'))          = Flip (App e e')
   fmap _ (Flip (Con n e))           = Flip (Con n e)
-  fmap _ (Flip Unitel)              = Flip Unitel
+  fmap _ (Flip Unitel)              = Flip (Unitel)
+  fmap _ (Flip EmptySequence)       = Flip (EmptySequence)
   fmap _ (Flip (IntLit l))          = Flip (IntLit l)
   fmap _ (Flip (BoolLit l))         = Flip (BoolLit l)
   fmap _ (Flip (CharLit l))         = Flip (CharLit l)
   fmap _ (Flip (StringLit l))       = Flip (StringLit l)
   fmap _ (Flip (Tuple es))          = Flip (Tuple es)
-  fmap _ (Flip (Sequence es))       = Flip (Sequence es)
+  fmap _ (Flip (Sequence es e))     = Flip (Sequence es e)
   fmap _ (Flip (UnboxedRecord es))  = Flip (UnboxedRecord es)
   fmap _ (Flip (Put e es))          = Flip (Put e es)
 instance Functor (Flip2 Expr p e) where
@@ -172,13 +175,14 @@ instance Functor (Flip2 Expr p e) where
   fmap _ (Flip2 (App e e'))         = Flip2 (App e e')
   fmap _ (Flip2 (Member e f))       = Flip2 (Member e f)
   fmap _ (Flip2 (Con n e))          = Flip2 (Con n e)
-  fmap _ (Flip2 Unitel)             = Flip2 Unitel
+  fmap _ (Flip2 Unitel)             = Flip2 (Unitel)
+  fmap _ (Flip2 EmptySequence)      = Flip2 (EmptySequence)
   fmap _ (Flip2 (IntLit l))         = Flip2 (IntLit l)
   fmap _ (Flip2 (BoolLit l))        = Flip2 (BoolLit l)
   fmap _ (Flip2 (CharLit l))        = Flip2 (CharLit l)
   fmap _ (Flip2 (StringLit l))      = Flip2 (StringLit l)
   fmap _ (Flip2 (Tuple es))         = Flip2 (Tuple es)
-  fmap _ (Flip2 (Sequence es))      = Flip2 (Sequence es)
+  fmap _ (Flip2 (Sequence es e))    = Flip2 (Sequence es e)
   fmap _ (Flip2 (UnboxedRecord es)) = Flip2 (UnboxedRecord es)
   fmap _ (Flip2 (Put e es))         = Flip2 (Put e es)
 instance Functor (Flip (TopLevel t) e) where

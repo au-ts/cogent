@@ -312,6 +312,15 @@ desugarAlt e0 (S.PIrrefutable (S.PTuple ps)) e | __cogent_ftuples_as_sugar = do
       bs = flip P.map vpts' $ \(v,p,t) -> S.Binding p Nothing (T.TE t $ S.Var v) []
   desugarExpr $ T.TE (T.typeOfTE e) $ S.Let (b0:bs) e
   where isPVar (S.PVar _) = True; isPVar _ = False
+desugarAlt e0 (S.PIrrefutable (S.PSequence [] p)) e = __impossible "desugarAlts (PSequence [] p)"
+desugarAlt e0 (S.PIrrefutable (S.PSequence (p1:ps) p)) e = do
+  v1 <- freshVar
+  vs <- freshVar
+  e0' <- desugarExpr e0
+  let S.RT (S.TSequence le te) = T.typeOfTE e
+  e' <- withBindings (Cons v1 (Cons vs Nil)) $
+          desugarAlt (T.TE (S.RT $ S.TSequence (le-1) te) $ S.Var vs) (S.PIrrefutable (S.PSequence ps p)) e
+  return . E $ Head (v1,vs) e0' e'
 desugarAlt e0 (S.PIrrefutable (S.PUnboxedRecord fs)) e = do
   -- #{a, b, c} ~~> x {a,b,c}  -- since we take all the fields out, the unboxed x is useless and can be discarded
   rec <- (, T.typeOfTE e0) <$> freshVar

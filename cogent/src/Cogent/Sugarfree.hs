@@ -113,6 +113,7 @@ data Expr t v a e
   | App (e t v a) (e t v a)
   | Con TagName (e t v a)
   | Unit
+  | EmptySequence (Type t)
   | ILit Integer PrimInt
   | SLit String
   | Let a (e t v a) (e t ('Suc v) a)
@@ -199,6 +200,7 @@ traverseE f (Op opr es)          = Op opr <$> traverse f es
 traverseE f (App e1 e2)          = App <$> f e1 <*> f e2
 traverseE f (Con cn e)           = Con cn <$> f e
 traverseE f (Unit)               = pure $ Unit
+traverseE f (EmptySequence t)    = pure $ EmptySequence t
 traverseE f (ILit i pt)          = pure $ ILit i pt
 traverseE f (SLit s)             = pure $ SLit s
 traverseE f (Let a e1 e2)        = Let a  <$> f e1 <*> f e2
@@ -225,6 +227,7 @@ foldEPre unwrap f e = case unwrap e of
   (App e1 e2)         -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
   (Con _ e1)          -> f e `mappend` foldEPre unwrap f e1
   Unit                -> f e
+  EmptySequence _     -> f e
   ILit{}              -> f e
   SLit{}              -> f e
   (Let _ e1 e2)       -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
@@ -249,6 +252,7 @@ fmapE f (Op opr es)          = Op opr (map f es)
 fmapE f (App e1 e2)          = App (f e1) (f e2)
 fmapE f (Con cn e)           = Con cn (f e)
 fmapE f (Unit)               = Unit
+fmapE f (EmptySequence t)    = EmptySequence t
 fmapE f (ILit i pt)          = ILit i pt
 fmapE f (SLit s)             = SLit s
 fmapE f (Let a e1 e2)        = Let a (f e1) (f e2)
@@ -281,6 +285,7 @@ instance (Functor (e t v), Functor (e t ('Suc v)), Functor (e t ('Suc ('Suc v)))
   fmap f (Flip (App e1 e2)          ) = Flip $ App (fmap f e1) (fmap f e2)
   fmap f (Flip (Con cn e)           ) = Flip $ Con cn (fmap f e)
   fmap f (Flip (Unit)               ) = Flip $ Unit
+  fmap f (Flip (EmptySequence t)    ) = Flip $ EmptySequence t
   fmap f (Flip (ILit i pt)          ) = Flip $ ILit i pt
   fmap f (Flip (SLit s)             ) = Flip $ SLit s
   fmap f (Flip (Let a e1 e2)        ) = Flip $ Let (f a) (fmap f e1) (fmap f e2)
@@ -317,7 +322,7 @@ bang (TVar v)         = TVarBang v
 bang (TVarBang v)     = TVarBang v
 bang (TUnit)          = TUnit
 bang (TProduct t1 t2) = TProduct (bang t1) (bang t2)
-bang (TSequence l t)    = TSequence l (bang t)
+bang (TSequence l t)  = TSequence l (bang t)
 bang (TSum ts)        = TSum (map (second $ first bang) ts)
 bang (TFun ti to)     = TFun ti to
 bang (TRecord ts s)   = TRecord (map (second $ first bang) ts) (bangSigil s)
@@ -506,13 +511,14 @@ typecheck (E (LetBang vs a e1 e2))
        e2' <- withBinding (exprType e1') (typecheck e2)
        return $ TE (exprType e2') (LetBang vs a e1' e2')
 typecheck (E Unit) = return $ TE TUnit Unit
+typecheck (E (EmptySequence t)) = return $ TE (TSequence 0 t) (EmptySequence t)
 typecheck (E (Tuple e1 e2))
   = do e1' <- typecheck e1
        e2' <- typecheck e2
        return $ TE (TProduct (exprType e1') (exprType e2')) (Tuple e1' e2')
 typecheck (E (Sequence e1 e2))
-  = do e1'@(TE t1 _) <- typecheck e1
-       e2'@(TE (TSequence l2 t) _) <- typecheck e2
+  = do e1'@(TE t1 _) <- typecheck e1                -- has been promoted
+       e2'@(TE (TSequence l2 t) _) <- typecheck e2  -- has been promoted
        guardShow "list" $ t == t1
        return $ TE (TSequence (l2 + 1) t) (Sequence e1' e2')
 typecheck (E (Con tag e))

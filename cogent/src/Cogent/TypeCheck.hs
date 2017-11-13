@@ -89,7 +89,8 @@ data TypeError = NotAPolymorphicFunction VarName RawType
                | CannotPromote RawType TypedExpr
                | NotASubtype RawType TypedExpr
                | NotASubtypeAlts RawType RawType
-               | SequenceCannotBeEmpty SourcePos
+               -- | SequenceCannotBeEmpty SourcePos
+               | NotASequence TypedExpr
                | SequenceTooShortToMatch (IrrefutablePattern VarName) Int
                | ConstantMustBeShareable VarName RawType
                | FunDefNotOfFunType VarName RawType
@@ -557,7 +558,8 @@ promote t e@(TE te _) = inEContext (InExpressionOfType (dummyLocE $ toRawExp e) 
         promote' t (TE te (Seq e1 e2)) = TE t <$> (Seq e1 <$> promote t e2)
         promote' t (TE te (If c vs th el)) = TE t <$> (If c vs <$> promote t th <*> promote t el)
         promote' t (TE te (Tuple es)) = TE t <$> (Tuple <$> zipWithM promote ts es) where RT (TTuple ts) = t
-        promote' t (TE te (Sequence es)) = TE t <$> (Sequence <$> mapM (promote telem) es) where RT (TSequence _ telem) = t
+        promote' t (TE te (Sequence es e)) = TE t <$> (Sequence <$> mapM (promote telem) es <*> promote t e)
+          where RT (TSequence _ telem) = t
         promote' t (TE te (UnboxedRecord fs)) = TE t <$> (UnboxedRecord <$> zipWithM (\t' (n,e) -> (n,) <$> promote t' e) ts fs)
           where RT (TRecord rs Unboxed) = t
                 ts = map (fst . snd) rs
@@ -655,9 +657,10 @@ matchIrrefPattern (PTuple ps) (RT (TTuple ts)) | length ps == length ts =  -- | 
 --         pTupleWHNF' x@(PTuple (reverse -> (p:ps))) = case p of
 --           PTuple ps' -> pTupleWHNF' $ PTuple $ reverse ps ++ ps'; _ -> x
 --         pTupleWHNF' _ = __impossible "pTupleWHNF' (in matchIrrefPattern)"
+matchIrrefPattern (PSequence [] p) _ = __impossible "matchIrrefPattern (PSequence)"
 matchIrrefPattern pseq@(PSequence ps p) (RT (TSequence l t)) = do
   let l' = l - length ps
-  unless (l' >= 1) $ typeError (SequenceTooShortToMatch pseq l)
+  unless (l' >= 0) $ typeError (SequenceTooShortToMatch pseq l)
   ps' <- mapM (flip matchIrrefPattern t) ps
   p'  <- matchIrrefPattern p (RT $ TSequence l' t)
   return $ PSequence ps' p'
@@ -665,6 +668,7 @@ matchIrrefPattern (PUnderscore) tau = canDiscard <$> kindcheck tau >>= \case
                                         True -> return PUnderscore
                                         False -> typeError (CannotDiscardValue tau)
 matchIrrefPattern PUnitel (RT TUnit) = return PUnitel
+matchIrrefPattern PEmptySequence tau = return PEmptySequence 
 matchIrrefPattern (PUnboxedRecord []) _ = __impossible "matchIrrefPattern"
 matchIrrefPattern p@(PUnboxedRecord ips) rt@(RT (TRecord ts Unboxed)) | Nothing <- last ips = do
   let ipsInit = init ips
@@ -789,6 +793,7 @@ infer' _ (If c vs t e) = do c' <- letBang vs $ check c (RT $ TCon "Bool" [] Unbo
                             e'' <- promote tau e'
                             return (TE tau $ If c' vs t'' e'')
 infer' _ (Unitel) = return (TE (RT $ TUnit) Unitel)
+infer' _ (EmptySequence) = return (TE (RT $ TSequence 0 undefined) EmptySequence)
 infer' _ (IntLit i) = return (TE (RT $ TCon minimumBitwidth [] Unboxed) $ IntLit i)
   where minimumBitwidth | i < 256        = "U8"
                         | i < 65536      = "U16"
@@ -811,11 +816,19 @@ infer' l (Tuple (e1:es@(_:_:_))) | not __cogent_ftuples_as_sugar = do
 infer' l (Tuple es) = do  -- | __cogent_ftuples_as_sugar
   es' <- mapM infer es
   return $ TE (RT $ TTuple $ map typeOfTE es') $ Tuple es'
-infer' l (Sequence []) = typeError $ SequenceCannotBeEmpty l
-infer' l (Sequence (e1:es)) = do
+infer' l (Sequence [e1] e) = do
   e1'@(TE t1 _) <- infer e1
-  es' <- forM es $ flip check t1
-  return $ TE (RT $ TSequence (length $ e1:es) t1) (Sequence $ e1':es') 
+  e'@(TE t _) <- infer e
+  typeWHNF t >>= \case RT (TSequence 0 _) -> return $ TE (RT $ TSequence 1 t1) (Sequence [e1'] e')
+                       RT (TSequence le te) -> return $ TE (RT $ TSequence (le+1) te) (Sequence [e1'] e')
+                       _ -> typeError $ NotASequence e'
+infer' l (Sequence (e1:es) e) = do
+  e1'@(TE t1 _) <- infer e1
+  ese'@(TE (RT (TSequence le te)) _) <- infer' l (Sequence es e)
+  tau <- te `lub` t1
+  e1'' <- promote tau e1'
+  TE _ (Sequence es' e') <- promote (RT $ TSequence le tau) ese'
+  return $ TE (RT $ TSequence (le+1) tau) (Sequence (e1'':es') e')
 infer' l e@(UnboxedRecord fs) = do ns <- go $ map fst fs
                                    ts <- mapM (infer . snd) fs
                                    return . TE (RT $ TRecord (zip ns $ zip (map typeOfTE ts) (repeat False)) Unboxed) $
