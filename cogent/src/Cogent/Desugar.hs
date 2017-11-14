@@ -381,8 +381,9 @@ desugarType t = typeWHNF t >>= \case
   S.RT (S.TTuple (t1:t2:[])) | not __cogent_ftuples_as_sugar -> TProduct <$> desugarType t1 <*> desugarType t2
   S.RT (S.TTuple (t1:t2:ts)) | not __cogent_ftuples_as_sugar -> __impossible "desugarType"  -- desugarType $ S.RT $ S.TTuple [t1, S.RT $ S.TTuple (t2:ts)]
   S.RT (S.TTuple ts) | __cogent_ftuples_as_sugar -> TRecord <$> (P.zipWith (\t n -> (n,(t, False))) <$> forM ts desugarType <*> pure (P.map (('p':) . show) [1 :: Integer ..])) <*> pure Unboxed
+  S.RT (S.TSequence l t) -> TSequence l <$> desugarType t
   S.RT (S.TUnit)   -> return TUnit
-  notInWHNF -> __impossible $ "desugarType" ++ show notInWHNF
+  notInWHNF -> __impossible $ "desugarType: " ++ show notInWHNF
 
 typeWHNF :: S.RawType -> DS t v S.RawType
 typeWHNF x@(S.RT (S.TCon c as s)) = M.lookup c . sel1 <$> ask >>= \case
@@ -400,6 +401,7 @@ typeWHNF x@(S.RT (S.TTuple _)) = return x  -- | __cogent_ftuples_as_sugar
 -- typeWHNF x@(S.RT (S.TTuple (reverse -> (t:ts)))) = case t of
 --   (S.RT (S.TTuple ts')) -> typeWHNF (S.RT . S.TTuple $ reverse ts ++ ts')
 --   _ -> return x
+typeWHNF x@(S.RT (S.TSequence {})) = return x
 typeWHNF x@(S.RT (S.TUnit)) = return x
 typeWHNF x@(S.RT (S.TUnbox t)) = typeWHNF t >>= \case
   S.RT (S.TCon cn ts s) -> return $ S.RT (S.TCon cn ts Unboxed)

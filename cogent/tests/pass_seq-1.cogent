@@ -1,0 +1,9 @@
+
+foo : (U32, U16, U64[3]) -> (U64[3], U64[4], U64[5])
+foo (a,b,cs) = let xs = a::b::cs
+               and ys = [a,b,a,b]
+               and zs = [a,b]::ys
+               and [a1,b1]::ab = xs
+               and [a2,b2,a2',b2'] = xs
+               and a3::b3::a3'::b3' = ys
+                in (cs,ys,xs)

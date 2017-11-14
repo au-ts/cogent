@@ -8,7 +8,7 @@
 -- @TAG(NICTA_GPL)
 --
 
-{-# LANGUAGE LambdaCase, RecordWildCards, TupleSections #-}
+{-# LANGUAGE LambdaCase, RecordWildCards, TupleSections, ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
 
 module Cogent.Parser where
@@ -45,7 +45,7 @@ import System.FilePath
 
 language :: LanguageDef st
 language = haskellStyle
-           { T.reservedOpNames = [":","=","+","*","/","%","!",":<",".","_","..","#", "@", "@@",
+           { T.reservedOpNames = [":","=","+","*","/","%","!",":<",".","_","..","::","#", "@", "@@",
                                   "&&","||",">=","<=",">","<","==","/=",".&.",".|.",".^.",">>","<<"]
            , T.reservedNames   = ["let","in","type","include","all","take","put","inline",
                                   "if","then","else","not","complement","and","True","False"]
@@ -76,10 +76,14 @@ expr m = do avoidInitial; LocExpr <$> getPosition <*>
                           <*  reservedOp "=" <*> expr 1 <*> many (reservedOp "!" >> variableName)
         bindings = binding `sepBy1` reserved "and"
 
--- TODO: add support for patterns like `_ {f1, f2}', where the record name is anonymous / zilinc
 irrefutablePattern = avoidInitial >>
-            (variableOrRecord <$> variableName <*> optionMaybe (braces recAssignsAndOrWildcard)
+             many (try (irrefutablePattern' <* reservedOp "::")) >>= \case [] -> irrefutablePattern'; ps -> PSequence ps <$> irrefutablePattern'
+
+-- TODO: add support for patterns like `_ {f1, f2}', where the record name is anonymous / zilinc
+irrefutablePattern' = avoidInitial >>
+         (   variableOrRecord <$> variableName <*> optionMaybe (braces recAssignsAndOrWildcard)
          <|> tuple <$> parens (commaSep irrefutablePattern)
+         <|> PSequence <$> brackets (commaSep1 irrefutablePattern) <*> pure PEmptySequence
          <|> PUnboxedRecord <$ reservedOp "#" <*> braces recAssignsAndOrWildcard
          <|> PUnderscore <$ reservedOp "_")
        <?> "irrefutable pattern"
@@ -109,6 +113,7 @@ pattern = avoidInitial >>
 --            | typeA2 (take fList | put fList)?
 -- typeA2   ::= "#" atomtype
 --            | atomtype "!"?
+--            | atomtype "[" int "]"
 -- atomtype ::= "(" monotype "," ...")"
 --            | "{" fieldname ":" monotype "," ... "}"
 --            | "<" Con typeA2 "|" ... ">"
@@ -140,6 +145,7 @@ monotype = do avoidInitial
                      )
     typeA2' = avoidInitial >>
                ((unbox >>= \op -> atomtype >>= \at -> return (op at))
+           <|>  try (atomtype >>= \t -> brackets integer >>= \(fromIntegral -> l) -> return (LocType (posOfT t) $ TSequence l t))
            <|>  (atomtype >>= \t -> optionMaybe bang >>= \op -> case op of Nothing -> return t; Just f -> return (f t)))
     paramtype = avoidInitial >> LocType <$> getPosition <*> (TCon <$> typeConName <*> many1 typeA2 <*> pure Writable)
     unbox = avoidInitial >> reservedOp "#" >> return (\x -> LocType (posOfT x) (TUnbox x))
@@ -157,7 +163,7 @@ monotype = do avoidInitial
                       return $ TCon tn [] s
                   )
               -- <|> TCon <$> typeConName <*> pure [] <*> pure Writable
-              <|> tuple <$> parens (monotype `sepBy` comma)
+              <|> tuple <$> parens (commaSep monotype)
               <|> TRecord <$> braces (commaSep1 ((\a b c -> (a,(b,c))) <$> variableName <* reservedOp ":" <*> monotype <*> pure False)) <*> pure Writable
               <|> TVariant . M.fromList <$> angles (((,) <$> typeConName <*> many typeA2) `sepBy` reservedOp "|"))
     tuple [] = TUnit
@@ -166,31 +172,6 @@ monotype = do avoidInitial
 
     fList = (Just . (:[])) <$> variableName
         <|> parens ((reservedOp ".." >> return Nothing) <|> (commaSep variableName >>= return . Just))
-
--- XXX | monotype = avoidInitial >> buildExpressionParser
--- XXX |          [ [Prefix  ((\x -> LocType (posOfT x) (TUnbox x)) <$ reservedOp "#")]
--- XXX |          , [Postfix ((\x -> LocType (posOfT x) (TBang  x)) <$ reservedOp "!")] -- not sure if we want precedence different here.
--- XXX |          , [Postfix ((\rs x -> LocType (posOfT x) (TTake rs x)) <$ reserved "take" <*> fList),
--- XXX |             Postfix ((\rs x -> LocType (posOfT x) (TPut  rs x)) <$ reserved "put"  <*> fList)]
--- XXX |          , [Infix (reservedOp "->" *> pure (\a b -> LocType (posOfT a) (TFun a b))) AssocRight]
--- XXX |          ] typeTerm <?> "monotype"
--- XXX |   where fList = (Just . (:[])) <$> variableName <|>
--- XXX |                 parens ((reservedOp ".." >> return Nothing) <|> (commaSep variableName >>= return . Just))
--- XXX |         typeTerm = avoidInitial >> (try paramType <|> atomType)
--- XXX |         paramType = avoidInitial >> LocType <$> getPosition <*> (TCon <$> typeConName <*> many atomType <*> pure Writable)
--- XXX |         atomType = avoidInitial >>
--- XXX |                    LocType <$> getPosition <*>
--- XXX |                      (TVar <$> variableName <*> pure False
--- XXX |                   <|> TCon <$> typeConName <*> pure [] <*> pure Writable
--- XXX |                   <|> tuple <$> parens (monotype `sepBy` comma)
--- XXX |                   -- NOTE: As suggested by Sidney (also agreed by me), this syntax is misleading given Array is no more builtin / zilinc
--- XXX |                   -- <|> tarray <$> brackets monotype
--- XXX |                   <|> TRecord <$> braces (commaSep1 ((\a b c -> (a,(b,c))) <$> variableName <* reservedOp ":" <*> monotype <*> pure False)) <*> pure Writable
--- XXX |                   <|> TVariant . M.fromList <$> angles (((,) <$> typeConName <*> monotype) `sepBy` reservedOp "|"))
--- XXX |         tuple [] = TUnit
--- XXX |         tuple [e] = typeOfLT e
--- XXX |         tuple es  = TTuple es
--- XXX |         -- tarray e = (TCon "Array" [e])
 
 boolean = True <$ reserved "True"
       <|> False <$ reserved "False"
@@ -226,7 +207,8 @@ basicExpr m = do e <- basicExpr'
                  LocExpr (posOfE e) . Seq e <$ semi <*> expr m
                   <|> pure e
 basicExpr' = avoidInitial >> buildExpressionParser
-            [ [postfix ((\f e -> LocExpr (posOfE e) (Member e f)) <$ reservedOp "." <*> variableName)]
+            [ [Infix (reservedOp "::" *> pure (\a b -> LocExpr (posOfE a) (Sequence [a] b))) AssocRight]
+            , [postfix ((\f e -> LocExpr (posOfE e) (Member e f)) <$ reservedOp "." <*> variableName)]
             , [Prefix (getPosition >>= \p -> reserved "complement" *> pure (LocExpr p . PrimOp "complement" . (:[])))]
             , [Prefix (getPosition >>= \p -> reserved "not" *> pure (LocExpr p . PrimOp "not" . (:[])))]
             , [Infix (pure (\a b -> LocExpr (posOfE a) (App a b))) AssocLeft]
@@ -250,7 +232,8 @@ basicExpr' = avoidInitial >> buildExpressionParser
                <|> IntLit <$> natural
                <|> CharLit <$> charLiteral
                <|> StringLit <$> stringLiteral
-               <|> tuple <$> parens (expr 1 `sepBy` comma)
+               <|> tuple <$> parens (commaSep $ expr 1)
+               <|> Sequence <$> brackets (commaSep1 $ expr 1) <*> (LocExpr <$> getPosition <*> pure EmptySequence)
                <|> UnboxedRecord <$ reservedOp "#" <*> braces (commaSep1 recordAssignment)))
             <?> "term"
         var Nothing  v Nothing = Var v
