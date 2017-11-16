@@ -91,7 +91,7 @@ data TypeError = NotAPolymorphicFunction VarName RawType
                | NotASubtypeAlts RawType RawType
                -- | SequenceCannotBeEmpty SourcePos
                | NotASequence TypedExpr
-               | SequenceTooShortToMatch (IrrefutablePattern VarName) Int
+               | SequenceLengthIncorrect (IrrefutablePattern VarName) Int
                | ConstantMustBeShareable VarName RawType
                | FunDefNotOfFunType VarName RawType
                | DynamicVariantPromotionE TypedExpr RawType RawType
@@ -268,9 +268,10 @@ letBang' x a = do
 kindcheck :: RawType -> TC Kind
 kindcheck tau = typeWHNF tau >>= \case
   (RT (TCon cn ts s)) -> mapM kindcheck ts >> return (sigilKind s)
-  (RT (TUnit))  -> return (K True True True)
+  (RT (TUnit))  -> return mempty
   (RT (TTuple ts)) -> mconcat <$> mapM kindcheck ts
-  (RT (TSequence _ t)) -> kindcheck t
+  (RT (TSequence Nothing)) -> return mempty
+  (RT (TSequence (Just (_,t)))) -> kindcheck t
   (RT (TVariant ts)) -> fold <$> mapM ((mconcat <$>) . mapM kindcheck) ts
   (RT (TRecord fs s)) -> (mappend $ sigilKind s) . mconcat <$> mapM (kindcheck . fst . snd) (filter (not . snd .snd) fs)  -- only untaken fields count
   (RT (TFun a b)) -> kindcheck a >> kindcheck b >> return (K True True True)
@@ -372,7 +373,8 @@ substType sigma (RT (TRecord fs s)) = RT (TRecord (map (second . first $ substTy
 substType sigma (RT (TVariant fs)) = RT (TVariant (fmap (fmap $ substType sigma) fs))
 substType sigma (RT (TUnit)) = RT TUnit
 substType sigma (RT (TTuple fs)) = RT (TTuple (map (substType sigma) fs))
-substType sigma (RT (TSequence l t)) = RT (TSequence l $ substType sigma t)
+substType sigma (RT (TSequence Nothing)) = RT $ TSequence Nothing
+substType sigma (RT (TSequence (Just (l,t)))) = RT (TSequence $ Just (l, substType sigma t))
 substType sigma (RT (TUnbox t)) = RT (TUnbox $ substType sigma t)
 substType sigma (RT (TBang t)) = RT (TBang $ substType sigma t)
 substType sigma (RT (TTake fs t)) = RT (TTake fs (substType sigma t))
@@ -387,7 +389,8 @@ bangType (RT (TCon x ts s))= RT (TCon x (map (RT . TBang) ts) $ bangSigil s)
 bangType (RT TUnit) = RT TUnit
 bangType (RT (TFun a b)) = RT (TFun a b)
 bangType (RT (TTuple ts)) = RT (TTuple (map (RT . TBang) ts))  -- using `RT . TBang' instead of `bangType' for better errmsgs
-bangType (RT (TSequence l t)) = RT (TSequence l $ RT . TBang $ t)
+bangType (RT (TSequence Nothing)) = RT (TSequence Nothing)
+bangType (RT (TSequence (Just (l,t)))) = RT (TSequence $ Just (l, RT $ TBang t))
 bangType (RT (TVariant ts)) = RT (TVariant (fmap (fmap $ RT . TBang) ts))
 bangType notInWHNF = __impossible "bangType"
 
@@ -469,7 +472,9 @@ lub a' b' = (,) <$> fmap unwrap (typeWHNF a') <*> fmap unwrap (typeWHNF b') >>= 
                                       (k,) <$> mapM (uncurry lub) (zip vs1 vs2)
                                     ) <&> (RT . TVariant . M.fromList)
   (TTuple as, TTuple bs) | length as == length bs -> RT . TTuple <$> zipWithM lub as bs
-  (TSequence l a, TSequence m b) | l == m -> RT . TSequence l <$> lub a b
+  (TSequence Nothing, TSequence (Just (0,b))) -> return . RT $ TSequence (Just (0,b))
+  (TSequence (Just (0,a)), TSequence Nothing) -> return . RT $ TSequence (Just (0,a))
+  (TSequence (Just (l,a)), TSequence (Just (m,b))) | l == m -> RT . TSequence . Just . (l,) <$> lub a b
   _ -> typeError $ CannotFindCommonSupertype a' b'
  where unwrap (RT x) = x
 
@@ -492,7 +497,7 @@ typeDNF t = typeWHNF t >>= \case
   (RT (TVariant mts)) -> let (vs',ts) = unzip (M.toList mts)
                           in RT . TVariant . M.fromList . zip vs' <$> mapM (mapM typeDNF) ts
   (RT (TTuple ts)) -> RT . TTuple <$> mapM typeDNF ts
-  (RT (TSequence l t)) -> RT . TSequence l <$> typeDNF t
+  (RT (TSequence (Just (l,t)))) -> RT . TSequence . Just . (l,) <$> typeDNF t
   x -> return x
 
 -- FIXME: use `typeWHNF' instead to get better errmsgs / zilinc
@@ -509,7 +514,8 @@ isSubtype proper a' b' = (,) <$> fmap unwrap  (typeDNF a') <*> fmap unwrap (type
       return (and bools)
     | otherwise -> return False
   (TTuple as, TTuple bs) | length as == length bs -> and <$> zipWithM (isSubtype False) as bs  -- tuple subtyping.
-  (TSequence l a, TSequence m b) | l == m -> isSubtype proper a b
+  (TSequence Nothing, TSequence (Just (0,b))) -> return True
+  (TSequence (Just (l,a)), TSequence (Just (m,b))) | l == m -> isSubtype proper a b
   -- NOTE: we now allow the same in unboxed records / zilinc
   (TRecord fs1 Unboxed, TRecord fs2 Unboxed)
     | length fs1 == length fs2
@@ -558,8 +564,8 @@ promote t e@(TE te _) = inEContext (InExpressionOfType (dummyLocE $ toRawExp e) 
         promote' t (TE te (Seq e1 e2)) = TE t <$> (Seq e1 <$> promote t e2)
         promote' t (TE te (If c vs th el)) = TE t <$> (If c vs <$> promote t th <*> promote t el)
         promote' t (TE te (Tuple es)) = TE t <$> (Tuple <$> zipWithM promote ts es) where RT (TTuple ts) = t
-        promote' t (TE te (Sequence es e)) = TE t <$> (Sequence <$> mapM (promote telem) es <*> promote t e)
-          where RT (TSequence _ telem) = t
+        promote' t (TE te (Sequence es)) = TE t <$> (Sequence <$> mapM (promote telem) es)
+          where RT (TSequence (Just (_,telem))) = t
         promote' t (TE te (UnboxedRecord fs)) = TE t <$> (UnboxedRecord <$> zipWithM (\t' (n,e) -> (n,) <$> promote t' e) ts fs)
           where RT (TRecord rs Unboxed) = t
                 ts = map (fst . snd) rs
@@ -657,18 +663,14 @@ matchIrrefPattern (PTuple ps) (RT (TTuple ts)) | length ps == length ts =  -- | 
 --         pTupleWHNF' x@(PTuple (reverse -> (p:ps))) = case p of
 --           PTuple ps' -> pTupleWHNF' $ PTuple $ reverse ps ++ ps'; _ -> x
 --         pTupleWHNF' _ = __impossible "pTupleWHNF' (in matchIrrefPattern)"
-matchIrrefPattern (PSequence [] p) _ = __impossible "matchIrrefPattern (PSequence)"
-matchIrrefPattern pseq@(PSequence ps p) (RT (TSequence l t)) = do
-  let l' = l - length ps
-  unless (l' >= 0) $ typeError (SequenceTooShortToMatch pseq l)
-  ps' <- mapM (flip matchIrrefPattern t) ps
-  p'  <- matchIrrefPattern p (RT $ TSequence l' t)
-  return $ PSequence ps' p'
+matchIrrefPattern (PSequence []) (RT (TSequence Nothing)) = return $ PSequence []
+matchIrrefPattern p@(PSequence ps) (RT (TSequence (Just (l,t)))) = do
+  when (l /= length ps) $ typeError (SequenceLengthIncorrect p l)
+  PSequence <$> mapM (flip matchIrrefPattern t) ps
 matchIrrefPattern (PUnderscore) tau = canDiscard <$> kindcheck tau >>= \case
                                         True -> return PUnderscore
                                         False -> typeError (CannotDiscardValue tau)
 matchIrrefPattern PUnitel (RT TUnit) = return PUnitel
-matchIrrefPattern PEmptySequence tau = return PEmptySequence 
 matchIrrefPattern (PUnboxedRecord []) _ = __impossible "matchIrrefPattern"
 matchIrrefPattern p@(PUnboxedRecord ips) rt@(RT (TRecord ts Unboxed)) | Nothing <- last ips = do
   let ipsInit = init ips
@@ -701,6 +703,15 @@ matchIrrefPattern (PTake rv (map fromJust -> ips)) rt@(RT (TRecord ts s)) | s /=
     get >>= lift . typeWHNF . RT . TTake (Just [f]) >>= put
     return $ Just (f,ip')
   return (PTake (rv,rt') ips')
+matchIrrefPattern (POp Cons [p1,p2]) (RT (TSequence (Just (1,t)))) = do
+  p1' <- matchIrrefPattern p1 t
+  p2' <- matchIrrefPattern p2 (RT $ TSequence Nothing)
+  return $ POp Cons [p1',p2']
+matchIrrefPattern (POp Cons [p1,p2]) (RT (TSequence (Just (l,t)))) | l > 1 = do
+  p1' <- matchIrrefPattern p1 t
+  p2' <- matchIrrefPattern p2 (RT $ TSequence $ Just (l-1,t))
+  return $ POp Cons [p1',p2']
+matchIrrefPattern (POp Cons _) _ = __impossible "matchIrrefPattern: (::) - wrong arity"
 matchIrrefPattern x y = typeError (IrrefPatternDoesNotMatchType x y)
 
 withIrrefPattern :: IrrefutablePattern VarName -> RawType -> TC a
@@ -793,7 +804,6 @@ infer' _ (If c vs t e) = do c' <- letBang vs $ check c (RT $ TCon "Bool" [] Unbo
                             e'' <- promote tau e'
                             return (TE tau $ If c' vs t'' e'')
 infer' _ (Unitel) = return (TE (RT $ TUnit) Unitel)
-infer' _ (EmptySequence) = return (TE (RT $ TSequence 0 undefined) EmptySequence)
 infer' _ (IntLit i) = return (TE (RT $ TCon minimumBitwidth [] Unboxed) $ IntLit i)
   where minimumBitwidth | i < 256        = "U8"
                         | i < 65536      = "U16"
@@ -816,19 +826,17 @@ infer' l (Tuple (e1:es@(_:_:_))) | not __cogent_ftuples_as_sugar = do
 infer' l (Tuple es) = do  -- | __cogent_ftuples_as_sugar
   es' <- mapM infer es
   return $ TE (RT $ TTuple $ map typeOfTE es') $ Tuple es'
-infer' l (Sequence [e1] e) = do
-  e1'@(TE t1 _) <- infer e1
+infer' l (Sequence []) = return $ TE (RT $ TSequence Nothing) (Sequence [])
+infer' l (Sequence [e]) = do
   e'@(TE t _) <- infer e
-  typeWHNF t >>= \case RT (TSequence 0 _) -> return $ TE (RT $ TSequence 1 t1) (Sequence [e1'] e')
-                       RT (TSequence le te) -> return $ TE (RT $ TSequence (le+1) te) (Sequence [e1'] e')
-                       _ -> typeError $ NotASequence e'
-infer' l (Sequence (e1:es) e) = do
+  return $ TE (RT $ TSequence $ Just (1,t)) (Sequence [e'])
+infer' l (Sequence (e1:es)) = do
   e1'@(TE t1 _) <- infer e1
-  ese'@(TE (RT (TSequence le te)) _) <- infer' l (Sequence es e)
+  es'@(TE (RT (TSequence (Just (le,te)))) _) <- infer' l (Sequence es)
   tau <- te `lub` t1
   e1'' <- promote tau e1'
-  TE _ (Sequence es' e') <- promote (RT $ TSequence le tau) ese'
-  return $ TE (RT $ TSequence (le+1) tau) (Sequence (e1'':es') e')
+  TE _ (Sequence es'') <- promote (RT $ TSequence $ Just (le,tau)) es'
+  return $ TE (RT $ TSequence $ Just (le+1,tau)) (Sequence (e1'':es''))
 infer' l e@(UnboxedRecord fs) = do ns <- go $ map fst fs
                                    ts <- mapM (infer . snd) fs
                                    return . TE (RT $ TRecord (zip ns $ zip (map typeOfTE ts) (repeat False)) Unboxed) $
@@ -929,6 +937,16 @@ infer' _ (PrimOp "complement" [e1]) = do
   unless (unRT tau `elem` numericTypes)
      $ typeError (NonNumericType tau)
   return (TE tau (PrimOp "complement" [e1']))
+infer' _ (PrimOp "::" [e1,e2]) = do
+  e1'@(TE t1 _) <- infer e1
+  e2'@(TE t2 _) <- infer e2
+  case t2 of RT (TSequence Nothing) -> do e2'' <- promote (RT $ TSequence $ Just (0,t1)) e2'
+                                          return $ TE (RT $ TSequence $ Just (1,t1)) (PrimOp "::" [e1',e2''])
+             RT (TSequence (Just (l2,te2))) -> do tau <- t1 `lub` te2
+                                                  e1'' <- promote tau e1'
+                                                  e2'' <- promote (RT $ TSequence $ Just (l2,tau)) e2'
+                                                  return $ TE (RT $ TSequence $ Just (l2+1,tau)) (PrimOp "::" [e1'',e2''])
+             otherwise -> typeError $ NotASequence e2'
 infer' _ (PrimOp _ _) = __impossible "infer'"
 
 arithOperators, bitwiseOperators, booleanOperators, comparisonOperators :: [String]

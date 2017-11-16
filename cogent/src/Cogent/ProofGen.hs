@@ -16,7 +16,7 @@
 module Cogent.ProofGen where
 
 import Cogent.Common.Types
-import Cogent.Common.Syntax
+import Cogent.Common.Syntax hiding (Cons)
 #if __GLASGOW_HASKELL__ < 711
 import Cogent.Compiler
 #endif

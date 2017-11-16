@@ -45,7 +45,7 @@ import System.FilePath ((</>))
 import Text.PrettyPrint.ANSI.Leijen hiding ((</>))
 import Text.Printf
 
-import Cogent.Common.Syntax
+import Cogent.Common.Syntax hiding (Cons)
 import Cogent.Compiler
 import Cogent.Deep (deepDefinitions, deepTypeAbbrevs, getTypeAbbrevs, TypeAbbrevs)
 import Cogent.ProofGen

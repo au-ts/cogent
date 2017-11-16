@@ -32,7 +32,7 @@
 
 module Cogent.Simplify where
 
-import Cogent.Common.Syntax
+import Cogent.Common.Syntax hiding (Cons)
 import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Sugarfree hiding (kindcheck, lookupKind, withBinding)

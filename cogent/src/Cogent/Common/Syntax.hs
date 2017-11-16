@@ -24,6 +24,7 @@ data Op
   | Not | And | Or
   | Gt | Lt | Le | Ge | Eq | NEq
   | BitAnd | BitOr | BitXor | LShift | RShift | Complement
+  | Cons
   deriving (Eq, Show)
 
 data Pragma = InlinePragma FunName
@@ -48,6 +49,7 @@ associativity x | x `elem` [Times, Divide, Mod] = LeftAssoc 3
                 | x `elem` [BitOr]  = LeftAssoc 10
                 | x `elem` [And] = RightAssoc 11
                 | x `elem` [Or]  = RightAssoc 12
+                | x `elem` [Cons] = RightAssoc 15
                 | otherwise = Prefix
 
 opSymbol :: Op -> String
@@ -71,6 +73,7 @@ opSymbol BitXor = ".^."
 opSymbol LShift = "<<"
 opSymbol RShift = ">>"
 opSymbol Complement = "complement"
+opSymbol Cons = "::"
 
 instance Pretty Op where
   pretty = string . opSymbol

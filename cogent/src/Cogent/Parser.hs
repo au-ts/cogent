@@ -77,13 +77,13 @@ expr m = do avoidInitial; LocExpr <$> getPosition <*>
         bindings = binding `sepBy1` reserved "and"
 
 irrefutablePattern = avoidInitial >>
-             many (try (irrefutablePattern' <* reservedOp "::")) >>= \case [] -> irrefutablePattern'; ps -> PSequence ps <$> irrefutablePattern'
+             optionMaybe (try (irrefutablePattern' <* reservedOp "::")) >>= \case Nothing -> irrefutablePattern'; Just p -> POp Cons . (p:) . (:[]) <$> irrefutablePattern'
 
 -- TODO: add support for patterns like `_ {f1, f2}', where the record name is anonymous / zilinc
 irrefutablePattern' = avoidInitial >>
          (   variableOrRecord <$> variableName <*> optionMaybe (braces recAssignsAndOrWildcard)
          <|> tuple <$> parens (commaSep irrefutablePattern)
-         <|> PSequence <$> brackets (commaSep1 irrefutablePattern) <*> pure PEmptySequence
+         <|> PSequence <$> brackets (commaSep irrefutablePattern)
          <|> PUnboxedRecord <$ reservedOp "#" <*> braces recAssignsAndOrWildcard
          <|> PUnderscore <$ reservedOp "_")
        <?> "irrefutable pattern"
@@ -145,7 +145,7 @@ monotype = do avoidInitial
                      )
     typeA2' = avoidInitial >>
                ((unbox >>= \op -> atomtype >>= \at -> return (op at))
-           <|>  try (atomtype >>= \t -> brackets integer >>= \(fromIntegral -> l) -> return (LocType (posOfT t) $ TSequence l t))
+           <|>  try (atomtype >>= \t -> brackets integer >>= \(fromIntegral -> l) -> return (LocType (posOfT t) $ TSequence $ Just (l,t)))
            <|>  (atomtype >>= \t -> optionMaybe bang >>= \op -> case op of Nothing -> return t; Just f -> return (f t)))
     paramtype = avoidInitial >> LocType <$> getPosition <*> (TCon <$> typeConName <*> many1 typeA2 <*> pure Writable)
     unbox = avoidInitial >> reservedOp "#" >> return (\x -> LocType (posOfT x) (TUnbox x))
@@ -207,7 +207,7 @@ basicExpr m = do e <- basicExpr'
                  LocExpr (posOfE e) . Seq e <$ semi <*> expr m
                   <|> pure e
 basicExpr' = avoidInitial >> buildExpressionParser
-            [ [Infix (reservedOp "::" *> pure (\a b -> LocExpr (posOfE a) (Sequence [a] b))) AssocRight]
+            [ [binary "::" AssocRight]
             , [postfix ((\f e -> LocExpr (posOfE e) (Member e f)) <$ reservedOp "." <*> variableName)]
             , [Prefix (getPosition >>= \p -> reserved "complement" *> pure (LocExpr p . PrimOp "complement" . (:[])))]
             , [Prefix (getPosition >>= \p -> reserved "not" *> pure (LocExpr p . PrimOp "not" . (:[])))]
@@ -233,7 +233,7 @@ basicExpr' = avoidInitial >> buildExpressionParser
                <|> CharLit <$> charLiteral
                <|> StringLit <$> stringLiteral
                <|> tuple <$> parens (commaSep $ expr 1)
-               <|> Sequence <$> brackets (commaSep1 $ expr 1) <*> (LocExpr <$> getPosition <*> pure EmptySequence)
+               <|> Sequence <$> brackets (commaSep $ expr 1)
                <|> UnboxedRecord <$ reservedOp "#" <*> braces (commaSep1 recordAssignment)))
             <?> "term"
         var Nothing  v Nothing = Var v

@@ -91,6 +91,7 @@ instance ExprType (Expr t b e) where
   levelExpr (CharLit {}) = 0
   levelExpr (StringLit {}) = 0
   levelExpr (Tuple {}) = 0
+  levelExpr (Sequence {}) = 10
   levelExpr (Unitel) = 0
   levelExpr _ = 100
   isVar (Var n) s = (n == s)

@@ -28,7 +28,8 @@
 
 module Cogent.Desugar where
 
-import Cogent.Common.Syntax
+import Cogent.Common.Syntax hiding (Cons)
+import qualified Cogent.Common.Syntax as Syn (Op (Cons))
 import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Sugarfree hiding (withBinding, withBindings)
@@ -312,15 +313,15 @@ desugarAlt e0 (S.PIrrefutable (S.PTuple ps)) e | __cogent_ftuples_as_sugar = do
       bs = flip P.map vpts' $ \(v,p,t) -> S.Binding p Nothing (T.TE t $ S.Var v) []
   desugarExpr $ T.TE (T.typeOfTE e) $ S.Let (b0:bs) e
   where isPVar (S.PVar _) = True; isPVar _ = False
-desugarAlt e0 (S.PIrrefutable (S.PSequence [] p)) e = __impossible "desugarAlts (PSequence [] p)"
-desugarAlt e0 (S.PIrrefutable (S.PSequence (p1:ps) p)) e = do
+desugarAlt e0 (S.PIrrefutable (S.PSequence [])) e = __impossible "desugarAlts (PSequence [])"
+desugarAlt e0 (S.PIrrefutable (S.PSequence (p:ps))) e = do
   v1 <- freshVar
   vs <- freshVar
   e0' <- desugarExpr e0
-  let S.RT (S.TSequence le te) = T.typeOfTE e
+  let S.RT (S.TSequence (Just (le,te))) = T.typeOfTE e
   e' <- withBindings (Cons v1 (Cons vs Nil)) $
-          desugarAlt (T.TE (S.RT $ S.TSequence (le-1) te) $ S.Var vs) (S.PIrrefutable (S.PSequence ps p)) e
-  return . E $ Head (v1,vs) e0' e'
+          desugarAlt (T.TE (S.RT $ S.TSequence $ Just (le-1,te)) $ S.Var vs) (S.PIrrefutable (S.PSequence ps)) e
+  return . E $ UnSeqCons (v1,vs) e0' e'
 desugarAlt e0 (S.PIrrefutable (S.PUnboxedRecord fs)) e = do
   -- #{a, b, c} ~~> x {a,b,c}  -- since we take all the fields out, the unboxed x is useless and can be discarded
   rec <- (, T.typeOfTE e0) <$> freshVar
@@ -381,7 +382,8 @@ desugarType t = typeWHNF t >>= \case
   S.RT (S.TTuple (t1:t2:[])) | not __cogent_ftuples_as_sugar -> TProduct <$> desugarType t1 <*> desugarType t2
   S.RT (S.TTuple (t1:t2:ts)) | not __cogent_ftuples_as_sugar -> __impossible "desugarType"  -- desugarType $ S.RT $ S.TTuple [t1, S.RT $ S.TTuple (t2:ts)]
   S.RT (S.TTuple ts) | __cogent_ftuples_as_sugar -> TRecord <$> (P.zipWith (\t n -> (n,(t, False))) <$> forM ts desugarType <*> pure (P.map (('p':) . show) [1 :: Integer ..])) <*> pure Unboxed
-  S.RT (S.TSequence l t) -> TSequence l <$> desugarType t
+  S.RT (S.TSequence Nothing) -> return $ TSequence 0 undefined  -- FIXME
+  S.RT (S.TSequence (Just (l,t))) -> TSequence l <$> desugarType t
   S.RT (S.TUnit)   -> return TUnit
   notInWHNF -> __impossible $ "desugarType: " ++ show notInWHNF
 

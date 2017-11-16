@@ -40,7 +40,7 @@
 module Cogent.CodeGen where
 
 import           Cogent.Compiler
-import           Cogent.Common.Syntax  as Syn
+import           Cogent.Common.Syntax  as Syn hiding (Cons)
 import           Cogent.Common.Types   as Typ
 import           Cogent.Deep
 import qualified Cogent.DList          as DList
