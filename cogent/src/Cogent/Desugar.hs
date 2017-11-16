@@ -29,6 +29,7 @@
 module Cogent.Desugar where
 
 import Cogent.Common.Syntax hiding (Cons)
+import qualified Cogent.Common.Syntax as Syn (Op (Cons))
 import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Sugarfree hiding (withBinding, withBindings)
@@ -354,6 +355,15 @@ desugarAlt e0 (S.PIrrefutable (S.PTake rec (fp:fps))) e = do
       b0 = S.Binding (S.PTake (e1, t1) [fp]) Nothing e0 []
       bs = S.Binding (S.PTake rec fps) Nothing (T.TE t1 $ S.Var e1) []
   desugarExpr $ T.TE (T.typeOfTE e) $ S.Let [b0,bs] e
+desugarAlt e0 (S.PIrrefutable (S.POp Syn.Cons [p1,p2])) e = do
+  v1 <- freshVar
+  v2 <- freshVar
+  e0' <- desugarExpr e0
+  let t0@(S.RT (S.TSequence (Just (l,t)))) = T.typeOfTE e0
+      b1 = S.Binding p1 Nothing (T.TE t $ S.Var v1) []
+      b2 = S.Binding p2 Nothing (T.TE (S.RT $ S.TSequence $ Just (l-1,t)) $ S.Var v2) []
+  e' <- withBindings (Cons v1 (Cons v2 Nil)) $ desugarExpr $ T.TE t0 $ S.Let [b1,b2] e
+  return $ E $ UnSeqCons (v1,v2) e0' e'
 desugarAlt _ _ _ = __impossible "desugarAlt (_)"  -- literals
 
 desugarPrimInt :: S.RawType -> PrimInt
@@ -491,11 +501,14 @@ desugarExpr (T.TE t (S.Tuple (e1:e2:es))) | not __cogent_ftuples_as_sugar = __im
 desugarExpr (T.TE _ (S.Tuple es)) = E . Struct <$> (P.zip (P.map (('p':) . show) [1 :: Integer ..]) <$> mapM desugarExpr es)  -- | __cogent_ftuples_as_sugar
 desugarExpr (T.TE _ (S.Sequence [])) = return . E $ SeqNil
 desugarExpr (T.TE t (S.Sequence (e:es))) = do
-  e'  <- desugarExpr e
-  let S.RT (S.TSequence (Just (l,te))) = T.typeOfTE e
+  e' <- desugarExpr e
+  let S.RT (S.TSequence (Just (l,te))) = t
       tes = S.RT $ S.TSequence (Just (l-1,te))
   es' <- desugarExpr (T.TE tes $ S.Sequence es)
-  return $ E $ SeqCons e' es'
+  tes' <- desugarType tes
+  case es' of
+    E SeqNil -> return $ E (SeqCons e' (E . Promote tes' $ E SeqNil))
+    _ -> return $ E $ SeqCons e' es'
 desugarExpr (T.TE _ (S.UnboxedRecord fs)) = E . Struct <$> mapM (\(f,e) -> (f,) <$> desugarExpr e) fs
 desugarExpr (T.TE _ (S.Let [] e)) = __impossible "desugarExpr (Let)"
 desugarExpr (T.TE _ (S.Let [S.Binding p mt e0 []] e)) = desugarAlt e0 (S.PIrrefutable p) e

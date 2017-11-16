@@ -38,6 +38,7 @@
 module Cogent.Sugarfree where
 
 import Cogent.Common.Syntax hiding (Cons)
+import qualified Cogent.Common.Syntax as Syn (Op (Cons))
 import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Util
@@ -101,6 +102,7 @@ isSubtype (TSum  s1) (TSum  s2) | not __cogent_fnew_subtyping
   = and $ zipWith (\(c1,(t1,b1)) (c2,(t2,b2)) -> (c1,t1) == (c2,t2) && b1 >= b2) s1 s2
 isSubtype (TRecord r1 s1) (TRecord r2 s2) | __cogent_fnew_subtyping =
   s1 == s2 && and (zipWith (\(f1,(t1,b1)) (f2,(t2,b2)) -> (f1,t1) == (f2,t2) && b1 >= b2) r1 r2)
+isSubtype (TSequence Nothing) (TSequence (Just (0,t))) = True
 isSubtype a b = a == b
 
 data FunNote = NoInline | InlineMe | MacroCall | InlinePlease  -- order is important, larger value has stronger precedence
@@ -368,18 +370,19 @@ infixl 4 <||>
                              unTC $ guardShow "<||>" $ x1 == x2
                              return (f arg)
 
-opType :: Op -> [Type t] -> Maybe (Type t)
+opType :: Op -> [Type t] -> Type t
 opType opr [TPrim p1, TPrim p2]
   | opr `elem` [Plus, Minus, Times, Divide, Mod,
                 BitAnd, BitOr, BitXor, LShift, RShift],
-    p1 == p2, p1 /= Boolean = Just $ TPrim p1
+    p1 == p2, p1 /= Boolean = TPrim p1
 opType opr [TPrim p1, TPrim p2]
   | opr `elem` [Gt, Lt, Le, Ge, Eq, NEq],
-    p1 == p2, p1 /= Boolean = Just $ TPrim Boolean
+    p1 == p2, p1 /= Boolean = TPrim Boolean
 opType opr [TPrim Boolean, TPrim Boolean]
-  | opr `elem` [And, Or, Eq, NEq] = Just $ TPrim Boolean
-opType Not [TPrim Boolean] = Just $ TPrim Boolean
-opType Complement [TPrim p] | p /= Boolean = Just $ TPrim p
+  | opr `elem` [And, Or, Eq, NEq] = TPrim Boolean
+opType Not [TPrim Boolean] = TPrim Boolean
+opType Complement [TPrim p] | p /= Boolean = TPrim p
+opType Syn.Cons [t1,t2] | TSequence (Just (l,t)) <- t2 = TSequence $ Just (l+1,t)
 opType opr ts = __impossible "opType"
 
 useVariable :: Fin v -> TC t v (Maybe (Type t))
@@ -480,7 +483,7 @@ kindcheck (TCon n vs s)    = mapM_ kindcheck vs >> return (sigilKind s)
 typecheck :: UntypedExpr t v a -> TC t v (TypedExpr t v a)
 typecheck (E (Op o es))
   = do es' <- mapM typecheck es
-       let Just t = opType o (map exprType es')
+       let t = opType o (map exprType es')
        return (TE t (Op o es'))
 typecheck (E (ILit i t)) = return (TE (TPrim t) (ILit i t))
 typecheck (E (SLit s)) = return (TE TString (SLit s))
@@ -588,7 +591,7 @@ typecheck (E (Put e1 f e2))
        return $ TE (TRecord (init ++ (fn,(tau,False)):rest) s) (Put e1' f e2')  -- put it regardless
 typecheck (E (Promote ty e))
   = do (TE t e') <- typecheck e
-       guardShow "promote" $ t `isSubtype` ty
+       guardShow ("promote: " ++ show t ++ " is not a subtype of " ++ show ty) $ t `isSubtype` ty
        return $ TE ty (Promote ty $ TE t e')
 
 
