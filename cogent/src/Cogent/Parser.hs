@@ -77,7 +77,7 @@ expr m = do avoidInitial; LocExpr <$> getPosition <*>
         bindings = binding `sepBy1` reserved "and"
 
 irrefutablePattern = avoidInitial >>
-             optionMaybe (try (irrefutablePattern' <* reservedOp "::")) >>= \case Nothing -> irrefutablePattern'; Just p -> POp Cons . (p:) . (:[]) <$> irrefutablePattern'
+             optionMaybe (try (irrefutablePattern' <* reservedOp "::")) >>= \case Nothing -> irrefutablePattern'; Just p -> POp Cons . (p:) . (:[]) <$> irrefutablePattern
 
 -- TODO: add support for patterns like `_ {f1, f2}', where the record name is anonymous / zilinc
 irrefutablePattern' = avoidInitial >>
@@ -207,23 +207,23 @@ basicExpr m = do e <- basicExpr'
                  LocExpr (posOfE e) . Seq e <$ semi <*> expr m
                   <|> pure e
 basicExpr' = avoidInitial >> buildExpressionParser
-            [ [binary "::" AssocRight]
+            [ [binary Cons AssocRight]
             , [postfix ((\f e -> LocExpr (posOfE e) (Member e f)) <$ reservedOp "." <*> variableName)]
-            , [Prefix (getPosition >>= \p -> reserved "complement" *> pure (LocExpr p . PrimOp "complement" . (:[])))]
-            , [Prefix (getPosition >>= \p -> reserved "not" *> pure (LocExpr p . PrimOp "not" . (:[])))]
+            , [Prefix (getPosition >>= \p -> reserved "complement" *> pure (LocExpr p . PrimOp Complement . (:[])))]
+            , [Prefix (getPosition >>= \p -> reserved "not" *> pure (LocExpr p . PrimOp Not . (:[])))]
             , [Infix (pure (\a b -> LocExpr (posOfE a) (App a b))) AssocLeft]
             , [Postfix ((\rs x -> LocExpr (posOfE x) (Put x rs)) <$> braces recAssignsAndOrWildcard)]
-            , [binary "*" AssocLeft, binary "/" AssocLeft, binary "%" AssocLeft ]
-            , [binary "+" AssocLeft, binary "-" AssocLeft ]
-            , map (`binary` AssocNone) [">", "<", ">=", "<=", "==", "/="]
-            , [binary ".&." AssocLeft]
-            , [binary ".^." AssocLeft]
-            , [binary ".|." AssocLeft]
-            , [binary ">>" AssocLeft, binary "<<" AssocLeft]
-            , [binary "&&" AssocRight]
-            , [binary "||" AssocRight]
+            , [binary Times AssocLeft, binary Divide AssocLeft, binary Mod AssocLeft ]
+            , [binary Plus AssocLeft, binary Minus AssocLeft ]
+            , map (`binary` AssocNone) [Gt, Lt, Ge, Le, Eq, NEq]
+            , [binary BitAnd AssocLeft]
+            , [binary BitXor AssocLeft]
+            , [binary BitOr  AssocLeft]
+            , [binary RShift AssocLeft, binary LShift AssocLeft]
+            , [binary And AssocRight]
+            , [binary Or  AssocRight]
             ] term <?> "basic expression"
-  where binary name = Infix (reservedOp name *> pure (\a b -> LocExpr (posOfE a) (PrimOp name [a,b])))
+  where binary op = Infix (reservedOp (opSymbol op) *> pure (\a b -> LocExpr (posOfE a) (PrimOp op [a,b])))
 
         term = avoidInitial >> (LocExpr <$> getPosition <*>
                   (var <$> optionMaybe (reserved "inline") <*> variableName <*> optionMaybe (brackets (commaSep1 monotype))

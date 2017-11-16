@@ -76,7 +76,7 @@ data Type t
   | TString
   | TSum [(TagName, (Type t, Bool))]  -- True means taken (since 2.0.4)
   | TProduct (Type t) (Type t)
-  | TSequence Int (Type t)
+  | TSequence (Maybe (Int, Type t))
   | TRecord [(FieldName, (Type t, Bool))] Sigil  -- True means taken
   | TUnit
   deriving (Show, Eq, Ord)
@@ -125,7 +125,6 @@ data Expr t v a e
   | Case (e t v a) TagName (Likelihood, a, e t ('Suc v) a) (Likelihood, a, e t ('Suc v) a)
   | Esac (e t v a)
   | Split (a, a) (e t v a) (e t ('Suc ('Suc v)) a)
-  | UnSeqNil (e t v a) (e t v a)
   | UnSeqCons (a, a) (e t v a) (e t ('Suc ('Suc v)) a)
   | Member (e t v a) FieldIndex
   | Take (a, a) (e t v a) FieldIndex (e t ('Suc ('Suc v)) a)
@@ -213,7 +212,6 @@ traverseE f (If e1 e2 e3)        = If <$> f e1 <*> f e2 <*> f e3
 traverseE f (Case e tn (l1,a1,e1) (l2,a2,e2)) = Case <$> f e <*> pure tn <*> ((l1, a1,) <$> f e1)  <*> ((l2, a2,) <$> f e2)
 traverseE f (Esac e)             = Esac <$> f e
 traverseE f (Split a e1 e2)      = Split a <$> f e1 <*> f e2
-traverseE f (UnSeqNil e1 e2)     = UnSeqNil <$> f e1 <*> f e2
 traverseE f (UnSeqCons a e1 e2)  = UnSeqCons a <$> f e1 <*> f e2
 traverseE f (Member rec fld)     = Member <$> f rec <*> pure fld
 traverseE f (Take a rec fld e)   = Take a <$> f rec <*> pure fld <*> f e
@@ -241,7 +239,6 @@ foldEPre unwrap f e = case unwrap e of
   (Case e1 _ (_,_,e2) (_,_,e3)) -> mconcat $ [f e, foldEPre unwrap f e1, foldEPre unwrap f e2, foldEPre unwrap f e3]
   (Esac e1)           -> f e `mappend` foldEPre unwrap f e1
   (Split _ e1 e2)     -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
-  (UnSeqNil e1 e2)    -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
   (UnSeqCons _ e1 e2) -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
   (Member e1 _)       -> f e `mappend` foldEPre unwrap f e1
   (Take _ e1 _ e2)    -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
@@ -267,7 +264,6 @@ fmapE f (If e1 e2 e3)        = If (f e1) (f e2) (f e3)
 fmapE f (Case e tn (l1,a1,e1) (l2,a2,e2)) = Case (f e) tn (l1, a1, f e1) (l2, a2, f e2)
 fmapE f (Esac e)             = Esac (f e)
 fmapE f (Split a e1 e2)      = Split a (f e1) (f e2)
-fmapE f (UnSeqNil e1 e2)     = UnSeqNil (f e1) (f e2)
 fmapE f (UnSeqCons a e1 e2)  = UnSeqCons a (f e1) (f e2)
 fmapE f (Member rec fld)     = Member (f rec) fld
 fmapE f (Take a rec fld e)   = Take a (f rec) fld (f e)
@@ -301,7 +297,6 @@ instance (Functor (e t v), Functor (e t ('Suc v)), Functor (e t ('Suc ('Suc v)))
   fmap f (Flip (Case e tn (l1,a1,e1) (l2,a2,e2))) = Flip $ Case (fmap f e) tn (l1, f a1, fmap f e1) (l2, f a2, fmap f e2)
   fmap f (Flip (Esac e)             ) = Flip $ Esac (fmap f e)
   fmap f (Flip (Split a e1 e2)      ) = Flip $ Split ((f *** f) a) (fmap f e1) (fmap f e2)
-  fmap f (Flip (UnSeqNil e1 e2)     ) = Flip $ UnSeqNil (fmap f e1) (fmap f e2)
   fmap f (Flip (UnSeqCons a e1 e2)  ) = Flip $ UnSeqCons ((f *** f) a) (fmap f e1) (fmap f e2)
   fmap f (Flip (Member rec fld)     ) = Flip $ Member (fmap f rec) fld
   fmap f (Flip (Take a rec fld e)   ) = Flip $ Take ((f *** f) a) (fmap f rec) fld (fmap f e)
@@ -327,7 +322,8 @@ bang (TVar v)         = TVarBang v
 bang (TVarBang v)     = TVarBang v
 bang (TUnit)          = TUnit
 bang (TProduct t1 t2) = TProduct (bang t1) (bang t2)
-bang (TSequence l t)  = TSequence l (bang t)
+bang (TSequence Nothing)      = TSequence Nothing
+bang (TSequence (Just (l,t))) = TSequence . Just . (l,) $ bang t
 bang (TSum ts)        = TSum (map (second $ first bang) ts)
 bang (TFun ti to)     = TFun ti to
 bang (TRecord ts s)   = TRecord (map (second $ first bang) ts) (bangSigil s)
@@ -340,7 +336,8 @@ substitute vs (TVar v)         = vs `at` v
 substitute vs (TVarBang v)     = bang (vs `at` v)
 substitute _  (TUnit)          = TUnit
 substitute vs (TProduct t1 t2) = TProduct (substitute vs t1) (substitute vs t2)
-substitute vs (TSequence l t)  = TSequence l (substitute vs t)
+substitute _  (TSequence Nothing)      = TSequence Nothing
+substitute vs (TSequence (Just (l,t))) = TSequence . Just . (l,) $ substitute vs t
 substitute vs (TSum ts)        = TSum (map (second (first $ substitute vs)) ts)
 substitute vs (TFun ti to)     = TFun (substitute vs ti) (substitute vs to)
 substitute vs (TRecord ts t)   = TRecord (map (second (first $ substitute vs)) ts) t
@@ -471,7 +468,8 @@ kindcheck (TVar v)         = lookupKind v
 kindcheck (TVarBang v)     = bangKind <$> lookupKind v
 kindcheck (TUnit)          = return mempty
 kindcheck (TProduct t1 t2) = mappend <$> kindcheck t1 <*> kindcheck t2
-kindcheck (TSequence _ t)  = kindcheck t
+kindcheck (TSequence Nothing)      = return mempty
+kindcheck (TSequence (Just (_,t))) = kindcheck t
 kindcheck (TSum ts)        = mconcat <$> mapM (kindcheck . fst . snd) (filter (not . snd .snd) ts)
 kindcheck (TFun ti to)     = return mempty
 kindcheck (TRecord ts s)   = mappend (sigilKind s) <$> (mconcat <$> (mapM (kindcheck . fst . snd) (filter (not . snd .snd) ts)))
@@ -520,12 +518,12 @@ typecheck (E (Tuple e1 e2))
   = do e1' <- typecheck e1
        e2' <- typecheck e2
        return $ TE (TProduct (exprType e1') (exprType e2')) (Tuple e1' e2')
-typecheck (E (SeqNil)) = return $ TE (undefined) SeqNil  -- FIXME
+typecheck (E (SeqNil)) = return $ TE (TSequence Nothing) SeqNil
 typecheck (E (SeqCons e1 e2))
-  = do e1'@(TE t1 _) <- typecheck e1                -- has been promoted
-       e2'@(TE (TSequence l2 t) _) <- typecheck e2  -- has been promoted
+  = do e1'@(TE t1 _) <- typecheck e1                         -- has been promoted
+       e2'@(TE (TSequence (Just (l2,t))) _) <- typecheck e2  -- has been promoted
        guardShow "list" $ t == t1
-       return $ TE (TSequence (l2 + 1) t) (SeqCons e1' e2')
+       return $ TE (TSequence $ Just (l2+1,t)) (SeqCons e1' e2')
 typecheck (E (Con tag e))
   = do e' <- typecheck e
        return $ TE (TSum [(tag, (exprType e', False))]) (Con tag e')
@@ -554,13 +552,10 @@ typecheck (E (Split a e1 e2))
        let (TProduct t1 t2) = exprType e1'
        e2' <- withBindings (Cons t1 (Cons t2 Nil)) (typecheck e2)
        return $ TE (exprType e2') (Split a e1' e2')
-typecheck (E (UnSeqNil e1 e2))
-  = do e1'@(TE (TSequence 0 _) _) <- typecheck e1
-       e2' <- typecheck e2
-       return $ TE (exprType e2') (UnSeqNil e1' e2')
 typecheck (E (UnSeqCons a e1 e2))
-  = do e1'@(TE t1@(TSequence l t) _) <- typecheck e1
-       e2' <- withBindings (Cons t1 (Cons (TSequence (l-1) t1) Nil)) (typecheck e2)
+  = do e1'@(TE t1@(TSequence (Just (l,t))) _) <- typecheck e1
+       guardShow "unSeqCons" $ l-1 >= 0
+       e2' <- withBindings (Cons t1 (Cons (TSequence $ Just (l-1,t)) Nil)) (typecheck e2)
        return $ TE (exprType e2') (UnSeqCons a e1' e2')
 typecheck (E (Member e f))
   = do e'@(TE t@(TRecord ts s) _) <- typecheck e  -- canShare
@@ -605,7 +600,7 @@ indentation = 3
 ifIndentation = 3
 position = string
 varName = string
-primop = blue . (pretty :: Op -> Doc)
+primop = blue . string . opSymbol
 keyword = bold . string
 typevar = blue . string
 typename = blue . bold . string
@@ -667,16 +662,6 @@ instance (Pretty a, Pretty (TypedExpr t v a)) => PrettyP (TypedExpr t v a) where
 instance (Pretty a, Pretty (UntypedExpr t v a)) => PrettyP (UntypedExpr t v a) where
   prettyP i (E x) = prettyP i x
 
-instance Pretty Likelihood where
-  pretty Likely = symbol "=>"
-  pretty Unlikely = symbol "~>"
-  pretty Regular = symbol "->"
-
--- prettyL :: Likelihood -> Doc
--- prettyL Likely = symbol "+%"
--- prettyL Regular = empty
--- prettyL Unlikely = symbol "-%"
-
 prettyV = dullblue  . string . ("_v" ++) . show . finInt
 prettyT = dullgreen . string . ("_t" ++) . show . finInt
 
@@ -717,8 +702,6 @@ instance (Pretty a, PrettyP (e t v a), Pretty (e t ('Suc v) a), Pretty (e t ('Su
   pretty (Esac e) = keyword "esac" <+> parens (pretty e)
   pretty (Split (a1,a2) e1 e2) = align (keyword "let" <+> tupled (map pretty [a1,a2]) <+> symbol "=" <+> pretty e1 L.<$>
                                         keyword "in" <+> pretty e2)
-  pretty (UnSeqNil e1 e2) = align (keyword "let" <+> symbol "[]" <+> keyword "=" <+> pretty e1 L.<$>
-                                   keyword "in" <+> pretty e2)
   pretty (UnSeqCons (a,as) e1 e2) = align (keyword "let" <+> pretty a <> symbol "::" <> pretty as <+> symbol "=" <+> pretty e1 L.<$>
                                            keyword "in" <+> pretty e2)
   pretty (Member x f) = prettyP 1 x L.<> symbol "." L.<> fieldIndex f
@@ -741,7 +724,8 @@ instance Pretty (Type t) where
   pretty (TString) = typename "String"
   pretty (TUnit) = typename "()"
   pretty (TProduct t1 t2) = tupled (map pretty [t1, t2])
-  pretty (TSequence l t) = typename "Seq" <+> int l <+> parens (pretty t)
+  pretty (TSequence Nothing) = typesymbol "forall" <+> typename "a" <> typesymbol "." <+> typesymbol "[" <> typename "a" <> typesymbol "]"
+  pretty (TSequence (Just (l,t))) = parens (pretty t) <> typesymbol "[" <> (integer $ fromIntegral l) <> typesymbol "]"
   pretty (TSum alts) = variant (map (\(n,(t,_)) -> tagName n <+> pretty t) alts)  -- FIXME: cogent.1
   pretty (TFun t1 t2) = prettyT' t1 <+> typesymbol "->" <+> pretty t2
      where prettyT' e@(TFun {}) = parens (pretty e)

@@ -29,7 +29,6 @@
 module Cogent.Desugar where
 
 import Cogent.Common.Syntax hiding (Cons)
-import qualified Cogent.Common.Syntax as Syn (Op (Cons))
 import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Sugarfree hiding (withBinding, withBindings)
@@ -313,7 +312,9 @@ desugarAlt e0 (S.PIrrefutable (S.PTuple ps)) e | __cogent_ftuples_as_sugar = do
       bs = flip P.map vpts' $ \(v,p,t) -> S.Binding p Nothing (T.TE t $ S.Var v) []
   desugarExpr $ T.TE (T.typeOfTE e) $ S.Let (b0:bs) e
   where isPVar (S.PVar _) = True; isPVar _ = False
-desugarAlt e0 (S.PIrrefutable (S.PSequence [])) e = __impossible "desugarAlts (PSequence [])"
+desugarAlt e0 (S.PIrrefutable (S.PSequence [])) e = do
+  v <- freshVar
+  E <$> (Let v <$> desugarExpr e0 <*> withBinding v (desugarExpr e))
 desugarAlt e0 (S.PIrrefutable (S.PSequence (p:ps))) e = do
   v1 <- freshVar
   vs <- freshVar
@@ -382,8 +383,8 @@ desugarType t = typeWHNF t >>= \case
   S.RT (S.TTuple (t1:t2:[])) | not __cogent_ftuples_as_sugar -> TProduct <$> desugarType t1 <*> desugarType t2
   S.RT (S.TTuple (t1:t2:ts)) | not __cogent_ftuples_as_sugar -> __impossible "desugarType"  -- desugarType $ S.RT $ S.TTuple [t1, S.RT $ S.TTuple (t2:ts)]
   S.RT (S.TTuple ts) | __cogent_ftuples_as_sugar -> TRecord <$> (P.zipWith (\t n -> (n,(t, False))) <$> forM ts desugarType <*> pure (P.map (('p':) . show) [1 :: Integer ..])) <*> pure Unboxed
-  S.RT (S.TSequence Nothing) -> return $ TSequence 0 undefined  -- FIXME
-  S.RT (S.TSequence (Just (l,t))) -> TSequence l <$> desugarType t
+  S.RT (S.TSequence Nothing) -> return $ TSequence Nothing
+  S.RT (S.TSequence (Just (l,t))) -> TSequence . Just . (l,) <$> desugarType t
   S.RT (S.TUnit)   -> return TUnit
   notInWHNF -> __impossible $ "desugarType: " ++ show notInWHNF
 
@@ -430,7 +431,7 @@ desugarNote S.NoInline = NoInline
 desugarNote S.Inline   = InlinePlease
 
 desugarExpr :: T.TypedExpr -> DS t v (UntypedExpr t v VarName)
-desugarExpr (T.TE _ (S.PrimOp opr es)) = E . Op (desugarOp opr) <$> mapM desugarExpr es
+desugarExpr (T.TE _ (S.PrimOp opr es)) = E . Op opr <$> mapM desugarExpr es
 desugarExpr (T.TE _ (S.Var vn)) = (findIx vn . sel2 <$> get) >>= \case
   Just v  -> return $ E $ Variable (v, vn)
   Nothing -> do constdefs <- view _2
@@ -488,6 +489,13 @@ desugarExpr (T.TE t (S.Tuple (e1:e2:es))) | not __cogent_ftuples_as_sugar = __im
   -- desugarExpr $ T.TE (S.RT $ S.TTuple [t1,t2']) $ S.Tuple [e1,e2']
 -- desugarExpr (T.TE _ (S.Tuple (reverse -> (e:es)))) | T.TE _ (S.Tuple _) <- e = __impossible "desugarExpr"
 desugarExpr (T.TE _ (S.Tuple es)) = E . Struct <$> (P.zip (P.map (('p':) . show) [1 :: Integer ..]) <$> mapM desugarExpr es)  -- | __cogent_ftuples_as_sugar
+desugarExpr (T.TE _ (S.Sequence [])) = return . E $ SeqNil
+desugarExpr (T.TE t (S.Sequence (e:es))) = do
+  e'  <- desugarExpr e
+  let S.RT (S.TSequence (Just (l,te))) = T.typeOfTE e
+      tes = S.RT $ S.TSequence (Just (l-1,te))
+  es' <- desugarExpr (T.TE tes $ S.Sequence es)
+  return $ E $ SeqCons e' es'
 desugarExpr (T.TE _ (S.UnboxedRecord fs)) = E . Struct <$> mapM (\(f,e) -> (f,) <$> desugarExpr e) fs
 desugarExpr (T.TE _ (S.Let [] e)) = __impossible "desugarExpr (Let)"
 desugarExpr (T.TE _ (S.Let [S.Binding p mt e0 []] e)) = desugarAlt e0 (S.PIrrefutable p) e
@@ -518,29 +526,6 @@ desugarExpr (T.TE t (S.Put e (fa:fas))) = do
   desugarExpr $ T.TE t $ S.Put (T.TE t' $ S.Put e [fa]) fas
 desugarExpr (T.Promote t e) = E <$> (Promote <$> desugarType t <*> desugarExpr e)
 desugarExpr (T.TypeErrorHappened {}) = __impossible "desugarExpr (Error)"
-
-desugarOp :: S.OpName -> Op
-desugarOp "+"   = Plus
-desugarOp "-"   = Minus
-desugarOp "*"   = Times
-desugarOp "/"   = Divide
-desugarOp "%"   = Mod
-desugarOp "not" = Not
-desugarOp "&&"  = And
-desugarOp "||"  = Or
-desugarOp ">="  = Ge
-desugarOp "<="  = Le
-desugarOp "<"   = Lt
-desugarOp ">"   = Gt
-desugarOp "=="  = Eq
-desugarOp "/="  = NEq
-desugarOp ".&." = BitAnd
-desugarOp ".|." = BitOr
-desugarOp ".^." = BitXor
-desugarOp ">>"  = RShift
-desugarOp "<<"  = LShift
-desugarOp "complement" = Complement
-desugarOp x     = __impossible "desugarOp"
 
 desugarConst :: (VarName, T.TypedExpr) -> DS 'Zero 'Zero (SFConst UntypedExpr)
 desugarConst (n,e) = (n,) <$> desugarExpr e

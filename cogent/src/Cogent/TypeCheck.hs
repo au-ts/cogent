@@ -19,7 +19,8 @@
 
 module Cogent.TypeCheck where
 
-import           Cogent.Common.Syntax
+import           Cogent.Common.Syntax hiding (Cons)
+import qualified Cogent.Common.Syntax as Syn (Op (Cons))
 import           Cogent.Common.Types
 import           Cogent.Compiler
 import           Cogent.Surface
@@ -89,7 +90,6 @@ data TypeError = NotAPolymorphicFunction VarName RawType
                | CannotPromote RawType TypedExpr
                | NotASubtype RawType TypedExpr
                | NotASubtypeAlts RawType RawType
-               -- | SequenceCannotBeEmpty SourcePos
                | NotASequence TypedExpr
                | SequenceLengthIncorrect (IrrefutablePattern VarName) Int
                | ConstantMustBeShareable VarName RawType
@@ -578,6 +578,7 @@ promote t e@(TE te _) = inEContext (InExpressionOfType (dummyLocE $ toRawExp e) 
             then when (isVariantType t && not (isCon e)) (typeError $ DynamicVariantPromotionE e (typeOfTE e) t)
             else when (isVariantType t && not (isCon e) && __cogent_wdynamic_variant_promotion) (warning $ DynamicVariantPromotionW e (typeOfTE e) t)
           return $ Promote t e  -- leaf (we can have nested Promotes, due to lack of depth subtyping)
+        promote' t@(RT (TSequence (Just (l,_)))) e = return $ Promote t e
         promote' t e = typeError $ CannotPromote t e
 promote t (Promote _ e) = promote t e
 promote t _ = __impossible "promote"
@@ -703,15 +704,11 @@ matchIrrefPattern (PTake rv (map fromJust -> ips)) rt@(RT (TRecord ts s)) | s /=
     get >>= lift . typeWHNF . RT . TTake (Just [f]) >>= put
     return $ Just (f,ip')
   return (PTake (rv,rt') ips')
-matchIrrefPattern (POp Cons [p1,p2]) (RT (TSequence (Just (1,t)))) = do
-  p1' <- matchIrrefPattern p1 t
-  p2' <- matchIrrefPattern p2 (RT $ TSequence Nothing)
-  return $ POp Cons [p1',p2']
-matchIrrefPattern (POp Cons [p1,p2]) (RT (TSequence (Just (l,t)))) | l > 1 = do
+matchIrrefPattern (POp Syn.Cons [p1,p2]) (RT (TSequence (Just (l,t)))) | l >= 1 = do
   p1' <- matchIrrefPattern p1 t
   p2' <- matchIrrefPattern p2 (RT $ TSequence $ Just (l-1,t))
-  return $ POp Cons [p1',p2']
-matchIrrefPattern (POp Cons _) _ = __impossible "matchIrrefPattern: (::) - wrong arity"
+  return $ POp Syn.Cons [p1',p2']
+matchIrrefPattern (POp Syn.Cons _) _ = __impossible "matchIrrefPattern: (::) - wrong arity"
 matchIrrefPattern x y = typeError (IrrefPatternDoesNotMatchType x y)
 
 withIrrefPattern :: IrrefutablePattern VarName -> RawType -> TC a
@@ -920,7 +917,7 @@ infer' _ (PrimOp o [e1,e2]) | o `elem` comparisonOperators = do
   e2' <- infer e2
   tau <- typeOfTE e1' `lub` typeOfTE e2'
   unless (unRT tau `elem` numericTypes ||
-          (unRT tau == boolType && o `elem` ["==", "/="]))
+          (unRT tau == boolType && o `elem` [Eq, NEq]))
      $ typeError (NonNumericType tau)
   e1'' <- promote tau e1'
   e2'' <- promote tau e2'
@@ -929,31 +926,31 @@ infer' _ (PrimOp o [e1,e2]) | o `elem` booleanOperators = do
   e1' <- check e1 (RT boolType)
   e2' <- check e2 (RT boolType)
   return (TE (RT boolType) (PrimOp o [e1',e2']))
-infer' _ (PrimOp "not" [e1]) = do
+infer' _ (PrimOp Not [e1]) = do
   e1' <- check e1 (RT boolType)
-  return (TE (RT boolType) (PrimOp "not" [e1']))
-infer' _ (PrimOp "complement" [e1]) = do
+  return (TE (RT boolType) (PrimOp Not [e1']))
+infer' _ (PrimOp Complement [e1]) = do
   e1'@(TE tau _) <- infer e1
   unless (unRT tau `elem` numericTypes)
      $ typeError (NonNumericType tau)
-  return (TE tau (PrimOp "complement" [e1']))
-infer' _ (PrimOp "::" [e1,e2]) = do
+  return (TE tau (PrimOp Complement [e1']))
+infer' _ (PrimOp Syn.Cons [e1,e2]) = do
   e1'@(TE t1 _) <- infer e1
   e2'@(TE t2 _) <- infer e2
   case t2 of RT (TSequence Nothing) -> do e2'' <- promote (RT $ TSequence $ Just (0,t1)) e2'
-                                          return $ TE (RT $ TSequence $ Just (1,t1)) (PrimOp "::" [e1',e2''])
+                                          return $ TE (RT $ TSequence $ Just (1,t1)) (PrimOp Syn.Cons [e1',e2''])
              RT (TSequence (Just (l2,te2))) -> do tau <- t1 `lub` te2
                                                   e1'' <- promote tau e1'
                                                   e2'' <- promote (RT $ TSequence $ Just (l2,tau)) e2'
-                                                  return $ TE (RT $ TSequence $ Just (l2+1,tau)) (PrimOp "::" [e1'',e2''])
+                                                  return $ TE (RT $ TSequence $ Just (l2+1,tau)) (PrimOp Syn.Cons [e1'',e2''])
              otherwise -> typeError $ NotASequence e2'
 infer' _ (PrimOp _ _) = __impossible "infer'"
 
-arithOperators, bitwiseOperators, booleanOperators, comparisonOperators :: [String]
-arithOperators = words "* / % + -"
-bitwiseOperators = words ".&. .^. .|. >> <<"
-booleanOperators = words "&& ||"
-comparisonOperators = words ">= <= > < == /="
+arithOperators, bitwiseOperators, booleanOperators, comparisonOperators :: [Op]
+arithOperators = [Times, Divide, Mod, Plus, Minus]
+bitwiseOperators = [BitAnd, BitOr, BitXor, LShift, RShift]
+booleanOperators = [And, Or]
+comparisonOperators = [Ge, Le, Gt, Lt, Eq, NEq]
 
 numericTypes = [ TCon n [] Unboxed | n <- ["U8", "U16", "U32", "U64"] ]
 boolType = TCon "Bool" [] Unboxed

@@ -9,13 +9,12 @@
 --
 
 
-{-# LANGUAGE FlexibleInstances, FlexibleContexts, MultiWayIf, ViewPatterns #-}
+{-# LANGUAGE FlexibleInstances, FlexibleContexts, MultiWayIf, UndecidableInstances, ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-orphans -fno-warn-missing-signatures #-}
 
 module Cogent.PrettyPrint where
 
-import qualified Cogent.Common.Syntax as S (associativity)
-import Cogent.Common.Syntax hiding (associativity)
+import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler (__impossible, __fixme)
 import Cogent.Desugar (desugarOp)
@@ -39,7 +38,7 @@ indentation = 3
 ifIndentation = 3
 position = string
 varname = string
-primop = blue . string
+primop = blue . string . opSymbol
 keyword = bold . string
 typevar = blue . string
 typename = blue . bold . string
@@ -68,49 +67,54 @@ variant = encloseSep (langle <> space) rangle (symbol "|" <> space) . map (<> sp
 indent = nest indentation
 indent' = (string (replicate indentation ' ') <>) . nest indentation
 
-level :: Associativity -> Int
-level (LeftAssoc i) = i
-level (RightAssoc i) = i
-level (NoAssoc i) = i
-level (Prefix) = 0
+class Level t where
+  level :: t -> Int
 
-associativity :: String -> Associativity
-associativity = S.associativity . desugarOp
+instance Level Associativity where
+  level (LeftAssoc i) = i
+  level (RightAssoc i) = i
+  level (NoAssoc i) = i
+  level (Prefix) = 0
+
+instance Level (Expr t b e) where
+  level (App {}) = 1
+  level (PrimOp n [_,_]) = level (associativity n)
+  level (Member {}) = 0
+  level (Var {}) = 0
+  level (IntLit {}) = 0
+  level (BoolLit {}) = 0
+  level (CharLit {}) = 0
+  level (StringLit {}) = 0
+  level (Tuple {}) = 0
+  level (Sequence {}) = 10
+  level (Unitel) = 0
+  level _ = 100
+
+instance Level RawExpr where
+  level (RE e) = level e
+
+instance Level (IrrefutablePattern v) where
+  level _ = 0  -- TODO
+
 
 class ExprType a where
-  levelExpr :: a -> Int  -- associativity levels
   isVar :: a -> VarName -> Bool
 
 instance ExprType (Expr t b e) where
-  levelExpr (App {}) = 1
-  levelExpr (PrimOp n [_,_]) = level (associativity n)
-  levelExpr (Member {}) = 0
-  levelExpr (Var {}) = 0
-  levelExpr (IntLit {}) = 0
-  levelExpr (BoolLit {}) = 0
-  levelExpr (CharLit {}) = 0
-  levelExpr (StringLit {}) = 0
-  levelExpr (Tuple {}) = 0
-  levelExpr (Sequence {}) = 10
-  levelExpr (Unitel) = 0
-  levelExpr _ = 100
   isVar (Var n) s = (n == s)
   isVar _ _ = False
 
 instance ExprType RawExpr where
-  levelExpr (RE e) = levelExpr e
   isVar (RE e) = isVar e
 
--- instance ExprType (TExpr t) where
---   levelExpr (TE _ e _) = levelExpr e
---   -- isVar (TE _ e _)     = isVar e
 
-pretty'IP e@(PTake {}) = parens (pretty e)
-pretty'IP e = pretty e
+class (Pretty t, Level t) => Pretty' t where
+  pretty' :: Int -> t -> Doc
+  pretty' l x | level x < l = pretty x
+              | otherwise   = parens (indent (pretty x))
 
-pretty' :: (ExprType e, Pretty e) => Int -> e -> Doc
-pretty' l x | levelExpr x < l   = pretty x
-            | otherwise = parens (indent (pretty x))
+instance Pretty' (IrrefutablePattern VarName)
+instance Pretty (Expr t b e) => Pretty' (Expr t b e)
 
 handleTakeAssign :: Maybe (FieldName, IrrefutablePattern FieldName) -> Doc
 handleTakeAssign Nothing = fieldname ".."
@@ -125,15 +129,20 @@ handlePutAssign (Just (s, e)) = fieldname s <+> symbol "=" <+> pretty e
 instance Pretty (IrrefutablePattern VarName) where
   pretty (PVar v) = varname v
   pretty (PTuple ps) = tupled (map pretty ps)
+  pretty (PSequence ps) = list (map pretty ps)
   pretty (PUnboxedRecord fs) = string "#" <> record (map handleTakeAssign fs)
   pretty (PUnderscore) = symbol "_"
   pretty (PUnitel) = string "()"
   pretty (PTake v fs) = varname v <+> record (map handleTakeAssign fs)
+  pretty (POp op [a,b])
+    | LeftAssoc  l <- associativity op = pretty' (l+1) a <+> primop op <+> pretty' l b
+    | RightAssoc l <- associativity op = pretty' l a <+> primop op <+> pretty' (l+1) b
+    | NoAssoc    l <- associativity op = pretty' l a <+> primop op <+> pretty' l b
 
 instance Pretty (Pattern VarName) where
   pretty (PCon c [] ) = tagname c
-  pretty (PCon c [p]) = tagname c <+> pretty'IP p
-  pretty (PCon c ps ) = tagname c <+> spaceList (map pretty'IP ps)
+  pretty (PCon c [p]) = tagname c <+> pretty' 1 p
+  pretty (PCon c ps ) = tagname c <+> spaceList (map (pretty' 1) ps)
   pretty (PIntLit i) = literal (string $ show i)
   pretty (PBoolLit b) = literal (string $ show b)
   pretty (PCharLit c) = literal (string $ show c)
@@ -144,7 +153,7 @@ pretty'B (p, Just t, e) i
 pretty'B (p, Nothing, e) i
      = group (pretty p <+> symbol "=" <+> (if i then (pretty' 100) else pretty) e)
 
-instance (Pretty e, ExprType e) => Pretty (Binding RawType VarName e) where
+instance (Pretty' e, ExprType e) => Pretty (Binding RawType VarName e) where
   pretty (Binding p t e []) = pretty'B (p,t,e) False
   pretty (Binding p t e bs)
      = pretty'B (p,t,e) True <+> hsep (map (letbangvar . ('!':)) bs)
@@ -159,7 +168,9 @@ instance Pretty Inline where
 instance Pretty RawExpr where
   pretty (RE e) = pretty e
 
-instance (ExprType e, Pretty e) => Pretty (Expr RawType VarName e) where
+instance Pretty' RawExpr
+
+instance (ExprType e, Pretty' e) => Pretty (Expr RawType VarName e) where
   pretty (Var x) = varname x
   pretty (TypeApp x ts note) = pretty note <> varname x <> typeargs (map pretty ts)
   pretty (Member x f) = pretty' 1 x <> symbol "." <> fieldname f
@@ -168,17 +179,18 @@ instance (ExprType e, Pretty e) => Pretty (Expr RawType VarName e) where
   pretty (CharLit c) = literal (string $ show c)
   pretty (StringLit s) = literal (string $ show s)
   pretty Unitel = string "()"
-  pretty (PrimOp n [a,b])
-     | LeftAssoc l  <- associativity n = pretty' (l+1) a <+> primop n <+> pretty' l b
-     | RightAssoc l <- associativity n = pretty' l a <+> primop n <+> pretty' (l+1)  b
-     | NoAssoc   l  <- associativity n = pretty' l a <+> primop n <+> pretty' l  b
-  pretty (PrimOp n [e]) = primop n <+> pretty' 1 e
-  pretty (PrimOp n es) = primop n <+> tupled (map pretty es)
+  pretty (PrimOp op [a,b])
+     | LeftAssoc  l <- associativity op = pretty' (l+1) a <+> primop op <+> pretty' l b
+     | RightAssoc l <- associativity op = pretty' l a <+> primop op <+> pretty' (l+1) b
+     | NoAssoc    l <- associativity op = pretty' l a <+> primop op <+> pretty' l b
+  pretty (PrimOp op [e]) = primop op <+> pretty' 1 e
+  pretty (PrimOp op es) = primop op <+> tupled (map pretty es)  -- this case is not reached
   pretty (App a b) = pretty' 2 a <+> pretty' 1 b
   pretty (Con n [] ) = tagname n
   pretty (Con n [e]) = tagname n <+> pretty' 1 e
   pretty (Con n es ) = tagname n <+> spaceList (map (pretty' 1) es)
   pretty (Tuple es) = tupled (map pretty es)
+  pretty (Sequence es) = list (map pretty es)
   pretty (UnboxedRecord fs) = string "#" <> record (map (handlePutAssign . Just) fs)
   pretty (If c vs t e) = group (keyword "if" <+> handleBangedIf vs (pretty' 100 c)
                                              <$> indent (keyword "then" </> pretty t)
@@ -212,6 +224,8 @@ instance Pretty RawType where
           prettyT' e                 = pretty e
   pretty (RT (TVar n b)) = typevar n
   pretty (RT (TTuple ts)) = tupled (map pretty ts)
+  pretty (RT (TSequence Nothing)) = typesymbol "[]"
+  pretty (RT (TSequence (Just (l,t)))) = pretty t <> brackets (integer $ fromIntegral l)
   pretty (RT TUnit) = typesymbol "()"
   pretty (RT (TRecord ts s))
     | not . or $ map (snd . snd) ts = (if | s == Unboxed -> (typesymbol "#" <>)
@@ -279,7 +293,7 @@ renderTypeDecHeader n vs = keyword "type" <+> typename n <> hcat (map ((space <>
                                           <+> symbol "=" 
 
 prettyFunDef typeSigs v pt [Alt (PIrrefutable p) Regular e] = (if typeSigs then ( funname v <+> symbol ":" <+> pretty pt <$>) else id) $
-                                                                   (funname v <+> pretty'IP p <+> group (indent (symbol "=" <$> pretty e)))
+                                                                   (funname v <+> pretty p <+> group (indent (symbol "=" <$> pretty e)))
 
 prettyFunDef typeSigs v pt alts = (if typeSigs then ( funname v <+> symbol ":" <+> pretty pt <$>) else id) $
                                        (indent (funname v <> mconcat (map ((hardline <>) . indent . pretty) alts)))
@@ -384,6 +398,9 @@ instance Pretty TypeError where
                            <$> err "is not a subtype of" <$> indent' (pretty rt)
   pretty (NotASubtypeAlts rt1 rt2) =  err "The type of the alternatives" <$> indent' (pretty rt1)
                                   <$> err "is not a subtype of" <$> indent' (pretty rt2)
+  pretty (NotASequence e) = err "Expected a sequence, not" <+> pretty e
+  pretty (SequenceLengthIncorrect p l) = err "Pattern" <$> indent' (pretty p)
+                                     <$> err "cannot match a sequence of length" <+> integer (fromIntegral l)
   pretty (ConstantMustBeShareable v rt) =  err "The constant" <+> varname v <+> err "has type"
                                        <$> indent' (pretty rt) <$> err "which is not shareable"
   pretty (FunDefNotOfFunType v rt) =  err "The function definition" <+> varname v <+> err "is of type"
@@ -420,6 +437,7 @@ instance Pretty Warning where
 instance Pretty ErrorContext where
   pretty _ = error "use `prettyCtx' instead!"
 
+prettyCtx :: ErrorContext -> Bool -> Doc
 prettyCtx (InExpression e) i = (if i then (<$> indent' (pretty (stripLocE e))) else id)
                                (context "in the expression at (" <> pretty (posOfE e) <> context ")" )
 prettyCtx (InExpressionOfType e t) True = context "when checking that the expression at ("
@@ -446,6 +464,7 @@ prettyCtx (AntiquotedType t) i = (if i then (<$> indent' (pretty (stripLocT t)))
                                (context "in the antiquoted type at (" <> pretty (posOfT t) <> context ")" )
 prettyCtx (AntiquotedExpr e) i = (if i then (<$> indent' (pretty (stripLocE e))) else id)
                                (context "in the antiquoted expression at (" <> pretty (posOfE e) <> context ")" )
+
 
 prettyTWE :: Int -> (Either TypeError Warning, [ErrorContext]) -> Doc
 prettyTWE th (Left  e, ctx) = prettyTWE' th (e, ctx)

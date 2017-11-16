@@ -75,8 +75,6 @@ opSymbol RShift = ">>"
 opSymbol Complement = "complement"
 opSymbol Cons = "::"
 
-instance Pretty Op where
-  pretty = string . opSymbol
 
 data Likelihood = Unlikely | Regular | Likely deriving (Show, Eq, Ord)
 
@@ -94,6 +92,11 @@ instance Group Likelihood where
   invert Unlikely = Likely
 
 instance Abelian Likelihood
+
+instance Pretty Likelihood where
+  pretty Likely   = string "=>"
+  pretty Unlikely = string "~>"
+  pretty Regular  = string "->"
 
 tagSuccess = "Success" :: TagName
 tagFail    = "Fail"    :: TagName

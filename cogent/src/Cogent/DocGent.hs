@@ -9,6 +9,7 @@
 --
 
 {-# LANGUAGE TupleSections, ImplicitParams #-}
+{- LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE QuasiQuotes, OverloadedStrings, TemplateHaskell #-}
 
 module Cogent.DocGent where
@@ -183,15 +184,19 @@ data DocExpr = DE { unDE :: Expr RawType VarName DocExpr }
              | DocFnCall VarName [RawType] Inline deriving Show
 
 instance ExprType DocExpr where
-  levelExpr (DE e) = levelExpr e
-  levelExpr _ = 100
   isVar (DE e) s = isVar e s
   isVar _ _ = False
+
+instance Level DocExpr where
+  level (DE e) = level e
+  level _ = 100
 
 instance Pretty DocExpr where
   pretty (DE e) = pretty e
   pretty (DocFnCall x [] note) = pretty note P.<> funname' x
   pretty (DocFnCall x ts note) = pretty note P.<> funname' x P.<> typeargs (map pretty ts)
+
+instance Pretty' DocExpr
 
 resolveNamesA :: [String] -> Alt VarName RawExpr -> Alt VarName DocExpr
 resolveNamesA lcls (Alt pv l e) = Alt pv l $ resolveNames (lcls ++ F.toList pv) e
@@ -374,7 +379,7 @@ rawTemplate body = [shamlet|
 |]
 
 
-foreach ::  (?knowns :: [(String,SourcePos)]) => (SourcePos, DocString, TopLevel LocType VarName LocExpr) -> (SourcePos, Html)
+foreach :: (?knowns :: [(String,SourcePos)]) => (SourcePos, DocString, TopLevel LocType VarName LocExpr) -> (SourcePos, Html)
 foreach (p, d, t) = (p,  genDoc (p,d,t))
 
 titleFor :: SourcePos -> IO String

@@ -45,7 +45,7 @@ data Pattern pv = PCon TagName [IrrefutablePattern pv]
                 | PIrrefutable (IrrefutablePattern pv)
                 deriving (Show, Functor, Foldable, Traversable, Eq)
 
-data Alt pv e = Alt (Pattern pv) Likelihood e deriving (Show, Functor, Foldable,Traversable)
+data Alt pv e = Alt (Pattern pv) Likelihood e deriving (Show, Functor, Foldable, Traversable)
 
 data Binding t pv e = Binding (IrrefutablePattern pv) (Maybe t) e [VarName]
                     deriving (Show, Functor, Foldable, Traversable)
@@ -54,7 +54,7 @@ data Inline = Inline
             | NoInline
             deriving (Eq, Show)
 
-data Expr t pv e = PrimOp OpName [e]
+data Expr t pv e = PrimOp Op [e]
                  | Var VarName
                  | Match e [VarName] [Alt pv e]
                  | TypeApp VarName [t] Inline
