@@ -551,6 +551,10 @@ promote t e@(TE te _) = inEContext (InExpressionOfType (dummyLocE $ toRawExp e) 
         promote' :: RawType -> TypedExpr -> TC TypedExpr
         promote' t (TE te (PrimOp opr [e])) = TE t <$> (PrimOp opr <$> mapM (promote t) [e])
         promote' t (TE te (PrimOp opr [e1,e2])) = TE t <$> (PrimOp opr <$> mapM (promote t) [e1,e2])
+        promote' t@(RT (TSequence (Just (l,te)))) (TE _ (PrimOp Syn.Cons [e1,e2])) = do
+          e1' <- promote te e1
+          e2' <- promote (RT $ TSequence $ Just (l-1,te)) e2
+          return $ TE t $ PrimOp Syn.Cons [e1',e2']
         promote' t (TE te (Match e vs alts)) = TE t <$> (Match e vs <$> promoteAlts t alts)
         promote' t (TE te (Con cn es)) = let RT (TVariant alts)  = t
                                              RT (TVariant altes) = te
@@ -564,6 +568,7 @@ promote t e@(TE te _) = inEContext (InExpressionOfType (dummyLocE $ toRawExp e) 
         promote' t (TE te (Seq e1 e2)) = TE t <$> (Seq e1 <$> promote t e2)
         promote' t (TE te (If c vs th el)) = TE t <$> (If c vs <$> promote t th <*> promote t el)
         promote' t (TE te (Tuple es)) = TE t <$> (Tuple <$> zipWithM promote ts es) where RT (TTuple ts) = t
+        promote' t e@(TE te (Sequence [])) = return $ Promote t e
         promote' t (TE te (Sequence es)) = TE t <$> (Sequence <$> mapM (promote telem) es)
           where RT (TSequence (Just (_,telem))) = t
         promote' t (TE te (UnboxedRecord fs)) = TE t <$> (UnboxedRecord <$> zipWithM (\t' (n,e) -> (n,) <$> promote t' e) ts fs)

@@ -1,13 +1,13 @@
 
-foo : (U32, U16, U64[3]) -> U64[5] -- (U64[3], U64[4], U64[5])
+foo : (U32, U16, U64[3]) -> (U64[3], U64[4], U64[5])
 foo (a,b,cs) = let xs = a::b::cs
                and ys = [a,b,a,b]
                and zs = a::b::ys
                and ws = a::b::[]
-               and us = []
-               and vs = 1::2::us
-               and a1::b1::ab = xs
-               and [a2,b2,c1,c2,c3] = xs
-               and a3::b3::a3'::b3' = ys
-               and a4::b4::[] = ws
-                in xs -- (cs,ys,xs)
+               -- and us = []
+               -- and vs = 1::2::us
+               -- and a1::b1::ab = xs
+               -- and [a2,b2,c1,c2,c3] = xs
+               -- and a3::b3::a3'::b3' = ys
+               -- and a4::b4::[] = ws
+                in (cs,ys,xs)

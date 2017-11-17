@@ -103,6 +103,7 @@ isSubtype (TSum  s1) (TSum  s2) | not __cogent_fnew_subtyping
 isSubtype (TRecord r1 s1) (TRecord r2 s2) | __cogent_fnew_subtyping =
   s1 == s2 && and (zipWith (\(f1,(t1,b1)) (f2,(t2,b2)) -> (f1,t1) == (f2,t2) && b1 >= b2) r1 r2)
 isSubtype (TSequence Nothing) (TSequence (Just (0,t))) = True
+isSubtype (TSequence (Just (l1,t1))) (TSequence (Just (l2,t2))) | l1 == l2 = t1 `isSubtype` t2
 isSubtype a b = a == b
 
 data FunNote = NoInline | InlineMe | MacroCall | InlinePlease  -- order is important, larger value has stronger precedence
@@ -383,7 +384,7 @@ opType opr [TPrim Boolean, TPrim Boolean]
 opType Not [TPrim Boolean] = TPrim Boolean
 opType Complement [TPrim p] | p /= Boolean = TPrim p
 opType Syn.Cons [t1,t2] | TSequence (Just (l,t)) <- t2 = TSequence $ Just (l+1,t)
-opType opr ts = __impossible "opType"
+opType opr ts = __impossible $ "opType: " ++ show opr ++ " " ++ show ts
 
 useVariable :: Fin v -> TC t v (Maybe (Type t))
 useVariable v = TC $ do ret <- (`at` v) <$> get
