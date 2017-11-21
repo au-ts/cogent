@@ -10,41 +10,45 @@
 
 {-# LANGUAGE TupleSections, ImplicitParams #-}
 {-# LANGUAGE QuasiQuotes, OverloadedStrings, TemplateHaskell #-}
+
 module Cogent.DocGent where
-import Text.Blaze.Html.Renderer.String
-import Text.Parsec
-import Text.Hamlet
-import Control.Monad.State as S
+
+import Cogent.Compiler (__impossible, __todo)
 import Cogent.PrettyPrint
 import Cogent.Surface
 import Cogent.Common.Syntax
 import Cogent.Common.Types
-import Text.PrettyPrint.ANSI.Leijen (SimpleDoc(..), Pretty(..))
-import qualified Text.PrettyPrint.ANSI.Leijen as P
-import System.Console.ANSI
-import Text.Blaze
-import qualified Text.Blaze.Html5 as H
-import qualified Text.Blaze.Html5.Attributes as HA
-import qualified Data.Map as M
-import Data.String
-import Control.Lens
-import Data.List (intersperse, sortBy, groupBy)
-import Data.Ord(comparing)
-import Data.Function(on)
-import System.Directory
-import qualified Data.Foldable as F
-import Data.Maybe
-import qualified Text.Pandoc as T
-import qualified Text.Pandoc.Walk as T
-import Data.Default
-import Data.Char (isLower, toUpper)
 import Paths_cogent
-import System.FilePath
+
+import Control.Lens
+import Control.Monad.State as S
+import Data.Char (isLower, toUpper)
+import qualified Data.Foldable as F
+import Data.Default
+import Data.Function (on)
+import Data.List (intersperse, sortBy, groupBy)
+import qualified Data.Map as M
+import Data.Maybe
+import Data.Ord (comparing)
 #if MIN_VERSION_pandoc(2,0,0)
 import Data.Text (pack)
-import Control.Monad.Error
 #else
 #endif
+import Data.String
+import System.Console.ANSI
+import System.Directory
+import System.FilePath
+import Text.Blaze
+import Text.Blaze.Html.Renderer.String
+import qualified Text.Blaze.Html5 as H
+import qualified Text.Blaze.Html5.Attributes as HA
+import Text.Hamlet
+import qualified Text.Pandoc as T
+import qualified Text.Pandoc.Walk as T
+import Text.Parsec
+import Text.PrettyPrint.ANSI.Leijen (SimpleDoc(..), Pretty(..))
+import qualified Text.PrettyPrint.ANSI.Leijen as P
+
 
 data SGRState = SGRState { _intensity :: ConsoleIntensity, _fg :: (ColorIntensity, Color), _bg :: (ColorIntensity, Color), _italics :: Bool, _underline :: Underlining }
 makeLenses ''SGRState
@@ -218,6 +222,7 @@ adjustSGRs (SetVisible            _) = return ()
 adjustSGRs (SetColor Foreground i c) = fg .= (i, c)
 adjustSGRs (SetColor Background i c) = bg .= (i, c)
 adjustSGRs (SetSwapForegroundBackground _) = return ()
+adjustSGRs (SetRGBColor _ _) = __todo "not implemented"
 
 displayHTML :: (?knowns :: [(String, SourcePos)]) => SimpleDoc -> S.State SGRState Html
 displayHTML (SFail) = error ""
@@ -233,7 +238,8 @@ makeHtml content = [shamlet| <pre class="source bg-Dull-Black">#{content}|]
 
 
 genDoc :: (?knowns :: [(String, SourcePos)]) => (SourcePos, DocString, TopLevel LocType VarName LocExpr) -> Html
-genDoc (p,s,x@(Include {})) = error "Impossible!"
+genDoc (p,s,x@(Include    {})) = __impossible "genDoc"
+genDoc (p,s,x@(IncludeStd {})) = __impossible "genDoc"
 genDoc (p,s,x@(TypeDec n ts t)) =
     let header = let ?knowns = [] in runState (displayHTML (prettyPrint id $ return $ renderTypeDecHeader n ts)) defaultState
         df     = prettyType t Nothing
@@ -430,7 +436,8 @@ docGent input = let
                         writeFile rn rawContent''
                       generateIndex ?knowns
                       generateContents $ zip titles' (map (fst . head) items'')
-  where toKnown (p, _, Include {}) = Nothing
+  where toKnown (p, _, Include {})      = Nothing
+        toKnown (p, _, IncludeStd {})   = Nothing
         toKnown (p, _, TypeDec tn _ _)  = Just (tn, p)
         toKnown (p, _, AbsTypeDec tn _) = Just (tn, p)
         toKnown (p, _, AbsDec tn _)     = Just (tn, p)

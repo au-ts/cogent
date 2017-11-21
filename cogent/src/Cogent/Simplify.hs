@@ -367,6 +367,7 @@ considerInline sv ins (v,n,tau) cont = case ins `V.at` v of
 
 rebuild :: OutExpr t v -> Context t v -> Simp t (OutExpr t v)
 rebuild e Stop = return e
+rebuild _ _ = __todo "rebuild: not implemented yet"
 
 -- ////////////////////////////////////////////////////////////////////////////
 -- Heuristics
@@ -446,10 +447,10 @@ lowerFin :: (v ~ 'Suc v') => SNat v -> Fin ('Suc v) -> Fin ('Suc v) -> Fin v
 lowerFin _ FZero FZero = __impossible "lowerFin"
 lowerFin _ FZero (FSuc v) = v
 lowerFin _ (FSuc i) FZero = FZero
-lowerFin (SSuc SZero) (FSuc FZero) (FSuc FZero) = __impossible "lowerFin"
+lowerFin (SSuc SZero) (FSuc _) (FSuc _) = __impossible "lowerFin"
 lowerFin (SSuc (SSuc n)) (FSuc i) (FSuc v) = FSuc $ lowerFin (SSuc n) i v
 #if __GLASGOW_HASKELL__ < 711
-lowerFin _ _ _ = __ghc_t4139 "lowerFin"
+lowerFin _ _ _ = __ghc_t3927 "lowerFin"
 #endif
 lowerExpr :: (Show a, v ~ 'Suc v') => SNat v -> Fin ('Suc v) -> TypedExpr t ('Suc v) a -> TypedExpr t v a
 lowerExpr w i (TE tau (Variable (v,a)))     = TE tau $ Variable (lowerFin w i v, a)
@@ -523,6 +524,7 @@ liftVarDef (BoundTo e occ) = BoundTo (liftExpr f0 e) occ
 
 liftContext :: Context t v -> Context t ('Suc v)
 liftContext Stop = Stop
+liftContext _ = __todo "liftContext: not implemented yet"
 
 -- substFin var (|var_body|-1==idx) |var_arg| arg
 -- It performs substitution [var |-> arg], the substituted variable must be the one of largest index.

@@ -142,8 +142,8 @@ pragmaToNote (_:pragmas) fn note = pragmaToNote pragmas fn note
 desugarTopLevel :: S.TopLevel S.RawType T.TypedName T.TypedExpr
                 -> [Pragma]
                 -> DS 'Zero 'Zero (Maybe (Definition UntypedExpr VarName))
-desugarTopLevel (S.Include s) _ = __impossible "desugarTopLevel"
-desugarTopLevel (S.IncludeStd s) _ = __impossible "desugarTopLevel"
+desugarTopLevel (S.Include    _) _ = __impossible "desugarTopLevel"
+desugarTopLevel (S.IncludeStd _) _ = __impossible "desugarTopLevel"
 desugarTopLevel (S.TypeDec tn vs t) _ | ExI (Flip vs') <- Vec.fromList vs
                                       , Vec.Refl <- zeroPlusNEqualsN (Vec.length vs') = do
   tenv <- use _1
@@ -169,7 +169,8 @@ desugarTopLevel (S.FunDef fn sigma alts) pragmas | S.PT vs t <- sigma
               then return $ E Unit
               else withBinding v $ desugarAlts e0 alts
       return . Just $ FunDef (pragmaToAttr pragmas fn mempty) fn vs' ti' to' e
-desugarTopLevel (S.ConstDef vn t e) _ = __impossible "desugarTopLevel"
+desugarTopLevel (S.ConstDef _ _ _) _ = __impossible "desugarTopLevel"
+desugarTopLevel (S.DocBlock _    ) _ = __impossible "desugarTopLevel"
 
 desugarAlts :: T.TypedExpr -> [S.Alt T.TypedName T.TypedExpr] -> DS t v (UntypedExpr t v VarName)
 desugarAlts e0 [] = __impossible "desugarAlts"

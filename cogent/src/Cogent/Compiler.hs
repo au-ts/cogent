@@ -22,12 +22,15 @@ import System.FilePath
 import System.IO.Unsafe
 
 __impossible :: String -> a
-__impossible msg = error $ msg ++ ": the 'impossible' happened!"
+__impossible msg = error $ msg ++ unlines [ ": the 'impossible' happened!"
+                                        , "If you see this, please report this bug to"
+                                        , "    <https://github.com/NICTA/cogent/issues>"
+                                        ]
 
 -- This bug has been closed and will be in new GHC / zilinc (16/02/2016)
 #if __GLASGOW_HASKELL__ < 711
-__ghc_t4139 :: String -> a
-__ghc_t4139 msg = error $ msg ++ ": GHC doesn't get exhaustivity right (see trac #4139)"
+__ghc_t3927 :: String -> a
+__ghc_t3927 msg = error $ msg ++ ": GHC doesn't get exhaustivity right (see trac #3927)"
 #else
 
 #endif

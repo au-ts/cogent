@@ -994,10 +994,12 @@ typecheckCustTyGen = mapM $ firstM $ \t ->
 isMonoType :: LocType -> Bool
 isMonoType (LocType _ (TVar {})) = False
 isMonoType (LocType _ t) = getAll $ foldMap (All . isMonoType) t
+isMonoType _ = __impossible "isMonoType: not a type at all"
 
 isSynonym :: LocType -> TC Bool
 isSynonym (LocType _ (TCon c _ _)) = lookup c <$> use knownTypes >>= \case
-  Nothing -> __impossible "isSynonym"
+  Nothing -> __impossible "isSynonym: type not in scope"
   Just (vs,Just _ ) -> return True
   Just (vs,Nothing) -> return False
 isSynonym (LocType _ t) = foldM (\b a -> (b ||) <$> isSynonym a) False t
+isSynonym _ = __impossible "isSynonym: not a type at all"

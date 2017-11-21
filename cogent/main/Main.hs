@@ -64,10 +64,9 @@ import Control.Applicative (liftA, (<$>))
 #else
 import Control.Applicative (liftA)
 #endif
+import Control.Error.Util (exceptT)
 import Control.Monad (forM, forM_, unless, when)
--- import Control.Monad.Cont
--- import Control.Monad.Except
-import Control.Monad.Trans.Either (eitherT, runEitherT)
+import Control.Monad.Trans.Except (runExceptT)
 import Data.Char (isSpace)
 import Data.Either (lefts)
 import Data.Foldable (fold, foldrM)
@@ -525,8 +524,8 @@ parseArgs args = case getOpt' Permute options args of
       let hl, hr :: forall a b. Show a => a -> IO b
           hl err = hPutStrLn stderr (show err) >> exitFailure
           hr defs = lessPretty stdout defs >> exitSuccess
-      if | p == 1 -> eitherT hl hr $ GL.parseFile GL.defaultExts defaultTypnames source
-         | p == 2 -> eitherT hl hr $ GL.parseFile' source
+      if | p == 1 -> exceptT hl hr $ GL.parseFile GL.defaultExts defaultTypnames source
+         | p == 2 -> exceptT hl hr $ GL.parseFile' source
          | otherwise -> hPutStrLn stderr ("Error: Unknown parser: " ++ show p) >> exitFailure
 
     stack_usage cmds p source = do
@@ -747,7 +746,7 @@ parseArgs args = case getOpt' Permute options args of
     glue cmds tced tcst typedefs fts insts genst buildinfo log = do
       putProgressLn "Generating glue code..."
       let glreader = GL.mkGlState tced tcst typedefs fts insts genst
-      runEitherT (GL.glue glreader defaultTypnames GL.TypeMode __cogent_infer_c_type_files) >>= \case
+      runExceptT (GL.glue glreader defaultTypnames GL.TypeMode __cogent_infer_c_type_files) >>= \case
         Left err -> hPutStrLn stderr ("Glue code (types) generation failed: \n" ++ err) >> exitFailure
         Right infed -> do forM_ infed $ \(filename, defs) -> do
                             writeFileMsg $ Just filename
@@ -778,7 +777,7 @@ parseArgs args = case getOpt' Permute options args of
             when (cppcode /= ExitSuccess) $ exitFailure
             writeFileMsg (Just outfile)
             return outfile
-          runEitherT (GL.glue glreader defaultTypnames GL.FuncMode funcfiles) >>= \case
+          runExceptT (GL.glue glreader defaultTypnames GL.FuncMode funcfiles) >>= \case
             Left err -> hPutStrLn stderr ("Glue code (functions) generation failed: \n" ++ err) >> return False
             Right infed -> do forM_ infed $ \(filename, defs) -> do
                                 writeFileMsg (Just filename)

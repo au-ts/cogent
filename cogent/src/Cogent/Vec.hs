@@ -23,7 +23,7 @@ module Cogent.Vec where
 
 import Cogent.Compiler (__impossible)
 #if __GLASGOW_HASKELL__ < 711
-import Cogent.Compiler (__ghc_t4139)
+import Cogent.Compiler (__ghc_t3927)
 #endif
 import Cogent.Util
 
@@ -192,14 +192,15 @@ splitAt :: SNat n -> Vec (v :+: n) a -> (Vec n a, Vec v a)
 splitAt SZero x = (Nil, x)
 splitAt (SSuc n) (Cons x xs) = let (a, b) = splitAt n xs in (Cons x a, b)
 #if __GLASGOW_HASKELL__ < 711
-splitAt _ _ = __ghc_t4139 "splitAt"
+splitAt _ _ = __ghc_t3927 "splitAt"
 #endif
 
 at :: Vec a t -> Fin a -> t
+at Nil _ = __impossible "`at' called with empty Vector"  -- See https://ghc.haskell.org/trac/ghc/ticket/3927#comment:6
 at (Cons x xs) FZero    = x
 at (Cons x xs) (FSuc s) = at xs s
 #if __GLASGOW_HASKELL__ < 711
-at _ _ = __ghc_t4139 "at"
+at _ _ = __ghc_t3927 "at"
 #endif
 
 atList :: [t] -> Fin a -> t
@@ -207,11 +208,12 @@ atList [] _ = __impossible "atList"
 atList (x:xs) FZero = x
 atList (x:xs) (FSuc s) = atList xs s
 
-update :: Vec a t -> Fin a -> t -> Vec  a t
+update :: Vec a t -> Fin a -> t -> Vec a t
+update Nil _ x = Nil
 update (Cons _ xs) FZero    x' = Cons x' xs
 update (Cons x xs) (FSuc s) x' = Cons x (update xs s x')
 #if __GLASGOW_HASKELL__ < 711
-update _ _ _ = __ghc_t4139 "update"
+update _ _ _ = __ghc_t3927 "update"
 #endif
 
 modifyAt :: Fin a -> (t -> t) -> Vec a t -> Vec a t
@@ -228,7 +230,7 @@ zipWith :: (a -> b -> c) -> Vec n a -> Vec n b -> Vec n c
 zipWith f Nil Nil = Nil
 zipWith f (Cons x xs) (Cons y ys) = Cons (f x y) (zipWith f xs ys)
 #if __GLASGOW_HASKELL__ < 711
-zipWith _ _ _ = __ghc_t4139 "zipWith"
+zipWith _ _ _ = __ghc_t3927 "zipWith"
 #endif
 
 zip :: Vec n a -> Vec n b -> Vec n (a,b)

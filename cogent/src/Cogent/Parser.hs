@@ -9,6 +9,7 @@
 --
 
 {-# LANGUAGE LambdaCase, RecordWildCards, TupleSections #-}
+{-# OPTIONS_GHC -Wno-unused-do-bind #-}
 
 module Cogent.Parser where
 

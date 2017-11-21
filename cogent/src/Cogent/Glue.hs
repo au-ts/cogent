@@ -52,7 +52,6 @@ import Control.Monad.Except hiding (sequence, mapM_, mapM)
 import Control.Monad.Reader
 import Control.Monad.RWS.Strict
 import Control.Monad.State
-import Control.Monad.Trans.Either
 import Control.Monad.Trans.Except
 import Control.Monad.Writer
 import qualified Data.ByteString.Char8 as B
@@ -77,7 +76,7 @@ import Text.PrettyPrint.ANSI.Leijen (vsep)
 
 -- Parsing
 
-parseFile :: [Extensions] -> [String] -> FilePath -> EitherT String IO [CS.Definition]
+parseFile :: [Extensions] -> [String] -> FilePath -> ExceptT String IO [CS.Definition]
 parseFile exts deftypnames filename = do
 #if MIN_VERSION_language_c_quote(0,11,1)
   let start = Just $ startPos filename
@@ -87,8 +86,8 @@ parseFile exts deftypnames filename = do
   s <- lift $ B.readFile filename
   typnames <- case __cogent_ext_types of Nothing -> lift (return deftypnames); Just f -> lift $ getTypnames f
   case CP.evalP (__fixme CP.parseUnit) (CP.emptyPState exts typnames s start) of -- FIXME: check for other antiquotes
-    Left err -> hoistEither . Left  $ "Error: Failed to parse C: " ++ show err
-    Right ds -> hoistEither . Right $ ds
+    Left err -> throwE $ "Error: Failed to parse C: " ++ show err
+    Right ds -> return ds
 
 defaultExts :: [Extensions]
 defaultExts = [Antiquotation, C99, Gcc]
@@ -102,13 +101,13 @@ getTypnames = liftA lines . readFile
 
 -- Another parser
 
-parseFile' :: FilePath -> EitherT String IO CTranslUnit
+parseFile' :: FilePath -> ExceptT String IO CTranslUnit
 parseFile' filename = do
   instream <- lift $ readInputStream filename
   let pos = initPos filename
   case parseC instream pos of
-    Left err -> hoistEither . Left $ "Error: Failed to parse C: " ++ show err
-    Right u  -> hoistEither . Right $ u
+    Left err -> throwE $ "Error: Failed to parse C: " ++ show err
+    Right u  -> return u
 
 
 -- Desugaring, Monomorphising, and CG
@@ -494,17 +493,17 @@ traverseAll ds = concat <$> mapM traverseOne ds
 
 data GlueMode = TypeMode | FuncMode deriving (Eq, Show)
 
-glue :: GlState -> [TypeName] -> GlueMode -> [FilePath] -> EitherT String IO [(FilePath, [CS.Definition])]
+glue :: GlState -> [TypeName] -> GlueMode -> [FilePath] -> ExceptT String IO [(FilePath, [CS.Definition])]
 glue s typnames mode filenames = liftA (M.toList . M.fromListWith (flip (++)) . concat) .
   forM filenames $ \filename -> do
-    let EitherT m = lift $ parseFile defaultExts typnames filename
+    let ExceptT m = lift $ parseFile defaultExts typnames filename
     m >>= \case
-      Left err -> hoistEither $ Left err
+      Left err -> throwE err
       Right ds -> case runExcept . flip evalStateT s . flip runReaderT (FileState filename) $ traverseAll ds of
                     Right ds' -> -- lift (putStrLn $ show ds') >>
                                  case mode of
                                    TypeMode -> forM ds' $ \(d, mbf) -> case mbf of
-                                     Nothing -> hoistEither $ Left "Error: Cannot define functions in type mode"
+                                     Nothing -> throwE "Error: Cannot define functions in type mode"
                                      Just f  -> return (__cogent_abs_type_dir ++ "/abstract/" ++ f <.> __cogent_ext_of_h, [d])
                                    FuncMode -> let ext = if | takeExtension filename == __cogent_ext_of_ah -> __cogent_ext_of_h
                                                             | takeExtension filename == __cogent_ext_of_ac -> __cogent_ext_of_c
@@ -512,7 +511,7 @@ glue s typnames mode filenames = liftA (M.toList . M.fromListWith (flip (++)) . 
 
                                                in return [ (replaceExtension ((replaceBaseName filename (takeBaseName filename ++ __cogent_suffix_of_inferred))) ext
                                                          , L.map fst ds')]
-                    Left err  -> hoistEither . Left $ err
+                    Left err  -> throwE err
 
 mkGlState :: [SR.TopLevel SR.RawType TC.TypedName TC.TypedExpr]
           -> TC.TCState
@@ -557,17 +556,17 @@ tyVars _ = __impossible "tyVars"
 -- ////////////////////////////////////////////////////////////////////////////
 --
 
-collect :: GlState -> [TypeName] -> GlueMode -> [FilePath] -> EitherT String IO (MN.FunMono, MN.TypeMono)
+collect :: GlState -> [TypeName] -> GlueMode -> [FilePath] -> ExceptT String IO (MN.FunMono, MN.TypeMono)
 collect s typnames mode filenames = do
   ds <- liftA concat . forM filenames $ \filename -> do
-          let EitherT m = lift $ parseFile defaultExts typnames filename
+          let ExceptT m = lift $ parseFile defaultExts typnames filename
           m >>= \case
-            Left err -> hoistEither $ Left err
+            Left err -> throwE err
             Right ds -> return ds
   case runExcept . flip execStateT s $ collectAll ds of
     Right s -> return $ (view (mnState.funMono) &&& view (mnState.typeMono)) s
       -- NOTE: Lens doesn't support Arrow. See http://www.reddit.com/r/haskell/comments/1nwetz/lenses_that_work_with_arrows/ / zilinc
-    Left err  -> hoistEither . Left $ err
+    Left err  -> throwE err
 
 collectAnti :: (Data a, Typeable b, Monoid r) => (b -> Gl r) -> a -> Gl r
 collectAnti f a = getAp $ everything mappend (mkQ mempty (Ap . f)) a

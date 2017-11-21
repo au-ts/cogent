@@ -17,7 +17,7 @@ module Cogent.PrettyPrint where
 import qualified Cogent.Common.Syntax as S (associativity)
 import Cogent.Common.Syntax hiding (associativity)
 import Cogent.Common.Types
-import Cogent.Compiler (__impossible)
+import Cogent.Compiler (__impossible, __fixme)
 import Cogent.Desugar (desugarOp)
 import Cogent.Reorganizer (ReorganizeError(..), SourceObject(..))
 import Cogent.Surface
@@ -294,6 +294,7 @@ instance Pretty e => Pretty (TopLevel RawType VarName e) where
   pretty (IncludeStd s) = keyword "include <" <+> literal (string $ show s)
   pretty (AbsTypeDec n vs) = keyword "type" <+> typename n  <> hcat (map ((space <>) . typevar) vs)
   pretty (ConstDef v t e) = prettyConstDef True v t e
+  pretty (DocBlock _) = __fixme empty  -- FIXME: doesn't PP docs right now
 
 instance Pretty TypedExpr where
   pretty e@(TE {}) = if not (isTypeError e) then pretty (toRawExp e) else pretty (TypeErrorHappened undefined)  -- FIXME
@@ -456,6 +457,7 @@ prettyTWE' threshold (we, ectx) = pretty we <$> indent' (vcat (map (flip prettyC
 instance Pretty SourceObject where
   pretty (TypeName n) = typename n
   pretty (ValName  n) = varname n
+  pretty (DocBlock' _) = __fixme empty  -- FIXME: not implemented
 
 instance Pretty ReorganizeError where
   pretty CyclicDependency = err "cyclic dependency"
