@@ -21,7 +21,7 @@ import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Paths_cogent
 
-import Control.Lens
+import Control.Lens hiding (Level)
 import Control.Monad.State as S
 import Data.Char (isLower, toUpper)
 import qualified Data.Foldable as F

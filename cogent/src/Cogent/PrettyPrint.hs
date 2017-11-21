@@ -17,7 +17,6 @@ module Cogent.PrettyPrint where
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler (__impossible, __fixme)
-import Cogent.Desugar (desugarOp)
 import Cogent.Reorganizer (ReorganizeError(..), SourceObject(..))
 import Cogent.Surface
 import Cogent.TypeCheck hiding (context)
