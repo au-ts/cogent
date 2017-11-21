@@ -589,12 +589,12 @@ parseArgs args = case getOpt' Permute options args of
     typecheck cmds reorged ctygen source pragmas buildinfo log = do
       let stg = STGTypeCheck
       putProgressLn "Typechecking..."
-      let ((err,we),tcst) = TC.tc reorged ctygen
+      let ((res,we),tcst) = TC.tc reorged ctygen
       when (not $ null we) $ printError (prettyTWE __cogent_ftc_ctx_len) ((if __cogent_freverse_tc_errors then reverse else id) we)
       let errs = map fst we
       case null $ lefts errs of  -- NOTE: can not use `case we of Left _ -> .. ; Right _ -> ..' because of `bracketTE'
         False -> when (failDueToWerror errs) (hPutStrLn stderr "Failing due to --Werror.") >> exitFailure
-        True -> case err of
+        True -> case res of
           Left _ -> __impossible "typecheck"
           Right (tced,ctygen') -> do 
             when (Ast stg `elem` cmds) $ genAst stg tced

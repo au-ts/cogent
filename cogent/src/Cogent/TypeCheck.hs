@@ -50,7 +50,7 @@ import           Prelude hiding (sequence, mapM, mapM_, all)
 import           System.IO.Unsafe (unsafePerformIO)
 import           Text.Parsec.Pos
 
--- import           Debug.Trace
+import           Debug.Trace
 
 -- ------------------------------------
 
@@ -550,11 +550,11 @@ promote t e@(TE te _) = inEContext (InExpressionOfType (dummyLocE $ toRawExp e) 
   where -- NOTE: assume t is WHNF and promotion is always going to happen
         promote' :: RawType -> TypedExpr -> TC TypedExpr
         promote' t (TE te (PrimOp opr [e])) = TE t <$> (PrimOp opr <$> mapM (promote t) [e])
-        promote' t (TE te (PrimOp opr [e1,e2])) = TE t <$> (PrimOp opr <$> mapM (promote t) [e1,e2])
         promote' t@(RT (TSequence (Just (l,te)))) (TE _ (PrimOp Syn.Cons [e1,e2])) = do
           e1' <- promote te e1
           e2' <- promote (RT $ TSequence $ Just (l-1,te)) e2
           return $ TE t $ PrimOp Syn.Cons [e1',e2']
+        promote' t (TE te (PrimOp opr [e1,e2])) = TE t <$> (PrimOp opr <$> mapM (promote t) [e1,e2])
         promote' t (TE te (Match e vs alts)) = TE t <$> (Match e vs <$> promoteAlts t alts)
         promote' t (TE te (Con cn es)) = let RT (TVariant alts)  = t
                                              RT (TVariant altes) = te
