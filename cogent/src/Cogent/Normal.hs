@@ -51,6 +51,8 @@ isAtom (E Unit) = True
 isAtom (E (ILit {})) = True
 isAtom (E (SLit _)) = True
 isAtom (E (Tuple e1 e2)) | isVar e1 && isVar e2 = True
+isAtom (E (SeqNil)) = True
+isAtom (E (SeqCons e1 e2)) | isVar e1 && isVar e2 = True
 isAtom (E (Put rec f v)) | isVar rec && isVar v = True
 isAtom (E (Esac e)) | isVar e = True
 isAtom _ = False
@@ -68,6 +70,7 @@ isNormal (E (If c th el)) | isVar c && isNormal th && isNormal el = True
 isNormal (E (Split _ p e)) | isVar  p && isNormal e = True
   -- | ANF <- __cogent_fnormalisation, isVar  p && isNormal e = True
   -- | KNF <- __cogent_fnormalisation, isAtom p && isNormal e = True
+isNormal (E (UnSeqCons _ e1 e2)) | isVar e1 && isNormal e2 = True
 isNormal (E (Take _ rec fld e)) | isVar rec && isNormal e = True
 isNormal _ = False
 
@@ -138,6 +141,12 @@ normalise v (E (Tuple e1 e2)) k
     normaliseName (sadd v n) (upshiftExpr n v f0 e2) $ \n' e2' ->
     withAssoc v n n' $ \Refl ->
     k (sadd n n') (E $ Tuple (upshiftExpr n' (sadd v n) f0 e1') e2')
+normalise v e@(E (SeqNil)) k = k s0 e
+normalise v (E (SeqCons e1 e2)) k = 
+  normaliseName v e1 $ \n e1' ->
+  normaliseName (sadd v n) (upshiftExpr n v f0 e2) $ \n' e2' ->
+  withAssoc v n n' $ \Refl ->
+  k (sadd n n') (E $ SeqCons (upshiftExpr n' (sadd v n) f0 e1') e2')
 normalise v (E (If c th el)) k | LNF <- __cogent_fnormalisation =
   freshVar >>= \a ->
   normaliseExpr v th >>= \th' ->
@@ -164,6 +173,11 @@ normalise v (E (Split a p e)) k
   = normaliseName v p $ \n p' -> case addSucLeft v n of
       Refl -> case addSucLeft (SSuc v) n of
         Refl -> E <$> (Split a p' <$> (normalise (sadd (SSuc (SSuc v)) n) (upshiftExpr n (SSuc $ SSuc v) f2 e) $ \n' ->
+          withAssocSS v n n' $ \Refl -> k (SSuc (SSuc (sadd n n')))))
+normalise v (E (UnSeqCons a p e)) k
+  = normaliseName v p $ \n p' -> case addSucLeft v n of
+      Refl -> case addSucLeft (SSuc v) n of
+        Refl -> E <$> (UnSeqCons a p' <$> (normalise (sadd (SSuc (SSuc v)) n) (upshiftExpr n (SSuc $ SSuc v) f2 e) $ \n' ->
           withAssocSS v n n' $ \Refl -> k (SSuc (SSuc (sadd n n')))))
 normalise v (E (Take a rec fld e)) k
   = normaliseName v rec $ \n rec' -> case addSucLeft v n of
@@ -196,6 +210,8 @@ normaliseAtom v e k = normalise v e $ \n e' -> if isAtom e' then k n e' else cas
                                   <*> (normaliseAtom (sadd v n) el (\n' -> withAssoc v n n' $ \Refl -> k (sadd n n'))))
   (E (Split a p e)) -> E <$> (Split a p <$> (normaliseAtom (SSuc (SSuc (sadd v n))) e $ \n' ->
      withAssocSS v n n' $ \Refl -> k (sadd n (SSuc (SSuc n')))))
+  (E (UnSeqCons a p e)) -> E <$> (UnSeqCons a p <$> (normaliseAtom (SSuc (SSuc (sadd v n))) e $ \n' ->
+     withAssocSS v n n' $ \Refl -> k (sadd n (SSuc (SSuc n')))))
   (E (Take a rec fld e)) -> E <$> (Take a rec fld <$> (normaliseAtom (SSuc (SSuc (sadd v n))) e $ \n' ->
      withAssocSS v n n' $ \Refl -> k (sadd n (SSuc (SSuc n')))))
   _ -> __impossible "normaliseAtom"
@@ -208,6 +224,7 @@ wrapPut (E (LetBang vs a e1 e2)) = E <$> (LetBang vs a <$> wrapPut e1 <*> wrapPu
 wrapPut (E (Case e tn (l1,a1,e1) (l2,a2,e2))) = E <$> (Case e tn <$> ((l1,a1,) <$> wrapPut e1) <*> ((l2,a2,) <$> wrapPut e2))
 wrapPut (E (If c th el)) = E <$> (If c <$> wrapPut th <*> wrapPut el)
 wrapPut (E (Split a p e)) = E <$> (Split a p <$> wrapPut e)
+wrapPut (E (UnSeqCons a p e)) = E <$> (UnSeqCons a p <$> wrapPut e)
 wrapPut (E (Take a rec fld e)) = E <$> (Take a rec fld <$> wrapPut e)
 wrapPut e = return e  -- non-normal, thus put cannot occur
 
@@ -240,12 +257,15 @@ insertIdxAt cut (E e) = E $ insertIdxAt' cut e
     insertIdxAt' cut (Let a e1 e2) = Let a (insertIdxAt cut e1) (insertIdxAt (FSuc cut) e2)
     insertIdxAt' cut (LetBang vs a e1 e2) = LetBang (map (liftIdx cut *** id) vs) a (insertIdxAt cut e1) (insertIdxAt (FSuc cut) e2)
     insertIdxAt' cut (Tuple e1 e2) = Tuple (insertIdxAt cut e1) (insertIdxAt cut e2)
+    insertIdxAt' cut (SeqNil) = SeqNil
+    insertIdxAt' cut (SeqCons e1 e2) = SeqCons (insertIdxAt cut e1) (insertIdxAt cut e2)
     insertIdxAt' cut (Struct fs) = Struct $ map (second $ insertIdxAt cut) fs
     insertIdxAt' cut (If c e1 e2) = If (insertIdxAt cut c) (insertIdxAt cut e1) (insertIdxAt cut e2)
     insertIdxAt' cut (Case c tag (l1,a1,alt) (l2,a2,alts)) =
       Case (insertIdxAt cut c) tag (l1, a1, insertIdxAt (FSuc cut) alt) (l2, a2, insertIdxAt (FSuc cut) alts)
     insertIdxAt' cut (Esac e) = Esac (insertIdxAt cut e)
     insertIdxAt' cut (Split a e1 e2) = Split a (insertIdxAt cut e1) (insertIdxAt (FSuc (FSuc cut)) e2)
+    insertIdxAt' cut (UnSeqCons a e1 e2) = UnSeqCons a (insertIdxAt cut e1) (insertIdxAt (FSuc (FSuc cut)) e2)
     insertIdxAt' cut (Member e fld) = Member (insertIdxAt cut e) fld
     insertIdxAt' cut (Take a rec fld e) = Take a (insertIdxAt cut rec) fld (insertIdxAt (FSuc (FSuc cut)) e)
     insertIdxAt' cut (Put rec fld e) = Put (insertIdxAt cut rec) fld (insertIdxAt cut e)

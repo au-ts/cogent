@@ -171,11 +171,14 @@ monoExpr (TE t e) = TE <$> monoType t <*> monoExpr' e
     monoExpr' (Let     a e1 e2    ) = Let a <$> monoExpr e1 <*> monoExpr e2
     monoExpr' (LetBang vs a e1 e2 ) = LetBang vs a <$> monoExpr e1 <*> monoExpr e2
     monoExpr' (Tuple   e1 e2      ) = Tuple <$> monoExpr e1 <*> monoExpr e2
+    monoExpr' (SeqNil             ) = pure SeqNil
+    monoExpr' (SeqCons e1 e2      ) = SeqCons <$> monoExpr e1 <*> monoExpr e2
     monoExpr' (Struct  fs         ) = let (ns,ts) = P.unzip fs in Struct <$> zipWithM (\n t -> (n,) <$> monoExpr t) ns ts
     monoExpr' (If      c e1 e2    ) = If <$> monoExpr c <*> monoExpr e1 <*> monoExpr e2
     monoExpr' (Case    c tag (l1,a1,e1) (l2,a2,e2)) = Case <$> monoExpr c <*> pure tag <*> ((l1,a1,) <$> monoExpr e1) <*> ((l2,a2,) <$> monoExpr e2)
     monoExpr' (Esac    e          ) = Esac <$> monoExpr e
     monoExpr' (Split   a tp e     ) = Split a <$> monoExpr tp <*> monoExpr e
+    monoExpr' (UnSeqCons a tp e   ) = UnSeqCons a <$> monoExpr tp <*> monoExpr e
     monoExpr' (Member  rec fld    ) = flip Member fld <$> monoExpr rec
     monoExpr' (Take    a rec fld e) = Take a <$> monoExpr rec <*> pure fld <*> monoExpr e
     monoExpr' (Put     rec fld e  ) = Put  <$> monoExpr rec <*> pure fld <*> monoExpr e
@@ -201,6 +204,8 @@ monoType (TSum alts) = do
   ts' <- mapM monoType ts
   return $ TSum $ P.zip ns $ P.zip ts' bs
 monoType (TProduct t1 t2) = TProduct <$> monoType t1 <*> monoType t2
+monoType (TSequence Nothing) = pure $ TSequence Nothing
+monoType (TSequence (Just (l,t))) = TSequence . Just . (l,) <$> monoType t
 monoType (TRecord fs s) = TRecord <$> mapM (\(f,(t,b)) -> (f,) <$> (,b) <$> monoType t) fs <*> pure s
 monoType (TUnit) = pure TUnit
 
