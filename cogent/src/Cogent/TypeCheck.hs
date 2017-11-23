@@ -50,7 +50,7 @@ import           Prelude hiding (sequence, mapM, mapM_, all)
 import           System.IO.Unsafe (unsafePerformIO)
 import           Text.Parsec.Pos
 
-import           Debug.Trace
+-- import           Debug.Trace
 
 -- ------------------------------------
 

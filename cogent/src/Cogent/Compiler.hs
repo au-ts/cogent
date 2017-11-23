@@ -697,4 +697,4 @@ __cogent_current_dir_ref = unsafePerformIO $ getCurrentDirectory >>= newIORef
 -- need to use more verbose codegen
 __cogent_simpl_cg :: Bool
 __cogent_simpl_cg = (__cogent_fsimplifier && __cogent_fsimplifier_iterations > 0) ||
-                  __cogent_fnormalisation == NoNF
+                    __cogent_fnormalisation == NoNF

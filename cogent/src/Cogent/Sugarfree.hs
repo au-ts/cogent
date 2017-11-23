@@ -694,7 +694,7 @@ instance (Pretty a, PrettyP (e t v a), Pretty (e t ('Suc v) a), Pretty (e t ('Su
   pretty (Unit) = tupled []
   pretty (Tuple e1 e2) = tupled (map pretty [e1, e2])
   pretty (SeqNil) = symbol "[]"
-  pretty (SeqCons e1 e2) = prettyP 10 e1 <+> symbol "::" <+> prettyP 10 e2
+  pretty (SeqCons e1 e2) = prettyP 10 e1 <+> keyword "`cons`" <+> prettyP 10 e2
   pretty (Struct fs) = symbol "#" L.<> record (map (\(n,e) -> fieldName n <+> symbol "=" <+> pretty e) fs)
   pretty (Con tn e) = tagName tn <+> prettyP 1 e
   pretty (If c t e) = group . align $ (keyword "if" <+> pretty c
@@ -706,7 +706,7 @@ instance (Pretty a, PrettyP (e t v a), Pretty (e t ('Suc v) a), Pretty (e t ('Su
   pretty (Esac e) = keyword "esac" <+> parens (pretty e)
   pretty (Split (a1,a2) e1 e2) = align (keyword "let" <+> tupled (map pretty [a1,a2]) <+> symbol "=" <+> pretty e1 L.<$>
                                         keyword "in" <+> pretty e2)
-  pretty (UnSeqCons (a,as) e1 e2) = align (keyword "let" <+> pretty a <> symbol "::" <> pretty as <+> symbol "=" <+> pretty e1 L.<$>
+  pretty (UnSeqCons (a,as) e1 e2) = align (keyword "let" <+> pretty a <> keyword "::" <> pretty as <+> symbol "=" <+> pretty e1 L.<$>
                                            keyword "in" <+> pretty e2)
   pretty (Member x f) = prettyP 1 x L.<> symbol "." L.<> fieldIndex f
   pretty (Take (a,b) rec f e) = align (keyword "take" <+> tupled [pretty a, pretty b] <+> symbol "="

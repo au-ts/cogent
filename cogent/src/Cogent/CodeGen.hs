@@ -102,11 +102,6 @@ type CId = String
 data CIntType = CCharT | CShortT | CIntT | CLongT | CLongLongT
               deriving (Eq, Ord, Show)
 
--- XXX | -- This is copied from language-c-quote
--- XXX | data CArraySize = CArraySize CExpr
--- XXX |                 | CVariableArraySize
--- XXX |                 | CNoArraySize
--- XXX |                 deriving (Eq, Ord, Show)
 
 -- The type parameter has been striped off
 data CType = CInt Bool CIntType    -- true is signed
@@ -117,7 +112,7 @@ data CType = CInt Bool CIntType    -- true is signed
            | CUnion (Maybe CId) (Maybe [(CType, CId)])  -- Made specifically for --funion-for-variants
            | CEnum CId
            | CPtr CType
-           -- | CArray CType CArraySize
+           | CArray CType (Maybe Int)
            -- | CBitfield Bool c  -- True for signed field
            | CIdent CId
            | CFunction CType CType
@@ -148,7 +143,7 @@ data CExpr = CBinOp CBinOp CExpr CExpr
            | CConst CLitConst
            | CVar CId (Maybe CType)
            | CStructDot CExpr CId
-           -- | CArrayDeref CExpr CExpr
+           | CArrayDeref CExpr CExpr
            | CDeref CExpr
            | CAddrOf CExpr
            | CTypeCast CType CExpr
@@ -160,6 +155,8 @@ data CExpr = CBinOp CBinOp CExpr CExpr
            | CMKBOOL CExpr
            deriving (Eq, Ord, Show)
 
+-- FIXME: what're the criteria to be a trivial expression? / zilinc
+-- This is only used when __cogent_simpl_cg is on.
 isTrivialCExpr :: CExpr -> Bool
 isTrivialCExpr (CBinOp {}) = False
 isTrivialCExpr (CUnOp {}) = False
@@ -168,6 +165,7 @@ isTrivialCExpr (CConst {}) = True
 isTrivialCExpr (CVar {}) = True
 isTrivialCExpr (CStructDot (CDeref e) _) = False  -- NOTE: Not sure why but we cannot do `isTrivialCExpr e && not __cogent_fintermediate_vars' / zilinc
 isTrivialCExpr (CStructDot e _) = isTrivialCExpr e && not __cogent_fintermediate_vars
+isTrivialCExpr (CArrayDeref e idx) = __fixme $ isTrivialCExpr e && isTrivialCExpr idx
 isTrivialCExpr (CDeref e) = isTrivialCExpr e && not __cogent_fintermediate_vars
 isTrivialCExpr (CAddrOf e) = isTrivialCExpr e && not __cogent_fintermediate_vars
 isTrivialCExpr (CTypeCast _ e) = isTrivialCExpr e
@@ -295,6 +293,7 @@ data StrlType = Record  [(CId, CType)] Bool  -- fieldname |-> fieldtype * is_unb
               | Variant (M.Map CId CType)   -- one tag field, and fields for all possibilities
               | Function CType CType
               | AbsType CId
+              | Array CType (Maybe Int)
               deriving (Eq, Ord, Show)
 
 -- NOTE: Reserved names; users should NOT use them in Cogent programs!
@@ -361,6 +360,7 @@ data GenState  = GenState { _cTypeDefs    :: [(StrlType, CId)]
 
 makeLenses ''GenState
 
+-- recycle variable in `pool'
 recycleVars :: VarPool -> Gen v ()
 recycleVars pool =
   use varPool >>= \pool' ->
@@ -400,6 +400,7 @@ genUnit :: Gen v [CExtDecl]
 genUnit = pure [ CDecl $ CStructDecl unitT [(CInt True CIntT, Just dummyField)]  -- NOTE: now the dummy field is an int for verification / zilinc
                , CDecl $ CTypeDecl (CStruct unitT) [unitT]]
 
+-- syntactic signals LET and LETBANG
 genLetTrueEnum :: Gen v [CExtDecl]
 genLetTrueEnum = getMon $
   (whenM __cogent_flet_in_if $ pure $ [CDecl $ CEnumDecl Nothing [(letTrue, Just (CConst $ CNumConst 1 (CInt True CIntT) DEC))]]) <>
@@ -410,7 +411,7 @@ genFunClasses = do funclasses <- use funClasses
                    let fas = S.unions $ M.elems funclasses
                        ufe = if __cogent_funtyped_func_enum && not (S.null fas) then genFunEnum untypedFuncEnum fas else []
                    fcls_tns <- forM (M.toList funclasses) $ \(t,fns) -> do
-                                 tn <- getStrlTypeCId t
+                                 tn <- strlTypeCId t
                                  let enum = if not __cogent_funtyped_func_enum
                                               then genFunEnum tn fns
                                               else [CDecl $ CTypeDecl (CIdent untypedFuncEnum) [tn]]
@@ -453,6 +454,8 @@ genFunDispatch tn (ti, to) (S.toList -> fs) = do
     genBreakWithFnCall :: Bool -> CStmt -> CStmt
     genBreakWithFnCall fm s = if fm then CBlock [CBIStmt s, CBIStmt CBreak] else s
 
+-- genTyDecl (t,n) ns: generates type declarations for type t, naming it n.
+-- ns is a list of function typenames that have been generated.
 genTyDecl :: (StrlType, CId) -> [TypeName] -> [CExtDecl]
 genTyDecl (Record x _, n) _ = [CDecl $ CStructDecl n (map (second Just . swap) x), genTySynDecl (n, CStruct n)]
 genTyDecl (Product t1 t2, n) _ = [CDecl $ CStructDecl n [(t1, Just p1), (t2, Just p2)]]
@@ -479,14 +482,14 @@ freshGlobalCId c = do (globalOracle += 1); (c:) . show <$> use globalOracle
 lookupStrlTypeCId :: StrlType -> Gen v (Maybe CId)
 lookupStrlTypeCId st = M.lookup st <$> use cTypeDefMap
 
--- Lookup a structure and return its name, or create a new entry.
-getStrlTypeCId :: StrlType -> Gen v CId
-getStrlTypeCId st = do lookupStrlTypeCId st >>= \case
-                         Nothing -> do t <- freshGlobalCId 't'
-                                       cTypeDefs %= ((st,t):)  -- NOTE: add a new entry at the front
-                                       cTypeDefMap %= M.insert st t
-                                       return t
-                         Just t  -> return t
+-- Looks up a structure and return its name, or creates a new entry.
+strlTypeCId :: StrlType -> Gen v CId
+strlTypeCId st = do lookupStrlTypeCId st >>= \case
+                      Nothing -> do t <- freshGlobalCId 't'
+                                    cTypeDefs %= ((st,t):)  -- NOTE: add a new entry at the front
+                                    cTypeDefMap %= M.insert st t
+                                    return t
+                      Just t  -> return t
 
 {-# RULES
 "monad-left-id" [~] forall x k. return x >>= k = k x
@@ -510,6 +513,8 @@ lookupTypeCId (TCon tn ts _) = getCompose (forM ts (\t -> (if isUnboxed t then (
                                                                then return $ tn ++ "_" ++ L.intercalate "_" ts'
                                                                else Nothing))
 lookupTypeCId (TProduct t1 t2) = getCompose (Compose . lookupStrlTypeCId =<< Record <$> (P.zip [p1,p2] <$> mapM (Compose . lookupType) [t1,t2]) <*> pure True)
+lookupTypeCId (TSequence Nothing) = __impossible "lookupTypeCId"
+lookupTypeCId (TSequence (Just (l,t))) = getCompose (Compose . lookupStrlTypeCId =<< Array <$> (Compose . lookupType) t <*> pure (Just l))
 lookupTypeCId (TSum fs) = getCompose (Compose . lookupStrlTypeCId =<< Variant . M.fromList <$> mapM (secondM (Compose . lookupType) . second fst) fs)
 lookupTypeCId (TFun t1 t2) = getCompose (Compose . lookupStrlTypeCId =<< Function <$> (Compose . lookupType) t1 <*> (Compose . lookupType) t2)  -- Use the enum type for function dispatching
 lookupTypeCId (TRecord fs s) = getCompose (Compose . lookupStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> (Compose . lookupType) b) fs) <*> pure True)
@@ -528,6 +533,7 @@ lookupTypeCId t = Just <$> typeCId t
 -- XXX | typeCIdUsage (TRecord fs s) = getMon $ foldReduce (map ((getFirst <$>) . typeCIdUsage . fst . snd) fs :: [Gen v (Maybe CId)])
 -- XXX | typeCIdUsage t = return $ First Nothing  -- base types
 
+-- Looks up a type's CId, or creates a new one
 typeCId :: SF.Type 'Zero -> Gen v CId
 typeCId t = use custTypeGen >>= \ctg ->
             case M.lookup t ctg of
@@ -545,7 +551,7 @@ typeCId t = use custTypeGen >>= \ctg ->
     typeCId' (TString) = return "char"
     typeCId' (TCon tn [] s) = do
       absTypes %= M.insert tn (S.singleton []) -- NOTE: Since it's non-parametric, it can have only one entry which is always the same / zilinc
-      -- getStrlTypeCId (AbsType tn)  -- NOTE: Monomorphic abstract types will remain undefined! / zilinc
+      -- strlTypeCId (AbsType tn)  -- NOTE: Monomorphic abstract types will remain undefined! / zilinc
       return tn
     typeCId' (TCon tn ts s) = do  -- mapM typeCId ts >>= \ts' -> return (tn ++ "_" ++ L.intercalate "_" ts')
       ts' <- forM ts $ \t -> (if isUnboxed t then ('u':) else id) <$> typeCId t
@@ -559,10 +565,12 @@ typeCId t = use custTypeGen >>= \ctg ->
                       cTypeDefMap %= M.insert (AbsType tn') tn'
         Just _  -> return ()
       return tn'
-    typeCId' (TProduct t1 t2) = getStrlTypeCId =<< Record <$> (P.zip [p1,p2] <$> mapM genType [t1,t2]) <*> pure True
-    typeCId' (TSum fs) = getStrlTypeCId =<< Variant . M.fromList <$> mapM (secondM genType . second fst) fs
-    typeCId' (TFun t1 t2) = getStrlTypeCId =<< Function <$> genType t1 <*> genType t2  -- Use the enum type for function dispatching
-    typeCId' (TRecord fs s) = getStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs) <*> pure True
+    typeCId' (TProduct t1 t2) = strlTypeCId =<< Record <$> (P.zip [p1,p2] <$> mapM genType [t1,t2]) <*> pure True
+    typeCId' (TSequence Nothing) = __impossible "typeCId': TSequence Nothing"
+    typeCId' (TSequence (Just (l,t))) = strlTypeCId =<< Array <$> genType t <*> pure (Just l)
+    typeCId' (TSum fs) = strlTypeCId =<< Variant . M.fromList <$> mapM (secondM genType . second fst) fs
+    typeCId' (TFun t1 t2) = strlTypeCId =<< Function <$> genType t1 <*> genType t2  -- Use the enum type for function dispatching
+    typeCId' (TRecord fs s) = strlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs) <*> pure True
     typeCId' (TUnit) = return unitT
 
     typeCIdFlat :: SF.Type 'Zero -> Gen v CId
@@ -571,7 +579,7 @@ typeCId t = use custTypeGen >>= \ctg ->
       fss <- forM (P.zip3 [p1,p2] [t1,t2] ts') $ \(f,t,t') -> case t' of
         CPtr _ -> return [(f,t')]
         _      -> collFields f t
-      getStrlTypeCId $ Record (concat fss) True
+      strlTypeCId $ Record (concat fss) True
     -- typeCIdFlat (TSum fs) = __todo  -- Don't flatten variants for now. It's not clear how to incorporate with --funion-for-variants
     typeCIdFlat (TRecord fs s) = do
       let (fns,ts) = P.unzip $ P.map (second fst) fs
@@ -579,7 +587,7 @@ typeCId t = use custTypeGen >>= \ctg ->
       fss <- forM (P.zip3 fns ts ts') $ \(f,t,t') -> case t' of
         CPtr _ -> return [(f,t')]
         _      -> collFields f t
-      getStrlTypeCId $ Record (concat fss) True
+      strlTypeCId $ Record (concat fss) True
     typeCIdFlat t = typeCId' t
 
     collFields :: FieldName -> SF.Type 'Zero -> Gen v [(CId, CType)]
@@ -591,11 +599,12 @@ typeCId t = use custTypeGen >>= \ctg ->
     isUnstable (TCon _ _ _) = True  -- NOTE: we relax the rule here to generate all abstract types in the table / zilinc (28/5/15)
     -- XXX | isUnstable (TCon _ (_:_) _) = True
     isUnstable (TProduct {}) = True
+    isUnstable (TSequence (Just _)) = True
     isUnstable (TSum _) = True
     isUnstable (TRecord {}) = True
     isUnstable _ = False
 
--- Made for Glue
+-- Made for Glue -- generates a CId for abstract Cogent (poly) types 
 absTypeCId :: SF.Type 'Zero -> Gen v CId
 absTypeCId (TCon tn [] s) = return tn
 absTypeCId (TCon tn ts s) = do
@@ -603,15 +612,17 @@ absTypeCId (TCon tn ts s) = do
   return (tn ++ "_" ++ L.intercalate "_" ts')
 absTypeCId _ = __impossible "absTypeCId"
 
--- Returns the right C type
+-- Returns the C type of a Cogent type
 genType :: SF.Type 'Zero -> Gen v CType
 genType t@(TRecord _ s) | s /= Unboxed = CPtr . CIdent <$> typeCId t
 genType t@(TString)                    = CPtr . CIdent <$> typeCId t
 genType t@(TCon _ _ s)  | s /= Unboxed = CPtr . CIdent <$> typeCId t
 genType t                              =        CIdent <$> typeCId t
 
+-- C type generator for function arguments
+-- Bool indicates whether it's for an argument
 genTypeA :: Bool -> SF.Type 'Zero -> Gen v CType
-genTypeA is_arg t@(TRecord _ Unboxed) | is_arg && __cogent_funboxed_arg_by_ref = CPtr . CIdent <$> typeCId t  -- TODO: sizeof
+genTypeA True t@(TRecord _ Unboxed) | __cogent_funboxed_arg_by_ref = CPtr . CIdent <$> typeCId t  -- TODO: sizeof
 genTypeA _ t = genType t
 
 lookupType :: SF.Type 'Zero -> Gen v (Maybe CType)
@@ -637,7 +648,7 @@ genTypeA' is_arg ty n = do ty' <- genTypeA is_arg ty
 assign1 :: CExpr -> CExpr -> CBlockItem
 assign1 a e = CBIStmt $ CAssign a e
 
--- Given a C type, returns a fresh local variable e
+-- declares a new variable of type ty
 declare :: CType -> Gen v (CId, [CBlockItem], [CBlockItem])
 declare ty = declareG ty Nothing
 
@@ -661,6 +672,7 @@ declareInit ty e p = declareG ty (Just $ CInitE e) <* recycleVars p
 -- XXX | declareInit' ty v e = declareG' ty v $ Just $ CInitE e
 
 -- declareG ty minit: (optionally) initialises a freshvar of type ty
+-- returns (new varname, variable declarations, statements -- assignments, etc.)
 declareG :: CType -> Maybe CInitializer -> Gen v (CId, [CBlockItem], [CBlockItem])
 declareG ty minit | __cogent_fshare_linear_vars = do
   pool <- use varPool
@@ -900,6 +912,8 @@ genExpr mv (TE t (Tuple e1 e2)) = do
   (v,vdecl,ass,vp) <- flip (maybeInitCL mv t') (mergePools [e1p,e2p]) $ CCompLit t' $
                         P.zip (map ((:[]) . CDesignFld) [p1,p2]) (map CInitE [e1',e2'])
   return (v, e1decl ++ e2decl ++ vdecl, e1stm ++ e2stm ++ ass, vp)
+genExpr mv (TE t (SeqNil)) = __todo "genExpr: naked SeqNil"
+genExpr mv (TE t (SeqCons e1 e2)) = __todo ""
 genExpr mv (TE t (Struct fs)) = do
   let (ns,es) = P.unzip fs
   (es',decls,stms,eps) <- L.unzip4 <$> mapM genExpr_ es
@@ -1336,6 +1350,7 @@ cExpr (CConst lit) = cLitConst lit
 cExpr (CVar v _) = [cexp| $id:(cId v) |]
 cExpr (CStructDot e f) = [cexp| $(cExpr e).$id:(cId f) |]
 cExpr (CDeref e) = [cexp| (* $(cExpr e)) |]
+cExpr (CArrayDeref e idx) = [cexp| $(cExpr e)[$(cExpr idx)] |]
 cExpr (CAddrOf e) = [cexp| (& $(cExpr e)) |]
 cExpr (CTypeCast ty e) = [cexp| ($ty:(cType ty)) $(cExpr e) |]
 cExpr (CSizeof e) = [cexp| sizeof ($(cExpr e)) |]
@@ -1472,16 +1487,18 @@ instance {-# OVERLAPPING #-} PP.Pretty (CId, SF.Type 'Zero) where
 -- misc.
 
 kindcheck :: Type 'Zero -> Kind
-kindcheck (TVar v)         = __impossible "kindcheck"
-kindcheck (TVarBang v)     = __impossible "kindcheck"
-kindcheck (TUnit)          = mempty
-kindcheck (TProduct t1 t2) = kindcheck t1 <> kindcheck t2
-kindcheck (TSum ts)        = mconcat $ L.map (kindcheck . fst . snd) ts
-kindcheck (TFun ti to)     = mempty
-kindcheck (TRecord ts s)   = mappend (sigilKind s) $ mconcat $ (L.map (kindcheck . fst . snd) (filter (not . snd .snd) ts))
-kindcheck (TPrim i)        = mempty
-kindcheck (TString)        = mempty
-kindcheck (TCon n vs s)    = sigilKind s
+kindcheck (TVar v)                 = __impossible "kindcheck"
+kindcheck (TVarBang v)             = __impossible "kindcheck"
+kindcheck (TUnit)                  = mempty
+kindcheck (TProduct t1 t2)         = kindcheck t1 <> kindcheck t2
+kindcheck (TSequence Nothing)      = mempty
+kindcheck (TSequence (Just (l,t))) = kindcheck t
+kindcheck (TSum ts)                = mconcat $ L.map (kindcheck . fst . snd) ts
+kindcheck (TFun ti to)             = mempty
+kindcheck (TRecord ts s)           = mappend (sigilKind s) $ mconcat $ (L.map (kindcheck . fst . snd) (filter (not . snd .snd) ts))
+kindcheck (TPrim i)                = mempty
+kindcheck (TString)                = mempty
+kindcheck (TCon n vs s)            = sigilKind s
 
 isTypeLinear :: Type 'Zero -> Bool
 isTypeLinear = flip isTypeHasKind k1
