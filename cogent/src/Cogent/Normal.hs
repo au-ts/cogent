@@ -51,8 +51,8 @@ isAtom (E Unit) = True
 isAtom (E (ILit {})) = True
 isAtom (E (SLit _)) = True
 isAtom (E (Tuple e1 e2)) | isVar e1 && isVar e2 = True
-isAtom (E (SeqNil)) = True
 isAtom (E (SeqCons e1 e2)) | isVar e1 && isVar e2 = True
+isAtom (E (SeqLit [])) = True
 isAtom (E (Put rec f v)) | isVar rec && isVar v = True
 isAtom (E (Esac e)) | isVar e = True
 isAtom _ = False
@@ -141,12 +141,12 @@ normalise v (E (Tuple e1 e2)) k
     normaliseName (sadd v n) (upshiftExpr n v f0 e2) $ \n' e2' ->
     withAssoc v n n' $ \Refl ->
     k (sadd n n') (E $ Tuple (upshiftExpr n' (sadd v n) f0 e1') e2')
-normalise v e@(E (SeqNil)) k = k s0 e
 normalise v (E (SeqCons e1 e2)) k = 
   normaliseName v e1 $ \n e1' ->
   normaliseName (sadd v n) (upshiftExpr n v f0 e2) $ \n' e2' ->
   withAssoc v n n' $ \Refl ->
   k (sadd n n') (E $ SeqCons (upshiftExpr n' (sadd v n) f0 e1') e2')
+normalise v e@(E (SeqLit es)) k = normaliseNames v es $ \n es' -> k n (E $ SeqLit es')
 normalise v (E (If c th el)) k | LNF <- __cogent_fnormalisation =
   freshVar >>= \a ->
   normaliseExpr v th >>= \th' ->
@@ -257,8 +257,8 @@ insertIdxAt cut (E e) = E $ insertIdxAt' cut e
     insertIdxAt' cut (Let a e1 e2) = Let a (insertIdxAt cut e1) (insertIdxAt (FSuc cut) e2)
     insertIdxAt' cut (LetBang vs a e1 e2) = LetBang (map (liftIdx cut *** id) vs) a (insertIdxAt cut e1) (insertIdxAt (FSuc cut) e2)
     insertIdxAt' cut (Tuple e1 e2) = Tuple (insertIdxAt cut e1) (insertIdxAt cut e2)
-    insertIdxAt' cut (SeqNil) = SeqNil
     insertIdxAt' cut (SeqCons e1 e2) = SeqCons (insertIdxAt cut e1) (insertIdxAt cut e2)
+    insertIdxAt' cut (SeqLit es) = SeqLit $ map (insertIdxAt cut) es
     insertIdxAt' cut (Struct fs) = Struct $ map (second $ insertIdxAt cut) fs
     insertIdxAt' cut (If c e1 e2) = If (insertIdxAt cut c) (insertIdxAt cut e1) (insertIdxAt cut e2)
     insertIdxAt' cut (Case c tag (l1,a1,alt) (l2,a2,alts)) =

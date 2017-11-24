@@ -500,16 +500,9 @@ desugarExpr (T.TE t (S.Tuple (e1:e2:es))) | not __cogent_ftuples_as_sugar = __im
   -- desugarExpr $ T.TE (S.RT $ S.TTuple [t1,t2']) $ S.Tuple [e1,e2']
 -- desugarExpr (T.TE _ (S.Tuple (reverse -> (e:es)))) | T.TE _ (S.Tuple _) <- e = __impossible "desugarExpr"
 desugarExpr (T.TE _ (S.Tuple es)) = E . Struct <$> (P.zip (P.map (('p':) . show) [1 :: Integer ..]) <$> mapM desugarExpr es)  -- | __cogent_ftuples_as_sugar
-desugarExpr (T.TE _ (S.Sequence [])) = return . E $ SeqNil
-desugarExpr (T.TE t (S.Sequence (e:es))) = do
-  e' <- desugarExpr e
-  let S.RT (S.TSequence (Just (l,te))) = t
-      tes = S.RT $ S.TSequence (Just (l-1,te))
-  es' <- desugarExpr (T.TE tes $ S.Sequence es)
-  tes' <- desugarType tes
-  case es' of
-    E SeqNil -> return $ E (SeqCons e' (E . Promote tes' $ E SeqNil))
-    _ -> return $ E $ SeqCons e' es'
+desugarExpr (T.TE _ (S.Sequence es)) = do
+  es' <- mapM desugarExpr es
+  return . E $ SeqLit es'
 desugarExpr (T.TE _ (S.UnboxedRecord fs)) = E . Struct <$> mapM (\(f,e) -> (f,) <$> desugarExpr e) fs
 desugarExpr (T.TE _ (S.Let [] e)) = __impossible "desugarExpr (Let)"
 desugarExpr (T.TE _ (S.Let [S.Binding p mt e0 []] e)) = desugarAlt e0 (S.PIrrefutable p) e

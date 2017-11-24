@@ -42,7 +42,7 @@ import qualified Cogent.Common.Syntax as Syn (Op (Cons))
 import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Util
-import Cogent.Vec hiding (splitAt, length, zipWith, zip, unzip)
+import Cogent.Vec (Vec(..), Nat(..), Fin(..), Exists(..), (:=:)(..), (:+:), (=?), at, finInt, modifyAt, update)
 import qualified Cogent.Vec as Vec
 
 import Control.Applicative hiding (empty)
@@ -121,14 +121,15 @@ data Expr t v a e
   | Let a (e t v a) (e t ('Suc v) a)
   | LetBang [(Fin v, a)] a (e t v a) (e t ('Suc v) a)
   | Tuple (e t v a) (e t v a)
-  | SeqNil
   | SeqCons (e t v a) (e t v a)
+  | SeqLit [e t v a]
   | Struct [(FieldName, e t v a)]  -- unboxed record
   | If (e t v a) (e t v a) (e t v a)   -- technically no longer needed as () + () == Bool
   | Case (e t v a) TagName (Likelihood, a, e t ('Suc v) a) (Likelihood, a, e t ('Suc v) a)
   | Esac (e t v a)
   | Split (a, a) (e t v a) (e t ('Suc ('Suc v)) a)
   | UnSeqCons (a, a) (e t v a) (e t ('Suc ('Suc v)) a)
+  | SeqIndex (e t v a) (e t v a)
   | Member (e t v a) FieldIndex
   | Take (a, a) (e t v a) FieldIndex (e t ('Suc ('Suc v)) a)
   | Put (e t v a) FieldIndex (e t v a)
@@ -208,8 +209,8 @@ traverseE f (SLit s)             = pure $ SLit s
 traverseE f (Let a e1 e2)        = Let a  <$> f e1 <*> f e2
 traverseE f (LetBang vs a e1 e2) = LetBang vs a <$> f e1 <*> f e2
 traverseE f (Tuple e1 e2)        = Tuple <$> f e1 <*> f e2
-traverseE f (SeqNil)             = pure SeqNil
 traverseE f (SeqCons e1 e2)      = SeqCons <$> f e1 <*> f e2
+traverseE f (SeqLit es)          = SeqLit <$> traverse f es
 traverseE f (Struct fs)          = Struct <$> traverse (traverse f) fs
 traverseE f (If e1 e2 e3)        = If <$> f e1 <*> f e2 <*> f e3
 traverseE f (Case e tn (l1,a1,e1) (l2,a2,e2)) = Case <$> f e <*> pure tn <*> ((l1, a1,) <$> f e1)  <*> ((l2, a2,) <$> f e2)
@@ -235,8 +236,8 @@ foldEPre unwrap f e = case unwrap e of
   (Let _ e1 e2)       -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
   (LetBang _ _ e1 e2) -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
   (Tuple e1 e2)       -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
-  (SeqNil)            -> f e
   (SeqCons e1 e2)     -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
+  (SeqLit es)         -> mconcat $ f e : map (foldEPre unwrap f) es
   (Struct fs)         -> mconcat $ f e : map (foldEPre unwrap f . snd) fs
   (If e1 e2 e3)       -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2, foldEPre unwrap f e3]
   (Case e1 _ (_,_,e2) (_,_,e3)) -> mconcat $ [f e, foldEPre unwrap f e1, foldEPre unwrap f e2, foldEPre unwrap f e3]
@@ -260,8 +261,8 @@ fmapE f (SLit s)             = SLit s
 fmapE f (Let a e1 e2)        = Let a (f e1) (f e2)
 fmapE f (LetBang vs a e1 e2) = LetBang vs a (f e1) (f e2)
 fmapE f (Tuple e1 e2)        = Tuple (f e1) (f e2)
-fmapE f (SeqNil)             = SeqNil
 fmapE f (SeqCons e1 e2)      = SeqCons (f e1) (f e2)
+fmapE f (SeqLit es)          = SeqLit (fmap f es)
 fmapE f (Struct fs)          = Struct (map (second f) fs)
 fmapE f (If e1 e2 e3)        = If (f e1) (f e2) (f e3)
 fmapE f (Case e tn (l1,a1,e1) (l2,a2,e2)) = Case (f e) tn (l1, a1, f e1) (l2, a2, f e2)
@@ -293,8 +294,8 @@ instance (Functor (e t v), Functor (e t ('Suc v)), Functor (e t ('Suc ('Suc v)))
   fmap f (Flip (Let a e1 e2)        ) = Flip $ Let (f a) (fmap f e1) (fmap f e2)
   fmap f (Flip (LetBang vs a e1 e2) ) = Flip $ LetBang (map (second f) vs) (f a) (fmap f e1) (fmap f e2)
   fmap f (Flip (Tuple e1 e2)        ) = Flip $ Tuple (fmap f e1) (fmap f e2)
-  fmap f (Flip (SeqNil)             ) = Flip $ SeqNil
   fmap f (Flip (SeqCons e1 e2)      ) = Flip $ SeqCons (fmap f e1) (fmap f e2)
+  fmap f (Flip (SeqLit es)          ) = Flip $ SeqLit (map (fmap f) es)
   fmap f (Flip (Struct fs)          ) = Flip $ Struct (map (second $ fmap f) fs)
   fmap f (Flip (If e1 e2 e3)        ) = Flip $ If (fmap f e1) (fmap f e2) (fmap f e3)
   fmap f (Flip (Case e tn (l1,a1,e1) (l2,a2,e2))) = Flip $ Case (fmap f e) tn (l1, f a1, fmap f e1) (l2, f a2, fmap f e2)
@@ -522,12 +523,17 @@ typecheck (E (Tuple e1 e2))
   = do e1' <- typecheck e1
        e2' <- typecheck e2
        return $ TE (TProduct (exprType e1') (exprType e2')) (Tuple e1' e2')
-typecheck (E (SeqNil)) = return $ TE (TSequence Nothing) SeqNil
 typecheck (E (SeqCons e1 e2))
   = do e1'@(TE t1 _) <- typecheck e1                         -- has been promoted
        e2'@(TE (TSequence (Just (l2,t))) _) <- typecheck e2  -- has been promoted
        guardShow "list" $ t == t1
        return $ TE (TSequence $ Just (l2+1,t)) (SeqCons e1' e2')
+typecheck (E (SeqLit [])) = return $ TE (TSequence Nothing) (SeqLit [])
+typecheck (E (SeqLit es))
+  = do es' <- mapM typecheck es
+       let t = exprType $ head es'
+       guardShow "seqlit" $ all (== t) $ map exprType es'
+       return $ TE (TSequence $ Just (length es, t)) (SeqLit es')
 typecheck (E (Con tag e))
   = do e' <- typecheck e
        return $ TE (TSum [(tag, (exprType e', False))]) (Con tag e')
@@ -644,8 +650,8 @@ levelE (Variable {}) = 0
 levelE (Fun {}) = 0
 levelE (App {}) = 1
 levelE (Tuple {}) = 0
-levelE (SeqNil) = 0
 levelE (SeqCons {}) = 10
+levelE (SeqLit {}) = 0
 levelE (Con {}) = 0
 levelE (Esac {}) = 0
 levelE (Member {}) = 0
@@ -693,8 +699,8 @@ instance (Pretty a, PrettyP (e t v a), Pretty (e t ('Suc v) a), Pretty (e t ('Su
                                        keyword "in" <+> pretty e2)
   pretty (Unit) = tupled []
   pretty (Tuple e1 e2) = tupled (map pretty [e1, e2])
-  pretty (SeqNil) = symbol "[]"
   pretty (SeqCons e1 e2) = prettyP 10 e1 <+> keyword "`cons`" <+> prettyP 10 e2
+  pretty (SeqLit es) = list $ map pretty es
   pretty (Struct fs) = symbol "#" L.<> record (map (\(n,e) -> fieldName n <+> symbol "=" <+> pretty e) fs)
   pretty (Con tn e) = tagName tn <+> prettyP 1 e
   pretty (If c t e) = group . align $ (keyword "if" <+> pretty c

@@ -912,8 +912,8 @@ genExpr mv (TE t (Tuple e1 e2)) = do
   (v,vdecl,ass,vp) <- flip (maybeInitCL mv t') (mergePools [e1p,e2p]) $ CCompLit t' $
                         P.zip (map ((:[]) . CDesignFld) [p1,p2]) (map CInitE [e1',e2'])
   return (v, e1decl ++ e2decl ++ vdecl, e1stm ++ e2stm ++ ass, vp)
-genExpr mv (TE t (SeqNil)) = __todo "genExpr: naked SeqNil"
-genExpr mv (TE t (SeqCons e1 e2)) = __todo ""
+genExpr mv (TE t (SeqCons e1 e2)) = __todo "genExpr"
+genExpr mv (TE t (SeqLit es)) = __todo "genExpr"
 genExpr mv (TE t (Struct fs)) = do
   let (ns,es) = P.unzip fs
   (es',decls,stms,eps) <- L.unzip4 <$> mapM genExpr_ es
