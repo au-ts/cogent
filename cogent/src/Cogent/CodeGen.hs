@@ -617,6 +617,7 @@ genType :: SF.Type 'Zero -> Gen v CType
 genType t@(TRecord _ s) | s /= Unboxed = CPtr . CIdent <$> typeCId t
 genType t@(TString)                    = CPtr . CIdent <$> typeCId t
 genType t@(TCon _ _ s)  | s /= Unboxed = CPtr . CIdent <$> typeCId t
+genType (TSequence (Just (l,t)))       = CArray <$> (CIdent <$> typeCId t) <*> pure (Just l)
 genType t                              =        CIdent <$> typeCId t
 
 -- C type generator for function arguments
@@ -913,7 +914,13 @@ genExpr mv (TE t (Tuple e1 e2)) = do
                         P.zip (map ((:[]) . CDesignFld) [p1,p2]) (map CInitE [e1',e2'])
   return (v, e1decl ++ e2decl ++ vdecl, e1stm ++ e2stm ++ ass, vp)
 genExpr mv (TE t (SeqCons e1 e2)) = __todo "genExpr"
-genExpr mv (TE t (SeqLit es)) = __todo "genExpr"
+genExpr mv (TE t (SeqLit [])) = __todo "genExpr"
+genExpr mv (TE t (SeqLit es)) = do
+  (es',decls,stms,eps) <- L.unzip4 <$> mapM genExpr_ es
+  t' <- genType t
+  (v,vdecl,ass,vp) <- flip (maybeInitCL mv t') (mergePools eps) $ CCompLit t' $
+                        P.zip [] (map CInitE es')
+  return (v, concat decls ++ vdecl, concat stms ++ ass, vp)
 genExpr mv (TE t (Struct fs)) = do
   let (ns,es) = P.unzip fs
   (es',decls,stms,eps) <- L.unzip4 <$> mapM genExpr_ es
@@ -1380,6 +1387,10 @@ splitCType (CStruct tid) = (mkDeclSpec $ C.Tstruct (Just $ cId tid) Nothing [] n
 splitCType (CUnion {}) = __impossible "splitCType"
 splitCType (CEnum tid) = (mkDeclSpec $ C.Tenum (Just $ cId tid) [] [] noLoc, C.DeclRoot noLoc)
 splitCType (CPtr ty) = let (tysp, decl) = splitCType ty in (tysp, C.Ptr [] decl noLoc)
+splitCType (CArray (CIdent tn) msize) = 
+  let arrsize = case msize of Nothing -> C.NoArraySize noLoc
+                              Just sz -> C.ArraySize True [cexp| sz |] noLoc  -- FIXME: not sure what the Bool is for / zilinc
+   in (mkDeclSpec $ C.Tnamed (cId tn) [] noLoc, C.Array [] arrsize (C.DeclRoot noLoc) noLoc)
 splitCType (CIdent tn) = (mkDeclSpec $ C.Tnamed (cId tn) [] noLoc, C.DeclRoot noLoc)
 splitCType (CFunction t1 t2) = __fixme $ splitCType t2  -- FIXME: this type is rarely used and is never tested / zilinc
 splitCType CVoid = (mkDeclSpec $ C.Tvoid noLoc, C.DeclRoot noLoc)
