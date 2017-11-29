@@ -30,6 +30,7 @@ import Control.Applicative
 import Control.Arrow (second, (***))
 import Control.Monad.State
 import Prelude as P
+import qualified Text.PrettyPrint.ANSI.Leijen as L
 
 -- import Debug.Trace
 
@@ -37,6 +38,7 @@ isVar :: UntypedExpr t v a -> Bool
 isVar (E (Variable _)) = True
 isVar _ = False
 
+-- an atom roughly corresponds to a C expression
 isAtom :: UntypedExpr t v a -> Bool
 isAtom (E (Variable x)) = True
 isAtom (E (Fun fn ts _)) = True
@@ -51,18 +53,19 @@ isAtom (E Unit) = True
 isAtom (E (ILit {})) = True
 isAtom (E (SLit _)) = True
 isAtom (E (Tuple e1 e2)) | isVar e1 && isVar e2 = True
-isAtom (E (SeqCons e1 e2)) | isVar e1 && isVar e2 = True
-isAtom (E (SeqLit [])) = True
+isAtom (E (SeqLit es)) | and (map isVar es) = True
 isAtom (E (Put rec f v)) | isVar rec && isVar v = True
 isAtom (E (Esac e)) | isVar e = True
 isAtom _ = False
 
-isNormal :: Show a => UntypedExpr t v a -> Bool
+isNormal :: (L.Pretty a, Show a) => UntypedExpr t v a -> Bool
 isNormal te | isAtom te = True
 isNormal (E (Let _ e1 e2)) | __cogent_fnormalisation == ANF && isAtom e1 && isNormal e2 = True
                             -- XXX | ANF <- __cogent_fnormalisation, __cogent_fcondition_knf && isNormal e1 && isNormal e2 = True
                            | __cogent_fnormalisation `elem` [KNF, LNF] && isNormal e1 && isNormal e2 = True
 isNormal (E (LetBang vs _ e1 e2)) | isNormal e1 && isNormal e2 = True
+isNormal (E (SeqCons e1 e2)) | isAtom e1 && isVar e2 = True
+isNormal (E (SeqConsC _ e1 e2 e3)) | isAtom e1 && isVar e2 && isNormal e3 = True
 isNormal (E (Case e tn (l1,_,e1) (l2,_,e2))) | isVar e && isNormal e1 && isNormal e2 = True
   -- | ANF <- __cogent_fnormalisation, isVar  e && isNormal e1 && isNormal e2 = True
   -- | KNF <- __cogent_fnormalisation, isAtom e && isNormal e1 && isNormal e2 = True
@@ -102,10 +105,11 @@ normaliseDefinition d = pure d
 normaliseExpr :: SNat v -> UntypedExpr t v VarName -> AN (UntypedExpr t v VarName)
 normaliseExpr v e = normalise v e (\_ x -> return x)
 
+-- up-shift indices by n after position cut
 upshiftExpr :: SNat n -> SNat v -> Fin ('Suc v) -> UntypedExpr t v a -> UntypedExpr t (v :+: n) a
 upshiftExpr SZero _ _ e = e
-upshiftExpr (SSuc n) sv v e | Refl <- addSucLeft sv n
-  = let a = upshiftExpr n sv v e in insertIdxAt (widenN v n) a
+upshiftExpr (SSuc n) v cut e | Refl <- addSucLeft v n
+  = let a = upshiftExpr n v cut e in insertIdxAt (widenN cut n) a
 
 normalise :: SNat v -> UntypedExpr t v VarName
           -> (forall n. SNat n -> UntypedExpr t (v :+: n) VarName -> AN (UntypedExpr t (v :+: n) VarName))
@@ -142,10 +146,19 @@ normalise v (E (Tuple e1 e2)) k
     withAssoc v n n' $ \Refl ->
     k (sadd n n') (E $ Tuple (upshiftExpr n' (sadd v n) f0 e1') e2')
 normalise v (E (SeqCons e1 e2)) k = 
-  normaliseName v e1 $ \n e1' ->
+  normaliseAtom v e1 $ \n e1' ->
   normaliseName (sadd v n) (upshiftExpr n v f0 e2) $ \n' e2' ->
   withAssoc v n n' $ \Refl ->
   k (sadd n n') (E $ SeqCons (upshiftExpr n' (sadd v n) f0 e1') e2')
+normalise v (E (SeqConsC a e1 e2 e3)) k =
+  normaliseAtom v e1 $ \n e1' ->
+  normaliseName (sadd v n) (upshiftExpr n v f0 e2) $ \n' e2' -> case addSucLeft v (sadd n n') of
+    Refl -> withAssoc v n n' $ \Refl ->
+      E <$> (SeqConsC a (upshiftExpr n' (sadd v n) f0 e1') e2' <$> 
+             (normalise (SSuc $ sadd (sadd v n) n') (upshiftExpr (sadd n n') (SSuc v) f1 e3) $ \n'' ->
+               case addSucLeft (sadd (sadd v n) n') n'' of
+                 Refl -> withAssoc v (sadd n n') n'' $ \Refl ->
+                   k (SSuc $ sadd (sadd n n') n'')))
 normalise v e@(E (SeqLit es)) k = normaliseNames v es $ \n es' -> k n (E $ SeqLit es')
 normalise v (E (If c th el)) k | LNF <- __cogent_fnormalisation =
   freshVar >>= \a ->
@@ -174,10 +187,10 @@ normalise v (E (Split a p e)) k
       Refl -> case addSucLeft (SSuc v) n of
         Refl -> E <$> (Split a p' <$> (normalise (sadd (SSuc (SSuc v)) n) (upshiftExpr n (SSuc $ SSuc v) f2 e) $ \n' ->
           withAssocSS v n n' $ \Refl -> k (SSuc (SSuc (sadd n n')))))
-normalise v (E (UnSeqCons a p e)) k
-  = normaliseName v p $ \n p' -> case addSucLeft v n of
+normalise v (E (UnSeqCons a s e)) k
+  = normaliseName v s $ \n s' -> case addSucLeft v n of
       Refl -> case addSucLeft (SSuc v) n of
-        Refl -> E <$> (UnSeqCons a p' <$> (normalise (sadd (SSuc (SSuc v)) n) (upshiftExpr n (SSuc $ SSuc v) f2 e) $ \n' ->
+        Refl -> E <$> (UnSeqCons a s' <$> (normalise (sadd (SSuc (SSuc v)) n) (upshiftExpr n (SSuc $ SSuc v) f2 e) $ \n' ->
           withAssocSS v n n' $ \Refl -> k (SSuc (SSuc (sadd n n')))))
 normalise v (E (Take a rec fld e)) k
   = normaliseName v rec $ \n rec' -> case addSucLeft v n of
@@ -194,6 +207,10 @@ normalise v (E (Promote ty e)) k = normaliseName v e $ \n e' -> k n (E $ Promote
 normalise v (E (Op opr es)) k = normaliseNames v es $ \n es' -> k n (E $ Op opr es')
 normalise v (E (Struct fs)) k = let (ns,es) = P.unzip fs in normaliseNames v es $ \n es' -> k n (E $ Struct $ P.zip ns es')
 
+-- Continuation k only accepts an atom. What this functions does is, turning an expression e
+-- into an atom and pass it to k, or, in the case that e cannot be normalised to an atom at
+-- all, it transforms the structure to an equivalent one, with some part of it can be atomised and
+-- given to k.
 normaliseAtom :: SNat v -> UntypedExpr t v VarName
               -> (forall n. SNat n -> UntypedExpr t (v :+: n) VarName -> AN (UntypedExpr t (v :+: n) VarName))
               -> AN (UntypedExpr t v VarName)
@@ -202,6 +219,16 @@ normaliseAtom v e k = normalise v e $ \n e' -> if isAtom e' then k n e' else cas
      \n' e2' -> withAssocS v n n' $ \Refl -> E <$> (Let a' e2' <$> (k (SSuc (sadd n (SSuc n'))) $ E $ Variable (f0, a')))))
   (E (LetBang vs a e1 e2)) -> freshVar >>= \a' -> E <$> (LetBang vs a e1 <$> (normaliseAtom (SSuc (sadd v n)) e2 $
      \n' e2'  -> withAssocS v n n' $ \Refl -> E <$> (Let a' e2' <$> (k (SSuc (sadd n (SSuc n'))) $ E $ Variable (f0, a')))))
+  (E (SeqCons e1 e2)) -> freshVar >>= \a -> E <$> (Let a (E $ SeqCons e1 e2) <$> (k (SSuc n) $ E $ Variable (f0, a)))
+  -- ^ NOTE [Normalising SeqCons]
+  -- This normalisation only works for KNF. Under the restriction of ANF, there is no solution with the 
+  -- current setting. Note that the only difference between ANF and KNF is the in let-binding, and the
+  -- code generator generates different code when the binding position is not an atom, there may not be
+  -- any danger of leaving e1 simply as a non-atom even in ANF in the binding position. This ad hoc treatment
+  -- requires us to deal with the special case in the normalisation checker. An alternative is to make
+  -- SeqCons a continuation itself --- like SeqCons a e1 e2 e3, where e3 is the continuation. This will
+  -- solve the normalisation issue. On the other hand, it may result in more intermediate variables in the
+  -- C code. / zilinc
   (E (Case e tn (l1,a1,e1) (l2,a2,e2))) ->
      E <$> (Case e tn <$> ((l1,a1,) <$> (normaliseAtom (SSuc (sadd v n)) e1 (\n' -> withAssocS v n n' $ \Refl -> k (sadd n (SSuc n')))))
                                     <*> ((l2,a2,) <$> (normaliseAtom (SSuc (sadd v n)) e2 (\n' -> withAssocS v n n' $ \Refl -> k (sadd n (SSuc n'))))))
@@ -258,6 +285,7 @@ insertIdxAt cut (E e) = E $ insertIdxAt' cut e
     insertIdxAt' cut (LetBang vs a e1 e2) = LetBang (map (liftIdx cut *** id) vs) a (insertIdxAt cut e1) (insertIdxAt (FSuc cut) e2)
     insertIdxAt' cut (Tuple e1 e2) = Tuple (insertIdxAt cut e1) (insertIdxAt cut e2)
     insertIdxAt' cut (SeqCons e1 e2) = SeqCons (insertIdxAt cut e1) (insertIdxAt cut e2)
+    insertIdxAt' cut (SeqConsC a e1 e2 e3) = SeqConsC a (insertIdxAt cut e1) (insertIdxAt cut e2) (insertIdxAt (FSuc cut) e3)
     insertIdxAt' cut (SeqLit es) = SeqLit $ map (insertIdxAt cut) es
     insertIdxAt' cut (Struct fs) = Struct $ map (second $ insertIdxAt cut) fs
     insertIdxAt' cut (If c e1 e2) = If (insertIdxAt cut c) (insertIdxAt cut e1) (insertIdxAt cut e2)

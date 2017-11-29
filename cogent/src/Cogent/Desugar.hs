@@ -441,7 +441,8 @@ desugarNote S.NoInline = NoInline
 desugarNote S.Inline   = InlinePlease
 
 desugarExpr :: T.TypedExpr -> DS t v (UntypedExpr t v VarName)
-desugarExpr (T.TE _ (S.PrimOp Syn.Cons [e1,e2])) = E <$> (SeqCons <$> desugarExpr e1 <*> desugarExpr e2)
+-- desugarExpr (T.TE _ (S.PrimOp Syn.Cons [e1,e2])) = E <$> (SeqCons <$> desugarExpr e1 <*> desugarExpr e2)
+desugarExpr (T.TE _ (S.PrimOp Syn.Cons [e1,e2])) = freshVar >>= \v -> E <$> (SeqConsC v <$> desugarExpr e1 <*> desugarExpr e2 <*> pure (E $ Variable (f0, v)))
 desugarExpr (T.TE _ (S.PrimOp opr es)) = E . Op opr <$> mapM desugarExpr es
 desugarExpr (T.TE _ (S.Var vn)) = (findIx vn . sel2 <$> get) >>= \case
   Just v  -> return $ E $ Variable (v, vn)

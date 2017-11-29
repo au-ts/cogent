@@ -172,6 +172,7 @@ monoExpr (TE t e) = TE <$> monoType t <*> monoExpr' e
     monoExpr' (LetBang vs a e1 e2 ) = LetBang vs a <$> monoExpr e1 <*> monoExpr e2
     monoExpr' (Tuple   e1 e2      ) = Tuple <$> monoExpr e1 <*> monoExpr e2
     monoExpr' (SeqCons e1 e2      ) = SeqCons <$> monoExpr e1 <*> monoExpr e2
+    monoExpr' (SeqConsC a e1 e2 e3) = SeqConsC a <$> monoExpr e1 <*> monoExpr e2 <*> monoExpr e3
     monoExpr' (SeqLit es          ) = SeqLit <$> mapM monoExpr es
     monoExpr' (Struct  fs         ) = let (ns,ts) = P.unzip fs in Struct <$> zipWithM (\n t -> (n,) <$> monoExpr t) ns ts
     monoExpr' (If      c e1 e2    ) = If <$> monoExpr c <*> monoExpr e1 <*> monoExpr e2

@@ -122,6 +122,7 @@ data Expr t v a e
   | LetBang [(Fin v, a)] a (e t v a) (e t ('Suc v) a)
   | Tuple (e t v a) (e t v a)
   | SeqCons (e t v a) (e t v a)
+  | SeqConsC a (e t v a) (e t v a) (e t ('Suc v) a)  -- See NOTE [Normalising SeqCons] in Normal
   | SeqLit [e t v a]
   | Struct [(FieldName, e t v a)]  -- unboxed record
   | If (e t v a) (e t v a) (e t v a)   -- technically no longer needed as () + () == Bool
@@ -198,81 +199,84 @@ isAbsTyp (TypeDef _ _ Nothing) = True
 isAbsTyp _ = False
 
 traverseE :: (Applicative f) => (forall t v. e1 t v a -> f (e2 t v a)) -> Expr t v a e1 -> f (Expr t v a e2)
-traverseE f (Variable v)         = pure $ Variable v
-traverseE f (Fun fn tys nt)      = pure $ Fun fn tys nt
-traverseE f (Op opr es)          = Op opr <$> traverse f es
-traverseE f (App e1 e2)          = App <$> f e1 <*> f e2
-traverseE f (Con cn e)           = Con cn <$> f e
-traverseE f (Unit)               = pure $ Unit
-traverseE f (ILit i pt)          = pure $ ILit i pt
-traverseE f (SLit s)             = pure $ SLit s
-traverseE f (Let a e1 e2)        = Let a  <$> f e1 <*> f e2
-traverseE f (LetBang vs a e1 e2) = LetBang vs a <$> f e1 <*> f e2
-traverseE f (Tuple e1 e2)        = Tuple <$> f e1 <*> f e2
-traverseE f (SeqCons e1 e2)      = SeqCons <$> f e1 <*> f e2
-traverseE f (SeqLit es)          = SeqLit <$> traverse f es
-traverseE f (Struct fs)          = Struct <$> traverse (traverse f) fs
-traverseE f (If e1 e2 e3)        = If <$> f e1 <*> f e2 <*> f e3
+traverseE f (Variable v)          = pure $ Variable v
+traverseE f (Fun fn tys nt)       = pure $ Fun fn tys nt
+traverseE f (Op opr es)           = Op opr <$> traverse f es
+traverseE f (App e1 e2)           = App <$> f e1 <*> f e2
+traverseE f (Con cn e)            = Con cn <$> f e
+traverseE f (Unit)                = pure $ Unit
+traverseE f (ILit i pt)           = pure $ ILit i pt
+traverseE f (SLit s)              = pure $ SLit s
+traverseE f (Let a e1 e2)         = Let a  <$> f e1 <*> f e2
+traverseE f (LetBang vs a e1 e2)  = LetBang vs a <$> f e1 <*> f e2
+traverseE f (Tuple e1 e2)         = Tuple <$> f e1 <*> f e2
+traverseE f (SeqCons e1 e2)       = SeqCons <$> f e1 <*> f e2
+traverseE f (SeqConsC a e1 e2 e3) = SeqConsC a <$> f e1 <*> f e2 <*> f e3
+traverseE f (SeqLit es)           = SeqLit <$> traverse f es
+traverseE f (Struct fs)           = Struct <$> traverse (traverse f) fs
+traverseE f (If e1 e2 e3)         = If <$> f e1 <*> f e2 <*> f e3
 traverseE f (Case e tn (l1,a1,e1) (l2,a2,e2)) = Case <$> f e <*> pure tn <*> ((l1, a1,) <$> f e1)  <*> ((l2, a2,) <$> f e2)
-traverseE f (Esac e)             = Esac <$> f e
-traverseE f (Split a e1 e2)      = Split a <$> f e1 <*> f e2
-traverseE f (UnSeqCons a e1 e2)  = UnSeqCons a <$> f e1 <*> f e2
-traverseE f (Member rec fld)     = Member <$> f rec <*> pure fld
-traverseE f (Take a rec fld e)   = Take a <$> f rec <*> pure fld <*> f e
-traverseE f (Put rec fld v)      = Put <$> f rec <*> pure fld <*> f v
-traverseE f (Promote ty e)       = Promote ty <$> f e
+traverseE f (Esac e)              = Esac <$> f e
+traverseE f (Split a e1 e2)       = Split a <$> f e1 <*> f e2
+traverseE f (UnSeqCons a e1 e2)   = UnSeqCons a <$> f e1 <*> f e2
+traverseE f (Member rec fld)      = Member <$> f rec <*> pure fld
+traverseE f (Take a rec fld e)    = Take a <$> f rec <*> pure fld <*> f e
+traverseE f (Put rec fld v)       = Put <$> f rec <*> pure fld <*> f v
+traverseE f (Promote ty e)        = Promote ty <$> f e
 
 -- pre-order fold over Expr wrapper
 foldEPre :: (Monoid b) => (forall t v. e1 t v a -> Expr t v a e1) -> (forall t v. e1 t v a -> b) -> e1 t v a -> b
 foldEPre unwrap f e = case unwrap e of
-  Variable{}          -> f e
-  Fun{}               -> f e
-  (Op _ es)           -> mconcat $ f e : map (foldEPre unwrap f) es
-  (App e1 e2)         -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
-  (Con _ e1)          -> f e `mappend` foldEPre unwrap f e1
-  Unit                -> f e
-  ILit{}              -> f e
-  SLit{}              -> f e
-  (Let _ e1 e2)       -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
-  (LetBang _ _ e1 e2) -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
-  (Tuple e1 e2)       -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
-  (SeqCons e1 e2)     -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
-  (SeqLit es)         -> mconcat $ f e : map (foldEPre unwrap f) es
-  (Struct fs)         -> mconcat $ f e : map (foldEPre unwrap f . snd) fs
-  (If e1 e2 e3)       -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2, foldEPre unwrap f e3]
+  Variable{}            -> f e
+  Fun{}                 -> f e
+  (Op _ es)             -> mconcat $ f e : map (foldEPre unwrap f) es
+  (App e1 e2)           -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
+  (Con _ e1)            -> f e `mappend` foldEPre unwrap f e1
+  Unit                  -> f e
+  ILit{}                -> f e
+  SLit{}                -> f e
+  (Let _ e1 e2)         -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
+  (LetBang _ _ e1 e2)   -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
+  (Tuple e1 e2)         -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
+  (SeqCons e1 e2)       -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
+  (SeqConsC a e1 e2 e3) -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2, foldEPre unwrap f e3]
+  (SeqLit es)           -> mconcat $ f e : map (foldEPre unwrap f) es
+  (Struct fs)           -> mconcat $ f e : map (foldEPre unwrap f . snd) fs
+  (If e1 e2 e3)         -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2, foldEPre unwrap f e3]
   (Case e1 _ (_,_,e2) (_,_,e3)) -> mconcat $ [f e, foldEPre unwrap f e1, foldEPre unwrap f e2, foldEPre unwrap f e3]
-  (Esac e1)           -> f e `mappend` foldEPre unwrap f e1
-  (Split _ e1 e2)     -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
-  (UnSeqCons _ e1 e2) -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
-  (Member e1 _)       -> f e `mappend` foldEPre unwrap f e1
-  (Take _ e1 _ e2)    -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
-  (Put e1 _ e2)       -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
-  (Promote _ e1)      -> f e `mappend` foldEPre unwrap f e1
+  (Esac e1)             -> f e `mappend` foldEPre unwrap f e1
+  (Split _ e1 e2)       -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
+  (UnSeqCons _ e1 e2)   -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
+  (Member e1 _)         -> f e `mappend` foldEPre unwrap f e1
+  (Take _ e1 _ e2)      -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
+  (Put e1 _ e2)         -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
+  (Promote _ e1)        -> f e `mappend` foldEPre unwrap f e1
 
 fmapE :: (forall t v. e1 t v a -> e2 t v a) -> Expr t v a e1 -> Expr t v a e2
-fmapE f (Variable v)         = Variable v
-fmapE f (Fun fn tys nt)      = Fun fn tys nt
-fmapE f (Op opr es)          = Op opr (map f es)
-fmapE f (App e1 e2)          = App (f e1) (f e2)
-fmapE f (Con cn e)           = Con cn (f e)
-fmapE f (Unit)               = Unit
-fmapE f (ILit i pt)          = ILit i pt
-fmapE f (SLit s)             = SLit s
-fmapE f (Let a e1 e2)        = Let a (f e1) (f e2)
-fmapE f (LetBang vs a e1 e2) = LetBang vs a (f e1) (f e2)
-fmapE f (Tuple e1 e2)        = Tuple (f e1) (f e2)
-fmapE f (SeqCons e1 e2)      = SeqCons (f e1) (f e2)
-fmapE f (SeqLit es)          = SeqLit (fmap f es)
-fmapE f (Struct fs)          = Struct (map (second f) fs)
-fmapE f (If e1 e2 e3)        = If (f e1) (f e2) (f e3)
+fmapE f (Variable v)          = Variable v
+fmapE f (Fun fn tys nt)       = Fun fn tys nt
+fmapE f (Op opr es)           = Op opr (map f es)
+fmapE f (App e1 e2)           = App (f e1) (f e2)
+fmapE f (Con cn e)            = Con cn (f e)
+fmapE f (Unit)                = Unit
+fmapE f (ILit i pt)           = ILit i pt
+fmapE f (SLit s)              = SLit s
+fmapE f (Let a e1 e2)         = Let a (f e1) (f e2)
+fmapE f (LetBang vs a e1 e2)  = LetBang vs a (f e1) (f e2)
+fmapE f (Tuple e1 e2)         = Tuple (f e1) (f e2)
+fmapE f (SeqCons e1 e2)       = SeqCons (f e1) (f e2)
+fmapE f (SeqConsC a e1 e2 e3) = SeqConsC a (f e1) (f e2) (f e3)
+fmapE f (SeqLit es)           = SeqLit (fmap f es)
+fmapE f (Struct fs)           = Struct (map (second f) fs)
+fmapE f (If e1 e2 e3)         = If (f e1) (f e2) (f e3)
 fmapE f (Case e tn (l1,a1,e1) (l2,a2,e2)) = Case (f e) tn (l1, a1, f e1) (l2, a2, f e2)
-fmapE f (Esac e)             = Esac (f e)
-fmapE f (Split a e1 e2)      = Split a (f e1) (f e2)
-fmapE f (UnSeqCons a e1 e2)  = UnSeqCons a (f e1) (f e2)
-fmapE f (Member rec fld)     = Member (f rec) fld
-fmapE f (Take a rec fld e)   = Take a (f rec) fld (f e)
-fmapE f (Put rec fld v)      = Put (f rec) fld (f v)
-fmapE f (Promote ty e)       = Promote ty (f e)
+fmapE f (Esac e)              = Esac (f e)
+fmapE f (Split a e1 e2)       = Split a (f e1) (f e2)
+fmapE f (UnSeqCons a e1 e2)   = UnSeqCons a (f e1) (f e2)
+fmapE f (Member rec fld)      = Member (f rec) fld
+fmapE f (Take a rec fld e)    = Take a (f rec) fld (f e)
+fmapE f (Put rec fld v)       = Put (f rec) fld (f v)
+fmapE f (Promote ty e)        = Promote ty (f e)
 
 untypeE :: TypedExpr t v a -> UntypedExpr t v a
 untypeE (TE _ e) = E $ fmapE untypeE e
@@ -295,6 +299,7 @@ instance (Functor (e t v), Functor (e t ('Suc v)), Functor (e t ('Suc ('Suc v)))
   fmap f (Flip (LetBang vs a e1 e2) ) = Flip $ LetBang (map (second f) vs) (f a) (fmap f e1) (fmap f e2)
   fmap f (Flip (Tuple e1 e2)        ) = Flip $ Tuple (fmap f e1) (fmap f e2)
   fmap f (Flip (SeqCons e1 e2)      ) = Flip $ SeqCons (fmap f e1) (fmap f e2)
+  fmap f (Flip (SeqConsC a e1 e2 e3)) = Flip $ SeqConsC (f a) (fmap f e1) (fmap f e2) (fmap f e3)
   fmap f (Flip (SeqLit es)          ) = Flip $ SeqLit (map (fmap f) es)
   fmap f (Flip (Struct fs)          ) = Flip $ Struct (map (second $ fmap f) fs)
   fmap f (Flip (If e1 e2 e3)        ) = Flip $ If (fmap f e1) (fmap f e2) (fmap f e3)
@@ -526,8 +531,14 @@ typecheck (E (Tuple e1 e2))
 typecheck (E (SeqCons e1 e2))
   = do e1'@(TE t1 _) <- typecheck e1                         -- has been promoted
        e2'@(TE (TSequence (Just (l2,t))) _) <- typecheck e2  -- has been promoted
-       guardShow "list" $ t == t1
+       guardShow "seqcons" $ t == t1
        return $ TE (TSequence $ Just (l2+1,t)) (SeqCons e1' e2')
+typecheck (E (SeqConsC a e1 e2 e3))
+  = do e1'@(TE t1 _) <- typecheck e1
+       e2'@(TE (TSequence (Just (l2,t))) _) <- typecheck e2
+       guardShow "seqconsC" $ t == t1
+       e3' <- withBinding (TSequence $ Just (l2+1,t)) $ typecheck e3
+       return $ TE (exprType e3') (SeqConsC a e1' e2' e3')
 typecheck (E (SeqLit [])) = return $ TE (TSequence Nothing) (SeqLit [])
 typecheck (E (SeqLit es))
   = do es' <- mapM typecheck es
@@ -643,6 +654,7 @@ level (RightAssoc i) = i
 level (NoAssoc i) = i
 level (Prefix) = 0
 
+-- the higher the more loosely associated
 levelE :: Expr t v a e -> Int
 levelE (Op opr [_,_]) = level (associativity opr)
 levelE (ILit {}) = 0
@@ -700,6 +712,9 @@ instance (Pretty a, PrettyP (e t v a), Pretty (e t ('Suc v) a), Pretty (e t ('Su
   pretty (Unit) = tupled []
   pretty (Tuple e1 e2) = tupled (map pretty [e1, e2])
   pretty (SeqCons e1 e2) = prettyP 10 e1 <+> keyword "`cons`" <+> prettyP 10 e2
+  pretty (SeqConsC a e1 e2 e3) = align (keyword "let" <+> pretty a <+> symbol "="
+                                        <+> prettyP 10 e1 <+> keyword "`cons`" <+> prettyP 10 e2
+                                        L.<$> keyword "in" <+> pretty e3)
   pretty (SeqLit es) = list $ map pretty es
   pretty (Struct fs) = symbol "#" L.<> record (map (\(n,e) -> fieldName n <+> symbol "=" <+> pretty e) fs)
   pretty (Con tn e) = tagName tn <+> prettyP 1 e
