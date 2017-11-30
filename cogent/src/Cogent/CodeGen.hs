@@ -41,6 +41,7 @@ module Cogent.CodeGen where
 
 import           Cogent.Compiler
 import           Cogent.Common.Syntax  as Syn hiding (Cons)
+import qualified Cogent.Common.Syntax  as Syn (Op (Cons))
 import           Cogent.Common.Types   as Typ
 import           Cogent.Deep
 import qualified Cogent.DList          as DList
@@ -119,6 +120,9 @@ data CType = CInt Bool CIntType    -- true is signed
            | CVoid
            deriving (Eq, Ord, Show)
 
+int :: CType
+int = CInt True CIntT
+
 u32 :: CType
 u32 = CogentPrim U32
 
@@ -154,6 +158,9 @@ data CExpr = CBinOp CBinOp CExpr CExpr
            -- | CArbitrary (CType CExpr)
            | CMKBOOL CExpr
            deriving (Eq, Ord, Show)
+
+intConst :: Int -> CExpr
+intConst n = CConst $ CNumConst (fromIntegral n) int DEC
 
 -- FIXME: what're the criteria to be a trivial expression? / zilinc
 -- This is only used when __cogent_simpl_cg is on.
@@ -459,6 +466,7 @@ genFunDispatch tn (ti, to) (S.toList -> fs) = do
 genTyDecl :: (StrlType, CId) -> [TypeName] -> [CExtDecl]
 genTyDecl (Record x _, n) _ = [CDecl $ CStructDecl n (map (second Just . swap) x), genTySynDecl (n, CStruct n)]
 genTyDecl (Product t1 t2, n) _ = [CDecl $ CStructDecl n [(t1, Just p1), (t2, Just p2)]]
+genTyDecl (Array t ms, n) _ = [CDecl $ CVarDecl t n True Nothing]
 genTyDecl (Variant x, n) _ = case __cogent_funion_for_variants of
   False -> [CDecl $ CStructDecl n ((CIdent $ tagsT, Just fieldTag) : map (second Just . swap) (M.toList x)),
             genTySynDecl (n, CStruct n)]
@@ -566,7 +574,7 @@ typeCId t = use custTypeGen >>= \ctg ->
         Just _  -> return ()
       return tn'
     typeCId' (TProduct t1 t2) = strlTypeCId =<< Record <$> (P.zip [p1,p2] <$> mapM genType [t1,t2]) <*> pure True
-    typeCId' (TSequence Nothing) = __impossible "typeCId': TSequence Nothing"
+    typeCId' (TSequence Nothing) = return "void"  -- FIXME
     typeCId' (TSequence (Just (l,t))) = strlTypeCId =<< Array <$> genType t <*> pure (Just l)
     typeCId' (TSum fs) = strlTypeCId =<< Variant . M.fromList <$> mapM (secondM genType . second fst) fs
     typeCId' (TFun t1 t2) = strlTypeCId =<< Function <$> genType t1 <*> genType t2  -- Use the enum type for function dispatching
@@ -777,6 +785,7 @@ genOp opr (SF.TPrim pt) es =
                Syn.NEq     -> (\[e1,e2] -> case pt of
                                 Boolean -> mkBoolLit (CBinOp C.Ne (mkStr3 e1 boolField) (mkStr3 e2 boolField))
                                 _       -> mkBoolLit (CBinOp C.Ne e1 e2))
+               Syn.Cons    -> __impossible "genOp: Syn.Cons should have been eliminated by the desugarer"
                -- unary
                Syn.Not        -> (\[e1] -> mkBoolLit (CUnOp C.Lnot (mkStr3 e1 boolField)))
                Syn.Complement -> (\[e1] -> downcast pt $ CUnOp C.Not (upcast pt e1))
@@ -913,8 +922,19 @@ genExpr mv (TE t (Tuple e1 e2)) = do
   (v,vdecl,ass,vp) <- flip (maybeInitCL mv t') (mergePools [e1p,e2p]) $ CCompLit t' $
                         P.zip (map ((:[]) . CDesignFld) [p1,p2]) (map CInitE [e1',e2'])
   return (v, e1decl ++ e2decl ++ vdecl, e1stm ++ e2stm ++ ass, vp)
-genExpr mv (TE t (SeqCons e1 e2)) = __todo "genExpr"
-genExpr mv (TE t (SeqLit [])) = __todo "genExpr"
+genExpr mv (TE t (SeqConsC _ e1 e2 e3)) = do  -- TODO: varpool not implemented
+  (e1',e1decl,e1stm,e1p) <- genExpr_ e1
+  (e2',e2decl,e2stm,e2p) <- genExpr_ e2
+  let TSequence (Just (l,te)) = exprType e2
+  t' <- genType $ TSequence $ Just (l+1,te)
+  (arr,arrdecl,arrstm) <- declare t'
+  let ass0 = assign1 (CArrayDeref (variable arr) $ intConst 0) e1'
+      asss = flip map [1 :: Int .. l] $ \i -> assign1 (CArrayDeref (variable arr) $ intConst i) (CArrayDeref e2' $ intConst (i-1))
+  (e3',e3decl,e3stm,e3p) <- withBindings (Cons (variable arr) Nil) $ genExpr mv e3
+  return (e3', e1decl ++ e2decl ++ e3decl, e1stm ++ e2stm ++ [ass0] ++ asss ++ e3stm, e3p)
+genExpr mv (TE t (SeqLit [])) = do
+  (v,vdecl,vstm) <- declare int  -- dummy variable
+  return (variable v, vdecl, vstm, M.empty)
 genExpr mv (TE t (SeqLit es)) = do
   (es',decls,stms,eps) <- L.unzip4 <$> mapM genExpr_ es
   t' <- genType t
@@ -1017,12 +1037,25 @@ genExpr mv (TE t (Split _ e1 e2)) = do
   -- XXX | NOTE: It's an optimisation here, we no more generate new variables / zilinc
   -- XXX | (e2',e2stm) <- withBindings (fromJust $ cvtFromList (SSuc $ SSuc SZero) [mkStr3 e1' p1, mkStr3 e1' p2]) $ genExpr mv e2
   -- XXX | return (e2', e1stm ++ e2stm)
+genExpr mv (TE t (UnSeqCons _ e1 e2)) = do  -- FIXME: varpool not implemented
+  (e1',e1decl,e1stm,e1p) <- genExpr_ e1
+  let TSequence (Just (l,te)) = exprType e1
+  te' <- genType te
+  t'  <- genType (TSequence $ Just (l-1,te))
+  (a0,a0decl,a0stm) <- declareInit te' (CArrayDeref e1' $ intConst 0) M.empty
+  (arr,arrdecl,arrstm) <- declare t'
+  let asss = flip map [1..l] $ \i -> assign1 (CArrayDeref (variable arr) (intConst $ i-1)) (CArrayDeref e1' $ intConst i)
+  (e2',e2decl,e2stm,e2p) <- withBindings (Cons (variable a0) $ Cons (variable arr) Nil) $ genExpr mv e2
+  return (e2',e1decl ++ a0decl ++ arrdecl ++ e2decl, e1stm ++ a0stm ++ arrstm ++ asss ++ e2stm, M.empty)
 genExpr mv (TE t (Promote _ (TE _ (Con tag e)))) = do  -- a special case
   (e',e1decl,estm,ep) <- genExpr_ e
   t' <- genType t
   (v,vdecl,ass,vp) <- flip (maybeInitCL mv t') ep $ CCompLit t' $
                         [([CDesignFld fieldTag], CInitE $ variable (tagEnum tag)), ([CDesignFld tag], CInitE e')]
   return (v, e1decl ++ vdecl, estm ++ ass, vp)
+genExpr mv (TE t (Promote _ (TE _ (SeqLit [])))) = do
+  (v,vdecl,vstm) <- declare int  -- dummy variable
+  return (variable v, vdecl, vstm, M.empty)
 genExpr mv (TE t (Promote _ e))
   | et@(TSum alts) <- exprType e = do  -- width subtyping
       let tags = L.map fst alts
