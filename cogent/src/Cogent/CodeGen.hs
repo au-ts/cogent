@@ -931,7 +931,7 @@ genExpr mv (TE t (SeqConsC _ e1 e2 e3)) = do  -- TODO: varpool not implemented
   let ass0 = assign1 (CArrayDeref (variable arr) $ intConst 0) e1'
       asss = flip map [1 :: Int .. l] $ \i -> assign1 (CArrayDeref (variable arr) $ intConst i) (CArrayDeref e2' $ intConst (i-1))
   (e3',e3decl,e3stm,e3p) <- withBindings (Cons (variable arr) Nil) $ genExpr mv e3
-  return (e3', e1decl ++ e2decl ++ e3decl, e1stm ++ e2stm ++ [ass0] ++ asss ++ e3stm, e3p)
+  return (e3', e1decl ++ e2decl ++ arrdecl ++ e3decl, e1stm ++ e2stm ++ arrstm ++ [ass0] ++ asss ++ e3stm, e3p)
 genExpr mv (TE t (SeqLit [])) = do
   (v,vdecl,vstm) <- declare int  -- dummy variable
   return (variable v, vdecl, vstm, M.empty)
@@ -1422,7 +1422,7 @@ splitCType (CEnum tid) = (mkDeclSpec $ C.Tenum (Just $ cId tid) [] [] noLoc, C.D
 splitCType (CPtr ty) = let (tysp, decl) = splitCType ty in (tysp, C.Ptr [] decl noLoc)
 splitCType (CArray (CIdent tn) msize) = 
   let arrsize = case msize of Nothing -> C.NoArraySize noLoc
-                              Just sz -> C.ArraySize True [cexp| sz |] noLoc  -- FIXME: not sure what the Bool is for / zilinc
+                              Just sz -> C.ArraySize False [cexp| $int:sz |] noLoc  -- True will print `static sz'.
    in (mkDeclSpec $ C.Tnamed (cId tn) [] noLoc, C.Array [] arrsize (C.DeclRoot noLoc) noLoc)
 splitCType (CIdent tn) = (mkDeclSpec $ C.Tnamed (cId tn) [] noLoc, C.DeclRoot noLoc)
 splitCType (CFunction t1 t2) = __fixme $ splitCType t2  -- FIXME: this type is rarely used and is never tested / zilinc
