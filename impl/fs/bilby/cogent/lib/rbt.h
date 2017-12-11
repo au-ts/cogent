@@ -5,7 +5,7 @@
 /*
 Modified from the following two files:
 
-<linux-kernel>/Documentataion/rbtree.txt
+<linux-kernel>/Documentation/rbtree.txt
 
 Red-black Trees (rbtree) in Linux
 January 18, 2007

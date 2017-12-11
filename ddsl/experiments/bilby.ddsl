@@ -1,0 +1,115 @@
+-- @LICENSE(NICTA_CORE)
+
+enum objTypeVals :: U8 =
+    objTypeInode -> 0
+  | objTypeData
+  | objTypeDentarr
+  | objTypeSup
+  | objTypeDel
+  | objTypePad
+
+
+data ObjIdInode :: Ple64 = {
+  inum  :: 32,
+  tag _ :: 3,
+  _ :: 29
+}
+
+data ObjIdData :: Ple64 = {
+  inum  :: 32,
+  tag _ :: 3,
+  dataoffset :: 29
+}
+
+data ObjIdDentarr :: Ple64 = {
+  inum  :: 32,
+  tag _ :: 3,
+  hash  :: 29
+}
+
+data ObjId :: Ple64 = case tag of 
+    objTypeInode   -> f1 :: ObjIdInode;
+    objTypeDentarr -> f2 :: ObjIdDentarr;
+    objTypeData    -> f3 :: ObjIdData
+
+data ObjTrans :: Pu8 = {
+     _      :: 7,
+     commit  :: 1
+}
+
+type ObjType = Pu8 instance t
+  where t == objTypeInode   ||
+        t == objTypeDentarr ||
+        t == objTypeData    ||
+        t == objTypeSup     ||
+        t == objTypeDel     ||
+        t == objTypePad
+
+data ObjInode = {
+    id              :: ObjId,
+    size            :: Ple64,
+    -- atime_sec       :: Ple64,
+    ctime_sec       :: Ple64,
+    mtime_sec       :: Ple64,
+    nlink           :: Ple32,
+    uid             :: Ple32,
+    gid             :: Ple32,
+    mode            :: Ple32,
+    flags           :: ObjInodeFlags,
+    pad             :: Array Pu8 4
+}
+
+data ObjInodeFlags :: Ple32 = {
+  _          :: 29,
+  is_immut   :: 1,
+  is_append  :: 1,
+  is_orphan  :: 1
+}
+
+data ObjData {len :: U32} = {
+    id       :: ObjId,
+    odata    :: Array Pu8 len
+}
+
+data ObjDel = {
+    id       :: ObjId
+}
+
+data ObjSuper = { last_inum :: Ple32 }
+
+data ObjDentry = {
+    ino     :: Ple32,
+    dtype   :: Pu8,
+    nlen    :: Ple16,
+    name    :: Array Pu8 (nlen + toU16 (1))
+}
+
+data ObjDentarr{len :: U32} = {
+    id        :: ObjId,
+    nb_dentry :: Ple32,
+    size      :: Ple32 where size <= len,
+    entries   :: Array ObjDentry nb_dentry
+}
+
+data ObjUnion{len :: U32} = case tag :: ObjType of
+    objTypeDentarr -> objDdentarr  :: ObjDentarr len;
+    objTypeInode   -> objInode    :: ObjInode;
+    objTypeData    -> objData     :: ObjData len;
+    objTypeSup     -> objSuper    :: ObjSuper;
+    objTypePad     -> objPad      :: Array Pu8 len
+
+data Obj = {
+    magic   :: Ple32,
+    crc     :: Ple32
+    integrity :: ObjIntegrity,
+    sqnum     :: Ple64,
+    len       :: Ple32,
+    trans     :: ObjTrans,
+    padding   :: Array Pu8 2,
+    otype     :: ObjType,
+    union     :: ObjUnion len
+} -- where  magic == bilbyFsMagic &&
+  --        crc == crc32 (toBytes ch) -- crc32 in Data.Digest
+
+const bilbyFsMagic :: U32 = 0x0b17b9f5
+

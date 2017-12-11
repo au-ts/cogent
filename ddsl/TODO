@@ -1,0 +1,9 @@
+* length, crc32 functions: can we compute statically?
+* deser arrays
+* extend ddsl expressions to cogent expression?
+* cannot construct an enum of different but compatible type using {_, ..} syntax 
+* change `instance t' to `this' keyword
+
+* constant names are still a problem. can we just do as in cogent to use uppercases?
+* constraints are asserted while ser'ing, but checked while deser'ing.
+* generate a length function for each data structure from DDSL

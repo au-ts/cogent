@@ -1,0 +1,199 @@
+-- Problems to solve:
+--  1. padding. problem: don't know the length sometimes. solution: structural typing, having a special padding type
+--  2. constant field. problem: no way to specify the fields when ser'ing. solution: supported by language
+--  3. fields are only in memory but not on disk. solution: language feature
+--  4. specify morphism. solution: language itself
+--  5. complicated type system. solution: decouple type and operation, so no physical types; structural type, so no kind
+--  6. constraints. problem: odd semantics tells where to check. solution: operations check, types don't
+
+-- problems: on disk and in memory should be consistent, otherwise we're going to have problem 1 again.
+-- May want to have abstract ddsl functions which can be later implemented in cdsl and thus in C.
+
+data U8
+data U16
+data U32
+data U64
+
+pu8   :: Bi U8
+ple16 :: Bi U16
+pbe16 :: Bi U16
+ple32 :: Bi U32
+pbe32 :: Bi U32
+ple64 :: Bi U64
+pbe64 :: Bi U64
+
+-- XXX
+-- `struct', `lift' are dynamically typed!
+pair     :: Bi a -> Bi b -> Bi (a, b)
+guard    :: Bi a -> (a -> Bool) -> Bi a
+array    :: Bi a -> U32 -> Bi [a]
+padding  :: U32 -> Bi ()
+
+bilbyfs_INODE_OBJ   = 0 :: U8
+bilbyfs_DATA_OBJ    = 1 :: U8
+bilbyfs_DENTARR_OBJ = 2 :: U8
+bilbyfs_SUP_OBJ     = 3 :: U8
+bilbyfs_PAD_OBJ     = 4 :: U8
+
+obj_type_val = fromList
+  [ bilbyfs_INODE_OBJ
+  , bilbyfs_DATA_OBJ
+  , bilbyfs_DENTARR_OBJ
+  , bilbyfs_SUP_OBJ 
+  , bilbyfs_PAD_OBJ ] :: Set U8
+
+obj_id_inode = do
+  t <- ple64
+  inum <- t@<0,31>
+  _a <- t@<32,34>*
+  _b <- t@<35,63>
+  bitfield t@{inum,_a,_b}
+
+obj_id_data = do
+  t <- ple64
+  inum <- t@<0,31>
+  _a <- t@<32,34>*
+  dataoffset <- t@<35,63>
+  bitfield t@{inum,_a,dataoffset}
+
+obj_id_dentarr = do
+  t <- ple64
+  inum <- t@<0,31>
+  _a <- t@<32,34>*
+  hash <- t@<35,63>
+  bitfield t@{inum,_a,hash}
+
+type Obj_id = < U64 | U64 | U64 >
+
+-- `get_guard' is a functor which takes the category of data descriptions to the category of expressions
+
+obj_id :: Bi Obj_id
+obj_id = do t <- pu8
+            g <- get_guard <$> case t@<32,34> of 
+                   bilbyfs_INODE_OBJ   -> obj_id_inode
+                   bilbyfs_DENTARR_OBJ -> obj_id_dentarr
+                   bilbyfs_DATA_OBJ    -> obj_id_data
+            return t
+
+obj_trans = do
+  t <- pu8
+   _a <- t@<0,4>
+  is_end <- t@<5> 
+  is_in  <- t@<6> 
+  is_st  <- t@<7> 
+  bitfield t@{_a,is_end,is_in,is_st}
+
+obj_type :: Bi U8
+obj_type = pu8 `guard` (\t -> 
+        t == bilbyfs_INODE_OBJ   ||
+        t == bilbyfs_DENTARR_OBJ ||
+        t == bilbyfs_DATA_OBJ    ||
+        t == bilbyfs_SUP_OBJ     ||
+        t == bilbyfs_PAD_OBJ      ) 
+
+{- abbr. could be: -}
+obj_type' = pu8 `guard` (flip elem obj_type_val)
+
+type Obj_inode = { Obj_id, U64, U64, U64, U64, U64, U32, U32, U32, U32, Obj_inode_flags }
+
+obj_inode :: Bi Obj_inode
+obj_inode = do
+  id           <- obj_id
+  create_sqnum <- ple64
+  size         <- ple64
+  atime_sec    <- ple64
+  ctime_sec    <- ple64
+  mtime_sec    <- ple64
+  nlink        <- ple32
+  uid          <- ple32
+  gid          <- ple32
+  mode         <- ple32
+  flags        <- obj_inode_flags
+  _            <- array pu8 4
+  struct {id,create_sqnum,size,atime_sec,ctime_sec,mtime_sec,nlink,uid,gid,mode,flags}
+
+obj_inode_flags = do
+  t <- ple32
+  a <- t@<0,28>
+  is_immut  <- t@<29> 
+  is_append <- t@<30> 
+  is_orphan <- t@<31> 
+  bitfiled t@{_a,is_immut,is_append,is_orphan}
+
+type Obj_data = { Obj_id, [U8] }
+
+obj_data :: U32 -> Bi Obj_data
+obj_data len = do
+  id    <- obj_id 
+  odata <- array pu8 len
+  struct {id,odata}
+
+type Last_inum = U32
+
+last_inum :: Bi Last_inum
+last_inum = ple32
+
+type Obj_super = { Last_inum }
+
+obj_super :: Bi Obj_super
+obj_super = do last_inum <- ple32
+               struct {last_inum}
+
+type Obj_dentry = { U32, U8, U16, [U8] }
+
+obj_dentry :: Bi Obj_dentry
+obj_dentry = do
+  ino   <- ple32
+  dtype <- pu8
+  nlen  <- ple16
+  name  <- array pu8 (nlen + 1)
+  struct {ino,dtype,nlen,name}
+
+type Obj_dentarr = { Obj_id, U32, U32, [Obj_dentry] }
+
+obj_dentarr :: U32 -> Bi Obj_dentarr
+obj_dentarr len = do
+  id        <- obj_id
+  nb_dentry <- ple32
+  size      <- ple32 `guard` (<= len)
+  entries   <- array obj_dentry nb_dentry
+  struct {id,nb_dentry,size,entries}
+
+type Obj = < Obj_dentarr | Obj_inode | Obj_data | Obj_super | () >
+
+obj :: { Obj_type, U32 } -> Bi Obj
+obj {otype, len} = case otype of
+  bilbyfs_DENTARR_OBJ -> lift <odentarr>
+  bilbyfs_INODE_OBJ   -> lift <oinode>
+  bilbyfs_DATA_OBJ    -> lift <odata>
+  bilbyfs_SUP_OBJ     -> lift <osuper>
+  bilbyfs_PAD_OBJ     -> lift <array pu8 len>
+  where odentarr = obj_dentarr len
+        oinode   = obj_inode
+        odata    = obj_data len
+        osuper   = obj_super
+
+type Obj_crc_ch = { U64, U32, Obj_type, Obj_trans, Obj }
+
+obj_crc_ch :: Bi Obj_crc_ch
+obj_crc_ch = do
+  sqnum <- ple64
+  len   <- ple32
+  otype <- obj_type
+  trans <- obj_trans
+  _     <- padding 2
+  obj   <- obj otype len
+  struct {sqnum,len,otype,trans,obj} `guard` (\och -> len == length (toBytes och))
+
+bilbyfs_MAGIC = 42 :: U32 
+
+type Obj_ch = { U32, U32, Obj_crc_ch }
+
+obj_chc :: Bi Obj_ch
+obj_ch = do
+   magic <- ple32
+   crc   <- ple32
+   ch    <- obj_crc_ch
+   struct {magic,crc,ch} `guard` (\_ -> magic == bilbyfs_MAGIC &&
+                                        crc == crc32 (toBytes ch))
+

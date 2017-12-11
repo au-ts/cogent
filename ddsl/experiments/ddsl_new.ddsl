@@ -1,0 +1,231 @@
+
+type S t = t -> ErrorT IO ()
+type D t = ErrorT IO t  -- &t means a pointer to type t (in the buffer)
+type V t = ErrorT IO t  -- does not deserialise it, instead it returns a pointer to the t in the buffer
+
+-- primitives:
+-- no! endianness will be given at compile time globally.
+pu8 :: S|D U8
+ple16, pbe16 :: S|D|V U16
+ple32, pbe32 :: S|D U32
+ple64, pbe64 :: S|D U64
+
+-- bits
+ple16@[a..b] :: S|D U16
+ple16@{a} == ple16@[a..a] :: S|D U16
+
+{* e.g.
+if we have a data structure:
+bitfield X :: U8 = 
+{ a :: 3
+, b :: 2
+, c :: 3
+}
+
+what we need to do is:
+
+x :: S|D U8@{a :: 3, b :: 2, c ::3}  -- the internal structure is optional
+  -- but if it's speficied, it can be derived
+  -- if it's specified, it will be checked to be consistent
+x = \obj -> pu8@[0..2] obj >> pu8@[3..4] obj >> pu8@[5..7] obj
+<-> pu8@[0..2] >>= \a -> pu8@[3..4] >>= \b -> pu8@[5..7] obj >>= \c -> return @{a, b, c}
+
+*}
+
+{*
+next, tagged unions:
+
+tunion Y = case tag :: Ple16 of 
+  Const1 -> f1 : T1;
+  Const2 -> f2 : T2;
+  Const3 -> f3 : T3
+*}
+
+y :: S|D (U16, <F1 T1 | F2 T2 | F3 T3>)
+y_s = \(tag,v) -> ple16 tag >> case tag of Const1 -> t1_s v; Const2 -> t2_s v; Const3 -> t3_s v
+y_d = ple16 >>= \tag -> let v = case tag of Const1 -> t1_d; Const2 -> t2_d; Const3 -> t3_d
+                         in (tag, v)
+
+{*
+bitfield unions:
+
+bunion Z = case tag of
+  Const1 -> bf1 : BF1;
+  Const2 -> bf2 : BF2
+
+bitfield BF1 :: Pu8 {
+  f1 :: 3,
+  f2 :: 2 tag,
+  f3 :: 3
+}
+
+bitfield BF2 :: Pu8 {
+  f1 :: 1,
+  f2 :: 2,
+  f3 :: 2 tag,
+  f4 :: 2,
+  f5 :: 1
+}
+*}
+
+z :: S|D U8@<{f1::3,f2::2,f3::3}|{f1::2,f2::1,f3::2,f4::2,f5::1}>
+z_s = \b -> case b@{3..4} of
+        Const1 -> pu8@[0..2] b >> pu8@[3..4] b >> pu8@[5..7] b
+        Const2 -> pu8@[0] b >> pu8@[1..2] b >> pu8@[3..4] b >> pu8@[5..6] b >> pu8@[7] b
+-- ^^^ can be sugarred to: (pu8@[0] >=> pu8@[1..2] >=> ...) b
+--     and further sugarred to pu8@([0] >=> [1..2] >=> ...) b
+z_d = view pu8@[3..4] >>= \t -> case t of
+        Const1 -> ...
+        Const2 -> ...
+
+{* arguments:
+data M {a :: U8} = {
+  f1 :: Array Ple16 a,
+  f2 :: Ple32
+}
+*}
+
+m :: U8 -> S|D {f1 : Array[U16], f2 : U32}
+m a = \obj -> array ple16 a obj.f1 >> ple32 obj.f2
+  <-> array ple16 a >>= f1 -> ple32 >>= f2 -> return {f1,f2}
+
+{* checks:
+data N {a :: U8} = {
+  f1 :: Array U8 (a - 2) where a >= 3,
+  f2 :: Ple32 where f2 < a
+}
+*}
+
+n :: U8 -> {f1 : Array[U8], f2 : U32}
+n a = \obj -> if not a >= 3 then error "n_s"
+                else array pu8 (a-2) obj.f1 >> 
+              if not obj.f2 < a then error "n_s"
+                else ple32 obj.f2
+  <-> if not a >= 3 then error "n_d"
+        else array pu8 (a-2) >>= \f1 ->
+      view ple32 >>= \f2' -> if not f2' < a then error "n_d"
+        else ple32 >>= \f2 -> return {f1,f2}
+
+{* array until condition:
+
+which was not possible in old DDSL
+
+spec: data P = {f1 : Ple16, f2 : Array Ple16 until elem == f1}
+
+*}
+
+p :: S|D {f1 : U16, f2 : Array[U16]}
+p_s = \obj -> ple16 obj.f1 >> if last obj.f2 /= obj.f1 then error "p_s"
+        else array ple16 obj.f2
+p_d = ple16 >>= \f1 -> array_until (== f1) ple16 >>= \f2 -> return {f1,f2}
+-- ^^^ what if there's no such terminator?
+-- and how do we prove inverse?
+-- A for now: if you cannot prove it, you cannot use it.
+
+
+-- Idea: all implementations are provided by libraries, even primitives. 
+-- The compiler only gives combinators.
+
+-- user defined operators:
+bool_u8_s :: S Bool
+bool_u8_s = \obj -> if obj == true 
+              then pu8 0xff else pu8 0x00  -- informal description
+
+bool_u8_d :: D Bool
+bool_u8_d = pu8 >>= \obj -> if obj == 0xff then return true
+              else if obj == 0x00 then return false
+              else _|_
+
+bool_u8 :: S|D Bool
+bool_u8 = bool_u8_s <-> bool_u8_d  -- <-> requires the two args are inverse of each other!
+
+-- ??? depending on bit primitive, which needs more thinking
+bool_1b = if true then 1 else 0
+      <-> if 1 then true else false 
+
+-- combinators
+<.> : type -> type -> type  -- not assoc!
+t1 <.> t2 := first do t1, then t2
+-- ^^^ same as >>
+
+<+> : type -> type -> type  -- assoc
+t1 <+> t2 := t1 or t2, non-det
+
+<|> : type -> type -> type  -- not assoc!
+t1 <|> t2 := try t1, if failed do t2
+
+-- Note: below is useless, more importantly, breaks congruence
+-- XXX | ":" : name -> type -> type
+-- XXX | ":" f t := \f -> t f
+-- XXX |         <-> t >>= \f -> return f
+-- XXX | -- f:t === t
+
+-- concretely:
+pair :: S|D {f1 : U16, f2 : U8}
+pair = \obj -> ple16 obj.f1 <.> pu8 obj.f2
+   <-> ple16 >>= \f1 -> pu8 f2 >>= \f2 -> return {f1, f2}
+
+-- ^^^ for default s|d operations, we can use `derive' to generate them.
+-- Q: how do we know Ple or Pbe?
+-- A: LE/BE doesn't need be given to each datatype. It's global and a compiler flag will do.
+
+rev_pair :: S|D {f1 : U16, f2 : U8}
+rev_pair = \obj -> pu8 obj.f2 <.> ple16 obj.f1 
+       <-> pu8 >>= \f2 -> ple16 >>= \f1 -> return {f1, f2}
+
+-- ??? what type do we get?
+repeat :: U32 -> (type -> type -> type) -> S|D t -> type
+
+-- This Array type is truly an array, it doesn't save the length data
+-- If we want to get the length'ed array, we build a record/pair using the 
+-- constructors.
+
+for_s :: forall t. U32 -> S t -> S (Array t)
+for_s l st := repeat l st
+
+for_d :: forall t. U32 -> D t -> D (Array t)
+for_d l dt := repeat l dt
+
+for :: U32 -> S|D t -> S|D (Array t)
+-- fthread: Monad m => f (m a) (m b) -> m (f a b)
+-- We instantiate m with ((->) r), f with "|", we have:
+-- r -> a | r -> b ~~~> r -> a|b, etc.
+-- We define S a|D a === S|D a.
+-- How to reduce (S a -> S b) | (D a -> D b)?
+-- It means: S a -> S b is an inverse of D a -> D b
+-- if S a | D a, namely S a is inverse of D a
+-- then we have S b | D b. thus: it becomes S a|D a -> S b|D b ~~~> S|D a -> S|D b
+-- How to prove it?
+
+
+-- deriving algorithm, primitive
+
+-- defines struct
+{:} : [(name, type)] -> type
+{:} fts := \obj -> for (f:t) in fts do t obj.f
+       <-> alloc (sizeof {fts}) >>= \obj -> for (f:t) in fts do t obj.f >> return obj
+
+#{:} : [(name, type)] -> type
+#{:} fts := ... similar to {:}, but not allocated.
+
+-- this would be made primitive as it defines array data structure
+arr :: length -> type -> type
+arr l t := \obj -> for i in 0 .. l-1 do t obj[i]
+       <-> alloc (l * sizeof t) >>= obj -> for i in 0 .. l-1 do t obj[i] >> return obj
+
+array : length -> type -> type
+array l t = {length : ple32, arr : arr l t} >> check (l == length)
+-- === \obj -> ple32 obj.length >> (arr l t) obj.arr
+   <-> alloc (sizeof array) >>= \obj -> ple32 obj.length >> (arr l t) obj.arr >> return obj
+-- === \obj -> ple32 obj.length >> for i in 0..l-1 do t obj.arr[i]
+   <-> alloc (sizeof array) >>= \obj -> 
+       ple32 obj.length >> 
+       obj.(alloc (l * sizeof t) >>= \arr ->
+       for i in 0..l-1 do
+         t arr[i]
+         return arr)
+       return obj
+
+-- ???
+sealed_array : type -> type
+sealed_array t := \obj -> ple32 obj.length >>= \l -> {len = l : ple32, arr : arr l t}

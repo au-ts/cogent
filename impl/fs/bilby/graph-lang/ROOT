@@ -1,0 +1,11 @@
+
+
+
+session BilbyFSOPInclude = CParser + 
+  theories [quick_and_dirty]
+    "bilby/BilbyFSOPTypes"
+    "bilby/BilbyFSOPGraph"
+
+session BilbyFSOPTypecheck = CParser +
+  theories [quick_and_dirty] "bilby/BilbyFSOPTypecheck"
+

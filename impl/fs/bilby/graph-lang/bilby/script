@@ -1,0 +1,4 @@
+cogent ../../impl/bilby/dsl/fs/fsop.cogent --type-proof=BilbyFSOPTypecheck.thy > BilbyFSOPTypecheck.thy
+cogent ../../impl/bilby/dsl/fs/fsop.cogent --type-proof-decls=BilbyFSOPTypes.thy > BilbyFSOPTypes.thy
+cogent --graph-gen ../../impl/bilby/dsl/fs/fsop.cogent > BilbyFSOPGraph.txt
+
