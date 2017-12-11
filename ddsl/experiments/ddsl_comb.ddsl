@@ -1,3 +1,14 @@
+--
+-- Copyright 2017, Data61
+-- Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+-- ABN 41 687 119 230.
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(DATA61_GPL)
+--
 -- Problems to solve:
 --  1. padding. problem: don't know the length sometimes. solution: structural typing, having a special padding type
 --  2. constant field. problem: no way to specify the fields when ser'ing. solution: supported by language
