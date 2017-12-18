@@ -207,7 +207,7 @@ $escstm:(#endif)
         /************  critical section end  ************/
 
         /* XXX: yuck, this should be in COGENT */
-        inode->i_mtime = inode->i_ctime = CURRENT_TIME_SEC;
+        inode->i_mtime = inode->i_ctime = current_time(inode);
         if (inode_needs_sync(inode)) {
             sync_mapping_buffers(inode->i_mapping);
             sync_inode_metadata(inode, 1);

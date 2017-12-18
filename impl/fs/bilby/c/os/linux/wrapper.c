@@ -1049,9 +1049,7 @@ static void bilbyfs_evict_inode(struct inode *inode)
 
 struct timespec inode_current_time(struct inode *inode)
 {
-        if (inode->i_sb->s_time_gran < NSEC_PER_SEC)
-                return current_fs_time(inode->i_sb);
-        return CURRENT_TIME_SEC;
+        return current_time(inode);
 }
 
 static const struct super_operations bilbyfs_super_operations =

@@ -101,7 +101,7 @@ $ty:(U64) get_endpoint_ac ($ty:((Superblock!, U64)) arg){
 }
 
 $ty:((SysState, Time)) get_current_time ($ty:(SysState) ex){
-  struct timespec ts = CURRENT_TIME_SEC;
+  struct timespec ts = current_kernel_time();
   $ty:((SysState, Time)) ret;
 	ret.p1 = ex;
   ret.p2.seconds = ts.tv_sec;
@@ -620,7 +620,7 @@ $ty:(VfsInode) hlist_add_head_ac ($ty:((VfsInode, U64)) arg){
 // Possibly split up into seperate setter functions
 $ty:(VfsInode) update_am_time ($ty:(VfsInode) arg){
 	struct inode * inode = (struct inode *) arg;
-	inode->i_mtime = inode->i_atime = CURRENT_TIME_SEC;
+	inode->i_mtime = inode->i_atime = current_time(inode);
 	return (($ty:(VfsInode)) inode);
 }
 

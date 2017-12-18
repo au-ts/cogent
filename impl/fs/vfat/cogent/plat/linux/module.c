@@ -778,7 +778,7 @@ static int vfat_rename(struct inode *old_dir, struct dentry *old_dentry,
 		}
 	}
 
-	ts = CURRENT_TIME_SEC;
+        ts = current_time(old_inode);
 	if (new_inode) {
 		if (is_dir) {
 			err = fat_dir_empty(new_inode);

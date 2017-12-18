@@ -835,7 +835,7 @@ fsop_rename_file_existing2 (ex, state, rename_ctx_t, src_dirent, dest_inode, des
     res
     | Success () ->
         let dest_inode = vfs_inode_dec_nlink (dest_inode)
-        -- FIXME: set dest_inode.i_ctime = CURRENT_TIME_SEC
+        -- FIXME: set dest_inode.i_ctime = curren_time(dest_inode)
         and rename_ctx_t = rename_ctx_t { dest_inode = Some dest_inode, dirs }
         and rename_ctx = rename_ctx_t {..}
         and ex = destroy_Ext2DirEnt (ex, dest_dirent)
