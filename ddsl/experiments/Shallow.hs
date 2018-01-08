@@ -15,10 +15,13 @@
 {- LANGUAGE DatatypeContexts #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE ExplicitNamespaces #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE IncoherentInstances #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE LiberalTypeSynonyms #-}
@@ -42,18 +45,20 @@
 module Shallow where
 
 
-import Control.Applicative
+import Control.Applicative hiding (unwrapMonad)
 import Control.Monad.Except hiding (forM_, replicateM)
 import Control.Monad.State hiding (forM_, replicateM)
 import qualified Data.Bits as B
 import Data.Data
 -- import Data.Foldable (forM_)
 import Data.Function
+import Data.IORef
 import Data.Kind 
 import Data.Proxy
 -- import Data.Traversable (forM)
 import GHC.TypeLits hiding (Nat, KnownNat, natVal, type (<=), type (+))
 import Prelude hiding (read)
+import System.IO.Unsafe
 
 -- auxiliary
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -153,8 +158,12 @@ type family BITFIELD (t :: Type) :: Constraint
 -- data (Sizeable t) => M t = M { runM :: (Buf, Idx) -> Either (Buf, Idx, Err) (Buf, Idx, t) }
 -- type M = IO
 
-type M t = ExceptT Err (StateT Idx Buf) t
+newtype M t = M { runM :: ExceptT Err (StateT Idx Buf) t }
+  deriving (Functor, Applicative, Monad, MonadError Err,
+            MonadState Idx)
 
+instance Show t => Show (M t) where
+  show (M _) = "M"
 
 type S t = t -> M ()
 type D t = M t
@@ -168,6 +177,140 @@ type V t = D t
 type Buf = IO
 type Idx = Int
 type Err = String
+
+
+data DDSL t where
+  Write  :: Show t => t -> DDSL (N ())
+  Read   :: DDSL (N t)
+  IdxI   :: Int -> DDSL (N Int)
+  ILit   :: Int -> DDSL Int
+  Unit   :: DDSL ()
+  Return :: Show t => t -> DDSL (N t)
+  Error  :: String -> DDSL (N ())
+  Bind   :: (Show t, Show s) => DDSL (N t) -> (t -> DDSL (N s)) -> DDSL (N s)
+  RunM   :: DDSL (N t) -> DDSL (Either String t)
+  GetM   :: DDSL (N t) -> DDSL Idx
+  Pair   :: DDSL t -> DDSL s -> DDSL (t,s)
+  Fst    :: DDSL (s,t) -> DDSL s
+  Snd    :: DDSL (s,t) -> DDSL t
+  Left   :: DDSL t -> DDSL (Either t s)
+  Right  :: DDSL s -> DDSL (Either t s)
+  FromLeft  :: DDSL (Either t s) -> DDSL t
+  FromRight :: DDSL (Either t s) -> DDSL s
+  IsLeft :: DDSL (Either t s) -> DDSL Bool
+  If :: DDSL Bool -> DDSL t -> DDSL t -> DDSL t
+  Lambda :: (Show s, Show t) => Int -> DDSL t -> DDSL (s -> t)
+  App :: (Show s) => DDSL (s -> t) -> DDSL s -> DDSL t
+  Var :: String -> DDSL t
+  BinOp :: (Show s, Show t, Show r) => Op -> DDSL t -> DDSL s -> DDSL r
+
+data Op = Plus | Minus | Eq | Gt
+        deriving (Show)
+
+binop :: (Syn t, Syn s, Syn r, Show (Internal t), Show (Internal s), Show (Internal r)) => Op -> t -> s -> r
+binop op a b = fromDDSL $ BinOp op (toDDSL a) (toDDSL b)
+
+(+:) :: Int -> Int -> Int 
+(+:) = binop Plus
+
+instance {-# OVERLAPPING #-} (Show s, Show t) => Show (DDSL (s -> t)) where
+  show (Lambda x b) = "Lambda v" ++ show x ++ " (" ++ show b
+
+instance {-# OVERLAPPED #-} Show t => Show (DDSL t) where
+  show (Write a) = "Write" ++ " (" ++ show a ++ ")"
+  show (Read)    = "Read"
+  show (IdxI  n) = "IdxI" ++ " (" ++ show n ++ ")"
+  show (ILit  n) = "ILit" ++ " (" ++ show n ++ ")"
+  show (Return a) = "Return" ++ " (" ++ show a ++ ")"
+  -- show (Lambda x b) = "Lambda (" ++ show x ++ ") (" ++ show b ++ ")"
+  show (App f x) = "App (" ++ show f ++ ") (" ++ show x ++ ")"
+  show (BinOp op a b) = "BinOp " ++ show op ++ "(" ++ show a ++ ") ("
+                         ++ show b ++ ")"
+
+-- int :: Int -> DDSL Int
+-- int = ILIt
+
+class Syn a where
+  type Internal a
+  toDDSL   :: a -> DDSL (Internal a)
+  fromDDSL :: DDSL (Internal a) -> a
+
+instance Syn (DDSL a) where
+  type Internal (DDSL a) = a
+  toDDSL   = id
+  fromDDSL = id
+
+-- data INT = INT Int deriving (Show)
+
+-- data N t = N { idx :: Int, isError :: DDSL Bool, error :: String, value :: t }
+type N = M
+
+instance Syn Int where
+  type Internal Int = Int
+  toDDSL   n        = ILit $ n
+  fromDDSL (ILit n) = n
+  fromDDSL (BinOp op a b) = a + b
+  fromDDSL x = error $ "!!: (" ++ show x ++ ")"
+
+instance Syn () where
+  type Internal () = ()
+  toDDSL   ()   = Unit
+  fromDDSL Unit = ()
+  fromDDSL x = error $ "XXX: (" ++ show x ++ ")"
+
+__oracle :: Int
+__oracle = unsafePerformIO $ readIORef __oracleRef
+
+__oracleRef :: IORef Int
+{-# NOINLINE __oracleRef #-}
+__oracleRef = unsafePerformIO $ newIORef 0
+
+newId :: Int
+newId = let s = __oracle 
+         in unsafePerformIO (writeIORef __oracleRef (s+1)) `seq` s
+
+instance (Syn t, Syn s) => Syn (s -> t) where
+  type Internal (s -> t) = DDSL (Internal s -> Internal t)
+  -- toDDSL f = Lambda newId (toDDSL f )
+
+-- instance Syn t => Syn (N t) where
+--   type Internal (N t) = M t
+--   toDDSL (N i True  e v) = Return v
+--   toDDSL (N i False e v) = Error  e
+--   fromDDSL n = undefined
+
+instance Syn t => Syn (M t) where
+  type Internal (M t) = M (Internal t)
+  toDDSL   (M a) = undefined
+  fromDDSL a = undefined
+
+lambda :: (Show s, Show t) => Int -> DDSL t -> DDSL (s -> t)
+lambda = Lambda
+
+app :: (Show s, Show t) => DDSL (s -> t) -> DDSL s -> DDSL t
+app = App
+
+write' :: (Syn t, Show (Internal t)) => t -> DDSL (M ())
+write' a = Write $ toDDSL a
+
+read' :: DDSL (M t)
+read' = Read
+
+idxI' :: Int -> DDSL (M Int)
+idxI' = IdxI
+
+-- return' :: (Syn t, Show (Internal t)) => t -> DDSL (M t)
+-- return' a = Return $ toDDSL a
+
+-- eval :: DDSL t -> t
+-- eval (Write a) = write' $ toDDSL a
+-- eval (Read) = read'
+-- eval (IdxI n) = idxI' $ toDDSL n
+-- eval (ILit n) = n
+-- eval (Return a) = return a
+
+-- pu8_s' :: DDSL Int -> DDSL (M ())
+-- pu8_s' n = write' n >> idxI' 1 >> return' ()
 
 write :: S t
 write = undefined
@@ -426,15 +569,17 @@ class BFmodifier (a :: Type -> Type) (a' :: Type -> Type) where
   bfm :: a (IntTy w) -> a' (Bits p b (IntTy w))
 
 instance BFmodifier (Flip (->) (M ())) (Flip (->) (M' ())) where
-  bfm s = Flip $ \(Bits n) -> WrapMonad . (unflip s) $ IntTy n
-instance BFmodifier (ExceptT Err (StateT Idx Buf)) (WrappedMonad (ExceptT Err (StateT Idx Buf))) where
-  bfm d = WrapMonad d >>= \(IntTy n) -> return $ Bits n
+  bfm s = Flip $ \(Bits n) -> wrapMonad . (unflip s) $ IntTy n
+instance BFmodifier M M where
+  bfm d = wrapMonad d >>= \(IntTy n) -> return $ Bits n
+-- instance BFmodifier (ExceptT Err (StateT Idx Buf)) (WrappedMonad (ExceptT Err (StateT Idx Buf))) where
+--   bfm d = wrapMonad d >>= \(IntTy n) -> return $ Bits n
 
 bitfield_s' :: S (IntTy w) -> S' (Bits p b (IntTy w))
-bitfield_s' s (Bits n) = WrapMonad $ s (IntTy n)
+bitfield_s' s (Bits n) = wrapMonad $ s (IntTy n)
 
 bitfield_d' :: D (IntTy w) -> D' (Bits p b (IntTy w))
-bitfield_d' d = WrapMonad d >>= \(IntTy n) -> return $ Bits n
+bitfield_d' d = wrapMonad d >>= \(IntTy n) -> return $ Bits n
 
 x_s' :: S (X (Bitfield U8))
 x_s' obj = (bitfield_s' pu8_s (obj&(f1 :: X (Bitfield U8) -> Bits N0 N3 U8)) >>
@@ -468,7 +613,10 @@ type family SetRng (w :: Nat) (m :: [B]) (l :: Nat) (u :: Nat) :: [B] where
 
 data Bitfield w -- = Bitfield { unBitfield :: w }
 
-type M' t = WrappedMonad (ExceptT Err (StateT Idx Buf)) t
+type M' t = M t -- WrappedMonad (ExceptT Err (StateT Idx Buf)) t
+
+wrapMonad = id
+unwrapMonad = id
 
 type S' t = t -> M' ()
 type D' t = M' t
@@ -477,10 +625,10 @@ type D' t = M' t
 -- ------------------------------------
 
 bitfield_s :: (Succ u <= w ~ True, l <= w ~ True) => S (IntTy w) -> (SNat l, SNat u) -> S' (IntTy w)
-bitfield_s s _ = WrapMonad . s
+bitfield_s s _ = wrapMonad . s
 
 bitfield_d :: (Succ u <= w ~ True, l <= w ~ True) => D (IntTy w) -> (SNat l, SNat u) -> D' (IntTy w)
-bitfield_d d _ = WrapMonad d
+bitfield_d d _ = wrapMonad d
 
 bitfield_complete_s :: S' (IntTy w) -> S (IntTy w)
 bitfield_complete_s = (unwrapMonad .)

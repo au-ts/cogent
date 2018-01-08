@@ -85,7 +85,7 @@ data Expr m where
   Return :: Expr t -> Expr (m t t)
   Inv :: Expr (S t a) -> Expr (D t b) -> Expr (X t)
   Case :: Expr t -> [(Expr t, Expr (m s a))] -> Expr (m s a)
-  Pair :: Expr a -> Expr b -> Expr c
+  Pair :: Expr a -> Expr b -> Expr (a,b)
 
 data Buf
 
