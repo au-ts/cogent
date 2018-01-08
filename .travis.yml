@@ -10,6 +10,7 @@ branches:
   except:
   - high-level
   - seq
+  - ddsl
 
 cache:
   directories:
