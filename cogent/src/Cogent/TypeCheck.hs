@@ -188,9 +188,11 @@ bracketTE a b c = do a' <- a
                        Right e  -> b a' >> throwError e
 
 resolveName :: SourcePos -> VarName -> TC NameResolution
-resolveName p v = lookup v <$> use knownFuns >>= \case
-   Just pt -> return $ Function pt
-   Nothing -> Value <$> useVar p v
+resolveName p v = lookup v <$> use context >>= \case
+  Just _  -> Value <$> useVar p v    -- is a local var
+  Nothing -> lookup v <$> use knownFuns >>= \case
+    Just pt -> return $ Function pt  -- is a global functions
+    Nothing -> Value <$> useVar p v
 
 updateAssoc :: Eq a => a -> b -> [(a,b)] -> [(a,b)]
 updateAssoc _ _ [] = []
