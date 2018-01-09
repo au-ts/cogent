@@ -56,6 +56,7 @@ endif
 .build:
 	$(E) "Building..."
 	$(CABAL) build $(BUILD_FLAGS)
+	$(CABAL) copy
 
 .install:
 	$(E) "Installing.."
