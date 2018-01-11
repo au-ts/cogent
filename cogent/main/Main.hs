@@ -70,10 +70,10 @@ import Control.Monad (forM, forM_, unless, when)
 import Control.Monad.Trans.Except (runExceptT)
 -- import Control.Monad.Cont
 -- import Control.Monad.Except (runExceptT)
-import Control.Monad.Trans.Either (eitherT, runEitherT)
+-- import Control.Monad.Trans.Either (eitherT, runEitherT)
 import Data.Char (isSpace)
 -- import Data.Either (lefts)
-import Data.Foldable (foldrM)
+import Data.Foldable (fold, foldrM)
 import Data.List as L (find, isPrefixOf, nub)
 import Data.List.Utils (replace)
 import Data.Map (empty, fromList)
@@ -586,19 +586,16 @@ parseArgs args = case getOpt' Permute options args of
     typecheck cmds reorged ctygen source pragmas buildinfo log = do
       let stg = STGTypeCheck
       putProgressLn "Typechecking..."
-      let ((err,we),tcst) = TC.tc reorged ctygen
-      when (not $ null we) $ printError (prettyTWE' __cogent_ftc_ctx_len) ((if __cogent_freverse_tc_errors then reverse else id) we)
-      let errs = map fst we
-      case null $ lefts errs of  -- NOTE: can not use `case we of Left _ -> .. ; Right _ -> ..' because of `bracketTE'
-        False -> when (failDueToWerror errs) (hPutStrLn stderr "Failing due to --Werror.") >> exitFailure
-        True -> case err of
-          Left _ -> __impossible "typecheck"
-          Right (tced,ctygen') -> do 
-            when (not . null $ ews) $ printError (prettyTWE __cogent_ftc_ctx_len) ews
-            when (Ast stg `elem` cmds) $ genAst stg tced
-            when (Pretty stg `elem` cmds) $ genPretty stg tced
-            when (Compile (succ stg) `elem` cmds) $ desugar cmds tced ctygen' tcst source (map pragmaOfLP pragmas) buildinfo log
-            exitSuccessWithBuildInfo cmds buildinfo
+      TC.tc reorged >>= \case
+        ((Left _, ews) ,_) -> do printError (prettyTWE __cogent_ftc_ctx_len) ews
+                                 when (and $ map isWarnAsError ews) $ hPutStrLn stderr "Failing due to --Werror."
+                                 exitFailure
+        ((Right tced, ews), tcst) -> do
+          when (not . null $ ews) $ printError (prettyTWE __cogent_ftc_ctx_len) ews
+          when (Ast stg `elem` cmds) $ genAst stg tced
+          when (Pretty stg `elem` cmds) $ genPretty stg tced
+          when (Compile (succ stg) `elem` cmds) $ desugar cmds tced undefined {- FIXME: ctygen' -} tcst source (map pragmaOfLP pragmas) buildinfo log
+          exitSuccessWithBuildInfo cmds buildinfo
 
     desugar cmds tced ctygen tcst source pragmas buildinfo log = do
       let stg = STGDesugar

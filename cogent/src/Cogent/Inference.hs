@@ -36,7 +36,6 @@ import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Core
-import Cogent.PrettyCore ()
 import Cogent.Util
 import Cogent.Vec hiding (splitAt, length, zipWith, zip, unzip)
 import qualified Cogent.Vec as Vec

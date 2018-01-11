@@ -135,7 +135,7 @@ data CgState = CgState { _cTypeDefs    :: [(CG.StrlType, CG.CId)]
                        , _typeSynonyms :: M.Map TypeName CG.CType
                        , _typeCorres   :: DList.DList (CG.CId, CC.Type 'Zero)
                        , _absTypes     :: M.Map TypeName (S.Set [CG.CId])
-                       , _custTypeGen  :: M.Map (SF.Type 'Zero) (CG.CId, CustTyGenInfo)
+                       , _custTypeGen  :: M.Map (CC.Type 'Zero) (CG.CId, CustTyGenInfo)
                        , _funClasses   :: CG.FunClass
                        , _localOracle  :: Integer  -- FIXME: should be moved to DefnState
                        , _globalOracle :: Integer

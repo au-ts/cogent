@@ -87,10 +87,10 @@ freshVars n = do x <- sel3 <$> get
                  modify (\(a,b,c) -> (a,b,c+n))
                  return $ P.map ((++) freshVarPrefix . show) $ P.take n (iterate (+1) x)
 
-desugar :: [S.TopLevel S.RawType T.TypedName T.TypedExpr]
+desugar :: [S.TopLevel S.RawType B.TypedPatn B.TypedExpr]
         -> [(S.RawType, String)]
         -> [Pragma]
-        -> (([Definition UntypedExpr VarName], [(SupposedlyMonoType, String)]), Last (Typedefs, Constants, [SFConst UntypedExpr]))
+        -> (([Definition UntypedExpr VarName], [(SupposedlyMonoType, String)]), Last (Typedefs, Constants, [CoreConst UntypedExpr]))
 desugar tls ctygen pragmas =
   let fundefs    = filter isFunDef     tls where isFunDef     (S.FunDef   {})   = True; isFunDef     _ = False
       absdecs    = filter isAbsDec     tls where isAbsDec     (S.AbsDec   {})   = True; isAbsDec     _ = False
@@ -383,7 +383,7 @@ desugarType = \case
   S.RT (S.TTuple (t1:t2:ts)) | not __cogent_ftuples_as_sugar -> __impossible "desugarType"  -- desugarType $ S.RT $ S.TTuple [t1, S.RT $ S.TTuple (t2:ts)]
   S.RT (S.TTuple ts) | __cogent_ftuples_as_sugar -> TRecord <$> (P.zipWith (\t n -> (n,(t, False))) <$> forM ts desugarType <*> pure (P.map (('p':) . show) [1 :: Integer ..])) <*> pure Unboxed
   S.RT (S.TUnit)   -> return TUnit
-  notInWHNF -> __impossible' "desugarType" ("type" : lines (show (pretty notInWHNF)) ++ ["is not in WHNF"])
+  notInWHNF -> __impossible $ "desugarType (type" ++ show (pretty notInWHNF) ++ "is not in WHNF)"
 
 desugarNote :: S.Inline -> FunNote
 desugarNote S.NoInline = NoInline

@@ -15,6 +15,7 @@ module Cogent.Parser where
 
 import Cogent.Common.Syntax hiding (Prefix)
 import Cogent.Common.Types
+import Cogent.Compiler
 import qualified Cogent.Preprocess as PP
 import Cogent.Surface
 import Cogent.Util (getStdIncFullPath)
@@ -33,11 +34,11 @@ import Data.Maybe
 import qualified Data.Set as S
 import Text.Parsec.Char
 import Text.Parsec.Combinator
+import Text.Parsec.Error (ParseError)
 import Text.Parsec.Expr
 import Text.Parsec.Language
 import Text.Parsec.Pos
 import Text.Parsec.Prim
-import Text.Parsec.String (parseFromFile)
 import qualified Text.Parsec.Token as T
 import System.Directory
 import System.FilePath

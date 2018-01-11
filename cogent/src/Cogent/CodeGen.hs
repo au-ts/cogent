@@ -349,9 +349,9 @@ type GenRead v = Vec v CExpr
 data GenState  = GenState { _cTypeDefs    :: [(StrlType, CId)]
                           , _cTypeDefMap  :: M.Map StrlType CId
                           , _typeSynonyms :: M.Map TypeName CType
-                          , _typeCorres   :: DList.DList (CId, SF.Type 'Zero)  -- C type names corresponding to Cogent types
+                          , _typeCorres   :: DList.DList (CId, CC.Type 'Zero)  -- C type names corresponding to Cogent types
                           , _absTypes     :: M.Map TypeName (S.Set [CId])
-                          , _custTypeGen  :: M.Map (SF.Type 'Zero) (CId, CustTyGenInfo)
+                          , _custTypeGen  :: M.Map (CC.Type 'Zero) (CId, CustTyGenInfo)
                           , _funClasses   :: FunClass
                           , _localOracle  :: Integer
                           , _globalOracle :: Integer

@@ -71,12 +71,6 @@ markdown s = case T.readMarkdown def s of
                Right md -> T.writeHtml def $ T.walk handleInline md
 #endif
 
-
-markdown :: (?knowns :: [(String, SourcePos)]) => String -> Html
-markdown s = case T.readMarkdown def s
-              of Left e -> fromString $ show e
-                 Right md -> T.writeHtml def $ T.walk handleInline md
-
 handleInline :: (?knowns :: [(String, SourcePos)]) => T.Inline -> T.Inline
 handleInline x@(T.Code a str) | Just p <- lookup str ?knowns = T.Link ("", classesFor str, []) [x] (fileNameFor p ++ "#" ++ str,str)
 handleInline x = x
@@ -255,7 +249,7 @@ makeHtml :: Html -> Html
 makeHtml content = [shamlet| <pre class="source bg-Dull-Black">#{content}|]
 
 
-genDoc :: (?knowns :: [(String, SourcePos)]) => (SourcePos, DocString, TopLevel LocType VarName LocExpr) -> Html
+genDoc :: (?knowns :: [(String, SourcePos)]) => (SourcePos, DocString, TopLevel LocType LocPatn LocExpr) -> Html
 genDoc (p,s,x@(Include    {})) = __impossible "genDoc"
 genDoc (p,s,x@(IncludeStd {})) = __impossible "genDoc"
 

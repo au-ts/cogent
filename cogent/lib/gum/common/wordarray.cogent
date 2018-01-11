@@ -68,11 +68,11 @@ wordarray_length: all(a :< DSE). (WordArray a)! -> U32
 
 {-# cinline wordarray_free #-}
 {-# fnmacro wordarray_free #-}
-wordarray_free: all(a :< DSE). (SysState,WordArray a) -> SysState
+wordarray_free: all(a :< DSE). (SysState, WordArray a) -> SysState
 
 {-# cinline wordarray_free' #-}
 wordarray_free': all(a :< DSE). (#{ex: SysState, obj: WordArray a}) -> SysState
-wordarray_free' #{ex,obj} = wordarray_free[a] (ex, obj)
+wordarray_free' #{ex, obj} = wordarray_free[a] (ex, obj)
 
 {-# cinline copy_n #-}
 copy_n: all(a :< DSE). WordArrayMapNoBreakF a U32 ((WordArray a)!)

@@ -302,7 +302,7 @@ fs_mount #{ex, options} =
                                         
                                         and ex = array_free [OSBuffer] #{arr = group_desc_array, f = osbuffer_destroy, ex}
                                         and ex = free_Ext2Superblock (ex, super)
-                                        and ex = undefined (ex, buf_super)
+                                        and ex = osbuffer_destroy (ex, buf_super)
                                         and ex = free_FsState (ex, state_t)
                                         in (ex, Error eNoMem)
                                 | Error ex ->

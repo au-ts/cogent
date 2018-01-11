@@ -43,11 +43,13 @@ import Cogent.Util
 import Cogent.Vec hiding (splitAt, length, zipWith, zip, unzip)
 import qualified Cogent.Vec as Vec
 
-import Control.Arrow
+import Control.Arrow hiding ((<+>))
 -- import Data.Data hiding (Refl)
 #if __GLASGOW_HASKELL__ < 709
 import Data.Traversable(traverse)
 #endif
+import Text.PrettyPrint.ANSI.Leijen as L hiding (tupled, indent, (<$>))
+import qualified Text.PrettyPrint.ANSI.Leijen as L ((<$>))
 
 data Type t
   = TVar (Fin t)
@@ -428,12 +430,13 @@ instance Pretty (TyVarName, Kind) where
 #else
 instance {-# OVERLAPPING #-} Pretty (TyVarName, Kind) where
 #endif
-  pretty (v,k) = pretty v L.<> typesymbol ":<" L.<> prettyKind k
+  pretty (v,k) = pretty v L.<> typesymbol ":<" L.<> pretty k
 
-prettyKind (K False False False) = string "()"
-prettyKind (K e s d) = if e then kind "E" else empty L.<>
-                       if s then kind "S" else empty L.<>
-                       if d then kind "D" else empty
+instance Pretty Kind where
+  pretty (K False False False) = string "()"
+  pretty (K e s d) = if e then kind "E" else empty L.<>
+                         if s then kind "S" else empty L.<>
+                         if d then kind "D" else empty
 
 instance Pretty a => Pretty (Vec t a) where
   pretty Nil = empty

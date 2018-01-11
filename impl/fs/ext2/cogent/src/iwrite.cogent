@@ -287,7 +287,7 @@ fsop_inode_free (ex, state, inode_t) =
 
 -- ext2/inode.c#L766: ext2_get_block
 -- we don't destroy the buffer here. caller does this
-fsop_inode_get_block : #{ex: SysState, state: FsState, inode: VfsInode, blk: U32, create: Bool, buf: OSBuffer})
+fsop_inode_get_block : #{ex: SysState, state: FsState, inode: VfsInode, blk: U32, create: Bool, buf: OSBuffer}
                     -> RR (SysState, FsState, OSBuffer, VfsInode) () U32
 fsop_inode_get_block #{ ex, state, inode, blk, create, buf } =
   let max_mappable = osbuffer_get_size buf >> const_blockSizeBits !buf

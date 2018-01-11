@@ -19,7 +19,7 @@ import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Reorganizer (ReorganizeError(..), SourceObject(..))
 import Cogent.Surface
-import Cogent.TypeCheck --hiding (context)
+-- import Cogent.TypeCheck --hiding (context)
 import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Subst
 

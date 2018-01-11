@@ -28,6 +28,7 @@ import Cogent.TypeCheck.Post (postT, postE, postA)
 import Cogent.TypeCheck.Solver
 import Cogent.TypeCheck.Subst (applyE, applyAlts)
 import Cogent.TypeCheck.Util
+-- import Cogent.Util (firstM)
 
 import Control.Arrow (first, second)
 import Control.Lens
@@ -170,24 +171,24 @@ checkOne loc d = case d of
 -- ----------------------------------------------------------------------------
 -- custTyGen
 
-typecheckCustTyGen :: [(LocType, String)] -> TC [(RawType, String)]
-typecheckCustTyGen = mapM $ firstM $ \t ->
-  if not (isMonoType t)
-    then typeError (CustTyGenIsPolymorphic t)
-    else isSynonym t >>= \case
-           True -> typeError (CustTyGenIsSynonym t)
-           _    -> validateType t
-
-isMonoType :: LocType -> Bool
-isMonoType (LocType _ (TVar {})) = False
-isMonoType (LocType _ t) = getAll $ foldMap (All . isMonoType) t
-isMonoType _ = __impossible "isMonoType: not a type at all"
-
-isSynonym :: LocType -> TC Bool
-isSynonym (LocType _ (TCon c _ _)) = lookup c <$> use knownTypes >>= \case
-  Nothing -> __impossible "isSynonym: type not in scope"
-  Just (vs,Just _ ) -> return True
-  Just (vs,Nothing) -> return False
-isSynonym (LocType _ t) = foldM (\b a -> (b ||) <$> isSynonym a) False t
-isSynonym _ = __impossible "isSynonym: not a type at all"
+-- typecheckCustTyGen :: [(LocType, String)] -> TC [(RawType, String)]
+-- typecheckCustTyGen = mapM $ firstM $ \t ->
+--   if not (isMonoType t)
+--     then typeError (CustTyGenIsPolymorphic t)
+--     else isSynonym t >>= \case
+--            True -> typeError (CustTyGenIsSynonym t)
+--            _    -> validateType t
+-- 
+-- isMonoType :: LocType -> Bool
+-- isMonoType (LocType _ (TVar {})) = False
+-- isMonoType (LocType _ t) = getAll $ foldMap (All . isMonoType) t
+-- isMonoType _ = __impossible "isMonoType: not a type at all"
+-- 
+-- isSynonym :: LocType -> TC Bool
+-- isSynonym (LocType _ (TCon c _ _)) = lookup c <$> use knownTypes >>= \case
+--   Nothing -> __impossible "isSynonym: type not in scope"
+--   Just (vs,Just _ ) -> return True
+--   Just (vs,Nothing) -> return False
+-- isSynonym (LocType _ t) = foldM (\b a -> (b ||) <$> isSynonym a) False t
+-- isSynonym _ = __impossible "isSynonym: not a type at all"
 

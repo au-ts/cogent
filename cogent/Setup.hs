@@ -24,12 +24,13 @@ import Distribution.Simple.BuildPaths (autogenModulesDir)
 #endif
 import Distribution.Simple.LocalBuildInfo as L
 import qualified Distribution.Simple.Setup as S
-import Distribution.Simple.Utils (createDirectoryIfMissingVerbose, rewriteFile, installOrdinaryFiles, installDirectoryContents)
-
+import Distribution.Simple.Utils
 import Distribution.PackageDescription
+import Distribution.Verbosity (Verbosity)
 
 import System.Directory(removeFile)
-import System.FilePath ((</>))
+import System.Exit
+import System.FilePath ((</>), (<.>), takeExtension)
 import qualified System.FilePath.Posix as Px
 import System.Process (readProcess)
 
@@ -66,11 +67,12 @@ generateVersionModule verbosity dir release = do
           else "gitHash = \"" ++ h ++ "\"\n"
 
 -- Configure
-cogentConfigure _ flags _ local = do
+cogentConfigure :: Args -> S.ConfigFlags -> PackageDescription -> LocalBuildInfo -> IO ()
+cogentConfigure _ flags _ lbi = do
 #if MIN_VERSION_Cabal (2,0,0)
-  generateVersionModule verbosity (autogenPackageModulesDir local) (isRelease (configFlags local))
+  generateVersionModule verbosity (autogenPackageModulesDir lbi) (isRelease (configFlags lbi))
 #else
-  generateVersionModule verbosity (autogenModulesDir local) (isRelease (configFlags local))
+  generateVersionModule verbosity (autogenModulesDir lbi) (isRelease (configFlags lbi))
 #endif
   where
     verbosity = S.fromFlag $ S.configVerbosity flags
