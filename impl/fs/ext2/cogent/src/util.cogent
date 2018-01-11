@@ -153,3 +153,6 @@ ext2_commit_chunk (ex, state, page, pos, len) =
         in ext2_commit_chunk2 (ex, state, page, inode)
     else
         ext2_commit_chunk2 (ex, state, page, inode)
+
+{-# cinline os_get_current_fs_time #-}
+os_get_current_fs_time: (SysState, VfsInode!) -> (SysState, OSTimeSpec)

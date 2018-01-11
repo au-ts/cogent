@@ -34,6 +34,7 @@
 # include <linux/namei.h>
 # include <linux/seq_file.h>
 # include <linux/mount.h>
+#include <linux/version.h>
 
 #include <lib/allocpool.h>
 

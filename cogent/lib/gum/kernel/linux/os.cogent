@@ -59,9 +59,6 @@ u64_to_TimeSpec v =
 {-# cinline os_get_current_time #-}
 os_get_current_time: SysState -> (SysState, OSTimeSpec)
 
-{-# cinline os_get_current_fs_time #-}
-os_get_current_fs_time: (SysState, VfsInode!) -> (SysState, OSTimeSpec)
-
 {-# cinline os_get_current_fsuid #-}
 os_get_current_fsuid: SysState! -> U32
 
