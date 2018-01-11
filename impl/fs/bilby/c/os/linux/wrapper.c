@@ -23,7 +23,9 @@ static int init_inode_by_type(struct backing_dev_info *bdi, struct inode *inode)
         int err = 0;
 
         /* Disable read-ahead */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
         inode->i_mapping->backing_dev_info = bdi;
+#endif
 
         switch (inode->i_mode & S_IFMT) {
         case S_IFREG:
@@ -549,6 +551,7 @@ static int bilbyfs_writepage(struct page *page, struct writeback_control *wbc)
         return err;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
 static void *bilbyfs_follow_link(struct dentry *dentry, struct nameidata *nd)
 {
         struct bilbyfs_info *bi = dentry->d_inode->i_sb->s_fs_info;
@@ -573,6 +576,24 @@ static void *bilbyfs_follow_link(struct dentry *dentry, struct nameidata *nd)
         nd_set_link(nd, inode->i_private);
         return NULL;
 }
+#else
+const char *bilbyfs_get_link(struct dentry *dentry, struct inode *inode,
+                             struct delayed_call *done)
+{
+        struct wrapper_data *wd = dentry->d_inode->i_sb->s_fs_info;
+        int err;
+        const char *link = page_get_link(dentry, inode, done);
+
+        bilbyfs_debug("bilbyfs_get_link() \n");
+        if (!IS_ERR(link) && !*link) {
+                do_delayed_call(done);
+                clear_delayed_call(done);
+                link = ERR_PTR(-ENOENT);
+        }
+
+        return link;
+}
+#endif
 
 static int bilbyfs_setattr(struct dentry *dentry, struct iattr *attr)
 {
@@ -582,7 +603,12 @@ static int bilbyfs_setattr(struct dentry *dentry, struct iattr *attr)
 
         bilbyfs_debug("bilbyfs_setattr(ino %lu, mode %#x, ia_valid %#x)\n",
                 inode->i_ino, inode->i_mode, attr->ia_valid);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
         err = inode_change_ok(inode, attr);
+#else
+        err = setattr_prepare(dentry, attr);
+#endif
+
         if (err)
                 return err;
 
@@ -614,6 +640,8 @@ static int bilbyfs_setattr(struct dentry *dentry, struct iattr *attr)
         return 0;
 }
 
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
 static int bilbyfs_getattr(struct vfsmount *mnt, struct dentry *dentry,
                            struct kstat *stat)
 {
@@ -632,14 +660,35 @@ static int bilbyfs_getattr(struct vfsmount *mnt, struct dentry *dentry,
        }
        return err;
 }
+#else
+int bilbyfs_getattr(const struct path *path, struct kstat *stat,
+                    u32 mask, unsigned int flags)
+{
+        struct dentry *dentry = path->dentry;
+        struct inode *inode = d_inode(dentry);
+        int err;
+       down(&bi->wd.lock);
+       err = fsop_getattr(bi, inode, stat);
+       up(&bi->wd.lock);
+       if (!err) {
+               stat->dev = dentry->d_sb->s_dev;
+               stat->rdev = inode->i_rdev;
+       } else {
+               bilbyfs_err("BilbyFsError: fsop_getattr = %d", err);
+       }
+       return err;
+}
+#endif
 
 const struct file_operations bilbyfs_file_operations =
 {
         .llseek =       generic_file_llseek,
         .open =         generic_file_open,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
         .read =         new_sync_read,
-        .read_iter =    generic_file_read_iter,
         .write =        new_sync_write,
+#endif
+        .read_iter =    generic_file_read_iter,
         .write_iter =   generic_file_write_iter,
         .mmap =         generic_file_readonly_mmap,
         .fsync =        bilbyfs_fsync,
@@ -652,8 +701,12 @@ const struct inode_operations bilby_file_inode_operations =
 };
 
 const struct inode_operations bilbyfs_symlink_inode_operations = {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
         .readlink    = generic_readlink,
         .follow_link = bilbyfs_follow_link,
+#else
+        .get_link = bilbyfs_get_link,
+#endif
         .setattr     = bilbyfs_setattr,
         .getattr     = bilbyfs_getattr,
 };
@@ -746,7 +799,9 @@ static void bilbyfs_put_super(struct super_block *sb)
 
         bilbyfs_debug("bilbyfs_put_super()\n");
         bilbyfs_unmount(bi);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
         bdi_destroy(sb->s_bdi);
+#endif
         ubi_close_volume(bi->ubi); /* FIXME: This should be in umount */
 }
 

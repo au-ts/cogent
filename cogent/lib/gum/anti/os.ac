@@ -21,22 +21,6 @@ $ty:((SysState, OSTimeSpec)) os_get_current_time($ty:(SysState) args)
     return ret;
 }
 
-$ty:((SysState, OSTimeSpec)) os_get_current_fs_time($ty:((SysState, VfsInode!)) args)
-{
-    $ty:((SysState, OSTimeSpec)) ret;
-    struct inode *inode = &(args.p2->vfs.inode_lin);
-
-    struct timespec now = timespec_trunc(current_kernel_time(), inode->i_sb->s_time_gran);
-
-    ret.p2.tv_sec = now.tv_sec;
-    ret.p2.tv_nsec = now.tv_nsec;
-
-    ret.p1 = args.p1;
-
-    return ret;
-}
-
-
 u32 os_get_current_fsgid($ty:(SysState!) args)
 {
     return from_kgid(&init_user_ns, current_fsgid());

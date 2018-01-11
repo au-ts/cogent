@@ -39,6 +39,11 @@ const struct file_operations bilbyfs_file_operations;
 const struct file_operations bilbyfs_dir_operations;
 const struct address_space_operations bilbyfs_file_address_operations;
 
+$esc:(#if LINUX_VERSION_CODE > KERNEL_VERSION(4,4,0))
+#define PAGE_CACHE_SIZE  PAGE_SIZE
+#define PAGE_CACHE_SHIFT PAGE_SHIFT
+$esc:(#endif)
+
 struct wrapper_data {
         struct semaphore lock;
         struct backing_dev_info bdi;
@@ -85,8 +90,9 @@ static int init_inode_by_type(struct backing_dev_info *bdi, struct inode *inode)
         int err = 0;
 
         /* Disable read-ahead */
+$escstm:(#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0))
         inode->i_mapping->backing_dev_info = bdi;
-
+$escstm:(#endif)
         switch (inode->i_mode & S_IFMT) {
         case S_IFREG:
                 inode->i_mapping->a_ops = &bilbyfs_file_address_operations;
@@ -316,7 +322,12 @@ static int bilbyfs_setattr(struct dentry *dentry, struct iattr *attr)
 
         bilbyfs_debug("bilbyfs_setattr(ino %lu, mode %#x, ia_valid %#x)\n",
                 inode->i_ino, inode->i_mode, attr->ia_valid);
+$escstm:(#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0))
         err = inode_change_ok(inode, attr);
+$escstm:(#else)
+        err = setattr_prepare(dentry, attr);
+$escstm:(#endif)
+
         if (err)
                 return err;
 
@@ -358,6 +369,7 @@ type FsopGetattrP = #{ex:SysState, fs_st: FsState, stat: VfsStat, vnode: VfsInod
 type FsopGetattrR = #{ex:SysState, fs_st: FsState, stat: VfsStat}
 fsop_getattr: FsopGetattrP -> FsopGetattrR
 */
+$esc:(#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0))
 static int bilbyfs_getattr(struct vfsmount *mnt, struct dentry *dentry,
                            struct kstat *stat)
 {
@@ -372,12 +384,36 @@ static int bilbyfs_getattr(struct vfsmount *mnt, struct dentry *dentry,
        fargs.stat = ($ty:(VfsStat))stat;
        fargs.vnode = ($ty:(VfsInode)) inode;
        $exp:fsop_getattr(fargs);
-	   bilbyfs_debug("bilbyfs_getattr: {mode=0%o}\n", stat->mode);
+       bilbyfs_debug("bilbyfs_getattr: {mode=0%o}\n", stat->mode);
        stat->dev = dentry->d_sb->s_dev;
        stat->rdev = inode->i_rdev;
        up(&wd->lock);
        return 0;
 }
+$esc:(#else)
+int bilbyfs_getattr(const struct path *path, struct kstat *stat,
+                    u32 mask, unsigned int flags)
+{
+        struct dentry *dentry = path->dentry;
+        struct inode *inode = d_inode(dentry);
+        struct wrapper_data *wd = inode->i_sb->s_fs_info;
+        $ty:(FsopGetattrP) fargs;
+
+        down(&wd->lock);
+        fargs.ex = NULL;
+        fargs.fs_st = wd->fs_st;
+        fargs.stat = ($ty:(VfsStat))stat;
+        fargs.vnode = ($ty:(VfsInode)) inode;
+        $exp:fsop_getattr(fargs);
+        bilbyfs_debug("bilbyfs_getattr: {mode=0%o}\n", stat->mode);
+        stat->dev = dentry->d_sb->s_dev;
+        stat->rdev = inode->i_rdev;
+        up(&wd->lock);
+
+        return 0;
+}
+$esc:(#endif)
+
 
 
 /*
@@ -530,6 +566,8 @@ static int wfsop_move(struct wrapper_data *wd, struct inode *old_dir,
     return 0;
 }
 
+
+$esc:(#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0))
 static int bilbyfs_rename(struct inode *old_dir, struct dentry *old_dentry,
                           struct inode *new_dir, struct dentry *new_dentry)
 {
@@ -537,11 +575,11 @@ static int bilbyfs_rename(struct inode *old_dir, struct dentry *old_dentry,
         int err;
 
         down(&wd->lock);
-        if (old_dir == new_dir) 
+        if (old_dir == new_dir)
             err = wfsop_rename(wd, old_dir, old_dentry->d_name.name,
                                old_dentry->d_inode, new_dentry->d_name.name,
                                new_dentry->d_inode);
-        else 
+        else
             err = wfsop_move(wd, old_dir, old_dentry->d_name.name,
                              old_dentry->d_inode, new_dir, new_dentry->d_name.name,
                              new_dentry->d_inode);
@@ -550,6 +588,29 @@ static int bilbyfs_rename(struct inode *old_dir, struct dentry *old_dentry,
           bilbyfs_err("BilbyFsError: bilbyfs_rename() = %d\n", err);
         return err;
 }
+$esc:(#else)
+static int bilbyfs_rename(struct inode *old_dir, struct dentry *old_dentry,
+                          struct inode *new_dir, struct dentry *new_dentry,
+                          unsigned int flags)
+{
+        struct wrapper_data *wd = old_dir->i_sb->s_fs_info;
+        int err;
+
+        down(&wd->lock);
+        if (old_dir == new_dir)
+            err = wfsop_rename(wd, old_dir, old_dentry->d_name.name,
+                               old_dentry->d_inode, new_dentry->d_name.name,
+                               new_dentry->d_inode);
+        else
+            err = wfsop_move(wd, old_dir, old_dentry->d_name.name,
+                             old_dentry->d_inode, new_dir, new_dentry->d_name.name,
+                             new_dentry->d_inode);
+        up(&wd->lock);
+        if (err)
+          bilbyfs_err("BilbyFsError: bilbyfs_rename() = %d\n", err);
+        return err;
+}
+$esc:(#endif)
 
 /*
 type FsopReadPageP = #{ex:SysState, fs_st: FsState, vnode: VfsInode, block: OSPageOffset, addr: Buffer}
@@ -573,7 +634,7 @@ static int wfsop_readpage(struct wrapper_data *wd, struct inode *inode, $ty:(OSP
     fargs.addr->bound = PAGE_CACHE_SIZE;
     fargs.addr->data->values = addr;
     fargs.addr->data->len = PAGE_CACHE_SIZE;
-    
+
     fret = $exp:fsop_readpage(fargs);
     if (fret.p2.tag == TAG_ENUM_Error)
         return -fret.p2.Error;
@@ -672,7 +733,11 @@ static int bilbyfs_write_begin(struct file *filp, struct address_space *mapping,
                         SetPageError(page);
                         kunmap(page);
                         unlock_page(page);
+$escstm:(#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0))
                         page_cache_release(page);
+$escstm:(#else)
+                        put_page(page);
+$escstm:(#endif)
                         bilbyfs_err("BilbyFsError: bilbyfs_write_begin() = %d\n", err);
                         return err;
                 }
@@ -718,7 +783,11 @@ static int bilbyfs_write_end_writeback(struct file *filp, struct address_space *
                 __mark_inode_dirty(inode, I_DIRTY_DATASYNC);
         }
         unlock_page(page);
+$escstm:(#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0))
         page_cache_release(page);
+$escstm:(#else)
+        put_page(page);
+$escstm:(#endif)
         bilbyfs_debug("[1] bilbyfs_write_end_writeback() = %d (nb bytes copied)\n", copied);
         return copied;
 }
@@ -797,6 +866,7 @@ type FsopFollowLinkP = #{ex:SysState, fs_st: FsState, vnode: VfsInode, path: Buf
 type FsopFollowLinkE = #{err:ErrCode, ex:SysState, fs_st: FsState, vnode: VfsInode, path: Buffer}
 fsop_follow_link: FsopFollowLinkP -> RR FsopFollowLinkP () ErrCode
 */
+$esc:(#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0))
 static int wfsop_follow_link(struct wrapper_data *wd, struct inode *inode, void *page)
 {
         $ty:(FsopFollowLinkP) fargs;
@@ -839,6 +909,25 @@ static void *bilbyfs_follow_link(struct dentry *dentry, struct nameidata *nd)
         nd_set_link(nd, inode->i_private);
         return NULL;
 }
+$esc:(#else)
+const char *bilbyfs_get_link(struct dentry *dentry, struct inode *inode,
+                             struct delayed_call *done)
+{
+        struct wrapper_data *wd = dentry->d_inode->i_sb->s_fs_info;
+        int err;
+        const char *link = page_get_link(dentry, inode, done);
+        /* XXX: Need to implement this in Cogent */
+        bilbyfs_debug("bilbyfs_get_link() \n");
+        if (!IS_ERR(link) && !*link) {
+                do_delayed_call(done);
+                clear_delayed_call(done);
+                link = ERR_PTR(-ENOENT);
+        }
+
+        return link;
+}
+$esc:(#endif)
+
 /*
 type ReadDirParams = #{ex:SysState, fs_st:FsState, vctx:VfsDirContext, opt_rdctx: Option BilbyFsReaddirContext}
 fsop_readdir: (ReadDirParams, VfsInode!) -> RR ReadDirParams () ErrCode
@@ -1127,7 +1216,9 @@ static void bilbyfs_put_super(struct super_block *sb)
 
         bilbyfs_debug("bilbyfs_put_super()\n");
         bilbyfs_unmount(wd);
+$escstm:(#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0))
         bdi_destroy(sb->s_bdi);
+$escstm:(#endif)
 }
 
 
@@ -1350,10 +1441,12 @@ static int bilbyfs_fill_super(struct super_block *sb, void *options, int silent,
          * Disabling VFS's read-ahead feature.
          * Read-ahead will be disabled because bdi->ra_pages is 0.
          */
+$escstm:(#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0))
         sb->s_bdi = &wd->bdi;
         sb->s_bdi->name = "bilbyfs";
         sb->s_bdi->capabilities = BDI_CAP_MAP_COPY;
         err = bdi_init(sb->s_bdi);
+
         if (!err) {
                 err = bdi_register(sb->s_bdi, NULL, bd_name);
                 if (!err) {
@@ -1383,6 +1476,33 @@ static int bilbyfs_fill_super(struct super_block *sb, void *options, int silent,
                         bdi_destroy(sb->s_bdi);
                 }
         }
+$escstm:(#else)
+        super_setup_bdi(sb);
+        sb->s_fs_info = wd;
+        root = bilbyfs_new_inode(sb, NULL, S_IFDIR | S_IRUGO | S_IWUSR | S_IXUGO);
+        if (root) {
+                set_nlink(root, 2);
+                err = wfsop_fill_super(wd, sb, silent, root);
+                iput(root);
+        } else {
+                err = PTR_ERR(root);
+        }
+
+        if (!err) {
+                /* Reads the root inode */
+                root = bilbyfs_iget(wd, root->i_ino);
+                if (!IS_ERR(root)) {
+                        sb->s_root = d_make_root(root);
+                        if (sb->s_root)
+                                return 0;
+                        err = -EINVAL;
+                } else {
+                        err = PTR_ERR(root);
+                }
+                bilbyfs_unmount(wd);
+        }
+$escstm:(#endif)
+
         bilbyfs_err("bilbyfs_fill_super error = %d\n", err);
         sb->s_bdi = NULL;
         return err;
@@ -1484,31 +1604,52 @@ $ty:(()) $id:_bilbyfs_error_u32(u32 a)
     return unit;
 }
 
+$esc:(#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0))
 const struct file_operations bilbyfs_file_operations =
 {
         .llseek =       generic_file_llseek,
         .open =         generic_file_open,
         .read =         new_sync_read,
-        .read_iter =    generic_file_read_iter,
         .write =        new_sync_write,
+        .read_iter =    generic_file_read_iter,
         .write_iter =   generic_file_write_iter,
         .mmap =         generic_file_readonly_mmap,
         .fsync =        bilbyfs_fsync,
         .splice_read =  generic_file_splice_read,
 };
+$esc:(#else)
+const struct file_operations bilbyfs_file_operations =
+{
+        .llseek =       generic_file_llseek,
+        .open =         generic_file_open,
+        .read_iter =    generic_file_read_iter,
+        .write_iter =   generic_file_write_iter,
+        .mmap =         generic_file_readonly_mmap,
+        .fsync =        bilbyfs_fsync,
+        .splice_read =  generic_file_splice_read,
+};
+$esc:(#endif)
+
 
 const struct inode_operations bilby_file_inode_operations =
 {
         .setattr =      bilbyfs_setattr,
 };
 
+$esc:(#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0))
 const struct inode_operations bilbyfs_symlink_inode_operations = {
         .readlink    = generic_readlink,
         .follow_link = bilbyfs_follow_link,
         .setattr     = bilbyfs_setattr,
         .getattr     = bilbyfs_getattr,
 };
-
+$esc:(#else)
+const struct inode_operations bilbyfs_symlink_inode_operations = {
+        .get_link    = bilbyfs_get_link,
+        .setattr     = bilbyfs_setattr,
+        .getattr     = bilbyfs_getattr,
+};
+$esc:(#endif)
 
 const struct inode_operations bilbyfs_file_inode_operations = {
         .setattr     = bilbyfs_setattr,
