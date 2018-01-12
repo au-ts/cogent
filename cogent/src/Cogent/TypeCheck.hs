@@ -38,6 +38,7 @@ import Control.Monad.Writer hiding (censor)
 import Data.Either (lefts)
 import Data.List (nub, (\\))
 import qualified Data.Map as M
+import qualified Data.Sequence as Seq
 import Text.Parsec.Pos
 import qualified Text.PrettyPrint.ANSI.Leijen as L
 import Text.PrettyPrint.ANSI.Leijen hiding ((<>), (<$>))
@@ -45,10 +46,11 @@ import Text.PrettyPrint.ANSI.Leijen hiding ((<>), (<$>))
 -- import Debug.Trace
 
 tc :: [(SourcePos, TopLevel LocType LocPatn LocExpr)]
+   -> [(LocType, String)]
    -> IO ((Either () [TopLevel RawType TypedPatn TypedExpr], [ContextualisedEW]), TCState)
-tc = ((first . second) adjustErrors <$>) . flip runStateT (TCS M.empty knownTypes M.empty) . (failError <$>) . runWriterT . runExceptT . typecheck
+tc ds cts = ((first . second) adjustErrors <$>) . flip runStateT (TCS M.empty knownTypes M.empty) . (failError <$>) . runWriterT . runExceptT $ typecheck ds  -- FIXME
   where
-    knownTypes = map (, ([] , Nothing)) $ words "U8 U16 U32 U64 String Bool"
+    knownTypes = map (, ([], Nothing)) $ words "U8 U16 U32 U64 String Bool"
     adjustErrors = (if __cogent_freverse_tc_errors then reverse else id) . adjustContexts
     adjustContexts = map (first noConstraints)
     noConstraints = if __cogent_ftc_ctx_constraints then id else filter (not . isCtxConstraint)
@@ -107,7 +109,7 @@ checkOne loc d = case d of
     traceTC "tc" (text "typecheck const definition" <+> pretty n)
     base <- use knownConsts
     t' <- validateType' [] (stripLocT t)
-    let ctx = C.addScope (fmap (\(t,p) -> (t,p, Just p)) base) C.empty
+    let ctx = C.addScope (fmap (\(t,p) -> (t,p, Seq.singleton p)) base) C.empty  -- for consts, the definition is the first use.
     ((c, e'), f, os) <- lift $ lift (runCG ctx [] (cg e t'))
     let c' = c <> Share t' (Constant n)
     (ews, subst, _) <- lift $ lift (runSolver (solve c') f os [])
@@ -131,7 +133,7 @@ checkOne loc d = case d of
     base <- use knownConsts
     t' <- validateType' (map fst vs) (stripLocT t)
     (i,o) <- asFunType t'
-    let ctx = C.addScope (fmap (\(t,p) -> (t, p, Just p)) base) C.empty
+    let ctx = C.addScope (fmap (\(t,p) -> (t, p, Seq.singleton p)) base) C.empty
     let ?loc = loc
     ((c, alts'), flx, os) <- lift $ lift (runCG ctx (map fst vs) (cgAlts alts o i))
     traceTC "tc" (text "constraint for fun definition" <+> pretty f <+> text "is"

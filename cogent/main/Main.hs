@@ -586,7 +586,7 @@ parseArgs args = case getOpt' Permute options args of
     typecheck cmds reorged ctygen source pragmas buildinfo log = do
       let stg = STGTypeCheck
       putProgressLn "Typechecking..."
-      TC.tc reorged >>= \case
+      TC.tc reorged ctygen >>= \case
         ((Left _, ews) ,_) -> do printError (prettyTWE __cogent_ftc_ctx_len) ews
                                  when (and $ map isWarnAsError ews) $ hPutStrLn stderr "Failing due to --Werror."
                                  exitFailure
@@ -594,7 +594,7 @@ parseArgs args = case getOpt' Permute options args of
           when (not . null $ ews) $ printError (prettyTWE __cogent_ftc_ctx_len) ews
           when (Ast stg `elem` cmds) $ genAst stg tced
           when (Pretty stg `elem` cmds) $ genPretty stg tced
-          when (Compile (succ stg) `elem` cmds) $ desugar cmds tced undefined {- FIXME: ctygen' -} tcst source (map pragmaOfLP pragmas) buildinfo log
+          when (Compile (succ stg) `elem` cmds) $ desugar cmds tced [] {- FIXME: ctygen' -} tcst source (map pragmaOfLP pragmas) buildinfo log
           exitSuccessWithBuildInfo cmds buildinfo
 
     desugar cmds tced ctygen tcst source pragmas buildinfo log = do

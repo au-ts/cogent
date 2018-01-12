@@ -24,6 +24,7 @@ import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Subst
 
 import Control.Arrow (second)
+import qualified Data.Foldable as F
 import Data.Function ((&))
 import Data.IntMap as I (IntMap, toList, lookup)
 import Data.List(nub)
@@ -441,25 +442,28 @@ instance Pretty Metadata where
   pretty (Constant {varName})                = err "the binding" <+> funname varName <$> err "is a global constant"
   pretty (Reused {varName, boundAt, usedAt}) = err "the variable" <+> varname varName
                                                <+> err "bound at" <+> pretty boundAt <> err ""
-                                               <$> err "was already used at" <+> pretty usedAt
+                                               <$> err "was already used at"
+                                               <$> indent' (vsep $ map pretty $ F.toList usedAt)
   pretty (Unused {varName, boundAt}) = err "the variable" <+> varname varName
                                        <+> err "bound at" <+> pretty boundAt <> err ""
                                        <$> err "was never used."
-  pretty (UnusedInOtherBranch { varName, boundAt, usedAt}) =
+  pretty (UnusedInOtherBranch {varName, boundAt, usedAt}) =
     err "the variable" <+> varname varName
     <+> err "bound at" <+> pretty boundAt <> err ""
-    <$> err "was used in another branch of control at" <+> pretty usedAt
+    <$> err "was used in another branch of control at"
+    <$> indent' (vsep $ map pretty $ F.toList usedAt)
     <$> err "but not this one."
-  pretty (UnusedInThisBranch { varName, boundAt, usedAt}) =
+  pretty (UnusedInThisBranch {varName, boundAt, usedAt}) =
     err "the variable" <+> varname varName
     <+> err "bound at" <+> pretty boundAt <> err ""
-    <$> err "was used in this branch of control at" <+> pretty usedAt
+    <$> err "was used in this branch of control at"
+    <$> indent' (vsep $ map pretty $ F.toList usedAt)
     <$> err "but not in all other branches."
   pretty Suppressed = err "a binder for a value of this type is being suppressed."
-  pretty (UsedInMember { fieldName}) = err "the field" <+> fieldname fieldName
+  pretty (UsedInMember {fieldName}) = err "the field" <+> fieldname fieldName
                                        <+> err "is being extracted without taking the field in a pattern."
   pretty UsedInLetBang = err "it is being returned from such a context."
-  pretty (TypeParam { functionName , typeVarName }) = err "it is required by the type of" <+> funname functionName
+  pretty (TypeParam {functionName, typeVarName }) = err "it is required by the type of" <+> funname functionName
                                                       <+> err "(type variable" <+> typevar typeVarName <+> err ")"
   pretty ImplicitlyTaken = err "it is implicitly taken via subtyping."
 
@@ -670,6 +674,7 @@ handlePutAssign (Just (s, e)) = fieldname s <+> symbol "=" <+> pretty e
 -- top-level function
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+-- typechecker errors/warnings
 prettyTWE :: Int -> ContextualisedEW -> Doc
 prettyTWE th (ectx, we) = pretty we <$> indent' (vcat (map (flip prettyCtx True ) (take th ectx)
                                                     ++ map (flip prettyCtx False) (drop th ectx)))

@@ -8,14 +8,14 @@
 -- @TAG(NICTA_GPL)
 --
 
-type Record1 = { x : U32 } take ()
+type R1 = { x : U32 }
 
-wordcast : (Record1) -> < Success (Record1) >
-wordcast (r) =
+wordcast : R1 -> < Success R1 >
+wordcast r =
    let r { x = _ } = r
-   in let (vx) = 42
-      in let (r) = r { x = vx }
-         in Success (r)
+   and vx = 42
+   and r = r { x = vx }
+    in Success r
 
 foo : U32 -> U64
 

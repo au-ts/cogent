@@ -22,21 +22,23 @@ module Cogent.Context
 ) where
 
 import Cogent.Common.Syntax
+import Cogent.Compiler (__impossible)
 
 import Control.Lens hiding (Context, contains, use)
 import Data.List (foldl', partition)
+import qualified Data.Sequence as Seq
 import qualified Data.Map.Strict as M
 import Prelude hiding (lookup)
 import Text.Parsec.Pos
 
-type Row t = (t, SourcePos, Maybe SourcePos)
---                            ^------ the location where it's first used
+type Row t = (t, SourcePos, Seq.Seq SourcePos)
+--                            ^------ the locations where it's used; serves as an use count
 newtype Context t = Context [M.Map VarName (Row t)]
 
 empty :: Context t
 empty = Context []
 
-lookup :: VarName -> Context t -> Maybe (t, SourcePos, Maybe SourcePos)
+lookup :: VarName -> Context t -> Maybe (t, SourcePos, Seq.Seq SourcePos)
 lookup v (Context (x:xs)) | Just r <- M.lookup v x = Just r
                           | otherwise              = lookup v (Context xs)
 lookup v (Context []) = Nothing
@@ -46,7 +48,7 @@ contains (Context xs) v = any (M.member v) xs
 
 use :: VarName -> SourcePos -> Context t -> Context t
 use v loc (Context xs) = Context (go xs)
-  where go (x:xs) | M.member v x = M.adjust (\(t, p, _) -> (t, p, Just loc)) v x:xs
+  where go (x:xs) | M.member v x = M.adjust (\(t, p, us) -> (t, p, us Seq.|> loc)) v x:xs
                   | otherwise    = x:go xs
         go [] = []
 
@@ -64,7 +66,7 @@ mode' c vs f =
   in (c', undo)
 
 mode :: Context t -> [VarName]
-     -> ((t, SourcePos, Maybe SourcePos) -> (t, SourcePos, Maybe SourcePos))
+     -> ((t, SourcePos, Seq.Seq SourcePos) -> (t, SourcePos, Seq.Seq SourcePos))
      -> (Context t, Context t -> Context t)
 mode (Context ms) vs f = let (c', f') = go ms vs
                          in (Context c', \(Context x) -> Context (f' x))
@@ -98,11 +100,11 @@ merge' :: M.Map VarName (Row x) -> M.Map VarName (Row x) -> (M.Map VarName (Row 
 merge' a b = let a' = fmap First a
                  b' = fmap Second b
                  m  = M.unionWithKey f a' b'
-                 f k (First (t, p, Just u )) (Second (t', p', Just u')) = Both (t, p, Just u)
-                 f k (First (t, p, Nothing)) (Second (t', p', Nothing)) = Both (t, p, Nothing)
-                 f k (First (t, p, Just u )) (Second (t', p', Nothing)) = First (t, p, Just u)
-                 f k (First (t, p, Nothing)) (Second (t', p', Just u )) = Second (t', p', Just u)
-                 f k _ _ = error "impossible!"
+                 f k (First (t, p, Seq.Empty)) (Second (_, _, Seq.Empty)) = Both (t, p, Seq.empty)
+                 f k (First (t, p, us)) (Second (_, _, Seq.Empty)) = First  (t, p, us)
+                 f k (First (_, _, Seq.Empty)) (Second (t, p, us)) = Second (t, p, us)
+                 f k (First (t, p, us)) (Second (_, _, vs)) = Both (t, p, us Seq.>< vs)
+                 f k _ _ = __impossible "merge'"
                  newM = fmap unhelp m
                  ls = M.toList $ unhelp <$> M.filter isFirst m
                  rs = M.toList $ unhelp <$> M.filter isSecond m
@@ -112,8 +114,8 @@ merge :: Context t -> Context t -> (Context t, [(VarName, Row t)], [(VarName, Ro
 merge (Context a) (Context b) = let (c, l, r) = go a b in (Context c, l, r)
   where
     go [] [] = ([], [], [])
-    go [] _  = error "Mustn't happen!"
-    go _ []  = error "Mustn't happen!"
+    go [] _  = __impossible "merge"
+    go _ []  = __impossible "merge"
     go (a:as) (b:bs) = let
       (cs, ls, rs) = go as bs
       (c,  l,  r ) = merge' a b

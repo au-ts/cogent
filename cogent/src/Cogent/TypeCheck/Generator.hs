@@ -40,6 +40,7 @@ import qualified Data.Map as M
 import qualified Data.IntMap as IM
 import Data.Maybe (catMaybes, isNothing, isJust)
 import Data.Monoid ((<>))
+import qualified Data.Sequence as Seq
 import Text.Parsec.Pos
 import Text.PrettyPrint.ANSI.Leijen hiding ((<>), (<$>))
 import qualified Text.PrettyPrint.ANSI.Leijen as L
@@ -78,7 +79,7 @@ cgMany es = do
         alpha    <- fresh 
         (c', e') <- cg e alpha
         return (alpha:ts, c <> c', e':es')
-  (ts, c', es') <- foldM each ([], Sat, []) es
+  (ts, c', es') <- foldM each ([], Sat, []) es  -- foldM is the same as foldlM
   return (reverse ts, c', reverse es')
 
 cg :: LocExpr -> TCType -> CG (Constraint, TCExpr)
@@ -111,10 +112,10 @@ cg' (PrimOp o [e]) t
   | o == "not"         = do
       (c, e') <- cg e t
       return (F (T (TCon "Bool" [] Unboxed)) :< F t :& c, PrimOp o [e'])
-cg' (PrimOp o _) t = error "impossible"
+cg' (PrimOp o _) t = __impossible "cg': unimplemented primops"
 cg' (Var n) t = do
+  let e = Var n  -- it has a different type than the above `Var n' pattern
   ctx <- use context
-  let e = Var n
   traceTC "gen" (text "cg for variable" <+> pretty n L.<$> text "of type" <+> pretty t)
   case C.lookup n ctx of
     -- Variable not found, see if the user meant a function.
@@ -124,7 +125,7 @@ cg' (Var n) t = do
         Nothing -> return (Unsat (NotInScope (funcOrVar t) n), e)
 
     -- Variable used for the first time, mark the use, and continue
-    Just (t', p, Nothing) -> do
+    Just (t', p, Seq.Empty) -> do
       context %= C.use n ?loc
       let c = F t' :< F t
       traceTC "gen" (text "variable" <+> pretty n <+> text "used for the first time" <> semi
@@ -132,10 +133,11 @@ cg' (Var n) t = do
       return (c, e)
 
     -- Variable already used before, emit a Share constraint.
-    Just (t', p, Just l)  -> do
+    Just (t', p, us)  -> do
+      context %= C.use n ?loc
       traceTC "gen" (text "variable" <+> pretty n <+> text "used before" <> semi
                L.<$> text "generate constraint" <+> prettyC (F t' :< F t) <+> text "and share constraint")
-      return (Share t' (Reused n p l) <> F t' :< F t, e)
+      return (Share t' (Reused n p us) <> F t' :< F t, e)
 
 cg' (Upcast e) t = do
   alpha <- fresh
@@ -322,7 +324,7 @@ integral :: TCType -> Constraint
 integral a = Upcastable (T (TCon "U8" [] Unboxed)) a
 
 dropConstraintFor :: M.Map VarName (C.Row TCType) -> Constraint
-dropConstraintFor m = foldMap (\(i, (t,x,p)) -> maybe (Drop t (Unused i x)) (const Sat) p) $ M.toList m
+dropConstraintFor m = foldMap (\(i, (t,x,us)) -> if null us then Drop t (Unused i x) else Sat) $ M.toList m
 
 cgAlts :: [Alt LocPatn LocExpr] -> TCType -> TCType -> CG (Constraint, [Alt TCPatn TCExpr])
 cgAlts alts top alpha = do
@@ -334,8 +336,8 @@ cgAlts alts top alpha = do
       context %= C.addScope s
       (c', e') <- cg e top
       rs <- context %%= C.dropScope
-      let unused = flip foldMap (M.toList rs) $ \(v,(_,_,mp)) ->
-            case mp of Nothing -> warnToConstraint __cogent_wunused_local_binds (UnusedLocalBind v); _ -> Sat
+      let unused = flip foldMap (M.toList rs) $ \(v,(_,_,us)) ->
+            case us of Seq.Empty -> warnToConstraint __cogent_wunused_local_binds (UnusedLocalBind v); _ -> Sat
       return (removeCase p t, (c <> c' <> dropConstraintFor rs <> unused, Alt p' like e'))
 
     jobs = map (\(n, alt) -> (NthAlternative n (altPattern alt), f alt)) (zip [1..] alts)
@@ -401,10 +403,10 @@ match' (PVar x) t = do
   let p = PVar (x,t)
   traceTC "gen" (text "match var pattern:" <+> prettyIP p
            L.<$> text "of type" <+> pretty t)
-  return (M.fromList [(x, (t,?loc,Nothing))], Sat, p)
+  return (M.fromList [(x, (t,?loc,Seq.empty))], Sat, p)
 
 match' (PUnderscore) t = 
-  let c = dropConstraintFor (M.singleton "_" (t, ?loc, Nothing))
+  let c = dropConstraintFor (M.singleton "_" (t, ?loc, Seq.empty))
    in return (M.empty, c, PUnderscore)
 
 match' (PUnitel) t = return (M.empty, F t :< F (T TUnit), PUnitel)
@@ -446,7 +448,7 @@ match' (PTake r fs) t | not (any isNothing fs) = do
    (vs, blob) <- unzip <$> mapM (\p -> do v <- fresh; (v,) <$> match p v) ps
    let (ss, cs, ps') = (map fst3 blob, map snd3 blob, map thd3 blob)
        c = F t :< FRecord (zip ns (map (,False) vs))
-       s  = M.fromList [(r, (u, ?loc, Nothing))]
+       s  = M.fromList [(r, (u, ?loc, Seq.empty))]
        u  = T (TTake (Just ns) t)
        p' = PTake (r,u) (map Just (zip ns ps'))
        co = case overlapping (s:ss) of
@@ -478,7 +480,7 @@ withBindings (Binding pat tau e bs : xs) a = do
   context %= C.addScope s
   (c', xs', r) <- withBindings xs a
   rs <- context %%= C.dropScope
-  let unused = flip foldMap (M.toList rs) $ \(v,(_,_,mp)) -> case mp of Nothing -> warnToConstraint __cogent_wunused_local_binds (UnusedLocalBind v); _ -> Sat
+  let unused = flip foldMap (M.toList rs) $ \(v,(_,_,us)) -> case us of Seq.Empty -> warnToConstraint __cogent_wunused_local_binds (UnusedLocalBind v); _ -> Sat
       c = ct <> c1 <> c' <> cp <> dropConstraintFor rs <> unused
       b' = Binding pat' (fmap (const alpha) tau) e' bs
   traceTC "gen" (text "bound expression" <+> pretty e' <+> text "with banged" <+> pretty bs
@@ -492,26 +494,26 @@ parallel' ls = parallel (map (second (\a _ -> ((), ) <$> a)) ls) ()
 
 parallel :: [(ErrorContext, acc -> CG (acc, (Constraint, a)))] -> acc -> CG (Constraint, [(Constraint, a)])
 parallel []       acc = return (Sat, [])
-parallel [(ct,x)] acc = (Sat,) . return . first (:@ ct) . snd <$> x acc
-parallel ((ct,x):xs) acc = do
+parallel [(ct,f)] acc = (Sat,) . return . first (:@ ct) . snd <$> f acc
+parallel ((ct,f):xs) acc = do
   ctx  <- use context
-  (acc', x') <- second (first (:@ ct)) <$> x acc
+  (acc', x) <- second (first (:@ ct)) <$> f acc
   ctx1 <- use context
   context .= ctx
   (c', xs') <- parallel xs acc'
   ctx2 <- use context
   let (ctx', ls, rs) = C.merge ctx1 ctx2
   context .= ctx'
-  let cls = foldMap (\(n, (t, p, Just p')) -> Drop t (UnusedInOtherBranch n p p')) ls
-      crs = foldMap (\(n, (t, p, Just p')) -> Drop t (UnusedInThisBranch  n p p')) rs
-  return (c' <> ((cls <> crs) :@ ct) , x':xs')
+  let cls = foldMap (\(n, (t, p, us@(_ Seq.:<| _))) -> Drop t (UnusedInOtherBranch n p us)) ls
+      crs = foldMap (\(n, (t, p, us@(_ Seq.:<| _))) -> Drop t (UnusedInThisBranch  n p us)) rs
+  return (c' <> ((cls <> crs) :@ ct) , x:xs')
 
 letBang :: (?loc :: SourcePos) => [VarName] -> (TCType -> CG (Constraint, TCExpr)) -> TCType -> CG (Constraint, TCExpr)
 letBang [] x t = x t
 letBang bs x t = do
   c <- foldMap id <$> mapM validateVariable bs
   ctx <- use context
-  let (ctx', undo) = C.mode ctx bs (\(t,p,p') -> (T (TBang t), p, Just ?loc))
+  let (ctx', undo) = C.mode ctx bs (\(t,p,_) -> (T (TBang t), p, Seq.singleton ?loc))  -- FIXME: shall we also take the old `us'?
   context .= ctx'
   (c', e) <- x t
   context %= undo

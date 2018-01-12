@@ -37,8 +37,6 @@ instance Show Goal where
 
 makeLenses ''Goal
 
-
-
 newtype GoalSet = GS (M.Map Constraint Goal) deriving (Show)
 
 insert :: GoalSet -> Goal -> GoalSet

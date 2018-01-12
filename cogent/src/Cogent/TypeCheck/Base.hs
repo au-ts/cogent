@@ -26,6 +26,7 @@ import qualified Data.IntMap as IM
 import Data.List (nub, (\\))
 import qualified Data.Map as M
 import Data.Monoid ((<>))
+import qualified Data.Sequence as Seq
 -- import qualified Data.Set as S
 import Text.Parsec.Pos
 
@@ -78,28 +79,23 @@ data ErrorContext = InExpression LocExpr TCType
                   | AntiquotedExpr LocExpr
                   deriving (Eq, Show)
 
-data Bound = GLB | LUB deriving (Eq, Ord)
-data VarOrigin = ExpressionAt SourcePos
-               | BoundOf (TypeFragment TCType) (TypeFragment TCType) Bound
-               deriving (Eq, Show, Ord)
-
-flexOf (U x) = Just x
-flexOf (T (TTake _ v)) = flexOf v
-flexOf (T (TPut  _ v)) = flexOf v
-flexOf (T (TBang v))   = flexOf v
-flexOf (T (TUnbox v))  = flexOf v
-flexOf _ = Nothing
-
-instance Show Bound where
-  show GLB = "lower bound"
-  show LUB = "upper bound"
-
 instance Ord ErrorContext where
   compare _ _ = EQ 
 
 isCtxConstraint :: ErrorContext -> Bool
 isCtxConstraint (SolvingConstraint _) = True
 isCtxConstraint _ = False
+
+data Bound = GLB | LUB deriving (Eq, Ord)
+
+instance Show Bound where
+  show GLB = "lower bound"
+  show LUB = "upper bound"
+
+data VarOrigin = ExpressionAt SourcePos
+               | BoundOf (TypeFragment TCType) (TypeFragment TCType) Bound
+               deriving (Eq, Show, Ord)
+
 
 -- high-level context at the end of the list
 type ContextualisedEW = ([ErrorContext], TypeEW)
@@ -111,6 +107,56 @@ isWarn _ = False
 isWarnAsError :: ContextualisedEW -> Bool
 isWarnAsError (_, Left (TypeWarningAsError _)) = True
 isWarnAsError _ = False
+
+data Metadata = Reused { varName :: VarName, boundAt :: SourcePos, usedAt :: Seq.Seq SourcePos }
+              | Unused { varName :: VarName, boundAt :: SourcePos }
+              | UnusedInOtherBranch { varName :: VarName, boundAt :: SourcePos, usedAt :: Seq.Seq SourcePos }
+              | UnusedInThisBranch  { varName :: VarName, boundAt :: SourcePos, usedAt :: Seq.Seq SourcePos }
+              | Suppressed
+              | UsedInMember { fieldName :: FieldName }
+              | UsedInLetBang
+              | TypeParam { functionName :: VarName, typeVarName :: VarName }
+              | ImplicitlyTaken
+              | Constant { varName :: VarName }
+              deriving (Eq, Show, Ord)
+
+data Constraint = (:<) (TypeFragment TCType) (TypeFragment TCType)
+                | (:&) Constraint Constraint
+                | Upcastable TCType TCType
+                | Share TCType Metadata
+                | Drop TCType Metadata
+                | Escape TCType Metadata
+                | (:@) Constraint ErrorContext
+                | Unsat TypeError
+                | SemiSat TypeWarning
+                | Sat
+                | Exhaustive TCType [RawPatn]
+                deriving (Eq, Show, Ord)
+
+instance Monoid Constraint where
+  mempty = Sat
+  mappend Sat x = x
+  mappend x Sat = x
+  -- mappend (Unsat r) x = Unsat r
+  -- mappend x (Unsat r) = Unsat r
+  mappend x y = x :& y
+
+kindToConstraint :: Kind -> TCType -> Metadata -> Constraint
+kindToConstraint k t m = (if canEscape  k then Escape t m else Sat)
+                      <> (if canDiscard k then Drop   t m else Sat)
+                      <> (if canShare   k then Share  t m else Sat)
+
+warnToConstraint :: Bool -> TypeWarning -> Constraint
+warnToConstraint f w | f = SemiSat w
+                     | otherwise = Sat
+-- warnToConstraint f w 
+--   | f = case __cogent_warning_switch of
+--           Flag_w -> Sat
+--           Flag_Wwarn -> SemiSat w
+--           Flag_Werror -> Unsat (TypeWarningAsError w)
+--   | otherwise = Sat
+
+
 
 data TypeFragment a = F a
                     | FRecord [(FieldName, (a, Taken))]
@@ -165,6 +211,12 @@ type TypedIrrefPatn = TIrrefPatn RawType
 toTCType :: RawType -> TCType
 toTCType (RT x) = T (fmap toTCType x)
 
+-- Precondition: No unification variables left in the type
+toLocType :: SourcePos -> TCType -> LocType
+toLocType l (T x) = LocType l (fmap (toLocType l) x)
+-- toLocType l (RemoveCase p t) = error "panic: removeCase found"
+toLocType l _ = error "panic: unification variable found"
+
 toLocExpr :: (SourcePos -> t -> LocType) -> TExpr t -> LocExpr
 toLocExpr f (TE t e l) = LocExpr l (ffffmap (f l) $ fffmap (toLocPatn f) $ ffmap (toLocIrrefPatn f) $ fmap (toLocExpr f) e)
 
@@ -180,12 +232,6 @@ toTypedExpr = fmap toRawType
 toTypedAlts :: [Alt TCPatn TCExpr] -> [Alt TypedPatn TypedExpr]
 toTypedAlts = fmap (fmap (fmap toRawType) . ffmap (fmap toRawType))
 
--- Precondition: No unification variables left in the type
-toLocType :: SourcePos -> TCType -> LocType
-toLocType l (T x) = LocType l (fmap (toLocType l) x)
--- toLocType l (RemoveCase p t) = error "panic: removeCase found"
-toLocType l _ = error "panic: unification variable found"
-
 toRawType :: TCType -> RawType
 toRawType (T x) = RT (fmap toRawType x)
 -- toRawType (RemoveCase p t) = error "panic: removeCase found"
@@ -200,64 +246,18 @@ toRawPatn (TP p _) = RP (fmap toRawIrrefPatn p)
 toRawIrrefPatn :: TypedIrrefPatn -> RawIrrefPatn
 toRawIrrefPatn (TIP ip _) = RIP (ffmap fst $ fmap toRawIrrefPatn ip)
 
-data Metadata = Reused { varName :: VarName, boundAt :: SourcePos, usedAt :: SourcePos }
-              | Unused { varName :: VarName, boundAt :: SourcePos }
-              | UnusedInOtherBranch { varName :: VarName, boundAt :: SourcePos, usedAt :: SourcePos }
-              | UnusedInThisBranch  { varName :: VarName, boundAt :: SourcePos, usedAt :: SourcePos }
-              | Suppressed
-              | UsedInMember { fieldName :: FieldName }
-              | UsedInLetBang
-              | TypeParam { functionName :: VarName, typeVarName :: VarName }
-              | ImplicitlyTaken
-              | Constant { varName :: VarName }
-              deriving (Eq, Show, Ord)
 
-data Constraint = (:<) (TypeFragment TCType) (TypeFragment TCType)
-                | (:&) Constraint Constraint
-                | Upcastable TCType TCType
-                | Share TCType Metadata
-                | Drop TCType Metadata
-                | Escape TCType Metadata
-                | (:@) Constraint ErrorContext
-                | Unsat TypeError
-                | SemiSat TypeWarning
-                | Sat
-                | Exhaustive TCType [RawPatn]
-                deriving (Eq, Show, Ord)
+type TC = StateT TCState IO
 
-instance Monoid Constraint where
-  mempty = Sat
-  mappend Sat x = x
-  mappend x Sat = x
-  -- mappend (Unsat r) x = Unsat r
-  -- mappend x (Unsat r) = Unsat r
-  mappend x y = x :& y
-
-warnToConstraint :: Bool -> TypeWarning -> Constraint
-warnToConstraint f w | f = SemiSat w
-                     | otherwise = Sat
--- warnToConstraint f w 
---   | f = case __cogent_warning_switch of
---           Flag_w -> Sat
---           Flag_Wwarn -> SemiSat w
---           Flag_Werror -> Unsat (TypeWarningAsError w)
---   | otherwise = Sat
+type TypeDict = [(TypeName, ([VarName], Maybe TCType))]  -- `Nothing' for abstract types
 
 data TCState = TCS { _knownFuns    :: M.Map FunName (Polytype TCType)
                    , _knownTypes   :: TypeDict
                    , _knownConsts  :: M.Map VarName (TCType, SourcePos)
                    }
 
-type TypeDict = [(TypeName, ([VarName], Maybe TCType))]  -- `Nothing' for abstract types
-
 makeLenses ''TCState
 
-type TC = StateT TCState IO
-
-kindToConstraint :: Kind -> TCType -> Metadata -> Constraint
-kindToConstraint k t m = (if canEscape  k then Escape t m else Sat)
-                      <> (if canDiscard k then Drop   t m else Sat)
-                      <> (if canShare   k then Share  t m else Sat)
 
 substType :: [(VarName, TCType)] -> TCType -> TCType
 substType vs (U x) = U x
@@ -266,6 +266,7 @@ substType vs (T (TVar v False )) | Just x <- lookup v vs = x
 substType vs (T (TVar v True  )) | Just x <- lookup v vs = T (TBang x)
 substType vs (T t) = T (fmap (substType vs) t)
 
+-- Check for type well-formedness
 validateType :: [VarName] -> RawType -> ExceptT TypeError TC TCType
 validateType vs (RT t) = do
   ts <- use knownTypes
@@ -277,10 +278,10 @@ validateType vs (RT t) = do
                 , required <- length vs
                 , provided /= required
                -> throwError (TypeArgumentMismatch t provided required)
-    TRecord ts _ | tags <- map fst ts
-                 , tags' <- nub tags
-                -> if tags' == tags then T <$> traverse (validateType vs) t
-                   else throwError (DuplicateRecordFields (tags \\ tags'))
+    TRecord fs _ | fields  <- map fst fs
+                 , fields' <- nub fields
+                -> if fields' == fields then T <$> traverse (validateType vs) t
+                   else throwError (DuplicateRecordFields (fields \\ fields'))
     _ -> T <$> traverse (validateType vs) t
 
 -- Remove a pattern from a type, for case expressions.
@@ -300,4 +301,11 @@ forFlexes f (U x) = f x
 --      Just t' -> t'
 --      Nothing -> RemoveCase p' t'
 forFlexes f (T x) = T (fmap (forFlexes f) x)
+
+flexOf (U x) = Just x
+flexOf (T (TTake _ v)) = flexOf v
+flexOf (T (TPut  _ v)) = flexOf v
+flexOf (T (TBang v))   = flexOf v
+flexOf (T (TUnbox v))  = flexOf v
+flexOf _ = Nothing
 
