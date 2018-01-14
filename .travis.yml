@@ -7,6 +7,10 @@ dist: trusty
 git:
   submodules: false
 
+branches:
+  except:
+  - tc-new-rebase
+
 cache:
   directories:
     - $HOME/.cabsnap
