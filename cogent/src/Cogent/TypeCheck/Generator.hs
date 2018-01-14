@@ -302,10 +302,10 @@ cg' (Let bs e) t = do
   (c, bs', (c', e')) <- withBindings bs (cg e t)
   return (c <> c', Let bs' e')
 
-cg' (Match e bs alts) top = do
+cg' (Match e bs alts) t = do
   alpha <- fresh
   (c', e') <- letBang bs (cg e) alpha
-  (c'', alts') <- cgAlts alts top alpha
+  (c'', alts') <- cgAlts alts t alpha
 
   let c = c' :& c''
       e = Match e' bs alts'
@@ -316,7 +316,7 @@ cg' (Annot e tau) t = do
   let t' = stripLocT tau
   (c,t'') <- zoom tc (validateType' tvs t') >>= \case
     Left e -> return (Unsat e, t)
-    Right t'' -> return (F t :< F t'', t'')
+    Right t'' -> return (F t :< F t'', t'')  -- FIXME: which way shall :< go?
   (c', e') <- cg e t''
   return (c <> c', Annot e' t'')
 
@@ -381,6 +381,7 @@ matchA' (PIntLit i) t = do
                       | i < u32MAX     = "U32"
                       | otherwise      = "U64"
       c = Upcastable (T (TCon minimumBitwidth [] Unboxed)) t
+      -- ^^^ FIXME: I think if we restrict this constraint, then we can possibly get rid of `Upcast' / zilinc
   return (M.empty, c, PIntLit i)
 
 matchA' (PBoolLit b) t =
@@ -443,6 +444,9 @@ match' (PUnboxedRecord fs) t | not (any isNothing fs) = do
 
    | otherwise = second3 (:& Unsat RecordWildcardsNotSupported) <$> match' (PUnboxedRecord (filter isJust fs)) t
 
+-- FIXME: this looks quite problematic:
+--   1) `r' is not matched
+--   2) `c' is suspicious: should `False' be `True'?
 match' (PTake r fs) t | not (any isNothing fs) = do
    let (ns, ps) = unzip (catMaybes fs)
    (vs, blob) <- unzip <$> mapM (\p -> do v <- fresh; (v,) <$> match p v) ps
