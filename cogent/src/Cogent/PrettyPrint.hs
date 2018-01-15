@@ -112,7 +112,7 @@ class ExprType a where
 
 instance ExprType (Expr t p ip e) where
   levelExpr (App {}) = 1
-  levelExpr (PrimOp n [_,_]) = level (associativity n)
+  levelExpr (PrimOp n _) = level (associativity n)
   levelExpr (Member {}) = 0
   levelExpr (Var {}) = 0
   levelExpr (IntLit {}) = 0
@@ -417,7 +417,6 @@ prettyConstDef typeSigs v t e  = (if typeSigs then (funname v <+> symbol ":" <+>
                                          (funname v <+> group (indent (symbol "=" <+> pretty e)))
 
 instance (Pretty t, Pretty p, Pretty e) => Pretty (TopLevel t p e) where
-  pretty (DocBlock {}) = string ""
   pretty (TypeDec n vs t) = keyword "type" <+> typename n <> hcat (map ((space <>) . typevar) vs)
                                            <+> indent (symbol "=" </> pretty t)
   pretty (FunDef v pt alts) = prettyFunDef True v pt alts

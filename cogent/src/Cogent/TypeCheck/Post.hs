@@ -36,6 +36,10 @@ import Text.PrettyPrint.ANSI.Leijen as P hiding ((<>), (<$>))
 
 -- import Debug.Trace
 
+-- NOTE: this normalisation process largely comes down to normalise types
+-- and adding error contexts.
+
+
 type Post a = ExceptT () (WriterT [ContextualisedEW] TC) a
 
 postT :: [ErrorContext] -> TCType -> Post RawType

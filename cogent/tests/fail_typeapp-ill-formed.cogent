@@ -7,7 +7,7 @@ type A
 
 foo : R A A -> R (A, ()) (U8, A)
 foo r = let x = r 
-                | Success a -> success[_,A] a
+                | Success a -> success[_,B] a
                 | Error   a -> success a
          in x
             | Success a -> error (1,a)
