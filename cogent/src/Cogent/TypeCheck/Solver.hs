@@ -46,7 +46,7 @@ import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
 data SolverState = SS { _flexes      :: Int
                       , _tc          :: TCState
                       , _substs      :: Subst
-                      , _axioms      :: [(VarName, Kind)]
+                      , _axioms      :: [(TyVarName, Kind)]
                       , _flexOrigins :: IM.IntMap VarOrigin
                       }
 
@@ -70,7 +70,7 @@ crunch Sat   = return []
 crunch x     = return [Goal [] x]
 
 -- Rewrites out type synonyms, TUnbox, TBang, TTake, and TPut
--- so that the "head" of the type is guaranteed to be a concrete type
+-- so that the "head" of the type is guaranteed to be a concrete type.
 -- Operators like TUnbox, TBang etc. are left in place if there is
 -- a unification variable.
 
@@ -139,7 +139,7 @@ notWhnf (U u)            = True
 notWhnf _                = False
 
 isIrrefutable :: RawPatn -> Bool
-isIrrefutable (RP (PIrrefutable p)) = True
+isIrrefutable (RP (PIrrefutable _)) = True
 isIrrefutable _ = False
 
 patternTag :: RawPatn -> Maybe TagName
@@ -153,6 +153,7 @@ patternTag _ = Nothing
 -- Explodes a rigid/rigid constraint into subgoals necessary
 -- for that to be true. E.g, (a,b) :< (c,d) becomes a :< c :& b :< d.
 -- Assumes that the input is simped (i.e conjunction and context free, with types in whnf)
+-- Returns `Nothing' if the constraint cannot be further transformed.
 rule' :: Constraint -> IO (Maybe Constraint)
 rule' c = ruleT c >>= return . ((:@ SolvingConstraint c) <$>)
 
@@ -433,19 +434,20 @@ bound :: Bound -> TypeFragment TCType -> TypeFragment TCType -> Solver (Maybe (T
 bound d (F a) (F b) = fmap ((, F a, F b) . fmap F) (bound' d a b)
 bound d a@(FVariant is) b@(F (T (TVariant js)))
   | M.keysSet is `S.isSubsetOf` M.keysSet js
-  , a' <- F (T (TVariant $ M.union is js))
+  , a' <- F (T (TVariant $ M.union is js))  -- FIXME: left-biased. is it a problem? / zilinc
   = bound d a' b
 bound d a@(F (T (TVariant js))) b@(FVariant is) = bound d b a  -- symm
 bound d a@(FVariant is_) b@(FVariant js_)
   | is <- M.union is_ js_
   , js <- M.union js_ is_
-  = if or (zipWith ((/=) `on` length) (F.toList is) (F.toList js)) then return (Nothing, a, b)
-    else do
-       rs <- M.fromList <$> traverse (each is js) (M.keys is)
-       traceTC "sol" (text "calculate" <+> text (show b) <+> text "of"
-                      P.<+> pretty a <+> text "and" <+> pretty b <> colon
-                      P.<$> pretty (FVariant rs))
-       return (Just (FVariant rs),FVariant is, FVariant js)
+  = if or (zipWith ((/=) `on` length . fst) (F.toList is) (F.toList js))  -- F.toList only returns values, no keys!
+      then return (Nothing, a, b)
+      else do
+        rs <- M.fromList <$> traverse (each is js) (M.keys is)
+        traceTC "sol" (text "calculate" <+> text (show b) <+> text "of"
+                       P.<+> pretty a <+> text "and" <+> pretty b <> colon
+                       P.<$> pretty (FVariant rs))
+        return (Just (FVariant rs), FVariant is, FVariant js)
   where
     op = case d of GLB -> (||); LUB -> (&&)
     each is js k = let
@@ -457,7 +459,7 @@ bound d a@(FRecord isL) b@(F (T (TRecord jsL s)))
   | is <- M.fromList isL
   , js <- M.fromList jsL
   , M.keysSet is `S.isSubsetOf` M.keysSet js
-  , a' <- F (T (TRecord (map (\(k,v) -> (k, case M.lookup k is of Nothing -> v; Just v' -> v')) jsL) s))
+  , a' <- F (T (TRecord (map (\(k,v) -> (k, case M.lookup k is of Nothing -> v; Just v' -> v')) jsL) s))  -- left-biased
   = bound d a' b
 bound d a@(F (T (TRecord jsL s))) b@(FRecord isL) = bound d b a  -- symm
 bound d a@(FRecord is_) b@(FRecord js_)
@@ -466,7 +468,7 @@ bound d a@(FRecord is_) b@(FRecord js_)
   , is <- M.union isM jsM
   , js <- M.union jsM isM
   = let op = case d of GLB -> (&&); LUB -> (||)
-        each (f,(_,t)) (_, (_,t')) = (f,) . (,t `op` t') <$> fresh (BoundOf a b d)
+        each (f,(_,t)) (_,(_,t')) = (f,) . (,t `op` t') <$> fresh (BoundOf a b d)
         is' = M.toList is
         js' = M.toList js
     in do t <- FRecord <$> zipWithM each is' js'
@@ -485,7 +487,7 @@ bound _ a b = do
 bound' :: Bound -> TCType -> TCType -> Solver (Maybe TCType)
 bound' d t1@(T (TVariant is)) t2@(T (TVariant js))
   | M.keysSet is /= M.keysSet js = return Nothing
-  | or (zipWith ((/=) `on` length) (F.toList is) (F.toList js)) = return Nothing
+  | or (zipWith ((/=) `on` length . fst) (F.toList is) (F.toList js)) = return Nothing
   | otherwise = do
       t <- T . TVariant . M.fromList <$> traverse each (M.keys is)
       traceTC "sol" (text "calculate" <+> text (show d) <+> text "of"
@@ -562,10 +564,10 @@ lubGuess = primGuess LUB
 -- A simple classification scheme for soluble flex/rigid constraints
 data GoalClasses
   = Classes
-    { ups :: M.Map Int GoalSet
-    , downs :: M.Map Int GoalSet
-    , upcastables :: M.Map Int GoalSet
-    , downcastables :: M.Map Int GoalSet
+    { ups :: IM.IntMap GoalSet
+    , downs :: IM.IntMap GoalSet
+    , upcastables :: IM.IntMap GoalSet
+    , downcastables :: IM.IntMap GoalSet
     , unsats :: [Goal]
     , semisats :: [Goal]
     , rest :: [Goal]
