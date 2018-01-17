@@ -33,10 +33,11 @@ import           Control.Lens hiding ((:<))
 import           Control.Monad.State
 import qualified Data.Foldable as F
 import           Data.Function (on)
+import qualified Data.IntMap as IM
+import qualified Data.IntSet as IS
 --import qualified Data.List as L
 import           Data.List (elemIndex)
 import qualified Data.Map as M
-import qualified Data.IntMap as IM
 import           Data.Maybe
 import           Data.Monoid
 import qualified Data.Set as S
@@ -571,8 +572,8 @@ data GoalClasses
     , unsats :: [Goal]
     , semisats :: [Goal]
     , rest :: [Goal]
-    , upflexes :: S.Set Int
-    , downflexes :: S.Set Int
+    , upflexes :: IS.IntSet
+    , downflexes :: IS.IntSet
     }
 
 instance Show GoalClasses where
@@ -591,27 +592,27 @@ instance Show GoalClasses where
                               "\nrest:\n" ++
                               unlines (map (("  " ++) . show) (F.toList r)) ++
                               "\nflexUp:\n" ++
-                              unlines (map (("  " ++) . show) (F.toList uf)) ++
+                              unlines (map (("  " ++) . show) (IS.toList uf)) ++
                               "\nflexDown:\n" ++
-                              unlines (map (("  " ++) . show) (F.toList df))
+                              unlines (map (("  " ++) . show) (IS.toList df))
 
 instance Monoid GoalClasses where
-  Classes u d uc dc e s r fu fd `mappend` Classes u' d' uc' dc' e' s' r' fu' fd'
-    = Classes (M.unionWith (<>) u u')
-              (M.unionWith (<>) d d')
-              (M.unionWith (<>) uc uc')
-              (M.unionWith (<>) dc dc')
+  Classes u d uc dc e s r uf df `mappend` Classes u' d' uc' dc' e' s' r' uf' df'
+    = Classes (IM.unionWith (<>) u u')
+              (IM.unionWith (<>) d d')
+              (IM.unionWith (<>) uc uc')
+              (IM.unionWith (<>) dc dc')
               (e ++ e')
               (s ++ s')
               (r ++ r')
-              (S.union fu fu')
-              (S.union fd fd')
-  mempty = Classes M.empty M.empty M.empty M.empty [] [] [] mempty mempty
+              (IS.union uf uf')
+              (IS.union df df')
+  mempty = Classes IM.empty IM.empty IM.empty IM.empty [] [] [] IS.empty IS.empty
 
 
-flexesIn :: TypeFragment TCType -> S.Set Int
+flexesIn :: TypeFragment TCType -> IS.IntSet
 flexesIn = F.foldMap f
-  where f (U x) = S.singleton x
+  where f (U x) = IS.singleton x
         f (T y) = F.foldMap f y
 
 -- Break goals into their form
@@ -619,20 +620,20 @@ flexesIn = F.foldMap f
 -- Consider using auto first, or using explode instead of this function.
 classify :: Goal -> GoalClasses
 classify g = case g of
-  (Goal _ (a       :< F (U x))) | rigid a     -> mempty {ups   = M.singleton x $ GS.singleton g, downflexes = flexesIn a }
-  (Goal _ (F (U x) :< b      )) | rigid b     -> mempty {downs = M.singleton x $ GS.singleton g, upflexes   = flexesIn b }
-  (Goal _ (b `Upcastable` U x)) | rigid (F b) -> mempty {upcastables = M.singleton x $ GS.singleton g }
-  (Goal _ (U x `Upcastable` b)) | rigid (F b) -> mempty {downcastables = M.singleton x $ GS.singleton g }
+  (Goal _ (a       :< F (U x))) | rigid a     -> mempty {ups   = IM.singleton x $ GS.singleton g, downflexes = flexesIn a }
+  (Goal _ (F (U x) :< b      )) | rigid b     -> mempty {downs = IM.singleton x $ GS.singleton g, upflexes   = flexesIn b }
+  (Goal _ (b `Upcastable` U x)) | rigid (F b) -> mempty {upcastables   = IM.singleton x $ GS.singleton g }
+  (Goal _ (U x `Upcastable` b)) | rigid (F b) -> mempty {downcastables = IM.singleton x $ GS.singleton g }
   (Goal _ (Unsat _))                          -> mempty {unsats = [g]}
   (Goal _ (SemiSat _))                        -> mempty {semisats = [g]}
   (Goal _ Sat)                                -> mempty
   (Goal _ (F a :< F b)) | Just a' <- flexOf a
                         , Just b' <- flexOf b
-                        , a' /= b'            -> mempty {upflexes = S.singleton b', downflexes = S.singleton a', rest = [g]}
+                        , a' /= b'            -> mempty {upflexes = IS.singleton b', downflexes = IS.singleton a', rest = [g]}
                         | Just a' <- flexOf a
-                        , Nothing <- flexOf b -> mempty {downflexes = S.singleton a', rest = [g]}
+                        , Nothing <- flexOf b -> mempty {downflexes = IS.singleton a', rest = [g]}
                         | Just b' <- flexOf b
-                        , Nothing <- flexOf a -> mempty {upflexes = S.singleton b', rest = [g]}
+                        , Nothing <- flexOf a -> mempty {upflexes = IS.singleton b', rest = [g]}
   _                                           -> mempty {rest = [g]}
   where
     rigid (F (U x)) = False
@@ -736,8 +737,8 @@ assumption gs = do
 explode :: [Goal] -> Solver GoalClasses
 explode = assumption >=> (zoom tc . apply auto) >=> (return . foldMap classify)
 
-irreducible :: M.Map Int [Goal] -> S.Set Int -> Bool
-irreducible m ds | M.null m = True
+irreducible :: IM.IntMap [Goal] -> IS.IntSet -> Bool
+irreducible m ds | IM.null m = True
                  | xs <- F.toList m
                  = all irreducible' xs
                  | otherwise = False
@@ -746,10 +747,10 @@ irreducible m ds | M.null m = True
     irreducible' []         =  True
     irreducible' [Goal _ c]
             = case c of
-                (F a :< F b) | groundConstraint a b                  -> False
-                             | Just a' <- flexOf a, a' `S.member` ds -> True
-                             | Just b' <- flexOf b, b' `S.member` ds -> True
-                             | otherwise                             -> False
+                (F a :< F b) | groundConstraint a b                   -> False
+                             | Just a' <- flexOf a, a' `IS.member` ds -> True
+                             | Just b' <- flexOf b, b' `IS.member` ds -> True
+                             | otherwise                              -> False
                 (F (U x) :< _) -> True
                 (_ :< F (U x)) -> True
                 (_ :< _)       -> False
@@ -783,8 +784,8 @@ solve = zoom tc . crunch >=> explode >=> go
     go g | not (null (unsats g)) = return (map (\(Goal ctx (Unsat e)) -> (ctx, Left e)) (unsats g) ++ map toWarn (semisats g))
     go g | not (irreducible (fmap GS.toList $ downs g) (downflexes g)) = go' g DownClass
     go g | not (irreducible (fmap GS.toList $ ups   g) (upflexes   g)) = go' g UpClass
-    go g | not (M.null (downcastables g)) = go' g DowncastClass
-    go g | not (M.null (upcastables   g)) = go' g UpcastClass
+    go g | not (IM.null (downcastables g)) = go' g DowncastClass
+    go g | not (IM.null (upcastables   g)) = go' g UpcastClass
     go g | not (null (rest g)) = do
       os <- use flexOrigins
       return (map (\(Goal c x) -> (c, Left $ UnsolvedConstraint x os)) (rest g) ++ map toWarn (semisats g))
@@ -793,14 +794,14 @@ solve = zoom tc . crunch >=> explode >=> go
     go' :: GoalClasses -> GoalClass -> Solver [ContextualisedEW]
     go' g c = do
       let (msg, f, cls, g'', flexes) = case c of
-            UpClass       -> ("upward"  , suggest    , ups          , g { ups           = M.empty }, upflexes)
-            DownClass     -> ("downward", impose     , downs        , g { downs         = M.empty }, downflexes)
-            UpcastClass   -> ("upcast"  , suggestCast, upcastables  , g { upcastables   = M.empty }, mempty)
-            DowncastClass -> ("downcast", imposeCast , downcastables, g { downcastables = M.empty }, mempty)
+            UpClass       -> ("upward"  , suggest    , ups          , g { ups           = IM.empty }, upflexes)
+            DownClass     -> ("downward", impose     , downs        , g { downs         = IM.empty }, downflexes)
+            UpcastClass   -> ("upcast"  , suggestCast, upcastables  , g { upcastables   = IM.empty }, mempty)
+            DowncastClass -> ("downcast", imposeCast , downcastables, g { downcastables = IM.empty }, mempty)
           groundNB [Goal _ (F a :< F b)] = groundConstraint a b
           groundNB _                     = False
-      let groundKeys = M.keysSet (M.filter (groundNB . GS.toList) (cls g))
-      s <- F.fold <$> mapM (noBrainers . GS.toList) (cls g `removeKeys` S.toList (flexes g S.\\ groundKeys))
+      let groundKeys = IM.keysSet (IM.filter (groundNB . GS.toList) (cls g))
+      s <- F.fold <$> mapM (noBrainers . GS.toList) (cls g `removeKeys` IS.toList (flexes g IS.\\ groundKeys))
       traceTC "sol" (text "solve" <+> text msg <+> text "goals"
                      P.<$> bold (text "produce subst:")
                      P.<$> pretty s)
@@ -811,7 +812,7 @@ solve = zoom tc . crunch >=> explode >=> go
           applySubst s
           instantiate g >>= explode >>= go
 
-    removeKeys = foldr M.delete
+    removeKeys = foldr IM.delete
 
     toWarn (Goal ctx (SemiSat w)) = (ctx, Right w)
     toWarn _ = __impossible "toWarn (in solve)"
