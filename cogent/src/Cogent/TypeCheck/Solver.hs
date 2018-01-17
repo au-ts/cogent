@@ -609,7 +609,7 @@ instance Monoid GoalClasses where
               (IS.union df df')
   mempty = Classes IM.empty IM.empty IM.empty IM.empty [] [] [] IS.empty IS.empty
 
-
+-- Collects all flexes
 flexesIn :: TypeFragment TCType -> IS.IntSet
 flexesIn = F.foldMap f
   where f (U x) = IS.singleton x
@@ -712,7 +712,7 @@ applySubst s = substs <>= s
 instantiate :: GoalClasses -> Solver [Goal]
 instantiate (Classes ups downs upcasts downcasts errs semisats rest upfl downfl) = do
   s <- use substs
-  let al =  (GS.toList =<< (F.toList =<< [ups, downs, upcasts, downcasts]) ) ++ errs ++ semisats ++ rest
+  let al  = (GS.toList =<< (F.toList =<< [ups, downs, upcasts, downcasts]) ) ++ errs ++ semisats ++ rest
       al' = al & map (goal %~ Subst.applyC s) & map (goalContext %~ map (Subst.applyCtx s))
   -- traceTC "sol" (text "instantiate" <+> pretty (show al) P.<$> text "with substitution" P.<$> pretty s <> semi
   --                P.<$> text "end up with goals:" <+> pretty (show al'))
@@ -730,7 +730,7 @@ assumption gs = do
       isKnown (Escape (T (TVar v b)) _)
         | Just k <- lookup v axs = canEscape  (if b then bangKind k else k)
       isKnown _ = False
-  return (filter (not  . isKnown . view goal) gs)
+  return (filter (not . isKnown . view goal) gs)
 
 -- Take an assorted list of goals, and break them down into neatly classified, simple flex/rigid goals.
 -- Removes any known facts about type variables.
@@ -739,12 +739,10 @@ explode = assumption >=> (zoom tc . apply auto) >=> (return . foldMap classify)
 
 irreducible :: IM.IntMap [Goal] -> IS.IntSet -> Bool
 irreducible m ds | IM.null m = True
-                 | xs <- F.toList m
-                 = all irreducible' xs
-                 | otherwise = False
+                 | xs <- F.toList m = all irreducible' xs
   where
     irreducible' :: [Goal] -> Bool
-    irreducible' []         =  True
+    irreducible' [] = True
     irreducible' [Goal _ c]
             = case c of
                 (F a :< F b) | groundConstraint a b                   -> False
@@ -800,7 +798,7 @@ solve = zoom tc . crunch >=> explode >=> go
             DowncastClass -> ("downcast", imposeCast , downcastables, g { downcastables = IM.empty }, mempty)
           groundNB [Goal _ (F a :< F b)] = groundConstraint a b
           groundNB _                     = False
-      let groundKeys = IM.keysSet (IM.filter (groundNB . GS.toList) (cls g))
+          groundKeys = IM.keysSet (IM.filter (groundNB . GS.toList) (cls g))
       s <- F.fold <$> mapM (noBrainers . GS.toList) (cls g `removeKeys` IS.toList (flexes g IS.\\ groundKeys))
       traceTC "sol" (text "solve" <+> text msg <+> text "goals"
                      P.<$> bold (text "produce subst:")

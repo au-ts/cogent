@@ -408,7 +408,7 @@ instance Pretty (Type t) where
   pretty (TString) = typename "String"
   pretty (TUnit) = typename "()"
   pretty (TProduct t1 t2) = tupled (map pretty [t1, t2])
-  pretty (TSum alts) = variant (map (\(n,(t,_)) -> tagName n <+> pretty t) alts)  -- FIXME: cogent.1
+  pretty (TSum alts) = variant (map (\(n,(t,b)) -> tagName n L.<> prettyTaken b <+> pretty t) alts)  -- FIXME: cogent.1
   pretty (TFun t1 t2) = prettyT' t1 <+> typesymbol "->" <+> pretty t2
      where prettyT' e@(TFun {}) = parens (pretty e)
            prettyT' e           = pretty e

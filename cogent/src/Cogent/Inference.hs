@@ -50,14 +50,15 @@ import Data.Foldable (forM_)
 #if __GLASGOW_HASKELL__ < 709
 import Data.Traversable(traverse)
 #endif
-import Data.Map (Map)
+import Data.Map (keysSet, Map)
 import qualified Data.Map as M
 import Data.Monoid
 -- import Data.Monoid.Cancellative
+import qualified Data.Set as S
 import Text.PrettyPrint.ANSI.Leijen (pretty)
 import qualified Unsafe.Coerce as Unsafe (unsafeCoerce)  -- NOTE: used safely to coerce phantom types only
 
--- import Debug.Trace
+import Debug.Trace
 
 guardShow :: String -> Bool -> TC t v ()
 guardShow x b = if b then return () else TC (throwError $ "GUARD: " ++ x)
@@ -65,12 +66,19 @@ guardShow x b = if b then return () else TC (throwError $ "GUARD: " ++ x)
 guardShow' :: String -> [String] -> Bool -> TC t v ()
 guardShow' mh mb b = if b then return () else TC (throwError $ "GUARD: " ++ mh ++ "\n" ++ unlines mb)
 
-isSubtype :: Type t -> Type t -> Bool
-isSubtype (TPrim p1) (TPrim p2) = isSubtypePrim p1 p2
-isSubtype (TSum  s1) (TSum  s2) = and $ zipWith (\(c1,(t1,b1)) (c2,(t2,b2)) -> (c1,t1) == (c2,t2) && b1 >= b2) s1 s2
+isUpcastable :: Type t -> Type t -> Bool
+isUpcastable (TPrim p1) (TPrim p2) = isSubtypePrim p1 p2
+isUpcastable (TSum s1) (TSum s2) = and (flip map s1 (\(c,(t,b)) -> case lookup c s2 of Nothing -> False; Just (t',b') -> t == t' && b == b')) &&
+                                   and (flip map s2 (\(c,(t,b)) -> case lookup c s1 of Nothing -> b; Just _ -> True))  -- other tags are all taken
+isUpcastable _ _ = False
+
+isSubtype :: Type t -> Type t -> TC t v Bool
+-- isSubtype (TPrim p1) (TPrim p2) = isSubtypePrim p1 p2
+isSubtype (TSum  s1) (TSum  s2) = and <$> zipWithM (\(c1,(t1,b1)) (c2,(t2,b2)) -> ((c1 == c2 && b1 >= b2) &&) <$> t1 `isSubtype` t2) s1 s2  -- True > False
 isSubtype (TRecord r1 s1) (TRecord r2 s2) =
-  s1 == s2 && and (zipWith (\(f1,(t1,b1)) (f2,(t2,b2)) -> (f1,t1) == (f2,t2) && b1 >= b2) r1 r2)
-isSubtype a b = a == b
+  ((s1 == s2) &&) <$> 
+  (and <$> zipWithM (\(f1,(t1,b1)) (f2,(t2,b2)) -> ((f1,t1) == (f2,t2) &&) <$> (kindcheck t1 >>= \k -> return $ (k /= k1 && b1 <= b2) || b1 == b2)) r1 r2)
+isSubtype a b = return $ a == b
 
 -- ----------------------------------------------------------------------------
 -- Type reconstruction
@@ -255,7 +263,8 @@ typecheck (E (Fun f ts note))
 typecheck (E (App e1 e2))
    = do e1'@(TE (TFun ti to) _) <- typecheck e1
         e2'@(TE ti' _) <- typecheck e2
-        guardShow "app" $ ti' == ti
+        isSub <- ti' `isSubtype` ti
+        guardShow ("app (actual: " ++ show ti' ++ "; formal: " ++ show ti ++ ")") $ isSub
         return $ TE to (App e1' e2')
 typecheck (E (Let a e1 e2))
    = do e1' <- typecheck e1
@@ -295,7 +304,8 @@ typecheck (E (Case e tag (lt,at,et) (le,ae,ee)))
                    exprType et' == exprType ee'  -- promoted
         return $ TE (exprType et') (Case e' tag (lt,at,et') (le,ae,ee'))
 typecheck (E (Esac e))
-   = do e'@(TE (TSum [(_,(t,False))]) _) <- typecheck e
+   = do e'@(TE (TSum ts) _) <- typecheck e
+        let [(_, (t, False))] = filter (not . snd . snd) ts
         return $ TE t (Esac e')
 typecheck (E (Split a e1 e2))
    = do e1' <- typecheck e1
@@ -333,6 +343,6 @@ typecheck (E (Put e1 f e2))
         return $ TE (TRecord (init ++ (fn,(tau,False)):rest) s) (Put e1' f e2')  -- put it regardless
 typecheck (E (Promote ty e))
    = do (TE t e') <- typecheck e
-        guardShow "promote" $ t `isSubtype` ty
+        guardShow ("promote: " ++ show t ++ " << " ++ show ty) $ t `isUpcastable` ty
         return $ TE ty (Promote ty $ TE t e')
 

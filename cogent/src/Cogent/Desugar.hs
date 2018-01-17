@@ -409,11 +409,15 @@ desugarExpr (B.TE _ (S.Match e vs alts) l) = do
 desugarExpr (B.TE _ (S.TypeApp v ts note) _) = do
   pragmas <- view _3
   E <$> (Fun v <$> mapM desugarType (map fromJust ts) <*> pure (pragmaToNote pragmas v $ desugarNote note))  -- FIXME: fromJust
-desugarExpr (B.TE _ (S.Con c []) _) = return . E $ Con c (E Unit)
-desugarExpr (B.TE _ (S.Con c [e]) _) = E . Con c <$> desugarExpr e
-desugarExpr (B.TE (S.RT (S.TVariant ts)) (S.Con c es) l) = do
+desugarExpr (B.TE t (S.Con c [e]) _) = do
+  t'@(TSum ts) <- desugarType t
+  e' <- E . Con c <$> desugarExpr e
+  if P.length ts > 1 then let ts' = map (\(c',(t,b)) -> if c' == c then (c',(t,b)) else (c',(t,True))) ts
+                           in return (E $ Promote (TSum ts') e')
+                     else return e'   
+desugarExpr (B.TE t@(S.RT (S.TVariant ts)) (S.Con c es) l) = do
     let Just (tes, False) = M.lookup c ts
-    E . Con c <$> desugarExpr (B.TE (group tes) (S.Tuple es) l)
+    desugarExpr (B.TE t (S.Con c [B.TE (group tes) (S.Tuple es) l]) l)
   where group [] = S.RT S.TUnit
         group (t:[]) = t
         group ts = S.RT $ S.TTuple ts
@@ -440,7 +444,7 @@ desugarExpr (B.TE t (S.IntLit n) _) = return $ E . ILit n $ desugarPrimInt t
 desugarExpr (B.TE _ (S.BoolLit b) _) = return $ E $ ILit (if b then 1 else 0) Boolean
 desugarExpr (B.TE _ (S.CharLit c) _) = return $ E $ ILit (fromIntegral $ ord c) U8
 desugarExpr (B.TE _ (S.StringLit s) _) = return $ E $ SLit s
-desugarExpr (B.TE _ (S.Tuple []) _) = __impossible "desugarExpr (Tuple)"
+desugarExpr (B.TE _ (S.Tuple []) _) = return $ E Unit
 desugarExpr (B.TE _ (S.Tuple [e]) _) = __impossible "desugarExpr (Tuple)"
 desugarExpr (B.TE _ (S.Tuple (e1:e2:[])) _) | not __cogent_ftuples_as_sugar = E <$> (Tuple <$> desugarExpr e1 <*> desugarExpr e2)
 desugarExpr (B.TE t (S.Tuple (e1:e2:es)) _) | not __cogent_ftuples_as_sugar = __impossible "desugarExpr"  -- do
@@ -482,7 +486,13 @@ desugarExpr (B.TE t (S.Put e (fa@(Just (f0,_)):fas)) l) = do
   desugarExpr $ B.TE t (S.Put (B.TE t' (S.Put e [fa]) l) fas) l
 desugarExpr (B.TE t (S.Upcast e) _) = E <$> (Promote <$> desugarType t <*> desugarExpr e)
 -- desugarExpr (B.TE t (S.Widen  e) _) = E <$> (Promote <$> desugarType t <*> desugarExpr e)
-
+desugarExpr (B.TE t (S.Annot e tau) _) = desugarExpr e  -- FIXME
+desugarExpr (B.TE t (S.Con c es ) p) = __impossible "desugarExpr (Con)"
+-- = do
+--   S.RT (S.TVariant ts) <- return t
+--   let Just ([tes], False) = M.lookup c ts
+--   E . Con c <$> desugarExpr (B.TE tes (S.Tuple es) p)
+desugarExpr (B.TE _ (S.Put _ _) _) = __impossible "desugarExpr (Put)"
 
 desugarConst :: (VarName, B.TypedExpr) -> DS 'Zero 'Zero (CoreConst UntypedExpr)
 desugarConst (n,e) = (n,) <$> desugarExpr e
