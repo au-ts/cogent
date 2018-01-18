@@ -43,6 +43,7 @@ import qualified Cogent.Vec as Vec
 import Control.Applicative
 import Control.Arrow
 import Control.Monad.Except hiding (fmap, forM_)
+-- import Control.Monad.Extra (ifM)
 import Control.Monad.Reader hiding (fmap, forM_)
 import Control.Monad.State hiding (fmap, forM_)
 -- import Data.Data hiding (Refl)
@@ -52,6 +53,7 @@ import Data.Traversable(traverse)
 #endif
 import Data.Map (keysSet, Map)
 import qualified Data.Map as M
+-- import Data.Maybe (fromJust, isJust)
 import Data.Monoid
 -- import Data.Monoid.Cancellative
 import qualified Data.Set as S
@@ -77,8 +79,27 @@ isSubtype :: Type t -> Type t -> TC t v Bool
 isSubtype (TSum  s1) (TSum  s2) = and <$> zipWithM (\(c1,(t1,b1)) (c2,(t2,b2)) -> ((c1 == c2 && b1 >= b2) &&) <$> t1 `isSubtype` t2) s1 s2  -- True > False
 isSubtype (TRecord r1 s1) (TRecord r2 s2) =
   ((s1 == s2) &&) <$> 
-  (and <$> zipWithM (\(f1,(t1,b1)) (f2,(t2,b2)) -> ((f1,t1) == (f2,t2) &&) <$> (kindcheck t1 >>= \k -> return $ (k /= k1 && b1 <= b2) || b1 == b2)) r1 r2)
+    (and <$> zipWithM (\(f1,(t1,b1)) (f2,(t2,b2)) -> do b1 <- return (f1 == f2)
+                                                        b2 <- t1 `isSubtype` t2
+                                                        b3 <- (kindcheck t1 >>= \k -> return $ (k /= k1 && b1 <= b2) || b1 == b2)
+                                                        return (and [b1,b2,b3])) r1 r2)
 isSubtype a b = return $ a == b
+
+-- NOTE: have to check if the resulting type is a supertype of two inputs
+lub :: Type t -> Type t -> Type t
+lub t1@(TSum s1) t2@(TSum s2) = 
+  let m1 = M.fromList s1
+      m2 = M.fromList s2
+      s = M.unionWithKey (\c (t1,b1) (t2,b2) -> if b1 /= b2 then (t1 `lub` t2, False) else (t1 `lub` t2, b1)) m1 m2
+   in TSum $ M.toList s
+lub (TProduct t11 t12) (TProduct t21 t22) = TProduct (t11 `lub` t21) (t12 `lub` t22)
+lub (TFun t1 s1) (TFun t2 s2) = TFun (t1 `glb` t2) (s1 `lub` s2)
+lub (TRecord ts1 s1) (TRecord ts2 s2) = TRecord (zipWith (\(f1,(t1,b1)) (f2,(t2,b2)) -> (f1,(t1 `lub` t2, b1))) ts1 ts2) s1
+lub (TCon c1 ts1 s1) (TCon c2 ts2 s2) = TCon c1 (zipWith (\t1 t2 -> t1) ts1 ts2) s1
+lub t1 t2 = t1
+
+glb :: Type t -> Type t -> Type t
+glb t1 t2 = t1  -- FIXME
 
 -- ----------------------------------------------------------------------------
 -- Type reconstruction
@@ -288,10 +309,12 @@ typecheck (E (If ec et ee))
    = do ec' <- typecheck ec
         guardShow "if-1" $ exprType ec' == TPrim Boolean
         (et', ee') <- (,) <$> typecheck et <||> typecheck ee  -- have to use applicative functor, as they share the same initial env
-        guardShow' "if-2" 
-                   ["Then type:", show (pretty $ exprType et') ++ ";", "else type:", show (pretty $ exprType ee')] $ 
-                   exprType et' == exprType ee'  -- promoted
-        return $ TE (exprType et') (If ec' et' ee')
+        let tt = exprType et'
+            te = exprType ee'
+            tlub = tt `lub` te
+        isLub <- (&&) <$> tt `isSubtype` tlub <*> te `isSubtype` tlub
+        guardShow' "if-2" ["Then type:", show (pretty tt) ++ ";", "else type:", show (pretty te)] isLub
+        return $ TE tlub (If ec' et' ee')
 typecheck (E (Case e tag (lt,at,et) (le,ae,ee)))
    = do e' <- typecheck e
         let TSum ts = exprType e'
@@ -299,10 +322,12 @@ typecheck (E (Case e tag (lt,at,et) (le,ae,ee)))
             restt = TSum $ adjust tag (second $ const True) ts  -- set the tag to taken
         (et',ee') <- (,) <$>  withBinding t     (typecheck et)
                          <||> withBinding restt (typecheck ee)
-        guardShow' "case" 
-                   ["Match type:", show (pretty $ exprType et') ++ ";", "unmatch type:", show (pretty $ exprType ee')] $ 
-                   exprType et' == exprType ee'  -- promoted
-        return $ TE (exprType et') (Case e' tag (lt,at,et') (le,ae,ee'))
+        let tt = exprType et'
+            te = exprType ee'
+            tlub = tt `lub` te
+        isLub <- (&&) <$> tt `isSubtype` tlub <*> te `isSubtype` tlub
+        guardShow' "case" ["Match type:", show (pretty tt) ++ ";", "unmatch type:", show (pretty te)] isLub
+        return $ TE tlub (Case e' tag (lt,at,et') (le,ae,ee'))
 typecheck (E (Esac e))
    = do e'@(TE (TSum ts) _) <- typecheck e
         let [(_, (t, False))] = filter (not . snd . snd) ts
@@ -339,7 +364,7 @@ typecheck (E (Put e1 f e2))
         k <- kindcheck tau
         when (not taken) $ guardShow "put-2" $ canDiscard k  -- if it's not taken, then it has to be discardable; if taken, then just put
         e2' <- typecheck e2
-        guardShow "put-3" $ exprType e2' == tau
+        guardShow "put-3" =<< exprType e2' `isSubtype` tau
         return $ TE (TRecord (init ++ (fn,(tau,False)):rest) s) (Put e1' f e2')  -- put it regardless
 typecheck (E (Promote ty e))
    = do (TE t e') <- typecheck e
