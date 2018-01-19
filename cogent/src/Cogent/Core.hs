@@ -99,6 +99,7 @@ data Expr t v a e
   | Take (a, a) (e t v a) FieldIndex (e t ('Suc ('Suc v)) a)
   | Put (e t v a) FieldIndex (e t v a)
   | Promote (Type t) (e t v a)
+  | Cast (Type t) (e t v a)
 deriving instance (Show a, Show (e t v a), Show (e t ('Suc ('Suc v)) a), Show (e t ('Suc v) a)) => Show (Expr t v a e)
   -- constraint no smaller than header, thus UndecidableInstances
 
@@ -183,6 +184,7 @@ traverseE f (Member rec fld)     = Member <$> (f rec) <*> pure fld
 traverseE f (Take a rec fld e)   = Take a <$> (f rec) <*> pure fld <*> (f e)
 traverseE f (Put rec fld v)      = Put <$> (f rec) <*> pure fld <*> (f v)
 traverseE f (Promote ty e)       = Promote ty <$> (f e)
+traverseE f (Cast ty e)          = Cast ty <$> (f e)
 
 -- pre-order fold over Expr wrapper
 foldEPre :: (Monoid b) => (forall t v. e1 t v a -> Expr t v a e1) -> (forall t v. e1 t v a -> b) -> e1 t v a -> b
@@ -207,6 +209,7 @@ foldEPre unwrap f e = case unwrap e of
   (Take _ e1 _ e2)    -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
   (Put e1 _ e2)       -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
   (Promote _ e1)      -> f e `mappend` foldEPre unwrap f e1
+  (Cast _ e1)         -> f e `mappend` foldEPre unwrap f e1
 
 fmapE :: (forall t v. e1 t v a -> e2 t v a) -> Expr t v a e1 -> Expr t v a e2
 fmapE f (Variable v)         = Variable v
@@ -229,6 +232,7 @@ fmapE f (Member rec fld)     = Member (f rec) fld
 fmapE f (Take a rec fld e)   = Take a (f rec) fld (f e)
 fmapE f (Put rec fld v)      = Put (f rec) fld (f v)
 fmapE f (Promote ty e)       = Promote ty (f e)
+fmapE f (Cast ty e)          = Cast ty (f e)
 
 untypeE :: TypedExpr t v a -> UntypedExpr t v a
 untypeE (TE _ e) = E $ fmapE untypeE e
@@ -259,6 +263,7 @@ instance (Functor (e t v), Functor (e t ('Suc v)), Functor (e t ('Suc ('Suc v)))
   fmap f (Flip (Take a rec fld e)   ) = Flip $ Take ((f *** f) a) (fmap f rec) fld (fmap f e)
   fmap f (Flip (Put rec fld v)      ) = Flip $ Put (fmap f rec) fld (fmap f v)
   fmap f (Flip (Promote ty e)       ) = Flip $ Promote ty (fmap f e)
+  fmap f (Flip (Cast ty e)          ) = Flip $ Cast ty (fmap f e)
 
 instance Functor (TypedExpr t v) where
   fmap f (TE t e) = TE t $ ffmap f e
@@ -326,6 +331,7 @@ levelE (Member {}) = 0
 levelE (Take {}) = 0
 levelE (Put {}) = 1
 levelE (Promote {}) = 0
+levelE (Cast {}) = 0
 levelE _ = 100
 
 class Pretty a => PrettyP a where
@@ -394,6 +400,7 @@ instance (Pretty a, PrettyP (e t v a), Pretty (e t ('Suc v) a), Pretty (e t ('Su
                                        keyword "in" <+> pretty e)
   pretty (Put rec f v) = prettyP 1 rec <+> record [fieldIndex f <+> symbol "=" <+> pretty v]
   pretty (Promote t e) = prettyP 1 e <+> symbol "::" <+> pretty t
+  pretty (Cast t e) = prettyP 1 e <+> symbol ":::" <+> pretty t
 
 instance Pretty FunNote where
   pretty NoInline = empty

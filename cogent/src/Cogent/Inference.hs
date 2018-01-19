@@ -68,15 +68,18 @@ guardShow x b = if b then return () else TC (throwError $ "GUARD: " ++ x)
 guardShow' :: String -> [String] -> Bool -> TC t v ()
 guardShow' mh mb b = if b then return () else TC (throwError $ "GUARD: " ++ mh ++ "\n" ++ unlines mb)
 
-isUpcastable :: Type t -> Type t -> Bool
-isUpcastable (TPrim p1) (TPrim p2) = isSubtypePrim p1 p2
-isUpcastable (TSum s1) (TSum s2) = and (flip map s1 (\(c,(t,b)) -> case lookup c s2 of Nothing -> False; Just (t',b') -> t == t' && b == b')) &&
-                                   and (flip map s2 (\(c,(t,b)) -> case lookup c s1 of Nothing -> b; Just _ -> True))  -- other tags are all taken
-isUpcastable _ _ = False
+-- Types that don't have the same representation / don't satisfy subtyping.
+isUpcastable :: Type t -> Type t -> TC t v Bool
+isUpcastable (TPrim p1) (TPrim p2) = return $ isSubtypePrim p1 p2
+isUpcastable (TSum s1) (TSum s2) = do
+  b1 <- and <$> forM s1 (\(c,(t,b)) -> case lookup c s2 of Nothing -> return False; Just (t',b') -> (&&) <$> t `isSubtype` t' <*> pure (b == b'))
+  b2 <- and <$> forM s2 (\(c,(t,b)) -> return $ case lookup c s1 of Nothing -> b; Just _ -> True)  -- other tags are all taken
+  return $ b1 && b2
+isUpcastable _ _ = return False
 
 isSubtype :: Type t -> Type t -> TC t v Bool
 -- isSubtype (TPrim p1) (TPrim p2) = isSubtypePrim p1 p2
-isSubtype (TSum  s1) (TSum  s2) = and <$> zipWithM (\(c1,(t1,b1)) (c2,(t2,b2)) -> ((c1 == c2 && b1 >= b2) &&) <$> t1 `isSubtype` t2) s1 s2  -- True > False
+isSubtype (TSum s1) (TSum s2) = and <$> zipWithM (\(c1,(t1,b1)) (c2,(t2,b2)) -> ((c1 == c2 && b1 >= b2) &&) <$> t1 `isSubtype` t2) s1 s2  -- True > False
 isSubtype (TRecord r1 s1) (TRecord r2 s2) =
   ((s1 == s2) &&) <$> 
     (and <$> zipWithM (\(f1,(t1,b1)) (f2,(t2,b2)) -> do b1 <- return (f1 == f2)
@@ -330,8 +333,11 @@ typecheck (E (Case e tag (lt,at,et) (le,ae,ee)))
         return $ TE tlub (Case e' tag (lt,at,et') (le,ae,ee'))
 typecheck (E (Esac e))
    = do e'@(TE (TSum ts) _) <- typecheck e
-        let [(_, (t, False))] = filter (not . snd . snd) ts
-        return $ TE t (Esac e')
+        let t1 = filter (not . snd . snd) ts
+        case t1 of
+          [(_, (t, False))] -> return $ TE t (Esac e')
+          _ -> do guardShow ("esac (t1 = " ++ show t1 ++ ")") $ False
+                  __impossible ""
 typecheck (E (Split a e1 e2))
    = do e1' <- typecheck e1
         let (TProduct t1 t2) = exprType e1'
@@ -366,8 +372,12 @@ typecheck (E (Put e1 f e2))
         e2' <- typecheck e2
         guardShow "put-3" =<< exprType e2' `isSubtype` tau
         return $ TE (TRecord (init ++ (fn,(tau,False)):rest) s) (Put e1' f e2')  -- put it regardless
+typecheck (E (Cast ty e))
+   = do (TE t e') <- typecheck e
+        guardShow ("cast: " ++ show t ++ " <<< " ++ show ty) =<< t `isUpcastable` ty
+        return $ TE ty (Cast ty $ TE t e')
 typecheck (E (Promote ty e))
    = do (TE t e') <- typecheck e
-        guardShow ("promote: " ++ show t ++ " << " ++ show ty) $ t `isUpcastable` ty
+        guardShow ("promote: " ++ show t ++ " << " ++ show ty) =<< t `isSubtype` ty
         return $ TE ty (Promote ty $ TE t e')
 

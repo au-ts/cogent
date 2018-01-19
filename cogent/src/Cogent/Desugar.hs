@@ -251,7 +251,7 @@ desugarAlt' (B.TE t e0 l) (S.PCon tag ps) e =  -- B2)
                                                           -- but hopefully they will after e0 gets desugared
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PVar v) _)) e =
   E <$> (Let (fst v) <$> desugarExpr e0 <*> (withBinding (fst v) $ desugarExpr e))
-desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple []) _)) e = __impossible "desugarAlt' (Tuple-1)"
+desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple []) p)) e = desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PUnitel) p)) e
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple [irf]) _)) e = __impossible "desugarAlt' (Tuple-2)"
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple [B.TIP (S.PVar tn1) _, B.TIP (S.PVar tn2) _]) _)) e
   | not __cogent_ftuples_as_sugar =
@@ -413,8 +413,8 @@ desugarExpr (B.TE t (S.Con c [e]) _) = do
   t'@(TSum ts) <- desugarType t
   e' <- E . Con c <$> desugarExpr e
   if P.length ts > 1 then let ts' = map (\(c',(t,b)) -> if c' == c then (c',(t,b)) else (c',(t,True))) ts
-                           in return (E $ Promote (TSum ts') e')
-                     else return e'   
+                           in return (E $ Cast (TSum ts') e')
+                     else return e'
 desugarExpr (B.TE t@(S.RT (S.TVariant ts)) (S.Con c es) l) = do
     let Just (tes, False) = M.lookup c ts
     desugarExpr (B.TE t (S.Con c [B.TE (group tes) (S.Tuple es) l]) l)
@@ -484,9 +484,9 @@ desugarExpr (B.TE t (S.Put e (fa@(Just (f0,_)):fas)) l) = do
       fs' = map (\ft@(f,(t,b)) -> if f == f0 then (f,(t,False)) else ft) fs
       t' = S.RT (S.TRecord fs' s)
   desugarExpr $ B.TE t (S.Put (B.TE t' (S.Put e [fa]) l) fas) l
-desugarExpr (B.TE t (S.Upcast e) _) = E <$> (Promote <$> desugarType t <*> desugarExpr e)
--- desugarExpr (B.TE t (S.Widen  e) _) = E <$> (Promote <$> desugarType t <*> desugarExpr e)
-desugarExpr (B.TE t (S.Annot e tau) _) = desugarExpr e  -- FIXME
+desugarExpr (B.TE t (S.Upcast e) _) = E <$> (Cast <$> desugarType t <*> desugarExpr e)
+-- desugarExpr (B.TE t (S.Widen  e) _) = E <$> (Cast <$> desugarType t <*> desugarExpr e)
+desugarExpr (B.TE t (S.Annot e tau) _) = E <$> (Promote <$> desugarType tau <*> desugarExpr e)  -- FIXME
 desugarExpr (B.TE t (S.Con c es ) p) = __impossible "desugarExpr (Con)"
 -- = do
 --   S.RT (S.TVariant ts) <- return t
