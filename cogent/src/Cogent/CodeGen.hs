@@ -906,7 +906,7 @@ genExpr mv (TE t (Struct fs)) = do
   (v,vdecl,ass,vp) <- flip (maybeInitCL mv t') (mergePools eps) $ CCompLit t' $
                         P.zip (map ((:[]) . CDesignFld) ns) (map CInitE es')
   return (v, concat decls ++ vdecl, concat stms ++ ass, vp)
-genExpr mv (TE t (Con tag e)) = do
+genExpr mv (TE t (Con tag e tau)) = do  -- `tau' and `t' should be compatible
   (e',edecl,estm,ep) <- genExpr_ e
   t' <- genType t
   (v,vdecl,ass,vp) <- flip (maybeInitCL mv t') ep $ CCompLit t' $ map (map CDesignFld *** CInitE)
@@ -936,7 +936,7 @@ genExpr mv (TE t (If c e1 e2)) = do
                 else CBIStmt $ CIfStmt (mkStr3 c' boolField) (CBlock e1stm) (CBlock e2stm)
   recycleVars (mergePools [cp, intersectPools e1p e2p])
   return (variable v, vdecl ++ cdecl ++ e1decl ++ e2decl, vstm ++ cstm ++ [ifstm], M.empty)
-genExpr mv (TE t (Case e tag (l1,_,e1) (l2,_,e2))) = do  -- NOTE: likelihood `l2' unused because it has become binary / zilinc
+genExpr mv (TE t (Case e tag (l1,_,e1) (_,_,e2))) = do  -- NOTE: likelihood `l2' unused because it has become binary / zilinc
   (v,vdecl,vstm) <- case mv of
     Nothing -> (declare =<< genType t)
     Just v  -> return (v,[],[])
@@ -952,26 +952,21 @@ genExpr mv (TE t (Case e tag (l1,_,e1) (l2,_,e2))) = do  -- NOTE: likelihood `l2
   pool1 <- use varPool
   varPool .= pool0
   -- NOTE: create a smaller Enum, copy over everything / zilinc
-  restt <- genType $ TSum $ filter (\al -> fst al /= tag) altys
-  (rest',restdecl,reststm) <- case __cogent_fshare_variants of
-     False -> (first3 variable) <$> (declareG restt $ Just $ CInitList $ map ((:[]) . CDesignFld &&& CInitE . mkStr3 e'') (fieldTag:tags))
-     True  -> return (e'',[],[])
-  (rest'',restdecl',reststm',restp') <- aNewVar restt rest' M.empty
-  (e2',e2decl,e2stm,e2p) <- withBindings (Cons rest'' Nil) $ genExpr (if __cogent_fintermediate_vars then Nothing else Just v) e2
+  (e2',e2decl,e2stm,e2p) <- withBindings (Cons e'' Nil) $ genExpr (if __cogent_fintermediate_vars then Nothing else Just v) e2
   pool2 <- use varPool
   varPool .= intersectPools pool1 pool2
   let macro1 = likelihood l1
       -- XXX | macro2 = likelihood l2
       ifstm = if __cogent_fintermediate_vars
                 then CBIStmt $ CIfStmt (macro1 cnd) (CBlock $ v1stm ++ e1stm ++ [assign1 (variable v) e1'])
-                                                    (CBlock $ reststm ++ reststm' ++ e2stm ++ [assign1 (variable v) e2'])
-                else CBIStmt $ CIfStmt (macro1 cnd) (CBlock $ v1stm ++ e1stm) (CBlock $ reststm ++ reststm' ++ e2stm)
-  recycleVars (mergePools [ep', intersectPools (mergePools [v1p,e1p]) (mergePools [restp',e2p])])
-  return (variable v, vdecl ++ edecl ++ edecl' ++ v1decl ++ e1decl ++ restdecl ++ restdecl' ++ e2decl, vstm ++ estm ++ estm' ++ [ifstm], M.empty)
+                                                    (CBlock $ e2stm ++ [assign1 (variable v) e2'])
+                else CBIStmt $ CIfStmt (macro1 cnd) (CBlock $ v1stm ++ e1stm) (CBlock e2stm)
+  recycleVars (mergePools [ep', intersectPools (mergePools [v1p,e1p]) e2p])
+  return (variable v, vdecl ++ edecl ++ edecl' ++ v1decl ++ e1decl ++ e2decl, vstm ++ estm ++ estm' ++ [ifstm], M.empty)
 genExpr mv (TE _ (Esac e)) = do
   (e',edecl,estm,ep) <- genExpr_ e
   let TSum alts = exprType e
-      [(tag,(_,_))] = filter (not . snd . snd) alts
+      [(tag,(_,False))] = filter (not . snd . snd) alts
   (v,ass,vp) <- flip (maybeAssign mv) ep $ mkStr3 e' tag
   return (v, edecl, estm ++ ass, vp)
 genExpr mv (TE t (Split _ e1 e2)) = do
@@ -989,14 +984,10 @@ genExpr mv (TE t (Split _ e1 e2)) = do
   -- XXX | NOTE: It's an optimisation here, we no more generate new variables / zilinc
   -- XXX | (e2',e2stm) <- withBindings (fromJust $ cvtFromList (SSuc $ SSuc SZero) [mkStr3 e1' p1, mkStr3 e1' p2]) $ genExpr mv e2
   -- XXX | return (e2', e1stm ++ e2stm)
-genExpr mv (TE t (Promote _ (TE _ (Con tag e)))) = do  -- a special case
-  (e',e1decl,estm,ep) <- genExpr_ e
-  t' <- genType t
-  (v,vdecl,ass,vp) <- flip (maybeInitCL mv t') ep $ CCompLit t' $
-                        [([CDesignFld fieldTag], CInitE $ variable (tagEnum tag)), ([CDesignFld tag], CInitE e')]
-  return (v, e1decl ++ vdecl, estm ++ ass, vp)
-genExpr mv (TE t (Promote _ e))
+genExpr mv (TE t (Promote _ e)) = genExpr mv e
+genExpr mv (TE t (Cast _ e))
   | et@(TSum alts) <- exprType e = do  -- width subtyping
+      __impossible "cast"
       let tags = L.map fst alts
       (e',edecl,estm,ep) <- genExpr_ e
       (e'',edecl',estm',ep') <- flip3 aNewVar ep e' =<< genType et

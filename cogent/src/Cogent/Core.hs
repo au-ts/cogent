@@ -83,7 +83,7 @@ data Expr t v a e
   | Fun FunName [Type t] FunNote  -- here do we want to keep partial application and infer again? / zilinc
   | Op Op [e t v a]
   | App (e t v a) (e t v a)
-  | Con TagName (e t v a)
+  | Con TagName (e t v a) (Type t)
   | Unit
   | ILit Integer PrimInt
   | SLit String
@@ -98,8 +98,8 @@ data Expr t v a e
   | Member (e t v a) FieldIndex
   | Take (a, a) (e t v a) FieldIndex (e t ('Suc ('Suc v)) a)
   | Put (e t v a) FieldIndex (e t v a)
-  | Promote (Type t) (e t v a)
-  | Cast (Type t) (e t v a)
+  | Promote (Type t) (e t v a)  -- only for guiding the tc. rep. unchanged.
+  | Cast (Type t) (e t v a)  -- only for integer casts. rep. changed
 deriving instance (Show a, Show (e t v a), Show (e t ('Suc ('Suc v)) a), Show (e t ('Suc v) a)) => Show (Expr t v a e)
   -- constraint no smaller than header, thus UndecidableInstances
 
@@ -168,7 +168,7 @@ traverseE f (Variable v)         = pure $ Variable v
 traverseE f (Fun fn tys nt)      = pure $ Fun fn tys nt
 traverseE f (Op opr es)          = Op opr <$> traverse f es
 traverseE f (App e1 e2)          = App <$> f e1 <*> f e2
-traverseE f (Con cn e)           = Con cn <$> f e
+traverseE f (Con cn e t)         = Con cn <$> f e <*> pure t
 traverseE f (Unit)               = pure $ Unit
 traverseE f (ILit i pt)          = pure $ ILit i pt
 traverseE f (SLit s)             = pure $ SLit s
@@ -193,7 +193,7 @@ foldEPre unwrap f e = case unwrap e of
   Fun{}               -> f e
   (Op _ es)           -> mconcat $ f e : map (foldEPre unwrap f) es
   (App e1 e2)         -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
-  (Con _ e1)          -> f e `mappend` foldEPre unwrap f e1
+  (Con _ e1 _)        -> f e `mappend` foldEPre unwrap f e1
   Unit                -> f e
   ILit{}              -> f e
   SLit{}              -> f e
@@ -216,7 +216,7 @@ fmapE f (Variable v)         = Variable v
 fmapE f (Fun fn tys nt)      = Fun fn tys nt
 fmapE f (Op opr es)          = Op opr (map f es)
 fmapE f (App e1 e2)          = App (f e1) (f e2)
-fmapE f (Con cn e)           = Con cn (f e)
+fmapE f (Con cn e t)         = Con cn (f e) t
 fmapE f (Unit)               = Unit
 fmapE f (ILit i pt)          = ILit i pt
 fmapE f (SLit s)             = SLit s
@@ -247,7 +247,7 @@ instance (Functor (e t v), Functor (e t ('Suc v)), Functor (e t ('Suc ('Suc v)))
   fmap f (Flip (Fun fn tys nt)      ) = Flip $ Fun fn tys nt
   fmap f (Flip (Op opr es)          ) = Flip $ Op opr (map (fmap f) es)
   fmap f (Flip (App e1 e2)          ) = Flip $ App (fmap f e1) (fmap f e2)
-  fmap f (Flip (Con cn e)           ) = Flip $ Con cn (fmap f e)
+  fmap f (Flip (Con cn e t)         ) = Flip $ Con cn (fmap f e) t
   fmap f (Flip (Unit)               ) = Flip $ Unit
   fmap f (Flip (ILit i pt)          ) = Flip $ ILit i pt
   fmap f (Flip (SLit s)             ) = Flip $ SLit s
@@ -384,7 +384,7 @@ instance (Pretty a, PrettyP (e t v a), Pretty (e t ('Suc v) a), Pretty (e t ('Su
   pretty (Unit) = tupled []
   pretty (Tuple e1 e2) = tupled (map pretty [e1, e2])
   pretty (Struct fs) = symbol "#" L.<> record (map (\(n,e) -> fieldName n <+> symbol "=" <+> pretty e) fs)
-  pretty (Con tn e) = tagName tn <+> prettyP 1 e
+  pretty (Con tn e t) = parens (tagName tn <+> prettyP 1 e) <+> symbol "::" <+> pretty t
   pretty (If c t e) = group . align $ (keyword "if" <+> pretty c
                                        L.<$> indent (keyword "then" </> align (pretty t))
                                        L.<$> indent (keyword "else" </> align (pretty e)))

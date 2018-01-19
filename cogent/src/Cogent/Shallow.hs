@@ -193,11 +193,11 @@ shallowExpr (TE _ (Variable (_,v))) = pure $ mkId (snm v)
 shallowExpr (TE _ (Fun fn ts _)) = pure $ mkId (snm fn)  -- only prints the fun name
 shallowExpr (TE _ (Op opr es)) = shallowPrimOp <$> pure opr <*> (mapM shallowExpr es)
 shallowExpr (TE _ (App f arg)) = mkApp <$> shallowExpr f <*> (mapM shallowExpr [arg])
-shallowExpr (TE t (Con cn e))  = do
+shallowExpr (TE t (Con cn e _))  = do
   tn <- findTypeSyn t
   econ <- mkApp <$> pure (mkStr [tn,".",cn]) <*> (mapM shallowExpr [e])
   TermWithType econ <$> shallowType t
-shallowExpr (TE t (Promote ty (TE _ (Con cn e)))) = shallowExpr (TE t (Con cn e))
+shallowExpr (TE t (Promote ty (TE _ (Con cn e _)))) = shallowExpr (TE t (Con cn e ty))
 shallowExpr (TE _ (Promote ty@(TPrim _) e)) = shallowPromote (__impossible "shallowExpr") ty e
 shallowExpr (TE _ (Promote ty e)) = findTypeSyn ty >>= \tn -> shallowPromote tn ty e
 shallowExpr (TE t (Struct fs)) = shallowMaker t fs
@@ -557,7 +557,7 @@ scorresCaseExpr m = CC.foldEPre unwrap scorresCaseExpr'
       , Just bt' <- M.lookup btstr m
       , Just st' <- M.lookup ststr m
       = S.singleton $ SCPromote bt' st' vs
-    scorresCaseExpr' (TE bt e'@(Con tag e))
+    scorresCaseExpr' (TE bt e'@(Con tag e _))
       | (tstr@(VariantStr vs):_) <- toTypeStr bt
       , Just bt' <- M.lookup tstr m
       = S.singleton $ SCCN tag bt'

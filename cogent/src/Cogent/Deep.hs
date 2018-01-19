@@ -119,12 +119,12 @@ deepExpr mod ta defs (TE _ (Fun fn ts _))
 deepExpr mod ta defs (TE _ (Op opr es)) = mkApp (mkId "Prim") [deepPrimOp opr (let TPrim pt = exprType $ head es in pt),
                                                                mkList (map (deepExpr mod ta defs) es)]
 deepExpr mod ta defs (TE _ (App f arg)) = mkApp (mkId "App") [deepExpr mod ta defs f, deepExpr mod ta defs arg]
-deepExpr mod ta defs (TE (TSum alts) (Con cn e)) = mkApp (mkId "Con") [mkList t', mkString cn, deepExpr mod ta defs e]
+deepExpr mod ta defs (TE (TSum alts) (Con cn e _)) = mkApp (mkId "Con") [mkList t', mkString cn, deepExpr mod ta defs e]
   where t' = map (\(c,(ty,_)) -> mkPair (mkString c) (deepType mod ta ty)) alts  -- FIXME: cogent.1
-deepExpr _ _ _ (TE _ (Con _ _)) = __impossible "deepExpr"
+deepExpr _ _ _ (TE _ (Con _ _ _)) = __impossible "deepExpr"
 deepExpr mod ta defs (TE _ (Promote ty e))
   | TE (TPrim pt) _ <- e, TPrim pt' <- ty, pt /= Boolean = mkApp (mkId "Cast") [deepNumType pt', deepExpr mod ta defs e]  -- primInt cast
-  | TE (TSum _) (Con cn v) <- e, TSum as <- ty =
+  | TE (TSum _) (Con cn v _) <- e, TSum as <- ty =
       mkApp (mkId "Con") [mkList $ map (\(an,(at,_)) -> mkPair (mkString an) (deepType mod ta at)) as, mkString cn, deepExpr mod ta defs v]  -- inlined Con  -- FIXME: cogent.1
   | TSum as <- ty = mkApp (mkId "Promote") [mkList $ map (\(an,(at,_)) -> mkPair (mkString an) (deepType mod ta at)) as, deepExpr mod ta defs e]  -- FIMXE: cogent.1
   | otherwise = __impossible "deepExpr"

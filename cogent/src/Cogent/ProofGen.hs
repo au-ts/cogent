@@ -259,7 +259,7 @@ typing xi k (EE _ (Promote ty e) env)
     typing xi k e,                 -- Ξ, K, Γ ⊢ e : TPrim (Num τ)
     return [simp]                  -- upcast_valid τ τ'
     ]
-  | EE (TSum _) (Con cn v) _ <- e, TSum as <- ty = typing xi k (EE (TSum as) (Con cn v) env) -- inlined Con
+  | EE (TSum _) (Con cn v t) _ <- e, TSum as <- ty = typing xi k (EE (TSum as) (Con cn v t) env) -- inlined Con
   | TSum as <- ty = tacSequence [
     return [rule "typing_prom"], -- Ξ, K, Γ ⊢ Promote ts' e : TSum ts'
     typing xi k e,                 -- Ξ, K, Γ ⊢ e : TSum ts
@@ -324,7 +324,7 @@ typing xi k (EE (TPrim t) (Op o es) env) = tacSequence [
   typingAll xi k env es           -- Ξ, K, Γ ⊢* args : ts'
   ]
 
-typing xi k (EE (TSum ts) (Con tag e) env) = tacSequence [
+typing xi k (EE (TSum ts) (Con tag e t) env) = tacSequence [
   return [rule "typing_con"], -- Ξ, K, Γ ⊢ Con ts tag x : TSum ts if
   typing xi k e,                 -- Ξ, K, Γ ⊢ x : t
   return [simp],                 -- (tag,t) ∈ set ts

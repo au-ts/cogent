@@ -43,8 +43,9 @@ isAtom (E (Fun fn ts _)) = True
 isAtom (E (Op opr es)) | and (map isVar es) = True
 isAtom (E (App (E (Fun fn ts _)) arg)) | isVar arg = True
 isAtom (E (App f arg)) | isVar f && isVar arg = True
-isAtom (E (Con cn x)) | isVar x = True
+isAtom (E (Con cn x _)) | isVar x = True
 isAtom (E (Promote t e)) | isVar e = True
+isAtom (E (Cast t e)) | isVar e = True
 isAtom (E (Struct fs)) | and (map (isVar . snd) fs) = True
 isAtom (E (Member rec f)) | isVar rec = True
 isAtom (E Unit) = True
@@ -117,7 +118,7 @@ normalise v e@(E (App f arg)) k
       normaliseName (sadd v n) (upshiftExpr n v f0 arg) $ \n' arg' ->
         withAssoc v n n' $ \Refl ->
           k (sadd n n') ((E $ App (upshiftExpr n' (sadd v n) f0 f') arg'))
-normalise v (E (Con cn e)) k = normaliseName v e $ \n e' -> k n (E $ Con cn e')
+normalise v (E (Con cn e t)) k = normaliseName v e $ \n e' -> k n (E $ Con cn e' t)
 normalise v e@(E (Unit)) k = k s0 e
 normalise v e@(E (ILit {})) k = k s0 e
 normalise v e@(E (SLit {})) k = k s0 e
@@ -177,6 +178,7 @@ normalise v (E (Put rec fld e)) k
     k (sadd n n') (E $ Put (upshiftExpr n' (sadd v n) f0 rec') fld e')
 normalise v (E (Member rec fld)) k = normaliseName v rec $ \n rec' -> k n (E $ Member rec' fld)
 normalise v (E (Promote ty e)) k = normaliseName v e $ \n e' -> k n (E $ Promote ty e')
+normalise v (E (Cast ty e)) k = normaliseName v e $ \n e' -> k n (E $ Cast ty e')
 normalise v (E (Op opr es)) k = normaliseNames v es $ \n es' -> k n (E $ Op opr es')
 normalise v (E (Struct fs)) k = let (ns,es) = P.unzip fs in normaliseNames v es $ \n es' -> k n (E $ Struct $ P.zip ns es')
 
@@ -233,7 +235,7 @@ insertIdxAt cut (E e) = E $ insertIdxAt' cut e
     insertIdxAt' cut (Fun fn ty nt) = Fun fn ty nt
     insertIdxAt' cut (Op opr es) = Op opr $ map (insertIdxAt cut) es
     insertIdxAt' cut (App e1 e2) = App (insertIdxAt cut e1) (insertIdxAt cut e2)
-    insertIdxAt' cut (Con tag e) = Con tag (insertIdxAt cut e)
+    insertIdxAt' cut (Con tag e t) = Con tag (insertIdxAt cut e) t
     insertIdxAt' cut (Unit) = Unit
     insertIdxAt' cut (ILit n pt) = ILit n pt
     insertIdxAt' cut (SLit s) = SLit s
@@ -250,6 +252,7 @@ insertIdxAt cut (E e) = E $ insertIdxAt' cut e
     insertIdxAt' cut (Take a rec fld e) = Take a (insertIdxAt cut rec) fld (insertIdxAt (FSuc (FSuc cut)) e)
     insertIdxAt' cut (Put rec fld e) = Put (insertIdxAt cut rec) fld (insertIdxAt cut e)
     insertIdxAt' cut (Promote ty e) = Promote ty (insertIdxAt cut e)
+    insertIdxAt' cut (Cast ty e) = Cast ty (insertIdxAt cut e)
 
 isCondition :: UntypedExpr t v a -> Bool
 isCondition (E (If {})) = True

@@ -411,10 +411,9 @@ desugarExpr (B.TE _ (S.TypeApp v ts note) _) = do
   E <$> (Fun v <$> mapM desugarType (map fromJust ts) <*> pure (pragmaToNote pragmas v $ desugarNote note))  -- FIXME: fromJust
 desugarExpr (B.TE t (S.Con c [e]) _) = do
   t'@(TSum ts) <- desugarType t
-  e' <- E . Con c <$> desugarExpr e
-  if P.length ts > 1 then let ts' = map (\(c',(t,b)) -> if c' == c then (c',(t,b)) else (c',(t,True))) ts
-                           in return (E $ Cast (TSum ts') e')
-                     else return e'
+  e' <- desugarExpr e
+  let ts' = map (\(c',(t,b)) -> if c' == c then (c',(t,b)) else (c',(t,True))) ts
+  return (E $ Con c e' (TSum ts'))  -- the smallest type for `Con c [e]', which should be a subtype of `t'
 desugarExpr (B.TE t@(S.RT (S.TVariant ts)) (S.Con c es) l) = do
     let Just (tes, False) = M.lookup c ts
     desugarExpr (B.TE t (S.Con c [B.TE (group tes) (S.Tuple es) l]) l)
@@ -487,7 +486,7 @@ desugarExpr (B.TE t (S.Put e (fa@(Just (f0,_)):fas)) l) = do
 desugarExpr (B.TE t (S.Upcast e) _) = E <$> (Cast <$> desugarType t <*> desugarExpr e)
 -- desugarExpr (B.TE t (S.Widen  e) _) = E <$> (Cast <$> desugarType t <*> desugarExpr e)
 desugarExpr (B.TE t (S.Annot e tau) _) = E <$> (Promote <$> desugarType tau <*> desugarExpr e)  -- FIXME
-desugarExpr (B.TE t (S.Con c es ) p) = __impossible "desugarExpr (Con)"
+desugarExpr (B.TE t (S.Con c es) p) = __impossible "desugarExpr (Con)"
 -- = do
 --   S.RT (S.TVariant ts) <- return t
 --   let Just ([tes], False) = M.lookup c ts

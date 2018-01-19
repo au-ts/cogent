@@ -165,7 +165,7 @@ monoExpr (TE t e) = TE <$> monoType t <*> monoExpr' e
       return $ Fun (monoName fn idx) [] nt  -- used to be tys'
     monoExpr' (Op      opr es     ) = Op opr <$> mapM monoExpr es
     monoExpr' (App     e1 e2      ) = App <$> monoExpr e1 <*> monoExpr e2
-    monoExpr' (Con     tag e      ) = Con tag <$> monoExpr e
+    monoExpr' (Con     tag e t    ) = Con tag <$> monoExpr e <*> monoType t
     monoExpr' (Unit               ) = pure Unit
     monoExpr' (ILit    n   pt     ) = pure $ ILit n pt
     monoExpr' (SLit    s          ) = pure $ SLit s
@@ -181,6 +181,7 @@ monoExpr (TE t e) = TE <$> monoType t <*> monoExpr' e
     monoExpr' (Take    a rec fld e) = Take a <$> monoExpr rec <*> pure fld <*> monoExpr e
     monoExpr' (Put     rec fld e  ) = Put  <$> monoExpr rec <*> pure fld <*> monoExpr e
     monoExpr' (Promote ty e       ) = Promote <$> monoType ty <*> monoExpr e
+    monoExpr' (Cast    ty e       ) = Cast <$> monoType ty <*> monoExpr e
 
 monoType :: Type t -> Mono (Type 'Zero)
 monoType (TVar v) = atList <$> ask <*> pure v

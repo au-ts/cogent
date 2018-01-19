@@ -125,7 +125,7 @@ markOcc sv (TE tau (Fun fn ts note)) = do
   return . TE tau $ Fun fn ts note
 markOcc sv (TE tau (Op opr es)) = TE tau . Op opr <$> mapM (markOcc sv) es
 markOcc sv (TE tau (App f e)) = TE tau <$> (App <$> markOcc sv f <*> markOcc sv e)
-markOcc sv (TE tau (Con tag e)) = TE tau <$> (Con tag <$> markOcc sv e)
+markOcc sv (TE tau (Con tag e t)) = TE tau <$> (Con tag <$> markOcc sv e <*> pure t)
 markOcc sv (TE tau (Unit)) = return $ TE tau Unit
 markOcc sv (TE tau (ILit n pt)) = return $ TE tau (ILit n pt)
 markOcc sv (TE tau (SLit s)) = return $ TE tau (SLit s)
@@ -304,11 +304,11 @@ simplExpr sv subst ins (TE tau (App (TE tau1 (Fun fn tys note)) e2)) cont
     AbsDecl attr fn ts ti to    -> return $ TE tau $ App (TE tau1 (Fun fn tys note)) e2'
     _ -> __impossible "simplExpr"
 simplExpr sv subst ins (TE tau (App e1 e2))  cont = TE tau <$> (App <$> simplExpr sv subst ins e1 cont <*> simplExpr sv subst ins e2 cont)
-simplExpr sv subst ins (TE tau (Con cn e))   cont = TE tau . Con cn <$> simplExpr sv subst ins e cont
+simplExpr sv subst ins (TE tau (Con cn e t)) cont = TE tau <$> (Con cn <$> simplExpr sv subst ins e cont <*> pure t)
 simplExpr sv subst ins (TE tau (Unit))       cont = return . TE tau $ Unit
 simplExpr sv subst ins (TE tau (ILit i pt))  cont = return . TE tau $ ILit i pt
 simplExpr sv subst ins (TE tau (SLit s))     cont = return . TE tau $ SLit s
-simplExpr sv subst ins xx@(TE tau (Let (n,o) e1 e2)) cont = do
+simplExpr sv subst ins (TE tau (Let (n,o) e1 e2)) cont = do
   nle1 <- noLinear e1
   if | o == Dead && nle1 -> lowerExpr0 sv <$> simplExpr (SSuc sv) (extSubst subst) (extInScopeSet ins) e2 (liftContext cont)
      -- Pre-inline unconditionally
@@ -400,7 +400,7 @@ noLinear (TE tau e) = typeNotLinear tau &&^ noLinear' e
     noLinear' (Fun {}) = return True
     noLinear' (Op _ es) = and <$> mapM noLinear es
     noLinear' (App e1 e2) = noLinear e1 &&^ noLinear e2
-    noLinear' (Con _ e) = noLinear e
+    noLinear' (Con _ e _) = noLinear e
     noLinear' (Unit) = return True
     noLinear' (ILit {}) = return True
     noLinear' (SLit {}) = return True
@@ -458,7 +458,7 @@ lowerExpr w i (TE tau (Variable (v,a)))     = TE tau $ Variable (lowerFin w i v,
 lowerExpr w i (TE tau (Fun fn tys  note))   = TE tau $ Fun fn tys note
 lowerExpr w i (TE tau (Op opr es))          = TE tau $ Op opr (L.map (lowerExpr w i) es)
 lowerExpr w i (TE tau (App e1 e2))          = TE tau $ App (lowerExpr w i e1) (lowerExpr w i e2)
-lowerExpr w i (TE tau (Con cn e))           = TE tau $ Con cn (lowerExpr w i e)
+lowerExpr w i (TE tau (Con cn e t))         = TE tau $ Con cn (lowerExpr w i e) t
 lowerExpr w i (TE tau (Unit))               = TE tau $ Unit
 lowerExpr w i (TE tau (ILit n pt))          = TE tau $ ILit n pt
 lowerExpr w i (TE tau (SLit s))             = TE tau $ SLit s
@@ -480,7 +480,7 @@ liftExpr i (TE tau (Variable (v,a)))     = TE tau $ Variable (liftIdx i v,a)
 liftExpr i (TE tau (Fun fn tys note))    = TE tau $ Fun fn tys note
 liftExpr i (TE tau (Op opr es))          = TE tau $ Op opr (L.map (liftExpr i) es)
 liftExpr i (TE tau (App e1 e2))          = TE tau $ App (liftExpr i e1) (liftExpr i e2)
-liftExpr i (TE tau (Con cn e))           = TE tau $ Con cn (liftExpr i e)
+liftExpr i (TE tau (Con cn e t))         = TE tau $ Con cn (liftExpr i e) t
 liftExpr i (TE tau (Unit))               = TE tau $ Unit
 liftExpr i (TE tau (ILit n pt))          = TE tau $ ILit n pt
 liftExpr i (TE tau (SLit s))             = TE tau $ SLit s
@@ -547,7 +547,7 @@ betaR (TE tau (Variable (v,a)))  idx n arg ts
 betaR (TE tau (Fun fn tys note)) idx n arg ts = pure . TE (substitute ts tau) $ Fun fn (L.map (substitute ts) tys) note
 betaR (TE tau (Op opr es))       idx n arg ts = TE (substitute ts tau) <$> (Op opr <$> mapM (flip5 betaR ts arg n idx) es)
 betaR (TE tau (App e1 e2))       idx n arg ts = TE (substitute ts tau) <$> (App <$> betaR e1 idx n arg ts <*> betaR e2 idx n arg ts)
-betaR (TE tau (Con cn e))        idx n arg ts = TE (substitute ts tau) <$> (Con cn <$> betaR e idx n arg ts)
+betaR (TE tau (Con cn e t))      idx n arg ts = TE (substitute ts tau) <$> (Con cn <$> betaR e idx n arg ts <*> pure (substitute ts t))
 betaR (TE tau (Unit))            idx n arg ts = pure . TE (substitute ts tau) $ Unit
 betaR (TE tau (ILit i pt))       idx n arg ts = pure . TE (substitute ts tau) $ ILit i pt
 betaR (TE tau (SLit s))          idx n arg ts = pure . TE (substitute ts tau) $ SLit s

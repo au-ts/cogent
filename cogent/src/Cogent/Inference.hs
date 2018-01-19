@@ -68,13 +68,16 @@ guardShow x b = if b then return () else TC (throwError $ "GUARD: " ++ x)
 guardShow' :: String -> [String] -> Bool -> TC t v ()
 guardShow' mh mb b = if b then return () else TC (throwError $ "GUARD: " ++ mh ++ "\n" ++ unlines mb)
 
+-- ----------------------------------------------------------------------------
+-- Type reconstruction
+
 -- Types that don't have the same representation / don't satisfy subtyping.
 isUpcastable :: Type t -> Type t -> TC t v Bool
 isUpcastable (TPrim p1) (TPrim p2) = return $ isSubtypePrim p1 p2
 isUpcastable (TSum s1) (TSum s2) = do
-  b1 <- and <$> forM s1 (\(c,(t,b)) -> case lookup c s2 of Nothing -> return False; Just (t',b') -> (&&) <$> t `isSubtype` t' <*> pure (b == b'))
-  b2 <- and <$> forM s2 (\(c,(t,b)) -> return $ case lookup c s1 of Nothing -> b; Just _ -> True)  -- other tags are all taken
-  return $ b1 && b2
+  c1 <- and <$> forM s1 (\(c,(t,b)) -> case lookup c s2 of Nothing -> return False; Just (t',b') -> (&&) <$> t `isSubtype` t' <*> pure (b == b'))
+  c2 <- and <$> forM s2 (\(c,(t,b)) -> return $ case lookup c s1 of Nothing -> b; Just _ -> True)  -- other tags are all taken
+  return $ c1 && c2
 isUpcastable _ _ = return False
 
 isSubtype :: Type t -> Type t -> TC t v Bool
@@ -82,10 +85,10 @@ isSubtype :: Type t -> Type t -> TC t v Bool
 isSubtype (TSum s1) (TSum s2) = and <$> zipWithM (\(c1,(t1,b1)) (c2,(t2,b2)) -> ((c1 == c2 && b1 >= b2) &&) <$> t1 `isSubtype` t2) s1 s2  -- True > False
 isSubtype (TRecord r1 s1) (TRecord r2 s2) =
   ((s1 == s2) &&) <$> 
-    (and <$> zipWithM (\(f1,(t1,b1)) (f2,(t2,b2)) -> do b1 <- return (f1 == f2)
-                                                        b2 <- t1 `isSubtype` t2
-                                                        b3 <- (kindcheck t1 >>= \k -> return $ (k /= k1 && b1 <= b2) || b1 == b2)
-                                                        return (and [b1,b2,b3])) r1 r2)
+    (and <$> zipWithM (\(f1,(t1,b1)) (f2,(t2,b2)) -> do c1 <- return (f1 == f2)
+                                                        c2 <- t1 `isSubtype` t2
+                                                        c3 <- (kindcheck t1 >>= \k -> return $ (k /= k1 && b1 <= b2) || b1 == b2)
+                                                        return (and [c1,c2,c3])) r1 r2)
 isSubtype a b = return $ a == b
 
 -- NOTE: have to check if the resulting type is a supertype of two inputs
@@ -102,10 +105,7 @@ lub (TCon c1 ts1 s1) (TCon c2 ts2 s2) = TCon c1 (zipWith (\t1 t2 -> t1) ts1 ts2)
 lub t1 t2 = t1
 
 glb :: Type t -> Type t -> Type t
-glb t1 t2 = t1  -- FIXME
-
--- ----------------------------------------------------------------------------
--- Type reconstruction
+glb t1 t2 = t1  -- FIXME: it seems only used by contra-variance, namely function arguments.
 
 bang :: Type t -> Type t
 bang (TVar v)         = TVarBang v
@@ -305,9 +305,9 @@ typecheck (E (Tuple e1 e2))
    = do e1' <- typecheck e1
         e2' <- typecheck e2
         return $ TE (TProduct (exprType e1') (exprType e2')) (Tuple e1' e2')
-typecheck (E (Con tag e))
+typecheck (E (Con tag e t))
    = do e' <- typecheck e
-        return $ TE (TSum [(tag, (exprType e', False))]) (Con tag e')
+        return $ TE t (Con tag e' t)
 typecheck (E (If ec et ee))
    = do ec' <- typecheck ec
         guardShow "if-1" $ exprType ec' == TPrim Boolean
