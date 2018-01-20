@@ -27,7 +27,7 @@ traceTC' s = traceTC s . text
 -- if an error has been thrown, then later operations like `tell` or
 -- `censor` will not fire. Although that is the right definition for
 -- Monad, it doesn't serve our purposes here. Thus this `censor` function,
--- which sort of work around the problem. Still, it doesn't change the
+-- which sort of works around the problem. Still, it doesn't change the
 -- way `>>=` works in general. As a consequence, if an error has been
 -- thrown, it still doesn't contiune logging more errors. / zilinc
 censor :: (Monad m) => (w -> w) -> ExceptT e (WriterT w m) a -> ExceptT e (WriterT w m) a

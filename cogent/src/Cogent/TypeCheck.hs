@@ -15,7 +15,7 @@
 {-# LANGUAGE TupleSections #-}
 
 module Cogent.TypeCheck (
-  tc, isWarnAsError  
+  tc, isWarnAsError
 ) where
 
 import Cogent.Compiler

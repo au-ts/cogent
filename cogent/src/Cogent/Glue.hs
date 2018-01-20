@@ -42,6 +42,7 @@ import qualified Cogent.Mono      as MN
 import qualified Cogent.Parser    as PS
 -- import Cogent.PrettyPrint
 import qualified Cogent.Surface   as SR
+import qualified Cogent.TypeCheck as TC
 import qualified Cogent.TypeCheck.Base as TC
 import Cogent.Util
 import Cogent.Vec as Vec hiding (repeat)
@@ -114,9 +115,9 @@ parseFile' filename = do
 
 -- Desugaring, Monomorphising, and CG
 
-data TcState = TcState { _tfuncs :: [(VarName, SR.Polytype SR.RawType)]
-                       , _ttypes :: [(TypeName, ([VarName], Maybe SR.RawType))]
-                       , _consts :: [(VarName, Either SourcePos SR.RawType)]
+data TcState = TcState { _tfuncs :: Map FunName (SR.Polytype TC.TCType)
+                       , _ttypes :: TC.TypeDict
+                       , _consts :: Map VarName (TC.TCType, SourcePos)
                        }
 
 data DsState = DsState { _typedefs  :: DS.Typedefs
@@ -243,7 +244,11 @@ parseType s loc = parseAnti s PS.monotype loc 4
 
 
 tcType :: SR.LocType -> GlDefn t SR.RawType
-tcType t = __todo "Glue: tcType" {- tcAnti (TC.inEContext (TC.AntiquotedType t) . TC.validateType) t -}
+tcType t = __todo "tcType"
+{-
+  tvs <- L.map fst <$> (Vec.cvtToList <$> view kenv)
+  tcAnti (\t -> do t' <- withExceptT (pure . ([TC.AntiquotedType t],) . Left) $ TC.validateType tvs t
+                   postT [TC.AntiquotedType t] t') t -}
 
 desugarType :: SR.RawType -> GlDefn t (CC.Type t)
 desugarType = desugarAnti DS.desugarType
@@ -526,11 +531,11 @@ mkGlState :: [SR.TopLevel SR.RawType TC.TypedPatn TC.TypedExpr]
           -> (MN.FunMono, MN.TypeMono)
           -> CG.GenState
           -> GlState
-mkGlState tced tcState (Last (Just (typedefs, constdefs, _))) ftypes (funMono, typeMono) genState = __todo "mkGlState"  {- 
+mkGlState tced tcState (Last (Just (typedefs, constdefs, _))) ftypes (funMono, typeMono) genState =
   GlState { _tcDefs  = tced
-          , _tcState = TcState { _tfuncs = view TC.knownFuns  tcState
-                               , _ttypes = view TC.knownTypes tcState
-                               , _consts = view TC.context    tcState
+          , _tcState = TcState { _tfuncs = view TC.knownFuns   tcState
+                               , _ttypes = view TC.knownTypes  tcState
+                               , _consts = view TC.knownConsts tcState
                                }
           , _dsState = DsState typedefs constdefs
           , _icState = IcState ftypes
@@ -545,7 +550,7 @@ mkGlState tced tcState (Last (Just (typedefs, constdefs, _))) ftypes (funMono, t
                                , _localOracle  = view CG.localOracle  genState
                                , _globalOracle = view CG.globalOracle genState
                                }
-          } -}
+          }
 mkGlState _ _ _ _ _ _ = __impossible "mkGlState"
 
 
