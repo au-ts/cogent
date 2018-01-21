@@ -17,6 +17,7 @@ module Cogent.Util where
 import Control.Applicative ((<$>))
 import Data.Monoid
 #endif
+import Control.Monad
 import Data.Char
 import qualified Data.Map as M
 import qualified Data.List as L
@@ -158,6 +159,11 @@ whenM b ma = if b then ma else return mempty
 
 whenMM :: (Monad m, Monoid a) => m Bool -> m a -> m a
 whenMM mb ma = mb >>= flip whenM ma
+
+-- modified of `nubByM' from http://hackage.haskell.org/package/monadlist-0.0.2/docs/src/Control-Monad-ListM.html#nubByM
+nubByM :: (Monad m) => (a -> a -> m Bool) -> [a] -> m [a]
+nubByM f [] = return []
+nubByM f (x:xs) = liftM (x:) $ filterM (return . not <=< f x) xs >>= nubByM f
 
 -- stdoutPath = "/dev/stdout"
 -- nullPath = "/dev/null"

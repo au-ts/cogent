@@ -27,7 +27,7 @@ import Cogent.Compiler
 import qualified Cogent.Context as C
 import Cogent.PrettyPrint (prettyC)
 import Cogent.Surface
-import Cogent.TypeCheck.Base
+import Cogent.TypeCheck.Base hiding (validateType')
 import Cogent.TypeCheck.Util
 import Cogent.Util hiding (Warning)
 

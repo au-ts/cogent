@@ -80,7 +80,7 @@ checkOne loc d = case d of
     traceTC "tc" (text "typecheck type definition" <+> pretty n)
     let xs = ps \\ nub ps
     unless (null xs) $ tell [([InDefinition loc d], Left $ DuplicateTypeVariable xs)] >> throwError ()
-    t' <- validateType' ps (stripLocT t)
+    t' <- validateType' ps [InDefinition loc d] (stripLocT t)
     knownTypes <>= [(n,(ps, Just t'))]
     t'' <- postT [InDefinition loc d] t'
     return $ TypeDec n ps t''
@@ -99,7 +99,7 @@ checkOne loc d = case d of
     let vs' = map fst ps
         xs = vs' \\ nub vs'
     unless (null xs) $ tell [([InDefinition loc d], Left $ DuplicateTypeVariable xs)] >> throwError ()
-    t' <- validateType' (map fst ps) (stripLocT t)
+    t' <- validateType' (map fst ps) [InDefinition loc d] (stripLocT t)
     knownFuns %= M.insert n (PT ps t')
     t'' <- postT [InDefinition loc d] t'
     return $ AbsDec n (PT ps t'')
@@ -108,7 +108,7 @@ checkOne loc d = case d of
     traceTC "tc" $ bold (text $ replicate 80 '=')
     traceTC "tc" (text "typecheck const definition" <+> pretty n)
     base <- use knownConsts
-    t' <- validateType' [] (stripLocT t)
+    t' <- validateType' [] [InDefinition loc d] (stripLocT t)
     let ctx = C.addScope (fmap (\(t,p) -> (t,p, Seq.singleton p)) base) C.empty  -- for consts, the definition is the first use.
     ((c, e'), f, os) <- lift $ lift (runCG ctx [] (cg e t'))
     let c' = c <> Share t' (Constant n)
@@ -131,7 +131,7 @@ checkOne loc d = case d of
         xs = vs' \\ nub vs'
     unless (null xs) $ tell [([InDefinition loc d], Left $ DuplicateTypeVariable xs)] >> throwError ()
     base <- use knownConsts
-    t' <- validateType' (map fst vs) (stripLocT t)
+    t' <- validateType' (map fst vs) [InDefinition loc d] (stripLocT t)
     (i,o) <- asFunType t'
     let ctx = C.addScope (fmap (\(t,p) -> (t, p, Seq.singleton p)) base) C.empty
     let ?loc = loc
@@ -152,8 +152,6 @@ checkOne loc d = case d of
       throwError ()
 
   where
-    validateType' vs = (liftErr . withExceptT (pure . ([InDefinition loc d],) . Left)) . validateType vs
-
     asFunType (T (TFun a b)) = return (a, b)
     asFunType x@(T (TCon c as _)) = lookup c <$> use knownTypes >>= \case
                                       Just (vs, Just t) -> asFunType (substType (zip vs as) t)
@@ -163,12 +161,6 @@ checkOne loc d = case d of
     addCtx :: forall x. ([ErrorContext], x) -> ([ErrorContext], x)
     addCtx = (_1 %~ (++ [InDefinition loc d]))
 
-    liftErr :: ExceptT [e] TC a -> ExceptT () (WriterT [e] TC) a
-    liftErr ex = mapExceptT f ex
-      where f :: TC (Either [e] a) -> WriterT [e] TC (Either () a)
-            f tc = WriterT ((,[]) <$> tc) >>= \case
-                           Left  e -> tell e >> return (Left ())
-                           Right a -> return $ Right a
 
 -- ----------------------------------------------------------------------------
 -- custTyGen

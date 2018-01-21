@@ -40,10 +40,11 @@ import qualified Cogent.DList     as DList
 import qualified Cogent.Inference as IN
 import qualified Cogent.Mono      as MN
 import qualified Cogent.Parser    as PS
--- import Cogent.PrettyPrint
-import qualified Cogent.Surface   as SR
-import qualified Cogent.TypeCheck as TC
+import Cogent.PrettyPrint
+import qualified Cogent.Surface   as SF
+-- import qualified Cogent.TypeCheck as TC
 import qualified Cogent.TypeCheck.Base as TC
+import qualified Cogent.TypeCheck.Post as TC
 import Cogent.Util
 import Cogent.Vec as Vec hiding (repeat)
 
@@ -56,7 +57,7 @@ import Control.Monad.RWS.Strict
 import Control.Monad.State
 import Control.Monad.Trans.Except
 --import Control.Monad.Trans.Except
---import Control.Monad.Writer
+import Control.Monad.Writer
 import qualified Data.ByteString.Char8 as B
 import Data.Data
 import Data.Function.Flippers
@@ -73,7 +74,7 @@ import "language-c-quote" Language.C.Syntax  as CS
 import System.FilePath (replaceBaseName, replaceExtension, takeBaseName, takeExtension, (<.>))
 import Text.Parsec.Pos (newPos, SourcePos)
 import Text.Parsec.Prim as PP hiding (State)
--- import Text.PrettyPrint.ANSI.Leijen (vsep)
+import Text.PrettyPrint.ANSI.Leijen (vsep)
 
 -- import Debug.Trace
 
@@ -115,7 +116,7 @@ parseFile' filename = do
 
 -- Desugaring, Monomorphising, and CG
 
-data TcState = TcState { _tfuncs :: Map FunName (SR.Polytype TC.TCType)
+data TcState = TcState { _tfuncs :: Map FunName (SF.Polytype TC.TCType)
                        , _ttypes :: TC.TypeDict
                        , _consts :: Map VarName (TC.TCType, SourcePos)
                        }
@@ -141,7 +142,7 @@ data CgState = CgState { _cTypeDefs    :: [(CG.StrlType, CG.CId)]
                        , _globalOracle :: Integer
                        }
 
-data GlState = GlState { _tcDefs   :: [SR.TopLevel SR.RawType TC.TypedPatn TC.TypedExpr]
+data GlState = GlState { _tcDefs   :: [SF.TopLevel SF.RawType TC.TypedPatn TC.TypedExpr]
                        , _tcState  :: TcState
                        , _dsState  :: DsState
                        , _icState  :: IcState
@@ -169,7 +170,7 @@ type GlMono t = ReaderT (MonoState  ) (GlDefn t)
 type GlDefn t = ReaderT (DefnState t) (GlFile  )
 type GlFile   = ReaderT (FileState  ) (Gl      )
 type Gl       = StateT  (GlState    ) (GlErr   )
-type GlErr    = Except  String
+type GlErr    = ExceptT (String     ) (IO      )
 
 
 -- Monad transformers
@@ -182,21 +183,17 @@ parseAnti s parsec loc offset' = do
     Left err -> throwError $ "Error: Cannot parse antiquote: \n" ++ show err
     Right t  -> return t
 
-tcAnti :: (a -> TC.TC b) -> a -> GlDefn t b
-tcAnti m a = __todo "Glue: tcAnti"
-{- view kenv >>= \(cvtToList -> ts) -> lift . lift $
-  StateT $ \s -> let state = TC.TCState { TC._knownFuns    = view (tcState.tfuncs) s
-                                        , TC._context      = view (tcState.consts) s
-                                        , TC._errorContext = []
-                                        , TC._kindContext  = ts
-                                        , TC._knownTypes   = view (tcState.ttypes) s
-                                        }
-                  in case (flip evalState state . runWriterT . runExceptT . TC.runTC $ m a) of
-                       (Right x, []) -> return (x, s)
+tcAnti :: (a -> ExceptT () (WriterT [TC.ContextualisedEW] TC.TC) b) -> a -> GlDefn t b
+tcAnti f a = lift . lift $
+  StateT $ \s -> let state = TC.TCS { TC._knownFuns    = view (tcState.tfuncs) s
+                                    , TC._knownTypes   = view (tcState.ttypes) s
+                                    , TC._knownConsts  = view (tcState.consts) s
+                                    }
+                  in (flip evalStateT state . runWriterT . runExceptT $ f a) >>= \case
+                       (Right x, []) -> lift $ return (x, s)
                        (_, err) -> throwE $ "Error: Typecheck antiquote failed:\n" ++
                                             show (vsep $ L.map (prettyTWE __cogent_ftc_ctx_len) err)
                                             -- FIXME: may need a pp modifier `plain' / zilinc
--}
 
 desugarAnti :: (a -> DS.DS t 'Zero b) -> a -> GlDefn t b
 desugarAnti m a = view kenv >>= \(fmap fst -> ts) -> lift . lift $
@@ -239,18 +236,17 @@ traverseAnti m = everywhereM $ mkM $ m
 
 -- Types
 
-parseType :: String -> SrcLoc -> GlFile SR.LocType
+parseType :: String -> SrcLoc -> GlFile SF.LocType
 parseType s loc = parseAnti s PS.monotype loc 4
 
 
-tcType :: SR.LocType -> GlDefn t SR.RawType
-tcType t = __todo "tcType"
-{-
+tcType :: SF.LocType -> GlDefn t SF.RawType
+tcType t = do
   tvs <- L.map fst <$> (Vec.cvtToList <$> view kenv)
-  tcAnti (\t -> do t' <- withExceptT (pure . ([TC.AntiquotedType t],) . Left) $ TC.validateType tvs t
-                   postT [TC.AntiquotedType t] t') t -}
+  flip tcAnti t $ \t -> do t' <- TC.validateType' tvs [] $ SF.stripLocT t
+                           TC.postT [TC.AntiquotedType t] t'
 
-desugarType :: SR.RawType -> GlDefn t (CC.Type t)
+desugarType :: SF.RawType -> GlDefn t (CC.Type t)
 desugarType = desugarAnti DS.desugarType
 
 monoType :: CC.Type t -> GlMono t (CC.Type 'Zero)
@@ -282,14 +278,14 @@ traverseType     = traverseAnti transType
 
 -- Function calls
 
-parseFnCall :: String -> SrcLoc -> GlFile SR.LocExpr
+parseFnCall :: String -> SrcLoc -> GlFile SF.LocExpr
 parseFnCall s loc = parseAnti s PS.basicExpr' loc 4
 
-tcFnCall :: SR.LocExpr -> GlDefn t TC.TypedExpr
+tcFnCall :: SF.LocExpr -> GlDefn t TC.TypedExpr
 tcFnCall e = __todo "Glue: tcFnCall"  {-  do
   f <- case e of
-         SR.LocExpr _ (SR.TypeApp f ts _) -> return f  -- FIXME: make use of Inline to perform glue code inlining / zilinc
-         SR.LocExpr _ (SR.Var f) -> return f
+         SF.LocExpr _ (SF.TypeApp f ts _) -> return f  -- FIXME: make use of Inline to perform glue code inlining / zilinc
+         SF.LocExpr _ (SF.Var f) -> return f
          otherwise -> throwError $ "Error: Not a function in $exp antiquote"
   tcAnti (TC.inEContext (TC.AntiquotedExpr e) . TC.infer) e
 -}
@@ -328,10 +324,10 @@ traverseDispatch = traverseAnti transDispatch
 
 -- Expressions
 
-parseExp :: String -> SrcLoc -> GlFile SR.LocExpr
+parseExp :: String -> SrcLoc -> GlFile SF.LocExpr
 parseExp s loc = parseAnti s (PS.expr 1) loc 4
 
-tcExp :: SR.LocExpr -> GlDefn t TC.TypedExpr
+tcExp :: SF.LocExpr -> GlDefn t TC.TypedExpr
 tcExp e = __todo "Glue: tcExp"  {- tcAnti (TC.inEContext (TC.AntiquotedExpr e) . TC.infer) e -}
 
 desugarExp :: TC.TypedExpr -> GlDefn t (CC.UntypedExpr t 'Zero VarName)
@@ -447,7 +443,7 @@ traverseOneFunc fn d = do
   defs  <- lift $ use tcDefs
   case M.lookup fn monos of
     Nothing -> return [] -- throwError $ "Error: Function `" ++ fn ++ "' is not defined in Cogent and thus cannot be antiquoted"
-    Just mp -> case L.find (SR.absFnDeclId fn) defs of  -- function declared/defined in Cogent
+    Just mp -> case L.find (SF.absFnDeclId fn) defs of  -- function declared/defined in Cogent
                  Nothing -> throwError $ "Error: Function `" ++ fn ++ "' is not an abstract Cogent function and thus cannot be antiquoted"
                  Just tl -> do let ts = tyVars tl
                                case Vec.fromList ts of
@@ -461,7 +457,7 @@ traverseOneType ty l d = do   -- type defined in Cogent
   (tn,ts) <- parseTypeId ty l
   case M.lookup tn monos of  -- NOTE: It has to be an abstract type / zilinc
     Nothing -> return [] -- throwError $ "Error: Type `" ++ tn ++ "' is not defined / used in Cogent and thus cannot be antiquoted"
-    Just s  -> do case L.find (SR.absTyDeclId tn) defs of
+    Just s  -> do case L.find (SF.absTyDeclId tn) defs of
                     Nothing -> throwError $ "Error: Type `" ++ tn ++ "' is not an abstract Cogent type and thus cannot be antiquoted"
                     Just tl -> do let ts' = tyVars tl
                                   when (ts /= L.map fst ts') $
@@ -476,12 +472,12 @@ traverseOneType ty l d = do   -- type defined in Cogent
    nubByName :: [MN.Instance] -> GlDefn t [MN.Instance]
    nubByName ins = do
      gl <- lift $ lift get
-     return $ L.nubBy (\i1 i2 -> case runExcept $ flip evalStateT gl $ do
-                                     tn1 <- mapM (genAnti CG.genType) i1
-                                     tn2 <- mapM (genAnti CG.genType) i2
-                                     return (tn1 == tn2) of
-                                   Left  _ -> __impossible "nubByName (in traverseOneType)"
-                                   Right b -> b) ins
+     nubByM (\i1 i2 -> (runExceptT $ flip evalStateT gl $ do
+                         tn1 <- mapM (genAnti CG.genType) i1
+                         tn2 <- mapM (genAnti CG.genType) i2
+                         return (tn1 == tn2)) >>= \case
+                           Left  _ -> __impossible "nubByName (in traverseOneType)"
+                           Right b -> return b) ins
 
 traverseOne :: CS.Definition -> GlFile [(CS.Definition, Maybe String)]
 traverseOne d@(CS.FuncDef (CS.Func _ (CS.AntiId fn _) _ _ _ _) _) = traverseOneFunc fn d
@@ -524,7 +520,7 @@ glue s typnames mode filenames = liftA (M.toList . M.fromListWith (flip (++)) . 
                                                          , L.map fst ds')]
                     Left err  -> throwE err
 
-mkGlState :: [SR.TopLevel SR.RawType TC.TypedPatn TC.TypedExpr]
+mkGlState :: [SF.TopLevel SF.RawType TC.TypedPatn TC.TypedExpr]
           -> TC.TCState
           -> Last (DS.Typedefs, DS.Constants, [CC.CoreConst CC.UntypedExpr])
           -> M.Map FunName CC.FunctionType
@@ -556,11 +552,11 @@ mkGlState _ _ _ _ _ _ = __impossible "mkGlState"
 
 -- Misc.
 
-tyVars :: SR.TopLevel SR.RawType pv e -> [(TyVarName, Kind)]
-tyVars (SR.FunDef _ (SR.PT ts _) _) = ts
-tyVars (SR.AbsDec _ (SR.PT ts _)  ) = ts
-tyVars (SR.TypeDec    _ ts _) = L.zip ts $ repeat k2
-tyVars (SR.AbsTypeDec _ ts  ) = L.zip ts $ repeat k2
+tyVars :: SF.TopLevel SF.RawType pv e -> [(TyVarName, Kind)]
+tyVars (SF.FunDef _ (SF.PT ts _) _) = ts
+tyVars (SF.AbsDec _ (SF.PT ts _)  ) = ts
+tyVars (SF.TypeDec    _ ts _) = L.zip ts $ repeat k2
+tyVars (SF.AbsTypeDec _ ts  ) = L.zip ts $ repeat k2
 tyVars _ = __impossible "tyVars"
 
 

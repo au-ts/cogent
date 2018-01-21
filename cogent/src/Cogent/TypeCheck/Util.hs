@@ -26,10 +26,13 @@ traceTC' s = traceTC s . text
 -- NOTE: The `ExceptT` on `WriterT` monad stack works in a way which,
 -- if an error has been thrown, then later operations like `tell` or
 -- `censor` will not fire. Although that is the right definition for
--- Monad, it doesn't serve our purposes here. Thus this `censor` function,
+-- Monad, it doesn't serve our purposes here. We need `censor' to add
+-- error contexts to existing errors in the writer, which happens after
+-- some errors have been throw. We define this `censor` function,
 -- which sort of works around the problem. Still, it doesn't change the
 -- way `>>=` works in general. As a consequence, if an error has been
--- thrown, it still doesn't contiune logging more errors. / zilinc
+-- thrown, it still doesn't contiune logging more errors. But this
+-- `censor' function updates the log. / zilinc
 censor :: (Monad m) => (w -> w) -> ExceptT e (WriterT w m) a -> ExceptT e (WriterT w m) a
 censor f m = ExceptT . WriterT $ do (a, w) <- runWriterT $ runExceptT m; return (a, f w)
 

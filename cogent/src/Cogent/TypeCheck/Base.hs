@@ -1,5 +1,5 @@
 --
--- Copyright 2017, NICTA
+-- Copyright 2016-2018, NICTA
 --
 -- This software may be distributed and modified according to the terms of
 -- the GNU General Public License version 2. Note that NO WARRANTY is provided.
@@ -8,7 +8,12 @@
 -- @TAG(NICTA_GPL)
 --
 
-{-# LANGUAGE TemplateHaskell, DeriveFunctor, DeriveTraversable, StandaloneDeriving #-}
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TupleSections #-}
 
 module Cogent.TypeCheck.Base where
 
@@ -22,6 +27,7 @@ import Control.Arrow (second)
 import Control.Lens hiding (Context, (:<))
 import Control.Monad.Except
 import Control.Monad.State
+import Control.Monad.Writer hiding (Alt)
 import qualified Data.IntMap as IM
 import Data.List (nub, (\\))
 import qualified Data.Map as M
@@ -258,6 +264,12 @@ data TCState = TCS { _knownFuns    :: M.Map FunName (Polytype TCType)
 
 makeLenses ''TCState
 
+liftErr :: ExceptT [e] TC a -> ExceptT () (WriterT [e] TC) a
+liftErr ex = mapExceptT f ex
+  where f :: TC (Either [e] a) -> WriterT [e] TC (Either () a)
+        f tc = WriterT ((,[]) <$> tc) >>= \case
+                       Left  e -> tell e >> return (Left ())
+                       Right a -> return $ Right a
 
 substType :: [(VarName, TCType)] -> TCType -> TCType
 substType vs (U x) = U x
@@ -283,6 +295,10 @@ validateType vs (RT t) = do
                 -> if fields' == fields then T <$> traverse (validateType vs) t
                    else throwError (DuplicateRecordFields (fields \\ fields'))
     _ -> T <$> traverse (validateType vs) t
+
+
+validateType' :: [VarName] -> [ErrorContext] -> RawType -> ExceptT () (WriterT [ContextualisedEW] TC) TCType
+validateType' vs ctx = (liftErr . withExceptT (pure . (ctx,) . Left)) . validateType vs
 
 -- Remove a pattern from a type, for case expressions.
 removeCase :: LocPatn -> TCType -> TCType
