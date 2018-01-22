@@ -73,6 +73,7 @@ import Data.Loc
 import Data.List as L
 import Data.Map as M
 import Data.Semigroup.Applicative
+import qualified Data.Sequence as Seq
 import Data.Set as S
 import "language-c" Language.C               as LC
 import "language-c-quote" Language.C.Parser  as CP hiding (parseExp, parseType)
@@ -297,15 +298,7 @@ tcFnCall e = do
          SF.LocExpr _ (SF.TypeApp f ts _) -> return f  -- TODO: make use of Inline to perform glue code inlining / zilinc
          SF.LocExpr _ (SF.Var f) -> return f
          otherwise -> throwError $ "Error: Not a function in $exp antiquote"
-  vs <- Vec.cvtToList <$> view kenv
-  flip tcAnti e $ \e ->
-    do let ?loc = SF.posOfE e
-       ((c,e'),flx,os) <- lift . lift $ TC.runCG Ctx.empty (L.map fst vs) (TC.cg e =<< TC.fresh)
-       (ews,subst,_) <- lift . lift $ TC.runSolver (TC.solve c) flx os vs
-       -- lift . lift . lift $ putStrLn ("ews = " ++ show ews)
-       tell $ L.map (first $ (++ [TC.AntiquotedExpr e])) ews
-       unless (L.null . lefts $ L.map snd ews) $ throwError ()
-       TC.postE [TC.AntiquotedExpr e] $ TC.applyE subst e'
+  tcExp e
 
 genFn :: CC.TypedExpr 'Zero 'Zero VarName -> Gl CS.Exp
 genFn = genAnti $ \case
@@ -345,7 +338,17 @@ parseExp :: String -> SrcLoc -> GlFile SF.LocExpr
 parseExp s loc = parseAnti s (PS.expr 1) loc 4
 
 tcExp :: SF.LocExpr -> GlDefn t TC.TypedExpr
-tcExp e = __todo "Glue: tcExp"  {- tcAnti (TC.inEContext (TC.AntiquotedExpr e) . TC.infer) e -}
+tcExp e = do
+  base <- lift . lift $ use (tcState.consts)
+  let ctx = Ctx.addScope (fmap (\(t,p) -> (t, p, Seq.singleton p)) base) Ctx.empty
+  vs <- Vec.cvtToList <$> view kenv
+  flip tcAnti e $ \e ->
+    do let ?loc = SF.posOfE e
+       ((c,e'),flx,os) <- lift . lift $ TC.runCG ctx (L.map fst vs) (TC.cg e =<< TC.fresh)
+       (ews,subst,_) <- lift . lift $ TC.runSolver (TC.solve c) flx os vs
+       tell $ L.map (first $ (++ [TC.AntiquotedExpr e])) ews
+       unless (L.null . lefts $ L.map snd ews) $ throwError ()
+       TC.postE [TC.AntiquotedExpr e] $ TC.applyE subst e'
 
 desugarExp :: TC.TypedExpr -> GlDefn t (CC.UntypedExpr t 'Zero VarName)
 desugarExp = desugarAnti DS.desugarExpr
