@@ -110,9 +110,9 @@ checkOne loc d = case d of
     base <- use knownConsts
     t' <- validateType' [] [InDefinition loc d] (stripLocT t)
     let ctx = C.addScope (fmap (\(t,p) -> (t,p, Seq.singleton p)) base) C.empty  -- for consts, the definition is the first use.
-    ((c, e'), f, os) <- lift $ lift (runCG ctx [] (cg e t'))
+    ((c, e'), flx, os) <- lift $ lift (runCG ctx [] (cg e t'))
     let c' = c <> Share t' (Constant n)
-    (ews, subst, _) <- lift $ lift (runSolver (solve c') f os [])
+    (ews, subst, _) <- lift $ lift (runSolver (solve c') flx os [])
     tell $ map addCtx ews
     traceTC "tc" (text "subst for const definition" <+> pretty n <+> text "is"
                   L.<$> pretty subst)

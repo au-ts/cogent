@@ -189,11 +189,12 @@ tcAnti f a = lift . lift $
                                     , TC._knownTypes   = view (tcState.ttypes) s
                                     , TC._knownConsts  = view (tcState.consts) s
                                     }
-                  in (flip evalStateT state . runWriterT . runExceptT $ f a) >>= \case
-                       (Right x, []) -> lift $ return (x, s)
-                       (_, err) -> throwE $ "Error: Typecheck antiquote failed:\n" ++
-                                            show (vsep $ L.map (prettyTWE __cogent_ftc_ctx_len) err)
-                                            -- FIXME: may need a pp modifier `plain' / zilinc
+                     -- turn :: s -> (Either a b, [e]) -> Either [e] (b,s)
+                     turn s (Right x, []) = Right (x,s)
+                     turn _ (_, err) = Left $ "Error: Typecheck antiquote failed:\n" ++
+                                         show (vsep $ L.map (prettyTWE __cogent_ftc_ctx_len) err)
+                                         -- FIXME: may need a pp modifier `plain' / zilinc
+                  in ExceptT $ fmap (turn s) (flip evalStateT state . runWriterT . runExceptT $ f a)
 
 desugarAnti :: (a -> DS.DS t 'Zero b) -> a -> GlDefn t b
 desugarAnti m a = view kenv >>= \(fmap fst -> ts) -> lift . lift $
@@ -282,13 +283,12 @@ parseFnCall :: String -> SrcLoc -> GlFile SF.LocExpr
 parseFnCall s loc = parseAnti s PS.basicExpr' loc 4
 
 tcFnCall :: SF.LocExpr -> GlDefn t TC.TypedExpr
-tcFnCall e = __todo "Glue: tcFnCall"  {-  do
-  f <- case e of
-         SF.LocExpr _ (SF.TypeApp f ts _) -> return f  -- FIXME: make use of Inline to perform glue code inlining / zilinc
-         SF.LocExpr _ (SF.Var f) -> return f
-         otherwise -> throwError $ "Error: Not a function in $exp antiquote"
-  tcAnti (TC.inEContext (TC.AntiquotedExpr e) . TC.infer) e
--}
+tcFnCall e = do __todo "Glue: tcFnCall"
+  -- _ <- case e of
+  --        SF.LocExpr _ (SF.TypeApp f ts _) -> return f  -- TODO: make use of Inline to perform glue code inlining / zilinc
+  --        SF.LocExpr _ (SF.Var f) -> return f
+  --        otherwise -> throwError $ "Error: Not a function in $exp antiquote"
+  -- flip tcAnti $ \e -> undefined
 
 genFn :: CC.TypedExpr 'Zero 'Zero VarName -> Gl CS.Exp
 genFn = genAnti $ \case
@@ -470,14 +470,10 @@ traverseOneType ty l d = do   -- type defined in Cogent
                                       traversals (L.zip s' (repeat Nothing)) d
  where
    nubByName :: [MN.Instance] -> GlDefn t [MN.Instance]
-   nubByName ins = do
-     gl <- lift $ lift get
-     nubByM (\i1 i2 -> (runExceptT $ flip evalStateT gl $ do
-                         tn1 <- mapM (genAnti CG.genType) i1
-                         tn2 <- mapM (genAnti CG.genType) i2
-                         return (tn1 == tn2)) >>= \case
-                           Left  _ -> __impossible "nubByName (in traverseOneType)"
-                           Right b -> return b) ins
+   nubByName ins = lift . lift $
+     nubByM (\i1 i2 -> do tn1 <- mapM (genAnti CG.genType) i1
+                          tn2 <- mapM (genAnti CG.genType) i2
+                          return (tn1 == tn2)) ins
 
 traverseOne :: CS.Definition -> GlFile [(CS.Definition, Maybe String)]
 traverseOne d@(CS.FuncDef (CS.Func _ (CS.AntiId fn _) _ _ _ _) _) = traverseOneFunc fn d
@@ -503,22 +499,17 @@ data GlueMode = TypeMode | FuncMode deriving (Eq, Show)
 glue :: GlState -> [TypeName] -> GlueMode -> [FilePath] -> ExceptT String IO [(FilePath, [CS.Definition])]
 glue s typnames mode filenames = liftA (M.toList . M.fromListWith (flip (++)) . concat) .
   forM filenames $ \filename -> do
-    let ExceptT m = lift $ parseFile defaultExts typnames filename
-    m >>= \case
-      Left err -> throwE err
-      Right ds -> case runExcept . flip evalStateT s . flip runReaderT (FileState filename) $ traverseAll ds of
-                    Right ds' -> -- lift (putStrLn $ show ds') >>
-                                 case mode of
-                                   TypeMode -> forM ds' $ \(d, mbf) -> case mbf of
-                                     Nothing -> throwE "Error: Cannot define functions in type mode"
-                                     Just f  -> return (__cogent_abs_type_dir ++ "/abstract/" ++ f <.> __cogent_ext_of_h, [d])
-                                   FuncMode -> let ext = if | takeExtension filename == __cogent_ext_of_ah -> __cogent_ext_of_h
-                                                            | takeExtension filename == __cogent_ext_of_ac -> __cogent_ext_of_c
-                                                            | otherwise -> __cogent_ext_of_c
-
-                                               in return [ (replaceExtension ((replaceBaseName filename (takeBaseName filename ++ __cogent_suffix_of_inferred))) ext
-                                                         , L.map fst ds')]
-                    Left err  -> throwE err
+    ds <- parseFile defaultExts typnames filename
+    ds' <- flip evalStateT s . flip runReaderT (FileState filename) $ traverseAll ds
+    case mode of
+      TypeMode -> forM ds' $ \(d, mbf) -> case mbf of
+        Nothing -> throwE "Error: Cannot define functions in type mode"
+        Just f  -> return (__cogent_abs_type_dir ++ "/abstract/" ++ f <.> __cogent_ext_of_h, [d])
+      FuncMode -> let ext = if | takeExtension filename == __cogent_ext_of_ah -> __cogent_ext_of_h
+                               | takeExtension filename == __cogent_ext_of_ac -> __cogent_ext_of_c
+                               | otherwise -> __cogent_ext_of_c
+                  in return [ (replaceExtension ((replaceBaseName filename (takeBaseName filename ++ __cogent_suffix_of_inferred))) ext
+                            , L.map fst ds') ]
 
 mkGlState :: [SF.TopLevel SF.RawType TC.TypedPatn TC.TypedExpr]
           -> TC.TCState
@@ -565,15 +556,9 @@ tyVars _ = __impossible "tyVars"
 
 collect :: GlState -> [TypeName] -> GlueMode -> [FilePath] -> ExceptT String IO (MN.FunMono, MN.TypeMono)
 collect s typnames mode filenames = do
-  ds <- liftA concat . forM filenames $ \filename -> do
-          let ExceptT m = lift $ parseFile defaultExts typnames filename
-          m >>= \case
-            Left err -> throwE err
-            Right ds -> return ds
-  case runExcept . flip execStateT s $ collectAll ds of
-    Right s -> return $ (view (mnState.funMono) &&& view (mnState.typeMono)) s
+  ds <- liftA concat . forM filenames $ parseFile defaultExts typnames
+  fmap (view (mnState.funMono) &&& view (mnState.typeMono)) (flip execStateT s $ collectAll ds)
       -- NOTE: Lens doesn't support Arrow. See http://www.reddit.com/r/haskell/comments/1nwetz/lenses_that_work_with_arrows/ / zilinc
-    Left err  -> throwE err
 
 collectAnti :: (Data a, Typeable b, Monoid r) => (b -> Gl r) -> a -> Gl r
 collectAnti f a = getAp $ everything mappend (mkQ mempty (Ap . f)) a
