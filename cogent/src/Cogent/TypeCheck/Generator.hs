@@ -19,6 +19,7 @@ module Cogent.TypeCheck.Generator
   , CG
   , cg
   , cgAlts
+  , fresh
   ) where
 
 import Cogent.Common.Syntax

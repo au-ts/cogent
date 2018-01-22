@@ -10,35 +10,35 @@
 
 include <gum/common/iterator.cogent>
 
-seq32_generator: (#{acc: (U32, U32), obsv: U32!}) -> GeneratorResult U32 () () (U32, U32)
-seq32_generator (#{acc = (cur_iter, acc), obsv = max_iter}) = 
+seq32_generator: #{acc: (U32, U32), obsv: U32!} -> GeneratorResult U32 () () (U32, U32)
+seq32_generator #{acc = (cur_iter, acc), obsv = max_iter} = 
     if cur_iter > max_iter then
         ((cur_iter, acc), Stop ())
     else
-        (((cur_iter + 1), acc), Yield cur_iter)
+        ((cur_iter + 1, acc), Yield cur_iter)
 
-sum_for_n_iters: (#{obj: U32, acc: (U32, U32), obsv: U32!}) -> ConsumerResult () () (U32, U32)
-sum_for_n_iters (#{obj = i, acc = (cur_iter, sum), obsv = _}) =
-    ((cur_iter, (i + sum)), Next ())
+sum_for_n_iters: #{obj: U32, acc: (U32, U32), obsv: U32} -> ConsumerResult () () (U32, U32)
+sum_for_n_iters #{obj = i, acc = (cur_iter, sum), obsv = _} =
+    ((cur_iter, (i + sum)), Next)
 
-caller: (SysState) -> Result (SysState) (SysState)
+caller: SysState -> Result SysState SysState
 caller ex = 
 	let iter = iterate[U32, (), (), (U32, U32), U32]
-  and ((_,sum), r) = iter(#{
+  and ((_,sum), r) = iter #{
         gen = seq32_generator,
         cons = sum_for_n_iters,
         acc = (0, 0),
-        obsv = 20})
+        obsv = 20}
   in r
   | Return () ->
       -- body returned, should not happen in this case
       -- since we always just ask for the next input and update
       -- our iterator
-      let _ = _cogent_debug ("had error?")
+      let _ = _cogent_debug "had error?"
       in Error ex
   | Stop () -> 
       -- iterator exhausted (ie we reached 20 iterations)
-      let _ = _cogent_debug ("answer was ")
-      and _ = _cogent_debug_u32 (sum)
-      and _ = _cogent_debug ("\n")
+      let _ = _cogent_debug "answer was "
+      and _ = _cogent_debug_u32 sum
+      and _ = _cogent_debug "\n"
       in Success ex

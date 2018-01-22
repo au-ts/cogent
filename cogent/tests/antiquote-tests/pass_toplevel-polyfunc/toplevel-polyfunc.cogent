@@ -5,6 +5,6 @@
 -- f x = toU32[Char] x
 
 f : U8 -> U32
-f x = toU32[U8] x
+f x = upcast x
 
 toU32 : all a. a -> U32  -- abstract

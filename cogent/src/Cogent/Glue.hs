@@ -14,6 +14,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE LambdaCase #-}
 {- LANGUAGE LiberalTypeSynonyms -}
 {- LANGUAGE MultiParamTypeClasses -}
@@ -34,6 +35,7 @@ import qualified Cogent.CodeGen as CG
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler
+import qualified Cogent.Context   as Ctx
 import qualified Cogent.Core      as CC
 import qualified Cogent.Desugar   as DS
 import qualified Cogent.DList     as DList
@@ -43,8 +45,11 @@ import qualified Cogent.Parser    as PS
 import Cogent.PrettyPrint
 import qualified Cogent.Surface   as SF
 -- import qualified Cogent.TypeCheck as TC
-import qualified Cogent.TypeCheck.Base as TC
-import qualified Cogent.TypeCheck.Post as TC
+import qualified Cogent.TypeCheck.Base      as TC
+import qualified Cogent.TypeCheck.Generator as TC
+import qualified Cogent.TypeCheck.Post      as TC
+import qualified Cogent.TypeCheck.Solver    as TC
+import qualified Cogent.TypeCheck.Subst     as TC
 import Cogent.Util
 import Cogent.Vec as Vec hiding (repeat)
 
@@ -59,9 +64,11 @@ import Control.Monad.Trans.Except
 --import Control.Monad.Trans.Except
 import Control.Monad.Writer
 import qualified Data.ByteString.Char8 as B
+import Data.Either (lefts)
 import Data.Data
 import Data.Function.Flippers
 import Data.Generics
+import qualified Data.IntMap as IM
 import Data.Loc
 import Data.List as L
 import Data.Map as M
@@ -119,6 +126,8 @@ parseFile' filename = do
 data TcState = TcState { _tfuncs :: Map FunName (SF.Polytype TC.TCType)
                        , _ttypes :: TC.TypeDict
                        , _consts :: Map VarName (TC.TCType, SourcePos)
+                       -- , _flexes :: Int
+                       -- , _vorigs :: IntMap VarOrigin
                        }
 
 data DsState = DsState { _typedefs  :: DS.Typedefs
@@ -189,7 +198,7 @@ tcAnti f a = lift . lift $
                                     , TC._knownTypes   = view (tcState.ttypes) s
                                     , TC._knownConsts  = view (tcState.consts) s
                                     }
-                     -- turn :: s -> (Either a b, [e]) -> Either [e] (b,s)
+                     turn :: s -> (Either a b, [TC.ContextualisedEW]) -> Either String (b,s)
                      turn s (Right x, []) = Right (x,s)
                      turn _ (_, err) = Left $ "Error: Typecheck antiquote failed:\n" ++
                                          show (vsep $ L.map (prettyTWE __cogent_ftc_ctx_len) err)
@@ -283,12 +292,20 @@ parseFnCall :: String -> SrcLoc -> GlFile SF.LocExpr
 parseFnCall s loc = parseAnti s PS.basicExpr' loc 4
 
 tcFnCall :: SF.LocExpr -> GlDefn t TC.TypedExpr
-tcFnCall e = do __todo "Glue: tcFnCall"
-  -- _ <- case e of
-  --        SF.LocExpr _ (SF.TypeApp f ts _) -> return f  -- TODO: make use of Inline to perform glue code inlining / zilinc
-  --        SF.LocExpr _ (SF.Var f) -> return f
-  --        otherwise -> throwError $ "Error: Not a function in $exp antiquote"
-  -- flip tcAnti $ \e -> undefined
+tcFnCall e = do
+  _ <- case e of
+         SF.LocExpr _ (SF.TypeApp f ts _) -> return f  -- TODO: make use of Inline to perform glue code inlining / zilinc
+         SF.LocExpr _ (SF.Var f) -> return f
+         otherwise -> throwError $ "Error: Not a function in $exp antiquote"
+  vs <- Vec.cvtToList <$> view kenv
+  flip tcAnti e $ \e ->
+    do let ?loc = SF.posOfE e
+       ((c,e'),flx,os) <- lift . lift $ TC.runCG Ctx.empty (L.map fst vs) (TC.cg e =<< TC.fresh)
+       (ews,subst,_) <- lift . lift $ TC.runSolver (TC.solve c) flx os vs
+       -- lift . lift . lift $ putStrLn ("ews = " ++ show ews)
+       tell $ L.map (first $ (++ [TC.AntiquotedExpr e])) ews
+       unless (L.null . lefts $ L.map snd ews) $ throwError ()
+       TC.postE [TC.AntiquotedExpr e] $ TC.applyE subst e'
 
 genFn :: CC.TypedExpr 'Zero 'Zero VarName -> Gl CS.Exp
 genFn = genAnti $ \case
@@ -523,6 +540,8 @@ mkGlState tced tcState (Last (Just (typedefs, constdefs, _))) ftypes (funMono, t
           , _tcState = TcState { _tfuncs = view TC.knownFuns   tcState
                                , _ttypes = view TC.knownTypes  tcState
                                , _consts = view TC.knownConsts tcState
+                               -- , _flexes = 0
+                               -- , _vorigs = IM.empty
                                }
           , _dsState = DsState typedefs constdefs
           , _icState = IcState ftypes

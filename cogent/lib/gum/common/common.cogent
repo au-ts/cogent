@@ -64,7 +64,7 @@ type Seq32SimpleParam acc = #{
 
 {-# cinline seq32_simple #-}
 {-# fnmacro seq32_simple #-}
-seq32_simple: all (acc).  Seq32SimpleParam acc -> acc
+seq32_simple: all acc.  Seq32SimpleParam acc -> acc
 
 -- seq32 begin end increment loop_body accumulators obvservables
 type Seq32_bodyParam acc obsv rbrk = #{
