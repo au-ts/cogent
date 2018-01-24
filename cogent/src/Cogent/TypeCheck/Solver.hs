@@ -246,11 +246,8 @@ rule (Escape t@(T (TCon n ts s)) m)
 rule (F (T (TTuple xs)) :< F (T (TTuple ys)))
   | length xs /= length ys = return $ Just $ Unsat (TypeMismatch (F (T (TTuple xs))) (F (T (TTuple ys))))
   | otherwise              = return $ Just $ mconcat (zipWith (:<) (map F xs) (map F ys))
-rule ct@(F (T (TFun a b))  :< F (T (TFun c d))) = do
-  let ct' = (F c :< F a) :& (F b :< F d)
-  traceTc "sol" (text "constraint" <+> prettyC ct <+> text "is decomposed into"
-                 P.<$> prettyC ct')
-  return $ Just ct' 
+rule ct@(F (T (TFun a b))  :< F (T (TFun c d))) = 
+  return . Just $ (F c :< F a) :& (F b :< F d)
 rule (F (T TUnit     )  :< F (T TUnit))      = return $ Just Sat
 rule (F (T (TVar v b))  :< F (T (TVar u c)))
   | v == u, b == c = return $ Just Sat
@@ -316,13 +313,16 @@ rule (F y :< F (T (TPut fs (U x))))
 --   = return $ Just $ uncurry FVariant (putVariant fs vs es) :< F (U x)
 -- rule (FVariant vs es :< F (T (TPut (Just fs) (U x))) )
 --   = return $ Just $ uncurry FVariant (takeVariant fs vs es) :<  F ( U x)
---TODO: rules for records
+rule (F (T (TBang a)) :< F b)
+  | isBangInv b = return $ Just (F a :< F b)
+rule (F a :< F (T (TBang b)))
+  | isBangInv a = return $ Just (F a :< F b)
 rule ct@(F a :< b)
   | notWhnf a = do
       traceTc "sol" (text "constraint" <+> prettyC ct <+> text "with LHS non-WHNF")
       return Nothing
-rule ct@(b :< F a)
-  | notWhnf a = do
+rule ct@(a :< F b)
+  | notWhnf b = do
       traceTc "sol" (text "constraint" <+> prettyC ct <+> text "with RHS non-WHNF")
       return Nothing
 rule (Upcastable (T (TCon n [] Unboxed)) (T (TCon m [] Unboxed)))
@@ -401,13 +401,15 @@ parVariants n m ks =
 apply :: (Constraint -> TC Constraint) -> [Goal] -> TC [Goal]
 apply tactic = fmap concat . mapM each
   where each (Goal ctx c) = do
+          traceTc "sol" (text "apply tactic to goal" <+> prettyC c)
           c' <- tactic c
+          traceTc "sol" (text "after tactic" <+> prettyC c </> text "becomes" <+> prettyC c')
           map (goalContext %~ (++ ctx)) <$> crunch c'
 
 -- Applies simp and rules as much as possible
 auto :: Constraint -> TC Constraint
 auto c = do
-  -- traceTc "sol" (text "auto" <+> prettyC c)
+  traceTc "sol" (text "auto")
   let ?lvl = 0
   c' <- simp c
   liftIO (rule' c') >>= \case
@@ -700,7 +702,10 @@ suggestCast xs = return xs
 
 noBrainersT :: [Goal] -> Solver Subst
 noBrainersT g@[Goal _ c] = do
-  traceTc "sol" (text "apply no brainer to" <+> prettyC c)
+  traceTc "sol" (text "apply no-brainer to" <+> prettyC c)
+  noBrainers g
+noBrainersT g = do
+  traceTc "sol" (text "apply no-brainer to several goals")
   noBrainers g
 
 -- Produce substitutions when it is safe to do so (the variable can't get any more general).
@@ -716,7 +721,7 @@ noBrainers [Goal _ c@(Upcastable (U x) (T t@(TCon v [] Unboxed)))]
 noBrainers _ = return mempty
 
 applySubst :: Subst -> Solver ()
-applySubst s = substs <>= s
+applySubst s = traceTc "sol" (text "apply subst") >> substs <>= s
 
 -- Applies the current substitution to goals.
 instantiate :: GoalClasses -> Solver [Goal]
@@ -767,6 +772,12 @@ irreducible m ds | IM.null m = True
 
 isGround (T (TCon x [] Unboxed)) = True
 isGround _ = False
+
+-- when `!' is invertible
+isBangInv (T (TCon x [] Unboxed)) = True
+isBangInv (T (TFun {})) = True
+isBangInv (T TUnit) = True
+isBangInv _ = False
 
 groundConstraint a b | Just a' <- flexOf a, isGround b = True
                      | Just b' <- flexOf b, isGround a = True

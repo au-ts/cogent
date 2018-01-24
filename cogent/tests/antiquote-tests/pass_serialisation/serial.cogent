@@ -38,14 +38,14 @@ serialise_le64(buf, offs, val) =
 
 deserialise_le64: (Buffer!, BufOffs) -> U64
 deserialise_le64(buf, offs) =
-  let b0 = wordarray_get[U8] (buf.data, offs)
-  and b1 = wordarray_get[U8] (buf.data, offs + 1)
-  and b2 = wordarray_get[U8] (buf.data, offs + 2)
-  and b3 = wordarray_get[U8] (buf.data, offs + 3)
-  and b4 = wordarray_get[U8] (buf.data, offs + 4)
-  and b5 = wordarray_get[U8] (buf.data, offs + 5)
-  and b6 = wordarray_get[U8] (buf.data, offs + 6)
-  and b7 = wordarray_get[U8] (buf.data, offs + 7)
+  let b0 = wordarray_get (buf.data, offs)
+  and b1 = wordarray_get (buf.data, offs + 1)
+  and b2 = wordarray_get (buf.data, offs + 2)
+  and b3 = wordarray_get (buf.data, offs + 3)
+  and b4 = wordarray_get (buf.data, offs + 4)
+  and b5 = wordarray_get (buf.data, offs + 5)
+  and b6 = wordarray_get (buf.data, offs + 6)
+  and b7 = wordarray_get (buf.data, offs + 7)
   in ((upcast b7 << 56) .|. (upcast b6 << 48) .|.
       (upcast b5 << 40) .|. (upcast b4 << 32) .|.
       (upcast b3 << 24) .|. (upcast b2 << 16) .|.
