@@ -16,12 +16,22 @@ import Control.Monad.Writer
 -- import System.IO
 import Text.PrettyPrint.ANSI.Leijen as L hiding (indent)
 
-traceTC :: MonadIO m => String -> Doc -> m ()
-traceTC s | Just ws <- __cogent_ddump_tc_filter, s `notElem` ws = const $ return ()
-          | otherwise = liftIO . dumpMsg . (\d -> indent (text ("[dump-tc/" ++ s ++ "]") <+> d) L.<$> line)
+traceTc :: MonadIO m => String -> Doc -> m ()
+traceTc s d = traceTcBracket s d (return ()) (const empty)
 
-traceTC' :: MonadIO m => String -> String -> m ()
-traceTC' s = traceTC s . text
+traceTc' :: MonadIO m => String -> String -> m ()
+traceTc' s = traceTc s . text
+
+traceTcBracket :: MonadIO m => String -> Doc -> m a -> (a -> Doc) -> m a
+traceTcBracket s d1 m f
+  | Just ws <- __cogent_ddump_tc_filter, s `notElem` ws = m
+  | otherwise = do
+      liftIO . dumpMsg $ indent (text ("[dump-tc/" ++ s ++ "]") <+> d1)
+      a <- m
+      d2 <- return $ f a
+      liftIO . dumpMsg $ indent d2 L.<$> line
+      return a
+
 
 -- NOTE: The `ExceptT` on `WriterT` monad stack works in a way which,
 -- if an error has been thrown, then later operations like `tell` or

@@ -574,8 +574,8 @@ instance (Pretty a, TypeType a) => Pretty (TypeFragment a) where
         where tk = map fst $ filter (snd .snd) ts
 
 instance Pretty Constraint where
-  pretty (a :<  b)        = pretty a </> warn ":<" </> pretty b
-  pretty (a :& b)         = pretty a </> warn ":&" <$> pretty b
+  pretty (a :< b)         = pretty a </> warn ":<" </> pretty b
+  pretty (a :& b)         = pretty a </> warn ":&" </> pretty b
   pretty (Upcastable a b) = pretty a </> warn "~>" </> pretty b
   pretty (Share  t m)     = warn "Share" <+> pretty t
   pretty (Drop   t m)     = warn "Drop" <+> pretty t
@@ -591,7 +591,7 @@ prettyC :: Constraint -> Doc
 prettyC (Unsat e) = errbd "Unsat" <$> pretty e
 prettyC (SemiSat w) = warn "SemiSat" -- <$> pretty w
 prettyC (a :& b) = prettyC a </> warn ":&" <$> prettyC b
-prettyC (c :@ e) = prettyC c & (if __cogent_ddump_tc_ctx then (</> prettyCtx e False) else id)
+prettyC (c :@ e) = prettyC c & (if __cogent_ddump_tc_ctx then (</> prettyCtx e False) else (</> warn ":@ ..."))
 prettyC c = pretty c
 
 instance Pretty SourceObject where

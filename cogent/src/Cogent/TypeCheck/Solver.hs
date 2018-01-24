@@ -8,6 +8,7 @@
 -- @TAG(NICTA_GPL)
 --
 
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -155,15 +156,19 @@ patternTag _ = Nothing
 -- for that to be true. E.g, (a,b) :< (c,d) becomes a :< c :& b :< d.
 -- Assumes that the input is simped (i.e conjunction and context free, with types in whnf)
 -- Returns `Nothing' if the constraint cannot be further transformed.
-rule' :: Constraint -> IO (Maybe Constraint)
+rule' :: (?lvl :: Int) => Constraint -> IO (Maybe Constraint)
 rule' c = ruleT c >>= return . ((:@ SolvingConstraint c) <$>)
 
-ruleT :: Constraint -> IO (Maybe Constraint)
+ruleT :: (?lvl :: Int) => Constraint -> IO (Maybe Constraint)
 ruleT c = do
-  traceTC "sol" (text "apply rule to" <+> prettyC c)
-  rule c
+  traceTc "sol" (brackets (int ?lvl) <+> text "apply rule to" <+> prettyC c)
+  mc <- rule c
+  traceTc "sol" . ((brackets (int ?lvl) <+> prettyC c) <+>) $ case mc of
+    Nothing -> text "doesn't change"
+    Just c' -> text "becomes" <+> prettyC c'
+  return mc
 
-rule :: Constraint -> IO (Maybe Constraint)
+rule :: (?lvl :: Int) => Constraint -> IO (Maybe Constraint)
 rule (Exhaustive t ps) | any isIrrefutable ps = return $ Just Sat
 rule (Exhaustive (T (TVariant n)) ps)
   | s1 <- S.fromList (mapMaybe patternTag ps)
@@ -179,9 +184,12 @@ rule (Exhaustive (T (TCon "Bool" [] Unboxed)) [RP (PBoolLit t), RP (PBoolLit f)]
 rule (Exhaustive t ps)
   | not (notWhnf t) = return . Just . Unsat $ PatternsNotExhaustive t []
 
-rule (x :@ c) = return . ((:@ c) <$>) =<< ruleT x
+rule (x :@ c) = do
+  let ?lvl = ?lvl + 1
+  return . ((:@ c) <$>) =<< ruleT x
 
 rule (x :& y) = do
+  let ?lvl = ?lvl + 1
   x' <- ruleT x
   y' <- ruleT y
   return ((:&) <$> x' <*> y'
@@ -240,7 +248,7 @@ rule (F (T (TTuple xs)) :< F (T (TTuple ys)))
   | otherwise              = return $ Just $ mconcat (zipWith (:<) (map F xs) (map F ys))
 rule ct@(F (T (TFun a b))  :< F (T (TFun c d))) = do
   let ct' = (F c :< F a) :& (F b :< F d)
-  traceTC "sol" (text "constraint" <+> prettyC ct <+> text "is decomposed into"
+  traceTc "sol" (text "constraint" <+> prettyC ct <+> text "is decomposed into"
                  P.<$> prettyC ct')
   return $ Just ct' 
 rule (F (T TUnit     )  :< F (T TUnit))      = return $ Just Sat
@@ -253,7 +261,7 @@ rule (F (T (TCon n ts s)) :< F (T (TCon m us r)))
   | otherwise                              = return $ Just $ Unsat (TypeMismatch (F $ T (TCon n ts s)) (F $ T (TCon m us r)))
 rule ct@(F (T (TRecord fs s)) :< F (T (TRecord gs r)))
   | or (zipWith ((/=) `on` fst) fs gs) = do
-      traceTC "sol" (text "apply rule to" <+> prettyC ct <> semi
+      traceTc "sol" (text "apply rule to" <+> prettyC ct <> semi
                P.<$> text "record fields do not match")
       return $ Just $ Unsat (TypeMismatch (F $ T (TRecord fs s)) (F $ T (TRecord gs r)))
   | length fs /= length gs             = return $ Just $ Unsat (TypeMismatch (F $ T (TRecord fs s)) (F $ T (TRecord gs r)))
@@ -264,7 +272,7 @@ rule ct@(F (T (TRecord fs s)) :< F (T (TRecord gs r)))
          each (_, (t, True )) (_, (u, True )) = F t :< F u
          each (f, (t, True )) (_, (u, False)) = Unsat (RequiredTakenField f t)
          cs = zipWith each fs gs
-     traceTC "sol" (text "solve each field of constraint" <+> prettyC ct <> colon
+     traceTc "sol" (text "solve each field of constraint" <+> prettyC ct <> colon
        P.<$> foldl
                (\a (f,c) -> a P.<$> text "field" <+> pretty (fst f) P.<> colon <+> prettyC c)
                P.empty
@@ -311,11 +319,11 @@ rule (F y :< F (T (TPut fs (U x))))
 --TODO: rules for records
 rule ct@(F a :< b)
   | notWhnf a = do
-      traceTC "sol" (text "constraint" <+> prettyC ct <+> text "with left side in non-WHNF is disregarded")
+      traceTc "sol" (text "constraint" <+> prettyC ct <+> text "with LHS non-WHNF")
       return Nothing
 rule ct@(b :< F a)
   | notWhnf a = do
-      traceTC "sol" (text "constraint" <+> prettyC ct <+> text "with right side in non-WHNF is disregarded")
+      traceTc "sol" (text "constraint" <+> prettyC ct <+> text "with RHS non-WHNF")
       return Nothing
 rule (Upcastable (T (TCon n [] Unboxed)) (T (TCon m [] Unboxed)))
   | Just n' <- elemIndex n primTypeCons
@@ -354,11 +362,11 @@ rule ct@(FRecord (M.fromList -> n) :< FRecord (M.fromList -> m))
   , ns == M.keysSet m
   = parRecords n m ns
 rule ct@(a :< b) = do
-  traceTC "sol" (text "apply rule to" <+> prettyC ct <> semi
+  traceTc "sol" (text "apply rule to" <+> prettyC ct <> semi
            P.<$> text "yield type mismatch")
   return . Just $ Unsat (TypeMismatch a b)
 rule ct = do
-  -- traceTC "sol" (text "apply rule to" <+> prettyC ct <> semi
+  -- traceTc "sol" (text "apply rule to" <+> prettyC ct <> semi
   --          P.<$> text "yield nothing")
   return Nothing
 
@@ -399,7 +407,8 @@ apply tactic = fmap concat . mapM each
 -- Applies simp and rules as much as possible
 auto :: Constraint -> TC Constraint
 auto c = do
-  -- traceTC "sol" (text "auto" <+> prettyC c)
+  -- traceTc "sol" (text "auto" <+> prettyC c)
+  let ?lvl = 0
   c' <- simp c
   liftIO (rule' c') >>= \case
     Nothing  -> return c'
@@ -445,7 +454,7 @@ bound d a@(FVariant is_) b@(FVariant js_)
       then return (Nothing, a, b)
       else do
         rs <- M.fromList <$> traverse (each is js) (M.keys is)
-        traceTC "sol" (text "calculate" <+> text (show b) <+> text "of"
+        traceTc "sol" (text "calculate" <+> text (show b) <+> text "of"
                        P.<+> pretty a <+> text "and" <+> pretty b <> colon
                        P.<$> pretty (FVariant rs))
         return (Just (FVariant rs), FVariant is, FVariant js)
@@ -473,12 +482,12 @@ bound d a@(FRecord is_) b@(FRecord js_)
         is' = M.toList is
         js' = M.toList js
     in do t <- FRecord <$> zipWithM each is' js'
-          traceTC "sol" (text "calculate" <+> text (show b) <+> text "of"
+          traceTc "sol" (text "calculate" <+> text (show b) <+> text "of"
                          P.<+> pretty a <+> text "and" <+> pretty b <> colon
                          P.<$> pretty t)
           return (Just t, FRecord is', FRecord js')
 bound _ a b = do
-  traceTC "sol" (text "calculate bound of"
+  traceTc "sol" (text "calculate bound of"
                  P.<$> pretty a
                  P.<$> text "and"
                  P.<$> pretty b <> semi
@@ -491,7 +500,7 @@ bound' d t1@(T (TVariant is)) t2@(T (TVariant js))
   | or (zipWith ((/=) `on` length . fst) (F.toList is) (F.toList js)) = return Nothing
   | otherwise = do
       t <- T . TVariant . M.fromList <$> traverse each (M.keys is)
-      traceTC "sol" (text "calculate" <+> text (show d) <+> text "of"
+      traceTc "sol" (text "calculate" <+> text (show d) <+> text "of"
                      P.<+> pretty t1 <+> text "and" <+> pretty t2 <> colon
                      P.<$> pretty t)
       return $ Just t
@@ -506,12 +515,12 @@ bound' d t1@(T (TVariant is)) t2@(T (TVariant js))
 bound' d t1@(T (TTuple is)) t2@(T (TTuple js))
   | length is /= length js = return Nothing
   | otherwise = do t <- T . TTuple <$> traverse (const $ (fresh $ BoundOf (F t1) (F t2) d) ) is
-                   traceTC "sol" (text "calculate bound of" <+> pretty t1 <+> text "and" <+> pretty t2 <> colon
+                   traceTc "sol" (text "calculate bound of" <+> pretty t1 <+> text "and" <+> pretty t2 <> colon
                                   P.<$> pretty t)
                    return $ Just t
 bound' x t1@(T (TFun a b)) t2@(T (TFun c d)) = do
   t <-  T <$> (TFun <$> fresh (BoundOf (F t1) (F t2) x) <*> fresh (BoundOf (F t1) (F t2) x))
-  traceTC "sol" (text "calculate bound of" <+> pretty t1 <+> text "and" <+> pretty t2 <> colon
+  traceTc "sol" (text "calculate bound of" <+> pretty t1 <+> text "and" <+> pretty t2 <> colon
                  P.<$> pretty t)
   return $ Just t
 bound' x t1@(T (TCon c as s)) t2@(T (TCon d bs r))
@@ -519,7 +528,7 @@ bound' x t1@(T (TCon c as s)) t2@(T (TCon d bs r))
   | length as /= length bs = return Nothing
   | otherwise = do
       t <- T <$> (TCon d <$> traverse (const $ fresh (BoundOf (F t1) (F t2) x)) as <*> pure r)
-      traceTC "sol" (text "calculate bound of" <+> pretty t1 <+> text "and" <+> pretty t2 <> colon
+      traceTc "sol" (text "calculate bound of" <+> pretty t1 <+> text "and" <+> pretty t2 <> colon
                      P.<$> pretty t)
       return $ Just t
 bound' _ (T (TVar a x)) (T (TVar b y))
@@ -533,11 +542,11 @@ bound' d t1@(T (TRecord fs s)) t2@(T (TRecord gs r))
       let op = case d of GLB -> (&&); LUB -> (||)
           each (f,(_,b)) (_, (_,b')) = (f,) . (,b `op` b') <$> fresh (BoundOf (F t1) (F t2) d)
       t <- T <$> (TRecord <$> zipWithM each fs gs <*> pure s)
-      traceTC "sol" (text "calculate bound of" <+> pretty t1 <+> text "and" <+> pretty t2 <> colon
+      traceTc "sol" (text "calculate bound of" <+> pretty t1 <+> text "and" <+> pretty t2 <> colon
                      P.<$> pretty t)
       return $ Just t
 bound' _ a b = do
-  traceTC "sol" (text "calculate bound (bound') of"
+  traceTc "sol" (text "calculate bound (bound') of"
            P.<$> pretty a
            P.<$> text "and"
            P.<$> pretty b <+> semi
@@ -551,7 +560,7 @@ primGuess d (T (TCon n [] Unboxed)) (T (TCon m [] Unboxed))
   = let f = case d of GLB -> min; LUB -> max
     in return $ Just (T (TCon (primTypeCons !! f n' m') [] Unboxed))
 primGuess _ a b = do
-  traceTC "sol" (text "primitive guess on"
+  traceTc "sol" (text "primitive guess on"
            P.<$> pretty a
            P.<$> text "and"
            P.<$> pretty b <+> semi
@@ -689,20 +698,21 @@ suggestCast xs = return xs
 --     op' = case d' of Less -> (:<); _ -> flip (:<)
 -- guess xs = return xs
 
+noBrainersT :: [Goal] -> Solver Subst
+noBrainersT g@[Goal _ c] = do
+  traceTc "sol" (text "apply no brainer to" <+> prettyC c)
+  noBrainers g
+
 -- Produce substitutions when it is safe to do so (the variable can't get any more general).
 noBrainers :: [Goal] -> Solver Subst
-noBrainers [Goal _ c@(F (U x) :<  F (T t))] | Nothing <- flexOf (T t) = do
-  traceTC "sol" (text "apply no brainer to" <+> prettyC c)
+noBrainers [Goal _ c@(F (U x) :<  F (T t))] | Nothing <- flexOf (T t) =
   return $ Subst.singleton x (T t)
-noBrainers [Goal _ c@(F (T t) :<  F (U x))] | Nothing <- flexOf (T t) = do
-  traceTC "sol" (text "apply no brainer to" <+> prettyC c)
+noBrainers [Goal _ c@(F (T t) :<  F (U x))] | Nothing <- flexOf (T t) =
   return $ Subst.singleton x (T t)
-noBrainers [Goal _ c@(Upcastable (T t@(TCon v [] Unboxed)) (U x))] | v `elem` primTypeCons = do
-  traceTC "sol" (text "apply no brainer to" <+> prettyC c)
-  return $ Subst.singleton x (T t)
-noBrainers [Goal _ c@(Upcastable (U x) (T t@(TCon v [] Unboxed)))] | v `elem` primTypeCons = do
-  traceTC "sol" (text "apply no brainer to" <+> prettyC c)
-  return $ Subst.singleton x (T t)
+noBrainers [Goal _ c@(Upcastable (T t@(TCon v [] Unboxed)) (U x))]
+  | v `elem` primTypeCons = return $ Subst.singleton x (T t)
+noBrainers [Goal _ c@(Upcastable (U x) (T t@(TCon v [] Unboxed)))]
+  | v `elem` primTypeCons = return $ Subst.singleton x (T t)
 noBrainers _ = return mempty
 
 applySubst :: Subst -> Solver ()
@@ -714,7 +724,7 @@ instantiate (Classes ups downs upcasts downcasts errs semisats rest upfl downfl)
   s <- use substs
   let al  = (GS.toList =<< (F.toList =<< [ups, downs, upcasts, downcasts]) ) ++ errs ++ semisats ++ rest
       al' = al & map (goal %~ Subst.applyC s) & map (goalContext %~ map (Subst.applyCtx s))
-  -- traceTC "sol" (text "instantiate" <+> pretty (show al) P.<$> text "with substitution" P.<$> pretty s <> semi
+  -- traceTc "sol" (text "instantiate" <+> pretty (show al) P.<$> text "with substitution" P.<$> pretty s <> semi
   --                P.<$> text "end up with goals:" <+> pretty (show al'))
   return al'
 
@@ -799,8 +809,8 @@ solve = zoom tc . crunch >=> explode >=> go
           groundNB [Goal _ (F a :< F b)] = groundConstraint a b
           groundNB _                     = False
           groundKeys = IM.keysSet (IM.filter (groundNB . GS.toList) (cls g))
-      s <- F.fold <$> mapM (noBrainers . GS.toList) (cls g `removeKeys` IS.toList (flexes g IS.\\ groundKeys))
-      traceTC "sol" (text "solve" <+> text msg <+> text "goals"
+      s <- F.fold <$> mapM (noBrainersT . GS.toList) (cls g `removeKeys` IS.toList (flexes g IS.\\ groundKeys))
+      traceTc "sol" (text "solve" <+> text msg <+> text "goals"
                      P.<$> bold (text "produce subst:")
                      P.<$> pretty s)
       if Subst.null s then do

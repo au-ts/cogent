@@ -45,19 +45,19 @@ type Post a = ExceptT () (WriterT [ContextualisedEW] TC) a
 postT :: [ErrorContext] -> TCType -> Post RawType
 postT ctx t = do
   d <- use knownTypes
-  traceTC "post" (text "type" <+> pretty t)
+  traceTc "post" (text "type" <+> pretty t)
   censor (map (first $ (++ctx))) (toRawType <$> normaliseT d t)
 
 postE :: [ErrorContext] -> TCExpr -> Post TypedExpr
 postE ctx e = do
   d <- use knownTypes
-  traceTC "post" (text "expression" <+> pretty e)
+  traceTc "post" (text "expression" <+> pretty e)
   censor (map (first $ (++ctx))) (toTypedExpr <$> normaliseE d e)
 
 postA :: [ErrorContext] -> [Alt TCPatn TCExpr] -> Post [Alt TypedPatn TypedExpr]
 postA ctx as = do
   d <- use knownTypes
-  traceTC "post" (text "alternative" <+> pretty as)
+  traceTc "post" (text "alternative" <+> pretty as)
   censor (map (first $ (++ctx))) (toTypedAlts <$> normaliseA d as)
 
 

@@ -117,7 +117,7 @@ cg' (PrimOp _ _) _ = __impossible "cg': unimplemented primops"
 cg' (Var n) t = do
   let e = Var n  -- it has a different type than the above `Var n' pattern
   ctx <- use context
-  traceTC "gen" (text "cg for variable" <+> pretty n L.<$> text "of type" <+> pretty t)
+  traceTc "gen" (text "cg for variable" <+> pretty n L.<$> text "of type" <+> pretty t)
   case C.lookup n ctx of
     -- Variable not found, see if the user meant a function.
     Nothing ->
@@ -129,14 +129,14 @@ cg' (Var n) t = do
     Just (t', _, Seq.Empty) -> do
       context %= C.use n ?loc
       let c = F t' :< F t
-      traceTC "gen" (text "variable" <+> pretty n <+> text "used for the first time" <> semi
+      traceTc "gen" (text "variable" <+> pretty n <+> text "used for the first time" <> semi
                L.<$> text "generate constraint" <+> prettyC c)
       return (c, e)
 
     -- Variable already used before, emit a Share constraint.
     Just (t', p, us)  -> do
       context %= C.use n ?loc
-      traceTC "gen" (text "variable" <+> pretty n <+> text "used before" <> semi
+      traceTc "gen" (text "variable" <+> pretty n <+> text "used before" <> semi
                L.<$> text "generate constraint" <+> prettyC (F t' :< F t) <+> text "and share constraint")
       return (Share t' (Reused n p us) <> F t' :< F t, e)
 
@@ -188,7 +188,7 @@ cg' (App e1 e2) t = do
 
   let c = c1 <> c2
       e = App e1' e2'
-  traceTC "gen" (text "cg for funapp:" <+> prettyE e)
+  traceTc "gen" (text "cg for funapp:" <+> prettyE e)
   return (c,e)
 
 cg' (Con k es) t = do
@@ -196,7 +196,7 @@ cg' (Con k es) t = do
 
   let e = Con k es'
       c = FVariant (M.fromList [(k, (ts, False))]) :< F t
-  traceTC "gen" (text "cg for constructor:" <+> prettyE e
+  traceTc "gen" (text "cg for constructor:" <+> prettyE e
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint" <+> prettyC c)
   return (c' <> c,e)
@@ -206,7 +206,7 @@ cg' (Tuple es) t = do
 
   let e = Tuple es'
       c = F (T (TTuple ts)) :< F t
-  traceTC "gen" (text "cg for tuple:" <+> prettyE e
+  traceTc "gen" (text "cg for tuple:" <+> prettyE e
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint" <+> prettyC c)
   return (c' <> c,e)
@@ -218,7 +218,7 @@ cg' (UnboxedRecord fes) t = do
   let e = UnboxedRecord (zip fs es')
       r = T (TRecord (zip fs (map (, False) ts)) Unboxed)
       c = F r :< F t
-  traceTC "gen" (text "cg for unboxed record:" <+> prettyE e
+  traceTc "gen" (text "cg for unboxed record:" <+> prettyE e
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint" <+> prettyC c)
   return (c' <> c,e)
@@ -253,7 +253,7 @@ cg' (TypeApp f as i) t = do
 
         let c = F (substType ts tau) :< F t
             e = TypeApp f (map (Just . snd) ts) i
-        traceTC "gen" (text "cg for typeapp:" <+> prettyE e
+        traceTc "gen" (text "cg for typeapp:" <+> prettyE e
                  L.<$> text "of type" <+> pretty t <> semi
                  L.<$> text "type signature is" <+> pretty (PT vs tau) <> semi
                  L.<$> text "generate constraint" <+> prettyC c)
@@ -271,7 +271,7 @@ cg' (Member e f) t = do
   let f' = Member e' f
       x = FRecord [(f, (t, False))]
       c = F alpha :< x <> Share alpha (UsedInMember f)
-  traceTC "gen" (text "cg for member:" <+> prettyE f'
+  traceTc "gen" (text "cg for member:" <+> prettyE f'
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint" <+> prettyC c)
   return (c' <> c, f')
@@ -280,7 +280,7 @@ cg' (If e1 bs e2 e3) t = do
   (c1, e1') <- letBang bs (cg e1) (T (TCon "Bool" [] Unboxed))
   (c, [(c2, e2'), (c3, e3')]) <- parallel' [(ThenBranch, cg e2 t), (ElseBranch, cg e3 t)]
   let e = If e1' bs e2' e3'
-  traceTC "gen" (text "cg for if:" <+> prettyE e)
+  traceTc "gen" (text "cg for if:" <+> prettyE e)
   return (c1 <> c <> c2 <> c3, e)
 
 cg' (Put e ls) t | not (any isNothing ls) = do
@@ -292,7 +292,7 @@ cg' (Put e ls) t | not (any isNothing ls) = do
   let c1 = F (T (TPut (Just fs) alpha)) :< F t
       c2 = F alpha :< FRecord (zip fs (map (,True) ts))
       r = Put e' (map Just (zip fs es'))
-  traceTC "gen" (text "cg for put:" <+> prettyE r
+  traceTc "gen" (text "cg for put:" <+> prettyE r
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint:" <+> prettyC c1 <+> text "and" <+> prettyC c2)
   return (c1 <> c' <> cs <> c2, r)
@@ -371,7 +371,7 @@ matchA' (PCon k is) t = do
              Left (v:_) -> Unsat $ DuplicateVariableInPattern v  -- p'
              _          -> Sat
       c = F t :< FVariant (M.fromList [(k, (vs, False))]) 
-  traceTC "gen" (text "match constructor pattern:" <+> pretty p'
+  traceTc "gen" (text "match constructor pattern:" <+> pretty p'
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint" <+> prettyC c)
   return (M.unions ss, co <> mconcat cs <> c, p')
@@ -403,7 +403,7 @@ match' :: (?loc :: SourcePos)
 
 match' (PVar x) t = do
   let p = PVar (x,t)
-  traceTC "gen" (text "match var pattern:" <+> prettyIP p
+  traceTc "gen" (text "match var pattern:" <+> prettyIP p
            L.<$> text "of type" <+> pretty t)
   return (M.fromList [(x, (t,?loc,Seq.empty))], Sat, p)
 
@@ -421,7 +421,7 @@ match' (PTuple ps) t = do
               Left (v:_) -> Unsat $ DuplicateVariableInPattern v  -- p'
               _          -> Sat
        c = F t :< F (T (TTuple vs))
-   traceTC "gen" (text "match tuple pattern:" <+> prettyIP p'
+   traceTc "gen" (text "match tuple pattern:" <+> prettyIP p'
             L.<$> text "of type" <+> pretty t <> semi
             L.<$> text "generate constraint" <+> prettyC c)
    return (M.unions ss, co <> mconcat cs <> c, p')
@@ -437,7 +437,7 @@ match' (PUnboxedRecord fs) t | not (any isNothing fs) = do
        co = case overlapping ss of
               Left (v:_) -> Unsat $ DuplicateVariableInPattern v  -- p'
               _          -> Sat
-   traceTC "gen" (text "match unboxed record:" <+> prettyIP p'
+   traceTc "gen" (text "match unboxed record:" <+> prettyIP p'
             L.<$> text "of type" <+> pretty t <> semi
             L.<$> text "generate constraint" <+> prettyC c
             L.<$> text "non-overlapping, and linearity constraints")
@@ -459,7 +459,7 @@ match' (PTake r fs) t | not (any isNothing fs) = do
        co = case overlapping (s:ss) of
               Left (v:_) -> Unsat $ DuplicateVariableInPattern v  -- p'
               _          -> Sat
-   traceTC "gen" (text "match take pattern:" <+> pretty p'
+   traceTc "gen" (text "match take pattern:" <+> pretty p'
             L.<$> text "of type" <+> pretty t <> semi
             L.<$> text "generate constraint:" <+> prettyC c
             L.<$> text "and non-overlapping constraints")
@@ -488,7 +488,7 @@ withBindings (Binding pat tau e bs : xs) a = do
   let unused = flip foldMap (M.toList rs) $ \(v,(_,_,us)) -> case us of Seq.Empty -> warnToConstraint __cogent_wunused_local_binds (UnusedLocalBind v); _ -> Sat
       c = ct <> c1 <> c' <> cp <> dropConstraintFor rs <> unused
       b' = Binding pat' (fmap (const alpha) tau) e' bs
-  traceTC "gen" (text "bound expression" <+> pretty e' <+> text "with banged" <+> pretty bs
+  traceTc "gen" (text "bound expression" <+> pretty e' <+> text "with banged" <+> pretty bs
            L.<$> text "of type" <+> pretty alpha <> semi
            L.<$> text "generate constraint" <+> prettyC c1 <> semi
            L.<$> text "constraint for ascribed type:" <+> prettyC ct)
@@ -523,7 +523,7 @@ letBang bs f t = do
   (c', e) <- f t
   context %= undo  -- NOTE: this is NOT equiv. to `context .= ctx'
   let c'' = Escape t UsedInLetBang
-  traceTC "gen" (text "let!" <+> pretty bs <+> text "when cg for expression" <+> pretty e
+  traceTc "gen" (text "let!" <+> pretty bs <+> text "when cg for expression" <+> pretty e
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint" <+> prettyC c'')
   return (c <> c' <> c'', e)

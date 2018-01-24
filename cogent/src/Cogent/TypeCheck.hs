@@ -76,8 +76,8 @@ checkOne loc d = case d of
   (IncludeStd _) -> __impossible "checkOne"
   (DocBlock s) -> return $ DocBlock s
   (TypeDec n ps t) -> do
-    traceTC "tc" $ bold (text $ replicate 80 '=')
-    traceTC "tc" (text "typecheck type definition" <+> pretty n)
+    traceTc "tc" $ bold (text $ replicate 80 '=')
+    traceTc "tc" (text "typecheck type definition" <+> pretty n)
     let xs = ps \\ nub ps
     unless (null xs) $ tell [([InDefinition loc d], Left $ DuplicateTypeVariable xs)] >> throwError ()
     t' <- validateType' ps [InDefinition loc d] (stripLocT t)
@@ -86,16 +86,16 @@ checkOne loc d = case d of
     return $ TypeDec n ps t''
 
   (AbsTypeDec n ps) -> do
-    traceTC "tc" $ bold (text $ replicate 80 '=')
-    traceTC "tc" (text "typecheck abstract type definition" <+> pretty n)
+    traceTc "tc" $ bold (text $ replicate 80 '=')
+    traceTc "tc" (text "typecheck abstract type definition" <+> pretty n)
     let xs = ps \\ nub ps
     unless (null xs) $ tell [([InDefinition loc d], Left $ DuplicateTypeVariable xs)] >> throwError ()
     knownTypes <>= [(n,(ps, Nothing))]
     return $ AbsTypeDec n ps
 
   (AbsDec n (PT ps t)) -> do
-    traceTC "tc" $ bold (text $ replicate 80 '=')
-    traceTC "tc" (text "typecheck abstract function" <+> pretty n)
+    traceTc "tc" $ bold (text $ replicate 80 '=')
+    traceTc "tc" (text "typecheck abstract function" <+> pretty n)
     let vs' = map fst ps
         xs = vs' \\ nub vs'
     unless (null xs) $ tell [([InDefinition loc d], Left $ DuplicateTypeVariable xs)] >> throwError ()
@@ -105,8 +105,8 @@ checkOne loc d = case d of
     return $ AbsDec n (PT ps t'')
 
   (ConstDef n t e) -> do
-    traceTC "tc" $ bold (text $ replicate 80 '=')
-    traceTC "tc" (text "typecheck const definition" <+> pretty n)
+    traceTc "tc" $ bold (text $ replicate 80 '=')
+    traceTc "tc" (text "typecheck const definition" <+> pretty n)
     base <- use knownConsts
     t' <- validateType' [] [InDefinition loc d] (stripLocT t)
     let ctx = C.addScope (fmap (\(t,p) -> (t,p, Seq.singleton p)) base) C.empty  -- for consts, the definition is the first use.
@@ -114,7 +114,7 @@ checkOne loc d = case d of
     let c' = c <> Share t' (Constant n)
     (ews, subst, _) <- lift $ lift (runSolver (solve c') flx os [])
     tell $ map addCtx ews
-    traceTC "tc" (text "subst for const definition" <+> pretty n <+> text "is"
+    traceTc "tc" (text "subst for const definition" <+> pretty n <+> text "is"
                   L.<$> pretty subst)
     if null (lefts $ map snd ews) then do
       knownConsts %= M.insert n (t', loc)
@@ -125,8 +125,8 @@ checkOne loc d = case d of
       throwError ()
 
   (FunDef f (PT vs t) alts) -> do
-    traceTC "tc" $ bold (text $ replicate 80 '=')
-    traceTC "tc" (text "typecheck fun definition" <+> pretty f)
+    traceTc "tc" $ bold (text $ replicate 80 '=')
+    traceTc "tc" (text "typecheck fun definition" <+> pretty f)
     let vs' = map fst vs
         xs = vs' \\ nub vs'
     unless (null xs) $ tell [([InDefinition loc d], Left $ DuplicateTypeVariable xs)] >> throwError ()
@@ -136,12 +136,12 @@ checkOne loc d = case d of
     let ctx = C.addScope (fmap (\(t,p) -> (t, p, Seq.singleton p)) base) C.empty
     let ?loc = loc
     ((c, alts'), flx, os) <- lift $ lift (runCG ctx (map fst vs) (cgAlts alts o i))
-    traceTC "tc" (text "constraint for fun definition" <+> pretty f <+> text "is"
+    traceTc "tc" (text "constraint for fun definition" <+> pretty f <+> text "is"
                   L.<$> prettyC c)
-    -- traceTC "tc" (pretty alts')
+    -- traceTc "tc" (pretty alts')
     (ews, subst, _) <- lift $ lift (runSolver (solve c) flx os vs)
     tell $ map addCtx ews
-    traceTC "tc" (text "subst for fun definition" <+> pretty f <+> text "is"
+    traceTc "tc" (text "subst for fun definition" <+> pretty f <+> text "is"
                   L.<$> pretty subst)
     if null (lefts $ map snd ews) then do
       knownFuns %= M.insert f (PT vs t')

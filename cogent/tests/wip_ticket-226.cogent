@@ -1,0 +1,6 @@
+foo : U8 -> U64
+foo xs = let a = bar xs
+          in upcast (a << 32)
+
+bar : all a. (a)! -> a
+
