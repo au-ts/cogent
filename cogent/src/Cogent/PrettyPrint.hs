@@ -1,14 +1,16 @@
-{-# LANGUAGE NamedFieldPuns #-}
 --
--- Copyright 2017, NICTA
+-- Copyright 2018, Data61
+-- Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+-- ABN 41 687 119 230.
 --
 -- This software may be distributed and modified according to the terms of
 -- the GNU General Public License version 2. Note that NO WARRANTY is provided.
 -- See "LICENSE_GPLv2.txt" for details.
 --
--- @TAG(NICTA_GPL)
+-- @TAG(DATA61_GPL)
 --
 
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE FlexibleInstances, FlexibleContexts, LambdaCase, MultiWayIf, ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-orphans -fno-warn-missing-signatures #-}
 
@@ -111,6 +113,7 @@ class ExprType a where
   isVar :: a -> VarName -> Bool
 
 instance ExprType (Expr t p ip e) where
+  levelExpr (Lam {}) = 100
   levelExpr (App {}) = 1
   levelExpr (PrimOp n _) = level (associativity n)
   levelExpr (Member {}) = 0
@@ -301,6 +304,8 @@ instance (ExprType e, Pretty t, Pretty p, PatnType ip, Pretty ip, Pretty e) => P
   pretty (PrimOp n es)       = primop n <+> tupled (map pretty es)
   -- pretty (Widen e)           = keyword "widen"  <+> pretty' 1 e
   pretty (Upcast e)          = keyword "upcast" <+> pretty' 1 e
+  pretty (Lam p mt e)        = string "\\" <> pretty p <> 
+                               (case mt of Nothing -> empty; Just t -> space <> symbol ":" <+> pretty t) <+> symbol "=>" <+> pretty' 100 e
   pretty (App a b)           = pretty' 2 a <+> pretty' 1 b
   pretty (Con n [] )         = tagname n
   pretty (Con n [e])         = tagname n <+> pretty' 1 e

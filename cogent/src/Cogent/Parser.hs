@@ -1,11 +1,13 @@
 --
--- Copyright 2016, NICTA
+-- Copyright 2018, Data61
+-- Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+-- ABN 41 687 119 230.
 --
 -- This software may be distributed and modified according to the terms of
 -- the GNU General Public License version 2. Note that NO WARRANTY is provided.
 -- See "LICENSE_GPLv2.txt" for details.
 --
--- @TAG(NICTA_GPL)
+-- @TAG(DATA61_GPL)
 --
 
 {-# LANGUAGE LambdaCase, RecordWildCards, TupleSections #-}
@@ -46,8 +48,10 @@ import System.FilePath
 
 language :: LanguageDef st
 language = haskellStyle
-           { T.reservedOpNames = [":","=","+","*","/","%","!",":<",".","_","..","#", "@", "@@",
-                                  "&&","||",">=","<=",">","<","==","/=",".&.",".|.",".^.",">>","<<"]
+           { T.reservedOpNames = ["+","*","/","%","&&","||",">=","<=",">","<","==","/=",
+                                  ".&.",".|.",".^.",">>","<<",
+                                  ":","=","!",":<",".","_","..","#",
+                                  "@","@@","->","=>","~>"]
            , T.reservedNames   = ["let","in","type","include","all","take","put","inline",
                                   "if","then","else","not","complement","and","True","False"]
            , T.identStart = letter <|> char '_'
@@ -134,8 +138,8 @@ basicExpr m = do e <- basicExpr'
                   <|> pure e
 basicExpr' = avoidInitial >> buildExpressionParser
             [ [postfix ((\f e -> LocExpr (posOfE e) (Member e f)) <$ reservedOp "." <*> variableName)]
-            , [Prefix (getPosition >>= \p -> reserved "upcast"     *> pure (LocExpr p . Upcast))] 
---            , [Prefix (getPosition >>= \p -> reserved "widen"      *> pure (LocExpr p . Widen ))] 
+            , [Prefix (getPosition >>= \p -> reserved "upcast" *> pure (LocExpr p . Upcast))] 
+--            , [Prefix (getPosition >>= \p -> reserved "widen" *> pure (LocExpr p . Widen ))] 
             , [Prefix (getPosition >>= \p -> reserved "complement" *> pure (LocExpr p . PrimOp "complement" . (:[])))]
             , [Prefix (getPosition >>= \p -> reserved "not" *> pure (LocExpr p . PrimOp "not" . (:[])))]
             , [Infix (pure (\a b -> LocExpr (posOfE a) (App a b))) AssocLeft]
@@ -196,7 +200,9 @@ expr' m = do avoidInitial
                <|> try (If <$ reserved "if" <*> parens (expr m) <*> many (reservedOp "!" >> variableName)
                            <* reserved "then" <*> expr m <* reserved "else" <*> expr m)
                <|> If  <$ reserved "if" <*> expr' m <*> many (reservedOp "!" >> variableName)
-                       <* reserved "then" <*> expr m <* reserved "else" <*> expr m)
+                       <* reserved "then" <*> expr m <* reserved "else" <*> expr m
+               <|> Lam <$ string "\\" <*> irrefutablePattern <*> optionMaybe (reservedOp ":" *> monotype)
+                       <* reservedOp "=>" <*> expr m)
           <|> matchExpr m
           <?> "expression"
   where binding = Binding <$> irrefutablePattern <*> optionMaybe (reservedOp ":" *> monotype)
@@ -228,7 +234,9 @@ docHunk = do whiteSpace; _ <- try (string "@"); x <- manyTill anyChar newline; w
 monotype = do avoidInitial
               t1 <- typeA1
               t2 <- optionMaybe (reservedOp "->" >> typeA1)
-              case t2 of Nothing -> return t1; Just t2' -> return $ LocType (posOfT t1) $ TFun t1 t2'
+              case t2 of
+                Nothing -> return t1
+                Just t2' -> return $ LocType (posOfT t1) $ TFun t1 t2'
   where
     typeA1 = do
       x <- typeA1'

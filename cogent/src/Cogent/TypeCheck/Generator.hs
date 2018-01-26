@@ -1,11 +1,13 @@
 --
--- Copyright 2016, NICTA
+-- Copyright 2018, Data61
+-- Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+-- ABN 41 687 119 230.
 --
 -- This software may be distributed and modified according to the terms of
 -- the GNU General Public License version 2. Note that NO WARRANTY is provided.
 -- See "LICENSE_GPLv2.txt" for details.
 --
--- @TAG(NICTA_GPL)
+-- @TAG(DATA61_GPL)
 --
 
 {-# LANGUAGE LambdaCase #-}
@@ -181,6 +183,31 @@ cg' (IntLit i) t = do
       e = IntLit i
   return (c,e)
 
+cg' (Lam pat mt e) t = do
+  alpha <- fresh
+  beta  <- fresh
+  (ct, alpha') <- case mt of
+    Nothing -> return (Sat, alpha)
+    Just t' -> do
+      tvs <- use knownTypeVars
+      zoom tc (validateType' tvs (stripLocT t')) >>= \case
+        Left  e   -> return (Unsat e, alpha)
+        Right t'' -> return (F alpha :< F t'', t'')
+  (s, cp, pat') <- match pat alpha'
+  context %= C.addScope s
+  (ce, e') <- cg e beta
+  rs <- context %%= C.dropScope
+  let unused = flip foldMap (M.toList rs) $ \(v,(_,_,us)) -> 
+        case us of
+          Seq.Empty -> warnToConstraint __cogent_wunused_local_binds (UnusedLocalBind v)
+          _ -> Sat
+      c = ct <> cp <> ce <> F (T $ TFun alpha beta) :< F t
+             <> dropConstraintFor rs <> unused
+      lam = Lam pat' (fmap (const alpha) mt) e'
+  traceTc "gen" (text "lambda expression" <+> prettyE lam
+           L.<$> text "generate constraint" <+> prettyC c <> semi)
+  return (c,lam)
+
 cg' (App e1 e2) t = do
   alpha     <- fresh
   (c1, e1') <- cg e1 (T (TFun alpha t))
@@ -286,7 +313,7 @@ cg' (If e1 bs e2 e3) t = do
 cg' (Put e ls) t | not (any isNothing ls) = do
   alpha <- fresh
   let (fs, es) = unzip (catMaybes ls)
-  (c', e') <- cg e alpha  -- (T (TTake (Just fs) t))
+  (c', e') <- cg e alpha
   (ts, cs, es') <- cgMany es
 
   let c1 = F (T (TPut (Just fs) alpha)) :< F t
@@ -315,9 +342,9 @@ cg' (Match e bs alts) t = do
 cg' (Annot e tau) t = do
   tvs <- use knownTypeVars
   let t' = stripLocT tau
-  (c,t'') <- zoom tc (validateType' tvs t') >>= \case
+  (c, t'') <- zoom tc (validateType' tvs t') >>= \case
     Left  e'' -> return (Unsat e'', t)
-    Right t'' -> return (F t :< F t'', t'')  -- FIXME: which way shall :< go?
+    Right t'' -> return (F t :< F t'', t'')
   (c', e') <- cg e t''
   return (c <> c', Annot e' t'')
 
@@ -485,10 +512,14 @@ withBindings (Binding pat tau e bs : xs) a = do
   context %= C.addScope s
   (c', xs', r) <- withBindings xs a
   rs <- context %%= C.dropScope
-  let unused = flip foldMap (M.toList rs) $ \(v,(_,_,us)) -> case us of Seq.Empty -> warnToConstraint __cogent_wunused_local_binds (UnusedLocalBind v); _ -> Sat
+  let unused = flip foldMap (M.toList rs) $ \(v,(_,_,us)) -> 
+        case us of
+          Seq.Empty -> warnToConstraint __cogent_wunused_local_binds (UnusedLocalBind v)
+          _ -> Sat
       c = ct <> c1 <> c' <> cp <> dropConstraintFor rs <> unused
       b' = Binding pat' (fmap (const alpha) tau) e' bs
-  traceTc "gen" (text "bound expression" <+> pretty e' <+> text "with banged" <+> pretty bs
+  traceTc "gen" (text "bound expression" <+> pretty e' <+> 
+                 text "with banged" <+> pretty bs
            L.<$> text "of type" <+> pretty alpha <> semi
            L.<$> text "generate constraint" <+> prettyC c1 <> semi
            L.<$> text "constraint for ascribed type:" <+> prettyC ct)
@@ -497,7 +528,9 @@ withBindings (Binding pat tau e bs : xs) a = do
 parallel' :: [(ErrorContext, CG (Constraint, a))] -> CG (Constraint, [(Constraint, a)])
 parallel' ls = parallel (map (second (\a _ -> ((),) <$> a)) ls) ()
 
-parallel :: [(ErrorContext, acc -> CG (acc, (Constraint, a)))] -> acc -> CG (Constraint, [(Constraint, a)])
+parallel :: [(ErrorContext, acc -> CG (acc, (Constraint, a)))]
+         -> acc
+         -> CG (Constraint, [(Constraint, a)])
 parallel []       _   = return (Sat, [])
 parallel [(ct,f)] acc = (Sat,) . return . first (:@ ct) . snd <$> f acc
 parallel ((ct,f):xs) acc = do

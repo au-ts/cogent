@@ -58,6 +58,7 @@ data Expr t p ip e = PrimOp OpName [e]
                    | TypeApp FunName [Maybe t] Inline
                    | Con TagName [e]
                    | Seq e e
+                   | Lam ip (Maybe t) e
                    | App e e
                    | If e [VarName] e e
                    | Member e FieldName
@@ -172,6 +173,7 @@ instance Traversable (Flip (Expr t p) e) where  -- ip
   traverse _ (Flip (TypeApp v ts nt))   = pure $ Flip (TypeApp v ts nt)
   traverse _ (Flip (Seq e e'))          = pure $ Flip (Seq e e')
   traverse _ (Flip (If c vs e e'))      = pure $ Flip (If c vs e e')
+  traverse f (Flip (Lam ip mt e))       = Flip <$> (Lam <$> f ip <*> pure mt <*> pure e)
   traverse _ (Flip (App e e'))          = pure $ Flip (App e e')
   traverse _ (Flip (Con n e))           = pure $ Flip (Con n e)
   traverse _ (Flip Unitel)              = pure $ Flip Unitel
@@ -192,6 +194,7 @@ instance Traversable (Flip2 (Expr t) e ip) where  -- p
   traverse _ (Flip2 (TypeApp v ts nt))  = pure $ Flip2 (TypeApp v ts nt)
   traverse _ (Flip2 (Seq e e'))         = pure $ Flip2 (Seq e e')
   traverse _ (Flip2 (If c vs e e'))     = pure $ Flip2 (If c vs e e')
+  traverse _ (Flip2 (Lam ip mt e))      = pure $ Flip2 (Lam ip mt e)
   traverse _ (Flip2 (App e e'))         = pure $ Flip2 (App e e')
   traverse _ (Flip2 (Member e f))       = pure $ Flip2 (Member e f)
   traverse _ (Flip2 (Con n e))          = pure $ Flip2 (Con n e)
@@ -217,6 +220,7 @@ instance Traversable (Flip3 Expr e ip p) where  -- t
   traverse _ (Flip3 (Var v))             = pure $ Flip3 (Var v)
   traverse _ (Flip3 (Seq e e'))          = pure $ Flip3 (Seq e e')
   traverse _ (Flip3 (If c vs e e'))      = pure $ Flip3 (If c vs e e')
+  traverse f (Flip3 (Lam ip mt e))       = Flip3 <$> (Lam ip <$> traverse f mt <*> pure e)
   traverse _ (Flip3 (App e e'))          = pure $ Flip3 (App e e')
   traverse _ (Flip3 (Con n e))           = pure $ Flip3 (Con n e)
   traverse _ (Flip3 Unitel)              = pure $ Flip3 Unitel
