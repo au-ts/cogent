@@ -1,11 +1,13 @@
 --
--- Copyright 2016, NICTA
+-- Copyright 2018, Data61
+-- Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+-- ABN 41 687 119 230.
 --
 -- This software may be distributed and modified according to the terms of
 -- the GNU General Public License version 2. Note that NO WARRANTY is provided.
 -- See "LICENSE_GPLv2.txt" for details.
 --
--- @TAG(NICTA_GPL)
+-- @TAG(DATA61_GPL)
 --
 
 {-# LANGUAGE LambdaCase #-}
@@ -119,7 +121,6 @@ set_flag_fnormalisation Nothing = writeIORef __cogent_fnormalisation_ref ANF
 set_flag_fnormalisation (Just s) | s' <- map toLower s =
   writeIORef __cogent_fnormalisation_ref $ case s' of "anf" -> ANF; "knf" -> KNF; "lnf" -> LNF; nf -> error ("unrecognised normal form: " ++ show nf)
 set_flag_fnoShareLinearVars = writeIORef __cogent_fshare_linear_vars_ref False
-set_flag_fnoShareVariants = writeIORef __cogent_fshare_variants_ref False
 set_flag_fnoShowTypesInPretty = writeIORef __cogent_fshow_types_in_pretty_ref False
 set_flag_fnoSimplifier = writeIORef __cogent_fsimplifier_ref False
 set_flag_fnoStaticInline = writeIORef __cogent_fstatic_inline_ref False
@@ -135,7 +136,6 @@ set_flag_fpragmas = writeIORef __cogent_fpragmas_ref True
 set_flag_fprettyErrmsgs = writeIORef __cogent_fpretty_errmsgs_ref True
 set_flag_freverseTcErrors = writeIORef __cogent_freverse_tc_errors_ref True
 set_flag_fshareLinearVars = writeIORef __cogent_fshare_linear_vars_ref True
-set_flag_fshareVariants = writeIORef __cogent_fshare_variants_ref False  -- FIXME after fixing the impl'n
 set_flag_fshowTypesInPretty = writeIORef __cogent_fshow_types_in_pretty_ref True
 set_flag_fsimplifier = writeIORef __cogent_fsimplifier_ref True
 set_flag_fsimplifierIterations = writeIORef __cogent_fsimplifier_iterations_ref
@@ -157,7 +157,6 @@ set_flag_O (Just n :: Maybe String)
   | n == "0" = do set_flag_fnormalisation Nothing
                   set_flag_fnoFlattenNestings
                   set_flag_fnoShareLinearVars
-                  set_flag_fnoShareVariants
                   set_flag_fnoStaticInline
                   set_flag_fnoTuplesAsSugar
                   set_flag_fnoUnionForVariants
@@ -171,11 +170,8 @@ set_flag_O (Just n :: Maybe String)
                   set_flag_fsimplifier
   | n == "u" = do set_flag_O $ Just "1"
                   set_flag_funionForVariants
-  | n == "v" = do set_flag_O $ Just "1"
-                  set_flag_fshareVariants
   | n == "2" = do set_flag_O $ Just "s"
                   set_flag_fflattenNestings
-                  set_flag_fshareVariants
   | otherwise = error $ "unrecognised optimisation level: " ++ show n
 set_flag_outputName = writeIORef __cogent_output_name_ref . Just . takeBaseName
 set_flag_proofInputC = writeIORef __cogent_proof_input_c_ref . Just
@@ -464,13 +460,6 @@ __cogent_fshare_linear_vars = unsafePerformIO $ readIORef __cogent_fshare_linear
 __cogent_fshare_linear_vars_ref :: IORef Bool
 {-# NOINLINE __cogent_fshare_linear_vars_ref #-}
 __cogent_fshare_linear_vars_ref = unsafePerformIO $ newIORef False
-
-__cogent_fshare_variants :: Bool
-__cogent_fshare_variants = unsafePerformIO $ readIORef __cogent_fshare_variants_ref
-
-__cogent_fshare_variants_ref :: IORef Bool
-{-# NOINLINE __cogent_fshare_variants_ref #-}
-__cogent_fshare_variants_ref = unsafePerformIO $ newIORef False
 
 __cogent_fshow_types_in_pretty :: Bool
 __cogent_fshow_types_in_pretty = unsafePerformIO $ readIORef __cogent_fshow_types_in_pretty_ref

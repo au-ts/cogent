@@ -1,11 +1,13 @@
 --
--- Copyright 2016, NICTA
+-- Copyright 2018, Data61
+-- Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+-- ABN 41 687 119 230.
 --
 -- This software may be distributed and modified according to the terms of
 -- the GNU General Public License version 2. Note that NO WARRANTY is provided.
 -- See "LICENSE_GPLv2.txt" for details.
 --
--- @TAG(NICTA_GPL)
+-- @TAG(DATA61_GPL)
 --
 
 {-# LANGUAGE DataKinds #-}
@@ -423,6 +425,8 @@ desugarExpr (B.TE t@(S.RT (S.TVariant ts)) (S.Con c es) l) = do
 desugarExpr (B.TE _ (S.Seq e1 e2) _) = do
   v <- freshVar
   E <$> (Let v <$> desugarExpr e1 <*> withBinding v (desugarExpr e2))
+desugarExpr (B.TE _ (S.Lam p mt e) _) = do
+  __todo "lift lambda"
 desugarExpr (B.TE _ (S.App (B.TE _ (S.TypeApp ('_':_) _ _) _) _) _) | not __cogent_debug = return (E Unit)
 desugarExpr (B.TE _ (S.App e1 e2) _) = E <$> (App <$> desugarExpr e1 <*> desugarExpr e2)
 desugarExpr (B.TE _ (S.If c [] th el) _) = E <$> (If <$> desugarExpr c <*> desugarExpr th <*> desugarExpr el)

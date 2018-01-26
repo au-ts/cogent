@@ -1,11 +1,13 @@
 --
--- Copyright 2017, NICTA
+-- Copyright 2018, Data61
+-- Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+-- ABN 41 687 119 230.
 --
 -- This software may be distributed and modified according to the terms of
 -- the GNU General Public License version 2. Note that NO WARRANTY is provided.
 -- See "LICENSE_GPLv2.txt" for details.
 --
--- @TAG(NICTA_GPL)
+-- @TAG(DATA61_GPL)
 --
 
 {- LANGUAGE BangPatterns -}
@@ -434,7 +436,6 @@ flags =
   , Option []         ["fno-pretty-errmsgs"]     3 (NoArg set_flag_fnoPrettyErrmsgs)       "reverse of --fpretty-errmsgs"
   , Option []         ["fno-reverse-tc-errors"]  2 (NoArg set_flag_fnoReverseTcErrors)     "(default) reverse of --freverse-tc-errors"
   , Option []         ["fno-share-linear-vars"]  2 (NoArg set_flag_fnoShareLinearVars)     "(default) reverse of --fshare-linear-vars"
-  , Option []         ["fno-share-variants"]  2 (NoArg set_flag_fnoShareVariants)          "(default) reverse of --fshare-variants (does not work)"
   , Option []         ["fno-show-types-in-pretty"] 2 (NoArg set_flag_fnoShowTypesInPretty) "(default) reverse of --fshow-types-in-pretty"
   , Option []         ["fno-simplifier"]      2 (NoArg set_flag_fnoSimplifier)             "(default) reverse of --fsimplifier"
   , Option []         ["fno-static-inline"]   1 (NoArg set_flag_fnoStaticInline)           "reverse of --fstatic-inline"
@@ -450,7 +451,6 @@ flags =
   , Option []         ["fpretty-errmsgs"]     3 (NoArg set_flag_fprettyErrmsgs)            "(default) pretty-print error messages (requires ANSI support)"
   , Option []         ["freverse-tc-errors"]  1 (NoArg set_flag_freverseTcErrors)          "Print type errors in reverse order"
   , Option []         ["fshare-linear-vars"]  2 (NoArg set_flag_fshareLinearVars)          "reuse C variables for linear objects"
-  , Option []         ["fshare-variants"]     2 (NoArg set_flag_fshareVariants)            "use the largest variant type for the smaller ones in each case chain (does nothing)"
   , Option ['T']      ["fshow-types-in-pretty"] 2 (NoArg set_flag_fshowTypesInPretty)      "show inferred types of each AST node when doing pretty-printing"
   , Option []         ["fsimplifier"]         1 (NoArg set_flag_fsimplifier)               "enable simplifier on core language"
   , Option []         ["fsimplifier-level"]   1 (ReqArg (set_flag_fsimplifierIterations . read) "NUMBER")  "number of iterations simplifier does (default=4)"
@@ -464,7 +464,7 @@ flags =
   , Option []         ["funtyped-func-enum"]  2 (NoArg set_flag_funtypedFuncEnum)          "(default) use untyped function enum type"
   , Option []         ["fuse-compound-literals"] 2 (NoArg set_flag_fuseCompoundLiterals)   "(default) use compound literals when possible in C code"
   , Option []         ["fwrap-put-in-let"]       1 (NoArg set_flag_fwrapPutInLet)          "Put always appears in a Let-binding when normalised"
-  , Option ['O']      ["optimisation"]   0 (OptArg set_flag_O "LEVEL")                     "set optimisation level (0, 1, 2, d, n, s, u or v; default -Od)"
+  , Option ['O']      ["optimisation"]   0 (OptArg set_flag_O "LEVEL")                     "set optimisation level (0, 1, 2, d, n, s or u; default -Od)"
   -- warning control
   , Option []         ["Wall"]           1 (NoArg set_flag_Wall)                           "issue all warnings"
   , Option ['E']      ["Werror"]         1 (NoArg set_flag_Werror)                         "make any warning into a fatal error"
