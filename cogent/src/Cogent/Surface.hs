@@ -315,10 +315,3 @@ dummyLocE = LocExpr noPos . ffffmap dummyLocT . fffmap dummyLocP . ffmap dummyLo
 stripAllLoc :: TopLevel LocType LocPatn LocExpr -> TopLevel RawType RawPatn RawExpr
 stripAllLoc = fffmap stripLocT . ffmap stripLocP . fmap stripLocE
 
-isIntType :: RawType -> Bool
-isIntType (RT (TCon cn ts s)) | cn `elem` words "U8 U16 U32 U64", null ts, s == Unboxed = True
-isIntType _ = False
-
-isVariantType :: RawType -> Bool
-isVariantType (RT (TVariant _)) = True
-isVariantType _ = False

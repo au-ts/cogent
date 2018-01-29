@@ -21,7 +21,7 @@ module Cogent.TypeCheck.Base where
 
 import Cogent.Common.Syntax
 import Cogent.Common.Types
--- import Cogent.Compiler
+import Cogent.Compiler
 import Cogent.Surface
 import Cogent.Util
 
@@ -66,6 +66,8 @@ data TypeError = FunctionNotFound VarName
                | DiscardWithoutMatch TagName
                | RequiredTakenTag TagName
                | TypeWarningAsError TypeWarning
+               | CustTyGenIsPolymorphic TCType
+               | CustTyGenIsSynonym TCType
                deriving (Eq, Show, Ord)
 
 data TypeWarning = UnusedLocalBind VarName
@@ -85,6 +87,7 @@ data ErrorContext = InExpression LocExpr TCType
                   | InDefinition SourcePos (TopLevel LocType LocPatn LocExpr)
                   | AntiquotedType LocType
                   | AntiquotedExpr LocExpr
+                  | CustomisedCodeGen LocType
                   deriving (Eq, Show)
 
 instance Ord ErrorContext where
@@ -184,7 +187,6 @@ funcOrVar (T (TUnbox _)) = FuncOrVar
 funcOrVar (T (TBang  _)) = FuncOrVar
 funcOrVar (T (TFun {})) = MustFunc
 funcOrVar _ = MustVar
-
 
 data TExpr      t = TE { getTypeTE :: t, getExpr :: Expr t (TPatn t) (TIrrefPatn t) (TExpr t), getLocTE :: SourcePos }
 deriving instance Show t => Show (TExpr t)
@@ -326,4 +328,26 @@ flexOf (T (TPut  _ v)) = flexOf v
 flexOf (T (TBang v))   = flexOf v
 flexOf (T (TUnbox v))  = flexOf v
 flexOf _ = Nothing
+
+
+isSynonym :: RawType -> TC Bool
+isSynonym (RT (TCon c _ _)) = lookup c <$> use knownTypes >>= \case
+  Nothing -> __impossible "isSynonym: type not in scope"
+  Just (vs,Just _ ) -> return True
+  Just (vs,Nothing) -> return False
+isSynonym (RT t) = foldM (\b a -> (b ||) <$> isSynonym a) False t
+isSynonym _ = __impossible "isSynonym: not a type at all"
+
+isIntType :: RawType -> Bool
+isIntType (RT (TCon cn ts s)) | cn `elem` words "U8 U16 U32 U64", null ts, s == Unboxed = True
+isIntType _ = False
+
+isVariantType :: RawType -> Bool
+isVariantType (RT (TVariant _)) = True
+isVariantType _ = False
+
+isMonoType :: RawType -> Bool
+isMonoType (RT (TVar {})) = False
+isMonoType (RT t) = getAll $ foldMap (All . isMonoType) t
+isMonoType _ = __impossible "isMonoType: not a type at all"
 

@@ -518,12 +518,14 @@ instance Pretty TypeError where
                                                              Just fs' -> tupled1 (map fieldname fs'))
                                              <+> err "into non record/variant type:"
                                              <$> indent' (pretty t)
-  pretty (TakeNonExistingField f t)      = err "Cannot" <+> keyword "take" <+> err "non-existing field"
-                                           <+> fieldname f <+> err "from record/variant" <$> indent' (pretty t)
-  pretty (PutNonExistingField f t)       = err "Cannot" <+> keyword "put" <+> err "non-existing field"
-                                           <+> fieldname f <+> err "into record/variant" <$> indent' (pretty t)
-  pretty (DiscardWithoutMatch t)         = err "Variant tag"<+> tagname t <+> err "cannot be discarded without matching on it."
-  pretty (RequiredTakenTag t)            = err "Required variant" <+> tagname t <+> err "but it has already been matched."
+  pretty (TakeNonExistingField f t) = err "Cannot" <+> keyword "take" <+> err "non-existing field"
+                                      <+> fieldname f <+> err "from record/variant" <$> indent' (pretty t)
+  pretty (PutNonExistingField f t)  = err "Cannot" <+> keyword "put" <+> err "non-existing field"
+                                      <+> fieldname f <+> err "into record/variant" <$> indent' (pretty t)
+  pretty (DiscardWithoutMatch t)    = err "Variant tag"<+> tagname t <+> err "cannot be discarded without matching on it."
+  pretty (RequiredTakenTag t)       = err "Required variant" <+> tagname t <+> err "but it has already been matched."
+  pretty (CustTyGenIsSynonym t)     = err "Type synonyms have to be fully expanded in --cust-ty-gen file:" <$> indent' (pretty t)
+  pretty (CustTyGenIsPolymorphic t) = err "Polymorphic types are not allowed in --cust-ty-gen file:" <$> indent' (pretty t)
   pretty (TypeWarningAsError w)          = pretty w
 
 instance Pretty TypeWarning where
@@ -657,7 +659,7 @@ prettyCtx (AntiquotedType t) i = (if i then (<$> indent' (pretty (stripLocT t)))
                                (context "in the antiquoted type at (" <> pretty (posOfT t) <> context ")" )
 prettyCtx (AntiquotedExpr e) i = (if i then (<$> indent' (pretty (stripLocE e))) else id)
                                (context "in the antiquoted expression at (" <> pretty (posOfE e) <> context ")" )
-
+prettyCtx (CustomisedCodeGen t) _ = context "in customising code-generation for type" <+> pretty t
 
 -- add parens and indents to expressions depending on level
 pretty' :: (Pretty a, ExprType a) => Int -> a -> Doc

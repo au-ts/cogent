@@ -30,7 +30,7 @@ import Cogent.TypeCheck.Post (postT, postE, postA)
 import Cogent.TypeCheck.Solver
 import Cogent.TypeCheck.Subst (applyE, applyAlts)
 import Cogent.TypeCheck.Util
--- import Cogent.Util (firstM)
+import Cogent.Util (firstM)
 
 import Control.Arrow (first, second)
 import Control.Lens
@@ -49,8 +49,13 @@ import Text.PrettyPrint.ANSI.Leijen hiding ((<>), (<$>))
 
 tc :: [(SourcePos, TopLevel LocType LocPatn LocExpr)]
    -> [(LocType, String)]
-   -> IO ((Either () [TopLevel RawType TypedPatn TypedExpr], [ContextualisedEW]), TCState)
-tc ds cts = ((first . second) adjustErrors <$>) . flip runStateT (TCS M.empty knownTypes M.empty) . (failError <$>) . runWriterT . runExceptT $ typecheck ds  -- FIXME
+   -> IO ((Either () ([TopLevel RawType TypedPatn TypedExpr], [(RawType, String)]), [ContextualisedEW]), TCState)
+tc ds cts = ((first . second) adjustErrors <$>)
+            . flip runStateT (TCS M.empty knownTypes M.empty)
+            . (failError <$>)
+            . runWriterT
+            . runExceptT
+            $ (,) <$> typecheck ds <*> typecheckCustTyGen cts
   where
     knownTypes = map (, ([], Nothing)) $ words "U8 U16 U32 U64 String Bool"
     adjustErrors = (if __cogent_freverse_tc_errors then reverse else id) . adjustContexts
@@ -167,24 +172,13 @@ checkOne loc d = case d of
 -- ----------------------------------------------------------------------------
 -- custTyGen
 
--- typecheckCustTyGen :: [(LocType, String)] -> TC [(RawType, String)]
--- typecheckCustTyGen = mapM $ firstM $ \t ->
---   if not (isMonoType t)
---     then typeError (CustTyGenIsPolymorphic t)
---     else isSynonym t >>= \case
---            True -> typeError (CustTyGenIsSynonym t)
---            _    -> validateType t
--- 
--- isMonoType :: LocType -> Bool
--- isMonoType (LocType _ (TVar {})) = False
--- isMonoType (LocType _ t) = getAll $ foldMap (All . isMonoType) t
--- isMonoType _ = __impossible "isMonoType: not a type at all"
--- 
--- isSynonym :: LocType -> TC Bool
--- isSynonym (LocType _ (TCon c _ _)) = lookup c <$> use knownTypes >>= \case
---   Nothing -> __impossible "isSynonym: type not in scope"
---   Just (vs,Just _ ) -> return True
---   Just (vs,Nothing) -> return False
--- isSynonym (LocType _ t) = foldM (\b a -> (b ||) <$> isSynonym a) False t
--- isSynonym _ = __impossible "isSynonym: not a type at all"
+typecheckCustTyGen :: [(LocType, String)]
+                   -> ExceptT () (WriterT [ContextualisedEW] TC) [(RawType, String)]
+typecheckCustTyGen = mapM . firstM $ \t ->
+  let t' = stripLocT t in
+  if not (isMonoType t')
+    then tell [([CustomisedCodeGen t], Left (CustTyGenIsPolymorphic $ toTCType t'))] >> throwError ()
+    else (lift . lift $ isSynonym t') >>= \case
+           True -> tell [([CustomisedCodeGen t], Left (CustTyGenIsSynonym $ toTCType t'))] >> throwError ()
+           _    -> validateType' [] [CustomisedCodeGen t] t' >>= postT []
 
