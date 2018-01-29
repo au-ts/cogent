@@ -389,6 +389,7 @@ parVariants n m ks =
       each t (Just ts, _)    (Just us, False) = mconcat (zipWith (:<) (map F ts) (map F us))
       each t (Just ts, True) (Just us, True)  = mconcat (zipWith (:<) (map F ts) (map F us))
       each t (_, False)      (_, True)        = Unsat (RequiredTakenTag t)
+      each _ _ _ = __impossible "parVariant: each"
       ks' = S.toList ks
       cs  = map (\k -> each k (n M.! k) (m M.! k)) ks'
   in return . Just $ mconcat cs

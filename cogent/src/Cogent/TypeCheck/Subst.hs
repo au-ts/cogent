@@ -57,6 +57,7 @@ applyErr s e = e
 
 applyWarn :: Subst -> TypeWarning -> TypeWarning
 applyWarn s (UnusedLocalBind v) = UnusedLocalBind v
+applyWarn _ w = w
 
 applyC :: Subst -> Constraint -> Constraint
 applyC s (a :< b) = fmap (apply s) a :< fmap (apply s) b

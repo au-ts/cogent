@@ -987,20 +987,11 @@ genExpr mv (TE t (Split _ e1 e2)) = do
   -- XXX | (e2',e2stm) <- withBindings (fromJust $ cvtFromList (SSuc $ SSuc SZero) [mkStr3 e1' p1, mkStr3 e1' p2]) $ genExpr mv e2
   -- XXX | return (e2', e1stm ++ e2stm)
 genExpr mv (TE t (Promote _ e)) = genExpr mv e
-genExpr mv (TE t (Cast _ e))
-  | et@(TSum alts) <- exprType e = do  -- width subtyping
-      __impossible "cast"
-      let tags = L.map fst alts
-      (e',edecl,estm,ep) <- genExpr_ e
-      (e'',edecl',estm',ep') <- flip3 aNewVar ep e' =<< genType et
-      t' <- genType t
-      (v,vdecl,ass,vp) <- flip (maybeInitCL mv t') ep' $ CCompLit t' $ map ((:[]) . CDesignFld &&& CInitE . mkStr3 e'') (fieldTag:tags)
-      return (v, edecl ++ edecl' ++ vdecl, estm ++ estm' ++ ass, vp)
-  | otherwise = do             -- int promotion
-      (e',edecl,estm,ep) <- genExpr_ e
-      t' <- genType t
-      (v,ass,vp) <- flip (maybeAssign mv) ep $ CTypeCast t' e'
-      return (v, edecl, estm ++ ass, vp)
+genExpr mv (TE t (Cast _ e)) = do   -- int promotion
+  (e',edecl,estm,ep) <- genExpr_ e
+  t' <- genType t
+  (v,ass,vp) <- flip (maybeAssign mv) ep $ CTypeCast t' e'
+  return (v, edecl, estm ++ ass, vp)
 
 insertSetMap :: Ord a => a -> Maybe (S.Set a) -> Maybe (S.Set a)
 insertSetMap x Nothing  = Just $ S.singleton x

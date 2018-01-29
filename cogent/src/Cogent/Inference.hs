@@ -58,11 +58,11 @@ import qualified Data.Map as M
 -- import Data.Maybe (fromJust, isJust)
 import Data.Monoid
 -- import Data.Monoid.Cancellative
-import qualified Data.Set as S
+-- import qualified Data.Set as S
 import Text.PrettyPrint.ANSI.Leijen (pretty)
 import qualified Unsafe.Coerce as Unsafe (unsafeCoerce)  -- NOTE: used safely to coerce phantom types only
 
-import Debug.Trace
+-- import Debug.Trace
 
 guardShow :: String -> Bool -> TC t v ()
 guardShow x b = if b then return () else TC (throwError $ "GUARD: " ++ x)
