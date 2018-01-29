@@ -52,7 +52,7 @@ import qualified Text.PrettyPrint.ANSI.Leijen as L
 data CGState = CGS { _tc :: TCState
                    , _context :: C.Context TCType
                    , _flexes :: Int
-                   , _knownTypeVars :: [VarName]
+                   , _knownTypeVars :: [TyVarName]
                    , _flexOrigins :: IM.IntMap VarOrigin
                    }
 

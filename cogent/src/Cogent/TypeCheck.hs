@@ -175,10 +175,10 @@ checkOne loc d = case d of
 typecheckCustTyGen :: [(LocType, String)]
                    -> ExceptT () (WriterT [ContextualisedEW] TC) [(RawType, String)]
 typecheckCustTyGen = mapM . firstM $ \t ->
-  let t' = stripLocT t in
-  if not (isMonoType t')
-    then tell [([CustomisedCodeGen t], Left (CustTyGenIsPolymorphic $ toTCType t'))] >> throwError ()
-    else (lift . lift $ isSynonym t') >>= \case
-           True -> tell [([CustomisedCodeGen t], Left (CustTyGenIsSynonym $ toTCType t'))] >> throwError ()
-           _    -> validateType' [] [CustomisedCodeGen t] t' >>= postT []
-
+  let t' = stripLocT t 
+      ctx = CustomisedCodeGen t
+   in if not (isMonoType t')
+        then tell [([ctx], Left (CustTyGenIsPolymorphic $ toTCType t'))] >> throwError ()
+        else (lift . lift $ isSynonym t') >>= \case
+               True -> tell [([ctx], Left (CustTyGenIsSynonym $ toTCType t'))] >> throwError ()
+               _    -> validateType' [] [ctx] t' >>= postT [ctx]

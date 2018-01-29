@@ -268,13 +268,6 @@ data TCState = TCS { _knownFuns    :: M.Map FunName (Polytype TCType)
 
 makeLenses ''TCState
 
-liftErr :: ExceptT [e] TC a -> ExceptT () (WriterT [e] TC) a
-liftErr ex = mapExceptT f ex
-  where f :: TC (Either [e] a) -> WriterT [e] TC (Either () a)
-        f tc = WriterT ((,[]) <$> tc) >>= \case
-                       Left  e -> tell e >> return (Left ())
-                       Right a -> return $ Right a
-
 substType :: [(VarName, TCType)] -> TCType -> TCType
 substType vs (U x) = U x
 -- substType vs (RemoveCase p x) = RemoveCase (fmap (fmap (substType vs)) p) (substType vs x)
@@ -303,6 +296,15 @@ validateType vs (RT t) = do
 
 validateType' :: [VarName] -> [ErrorContext] -> RawType -> ExceptT () (WriterT [ContextualisedEW] TC) TCType
 validateType' vs ctx = (liftErr . withExceptT (pure . (ctx,) . Left)) . validateType vs
+  where
+    liftErr :: ExceptT [e] TC a -> ExceptT () (WriterT [e] TC) a
+    liftErr ex = mapExceptT f ex
+      where f :: TC (Either [e] a) -> WriterT [e] TC (Either () a)
+            f tc = WriterT ((,[]) <$> tc) >>= \case
+                           Left  e -> tell e >> return (Left ())
+                           Right a -> return $ Right a
+
+
 
 -- Remove a pattern from a type, for case expressions.
 removeCase :: LocPatn -> TCType -> TCType
@@ -336,7 +338,6 @@ isSynonym (RT (TCon c _ _)) = lookup c <$> use knownTypes >>= \case
   Just (vs,Just _ ) -> return True
   Just (vs,Nothing) -> return False
 isSynonym (RT t) = foldM (\b a -> (b ||) <$> isSynonym a) False t
-isSynonym _ = __impossible "isSynonym: not a type at all"
 
 isIntType :: RawType -> Bool
 isIntType (RT (TCon cn ts s)) | cn `elem` words "U8 U16 U32 U64", null ts, s == Unboxed = True
@@ -349,5 +350,4 @@ isVariantType _ = False
 isMonoType :: RawType -> Bool
 isMonoType (RT (TVar {})) = False
 isMonoType (RT t) = getAll $ foldMap (All . isMonoType) t
-isMonoType _ = __impossible "isMonoType: not a type at all"
 
