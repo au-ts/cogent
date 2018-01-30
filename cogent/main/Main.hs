@@ -27,39 +27,40 @@
 
 module Main where
 
-import Cogent.ACInstall     as AC (acInstallDefault)
-import Cogent.AllRefine     as AR (allRefine)
-import Cogent.CallGraph     as CF (daX86, printIntel)
-import Cogent.CodeGen       as CG (gen, printCTable, printATM)
+import Cogent.ACInstall      as AC (acInstallDefault)
+import Cogent.AllRefine      as AR (allRefine)
+import Cogent.CallGraph      as CF (daX86, printIntel)
+import Cogent.CodeGen        as CG (gen, printCTable, printATM)
 import Cogent.Compiler
-import Cogent.Core          as CC (isConFun, getDefinitionId, untypeD)  -- FIXME: zilinc
-import Cogent.CorresProof   as CP (corresProof)
-import Cogent.CorresSetup   as CS (corresSetup)
-import Cogent.Deep          as DP (deep)
-import Cogent.Desugar       as DS (desugar)
-import Cogent.DocGent       as DG (docGent)
+import Cogent.Core           as CC (isConFun, getDefinitionId, untypeD)  -- FIXME: zilinc
+import Cogent.CorresProof    as CP (corresProof)
+import Cogent.CorresSetup    as CS (corresSetup)
+import Cogent.Deep           as DP (deep)
+import Cogent.Desugar        as DS (desugar)
+import Cogent.DocGent        as DG (docGent)
 import Cogent.GetOpt
-import Cogent.Glue          as GL (defaultExts, defaultTypnames, GlState, glue, GlueMode(..), mkGlState, parseFile, parseFile')
-import Cogent.Hangman             (hangman)
-import Cogent.Inference     as IN (tc, tc_, tcConsts, retype)
-import Cogent.Mono          as MN (mono, printAFM)
-import Cogent.MonoProof     as MP  -- FIXME: zilinc
-import Cogent.Normal        as NF (normal, verifyNormal)
-import Cogent.NormalProof   as NP (normalProof)
-import Cogent.Parser        as PA (parseWithIncludes, parseCustTyGen)
-import Cogent.Preprocess    as PR
-import Cogent.PrettyPrint   as PP (prettyPrint, prettyRE, prettyTWE)
-import Cogent.Reorganizer   as RO (reorganize)
-import Cogent.Root          as RT (root)
-import Cogent.Shallow       as SH (shallowConsts, shallow, shallowTuplesProof)
-import Cogent.ShallowTable  as ST (st, printTable)  -- for debugging only
-import Cogent.Simplify      as SM
-import Cogent.SuParser      as SU (parse)
-import Cogent.Surface       as SR (stripAllLoc)
-import Cogent.TypeCheck     as TC (tc, isWarnAsError)
-import Cogent.TypeProofs    as TP (deepTypeProof)
-import Cogent.GraphGen      as GG
-import Cogent.Util          as UT
+import Cogent.Glue           as GL (defaultExts, defaultTypnames, GlState, glue, GlueMode(..), mkGlState, parseFile, parseFile')
+import Cogent.Hangman              (hangman)
+import Cogent.Inference      as IN (tc, tc_, tcConsts, retype)
+import Cogent.Mono           as MN (mono, printAFM)
+import Cogent.MonoProof      as MP  -- FIXME: zilinc
+import Cogent.Normal         as NF (normal, verifyNormal)
+import Cogent.NormalProof    as NP (normalProof)
+import Cogent.Parser         as PA (parseWithIncludes, parseCustTyGen)
+import Cogent.Preprocess     as PR
+import Cogent.PrettyPrint    as PP (prettyPrint, prettyRE, prettyTWE)
+import Cogent.Reorganizer    as RO (reorganize)
+import Cogent.Root           as RT (root)
+import Cogent.Shallow        as SH (shallowConsts, shallow, shallowTuplesProof)
+import Cogent.ShallowTable   as ST (st, printTable)  -- for debugging only
+import Cogent.Simplify       as SM
+import Cogent.SuParser       as SU (parse)
+import Cogent.Surface        as SR (stripAllLoc)
+import Cogent.TypeCheck      as TC (tc)
+import Cogent.TypeCheck.Base as TC
+import Cogent.TypeProofs     as TP (deepTypeProof)
+import Cogent.GraphGen       as GG
+import Cogent.Util           as UT
 
 -- import BuildInfo_cogent (githash, buildtime)
 #if __GLASGOW_HASKELL__ < 709
@@ -68,6 +69,7 @@ import Control.Applicative (liftA, (<$>))
 import Control.Applicative (liftA)
 #endif
 import Control.Error.Util (exceptT)
+import Control.Lens hiding (deep, (<.>))
 import Control.Monad (forM, forM_, unless, when)
 import Control.Monad.Trans.Except (runExceptT)
 -- import Control.Monad.Cont
@@ -587,11 +589,13 @@ parseArgs args = case getOpt' Permute options args of
       let stg = STGTypeCheck
       putProgressLn "Typechecking..."
       TC.tc reorged ctygen >>= \case
-        (Nothing,st) -> do -- printError (prettyTWE __cogent_ftc_ctx_len) ews  -- FIXME!!!
-                           -- when (and $ map isWarnAsError ews) $ hPutStrLn stderr "Failing due to --Werror."
-                           exitFailure
+        (Nothing, tcst) -> do printError (prettyTWE __cogent_ftc_ctx_len) $ tcst^.errors
+                              printError (prettyTWE __cogent_ftc_ctx_len) $ tcst^.warnings
+                              when (and $ map (isWarnAsError . snd) (tcst^.errors)) $ hPutStrLn stderr "Failing due to --Werror."
+                              exitFailure
         ((Just (tced,ctygen')), tcst) -> do
-          -- when (not . null $ ews) $ printError (prettyTWE __cogent_ftc_ctx_len) ews  --- FIXME
+          __assert (null $ tcst^.errors) "no errors, only warnings"
+          printError (prettyTWE __cogent_ftc_ctx_len) $ tcst^.warnings
           when (Ast stg `elem` cmds) $ genAst stg tced
           when (Pretty stg `elem` cmds) $ genPretty stg tced
           when (Compile (succ stg) `elem` cmds) $ desugar cmds tced ctygen' tcst source (map pragmaOfLP pragmas) buildinfo log

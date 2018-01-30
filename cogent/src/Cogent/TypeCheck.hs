@@ -17,7 +17,7 @@
 {-# LANGUAGE TupleSections #-}
 
 module Cogent.TypeCheck (
-  tc, isWarnAsError
+  tc
 ) where
 
 import Cogent.Compiler
@@ -30,7 +30,7 @@ import Cogent.TypeCheck.Post (postT, postE, postA)
 import Cogent.TypeCheck.Solver
 import Cogent.TypeCheck.Subst (applyE, applyAlts)
 import Cogent.TypeCheck.Util
-import Cogent.Util (firstM, secondM)
+import Cogent.Util (firstM, whenMM)
 
 import Control.Arrow (first, second)
 import Control.Lens
@@ -38,7 +38,7 @@ import Control.Lens
 import Control.Monad.State
 import Control.Monad.Trans.Maybe
 import Control.Monad.Writer hiding (censor)
-import Data.Either (lefts)
+-- import Data.Either (lefts)
 import Data.List (nub, (\\))
 import qualified Data.Map as M
 import qualified Data.Sequence as Seq
@@ -51,7 +51,7 @@ import Text.PrettyPrint.ANSI.Leijen hiding ((<>), (<$>))
 tc :: [(SourcePos, TopLevel LocType LocPatn LocExpr)]
    -> [(LocType, String)]
    -> IO (Maybe ([TopLevel RawType TypedPatn TypedExpr], [(RawType, String)]), TCState)
-tc ds cts = (second _env_glb)
+tc ds cts = fmap (second $ \e -> over errors adjustErrors $ e^.env_glb)
             . flip runStateT (Env (TCS M.empty knownTypes M.empty [] [] []) ())
             . runMaybeT
             . runEnvM
@@ -61,22 +61,11 @@ tc ds cts = (second _env_glb)
     adjustErrors = (if __cogent_freverse_tc_errors then reverse else id) . adjustContexts
     adjustContexts = map (first noConstraints)
     noConstraints = if __cogent_ftc_ctx_constraints then id else filter (not . isCtxConstraint)
-    -- failError (Right _, ews) | or (map isWarnAsError ews), Flag_Werror <- __cogent_warning_switch = (Left (), ews)
-    -- failError x = x
-
-isWarnAsError = undefined
 
 
 typecheck :: [(SourcePos, TopLevel LocType LocPatn LocExpr)]
           -> TcBaseM [TopLevel RawType TypedPatn TypedExpr]
 typecheck = mapM (uncurry checkOne)
- --  where
- --    warnsToErrors = case __cogent_warning_switch of
- --                      Flag_w -> filter (not . isWarn)
- --                      Flag_Wwarn -> id
- --                      Flag_Werror -> map warnToError
- --    warnToError (c,Right w) = (c, Left $ TypeWarningAsError w)
- --    warnToError ew = ew
 
 -- TODO: Check for prior definition
 checkOne :: SourcePos -> TopLevel LocType LocPatn LocExpr
@@ -123,6 +112,7 @@ checkOne loc d = env_glb.errContext %= (++ [InDefinition loc d]) >> case d of
     ((c, e'), flx, os) <- runCG ctx [] (cg e t')
     let c' = c <> Share t' (Constant n)
     (_, subst, _) <- runSolver (solve c') flx os []
+    whenMM (not . null <$> use (env_glb.errors)) $ (exitErr :: TcBaseM ())
     traceTc "tc" (text "subst for const definition" <+> pretty n <+> text "is"
                   L.<$> pretty subst)
     env_glb.knownConsts %= M.insert n (t', loc)
@@ -146,6 +136,7 @@ checkOne loc d = env_glb.errContext %= (++ [InDefinition loc d]) >> case d of
                   L.<$> prettyC c)
     -- traceTc "tc" (pretty alts')
     (_, subst, _) <- runSolver (solve c) flx os vs
+    whenMM (not . null <$> use (env_glb.errors)) $ (exitErr :: TcBaseM ())
     traceTc "tc" (text "subst for fun definition" <+> pretty f <+> text "is"
                   L.<$> pretty subst)
     env_glb.knownFuns %= M.insert f (PT vs t')

@@ -68,10 +68,14 @@ data TypeError = FunctionNotFound VarName
                | PutNonExistingField  FieldName TCType
                | DiscardWithoutMatch TagName
                | RequiredTakenTag TagName
-               | TypeWarningAsError TypeWarning
                | CustTyGenIsPolymorphic TCType
                | CustTyGenIsSynonym TCType
+               | TypeWarningAsError TypeWarning
                deriving (Eq, Show, Ord)
+
+isWarnAsError :: TypeError -> Bool
+isWarnAsError (TypeWarningAsError _) = True
+isWarnAsError _ = False
 
 data TypeWarning = UnusedLocalBind VarName
                  | TakeTakenField  FieldName TCType
@@ -112,18 +116,8 @@ data VarOrigin = ExpressionAt SourcePos
 
 
 -- high-level context at the end of the list
--- type ContextualisedEW = ([ErrorContext], TypeEW)
-
 type ContextualisedError   = ([ErrorContext], TypeError)
 type ContextualisedWarning = ([ErrorContext], TypeWarning)
-
--- isWarn :: ContextualisedEW -> Bool
--- isWarn (_, Right _) = True
--- isWarn _ = False
--- 
--- isWarnAsError :: ContextualisedEW -> Bool
--- isWarnAsError (_, Left (TypeWarningAsError _)) = True
--- isWarnAsError _ = False
 
 data Metadata = Reused { varName :: VarName, boundAt :: SourcePos, usedAt :: Seq.Seq SourcePos }
               | Unused { varName :: VarName, boundAt :: SourcePos }
@@ -305,10 +299,16 @@ typeWarn :: TypeWarning -> TcM lcl ()
 typeWarn w = typeWarn_ =<< ((,w) <$> use (env_glb.errContext))
 
 typeWarn_ :: ContextualisedWarning -> TcM lcl ()
-typeWarn_ w = (env_glb.warnings) %= (++[w])
+typeWarn_ w = case __cogent_warning_switch of
+                Flag_w -> return ()
+                Flag_Wwarn -> (env_glb.warnings) %= (++[w])
+                Flag_Werror -> (env_glb.errors) %= (++[warnToErr w])
 
 typeWarns_ :: [ContextualisedWarning] -> TcM lcl ()
-typeWarns_ ws = (env_glb.warnings) %= (++ws)
+typeWarns_ ws = mapM_ typeWarn_ ws
+
+warnToErr :: ContextualisedWarning -> ContextualisedError
+warnToErr = second TypeWarningAsError
 
 exitErr :: TcM lcl a
 exitErr = EnvM $ MaybeT $ StateT $ \s -> return (Nothing, s)

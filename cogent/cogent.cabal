@@ -178,6 +178,7 @@ executable cogent
               , directory >=1.2
               , errors >= 2.2
               , filepath >= 1.4.0.0
+              , lens >= 4.6
               , mainland-pretty >= 0.2.6
               , MissingH >= 1.3
               , pretty-show >= 1.5
