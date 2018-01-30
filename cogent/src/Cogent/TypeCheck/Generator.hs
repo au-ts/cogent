@@ -30,14 +30,14 @@ import Cogent.Compiler
 import qualified Cogent.Context as C
 import Cogent.PrettyPrint (prettyC)
 import Cogent.Surface
-import Cogent.TypeCheck.Base hiding (validateType')
+import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Util
 import Cogent.Util hiding (Warning)
 
 import Control.Arrow (first, second)
-import Control.Lens hiding (Context, each, (:<))
+import Control.Lens hiding (Context, each, zoom, (:<))
 import Control.Monad.Except
-import Control.Monad.State
+-- import Control.Monad.State
 import Data.Functor.Compose
 import qualified Data.Map as M
 import qualified Data.IntMap as IM
@@ -49,8 +49,7 @@ import Text.PrettyPrint.ANSI.Leijen hiding ((<>), (<$>))
 import qualified Text.PrettyPrint.ANSI.Leijen as L
 
 
-data CGState = CGS { _tc :: TCState
-                   , _context :: C.Context TCType
+data CGState = CGS { _context :: C.Context TCType
                    , _flexes :: Int
                    , _knownTypeVars :: [TyVarName]
                    , _flexOrigins :: IM.IntMap VarOrigin
@@ -58,22 +57,20 @@ data CGState = CGS { _tc :: TCState
 
 makeLenses ''CGState
 
-type CG = StateT CGState IO
+type CG a = TcM CGState a
 
-runCG :: C.Context TCType -> [TyVarName] -> CG a -> TC (a, Int, IM.IntMap VarOrigin)
-runCG g vs a = do
-  x <- get
-  (r, CGS x' _ f _ os) <- lift $ runStateT a (CGS x g 0 vs mempty)
-  put x'
-  return (r,f,os)
+runCG :: C.Context TCType -> [TyVarName] -> CG a -> TcBaseM (a, Int, IM.IntMap VarOrigin)
+runCG g vs ma = do
+  (a, CGS _ f _ os) <- runTcM (CGS g 0 vs mempty) ma
+  return (a,f,os)
 
 fresh :: (?loc :: SourcePos) => CG TCType
 fresh = fresh' (ExpressionAt ?loc)
   where
     fresh' :: VarOrigin -> CG TCType
     fresh' ctx = do
-      i <- flexes <<%= succ
-      flexOrigins %= IM.insert i ctx
+      i <- env_lcl.flexes <<%= succ
+      env_lcl.flexOrigins %= IM.insert i ctx
       return $ U i
 
 cgMany :: (?loc :: SourcePos) => [LocExpr] -> CG ([TCType], Constraint, [TCExpr])
@@ -118,18 +115,18 @@ cg' (PrimOp o [e]) t
 cg' (PrimOp _ _) _ = __impossible "cg': unimplemented primops"
 cg' (Var n) t = do
   let e = Var n  -- it has a different type than the above `Var n' pattern
-  ctx <- use context
+  ctx <- use (env_lcl.context)
   traceTc "gen" (text "cg for variable" <+> pretty n L.<$> text "of type" <+> pretty t)
   case C.lookup n ctx of
     -- Variable not found, see if the user meant a function.
     Nothing ->
-      use (tc.knownFuns.at n) >>= \case
+      use (env_glb.knownFuns.at n) >>= \case
         Just _  -> cg' (TypeApp n [] NoInline) t
         Nothing -> return (Unsat (NotInScope (funcOrVar t) n), e)
 
     -- Variable used for the first time, mark the use, and continue
     Just (t', _, Seq.Empty) -> do
-      context %= C.use n ?loc
+      (env_lcl.context) %= C.use n ?loc
       let c = F t' :< F t
       traceTc "gen" (text "variable" <+> pretty n <+> text "used for the first time" <> semi
                L.<$> text "generate constraint" <+> prettyC c)
@@ -137,7 +134,7 @@ cg' (Var n) t = do
 
     -- Variable already used before, emit a Share constraint.
     Just (t', p, us)  -> do
-      context %= C.use n ?loc
+      (env_lcl.context) %= C.use n ?loc
       traceTc "gen" (text "variable" <+> pretty n <+> text "used before" <> semi
                L.<$> text "generate constraint" <+> prettyC (F t' :< F t) <+> text "and share constraint")
       return (Share t' (Reused n p us) <> F t' :< F t, e)
@@ -189,14 +186,14 @@ cg' (Lam pat mt e) t = do
   (ct, alpha') <- case mt of
     Nothing -> return (Sat, alpha)
     Just t' -> do
-      tvs <- use knownTypeVars
-      zoom tc (validateType' tvs (stripLocT t')) >>= \case
+      tvs <- use (env_lcl.knownTypeVars)
+      zoom (validateType' tvs (stripLocT t')) >>= \case
         Left  e   -> return (Unsat e, alpha)
         Right t'' -> return (F alpha :< F t'', t'')
   (s, cp, pat') <- match pat alpha'
-  context %= C.addScope s
+  env_lcl.context %= C.addScope s
   (ce, e') <- cg e beta
-  rs <- context %%= C.dropScope
+  rs <- env_lcl.context %%= C.dropScope
   let unused = flip foldMap (M.toList rs) $ \(v,(_,_,us)) -> 
         case us of
           Seq.Empty -> warnToConstraint __cogent_wunused_local_binds (UnusedLocalBind v)
@@ -260,11 +257,11 @@ cg' (Seq e1 e2) t = do
   return (c, e)
 
 cg' (TypeApp f as i) t = do
-  tvs <- use knownTypeVars
-  (ct,as') <- zoom tc (validateTypes' tvs (fmap stripLocT $ Compose as)) >>= \case
+  tvs <- use (env_lcl.knownTypeVars)
+  (ct,as') <- zoom (validateTypes' tvs (fmap stripLocT $ Compose as)) >>= \case
     Left e -> return (Unsat e, [])
     Right ts -> return (Sat, getCompose ts)
-  use (tc.knownFuns.at f) >>= \case
+  use (env_glb.knownFuns.at f) >>= \case
 
     Just (PT vs tau) -> let
         match :: [(TyVarName, Kind)] -> [Maybe TCType] -> CG ([(TyVarName, TCType)], Constraint)
@@ -340,9 +337,9 @@ cg' (Match e bs alts) t = do
   return (c, e'')
 
 cg' (Annot e tau) t = do
-  tvs <- use knownTypeVars
+  tvs <- use (env_lcl.knownTypeVars)
   let t' = stripLocT tau
-  (c, t'') <- zoom tc (validateType' tvs t') >>= \case
+  (c, t'') <- zoom (validateType' tvs t') >>= \case
     Left  e'' -> return (Unsat e'', t)
     Right t'' -> return (F t :< F t'', t'')
   (c', e') <- cg e t''
@@ -361,9 +358,9 @@ cgAlts alts top alpha = do
 
     f (Alt p l e) t = do
       (s, c, p') <- matchA p t
-      context %= C.addScope s
+      env_lcl.context %= C.addScope s
       (c', e') <- cg e top
-      rs <- context %%= C.dropScope
+      rs <- env_lcl.context %%= C.dropScope
       let unused = flip foldMap (M.toList rs) $ \(v,(_,_,us)) ->
             case us of Seq.Empty -> warnToConstraint __cogent_wunused_local_binds (UnusedLocalBind v); _ -> Sat
       return (removeCase p t, (c <> c' <> dropConstraintFor rs <> unused, Alt p' l e'))
@@ -504,14 +501,14 @@ withBindings (Binding pat tau e bs : xs) a = do
   (ct, alpha') <- case tau of
     Nothing -> return (Sat, alpha)
     Just tau' -> do
-      tvs <- use knownTypeVars
-      zoom tc (validateType' tvs (stripLocT tau')) >>= \case
+      tvs <- use (env_lcl.knownTypeVars)
+      zoom (validateType' tvs (stripLocT tau')) >>= \case
         Left e -> return (Unsat e, alpha)
         Right t -> return (F alpha :< F t, t)
   (s, cp, pat') <- match pat alpha'
-  context %= C.addScope s
+  env_lcl.context %= C.addScope s
   (c', xs', r) <- withBindings xs a
-  rs <- context %%= C.dropScope
+  rs <- env_lcl.context %%= C.dropScope
   let unused = flip foldMap (M.toList rs) $ \(v,(_,_,us)) -> 
         case us of
           Seq.Empty -> warnToConstraint __cogent_wunused_local_binds (UnusedLocalBind v)
@@ -534,14 +531,14 @@ parallel :: [(ErrorContext, acc -> CG (acc, (Constraint, a)))]
 parallel []       _   = return (Sat, [])
 parallel [(ct,f)] acc = (Sat,) . return . first (:@ ct) . snd <$> f acc
 parallel ((ct,f):xs) acc = do
-  ctx  <- use context
+  ctx  <- use (env_lcl.context)
   (acc', x) <- second (first (:@ ct)) <$> f acc
-  ctx1 <- use context
-  context .= ctx
+  ctx1 <- use (env_lcl.context)
+  env_lcl.context .= ctx
   (c', xs') <- parallel xs acc'
-  ctx2 <- use context
+  ctx2 <- use (env_lcl.context)
   let (ctx', ls, rs) = C.merge ctx1 ctx2
-  context .= ctx'
+  env_lcl.context .= ctx'
   let cls = foldMap (\(n, (t, p, us@(_ Seq.:<| _))) -> Drop t (UnusedInOtherBranch n p us)) ls
       crs = foldMap (\(n, (t, p, us@(_ Seq.:<| _))) -> Drop t (UnusedInThisBranch  n p us)) rs
   return (c' <> ((cls <> crs) :@ ct), x:xs')
@@ -550,11 +547,11 @@ letBang :: (?loc :: SourcePos) => [VarName] -> (TCType -> CG (Constraint, TCExpr
 letBang [] f t = f t
 letBang bs f t = do
   c <- foldMap id <$> mapM validateVariable bs
-  ctx <- use context
+  ctx <- use (env_lcl.context)
   let (ctx', undo) = C.mode ctx bs (\(t,p,_) -> (T (TBang t), p, Seq.singleton ?loc))  -- FIXME: shall we also take the old `us'?
-  context .= ctx'
+  (env_lcl.context) .= ctx'
   (c', e) <- f t
-  context %= undo  -- NOTE: this is NOT equiv. to `context .= ctx'
+  (env_lcl.context) %= undo  -- NOTE: this is NOT equiv. to `context .= ctx'
   let c'' = Escape t UsedInLetBang
   traceTc "gen" (text "let!" <+> pretty bs <+> text "when cg for expression" <+> pretty e
            L.<$> text "of type" <+> pretty t <> semi
@@ -563,14 +560,8 @@ letBang bs f t = do
 
 validateVariable :: VarName -> CG Constraint
 validateVariable v = do
-  x <- use context
+  x <- use (env_lcl.context)
   return $ if C.contains x v then Sat else Unsat (NotInScope MustVar v)
-
-validateType' :: [VarName] -> RawType -> TC (Either TypeError TCType)
-validateType' vs r = runExceptT (validateType vs r)
-
-validateTypes' :: (Traversable t) => [VarName] -> t RawType -> TC (Either TypeError (t TCType))
-validateTypes' vs rs = runExceptT (traverse (validateType vs) rs)
 
 -- ----------------------------------------------------------------------------
 -- pp for debugging

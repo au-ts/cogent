@@ -23,13 +23,16 @@ import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Surface
+import Cogent.TypeCheck.Util
 import Cogent.Util
 
 import Control.Arrow (second)
 import Control.Lens hiding (Context, (:<))
-import Control.Monad.Except
+-- import Control.Monad.Except
 import Control.Monad.State
+import Control.Monad.Trans.Maybe
 import Control.Monad.Writer hiding (Alt)
+import Data.Either (either)
 import qualified Data.IntMap as IM
 import Data.List (nub, (\\))
 import qualified Data.Map as M
@@ -109,15 +112,18 @@ data VarOrigin = ExpressionAt SourcePos
 
 
 -- high-level context at the end of the list
-type ContextualisedEW = ([ErrorContext], TypeEW)
+-- type ContextualisedEW = ([ErrorContext], TypeEW)
 
-isWarn :: ContextualisedEW -> Bool
-isWarn (_, Right _) = True
-isWarn _ = False
+type ContextualisedError   = ([ErrorContext], TypeError)
+type ContextualisedWarning = ([ErrorContext], TypeWarning)
 
-isWarnAsError :: ContextualisedEW -> Bool
-isWarnAsError (_, Left (TypeWarningAsError _)) = True
-isWarnAsError _ = False
+-- isWarn :: ContextualisedEW -> Bool
+-- isWarn (_, Right _) = True
+-- isWarn _ = False
+-- 
+-- isWarnAsError :: ContextualisedEW -> Bool
+-- isWarnAsError (_, Left (TypeWarningAsError _)) = True
+-- isWarnAsError _ = False
 
 data Metadata = Reused { varName :: VarName, boundAt :: SourcePos, usedAt :: Seq.Seq SourcePos }
               | Unused { varName :: VarName, boundAt :: SourcePos }
@@ -257,16 +263,55 @@ toRawIrrefPatn :: TypedIrrefPatn -> RawIrrefPatn
 toRawIrrefPatn (TIP ip _) = RIP (ffmap fst $ fmap toRawIrrefPatn ip)
 
 
-type TC = StateT TCState IO
 
 type TypeDict = [(TypeName, ([VarName], Maybe TCType))]  -- `Nothing' for abstract types
 
 data TCState = TCS { _knownFuns    :: M.Map FunName (Polytype TCType)
                    , _knownTypes   :: TypeDict
                    , _knownConsts  :: M.Map VarName (TCType, SourcePos)
+                   , _errors       :: [ContextualisedError]
+                   , _warnings     :: [ContextualisedWarning]
+                   , _errContext   :: [ErrorContext]
                    }
 
 makeLenses ''TCState
+
+type TcM lcl a = EnvM' TCState lcl a
+type TcBaseM a = TcM () a
+
+runTcM :: lcl -> TcM lcl a -> TcBaseM (a, lcl)
+runTcM lcl ma = EnvM $ MaybeT $ StateT $ \(Env glb _) -> do 
+                  (a, Env glb' lcl') <- flip runStateT (Env glb lcl) $ runMaybeT $ runEnvM ma
+                  return (fmap ((,lcl')) a, Env glb' ()) 
+
+zoom :: TcBaseM a -> TcM lcl a
+zoom ma = EnvM $ MaybeT $ StateT $ \(Env glb lcl) -> do
+            (a, Env glb' _) <- flip runStateT (Env glb ()) $ runMaybeT $ runEnvM ma
+            return (a, Env glb' lcl)
+
+typeErr :: TypeError -> TcM lcl ()
+typeErr e = typeErr_ =<< ((,e) <$> use (env_glb.errContext))
+
+typeErr_ :: ContextualisedError -> TcM lcl ()
+typeErr_ e = (env_glb.errors) %= (++[e])
+
+typeErrs_ :: [ContextualisedError] -> TcM lcl ()
+typeErrs_ es = (env_glb.errors) %= (++es)
+
+typeErrExit :: TypeError -> TcM lcl a
+typeErrExit e = typeErr e >> exitErr
+
+typeWarn :: TypeWarning -> TcM lcl ()
+typeWarn w = typeWarn_ =<< ((,w) <$> use (env_glb.errContext))
+
+typeWarn_ :: ContextualisedWarning -> TcM lcl ()
+typeWarn_ w = (env_glb.warnings) %= (++[w])
+
+typeWarns_ :: [ContextualisedWarning] -> TcM lcl ()
+typeWarns_ ws = (env_glb.warnings) %= (++ws)
+
+exitErr :: TcM lcl a
+exitErr = EnvM $ MaybeT $ StateT $ \s -> return (Nothing, s)
 
 substType :: [(VarName, TCType)] -> TCType -> TCType
 substType vs (U x) = U x
@@ -276,34 +321,29 @@ substType vs (T (TVar v True  )) | Just x <- lookup v vs = T (TBang x)
 substType vs (T t) = T (fmap (substType vs) t)
 
 -- Check for type well-formedness
-validateType :: [VarName] -> RawType -> ExceptT TypeError TC TCType
-validateType vs (RT t) = do
-  ts <- use knownTypes
+validateType :: [VarName] -> RawType -> TcBaseM TCType
+validateType vs t = either typeErrExit return =<< validateType' vs t
+
+validateType' :: [VarName] -> RawType -> TcBaseM (Either TypeError TCType)
+validateType' vs (RT t) = do
+  ts <- use (env_glb.knownTypes)
   case t of
-    TVar v _    | v `notElem` vs         -> throwError (UnknownTypeVariable v)
-    TCon t as _ | Nothing <- lookup t ts -> throwError (UnknownTypeConstructor t)
+    TVar v _    | v `notElem` vs         -> return (Left $ UnknownTypeVariable v)
+    TCon t as _ | Nothing <- lookup t ts -> return (Left $ UnknownTypeConstructor t)
                 | Just (vs, _) <- lookup t ts
                 , provided <- length as
                 , required <- length vs
                 , provided /= required
-               -> throwError (TypeArgumentMismatch t provided required)
+               -> return (Left $ TypeArgumentMismatch t provided required)
     TRecord fs _ | fields  <- map fst fs
                  , fields' <- nub fields
-                -> if fields' == fields then T <$> traverse (validateType vs) t
-                   else throwError (DuplicateRecordFields (fields \\ fields'))
-    _ -> T <$> traverse (validateType vs) t
+                -> if fields' == fields
+                   then return . fmap T . sequence =<< traverse (validateType' vs) t
+                   else return (Left $ DuplicateRecordFields (fields \\ fields'))
+    _ -> return . fmap T . sequence =<< traverse (validateType' vs) t
 
-
-validateType' :: [VarName] -> [ErrorContext] -> RawType -> ExceptT () (WriterT [ContextualisedEW] TC) TCType
-validateType' vs ctx = (liftErr . withExceptT (pure . (ctx,) . Left)) . validateType vs
-  where
-    liftErr :: ExceptT [e] TC a -> ExceptT () (WriterT [e] TC) a
-    liftErr ex = mapExceptT f ex
-      where f :: TC (Either [e] a) -> WriterT [e] TC (Either () a)
-            f tc = WriterT ((,[]) <$> tc) >>= \case
-                           Left  e -> tell e >> return (Left ())
-                           Right a -> return $ Right a
-
+validateTypes' :: (Traversable t) => [VarName] -> t RawType -> TcBaseM (Either TypeError (t TCType))
+validateTypes' vs rs = sequence <$> traverse (validateType' vs) rs
 
 
 -- Remove a pattern from a type, for case expressions.
@@ -332,8 +372,8 @@ flexOf (T (TUnbox v))  = flexOf v
 flexOf _ = Nothing
 
 
-isSynonym :: RawType -> TC Bool
-isSynonym (RT (TCon c _ _)) = lookup c <$> use knownTypes >>= \case
+isSynonym :: RawType -> TcBaseM Bool
+isSynonym (RT (TCon c _ _)) = lookup c <$> use (env_glb.knownTypes) >>= \case
   Nothing -> __impossible "isSynonym: type not in scope"
   Just (vs,Just _ ) -> return True
   Just (vs,Nothing) -> return False

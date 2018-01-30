@@ -681,9 +681,9 @@ handlePutAssign (Just (s, e)) = fieldname s <+> symbol "=" <+> pretty e
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 -- typechecker errors/warnings
-prettyTWE :: Int -> ContextualisedEW -> Doc
-prettyTWE th (ectx, we) = pretty we <$> indent' (vcat (map (flip prettyCtx True ) (take th ectx)
-                                                    ++ map (flip prettyCtx False) (drop th ectx)))
+prettyTWE :: Pretty m => Int -> ([ErrorContext], m) -> Doc
+prettyTWE th (ectx, m) = pretty m <$> indent' (vcat (map (flip prettyCtx True ) (take th ectx)
+                                                  ++ map (flip prettyCtx False) (drop th ectx)))
 
 -- reorganiser errors
 prettyRE :: (ReorganizeError, [(SourceObject, SourcePos)]) -> Doc

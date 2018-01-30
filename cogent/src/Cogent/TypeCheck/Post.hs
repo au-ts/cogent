@@ -26,11 +26,12 @@ import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Util
 import Cogent.Util
 
-import Control.Arrow (first)
+-- import Control.Arrow (first)
 import Control.Monad
 import Control.Lens
-import Control.Monad.Except
-import Control.Monad.Writer hiding (Alt, censor)
+-- import Control.Monad.Except
+-- import Control.Monad.Writer hiding (Alt)
+-- import Control.Monad.Trans.Maybe
 import qualified Data.Map as M
 import Text.PrettyPrint.ANSI.Leijen as P hiding ((<>), (<$>))
 
@@ -40,25 +41,25 @@ import Text.PrettyPrint.ANSI.Leijen as P hiding ((<>), (<$>))
 -- and adding error contexts.
 
 
-type Post a = ExceptT () (WriterT [ContextualisedEW] TC) a
+type Post a = TcBaseM a
 
-postT :: [ErrorContext] -> TCType -> Post RawType
-postT ctx t = do
-  d <- use knownTypes
+postT :: TCType -> Post RawType
+postT t = do
+  d <- use (env_glb.knownTypes)
   traceTc "post" (text "type" <+> pretty t)
-  censor (map (first $ (++ctx))) (toRawType <$> normaliseT d t)
+  toRawType <$> normaliseT d t
 
-postE :: [ErrorContext] -> TCExpr -> Post TypedExpr
-postE ctx e = do
-  d <- use knownTypes
+postE :: TCExpr -> Post TypedExpr
+postE e = do
+  d <- use (env_glb.knownTypes)
   traceTc "post" (text "expression" <+> pretty e)
-  censor (map (first $ (++ctx))) (toTypedExpr <$> normaliseE d e)
+  toTypedExpr <$> normaliseE d e
 
-postA :: [ErrorContext] -> [Alt TCPatn TCExpr] -> Post [Alt TypedPatn TypedExpr]
-postA ctx as = do
-  d <- use knownTypes
+postA :: [Alt TCPatn TCExpr] -> Post [Alt TypedPatn TypedExpr]
+postA as = do
+  d <- use (env_glb.knownTypes)
   traceTc "post" (text "alternative" <+> pretty as)
-  censor (map (first $ (++ctx))) (toTypedAlts <$> normaliseA d as)
+  toTypedAlts <$> normaliseA d as
 
 
 normaliseA :: TypeDict -> [Alt TCPatn TCExpr] -> Post [Alt TCPatn TCExpr]
@@ -66,8 +67,9 @@ normaliseA d as = traverse (traverse (normaliseE d) >=> ttraverse (normaliseP d)
 
 normaliseE :: TypeDict -> TCExpr -> Post TCExpr
 normaliseE d te@(TE t e l) = do
-  e' <- censor (map (first $ (++ctx))) (normaliseE' d e)
-  t' <- censor (map (first $ (++ctx))) (normaliseT  d t)
+  env_glb.errContext %= (++ctx)
+  e' <- normaliseE' d e
+  t' <- normaliseT  d t
   return $ TE t' e' l
   where
     ctx = InExpression (toLocExpr toLocType te) t :[]
@@ -80,13 +82,17 @@ normaliseE d te@(TE t e l) = do
                   >=> ttttraverse (normaliseT d)
 
 normaliseP :: TypeDict -> TCPatn -> Post TCPatn
-normaliseP d tp@(TP p l) = TP <$> censor (map (first $ (++ctx))) (normaliseP' d p) <*> pure l
+normaliseP d tp@(TP p l) = do
+  env_glb.errContext %= (++ctx)
+  TP <$> normaliseP' d p <*> pure l
   where ctx = InPattern (toLocPatn toLocType tp) :[]
         normaliseP' :: TypeDict -> Pattern TCIrrefPatn -> Post (Pattern TCIrrefPatn)
         normaliseP' d = traverse (normaliseIP d)
 
 normaliseIP :: TypeDict -> TCIrrefPatn -> Post TCIrrefPatn
-normaliseIP d tip@(TIP ip l) = TIP <$> censor (map (first $ (++ctx))) (normaliseIP' d ip) <*> pure l
+normaliseIP d tip@(TIP ip l) = do
+  env_glb.errContext %= (++ctx)
+  TIP <$> normaliseIP' d ip <*> pure l
   where ctx = InIrrefutablePattern (toLocIrrefPatn toLocType tip) :[]
         normaliseIP' :: TypeDict -> IrrefutablePattern TCName TCIrrefPatn -> Post (IrrefutablePattern TCName TCIrrefPatn)
         normaliseIP' d = traverse (normaliseIP d) >=> ttraverse (secondM (normaliseT d))
@@ -117,13 +123,13 @@ normaliseT d (T (TTake fs t)) = do
    case t' of
      (T (TRecord l s)) -> takeFields fs l t >>= \r -> normaliseT d (T (TRecord r s))
      (T (TVariant ts)) -> takeFields fs (M.toList ts) t' >>= \r -> normaliseT d (T (TVariant (M.fromList r)))
-     e                 -> tell (contextualiseE $ TakeFromNonRecordOrVariant fs t) >> throwError ()
+     e                 -> typeErrExit (TakeFromNonRecordOrVariant fs t)
  where
    takeFields :: Maybe [FieldName] -> [(FieldName, (a, Bool))] -> TCType -> Post [(FieldName, (a, Bool))]
    takeFields Nothing   fs' _  = return $ map (fmap (fmap (const True))) fs'
    takeFields (Just fs) fs' t' = do 
-     forM fs $ \f -> when (f `notElem` map fst fs') $ tell (contextualiseE (TakeNonExistingField f t')) >> throwError ()
-     forM fs' $ \(f,(t,b)) -> do when (f `elem` fs && b && __cogent_wdodgy_take_put) $ tell (contextualiseW (TakeTakenField f t'))
+     forM fs $ \f -> when (f `notElem` map fst fs') $ typeErrExit (TakeNonExistingField f t')
+     forM fs' $ \(f,(t,b)) -> do when (f `elem` fs && b && __cogent_wdodgy_take_put) $ typeWarn (TakeTakenField f t')
                                  return (f, (t, f `elem` fs || b))
 
 normaliseT d (T (TPut fs t)) = do
@@ -131,13 +137,13 @@ normaliseT d (T (TPut fs t)) = do
    case t' of
      (T (TRecord l s)) -> putFields fs l t >>= \r -> normaliseT d (T (TRecord r s))
      (T (TVariant ts)) -> putFields fs (M.toList ts) t' >>= \r -> normaliseT d (T (TVariant (M.fromList r)))
-     e                 -> tell (contextualiseE $ PutToNonRecordOrVariant fs t) >> throwError ()
+     e                 -> typeErrExit (PutToNonRecordOrVariant fs t)
  where
    putFields :: Maybe [FieldName] -> [(FieldName, (a, Bool))] -> TCType -> Post [(FieldName, (a, Bool))]
    putFields Nothing   fs' _  = return $ map (fmap (fmap (const False))) fs'
    putFields (Just fs) fs' t' = do
-     forM fs $ \f -> when (f `notElem` map fst fs') $ tell (contextualiseE (PutNonExistingField f t')) >> throwError ()
-     forM fs' $ \(f,(t,b)) -> do when (f `elem` fs && not b && __cogent_wdodgy_take_put) $ tell (contextualiseW (PutUntakenField f t'))
+     forM fs $ \f -> when (f `notElem` map fst fs') $ typeErrExit (PutNonExistingField f t')
+     forM fs' $ \(f,(t,b)) -> do when (f `elem` fs && not b && __cogent_wdodgy_take_put) $ typeWarn (PutUntakenField f t')
                                  return (f, (t,  (f `notElem` fs) && b))
 
 normaliseT d (T (TCon n ts b)) = do
@@ -155,8 +161,3 @@ normaliseT d (T (TCon n ts b)) = do
 normaliseT d (U x) = __impossible ("normaliseT: invalid type (?" ++ show x ++ ")")
 normaliseT d (T x) = T <$> traverse (normaliseT d) x
 
-contextualiseE :: TypeError -> [ContextualisedEW]
-contextualiseE e = [([], Left e)]
-
-contextualiseW :: TypeWarning -> [ContextualisedEW]
-contextualiseW w = [([], Right w)]

@@ -30,12 +30,13 @@ import Cogent.TypeCheck.Post (postT, postE, postA)
 import Cogent.TypeCheck.Solver
 import Cogent.TypeCheck.Subst (applyE, applyAlts)
 import Cogent.TypeCheck.Util
-import Cogent.Util (firstM)
+import Cogent.Util (firstM, secondM)
 
 import Control.Arrow (first, second)
 import Control.Lens
-import Control.Monad.Except
+-- import Control.Monad.Except
 import Control.Monad.State
+import Control.Monad.Trans.Maybe
 import Control.Monad.Writer hiding (censor)
 import Data.Either (lefts)
 import Data.List (nub, (\\))
@@ -49,36 +50,38 @@ import Text.PrettyPrint.ANSI.Leijen hiding ((<>), (<$>))
 
 tc :: [(SourcePos, TopLevel LocType LocPatn LocExpr)]
    -> [(LocType, String)]
-   -> IO ((Either () ([TopLevel RawType TypedPatn TypedExpr], [(RawType, String)]), [ContextualisedEW]), TCState)
-tc ds cts = ((first . second) adjustErrors <$>)
-            . flip runStateT (TCS M.empty knownTypes M.empty)
-            . (failError <$>)
-            . runWriterT
-            . runExceptT
+   -> IO (Maybe ([TopLevel RawType TypedPatn TypedExpr], [(RawType, String)]), TCState)
+tc ds cts = (second _env_glb)
+            . flip runStateT (Env (TCS M.empty knownTypes M.empty [] [] []) ())
+            . runMaybeT
+            . runEnvM
             $ (,) <$> typecheck ds <*> typecheckCustTyGen cts
   where
     knownTypes = map (, ([], Nothing)) $ words "U8 U16 U32 U64 String Bool"
     adjustErrors = (if __cogent_freverse_tc_errors then reverse else id) . adjustContexts
     adjustContexts = map (first noConstraints)
     noConstraints = if __cogent_ftc_ctx_constraints then id else filter (not . isCtxConstraint)
-    failError (Right _, ews) | or (map isWarnAsError ews), Flag_Werror <- __cogent_warning_switch = (Left (), ews)
-    failError x = x
+    -- failError (Right _, ews) | or (map isWarnAsError ews), Flag_Werror <- __cogent_warning_switch = (Left (), ews)
+    -- failError x = x
+
+isWarnAsError = undefined
+
 
 typecheck :: [(SourcePos, TopLevel LocType LocPatn LocExpr)]
-          -> ExceptT () (WriterT [ContextualisedEW] TC) [TopLevel RawType TypedPatn TypedExpr]
-typecheck = censor warnsToErrors . mapM (uncurry checkOne)
-  where
-    warnsToErrors = case __cogent_warning_switch of
-                      Flag_w -> filter (not . isWarn)
-                      Flag_Wwarn -> id
-                      Flag_Werror -> map warnToError
-    warnToError (c,Right w) = (c, Left $ TypeWarningAsError w)
-    warnToError ew = ew
+          -> TcBaseM [TopLevel RawType TypedPatn TypedExpr]
+typecheck = mapM (uncurry checkOne)
+ --  where
+ --    warnsToErrors = case __cogent_warning_switch of
+ --                      Flag_w -> filter (not . isWarn)
+ --                      Flag_Wwarn -> id
+ --                      Flag_Werror -> map warnToError
+ --    warnToError (c,Right w) = (c, Left $ TypeWarningAsError w)
+ --    warnToError ew = ew
 
 -- TODO: Check for prior definition
 checkOne :: SourcePos -> TopLevel LocType LocPatn LocExpr
-         -> ExceptT () (WriterT [ContextualisedEW] TC) (TopLevel RawType TypedPatn TypedExpr)
-checkOne loc d = case d of
+         -> TcBaseM (TopLevel RawType TypedPatn TypedExpr)
+checkOne loc d = env_glb.errContext %= (++ [InDefinition loc d]) >> case d of
   (Include _) -> __impossible "checkOne"
   (IncludeStd _) -> __impossible "checkOne"
   (DocBlock s) -> return $ DocBlock s
@@ -86,18 +89,18 @@ checkOne loc d = case d of
     traceTc "tc" $ bold (text $ replicate 80 '=')
     traceTc "tc" (text "typecheck type definition" <+> pretty n)
     let xs = ps \\ nub ps
-    unless (null xs) $ tell [([InDefinition loc d], Left $ DuplicateTypeVariable xs)] >> throwError ()
-    t' <- validateType' ps [InDefinition loc d] (stripLocT t)
-    knownTypes <>= [(n,(ps, Just t'))]
-    t'' <- postT [InDefinition loc d] t'
+    unless (null xs) $ typeErrExit $ DuplicateTypeVariable xs
+    t' <- validateType ps (stripLocT t)
+    env_glb.knownTypes <>= [(n,(ps, Just t'))]
+    t'' <- postT t'
     return $ TypeDec n ps t''
 
   (AbsTypeDec n ps) -> do
     traceTc "tc" $ bold (text $ replicate 80 '=')
     traceTc "tc" (text "typecheck abstract type definition" <+> pretty n)
     let xs = ps \\ nub ps
-    unless (null xs) $ tell [([InDefinition loc d], Left $ DuplicateTypeVariable xs)] >> throwError ()
-    knownTypes <>= [(n,(ps, Nothing))]
+    unless (null xs) $ typeErrExit $ DuplicateTypeVariable xs
+    env_glb.knownTypes <>= [(n,(ps, Nothing))]
     return $ AbsTypeDec n ps
 
   (AbsDec n (PT ps t)) -> do
@@ -105,80 +108,69 @@ checkOne loc d = case d of
     traceTc "tc" (text "typecheck abstract function" <+> pretty n)
     let vs' = map fst ps
         xs = vs' \\ nub vs'
-    unless (null xs) $ tell [([InDefinition loc d], Left $ DuplicateTypeVariable xs)] >> throwError ()
-    t' <- validateType' (map fst ps) [InDefinition loc d] (stripLocT t)
-    knownFuns %= M.insert n (PT ps t')
-    t'' <- postT [InDefinition loc d] t'
+    unless (null xs) $ typeErrExit $ DuplicateTypeVariable xs
+    t' <- validateType (map fst ps) (stripLocT t)
+    env_glb.knownFuns %= M.insert n (PT ps t')
+    t'' <- postT t'
     return $ AbsDec n (PT ps t'')
 
   (ConstDef n t e) -> do
     traceTc "tc" $ bold (text $ replicate 80 '=')
     traceTc "tc" (text "typecheck const definition" <+> pretty n)
-    base <- use knownConsts
-    t' <- validateType' [] [InDefinition loc d] (stripLocT t)
+    base <- use (env_glb.knownConsts)
+    t' <- validateType [] (stripLocT t)
     let ctx = C.addScope (fmap (\(t,p) -> (t,p, Seq.singleton p)) base) C.empty  -- for consts, the definition is the first use.
-    ((c, e'), flx, os) <- lift $ lift (runCG ctx [] (cg e t'))
+    ((c, e'), flx, os) <- runCG ctx [] (cg e t')
     let c' = c <> Share t' (Constant n)
-    (ews, subst, _) <- lift $ lift (runSolver (solve c') flx os [])
-    tell $ map addCtx ews
+    (_, subst, _) <- runSolver (solve c') flx os []
     traceTc "tc" (text "subst for const definition" <+> pretty n <+> text "is"
                   L.<$> pretty subst)
-    if null (lefts $ map snd ews) then do
-      knownConsts %= M.insert n (t', loc)
-      e'' <- postE [InDefinition loc d] $ applyE subst e'
-      t'' <- postT [InDefinition loc d] t'
-      return (ConstDef n t'' e'')
-    else
-      throwError ()
+    env_glb.knownConsts %= M.insert n (t', loc)
+    e'' <- postE $ applyE subst e'
+    t'' <- postT t'
+    return (ConstDef n t'' e'')
 
   (FunDef f (PT vs t) alts) -> do
     traceTc "tc" $ bold (text $ replicate 80 '=')
     traceTc "tc" (text "typecheck fun definition" <+> pretty f)
     let vs' = map fst vs
         xs = vs' \\ nub vs'
-    unless (null xs) $ tell [([InDefinition loc d], Left $ DuplicateTypeVariable xs)] >> throwError ()
-    base <- use knownConsts
-    t' <- validateType' (map fst vs) [InDefinition loc d] (stripLocT t)
+    unless (null xs) $ typeErrExit $ DuplicateTypeVariable xs
+    base <- use (env_glb.knownConsts)
+    t' <- validateType (map fst vs) (stripLocT t)
     (i,o) <- asFunType t'
     let ctx = C.addScope (fmap (\(t,p) -> (t, p, Seq.singleton p)) base) C.empty
     let ?loc = loc
-    ((c, alts'), flx, os) <- lift $ lift (runCG ctx (map fst vs) (cgAlts alts o i))
+    ((c, alts'), flx, os) <- runCG ctx (map fst vs) (cgAlts alts o i)
     traceTc "tc" (text "constraint for fun definition" <+> pretty f <+> text "is"
                   L.<$> prettyC c)
     -- traceTc "tc" (pretty alts')
-    (ews, subst, _) <- lift $ lift (runSolver (solve c) flx os vs)
-    tell $ map addCtx ews
+    (_, subst, _) <- runSolver (solve c) flx os vs
     traceTc "tc" (text "subst for fun definition" <+> pretty f <+> text "is"
                   L.<$> pretty subst)
-    if null (lefts $ map snd ews) then do
-      knownFuns %= M.insert f (PT vs t')
-      alts'' <- postA [InDefinition loc d] $ applyAlts subst alts'
-      t''    <- postT [InDefinition loc d] t'
-      return (FunDef f (PT vs t'') alts'')
-    else
-      throwError ()
+    env_glb.knownFuns %= M.insert f (PT vs t')
+    alts'' <- postA $ applyAlts subst alts'
+    t''    <- postT t'
+    return (FunDef f (PT vs t'') alts'')
 
   where
     asFunType (T (TFun a b)) = return (a, b)
-    asFunType x@(T (TCon c as _)) = lookup c <$> use knownTypes >>= \case
+    asFunType x@(T (TCon c as _)) = lookup c <$> use (env_glb.knownTypes) >>= \case
                                       Just (vs, Just t) -> asFunType (substType (zip vs as) t)
-                                      _ -> tell [([InDefinition loc d], Left $ NotAFunctionType x)] >> throwError ()
-    asFunType x = tell [([InDefinition loc d], Left $ NotAFunctionType x)] >> throwError ()
-
-    addCtx :: forall x. ([ErrorContext], x) -> ([ErrorContext], x)
-    addCtx = (_1 %~ (++ [InDefinition loc d]))
+                                      _ -> typeErrExit $ NotAFunctionType x
+    asFunType x = typeErrExit $ NotAFunctionType x
 
 
 -- ----------------------------------------------------------------------------
 -- custTyGen
 
-typecheckCustTyGen :: [(LocType, String)]
-                   -> ExceptT () (WriterT [ContextualisedEW] TC) [(RawType, String)]
-typecheckCustTyGen = mapM . firstM $ \t ->
+typecheckCustTyGen :: [(LocType, String)] -> TcBaseM [(RawType, String)]
+typecheckCustTyGen = mapM . firstM $ \t -> do
   let t' = stripLocT t 
-      ctx = CustomisedCodeGen t
-   in if not (isMonoType t')
-        then tell [([ctx], Left (CustTyGenIsPolymorphic $ toTCType t'))] >> throwError ()
-        else (lift . lift $ isSynonym t') >>= \case
-               True -> tell [([ctx], Left (CustTyGenIsSynonym $ toTCType t'))] >> throwError ()
-               _    -> validateType' [] [ctx] t' >>= postT [ctx]
+  env_glb.errContext %= (++ [CustomisedCodeGen t])
+  if not (isMonoType t')
+    then typeErrExit (CustTyGenIsPolymorphic $ toTCType t')
+    else isSynonym t' >>= \case
+           True -> typeErrExit (CustTyGenIsSynonym $ toTCType t')
+           _    -> validateType [] t' >>= postT
+

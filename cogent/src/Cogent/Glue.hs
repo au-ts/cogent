@@ -52,6 +52,7 @@ import qualified Cogent.TypeCheck.Generator as TC
 import qualified Cogent.TypeCheck.Post      as TC
 import qualified Cogent.TypeCheck.Solver    as TC
 import qualified Cogent.TypeCheck.Subst     as TC
+import qualified Cogent.TypeCheck.Util      as TC
 import Cogent.Util
 import Cogent.Vec as Vec hiding (repeat)
 
@@ -195,18 +196,19 @@ parseAnti s parsec loc offset' = do
     Left err -> throwError $ "Error: Cannot parse antiquote: \n" ++ show err
     Right t  -> return t
 
-tcAnti :: (a -> ExceptT () (WriterT [TC.ContextualisedEW] TC.TC) b) -> a -> GlDefn t b
-tcAnti f a = lift . lift $
-  StateT $ \s -> let state = TC.TCS { TC._knownFuns    = view (tcState.tfuncs) s
-                                    , TC._knownTypes   = view (tcState.ttypes) s
-                                    , TC._knownConsts  = view (tcState.consts) s
-                                    }
-                     turn :: s -> (Either a b, [TC.ContextualisedEW]) -> Either String (b,s)
-                     turn s (Right x, []) = Right (x,s)
-                     turn _ (_, err) = Left $ "Error: Typecheck antiquote failed:\n" ++
-                                         show (vsep $ L.map (prettyTWE __cogent_ftc_ctx_len) err)
-                                         -- FIXME: may need a pp modifier `plain' / zilinc
-                  in ExceptT $ fmap (turn s) (flip evalStateT state . runWriterT . runExceptT $ f a)
+tcAnti :: (a -> TC.TcBaseM b) -> a -> GlDefn t b
+tcAnti = undefined
+-- tcAnti f a = lift . lift $
+--   StateT $ \s -> let state = TC.TCS { TC._knownFuns    = view (tcState.tfuncs) s
+--                                     , TC._knownTypes   = view (tcState.ttypes) s
+--                                     , TC._knownConsts  = view (tcState.consts) s
+--                                     }
+--                      turn :: s -> (Either a b, [TC.ContextualisedEW]) -> Either String (b,s)
+--                      turn s (Right x, []) = Right (x,s)
+--                      turn _ (_, err) = Left $ "Error: Typecheck antiquote failed:\n" ++
+--                                          show (vsep $ L.map (prettyTWE __cogent_ftc_ctx_len) err)
+--                                          -- FIXME: may need a pp modifier `plain' / zilinc
+--                   in ExceptT $ fmap (turn s) (flip evalStateT state . runMaybeT . runTcM $ f a)
 
 desugarAnti :: (a -> DS.DS t 'Zero b) -> a -> GlDefn t b
 desugarAnti m a = view kenv >>= \(fmap fst -> ts) -> lift . lift $
@@ -256,8 +258,9 @@ parseType s loc = parseAnti s PS.monotype loc 4
 tcType :: SF.LocType -> GlDefn t SF.RawType
 tcType t = do
   tvs <- L.map fst <$> (Vec.cvtToList <$> view kenv)
-  flip tcAnti t $ \t -> do t' <- TC.validateType' tvs [] $ SF.stripLocT t
-                           TC.postT [TC.AntiquotedType t] t'
+  flip tcAnti t $ \t -> do TC.env_glb.TC.errContext %= (++ [TC.AntiquotedType t])
+                           t' <- TC.validateType tvs $ SF.stripLocT t
+                           TC.postT t'
 
 desugarType :: SF.RawType -> GlDefn t (CC.Type t)
 desugarType = desugarAnti DS.desugarType
@@ -346,11 +349,10 @@ tcExp e = do
   vs <- Vec.cvtToList <$> view kenv
   flip tcAnti e $ \e ->
     do let ?loc = SF.posOfE e
-       ((c,e'),flx,os) <- lift . lift $ TC.runCG ctx (L.map fst vs) (TC.cg e =<< TC.fresh)
-       (ews,subst,_) <- lift . lift $ TC.runSolver (TC.solve c) flx os vs
-       tell $ L.map (first $ (++ [TC.AntiquotedExpr e])) ews
-       unless (L.null . lefts $ L.map snd ews) $ throwError ()
-       TC.postE [TC.AntiquotedExpr e] $ TC.applyE subst e'
+       TC.env_glb.TC.errContext %= (++ [TC.AntiquotedExpr e])
+       ((c,e'),flx,os) <- TC.runCG ctx (L.map fst vs) (TC.cg e =<< TC.fresh)
+       (_,subst,_) <- TC.runSolver (TC.solve c) flx os vs
+       TC.postE $ TC.applyE subst e'
 
 desugarExp :: TC.TypedExpr -> GlDefn t (CC.UntypedExpr t 'Zero VarName)
 desugarExp = desugarAnti DS.desugarExpr

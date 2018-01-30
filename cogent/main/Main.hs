@@ -587,11 +587,11 @@ parseArgs args = case getOpt' Permute options args of
       let stg = STGTypeCheck
       putProgressLn "Typechecking..."
       TC.tc reorged ctygen >>= \case
-        ((Left _, ews) ,_) -> do printError (prettyTWE __cogent_ftc_ctx_len) ews
-                                 when (and $ map isWarnAsError ews) $ hPutStrLn stderr "Failing due to --Werror."
-                                 exitFailure
-        ((Right (tced,ctygen'), ews), tcst) -> do
-          when (not . null $ ews) $ printError (prettyTWE __cogent_ftc_ctx_len) ews
+        (Nothing,st) -> do -- printError (prettyTWE __cogent_ftc_ctx_len) ews  -- FIXME!!!
+                           -- when (and $ map isWarnAsError ews) $ hPutStrLn stderr "Failing due to --Werror."
+                           exitFailure
+        ((Just (tced,ctygen')), tcst) -> do
+          -- when (not . null $ ews) $ printError (prettyTWE __cogent_ftc_ctx_len) ews  --- FIXME
           when (Ast stg `elem` cmds) $ genAst stg tced
           when (Pretty stg `elem` cmds) $ genPretty stg tced
           when (Compile (succ stg) `elem` cmds) $ desugar cmds tced ctygen' tcst source (map pragmaOfLP pragmas) buildinfo log

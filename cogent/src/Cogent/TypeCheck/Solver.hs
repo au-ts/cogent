@@ -32,7 +32,7 @@ import           Cogent.TypeCheck.GoalSet (Goal (..), goal, goalContext, GoalSet
 import qualified Cogent.TypeCheck.GoalSet as GS
 
 import           Control.Applicative
-import           Control.Lens hiding ((:<))
+import           Control.Lens hiding ((:<), zoom)
 import           Control.Monad.State
 import qualified Data.Foldable as F
 import           Data.Function (on)
@@ -48,7 +48,6 @@ import qualified Text.PrettyPrint.ANSI.Leijen as P
 import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
 
 data SolverState = SS { _flexes      :: Int
-                      , _tc          :: TCState
                       , _substs      :: Subst
                       , _axioms      :: [(TyVarName, Kind)]
                       , _flexOrigins :: IM.IntMap VarOrigin
@@ -56,18 +55,16 @@ data SolverState = SS { _flexes      :: Int
 
 makeLenses ''SolverState
 
-type Solver = StateT SolverState IO
+type Solver a = TcM SolverState a
 
 
-runSolver :: Solver a -> Int -> IM.IntMap VarOrigin -> [(VarName, Kind)] -> TC (a, Subst, IM.IntMap VarOrigin)
-runSolver act i os ks = do
-  x <- get
-  (a, SS _ x' s _ o) <- lift $ runStateT act (SS i x mempty ks os)
-  put x'
+runSolver :: Solver a -> Int -> IM.IntMap VarOrigin -> [(VarName, Kind)] -> TcBaseM (a, Subst, IM.IntMap VarOrigin)
+runSolver ma i os ks = do
+  (a, SS _ s _ o) <- runTcM (SS i mempty ks os) ma
   return (a,s,o)
 
 -- Flatten a constraint tree into a set of flat goals
-crunch :: Constraint -> TC [Goal]
+crunch :: Constraint -> TcBaseM [Goal]
 crunch (x :@ e) = map (goalContext %~ (++[e])) <$> crunch x
 crunch (x :& y) = (++) <$> crunch x <*> crunch y
 crunch Sat   = return []
@@ -78,7 +75,7 @@ crunch x     = return [Goal [] x]
 -- Operators like TUnbox, TBang etc. are left in place if there is
 -- a unification variable.
 
-whnf :: TCType -> TC TCType
+whnf :: TCType -> TcBaseM TCType
 whnf (T (TUnbox t)) = do
    t' <- whnf t
    return $ case t' of
@@ -124,7 +121,7 @@ whnf (T (TPut fs t)) = do
    putFields (Just fs) = map (\(f, (t, b)) -> (f, (t,  (f `notElem` fs) && b)))
 
 whnf (T (TCon n as b)) = do
-  kts <- use knownTypes
+  kts <- use (env_glb.knownTypes)
   case lookup n kts of
     Just (as', Just b) -> whnf (substType (zip as' as) b)
     _ -> return (T (TCon n as b))
@@ -401,7 +398,7 @@ parVariants n m ks =
 -- takeVariant (f:fs) vs es | f `M.member` vs = takeVariant fs (M.adjust (\(t,b) -> (t, False)) f vs ) es
 --                          | otherwise       = takeVariant fs vs (M.insertWith (&&) f False es)
 
-apply :: (Constraint -> TC Constraint) -> [Goal] -> TC [Goal]
+apply :: (Constraint -> TcBaseM Constraint) -> [Goal] -> TcBaseM [Goal]
 apply tactic = fmap concat . mapM each
   where each (Goal ctx c) = do
           traceTc "sol" (text "apply tactic to goal" <+> prettyC c)
@@ -410,7 +407,7 @@ apply tactic = fmap concat . mapM each
           map (goalContext %~ (++ ctx)) <$> crunch c'
 
 -- Applies simp and rules as much as possible
-auto :: Constraint -> TC Constraint
+auto :: Constraint -> TcBaseM Constraint
 auto c = do
   traceTc "sol" (text "auto")
   let ?lvl = 0
@@ -420,7 +417,7 @@ auto c = do
     Just c'' -> auto c''
 
 -- applies whnf to every type in a constraint.
-simp :: Constraint -> TC Constraint
+simp :: Constraint -> TcBaseM Constraint
 simp (a :< b)          = (:<)       <$> traverse whnf a <*> traverse whnf b
 simp (Upcastable a b)  = Upcastable <$> whnf a <*> whnf b
 simp (a :& b)          = (:&)       <$> simp a <*> simp b
@@ -435,8 +432,8 @@ simp (Exhaustive t ps) = Exhaustive <$> whnf t <*> pure ps
 
 fresh :: VarOrigin -> Solver TCType
 fresh ctx = do
-  i <- flexes <<%= succ
-  flexOrigins %= IM.insert i ctx
+  i <- (env_lcl.flexes) <<%= succ
+  (env_lcl.flexOrigins) %= IM.insert i ctx
   return $ U i
 
 
@@ -445,7 +442,10 @@ lub = bound LUB
 
 -- Constructs a partially specified type that could plausibly be :< the two inputs.
 -- We re-check some basic equalities here for better error messages
-bound :: Bound -> TypeFragment TCType -> TypeFragment TCType -> Solver (Maybe (TypeFragment TCType), TypeFragment TCType, TypeFragment TCType)
+bound :: Bound
+      -> TypeFragment TCType
+      -> TypeFragment TCType
+      -> Solver (Maybe (TypeFragment TCType), TypeFragment TCType, TypeFragment TCType)
 bound d (F a) (F b) = fmap ((, F a, F b) . fmap F) (bound' d a b)
 bound d a@(FVariant is) b@(F (T (TVariant js)))
   | M.keysSet is `S.isSubsetOf` M.keysSet js
@@ -724,12 +724,12 @@ noBrainers [Goal _ c@(Upcastable (U x) (T t@(TCon v [] Unboxed)))]
 noBrainers _ = return mempty
 
 applySubst :: Subst -> Solver ()
-applySubst s = traceTc "sol" (text "apply subst") >> substs <>= s
+applySubst s = traceTc "sol" (text "apply subst") >> (env_lcl.substs) <>= s
 
 -- Applies the current substitution to goals.
 instantiate :: GoalClasses -> Solver [Goal]
 instantiate (Classes ups downs upcasts downcasts errs semisats rest upfl downfl) = do
-  s <- use substs
+  s <- use (env_lcl.substs)
   let al  = (GS.toList =<< (F.toList =<< [ups, downs, upcasts, downcasts]) ) ++ errs ++ semisats ++ rest
       al' = al & map (goal %~ Subst.applyC s) & map (goalContext %~ map (Subst.applyCtx s))
   -- traceTc "sol" (text "instantiate" <+> pretty (show al) P.<$> text "with substitution" P.<$> pretty s <> semi
@@ -739,7 +739,7 @@ instantiate (Classes ups downs upcasts downcasts errs semisats rest upfl downfl)
 -- Eliminates all known facts about type variables from the goal set.
 assumption :: [Goal] -> Solver [Goal]
 assumption gs = do
-  axs <- use axioms
+  axs <- use (env_lcl.axioms)
   let isKnown :: Constraint -> Bool
       isKnown (Share  (T (TVar v b)) _)
         | Just k <- lookup v axs = canShare   (if b then bangKind k else k)
@@ -753,7 +753,7 @@ assumption gs = do
 -- Take an assorted list of goals, and break them down into neatly classified, simple flex/rigid goals.
 -- Removes any known facts about type variables.
 explode :: [Goal] -> Solver GoalClasses
-explode = assumption >=> (zoom tc . apply auto) >=> (return . foldMap classify)
+explode = assumption >=> (zoom . apply auto) >=> (return . foldMap classify)
 
 irreducible :: IM.IntMap [Goal] -> IS.IntSet -> Bool
 irreducible m ds | IM.null m = True
@@ -799,21 +799,24 @@ data GoalClass = UpClass | DownClass | UpcastClass | DowncastClass
 --   3.2. If there are any upward goals,
 --          pull type information up from the LHS to the RHS of :< constraints and go to 1
 --   4. If there are any remaining constraints, report unsolved error, otherwise return empty list.
-solve :: Constraint -> Solver [ContextualisedEW]
-solve = zoom tc . crunch >=> explode >=> go
+solve :: Constraint -> Solver ()
+solve = zoom . crunch >=> explode >=> go
   where
-    go :: GoalClasses -> Solver [ContextualisedEW]
-    go g | not (null (unsats g)) = return (map (\(Goal ctx (Unsat e)) -> (ctx, Left e)) (unsats g) ++ map toWarn (semisats g))
+    go :: GoalClasses -> Solver ()
+    go g | not (null (unsats g)) = do
+      typeErrs_  $ map toErr  (unsats   g)
+      typeWarns_ $ map toWarn (semisats g)
     go g | not (irreducible (fmap GS.toList $ downs g) (downflexes g)) = go' g DownClass
     go g | not (irreducible (fmap GS.toList $ ups   g) (upflexes   g)) = go' g UpClass
     go g | not (IM.null (downcastables g)) = go' g DowncastClass
     go g | not (IM.null (upcastables   g)) = go' g UpcastClass
     go g | not (null (rest g)) = do
-      os <- use flexOrigins
-      return (map (\(Goal c x) -> (c, Left $ UnsolvedConstraint x os)) (rest g) ++ map toWarn (semisats g))
-    go g = return $ map toWarn (semisats g)
+      os <- use (env_lcl.flexOrigins)
+      typeErrs_  $ map (\(Goal c x) -> (c, UnsolvedConstraint x os)) (rest g)
+      typeWarns_ $ map toWarn (semisats g)
+    go g = typeWarns_ $ map toWarn (semisats g)
 
-    go' :: GoalClasses -> GoalClass -> Solver [ContextualisedEW]
+    go' :: GoalClasses -> GoalClass -> Solver ()
     go' g c = do
       let (msg, f, cls, g'', flexes) = case c of
             UpClass       -> ("upward"  , suggest    , ups          , g { ups           = IM.empty }, upflexes)
@@ -836,5 +839,8 @@ solve = zoom tc . crunch >=> explode >=> go
 
     removeKeys = foldr IM.delete
 
-    toWarn (Goal ctx (SemiSat w)) = (ctx, Right w)
-    toWarn _ = __impossible "toWarn (in solve)"
+    toErr (Goal ctx (Unsat e)) = (ctx, e)
+    toErr _ = __impossible "solve: toErr"
+
+    toWarn (Goal ctx (SemiSat w)) = (ctx, w)
+    toWarn _ = __impossible "solve: toWarn"
