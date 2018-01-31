@@ -30,7 +30,7 @@ import Cogent.TypeCheck.Post (postT, postE, postA)
 import Cogent.TypeCheck.Solver
 import Cogent.TypeCheck.Subst (applyE, applyAlts)
 import Cogent.TypeCheck.Util
-import Cogent.Util (firstM, whenMM)
+import Cogent.Util (firstM)
 
 import Control.Arrow (first, second)
 import Control.Lens
@@ -111,8 +111,7 @@ checkOne loc d = env_glb.errContext %= (++ [InDefinition loc d]) >> case d of
     let ctx = C.addScope (fmap (\(t,p) -> (t,p, Seq.singleton p)) base) C.empty  -- for consts, the definition is the first use.
     ((c, e'), flx, os) <- runCG ctx [] (cg e t')
     let c' = c <> Share t' (Constant n)
-    (_, subst, _) <- runSolver (solve c') flx os []
-    whenMM (not . null <$> use (env_glb.errors)) $ (exitErr :: TcBaseM ())
+    (_, subst, _) <- runSolver (exitOnErr $ solve c') flx os []
     traceTc "tc" (text "subst for const definition" <+> pretty n <+> text "is"
                   L.<$> pretty subst)
     env_glb.knownConsts %= M.insert n (t', loc)
@@ -135,8 +134,7 @@ checkOne loc d = env_glb.errContext %= (++ [InDefinition loc d]) >> case d of
     traceTc "tc" (text "constraint for fun definition" <+> pretty f <+> text "is"
                   L.<$> prettyC c)
     -- traceTc "tc" (pretty alts')
-    (_, subst, _) <- runSolver (solve c) flx os vs
-    whenMM (not . null <$> use (env_glb.errors)) $ (exitErr :: TcBaseM ())
+    (_, subst, _) <- runSolver (exitOnErr $ solve c) flx os vs
     traceTc "tc" (text "subst for fun definition" <+> pretty f <+> text "is"
                   L.<$> pretty subst)
     env_glb.knownFuns %= M.insert f (PT vs t')

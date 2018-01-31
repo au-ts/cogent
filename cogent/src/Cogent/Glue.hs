@@ -64,10 +64,10 @@ import Control.Monad.Reader
 import Control.Monad.RWS.Strict
 import Control.Monad.State
 import Control.Monad.Trans.Except
---import Control.Monad.Trans.Except
-import Control.Monad.Writer
+import Control.Monad.Trans.Maybe
+-- import Control.Monad.Writer
 import qualified Data.ByteString.Char8 as B
-import Data.Either (lefts)
+-- import Data.Either (lefts)
 import Data.Data
 import Data.Function.Flippers
 import Data.Generics
@@ -130,8 +130,9 @@ parseFile' filename = do
 data TcState = TcState { _tfuncs :: Map FunName (SF.Polytype TC.TCType)
                        , _ttypes :: TC.TypeDict
                        , _consts :: Map VarName (TC.TCType, SourcePos)
-                       -- , _flexes :: Int
-                       -- , _vorigs :: IntMap VarOrigin
+                       -- , _contxt :: [ErrorContext]
+                       -- , _errors :: [ContextualisedError]
+                       -- , _warnings :: [ContextualisedWarning]
                        }
 
 data DsState = DsState { _typedefs  :: DS.Typedefs
@@ -197,18 +198,23 @@ parseAnti s parsec loc offset' = do
     Right t  -> return t
 
 tcAnti :: (a -> TC.TcBaseM b) -> a -> GlDefn t b
-tcAnti = undefined
--- tcAnti f a = lift . lift $
---   StateT $ \s -> let state = TC.TCS { TC._knownFuns    = view (tcState.tfuncs) s
---                                     , TC._knownTypes   = view (tcState.ttypes) s
---                                     , TC._knownConsts  = view (tcState.consts) s
---                                     }
---                      turn :: s -> (Either a b, [TC.ContextualisedEW]) -> Either String (b,s)
---                      turn s (Right x, []) = Right (x,s)
---                      turn _ (_, err) = Left $ "Error: Typecheck antiquote failed:\n" ++
---                                          show (vsep $ L.map (prettyTWE __cogent_ftc_ctx_len) err)
---                                          -- FIXME: may need a pp modifier `plain' / zilinc
---                   in ExceptT $ fmap (turn s) (flip evalStateT state . runMaybeT . runTcM $ f a)
+tcAnti f a = lift . lift $
+  StateT $ \s -> let state = TC.TCS { TC._knownFuns    = view (tcState.tfuncs) s
+                                    , TC._knownTypes   = view (tcState.ttypes) s
+                                    , TC._knownConsts  = view (tcState.consts) s
+                                    , TC._errContext   = []
+                                    , TC._errors       = []
+                                    , TC._warnings     = []
+                                    }
+                     turn :: s -> (Maybe b, TC.TCState) -> Either String (b,s)
+                     turn s (Just x, TC.TCS _ _ _ _ [] _) = Right (x,s)  -- FIXME: ignore warnings atm / zilinc
+                     turn _ (_, TC.TCS _ _ _ _ errs _) = Left $ "Error: Typecheck antiquote failed:\n" ++
+                                         show (vsep $ L.map (prettyTWE __cogent_ftc_ctx_len) errs)
+                                         -- FIXME: may need a pp modifier `plain' / zilinc
+                  in ExceptT $ fmap (turn s) (fmap (second $ TC._env_glb) .
+                                              flip runStateT (TC.Env state ()) .
+                                              runMaybeT .
+                                              TC.runEnvM $ f a)
 
 desugarAnti :: (a -> DS.DS t 'Zero b) -> a -> GlDefn t b
 desugarAnti m a = view kenv >>= \(fmap fst -> ts) -> lift . lift $

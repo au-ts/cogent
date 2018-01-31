@@ -313,6 +313,11 @@ warnToErr = second TypeWarningAsError
 exitErr :: TcM lcl a
 exitErr = EnvM $ MaybeT $ StateT $ \s -> return (Nothing, s)
 
+exitOnErr :: TcM lcl a -> TcM lcl a
+exitOnErr ma = do a <- ma
+                  errs <- use (env_glb.errors)
+                  if null errs then return a else exitErr
+
 substType :: [(VarName, TCType)] -> TCType -> TCType
 substType vs (U x) = U x
 -- substType vs (RemoveCase p x) = RemoveCase (fmap (fmap (substType vs)) p) (substType vs x)
@@ -321,10 +326,11 @@ substType vs (T (TVar v True  )) | Just x <- lookup v vs = T (TBang x)
 substType vs (T t) = T (fmap (substType vs) t)
 
 -- Check for type well-formedness
-validateType :: [VarName] -> RawType -> TcBaseM TCType
+validateType :: [VarName] -> RawType -> TcM lcl TCType
 validateType vs t = either typeErrExit return =<< validateType' vs t
 
-validateType' :: [VarName] -> RawType -> TcBaseM (Either TypeError TCType)
+-- don't log erros, but instead return them
+validateType' :: [VarName] -> RawType -> TcM lcl (Either TypeError TCType)
 validateType' vs (RT t) = do
   ts <- use (env_glb.knownTypes)
   case t of
@@ -342,7 +348,7 @@ validateType' vs (RT t) = do
                    else return (Left $ DuplicateRecordFields (fields \\ fields'))
     _ -> return . fmap T . sequence =<< traverse (validateType' vs) t
 
-validateTypes' :: (Traversable t) => [VarName] -> t RawType -> TcBaseM (Either TypeError (t TCType))
+validateTypes' :: (Traversable t) => [VarName] -> t RawType -> TcM lcl (Either TypeError (t TCType))
 validateTypes' vs rs = sequence <$> traverse (validateType' vs) rs
 
 
@@ -372,7 +378,7 @@ flexOf (T (TUnbox v))  = flexOf v
 flexOf _ = Nothing
 
 
-isSynonym :: RawType -> TcBaseM Bool
+isSynonym :: RawType -> TcM lcl Bool
 isSynonym (RT (TCon c _ _)) = lookup c <$> use (env_glb.knownTypes) >>= \case
   Nothing -> __impossible "isSynonym: type not in scope"
   Just (vs,Just _ ) -> return True
