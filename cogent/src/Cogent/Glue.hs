@@ -52,7 +52,7 @@ import qualified Cogent.TypeCheck.Generator as TC
 import qualified Cogent.TypeCheck.Post      as TC
 import qualified Cogent.TypeCheck.Solver    as TC
 import qualified Cogent.TypeCheck.Subst     as TC
-import qualified Cogent.TypeCheck.Util      as TC
+-- import qualified Cogent.TypeCheck.Util      as TC
 import Cogent.Util
 import Cogent.Vec as Vec hiding (repeat)
 
