@@ -535,7 +535,7 @@ instance Pretty TypeWarning where
   pretty (PutUntakenField f t) = warn "[--Wdodgy-take-put]" <$$> indent' (warn "Put an untaken field" <+> fieldname f
                                   <+> warn "into type" <$> pretty t)
 
-instance Pretty TypeEW where
+instance Pretty TcLog where
   pretty = either ((err "Error:" <+>) . pretty) ((warn "Warning:" <+>) . pretty)
 
 instance Pretty VarOrigin where

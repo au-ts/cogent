@@ -23,7 +23,7 @@ import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Surface
-import Cogent.TypeCheck.Util
+-- import Cogent.TypeCheck.Util
 import Cogent.Util
 
 import Control.Arrow (second)
@@ -40,6 +40,11 @@ import Data.Monoid ((<>))
 import qualified Data.Sequence as Seq
 -- import qualified Data.Set as S
 import Text.Parsec.Pos
+
+
+-- -----------------------------------------------------------------------------
+-- Typecheck errors, warnings and context
+-- -----------------------------------------------------------------------------
 
 
 data TypeError = FunctionNotFound VarName
@@ -82,7 +87,8 @@ data TypeWarning = UnusedLocalBind VarName
                  | PutUntakenField FieldName TCType
                  deriving (Eq, Show, Ord)
 
-type TypeEW = Either TypeError TypeWarning
+type TcLog = Either TypeError TypeWarning
+type ContextualisedTcLog = ([ErrorContext], TcLog)  -- high-level context at the end of the list
 
 -- FIXME: More fine-grained context is appreciated. e.g., only show alternatives that don't unify / zilinc
 data ErrorContext = InExpression LocExpr TCType
@@ -105,21 +111,15 @@ isCtxConstraint :: ErrorContext -> Bool
 isCtxConstraint (SolvingConstraint _) = True
 isCtxConstraint _ = False
 
-data Bound = GLB | LUB deriving (Eq, Ord)
-
-instance Show Bound where
-  show GLB = "lower bound"
-  show LUB = "upper bound"
-
 data VarOrigin = ExpressionAt SourcePos
                | BoundOf (TypeFragment TCType) (TypeFragment TCType) Bound
                deriving (Eq, Show, Ord)
 
 
--- high-level context at the end of the list
---
-type TcLog = Either TypeError TypeWarning
-type ContextualisedTcLog = ([ErrorContext], TcLog)
+-- -----------------------------------------------------------------------------
+-- Constraints, metadata
+-- -----------------------------------------------------------------------------
+
 
 data Metadata = Reused { varName :: VarName, boundAt :: SourcePos, usedAt :: Seq.Seq SourcePos }
               | Unused { varName :: VarName, boundAt :: SourcePos }
@@ -162,6 +162,19 @@ kindToConstraint k t m = (if canEscape  k then Escape t m else Sat)
 warnToConstraint :: Bool -> TypeWarning -> Constraint
 warnToConstraint f w | f = SemiSat w
                      | otherwise = Sat
+
+
+data Bound = GLB | LUB deriving (Eq, Ord)
+
+instance Show Bound where
+  show GLB = "lower bound"
+  show LUB = "upper bound"
+
+
+
+-- -----------------------------------------------------------------------------
+-- Types for constraint generation and solving
+-- -----------------------------------------------------------------------------
 
 
 data TypeFragment a = F a
@@ -213,6 +226,11 @@ type TypedExpr = TExpr RawType
 type TypedPatn = TPatn RawType
 type TypedIrrefPatn = TIrrefPatn RawType
 
+
+-- --------------------------------
+-- And their convertion functions
+-- --------------------------------
+
 toTCType :: RawType -> TCType
 toTCType (RT x) = T (fmap toTCType x)
 
@@ -253,6 +271,11 @@ toRawIrrefPatn (TIP ip _) = RIP (ffmap fst $ fmap toRawIrrefPatn ip)
 
 
 
+-- -----------------------------------------------------------------------------
+-- Monads for the typechecker, and their states
+-- -----------------------------------------------------------------------------
+
+
 type TypeDict = [(TypeName, ([VarName], Maybe TCType))]  -- `Nothing' for abstract types
 
 data TcState = TcState { _knownFuns    :: M.Map FunName (Polytype TCType)
@@ -271,9 +294,17 @@ instance Monoid TcLogState where
   mempty = TcLogState mempty mempty
   TcLogState l1 c1 `mappend` TcLogState l2 c2 = TcLogState (l1 <> l2) (c1 <> c2)
 
+
 type TcM a = MaybeT (StateT TcLogState (StateT TcState IO)) a    
 type TcConsM lcl a = StateT lcl (StateT TcState IO) a
 type TcBaseM a = StateT TcState IO a
+
+
+
+-- -----------------------------------------------------------------------------
+-- Error logging functions and exception handling
+-- -----------------------------------------------------------------------------
+
 
 withTcConsM :: lcl -> TcConsM lcl a -> TcM a
 withTcConsM lcl ma = lift . lift $ evalStateT ma lcl
@@ -301,6 +332,12 @@ exitOnErr :: TcM a -> TcM a
 exitOnErr ma = do a <- ma
                   log <- lift $ use errLog
                   if null (filter isLeft $ map snd log) then return a else exitErr
+
+
+-- -----------------------------------------------------------------------------
+-- Functions operating on types. Type wellformedness checks
+-- -----------------------------------------------------------------------------
+
 
 substType :: [(VarName, TCType)] -> TCType -> TCType
 substType vs (U x) = U x

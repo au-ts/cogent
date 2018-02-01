@@ -27,7 +27,7 @@ import           Cogent.Surface
 import           Cogent.TypeCheck.Base
 import qualified Cogent.TypeCheck.Subst as Subst
 import           Cogent.TypeCheck.Subst (Subst)
-import           Cogent.TypeCheck.Util
+-- import           Cogent.TypeCheck.Util
 import           Cogent.TypeCheck.GoalSet (Goal (..), goal, goalContext, GoalSet)
 import qualified Cogent.TypeCheck.GoalSet as GS
 
