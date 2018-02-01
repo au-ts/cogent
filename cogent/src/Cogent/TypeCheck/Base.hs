@@ -32,7 +32,7 @@ import Control.Lens hiding (Context, (:<))
 import Control.Monad.State
 import Control.Monad.Trans.Maybe
 import Control.Monad.Writer hiding (Alt)
-import Data.Either (either)
+import Data.Either (either, isLeft)
 import qualified Data.IntMap as IM
 import Data.List (nub, (\\))
 import qualified Data.Map as M
@@ -94,6 +94,7 @@ data ErrorContext = InExpression LocExpr TCType
                   | InDefinition SourcePos (TopLevel LocType LocPatn LocExpr)
                   | AntiquotedType LocType
                   | AntiquotedExpr LocExpr
+                  | InAntiquotedCDefn VarName  -- C function or type name
                   | CustomisedCodeGen LocType
                   deriving (Eq, Show)
 
@@ -116,8 +117,9 @@ data VarOrigin = ExpressionAt SourcePos
 
 
 -- high-level context at the end of the list
-type ContextualisedError   = ([ErrorContext], TypeError)
-type ContextualisedWarning = ([ErrorContext], TypeWarning)
+--
+type TcLog = Either TypeError TypeWarning
+type ContextualisedTcLog = ([ErrorContext], TcLog)
 
 data Metadata = Reused { varName :: VarName, boundAt :: SourcePos, usedAt :: Seq.Seq SourcePos }
               | Unused { varName :: VarName, boundAt :: SourcePos }
@@ -160,13 +162,6 @@ kindToConstraint k t m = (if canEscape  k then Escape t m else Sat)
 warnToConstraint :: Bool -> TypeWarning -> Constraint
 warnToConstraint f w | f = SemiSat w
                      | otherwise = Sat
--- warnToConstraint f w 
---   | f = case __cogent_warning_switch of
---           Flag_w -> Sat
---           Flag_Wwarn -> SemiSat w
---           Flag_Werror -> Unsat (TypeWarningAsError w)
---   | otherwise = Sat
-
 
 
 data TypeFragment a = F a
@@ -260,63 +255,52 @@ toRawIrrefPatn (TIP ip _) = RIP (ffmap fst $ fmap toRawIrrefPatn ip)
 
 type TypeDict = [(TypeName, ([VarName], Maybe TCType))]  -- `Nothing' for abstract types
 
-data TCState = TCS { _knownFuns    :: M.Map FunName (Polytype TCType)
-                   , _knownTypes   :: TypeDict
-                   , _knownConsts  :: M.Map VarName (TCType, SourcePos)
-                   , _errors       :: [ContextualisedError]
-                   , _warnings     :: [ContextualisedWarning]
-                   , _errContext   :: [ErrorContext]
-                   }
+data TcState = TcState { _knownFuns    :: M.Map FunName (Polytype TCType)
+                       , _knownTypes   :: TypeDict
+                       , _knownConsts  :: M.Map VarName (TCType, SourcePos)
+                       }
 
-makeLenses ''TCState
+makeLenses ''TcState
 
-type TcM lcl a = EnvM' TCState lcl a
-type TcBaseM a = TcM () a
+data TcLogState = TcLogState { _errLog :: [ContextualisedTcLog]
+                             , _errCtx :: [ErrorContext]
+                             }
+makeLenses ''TcLogState
 
-runTcM :: lcl -> TcM lcl a -> TcBaseM (a, lcl)
-runTcM lcl ma = EnvM $ MaybeT $ StateT $ \(Env glb _) -> do 
-                  (a, Env glb' lcl') <- flip runStateT (Env glb lcl) $ runMaybeT $ runEnvM ma
-                  return (fmap ((,lcl')) a, Env glb' ()) 
+instance Monoid TcLogState where
+  mempty = TcLogState mempty mempty
+  TcLogState l1 c1 `mappend` TcLogState l2 c2 = TcLogState (l1 <> l2) (c1 <> c2)
 
-zoom :: TcBaseM a -> TcM lcl a
-zoom ma = EnvM $ MaybeT $ StateT $ \(Env glb lcl) -> do
-            (a, Env glb' _) <- flip runStateT (Env glb ()) $ runMaybeT $ runEnvM ma
-            return (a, Env glb' lcl)
+type TcM a = MaybeT (StateT TcLogState (StateT TcState IO)) a    
+type TcConsM lcl a = StateT lcl (StateT TcState IO) a
+type TcBaseM a = StateT TcState IO a
 
-typeErr :: TypeError -> TcM lcl ()
-typeErr e = typeErr_ =<< ((,e) <$> use (env_glb.errContext))
+withTcConsM :: lcl -> TcConsM lcl a -> TcM a
+withTcConsM lcl ma = lift . lift $ evalStateT ma lcl
 
-typeErr_ :: ContextualisedError -> TcM lcl ()
-typeErr_ e = (env_glb.errors) %= (++[e])
+logErr :: TypeError -> TcM ()
+logErr e = logTc =<< ((,Left e) <$> lift (use errCtx))
 
-typeErrs_ :: [ContextualisedError] -> TcM lcl ()
-typeErrs_ es = (env_glb.errors) %= (++es)
+logErrExit :: TypeError -> TcM a
+logErrExit e = logErr e >> exitErr
 
-typeErrExit :: TypeError -> TcM lcl a
-typeErrExit e = typeErr e >> exitErr
-
-typeWarn :: TypeWarning -> TcM lcl ()
-typeWarn w = typeWarn_ =<< ((,w) <$> use (env_glb.errContext))
-
-typeWarn_ :: ContextualisedWarning -> TcM lcl ()
-typeWarn_ w = case __cogent_warning_switch of
+-- Even -Werror is enabled, we don't exit. Errors will be collected and thrown at the end.
+logWarn :: TypeWarning -> TcM ()
+logWarn w = case __cogent_warning_switch of
                 Flag_w -> return ()
-                Flag_Wwarn -> (env_glb.warnings) %= (++[w])
-                Flag_Werror -> (env_glb.errors) %= (++[warnToErr w])
+                Flag_Wwarn  -> logTc =<< ((, Right $ w) <$> lift (use errCtx))
+                Flag_Werror -> logTc =<< ((, Left  $ TypeWarningAsError w) <$> lift (use errCtx))
 
-typeWarns_ :: [ContextualisedWarning] -> TcM lcl ()
-typeWarns_ ws = mapM_ typeWarn_ ws
+logTc :: ContextualisedTcLog -> TcM ()
+logTc l = lift $ errLog %= (++[l])
 
-warnToErr :: ContextualisedWarning -> ContextualisedError
-warnToErr = second TypeWarningAsError
+exitErr :: TcM a
+exitErr = MaybeT $ return Nothing
 
-exitErr :: TcM lcl a
-exitErr = EnvM $ MaybeT $ StateT $ \s -> return (Nothing, s)
-
-exitOnErr :: TcM lcl a -> TcM lcl a
+exitOnErr :: TcM a -> TcM a
 exitOnErr ma = do a <- ma
-                  errs <- use (env_glb.errors)
-                  if null errs then return a else exitErr
+                  log <- lift $ use errLog
+                  if null (filter isLeft $ map snd log) then return a else exitErr
 
 substType :: [(VarName, TCType)] -> TCType -> TCType
 substType vs (U x) = U x
@@ -326,13 +310,13 @@ substType vs (T (TVar v True  )) | Just x <- lookup v vs = T (TBang x)
 substType vs (T t) = T (fmap (substType vs) t)
 
 -- Check for type well-formedness
-validateType :: [VarName] -> RawType -> TcM lcl TCType
-validateType vs t = either typeErrExit return =<< validateType' vs t
+validateType :: [VarName] -> RawType -> TcM TCType
+validateType vs t = either (\e -> logErr e >> exitErr) return =<< lift (lift $ validateType' vs t)
 
 -- don't log erros, but instead return them
-validateType' :: [VarName] -> RawType -> TcM lcl (Either TypeError TCType)
+validateType' :: [VarName] -> RawType -> TcBaseM (Either TypeError TCType)
 validateType' vs (RT t) = do
-  ts <- use (env_glb.knownTypes)
+  ts <- use knownTypes
   case t of
     TVar v _    | v `notElem` vs         -> return (Left $ UnknownTypeVariable v)
     TCon t as _ | Nothing <- lookup t ts -> return (Left $ UnknownTypeConstructor t)
@@ -348,7 +332,7 @@ validateType' vs (RT t) = do
                    else return (Left $ DuplicateRecordFields (fields \\ fields'))
     _ -> return . fmap T . sequence =<< traverse (validateType' vs) t
 
-validateTypes' :: (Traversable t) => [VarName] -> t RawType -> TcM lcl (Either TypeError (t TCType))
+validateTypes' :: (Traversable t) => [VarName] -> t RawType -> TcBaseM (Either TypeError (t TCType))
 validateTypes' vs rs = sequence <$> traverse (validateType' vs) rs
 
 
@@ -378,8 +362,8 @@ flexOf (T (TUnbox v))  = flexOf v
 flexOf _ = Nothing
 
 
-isSynonym :: RawType -> TcM lcl Bool
-isSynonym (RT (TCon c _ _)) = lookup c <$> use (env_glb.knownTypes) >>= \case
+isSynonym :: RawType -> TcBaseM Bool
+isSynonym (RT (TCon c _ _)) = lookup c <$> use knownTypes >>= \case
   Nothing -> __impossible "isSynonym: type not in scope"
   Just (vs,Just _ ) -> return True
   Just (vs,Nothing) -> return False

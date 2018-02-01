@@ -22,11 +22,11 @@ import Cogent.Compiler
 -- import Cogent.TypeCheck.Base
 -- import Cogent.PrettyPrint
 
-import Control.Lens
+-- import Control.Lens
 -- import Control.Monad.Except
 -- import Control.Monad.IO.Class
 import Control.Monad.State
-import Control.Monad.Trans.Maybe
+-- import Control.Monad.Trans.Maybe
 -- import Control.Monad.Writer
 -- import Data.Function ((&))
 -- import System.IO
@@ -49,15 +49,4 @@ traceTcBracket s d1 m f
       d2 <- return $ f a
       liftIO . dumpMsg $ indent d2 L.<$> line
       return a
-
-data Env glb lcl = Env { _env_glb :: glb, _env_lcl :: lcl }
-
-makeLenses ''Env
-
-newtype EnvM env a = EnvM { runEnvM :: MaybeT (StateT env IO) a }
-                   deriving (Functor, Applicative, Monad, MonadState env, MonadIO)
-
-type EnvM' glb lcl a = EnvM (Env glb lcl) a
-
-
 

@@ -76,9 +76,10 @@ import Control.Monad.Trans.Except (runExceptT)
 -- import Control.Monad.Except (runExceptT)
 -- import Control.Monad.Trans.Either (eitherT, runEitherT)
 import Data.Char (isSpace)
--- import Data.Either (lefts)
+import Data.Either (isLeft)
+import Data.Either.Utils (fromLeft)
 import Data.Foldable (fold, foldrM)
-import Data.List as L (find, isPrefixOf, nub)
+import Data.List as L (find, isPrefixOf, nub, partition)
 import Data.List.Utils (replace)
 import Data.Map (empty, fromList)
 import Data.Maybe (fromJust, isJust)
@@ -588,14 +589,17 @@ parseArgs args = case getOpt' Permute options args of
     typecheck cmds reorged ctygen source pragmas buildinfo log = do
       let stg = STGTypeCheck
       putProgressLn "Typechecking..."
-      TC.tc reorged ctygen >>= \case
-        (Nothing, tcst) -> do printError (prettyTWE __cogent_ftc_ctx_len) $ tcst^.errors
-                              printError (prettyTWE __cogent_ftc_ctx_len) $ tcst^.warnings
-                              when (and $ map (isWarnAsError . snd) (tcst^.errors)) $ hPutStrLn stderr "Failing due to --Werror."
-                              exitFailure
-        ((Just (tced,ctygen')), tcst) -> do
-          __assert (null $ tcst^.errors) "no errors, only warnings"
-          printError (prettyTWE __cogent_ftc_ctx_len) $ tcst^.warnings
+      ((mtc',tclog),tcst) <- TC.tc reorged ctygen
+      let (errs,warns) = partition (isLeft . snd) $ tclog^.errLog
+      when (not $ null errs) $ do 
+        printError (prettyTWE __cogent_ftc_ctx_len) errs
+        when (and $ map (isWarnAsError . fromLeft . snd) errs) $ hPutStrLn stderr "Failing due to --Werror."
+        exitFailure
+      case mtc' of
+        Nothing -> __impossible "main: typecheck"
+        Just (tced,ctygen') -> do
+          __assert (null errs) "no errors, only warnings"
+          printError (prettyTWE __cogent_ftc_ctx_len) $ warns
           when (Ast stg `elem` cmds) $ genAst stg tced
           when (Pretty stg `elem` cmds) $ genPretty stg tced
           when (Compile (succ stg) `elem` cmds) $ desugar cmds tced ctygen' tcst source (map pragmaOfLP pragmas) buildinfo log

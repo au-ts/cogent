@@ -659,6 +659,7 @@ prettyCtx (AntiquotedType t) i = (if i then (<$> indent' (pretty (stripLocT t)))
                                (context "in the antiquoted type at (" <> pretty (posOfT t) <> context ")" )
 prettyCtx (AntiquotedExpr e) i = (if i then (<$> indent' (pretty (stripLocE e))) else id)
                                (context "in the antiquoted expression at (" <> pretty (posOfE e) <> context ")" )
+prettyCtx (InAntiquotedCDefn n) _ = context "in the antiquoted C definition" <+> varname n
 prettyCtx (CustomisedCodeGen t) _ = context "in customising code-generation for type" <+> pretty t
 
 -- add parens and indents to expressions depending on level
@@ -681,8 +682,8 @@ handlePutAssign (Just (s, e)) = fieldname s <+> symbol "=" <+> pretty e
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 -- typechecker errors/warnings
-prettyTWE :: Pretty m => Int -> ([ErrorContext], m) -> Doc
-prettyTWE th (ectx, m) = pretty m <$> indent' (vcat (map (flip prettyCtx True ) (take th ectx)
+prettyTWE :: Int -> ContextualisedTcLog -> Doc
+prettyTWE th (ectx, l) = pretty l <$> indent' (vcat (map (flip prettyCtx True ) (take th ectx)
                                                   ++ map (flip prettyCtx False) (drop th ectx)))
 
 -- reorganiser errors

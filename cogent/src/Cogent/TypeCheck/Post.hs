@@ -31,7 +31,7 @@ import Control.Monad
 import Control.Lens
 -- import Control.Monad.Except
 -- import Control.Monad.Writer hiding (Alt)
--- import Control.Monad.Trans.Maybe
+import Control.Monad.Trans.Class
 import qualified Data.Map as M
 import Text.PrettyPrint.ANSI.Leijen as P hiding ((<>), (<$>))
 
@@ -41,23 +41,23 @@ import Text.PrettyPrint.ANSI.Leijen as P hiding ((<>), (<$>))
 -- and adding error contexts.
 
 
-type Post a = TcBaseM a
+type Post a = TcM a
 
 postT :: TCType -> Post RawType
 postT t = do
-  d <- use (env_glb.knownTypes)
+  d <- lift . lift $ use knownTypes
   traceTc "post" (text "type" <+> pretty t)
   toRawType <$> normaliseT d t
 
 postE :: TCExpr -> Post TypedExpr
 postE e = do
-  d <- use (env_glb.knownTypes)
+  d <- lift . lift $ use knownTypes
   traceTc "post" (text "expression" <+> pretty e)
   toTypedExpr <$> normaliseE d e
 
 postA :: [Alt TCPatn TCExpr] -> Post [Alt TypedPatn TypedExpr]
 postA as = do
-  d <- use (env_glb.knownTypes)
+  d <- lift . lift $ use knownTypes
   traceTc "post" (text "alternative" <+> pretty as)
   toTypedAlts <$> normaliseA d as
 
@@ -67,12 +67,12 @@ normaliseA d as = traverse (traverse (normaliseE d) >=> ttraverse (normaliseP d)
 
 normaliseE :: TypeDict -> TCExpr -> Post TCExpr
 normaliseE d te@(TE t e l) = do
-  env_glb.errContext %= (++ctx)
+  lift $ errCtx %= (ctx:)
   e' <- normaliseE' d e
   t' <- normaliseT  d t
   return $ TE t' e' l
   where
-    ctx = InExpression (toLocExpr toLocType te) t :[]
+    ctx = InExpression (toLocExpr toLocType te) t
     normaliseE' :: TypeDict
                 -> Expr TCType TCPatn TCIrrefPatn TCExpr
                 -> Post (Expr TCType TCPatn TCIrrefPatn TCExpr)
@@ -83,17 +83,17 @@ normaliseE d te@(TE t e l) = do
 
 normaliseP :: TypeDict -> TCPatn -> Post TCPatn
 normaliseP d tp@(TP p l) = do
-  env_glb.errContext %= (++ctx)
+  lift $ errCtx %= (ctx:)
   TP <$> normaliseP' d p <*> pure l
-  where ctx = InPattern (toLocPatn toLocType tp) :[]
+  where ctx = InPattern (toLocPatn toLocType tp)
         normaliseP' :: TypeDict -> Pattern TCIrrefPatn -> Post (Pattern TCIrrefPatn)
         normaliseP' d = traverse (normaliseIP d)
 
 normaliseIP :: TypeDict -> TCIrrefPatn -> Post TCIrrefPatn
 normaliseIP d tip@(TIP ip l) = do
-  env_glb.errContext %= (++ctx)
+  lift $ errCtx %= (ctx:)
   TIP <$> normaliseIP' d ip <*> pure l
-  where ctx = InIrrefutablePattern (toLocIrrefPatn toLocType tip) :[]
+  where ctx = InIrrefutablePattern (toLocIrrefPatn toLocType tip)
         normaliseIP' :: TypeDict -> IrrefutablePattern TCName TCIrrefPatn -> Post (IrrefutablePattern TCName TCIrrefPatn)
         normaliseIP' d = traverse (normaliseIP d) >=> ttraverse (secondM (normaliseT d))
 
@@ -123,13 +123,13 @@ normaliseT d (T (TTake fs t)) = do
    case t' of
      (T (TRecord l s)) -> takeFields fs l t >>= \r -> normaliseT d (T (TRecord r s))
      (T (TVariant ts)) -> takeFields fs (M.toList ts) t' >>= \r -> normaliseT d (T (TVariant (M.fromList r)))
-     e                 -> typeErrExit (TakeFromNonRecordOrVariant fs t)
+     e                 -> logErrExit (TakeFromNonRecordOrVariant fs t)
  where
    takeFields :: Maybe [FieldName] -> [(FieldName, (a, Bool))] -> TCType -> Post [(FieldName, (a, Bool))]
    takeFields Nothing   fs' _  = return $ map (fmap (fmap (const True))) fs'
    takeFields (Just fs) fs' t' = do 
-     forM fs $ \f -> when (f `notElem` map fst fs') $ typeErrExit (TakeNonExistingField f t')
-     forM fs' $ \(f,(t,b)) -> do when (f `elem` fs && b && __cogent_wdodgy_take_put) $ typeWarn (TakeTakenField f t')
+     forM fs $ \f -> when (f `notElem` map fst fs') $ logErrExit (TakeNonExistingField f t')
+     forM fs' $ \(f,(t,b)) -> do when (f `elem` fs && b && __cogent_wdodgy_take_put) $ logWarn (TakeTakenField f t')
                                  return (f, (t, f `elem` fs || b))
 
 normaliseT d (T (TPut fs t)) = do
@@ -137,13 +137,13 @@ normaliseT d (T (TPut fs t)) = do
    case t' of
      (T (TRecord l s)) -> putFields fs l t >>= \r -> normaliseT d (T (TRecord r s))
      (T (TVariant ts)) -> putFields fs (M.toList ts) t' >>= \r -> normaliseT d (T (TVariant (M.fromList r)))
-     e                 -> typeErrExit (PutToNonRecordOrVariant fs t)
+     e                 -> logErrExit (PutToNonRecordOrVariant fs t)
  where
    putFields :: Maybe [FieldName] -> [(FieldName, (a, Bool))] -> TCType -> Post [(FieldName, (a, Bool))]
    putFields Nothing   fs' _  = return $ map (fmap (fmap (const False))) fs'
    putFields (Just fs) fs' t' = do
-     forM fs $ \f -> when (f `notElem` map fst fs') $ typeErrExit (PutNonExistingField f t')
-     forM fs' $ \(f,(t,b)) -> do when (f `elem` fs && not b && __cogent_wdodgy_take_put) $ typeWarn (PutUntakenField f t')
+     forM fs $ \f -> when (f `notElem` map fst fs') $ logErrExit (PutNonExistingField f t')
+     forM fs' $ \(f,(t,b)) -> do when (f `elem` fs && not b && __cogent_wdodgy_take_put) $ logWarn (PutUntakenField f t')
                                  return (f, (t,  (f `notElem` fs) && b))
 
 normaliseT d (T (TCon n ts b)) = do

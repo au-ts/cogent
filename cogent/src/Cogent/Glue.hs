@@ -130,9 +130,6 @@ parseFile' filename = do
 data TcState = TcState { _tfuncs :: Map FunName (SF.Polytype TC.TCType)
                        , _ttypes :: TC.TypeDict
                        , _consts :: Map VarName (TC.TCType, SourcePos)
-                       -- , _contxt :: [ErrorContext]
-                       -- , _errors :: [ContextualisedError]
-                       -- , _warnings :: [ContextualisedWarning]
                        }
 
 data DsState = DsState { _typedefs  :: DS.Typedefs
@@ -166,7 +163,9 @@ data GlState = GlState { _tcDefs   :: [SF.TopLevel SF.RawType TC.TypedPatn TC.Ty
 
 data FileState = FileState { _file :: FilePath }
 
-data DefnState t = DefnState { _kenv :: Vec t (TyVarName, Kind) }
+data DefnState t = DefnState { _kenv :: Vec t (TyVarName, Kind)
+                             , _ectx :: [TC.ErrorContext] 
+                             }
 
 data MonoState = MonoState { _inst :: (MN.Instance, Maybe Int) }  -- Either ([], Nothing), or (_:_, Just _)
 
@@ -197,24 +196,20 @@ parseAnti s parsec loc offset' = do
     Left err -> throwError $ "Error: Cannot parse antiquote: \n" ++ show err
     Right t  -> return t
 
-tcAnti :: (a -> TC.TcBaseM b) -> a -> GlDefn t b
+tcAnti :: (a -> TC.TcM b) -> a -> GlDefn t b
 tcAnti f a = lift . lift $
-  StateT $ \s -> let state = TC.TCS { TC._knownFuns    = view (tcState.tfuncs) s
-                                    , TC._knownTypes   = view (tcState.ttypes) s
-                                    , TC._knownConsts  = view (tcState.consts) s
-                                    , TC._errContext   = []
-                                    , TC._errors       = []
-                                    , TC._warnings     = []
-                                    }
-                     turn :: s -> (Maybe b, TC.TCState) -> Either String (b,s)
-                     turn s (Just x, TC.TCS _ _ _ _ [] _) = Right (x,s)  -- FIXME: ignore warnings atm / zilinc
-                     turn _ (_, TC.TCS _ _ _ _ errs _) = Left $ "Error: Typecheck antiquote failed:\n" ++
-                                         show (vsep $ L.map (prettyTWE __cogent_ftc_ctx_len) errs)
+  StateT $ \s -> let state = TC.TcState { TC._knownFuns    = view (tcState.tfuncs) s
+                                        , TC._knownTypes   = view (tcState.ttypes) s
+                                        , TC._knownConsts  = view (tcState.consts) s
+                                        }
+                     turn :: s -> (Maybe b, TC.TcLogState) -> Either String (b,s)
+                     turn s (Just x, TC.TcLogState l _) = Right (x,s)  -- FIXME: ignore warnings atm / zilinc
+                     turn _ (_, TC.TcLogState l _) = Left $ "Error: Typecheck antiquote failed:\n" ++
+                                         show (vsep $ L.map (prettyTWE __cogent_ftc_ctx_len) l)
                                          -- FIXME: may need a pp modifier `plain' / zilinc
-                  in ExceptT $ fmap (turn s) (fmap (second $ TC._env_glb) .
-                                              flip runStateT (TC.Env state ()) .
-                                              runMaybeT .
-                                              TC.runEnvM $ f a)
+                  in ExceptT $ fmap (turn s) (flip evalStateT state .
+                                              flip runStateT mempty .
+                                              runMaybeT $ f a)
 
 desugarAnti :: (a -> DS.DS t 'Zero b) -> a -> GlDefn t b
 desugarAnti m a = view kenv >>= \(fmap fst -> ts) -> lift . lift $
@@ -264,7 +259,7 @@ parseType s loc = parseAnti s PS.monotype loc 4
 tcType :: SF.LocType -> GlDefn t SF.RawType
 tcType t = do
   tvs <- L.map fst <$> (Vec.cvtToList <$> view kenv)
-  flip tcAnti t $ \t -> do TC.env_glb.TC.errContext %= (++ [TC.AntiquotedType t])
+  flip tcAnti t $ \t -> do TC.errCtx %= (TC.AntiquotedType t :)
                            t' <- TC.validateType tvs $ SF.stripLocT t
                            TC.postT t'
 
@@ -355,9 +350,10 @@ tcExp e = do
   vs <- Vec.cvtToList <$> view kenv
   flip tcAnti e $ \e ->
     do let ?loc = SF.posOfE e
-       TC.env_glb.TC.errContext %= (++ [TC.AntiquotedExpr e])
+       TC.errCtx %= (TC.AntiquotedExpr e :)
        ((c,e'),flx,os) <- TC.runCG ctx (L.map fst vs) (TC.cg e =<< TC.fresh)
-       (_,subst,_) <- TC.runSolver (TC.solve c) flx os vs
+       (logs,subst,_) <- TC.runSolver (TC.solve c) vs flx os
+       TC.exitOnErr $ mapM_ TC.logTc logs
        TC.postE $ TC.applyE subst e'
 
 desugarExp :: TC.TypedExpr -> GlDefn t (CC.UntypedExpr t 'Zero VarName)
@@ -478,7 +474,7 @@ traverseOneFunc fn d = do
                  Just tl -> do let ts = tyVars tl
                                case Vec.fromList ts of
                                  ExI (Flip ts') -> let l = if L.null ts then [([], Nothing)] else L.map (second Just) (M.toList mp)
-                                                    in flip runReaderT (DefnState ts') $ traversals l d
+                                                    in flip runReaderT (DefnState ts' [TC.InAntiquotedCDefn fn]) $ traversals l d
 
 traverseOneType :: String -> SrcLoc -> CS.Definition -> GlFile [(CS.Definition, Maybe String)]
 traverseOneType ty l d = do   -- type defined in Cogent
@@ -495,7 +491,7 @@ traverseOneType ty l d = do   -- type defined in Cogent
                                   when (L.null ts') $
                                     throwError $ "Error: Non-parametric abstract Cogent type `" ++ tn ++ "' should not use antiquotation"
                                   case Vec.fromList ts' of
-                                    ExI (Flip ts'') -> flip runReaderT (DefnState ts'') $ do
+                                    ExI (Flip ts'') -> flip runReaderT (DefnState ts'' [TC.InAntiquotedCDefn ty]) $ do
                                       s' <- nubByName $ S.toList s
                                       traversals (L.zip s' (repeat Nothing)) d
  where
@@ -516,7 +512,7 @@ traverseOne d@(CS.DecDef initgrp  _)
   , CS.DeclSpec _ _ tysp _ <- dcsp
   , CS.Tstruct mid _ _ _ <- tysp
   , Just (CS.AntiId ty l) <- mid = traverseOneType ty l d
-traverseOne d = flip runReaderT (DefnState Nil) $ traversals [([], Nothing)] d  -- anything not defined in Cogent
+traverseOne d = flip runReaderT (DefnState Nil [TC.InAntiquotedCDefn $ show d]) $ traversals [([], Nothing)] d  -- anything not defined in Cogent
 
 traverseAll :: [CS.Definition] -> GlFile [(CS.Definition, Maybe String)]
 traverseAll ds = concat <$> mapM traverseOne ds
@@ -542,7 +538,7 @@ glue s typnames mode filenames = liftA (M.toList . M.fromListWith (flip (++)) . 
                             , L.map fst ds') ]
 
 mkGlState :: [SF.TopLevel SF.RawType TC.TypedPatn TC.TypedExpr]
-          -> TC.TCState
+          -> TC.TcState
           -> Last (DS.Typedefs, DS.Constants, [CC.CoreConst CC.UntypedExpr])
           -> M.Map FunName CC.FunctionType
           -> (MN.FunMono, MN.TypeMono)
@@ -553,8 +549,6 @@ mkGlState tced tcState (Last (Just (typedefs, constdefs, _))) ftypes (funMono, t
           , _tcState = TcState { _tfuncs = view TC.knownFuns   tcState
                                , _ttypes = view TC.knownTypes  tcState
                                , _consts = view TC.knownConsts tcState
-                               -- , _flexes = 0
-                               -- , _vorigs = IM.empty
                                }
           , _dsState = DsState typedefs constdefs
           , _icState = IcState ftypes
@@ -613,7 +607,7 @@ analyseFuncId ss = forM ss $ \(fn, loc) -> flip runReaderT (MonoState ([], Nothi
 collectOneFunc :: CS.Definition -> Gl ()
 collectOneFunc d = do
   ss <- collectFuncId d
-  fins <- flip runReaderT (FileState "") . flip runReaderT (DefnState Nil) $ analyseFuncId ss
+  fins <- flip runReaderT (FileState "") . flip runReaderT (DefnState Nil []) $ analyseFuncId ss
   forM_ fins $ \(fn, inst) -> do
     case inst of
       [] -> mnState.funMono %= (M.insert fn M.empty)
