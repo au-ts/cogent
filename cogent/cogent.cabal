@@ -98,15 +98,14 @@ library
                 ansi-terminal >= 0.6
               , ansi-wl-pprint >= 0.6
               , atomic-write >= 0.2.0.4
-              , base >= 4.7 && < 5
+              , base >= 4.7
               , bifunctors >= 4.2
               , blaze-html >= 0.8.1
               , blaze-markup >= 0.7
               , bytestring >= 0.10
-              , containers >= 0.5.11
+              , containers >= 0.5.8
               , cpphs >= 1.19
               , data-default >=0.5
-              , deepseq >=1.2 && <1.5
               , directory >= 1.2
               , disassembler >= 0.2.0.0
               -- , either >= 4.3.2
