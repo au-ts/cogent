@@ -8,16 +8,23 @@
 -- @TAG(NICTA_GPL)
 --
 
+-- compile with `cogent -g tests/pass_debug.cogent  --cogent-pp-args="-DDEBUG --nomacro --noline"'
+-- and without the `-DDEBUG'.
+
 foo : () -> U32
 foo x = 3
 
-_bar : U32 -> ()
-_bar x = let v = x in ()
+bar : U32 -> ()
+#if DEBUG
+bar x = let v = x in ()
+#else
+bar _ = ()
+#endif
 
 quux : U32 -> U32
-quux x = let _ = _bar x
-         -- and f = _bar  -- (1)
+quux x = let _ = bar x
+         -- and f = bar   -- (1)
          -- and t = f 5   -- (2)
-         and _b = _bar x
-         and _ = foo _b
+         and b = bar x
+         and _ = foo b
          in 3
