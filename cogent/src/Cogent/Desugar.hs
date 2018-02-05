@@ -156,13 +156,11 @@ desugarTopLevel (S.TypeDec tn vs t) _ | ExI (Flip vs') <- Vec.fromList vs
   t' <- withTypeBindings vs' $ desugarType t
   return . Just $ TypeDef tn vs' (Just t')
 desugarTopLevel (S.AbsTypeDec tn vs) _ | ExI (Flip vs') <- Vec.fromList vs = return . Just $ TypeDef tn vs' Nothing
-desugarTopLevel (S.AbsDec ('_':_) _) _ | not __cogent_debug = return Nothing
 desugarTopLevel (S.AbsDec fn sigma) pragmas | S.PT vs t <- sigma
                                             , ExI (Flip vs') <- Vec.fromList vs
                                             , Refl <- zeroPlusNEqualsN $ Vec.length vs'
   = do TFun ti' to' <- withTypeBindings (fmap fst vs') $ desugarType t
        return . Just $ AbsDecl (pragmaToAttr pragmas fn mempty) fn vs' ti' to'
-desugarTopLevel (S.FunDef ('_':_) _ _) _ | not __cogent_debug = return Nothing
 desugarTopLevel (S.FunDef fn sigma alts) pragmas | S.PT vs t <- sigma
                                                  , ExI (Flip vs') <- Vec.fromList vs
                                                  , Refl <- zeroPlusNEqualsN $ Vec.length vs'
@@ -171,9 +169,7 @@ desugarTopLevel (S.FunDef fn sigma alts) pragmas | S.PT vs t <- sigma
       TFun ti' to' <- desugarType t
       v <- freshVar
       let e0 = B.TE ti (S.Var v) noPos
-      e <- if not __cogent_debug && P.head fn == '_'
-              then return $ E Unit
-              else withBinding v $ desugarAlts e0 alts
+      e <- withBinding v $ desugarAlts e0 alts
       return . Just $ FunDef (pragmaToAttr pragmas fn mempty) fn vs' ti' to' e
 desugarTopLevel (S.ConstDef _ _ _) _ = __impossible "desugarTopLevel"
 desugarTopLevel (S.DocBlock _    ) _ = __impossible "desugarTopLevel"
@@ -427,7 +423,6 @@ desugarExpr (B.TE _ (S.Seq e1 e2) _) = do
   E <$> (Let v <$> desugarExpr e1 <*> withBinding v (desugarExpr e2))
 desugarExpr (B.TE _ (S.Lam p mt e) _) = do
   __todo "lift lambda"
-desugarExpr (B.TE _ (S.App (B.TE _ (S.TypeApp ('_':_) _ _) _) _) _) | not __cogent_debug = return (E Unit)
 desugarExpr (B.TE _ (S.App e1 e2) _) = E <$> (App <$> desugarExpr e1 <*> desugarExpr e2)
 desugarExpr (B.TE _ (S.If c [] th el) _) = E <$> (If <$> desugarExpr c <*> desugarExpr th <*> desugarExpr el)
 desugarExpr (B.TE _ (S.If c vs th el) _) = do

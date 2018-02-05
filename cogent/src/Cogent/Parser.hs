@@ -54,7 +54,7 @@ language = haskellStyle
                                   "@","@@","->","=>","~>"]
            , T.reservedNames   = ["let","in","type","include","all","take","put","inline",
                                   "if","then","else","not","complement","and","True","False"]
-           , T.identStart = letter <|> char '_'
+           , T.identStart = letter
            }
 
 T.TokenParser {..} = T.makeTokenParser language
@@ -64,7 +64,7 @@ manyAligned1 p = do whiteSpace; c <- sourceColumn <$> getPosition
                     (:) <$> p <*> many (whiteSpace >> getPosition >>= \o -> guard (sourceColumn o == c) >> p)
 
 variableName = try (do (x:xs) <- identifier
-                       (if isLower x || (x == '_' && not (null xs)) then return else unexpected) $ x:xs)
+                       (if isLower x then return else unexpected) $ x:xs)
 
 typeConName = try (do (x:xs) <- identifier
                       (if isUpper x then return else unexpected) $ x:xs)

@@ -483,7 +483,6 @@ flags =
   , Option []         ["Wwarn"]         1 (NoArg set_flag_Wwarn)                           "(default) warnings are treated only as warnings, not as errors"
   -- misc
   , Option ['q']      ["quiet"]            1 (NoArg set_flag_quiet)                        "do not display compilation progress"
-  , Option []         ["debug"]            1 (NoArg set_flag_debug)                        "switch Cogent compiler to debugging mode"
   , Option ['x']      ["fdump-to-stdout"]  1 (NoArg set_flag_fdumpToStdout)                "dump all output to stdout"
   , Option ['i']      ["interactive"]      3 (NoArg set_flag_interactive)                  "interactive compiler mode"
   ]
@@ -599,7 +598,7 @@ parseArgs args = case getOpt' Permute options args of
         Nothing -> __impossible "main: typecheck"
         Just (tced,ctygen') -> do
           __assert (null errs) "no errors, only warnings"
-          printError (prettyTWE __cogent_ftc_ctx_len) $ warns
+          unless (null $ warns) $ printError (prettyTWE __cogent_ftc_ctx_len) $ warns
           when (Ast stg `elem` cmds) $ genAst stg tced
           when (Pretty stg `elem` cmds) $ genPretty stg tced
           when (Compile (succ stg) `elem` cmds) $ desugar cmds tced ctygen' tcst source (map pragmaOfLP pragmas) buildinfo log
