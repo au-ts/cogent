@@ -34,6 +34,7 @@ import qualified Cogent.TypeCheck.GoalSet as GS
 import           Control.Applicative
 import           Control.Lens hiding ((:<))
 import           Control.Monad.State
+import           Control.Monad.Trans.Except
 import qualified Data.Foldable as F
 import           Data.Function (on)
 import qualified Data.IntMap as IM
@@ -76,7 +77,7 @@ crunch x     = return [Goal [] x]
 -- Operators like TUnbox, TBang etc. are left in place if there is
 -- a unification variable.
 
-whnf :: TCType -> TcBaseM TCType
+whnf :: TCType -> TcErrM TypeError TCType
 whnf (T (TUnbox t)) = do
    t' <- whnf t
    return $ case t' of
@@ -84,7 +85,7 @@ whnf (T (TUnbox t)) = do
      (T (TCon x ps _)) -> T (TCon x ps Unboxed)
      (T (TRecord l _)) -> T (TRecord l Unboxed)
      (T o)             -> T (fmap (T . TUnbox) o)
-     _                 -> error "impossible"
+     _                 -> __impossible "whnf"
 
 whnf (T (TBang t)) = do
    t' <- whnf t
@@ -95,15 +96,15 @@ whnf (T (TBang t)) = do
      (T (TVar b _))    -> T (TVar b True)
      (T (TFun {}))     -> t'
      (T o)             -> T (fmap (T . TBang) o)
-     _                 -> error "impossible"
+     _                 -> __impossible "whnf"
 
 whnf (T (TTake fs t)) = do
    t' <- whnf t
-   return $ case t' of
-     (T (TRecord l s)) -> T (TRecord (takeFields fs l) s)
-     (T (TVariant l))  -> T (TVariant (M.fromList $ takeFields fs $ M.toList l))
-     _ | Just fs' <- fs, null fs'  -> t'
-     _                 -> T (TTake fs t')
+   case t' of
+     (T (TRecord l s)) -> return $ T (TRecord (takeFields fs l) s)
+     (T (TVariant l))  -> return $ T (TVariant (M.fromList $ takeFields fs $ M.toList l))
+     _ | Just fs' <- fs, null fs'  -> return $ t'
+     _                 -> return $ T (TTake fs t')
  where
    takeFields :: Maybe [FieldName] -> [(FieldName, (a , Bool))] -> [(FieldName, (a, Bool))]
    takeFields Nothing   = map (fmap (fmap (const True)))
@@ -111,11 +112,11 @@ whnf (T (TTake fs t)) = do
 
 whnf (T (TPut fs t)) = do
    t' <- whnf t
-   return $ case t' of
-     (T (TRecord l s)) -> T (TRecord (putFields fs l) s)
-     (T (TVariant l))  -> T (TVariant (M.fromList $ putFields fs $ M.toList l))
-     _ | Just fs' <- fs, null fs'  -> t'
-     _                 -> T (TPut fs t')
+   case t' of
+     (T (TRecord l s)) -> return $ T (TRecord (putFields fs l) s)
+     (T (TVariant l))  -> return $ T (TVariant (M.fromList $ putFields fs $ M.toList l))
+     _ | Just fs' <- fs, null fs'  -> return $ t'
+     _                 -> return $ T (TPut fs t')
  where
    putFields :: Maybe [FieldName] -> [(FieldName, (a, Bool))] -> [(FieldName, (a, Bool))]
    putFields Nothing   = map (fmap (fmap (const False)))
@@ -412,13 +413,13 @@ auto :: Constraint -> TcBaseM Constraint
 auto c = do
   traceTc "sol" (text "auto")
   let ?lvl = 0
-  c' <- simp c
+  c' <- simp' c
   liftIO (rule' c') >>= \case
     Nothing  -> return c'
     Just c'' -> auto c''
 
 -- applies whnf to every type in a constraint.
-simp :: Constraint -> TcBaseM Constraint
+simp :: Constraint -> TcErrM TypeError Constraint
 simp (a :< b)          = (:<)       <$> traverse whnf a <*> traverse whnf b
 simp (Upcastable a b)  = Upcastable <$> whnf a <*> whnf b
 simp (a :& b)          = (:&)       <$> simp a <*> simp b
@@ -430,6 +431,11 @@ simp (Unsat e)         = pure (Unsat e)
 simp (SemiSat w)       = pure (SemiSat w)
 simp Sat               = pure Sat
 simp (Exhaustive t ps) = Exhaustive <$> whnf t <*> pure ps
+
+simp' :: Constraint -> TcBaseM Constraint
+simp' c = runExceptT (simp c) >>= \case
+            Left e  -> return $ Unsat e
+            Right c -> return c
 
 fresh :: VarOrigin -> Solver TCType
 fresh ctx = do

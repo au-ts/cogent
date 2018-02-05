@@ -36,8 +36,8 @@ import Cogent.Util hiding (Warning)
 
 import Control.Arrow (first, second)
 import Control.Lens hiding (Context, each, zoom, (:<))
-import Control.Monad.Except
 import Control.Monad.State
+import Control.Monad.Trans.Except
 import Data.Functor.Compose
 import qualified Data.Map as M
 import qualified Data.IntMap as IM
@@ -187,7 +187,7 @@ cg' (Lam pat mt e) t = do
     Nothing -> return (Sat, alpha)
     Just t' -> do
       tvs <- use knownTypeVars
-      lift (validateType' tvs (stripLocT t')) >>= \case
+      lift (runExceptT $ validateType' tvs (stripLocT t')) >>= \case
         Left  e   -> return (Unsat e, alpha)
         Right t'' -> return (F alpha :< F t'', t'')
   (s, cp, pat') <- match pat alpha'
@@ -258,7 +258,7 @@ cg' (Seq e1 e2) t = do
 
 cg' (TypeApp f as i) t = do
   tvs <- use knownTypeVars
-  (ct,as') <- lift (validateTypes' tvs (fmap stripLocT $ Compose as)) >>= \case
+  (ct,as') <- lift (runExceptT $ validateTypes' tvs (fmap stripLocT $ Compose as)) >>= \case
     Left e -> return (Unsat e, [])
     Right ts -> return (Sat, getCompose ts)
   lift (use $ knownFuns.at f) >>= \case
@@ -339,7 +339,7 @@ cg' (Match e bs alts) t = do
 cg' (Annot e tau) t = do
   tvs <- use knownTypeVars
   let t' = stripLocT tau
-  (c, t'') <- lift (validateType' tvs t') >>= \case
+  (c, t'') <- lift (runExceptT $ validateType' tvs t') >>= \case
     Left  e'' -> return (Unsat e'', t)
     Right t'' -> return (F t :< F t'', t'')
   (c', e') <- cg e t''
@@ -499,7 +499,7 @@ withBindings (Binding pat tau e bs : xs) a = do
     Nothing -> return (Sat, alpha)
     Just tau' -> do
       tvs <- use knownTypeVars
-      lift (validateType' tvs (stripLocT tau')) >>= \case
+      lift (runExceptT $ validateType' tvs (stripLocT tau')) >>= \case
         Left e -> return (Unsat e, alpha)
         Right t -> return (F alpha :< F t, t)
   (s, cp, pat') <- match pat alpha'

@@ -28,8 +28,8 @@ import Cogent.Util
 
 import Control.Arrow (second)
 import Control.Lens hiding (Context, (:<))
--- import Control.Monad.Except
 import Control.Monad.State
+import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
 import Control.Monad.Writer hiding (Alt)
 import Data.Either (either, isLeft)
@@ -296,9 +296,9 @@ instance Monoid TcLogState where
 
 
 type TcM a = MaybeT (StateT TcLogState (StateT TcState IO)) a    
-type TcConsM lcl a = StateT lcl (StateT TcState IO) a
-type TcBaseM a = StateT TcState IO a
-
+type TcConsM lcl a = StateT  lcl (StateT TcState IO) a
+type TcErrM  err a = ExceptT err (StateT TcState IO) a
+type TcBaseM     a =              StateT TcState IO  a
 
 
 -- -----------------------------------------------------------------------------
@@ -348,29 +348,29 @@ substType vs (T t) = T (fmap (substType vs) t)
 
 -- Check for type well-formedness
 validateType :: [VarName] -> RawType -> TcM TCType
-validateType vs t = either (\e -> logErr e >> exitErr) return =<< lift (lift $ validateType' vs t)
+validateType vs t = either (\e -> logErr e >> exitErr) return =<< lift (lift $ runExceptT $ validateType' vs t)
 
 -- don't log erros, but instead return them
-validateType' :: [VarName] -> RawType -> TcBaseM (Either TypeError TCType)
+validateType' :: [VarName] -> RawType -> TcErrM TypeError TCType
 validateType' vs (RT t) = do
   ts <- use knownTypes
   case t of
-    TVar v _    | v `notElem` vs         -> return (Left $ UnknownTypeVariable v)
-    TCon t as _ | Nothing <- lookup t ts -> return (Left $ UnknownTypeConstructor t)
+    TVar v _    | v `notElem` vs         -> throwE (UnknownTypeVariable v)
+    TCon t as _ | Nothing <- lookup t ts -> throwE (UnknownTypeConstructor t)
                 | Just (vs, _) <- lookup t ts
                 , provided <- length as
                 , required <- length vs
                 , provided /= required
-               -> return (Left $ TypeArgumentMismatch t provided required)
+               -> throwE (TypeArgumentMismatch t provided required)
     TRecord fs _ | fields  <- map fst fs
                  , fields' <- nub fields
                 -> if fields' == fields
-                   then return . fmap T . sequence =<< traverse (validateType' vs) t
-                   else return (Left $ DuplicateRecordFields (fields \\ fields'))
-    _ -> return . fmap T . sequence =<< traverse (validateType' vs) t
+                   then T <$> mapM (validateType' vs) t
+                   else throwE (DuplicateRecordFields (fields \\ fields'))
+    _ -> T <$> mapM (validateType' vs) t
 
-validateTypes' :: (Traversable t) => [VarName] -> t RawType -> TcBaseM (Either TypeError (t TCType))
-validateTypes' vs rs = sequence <$> traverse (validateType' vs) rs
+validateTypes' :: (Traversable t) => [VarName] -> t RawType -> TcErrM TypeError (t TCType)
+validateTypes' vs rs = mapM (validateType' vs) rs
 
 
 -- Remove a pattern from a type, for case expressions.
