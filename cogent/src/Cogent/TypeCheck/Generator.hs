@@ -469,9 +469,6 @@ match' (PUnboxedRecord fs) t | not (any isNothing fs) = do
 
    | otherwise = second3 (:& Unsat RecordWildcardsNotSupported) <$> match' (PUnboxedRecord (filter isJust fs)) t
 
--- FIXME: this looks quite problematic:
---   1) `r' is not matched
---   2) `c' is suspicious: should `False' be `True'?
 match' (PTake r fs) t | not (any isNothing fs) = do
    let (ns, ps) = unzip (catMaybes fs)
    (vs, blob) <- unzip <$> mapM (\p -> do v <- fresh; (v,) <$> match p v) ps
