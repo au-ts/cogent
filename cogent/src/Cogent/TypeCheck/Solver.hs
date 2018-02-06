@@ -107,7 +107,7 @@ whnf (T (TTake fs t)) = do
      _                 -> return $ T (TTake fs t')
  where
    takeFields :: Maybe [FieldName] -> [(FieldName, (a , Bool))] -> [(FieldName, (a, Bool))]
-   takeFields Nothing   = map (fmap (fmap (const True)))
+   takeFields Nothing   = map (fmap (fmap (const True)))  -- not implemented
    takeFields (Just fs) = map (\(f, (t, b)) -> (f, (t, f `elem` fs || b)))
 
 whnf (T (TPut fs t)) = do

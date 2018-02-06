@@ -53,7 +53,7 @@ import Data.Foldable (forM_)
 #if __GLASGOW_HASKELL__ < 709
 import Data.Traversable(traverse)
 #endif
-import Data.Map (keysSet, Map)
+import Data.Map (Map)
 import qualified Data.Map as M
 -- import Data.Maybe (fromJust, isJust)
 import Data.Monoid
@@ -291,7 +291,8 @@ typecheck (E (App e1 e2))
         e2'@(TE ti' _) <- typecheck e2
         isSub <- ti' `isSubtype` ti
         guardShow ("app (actual: " ++ show ti' ++ "; formal: " ++ show ti ++ ")") $ isSub
-        return $ TE to (App e1' e2')
+        if ti' /= ti then return $ TE to (App e1' (TE ti $ Promote ti e2'))
+                     else return $ TE to (App e1' e2')
 typecheck (E (Let a e1 e2))
    = do e1' <- typecheck e1
         e2' <- withBinding (exprType e1') (typecheck e2)
@@ -317,9 +318,11 @@ typecheck (E (If ec et ee))
         let tt = exprType et'
             te = exprType ee'
             tlub = tt `lub` te
-        isLub <- (&&) <$> tt `isSubtype` tlub <*> te `isSubtype` tlub
-        guardShow' "if-2" ["Then type:", show (pretty tt) ++ ";", "else type:", show (pretty te)] isLub
-        return $ TE tlub (If ec' et' ee')
+        isSub <- (&&) <$> tt `isSubtype` tlub <*> te `isSubtype` tlub
+        guardShow' "if-2" ["Then type:", show (pretty tt) ++ ";", "else type:", show (pretty te)] isSub
+        let et'' = if tt /= tlub then TE tlub (Promote tlub et') else et'
+            ee'' = if te /= tlub then TE tlub (Promote tlub ee') else ee'
+        return $ TE tlub (If ec' et'' ee'')
 typecheck (E (Case e tag (lt,at,et) (le,ae,ee)))
    = do e' <- typecheck e
         let TSum ts = exprType e'
@@ -330,15 +333,17 @@ typecheck (E (Case e tag (lt,at,et) (le,ae,ee)))
         let tt = exprType et'
             te = exprType ee'
             tlub = tt `lub` te
-        isLub <- (&&) <$> tt `isSubtype` tlub <*> te `isSubtype` tlub
-        guardShow' "case" ["Match type:", show (pretty tt) ++ ";", "unmatch type:", show (pretty te)] isLub
-        return $ TE tlub (Case e' tag (lt,at,et') (le,ae,ee'))
+        isSub <- (&&) <$> tt `isSubtype` tlub <*> te `isSubtype` tlub
+        guardShow' "case" ["Match type:", show (pretty tt) ++ ";", "rest type:", show (pretty te)] isSub
+        let et'' = if tt /= tlub then TE tlub (Promote tlub et') else et'
+            ee'' = if te /= tlub then TE tlub (Promote tlub ee') else ee'
+        return $ TE tlub (Case e' tag (lt,at,et'') (le,ae,ee''))
 typecheck (E (Esac e))
    = do e'@(TE (TSum ts) _) <- typecheck e
         let t1 = filter (not . snd . snd) ts
         case t1 of
           [(_, (t, False))] -> return $ TE t (Esac e')
-          _ -> do guardShow ("esac (t1 = " ++ show t1 ++ ")") $ False
+          _ -> do guardShow ("esac (t1 = " ++ show t1 ++ ", ts = " ++ show ts ++ ")") $ False
                   __impossible ""
 typecheck (E (Split a e1 e2))
    = do e1' <- typecheck e1
@@ -371,9 +376,11 @@ typecheck (E (Put e1 f e2))
         let (init, (fn,(tau,taken)):rest) = splitAt f ts
         k <- kindcheck tau
         when (not taken) $ guardShow "put-2" $ canDiscard k  -- if it's not taken, then it has to be discardable; if taken, then just put
-        e2' <- typecheck e2
-        guardShow "put-3" =<< exprType e2' `isSubtype` tau
-        return $ TE (TRecord (init ++ (fn,(tau,False)):rest) s) (Put e1' f e2')  -- put it regardless
+        e2'@(TE t2 _) <- typecheck e2
+        isSub <- t2 `isSubtype` tau
+        guardShow "put-3" isSub
+        let e2'' = if t2 /= tau then TE tau (Promote tau e2') else e2'
+        return $ TE (TRecord (init ++ (fn,(tau,False)):rest) s) (Put e1' f e2'')  -- put it regardless
 typecheck (E (Cast ty e))
    = do (TE t e') <- typecheck e
         guardShow ("cast: " ++ show t ++ " <<< " ++ show ty) =<< t `isUpcastable` ty
@@ -381,5 +388,6 @@ typecheck (E (Cast ty e))
 typecheck (E (Promote ty e))
    = do (TE t e') <- typecheck e
         guardShow ("promote: " ++ show t ++ " << " ++ show ty) =<< t `isSubtype` ty
-        return $ TE ty (Promote ty $ TE t e')
+        return $ if t /= ty then TE ty (Promote ty $ TE t e')
+                            else TE t e'  -- see NOTE [How to handle type annotations?] in Desugar
 

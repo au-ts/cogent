@@ -484,7 +484,17 @@ desugarExpr (B.TE t (S.Put e (fa@(Just (f0,_)):fas)) l) = do
   desugarExpr $ B.TE t (S.Put (B.TE t' (S.Put e [fa]) l) fas) l
 desugarExpr (B.TE t (S.Upcast e) _) = E <$> (Cast <$> desugarType t <*> desugarExpr e)
 -- desugarExpr (B.TE t (S.Widen  e) _) = E <$> (Cast <$> desugarType t <*> desugarExpr e)
-desugarExpr (B.TE t (S.Annot e tau) _) = E <$> (Promote <$> desugarType tau <*> desugarExpr e)  -- FIXME
+desugarExpr (B.TE t (S.Annot e tau) _) = E <$> (Promote <$> desugarType tau <*> desugarExpr e)
+  -- ^^^
+  -- NOTE: We need to insert a `Promote' node here, even the type of `e' is the same
+  -- as the annotated type `tau'. The reason is, the desugarer will infer `e''s type
+  -- to be the "smallest", if `e' is a data constructor. This could render the type
+  -- of `e' different from what the surface typechecker has inferred. For example,
+  -- (Success a : <Success A | Error B>) :: <Success A | Error B>
+  -- If the above is given by the surface Tc, after desugaring the inner, it becomes
+  -- `(Success a <Success A | Error* E>)', which `Error' is taken.
+  -- In the case which the annoated type is indeed the same as the desugarer-inferred
+  -- type, we can remove the `Promote' later, or keep it even. / zilinc
 desugarExpr (B.TE t (S.Con c es) p) = __impossible "desugarExpr (Con)"
 -- = do
 --   S.RT (S.TVariant ts) <- return t
