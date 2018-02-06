@@ -15,15 +15,15 @@ index_get_addr : () -> #ObjAddr
 success : all (b, a). a -> R a b
 success a = Success a
 
-ostore_read: OstoreState -> RR OstoreState Obj ()
-ostore_read ostore_st =
-  let addr = index_get_addr ()
-  and (ostore_st, r) = 
-     let obj = get_Obj ()
-      in (ostore_st, success[U8] obj)
-  in r
-  | Success obj -> let _ = deep_freeObj obj in (ostore_st, Error ())
-  | Error _ -> (ostore_st, Error ())
+-- ostore_read: OstoreState -> RR OstoreState Obj ()
+-- ostore_read ostore_st =
+--   let addr = index_get_addr ()
+--   and (ostore_st, r) = 
+--      let obj = get_Obj ()
+--       in (ostore_st, success[U8] obj)
+--   in r
+--   | Success obj -> let _ = deep_freeObj obj in (ostore_st, Error ())
+--   | Error _ -> (ostore_st, Error ())
 
 ostore_read': OstoreState -> RR OstoreState Obj ()
 ostore_read' ostore_st =

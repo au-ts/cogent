@@ -40,7 +40,7 @@ $(OBJ): $(PPINFER)
 
 gen-anti:
 	mkdir -p $(ABSDIR)
-	cogent $(SRC) -g --debug -Od -ogenerated --fno-fncall-as-macro --ffunc-purity-attr \
+	cogent $(SRC) -g -Od -ogenerated --fno-fncall-as-macro --ffunc-purity-attr \
                 --infer-c-types="$(AHFILES)" \
                 --Wno-warn --infer-c-funcs="$(ACFILES)" \
                 --cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
