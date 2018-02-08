@@ -3,7 +3,8 @@
 
 Cogent builds with the Glasgow Haskell Compiler (GHC)
 
-Tested with GHC-8.0.1, GHC-8.0.2 and GHC-8.2.1. Similar versions have a chance to work (if you wish to fix breakage). cabal-install-1.24 or above is required.
+Tested with GHC-8.0.1, GHC-8.0.2, GHC-8.2.1 and GHC-8.2.2. Similar versions have a chance
+to work (if you wish to fix breakage). cabal-install-1.24 or above is required.
 
 See [INSTALL.md](./INSTALL.md) for details.
 
@@ -38,8 +39,9 @@ Note: You might run into this problem: "You need to re-run the 'configure' comma
 * [lib](./lib): C library for generated C code
 * [Setup.hs](./Setup.hs): runhaskell entry.
 * [doc](./doc): The Cogent compiler documentation.
-* [misc](./misc): Miscellaneous helper scripts(Emacs/Vim syntax and Bash autocompletion files)
+* [misc](./misc): Miscellaneous helper scripts(Emacs/Vim syntax and Bash autocompletion files).
 * [tests](./tests): Cogent test files.
+* [examples](./examples): Some tiny but self-contained examples that newcomers should have a look.
 
 
 ## Known Issues
