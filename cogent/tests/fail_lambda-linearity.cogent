@@ -1,0 +1,5 @@
+type A
+
+foo : A -> ()
+foo a = let f = \x => ()
+         in f a
