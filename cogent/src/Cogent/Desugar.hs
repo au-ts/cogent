@@ -61,6 +61,8 @@ import Text.PrettyPrint.ANSI.Leijen (pretty)
 -- import Debug.Trace
 
 
+__ghc_trac_14777 = __impossible "" --undefined
+
 -- -----------------------------------------------------------------------------
 -- Top-level definitions and function
 -- -----------------------------------------------------------------------------
@@ -103,12 +105,18 @@ desugar tls ctygen pragmas =
       initialReader = (M.fromList $ P.map fromTypeDec typedecs, M.fromList $ P.map fromConstDef constdefs, pragmas)
       initialState  = DsState Nil Nil 0 []
   in flip3 evalRWS initialState initialReader $
-       runDS (do defs' <- catMaybes <$> (mapM (\x -> put initialState >> desugarTlv x pragmas) $ abstydecs ++ typedecs ++ absdecs ++ fundefs)
+       runDS (do defs' <- catMaybes <$> (forM (abstydecs ++ typedecs ++ absdecs ++ fundefs) $ \x -> do
+                   typCtx .= Nil; varCtx .= Nil; oracle .= 0
+                   x' <- lamLftTlv x
+                   typCtx .= Nil; varCtx .= Nil; oracle .= 0
+                   desugarTlv x' pragmas)
+                 lfdefs <- use lftFun
+                 lfdefs' <- catMaybes <$> (mapM (\x -> put initialState >> desugarTlv x pragmas) $ reverse lfdefs)
                  write <- ask
                  consts' <- desugarConsts constdefs
                  ctygen' <- desugarCustTyGen ctygen
                  tell $ Last (Just (write^._1, write^._2, consts'))
-                 return (defs',ctygen')
+                 return (lfdefs' ++ defs',ctygen')
              )
   where fromTypeDec  (S.TypeDec tn vs t) = (tn,(vs,t)); fromTypeDec  _ = __impossible "fromTypeDec (in desugarProgram)"
         fromConstDef (S.ConstDef vn t e) = (vn,e)     ; fromConstDef _ = __impossible "fromConstDef (in desguarProgram)"
@@ -132,9 +140,9 @@ freshVars :: Int -> DS t v [VarName]
 freshVars n = do x <- oracle <<%= (+n)
                  return $ P.map ((++) freshVarPrefix . show) $ P.take n (iterate (+1) x)
 
-freshFun :: DS t v FunName
-freshFun = do x <- oracle <<%= (+1)
-              return $ freshFunPrefix ++ show x
+freshFun :: FunName -> DS t v FunName
+freshFun f = do x <- oracle <<%= (+1)
+                return $ freshFunPrefix ++ f ++ show x
 
 withTypeBinding :: TyVarName -> DS ('Suc t) v a -> DS t v a
 withTypeBinding t ds = do readers <- ask
@@ -175,13 +183,16 @@ pragmaToNote (_:pragmas) fn note = pragmaToNote pragmas fn note
 -- -----------------------------------------------------------------------------
 
 lamLftTlv :: S.TopLevel S.RawType B.TypedPatn B.TypedExpr
-           -> DS t v (S.TopLevel S.RawType B.TypedPatn B.TypedExpr)
-lamLftTlv (S.FunDef fn sigma alts) = undefined
+          -> DS t v (S.TopLevel S.RawType B.TypedPatn B.TypedExpr)
+lamLftTlv (S.FunDef fn sigma alts) = S.FunDef fn sigma <$> mapM (lamLftAlt fn) alts
+lamLftTlv d = return d
 
+lamLftAlt :: FunName -> S.Alt B.TypedPatn B.TypedExpr -> DS t v (S.Alt B.TypedPatn B.TypedExpr)
+lamLftAlt f (S.Alt p l e) = S.Alt p l <$> lamLftExpr f e 
 
-lamLftExpr :: B.TypedExpr -> DS t v B.TypedExpr
-lamLftExpr (B.TE t (S.Lam p mt e) l) = do
-  f <- freshFun
+lamLftExpr :: FunName -> B.TypedExpr -> DS t v B.TypedExpr
+lamLftExpr f (B.TE t (S.Lam p mt e) l) = do
+  f' <- freshFun f
   -- v <- freshVar
   -- let S.RT (S.TFun ti to) = t
       -- e0 = B.TE ti (S.Var v) noPos
@@ -189,9 +200,11 @@ lamLftExpr (B.TE t (S.Lam p mt e) l) = do
       -- ps = B.TIP ti (S.PVar (v, ti)) : map (\(v,t) -> B.TIP t (S.PVar (v,t) noPos)) fvs
       -- p' = B.TP (S.PIrrefutable $ B.TIP (PTuple ps) noPos) noPos
   -- sigma <- sel1 <$> get
-  let fn = S.FunDef f (S.PT [] t) [S.Alt (B.TP (S.PIrrefutable p) noPos) Regular e]  -- no let-generalisation
+  e' <- lamLftExpr f e
+  let fn = S.FunDef f' (S.PT [] t) [S.Alt (B.TP (S.PIrrefutable p) noPos) Regular e']  -- no let-generalisation
   lftFun %= (fn:)
-  return $ B.TE t (S.TypeApp f [] S.NoInline) l
+  return $ B.TE t (S.TypeApp f' [] S.NoInline) l
+lamLftExpr f (B.TE t e l) = B.TE t <$> traverse (lamLftExpr f) e <*> pure l
 
 -- freeVars :: B.TypedExpr -> Vec v VarName -> [(VarName, S.RawType)]
 -- freeVars (B.TE t (S.Var v) _) vs = maybeToList $ case findIx v vs of Just i -> Nothing; Nothing -> Just (v,t)
@@ -479,7 +492,7 @@ desugarExpr (B.TE t@(S.RT (S.TVariant ts)) (S.Con c es) l) = do
 desugarExpr (B.TE _ (S.Seq e1 e2) _) = do
   v <- freshVar
   E <$> (Let v <$> desugarExpr e1 <*> withBinding v (desugarExpr e2))
-desugarExpr (B.TE _ (S.Lam p mt e) _) = undefined
+desugarExpr (B.TE _ (S.Lam p mt e) _) = __impossible "desugarExpr (Lam)"
 desugarExpr (B.TE _ (S.App e1 e2) _) = E <$> (App <$> desugarExpr e1 <*> desugarExpr e2)
 desugarExpr (B.TE _ (S.If c [] th el) _) = E <$> (If <$> desugarExpr c <*> desugarExpr th <*> desugarExpr el)
 desugarExpr (B.TE _ (S.If c vs th el) _) = do
