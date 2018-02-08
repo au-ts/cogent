@@ -22,6 +22,7 @@
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
@@ -36,7 +37,7 @@ import Cogent.Compiler
 import Cogent.Core
 import Cogent.PrettyPrint ()
 import qualified Cogent.Surface as S
-import qualified Cogent.TypeCheck.Base as B
+import Cogent.TypeCheck.Base as B
 import Cogent.Util
 import Cogent.Vec as Vec
 
@@ -59,9 +60,10 @@ import Text.PrettyPrint.ANSI.Leijen (pretty)
 
 -- import Debug.Trace
 
--- Desugar
 
-noPos = __fixme S.noPos  -- FIXME! / zilinc
+-- -----------------------------------------------------------------------------
+-- Top-level definitions and function
+-- -----------------------------------------------------------------------------
 
 type TypeVars t = Vec t TyVarName
 type TermVars v = Vec v VarName
@@ -69,25 +71,24 @@ type Typedefs   = M.Map TypeName ([VarName], S.RawType)  -- typenames |-> typear
 type Constants  = M.Map VarName  B.TypedExpr  -- This shares namespace with `TermVars'
 type Enumerator = Int
 
+data DsState t v = DsState { _typCtx :: TypeVars t
+                           , _varCtx :: TermVars v
+                           , _oracle :: Enumerator
+                           , _lftFun :: [S.TopLevel S.RawType B.TypedPatn B.TypedExpr]  -- reversed
+                           }
+
+makeLenses ''DsState
+
 newtype DS (t :: Nat) (v :: Nat) a = DS { runDS :: RWS (Typedefs, Constants, [Pragma])
-                                                       (Last (Typedefs, Constants, [CoreConst UntypedExpr]))  -- NOTE: it's a hack to export the reader! / zilinc
-                                                       (TypeVars t, TermVars v, Enumerator)
+                                                       (Last (Typedefs, Constants, [CoreConst UntypedExpr]))
+                                                       -- ^ NOTE: it's a hack to export the reader! / zilinc
+                                                       (DsState t v)
                                                        a }
                                    deriving (Functor, Applicative, Monad,
                                              MonadReader (Typedefs, Constants, [Pragma]),
                                              MonadWriter (Last (Typedefs, Constants, [CoreConst UntypedExpr])),
-                                             MonadState  (TypeVars t, TermVars v, Enumerator))
+                                             MonadState  (DsState t v))
 
-freshVarPrefix :: String
-freshVarPrefix = "__ds_var_"
-
-freshVar :: DS t v VarName
-freshVar = P.head <$> freshVars 1
-
-freshVars :: Int -> DS t v [VarName]
-freshVars n = do x <- sel3 <$> get
-                 modify (\(a,b,c) -> (a,b,c+n))
-                 return $ P.map ((++) freshVarPrefix . show) $ P.take n (iterate (+1) x)
 
 desugar :: [S.TopLevel S.RawType B.TypedPatn B.TypedExpr]
         -> [(S.RawType, String)]
@@ -100,9 +101,9 @@ desugar tls ctygen pragmas =
       abstydecs  = filter isAbsTypeDec tls where isAbsTypeDec (S.AbsTypeDec {}) = True; isAbsTypeDec _ = False
       constdefs  = filter isConstDef   tls where isConstDef   (S.ConstDef {})   = True; isConstDef   _ = False
       initialReader = (M.fromList $ P.map fromTypeDec typedecs, M.fromList $ P.map fromConstDef constdefs, pragmas)
-      initialState  = (Nil, Nil, 0)
+      initialState  = DsState Nil Nil 0 []
   in flip3 evalRWS initialState initialReader $
-       runDS (do defs' <- catMaybes <$> (mapM (\x -> put initialState >> desugarTopLevel x pragmas) $ abstydecs ++ typedecs ++ absdecs ++ fundefs)
+       runDS (do defs' <- catMaybes <$> (mapM (\x -> put initialState >> desugarTlv x pragmas) $ abstydecs ++ typedecs ++ absdecs ++ fundefs)
                  write <- ask
                  consts' <- desugarConsts constdefs
                  ctygen' <- desugarCustTyGen ctygen
@@ -112,11 +113,34 @@ desugar tls ctygen pragmas =
   where fromTypeDec  (S.TypeDec tn vs t) = (tn,(vs,t)); fromTypeDec  _ = __impossible "fromTypeDec (in desugarProgram)"
         fromConstDef (S.ConstDef vn t e) = (vn,e)     ; fromConstDef _ = __impossible "fromConstDef (in desguarProgram)"
 
+
+
+-- -----------------------------------------------------------------------------
+-- Helper functions
+-- -----------------------------------------------------------------------------
+
+noPos = __fixme S.noPos  -- FIXME! / zilinc
+
+freshVarPrefix = "__ds_var_"
+freshFunPrefix = "__lft_f_"
+
+
+freshVar :: DS t v VarName
+freshVar = P.head <$> freshVars 1
+
+freshVars :: Int -> DS t v [VarName]
+freshVars n = do x <- oracle <<%= (+n)
+                 return $ P.map ((++) freshVarPrefix . show) $ P.take n (iterate (+1) x)
+
+freshFun :: DS t v FunName
+freshFun = do x <- oracle <<%= (+1)
+              return $ freshFunPrefix ++ show x
+
 withTypeBinding :: TyVarName -> DS ('Suc t) v a -> DS t v a
 withTypeBinding t ds = do readers <- ask
-                          (tenv,venv,enum) <- get
-                          let (a, (_,_,enum'), _) = flip3 runRWS (Cons t tenv, venv, enum) readers $ runDS ds
-                          put (tenv,venv,enum')
+                          st <- get
+                          let (a, st', _) = flip3 runRWS (st & typCtx %~ (Cons t)) readers $ runDS ds
+                          oracle .= st'^.oracle
                           return a
 
 withTypeBindings :: Vec k TyVarName -> DS (t :+: k) v a -> DS t v a
@@ -125,9 +149,9 @@ withTypeBindings (Cons x xs) ds = withTypeBindings xs (withTypeBinding x ds)
 
 withBinding :: VarName -> DS t ('Suc v) a -> DS t v a
 withBinding v ds = do readers <- ask
-                      (tenv,venv,enum) <- get
-                      let (a, (_,_,enum'), _) = flip3 runRWS (tenv, Cons v venv, enum) readers $ runDS ds
-                      put (tenv,venv,enum')
+                      st <- get
+                      let (a, st', _) = flip3 runRWS (st & varCtx %~ (Cons v)) readers $ runDS ds
+                      oracle .= (st'^.oracle)
                       return a
 
 withBindings :: Vec k VarName -> DS t (v :+: k) x -> DS t v x
@@ -145,25 +169,59 @@ pragmaToNote (InlinePragma  fn':pragmas) fn note | fn == fn' = max note InlineMe
 pragmaToNote (FnMacroPragma fn':pragmas) fn note | fn == fn' = max note MacroCall
 pragmaToNote (_:pragmas) fn note = pragmaToNote pragmas fn note
 
-desugarTopLevel :: S.TopLevel S.RawType B.TypedPatn B.TypedExpr
-                -> [Pragma]
-                -> DS 'Zero 'Zero (Maybe (Definition UntypedExpr VarName))
-desugarTopLevel (S.Include    _) _ = __impossible "desugarTopLevel"
-desugarTopLevel (S.IncludeStd _) _ = __impossible "desugarTopLevel"
-desugarTopLevel (S.TypeDec tn vs t) _ | ExI (Flip vs') <- Vec.fromList vs
-                                      , Vec.Refl <- zeroPlusNEqualsN (Vec.length vs') = do
-  tenv <- use _1
+
+-- -----------------------------------------------------------------------------
+-- Lambda lifting
+-- -----------------------------------------------------------------------------
+
+lamLftTlv :: S.TopLevel S.RawType B.TypedPatn B.TypedExpr
+           -> DS t v (S.TopLevel S.RawType B.TypedPatn B.TypedExpr)
+lamLftTlv (S.FunDef fn sigma alts) = undefined
+
+
+lamLftExpr :: B.TypedExpr -> DS t v B.TypedExpr
+lamLftExpr (B.TE t (S.Lam p mt e) l) = do
+  f <- freshFun
+  -- v <- freshVar
+  -- let S.RT (S.TFun ti to) = t
+      -- e0 = B.TE ti (S.Var v) noPos
+      -- [] = freeVars e $ Cons v Nil  -- only implement those without captures
+      -- ps = B.TIP ti (S.PVar (v, ti)) : map (\(v,t) -> B.TIP t (S.PVar (v,t) noPos)) fvs
+      -- p' = B.TP (S.PIrrefutable $ B.TIP (PTuple ps) noPos) noPos
+  -- sigma <- sel1 <$> get
+  let fn = S.FunDef f (S.PT [] t) [S.Alt (B.TP (S.PIrrefutable p) noPos) Regular e]  -- no let-generalisation
+  lftFun %= (fn:)
+  return $ B.TE t (S.TypeApp f [] S.NoInline) l
+
+-- freeVars :: B.TypedExpr -> Vec v VarName -> [(VarName, S.RawType)]
+-- freeVars (B.TE t (S.Var v) _) vs = maybeToList $ case findIx v vs of Just i -> Nothing; Nothing -> Just (v,t)
+-- freeVars (B.TE _ e _) vs = foldMap (flip freeVars vs) e
+
+-- -----------------------------------------------------------------------------
+-- Desugar functions
+-- -----------------------------------------------------------------------------
+
+
+
+desugarTlv :: S.TopLevel S.RawType B.TypedPatn B.TypedExpr
+           -> [Pragma]
+           -> DS 'Zero 'Zero (Maybe (Definition UntypedExpr VarName))
+desugarTlv (S.Include    _) _ = __impossible "desugarTlv"
+desugarTlv (S.IncludeStd _) _ = __impossible "desugarTlv"
+desugarTlv (S.TypeDec tn vs t) _ | ExI (Flip vs') <- Vec.fromList vs
+                                 , Vec.Refl <- zeroPlusNEqualsN (Vec.length vs') = do
+  tenv <- use typCtx
   t' <- withTypeBindings vs' $ desugarType t
   return . Just $ TypeDef tn vs' (Just t')
-desugarTopLevel (S.AbsTypeDec tn vs) _ | ExI (Flip vs') <- Vec.fromList vs = return . Just $ TypeDef tn vs' Nothing
-desugarTopLevel (S.AbsDec fn sigma) pragmas | S.PT vs t <- sigma
-                                            , ExI (Flip vs') <- Vec.fromList vs
-                                            , Refl <- zeroPlusNEqualsN $ Vec.length vs'
+desugarTlv (S.AbsTypeDec tn vs) _ | ExI (Flip vs') <- Vec.fromList vs = return . Just $ TypeDef tn vs' Nothing
+desugarTlv (S.AbsDec fn sigma) pragmas | S.PT vs t <- sigma
+                                       , ExI (Flip vs') <- Vec.fromList vs
+                                       , Refl <- zeroPlusNEqualsN $ Vec.length vs'
   = do TFun ti' to' <- withTypeBindings (fmap fst vs') $ desugarType t
        return . Just $ AbsDecl (pragmaToAttr pragmas fn mempty) fn vs' ti' to'
-desugarTopLevel (S.FunDef fn sigma alts) pragmas | S.PT vs t <- sigma
-                                                 , ExI (Flip vs') <- Vec.fromList vs
-                                                 , Refl <- zeroPlusNEqualsN $ Vec.length vs'
+desugarTlv (S.FunDef fn sigma alts) pragmas | S.PT vs t <- sigma
+                                            , ExI (Flip vs') <- Vec.fromList vs
+                                            , Refl <- zeroPlusNEqualsN $ Vec.length vs'
   = withTypeBindings (fmap fst vs') $ do
       let (S.RT (S.TFun ti _)) = t
       TFun ti' to' <- desugarType t
@@ -171,8 +229,8 @@ desugarTopLevel (S.FunDef fn sigma alts) pragmas | S.PT vs t <- sigma
       let e0 = B.TE ti (S.Var v) noPos
       e <- withBinding v $ desugarAlts e0 alts
       return . Just $ FunDef (pragmaToAttr pragmas fn mempty) fn vs' ti' to' e
-desugarTopLevel (S.ConstDef _ _ _) _ = __impossible "desugarTopLevel"
-desugarTopLevel (S.DocBlock _    ) _ = __impossible "desugarTopLevel"
+desugarTlv (S.ConstDef _ _ _) _ = __impossible "desugarTlv"
+desugarTlv (S.DocBlock _    ) _ = __impossible "desugarTlv"
 
 desugarAlts :: B.TypedExpr -> [S.Alt B.TypedPatn B.TypedExpr] -> DS t v (UntypedExpr t v VarName)
 desugarAlts e0 [] = __impossible "desugarAlts"
@@ -368,7 +426,7 @@ desugarType = \case
   S.RT (S.TCon "Char"   [] Unboxed) -> return $ TPrim U8
   S.RT (S.TCon "String" [] Unboxed) -> return $ TString
   S.RT (S.TCon tn tvs s) -> TCon tn <$> mapM desugarType tvs <*> pure s
-  S.RT (S.TVar vn b)     -> (findIx vn <$> sel1 <$> get) >>= \(Just v) -> return $ if b then TVarBang v else TVar v
+  S.RT (S.TVar vn b)     -> (findIx vn <$> use typCtx) >>= \(Just v) -> return $ if b then TVarBang v else TVar v
   S.RT (S.TFun ti to)    -> TFun <$> desugarType ti <*> desugarType to
   S.RT (S.TRecord fs s)  -> TRecord <$> mapM (\(f,(t,x)) -> (f,) . (,x) <$> desugarType t) fs <*> pure s
   S.RT (S.TVariant alts) -> TSum <$> mapM (\(c,(ts,x)) -> (c,) . (,x) <$> desugarType (group ts)) (M.toList alts)
@@ -389,7 +447,7 @@ desugarNote S.Inline   = InlinePlease
 
 desugarExpr :: B.TypedExpr -> DS t v (UntypedExpr t v VarName)
 desugarExpr (B.TE _ (S.PrimOp opr es) _) = E . Op (symbolOp opr) <$> mapM desugarExpr es
-desugarExpr (B.TE _ (S.Var vn) _) = (findIx vn . sel2 <$> get) >>= \case
+desugarExpr (B.TE _ (S.Var vn) _) = (findIx vn <$> use varCtx) >>= \case
   Just v  -> return $ E $ Variable (v, vn)
   Nothing -> do constdefs <- view _2
                 let Just e = M.lookup vn constdefs
@@ -399,7 +457,7 @@ desugarExpr (B.TE _ (S.Match e [] alts) _) = desugarAlts e alts
 desugarExpr (B.TE _ (S.Match e vs alts) l) = do
   -- Idea: e !vs | alts ~~> let v = e !vs in desugarAlt (v, alts)
   -- FIXME: Not sure if this is going to work / zilinc
-  venv <- use _2
+  venv <- use varCtx
   v <- freshVar
   let vs' = P.map (fromJust . flip findIx venv &&& id) vs
   e' <- withBinding v $ desugarAlts (B.TE (B.getTypeTE e) (S.Var v) l) alts
@@ -421,12 +479,11 @@ desugarExpr (B.TE t@(S.RT (S.TVariant ts)) (S.Con c es) l) = do
 desugarExpr (B.TE _ (S.Seq e1 e2) _) = do
   v <- freshVar
   E <$> (Let v <$> desugarExpr e1 <*> withBinding v (desugarExpr e2))
-desugarExpr (B.TE _ (S.Lam p mt e) _) = do
-  __todo "lift lambda"
+desugarExpr (B.TE _ (S.Lam p mt e) _) = undefined
 desugarExpr (B.TE _ (S.App e1 e2) _) = E <$> (App <$> desugarExpr e1 <*> desugarExpr e2)
 desugarExpr (B.TE _ (S.If c [] th el) _) = E <$> (If <$> desugarExpr c <*> desugarExpr th <*> desugarExpr el)
 desugarExpr (B.TE _ (S.If c vs th el) _) = do
-  venv <- use _2
+  venv <- use varCtx
   v <- freshVar
   let vs' = P.map (fromJust . flip findIx venv &&& id) vs
   th' <- withBinding v $ desugarExpr th
@@ -460,7 +517,7 @@ desugarExpr (B.TE _ (S.Let [S.Binding (B.TIP (S.PVar v) _) mt e0 bs] e) _) = do
   --   Base case: let v = e0 !bs in e ~~> let! bs e0 e
   --   Ind. step: A) let p = e0 !bs in e ==> let v = e0 !bs and p = v in e
   --              B) let p1=e1 !bs1; ps=es !bss in e ==> let p1 = e1 !bs1 in let ps=es !bss in e
-  venv <- use _2
+  venv <- use varCtx
   let bs' = P.map (fromJust . flip findIx venv &&& id) bs
   E <$> (LetBang bs' (fst v) <$> desugarExpr e0 <*> withBinding (fst v) (desugarExpr e))
 desugarExpr (B.TE t (S.Let [S.Binding p mt e0 bs] e) l) = do
@@ -485,8 +542,8 @@ desugarExpr (B.TE t (S.Put e (fa@(Just (f0,_)):fas)) l) = do
 desugarExpr (B.TE t (S.Upcast e) _) = E <$> (Cast <$> desugarType t <*> desugarExpr e)
 -- desugarExpr (B.TE t (S.Widen  e) _) = E <$> (Cast <$> desugarType t <*> desugarExpr e)
 desugarExpr (B.TE t (S.Annot e tau) _) = E <$> (Promote <$> desugarType tau <*> desugarExpr e)
-  -- ^^^
-  -- NOTE: We need to insert a `Promote' node here, even the type of `e' is the same
+  -- ^^^ NOTE [How to handle type annotations?]
+  -- We need to insert a `Promote' node here, even the type of `e' is the same
   -- as the annotated type `tau'. The reason is, the desugarer will infer `e''s type
   -- to be the "smallest", if `e' is a data constructor. This could render the type
   -- of `e' different from what the surface typechecker has inferred. For example,

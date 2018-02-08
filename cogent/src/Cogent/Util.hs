@@ -17,6 +17,7 @@ module Cogent.Util where
 import Control.Applicative ((<$>))
 import Data.Monoid
 #endif
+import Control.Lens
 import Control.Monad
 import Data.Char
 import qualified Data.Map as M
@@ -140,16 +141,25 @@ thd3 :: (a,b,c) -> c
 thd3 (a,b,c) = c
 
 first3 :: (a -> a') -> (a, b, c) -> (a', b, c)
-first3 f (a,b,c) = (f a,b,c)
+first3 =  (_1 %~)
 
 second3 :: (b -> b') -> (a, b, c) -> (a, b', c)
-second3  f (a,b,c) = (a,f b,c)
+second3 = (_2 %~)
 
 third3 :: (c -> c') -> (a, b, c) -> (a, b, c')
-third3  f (a,b,c) = (a,b,f c)
+third3 = (_3 %~)
 
 first4 :: (a -> a') -> (a, b, c, d) -> (a', b, c, d)
-first4 f (a,b,c,d) = (f a,b,c,d)
+first4 = (_1 %~)
+
+second4 :: (b -> b') -> (a, b, c, d) -> (a, b', c, d)
+second4 = (_2 %~)
+
+third4 :: (c -> c') -> (a, b, c, d) -> (a, b, c', d)
+third4 = (_3 %~)
+
+fourth4 :: (d -> d') -> (a, b, c, d) -> (a, b, c, d')
+fourth4 = (_4 %~)
 
 extTup3 :: d -> (a,b,c) -> (a,b,c,d)
 extTup3 d (a,b,c) = (a,b,c,d)
