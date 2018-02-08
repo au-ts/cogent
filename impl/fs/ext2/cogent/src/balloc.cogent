@@ -77,18 +77,18 @@ find_free_blockgroup #{acc = (ex, state, block_group), obsv = (), idx} =
   let block_group = block_group + 1
   and block_group = if block_group >= state.group_count then 0 else block_group !state
 
-  and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "find_free_blockgroup: checking block group ") 
-  and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, block_group) 
-  and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
+  and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "find_free_blockgroup: checking block group ") 
+  and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, block_group) 
+  and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
 
   and ((ex, state), res) = group_desc_and_buf_from_block_group (ex, state, block_group)
   in res
   | Success (group_desc, group_desc_buf) =>
     let have_free_blocks = group_desc.free_block_count > 0 !group_desc
     in if have_free_blocks then
-      let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "find_free_blockgroup: block group ") 
-      and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, block_group) 
-      and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, " had free blocks!\n") 
+      let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "find_free_blockgroup: block group ") 
+      and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, block_group) 
+      and _ = cogent_log (dbg_EXT2_DIR_BALLOC, " had free blocks!\n") 
 
       in ((ex, state, block_group), Break (group_desc, group_desc_buf))
     else
@@ -99,16 +99,16 @@ find_free_blockgroup #{acc = (ex, state, block_group), obsv = (), idx} =
 
 ext2_write_new_block: (SysState, FsState, VfsInode, OSBuffer, U32, Ext2GroupDescriptor, OSBuffer, U32, U16) -> RR (SysState, FsState, VfsInode) (U32, BlockPtr) U32
 ext2_write_new_block (ex, state, inode, group_desc_buf, block_group, group_desc, bitmap_buf, grp_alloc_blk, num) =
-  let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_write_new_block: using block group ") 
-  and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, block_group) 
-  and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, " and free block bit ") 
-  and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, grp_alloc_blk) 
-  and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
+  let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_write_new_block: using block group ") 
+  and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, block_group) 
+  and _ = cogent_log (dbg_EXT2_DIR_BALLOC, " and free block bit ") 
+  and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, grp_alloc_blk) 
+  and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
 
   and dest_block = grp_alloc_blk + block_group * state.super.blocks_per_group + state.super.first_data_block !state
-  and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_write_new_block: this resolves to block ") 
-  and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, dest_block) 
-  and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
+  and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_write_new_block: this resolves to block ") 
+  and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, dest_block) 
+  and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
 
   and num32 : U32 = upcast num
 
@@ -119,11 +119,11 @@ ext2_write_new_block (ex, state, inode, group_desc_buf, block_group, group_desc,
                     in_range_u32 (dest_block + num32 - 1, group_desc.inode_table, group_desc.inode_table + state.inode_tables_per_group) !state 
   in was_invalid
   | True ->
-    let _ = _cogent_warn "ext2_write_new_block: ERROR: wanted to allocate at block "
-    and _ = _cogent_warn_u32 dest_block
-    and _ = _cogent_warn " but in system zone of block group "
-    and _ = _cogent_warn_u32 block_group
-    and _ = _cogent_warn "!\n"
+    let _ = cogent_warn "ext2_write_new_block: ERROR: wanted to allocate at block "
+    and _ = cogent_warn_u32 dest_block
+    and _ = cogent_warn " but in system zone of block group "
+    and _ = cogent_warn_u32 block_group
+    and _ = cogent_warn "!\n"
 
     and ((ex, state), _) = put_group_desc_buf_in_array (ex, state, block_group, group_desc_buf)
     and ex = osbuffer_destroy (ex, bitmap_buf)
@@ -139,9 +139,9 @@ ext2_write_new_block (ex, state, inode, group_desc_buf, block_group, group_desc,
     in outside_block_count
     | False =>
       -- update group descriptor
-      let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_write_new_block: have free block count ") 
-      and _ = _cogent_log_u16 (dbg_EXT2_DIR_BALLOC, group_desc.free_block_count) 
-      and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "; updating\n") 
+      let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_write_new_block: have free block count ") 
+      and _ = cogent_log_u16 (dbg_EXT2_DIR_BALLOC, group_desc.free_block_count) 
+      and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "; updating\n") 
 
       and (ex, group_desc_buf) = group_desc_set_free_block_count (ex, block_group, group_desc_buf, group_desc.free_block_count - num) !group_desc
       and ((ex, state), _) = put_group_desc_buf_in_array (ex, state, block_group, group_desc_buf)
@@ -164,9 +164,9 @@ ext2_write_new_block (ex, state, inode, group_desc_buf, block_group, group_desc,
       -- finished
       in ((ex, state, inode), Success (num32, dest_block))
     | True ->
-      let _ = _cogent_warn "ext2_write_new_block: ERROR: block num "
-      and _ = _cogent_warn_u32 dest_block
-      and _ = _cogent_warn " outside superblock's block count\n"
+      let _ = cogent_warn "ext2_write_new_block: ERROR: block num "
+      and _ = cogent_warn_u32 dest_block
+      and _ = cogent_warn " outside superblock's block count\n"
 
       and ((ex, state), _) = put_group_desc_buf_in_array (ex, state, block_group, group_desc_buf)
       and ex = osbuffer_destroy (ex, bitmap_buf)
@@ -203,23 +203,23 @@ find_next_usable_block2 (bitmap_buf, goal_bit, end) =
   and empty_chunk_offset = osbuffer_find (bitmap_buf, 0, remainder_offset, ((end + 7) >> 3) - (goal_bit >> 3)) !bitmap_buf
   and free_block_chunk = (empty_chunk_offset - remainder_offset) << 3
   in if free_block_chunk < end && free_block_chunk >= goal_bit then
-    let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "find_next_usable_block2: found free block chunk before it(?) at ") 
-    and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, free_block_chunk) 
-    and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
+    let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "find_next_usable_block2: found free block chunk before it(?) at ") 
+    and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, free_block_chunk) 
+    and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
 
     in Success free_block_chunk
   else
     -- no byte chunk free; try each individual bit
-    let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "find_next_usable_block2: no byte chunk free, trying each individual bit\n") 
+    let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "find_next_usable_block2: no byte chunk free, trying each individual bit\n") 
 
     and free_block = osbuffer_find_next_zero_bit (bitmap_buf, end, goal_bit) !bitmap_buf
     in if free_block < end then
-      let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "find_next_usable_block2: found one at bit ") 
-      and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, free_block) 
-      and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
+      let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "find_next_usable_block2: found one at bit ") 
+      and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, free_block) 
+      and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
       in Success free_block
     else
-      let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "none found; sorry!\n") 
+      let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "none found; sorry!\n") 
       in Error ()
 
 find_next_usable_block: (OSBuffer!, U32, U32) -> R U32 ()
@@ -230,10 +230,10 @@ find_next_usable_block (bitmap_buf, goal_bit, end) =
 
     and goal_bit = osbuffer_find_next_zero_bit (bitmap_buf, end_goal, goal_bit) !bitmap_buf
     in if goal_bit < end_goal then
-      let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "find_next_usable_block: found goal bit near goal\n") 
+      let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "find_next_usable_block: found goal bit near goal\n") 
       in Success goal_bit
     else
-      let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "find_next_usable_block: found goal bit not found near goal; searching again\n") 
+      let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "find_next_usable_block: found goal bit not found near goal; searching again\n") 
       in find_next_usable_block2 (bitmap_buf, goal_bit, end)
   else
     find_next_usable_block2 (bitmap_buf, goal_bit, end)
@@ -242,17 +242,17 @@ allocate_many_in_group: Seq32_body (OSBuffer, U32, U32) U32 ()
 allocate_many_in_group #{ acc = (buf, allocated, goal), obsv = end, idx } =
   if goal < end then
     -- try to set bit
-    let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "allocate_many_in_group: trying bit ") 
-    and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, goal) 
-    and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
+    let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "allocate_many_in_group: trying bit ") 
+    and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, goal) 
+    and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
 
     and (buf, res) = osbuffer_set_bit (buf, goal)
     in res
     | False ->
-      let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "allocate_many_in_group: was set\n") 
+      let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "allocate_many_in_group: was set\n") 
       in ((buf, allocated + 1, goal + 1), Iterate ())
     | _ ->
-      let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "allocate_many_in_group: was already set, stopping\n") 
+      let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "allocate_many_in_group: was already set, stopping\n") 
       in ((buf, allocated, goal), Break ())
   else
     ((buf, allocated, goal), Break ())
@@ -283,9 +283,9 @@ ext2_try_to_allocate_with_bitmap3 (ex, state, group, bitmap_buf, num, goal, star
 
   in res
   | Break () ->
-    let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_try_to_allocate_with_bitmap3: allocated initial block at ") 
-    and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, goal) 
-    and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
+    let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_try_to_allocate_with_bitmap3: allocated initial block at ") 
+    and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, goal) 
+    and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
 
     -- try the rest from the same location
     and ((bitmap_buf, allocated, goal), _) = seq32 [(OSBuffer, U32, U32), U32, ()] #{
@@ -299,31 +299,31 @@ ext2_try_to_allocate_with_bitmap3 (ex, state, group, bitmap_buf, num, goal, star
     -- XXX: oh man these casts/these ladders https://www.youtube.com/watch?v=ggB33d0BLcY
     in ((ex, state, bitmap_buf), Success (u32_to_u16 allocated, goal - allocated))
   | Iterate () ->
-    let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_try_to_allocate_with_bitmap3: could not find free bit in range\n") 
+    let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_try_to_allocate_with_bitmap3: could not find free bit in range\n") 
     in ((ex, state, bitmap_buf), Success (0, goal))
 
 ext2_try_to_allocate_with_bitmap2: (SysState, FsState, U32, OSBuffer, U32, Option U32, U32, U32) -> RR (SysState, FsState, OSBuffer) (U16, BlockPtr) U32
 ext2_try_to_allocate_with_bitmap2 (ex, state, group, bitmap_buf, num, maybe_goal, start, end) =
   maybe_goal
   | None ->
-    let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_try_to_allocate_with_bitmap2: had no goal, finding next usable block\n") 
+    let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_try_to_allocate_with_bitmap2: had no goal, finding next usable block\n") 
     in find_next_usable_block (bitmap_buf, start, end) !bitmap_buf
     | Success goal ->
-      let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_try_to_allocate_with_bitmap2: got goal bit ") 
-      and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, goal) 
-      and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "; finding first free block in chunk\n") 
+      let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_try_to_allocate_with_bitmap2: got goal bit ") 
+      and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, goal) 
+      and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "; finding first free block in chunk\n") 
 
       -- TODO: only do this if we have no block reservations
       and goal = find_first_free_block_in_chunk (bitmap_buf, goal) !bitmap_buf
 
-      and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_try_to_allocate_with_bitmap2: final goal bit (first free block in chunk) was ") 
-      and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, goal) 
-      and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
+      and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_try_to_allocate_with_bitmap2: final goal bit (first free block in chunk) was ") 
+      and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, goal) 
+      and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
 
       in ext2_try_to_allocate_with_bitmap3 (ex, state, group, bitmap_buf, num, goal, goal, end)
     | Error () ->
       -- failed to find anything
-      let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_try_to_allocate_with_bitmap2: ERROR: no usable block\n") 
+      let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_try_to_allocate_with_bitmap2: ERROR: no usable block\n") 
       in ((ex, state, bitmap_buf), Success (0, 0))
   | Some goal ->
     ext2_try_to_allocate_with_bitmap3 (ex, state, group, bitmap_buf, num, goal, goal, end)
@@ -335,21 +335,21 @@ ext2_try_to_allocate_with_bitmap (ex, state, group, bitmap_buf, num, maybe_goal_
   in maybe_goal_block
   | Some goal_block ->
     if goal_block > 0 then -- FIXME: why? these branches are the same? is it < end instead?
-      let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_try_to_allocate_with_bitmap: had goal and > 0, using [") 
-      and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, goal_block) 
-      and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, ", ") 
-      and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, end) 
-      and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, ")\n") 
+      let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_try_to_allocate_with_bitmap: had goal and > 0, using [") 
+      and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, goal_block) 
+      and _ = cogent_log (dbg_EXT2_DIR_BALLOC, ", ") 
+      and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, end) 
+      and _ = cogent_log (dbg_EXT2_DIR_BALLOC, ")\n") 
       in ext2_try_to_allocate_with_bitmap2 (ex, state, group, bitmap_buf, num, maybe_goal_block, goal_block, end)
     else 
-      let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_try_to_allocate_with_bitmap: had goal but == 0, using [0, ") 
-      and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, end) 
-      and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, ")\n") 
+      let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_try_to_allocate_with_bitmap: had goal but == 0, using [0, ") 
+      and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, end) 
+      and _ = cogent_log (dbg_EXT2_DIR_BALLOC, ")\n") 
       in ext2_try_to_allocate_with_bitmap2 (ex, state, group, bitmap_buf, num, maybe_goal_block, 0, end)
   | None ->
-    let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_try_to_allocate_with_bitmap: had no goal, using [0, ") 
-    and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, end) 
-    and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, ")\n") 
+    let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_try_to_allocate_with_bitmap: had no goal, using [0, ") 
+    and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, end) 
+    and _ = cogent_log (dbg_EXT2_DIR_BALLOC, ")\n") 
     in ext2_try_to_allocate_with_bitmap2 (ex, state, group, bitmap_buf, num, maybe_goal_block, 0, end)
 
 -- loop through the rest of the groups to find a free block
@@ -357,9 +357,9 @@ ext2_new_block2: (SysState, FsState, VfsInode, U32, U32) -> RR (SysState, FsStat
 ext2_new_block2 (ex, state, inode, goal_block_group, num) =
   let group_count = state.group_count !state
 
-  and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_new_block2: going to search ") 
-  and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, group_count) 
-  and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, " block groups\n") 
+  and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_new_block2: going to search ") 
+  and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, group_count) 
+  and _ = cogent_log (dbg_EXT2_DIR_BALLOC, " block groups\n") 
 
   and ((ex, state, block_group), res) = seq32 [FindFreeBlockgroupAcc, (), FindFreeBlockgroupRet] #{
     frm  = 0,
@@ -380,9 +380,9 @@ ext2_new_block2 (ex, state, inode, goal_block_group, num) =
           -- we allocated!
           ext2_write_new_block (ex, state, inode, group_desc_buf, block_group, group_desc, bitmap_buf, grp_alloc_blk, num')
         else
-          let _ = _cogent_warn ("ext2_new_block2: invalid free block count in block group ")
-          and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, block_group)
-          and _ = _cogent_warn ("; reported free blocks but no bits\n")
+          let _ = cogent_warn ("ext2_new_block2: invalid free block count in block group ")
+          and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, block_group)
+          and _ = cogent_warn ("; reported free blocks but no bits\n")
 
           and ((ex, state), _) = put_group_desc_buf_in_array (ex, state, block_group, group_desc_buf)
           and ex = osbuffer_destroy (ex, bitmap_buf)
@@ -396,7 +396,7 @@ ext2_new_block2 (ex, state, inode, goal_block_group, num) =
       in ((ex, state, inode), Error eIO)
   | Iterate () ->
     -- sorry, no free block groups left!
-    let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_new_block2: no free block groups remaining\n")
+    let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_new_block2: no free block groups remaining\n")
     in ((ex, state, inode), Error eNoSpc)
 
 -- TODO: reservation windows
@@ -409,13 +409,13 @@ ext2_new_blocks (ex, state, inode, goal, num) =
 
   and goal_block_group = (goal - state.super.first_data_block) / blocks_per_group !state
 
-  and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_new_blocks: outside range = ") 
-  and _ = _cogent_log_bool (dbg_EXT2_DIR_BALLOC, outside_range) 
-  and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, ", goal = ") 
-  and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, goal) 
-  and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, ", goal_block_group = ") 
-  and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, goal_block_group) 
-  and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
+  and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_new_blocks: outside range = ") 
+  and _ = cogent_log_bool (dbg_EXT2_DIR_BALLOC, outside_range) 
+  and _ = cogent_log (dbg_EXT2_DIR_BALLOC, ", goal = ") 
+  and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, goal) 
+  and _ = cogent_log (dbg_EXT2_DIR_BALLOC, ", goal_block_group = ") 
+  and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, goal_block_group) 
+  and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
 
   and ((ex, state), res) = group_desc_and_buf_from_block_group (ex, state, goal_block_group)
   in res
@@ -424,11 +424,11 @@ ext2_new_blocks (ex, state, inode, goal, num) =
     in if have_free_blocks then
       let grp_target_blk = ((goal - state.super.first_data_block)) % blocks_per_group !state
 
-      and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_new_block: block group ") 
-      and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, goal_block_group) 
-      and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, " has some free blocks, going to allocate in its bitmap; target is bit ") 
-      and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, grp_target_blk) 
-      and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
+      and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_new_block: block group ") 
+      and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, goal_block_group) 
+      and _ = cogent_log (dbg_EXT2_DIR_BALLOC, " has some free blocks, going to allocate in its bitmap; target is bit ") 
+      and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, grp_target_blk) 
+      and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
 
       and ((ex, state), res) = get_block_bitmap (ex, state, group_desc_goal.block_bitmap)
       in res 
@@ -438,17 +438,17 @@ ext2_new_blocks (ex, state, inode, goal, num) =
         | Success (num', grp_alloc_blk) =>
           if num' > 0 then
             -- we allocated!
-            let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_new_block: allocated " ) 
-            and _ = _cogent_log_u16 (dbg_EXT2_DIR_BALLOC, num') 
-            and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, " blocks starting at bit ") 
-            and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, grp_alloc_blk) 
-            and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, ", going to write!\n") 
+            let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_new_block: allocated " ) 
+            and _ = cogent_log_u16 (dbg_EXT2_DIR_BALLOC, num') 
+            and _ = cogent_log (dbg_EXT2_DIR_BALLOC, " blocks starting at bit ") 
+            and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, grp_alloc_blk) 
+            and _ = cogent_log (dbg_EXT2_DIR_BALLOC, ", going to write!\n") 
 
             in ext2_write_new_block (ex, state, inode, group_desc_buf_goal, goal_block_group, group_desc_goal, bitmap_buf, grp_alloc_blk, num')
           else
             -- failed to allocate at goal; try all the block groups
             -- FIXME: old code used to retry with no target, then try all groups
-            let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_new_block: failed to allocate at goal, trying all block groups\n") 
+            let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_new_block: failed to allocate at goal, trying all block groups\n") 
 
             and ((ex, state), _) = put_group_desc_buf_in_array (ex, state, goal_block_group, group_desc_buf_goal)
             and ex = osbuffer_destroy (ex, bitmap_buf)
@@ -456,24 +456,24 @@ ext2_new_blocks (ex, state, inode, goal, num) =
             in ext2_new_block2 (ex, state, inode, goal_block_group, num)
         | Error err ->
           let ((ex, state), _) = put_group_desc_buf_in_array (ex, state, goal_block_group, group_desc_buf_goal)
-          and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_new_block: ERROR: failed to allocate within bitmap\n") 
+          and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_new_block: ERROR: failed to allocate within bitmap\n") 
           and ex = osbuffer_destroy (ex, bitmap_buf)
 
           in ((ex, state, inode), Error eIO)
       | Error () ->
         let ((ex, state), _) = put_group_desc_buf_in_array (ex, state, goal_block_group, group_desc_buf_goal)
-        and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_new_block: failed to get block bitmap for blockgroup\n") 
+        and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_new_block: failed to get block bitmap for blockgroup\n") 
         in ext2_new_block2 (ex, state, inode, goal_block_group, num)
     else
       -- this block group failed, try all the other block groups
       let ((ex, state), _) = put_group_desc_buf_in_array (ex, state, goal_block_group, group_desc_buf_goal)
-      and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_new_block: no free blocks in block group, going to try all\n") 
+      and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_new_block: no free blocks in block group, going to try all\n") 
 
       in ext2_new_block2 (ex, state, inode, goal_block_group, num)
   | Error () ->
-    let _ = _cogent_warn "ext2_new_block: ERROR: did not get group_desc/buf from block group "
-    and _ = _cogent_warn_u32 goal_block_group
-    and _ = _cogent_warn "\n"
+    let _ = cogent_warn "ext2_new_block: ERROR: did not get group_desc/buf from block group "
+    and _ = cogent_warn_u32 goal_block_group
+    and _ = cogent_warn "\n"
 
     in ((ex, state, inode), Error eIO)
 
@@ -493,23 +493,23 @@ ext2_alloc_block: Seq32_body (SysState, FsState, VfsInode, WordArray BlockPtr, U
 ext2_alloc_block #{ acc = (ex, state, inode, ptrs, target, count, indirect_index, current_block), obsv = (goal, indirect_blocks), idx } =
   let count = target
 
-  and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_alloc_block: trying one-go allocation for ") 
-  and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, count) 
-  and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, " blocks\n") 
+  and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_alloc_block: trying one-go allocation for ") 
+  and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, count) 
+  and _ = cogent_log (dbg_EXT2_DIR_BALLOC, " blocks\n") 
 
   and ((ex, state, inode), res) = ext2_new_blocks (ex, state, inode, goal, count)
   in res
   | Success (count, current_block) =>
     let target = target - count
-    and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_alloc_block: allocated ") 
-    and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, count) 
-    and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, " blocks, ") 
-    and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, target) 
-    and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, " remaining.\n") 
+    and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_alloc_block: allocated ") 
+    and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, count) 
+    and _ = cogent_log (dbg_EXT2_DIR_BALLOC, " blocks, ") 
+    and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, target) 
+    and _ = cogent_log (dbg_EXT2_DIR_BALLOC, " remaining.\n") 
 
-    and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_alloc_block: last blockptr = ") 
-    and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, current_block) 
-    and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "; putting them all into blockptr array\n") 
+    and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_alloc_block: last blockptr = ") 
+    and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, current_block) 
+    and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "; putting them all into blockptr array\n") 
 
     -- map over indirect blocks & count
     and ((ptrs, count, indirect_index, current_block), res) = seq32_rev [(WordArray BlockPtr, U32, U32, U32), U32, ()] #{
@@ -533,9 +533,9 @@ ext2_alloc_blocks: (SysState, FsState, VfsInode, WordArray BlockPtr, U32, BlockP
 ext2_alloc_blocks (ex, state, inode, blockptrs, num_indirect, goal, num_blocks) =
   let target = num_blocks + num_indirect
 
-  and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_alloc_blocks: going to allocate " ) 
-  and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, target) 
-  and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, " block total\n") 
+  and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_alloc_blocks: going to allocate " ) 
+  and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, target) 
+  and _ = cogent_log (dbg_EXT2_DIR_BALLOC, " block total\n") 
 
   and ((ex, state, inode, blockptrs, _, count, indirect_index, current_block), res) = seq32 [(SysState, FsState, VfsInode, WordArray BlockOffset, U32, U32, U32, U32), (U32, U32), U32] #{
     frm  = 0,
@@ -605,16 +605,16 @@ ext2_truncate_blocks2 (ex, state, inode, offset) =
     --let blocksize = const_blockSize
     let iblock = (offset + upcast const_blockSize - 1) >> upcast const_blockSizeBits
 
-    and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_truncate_blocks2: getting path to logical block ") 
-    and _ = _cogent_log_u64 (dbg_EXT2_DIR_BALLOC, iblock) 
-    and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
+    and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_truncate_blocks2: getting path to logical block ") 
+    and _ = cogent_log_u64 (dbg_EXT2_DIR_BALLOC, iblock) 
+    and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
 
     and ((ex, state), res) = path_new_from_block (ex, state, u64_to_u32 iblock) -- XXX: cast
     in res
     | Success path =>
       if path.depth /= 0 !path then
         if path.depth == 1 !path then
-          let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_truncate_blocks2: path was single level (just at inode level)\n") 
+          let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_truncate_blocks2: path was single level (just at inode level)\n") 
 
           -- free first level (inode level)
           and frm = wordarray_get [BlockOffset] (path.offsets, 0) !path
@@ -624,7 +624,7 @@ ext2_truncate_blocks2 (ex, state, inode, offset) =
           and ex = dispose_existing_buffer (ex, no_buf) -- should actually be None, but ensure it is free'd
           in ext2_truncate_blocks_subtrees (ex, state, inode, offset, path)
         else
-          let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_truncate_blocks2: path had depth > 1, finding shared\n") 
+          let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_truncate_blocks2: path had depth > 1, finding shared\n") 
 
           and (state, res) = chain_init (state, path)
           in res
@@ -665,13 +665,13 @@ ext2_truncate_blocks2 (ex, state, inode, offset) =
             in ((ex, state, inode), Error eIO) 
       else
         -- easy, we're done if we have no path
-        let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_truncate_blocks2: path had empty depth, so we're done (bad block nr?)\n") 
+        let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_truncate_blocks2: path had empty depth, so we're done (bad block nr?)\n") 
 
         and (ex, state) = path_restore (ex, state, path)
         in ((ex, state, inode), Success ())
     | Error () ->
       -- easy, we're done if we have no path
-      let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_truncate_blocks2: failed to get path\n") 
+      let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_truncate_blocks2: failed to get path\n") 
       in ((ex, state, inode), Success ())
 
 ext2_truncate_blocks_ind_shared: (SysState, FsState, VfsInode, U64, Chain, IndirectIdx) -> RR (SysState, FsState, VfsInode) () U32
@@ -724,24 +724,24 @@ ext2_truncate_blocks_subtrees (ex, state, inode, offset, path) =
   let first_offset = wordarray_get[BlockOffset] (path.offsets, 0) !path
   and (ex, state) = path_restore (ex, state, path)
 
-  and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_truncate_blocks_subtrees: have first offset ") 
-  and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, first_offset) 
-  and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
+  and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_truncate_blocks_subtrees: have first offset ") 
+  and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, first_offset) 
+  and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
 
   in first_offset
   | 15 -> -- triple indirect
-    let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_truncate_blocks_subtrees: was triple indirect, we're done!\n") 
+    let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_truncate_blocks_subtrees: was triple indirect, we're done!\n") 
     in ((ex, state, inode), Success ())
   | 14 -> -- double indirect
-    let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_truncate_blocks_subtrees: was double indirect, killing triple indirect tree\n") 
+    let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_truncate_blocks_subtrees: was double indirect, killing triple indirect tree\n") 
     in (kill_subtree (ex, state, inode, const_tripleIndirectIdx, 3), Success ())
   | 13 -> -- single indirect
-    let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_truncate_blocks_subtrees: was single indirect, killing double and triple indirect trees\n") 
+    let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_truncate_blocks_subtrees: was single indirect, killing double and triple indirect trees\n") 
 
     and (ex, state, inode) = kill_subtree (ex, state, inode, const_doubleIndirectIdx, 2)
     in                       (kill_subtree (ex, state, inode, const_tripleIndirectIdx, 3), Success ())
   | _ -> -- direct inode
-    let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_truncate_blocks_subtrees: was direct; killing single, double and triple indirect trees\n") 
+    let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_truncate_blocks_subtrees: was direct; killing single, double and triple indirect trees\n") 
 
     and (ex, state, inode) = kill_subtree (ex, state, inode, const_singleIndirectIdx, 1)
     and (ex, state, inode) = kill_subtree (ex, state, inode, const_doubleIndirectIdx, 2)
@@ -784,29 +784,29 @@ branchnode_free (ex, node) =
   let node_t {maybe_buf} = node
   in dispose_existing_buffer (ex, maybe_buf)
 
-_branchnode_debug: (BranchNode!) -> ()
-_branchnode_debug node =
-  let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "offset_from=") 
-  and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, node.offset_from) 
-  and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, " offset_to=") 
-  and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, node.offset_to) 
-  and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, " ptr=") 
-  and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, node.ptr) 
-  and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, " buf=") 
+branchnode_debug: (BranchNode!) -> ()
+branchnode_debug node =
+  let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "offset_from=") 
+  and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, node.offset_from) 
+  and _ = cogent_log (dbg_EXT2_DIR_BALLOC, " offset_to=") 
+  and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, node.offset_to) 
+  and _ = cogent_log (dbg_EXT2_DIR_BALLOC, " ptr=") 
+  and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, node.ptr) 
+  and _ = cogent_log (dbg_EXT2_DIR_BALLOC, " buf=") 
   in node.maybe_buf
-  | Some buf -> _cogent_log (dbg_EXT2_DIR_BALLOC, "true") 
-  | None -> _cogent_log (dbg_EXT2_DIR_BALLOC, "false") 
+  | Some buf -> cogent_log (dbg_EXT2_DIR_BALLOC, "true") 
+  | None -> cogent_log (dbg_EXT2_DIR_BALLOC, "false") 
 
 -- kicks off the depth limited search over some branches in the tree between [from, to)
 ext2_free_branches: (SysState, FsState, VfsInode, Option OSBuffer, U32, U32, U32) -> (SysState, FsState, VfsInode, BranchNode)
 ext2_free_branches (ex, state, inode, maybe_buf, offset_from, offset_to, depth) =
-  let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branches: freeing [") 
-  and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, offset_from) 
-  and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, ", ") 
-  and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, offset_to) 
-  and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, ") at depth ") 
-  and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, depth) 
-  and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
+  let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branches: freeing [") 
+  and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, offset_from) 
+  and _ = cogent_log (dbg_EXT2_DIR_BALLOC, ", ") 
+  and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, offset_to) 
+  and _ = cogent_log (dbg_EXT2_DIR_BALLOC, ") at depth ") 
+  and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, depth) 
+  and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
 
   and (root, (ex, state, inode)) = dls_uarray [BranchNode, (SysState, FsState, VfsInode), U32] #{
     curdepth = 0,
@@ -822,18 +822,18 @@ ext2_free_branches (ex, state, inode, maybe_buf, offset_from, offset_to, depth) 
 -- recursive function that frees a branch, and sub-branches
 ext2_free_branch: GraphExplorerF (UArray BranchNode) BranchNode (SysState, FsState, VfsInode) (U32)
 ext2_free_branch (depth, node, (ex, state, inode), maxdepth) =
-  let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch: depth ") 
-  and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, depth) 
-  and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, ", ") 
-  and _ = _branchnode_debug (node) !node
-  and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
+  let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch: depth ") 
+  and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, depth) 
+  and _ = cogent_log (dbg_EXT2_DIR_BALLOC, ", ") 
+  and _ = branchnode_debug (node) !node
+  and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
 
   in if depth < maxdepth then
     -- fill up array of child nodes
     let childnode_array_size = node.offset_to - node.offset_from !node
-    and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch: created array of size ") 
-    and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, childnode_array_size) 
-    and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
+    and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch: created array of size ") 
+    and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, childnode_array_size) 
+    and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
 
     in uarray_create [BranchNode] (ex, childnode_array_size)
     | Success (ex, children) =>
@@ -853,13 +853,13 @@ ext2_free_branch (depth, node, (ex, state, inode), maxdepth) =
       -- recurse on children
       in (node, (ex, state, inode), Expand (children, ext2_free_branch_cleanup))
     | Error ex ->
-      let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch: failed to allocate array\n") 
+      let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch: failed to allocate array\n") 
 
       -- couldn't make array, skip this one
       in (node, (ex, state, inode), Iterate ())
   else
     -- leaf node, free the data here
-    let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch: was leaf node (depth + 1 >= maxdepth)\n") 
+    let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch: was leaf node (depth + 1 >= maxdepth)\n") 
 
     and frm = node.offset_from !node
     and to = node.offset_to !node
@@ -878,15 +878,15 @@ ext2_free_branch_entry #{ oelem = no_branchnode, acc = (ex, inode, idx, parent_m
     -- deref offset to blockptr
     parent_maybe_buf
     | Some buf =>
-      let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch_entry: parent had buffer, deserialising from idx ") 
-      and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, idx * 4)
-      and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
+      let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch_entry: parent had buffer, deserialising from idx ") 
+      and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, idx * 4)
+      and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
       in osbuffer_deserialise_Ple32 (buf, idx * 4) !buf
       | Success (nr, _) =>
         if nr /= 0 then
-          let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch_entry: had non-zero blockptr ") 
-          and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, nr) 
-          and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, " WITH parent buffer (zero-ing and returning child ptr to it)\n") 
+          let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch_entry: had non-zero blockptr ") 
+          and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, nr) 
+          and _ = cogent_log (dbg_EXT2_DIR_BALLOC, " WITH parent buffer (zero-ing and returning child ptr to it)\n") 
 
           -- unlink it
           -- writes blockptr 0 at offset in buf
@@ -899,21 +899,21 @@ ext2_free_branch_entry #{ oelem = no_branchnode, acc = (ex, inode, idx, parent_m
             (Some #{maybe_buf = Some child_buf, ptr = nr, offset_from = 0, offset_to = const_addrPerBlock }, (ex, inode, idx + 1, parent_maybe_buf))
           | Error () ->
             -- if no buffer, warn and iterate
-            let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch_entry: failed to get new block\n") 
+            let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch_entry: failed to get new block\n") 
             in (None, (ex, inode, idx + 1, parent_maybe_buf))
         else
           -- if no blockptr, ignore
-          let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch_entry: null blockptr WITH parent buffer\n") 
+          let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch_entry: null blockptr WITH parent buffer\n") 
           in (None, (ex, inode, idx + 1, Some buf))
       | Error () ->
         -- failed to read from buf, ignore
-        let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch_entry: failed to deserialise from offset\n") 
+        let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch_entry: failed to deserialise from offset\n") 
         in (None, (ex, inode, idx + 1, Some buf))
     | None ->
       if idx /= 0 then
-        let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch_entry: had non-zero blockptr ") 
-        and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, idx) 
-        and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, " with NO parent buffer\n") 
+        let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch_entry: had non-zero blockptr ") 
+        and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, idx) 
+        and _ = cogent_log (dbg_EXT2_DIR_BALLOC, " with NO parent buffer\n") 
 
         -- no need to set ptr since it is usually a stack address
 
@@ -922,15 +922,15 @@ ext2_free_branch_entry #{ oelem = no_branchnode, acc = (ex, inode, idx, parent_m
         | Success child_buf =>
           (Some #{ maybe_buf = Some child_buf, ptr = idx, offset_from = 0, offset_to = const_addrPerBlock }, (ex, inode, idx + 1, None))
         | Error () ->
-          let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch_entry: failed to get new block\n") 
+          let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch_entry: failed to get new block\n") 
           in (None, (ex, inode, idx + 1, None))
       else
-        let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch_entry: null blockptr with NO parent buffer\n") 
+        let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch_entry: null blockptr with NO parent buffer\n") 
 
         -- was null blockptr
         in (None, (ex, inode, idx + 1, None))
   | Some bn ->
-    let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch_entry: had non-null branchnode? impossible?\n") 
+    let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch_entry: had non-null branchnode? impossible?\n") 
 
     -- impossible, we just allocated the array, nothing should be there yet
     -- just return it back, unmodified
@@ -964,9 +964,9 @@ ext2_free_branch_cleanup2 (ex, node, (state, inode), obsv) =
 ext2_free_branch_cleanup3: (SysState, FsState, VfsInode, BlockPtr) -> (SysState, (FsState, VfsInode))
 ext2_free_branch_cleanup3 (ex, state, inode, blockptr) =
   -- finally, release this block
-  let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch_cleanup3: finally releasing block ") 
-  and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, blockptr) 
-  and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, " now that children are cleared\n") 
+  let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch_cleanup3: finally releasing block ") 
+  and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, blockptr) 
+  and _ = cogent_log (dbg_EXT2_DIR_BALLOC, " now that children are cleared\n") 
 
   and (ex, state, inode) = ext2_free_blocks (ex, state, inode, blockptr, 1)
 
@@ -978,11 +978,11 @@ ext2_free_branch_cleanup3 (ex, state, inode, blockptr) =
 -- attempts to group consecutive blocks together where possible, and free them
 ext2_free_data: (SysState, FsState, VfsInode, Option OSBuffer, OSBufferOffset, OSBufferOffset) -> (SysState, FsState, VfsInode, Option OSBuffer)
 ext2_free_data (ex, state, inode, maybe_buffer, from, to) =
-  let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_data: freeing from ") 
-  and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, from) 
-  and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, " to ") 
-  and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, to) 
-  and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "; checking contiguous\n") 
+  let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_data: freeing from ") 
+  and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, from) 
+  and _ = cogent_log (dbg_EXT2_DIR_BALLOC, " to ") 
+  and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, to) 
+  and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "; checking contiguous\n") 
 
   and ((ex, state, inode, maybe_buffer, count, block_to_free), _) = seq32 [(SysState, FsState, VfsInode, Option OSBuffer, U32, U32), (), ()] #{
     frm  = from,
@@ -994,17 +994,17 @@ ext2_free_data (ex, state, inode, maybe_buffer, from, to) =
   }
 
   in if count > 0 then
-    let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_data: found at least one non-zero block, going to free ") 
-    and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, count) 
-    and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, " starting at ") 
-    and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, block_to_free) 
-    and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
+    let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_data: found at least one non-zero block, going to free ") 
+    and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, count) 
+    and _ = cogent_log (dbg_EXT2_DIR_BALLOC, " starting at ") 
+    and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, block_to_free) 
+    and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
 
     and (ex, state, inode) = ext2_free_blocks (ex, state, inode, block_to_free, count)
     and (ex, inode) = vfs_inode_mark_dirty (ex, inode)
     in (ex, state, inode, maybe_buffer)
   else
-    let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_data: all were zero'd?\n") 
+    let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_data: all were zero'd?\n") 
     in (ex, state, inode, maybe_buffer)
 
 free_data_consecutive: Seq32_body (SysState, FsState, VfsInode, Option OSBuffer, U32, U32) () ()
@@ -1012,9 +1012,9 @@ free_data_consecutive #{ acc = (ex, state, inode, maybe_buf, count, block_to_fre
   let ptr = indirect_dereference (maybe_buf, inode, idx) !maybe_buf !inode
   in if ptr /= 0 then
     -- zero ptr
-    let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "free_data_consecutive: non-zero at idx ") 
-    and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, idx) 
-    and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "; setting ref to 0\n") 
+    let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "free_data_consecutive: non-zero at idx ") 
+    and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, idx) 
+    and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "; setting ref to 0\n") 
 
     and (maybe_buf, inode) = indirect_set_reference (maybe_buf, inode, idx, 0)
 
@@ -1023,19 +1023,19 @@ free_data_consecutive #{ acc = (ex, state, inode, maybe_buf, count, block_to_fre
       let block_to_free = ptr
       and count:U32 = 1
 
-      and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "free_data_consecutive: had no count so far, setting to 1, and making block to free ") 
-      and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, block_to_free) 
-      and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
+      and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "free_data_consecutive: had no count so far, setting to 1, and making block to free ") 
+      and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, block_to_free) 
+      and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
 
       in ((ex, state, inode, maybe_buf, count, block_to_free), Iterate ())
     else
       if block_to_free == ptr - count then
         let count = count + 1
-        and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "free_data_consecutive: was consecutive\n") 
+        and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "free_data_consecutive: was consecutive\n") 
         in ((ex, state, inode, maybe_buf, count, block_to_free), Iterate ())
       else
         -- free what we had so far
-        let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "free_data_consecutive: not consecutive, freeing what we have so far\n") 
+        let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "free_data_consecutive: not consecutive, freeing what we have so far\n") 
 
         and (ex, state, inode) = ext2_free_blocks (ex, state, inode, block_to_free, count)
         and (ex, inode) = vfs_inode_mark_dirty (ex, inode)
@@ -1044,15 +1044,15 @@ free_data_consecutive #{ acc = (ex, state, inode, maybe_buf, count, block_to_fre
         and block_to_free = ptr
         and count:U32 = 1
 
-        and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "free_data_consecutive: starting new region at block ") 
-        and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, block_to_free) 
-        and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
+        and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "free_data_consecutive: starting new region at block ") 
+        and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, block_to_free) 
+        and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
 
         in ((ex, state, inode, maybe_buf, count, block_to_free), Iterate ())
   else
-    --let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "free_data_consecutive: idx ") 
-    --and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, idx) 
-    --and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, " was zero\n") 
+    --let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "free_data_consecutive: idx ") 
+    --and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, idx) 
+    --and _ = cogent_log (dbg_EXT2_DIR_BALLOC, " was zero\n") 
 
     ((ex, state, inode, maybe_buf, count, block_to_free), Iterate ())
 
@@ -1063,11 +1063,11 @@ ext2_free_blocks (ex, state, inode, block, count) =
    block + count < block || -- wrap around
    block + count > state.super.block_count !state then
 
-    let _ = _cogent_warn "freeing blocks not in datazone; block ="
-    and _ = _cogent_warn_u32 block
-    and _ = _cogent_warn ", count = "
-    and _ = _cogent_warn_u32 count
-    and _ = _cogent_warn "\n"
+    let _ = cogent_warn "freeing blocks not in datazone; block ="
+    and _ = cogent_warn_u32 block
+    and _ = cogent_warn ", count = "
+    and _ = cogent_warn_u32 count
+    and _ = cogent_warn "\n"
 
     in (ex, state, inode)
   else
@@ -1088,7 +1088,7 @@ ext2_free_blocks (ex, state, inode, block, count) =
       and (ex, inode) = vfs_inode_mark_dirty (ex, inode)
       in (ex, state, inode)
     else
-      let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_blocks: warning: free'd 0 blocks\n") 
+      let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_blocks: warning: free'd 0 blocks\n") 
       in (ex, state, inode)
 
 ext2_free_blocks2: Seq32_body (SysState, FsState, U32, U32, U32) () ()
@@ -1097,19 +1097,19 @@ ext2_free_blocks2 #{ acc = (ex, state, block, count, freed), obsv = (), idx } =
   and block_group = (block - state.super.first_data_block) / state.super.blocks_per_group !state
   and bit = (block - state.super.first_data_block) % state.super.blocks_per_group !state
 
-  and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_blocks2: block group ") 
-  and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, block_group) 
-  and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "; bit ") 
-  and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, bit) 
-  and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
+  and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_blocks2: block group ") 
+  and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, block_group) 
+  and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "; bit ") 
+  and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, bit) 
+  and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
 
   -- are we freeing across a boundary?
   in if bit + count > state.super.blocks_per_group !state then
     let overflow = bit + count - state.super.blocks_per_group !state
 
-    and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_blocks2: freeing across a boundary; have overflow") 
-    and _ = _cogent_log_u32 (dbg_EXT2_DIR_BALLOC, overflow) 
-    and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "; removing from count\n") 
+    and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_blocks2: freeing across a boundary; have overflow") 
+    and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, overflow) 
+    and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "; removing from count\n") 
 
     and count = count - overflow
     in ext2_free_blocks3 (ex, state, overflow, block, block_group, bit, count, freed)
@@ -1129,11 +1129,11 @@ ext2_free_blocks3 (ex, state, overflow, block, block_group, bit, count, freed) =
         in_range_u32 (block, group_desc.inode_table, group_desc.inode_table + state.inode_tables_per_group) ||
         in_range_u32 (block + count - 1, group_desc.inode_table, group_desc.inode_table + state.inode_tables_per_group) !state then
 
-          let _ = _cogent_warn "freeing blocks in system zones; block = "
-          and _ = _cogent_warn_u32 block
-          and _ = _cogent_warn ", count = "
-          and _ = _cogent_warn_u32 count
-          and _ = _cogent_warn "\n"
+          let _ = cogent_warn "freeing blocks in system zones; block = "
+          and _ = cogent_warn_u32 block
+          and _ = cogent_warn ", count = "
+          and _ = cogent_warn_u32 count
+          and _ = cogent_warn "\n"
 
           and ex = osbuffer_destroy (ex, bitmap_buf)
           and ((ex, state), _) = put_group_desc_buf_in_array (ex, state, block_group, group_desc_buf)
@@ -1179,16 +1179,16 @@ ext2_free_blocks3 (ex, state, overflow, block, block_group, bit, count, freed) =
         else
           ((ex, state, block, count, freed), Break ()) -- finished
     | Error () ->
-      let _ = _cogent_warn "ext2_free_blocks3: could not get bitmap buf from block "
-      and _ = _cogent_warn_u32 group_desc.block_bitmap
-      and _ = _cogent_warn "\n"
+      let _ = cogent_warn "ext2_free_blocks3: could not get bitmap buf from block "
+      and _ = cogent_warn_u32 group_desc.block_bitmap
+      and _ = cogent_warn "\n"
 
       and ((ex, state), _) = put_group_desc_buf_in_array (ex, state, block_group, group_desc_buf)
       in ((ex, state, block, count, freed), Break ()) -- error_return      
   | Error () ->
-    let _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_blocks3: failed to get group desc for block group ") 
-    and _ = _cogent_warn_u32 block_group
-    and _ = _cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
+    let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_blocks3: failed to get group desc for block group ") 
+    and _ = cogent_warn_u32 block_group
+    and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
     in ((ex, state, block, count, freed), Break ()) -- error_return
 
 group_adjust_blocks: (SysState, FsState, U32, Ext2GroupDescriptor, OSBuffer, U32) -> (SysState, FsState)
@@ -1216,8 +1216,8 @@ free_block_group #{ acc = (buf, group_freed), obsv = (block, bit), idx } =
   in if res then
     ((buf, group_freed + 1), Iterate ())
   else
-    let _ = _cogent_warn "free_block_group: bit already cleared on block "
-    and _ = _cogent_warn_u32 (block + idx)
-    and _ = _cogent_warn "\n"
+    let _ = cogent_warn "free_block_group: bit already cleared on block "
+    and _ = cogent_warn_u32 (block + idx)
+    and _ = cogent_warn "\n"
 
     in ((buf, group_freed), Iterate ())

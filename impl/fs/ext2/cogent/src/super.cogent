@@ -176,9 +176,9 @@ fs_mount #{ex, options} =
             let (ex, sb_num) = get_superblock_num (ex, options) !options
             and (ex, flags) = get_flags (ex, options) !options
 
-            and _ = _cogent_log (dbg_EXT2_MOUNT, "fs_mount: mounted with flags ")
-            and _ = _cogent_log_u32 (dbg_EXT2_MOUNT, flags)
-            and _ = _cogent_log (dbg_EXT2_MOUNT, "\n")
+            and _ = cogent_log (dbg_EXT2_MOUNT, "fs_mount: mounted with flags ")
+            and _ = cogent_log_u32 (dbg_EXT2_MOUNT, flags)
+            and _ = cogent_log (dbg_EXT2_MOUNT, "\n")
 
             and state_t = state_t { superblock_num = sb_num }
             and ((ex, buf_super), res) = osbuffer_read_block #{ex, buf = buf_super, blk = sb_num}
@@ -196,9 +196,9 @@ fs_mount #{ex, options} =
                         and inodes_per_block = const_blockSize / const_sizeof_Inode
                         and inode_tables_per_group = super.inodes_per_group / inodes_per_block !super
 
-                        and _ = _cogent_log (dbg_EXT2_MOUNT, ("fs_mount: this filesystem has group count "))
-                        and _ = _cogent_log_u32 (dbg_EXT2_MOUNT, group_count)
-                        and _ = _cogent_log (dbg_EXT2_MOUNT, "\n")
+                        and _ = cogent_log (dbg_EXT2_MOUNT, ("fs_mount: this filesystem has group count "))
+                        and _ = cogent_log_u32 (dbg_EXT2_MOUNT, group_count)
+                        and _ = cogent_log (dbg_EXT2_MOUNT, "\n")
 
                         -- prefetch all group descriptor buffers
                         in array_create [OSBuffer] (ex, group_count)

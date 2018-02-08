@@ -143,16 +143,16 @@ deserialise_Ext2Inode (ex, inode_t, buf, idx) =
 -- TODO: reorder deser/inode_get so we don't deserialise if we already have a whole inode
 deserialise_Inode: (SysState, OSBuffer!, U32, U32) -> RR (SysState) (VfsInode) ()
 deserialise_Inode (ex, buf, offset, num) =
-    let _ = _cogent_log (dbg_EXT2_INODE_READ, ("deserialise_Inode: deserialising inode "))
-    and _ = _cogent_log_u32 (dbg_EXT2_INODE_READ, (num))
-    and _ = _cogent_log (dbg_EXT2_INODE_READ, (" @ offset "))
-    and _ = _cogent_log_u32 (dbg_EXT2_INODE_READ, (offset))
-    and _ = _cogent_log (dbg_EXT2_INODE_READ, ("\n"))
+    let _ = cogent_log (dbg_EXT2_INODE_READ, ("deserialise_Inode: deserialising inode "))
+    and _ = cogent_log_u32 (dbg_EXT2_INODE_READ, (num))
+    and _ = cogent_log (dbg_EXT2_INODE_READ, (" @ offset "))
+    and _ = cogent_log_u32 (dbg_EXT2_INODE_READ, (offset))
+    and _ = cogent_log (dbg_EXT2_INODE_READ, ("\n"))
 
     and (ex, res) = vfs_inode_get (ex, num)
     in res
     | Existing inode ->
-        let _ = _cogent_log (dbg_EXT2_INODE_READ, "deserialise_Inode: got exisiting inode from icache, using that\n")
+        let _ = cogent_log (dbg_EXT2_INODE_READ, "deserialise_Inode: got exisiting inode from icache, using that\n")
         in ((ex), Success inode)
     | New inode_t ->
         let (ex, res) = deserialise_Ext2Inode (ex, inode_t, buf, offset)
@@ -164,7 +164,7 @@ deserialise_Inode (ex, buf, offset, num) =
             let ex = vfs_inode_bad_taken #{ex, inode = inode_t}
             in (ex, Error ())       
     | None () ->
-        let _ = _cogent_warn "deserialise_Inode: VFS gave us no inode (no memory?)"
+        let _ = cogent_warn "deserialise_Inode: VFS gave us no inode (no memory?)"
         in (ex, Error ()) -- eNoMem
 
 
@@ -195,29 +195,29 @@ ext2_inode_get_buf (ex, state, inode_num) =
 
             -- and group_desc_t { .. } = group_desc
             -- and ex = free_Ext2GroupDescriptor (ex, group_desc_t)
-            and _ = _cogent_log (dbg_EXT2_INODE_READ, "ext2_inode_get_buf: inode ")
-            and _ = _cogent_log_u32 (dbg_EXT2_INODE_READ, inode_num)
-            and _ = _cogent_log (dbg_EXT2_INODE_READ, " is part of block group ")
-            and _ = _cogent_log_u32 (dbg_EXT2_INODE_READ, block_group_num)
-            and _ = _cogent_log (dbg_EXT2_INODE_READ, "\n")
+            and _ = cogent_log (dbg_EXT2_INODE_READ, "ext2_inode_get_buf: inode ")
+            and _ = cogent_log_u32 (dbg_EXT2_INODE_READ, inode_num)
+            and _ = cogent_log (dbg_EXT2_INODE_READ, " is part of block group ")
+            and _ = cogent_log_u32 (dbg_EXT2_INODE_READ, block_group_num)
+            and _ = cogent_log (dbg_EXT2_INODE_READ, "\n")
             and (ex, res) = ext2_get_block (ex, block_addr)
             in res
             | Success buf_block ->
-                let _ = _cogent_log (dbg_EXT2_INODE_READ, "ext2_inode_get_buf: located at block ")
-                and _ = _cogent_log_u32 (dbg_EXT2_INODE_READ, block_addr)
-                and _ = _cogent_log (dbg_EXT2_INODE_READ, ", offset ")
-                and _ = _cogent_log_u32_hex (dbg_EXT2_INODE_READ, buffer_offset)
-                and _ = _cogent_log (dbg_EXT2_INODE_READ, "\n")
+                let _ = cogent_log (dbg_EXT2_INODE_READ, "ext2_inode_get_buf: located at block ")
+                and _ = cogent_log_u32 (dbg_EXT2_INODE_READ, block_addr)
+                and _ = cogent_log (dbg_EXT2_INODE_READ, ", offset ")
+                and _ = cogent_log_u32_hex (dbg_EXT2_INODE_READ, buffer_offset)
+                and _ = cogent_log (dbg_EXT2_INODE_READ, "\n")
                 in ((ex, state), Success (buf_block, buffer_offset))
             | Error () ->
-                let _ = _cogent_log (dbg_EXT2_INODE_READ, "ext2_inode_get_buf: couldn't get block ")
-                and _ = _cogent_log_u32 (dbg_EXT2_INODE_READ, block_addr)
-                and _ = _cogent_log (dbg_EXT2_INODE_READ, "\n")
+                let _ = cogent_log (dbg_EXT2_INODE_READ, "ext2_inode_get_buf: couldn't get block ")
+                and _ = cogent_log_u32 (dbg_EXT2_INODE_READ, block_addr)
+                and _ = cogent_log (dbg_EXT2_INODE_READ, "\n")
                 in ((ex, state), Error eIO)
         | Error () ->
-            let _ = _cogent_warn "ext2_inode_get_buf: couldn't get group descriptor\n"
-            and _ = _cogent_warn_u32 block_group_num
-            and _ = _cogent_warn "\n"
+            let _ = cogent_warn "ext2_inode_get_buf: couldn't get group descriptor\n"
+            and _ = cogent_warn_u32 block_group_num
+            and _ = cogent_warn "\n"
 
             in ((ex, state), Error eIO)
     else
@@ -236,10 +236,10 @@ ext2_inode_get (ex, state, inode_num) =
             in ((ex, state), Success inode)
         | Error () ->
             let ex = osbuffer_destroy (ex, buf_block)
-            and _ = _cogent_log (dbg_EXT2_INODE_READ, "ext2_inode_get: failed to deserialise inode\n")
+            and _ = cogent_log (dbg_EXT2_INODE_READ, "ext2_inode_get: failed to deserialise inode\n")
             in ((ex, state), Error eIO) -- FIXME: bad error code?
     | Error (err) ->
-        let _ = _cogent_log (dbg_EXT2_INODE_READ, "ext2_inode_get: could not get buf for inode\n")
+        let _ = cogent_log (dbg_EXT2_INODE_READ, "ext2_inode_get: could not get buf for inode\n")
         in ((ex, state), Error err)
 
 fsop_get_root_inode: #{ex: SysState, state: FsState} -> RR #{ex: SysState, state: FsState} VfsInode U32

@@ -48,8 +48,8 @@ type FreeAccF a acc obsv = (SysState, a, acc, obsv!) -> (SysState, acc)
 -- It is just a way to indicate what code path should
 -- never be taken to help reason about FS code.
 
-_cogent_assert: Bool -> ()
-_cogent_assert2: (String, Bool) -> ()
+cogent_assert: Bool -> ()
+cogent_assert2: (String, Bool) -> ()
 
 type Seq32_simple_bodyParam acc = acc
 
@@ -156,26 +156,26 @@ in_range_u32: (U32, U32, U32) -> Bool
 in_range_u32 (needle, from, to) =
   if needle >= from && needle < to then True else False
 
-_cogent_warn: String -> ()
-_cogent_warn_u64: U64 -> ()
-_cogent_warn_u32: U32 -> ()
-_cogent_warn_u16: U16 -> ()
+cogent_warn: String -> ()
+cogent_warn_u64: U64 -> ()
+cogent_warn_u32: U32 -> ()
+cogent_warn_u16: U16 -> ()
 
-_cogent_debug: String -> ()
-_cogent_debug_u64: U64 -> ()
-_cogent_debug_u64_hex: U64 -> ()
-_cogent_debug_u32: U32 -> ()
-_cogent_debug_u32_hex: U32 -> ()
-_cogent_debug_u32_oct: U32 -> ()
+cogent_debug: String -> ()
+cogent_debug_u64: U64 -> ()
+cogent_debug_u64_hex: U64 -> ()
+cogent_debug_u32: U32 -> ()
+cogent_debug_u32_hex: U32 -> ()
+cogent_debug_u32_oct: U32 -> ()
 
-_cogent_debug_u16: U16 -> ()
-_cogent_debug_u16 x = _cogent_debug_u32 (upcast x)
+cogent_debug_u16: U16 -> ()
+cogent_debug_u16 x = cogent_debug_u32 (upcast x)
 
-_cogent_debug_u8: U8 -> ()
-_cogent_debug_u8 x = _cogent_debug_u32 (upcast x)
+cogent_debug_u8: U8 -> ()
+cogent_debug_u8 x = cogent_debug_u32 (upcast x)
 
-_cogent_debug_bool: Bool -> ()
-_cogent_debug_bool bool = if bool then _cogent_debug "true" else _cogent_debug "false"
+cogent_debug_bool: Bool -> ()
+cogent_debug_bool bool = if bool then cogent_debug "true" else cogent_debug "false"
 
 {-# cinline cogent_log2 #-}
 {-# fnmacro cogent_log2 #-}

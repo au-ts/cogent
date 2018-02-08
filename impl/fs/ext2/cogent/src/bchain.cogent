@@ -28,13 +28,13 @@ type Chain = {
 chain_push_indirect: (SysState, Chain, Indirect) -> (SysState, Chain)
 chain_push_indirect (ex, chain, indirect) =
   let depth = chain.indirect_count !chain
-  and _ = _cogent_log (dbg_EXT2_CHAIN, "chain_push_indirect: blockptr=")
-  and _ = _cogent_log_u32 (dbg_EXT2_CHAIN, indirect.blockptr) !indirect
-  and _ = _cogent_log (dbg_EXT2_CHAIN, " offset=")
-  and _ = _cogent_log_u32 (dbg_EXT2_CHAIN, indirect.offset) !indirect
-  and _ = _cogent_log (dbg_EXT2_CHAIN, " @ depth ")
-  and _ = _cogent_log_u32 (dbg_EXT2_CHAIN, depth)
-  and _ = _cogent_log (dbg_EXT2_CHAIN, "\n")
+  and _ = cogent_log (dbg_EXT2_CHAIN, "chain_push_indirect: blockptr=")
+  and _ = cogent_log_u32 (dbg_EXT2_CHAIN, indirect.blockptr) !indirect
+  and _ = cogent_log (dbg_EXT2_CHAIN, " offset=")
+  and _ = cogent_log_u32 (dbg_EXT2_CHAIN, indirect.offset) !indirect
+  and _ = cogent_log (dbg_EXT2_CHAIN, " @ depth ")
+  and _ = cogent_log_u32 (dbg_EXT2_CHAIN, depth)
+  and _ = cogent_log (dbg_EXT2_CHAIN, "\n")
 
   and (ex, chain) = chain_put_indirect (ex, chain, indirect, depth)
 
@@ -45,7 +45,7 @@ chain_put_indirect: (SysState, Chain, Indirect, Depth) -> (SysState, Chain)
 chain_put_indirect (ex, chain, indirect, depth) =
   let chain_t { indirects } = chain
   and ic = chain_t.indirect_count !chain_t
-  and _ = _cogent_assert2 ("chain_put_indirect: depth < ic", True)
+  and _ = cogent_assert2 ("chain_put_indirect: depth < ic", True)
   and ((ex, indirects), _) = array_replace[Indirect] #{ arr = indirects, idx = depth, elem = indirect, f = indirect_destroy2, ex }
   and chain = chain_t { indirects }
   in if depth >= ic
@@ -60,7 +60,7 @@ chain_get_indirect_blockptr2 #{ elem = indirect, acc = blockptr, obsv } = indire
 
 chain_get_indirect_blockptr: (Chain!, Depth) -> (BlockPtr)
 chain_get_indirect_blockptr (chain, depth) =
-  let _ = _cogent_assert (depth < chain.indirect_count)
+  let _ = cogent_assert (depth < chain.indirect_count)
   and blockptr:U32 = 0
 
   and blockptr = array_use_value [Indirect, BlockPtr, ()] #{
@@ -74,9 +74,9 @@ chain_get_indirect_blockptr (chain, depth) =
 
 chain_set_indirect_blockptr: (SysState, Chain, Depth, BlockPtr) -> (SysState, Chain)
 chain_set_indirect_blockptr (ex, chain, depth, ptr) =
-  let _ = _cogent_assert2 ("chain_set_indirect_blockptr (1): depth < chain.indirect_count", True) !chain
+  let _ = cogent_assert2 ("chain_set_indirect_blockptr (1): depth < chain.indirect_count", True) !chain
   and (chain, maybe_indirect) = chain_take_indirect (chain, depth)  -- we have checked depth is in bound in this func call
-  and _ = _cogent_assert2 ("chain_set_indirect_blockptr (2): depth < chain.indirect_count", True) !chain
+  and _ = cogent_assert2 ("chain_set_indirect_blockptr (2): depth < chain.indirect_count", True) !chain
   in maybe_indirect
   | Some indirect =>
       let indirect = indirect { blockptr = ptr }
@@ -93,7 +93,7 @@ chain_dirty_buffer_inode2 #{ elem = indirect, acc = inode, obsv } =
 
 chain_dirty_buffer_inode: (SysState, Chain!, Depth, VfsInode) -> (SysState, VfsInode)
 chain_dirty_buffer_inode (ex, chain, depth, inode) =
-  let _ = _cogent_assert (depth < chain.indirect_count) !chain
+  let _ = cogent_assert (depth < chain.indirect_count) !chain
 
   and inode = array_use_value [Indirect, VfsInode, ()] #{
     arr  = chain.indirects,
@@ -109,25 +109,25 @@ chain_peek_indirect_blockptr chain = chain_get_indirect_blockptr (chain, chain.i
 
 chain_take_indirect: (Chain, Depth) -> (Chain, Option Indirect)
 chain_take_indirect (chain, depth) =
-  let _ = _cogent_assert (depth < chain.indirect_count) !chain
+  let _ = cogent_assert (depth < chain.indirect_count) !chain
 
-  and _ = _cogent_log (dbg_EXT2_CHAIN, "chain_take_indirect: taking from idx ")
-  and _ = _cogent_log_u32 (dbg_EXT2_CHAIN, depth)
-  and _ = _cogent_log (dbg_EXT2_CHAIN, "\n")
+  and _ = cogent_log (dbg_EXT2_CHAIN, "chain_take_indirect: taking from idx ")
+  and _ = cogent_log_u32 (dbg_EXT2_CHAIN, depth)
+  and _ = cogent_log (dbg_EXT2_CHAIN, "\n")
 
   and chain_t { indirects } = chain
-  and _ = _cogent_assert (depth < array_length [Indirect] indirects) !indirects
+  and _ = cogent_assert (depth < array_length [Indirect] indirects) !indirects
   and (indirects, maybe_obj) = array_remove [Indirect] (indirects, depth)
   in (chain_t { indirects }, maybe_obj)
 
 chain_pop_indirect: Chain -> (Chain, Option Indirect, U32)
 chain_pop_indirect chain = 
   let idx = chain.indirect_count - 1 !chain
-  and _ = _cogent_assert (idx >= 0)
+  and _ = cogent_assert (idx >= 0)
 
-  and _ = _cogent_log (dbg_EXT2_CHAIN, "chain_pop_indirect: popping from idx ")
-  and _ = _cogent_log_u32 (dbg_EXT2_CHAIN, idx)
-  and _ = _cogent_log (dbg_EXT2_CHAIN, " (next chain_take_indirect is from us)\n")
+  and _ = cogent_log (dbg_EXT2_CHAIN, "chain_pop_indirect: popping from idx ")
+  and _ = cogent_log_u32 (dbg_EXT2_CHAIN, idx)
+  and _ = cogent_log (dbg_EXT2_CHAIN, " (next chain_take_indirect is from us)\n")
 
   and (chain, maybe_indirect) = chain_take_indirect (chain, idx)
   and chain = chain { indirect_count = idx }
@@ -193,13 +193,13 @@ chain_restore (ex, state, chain) =
 chain_from_path: (SysState, Chain, VfsInode!, Depth) -> RR (SysState, Chain) (Option IndirectIdx) ()
 chain_from_path (ex, chain, inode, depth) =
   -- create empty chain
-  let _ = _cogent_assert (depth <= chain.path.depth) !chain
+  let _ = cogent_assert (depth <= chain.path.depth) !chain
 
-  and _ = _cogent_log (dbg_EXT2_CHAIN, "chain_from_path: path has depth ")
-  and _ = _cogent_log_u32 (dbg_EXT2_CHAIN, chain.path.depth) !chain
-  and _ = _cogent_log (dbg_EXT2_CHAIN, ", using passed-in depth ")
-  and _ = _cogent_log_u32 (dbg_EXT2_CHAIN, depth)
-  and _ = _cogent_log (dbg_EXT2_CHAIN, "\n")
+  and _ = cogent_log (dbg_EXT2_CHAIN, "chain_from_path: path has depth ")
+  and _ = cogent_log_u32 (dbg_EXT2_CHAIN, chain.path.depth) !chain
+  and _ = cogent_log (dbg_EXT2_CHAIN, ", using passed-in depth ")
+  and _ = cogent_log_u32 (dbg_EXT2_CHAIN, depth)
+  and _ = cogent_log (dbg_EXT2_CHAIN, "\n")
 
   -- add first inode offset to chain
   and ((ex, chain), res) = indirect_from_inode (ex, chain, inode, 0) !inode
@@ -211,7 +211,7 @@ chain_from_path (ex, chain, inode, depth) =
     and (ex, chain) = chain_push_indirect (ex, chain, indirect)
     in if have_blk then
       -- loop over the rest of the offsets, if there were any
-      let _ = _cogent_log (dbg_EXT2_CHAIN, "chain_from_path: had non-zero block, going to try and follow indirects...\n")
+      let _ = cogent_log (dbg_EXT2_CHAIN, "chain_from_path: had non-zero block, going to try and follow indirects...\n")
       and ((ex, chain, _), res) = seq32[FillChainAcc, (), R U32 U32] #{
         frm  = 0,
         to   = depth - 1,
@@ -227,10 +227,10 @@ chain_from_path (ex, chain, inode, depth) =
         | Success idx => ((ex, chain), Success (Some (1 + idx)))
         | Error err -> ((ex, chain), Error ())
     else
-      let _ = _cogent_log (dbg_EXT2_CHAIN, "chain_from_path: breaking, blockptr == 0\n")
+      let _ = cogent_log (dbg_EXT2_CHAIN, "chain_from_path: breaking, blockptr == 0\n")
       in ((ex, chain), (Success (Some 0))) -- no initial block ptr
   | Error () ->
-    let _ = _cogent_log (dbg_EXT2_CHAIN, "chain_from_path: ERROR: failed to alloc indirect from inode\n")
+    let _ = cogent_log (dbg_EXT2_CHAIN, "chain_from_path: ERROR: failed to alloc indirect from inode\n")
     in ((ex, chain), Error ())
 
 chain_follow_indirects: Seq32_body FillChainAcc () (R U32 U32)
@@ -238,11 +238,11 @@ chain_follow_indirects #{acc = (ex, chain, lastptr), obsv = (), idx} =
   let offset = wordarray_get [BlockOffset] (chain.path.offsets, idx + 1) !chain
   and buf_offset = offset * 4 -- sizeof (u32)
 
-  and _ = _cogent_log (dbg_EXT2_CHAIN, "chain_follow_indirects: used offset ")
-  and _ = _cogent_log_u32 (dbg_EXT2_CHAIN, offset)
-  and _ = _cogent_log (dbg_EXT2_CHAIN, " and lastptr ")
-  and _ = _cogent_log_u32 (dbg_EXT2_CHAIN, lastptr)
-  and _ = _cogent_log (dbg_EXT2_CHAIN, "\n")
+  and _ = cogent_log (dbg_EXT2_CHAIN, "chain_follow_indirects: used offset ")
+  and _ = cogent_log_u32 (dbg_EXT2_CHAIN, offset)
+  and _ = cogent_log (dbg_EXT2_CHAIN, " and lastptr ")
+  and _ = cogent_log_u32 (dbg_EXT2_CHAIN, lastptr)
+  and _ = cogent_log (dbg_EXT2_CHAIN, "\n")
 
   and (ex, res) = ext2_get_block (ex, lastptr)
   in res
@@ -262,21 +262,21 @@ chain_follow_indirects #{acc = (ex, chain, lastptr), obsv = (), idx} =
         in if newptr /= 0 then
           ((ex, chain, newptr), Iterate ())
         else
-          let _ = _cogent_log (dbg_EXT2_CHAIN, ("chain_follow_indirects: breaking; had missing/unallocated block at depth "))
-          and _ = _cogent_log_u32 (dbg_EXT2_CHAIN, (idx))
-          and _ = _cogent_log (dbg_EXT2_CHAIN, ("\n"))
+          let _ = cogent_log (dbg_EXT2_CHAIN, ("chain_follow_indirects: breaking; had missing/unallocated block at depth "))
+          and _ = cogent_log_u32 (dbg_EXT2_CHAIN, (idx))
+          and _ = cogent_log (dbg_EXT2_CHAIN, ("\n"))
 
           in ((ex, chain, newptr), Break (Success idx)) -- missing/unallocated block
       | None ->
         let ex = osbuffer_destroy (ex, buffer)
-        and _ = _cogent_log (dbg_EXT2_CHAIN, ("chain_follow_indirects: ERROR: no memory\n"))
+        and _ = cogent_log (dbg_EXT2_CHAIN, ("chain_follow_indirects: ERROR: no memory\n"))
         in ((ex, chain, newptr), Break (Error eNoMem)) -- no memory
     | _ ->
       let ex = osbuffer_destroy (ex, buffer)
-      and _ = _cogent_log (dbg_EXT2_CHAIN, ("chain_follow_indirects: ERROR: failed to deser\n"))
+      and _ = cogent_log (dbg_EXT2_CHAIN, ("chain_follow_indirects: ERROR: failed to deser\n"))
       in ((ex, chain, lastptr), Break (Error eIO)) -- osbuffer_deserialise_Ple32
   | _ ->
-    let _ = _cogent_log (dbg_EXT2_CHAIN, ("chain_follow_indirects: ERROR: failed to get block\n"))
+    let _ = cogent_log (dbg_EXT2_CHAIN, ("chain_follow_indirects: ERROR: failed to get block\n"))
     in ((ex, chain, lastptr), Break (Error eIO)) -- invalid offset
 
 
@@ -304,7 +304,7 @@ chain_count_contiguous (ex, chain, inode, max_mappable, boundary) =
     and (ex, chain) = chain_put_indirect (ex, chain, last_indirect, last_idx) -- put indirect back
     in (ex, chain, contiguous)
   | None ->
-    let _ = _cogent_assert2 ("chain_count_contiguous: no indirects", True)
+    let _ = cogent_assert2 ("chain_count_contiguous: no indirects", True)
     in (ex, chain, 0)
 
 chain_count_contiguous2: Seq32_body U32 CheckContiguousObsv ()
@@ -387,11 +387,11 @@ chain_alloc (ex, state, chain, inode, num_indirect, goal, num_blocks, partial_id
 
   in prealloc_blockptrs
   | Some new_blockptrs =>
-    let _ = _cogent_log (dbg_EXT2_CHAIN, "chain_alloc: trying to allocate ")
-    and _ = _cogent_log_u32 (dbg_EXT2_CHAIN, num_blocks)
-    and _ = _cogent_log (dbg_EXT2_CHAIN, " blocks with goal ")
-    and _ = _cogent_log_u32 (dbg_EXT2_CHAIN, goal)
-    and _ = _cogent_log (dbg_EXT2_CHAIN, "\n")
+    let _ = cogent_log (dbg_EXT2_CHAIN, "chain_alloc: trying to allocate ")
+    and _ = cogent_log_u32 (dbg_EXT2_CHAIN, num_blocks)
+    and _ = cogent_log (dbg_EXT2_CHAIN, " blocks with goal ")
+    and _ = cogent_log_u32 (dbg_EXT2_CHAIN, goal)
+    and _ = cogent_log (dbg_EXT2_CHAIN, "\n")
 
     and ((ex, state, inode, new_blockptrs), res) = ext2_alloc_blocks (ex, state, inode, new_blockptrs, num_indirect, goal, num_blocks)
     in res
@@ -399,11 +399,11 @@ chain_alloc (ex, state, chain, inode, num_indirect, goal, num_blocks, partial_id
       -- copy first level to chain
       let toplevel_new_blockptr = wordarray_get [BlockPtr] (new_blockptrs, 0) !new_blockptrs
 
-      and _ = _cogent_log (dbg_EXT2_CHAIN, "chain_alloc: setting indirect blockptr @ ")
-      and _ = _cogent_log_u32 (dbg_EXT2_CHAIN, partial_idx) !chain
-      and _ = _cogent_log (dbg_EXT2_CHAIN, " in chain to top-level just-allocated blockptr ")
-      and _ = _cogent_log_u32 (dbg_EXT2_CHAIN, toplevel_new_blockptr)
-      and _ = _cogent_log (dbg_EXT2_CHAIN, "\n")
+      and _ = cogent_log (dbg_EXT2_CHAIN, "chain_alloc: setting indirect blockptr @ ")
+      and _ = cogent_log_u32 (dbg_EXT2_CHAIN, partial_idx) !chain
+      and _ = cogent_log (dbg_EXT2_CHAIN, " in chain to top-level just-allocated blockptr ")
+      and _ = cogent_log_u32 (dbg_EXT2_CHAIN, toplevel_new_blockptr)
+      and _ = cogent_log (dbg_EXT2_CHAIN, "\n")
 
       and (ex, chain) = chain_set_indirect_blockptr (ex, chain, partial_idx, toplevel_new_blockptr)
 
@@ -432,14 +432,14 @@ chain_alloc (ex, state, chain, inode, num_indirect, goal, num_blocks, partial_id
 
       and state = state_t { prealloc_blockptrs = Some new_blockptrs }
 
-      and _ = _cogent_log (dbg_EXT2_CHAIN, "chain_alloc: ERROR: underlying block allocation failed completely with code ")
-      and _ = _cogent_log_u32 (dbg_EXT2_CHAIN, e)
-      and _ = _cogent_log (dbg_EXT2_CHAIN, "\n")
+      and _ = cogent_log (dbg_EXT2_CHAIN, "chain_alloc: ERROR: underlying block allocation failed completely with code ")
+      and _ = cogent_log_u32 (dbg_EXT2_CHAIN, e)
+      and _ = cogent_log (dbg_EXT2_CHAIN, "\n")
 
       in ((ex, state, chain, inode), Error e) -- underlying block allocation failed completely
 
   | None ->
-    let _ = _cogent_log (dbg_EXT2_CHAIN, "chain_alloc: ERROR: cannot allocate blockptr array\n")
+    let _ = cogent_log (dbg_EXT2_CHAIN, "chain_alloc: ERROR: cannot allocate blockptr array\n")
     in ((ex, state, chain, inode), Error eNoMem) -- cannot allocate blockptr array
 
 -- chain should already have ptrs allocated
@@ -449,9 +449,9 @@ chain_alloc_connect_indirects: Seq32_body ChainAllocIndirectAcc ChainAllocIndire
 chain_alloc_connect_indirects #{ acc = (ex, chain, inode), obsv = (num, num_indirect, new_blockptrs, partial_idx), idx } =
   let parent_blockptr = wordarray_get[BlockPtr] (new_blockptrs, idx - 1) -- this is `key'; recall, idx begins at 1
 
-  and _ = _cogent_log (dbg_EXT2_CHAIN, "chain_alloc_connect_indirects: have parent_blockptr ")
-  and _ = _cogent_log_u32 (dbg_EXT2_CHAIN, parent_blockptr)
-  and _ = _cogent_log (dbg_EXT2_CHAIN, "\n")
+  and _ = cogent_log (dbg_EXT2_CHAIN, "chain_alloc_connect_indirects: have parent_blockptr ")
+  and _ = cogent_log_u32 (dbg_EXT2_CHAIN, parent_blockptr)
+  and _ = cogent_log (dbg_EXT2_CHAIN, "\n")
 
   and (ex, res) = ext2_get_block (ex, parent_blockptr)
 
@@ -466,15 +466,15 @@ chain_alloc_connect_indirects #{ acc = (ex, chain, inode), obsv = (num, num_indi
 
     and blockptr = wordarray_get[BlockPtr] (new_blockptrs, idx)
 
-    and _ = _cogent_log (dbg_EXT2_CHAIN, "chain_alloc_connect_indirects: pointing to ")
-    and _ = _cogent_log_u32 (dbg_EXT2_CHAIN, blockptr)
-    and _ = _cogent_log (dbg_EXT2_CHAIN, "\n")
+    and _ = cogent_log (dbg_EXT2_CHAIN, "chain_alloc_connect_indirects: pointing to ")
+    and _ = cogent_log_u32 (dbg_EXT2_CHAIN, blockptr)
+    and _ = cogent_log (dbg_EXT2_CHAIN, "\n")
 
     -- update ptr in buffer
     in osbuffer_serialise_Ple32 (parent_buf, buf_offset, blockptr)
     | Success (parent_buf, _) =>
       if idx == num_indirect then 
-        let _ = _cogent_log (dbg_EXT2_CHAIN, "chain_alloc_connect_indirects: end of chain, rest is blocks\n")
+        let _ = cogent_log (dbg_EXT2_CHAIN, "chain_alloc_connect_indirects: end of chain, rest is blocks\n")
 
         -- end of chain; rest is just a chunk of blocks (inode.c:512)
         and ((parent_buf, _), _) = seq32 [(OSBuffer, U32), U32, ()] #{
@@ -491,12 +491,12 @@ chain_alloc_connect_indirects #{ acc = (ex, chain, inode), obsv = (num, num_indi
 
     | Error parent_buf ->
       let ex = osbuffer_trash (ex, parent_buf)
-      and _ = _cogent_warn ("chain_alloc_connect_indirects: ERROR: serialise failed\n")
+      and _ = cogent_warn ("chain_alloc_connect_indirects: ERROR: serialise failed\n")
       in ((ex, chain, inode), Break eIO)
   | Error () ->
-    let _ = _cogent_warn "chain_alloc_connect_indirects: ERROR: getblock for block "
-    and _ = _cogent_warn_u32 parent_blockptr
-    and _ = _cogent_warn " failed\n"
+    let _ = cogent_warn "chain_alloc_connect_indirects: ERROR: getblock for block "
+    and _ = cogent_warn_u32 parent_blockptr
+    and _ = cogent_warn " failed\n"
 
     in ((ex, chain, inode), Break eIO)
 
@@ -538,7 +538,7 @@ chain_alloc_connect_indirects2 (ex, chain, inode, blockptr, idx, parent_buf, off
       in ((ex, chain, inode), Iterate ())
     | None ->
       -- TODO: could allocate here as plan B, but hey..
-      let _ = _cogent_log (dbg_EXT2_CHAIN, "chain_alloc_connect_indirects2: could not alloc indirect; no memory\n")
+      let _ = cogent_log (dbg_EXT2_CHAIN, "chain_alloc_connect_indirects2: could not alloc indirect; no memory\n")
       and ex = osbuffer_destroy (ex, parent_buf)
       in ((ex, chain, inode), Break eNoMem)
 

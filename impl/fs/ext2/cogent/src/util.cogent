@@ -44,8 +44,8 @@ dbg_EXT2_INODE_WRITE = 1024
 dbg_EXT2_MOUNT: U32
 dbg_EXT2_MOUNT = 2048
 
-_COGENT_LOG_LEVEL: U32
-_COGENT_LOG_LEVEL = 0x0
+cogent_LOG_LEVEL: U32
+cogent_LOG_LEVEL = 0x0
 
 
 dispose_existing_dirent: (SysState, Option Ext2DirEnt) -> (SysState)
@@ -106,21 +106,21 @@ ext2_get_block (ex, blocknum) =
 
 ext2_prepare_chunk: (SysState, FsState, OSPage, U64, U32) -> RR (SysState, FsState, OSPage) () U32
 ext2_prepare_chunk (ex, state, page, pos, len) =
-    let _ = _cogent_log (dbg_EXT2_BLOCK, "ext2_prepare_chunk: prepare over [")
-    and _ = _cogent_log_u64 (dbg_EXT2_BLOCK, pos)
-    and _ = _cogent_log (dbg_EXT2_BLOCK, ", ")
-    and _ = _cogent_log_u64 (dbg_EXT2_BLOCK, pos + upcast len)
-    and _ = _cogent_log (dbg_EXT2_BLOCK, ")\n")
+    let _ = cogent_log (dbg_EXT2_BLOCK, "ext2_prepare_chunk: prepare over [")
+    and _ = cogent_log_u64 (dbg_EXT2_BLOCK, pos)
+    and _ = cogent_log (dbg_EXT2_BLOCK, ", ")
+    and _ = cogent_log_u64 (dbg_EXT2_BLOCK, pos + upcast len)
+    and _ = cogent_log (dbg_EXT2_BLOCK, ")\n")
     in ospage_write_prepare (ex, state, page, pos, len)
 
 ext2_commit_chunk2: (SysState, FsState, OSPage, VfsInode) -> (SysState, FsState, OSPage)
 ext2_commit_chunk2 (ex, state, page, inode) =
     let is_sync = vfs_inode_is_sync_dir inode !inode
     in if is_sync then
-        let _ = _cogent_log (dbg_EXT2_BLOCK, "ext2_commit_chunk2: writing page because sync requested on dir\n")
+        let _ = cogent_log (dbg_EXT2_BLOCK, "ext2_commit_chunk2: writing page because sync requested on dir\n")
         and page = ospage_write (page)
 
-        and _ = _cogent_log (dbg_EXT2_BLOCK, "ext2_commit_chunk2: syncing inode because sync requested on dir\n")
+        and _ = cogent_log (dbg_EXT2_BLOCK, "ext2_commit_chunk2: syncing inode because sync requested on dir\n")
         and inode = vfs_inode_sync_metadata inode
 
         and ex = vfs_inode_put #{ex, inode}
@@ -133,11 +133,11 @@ ext2_commit_chunk2 (ex, state, page, inode) =
 ext2_commit_chunk: (SysState, FsState, OSPage, U64, U32) -> (SysState, FsState, OSPage)
 ext2_commit_chunk (ex, state, page, pos, len) =
     -- TODO: increment i_version
-    let _ = _cogent_log (dbg_EXT2_BLOCK, "ext2_commit_chunk: commit over [")
-    and _ = _cogent_log_u64 (dbg_EXT2_BLOCK, pos)
-    and _ = _cogent_log (dbg_EXT2_BLOCK, ", ")
-    and _ = _cogent_log_u64 (dbg_EXT2_BLOCK, pos + upcast len)
-    and _ = _cogent_log (dbg_EXT2_BLOCK, ")\n")
+    let _ = cogent_log (dbg_EXT2_BLOCK, "ext2_commit_chunk: commit over [")
+    and _ = cogent_log_u64 (dbg_EXT2_BLOCK, pos)
+    and _ = cogent_log (dbg_EXT2_BLOCK, ", ")
+    and _ = cogent_log_u64 (dbg_EXT2_BLOCK, pos + upcast len)
+    and _ = cogent_log (dbg_EXT2_BLOCK, ")\n")
 
     and (ex, state, page) = ospage_write_commit (ex, state, page, pos, len)
     and inode = ospage_get_host page !page

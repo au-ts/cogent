@@ -27,9 +27,9 @@ group_desc_use #{elem = group_buf, acc = (ex, maybe_group_desc), obsv = (offset)
     in res
     | Success (group_descriptor, _) -> (ex, Some group_descriptor)
     | Error () -> 
-        let _ = _cogent_log (dbg_EXT2_GROUPDESC, "group_desc_use: ERROR: failed to deser group desc at offset ")
-        and _ = _cogent_log_u32 (dbg_EXT2_GROUPDESC, (offset * const_sizeof_Ext2GroupDescriptor))
-        and _ = _cogent_log (dbg_EXT2_GROUPDESC, "\n")
+        let _ = cogent_log (dbg_EXT2_GROUPDESC, "group_desc_use: ERROR: failed to deser group desc at offset ")
+        and _ = cogent_log_u32 (dbg_EXT2_GROUPDESC, (offset * const_sizeof_Ext2GroupDescriptor))
+        and _ = cogent_log (dbg_EXT2_GROUPDESC, "\n")
         in (ex, None)
 
 group_desc_from_block_group: (SysState, FsState, U32) -> RR (SysState, FsState) (Ext2GroupDescriptor) ()
@@ -37,11 +37,11 @@ group_desc_from_block_group (ex, state, block_group_num) =
     let group_desc_num = block_group_num >> const_descPerBlockBits
     and offset = group_desc_offset block_group_num
 
-    --and _ = _cogent_log (dbg_EXT2_GROUPDESC, ("at array idx "))
-    --and _ = _cogent_log_u32 (dbg_EXT2_GROUPDESC, (group_desc_num))
-    --and _ = _cogent_log (dbg_EXT2_GROUPDESC, (" and byte offset "))
-    --and _ = _cogent_log_u32 (dbg_EXT2_GROUPDESC, (offset * const_sizeof_Ext2GroupDescriptor))
-    --and _ = _cogent_log (dbg_EXT2_GROUPDESC, ("\n"))
+    --and _ = cogent_log (dbg_EXT2_GROUPDESC, ("at array idx "))
+    --and _ = cogent_log_u32 (dbg_EXT2_GROUPDESC, (group_desc_num))
+    --and _ = cogent_log (dbg_EXT2_GROUPDESC, (" and byte offset "))
+    --and _ = cogent_log_u32 (dbg_EXT2_GROUPDESC, (offset * const_sizeof_Ext2GroupDescriptor))
+    --and _ = cogent_log (dbg_EXT2_GROUPDESC, ("\n"))
 
     and (ex, maybe_group_desc) = array_use_value
         [OSBuffer, GroupDescUseAcc, GroupDescUseObsv]
@@ -50,7 +50,7 @@ group_desc_from_block_group (ex, state, block_group_num) =
     | Some group_descriptor ->
         ((ex, state), Success (group_descriptor))
     | None ->
-        let _ = _cogent_log (dbg_EXT2_GROUPDESC, "group_desc_from_block_group: ERROR: could not get group desc from array\n")
+        let _ = cogent_log (dbg_EXT2_GROUPDESC, "group_desc_from_block_group: ERROR: could not get group desc from array\n")
         in ((ex, state), Error ())
 
 
@@ -128,22 +128,22 @@ group_desc_buf_from_block_group (ex, blocks_per_group, first_data_block, block_g
     let block = group_desc_blockptr (blocks_per_group, first_data_block, block_group_num, superblock_num)
     --and offset = group_desc_offset block_group_num
 
-    --and _ = _cogent_log (dbg_EXT2_GROUPDESC, ("block group "))
-    --and _ = _cogent_log_u32 (dbg_EXT2_GROUPDESC, block_group_num)
-    --and _ = _cogent_log (dbg_EXT2_GROUPDESC, (" at block "))
-    --and _ = _cogent_log_u32 (dbg_EXT2_GROUPDESC, (block))
-    --and _ = _cogent_log (dbg_EXT2_GROUPDESC, ("\n"))
+    --and _ = cogent_log (dbg_EXT2_GROUPDESC, ("block group "))
+    --and _ = cogent_log_u32 (dbg_EXT2_GROUPDESC, block_group_num)
+    --and _ = cogent_log (dbg_EXT2_GROUPDESC, (" at block "))
+    --and _ = cogent_log_u32 (dbg_EXT2_GROUPDESC, (block))
+    --and _ = cogent_log (dbg_EXT2_GROUPDESC, ("\n"))
 
     and (ex, res) = ext2_get_block (ex, block)
     in res
     | Success (group_buf) ->
         (ex, Success group_buf)
     | Error () ->
-        let _ = _cogent_log (dbg_EXT2_GROUPDESC, ("group_desc_buf_from_block_group: ERROR: failed to get group desc block at "))
-        and _ = _cogent_log_u32 (dbg_EXT2_GROUPDESC, block)
-        and _ = _cogent_log (dbg_EXT2_GROUPDESC, " for block group ")
-        and _ = _cogent_log_u32 (dbg_EXT2_GROUPDESC, block_group_num)
-        and _ = _cogent_log (dbg_EXT2_GROUPDESC, "\n")
+        let _ = cogent_log (dbg_EXT2_GROUPDESC, ("group_desc_buf_from_block_group: ERROR: failed to get group desc block at "))
+        and _ = cogent_log_u32 (dbg_EXT2_GROUPDESC, block)
+        and _ = cogent_log (dbg_EXT2_GROUPDESC, " for block group ")
+        and _ = cogent_log_u32 (dbg_EXT2_GROUPDESC, block_group_num)
+        and _ = cogent_log (dbg_EXT2_GROUPDESC, "\n")
         in (ex, Error ())
 
 type GroupDescLoaderAcc = (SysState, U32)
@@ -198,51 +198,51 @@ group_desc_set_free_block_count: (SysState, U32, OSBuffer, U16) -> (SysState, OS
 group_desc_set_free_block_count (ex, block_group, buf, free_block_count) =
     let offset = ((group_desc_offset block_group) * const_sizeof_Ext2GroupDescriptor) + (3 * 4)
 
-    and _ = _cogent_log (dbg_EXT2_GROUPDESC, "group_desc_set_free_block_count: block group ")
-    and _ = _cogent_log_u32 (dbg_EXT2_GROUPDESC, block_group)
-    and _ = _cogent_log (dbg_EXT2_GROUPDESC, "'s free block count now ")
-    and _ = _cogent_log_u16 (dbg_EXT2_GROUPDESC, free_block_count)
-    and _ = _cogent_log (dbg_EXT2_GROUPDESC, "\n")
+    and _ = cogent_log (dbg_EXT2_GROUPDESC, "group_desc_set_free_block_count: block group ")
+    and _ = cogent_log_u32 (dbg_EXT2_GROUPDESC, block_group)
+    and _ = cogent_log (dbg_EXT2_GROUPDESC, "'s free block count now ")
+    and _ = cogent_log_u16 (dbg_EXT2_GROUPDESC, free_block_count)
+    and _ = cogent_log (dbg_EXT2_GROUPDESC, "\n")
 
     in osbuffer_serialise_Ple16 (buf, offset, free_block_count)
     | Success (buf, _) => 
         osbuffer_dirty (ex, buf)
     | Error (buf) ->
-        let _ = _cogent_warn ("set block count serialistion failed\n")
+        let _ = cogent_warn ("set block count serialistion failed\n")
         in (ex, buf)
 
 group_desc_set_free_inode_count: (SysState, U32, OSBuffer, U16) -> (SysState, OSBuffer)
 group_desc_set_free_inode_count (ex, block_group, buf, free_inode_count) =
     let offset = ((group_desc_offset block_group) * const_sizeof_Ext2GroupDescriptor) + ((3 * 4) + (1 * 2))
 
-    and _ = _cogent_log (dbg_EXT2_GROUPDESC, "group_desc_set_free_inode_count: block group ")
-    and _ = _cogent_log_u32 (dbg_EXT2_GROUPDESC, block_group)
-    and _ = _cogent_log (dbg_EXT2_GROUPDESC, "'s free inode count now ")
-    and _ = _cogent_log_u16 (dbg_EXT2_GROUPDESC, free_inode_count)
-    and _ = _cogent_log (dbg_EXT2_GROUPDESC, "\n")
+    and _ = cogent_log (dbg_EXT2_GROUPDESC, "group_desc_set_free_inode_count: block group ")
+    and _ = cogent_log_u32 (dbg_EXT2_GROUPDESC, block_group)
+    and _ = cogent_log (dbg_EXT2_GROUPDESC, "'s free inode count now ")
+    and _ = cogent_log_u16 (dbg_EXT2_GROUPDESC, free_inode_count)
+    and _ = cogent_log (dbg_EXT2_GROUPDESC, "\n")
 
     in osbuffer_serialise_Ple16 (buf, offset, free_inode_count)
     | Success (buf, _) => 
         osbuffer_dirty (ex, buf)
     | Error (buf) ->
-        let _ = _cogent_warn ("set block count serialistion failed\n")
+        let _ = cogent_warn ("set block count serialistion failed\n")
         in (ex, buf)
 
 group_desc_set_directory_count: (SysState, U32, OSBuffer, U16) -> (SysState, OSBuffer)
 group_desc_set_directory_count (ex, block_group, buf, directory_count) =
     let offset = ((group_desc_offset block_group) * const_sizeof_Ext2GroupDescriptor) + ((3 * 4) + (2 * 2))
 
-    and _ = _cogent_log (dbg_EXT2_GROUPDESC, "group_desc_set_directory_count: block group ")
-    and _ = _cogent_log_u32 (dbg_EXT2_GROUPDESC, block_group)
-    and _ = _cogent_log (dbg_EXT2_GROUPDESC, "'s directory count now ")
-    and _ = _cogent_log_u16 (dbg_EXT2_GROUPDESC, directory_count)
-    and _ = _cogent_log (dbg_EXT2_GROUPDESC, "\n")
+    and _ = cogent_log (dbg_EXT2_GROUPDESC, "group_desc_set_directory_count: block group ")
+    and _ = cogent_log_u32 (dbg_EXT2_GROUPDESC, block_group)
+    and _ = cogent_log (dbg_EXT2_GROUPDESC, "'s directory count now ")
+    and _ = cogent_log_u16 (dbg_EXT2_GROUPDESC, directory_count)
+    and _ = cogent_log (dbg_EXT2_GROUPDESC, "\n")
 
     in osbuffer_serialise_Ple16 (buf, offset, directory_count)
     | Success (buf, _) => 
         osbuffer_dirty (ex, buf)
     | Error (buf) ->
-        let _ = _cogent_warn ("set directory count serialistion failed\n")
+        let _ = cogent_warn ("set directory count serialistion failed\n")
         in (ex, buf)
 
 get_block_bitmap: (SysState, FsState, U32) -> RR (SysState, FsState) (OSBuffer) ()

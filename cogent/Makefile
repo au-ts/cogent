@@ -47,7 +47,7 @@ endif
 
 .install-deps:
 	$(E) "Installing dependencies"
-	$(CABAL) install --only-dependencies
+	$(CABAL) install --only-dependencies --force-reinstalls
 
 .configure:
 	$(E) "Configuring..."

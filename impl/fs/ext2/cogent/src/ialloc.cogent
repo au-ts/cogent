@@ -82,7 +82,7 @@ ext2_inode_create3 (ex, state, inode) =
         in ((ex, state), Success inode)
     | Error (ex, inode) ->
         let ex = vfs_inode_bad (#{ex, inode})
-        and _ = _cogent_log (dbg_EXT2_INODE_ALLOC, ("failed to insert\n"))
+        and _ = cogent_log (dbg_EXT2_INODE_ALLOC, ("failed to insert\n"))
         in ((ex, state), Error eIO)
 
 ext2_inode_create2: (SysState, FsState, VfsInode!, VfsMode, U32) -> RR (SysState, FsState) (VfsInode) (U32)
@@ -161,19 +161,19 @@ ext2_inode_create2 (ex, state, parent_inode, mode, group) =
                     in ((ex, state), Error eNoMem)
             else
                 -- reserved or outside count
-                let _ = _cogent_warn ("ext2_inode_create2: ERROR: inode ")
-                and _ = _cogent_warn_u32 (ino)
-                and _ = _cogent_warn (" is reserved or outside count\n")
+                let _ = cogent_warn ("ext2_inode_create2: ERROR: inode ")
+                and _ = cogent_warn_u32 (ino)
+                and _ = cogent_warn (" is reserved or outside count\n")
                 
                 and ((ex, state), res) = put_group_desc_buf_in_array (ex, state, group, group_buf)
                 in ((ex, state), Error eIO)
         | Error _ ->
             -- failed to read something, or ino == 0, which is invalid
-            let _ = _cogent_log (dbg_EXT2_INODE_ALLOC, ("ext2_inode_create2: ERROR: find_free_inode_in_blockgroups stopped (probably IO)\n"))
+            let _ = cogent_log (dbg_EXT2_INODE_ALLOC, ("ext2_inode_create2: ERROR: find_free_inode_in_blockgroups stopped (probably IO)\n"))
             in ((ex, state), Error eIO)
     | Iterate () ->
         -- scanned all blockgroups, without finding a free ino
-        let _ = _cogent_log (dbg_EXT2_INODE_ALLOC, ("ext2_inode_create2: ERROR: no free ino in all block groups\n"))
+        let _ = cogent_log (dbg_EXT2_INODE_ALLOC, ("ext2_inode_create2: ERROR: no free ino in all block groups\n"))
         in ((ex, state), Error eNoSpc)
 
 type AboveAverageBlockAcc = (SysState, FsState, U32, U16)
@@ -186,21 +186,21 @@ above_average_blockgroup #{ acc = (ex, state, best_group, best_free_blocks), obs
         let group_desc_t { free_inode_count = this_free_inodes, free_block_count = this_free_blocks } = group_desc
         -- FIXME: remove cast
 
-        and _ = _cogent_log (dbg_EXT2_INODE_ALLOC, "\tgroup desc ")
-        and _ = _cogent_log_u32 (dbg_EXT2_INODE_ALLOC, group)
-        and _ = _cogent_log (dbg_EXT2_INODE_ALLOC, " => ")
-        and _ = _cogent_log_u16 (dbg_EXT2_INODE_ALLOC, this_free_inodes)
-        and _ = _cogent_log (dbg_EXT2_INODE_ALLOC, " free inodes, ")
-        and _ = _cogent_log_u16 (dbg_EXT2_INODE_ALLOC, this_free_blocks)
-        and _ = _cogent_log (dbg_EXT2_INODE_ALLOC, " free blocks; ")
+        and _ = cogent_log (dbg_EXT2_INODE_ALLOC, "\tgroup desc ")
+        and _ = cogent_log_u32 (dbg_EXT2_INODE_ALLOC, group)
+        and _ = cogent_log (dbg_EXT2_INODE_ALLOC, " => ")
+        and _ = cogent_log_u16 (dbg_EXT2_INODE_ALLOC, this_free_inodes)
+        and _ = cogent_log (dbg_EXT2_INODE_ALLOC, " free inodes, ")
+        and _ = cogent_log_u16 (dbg_EXT2_INODE_ALLOC, this_free_blocks)
+        and _ = cogent_log (dbg_EXT2_INODE_ALLOC, " free blocks; ")
 
-        and _ = _cogent_log (dbg_EXT2_INODE_ALLOC, "cur best free blocks = ")
-        and _ = _cogent_log_u16 (dbg_EXT2_INODE_ALLOC, best_free_blocks)
-        and _ = _cogent_log (dbg_EXT2_INODE_ALLOC, "\n")
+        and _ = cogent_log (dbg_EXT2_INODE_ALLOC, "cur best free blocks = ")
+        and _ = cogent_log_u16 (dbg_EXT2_INODE_ALLOC, best_free_blocks)
+        and _ = cogent_log (dbg_EXT2_INODE_ALLOC, "\n")
 
         and was_better = this_free_inodes > 0 && upcast this_free_inodes >= avg_free_inodes && (this_free_blocks > best_free_blocks || best_group == 0)
         in if was_better then
-            let _ = _cogent_log (dbg_EXT2_INODE_ALLOC, "\t** found new best **\n")
+            let _ = cogent_log (dbg_EXT2_INODE_ALLOC, "\t** found new best **\n")
             in ((ex, state, group, this_free_blocks), Iterate ())
         else
             ((ex, state, best_group, best_free_blocks), Iterate ())
@@ -213,13 +213,13 @@ find_group_dir (ex, state, parent) =
     let ngroups = state.group_count !state
     and avg_free_inodes = (state.super.free_inode_count / ngroups) !state
 
-    and _ = _cogent_log (dbg_EXT2_INODE_ALLOC, "find_group_dir: there are ")
-    and _ = _cogent_log_u32 (dbg_EXT2_INODE_ALLOC, ngroups)
-    and _ = _cogent_log (dbg_EXT2_INODE_ALLOC, " groups, and initial avg. free inodes = ")
-    and _ = _cogent_log_u32 (dbg_EXT2_INODE_ALLOC, avg_free_inodes)
-    and _ = _cogent_log (dbg_EXT2_INODE_ALLOC, "\n")
+    and _ = cogent_log (dbg_EXT2_INODE_ALLOC, "find_group_dir: there are ")
+    and _ = cogent_log_u32 (dbg_EXT2_INODE_ALLOC, ngroups)
+    and _ = cogent_log (dbg_EXT2_INODE_ALLOC, " groups, and initial avg. free inodes = ")
+    and _ = cogent_log_u32 (dbg_EXT2_INODE_ALLOC, avg_free_inodes)
+    and _ = cogent_log (dbg_EXT2_INODE_ALLOC, "\n")
 
-    and _ = _cogent_log (dbg_EXT2_INODE_ALLOC, "find_group_dir: looping over groups to find one with above avg. free...\n")
+    and _ = cogent_log (dbg_EXT2_INODE_ALLOC, "find_group_dir: looping over groups to find one with above avg. free...\n")
 
     and ((ex, state, best_group, best_free_blocks), res) = seq32 [AboveAverageBlockAcc, U32, ()] #{
         frm  = 0,
@@ -229,17 +229,17 @@ find_group_dir (ex, state, parent) =
         acc  = (ex, state, 0, 0),
         obsv = avg_free_inodes }
 
-    and _ = _cogent_log (dbg_EXT2_INODE_ALLOC, "find_group_dir: best group = ")
-    and _ = _cogent_log_u32 (dbg_EXT2_INODE_ALLOC, best_group)
-    and _ = _cogent_log (dbg_EXT2_INODE_ALLOC, "; best free blocks = ")
-    and _ = _cogent_log_u16 (dbg_EXT2_INODE_ALLOC, best_free_blocks)
-    and _ = _cogent_log (dbg_EXT2_INODE_ALLOC, "\n")
+    and _ = cogent_log (dbg_EXT2_INODE_ALLOC, "find_group_dir: best group = ")
+    and _ = cogent_log_u32 (dbg_EXT2_INODE_ALLOC, best_group)
+    and _ = cogent_log (dbg_EXT2_INODE_ALLOC, "; best free blocks = ")
+    and _ = cogent_log_u16 (dbg_EXT2_INODE_ALLOC, best_free_blocks)
+    and _ = cogent_log (dbg_EXT2_INODE_ALLOC, "\n")
 
     and had_free_blocks = best_free_blocks /= 0
     in had_free_blocks
     | True => ((ex, state), Success best_group)
     | _ ->
-        let _ = _cogent_log (dbg_EXT2_INODE_ALLOC, "find_group_dir: ERROR: 'best blockgroup' had 0 free blocks!\n")
+        let _ = cogent_log (dbg_EXT2_INODE_ALLOC, "find_group_dir: ERROR: 'best blockgroup' had 0 free blocks!\n")
         in ((ex, state), Error ())
 
 type FreeBlockHashAcc = (SysState, FsState, U32)
@@ -343,23 +343,23 @@ find_group_other (ex, state, parent) =
 ext2_inode_create: (SysState, FsState, VfsInode!, VfsMode) -> RR (SysState, FsState) (VfsInode) (U32)
 ext2_inode_create (ex, state, parent_inode, mode) =
     if vmode_is_dir mode then
-        let _ = _cogent_log (dbg_EXT2_INODE_ALLOC, "ext2_inode_create: was dir, using directory allocator to find goal group\n")
+        let _ = cogent_log (dbg_EXT2_INODE_ALLOC, "ext2_inode_create: was dir, using directory allocator to find goal group\n")
         and ((ex, state), res) = find_group_dir (ex, state, parent_inode)
         --let ((ex, state), res) = find_group_other (ex, state, parent_inode)
         in res
         | Success group ->
             ext2_inode_create2 (ex, state, parent_inode, mode, group)
         | Error () ->
-            let _ = _cogent_log (dbg_EXT2_INODE_ALLOC, "ext2_inode_create: no goal group, reporting eNoSpc\n")
+            let _ = cogent_log (dbg_EXT2_INODE_ALLOC, "ext2_inode_create: no goal group, reporting eNoSpc\n")
             in ((ex, state), Error eNoSpc)
     else 
-        let _ = _cogent_log (dbg_EXT2_INODE_ALLOC, "ext2_inode_create: was NOT dir, using 'other' allocator to find goal group\n")
+        let _ = cogent_log (dbg_EXT2_INODE_ALLOC, "ext2_inode_create: was NOT dir, using 'other' allocator to find goal group\n")
         and ((ex, state), res) = find_group_other (ex, state, parent_inode)
         in res
         | Success (group) ->
             ext2_inode_create2 (ex, state, parent_inode, mode, group)
         | Error () ->
-            let _ = _cogent_log (dbg_EXT2_INODE_ALLOC, "ext2_inode_create: no goal group, reporting eNoSpc\n")
+            let _ = cogent_log (dbg_EXT2_INODE_ALLOC, "ext2_inode_create: no goal group, reporting eNoSpc\n")
             in ((ex, state), Error eNoSpc)
 
 -- this function only used from console for testing

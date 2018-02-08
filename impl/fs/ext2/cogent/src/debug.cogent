@@ -8,9 +8,9 @@
 -- @TAG(NICTA_GPL)
 --
 
-_get_mode_type_str: U32 -> ()
-_get_mode_type_str mode = 
-   _cogent_log (dbg_EXT2_INODE,  (mode .&. s_IFMT)
+get_mode_type_str: U32 -> ()
+get_mode_type_str mode = 
+   cogent_log (dbg_EXT2_INODE,  (mode .&. s_IFMT)
     | 0O140000 -> "socket"
     | 0O120000 -> "symlink"
     | 0O100000 -> "regular"
@@ -22,48 +22,48 @@ _get_mode_type_str mode =
 
 print_val: WordArrayFoldF U32 U32 () ()
 print_val #{elem, acc = idx, obsv} = 
-  let _ = _cogent_log (dbg_EXT2_INODE, "(")
-  and _ = _cogent_log_u32 (dbg_EXT2_INODE, idx)
-  and _ = _cogent_log (dbg_EXT2_INODE, "):")
-  and _ = _cogent_log_u32 (dbg_EXT2_INODE, elem)
-  and _ = _cogent_log (dbg_EXT2_INODE, ", ")
+  let _ = cogent_log (dbg_EXT2_INODE, "(")
+  and _ = cogent_log_u32 (dbg_EXT2_INODE, idx)
+  and _ = cogent_log (dbg_EXT2_INODE, "):")
+  and _ = cogent_log_u32 (dbg_EXT2_INODE, elem)
+  and _ = cogent_log (dbg_EXT2_INODE, ", ")
   in Iterate (idx + 1)
 
 dump_buffer: OSPageBuffer! -> ()
 
 dump_inode: VfsInode! -> ()
 dump_inode inode =
-  let _ = _cogent_log (dbg_EXT2_INODE, "Inode: ")
-  and _ = _cogent_log_u32 (dbg_EXT2_INODE, vfs_inode_get_ino (inode))
-  and _ = _cogent_log (dbg_EXT2_INODE, "\tType: ")
+  let _ = cogent_log (dbg_EXT2_INODE, "Inode: ")
+  and _ = cogent_log_u32 (dbg_EXT2_INODE, vfs_inode_get_ino (inode))
+  and _ = cogent_log (dbg_EXT2_INODE, "\tType: ")
   and mode = vfs_inode_get_mode (inode)
-  and _ = _get_mode_type_str mode
-  and _ = _cogent_log (dbg_EXT2_INODE, "\tMode: ")
-  and _ = _cogent_log_u32_oct (dbg_EXT2_INODE, mode .&. 0O777)
-  and _ = _cogent_log (dbg_EXT2_INODE, "\tFlags: ")
-  and _ = _cogent_log_u32 (dbg_EXT2_INODE, vfs_inode_get_flags inode)
-  and _ = _cogent_log (dbg_EXT2_INODE, "\n")
+  and _ = get_mode_type_str mode
+  and _ = cogent_log (dbg_EXT2_INODE, "\tMode: ")
+  and _ = cogent_log_u32_oct (dbg_EXT2_INODE, mode .&. 0O777)
+  and _ = cogent_log (dbg_EXT2_INODE, "\tFlags: ")
+  and _ = cogent_log_u32 (dbg_EXT2_INODE, vfs_inode_get_flags inode)
+  and _ = cogent_log (dbg_EXT2_INODE, "\n")
 
   -- skip gen/ver line
 
-  and _ = _cogent_log (dbg_EXT2_INODE, "User:\t")
-  and _ = _cogent_log_u32 (dbg_EXT2_INODE, vfs_inode_get_uid inode)
-  and _ = _cogent_log (dbg_EXT2_INODE, " Group:\t")
-  and _ = _cogent_log_u32 (dbg_EXT2_INODE, vfs_inode_get_uid inode)
-  and _ = _cogent_log (dbg_EXT2_INODE, " Size:\t")
-  and _ = _cogent_log_u64 (dbg_EXT2_INODE, vfs_inode_get_size inode)
-  and _ = _cogent_log (dbg_EXT2_INODE, "\n")
+  and _ = cogent_log (dbg_EXT2_INODE, "User:\t")
+  and _ = cogent_log_u32 (dbg_EXT2_INODE, vfs_inode_get_uid inode)
+  and _ = cogent_log (dbg_EXT2_INODE, " Group:\t")
+  and _ = cogent_log_u32 (dbg_EXT2_INODE, vfs_inode_get_uid inode)
+  and _ = cogent_log (dbg_EXT2_INODE, " Size:\t")
+  and _ = cogent_log_u64 (dbg_EXT2_INODE, vfs_inode_get_size inode)
+  and _ = cogent_log (dbg_EXT2_INODE, "\n")
 
   -- skip acl line
-  and _ = _cogent_log (dbg_EXT2_INODE, "Links: ")
-  and _ = _cogent_log_u32 (dbg_EXT2_INODE, vfs_inode_get_nlink inode)
-  and _ = _cogent_log (dbg_EXT2_INODE, " Blockcount: ")
-  and _ = _cogent_log_u64 (dbg_EXT2_INODE, vfs_inode_get_blocks inode)
-  and _ = _cogent_log (dbg_EXT2_INODE, "\n")
+  and _ = cogent_log (dbg_EXT2_INODE, "Links: ")
+  and _ = cogent_log_u32 (dbg_EXT2_INODE, vfs_inode_get_nlink inode)
+  and _ = cogent_log (dbg_EXT2_INODE, " Blockcount: ")
+  and _ = cogent_log_u64 (dbg_EXT2_INODE, vfs_inode_get_blocks inode)
+  and _ = cogent_log (dbg_EXT2_INODE, "\n")
 
   -- skip fraggment, time lines
   -- TODO: replace with wordarray_fold
-  and _ = _cogent_log (dbg_EXT2_INODE, "BLOCKS:\n")
+  and _ = cogent_log (dbg_EXT2_INODE, "BLOCKS:\n")
   and _ = wordarray_fold[U32, U32, (), ()] #{
     arr  = inode.fs.block_pointers,
     frm  = 0,
@@ -73,7 +73,7 @@ dump_inode inode =
     obsv = ()
   }
 
-  in _cogent_log (dbg_EXT2_INODE, "\n")
+  in cogent_log (dbg_EXT2_INODE, "\n")
 
 
 plvl : U32
@@ -81,27 +81,27 @@ plvl = 0xffffffff
 
 print_chain : Chain! -> ()
 print_chain c =
-  let _ = _cogent_log (plvl, "====================\n")
-  and _ = _cogent_log (plvl, "Printing a Chain\n")
-  and _ = _cogent_log (plvl, "====================\n")
+  let _ = cogent_log (plvl, "====================\n")
+  and _ = cogent_log (plvl, "Printing a Chain\n")
+  and _ = cogent_log (plvl, "====================\n")
   and _ = print_chain_path c.path
   and _ = print_chain_indirects c.indirects
-  and _ = _cogent_log (plvl, "indirect_count = ")
-  and _ = _cogent_log_u32 (plvl, c.indirect_count)
-  and _ = _cogent_log (plvl, "\n")
+  and _ = cogent_log (plvl, "indirect_count = ")
+  and _ = cogent_log_u32 (plvl, c.indirect_count)
+  and _ = cogent_log (plvl, "\n")
    in ()
 
 print_chain_path : Path! -> ()
 print_chain_path p = 
-  let _ = _cogent_log (plvl, "--------------------\n")
-  and _ = _cogent_log (plvl, "Path\n")
-  and _ = _cogent_log (plvl, "--------------------\n")
+  let _ = cogent_log (plvl, "--------------------\n")
+  and _ = cogent_log (plvl, "Path\n")
+  and _ = cogent_log (plvl, "--------------------\n")
   and _ = print_path_offsets p.offsets
-  and _ = _cogent_log (plvl, "depth = ")
-  and _ = _cogent_log_u32 (plvl, p.depth)
-  and _ = _cogent_log (plvl, "\nboundary = ")
-  and _ = _cogent_log_u32 (plvl, p.boundary)
-  and _ = _cogent_log (plvl, "\n")
+  and _ = cogent_log (plvl, "depth = ")
+  and _ = cogent_log_u32 (plvl, p.depth)
+  and _ = cogent_log (plvl, "\nboundary = ")
+  and _ = cogent_log_u32 (plvl, p.boundary)
+  and _ = cogent_log (plvl, "\n")
    in ()
 
 print_chain_indirects : (Array Indirect)! -> ()
@@ -117,17 +117,17 @@ print_chain_indirect_f r {elem} = print_chain_indirect elem
 
 print_chain_indirect : Indirect! -> ()
 print_chain_indirect i = 
-  let _ = _cogent_log (plvl, "--------------------\n")
-  and _ = _cogent_log (plvl, "Indirect\n")
-  and _ = _cogent_log (plvl, "--------------------\n")
-  and _ = _cogent_log (plvl, "block ptr = ")
-  and _ = _cogent_log_u32 (plvl, i.blockptr)
-  and _ = _cogent_log (plvl, "\nbuf: ")
-  and _ = i.buf | None    -> _cogent_log (plvl, "None")
-                | Some _  -> _cogent_log (plvl, "Some")
-  and _ = _cogent_log (plvl, "\noffset = ")
-  and _ = _cogent_log_u32 (plvl, i.offset)
-  and _ = _cogent_log (plvl, "\n")
+  let _ = cogent_log (plvl, "--------------------\n")
+  and _ = cogent_log (plvl, "Indirect\n")
+  and _ = cogent_log (plvl, "--------------------\n")
+  and _ = cogent_log (plvl, "block ptr = ")
+  and _ = cogent_log_u32 (plvl, i.blockptr)
+  and _ = cogent_log (plvl, "\nbuf: ")
+  and _ = i.buf | None    -> cogent_log (plvl, "None")
+                | Some _  -> cogent_log (plvl, "Some")
+  and _ = cogent_log (plvl, "\noffset = ")
+  and _ = cogent_log_u32 (plvl, i.offset)
+  and _ = cogent_log (plvl, "\n")
    in ()
 
 print_path_offsets : (WordArray BlockOffset)! -> ()
@@ -142,8 +142,8 @@ print_path_offsets warr = wordarray_fold_no_break[BlockOffset, (), ()] #{
 
 print_path_offset_f : ElemAO BlockOffset () () -> ()
 print_path_offset_f r {elem} = 
-  let _ = _cogent_log (plvl, "offset = ")
-  and _ = _cogent_log_u32 (plvl, elem)
-  and _ = _cogent_log (plvl, "\n")
+  let _ = cogent_log (plvl, "offset = ")
+  and _ = cogent_log_u32 (plvl, elem)
+  and _ = cogent_log (plvl, "\n")
    in ()
 

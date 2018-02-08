@@ -194,10 +194,40 @@ u16 u64_to_u16(u64 x)
         return (u16)x;
 }
 
-struct unit_t $id:(_cogent_assert)($ty:(Bool) arg)
+struct unit_t $id:(cogent_assert)($ty:(Bool) arg)
 {
        unit_t ret;
        BUG_ON(!arg.boolean);
        return ret;
 }
 
+
+struct unit_t $id:(cogent_debug)(char* str) {
+        unit_t ret;
+        printk("%s", str);
+        return ret;
+}
+
+struct unit_t $id:(cogent_debug_u32) (u32 arg) {
+        unit_t ret;
+        printk("%u", arg);
+        return ret;
+}
+
+struct unit_t $id:(cogent_debug_u64) (u64 arg) {
+        unit_t ret;
+        printk("%llu", arg);
+        return ret;
+}
+
+struct unit_t $id:(cogent_debug_u32_hex) (u32 arg) {
+        unit_t ret;
+        printk("%x", arg);
+        return ret;
+}
+
+struct unit_t $id:(cogent_debug_u64_hex) (u64 arg) {
+        unit_t ret;
+        printk("%llx", arg);
+        return ret;
+}

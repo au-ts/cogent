@@ -90,15 +90,15 @@ indirect_dereference: (Option OSBuffer!, VfsInode!, OSBufferOffset) -> BlockPtr
 indirect_dereference (maybe_buf, inode, offset) =
   maybe_buf
   | Some buf ->
-    --let _ = _cogent_log "indirect_dereference: had buf\n"
+    --let _ = cogent_log "indirect_dereference: had buf\n"
     osbuffer_deserialise_Ple32 (buf, offset * 4)
     | Success (ptr, _) => ptr
-    | Error () -> let _ = _cogent_assert2 ("indirect_read_blockptr_at: OOB on buffer", True) in 0
+    | Error () -> let _ = cogent_assert2 ("indirect_read_blockptr_at: OOB on buffer", True) in 0
   | None ->
     if offset < const_numBlockPointers then
       wordarray_get [BlockPtr] (inode.fs.block_pointers, offset)
     else
-      let _ = _cogent_assert2 ("indirect_read_blockptr_at: OOB on block_pointers", True) in 0
+      let _ = cogent_assert2 ("indirect_read_blockptr_at: OOB on block_pointers", True) in 0
 
 indirect_set_blockptr: (Indirect, VfsInode, BlockPtr) -> (Indirect, VfsInode)
 indirect_set_blockptr (indirect, inode, ptr) =
@@ -119,7 +119,7 @@ indirect_set_reference (maybe_buf, inode, offset, ptr) =
     osbuffer_serialise_Ple32 (buf, offset * 4, ptr)
     | Success (buf, _) => (Some buf, inode)
     | Error buf ->
-      let _ = _cogent_assert2 ("indirect_set_blockptr_at: OOB on buffer", True)
+      let _ = cogent_assert2 ("indirect_set_blockptr_at: OOB on buffer", True)
       in (Some buf, inode)
   | None ->
     if offset < const_numBlockPointers then
@@ -132,7 +132,7 @@ indirect_set_reference (maybe_buf, inode, offset, ptr) =
 
       in (None, inode)
     else
-      let _ = _cogent_assert2 ("indirect_set_blockptr_at: OOB on block_pointers", True)
+      let _ = cogent_assert2 ("indirect_set_blockptr_at: OOB on block_pointers", True)
       in (None, inode)
 
 indirect_destroy2: (SysState, Indirect) -> SysState
@@ -155,7 +155,7 @@ splice_put_direct_blocks_buf r { idx, acc = (buf, ptr, offset) } =
   osbuffer_serialise_Ple32 (buf, offset, ptr)
   | Success (buf, _) => ((buf, ptr + 1, offset + 4), Iterate ())
   | Error buf ->
-    let _ = _cogent_assert2 ("splice_put_direct_blocks_buf: OOB on buf", True)
+    let _ = cogent_assert2 ("splice_put_direct_blocks_buf: OOB on buf", True)
     in ((buf, ptr, offset), Iterate ())
 
 -- connects an allocated branch onto an inode
@@ -185,7 +185,7 @@ indirect_splice (ex, indirect, inode, iblock, num_direct, num_indirect) =
       and indirect = indirect_t { buf = Some buf }
       in indirect_splice_finish (ex, indirect, inode)
     | Error buf ->
-      let _ = _cogent_assert2 ("indirect_splice: OOB on indirect buf", True)
+      let _ = cogent_assert2 ("indirect_splice: OOB on indirect buf", True)
       and indirect = indirect_t { buf = Some buf }
       in ((ex, indirect, inode), Error eIO) -- failed to serialise buffer
   | None ->

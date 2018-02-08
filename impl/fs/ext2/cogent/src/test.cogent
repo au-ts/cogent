@@ -104,99 +104,99 @@ test_allocation (ex, state, arr, root) =
                           -- done!
                           ((ex, state, arr), Success ())
                         else
-                          let _ = _cogent_log (dbg_EXT2_TEST, "inode f ino was ")
-                          and _ = _cogent_log_u32 (dbg_EXT2_TEST, actual_ino)
-                          and _ = _cogent_log (dbg_EXT2_TEST, ", not ")
-                          and _ = _cogent_log_u32 (dbg_EXT2_TEST, correct_ino)
-                          and _ = _cogent_log (dbg_EXT2_TEST, "\n")
+                          let _ = cogent_log (dbg_EXT2_TEST, "inode f ino was ")
+                          and _ = cogent_log_u32 (dbg_EXT2_TEST, actual_ino)
+                          and _ = cogent_log (dbg_EXT2_TEST, ", not ")
+                          and _ = cogent_log_u32 (dbg_EXT2_TEST, correct_ino)
+                          and _ = cogent_log (dbg_EXT2_TEST, "\n")
 
                           in ((ex, state, arr), Error ())
                       | Error e ->
-                        let _ = _cogent_log (dbg_EXT2_TEST, "allocation of inode f failed with error ")
-                        and _ = _cogent_log_u32 (dbg_EXT2_TEST, e)
-                        and _ = _cogent_log (dbg_EXT2_TEST, "\n")
+                        let _ = cogent_log (dbg_EXT2_TEST, "allocation of inode f failed with error ")
+                        and _ = cogent_log_u32 (dbg_EXT2_TEST, e)
+                        and _ = cogent_log (dbg_EXT2_TEST, "\n")
 
                         in ((ex, state, arr), Error ())
                     else
-                      let _ = _cogent_log (dbg_EXT2_TEST, "inode e ino was ")
-                      and _ = _cogent_log_u32 (dbg_EXT2_TEST, actual_ino)
-                      and _ = _cogent_log (dbg_EXT2_TEST, ", not ")
-                      and _ = _cogent_log_u32 (dbg_EXT2_TEST, correct_ino)
-                      and _ = _cogent_log (dbg_EXT2_TEST, "\n")
+                      let _ = cogent_log (dbg_EXT2_TEST, "inode e ino was ")
+                      and _ = cogent_log_u32 (dbg_EXT2_TEST, actual_ino)
+                      and _ = cogent_log (dbg_EXT2_TEST, ", not ")
+                      and _ = cogent_log_u32 (dbg_EXT2_TEST, correct_ino)
+                      and _ = cogent_log (dbg_EXT2_TEST, "\n")
 
                       in ((ex, state, arr), Error ())
                   | Error e ->
-                    let _ = _cogent_log (dbg_EXT2_TEST, "allocation of inode e failed with error ")
-                    and _ = _cogent_log_u32 (dbg_EXT2_TEST, e)
-                    and _ = _cogent_log (dbg_EXT2_TEST, "\n")
+                    let _ = cogent_log (dbg_EXT2_TEST, "allocation of inode e failed with error ")
+                    and _ = cogent_log_u32 (dbg_EXT2_TEST, e)
+                    and _ = cogent_log (dbg_EXT2_TEST, "\n")
 
                     and ex = vfs_inode_put_tuple (ex, inode_b)
 
                     in ((ex, state, arr), Error ())
                 else
-                  let _ = _cogent_log (dbg_EXT2_TEST, "inode d ino was ")
-                  and _ = _cogent_log_u32 (dbg_EXT2_TEST, actual_ino)
-                  and _ = _cogent_log (dbg_EXT2_TEST, ", not ")
-                  and _ = _cogent_log_u32 (dbg_EXT2_TEST, correct_ino)
-                  and _ = _cogent_log (dbg_EXT2_TEST, "\n")
+                  let _ = cogent_log (dbg_EXT2_TEST, "inode d ino was ")
+                  and _ = cogent_log_u32 (dbg_EXT2_TEST, actual_ino)
+                  and _ = cogent_log (dbg_EXT2_TEST, ", not ")
+                  and _ = cogent_log_u32 (dbg_EXT2_TEST, correct_ino)
+                  and _ = cogent_log (dbg_EXT2_TEST, "\n")
 
                   and ex = vfs_inode_put_tuple (ex, inode_b)
 
                   in ((ex, state, arr), Error ())
               | Error e ->
-                let _ = _cogent_log (dbg_EXT2_TEST, "allocation of inode d failed with error ")
-                and _ = _cogent_log_u32 (dbg_EXT2_TEST, e)
-                and _ = _cogent_log (dbg_EXT2_TEST, "\n")
+                let _ = cogent_log (dbg_EXT2_TEST, "allocation of inode d failed with error ")
+                and _ = cogent_log_u32 (dbg_EXT2_TEST, e)
+                and _ = cogent_log (dbg_EXT2_TEST, "\n")
 
                 and ex = vfs_inode_put_tuple (ex, inode_b)
 
                 in ((ex, state, arr), Error ())
             else
-              let _ = _cogent_log (dbg_EXT2_TEST, "inode c ino was ")
-              and _ = _cogent_log_u32 (dbg_EXT2_TEST, actual_ino)
-              and _ = _cogent_log (dbg_EXT2_TEST, ", not ")
-              and _ = _cogent_log_u32 (dbg_EXT2_TEST, correct_ino)
-              and _ = _cogent_log (dbg_EXT2_TEST, "\n")
+              let _ = cogent_log (dbg_EXT2_TEST, "inode c ino was ")
+              and _ = cogent_log_u32 (dbg_EXT2_TEST, actual_ino)
+              and _ = cogent_log (dbg_EXT2_TEST, ", not ")
+              and _ = cogent_log_u32 (dbg_EXT2_TEST, correct_ino)
+              and _ = cogent_log (dbg_EXT2_TEST, "\n")
 
               and ex = vfs_inode_put_tuple (ex, inode_b)
 
               in ((ex, state, arr), Error ())
           | Error e ->
-            let _ = _cogent_log (dbg_EXT2_TEST, "allocation of inode c failed with error ")
-            and _ = _cogent_log_u32 (dbg_EXT2_TEST, e)
-            and _ = _cogent_log (dbg_EXT2_TEST, "\n")
+            let _ = cogent_log (dbg_EXT2_TEST, "allocation of inode c failed with error ")
+            and _ = cogent_log_u32 (dbg_EXT2_TEST, e)
+            and _ = cogent_log (dbg_EXT2_TEST, "\n")
 
             and ex = vfs_inode_put_tuple (ex, inode_b)
 
             in ((ex, state, arr), Error ())
         else
-          let _ = _cogent_log (dbg_EXT2_TEST, "inode b ino was ")
-          and _ = _cogent_log_u32 (dbg_EXT2_TEST, actual_ino)
-          and _ = _cogent_log (dbg_EXT2_TEST, ", not ")
-          and _ = _cogent_log_u32 (dbg_EXT2_TEST, correct_ino)
-          and _ = _cogent_log (dbg_EXT2_TEST, "\n")
+          let _ = cogent_log (dbg_EXT2_TEST, "inode b ino was ")
+          and _ = cogent_log_u32 (dbg_EXT2_TEST, actual_ino)
+          and _ = cogent_log (dbg_EXT2_TEST, ", not ")
+          and _ = cogent_log_u32 (dbg_EXT2_TEST, correct_ino)
+          and _ = cogent_log (dbg_EXT2_TEST, "\n")
 
           and ex = vfs_inode_put_tuple (ex, inode_b)
 
           in ((ex, state, arr), Error ())
       | Error e ->
-        let _ = _cogent_log (dbg_EXT2_TEST, "allocation of inode b failed with error ")
-        and _ = _cogent_log_u32 (dbg_EXT2_TEST, e)
-        and _ = _cogent_log (dbg_EXT2_TEST, "\n")
+        let _ = cogent_log (dbg_EXT2_TEST, "allocation of inode b failed with error ")
+        and _ = cogent_log_u32 (dbg_EXT2_TEST, e)
+        and _ = cogent_log (dbg_EXT2_TEST, "\n")
 
         in ((ex, state, arr), Error ())
     else
-      let _ = _cogent_log (dbg_EXT2_TEST, "inode a ino was ")
-      and _ = _cogent_log_u32 (dbg_EXT2_TEST, actual_ino)
-      and _ = _cogent_log (dbg_EXT2_TEST, ", not ")
-      and _ = _cogent_log_u32 (dbg_EXT2_TEST, correct_ino)
-      and _ = _cogent_log (dbg_EXT2_TEST, "\n")
+      let _ = cogent_log (dbg_EXT2_TEST, "inode a ino was ")
+      and _ = cogent_log_u32 (dbg_EXT2_TEST, actual_ino)
+      and _ = cogent_log (dbg_EXT2_TEST, ", not ")
+      and _ = cogent_log_u32 (dbg_EXT2_TEST, correct_ino)
+      and _ = cogent_log (dbg_EXT2_TEST, "\n")
 
       in ((ex, state, arr), Error ())
   | Error e ->
-    let _ = _cogent_log (dbg_EXT2_TEST, "allocation of inode a failed with error ")
-    and _ = _cogent_log_u32 (dbg_EXT2_TEST, e)
-    and _ = _cogent_log (dbg_EXT2_TEST, "\n")
+    let _ = cogent_log (dbg_EXT2_TEST, "allocation of inode a failed with error ")
+    and _ = cogent_log_u32 (dbg_EXT2_TEST, e)
+    and _ = cogent_log (dbg_EXT2_TEST, "\n")
 
     in ((ex, state, arr), Error ())
 
@@ -232,20 +232,20 @@ test_state_check (ex, state, check_state, idx) =
     if test_state_compare (check_state, group_desc) then
       (ex, state, True)
     else
-      let _ = _cogent_log (dbg_EXT2_TEST, "group desc ")
-      and _ = _cogent_log_u32 (dbg_EXT2_TEST, idx )
-      and _ = _cogent_log (dbg_EXT2_TEST, " didn't match default state!\n")
+      let _ = cogent_log (dbg_EXT2_TEST, "group desc ")
+      and _ = cogent_log_u32 (dbg_EXT2_TEST, idx )
+      and _ = cogent_log (dbg_EXT2_TEST, " didn't match default state!\n")
       in (ex, state, False)
   | Error () ->
-    let _ = _cogent_log (dbg_EXT2_TEST, "failed to lookup group desc ")
-    and _ = _cogent_log_u32 (dbg_EXT2_TEST, idx )
-    and _ = _cogent_log (dbg_EXT2_TEST, "\n")
+    let _ = cogent_log (dbg_EXT2_TEST, "failed to lookup group desc ")
+    and _ = cogent_log_u32 (dbg_EXT2_TEST, idx )
+    and _ = cogent_log (dbg_EXT2_TEST, "\n")
     in (ex, state, False)
 
 test_state: (SysState, FsState, GroupDescState, GroupDescState, GroupDescState) -> RR (SysState, FsState) () ()
 test_state (ex, state, a, b, c) =
   let ngroups = state.group_count !state
-  and _ = _cogent_assert (ngroups >= 3)
+  and _ = cogent_assert (ngroups >= 3)
 
   -- check the first 3, since they will change
   and (ex, state, res) = test_state_check (ex, state, a, 0)
@@ -296,22 +296,22 @@ test_path_one2 (ex, state, path, blk, inode) =
   | Success (chain, maybe_partial) ->
     maybe_partial
     | Some partial_idx ->
-      let _ = _cogent_assert (partial_idx == 0) !chain
-      and _ = _cogent_assert (chain.indirect_count == 1) !chain
+      let _ = cogent_assert (partial_idx == 0) !chain
+      and _ = cogent_assert (chain.indirect_count == 1) !chain
 
       -- okay, find the goal to the indirect
       and (chain, maybe_indirect) = chain_take_indirect (chain, partial_idx)
       in maybe_indirect
       | Some indirect ->
-        let _ = _cogent_assert (indirect.blockptr == 0) !indirect
-        and _ = _cogent_assert (indirect.offset == 0) !indirect
-        --and _ = _cogent_assert (chain.indirect_count == 0) !chain
+        let _ = cogent_assert (indirect.blockptr == 0) !indirect
+        and _ = cogent_assert (indirect.offset == 0) !indirect
+        --and _ = cogent_assert (chain.indirect_count == 0) !chain
 
         and goal = ext2_find_goal (state, inode, blk, indirect) !inode !state !indirect
         and (ex, chain) = chain_put_indirect (ex, chain, indirect, partial_idx)
-        --and _ = _cogent_assert (chain.indirect_count == 1) !chain
+        --and _ = cogent_assert (chain.indirect_count == 1) !chain
 
-        and _ = _cogent_assert (goal == 0)
+        and _ = cogent_assert (goal == 0)
 
         -- from fsop_get_block:
         and unallocated_in_chain = chain.path.depth - partial_idx !chain
@@ -319,65 +319,65 @@ test_path_one2 (ex, state, path, blk, inode) =
         and count = chain_blocks_to_allocate (chain, indirect_blocks, 1, boundary) !chain -- max_mappable == 1
 
         -- should be 1 unallocated, 0 indirect, 1 direct
-        and _ = _cogent_assert (unallocated_in_chain == 1)
-        and _ = _cogent_assert (indirect_blocks == 0)
-        and _ = _cogent_assert (count == 1)
+        and _ = cogent_assert (unallocated_in_chain == 1)
+        and _ = cogent_assert (indirect_blocks == 0)
+        and _ = cogent_assert (count == 1)
 
         -- let's allocate (just 1 block for now)
         and ((ex, state, chain, inode), res) = chain_alloc (ex, state, chain, inode, indirect_blocks, goal, 1, partial_idx)
         in res
         | Success count ->
-          let _ = _cogent_assert (count == 1)
-          --and _ = _cogent_assert (chain_was_full (chain)) !chain -- FIXME
-          and _ = _cogent_assert (chain.indirect_count == 1) !chain
+          let _ = cogent_assert (count == 1)
+          --and _ = cogent_assert (chain_was_full (chain)) !chain -- FIXME
+          and _ = cogent_assert (chain.indirect_count == 1) !chain
 
           and (chain, maybe_indirect) = chain_pop_indirect (chain)
           in maybe_indirect
           | Some indirect ->
             -- with goal of 0, should work upwards to first free block 274 (presumably 5% for super + root dir + lost+found)
-            let _ = _cogent_assert (indirect.blockptr == 274) !indirect
-            and _ = _cogent_assert (indirect.offset == 0) !indirect 
-            and _ = _cogent_assert (chain.indirect_count == 0) !chain
+            let _ = cogent_assert (indirect.blockptr == 274) !indirect
+            and _ = cogent_assert (indirect.offset == 0) !indirect 
+            and _ = cogent_assert (chain.indirect_count == 0) !chain
 
             and ex = indirect_destroy (ex, indirect)
             and (ex, path) = chain_free (ex, chain)
             in (ex, state, path, inode, True)
           | None () ->
-            let _ = _cogent_log (dbg_EXT2_TEST, "test_path_one2: indirect fell off chain (2)\n")
+            let _ = cogent_log (dbg_EXT2_TEST, "test_path_one2: indirect fell off chain (2)\n")
             and (ex, path) = chain_free (ex, chain)
             in (ex, state, path, inode, False)
         | Error e ->
-          let _ = _cogent_log (dbg_EXT2_TEST, "test_path_one2: allocation failed\n")
+          let _ = cogent_log (dbg_EXT2_TEST, "test_path_one2: allocation failed\n")
           and (ex, path) = chain_free (ex, chain)
           in (ex, state, path, inode, False)
       | None () ->
-        let _ = _cogent_log (dbg_EXT2_TEST, "test_path_one2: indirect fell off chain (1)\n")
+        let _ = cogent_log (dbg_EXT2_TEST, "test_path_one2: indirect fell off chain (1)\n")
         and (ex, path) = chain_free (ex, chain)
         in (ex, state, path, inode, False)
     | None () ->
-      let _ = _cogent_log (dbg_EXT2_TEST, "test_path_one2: was full path, should have been\n")
+      let _ = cogent_log (dbg_EXT2_TEST, "test_path_one2: was full path, should have been\n")
       and (ex, path) = chain_free (ex, chain)
       in (ex, state, path, inode, False)
   | Error path ->
-    let _ = _cogent_log (dbg_EXT2_TEST, "test_path_one2: failed to create chain from path\n")
+    let _ = cogent_log (dbg_EXT2_TEST, "test_path_one2: failed to create chain from path\n")
     in (ex, state, path, inode, False)
 
 check_blockContents_f: Seq32_body () (OSBuffer, U32) ()
 check_blockContents_f #{ acc, obsv = (buf, val), idx } =
   osbuffer_deserialise_Ple32 (buf, idx)
   | Success (val', _) => if val == val' then ((), Iterate ()) else
-    let _ = _cogent_log (dbg_EXT2_TEST, "check_blockContents_f: buf val ")
-    and _ = _cogent_log_u32 (dbg_EXT2_TEST, val')
-    and _ = _cogent_log (dbg_EXT2_TEST, " != chek val ")
-    and _ = _cogent_log_u32 (dbg_EXT2_TEST, val)
-    and _ = _cogent_log (dbg_EXT2_TEST, " at offset ")
-    and _ = _cogent_log_u32 (dbg_EXT2_TEST, idx )
-    and _ = _cogent_log (dbg_EXT2_TEST, "\n")
+    let _ = cogent_log (dbg_EXT2_TEST, "check_blockContents_f: buf val ")
+    and _ = cogent_log_u32 (dbg_EXT2_TEST, val')
+    and _ = cogent_log (dbg_EXT2_TEST, " != chek val ")
+    and _ = cogent_log_u32 (dbg_EXT2_TEST, val)
+    and _ = cogent_log (dbg_EXT2_TEST, " at offset ")
+    and _ = cogent_log_u32 (dbg_EXT2_TEST, idx )
+    and _ = cogent_log (dbg_EXT2_TEST, "\n")
     in ((), Break ())
   | Error () ->
-    let _ = _cogent_log (dbg_EXT2_TEST, "check_blockContents_f: could not deserialise from offset ")
-    and _ = _cogent_log_u32 (dbg_EXT2_TEST, idx)
-    and _ = _cogent_log (dbg_EXT2_TEST, "\n")
+    let _ = cogent_log (dbg_EXT2_TEST, "check_blockContents_f: could not deserialise from offset ")
+    and _ = cogent_log_u32 (dbg_EXT2_TEST, idx)
+    and _ = cogent_log (dbg_EXT2_TEST, "\n")
     in ((), Break ())
 
 check_blockContents: (OSBuffer!, U32, U32, U32) -> Bool
@@ -400,7 +400,7 @@ test_path_two2 (ex, state, path, blk, inode) =
   let depth = path.depth !path
   and boundary = path.boundary !path
 
-  and _ = _cogent_log (dbg_EXT2_TEST, "== inode before: ==\n")
+  and _ = cogent_log (dbg_EXT2_TEST, "== inode before: ==\n")
   and _ = dump_inode (inode) !inode
 
   and (ex, res) = chain_from_path (ex, path, inode, depth) !inode
@@ -408,22 +408,22 @@ test_path_two2 (ex, state, path, blk, inode) =
   | Success (chain, maybe_partial) ->
     maybe_partial
     | Some partial_idx ->
-      let _ = _cogent_assert (partial_idx == 0) !chain
-      and _ = _cogent_assert (chain.indirect_count == 1) !chain -- not 2, since the unallocated one doesnt' go in chain
+      let _ = cogent_assert (partial_idx == 0) !chain
+      and _ = cogent_assert (chain.indirect_count == 1) !chain -- not 2, since the unallocated one doesnt' go in chain
 
       -- okay, find the goal to the indirect
       and (chain, maybe_indirect) = chain_take_indirect (chain, partial_idx)
       in maybe_indirect
       | Some indirect ->
-        let _ = _cogent_assert (indirect.blockptr == 0) !indirect
-        and _ = _cogent_assert (indirect.offset == 12) !indirect -- const_singleIndirectIdx
-        and _ = _cogent_assert (chain.indirect_count == 0) !chain
+        let _ = cogent_assert (indirect.blockptr == 0) !indirect
+        and _ = cogent_assert (indirect.offset == 12) !indirect -- const_singleIndirectIdx
+        and _ = cogent_assert (chain.indirect_count == 0) !chain
 
         and goal = ext2_find_goal (state, inode, blk, indirect) !inode !state !indirect
         and (ex, chain) = chain_put_indirect (ex, chain, indirect, partial_idx)
-        and _ = _cogent_assert (chain.indirect_count == 1) !chain
+        and _ = cogent_assert (chain.indirect_count == 1) !chain
 
-        and _ = _cogent_assert (goal == 0)
+        and _ = cogent_assert (goal == 0)
 
         -- from fsop_get_block:
         and unallocated_in_chain = chain.path.depth - partial_idx !chain
@@ -431,31 +431,31 @@ test_path_two2 (ex, state, path, blk, inode) =
         and count = chain_blocks_to_allocate (chain, indirect_blocks, 1, boundary) !chain -- max_mappable == 1
 
         -- should be 2 unallocated, 1 indirect, 1 direct
-        and _ = _cogent_assert (unallocated_in_chain == 2)
-        and _ = _cogent_assert (indirect_blocks == 1)
-        and _ = _cogent_assert (count == 1)
+        and _ = cogent_assert (unallocated_in_chain == 2)
+        and _ = cogent_assert (indirect_blocks == 1)
+        and _ = cogent_assert (count == 1)
 
         -- let's allocate (just 1 block for now)
         and ((ex, state, chain, inode), res) = chain_alloc (ex, state, chain, inode, indirect_blocks, goal, 1, partial_idx)
         in res
         | Success count ->
-          let _ = _cogent_assert (count == 1) -- 2 would've allocated, but only 1 direct
-          and _ = _cogent_assert (chain.indirect_count == 2) !chain
+          let _ = cogent_assert (count == 1) -- 2 would've allocated, but only 1 direct
+          and _ = cogent_assert (chain.indirect_count == 2) !chain
 
           and (chain, maybe_indirect) = chain_pop_indirect (chain)
           in maybe_indirect
           | Some indirect ->
-            let _ = _cogent_assert (indirect.blockptr == 276) !indirect
-            and _ = _cogent_assert (indirect.offset == 1) !indirect 
-            and _ = _cogent_assert (chain.indirect_count == 1) !chain
+            let _ = cogent_assert (indirect.blockptr == 276) !indirect
+            and _ = cogent_assert (indirect.offset == 1) !indirect 
+            and _ = cogent_assert (chain.indirect_count == 1) !chain
 
             and (ex, chain) = chain_push_indirect (ex, chain, indirect)
 
             and (chain, maybe_indirect) = chain_take_indirect (chain, partial_idx)
             in maybe_indirect
             | Some indirect =>
-              let _ = _cogent_assert (indirect.blockptr == 275) !indirect
-              and _ = _cogent_assert (indirect.offset == 12) !indirect -- const_singleIndirectIdx
+              let _ = cogent_assert (indirect.blockptr == 275) !indirect
+              and _ = cogent_assert (indirect.offset == 12) !indirect -- const_singleIndirectIdx
 
               and ((ex, indirect, inode), res) = indirect_splice (ex, indirect, inode, blk, count, indirect_blocks)
 
@@ -465,9 +465,9 @@ test_path_two2 (ex, state, path, blk, inode) =
               | Success () =>
                 let indirect_blockptr = chain_peek_indirect_blockptr (chain) !chain
                 
-                and _ = _cogent_assert (indirect_blockptr == 276)
+                and _ = cogent_assert (indirect_blockptr == 276)
 
-                and _ = _cogent_log (dbg_EXT2_TEST, "== inode after: ==\n")
+                and _ = cogent_log (dbg_EXT2_TEST, "== inode after: ==\n")
                 and _ = dump_inode (inode) !inode
 
                 and (ex, res) = ext2_get_block (ex, 275)
@@ -480,53 +480,53 @@ test_path_two2 (ex, state, path, blk, inode) =
                         and ex = osbuffer_destroy (ex, buf)
                         in (ex, state, path, inode, True)
                       else 
-                        let _ = _cogent_log (dbg_EXT2_TEST, "test_path_two2: part after blockptr was non-zero\n")
+                        let _ = cogent_log (dbg_EXT2_TEST, "test_path_two2: part after blockptr was non-zero\n")
                         and (ex, path) = chain_free (ex, chain)
                         and ex = osbuffer_destroy (ex, buf)
                         in (ex, state, path, inode, False)
                     else
-                      let _ = _cogent_log (dbg_EXT2_TEST, "test_path_two2: blockptr in indirect was not correct\n")
+                      let _ = cogent_log (dbg_EXT2_TEST, "test_path_two2: blockptr in indirect was not correct\n")
                       and (ex, path) = chain_free (ex, chain)
                       and ex = osbuffer_destroy (ex, buf)
                       in (ex, state, path, inode, False)
                   else
-                    let _ = _cogent_log (dbg_EXT2_TEST, "test_path_two2: part before blockptr was non-zero\n")
+                    let _ = cogent_log (dbg_EXT2_TEST, "test_path_two2: part before blockptr was non-zero\n")
                     and (ex, path) = chain_free (ex, chain)
                     and ex = osbuffer_destroy (ex, buf)
                     in (ex, state, path, inode, False)
                 | Error () ->
-                  let _ = _cogent_log (dbg_EXT2_TEST, "test_path_two2: failed to alloc OSBuffer\n")
+                  let _ = cogent_log (dbg_EXT2_TEST, "test_path_two2: failed to alloc OSBuffer\n")
                   and (ex, path) = chain_free (ex, chain)
                   in (ex, state, path, inode, False)
               | Error e ->
-                let _ = _cogent_log (dbg_EXT2_TEST, "test_path_two2: cannot put back final indirect with err ")
-                and _ = _cogent_log_u32 (dbg_EXT2_TEST, e)
-                and _ = _cogent_log (dbg_EXT2_TEST, "\n")
+                let _ = cogent_log (dbg_EXT2_TEST, "test_path_two2: cannot put back final indirect with err ")
+                and _ = cogent_log_u32 (dbg_EXT2_TEST, e)
+                and _ = cogent_log (dbg_EXT2_TEST, "\n")
 
                 and (ex, path) = chain_free (ex, chain)
                 in (ex, state, path, inode, False)
             | None () ->
-              let _ = _cogent_log (dbg_EXT2_TEST, "test_path_two2: indirect fell off chain (3)\n")
+              let _ = cogent_log (dbg_EXT2_TEST, "test_path_two2: indirect fell off chain (3)\n")
               and (ex, path) = chain_free (ex, chain)
               in (ex, state, path, inode, False)
           | None () ->
-            let _ = _cogent_log (dbg_EXT2_TEST, "test_path_two2: indirect fell off chain (2)\n")
+            let _ = cogent_log (dbg_EXT2_TEST, "test_path_two2: indirect fell off chain (2)\n")
             and (ex, path) = chain_free (ex, chain)
             in (ex, state, path, inode, False)
         | Error e ->
-          let _ = _cogent_log (dbg_EXT2_TEST, "test_path_two2: allocation failed\n")
+          let _ = cogent_log (dbg_EXT2_TEST, "test_path_two2: allocation failed\n")
           and (ex, path) = chain_free (ex, chain)
           in (ex, state, path, inode, False)
       | None () ->
-        let _ = _cogent_log (dbg_EXT2_TEST, "test_path_two2: indirect fell off chain (1)\n")
+        let _ = cogent_log (dbg_EXT2_TEST, "test_path_two2: indirect fell off chain (1)\n")
         and (ex, path) = chain_free (ex, chain)
         in (ex, state, path, inode, False)
     | None () ->
-      let _ = _cogent_log (dbg_EXT2_TEST, "test_path_two2: was full path, should't be\n")
+      let _ = cogent_log (dbg_EXT2_TEST, "test_path_two2: was full path, should't be\n")
       and (ex, path) = chain_free (ex, chain)
       in (ex, state, path, inode, False)
   | Error path ->
-    let _ = _cogent_log (dbg_EXT2_TEST, "test_path_two2: failed to create chain from path\n")
+    let _ = cogent_log (dbg_EXT2_TEST, "test_path_two2: failed to create chain from path\n")
     in (ex, state, path, inode, False)
 
 test_path_three2: (SysState, FsState, Path, U32, VfsInode) -> (SysState, FsState, Path, VfsInode, Bool)
@@ -536,7 +536,7 @@ test_path_three2 (ex, state, path, blk, inode) =
 
   -- TODO: check path (should be offsets 14, 0, 0, 1)
 
-  and _ = _cogent_log (dbg_EXT2_TEST, "== inode before: ==\n")
+  and _ = cogent_log (dbg_EXT2_TEST, "== inode before: ==\n")
   and _ = dump_inode (inode) !inode
 
   and (ex, res) = chain_from_path (ex, path, inode, depth) !inode
@@ -544,22 +544,22 @@ test_path_three2 (ex, state, path, blk, inode) =
   | Success (chain, maybe_partial) ->
     maybe_partial
     | Some partial_idx ->
-      let _ = _cogent_assert (partial_idx == 0) !chain
-      and _ = _cogent_assert (chain.indirect_count == 1) !chain -- not 3, since the unallocated ones don't go in chain
+      let _ = cogent_assert (partial_idx == 0) !chain
+      and _ = cogent_assert (chain.indirect_count == 1) !chain -- not 3, since the unallocated ones don't go in chain
 
       -- okay, find the goal to the indirect
       and (chain, maybe_indirect) = chain_take_indirect (chain, partial_idx)
       in maybe_indirect
       | Some indirect ->
-        let _ = _cogent_assert (indirect.blockptr == 0) !indirect
-        and _ = _cogent_assert (indirect.offset == 14) !indirect -- const_tripleIndirectIdx
-        and _ = _cogent_assert (chain.indirect_count == 0) !chain
+        let _ = cogent_assert (indirect.blockptr == 0) !indirect
+        and _ = cogent_assert (indirect.offset == 14) !indirect -- const_tripleIndirectIdx
+        and _ = cogent_assert (chain.indirect_count == 0) !chain
 
         and goal = ext2_find_goal (state, inode, blk, indirect) !inode !state !indirect
         and (ex, chain) = chain_put_indirect (ex, chain, indirect, partial_idx)
-        and _ = _cogent_assert (chain.indirect_count == 1) !chain
+        and _ = cogent_assert (chain.indirect_count == 1) !chain
 
-        and _ = _cogent_assert (goal == 275) -- last indirect
+        and _ = cogent_assert (goal == 275) -- last indirect
 
         -- from fsop_get_block:
         and unallocated_in_chain = chain.path.depth - partial_idx !chain
@@ -567,23 +567,23 @@ test_path_three2 (ex, state, path, blk, inode) =
         and count = chain_blocks_to_allocate (chain, indirect_blocks, 1, boundary) !chain -- max_mappable == 1
 
         -- should be 4 unallocated, 3 indirect, 1 direct
-        and _ = _cogent_assert (unallocated_in_chain == 4)
-        and _ = _cogent_assert (indirect_blocks == 3)
-        and _ = _cogent_assert (count == 1)
+        and _ = cogent_assert (unallocated_in_chain == 4)
+        and _ = cogent_assert (indirect_blocks == 3)
+        and _ = cogent_assert (count == 1)
 
         -- let's allocate (just 1 block for now)
         and ((ex, state, chain, inode), res) = chain_alloc (ex, state, chain, inode, indirect_blocks, goal, 1, partial_idx)
         in res
         | Success count ->
-          let _ = _cogent_assert (count == 1) -- 4 would've allocated, but only 1 direct
-          and _ = _cogent_assert (chain.indirect_count == 4) !chain
+          let _ = cogent_assert (count == 1) -- 4 would've allocated, but only 1 direct
+          and _ = cogent_assert (chain.indirect_count == 4) !chain
 
           and (chain, maybe_indirect) = chain_pop_indirect (chain)
           in maybe_indirect
           | Some indirect ->
-            let _ = _cogent_assert (indirect.blockptr == 280) !indirect
-            and _ = _cogent_assert (indirect.offset == 1) !indirect
-            and _ = _cogent_assert (chain.indirect_count == 3) !chain
+            let _ = cogent_assert (indirect.blockptr == 280) !indirect
+            and _ = cogent_assert (indirect.offset == 1) !indirect
+            and _ = cogent_assert (chain.indirect_count == 3) !chain
 
             and (ex, chain) = chain_push_indirect (ex, chain, indirect)
 
@@ -591,8 +591,8 @@ test_path_three2 (ex, state, path, blk, inode) =
             and (chain, maybe_indirect) = chain_take_indirect (chain, partial_idx)
             in maybe_indirect
             | Some indirect =>
-              let _ = _cogent_assert (indirect.blockptr == 277) !indirect 
-              and _ = _cogent_assert (indirect.offset == 14) !indirect -- const_tripleIndirectIdx
+              let _ = cogent_assert (indirect.blockptr == 277) !indirect 
+              and _ = cogent_assert (indirect.offset == 14) !indirect -- const_tripleIndirectIdx
 
               and ((ex, indirect, inode), res) = indirect_splice (ex, indirect, inode, blk, count, indirect_blocks)
 
@@ -602,9 +602,9 @@ test_path_three2 (ex, state, path, blk, inode) =
               | Success () =>
                 let indirect_blockptr = chain_peek_indirect_blockptr (chain) !chain
                 
-                and _ = _cogent_assert (indirect_blockptr == 280)
+                and _ = cogent_assert (indirect_blockptr == 280)
 
-                and _ = _cogent_log (dbg_EXT2_TEST, "== inode after: ==\n")
+                and _ = cogent_log (dbg_EXT2_TEST, "== inode after: ==\n")
                 and _ = dump_inode (inode) !inode
 
                 and (ex, res) = ext2_get_block (ex, 279)
@@ -638,86 +638,86 @@ test_path_three2 (ex, state, path, blk, inode) =
                                       and ex = osbuffer_destroy (ex, buf)
                                       in (ex, state, path, inode, True)
                                     else
-                                      let _ = _cogent_log (dbg_EXT2_TEST, "test_path_three2: inode blockptrs were corrupted\n")
+                                      let _ = cogent_log (dbg_EXT2_TEST, "test_path_three2: inode blockptrs were corrupted\n")
                                       and (ex, path) = chain_free (ex, chain)
                                       and ex = osbuffer_destroy (ex, buf)
                                       in (ex, state, path, inode, False)
                                   else
-                                    let _ = _cogent_log (dbg_EXT2_TEST, "test_path_three2: part after blockptr1 was non-zero\n")
+                                    let _ = cogent_log (dbg_EXT2_TEST, "test_path_three2: part after blockptr1 was non-zero\n")
                                     and (ex, path) = chain_free (ex, chain)
                                     and ex = osbuffer_destroy (ex, buf)
                                     in (ex, state, path, inode, False)
                                 else
-                                  let _ = _cogent_log (dbg_EXT2_TEST, "test_path_three2: blockptr in indirect1 was not correct\n")
+                                  let _ = cogent_log (dbg_EXT2_TEST, "test_path_three2: blockptr in indirect1 was not correct\n")
                                   and (ex, path) = chain_free (ex, chain)
                                   and ex = osbuffer_destroy (ex, buf)
                                   in (ex, state, path, inode, False)
                               | Error () ->
-                                let _ = _cogent_log (dbg_EXT2_TEST, "test_path_three2: failed to alloc OSBuffer\n")
+                                let _ = cogent_log (dbg_EXT2_TEST, "test_path_three2: failed to alloc OSBuffer\n")
                                 and (ex, path) = chain_free (ex, chain)
                                 in (ex, state, path, inode, False)
                             else
-                              let _ = _cogent_log (dbg_EXT2_TEST, "test_path_three2: part after blockptr2 was non-zero\n")
+                              let _ = cogent_log (dbg_EXT2_TEST, "test_path_three2: part after blockptr2 was non-zero\n")
                               and (ex, path) = chain_free (ex, chain)
                               and ex = osbuffer_destroy (ex, buf)
                               in (ex, state, path, inode, False)
                           else
-                            let _ = _cogent_log (dbg_EXT2_TEST, "test_path_three2: blockptr in indirect2 was not correct\n")
+                            let _ = cogent_log (dbg_EXT2_TEST, "test_path_three2: blockptr in indirect2 was not correct\n")
                             and (ex, path) = chain_free (ex, chain)
                             and ex = osbuffer_destroy (ex, buf)
                             in (ex, state, path, inode, False)
                         | Error () ->
-                          let _ = _cogent_log (dbg_EXT2_TEST, "test_path_three2: failed to alloc OSBuffer\n")
+                          let _ = cogent_log (dbg_EXT2_TEST, "test_path_three2: failed to alloc OSBuffer\n")
                           and (ex, path) = chain_free (ex, chain)
                           in (ex, state, path, inode, False)
                       else 
-                        let _ = _cogent_log (dbg_EXT2_TEST, "test_path_three2: part after blockptr3 was non-zero\n")
+                        let _ = cogent_log (dbg_EXT2_TEST, "test_path_three2: part after blockptr3 was non-zero\n")
                         and (ex, path) = chain_free (ex, chain)
                         and ex = osbuffer_destroy (ex, buf)
                         in (ex, state, path, inode, False)
                     else
-                      let _ = _cogent_log (dbg_EXT2_TEST, "test_path_three2: blockptr in indirect3 was not correct\n")
+                      let _ = cogent_log (dbg_EXT2_TEST, "test_path_three2: blockptr in indirect3 was not correct\n")
                       and (ex, path) = chain_free (ex, chain)
                       and ex = osbuffer_destroy (ex, buf)
                       in (ex, state, path, inode, False)
                   else
-                    let _ = _cogent_log (dbg_EXT2_TEST, "test_path_three2: part before blockptr3 was non-zero\n")
+                    let _ = cogent_log (dbg_EXT2_TEST, "test_path_three2: part before blockptr3 was non-zero\n")
                     and (ex, path) = chain_free (ex, chain)
                     and ex = osbuffer_destroy (ex, buf)
                     in (ex, state, path, inode, False)
                 | Error () ->
-                  let _ = _cogent_log (dbg_EXT2_TEST, "test_path_three2: failed to alloc OSBuffer\n")
+                  let _ = cogent_log (dbg_EXT2_TEST, "test_path_three2: failed to alloc OSBuffer\n")
                   and (ex, path) = chain_free (ex, chain)
                   in (ex, state, path, inode, False)
               | Error e ->
-                let _ = _cogent_log (dbg_EXT2_TEST, "test_path_three2: cannot put back final indirect with err ")
-                and _ = _cogent_log_u32 (dbg_EXT2_TEST, e)
-                and _ = _cogent_log (dbg_EXT2_TEST, "\n")
+                let _ = cogent_log (dbg_EXT2_TEST, "test_path_three2: cannot put back final indirect with err ")
+                and _ = cogent_log_u32 (dbg_EXT2_TEST, e)
+                and _ = cogent_log (dbg_EXT2_TEST, "\n")
 
                 and (ex, path) = chain_free (ex, chain)
                 in (ex, state, path, inode, False)
             | None () ->
-              let _ = _cogent_log (dbg_EXT2_TEST, "test_path_three2: indirect fell off chain (3)\n")
+              let _ = cogent_log (dbg_EXT2_TEST, "test_path_three2: indirect fell off chain (3)\n")
               and (ex, path) = chain_free (ex, chain)
               in (ex, state, path, inode, False)
           | None () ->
-            let _ = _cogent_log (dbg_EXT2_TEST, "test_path_three2: indirect fell off chain (2)\n")
+            let _ = cogent_log (dbg_EXT2_TEST, "test_path_three2: indirect fell off chain (2)\n")
             and (ex, path) = chain_free (ex, chain)
             in (ex, state, path, inode, False)
         | Error e ->
-          let _ = _cogent_log (dbg_EXT2_TEST, "test_path_three2: allocation failed\n")
+          let _ = cogent_log (dbg_EXT2_TEST, "test_path_three2: allocation failed\n")
           and (ex, path) = chain_free (ex, chain)
           in (ex, state, path, inode, False)
       | None () ->
-        let _ = _cogent_log (dbg_EXT2_TEST, "test_path_three2: indirect fell off chain (1)\n")
+        let _ = cogent_log (dbg_EXT2_TEST, "test_path_three2: indirect fell off chain (1)\n")
         and (ex, path) = chain_free (ex, chain)
         in (ex, state, path, inode, False)
     | None () ->
-      let _ = _cogent_log (dbg_EXT2_TEST, "test_path_three2: was full path, should't be\n")
+      let _ = cogent_log (dbg_EXT2_TEST, "test_path_three2: was full path, should't be\n")
       and (ex, path) = chain_free (ex, chain)
       in (ex, state, path, inode, False)
   | Error path ->
-    let _ = _cogent_log (dbg_EXT2_TEST, "test_path_three2: failed to create chain from path\n")
+    let _ = cogent_log (dbg_EXT2_TEST, "test_path_three2: failed to create chain from path\n")
     in (ex, state, path, inode, False)
 
 test_path_one: (SysState, FsState, VfsInode) -> RR (SysState, FsState, VfsInode) () ()
@@ -729,7 +729,7 @@ test_path_one (ex, state, inode) =
   and (ex, res) = path_new_from_block (ex, blk)
   in res
   | Success path ->
-    let _ = _cogent_assert (path.depth == 1) !path
+    let _ = cogent_assert (path.depth == 1) !path
     -- TODO: what is boundary here? 11?
 
     and (ex, state, path, inode, res) = test_path_one2 (ex, state, path, blk, inode)
@@ -740,7 +740,7 @@ test_path_one (ex, state, inode) =
       and (ex, res) = path_new_from_block (ex, blk)
       in res
       | Success path ->
-        let _ = _cogent_assert (path.depth == 2) !path
+        let _ = cogent_assert (path.depth == 2) !path
 
         and (ex, state, path, inode, res) = test_path_two2 (ex, state, path, blk, inode)
         and ex = path_destroy (ex, path)
@@ -749,29 +749,29 @@ test_path_one (ex, state, inode) =
           and (ex, res) = path_new_from_block (ex, blk)
           in res
           | Success path ->
-            let _ = _cogent_assert (path.depth == 4) !path
+            let _ = cogent_assert (path.depth == 4) !path
 
             and (ex, state, path, inode, res) = test_path_three2 (ex, state, path, blk, inode)
             and ex = path_destroy (ex, path)
             in if res then
               ((ex, state, inode), Success ())
             else
-              let _ = _cogent_log (dbg_EXT2_TEST, "test_path_three2 failed\n")
+              let _ = cogent_log (dbg_EXT2_TEST, "test_path_three2 failed\n")
               in ((ex, state, inode), Error ())
           | Error () ->
-            let _ = _cogent_log (dbg_EXT2_TEST, "could not create path 3\n")
+            let _ = cogent_log (dbg_EXT2_TEST, "could not create path 3\n")
             in ((ex, state, inode), Error ())
         else
-          let _ = _cogent_log (dbg_EXT2_TEST, "test_path_two2 failed\n")
+          let _ = cogent_log (dbg_EXT2_TEST, "test_path_two2 failed\n")
           in ((ex, state, inode), Error ())
       | Error () ->
-        let _ = _cogent_log (dbg_EXT2_TEST, "could not create path 2\n")
+        let _ = cogent_log (dbg_EXT2_TEST, "could not create path 2\n")
         in ((ex, state, inode), Error ())
     else
-      let _ = _cogent_log (dbg_EXT2_TEST, "test_path_one2 failed\n")
+      let _ = cogent_log (dbg_EXT2_TEST, "test_path_one2 failed\n")
       in ((ex, state, inode), Error ())
   | Error () ->
-    let _ = _cogent_log (dbg_EXT2_TEST, "could not create path\n")
+    let _ = cogent_log (dbg_EXT2_TEST, "could not create path\n")
     in ((ex, state, inode), Error ())
 
 test_dir_add_remove: (SysState, FsState, VfsInode) -> RR (SysState, FsState, VfsInode) () ()
@@ -782,9 +782,9 @@ test_dir_add_remove: (SysState, FsState, VfsInode) -> RR (SysState, FsState, Vfs
 --  | Success dir_inode ->
 
 --  | Error e ->
---    let _ = _cogent_log (dbg_EXT2_TEST, "test_dir_add_remove: mkdir returned err ")
---    and _ = _cogent_log_u32 (dbg_EXT2_TEST, e)
---    and _ = _cogent_log (dbg_EXT2_TEST, "\n")
+--    let _ = cogent_log (dbg_EXT2_TEST, "test_dir_add_remove: mkdir returned err ")
+--    and _ = cogent_log_u32 (dbg_EXT2_TEST, e)
+--    and _ = cogent_log (dbg_EXT2_TEST, "\n")
 
 --    in ((ex, state, root), Error ())
 test_dir_add_remove (ex, state, inode) = ((ex, state, inode), Success ())
@@ -805,11 +805,11 @@ test_block_was_free (ex, state, blk) =
         and ex = osbuffer_destroy (ex, bitmap_buf)
         in (ex, state, True)
       | _ ->
-        let _ = _cogent_log (dbg_EXT2_TEST, "test_block_was_free: bit " )
-        and _ = _cogent_log_u32 (dbg_EXT2_TEST, grp_target_blk)
-        and _ = _cogent_log (dbg_EXT2_TEST, " for block ")
-        and _ = _cogent_log_u32 (dbg_EXT2_TEST, blk )
-        and _ = _cogent_log (dbg_EXT2_TEST, " was set when it was free'd\n")
+        let _ = cogent_log (dbg_EXT2_TEST, "test_block_was_free: bit " )
+        and _ = cogent_log_u32 (dbg_EXT2_TEST, grp_target_blk)
+        and _ = cogent_log (dbg_EXT2_TEST, " for block ")
+        and _ = cogent_log_u32 (dbg_EXT2_TEST, blk )
+        and _ = cogent_log (dbg_EXT2_TEST, " was set when it was free'd\n")
 
         and ((ex, state), _) = put_group_desc_buf_in_array (ex, state, block_group, group_desc_buf)
         and ex = osbuffer_destroy (ex, bitmap_buf)
@@ -865,41 +865,41 @@ test_free_one (ex, state, inode, root) =
                   let ex = vfs_inode_put_tuple (ex, inode_a)
                   in ((ex, state), Success ())
                 else
-                  let _ = _cogent_log (dbg_EXT2_TEST, "test_free_one: new inode had ino ")
-                  and _ = _cogent_log_u32 (dbg_EXT2_TEST, actual_ino)
-                  and _ = _cogent_log (dbg_EXT2_TEST, " rather than expected ino ")
-                  and _ = _cogent_log_u32 (dbg_EXT2_TEST, 12)
-                  and _ = _cogent_log (dbg_EXT2_TEST, "\n")
+                  let _ = cogent_log (dbg_EXT2_TEST, "test_free_one: new inode had ino ")
+                  and _ = cogent_log_u32 (dbg_EXT2_TEST, actual_ino)
+                  and _ = cogent_log (dbg_EXT2_TEST, " rather than expected ino ")
+                  and _ = cogent_log_u32 (dbg_EXT2_TEST, 12)
+                  and _ = cogent_log (dbg_EXT2_TEST, "\n")
 
                   and ex = vfs_inode_put_tuple (ex, inode_a)
                   in ((ex, state), Error ())
               | Error e ->
-                let _ = _cogent_log (dbg_EXT2_TEST, "test_free_one: failed to alloc new inode with err ")
-                and _ = _cogent_log_u32 (dbg_EXT2_TEST, e)
-                and _ = _cogent_log (dbg_EXT2_TEST, "\n")
+                let _ = cogent_log (dbg_EXT2_TEST, "test_free_one: failed to alloc new inode with err ")
+                and _ = cogent_log_u32 (dbg_EXT2_TEST, e)
+                and _ = cogent_log (dbg_EXT2_TEST, "\n")
                 in ((ex, state), Error ())
             else
-              let _ = _cogent_log (dbg_EXT2_TEST, "test_free_one: block 280 was not free\n")
+              let _ = cogent_log (dbg_EXT2_TEST, "test_free_one: block 280 was not free\n")
               and ex = vfs_inode_put_taken #{ ex, inode = inode_t }
               in ((ex, state), Error ())
           else
-            let _ = _cogent_log (dbg_EXT2_TEST, "test_free_one: block 279 was not free\n")
+            let _ = cogent_log (dbg_EXT2_TEST, "test_free_one: block 279 was not free\n")
             and ex = vfs_inode_put_taken #{ ex, inode = inode_t }
             in ((ex, state), Error ())
         else
-          let _ = _cogent_log (dbg_EXT2_TEST, "test_free_one: block 278 was not free\n")
+          let _ = cogent_log (dbg_EXT2_TEST, "test_free_one: block 278 was not free\n")
           and ex = vfs_inode_put_taken #{ ex, inode = inode_t }
           in ((ex, state), Error ())
       else
-        let _ = _cogent_log (dbg_EXT2_TEST, "test_free_one: block 277 was not free\n")
+        let _ = cogent_log (dbg_EXT2_TEST, "test_free_one: block 277 was not free\n")
         and ex = vfs_inode_put_taken #{ ex, inode = inode_t }
         in ((ex, state), Error ())
     else
-      let _ = _cogent_log (dbg_EXT2_TEST, "test_free_one: block 276 was not free\n")
+      let _ = cogent_log (dbg_EXT2_TEST, "test_free_one: block 276 was not free\n")
       and ex = vfs_inode_put_taken #{ ex, inode = inode_t }
       in ((ex, state), Error ())
   else
-    let _ = _cogent_log (dbg_EXT2_TEST, "test_free_one: block 275 was not free\n")
+    let _ = cogent_log (dbg_EXT2_TEST, "test_free_one: block 275 was not free\n")
     and ex = vfs_inode_put_taken #{ ex, inode = inode_t }
     in ((ex, state), Error ())
 
@@ -932,29 +932,29 @@ fsop_run_tests (ex, state, root) =
               | Success () ->
                 test_dir_add_remove (ex, state, root)
               | Error () ->
-                let _ = _cogent_log (dbg_EXT2_TEST, "failed to free first inode correctly\n")
+                let _ = cogent_log (dbg_EXT2_TEST, "failed to free first inode correctly\n")
                 in ((ex, state, root), Error ())
             | Error () ->
-              let _ = _cogent_log (dbg_EXT2_TEST, "failed to write blocks to first inode\n")
+              let _ = cogent_log (dbg_EXT2_TEST, "failed to write blocks to first inode\n")
               and ex = vfs_inode_put_tuple (ex, first_inode)
               in ((ex, state, root), Error ())
           | Error () ->
-            let _ = _cogent_log (dbg_EXT2_TEST, "failed to verify post-allocation blockgroup states\n")
+            let _ = cogent_log (dbg_EXT2_TEST, "failed to verify post-allocation blockgroup states\n")
             and ex = vfs_inode_put_tuple (ex, first_inode)
             in ((ex, state, root), Error ())
         | None () ->
-          let _ = _cogent_log (dbg_EXT2_TEST, "first inode was not in array anymore; bug in test\n")
+          let _ = cogent_log (dbg_EXT2_TEST, "first inode was not in array anymore; bug in test\n")
           in ((ex, state, root), Error ())
       | Error () ->
-        let _ = _cogent_log (dbg_EXT2_TEST, "failed allocation test\n")
+        let _ = cogent_log (dbg_EXT2_TEST, "failed allocation test\n")
 
         and ex = array_free [VfsInode] #{ arr = inodes, f = vfs_inode_put_tuple, ex }
         in ((ex, state, root), Error ())
     | Error ex ->
-      let _ = _cogent_log (dbg_EXT2_TEST, "failed to allocate initial inodes array\n")
+      let _ = cogent_log (dbg_EXT2_TEST, "failed to allocate initial inodes array\n")
       in ((ex, state, root), Error ())
   | Error () ->
-    let _ = _cogent_log (dbg_EXT2_TEST, "failed to verify initial blockgroup states\n")
+    let _ = cogent_log (dbg_EXT2_TEST, "failed to verify initial blockgroup states\n")
     in ((ex, state, root), Error ())
 -}
 

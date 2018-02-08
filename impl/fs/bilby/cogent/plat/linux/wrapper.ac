@@ -1593,7 +1593,7 @@ void bilbyfs_kill_super(struct super_block *sb)
         wrapper_clean(wd);
 }
 
-$ty:(()) $id:_bilbyfs_error(char *str)
+$ty:(()) $id:bilbyfs_error(char *str)
 {
     $ty:(()) unit;
 
@@ -1601,7 +1601,7 @@ $ty:(()) $id:_bilbyfs_error(char *str)
     return unit;
 }
 
-$ty:(()) $id:_bilbyfs_error_u32(u32 a)
+$ty:(()) $id:bilbyfs_error_u32(u32 a)
 {
     $ty:(()) unit;
 

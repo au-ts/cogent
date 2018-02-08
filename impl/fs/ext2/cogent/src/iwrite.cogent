@@ -118,35 +118,35 @@ readahead_inode (ex, state, inode) =
 
 fsop_inode_write: #{ex: SysState, state: FsState, inode: VfsInode, sync: Bool} -> RR #{ex: SysState, state: FsState, inode: VfsInode} () U32
 fsop_inode_write #{ex,state,inode,sync} = 
-    let _ = _cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_write: getting buffer for ino ")
-    and _ = _cogent_log_u32 (dbg_EXT2_INODE_WRITE, (vfs_inode_get_ino (inode))) !inode
-    and _ = _cogent_log (dbg_EXT2_INODE_WRITE, "\n")
+    let _ = cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_write: getting buffer for ino ")
+    and _ = cogent_log_u32 (dbg_EXT2_INODE_WRITE, (vfs_inode_get_ino (inode))) !inode
+    and _ = cogent_log (dbg_EXT2_INODE_WRITE, "\n")
 
     and ((ex, state), res) = ext2_inode_get_buf (ex, state, vfs_inode_get_ino (inode)) !inode
     in res
     | Success (buf, buf_offset) ->
         -- create an on-disk repr of the inode from VfsInode
-        let _ = _cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_write: success, serialising inode to disk\n")
+        let _ = cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_write: success, serialising inode to disk\n")
         and (ex, result) = serialise_ext2_VfsInode (ex, state, buf, inode, buf_offset, sync) !inode !state
         in result
         | Success (buf, buf_offset) ->
-            let _ = _cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_write: serialise ok, dirtying, syncing and destroying\n")
+            let _ = cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_write: serialise ok, dirtying, syncing and destroying\n")
             and (ex, buf) = osbuffer_dirty (ex, buf)
             and buf = if sync then osbuffer_sync_dirty (buf) else buf
             and ex = osbuffer_destroy (ex, buf)
             in (#{ex, state, inode}, Success ())
         | Error (buf, buf_offset)->
             let ex = osbuffer_destroy (ex, buf)
-            and _ = _cogent_log (dbg_EXT2_INODE_WRITE, "failed to serialise inode to buffer at offset ")
-            and _ = _cogent_log_u32 (dbg_EXT2_INODE_WRITE, buf_offset)
-            and _ = _cogent_log (dbg_EXT2_INODE_WRITE, "\n")
+            and _ = cogent_log (dbg_EXT2_INODE_WRITE, "failed to serialise inode to buffer at offset ")
+            and _ = cogent_log_u32 (dbg_EXT2_INODE_WRITE, buf_offset)
+            and _ = cogent_log (dbg_EXT2_INODE_WRITE, "\n")
             in (#{ex, state, inode}, Error eIO)
     | Error err ->
-        let _ = _cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_write: ERROR: failed to get buffer for ino ")
-        and _ = _cogent_log_u32 (dbg_EXT2_INODE_WRITE, (vfs_inode_get_ino (inode))) !inode
-        and _ = _cogent_log (dbg_EXT2_INODE_WRITE, " with err ")
-        and _ = _cogent_log_u32 (dbg_EXT2_INODE_WRITE, err)
-        and _ = _cogent_log (dbg_EXT2_INODE_WRITE, "\n")
+        let _ = cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_write: ERROR: failed to get buffer for ino ")
+        and _ = cogent_log_u32 (dbg_EXT2_INODE_WRITE, (vfs_inode_get_ino (inode))) !inode
+        and _ = cogent_log (dbg_EXT2_INODE_WRITE, " with err ")
+        and _ = cogent_log_u32 (dbg_EXT2_INODE_WRITE, err)
+        and _ = cogent_log (dbg_EXT2_INODE_WRITE, "\n")
 
         in (#{ex, state, inode}, Error err)
 
@@ -164,7 +164,7 @@ fsop_inode_evict (ex, state, inode, want_delete) =
         -- set deletion time
         let (ex, now) = os_get_current_time ex
 
-        and _ = _cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_evict: wanted to delete inode\n")
+        and _ = cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_evict: wanted to delete inode\n")
 
         and inode_t { fs } = inode
         and fs = fs { dtime = now.tv_sec } !now
@@ -179,16 +179,16 @@ fsop_inode_evict (ex, state, inode, want_delete) =
         and (r { ex, state, inode }, res) = fsop_inode_write #{ ex, state, inode, sync = is_sync }
 
         -- truncate it
-        and _ = _cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_evict: setting size to 0\n")
+        and _ = cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_evict: setting size to 0\n")
         and inode = vfs_inode_set_size (inode, 0)
         and block_count = vfs_inode_get_blocks (inode) !inode
         in if block_count /= 0 then
-            let _ = _cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_evict: had non-zero blockcount, truncating to 0...\n")
+            let _ = cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_evict: had non-zero blockcount, truncating to 0...\n")
 
             and ((ex, state, inode), res) = ext2_truncate_blocks (ex, state, inode, 0) -- truncate to zero
             in fsop_inode_evict2 (ex, state, inode)
         else
-            let _ = _cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_evict: no need to truncate; had no block count\n")
+            let _ = cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_evict: no need to truncate; had no block count\n")
             in fsop_inode_evict2 (ex, state, inode)
     else
         fsop_inode_evict2 (ex, state, inode)
@@ -229,11 +229,11 @@ fsop_inode_free (ex, state, inode_t) =
             in res
             | Success (bitmap_buf) =>
                 -- clear it
-                let _ = _cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_free: clearing bit ")
-                and _ = _cogent_log_u32 (dbg_EXT2_INODE_WRITE, bit)
-                and _ = _cogent_log (dbg_EXT2_INODE_WRITE, " of block group ")
-                and _ = _cogent_log_u32 (dbg_EXT2_INODE_WRITE, group)
-                and _ = _cogent_log (dbg_EXT2_INODE_WRITE, "\n")
+                let _ = cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_free: clearing bit ")
+                and _ = cogent_log_u32 (dbg_EXT2_INODE_WRITE, bit)
+                and _ = cogent_log (dbg_EXT2_INODE_WRITE, " of block group ")
+                and _ = cogent_log_u32 (dbg_EXT2_INODE_WRITE, group)
+                and _ = cogent_log (dbg_EXT2_INODE_WRITE, "\n")
                 
                 and (bitmap_buf, res) = osbuffer_clear_bit (bitmap_buf, bit)
                 in res
@@ -259,29 +259,29 @@ fsop_inode_free (ex, state, inode_t) =
                         let ((ex, state), _) = put_group_desc_buf_in_array (ex, state, group, group_buf)
                         in fsop_inode_free2 (ex, state, inode_t)
                 | _ ->
-                    let _ = _cogent_warn "fsop_inode_free: ERROR: bit already cleared for ino "
-                    and _ = _cogent_warn_u32 (vfs_inode_get_ino2 (inode_t)) !inode_t
-                    and _ = _cogent_warn "\n"
+                    let _ = cogent_warn "fsop_inode_free: ERROR: bit already cleared for ino "
+                    and _ = cogent_warn_u32 (vfs_inode_get_ino2 (inode_t)) !inode_t
+                    and _ = cogent_warn "\n"
 
                     and ex = osbuffer_destroy (ex, bitmap_buf)
                     and ((ex, state), _) = put_group_desc_buf_in_array (ex, state, group, group_buf)
                     in (ex, state, inode_t)
             | Error () ->
-                let _ = _cogent_warn "fsop_inode_free: ERROR: failed to get inode bitmap block "
-                and _ = _cogent_warn_u32 group_desc.inode_bitmap !group_desc
-                and _ = _cogent_warn "\n"
+                let _ = cogent_warn "fsop_inode_free: ERROR: failed to get inode bitmap block "
+                and _ = cogent_warn_u32 group_desc.inode_bitmap !group_desc
+                and _ = cogent_warn "\n"
 
                 and ((ex, state), _) = put_group_desc_buf_in_array (ex, state, group, group_buf)
                 in (ex, state, inode_t)
         | Error () ->
-            let _ = _cogent_warn "fsop_inode_free: ERROR: failed to get group descriptor "
-            and _ = _cogent_warn_u32 group
-            and _ = _cogent_warn "\n"
+            let _ = cogent_warn "fsop_inode_free: ERROR: failed to get group descriptor "
+            and _ = cogent_warn_u32 group
+            and _ = cogent_warn "\n"
             in (ex, state, inode_t)
     | _ ->
-        let _ = _cogent_warn "fsop_inode_free: ERROR: reserved/invalid ino "
-        and _ = _cogent_warn_u32 ino
-        and _ = _cogent_warn "\n"
+        let _ = cogent_warn "fsop_inode_free: ERROR: reserved/invalid ino "
+        and _ = cogent_warn_u32 ino
+        and _ = cogent_warn "\n"
 
         in (ex, state, inode_t)
 
@@ -291,9 +291,9 @@ fsop_inode_get_block : #{ex: SysState, state: FsState, inode: VfsInode, blk: U32
                     -> RR (SysState, FsState, OSBuffer, VfsInode) () U32
 fsop_inode_get_block #{ ex, state, inode, blk, create, buf } =
   let max_mappable = osbuffer_get_size buf >> const_blockSizeBits !buf
-  and _ = _cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: getting path from blk ")
-  and _ = _cogent_log_u32 (dbg_EXT2_INODE_WRITE, blk)
-  and _ = _cogent_log (dbg_EXT2_INODE_WRITE, "\n")
+  and _ = cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: getting path from blk ")
+  and _ = cogent_log_u32 (dbg_EXT2_INODE_WRITE, blk)
+  and _ = cogent_log (dbg_EXT2_INODE_WRITE, "\n")
 
   and ((ex, state), res) = path_new_from_block (ex, state, blk)
   in res
@@ -303,12 +303,12 @@ fsop_inode_get_block #{ ex, state, inode, blk, create, buf } =
     in depth
     | 0 ->
       -- out of bounds blk
-      let _ = _cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: ERROR: block out of bounds (depth == 0)\n")
+      let _ = cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: ERROR: block out of bounds (depth == 0)\n")
       and (ex, state) = path_restore (ex, state, path)
       in ((ex, state, buf, inode), Error eIO)
     | _ => 
       -- lookup the branch
-      let _ = _cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: had a branch, going to look it up...\n")
+      let _ = cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: had a branch, going to look it up...\n")
 
       -- setup chain first
       and (state, res) = chain_init (state, path)
@@ -320,7 +320,7 @@ fsop_inode_get_block #{ ex, state, inode, blk, create, buf } =
           -- see if we had a full or partial chain
           maybe_partial
           | None ->
-            let _ = _cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: was full chain (all blocks allocated)\n")
+            let _ = cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: was full chain (all blocks allocated)\n")
 
             -- all blocks allocated already, just read the last one into our source buffer
             and ((ex, buf), res) = osbuffer_read_block #{ ex, buf, blk = chain_peek_indirect_blockptr chain } !chain
@@ -339,19 +339,19 @@ fsop_inode_get_block #{ ex, state, inode, blk, create, buf } =
             | Error () -> ((ex, state, buf, inode), Error eIO)  -- failed to read final block back
           | Some partial_idx ->
             -- had partial chain
-            let _ = _cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: had partial chain (some blocks unallocated)\n")
+            let _ = cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: had partial chain (some blocks unallocated)\n")
             in if create then
               let (chain, maybe_indirect) = chain_take_indirect (chain, partial_idx)
               in maybe_indirect
               | Some indirect =>
-                let _ = _cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: searching for a goal to target block...\n")
+                let _ = cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: searching for a goal to target block...\n")
 
                 and (ex, goal) = ext2_find_goal (ex, state, inode, blk, indirect) !inode !state !indirect
                 and (ex, chain) = chain_put_indirect (ex, chain, indirect, partial_idx)
 
-                and _ = _cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: found goal block ")
-                and _ = _cogent_log_u32 (dbg_EXT2_INODE_WRITE, goal)
-                and _ = _cogent_log (dbg_EXT2_INODE_WRITE, "\n")
+                and _ = cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: found goal block ")
+                and _ = cogent_log_u32 (dbg_EXT2_INODE_WRITE, goal)
+                and _ = cogent_log (dbg_EXT2_INODE_WRITE, "\n")
 
                 -- allocate branch
                 and unallocated_in_chain = chain.path.depth - partial_idx !chain
@@ -362,15 +362,15 @@ fsop_inode_get_block #{ ex, state, inode, blk, create, buf } =
                 -- number of direct blocks
                 and count = chain_blocks_to_allocate (chain, indirect_blocks, upcast max_mappable, boundary) !chain
 
-                and _ = _cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: have ")
-                and _ = _cogent_log_u32 (dbg_EXT2_INODE_WRITE, unallocated_in_chain)
-                and _ = _cogent_log (dbg_EXT2_INODE_WRITE, " unallocated in chain, ")
-                and _ = _cogent_log_u32 (dbg_EXT2_INODE_WRITE, indirect_blocks)
-                and _ = _cogent_log (dbg_EXT2_INODE_WRITE, " indirect blocks, and ")
-                and _ = _cogent_log_u64 (dbg_EXT2_INODE_WRITE, count)
-                and _ = _cogent_log (dbg_EXT2_INODE_WRITE, " direct blocks\n")
+                and _ = cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: have ")
+                and _ = cogent_log_u32 (dbg_EXT2_INODE_WRITE, unallocated_in_chain)
+                and _ = cogent_log (dbg_EXT2_INODE_WRITE, " unallocated in chain, ")
+                and _ = cogent_log_u32 (dbg_EXT2_INODE_WRITE, indirect_blocks)
+                and _ = cogent_log (dbg_EXT2_INODE_WRITE, " indirect blocks, and ")
+                and _ = cogent_log_u64 (dbg_EXT2_INODE_WRITE, count)
+                and _ = cogent_log (dbg_EXT2_INODE_WRITE, " direct blocks\n")
 
-                and _ = _cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: going to allocate...\n")
+                and _ = cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: going to allocate...\n")
 
                 -- XXX: bad cast for count! in reality we never exceed U16 bounds (I think)
                 and ((ex, state, chain, inode), res) = chain_alloc (ex, state, chain, inode, indirect_blocks, goal, u64_to_u32 count, partial_idx)
@@ -380,7 +380,7 @@ fsop_inode_get_block #{ ex, state, inode, blk, create, buf } =
                   in maybe_indirect
                   | Some indirect =>
                     -- splice it
-                    let _ = _cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: splicing newly allocated top-level indirect to existing chain...\n")
+                    let _ = cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: splicing newly allocated top-level indirect to existing chain...\n")
 
                     and ((ex, indirect, inode), res) = indirect_splice (ex, indirect, inode, blk, count, indirect_blocks)
                     and (ex, chain) = chain_put_indirect (ex, chain, indirect, partial_idx)
@@ -391,9 +391,9 @@ fsop_inode_get_block #{ ex, state, inode, blk, create, buf } =
                       -- set buffer to be new
                       and (ex, buf) = osbuffer_set_new (ex, buf)
 
-                      and _ = _cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: looking up new, final block ")
-                      and _ = _cogent_log_u32 (dbg_EXT2_INODE_WRITE, indirect_blockptr)
-                      and _ = _cogent_log (dbg_EXT2_INODE_WRITE, "\n")
+                      and _ = cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: looking up new, final block ")
+                      and _ = cogent_log_u32 (dbg_EXT2_INODE_WRITE, indirect_blockptr)
+                      and _ = cogent_log (dbg_EXT2_INODE_WRITE, "\n")
 
                       and ((ex, buf), res) = osbuffer_read_block #{ ex, buf, blk = indirect_blockptr } 
 
@@ -409,51 +409,51 @@ fsop_inode_get_block #{ ex, state, inode, blk, create, buf } =
                         -- finished!
                         in ((ex, state, buf, inode), Success ())
                       | Error () ->
-                        let _ = _cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: ERROR: failed to read back last blockptr ")
-                        and _ = _cogent_log_u32 (dbg_EXT2_INODE_WRITE, indirect_blockptr)
-                        and _ = _cogent_log (dbg_EXT2_INODE_WRITE, "\n")
+                        let _ = cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: ERROR: failed to read back last blockptr ")
+                        and _ = cogent_log_u32 (dbg_EXT2_INODE_WRITE, indirect_blockptr)
+                        and _ = cogent_log (dbg_EXT2_INODE_WRITE, "\n")
 
                         in ((ex, state, buf, inode), Error eIO) -- failed to read final block back
                     | Error e ->
-                      let _ = _cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: ERROR: failed to push indirect on chain?\n")
+                      let _ = cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: ERROR: failed to push indirect on chain?\n")
                       and (ex, state, path) = chain_restore (ex, state, chain)
                       and (ex, state) = path_restore (ex, state, path)
                       in ((ex, state, buf, inode), Error e)
                   | None -> 
-                    let _ = _cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: ERROR: had no indirect after alloc?\n")
+                    let _ = cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: ERROR: had no indirect after alloc?\n")
                     and (ex, state, path) = chain_restore (ex, state, chain)
                     and (ex, state) = path_restore (ex, state, path)
                     in ((ex, state, buf, inode), Error eIO)
                 | Error e ->
-                  let _ = _cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: ERROR: failed to allocate blocks for chain, with error ")
-                  and _ = _cogent_log_u32 (dbg_EXT2_INODE_WRITE, e)
-                  and _ = _cogent_log (dbg_EXT2_INODE_WRITE, "\n")
+                  let _ = cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: ERROR: failed to allocate blocks for chain, with error ")
+                  and _ = cogent_log_u32 (dbg_EXT2_INODE_WRITE, e)
+                  and _ = cogent_log (dbg_EXT2_INODE_WRITE, "\n")
 
                   and (ex, state, path) = chain_restore (ex, state, chain)
                   and (ex, state) = path_restore (ex, state, path)
                   in ((ex, state, buf, inode), Error e)
               | None ->
-                let _ = _cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: ERROR: had no indirect?\n")
+                let _ = cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: ERROR: had no indirect?\n")
                 and (ex, state, path) = chain_restore (ex, state, chain)
                 and (ex, state) = path_restore (ex, state, path)
                 in ((ex, state, buf, inode), Error eIO) -- allocation failed
             else
-              let _ = _cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: ERROR: unallocated block, but not opened with create flag\n")
+              let _ = cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: ERROR: unallocated block, but not opened with create flag\n")
               and (ex, state, path) = chain_restore (ex, state, chain)
               and (ex, state) = path_restore (ex, state, path)
               in ((ex, state, buf, inode), Error 0) -- no such block, and not permitted to create
         | Error () ->
-          let _ = _cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: ERROR: failed to get chain from path\n")
+          let _ = cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: ERROR: failed to get chain from path\n")
           and (ex, state, path) = chain_restore (ex, state, chain)
           and (ex, state) = path_restore (ex, state, path)
           
           in ((ex, state, buf, inode), Error eIO) -- FIXME: true error code should be passed up
       | Error path ->
-        let _ = _cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: ERROR: failed to get chain prereqs from state\n")
+        let _ = cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: ERROR: failed to get chain prereqs from state\n")
         and (ex, state) = path_restore (ex, state, path)
         in ((ex, state, buf, inode), Error eIO) -- FIXME: true error code should be passed up
   | Error () ->
-    let _ = _cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: ERROR: could not create path from block\n")
+    let _ = cogent_log (dbg_EXT2_INODE_WRITE, "fsop_inode_get_block: ERROR: could not create path from block\n")
     in ((ex, state, buf, inode), Error eNoMem)
 
 fsop_inode_truncate: (SysState, FsState, VfsInode, U64) -> (SysState, FsState, VfsInode)

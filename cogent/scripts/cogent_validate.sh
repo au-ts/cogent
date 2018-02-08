@@ -632,7 +632,7 @@ if [[ "$TESTSPEC" =~ '--libgum--' ]]; then
   shopt -s globstar
   
   # since some libgum stuff depends on this type
-  echo $'type FsInode\ntype FsState\n_COGENT_LOG_LEVEL: U32\n_COGENT_LOG_LEVEL = 0' > "$TEST_FILE"
+  echo $'type FsInode\ntype FsState\ncogent_LOG_LEVEL: U32\n_COGENT_LOG_LEVEL = 0' > "$TEST_FILE"
   
   flist=`find gum -name *.cogent`
   # include everything

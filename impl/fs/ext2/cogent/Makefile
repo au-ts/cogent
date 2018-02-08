@@ -56,7 +56,7 @@ endif
 
 ifneq ($(DEBUG),)
 EXTRA_CFLAGS+= -DEXT2FS_DEBUG
-COGENT_FLAGS+= --debug
+# COGENT_FLAGS+= --debug
 endif
 
 # flags to ignores COGENT's compiler messy C code gen
