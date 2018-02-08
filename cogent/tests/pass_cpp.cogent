@@ -10,7 +10,11 @@
 -- @TAG(DATA61_GPL)
 --
 
+#if DEBUG
 #define log(x, y) (let _ = debug (x) in y)
+#else
+#define log(x, y) (y)
+#endif
 
 #if DEBUG
 debug : String -> ()
