@@ -15,8 +15,8 @@ type R = {f1 : A, f2 : U8}
 
 g : (U8, R) -> ()
 
-foo : R -> ()
-foo r = let f = \x => g (x,r)
-        and r'{f1=a} = r
-         in f 3
+foo : R -> A
+foo r = let r'{f1} = r
+        and f = \x => g (x,r')
+         in f1
 
