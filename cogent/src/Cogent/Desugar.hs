@@ -61,7 +61,9 @@ import Text.PrettyPrint.ANSI.Leijen (pretty)
 -- import Debug.Trace
 
 
-__ghc_trac_14777 = __impossible "" --undefined
+__ghc_trac_14777 = undefined
+-- __ghc_trac_14777 = __impossible ""
+
 
 -- -----------------------------------------------------------------------------
 -- Top-level definitions and function
@@ -105,18 +107,20 @@ desugar tls ctygen pragmas =
       initialReader = (M.fromList $ P.map fromTypeDec typedecs, M.fromList $ P.map fromConstDef constdefs, pragmas)
       initialState  = DsState Nil Nil 0 []
   in flip3 evalRWS initialState initialReader $
-       runDS (do defs' <- catMaybes <$> (forM (abstydecs ++ typedecs ++ absdecs ++ fundefs) $ \x -> do
-                   typCtx .= Nil; varCtx .= Nil; oracle .= 0
+       runDS (do defs' <- concat <$> (forM (abstydecs ++ typedecs ++ absdecs ++ fundefs) $ \x -> do
+                   put initialState
                    x' <- lamLftTlv x
                    typCtx .= Nil; varCtx .= Nil; oracle .= 0
-                   desugarTlv x' pragmas)
-                 lfdefs <- use lftFun
-                 lfdefs' <- catMaybes <$> (mapM (\x -> put initialState >> desugarTlv x pragmas) $ reverse lfdefs)
+                   lfdefs <- reverse <$> use lftFun
+                   mlfdefs' <- mapM (\d -> put initialState >> desugarTlv d pragmas) lfdefs  -- no more lambda-lifting
+                   put initialState
+                   mdef' <- desugarTlv x' pragmas
+                   return . catMaybes $ mlfdefs' ++ [mdef'])
                  write <- ask
                  consts' <- desugarConsts constdefs
                  ctygen' <- desugarCustTyGen ctygen
                  tell $ Last (Just (write^._1, write^._2, consts'))
-                 return (lfdefs' ++ defs',ctygen')
+                 return (defs',ctygen')
              )
   where fromTypeDec  (S.TypeDec tn vs t) = (tn,(vs,t)); fromTypeDec  _ = __impossible "fromTypeDec (in desugarProgram)"
         fromConstDef (S.ConstDef vn t e) = (vn,e)     ; fromConstDef _ = __impossible "fromConstDef (in desguarProgram)"
