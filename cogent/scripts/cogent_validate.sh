@@ -18,7 +18,7 @@ TLD=../../
 
 source $TLD/build-env.sh || exit
 
-USAGE="Usage: $0 -[tc|ds|an|mn|cg|gcc|tc-proof|ac|ffi-gen|aq|shallow-proof|goanna|libgum|all|clean] [-q|-i|]"
+USAGE="Usage: $0 -[tc|ds|an|mn|cg|gcc|tc-proof|ac|flags|aq|shallow-proof|goanna|libgum|all|clean] [-q|-i|]"
 getopt -T >/dev/null
 if [[ $? != 4 ]]
 then
@@ -26,7 +26,7 @@ then
   exit 1
 fi
 
-OPTS=$(getopt -o h --alternative --long tc,ds,an,mn,cg,gcc,tc-proof,ac,ffi-gen,aq,shallow-proof,goanna,ee,libgum,all,help,clean,q,i -n "$0" -- "$@")
+OPTS=$(getopt -o h --alternative --long tc,ds,an,mn,cg,gcc,tc-proof,ac,flags,aq,shallow-proof,goanna,ee,libgum,all,help,clean,q,i -n "$0" -- "$@")
 if [ $? != 0 ]
 then echo "$USAGE" >&2
      exit 1
@@ -51,7 +51,7 @@ while true; do
         echo '  -gcc     Compile generated code using GCC'
         echo '  -tc-proof  Test proof generation for type checking'
         echo '  -ac      Read generated code using Isabelle'
-        echo '  -ffi-gen Test FFI-generator'
+        echo '  -flags   Test compiler features enabled by flags'
         echo '  -aq      Test antiquotation'
         echo '  -shallow-proof Test shallow-emdedding proofs'
         echo '  -goanna  Check generated code using Goanna (dependency: Goanna)'
@@ -67,7 +67,7 @@ while true; do
     --q) QUIET=1; shift;;
     --i) INTERACTIVE=1; shift;;
     --clean) DO_CLEAN=1; shift;;
-    --all) TESTSPEC='--tc--ds--an--mn--aq--cg--gcc--tc-proof--ffi-gen--ac--shallow-proof--goanna--ee--libgum'; shift;;
+    --all) TESTSPEC='--tc--ds--an--mn--aq--cg--gcc--tc-proof--flags--ac--shallow-proof--goanna--ee--libgum'; shift;;
     *) TESTSPEC="${TESTSPEC}$1"; shift;;
   esac
 done
@@ -520,19 +520,34 @@ if [[ "$TESTSPEC" =~ '--ee--' ]]; then
 fi
 
 
-if [[ "$TESTSPEC" =~ '--ffi-gen--' ]]; then
+if [[ "$TESTSPEC" =~ '--flags--' ]]; then
   echo '=== FFI-generator ==='
   all_total+=1
   passed=0
   total=0
 
-  for dir in "$TESTS"/pass_ffi-gen-*
+  for dir in "$TESTS"/pass_flags_*
   do
     echo -n "$dir: "
     total+=1
     if (cd "$dir" && check_output sh BUILD)
     then passed+=1; echo "$pass_msg"
     else echo "$fail_msg"
+    fi
+  done
+  
+  for dir in "$TESTS"/fail_flags_*
+  do
+    echo -n "$dir: "
+    total+=1
+    (cd "$dir" && sh BUILD 2> /dev/null)
+    ret=$?
+    if [ $ret -eq 0 ]
+    then echo "$badpass_msg"
+    elif [ $ret -eq 134 ]
+    then passed+=1; echo "$goodfail_msg"
+    else  # unexpected failures
+      echo "$fail_msg"
     fi
   done
 

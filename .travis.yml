@@ -124,6 +124,7 @@ script:
  - make test-mn
  - make test-cg
  - make test-aq
+ - make test-flags
  # - echo 'Typechecking libgum'
  - make test-libgum
  # - echo 'Building Cogent examples'
