@@ -12,15 +12,11 @@
 
 type Arr a
 
--- closure
 foo : (U32, Arr U32) -> Arr U32
 foo (a, bs) = map (\x => a + x, bs)
 
 bar : (U32, Arr U32) -> Arr U32
-bar (a, bs) = map (\x : U32 => a + x, bs)
-
--- capture
-baz : (U32, U32) -> U32
-baz (a, b) = (\(a,b) => a + b) (b,a)
+bar (a, bs) = let f = \x : U32 => a + x
+               in map (f, bs)
 
 map : (U32 -> U32, Arr U32) -> Arr U32
