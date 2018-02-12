@@ -48,6 +48,7 @@ import Text.Parsec.Pos
 import Text.PrettyPrint.ANSI.Leijen hiding ((<>), (<$>))
 import qualified Text.PrettyPrint.ANSI.Leijen as L
 
+-- import Debug.Trace
 
 data GenState = GenState { _context :: C.Context TCType
                          , _knownTypeVars :: [TyVarName]
@@ -180,7 +181,7 @@ cg' (IntLit i) t = do
       e = IntLit i
   return (c,e)
 
-cg' (Lam pat mt e) t = do
+cg' exp@(Lam pat mt e) t = do
   alpha <- fresh
   beta  <- fresh
   (ct, alpha') <- case mt of
@@ -191,6 +192,9 @@ cg' (Lam pat mt e) t = do
         Left  e   -> return (Unsat e, alpha)
         Right t'' -> return (F alpha :< F t'', t'')
   (s, cp, pat') <- match pat alpha'
+  let fvs = fvE $ stripLocE (LocExpr noPos $ Lam pat mt e)
+  ctx <- use context
+  let fvs' = filter (C.contains ctx) fvs  -- including (bad) vars that are not in scope
   context %= C.addScope s
   (ce, e') <- cg e beta
   rs <- context %%= C.dropScope
@@ -200,7 +204,9 @@ cg' (Lam pat mt e) t = do
           _ -> Sat
       c = ct <> cp <> ce <> F (T $ TFun alpha beta) :< F t
              <> dropConstraintFor rs <> unused
-      lam = Lam pat' (fmap (const alpha) mt) e'
+      lam = Lam  pat' (fmap (const alpha) mt) e'
+  unless (null fvs') $ __todo "closures not implemented"
+  unless (null fvs') $ context .= ctx
   traceTc "gen" (text "lambda expression" <+> prettyE lam
            L.<$> text "generate constraint" <+> prettyC c <> semi)
   return (c,lam)

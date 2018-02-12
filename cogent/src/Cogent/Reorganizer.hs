@@ -32,50 +32,6 @@ data ReorganizeError = CyclicDependency
                      | DuplicateTypeDefinition
                      | DuplicateValueDefinition
 
-fvA :: Alt RawPatn RawExpr -> [VarName]
-fvA (Alt p _ e) = let locals = fvP p
-                   in filter (`notElem` locals) (fvE e)
-
-fvB :: Binding RawType RawIrrefPatn RawExpr -> ([VarName], [VarName])
-fvB (Binding ip _ e _) = (fvIP ip, fvE e)
-
-fvP :: RawPatn -> [VarName]
-fvP (RP (PCon _ ips)) = foldMap fvIP ips
-fvP (RP (PIrrefutable ip)) = fvIP ip
-fvP _ = []
-
-fvIP :: RawIrrefPatn -> [VarName]
-fvIP (RIP (PVar pv)) = [pv]
-fvIP (RIP (PTuple ips)) = foldMap fvIP ips
-fvIP (RIP (PUnboxedRecord mfs)) = foldMap (fvIP . snd) $ Compose mfs
-fvIP (RIP (PTake pv mfs)) = foldMap (fvIP . snd) $ Compose mfs
-fvIP _ = []
-
-fcB :: Binding RawType RawIrrefPatn RawExpr -> [TagName]
-fcB (Binding _ t e _) = foldMap fcT t ++ fcE e
-
-fcA :: Alt v RawExpr -> [TagName]
-fcA (Alt _ _ e) = fcE e
-
-fcE :: RawExpr -> [TagName]
-fcE (RE (Let bs e)) = fcE e ++ foldMap fcB bs
-fcE (RE (Match e _ as)) = fcE e ++ foldMap fcA as
-fcE (RE (TypeApp _ ts _)) = foldMap fcT (Compose ts)
-fcE (RE e) = foldMap fcE e
-
-fvE :: RawExpr -> [VarName]
-fvE (RE (TypeApp v _ _)) = [v]
-fvE (RE (Var v)) = [v]
-fvE (RE (Match e _ alts)) = fvE e ++ foldMap fvA alts
-fvE (RE (Let (b:bs) e)) = let (locals, fvs) = fvB b
-                              fvs' = filter (`notElem` locals) (fvE (RE (Let bs e)))
-                           in fvs ++ fvs'
-fvE (RE e) = foldMap fvE e
-
-fcT :: RawType -> [TagName]
-fcT (RT (TCon n ts _)) = n : foldMap fcT ts
-fcT (RT t) = foldMap fcT t
-
 data SourceObject = TypeName TypeName
                   | ValName  VarName
                   | DocBlock' String

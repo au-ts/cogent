@@ -10,8 +10,13 @@
 -- @TAG(DATA61_GPL)
 --
 
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE FlexibleInstances, FlexibleContexts, LambdaCase, MultiWayIf, ViewPatterns #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-orphans -fno-warn-missing-signatures #-}
 
 module Cogent.PrettyPrint where
@@ -113,8 +118,10 @@ class ExprType a where
   isVar :: a -> VarName -> Bool
 
 instance ExprType (Expr t p ip e) where
-  levelExpr (Lam {}) = 100
-  levelExpr (App {}) = 1
+  levelExpr (Lam  {}) = 100
+  levelExpr (LamC {}) = 100
+  levelExpr (App  {}) = 1
+  levelExpr (AppC {}) = 1
   levelExpr (PrimOp n _) = level (associativity n)
   levelExpr (Member {}) = 0
   levelExpr (Var {}) = 0
@@ -306,7 +313,9 @@ instance (ExprType e, Pretty t, Pretty p, PatnType ip, Pretty ip, Pretty e) => P
   pretty (Upcast e)          = keyword "upcast" <+> pretty' 1 e
   pretty (Lam p mt e)        = string "\\" <> pretty p <> 
                                (case mt of Nothing -> empty; Just t -> space <> symbol ":" <+> pretty t) <+> symbol "=>" <+> pretty' 100 e
-  pretty (App a b)           = pretty' 2 a <+> pretty' 1 b
+  pretty (LamC p mt e _)     = pretty (Lam p mt e :: Expr t p ip e)
+  pretty (App  a b)          = pretty' 2 a <+> pretty' 1 b
+  pretty (AppC a b)          = pretty' 2 a <+> pretty' 1 b
   pretty (Con n [] )         = tagname n
   pretty (Con n [e])         = tagname n <+> pretty' 1 e
   pretty (Con n es )         = tagname n <+> spaceList (map (pretty' 1) es)

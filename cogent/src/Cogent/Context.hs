@@ -17,6 +17,7 @@ module Cogent.Context
   , empty
   , lookup
   , merge
+  , join
   , mode
   , use
 ) where
@@ -33,7 +34,7 @@ import Text.Parsec.Pos
 
 type Row t = (t, SourcePos, Seq.Seq SourcePos)
 --                            ^------ the locations where it's used; serves as an use count
-newtype Context t = Context [M.Map VarName (Row t)]
+newtype Context t = Context [M.Map VarName (Row t)] deriving (Eq)
 
 empty :: Context t
 empty = Context []
@@ -124,4 +125,47 @@ merge (Context m) (Context n) = let (c, l, r) = go m n in (Context c, l, r)
     go (a:as) (b:bs) = let
       (cs, ls, rs) = go as bs
       (c,  l,  r ) = merge' a b
+      in (c:cs, l ++ ls, r ++ rs)
+
+data JoinHelper x = None x | One x | Two x
+
+unhelp' :: JoinHelper x -> x
+unhelp' (None x) = x
+unhelp' (One  x) = x
+unhelp' (Two  x) = x
+
+isNone (None _) = True
+isNone _ = False
+
+isOne (One _) = True
+isOne _ = False
+
+isTwo (Two _) = True
+isTwo _ = False
+
+join' :: M.Map VarName (Row x)
+      -> M.Map VarName (Row x)
+      -> (M.Map VarName (Row x), [(VarName, Row x)], [(VarName, Row x)])
+join' a b = let a' = fmap One a
+                b' = fmap One b
+                m  = M.unionWith f a' b'
+                f (One (t, p, Seq.Empty)) (One (_, _, Seq.Empty)) = None (t, p, Seq.empty)
+                f (One (t, p, us)) (One (_, _, Seq.Empty)) = One (t, p, us)
+                f (One (_, _, Seq.Empty)) (One (t, p, us)) = One (t, p, us)
+                f (One (t, p, us)) (One (_, _, vs)) = Two (t, p, us Seq.>< vs)
+                f _ _ = __impossible "join'"
+                newM = fmap unhelp' m
+                ns = M.toList $ unhelp' <$> M.filter isNone m
+                ts = M.toList $ unhelp' <$> M.filter isTwo  m
+             in (newM, ns, ts)
+
+join :: Context t -> Context t -> (Context t, [(VarName, Row t)], [(VarName, Row t)])
+join (Context m) (Context n) = let (c, l, r) = go m n in (Context c, l, r)
+  where
+    go [] [] = ([], [], [])
+    go [] _  = __impossible "join"
+    go _ []  = __impossible "join"
+    go (a:as) (b:bs) = let
+      (cs, ls, rs) = go as bs
+      (c,  l,  r ) = join' a b
       in (c:cs, l ++ ls, r ++ rs)

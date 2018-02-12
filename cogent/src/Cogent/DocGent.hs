@@ -8,8 +8,11 @@
 -- @TAG(NICTA_GPL)
 --
 
-{-# LANGUAGE TupleSections, ImplicitParams #-}
-{-# LANGUAGE QuasiQuotes, OverloadedStrings, TemplateHaskell #-}
+{-# LANGUAGE ImplicitParams #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TupleSections #-}
 
 module Cogent.DocGent where
 
@@ -17,7 +20,6 @@ import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler (__impossible, __todo)
 import Cogent.PrettyPrint
-import Cogent.Reorganizer
 import Cogent.Surface
 import Cogent.Util
 import Paths_cogent

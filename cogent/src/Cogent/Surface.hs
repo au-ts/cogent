@@ -16,13 +16,14 @@ import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Util
 
-import qualified Data.Map as M
-import Data.Functor.Identity
 import Control.Applicative
+import Data.Functor.Compose
+import Data.Functor.Identity
 #if __GLASGOW_HASKELL__ < 709
 import Data.Foldable hiding (elem)
 import Data.Traversable
 #endif
+import qualified Data.Map as M
 import Text.Parsec.Pos
 
 type DocString = String
@@ -60,6 +61,8 @@ data Expr t p ip e = PrimOp OpName [e]
                    | Seq e e
                    | Lam ip (Maybe t) e
                    | App e e
+                   | LamC ip (Maybe t) e [VarName]  -- closure lambda
+                   | AppC e e             -- closure application
                    | If e [VarName] e e
                    | Member e FieldName
                    | Unitel
@@ -133,6 +136,8 @@ data RawExpr = RE { unRE :: Expr RawType RawPatn RawIrrefPatn RawExpr } deriving
 data RawPatn = RP { unRP :: Pattern RawIrrefPatn } deriving (Eq, Ord, Show)
 data RawIrrefPatn = RIP { unRIP :: IrrefutablePattern VarName RawIrrefPatn } deriving (Eq, Ord, Show)
 
+-- -----------------------------------------------------------------------------
+
 instance Foldable (Flip Alt e) where
   foldMap f a = getConst $ traverse (Const . f) a
 
@@ -173,8 +178,10 @@ instance Traversable (Flip (Expr t p) e) where  -- ip
   traverse _ (Flip (TypeApp v ts nt))   = pure $ Flip (TypeApp v ts nt)
   traverse _ (Flip (Seq e e'))          = pure $ Flip (Seq e e')
   traverse _ (Flip (If c vs e e'))      = pure $ Flip (If c vs e e')
-  traverse f (Flip (Lam ip mt e))       = Flip <$> (Lam <$> f ip <*> pure mt <*> pure e)
-  traverse _ (Flip (App e e'))          = pure $ Flip (App e e')
+  traverse f (Flip (Lam  ip mt e))      = Flip <$> (Lam  <$> f ip <*> pure mt <*> pure e)
+  traverse f (Flip (LamC ip mt e vs))   = Flip <$> (LamC <$> f ip <*> pure mt <*> pure e <*> pure vs)
+  traverse _ (Flip (App  e e'))         = pure $ Flip (App  e e')
+  traverse _ (Flip (AppC e e'))         = pure $ Flip (AppC e e')
   traverse _ (Flip (Con n e))           = pure $ Flip (Con n e)
   traverse _ (Flip Unitel)              = pure $ Flip Unitel
   traverse _ (Flip (IntLit l))          = pure $ Flip (IntLit l)
@@ -194,8 +201,10 @@ instance Traversable (Flip2 (Expr t) e ip) where  -- p
   traverse _ (Flip2 (TypeApp v ts nt))  = pure $ Flip2 (TypeApp v ts nt)
   traverse _ (Flip2 (Seq e e'))         = pure $ Flip2 (Seq e e')
   traverse _ (Flip2 (If c vs e e'))     = pure $ Flip2 (If c vs e e')
-  traverse _ (Flip2 (Lam ip mt e))      = pure $ Flip2 (Lam ip mt e)
-  traverse _ (Flip2 (App e e'))         = pure $ Flip2 (App e e')
+  traverse _ (Flip2 (Lam  ip mt e))     = pure $ Flip2 (Lam  ip mt e)
+  traverse _ (Flip2 (LamC ip mt e vs))  = pure $ Flip2 (LamC ip mt e vs)
+  traverse _ (Flip2 (App  e e'))        = pure $ Flip2 (App  e e')
+  traverse _ (Flip2 (AppC e e'))        = pure $ Flip2 (AppC e e')
   traverse _ (Flip2 (Member e f))       = pure $ Flip2 (Member e f)
   traverse _ (Flip2 (Con n e))          = pure $ Flip2 (Con n e)
   traverse _ (Flip2 Unitel)             = pure $ Flip2 Unitel
@@ -220,8 +229,10 @@ instance Traversable (Flip3 Expr e ip p) where  -- t
   traverse _ (Flip3 (Var v))             = pure $ Flip3 (Var v)
   traverse _ (Flip3 (Seq e e'))          = pure $ Flip3 (Seq e e')
   traverse _ (Flip3 (If c vs e e'))      = pure $ Flip3 (If c vs e e')
-  traverse f (Flip3 (Lam ip mt e))       = Flip3 <$> (Lam ip <$> traverse f mt <*> pure e)
-  traverse _ (Flip3 (App e e'))          = pure $ Flip3 (App e e')
+  traverse f (Flip3 (Lam  ip mt e))      = Flip3 <$> (Lam  ip <$> traverse f mt <*> pure e)
+  traverse f (Flip3 (LamC ip mt e vs))   = Flip3 <$> (LamC ip <$> traverse f mt <*> pure e <*> pure vs)
+  traverse _ (Flip3 (App  e e'))         = pure $ Flip3 (App  e e')
+  traverse _ (Flip3 (AppC e e'))         = pure $ Flip3 (AppC e e')
   traverse _ (Flip3 (Con n e))           = pure $ Flip3 (Con n e)
   traverse _ (Flip3 Unitel)              = pure $ Flip3 Unitel
   traverse _ (Flip3 (IntLit l))          = pure $ Flip3 (IntLit l)
@@ -284,6 +295,55 @@ instance Functor (Flip (TopLevel t) e) where
 instance Functor (Flip2 TopLevel e p) where
   fmap f x = runIdentity (traverse (Identity . f) x)
 
+-- -----------------------------------------------------------------------------
+
+fvA :: Alt RawPatn RawExpr -> [VarName]
+fvA (Alt p _ e) = let locals = fvP p
+                   in filter (`notElem` locals) (fvE e)
+
+fvB :: Binding RawType RawIrrefPatn RawExpr -> ([VarName], [VarName])
+fvB (Binding ip _ e _) = (fvIP ip, fvE e)
+
+fvP :: RawPatn -> [VarName]
+fvP (RP (PCon _ ips)) = foldMap fvIP ips
+fvP (RP (PIrrefutable ip)) = fvIP ip
+fvP _ = []
+
+fvIP :: RawIrrefPatn -> [VarName]
+fvIP (RIP (PVar pv)) = [pv]
+fvIP (RIP (PTuple ips)) = foldMap fvIP ips
+fvIP (RIP (PUnboxedRecord mfs)) = foldMap (fvIP . snd) $ Compose mfs
+fvIP (RIP (PTake pv mfs)) = foldMap (fvIP . snd) $ Compose mfs
+fvIP _ = []
+
+fvE :: RawExpr -> [VarName]
+fvE (RE (TypeApp v _ _)) = [v]
+fvE (RE (Var v)) = [v]
+fvE (RE (Match e _ alts)) = fvE e ++ foldMap fvA alts
+fvE (RE (Lam  p _ e)) = filter (`notElem` fvIP p) (fvE e)
+fvE (RE (LamC _ _ _ vs)) = vs
+fvE (RE (Let (b:bs) e)) = let (locals, fvs) = fvB b
+                              fvs' = filter (`notElem` locals) (fvE (RE (Let bs e)))
+                           in fvs ++ fvs'
+fvE (RE e) = foldMap fvE e
+
+fcA :: Alt v RawExpr -> [TagName]
+fcA (Alt _ _ e) = fcE e
+
+fcB :: Binding RawType RawIrrefPatn RawExpr -> [TagName]
+fcB (Binding _ t e _) = foldMap fcT t ++ fcE e
+
+fcE :: RawExpr -> [TagName]
+fcE (RE (Let bs e)) = fcE e ++ foldMap fcB bs
+fcE (RE (Match e _ as)) = fcE e ++ foldMap fcA as
+fcE (RE (TypeApp _ ts _)) = foldMap fcT (Compose ts)
+fcE (RE e) = foldMap fcE e
+
+fcT :: RawType -> [TagName]
+fcT (RT (TCon n ts _)) = n : foldMap fcT ts
+fcT (RT t) = foldMap fcT t
+
+-- -----------------------------------------------------------------------------
 
 stripLocT :: LocType -> RawType
 stripLocT = RT . fmap stripLocT . typeOfLT
