@@ -119,9 +119,6 @@ type WordArrayFoldP a acc obsv rbrk =
     obsv: obsv!
    }
 
-wordarray_fold' : all (a :< DSE, acc, obsv :< DS).
-                  ((WordArray a)!, (acc, obsv, a) -> acc, acc, obsv) -> acc
-
 {-# cinline wordarray_fold #-}
 {-# fnmacro wordarray_fold #-}
 wordarray_fold: all(a :< DSE,acc,obsv,rbrk). WordArrayFoldP a acc obsv rbrk -> LoopResult acc rbrk
@@ -165,6 +162,33 @@ wordarray_set: all(a :< DSE). WordArraySetP a -> WordArray a
 -- dest, src, dest-off, src-off, len
 type WordArrayCopyP a = (WordArray a, (WordArray a)!, WordArrayIndex, WordArrayIndex, U32)
 wordarray_copy: all(a :< DSE). WordArrayCopyP a -> WordArray a
+
+-- -----------------------------------------------------------------------------
+-- zilinc's experiments
+
+wordarray_fold' : all (a :< DSE, acc, obsv :< DS).
+                  ((WordArray a)!, (acc, obsv, a) -> acc, acc, obsv) -> acc
+
+wordarray_take : all (a :< DSE). ((WordArray a)!, WordArrayIndex) -> (WordArray a)!
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-- -----------------------------------------------------------------------------
 
 -- Debugging only.  Printk a string.
 wordarray_print: CString! -> ()

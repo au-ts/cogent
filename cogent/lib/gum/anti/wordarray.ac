@@ -131,20 +131,6 @@ $ty:(WordArrayMapRE a acc rbrk) $id:wordarray_map($ty:(WordArrayMapP a acc obsv 
 	return ret;
 }
 
-$ty:acc $id:wordarray_fold' ($ty:(((WordArray a)!, (acc,obsv,a) -> acc, acc, obsv)) args)
-{
-  $ty:((acc,obsv,a)) fargs;
-  $ty:acc fret;
-  u32 i;
-  fargs.p1 = args.p3;
-  fargs.p2 = args.p4;
-  for (i = 0; i < fargs.p1; i++) {
-    fargs.p3 = args.p1->values[i];
-    fret = (($spec:((acc,obsv,a) -> acc)) args.p2) (fargs);
-  }
-  return fret;
-}
-
 $ty:(LoopResult acc rbrk) $id:wordarray_fold($ty:(WordArrayFoldP a acc obsv rbrk) args)
 {
         $ty:(ElemAO a acc obsv) fargs;
@@ -308,3 +294,29 @@ $ty:(RR SysState (WordArray a) ()) $id:wordarray_slice($ty:(WordArraySliceP a) a
 
 	return ret;
 }
+
+// //////////////////////////////////////////////////////////////////
+// experimental
+
+$ty:acc $id:wordarray_fold' ($ty:(((WordArray a)!, (acc,obsv,a) -> acc, acc, obsv)) args)
+{
+  $ty:((acc,obsv,a)) fargs;
+  $ty:acc fret;
+  u32 i;
+  fargs.p1 = args.p3;
+  fargs.p2 = args.p4;
+  for (i = 0; i < args.p1->len; i++) {
+    fargs.p3 = args.p1->values[i];
+    fret = (($spec:((acc,obsv,a) -> acc)) args.p2) (fargs);
+  }
+  return fret;
+}
+
+$ty:((WordArray a)!) $id:wordarray_take ($ty:(((WordArray a)!, WordArrayIndex)) args)
+{
+  $ty:(WordArray a) arr;
+  arr->len = args.p2;
+  arr->values = args.p1->values;
+  return arr;
+}
+

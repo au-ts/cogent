@@ -820,8 +820,11 @@ serialise_wordarray_ObjSumEntry(buf, offs, entries, nb_sum_entry) =
   and _ = cogent_debug " to "
   and _ = cogent_debug_u32 end
   and _ = cogent_debug "\n"
-  in wordarray_fold_no_break[ObjSumEntry, (Buffer, BufOffs), ()]
-       #{arr=entries, frm=0, to=nb_sum_entry, f=serialise_ObjSumEntry_f, acc=(buf, offs), obsv=()}
+   in wordarray_fold' (wordarray_take[ObjSumEntry] (entries, nb_sum_entry),
+                       \((buf,offs),obsv,x) => serialise_ObjSumEntry (buf,offs,x),
+                       (buf, offs), ())
+  -- in wordarray_fold_no_break[ObjSumEntry, (Buffer, BufOffs), ()]
+  --      #{arr=entries, frm=0, to=nb_sum_entry, f=serialise_ObjSumEntry_f, acc=(buf, offs), obsv=()}
 
 {-# cinline serialise_size_ObjSummary #-}
 serialise_size_ObjSummary: U32 -> U32
