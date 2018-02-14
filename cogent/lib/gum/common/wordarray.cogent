@@ -119,6 +119,9 @@ type WordArrayFoldP a acc obsv rbrk =
     obsv: obsv!
    }
 
+wordarray_fold' : all (a :< DSE, acc, obsv :< DS).
+                  ((WordArray a)!, (acc, obsv, a) -> acc, acc, obsv) -> acc
+
 {-# cinline wordarray_fold #-}
 {-# fnmacro wordarray_fold #-}
 wordarray_fold: all(a :< DSE,acc,obsv,rbrk). WordArrayFoldP a acc obsv rbrk -> LoopResult acc rbrk

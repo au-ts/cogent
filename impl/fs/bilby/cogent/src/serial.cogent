@@ -111,11 +111,8 @@ obj_id_hash_map #{elem, acc=a, obsv} =
 
 obj_id_hash_name: (WordArray U8)! -> U32
 obj_id_hash_name nm =
-  let a:U32 = 0
-  and len = wordarray_length[U8] nm
-  in wordarray_fold[U8, U32, (), U32] #{arr=nm, frm=0, to=len, f=obj_id_hash_map, acc=a, obsv=()}
-  | Break a -> cogent_assert False ; a .&. (u64_to_u32 bilbyFsXinfoMask)
-  | Iterate a -> a .&. (u64_to_u32 bilbyFsXinfoMask)
+  let a = wordarray_fold' (nm, \(acc,_,x) => ((acc + upcast x << 4) + upcast x >> 4) * 11, upcast 0, ())
+   in a .&. (u64_to_u32 bilbyFsXinfoMask)
 
 {-# cinline obj_id_end_mk #-}
 obj_id_end_mk: VfsIno -> ObjId
