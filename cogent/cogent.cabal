@@ -144,7 +144,7 @@ Library
               alex
             , happy
   ghc-options:
-    -Wall
+    -- -Wall
     -- -Werror
     -fno-warn-name-shadowing
     -fno-warn-missing-signatures
