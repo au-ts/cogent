@@ -8,13 +8,21 @@
 -- @TAG(NICTA_GPL)
 --
 
-type Option a = <None|Some a>
 
-type LoopResult a b = <Iterate a|Break b>
-type LRR acc brk = (acc, LoopResult () brk)
+-- -----------------------------------------------------------------------------
+-- Common types
+-- -----------------------------------------------------------------------------
 
-type R a b = <Success a|Error b>
-type Result a b = R a b
+type Option a = < None | Some a >
+type Result a e = < Success a | Error e >
+type ResultWith c a e = (c, Result a e)
+
+-- abbreviations
+
+type R    a e = Result       a e
+type RR c a e = ResultWith c a e
+
+-- smart constructors
 
 success : all (a, b). a -> R a b
 success a = Success a
@@ -22,16 +30,38 @@ success a = Success a
 error : all (a, b). b -> R a b
 error b = Error b
 
-type RR c a b = (c, <Success a|Error b>)
+-- utility functinos
+
+optionToResult : all a. Option a -> Result a ()
+optionToResult | None   -> Error ()
+               | Some a -> Success a
+
+resultToOption : all (a, e:<DS). Result a e -> Option a
+resultToOption | Error   _ -> None
+               | Success a -> Some a
+
+-- type synonyms
 
 type ErrCode = U32
 type WordArrayIndex = U32
 
+
+-- -----------------------------------------------------------------------------
 -- SysState is the state that we will be carrying around and used in all functions
 -- that modify an external state in the system. This will abstract away, from Cogent,
 -- all the side effects that are caused by IO or something similar.
 -- This is an abstract type and needs to be defined in the implementation.
+-- -----------------------------------------------------------------------------
+
 type SysState
+
+
+-- -----------------------------------------------------------------------------
+-- types for other common data structures
+-- -----------------------------------------------------------------------------
+
+type LoopResult a b = <Iterate a|Break b>
+type LRR acc brk = (acc, LoopResult () brk)
 
 type ElemA a acc = #{elem: a, acc: acc}
 type ElemB a rbrk = #{elem:a, rbrk:rbrk}
@@ -47,9 +77,6 @@ type FreeAccF a acc obsv = (SysState, a, acc, obsv!) -> (SysState, acc)
 -- This will disapear when generating C code
 -- It is just a way to indicate what code path should
 -- never be taken to help reason about FS code.
-
-cogent_assert: Bool -> ()
-cogent_assert2: (String, Bool) -> ()
 
 type Seq32_simple_bodyParam acc = acc
 
@@ -125,11 +152,20 @@ type Seq64Param acc obsv rbrk = #{
 {-# fnmacro seq64 #-}
 seq64: all (acc,obsv,rbrk). Seq64Param acc obsv rbrk -> LRR acc rbrk
 
+-- -----------------------------------------------------------------------------
+-- constants
+-- -----------------------------------------------------------------------------
+
 word64Max : U64
 word64Max = 0xffffffffffffffff
 
 word32Max : U32
 word32Max = 0xffffffff
+
+
+-- -----------------------------------------------------------------------------
+-- arith functions
+-- -----------------------------------------------------------------------------
 
 -- align32 (a,b): align a to b, NOTE b must be a power of 2
 align32 : (U32, U32) -> U32
@@ -156,39 +192,12 @@ in_range_u32: (U32, U32, U32) -> Bool
 in_range_u32 (needle, from, to) =
   if needle >= from && needle < to then True else False
 
-cogent_warn: String -> ()
-cogent_warn_u64: U64 -> ()
-cogent_warn_u32: U32 -> ()
-cogent_warn_u16: U16 -> ()
-
-cogent_debug: String -> ()
-cogent_debug_u64: U64 -> ()
-cogent_debug_u64_hex: U64 -> ()
-cogent_debug_u32: U32 -> ()
-cogent_debug_u32_hex: U32 -> ()
-cogent_debug_u32_oct: U32 -> ()
-
-cogent_debug_u16: U16 -> ()
-cogent_debug_u16 x = cogent_debug_u32 (upcast x)
-
-cogent_debug_u8: U8 -> ()
-cogent_debug_u8 x = cogent_debug_u32 (upcast x)
-
-cogent_debug_bool: Bool -> ()
-cogent_debug_bool bool = if bool then cogent_debug "true" else cogent_debug "false"
-
-{-# cinline cogent_log2 #-}
-{-# fnmacro cogent_log2 #-}
-
-cogent_log2: U32 -> U32
-
 {-# cinline random_u32 #-}
 random_u32: () -> U32
 
 {-# cinline safe_add32 #-}
 safe_add32: (U32,U32) -> R U32 ()
--- Addition that checks for overflow and returns
--- an error.
+-- Addition that checks for overflow and returns an error.
 safe_add32(a, b) =
   let r = a + b
   in if r < a || r < b
@@ -231,3 +240,36 @@ cogent_low_16_bits x = u32_to_u16 (x .&. 0xFFFF)
 {-# cinline cogent_high_16_bits #-}
 cogent_high_16_bits: U32 -> U16
 cogent_high_16_bits x = u32_to_u16 ((x .&. 0xFFFF0000) >> 16)
+
+-- -----------------------------------------------------------------------------
+-- logging and debugging functions
+-- -----------------------------------------------------------------------------
+
+{-# cinline cogent_log2 #-}
+{-# fnmacro cogent_log2 #-}
+cogent_log2: U32 -> U32
+
+cogent_assert: Bool -> ()
+cogent_assert2: (String, Bool) -> ()
+
+cogent_warn: String -> ()
+cogent_warn_u64: U64 -> ()
+cogent_warn_u32: U32 -> ()
+cogent_warn_u16: U16 -> ()
+
+cogent_debug: String -> ()
+cogent_debug_u64: U64 -> ()
+cogent_debug_u64_hex: U64 -> ()
+cogent_debug_u32: U32 -> ()
+cogent_debug_u32_hex: U32 -> ()
+cogent_debug_u32_oct: U32 -> ()
+
+cogent_debug_u16: U16 -> ()
+cogent_debug_u16 x = cogent_debug_u32 (upcast x)
+
+cogent_debug_u8: U8 -> ()
+cogent_debug_u8 x = cogent_debug_u32 (upcast x)
+
+cogent_debug_bool: Bool -> ()
+cogent_debug_bool bool = if bool then cogent_debug "true" else cogent_debug "false"
+

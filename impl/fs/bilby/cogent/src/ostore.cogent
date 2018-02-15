@@ -688,12 +688,8 @@ find_sum_entry(summary, oid, sqnum, otype) =
        #{arr=summary.entries, frm=0, to=summary.nb_sum_entry, f=find_sum_entry_del_f, acc=0, obsv=(oid, sqnum)}
    else wordarray_fold[ObjSumEntry, U32, (ObjId, U64), (Option (U32, U16))]
        #{arr=summary.entries, frm=0, to=summary.nb_sum_entry, f=find_sum_entry_f, acc=0, obsv=(oid, sqnum)})
-  | Break opt ->
-    opt
-    | None -> Error ()
-    | Some idx_n_cnt -> Success idx_n_cnt
-  | Iterate _ ->
-    Success (summary.nb_sum_entry, 0)
+  | Break opt -> optionToResult opt
+  | Iterate _ -> Success (summary.nb_sum_entry, 0)
 
 proc_obj_sum: (SysState, MountState!, OstoreState, Obj!) -> (SysState, OstoreState)
 proc_obj_sum(ex, mount_st, ostore_st, obj) =
@@ -707,8 +703,7 @@ proc_obj_sum(ex, mount_st, ostore_st, obj) =
   in if id == nilObjId then
     (ex, ostore_st)
   else
-    let sqnum = obj.sqnum !obj
-    and otype = obj.otype !obj
+    let (sqnum, otype) = (obj.sqnum, obj.otype) !obj
     in find_sum_entry (ostore_st.summary, id, sqnum, otype) !ostore_st
     -- Error means the entry we are trying to update is
     -- overruled by an more recent entry (sqnum check).
@@ -719,12 +714,10 @@ proc_obj_sum(ex, mount_st, ostore_st, obj) =
       and del_flags_and_offs = del_flags_and_offs .|. obj.offs
       -- FIXME how do we know that this does not overflow?
       -- We should be able to use max obj per eb
-      and count = count + 1
-      and sum_entry:ObjSumEntry = #{id, sqnum, len, del_flags_and_offs, count}
-      and ostore_st {summary} = ostore_st
-      and summary {entries} = summary
+      and sum_entry:ObjSumEntry = #{id, sqnum, len, del_flags_and_offs, count = count+1}
+      and ostore_st {summary = summary {entries}} = ostore_st
       and #{arr=entries, acc=()} = wordarray_modify[ObjSumEntry, (), ObjSumEntry!]
-                                     #{arr=entries, idx=idx_entry, f=proc_obj_sum_f, acc=(), obsv=sum_entry}
+                                     #{arr=entries, idx=idx_entry, f= \#{elem,acc,obsv} => #{elem=obsv,acc=()}, acc=(), obsv=sum_entry}  -- the space after `f=' is essential
 
       -- increment if we created a new entry
       and nb_sum_entry = summary.nb_sum_entry !summary
@@ -732,11 +725,6 @@ proc_obj_sum(ex, mount_st, ostore_st, obj) =
 
       and summary = summary {nb_sum_entry, entries}
       in (ex, ostore_st {summary})
-
-{-# inline proc_obj_sum_f #-}
-proc_obj_sum_f: #{elem:ObjSumEntry, acc:(), obsv:ObjSumEntry} -> #{elem:ObjSumEntry, acc:()}
-proc_obj_sum_f #{elem=_, acc=_, obsv=sum_entry} =
-  #{elem=sum_entry, acc=()}
 
 proc_sum_entry: (SysState, MountState!, OstoreState take (summary), ObjSumEntry, U32) -> (SysState, OstoreState take (summary))
 proc_sum_entry(ex, mount_st, ostore_st, entry, ebnum) =
