@@ -122,19 +122,19 @@ array_filter: all(a :< E, acc, obsv). ArrayFilterP a acc obsv -> #{arr: Array a,
 -- array_eraser(eraser, arr, index, acc, val)
 -- Allows erasing an element when iterating.
 
-type ArrayFoldF a acc obsv rbrk = #{elem:a!, acc:acc, obsv:obsv!} -> LoopResult acc rbrk
-type ArrayFoldP a acc obsv rbrk = #{arr:(Array a)!, f:ArrayFoldF a acc obsv rbrk, acc:acc, obsv:obsv!}
+type ArrayFoldF a acc obsv rbrk = #{elem:a!, acc:acc, obsv:obsv} -> LoopResult acc rbrk
+type ArrayFoldP a acc obsv rbrk = #{arr:(Array a)!, f:ArrayFoldF a acc obsv rbrk, acc:acc, obsv:obsv}
 
 {-# cinline array_fold #-}
 {-# fnmacro array_fold #-}
-array_fold: all(a :<E,acc,obsv,rbrk). ArrayFoldP a acc obsv rbrk -> LoopResult acc rbrk
+array_fold: all(a :<E,acc,obsv:<DS,rbrk). ArrayFoldP a acc obsv rbrk -> LoopResult acc rbrk
 -- Fold only existing elements.
 
 type ArrayFoldNoBreakF a acc obsv = #{elem:a!, acc:acc, obsv:obsv!} -> acc
-type ArrayFoldNoBreakP a acc obsv = #{arr:(Array a)!, f:ArrayFoldNoBreakF a acc obsv, acc:acc, obsv:obsv!}
+type ArrayFoldNoBreakP a acc obsv = #{arr:(Array a)!, f:ArrayFoldNoBreakF a acc obsv, acc:acc, obsv:obsv}
 
 {-# cinline array_fold_no_break #-}
 {-# fnmacro array_fold_no_break #-}
-array_fold_no_break: all(a:<E,acc,obsv). ArrayFoldNoBreakP a acc obsv -> acc
+array_fold_no_break: all(a:<E,acc,obsv:<DS). ArrayFoldNoBreakP a acc obsv -> acc
 -- Same as above but cannot Break out of the loop
 
