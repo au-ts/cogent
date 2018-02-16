@@ -168,27 +168,19 @@ wordarray_copy: all(a :< DSE). WordArrayCopyP a -> WordArray a
 
 wordarray_fold' : all (a :< DSE, acc, obsv :< DS).
                   ((WordArray a)!, (acc, obsv, a) -> acc, acc, obsv) -> acc
+-- NOTE: This is a limited form of map, which the resulting array has
+-- the same type as the input. If they have different types, then allocation
+-- will be required.
+wordarray_map' : all (a :< DSE, acc, obsv :< DS).
+                 (WordArray a, (acc, obsv, a) -> (acc, a), acc, obsv) -> (WordArray a, acc)
 
 wordarray_take : all (a :< DSE). ((WordArray a)!, WordArrayIndex) -> (WordArray a)!
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+-- Splitting is easy, but its inverse appending is more subtle.
+wordarray_split : all (a :< DSE). (WordArray a, WordArrayIndex) -> (WordArray a, WordArray a)
 
 -- -----------------------------------------------------------------------------
 
 -- Debugging only.  Printk a string.
 wordarray_print: CString! -> ()
+

@@ -301,15 +301,31 @@ $ty:(RR SysState (WordArray a) ()) $id:wordarray_slice($ty:(WordArraySliceP a) a
 $ty:acc $id:wordarray_fold' ($ty:(((WordArray a)!, (acc,obsv,a) -> acc, acc, obsv)) args)
 {
   $ty:((acc,obsv,a)) fargs;
-  $ty:acc fret;
   u32 i;
   fargs.p1 = args.p3;
   fargs.p2 = args.p4;
   for (i = 0; i < args.p1->len; i++) {
     fargs.p3 = args.p1->values[i];
-    fret = (($spec:((acc,obsv,a) -> acc)) args.p2) (fargs);
+    fargs.p1 = (($spec:((acc,obsv,a) -> acc)) args.p2) (fargs);
   }
-  return fret;
+  return fargs.p1;
+}
+
+$ty:((WordArray b, acc)) $id:wordarray_map' ($ty:((WordArray a, (acc, obsv, a) -> (acc, a), acc, obsv)) args)
+{
+  $ty:((WordArray b, acc)) ret;
+  $ty:((acc, obsv, a)) fargs;
+  $ty:((acc, a)) fret;
+  fargs.p1 = args.p3;
+  fargs.p2 = args.p4;
+  u32 i;
+  for (i = 0; i < args.p1->len; i++) {
+    fargs.p3 = args.p1->values[i];
+    fret = (($spec:((acc, obsv, a) -> (acc, a))) args.p2) (fargs);
+    args.p1->values[i] = fret.p2;
+    fargs.p1 = fret.p1;
+  }
+  return ret;
 }
 
 $ty:((WordArray a)!) $id:wordarray_take ($ty:(((WordArray a)!, WordArrayIndex)) args)
@@ -318,5 +334,16 @@ $ty:((WordArray a)!) $id:wordarray_take ($ty:(((WordArray a)!, WordArrayIndex)) 
   arr->len = args.p2;
   arr->values = args.p1->values;
   return arr;
+}
+
+$ty:((WordArray a, WordArray a)) $id:wordarray_split ($ty:((WordArray a, WordArrayIndex)) args)
+{
+  $ty:(WordArrayIndex) cut = args.p2 > args.p1->len ? args.p1->len : args.p2;
+  $ty:((WordArray a, WordArray a)) ret;
+  ret.p1->len = cut;
+  ret.p2->len = args.p1->len - cut;
+  ret.p1->values = args.p1->values;
+  ret.p2->values = args.p1->values[cut];
+  return ret;
 }
 

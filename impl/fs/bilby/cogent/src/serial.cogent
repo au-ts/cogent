@@ -848,17 +848,13 @@ deserialise_ObjSumEntry(buf, offs) =
   and entry = #{id,sqnum,len,del_flags_and_offs,count}
   in (entry, offs+26)
 
-{-# cinline deserialise_ObjSumEntry_map #-}
-deserialise_ObjSumEntry_map: #{elem:ObjSumEntry,acc:BufOffs, obsv:Buffer!} -> (ObjSumEntry, BufOffs)
-deserialise_ObjSumEntry_map #{elem=entry, acc=offs, obsv=buf} =
-  let (entry, offs) = deserialise_ObjSumEntry(buf, offs)
-  in (entry, offs)
-
+-- FIXME: this function looks largely strange -- the wordarray is not used in 
+-- the computation at all! / zilinc
 {-# cinline deserialise_ObjSumEntry_map #-}
 deserialise_wordarray_ObjSumEntry: (WordArray ObjSumEntry, Buffer!, BufOffs, U32) -> RR (WordArray ObjSumEntry) BufOffs ErrCode
 deserialise_wordarray_ObjSumEntry (entries, buf, offs, nb_sum_entry) =
   let (entries,offs) = wordarray_map_no_break[ObjSumEntry, BufOffs, Buffer!]
-                         #{arr=entries, frm=0, to=nb_sum_entry, f=deserialise_ObjSumEntry_map, acc=offs, obsv=buf}
+                         #{arr=entries, frm=0, to=nb_sum_entry, f= \#{elem,acc,obsv} => deserialise_ObjSumEntry(obsv,acc), acc=offs, obsv=buf}
   in (entries, Success offs)
   
 deserialise_ObjSummary_crc: (SysState, Buffer!, BufOffs, Obj, ObjSummary) -> RR (SysState, Obj, ObjSummary) BufOffs ErrCode
