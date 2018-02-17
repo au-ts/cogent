@@ -10,7 +10,7 @@
 
 
 -- -----------------------------------------------------------------------------
--- Common types
+-- Common types and functions
 -- -----------------------------------------------------------------------------
 
 type Option a = < None | Some a >
@@ -30,7 +30,7 @@ success a = Success a
 error : all (a, b). b -> R a b
 error b = Error b
 
--- utility functinos
+-- utility functions
 
 optionToResult : all a. Option a -> Result a ()
 optionToResult | None   -> Error ()
@@ -39,6 +39,18 @@ optionToResult | None   -> Error ()
 resultToOption : all (a, e:<DS). Result a e -> Option a
 resultToOption | Error   _ -> None
                | Success a -> Some a
+
+fst : all (a, b :< D). (a, b) -> a
+fst (a, _) = a
+
+snd : all (a :< D, b). (a, b) -> b
+snd (_, b) = b
+
+first : all (a, b, a'). (a -> a', (a, b)) -> (a', b)
+first (f, (a, b)) = (f a, b)
+
+second : all (a, b, b'). (b -> b', (a, b)) -> (a, b')
+second (f, (a, b)) = (a, f b)
 
 -- type synonyms
 

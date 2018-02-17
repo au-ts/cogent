@@ -823,8 +823,6 @@ serialise_wordarray_ObjSumEntry(buf, offs, entries, nb_sum_entry) =
    in wordarray_fold' (wordarray_take[ObjSumEntry] (entries, nb_sum_entry),
                        \((buf,offs),obsv,x) => serialise_ObjSumEntry (buf,offs,x),
                        (buf, offs), ())
-  -- in wordarray_fold_no_break[ObjSumEntry, (Buffer, BufOffs), ()]
-  --      #{arr=entries, frm=0, to=nb_sum_entry, f=serialise_ObjSumEntry_f, acc=(buf, offs), obsv=()}
 
 {-# cinline serialise_size_ObjSummary #-}
 serialise_size_ObjSummary: U32 -> U32
@@ -853,9 +851,8 @@ deserialise_ObjSumEntry(buf, offs) =
 {-# cinline deserialise_ObjSumEntry_map #-}
 deserialise_wordarray_ObjSumEntry: (WordArray ObjSumEntry, Buffer!, BufOffs, U32) -> RR (WordArray ObjSumEntry) BufOffs ErrCode
 deserialise_wordarray_ObjSumEntry (entries, buf, offs, nb_sum_entry) =
-  let (entries,offs) = wordarray_map_no_break[ObjSumEntry, BufOffs, Buffer!]
-                         #{arr=entries, frm=0, to=nb_sum_entry, f= \#{elem,acc,obsv} => deserialise_ObjSumEntry(obsv,acc), acc=offs, obsv=buf}
-  in (entries, Success offs)
+  second (success, wordarray_map_no_break[ObjSumEntry, BufOffs, Buffer!]
+                         #{arr=entries, frm=0, to=nb_sum_entry, f= \#{elem,acc,obsv} => deserialise_ObjSumEntry(obsv,acc), acc=offs, obsv=buf})
   
 deserialise_ObjSummary_crc: (SysState, Buffer!, BufOffs, Obj, ObjSummary) -> RR (SysState, Obj, ObjSummary) BufOffs ErrCode
 deserialise_ObjSummary_crc (ex, buf, offs, obj, summary) =
