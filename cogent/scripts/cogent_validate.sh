@@ -640,16 +640,15 @@ fi
 if [[ "$TESTSPEC" =~ '--libgum--' ]]; then
   all_total+=1
   TEST_FILE=_regression.cogent
-  
   pushd "$COGENTDIR"/lib
 
   # ensure set
   shopt -s globstar
-  
   # since some libgum stuff depends on this type
   echo $'type FsInode\ntype FsState\ncogent_LOG_LEVEL: U32\ncogent_LOG_LEVEL = 0' > "$TEST_FILE"
-  
-  flist=`find gum -name *.cogent`
+
+  flist=`find gum -name "*.cogent"`
+  echo $flist
   # include everything
   for src in $flist
   do
