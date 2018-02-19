@@ -40,16 +40,16 @@ fizzbuzz_cons: #{obj: (), acc: (U32, SysState), obsv: U32} -> ConsumerResult () 
 fizzbuzz_cons #{obj = _, acc = (curr_num, ex), obsv = max_num} =
   if curr_num%15 == 0 then
     let ex = print_fizzbuzz ex
-    in ((curr_num + 1, ex), Next ())
+    in ((curr_num + 1, ex), Next)
   else if curr_num%5 == 0 then
     let ex = print_fizz ex
-    in ((curr_num + 1, ex), Next ())
+    in ((curr_num + 1, ex), Next)
   else if  curr_num%3 == 0 then
     let ex = print_buzz ex
-    in ((curr_num + 1, ex), Next ())
+    in ((curr_num + 1, ex), Next)
   else
     let ex = print_u32 (curr_num, ex)
-    in ((curr_num + 1, ex), Next ())
+    in ((curr_num + 1, ex), Next)
 
 -- Prints out all numbers from 1 to 100.
 -- Multiples of 3 replaced by Fizz, multiples of 5 replaced by Buzz

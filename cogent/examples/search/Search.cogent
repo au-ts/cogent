@@ -22,7 +22,7 @@ type Buffer  -- stores a list of `Node`s
 
 find_str : (SysState, Buffer!, (#CString)!) -> (SysState, Option Node)
 find_str (ex,buf,s) = 
-  let ((ex,_),r) = seq32 [(SysState, Index), (Buffer!, (#CString)!), Node] #{frm = u8_to_u32 0, to = u8_to_u32 3, step = u8_to_u32 1, f = cmp_inc, acc = (ex,0), obsv = (buf,s)}
+  let ((ex,_),r) = seq32 [(SysState, Index), (Buffer!, (#CString)!), Node] #{frm = upcast 0, to = upcast 3, step = upcast 1, f = cmp_inc, acc = (ex,0), obsv = (buf,s)}
    in r | Iterate _   -> (ex, None)
         | Break node  -> (ex, Some node)
 
