@@ -250,7 +250,7 @@ static sector_t ext2fs_bmap_nolock(struct address_space *mapping, sector_t block
 }
 
 /* support migrate to new internal iter API */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0) && LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
 static ssize_t ext2fs_direct_IO_nolock(int rw, struct kiocb *iocb,
                                        struct iov_iter *iter, loff_t offset)
 {
@@ -292,7 +292,7 @@ static ssize_t ext2fs_direct_IO(int rw, struct kiocb *iocb, struct iov_iter *ite
     return ret;
 }
 
-#else /* KERNEL_VERSION > KERNEL_VERSION_CODE(4, 0, 0) */
+#else /* KERNEL_VERSION > KERNEL_VERSION_CODE(4, 7, 0) */
 static ssize_t ext2fs_direct_IO_nolock(struct kiocb *iocb, struct iov_iter *iter)
 {
     struct file *file = iocb->ki_filp;
