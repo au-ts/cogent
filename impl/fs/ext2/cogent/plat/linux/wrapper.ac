@@ -159,10 +159,10 @@ int ext2fs_setattr(struct dentry *dentry, struct iattr *iattr)
     Ext2State *state = inode->i_sb->s_fs_info;
     int error;
 
-$escstm:(#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0))
-    error = inode_change_ok(inode, iattr);
-$escstm:(#else)
+$escstm:(#if LINUX_VERSION_CODE > KERNEL_VERSION(3,16,0))
     error = setattr_prepare(dentry, iattr);
+$escstm:(#else)
+    error = inode_change_ok(inode, iattr);
 $escstm:(#endif)
     if (error) {
         return error;
@@ -207,7 +207,11 @@ $escstm:(#endif)
         /************  critical section end  ************/
 
         /* XXX: yuck, this should be in COGENT */
+$escstm:(#if LINUX_VERSION_CODE < KERNEL_VERSION(4,12,0))
+        inode->i_mtime = inode->i_ctime = CURRENT_TIME_SEC;
+$escstm:(#else)
         inode->i_mtime = inode->i_ctime = current_time(inode);
+$escstm:(#endif)
         if (inode_needs_sync(inode)) {
             sync_mapping_buffers(inode->i_mapping);
             sync_inode_metadata(inode, 1);

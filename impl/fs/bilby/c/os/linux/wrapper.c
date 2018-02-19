@@ -551,7 +551,7 @@ static int bilbyfs_writepage(struct page *page, struct writeback_control *wbc)
         return err;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,2,0)
 static void *bilbyfs_follow_link(struct dentry *dentry, struct nameidata *nd)
 {
         struct bilbyfs_info *bi = dentry->d_inode->i_sb->s_fs_info;
@@ -603,10 +603,10 @@ static int bilbyfs_setattr(struct dentry *dentry, struct iattr *attr)
 
         bilbyfs_debug("bilbyfs_setattr(ino %lu, mode %#x, ia_valid %#x)\n",
                 inode->i_ino, inode->i_mode, attr->ia_valid);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
-        err = inode_change_ok(inode, attr);
-#else
+#if LINUX_VERSION_CODE > KERNEL_VERSION(3,16,0)
         err = setattr_prepare(dentry, attr);
+#else
+        err = inode_change_ok(inode, attr);
 #endif
 
         if (err)
@@ -684,7 +684,7 @@ const struct file_operations bilbyfs_file_operations =
 {
         .llseek =       generic_file_llseek,
         .open =         generic_file_open,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,0,0)
         .read =         new_sync_read,
         .write =        new_sync_write,
 #endif
@@ -924,6 +924,7 @@ static int bilbyfs_fill_super(struct super_block *sb, void *options, int silent,
          * Disabling VFS's read-ahead feature.
          * Read-ahead will be disabled because bdi->ra_pages is 0.
          */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,0,0)
         sb->s_bdi = &bi->wd.bdi;
         sb->s_bdi->name = "bilbyfs";
         sb->s_bdi->capabilities = BDI_CAP_MAP_COPY;
@@ -959,6 +960,32 @@ static int bilbyfs_fill_super(struct super_block *sb, void *options, int silent,
                         bdi_destroy(sb->s_bdi);
                 }
         }
+#else
+        super_setup_bdi(sb);
+        sb->s_fs_info = wd;
+        root = bilbyfs_new_inode(sb, NULL, S_IFDIR | S_IRUGO | S_IWUSR | S_IXUGO);
+        if (root) {
+                set_nlink(root, 2);
+                err = ffsop_fill_super(wd, sb, silent, root);
+                iput(root);
+        } else {
+                err = PTR_ERR(root);
+        }
+
+        if (!err) {
+                /* Reads the root inode */
+                root = bilbyfs_iget(wd, root->i_ino);
+                if (!IS_ERR(root)) {
+                        sb->s_root = d_make_root(root);
+                        if (sb->s_root)
+                                return 0;
+                        err = -EINVAL;
+                } else {
+                        err = PTR_ERR(root);
+                }
+                bilbyfs_unmount(wd);
+        }
+#endif
         sb->s_bdi = NULL;
         return err;
 }

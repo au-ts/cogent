@@ -37,3 +37,4 @@ cogent/examples/inprogress/
 impl/vfat/vfat_test/
 impl/vfat_orig/
 impl/vfat/cogent/misc/
+.cache.mk

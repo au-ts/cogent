@@ -235,7 +235,11 @@ static int fat_write_end(struct file *file, struct address_space *mapping,
 	if (err < len)
 		fat_write_failed(mapping, pos + len);
 	if (!(err < 0) && !(MSDOS_I(inode)->i_attrs & ATTR_ARCH)) {
-                inode->i_mtime = inode->i_ctime = current_time(inode);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,12,0)
+        inode->i_mtime = inode->i_ctime = CURRENT_TIME_SEC;
+#else
+        inode->i_mtime = inode->i_ctime = current_time(inode);
+#endif
 		MSDOS_I(inode)->i_attrs |= ATTR_ARCH;
 		mark_inode_dirty(inode);
 	}
