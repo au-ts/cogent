@@ -46,8 +46,9 @@ data Pattern ip = PCon TagName [ip]
 
 data Alt p e = Alt p Likelihood e deriving (Eq, Ord, Show, Functor, Foldable,Traversable)
 
-data Binding t ip e = Binding ip (Maybe t) e [VarName]
-                    deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
+data Binding t p ip e = Binding ip (Maybe t) e [VarName]
+                      | BindingAlts p (Maybe t) e [VarName] [Alt p e]
+                      deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
 data Inline = Inline
             | NoInline
@@ -72,10 +73,9 @@ data Expr t p ip e = PrimOp OpName [e]
                    | StringLit String
                    | Tuple [e]
                    | UnboxedRecord [(FieldName, e)]
-                   | Let [Binding t ip e] e
-                   | Upcast e
---                   | Widen  e
+                   | Let [Binding t p ip e] e
                    | Put e [Maybe (FieldName, e)]  -- Note: `Nothing' will be desugared to `Just' in TypeCheck / zilinc
+                   | Upcast e
                    | Annot e t
                    deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
@@ -141,9 +141,11 @@ data RawIrrefPatn = RIP { unRIP :: IrrefutablePattern VarName RawIrrefPatn } der
 instance Foldable (Flip Alt e) where
   foldMap f a = getConst $ traverse (Const . f) a
 
-instance Foldable (Flip (Binding t) e) where  -- ip
+instance Foldable (Flip (Binding t p) e) where  -- ip
   foldMap f a = getConst $ traverse (Const . f) a
-instance Foldable (Flip2 Binding e ip) where  -- t
+instance Foldable (Flip2 (Binding t) e ip) where  -- p
+  foldMap f a = getConst $ traverse (Const . f) a
+instance Foldable (Flip3 Binding e ip p) where  -- t
   foldMap f a = getConst $ traverse (Const . f) a
 
 instance Foldable (Flip (Expr t p) e) where  -- ip
@@ -164,25 +166,29 @@ instance Foldable (Flip2 TopLevel p e) where
 instance Traversable (Flip Alt e) where  -- p
   traverse f (Flip (Alt p b e)) = Flip <$> (Alt <$> f p <*> pure b <*> pure e)
 
-instance Traversable (Flip (Binding t) e) where  -- ip
-  traverse f (Flip (Binding p mt e vs)) = Flip <$> (Binding <$> f p <*> pure mt <*> pure e <*> pure vs)
-instance Traversable (Flip2 Binding e ip) where  -- t
-  traverse f (Flip2 (Binding p mt e vs)) = Flip2 <$> (Binding p <$> traverse f mt <*> pure e <*> pure vs)
+instance Traversable (Flip (Binding t p) e) where  -- ip
+  traverse f (Flip (Binding ip mt e vs)) = Flip <$> (Binding <$> f ip <*> pure mt <*> pure e <*> pure vs)
+  traverse f (Flip (BindingAlts p mt e vs alts)) = pure $ Flip (BindingAlts p mt e vs alts)
+instance Traversable (Flip2 (Binding t) e ip) where  -- p
+  traverse f (Flip2 (Binding ip mt e vs)) = pure $ Flip2 (Binding ip mt e vs)
+  traverse f (Flip2 (BindingAlts p mt e vs alts)) = Flip2 <$> (BindingAlts <$> f p <*> pure mt <*> pure e <*> pure vs <*> traverse (ttraverse f) alts)
+instance Traversable (Flip3 Binding e ip p) where  -- t
+  traverse f (Flip3 (Binding ip mt e vs)) = Flip3 <$> (Binding ip <$> traverse f mt <*> pure e <*> pure vs)
+  traverse f (Flip3 (BindingAlts p mt e vs alts)) = Flip3 <$> (BindingAlts p <$> traverse f mt <*> pure e <*> pure vs <*> pure alts)
 
 instance Traversable (Flip (Expr t p) e) where  -- ip
-  traverse f (Flip (Let bs e))          = Flip <$> (Let <$> (traverse (ttraverse f) bs) <*> pure e)
-  traverse _ (Flip (Member e f))        = pure $ Flip (Member e f)
   traverse _ (Flip (PrimOp op e))       = pure $ Flip (PrimOp op e)
   traverse _ (Flip (Var v))             = pure $ Flip (Var v)
   traverse _ (Flip (Match e v alt))     = pure $ Flip (Match e v alt)
   traverse _ (Flip (TypeApp v ts nt))   = pure $ Flip (TypeApp v ts nt)
+  traverse _ (Flip (Con n e))           = pure $ Flip (Con n e)
   traverse _ (Flip (Seq e e'))          = pure $ Flip (Seq e e')
-  traverse _ (Flip (If c vs e e'))      = pure $ Flip (If c vs e e')
   traverse f (Flip (Lam  ip mt e))      = Flip <$> (Lam  <$> f ip <*> pure mt <*> pure e)
   traverse f (Flip (LamC ip mt e vs))   = Flip <$> (LamC <$> f ip <*> pure mt <*> pure e <*> pure vs)
   traverse _ (Flip (App  e e'))         = pure $ Flip (App  e e')
   traverse _ (Flip (AppC e e'))         = pure $ Flip (AppC e e')
-  traverse _ (Flip (Con n e))           = pure $ Flip (Con n e)
+  traverse _ (Flip (If c vs e e'))      = pure $ Flip (If c vs e e')
+  traverse _ (Flip (Member e f))        = pure $ Flip (Member e f)
   traverse _ (Flip Unitel)              = pure $ Flip Unitel
   traverse _ (Flip (IntLit l))          = pure $ Flip (IntLit l)
   traverse _ (Flip (BoolLit l))         = pure $ Flip (BoolLit l)
@@ -190,23 +196,23 @@ instance Traversable (Flip (Expr t p) e) where  -- ip
   traverse _ (Flip (StringLit l))       = pure $ Flip (StringLit l)
   traverse _ (Flip (Tuple es))          = pure $ Flip (Tuple es)
   traverse _ (Flip (UnboxedRecord es))  = pure $ Flip (UnboxedRecord es)
+  traverse f (Flip (Let bs e))          = Flip <$> (Let <$> (traverse (ttraverse f) bs) <*> pure e)
   traverse _ (Flip (Put e es))          = pure $ Flip (Put e es)
   traverse _ (Flip (Upcast e))          = pure $ Flip (Upcast e)
   traverse _ (Flip (Annot e t))         = pure $ Flip (Annot e t)
-  -- traverse _ (Flip (Widen e))           = pure $ Flip (Widen e)
 instance Traversable (Flip2 (Expr t) e ip) where  -- p
-  traverse f (Flip2 (Match e v alt))    = Flip2 <$> (Match e v <$> traverse (ttraverse f) alt)
   traverse _ (Flip2 (PrimOp op e))      = pure $ Flip2 (PrimOp op e)
   traverse _ (Flip2 (Var v))            = pure $ Flip2 (Var v)
+  traverse f (Flip2 (Match e v alt))    = Flip2 <$> (Match e v <$> traverse (ttraverse f) alt)
   traverse _ (Flip2 (TypeApp v ts nt))  = pure $ Flip2 (TypeApp v ts nt)
+  traverse _ (Flip2 (Con n e))          = pure $ Flip2 (Con n e)
   traverse _ (Flip2 (Seq e e'))         = pure $ Flip2 (Seq e e')
-  traverse _ (Flip2 (If c vs e e'))     = pure $ Flip2 (If c vs e e')
   traverse _ (Flip2 (Lam  ip mt e))     = pure $ Flip2 (Lam  ip mt e)
   traverse _ (Flip2 (LamC ip mt e vs))  = pure $ Flip2 (LamC ip mt e vs)
   traverse _ (Flip2 (App  e e'))        = pure $ Flip2 (App  e e')
   traverse _ (Flip2 (AppC e e'))        = pure $ Flip2 (AppC e e')
+  traverse _ (Flip2 (If c vs e e'))     = pure $ Flip2 (If c vs e e')
   traverse _ (Flip2 (Member e f))       = pure $ Flip2 (Member e f)
-  traverse _ (Flip2 (Con n e))          = pure $ Flip2 (Con n e)
   traverse _ (Flip2 Unitel)             = pure $ Flip2 Unitel
   traverse _ (Flip2 (IntLit l))         = pure $ Flip2 (IntLit l)
   traverse _ (Flip2 (BoolLit l))        = pure $ Flip2 (BoolLit l)
@@ -214,26 +220,23 @@ instance Traversable (Flip2 (Expr t) e ip) where  -- p
   traverse _ (Flip2 (StringLit l))      = pure $ Flip2 (StringLit l)
   traverse _ (Flip2 (Tuple es))         = pure $ Flip2 (Tuple es)
   traverse _ (Flip2 (UnboxedRecord es)) = pure $ Flip2 (UnboxedRecord es)
+  traverse f (Flip2 (Let bs e))         = Flip2 <$> (Let <$> traverse (tttraverse f) bs <*> pure e)
   traverse _ (Flip2 (Put e es))         = pure $ Flip2 (Put e es)
-  traverse _ (Flip2 (Let bs e))         = pure $ Flip2 (Let bs e)
   traverse _ (Flip2 (Upcast e))         = pure $ Flip2 (Upcast e)
   traverse _ (Flip2 (Annot e t))        = pure $ Flip2 (Annot e t)
-  --traverse _ (Flip2 (Widen e))          = pure $ Flip2 (Widen e)
 instance Traversable (Flip3 Expr e ip p) where  -- t
-  traverse f (Flip3 (Let bs e))          = Flip3 <$> (Let <$> (traverse (tttraverse f) bs) <*> pure e)
-  traverse f (Flip3 (TypeApp v ts nt))   = Flip3 <$> (TypeApp v <$> traverse (traverse f) ts <*> pure nt)
-  traverse f (Flip3 (Annot e t))         = Flip3 <$> (Annot <$> pure e <*> f t)
-  traverse _ (Flip3 (Match e v alt))     = pure $ Flip3 (Match e v alt)
-  traverse _ (Flip3 (Member e f))        = pure $ Flip3 (Member e f)
   traverse _ (Flip3 (PrimOp op e))       = pure $ Flip3 (PrimOp op e)
   traverse _ (Flip3 (Var v))             = pure $ Flip3 (Var v)
+  traverse _ (Flip3 (Match e v alt))     = pure $ Flip3 (Match e v alt)
+  traverse f (Flip3 (TypeApp v ts nt))   = Flip3 <$> (TypeApp v <$> traverse (traverse f) ts <*> pure nt)
+  traverse _ (Flip3 (Con n e))           = pure $ Flip3 (Con n e)
   traverse _ (Flip3 (Seq e e'))          = pure $ Flip3 (Seq e e')
-  traverse _ (Flip3 (If c vs e e'))      = pure $ Flip3 (If c vs e e')
   traverse f (Flip3 (Lam  ip mt e))      = Flip3 <$> (Lam  ip <$> traverse f mt <*> pure e)
   traverse f (Flip3 (LamC ip mt e vs))   = Flip3 <$> (LamC ip <$> traverse f mt <*> pure e <*> pure vs)
   traverse _ (Flip3 (App  e e'))         = pure $ Flip3 (App  e e')
   traverse _ (Flip3 (AppC e e'))         = pure $ Flip3 (AppC e e')
-  traverse _ (Flip3 (Con n e))           = pure $ Flip3 (Con n e)
+  traverse _ (Flip3 (If c vs e e'))      = pure $ Flip3 (If c vs e e')
+  traverse _ (Flip3 (Member e f))        = pure $ Flip3 (Member e f)
   traverse _ (Flip3 Unitel)              = pure $ Flip3 Unitel
   traverse _ (Flip3 (IntLit l))          = pure $ Flip3 (IntLit l)
   traverse _ (Flip3 (BoolLit l))         = pure $ Flip3 (BoolLit l)
@@ -241,9 +244,10 @@ instance Traversable (Flip3 Expr e ip p) where  -- t
   traverse _ (Flip3 (StringLit l))       = pure $ Flip3 (StringLit l)
   traverse _ (Flip3 (Tuple es))          = pure $ Flip3 (Tuple es)
   traverse _ (Flip3 (UnboxedRecord es))  = pure $ Flip3 (UnboxedRecord es)
+  traverse f (Flip3 (Let bs e))          = Flip3 <$> (Let <$> (traverse (ttttraverse f) bs) <*> pure e)
   traverse _ (Flip3 (Put e es))          = pure $ Flip3 (Put e es)
   traverse _ (Flip3 (Upcast e))          = pure $ Flip3 (Upcast e)
-  -- traverse _ (Flip3 (Widen e))           = pure $ Flip3 (Widen e)
+  traverse f (Flip3 (Annot e t))         = Flip3 <$> (Annot <$> pure e <*> f t)
 
 instance Traversable (Flip IrrefutablePattern pv) where  -- ip
   traverse f (Flip (PVar pv))            = Flip <$> (PVar <$> f pv)
@@ -272,9 +276,11 @@ instance Traversable (Flip2 TopLevel e p) where  -- t
   traverse f (Flip2 (FunDef v pt alts)) = Flip2 <$> (FunDef   v <$> traverse f pt <*> pure alts)
   traverse f (Flip2 (ConstDef v t e))   = Flip2 <$> (ConstDef v <$> f t <*> pure e)
 
-instance Functor (Flip (Binding t) e) where  -- ip
+instance Functor (Flip (Binding t p) e) where  -- ip
   fmap f x = runIdentity (traverse (Identity . f) x)
-instance Functor (Flip2 Binding e ip) where  -- t
+instance Functor (Flip2 (Binding t) e ip) where  -- p
+  fmap f x = runIdentity (traverse (Identity . f) x)
+instance Functor (Flip3 Binding e ip p) where  -- t
   fmap f x = runIdentity (traverse (Identity . f) x)
 
 instance Functor (Flip Alt e) where  -- p
@@ -301,8 +307,9 @@ fvA :: Alt RawPatn RawExpr -> [VarName]
 fvA (Alt p _ e) = let locals = fvP p
                    in filter (`notElem` locals) (fvE e)
 
-fvB :: Binding RawType RawIrrefPatn RawExpr -> ([VarName], [VarName])
+fvB :: Binding RawType RawPatn RawIrrefPatn RawExpr -> ([VarName], [VarName])
 fvB (Binding ip _ e _) = (fvIP ip, fvE e)
+fvB (BindingAlts p _ e _ alts) = (fvP p ++ foldMap fvA alts, fvE e)
 
 fvP :: RawPatn -> [VarName]
 fvP (RP (PCon _ ips)) = foldMap fvIP ips
@@ -330,8 +337,9 @@ fvE (RE e) = foldMap fvE e
 fcA :: Alt v RawExpr -> [TagName]
 fcA (Alt _ _ e) = fcE e
 
-fcB :: Binding RawType RawIrrefPatn RawExpr -> [TagName]
+fcB :: Binding RawType RawPatn RawIrrefPatn RawExpr -> [TagName]
 fcB (Binding _ t e _) = foldMap fcT t ++ fcE e
+fcB (BindingAlts _ t e _ alts) = foldMap fcT t ++ fcE e ++ foldMap fcA alts
 
 fcE :: RawExpr -> [TagName]
 fcE (RE (Let bs e)) = fcE e ++ foldMap fcB bs

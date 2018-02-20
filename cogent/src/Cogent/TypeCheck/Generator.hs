@@ -479,9 +479,9 @@ match' (PTake r fs) t | not (any isNothing fs) = do
    let (ns, ps) = unzip (catMaybes fs)
    (vs, blob) <- unzip <$> mapM (\p -> do v <- fresh; (v,) <$> match p v) ps
    let (ss, cs, ps') = (map fst3 blob, map snd3 blob, map thd3 blob)
-       c = F t :< FRecord (zip ns (map (,False) vs))
        s  = M.fromList [(r, (u, ?loc, Seq.empty))]
        u  = T (TTake (Just ns) t)
+       c  = F t :< FRecord (zip ns (map (,False) vs))
        p' = PTake (r,u) (map Just (zip ns ps'))
        co = case overlapping (s:ss) of
               Left (v:_) -> Unsat $ DuplicateVariableInPattern v  -- p'
@@ -495,8 +495,8 @@ match' (PTake r fs) t | not (any isNothing fs) = do
    | otherwise = second3 (:& Unsat RecordWildcardsNotSupported) <$> match' (PTake r (filter isJust fs)) t
 
 withBindings :: (?loc::SourcePos)
-  => [Binding LocType LocIrrefPatn LocExpr]
-  -> CG a -> CG (Constraint, [Binding TCType TCIrrefPatn TCExpr], a)
+  => [Binding LocType LocPatn LocIrrefPatn LocExpr]
+  -> CG a -> CG (Constraint, [Binding TCType TCPatn TCIrrefPatn TCExpr], a)
 withBindings [] a = (Sat, [],) <$> a
 withBindings (Binding pat tau e bs : xs) a = do
   alpha <- fresh

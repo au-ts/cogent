@@ -218,14 +218,22 @@ resolveNames lcls (RE (Match e t alts)) = DE (Match (resolveNames lcls e) t (map
 resolveNames lcls (RE (Let bs e)) = let (lcls', bs') = resolveBinders lcls bs in DE (Let bs' $ resolveNames lcls' e)
 resolveNames lcls (RE e) = DE (fmap (resolveNames lcls) e)
 
-resolveBinders :: [String] -> [Binding RawType RawIrrefPatn RawExpr] -> ([String], [Binding RawType RawIrrefPatn DocExpr])
+resolveBinders :: [String]
+               -> [Binding RawType RawPatn RawIrrefPatn RawExpr]
+               -> ([String], [Binding RawType RawPatn RawIrrefPatn DocExpr])
 resolveBinders lcls [] = (lcls, [])
 resolveBinders lcls (x:xs) = let (lcls',x') = resolveBinder lcls x
                                  (lcls'', xs') = resolveBinders lcls' xs
                               in (lcls'',x':xs')
 
-resolveBinder :: [String] -> Binding RawType RawIrrefPatn RawExpr -> ([String], Binding RawType RawIrrefPatn DocExpr)
-resolveBinder lcls (Binding ip t e l) = (lcls ++ fvIP ip, Binding ip t (resolveNames lcls e) l)
+resolveBinder :: [String]
+              -> Binding RawType RawPatn RawIrrefPatn RawExpr
+              -> ([String], Binding RawType RawPatn RawIrrefPatn DocExpr)
+resolveBinder lcls (Binding ip t e bs) = (lcls ++ fvIP ip, Binding ip t (resolveNames lcls e) bs)
+resolveBinder lcls (BindingAlts p t e bs alts) =
+  ( lcls ++ fvP p ++ foldMap fvA alts
+  , BindingAlts p t (resolveNames lcls e) bs (map (resolveNamesA lcls) alts)
+  )
 
 adjustSGRs :: SGR -> S.State SGRState ()
 adjustSGRs Reset = put defaultState

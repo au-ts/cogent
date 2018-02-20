@@ -155,16 +155,16 @@ instance ExprType (TExpr t) where
 -- ------------------------------------
 
 class PatnType a where
-  isPVar :: a -> VarName -> Bool
-  prettyIP :: a -> Doc
+  isPVar  :: a -> VarName -> Bool
+  prettyP :: a -> Doc
   prettyB :: (Pretty t, Pretty e, ExprType e) => (a, Maybe t, e) -> Bool -> Doc  -- binding
 
 instance (PrettyName pv, PatnType ip, Pretty ip) => PatnType (IrrefutablePattern pv ip) where
   isPVar (PVar pv) = isName pv
   isPVar _ = const False
 
-  prettyIP p@(PTake {}) = parens (pretty p)
-  prettyIP p = pretty p
+  prettyP p@(PTake {}) = parens (pretty p)
+  prettyP p = pretty p
 
   prettyB (p, Just t, e) i
        = group (pretty p <+> symbol ":" <+> pretty t <+> symbol "=" <+> (if i then (pretty' 100) else pretty) e)
@@ -172,19 +172,46 @@ instance (PrettyName pv, PatnType ip, Pretty ip) => PatnType (IrrefutablePattern
        = group (pretty p <+> symbol "=" <+> (if i then (pretty' 100) else pretty) e)
 
 instance PatnType RawIrrefPatn where
-  isPVar   (RIP p) = isPVar p
-  prettyIP (RIP p) = prettyIP p
-  prettyB  (RIP p,mt,e) = prettyB (p,mt,e)
+  isPVar  (RIP p) = isPVar p
+  prettyP (RIP p) = prettyP p
+  prettyB (RIP p,mt,e) = prettyB (p,mt,e)
 
 instance PatnType LocIrrefPatn where
-  isPVar   (LocIrrefPatn _ p) = isPVar p
-  prettyIP (LocIrrefPatn _ p) = prettyIP p
-  prettyB  (LocIrrefPatn _ p,mt,e) = prettyB (p,mt,e)
+  isPVar  (LocIrrefPatn _ p) = isPVar p
+  prettyP (LocIrrefPatn _ p) = prettyP p
+  prettyB (LocIrrefPatn _ p,mt,e) = prettyB (p,mt,e)
 
 instance (Pretty t) => PatnType (TIrrefPatn t) where
-  isPVar   (TIP p _) = isPVar p
-  prettyIP (TIP p _) = prettyIP p
-  prettyB  (TIP p _,mt,e) = prettyB (p,mt,e)
+  isPVar  (TIP p _) = isPVar p
+  prettyP (TIP p _) = prettyP p
+  prettyB (TIP p _,mt,e) = prettyB (p,mt,e)
+
+instance (PatnType ip, Pretty ip) => PatnType (Pattern ip) where
+  isPVar (PIrrefutable ip) = isPVar ip
+  isPVar _ = const False
+
+  prettyP (PIrrefutable ip) = prettyP ip
+  prettyP p = pretty p
+
+  prettyB (p, Just t, e) i
+       = group (pretty p <+> symbol ":" <+> pretty t <+> symbol "<=" <+> (if i then (pretty' 100) else pretty) e)
+  prettyB (p, Nothing, e) i
+       = group (pretty p <+> symbol "<=" <+> (if i then (pretty' 100) else pretty) e)
+
+instance PatnType RawPatn where
+  isPVar  (RP p)= isPVar p
+  prettyP (RP p) = prettyP p
+  prettyB (RP p,mt,e) = prettyB (p,mt,e)
+
+instance PatnType LocPatn where
+  isPVar  (LocPatn _ p) = isPVar p
+  prettyP (LocPatn _ p) = prettyP p
+  prettyB (LocPatn _ p,mt,e) = prettyB (p,mt,e)
+
+instance (Pretty t) => PatnType (TPatn t) where
+  isPVar  (TP p _) = isPVar p
+  prettyP (TP p _) = prettyP p
+  prettyB (TP p _,mt,e) = prettyB (p,mt,e)
 
 -- ------------------------------------
 
@@ -265,8 +292,8 @@ instance Pretty t => Pretty (TIrrefPatn t) where
 
 instance (PatnType ip, Pretty ip) => Pretty (Pattern ip) where
   pretty (PCon c [] )     = tagname c
-  pretty (PCon c [p])     = tagname c <+> prettyIP p
-  pretty (PCon c ps )     = tagname c <+> spaceList (map prettyIP ps)
+  pretty (PCon c [p])     = tagname c <+> prettyP p
+  pretty (PCon c ps )     = tagname c <+> spaceList (map prettyP ps)
   pretty (PIntLit i)      = literal (string $ show i)
   pretty (PBoolLit b)     = literal (string $ show b)
   pretty (PCharLit c)     = literal (string $ show c)
@@ -281,10 +308,14 @@ instance Pretty LocPatn where
 instance Pretty t => Pretty (TPatn t) where
   pretty (TP p _) = pretty p
 
-instance (Pretty t, PatnType ip, Pretty e, ExprType e) => Pretty (Binding t ip e) where
+instance (Pretty t, PatnType ip, PatnType p, Pretty p, Pretty e, ExprType e) => Pretty (Binding t p ip e) where
   pretty (Binding p t e []) = prettyB (p,t,e) False
   pretty (Binding p t e bs)
      = prettyB (p,t,e) True <+> hsep (map (letbangvar . ('!':)) bs)
+  pretty (BindingAlts p t e [] alts) = prettyB (p,t,e) False
+                                    <> mconcat (map ((hardline <>) . indent . pretty) alts)
+  pretty (BindingAlts p t e bs alts) = prettyB (p,t,e) True <+> hsep (map (letbangvar . ('!':)) bs)
+                                    <> mconcat (map ((hardline <>) . indent . pretty) alts)
 
 instance (Pretty p, Pretty e) => Pretty (Alt p e) where
   pretty (Alt p arrow e) = symbol "|" <+> pretty p <+> group (pretty arrow <+> pretty e)
@@ -293,7 +324,8 @@ instance Pretty Inline where
   pretty Inline = keyword "inline" <+> empty
   pretty NoInline = empty
 
-instance (ExprType e, Pretty t, Pretty p, PatnType ip, Pretty ip, Pretty e) => Pretty (Expr t p ip e) where
+instance (ExprType e, Pretty t, PatnType p, Pretty p, PatnType ip, Pretty ip, Pretty e) =>
+         Pretty (Expr t p ip e) where
   pretty (Var x)             = varname x
   pretty (TypeApp x ts note) = pretty note <> varname x
                                  <> typeargs (map (\case Nothing -> symbol "_"; Just t -> pretty t) ts)
