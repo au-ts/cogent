@@ -924,7 +924,7 @@ static int bilbyfs_fill_super(struct super_block *sb, void *options, int silent,
          * Disabling VFS's read-ahead feature.
          * Read-ahead will be disabled because bdi->ra_pages is 0.
          */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,0,0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,12,0)
         sb->s_bdi = &bi->wd.bdi;
         sb->s_bdi->name = "bilbyfs";
         sb->s_bdi->capabilities = BDI_CAP_MAP_COPY;
