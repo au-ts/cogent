@@ -329,17 +329,10 @@ deserialise_ObjHeader (buf, offs, obj) =
 
 deserialise_Obj: (SysState, Buffer!, BufOffs) -> R (SysState, Obj, BufOffs) (ErrCode, SysState)
 deserialise_Obj(ex, buf, offs) =
-  newObj ex
-  | Error ex ->
-    Error (eNoMem, ex)
-  | Success (ex, obj) ->
-    let (obj, r) = deserialise_ObjHeader (buf, offs, obj)
-    in r
-    | Error e ->
-      let ex = freeObj (ex, obj)
-      in Error (e, ex)
-    | Success offs ->
-      deserialise_ObjUnion(ex, buf, offs, (obj.otype,obj.len)) !obj
+  let Success (ex, obj) <= newObj ex |> Error ex -> Error (eNoMem, ex)
+  and (obj, r) = deserialise_ObjHeader (buf, offs, obj)
+  and Success offs <= r |> Error e -> let ex = freeObj (ex, obj) in Error (e, ex)
+   in deserialise_ObjUnion(ex, buf, offs, (obj.otype,obj.len)) !obj
       | Error (e, ex) ->
         cogent_debug "Could not deserialise Obj_union at " ;
         cogent_debug_u32 (offs+bilbyFsObjHeaderSize);
@@ -570,18 +563,14 @@ deserialise_ObjDentry(ex, buf, offs, end_offs) =
     Error (eInval, ex)
   else
     -- deserialise_wordarray_U8 guarantees that: length name = nlen
-    deserialise_wordarray_U8(ex, buf, offs + bilbyFsObjDentryHeaderSize, nlen32)
-    | Error (e, ex) ->
-      cogent_debug "Error deserialise_wordarray_U8 \n" ;
-      Error (e, ex)
-    | Success (ex, name) ->
-      newObjDentry ex
-      | Error ex ->
-        let ex = wordarray_free[U8](ex, name)
-        in Error (eNoMem, ex)
-      | Success (ex, dentry) ->
-        let dentry = dentry {ino, dtype, nlen, name}
-        in Success (ex, dentry, offs + bilbyFsObjDentryHeaderSize + nlen32)
+    let Success (ex, name) <= deserialise_wordarray_U8(ex, buf, offs + bilbyFsObjDentryHeaderSize, nlen32)
+          |> Error (e, ex) -> cogent_debug "Error deserialise_wordarray_U8 \n";
+                              Error (e, ex)
+    and Success (ex, dentry) <= newObjDentry ex
+          |> Error ex -> let ex = wordarray_free[U8](ex, name)
+                          in Error (eNoMem, ex)
+    and dentry = dentry {ino, dtype, nlen, name}
+     in Success (ex, dentry, offs + bilbyFsObjDentryHeaderSize + nlen32)
 
 newObjDentry: SysState -> R (SysState, ObjDentry take(..)) SysState
 freeObjDentry: (SysState, ObjDentry take (..)) -> SysState
@@ -730,25 +719,20 @@ freeObjSummary: (SysState, ObjSummary take (..)) -> SysState
 
 summary_init: (SysState, U32) -> R (SysState, ObjSummary, Obj) SysState
 summary_init(ex, max_nb_sum_entry) =
-  newObjSummary ex
-  | Error ex ->
-    Error ex
-  | Success (ex, sum) ->
-    wordarray_create[ObjSumEntry] (ex, max_nb_sum_entry)
-    | Error ex ->
-      let ex = freeObjSummary (ex, sum)
-      in Error ex
-    | Success (ex, entries) ->
-      newObj ex
-      | Error ex ->
-        let ex = freeObjSummary (ex, sum)
-        and ex = wordarray_free[ObjSumEntry] (ex, entries)
-        in Error ex
-      | Success (ex, sum_obj) ->
-        let sum_obj = obj_init_default (sum_obj, bilbyFsObjTypeSum) 
-        and sum_obj = sum_obj {trans=bilbyFsTransCommit, ounion = TObjPad ()}
-        and sum_offs:U32 = 0
-        in Success (ex, sum {nb_sum_entry=0, entries, sum_offs}, sum_obj)
+  let Success (ex, sum) <= newObjSummary ex |> Error ex -> Error ex
+  and Success (ex, entries) <= wordarray_create[ObjSumEntry] (ex, max_nb_sum_entry)
+      |> Error ex ->
+           let ex = freeObjSummary (ex, sum)
+           in Error ex
+  and Success (ex, sum_obj) <= newObj ex
+      |> Error ex ->
+           let ex = freeObjSummary (ex, sum)
+           and ex = wordarray_free[ObjSumEntry] (ex, entries)
+           in Error ex
+  and sum_obj = obj_init_default (sum_obj, bilbyFsObjTypeSum) 
+  and sum_obj = sum_obj {trans=bilbyFsTransCommit, ounion = TObjPad ()}
+  and sum_offs:U32 = 0
+  in Success (ex, sum {nb_sum_entry=0, entries, sum_offs}, sum_obj)
 
 summary_clean: (SysState, ObjSummary) -> SysState
 summary_clean(ex, sum {entries}) =
@@ -859,42 +843,35 @@ deserialise_ObjSummary_crc (ex, buf, offs, obj, summary) =
   let obj {offs=_, magic, crc, sqnum, len, trans, otype, ounion} = obj
   and ex = deep_freeObjUnion(ex, ounion)
   and (obj, r) = deserialise_ObjHeader(buf, offs, obj)
-  in r
-  | Error e ->
-    ((ex, obj {ounion =TObjPad ()}, summary), Error e)
-  | Success offs' ->
-    let (summary, r) = deserialise_ObjSummary(buf, offs', summary)
-    in r
-    | Error e ->
-      ((ex, obj {ounion =TObjPad ()}, summary), Error e)
-    | Success offs' ->
-      let crcsum = crc32_buf #{buf, frm = offs + 8, to = offs'} !buf
-      and crc = obj.crc !obj
-      and obj {offs=_} = obj
-      and obj = obj {offs}
-      and _ = cogent_debug "deserialise_ObjSummary_crc: crc check end_offs=" 
-      and _ = cogent_debug_u32 offs'
-      and _ = cogent_debug "\n" 
-      and _ = print_ObjHeader obj !obj
-      and obj = obj {ounion = TObjPad ()} 
-      in if crc == crcsum then
-        ((ex, obj, summary), Success offs')
-      else
-        cogent_debug "Invalid CRC Obj at offs=" ;
-        cogent_debug_u32 offs ;
-        cogent_debug "\n" ;
-        ((ex, obj, summary), Error eInval)
+  and Success offs' <= r
+      |> Error e -> ((ex, obj {ounion =TObjPad ()}, summary), Error e)
+  and (summary, r) = deserialise_ObjSummary(buf, offs', summary)
+  and Success offs' <= r |> Error e -> ((ex, obj {ounion =TObjPad ()}, summary), Error e)
+  and crcsum = crc32_buf #{buf, frm = offs + 8, to = offs'} !buf
+  and crc = obj.crc !obj
+  and obj {offs=_} = obj
+  and obj = obj {offs}
+  and _ = cogent_debug "deserialise_ObjSummary_crc: crc check end_offs=" 
+  and _ = cogent_debug_u32 offs'
+  and _ = cogent_debug "\n" 
+  and _ = print_ObjHeader obj !obj
+  and obj = obj {ounion = TObjPad ()} 
+  in if crc == crcsum then
+    ((ex, obj, summary), Success offs')
+  else
+    cogent_debug "Invalid CRC Obj at offs=" ;
+    cogent_debug_u32 offs ;
+    cogent_debug "\n" ;
+    ((ex, obj, summary), Error eInval)
 
 deserialise_ObjSummary: (Buffer!, BufOffs, ObjSummary) -> RR ObjSummary BufOffs ErrCode
 deserialise_ObjSummary(buf, offs, sum {entries}) =
   let nb_sum_entry = deserialise_le32(buf, offs)
   and (entries, r) = deserialise_wordarray_ObjSumEntry(entries, buf, offs + 4, nb_sum_entry)
-  in r
-  | Error e -> (sum {nb_sum_entry, entries}, Error e)
-  | Success offs' ->
-    let sum_offs = deserialise_le32(buf, offs')
-    -- FIXME check that sum_offs == offs
-    in (sum {nb_sum_entry, entries, sum_offs}, Success (offs'+4))
+  and Success offs' <= r |> Error e -> (sum {nb_sum_entry, entries}, Error e)
+  and sum_offs = deserialise_le32(buf, offs')
+  -- FIXME check that sum_offs == offs
+  in (sum {nb_sum_entry, entries, sum_offs}, Success (offs'+4))
 
 type ObjData = #{
   id : ObjId,
@@ -1020,21 +997,18 @@ serialise_size_ObjSuper _ = bilbyFsObjSuperSize
 
 deserialise_ObjSuper: (SysState, Buffer!, BufOffs) -> R (SysState, ObjSuper, BufOffs) (ErrCode, SysState)
 deserialise_ObjSuper(ex, buf, offs) =
-  newObjSuper ex
-  | Error ex ->
-    Error (eNoMem, ex)
-  | Success (ex, sup) ->
-    let nb_eb = deserialise_le32(buf, offs)
-    and eb_size = deserialise_le32(buf, offs+4)
-    and io_size = deserialise_le32(buf, offs+8)
-    and nb_reserved_gc = deserialise_le32(buf, offs+12)
-    and nb_reserved_del = deserialise_le32(buf, offs+16)
-    and cur_eb = deserialise_le32(buf, offs+20)
-    and cur_offs = deserialise_le32(buf, offs+24)
-    and last_inum = deserialise_le32(buf, offs+28)
-    and next_sqnum = deserialise_le64(buf, offs+32)
-    and sup = sup {nb_eb, eb_size, io_size, nb_reserved_gc, nb_reserved_del, cur_eb, cur_offs, last_inum, next_sqnum}
-    in Success (ex, sup, offs+bilbyFsObjSuperSize)
+  let Success (ex, sup) <= newObjSuper ex |> Error ex -> Error (eNoMem, ex)
+  and nb_eb = deserialise_le32(buf, offs)
+  and eb_size = deserialise_le32(buf, offs+4)
+  and io_size = deserialise_le32(buf, offs+8)
+  and nb_reserved_gc = deserialise_le32(buf, offs+12)
+  and nb_reserved_del = deserialise_le32(buf, offs+16)
+  and cur_eb = deserialise_le32(buf, offs+20)
+  and cur_offs = deserialise_le32(buf, offs+24)
+  and last_inum = deserialise_le32(buf, offs+28)
+  and next_sqnum = deserialise_le64(buf, offs+32)
+  and sup = sup {nb_eb, eb_size, io_size, nb_reserved_gc, nb_reserved_del, cur_eb, cur_offs, last_inum, next_sqnum}
+  in Success (ex, sup, offs+bilbyFsObjSuperSize)
 
 type ObjInodeFlags = U32
 
@@ -1123,24 +1097,21 @@ deserialise_ObjInode(ex, buf, offs) =
   in if (id  .&. binNot (bilbyFsOidMaskAll .|. (upcast word32Max)) .|. bilbyFsOidMaskInode) /= id then
       Error (eInval, ex)
   else
-    newObjInode ex
-    | Error ex ->
-      Error (eNoMem, ex)
-    | Success (ex, oi) ->
-      let size = deserialise_le64(buf, offs + 8)
-      and atime_sec = deserialise_le64(buf, offs + 16)
-      and ctime_sec = deserialise_le64(buf, offs + 24)
-      and mtime_sec = deserialise_le64(buf, offs + 32)
-      and nlink = deserialise_le32(buf, offs + 40)
-      and uid = deserialise_le32(buf, offs + 44)
-      and _ = cogent_debug "deserialiseObjInode uid "
-      and _ = cogent_debug_u32 uid
-      and _ = cogent_debug "\n"
-      and gid = deserialise_le32(buf, offs + 48)
-      and mode = deserialise_le32(buf, offs + 52)
-      and flags = deserialise_le32(buf, offs + 56)
-      and oi = oi{id,size,atime_sec,ctime_sec,mtime_sec,nlink,uid,gid,mode,flags}
-      in Success (ex, oi, offs + 60)
+    let Success (ex, oi) <= newObjInode ex |> Error ex -> Error (eNoMem, ex)
+    and size = deserialise_le64(buf, offs + 8)
+    and atime_sec = deserialise_le64(buf, offs + 16)
+    and ctime_sec = deserialise_le64(buf, offs + 24)
+    and mtime_sec = deserialise_le64(buf, offs + 32)
+    and nlink = deserialise_le32(buf, offs + 40)
+    and uid = deserialise_le32(buf, offs + 44)
+    and _ = cogent_debug "deserialiseObjInode uid "
+    and _ = cogent_debug_u32 uid
+    and _ = cogent_debug "\n"
+    and gid = deserialise_le32(buf, offs + 48)
+    and mode = deserialise_le32(buf, offs + 52)
+    and flags = deserialise_le32(buf, offs + 56)
+    and oi = oi{id,size,atime_sec,ctime_sec,mtime_sec,nlink,uid,gid,mode,flags}
+    in Success (ex, oi, offs + 60)
 
 {-
   deserialise_u8
