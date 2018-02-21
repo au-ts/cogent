@@ -24,7 +24,10 @@ DEFNS=data/defns.txt
 PROOF_ID=Ext2
 
 # Standard Gum Directory
+STDGUM=$(COGENT_STD_GUM_DIR)
+ifeq ($(STDGUM),)
 STDGUM=$(shell cogent --stdgum-dir)
+endif
 # ADT headers required by Ext2fs
 AHFILES=$(wildcard $(STDGUM)/gum/anti/abstract/*.ah)
 # ADT C files required by Ext2fs

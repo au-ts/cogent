@@ -24,6 +24,9 @@ PROOF_ID=BilbyFs
 
 # Standard Gum Directory
 STDGUM=$(COGENT_STD_GUM_DIR)
+ifeq ($(STDGUM),)
+STDGUM=$(shell cogent --stdgum-dir)
+endif
 # ADT headers required by BilbyFs
 AHFILES=$(wildcard $(STDGUM)/gum/anti/abstract/*.ah)
 # ADT C files required by BilbyFs
