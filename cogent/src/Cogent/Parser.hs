@@ -51,7 +51,7 @@ language = haskellStyle
            { T.reservedOpNames = ["+","*","/","%","&&","||",">=","<=",">","<","==","/=",
                                   ".&.",".|.",".^.",">>","<<",
                                   ":","=","!",":<",".","_","..","#",
-                                  "@","@@","->","=>","~>"]
+                                  "@","@@","->","=>","~>","<=","|","|>"]
            , T.reservedNames   = ["let","in","type","include","all","take","put","inline",
                                   "if","then","else","not","complement","and","True","False"]
            , T.identStart = letter
@@ -205,8 +205,18 @@ expr' m = do avoidInitial
                        <* reservedOp "=>" <*> expr m)
           <|> matchExpr m
           <?> "expression"
-  where binding = Binding <$> irrefutablePattern <*> optionMaybe (reservedOp ":" *> monotype)
-                          <*  reservedOp "=" <*> expr 1 <*> many (reservedOp "!" >> variableName)
+  where binding = (Binding <$> irrefutablePattern <*> optionMaybe (reservedOp ":" *> monotype)
+                           <*  reservedOp "=" <*> expr 1 <*> many (reservedOp "!" >> variableName))
+              <|> do p <- pattern 
+                     mt <- optionMaybe (reservedOp ":" *> monotype)
+                     reservedOp "<="
+                     e <- expr 1
+                     bs <- many (reservedOp "!" >> variableName)
+                     c <- sourceColumn <$> getPosition
+                     guard (c > m)
+                     reservedOp "|>"
+                     alts <- sepByAligned1 (alternative c) (reservedOp "|>") c
+                     return $ BindingAlts p mt e bs alts
         bindings = binding `sepBy1` reserved "and"
 
 annot = do avoidInitial

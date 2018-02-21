@@ -313,12 +313,19 @@ instance (Pretty t, PatnType ip, PatnType p, Pretty p, Pretty e, ExprType e) => 
   pretty (Binding p t e bs)
      = prettyB (p,t,e) True <+> hsep (map (letbangvar . ('!':)) bs)
   pretty (BindingAlts p t e [] alts) = prettyB (p,t,e) False
-                                    <> mconcat (map ((hardline <>) . indent . pretty) alts)
+                                    <> mconcat (map ((hardline <>) . indent . prettyA True) alts)
   pretty (BindingAlts p t e bs alts) = prettyB (p,t,e) True <+> hsep (map (letbangvar . ('!':)) bs)
-                                    <> mconcat (map ((hardline <>) . indent . pretty) alts)
+                                    <> mconcat (map ((hardline <>) . indent . prettyA True) alts)
 
 instance (Pretty p, Pretty e) => Pretty (Alt p e) where
-  pretty (Alt p arrow e) = symbol "|" <+> pretty p <+> group (pretty arrow <+> pretty e)
+  pretty (Alt p arrow e) = pretty p <+> group (pretty arrow <+> pretty e)
+
+prettyA :: (Pretty p, Pretty e) 
+        => Bool  -- is biased
+        -> Alt p e
+        -> Doc
+prettyA False alt = symbol "|" <+> pretty alt
+prettyA True alt = symbol "|>" <+> pretty alt
 
 instance Pretty Inline where
   pretty Inline = keyword "inline" <+> empty
@@ -359,7 +366,7 @@ instance (ExprType e, Pretty t, PatnType p, Pretty p, PatnType ip, Pretty ip, Pr
     where handleBangedIf []  = id
           handleBangedIf vs  = (<+> hsep (map (letbangvar . ('!':)) vs))
   pretty (Match e bs alts)   = handleLetBangs bs (pretty' 100 e)
-                               <> mconcat (map ((hardline <>) . indent . pretty) alts)
+                               <> mconcat (map ((hardline <>) . indent . prettyA False) alts)
     where handleLetBangs []  = id
           handleLetBangs bs  = (<+> hsep (map (letbangvar . ('!':)) bs))
   pretty (Seq a b)           = pretty' 100 a <> symbol ";" <$> pretty b
@@ -457,7 +464,7 @@ prettyFunDef :: (Pretty p, Pretty e, Pretty t) => Bool -> FunName -> Polytype t 
 prettyFunDef typeSigs v pt [Alt p Regular e] = (if typeSigs then (funname v <+> symbol ":" <+> pretty pt <$>) else id)
                                                  (funname v <+> pretty p <+> group (indent (symbol "=" <$> pretty e)))
 prettyFunDef typeSigs v pt alts = (if typeSigs then (funname v <+> symbol ":" <+> pretty pt <$>) else id) $
-                                       (indent (funname v <> mconcat (map ((hardline <>) . indent . pretty) alts)))
+                                       (indent (funname v <> mconcat (map ((hardline <>) . indent . prettyA False) alts)))
 
 prettyConstDef typeSigs v t e  = (if typeSigs then (funname v <+> symbol ":" <+> pretty t <$>) else id) $
                                          (funname v <+> group (indent (symbol "=" <+> pretty e)))
