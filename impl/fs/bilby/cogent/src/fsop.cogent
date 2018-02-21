@@ -441,89 +441,75 @@ fsop_create #{ex, fs_st = fs_st {ostore_st}, vdir, name, mode, vnode} =
     (#{ex, fs_st = fs_st {ostore_st}, vdir, vnode}, Error eRoFs)
   else
    let ((ex, ostore_st, vnode), r) = init_vnode(ex, ostore_st, vdir, vnode, mode .|. s_IFREG) !vdir
-   in r
-   | Error err ->
-     (#{ex, fs_st = fs_st {ostore_st}, vdir, vnode}, Error err)
-   | Success () ->
-     let ((ex, ostore_st), r) = dentarr_read_and_add (ex, fs_st.mount_st, ostore_st, vdir, name, vnode, bilbyFsITypeReg) !fs_st !vdir !vnode
-     in r
-     | Error err ->
-       (#{ex, fs_st = fs_st {ostore_st}, vdir, vnode}, Error err)
-     | Success (new_v_size, dentarr_obj) ->
-       let (ex, r) = obj_inode_new(ex, vnode) !vnode
-       in r
-       | Error err ->
-         let ex = deep_freeObj(ex, dentarr_obj)
-         in (#{ex, fs_st = fs_st {ostore_st}, vdir, vnode}, Error err)
-       | Success inode ->
-         let v_size' = vfs_inode_get_size vdir !vdir
-         and v_mtime' = vfs_inode_get_mtime vdir !vdir
-         and v_ctime' = vfs_inode_get_ctime vdir !vdir
-         and (ex, time) = os_get_current_time(ex)
-         and vdir = vfs_inode_set_size(vdir, new_v_size)
-         and vdir = vfs_inode_set_mtime(vdir, time)
-         and vdir = vfs_inode_set_ctime(vdir, time)
-         and (ex, r) = obj_inode_new(ex, vdir) !vdir
-         in r
-         | Error err ->
-            let ex = deep_freeObj(ex, dentarr_obj)
-            and ex = deep_freeObj(ex, inode)
-            and vdir = vfs_inode_set_size(vdir, v_size')
+   and Success _ <= r |> Error err -> (#{ex, fs_st = fs_st {ostore_st}, vdir, vnode}, Error err)
+   and ((ex, ostore_st), r) = dentarr_read_and_add (ex, fs_st.mount_st, ostore_st, vdir, name, vnode, bilbyFsITypeReg) !fs_st !vdir !vnode
+   and Success (new_v_size, dentarr_obj) <= r
+       |> Error err -> (#{ex, fs_st = fs_st {ostore_st}, vdir, vnode}, Error err)
+   and (ex, r) = obj_inode_new(ex, vnode) !vnode
+   and Success inode <= r 
+       |> Error err ->
+          let ex = deep_freeObj(ex, dentarr_obj)
+          in (#{ex, fs_st = fs_st {ostore_st}, vdir, vnode}, Error err)
+   and v_size' = vfs_inode_get_size vdir !vdir
+   and v_mtime' = vfs_inode_get_mtime vdir !vdir
+   and v_ctime' = vfs_inode_get_ctime vdir !vdir
+   and (ex, time) = os_get_current_time(ex)
+   and vdir = vfs_inode_set_size(vdir, new_v_size)
+   and vdir = vfs_inode_set_mtime(vdir, time)
+   and vdir = vfs_inode_set_ctime(vdir, time)
+   and (ex, r) = obj_inode_new(ex, vdir) !vdir
+   and Success dir <= r
+       |> Error err ->
+          let ex = deep_freeObj(ex, dentarr_obj)
+          and ex = deep_freeObj(ex, inode)
+          and vdir = vfs_inode_set_size(vdir, v_size')
+          and vdir = vfs_inode_set_mtime(vdir, v_mtime')
+          and vdir = vfs_inode_set_ctime(vdir, v_ctime')
+          in (#{ex, fs_st = fs_st {ostore_st}, vdir, vnode}, Error err)
+   and Success (ex, arr) <= arrayobj_create3(ex, dentarr_obj, inode, dir)
+       |> Error ex ->
+            let vdir = vfs_inode_set_size(vdir, v_size')
             and vdir = vfs_inode_set_mtime(vdir, v_mtime')
             and vdir = vfs_inode_set_ctime(vdir, v_ctime')
-            in (#{ex, fs_st = fs_st {ostore_st}, vdir, vnode}, Error err)
-         | Success dir ->
-           arrayobj_create3(ex, dentarr_obj, inode, dir)
-           | Error ex ->
-               let vdir = vfs_inode_set_size(vdir, v_size')
-               and vdir = vfs_inode_set_mtime(vdir, v_mtime')
-               and vdir = vfs_inode_set_ctime(vdir, v_ctime')
-               in (#{ex, fs_st = fs_st {ostore_st}, vdir, vnode}, Error eNoMem)
-           | Success (ex, arr) ->
-               let ((ex, ostore_st, arr), r) = ostore_write(ex, fs_st.mount_st, ostore_st, arr, ostoreWriteNone) !fs_st
-               in r
-               | Error err ->
-                 let vdir = vfs_inode_set_size(vdir, v_size')
-                 and vdir = vfs_inode_set_mtime(vdir, v_mtime')
-                 and vdir = vfs_inode_set_ctime(vdir, v_ctime')
-                 and ex = array_free[Obj] #{arr=arr, f=deep_freeObj, ex}
-                 in (#{ex, fs_st = fs_st {ostore_st}, vdir, vnode}, Error err)
-               | Success () ->
-                 let ex = array_free[Obj] #{arr=arr, f=deep_freeObj, ex}
-                 in (#{ex, fs_st = fs_st {ostore_st}, vdir, vnode}, Success ())
+            in (#{ex, fs_st = fs_st {ostore_st}, vdir, vnode}, Error eNoMem)
+   and ((ex, ostore_st, arr), r) = ostore_write(ex, fs_st.mount_st, ostore_st, arr, ostoreWriteNone) !fs_st
+   and Success () <= r
+       |> Error err ->
+          let vdir = vfs_inode_set_size(vdir, v_size')
+          and vdir = vfs_inode_set_mtime(vdir, v_mtime')
+          and vdir = vfs_inode_set_ctime(vdir, v_ctime')
+          and ex = array_free[Obj] #{arr=arr, f=deep_freeObj, ex}
+          in (#{ex, fs_st = fs_st {ostore_st}, vdir, vnode}, Error err)
+   and ex = array_free[Obj] #{arr=arr, f=deep_freeObj, ex}
+   in (#{ex, fs_st = fs_st {ostore_st}, vdir, vnode}, Success ())
 
 dentarr_read_and_del: (SysState, MountState!, OstoreState, VfsInode!, CString!) -> RR (SysState, OstoreState) (U64, Obj) ErrCode
 dentarr_read_and_del (ex, mount_st, ostore_st, vdir, name) =
   let oid = obj_id_dentarr_mk(vfs_inode_get_ino vdir, name)
   and ((ex, ostore_st), r) = ostore_read(ex, mount_st, ostore_st, oid)
-  in r
-  | Error e ->
-     ((ex, ostore_st), Error e)
-  | Success (dentarr_obj {ounion}) ->
-    extract_dentarr_from_union (ex, ounion)
-    | Error ex ->
-       -- invariant on ostore_read
-       cogent_assert False ;
-       let ex = freeObj (ex, dentarr_obj)
-       in ((ex, ostore_st), Error eInval)
-    | Success (ex, dentarr) ->
-      let (ex, dentarr) = dentarr_del_dentry (ex, dentarr, name)
-      and ((ex, dentarr_obj), r) = dentarr_del_calculate_sz_change (ex, dentarr_obj, dentarr)
-      in r
-      | Error e ->
-        cogent_debug "dentarr_read_and_del: dentarr_del_calculate_sz_change: failed\n" ;
-        let dentarr_obj {ounion} = dentarr_obj
-        and ex = deep_freeObjUnion (ex, ounion)
-        and ex = freeObj (ex, dentarr_obj)
-        in ((ex, ostore_st), Error e)
-      | Success sz_change ->
-        safe_sub64(vfs_inode_get_size vdir, upcast sz_change)
-        | Error () ->
-          cogent_debug "dentarr_read_and_del: dir size substraction failed\n" ;
-          let ex = deep_freeObj (ex, dentarr_obj)
-          in ((ex, ostore_st), Error eOverflow)
-        | Success new_v_size ->
-          ((ex, ostore_st), Success (new_v_size, dentarr_obj))
+  and Success (dentarr_obj {ounion}) <= r
+      |> Error e -> ((ex, ostore_st), Error e)
+  and Success (ex, dentarr) <= extract_dentarr_from_union (ex, ounion)
+      |> Error ex ->
+          -- invariant on ostore_read
+          cogent_assert False ;
+          let ex = freeObj (ex, dentarr_obj)
+          in ((ex, ostore_st), Error eInval)
+  and (ex, dentarr) = dentarr_del_dentry (ex, dentarr, name)
+  and ((ex, dentarr_obj), r) = dentarr_del_calculate_sz_change (ex, dentarr_obj, dentarr)
+  and Success sz_change <= r
+      |> Error e ->
+         cogent_debug "dentarr_read_and_del: dentarr_del_calculate_sz_change: failed\n" ;
+         let dentarr_obj {ounion} = dentarr_obj
+         and ex = deep_freeObjUnion (ex, ounion)
+         and ex = freeObj (ex, dentarr_obj)
+         in ((ex, ostore_st), Error e)
+  and Success new_v_size <= safe_sub64(vfs_inode_get_size vdir, upcast sz_change)
+      |> Error () ->
+         cogent_debug "dentarr_read_and_del: dir size substraction failed\n" ;
+         let ex = deep_freeObj (ex, dentarr_obj)
+         in ((ex, ostore_st), Error eOverflow)
+  in ((ex, ostore_st), Success (new_v_size, dentarr_obj))
 
 type FsopUnlinkP = #{ex:SysState, fs_st:FsState, vdir:VfsInode, name:(WordArray U8)!, vnode:VfsInode}
 fsop_unlink : FsopUnlinkP -> RR FsopRR () ErrCode
@@ -884,8 +870,7 @@ get_rdctx(ex, opt_rdctx, vdir) =
           and dentarr = dentarr {id, nb_dentry, entries}
           and rdctx = rdctx {dentarr,cur_dentry=0}
           in Success (ex, rdctx)
-  | Some rdctx ->
-    Success (ex, rdctx)
+  | Some rdctx -> Success (ex, rdctx)
 
 next_inode_id: ObjId -> ObjId
 next_inode_id(oid) =
@@ -1016,12 +1001,9 @@ fsop_readdir (#{ex, fs_st, vctx, opt_rdctx}, vdir) =
 
 fsop_dir_release: (SysState, Option BilbyFsReaddirContext) -> SysState
 fsop_dir_release (ex, opt_rdctx) =
-  opt_rdctx
-  | None ->
-  ex
-  | Some (v {dentarr}) ->
-    let ex = deep_freeObjDentarr(ex, dentarr)
-    in freeBilbyFsReaddirContext(ex, v)
+  let Some (v {dentarr}) <= opt_rdctx |> None -> ex
+  and ex = deep_freeObjDentarr(ex, dentarr)
+  in freeBilbyFsReaddirContext(ex, v)
 
 check_dir_empty: #{mount_st:MountState!, ostore_st:OstoreState!, vdir: VfsInode!} -> Bool
 check_dir_empty #{mount_st, ostore_st, vdir} =
