@@ -30,6 +30,7 @@ import Control.Arrow (left, second)
 import Control.Monad
 import Control.Monad.Identity
 import Data.Char
+import Data.Foldable as F (fold)
 import Data.IORef
 import qualified Data.Map as M
 import Data.Maybe
@@ -214,8 +215,7 @@ expr' m = do avoidInitial
                      bs <- many (reservedOp "!" >> variableName)
                      c <- sourceColumn <$> getPosition
                      guard (c > m)
-                     reservedOp "|>"
-                     alts <- sepByAligned1 (alternative c) (reservedOp "|>") c
+                     alts <- F.fold <$> optionMaybe (reservedOp "|>" >> sepByAligned1 (alternative c) (reservedOp "|>") c)
                      return $ BindingAlts p mt e bs alts
         bindings = binding `sepBy1` reserved "and"
 

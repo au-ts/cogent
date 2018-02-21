@@ -330,8 +330,8 @@ cg' (Put e ls) t | not (any isNothing ls) = do
   | otherwise = first (<> Unsat RecordWildcardsNotSupported) <$> cg' (Put e (filter isJust ls)) t
 
 cg' (Let bs e) t = do
-  (c, bs', (c', e')) <- withBindings bs (cg e t)
-  return (c <> c', Let bs' e')
+  (c, bs', e') <- withBindings bs e t
+  return (c, Let bs' e')
 
 cg' (Match e bs alts) t = do
   alpha <- fresh
@@ -496,34 +496,53 @@ match' (PTake r fs) t | not (any isNothing fs) = do
 
 withBindings :: (?loc::SourcePos)
   => [Binding LocType LocPatn LocIrrefPatn LocExpr]
-  -> CG a -> CG (Constraint, [Binding TCType TCPatn TCIrrefPatn TCExpr], a)
-withBindings [] a = (Sat, [],) <$> a
-withBindings (Binding pat tau e bs : xs) a = do
+  -> LocExpr -- expression e to be checked with the bindings
+  -> TCType  -- the type for e
+  -> CG (Constraint, [Binding TCType TCPatn TCIrrefPatn TCExpr], TCExpr)
+withBindings [] e top = do
+  (c, e') <- cg e top
+  return (c, [], e')
+withBindings (Binding pat tau e0 bs : xs) e top = do
   alpha <- fresh
-  (c1, e') <- letBang bs (cg e) alpha
+  (c0, e0') <- letBang bs (cg e0) alpha
   (ct, alpha') <- case tau of
     Nothing -> return (Sat, alpha)
     Just tau' -> do
       tvs <- use knownTypeVars
       lift (runExceptT $ validateType' tvs (stripLocT tau')) >>= \case
-        Left e -> return (Unsat e, alpha)
+        Left  e -> return (Unsat e, alpha)
         Right t -> return (F alpha :< F t, t)
   (s, cp, pat') <- match pat alpha'
   context %= C.addScope s
-  (c', xs', r) <- withBindings xs a
+  (c', xs', e') <- withBindings xs e top
   rs <- context %%= C.dropScope
   let unused = flip foldMap (M.toList rs) $ \(v,(_,_,us)) -> 
         case us of
           Seq.Empty -> warnToConstraint __cogent_wunused_local_binds (UnusedLocalBind v)
           _ -> Sat
-      c = ct <> c1 <> c' <> cp <> dropConstraintFor rs <> unused
-      b' = Binding pat' (fmap (const alpha) tau) e' bs
-  traceTc "gen" (text "bound expression" <+> pretty e' <+> 
+      c = ct <> c0 <> c' <> cp <> dropConstraintFor rs <> unused
+      b' = Binding pat' (fmap (const alpha) tau) e0' bs
+  traceTc "gen" (text "bound expression" <+> pretty e0' <+> 
                  text "with banged" <+> pretty bs
            L.<$> text "of type" <+> pretty alpha <> semi
-           L.<$> text "generate constraint" <+> prettyC c1 <> semi
+           L.<$> text "generate constraint" <+> prettyC c0 <> semi
            L.<$> text "constraint for ascribed type:" <+> prettyC ct)
-  return (c, b':xs', r)
+  return (c, b':xs', e')
+withBindings (BindingAlts pat tau e0 bs alts : xs) e top = do
+  alpha <- fresh
+  (c0, e0') <- letBang bs (cg e0) alpha
+  (ct, alpha') <- case tau of
+    Nothing -> return (Sat, alpha)
+    Just tau' -> do
+      tvs <- use knownTypeVars
+      lift (runExceptT $ validateType' tvs (stripLocT tau')) >>= \case
+        Left  e -> return (Unsat e, alpha)
+        Right t -> return (F alpha :< F t, t)
+  (calts, alts') <- cgAlts (Alt pat Regular (LocExpr (posOfE e) (Let xs e)) : alts) top alpha'
+  let c = c0 <> ct <> calts
+      (Alt pat' _ (TE _ (Let xs' e') _)) : altss' = alts'
+      b0' = BindingAlts pat' (fmap (const alpha) tau) e0' bs altss'
+  return (c, b0':xs', e')
 
 parallel' :: [(ErrorContext, CG (Constraint, a))] -> CG (Constraint, [(Constraint, a)])
 parallel' ls = parallel (map (second (\a _ -> ((),) <$> a)) ls) ()

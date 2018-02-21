@@ -1,17 +1,12 @@
 
-type V a b c = <Next a | Continue b | Break c>
+type V a b = <Success a | Error b>
 type A
-type B
-type C
 
-bar : () -> V A B C
+mkA : () -> V A U8
 freeA : A -> ()
-freeB : B -> ()
-freeC : C -> ()
 
 foo : () -> U8
-foo _ = let Next a <= bar () |> Continue b -> let _ = freeB b in 0
-                             |> Break c -> let _ = freeC c in 1
+foo _ = let Success a <= mkA () |> Error e -> e
         and _ = freeA a
-         in 2
+         in 0
 

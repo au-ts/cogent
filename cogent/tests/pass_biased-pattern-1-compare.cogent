@@ -6,7 +6,7 @@ mkA : () -> V A
 freeA : A -> ()
 
 foo : () -> U8
-foo _ = let Wrap a <= mkA ()
-        and _ = freeA a
-         in 0
+foo _ = mkA ()
+        | Wrap a -> let _ = freeA a
+                    in 0
 

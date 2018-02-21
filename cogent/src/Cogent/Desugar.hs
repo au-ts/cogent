@@ -61,8 +61,8 @@ import Text.PrettyPrint.ANSI.Leijen (pretty)
 -- import Debug.Trace
 
 
--- __ghc_trac_14777 = undefined
-__ghc_trac_14777 = __impossible ""
+__ghc_trac_14777 = undefined
+-- __ghc_trac_14777 = __impossible ""
 
 
 -- -----------------------------------------------------------------------------
@@ -543,6 +543,9 @@ desugarExpr (B.TE t (S.Let [S.Binding p mt e0 bs] e) l) = do
       b0 = S.Binding (B.TIP (S.PVar (v,t0)) noPos) Nothing e0 bs
       b1 = S.Binding p mt (B.TE t0 (S.Var v) l) []
   desugarExpr $ B.TE t (S.Let [b0,b1] e) l
+desugarExpr (B.TE t (S.Let (S.BindingAlts p _ e0 vs alts:bs) e) l) = do
+  let alts' = S.Alt p Regular (B.TE t (S.Let bs e) l) : alts
+  desugarExpr (B.TE t (S.Match e0 vs alts') l)
 desugarExpr (B.TE t (S.Let (b:bs) e) l) = desugarExpr $ B.TE t (S.Let [b] e') l
   where e' = B.TE t (S.Let bs e) l
 desugarExpr (B.TE _ (S.Put e []) _) = desugarExpr e
