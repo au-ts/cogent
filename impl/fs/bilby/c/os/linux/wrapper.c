@@ -551,7 +551,7 @@ static int bilbyfs_writepage(struct page *page, struct writeback_control *wbc)
         return err;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,5,0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,2,0)
 static void *bilbyfs_follow_link(struct dentry *dentry, struct nameidata *nd)
 {
         struct bilbyfs_info *bi = dentry->d_inode->i_sb->s_fs_info;
@@ -701,7 +701,7 @@ const struct inode_operations bilby_file_inode_operations =
 };
 
 const struct inode_operations bilbyfs_symlink_inode_operations = {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,5,0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,2,0)
         .readlink    = generic_readlink,
         .follow_link = bilbyfs_follow_link,
 #else

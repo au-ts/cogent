@@ -251,7 +251,7 @@ static sector_t ext2fs_bmap_nolock(struct address_space *mapping, sector_t block
 
 /* support migrate to new internal iter API */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
-static ssize_t ext2fs_direct_IO_nolock(int rw, struct kiocb *iocb,
+static ssize_t ext2fs_direct_IO_nolock(struct kiocb *iocb,
                                        struct iov_iter *iter, loff_t offset)
 {
     struct file *file = iocb->ki_filp;
@@ -261,8 +261,8 @@ static ssize_t ext2fs_direct_IO_nolock(int rw, struct kiocb *iocb,
     loff_t offset = iocb->ki_pos;
     ssize_t ret;
 
-    ret = blockdev_direct_IO(rw, iocb, inode, iter, offset, ext2fs_get_block);
-    if (ret < 0 && (rw & WRITE)) {
+    ret = blockdev_direct_IO(iocb, inode, iter, offset, ext2fs_get_block);
+    if (ret < 0) {
         truncate_pagecache(inode, inode->i_size);
         if (ext2fs_can_truncate(inode) == 0) {
             ext2fs_truncate(inode, inode->i_size);
@@ -272,7 +272,7 @@ static ssize_t ext2fs_direct_IO_nolock(int rw, struct kiocb *iocb,
     return ret;
 }
 
-static ssize_t ext2fs_direct_IO(int rw, struct kiocb *iocb, struct iov_iter *iter,
+static ssize_t ext2fs_direct_IO(struct kiocb *iocb, struct iov_iter *iter,
                                 loff_t offset)
 {
     ssize_t ret;
@@ -284,7 +284,7 @@ static ssize_t ext2fs_direct_IO(int rw, struct kiocb *iocb, struct iov_iter *ite
     down(&state->iop_lock); /* aop */
     take_inode_addrspace(inode);
 
-    ret = ext2fs_direct_IO_nolock(rw, iocb, iter, offset);
+    ret = ext2fs_direct_IO_nolock(iocb, iter, offset);
 
     release_inode_addrspace(inode);
     up(&state->iop_lock); /* aop */
