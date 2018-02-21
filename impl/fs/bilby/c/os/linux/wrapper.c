@@ -23,7 +23,7 @@ static int init_inode_by_type(struct backing_dev_info *bdi, struct inode *inode)
         int err = 0;
 
         /* Disable read-ahead */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,0,0)
         inode->i_mapping->backing_dev_info = bdi;
 #endif
 
@@ -551,7 +551,7 @@ static int bilbyfs_writepage(struct page *page, struct writeback_control *wbc)
         return err;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,2,0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,5,0)
 static void *bilbyfs_follow_link(struct dentry *dentry, struct nameidata *nd)
 {
         struct bilbyfs_info *bi = dentry->d_inode->i_sb->s_fs_info;
@@ -603,7 +603,7 @@ static int bilbyfs_setattr(struct dentry *dentry, struct iattr *attr)
 
         bilbyfs_debug("bilbyfs_setattr(ino %lu, mode %#x, ia_valid %#x)\n",
                 inode->i_ino, inode->i_mode, attr->ia_valid);
-#if LINUX_VERSION_CODE > KERNEL_VERSION(3,16,0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,16,0)
         err = setattr_prepare(dentry, attr);
 #else
         err = inode_change_ok(inode, attr);
@@ -701,7 +701,7 @@ const struct inode_operations bilby_file_inode_operations =
 };
 
 const struct inode_operations bilbyfs_symlink_inode_operations = {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,5,0)
         .readlink    = generic_readlink,
         .follow_link = bilbyfs_follow_link,
 #else
@@ -924,7 +924,7 @@ static int bilbyfs_fill_super(struct super_block *sb, void *options, int silent,
          * Disabling VFS's read-ahead feature.
          * Read-ahead will be disabled because bdi->ra_pages is 0.
          */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,12,0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,0,0)
         sb->s_bdi = &bi->wd.bdi;
         sb->s_bdi->name = "bilbyfs";
         sb->s_bdi->capabilities = BDI_CAP_MAP_COPY;
