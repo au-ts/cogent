@@ -28,6 +28,7 @@ $esc:(#include <wrapper.h>)
 #include <plat/linux/stat.ac>
 #include <plat/linux/iattr.ac>
 #include <plat/linux/arrayobj.ac>
+#include <linux/version.h>
 
 typedef $ty:(#VfsInode) BilbyFsVfsInode;
 typedef $ty:(#RbtIndexNode) BilbyFsRbtIndexNode;
@@ -866,7 +867,7 @@ type FsopFollowLinkP = #{ex:SysState, fs_st: FsState, vnode: VfsInode, path: Buf
 type FsopFollowLinkE = #{err:ErrCode, ex:SysState, fs_st: FsState, vnode: VfsInode, path: Buffer}
 fsop_follow_link: FsopFollowLinkP -> RR FsopFollowLinkP () ErrCode
 */
-$esc:(#if LINUX_VERSION_CODE < KERNEL_VERSION(4,2,0))
+$esc:(#if LINUX_VERSION_CODE < KERNEL_VERSION(4,5,0))
 static int wfsop_follow_link(struct wrapper_data *wd, struct inode *inode, void *page)
 {
         $ty:(FsopFollowLinkP) fargs;
@@ -906,7 +907,9 @@ static void *bilbyfs_follow_link(struct dentry *dentry, struct nameidata *nd)
                         return ERR_PTR(err);
                 }
         }
+$escstm:(#if LINUX_VERSION_CODE < KERNEL_VERSION(4,2,0))
         nd_set_link(nd, inode->i_private);
+$escstm:(#endif)
         return NULL;
 }
 $esc:(#else)
@@ -1636,7 +1639,7 @@ const struct inode_operations bilby_file_inode_operations =
         .setattr =      bilbyfs_setattr,
 };
 
-$esc:(#if LINUX_VERSION_CODE < KERNEL_VERSION(4,2,0))
+$esc:(#if LINUX_VERSION_CODE < KERNEL_VERSION(4,5,0))
 const struct inode_operations bilbyfs_symlink_inode_operations = {
         .readlink    = generic_readlink,
         .follow_link = bilbyfs_follow_link,

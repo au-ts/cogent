@@ -258,7 +258,6 @@ static ssize_t ext2fs_direct_IO_nolock(struct kiocb *iocb,
     struct address_space *mapping = file->f_mapping;
     struct inode *inode = mapping->host;
     size_t count = iov_iter_count(iter);
-    loff_t offset = iocb->ki_pos;
     ssize_t ret;
 
     ret = blockdev_direct_IO(iocb, inode, iter, offset, ext2fs_get_block);

@@ -7,6 +7,8 @@
  *
  * @TAG(NICTA_GPL)
  */
+#include <linux/version.h>
+
 int ext2fs_create(struct inode * dir, struct dentry * dentry, umode_t mode, bool excl);
 struct dentry *ext2fs_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags);
 int ext2fs_mkdir(struct inode * dir, struct dentry * dentry, umode_t mode);
@@ -223,8 +225,6 @@ $ty:(VfsInode) vfs_inode_set_ops ($ty:((VfsInode, VfsInodeOperations!)) args) {
 
         return inode;
 }
-
-#include <linux/version.h>
 
 $ty:(VfsInode) vfs_inode_set_fileops ($ty:((VfsInode, VfsFileOperations!)) args) {
     VfsInode* inode = args.p1;

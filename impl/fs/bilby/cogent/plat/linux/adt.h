@@ -34,7 +34,10 @@
 # include <linux/namei.h>
 # include <linux/seq_file.h>
 # include <linux/mount.h>
-#include <linux/version.h>
+# include <linux/version.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,5,0)
+# include <linux/delayed_call.h>
+#endif
 
 #include <lib/allocpool.h>
 
