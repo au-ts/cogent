@@ -573,7 +573,7 @@ tyVars :: SF.TopLevel SF.RawType pv e -> [(TyVarName, Kind)]
 tyVars (SF.FunDef _ (SF.PT ts _) _) = ts
 tyVars (SF.AbsDec _ (SF.PT ts _)  ) = ts
 tyVars (SF.TypeDec    _ ts _) = L.zip ts $ repeat k2
-tyVars (SF.AbsTypeDec _ ts  ) = L.zip ts $ repeat k2
+tyVars (SF.AbsTypeDec _ ts _) = L.zip ts $ repeat k2
 tyVars _ = __impossible "tyVars"
 
 

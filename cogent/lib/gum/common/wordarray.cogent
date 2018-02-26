@@ -179,6 +179,18 @@ wordarray_take : all (a :< DSE). ((WordArray a)!, WordArrayIndex) -> (WordArray 
 -- Splitting is easy, but its inverse appending is more subtle.
 wordarray_split : all (a :< DSE). (WordArray a, WordArrayIndex) -> (WordArray a, WordArray a)
 
+type WordArrayView a -: WordArray a
+
+-- from: inclusive
+-- to: exclusive
+-- step
+wordarray_view : all (a :< DSE). (WordArray a, WordArrayIndex, WordArrayIndex, WordArrayIndex)
+                              -> (WordArrayView a)
+
+wordarray_unview : all (a :< DSE). WordArrayView a -> WordArray a
+
+wordarray_map_view : all (a :< DSE). (WordArrayView a, a -> a) -> WordArrayView a
+
 -- -----------------------------------------------------------------------------
 
 -- Debugging only.  Printk a string.

@@ -1,0 +1,30 @@
+/*
+ * Copyright 2017, NICTA
+ *
+ * This software may be distributed and modified according to the terms of
+ * the GNU General Public License version 2. Note that NO WARRANTY is provided.
+ * See "LICENSE_GPLv2.txt" for details.
+ *
+ * @TAG(NICTA_GPL)
+ */
+
+$esc:(#include <stdio.h>)
+$esc:(#include <stdlib.h>)
+#include "generated.c"
+#include <wordarray.ac>
+
+int main(void){
+  $ty:(WordArray U32) arr;
+  u32 arr_values[15];
+  for (int i = 0; i < 15; i++) {
+    arr_values[i] = i;
+  }
+  arr->values = arr_values;
+  arr->len    = 15;
+
+  arr = map (arr);
+  for (int i = 0; i < 15; i++) {
+    printf ("arr[%d] = %d\n", i, arr->values[i]);
+  }
+  return 0;
+}

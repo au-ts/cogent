@@ -106,7 +106,7 @@ numOfArgs (PT x _) = length x
 data TopLevel t p e = Include    String
                     | IncludeStd String
                     | DocBlock   String
-                    | AbsTypeDec TypeName [TyVarName]
+                    | AbsTypeDec TypeName [TyVarName] [t]
                     | TypeDec    TypeName [TyVarName] t
                     | AbsDec VarName (Polytype t)
                     | FunDef VarName (Polytype t) [Alt p e]
@@ -118,7 +118,7 @@ absFnDeclId x (AbsDec fn _) = x == fn
 absFnDeclId _ _ = False
 
 absTyDeclId :: String -> TopLevel t p e -> Bool
-absTyDeclId x (AbsTypeDec tn _) = x == tn
+absTyDeclId x (AbsTypeDec tn _ _) = x == tn
 absTyDeclId _ _ = False
 
 
@@ -258,23 +258,23 @@ instance Traversable (Flip IrrefutablePattern pv) where  -- ip
   traverse f (Flip (PTake pv mfs))       = Flip <$> (PTake <$> f pv <*> pure mfs)
 
 instance Traversable (Flip (TopLevel t) e) where  -- p
-  traverse _ (Flip (Include s))         = pure $ Flip (Include s)
-  traverse _ (Flip (IncludeStd s))      = pure $ Flip (IncludeStd s)
-  traverse _ (Flip (DocBlock s))        = pure $ Flip (DocBlock s)
-  traverse _ (Flip (AbsTypeDec n vs))   = pure $ Flip (AbsTypeDec n vs)
-  traverse _ (Flip (TypeDec n vs t))    = pure $ Flip (TypeDec n vs t)
-  traverse _ (Flip (AbsDec v pt))       = pure $ Flip (AbsDec v pt)
-  traverse f (Flip (FunDef v pt alts))  = Flip <$> (FunDef v pt <$> traverse (ttraverse f) alts)
-  traverse _ (Flip (ConstDef v t e))    = pure $ Flip (ConstDef v t e)
+  traverse _ (Flip (Include s))           = pure $ Flip (Include s)
+  traverse _ (Flip (IncludeStd s))        = pure $ Flip (IncludeStd s)
+  traverse _ (Flip (DocBlock s))          = pure $ Flip (DocBlock s)
+  traverse _ (Flip (AbsTypeDec n vs ts))  = pure $ Flip (AbsTypeDec n vs ts)
+  traverse _ (Flip (TypeDec n vs t))      = pure $ Flip (TypeDec n vs t)
+  traverse _ (Flip (AbsDec v pt))         = pure $ Flip (AbsDec v pt)
+  traverse f (Flip (FunDef v pt alts))    = Flip <$> (FunDef v pt <$> traverse (ttraverse f) alts)
+  traverse _ (Flip (ConstDef v t e))      = pure $ Flip (ConstDef v t e)
 instance Traversable (Flip2 TopLevel e p) where  -- t
-  traverse _ (Flip2 (Include s))        = pure $ Flip2 (Include s)
-  traverse _ (Flip2 (IncludeStd s))     = pure $ Flip2 (IncludeStd s)
-  traverse _ (Flip2 (DocBlock s))       = pure $ Flip2 (DocBlock s)
-  traverse _ (Flip2 (AbsTypeDec n vs))  = pure $ Flip2 (AbsTypeDec n vs)
-  traverse f (Flip2 (TypeDec n vs t))   = Flip2 <$> (TypeDec  n vs <$> f t)
-  traverse f (Flip2 (AbsDec v pt))      = Flip2 <$> (AbsDec   v <$> traverse f pt)
-  traverse f (Flip2 (FunDef v pt alts)) = Flip2 <$> (FunDef   v <$> traverse f pt <*> pure alts)
-  traverse f (Flip2 (ConstDef v t e))   = Flip2 <$> (ConstDef v <$> f t <*> pure e)
+  traverse _ (Flip2 (Include s))          = pure $ Flip2 (Include s)
+  traverse _ (Flip2 (IncludeStd s))       = pure $ Flip2 (IncludeStd s)
+  traverse _ (Flip2 (DocBlock s))         = pure $ Flip2 (DocBlock s)
+  traverse f (Flip2 (AbsTypeDec n vs ts)) = Flip2 <$> (AbsTypeDec n vs <$> traverse f ts)
+  traverse f (Flip2 (TypeDec n vs t))     = Flip2 <$> (TypeDec  n vs <$> f t)
+  traverse f (Flip2 (AbsDec v pt))        = Flip2 <$> (AbsDec   v <$> traverse f pt)
+  traverse f (Flip2 (FunDef v pt alts))   = Flip2 <$> (FunDef   v <$> traverse f pt <*> pure alts)
+  traverse f (Flip2 (ConstDef v t e))     = Flip2 <$> (ConstDef v <$> f t <*> pure e)
 
 instance Functor (Flip (Binding t p) e) where  -- ip
   fmap f x = runIdentity (traverse (Identity . f) x)

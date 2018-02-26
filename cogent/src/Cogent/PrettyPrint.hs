@@ -476,7 +476,8 @@ instance (Pretty t, Pretty p, Pretty e) => Pretty (TopLevel t p e) where
   pretty (AbsDec v pt) = funname v <+> symbol ":" <+> pretty pt
   pretty (Include s) = keyword "include" <+> literal (string $ show s)
   pretty (IncludeStd s) = keyword "include <" <+> literal (string $ show s)
-  pretty (AbsTypeDec n vs) = keyword "type" <+> typename n  <> hcat (map ((space <>) . typevar) vs)
+  pretty (AbsTypeDec n vs ts) = keyword "type" <+> typename n  <> hcat (map ((space <>) . typevar) vs)
+                             <> (if F.null ts then empty else empty <+> symbol "-:" <+> commaList (map pretty ts))
   pretty (ConstDef v t e) = prettyConstDef True v t e
   pretty (DocBlock _) = __fixme empty  -- FIXME: doesn't PP docs right now
 
@@ -698,7 +699,7 @@ prettyCtx (NthAlternative n p) _ = context "in the" <+> nth n <+> context "alter
 prettyCtx (InDefinition p tl) _ = context "in the definition at (" <> pretty p <> context ")"
                                <$> context "for the" <+> helper tl
   where helper (TypeDec n _ _) = context "type synonym" <+> typename n
-        helper (AbsTypeDec n _) = context "abstract type" <+> typename n
+        helper (AbsTypeDec n _ _) = context "abstract type" <+> typename n
         helper (AbsDec n _) = context "abstract function" <+> varname n
         helper (ConstDef v _ _) = context "constant" <+> varname v
         helper (FunDef v _ _) = context "function" <+> varname v

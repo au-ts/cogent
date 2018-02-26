@@ -320,7 +320,8 @@ toplevel' = do
   when (sourceColumn p > 1) $ fail "toplevel entries should start at column 1"
   (p,docs,) <$> (try (Include <$ reserved "include" <*> stringLiteral)
         <|> IncludeStd <$ reserved "include" <*> angles (many (noneOf "\r\n>"))
-        <|> typeDec <$ reserved "type" <*> typeConName <*> many (avoidInitial >> variableName) <*> optionMaybe (reservedOp "=" *> monotype)
+        <|> typeDec <$ reserved "type" <*> typeConName <*> many (avoidInitial >> variableName) <*>
+              ((Left <$> (reservedOp "=" *> monotype)) <|> (Right <$> option [] (reservedOp "-:" *> commaSep monotype)))
         <|> do n <- variableName
                reservedOp ":"
                tau <- polytype
@@ -333,8 +334,8 @@ toplevel' = do
                     _       -> fundef
                 <|> pure (AbsDec n tau))
   where
-    typeDec n vs Nothing = AbsTypeDec n vs
-    typeDec n vs (Just t) = TypeDec n vs t
+    typeDec n vs (Left  t ) = TypeDec n vs t
+    typeDec n vs (Right ts) = AbsTypeDec n vs ts
     functionAlts = do
       c <- sourceColumn <$> getPosition
       reservedOp "|"

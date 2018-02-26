@@ -85,13 +85,15 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     t'' <- postT t'
     return $ TypeDec n ps t''
 
-  (AbsTypeDec n ps) -> do
+  (AbsTypeDec n ps ts) -> do
     traceTc "tc" $ bold (text $ replicate 80 '=')
     traceTc "tc" (text "typecheck abstract type definition" <+> pretty n)
     let xs = ps \\ nub ps
     unless (null xs) $ logErrExit $ DuplicateTypeVariable xs
+    ts' <- mapM (\t -> validateType ps (stripLocT t)) ts
+    ts'' <- mapM postT ts'
     lift . lift $ knownTypes <>= [(n, (ps, Nothing))]
-    return $ AbsTypeDec n ps
+    return $ AbsTypeDec n ps ts''
 
   (AbsDec n (PT ps t)) -> do
     traceTc "tc" $ bold (text $ replicate 80 '=')

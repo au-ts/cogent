@@ -14,3 +14,12 @@ struct $id:(WordArray a) {
 };
 
 typedef struct $id:(WordArray a) $id:(WordArray a);
+
+struct $id:(WordArrayView a) {
+  $ty:(WordArray a) arr;
+  int frm;
+  int to;
+  int step;
+};
+
+typedef struct $id:(WordArrayView a) $id:(WordArrayView a);

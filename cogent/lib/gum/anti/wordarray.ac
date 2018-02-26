@@ -347,3 +347,27 @@ $ty:((WordArray a, WordArray a)) $id:wordarray_split ($ty:((WordArray a, WordArr
   return ret;
 }
 
+$ty:(WordArrayView a) $id:wordarray_view ($ty:((WordArray a, WordArrayIndex, WordArrayIndex, WordArrayIndex)) args)
+{
+  $ty:(WordArrayView a) view;
+  view->arr = args.p1;
+  view->frm = args.p2 > 0 ? args.p2 : 0;
+  view->to  = args.p3 < view->arr->len ? args.p3 : view->arr->len;
+  view->step = args.p4;
+  return view;
+}
+
+$ty:(WordArray a) $id:wordarray_unview ($ty:(WordArrayView a) args)
+{
+  return args->arr;
+}
+
+$ty:(WordArrayView a) $id:wordarray_map_view ($ty:((WordArrayView a, a -> a)) args)
+{
+  $ty:(WordArrayView a) view = args.p1;
+  for (u32 i = view->frm; i < view->to; i = i + view->step) {
+    view->arr->values[i] = ($spec:(a -> a) args.p2) (view->arr->values[i])
+  }
+  return view;
+}
+

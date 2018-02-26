@@ -41,7 +41,7 @@ dependencies :: TopLevel LocType LocPatn LocExpr -> [SourceObject]
 dependencies (Include _) = __impossible "dependencies"
 dependencies (IncludeStd _) = __impossible "dependencies"
 dependencies (TypeDec _ _ t) = map TypeName (fcT (stripLocT t))
-dependencies (AbsTypeDec _ _) = []
+dependencies (AbsTypeDec _ _ ts) = map TypeName (foldMap (fcT . stripLocT) ts)
 dependencies (DocBlock _) = []
 dependencies (AbsDec _ pt) = map TypeName (foldMap (fcT . stripLocT) pt)
 dependencies (FunDef _ pt as) = map TypeName (foldMap (fcT . stripLocT) pt
@@ -53,14 +53,14 @@ dependencies (ConstDef _ t e) = map TypeName (fcT (stripLocT t))
 classify :: [(SourcePos, DocString, TopLevel LocType LocPatn LocExpr)]
          -> [(SourceObject, (SourcePos, DocString, TopLevel LocType LocPatn LocExpr))]
 classify = map (\px -> (sourceObject (thd3 px), px))
-  where sourceObject (Include _)      = __impossible "sourceObject (in classify)"
-        sourceObject (IncludeStd _)   = __impossible "sourceObject (in classify)"
-        sourceObject (DocBlock s)     = DocBlock' s
-        sourceObject (TypeDec n _ _)  = TypeName n
-        sourceObject (AbsTypeDec n _) = TypeName n
-        sourceObject (AbsDec n _)     = ValName n
-        sourceObject (FunDef v _ _)   = ValName v
-        sourceObject (ConstDef v _ _) = ValName v
+  where sourceObject (Include _)        = __impossible "sourceObject (in classify)"
+        sourceObject (IncludeStd _)     = __impossible "sourceObject (in classify)"
+        sourceObject (DocBlock s)       = DocBlock' s
+        sourceObject (TypeDec n _ _)    = TypeName n
+        sourceObject (AbsTypeDec n _ _) = TypeName n
+        sourceObject (AbsDec n _)       = ValName n
+        sourceObject (FunDef v _ _)     = ValName v
+        sourceObject (ConstDef v _ _)   = ValName v
 
 graphOf :: Ord a => (b -> [a]) -> [(a, b)] -> G.Graph a b
 graphOf f = G.fromListLenient . map (\(k,v) -> (k, v, f v))

@@ -230,7 +230,7 @@ desugarTlv (S.TypeDec tn vs t) _ | ExI (Flip vs') <- Vec.fromList vs
   tenv <- use typCtx
   t' <- withTypeBindings vs' $ desugarType t
   return . Just $ TypeDef tn vs' (Just t')
-desugarTlv (S.AbsTypeDec tn vs) _ | ExI (Flip vs') <- Vec.fromList vs = return . Just $ TypeDef tn vs' Nothing
+desugarTlv (S.AbsTypeDec tn vs _) _ | ExI (Flip vs') <- Vec.fromList vs = return . Just $ TypeDef tn vs' Nothing
 desugarTlv (S.AbsDec fn sigma) pragmas | S.PT vs t <- sigma
                                        , ExI (Flip vs') <- Vec.fromList vs
                                        , Refl <- zeroPlusNEqualsN $ Vec.length vs'

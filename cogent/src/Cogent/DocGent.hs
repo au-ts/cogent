@@ -323,7 +323,7 @@ genDoc (p,s,(ConstDef n t as)) =
 genDoc (p,_,DocBlock s) =
                  let md = markdown s
                  in [shamlet| <div .docblock>#{md} |]
-genDoc (p,s,x@(AbsTypeDec n _)) =
+genDoc (p,s,x@(AbsTypeDec n _ _)) =
                  let x' = stripAllLoc x
                      str = let ?knowns = [] in runState (displayHTML (prettyPrint id $ return x') ) defaultState
                      md     = markdown s
@@ -460,13 +460,13 @@ docGent input = let
                         writeFile rn rawContent''
                       generateIndex ?knowns
                       generateContents $ zip titles' (map (fst . head) items'')
-  where toKnown (p, _, Include {})      = Nothing
-        toKnown (p, _, IncludeStd {})   = Nothing
-        toKnown (p, _, TypeDec tn _ _)  = Just (tn, p)
-        toKnown (p, _, AbsTypeDec tn _) = Just (tn, p)
-        toKnown (p, _, AbsDec tn _)     = Just (tn, p)
-        toKnown (p, _, FunDef tn _ _)   = Just (tn, p)
-        toKnown (p, _, ConstDef tn _ _) = Just (tn, p)
+  where toKnown (p, _, Include {})        = Nothing
+        toKnown (p, _, IncludeStd {})     = Nothing
+        toKnown (p, _, TypeDec tn _ _)    = Just (tn, p)
+        toKnown (p, _, AbsTypeDec tn _ _) = Just (tn, p)
+        toKnown (p, _, AbsDec tn _)       = Just (tn, p)
+        toKnown (p, _, FunDef tn _ _)     = Just (tn, p)
+        toKnown (p, _, ConstDef tn _ _)   = Just (tn, p)
         toKnown (p, _, DocBlock s) = Nothing
 
 generateContents :: [(String, SourcePos)] -> IO ()
