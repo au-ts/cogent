@@ -14,13 +14,13 @@ $esc:(#include <stdlib.h>)
 #include <wordarray.ac>
 
 int main(void){
-  $ty:(WordArray U32) arr;
+  $ty:(WordArray U32) arr = malloc (sizeof ($ty:(WordArray U32)));
   u32 arr_values[15];
   for (int i = 0; i < 15; i++) {
     arr_values[i] = i;
   }
   arr->values = arr_values;
-  arr->len    = 15;
+  arr->len = 15;
 
   arr = map (arr);
   for (int i = 0; i < 15; i++) {

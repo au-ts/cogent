@@ -17,6 +17,8 @@ type Option a = < None | Some a >
 type Result a e = < Success a | Error e >
 type ResultWith c a e = (c, Result a e)
 
+type View a
+
 -- abbreviations
 
 type R    a e = Result       a e

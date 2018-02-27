@@ -18,7 +18,8 @@ HOUTPUT=$(addsuffix .h, $(OUTPUT))
 STDGUM=$(shell cogent --stdgum-dir)
 PLATLIBGUM=../plat/console/libgum
 
-AHFILES=$(STDGUM)/gum/anti/abstract/WordArray.ah
+AHFILES=$(STDGUM)gum/anti/abstract/WordArray.ah \
+				$(STDGUM)gum/anti/abstract/View.ah
 ACFILES=main.ac
 
 PP=$(ACFILES:.ac=_pp.ac)
