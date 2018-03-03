@@ -867,7 +867,24 @@ type FsopFollowLinkP = #{ex:SysState, fs_st: FsState, vnode: VfsInode, path: Buf
 type FsopFollowLinkE = #{err:ErrCode, ex:SysState, fs_st: FsState, vnode: VfsInode, path: Buffer}
 fsop_follow_link: FsopFollowLinkP -> RR FsopFollowLinkP () ErrCode
 */
-$esc:(#if LINUX_VERSION_CODE < KERNEL_VERSION(4,5,0))
+$esc:(#if LINUX_VERSION_CODE > KERNEL_VERSION(4,10,0))
+const char *bilbyfs_get_link(struct dentry *dentry, struct inode *inode,
+                             struct delayed_call *done)
+{
+        struct wrapper_data *wd = dentry->d_inode->i_sb->s_fs_info;
+        int err;
+        const char *link = page_get_link(dentry, inode, done);
+        /* XXX: Need to implement this in Cogent */
+        bilbyfs_debug("bilbyfs_get_link() \n");
+        if (!IS_ERR(link) && !*link) {
+                do_delayed_call(done);
+                clear_delayed_call(done);
+                link = ERR_PTR(-ENOENT);
+        }
+
+        return link;
+}
+$esc:(#else)
 static int wfsop_follow_link(struct wrapper_data *wd, struct inode *inode, void *page)
 {
         $ty:(FsopFollowLinkP) fargs;
@@ -911,23 +928,6 @@ $escstm:(#if LINUX_VERSION_CODE < KERNEL_VERSION(4,2,0))
         nd_set_link(nd, inode->i_private);
 $escstm:(#endif)
         return NULL;
-}
-$esc:(#else)
-const char *bilbyfs_get_link(struct dentry *dentry, struct inode *inode,
-                             struct delayed_call *done)
-{
-        struct wrapper_data *wd = dentry->d_inode->i_sb->s_fs_info;
-        int err;
-        const char *link = page_get_link(dentry, inode, done);
-        /* XXX: Need to implement this in Cogent */
-        bilbyfs_debug("bilbyfs_get_link() \n");
-        if (!IS_ERR(link) && !*link) {
-                do_delayed_call(done);
-                clear_delayed_call(done);
-                link = ERR_PTR(-ENOENT);
-        }
-
-        return link;
 }
 $esc:(#endif)
 
@@ -1479,8 +1479,11 @@ $escstm:(#if LINUX_VERSION_CODE < KERNEL_VERSION(4,0,0))
                         bdi_destroy(sb->s_bdi);
                 }
         }
-$escstm:(#else)
+$escstm:(#endif)
+
+$escstm:(#if LINUX_VERSION_CODE > KERNEL_VERSION(4,11,0))
         super_setup_bdi(sb);
+$escstm:(#endif)
         sb->s_fs_info = wd;
         root = bilbyfs_new_inode(sb, NULL, S_IFDIR | S_IRUGO | S_IWUSR | S_IXUGO);
         if (root) {
@@ -1504,7 +1507,6 @@ $escstm:(#else)
                 }
                 bilbyfs_unmount(wd);
         }
-$escstm:(#endif)
 
         bilbyfs_err("bilbyfs_fill_super error = %d\n", err);
         sb->s_bdi = NULL;
@@ -1639,7 +1641,7 @@ const struct inode_operations bilby_file_inode_operations =
         .setattr =      bilbyfs_setattr,
 };
 
-$esc:(#if LINUX_VERSION_CODE < KERNEL_VERSION(4,5,0))
+$esc:(#if LINUX_VERSION_CODE < KERNEL_VERSION(4,10,0))
 const struct inode_operations bilbyfs_symlink_inode_operations = {
         .readlink    = generic_readlink,
         .follow_link = bilbyfs_follow_link,
