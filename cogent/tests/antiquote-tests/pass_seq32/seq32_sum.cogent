@@ -20,7 +20,7 @@ caller ex =
   in r
   | Break () -> Error ex
   | Iterate () -> 
-  	let _ = _cogent_debug "answer was "
-  	and _ = _cogent_debug_u32 sum
-  	and _ = _cogent_debug "\n"
+  	let _ = cogent_debug "answer was "
+  	and _ = cogent_debug_u32 sum
+  	and _ = cogent_debug "\n"
   	in Success ex

@@ -60,17 +60,17 @@ caller h =
     -- make it
     buf_create (h, 42)
     | Error h ->
-      _cogent_debug "cannot allocate buf"; h
+      cogent_debug "cannot allocate buf"; h
     | Success (h, buf) ->
         -- put 42 in first index
        let  buf = serialise_le64(buf, 0, val)
        and  val' = deserialise_le64(buf, 0) !buf
---       and _ = _cogent_debug ("value was: ")
---       and _ = _cogent_debug_u64_hex (val')
---       and _ = _cogent_debug ("\n")
+--       and _ = cogent_debug ("value was: ")
+--       and _ = cogent_debug_u64_hex (val')
+--       and _ = cogent_debug ("\n")
        and h = buf_free (h, buf)
        in if val /= val' then
-         _cogent_debug "Error\n"; h
+         cogent_debug "Error\n"; h
        else
-         _cogent_debug "OK\n"; h
+         cogent_debug "OK\n"; h
 

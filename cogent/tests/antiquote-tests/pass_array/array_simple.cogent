@@ -28,13 +28,13 @@ set_array_item (r { oelem, acc = (ex, val) }) =
   | Some elem ->
     let ex = free_CoolType (ex, elem)
     and _ = test_stack_probe ()
-    and _ = _cogent_debug "had some previous element?\n"
+    and _ = cogent_debug "had some previous element?\n"
     in #{oelem = val, acc = (ex, None)}
   | _ -> #{oelem = val, acc = (ex, None)}
 
 free_array_item: FreeF CoolType
 free_array_item (ex, elem) =
-  let _ = _cogent_debug ("freeing some element\n")
+  let _ = cogent_debug ("freeing some element\n")
   in free_CoolType (ex, elem)
 
 caller: SysState -> R SysState SysState
@@ -55,12 +55,12 @@ caller ex =
           | (arr, maybe_item) ->
             maybe_item
             | Some item ->
-              let _ = _cogent_debug "got item with a = "
-              and _ = _cogent_debug_u32 item.a !item
-              and _ = _cogent_debug " and b = "
+              let _ = cogent_debug "got item with a = "
+              and _ = cogent_debug_u32 item.a !item
+              and _ = cogent_debug " and b = "
               and _ = test_stack_probe ()
-              and _ = _cogent_debug_u32 item.b !item
-              and _ = _cogent_debug "\n"
+              and _ = cogent_debug_u32 item.b !item
+              and _ = cogent_debug "\n"
               -- put in slot 0
               in updater #{arr, idx = 0, f = set_array_item, acc = (ex, Some item)}
               | r { arr, acc = (ex, should_not_val) } ->
@@ -75,7 +75,7 @@ caller ex =
                   and ex = array_free[CoolType] #{arr, f = free_array_item, ex}
                   in Error ex
             | _ ->
-              let _ = _cogent_debug "item not in arr?"
+              let _ = cogent_debug "item not in arr?"
               and ex = array_free[CoolType] #{arr, f = free_array_item, ex}
               in Error (ex)
         | Some val ->
@@ -87,4 +87,3 @@ caller ex =
       let ex = array_free[CoolType] #{arr, f = free_array_item, ex}
       in Error ex
   | Error ex -> Error ex
-

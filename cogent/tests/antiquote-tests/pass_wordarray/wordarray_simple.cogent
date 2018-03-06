@@ -24,11 +24,11 @@ caller h =
         | Success (wordarray) ->
             -- get it out again
             let v = wordarray_get[U32] (wordarray, 0) !wordarray
-            in _cogent_debug ("value was: ");
-               _cogent_debug_u32 (v);
-               _cogent_debug ("\n");
+            in cogent_debug ("value was: ");
+               cogent_debug_u32 (v);
+               cogent_debug ("\n");
                wordarray_free[U32] (h, wordarray) -- free it
         | Error wordarray ->
-            let _ = _cogent_debug ("cannot put\n")
+            let _ = cogent_debug ("cannot put\n")
             in wordarray_free[U32] (h, wordarray)
     | Error h -> h

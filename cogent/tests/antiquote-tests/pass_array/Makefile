@@ -49,7 +49,8 @@ gen-anti:
 		--Wno-warn --infer-c-funcs="$(ACFILES)" \
 		--cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
 		--ext-types=types.cfg \
-		--entry-funcs=entrypoints.cfg
+		--entry-funcs=entrypoints.cfg \
+		--cogent-pp-args="--noline"
 
 clean:
 	rm -f $(COUTPUT) $(HOUTPUT) $(PP) $(PPINFER) $(OBJ)
