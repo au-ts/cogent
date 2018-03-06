@@ -224,6 +224,22 @@ indicate an unlikely branch.
 
 A pattern may be ~_~ but only if the kind of the value allows it to be discarded.
 
+** Biased pattern matching
+
+The syntax above poses a problem if many levels of nesting occurs --- you will end
+up with a cascading matches with lots of indentations. To solve this problem, we
+allow a syntax for early exit, which is inspired by Idris. The syntax looks like:
+
+#+BEGIN_SRC
+f : Heap -> <Ok (Obj, Heap) | Fail Heap>
+f h = let Ok (obj,  h) <= allocateobj h |> Fail h -> Fail h
+      and Ok (obj', h) <= allocateobj h |> Fail h -> let _ = free obj in Fail h
+       in Ok (mergeObj (obj, obj'), h)
+#+END_SRC
+
+This piece of code is semantically identical to the one above. ~<=~ matches the
+major case, and ~|>~ bails out with the minor case.
+
 ** Patterns
 
 Patterns may be refutable (could fail, e.g ~Ok a~ or ~43~) or irrefutable (always
@@ -348,5 +364,8 @@ The ~{..}~ syntax, similar to its counterpart on type level, just take or put al
 
 Currently Cogent will use the smallest type possible for integer literals and generate upcasts (but not downcasts) automatically when used in a context where they are required.
 
+** Lambda expressions
 
+We only allow for a very limited form of lambda expressions. An lambda expression has the syntax ~\irref => exp~, where ~irref~ is an irrefutable pattern, and ~exp~ is
+an expression which does not refer to any variables outside the lambda binding (no free variables). The bound variables have to be non-linear.
 
