@@ -190,7 +190,12 @@ decTypeStr (RecordStr fs) = do
       tvns = P.zipWith (\_ n -> mkName $ typeparam ++ show n) fs [1::Int ..]
       rfs = P.zipWith (\f n -> FieldDecl () [mkName $ snm f] (mkVarT n)) fs tvns
       dec = DataDecl () (DataType ()) Nothing (mkDeclHead (mkName tn) tvns) 
-              [QualConDecl () Nothing Nothing $ RecDecl () (mkName tn) rfs] Nothing
+              [QualConDecl () Nothing Nothing $ RecDecl () (mkName tn) rfs]
+#if MIN_VERSION_haskell_src_exts(1,20,0)
+              []
+#else
+              Nothing
+#endif
   tell $ WriterGen [dec]
   return tn
 decTypeStr (VariantStr tags) = do
@@ -198,8 +203,12 @@ decTypeStr (VariantStr tags) = do
   let tn = varTypeName ++ show vn
       tvns = P.zipWith (\_ n -> mkName $ typeparam ++ show n) tags [1::Int ..]
       cs = P.zipWith (\tag n -> QualConDecl () Nothing Nothing $ ConDecl () (mkName tag) [mkVarT n]) tags tvns
-      dec = DataDecl () (DataType ()) Nothing (mkDeclHead (mkName tn) tvns)
-              cs Nothing
+      dec = DataDecl () (DataType ()) Nothing (mkDeclHead (mkName tn) tvns) cs
+#if MIN_VERSION_haskell_src_exts(1,20,0)
+              []
+#else
+              Nothing
+#endif
   tell $ WriterGen [dec]
   return tn
 
@@ -404,7 +413,12 @@ shallowDefinition (CC.AbsDecl _ fn ps ti to) =
   where fn' = mkName $ snm fn
         typar = map fst $ Vec.cvtToList ps
 shallowDefinition (CC.TypeDef tn ps Nothing) =
-    let dec = DataDecl () (DataType ()) Nothing (mkDeclHead (mkName tn) (P.map (mkName . snm) typar)) [] Nothing
+    let dec = DataDecl () (DataType ()) Nothing (mkDeclHead (mkName tn) (P.map (mkName . snm) typar)) []
+#if MIN_VERSION_haskell_src_exts(1,20,0)
+                []
+#else
+                Nothing
+#endif
      in local (typarUpd typar) $ pure [dec]
   where typar = Vec.cvtToList ps
 shallowDefinition (CC.TypeDef tn ps (Just t)) = do
