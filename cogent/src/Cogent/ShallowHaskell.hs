@@ -24,10 +24,12 @@ module Cogent.ShallowHaskell where
 import Cogent.Common.Syntax as CS
 import Cogent.Common.Types
 import Cogent.Compiler
+import qualified Cogent.Core as CC
+import Cogent.Core (TypedExpr(..))
 import Cogent.Desugar as D (freshVarPrefix)
 import Cogent.Shallow (isRecTuple)
 import Cogent.ShallowTable (TypeStr(..), st)
-import Cogent.Sugarfree as S
+import qualified Cogent.Surface as S
 import Cogent.Util (Stage(..), secondM)
 import Cogent.Vec as Vec
 
@@ -128,20 +130,20 @@ isSubtypeStr (VariantStr alts1) (VariantStr alts2) = let s1 = Set.fromList alts1
 isSubtypeStr _ _ = False
 
 -- ASSUME: isRecOrVar input == True
-typeSkel :: S.Type t -> TypeStr
-typeSkel (TRecord fs _) = RecordStr $ P.map fst fs
-typeSkel (TSum alts) = VariantStr $ sort $ P.map fst alts
+typeSkel :: CC.Type t -> TypeStr
+typeSkel (CC.TRecord fs _) = RecordStr $ P.map fst fs
+typeSkel (CC.TSum alts) = VariantStr $ sort $ P.map fst alts
 typeSkel _ = __impossible "Precondition failed: isRecOrVar input == True"
 
-isRecOrVar :: S.Type t -> Bool
-isRecOrVar (TRecord {}) = True
-isRecOrVar (TSum {}) = True
+isRecOrVar :: CC.Type t -> Bool
+isRecOrVar (CC.TRecord {}) = True
+isRecOrVar (CC.TSum {}) = True
 isRecOrVar _ = False
 
 -- ASSUME: isRecOrVar input == True
-compTypes :: S.Type t -> [(String, S.Type t)]
-compTypes (TRecord fs _) = P.map (second fst) fs
-compTypes (TSum alts) = P.map (second fst) $ sortBy (compare `on` fst) alts  -- NOTE: this sorting must stay in-sync with the algorithm `toTypeStr` in ShallowTable.hs / zilinc
+compTypes :: CC.Type t -> [(String, CC.Type t)]
+compTypes (CC.TRecord fs _) = P.map (second fst) fs
+compTypes (CC.TSum alts) = P.map (second fst) $ sortBy (compare `on` fst) alts  -- NOTE: this sorting must stay in-sync with the algorithm `toTypeStr` in ShallowTable.hs / zilinc
 compTypes _ = __impossible "Precondition failed: isRecOrVar input == True"
 
 typeStrFields :: TypeStr -> [String]
@@ -149,7 +151,7 @@ typeStrFields (RecordStr fs) = fs
 typeStrFields (VariantStr alts) = alts
 
 -- ASSUME: isRecOrVar input == True
-findShortType :: S.Type t -> SG (TypeName, [String])
+findShortType :: CC.Type t -> SG (TypeName, [String])
 findShortType = findShortTypeStr . typeSkel
 
 findShortTypeStr :: TypeStr -> SG (TypeName, [String])
@@ -175,7 +177,7 @@ findShortTypeStr st = do
 -- 
 
 -- ASSUME: isRecOrVar input == True
-shallowTypeWithName :: S.Type t -> SG (HS.Type ())
+shallowTypeWithName :: CC.Type t -> SG (HS.Type ())
 shallowTypeWithName t = do
   (tn,fs) <- findShortType t
   nts <- forM (compTypes t) (secondM shallowType)
@@ -201,29 +203,29 @@ decTypeStr (VariantStr tags) = do
   tell $ WriterGen [dec]
   return tn
 
-shallowRecTupleType :: [(FieldName, (S.Type t, Bool))] -> SG (HS.Type ())
+shallowRecTupleType :: [(FieldName, (CC.Type t, Bool))] -> SG (HS.Type ())
 shallowRecTupleType fs = shallowTupleType <$> mapM shallowType (map (fst . snd) fs)
 
 shallowTupleType :: [HS.Type ()] -> HS.Type ()
 shallowTupleType [] = error "Record should have at least 2 fields"
 shallowTupleType ts = mkTupleT ts
 
-shallowType :: S.Type t -> SG (HS.Type ())
-shallowType (TVar v) = mkVarT . mkName . snm <$> ((!!) <$> view typeVars <*> pure (finInt v))
-shallowType (TVarBang v) = shallowType (TVar v)
-shallowType (TCon tn ts _) = mkConT (mkName tn) <$> mapM shallowType ts
-shallowType (TFun t1 t2) = TyFun () <$> shallowType t1 <*> shallowType t2
-shallowType (TPrim pt) = pure $ shallowPrimType pt
-shallowType (TString) = pure . mkTyConT $ mkName "String"
-shallowType (TSum alts) = shallowTypeWithName (TSum alts)
-shallowType (TProduct t1 t2) = mkTupleT <$> sequence [shallowType t1, shallowType t2]
-shallowType (TRecord fs s) = do
+shallowType :: CC.Type t -> SG (HS.Type ())
+shallowType (CC.TVar v) = mkVarT . mkName . snm <$> ((!!) <$> view typeVars <*> pure (finInt v))
+shallowType (CC.TVarBang v) = shallowType (CC.TVar v)
+shallowType (CC.TCon tn ts _) = mkConT (mkName tn) <$> mapM shallowType ts
+shallowType (CC.TFun t1 t2) = TyFun () <$> shallowType t1 <*> shallowType t2
+shallowType (CC.TPrim pt) = pure $ shallowPrimType pt
+shallowType (CC.TString) = pure . mkTyConT $ mkName "String"
+shallowType (CC.TSum alts) = shallowTypeWithName (CC.TSum alts)
+shallowType (CC.TProduct t1 t2) = mkTupleT <$> sequence [shallowType t1, shallowType t2]
+shallowType (CC.TRecord fs s) = do
   tuples <- view recoverTuples
   if tuples && isRecTuple (map fst fs) then
     shallowRecTupleType fs
   else
-    shallowTypeWithName (TRecord fs s)
-shallowType (TUnit) = pure $ TyCon () $ Special () $ UnitCon ()
+    shallowTypeWithName (CC.TRecord fs s)
+shallowType (CC.TUnit) = pure $ TyCon () $ Special () $ UnitCon ()
 
 shallowPrimType :: PrimInt -> HS.Type ()
 shallowPrimType U8  = mkTyConT $ mkName "Word8"
@@ -274,7 +276,8 @@ shallowILit n Boolean = HS.Con () . UnQual () . mkName $ if n > 0 then "True" el
 shallowILit n v = Paren () $ ExpTypeSig () (Lit () $ Int () n $ show n) (shallowPrimType v)
 
 -- makes `let p = e1 in e2'
-shallowLet :: SNat n -> [(VarName, VarName)] -> Pat () -> TypedExpr t v VarName -> TypedExpr t (v :+: n) VarName -> SG (Exp ())
+shallowLet :: SNat n -> [(VarName, VarName)] -> Pat () -> TypedExpr t v VarName
+           -> TypedExpr t (v :+: n) VarName -> SG (Exp ())
 shallowLet n vs p e1 e2 = do
   __assert (toInt n == P.length vs) "n == |vs|"
   e1' <- shallowExpr e1
@@ -282,7 +285,7 @@ shallowLet n vs p e1 e2 = do
   pure $ mkLetE [(p,e1')] e2'
 
 getRecordFieldName :: TypedExpr t v VarName -> FieldIndex -> FieldName
-getRecordFieldName rec idx | TRecord fs _ <- exprType rec = P.map fst fs !! idx
+getRecordFieldName rec idx | CC.TRecord fs _ <- exprType rec = P.map fst fs !! idx
 getRecordFieldName _ _ = __impossible "input should be of record type"
 
 shallowGetter :: TypedExpr t v VarName -> FieldIndex -> Exp () -> Exp ()
@@ -290,7 +293,7 @@ shallowGetter rec idx rec' = mkAppE (mkVarE . mkName . snm $ getRecordFieldName 
 
 shallowGetter' :: TypedExpr t v VarName -> FieldIndex -> Exp () -> SG (Exp ())  -- use puns
 shallowGetter' rec idx rec' = do
-  let t@(TRecord fs _) = exprType rec
+  let t@(CC.TRecord fs _) = exprType rec
   vs <- mapM (\_ -> freshInt <<+= 1) fs
   (tn,_) <- findShortType t
   let bs = P.map (\v -> mkName $ internalVar ++ show v) vs
@@ -302,41 +305,41 @@ shallowSetter :: TypedExpr t v VarName -> FieldIndex -> Exp () -> HS.Type () -> 
 shallowSetter rec idx rec' rect' e' = RecUpdate () (Paren () $ ExpTypeSig () rec' rect') 
                                         [FieldUpdate () (UnQual () . mkName . snm $ getRecordFieldName rec idx) e']
 
-shallowPromote :: TypedExpr t v VarName -> S.Type t -> SG (Exp ())
-shallowPromote e (TSum _) = shallowExpr e
+shallowPromote :: TypedExpr t v VarName -> CC.Type t -> SG (Exp ())
+shallowPromote e (CC.TSum _) = shallowExpr e
 shallowPromote e t = do
   e' <- shallowExpr e
   t' <- shallowType t
   pure $ ExpTypeSig () (mkAppE (mkVarE $ mkName "fromIntegral") [e']) t'
 
 shallowExpr :: TypedExpr t v VarName -> SG (Exp ())
-shallowExpr (TE _ (Variable (_,v))) = do
+shallowExpr (TE _ (CC.Variable (_,v))) = do
   bs <- view localBindings
   let v' = case M.lookup v (M.unions bs) of  -- also heap-top-biased unions
              Nothing -> v
              Just v' -> v'
   pure . mkVarE . mkName $ snm v'
-shallowExpr (TE _ (Fun fn ts _)) = pure $ mkVarE $ mkName (snm fn)  -- only prints the fun name
-shallowExpr (TE _ (Op opr es)) = shallowPrimOp <$> pure opr <*> (mapM shallowExpr es)
-shallowExpr (TE _ (S.App f arg)) = mkAppE <$> shallowExpr f <*> (mapM shallowExpr [arg])
-shallowExpr (TE _ (S.Con cn e))  = do
+shallowExpr (TE _ (CC.Fun fn ts _)) = pure $ mkVarE $ mkName (snm fn)  -- only prints the fun name
+shallowExpr (TE _ (CC.Op opr es)) = shallowPrimOp <$> pure opr <*> (mapM shallowExpr es)
+shallowExpr (TE _ (CC.App f arg)) = mkAppE <$> shallowExpr f <*> (mapM shallowExpr [arg])
+shallowExpr (TE _ (CC.Con cn e _))  = do
   e' <- shallowExpr e
   pure $ mkAppE (mkConE $ mkName cn) [e']
-shallowExpr (TE _ (S.Promote ty e)) = shallowPromote e ty
-shallowExpr (TE t (S.Struct fs)) = do 
+shallowExpr (TE _ (CC.Promote ty e)) = shallowPromote e ty
+shallowExpr (TE t (CC.Struct fs)) = do 
   (tn,_) <- findShortType t
   RecConstr () (UnQual () $ mkName tn) <$> mapM (\(f,e) -> FieldUpdate () (UnQual () . mkName $ snm f) <$> shallowExpr e) fs
-shallowExpr (TE _ (S.Member rec fld)) = shallowGetter' rec fld =<< shallowExpr rec
-shallowExpr (TE _ (S.Unit)) = pure $ HS.Con () $ Special () $ UnitCon ()
-shallowExpr (TE _ (S.ILit n pt)) = pure $ shallowILit n pt
-shallowExpr (TE _ (S.SLit s)) = pure $ Lit () $ String () s s
-shallowExpr (TE _ (S.Tuple e1 e2)) = HS.Tuple () Boxed <$> mapM shallowExpr [e1,e2]
-shallowExpr (TE _ (S.Put rec fld e)) = shallowSetter rec fld <$> shallowExpr rec <*> shallowType (exprType rec) <*> shallowExpr e
-shallowExpr (TE _ (S.Let       nm e1 e2)) = do 
+shallowExpr (TE _ (CC.Member rec fld)) = shallowGetter' rec fld =<< shallowExpr rec
+shallowExpr (TE _ (CC.Unit)) = pure $ HS.Con () $ Special () $ UnitCon ()
+shallowExpr (TE _ (CC.ILit n pt)) = pure $ shallowILit n pt
+shallowExpr (TE _ (CC.SLit s)) = pure $ Lit () $ String () s s
+shallowExpr (TE _ (CC.Tuple e1 e2)) = HS.Tuple () Boxed <$> mapM shallowExpr [e1,e2]
+shallowExpr (TE _ (CC.Put rec fld e)) = shallowSetter rec fld <$> shallowExpr rec <*> shallowType (exprType rec) <*> shallowExpr e
+shallowExpr (TE _ (CC.Let       nm e1 e2)) = do 
   nm' <- getSafeBinder nm
   shallowLet s1 [(nm,nm')] (mkVarP $ mkName $ snm nm') e1 e2
-shallowExpr (TE t (S.LetBang _ nm e1 e2)) = shallowExpr (TE t $ S.Let nm e1 e2)
-shallowExpr (TE t (S.Case e tag (_,n1,e1) (_,n2,e2))) = do
+shallowExpr (TE t (CC.LetBang _ nm e1 e2)) = shallowExpr (TE t $ CC.Let nm e1 e2)
+shallowExpr (TE t (CC.Case e tag (_,n1,e1) (_,n2,e2))) = do
   e'  <- shallowExpr e
   n1' <- getSafeBinder n1
   n2' <- getSafeBinder n2
@@ -345,17 +348,17 @@ shallowExpr (TE t (S.Case e tag (_,n1,e1) (_,n2,e2))) = do
   let c1 = HS.Alt () (PApp () (UnQual () $ mkName tag) [mkVarP $ mkName $ snm n1']) (UnGuardedRhs () e1') Nothing
       c2 = HS.Alt () (mkVarP . mkName $ snm n2') (UnGuardedRhs () e2') Nothing
   pure $ HS.Case () e' [c1,c2]
-shallowExpr (TE t (Esac e)) = do
-  let (TSum [(f,_)]) = exprType e
+shallowExpr (TE t (CC.Esac e)) = do
+  let (CC.TSum [(f,_)]) = exprType e
   vn <- freshInt <<+= 1
   let v = mkName $ internalVar ++ show vn
   mkAppE (Lambda () [PApp () (UnQual () . mkName $ snm f) [mkVarP v]] (mkVarE v)) <$> ((:[]) <$> shallowExpr e)
-shallowExpr (TE _ (S.If c th el)) = do
+shallowExpr (TE _ (CC.If c th el)) = do
   c'  <- shallowExpr c
   th' <- local pushScope $ shallowExpr th
   el' <- local pushScope $ shallowExpr el
   pure $ HS.If () c' th' el'
-shallowExpr (TE _ (S.Take (n1,n2) rec fld e)) = do
+shallowExpr (TE _ (CC.Take (n1,n2) rec fld e)) = do
   rec' <- shallowExpr rec
   n1' <- getSafeBinder n1
   n2' <- getSafeBinder n2
@@ -364,7 +367,7 @@ shallowExpr (TE _ (S.Take (n1,n2) rec fld e)) = do
   f' <- shallowGetter' rec fld rec'
   e' <- local (addBindings [(n1,n1'),(n2,n2')]) $ shallowExpr e
   pure $ mkLetE [(pr,rec'), (pf,f')] e'
-shallowExpr (TE _ (S.Split (n1,n2) e1 e2)) = do
+shallowExpr (TE _ (CC.Split (n1,n2) e1 e2)) = do
   n1' <- getSafeBinder n1
   n2' <- getSafeBinder n2
   let p1 = mkVarP . mkName $ snm n1'
@@ -376,42 +379,42 @@ shallowExpr (TE _ (S.Split (n1,n2) e1 e2)) = do
 --
 
 
-shallowTypeDef :: TypeName -> [TyVarName] -> S.Type t -> SG (Decl ())
+shallowTypeDef :: TypeName -> [TyVarName] -> CC.Type t -> SG (Decl ())
 shallowTypeDef tn tvs t = do
   t' <- shallowType t
   pure $ TypeDecl () (mkDeclHead (mkName tn) (P.map (mkName . snm) tvs)) t'
 
-shallowDefinition :: Definition TypedExpr VarName -> SG [Decl ()]
-shallowDefinition (FunDef _ fn ps ti to e) =
+shallowDefinition :: CC.Definition TypedExpr VarName -> SG [Decl ()]
+shallowDefinition (CC.FunDef _ fn ps ti to e) =
     local (typarUpd typar) $ do
     e' <- local pushScope $ shallowExpr e
-    ty <- shallowType $ TFun ti to
+    ty <- shallowType $ CC.TFun ti to
     let sig = TypeSig () [fn'] ty
         dec = FunBind () [Match () fn' [PVar () arg0] (UnGuardedRhs () e') Nothing]
     pure [sig,dec]
   where fn'   = mkName $ snm fn
         arg0  = mkName $ snm $ D.freshVarPrefix ++ "0"
         typar = map fst $ Vec.cvtToList ps
-shallowDefinition (AbsDecl _ fn ps ti to) =
+shallowDefinition (CC.AbsDecl _ fn ps ti to) =
     local (typarUpd typar) $ do
-      ty <- shallowType $ TFun ti to
+      ty <- shallowType $ CC.TFun ti to
       let sig = TypeSig () [fn'] ty
           dec = FunBind () [Match () fn' [] (UnGuardedRhs () $ mkVarE $ mkName "undefined") Nothing]
       pure [sig,dec]
   where fn' = mkName $ snm fn
         typar = map fst $ Vec.cvtToList ps
-shallowDefinition (TypeDef tn ps Nothing) =
+shallowDefinition (CC.TypeDef tn ps Nothing) =
     let dec = DataDecl () (DataType ()) Nothing (mkDeclHead (mkName tn) (P.map (mkName . snm) typar)) [] Nothing
      in local (typarUpd typar) $ pure [dec]
   where typar = Vec.cvtToList ps
-shallowDefinition (TypeDef tn ps (Just t)) = do
+shallowDefinition (CC.TypeDef tn ps (Just t)) = do
     local (typarUpd typar) $ ((:[]) <$> shallowTypeDef tn typar t)
   where typar = Vec.cvtToList ps
 
-shallowDefinitions :: [Definition TypedExpr VarName] -> SG [Decl ()]
+shallowDefinitions :: [CC.Definition TypedExpr VarName] -> SG [Decl ()]
 shallowDefinitions = (concat <$>) . mapM shallowDefinition
 
-shallowConst :: S.SFConst TypedExpr -> SG [HS.Decl ()]
+shallowConst :: CC.CoreConst TypedExpr -> SG [HS.Decl ()]
 shallowConst (n, te@(TE t _)) = do
   e' <- shallowExpr te
   t' <- shallowType t
@@ -439,7 +442,13 @@ shallowTypesFromTable = do
       Nothing  -> __impossible "should find a supertype"
       Just sup -> subtypes %= (M.insert t (sup, typeStrFields sup))
 
-shallow :: Bool -> String -> Stage -> [Definition TypedExpr VarName] -> [S.SFConst TypedExpr] -> String -> String
+shallow :: Bool
+        -> String
+        -> Stage
+        -> [CC.Definition TypedExpr VarName]
+        -> [CC.CoreConst TypedExpr]
+        -> String
+        -> String
 shallow tuples name stg defs consts log =
   let (decs,w) = evalRWS (runSG (shallowTypesFromTable >> ((++) <$> concatMapM shallowConst consts <*> shallowDefinitions defs)))
                          (ReaderGen (st defs) [] tuples [])
