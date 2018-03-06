@@ -128,8 +128,11 @@ Types can now contain variables. Functions may be declared as having polymorphic
 length : all (a). Array a -> Int 
 #+END_SRC
 
-_Monomorphic_ functions are now first class, but to get a monomorphic function
+_Monomorphic_ functions are first class, but to get a monomorphic function
 from a polymorphic function requires instantiation, e.g ~length[Int]~.
+Since Cogent-2.0.9, explicit type applications are not mandatory, although in some cases they must
+be supplied to guide the type inference engine. Type applications can be partial, or with type holes.
+For example, ~foo [_, A, B]~. See ~cogent/tests/pass_partial-typeapp.cogent~.
 
 A type variable under observation (i.e ~let!~ -ed) is annotated with a postfix bang (e.g ~a!~)
 
@@ -226,8 +229,8 @@ A pattern may be ~_~ but only if the kind of the value allows it to be discarded
 
 ** Biased pattern matching
 
-The syntax above poses a problem if many levels of nesting occurs --- you will end
-up with a cascading matches with lots of indentations. To solve this problem, we
+The syntax above poses a problem if many levels of nestings occur --- you will end
+up with cascading matches which indent a lot. To solve this problem, we
 allow a syntax for early exit, which is inspired by Idris. The syntax looks like:
 
 #+BEGIN_SRC
