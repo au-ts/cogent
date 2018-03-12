@@ -803,9 +803,11 @@ lemma bang_kind:
 shows "K \<turnstile>  t  :\<kappa>  k \<Longrightarrow> K \<turnstile>  bang t                       :\<kappa>  {D, S}"
 and   "K \<turnstile>* ts :\<kappa>  k \<Longrightarrow> K \<turnstile>* map bang ts                  :\<kappa>  {D, S}"
 and   "K \<turnstile>* fs :\<kappa>r k \<Longrightarrow> K \<turnstile>* map (\<lambda>(a,b). (bang a, b)) fs :\<kappa>r {D, S}"
-by ( induct rule: kinding_kinding_all_kinding_record.inducts
-   , auto intro:  kinding_kinding_all_kinding_record.intros
-          intro!: bang_sigil_kind)
+  apply (induct rule: kinding_kinding_all_kinding_record.inducts)
+  by (auto intro: kinding_kinding_all_kinding_record.intros
+           intro!: bang_sigil_kind
+           simp add: case_prod_unfold comp_def)
+
 
 section {* Instantiation *}
 
@@ -814,7 +816,7 @@ shows "instantiate \<delta> (bang \<tau>) = bang (instantiate \<delta> \<tau>)"
 by (force intro: bang.induct [where P = "\<lambda> \<tau>. instantiate \<delta> (bang \<tau>) = bang (instantiate \<delta> \<tau>)"] 
           simp:  bang_idempotent)
 
-find_theorems name: list_all2
+find_theorems name: kinding_kinding_all_kinding_record
 
 lemma instantiate_instantiate [simp]:
 assumes "list_all2 (kinding K') \<delta>' K"
@@ -825,15 +827,17 @@ using assms proof (induct x arbitrary: \<delta>' rule: instantiate.induct)
 next case 3 then show ?case by (force simp: set_conv_nth
                                       dest: kinding_all_nth)
 next case 8 then show ?case by (fastforce dest: kinding_record_wellformed)
-next case 6 note IH   = this(1)
-            and  REST = this(2-)
-  from REST show ?case apply (clarsimp elim!: kind_tsumE)
+next case (6 \<delta> ps) note IH   = this(1)
+                   and  REST = this(2-)
+  from REST show ?case apply (clarsimp)
                        apply (rule IH, simp, simp)
-                       apply (bestsimp simp:  set_conv_nth
-                                       dest!: prod_in_set(2)
-                                       dest:  kinding_all_nth [ where ts = "map (fst \<circ> snd) ts" for ts
-                                                              , simplified])+
-                                 sorry (*TODO automate properly*)
+                       apply (auto simp:  set_conv_nth
+                                   intro: kind_tsum
+                                   dest!: prod_in_set(2)
+                                   dest:  kinding_all_nth [ where ts = "map (fst \<circ> snd) ts" for ts
+                                                          , simplified])+
+                       apply (erule kinding.cases; simp_all)
+                       by (metis (no_types, hide_lams) comp_apply fst_conv kinding_all_set length_map nth_map nth_mem snd_conv)   (*TODO automate properly*)
 qed (force dest: list_all2_lengthD)+
                         
 lemma instantiate_tprim [simp]:
