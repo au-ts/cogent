@@ -37,7 +37,9 @@ import System.Process (readProcess)
 -- Flags
 isRelease :: S.ConfigFlags -> Bool
 isRelease flags =
-#if MIN_VERSION_Cabal (2,0,0)
+#if MIN_VERSION_Cabal (2,2,0)
+  case lookup (mkFlagName "release") (unFlagAssignment $ S.configConfigurationsFlags flags) of
+#elif MIN_VERSION_Cabal (2,0,0)
   case lookup (mkFlagName "release") (S.configConfigurationsFlags flags) of
 #else
   case lookup (FlagName "release") (S.configConfigurationsFlags flags) of
@@ -58,7 +60,11 @@ generateVersionModule verbosity dir release = do
   putStrLn $ "Generating " ++ versionModulePath ++
     if release then " for release" else " for dev " ++ hash
   createDirectoryIfMissingVerbose verbosity True dir
+#if MIN_VERSION_Cabal (2,0,0)
+  rewriteFileEx verbosity versionModulePath (versionModuleContents hash)
+#else
   rewriteFile versionModulePath (versionModuleContents hash)
+#endif
 
   where versionModuleContents h = "module Version_cogent where\n\n" ++
           "gitHash :: String\n" ++
