@@ -31,6 +31,18 @@ lemma map_fst_ignore [simp]:
 shows "map (fst \<circ> (\<lambda> (a , b). (a , f b))) l = map fst l" 
 by (induct l, auto)
 
+lemma map_fst3_app2 [simp]:
+shows "map ((fst \<circ> snd) \<circ> (\<lambda> (a, b, c). (a, f b, c))) l = map (f \<circ> (fst \<circ> snd)) l"
+by (induct l, auto)
+
+lemma map_fst3_ignore2[simp]:
+shows "map (fst \<circ> (\<lambda> (a, b, c). (a, f b, c))) l = map fst l"
+by (induct l, auto)
+
+lemma map_snd3_ignore3[simp]:
+shows "map (fst \<circ> snd \<circ> (\<lambda> (a, b, c). (a, b, f c))) l = map (fst \<circ> snd) l"
+by (induct l, auto)
+
 lemma map_fst_update:
 assumes "ts ! f = (t, x)"
 and     "f < length ts"
@@ -83,6 +95,10 @@ lemma filter_fst_ignore:
 shows "filter (\<lambda> x. P (fst x)) (map (\<lambda>(a,b). (a, f b)) ls) 
      = map (\<lambda>(a,b). (a, f b)) (filter (\<lambda> x. P (fst x)) ls)"
 by (induct_tac ls, auto)
+
+lemma filtered_member: "[a] = filter f x \<Longrightarrow> a \<in> set x"
+  apply (induction x)
+  by (auto split: if_splits)
 
 section {* Terms and Types of Cogent *}
 
@@ -485,7 +501,7 @@ inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Right
                    ; (tag,t) \<in> set ts
                    ; K \<turnstile>* (map snd ts) wellformed
                    ; distinct (map fst ts)
-                   ; ts' = map (\<lambda> (c,t). (c, (t, if c = tag then False else True))) ts
+                   ; ts' = map (\<lambda> (c,t). (c, (t, c \<noteq> tag))) ts
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Con ts tag x : TSum ts'"
 
 | typing_prom   : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : TSum ts
@@ -529,7 +545,7 @@ inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Right
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Case x tag a b : u"
 
 | typing_esac   : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : TSum ts
-                   ; [(_, (t,False))] = filter (not \<circ> snd \<circ> snd) ts
+                   ; [(_, (t,False))] = filter (HOL.Not \<circ> snd \<circ> snd) ts
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Esac x : t"
 
 | typing_if     : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
@@ -831,13 +847,16 @@ next case (6 \<delta> ps) note IH   = this(1)
                    and  REST = this(2-)
   from REST show ?case apply (clarsimp)
                        apply (rule IH, simp, simp)
-                       apply (auto simp:  set_conv_nth
+                       apply (auto simp:  set_conv_nth comp_def
                                    intro: kind_tsum
                                    dest!: prod_in_set(2)
                                    dest:  kinding_all_nth [ where ts = "map (fst \<circ> snd) ts" for ts
                                                           , simplified])+
                        apply (erule kinding.cases; simp_all)
-                       by (metis (no_types, hide_lams) comp_apply fst_conv kinding_all_set length_map nth_map nth_mem snd_conv)   (*TODO automate properly*)
+                       apply (bestsimp dest: kinding_all_nth [ where ts = "map (fst \<circ> snd) ps" and n = "i" for i ps
+                                                             , simplified] 
+                                             sym [ where ?t = "ps ! i" for i ])
+                       done
 qed (force dest: list_all2_lengthD)+
                         
 lemma instantiate_tprim [simp]:
@@ -899,6 +918,8 @@ next case (kind_tvarb k i K)
        ultimately also have "K' \<turnstile> (\<delta> ! i) :\<kappa> (K ! i)" by (auto intro: list_all2_nthD)
        ultimately show ?case by (auto intro: supersumption bang_kind)
 qed (auto intro: kinding_kinding_all_kinding_record.intros)
+
+
 
 lemma list_all2_substitutivity:
 fixes \<delta>    :: "type substitution"
@@ -1029,7 +1050,9 @@ next case typing_fun    then show ?case by (fastforce intro: kinding_kinding_all
                                                              substitutivity)
 next case typing_afun   then show ?case by (fastforce intro: kinding_kinding_all_kinding_record.intros 
                                                              substitutivity)
-next case typing_esac   then show ?case by (fastforce)
+next case typing_esac   then show ?case by (fastforce dest: filtered_member
+                                                      elim: kinding.cases
+                                                      simp add: kinding_all_set)
 next case typing_member then show ?case by (fastforce intro: kinding_record_wellformed_nth)
 next case typing_struct then show ?case by ( clarsimp
                                            , intro exI kind_trec kinding_all_record
@@ -1037,6 +1060,16 @@ next case typing_struct then show ?case by ( clarsimp
 next case typing_take   then show ?case by (simp)  
 next case typing_put    then show ?case by (fastforce intro: kinding_kinding_all_kinding_record.intros
                                                              kinding_record_update)
+next case (typing_con \<Xi> K \<Gamma> x t tag ts ts')
+  hence "map fst ts = map fst ts'" by fastforce
+  with typing_con have a1: "distinct (map fst ts')" by simp
+  from typing_con have "map snd ts = map (fst \<circ> snd) ts'" by fastforce
+  hence "(K \<turnstile>* map snd ts :\<kappa>  k) = (K \<turnstile>* map (fst \<circ> snd) ts' :\<kappa>  k)" for k by presburger
+  with typing_con[simplified] have "\<exists>k. K \<turnstile>* map (fst \<circ> snd) ts' :\<kappa>  k" by blast
+  then obtain k where a2: "K \<turnstile>* map (fst \<circ> snd) ts' :\<kappa>  k" by blast 
+  hence "distinct (map fst ts') \<Longrightarrow> K \<turnstile>* map (fst \<circ> snd) ts' :\<kappa>  k \<Longrightarrow> K \<turnstile> TSum ts' :\<kappa>  k" by (elim kind_tsum)
+  from a1 a2 show ?case by (fastforce elim: kind_tsum)
+
 qed (auto intro: supersumption kinding_kinding_all_kinding_record.intros)
 
 lemma upcast_valid_cast_to :
