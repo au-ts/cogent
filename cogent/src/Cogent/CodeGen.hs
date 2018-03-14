@@ -771,6 +771,7 @@ genOp opr (CC.TPrim pt) es =
                Syn.Complement -> (\[e1] -> downcast pt $ CUnOp C.Not (upcast pt e1))
    in return $ oprf es
   where width = \case U8 -> 8; U16 -> 16; U32 -> 32; U64 -> 64; Boolean -> 8
+        -- vvv FIXME: I don't remember why we did it this way. Is it for verification or performance? / zilinc
         upcast, downcast :: PrimInt -> CExpr -> CExpr
         upcast   pt e = if pt `elem` [U8, U16] then CTypeCast u32 e else e
         downcast pt e = if pt `elem` [U8, U16] then CTypeCast (CogentPrim pt) e else e
