@@ -39,6 +39,7 @@ module Cogent.Core where
 
 import Cogent.Common.Syntax
 import Cogent.Common.Types
+import Cogent.Compiler
 import Cogent.Util
 import Cogent.Vec hiding (splitAt, length, zipWith, zip, unzip)
 import qualified Cogent.Vec as Vec
@@ -342,7 +343,8 @@ instance (Pretty (Expr t v a e)) => PrettyP (Expr t v a e) where
               | otherwise = parens (pretty x)
 
 instance (Pretty a, Pretty (TypedExpr t v a)) => PrettyP (TypedExpr t v a) where
-  prettyP i (TE _ x) = prettyP i x
+  prettyP i (TE t x) | not __cogent_fshow_types_in_pretty = prettyP i x
+                     | otherwise = parens (pretty x <+> symbol "::" <+> pretty t)
 instance (Pretty a, Pretty (UntypedExpr t v a)) => PrettyP (UntypedExpr t v a) where
   prettyP i (E x) = prettyP i x
 
@@ -360,7 +362,8 @@ prettyV = dullblue  . string . ("_v" ++) . show . finInt
 prettyT = dullgreen . string . ("_t" ++) . show . finInt
 
 instance Pretty a => Pretty (TypedExpr t v a) where
-  pretty (TE _ e) = pretty e
+  pretty (TE t e) | not __cogent_fshow_types_in_pretty = pretty e
+                  | otherwise = parens (pretty e <+> symbol "::" <+> pretty t)
 instance Pretty a => Pretty (UntypedExpr t v a) where
   pretty (E e) = pretty e
 
