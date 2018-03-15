@@ -247,7 +247,7 @@ rule (Escape t@(T (TCon n ts s)) m)
 rule (F (T (TTuple xs)) :< F (T (TTuple ys)))
   | length xs /= length ys = return $ Just $ Unsat (TypeMismatch (F (T (TTuple xs))) (F (T (TTuple ys))))
   | otherwise              = return $ Just $ mconcat (zipWith (:<) (map F xs) (map F ys))
-rule ct@(F (T (TFun a b))  :< F (T (TFun c d))) = 
+rule ct@(F (T (TFun _ a b)) :< F (T (TFun _ c d))) =  -- TODO
   return . Just $ (F c :< F a) :& (F b :< F d)
 rule (F (T TUnit     )  :< F (T TUnit))      = return $ Just Sat
 rule (F (T (TVar v b))  :< F (T (TVar u c)))
@@ -530,8 +530,8 @@ bound' d t1@(T (TTuple is)) t2@(T (TTuple js))
                    traceTc "sol" (text "calculate bound of" <+> pretty t1 <+> text "and" <+> pretty t2 <> colon
                                   P.<$> pretty t)
                    return $ Just t
-bound' x t1@(T (TFun a b)) t2@(T (TFun c d)) = do
-  t <-  T <$> (TFun <$> fresh (BoundOf (F t1) (F t2) x) <*> fresh (BoundOf (F t1) (F t2) x))
+bound' x t1@(T (TFun is a b)) t2@(T (TFun js c d)) = do  -- TODO: is js
+  t <-  T <$> (TFun <$> pure is <*> fresh (BoundOf (F t1) (F t2) x) <*> fresh (BoundOf (F t1) (F t2) x))
   traceTc "sol" (text "calculate bound of" <+> pretty t1 <+> text "and" <+> pretty t2 <> colon
                  P.<$> pretty t)
   return $ Just t

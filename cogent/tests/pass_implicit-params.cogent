@@ -1,0 +1,14 @@
+type Array a
+
+foo : all (obsv :< DS, a). (Array a, obsv) -> Array a
+foo (as, o) = let ?o = o
+               in map (as, \a => bar (a, ?o))
+
+bar : all (obsv :< DS, a). (a, obsv) -> a
+
+map : all (a, obsv :< DS). {?o : obsv} => (Array a, {?o : obsv} => a -> a) -> Array a
+map (as, f) = map_ (as, ?o, \(a, o) => f a)
+
+-- but we don't need to use map_ in .ac files, we can just instead make map_ the abstract function
+
+map_ : all (a, obsv :< DS). (Array a, obsv, (a, obsv) -> a) -> Array a

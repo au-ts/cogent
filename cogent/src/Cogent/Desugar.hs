@@ -61,8 +61,8 @@ import Text.PrettyPrint.ANSI.Leijen (pretty)
 -- import Debug.Trace
 
 
-__ghc_trac_14777 = undefined
--- __ghc_trac_14777 = __impossible ""
+-- __ghc_trac_14777 = undefined
+__ghc_trac_14777 = __impossible ""
 
 
 -- -----------------------------------------------------------------------------
@@ -240,7 +240,7 @@ desugarTlv (S.FunDef fn sigma alts) pragmas | S.PT vs t <- sigma
                                             , ExI (Flip vs') <- Vec.fromList vs
                                             , Refl <- zeroPlusNEqualsN $ Vec.length vs'
   = withTypeBindings (fmap fst vs') $ do
-      let (S.RT (S.TFun ti _)) = t
+      let (S.RT (S.TFun _ ti _)) = t  -- TODO
       TFun ti' to' <- desugarType t
       v <- freshVar
       let e0 = B.TE ti (S.Var v) noPos
@@ -444,7 +444,7 @@ desugarType = \case
   S.RT (S.TCon "String" [] Unboxed) -> return $ TString
   S.RT (S.TCon tn tvs s) -> TCon tn <$> mapM desugarType tvs <*> pure s
   S.RT (S.TVar vn b)     -> (findIx vn <$> use typCtx) >>= \(Just v) -> return $ if b then TVarBang v else TVar v
-  S.RT (S.TFun ti to)    -> TFun <$> desugarType ti <*> desugarType to
+  S.RT (S.TFun _ ti to)  -> TFun <$> desugarType ti <*> desugarType to  -- TODO
   S.RT (S.TRecord fs s)  -> TRecord <$> mapM (\(f,(t,x)) -> (f,) . (,x) <$> desugarType t) fs <*> pure s
   S.RT (S.TVariant alts) -> TSum <$> mapM (\(c,(ts,x)) -> (c,) . (,x) <$> desugarType (group ts)) (M.toList alts)
     where group [] = S.RT S.TUnit

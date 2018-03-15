@@ -51,7 +51,7 @@ language :: LanguageDef st
 language = haskellStyle
            { T.reservedOpNames = ["+","*","/","%","&&","||",">=","<=",">","<","==","/=",
                                   ".&.",".|.",".^.",">>","<<",
-                                  ":","=","!",":<",".","_","..","#",
+                                  ":","=","!",":<",".","_","..","#","?",
                                   "@","@@","->","=>","~>","<=","|","|>"]
            , T.reservedNames   = ["let","in","type","include","all","take","put","inline",
                                   "if","then","else","not","complement","and","True","False"]
@@ -77,6 +77,7 @@ avoidInitial = do whiteSpace; p <- sourceColumn <$> getPosition; guard (p > 1)
 irrefutablePattern :: Parser LocIrrefPatn t
 irrefutablePattern = avoidInitial >> LocIrrefPatn <$> getPosition <*>
              (variableOrRecord <$> variableName <*> optionMaybe (braces recAssignsAndOrWildcard)
+         <|> implicitVar <$ char '?' <*> variableName
          <|> tuple <$> parens (commaSep irrefutablePattern)
          <|> PUnboxedRecord <$ reservedOp "#" <*> braces recAssignsAndOrWildcard
          <|> PUnderscore <$ reservedOp "_")
@@ -86,6 +87,7 @@ irrefutablePattern = avoidInitial >> LocIrrefPatn <$> getPosition <*>
         tuple ps  = PTuple ps
         variableOrRecord v Nothing = PVar v
         variableOrRecord v (Just rs) = PTake v rs
+        implicitVar v = PIPVar v
         recordAssignment = (\p n m -> (n, fromMaybe (LocIrrefPatn p $ PVar n) m))
                         <$> getPosition <*> variableName <*> optionMaybe (reservedOp "=" *> irrefutablePattern)
                         <?> "record assignment pattern"
@@ -157,11 +159,20 @@ basicExpr' = avoidInitial >> buildExpressionParser
             ] annot <?> "basic expression"
   where binary name = Infix (reservedOp name *> pure (\a b -> LocExpr (posOfE a) (PrimOp name [a,b])))
 
+annot = do avoidInitial
+           p <- getPosition
+           e <- term
+           mt <- optionMaybe (reservedOp ":" >> monotype)
+           case mt of Nothing -> return e
+                      Just t  -> return $ LocExpr p (Annot e t)
+
 term = avoidInitial >> (LocExpr <$> getPosition <*>
-          (var <$> optionMaybe (reserved "inline")
-               <*> variableName
-               <*> optionMaybe (brackets (commaSep1 ((char '_' >> return Nothing)
-                                                 <|> (Just <$> monotype))))
+          (do inln <- optionMaybe (reserved "inline")
+              impl <- optionMaybe (char '?')
+              varn <- variableName
+              tapp <- optionMaybe (brackets (commaSep1 ((char '_' >> return Nothing)
+                                                    <|> (Just <$> monotype))))
+              var inln impl varn tapp
        <|> BoolLit <$> boolean
        <|> Con <$> typeConName <*> many term
        <|> IntLit <$> natural
@@ -171,10 +182,16 @@ term = avoidInitial >> (LocExpr <$> getPosition <*>
        <|> UnboxedRecord <$ reservedOp "#" <*> braces (commaSep1 recordAssignment)))
     <?> "term"
 
-var Nothing  v Nothing = Var v
-var (Just _) v Nothing = TypeApp v [] Inline
-var Nothing  v (Just ts) = TypeApp v ts NoInline
-var (Just _) v (Just ts) = TypeApp v ts Inline
+var Nothing  Nothing  v Nothing   = pure $ Var v
+var Nothing  (Just _) v Nothing   = pure $ IPVar v
+var (Just _) Nothing  v Nothing   = pure $ TypeApp v [] Inline
+var (Just _) Nothing  v (Just ts) = pure $ TypeApp v ts Inline
+var Nothing  Nothing  v (Just ts) = pure $ TypeApp v ts NoInline
+var _        (Just _) _ _ = unexpected $ unlines [ "Do not support implicit parameter as function."
+                                                 , "  Possible fix:"
+                                                 , "  * Remove type application; or"
+                                                 , "  * Remove `inline' keyword; or"
+                                                 , "  * Bind implicit parameter to an explicit one."]
 
 tuple [] = Unitel
 tuple [e] = exprOfLE e
@@ -219,13 +236,6 @@ expr' m = do avoidInitial
                      return $ BindingAlts p mt e bs alts
         bindings = binding `sepBy1` reserved "and"
 
-annot = do avoidInitial
-           p <- getPosition
-           e <- term
-           mt <- optionMaybe (reservedOp ":" >> monotype)
-           case mt of Nothing -> return e
-                      Just t  -> return $ LocExpr p (Annot e t)
-
 
 -- monotype ::= typeA1 ("->" typeA1)?
 -- typeA1   ::= Con typeA2*
@@ -241,12 +251,20 @@ annot = do avoidInitial
 -- NOTE: use "string" instead of "reservedOp" so that it allows no spaces after "@" / zilinc
 docHunk = do whiteSpace; _ <- try (string "@"); x <- manyTill anyChar newline; whiteSpace; return x
 
-monotype = do avoidInitial
-              t1 <- typeA1
-              t2 <- optionMaybe (reservedOp "->" >> typeA1)
-              case t2 of
-                Nothing -> return t1
-                Just t2' -> return $ LocType (posOfT t1) $ TFun t1 t2'
+monotype = monotype_ True
+
+monotype_ allowConstraints = do 
+  avoidInitial
+  impls <- case allowConstraints of
+             True -> optionMaybe (braces (commaSep $
+                       (,) <$> (char '?' *> variableName <* reservedOp ":")
+                           <*> monotype_ False) <* reservedOp "=>")
+             False -> pure Nothing
+  t1 <- typeA1
+  t2 <- optionMaybe (reservedOp "->" >> typeA1)
+  case t2 of
+    Nothing -> return t1
+    Just t2' -> return $ LocType (posOfT t1) $ TFun (concat impls) t1 t2'
   where
     typeA1 = do
       x <- typeA1'
@@ -400,7 +418,8 @@ loadTransitive' r fp paths ro = do
                -> FilePath
                -> IO (Either String ([(SourcePos, DocString, TopLevel LocType LocPatn LocExpr)], [PP.LocPragma]))
     transitive (p,d,Include x) curr = loadTransitive' r x (map (combine curr) paths) curr
-    transitive (p,d,IncludeStd x) curr = do filepath <- (getStdIncFullPath x); loadTransitive' r filepath (map (combine curr) paths) curr
+    transitive (p,d,IncludeStd x) curr = do filepath <- (getStdIncFullPath x)
+                                            loadTransitive' r filepath (map (combine curr) paths) curr
     transitive x _ = return (Right ([x],[]))
 
     findPath :: [FilePath] -> IO (Maybe FilePath)

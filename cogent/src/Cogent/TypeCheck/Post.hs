@@ -114,7 +114,7 @@ normaliseT d (T (TBang t)) = do
      (T (TRecord l s)) -> mapM ((secondM . firstM) (normaliseT d . T . TBang)) l >>= \l' ->
                           normaliseT d (T (TRecord l' (bangSigil s)))
      (T (TVar b _))    -> normaliseT d (T (TVar b True))
-     (T (TFun a b))    -> T <$> (TFun <$> normaliseT d a <*> normaliseT d b)
+     (T (TFun cs a b)) -> T <$> (TFun <$> pure cs <*> normaliseT d a <*> normaliseT d b)  -- TODO: cs
      (T o)             -> normaliseT d =<< normaliseT d (T $ fmap (T . TBang) o)
      _                 -> __impossible "normaliseT (TBang)"
 

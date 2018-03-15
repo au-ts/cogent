@@ -416,7 +416,7 @@ instance (Pretty t, TypeType t) => Pretty (Type t) where
                                           _  -> tagname a <+> spaceList (map prettyT' bs)) $ M.toList (fmap fst ts))
     where prettyT' e | not $ isAtomic e = parens (pretty e)
                      | otherwise        = pretty e
-  pretty (TFun t t') = prettyT' t <+> typesymbol "->" <+> pretty t'
+  pretty (TFun _ t t') = prettyT' t <+> typesymbol "->" <+> pretty t'  -- TODO
     where prettyT' e | isFun e   = parens (pretty e)
                      | otherwise = pretty e
   pretty (TUnbox t) = (typesymbol "#" <> prettyT' t) & (if __cogent_fdisambiguate_pp then (<+> comment "{- unbox -}") else id)

@@ -29,6 +29,7 @@ import Text.Parsec.Pos
 type DocString = String
 
 data IrrefutablePattern pv ip = PVar pv
+                              | PIPVar pv  -- implicit binder
                               | PTuple [ip]
                               | PUnboxedRecord [Maybe (FieldName, ip)]
                               | PUnderscore
@@ -56,6 +57,7 @@ data Inline = Inline
 
 data Expr t p ip e = PrimOp OpName [e]
                    | Var VarName
+                   | IPVar VarName
                    | Match e [VarName] [Alt p e]
                    | TypeApp FunName [Maybe t] Inline
                    | Con TagName [e]
@@ -82,11 +84,13 @@ data Expr t p ip e = PrimOp OpName [e]
 type Banged = Bool
 type Taken  = Bool
 
+type TIPConstraint t = (VarName, t)
+
 data Type t =
             -- They are in WHNF
               TCon TypeName [t] Sigil
             | TVar VarName Banged
-            | TFun t t
+            | TFun [TIPConstraint t] t t
             | TRecord [(FieldName, (t, Taken))] Sigil
             | TVariant (M.Map TagName ([t], Taken))
             | TTuple [t]
@@ -179,6 +183,7 @@ instance Traversable (Flip3 Binding e ip p) where  -- t
 instance Traversable (Flip (Expr t p) e) where  -- ip
   traverse _ (Flip (PrimOp op e))       = pure $ Flip (PrimOp op e)
   traverse _ (Flip (Var v))             = pure $ Flip (Var v)
+  traverse _ (Flip (IPVar v))           = pure $ Flip (IPVar v)
   traverse _ (Flip (Match e v alt))     = pure $ Flip (Match e v alt)
   traverse _ (Flip (TypeApp v ts nt))   = pure $ Flip (TypeApp v ts nt)
   traverse _ (Flip (Con n e))           = pure $ Flip (Con n e)
@@ -203,6 +208,7 @@ instance Traversable (Flip (Expr t p) e) where  -- ip
 instance Traversable (Flip2 (Expr t) e ip) where  -- p
   traverse _ (Flip2 (PrimOp op e))      = pure $ Flip2 (PrimOp op e)
   traverse _ (Flip2 (Var v))            = pure $ Flip2 (Var v)
+  traverse _ (Flip2 (IPVar v))          = pure $ Flip2 (IPVar v)
   traverse f (Flip2 (Match e v alt))    = Flip2 <$> (Match e v <$> traverse (ttraverse f) alt)
   traverse _ (Flip2 (TypeApp v ts nt))  = pure $ Flip2 (TypeApp v ts nt)
   traverse _ (Flip2 (Con n e))          = pure $ Flip2 (Con n e)
@@ -227,6 +233,7 @@ instance Traversable (Flip2 (Expr t) e ip) where  -- p
 instance Traversable (Flip3 Expr e ip p) where  -- t
   traverse _ (Flip3 (PrimOp op e))       = pure $ Flip3 (PrimOp op e)
   traverse _ (Flip3 (Var v))             = pure $ Flip3 (Var v)
+  traverse _ (Flip3 (IPVar v))           = pure $ Flip3 (IPVar v)
   traverse _ (Flip3 (Match e v alt))     = pure $ Flip3 (Match e v alt)
   traverse f (Flip3 (TypeApp v ts nt))   = Flip3 <$> (TypeApp v <$> traverse (traverse f) ts <*> pure nt)
   traverse _ (Flip3 (Con n e))           = pure $ Flip3 (Con n e)
@@ -251,6 +258,7 @@ instance Traversable (Flip3 Expr e ip p) where  -- t
 
 instance Traversable (Flip IrrefutablePattern pv) where  -- ip
   traverse f (Flip (PVar pv))            = Flip <$> (PVar <$> f pv)
+  traverse f (Flip (PIPVar pv))          = Flip <$> (PIPVar <$> f pv)
   traverse _ (Flip (PTuple ips))         = pure $ Flip (PTuple ips)
   traverse _ (Flip (PUnboxedRecord mfs)) = pure $ Flip (PUnboxedRecord mfs)
   traverse _ (Flip PUnderscore)          = pure $ Flip PUnderscore
@@ -318,6 +326,7 @@ fvP _ = []
 
 fvIP :: RawIrrefPatn -> [VarName]
 fvIP (RIP (PVar pv)) = [pv]
+fvIP (RIP (PIPVar pv)) = [pv]
 fvIP (RIP (PTuple ips)) = foldMap fvIP ips
 fvIP (RIP (PUnboxedRecord mfs)) = foldMap (fvIP . snd) $ Compose mfs
 fvIP (RIP (PTake pv mfs)) = foldMap (fvIP . snd) $ Compose mfs
@@ -326,6 +335,7 @@ fvIP _ = []
 fvE :: RawExpr -> [VarName]
 fvE (RE (TypeApp v _ _)) = [v]
 fvE (RE (Var v)) = [v]
+fvE (RE (IPVar v)) = [v]
 fvE (RE (Match e _ alts)) = fvE e ++ foldMap fvA alts
 fvE (RE (Lam  p _ e)) = filter (`notElem` fvIP p) (fvE e)
 fvE (RE (LamC _ _ _ vs)) = vs

@@ -148,7 +148,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     return (FunDef f (PT vs t'') alts'')
 
   where
-    asFunType (T (TFun a b)) = return (a, b)
+    asFunType (T (TFun _ a b)) = return (a, b)  -- TODO
     asFunType x@(T (TCon c as _)) = lookup c <$> lift (lift $ use knownTypes) >>= \case
                                       Just (vs, Just t) -> asFunType (substType (zip vs as) t)
                                       _ -> logErrExit $ NotAFunctionType x

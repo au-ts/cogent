@@ -202,7 +202,7 @@ cg' exp@(Lam pat mt e) t = do
         case us of
           Seq.Empty -> warnToConstraint __cogent_wunused_local_binds (UnusedLocalBind v)
           _ -> Sat
-      c = ct <> cp <> ce <> F (T $ TFun alpha beta) :< F t
+      c = ct <> cp <> ce <> F (T $ TFun [] alpha beta) :< F t  -- TODO
              <> dropConstraintFor rs <> unused
       lam = Lam  pat' (fmap (const alpha) mt) e'
   unless (null fvs') $ __todo "closures not implemented"
@@ -213,7 +213,7 @@ cg' exp@(Lam pat mt e) t = do
 
 cg' (App e1 e2) t = do
   alpha     <- fresh
-  (c1, e1') <- cg e1 (T (TFun alpha t))
+  (c1, e1') <- cg e1 (T (TFun [] alpha t))  -- TODO
   (c2, e2') <- cg e2 alpha
 
   let c = c1 <> c2
