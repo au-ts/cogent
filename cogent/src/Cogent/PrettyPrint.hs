@@ -275,6 +275,7 @@ instance Pretty Likelihood where
 
 instance (PrettyName pv, PatnType ip, Pretty ip) => Pretty (IrrefutablePattern pv ip) where
   pretty (PVar v) = prettyName v
+  pretty (PIPVar v) = symbol "?" <> prettyName v
   pretty (PTuple ps) = tupled (map pretty ps)
   pretty (PUnboxedRecord fs) = string "#" <> record (fmap handleTakeAssign fs)
   pretty (PUnderscore) = symbol "_"
@@ -334,6 +335,7 @@ instance Pretty Inline where
 instance (ExprType e, Pretty t, PatnType p, Pretty p, PatnType ip, Pretty ip, Pretty e) =>
          Pretty (Expr t p ip e) where
   pretty (Var x)             = varname x
+  pretty (IPVar x)           = symbol "?" <> varname x
   pretty (TypeApp x ts note) = pretty note <> varname x
                                  <> typeargs (map (\case Nothing -> symbol "_"; Just t -> pretty t) ts)
   pretty (Member x f)        = pretty' 1 x <> symbol "." <> fieldname f
@@ -416,8 +418,10 @@ instance (Pretty t, TypeType t) => Pretty (Type t) where
                                           _  -> tagname a <+> spaceList (map prettyT' bs)) $ M.toList (fmap fst ts))
     where prettyT' e | not $ isAtomic e = parens (pretty e)
                      | otherwise        = pretty e
-  pretty (TFun _ t t') = prettyT' t <+> typesymbol "->" <+> pretty t'  -- TODO
-    where prettyT' e | isFun e   = parens (pretty e)
+  pretty (TFun is t t') = prettyImps is <> prettyT' t <+> typesymbol "->" <+> pretty t'
+    where prettyImps is | Prelude.null is = empty
+                        | otherwise = braces (commaList $ map (\(v,t) -> symbol "?" <> varname v <+> symbol ":" <+> pretty t) is) <+> typesymbol "->" <> space
+          prettyT' e | isFun e   = parens (pretty e)
                      | otherwise = pretty e
   pretty (TUnbox t) = (typesymbol "#" <> prettyT' t) & (if __cogent_fdisambiguate_pp then (<+> comment "{- unbox -}") else id)
     where prettyT' e | not $ isAtomic e = parens (pretty e)

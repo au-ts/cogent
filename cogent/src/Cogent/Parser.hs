@@ -258,7 +258,7 @@ monotype_ allowConstraints = do
   impls <- case allowConstraints of
              True -> optionMaybe (braces (commaSep $
                        (,) <$> (char '?' *> variableName <* reservedOp ":")
-                           <*> monotype_ False) <* reservedOp "=>")
+                           <*> monotype_ False) <* reservedOp "->")
              False -> pure Nothing
   t1 <- typeA1
   t2 <- optionMaybe (reservedOp "->" >> typeA1)
