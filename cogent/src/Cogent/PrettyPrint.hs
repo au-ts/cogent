@@ -523,6 +523,7 @@ instance Pretty Metadata where
   pretty (TypeParam {functionName, typeVarName }) = err "it is required by the type of" <+> funname functionName
                                                       <+> err "(type variable" <+> typevar typeVarName <+> err ")"
   pretty ImplicitlyTaken = err "it is implicitly taken via subtyping."
+  pretty ImplicitParameter = err "it is an implicit parameter"  -- TODO
 
 instance Pretty FuncOrVar where
   pretty MustFunc  = err "Function"
@@ -579,6 +580,7 @@ instance Pretty TypeError where
   pretty (RequiredTakenTag t)       = err "Required variant" <+> tagname t <+> err "but it has already been matched."
   pretty (CustTyGenIsSynonym t)     = err "Type synonyms have to be fully expanded in --cust-ty-gen file:" <$> indent' (pretty t)
   pretty (CustTyGenIsPolymorphic t) = err "Polymorphic types are not allowed in --cust-ty-gen file:" <$> indent' (pretty t)
+  pretty (ImplicitConflictsWith v)  = err "Implicit parameter" <+> pretty v <+> err "is already defined as a variable"
   pretty (TypeWarningAsError w)          = pretty w
 
 instance Pretty TypeWarning where
@@ -645,6 +647,8 @@ instance Pretty Constraint where
   pretty (Sat)            = warn "Sat"
   pretty (Exhaustive t p) = warn "Exhaustive" <+> pretty t <+> pretty p
   pretty (x :@ _)         = pretty x
+  pretty (a :-> b)        = parens (pretty a </> warn ":->" </> pretty b)
+  pretty (ImplicitParams is) = braces $ commaList $ map (\(v,t) -> symbol "?" <> varname v <+> symbol ":" <+> pretty t) is
 
 -- a more verbose version of constraint pretty-printer which is mostly used for debugging
 prettyC :: Constraint -> Doc

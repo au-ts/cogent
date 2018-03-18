@@ -140,17 +140,20 @@ cg' (Var n) t = do
                L.<$> text "generate constraint" <+> prettyC (F t' :< F t) <+> text "and share constraint")
       return (Share t' (Reused n p us) <> F t' :< F t, e)
 
+cg' (IPVar n) t = do
+  alpha <- fresh
+  let e = IPVar n
+  ctx <- use context
+  traceTc "gen" (text "cg for implicit param" <+> pretty n L.<$> text "of type" <+> pretty t)
+  case C.lookup n ctx of
+    Nothing -> return (Share alpha ImplicitParameter <> F alpha :< F t <> ImplicitParams [(n, alpha)], e)
+    Just (t',_,_)  -> return (Unsat (ImplicitConflictsWith n), e)
+
 cg' (Upcast e) t = do
   alpha <- fresh
   (c1, e1') <- cg e alpha
   let c = (integral alpha) <> Upcastable alpha t <> c1
   return (c, Upcast e1')
-
--- cg' (Widen e) t = do
---   alpha <- fresh
---   (c1, e1') <- cg e alpha
---   let c = (T (TVariant M.empty) :<~ alpha) <> (alpha :<~ t) <> c1
---   return (c, Widen e1')
 
 cg' (BoolLit b) t = do
   let c = F (T (TCon "Bool" [] Unboxed)) :< F t
@@ -205,8 +208,8 @@ cg' exp@(Lam pat mt e) t = do
       c = ct <> cp <> ce <> F (T $ TFun [] alpha beta) :< F t  -- TODO
              <> dropConstraintFor rs <> unused
       lam = Lam  pat' (fmap (const alpha) mt) e'
-  unless (null fvs') $ __todo "closures not implemented"
-  unless (null fvs') $ context .= ctx
+  -- unless (null fvs') $ __todo "closures not implemented"
+  -- unless (null fvs') $ context .= ctx
   traceTc "gen" (text "lambda expression" <+> prettyE lam
            L.<$> text "generate constraint" <+> prettyC c <> semi)
   return (c,lam)
@@ -282,12 +285,14 @@ cg' (TypeApp f as i) t = do
         (ts,c') <- match vs as'
 
         let c = F (substType ts tau) :< F t
+            cimps = ImplicitParams $ impsType (substType ts tau)  -- FIXME
             e = TypeApp f (map (Just . snd) ts) i
+        ctx <- use context
         traceTc "gen" (text "cg for typeapp:" <+> prettyE e
                  L.<$> text "of type" <+> pretty t <> semi
                  L.<$> text "type signature is" <+> pretty (PT vs tau) <> semi
                  L.<$> text "generate constraint" <+> prettyC c)
-        return (ct <> c' <> c, e)
+        return (ct <> c' <> c <> cimps, e)
 
     Nothing -> do
       let e = TypeApp f as' i
@@ -437,6 +442,8 @@ match' (PVar x) t = do
            L.<$> text "of type" <+> pretty t)
   return (M.fromList [(x, (t,?loc,Seq.empty))], Sat, p)
 
+match' (PIPVar x) t = __todo "not allowed: will implement a proper error"
+
 match' (PUnderscore) t = 
   let c = dropConstraintFor (M.singleton "_" (t, ?loc, Seq.empty))
    in return (M.empty, c, PUnderscore)
@@ -502,6 +509,15 @@ withBindings :: (?loc::SourcePos)
 withBindings [] e top = do
   (c, e') <- cg e top
   return (c, [], e')
+withBindings (Binding pat tau e0 bs : []) e top | LocIrrefPatn l (PIPVar n) <- pat = do
+  alpha <- fresh
+  (c0, e0') <- letBang bs (cg e0) alpha
+  (ct, alpha') <- case tau of
+    Nothing -> return (Sat, alpha)
+    Just _  -> __todo "withBindings: not yet implemented"
+  (c', e') <- cg e top
+  let c = ct <> c0 <> (ImplicitParams [] :-> c')
+  return (c, Binding (TIP (PIPVar (n, alpha')) l) (fmap (const alpha) tau) e0' bs : [], e')
 withBindings (Binding pat tau e0 bs : xs) e top = do
   alpha <- fresh
   (c0, e0') <- letBang bs (cg e0) alpha

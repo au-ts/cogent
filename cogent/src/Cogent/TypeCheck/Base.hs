@@ -75,6 +75,7 @@ data TypeError = FunctionNotFound VarName
                | RequiredTakenTag TagName
                | CustTyGenIsPolymorphic TCType
                | CustTyGenIsSynonym TCType
+               | ImplicitConflictsWith VarName
                | TypeWarningAsError TypeWarning
                deriving (Eq, Show, Ord)
 
@@ -131,6 +132,7 @@ data Metadata = Reused { varName :: VarName, boundAt :: SourcePos, usedAt :: Seq
               | TypeParam { functionName :: VarName, typeVarName :: VarName }
               | ImplicitlyTaken
               | Constant { varName :: VarName }
+              | ImplicitParameter  -- TODO
               deriving (Eq, Show, Ord)
 
 data Constraint = (:<) (TypeFragment TCType) (TypeFragment TCType)
@@ -144,6 +146,8 @@ data Constraint = (:<) (TypeFragment TCType) (TypeFragment TCType)
                 | SemiSat TypeWarning
                 | Sat
                 | Exhaustive TCType [RawPatn]
+                | (:->) Constraint Constraint  -- constraint implication
+                | ImplicitParams [TIPConstraint TCType]
                 deriving (Eq, Show, Ord)
 
 instance Monoid Constraint where
@@ -341,10 +345,14 @@ exitOnErr ma = do a <- ma
 
 substType :: [(VarName, TCType)] -> TCType -> TCType
 substType vs (U x) = U x
--- substType vs (RemoveCase p x) = RemoveCase (fmap (fmap (substType vs)) p) (substType vs x)
 substType vs (T (TVar v False )) | Just x <- lookup v vs = x
 substType vs (T (TVar v True  )) | Just x <- lookup v vs = T (TBang x)
 substType vs (T t) = T (fmap (substType vs) t)
+
+impsType :: TCType -> [TIPConstraint TCType]
+impsType (T (TFun is _ _)) = is
+impsType (T t) = foldMap impsType t
+impsType (U _) = []
 
 -- Check for type well-formedness
 validateType :: [VarName] -> RawType -> TcM TCType
@@ -371,7 +379,6 @@ validateType' vs (RT t) = do
 
 validateTypes' :: (Traversable t) => [VarName] -> t RawType -> TcErrM TypeError (t TCType)
 validateTypes' vs rs = mapM (validateType' vs) rs
-
 
 -- Remove a pattern from a type, for case expressions.
 removeCase :: LocPatn -> TCType -> TCType

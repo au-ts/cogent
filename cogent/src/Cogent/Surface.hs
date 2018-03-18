@@ -103,6 +103,7 @@ data Type t =
             | TPut  (Maybe [FieldName]) t
             deriving (Show, Functor, Eq, Foldable, Traversable, Ord)
 
+
 data Polytype t = PT [(TyVarName, Kind)] t deriving (Eq, Show, Functor, Foldable, Traversable, Ord)
 
 numOfArgs (PT x _) = length x

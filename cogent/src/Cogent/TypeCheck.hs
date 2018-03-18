@@ -131,14 +131,15 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     unless (null xs) $ logErrExit $ DuplicateTypeVariable xs
     base <- lift . lift $ use knownConsts
     t' <- validateType (map fst vs) (stripLocT t)
-    (i,o) <- asFunType t'
+    (imps, i,o) <- asFunType t'
     let ctx = C.addScope (fmap (\(t,p) -> (t, p, Seq.singleton p)) base) C.empty
     let ?loc = loc
     ((c, alts'), flx, os) <- runCG ctx (map fst vs) (cgAlts alts o i)
+    let c' = ImplicitParams imps :-> c
     traceTc "tc" (text "constraint for fun definition" <+> pretty f <+> text "is"
-                  L.<$> prettyC c)
+                  L.<$> prettyC c')
     -- traceTc "tc" (pretty alts')
-    (logs, subst, _) <- runSolver (solve c) vs flx os
+    (logs, subst, _) <- runSolver (solve c') vs flx os
     exitOnErr $ mapM_ logTc =<< mapM (\(c,l) -> lift (use errCtx) >>= \c' -> return (c++c',l)) logs
     traceTc "tc" (text "subst for fun definition" <+> pretty f <+> text "is"
                   L.<$> pretty subst)
@@ -148,7 +149,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     return (FunDef f (PT vs t'') alts'')
 
   where
-    asFunType (T (TFun _ a b)) = return (a, b)  -- TODO
+    asFunType (T (TFun is a b)) = return (is, a, b)  -- TODO
     asFunType x@(T (TCon c as _)) = lookup c <$> lift (lift $ use knownTypes) >>= \case
                                       Just (vs, Just t) -> asFunType (substType (zip vs as) t)
                                       _ -> logErrExit $ NotAFunctionType x
