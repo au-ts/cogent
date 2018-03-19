@@ -152,7 +152,7 @@ data Constraint = (:<) (TypeFragment TCType) (TypeFragment TCType)
                 | Sat
                 | Exhaustive TCType [RawPatn]
                 | (:->) Constraint Constraint  -- constraint implication
-                | ImplicitParams [TIPConstraint TCType]
+                | ImplicitParam (TIPConstraint TCType)
                 deriving (Eq, Show, Ord)
 
 instance Monoid Constraint where

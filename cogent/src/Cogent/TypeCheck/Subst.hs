@@ -73,7 +73,7 @@ applyC s (SemiSat w) = SemiSat (applyWarn s w)
 applyC s Sat = Sat
 applyC s (Exhaustive t ps) = Exhaustive (apply s t) ps
 applyC s (a :-> b) = applyC s a :-> applyC s b
-applyC s (ImplicitParams is) = ImplicitParams $ map (second $ apply s) is
+applyC s (ImplicitParam i) = ImplicitParam $ (second $ apply s) i
 
 applyE :: Subst -> TCExpr -> TCExpr
 applyE s (TE t e l) = TE (apply s t)

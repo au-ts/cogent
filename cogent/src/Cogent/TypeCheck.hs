@@ -47,7 +47,7 @@ import Text.Parsec.Pos
 import qualified Text.PrettyPrint.ANSI.Leijen as L
 import Text.PrettyPrint.ANSI.Leijen hiding ((<>), (<$>))
 
--- import Debug.Trace
+import Debug.Trace
 
 tc :: [(SourcePos, TopLevel LocType LocPatn LocExpr)]
    -> [(LocType, String)]
@@ -135,7 +135,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     let ctx = C.addScope (fmap (\(t,p) -> (t, p, Seq.singleton p)) base) C.empty
     let ?loc = loc
     ((c, alts'), flx, os) <- runCG ctx (map fst vs) (cgAlts alts o i)
-    let c' = ImplicitParams imps :-> c
+    let c' = mconcat [ImplicitParam i | i <- imps] :-> c
     traceTc "tc" (text "constraint for fun definition" <+> pretty f <+> text "is"
                   L.<$> prettyC c')
     -- traceTc "tc" (pretty alts')

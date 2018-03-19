@@ -70,6 +70,7 @@ crunch :: Constraint -> TcBaseM [Goal]
 crunch (x :@ e) = map (goalContext %~ (++[e])) <$> crunch x
 crunch (x :& y) = (++) <$> crunch x <*> crunch y
 crunch (x :-> y1 :& ys) = crunch ((x :-> y1) :& (x :-> ys))
+crunch (x1 :& xs :-> y) = crunch ((x1 :-> y) :& (xs :-> y))  -- we know we have only one kind of predicate
 crunch Sat   = return []
 crunch x     = return [Goal [] x]
 
@@ -367,11 +368,11 @@ rule ct@(a :< b) = do
   traceTc "sol" (text "apply rule to" <+> prettyC ct <> semi
            P.<$> text "yield type mismatch")
   return . Just $ Unsat (TypeMismatch a b)
-rule (a :-> b) | a == b    = return $ Just Sat
-rule (ImplicitParams imps :-> ImplicitParams imps') =
-  return . Just $ mconcat [ImplicitParams [i] :-> ImplicitParams [j] | i <- imps, j <- imps']
-rule (ImplicitParams [(v,t)] :-> ImplicitParams [(u,s)]) | v == u = return $ Just (F s :< F t)
-rule (ImplicitParams _ :-> b) = return $ Just b  -- drop predicate
+rule (a :-> b) | a == b = return $ Just Sat
+rule (Sat :-> b) = return $ Just b
+rule (a :-> Sat) = return $ Just Sat
+rule (ImplicitParam (v,t) :-> ImplicitParam (u,s)) | v == u = return $ Just (F t :< F s)
+rule (ImplicitParam _ :-> b) = return $ Just b  -- drop predicate
   
 rule ct = do
   -- traceTc "sol" (text "apply rule to" <+> prettyC ct <> semi
@@ -439,7 +440,7 @@ simp (SemiSat w)         = pure (SemiSat w)
 simp Sat                 = pure Sat
 simp (Exhaustive t ps)   = Exhaustive <$> whnf t <*> pure ps
 simp (a :-> b)           = (:->)      <$> simp a <*> simp b
-simp (ImplicitParams is) = ImplicitParams <$> traverse (traverse whnf) is
+simp (ImplicitParam i)   = ImplicitParam <$> traverse whnf i
 
 simp' :: Constraint -> TcBaseM Constraint
 simp' c = runExceptT (simp c) >>= \case

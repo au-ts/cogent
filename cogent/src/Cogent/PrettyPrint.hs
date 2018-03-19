@@ -648,7 +648,7 @@ instance Pretty Constraint where
   pretty (Exhaustive t p) = warn "Exhaustive" <+> pretty t <+> pretty p
   pretty (x :@ _)         = pretty x
   pretty (a :-> b)        = parens (pretty a </> warn ":->" </> pretty b)
-  pretty (ImplicitParams is) = braces $ commaList $ map (\(v,t) -> symbol "?" <> varname v <+> symbol ":" <+> pretty t) is
+  pretty (ImplicitParam (v,t)) = braces $ symbol "?" <> varname v <+> symbol ":" <+> pretty t
 
 -- a more verbose version of constraint pretty-printer which is mostly used for debugging
 prettyC :: Constraint -> Doc

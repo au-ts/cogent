@@ -145,10 +145,11 @@ cg' (IPVar n) t = do
   let e = IPVar n
   ctx <- use context
   traceTc "gen" (text "cg for implicit param" <+> pretty n L.<$> text "of type" <+> pretty t)
-  case C.lookup n ctx of
-    Nothing -> return (Share alpha ImplicitParameter <> Drop alpha ImplicitParameter <>
-                       F alpha :< F t <> ImplicitParams [(n, alpha)], e)
-    Just (t',_,_)  -> return (Unsat (ImplicitConflictsWith n), e)
+  let c = Share alpha ImplicitParameter <> Drop alpha ImplicitParameter <>
+          F alpha :< F t <> ImplicitParam (n, alpha)
+  traceTc "gen" (text "Implicit param not in context, generate constraint"
+           L.<$> prettyC c)
+  return (c, e)
 
 cg' (Upcast e) t = do
   alpha <- fresh
@@ -286,7 +287,7 @@ cg' (TypeApp f as i) t = do
         (ts,c') <- match vs as'
 
         let c = F (substType ts tau) :< F t
-            cimps = ImplicitParams $ impsType (substType ts tau)  -- FIXME
+            cimps = mconcat $ [ImplicitParam i | i <-impsType (substType ts tau)]  -- FIXME
             e = TypeApp f (map (Just . snd) ts) i
         ctx <- use context
         traceTc "gen" (text "cg for typeapp:" <+> prettyE e
@@ -517,7 +518,9 @@ withBindings (Binding pat tau e0 bs : []) e top | LocIrrefPatn l (PIPVar n) <- p
     Nothing -> return (Sat, alpha)
     Just _  -> __todo "withBindings: not yet implemented"
   (c', e') <- cg e top
-  let c = ct <> c0 <> (ImplicitParams [] :-> c')
+  let c = ct <> c0 <> (ImplicitParam (n, alpha') :-> c')
+  traceTc "gen" (text "let binding an implicit parameter" <+> L.pretty n
+           L.<$> text "generate constraint" <+> prettyC c)
   return (c, Binding (TIP (PIPVar (n, alpha')) l) (fmap (const alpha) tau) e0' bs : [], e')
 withBindings (Binding pat tau e0 bs : xs) e top = do
   alpha <- fresh
