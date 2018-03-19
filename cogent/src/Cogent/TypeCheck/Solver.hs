@@ -69,6 +69,7 @@ runSolver ma ks f os = do
 crunch :: Constraint -> TcBaseM [Goal]
 crunch (x :@ e) = map (goalContext %~ (++[e])) <$> crunch x
 crunch (x :& y) = (++) <$> crunch x <*> crunch y
+crunch (x :-> y1 :& ys) = crunch ((x :-> y1) :& (x :-> ys))
 crunch Sat   = return []
 crunch x     = return [Goal [] x]
 
@@ -366,6 +367,12 @@ rule ct@(a :< b) = do
   traceTc "sol" (text "apply rule to" <+> prettyC ct <> semi
            P.<$> text "yield type mismatch")
   return . Just $ Unsat (TypeMismatch a b)
+rule (a :-> b) | a == b    = return $ Just Sat
+rule (ImplicitParams imps :-> ImplicitParams imps') =
+  return . Just $ mconcat [ImplicitParams [i] :-> ImplicitParams [j] | i <- imps, j <- imps']
+rule (ImplicitParams [(v,t)] :-> ImplicitParams [(u,s)]) | v == u = return $ Just (F s :< F t)
+rule (ImplicitParams _ :-> b) = return $ Just b  -- drop predicate
+  
 rule ct = do
   -- traceTc "sol" (text "apply rule to" <+> prettyC ct <> semi
   --          P.<$> text "yield nothing")
@@ -420,17 +427,19 @@ auto c = do
 
 -- applies whnf to every type in a constraint.
 simp :: Constraint -> TcErrM TypeError Constraint
-simp (a :< b)          = (:<)       <$> traverse whnf a <*> traverse whnf b
-simp (Upcastable a b)  = Upcastable <$> whnf a <*> whnf b
-simp (a :& b)          = (:&)       <$> simp a <*> simp b
-simp (Share  t m)      = Share      <$> whnf t <*> pure m
-simp (Drop   t m)      = Drop       <$> whnf t <*> pure m
-simp (Escape t m)      = Escape     <$> whnf t <*> pure m
-simp (a :@ c)          = (:@)       <$> simp a <*> pure c
-simp (Unsat e)         = pure (Unsat e)
-simp (SemiSat w)       = pure (SemiSat w)
-simp Sat               = pure Sat
-simp (Exhaustive t ps) = Exhaustive <$> whnf t <*> pure ps
+simp (a :< b)            = (:<)       <$> traverse whnf a <*> traverse whnf b
+simp (Upcastable a b)    = Upcastable <$> whnf a <*> whnf b
+simp (a :& b)            = (:&)       <$> simp a <*> simp b
+simp (Share  t m)        = Share      <$> whnf t <*> pure m
+simp (Drop   t m)        = Drop       <$> whnf t <*> pure m
+simp (Escape t m)        = Escape     <$> whnf t <*> pure m
+simp (a :@ c)            = (:@)       <$> simp a <*> pure c
+simp (Unsat e)           = pure (Unsat e)
+simp (SemiSat w)         = pure (SemiSat w)
+simp Sat                 = pure Sat
+simp (Exhaustive t ps)   = Exhaustive <$> whnf t <*> pure ps
+simp (a :-> b)           = (:->)      <$> simp a <*> simp b
+simp (ImplicitParams is) = ImplicitParams <$> traverse (traverse whnf) is
 
 simp' :: Constraint -> TcBaseM Constraint
 simp' c = runExceptT (simp c) >>= \case
@@ -737,7 +746,7 @@ applySubst s = traceTc "sol" (text "apply subst") >> substs <>= s
 instantiate :: GoalClasses -> Solver [Goal]
 instantiate (Classes ups downs upcasts downcasts errs semisats rest upfl downfl) = do
   s <- use substs
-  let al  = (GS.toList =<< (F.toList =<< [ups, downs, upcasts, downcasts]) ) ++ errs ++ semisats ++ rest
+  let al  = (GS.toList =<< (F.toList =<< [ups, downs, upcasts, downcasts])) ++ errs ++ semisats ++ rest
       al' = al & map (goal %~ Subst.applyC s) & map (goalContext %~ map (Subst.applyCtx s))
   -- traceTc "sol" (text "instantiate" <+> pretty (show al) P.<$> text "with substitution" P.<$> pretty s <> semi
   --                P.<$> text "end up with goals:" <+> pretty (show al'))

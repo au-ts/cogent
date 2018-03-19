@@ -15,6 +15,7 @@ import Cogent.TypeCheck.Base
 -- import Cogent.TypeCheck.Util
 import Cogent.Util
 
+import Control.Arrow (second)
 import qualified Data.IntMap as M
 import Data.Maybe
 import Data.Monoid hiding (Alt)
@@ -71,6 +72,8 @@ applyC s (Unsat e) = Unsat (applyErr s e)
 applyC s (SemiSat w) = SemiSat (applyWarn s w)
 applyC s Sat = Sat
 applyC s (Exhaustive t ps) = Exhaustive (apply s t) ps
+applyC s (a :-> b) = applyC s a :-> applyC s b
+applyC s (ImplicitParams is) = ImplicitParams $ map (second $ apply s) is
 
 applyE :: Subst -> TCExpr -> TCExpr
 applyE s (TE t e l) = TE (apply s t)

@@ -146,7 +146,8 @@ cg' (IPVar n) t = do
   ctx <- use context
   traceTc "gen" (text "cg for implicit param" <+> pretty n L.<$> text "of type" <+> pretty t)
   case C.lookup n ctx of
-    Nothing -> return (Share alpha ImplicitParameter <> F alpha :< F t <> ImplicitParams [(n, alpha)], e)
+    Nothing -> return (Share alpha ImplicitParameter <> Drop alpha ImplicitParameter <>
+                       F alpha :< F t <> ImplicitParams [(n, alpha)], e)
     Just (t',_,_)  -> return (Unsat (ImplicitConflictsWith n), e)
 
 cg' (Upcast e) t = do

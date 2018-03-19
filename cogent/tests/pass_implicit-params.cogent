@@ -7,7 +7,7 @@ foo (as, o) = let ?o = o
 bar : all (obsv :< DS, a). (a, obsv) -> a
 
 map : all (a, obsv :< DS). {?o : obsv} -> (Array a, {?o : obsv} -> a -> a) -> Array a
-map (as, f) = map_ (as, ?o, \(a, o) => f a)
+map (as, f) = map_ (as, ?o, \(a, oo) => f a)
 
 -- but we don't need to use map_ in .ac files, we can just instead make map_ the abstract function
 
