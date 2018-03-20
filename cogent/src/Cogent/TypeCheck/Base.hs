@@ -138,7 +138,7 @@ data Metadata = Reused { varName :: VarName, boundAt :: SourcePos, usedAt :: Seq
 infixl 8 :&
 infixl 9 :@
 infix  9 :<
-infixr 7 :->
+infixr 7 :->  -- this is made higher than (<>)
 
 data Constraint = (:<) (TypeFragment TCType) (TypeFragment TCType)
                 | (:&) Constraint Constraint

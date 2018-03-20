@@ -656,6 +656,7 @@ prettyC (Unsat e) = errbd "Unsat" <$> pretty e
 prettyC (SemiSat w) = warn "SemiSat" -- <$> pretty w
 prettyC (a :& b) = prettyC a </> warn ":&" <$> prettyC b
 prettyC (c :@ e) = prettyC c & (if __cogent_ddump_tc_ctx then (</> prettyCtx e False) else (</> warn ":@ ..."))
+prettyC (a :-> b) = parens (prettyC a </> warn ":->" </> prettyC b)
 prettyC c = pretty c
 
 instance Pretty SourceObject where

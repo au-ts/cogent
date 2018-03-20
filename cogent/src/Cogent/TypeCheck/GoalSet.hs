@@ -29,11 +29,15 @@ import qualified Data.Foldable as F
 data Goal = Goal { _goalContext :: [ErrorContext]
                  , _goal :: Constraint
                  }  -- high-level context at the end of _goalContext
+          deriving (Show)
 
-instance Show Goal where
-  show (Goal c g) = const (show big) big
+instance Pretty Goal where
+  pretty (Goal c g) = big
     where big = (small P.<$> (P.vcat $ map (flip prettyCtx True) c))
           small = pretty g
+
+prettyGoalC (Goal _ g) = pretty g
+prettyListGoalC gs = P.vcat $ map prettyGoalC gs
 
 makeLenses ''Goal
 

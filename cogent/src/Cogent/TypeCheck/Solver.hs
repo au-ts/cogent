@@ -48,6 +48,8 @@ import qualified Data.Set as S
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
 
+import Debug.Trace
+
 data SolverState = SolverState { _axioms      :: [(TyVarName, Kind)]
                                , _substs      :: Subst
                                , _flexes      :: Int
@@ -69,10 +71,9 @@ runSolver ma ks f os = do
 crunch :: Constraint -> TcBaseM [Goal]
 crunch (x :@ e) = map (goalContext %~ (++[e])) <$> crunch x
 crunch (x :& y) = (++) <$> crunch x <*> crunch y
-crunch (x :-> y1 :& ys) = crunch ((x :-> y1) :& (x :-> ys))
-crunch (x1 :& xs :-> y) = crunch ((x1 :-> y) :& (xs :-> y))  -- we know we have only one kind of predicate
+crunch ct@(x :-> (y1 :& ys)) = trace ("crunch: " ++ show (prettyC ct)) $ (++) <$> crunch (x :-> y1) <*> crunch (x :-> ys)
 crunch Sat   = return []
-crunch x     = return [Goal [] x]
+crunch x     = trace ("crunch-end: " ++ show (prettyC x)) $ return [Goal [] x]
 
 -- Rewrites out type synonyms, TUnbox, TBang, TTake, and TPut
 -- so that the "head" of the type is guaranteed to be a concrete type.
@@ -368,12 +369,11 @@ rule ct@(a :< b) = do
   traceTc "sol" (text "apply rule to" <+> prettyC ct <> semi
            P.<$> text "yield type mismatch")
   return . Just $ Unsat (TypeMismatch a b)
-rule (a :-> b) | a == b = return $ Just Sat
-rule (Sat :-> b) = return $ Just b
-rule (a :-> Sat) = return $ Just Sat
-rule (ImplicitParam (v,t) :-> ImplicitParam (u,s)) | v == u = return $ Just (F t :< F s)
-rule (ImplicitParam _ :-> b) = return $ Just b  -- drop predicate
-  
+rule ct@(a :-> b) | a == b = trace ("rule(1): " ++ show (prettyC ct)) $ return $ Just Sat
+rule ct@(Sat :-> b) = trace ("rule(2): " ++ show (prettyC ct)) $ return $ Just b
+rule ct@(ImplicitParam (v,t) :-> ImplicitParam (u,s)) | v == u = trace ("rule(3): " ++ show (prettyC ct)) $ return $ Just (F t :< F s)
+rule ct@(_ :-> b) = trace ("rule(4): " ++ show (prettyC ct)) $ return $ Just b  -- b not ImplicitParam constraint, drop predicate
+
 rule ct = do
   -- traceTc "sol" (text "apply rule to" <+> prettyC ct <> semi
   --          P.<$> text "yield nothing")
@@ -414,7 +414,7 @@ apply tactic = fmap concat . mapM each
           traceTc "sol" (text "apply tactic to goal" <+> prettyC c)
           c' <- tactic c
           traceTc "sol" (text "after tactic" <+> prettyC c </> text "becomes" <+> prettyC c')
-          map (goalContext %~ (++ ctx)) <$> crunch c'
+          map (goalContext %~ (++ ctx)) <$> (crunch c' >>= \x -> trace ("apply-crunch: " ++ show (GS.prettyListGoalC x)) (return x))
 
 -- Applies simp and rules as much as possible
 auto :: Constraint -> TcBaseM Constraint
@@ -608,7 +608,8 @@ data GoalClasses
     }
 
 instance Show GoalClasses where
-  show (Classes u d uc dc un ss r uf df) = "ups:\n" ++
+  show (Classes u d uc dc un ss r uf df) =
+                              "ups:\n" ++
                               unlines (map (("  " ++) . show) (F.toList u)) ++
                               "\ndowns:\n" ++
                               unlines (map (("  " ++) . show) (F.toList d)) ++
@@ -651,10 +652,10 @@ flexesIn = F.foldMap f
 -- Consider using auto first, or using explode instead of this function.
 classify :: Goal -> GoalClasses
 classify g = case g of
-  (Goal _ (a       :< F (U x))) | rigid a     -> mempty {ups   = IM.singleton x $ GS.singleton g, downflexes = flexesIn a }
-  (Goal _ (F (U x) :< b      )) | rigid b     -> mempty {downs = IM.singleton x $ GS.singleton g, upflexes   = flexesIn b }
-  (Goal _ (b `Upcastable` U x)) | rigid (F b) -> mempty {upcastables   = IM.singleton x $ GS.singleton g }
-  (Goal _ (U x `Upcastable` b)) | rigid (F b) -> mempty {downcastables = IM.singleton x $ GS.singleton g }
+  (Goal _ (a       :< F (U x))) | rigid a     -> mempty {ups   = IM.singleton x $ GS.singleton g, downflexes = flexesIn a}
+  (Goal _ (F (U x) :< b      )) | rigid b     -> mempty {downs = IM.singleton x $ GS.singleton g, upflexes   = flexesIn b}
+  (Goal _ (b `Upcastable` U x)) | rigid (F b) -> mempty {upcastables   = IM.singleton x $ GS.singleton g}
+  (Goal _ (U x `Upcastable` b)) | rigid (F b) -> mempty {downcastables = IM.singleton x $ GS.singleton g}
   (Goal _ (Unsat _))                          -> mempty {unsats = [g]}
   (Goal _ (SemiSat _))                        -> mempty {semisats = [g]}
   (Goal _ Sat)                                -> mempty
@@ -770,7 +771,9 @@ assumption gs = do
 -- Take an assorted list of goals, and break them down into neatly classified, simple flex/rigid goals.
 -- Removes any known facts about type variables.
 explode :: [Goal] -> Solver GoalClasses
-explode = assumption >=> (lift . apply auto) >=> (return . foldMap classify)
+explode = assumption >=> (lift . apply auto) >=> (return . foldMap classify')
+  where classify' x = let g = classify x
+                       in trace ("rest = " ++ show (GS.prettyListGoalC $ rest g)) g
 
 irreducible :: IM.IntMap [Goal] -> IS.IntSet -> Bool
 irreducible m ds | IM.null m = True
@@ -817,7 +820,7 @@ data GoalClass = UpClass | DownClass | UpcastClass | DowncastClass
 --          pull type information up from the LHS to the RHS of :< constraints and go to 1
 --   4. If there are any remaining constraints, report unsolved error, otherwise return empty list.
 solve :: Constraint -> Solver [ContextualisedTcLog]
-solve = lift . crunch >=> explode >=> go
+solve = lift . (\x -> crunch x >>= \y -> trace ("solve-crunch: " ++ show (GS.prettyListGoalC y)) (return y)) >=> explode >=> go
   where
     go :: GoalClasses -> Solver [ContextualisedTcLog]
     go g | not (null (unsats g)) = return $ map toWarn (semisats g) ++
