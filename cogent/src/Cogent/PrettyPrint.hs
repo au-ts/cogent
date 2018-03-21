@@ -113,43 +113,67 @@ associativity = S.associativity . symbolOp
 -- type classes and instances for different constructs
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+class Prec a where  -- precedence
+  prec :: a -> Int
+
+instance Prec (Expr t p ip e) where
+  prec (Lam  {}) = 100
+  prec (LamC {}) = 100
+  prec (App  {}) = 1
+  prec (AppC {}) = 1
+  prec (PrimOp n _) = level (associativity n)
+  prec (Member {}) = 0
+  prec (Var {}) = 0
+  prec (IntLit {}) = 0
+  prec (BoolLit {}) = 0
+  prec (CharLit {}) = 0
+  prec (StringLit {}) = 0
+  prec (Tuple {}) = 0
+  prec (Unitel) = 0
+  prec (Con {}) = 1
+  prec (Annot {}) = 50
+  prec (UnboxedRecord {}) = 100
+  prec (Put {}) = 100
+  prec (TypeApp {}) = 100
+  prec (Upcast {}) = 100
+  prec (Seq {}) = 100
+  prec (Match {}) = 100
+  prec (If {}) = 100
+  prec (Let {}) = 100
+
+instance Prec RawExpr where
+  prec (RE e) = prec e
+
+instance Prec (TExpr t) where
+  prec (TE _ e _) = prec e
+
+-- NOTE: the difference from the definition of the fixity of Constraint
+instance Prec Constraint where
+  prec (_ :-> _) = 3
+  prec (_ :&  _) = 2
+  prec (_ :@  _) = 1
+  prec _ = 0
+
+-- ------------------------------------
+
+-- add parens and indents to expressions depending on level
+prettyPrec :: (Pretty a, Prec a) => Int -> a -> Doc
+prettyPrec l x | prec x < l = pretty x
+               | otherwise  = parens (indent (pretty x))
+
+-- ------------------------------------
+
 class ExprType a where
-  levelExpr :: a -> Int  -- associativity levels
   isVar :: a -> VarName -> Bool
 
 instance ExprType (Expr t p ip e) where
-  levelExpr (Lam  {}) = 100
-  levelExpr (LamC {}) = 100
-  levelExpr (App  {}) = 1
-  levelExpr (AppC {}) = 1
-  levelExpr (PrimOp n _) = level (associativity n)
-  levelExpr (Member {}) = 0
-  levelExpr (Var {}) = 0
-  levelExpr (IntLit {}) = 0
-  levelExpr (BoolLit {}) = 0
-  levelExpr (CharLit {}) = 0
-  levelExpr (StringLit {}) = 0
-  levelExpr (Tuple {}) = 0
-  levelExpr (Unitel) = 0
-  levelExpr (Con {}) = 1
-  levelExpr (Annot {}) = 50
-  levelExpr (UnboxedRecord {}) = 100
-  levelExpr (Put {}) = 100
-  levelExpr (TypeApp {}) = 100
-  levelExpr (Upcast {}) = 100
-  levelExpr (Seq {}) = 100
-  levelExpr (Match {}) = 100
-  levelExpr (If {}) = 100
-  levelExpr (Let {}) = 100
   isVar (Var n) s = (n == s)
   isVar _ _ = False
 
 instance ExprType RawExpr where
-  levelExpr (RE e) = levelExpr e
   isVar (RE e) = isVar e
 
 instance ExprType (TExpr t) where
-  levelExpr (TE _ e _) = levelExpr e
   isVar (TE _ e _)     = isVar e
 
 -- ------------------------------------
@@ -157,7 +181,7 @@ instance ExprType (TExpr t) where
 class PatnType a where
   isPVar  :: a -> VarName -> Bool
   prettyP :: a -> Doc
-  prettyB :: (Pretty t, Pretty e, ExprType e) => (a, Maybe t, e) -> Bool -> Doc  -- binding
+  prettyB :: (Pretty t, Pretty e, Prec e) => (a, Maybe t, e) -> Bool -> Doc  -- binding
 
 instance (PrettyName pv, PatnType ip, Pretty ip) => PatnType (IrrefutablePattern pv ip) where
   isPVar (PVar pv) = isName pv
@@ -167,9 +191,9 @@ instance (PrettyName pv, PatnType ip, Pretty ip) => PatnType (IrrefutablePattern
   prettyP p = pretty p
 
   prettyB (p, Just t, e) i
-       = group (pretty p <+> symbol ":" <+> pretty t <+> symbol "=" <+> (if i then (pretty' 100) else pretty) e)
+       = group (pretty p <+> symbol ":" <+> pretty t <+> symbol "=" <+> (if i then (prettyPrec 100) else pretty) e)
   prettyB (p, Nothing, e) i
-       = group (pretty p <+> symbol "=" <+> (if i then (pretty' 100) else pretty) e)
+       = group (pretty p <+> symbol "=" <+> (if i then (prettyPrec 100) else pretty) e)
 
 instance PatnType RawIrrefPatn where
   isPVar  (RIP p) = isPVar p
@@ -194,9 +218,9 @@ instance (PatnType ip, Pretty ip) => PatnType (Pattern ip) where
   prettyP p = pretty p
 
   prettyB (p, Just t, e) i
-       = group (pretty p <+> symbol ":" <+> pretty t <+> symbol "<=" <+> (if i then (pretty' 100) else pretty) e)
+       = group (pretty p <+> symbol ":" <+> pretty t <+> symbol "<=" <+> (if i then (prettyPrec 100) else pretty) e)
   prettyB (p, Nothing, e) i
-       = group (pretty p <+> symbol "<=" <+> (if i then (pretty' 100) else pretty) e)
+       = group (pretty p <+> symbol "<=" <+> (if i then (prettyPrec 100) else pretty) e)
 
 instance PatnType RawPatn where
   isPVar  (RP p)= isPVar p
@@ -309,7 +333,7 @@ instance Pretty LocPatn where
 instance Pretty t => Pretty (TPatn t) where
   pretty (TP p _) = pretty p
 
-instance (Pretty t, PatnType ip, PatnType p, Pretty p, Pretty e, ExprType e) => Pretty (Binding t p ip e) where
+instance (Pretty t, PatnType ip, PatnType p, Pretty p, Pretty e, Prec e) => Pretty (Binding t p ip e) where
   pretty (Binding p t e []) = prettyB (p,t,e) False
   pretty (Binding p t e bs)
      = prettyB (p,t,e) True <+> hsep (map (letbangvar . ('!':)) bs)
@@ -332,54 +356,53 @@ instance Pretty Inline where
   pretty Inline = keyword "inline" <+> empty
   pretty NoInline = empty
 
-instance (ExprType e, Pretty t, PatnType p, Pretty p, PatnType ip, Pretty ip, Pretty e) =>
+instance (ExprType e, Prec e, Pretty t, PatnType p, Pretty p, PatnType ip, Pretty ip, Pretty e) =>
          Pretty (Expr t p ip e) where
   pretty (Var x)             = varname x
   pretty (IPVar x)           = symbol "?" <> varname x
   pretty (TypeApp x ts note) = pretty note <> varname x
                                  <> typeargs (map (\case Nothing -> symbol "_"; Just t -> pretty t) ts)
-  pretty (Member x f)        = pretty' 1 x <> symbol "." <> fieldname f
+  pretty (Member x f)        = prettyPrec 1 x <> symbol "." <> fieldname f
   pretty (IntLit i)          = literal (string $ show i)
   pretty (BoolLit b)         = literal (string $ show b)
   pretty (CharLit c)         = literal (string $ show c)
   pretty (StringLit s)       = literal (string $ show s)
   pretty (Unitel)            = string "()"
   pretty (PrimOp n [a,b])
-     | LeftAssoc  l <- associativity n = pretty' (l+1) a <+> primop n <+> pretty' l     b
-     | RightAssoc l <- associativity n = pretty' l     a <+> primop n <+> pretty' (l+1) b
-     | NoAssoc    l <- associativity n = pretty' l     a <+> primop n <+> pretty' l     b
-  pretty (PrimOp n [e])      = primop n <+> pretty' 1 e
+     | LeftAssoc  l <- associativity n = prettyPrec (l+1) a <+> primop n <+> prettyPrec l     b
+     | RightAssoc l <- associativity n = prettyPrec l     a <+> primop n <+> prettyPrec (l+1) b
+     | NoAssoc    l <- associativity n = prettyPrec l     a <+> primop n <+> prettyPrec l     b
+  pretty (PrimOp n [e])      = primop n <+> prettyPrec 1 e
   pretty (PrimOp n es)       = primop n <+> tupled (map pretty es)
-  -- pretty (Widen e)           = keyword "widen"  <+> pretty' 1 e
-  pretty (Upcast e)          = keyword "upcast" <+> pretty' 1 e
+  pretty (Upcast e)          = keyword "upcast" <+> prettyPrec 1 e
   pretty (Lam p mt e)        = string "\\" <> pretty p <> 
-                               (case mt of Nothing -> empty; Just t -> space <> symbol ":" <+> pretty t) <+> symbol "=>" <+> pretty' 100 e
+                               (case mt of Nothing -> empty; Just t -> space <> symbol ":" <+> pretty t) <+> symbol "=>" <+> prettyPrec 100 e
   pretty (LamC p mt e _)     = pretty (Lam p mt e :: Expr t p ip e)
-  pretty (App  a b)          = pretty' 2 a <+> pretty' 1 b
-  pretty (AppC a b)          = pretty' 2 a <+> pretty' 1 b
+  pretty (App  a b)          = prettyPrec 2 a <+> prettyPrec 1 b
+  pretty (AppC a b)          = prettyPrec 2 a <+> prettyPrec 1 b
   pretty (Con n [] )         = tagname n
-  pretty (Con n [e])         = tagname n <+> pretty' 1 e
-  pretty (Con n es )         = tagname n <+> spaceList (map (pretty' 1) es)
+  pretty (Con n [e])         = tagname n <+> prettyPrec 1 e
+  pretty (Con n es )         = tagname n <+> spaceList (map (prettyPrec 1) es)
   pretty (Tuple es)          = tupled (map pretty es)
   pretty (UnboxedRecord fs)  = string "#" <> record (map (handlePutAssign . Just) fs)
-  pretty (If c vs t e)       = group (keyword "if" <+> handleBangedIf vs (pretty' 100 c)
+  pretty (If c vs t e)       = group (keyword "if" <+> handleBangedIf vs (prettyPrec 100 c)
                                                    <$> indent (keyword "then" </> pretty t)
                                                    <$> indent (keyword "else" </> pretty e))
     where handleBangedIf []  = id
           handleBangedIf vs  = (<+> hsep (map (letbangvar . ('!':)) vs))
-  pretty (Match e bs alts)   = handleLetBangs bs (pretty' 100 e)
+  pretty (Match e bs alts)   = handleLetBangs bs (prettyPrec 100 e)
                                <> mconcat (map ((hardline <>) . indent . prettyA False) alts)
     where handleLetBangs []  = id
           handleLetBangs bs  = (<+> hsep (map (letbangvar . ('!':)) bs))
-  pretty (Seq a b)           = pretty' 100 a <> symbol ";" <$> pretty b
+  pretty (Seq a b)           = prettyPrec 100 a <> symbol ";" <$> pretty b
   pretty (Let []     e)      = __impossible "pretty (in RawExpr)"
   pretty (Let (b:[]) e)      = keyword "let" <+> indent (pretty b)
                                              <$> keyword "in" <+> indent (pretty e)
   pretty (Let (b:bs) e)      = keyword "let" <+> indent (pretty b)
                                              <$> vsep (map ((keyword "and" <+>) . indent . pretty) bs)
                                              <$> keyword "in" <+> indent (pretty e)
-  pretty (Put e fs)          = pretty' 1 e <+> record (map handlePutAssign fs)
-  pretty (Annot e t)         = pretty' 50 e <+> symbol ":" <+> pretty t
+  pretty (Put e fs)          = prettyPrec 1 e <+> record (map handlePutAssign fs)
+  pretty (Annot e t)         = prettyPrec 50 e <+> symbol ":" <+> pretty t
 
 instance Pretty RawExpr where
   pretty (RE e) = pretty e
@@ -637,7 +660,7 @@ instance (Pretty a, TypeType a) => Pretty (TypeFragment a) where
 
 instance Pretty Constraint where
   pretty (a :< b)         = pretty a </> warn ":<" </> pretty b
-  pretty (a :& b)         = pretty a </> warn ":&" </> pretty b
+  pretty (a :& b)         = prettyPrec 3 a </> warn ":&" </> prettyPrec 2 b
   pretty (Upcastable a b) = pretty a </> warn "~>" </> pretty b
   pretty (Share  t m)     = warn "Share" <+> pretty t
   pretty (Drop   t m)     = warn "Drop" <+> pretty t
@@ -647,17 +670,21 @@ instance Pretty Constraint where
   pretty (Sat)            = warn "Sat"
   pretty (Exhaustive t p) = warn "Exhaustive" <+> pretty t <+> pretty p
   pretty (x :@ _)         = pretty x
-  pretty (a :-> b)        = parens (pretty a </> warn ":->" </> pretty b)
+  pretty (a :-> b)        = prettyPrec 4 a </> warn ":->" </> prettyPrec 3 b
   pretty (ImplicitParam (v,t)) = braces $ symbol "?" <> varname v <+> symbol ":" <+> pretty t
 
 -- a more verbose version of constraint pretty-printer which is mostly used for debugging
 prettyC :: Constraint -> Doc
 prettyC (Unsat e) = errbd "Unsat" <$> pretty e
 prettyC (SemiSat w) = warn "SemiSat" -- <$> pretty w
-prettyC (a :& b) = prettyC a </> warn ":&" <$> prettyC b
-prettyC (c :@ e) = prettyC c & (if __cogent_ddump_tc_ctx then (</> prettyCtx e False) else (</> warn ":@ ..."))
-prettyC (a :-> b) = parens (prettyC a </> warn ":->" </> prettyC b)
+prettyC (a :& b) = prettyCPrec 3 a </> warn ":&" <$> prettyCPrec 2 b
+prettyC (c :@ e) = prettyCPrec 2 c & (if __cogent_ddump_tc_ctx then (</> prettyCtx e False) else (</> warn ":@ ..."))
+prettyC (a :-> b) = prettyCPrec 4 a </> warn ":->" </> prettyCPrec 3 b
 prettyC c = pretty c
+
+prettyCPrec :: Int -> Constraint -> Doc
+prettyCPrec l x | prec x < l = prettyC x
+                | otherwise  = parens (indent (prettyC x))
 
 instance Pretty SourceObject where
   pretty (TypeName n) = typename n
@@ -719,11 +746,6 @@ prettyCtx (AntiquotedExpr e) i = (if i then (<$> indent' (pretty (stripLocE e)))
                                (context "in the antiquoted expression at (" <> pretty (posOfE e) <> context ")" )
 prettyCtx (InAntiquotedCDefn n) _ = context "in the antiquoted C definition" <+> varname n
 prettyCtx (CustomisedCodeGen t) _ = context "in customising code-generation for type" <+> pretty t
-
--- add parens and indents to expressions depending on level
-pretty' :: (Pretty a, ExprType a) => Int -> a -> Doc
-pretty' l x | levelExpr x < l = pretty x
-            | otherwise       = parens (indent (pretty x))
 
 handleTakeAssign :: (PatnType ip, Pretty ip) => Maybe (FieldName, ip) -> Doc
 handleTakeAssign Nothing = fieldname ".."
