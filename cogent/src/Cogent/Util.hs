@@ -21,6 +21,7 @@ import Control.Lens
 import Control.Monad
 import Data.Char
 import qualified Data.Map as M
+import Data.Monoid
 import qualified Data.List as L
 import Data.Version (showVersion)
 import System.Environment
@@ -168,6 +169,9 @@ fourth4 = (_4 %~)
 
 extTup3 :: d -> (a,b,c) -> (a,b,c,d)
 extTup3 d (a,b,c) = (a,b,c,d)
+
+foldMapM :: (Foldable t, Monad f, Monoid m) => (a -> f m) -> t a -> f m
+foldMapM f ts = foldM (\acc a -> (acc <>) <$> f a) mempty ts
 
 whenM :: (Monad m, Monoid a) => Bool -> m a -> m a
 whenM b ma = if b then ma else return mempty
