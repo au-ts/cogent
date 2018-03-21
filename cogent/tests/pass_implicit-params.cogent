@@ -2,7 +2,7 @@ type Array a
 
 foo : all (a, obsv :< DS). (Array a, obsv) -> Array a
 foo (as, o) = let ?o = o
-               in map[a, obsv] (as, \a => bar[a, obsv] (a, ?o))
+               in map (as, \a => bar (a, ?o))
 
 bar : all (a, obsv :< DS). (a, obsv) -> a
 

@@ -144,11 +144,10 @@ cg' (IPVar n) t = do
   alpha <- fresh
   let e = IPVar n
   ctx <- use context
-  traceTc "gen" (text "cg for implicit param" <+> pretty n L.<$> text "of type" <+> pretty t)
   let c = Share alpha ImplicitParameter <> Drop alpha ImplicitParameter <>
           F alpha :< F t <> ImplicitParam (n, alpha)
-  traceTc "gen" (text "Implicit param not in context, generate constraint"
-           L.<$> prettyC c)
+  traceTc "gen" (text "cg for implicit param" <+> pretty n <+> text "of type" <+> pretty t
+           L.<$> text "generate constraint" <+> prettyC c)
   return (c, e)
 
 cg' (Upcast e) t = do

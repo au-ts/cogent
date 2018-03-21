@@ -136,7 +136,7 @@ data Metadata = Reused { varName :: VarName, boundAt :: SourcePos, usedAt :: Seq
               deriving (Eq, Show, Ord)
 
 infixl 8 :&
-infixl 9 :@
+infixl 8 :@
 infix  9 :<
 infixr 7 :->  -- this is made higher than (<>)
 

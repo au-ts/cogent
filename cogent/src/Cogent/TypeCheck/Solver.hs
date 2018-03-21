@@ -80,7 +80,7 @@ crunch :: Constraint -> TcBaseM [Goal]
 crunch (x :@ e) = map (goalContext %~ (++[e])) <$> crunch x
 crunch (x :& y) = (++) <$> crunch x <*> crunch y
 crunch (x :-> (y1 :& ys)) = crunch ((x :-> y1) :&(x :-> ys))
-crunch (x :-> y :@ e) = crunch ((x :-> y) :@ e)
+crunch (x :-> y :@ c) = crunch ((x :-> y) :@ c)
 crunch Sat = return []
 crunch x   = return [Goal [] x]
 
@@ -381,6 +381,10 @@ rule ct@(a :< b) = do
 rule (a :-> b) | a == b = return $ Just Sat
 rule (Sat :-> b) = return $ Just b
 rule (ImplicitParam (v,t) :-> ImplicitParam (u,s)) | v == u = return $ Just (F t :< F s)
+rule (x :-> y1 :& ys) = return $ Just ((x :-> y1) :& (x :-> ys))
+rule (x :-> y :@ c) = do
+  let ?lvl = ?lvl + 1
+  return . ((:@ c) <$>) =<< ruleT (x :-> y)
 rule (_ :-> b) = return $ Just b  -- b not ImplicitParam constraint, drop predicate
 
 rule ct = do
