@@ -196,10 +196,12 @@ data DocExpr = DE { unDE :: Expr RawType RawPatn RawIrrefPatn DocExpr }
              | DocFnCall FunName [Maybe RawType] Inline deriving Show
 
 instance ExprType DocExpr where
-  levelExpr (DE e) = levelExpr e
-  levelExpr _ = 100
   isVar (DE e) s = isVar e s
   isVar _ _ = False
+
+instance Prec DocExpr where
+  prec (DE e) = prec e
+  prec _ = 100
 
 instance Pretty DocExpr where
   pretty (DE e) = pretty e
