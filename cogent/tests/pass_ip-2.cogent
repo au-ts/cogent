@@ -1,0 +1,8 @@
+type Array a
+
+map : all (a :< DS). {?f : a -> a} -> Array a -> Array a
+
+foo : {?o : U8} -> Array U8 -> Array U8
+foo as = let ?f = \x => x + ?o
+          in map as
+

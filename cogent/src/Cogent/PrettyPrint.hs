@@ -124,6 +124,7 @@ instance Prec (Expr t p ip e) where
   prec (PrimOp n _) = level (associativity n)
   prec (Member {}) = 0
   prec (Var {}) = 0
+  prec (IPVar {}) = 0
   prec (IntLit {}) = 0
   prec (BoolLit {}) = 0
   prec (CharLit {}) = 0
@@ -571,7 +572,7 @@ instance Pretty TypeError where
   pretty (RequiredTakenField f t)        = err "Field" <+> fieldname f <+> err "of type" <+> pretty t
                                            <+> err "is required, but has been taken"
   pretty (TypeNotShareable t m)          = err "Cannot share type" <+> pretty t
-                                           <$> err "but this is needed as" <+> pretty m
+                                           <+> err "but this is needed as" <+> pretty m
   pretty (TypeNotEscapable t m)          = err "Cannot let type" <+> pretty t <+> err "escape from a !-ed context,"
   pretty (TypeNotDiscardable t m)        = err "Cannot discard type" <+> pretty t
                                            <+> err "but this is needed as" <+> pretty m
@@ -639,6 +640,8 @@ analyseLeftover c@(F t :< F u) os
         _   -> err "A subtyping constraint" <+>  pretty c
            <+> err "can't be solved because the RHS is unknown and uses non-injective operators (like !).")
              : map (\i -> warn "• The unknown" <+> pretty (U i) <+> warn "originates from" <+> pretty (I.lookup i os)) ([u'])
+analyseLeftover c@(ImplicitParam (u,_)) _ = 
+  err "Unbound implicit parameter" <+> pretty c <+> err "arising from" <+> err "???" -- TODO
 analyseLeftover c os = case c of
     Share x m  | Just x' <- flexOf x -> msg x' m
     Drop x m   | Just x' <- flexOf x -> msg x' m

@@ -1,0 +1,4 @@
+f : {?x : U32} -> U32 -> U32
+f a = let ?x = ?x + 5
+      and ?y = ?x + 1  -- NOTE the treatment is different from Haskell
+       in ?x + ?y

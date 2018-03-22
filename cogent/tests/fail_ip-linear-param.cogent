@@ -1,0 +1,6 @@
+type A
+
+freeA : A -> ()
+
+foo : {?a : A} -> U8 -> U8
+foo x = let _ = freeA ?a in x

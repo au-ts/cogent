@@ -1,0 +1,7 @@
+type Array a
+
+map : all (a, obsv :< DS). (Array a, {?o : obsv} -> a -> a) -> Array a
+
+foo : Array U32 -> Array U32
+foo as = let ?o = 3
+          in map (as, \a => a + 3)

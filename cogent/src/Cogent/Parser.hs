@@ -256,7 +256,7 @@ monotype = monotype_ True
 monotype_ allowConstraints = do 
   avoidInitial
   impls <- case allowConstraints of
-             True -> optionMaybe (braces (commaSep $
+             True -> optionMaybe . try $ (braces (commaSep $
                        (,) <$> (char '?' *> variableName <* reservedOp ":")
                            <*> monotype_ False) <* reservedOp "->")
              False -> pure Nothing

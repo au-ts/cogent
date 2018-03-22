@@ -1,0 +1,2 @@
+foo : (U32, Bool) -> #{ f1 : U32, f2 : Bool }
+foo (?r, x) = #{ f1 = ?r, f2 = x }

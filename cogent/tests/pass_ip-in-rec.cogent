@@ -1,0 +1,4 @@
+
+foo : () -> #{f1 : U32, f2 : Bool}
+foo _ = let ?o = #{f1 = 42, f2 = False}
+         in ?o {f1 = 0}

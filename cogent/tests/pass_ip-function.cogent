@@ -1,0 +1,7 @@
+type Array a
+
+map : all (a :< DSE). {?f : a -> a} -> Array a -> Array a
+
+foo : Array U32 -> Array U32
+foo as = let ?f = \x => x + 1
+          in map as
