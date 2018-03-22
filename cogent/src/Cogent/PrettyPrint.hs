@@ -62,6 +62,8 @@ context = black . string
 -- language ast
 
 varname = string
+ipvarname x = symbol "?" <> varname x
+mkip d = symbol "?" <> d
 letbangvar = dullgreen . string
 primop = blue . string
 keyword = bold . string
@@ -300,7 +302,7 @@ instance Pretty Likelihood where
 
 instance (PrettyName pv, PatnType ip, Pretty ip) => Pretty (IrrefutablePattern pv ip) where
   pretty (PVar v) = prettyName v
-  pretty (PIPVar v) = symbol "?" <> prettyName v
+  pretty (PIPVar v) = mkip $ prettyName v
   pretty (PTuple ps) = tupled (map pretty ps)
   pretty (PUnboxedRecord fs) = string "#" <> record (fmap handleTakeAssign fs)
   pretty (PUnderscore) = symbol "_"
@@ -360,7 +362,7 @@ instance Pretty Inline where
 instance (ExprType e, Prec e, Pretty t, PatnType p, Pretty p, PatnType ip, Pretty ip, Pretty e) =>
          Pretty (Expr t p ip e) where
   pretty (Var x)             = varname x
-  pretty (IPVar x)           = symbol "?" <> varname x
+  pretty (IPVar x)           = ipvarname x
   pretty (TypeApp x ts note) = pretty note <> varname x
                                  <> typeargs (map (\case Nothing -> symbol "_"; Just t -> pretty t) ts)
   pretty (Member x f)        = prettyPrec 1 x <> symbol "." <> fieldname f
@@ -444,7 +446,7 @@ instance (Pretty t, TypeType t) => Pretty (Type t) where
                      | otherwise        = pretty e
   pretty (TFun is t t') = prettyImps is <> prettyT' t <+> typesymbol "->" <+> pretty t'
     where prettyImps is | Prelude.null is = empty
-                        | otherwise = braces (commaList $ map (\(v,t) -> symbol "?" <> varname v <+> symbol ":" <+> pretty t) is) <+> typesymbol "->" <> space
+                        | otherwise = braces (commaList $ map (\(v,t) -> ipvarname v <+> symbol ":" <+> pretty t) is) <+> typesymbol "->" <> space
           prettyT' e | isFun e   = parens (pretty e)
                      | otherwise = pretty e
   pretty (TUnbox t) = (typesymbol "#" <> prettyT' t) & (if __cogent_fdisambiguate_pp then (<+> comment "{- unbox -}") else id)
@@ -547,7 +549,7 @@ instance Pretty Metadata where
   pretty (TypeParam {functionName, typeVarName }) = err "it is required by the type of" <+> funname functionName
                                                       <+> err "(type variable" <+> typevar typeVarName <+> err ")"
   pretty ImplicitlyTaken = err "it is implicitly taken via subtyping."
-  pretty ImplicitParameter = err "it is an implicit parameter"  -- TODO
+  pretty ImplicitParameter = err "it is an implicit parameter"
 
 instance Pretty FuncOrVar where
   pretty MustFunc  = err "Function"
@@ -604,9 +606,9 @@ instance Pretty TypeError where
   pretty (RequiredTakenTag t)       = err "Required variant" <+> tagname t <+> err "but it has already been matched."
   pretty (CustTyGenIsSynonym t)     = err "Type synonyms have to be fully expanded in --cust-ty-gen file:" <$> indent' (pretty t)
   pretty (CustTyGenIsPolymorphic t) = err "Polymorphic types are not allowed in --cust-ty-gen file:" <$> indent' (pretty t)
-  pretty (ImplicitParamAppearsInPattern v)  = err "Implicit parameter" <+> pretty v <+> err "cannot appear in a pattern other than a straight let-binding"
+  pretty (ImplicitParamAppearsInPattern v)  = err "Implicit parameter" <+> ipvarname v <+> err "cannot appear in a pattern other than a straight let-binding"
   pretty (DuplicateImplicitParams imps)  = err "Duplicate implicit parameters" <+> commaList (map prettyIP imps)
-    where prettyIP (v,t) = symbol "?" <> varname v <+> symbol ":" <+> pretty t
+    where prettyIP (v,t) = ipvarname v <+> symbol ":" <+> pretty t
   pretty (TypeWarningAsError w)          = pretty w
 
 instance Pretty TypeWarning where
@@ -642,8 +644,7 @@ analyseLeftover c@(F t :< F u) os
         _   -> err "A subtyping constraint" <+>  pretty c
            <+> err "can't be solved because the RHS is unknown and uses non-injective operators (like !).")
              : map (\i -> warn "• The unknown" <+> pretty (U i) <+> warn "originates from" <+> pretty (I.lookup i os)) ([u'])
-analyseLeftover c@(ImplicitParam (u,_)) _ = 
-  err "Unbound implicit parameter" <+> pretty c <+> err "arising from" <+> err "???" -- TODO
+analyseLeftover c@(ImplicitParam (u,_)) _ = err "Unbound implicit parameter" <+> pretty c
 analyseLeftover c os = case c of
     Share x m  | Just x' <- flexOf x -> msg x' m
     Drop x m   | Just x' <- flexOf x -> msg x' m
@@ -676,7 +677,7 @@ instance Pretty Constraint where
   pretty (Exhaustive t p) = warn "Exhaustive" <+> pretty t <+> pretty p
   pretty (x :@ _)         = pretty x
   pretty (a :-> b)        = prettyPrec 3 a </> warn ":->" </> prettyPrec 4 b
-  pretty (ImplicitParam (v,t)) = braces $ symbol "?" <> varname v <+> symbol ":" <+> pretty t
+  pretty (ImplicitParam (v,t)) = braces $ ipvarname v <+> symbol ":" <+> pretty t
 
 -- a more verbose version of constraint pretty-printer which is mostly used for debugging
 prettyC :: Constraint -> Doc

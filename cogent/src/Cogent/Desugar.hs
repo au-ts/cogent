@@ -62,7 +62,7 @@ import Text.PrettyPrint.ANSI.Leijen (pretty)
 
 
 -- __ghc_trac_14777 = undefined
-__ghc_trac_14777 = __impossible ""
+-- __ghc_trac_14777 = __impossible ""
 
 
 -- -----------------------------------------------------------------------------
