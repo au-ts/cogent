@@ -605,6 +605,8 @@ instance Pretty TypeError where
   pretty (CustTyGenIsSynonym t)     = err "Type synonyms have to be fully expanded in --cust-ty-gen file:" <$> indent' (pretty t)
   pretty (CustTyGenIsPolymorphic t) = err "Polymorphic types are not allowed in --cust-ty-gen file:" <$> indent' (pretty t)
   pretty (ImplicitParamAppearsInPattern v)  = err "Implicit parameter" <+> pretty v <+> err "cannot appear in a pattern other than a straight let-binding"
+  pretty (DuplicateImplicitParams imps)  = err "Duplicate implicit parameters" <+> commaList (map prettyIP imps)
+    where prettyIP (v,t) = symbol "?" <> varname v <+> symbol ":" <+> pretty t
   pretty (TypeWarningAsError w)          = pretty w
 
 instance Pretty TypeWarning where

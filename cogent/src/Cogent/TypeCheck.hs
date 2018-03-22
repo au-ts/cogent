@@ -39,7 +39,8 @@ import Control.Monad.State
 import Control.Monad.Trans.Maybe
 -- import Control.Monad.Writer hiding (censor)
 -- import Data.Either (lefts)
-import Data.List (nub, (\\))
+import Data.Function (on)
+import Data.List (groupBy, nub, sortOn, (\\))
 import qualified Data.Map as M
 import Data.Monoid ((<>))
 import qualified Data.Sequence as Seq
@@ -132,6 +133,8 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     base <- lift . lift $ use knownConsts
     t' <- validateType (map fst vs) (stripLocT t)
     (imps, i,o) <- asFunType t'
+    let dups = filter (\x -> length x > 1) $ groupBy ((==) `on` fst) $ sortOn fst $ imps
+    when (not $ null dups) $ logErrExit $ DuplicateImplicitParams (head dups)  -- only report the first duplication
     let ctx = C.addScope (fmap (\(t,p) -> (t, p, Seq.singleton p)) base) C.empty
     let ?loc = loc
     ((c, alts'), flx, os) <- runCG ctx (map fst vs) (cgAlts alts o i)

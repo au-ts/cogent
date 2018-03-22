@@ -76,6 +76,7 @@ data TypeError = FunctionNotFound VarName
                | CustTyGenIsPolymorphic TCType
                | CustTyGenIsSynonym TCType
                | ImplicitParamAppearsInPattern VarName
+               | DuplicateImplicitParams [(VarName, TCType)]
                | TypeWarningAsError TypeWarning
                deriving (Eq, Show, Ord)
 
