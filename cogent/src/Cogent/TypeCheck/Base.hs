@@ -75,7 +75,7 @@ data TypeError = FunctionNotFound VarName
                | RequiredTakenTag TagName
                | CustTyGenIsPolymorphic TCType
                | CustTyGenIsSynonym TCType
-               | ImplicitConflictsWith VarName
+               | ImplicitParamAppearsInPattern VarName
                | TypeWarningAsError TypeWarning
                deriving (Eq, Show, Ord)
 

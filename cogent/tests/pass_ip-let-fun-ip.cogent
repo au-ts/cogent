@@ -1,0 +1,8 @@
+type Array a
+
+map : all (a :< DS). {?f : a -> a} -> Array a -> Array a
+
+bar : Array U32 -> Array U32
+bar as = let ?o = 42
+         and ?f : {?o : U32} -> U32 -> U32 = \x => x + ?o
+          in map as

@@ -604,7 +604,7 @@ instance Pretty TypeError where
   pretty (RequiredTakenTag t)       = err "Required variant" <+> tagname t <+> err "but it has already been matched."
   pretty (CustTyGenIsSynonym t)     = err "Type synonyms have to be fully expanded in --cust-ty-gen file:" <$> indent' (pretty t)
   pretty (CustTyGenIsPolymorphic t) = err "Polymorphic types are not allowed in --cust-ty-gen file:" <$> indent' (pretty t)
-  pretty (ImplicitConflictsWith v)  = err "Implicit parameter" <+> pretty v <+> err "is already defined as a variable"
+  pretty (ImplicitParamAppearsInPattern v)  = err "Implicit parameter" <+> pretty v <+> err "cannot appear in a pattern other than a straight let-binding"
   pretty (TypeWarningAsError w)          = pretty w
 
 instance Pretty TypeWarning where

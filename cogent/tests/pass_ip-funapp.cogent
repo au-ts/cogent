@@ -1,7 +1,9 @@
 type Array a
 
-map : all (a :< DS). {?f : {?o : a} -> a -> a} -> Array a -> Array a
+map : all (a :< DS). {?f : a -> a} -> Array a -> Array a
 
 foo : {?f : U32 -> U32} -> Array U32 -> Array U32
-foo as = let ?o = 42
-          in map as
+foo as = let ?o = 42 in map as
+
+foo' : {?f : U32 -> U32} -> Array U32 -> Array U32
+foo' as = map as

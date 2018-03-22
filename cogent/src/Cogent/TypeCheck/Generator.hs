@@ -50,7 +50,7 @@ import qualified Text.PrettyPrint.ANSI.Leijen as L
 
 -- import Debug.Trace
 
-data GenState = GenState { _context :: C.Context TCType
+data GenState = GenState { _context :: C.Context TCType  -- implicit params are prefixed by '?'
                          , _knownTypeVars :: [TyVarName]
                          , _flexes :: Int
                          , _flexOrigins :: IM.IntMap VarOrigin
@@ -73,6 +73,9 @@ fresh = fresh' (ExpressionAt ?loc)
       i <- flexes <<%= succ
       flexOrigins %= IM.insert i ctx
       return $ U i
+
+ipvar :: VarName -> VarName
+ipvar = ('?':)
 
 cgMany :: (?loc :: SourcePos) => [LocExpr] -> CG ([TCType], Constraint, [TCExpr])
 cgMany es = do
@@ -144,11 +147,18 @@ cg' (IPVar n) t = do
   alpha <- fresh
   let e = IPVar n
   ctx <- use context
-  let c = Share alpha ImplicitParameter <> Drop alpha ImplicitParameter <>
-          F alpha :< F t <> ImplicitParam (n, alpha)
-  traceTc "gen" (text "cg for implicit param" <+> pretty n <+> text "of type" <+> pretty t
-           L.<$> text "generate constraint" <+> prettyC c)
-  return (c, e)
+  let c = Share alpha ImplicitParameter <> Drop alpha ImplicitParameter <> F alpha :< F t
+  case C.lookup (ipvar n) ctx of
+    Nothing -> do
+      let c' = ImplicitParam (n, alpha)  -- must be from type constraint
+      traceTc "gen" (text "cg for implicit param (unbound)" <+> pretty n <+> text "of type" <+> pretty t
+               L.<$> text "generate constraint" <+> prettyC (c <> c'))
+      return (c <> c', e)
+    Just (t', _, _) -> do
+      let c' = F t' :< F t
+      traceTc "gen" (text "cg for implicit param (bound)" <+> pretty n <+> text "of type" <+> pretty t
+               L.<$> text "generate constraint" <+> prettyC (c <> c'))
+      return (c <> c', e)
 
 cg' (Upcast e) t = do
   alpha <- fresh
@@ -443,7 +453,10 @@ match' (PVar x) t = do
            L.<$> text "of type" <+> pretty t)
   return (M.fromList [(x, (t,?loc,Seq.empty))], Sat, p)
 
-match' (PIPVar x) t = __todo "not allowed: will implement a proper error"
+match' (PIPVar x) t = do
+  let p = PIPVar (x,t)
+      c = Unsat $ ImplicitParamAppearsInPattern x
+  return (M.fromList [(x, (t,?loc,Seq.empty))], c, p)
 
 match' (PUnderscore) t = 
   let c = dropConstraintFor (M.singleton "_" (t, ?loc, Seq.empty))
@@ -510,13 +523,19 @@ withBindings :: (?loc::SourcePos)
 withBindings [] e top = do
   (c, e') <- cg e top
   return (c, [], e')
-withBindings (Binding pat tau e0 bs : []) e top | LocIrrefPatn l (PIPVar n) <- pat = do
+withBindings (Binding pat tau e0 bs : xs) e top | LocIrrefPatn l (PIPVar n) <- pat = do
   alpha <- fresh
   (c0, e0') <- letBang bs (cg e0) alpha
   (ct, alpha') <- case tau of
     Nothing -> return (Sat, alpha)
-    Just _  -> __todo "withBindings: not yet implemented"
-  (c', e') <- cg e top
+    Just tau' -> do
+      tvs <- use knownTypeVars
+      lift (runExceptT $ validateType' tvs (stripLocT tau')) >>= \case
+        Left  e -> return (Unsat e, alpha)
+        Right t -> return (F alpha :< F t, t)
+  context %= C.addScope (M.fromList [(ipvar n, (alpha',l,Seq.empty))])
+  (c', xs', e') <- withBindings xs e top
+  rs <- context %%= C.dropScope
   let c = ct <> c0 <> (ImplicitParam (n, alpha') :-> c')
   traceTc "gen" (text "let binding an implicit parameter" <+> L.pretty n
            L.<$> text "generate constraint" <+> prettyC c)

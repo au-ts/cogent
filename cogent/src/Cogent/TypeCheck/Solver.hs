@@ -385,6 +385,9 @@ rule (x :-> y1 :& ys) = return $ Just ((x :-> y1) :& (x :-> ys))
 rule (x :-> y :@ c) = do
   let ?lvl = ?lvl + 1
   return . ((:@ c) <$>) =<< ruleT (x :-> y)
+rule (a1 :& as :-> b@(ImplicitParam (u,s)))
+  | ImplicitParam _ <- a1 = return $ Just $ (a1 :-> b) :& (as :-> b)
+  | otherwise = return $ Just (as :-> b)
 rule (_ :-> b) = return $ Just b  -- b not ImplicitParam constraint, drop predicate
 
 rule ct = do

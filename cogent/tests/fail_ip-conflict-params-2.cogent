@@ -1,0 +1,2 @@
+foo : {?a : U8, ?a : Bool} -> U8 -> Bool
+foo _ = True
