@@ -411,7 +411,7 @@ int fat_setattr(struct dentry *dentry, struct iattr *attr)
 			attr->ia_valid &= ~TIMES_SET_FLAGS;
 	}
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(3,16,0)
+#if LINUX_VERSION_CODE > KERNEL_VERSION(4,9,0)
         error = setattr_prepare(dentry, attr);
 #else
 	error = inode_change_ok(inode, attr);
