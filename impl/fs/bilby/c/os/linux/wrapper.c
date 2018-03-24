@@ -605,7 +605,7 @@ static int bilbyfs_setattr(struct dentry *dentry, struct iattr *attr)
 
         bilbyfs_debug("bilbyfs_setattr(ino %lu, mode %#x, ia_valid %#x)\n",
                 inode->i_ino, inode->i_mode, attr->ia_valid);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,16,0)
+#if LINUX_VERSION_CODE > KERNEL_VERSION(4,9,0)
         err = setattr_prepare(dentry, attr);
 #else
         err = inode_change_ok(inode, attr);
