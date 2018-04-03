@@ -1421,7 +1421,7 @@ cExtDecl (CDecl decl) = [cedecl| $decl:(cDeclaration decl); |]
 cExtDecl (CMacro s) = C.EscDef s noLoc
 cExtDecl (CFnMacro fn as body) = C.EscDef (string1 ++ "\\\n" ++ string2) noLoc
   where macro1, macro2 :: ML.Doc
-        macro1 = ML.string "#define" ML.<+> ML.string fn ML.<> ML.parens (ML.commasep $ L.map ML.string as)
+        macro1 = ML.string "#define" ML.<+> ML.string fn <> ML.parens (ML.commasep $ L.map ML.string as)
         macro2 = ML.ppr [citems| $items:(L.map cBlockItem body) |]
         string1, string2 :: String
         string1 = L.filter (/= '\n') $ ML.pretty 100 macro1
