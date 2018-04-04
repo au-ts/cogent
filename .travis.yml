@@ -71,6 +71,8 @@ install:
  - cabal sandbox add-source ../isa-parser
  - "sed -i 's/^jobs:.*$/jobs: 2/' $HOME/.cabal/config"
  # - sed -i 's/^jobs:/ jobs:/' ${HOME}/.cabal/config
+ # Use fixed build plans
+ - cp misc/cabal.config.d/cabal.config-$GHCVER cabal.config
  - |
    if cabal install --only-dependencies --force-reinstalls --enable-tests --dry -v > installplan.txt;
    then
