@@ -19,7 +19,7 @@ sudo apt-get install libgmp-dev libncurses5-dev # Haskell
 sudo apt-get install python-lxml python-psutil python-pycparser # regression tester
 ```
 
-You need a recent version of Glasgow Haskell Compiler (7.10.1+), cabal-install, alex, and happy.
+You need a recent version of Glasgow Haskell Compiler (8.0.1+), cabal-install, alex, and happy.
 For instructions, consult file [cogent/README.md](./cogent/README.md) for details. 
 
 [`l4v`](https://github.com/seL4/l4v/tree/47d5b746fc2f052586db11aa6048c5ae7c357155) and [`isabelle`](https://github.com/seL4/isabelle/tree/Isabelle2015) are two submodules in the repository.
@@ -97,9 +97,6 @@ See [impl/fs/ext2/README](./impl/fs/ext2/README) and [impl/fs/bilby/README](./im
 ## Directory
 
 * `cogent`: Cogent compiler
-  * `isa`: Isabelle/HOL semantics for Cogent
-  * `lib`: Common Cogent and C libraries
-  * `tests`: Compiler test suite
 * `c-refinement`: Isabelle/HOL theories and proof procedures for Cogent-C refinement
   * `tests`: Cogent test programs for proof procedures
 * `isa-parser`: Haskell library for parsing and pretty-printing Isabelle/HOL

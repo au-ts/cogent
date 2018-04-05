@@ -2,88 +2,71 @@
 
 ## Dependencies
 
-Cogent requires the Glasgow Haskell Compiler(GHC), and has been tested with the
-following version of GHC:
-* 7.10.1
-* 7.10.2
-* 7.10.3
-* 8.0.1
-* 7.8.4 (possibly)
+* `libgmp.so`
+* `libncurses.so`
+* [The Glasgow Haskell Compiler (GHC)](https://www.haskell.org/) version 8.0.1+
+* [The Haskell Cabal](https://www.haskell.org/cabal/) version 2.0+
+* [`alex`](https://www.haskell.org/alex/)
+* [`happy`](https://www.haskell.org/happy/)
 
-### Installing Haskell Compiler
 
-#### From Official Website
-See https://www.haskell.org/downloads for information.
+## Install Cogent: In A Nutshell
 
-#### Commands for Installing Haskell Platform
+Once all dependencies have been installed (see below for more information on
+how to install them, if you don't know), simply type `make`.
+
+
+## More Detailed Installation Instructions
+
+### Install Cogent dependencies
+
+#### `libgmp` and `libncurses`
 ```
-wget 'https://haskell.org/platform/download/7.10.2/haskell-platform-7.10.2-a-unknown-linux-deb7.tar.gz'
-tar -xzf haskell-platform-7.10.2-a-unknown-linux-deb7.tar.gz
-sudo ./install-haskell-platform.sh
+sudo apt-get install libgmp-dev	libncurses5-dev
 ```
+or adapt it to the package manager of your choice.
 
-#### Instructions for Manual Installation
-_NOTE_: It's *not* recommanded for users who are not familiar with Haskell's eco-system.
+#### The GHC compiler and Cabal
 
-1. Install GHC (version 7.10.3 for example)
-  * Download the right GHC distribution from https://www.haskell.org/ghc/download_ghc_7_10_3
-  * Follow the instructions to install it (details omitted here)
+See [GHC download page](https://www.haskell.org/downloads) and [Cabal homepage](https://www.haskell.org/cabal/) for details.
 
-2. Install cabal-install, and add `~/.cabal/bin` (or the directory in which cabal is installed) to your `$PATH`
+_NOTE_: The supported versions of GHC and Cabal is specified [here](./cogent.cabal).
 
-  See https://www.haskell.org/cabal/download.html for details
-  
-_NOTE_:
- * Please install `cabal-install`, *not* `Cabal`; be sure that you have a proper version of `cabal-install` which 
-   is compatible with your GHC version;
- * Old versions of `cabal-install` does not support sandbox. Please update to appropriate version (>= 1.18)
- * If `cabal-install` is built against an older version of Cabal, you might get
-   a warning when you build Cogent. To solve it, when you have `cabal-install` installed, build again against
-   a newer version of Cabal library.
-
-### Other Dependencies
-
-In addition to GHC, Cogent also requires `cabal-install`, for building and packaging.
-(It's likely that `cabal-install` has been installed when you installed GHC)
-
-Cogent has the following dependencies:
-* [alex](https://www.haskell.org/alex/)
-* [happy](https://www.haskell.org/happy/)
-
-To install these dependencies, run:
-
-`$ cabal install happy alex`
-
-The following packages are needed by Cogent:
+#### `alex` and `happy`
 ```
-sudo apt-get install libgmp-dev libncurses-dev
+cabal install alex happy
 ```
+Usually, the executables are located `$HOME/.cabal/bin/`. Make sure you add them to your `$PATH`.
 
-## Installing Development Versions
 
-If you intend to work with the latest development version, please consider
-using Cabal sandboxes to minimise disruption to your local Haskell setup.
-Instructions for doing so are available in [INSTALL-sandbox.md](./INSTALL-sandbox.md)
+### Install Cogent
 
-To configure, edit config.mk. The default values should work for most people.
+#### Build with Makefile
 
-Cogent is built using a Makefile:
+To configure, edit [config.mk](../config.mk). The default values should work for most people.
+Then simply run `make`. If Cabal fails to solve package dependencies, you can copy the config
+file of your GHC version from [misc/cabal.config.d](./misc/cabal.config.d/) to `./cabal.config`
+in this folder and rerun `make`.
 
-* `make` - will build and install everything in your local `dist` directory.
-* `make test` - will run the test suite.
-* `make bench` - will run the benchmarks.
+#### Build with Cabal
 
-## Building with Stack
+The `Makefile` calls Cabal under the hood. It installs Cogent using a Cabal sandbox. If this
+is not ideal for you (in rare cases), or you want to customise your installation further,
+just use Cabal in the normal way. You need to install [isa-parser](../isa-parser) before you
+build/install Cogent.
+
+#### Build with Stack
 
 [Stack](https://github.com/commercialhaskell/stack) is a new cross-platform
 program for developing Haskell projects, that enhances the functionality
-provided by Cabal. There is experimental support for building Cogent with Stack.
+provided by Cabal. Unfortunately, several packages on which Cogent
+depends are not supported by stack. For these reason, we don't officially
+maintain a Stack build scheme.
 
-To build Cogent with Stack, run the following command:
 
-* `stack build`
+## Test Cogent
 
-This will install Cogent, and all the related files in `./local/bin` on Linux.
-If you haven't configured already, there might be some configuration/setup related
-to Stack that might be required.
+* `make tests` runs the entire test suite, which is not what you would like to do in most cases.
+* There are individual tests that can be triggered by `make test-*`. See `make help` for details.
+* `make examples` builds a group of small but complete Cogent examples.
 
