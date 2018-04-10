@@ -144,6 +144,7 @@ data Constraint = (:<) (TypeFragment TCType) (TypeFragment TCType)
                 | SemiSat TypeWarning
                 | Sat
                 | Exhaustive TCType [RawPatn]
+                | Arith AExpr
                 deriving (Eq, Show, Ord)
 
 instance Monoid Constraint where
@@ -153,6 +154,9 @@ instance Monoid Constraint where
   -- mappend (Unsat r) x = Unsat r
   -- mappend x (Unsat r) = Unsat r
   mappend x y = x :& y
+
+
+type AExpr = RawExpr
 
 kindToConstraint :: Kind -> TCType -> Metadata -> Constraint
 kindToConstraint k t m = (if canEscape  k then Escape t m else Sat)
@@ -260,8 +264,8 @@ toRawType (T x) = RT (fmap toRawType x)
 -- toRawType (RemoveCase p t) = error "panic: removeCase found"
 toRawType _ = error "panic: unification variable found"
 
-toRawExp :: TypedExpr -> RawExpr
-toRawExp (TE t e _) = RE (fffmap toRawPatn . ffmap toRawIrrefPatn . fmap toRawExp $ e)
+toRawExpr :: TypedExpr -> RawExpr
+toRawExpr (TE t e _) = RE (fffmap toRawPatn . ffmap toRawIrrefPatn . fmap toRawExpr $ e)
 
 toRawPatn :: TypedPatn -> RawPatn
 toRawPatn (TP p _) = RP (fmap toRawIrrefPatn p)

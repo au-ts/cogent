@@ -75,7 +75,8 @@ fieldname = magenta . string
 tagname = dullmagenta . string
 symbol = string
 kindsig = red . string
-typeargs x = encloseSep lbracket rbracket (comma <> space) x
+typeargs = encloseSep lbracket rbracket (comma <> space)
+array = encloseSep lbracket rbracket (comma <> space)
 record = encloseSep (lbrace <> space) (space <> rbrace) (comma <> space)
 variant = encloseSep (langle <> space) rangle (symbol "|" <> space) . map (<> space)
 
@@ -129,6 +130,8 @@ instance ExprType (Expr t p ip e) where
   levelExpr (BoolLit {}) = 0
   levelExpr (CharLit {}) = 0
   levelExpr (StringLit {}) = 0
+  levelExpr (ArrayLit {}) = 0
+  levelExpr (ArrayIndex {}) = 0
   levelExpr (Tuple {}) = 0
   levelExpr (Unitel) = 0
   levelExpr (Con {}) = 1
@@ -280,6 +283,7 @@ instance (PrettyName pv, PatnType ip, Pretty ip) => Pretty (IrrefutablePattern p
   pretty (PUnderscore) = symbol "_"
   pretty (PUnitel) = string "()"
   pretty (PTake v fs) = prettyName v <+> record (fmap handleTakeAssign fs)
+  pretty (PArray ps) = array $ map pretty ps
 
 instance Pretty RawIrrefPatn where
   pretty (RIP ip) = pretty ip
@@ -337,10 +341,12 @@ instance (ExprType e, Pretty t, PatnType p, Pretty p, PatnType ip, Pretty ip, Pr
   pretty (TypeApp x ts note) = pretty note <> varname x
                                  <> typeargs (map (\case Nothing -> symbol "_"; Just t -> pretty t) ts)
   pretty (Member x f)        = pretty' 1 x <> symbol "." <> fieldname f
-  pretty (IntLit i)          = literal (string $ show i)
-  pretty (BoolLit b)         = literal (string $ show b)
-  pretty (CharLit c)         = literal (string $ show c)
-  pretty (StringLit s)       = literal (string $ show s)
+  pretty (IntLit i)          = literal (int i)
+  pretty (BoolLit b)         = literal (bool b)
+  pretty (CharLit c)         = literal (char c)
+  pretty (StringLit s)       = literal (string s)
+  pretty (ArrayLit es)       = array $ map pretty es
+  pretty (ArrayIndex e i)    = pretty' 1 e <> brackets (pretty i)
   pretty (Unitel)            = string "()"
   pretty (PrimOp n [a,b])
      | LeftAssoc  l <- associativity n = pretty' (l+1) a <+> primop n <+> pretty' l     b
@@ -399,6 +405,7 @@ instance (Pretty t, TypeType t) => Pretty (Type t) where
   pretty (TVar n b)  = typevar n <> (if b then typesymbol "!" else empty)
   pretty (TTuple ts) = tupled (map pretty ts)
   pretty (TUnit)     = typesymbol "()" & (if __cogent_fdisambiguate_pp then (<+> comment "{- unit -}") else id)
+  pretty (TArray t l) = prettyT' t <> brackets (pretty l)
   pretty (TRecord ts s)
     | not . or $ map (snd . snd) ts = (if | s == Unboxed -> (typesymbol "#" <>)
                                           | s == ReadOnly -> (\x -> parens x <> typesymbol "!")

@@ -28,7 +28,7 @@ data Op
   | Not | And | Or
   | Gt | Lt | Le | Ge | Eq | NEq
   | BitAnd | BitOr | BitXor | LShift | RShift | Complement
-  deriving (Eq, Show)
+  deriving (Eq, Ord, Show)
 
 data Pragma = InlinePragma FunName
             | CInlinePragma FunName

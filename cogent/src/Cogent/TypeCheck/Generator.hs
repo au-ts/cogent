@@ -74,6 +74,13 @@ fresh = fresh' (ExpressionAt ?loc)
       flexOrigins %= IM.insert i ctx
       return $ U i
 
+freshVar :: (?loc :: SourcePos) => CG RawExpr
+freshVar = fresh' (ExpressionAt ?loc)
+  where
+    fresh' :: VarOrigin -> CG RawExpr
+    fresh' ctx = do undefined  -- TODO
+      
+
 cgMany :: (?loc :: SourcePos) => [LocExpr] -> CG ([TCType], Constraint, [TCExpr])
 cgMany es = do
   let each (ts,c,es') e = do
@@ -180,6 +187,21 @@ cg' (IntLit i) t = do
       c = Upcastable (T (TCon minimumBitwidth [] Unboxed)) t
       e = IntLit i
   return (c,e)
+
+cg' (ArrayLit es) t = do
+  alpha <- fresh
+  blob <- forM es $ flip cg alpha
+  let (cs,es') = unzip blob
+      n = RE . IntLit . fromIntegral $ length es
+  return (mconcat cs <> F (T $ TArray alpha n) :< F t, ArrayLit es')
+
+cg' (ArrayIndex e i) t = do
+  alpha <- fresh
+  n <- freshVar
+  (ce, e') <- cg e (T $ TArray alpha n)
+  (ci, i') <- cg i (T $ TCon "U32" [] Unboxed)
+  let c = F alpha :< F t <> Arith (RE (PrimOp "<" [n, toRawExpr $ toTypedExpr i']))
+  return (ce <> ci <> c, ArrayIndex e' i')
 
 cg' exp@(Lam pat mt e) t = do
   alpha <- fresh

@@ -34,7 +34,8 @@ data IrrefutablePattern pv ip = PVar pv
                               | PUnderscore
                               | PUnitel
                               | PTake pv [Maybe (FieldName, ip)]
-                                  -- Note: `Nothing' will be desugared to `Just' in TypeCheck / zilinc
+                                  -- ^^^ Note: `Nothing' will be desugared to `Just' in TypeCheck / zilinc
+                              | PArray [ip]
                               deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
 data Pattern ip = PCon TagName [ip]
@@ -71,6 +72,8 @@ data Expr t p ip e = PrimOp OpName [e]
                    | BoolLit Bool
                    | CharLit Char
                    | StringLit String
+                   | ArrayLit [e]
+                   | ArrayIndex e e
                    | Tuple [e]
                    | UnboxedRecord [(FieldName, e)]
                    | Let [Binding t p ip e] e
@@ -91,6 +94,7 @@ data Type t =
             | TVariant (M.Map TagName ([t], Taken))
             | TTuple [t]
             | TUnit
+            | TArray t RawExpr  -- stick to RawExpr to be simple / zilinc
             -- They will be eliminated at some point / zilinc
             | TUnbox   t
             | TBang    t
@@ -194,6 +198,8 @@ instance Traversable (Flip (Expr t p) e) where  -- ip
   traverse _ (Flip (BoolLit l))         = pure $ Flip (BoolLit l)
   traverse _ (Flip (CharLit l))         = pure $ Flip (CharLit l)
   traverse _ (Flip (StringLit l))       = pure $ Flip (StringLit l)
+  traverse _ (Flip (ArrayLit es))       = pure $ Flip (ArrayLit es)
+  traverse _ (Flip (ArrayIndex e i))    = pure $ Flip (ArrayIndex e i)
   traverse _ (Flip (Tuple es))          = pure $ Flip (Tuple es)
   traverse _ (Flip (UnboxedRecord es))  = pure $ Flip (UnboxedRecord es)
   traverse f (Flip (Let bs e))          = Flip <$> (Let <$> (traverse (ttraverse f) bs) <*> pure e)
@@ -218,6 +224,8 @@ instance Traversable (Flip2 (Expr t) e ip) where  -- p
   traverse _ (Flip2 (BoolLit l))        = pure $ Flip2 (BoolLit l)
   traverse _ (Flip2 (CharLit l))        = pure $ Flip2 (CharLit l)
   traverse _ (Flip2 (StringLit l))      = pure $ Flip2 (StringLit l)
+  traverse _ (Flip2 (ArrayLit es))      = pure $ Flip2 (ArrayLit es)
+  traverse _ (Flip2 (ArrayIndex e i))   = pure $ Flip2 (ArrayIndex e i)
   traverse _ (Flip2 (Tuple es))         = pure $ Flip2 (Tuple es)
   traverse _ (Flip2 (UnboxedRecord es)) = pure $ Flip2 (UnboxedRecord es)
   traverse f (Flip2 (Let bs e))         = Flip2 <$> (Let <$> traverse (tttraverse f) bs <*> pure e)
@@ -242,6 +250,8 @@ instance Traversable (Flip3 Expr e ip p) where  -- t
   traverse _ (Flip3 (BoolLit l))         = pure $ Flip3 (BoolLit l)
   traverse _ (Flip3 (CharLit l))         = pure $ Flip3 (CharLit l)
   traverse _ (Flip3 (StringLit l))       = pure $ Flip3 (StringLit l)
+  traverse _ (Flip3 (ArrayLit es))       = pure $ Flip3 (ArrayLit es)
+  traverse _ (Flip3 (ArrayIndex e i))    = pure $ Flip3 (ArrayIndex e i)
   traverse _ (Flip3 (Tuple es))          = pure $ Flip3 (Tuple es)
   traverse _ (Flip3 (UnboxedRecord es))  = pure $ Flip3 (UnboxedRecord es)
   traverse f (Flip3 (Let bs e))          = Flip3 <$> (Let <$> (traverse (ttttraverse f) bs) <*> pure e)
@@ -249,13 +259,14 @@ instance Traversable (Flip3 Expr e ip p) where  -- t
   traverse _ (Flip3 (Upcast e))          = pure $ Flip3 (Upcast e)
   traverse f (Flip3 (Annot e t))         = Flip3 <$> (Annot <$> pure e <*> f t)
 
-instance Traversable (Flip IrrefutablePattern pv) where  -- ip
+instance Traversable (Flip IrrefutablePattern ip) where  -- pv
   traverse f (Flip (PVar pv))            = Flip <$> (PVar <$> f pv)
   traverse _ (Flip (PTuple ips))         = pure $ Flip (PTuple ips)
   traverse _ (Flip (PUnboxedRecord mfs)) = pure $ Flip (PUnboxedRecord mfs)
   traverse _ (Flip PUnderscore)          = pure $ Flip PUnderscore
   traverse _ (Flip PUnitel)              = pure $ Flip PUnitel
   traverse f (Flip (PTake pv mfs))       = Flip <$> (PTake <$> f pv <*> pure mfs)
+  traverse _ (Flip (PArray ips))         = pure $ Flip (PArray ips)
 
 instance Traversable (Flip (TopLevel t) e) where  -- p
   traverse _ (Flip (Include s))           = pure $ Flip (Include s)
@@ -321,6 +332,7 @@ fvIP (RIP (PVar pv)) = [pv]
 fvIP (RIP (PTuple ips)) = foldMap fvIP ips
 fvIP (RIP (PUnboxedRecord mfs)) = foldMap (fvIP . snd) $ Compose mfs
 fvIP (RIP (PTake pv mfs)) = foldMap (fvIP . snd) $ Compose mfs
+fvIP (RIP (PArray ips)) = foldMap fvIP ips
 fvIP _ = []
 
 fvE :: RawExpr -> [VarName]
@@ -332,6 +344,8 @@ fvE (RE (LamC _ _ _ vs)) = vs
 fvE (RE (Let (b:bs) e)) = let (locals, fvs) = fvB b
                               fvs' = filter (`notElem` locals) (fvE (RE (Let bs e)))
                            in fvs ++ fvs'
+fvE (RE (ArrayLit es)) = foldMap fvE es
+fvE (RE (ArrayIndex e i)) = fvE e ++ fvE i
 fvE (RE e) = foldMap fvE e
 
 fcA :: Alt v RawExpr -> [TagName]

@@ -1,11 +1,13 @@
 --
--- Copyright 2017, NICTA
+-- Copyright 2018, Data61
+-- Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+-- ABN 41 687 119 230.
 --
 -- This software may be distributed and modified according to the terms of
 -- the GNU General Public License version 2. Note that NO WARRANTY is provided.
 -- See "LICENSE_GPLv2.txt" for details.
 --
--- @TAG(NICTA_GPL)
+-- @TAG(DATA61_GPL)
 --
 
 {-# LANGUAGE AllowAmbiguousTypes #-}
@@ -63,6 +65,7 @@ data Type t
   | TProduct (Type t) (Type t)
   | TRecord [(FieldName, (Type t, Bool))] Sigil  -- True means taken
   | TUnit
+  | TArray (Type t) (UntypedExpr t 'Zero VarName)  -- stick to UntypedExpr to be simple / zilinc
   deriving (Show, Eq, Ord)
 
 data SupposedlyMonoType = forall (t :: Nat). SMT (Type t)
@@ -88,6 +91,7 @@ data Expr t v a e
   | Unit
   | ILit Integer PrimInt
   | SLit String
+  | ALit [e t v a]
   | Let a (e t v a) (e t ('Suc v) a)
   | LetBang [(Fin v, a)] a (e t v a) (e t ('Suc v) a)
   | Tuple (e t v a) (e t v a)
@@ -101,10 +105,15 @@ data Expr t v a e
   | Put (e t v a) FieldIndex (e t v a)
   | Promote (Type t) (e t v a)  -- only for guiding the tc. rep. unchanged.
   | Cast (Type t) (e t v a)  -- only for integer casts. rep. changed
-deriving instance (Show a, Show (e t v a), Show (e t ('Suc ('Suc v)) a), Show (e t ('Suc v) a)) => Show (Expr t v a e)
+deriving instance (Show a, Show (e t v a), Show (e t ('Suc v) a), Show (e t ('Suc ('Suc v)) a))
+  => Show (Expr t v a e)
+deriving instance (Eq a, Eq (e t v a), Eq (e t ('Suc v) a), Eq (e t ('Suc ('Suc v)) a))
+  => Eq  (Expr t v a e)
+deriving instance (Ord a, Ord (e t v a), Ord (e t ('Suc v) a), Ord (e t ('Suc ('Suc v)) a))
+  => Ord (Expr t v a e)
   -- constraint no smaller than header, thus UndecidableInstances
 
-data UntypedExpr t v a = E  (Expr t v a UntypedExpr) deriving (Show)
+data UntypedExpr t v a = E  (Expr t v a UntypedExpr) deriving (Show, Eq, Ord)
 data TypedExpr   t v a = TE { exprType :: Type t , exprExpr :: Expr t v a TypedExpr } deriving (Show)
 
 data FunctionType = forall t. FT (Vec t Kind) (Type t) (Type t)
@@ -173,6 +182,7 @@ traverseE f (Con cn e t)         = Con cn <$> f e <*> pure t
 traverseE f (Unit)               = pure $ Unit
 traverseE f (ILit i pt)          = pure $ ILit i pt
 traverseE f (SLit s)             = pure $ SLit s
+traverseE f (ALit es)            = ALit <$> traverse f es
 traverseE f (Let a e1 e2)        = Let a  <$> f e1 <*> f e2
 traverseE f (LetBang vs a e1 e2) = LetBang vs a <$> f e1 <*> f e2
 traverseE f (Tuple e1 e2)        = Tuple <$> f e1 <*> f e2
@@ -196,8 +206,9 @@ foldEPre unwrap f e = case unwrap e of
   (App e1 e2)         -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
   (Con _ e1 _)        -> f e `mappend` foldEPre unwrap f e1
   Unit                -> f e
-  ILit{}              -> f e
-  SLit{}              -> f e
+  ILit {}             -> f e
+  SLit {}             -> f e
+  ALit es             -> mconcat $ f e : map (foldEPre unwrap f) es
   (Let _ e1 e2)       -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
   (LetBang _ _ e1 e2) -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
   (Tuple e1 e2)       -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
@@ -221,6 +232,7 @@ fmapE f (Con cn e t)         = Con cn (f e) t
 fmapE f (Unit)               = Unit
 fmapE f (ILit i pt)          = ILit i pt
 fmapE f (SLit s)             = SLit s
+fmapE f (ALit es)            = ALit (map f es)
 fmapE f (Let a e1 e2)        = Let a (f e1) (f e2)
 fmapE f (LetBang vs a e1 e2) = LetBang vs a (f e1) (f e2)
 fmapE f (Tuple e1 e2)        = Tuple (f e1) (f e2)
@@ -252,6 +264,7 @@ instance (Functor (e t v), Functor (e t ('Suc v)), Functor (e t ('Suc ('Suc v)))
   fmap f (Flip (Unit)               ) = Flip $ Unit
   fmap f (Flip (ILit i pt)          ) = Flip $ ILit i pt
   fmap f (Flip (SLit s)             ) = Flip $ SLit s
+  fmap f (Flip (ALit es)            ) = Flip $ ALit (map (fmap f) es)
   fmap f (Flip (Let a e1 e2)        ) = Flip $ Let (f a) (fmap f e1) (fmap f e2)
   fmap f (Flip (LetBang vs a e1 e2) ) = Flip $ LetBang (map (second f) vs) (f a) (fmap f e1) (fmap f e2)
   fmap f (Flip (Tuple e1 e2)        ) = Flip $ Tuple (fmap f e1) (fmap f e2)
@@ -305,6 +318,7 @@ tupled = encloseSep lparen rparen (comma L.<> space)
 tupled1 [x] = x
 tupled1 x = encloseSep lparen rparen (comma L.<> space) x
 typeargs x = encloseSep lbracket rbracket (comma L.<> space) x
+array x = encloseSep lbracket rbracket (comma L.<> space) x
 err = red . string
 comment = black . string
 context = black . string
@@ -322,6 +336,8 @@ level (Prefix) = 0
 levelE :: Expr t v a e -> Int
 levelE (Op opr [_,_]) = level (associativity opr)
 levelE (ILit {}) = 0
+levelE (SLit {}) = 0
+levelE (ALit {}) = 0
 levelE (Variable {}) = 0
 levelE (Fun {}) = 0
 levelE (App {}) = 1
@@ -377,6 +393,7 @@ instance (Pretty a, PrettyP (e t v a), Pretty (e t ('Suc v) a), Pretty (e t ('Su
   pretty (Op opr es)  = primop opr <+> tupled (map pretty es)
   pretty (ILit i pt) = literal (string $ show i) <+> symbol "::" <+> pretty pt
   pretty (SLit s) = literal $ string s
+  pretty (ALit es) = array $ map pretty es 
   pretty (Variable x) = pretty (snd x) L.<> angles (prettyV $ fst x)
   pretty (Fun fn ins nt) = pretty nt L.<> funName fn <+> pretty ins
   pretty (App a b) = prettyP 2 a <+> prettyP 1 b
@@ -425,6 +442,7 @@ instance Pretty (Type t) where
   pretty (TRecord fs s) = record (map (\(f,(t,b)) -> fieldName f <+> symbol ":" L.<> prettyTaken b <+> pretty t) fs) L.<> pretty s
   pretty (TCon tn [] s) = typename tn L.<> pretty s
   pretty (TCon tn ts s) = typename tn L.<> pretty s <+> typeargs (map pretty ts)
+  pretty (TArray t l) = pretty t <> brackets (pretty l)
 
 prettyTaken :: Bool -> Doc
 prettyTaken True  = symbol "*"

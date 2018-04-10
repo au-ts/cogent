@@ -168,6 +168,7 @@ term = avoidInitial >> (LocExpr <$> getPosition <*>
        <|> CharLit <$> charLiteral
        <|> StringLit <$> stringLiteral
        <|> tuple <$> parens (commaSep $ expr 1)
+       <|> ArrayLit <$> brackets (commaSep1 $ expr 1)
        <|> UnboxedRecord <$ reservedOp "#" <*> braces (commaSep1 recordAssignment)))
     <?> "term"
 
@@ -232,6 +233,7 @@ annot = do avoidInitial
 --            | typeA2 (take fList | put fList)?
 -- typeA2   ::= "#" atomtype
 --            | atomtype "!"?
+--            | atomtype "[" int-expr "]"
 -- atomtype ::= "(" monotype "," ...")"
 --            | "{" fieldname ":" monotype "," ... "}"
 --            | "<" Con typeA2 "|" ... ">"

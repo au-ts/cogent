@@ -45,7 +45,7 @@ import qualified Cogent.Vec as Vec
 import Control.Applicative
 import Control.Arrow
 import Control.Monad.Except hiding (fmap, forM_)
--- import Control.Monad.Extra (ifM)
+import Control.Monad.Extra (allM)
 import Control.Monad.Reader hiding (fmap, forM_)
 import Control.Monad.State hiding (fmap, forM_)
 -- import Data.Data hiding (Refl)
@@ -77,8 +77,8 @@ guardShow' mh mb b = if b then return () else TC (throwError $ "GUARD: " ++ mh +
 isUpcastable :: Type t -> Type t -> TC t v Bool
 isUpcastable (TPrim p1) (TPrim p2) = return $ isSubtypePrim p1 p2
 isUpcastable (TSum s1) (TSum s2) = do
-  c1 <- and <$> forM s1 (\(c,(t,b)) -> case lookup c s2 of Nothing -> return False; Just (t',b') -> (&&) <$> t `isSubtype` t' <*> pure (b == b'))
-  c2 <- and <$> forM s2 (\(c,(t,b)) -> return $ case lookup c s1 of Nothing -> b; Just _ -> True)  -- other tags are all taken
+  c1 <- flip allM s1 (\(c,(t,b)) -> case lookup c s2 of Nothing -> return False; Just (t',b') -> (&&) <$> t `isSubtype` t' <*> pure (b == b'))
+  c2 <- flip allM s2 (\(c,(t,b)) -> return $ case lookup c s1 of Nothing -> b; Just _ -> True)  -- other tags are all taken
   return $ c1 && c2
 isUpcastable _ _ = return False
 
@@ -272,6 +272,19 @@ typecheck (E (Op o es))
         return (TE t (Op o es'))
 typecheck (E (ILit i t)) = return (TE (TPrim t) (ILit i t))
 typecheck (E (SLit s)) = return (TE TString (SLit s))
+typecheck (E (ALit es))
+   = do es' <- mapM typecheck es
+        let ts = map exprType es'
+            t = lubAll ts
+            n = E (ILit (fromIntegral $ length es) U32)
+        isSub <- allM (`isSubtype` t) ts
+        return (TE (TArray t n) (ALit es'))
+  where
+    lubAll :: [Type t] -> Type t
+    lubAll [] = __impossible "lubAll: empty list"
+    lubAll [t] = t
+    lubAll (t1:t2:ts) = let t = lub t1 t2
+                         in lubAll (t:ts)
 typecheck (E (Variable v))
    = do Just t <- useVariable (fst v)
         return (TE t (Variable v))
