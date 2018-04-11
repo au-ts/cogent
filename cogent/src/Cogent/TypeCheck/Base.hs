@@ -36,7 +36,9 @@ import Data.Either (either, isLeft)
 import qualified Data.IntMap as IM
 import Data.List (nub, (\\))
 import qualified Data.Map as M
+#if __GLASGOW_HASKELL__ < 803
 import Data.Monoid ((<>))
+#endif
 import qualified Data.Sequence as Seq
 -- import qualified Data.Set as S
 import Text.Parsec.Pos
@@ -147,6 +149,7 @@ data Constraint = (:<) (TypeFragment TCType) (TypeFragment TCType)
                 | Arith AExpr
                 deriving (Eq, Show, Ord)
 
+#if __GLASGOW_HASKELL__ < 803
 instance Monoid Constraint where
   mempty = Sat
   mappend Sat x = x
@@ -154,9 +157,14 @@ instance Monoid Constraint where
   -- mappend (Unsat r) x = Unsat r
   -- mappend x (Unsat r) = Unsat r
   mappend x y = x :& y
-
-
-type AExpr = RawExpr
+#else
+instance Semigroup Constraint where
+  Sat <> x = x
+  x <> Sat = x
+  x <> y = x :& y
+instance Monoid Constraint where
+  mempty = Sat
+#endif
 
 kindToConstraint :: Kind -> TCType -> Metadata -> Constraint
 kindToConstraint k t m = (if canEscape  k then Escape t m else Sat)
@@ -294,10 +302,16 @@ data TcLogState = TcLogState { _errLog :: [ContextualisedTcLog]
                              }
 makeLenses ''TcLogState
 
+#if __GLASGOW_HASKELL__ < 803
 instance Monoid TcLogState where
   mempty = TcLogState mempty mempty
   TcLogState l1 c1 `mappend` TcLogState l2 c2 = TcLogState (l1 <> l2) (c1 <> c2)
-
+#else
+instance Semigroup TcLogState where
+  TcLogState l1 c1 <> TcLogState l2 c2 = TcLogState (l1 <> l2) (c1 <> c2)
+instance Monoid TcLogState where
+  mempty = TcLogState mempty mempty
+#endif
 
 type TcM a = MaybeT (StateT TcLogState (StateT TcState IO)) a    
 type TcConsM lcl a = StateT  lcl (StateT TcState IO) a

@@ -25,10 +25,16 @@ newtype Subst = Subst (M.IntMap TCType)
 lookup :: Subst -> Int -> TCType
 lookup s@(Subst m) i = maybe (U i) (apply s) (M.lookup i m)
 
+#if __GLASGOW_HASKELL__ < 803
 instance Monoid Subst where
   mempty = Subst M.empty
-  mappend a@(Subst a') b@(Subst b')
-    = Subst (a' <> b')
+  mappend (Subst a) (Subst b) = Subst (a <> b)
+#else
+instance Semigroup Subst where
+  Subst a <> Subst b = Subst (a <> b)
+instance Monoid Subst where
+  mempty = Subst M.empty
+#endif
 
 apply :: Subst -> TCType -> TCType
 apply = forFlexes . lookup

@@ -45,9 +45,17 @@ insert (GS x) g = (GS (M.insert (g ^. goal) g x))
 toList :: GoalSet -> [Goal]
 toList (GS x) = F.toList x
 
+#if __GLASGOW_HASKELL__ < 803
 instance Monoid GoalSet where
   mempty = GS mempty
   mappend (GS a) (GS b) = GS (mappend a b)
+#else
+instance Semigroup GoalSet where
+  GS a <> GS b = GS (a <> b)
+instance Monoid GoalSet where
+  mempty = GS mempty
+#endif
+
 
 singleton :: Goal -> GoalSet
 singleton = insert mempty

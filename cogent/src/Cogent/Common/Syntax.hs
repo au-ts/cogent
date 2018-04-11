@@ -20,6 +20,7 @@ type TyVarName   = String
 type TypeName    = String
 
 type FieldIndex = Int
+type ArrayIndex = Int
 
 type OpName = String
 
@@ -104,6 +105,7 @@ instance Pretty Op where
 
 data Likelihood = Unlikely | Regular | Likely deriving (Show, Eq, Ord)
 
+#if __GLASGOW_HASKELL__ < 803
 instance Monoid Likelihood where
   mempty = Regular
   mappend Unlikely Likely   = Regular
@@ -111,6 +113,16 @@ instance Monoid Likelihood where
   mappend Likely   Unlikely = Regular
   mappend Likely   _        = Likely
   mappend Regular  l        = l
+#else 
+instance Semigroup Likelihood where
+  (<>) Unlikely Likely   = Regular
+  (<>) Unlikely _        = Unlikely
+  (<>) Likely   Unlikely = Regular
+  (<>) Likely   _        = Likely
+  (<>) Regular  l        = l
+instance Monoid Likelihood where
+  mempty = Regular
+#endif
 
 instance Group Likelihood where
   invert Regular  = Regular

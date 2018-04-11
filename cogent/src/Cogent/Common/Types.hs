@@ -53,6 +53,7 @@ k1 = K True  False False
 k2 = mempty
 -- kAll = K False False False
 
+#if __GLASGOW_HASKELL__ < 803
 instance Monoid Kind where
   mempty = K True True True  -- 2-kind
   mappend (K a b c) (K a' b' c') = K (a && a') (b && b') (c && c')
@@ -63,6 +64,12 @@ instance Monoid Kind where
     --    2      |    -    -    2
     --    !      |    0    0    2
     -- 1x is a non-escapable linear kind
+#else
+instance Semigroup Kind where
+  K a b c <> K a' b' c' = K (a && a') (b && b') (c && c')
+instance Monoid Kind where
+  mempty = K True True True
+#endif
 
 bangKind :: Kind -> Kind
 bangKind (K e s d) = K (e && s && d) True True

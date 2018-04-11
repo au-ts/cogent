@@ -78,6 +78,7 @@ irrefutablePattern :: Parser LocIrrefPatn t
 irrefutablePattern = avoidInitial >> LocIrrefPatn <$> getPosition <*>
              (variableOrRecord <$> variableName <*> optionMaybe (braces recAssignsAndOrWildcard)
          <|> tuple <$> parens (commaSep irrefutablePattern)
+         <|> PArray <$> brackets (commaSep1 irrefutablePattern)
          <|> PUnboxedRecord <$ reservedOp "#" <*> braces recAssignsAndOrWildcard
          <|> PUnderscore <$ reservedOp "_")
        <?> "irrefutable pattern"
@@ -138,9 +139,9 @@ basicExpr m = do e <- basicExpr'
                  LocExpr (posOfE e) . Seq e <$ semi <*> expr m
                   <|> pure e
 basicExpr' = avoidInitial >> buildExpressionParser
-            [ [postfix ((\f e -> LocExpr (posOfE e) (Member e f)) <$ reservedOp "." <*> variableName)]
+            [ [ postfix ((\f e -> LocExpr (posOfE e) (Member e f)) <$ reservedOp "." <*> variableName)
+              , postfix ((\f e -> LocExpr (posOfE e) (ArrayIndex e f)) <$ reservedOp "." <*> brackets (stripLocE <$> expr 1))]
             , [Prefix (getPosition >>= \p -> reserved "upcast" *> pure (LocExpr p . Upcast))] 
---            , [Prefix (getPosition >>= \p -> reserved "widen" *> pure (LocExpr p . Widen ))] 
             , [Prefix (getPosition >>= \p -> reserved "complement" *> pure (LocExpr p . PrimOp "complement" . (:[])))]
             , [Prefix (getPosition >>= \p -> reserved "not" *> pure (LocExpr p . PrimOp "not" . (:[])))]
             , [Infix (pure (\a b -> LocExpr (posOfE a) (App a b))) AssocLeft]
@@ -268,6 +269,10 @@ monotype = do avoidInitial
                      )
     typeA2' = avoidInitial >>
                ((unbox >>= \op -> atomtype >>= \at -> return (op at))
+           <|>  try ( do { t <- atomtype
+                         ; l <- brackets $ expr 1
+                         ; return (LocType (posOfT t) $ TArray t (stripLocE l))
+                         } )
            <|>  (atomtype >>= \t -> optionMaybe bang >>= \op -> case op of Nothing -> return t; Just f -> return (f t)))
     paramtype = avoidInitial >> LocType <$> getPosition <*> (TCon <$> typeConName <*> many1 typeA2 <*> pure Writable)
     unbox = avoidInitial >> reservedOp "#" >> return (\x -> LocType (posOfT x) (TUnbox x))

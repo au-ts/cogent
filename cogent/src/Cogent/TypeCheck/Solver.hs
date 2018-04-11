@@ -617,6 +617,7 @@ instance Show GoalClasses where
                               "\nflexDown:\n" ++
                               unlines (map (("  " ++) . show) (IS.toList df))
 
+#if __GLASGOW_HASKELL__ < 803
 instance Monoid GoalClasses where
   Classes u d uc dc e s r uf df `mappend` Classes u' d' uc' dc' e' s' r' uf' df'
     = Classes (IM.unionWith (<>) u u')
@@ -629,6 +630,22 @@ instance Monoid GoalClasses where
               (IS.union uf uf')
               (IS.union df df')
   mempty = Classes IM.empty IM.empty IM.empty IM.empty [] [] [] IS.empty IS.empty
+#else
+instance Semigroup GoalClasses where
+  Classes u d uc dc e s r uf df <> Classes u' d' uc' dc' e' s' r' uf' df'
+    = Classes (IM.unionWith (<>) u u')
+              (IM.unionWith (<>) d d')
+              (IM.unionWith (<>) uc uc')
+              (IM.unionWith (<>) dc dc')
+              (e ++ e')
+              (s ++ s')
+              (r ++ r')
+              (IS.union uf uf')
+              (IS.union df df')
+instance Monoid GoalClasses where
+  mempty = Classes IM.empty IM.empty IM.empty IM.empty [] [] [] IS.empty IS.empty
+#endif
+
 
 -- Collects all flexes
 flexesIn :: TypeFragment TCType -> IS.IntSet

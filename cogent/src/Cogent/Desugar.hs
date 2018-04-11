@@ -43,7 +43,7 @@ import Cogent.Vec as Vec
 
 import Control.Applicative
 import Control.Arrow ((&&&))
-import Control.Lens
+import Control.Lens as Lens
 import Control.Monad.Reader hiding (forM)
 import Control.Monad.RWS.Strict hiding (forM)
 import Data.Char (ord)
@@ -423,6 +423,14 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTake rec (fp:fps)) pos)) e = do
       b0 = S.Binding (B.TIP (S.PTake (e1, t1) [fp]) noPos) Nothing e0 []
       bs = S.Binding (B.TIP (S.PTake rec fps) pos) Nothing (B.TE t1 (S.Var e1) noPos) []
   desugarExpr $ B.TE (B.getTypeTE e) (S.Let [b0,bs] e) noPos
+desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArray []) pos)) e = __impossible "desugarAlts' (PSequence [] p)"
+desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArray ps) pos)) e = do
+  v1 <- freshVar
+  vs <- freshVar
+  e0' <- desugarExpr e0
+  let S.RT (S.TArray te le) = B.getTypeTE e0
+      bs = P.zipWith (\p i -> S.Binding p Nothing (B.TE te (S.ArrayIndex e0 (S.RE $ S.IntLit i)) pos) []) ps [0..]
+  desugarExpr $ B.TE (B.getTypeTE e) (S.Let bs e) pos
 desugarAlt' _ _ _ = __impossible "desugarAlt' (_)"  -- literals
 
 desugarPrimInt :: S.RawType -> PrimInt
@@ -516,6 +524,11 @@ desugarExpr (B.TE t (S.IntLit n) _) = return $ E . ILit n $ desugarPrimInt t
 desugarExpr (B.TE _ (S.BoolLit b) _) = return $ E $ ILit (if b then 1 else 0) Boolean
 desugarExpr (B.TE _ (S.CharLit c) _) = return $ E $ ILit (fromIntegral $ ord c) U8
 desugarExpr (B.TE _ (S.StringLit s) _) = return $ E $ SLit s
+desugarExpr (B.TE _ (S.ArrayLit es) _) = E . ALit <$> mapM desugarExpr es
+desugarExpr (B.TE _ (S.ArrayIndex e i) _) = do
+  e' <- desugarExpr e
+  i' <- evalAExpr i
+  return $ E (ArrayIndex e' i')
 desugarExpr (B.TE _ (S.Tuple []) _) = return $ E Unit
 desugarExpr (B.TE _ (S.Tuple [e]) _) = __impossible "desugarExpr (Tuple)"
 desugarExpr (B.TE _ (S.Tuple (e1:e2:[])) _) | not __cogent_ftuples_as_sugar = E <$> (Tuple <$> desugarExpr e1 <*> desugarExpr e2)
@@ -586,6 +599,28 @@ desugarConst (n,e) = (n,) <$> desugarExpr e
 -- NOTE: assume the first argument consists of constants only
 desugarConsts :: [S.TopLevel S.RawType B.TypedPatn B.TypedExpr] -> DS 'Zero 'Zero [CoreConst UntypedExpr]
 desugarConsts = mapM desugarConst . P.map (\(S.ConstDef v _ e) -> (v,e))
+
+
+-- ----------------------------------------------------------------------------
+-- evaludate static indices
+--
+
+evalAExpr :: S.AExpr -> DS t v Int
+evalAExpr (S.RE (S.PrimOp op es)) = evalPrimAExpr op es
+evalAExpr (S.RE (S.Var v)) = do
+  ks <- view _2
+  case ks ^. Lens.at v of
+    Just (getExpr -> S.IntLit c) -> return $ fromIntegral c
+    Just _ -> __impossible "evalAExpr: not an int-typed constant"
+    Nothing -> __impossible "evalAExpr: variable out of scope"
+evalAExpr (S.RE (S.IntLit c)) = return $ fromIntegral c
+evalAExpr (S.RE (S.Upcast e)) = evalAExpr e
+evalAExpr (S.RE (S.Annot e _)) = evalAExpr e
+evalAExpr _ = __impossible "evalAExpr: too complicated to evaluate"
+
+evalPrimAExpr :: OpName -> [S.AExpr] -> DS t v Int
+evalPrimAExpr "+" [e1,e2] = (+) <$> evalAExpr e1 <*> evalAExpr e2
+evalPrimAExpr _ _ = __todo "not yet implemented"
 
 -- ----------------------------------------------------------------------------
 -- custTyGen

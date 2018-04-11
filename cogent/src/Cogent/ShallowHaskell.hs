@@ -92,9 +92,16 @@ data StateGen = StateGen { _freshInt :: Int
 
 makeLenses ''StateGen
 
+#if __GLASGOW_HASKELL__ < 803
 instance Monoid WriterGen where
   mempty = WriterGen mempty
-  (WriterGen ds1) `mappend` (WriterGen ds2) = WriterGen (ds1 `mappend` ds2)
+  WriterGen ds1 `mappend` WriterGen ds2 = WriterGen (ds1 `mappend` ds2)
+#else
+instance Semigroup WriterGen where
+  WriterGen ds1 <> WriterGen ds2 = WriterGen (ds1 <> ds2)
+instance Monoid WriterGen where
+  mempty = WriterGen mempty
+#endif
 
 newtype SG a = SG { runSG :: RWS ReaderGen WriterGen StateGen a }
              deriving (Functor, Applicative, Monad,

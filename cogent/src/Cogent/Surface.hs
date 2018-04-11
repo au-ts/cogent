@@ -28,6 +28,8 @@ import Text.Parsec.Pos
 
 type DocString = String
 
+type AExpr = RawExpr  -- the expression type for statically-known array indices
+
 data IrrefutablePattern pv ip = PVar pv
                               | PTuple [ip]
                               | PUnboxedRecord [Maybe (FieldName, ip)]
@@ -73,7 +75,7 @@ data Expr t p ip e = PrimOp OpName [e]
                    | CharLit Char
                    | StringLit String
                    | ArrayLit [e]
-                   | ArrayIndex e e
+                   | ArrayIndex e AExpr
                    | Tuple [e]
                    | UnboxedRecord [(FieldName, e)]
                    | Let [Binding t p ip e] e
@@ -94,7 +96,7 @@ data Type t =
             | TVariant (M.Map TagName ([t], Taken))
             | TTuple [t]
             | TUnit
-            | TArray t RawExpr  -- stick to RawExpr to be simple / zilinc
+            | TArray t AExpr  -- stick to AExpr to be simple / zilinc
             -- They will be eliminated at some point / zilinc
             | TUnbox   t
             | TBang    t

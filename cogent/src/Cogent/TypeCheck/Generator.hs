@@ -199,9 +199,9 @@ cg' (ArrayIndex e i) t = do
   alpha <- fresh
   n <- freshVar
   (ce, e') <- cg e (T $ TArray alpha n)
-  (ci, i') <- cg i (T $ TCon "U32" [] Unboxed)
-  let c = F alpha :< F t <> Arith (RE (PrimOp "<" [n, toRawExpr $ toTypedExpr i']))
-  return (ce <> ci <> c, ArrayIndex e' i')
+  (ci, i') <- cg (dummyLocE i) (T $ TCon "U32" [] Unboxed)
+  let c = F alpha :< F t <> Arith (RE (PrimOp "<" [n, i]))
+  return (ce <> ci <> c, ArrayIndex e' i)
 
 cg' exp@(Lam pat mt e) t = do
   alpha <- fresh

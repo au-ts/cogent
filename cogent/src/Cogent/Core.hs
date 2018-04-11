@@ -92,6 +92,7 @@ data Expr t v a e
   | ILit Integer PrimInt
   | SLit String
   | ALit [e t v a]
+  | ArrayIndex (e t v a) ArrayIndex
   | Let a (e t v a) (e t ('Suc v) a)
   | LetBang [(Fin v, a)] a (e t v a) (e t ('Suc v) a)
   | Tuple (e t v a) (e t v a)
@@ -121,9 +122,17 @@ deriving instance Show FunctionType
 
 data Attr = Attr { inlineDef :: Bool, fnMacro :: Bool } deriving (Eq, Ord, Show)
 
+#if __GLASGOW_HASKELL__ < 803
 instance Monoid Attr where
   mempty = Attr False False
   (Attr a1 a2) `mappend` (Attr a1' a2') = Attr (a1 || a1') (a2 || a2')
+#else
+instance Semigroup Attr where
+  Attr a1 a2 <> Attr a1' a2' = Attr (a1 || a1') (a2 || a2')
+instance Monoid Attr where
+  mempty = Attr False False
+#endif
+
 
 data Definition e a
   = forall t. (Pretty a, Pretty (e t ('Suc 'Zero) a)) => FunDef  Attr FunName (Vec t (TyVarName, Kind)) (Type t) (Type t) (e t ('Suc 'Zero) a)

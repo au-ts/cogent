@@ -171,6 +171,7 @@ branchFuncEnv, concatFuncEnv :: FuncEnv -> FuncEnv -> FuncEnv
 branchFuncEnv = M.unionWith $ (<<*>>) . ((const, parOcc) <<*>>)
 concatFuncEnv = M.unionWith $ (<<*>>) . ((const, seqOcc) <<*>>)
 
+#if __GLASGOW_HASKELL__ < 803
 instance Monoid OccInfo where
   mempty = Dead
 
@@ -181,6 +182,18 @@ instance Monoid OccInfo where
   mappend MultiSafe   _ = MultiUnsafe
   mappend MultiUnsafe _ = MultiUnsafe
   mappend _ _ = __exhaustivity "mappend (in Monoid OccInfo)"
+#else
+instance Semigroup OccInfo where
+  (<>) x y | x > y = y <> x
+  (<>) _ LetBanged   = LetBanged
+  (<>) Dead        x = x
+  (<>) OnceSafe    _ = MultiUnsafe
+  (<>) MultiSafe   _ = MultiUnsafe
+  (<>) MultiUnsafe _ = MultiUnsafe
+  (<>) _ _ = __exhaustivity "mappend (in Monoid OccInfo)"
+instance Monoid OccInfo where
+  mempty = Dead
+#endif
 
 seqOcc, parOcc :: OccInfo -> OccInfo -> OccInfo
 seqOcc = (<>)
