@@ -1,11 +1,13 @@
 --
--- Copyright 2017, NICTA
+-- Copyright 2018, Data61
+-- Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+-- ABN 41 687 119 230.
 --
 -- This software may be distributed and modified according to the terms of
 -- the GNU General Public License version 2. Note that NO WARRANTY is provided.
 -- See "LICENSE_GPLv2.txt" for details.
 --
--- @TAG(NICTA_GPL)
+-- @TAG(DATA61_GPL)
 --
 
 {-# LANGUAGE DeriveFunctor, FlexibleInstances, TupleSections, DeriveFoldable, DeriveTraversable #-}
@@ -87,23 +89,23 @@ data Expr t p ip e = PrimOp OpName [e]
 type Banged = Bool
 type Taken  = Bool
 
-data Type t =
-            -- They are in WHNF
-              TCon TypeName [t] Sigil
-            | TVar VarName Banged
-            | TFun t t
-            | TRecord [(FieldName, (t, Taken))] Sigil
-            | TVariant (M.Map TagName ([t], Taken))
-            | TTuple [t]
-            | TUnit
-            | TArray t AExpr  -- stick to AExpr to be simple / zilinc
-            -- They will be eliminated at some point / zilinc
-            | TUnbox   t
-            | TBang    t
-            -- Used for both field names in records and tag names in variants
-            | TTake (Maybe [FieldName]) t
-            | TPut  (Maybe [FieldName]) t
-            deriving (Show, Functor, Eq, Foldable, Traversable, Ord)
+data Type e t =
+              -- They are in WHNF
+                TCon TypeName [t] Sigil
+              | TVar VarName Banged
+              | TFun t t
+              | TRecord [(FieldName, (t, Taken))] Sigil
+              | TVariant (M.Map TagName ([t], Taken))
+              | TTuple [t]
+              | TUnit
+              | TArray t e
+              -- They will be eliminated at some point / zilinc
+              | TUnbox   t
+              | TBang    t
+              -- Used for both field names in records and tag names in variants
+              | TTake (Maybe [FieldName]) t
+              | TPut  (Maybe [FieldName]) t
+              deriving (Show, Functor, Eq, Foldable, Traversable, Ord)
 
 data Polytype t = PT [(TyVarName, Kind)] t deriving (Eq, Show, Functor, Foldable, Traversable, Ord)
 
@@ -131,13 +133,13 @@ absTyDeclId _ _ = False
 data LocExpr = LocExpr { posOfE :: SourcePos, exprOfLE :: Expr LocType LocPatn LocIrrefPatn LocExpr } deriving (Eq, Show)
 data LocPatn = LocPatn { posOfP :: SourcePos, patnOfLP :: Pattern LocIrrefPatn } deriving (Eq, Show)
 data LocIrrefPatn = LocIrrefPatn { posOfIP :: SourcePos, irpatnOfLIP :: IrrefutablePattern VarName LocIrrefPatn } deriving (Eq, Show)
-data LocType = LocType { posOfT :: SourcePos, typeOfLT' :: Type LocType }
+data LocType = LocType { posOfT :: SourcePos, typeOfLT' :: Type LocExpr LocType }
              | Documentation String LocType deriving (Eq, Show)
 
 typeOfLT (LocType _ t) = t
 typeOfLT (Documentation s t) = typeOfLT t
 
-data RawType = RT { unRT :: Type RawType } deriving (Eq, Ord, Show)
+data RawType = RT { unRT :: Type RawExpr RawType } deriving (Eq, Ord, Show)
 data RawExpr = RE { unRE :: Expr RawType RawPatn RawIrrefPatn RawExpr } deriving (Eq, Ord, Show)
 data RawPatn = RP { unRP :: Pattern RawIrrefPatn } deriving (Eq, Ord, Show)
 data RawIrrefPatn = RIP { unRIP :: IrrefutablePattern VarName RawIrrefPatn } deriving (Eq, Ord, Show)
@@ -162,6 +164,9 @@ instance Foldable (Flip3 Expr e ip p) where  -- t
   foldMap f a = getConst $ traverse (Const . f) a
 
 instance Foldable (Flip IrrefutablePattern pv) where  -- ip
+  foldMap f a = getConst $ traverse (Const . f) a
+
+instance Foldable (Flip Type t) where  -- e
   foldMap f a = getConst $ traverse (Const . f) a
 
 instance Foldable (Flip (TopLevel t) e) where
@@ -270,6 +275,20 @@ instance Traversable (Flip IrrefutablePattern ip) where  -- pv
   traverse f (Flip (PTake pv mfs))       = Flip <$> (PTake <$> f pv <*> pure mfs)
   traverse _ (Flip (PArray ips))         = pure $ Flip (PArray ips)
 
+instance Traversable (Flip Type t) where  -- e
+  traverse _ (Flip (TCon n ts s))        = pure $ Flip (TCon n ts s)
+  traverse _ (Flip (TVar v b))           = pure $ Flip (TVar v b)
+  traverse _ (Flip (TFun t1 t2))         = pure $ Flip (TFun t1 t2)
+  traverse _ (Flip (TRecord fs s))       = pure $ Flip (TRecord fs s)
+  traverse _ (Flip (TVariant alts))      = pure $ Flip (TVariant alts)
+  traverse _ (Flip (TTuple ts))          = pure $ Flip (TTuple ts)
+  traverse _ (Flip (TUnit))              = pure $ Flip (TUnit)
+  traverse f (Flip (TArray t e))         = Flip <$> (TArray t <$> f e)
+  traverse _ (Flip (TUnbox t))           = pure $ Flip (TUnbox t)
+  traverse _ (Flip (TBang t))            = pure $ Flip (TBang t)
+  traverse _ (Flip (TTake fs t))         = pure $ Flip (TTake fs t)
+  traverse _ (Flip (TPut  fs t))         = pure $ Flip (TPut  fs t)
+
 instance Traversable (Flip (TopLevel t) e) where  -- p
   traverse _ (Flip (Include s))           = pure $ Flip (Include s)
   traverse _ (Flip (IncludeStd s))        = pure $ Flip (IncludeStd s)
@@ -309,6 +328,9 @@ instance Functor (Flip3 Expr e ip p) where
 instance Functor (Flip IrrefutablePattern ip) where  -- pv
   fmap f x = runIdentity (traverse (Identity . f) x)
 
+instance Functor (Flip Type e) where  -- t
+  fmap f x = runIdentity (traverse (Identity . f) x)
+
 instance Functor (Flip (TopLevel t) e) where
   fmap f x = runIdentity (traverse (Identity . f) x)
 instance Functor (Flip2 TopLevel e p) where
@@ -321,8 +343,8 @@ fvA (Alt p _ e) = let locals = fvP p
                    in filter (`notElem` locals) (fvE e)
 
 fvB :: Binding RawType RawPatn RawIrrefPatn RawExpr -> ([VarName], [VarName])
-fvB (Binding ip _ e _) = (fvIP ip, fvE e)
-fvB (BindingAlts p _ e _ alts) = (fvP p ++ foldMap fvA alts, fvE e)
+fvB (Binding ip t e _) = (fvIP ip, foldMap fvT t ++ fvE e)
+fvB (BindingAlts p t e _ alts) = (fvP p ++ foldMap fvA alts, foldMap fvT t ++ fvE e)
 
 fvP :: RawPatn -> [VarName]
 fvP (RP (PCon _ ips)) = foldMap fvIP ips
@@ -338,17 +360,32 @@ fvIP (RIP (PArray ips)) = foldMap fvIP ips
 fvIP _ = []
 
 fvE :: RawExpr -> [VarName]
-fvE (RE (TypeApp v _ _)) = [v]
 fvE (RE (Var v)) = [v]
 fvE (RE (Match e _ alts)) = fvE e ++ foldMap fvA alts
-fvE (RE (Lam  p _ e)) = filter (`notElem` fvIP p) (fvE e)
-fvE (RE (LamC _ _ _ vs)) = vs
+fvE (RE (TypeApp v ts _)) = v : foldMap (foldMap fvT) ts
+fvE (RE (Lam  p t e)) = filter (`notElem` fvIP p) (foldMap fvT t ++ fvE e)
+fvE (RE (LamC _ _ _ vs)) = vs  -- FIXME
 fvE (RE (Let (b:bs) e)) = let (locals, fvs) = fvB b
                               fvs' = filter (`notElem` locals) (fvE (RE (Let bs e)))
                            in fvs ++ fvs'
 fvE (RE (ArrayLit es)) = foldMap fvE es
 fvE (RE (ArrayIndex e i)) = fvE e ++ fvE i
+fvE (RE (Annot e t)) = fvE e ++ fvT t
 fvE (RE e) = foldMap fvE e
+
+fvT :: RawType -> [VarName]
+fvT (RT (TCon _ ts _)) = foldMap fvT ts
+fvT (RT (TVar _ _)) = []
+fvT (RT (TFun t1 t2)) = fvT t1 ++ fvT t2
+fvT (RT (TRecord fs _)) = foldMap (fvT . fst . snd) fs
+fvT (RT (TVariant alts)) = foldMap (foldMap fvT . fst) alts
+fvT (RT (TTuple ts)) = foldMap fvT ts
+fvT (RT (TUnit)) = []
+fvT (RT (TArray t e)) = fvT t ++ fvE e
+fvT (RT (TUnbox   t)) = fvT t
+fvT (RT (TBang    t)) = fvT t
+fvT (RT (TTake  _ t)) = fvT t
+fvT (RT (TPut   _ t)) = fvT t
 
 fcA :: Alt v RawExpr -> [TagName]
 fcA (Alt _ _ e) = fcE e
@@ -365,12 +402,13 @@ fcE (RE e) = foldMap fcE e
 
 fcT :: RawType -> [TagName]
 fcT (RT (TCon n ts _)) = n : foldMap fcT ts
+fcT (RT (TArray t e)) = fcT t ++ fcE e
 fcT (RT t) = foldMap fcT t
 
 -- -----------------------------------------------------------------------------
 
 stripLocT :: LocType -> RawType
-stripLocT = RT . fmap stripLocT . typeOfLT
+stripLocT = RT . fmap stripLocT . ffmap stripLocE . typeOfLT
 
 stripLocP :: LocPatn -> RawPatn
 stripLocP = RP . fmap stripLocIP . patnOfLP
@@ -385,17 +423,31 @@ noPos :: SourcePos
 noPos = newPos "unknown" 0 0
 
 dummyLocT :: RawType -> LocType
-dummyLocT = LocType noPos . fmap dummyLocT . unRT
+dummyLocT = rawToLocT noPos
 
 dummyLocP :: RawPatn -> LocPatn
-dummyLocP = LocPatn noPos . fmap dummyLocIP . unRP
+dummyLocP = rawToLocP noPos
 
 dummyLocIP :: RawIrrefPatn -> LocIrrefPatn
-dummyLocIP = LocIrrefPatn noPos . fmap dummyLocIP . unRIP
+dummyLocIP = rawToLocIP noPos
 
 dummyLocE :: RawExpr -> LocExpr
-dummyLocE = LocExpr noPos . ffffmap dummyLocT . fffmap dummyLocP . ffmap dummyLocIP . fmap dummyLocE . unRE
+dummyLocE = rawToLocE noPos
 
 stripAllLoc :: TopLevel LocType LocPatn LocExpr -> TopLevel RawType RawPatn RawExpr
 stripAllLoc = fffmap stripLocT . ffmap stripLocP . fmap stripLocE
 
+rawToLocT :: SourcePos -> RawType -> LocType
+rawToLocT l (RT t) = LocType l (fmap (rawToLocT l) $ ffmap (rawToLocE l) t)
+
+rawToLocP :: SourcePos -> RawPatn -> LocPatn
+rawToLocP l (RP p) = LocPatn l (fmap (rawToLocIP l) p)
+
+rawToLocIP :: SourcePos -> RawIrrefPatn -> LocIrrefPatn
+rawToLocIP l (RIP ip) = LocIrrefPatn l (fmap (rawToLocIP l) ip)
+
+rawToLocE :: SourcePos -> RawExpr -> LocExpr
+rawToLocE l (RE e) = LocExpr l ( ffffmap (rawToLocT  l)
+                               $ fffmap  (rawToLocP  l)
+                               $ ffmap   (rawToLocIP l)
+                               $ fmap    (rawToLocE  l) e)

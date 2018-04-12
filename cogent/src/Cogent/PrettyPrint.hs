@@ -148,6 +148,10 @@ instance Prec RawExpr where
 instance Prec (TExpr t) where
   prec (TE _ e _) = prec e
 
+instance Prec SExpr where
+  prec (SE e) = prec e
+  prec (SU _) = 0
+
 -- NOTE: the difference from the definition of the fixity of Constraint
 instance Prec Constraint where
   prec (_ :&  _) = 2
@@ -174,7 +178,11 @@ instance ExprType RawExpr where
   isVar (RE e) = isVar e
 
 instance ExprType (TExpr t) where
-  isVar (TE _ e _)     = isVar e
+  isVar (TE _ e _) = isVar e
+
+instance ExprType SExpr where
+  isVar (SE e) = isVar e
+  isVar (SU _) = const False
 
 -- ------------------------------------
 
@@ -245,7 +253,7 @@ class TypeType t where
   isFun :: t -> Bool
   isAtomic :: t -> Bool
 
-instance TypeType (Type t) where
+instance TypeType (Type e t) where
   isCon     (TCon {})  = True
   isCon     _          = False
   isFun     (TFun {})  = True
@@ -253,8 +261,8 @@ instance TypeType (Type t) where
   isTakePut (TTake {}) = True
   isTakePut (TPut  {}) = True
   isTakePut _          = False
-  isAtomic e | isFun e || isTakePut e = False
-             | TCon _ (_:_) _ <- e = False
+  isAtomic t | isFun t || isTakePut t = False
+             | TCon _ (_:_) _ <- t = False
              | otherwise = True
 
 instance TypeType RawType where
@@ -408,15 +416,19 @@ instance (ExprType e, Prec e, Pretty t, PatnType p, Pretty p, PatnType ip, Prett
 instance Pretty RawExpr where
   pretty (RE e) = pretty e
 
-prettyT' :: (TypeType t, Pretty t) => t -> Doc
-prettyT' t | not $ isAtomic t = parens (pretty t)
-           | otherwise        = pretty t
-
 instance Pretty t => Pretty (TExpr t) where
   pretty (TE t e _) | __cogent_fshow_types_in_pretty = parens $ pretty e <+> comment "::" <+> pretty t
                     | otherwise = pretty e
 
-instance (Pretty t, TypeType t) => Pretty (Type t) where
+instance Pretty SExpr where
+  pretty (SE e) = pretty e
+  pretty (SU n) = warn ('?':show n)
+
+prettyT' :: (TypeType t, Pretty t) => t -> Doc
+prettyT' t | not $ isAtomic t = parens (pretty t)
+           | otherwise        = pretty t
+
+instance (Pretty t, TypeType t, Pretty e) => Pretty (Type e t) where
   pretty (TCon n [] s) = ($ typename n) (if | s == ReadOnly -> (<> typesymbol "!")
                                             | s == Unboxed && (n `notElem` primTypeCons) -> (typesymbol "#" <>)
                                             | otherwise     -> id)
@@ -433,13 +445,14 @@ instance (Pretty t, TypeType t) => Pretty (Type t) where
                                           | s == ReadOnly -> (\x -> parens x <> typesymbol "!")
                                           | otherwise -> id) $
         record (map (\(a,(b,c)) -> fieldname a <+> symbol ":" <+> pretty b) ts)  -- all untaken
-    | otherwise = pretty (TRecord (map (second . second $ const False) ts) s)
+    | otherwise = pretty (TRecord (map (second . second $ const False) ts) s :: Type e t)
               <+> typesymbol "take" <+> tupled1 (map fieldname tk)
         where tk = map fst $ filter (snd . snd) ts
   pretty (TVariant ts) | any snd ts = let
      names = map fst $ filter (snd . snd) $ M.toList ts
-   in pretty (TVariant $ fmap (second (const False)) ts) <+> typesymbol "take"
-                                                         <+> tupled1 (map fieldname names)
+   in pretty (TVariant $ fmap (second (const False)) ts :: Type e t)
+        <+> typesymbol "take"
+        <+> tupled1 (map fieldname names)
   pretty (TVariant ts) = variant (map (\(a,bs) -> case bs of
                                           [] -> tagname a
                                           _  -> tagname a <+> spaceList (map prettyT' bs)) $ M.toList (fmap fst ts))
@@ -462,7 +475,7 @@ instance Pretty RawType where
 
 instance Pretty TCType where
   pretty (T t) = pretty t
-  pretty (U v) = warn ("?" ++ show v)
+  pretty (U v) = warn ('?':show v)
 --  pretty (RemoveCase a b) = pretty a <+> string "(without pattern" <+> pretty b <+> string ")"
 
 instance Pretty LocType where
@@ -638,9 +651,9 @@ analyseLeftover c os = case c of
                 <$$> indent' (vcat [ warn "• The unknown" <+> pretty (U i) <+> warn "originates from" <+> pretty (I.lookup i os)
                                    , err "The constraint was emitted as" <+> pretty m])
 
-instance (Pretty a, TypeType a) => Pretty (TypeFragment a) where
+instance (Pretty t, TypeType t) => Pretty (TypeFragment t) where
   pretty (F t) = pretty t & (if __cogent_fdisambiguate_pp then (<+> comment "{- F -}") else id)
-  pretty (FVariant ts) = typesymbol "?" <> pretty (TVariant ts)
+  pretty (FVariant ts) = typesymbol "?" <> pretty (TVariant ts :: Type SExpr t)
   pretty (FRecord ts)
     | not . or $ map (snd . snd) ts = typesymbol "?" <>
         record (map (\(a,(b,c)) -> fieldname a <+> symbol ":" <+> pretty b) ts)  -- all untaken

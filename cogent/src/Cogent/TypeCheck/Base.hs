@@ -146,7 +146,7 @@ data Constraint = (:<) (TypeFragment TCType) (TypeFragment TCType)
                 | SemiSat TypeWarning
                 | Sat
                 | Exhaustive TCType [RawPatn]
-                | Arith AExpr
+                | Arith SExpr
                 deriving (Eq, Show, Ord)
 
 #if __GLASGOW_HASKELL__ < 803
@@ -189,13 +189,17 @@ instance Show Bound where
 -- -----------------------------------------------------------------------------
 
 
-data TypeFragment a = F a
-                    | FRecord [(FieldName, (a, Taken))]
-                    | FVariant (M.Map TagName ([a], Taken))
+data TypeFragment t = F t
+                    | FRecord [(FieldName, (t, Taken))]
+                    | FVariant (M.Map TagName ([t], Taken))
                     deriving (Eq, Show, Functor, Foldable, Traversable, Ord)
 
-data TCType       = T (Type TCType)
+data TCType       = T (Type SExpr TCType)
                   | U Int  -- unifier
+                  deriving (Show, Eq, Ord)
+
+data SExpr        = SE (Expr RawType RawPatn RawIrrefPatn SExpr)
+                  | SU Int
                   deriving (Show, Eq, Ord)
 
 data FuncOrVar = MustFunc | MustVar | FuncOrVar deriving (Eq, Ord, Show)
@@ -244,12 +248,17 @@ type TypedIrrefPatn = TIrrefPatn RawType
 -- --------------------------------
 
 toTCType :: RawType -> TCType
-toTCType (RT x) = T (fmap toTCType x)
+toTCType (RT x) = T (fmap toTCType $ ffmap toSExpr x)
+
+toSExpr :: RawExpr -> SExpr
+toSExpr (RE e) = SE (fmap toSExpr e)
+
+tcToSExpr :: TCExpr -> SExpr
+tcToSExpr = toSExpr . toRawExpr . toTypedExpr
 
 -- Precondition: No unification variables left in the type
 toLocType :: SourcePos -> TCType -> LocType
-toLocType l (T x) = LocType l (fmap (toLocType l) x)
--- toLocType l (RemoveCase p t) = error "panic: removeCase found"
+toLocType l (T x) = LocType l (fmap (toLocType l) $ ffmap (rawToLocE l . toRawExpr') x)
 toLocType l _ = error "panic: unification variable found"
 
 toLocExpr :: (SourcePos -> t -> LocType) -> TExpr t -> LocExpr
@@ -265,12 +274,15 @@ toTypedExpr :: TCExpr -> TypedExpr
 toTypedExpr = fmap toRawType
 
 toTypedAlts :: [Alt TCPatn TCExpr] -> [Alt TypedPatn TypedExpr]
-toTypedAlts = fmap (fmap (fmap toRawType) . ffmap (fmap toRawType))
+toTypedAlts = fmap (ffmap (fmap toRawType) . fmap (fmap toRawType))
 
 toRawType :: TCType -> RawType
-toRawType (T x) = RT (fmap toRawType x)
--- toRawType (RemoveCase p t) = error "panic: removeCase found"
+toRawType (T x) = RT (ffmap toRawExpr' $ fmap toRawType x)
 toRawType _ = error "panic: unification variable found"
+
+toRawExpr' :: SExpr -> RawExpr
+toRawExpr' (SE e) = RE (fmap toRawExpr' e)
+toRawExpr' _ = __impossible "toRawExpr': unification variable found"
 
 toRawExpr :: TypedExpr -> RawExpr
 toRawExpr (TE t e _) = RE (fffmap toRawPatn . ffmap toRawIrrefPatn . fmap toRawExpr $ e)
@@ -383,9 +395,9 @@ validateType' vs (RT t) = do
     TRecord fs _ | fields  <- map fst fs
                  , fields' <- nub fields
                 -> if fields' == fields
-                   then T <$> mapM (validateType' vs) t
+                   then T <$> (mmapM (return . toSExpr) <=< mapM (validateType' vs)) t
                    else throwE (DuplicateRecordFields (fields \\ fields'))
-    _ -> T <$> mapM (validateType' vs) t
+    _ -> T <$> (mmapM (return . toSExpr) <=< mapM (validateType' vs)) t
 
 validateTypes' :: (Traversable t) => [VarName] -> t RawType -> TcErrM TypeError (t TCType)
 validateTypes' vs rs = mapM (validateType' vs) rs
@@ -401,12 +413,6 @@ removeCase (LocPatn _ (PCon t _))       x = (T (TTake (Just [t]) x))
 
 forFlexes :: (Int -> TCType) -> TCType -> TCType
 forFlexes f (U x) = f x
--- forFlexes f (RemoveCase p t) = let
---     p' = fmap (fmap (forFlexes f)) p
---     t' = forFlexes f t
---   in case removeCase p' t' of
---      Just t' -> t'
---      Nothing -> RemoveCase p' t'
 forFlexes f (T x) = T (fmap (forFlexes f) x)
 
 flexOf (U x) = Just x
@@ -415,7 +421,6 @@ flexOf (T (TPut  _ v)) = flexOf v
 flexOf (T (TBang v))   = flexOf v
 flexOf (T (TUnbox v))  = flexOf v
 flexOf _ = Nothing
-
 
 isSynonym :: RawType -> TcBaseM Bool
 isSynonym (RT (TCon c _ _)) = lookup c <$> use knownTypes >>= \case

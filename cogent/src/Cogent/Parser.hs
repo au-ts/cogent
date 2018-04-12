@@ -271,7 +271,7 @@ monotype = do avoidInitial
                ((unbox >>= \op -> atomtype >>= \at -> return (op at))
            <|>  try ( do { t <- atomtype
                          ; l <- brackets $ expr 1
-                         ; return (LocType (posOfT t) $ TArray t (stripLocE l))
+                         ; return (LocType (posOfT t) $ TArray t l)
                          } )
            <|>  (atomtype >>= \t -> optionMaybe bang >>= \op -> case op of Nothing -> return t; Just f -> return (f t)))
     paramtype = avoidInitial >> LocType <$> getPosition <*> (TCon <$> typeConName <*> many1 typeA2 <*> pure Writable)

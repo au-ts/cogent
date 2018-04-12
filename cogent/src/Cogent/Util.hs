@@ -45,6 +45,15 @@ fffmap f = unflip2 . fmap f . Flip2
 ffffmap :: (Functor (Flip3 f a b c)) => (d -> d') -> f d c b a -> f d' c b a
 ffffmap f = unflip3 . fmap f . Flip3
 
+mmapM :: (Traversable (Flip t a), Monad m) => (b -> m b') -> t b a -> m (t b' a)
+mmapM f = return . unflip <=< mapM f . Flip
+
+mmmapM :: (Traversable (Flip2 t a b), Monad m) => (c -> m c') -> t c b a -> m (t c' b a)
+mmmapM f = return . unflip2 <=< mapM f . Flip2
+
+mmmmapM :: (Traversable (Flip3 t a b c), Monad m) => (d -> m d') -> t d c b a -> m (t d' c b a)
+mmmmapM f = return . unflip3 <=< mapM f . Flip3
+
 ttraverse :: (Traversable (Flip f b), Applicative m) => (a -> m a') -> f a b -> m (f a' b)
 ttraverse f = fmap unflip . traverse f . Flip
 

@@ -74,11 +74,14 @@ fresh = fresh' (ExpressionAt ?loc)
       flexOrigins %= IM.insert i ctx
       return $ U i
 
-freshVar :: (?loc :: SourcePos) => CG RawExpr
+freshVar :: (?loc :: SourcePos) => CG SExpr
 freshVar = fresh' (ExpressionAt ?loc)
   where
-    fresh' :: VarOrigin -> CG RawExpr
-    fresh' ctx = do undefined  -- TODO
+    fresh' :: VarOrigin -> CG SExpr
+    fresh' ctx = do
+      i <- flexes <<%= succ  -- FIXME: do we need a different variable?
+      flexOrigins %= IM.insert i ctx
+      return $ SU i
       
 
 cgMany :: (?loc :: SourcePos) => [LocExpr] -> CG ([TCType], Constraint, [TCExpr])
@@ -192,7 +195,7 @@ cg' (ArrayLit es) t = do
   alpha <- fresh
   blob <- forM es $ flip cg alpha
   let (cs,es') = unzip blob
-      n = RE . IntLit . fromIntegral $ length es
+      n = SE . IntLit . fromIntegral $ length es
   return (mconcat cs <> F (T $ TArray alpha n) :< F t, ArrayLit es')
 
 cg' (ArrayIndex e i) t = do
@@ -200,7 +203,7 @@ cg' (ArrayIndex e i) t = do
   n <- freshVar
   (ce, e') <- cg e (T $ TArray alpha n)
   (ci, i') <- cg (dummyLocE i) (T $ TCon "U32" [] Unboxed)
-  let c = F alpha :< F t <> Arith (RE (PrimOp "<" [n, i]))
+  let c = F alpha :< F t <> Arith (SE (PrimOp "<" [n, toSExpr i]))
   return (ce <> ci <> c, ArrayIndex e' i)
 
 cg' exp@(Lam pat mt e) t = do
@@ -466,55 +469,63 @@ match' (PUnderscore) t =
 match' (PUnitel) t = return (M.empty, F t :< F (T TUnit), PUnitel)
 
 match' (PTuple ps) t = do
-   (vs, blob) <- unzip <$> mapM (\p -> do v <- fresh; (v,) <$> match p v) ps
-   let (ss, cs, ps') = (map fst3 blob, map snd3 blob, map thd3 blob)
-       p' = PTuple ps'
-       co = case overlapping ss of
-              Left (v:_) -> Unsat $ DuplicateVariableInPattern v  -- p'
-              _          -> Sat
-       c = F t :< F (T (TTuple vs))
-   traceTc "gen" (text "match tuple pattern:" <+> prettyIP p'
-            L.<$> text "of type" <+> pretty t <> semi
-            L.<$> text "generate constraint" <+> prettyC c)
-   return (M.unions ss, co <> mconcat cs <> c, p')
+  (vs, blob) <- unzip <$> mapM (\p -> do v <- fresh; (v,) <$> match p v) ps
+  let (ss, cs, ps') = (map fst3 blob, map snd3 blob, map thd3 blob)
+      p' = PTuple ps'
+      co = case overlapping ss of
+             Left (v:_) -> Unsat $ DuplicateVariableInPattern v  -- p'
+             _          -> Sat
+      c = F t :< F (T (TTuple vs))
+  traceTc "gen" (text "match tuple pattern:" <+> prettyIP p'
+           L.<$> text "of type" <+> pretty t <> semi
+           L.<$> text "generate constraint" <+> prettyC c)
+  return (M.unions ss, co <> mconcat cs <> c, p')
 
 match' (PUnboxedRecord fs) t | not (any isNothing fs) = do
-   let (ns, ps) = unzip (catMaybes fs)
-   (vs, blob) <- unzip <$> mapM (\p -> do v <- fresh; (v,) <$> match p v) ps
-   let (ss, cs, ps') = (map fst3 blob, map snd3 blob, map thd3 blob)
-       t' = FRecord (zip ns (map (,False) vs))
-       d  = Drop (T (TTake (Just ns) t)) Suppressed
-       p' = PUnboxedRecord (map Just (zip ns ps'))
-       c = F t :< t'
-       co = case overlapping ss of
-              Left (v:_) -> Unsat $ DuplicateVariableInPattern v  -- p'
-              _          -> Sat
-   traceTc "gen" (text "match unboxed record:" <+> prettyIP p'
-            L.<$> text "of type" <+> pretty t <> semi
-            L.<$> text "generate constraint" <+> prettyC c
-            L.<$> text "non-overlapping, and linearity constraints")
-   return (M.unions ss, co <> mconcat cs <> c <> d, p')
+  let (ns, ps) = unzip (catMaybes fs)
+  (vs, blob) <- unzip <$> mapM (\p -> do v <- fresh; (v,) <$> match p v) ps
+  let (ss, cs, ps') = (map fst3 blob, map snd3 blob, map thd3 blob)
+      t' = FRecord (zip ns (map (,False) vs))
+      d  = Drop (T (TTake (Just ns) t)) Suppressed
+      p' = PUnboxedRecord (map Just (zip ns ps'))
+      c = F t :< t'
+      co = case overlapping ss of
+             Left (v:_) -> Unsat $ DuplicateVariableInPattern v  -- p'
+             _          -> Sat
+  traceTc "gen" (text "match unboxed record:" <+> prettyIP p'
+           L.<$> text "of type" <+> pretty t <> semi
+           L.<$> text "generate constraint" <+> prettyC c
+           L.<$> text "non-overlapping, and linearity constraints")
+  return (M.unions ss, co <> mconcat cs <> c <> d, p')
 
-   | otherwise = second3 (:& Unsat RecordWildcardsNotSupported) <$> match' (PUnboxedRecord (filter isJust fs)) t
+  | otherwise = second3 (:& Unsat RecordWildcardsNotSupported) <$> match' (PUnboxedRecord (filter isJust fs)) t
 
 match' (PTake r fs) t | not (any isNothing fs) = do
-   let (ns, ps) = unzip (catMaybes fs)
-   (vs, blob) <- unzip <$> mapM (\p -> do v <- fresh; (v,) <$> match p v) ps
-   let (ss, cs, ps') = (map fst3 blob, map snd3 blob, map thd3 blob)
-       s  = M.fromList [(r, (u, ?loc, Seq.empty))]
-       u  = T (TTake (Just ns) t)
-       c  = F t :< FRecord (zip ns (map (,False) vs))
-       p' = PTake (r,u) (map Just (zip ns ps'))
-       co = case overlapping (s:ss) of
-              Left (v:_) -> Unsat $ DuplicateVariableInPattern v  -- p'
-              _          -> Sat
-   traceTc "gen" (text "match take pattern:" <+> pretty p'
-            L.<$> text "of type" <+> pretty t <> semi
-            L.<$> text "generate constraint:" <+> prettyC c
-            L.<$> text "and non-overlapping constraints")
-   return (M.unions (s:ss), co <> mconcat cs <> c, p')
+  let (ns, ps) = unzip (catMaybes fs)
+  (vs, blob) <- unzip <$> mapM (\p -> do v <- fresh; (v,) <$> match p v) ps
+  let (ss, cs, ps') = (map fst3 blob, map snd3 blob, map thd3 blob)
+      s  = M.fromList [(r, (u, ?loc, Seq.empty))]
+      u  = T (TTake (Just ns) t)
+      c  = F t :< FRecord (zip ns (map (,False) vs))
+      p' = PTake (r,u) (map Just (zip ns ps'))
+      co = case overlapping (s:ss) of
+             Left (v:_) -> Unsat $ DuplicateVariableInPattern v  -- p'
+             _          -> Sat
+  traceTc "gen" (text "match take pattern:" <+> pretty p'
+           L.<$> text "of type" <+> pretty t <> semi
+           L.<$> text "generate constraint:" <+> prettyC c
+           L.<$> text "and non-overlapping constraints")
+  return (M.unions (s:ss), co <> mconcat cs <> c, p')
 
-   | otherwise = second3 (:& Unsat RecordWildcardsNotSupported) <$> match' (PTake r (filter isJust fs)) t
+  | otherwise = second3 (:& Unsat RecordWildcardsNotSupported) <$> match' (PTake r (filter isJust fs)) t
+
+match' (PArray ps) t = do
+  alpha <- fresh
+  blob <- mapM (flip match alpha) ps
+  let (ss,cs,ps') = unzip3 blob
+      l = SE . IntLit . fromIntegral $ length ps
+      c = F t :< F (T $ TArray alpha l)
+  return (M.unions ss, mconcat cs <> c, PArray ps')
 
 withBindings :: (?loc::SourcePos)
   => [Binding LocType LocPatn LocIrrefPatn LocExpr]

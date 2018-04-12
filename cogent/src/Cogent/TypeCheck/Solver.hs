@@ -84,6 +84,7 @@ whnf (T (TUnbox t)) = do
      _ | notWhnf t'    -> T (TUnbox t')
      (T (TCon x ps _)) -> T (TCon x ps Unboxed)
      (T (TRecord l _)) -> T (TRecord l Unboxed)
+     (T (TArray  _ _)) -> t'
      (T o)             -> T (fmap (T . TUnbox) o)
      _                 -> __impossible "whnf"
 
@@ -104,7 +105,7 @@ whnf (T (TTake fs t)) = do
      (T (TRecord l s)) -> return $ T (TRecord (takeFields fs l) s)
      (T (TVariant l))  -> return $ T (TVariant (M.fromList $ takeFields fs $ M.toList l))
      _ | Just fs' <- fs, null fs'  -> return $ t'
-     _                 -> return $ T (TTake fs t')
+     _ -> return $ T (TTake fs t')
  where
    takeFields :: Maybe [FieldName] -> [(FieldName, (a , Bool))] -> [(FieldName, (a, Bool))]
    takeFields Nothing   = map (fmap (fmap (const True)))  -- not implemented
@@ -116,7 +117,7 @@ whnf (T (TPut fs t)) = do
      (T (TRecord l s)) -> return $ T (TRecord (putFields fs l) s)
      (T (TVariant l))  -> return $ T (TVariant (M.fromList $ putFields fs $ M.toList l))
      _ | Just fs' <- fs, null fs'  -> return $ t'
-     _                 -> return $ T (TPut fs t')
+     _ -> return $ T (TPut fs t')
  where
    putFields :: Maybe [FieldName] -> [(FieldName, (a, Bool))] -> [(FieldName, (a, Bool))]
    putFields Nothing   = map (fmap (fmap (const False)))
@@ -243,13 +244,14 @@ rule (Escape t@(T (TCon n ts s)) m)
   | s /= ReadOnly = return $ Just Sat
   | otherwise     = return $ Just $ Unsat $ TypeNotEscapable t m
 
+rule (Arith e) = return Nothing
 
 rule (F (T (TTuple xs)) :< F (T (TTuple ys)))
   | length xs /= length ys = return $ Just $ Unsat (TypeMismatch (F (T (TTuple xs))) (F (T (TTuple ys))))
   | otherwise              = return $ Just $ mconcat (zipWith (:<) (map F xs) (map F ys))
 rule ct@(F (T (TFun a b))  :< F (T (TFun c d))) = 
   return . Just $ (F c :< F a) :& (F b :< F d)
-rule (F (T TUnit     )  :< F (T TUnit))      = return $ Just Sat
+rule (F (T TUnit     )  :< F (T TUnit)) = return $ Just Sat
 rule (F (T (TVar v b))  :< F (T (TVar u c)))
   | v == u, b == c = return $ Just Sat
   | otherwise      = return $ Just $ Unsat (TypeMismatch (F $ T (TVar v b)) (F $ T (TVar u c)))
@@ -314,6 +316,8 @@ rule (F y :< F (T (TPut fs (U x))))
 --   = return $ Just $ uncurry FVariant (putVariant fs vs es) :< F (U x)
 -- rule (FVariant vs es :< F (T (TPut (Just fs) (U x))) )
 --   = return $ Just $ uncurry FVariant (takeVariant fs vs es) :<  F ( U x)
+rule (F (T (TArray t l)) :< F (T (TArray s n)))
+  = ruleT (F t :< F s :& Arith (SE $ PrimOp "==" [l, n]))
 rule (F (T (TBang a)) :< F b)
   | isBangInv b = return $ Just (F a :< F b)
 rule (F a :< F (T (TBang b)))

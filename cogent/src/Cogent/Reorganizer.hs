@@ -1,11 +1,13 @@
 --
--- Copyright 2017, NICTA
+-- Copyright 2018, Data61
+-- Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+-- ABN 41 687 119 230.
 --
 -- This software may be distributed and modified according to the terms of
 -- the GNU General Public License version 2. Note that NO WARRANTY is provided.
 -- See "LICENSE_GPLv2.txt" for details.
 --
--- @TAG(NICTA_GPL)
+-- @TAG(DATA61_GPL)
 --
 
 
@@ -77,7 +79,9 @@ checkNoNameClashes ((s,d):xs) bindings
   | Just x <- M.lookup s bindings = Left (msg, [(s, x), (s, d)])
   | otherwise = let bindings' = case s of DocBlock' _ -> bindings; _ -> M.insert s d bindings
                  in checkNoNameClashes xs bindings'
-  where msg = case s of TypeName _ -> DuplicateTypeDefinition; ValName _ -> DuplicateValueDefinition; DocBlock' _ -> error "WTF just happened"
+  where msg = case s of TypeName  _ -> DuplicateTypeDefinition
+                        ValName   _ -> DuplicateValueDefinition
+                        DocBlock' _ -> __impossible "checkNoNameClashes"
 
 -- Note: it doesn't make much sense to check for unused definitions as they may be used
 -- by the FFI. / zilinc
