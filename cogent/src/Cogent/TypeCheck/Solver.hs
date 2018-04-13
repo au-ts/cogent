@@ -21,7 +21,7 @@ module Cogent.TypeCheck.Solver (runSolver, solve) where
 
 import           Cogent.Common.Syntax
 import           Cogent.Common.Types
-import           Cogent.Compiler (__impossible)
+import           Cogent.Compiler (__impossible, __todo)
 import           Cogent.PrettyPrint (prettyC)
 import           Cogent.Surface
 import           Cogent.TypeCheck.Base
@@ -430,6 +430,7 @@ simp (a :& b)          = (:&)       <$> simp a <*> simp b
 simp (Share  t m)      = Share      <$> whnf t <*> pure m
 simp (Drop   t m)      = Drop       <$> whnf t <*> pure m
 simp (Escape t m)      = Escape     <$> whnf t <*> pure m
+simp (Arith e)         = pure (Arith e)
 simp (a :@ c)          = (:@)       <$> simp a <*> pure c
 simp (Unsat e)         = pure (Unsat e)
 simp (SemiSat w)       = pure (SemiSat w)
@@ -447,6 +448,12 @@ fresh ctx = do
   flexOrigins %= IM.insert i ctx
   return $ U i
 
+freshVar :: VarOrigin -> Solver SExpr
+freshVar ctx = do
+  i <- flexes <<%= succ  -- FIXME: do we need a different variable?
+  flexOrigins %= IM.insert i ctx
+  return $ SU i
+ 
 
 glb = bound GLB
 lub = bound LUB
@@ -561,6 +568,10 @@ bound' d t1@(T (TRecord fs s)) t2@(T (TRecord gs r))
       traceTc "sol" (text "calculate bound of" <+> pretty t1 <+> text "and" <+> pretty t2 <> colon
                      P.<$> pretty t)
       return $ Just t
+bound' d a@(T (TArray t l)) b@(T (TArray s n)) = do
+  u <- fresh (BoundOf (F t) (F s) d)
+  m <- freshVar (EqualIn l n a b)
+  return $ Just (T $ TArray u m)
 bound' _ a b = do
   traceTc "sol" (text "calculate bound (bound') of"
            P.<$> pretty a
@@ -599,10 +610,12 @@ data GoalClasses
     , rest :: [Goal]
     , upflexes :: IS.IntSet
     , downflexes :: IS.IntSet
+    , ariths :: [Goal]
     }
 
 instance Show GoalClasses where
-  show (Classes u d uc dc un ss r uf df) = "ups:\n" ++
+  show (Classes u d uc dc un ss r uf df a) = 
+                              "ups:\n" ++
                               unlines (map (("  " ++) . show) (F.toList u)) ++
                               "\ndowns:\n" ++
                               unlines (map (("  " ++) . show) (F.toList d)) ++
@@ -616,38 +629,42 @@ instance Show GoalClasses where
                               unlines (map (("  " ++) . show) (F.toList ss)) ++
                               "\nrest:\n" ++
                               unlines (map (("  " ++) . show) (F.toList r)) ++
-                              "\nflexUp:\n" ++
+                              "\nupflexes:\n" ++
                               unlines (map (("  " ++) . show) (IS.toList uf)) ++
-                              "\nflexDown:\n" ++
-                              unlines (map (("  " ++) . show) (IS.toList df))
+                              "\ndownflexes:\n" ++
+                              unlines (map (("  " ++) . show) (IS.toList df)) ++
+                              "\nariths:\n" ++
+                              unlines (map (("  " ++) . show) (F.toList a))
 
 #if __GLASGOW_HASKELL__ < 803
 instance Monoid GoalClasses where
-  Classes u d uc dc e s r uf df `mappend` Classes u' d' uc' dc' e' s' r' uf' df'
+  Classes u d uc dc e s r uf df a `mappend` Classes u' d' uc' dc' e' s' r' uf' df' a'
     = Classes (IM.unionWith (<>) u u')
               (IM.unionWith (<>) d d')
               (IM.unionWith (<>) uc uc')
               (IM.unionWith (<>) dc dc')
-              (e ++ e')
-              (s ++ s')
-              (r ++ r')
+              (e <> e')
+              (s <> s')
+              (r <> r')
               (IS.union uf uf')
               (IS.union df df')
-  mempty = Classes IM.empty IM.empty IM.empty IM.empty [] [] [] IS.empty IS.empty
+              (a <> a')
+  mempty = Classes IM.empty IM.empty IM.empty IM.empty [] [] [] IS.empty IS.empty []
 #else
 instance Semigroup GoalClasses where
-  Classes u d uc dc e s r uf df <> Classes u' d' uc' dc' e' s' r' uf' df'
+  Classes u d uc dc e s r uf df a <> Classes u' d' uc' dc' e' s' r' uf' df' a'
     = Classes (IM.unionWith (<>) u u')
               (IM.unionWith (<>) d d')
               (IM.unionWith (<>) uc uc')
               (IM.unionWith (<>) dc dc')
-              (e ++ e')
-              (s ++ s')
-              (r ++ r')
+              (e <> e')
+              (s <> s')
+              (r <> r')
               (IS.union uf uf')
               (IS.union df df')
+              (a <> a')
 instance Monoid GoalClasses where
-  mempty = Classes IM.empty IM.empty IM.empty IM.empty [] [] [] IS.empty IS.empty
+  mempty = Classes IM.empty IM.empty IM.empty IM.empty [] [] [] IS.empty IS.empty []
 #endif
 
 
@@ -676,6 +693,7 @@ classify g = case g of
                         , Nothing <- flexOf b -> mempty {downflexes = IS.singleton a', rest = [g]}
                         | Just b' <- flexOf b
                         , Nothing <- flexOf a -> mempty {upflexes = IS.singleton b', rest = [g]}
+  (Goal _ (Arith e))                          -> mempty {ariths = [g]}
   _                                           -> mempty {rest = [g]}
   where
     rigid (F (U x)) = False
@@ -751,14 +769,18 @@ noBrainers [Goal _ c@(Upcastable (U x) (T t@(TCon v [] Unboxed)))]
   | v `elem` primTypeCons = return $ Subst.singleton x (T t)
 noBrainers _ = return mempty
 
+
+arithSolver :: [Goal] -> Solver [ContextualisedTcLog]
+arithSolver gs = return []  -- TODO
+
 applySubst :: Subst -> Solver ()
 applySubst s = traceTc "sol" (text "apply subst") >> substs <>= s
 
 -- Applies the current substitution to goals.
 instantiate :: GoalClasses -> Solver [Goal]
-instantiate (Classes ups downs upcasts downcasts errs semisats rest upfl downfl) = do
+instantiate (Classes ups downs upcasts downcasts errs semisats rest upfl downfl arith) = do
   s <- use substs
-  let al  = (GS.toList =<< (F.toList =<< [ups, downs, upcasts, downcasts]) ) ++ errs ++ semisats ++ rest
+  let al  = (GS.toList =<< (F.toList =<< [ups, downs, upcasts, downcasts])) ++ errs ++ semisats ++ rest
       al' = al & map (goal %~ Subst.applyC s) & map (goalContext %~ map (Subst.applyCtx s))
   -- traceTc "sol" (text "instantiate" <+> pretty (show al) P.<$> text "with substitution" P.<$> pretty s <> semi
   --                P.<$> text "end up with goals:" <+> pretty (show al'))
@@ -837,6 +859,7 @@ solve = lift . crunch >=> explode >=> go
     go g | not (irreducible (fmap GS.toList $ ups   g) (upflexes   g)) = go' g UpClass
     go g | not (IM.null (downcastables g)) = go' g DowncastClass
     go g | not (IM.null (upcastables   g)) = go' g UpcastClass
+    go g | not (null (ariths g)) = arithSolver $ ariths g
     go g | not (null (rest g)) = do
       os <- use flexOrigins
       return $ map toWarn (semisats g) ++
@@ -846,10 +869,10 @@ solve = lift . crunch >=> explode >=> go
     go' :: GoalClasses -> GoalClass -> Solver [ContextualisedTcLog]
     go' g c = do
       let (msg, f, cls, g'', flexes) = case c of
-            UpClass       -> ("upward"  , suggest    , ups          , g { ups           = IM.empty }, upflexes)
-            DownClass     -> ("downward", impose     , downs        , g { downs         = IM.empty }, downflexes)
-            UpcastClass   -> ("upcast"  , suggestCast, upcastables  , g { upcastables   = IM.empty }, mempty)
-            DowncastClass -> ("downcast", imposeCast , downcastables, g { downcastables = IM.empty }, mempty)
+            UpClass       -> ("upward"    , suggest    , ups          , g { ups           = IM.empty }, upflexes)
+            DownClass     -> ("downward"  , impose     , downs        , g { downs         = IM.empty }, downflexes)
+            UpcastClass   -> ("upcast"    , suggestCast, upcastables  , g { upcastables   = IM.empty }, mempty)
+            DowncastClass -> ("downcast"  , imposeCast , downcastables, g { downcastables = IM.empty }, mempty)
           groundNB [Goal _ (F a :< F b)] = groundConstraint a b
           groundNB _                     = False
           groundKeys = IM.keysSet (IM.filter (groundNB . GS.toList) (cls g))

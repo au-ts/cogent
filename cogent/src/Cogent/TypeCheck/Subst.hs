@@ -73,6 +73,7 @@ applyC s (Upcastable a b) = apply s a `Upcastable` apply s b
 applyC s (Share t m) = Share (apply s t) m
 applyC s (Drop t m) = Drop (apply s t) m
 applyC s (Escape t m) = Escape (apply s t) m
+applyC s (Arith e) = Arith e
 applyC s (Unsat e) = Unsat (applyErr s e)
 applyC s (SemiSat w) = SemiSat (applyWarn s w)
 applyC s Sat = Sat

@@ -115,6 +115,7 @@ isCtxConstraint _ = False
 
 data VarOrigin = ExpressionAt SourcePos
                | BoundOf (TypeFragment TCType) (TypeFragment TCType) Bound
+               | EqualIn SExpr SExpr TCType TCType
                deriving (Eq, Show, Ord)
 
 
