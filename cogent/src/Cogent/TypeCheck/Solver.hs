@@ -610,11 +610,12 @@ data GoalClasses
     , rest :: [Goal]
     , upflexes :: IS.IntSet
     , downflexes :: IS.IntSet
-    , ariths :: [Goal]
+    , aritheqs :: [Goal]
+    , arithineqs :: [Goal]
     }
 
 instance Show GoalClasses where
-  show (Classes u d uc dc un ss r uf df a) = 
+  show (Classes u d uc dc un ss r uf df ai ae) = 
                               "ups:\n" ++
                               unlines (map (("  " ++) . show) (F.toList u)) ++
                               "\ndowns:\n" ++
@@ -633,12 +634,14 @@ instance Show GoalClasses where
                               unlines (map (("  " ++) . show) (IS.toList uf)) ++
                               "\ndownflexes:\n" ++
                               unlines (map (("  " ++) . show) (IS.toList df)) ++
-                              "\nariths:\n" ++
-                              unlines (map (("  " ++) . show) (F.toList a))
+                              "\naritheqs:\n" ++
+                              unlines (map (("  " ++) . show) (F.toList ae)) ++
+                              "\narithineqs:\n" ++
+                              unlines (map (("  " ++) . show) (F.toList ai))
 
 #if __GLASGOW_HASKELL__ < 803
 instance Monoid GoalClasses where
-  Classes u d uc dc e s r uf df a `mappend` Classes u' d' uc' dc' e' s' r' uf' df' a'
+  Classes u d uc dc e s r uf df ae ai `mappend` Classes u' d' uc' dc' e' s' r' uf' df' ae' ai'
     = Classes (IM.unionWith (<>) u u')
               (IM.unionWith (<>) d d')
               (IM.unionWith (<>) uc uc')
@@ -648,11 +651,12 @@ instance Monoid GoalClasses where
               (r <> r')
               (IS.union uf uf')
               (IS.union df df')
-              (a <> a')
-  mempty = Classes IM.empty IM.empty IM.empty IM.empty [] [] [] IS.empty IS.empty []
+              (ae <> ae')
+              (ai <> ai')
+  mempty = Classes IM.empty IM.empty IM.empty IM.empty [] [] [] IS.empty IS.empty [] []
 #else
 instance Semigroup GoalClasses where
-  Classes u d uc dc e s r uf df a <> Classes u' d' uc' dc' e' s' r' uf' df' a'
+  Classes u d uc dc e s r uf df ae ai <> Classes u' d' uc' dc' e' s' r' uf' df' ae' ai'
     = Classes (IM.unionWith (<>) u u')
               (IM.unionWith (<>) d d')
               (IM.unionWith (<>) uc uc')
@@ -662,9 +666,10 @@ instance Semigroup GoalClasses where
               (r <> r')
               (IS.union uf uf')
               (IS.union df df')
-              (a <> a')
+              (ae <> ae')
+              (ai <> ai')
 instance Monoid GoalClasses where
-  mempty = Classes IM.empty IM.empty IM.empty IM.empty [] [] [] IS.empty IS.empty []
+  mempty = Classes IM.empty IM.empty IM.empty IM.empty [] [] [] IS.empty IS.empty [] []
 #endif
 
 
@@ -693,7 +698,8 @@ classify g = case g of
                         , Nothing <- flexOf b -> mempty {downflexes = IS.singleton a', rest = [g]}
                         | Just b' <- flexOf b
                         , Nothing <- flexOf a -> mempty {upflexes = IS.singleton b', rest = [g]}
-  (Goal _ (Arith e))                          -> mempty {ariths = [g]}
+  (Goal _ (Arith (SE (PrimOp "==" _))))       -> mempty {aritheqs = [g]}
+  (Goal _ (Arith _))                          -> mempty {arithineqs = [g]}
   _                                           -> mempty {rest = [g]}
   where
     rigid (F (U x)) = False
@@ -778,10 +784,11 @@ applySubst s = traceTc "sol" (text "apply subst") >> substs <>= s
 
 -- Applies the current substitution to goals.
 instantiate :: GoalClasses -> Solver [Goal]
-instantiate (Classes ups downs upcasts downcasts errs semisats rest upfl downfl arith) = do
+instantiate (Classes ups downs upcasts downcasts errs semisats rest upfl downfl aritheqs arithineqs) = do
   s <- use substs
   let al  = (GS.toList =<< (F.toList =<< [ups, downs, upcasts, downcasts])) ++ errs ++ semisats ++ rest
       al' = al & map (goal %~ Subst.applyC s) & map (goalContext %~ map (Subst.applyCtx s))
+  -- TODO: also instantiate the term variables
   -- traceTc "sol" (text "instantiate" <+> pretty (show al) P.<$> text "with substitution" P.<$> pretty s <> semi
   --                P.<$> text "end up with goals:" <+> pretty (show al'))
   return al'
@@ -859,7 +866,8 @@ solve = lift . crunch >=> explode >=> go
     go g | not (irreducible (fmap GS.toList $ ups   g) (upflexes   g)) = go' g UpClass
     go g | not (IM.null (downcastables g)) = go' g DowncastClass
     go g | not (IM.null (upcastables   g)) = go' g UpcastClass
-    go g | not (null (ariths g)) = arithSolver $ ariths g
+    go g | not (null (aritheqs g)) = arithSolver $ aritheqs g
+    go g | not (null (arithineqs g)) = arithSolver $ arithineqs g
     go g | not (null (rest g)) = do
       os <- use flexOrigins
       return $ map toWarn (semisats g) ++
