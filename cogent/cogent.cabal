@@ -133,6 +133,7 @@ library
               , process >= 1.2.0.0
               , random >= 1.1
               , reducers >= 3.10
+              , sbv > 7.0
               , shakespeare >= 2.0
               , srcloc >= 0.4
               , syb >= 0.4

@@ -44,6 +44,7 @@ import           Data.List (elemIndex)
 import qualified Data.Map as M
 import           Data.Maybe
 import           Data.Monoid
+import qualified Data.SBV as V
 import qualified Data.Set as S
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
@@ -775,12 +776,69 @@ noBrainers [Goal _ c@(Upcastable (U x) (T t@(TCon v [] Unboxed)))]
   | v `elem` primTypeCons = return $ Subst.singleton x (T t)
 noBrainers _ = return mempty
 
-
-arithSolver :: [Goal] -> Solver [ContextualisedTcLog]
-arithSolver gs = return []  -- TODO
-
 applySubst :: Subst -> Solver ()
 applySubst s = traceTc "sol" (text "apply subst") >> substs <>= s
+
+
+arithEqSolver :: [Goal] -> Solver [ContextualisedTcLog]
+arithEqSolver gs = return [] -- TODO
+
+arithIneqSolver :: [Goal] -> Solver [ContextualisedTcLog]
+arithIneqSolver _ = return []
+
+data Assignment = Assignment (IM.IntMap SExpr)
+
+solveArithEqs :: [SExpr] -> Solver Assignment
+solveArithEqs es = liftIO $ Assignment . IM.fromList . M.toList
+                 . M.mapKeys (read . tail) . M.map (SE . IntLit)
+                 <$> getAssignments
+  where
+    getAssignments :: IO (M.Map String Integer)
+    getAssignments = do
+      V.AllSatResult (_,_,as) <- V.allSat (V.solve =<< mapM sexprToSBV_B es)
+      when (length as > 1) $ __impossible "multiple assignments"
+      return $ M.map V.fromCW $ V.getModelDictionary $ head as
+      
+
+sexprToSBV_I :: SExpr -> V.Symbolic V.SWord16
+sexprToSBV_I (SE (PrimOp op [e1,e2])) = (liftA2 $ opToSBV_I2 op) (sexprToSBV_I e1) (sexprToSBV_I e2)
+sexprToSBV_I (SE (PrimOp op [e])) = V.output . opToSBV_I1 op =<< sexprToSBV_I e
+sexprToSBV_I (SE (Var v)) = __todo "need a context for constants"
+sexprToSBV_I (SE (IntLit i)) = V.output . V.literal $ fromIntegral i
+sexprToSBV_I (SE (Upcast e)) = sexprToSBV_I e
+sexprToSBV_I (SE (Annot e _)) = sexprToSBV_I e
+sexprToSBV_I (SU i) = V.free $ '?':show i
+sexprToSBV_I _ = __todo "sexprToSBV_I: not yet implemented"
+
+sexprToSBV_B :: SExpr -> V.Symbolic V.SBool
+sexprToSBV_B (SE (PrimOp op [e1,e2])) = (liftA2 $ opToSBV_B2 op) (sexprToSBV_I e1) (sexprToSBV_I e2)
+sexprToSBV_B _ = __todo "sexprToSBV_B: not yet implemented"
+
+opToSBV_I1 :: OpName -> (V.SWord16 -> V.SWord16)
+opToSBV_I1 "complement" = V.complement
+
+opToSBV_I2 :: OpName -> (V.SWord16 -> V.SWord16 -> V.SWord16)
+opToSBV_I2 op = case op of
+  "+" -> (+)
+  "-" -> (-)
+  "*" -> (*)
+  "/" -> V.sDiv
+  "%" -> V.sMod  -- NOTE: the behaviour of div and mod here. / zilinc
+                 -- https://hackage.haskell.org/package/sbv-7.6/docs/Data-SBV.html#t:SDivisible
+  ".&." -> (V..&.)
+  ".|." -> (V..|.)
+  ".^." -> V.xor
+  "<<"  -> V.sShiftLeft
+  ">>"  -> V.sShiftRight
+
+opToSBV_B2 :: OpName -> (V.SWord16 -> V.SWord16 -> V.SBool)
+opToSBV_B2 op = case op of
+  "==" -> (V..==)
+  "/=" -> (V../=)
+  ">"  -> (V..>)
+  "<"  -> (V..<)
+  ">=" -> (V..>=)
+  "<=" -> (V..<=)
 
 -- Applies the current substitution to goals.
 instantiate :: GoalClasses -> Solver [Goal]
@@ -844,6 +902,7 @@ groundConstraint a b | Just a' <- flexOf a, isGround b = True
                      | otherwise = False
 
 data GoalClass = UpClass | DownClass | UpcastClass | DowncastClass
+               | ArithEqClass | ArithIneqClass
 
 -- In a loop, we:
 --   1. Smash all goals into smaller, simple flex/rigid goals. Exit if any of them are Unsat, remove any Sat.
@@ -866,8 +925,8 @@ solve = lift . crunch >=> explode >=> go
     go g | not (irreducible (fmap GS.toList $ ups   g) (upflexes   g)) = go' g UpClass
     go g | not (IM.null (downcastables g)) = go' g DowncastClass
     go g | not (IM.null (upcastables   g)) = go' g UpcastClass
-    go g | not (null (aritheqs g)) = arithSolver $ aritheqs g
-    go g | not (null (arithineqs g)) = arithSolver $ arithineqs g
+    go g | not (null (aritheqs   g)) = go' g ArithEqClass
+    go g | not (null (arithineqs g)) = go' g ArithIneqClass
     go g | not (null (rest g)) = do
       os <- use flexOrigins
       return $ map toWarn (semisats g) ++
