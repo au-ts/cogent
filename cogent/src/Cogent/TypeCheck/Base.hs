@@ -412,10 +412,6 @@ removeCase (LocPatn _ (PCharLit _))     x = x
 removeCase (LocPatn _ (PBoolLit _))     x = x
 removeCase (LocPatn _ (PCon t _))       x = (T (TTake (Just [t]) x))
 
-forFlexes :: (Int -> TCType) -> TCType -> TCType
-forFlexes f (U x) = f x
-forFlexes f (T x) = T (fmap (forFlexes f) x)
-
 flexOf (U x) = Just x
 flexOf (T (TTake _ v)) = flexOf v
 flexOf (T (TPut  _ v)) = flexOf v

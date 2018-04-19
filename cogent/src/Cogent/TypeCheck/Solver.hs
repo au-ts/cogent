@@ -24,6 +24,7 @@ import           Cogent.Common.Types
 import           Cogent.Compiler (__impossible, __todo)
 import           Cogent.PrettyPrint (prettyC)
 import           Cogent.Surface
+import qualified Cogent.TypeCheck.Assignment as Ass
 import           Cogent.TypeCheck.Base
 import qualified Cogent.TypeCheck.Subst as Subst
 import           Cogent.TypeCheck.Subst (Subst)
@@ -776,20 +777,21 @@ noBrainers [Goal _ c@(Upcastable (U x) (T t@(TCon v [] Unboxed)))]
   | v `elem` primTypeCons = return $ Subst.singleton x (T t)
 noBrainers _ = return mempty
 
-applySubst :: Subst -> Solver ()
-applySubst s = traceTc "sol" (text "apply subst") >> substs <>= s
+-- applySubst :: Subst -> Solver ()
+-- applySubst s = traceTc "sol" (text "apply subst") >> substs <>= s
 
 
-arithEqSolver :: [Goal] -> Solver [ContextualisedTcLog]
-arithEqSolver gs = return [] -- TODO
+arithEqSolver :: [Goal] -> Solver Ass.Assignment
+arithEqSolver gs = 
+  let es = flip map gs (\(Goal _ (Arith e)) -> e) 
+   in solveArithEqs es
 
 arithIneqSolver :: [Goal] -> Solver [ContextualisedTcLog]
 arithIneqSolver _ = return []
 
-data Assignment = Assignment (IM.IntMap SExpr)
 
-solveArithEqs :: [SExpr] -> Solver Assignment
-solveArithEqs es = liftIO $ Assignment . IM.fromList . M.toList
+solveArithEqs :: [SExpr] -> Solver Ass.Assignment
+solveArithEqs es = liftIO $ Ass.Assignment . IM.fromList . M.toList
                  . M.mapKeys (read . tail) . M.map (SE . IntLit)
                  <$> getAssignments
   where
@@ -802,9 +804,9 @@ solveArithEqs es = liftIO $ Assignment . IM.fromList . M.toList
 
 sexprToSBV_I :: SExpr -> V.Symbolic V.SWord16
 sexprToSBV_I (SE (PrimOp op [e1,e2])) = (liftA2 $ opToSBV_I2 op) (sexprToSBV_I e1) (sexprToSBV_I e2)
-sexprToSBV_I (SE (PrimOp op [e])) = V.output . opToSBV_I1 op =<< sexprToSBV_I e
+sexprToSBV_I (SE (PrimOp op [e])) = return . opToSBV_I1 op =<< sexprToSBV_I e
 sexprToSBV_I (SE (Var v)) = __todo "need a context for constants"
-sexprToSBV_I (SE (IntLit i)) = V.output . V.literal $ fromIntegral i
+sexprToSBV_I (SE (IntLit i)) = return . V.literal $ fromIntegral i
 sexprToSBV_I (SE (Upcast e)) = sexprToSBV_I e
 sexprToSBV_I (SE (Annot e _)) = sexprToSBV_I e
 sexprToSBV_I (SU i) = V.free $ '?':show i
@@ -841,11 +843,12 @@ opToSBV_B2 op = case op of
   "<=" -> (V..<=)
 
 -- Applies the current substitution to goals.
-instantiate :: GoalClasses -> Solver [Goal]
-instantiate (Classes ups downs upcasts downcasts errs semisats rest upfl downfl aritheqs arithineqs) = do
-  s <- use substs
-  let al  = (GS.toList =<< (F.toList =<< [ups, downs, upcasts, downcasts])) ++ errs ++ semisats ++ rest
+instantiate :: Subst.Subst -> Ass.Assignment -> GoalClasses -> Solver [Goal]
+instantiate s a (Classes ups downs upcasts downcasts errs semisats rest upfl downfl aritheqs arithineqs) = do
+  let al  = (GS.toList =<< (F.toList =<< [ups, downs, upcasts, downcasts]))
+            ++ errs ++ semisats ++ aritheqs ++ arithineqs ++ rest
       al' = al & map (goal %~ Subst.applyC s) & map (goalContext %~ map (Subst.applyCtx s))
+               & map (goal %~ Ass.assignC a)  & map (goalContext %~ map (Ass.assignCtx a))
   -- TODO: also instantiate the term variables
   -- traceTc "sol" (text "instantiate" <+> pretty (show al) P.<$> text "with substitution" P.<$> pretty s <> semi
   --                P.<$> text "end up with goals:" <+> pretty (show al'))
@@ -925,8 +928,8 @@ solve = lift . crunch >=> explode >=> go
     go g | not (irreducible (fmap GS.toList $ ups   g) (upflexes   g)) = go' g UpClass
     go g | not (IM.null (downcastables g)) = go' g DowncastClass
     go g | not (IM.null (upcastables   g)) = go' g UpcastClass
-    go g | not (null (aritheqs   g)) = go' g ArithEqClass
-    go g | not (null (arithineqs g)) = go' g ArithIneqClass
+    go g | not (null (aritheqs   g)) = go'' g ArithEqClass
+    go g | not (null (arithineqs g)) = go'' g ArithIneqClass
     go g | not (null (rest g)) = do
       os <- use flexOrigins
       return $ map toWarn (semisats g) ++
@@ -951,8 +954,16 @@ solve = lift . crunch >=> explode >=> go
           g' <- explode =<< concat . F.toList <$> traverse (f . GS.toList) (cls g)
           go (g' <> g'')
       else do
-          applySubst s
-          instantiate g >>= explode >>= go
+          instantiate s mempty g >>= explode >>= go
+
+    go'' :: GoalClasses -> GoalClass -> Solver [ContextualisedTcLog]
+    go'' g c = do
+      a <- arithEqSolver (aritheqs g)
+      if Ass.null a then do
+          __impossible "go'': doesn't result in anything"
+          go (g {aritheqs = []})
+      else do
+          instantiate mempty a g >>= explode >>= go
 
     removeKeys = foldr IM.delete
 
@@ -961,3 +972,4 @@ solve = lift . crunch >=> explode >=> go
 
     toWarn (Goal ctx (SemiSat w)) = (ctx, Right w)
     toWarn _ = __impossible "solve: toWarn"
+

@@ -25,6 +25,12 @@ newtype Subst = Subst (M.IntMap TCType)
 lookup :: Subst -> Int -> TCType
 lookup s@(Subst m) i = maybe (U i) (apply s) (M.lookup i m)
 
+singleton :: Int -> TCType -> Subst
+singleton i t = Subst (M.fromList [(i, t)])
+
+null :: Subst -> Bool
+null (Subst x) = M.null x
+
 #if __GLASGOW_HASKELL__ < 803
 instance Monoid Subst where
   mempty = Subst M.empty
@@ -35,6 +41,10 @@ instance Semigroup Subst where
 instance Monoid Subst where
   mempty = Subst M.empty
 #endif
+
+forFlexes :: (Int -> TCType) -> TCType -> TCType
+forFlexes f (U x) = f x
+forFlexes f (T x) = T (fmap (forFlexes f) x)
 
 apply :: Subst -> TCType -> TCType
 apply = forFlexes . lookup
@@ -87,8 +97,3 @@ applyE s (TE t e l) = TE (apply s t)
                          $ ffffmap (apply s) e)
                          l
 
-singleton :: Int -> TCType -> Subst
-singleton i t = Subst (M.fromList [(i, t)])
-
-null :: Subst -> Bool
-null (Subst x) = M.null x
