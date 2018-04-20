@@ -4,3 +4,6 @@
 [submodule "isabelle"]
 	path = isabelle
 	url = https://github.com/seL4/isabelle.git
+[submodule "z3"]
+	path = z3
+	url = git@github.com:Z3Prover/z3.git
