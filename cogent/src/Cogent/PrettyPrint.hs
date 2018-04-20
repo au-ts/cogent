@@ -27,6 +27,7 @@ import Cogent.Compiler
 import Cogent.Reorganizer (ReorganizeError(..), SourceObject(..))
 import Cogent.Surface
 -- import Cogent.TypeCheck --hiding (context)
+import Cogent.TypeCheck.Assignment
 import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Subst
 
@@ -673,6 +674,7 @@ instance Pretty Constraint where
   pretty (Sat)            = warn "Sat"
   pretty (Exhaustive t p) = warn "Exhaustive" <+> pretty t <+> pretty p
   pretty (x :@ _)         = pretty x
+  pretty (Arith e)        = pretty e
 
 -- a more verbose version of constraint pretty-printer which is mostly used for debugging
 prettyC :: Constraint -> Doc
@@ -698,6 +700,9 @@ instance Pretty ReorganizeError where
 
 instance Pretty Subst where
   pretty (Subst m) = pretty m
+
+instance Pretty Assignment where
+  pretty (Assignment m) = pretty m
 
 instance Pretty a => Pretty (I.IntMap a) where
   pretty = vcat . map (\(k,v) -> pretty k <+> text "|->" <+> pretty v) . I.toList

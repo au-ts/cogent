@@ -50,8 +50,10 @@ import qualified Data.Set as S
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
 
+import Debug.Trace
+
 data SolverState = SolverState { _axioms      :: [(TyVarName, Kind)]
-                               , _substs      :: Subst
+                               , _substs      :: Subst  -- FIXME: not used!
                                , _flexes      :: Int
                                , _flexOrigins :: IM.IntMap VarOrigin
                                }
@@ -573,7 +575,10 @@ bound' d t1@(T (TRecord fs s)) t2@(T (TRecord gs r))
 bound' d a@(T (TArray t l)) b@(T (TArray s n)) = do
   u <- fresh (BoundOf (F t) (F s) d)
   m <- freshVar (EqualIn l n a b)
-  return $ Just (T $ TArray u m)
+  let c = T $ TArray u m
+  traceTc "sol" (text "calculate bound of" <+> pretty a <+> text "and" <+> pretty b <> colon
+                 P.<$> pretty c)
+  return $ Just c
 bound' _ a b = do
   traceTc "sol" (text "calculate bound (bound') of"
            P.<$> pretty a
@@ -762,7 +767,8 @@ noBrainersT g@[Goal _ c] = do
   traceTc "sol" (text "apply no-brainer to" <+> prettyC c)
   noBrainers g
 noBrainersT g = do
-  traceTc "sol" (text "apply no-brainer to several goals")
+  traceTc "sol" (text "apply no-brainer to several goals" <> colon
+                 P.<$> vsep (map (pretty . _goal) g))
   noBrainers g
 
 -- Produce substitutions when it is safe to do so (the variable can't get any more general).
@@ -958,9 +964,13 @@ solve = lift . crunch >=> explode >=> go
 
     go'' :: GoalClasses -> GoalClass -> Solver [ContextualisedTcLog]
     go'' g c = do
+      when (not $ null $ arithineqs g) $ __impossible "go'': not implemented"
       a <- arithEqSolver (aritheqs g)
+      traceTc "sol" (text "solve arith equality goals:"
+                     P.<$> vsep (map (pretty . _goal) $ aritheqs g)
+                     P.<$> bold (text "produce assign:")
+                     P.<$> pretty a)
       if Ass.null a then do
-          __impossible "go'': doesn't result in anything"
           go (g {aritheqs = []})
       else do
           instantiate mempty a g >>= explode >>= go
