@@ -89,5 +89,4 @@ get_ts_info_timestamp_flags_cg () =
 
 set_fields_in_pcpu_lstats: (U64, U64, #U64StatsSyncAbstractType, PCPULStats) -> PCPULStats
 set_fields_in_pcpu_lstats (packets, bytes, syncp, pcpulstats) =
-  let pcpulstats = pcpulstats { packets, bytes, syncp }
-  in pcpulstats
+  pcpulstats { packets, bytes, syncp }
