@@ -372,7 +372,6 @@ exitOnErr ma = do a <- ma
 
 substType :: [(VarName, TCType)] -> TCType -> TCType
 substType vs (U x) = U x
--- substType vs (RemoveCase p x) = RemoveCase (fmap (fmap (substType vs)) p) (substType vs x)
 substType vs (T (TVar v False )) | Just x <- lookup v vs = x
 substType vs (T (TVar v True  )) | Just x <- lookup v vs = T (TBang x)
 substType vs (T t) = T (fmap (substType vs) t)
@@ -415,9 +414,8 @@ removeCase (LocPatn _ (PCon t _))       x = (T (TTake (Just [t]) x))
 flexOf (U x) = Just x
 flexOf (T (TTake _ t))  = flexOf t
 flexOf (T (TPut  _ t))  = flexOf t
-flexOf (T (TBang t))    = flexOf t
+flexOf (T (TBang  t))   = flexOf t
 flexOf (T (TUnbox t))   = flexOf t
-flexOf (T (TArray t _)) = flexOf t
 flexOf _ = Nothing
 
 isSynonym :: RawType -> TcBaseM Bool
