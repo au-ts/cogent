@@ -321,7 +321,8 @@ rule (F y :< F (T (TPut fs (U x))))
 -- rule (FVariant vs es :< F (T (TPut (Just fs) (U x))) )
 --   = return $ Just $ uncurry FVariant (takeVariant fs vs es) :<  F ( U x)
 rule (F (T (TArray t l)) :< F (T (TArray s n)))
-  = ruleT (F t :< F s :& Arith (SE $ PrimOp "==" [l, n]))
+  = let ?lvl = ?lvl + 1
+     in return $ Just (F t :< F s :& Arith (SE $ PrimOp "==" [l, n]))
 rule (F (T (TBang a)) :< F b)
   | isBangInv b = return $ Just (F a :< F b)
 rule (F a :< F (T (TBang b)))
@@ -855,7 +856,6 @@ instantiate s a (Classes ups downs upcasts downcasts errs semisats rest upfl dow
             ++ errs ++ semisats ++ aritheqs ++ arithineqs ++ rest
       al' = al & map (goal %~ Subst.applyC s) & map (goalContext %~ map (Subst.applyCtx s))
                & map (goal %~ Ass.assignC a)  & map (goalContext %~ map (Ass.assignCtx a))
-  -- TODO: also instantiate the term variables
   -- traceTc "sol" (text "instantiate" <+> pretty (show al) P.<$> text "with substitution" P.<$> pretty s <> semi
   --                P.<$> text "end up with goals:" <+> pretty (show al'))
   return al'
@@ -965,11 +965,12 @@ solve = lift . crunch >=> explode >=> go
     go'' :: GoalClasses -> GoalClass -> Solver [ContextualisedTcLog]
     go'' g c = do
       when (not $ null $ arithineqs g) $ __impossible "go'': not implemented"
-      a <- arithEqSolver (aritheqs g)
-      traceTc "sol" (text "solve arith equality goals:"
-                     P.<$> vsep (map (pretty . _goal) $ aritheqs g)
-                     P.<$> bold (text "produce assign:")
-                     P.<$> pretty a)
+      a <- traceTcBracket "sol"
+                          (text "solve arith equality goals:"
+                           P.<$> vsep (map (pretty . _goal) $ aritheqs g))
+                          (arithEqSolver (aritheqs g))
+                          (\a -> bold (text "produce assign:")
+                                 P.<$> pretty a)
       if Ass.null a then do
           go (g {aritheqs = []})
       else do

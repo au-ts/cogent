@@ -156,12 +156,6 @@ cg' (Upcast e) t = do
   let c = (integral alpha) <> Upcastable alpha t <> c1
   return (c, Upcast e1')
 
--- cg' (Widen e) t = do
---   alpha <- fresh
---   (c1, e1') <- cg e alpha
---   let c = (T (TVariant M.empty) :<~ alpha) <> (alpha :<~ t) <> c1
---   return (c, Widen e1')
-
 cg' (BoolLit b) t = do
   let c = F (T (TCon "Bool" [] Unboxed)) :< F t
       e = BoolLit b
