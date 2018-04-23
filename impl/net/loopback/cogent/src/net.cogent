@@ -78,8 +78,7 @@ cg_loopback_dev_free_cg (st, dev) =
 -- cg_always_on_cg
 cg_always_on_cg: NetDeviceAbstractType! -> (NetDeviceAbstractType!, U32)
 cg_always_on_cg dev =
-  let always_on : U32 = 1
-  in (dev, always_on)
+  (dev, 1 : U32)
 
 -- get_ts_info_timestamp_flags_cg
 get_ts_info_timestamp_flags_cg: () -> U32
