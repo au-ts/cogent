@@ -34,12 +34,12 @@ env:
 
 matrix:
   include:
-    - env: CABALVER=2.0 GHCVER=8.0.1
-      compiler: ": #GHC 8.0.1"
-      addons: {apt: {packages: [cabal-install-2.0,ghc-8.0.1,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
-    - env: CABALVER=2.0 GHCVER=8.0.2
-      compiler: ": #GHC 8.0.2"
-      addons: {apt: {packages: [cabal-install-2.0,ghc-8.0.2,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
+    - env: CABALVER=2.0 GHCVER=8.4.1
+      compiler: ": #GHC 8.4.1"
+      addons: {apt: {packages: [cabal-install-2.0,ghc-8.4.1,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
+    - env: CABALVER=2.0 GHCVER=8.4.2
+      compiler: ": #GHC 8.4.2"
+      addons: {apt: {packages: [cabal-install-2.0,ghc-8.4.2,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
     - env: CABALVER=2.0 GHCVER=8.2.1
       compiler: ": #GHC 8.2.1"
       addons: {apt: {packages: [cabal-install-2.0,ghc-8.2.1,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
@@ -72,7 +72,11 @@ install:
  - "sed -i 's/^jobs:.*$/jobs: 2/' $HOME/.cabal/config"
  # - sed -i 's/^jobs:/ jobs:/' ${HOME}/.cabal/config
  # Use fixed build plans
- - cp misc/cabal.config.d/cabal.config-$GHCVER cabal.config
+ - |
+   if [ -e "misc/cabal.config.d/cabal.config-$GHCVER" ];
+   then
+     cp misc/cabal.config.d/cabal.config-$GHCVER cabal.config
+   fi
  - |
    if cabal install --only-dependencies --force-reinstalls --enable-tests --dry -v > installplan.txt;
    then

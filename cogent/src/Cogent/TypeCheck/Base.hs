@@ -413,10 +413,11 @@ removeCase (LocPatn _ (PBoolLit _))     x = x
 removeCase (LocPatn _ (PCon t _))       x = (T (TTake (Just [t]) x))
 
 flexOf (U x) = Just x
-flexOf (T (TTake _ v)) = flexOf v
-flexOf (T (TPut  _ v)) = flexOf v
-flexOf (T (TBang v))   = flexOf v
-flexOf (T (TUnbox v))  = flexOf v
+flexOf (T (TTake _ t))  = flexOf t
+flexOf (T (TPut  _ t))  = flexOf t
+flexOf (T (TBang t))    = flexOf t
+flexOf (T (TUnbox t))   = flexOf t
+flexOf (T (TArray t _)) = flexOf t
 flexOf _ = Nothing
 
 isSynonym :: RawType -> TcBaseM Bool
