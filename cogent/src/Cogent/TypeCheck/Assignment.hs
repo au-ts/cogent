@@ -6,6 +6,7 @@ import Cogent.Surface
 import Cogent.TypeCheck.Base
 import Cogent.Util
 
+import Data.Monoid hiding (Alt)
 import qualified Data.IntMap as M
 import Prelude as P hiding (lookup)
 
