@@ -40,6 +40,12 @@ forUnknowns f (SE x) = SE (fmap (forUnknowns f) x)
 assign :: Assignment -> SExpr -> SExpr
 assign = forUnknowns . lookup
 
+assignAlts :: Assignment -> [Alt TCPatn TCExpr] -> [Alt TCPatn TCExpr]
+assignAlts = map . assignAlt
+
+assignAlt :: Assignment -> Alt TCPatn TCExpr -> Alt TCPatn TCExpr
+assignAlt a = fmap (assignE a) . ffmap (fmap (assignT a))
+
 assignE :: Assignment -> TCExpr -> TCExpr
 assignE a (TE t e l) = TE (assignT a t)
                           (ffffmap (assignT a) $
@@ -74,3 +80,4 @@ assignWarn a w = w  -- TODO
 
 assignCtx :: Assignment -> ErrorContext -> ErrorContext
 assignCtx a c = c  -- TODO
+

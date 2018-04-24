@@ -46,12 +46,12 @@ import qualified Cogent.Mono      as MN
 import qualified Cogent.Parser    as PS
 import Cogent.PrettyPrint
 import qualified Cogent.Surface   as SF
--- import qualified Cogent.TypeCheck as TC
-import qualified Cogent.TypeCheck.Base      as TC
-import qualified Cogent.TypeCheck.Generator as TC
-import qualified Cogent.TypeCheck.Post      as TC
-import qualified Cogent.TypeCheck.Solver    as TC
-import qualified Cogent.TypeCheck.Subst     as TC
+import qualified Cogent.TypeCheck.Assignment as TC
+import qualified Cogent.TypeCheck.Base       as TC
+import qualified Cogent.TypeCheck.Generator  as TC
+import qualified Cogent.TypeCheck.Post       as TC
+import qualified Cogent.TypeCheck.Solver     as TC
+import qualified Cogent.TypeCheck.Subst      as TC
 -- import qualified Cogent.TypeCheck.Util      as TC
 import Cogent.Util
 import Cogent.Vec as Vec hiding (repeat)
@@ -352,9 +352,9 @@ tcExp e = do
     do let ?loc = SF.posOfE e
        TC.errCtx %= (TC.AntiquotedExpr e :)
        ((c,e'),flx,os) <- TC.runCG ctx (L.map fst vs) (TC.cg e =<< TC.fresh)
-       (logs,subst,_) <- TC.runSolver (TC.solve c) vs flx os
+       (logs,subst,assign,_) <- TC.runSolver (TC.solve c) vs flx os
        TC.exitOnErr $ mapM_ TC.logTc logs
-       TC.postE $ TC.applyE subst e'
+       TC.postE $ TC.applyE subst $ TC.assignE assign e'
 
 desugarExp :: TC.TypedExpr -> GlDefn t (CC.UntypedExpr t 'Zero VarName)
 desugarExp = desugarAnti DS.desugarExpr

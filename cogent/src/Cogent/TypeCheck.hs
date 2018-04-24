@@ -24,6 +24,7 @@ import Cogent.Compiler
 import qualified Cogent.Context as C
 import Cogent.PrettyPrint (prettyC)
 import Cogent.Surface
+import Cogent.TypeCheck.Assignment (assignE, assignAlts)
 import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Generator
 import Cogent.TypeCheck.Post (postT, postE, postA)
@@ -114,12 +115,14 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     let ctx = C.addScope (fmap (\(t,p) -> (t,p, Seq.singleton p)) base) C.empty  -- for consts, the definition is the first use.
     ((c, e'), flx, os) <- runCG ctx [] (cg e t')
     let c' = c <> Share t' (Constant n)
-    (logs, subst, _) <- runSolver (solve c') [] flx os
+    (logs, subst, assign, _) <- runSolver (solve c') [] flx os
     exitOnErr $ mapM_ logTc =<< mapM (\(c,l) -> lift (use errCtx >>= \c' -> return (c++c',l))) logs
-    traceTc "tc" (text "subst for const definition" <+> pretty n <+> text "is"
-                  L.<$> pretty subst)
+    traceTc "tc" (text "substs for const definition" <+> pretty n <+> text "is"
+                  L.<$> pretty subst
+                  L.<$> text "assigns for const definition" <+> pretty n <+> text "is"
+                  L.<$> pretty assign)
     lift . lift $ knownConsts %= M.insert n (t', loc)
-    e'' <- postE $ applyE subst e'
+    e'' <- postE $ applyE subst $ assignE assign e'
     t'' <- postT t'
     return (ConstDef n t'' e'')
 
@@ -137,13 +140,14 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     ((c, alts'), flx, os) <- runCG ctx (map fst vs) (cgAlts alts o i)
     traceTc "tc" (text "constraint for fun definition" <+> pretty f <+> text "is"
                   L.<$> prettyC c)
-    -- traceTc "tc" (pretty alts')
-    (logs, subst, _) <- runSolver (solve c) vs flx os
+    (logs, subst, assign, _) <- runSolver (solve c) vs flx os
     exitOnErr $ mapM_ logTc =<< mapM (\(c,l) -> lift (use errCtx) >>= \c' -> return (c++c',l)) logs
-    traceTc "tc" (text "subst for fun definition" <+> pretty f <+> text "is"
-                  L.<$> pretty subst)
+    traceTc "tc" (text "substs for fun definition" <+> pretty f <+> text "is"
+                  L.<$> pretty subst
+                  L.<$> text "assigns for fun definition" <+> pretty f <+> text "is"
+                  L.<$> pretty assign)
     lift . lift $ knownFuns %= M.insert f (PT vs t')
-    alts'' <- postA $ applyAlts subst alts'
+    alts'' <- postA $ applyAlts subst $ assignAlts assign alts'
     t''    <- postT t'
     return (FunDef f (PT vs t'') alts'')
 

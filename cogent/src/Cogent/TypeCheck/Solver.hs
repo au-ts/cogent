@@ -10,6 +10,8 @@
 -- @TAG(DATA61_GPL)
 --
 
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
@@ -53,7 +55,8 @@ import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
 import Debug.Trace
 
 data SolverState = SolverState { _axioms      :: [(TyVarName, Kind)]
-                               , _substs      :: Subst  -- FIXME: not used!
+                               , _substs      :: Subst
+                               , _assigns     :: Ass.Assignment
                                , _flexes      :: Int
                                , _flexOrigins :: IM.IntMap VarOrigin
                                }
@@ -64,10 +67,10 @@ type Solver a = TcConsM SolverState a
 
 
 runSolver :: Solver a -> [(TyVarName, Kind)] -> Int -> IM.IntMap VarOrigin
-          -> TcM (a, Subst, IM.IntMap VarOrigin)
-runSolver ma ks f os = do
-  (a, SolverState _ s _ o) <- withTcConsM (SolverState ks mempty f os) ((,) <$> ma <*> get)
-  return (a,s,o)
+          -> TcM (a, Subst, Ass.Assignment, IM.IntMap VarOrigin)
+runSolver mx ks f os = do
+  (x, SolverState _ s a _ o) <- withTcConsM (SolverState ks mempty mempty f os) ((,) <$> mx <*> get)
+  return (x,s,a,o)
 
 -- Flatten a constraint tree into a set of flat goals
 crunch :: Constraint -> TcBaseM [Goal]
@@ -247,6 +250,10 @@ rule (Drop   t@(T (TCon n ts s)) m)
 rule (Escape t@(T (TCon n ts s)) m)
   | s /= ReadOnly = return $ Just Sat
   | otherwise     = return $ Just $ Unsat $ TypeNotEscapable t m
+
+rule (Share  (T (TArray t _)) m) = return . Just $ Share  t m
+rule (Drop   (T (TArray t _)) m) = return . Just $ Drop   t m
+rule (Escape (T (TArray t _)) m) = return . Just $ Escape t m
 
 rule (Arith e) = return Nothing
 
@@ -784,9 +791,11 @@ noBrainers [Goal _ c@(Upcastable (U x) (T t@(TCon v [] Unboxed)))]
   | v `elem` primTypeCons = return $ Subst.singleton x (T t)
 noBrainers _ = return mempty
 
--- applySubst :: Subst -> Solver ()
--- applySubst s = traceTc "sol" (text "apply subst") >> substs <>= s
+applySubst :: Subst -> Solver ()
+applySubst s = traceTc "sol" (text "apply subst") >> substs <>= s
 
+applyAssign :: Ass.Assignment -> Solver ()
+applyAssign a = traceTc "sol" (text "apply assign") >> assigns <>= a
 
 arithEqSolver :: [Goal] -> Solver Ass.Assignment
 arithEqSolver gs = 
@@ -804,22 +813,34 @@ solveArithEqs es = liftIO $ Ass.Assignment . IM.fromList . M.toList
   where
     getAssignments :: IO (M.Map String Integer)
     getAssignments = do
-      V.AllSatResult (_,_,as) <- V.allSat (V.solve =<< mapM sexprToSBV_B es)
+      V.AllSatResult (_,_,as) <- V.allSat (V.solve =<< evalStateT (runSbvM $ mapM sexprToSBV_B es) IM.empty)
       when (length as > 1) $ __impossible "multiple assignments"
       return $ M.map V.fromCW $ V.getModelDictionary $ head as
       
 
-sexprToSBV_I :: SExpr -> V.Symbolic V.SWord16
+type SymVars = IM.IntMap V.SWord16
+
+newtype SbvM a = SbvM { runSbvM :: StateT SymVars V.Symbolic a }
+               deriving (Functor, Applicative, Monad, MonadState SymVars)
+
+sexprToSBV_I :: SExpr -> SbvM V.SWord16
 sexprToSBV_I (SE (PrimOp op [e1,e2])) = (liftA2 $ opToSBV_I2 op) (sexprToSBV_I e1) (sexprToSBV_I e2)
 sexprToSBV_I (SE (PrimOp op [e])) = return . opToSBV_I1 op =<< sexprToSBV_I e
 sexprToSBV_I (SE (Var v)) = __todo "need a context for constants"
 sexprToSBV_I (SE (IntLit i)) = return . V.literal $ fromIntegral i
 sexprToSBV_I (SE (Upcast e)) = sexprToSBV_I e
 sexprToSBV_I (SE (Annot e _)) = sexprToSBV_I e
-sexprToSBV_I (SU i) = V.free $ '?':show i
+sexprToSBV_I (SU i) = do
+  m <- get
+  case IM.lookup i m of
+    Nothing -> do v <- SbvM . lift . V.free $ '?':show i
+                  modify (IM.insert i v)
+                  return v
+    Just v -> return v
+                  
 sexprToSBV_I _ = __todo "sexprToSBV_I: not yet implemented"
 
-sexprToSBV_B :: SExpr -> V.Symbolic V.SBool
+sexprToSBV_B :: SExpr -> SbvM V.SBool
 sexprToSBV_B (SE (PrimOp op [e1,e2])) = (liftA2 $ opToSBV_B2 op) (sexprToSBV_I e1) (sexprToSBV_I e2)
 sexprToSBV_B _ = __todo "sexprToSBV_B: not yet implemented"
 
@@ -960,6 +981,7 @@ solve = lift . crunch >=> explode >=> go
           g' <- explode =<< concat . F.toList <$> traverse (f . GS.toList) (cls g)
           go (g' <> g'')
       else do
+          applySubst s
           instantiate s mempty g >>= explode >>= go
 
     go'' :: GoalClasses -> GoalClass -> Solver [ContextualisedTcLog]
@@ -967,13 +989,15 @@ solve = lift . crunch >=> explode >=> go
       when (not $ null $ arithineqs g) $ __impossible "go'': not implemented"
       a <- traceTcBracket "sol"
                           (text "solve arith equality goals:"
-                           P.<$> vsep (map (pretty . _goal) $ aritheqs g))
+                           P.<$> vsep (map (pretty . _goal) $ aritheqs g)
+                           P.<$> P.empty)
                           (arithEqSolver (aritheqs g))
                           (\a -> bold (text "produce assign:")
                                  P.<$> pretty a)
       if Ass.null a then do
           go (g {aritheqs = []})
       else do
+          applyAssign a
           instantiate mempty a g >>= explode >>= go
 
     removeKeys = foldr IM.delete
