@@ -139,8 +139,8 @@ basicExpr m = do e <- basicExpr'
                  LocExpr (posOfE e) . Seq e <$ semi <*> expr m
                   <|> pure e
 basicExpr' = avoidInitial >> buildExpressionParser
-            [ [ postfix ((\f e -> LocExpr (posOfE e) (Member e f)) <$ reservedOp "." <*> variableName)
-              , postfix ((\f e -> LocExpr (posOfE e) (ArrayIndex e f)) <$ reservedOp "." <*> brackets (stripLocE <$> expr 1))]
+            [ [postfix ((\f e -> LocExpr (posOfE e) (Member e f)) <$ reservedOp "." <*> variableName)]
+            , [Infix (reservedOp "@" *> pure (\e i -> LocExpr (posOfE e) (ArrayIndex e (stripLocE i)))) AssocLeft]
             , [Prefix (getPosition >>= \p -> reserved "upcast" *> pure (LocExpr p . Upcast))] 
             , [Prefix (getPosition >>= \p -> reserved "complement" *> pure (LocExpr p . PrimOp "complement" . (:[])))]
             , [Prefix (getPosition >>= \p -> reserved "not" *> pure (LocExpr p . PrimOp "not" . (:[])))]

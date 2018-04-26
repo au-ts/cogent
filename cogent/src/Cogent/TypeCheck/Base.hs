@@ -75,6 +75,7 @@ data TypeError = FunctionNotFound VarName
                | PutNonExistingField  FieldName TCType
                | DiscardWithoutMatch TagName
                | RequiredTakenTag TagName
+               | CannotSatisfyAllArithEquations [SExpr]
                | CustTyGenIsPolymorphic TCType
                | CustTyGenIsSynonym TCType
                | TypeWarningAsError TypeWarning

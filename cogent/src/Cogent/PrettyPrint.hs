@@ -121,8 +121,8 @@ class Prec a where  -- precedence
 instance Prec (Expr t p ip e) where
   prec (Lam  {}) = 100
   prec (LamC {}) = 100
-  prec (App  {}) = 1
-  prec (AppC {}) = 1
+  prec (App  {}) = 2
+  prec (AppC {}) = 2
   prec (PrimOp n _) = level (associativity n)
   prec (Member {}) = 0
   prec (Var {}) = 0
@@ -130,9 +130,11 @@ instance Prec (Expr t p ip e) where
   prec (BoolLit {}) = 0
   prec (CharLit {}) = 0
   prec (StringLit {}) = 0
+  prec (ArrayLit {}) = 0
+  prec (ArrayIndex {}) = 1  -- takes precedence over App
   prec (Tuple {}) = 0
   prec (Unitel) = 0
-  prec (Con {}) = 1
+  prec (Con {}) = 2
   prec (Annot {}) = 50
   prec (UnboxedRecord {}) = 100
   prec (Put {}) = 100
@@ -376,7 +378,7 @@ instance (ExprType e, Prec e, Pretty t, PatnType p, Pretty p, PatnType ip, Prett
   pretty (CharLit c)         = literal (string $ show c)
   pretty (StringLit s)       = literal (string $ show s)
   pretty (ArrayLit es)       = array $ map pretty es
-  pretty (ArrayIndex e i)    = prettyPrec 1 e <> brackets (pretty i)
+  pretty (ArrayIndex e i)    = prettyPrec 2 e <+> symbol "@" <+> prettyPrec 1 i
   pretty (Unitel)            = string "()"
   pretty (PrimOp n [a,b])
      | LeftAssoc  l <- associativity n = prettyPrec (l+1) a <+> primop n <+> prettyPrec l     b
@@ -388,11 +390,11 @@ instance (ExprType e, Prec e, Pretty t, PatnType p, Pretty p, PatnType ip, Prett
   pretty (Lam p mt e)        = string "\\" <> pretty p <> 
                                (case mt of Nothing -> empty; Just t -> space <> symbol ":" <+> pretty t) <+> symbol "=>" <+> prettyPrec 100 e
   pretty (LamC p mt e _)     = pretty (Lam p mt e :: Expr t p ip e)
-  pretty (App  a b)          = prettyPrec 2 a <+> prettyPrec 1 b
-  pretty (AppC a b)          = prettyPrec 2 a <+> prettyPrec 1 b
+  pretty (App  a b)          = prettyPrec 3 a <+> prettyPrec 2 b
+  pretty (AppC a b)          = prettyPrec 3 a <+> prettyPrec 2 b
   pretty (Con n [] )         = tagname n
-  pretty (Con n [e])         = tagname n <+> prettyPrec 1 e
-  pretty (Con n es )         = tagname n <+> spaceList (map (prettyPrec 1) es)
+  pretty (Con n [e])         = tagname n <+> prettyPrec 2 e
+  pretty (Con n es )         = tagname n <+> spaceList (map (prettyPrec 2) es)
   pretty (Tuple es)          = tupled (map pretty es)
   pretty (UnboxedRecord fs)  = string "#" <> record (map (handlePutAssign . Just) fs)
   pretty (If c vs t e)       = group (keyword "if" <+> handleBangedIf vs (prettyPrec 100 c)
@@ -606,6 +608,8 @@ instance Pretty TypeError where
                                       <+> fieldname f <+> err "into record/variant" <$> indent' (pretty t)
   pretty (DiscardWithoutMatch t)    = err "Variant tag"<+> tagname t <+> err "cannot be discarded without matching on it."
   pretty (RequiredTakenTag t)       = err "Required variant" <+> tagname t <+> err "but it has already been matched."
+  pretty (CannotSatisfyAllArithEquations es) = err "Unable to find an assignment which satisfies the following constraints" <> colon
+                                               <$> indent' (vsep (map ((<> semi) . pretty) es))
   pretty (CustTyGenIsSynonym t)     = err "Type synonyms have to be fully expanded in --cust-ty-gen file:" <$> indent' (pretty t)
   pretty (CustTyGenIsPolymorphic t) = err "Polymorphic types are not allowed in --cust-ty-gen file:" <$> indent' (pretty t)
   pretty (TypeWarningAsError w)          = pretty w

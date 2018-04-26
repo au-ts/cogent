@@ -23,15 +23,15 @@ module Cogent.TypeCheck.Solver (runSolver, solve) where
 
 import           Cogent.Common.Syntax
 import           Cogent.Common.Types
-import           Cogent.Compiler (__impossible, __todo)
+import           Cogent.Compiler (__impossible, __todo, __fixme)
 import           Cogent.PrettyPrint (prettyC)
 import           Cogent.Surface
 import qualified Cogent.TypeCheck.Assignment as Ass
 import           Cogent.TypeCheck.Base
 import qualified Cogent.TypeCheck.Subst as Subst
-import           Cogent.TypeCheck.Subst (Subst)
+import           Cogent.TypeCheck.Subst (Subst(..))
 import           Cogent.TypeCheck.Util
-import           Cogent.TypeCheck.GoalSet (Goal (..), goal, goalContext, GoalSet)
+import           Cogent.TypeCheck.GoalSet (Goal(..), goal, goalContext, GoalSet)
 import qualified Cogent.TypeCheck.GoalSet as GS
 
 import           Control.Applicative
@@ -717,7 +717,9 @@ classify g = case g of
   (Goal _ (Arith _))                          -> mempty {arithineqs = [g]}
   _                                           -> mempty {rest = [g]}
   where
+    rigid :: TypeFragment TCType -> Bool
     rigid (F (U x)) = False
+    -- rigid (F (T t)) = getAll $ foldMap (All . rigid . F) t
     rigid _ = True
 
 -- Push type information down from the RHS of :< to the LHS
@@ -792,31 +794,47 @@ noBrainers [Goal _ c@(Upcastable (U x) (T t@(TCon v [] Unboxed)))]
 noBrainers _ = return mempty
 
 applySubst :: Subst -> Solver ()
-applySubst s = traceTc "sol" (text "apply subst") >> substs <>= s
+applySubst s = do
+  traceTc "sol" (text "apply subst")
+  substs <>= s
+  -- s' <- use substs
+  -- substs %= \(Subst m) -> Subst (fmap (Subst.apply s') m)  -- FIXME: need to do this until fixed-point
 
 applyAssign :: Ass.Assignment -> Solver ()
 applyAssign a = traceTc "sol" (text "apply assign") >> assigns <>= a
 
-arithEqSolver :: [Goal] -> Solver Ass.Assignment
+arithEqSolver :: [Goal] -> Solver (Either GoalClasses Ass.Assignment)
 arithEqSolver gs = 
   let es = flip map gs (\(Goal _ (Arith e)) -> e) 
    in solveArithEqs es
 
 arithIneqSolver :: [Goal] -> Solver [ContextualisedTcLog]
-arithIneqSolver _ = return []
+arithIneqSolver gs = do
+  let es = flip map gs (\(Goal _ (Arith e)) -> e)
+  solveArithIneqs es
+  return []  -- TODO
 
 
-solveArithEqs :: [SExpr] -> Solver Ass.Assignment
-solveArithEqs es = liftIO $ Ass.Assignment . IM.fromList . M.toList
-                 . M.mapKeys (read . tail) . M.map (SE . IntLit)
+solveArithEqs :: [SExpr] -> Solver (Either GoalClasses Ass.Assignment)
+solveArithEqs es = liftIO $ maybe (Left g) (Right . Ass.Assignment . IM.fromList . M.toList
+                 . M.mapKeys (read . tail) . M.map (SE . IntLit))
                  <$> getAssignments
   where
-    getAssignments :: IO (M.Map String Integer)
+    g = __fixme $ mempty {unsats = [Goal [] (Unsat $ CannotSatisfyAllArithEquations es)]}
+        -- ^^^ FIXME: we should try to produce much better error msgs / zilinc
+    getAssignments :: IO (Maybe (M.Map String Integer))
     getAssignments = do
-      V.AllSatResult (_,_,as) <- V.allSat (V.solve =<< evalStateT (runSbvM $ mapM sexprToSBV_B es) IM.empty)
-      when (length as > 1) $ __impossible "multiple assignments"
-      return $ M.map V.fromCW $ V.getModelDictionary $ head as
+      let s = V.solve =<< evalStateT (runSbvM $ mapM sexprToSBV_B es) IM.empty
+      V.isSatisfiable s >>= \case
+        False -> return Nothing
+        True  -> do
+          V.AllSatResult (_,_,as) <- V.allSat s
+          if | null as        -> return $ Just M.empty
+             | length as == 1 -> return $ Just $ M.map V.fromCW $ V.getModelDictionary $ head as
+             | otherwise      -> __impossible "getAssignments: multiple assignments"  -- FIXME: is it possible? / zilinc
       
+solveArithIneqs :: [SExpr] -> Solver [Goal]
+solveArithIneqs es = return []  -- TODO
 
 type SymVars = IM.IntMap V.SWord16
 
@@ -837,7 +855,6 @@ sexprToSBV_I (SU i) = do
                   modify (IM.insert i v)
                   return v
     Just v -> return v
-                  
 sexprToSBV_I _ = __todo "sexprToSBV_I: not yet implemented"
 
 sexprToSBV_B :: SExpr -> SbvM V.SBool
@@ -985,20 +1002,24 @@ solve = lift . crunch >=> explode >=> go
           instantiate s mempty g >>= explode >>= go
 
     go'' :: GoalClasses -> GoalClass -> Solver [ContextualisedTcLog]
-    go'' g c = do
-      when (not $ null $ arithineqs g) $ __impossible "go'': not implemented"
-      a <- traceTcBracket "sol"
-                          (text "solve arith equality goals:"
-                           P.<$> vsep (map (pretty . _goal) $ aritheqs g)
-                           P.<$> P.empty)
-                          (arithEqSolver (aritheqs g))
-                          (\a -> bold (text "produce assign:")
-                                 P.<$> pretty a)
-      if Ass.null a then do
-          go (g {aritheqs = []})
-      else do
-          applyAssign a
-          instantiate mempty a g >>= explode >>= go
+    go'' g ArithEqClass = do
+      traceTc "sol" (text "solve arith equality goals:"
+                     P.<$> vsep (map (pretty . _goal) $ aritheqs g))
+      arithEqSolver (aritheqs g) >>= \case
+        Left g' -> do
+          traceTc "sol" (bold (text "equations not satisfiable"))
+          go (g' <> g {aritheqs = []})  -- also turn unsats into an Unsat goal
+        Right a -> do
+          traceTc "sol" (bold (text "produce assign:")
+                         P.<$> pretty a)
+          if Ass.null a then
+            go (g {aritheqs = []})
+          else do
+            applyAssign a
+            instantiate mempty a g >>= explode >>= go
+
+    go'' g ArithIneqClass = do
+      __todo "solve ineqs in go'' not implemented"
 
     removeKeys = foldr IM.delete
 
