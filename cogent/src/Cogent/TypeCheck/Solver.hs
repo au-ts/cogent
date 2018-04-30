@@ -812,10 +812,12 @@ arithEqSolver gs =
   let es = flip map gs (\(Goal _ (Arith e)) -> e) 
    in solveArithEqs es
 
-arithIneqSolver :: [Goal] -> Solver Bool
+arithIneqSolver :: [Goal] -> Solver (Maybe GoalClasses)
 arithIneqSolver gs = do
   let es = flip map gs (\(Goal _ (Arith e)) -> e)
-  solveArithIneqs es
+  solveArithIneqs es >>= \case
+    True  -> return Nothing
+    False -> __fixme $ return (Just $ mempty {unsats = [Goal [] (Unsat $ ArithInequationsUnsatisfiable es)]})
 
 solveArithEqs :: [SExpr] -> Solver (Either GoalClasses Ass.Assignment)
 solveArithEqs es = maybe (Left g) (Right . Ass.Assignment . IM.fromList . M.toList
@@ -1041,12 +1043,12 @@ solve = lift . crunch >=> explode >=> go
       traceTc "sol" (text "solve arith inequality goals" <> colon
                      P.<$> vsep (map (pretty . _goal) $ arithineqs g))
       arithIneqSolver (arithineqs g) >>= \case
-        True -> do
+        Nothing -> do
           traceTc "sol" (text "arith inequalities satisfiable")
           go (g {arithineqs = []})
-        False -> do
+        Just g' -> do
           traceTc "sol" (text "arith inequalities unsatisfiable")
-          __todo "Unsat goal"
+          go (g' <> g {arithineqs = []})
 
     removeKeys = foldr IM.delete
 

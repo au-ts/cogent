@@ -76,6 +76,7 @@ data TypeError = FunctionNotFound VarName
                | DiscardWithoutMatch TagName
                | RequiredTakenTag TagName
                | CannotSatisfyAllArithEquations [SExpr]
+               | ArithInequationsUnsatisfiable [SExpr]
                | CustTyGenIsPolymorphic TCType
                | CustTyGenIsSynonym TCType
                | TypeWarningAsError TypeWarning

@@ -610,6 +610,8 @@ instance Pretty TypeError where
   pretty (RequiredTakenTag t)       = err "Required variant" <+> tagname t <+> err "but it has already been matched."
   pretty (CannotSatisfyAllArithEquations es) = err "Unable to find an assignment which satisfies the following constraints" <> colon
                                                <$> indent' (vsep (map ((<> semi) . pretty) es))
+  pretty (ArithInequationsUnsatisfiable es) = err "The following constraints are unsatisfiable" <> colon
+                                              <$> indent' (vsep (map ((<> semi) . pretty) es))
   pretty (CustTyGenIsSynonym t)     = err "Type synonyms have to be fully expanded in --cust-ty-gen file:" <$> indent' (pretty t)
   pretty (CustTyGenIsPolymorphic t) = err "Polymorphic types are not allowed in --cust-ty-gen file:" <$> indent' (pretty t)
   pretty (TypeWarningAsError w)          = pretty w
