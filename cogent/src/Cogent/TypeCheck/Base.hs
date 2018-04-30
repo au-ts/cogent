@@ -306,7 +306,7 @@ type TypeDict = [(TypeName, ([VarName], Maybe TCType))]  -- `Nothing' for abstra
 
 data TcState = TcState { _knownFuns    :: M.Map FunName (Polytype TCType)
                        , _knownTypes   :: TypeDict
-                       , _knownConsts  :: M.Map VarName (TCType, SourcePos)
+                       , _knownConsts  :: M.Map VarName (TCType, TCExpr, SourcePos)
                        }
 
 makeLenses ''TcState

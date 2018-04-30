@@ -129,7 +129,7 @@ parseFile' filename = do
 
 data TcState = TcState { _tfuncs :: Map FunName (SF.Polytype TC.TCType)
                        , _ttypes :: TC.TypeDict
-                       , _consts :: Map VarName (TC.TCType, SourcePos)
+                       , _consts :: Map VarName (TC.TCType, TC.TCExpr, SourcePos)
                        }
 
 data DsState = DsState { _typedefs  :: DS.Typedefs
@@ -346,7 +346,7 @@ parseExp s loc = parseAnti s (PS.expr 1) loc 4
 tcExp :: SF.LocExpr -> GlDefn t TC.TypedExpr
 tcExp e = do
   base <- lift . lift $ use (tcState.consts)
-  let ctx = Ctx.addScope (fmap (\(t,p) -> (t, p, Seq.singleton p)) base) Ctx.empty
+  let ctx = Ctx.addScope (fmap (\(t,_,p) -> (t, p, Seq.singleton p)) base) Ctx.empty
   vs <- Vec.cvtToList <$> view kenv
   flip tcAnti e $ \e ->
     do let ?loc = SF.posOfE e

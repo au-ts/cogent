@@ -112,7 +112,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     traceTc "tc" (text "typecheck const definition" <+> pretty n)
     base <- lift . lift $ use knownConsts
     t' <- validateType [] (stripLocT t)
-    let ctx = C.addScope (fmap (\(t,p) -> (t,p, Seq.singleton p)) base) C.empty  -- for consts, the definition is the first use.
+    let ctx = C.addScope (fmap (\(t,_,p) -> (t,p, Seq.singleton p)) base) C.empty  -- for consts, the definition is the first use.
     ((c, e'), flx, os) <- runCG ctx [] (cg e t')
     let c' = c <> Share t' (Constant n)
     (logs, subst, assign, _) <- runSolver (solve c') [] flx os
@@ -121,7 +121,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
                   L.<$> pretty subst
                   L.<$> text "assigns for const definition" <+> pretty n <+> text "is"
                   L.<$> pretty assign)
-    lift . lift $ knownConsts %= M.insert n (t', loc)
+    lift . lift $ knownConsts %= M.insert n (t', e', loc)
     e'' <- postE $ applyE subst $ assignE assign e'
     t'' <- postT t'
     return (ConstDef n t'' e'')
@@ -135,7 +135,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     base <- lift . lift $ use knownConsts
     t' <- validateType (map fst vs) (stripLocT t)
     (i,o) <- asFunType t'
-    let ctx = C.addScope (fmap (\(t,p) -> (t, p, Seq.singleton p)) base) C.empty
+    let ctx = C.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) C.empty
     let ?loc = loc
     ((c, alts'), flx, os) <- runCG ctx (map fst vs) (cgAlts alts o i)
     traceTc "tc" (text "constraint for fun definition" <+> pretty f <+> text "is"

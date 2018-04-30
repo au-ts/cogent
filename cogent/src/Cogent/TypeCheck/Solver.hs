@@ -11,6 +11,7 @@
 --
 
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE LambdaCase #-}
@@ -35,11 +36,14 @@ import           Cogent.TypeCheck.GoalSet (Goal(..), goal, goalContext, GoalSet)
 import qualified Cogent.TypeCheck.GoalSet as GS
 
 import           Control.Applicative
+import           Control.Arrow (first)
 import           Control.Lens hiding ((:<))
-import           Control.Monad.State
+import           Control.Monad.State hiding (modify)
 import           Control.Monad.Trans.Except
+import           Control.Monad.Trans.State (modify)
 import qualified Data.Foldable as F
 import           Data.Function (on)
+import           Data.Functor.Compose (Compose(..))
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
 --import qualified Data.List as L
@@ -808,57 +812,72 @@ arithEqSolver gs =
   let es = flip map gs (\(Goal _ (Arith e)) -> e) 
    in solveArithEqs es
 
-arithIneqSolver :: [Goal] -> Solver [ContextualisedTcLog]
+arithIneqSolver :: [Goal] -> Solver Bool
 arithIneqSolver gs = do
   let es = flip map gs (\(Goal _ (Arith e)) -> e)
   solveArithIneqs es
-  return []  -- TODO
-
 
 solveArithEqs :: [SExpr] -> Solver (Either GoalClasses Ass.Assignment)
-solveArithEqs es = liftIO $ maybe (Left g) (Right . Ass.Assignment . IM.fromList . M.toList
+solveArithEqs es = maybe (Left g) (Right . Ass.Assignment . IM.fromList . M.toList
                  . M.mapKeys (read . tail) . M.map (SE . IntLit))
                  <$> getAssignments
   where
     g = __fixme $ mempty {unsats = [Goal [] (Unsat $ CannotSatisfyAllArithEquations es)]}
         -- ^^^ FIXME: we should try to produce much better error msgs / zilinc
-    getAssignments :: IO (Maybe (M.Map String Integer))
+    getAssignments :: Solver (Maybe (M.Map String Integer))
     getAssignments = do
-      let s = V.solve =<< evalStateT (runSbvM $ mapM sexprToSBV_B es) IM.empty
-      V.isSatisfiable s >>= \case
+      tcs <- lift get
+      let s = V.solve =<< evalStateT (mapM sexprToSBV_B es) (IM.empty, tcs)
+      liftIO $ V.isSatisfiable s >>= \case
         False -> return Nothing
         True  -> do
-          V.AllSatResult (_,_,as) <- V.allSat s
+          r@(V.AllSatResult (_,_,as)) <- V.allSat s
           if | null as        -> return $ Just M.empty
-             | length as == 1 -> return $ Just $ M.map V.fromCW $ V.getModelDictionary $ head as
+             | length as == 1 -> return $ Just $ M.map V.fromCW $ V.getModelDictionary (head as)
              | otherwise      -> __impossible "getAssignments: multiple assignments"  -- FIXME: is it possible? / zilinc
-      
-solveArithIneqs :: [SExpr] -> Solver [Goal]
-solveArithIneqs es = return []  -- TODO
+
+solveArithIneqs :: [SExpr] -> Solver Bool
+solveArithIneqs es = do
+  tcs <- lift get
+  let s = V.solve =<< evalStateT (mapM sexprToSBV_B es) (IM.empty, tcs)
+  liftIO $ V.isSatisfiable (V.forAll_ s)
 
 type SymVars = IM.IntMap V.SWord16
 
-newtype SbvM a = SbvM { runSbvM :: StateT SymVars V.Symbolic a }
-               deriving (Functor, Applicative, Monad, MonadState SymVars)
+type SbvM a = StateT (SymVars, TcState) V.Symbolic a
+
+-- runSbvM :: SbvM a -> SymVars -> Solver (a, SymVars)
+-- runSbvM ma s = StateT (\s' -> let x = runStateT ma s 
+--                                in fmap ((,s')) x)
+-- 
+-- evalSbvM :: SbvM a -> SymVars -> Solver a
+-- evalSbvM = ((fst <$>) .) . runSbvM
+-- 
+-- execSbvM :: SbvM a -> SymVars -> Solver SymVars
+-- execSbvM = ((snd <$>) .) . runSbvM
 
 sexprToSBV_I :: SExpr -> SbvM V.SWord16
-sexprToSBV_I (SE (PrimOp op [e1,e2])) = (liftA2 $ opToSBV_I2 op) (sexprToSBV_I e1) (sexprToSBV_I e2)
-sexprToSBV_I (SE (PrimOp op [e])) = return . opToSBV_I1 op =<< sexprToSBV_I e
-sexprToSBV_I (SE (Var v)) = __todo "need a context for constants"
+sexprToSBV_I (SE (PrimOp op [e1,e2])) = liftA2 (opToSBV_I2 op) (sexprToSBV_I e1) (sexprToSBV_I e2)
+sexprToSBV_I (SE (PrimOp op [e])) = liftA (opToSBV_I1 op) $ sexprToSBV_I e
+sexprToSBV_I (SE (Var v)) = do
+  m <- use (_2.knownConsts)
+  case M.lookup v m of
+    Nothing -> __impossible "constant not in scope"
+    Just (_,e,_) -> sexprToSBV_I (tcToSExpr e)
 sexprToSBV_I (SE (IntLit i)) = return . V.literal $ fromIntegral i
 sexprToSBV_I (SE (Upcast e)) = sexprToSBV_I e
 sexprToSBV_I (SE (Annot e _)) = sexprToSBV_I e
 sexprToSBV_I (SU i) = do
-  m <- get
+  (m,_) <- get
   case IM.lookup i m of
-    Nothing -> do v <- SbvM . lift . V.free $ '?':show i
-                  modify (IM.insert i v)
+    Nothing -> do v <- lift . V.free $ '?':show i
+                  modify (first $ IM.insert i v)
                   return v
     Just v -> return v
 sexprToSBV_I _ = __todo "sexprToSBV_I: not yet implemented"
 
 sexprToSBV_B :: SExpr -> SbvM V.SBool
-sexprToSBV_B (SE (PrimOp op [e1,e2])) = (liftA2 $ opToSBV_B2 op) (sexprToSBV_I e1) (sexprToSBV_I e2)
+sexprToSBV_B (SE (PrimOp op [e1,e2])) = liftA2 (opToSBV_B2 op) (sexprToSBV_I e1) (sexprToSBV_I e2)
 sexprToSBV_B _ = __todo "sexprToSBV_B: not yet implemented"
 
 opToSBV_I1 :: OpName -> (V.SWord16 -> V.SWord16)
@@ -992,7 +1011,7 @@ solve = lift . crunch >=> explode >=> go
           groundKeys = IM.keysSet (IM.filter (groundNB . GS.toList) (cls g))
       s <- F.fold <$> mapM (noBrainersT . GS.toList) (cls g `removeKeys` IS.toList (flexes g IS.\\ groundKeys))
       traceTc "sol" (text "solve" <+> text msg <+> text "goals"
-                     P.<$> bold (text "produce subst:")
+                     P.<$> bold (text "produce subst" <> colon)
                      P.<$> pretty s)
       if Subst.null s then do
           g' <- explode =<< concat . F.toList <$> traverse (f . GS.toList) (cls g)
@@ -1003,14 +1022,14 @@ solve = lift . crunch >=> explode >=> go
 
     go'' :: GoalClasses -> GoalClass -> Solver [ContextualisedTcLog]
     go'' g ArithEqClass = do
-      traceTc "sol" (text "solve arith equality goals:"
+      traceTc "sol" (text "solve arith equality goals" <> colon
                      P.<$> vsep (map (pretty . _goal) $ aritheqs g))
       arithEqSolver (aritheqs g) >>= \case
         Left g' -> do
           traceTc "sol" (bold (text "equations not satisfiable"))
           go (g' <> g {aritheqs = []})  -- also turn unsats into an Unsat goal
         Right a -> do
-          traceTc "sol" (bold (text "produce assign:")
+          traceTc "sol" (bold (text "produce assign" <> colon)
                          P.<$> pretty a)
           if Ass.null a then
             go (g {aritheqs = []})
@@ -1019,7 +1038,15 @@ solve = lift . crunch >=> explode >=> go
             instantiate mempty a g >>= explode >>= go
 
     go'' g ArithIneqClass = do
-      __todo "solve ineqs in go'' not implemented"
+      traceTc "sol" (text "solve arith inequality goals" <> colon
+                     P.<$> vsep (map (pretty . _goal) $ arithineqs g))
+      arithIneqSolver (arithineqs g) >>= \case
+        True -> do
+          traceTc "sol" (text "arith inequalities satisfiable")
+          go (g {arithineqs = []})
+        False -> do
+          traceTc "sol" (text "arith inequalities unsatisfiable")
+          __todo "Unsat goal"
 
     removeKeys = foldr IM.delete
 
