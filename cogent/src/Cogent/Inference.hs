@@ -73,6 +73,11 @@ guardShow' mh mb b = if b then return () else TC (throwError $ "GUARD: " ++ mh +
 -- ----------------------------------------------------------------------------
 -- Type reconstruction
 
+-- FIXME: This section deserves a rework!! Too messy.
+
+-- !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+-- start dirty section
+
 -- Types that don't have the same representation / don't satisfy subtyping.
 isUpcastable :: Type t -> Type t -> TC t v Bool
 isUpcastable (TPrim p1) (TPrim p2) = return $ isSubtypePrim p1 p2
@@ -91,9 +96,10 @@ isSubtype (TRecord r1 s1) (TRecord r2 s2) =
                                                         c2 <- t1 `isSubtype` t2
                                                         c3 <- (kindcheck t1 >>= \k -> return $ (k /= k1 && b1 <= b2) || b1 == b2)
                                                         return (and [c1,c2,c3])) r1 r2)
+isSubtype (TArray t1 l1) (TArray t2 l2) = (&&) <$> t1 `isSubtype` t2  <*> pure (l1 == l2)  -- (checkUExpr_B $ E $ Op Eq [l1, l2])
 isSubtype a b = return $ a == b
 
--- NOTE: have to check if the resulting type is a supertype of two inputs
+-- NOTE: have to check if the resulting type is a supertype of two inputs / zilinc
 lub :: Type t -> Type t -> Type t
 lub t1@(TSum s1) t2@(TSum s2) = 
   let m1 = M.fromList s1
@@ -104,34 +110,47 @@ lub (TProduct t11 t12) (TProduct t21 t22) = TProduct (t11 `lub` t21) (t12 `lub` 
 lub (TFun t1 s1) (TFun t2 s2) = TFun (t1 `glb` t2) (s1 `lub` s2)
 lub (TRecord ts1 s1) (TRecord ts2 s2) = TRecord (zipWith (\(f1,(t1,b1)) (f2,(t2,b2)) -> (f1,(t1 `lub` t2, b1))) ts1 ts2) s1
 lub (TCon c1 ts1 s1) (TCon c2 ts2 s2) = TCon c1 (zipWith (\t1 t2 -> t1) ts1 ts2) s1
+lub (TArray t1 l1) (TArray t2 l2) = TArray (lub t1 t2) l1
 lub t1 t2 = t1
 
 glb :: Type t -> Type t -> Type t
-glb t1 t2 = t1  -- FIXME: it seems only used by contra-variance, namely function arguments.
+glb t1 t2 = t1  -- FIXME: it seems only used by contra-variance, namely function arguments. / zilinc
+
+-- checkUExpr_B :: UntypedExpr -> TC t v Bool
+-- checkUExpr_B (E (Op op [e])) = return True
+-- checkUExpr_B (E (Op op [e1,e2])) = return True
+-- checkUExpr_B _ = return True
+
+
+-- end dirty section
+-- !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 
 bang :: Type t -> Type t
 bang (TVar v)         = TVarBang v
 bang (TVarBang v)     = TVarBang v
-bang (TUnit)          = TUnit
-bang (TProduct t1 t2) = TProduct (bang t1) (bang t2)
-bang (TSum ts)        = TSum (map (second $ first bang) ts)
+bang (TCon n ts s)    = TCon n (map bang ts) (bangSigil s)
 bang (TFun ti to)     = TFun ti to
-bang (TRecord ts s)   = TRecord (map (second $ first bang) ts) (bangSigil s)
 bang (TPrim i)        = TPrim i
 bang (TString)        = TString
-bang (TCon n ts s)    = TCon n (map bang ts) (bangSigil s)
+bang (TSum ts)        = TSum (map (second $ first bang) ts)
+bang (TProduct t1 t2) = TProduct (bang t1) (bang t2)
+bang (TRecord ts s)   = TRecord (map (second $ first bang) ts) (bangSigil s)
+bang (TUnit)          = TUnit
+bang (TArray t l)     = TArray (bang t) l
 
 substitute :: Vec t (Type u) -> Type t -> Type u
 substitute vs (TVar v)         = vs `at` v
 substitute vs (TVarBang v)     = bang (vs `at` v)
-substitute _  (TUnit)          = TUnit
-substitute vs (TProduct t1 t2) = TProduct (substitute vs t1) (substitute vs t2)
-substitute vs (TSum ts)        = TSum (map (second (first $ substitute vs)) ts)
-substitute vs (TFun ti to)     = TFun (substitute vs ti) (substitute vs to)
-substitute vs (TRecord ts t)   = TRecord (map (second (first $ substitute vs)) ts) t
 substitute vs (TCon n ps s)    = TCon n (map (substitute vs) ps) s
+substitute vs (TFun ti to)     = TFun (substitute vs ti) (substitute vs to)
 substitute _  (TPrim i)        = TPrim i
 substitute _  (TString)        = TString
+substitute vs (TProduct t1 t2) = TProduct (substitute vs t1) (substitute vs t2)
+substitute vs (TRecord ts t)   = TRecord (map (second (first $ substitute vs)) ts) t
+substitute vs (TSum ts)        = TSum (map (second (first $ substitute vs)) ts)
+substitute _  (TUnit)          = TUnit
+substitute vs (TArray t l)     = TArray (substitute vs t) l
 
 remove :: (Eq a) => a -> [(a,b)] -> [(a,b)]
 remove k = filter ((/= k) . fst)
@@ -256,14 +275,15 @@ lookupKind f = TC ((`at` f) . fst <$> ask)
 kindcheck :: Type t -> TC t v Kind
 kindcheck (TVar v)         = lookupKind v
 kindcheck (TVarBang v)     = bangKind <$> lookupKind v
-kindcheck (TUnit)          = return mempty
-kindcheck (TProduct t1 t2) = mappend <$> kindcheck t1 <*> kindcheck t2
-kindcheck (TSum ts)        = mconcat <$> mapM (kindcheck . fst . snd) (filter (not . snd . snd) ts)
+kindcheck (TCon n vs s)    = mapM_ kindcheck vs >> return (sigilKind s)
 kindcheck (TFun ti to)     = return mempty
-kindcheck (TRecord ts s)   = mappend (sigilKind s) <$> (mconcat <$> (mapM (kindcheck . fst . snd) (filter (not . snd . snd) ts)))
 kindcheck (TPrim i)        = return mempty
 kindcheck (TString)        = return mempty
-kindcheck (TCon n vs s)    = mapM_ kindcheck vs >> return (sigilKind s)
+kindcheck (TProduct t1 t2) = mappend <$> kindcheck t1 <*> kindcheck t2
+kindcheck (TRecord ts s)   = mappend (sigilKind s) <$> (mconcat <$> (mapM (kindcheck . fst . snd) (filter (not . snd . snd) ts)))
+kindcheck (TSum ts)        = mconcat <$> mapM (kindcheck . fst . snd) (filter (not . snd . snd) ts)
+kindcheck (TUnit)          = return mempty
+kindcheck (TArray t l)     = kindcheck t
 
 typecheck :: UntypedExpr t v a -> TC t v (TypedExpr t v a)
 typecheck (E (Op o es))
@@ -276,7 +296,7 @@ typecheck (E (ALit es))
    = do es' <- mapM typecheck es
         let ts = map exprType es'
             t = lubAll ts
-            n = E (ILit (fromIntegral $ length es) U32)
+            n = length es
         isSub <- allM (`isSubtype` t) ts
         return (TE (TArray t n) (ALit es'))
   where
@@ -285,6 +305,11 @@ typecheck (E (ALit es))
     lubAll [t] = t
     lubAll (t1:t2:ts) = let t = lub t1 t2
                          in lubAll (t:ts)
+typecheck (E (ArrayIndex arr idx))
+   = do arr'@(TE ta _) <- typecheck arr
+        let TArray te l = ta
+        guardShow ("arr-idx out of bound") $ idx < l
+        return (TE te (ArrayIndex arr' idx))
 typecheck (E (Variable v))
    = do Just t <- useVariable (fst v)
         return (TE t (Variable v))

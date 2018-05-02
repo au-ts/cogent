@@ -21,6 +21,7 @@ type TypeName    = String
 
 type FieldIndex = Int
 type ArrayIndex = Int
+type ArraySize  = Int
 
 type OpName = String
 

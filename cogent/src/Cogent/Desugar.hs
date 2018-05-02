@@ -464,6 +464,7 @@ desugarType = \case
   S.RT (S.TTuple (t1:t2:ts)) | not __cogent_ftuples_as_sugar -> __impossible "desugarType"  -- desugarType $ S.RT $ S.TTuple [t1, S.RT $ S.TTuple (t2:ts)]
   S.RT (S.TTuple ts) | __cogent_ftuples_as_sugar -> TRecord <$> (P.zipWith (\t n -> (n,(t, False))) <$> forM ts desugarType <*> pure (P.map (('p':) . show) [1 :: Integer ..])) <*> pure Unboxed
   S.RT (S.TUnit)   -> return TUnit
+  S.RT (S.TArray t l) -> TArray <$> desugarType t <*> evalAExpr l  -- desugarExpr' l
   notInWHNF -> __impossible $ "desugarType (type" ++ show (pretty notInWHNF) ++ "is not in WHNF)"
 
 desugarNote :: S.Inline -> FunNote
@@ -592,6 +593,25 @@ desugarExpr (B.TE t (S.Con c es) p) = __impossible "desugarExpr (Con)"
 --   let Just ([tes], False) = M.lookup c ts
 --   E . Con c <$> desugarExpr (B.TE tes (S.Tuple es) p)
 desugarExpr (B.TE _ (S.Put _ _) _) = __impossible "desugarExpr (Put)"
+
+
+desugarExpr' :: S.AExpr -> DS t v (UntypedExpr t 'Zero VarName)
+desugarExpr' (S.RE (S.PrimOp opr es)) = E . Op (symbolOp opr) <$> mapM desugarExpr' es
+desugarExpr' (S.RE (S.Var vn)) = __impossible "desugarExpr'"
+desugarExpr' (S.RE (S.If c [] th el)) = E <$> (If <$> desugarExpr' c <*> desugarExpr' th <*> desugarExpr' el)
+desugarExpr' (S.RE (S.Unitel)) = return $ E Unit
+desugarExpr' (S.RE (S.IntLit n)) = return $ E $ ILit n U32  -- FIXME: can we ascribe U32? / zilinc
+desugarExpr' (S.RE (S.BoolLit b)) = return $ E $ ILit (if b then 1 else 0) Boolean
+desugarExpr' (S.RE (S.CharLit c)) = return $ E $ ILit (fromIntegral $ ord c) U8
+desugarExpr' (S.RE (S.StringLit s)) = return $ E $ SLit s
+desugarExpr' (S.RE (S.ArrayLit es)) = E . ALit <$> mapM desugarExpr' es
+desugarExpr' (S.RE (S.ArrayIndex e i)) = do
+  e' <- desugarExpr' e
+  i' <- evalAExpr i
+  return $ E (ArrayIndex e' i')
+desugarExpr' (S.RE (S.Upcast e)) = E <$> (Cast (TPrim U32) <$> desugarExpr' e)  -- FIXME: U32!!! / zilinc
+desugarExpr' (S.RE (S.Annot e tau)) = E <$> (Promote <$> desugarType tau <*> desugarExpr' e)
+desugarExpr' _ = __todo "desugarExpr': we don't support these expressions in types right now"
 
 desugarConst :: (VarName, B.TypedExpr) -> DS 'Zero 'Zero (CoreConst UntypedExpr)
 desugarConst (n,e) = (n,) <$> desugarExpr e

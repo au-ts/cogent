@@ -848,16 +848,6 @@ type SymVars = IM.IntMap V.SWord16
 
 type SbvM a = StateT (SymVars, TcState) V.Symbolic a
 
--- runSbvM :: SbvM a -> SymVars -> Solver (a, SymVars)
--- runSbvM ma s = StateT (\s' -> let x = runStateT ma s 
---                                in fmap ((,s')) x)
--- 
--- evalSbvM :: SbvM a -> SymVars -> Solver a
--- evalSbvM = ((fst <$>) .) . runSbvM
--- 
--- execSbvM :: SbvM a -> SymVars -> Solver SymVars
--- execSbvM = ((snd <$>) .) . runSbvM
-
 sexprToSBV_I :: SExpr -> SbvM V.SWord16
 sexprToSBV_I (SE (PrimOp op [e1,e2])) = liftA2 (opToSBV_I2 op) (sexprToSBV_I e1) (sexprToSBV_I e2)
 sexprToSBV_I (SE (PrimOp op [e])) = liftA (opToSBV_I1 op) $ sexprToSBV_I e

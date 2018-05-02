@@ -65,7 +65,8 @@ data Type t
   | TProduct (Type t) (Type t)
   | TRecord [(FieldName, (Type t, Bool))] Sigil  -- True means taken
   | TUnit
-  | TArray (Type t) (UntypedExpr t 'Zero VarName)  -- stick to UntypedExpr to be simple / zilinc
+  | TArray (Type t) ArraySize  -- use Int for now
+                               -- XXX | ^^^ (UntypedExpr t 'Zero VarName)  -- stick to UntypedExpr to be simple / zilinc
   deriving (Show, Eq, Ord)
 
 data SupposedlyMonoType = forall (t :: Nat). SMT (Type t)
@@ -342,6 +343,8 @@ level (RightAssoc i) = i
 level (NoAssoc i) = i
 level (Prefix) = 0
 
+
+-- NOTE: the precedence levels are somewhat different to those of the surface lang / zilinc
 levelE :: Expr t v a e -> Int
 levelE (Op opr [_,_]) = level (associativity opr)
 levelE (ILit {}) = 0
@@ -403,6 +406,7 @@ instance (Pretty a, PrettyP (e t v a), Pretty (e t ('Suc v) a), Pretty (e t ('Su
   pretty (ILit i pt) = literal (string $ show i) <+> symbol "::" <+> pretty pt
   pretty (SLit s) = literal $ string s
   pretty (ALit es) = array $ map pretty es 
+  pretty (ArrayIndex arr idx) = prettyP 2 arr <+> symbol "@" <+> pretty idx
   pretty (Variable x) = pretty (snd x) L.<> angles (prettyV $ fst x)
   pretty (Fun fn ins nt) = pretty nt L.<> funName fn <+> pretty ins
   pretty (App a b) = prettyP 2 a <+> prettyP 1 b
