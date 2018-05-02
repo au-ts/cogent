@@ -243,6 +243,7 @@ fmapE f (Unit)               = Unit
 fmapE f (ILit i pt)          = ILit i pt
 fmapE f (SLit s)             = SLit s
 fmapE f (ALit es)            = ALit (map f es)
+fmapE f (ArrayIndex e i)     = ArrayIndex (f e) i
 fmapE f (Let a e1 e2)        = Let a (f e1) (f e2)
 fmapE f (LetBang vs a e1 e2) = LetBang vs a (f e1) (f e2)
 fmapE f (Tuple e1 e2)        = Tuple (f e1) (f e2)

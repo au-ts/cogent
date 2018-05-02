@@ -44,16 +44,18 @@ isAtom (E (Op opr es)) | and (map isVar es) = True
 isAtom (E (App (E (Fun fn ts _)) arg)) | isVar arg = True
 isAtom (E (App f arg)) | isVar f && isVar arg = True
 isAtom (E (Con cn x _)) | isVar x = True
-isAtom (E (Promote t e)) | isVar e = True
-isAtom (E (Cast t e)) | isVar e = True
-isAtom (E (Struct fs)) | and (map (isVar . snd) fs) = True
-isAtom (E (Member rec f)) | isVar rec = True
-isAtom (E Unit) = True
+isAtom (E (Unit)) = True
 isAtom (E (ILit {})) = True
 isAtom (E (SLit _)) = True
+isAtom (E (ALit es)) | and (map isVar es) = True
+isAtom (E (ArrayIndex e i)) | isVar e = True 
 isAtom (E (Tuple e1 e2)) | isVar e1 && isVar e2 = True
-isAtom (E (Put rec f v)) | isVar rec && isVar v = True
+isAtom (E (Struct fs)) | and (map (isVar . snd) fs) = True
 isAtom (E (Esac e)) | isVar e = True
+isAtom (E (Member rec f)) | isVar rec = True
+isAtom (E (Put rec f v)) | isVar rec && isVar v = True
+isAtom (E (Promote t e)) | isVar e = True
+isAtom (E (Cast t e)) | isVar e = True
 isAtom _ = False
 
 isNormal :: Show a => UntypedExpr t v a -> Bool
@@ -110,6 +112,7 @@ normalise :: SNat v -> UntypedExpr t v VarName
           -> AN (UntypedExpr t v VarName)
 normalise v e@(E (Variable var)) k = k s0 (E (Variable var))
 normalise v e@(E (Fun fn ts _)) k = k s0 e
+normalise v   (E (Op opr es)) k = normaliseNames v es $ \n es' -> k n (E $ Op opr es')
 normalise v e@(E (App (E (Fun fn ts nt)) arg)) k
   = normaliseName v arg$ \n' arg' ->
           k n' ((E $ App (E (Fun fn ts nt)) arg'))
@@ -118,11 +121,13 @@ normalise v e@(E (App f arg)) k
       normaliseName (sadd v n) (upshiftExpr n v f0 arg) $ \n' arg' ->
         withAssoc v n n' $ \Refl ->
           k (sadd n n') ((E $ App (upshiftExpr n' (sadd v n) f0 f') arg'))
-normalise v (E (Con cn e t)) k = normaliseName v e $ \n e' -> k n (E $ Con cn e' t)
+normalise v   (E (Con cn e t)) k = normaliseName v e $ \n e' -> k n (E $ Con cn e' t)
 normalise v e@(E (Unit)) k = k s0 e
 normalise v e@(E (ILit {})) k = k s0 e
 normalise v e@(E (SLit {})) k = k s0 e
-normalise v (E (Let a e1 e2)) k
+normalise v   (E (ALit es)) k = normaliseNames v es $ \n es' -> k n (E $ ALit es')
+normalise v   (E (ArrayIndex e i)) k = normaliseName v e $ \n e' -> k n (E $ ArrayIndex e' i)
+normalise v   (E (Let a e1 e2)) k
   | __cogent_fnormalisation `elem` [KNF, LNF]  -- || (__cogent_fnormalisation == ANF && __cogent_fcondition_knf && isCondition e1)
   = do e1' <- normaliseExpr v e1
        E <$> (Let a e1' <$> (normalise (SSuc v) e2 $ \n -> case addSucLeft v n of Refl -> k (SSuc n)))
@@ -139,6 +144,7 @@ normalise v (E (Tuple e1 e2)) k
     normaliseName (sadd v n) (upshiftExpr n v f0 e2) $ \n' e2' ->
     withAssoc v n n' $ \Refl ->
     k (sadd n n') (E $ Tuple (upshiftExpr n' (sadd v n) f0 e1') e2')
+normalise v (E (Struct fs)) k = let (ns,es) = P.unzip fs in normaliseNames v es $ \n es' -> k n (E $ Struct $ P.zip ns es')
 normalise v (E (If c th el)) k | LNF <- __cogent_fnormalisation =
   freshVar >>= \a ->
   normaliseExpr v th >>= \th' ->
@@ -166,6 +172,7 @@ normalise v (E (Split a p e)) k
       Refl -> case addSucLeft (SSuc v) n of
         Refl -> E <$> (Split a p' <$> (normalise (sadd (SSuc (SSuc v)) n) (upshiftExpr n (SSuc $ SSuc v) f2 e) $ \n' ->
           withAssocSS v n n' $ \Refl -> k (SSuc (SSuc (sadd n n')))))
+normalise v (E (Member rec fld)) k = normaliseName v rec $ \n rec' -> k n (E $ Member rec' fld)
 normalise v (E (Take a rec fld e)) k
   = normaliseName v rec $ \n rec' -> case addSucLeft v n of
       Refl -> case addSucLeft (SSuc v) n of
@@ -176,11 +183,8 @@ normalise v (E (Put rec fld e)) k
     normaliseName (sadd v n) (upshiftExpr n v f0 e) $ \n' e' ->
     withAssoc v n n' $ \Refl ->
     k (sadd n n') (E $ Put (upshiftExpr n' (sadd v n) f0 rec') fld e')
-normalise v (E (Member rec fld)) k = normaliseName v rec $ \n rec' -> k n (E $ Member rec' fld)
 normalise v (E (Promote ty e)) k = normaliseName v e $ \n e' -> k n (E $ Promote ty e')
 normalise v (E (Cast ty e)) k = normaliseName v e $ \n e' -> k n (E $ Cast ty e')
-normalise v (E (Op opr es)) k = normaliseNames v es $ \n es' -> k n (E $ Op opr es')
-normalise v (E (Struct fs)) k = let (ns,es) = P.unzip fs in normaliseNames v es $ \n es' -> k n (E $ Struct $ P.zip ns es')
 
 normaliseAtom :: SNat v -> UntypedExpr t v VarName
               -> (forall n. SNat n -> UntypedExpr t (v :+: n) VarName -> AN (UntypedExpr t (v :+: n) VarName))
@@ -239,6 +243,8 @@ insertIdxAt cut (E e) = E $ insertIdxAt' cut e
     insertIdxAt' cut (Unit) = Unit
     insertIdxAt' cut (ILit n pt) = ILit n pt
     insertIdxAt' cut (SLit s) = SLit s
+    insertIdxAt' cut (ALit es) = ALit $ map (insertIdxAt cut) es
+    insertIdxAt' cut (ArrayIndex e l) = ArrayIndex (insertIdxAt cut e) l
     insertIdxAt' cut (Let a e1 e2) = Let a (insertIdxAt cut e1) (insertIdxAt (FSuc cut) e2)
     insertIdxAt' cut (LetBang vs a e1 e2) = LetBang (map (liftIdx cut *** id) vs) a (insertIdxAt cut e1) (insertIdxAt (FSuc cut) e2)
     insertIdxAt' cut (Tuple e1 e2) = Tuple (insertIdxAt cut e1) (insertIdxAt cut e2)
@@ -258,3 +264,4 @@ isCondition :: UntypedExpr t v a -> Bool
 isCondition (E (If {})) = True
 isCondition (E (Case {})) = True
 isCondition _ = False
+
