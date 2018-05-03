@@ -104,11 +104,11 @@ type CId = String
 data CIntType = CCharT | CShortT | CIntT | CLongT | CLongLongT
               deriving (Eq, Ord, Show)
 
--- XXX | -- This is copied from language-c-quote
--- XXX | data CArraySize = CArraySize CExpr
--- XXX |                 | CVariableArraySize
--- XXX |                 | CNoArraySize
--- XXX |                 deriving (Eq, Ord, Show)
+-- This is copied from language-c-quote
+data CArraySize = CArraySize CExpr
+                | CVariableArraySize
+                | CNoArraySize
+                deriving (Eq, Ord, Show)
 
 -- The type parameter has been striped off
 data CType = CInt Bool CIntType    -- true is signed
@@ -119,7 +119,7 @@ data CType = CInt Bool CIntType    -- true is signed
            | CUnion (Maybe CId) (Maybe [(CType, CId)])  -- Made specifically for --funion-for-variants
            | CEnum CId
            | CPtr CType
-           -- | CArray CType CArraySize
+           | CArray CType CArraySize
            -- | CBitfield Bool c  -- True for signed field
            | CIdent CId
            | CFunction CType CType
@@ -150,7 +150,7 @@ data CExpr = CBinOp CBinOp CExpr CExpr
            | CConst CLitConst
            | CVar CId (Maybe CType)
            | CStructDot CExpr CId
-           -- | CArrayDeref CExpr CExpr
+           | CArrayDeref CExpr CExpr
            | CDeref CExpr
            | CAddrOf CExpr
            | CTypeCast CType CExpr
@@ -169,6 +169,7 @@ isTrivialCExpr (CCondExpr {}) = False
 isTrivialCExpr (CConst {}) = True
 isTrivialCExpr (CVar {}) = True
 isTrivialCExpr (CStructDot (CDeref e) _) = False  -- NOTE: Not sure why but we cannot do `isTrivialCExpr e && not __cogent_fintermediate_vars' / zilinc
+isTrivialCExpr (CArrayDeref e idx) = __fixme $ isTrivialCExpr e && isTrivialCExpr idx 
 isTrivialCExpr (CStructDot e _) = isTrivialCExpr e && not __cogent_fintermediate_vars
 isTrivialCExpr (CDeref e) = isTrivialCExpr e && not __cogent_fintermediate_vars
 isTrivialCExpr (CAddrOf e) = isTrivialCExpr e && not __cogent_fintermediate_vars
@@ -180,11 +181,11 @@ isTrivialCExpr (CCompLit _ dis) = and (map (\(ds,i) -> and (map isTrivialCDesign
 isTrivialCExpr (CMKBOOL e) = isTrivialCExpr e
 
 -- FIXME: more might be true / zilinc
-isAddressableCExpr :: CExpr -> Bool
-isAddressableCExpr (CVar {}) = True
-isAddressableCExpr (CDeref e) = isAddressableCExpr e
-isAddressableCExpr (CTypeCast _ e) = isAddressableCExpr e
-isAddressableCExpr _ = False
+-- isAddressableCExpr :: CExpr -> Bool
+-- isAddressableCExpr (CVar {}) = True
+-- isAddressableCExpr (CDeref e) = isAddressableCExpr e
+-- isAddressableCExpr (CTypeCast _ e) = isAddressableCExpr e
+-- isAddressableCExpr _ = False
 
 likely :: CExpr -> CExpr
 likely e = CEFnCall (CVar "likely" (Just $ CFunction CBool CBool)) [e]
@@ -297,6 +298,7 @@ data StrlType = Record  [(CId, CType)] Bool  -- fieldname |-> fieldtype * is_unb
               | Variant (M.Map CId CType)   -- one tag field, and fields for all possibilities
               | Function CType CType
               | AbsType CId
+              | Array CType (Maybe Int)
               deriving (Eq, Ord, Show)
 
 -- NOTE: Reserved names; users should NOT use them in Cogent programs!
@@ -404,8 +406,9 @@ genUnit = pure [ CDecl $ CStructDecl unitT [(CInt True CIntT, Just dummyField)] 
 
 genLetTrueEnum :: Gen v [CExtDecl]
 genLetTrueEnum = getMon $
-  (whenM __cogent_flet_in_if $ pure $ [CDecl $ CEnumDecl Nothing [(letTrue, Just (CConst $ CNumConst 1 (CInt True CIntT) DEC))]]) <>
-  (whenM __cogent_fletbang_in_if $ pure $ [CDecl $ CEnumDecl Nothing [(letbangTrue, Just (CConst $ CNumConst 1 (CInt True CIntT) DEC))]])
+    (whenM __cogent_flet_in_if $ pure $ [CDecl $ CEnumDecl Nothing [(letTrue, Just one)]]) <>
+    (whenM __cogent_fletbang_in_if $ pure $ [CDecl $ CEnumDecl Nothing [(letbangTrue, Just one)]])
+  where one = CConst $ CNumConst 1 (CInt True CIntT) DEC
 
 genFunClasses :: Gen v ([CExtDecl], [TypeName])  -- NOTE: also returns a list of c-typenames that represents function types (for #63) / zilinc
 genFunClasses = do funclasses <- use funClasses
@@ -467,6 +470,7 @@ genTyDecl (Function t1 t2, n) tns =
   if n `elem` tns then []
                   else [CDecl $ CTypeDecl (CIdent fty) [n]]
   where fty = if __cogent_funtyped_func_enum then untypedFuncEnum else unitT
+genTyDecl (Array t ms, n) _ = [CDecl $ CVarDecl t n True Nothing]
 genTyDecl (AbsType x, n) _ = [CMacro $ "#include <abstract/" ++ x ++ ".h>"]
 
 genTySynDecl :: (TypeName, CType) -> CExtDecl
@@ -515,6 +519,7 @@ lookupTypeCId (TProduct t1 t2) = getCompose (Compose . lookupStrlTypeCId =<< Rec
 lookupTypeCId (TSum fs) = getCompose (Compose . lookupStrlTypeCId =<< Variant . M.fromList <$> mapM (secondM (Compose . lookupType) . second fst) fs)
 lookupTypeCId (TFun t1 t2) = getCompose (Compose . lookupStrlTypeCId =<< Function <$> (Compose . lookupType) t1 <*> (Compose . lookupType) t2)  -- Use the enum type for function dispatching
 lookupTypeCId (TRecord fs s) = getCompose (Compose . lookupStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> (Compose . lookupType) b) fs) <*> pure True)
+lookupTypeCId (TArray t l) = getCompose (Compose . lookupStrlTypeCId =<< Array <$> (Compose . lookupType) t <*> pure (Just l))
 lookupTypeCId t = Just <$> typeCId t
 
 -- XXX | -- NOTE: (Monad (Gen v), Reducer (Maybe a) (First a)) => Reducer (Gen v (Maybe a)) (Mon (Gen v) (First a)) / zilinc
@@ -566,6 +571,7 @@ typeCId t = use custTypeGen >>= \ctg ->
     typeCId' (TFun t1 t2) = getStrlTypeCId =<< Function <$> genType t1 <*> genType t2  -- Use the enum type for function dispatching
     typeCId' (TRecord fs s) = getStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs) <*> pure True
     typeCId' (TUnit) = return unitT
+    typeCId' (TArray t l) = getStrlTypeCId =<< Array <$> genType t <*> pure (Just l)
 
     typeCIdFlat :: CC.Type 'Zero -> Gen v CId
     typeCIdFlat (TProduct t1 t2) = do
@@ -595,6 +601,7 @@ typeCId t = use custTypeGen >>= \ctg ->
     isUnstable (TProduct {}) = True
     isUnstable (TSum _) = True
     isUnstable (TRecord {}) = True
+    isUnstable (TArray {}) = True
     isUnstable _ = False
 
 -- Made for Glue
@@ -610,6 +617,7 @@ genType :: CC.Type 'Zero -> Gen v CType
 genType t@(TRecord _ s) | s /= Unboxed = CPtr . CIdent <$> typeCId t
 genType t@(TString)                    = CPtr . CIdent <$> typeCId t
 genType t@(TCon _ _ s)  | s /= Unboxed = CPtr . CIdent <$> typeCId t
+genType   (TArray t l)                 = CArray <$> (CIdent <$> typeCId t) <*> pure (CArraySize (mkConst U32 l))
 genType t                              =        CIdent <$> typeCId t
 
 genTypeA :: Bool -> CC.Type 'Zero -> Gen v CType
@@ -620,6 +628,7 @@ lookupType :: CC.Type 'Zero -> Gen v (Maybe CType)
 lookupType t@(TRecord _ s) | s /= Unboxed = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
 lookupType t@(TString)                    = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
 lookupType t@(TCon _ _ s)  | s /= Unboxed = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
+lookupType t@(TArray _ _)                 = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
 lookupType t                              = getCompose (       CIdent <$> Compose (lookupTypeCId t))
 
 -- Add a type synonym
@@ -715,10 +724,6 @@ maybeInitCL (Just v) t e p = noDecls <$> maybeAssign (Just v) e p
 withBindings :: Vec v' CExpr -> Gen (v :+: v') a -> Gen v a
 withBindings vec = Gen . withRWS (\r s -> (r <++> vec, s)) . runGen
 
-genLit :: Integer -> PrimInt -> CExpr
-genLit n pt | pt == Boolean = mkBoolLit $ mkConst U8 n
-            | otherwise = CConst $ CNumConst n (CogentPrim pt) DEC
-
 likelihood :: Likelihood -> (CExpr -> CExpr)
 likelihood l = case l of Likely   -> likely
                          Regular  -> id
@@ -730,9 +735,10 @@ mkBoolLit e = CCompLit (CIdent boolT) [([CDesignFld boolField], CInitE e)]
 true :: CExpr
 true = mkConst Boolean 1
 
-mkConst :: PrimInt -> Integer -> CExpr
-mkConst pt n | pt == Boolean = mkBoolLit (mkConst U8 n)
-             | otherwise = CConst $ CNumConst n (CogentPrim pt) DEC
+mkConst :: (Integral t) => PrimInt -> t -> CExpr
+mkConst pt (fromIntegral -> n)
+  | pt == Boolean = mkBoolLit (mkConst U8 n)
+  | otherwise = CConst $ CNumConst n (CogentPrim pt) DEC
 
 genOp :: Syn.Op -> CC.Type 'Zero -> [CExpr] -> Gen v CExpr
 genOp opr (CC.TPrim pt) es =
@@ -793,9 +799,20 @@ genExpr mv (TE t (Op opr es@(e1:_))) = do
   (v,ass,vp) <- maybeAssign mv e' (mergePools ps)
   return (v, concat decls, concat stms ++ ass, vp)
 genExpr mv (TE t (ILit n pt)) =
-  noDecls <$> maybeAssign mv (genLit n pt) M.empty
+  noDecls <$> maybeAssign mv (mkConst pt n) M.empty
 genExpr mv (TE t (SLit s)) =
   noDecls <$> maybeAssign mv (CConst $ CStringConst s) M.empty
+genExpr mv (TE t (ALit es)) = do
+  (es',decls,stms,eps) <- L.unzip4 <$> mapM genExpr_ es
+  t' <- genType t
+  (v,vdecl,ass,vp) <- flip (maybeInitCL mv t') (mergePools eps) $ CCompLit t' $
+                        P.zip [] (map CInitE es')  -- TODO: array initialisation code here!!!
+  return (v, concat decls ++ vdecl, concat stms ++ ass, vp)
+genExpr mv (TE t (ArrayIndex e i)) = do
+  (e',decl,stm,ep) <- genExpr_ e
+  let i' = mkConst U32 i
+  (v,ass,vp) <- maybeAssign mv (CArrayDeref e' i') ep
+  return (v, decl, stm ++ ass, vp)
 genExpr mv (TE t (Unit)) = do
   t' <- genType t
   let e' = CCompLit t' [([CDesignFld dummyField], CInitE (CConst $ CNumConst 0 (CInt True CIntT) DEC))]
@@ -1314,6 +1331,7 @@ cExpr (CCondExpr c e1 e2) = [cexp| $(cExpr c) ? $(cExpr e1) : $(cExpr e2) |]
 cExpr (CConst lit) = cLitConst lit
 cExpr (CVar v _) = [cexp| $id:(cId v) |]
 cExpr (CStructDot e f) = [cexp| $(cExpr e).$id:(cId f) |]
+cExpr (CArrayDeref e i) = [cexp| $(cExpr e)[$(cExpr i)] |]
 cExpr (CDeref e) = [cexp| (* $(cExpr e)) |]
 cExpr (CAddrOf e) = [cexp| (& $(cExpr e)) |]
 cExpr (CTypeCast ty e) = [cexp| ($ty:(cType ty)) $(cExpr e) |]
@@ -1344,6 +1362,11 @@ splitCType (CStruct tid) = (mkDeclSpec $ C.Tstruct (Just $ cId tid) Nothing [] n
 splitCType (CUnion {}) = __impossible "splitCType"
 splitCType (CEnum tid) = (mkDeclSpec $ C.Tenum (Just $ cId tid) [] [] noLoc, C.DeclRoot noLoc)
 splitCType (CPtr ty) = let (tysp, decl) = splitCType ty in (tysp, C.Ptr [] decl noLoc)
+splitCType (CArray (CIdent tn) msize) = 
+  let arrsize = case msize of CNoArraySize -> C.NoArraySize noLoc
+                              CVariableArraySize -> C.VariableArraySize noLoc
+                              CArraySize sz -> C.ArraySize False (cExpr sz) noLoc  -- True will print `static sz'.
+   in (mkDeclSpec $ C.Tnamed (cId tn) [] noLoc, C.Array [] arrsize (C.DeclRoot noLoc) noLoc)
 splitCType (CIdent tn) = (mkDeclSpec $ C.Tnamed (cId tn) [] noLoc, C.DeclRoot noLoc)
 splitCType (CFunction t1 t2) = __fixme $ splitCType t2  -- FIXME: this type is rarely used and is never tested / zilinc
 splitCType CVoid = (mkDeclSpec $ C.Tvoid noLoc, C.DeclRoot noLoc)
@@ -1453,14 +1476,15 @@ instance {-# OVERLAPPING #-} PP.Pretty (CId, CC.Type 'Zero) where
 kindcheck :: Type 'Zero -> Kind
 kindcheck (TVar v)         = __impossible "kindcheck"
 kindcheck (TVarBang v)     = __impossible "kindcheck"
-kindcheck (TUnit)          = mempty
-kindcheck (TProduct t1 t2) = kindcheck t1 <> kindcheck t2
-kindcheck (TSum ts)        = mconcat $ L.map (kindcheck . fst . snd) ts
+kindcheck (TCon n vs s)    = sigilKind s
 kindcheck (TFun ti to)     = mempty
-kindcheck (TRecord ts s)   = mappend (sigilKind s) $ mconcat $ (L.map (kindcheck . fst . snd) (filter (not . snd .snd) ts))
 kindcheck (TPrim i)        = mempty
 kindcheck (TString)        = mempty
-kindcheck (TCon n vs s)    = sigilKind s
+kindcheck (TSum ts)        = mconcat $ L.map (kindcheck . fst . snd) ts
+kindcheck (TProduct t1 t2) = kindcheck t1 <> kindcheck t2
+kindcheck (TRecord ts s)   = mappend (sigilKind s) $ mconcat $ (L.map (kindcheck . fst . snd) (filter (not . snd .snd) ts))
+kindcheck (TUnit)          = mempty
+kindcheck (TArray e _)     = kindcheck e
 
 isTypeLinear :: Type 'Zero -> Bool
 isTypeLinear = flip isTypeHasKind k1
