@@ -49,6 +49,7 @@ isAtom (E (ILit {})) = True
 isAtom (E (SLit _)) = True
 isAtom (E (ALit es)) | and (map isVar es) = True
 isAtom (E (ArrayIndex e i)) | isVar e = True 
+isAtom (E (Singleton e)) | isVar e = True 
 isAtom (E (Tuple e1 e2)) | isVar e1 && isVar e2 = True
 isAtom (E (Struct fs)) | and (map (isVar . snd) fs) = True
 isAtom (E (Esac e)) | isVar e = True
@@ -127,6 +128,12 @@ normalise v e@(E (ILit {})) k = k s0 e
 normalise v e@(E (SLit {})) k = k s0 e
 normalise v   (E (ALit es)) k = normaliseNames v es $ \n es' -> k n (E $ ALit es')
 normalise v   (E (ArrayIndex e i)) k = normaliseName v e $ \n e' -> k n (E $ ArrayIndex e' i)
+normalise v   (E (Pop a e1 e2)) k
+  = normaliseName v e1 $ \n e1' -> case addSucLeft v n of
+      Refl -> case addSucLeft (SSuc v) n of
+        Refl -> E <$> (Pop a e1' <$> (normalise (sadd (SSuc (SSuc v)) n) (upshiftExpr n (SSuc $ SSuc v) f2 e2) $ \n' ->
+          withAssocSS v n n' $ \Refl -> k (SSuc (SSuc (sadd n n')))))
+normalise v   (E (Singleton e)) k = normaliseName v e $ \n e' -> k n (E $ Singleton e')
 normalise v   (E (Let a e1 e2)) k
   | __cogent_fnormalisation `elem` [KNF, LNF]  -- || (__cogent_fnormalisation == ANF && __cogent_fcondition_knf && isCondition e1)
   = do e1' <- normaliseExpr v e1
@@ -245,6 +252,8 @@ insertIdxAt cut (E e) = E $ insertIdxAt' cut e
     insertIdxAt' cut (SLit s) = SLit s
     insertIdxAt' cut (ALit es) = ALit $ map (insertIdxAt cut) es
     insertIdxAt' cut (ArrayIndex e l) = ArrayIndex (insertIdxAt cut e) l
+    insertIdxAt' cut (Pop a e1 e2) = Pop a (insertIdxAt cut e1) (insertIdxAt (FSuc (FSuc cut)) e2)
+    insertIdxAt' cut (Singleton e) = Singleton (insertIdxAt cut e)
     insertIdxAt' cut (Let a e1 e2) = Let a (insertIdxAt cut e1) (insertIdxAt (FSuc cut) e2)
     insertIdxAt' cut (LetBang vs a e1 e2) = LetBang (map (liftIdx cut *** id) vs) a (insertIdxAt cut e1) (insertIdxAt (FSuc cut) e2)
     insertIdxAt' cut (Tuple e1 e2) = Tuple (insertIdxAt cut e1) (insertIdxAt cut e2)
