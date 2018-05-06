@@ -1,0 +1,20 @@
+type A
+
+mkA : () -> A
+
+freeA : A -> ()
+
+foo : () -> ()
+foo _ = 
+  let a1 = mkA ()
+  and a2 = mkA ()
+  and a3 = mkA ()
+  and a4 = mkA ()
+  and arr = [a1,a2,a3,a4]
+  and a2' = arr@1
+  and _ = freeA a1
+  and _ = freeA a2
+  and _ = freeA a3
+  and _ = freeA a4
+  and _ = freeA a2'
+   in ()
