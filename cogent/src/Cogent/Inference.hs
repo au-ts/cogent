@@ -292,6 +292,7 @@ typecheck (E (Op o es))
         return (TE t (Op o es'))
 typecheck (E (ILit i t)) = return (TE (TPrim t) (ILit i t))
 typecheck (E (SLit s)) = return (TE TString (SLit s))
+typecheck (E (ALit [])) = __impossible "We don't allow 0-size array literals"
 typecheck (E (ALit es))
    = do es' <- mapM typecheck es
         let ts = map exprType es'
@@ -308,8 +309,22 @@ typecheck (E (ALit es))
 typecheck (E (ArrayIndex arr idx))
    = do arr'@(TE ta _) <- typecheck arr
         let TArray te l = ta
-        guardShow ("arr-idx out of bound") $ idx < l
+        guardShow ("arr-idx out of bound") $ idx >= 0 && idx < l
+        guardShow ("arr-idx on non-linear") . canShare =<< kindcheck ta
         return (TE te (ArrayIndex arr' idx))
+typecheck (E (Pop a e1 e2))
+   = do e1'@(TE t1 _) <- typecheck e1
+        let TArray te l = t1
+            thd = te
+            ttl = TArray te (l - 1)
+        guardShow "arr-pop on a singleton array" $ l > 1
+        e2'@(TE t2 _) <- withBindings (Cons thd (Cons ttl Nil)) $ typecheck e2
+        return (TE t2 (Pop a e1' e2'))
+typecheck (E (Singleton e))
+   = do e'@(TE t _) <- typecheck e
+        let TArray te l = t
+        guardShow "singleton on a non-singleton array" $ l == 1
+        return (TE te (Singleton e'))
 typecheck (E (Variable v))
    = do Just t <- useVariable (fst v)
         return (TE t (Variable v))

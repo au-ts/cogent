@@ -806,7 +806,7 @@ genExpr mv (TE t (ALit es)) = do
   (es',decls,stms,eps) <- L.unzip4 <$> mapM genExpr_ es
   t' <- genType t
   (v,vdecl,ass,vp) <- flip (maybeInitCL mv t') (mergePools eps) $ CCompLit t' $
-                        P.zip [] (map CInitE es')  -- TODO: array initialisation code here!!!
+                        P.map ([],) (map CInitE es')  -- TODO: array initialisation code here!!!
   return (v, concat decls ++ vdecl, concat stms ++ ass, vp)
 genExpr mv (TE t (ArrayIndex e i)) = do
   (e',decl,stm,ep) <- genExpr_ e

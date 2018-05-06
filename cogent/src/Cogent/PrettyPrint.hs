@@ -445,7 +445,7 @@ instance (Pretty t, TypeType t, Pretty e) => Pretty (Type e t) where
   pretty (TArray t l) = prettyT' t <> brackets (pretty l)
   pretty (TRecord ts s)
     | not . or $ map (snd . snd) ts = (if | s == Unboxed -> (typesymbol "#" <>)
-                                          | s == ReadOnly -> (\x -> parens x <> typesymbol "!")
+                                          | s == ReadOnly -> (<> typesymbol "!")
                                           | otherwise -> id) $
         record (map (\(a,(b,c)) -> fieldname a <+> symbol ":" <+> pretty b) ts)  -- all untaken
     | otherwise = pretty (TRecord (map (second . second $ const False) ts) s :: Type e t)
@@ -550,6 +550,7 @@ instance Pretty Metadata where
   pretty Suppressed = err "a binder for a value of this type is being suppressed."
   pretty (UsedInMember {fieldName}) = err "the field" <+> fieldname fieldName
                                        <+> err "is being extracted without taking the field in a pattern."
+  pretty UsedInArrayIndexing = err "an element of the array is being extracted"
   pretty UsedInLetBang = err "it is being returned from such a context."
   pretty (TypeParam {functionName, typeVarName }) = err "it is required by the type of" <+> funname functionName
                                                       <+> err "(type variable" <+> typevar typeVarName <+> err ")"

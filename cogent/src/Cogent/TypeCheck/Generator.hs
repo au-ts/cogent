@@ -190,14 +190,18 @@ cg' (ArrayLit es) t = do
   blob <- forM es $ flip cg alpha
   let (cs,es') = unzip blob
       n = SE . IntLit . fromIntegral $ length es
-  return (mconcat cs <> F (T $ TArray alpha n) :< F t, ArrayLit es')
+      cz = Arith (SE $ PrimOp ">" [n, SE (IntLit 0)])
+  return (mconcat cs <> cz <> F (T $ TArray alpha n) :< F t, ArrayLit es')
 
 cg' (ArrayIndex e i) t = do
   alpha <- fresh
   n <- freshVar
-  (ce, e') <- cg e (T $ TArray alpha n)
+  let ta = T $ TArray alpha n
+  (ce, e') <- cg e ta
   (ci, i') <- cg (dummyLocE i) (T $ TCon "U32" [] Unboxed)
-  let c = F alpha :< F t <> Arith (SE (PrimOp "<" [toSExpr i, n]))
+  let c = F alpha :< F t <> Share ta UsedInArrayIndexing
+        <> Arith (SE (PrimOp "<" [toSExpr i, n]))
+        <> Arith (SE (PrimOp ">" [toSExpr i, SE (IntLit 0)]))
   return (ce <> ci <> c, ArrayIndex e' i)
 
 cg' exp@(Lam pat mt e) t = do

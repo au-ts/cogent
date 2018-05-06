@@ -94,6 +94,8 @@ data Expr t v a e
   | SLit String
   | ALit [e t v a]
   | ArrayIndex (e t v a) ArrayIndex
+  | Pop (a, a) (e t v a) (e t ('Suc ('Suc v)) a)
+  | Singleton (e t v a)
   | Let a (e t v a) (e t ('Suc v) a)
   | LetBang [(Fin v, a)] a (e t v a) (e t ('Suc v) a)
   | Tuple (e t v a) (e t v a)
@@ -244,6 +246,8 @@ fmapE f (ILit i pt)          = ILit i pt
 fmapE f (SLit s)             = SLit s
 fmapE f (ALit es)            = ALit (map f es)
 fmapE f (ArrayIndex e i)     = ArrayIndex (f e) i
+fmapE f (Pop a e1 e2)        = Pop a (f e1) (f e2)
+fmapE f (Singleton e)        = Singleton (f e)
 fmapE f (Let a e1 e2)        = Let a (f e1) (f e2)
 fmapE f (LetBang vs a e1 e2) = LetBang vs a (f e1) (f e2)
 fmapE f (Tuple e1 e2)        = Tuple (f e1) (f e2)
@@ -408,6 +412,9 @@ instance (Pretty a, PrettyP (e t v a), Pretty (e t ('Suc v) a), Pretty (e t ('Su
   pretty (SLit s) = literal $ string s
   pretty (ALit es) = array $ map pretty es 
   pretty (ArrayIndex arr idx) = prettyP 2 arr <+> symbol "@" <+> pretty idx
+  pretty (Pop (v1,v2) e1 e2) = align (keyword "pop" <+> pretty v1 <> symbol ":@" <> pretty v2 <+> symbol "=" <+> pretty e1 L.<$>
+                                keyword "in"  <+> pretty e2)
+  pretty (Singleton e) = keyword "singleton" <+> parens (pretty e)
   pretty (Variable x) = pretty (snd x) L.<> angles (prettyV $ fst x)
   pretty (Fun fn ins nt) = pretty nt L.<> funName fn <+> pretty ins
   pretty (App a b) = prettyP 2 a <+> prettyP 1 b
@@ -426,7 +433,7 @@ instance (Pretty a, PrettyP (e t v a), Pretty (e t ('Suc v) a), Pretty (e t ('Su
                                                   L.<$> indent (tagName tn <+> pretty l1 <+> align (pretty a1))
                                                   L.<$> indent (symbol "*" <+> pretty l2 <+> align (pretty a2)))
   pretty (Esac e) = keyword "esac" <+> parens (pretty e)
-  pretty (Split _ e1 e2) = align (keyword "split" <+> pretty e1 L.<$>
+  pretty (Split (v1,v2) e1 e2) = align (keyword "split" <+> parens (pretty v1 <> comma <> pretty v2) <+> symbol "=" <+> pretty e1 L.<$>
                                   keyword "in" <+> pretty e2)
   pretty (Member x f) = prettyP 1 x L.<> symbol "." L.<> fieldIndex f
   pretty (Take (a,b) rec f e) = align (keyword "take" <+> tupled [pretty a, pretty b] <+> symbol "="

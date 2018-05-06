@@ -424,13 +424,37 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTake rec (fp:fps)) pos)) e = do
       bs = S.Binding (B.TIP (S.PTake rec fps) pos) Nothing (B.TE t1 (S.Var e1) noPos) []
   desugarExpr $ B.TE (B.getTypeTE e) (S.Let [b0,bs] e) noPos
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArray []) pos)) e = __impossible "desugarAlts' (PSequence [] p)"
-desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArray ps) pos)) e = do
-  v1 <- freshVar
+desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArray [B.TIP (S.PVar (v,_)) _]) _)) e = do
+  e0' <- desugarExpr e0
+  e'  <- withBinding v $ desugarExpr e
+  return $ E (Let v (E $ Singleton e0') e')
+desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArray [p]) pos)) e = do
+  -- Idea: 
+  --    e0 | [p] in e ~~> let [v] = e0; p = v in e
+  v <- freshVar
+  let B.TE te0 _ _ = e0
+      S.RT (S.TArray telt l) = te0
+      b1 = S.Binding (B.TIP (S.PVar (v,telt)) pos) Nothing e0 []
+      b2 = S.Binding p Nothing (B.TE telt (S.Var v) pos) []
+  desugarExpr $ B.TE (B.getTypeTE e) (S.Let [b1,b2] e) pos
+desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArray ((B.TIP (S.PVar (v,_)) _):ps)) pos)) e = do
+  -- Idea:
+  --   Base case: e0 | v:@ps in e ~~> pop (v,vs) = e0' in desugarAlt' (vs | ps in e')
+  --   Ind. case: e0 | p:@ps in e ==> let v:@ps = e0; p = v in e
   vs <- freshVar
   e0' <- desugarExpr e0
   let S.RT (S.TArray te le) = B.getTypeTE e0
-      bs = P.zipWith (\p i -> S.Binding p Nothing (B.TE te (S.ArrayIndex e0 (S.RE $ S.IntLit i)) pos) []) ps [0..]
-  desugarExpr $ B.TE (B.getTypeTE e) (S.Let bs e) pos
+      tvs = S.RT (S.TArray te (S.RE (S.PrimOp "-" [le, S.RE (S.IntLit 1)])))
+      e10 = B.TE tvs (S.Var vs) pos
+      p1 = S.PIrrefutable $ B.TIP (S.PArray ps) pos
+  e1' <- withBindings (Cons v (Cons vs Nil)) $ desugarAlt' e10 p1 e
+  return $ E (Pop (v,vs) e0' e1')
+desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArray (p:ps)) pos)) e = do
+  v <- freshVar
+  let S.RT (S.TArray te l) = B.getTypeTE e0
+      b1 = S.Binding (B.TIP (S.PArray ((B.TIP (S.PVar (v,te)) pos):ps)) pos) Nothing e0 []
+      b2 = S.Binding p Nothing (B.TE te (S.Var v) pos) []
+  desugarExpr $ B.TE (B.getTypeTE e) (S.Let [b1,b2] e) pos
 desugarAlt' _ _ _ = __impossible "desugarAlt' (_)"  -- literals
 
 desugarPrimInt :: S.RawType -> PrimInt

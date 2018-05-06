@@ -132,6 +132,7 @@ data Metadata = Reused { varName :: VarName, boundAt :: SourcePos, usedAt :: Seq
               | UnusedInThisBranch  { varName :: VarName, boundAt :: SourcePos, usedAt :: Seq.Seq SourcePos }
               | Suppressed
               | UsedInMember { fieldName :: FieldName }
+              | UsedInArrayIndexing
               | UsedInLetBang
               | TypeParam { functionName :: VarName, typeVarName :: VarName }
               | ImplicitlyTaken
