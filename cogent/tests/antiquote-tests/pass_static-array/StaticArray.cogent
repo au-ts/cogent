@@ -1,0 +1,45 @@
+--
+-- Copyright 2017, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+
+include <gum/common/common.cogent>
+
+type A = {f : U8}
+
+printA : (SysState, A!) -> SysState
+mallocA : SysState -> RR SysState A ()
+freeA : (SysState, A) -> SysState
+
+caller : SysState -> SysState
+caller st =
+  let (st,r) = mallocA st
+  and Success a1 <= r |> Error () -> st
+  and (st,r) = mallocA st
+  and Success a2 <= r |> Error () -> freeA (st,a1)
+  and (st,r) = mallocA st
+  and Success a3 <= r |> Error () -> let st = freeA (st,a1)
+                                      in freeA (st,a2)
+  and a1 = a1{f=1}
+  and a2 = a2{f=5}
+  and a3 = a3{f=9}
+  and arr = [a1,a2,a3]
+  and st = printA (st,arr@0) !arr
+  and st = printA (st,arr@1) !arr
+  and st = printA (st,arr@2) !arr
+  
+  and a2' = arr @ 2 !arr
+  and st = printA (st,a2')
+  
+  and [a1,a2,a3] = arr
+  and st = freeA (st,a1)
+  and st = freeA (st,a2)
+  and st = freeA (st,a3)
+  
+   in st

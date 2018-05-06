@@ -201,7 +201,7 @@ cg' (ArrayIndex e i) t = do
   (ci, i') <- cg (dummyLocE i) (T $ TCon "U32" [] Unboxed)
   let c = F alpha :< F t <> Share ta UsedInArrayIndexing
         <> Arith (SE (PrimOp "<" [toSExpr i, n]))
-        <> Arith (SE (PrimOp ">" [toSExpr i, SE (IntLit 0)]))
+        <> Arith (SE (PrimOp ">=" [toSExpr i, SE (IntLit 0)]))
   return (ce <> ci <> c, ArrayIndex e' i)
 
 cg' exp@(Lam pat mt e) t = do

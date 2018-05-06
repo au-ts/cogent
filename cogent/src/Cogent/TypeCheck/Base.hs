@@ -400,6 +400,7 @@ validateType' vs (RT t) = do
                 -> if fields' == fields
                    then T <$> (mmapM (return . toSExpr) <=< mapM (validateType' vs)) t
                    else throwE (DuplicateRecordFields (fields \\ fields'))
+    -- TArray te l -> check l >= 0  -- TODO!!!
     _ -> T <$> (mmapM (return . toSExpr) <=< mapM (validateType' vs)) t
 
 validateTypes' :: (Traversable t) => [VarName] -> t RawType -> TcErrM TypeError (t TCType)

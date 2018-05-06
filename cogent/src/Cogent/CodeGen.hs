@@ -196,6 +196,17 @@ unlikely e = CEFnCall (CVar "unlikely" (Just $ CFunction CBool CBool)) [e]
 variable :: CId -> CExpr
 variable = flip CVar Nothing
 
+mkBoolLit :: CExpr -> CExpr
+mkBoolLit e = CCompLit (CIdent boolT) [([CDesignFld boolField], CInitE e)]
+
+true :: CExpr
+true = mkConst Boolean 1
+
+mkConst :: (Integral t) => PrimInt -> t -> CExpr
+mkConst pt (fromIntegral -> n)
+  | pt == Boolean = mkBoolLit (mkConst U8 n)
+  | otherwise = CConst $ CNumConst n (CogentPrim pt) DEC
+
 -- str.fld
 mkStr1 :: CId -> FieldName -> CExpr
 mkStr1 str fld = mkStr2 str fld
@@ -215,6 +226,9 @@ mkStr3 rec fld = CStructDot rec fld
 
 mkStr3' :: CExpr -> CId -> CExpr
 mkStr3' rec fld = CStructDot (CDeref rec) fld
+
+mkArrIdx :: Integral t => CExpr -> t -> CExpr
+mkArrIdx arr idx = CArrayDeref arr (mkConst U32 idx)
 
 data CInitializer = CInitE CExpr
                   | CInitList [([CDesignator], CInitializer)]
@@ -617,12 +631,16 @@ genType :: CC.Type 'Zero -> Gen v CType
 genType t@(TRecord _ s) | s /= Unboxed = CPtr . CIdent <$> typeCId t
 genType t@(TString)                    = CPtr . CIdent <$> typeCId t
 genType t@(TCon _ _ s)  | s /= Unboxed = CPtr . CIdent <$> typeCId t
-genType   (TArray t l)                 = CArray <$> (CIdent <$> typeCId t) <*> pure (CArraySize (mkConst U32 l))
+genType   (TArray t l)                 = CPtr          <$> genType t
 genType t                              =        CIdent <$> typeCId t
 
 genTypeA :: Bool -> CC.Type 'Zero -> Gen v CType
 genTypeA is_arg t@(TRecord _ Unboxed) | is_arg && __cogent_funboxed_arg_by_ref = CPtr . CIdent <$> typeCId t  -- TODO: sizeof
 genTypeA _ t = genType t
+
+genTypeALit :: CC.Type 'Zero -> Gen v  CType
+genTypeALit (TArray t l) = CArray <$> (genType t) <*> pure (CArraySize (mkConst U32 l))
+genTypeALit t = genType t
 
 lookupType :: CC.Type 'Zero -> Gen v (Maybe CType)
 lookupType t@(TRecord _ s) | s /= Unboxed = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
@@ -666,6 +684,10 @@ declare ty = declareG ty Nothing
 -- declareInit ty e: declares a new var, initialises it to e, and recycle variables
 -- associated with e
 declareInit :: CType -> CExpr -> VarPool -> Gen v (CId, [CBlockItem], [CBlockItem])
+declareInit ty@(CArray {}) e p = do
+  (v,vdecl,vstm) <- declare ty
+  let ass = assign1 (variable v) e
+  return (v,vdecl,vstm++[ass])
 declareInit ty e p = declareG ty (Just $ CInitE e) <* recycleVars p
 
 -- XXX | declareInit' :: CType -> CId -> CExpr -> Gen v CBlockItem
@@ -728,17 +750,6 @@ likelihood :: Likelihood -> (CExpr -> CExpr)
 likelihood l = case l of Likely   -> likely
                          Regular  -> id
                          Unlikely -> unlikely
-
-mkBoolLit :: CExpr -> CExpr
-mkBoolLit e = CCompLit (CIdent boolT) [([CDesignFld boolField], CInitE e)]
-
-true :: CExpr
-true = mkConst Boolean 1
-
-mkConst :: (Integral t) => PrimInt -> t -> CExpr
-mkConst pt (fromIntegral -> n)
-  | pt == Boolean = mkBoolLit (mkConst U8 n)
-  | otherwise = CConst $ CNumConst n (CogentPrim pt) DEC
 
 genOp :: Syn.Op -> CC.Type 'Zero -> [CExpr] -> Gen v CExpr
 genOp opr (CC.TPrim pt) es =
@@ -803,16 +814,37 @@ genExpr mv (TE t (ILit n pt)) =
 genExpr mv (TE t (SLit s)) =
   noDecls <$> maybeAssign mv (CConst $ CStringConst s) M.empty
 genExpr mv (TE t (ALit es)) = do
-  (es',decls,stms,eps) <- L.unzip4 <$> mapM genExpr_ es
-  t' <- genType t
-  (v,vdecl,ass,vp) <- flip (maybeInitCL mv t') (mergePools eps) $ CCompLit t' $
-                        P.map ([],) (map CInitE es')  -- TODO: array initialisation code here!!!
-  return (v, concat decls ++ vdecl, concat stms ++ ass, vp)
-genExpr mv (TE t (ArrayIndex e i)) = do
+  blob <- mapM genExpr_ es
+  let TArray telt _ = t
+  t' <- genTypeALit t
+  telt' <- genType telt
+  (v,vdecl,vstm) <- forceDecl mv t'
+  blob' <- flip3 zipWithM [0..] blob $ \(e,edecl,estm,ep) idx -> do
+    let ass = assign1 (mkArrIdx (variable v) idx) e
+    return (edecl,estm++[ass],M.empty)  -- FIXME: varpool - meaningless placeholder now / zilinc
+  let (vdecls,vstms,vps) = L.unzip3 blob'
+  return (variable v, vdecl ++ concat vdecls, vstm ++ concat vstms, M.empty)
+genExpr mv (TE t (ArrayIndex e i)) = do  -- FIXME: varpool - as above
   (e',decl,stm,ep) <- genExpr_ e
-  let i' = mkConst U32 i
-  (v,ass,vp) <- maybeAssign mv (CArrayDeref e' i') ep
+  (v,ass,vp) <- maybeAssign mv (mkArrIdx e' i) ep
   return (v, decl, stm ++ ass, vp)
+genExpr mv (TE t (Pop _ e1 e2)) = do  -- FIXME: varpool - as above
+  -- Idea:
+  --   v :@ vs = e1 in e2 ~~> v1 = e1[0]; t v2[l-1]; v2 = e1[1]; e2
+  (e1',e1decl,e1stm,e1p) <- genExpr_ e1
+  let t1@(TArray telt l) = exprType e1
+  (v1,v1decl,v1stm,v1p) <- flip3 aNewVar e1p (mkArrIdx e1' 0) =<< genType telt
+  let trest = TArray telt (l-1)
+  trest' <- genType trest
+  (v2,v2decl,v2stm) <- declare trest'
+  -- recycleVars v1p
+  let ass = assign1 (variable v2) (CBinOp C.Add e1' (mkConst U32 1)) -- (mkArrIdx e1' 1)
+  (e2',e2decl,e2stm,e2p) <- withBindings (fromJust $ cvtFromList (SSuc $ SSuc SZero) [v1, variable v2]) $ genExpr mv e2 
+  return (e2',e1decl++v1decl++v2decl++e2decl, e1stm++v1stm++v2stm++[ass]++e2stm, e2p)
+genExpr mv (TE t (Singleton e)) = do
+  (e',edecl,estm,ep) <- genExpr_ e
+  (v,ass,vp) <- flip (maybeAssign mv) ep $ mkArrIdx e' 0
+  return (v, edecl, estm ++ ass, vp)
 genExpr mv (TE t (Unit)) = do
   t' <- genType t
   let e' = CCompLit t' [([CDesignFld dummyField], CInitE (CConst $ CNumConst 0 (CInt True CIntT) DEC))]
@@ -1362,11 +1394,12 @@ splitCType (CStruct tid) = (mkDeclSpec $ C.Tstruct (Just $ cId tid) Nothing [] n
 splitCType (CUnion {}) = __impossible "splitCType"
 splitCType (CEnum tid) = (mkDeclSpec $ C.Tenum (Just $ cId tid) [] [] noLoc, C.DeclRoot noLoc)
 splitCType (CPtr ty) = let (tysp, decl) = splitCType ty in (tysp, C.Ptr [] decl noLoc)
-splitCType (CArray (CIdent tn) msize) = 
+splitCType (CArray t msize) = 
   let arrsize = case msize of CNoArraySize -> C.NoArraySize noLoc
                               CVariableArraySize -> C.VariableArraySize noLoc
                               CArraySize sz -> C.ArraySize False (cExpr sz) noLoc  -- True will print `static sz'.
-   in (mkDeclSpec $ C.Tnamed (cId tn) [] noLoc, C.Array [] arrsize (C.DeclRoot noLoc) noLoc)
+      (C.DeclSpec _ _ tsp _,dl) = splitCType t
+   in (mkDeclSpec tsp, C.Array [] arrsize dl noLoc)
 splitCType (CIdent tn) = (mkDeclSpec $ C.Tnamed (cId tn) [] noLoc, C.DeclRoot noLoc)
 splitCType (CFunction t1 t2) = __fixme $ splitCType t2  -- FIXME: this type is rarely used and is never tested / zilinc
 splitCType CVoid = (mkDeclSpec $ C.Tvoid noLoc, C.DeclRoot noLoc)
