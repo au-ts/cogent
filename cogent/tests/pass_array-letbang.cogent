@@ -1,0 +1,12 @@
+type A = {f : U8}
+
+read : A! -> ()
+
+-- foo : A[2] -> A[2]
+-- foo arr = let a1 = arr@1 !arr
+-- --          and _ = read a1
+--            in arr
+
+bar : #{ g : A } -> #{g : A}
+bar r = let a = r.g !r
+         in r
