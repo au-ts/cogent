@@ -169,13 +169,13 @@ graphType (TProduct t u)  = do
     gt <- graphType t
     gu <- graphType u
     return $ GEGTuple gt gu
-graphType (TRecord e s)   = do
+graphType (TRecord e)   = do
     res <- mapM (\x -> liftM (\y -> (fst x, y)) (graphType $ (fst . snd) x)) e
-    return $ GEGStruct res (if s == Unboxed then IsUnboxed else NotUnboxed)
+    return $ GEGStruct res IsUnboxed
 graphType (TUnit)         = return $ GEGUnit
-graphType (t @ (TCon _ _ Unboxed))
+graphType (t @ (TCon _ _))
     = failure ("graphType: no repr known for: " ++ show t)
-graphType (TCon _ _ _) = return $ GEGSingle ptrGTyp
+graphType (TCon _ _) = return $ GEGSingle ptrGTyp
 graphType (TSum alts) = do
     altGTs <- mapM (graphType . fst . snd) alts  -- FIXME: cogent.1
     return $ GEGSum (Data.List.zip (map fst alts) altGTs)
@@ -239,14 +239,14 @@ graph g (TE tp (Take _ (TE recTy (Variable v)) fld e)) n ret vs = do
                  then return (namePrefix prevNm' ++ "@" ++ show n)
                  else abort ("graph: take: type mismatch: " ++ show (recTy, aggTy))
     newTy <- case recTy of
-        TRecord flds _ -> graphType $ fst (snd (flds !! fld))
+        TRecord flds -> graphType $ fst (snd (flds !! fld))
         otherwise -> failure ("graph: take: not a record")
     prevFlds <- case recTy of
-        TRecord _ Unboxed -> do
+        TRecord _ -> do
             gfv <- getFieldVariable (prevNm, aggTy) fld
             res <- fmap (\z -> map (\(x,y) -> GVariable x y) z) (getFieldVariables gfv)
             return res
-        TRecord flds _ -> do
+        TPtr (TRecord flds) _ -> do
             mko <- mkFieldOffset (GVariable prevNm ptrGTyp, aggTy) fld
             res <- getFieldAccesses mko
             return res
@@ -459,7 +459,7 @@ atom (TE _ (Struct flds)) vs = do
     gexprs <- mapM (flip atomNoUpds vs) (map snd flds)
     return (concat gexprs, [])
 
-atom te@(TE _ (Member (rec @ (TE (TRecord flds Unboxed) _)) ix)) vs = do
+atom te@(TE _ (Member (rec @ (TE (TRecord flds) _)) ix)) vs = do
     recFields <- atomNoUpds rec vs
     tys <- mapM (\(_,(t,_)) -> graphType t) flds
     flds <- getFieldsFromConcat tys ix recFields
@@ -472,7 +472,7 @@ atom te@(TE fldTy (Member rec ix)) vs = do
     accs <-getFieldAccesses ptr
     return (accs, [])
 
-atom (TE (TRecord flds Unboxed) (Put rec fld v)) vs = do
+atom (TE (TRecord flds) (Put rec fld v)) vs = do
     recFields <- atomNoUpds rec vs
     vFields <- atomNoUpds v vs
     tys <- mapM (\(_,(t,_)) -> graphType t) (take fld flds)

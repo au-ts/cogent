@@ -402,12 +402,16 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP S.PUnderscore _)) e = do
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PUnitel) pos)) e = desugarAlt' e0 (S.PIrrefutable $ B.TIP S.PUnderscore pos) e
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTake rec []) pos)) e = desugarAlt' e0 (S.PIrrefutable $ B.TIP (S.PVar rec) pos) e
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTake rec [Nothing]) _)) e = __impossible "desugarAlt'"
-desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTake rec [Just (f, B.TIP (S.PVar v) _)]) _)) e =
+desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTake rec [Just (f, B.TIP (S.PVar v) _)]) _)) e = do
   -- Idea:
   --   Base case: e0 | rec {f = PVar v} in e ~~> Take f' (rec,v) = e0 in e
   --   Ind. step: A) e0 | rec {f = p} in e ==> let rec {f = PVar v} = e0 and p = v in e
   --              B) e0 | rec (fp:fps) in e ==> let e1 {f = p} = e0 and rec = e1 {fps} in e
-  desugarType (B.getTypeTE e0) >>= \(TRecord fs _) -> let Just fldIdx = elemIndex f (P.map fst fs) in
+  t <- desugarType (B.getTypeTE e0)
+  let fs = case t of
+             TRecord fs -> fs
+             TPtr (TRecord fs) _ -> fs
+  let Just fldIdx = elemIndex f (P.map fst fs)
   E <$> (Take (fst v, fst rec) <$> desugarExpr e0 <*> pure fldIdx <*> (withBindings (Cons (fst v) (Cons (fst rec) Nil)) $ desugarExpr e))
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTake rec [Just (f,p)]) pos)) e = do
   v <- freshVar
@@ -474,10 +478,10 @@ desugarType = \case
   S.RT (S.TCon "Bool"   [] Unboxed) -> return $ TPrim Boolean
   S.RT (S.TCon "Char"   [] Unboxed) -> return $ TPrim U8
   S.RT (S.TCon "String" [] Unboxed) -> return $ TString
-  S.RT (S.TCon tn tvs s) -> TCon tn <$> mapM desugarType tvs <*> pure s
+  S.RT (S.TCon tn tvs s) -> sigilise s . TCon tn <$> mapM desugarType tvs
   S.RT (S.TVar vn b)     -> (findIx vn <$> use typCtx) >>= \(Just v) -> return $ if b then TVarBang v else TVar v
   S.RT (S.TFun ti to)    -> TFun <$> desugarType ti <*> desugarType to
-  S.RT (S.TRecord fs s)  -> TRecord <$> mapM (\(f,(t,x)) -> (f,) . (,x) <$> desugarType t) fs <*> pure s
+  S.RT (S.TRecord fs s)  -> sigilise s . TRecord <$> mapM (\(f,(t,x)) -> (f,) . (,x) <$> desugarType t) fs
   S.RT (S.TVariant alts) -> TSum <$> mapM (\(c,(ts,x)) -> (c,) . (,x) <$> desugarType (group ts)) (M.toList alts)
     where group [] = S.RT S.TUnit
           group (t:[]) = t
@@ -486,7 +490,7 @@ desugarType = \case
   S.RT (S.TTuple (t:[])) -> __impossible "desugarType (TTuple 1)"
   S.RT (S.TTuple (t1:t2:[])) | not __cogent_ftuples_as_sugar -> TProduct <$> desugarType t1 <*> desugarType t2
   S.RT (S.TTuple (t1:t2:ts)) | not __cogent_ftuples_as_sugar -> __impossible "desugarType"  -- desugarType $ S.RT $ S.TTuple [t1, S.RT $ S.TTuple (t2:ts)]
-  S.RT (S.TTuple ts) | __cogent_ftuples_as_sugar -> TRecord <$> (P.zipWith (\t n -> (n,(t, False))) <$> forM ts desugarType <*> pure (P.map (('p':) . show) [1 :: Integer ..])) <*> pure Unboxed
+  S.RT (S.TTuple ts) | __cogent_ftuples_as_sugar -> TRecord <$> (P.zipWith (\t n -> (n,(t, False))) <$> forM ts desugarType <*> pure (P.map (('p':) . show) [1 :: Integer ..]))
   S.RT (S.TUnit)   -> return TUnit
   S.RT (S.TArray t l) -> TArray <$> desugarType t <*> evalAExpr l  -- desugarExpr' l
   notInWHNF -> __impossible $ "desugarType (type" ++ show (pretty notInWHNF) ++ "is not in WHNF)"
@@ -541,8 +545,9 @@ desugarExpr (B.TE _ (S.If c vs th el) _) = do
   let e' = E $ If (E $ Variable (f0, v)) th' el'
   E <$> (LetBang vs' v <$> desugarExpr c <*> pure e')
 desugarExpr (B.TE _ (S.Member e fld) _) = do
-  TRecord fs _ <- desugarType $ B.getTypeTE e
-  let Just f' = elemIndex fld (P.map fst fs)
+  t <- desugarType $ B.getTypeTE e
+  let fs = case t of TRecord fs -> fs; TPtr (TRecord fs) _ -> fs
+      Just f' = elemIndex fld (P.map fst fs)
   E <$> (Member <$> desugarExpr e <*> pure f')
 desugarExpr (B.TE _ (S.Unitel) _) = return $ E Unit
 desugarExpr (B.TE t (S.IntLit n) _) = return $ E . ILit n $ desugarPrimInt t
@@ -590,8 +595,9 @@ desugarExpr (B.TE t (S.Let (b:bs) e) l) = desugarExpr $ B.TE t (S.Let [b] e') l
 desugarExpr (B.TE _ (S.Put e []) _) = desugarExpr e
 desugarExpr (B.TE t (S.Put e [Nothing]) _) = __impossible "desugarExpr (Put)"
 desugarExpr (B.TE t (S.Put e [Just (f,a)]) _) = do
-  TRecord fs _ <- desugarType t
-  let Just f' = elemIndex f (P.map fst fs)
+  t' <- desugarType t
+  let fs = case t' of TRecord fs -> fs; TPtr (TRecord fs) _ -> fs
+      Just f' = elemIndex f (P.map fst fs)
   E <$> (Put <$> desugarExpr e <*> pure f' <*> desugarExpr a)
 desugarExpr (B.TE t (S.Put e (fa@(Just (f0,_)):fas)) l) = do
   let S.RT (S.TRecord fs s) = t

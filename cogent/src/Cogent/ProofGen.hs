@@ -80,38 +80,39 @@ data Hints = KindingTacs [Tactic]
 data Type'
   = TVar' Int
   | TVarBang' Int
-  | TCon' TypeName [Type'] Sigil
+  | TCon' TypeName [Type']
   | TFun' Type' Type'
   | TPrim' PrimInt
   | TString'
   | TSum' [(TagName, Type')]
   | TProduct' Type' Type'
-  | TRecord' [(FieldName, (Type', Bool))] Sigil
+  | TRecord' [(FieldName, (Type', Bool))]
   | TUnit'
+  | TPtr' Type' Sigil
   deriving (Eq, Ord)
 
 deepType' :: Type' -> Term
 deepType' (TVar' v) = mkApp (mkId "TVar") [mkInt $ toInteger v]
 deepType' (TVarBang' v) = mkApp (mkId "TVarBang") [mkInt $ toInteger v]
-deepType' (TCon' tn ts s) = mkApp (mkId "TCon") [mkString tn, mkList (map deepType' ts), deepSigil s]
+deepType' (TCon' tn ts) = mkApp (mkId "TCon") [mkString tn, mkList (map deepType' ts)]
 deepType' (TFun' ti to) = mkApp (mkId "TFun") [deepType' ti, deepType' to]
 deepType' (TPrim' pt) = mkApp (mkId "TPrim") [deepPrimType pt]
 deepType' (TString') = mkApp (mkId "TPrim") [mkId "String"]
 deepType' (TSum' alts) = mkApp (mkId "TSum") [mkList $ map (\(n,t) -> mkPair (mkString n) (deepType' t)) alts]
 deepType' (TProduct' t1 t2) = mkApp (mkId "TProduct") [deepType' t1, deepType' t2]
-deepType' (TRecord' fs s) = mkApp (mkId "TRecord") [mkList $ map (\(fn,(t,b)) -> mkPair (deepType' t) (mkBool b)) fs, deepSigil s]
+deepType' (TRecord' fs) = mkApp (mkId "TRecord") [mkList $ map (\(fn,(t,b)) -> mkPair (deepType' t) (mkBool b)) fs]
 deepType' (TUnit') = mkId "TUnit"
 
 stripType :: Type t -> Type'
 stripType (TVar n) = TVar' (finInt n)
 stripType (TVarBang n) = TVarBang' (finInt n)
-stripType (TCon t ts s) = TCon' t (map stripType ts) s
+stripType (TCon t ts) = TCon' t (map stripType ts)
 stripType (TFun t u) = TFun' (stripType t) (stripType u)
 stripType (TPrim t) = TPrim' t
 stripType TString = TString'
 stripType (TSum ts) = TSum' (map (\(n,(t,_)) -> (n, stripType t)) ts)  -- FIXME: cogent.1
 stripType (TProduct t u) = TProduct' (stripType t) (stripType u)
-stripType (TRecord fs s) = TRecord' (map (\(n, (t, tk)) -> (n, (stripType t, tk))) fs) s
+stripType (TRecord fs) = TRecord' (map (\(n, (t, tk)) -> (n, (stripType t, tk))) fs)
 stripType TUnit = TUnit'
 
 {-
@@ -202,7 +203,7 @@ ttyping xi k (EE u (Case x _ (_,_,a) (_,_,b)) env) = tacSequence [ -- Ξ, K, Γ 
   ttyping xi k a,                                       -- Ξ, K, (Some t # Γ) ⊢ a : u
   ttyping xi k b                                        -- Ξ, K, (Some (TSum (filter (λ x. fst x ≠ tag) ts)) # Γ2) ⊢ b : u
   ]
-ttyping xi k (EE u (Take a e@(EE (TRecord ts s) _ _) f e') env) = tacSequence [ -- Ξ, K, Γ T⊢ Take e f e' : u if
+ttyping xi k (EE u (Take a e@(EE (TRecord ts) _ _) f e') env) = tacSequence [ -- Ξ, K, Γ T⊢ Take e f e' : u if
   follow_tt k env (envOf e) (envOf e'),
   ttyping xi k e,                             -- Ξ, K, Γ1 T⊢ e : TRecord ts s
   kindingHint k (fst $ snd $ ts !! f),        -- K ⊢ t :κ k
@@ -341,7 +342,7 @@ typing xi k (EE u (Case x _ (_,_,a) (_,_,b)) env) = tacSequence [
   typing xi k b                                        -- Ξ, K, (Some (TSum (filter (λ x. fst x ≠ tag) ts)) # Γ2) ⊢ b : u
   ]
 
-typing xi k (EE u (Take a e@(EE (TRecord ts s) _ _) f e') env) = tacSequence [
+typing xi k (EE u (Take a e@(EE (TRecord ts) _ _) f e') env) = tacSequence [
   return [rule "typing_take"], -- Ξ, K, Γ ⊢ Take e f e' : u if
   splits k env (envOf e) (peel2 $ envOf e'), -- K ⊢ Γ ↝ Γ1 | Γ2
   typing xi k e,                             -- Ξ, K, Γ1 ⊢ e : TRecord ts s
@@ -352,7 +353,7 @@ typing xi k (EE u (Take a e@(EE (TRecord ts s) _ _) f e') env) = tacSequence [
   typing xi k e'                             -- Ξ, K, (Some t # Some (TRecord (ts [f := (t,taken)]) s) # Γ2) ⊢ e' : u
   ]
 
-typing xi k (EE ty (Put e1@(EE (TRecord ts s) _ _) f e2@(EE t _ _)) env) = tacSequence [
+typing xi k (EE ty (Put e1@(EE (TRecord ts) _ _) f e2@(EE t _ _)) env) = tacSequence [
   return [rule "typing_put'"], -- Ξ, K, Γ ⊢ Put e f e' : TRecord ts' s if
   splits k env (envOf e1) (envOf e2),                -- K ⊢ Γ ↝ Γ1 | Γ2
   typing xi k e1,                                    -- Ξ, K, Γ1 ⊢ e : TRecord ts s
@@ -469,10 +470,10 @@ kind ks (TUnit)          k = return []
 kind ks (TProduct t1 t2) k = tacSequence [kinding' ks t1 k, kinding' ks t2 k]
 kind ks (TSum ts)        k = tacSequence [return [simp, simp], kindingAll ks (map (fst . snd) ts) k]  -- FIXME: cogent.1
 kind ks (TFun ti to)     k = tacSequence [kinding ks ti, kinding ks to]
-kind ks (TRecord ts s)   k = tacSequence [kindingRecord ks (map snd ts) k, return [simp]]
+kind ks (TRecord ts)     k = tacSequence [kindingRecord ks (map snd ts) k, return [simp]]
 kind ks (TPrim i)        k = return []
 kind ks (TString)        k = return []
-kind ks (TCon n ts s)    k = tacSequence [kindingAll ks ts k, return [simp]]
+kind ks (TCon n ts)      k = tacSequence [kindingAll ks ts k, return [simp]]
 
 
 kindingAll :: Vec t Kind -> [Type t] -> Kind -> State TypingSubproofs [Tactic]
@@ -599,7 +600,7 @@ breakConj (x:xs) = [rule "conjI"]
 breakConj []     = []
 
 takeTaken :: FieldIndex -> Vec v (Maybe (Type t)) -> Bool
-takeTaken f (Cons x (Cons (Just (TRecord ts s)) _)) = snd $ snd (ts!!f)
+takeTaken f (Cons x (Cons (Just (TRecord ts)) _)) = snd $ snd (ts!!f)
 takeTaken _ _ = error "invalid call to takeTaken"
 
 sharableOrTaken :: FieldIndex -> Vec v (Maybe (Type t)) -> [Tactic]
@@ -619,10 +620,10 @@ mostGeneralKind k (TUnit)          = topKind
 mostGeneralKind k (TProduct t1 t2) = mostGeneralKind k t1 `kIntersect` mostGeneralKind k t2
 mostGeneralKind k (TSum ts)        = foldl kIntersect topKind $ map (mostGeneralKind k . fst . snd) ts  -- FIXME: cogent.1
 mostGeneralKind k (TFun ti to)     = topKind
-mostGeneralKind k (TRecord ts s)   = foldl kIntersect (sigilKind s) $ map (mostGeneralKind k) [t | (_, (t, b)) <- ts, not b]
+mostGeneralKind k (TRecord ts)     = foldl kIntersect mempty $ map (mostGeneralKind k) [t | (_, (t, b)) <- ts, not b]
 mostGeneralKind k (TPrim i)        = topKind
 mostGeneralKind k (TString)        = topKind
-mostGeneralKind k (TCon n ts s)    = foldl kIntersect (sigilKind s) $ map (mostGeneralKind k) ts
+mostGeneralKind k (TCon n ts)      = foldl kIntersect mempty $ map (mostGeneralKind k) ts
 
 
 kindRule :: Type t -> String
@@ -632,10 +633,10 @@ kindRule (TUnit)          = "kind_tunit"
 kindRule (TProduct t1 t2) = "kind_tprod"
 kindRule (TSum ts)        = "kind_tsum"
 kindRule (TFun ti to)     = "kind_tfun"
-kindRule (TRecord ts s)   = "kind_trec"
+kindRule (TRecord ts)     = "kind_trec"
 kindRule (TPrim i)        = "kind_tprim"
 kindRule (TString)        = "kind_tprim"
-kindRule (TCon n ts s)    = "kind_tcon"
+kindRule (TCon n ts)      = "kind_tcon"
 
 envOf = eexprEnv
 typeOf = eexprType

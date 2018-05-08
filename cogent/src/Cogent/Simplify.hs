@@ -611,10 +611,10 @@ kindcheck (TUnit)          = return mempty
 kindcheck (TProduct t1 t2) = mappend <$> kindcheck t1 <*> kindcheck t2
 kindcheck (TSum ts)        = mconcat <$> (mapM (kindcheck . fst . snd) ts)
 kindcheck (TFun ti to)     = return mempty
-kindcheck (TRecord ts s)   = mappend (sigilKind s) <$> (mconcat <$> (mapM (kindcheck . fst . snd) (L.filter (not . snd .snd) ts)))
+kindcheck (TRecord ts)     = mconcat <$> (mapM (kindcheck . fst . snd) (L.filter (not . snd .snd) ts))
 kindcheck (TPrim i)        = return mempty
 kindcheck (TString)        = return mempty
-kindcheck (TCon n vs s)    = mapM_ kindcheck vs >> return (sigilKind s)
+kindcheck (TCon n vs)      = mconcat <$> mapM kindcheck vs
 
 typeNotLinear :: Type t -> Simp t Bool
 typeNotLinear t = kindcheck t >>= \k -> return (canDiscard k && canShare k)  -- NOTE: depending on definition of linear types, judgement may change / zilinc

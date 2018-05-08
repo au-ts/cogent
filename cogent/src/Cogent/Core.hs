@@ -57,17 +57,22 @@ import qualified Text.PrettyPrint.ANSI.Leijen as L ((<$>))
 data Type t
   = TVar (Fin t)
   | TVarBang (Fin t)
-  | TCon TypeName [Type t] Sigil
+  | TCon TypeName [Type t]
   | TFun (Type t) (Type t)
   | TPrim PrimInt
   | TString
   | TSum [(TagName, (Type t, Bool))]  -- True means taken (since 2.0.4)
   | TProduct (Type t) (Type t)
-  | TRecord [(FieldName, (Type t, Bool))] Sigil  -- True means taken
+  | TRecord [(FieldName, (Type t, Bool))]  -- True means taken
   | TUnit
   | TArray (Type t) ArraySize  -- use Int for now
                                -- XXX | ^^^ (UntypedExpr t 'Zero VarName)  -- stick to UntypedExpr to be simple / zilinc
+  | TPtr (Type t) Sigil  -- this sigil can only be readonly and writable
   deriving (Show, Eq, Ord)
+
+sigilise :: Sigil -> (Type t -> Type t)
+sigilise Unboxed  = id
+sigilise s = flip TPtr s
 
 data SupposedlyMonoType = forall (t :: Nat). SMT (Type t)
 
@@ -76,9 +81,8 @@ isTFun (TFun {}) = True
 isTFun _ = False
 
 isUnboxed :: Type t -> Bool
-isUnboxed (TCon _ _ Unboxed) = True
-isUnboxed (TRecord _ Unboxed) = True
-isUnboxed _ = False
+isUnboxed (TPtr {}) = False
+isUnboxed _ = True
 
 data FunNote = NoInline | InlineMe | MacroCall | InlinePlease  -- order is important, larger value has stronger precedence
              deriving (Bounded, Eq, Ord, Show)
@@ -460,10 +464,11 @@ instance Pretty (Type t) where
   pretty (TFun t1 t2) = prettyT' t1 <+> typesymbol "->" <+> pretty t2
      where prettyT' e@(TFun {}) = parens (pretty e)
            prettyT' e           = pretty e
-  pretty (TRecord fs s) = record (map (\(f,(t,b)) -> fieldName f <+> symbol ":" L.<> prettyTaken b <+> pretty t) fs) L.<> pretty s
-  pretty (TCon tn [] s) = typename tn L.<> pretty s
-  pretty (TCon tn ts s) = typename tn L.<> pretty s <+> typeargs (map pretty ts)
+  pretty (TRecord fs) = record (map (\(f,(t,b)) -> fieldName f <+> symbol ":" L.<> prettyTaken b <+> pretty t) fs)
+  pretty (TCon tn []) = typename tn
+  pretty (TCon tn ts) = typename tn <+> typeargs (map pretty ts)
   pretty (TArray t l) = pretty t <> brackets (pretty l)
+  pretty (TPtr t s) = symbol "*" <> pretty s <> parens (pretty t)
 
 prettyTaken :: Bool -> Doc
 prettyTaken True  = symbol "*"

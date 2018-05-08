@@ -45,13 +45,13 @@ type TypeAbbrevs = (Map.Map Term Int, Int)
 deepTypeInner :: NameMod -> TypeAbbrevs -> CC.Type t -> Term
 deepTypeInner mod ta (TVar v) = mkApp (mkId "TVar") [deepIndex v]
 deepTypeInner mod ta (TVarBang v) = mkApp (mkId "TVarBang") [deepIndex v]
-deepTypeInner mod ta (TCon tn ts s) = mkApp (mkId "TCon") [mkString tn, mkList (map (deepType mod ta) ts), deepSigil s]
+deepTypeInner mod ta (TCon tn ts) = mkApp (mkId "TCon") [mkString tn, mkList (map (deepType mod ta) ts)]
 deepTypeInner mod ta (TFun ti to) = mkApp (mkId "TFun") [deepType mod ta ti, deepType mod ta to]
 deepTypeInner mod ta (TPrim pt) = mkApp (mkId "TPrim") [deepPrimType pt]
 deepTypeInner mod ta (TString) = mkApp (mkId "TPrim") [mkId "String"]
 deepTypeInner mod ta (TSum alts) = mkApp (mkId "TSum") [mkList $ map (\(n,(t,_)) -> mkPair (mkString n) (deepType mod ta t)) $ sort alts]  -- FIXME: cogent.1
 deepTypeInner mod ta (TProduct t1 t2) = mkApp (mkId "TProduct") [deepType mod ta t1, deepType mod ta t2]
-deepTypeInner mod ta (TRecord fs s) = mkApp (mkId "TRecord") [mkList $ map (\(fn,(t,b)) -> mkPair (deepType mod ta t) (mkBool b)) fs, deepSigil s]
+deepTypeInner mod ta (TRecord fs) = mkApp (mkId "TRecord") [mkList $ map (\(fn,(t,b)) -> mkPair (deepType mod ta t) (mkBool b)) fs]
 deepTypeInner mod ta (TUnit) = mkId "TUnit"
 
 mkAbbrevNm :: NameMod -> Int -> String
@@ -189,11 +189,11 @@ deepDefinitions mod ta defs = foldr (deepDefinition mod ta defs) [] defs ++
         cogentFuns (_ : fns) = cogentFuns fns
 
 scanAggregates :: CC.Type t -> [CC.Type t]
-scanAggregates (TCon tn ts s) = concatMap scanAggregates ts
+scanAggregates (TCon tn ts) = concatMap scanAggregates ts
 scanAggregates (TFun ti to) = scanAggregates ti ++ scanAggregates to
 scanAggregates (TSum alts) = concatMap (scanAggregates . fst . snd) alts ++ [TSum alts]  -- FIXME: cogent.1
 scanAggregates (TProduct t1 t2) = scanAggregates t1 ++ scanAggregates t2
-scanAggregates (TRecord fs s) = concatMap (scanAggregates . fst . snd) fs ++ [TRecord fs s]
+scanAggregates (TRecord fs) = concatMap (scanAggregates . fst . snd) fs ++ [TRecord fs]
 scanAggregates _ = []
 
 addTypeAbbrev :: NameMod -> CC.Type t -> TypeAbbrevs -> TypeAbbrevs

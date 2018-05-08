@@ -52,10 +52,10 @@ toTypeStr (TProduct t1 t2) = nub $ toTypeStr t1 ++ toTypeStr t2
 toTypeStr (TSum ts)        = nub $ VariantStr (sort $ P.map fst ts) : concat (P.map (toTypeStr . fst . snd) ts)
    -- ^ NOTE: alternatives are sorted, however they should have been sorted by desugarer, `toList' / zilinc  -- FIXME: cogent.1
 toTypeStr (TFun ti to)     = nub $ toTypeStr ti ++ toTypeStr to
-toTypeStr (TRecord ts s)   = nub $ RecordStr (P.map fst ts) : concat (P.map (toTypeStr . fst . snd) ts)
+toTypeStr (TRecord ts)     = nub $ RecordStr (P.map fst ts) : concat (P.map (toTypeStr . fst . snd) ts)
 toTypeStr (TPrim i)        = []
 toTypeStr (TString)        = []
-toTypeStr (TCon n ts s)    = nub $ concat $ P.map toTypeStr ts
+toTypeStr (TCon n ts)      = nub $ concat $ P.map toTypeStr ts
 
 getStrlType :: M.Map TypeStr TypeName -> [TypeStr] -> Type t -> Type t
 getStrlType tsmap table (TSum ts) =  -- FIXME: cogent.1
@@ -65,18 +65,18 @@ getStrlType tsmap table (TSum ts) =  -- FIXME: cogent.1
   in case M.lookup tstr tsmap of
     Nothing ->
       let idx = findIndex tstr table
-      in TCon ('T':show idx) tps Writable
+      in TCon ('T':show idx) tps
     Just tn ->
-      TCon tn tps Writable
-getStrlType tsmap table (TRecord fs s) =
+      TCon tn tps 
+getStrlType tsmap table (TRecord fs) =
   let tstr = RecordStr (P.map fst fs)
       tps = P.map (fst . snd) fs
   in case M.lookup tstr tsmap of
     Nothing ->
       let idx = findIndex tstr table
-      in TCon ('T':show idx) tps Writable
+      in TCon ('T':show idx) tps
     Just tn ->
-      TCon tn tps Writable
+      TCon tn tps
 getStrlType _ _ t = t
 
 type ST = State [TypeStr]

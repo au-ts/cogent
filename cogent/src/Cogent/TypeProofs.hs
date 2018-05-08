@@ -338,8 +338,8 @@ splitEnv env (TE t (Case e tag (lt,at,et) (le,ae,ee)))
 
 splitEnv env (TE t (Take a e f e2)) =
     let e' = splitEnv env e
-        e2' = splitEnv (Cons (Just $ recType (ts!!f)) (Cons (Just $ TRecord (setAt ts f (fst (ts!!f), (recType (ts!!f), True))) sig) env)) e2 -- fix this
-        TRecord ts sig = typeOf e'
+        e2' = splitEnv (Cons (Just $ recType (ts!!f)) (Cons (Just $ TRecord (setAt ts f (fst (ts!!f), (recType (ts!!f), True)))) env)) e2 -- fix this
+        TRecord ts = typeOf e'
      in EE t (Take a e' f e2') $ envOf e' <|> peel2 (envOf e2')
 
 
@@ -416,9 +416,9 @@ pushDown unused (EE ty (Member e f) env)
     = let e' = pushDown unused e
        in EE ty (Member e' f) $ unused <|> env
 
-pushDown unused (EE ty (Take a e@(EE (TRecord ts sig) _ _) f e2) env)
-    = let e'@(EE (TRecord ts sig) _ _) = pushDown (unused <\> env) e
-          e2' = pushDown (Cons (Just $ recType $ ts!!f) (Cons (Just $ TRecord (setAt ts f (fst (ts!!f), (recType $ ts!!f, True))) sig) (cleared env))) e2 -- fix this
+pushDown unused (EE ty (Take a e@(EE (TRecord ts) _ _) f e2) env)
+    = let e'@(EE (TRecord ts) _ _) = pushDown (unused <\> env) e
+          e2' = pushDown (Cons (Just $ recType $ ts!!f) (Cons (Just $ TRecord (setAt ts f (fst (ts!!f), (recType $ ts!!f, True)))) (cleared env))) e2 -- fix this
        in EE ty (Take a e' f e2') $ unused <|> env
 
 pushDown unused (EE ty (Put e1 f e2) env)

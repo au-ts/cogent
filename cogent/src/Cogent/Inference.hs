@@ -90,13 +90,13 @@ isUpcastable _ _ = return False
 isSubtype :: Type t -> Type t -> TC t v Bool
 -- isSubtype (TPrim p1) (TPrim p2) = isSubtypePrim p1 p2
 isSubtype (TSum s1) (TSum s2) = and <$> zipWithM (\(c1,(t1,b1)) (c2,(t2,b2)) -> ((c1 == c2 && b1 >= b2) &&) <$> t1 `isSubtype` t2) s1 s2  -- True > False
-isSubtype (TRecord r1 s1) (TRecord r2 s2) =
-  ((s1 == s2) &&) <$> 
-    (and <$> zipWithM (\(f1,(t1,b1)) (f2,(t2,b2)) -> do c1 <- return (f1 == f2)
-                                                        c2 <- t1 `isSubtype` t2
-                                                        c3 <- (kindcheck t1 >>= \k -> return $ (k /= k1 && b1 <= b2) || b1 == b2)
-                                                        return (and [c1,c2,c3])) r1 r2)
+isSubtype (TRecord r1) (TRecord r2) =
+  and <$> zipWithM (\(f1,(t1,b1)) (f2,(t2,b2)) -> do c1 <- return (f1 == f2)
+                                                     c2 <- t1 `isSubtype` t2
+                                                     c3 <- (kindcheck t1 >>= \k -> return $ (k /= k1 && b1 <= b2) || b1 == b2)
+                                                     return (and [c1,c2,c3])) r1 r2
 isSubtype (TArray t1 l1) (TArray t2 l2) = (&&) <$> t1 `isSubtype` t2  <*> pure (l1 == l2)  -- (checkUExpr_B $ E $ Op Eq [l1, l2])
+isSubtype (TPtr t1 s1) (TPtr t2 s2) = (&&) <$> isSubtype t1 t2 <*> pure (s1 == s2)
 isSubtype a b = return $ a == b
 
 -- NOTE: have to check if the resulting type is a supertype of two inputs / zilinc
@@ -108,9 +108,10 @@ lub t1@(TSum s1) t2@(TSum s2) =
    in TSum $ M.toList s
 lub (TProduct t11 t12) (TProduct t21 t22) = TProduct (t11 `lub` t21) (t12 `lub` t22)
 lub (TFun t1 s1) (TFun t2 s2) = TFun (t1 `glb` t2) (s1 `lub` s2)
-lub (TRecord ts1 s1) (TRecord ts2 s2) = TRecord (zipWith (\(f1,(t1,b1)) (f2,(t2,b2)) -> (f1,(t1 `lub` t2, b1))) ts1 ts2) s1
-lub (TCon c1 ts1 s1) (TCon c2 ts2 s2) = TCon c1 (zipWith (\t1 t2 -> t1) ts1 ts2) s1
+lub (TRecord ts1) (TRecord ts2) = TRecord (zipWith (\(f1,(t1,b1)) (f2,(t2,b2)) -> (f1,(t1 `lub` t2, b1))) ts1 ts2)
+lub (TCon c1 ts1) (TCon c2 ts2) = TCon c1 (zipWith (\t1 t2 -> t1) ts1 ts2)
 lub (TArray t1 l1) (TArray t2 l2) = TArray (lub t1 t2) l1
+lub (TPtr t1 s1) (TPtr t2 s2) = TPtr (lub t1 t2) s1
 lub t1 t2 = t1
 
 glb :: Type t -> Type t -> Type t
@@ -129,28 +130,30 @@ glb t1 t2 = t1  -- FIXME: it seems only used by contra-variance, namely function
 bang :: Type t -> Type t
 bang (TVar v)         = TVarBang v
 bang (TVarBang v)     = TVarBang v
-bang (TCon n ts s)    = TCon n (map bang ts) (bangSigil s)
+bang (TCon n ts)      = TCon n (map bang ts)
 bang (TFun ti to)     = TFun ti to
 bang (TPrim i)        = TPrim i
 bang (TString)        = TString
 bang (TSum ts)        = TSum (map (second $ first bang) ts)
 bang (TProduct t1 t2) = TProduct (bang t1) (bang t2)
-bang (TRecord ts s)   = TRecord (map (second $ first bang) ts) (bangSigil s)
+bang (TRecord ts)     = TRecord (map (second $ first bang) ts)
 bang (TUnit)          = TUnit
 bang (TArray t l)     = TArray (bang t) l
+bang (TPtr t s)       = TPtr (bang t) (bangSigil s)
 
 substitute :: Vec t (Type u) -> Type t -> Type u
 substitute vs (TVar v)         = vs `at` v
 substitute vs (TVarBang v)     = bang (vs `at` v)
-substitute vs (TCon n ps s)    = TCon n (map (substitute vs) ps) s
+substitute vs (TCon n ps)      = TCon n (map (substitute vs) ps)
 substitute vs (TFun ti to)     = TFun (substitute vs ti) (substitute vs to)
 substitute _  (TPrim i)        = TPrim i
 substitute _  (TString)        = TString
 substitute vs (TProduct t1 t2) = TProduct (substitute vs t1) (substitute vs t2)
-substitute vs (TRecord ts t)   = TRecord (map (second (first $ substitute vs)) ts) t
+substitute vs (TRecord ts)     = TRecord (map (second (first $ substitute vs)) ts)
 substitute vs (TSum ts)        = TSum (map (second (first $ substitute vs)) ts)
 substitute _  (TUnit)          = TUnit
 substitute vs (TArray t l)     = TArray (substitute vs t) l
+substitute vs (TPtr t s)       = TPtr (substitute vs t) s
 
 remove :: (Eq a) => a -> [(a,b)] -> [(a,b)]
 remove k = filter ((/= k) . fst)
@@ -275,15 +278,16 @@ lookupKind f = TC ((`at` f) . fst <$> ask)
 kindcheck :: Type t -> TC t v Kind
 kindcheck (TVar v)         = lookupKind v
 kindcheck (TVarBang v)     = bangKind <$> lookupKind v
-kindcheck (TCon n vs s)    = mapM_ kindcheck vs >> return (sigilKind s)
+kindcheck (TCon n vs)      = mconcat <$> mapM kindcheck vs
 kindcheck (TFun ti to)     = return mempty
 kindcheck (TPrim i)        = return mempty
 kindcheck (TString)        = return mempty
 kindcheck (TProduct t1 t2) = mappend <$> kindcheck t1 <*> kindcheck t2
-kindcheck (TRecord ts s)   = mappend (sigilKind s) <$> (mconcat <$> (mapM (kindcheck . fst . snd) (filter (not . snd . snd) ts)))
+kindcheck (TRecord ts)     = mconcat <$> (mapM (kindcheck . fst . snd) (filter (not . snd . snd) ts))
 kindcheck (TSum ts)        = mconcat <$> mapM (kindcheck . fst . snd) (filter (not . snd . snd) ts)
 kindcheck (TUnit)          = return mempty
 kindcheck (TArray t l)     = kindcheck t
+kindcheck (TPtr t s)       = mappend <$> kindcheck t <*> pure (sigilKind s)
 
 typecheck :: UntypedExpr t v a -> TC t v (TypedExpr t v a)
 typecheck (E (Op o es))
@@ -404,27 +408,33 @@ typecheck (E (Split a e1 e2))
         e2' <- withBindings (Cons t1 (Cons t2 Nil)) (typecheck e2)
         return $ TE (exprType e2') (Split a e1' e2')
 typecheck (E (Member e f))
-   = do e'@(TE t@(TRecord ts s) _) <- typecheck e  -- canShare
+   = do e'@(TE t _) <- typecheck e  -- canShare
+        let fs = case t of TRecord fs -> fs; TPtr (TRecord fs) _ -> fs
         guardShow "member-1" . canShare =<< kindcheck t
-        guardShow "member-2" $ f < length ts
-        let (_,(tau,c)) = ts !! f
+        guardShow "member-2" $ f < length fs
+        let (_,(tau,c)) = fs !! f
         guardShow "member-3" $ not c  -- not taken
         return $ TE tau (Member e' f)
 typecheck (E (Struct fs))
    = do let (ns,es) = unzip fs
         es' <- mapM typecheck es
-        return $ TE (TRecord (zipWith (\n e' -> (n, (exprType e', False))) ns es') Unboxed) $ Struct $ zip ns es'
+        return $ TE (TRecord (zipWith (\n e' -> (n, (exprType e', False))) ns es')) $ Struct $ zip ns es'
 typecheck (E (Take a e f e2))
-   = do e' <- typecheck e
-        let (TE (TRecord ts s) _) = e'
+   = do e'@(TE t _) <- typecheck e
+        let (s,ts) = case t of
+                       TRecord ts -> (Unboxed, ts)
+                       TPtr (TRecord ts) s -> (s, ts)
         guardShow "take-1" $ s /= ReadOnly
         guardShow "take-2" $ f < length ts
         let (init, (fn,(tau,False)):rest) = splitAt f ts
         k <- kindcheck tau
-        e2' <- withBindings (Cons tau (Cons (TRecord (init ++ (fn,(tau,True )):rest) s) Nil)) (typecheck e2)  -- take that field regardless of its shareability
+        e2' <- withBindings (Cons tau (Cons (sigilise s $ TRecord (init ++ (fn,(tau,True )):rest)) Nil)) (typecheck e2)  -- take that field regardless of its shareability
         return $ TE (exprType e2') (Take a e' f e2')
 typecheck (E (Put e1 f e2))
-   = do e1'@(TE (TRecord ts s) _) <- typecheck e1
+   = do e1'@(TE t1 _) <- typecheck e1
+        let (s,ts) = case t1 of
+                       TRecord ts -> (Unboxed, ts)
+                       TPtr (TRecord ts) s -> (s, ts)
         guardShow "put-1" $ f < length ts
         let (init, (fn,(tau,taken)):rest) = splitAt f ts
         k <- kindcheck tau
@@ -433,7 +443,7 @@ typecheck (E (Put e1 f e2))
         isSub <- t2 `isSubtype` tau
         guardShow "put-3" isSub
         let e2'' = if t2 /= tau then TE tau (Promote tau e2') else e2'
-        return $ TE (TRecord (init ++ (fn,(tau,False)):rest) s) (Put e1' f e2'')  -- put it regardless
+        return $ TE (sigilise s $ TRecord (init ++ (fn,(tau,False)):rest)) (Put e1' f e2'')  -- put it regardless
 typecheck (E (Cast ty e))
    = do (TE t e') <- typecheck e
         guardShow ("cast: " ++ show t ++ " <<< " ++ show ty) =<< t `isUpcastable` ty

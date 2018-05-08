@@ -138,7 +138,7 @@ isSubtypeStr _ _ = False
 
 -- ASSUME: isRecOrVar input == True
 typeSkel :: CC.Type t -> TypeStr
-typeSkel (CC.TRecord fs _) = RecordStr $ P.map fst fs
+typeSkel (CC.TRecord fs) = RecordStr $ P.map fst fs
 typeSkel (CC.TSum alts) = VariantStr $ sort $ P.map fst alts
 typeSkel _ = __impossible "Precondition failed: isRecOrVar input == True"
 
@@ -149,7 +149,7 @@ isRecOrVar _ = False
 
 -- ASSUME: isRecOrVar input == True
 compTypes :: CC.Type t -> [(String, CC.Type t)]
-compTypes (CC.TRecord fs _) = P.map (second fst) fs
+compTypes (CC.TRecord fs) = P.map (second fst) fs
 compTypes (CC.TSum alts) = P.map (second fst) $ sortBy (compare `on` fst) alts  -- NOTE: this sorting must stay in-sync with the algorithm `toTypeStr` in ShallowTable.hs / zilinc
 compTypes _ = __impossible "Precondition failed: isRecOrVar input == True"
 
@@ -229,18 +229,18 @@ shallowTupleType ts = mkTupleT ts
 shallowType :: CC.Type t -> SG (HS.Type ())
 shallowType (CC.TVar v) = mkVarT . mkName . snm <$> ((!!) <$> view typeVars <*> pure (finInt v))
 shallowType (CC.TVarBang v) = shallowType (CC.TVar v)
-shallowType (CC.TCon tn ts _) = mkConT (mkName tn) <$> mapM shallowType ts
+shallowType (CC.TCon tn ts) = mkConT (mkName tn) <$> mapM shallowType ts
 shallowType (CC.TFun t1 t2) = TyFun () <$> shallowType t1 <*> shallowType t2
 shallowType (CC.TPrim pt) = pure $ shallowPrimType pt
 shallowType (CC.TString) = pure . mkTyConT $ mkName "String"
 shallowType (CC.TSum alts) = shallowTypeWithName (CC.TSum alts)
 shallowType (CC.TProduct t1 t2) = mkTupleT <$> sequence [shallowType t1, shallowType t2]
-shallowType (CC.TRecord fs s) = do
+shallowType (CC.TRecord fs) = do
   tuples <- view recoverTuples
   if tuples && isRecTuple (map fst fs) then
     shallowRecTupleType fs
   else
-    shallowTypeWithName (CC.TRecord fs s)
+    shallowTypeWithName (CC.TRecord fs)
 shallowType (CC.TUnit) = pure $ TyCon () $ Special () $ UnitCon ()
 
 shallowPrimType :: PrimInt -> HS.Type ()
@@ -301,7 +301,7 @@ shallowLet n vs p e1 e2 = do
   pure $ mkLetE [(p,e1')] e2'
 
 getRecordFieldName :: TypedExpr t v VarName -> FieldIndex -> FieldName
-getRecordFieldName rec idx | CC.TRecord fs _ <- exprType rec = P.map fst fs !! idx
+getRecordFieldName rec idx | CC.TRecord fs <- exprType rec = P.map fst fs !! idx
 getRecordFieldName _ _ = __impossible "input should be of record type"
 
 shallowGetter :: TypedExpr t v VarName -> FieldIndex -> Exp () -> Exp ()
@@ -309,7 +309,7 @@ shallowGetter rec idx rec' = mkAppE (mkVarE . mkName . snm $ getRecordFieldName 
 
 shallowGetter' :: TypedExpr t v VarName -> FieldIndex -> Exp () -> SG (Exp ())  -- use puns
 shallowGetter' rec idx rec' = do
-  let t@(CC.TRecord fs _) = exprType rec
+  let t@(CC.TRecord fs) = exprType rec
   vs <- mapM (\_ -> freshInt <<+= 1) fs
   (tn,_) <- findShortType t
   let bs = P.map (\v -> mkName $ internalVar ++ show v) vs

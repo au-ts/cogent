@@ -190,15 +190,15 @@ monoExpr (TE t e) = TE <$> monoType t <*> monoExpr' e
 monoType :: Type t -> Mono (Type 'Zero)
 monoType (TVar v) = atList <$> ask <*> pure v
 monoType (TVarBang v) = bang <$> (atList <$> ask <*> pure v)
-monoType (TCon n [] s) = do
+monoType (TCon n []) = do
   modify . second $ M.insert n S.empty
-  return $ TCon n [] s
-monoType (TCon n ts s) = do
+  return $ TCon n []
+monoType (TCon n ts) = do
   ts' <- mapM monoType ts
   let f Nothing   = Just $ S.singleton ts'   -- If n is not in the set
       f (Just is) = Just $ S.insert ts' is   -- Otherwise
   modify . second $ M.alter f n
-  return $ TCon n ts' s
+  return $ TCon n ts'
 monoType (TFun t1 t2) = TFun <$> monoType t1 <*> monoType t2
 monoType (TPrim p) = pure $ TPrim p
 monoType (TString) = pure $ TString
@@ -207,9 +207,10 @@ monoType (TSum alts) = do
   ts' <- mapM monoType ts
   return $ TSum $ P.zip ns $ P.zip ts' bs
 monoType (TProduct t1 t2) = TProduct <$> monoType t1 <*> monoType t2
-monoType (TRecord fs s) = TRecord <$> mapM (\(f,(t,b)) -> (f,) <$> (,b) <$> monoType t) fs <*> pure s
+monoType (TRecord fs) = TRecord <$> mapM (\(f,(t,b)) -> (f,) <$> (,b) <$> monoType t) fs
 monoType (TUnit) = pure TUnit
 monoType (TArray t l) = TArray <$> monoType t <*> pure l
+monoType (TPtr t s) = TPtr <$> monoType t <*> pure s
 
 -- ----------------------------------------------------------------------------
 -- custTyGen

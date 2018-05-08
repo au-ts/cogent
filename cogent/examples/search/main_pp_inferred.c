@@ -51,20 +51,18 @@ enum untyped_func_enum {
     FUN_ENUM_malloc_Node,
     FUN_ENUM_seq32_0,
     FUN_ENUM_string_cmp,
-    FUN_ENUM_u8_to_u32,
 } ;
 typedef enum untyped_func_enum untyped_func_enum;
+typedef untyped_func_enum t26;
+typedef untyped_func_enum t27;
+typedef untyped_func_enum t28;
+typedef untyped_func_enum t29;
+typedef untyped_func_enum t30;
+typedef untyped_func_enum t31;
 typedef untyped_func_enum t32;
+typedef untyped_func_enum t7;
 typedef untyped_func_enum t33;
 typedef untyped_func_enum t34;
-typedef untyped_func_enum t35;
-typedef untyped_func_enum t36;
-typedef untyped_func_enum t37;
-typedef untyped_func_enum t38;
-typedef untyped_func_enum t7;
-typedef untyped_func_enum t39;
-typedef untyped_func_enum t40;
-typedef untyped_func_enum t41;
 struct t1 {
     SysState *p1;
     u32 p2;
@@ -184,53 +182,22 @@ struct t22 {
 } ;
 typedef struct t22 t22;
 struct t23 {
-    tag_t tag;
-    t20 Success;
-} ;
-typedef struct t23 t23;
-struct t24 {
-    tag_t tag;
-    u32 Error;
-} ;
-typedef struct t24 t24;
-struct t25 {
-    tag_t tag;
-    t4 *Break;
-} ;
-typedef struct t25 t25;
-struct t26 {
-    tag_t tag;
-    unit_t Iterate;
-} ;
-typedef struct t26 t26;
-struct t27 {
     SysState *p1;
     Buffer *p2;
     CString p3;
 } ;
-typedef struct t27 t27;
-struct t28 {
+typedef struct t23 t23;
+struct t24 {
     tag_t tag;
     unit_t None;
     t4 *Some;
 } ;
-typedef struct t28 t28;
-struct t29 {
+typedef struct t24 t24;
+struct t25 {
     SysState *p1;
-    t28 p2;
+    t24 p2;
 } ;
-typedef struct t29 t29;
-struct t30 {
-    tag_t tag;
-    unit_t None;
-} ;
-typedef struct t30 t30;
-struct t31 {
-    tag_t tag;
-    t4 *Some;
-} ;
-typedef struct t31 t31;
-static inline u32 u8_to_u32(u8);
+typedef struct t25 t25;
 static inline t6 seq32_0(t8);
 static inline SysState *free_Node(t9);
 static inline t11 malloc_Node(SysState *);
@@ -240,33 +207,32 @@ static inline t17 deserialise_CString(t14);
 static inline t19 deserialise_U32(t18);
 static inline t22 deserialise_Node(t18);
 static inline t6 cmp_inc(t3);
-t29 *ffi_find_str (t27 *);
-static inline t29 find_str(t27);
-static inline t11 dispatch_t32(untyped_func_enum a2, SysState *a3)
+static inline t25 find_str(t23);
+static inline t11 dispatch_t26(untyped_func_enum a2, SysState *a3)
 {
     return malloc_Node(a3);
 }
-static inline SysState *dispatch_t33(untyped_func_enum a2, t12 a3)
+static inline SysState *dispatch_t27(untyped_func_enum a2, t12 a3)
 {
     return array_print(a3);
 }
-static inline bool_t dispatch_t34(untyped_func_enum a2, t13 a3)
+static inline bool_t dispatch_t28(untyped_func_enum a2, t13 a3)
 {
     return string_cmp(a3);
 }
-static inline t17 dispatch_t35(untyped_func_enum a2, t14 a3)
+static inline t17 dispatch_t29(untyped_func_enum a2, t14 a3)
 {
     return deserialise_CString(a3);
 }
-static inline t19 dispatch_t36(untyped_func_enum a2, t18 a3)
+static inline t19 dispatch_t30(untyped_func_enum a2, t18 a3)
 {
     return deserialise_U32(a3);
 }
-static inline t22 dispatch_t37(untyped_func_enum a2, t18 a3)
+static inline t22 dispatch_t31(untyped_func_enum a2, t18 a3)
 {
     return deserialise_Node(a3);
 }
-static inline t29 dispatch_t38(untyped_func_enum a2, t27 a3)
+static inline t25 dispatch_t32(untyped_func_enum a2, t23 a3)
 {
     return find_str(a3);
 }
@@ -274,17 +240,13 @@ static inline t6 dispatch_t7(untyped_func_enum a2, t3 a3)
 {
     return cmp_inc(a3);
 }
-static inline t6 dispatch_t39(untyped_func_enum a2, t8 a3)
+static inline t6 dispatch_t33(untyped_func_enum a2, t8 a3)
 {
     return seq32_0(a3);
 }
-static inline SysState *dispatch_t40(untyped_func_enum a2, t9 a3)
+static inline SysState *dispatch_t34(untyped_func_enum a2, t9 a3)
 {
     return free_Node(a3);
-}
-static inline u32 dispatch_t41(untyped_func_enum a2, u8 a3)
-{
-    return u8_to_u32(a3);
 }
 typedef u32 ErrCode;
 typedef u32 Index;
@@ -300,8 +262,8 @@ typedef t18 deserialise_Node_arg;
 typedef t22 deserialise_Node_ret;
 typedef t18 deserialise_U32_arg;
 typedef t19 deserialise_U32_ret;
-typedef t27 find_str_arg;
-typedef t29 find_str_ret;
+typedef t23 find_str_arg;
+typedef t25 find_str_ret;
 typedef t9 free_Node_arg;
 typedef SysState *free_Node_ret;
 typedef SysState *malloc_Node_arg;
@@ -310,8 +272,6 @@ typedef t8 seq32_0_arg;
 typedef t6 seq32_0_ret;
 typedef t13 string_cmp_arg;
 typedef bool_t string_cmp_ret;
-typedef u8 u8_to_u32_arg;
-typedef u32 u8_to_u32_ret;
 static inline t22 deserialise_Node(t18 a1)
 {
     SysState *r2 = a1.p1;
@@ -355,33 +315,31 @@ static inline t22 deserialise_Node(t18 a1)
             
             t4 *r24 = r23;
             t20 r25 = (t20) {.p1 = r24, .p2 = r20};
-            t23 r26 = (t23) {.tag = TAG_ENUM_Success, .Success = r25};
-            t21 r27 = (t21) {.tag = r26.tag, .Success = r26.Success};
+            t21 r26 = (t21) {.tag = TAG_ENUM_Success, .Success = r25};
+            t22 r27 = (t22) {.p1 = r16, .p2 = r26};
             
-            r18 = (t22) {.p1 = r16, .p2 = r27};
+            r18 = r27;
         } else {
-            t24 r28 = {.tag =r17.tag, .Error =r17.Error};
-            u32 r29 = r28.Error;
-            t9 r30 = (t9) {.p1 = r16, .p2 = r7.Success};
-            SysState *r31 = free_Node(r30);
-            t24 r32 = (t24) {.tag = TAG_ENUM_Error, .Error = r29};
-            t21 r33 = (t21) {.tag = r32.tag, .Error = r32.Error};
+            u32 r28 = r17.Error;
+            t9 r29 = (t9) {.p1 = r16, .p2 = r7.Success};
+            SysState *r30 = free_Node(r29);
+            t21 r31 = (t21) {.tag = TAG_ENUM_Error, .Error = r28};
+            t22 r32 = (t22) {.p1 = r30, .p2 = r31};
             
-            r18 = (t22) {.p1 = r31, .p2 = r33};
+            r18 = r32;
         }
         r8 = r18;
     } else {
-        t24 r34 = {.tag =r7.tag, .Error =r7.Error};
-        u32 r35 = r34.Error;
-        t24 r36 = (t24) {.tag = TAG_ENUM_Error, .Error = r35};
-        t21 r37 = (t21) {.tag = r36.tag, .Error = r36.Error};
+        u32 r33 = r7.Error;
+        t21 r34 = (t21) {.tag = TAG_ENUM_Error, .Error = r33};
+        t22 r35 = (t22) {.p1 = r6, .p2 = r34};
         
-        r8 = (t22) {.p1 = r6, .p2 = r37};
+        r8 = r35;
     }
     
-    t22 r38 = r8;
+    t22 r36 = r8;
     
-    return r38;
+    return r36;
 }
 static inline t6 cmp_inc(t3 a1)
 {
@@ -414,10 +372,10 @@ static inline t6 cmp_inc(t3 a1)
         
         if (r15.boolean) {
             t1 r19 = (t1) {.p1 = r10, .p2 = r14};
-            t25 r20 = (t25) {.tag = TAG_ENUM_Break, .Break = r13};
-            t5 r21 = (t5) {.tag = r20.tag, .Break = r20.Break};
+            t5 r20 = (t5) {.tag = TAG_ENUM_Break, .Break = r13};
+            t6 r21 = (t6) {.p1 = r19, .p2 = r20};
             
-            r18 = (t6) {.p1 = r19, .p2 = r21};
+            r18 = r21;
         } else {
             u32 r22 = (*r13).len;
             CString r23 = (*r13).key;
@@ -425,85 +383,69 @@ static inline t6 cmp_inc(t3 a1)
             SysState *r25 = free_Node(r24);
             t1 r26 = (t1) {.p1 = r25, .p2 = r14};
             unit_t r27 = (unit_t) {.dummy = 0};
-            t26 r28 = (t26) {.tag = TAG_ENUM_Iterate, .Iterate = r27};
-            t5 r29 = (t5) {.tag = r28.tag, .Iterate = r28.Iterate};
+            t5 r28 = (t5) {.tag = TAG_ENUM_Iterate, .Iterate = r27};
+            t6 r29 = (t6) {.p1 = r26, .p2 = r28};
             
-            r18 = (t6) {.p1 = r26, .p2 = r29};
+            r18 = r29;
         }
         r12 = r18;
     } else {
-        t24 r30 = {.tag =r11.tag, .Error =r11.Error};
-        u32 r31 = r30.Error;
-        t1 r32 = (t1) {.p1 = r10, .p2 = r4};
-        unit_t r33 = (unit_t) {.dummy = 0};
-        t26 r34 = (t26) {.tag = TAG_ENUM_Iterate, .Iterate = r33};
-        t5 r35 = (t5) {.tag = r34.tag, .Iterate = r34.Iterate};
+        u32 r30 = r11.Error;
+        t1 r31 = (t1) {.p1 = r10, .p2 = r4};
+        unit_t r32 = (unit_t) {.dummy = 0};
+        t5 r33 = (t5) {.tag = TAG_ENUM_Iterate, .Iterate = r32};
+        t6 r34 = (t6) {.p1 = r31, .p2 = r33};
         
-        r12 = (t6) {.p1 = r32, .p2 = r35};
+        r12 = r34;
     }
     
-    t6 r36 = r12;
+    t6 r35 = r12;
     
-    return r36;
+    return r35;
 }
-
-t29 *ffi_find_str (t27 *a1)
-{
-    t29* ret = malloc (sizeof (t29));
-    if (ret) {
-      *ret = find_str (*a1);
-    } else {
-      printf ("malloc failed\n");
-    }
-    return ret;
-}
-
-static inline t29 find_str(t27 a1)
+static inline t25 find_str(t23 a1)
 {
     SysState *r2 = a1.p1;
     Buffer *r3 = a1.p2;
     CString r4 = a1.p3;
-    u8 r5 = 0U;
-    u32 r6 = u8_to_u32(r5);
-    u8 r7 = 3U;
-    u32 r8 = u8_to_u32(r7);
-    u8 r9 = 1U;
-    u32 r10 = u8_to_u32(r9);
+    u32 r5 = 0U;
+    u32 r6 = (u32) r5;
+    u32 r7 = 3U;
+    u32 r8 = (u32) r7;
+    u32 r9 = 1U;
+    u32 r10 = (u32) r9;
     t7 r11 = FUN_ENUM_cmp_inc;
-    u8 r12 = 0U;
-    u32 r13 = (u32) r12;
-    t1 r14 = (t1) {.p1 = r2, .p2 = r13};
-    t2 r15 = (t2) {.p1 = r3, .p2 = r4};
-    t8 r16 = (t8) {.frm = r6, .to = r8, .step = r10, .f = r11, .acc = r14,
-                   .obsv = r15};
-    t6 r17 = seq32_0(r16);
-    t1 r18 = r17.p1;
-    t5 r19 = r17.p2;
-    SysState *r20 = r18.p1;
-    u32 r21 = r18.p2;
-    u32 r22 = r21;
-    t29 r23;
+    u32 r12 = 0U;
+    t1 r13 = (t1) {.p1 = r2, .p2 = r12};
+    t2 r14 = (t2) {.p1 = r3, .p2 = r4};
+    t8 r15 = (t8) {.frm = r6, .to = r8, .step = r10, .f = r11, .acc = r13,
+                   .obsv = r14};
+    t6 r16 = seq32_0(r15);
+    t1 r17 = r16.p1;
+    t5 r18 = r16.p2;
+    SysState *r19 = r17.p1;
+    u32 r20 = r17.p2;
+    u32 r21 = r20;
+    t25 r22;
     
-    if (r19.tag == TAG_ENUM_Iterate) {
-        unit_t r24 = r19.Iterate;
-        unit_t r25 = (unit_t) {.dummy = 0};
-        t30 r26 = (t30) {.tag = TAG_ENUM_None, .None = r25};
-        t30 r27 = (t30) {.tag = r26.tag, .None = r26.None};
-        t28 r28 = (t28) {.tag = r27.tag, .None = r27.None};
+    if (r18.tag == TAG_ENUM_Iterate) {
+        unit_t r23 = r18.Iterate;
+        unit_t r24 = (unit_t) {.dummy = 0};
+        t24 r25 = (t24) {.tag = TAG_ENUM_None, .None = r24};
+        t25 r26 = (t25) {.p1 = r19, .p2 = r25};
         
-        r23 = (t29) {.p1 = r20, .p2 = r28};
+        r22 = r26;
     } else {
-        t25 r29 = {.tag =r19.tag, .Break =r19.Break};
-        t4 *r30 = r29.Break;
-        t31 r31 = (t31) {.tag = TAG_ENUM_Some, .Some = r30};
-        t28 r32 = (t28) {.tag = r31.tag, .Some = r31.Some};
+        t4 *r27 = r18.Break;
+        t24 r28 = (t24) {.tag = TAG_ENUM_Some, .Some = r27};
+        t25 r29 = (t25) {.p1 = r19, .p2 = r28};
         
-        r23 = (t29) {.p1 = r20, .p2 = r32};
+        r22 = r29;
     }
     
-    t29 r33 = r23;
+    t25 r30 = r22;
     
-    return r33;
+    return r30;
 }
 t17 deserialise_CString(t14 args)
 {
@@ -560,8 +502,6 @@ SysState *free_CString(t12 args)
 }
 bool_t string_cmp(t13 args)
 {
-    // printf("Comparing: %s ?== %s\n", args.p1, args.p2);
-    
     int r = strcmp(args.p1, args.p2);
     
     if (r == 0)
@@ -677,13 +617,13 @@ int main(void)
     curr += n3.len;
     
     SysState *ex;
-    t27 find_args;
+    t23 find_args;
     
     find_args.p1 = ex;
     find_args.p2 = buf;
     find_args.p3 = "Cogent";
     
-    t29 r = dispatch_t38(FUN_ENUM_find_str, find_args);
+    t25 r = dispatch_t32(FUN_ENUM_find_str, find_args);
     
     if (r.p2.tag == TAG_ENUM_None)
         printf("Not found!\n");
@@ -694,7 +634,7 @@ int main(void)
         
         print_arg.p1 = r.p1;
         print_arg.p2 = r.p2.Some->key;
-        dispatch_t33(FUN_ENUM_array_print, print_arg);
+        dispatch_t27(FUN_ENUM_array_print, print_arg);
         printf("\n");
     }
     return 0;

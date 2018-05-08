@@ -523,16 +523,16 @@ instance Monad (Compose (Gen v) Maybe) where
 lookupTypeCId :: CC.Type 'Zero -> Gen v (Maybe CId)
 lookupTypeCId (TVar     {}) = __impossible "lookupTypeCId"
 lookupTypeCId (TVarBang {}) = __impossible "lookupTypeCId"
-lookupTypeCId (TCon tn [] _) = fmap (const tn) . M.lookup tn <$> use absTypes
-lookupTypeCId (TCon tn ts _) = getCompose (forM ts (\t -> (if isUnboxed t then ('u':) else id) <$> (Compose . lookupTypeCId) t) >>= \ts' ->
-                                           Compose (M.lookup tn <$> use absTypes) >>= \tss ->
-                                           Compose $ return (if ts' `S.member` tss
-                                                               then return $ tn ++ "_" ++ L.intercalate "_" ts'
-                                                               else Nothing))
+lookupTypeCId (TCon tn []) = fmap (const tn) . M.lookup tn <$> use absTypes
+lookupTypeCId (TCon tn ts) = getCompose (forM ts (\t -> (if isUnboxed t then ('u':) else id) <$> (Compose . lookupTypeCId) t) >>= \ts' ->
+                                         Compose (M.lookup tn <$> use absTypes) >>= \tss ->
+                                         Compose $ return (if ts' `S.member` tss
+                                                             then return $ tn ++ "_" ++ L.intercalate "_" ts'
+                                                             else Nothing))
 lookupTypeCId (TProduct t1 t2) = getCompose (Compose . lookupStrlTypeCId =<< Record <$> (P.zip [p1,p2] <$> mapM (Compose . lookupType) [t1,t2]) <*> pure True)
 lookupTypeCId (TSum fs) = getCompose (Compose . lookupStrlTypeCId =<< Variant . M.fromList <$> mapM (secondM (Compose . lookupType) . second fst) fs)
 lookupTypeCId (TFun t1 t2) = getCompose (Compose . lookupStrlTypeCId =<< Function <$> (Compose . lookupType) t1 <*> (Compose . lookupType) t2)  -- Use the enum type for function dispatching
-lookupTypeCId (TRecord fs s) = getCompose (Compose . lookupStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> (Compose . lookupType) b) fs) <*> pure True)
+lookupTypeCId (TRecord fs) = getCompose (Compose . lookupStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> (Compose . lookupType) b) fs) <*> pure True)
 lookupTypeCId (TArray t l) = getCompose (Compose . lookupStrlTypeCId =<< Array <$> (Compose . lookupType) t <*> pure (Just l))
 lookupTypeCId t = Just <$> typeCId t
 
@@ -564,11 +564,11 @@ typeCId t = use custTypeGen >>= \ctg ->
     typeCId' (TPrim pt) | pt == Boolean = return boolT
                         | otherwise = primCId <$> pure pt
     typeCId' (TString) = return "char"
-    typeCId' (TCon tn [] s) = do
+    typeCId' (TCon tn []) = do
       absTypes %= M.insert tn (S.singleton []) -- NOTE: Since it's non-parametric, it can have only one entry which is always the same / zilinc
       -- getStrlTypeCId (AbsType tn)  -- NOTE: Monomorphic abstract types will remain undefined! / zilinc
       return tn
-    typeCId' (TCon tn ts s) = do  -- mapM typeCId ts >>= \ts' -> return (tn ++ "_" ++ L.intercalate "_" ts')
+    typeCId' (TCon tn ts) = do  -- mapM typeCId ts >>= \ts' -> return (tn ++ "_" ++ L.intercalate "_" ts')
       ts' <- forM ts $ \t -> (if isUnboxed t then ('u':) else id) <$> typeCId t
       absTypes %= M.insertWith S.union tn (S.singleton ts')
       let tn' = tn ++ "_" ++ L.intercalate "_" ts'
@@ -583,9 +583,10 @@ typeCId t = use custTypeGen >>= \ctg ->
     typeCId' (TProduct t1 t2) = getStrlTypeCId =<< Record <$> (P.zip [p1,p2] <$> mapM genType [t1,t2]) <*> pure True
     typeCId' (TSum fs) = getStrlTypeCId =<< Variant . M.fromList <$> mapM (secondM genType . second fst) fs
     typeCId' (TFun t1 t2) = getStrlTypeCId =<< Function <$> genType t1 <*> genType t2  -- Use the enum type for function dispatching
-    typeCId' (TRecord fs s) = getStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs) <*> pure True
+    typeCId' (TRecord fs) = getStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs) <*> pure True
     typeCId' (TUnit) = return unitT
     typeCId' (TArray t l) = getStrlTypeCId =<< Array <$> genType t <*> pure (Just l)
+    typeCId' (TPtr t _) = typeCId' t
 
     typeCIdFlat :: CC.Type 'Zero -> Gen v CId
     typeCIdFlat (TProduct t1 t2) = do
@@ -595,7 +596,7 @@ typeCId t = use custTypeGen >>= \ctg ->
         _      -> collFields f t
       getStrlTypeCId $ Record (concat fss) True
     -- typeCIdFlat (TSum fs) = __todo  -- Don't flatten variants for now. It's not clear how to incorporate with --funion-for-variants
-    typeCIdFlat (TRecord fs s) = do
+    typeCIdFlat (TRecord fs) = do
       let (fns,ts) = P.unzip $ P.map (second fst) fs
       ts' <- mapM genType ts
       fss <- forM (P.zip3 fns ts ts') $ \(f,t,t') -> case t' of
@@ -606,11 +607,11 @@ typeCId t = use custTypeGen >>= \ctg ->
 
     collFields :: FieldName -> CC.Type 'Zero -> Gen v [(CId, CType)]
     collFields fn (TProduct t1 t2) = concat <$> zipWithM collFields (P.map ((fn ++ "_") ++) [p1,p2]) [t1,t2]
-    collFields fn (TRecord fs s) = let (fns,ts) = P.unzip (P.map (second fst) fs) in concat <$> zipWithM collFields (P.map ((fn ++ "_") ++) fns) ts
+    collFields fn (TRecord fs) = let (fns,ts) = P.unzip (P.map (second fst) fs) in concat <$> zipWithM collFields (P.map ((fn ++ "_") ++) fns) ts
     collFields fn t = (:[]) . (fn,) <$> genType t
 
     isUnstable :: CC.Type 'Zero -> Bool
-    isUnstable (TCon _ _ _) = True  -- NOTE: we relax the rule here to generate all abstract types in the table / zilinc (28/5/15)
+    isUnstable (TCon {}) = True  -- NOTE: we relax the rule here to generate all abstract types in the table / zilinc (28/5/15)
     -- XXX | isUnstable (TCon _ (_:_) _) = True
     isUnstable (TProduct {}) = True
     isUnstable (TSum _) = True
@@ -620,22 +621,23 @@ typeCId t = use custTypeGen >>= \ctg ->
 
 -- Made for Glue
 absTypeCId :: CC.Type 'Zero -> Gen v CId
-absTypeCId (TCon tn [] s) = return tn
-absTypeCId (TCon tn ts s) = do
+absTypeCId (TCon tn []) = return tn
+absTypeCId (TCon tn ts) = do
   ts' <- forM ts $ \t -> (if isUnboxed t then ('u':) else id) <$> typeCId t
   return (tn ++ "_" ++ L.intercalate "_" ts')
 absTypeCId _ = __impossible "absTypeCId"
 
 -- Returns the right C type
 genType :: CC.Type 'Zero -> Gen v CType
-genType t@(TRecord _ s) | s /= Unboxed = CPtr . CIdent <$> typeCId t
-genType t@(TString)                    = CPtr . CIdent <$> typeCId t
-genType t@(TCon _ _ s)  | s /= Unboxed = CPtr . CIdent <$> typeCId t
-genType   (TArray t l)                 = CPtr          <$> genType t
-genType t                              =        CIdent <$> typeCId t
+genType t@(TRecord _)  = CIdent <$> typeCId t
+genType t@(TString)    = CIdent <$> typeCId t
+genType t@(TCon _ _)   = CIdent <$> typeCId t
+genType   (TArray t l) = CPtr   <$> genType t
+genType   (TPtr t _)   = CPtr   <$> genType t
+genType t              = CIdent <$> typeCId t
 
 genTypeA :: Bool -> CC.Type 'Zero -> Gen v CType
-genTypeA is_arg t@(TRecord _ Unboxed) | is_arg && __cogent_funboxed_arg_by_ref = CPtr . CIdent <$> typeCId t  -- TODO: sizeof
+genTypeA is_arg t@(TRecord _) | is_arg && __cogent_funboxed_arg_by_ref = CPtr . CIdent <$> typeCId t  -- TODO: sizeof
 genTypeA _ t = genType t
 
 genTypeALit :: CC.Type 'Zero -> Gen v  CType
@@ -643,11 +645,12 @@ genTypeALit (TArray t l) = CArray <$> (genType t) <*> pure (CArraySize (mkConst 
 genTypeALit t = genType t
 
 lookupType :: CC.Type 'Zero -> Gen v (Maybe CType)
-lookupType t@(TRecord _ s) | s /= Unboxed = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
-lookupType t@(TString)                    = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
-lookupType t@(TCon _ _ s)  | s /= Unboxed = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
-lookupType t@(TArray _ _)                 = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
-lookupType t                              = getCompose (       CIdent <$> Compose (lookupTypeCId t))
+lookupType t@(TRecord _)  = getCompose (CIdent <$> Compose (lookupTypeCId t))
+lookupType t@(TString)    = getCompose (CIdent <$> Compose (lookupTypeCId t))
+lookupType t@(TCon _ _)   = getCompose (CIdent <$> Compose (lookupTypeCId t))
+lookupType t@(TArray _ _) = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
+lookupType t@(TPtr _ _)   = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))  -- FIXME?
+lookupType t              = getCompose (       CIdent <$> Compose (lookupTypeCId t))
 
 -- Add a type synonym
 genType' :: CC.Type 'Zero -> TypeName -> Gen v CType
@@ -896,7 +899,10 @@ genExpr mv (TE t (Take _ rec fld e)) = do
   -- NOTE: New `rec' and old `rec' CAN be the same at this point, as long as they get copied while being
   --       updated. Similarly, the field can be `rec.f' instead of a new one / zilinc
   (rec',recdecl,recstm,recp) <- genExpr_ rec
-  let rect@(TRecord fs s) = exprType rec
+  let rect = exprType rec
+      (s,fs) = case rect of
+                 TRecord fs -> (Unboxed, fs)
+                 TPtr (TRecord fs) s -> (s, fs)
   (rec'',recdecl',recstm',recp') <- flip3 aNewVar recp rec' =<< genType rect
   ft <- genType . fst . snd $ fs!!fld
   (f',fdecl,fstm,fp) <- (case __cogent_fintermediate_vars of
@@ -911,7 +917,9 @@ genExpr mv (TE t (Put rec fld val)) = do
   -- > let x' = x {f = fv}  -- x is an unboxed record
   -- >  in (x', x)
   -- >  -- x shouldn't change its field f to fv
-  let TRecord fs s = exprType rec
+  let (s,fs) = case exprType rec of
+                 TRecord fs -> (Unboxed, fs)
+                 TPtr (TRecord fs) s -> (s, fs)
   (rec',recdecl,recstm,recp) <- genExpr_ rec
   (rec'',recdecl',recstm') <- declareInit t' rec' recp
   (val',valdecl,valstm,valp) <- genExpr_ val
@@ -966,7 +974,9 @@ genExpr mv (TE t (Con tag e tau)) = do  -- `tau' and `t' should be compatible
                         [([fieldTag], variable $ tagEnum tag), ([tag], e')]
   return (v, edecl ++ vdecl, estm ++ ass, vp)
 genExpr mv (TE t (Member rec fld)) = do
-  let TRecord fs s = exprType rec
+  let (s,fs) = case exprType rec of
+                 TRecord fs -> (Unboxed, fs)
+                 TPtr (TRecord fs) s -> (s, fs)
   (rec',recdecl,recstm,recp) <- genExpr_ rec
   let e' = (if s == Unboxed then mkStr3 else mkStr3') rec' (fst $ fs!!fld)
   (v',ass,vp) <- maybeAssign mv e' recp
@@ -1509,15 +1519,16 @@ instance {-# OVERLAPPING #-} PP.Pretty (CId, CC.Type 'Zero) where
 kindcheck :: Type 'Zero -> Kind
 kindcheck (TVar v)         = __impossible "kindcheck"
 kindcheck (TVarBang v)     = __impossible "kindcheck"
-kindcheck (TCon n vs s)    = sigilKind s
+kindcheck (TCon n vs)      = mempty
 kindcheck (TFun ti to)     = mempty
 kindcheck (TPrim i)        = mempty
 kindcheck (TString)        = mempty
 kindcheck (TSum ts)        = mconcat $ L.map (kindcheck . fst . snd) ts
 kindcheck (TProduct t1 t2) = kindcheck t1 <> kindcheck t2
-kindcheck (TRecord ts s)   = mappend (sigilKind s) $ mconcat $ (L.map (kindcheck . fst . snd) (filter (not . snd .snd) ts))
+kindcheck (TRecord ts)     = mconcat $ L.map (kindcheck . fst . snd) (filter (not . snd .snd) ts)
 kindcheck (TUnit)          = mempty
 kindcheck (TArray e _)     = kindcheck e
+kindcheck (TPtr t s)       = kindcheck t `mappend` sigilKind s
 
 isTypeLinear :: Type 'Zero -> Bool
 isTypeLinear = flip isTypeHasKind k1
