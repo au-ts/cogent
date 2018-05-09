@@ -524,7 +524,7 @@ lookupTypeCId :: CC.Type 'Zero -> Gen v (Maybe CId)
 lookupTypeCId (TVar     {}) = __impossible "lookupTypeCId"
 lookupTypeCId (TVarBang {}) = __impossible "lookupTypeCId"
 lookupTypeCId (TCon tn []) = fmap (const tn) . M.lookup tn <$> use absTypes
-lookupTypeCId (TCon tn ts) = getCompose (forM ts (\t -> (if isUnboxed t then ('u':) else id) <$> (Compose . lookupTypeCId) t) >>= \ts' ->
+lookupTypeCId (TCon tn ts) = getCompose (forM ts (\t -> (if isPtr t then ('p':) else id) <$> (Compose . lookupTypeCId) t) >>= \ts' ->
                                          Compose (M.lookup tn <$> use absTypes) >>= \tss ->
                                          Compose $ return (if ts' `S.member` tss
                                                              then return $ tn ++ "_" ++ L.intercalate "_" ts'
@@ -569,7 +569,7 @@ typeCId t = use custTypeGen >>= \ctg ->
       -- getStrlTypeCId (AbsType tn)  -- NOTE: Monomorphic abstract types will remain undefined! / zilinc
       return tn
     typeCId' (TCon tn ts) = do  -- mapM typeCId ts >>= \ts' -> return (tn ++ "_" ++ L.intercalate "_" ts')
-      ts' <- forM ts $ \t -> (if isUnboxed t then ('u':) else id) <$> typeCId t
+      ts' <- forM ts $ \t -> (if isPtr t then ('p':) else id) <$> typeCId t
       absTypes %= M.insertWith S.union tn (S.singleton ts')
       let tn' = tn ++ "_" ++ L.intercalate "_" ts'
           ins Nothing  = Just $ S.singleton ts'
@@ -623,14 +623,14 @@ typeCId t = use custTypeGen >>= \ctg ->
 absTypeCId :: CC.Type 'Zero -> Gen v CId
 absTypeCId (TCon tn []) = return tn
 absTypeCId (TCon tn ts) = do
-  ts' <- forM ts $ \t -> (if isUnboxed t then ('u':) else id) <$> typeCId t
+  ts' <- forM ts $ \t -> (if isPtr t then ('p':) else id) <$> typeCId t
   return (tn ++ "_" ++ L.intercalate "_" ts')
 absTypeCId _ = __impossible "absTypeCId"
 
 -- Returns the right C type
 genType :: CC.Type 'Zero -> Gen v CType
 genType t@(TRecord _)  = CIdent <$> typeCId t
-genType t@(TString)    = CIdent <$> typeCId t
+genType t@(TString)    = CPtr . CIdent <$> typeCId t
 genType t@(TCon _ _)   = CIdent <$> typeCId t
 genType   (TArray t l) = CPtr   <$> genType t
 genType   (TPtr t _)   = CPtr   <$> genType t

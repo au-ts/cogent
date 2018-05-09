@@ -13,7 +13,6 @@ NAME=static-array
 SRC=StaticArray.cogent
 
 STDGUM=$(shell cogent --stdgum-dir)
-PLATLIBGUM=../plat/console/libgum
 
 ACFILES=main.ac
 
@@ -24,7 +23,7 @@ ABSDIR=./abstract
 
 OBJ=$(PPINFER:.c=.o)
 
-CFLAGS=-I. -I$(STDGUM) -I$(STDGUM)/gum/anti
+CFLAGS=-I. -I$(STDGUM)
 
 .PHONY: default clean gen-anti test
 .SECONDARY:

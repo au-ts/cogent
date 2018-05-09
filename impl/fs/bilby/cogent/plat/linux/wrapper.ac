@@ -14,6 +14,7 @@ $esc:(#include <wrapper.h>)
 #include <c/linux/abstract-defns.h> /* In lib gum */
 #include <generated.c>
 #include <gum/anti/common.ac>
+#include <gum/anti/seq.ac>
 #include <gum/anti/crc32.ac>
 #include <gum/anti/wordarray.ac>
 #include <gum/anti/array.ac>

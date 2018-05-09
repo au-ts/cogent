@@ -29,6 +29,7 @@ static inline VfsInode* EXT2_I(struct inode *inode)
 }
 
 #include <gum/anti/common.ac>
+#include <gum/anti/seq.ac>
 #include <gum/anti/iterator.ac>
 #include <gum/anti/wordarray.ac>
 #include <gum/anti/array.ac>

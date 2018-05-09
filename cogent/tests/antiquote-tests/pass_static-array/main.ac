@@ -13,9 +13,8 @@
 $esc:(#include <stdio.h>)
 $esc:(#include <stdlib.h>)
 #include <cogent-defns.h>
-#include "../common/dummy.h"
+#include "../plat/console/anti/common.ac"
 #include "generated.c"
-#include "../common/test.ac"
 
 $ty:(SysState) printA ($ty:((SysState, A!)) args)
 {

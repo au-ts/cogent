@@ -8,6 +8,11 @@
  * @TAG(NICTA_GPL)
  */
 
+
+static inline $ty:(()) $id:test_stack_probe ($ty:(()) arg)
+{  return arg;
+}
+
 // malloc_CoolType: SysState -> R (SysState, CoolType take (..)) (SysState)
 static inline $ty:(R (SysState, CoolType take (..)) SysState) $id:malloc_CoolType ($ty:(SysState) arg)
 {

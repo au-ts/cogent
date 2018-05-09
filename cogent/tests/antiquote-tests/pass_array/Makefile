@@ -16,7 +16,6 @@ COUTPUT=$(addsuffix .c, $(OUTPUT))
 HOUTPUT=$(addsuffix .h, $(OUTPUT))
 
 STDGUM=$(shell cogent --stdgum-dir)
-PLATLIBGUM=../plat/console/libgum
 
 AHFILES=$(STDGUM)/gum/anti/abstract/Array.ah
 ACFILES=main.ac
@@ -28,7 +27,7 @@ ABSDIR=./abstract
 
 OBJ=$(PPINFER:.c=.o)
 
-CFLAGS=-I. -I../plat/console -I$(STDGUM) -I$(STDGUM)/gum/anti
+CFLAGS=-I. -I$(STDGUM)
 
 .PHONY: default cogent clean gen-anti test
 .SECONDARY:

@@ -8,7 +8,6 @@
  * @TAG(NICTA_GPL)
  */
 
-#include <common.ac>
 
 static inline $ty:(()) $id:test_stack_probe ($ty:(()) arg)
 {  return arg;

@@ -8,31 +8,33 @@
  * @TAG(NICTA_GPL)
  */
 
-struct unit_t $id:(cogent_debug)(char* str) {
+typedef void* SysState;
+
+static unit_t cogent_debug(char* str) {
 	unit_t ret;
 	printf ("%s", str);
 	return ret;
 }
 
-struct unit_t $id:(cogent_debug_u32) (u32 arg) {
+static unit_t cogent_debug_u32 (u32 arg) {
 	unit_t ret;
 	printf ("%u", arg);
 	return ret;
 }
 
-struct unit_t $id:(cogent_debug_u64) (u64 arg) {
+static unit_t cogent_debug_u64 (u64 arg) {
 	unit_t ret;
 	printf ("%llu", arg);
 	return ret;
 }
 
-struct unit_t $id:(cogent_debug_u32_hex) (u32 arg) {
+static unit_t cogent_debug_u32_hex (u32 arg) {
 	unit_t ret;
 	printf ("%x", arg);
 	return ret;
 }
 
-struct unit_t $id:(cogent_debug_u64_hex) (u64 arg) {
+static unit_t cogent_debug_u64_hex (u64 arg) {
 	unit_t ret;
 	printf ("%llx", arg);
 	return ret;
