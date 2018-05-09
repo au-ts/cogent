@@ -7,7 +7,7 @@ COGENTDIR=../
 TLD=../../
 EXAMPLEDIR=$COGENTDIR/examples
 
-source $TLD/build-env.sh || exit
+source $TLD/build-env.sh || exit 1
 
 
 if [[ $# > 1 ]]; then 
@@ -20,6 +20,7 @@ if [[ -n $1 ]]; then
 fi
 
 cd $EXAMPLEDIR
+
 
 for ex in */
 do

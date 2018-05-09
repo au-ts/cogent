@@ -518,28 +518,6 @@ SysState *array_print(t12 args)
     printf("%s", args.p2);
     return args.p1;
 }
-t6 seq32_0(t8 args)
-{
-    u32 i;
-    t6 ret;
-    t3 fargs;
-    
-    ret.p2.tag = TAG_ENUM_Iterate;
-    ret.p1 = args.acc;
-    if (!args.step)
-        return ret;
-    fargs.acc = args.acc;
-    fargs.obsv = args.obsv;
-    for (i = args.frm; i < args.to; i += args.step) {
-        fargs.idx = i;
-        ret = dispatch_t7(args.f, fargs);
-        if (ret.p2.tag == TAG_ENUM_Break)
-            return ret;
-        else
-            fargs.acc = ret.p1;
-    }
-    return ret;
-}
 u16 u8_to_u16(u8 x)
 {
     return (u16) x;
@@ -583,6 +561,48 @@ u8 u64_to_u8(u64 x)
 u16 u64_to_u16(u64 x)
 {
     return (u16) x;
+}
+unit_t cogent_assert(bool_t arg)
+{
+    unit_t ret;
+    
+    BUG_ON(!arg.boolean);
+    return ret;
+}
+unit_t cogent_debug(char *str)
+{
+    unit_t ret;
+    
+    printk("%s", str);
+    return ret;
+}
+unit_t cogent_debug_u32(u32 arg)
+{
+    unit_t ret;
+    
+    printk("%u", arg);
+    return ret;
+}
+unit_t cogent_debug_u64(u64 arg)
+{
+    unit_t ret;
+    
+    printk("%llu", arg);
+    return ret;
+}
+unit_t cogent_debug_u32_hex(u32 arg)
+{
+    unit_t ret;
+    
+    printk("%x", arg);
+    return ret;
+}
+unit_t cogent_debug_u64_hex(u64 arg)
+{
+    unit_t ret;
+    
+    printk("%llx", arg);
+    return ret;
 }
 int main(void)
 {

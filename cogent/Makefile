@@ -177,7 +177,7 @@ test-libgum:
 
 examples: .test-cogent
 	$(E) "=== Build Cogent examples ==="
-	$(SCRIPTS_DIR)/build_examples.sh
+	$(SCRIPTS_DIR)/cogent_validate.sh -examples
 
 examples-clean:
 	$(E) "=== Build Cogent examples ==="
