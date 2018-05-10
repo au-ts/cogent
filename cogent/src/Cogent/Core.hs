@@ -80,9 +80,9 @@ isTFun :: Type t -> Bool
 isTFun (TFun {}) = True
 isTFun _ = False
 
-isUnboxed :: Type t -> Bool
-isUnboxed (TPtr {}) = False
-isUnboxed _ = True
+isPtr :: Type t -> Bool
+isPtr (TPtr {}) = True
+isPtr _ = False
 
 data FunNote = NoInline | InlineMe | MacroCall | InlinePlease  -- order is important, larger value has stronger precedence
              deriving (Bounded, Eq, Ord, Show)

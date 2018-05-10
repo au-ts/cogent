@@ -18,7 +18,7 @@ TLD=../../
 
 source $TLD/build-env.sh || exit
 
-USAGE="Usage: $0 -[tc|ds|an|mn|cg|gcc|tc-proof|ac|ffi-gen|aq|shallow-proof|hs-shallow|goanna|libgum|all|clean] [-q|-i|]"
+USAGE="Usage: $0 -[tc|ds|an|mn|cg|gcc|tc-proof|ac|ffi-gen|aq|shallow-proof|hs-shallow|examples|goanna|libgum|all|clean] [-q|-i|]"
 
 getopt -T >/dev/null
 if [[ $? != 4 ]]
@@ -27,7 +27,7 @@ then
   exit 1
 fi
 
-OPTS=$(getopt -o h --alternative --long tc,ds,an,mn,cg,gcc,tc-proof,ac,ffi-gen,aq,shallow-proof,hs-shallow,goanna,ee,libgum,all,help,clean,q,i -n "$0" -- "$@")
+OPTS=$(getopt -o h --alternative --long tc,ds,an,mn,cg,gcc,tc-proof,ac,ffi-gen,aq,shallow-proof,hs-shallow,examples,goanna,ee,libgum,all,help,clean,q,i -n "$0" -- "$@")
 
 if [ $? != 0 ]
 then echo "$USAGE" >&2
@@ -56,7 +56,8 @@ while true; do
         echo '  -flags   Test compiler features enabled by flags'
         echo '  -aq      Test antiquotation'
         echo '  -shallow-proof Test shallow-emdedding proofs'
-        echo '  -hs-shallow Test Haskell shallow embedding generation and compiler with GHC'
+        echo '  -hs-shallow    Test Haskell shallow embedding generation and compiler with GHC'
+        echo '  -examples      Build all examples'
         echo '  -goanna  Check generated code using Goanna (dependency: Goanna)'
         echo '  -ee      Test end-to-end proof'
         echo '  -libgum  Test shared library'
@@ -70,7 +71,7 @@ while true; do
     --q) QUIET=1; shift;;
     --i) INTERACTIVE=1; shift;;
     --clean) DO_CLEAN=1; shift;;
-    --all) TESTSPEC='--tc--ds--an--mn--aq--cg--gcc--tc-proof--ffi-gen--ac--shallow-proof--hs-shallow--goanna--ee--libgum'; shift;;
+    --all) TESTSPEC='--tc--ds--an--mn--aq--cg--gcc--tc-proof--ffi-gen--ac--shallow-proof--hs-shallow--examples--goanna--ee--libgum'; shift;;
     *) TESTSPEC="${TESTSPEC}$1"; shift;;
   esac
 done
@@ -649,6 +650,36 @@ if [[ "$TESTSPEC" =~ '--hs-shallow' ]]; then
   fi
 
 fi
+
+
+if [[ "$TESTSPEC" =~ '--examples' ]]; then
+  echo "=== Building examples ==="
+  # all_total+=1  # we don't count it as part of the testsuite
+  passed=0
+  total=0
+
+  pushd "$COGENTDIR"/examples
+
+  for ex in */
+  do
+    pushd $ex
+    echo $ex
+    total+=1
+    if check_output make
+    then passed+=1; echo $pass_msg
+    else echo $fail_msg
+    fi
+    popd
+  done
+
+  echo "Passed $passed out of $total."
+  if [[ $passed = $total ]]
+    then all_passed+=1
+  fi
+  popd
+fi
+
+
 
 
 if [[ "$TESTSPEC" =~ '--goanna--' ]]; then

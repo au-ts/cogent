@@ -1,0 +1,129 @@
+/*
+ * Copyright 2018, Data61
+ * Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+ * ABN 41 687 119 230.
+ *
+ * This software may be distributed and modified according to the terms of
+ * the GNU General Public License version 2. Note that NO WARRANTY is provided.
+ * See "LICENSE_GPLv2.txt" for details.
+ *
+ * @TAG(DATA61_GPL)
+ */
+
+$ty:(LRR acc rbrk) $id:seq32 ($ty:(Seq32Param acc obsv rbrk) args){
+	u32 i;
+	$ty:(LRR acc rbrk) ret;
+	$ty:(Seq32_bodyParam acc obsv rbrk) fargs;
+
+	ret.p2.tag = TAG_ENUM_Iterate;
+	ret.p1 = args.acc;
+
+	if (!args.step)
+		return ret;
+	fargs.acc = args.acc;
+	fargs.obsv = args.obsv;
+	for (i = args.frm; i < args.to; i += args.step) {
+		fargs.idx = i;
+		ret = (($spec:(Seq32_body acc obsv rbrk))args.f)(fargs);
+		if (ret.p2.tag == TAG_ENUM_Break)
+			return ret;
+        else
+			fargs.acc = ret.p1;
+	}
+	return ret;
+}
+
+// same as seq32, but in reverse
+$ty:(LRR acc rbrk) $id:seq32_rev ($ty:(Seq32Param acc obsv rbrk) args)
+{
+	u32 i;
+	$ty:(LRR acc rbrk) ret;
+	$ty:(Seq32_bodyParam acc obsv rbrk) fargs;
+
+	ret.p2.tag = TAG_ENUM_Iterate;
+	ret.p1 = args.acc;
+
+	fargs.obsv = args.obsv;
+
+	for (i = args.frm; i >= args.to; i -= args.step) {
+		fargs.acc = ret.p1;
+		fargs.idx = i;
+
+		$ty:(LRR acc rbrk) funret = (($spec:(Seq32_body acc obsv rbrk))args.f)(fargs);
+		ret.p1 = funret.p1;
+
+		if (funret.p2.tag == TAG_ENUM_Break) {
+			ret.p2.tag = TAG_ENUM_Break;
+			ret.p2.Break = funret.p2.Break;
+			return ret;
+		}
+
+		if (i == args.to) {
+			// prevent wrap-around
+			break;
+		}
+	}
+
+	return ret;
+}
+
+$ty:acc $id:seq32_simple ($ty:(Seq32SimpleParam acc) args) {
+	u32 i;
+	for (i = args.frm; i < args.to; i += args.step) {
+		args.acc = (($spec:(Seq32_simple_body acc))args.f)(args.acc);
+	}
+
+	return args.acc;
+
+}
+
+$ty:(LRR acc rbrk) $id:seq32_stepf ($ty:(Seq32StepFParam acc obsv rbrk) args) {
+	$ty:(LRR acc rbrk) ret;
+        ret.p1 = args.acc;
+        ret.p2.tag = TAG_ENUM_Iterate;
+	u32 i = args.frm;
+
+	$ty:(Seq32_bodyParam acc obsv rbrk) fargs = { .obsv = args.obsv };
+
+	while (i < args.to) {
+		fargs.acc = ret.p1;
+		fargs.idx = i;
+
+		$ty:(LRR acc rbrk) funret = ((($spec:(Seq32_body acc obsv rbrk))args.f))(fargs);
+		ret.p1 = funret.p1;
+
+		if (funret.p2.tag == TAG_ENUM_Break) {
+			ret.p2.tag = TAG_ENUM_Break;
+			ret.p2.Break = funret.p2.Break;
+			return ret;
+		}
+
+		i = (($spec:(Seq32_stepParam))args.stepf)(i);
+	}
+
+	return ret;
+}
+
+$ty:(LRR acc rbrk) $id:seq64($ty:(Seq64Param acc obsv rbrk) args){
+	u64 i;
+	$ty:(LRR acc rbrk) ret;
+	$ty:(Seq64_bodyParam acc obsv rbrk) fargs;
+
+	ret.p2.tag = TAG_ENUM_Iterate;
+	ret.p1 = args.acc;
+
+	if (!args.step)
+		return ret;
+	fargs.acc = args.acc;
+	fargs.obsv = args.obsv;
+	for (i = args.frm; i < args.to; i += args.step) {
+		fargs.idx = i;
+		ret = (($spec:(Seq64_body acc obsv rbrk))args.f)(fargs);
+		if (ret.p2.tag == TAG_ENUM_Break)
+			return ret;
+        else
+			fargs.acc = ret.p1;
+	}
+	return ret;
+}
+

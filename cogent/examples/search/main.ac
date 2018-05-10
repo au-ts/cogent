@@ -17,7 +17,7 @@ $esc:(#include <string.h>)
 #include <generated.c>
 
 #include "plat/linux/abstract.ac"
-#include <common.ac>
+#include <seq.ac>
 
 int main(void) {
   // setup the buffer and its content

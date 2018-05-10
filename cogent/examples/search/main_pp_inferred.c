@@ -540,50 +540,6 @@ t6 seq32_0(t8 args)
     }
     return ret;
 }
-u16 u8_to_u16(u8 x)
-{
-    return (u16) x;
-}
-u32 u8_to_u32(u8 x)
-{
-    return (u32) x;
-}
-u64 u8_to_u64(u8 x)
-{
-    return (u64) x;
-}
-u8 u16_to_u8(u16 x)
-{
-    return (u8) x;
-}
-u32 u16_to_u32(u16 x)
-{
-    return (u32) x;
-}
-u8 u32_to_u8(u32 x)
-{
-    return (u8) x;
-}
-u16 u32_to_u16(u32 x)
-{
-    return (u16) x;
-}
-u64 u32_to_u64(u32 x)
-{
-    return (u64) x;
-}
-u32 u64_to_u32(u64 x)
-{
-    return (u32) x;
-}
-u8 u64_to_u8(u64 x)
-{
-    return (u8) x;
-}
-u16 u64_to_u16(u64 x)
-{
-    return (u16) x;
-}
 int main(void)
 {
     t4 n1, n2, n3;

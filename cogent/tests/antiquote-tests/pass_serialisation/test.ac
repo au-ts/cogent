@@ -1,0 +1,4 @@
+static u8 u64_to_u8 (u64 x)
+{
+  return (u8)x;
+}

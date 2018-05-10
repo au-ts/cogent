@@ -8,13 +8,11 @@
  * @TAG(NICTA_GPL)
  */
 
-$esc:(#include <adt.h>)
-#include "../common/dummy.h"
+$esc:(#include "../plat/console/adt.h")
+#include <cogent-defns.h>
+#include "../plat/console/anti/common.ac"
 #include <generated.c>
-$esc:(#include <adt_platform.c>)
-#include <iterator.ac>
-#include <common.ac>
-#include <libgum/os-plat.ac>
+#include <gum/anti/iterator.ac>
 
 int main(void) {
  $exp:caller(0);

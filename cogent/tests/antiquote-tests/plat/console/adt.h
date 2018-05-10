@@ -16,6 +16,4 @@
 #include <stdio.h>
 #include <math.h>
 
-typedef FILE File;
-
 #endif

@@ -29,6 +29,7 @@ static inline VfsInode* EXT2_I(struct inode *inode)
 }
 
 #include <gum/anti/common.ac>
+#include <gum/anti/seq.ac>
 #include <gum/anti/iterator.ac>
 #include <gum/anti/wordarray.ac>
 #include <gum/anti/array.ac>
@@ -1104,10 +1105,10 @@ int ext2fs_fill_super(struct super_block *sb, void *data,
     /* Copy options
      * TODO: support more than 3 options; should use List rather
      * than Array; alternatively, get length first somehow */
-    /* NOTE:We use Array_WordArray_u8 instead of $ty:(Array (WordArray U8)) because we
+    /* NOTE: We use Array_pWordArray_u8 instead of $ty:(Array (WordArray U8)) because we
        do not want the cogent compiler to use the pointer type. We want to
        allocate the wordarray on the stack */
-    Array_WordArray_u8 cogent_options = {
+    Array_pWordArray_u8 cogent_options = {
         .len = 0, // updated by loop below
         .values = kmalloc(MAX_OPTIONS * sizeof ($ty:(WordArray U8)*), GFP_NOFS)
     };

@@ -8,15 +8,12 @@
  * @TAG(NICTA_GPL)
  */
 
-$esc:(#include <adt.h>)
-#include "../common/dummy.h"
+$esc:(#include "../plat/console/adt.h")
+#include <cogent-defns.h>
+#include "../plat/console/anti/common.ac"
 #include <generated.c>
-
-$esc:(#include <adt_platform.c>)
-#include <libgum/wordarray-plat.ac>
-#include <libgum/os-plat.ac>
-#include "../common/test.ac"
-#include <wordarray.ac>
+#include "../plat/console/anti/wordarray.ac"
+#include <gum/anti/wordarray.ac>
 
 int main(void) {
  $exp:caller(0);
