@@ -18,7 +18,7 @@ HOUTPUT=$(addsuffix .h, $(OUTPUT))
 STDGUM=$(shell cogent --stdgum-dir)
 # PLATLIBGUM=../plat/console/libgum
 
-# AHFILES=abstract.ah  #$(STDGUM)/gum/anti/abstract/Array.ah
+AHFILES=N.ah  #$(STDGUM)/gum/anti/abstract/Array.ah
 ACFILES=main.ac
 CTGFILE=ty-mapping.cfg
 
@@ -48,10 +48,10 @@ gen-anti:
 	cogent $(SRC) -g -Od -o$(OUTPUT) --fno-fncall-as-macro --ffunc-purity-attr \
 		--cust-ty-gen="$(CTGFILE)" \
 		--Wno-warn --infer-c-funcs="$(ACFILES)" \
+		--infer-c-types="$(AHFILES)" \
 		--cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
-		--entry-funcs=entrypoints.cfg
-		# --infer-c-types="$(AHFILES)" \
-		# --ext-types=types.cfg \
+		--entry-funcs=entrypoints.cfg \
+		--ext-types=types.cfg
 
 clean:
 	rm -f $(COUTPUT) $(HOUTPUT) $(PP) $(PPINFER) $(OBJ)

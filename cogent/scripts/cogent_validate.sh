@@ -18,7 +18,7 @@ TLD=../../
 
 source $TLD/build-env.sh || exit
 
-USAGE="Usage: $0 -[tc|ds|an|mn|cg|gcc|tc-proof|ac|ffi-gen|aq|shallow-proof|hs-shallow|examples|goanna|libgum|all|clean] [-q|-i|]"
+USAGE="Usage: $0 -[tc|ds|an|mn|cg|gcc|tc-proof|ac|flags|ffi-gen|aq|shallow-proof|hs-shallow|examples|goanna|libgum|all|clean] [-q|-i|]"
 
 getopt -T >/dev/null
 if [[ $? != 4 ]]
@@ -27,7 +27,7 @@ then
   exit 1
 fi
 
-OPTS=$(getopt -o h --alternative --long tc,ds,an,mn,cg,gcc,tc-proof,ac,ffi-gen,aq,shallow-proof,hs-shallow,examples,goanna,ee,libgum,all,help,clean,q,i -n "$0" -- "$@")
+OPTS=$(getopt -o h --alternative --long tc,ds,an,mn,cg,gcc,tc-proof,ac,flags,ffi-gen,aq,shallow-proof,hs-shallow,examples,goanna,ee,libgum,all,help,clean,q,i -n "$0" -- "$@")
 
 if [ $? != 0 ]
 then echo "$USAGE" >&2
@@ -71,7 +71,7 @@ while true; do
     --q) QUIET=1; shift;;
     --i) INTERACTIVE=1; shift;;
     --clean) DO_CLEAN=1; shift;;
-    --all) TESTSPEC='--tc--ds--an--mn--aq--cg--gcc--tc-proof--ffi-gen--ac--shallow-proof--hs-shallow--examples--goanna--ee--libgum'; shift;;
+    --all) TESTSPEC='--tc--ds--an--mn--aq--cg--gcc--tc-proof--ffi-gen--ac--flags--shallow-proof--hs-shallow--goanna--ee--libgum'; shift;;
     *) TESTSPEC="${TESTSPEC}$1"; shift;;
   esac
 done
@@ -242,10 +242,38 @@ if [[ "$TESTSPEC" =~ '--tc--' ]]; then
     fi
   done
 
+  declare -i should shouldpass shouldfail wip
+  should=0
+  shouldpass=0
+  shouldfail=0
+
+  for source in "$TESTS"/shouldpass_*.cogent
+  do
+    should+=1
+    shouldpass+=1
+  done
+
+  for source in "$TESTS"/shouldfail_*.cogent
+  do
+    should+=1
+    shouldfail+=1
+  done
+
+  wip=0
+
+  for source in "$TESTS"/wip_*.cogent
+  do
+    wip+=1
+  done
+
   echo "Passed $passed out of $total."
   if [[ $passed = $total ]]
     then all_passed+=1
   fi
+  echo "$should problems we are aware of:"
+  echo "  $shouldpass should pass but don't;"
+  echo "  $shouldfail should fail but don't;"
+  echo "$wip are still under development and don't work ATM"
 fi
 
 

@@ -1,6 +1,10 @@
 #include "api.h"
 #include "abstract.h"
+
+typedef void* M;
+
 #include "generated.c"
+
 
 $ty:(X) f ($ty:(T U8) args) {
   return args;
@@ -10,6 +14,6 @@ int main () {
   char str[3] = "Ah";
   struct T_c t = {.f1 = 1, .f2 = 42, .f3 = str};
   $ty:(X) s;
-  s = $exp:f (&t);
+  s = $exp:foo (&t);
   return (s->f2);
 }

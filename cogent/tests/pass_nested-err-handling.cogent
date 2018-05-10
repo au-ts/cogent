@@ -10,13 +10,13 @@
 
 app : () -> < Fail (U32, U8, U8) | Success (U8, U8) >
 
-bad_return_fail : () -> < Fail (U32) | Success (U8) >
+bad_return_fail : () -> < Fail U32 | Success U8 >
 bad_return_fail () =
    (app ()
     | Success (res, suc) -> Success (res, suc)
     | Fail (e, result, success) -> e == 10
        | True -> Success (result, success)
-       | False -> Fail (e)
-   )
-     | Success (res, suc) -> Success (8)
-     | Fail (e) -> Fail (e)
+       | False -> Fail e
+   ) : <Fail U32 | Success (U8, U8)>
+     | Success (res, suc) -> Success 8
+     | Fail e -> Fail e
