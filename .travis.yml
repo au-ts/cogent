@@ -114,6 +114,16 @@ install:
       cp -a $SANDBOX $HOME/.cabsnap/
    fi
 
+# Install z3
+ - cd $REPO
+ - git submodule update --init -- z3
+ - cd z3
+ - python scripts/mk_make.py
+ - cd build
+ - make
+ - sudo make install
+ - which z3 || travis_terminate 1
+
 # Here starts the actual work to be performed for the package under test;
 # any command which exits with a non-zero exit code causes the build to fail.
 script:
