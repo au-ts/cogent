@@ -33,12 +33,18 @@ typedef void *SysState;
  * antiquoted C file(.ac file) in library or in our source repo, that contains
  * the implementations of all the abstract data types and functions.
  *
- * Since we included `common.cogent` in `HelloWorld.cogent` we include the
- * ac file here. Although, in our current program we don't use anything from
- * common.cogent (except SysState, which we've defined in the begining of
- * this file.
+ * XXX | Since we included `common.cogent` in `HelloWorld.cogent` we include the
+ * XXX | ac file here. Although, in our current program we don't use anything from
+ * XXX | common.cogent (except SysState, which we've defined in the begining of
+ * XXX | this file.
+ *
+ * REVISE: We don't include `common.ac` as it currently contains kernel-specific
+ * implementations (like printk, etc.). If we exclude this .ac file, there will
+ * be undefined C functions present in the final single .c file. As long as these
+ * functions are not used anywhere, it is safe to do so (although there might be
+ * warnings).
  */
-#include <gum/anti/common.ac>
+//#include <gum/anti/common.ac>
 
 
 /*
