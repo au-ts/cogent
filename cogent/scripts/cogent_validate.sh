@@ -682,7 +682,7 @@ fi
 
 if [[ "$TESTSPEC" =~ '--examples' ]]; then
   echo "=== Building examples ==="
-  # all_total+=1  # we don't count it as part of the testsuite
+  all_total+=1
   passed=0
   total=0
 

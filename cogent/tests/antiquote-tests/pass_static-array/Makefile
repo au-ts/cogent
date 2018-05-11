@@ -23,7 +23,7 @@ ABSDIR=./abstract
 
 OBJ=$(PPINFER:.c=.o)
 
-CFLAGS=-I. -I$(STDGUM)
+CFLAGS+=-I. -I$(STDGUM) -std=gnu99
 
 .PHONY: default clean gen-anti test
 .SECONDARY:

@@ -27,7 +27,7 @@ ABSDIR=./abstract
 
 OBJ=$(ACFILES:.ac=_pp_inferred.o)
 
-CFLAGS=-I. -I$(STDGUM)
+CFLAGS+=-I. -I$(STDGUM) -std=gnu99
 
 .PHONY: default cogent clean gen-anti test
 .SECONDARY:

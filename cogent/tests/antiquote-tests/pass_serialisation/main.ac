@@ -15,7 +15,7 @@ $esc:(#include "../plat/console/adt.h")
 #include <generated.c>
 #include "../plat/console/anti/wordarray.ac"
 #include "../plat/console/anti/alloc.ac"
-#include <wordarray.ac>
+#include <gum/anti/wordarray.ac>
 
 int main(void) {
  $exp:caller(0);

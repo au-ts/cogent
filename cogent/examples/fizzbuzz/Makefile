@@ -28,7 +28,7 @@ ABSDIR=./abstract
 
 OBJ=$(PPINFER:.c=.o)
 
-CFLAGS=-I. -I../plat/console -I$(STDGUM) -I$(STDGUM)/gum/anti
+CFLAGS+=-I. -I../plat/console -I$(STDGUM) -I$(STDGUM)/gum/anti -std=gnu99
 
 .PHONY: default cogent clean gen-anti test
 .SECONDARY:
