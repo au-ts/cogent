@@ -21,7 +21,7 @@ module Cogent.TypeCheck.Generator
   , CG
   , cg
   , cgAlts
-  , fresh
+  , freshTVar
   ) where
 
 import Cogent.Common.Syntax
@@ -65,20 +65,20 @@ runCG g vs ma = do
   (a, GenState _ _ f os) <- withTcConsM (GenState g vs 0 mempty) ((,) <$> ma <*> get)
   return (a,f,os)
 
-fresh :: (?loc :: SourcePos) => CG TCType
-fresh = fresh' (ExpressionAt ?loc)
+freshTVar :: (?loc :: SourcePos) => CG TCType
+freshTVar = fresh (ExpressionAt ?loc)
   where
-    fresh' :: VarOrigin -> CG TCType
-    fresh' ctx = do
+    fresh :: VarOrigin -> CG TCType
+    fresh ctx = do
       i <- flexes <<%= succ
       flexOrigins %= IM.insert i ctx
       return $ U i
 
-freshVar :: (?loc :: SourcePos) => CG SExpr
-freshVar = fresh' (ExpressionAt ?loc)
+freshEVar :: (?loc :: SourcePos) => CG SExpr
+freshEVar = fresh (ExpressionAt ?loc)
   where
-    fresh' :: VarOrigin -> CG SExpr
-    fresh' ctx = do
+    fresh :: VarOrigin -> CG SExpr
+    fresh ctx = do
       i <- flexes <<%= succ  -- FIXME: do we need a different variable?
       flexOrigins %= IM.insert i ctx
       return $ SU i
@@ -87,7 +87,7 @@ freshVar = fresh' (ExpressionAt ?loc)
 cgMany :: (?loc :: SourcePos) => [LocExpr] -> CG ([TCType], Constraint, [TCExpr])
 cgMany es = do
   let each (ts,c,es') e = do
-        alpha    <- fresh 
+        alpha    <- freshTVar
         (c', e') <- cg e alpha
         return (alpha:ts, c <> c', e':es')
   (ts, c', es') <- foldM each ([], Sat, []) es  -- foldM is the same as foldlM
@@ -110,7 +110,7 @@ cg' (PrimOp o [e1, e2]) t
        (c2, e2') <- cg e2 t
        return (F (T (TCon "Bool" [] Unboxed)) :< F t <> c1 <> c2, PrimOp o [e1', e2'] )
   | o `elem` words "== /= >= <= > <"
-  = do alpha <- fresh
+  = do alpha <- freshTVar
        (c1, e1') <- cg e1 alpha
        (c2, e2') <- cg e2 alpha
        let c  = F (T (TCon "Bool" [] Unboxed)) :< F t
@@ -151,7 +151,7 @@ cg' (Var n) t = do
       return (Share t' (Reused n p us) <> F t' :< F t, e)
 
 cg' (Upcast e) t = do
-  alpha <- fresh
+  alpha <- freshTVar
   (c1, e1') <- cg e alpha
   let c = (integral alpha) <> Upcastable alpha t <> c1
   return (c, Upcast e1')
@@ -186,7 +186,7 @@ cg' (IntLit i) t = do
   return (c,e)
 
 cg' (ArrayLit es) t = do
-  alpha <- fresh
+  alpha <- freshTVar
   blob <- forM es $ flip cg alpha
   let (cs,es') = unzip blob
       n = SE . IntLit . fromIntegral $ length es
@@ -194,8 +194,8 @@ cg' (ArrayLit es) t = do
   return (mconcat cs <> cz <> F (T $ TArray alpha n) :< F t, ArrayLit es')
 
 cg' (ArrayIndex e i) t = do
-  alpha <- fresh
-  n <- freshVar
+  alpha <- freshTVar
+  n <- freshEVar
   let ta = T $ TArray alpha n
   (ce, e') <- cg e ta
   (ci, i') <- cg (dummyLocE i) (T $ TCon "U32" [] Unboxed)
@@ -205,8 +205,8 @@ cg' (ArrayIndex e i) t = do
   return (ce <> ci <> c, ArrayIndex e' i)
 
 cg' exp@(Lam pat mt e) t = do
-  alpha <- fresh
-  beta  <- fresh
+  alpha <- freshTVar
+  beta  <- freshTVar
   (ct, alpha') <- case mt of
     Nothing -> return (Sat, alpha)
     Just t' -> do
@@ -235,7 +235,7 @@ cg' exp@(Lam pat mt e) t = do
   return (c,lam)
 
 cg' (App e1 e2) t = do
-  alpha     <- fresh
+  alpha     <- freshTVar
   (c1, e1') <- cg e1 (T (TFun alpha t))
   (c2, e2') <- cg e2 alpha
 
@@ -277,7 +277,7 @@ cg' (UnboxedRecord fes) t = do
   return (c' <> c,e)
 
 cg' (Seq e1 e2) t = do
-  alpha <- fresh
+  alpha <- freshTVar
   (c1, e1') <- cg e1 alpha
   (c2, e2') <- cg e2 t
 
@@ -296,8 +296,8 @@ cg' (TypeApp f as i) t = do
         match :: [(TyVarName, Kind)] -> [Maybe TCType] -> CG ([(TyVarName, TCType)], Constraint)
         match [] []    = return ([], Sat)
         match [] (_:_) = return ([], Unsat (TooManyTypeArguments f (PT vs tau)))
-        match vs []    = fresh >>= match vs . return . Just
-        match (v:vs) (Nothing:as) = fresh >>= \a -> match (v:vs) (Just a:as)
+        match vs []    = freshTVar >>= match vs . return . Just
+        match (v:vs) (Nothing:as) = freshTVar >>= \a -> match (v:vs) (Just a:as)
         match ((v,k):vs) (Just a:as) = do
           (ts, c) <- match vs as
           return ((v,a):ts, kindToConstraint k a (TypeParam f v) <> c)
@@ -318,7 +318,7 @@ cg' (TypeApp f as i) t = do
       return (ct <> c, e)
 
 cg' (Member e f) t = do
-  alpha <- fresh
+  alpha <- freshTVar
   (c', e') <- cg e alpha
 
   let f' = Member e' f
@@ -337,7 +337,7 @@ cg' (If e1 bs e2 e3) t = do
   return (c1 <> c <> c2 <> c3, e)
 
 cg' (Put e ls) t | not (any isNothing ls) = do
-  alpha <- fresh
+  alpha <- freshTVar
   let (fs, es) = unzip (catMaybes ls)
   (c', e') <- cg e alpha
   (ts, cs, es') <- cgMany es
@@ -357,7 +357,7 @@ cg' (Let bs e) t = do
   return (c, Let bs' e')
 
 cg' (Match e bs alts) t = do
-  alpha <- fresh
+  alpha <- freshTVar
   (c', e') <- letBang bs (cg e) alpha
   (c'', alts') <- cgAlts alts t alpha
 
@@ -417,7 +417,7 @@ matchA' (PIrrefutable i) t = do
   return (s, c, PIrrefutable i')
 
 matchA' (PCon k is) t = do
-  (vs, blob) <- unzip <$> forM is (\i -> do alpha <- fresh; (alpha,) <$> match i alpha)
+  (vs, blob) <- unzip <$> forM is (\i -> do alpha <- freshTVar; (alpha,) <$> match i alpha)
   let (ss, cs, is') = (map fst3 blob, map snd3 blob, map thd3 blob)
       p' = PCon k is'
       co = case overlapping ss of
@@ -467,7 +467,7 @@ match' (PUnderscore) t =
 match' (PUnitel) t = return (M.empty, F t :< F (T TUnit), PUnitel)
 
 match' (PTuple ps) t = do
-  (vs, blob) <- unzip <$> mapM (\p -> do v <- fresh; (v,) <$> match p v) ps
+  (vs, blob) <- unzip <$> mapM (\p -> do v <- freshTVar; (v,) <$> match p v) ps
   let (ss, cs, ps') = (map fst3 blob, map snd3 blob, map thd3 blob)
       p' = PTuple ps'
       co = case overlapping ss of
@@ -481,7 +481,7 @@ match' (PTuple ps) t = do
 
 match' (PUnboxedRecord fs) t | not (any isNothing fs) = do
   let (ns, ps) = unzip (catMaybes fs)
-  (vs, blob) <- unzip <$> mapM (\p -> do v <- fresh; (v,) <$> match p v) ps
+  (vs, blob) <- unzip <$> mapM (\p -> do v <- freshTVar; (v,) <$> match p v) ps
   let (ss, cs, ps') = (map fst3 blob, map snd3 blob, map thd3 blob)
       t' = FRecord (zip ns (map (,False) vs))
       d  = Drop (T (TTake (Just ns) t)) Suppressed
@@ -500,7 +500,7 @@ match' (PUnboxedRecord fs) t | not (any isNothing fs) = do
 
 match' (PTake r fs) t | not (any isNothing fs) = do
   let (ns, ps) = unzip (catMaybes fs)
-  (vs, blob) <- unzip <$> mapM (\p -> do v <- fresh; (v,) <$> match p v) ps
+  (vs, blob) <- unzip <$> mapM (\p -> do v <- freshTVar; (v,) <$> match p v) ps
   let (ss, cs, ps') = (map fst3 blob, map snd3 blob, map thd3 blob)
       s  = M.fromList [(r, (u, ?loc, Seq.empty))]
       u  = T (TTake (Just ns) t)
@@ -518,7 +518,7 @@ match' (PTake r fs) t | not (any isNothing fs) = do
   | otherwise = second3 (:& Unsat RecordWildcardsNotSupported) <$> match' (PTake r (filter isJust fs)) t
 
 match' (PArray ps) t = do
-  alpha <- fresh
+  alpha <- freshTVar
   blob <- mapM (flip match alpha) ps
   let (ss,cs,ps') = unzip3 blob
       l = SE . IntLit . fromIntegral $ length ps
@@ -534,7 +534,7 @@ withBindings [] e top = do
   (c, e') <- cg e top
   return (c, [], e')
 withBindings (Binding pat tau e0 bs : xs) e top = do
-  alpha <- fresh
+  alpha <- freshTVar
   (c0, e0') <- letBang bs (cg e0) alpha
   (ct, alpha') <- case tau of
     Nothing -> return (Sat, alpha)
@@ -560,7 +560,7 @@ withBindings (Binding pat tau e0 bs : xs) e top = do
            L.<$> text "constraint for ascribed type:" <+> prettyC ct)
   return (c, b':xs', e')
 withBindings (BindingAlts pat tau e0 bs alts : xs) e top = do
-  alpha <- fresh
+  alpha <- freshTVar
   (c0, e0') <- letBang bs (cg e0) alpha
   (ct, alpha') <- case tau of
     Nothing -> return (Sat, alpha)

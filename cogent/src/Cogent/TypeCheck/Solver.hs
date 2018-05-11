@@ -458,14 +458,14 @@ simp' c = runExceptT (simp c) >>= \case
             Left e  -> return $ Unsat e
             Right c -> return c
 
-fresh :: VarOrigin -> Solver TCType
-fresh ctx = do
+freshTVar :: VarOrigin -> Solver TCType
+freshTVar ctx = do
   i <- flexes <<%= succ
   flexOrigins %= IM.insert i ctx
   return $ U i
 
-freshVar :: VarOrigin -> Solver SExpr
-freshVar ctx = do
+freshEVar :: VarOrigin -> Solver SExpr
+freshEVar ctx = do
   i <- flexes <<%= succ  -- FIXME: do we need a different variable?
   flexOrigins %= IM.insert i ctx
   return $ SU i
@@ -502,7 +502,7 @@ bound d a@(FVariant is_) b@(FVariant js_)
     each is js k = let
       (i, ib) = is M.! k
       (_, jb) = js M.! k
-     in do ts <- replicateM (length i) (fresh $ BoundOf a b d)
+     in do ts <- replicateM (length i) (freshTVar $ BoundOf a b d)
            return (k, (ts, ib `op` jb))
 bound d a@(FRecord isL) b@(F (T (TRecord jsL s)))
   | is <- M.fromList isL
@@ -517,7 +517,7 @@ bound d a@(FRecord is_) b@(FRecord js_)
   , is <- M.union isM jsM
   , js <- M.union jsM isM
   = let op = case d of GLB -> (&&); LUB -> (||)
-        each (f,(_,t)) (_,(_,t')) = (f,) . (,t `op` t') <$> fresh (BoundOf a b d)
+        each (f,(_,t)) (_,(_,t')) = (f,) . (,t `op` t') <$> freshTVar (BoundOf a b d)
         is' = M.toList is
         js' = M.toList js
     in do t <- FRecord <$> zipWithM each is' js'
@@ -549,16 +549,16 @@ bound' d t1@(T (TVariant is)) t2@(T (TVariant js))
     each k = let
       (i, ib) = is M.! k
       (_, jb) = js M.! k
-     in do ts <- replicateM (length i) (fresh $ BoundOf (F t1) (F t2) d)
+     in do ts <- replicateM (length i) (freshTVar $ BoundOf (F t1) (F t2) d)
            return (k, (ts, ib `op` jb))
 bound' d t1@(T (TTuple is)) t2@(T (TTuple js))
   | length is /= length js = return Nothing
-  | otherwise = do t <- T . TTuple <$> traverse (const $ (fresh $ BoundOf (F t1) (F t2) d) ) is
+  | otherwise = do t <- T . TTuple <$> traverse (const $ (freshTVar $ BoundOf (F t1) (F t2) d) ) is
                    traceTc "sol" (text "calculate bound of" <+> pretty t1 <+> text "and" <+> pretty t2 <> colon
                                   P.<$> pretty t)
                    return $ Just t
 bound' x t1@(T (TFun a b)) t2@(T (TFun c d)) = do
-  t <-  T <$> (TFun <$> fresh (BoundOf (F t1) (F t2) x) <*> fresh (BoundOf (F t1) (F t2) x))
+  t <-  T <$> (TFun <$> freshTVar (BoundOf (F t1) (F t2) x) <*> freshTVar (BoundOf (F t1) (F t2) x))
   traceTc "sol" (text "calculate bound of" <+> pretty t1 <+> text "and" <+> pretty t2 <> colon
                  P.<$> pretty t)
   return $ Just t
@@ -566,7 +566,7 @@ bound' x t1@(T (TCon c as s)) t2@(T (TCon d bs r))
   | c /= d || s /= r       = return Nothing
   | length as /= length bs = return Nothing
   | otherwise = do
-      t <- T <$> (TCon d <$> traverse (const $ fresh (BoundOf (F t1) (F t2) x)) as <*> pure r)
+      t <- T <$> (TCon d <$> traverse (const $ freshTVar (BoundOf (F t1) (F t2) x)) as <*> pure r)
       traceTc "sol" (text "calculate bound of" <+> pretty t1 <+> text "and" <+> pretty t2 <> colon
                      P.<$> pretty t)
       return $ Just t
@@ -579,14 +579,14 @@ bound' d t1@(T (TRecord fs s)) t2@(T (TRecord gs r))
   | map fst fs /= map fst gs = return Nothing
   | otherwise = do
       let op = case d of GLB -> (&&); LUB -> (||)
-          each (f,(_,b)) (_, (_,b')) = (f,) . (,b `op` b') <$> fresh (BoundOf (F t1) (F t2) d)
+          each (f,(_,b)) (_, (_,b')) = (f,) . (,b `op` b') <$> freshTVar (BoundOf (F t1) (F t2) d)
       t <- T <$> (TRecord <$> zipWithM each fs gs <*> pure s)
       traceTc "sol" (text "calculate bound of" <+> pretty t1 <+> text "and" <+> pretty t2 <> colon
                      P.<$> pretty t)
       return $ Just t
 bound' d a@(T (TArray t l)) b@(T (TArray s n)) = do
-  u <- fresh (BoundOf (F t) (F s) d)
-  m <- freshVar (EqualIn l n a b)
+  u <- freshTVar (BoundOf (F t) (F s) d)
+  m <- freshEVar (EqualIn l n a b)
   let c = T $ TArray u m
   traceTc "sol" (text "calculate bound of" <+> pretty a <+> text "and" <+> pretty b <> colon
                  P.<$> pretty c)
