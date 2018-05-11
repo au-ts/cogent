@@ -365,7 +365,8 @@ $ty:(WordArray a) $id:wordarray_unview ($ty:(WordArrayView a) args)
 $ty:(WordArrayView a) $id:wordarray_map_view ($ty:((WordArrayView a, a -> a)) args)
 {
   $ty:(WordArrayView a) view = args.p1;
-  for (u32 i = view.frm; i < view.to; i = i + view.step) {
+  u32 i;
+  for (i = view.frm; i < view.to; i = i + view.step) {
     view.arr->values[i] = (($spec:(a -> a)) args.p2) (view.arr->values[i]);
   }
   return view;

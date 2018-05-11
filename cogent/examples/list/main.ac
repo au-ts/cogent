@@ -65,6 +65,7 @@ $ty:(RR SysState (List a) (List a)) $id:list_add($ty:((List a, a, U32, SysState)
   $ty:(a) val = arg.p2;
   $ty:(U32) index = arg.p3;
   $ty:(SysState) ex = arg.p4;
+  int i;
 
   $ty:(RR SysState (List a) (List a)) ret;
   ret.p1 = ex;
@@ -76,7 +77,7 @@ $ty:(RR SysState (List a) (List a)) $id:list_add($ty:((List a, a, U32, SysState)
   }
 
   $ty:(Node a) prev = list->head;
-  for(int i = 0; i < index; i++){
+  for(i = 0; i < index; i++){
     prev = ($ty:(Node a)) prev->next;
   }
 
@@ -107,13 +108,14 @@ $ty:(R a Err) $id:list_get($ty:((List a, U32)) args){
     $ty:(R a Err) ret;
     $ty:(List a) list = args.p1;
     $ty:(U32) index = args.p2;
+    int i;
     if(index >= list->length){
       ret.tag = TAG_ENUM_Error;
       ret.Error = 1;
       return ret;
     } else {
       $ty:(Node a) curr = list->head;
-      for(int i = 0; i <= index; i++){
+      for(i = 0; i <= index; i++){
         curr = ($ty:(Node a)) curr->next;
       }
       ret.tag = TAG_ENUM_Success;
@@ -127,6 +129,7 @@ $ty:(RR SysState (List a) (List a)) $id:list_remove_index($ty:((List a, U32, Sys
   $ty:(List a) list = arg.p1;
   $ty:(U32) index = arg.p2;
   $ty:(SysState) ex = arg.p3;
+  int i;
 
   ret.p1 = ex;
   if(index >= list->length){
@@ -135,7 +138,7 @@ $ty:(RR SysState (List a) (List a)) $id:list_remove_index($ty:((List a, U32, Sys
     return ret;
   } else {
     $ty:(Node a) curr = list->head;
-    for(int i = 0; i <= index; i++){
+    for(i = 0; i <= index; i++){
       curr = ($ty:(Node a)) curr->next;
     }
     $ty:(Node a) next_node = ($ty:(Node a)) curr->next;

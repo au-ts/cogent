@@ -16,14 +16,15 @@ $esc:(#include <stdlib.h>)
 int main(void){
   $ty:(WordArray U32) arr = malloc (sizeof ($ty:(WordArray U32)));
   u32 arr_values[15];
-  for (int i = 0; i < 15; i++) {
+  int 1;
+  for (i = 0; i < 15; i++) {
     arr_values[i] = i;
   }
   arr->values = arr_values;
   arr->len = 15;
 
   arr = map (arr);
-  for (int i = 0; i < 15; i++) {
+  for (i = 0; i < 15; i++) {
     printf ("arr[%d] = %d\n", i, arr->values[i]);
   }
   return 0;
