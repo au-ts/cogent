@@ -167,7 +167,6 @@ library
 
 Executable cogent
   main-is: Main.hs
-  hs-source-dirs: main
 
   build-depends:
                 cogent
