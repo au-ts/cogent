@@ -22,6 +22,7 @@ cache:
     - $HOME/.cabal/packages
     - $HOME/.cabal/bin
     # - $REPO/cogent/$SANDBOX
+    - $HOME/z3
 
 before_cache:
   - rm -fv $HOME/.cabal/packages/hackage.haskell.org/build-reports.log
@@ -59,7 +60,7 @@ before_install:
 install:
  - cabal --version
  - echo "$(ghc --version) [$(ghc --print-project-git-commit-id 2> /dev/null || echo '?')]"
- - if [ -f $HOME/.cabal/packages/hackage.haskell.org/00-index.tar.gz ];
+ - if [ -f "$HOME/.cabal/packages/hackage.haskell.org/00-index.tar.gz" ];
    then
      echo "==== Hackage index file found ====";
      zcat $HOME/.cabal/packages/hackage.haskell.org/00-index.tar.gz >
@@ -74,12 +75,9 @@ install:
  - "sed -i 's/^jobs:.*$/jobs: 2/' $HOME/.cabal/config"
  # - sed -i 's/^jobs:/ jobs:/' ${HOME}/.cabal/config
  # Use fixed build plans
+ - cp misc/cabal.config.d/cabal.config-$GHCVER cabal.config
  - |
-   if [ -e "misc/cabal.config.d/cabal.config-$GHCVER" ];
-   then
-     cp misc/cabal.config.d/cabal.config-$GHCVER cabal.config
-   fi
- - |
+   # In the future, the nix-style thingy might be helpful
    if cabal install --only-dependencies --force-reinstalls --enable-tests --dry -v > installplan.txt;
    then
      sed -i -e '1,/^Resolving /d' installplan.txt;
@@ -92,13 +90,13 @@ install:
 
 # check whether current requested install-plan matches cached package-db snapshot
  - |
-   if [ -e $HOME/.cabsnap/installplan.txt ] && [ diff -u $HOME/.cabsnap/installplan.txt installplan.txt ];
+   if diff -u $HOME/.cabsnap/installplan.txt installplan.txt;
    then
-     echo "==== cabal build-cache HIT ====";  # so copy cached sandbox (and maybe the config file)
+     echo "==== cabal build-cache HIT ====";  # so copy cached sandbox
      rm -rf $SANDBOX
      cp -a $HOME/.cabsnap/$SANDBOX $REPO/cogent/
    else
-     echo "==== cabal build-cache MISS ====";
+     echo "==== cabal build-cache MISS (or error) ====";
      rm -rf $HOME/.cabsnap;
      # mkdir -p $HOME/.ghc $HOME/.cabal/lib $HOME/.cabal/share $HOME/.cabal/bin;
      cabal install --only-dependencies --force-reinstalls;  # --enable-tests;
@@ -118,10 +116,16 @@ install:
  - cd $REPO
  - git submodule update --init -- z3
  - cd z3
- - python scripts/mk_make.py
- - cd build
- - make
- - sudo make install
+ - mkdir -p "$HOME"/z3
+ - |
+   if ! which z3;
+   then # install z3
+     python scripts/mk_make.py --prefix="$HOME/z3"
+     cd build
+     make
+     make install
+   fi
+ - export PATH="$HOME/z3/bin:$PATH"
  - which z3 || travis_terminate 1
 
 # Here starts the actual work to be performed for the package under test;
