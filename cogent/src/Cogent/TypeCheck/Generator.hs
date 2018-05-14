@@ -30,7 +30,7 @@ import Cogent.Compiler
 import qualified Cogent.Context as C
 import Cogent.PrettyPrint (prettyC)
 import Cogent.Surface
-import Cogent.TypeCheck.Base
+import Cogent.TypeCheck.Base hiding (validateType)
 import Cogent.TypeCheck.Util
 import Cogent.Util hiding (Warning)
 
@@ -39,6 +39,7 @@ import Control.Lens hiding (Context, each, zoom, (:<))
 import Control.Monad.State
 import Control.Monad.Trans.Except
 import Data.Functor.Compose
+import Data.List (nub, (\\))
 import qualified Data.Map as M
 import qualified Data.IntMap as IM
 import Data.Maybe (catMaybes, isNothing, isJust)
@@ -65,24 +66,62 @@ runCG g vs ma = do
   (a, GenState _ _ f os) <- withTcConsM (GenState g vs 0 mempty) ((,) <$> ma <*> get)
   return (a,f,os)
 
-freshTVar :: (?loc :: SourcePos) => CG TCType
-freshTVar = fresh (ExpressionAt ?loc)
-  where
-    fresh :: VarOrigin -> CG TCType
-    fresh ctx = do
-      i <- flexes <<%= succ
-      flexOrigins %= IM.insert i ctx
-      return $ U i
 
-freshEVar :: (?loc :: SourcePos) => CG SExpr
-freshEVar = fresh (ExpressionAt ?loc)
-  where
-    fresh :: VarOrigin -> CG SExpr
-    fresh ctx = do
-      i <- flexes <<%= succ  -- FIXME: do we need a different variable?
-      flexOrigins %= IM.insert i ctx
-      return $ SU i
-      
+-- -----------------------------------------------------------------------------
+-- Type-level constraints
+-- -----------------------------------------------------------------------------
+
+validateType :: RawType -> CG (Constraint, TCType)
+validateType rt@(RT t) = do
+  vs <- use knownTypeVars
+  ts <- lift $ use knownTypes
+  case t of
+    TVar v _ | v `notElem` vs -> return (Unsat $ UnknownTypeVariable v, toTCType rt)
+    TCon t as _ | Nothing <- lookup t ts -> return (Unsat $ UnknownTypeConstructor t, toTCType rt)
+                | Just (vs, _) <- lookup t ts
+                , provided <- length as
+                , required <- length vs
+                , provided /= required
+               -> return (Unsat $ TypeArgumentMismatch t provided required, toTCType rt)
+    TRecord fs _ | fields  <- map fst fs
+                 , fields' <- nub fields
+                -> if fields' == fields
+                   then T <$> (mmapM (return . toSExpr) <=< mapM validateType) t
+                   else return (Unsat $ DuplicateRecordFields (fields \\ fields'), toTCType rt)
+    -- TArray te l -> check l >= 0  -- TODO!!!
+    _ -> T <$> (mmapM (return . toSExpr) <=< mapM validateType) t 
+
+
+-- -----------------------------------------------------------------------------
+-- Term-level constraints
+-- -----------------------------------------------------------------------------
+
+cgAlts :: [Alt LocPatn LocExpr] -> TCType -> TCType -> CG (Constraint, [Alt TCPatn TCExpr])
+cgAlts alts top alpha = do
+  let
+    altPattern (Alt p _ _) = p
+
+    f (Alt p l e) t = do
+      (s, c, p') <- matchA p t
+      context %= C.addScope s
+      (c', e') <- cg e top
+      rs <- context %%= C.dropScope
+      let unused = flip foldMap (M.toList rs) $ \(v,(_,_,us)) ->
+            case us of Seq.Empty -> warnToConstraint __cogent_wunused_local_binds (UnusedLocalBind v); _ -> Sat
+      return (removeCase p t, (c <> c' <> dropConstraintFor rs <> unused, Alt p' l e'))
+
+    jobs = map (\(n, alt) -> (NthAlternative n (altPattern alt), f alt)) (zip [1..] alts)
+
+  (c'', blob) <- parallel jobs alpha
+
+  let (cs, alts') = unzip blob
+      c = mconcat (Exhaustive alpha (map (toRawPatn . altPattern) $ toTypedAlts alts'):c'':cs)
+  return (c, alts')
+
+
+-- -----------------------------------------------------------------------------
+-- Expression constraints
+-- -----------------------------------------------------------------------------
 
 cgMany :: (?loc :: SourcePos) => [LocExpr] -> CG ([TCType], Constraint, [TCExpr])
 cgMany es = do
@@ -374,33 +413,10 @@ cg' (Annot e tau) t = do
   (c', e') <- cg e t''
   return (c <> c', Annot e' t'')
 
-integral :: TCType -> Constraint
-integral a = Upcastable (T (TCon "U8" [] Unboxed)) a
 
-dropConstraintFor :: M.Map VarName (C.Row TCType) -> Constraint
-dropConstraintFor m = foldMap (\(i, (t,x,us)) -> if null us then Drop t (Unused i x) else Sat) $ M.toList m
-
-cgAlts :: [Alt LocPatn LocExpr] -> TCType -> TCType -> CG (Constraint, [Alt TCPatn TCExpr])
-cgAlts alts top alpha = do
-  let
-    altPattern (Alt p _ _) = p
-
-    f (Alt p l e) t = do
-      (s, c, p') <- matchA p t
-      context %= C.addScope s
-      (c', e') <- cg e top
-      rs <- context %%= C.dropScope
-      let unused = flip foldMap (M.toList rs) $ \(v,(_,_,us)) ->
-            case us of Seq.Empty -> warnToConstraint __cogent_wunused_local_binds (UnusedLocalBind v); _ -> Sat
-      return (removeCase p t, (c <> c' <> dropConstraintFor rs <> unused, Alt p' l e'))
-
-    jobs = map (\(n, alt) -> (NthAlternative n (altPattern alt), f alt)) (zip [1..] alts)
-
-  (c'', blob) <- parallel jobs alpha
-
-  let (cs, alts') = unzip blob
-      c = mconcat (Exhaustive alpha (map (toRawPatn . altPattern) $ toTypedAlts alts'):c'':cs)
-  return (c, alts')
+-- -----------------------------------------------------------------------------
+-- Pattern constraints
+-- -----------------------------------------------------------------------------
 
 matchA :: LocPatn -> TCType -> CG (M.Map VarName (C.Row TCType), Constraint, TCPatn)
 matchA x@(LocPatn l p) t = do
@@ -525,6 +541,58 @@ match' (PArray ps) t = do
       c = F t :< F (T $ TArray alpha l)
   return (M.unions ss, mconcat cs <> c, PArray ps')
 
+
+-- -----------------------------------------------------------------------------
+-- Auxiliaries
+-- -----------------------------------------------------------------------------
+
+freshTVar :: (?loc :: SourcePos) => CG TCType
+freshTVar = fresh (ExpressionAt ?loc)
+  where
+    fresh :: VarOrigin -> CG TCType
+    fresh ctx = do
+      i <- flexes <<%= succ
+      flexOrigins %= IM.insert i ctx
+      return $ U i
+
+freshEVar :: (?loc :: SourcePos) => CG SExpr
+freshEVar = fresh (ExpressionAt ?loc)
+  where
+    fresh :: VarOrigin -> CG SExpr
+    fresh ctx = do
+      i <- flexes <<%= succ  -- FIXME: do we need a different variable?
+      flexOrigins %= IM.insert i ctx
+      return $ SU i
+      
+integral :: TCType -> Constraint
+integral a = Upcastable (T (TCon "U8" [] Unboxed)) a
+
+dropConstraintFor :: M.Map VarName (C.Row TCType) -> Constraint
+dropConstraintFor m = foldMap (\(i, (t,x,us)) -> if null us then Drop t (Unused i x) else Sat) $ M.toList m
+
+parallel' :: [(ErrorContext, CG (Constraint, a))] -> CG (Constraint, [(Constraint, a)])
+parallel' ls = parallel (map (second (\a _ -> ((),) <$> a)) ls) ()
+
+parallel :: [(ErrorContext, acc -> CG (acc, (Constraint, a)))]
+         -> acc
+         -> CG (Constraint, [(Constraint, a)])
+parallel []       _   = return (Sat, [])
+parallel [(ct,f)] acc = (Sat,) . return . first (:@ ct) . snd <$> f acc
+parallel ((ct,f):xs) acc = do
+  ctx  <- use context
+  (acc', x) <- second (first (:@ ct)) <$> f acc
+  ctx1 <- use context
+  context .= ctx
+  (c', xs') <- parallel xs acc'
+  ctx2 <- use context
+  let (ctx', ls, rs) = C.merge ctx1 ctx2
+  context .= ctx'
+  let cls = foldMap (\(n, (t, p, us@(_ Seq.:<| _))) -> Drop t (UnusedInOtherBranch n p us)) ls
+      crs = foldMap (\(n, (t, p, us@(_ Seq.:<| _))) -> Drop t (UnusedInThisBranch  n p us)) rs
+  return (c' <> ((cls <> crs) :@ ct), x:xs')
+
+
+
 withBindings :: (?loc::SourcePos)
   => [Binding LocType LocPatn LocIrrefPatn LocExpr]
   -> LocExpr -- expression e to be checked with the bindings
@@ -575,27 +643,6 @@ withBindings (BindingAlts pat tau e0 bs alts : xs) e top = do
       b0' = BindingAlts pat' (fmap (const alpha) tau) e0' bs altss'
   return (c, b0':xs', e')
 
-parallel' :: [(ErrorContext, CG (Constraint, a))] -> CG (Constraint, [(Constraint, a)])
-parallel' ls = parallel (map (second (\a _ -> ((),) <$> a)) ls) ()
-
-parallel :: [(ErrorContext, acc -> CG (acc, (Constraint, a)))]
-         -> acc
-         -> CG (Constraint, [(Constraint, a)])
-parallel []       _   = return (Sat, [])
-parallel [(ct,f)] acc = (Sat,) . return . first (:@ ct) . snd <$> f acc
-parallel ((ct,f):xs) acc = do
-  ctx  <- use context
-  (acc', x) <- second (first (:@ ct)) <$> f acc
-  ctx1 <- use context
-  context .= ctx
-  (c', xs') <- parallel xs acc'
-  ctx2 <- use context
-  let (ctx', ls, rs) = C.merge ctx1 ctx2
-  context .= ctx'
-  let cls = foldMap (\(n, (t, p, us@(_ Seq.:<| _))) -> Drop t (UnusedInOtherBranch n p us)) ls
-      crs = foldMap (\(n, (t, p, us@(_ Seq.:<| _))) -> Drop t (UnusedInThisBranch  n p us)) rs
-  return (c' <> ((cls <> crs) :@ ct), x:xs')
-
 letBang :: (?loc :: SourcePos) => [VarName] -> (TCType -> CG (Constraint, TCExpr)) -> TCType -> CG (Constraint, TCExpr)
 letBang [] f t = f t
 letBang bs f t = do
@@ -616,8 +663,10 @@ validateVariable v = do
   x <- use context
   return $ if C.contains x v then Sat else Unsat (NotInScope MustVar v)
 
+
 -- ----------------------------------------------------------------------------
 -- pp for debugging
+-- ----------------------------------------------------------------------------
 
 prettyE :: Expr TCType TCPatn TCIrrefPatn TCExpr -> Doc
 prettyE = pretty

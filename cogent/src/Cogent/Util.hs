@@ -193,6 +193,13 @@ nubByM f (x:xs) = liftM (x:) $ filterM (return . not <=< f x) xs >>= nubByM f
 (<*=) :: Monad m => m a -> (a -> m b) -> m a
 a <*= f = a >>= ((>>) <$> f <*> return)
 
+
+fmapFold :: (Monoid m, Foldable f) => (a -> (m, b)) -> f a -> (m, f b)
+fmapFold t fa = undefined
+
+
+
+
 -- stdoutPath = "/dev/stdout"
 -- nullPath = "/dev/null"
 
