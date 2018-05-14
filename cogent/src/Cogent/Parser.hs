@@ -45,7 +45,7 @@ import Text.Parsec.Prim
 import qualified Text.Parsec.Token as T
 import System.Directory
 import System.FilePath
-
+import Debug.Trace
 
 language :: LanguageDef st
 language = haskellStyle
@@ -53,7 +53,7 @@ language = haskellStyle
                                   ".&.",".|.",".^.",">>","<<",
                                   ":","=","!",":<",".","_","..","#",
                                   "@","@@","->","=>","~>","<=","|","|>"]
-           , T.reservedNames   = ["let","in","type","include","all","take","put","inline",
+           , T.reservedNames   = ["let","in","type","include","all","take","put","inline", "repr", "variant","record", "at",
                                   "if","then","else","not","complement","and","True","False"]
            , T.identStart = letter
            }
@@ -71,6 +71,23 @@ typeConName = try (do (x:xs) <- identifier
                       (if isUpper x then return else unexpected) $ x:xs)
 
 avoidInitial = do whiteSpace; p <- sourceColumn <$> getPosition; guard (p > 1)
+
+
+repDecl :: Parser RepDecl t
+repDecl = RepDecl <$> getPosition <*> typeConName <*> parens repSize <* reservedOp "=" <*> repExpr
+
+repSize :: Parser RepSize t
+repSize = avoidInitial >> buildExpressionParser [[Infix (reservedOp "+" *> pure Add) AssocLeft]] (do 
+               x <- fromIntegral <$> natural
+               (Bits <$ reserved "b" <*> pure x <|> Bytes <$ reserved "B" <*> pure x))
+
+repExpr :: Parser RepExpr t
+repExpr = Record <$ reserved "record" <*> braces (commaSep recordRepr)
+        <|> Variant <$ reserved "variant" <*> parens ((,) <$> repSize <* reserved "at" <*> repSize) <*> braces (commaSep variantRepr)
+        <|> Prim <$> repSize <* reserved "at" <*> repSize
+    where 
+      recordRepr = (,,) <$> variableName <*> getPosition <* reservedOp ":" <*> repExpr
+      variantRepr = (,,,) <$> typeConName <*> getPosition <*> parens (fromIntegral <$> natural) <* reservedOp ":" <*> repExpr
 
 
 -- TODO: add support for patterns like `_ {f1, f2}', where the record name is anonymous / zilinc
@@ -327,6 +344,7 @@ toplevel' = do
   when (sourceColumn p > 1) $ fail "toplevel entries should start at column 1"
   (p,docs,) <$> (try (Include <$ reserved "include" <*> stringLiteral)
         <|> IncludeStd <$ reserved "include" <*> angles (many (noneOf "\r\n>"))
+        <|> RepDef <$ reserved "repr" <*> repDecl
         <|> typeDec <$ reserved "type" <*> typeConName <*> many (avoidInitial >> variableName) <*>
               ((Left <$> (reservedOp "=" *> monotype)) <|> (Right <$> option [] (reservedOp "-:" *> commaSep monotype)))
         <|> do n <- variableName

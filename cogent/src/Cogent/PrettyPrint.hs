@@ -67,6 +67,7 @@ letbangvar = dullgreen . string
 primop = blue . string
 keyword = bold . string
 literal = dullcyan
+reprname = dullcyan . string
 typevar = blue . string
 typename = blue . bold . string
 typesymbol = cyan . string  -- type operators, e.g. !, ->, take
@@ -507,6 +508,7 @@ prettyConstDef typeSigs v t e  = (if typeSigs then (funname v <+> symbol ":" <+>
 instance (Pretty t, Pretty p, Pretty e) => Pretty (TopLevel t p e) where
   pretty (TypeDec n vs t) = keyword "type" <+> typename n <> hcat (map ((space <>) . typevar) vs)
                                            <+> indent (symbol "=" </> pretty t)
+  pretty (RepDef f) = pretty f
   pretty (FunDef v pt alts) = prettyFunDef True v pt alts
   pretty (AbsDec v pt) = funname v <+> symbol ":" <+> pretty pt
   pretty (Include s) = keyword "include" <+> literal (string $ show s)
@@ -525,6 +527,21 @@ instance Pretty Kind where
 instance Pretty SourcePos where
   pretty p | __cogent_ffull_src_path = position (show p)
            | otherwise = position $ show $ setSourceName p (takeFileName $ sourceName p)
+
+instance Pretty RepDecl where
+  pretty (RepDecl _ n s e) = keyword "repr" <+> reprname n <+> tupled [pretty s] <+> indent (symbol "=" </> pretty e)
+
+instance Pretty RepSize where
+  pretty (Bits b) = literal (string (show b ++ "b"))
+  pretty (Bytes b) = literal (string (show b ++ "B"))
+  pretty (Add a b) = pretty a <+> symbol "+" <+> pretty b
+
+instance Pretty RepExpr where 
+  pretty (Prim sz o) = pretty sz <+> keyword "at" <+> pretty o
+  pretty (Record fs) = keyword "record" <+> record (map (\(f,_,e) -> fieldname f <> symbol ":" <+> pretty e ) fs)
+  pretty (Variant (sz,o) vs) = keyword "variant" <+> tupled [pretty sz <+> keyword "at" <+> pretty o]
+                                                 <+> record (map (\(f,_,i,e) -> tagname f <+> tupled [literal $ string $ show i] <> symbol ":" <+> pretty e) vs)
+
 
 instance Pretty Metadata where
   pretty (Constant {varName})                = err "the binding" <+> funname varName <$> err "is a global constant"

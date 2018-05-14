@@ -157,6 +157,7 @@ library
     -fno-warn-missing-signatures
     -fno-warn-unused-matches
     -O2
+    -optP-Wno-nonportable-include-path
     -- -rtsopts
     -- +RTS -K256M
   -- if impl(ghc >= 7.10.1)
@@ -197,6 +198,7 @@ Executable cogent
     -fno-warn-missing-signatures
     -fno-warn-unused-matches
     -O2
+    -optP-Wno-nonportable-include-path
     -- -rtsopts
     -- +RTS -K256M
   -- if impl(ghc >= 7.10.1)

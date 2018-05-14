@@ -58,6 +58,14 @@ data Binding t p ip e = Binding ip (Maybe t) e [VarName]
 data Inline = Inline
             | NoInline
             deriving (Eq, Ord, Show)
+type RepName = String
+data RepSize = Bytes Int | Bits Int | Add RepSize RepSize -- Future options, sizeof, offsetof, "after"
+             deriving (Show, Eq)
+data RepDecl = RepDecl SourcePos RepName RepSize RepExpr deriving (Show, Eq)
+data RepExpr = Prim    { primSize :: RepSize, primOffset :: RepSize }
+             | Record  { recordFields :: [(FieldName,SourcePos,RepExpr)] }
+             | Variant { variantTag :: (RepSize, RepSize) , variantConstructors :: [(TagName, SourcePos, Integer,RepExpr)]}
+            deriving (Show, Eq)
 
 data Expr t p ip e = PrimOp OpName [e]
                    | Var VarName
@@ -119,6 +127,7 @@ data TopLevel t p e = Include    String
                     | AbsDec VarName (Polytype t)
                     | FunDef VarName (Polytype t) [Alt p e]
                     | ConstDef VarName t e
+                    | RepDef RepDecl
                     deriving (Eq, Show, Functor, Foldable, Traversable)
 
 absFnDeclId :: String -> TopLevel t p e -> Bool
@@ -293,6 +302,7 @@ instance Traversable (Flip (TopLevel t) e) where  -- p
   traverse _ (Flip (Include s))           = pure $ Flip (Include s)
   traverse _ (Flip (IncludeStd s))        = pure $ Flip (IncludeStd s)
   traverse _ (Flip (DocBlock s))          = pure $ Flip (DocBlock s)
+  traverse _ (Flip (RepDef s))            = pure $ Flip (RepDef s)
   traverse _ (Flip (AbsTypeDec n vs ts))  = pure $ Flip (AbsTypeDec n vs ts)
   traverse _ (Flip (TypeDec n vs t))      = pure $ Flip (TypeDec n vs t)
   traverse _ (Flip (AbsDec v pt))         = pure $ Flip (AbsDec v pt)
@@ -302,6 +312,7 @@ instance Traversable (Flip2 TopLevel e p) where  -- t
   traverse _ (Flip2 (Include s))          = pure $ Flip2 (Include s)
   traverse _ (Flip2 (IncludeStd s))       = pure $ Flip2 (IncludeStd s)
   traverse _ (Flip2 (DocBlock s))         = pure $ Flip2 (DocBlock s)
+  traverse _ (Flip2 (RepDef s))           = pure $ Flip2 (RepDef s)
   traverse f (Flip2 (AbsTypeDec n vs ts)) = Flip2 <$> (AbsTypeDec n vs <$> traverse f ts)
   traverse f (Flip2 (TypeDec n vs t))     = Flip2 <$> (TypeDec  n vs <$> f t)
   traverse f (Flip2 (AbsDec v pt))        = Flip2 <$> (AbsDec   v <$> traverse f pt)
