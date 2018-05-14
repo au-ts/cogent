@@ -10,3 +10,6 @@
 [submodule "OneTuple"]
 	path = OneTuple
 	url = https://github.com/phadej/OneTuple.git
+[submodule "GHood"]
+	path = GHood
+	url = git@github.com:zilinc/GHood.git

@@ -1,12 +1,22 @@
 --
--- Copyright 2016, NICTA
+-- Copyright 2018, Data61
+-- Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+-- ABN 41 687 119 230.
 --
 -- This software may be distributed and modified according to the terms of
 -- the GNU General Public License version 2. Note that NO WARRANTY is provided.
 -- See "LICENSE_GPLv2.txt" for details.
 --
--- @TAG(NICTA_GPL)
+-- @TAG(DATA61_GPL)
 --
+
+-- ALSO NOTE: This module contains code borrowed from varies packages. The copyright of the borrowed
+-- code belongs to the original authors. URLs to the original source of code are included in the
+-- comments.
+-- Three majors reasons for not using the original packages:
+--   1. modifications are necessary
+--   2. the original package doesn't work
+--   3. the original package is huge but we only need a tiny bit within it
 
 
 {-# LANGUAGE DataKinds, FlexibleContexts, LambdaCase, PolyKinds, TupleSections, ViewPatterns #-}
@@ -17,12 +27,15 @@ module Cogent.Util where
 import Control.Applicative ((<$>))
 import Data.Monoid
 #endif
+import Control.Arrow ((&&&))
 import Control.Lens
 import Control.Monad
 import Data.Char
+import Data.Foldable (foldrM)
 import qualified Data.Map as M
 import qualified Data.List as L
 import Data.Version (showVersion)
+import Generics.Pointless.MonadCombinators
 import System.Environment
 import System.FilePath.Posix
 
@@ -184,7 +197,8 @@ whenM b ma = if b then ma else return mempty
 whenMM :: (Monad m, Monoid a) => m Bool -> m a -> m a
 whenMM mb ma = mb >>= flip whenM ma
 
--- modified of `nubByM' from http://hackage.haskell.org/package/monadlist-0.0.2/docs/src/Control-Monad-ListM.html#nubByM
+-- modified version of `nubByM' stolen from 
+-- <http://hackage.haskell.org/package/monadlist-0.0.2/docs/src/Control-Monad-ListM.html#nubByM>
 nubByM :: (Monad m) => (a -> a -> m Bool) -> [a] -> m [a]
 nubByM f [] = return []
 nubByM f (x:xs) = liftM (x:) $ filterM (return . not <=< f x) xs >>= nubByM f
@@ -194,10 +208,15 @@ nubByM f (x:xs) = liftM (x:) $ filterM (return . not <=< f x) xs >>= nubByM f
 a <*= f = a >>= ((>>) <$> f <*> return)
 
 
-fmapFold :: (Monoid m, Foldable f) => (a -> (m, b)) -> f a -> (m, f b)
-fmapFold t fa = undefined
+fmapFold :: (Monoid m, Traversable t) => (a -> (m, b)) -> t a -> (m, t b)
+fmapFold f = foldMap (fst . f) &&& fmap (snd . f)
 
+fmapFoldM :: (Monoid m, Traversable t, Monad f) => (a -> f (m, b)) -> t a -> f (m, t b)
+fmapFoldM f = foldMapM ((fst <$>) . f) /|\ traverse ((snd <$>) . f)
 
+foldMapM :: (Monoid m, Foldable t, Monad f) => (a -> f m) -> t a -> f m
+foldMapM f x = foldrM f' mempty x
+  where f' a b = mappend <$> f a <*> return b
 
 
 -- stdoutPath = "/dev/stdout"

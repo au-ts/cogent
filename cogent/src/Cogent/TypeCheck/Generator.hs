@@ -22,6 +22,7 @@ module Cogent.TypeCheck.Generator
   , cg
   , cgAlts
   , freshTVar
+  , validateType
   ) where
 
 import Cogent.Common.Syntax
@@ -86,10 +87,13 @@ validateType rt@(RT t) = do
     TRecord fs _ | fields  <- map fst fs
                  , fields' <- nub fields
                 -> if fields' == fields
-                   then T <$> (mmapM (return . toSExpr) <=< mapM validateType) t
+                   then second (T . ffmap toSExpr) <$> fmapFoldM validateType t
                    else return (Unsat $ DuplicateRecordFields (fields \\ fields'), toTCType rt)
-    -- TArray te l -> check l >= 0  -- TODO!!!
-    _ -> T <$> (mmapM (return . toSExpr) <=< mapM validateType) t 
+    TArray te l -> do let l' = toSExpr l
+                          cl = Arith (SE $ PrimOp ">" [l', SE $ IntLit 0])
+                      (c,te') <- validateType te
+                      return (c <> cl, T $ TArray te' l')
+    _ -> second (T . ffmap toSExpr) <$> fmapFoldM validateType t 
 
 
 -- -----------------------------------------------------------------------------

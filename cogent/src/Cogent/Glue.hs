@@ -48,7 +48,7 @@ import Cogent.PrettyPrint
 import qualified Cogent.Surface   as SF
 import qualified Cogent.TypeCheck.Assignment as TC
 import qualified Cogent.TypeCheck.Base       as TC
-import qualified Cogent.TypeCheck.Generator  as TC
+import qualified Cogent.TypeCheck.Generator  as TC hiding (validateType)
 import qualified Cogent.TypeCheck.Post       as TC
 import qualified Cogent.TypeCheck.Solver     as TC
 import qualified Cogent.TypeCheck.Subst      as TC

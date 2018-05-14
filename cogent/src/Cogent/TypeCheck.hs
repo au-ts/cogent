@@ -26,10 +26,11 @@ import Cogent.PrettyPrint (prettyC)
 import Cogent.Surface
 import Cogent.TypeCheck.Assignment (assignE, assignAlts)
 import Cogent.TypeCheck.Base
-import Cogent.TypeCheck.Generator
+import Cogent.TypeCheck.Generator hiding (validateType)
+import qualified Cogent.TypeCheck.Generator as B (validateType)
 import Cogent.TypeCheck.Post (postT, postE, postA)
 import Cogent.TypeCheck.Solver
-import Cogent.TypeCheck.Subst (applyE, applyAlts)
+import Cogent.TypeCheck.Subst (apply, applyE, applyAlts)
 import Cogent.TypeCheck.Util
 import Cogent.Util (firstM)
 import qualified Cogent.Common.Repr as R
@@ -141,23 +142,23 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
         xs = vs' \\ nub vs'
     unless (null xs) $ logErrExit $ DuplicateTypeVariable xs
     base <- lift . lift $ use knownConsts
-    t' <- validateType (map fst vs) (stripLocT t)
-    (i,o) <- asFunType t'
     let ctx = C.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) C.empty
+    (i,o) <- asFunType' $ stripLocT t
     let ?loc = loc
-    ((c, alts'), flx, os) <- runCG ctx (map fst vs) (cgAlts alts o i)
+    (((ct,t'),(c,alts')), flx, os) <- runCG ctx (map fst vs) ((,) <$> B.validateType (stripLocT t) <*> cgAlts alts o i)
     traceTc "tc" (text "constraint for fun definition" <+> pretty f <+> text "is"
                   L.<$> prettyC c)
-    (logs, subst, assign, _) <- runSolver (solve c) vs flx os
+    (logs, subst, assign, _) <- runSolver (solve $ ct <> c) vs flx os
     exitOnErr $ mapM_ logTc =<< mapM (\(c,l) -> lift (use errCtx) >>= \c' -> return (c++c',l)) logs
     traceTc "tc" (text "substs for fun definition" <+> pretty f <+> text "is"
                   L.<$> pretty subst
                   L.<$> text "assigns for fun definition" <+> pretty f <+> text "is"
                   L.<$> pretty assign)
-    lift . lift $ knownFuns %= M.insert f (PT vs t')
+    let t'' = apply subst t'
+    lift . lift $ knownFuns %= M.insert f (PT vs t'')
     alts'' <- postA $ applyAlts subst $ assignAlts assign alts'
-    t''    <- postT t'
-    return (FunDef f (PT vs t'') alts'')
+    t'''    <- postT t''
+    return (FunDef f (PT vs t''') alts'')
 
   where
     asFunType (T (TFun a b)) = return (a, b)
@@ -166,6 +167,11 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
                                       _ -> logErrExit $ NotAFunctionType x
     asFunType x = logErrExit $ NotAFunctionType x
 
+    asFunType' (RT (TFun a b)) = return (toTCType a, toTCType b)
+    asFunType' x@(RT (TCon c as _)) = lookup c <$> lift (lift $ use knownTypes) >>= \case
+                                        Just (vs, Just t) -> asFunType (substType (zip vs (map toTCType as)) t)
+                                        _ -> logErrExit $ NotAFunctionType $ toTCType x
+    asFunType' x = logErrExit $ NotAFunctionType $ toTCType x
 
 -- ----------------------------------------------------------------------------
 -- custTyGen
