@@ -1,10 +1,12 @@
-repr Foo (64b) = record 
+repr Foo = record 
   { y: 2B at 0b
   , x: 8b at 2B
-  , z: variant (1b at 2B+8b)
-         { A (1): 32b at 4B
-         , B (0): 32b at 4B
-         }
+  , z: Varnt
   }
 
+
+repr Varnt = variant (1b at 2B+8b)
+             { A(1): 32b at 4B
+             , B(0): 32b at 4B
+             }
 

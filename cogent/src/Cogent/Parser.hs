@@ -74,7 +74,7 @@ avoidInitial = do whiteSpace; p <- sourceColumn <$> getPosition; guard (p > 1)
 
 
 repDecl :: Parser RepDecl t
-repDecl = RepDecl <$> getPosition <*> typeConName <*> parens repSize <* reservedOp "=" <*> repExpr
+repDecl = RepDecl <$> getPosition <*> typeConName <* reservedOp "=" <*> repExpr
 
 repSize :: Parser RepSize t
 repSize = avoidInitial >> buildExpressionParser [[Infix (reservedOp "+" *> pure Add) AssocLeft]] (do 
@@ -84,6 +84,7 @@ repSize = avoidInitial >> buildExpressionParser [[Infix (reservedOp "+" *> pure 
 repExpr :: Parser RepExpr t
 repExpr = Record <$ reserved "record" <*> braces (commaSep recordRepr)
         <|> Variant <$ reserved "variant" <*> parens ((,) <$> repSize <* reserved "at" <*> repSize) <*> braces (commaSep variantRepr)
+        <|> RepRef <$> typeConName
         <|> Prim <$> repSize <* reserved "at" <*> repSize
     where 
       recordRepr = (,,) <$> variableName <*> getPosition <* reservedOp ":" <*> repExpr

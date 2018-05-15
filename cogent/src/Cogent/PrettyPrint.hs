@@ -531,7 +531,7 @@ instance Pretty SourcePos where
            | otherwise = position $ show $ setSourceName p (takeFileName $ sourceName p)
 
 instance Pretty RepDecl where
-  pretty (RepDecl _ n s e) = keyword "repr" <+> reprname n <+> tupled [pretty s] <+> indent (symbol "=" </> pretty e)
+  pretty (RepDecl _ n e) = keyword "repr" <+> reprname n <+> indent (symbol "=" </> pretty e)
 
 instance Pretty RepSize where
   pretty (Bits b) = literal (string (show b ++ "b"))
@@ -539,6 +539,7 @@ instance Pretty RepSize where
   pretty (Add a b) = pretty a <+> symbol "+" <+> pretty b
 
 instance Pretty RepExpr where 
+  pretty (RepRef n) = reprname n
   pretty (Prim sz o) = pretty sz <+> keyword "at" <+> pretty o
   pretty (Record fs) = keyword "record" <+> record (map (\(f,_,e) -> fieldname f <> symbol ":" <+> pretty e ) fs)
   pretty (Variant (sz,o) vs) = keyword "variant" <+> tupled [pretty sz <+> keyword "at" <+> pretty o]
@@ -736,6 +737,8 @@ instance Pretty a => Pretty (I.IntMap a) where
   pretty = vcat . map (\(k,v) -> pretty k <+> text "|->" <+> pretty v) . I.toList
 
 instance Pretty R.RepError where 
+  pretty (R.UnknownRepr r ctx) 
+     = indent (err "Unknown representation" <+> reprname r <$$> pretty ctx)
   pretty (R.OverlappingBlocks (R.Block s1 o1 c1) (R.Block s2 o2 c2)) 
      = err "Two memory blocks are overlapping." <$$> 
        indent (err "The first block is of size" <+> literal (string $ show s1) <+> err "bits at offset" <+> literal (string $ show o1) <+> err "bits." <$$>
@@ -748,7 +751,7 @@ instance Pretty R.RepContext where
   pretty (R.InField n po ctx) = context' "for field" <+> fieldname n <+> context' "(" <> pretty po <> context' ")" </> pretty ctx 
   pretty (R.InTag ctx) = context' "for the variant tag block" </> pretty ctx
   pretty (R.InAlt t po ctx) = context' "for the constructor" <+> tagname t <+> context' "(" <> pretty po <> context' ")" </> pretty ctx 
-  pretty (R.InDecl (RepDecl p n _ _)) = context' "in the representation" <+> reprname n <+> context' "(" <> pretty p <> context' ")" 
+  pretty (R.InDecl (RepDecl p n _)) = context' "in the representation" <+> reprname n <+> context' "(" <> pretty p <> context' ")" 
 
 -- helper functions
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -787,7 +790,7 @@ prettyCtx (InDefinition p tl) _ = context "in the definition at (" <> pretty p <
         helper (AbsDec n _) = context "abstract function" <+> varname n
         helper (ConstDef v _ _) = context "constant" <+> varname v
         helper (FunDef v _ _) = context "function" <+> varname v
-        helper (RepDef (RepDecl _ n _ _)) = context "representation" <+> reprname n
+        helper (RepDef (RepDecl _ n _)) = context "representation" <+> reprname n
         helper _  = __impossible "helper"
 prettyCtx (AntiquotedType t) i = (if i then (<$> indent' (pretty (stripLocT t))) else id)
                                (context "in the antiquoted type at (" <> pretty (posOfT t) <> context ")" )

@@ -107,9 +107,10 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     t'' <- postT t'
     return $ AbsDec n (PT ps t'')
   
-  (RepDef d@(RepDecl pos n s e)) -> do 
+  (RepDef d@(RepDecl pos n e)) -> do 
     traceTc "tc" (text "typecheck rep decl" <+> pretty n)
-    case R.compile d of 
+    reps <- lift . lift $ use knownReps
+    case R.compile reps d of 
        Left e -> logErr $ RepError e
        Right result -> lift . lift $ knownReps %= M.insert n result
     return $ RepDef d

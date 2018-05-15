@@ -12,7 +12,6 @@ import qualified Data.Map as M
 data RepData = Rep
                { originalDecl :: S.RepDecl
                , name :: RepName
-               , size :: Int -- in bits
                , representation :: Representation
                }
 data Representation = Bits { allocSize :: Int, allocOffset :: Int} -- in bits 
@@ -30,6 +29,7 @@ data RepContext = InField FieldName SourcePos RepContext
                 deriving (Eq, Show, Ord)
 
 data RepError = OverlappingBlocks Block Block
+              | UnknownRepr RepName RepContext
               deriving (Eq, Show, Ord)
 
 (\/) :: Allocation -> Allocation -> Either RepError Allocation 
@@ -55,12 +55,16 @@ mapAccumLM f a (x:xs) = do
     fmap (c:) <$> mapAccumLM f a' xs
 mapAccumLM f a [] = pure (a, []) 
 
-compile :: S.RepDecl -> Either RepError (Allocation, RepData)
-compile d@(S.RepDecl p n s a) = fmap (Rep d n (evalSize s)) <$> evalAlloc (InDecl d) a
+compile :: M.Map RepName (Allocation, RepData) -> S.RepDecl -> Either RepError (Allocation, RepData)
+compile env d@(S.RepDecl p n a) = fmap (Rep d n) <$> evalAlloc (InDecl d) a
   where evalSize (S.Bytes b) = b * 8
         evalSize (S.Bits b) = b
         evalSize (S.Add a b) = evalSize a + evalSize b
 
+        evalAlloc ctx (S.RepRef n) = do 
+            case M.lookup n env of 
+                Just (a,Rep _ _ r) -> Right (a,r)
+                Nothing    -> Left $ UnknownRepr n ctx
         evalAlloc ctx (S.Prim s off) = Right ([[Block (evalSize s) (evalSize off) ctx]], Bits (evalSize s) (evalSize off))
         evalAlloc ctx (S.Record fs) = do
             let step alloc (f,pos,r) = do

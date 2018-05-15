@@ -47,7 +47,7 @@ dependencies (IncludeStd _) = __impossible "dependencies"
 dependencies (TypeDec _ _ t) = map TypeName (fcT (stripLocT t))
 dependencies (AbsTypeDec _ _ ts) = map TypeName (foldMap (fcT . stripLocT) ts)
 dependencies (DocBlock _) = []
-dependencies (RepDef {}) = [] -- for now
+dependencies (RepDef (RepDecl _ _ e)) = map RepName (allRepRefs e) 
 dependencies (AbsDec _ pt) = map TypeName (foldMap (fcT . stripLocT) pt)
 dependencies (FunDef _ pt as) = map TypeName (foldMap (fcT . stripLocT) pt
                                            ++ foldMap (fcA . fmap stripLocE) as)
@@ -62,7 +62,7 @@ classify = map (\px -> (sourceObject (thd3 px), px))
         sourceObject (IncludeStd _)     = __impossible "sourceObject (in classify)"
         sourceObject (DocBlock s)       = DocBlock' s
         sourceObject (TypeDec n _ _)    = TypeName n
-        sourceObject (RepDef (RepDecl _ n _ _))    = RepName n
+        sourceObject (RepDef (RepDecl _ n _))    = RepName n
         sourceObject (AbsTypeDec n _ _) = TypeName n
         sourceObject (AbsDec n _)       = ValName n
         sourceObject (FunDef v _ _)     = ValName v
