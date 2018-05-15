@@ -12,6 +12,7 @@ import Data.Monoid
 import Data.Group
 import Text.PrettyPrint.ANSI.Leijen
 
+type RepName     = String
 type FieldName   = String
 type TagName     = String
 type FunName     = String

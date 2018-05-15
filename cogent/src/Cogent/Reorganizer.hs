@@ -33,6 +33,7 @@ import Text.Parsec.Pos
 data ReorganizeError = CyclicDependency
                      | DuplicateTypeDefinition
                      | DuplicateValueDefinition
+                     | DuplicateRepDefinition
 
 data SourceObject = TypeName TypeName
                   | ValName  VarName
@@ -84,6 +85,7 @@ checkNoNameClashes ((s,d):xs) bindings
                  in checkNoNameClashes xs bindings'
   where msg = case s of TypeName  _ -> DuplicateTypeDefinition
                         ValName   _ -> DuplicateValueDefinition
+                        RepName   _ -> DuplicateRepDefinition
                         DocBlock' _ -> __impossible "checkNoNameClashes"
 
 -- Note: it doesn't make much sense to check for unused definitions as they may be used

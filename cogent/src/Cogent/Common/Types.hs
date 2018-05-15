@@ -10,6 +10,7 @@ import Data.Monoid
 #endif
 import Text.PrettyPrint.ANSI.Leijen hiding (tupled,indent)
 
+
 data Sigil = ReadOnly  -- 0-kind
            | Writable  -- 1-kind
            | Unboxed   -- 2-kind

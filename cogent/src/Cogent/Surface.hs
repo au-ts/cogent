@@ -58,14 +58,13 @@ data Binding t p ip e = Binding ip (Maybe t) e [VarName]
 data Inline = Inline
             | NoInline
             deriving (Eq, Ord, Show)
-type RepName = String
 data RepSize = Bytes Int | Bits Int | Add RepSize RepSize -- Future options, sizeof, offsetof, "after"
-             deriving (Show, Eq)
-data RepDecl = RepDecl SourcePos RepName RepSize RepExpr deriving (Show, Eq)
+             deriving (Show, Eq, Ord)
+data RepDecl = RepDecl SourcePos RepName RepSize RepExpr deriving (Show, Eq, Ord)
 data RepExpr = Prim    { primSize :: RepSize, primOffset :: RepSize }
              | Record  { recordFields :: [(FieldName,SourcePos,RepExpr)] }
              | Variant { variantTag :: (RepSize, RepSize) , variantConstructors :: [(TagName, SourcePos, Integer,RepExpr)]}
-            deriving (Show, Eq)
+            deriving (Show, Eq, Ord)
 
 data Expr t p ip e = PrimOp OpName [e]
                    | Var VarName

@@ -23,6 +23,7 @@ module Cogent.PrettyPrint where
 import qualified Cogent.Common.Syntax as S (associativity)
 import Cogent.Common.Syntax hiding (associativity)
 import Cogent.Common.Types
+import qualified Cogent.Common.Repr as R
 import Cogent.Compiler
 import Cogent.Reorganizer (ReorganizeError(..), SourceObject(..))
 import Cogent.Surface
@@ -59,6 +60,7 @@ errbd = bold . err
 warn = dullyellow . string
 comment = black . string
 context = black . string
+context' = string
 
 -- language ast
 
@@ -632,6 +634,7 @@ instance Pretty TypeError where
                                               <$> indent' (vsep (map ((<> semi) . pretty) es))
   pretty (CustTyGenIsSynonym t)     = err "Type synonyms have to be fully expanded in --cust-ty-gen file:" <$> indent' (pretty t)
   pretty (CustTyGenIsPolymorphic t) = err "Polymorphic types are not allowed in --cust-ty-gen file:" <$> indent' (pretty t)
+  pretty (RepError e) = pretty e
   pretty (TypeWarningAsError w)          = pretty w
 
 instance Pretty TypeWarning where
@@ -721,6 +724,7 @@ instance Pretty ReorganizeError where
   pretty CyclicDependency = err "cyclic dependency"
   pretty DuplicateTypeDefinition = err "duplicate type definition"
   pretty DuplicateValueDefinition = err "duplicate value definition"
+  pretty DuplicateRepDefinition = err "duplicate repr definition"
 
 instance Pretty Subst where
   pretty (Subst m) = pretty m
@@ -731,8 +735,23 @@ instance Pretty Assignment where
 instance Pretty a => Pretty (I.IntMap a) where
   pretty = vcat . map (\(k,v) -> pretty k <+> text "|->" <+> pretty v) . I.toList
 
+instance Pretty R.RepError where 
+  pretty (R.OverlappingBlocks (R.Block s1 o1 c1) (R.Block s2 o2 c2)) 
+     = err "Two memory blocks are overlapping." <$$> 
+       indent (err "The first block is of size" <+> literal (string $ show s1) <+> err "bits at offset" <+> literal (string $ show o1) <+> err "bits." <$$>
+       -- TODO make the bits show up as bytes/bits.
+       pretty c1) <$$>
+       indent (err "The second block is of size" <+> literal (string $ show s2) <+> err "bits at offset" <+> literal (string $ show o2) <+> err "bits" <$$> 
+       pretty c2)
+
+instance Pretty R.RepContext where 
+  pretty (R.InField n po ctx) = context' "for field" <+> fieldname n <+> context' "(" <> pretty po <> context' ")" </> pretty ctx 
+  pretty (R.InTag ctx) = context' "for the variant tag block" </> pretty ctx
+  pretty (R.InAlt t po ctx) = context' "for the constructor" <+> tagname t <+> context' "(" <> pretty po <> context' ")" </> pretty ctx 
+  pretty (R.InDecl (RepDecl p n _ _)) = context' "in the representation" <+> reprname n <+> context' "(" <> pretty p <> context' ")" 
+
 -- helper functions
--- ~~~~~~~~~~~~~~~~~~~~~~~~~~
+-- ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 -- ctx -> indent -> doc
 prettyCtx :: ErrorContext -> Bool -> Doc
@@ -768,6 +787,7 @@ prettyCtx (InDefinition p tl) _ = context "in the definition at (" <> pretty p <
         helper (AbsDec n _) = context "abstract function" <+> varname n
         helper (ConstDef v _ _) = context "constant" <+> varname v
         helper (FunDef v _ _) = context "function" <+> varname v
+        helper (RepDef (RepDecl _ n _ _)) = context "representation" <+> reprname n
         helper _  = __impossible "helper"
 prettyCtx (AntiquotedType t) i = (if i then (<$> indent' (pretty (stripLocT t))) else id)
                                (context "in the antiquoted type at (" <> pretty (posOfT t) <> context ")" )

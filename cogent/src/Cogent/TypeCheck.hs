@@ -32,7 +32,7 @@ import Cogent.TypeCheck.Solver
 import Cogent.TypeCheck.Subst (applyE, applyAlts)
 import Cogent.TypeCheck.Util
 import Cogent.Util (firstM)
-
+import qualified Cogent.Common.Repr as R
 import Control.Arrow (first, second)
 import Control.Lens
 -- import Control.Monad.Except
@@ -53,7 +53,7 @@ import Text.PrettyPrint.ANSI.Leijen hiding ((<>), (<$>))
 tc :: [(SourcePos, TopLevel LocType LocPatn LocExpr)]
    -> [(LocType, String)]
    -> IO ((Maybe ([TopLevel RawType TypedPatn TypedExpr], [(RawType, String)]), TcLogState), TcState)
-tc ds cts = flip runStateT (TcState M.empty knownTypes M.empty)
+tc ds cts = flip runStateT (TcState M.empty knownTypes M.empty M.empty)
           . fmap (second $ over errLog adjustErrors)
           . flip runStateT (TcLogState [] [])
           . runMaybeT
@@ -106,6 +106,13 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     lift . lift $ knownFuns %= M.insert n (PT ps t')
     t'' <- postT t'
     return $ AbsDec n (PT ps t'')
+  
+  (RepDef d@(RepDecl pos n s e)) -> do 
+    traceTc "tc" (text "typecheck rep decl" <+> pretty n)
+    case R.compile d of 
+       Left e -> logErr $ RepError e
+       Right result -> lift . lift $ knownReps %= M.insert n result
+    return $ RepDef d
 
   (ConstDef n t e) -> do
     traceTc "tc" $ bold (text $ replicate 80 '=')
