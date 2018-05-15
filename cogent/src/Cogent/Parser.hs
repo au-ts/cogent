@@ -82,10 +82,11 @@ repSize = avoidInitial >> buildExpressionParser [[Infix (reservedOp "+" *> pure 
                (Bits <$ reserved "b" <*> pure x <|> Bytes <$ reserved "B" <*> pure x))
 
 repExpr :: Parser RepExpr t
-repExpr = Record <$ reserved "record" <*> braces (commaSep recordRepr)
-        <|> Variant <$ reserved "variant" <*> parens ((,) <$> repSize <* reserved "at" <*> repSize) <*> braces (commaSep variantRepr)
+repExpr = avoidInitial >> buildExpressionParser [[Postfix (flip Offset <$ reserved "at" <*> repSize)]] 
+           (Record <$ reserved "record" <*> braces (commaSep recordRepr)
+        <|> Variant <$ reserved "variant" <*> parens (repExpr) <*> braces (commaSep variantRepr)
         <|> RepRef <$> typeConName
-        <|> Prim <$> repSize <* reserved "at" <*> repSize
+        <|> Prim <$> repSize)
     where 
       recordRepr = (,,) <$> variableName <*> getPosition <* reservedOp ":" <*> repExpr
       variantRepr = (,,,) <$> typeConName <*> getPosition <*> parens (fromIntegral <$> natural) <* reservedOp ":" <*> repExpr

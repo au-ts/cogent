@@ -61,10 +61,11 @@ data Inline = Inline
 data RepSize = Bytes Int | Bits Int | Add RepSize RepSize -- Future options, sizeof, offsetof, "after"
              deriving (Show, Eq, Ord)
 data RepDecl = RepDecl SourcePos RepName RepExpr deriving (Show, Eq, Ord)
-data RepExpr = Prim    { primSize :: RepSize, primOffset :: RepSize }
-             | Record  { recordFields :: [(FieldName,SourcePos,RepExpr)] }
-             | Variant { variantTag :: (RepSize, RepSize) , variantConstructors :: [(TagName, SourcePos, Integer,RepExpr)]}
-             | RepRef  RepName
+data RepExpr = Prim    RepSize
+             | Record  [(FieldName,SourcePos,RepExpr)] 
+             | Variant RepExpr [(TagName, SourcePos, Integer,RepExpr)]
+             | Offset RepExpr RepSize
+             | RepRef RepName
             deriving (Show, Eq, Ord)
 allRepRefs :: RepExpr -> [RepName]
 allRepRefs (Record fs) = concatMap (allRepRefs . thd3) fs

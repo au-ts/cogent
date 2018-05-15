@@ -540,9 +540,10 @@ instance Pretty RepSize where
 
 instance Pretty RepExpr where 
   pretty (RepRef n) = reprname n
-  pretty (Prim sz o) = pretty sz <+> keyword "at" <+> pretty o
+  pretty (Prim sz) = pretty sz
+  pretty (Offset e s) = pretty e <+> keyword "at" <+> pretty s
   pretty (Record fs) = keyword "record" <+> record (map (\(f,_,e) -> fieldname f <> symbol ":" <+> pretty e ) fs)
-  pretty (Variant (sz,o) vs) = keyword "variant" <+> tupled [pretty sz <+> keyword "at" <+> pretty o]
+  pretty (Variant e vs) = keyword "variant" <+> tupled [pretty e]
                                                  <+> record (map (\(f,_,i,e) -> tagname f <+> tupled [literal $ string $ show i] <> symbol ":" <+> pretty e) vs)
 
 
@@ -739,6 +740,8 @@ instance Pretty a => Pretty (I.IntMap a) where
 instance Pretty R.RepError where 
   pretty (R.UnknownRepr r ctx) 
      = indent (err "Unknown representation" <+> reprname r <$$> pretty ctx)
+  pretty (R.TagMustBeSingleBlock ctx) 
+     = indent (err "Variant tag must be a single block of bits" <$$> pretty ctx)
   pretty (R.OverlappingBlocks (R.Block s1 o1 c1) (R.Block s2 o2 c2)) 
      = err "Two memory blocks are overlapping." <$$> 
        indent (err "The first block is of size" <+> literal (string $ show s1) <+> err "bits at offset" <+> literal (string $ show o1) <+> err "bits." <$$>
