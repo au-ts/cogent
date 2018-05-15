@@ -67,11 +67,9 @@ install:
           $HOME/.cabal/packages/hackage.haskell.org/00-index.tar;
    fi
  - travis_retry cabal update # -v
- - git submodule update --init -- OneTuple
  - cd cogent
  - cabal sandbox init
  - cabal sandbox add-source ../isa-parser
- - cabal sandbox add-source ../OneTuple
  - "sed -i 's/^jobs:.*$/jobs: 2/' $HOME/.cabal/config"
  # - sed -i 's/^jobs:/ jobs:/' ${HOME}/.cabal/config
  # Use fixed build plans

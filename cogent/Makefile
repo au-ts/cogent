@@ -43,7 +43,6 @@ else
 	$(E) "Building in a sandbox..."
 	$(CABAL) sandbox init
 	$(CABAL) sandbox add-source ../isa-parser
-	$(CABAL) sandbox add-source ../OneTuple
 endif
 
 .install-deps:
@@ -76,7 +75,7 @@ clean:
 full-clean: clean
 	$(Q) $(CABAL) clean
 	$(Q) $(CABAL) sandbox delete -v0
-	$(Q) rm -rf .cabal-sandbox/ dist/ ../isa-parser/dist ../OneTuple/dist
+	$(Q) rm -rf .cabal-sandbox/ dist/ ../isa-parser/dist
 
 
 dev: .sandbox .cabal-update .install-deps .configure .build
