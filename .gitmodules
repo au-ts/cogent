@@ -7,9 +7,3 @@
 [submodule "z3"]
 	path = z3
 	url = https://github.com/Z3Prover/z3.git
-[submodule "OneTuple"]
-	path = OneTuple
-	url = https://github.com/phadej/OneTuple.git
-[submodule "GHood"]
-	path = GHood
-	url = git@github.com:zilinc/GHood.git
