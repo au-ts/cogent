@@ -22,6 +22,9 @@ SRC=src/super.cogent
 TYPES=data/types.txt
 DEFNS=data/defns.txt
 
+# GCC version
+GCCVER=$(shell gcc -dumpversion)
+
 # Standard Gum Directory
 STDGUM=$(shell cogent --stdgum-dir)
 # ADT headers required by vfat
@@ -99,6 +102,7 @@ verification: EXTRA_CFLAGS = $(VERIF_EXTRA_CFLAGS)
 
 # call from kernel build system
 ifneq ($(KERNELRELEASE),)
+	ccflags-y+=-I/usr/lib/gcc/x86_64-pc-linux-gnu/$(GCCVER)/include
 	obj-m+= cogent-fat.o
 	obj-m+= $(MODULE).o
 

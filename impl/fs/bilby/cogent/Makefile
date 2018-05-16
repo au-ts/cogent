@@ -22,6 +22,9 @@ SRC=src/fsop.cogent
 DEFNS=data/defns.txt
 PROOF_ID=BilbyFs
 
+# GCC version
+GCCVER=$(shell gcc -dumpversion)
+
 # Standard Gum Directory
 STDGUM=$(COGENT_STD_GUM_DIR)
 ifeq ($(STDGUM),)
@@ -106,8 +109,9 @@ verification: EXTRA_CFLAGS = $(VERIF_EXTRA_CFLAGS)
 
 # call from kernel build system
 ifneq ($(KERNELRELEASE),)
-  obj-m	+= $(MODULE).o
-  $(MODULE)-objs := $(OBJ)
+	ccflags-y+=-I/usr/lib/gcc/x86_64-pc-linux-gnu/$(GCCVER)/include
+	obj-m+= $(MODULE).o
+	$(MODULE)-objs := $(OBJ)
 else
 
 PWD:= $(shell pwd)

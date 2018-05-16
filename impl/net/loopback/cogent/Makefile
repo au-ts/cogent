@@ -22,6 +22,9 @@ TYPES=data/types.txt
 DEFNS=data/defns.txt
 PROOF_ID=
 
+# GCC version
+GCCVER=$(shell gcc -dumpversion)
+
 # Standard Gum Directory
 STDGUM=$(COGENT_STD_GUM_DIR)
 ifeq ($(STDGUM),)
@@ -106,6 +109,7 @@ verification: EXTRA_CFLAGS = $(VERIF_EXTRA_CFLAGS)
 
 # call from kernel build system
 ifneq ($(KERNELRELEASE),)
+	ccflags-y+=-I/usr/lib/gcc/x86_64-pc-linux-gnu/$(GCCVER)/include
 	obj-m+= $(MODULE).o
 	$(MODULE)-objs := $(OBJ)
 else
