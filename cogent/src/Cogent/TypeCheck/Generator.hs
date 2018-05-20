@@ -14,6 +14,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 
 module Cogent.TypeCheck.Generator
@@ -95,6 +96,8 @@ validateType rt@(RT t) = do
                       return (c <> cl, T $ TArray te' l')
     _ -> second (T . ffmap toSExpr) <$> fmapFoldM validateType t 
 
+validateTypes :: (Traversable t) => t RawType -> CG (Constraint, t TCType)
+validateTypes ts = fmapFoldM validateType ts
 
 -- -----------------------------------------------------------------------------
 -- Term-level constraints
@@ -330,11 +333,8 @@ cg' (Seq e1 e2) t = do
 
 cg' (TypeApp f as i) t = do
   tvs <- use knownTypeVars
-  (ct,as') <- lift (runExceptT $ validateTypes' tvs (fmap stripLocT $ Compose as)) >>= \case
-    Left e -> return (Unsat e, [])
-    Right ts -> return (Sat, getCompose ts)
+  (ct,getCompose -> as') <- validateTypes (fmap stripLocT $ Compose as) 
   lift (use $ knownFuns.at f) >>= \case
-
     Just (PT vs tau) -> let
         match :: [(TyVarName, Kind)] -> [Maybe TCType] -> CG ([(TyVarName, TCType)], Constraint)
         match [] []    = return ([], Sat)

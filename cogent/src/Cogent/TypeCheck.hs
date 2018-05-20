@@ -24,7 +24,7 @@ import Cogent.Compiler
 import qualified Cogent.Context as C
 import Cogent.PrettyPrint (prettyC)
 import Cogent.Surface
-import Cogent.TypeCheck.Assignment (assignE, assignAlts)
+import Cogent.TypeCheck.Assignment (assignT, assignE, assignAlts)
 import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Generator hiding (validateType)
 import qualified Cogent.TypeCheck.Generator as B (validateType)
@@ -120,20 +120,24 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     traceTc "tc" $ bold (text $ replicate 80 '=')
     traceTc "tc" (text "typecheck const definition" <+> pretty n)
     base <- lift . lift $ use knownConsts
-    t' <- validateType [] (stripLocT t)
     let ctx = C.addScope (fmap (\(t,_,p) -> (t,p, Seq.singleton p)) base) C.empty  -- for consts, the definition is the first use.
-    ((c, e'), flx, os) <- runCG ctx [] (cg e t')
-    let c' = c <> Share t' (Constant n)
-    (logs, subst, assign, _) <- runSolver (solve c') [] flx os
+    (((ct,t'),(c,e')), flx, os) <- runCG ctx [] 
+                                         ((,) <$> B.validateType (stripLocT t)
+                                              <*> cg e (toTCType $ stripLocT t))
+    let c' = ct <> c <> Share t' (Constant n)
+    traceTc "tc" (text "constraint for const definition" <+> pretty n <+> text "is"
+                  L.<$> prettyC c')
+    (logs, subst, assn, _) <- runSolver (solve c') [] flx os
     exitOnErr $ mapM_ logTc =<< mapM (\(c,l) -> lift (use errCtx >>= \c' -> return (c++c',l))) logs
     traceTc "tc" (text "substs for const definition" <+> pretty n <+> text "is"
                   L.<$> pretty subst
                   L.<$> text "assigns for const definition" <+> pretty n <+> text "is"
-                  L.<$> pretty assign)
-    lift . lift $ knownConsts %= M.insert n (t', e', loc)
-    e'' <- postE $ applyE subst $ assignE assign e'
-    t'' <- postT t'
-    return (ConstDef n t'' e'')
+                  L.<$> pretty assn)
+    let t'' = assignT assn $ apply subst t'
+    lift . lift $ knownConsts %= M.insert n (t'', e', loc)
+    e'' <- postE $ applyE subst $ assignE assn e'
+    t''' <- postT t''
+    return (ConstDef n t''' e'')
 
   (FunDef f (PT vs t) alts) -> do
     traceTc "tc" $ bold (text $ replicate 80 '=')
@@ -145,18 +149,20 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     let ctx = C.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) C.empty
     (i,o) <- asFunType' $ stripLocT t
     let ?loc = loc
-    (((ct,t'),(c,alts')), flx, os) <- runCG ctx (map fst vs) ((,) <$> B.validateType (stripLocT t) <*> cgAlts alts o i)
+    (((ct,t'),(c,alts')), flx, os) <- runCG ctx (map fst vs)
+                                            ((,) <$> B.validateType (stripLocT t)
+                                                 <*> cgAlts alts o i)
     traceTc "tc" (text "constraint for fun definition" <+> pretty f <+> text "is"
                   L.<$> prettyC c)
-    (logs, subst, assign, _) <- runSolver (solve $ ct <> c) vs flx os
+    (logs, subst, assn, _) <- runSolver (solve $ ct <> c) vs flx os
     exitOnErr $ mapM_ logTc =<< mapM (\(c,l) -> lift (use errCtx) >>= \c' -> return (c++c',l)) logs
     traceTc "tc" (text "substs for fun definition" <+> pretty f <+> text "is"
                   L.<$> pretty subst
                   L.<$> text "assigns for fun definition" <+> pretty f <+> text "is"
-                  L.<$> pretty assign)
-    let t'' = apply subst t'
+                  L.<$> pretty assn)
+    let t'' = assignT assn $ apply subst t'
     lift . lift $ knownFuns %= M.insert f (PT vs t'')
-    alts'' <- postA $ applyAlts subst $ assignAlts assign alts'
+    alts'' <- postA $ applyAlts subst $ assignAlts assn alts'
     t'''    <- postT t''
     return (FunDef f (PT vs t''') alts'')
 

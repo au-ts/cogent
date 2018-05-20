@@ -16,6 +16,7 @@
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -34,9 +35,10 @@ import           Cogent.TypeCheck.Subst (Subst(..))
 import           Cogent.TypeCheck.Util
 import           Cogent.TypeCheck.GoalSet (Goal(..), goal, goalContext, GoalSet)
 import qualified Cogent.TypeCheck.GoalSet as GS
+import           Cogent.Util (u32MAX)
 
 import           Control.Applicative
-import           Control.Arrow (first)
+import           Control.Arrow (first, second)
 import           Control.Lens hiding ((:<))
 import           Control.Monad.State hiding (modify)
 import           Control.Monad.Trans.Except
@@ -807,17 +809,17 @@ applySubst s = do
 applyAssign :: Ass.Assignment -> Solver ()
 applyAssign a = traceTc "sol" (text "apply assign") >> assigns <>= a
 
-arithEqSolver :: [Goal] -> Solver (Either GoalClasses Ass.Assignment)
-arithEqSolver gs = 
-  let es = flip map gs (\(Goal _ (Arith e)) -> e) 
-   in solveArithEqs es
 
-arithIneqSolver :: [Goal] -> Solver (Maybe GoalClasses)
-arithIneqSolver gs = do
-  let es = flip map gs (\(Goal _ (Arith e)) -> e)
-  solveArithIneqs es >>= \case
-    True  -> return Nothing
-    False -> __fixme $ return (Just $ mempty {unsats = [Goal [] (Unsat $ ArithInequationsUnsatisfiable es)]})
+-- add axioms for constant equality
+kAxioms :: Solver [SExpr]
+kAxioms = map f <$> (M.toList <$> lift (use knownConsts))
+  where f (v,(_,e,_)) = SE $ PrimOp "==" [SE (Var v), tcToSExpr e]
+
+arithEqSolver :: [Goal] -> Solver (Either GoalClasses Ass.Assignment)
+arithEqSolver gs = do
+  cs <- kAxioms
+  let es = flip map gs (\(Goal _ (Arith e)) -> e) 
+  solveArithEqs (cs ++ es)
 
 solveArithEqs :: [SExpr] -> Solver (Either GoalClasses Ass.Assignment)
 solveArithEqs es = maybe (Left g) (Right . Ass.Assignment . IM.fromList . M.toList
@@ -828,41 +830,58 @@ solveArithEqs es = maybe (Left g) (Right . Ass.Assignment . IM.fromList . M.toLi
         -- ^^^ FIXME: we should try to produce much better error msgs / zilinc
     getAssignments :: Solver (Maybe (M.Map String Integer))
     getAssignments = do
-      tcs <- lift get
-      let s = V.solve =<< evalStateT (mapM sexprToSBV_B es) (IM.empty, tcs)
+      let s = V.solve =<< evalStateT (mapM sexprToSBV_B es) (IM.empty, M.empty)
       liftIO $ V.isSatisfiable s >>= \case
         False -> return Nothing
         True  -> do
-          r@(V.AllSatResult (_,_,as)) <- V.allSat s
+          r@(V.AllSatResult (_,_,as)) <- V.allSatWith (V.defaultSMTCfg {V.isNonModelVar = \x -> head x /= '?'}) s
           if | null as        -> return $ Just M.empty
              | length as == 1 -> return $ Just $ M.map V.fromCW $ V.getModelDictionary (head as)
              | otherwise      -> __impossible "getAssignments: multiple assignments"  -- FIXME: is it possible? / zilinc
 
-solveArithIneqs :: [SExpr] -> Solver Bool
-solveArithIneqs es = do
-  tcs <- lift get
-  let s = V.solve =<< evalStateT (mapM sexprToSBV_B es) (IM.empty, tcs)
-  liftIO $ V.isSatisfiable (V.forAll_ s)
 
-type SymVars = IM.IntMap V.SWord16
+arithIneqSolver :: [Goal] -> Solver (Maybe GoalClasses)
+arithIneqSolver gs = do
+  cs <- kAxioms
+  let es = flip map gs (\(Goal _ (Arith e)) -> e)
+      g = [Goal [] (Unsat $ ArithInequationsUnsatisfiable (cs++es))]
+  solveArithIneqs cs es >>= \case
+    True  -> return Nothing
+    False -> __fixme $ return (Just $ mempty {unsats = g})
 
-type SbvM a = StateT (SymVars, TcState) V.Symbolic a
+solveArithIneqs :: [SExpr] -> [SExpr] -> Solver Bool
+solveArithIneqs cs es = do
+  traceTc "sol" (text "solving inequalities" <> colon
+                P.<$> vsep (map pretty es))
+  let s = V.solve =<< do ((cs',es'),(us,vs)) <- runStateT ((,) <$> mapM sexprToSBV_B cs <*> mapM sexprToSBV_B es) (IM.empty, M.empty)
+                         forM (IM.elems us) $ \v ->
+                           V.constrain $ (v V..>= 0) V.&&& (v V..< fromIntegral u32MAX)
+                         forM cs' V.constrain
+                         return es'
+  liftIO $ V.isTheorem s
 
-sexprToSBV_I :: SExpr -> SbvM V.SWord16
+type UVars = IM.IntMap V.SInt32
+type EVars = M.Map VarName V.SInt32
+
+type SbvM a = StateT (UVars, EVars) V.Symbolic a
+
+sexprToSBV_I :: SExpr -> SbvM V.SInt32
 sexprToSBV_I (SE (PrimOp op [e1,e2])) = liftA2 (opToSBV_I2 op) (sexprToSBV_I e1) (sexprToSBV_I e2)
 sexprToSBV_I (SE (PrimOp op [e])) = liftA (opToSBV_I1 op) $ sexprToSBV_I e
 sexprToSBV_I (SE (Var v)) = do
-  m <- use (_2.knownConsts)
+  m <- use _2
   case M.lookup v m of
-    Nothing -> __impossible "constant not in scope"
-    Just (_,e,_) -> sexprToSBV_I (tcToSExpr e)
+    Nothing -> do u <- lift $ V.sInt32 v
+                  modify (second $ M.insert v u)
+                  return u
+    Just u -> return u
 sexprToSBV_I (SE (IntLit i)) = return . V.literal $ fromIntegral i
 sexprToSBV_I (SE (Upcast e)) = sexprToSBV_I e
 sexprToSBV_I (SE (Annot e _)) = sexprToSBV_I e
 sexprToSBV_I (SU i) = do
-  (m,_) <- get
+  m <- use _1
   case IM.lookup i m of
-    Nothing -> do v <- lift . V.free $ '?':show i
+    Nothing -> do v <- lift . V.sInt32 $ '?':show i
                   modify (first $ IM.insert i v)
                   return v
     Just v -> return v
@@ -872,10 +891,10 @@ sexprToSBV_B :: SExpr -> SbvM V.SBool
 sexprToSBV_B (SE (PrimOp op [e1,e2])) = liftA2 (opToSBV_B2 op) (sexprToSBV_I e1) (sexprToSBV_I e2)
 sexprToSBV_B _ = __todo "sexprToSBV_B: not yet implemented"
 
-opToSBV_I1 :: OpName -> (V.SWord16 -> V.SWord16)
+opToSBV_I1 :: OpName -> (V.SInt32 -> V.SInt32)
 opToSBV_I1 "complement" = V.complement
 
-opToSBV_I2 :: OpName -> (V.SWord16 -> V.SWord16 -> V.SWord16)
+opToSBV_I2 :: OpName -> (V.SInt32 -> V.SInt32 -> V.SInt32)
 opToSBV_I2 op = case op of
   "+" -> (+)
   "-" -> (-)
@@ -889,7 +908,7 @@ opToSBV_I2 op = case op of
   "<<"  -> V.sShiftLeft
   ">>"  -> V.sShiftRight
 
-opToSBV_B2 :: OpName -> (V.SWord16 -> V.SWord16 -> V.SBool)
+opToSBV_B2 :: OpName -> (V.SInt32 -> V.SInt32 -> V.SBool)
 opToSBV_B2 op = case op of
   "==" -> (V..==)
   "/=" -> (V../=)
@@ -897,6 +916,7 @@ opToSBV_B2 op = case op of
   "<"  -> (V..<)
   ">=" -> (V..>=)
   "<=" -> (V..<=)
+
 
 -- Applies the current substitution to goals.
 instantiate :: Subst.Subst -> Ass.Assignment -> GoalClasses -> Solver [Goal]

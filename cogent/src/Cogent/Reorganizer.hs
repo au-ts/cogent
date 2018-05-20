@@ -45,15 +45,19 @@ dependencies :: TopLevel LocType LocPatn LocExpr -> [SourceObject]
 dependencies (Include _) = __impossible "dependencies"
 dependencies (IncludeStd _) = __impossible "dependencies"
 dependencies (TypeDec _ _ t) = map TypeName (fcT (stripLocT t))
+                            ++ map ValName  (fvT (stripLocT t))
 dependencies (AbsTypeDec _ _ ts) = map TypeName (foldMap (fcT . stripLocT) ts)
+                                ++ map ValName  (foldMap (fvT . stripLocT) ts)
 dependencies (DocBlock _) = []
 dependencies (RepDef (RepDecl _ _ e)) = map RepName (allRepRefs e) 
 dependencies (AbsDec _ pt) = map TypeName (foldMap (fcT . stripLocT) pt)
+                          ++ map ValName  (foldMap (fvT . stripLocT) pt)
 dependencies (FunDef _ pt as) = map TypeName (foldMap (fcT . stripLocT) pt
                                            ++ foldMap (fcA . fmap stripLocE) as)
-                             ++ map ValName  (foldMap (fvA . ffmap stripLocP . fmap stripLocE) as)
-dependencies (ConstDef _ t e) = map TypeName (fcT (stripLocT t))
-                             ++ map ValName  (fvE (stripLocE e))
+                             ++ map ValName  (foldMap (fvT . stripLocT) pt
+                                           ++ foldMap (fvA . ffmap stripLocP . fmap stripLocE) as)
+dependencies (ConstDef _ t e) = map TypeName (fcT (stripLocT t) ++ fcE (stripLocE e))
+                             ++ map ValName  (fvT (stripLocT t) ++ fvE (stripLocE e))
 
 classify :: [(SourcePos, DocString, TopLevel LocType LocPatn LocExpr)]
          -> [(SourceObject, (SourcePos, DocString, TopLevel LocType LocPatn LocExpr))]
