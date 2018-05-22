@@ -50,31 +50,30 @@ import qualified Cogent.DList          as DList
 import qualified Cogent.HscSyntax      as Hsc
 import           Cogent.Mono                  (Instance)
 import           Cogent.Normal                (isAtom)
--- import           Cogent.PrettyPrint           ()
 import           Cogent.Util                  (decap, extTup3, first3, secondM, toCName, whenM)
 import           Cogent.Vec            as Vec hiding (repeat, zipWith)
 
-import           Control.Applicative         hiding (empty)
-import           Control.Arrow                      ((***), (&&&), second)
-import           Control.Lens                hiding (at)
-import           Control.Monad.RWS.Strict    hiding (mapM, mapM_, Dual, (<>), Product, Sum)
-import           Data.Char                   (isAlphaNum, toUpper)
+import           Control.Applicative          hiding (empty)
+import           Control.Arrow                       ((***), (&&&), second)
+import           Control.Lens                 hiding (at)
+import           Control.Monad.RWS.Strict     hiding (mapM, mapM_, Dual, (<>), Product, Sum)
+import           Data.Char                    (isAlphaNum, toUpper)
 #if __GLASGOW_HASKELL__ < 709
-import           Data.Foldable               (mapM_)
+import           Data.Foldable                (mapM_)
 #endif
 import           Data.Functor.Compose
-import           Data.Function.Flippers      (flip3)
+import           Data.Function.Flippers       (flip3)
 import qualified Data.List           as L
-import           Data.Loc                    (noLoc)
+import           Data.Loc                     (noLoc)
 import qualified Data.Map            as M
-import           Data.Maybe                  (catMaybes, fromJust)
-import           Data.Monoid                 ((<>))
+import           Data.Maybe                   (catMaybes, fromJust)
+import           Data.Monoid                  ((<>))
 import           Data.Semigroup.Monad
--- import           Data.Semigroup.Reducer      (foldReduce)
+-- import           Data.Semigroup.Reducer       (foldReduce)
 import qualified Data.Set            as S
 import           Data.String
-import           Data.Traversable            (mapM)
-import           Data.Tuple                  (swap)
+import           Data.Traversable             (mapM)
+import           Data.Tuple                   (swap)
 import qualified "language-c-quote" Language.C as C
 import           Language.C.Quote.C
 import           "language-c-quote" Language.C.Syntax ()
@@ -98,16 +97,18 @@ import Unsafe.Coerce (unsafeCoerce)
 
 -- Most of the abstract syntax is derived from Absyn.ML in c-parser
 -- Currently we just implement the smallest set used in our CG
+-- This AST is used as a simpler intermediate representation between the Cogent
+-- Core language and the verbose C syntax as defined in language-c-quote.
+
 
 type CId = String
 
 data CIntType = CCharT | CShortT | CIntT | CLongT | CLongLongT
               deriving (Eq, Ord, Show)
 
--- This is copied from language-c-quote
 data CArraySize = CArraySize CExpr
-                | CVariableArraySize
                 | CNoArraySize
+                | CPtrToArray
                 deriving (Eq, Ord, Show)
 
 -- The type parameter has been striped off
@@ -267,6 +268,7 @@ data CStmt = CAssign CExpr CExpr
            | CEmptyStmt
            -- elide `Auxupd' `Ghostupd' `Spec' and `AsmStmt'
            -- | CLocalInit CExpr
+           | CComment String CStmt  -- to accommodate comments
            deriving (Show)
 
 data CBlockItem = CBIStmt CStmt
@@ -303,13 +305,12 @@ data CExtDecl = CFnDefn (CType, CId) [(CType, CId)] [CBlockItem] FnSpec
               | CFnMacro CId [CId] [CBlockItem]
               deriving (Show)
 
--- ****************************************************************************
--- The front-end: -> Dual-AST
 
-
+-- `StrlType' tried to unify some of the types we have in Core.
+-- It can be deemed as the C representation for Cogent types.
 data StrlType = Record  [(CId, CType)] Bool  -- fieldname |-> fieldtype * is_unboxed
-              | Product CType CType         -- pair
-              | Variant (M.Map CId CType)   -- one tag field, and fields for all possibilities
+              | Product CType CType          -- pair
+              | Variant (M.Map CId CType)    -- one tag field, and fields for all possibilities
               | Function CType CType
               | AbsType CId
               | Array CType (Maybe Int)
@@ -361,6 +362,10 @@ p2 = "p2"
 -- XXX | field n = 'f':show n
 -- XXX | fields = map (('f':) . show) [0 :: Int ..]
 
+
+-- *****************************************************************************
+-- The state for code-generation
+
 type FunClass  = M.Map StrlType (S.Set (FunName, Attr))  -- c_strl_type |-> funnames
 type VarPool   = M.Map CType [CId]  -- vars available (ty_id |-> [var_id])
 type GenRead v = Vec v CExpr
@@ -391,6 +396,10 @@ mergePools = M.unionsWith (\vs1 vs2 -> L.nub (vs1 ++ vs2))
 
 intersectPools :: VarPool -> VarPool -> VarPool
 intersectPools = M.intersectionWith L.intersect
+
+
+-- *****************************************************************************
+-- CodeGen front-end: from Core to the intermediate rep.
 
 newtype Gen v a = Gen { runGen :: RWS (GenRead v) () GenState a }
                 deriving (Functor, Applicative, Monad,
@@ -476,7 +485,7 @@ genTyDecl :: (StrlType, CId) -> [TypeName] -> [CExtDecl]
 genTyDecl (Record x _, n) _ = [CDecl $ CStructDecl n (map (second Just . swap) x), genTySynDecl (n, CStruct n)]
 genTyDecl (Product t1 t2, n) _ = [CDecl $ CStructDecl n [(t1, Just p1), (t2, Just p2)]]
 genTyDecl (Variant x, n) _ = case __cogent_funion_for_variants of
-  False -> [CDecl $ CStructDecl n ((CIdent $ tagsT, Just fieldTag) : map (second Just . swap) (M.toList x)),
+  False -> [CDecl $ CStructDecl n ((CIdent tagsT, Just fieldTag) : map (second Just . swap) (M.toList x)),
             genTySynDecl (n, CStruct n)]
   True  -> [CDecl $ CStructDecl n [(CIdent tagsT, Just fieldTag), (CUnion Nothing $ Just (map swap (M.toList x)), Nothing)],
             genTySynDecl (n, CStruct n)]
@@ -632,15 +641,21 @@ genType :: CC.Type 'Zero -> Gen v CType
 genType t@(TRecord _)  = CIdent <$> typeCId t
 genType t@(TString)    = CPtr . CIdent <$> typeCId t
 genType t@(TCon _ _)   = CIdent <$> typeCId t
-genType   (TArray t l) = CPtr   <$> genType t
+genType   (TArray t l) = CArray <$> genType t <*> pure (CArraySize (mkConst U32 l)) -- CPtr   <$> genType t
 genType   (TPtr t _)   = CPtr   <$> genType t
 genType t              = CIdent <$> typeCId t
 
 genTypeA :: Bool -> CC.Type 'Zero -> Gen v CType
-genTypeA is_arg t@(TRecord _) | is_arg && __cogent_funboxed_arg_by_ref = CPtr . CIdent <$> typeCId t  -- TODO: sizeof
+genTypeA is_arg t@(TRecord _) | is_arg && __cogent_funboxed_arg_by_ref
+  = CPtr . CIdent <$> typeCId t  -- TODO: sizeof
 genTypeA _ t = genType t
 
-genTypeALit :: CC.Type 'Zero -> Gen v  CType
+genTypeP :: Bool -> CC.Type 'Zero -> Gen v CType
+genTypeP is_arr_ptr (TArray telm l) | is_arr_ptr
+  = CPtr <$> genTypeP is_arr_ptr telm
+genTypeP _ t = genType t
+
+genTypeALit :: CC.Type 'Zero -> Gen v CType
 genTypeALit (TArray t l) = CArray <$> (genType t) <*> pure (CArraySize (mkConst U32 l))
 genTypeALit t = genType t
 
@@ -657,17 +672,31 @@ genType' :: CC.Type 'Zero -> TypeName -> Gen v CType
 genType' = genTypeA' False
 
 genTypeA' :: Bool -> CC.Type 'Zero -> TypeName -> Gen v CType
-genTypeA' is_arg ty n = do ty' <- genTypeA is_arg ty
-                           typeSynonyms %= M.insert n ty'
-                           return ty'
+genTypeA' m ty n = do ty' <- genTypeA m ty
+                      typeSynonyms %= M.insert n ty'
+                      return ty'
+
+genTypeP' :: Bool -> CC.Type 'Zero -> TypeName -> Gen v CType
+genTypeP' m ty n = do ty' <- genTypeP m ty
+                      typeSynonyms %= M.insert n ty'
+                      return ty'
+
 
 -- XXX | assign :: CId -> Char -> [CExpr] -> [CBlockItem]
 -- XXX | assign rv c = map ((\(x,y) -> CBIStmt $ CAssign (CStructDot (variable rv) x) y) .
 -- XXX |                    first ((c:) . show)) . P.zip [(1 :: Int)..]
 
--- (assignee, assigner)
-assign1 :: CExpr -> CExpr -> CBlockItem
-assign1 a e = CBIStmt $ CAssign a e
+-- (type of assignee/r, assignee, assigner)
+assign1 :: CType -> CExpr -> CExpr -> Gen v [CBlockItem]  -- FIXME: should return ([CBlockItem], [CBlockItem])
+assign1 (CArray t (CArraySize l)) lhs rhs = do
+  (i,idecl,istm) <- declareInit u32 (mkConst U32 0) M.empty
+  ass <- assign1 t (CArrayDeref lhs (variable i)) (CArrayDeref rhs (variable i))
+  let cond = CBinOp C.Lt (variable i) l
+      inc  = CAssign (variable i) (CBinOp C.Add (variable i) (mkConst U32 1))  -- i++
+      loop = CWhile cond (CBlock $ ass ++ [CBIStmt inc])
+  return (idecl++istm++[CBIStmt loop])
+assign1 t lhs rhs = return [CBIStmt $ CAssign lhs rhs]
+
 
 -- Given a C type, returns a fresh local variable e
 declare :: CType -> Gen v (CId, [CBlockItem], [CBlockItem])
@@ -689,8 +718,8 @@ declare ty = declareG ty Nothing
 declareInit :: CType -> CExpr -> VarPool -> Gen v (CId, [CBlockItem], [CBlockItem])
 declareInit ty@(CArray {}) e p = do
   (v,vdecl,vstm) <- declare ty
-  let ass = assign1 (variable v) e
-  return (v,vdecl,vstm++[ass])
+  ass <- assign1 ty (variable v) e
+  return (v,vdecl,vstm++ass)
 declareInit ty e p = declareG ty (Just $ CInitE e) <* recycleVars p
 
 -- XXX | declareInit' :: CType -> CId -> CExpr -> Gen v CBlockItem
@@ -704,18 +733,18 @@ declareG ty minit | __cogent_fshare_linear_vars = do
     Nothing -> do
       v <- freshLocalCId 'r'
       let decl = [CBIDecl $ CVarDecl ty v True Nothing]
-          ass = case minit of
-                  Nothing -> []
-                  Just (CInitE e) -> [assign1 (variable v) e]
-                  Just (CInitList il) -> [assign1 (variable v) (CCompLit ty il)]
+      ass <- case minit of
+               Nothing -> return []
+               Just (CInitE e) -> assign1 ty (variable v) e
+               Just (CInitList il) -> assign1 ty (variable v) (CCompLit ty il)
       return (v,decl,ass)
     Just []     -> do varPool .= M.delete ty pool; declareG ty minit
     Just (v:vs) -> do
       varPool .= M.update (const $ Just vs) ty pool
       case minit of
         Nothing -> return (v, [], [CBIStmt CEmptyStmt])  -- FIXME: shouldn't have anything in p though / zilinc
-        Just (CInitE e) -> return (v, [], [assign1 (variable v) e])
-        Just (CInitList il) -> return (v, [], [assign1 (variable v) (CCompLit ty il)])
+        Just (CInitE e) -> (v,[],) <$> assign1 ty (variable v) e
+        Just (CInitList il) -> (v,[],) <$> assign1 ty (variable v) (CCompLit ty il)
 declareG ty minit = do
   v <- freshLocalCId 'r'
   let decl = CBIDecl $ CVarDecl ty v True minit
@@ -726,14 +755,15 @@ declareG ty minit = do
 -- declareG' ty v minit = return (CBIDecl $ CVarDecl ty v True minit)
 
 -- If assigned to a var, then recycle
-maybeAssign :: Maybe CId -> CExpr -> VarPool -> Gen v (CExpr, [CBlockItem], VarPool)
-maybeAssign Nothing  e p = return (e,[],p)
-maybeAssign (Just v) e p | __cogent_fintermediate_vars = maybeAssign Nothing e p
-                         | otherwise = recycleVars p >> return (variable v, [assign1 (variable v) e], M.empty)
+maybeAssign :: CType -> Maybe CId -> CExpr -> VarPool -> Gen v (CExpr, [CBlockItem], VarPool)
+maybeAssign _  Nothing  e p = return (e,[],p)
+maybeAssign ty (Just v) e p
+  | __cogent_fintermediate_vars = maybeAssign ty Nothing e p
+  | otherwise = recycleVars p >> (variable v,,M.empty) <$> assign1 ty (variable v) e
 
-forceDecl :: Maybe CId -> CType -> Gen v (CId, [CBlockItem], [CBlockItem])
-forceDecl Nothing  t = declare t
-forceDecl (Just v) t = return (v,[],[])
+maybeDecl :: Maybe CId -> CType -> Gen v (CId, [CBlockItem], [CBlockItem])
+maybeDecl Nothing  t = declare t
+maybeDecl (Just v) t = return (v,[],[])
 
 -- If assigned to a new var, then recycle
 aNewVar :: CType -> CExpr -> VarPool -> Gen v (CExpr, [CBlockItem], [CBlockItem], VarPool)
@@ -744,7 +774,7 @@ aNewVar t e p | __cogent_simpl_cg && not (isTrivialCExpr e) = (extTup3 M.empty) 
 maybeInitCL :: Maybe CId -> CType -> CExpr -> VarPool -> Gen v (CExpr, [CBlockItem], [CBlockItem], VarPool)
 maybeInitCL Nothing  t e p | __cogent_fuse_compound_literals = return (e,[],[],p)
                            | otherwise = (extTup3 M.empty) . (first3 variable) <$> declareInit t e p
-maybeInitCL (Just v) t e p = noDecls <$> maybeAssign (Just v) e p
+maybeInitCL (Just v) t e p = noDecls <$> maybeAssign t (Just v) e p
 
 withBindings :: Vec v' CExpr -> Gen (v :+: v') a -> Gen v a
 withBindings vec = Gen . withRWS (\r s -> (r <++> vec, s)) . runGen
@@ -803,34 +833,45 @@ genExpr_ = genExpr Nothing
 noDecls :: (CExpr, [CBlockItem], VarPool) -> (CExpr, [CBlockItem], [CBlockItem], VarPool)
 noDecls (e,s,p) = (e,[],s,p)
 
+
 -- The first argument is the return value on one level up
 -- Returns: (expr, decls, stmts, reusable_var_pool)
 genExpr :: Maybe CId -> TypedExpr 'Zero v VarName -> Gen v (CExpr, [CBlockItem], [CBlockItem], VarPool)
 genExpr _ (TE t (Op opr [])) = __impossible "genExpr"
+
 genExpr mv (TE t (Op opr es@(e1:_))) = do
   (es',decls,stms,ps) <- L.unzip4 <$> mapM genExpr_ es
   e' <- genOp opr (exprType e1) es'
-  (v,ass,vp) <- maybeAssign mv e' (mergePools ps)
+  t' <- genType t
+  (v,ass,vp) <- maybeAssign t' mv e' (mergePools ps)
   return (v, concat decls, concat stms ++ ass, vp)
-genExpr mv (TE t (ILit n pt)) =
-  noDecls <$> maybeAssign mv (mkConst pt n) M.empty
-genExpr mv (TE t (SLit s)) =
-  noDecls <$> maybeAssign mv (CConst $ CStringConst s) M.empty
+
+genExpr mv (TE t (ILit n pt)) = do
+  t' <- genType t
+  noDecls <$> maybeAssign t' mv (mkConst pt n) M.empty
+
+genExpr mv (TE t (SLit s)) = do
+  t' <- genType t
+  noDecls <$> maybeAssign t' mv (CConst $ CStringConst s) M.empty
+
 genExpr mv (TE t (ALit es)) = do
   blob <- mapM genExpr_ es
   let TArray telt _ = t
   t' <- genTypeALit t
   telt' <- genType telt
-  (v,vdecl,vstm) <- forceDecl mv t'
+  (v,vdecl,vstm) <- maybeDecl mv t'
   blob' <- flip3 zipWithM [0..] blob $ \(e,edecl,estm,ep) idx -> do
-    let ass = assign1 (mkArrIdx (variable v) idx) e
-    return (edecl,estm++[ass],M.empty)  -- FIXME: varpool - meaningless placeholder now / zilinc
+    ass <- assign1 telt' (mkArrIdx (variable v) idx) e
+    return (edecl,estm++ass,M.empty)  -- FIXME: varpool - meaningless placeholder now / zilinc
   let (vdecls,vstms,vps) = L.unzip3 blob'
   return (variable v, vdecl ++ concat vdecls, vstm ++ concat vstms, M.empty)
+
 genExpr mv (TE t (ArrayIndex e i)) = do  -- FIXME: varpool - as above
   (e',decl,stm,ep) <- genExpr_ e
-  (v,ass,vp) <- maybeAssign mv (mkArrIdx e' i) ep
+  t' <- genType t
+  (v,ass,vp) <- maybeAssign t' mv (mkArrIdx e' i) ep
   return (v, decl, stm ++ ass, vp)
+
 genExpr mv (TE t (Pop _ e1 e2)) = do  -- FIXME: varpool - as above
   -- Idea:
   --   v :@ vs = e1 in e2 ~~> v1 = e1[0]; t v2[l-1]; v2 = e1[1]; e2
@@ -838,63 +879,76 @@ genExpr mv (TE t (Pop _ e1 e2)) = do  -- FIXME: varpool - as above
   let t1@(TArray telt l) = exprType e1
   (v1,v1decl,v1stm,v1p) <- flip3 aNewVar e1p (mkArrIdx e1' 0) =<< genType telt
   let trest = TArray telt (l-1)
-  trest' <- genType trest
+  trest' <- genTypeP True trest
   (v2,v2decl,v2stm) <- declare trest'
   -- recycleVars v1p
-  let ass = assign1 (variable v2) (CBinOp C.Add e1' (mkConst U32 1)) -- (mkArrIdx e1' 1)
+  ass <- assign1 trest' (variable v2) (CBinOp C.Add e1' (mkConst U32 1))
   (e2',e2decl,e2stm,e2p) <- withBindings (fromJust $ cvtFromList (SSuc $ SSuc SZero) [v1, variable v2]) $ genExpr mv e2 
-  return (e2',e1decl++v1decl++v2decl++e2decl, e1stm++v1stm++v2stm++[ass]++e2stm, e2p)
+  return (e2',e1decl++v1decl++v2decl++e2decl, e1stm++v1stm++v2stm++ass++e2stm, e2p)
+
 genExpr mv (TE t (Singleton e)) = do
   (e',edecl,estm,ep) <- genExpr_ e
-  (v,ass,vp) <- flip (maybeAssign mv) ep $ mkArrIdx e' 0
+  t' <- genType t
+  (v,ass,vp) <- flip (maybeAssign t' mv) ep $ mkArrIdx e' 0
   return (v, edecl, estm ++ ass, vp)
+
 genExpr mv (TE t (Unit)) = do
   t' <- genType t
   let e' = CCompLit t' [([CDesignFld dummyField], CInitE (CConst $ CNumConst 0 (CInt True CIntT) DEC))]
-  noDecls <$> maybeAssign mv e' M.empty
+  noDecls <$> maybeAssign t' mv e' M.empty
+
 genExpr mv (TE t (Variable v)) = do  -- NOTE: this `v' could be a higher-order function
   e' <- ((`at` fst v) <$> ask)
   -- --------------------------------------------------------------------------
   -- XXX | NOTE: We need to establish C scope in order to determine the life time of linear C variables.
   -- XXX |       Thus --fshare-linear-vars is not working due to it. It now does a weaker modification,
   -- XXX |       which moves all variable declarations to the beginning of a function / zilinc
+  t' <- genType t
   p <- whenM __cogent_fshare_linear_vars $ do
-    t' <- genType t
     whenM (isTypeLinear t) $ case e' of
       CVar v _ -> return $ M.singleton t' [v]
       _ -> return mempty
   -- --------------------------------------------------------------------------
-  noDecls <$> maybeAssign mv e' p
-genExpr mv (TE t (Fun f _ _)) =  -- it is a function identifier
-  noDecls <$> maybeAssign mv (variable $ funEnum f) M.empty
+  noDecls <$> maybeAssign t' mv e' p
+
+genExpr mv (TE t (Fun f _ _)) = do  -- it is a function identifier
+  t' <- genType t
+  noDecls <$> maybeAssign t' mv (variable $ funEnum f) M.empty
+
 genExpr mv (TE t (App e1@(TE _ (Fun f _ MacroCall)) e2)) | __cogent_ffncall_as_macro = do  -- first-order function application
   (e2',e2decl,e2stm,e2p) <- genExpr_ e2
   t' <- genType t
-  (v,vdecl,vstm) <- forceDecl mv t'
+  (v,vdecl,vstm) <- maybeDecl mv t'
   let call = [CBIStmt $ CAssignFnCall Nothing (variable $ funMacro f) [variable v, e2']]
   recycleVars e2p
   return (variable v, e2decl ++ vdecl, e2stm ++ vstm ++ call, M.empty)
+
 genExpr mv (TE t (App e1@(TE _ (Fun f _ _)) e2)) = do  -- first-order function application
   (e2',e2decl,e2stm,e2p) <- genExpr_ e2
-  (v,ass,vp) <- maybeAssign mv (CEFnCall (variable f) [e2']) e2p
+  t' <- genType t
+  (v,ass,vp) <- maybeAssign t' mv (CEFnCall (variable f) [e2']) e2p
   return (v, e2decl, e2stm ++ ass, vp)
+
 genExpr mv (TE t (App e1 e2)) | __cogent_ffncall_as_macro = do
   enumt <- typeCId $ exprType e1
   (e1',e1decl,e1stm,e1p) <- genExpr_ e1
   (e2',e2decl,e2stm,e2p) <- genExpr_ e2
   let fname = funDispatch enumt
   t' <- genType t
-  (v,vdecl,vstm) <- forceDecl mv t'
+  (v,vdecl,vstm) <- maybeDecl mv t'
   let call = [CBIStmt $ CAssignFnCall Nothing (variable $ funDispMacro fname) [variable v, e1', e2']]
   recycleVars (mergePools [e1p,e2p])
   return (variable v, e1decl ++ e2decl ++ vdecl, e1stm ++ e2stm ++ vstm ++ call, M.empty)
-genExpr mv (TE t (App e1 e2)) = do   -- change `e1' to its dispatch function, with `e' being the first argument
+
+genExpr mv (TE t (App e1 e2)) = do   -- change `e1' to its dispatch function, with `e1' being the first argument
   enumt <- typeCId $ exprType e1
   (e1',e1decl,e1stm,e1p) <- genExpr_ e1
   (e2',e2decl,e2stm,e2p) <- genExpr_ e2
+  t' <- genType t
   let fname = variable $ funDispatch enumt
-  (v',ass,vp) <- maybeAssign mv (CEFnCall fname [e1', e2']) (mergePools [e1p,e2p])
+  (v',ass,vp) <- maybeAssign t' mv (CEFnCall fname [e1',e2']) (mergePools [e1p,e2p])
   return (v', e1decl ++ e2decl, e1stm ++ e2stm ++ ass, vp)
+
 genExpr mv (TE t (Take _ rec fld e)) = do
   -- NOTE: New `rec' and old `rec' CAN be the same at this point, as long as they get copied while being
   --       updated. Similarly, the field can be `rec.f' instead of a new one / zilinc
@@ -910,9 +964,12 @@ genExpr mv (TE t (Take _ rec fld e)) = do
     False -> return . (,[],[],M.empty)) $ (if s == Unboxed then mkStr3 else mkStr3') rec'' (fst $ fs!!fld)
   (f'',fdecl',fstm',fp') <- aNewVar ft f' fp
   (e',edecl,estm,ep) <- withBindings (Cons f'' (Cons rec'' Nil)) $ genExpr mv e
-  return (e', recdecl ++ recdecl' ++ fdecl ++ fdecl' ++ edecl, recstm ++ recstm' ++ fstm ++ fstm' ++ estm, mergePools [fp',recp',ep])
+  return (e', recdecl ++ recdecl' ++ fdecl ++ fdecl' ++ edecl,
+          recstm ++ recstm' ++ fstm ++ fstm' ++ estm, mergePools [fp',recp',ep])
+
 genExpr mv (TE t (Put rec fld val)) = do
   t' <- genType t
+  fldt <- genType (exprType val)
   -- NOTE: always copy a new record and leave rec unchanged. This prevents the following problem:
   -- > let x' = x {f = fv}  -- x is an unboxed record
   -- >  in (x', x)
@@ -923,10 +980,11 @@ genExpr mv (TE t (Put rec fld val)) = do
   (rec',recdecl,recstm,recp) <- genExpr_ rec
   (rec'',recdecl',recstm') <- declareInit t' rec' recp
   (val',valdecl,valstm,valp) <- genExpr_ val
-  let put = assign1 ((if s == Unboxed then mkStr3 else mkStr3') (variable rec'') (fst $ fs!!fld)) val'
+  put <- assign1 fldt ((if s == Unboxed then mkStr3 else mkStr3') (variable rec'') (fst $ fs!!fld)) val'
   recycleVars valp
-  (v,ass,vp) <- maybeAssign mv (variable rec'') M.empty
-  return (v, recdecl ++ recdecl' ++ valdecl, recstm ++ recstm' ++ valstm ++ put : ass, vp)
+  (v,ass,vp) <- maybeAssign t' mv (variable rec'') M.empty
+  return (v, recdecl ++ recdecl' ++ valdecl, recstm ++ recstm' ++ valstm ++ put ++ ass, vp)
+
 genExpr mv (TE t (Let _ e1 e2))
   | not __cogent_flet_in_if || isAtom (untypeE e1) = do
     t1' <- genType $ exprType e1
@@ -938,49 +996,62 @@ genExpr mv (TE t (Let _ e1 e2))
     t1' <- genType $ exprType e1
     (v,vdecl,vstm) <- declare t1'
     (e1',e1decl,e1stm,e1p) <- genExpr_ e1
-    let ass = assign1 (variable v) e1'
-        binding = [CBIStmt $ CIfStmt (variable letTrue) (CBlock $ e1stm ++ [ass]) CEmptyStmt]
+    ass <- assign1 t1' (variable v) e1'
+    let binding = [CBIStmt $ CIfStmt (variable letTrue) (CBlock $ e1stm ++ ass) CEmptyStmt]
     recycleVars e1p
     (e2',e2decl,e2stm,e2p) <- withBindings (Cons (variable v) Nil) $ genExpr mv e2
     return (e2', vdecl ++ e1decl ++ e2decl, vstm ++ binding ++ e2stm, e2p)
+
 genExpr mv (TE t (LetBang vs v e1 e2)) | not __cogent_fletbang_in_if = genExpr mv (TE t (Let v e1 e2))
                                        | otherwise = do
     t1' <- genType $ exprType e1
     (v,vdecl,vstm) <- declare t1'
     (e1',e1decl,e1stm,e1p) <- genExpr_ e1
-    let ass = assign1 (variable v) e1'
-        binding = [CBIStmt $ CIfStmt (variable letbangTrue) (CBlock $ e1stm ++ [ass]) CEmptyStmt]
+    ass <- assign1 t1' (variable v) e1'
+    let binding = [CBIStmt $ CIfStmt (variable letbangTrue) (CBlock $ e1stm ++ ass) CEmptyStmt]
     recycleVars e1p
     (e2',e2decl,e2stm,e2p) <- withBindings (Cons (variable v) Nil) $ genExpr mv e2
     return (e2', vdecl ++ e1decl ++ e2decl, vstm ++ binding ++ e2stm, e2p)
+
 genExpr mv (TE t (Tuple e1 e2)) = do
   (e1',e1decl,e1stm,e1p) <- genExpr_ e1
   (e2',e2decl,e2stm,e2p) <- genExpr_ e2
   t' <- genType t
-  (v,vdecl,ass,vp) <- flip (maybeInitCL mv t') (mergePools [e1p,e2p]) $ CCompLit t' $
-                        P.zip (map ((:[]) . CDesignFld) [p1,p2]) (map CInitE [e1',e2'])
-  return (v, e1decl ++ e2decl ++ vdecl, e1stm ++ e2stm ++ ass, vp)
+  (v,vdecl,vstm) <- maybeDecl mv t'
+  t1' <- genType (exprType e1)
+  t2' <- genType (exprType e2)
+  ass1 <- assign1 t1' (mkStr2 v p1) e1'
+  ass2 <- assign1 t2' (mkStr2 v p2) e2'
+  return (variable v, e1decl ++ e2decl ++ vdecl, e1stm ++ e2stm ++ vstm ++ ass1 ++ ass2, mergePools [e1p,e2p])
+
 genExpr mv (TE t (Struct fs)) = do
   let (ns,es) = P.unzip fs
   (es',decls,stms,eps) <- L.unzip4 <$> mapM genExpr_ es
   t' <- genType t
-  (v,vdecl,ass,vp) <- flip (maybeInitCL mv t') (mergePools eps) $ CCompLit t' $
-                        P.zip (map ((:[]) . CDesignFld) ns) (map CInitE es')
-  return (v, concat decls ++ vdecl, concat stms ++ ass, vp)
+  ts' <- mapM (genType . exprType) es
+  (v,vdecl,vstm) <- maybeDecl mv t'
+  blob <- forM (zip3 ns ts' es') $ \(n,t',e') -> assign1 t' (mkStr2 v n) e'
+  return (variable v, concat decls ++ vdecl, concat stms ++ vstm ++ concat blob, mergePools eps)
+
 genExpr mv (TE t (Con tag e tau)) = do  -- `tau' and `t' should be compatible
   (e',edecl,estm,ep) <- genExpr_ e
-  t' <- genType t
-  (v,vdecl,ass,vp) <- flip (maybeInitCL mv t') ep $ CCompLit t' $ map (map CDesignFld *** CInitE)
-                        [([fieldTag], variable $ tagEnum tag), ([tag], e')]
-  return (v, edecl ++ vdecl, estm ++ ass, vp)
+  te' <- genType (exprType e)
+  t'  <- genType t
+  (v,vdecl,vstm) <- maybeDecl mv t'
+  ass1 <- assign1 (CIdent tagsT) (mkStr2 v fieldTag) (variable $ tagEnum tag)
+  ass2 <- assign1 te' (mkStr2 v tag) e' 
+  return (variable v, edecl ++ vdecl, estm ++ vstm ++ ass1 ++ ass2, ep)
+
 genExpr mv (TE t (Member rec fld)) = do
   let (s,fs) = case exprType rec of
                  TRecord fs -> (Unboxed, fs)
                  TPtr (TRecord fs) s -> (s, fs)
   (rec',recdecl,recstm,recp) <- genExpr_ rec
   let e' = (if s == Unboxed then mkStr3 else mkStr3') rec' (fst $ fs!!fld)
-  (v',ass,vp) <- maybeAssign mv e' recp
+  t' <- genType t
+  (v',ass,vp) <- maybeAssign t' mv e' recp
   return (v', recdecl, recstm ++ ass, vp)
+
 genExpr mv (TE t (If c e1 e2)) = do
   (v,vdecl,vstm) <- case mv of
     Nothing -> declare =<< genType t
@@ -993,12 +1064,17 @@ genExpr mv (TE t (If c e1 e2)) = do
   (e2',e2decl,e2stm,e2p) <- genExpr (if __cogent_fintermediate_vars then Nothing else Just v) e2
   pool2 <- use varPool
   varPool .= intersectPools pool1 pool2  -- it seems that pool_final = (e1p & e2p) + (pool1 & pool2)
+  t1 <- genType (exprType e1)
+  t2 <- genType (exprType e2)
+  a1 <- assign1 t1 (variable v) e1'
+  a2 <- assign1 t2 (variable v) e2'
   let ifstm = if __cogent_fintermediate_vars
-                then CBIStmt $ CIfStmt (mkStr3 c' boolField) (CBlock $ e1stm ++ [assign1 (variable v) e1'])
-                                                             (CBlock $ e2stm ++ [assign1 (variable v) e2'])
+                then CBIStmt $ CIfStmt (mkStr3 c' boolField) (CBlock $ e1stm ++ a1)
+                                                             (CBlock $ e2stm ++ a2)
                 else CBIStmt $ CIfStmt (mkStr3 c' boolField) (CBlock e1stm) (CBlock e2stm)
   recycleVars (mergePools [cp, intersectPools e1p e2p])
   return (variable v, vdecl ++ cdecl ++ e1decl ++ e2decl, vstm ++ cstm ++ [ifstm], M.empty)
+
 genExpr mv (TE t (Case e tag (l1,_,e1) (_,_,e2))) = do  -- NOTE: likelihood `l2' unused because it has become binary / zilinc
   (v,vdecl,vstm) <- case mv of
     Nothing -> (declare =<< genType t)
@@ -1011,27 +1087,37 @@ genExpr mv (TE t (Case e tag (l1,_,e1) (_,_,e2))) = do  -- NOTE: likelihood `l2'
       (alty1,False) = fromJust $ L.lookup tag altys
   pool0 <- use varPool
   (v1,v1decl,v1stm,v1p) <- flip3 aNewVar M.empty (mkStr3 e'' tag) =<< genType alty1
-  (e1',e1decl,e1stm,e1p) <- withBindings (Cons v1 Nil) $ genExpr (if __cogent_fintermediate_vars then Nothing else Just v) e1
+  (e1',e1decl,e1stm,e1p) <- withBindings (Cons v1 Nil) $
+                              genExpr (if __cogent_fintermediate_vars then Nothing else Just v) e1
   pool1 <- use varPool
   varPool .= pool0
   -- NOTE: create a smaller Enum, copy over everything / zilinc
-  (e2',e2decl,e2stm,e2p) <- withBindings (Cons e'' Nil) $ genExpr (if __cogent_fintermediate_vars then Nothing else Just v) e2
+  (e2',e2decl,e2stm,e2p) <- withBindings (Cons e'' Nil) $
+                              genExpr (if __cogent_fintermediate_vars then Nothing else Just v) e2
   pool2 <- use varPool
   varPool .= intersectPools pool1 pool2
+  t1 <- genType (exprType e1)
+  t2 <- genType (exprType e2)
+  a1 <- assign1 t1 (variable v) e1'
+  a2 <- assign1 t2 (variable v) e2'
   let macro1 = likelihood l1
       -- XXX | macro2 = likelihood l2
       ifstm = if __cogent_fintermediate_vars
-                then CBIStmt $ CIfStmt (macro1 cnd) (CBlock $ v1stm ++ e1stm ++ [assign1 (variable v) e1'])
-                                                    (CBlock $ e2stm ++ [assign1 (variable v) e2'])
+                then CBIStmt $ CIfStmt (macro1 cnd) (CBlock $ v1stm ++ e1stm ++ a1)
+                                                    (CBlock $ e2stm ++ a2)
                 else CBIStmt $ CIfStmt (macro1 cnd) (CBlock $ v1stm ++ e1stm) (CBlock e2stm)
   recycleVars (mergePools [ep', intersectPools (mergePools [v1p,e1p]) e2p])
-  return (variable v, vdecl ++ edecl ++ edecl' ++ v1decl ++ e1decl ++ e2decl, vstm ++ estm ++ estm' ++ [ifstm], M.empty)
-genExpr mv (TE _ (Esac e)) = do
+  return (variable v, vdecl ++ edecl ++ edecl' ++ v1decl ++ e1decl ++ e2decl,
+          vstm ++ estm ++ estm' ++ [ifstm], M.empty)
+
+genExpr mv (TE t (Esac e)) = do
   (e',edecl,estm,ep) <- genExpr_ e
   let TSum alts = exprType e
       [(tag,(_,False))] = filter (not . snd . snd) alts
-  (v,ass,vp) <- flip (maybeAssign mv) ep $ mkStr3 e' tag
+  t' <- genType t
+  (v,ass,vp) <- flip (maybeAssign t' mv) ep $ mkStr3 e' tag
   return (v, edecl, estm ++ ass, vp)
+
 genExpr mv (TE t (Split _ e1 e2)) = do
   (e1',e1decl,e1stm,e1p) <- genExpr_ e1
   let e1t@(TProduct t1 t2) = exprType e1
@@ -1041,18 +1127,23 @@ genExpr mv (TE t (Split _ e1 e2)) = do
   (v1,v1decl,v1stm) <- declareInit t1' (mkStr3 e1'' p1) M.empty
   (v2,v2decl,v2stm) <- declareInit t2' (mkStr3 e1'' p2) M.empty
   recycleVars e1p'
-  (e2',e2decl,e2stm,e2p) <- withBindings (fromJust $ cvtFromList (SSuc $ SSuc SZero) [variable v1, variable v2]) $ genExpr mv e2
+  (e2',e2decl,e2stm,e2p) <- withBindings (fromJust $ cvtFromList Vec.s2 [variable v1, variable v2]) $
+                              genExpr mv e2
   return (e2', e1decl ++ e1decl' ++ v1decl ++ v2decl ++ e2decl, e1stm ++ e1stm' ++ v1stm ++ v2stm ++ e2stm, e2p)
   -- NOTE: It's commented out because split shoule behave like let / zilinc
   -- XXX | NOTE: It's an optimisation here, we no more generate new variables / zilinc
-  -- XXX | (e2',e2stm) <- withBindings (fromJust $ cvtFromList (SSuc $ SSuc SZero) [mkStr3 e1' p1, mkStr3 e1' p2]) $ genExpr mv e2
+  -- XXX | (e2',e2stm) <- withBindings (fromJust $ cvtFromList Vec.s2 [mkStr3 e1' p1, mkStr3 e1' p2]) $ genExpr mv e2
   -- XXX | return (e2', e1stm ++ e2stm)
+
 genExpr mv (TE t (Promote _ e)) = genExpr mv e
+
 genExpr mv (TE t (Cast _ e)) = do   -- int promotion
   (e',edecl,estm,ep) <- genExpr_ e
   t' <- genType t
-  (v,ass,vp) <- flip (maybeAssign mv) ep $ CTypeCast t' e'
+  (v,ass,vp) <- flip (maybeAssign t' mv) ep $ CTypeCast t' e'
   return (v, edecl, estm ++ ass, vp)
+
+genExpr _ e = __impossible $ "genExpr: " ++ show (PP.pretty e) ++ " unhandled"
 
 insertSetMap :: Ord a => a -> Maybe (S.Set a) -> Maybe (S.Set a)
 insertSetMap x Nothing  = Just $ S.singleton x
@@ -1100,7 +1191,7 @@ genDefinition (FunDef attr fn Nil t rt e) = do
   t' <- genTypeA' True (unsafeCoerce t :: CC.Type 'Zero) (argOf fn)
   (e',edecl,estm,_) <- withBindings (Cons (variable arg & if __cogent_funboxed_arg_by_ref then CDeref else id) Nil)
                          (genExpr Nothing (unsafeCoerce e :: TypedExpr 'Zero ('Suc 'Zero) VarName))
-  rt' <- genType' (unsafeCoerce rt :: CC.Type 'Zero) (retOf fn)
+  rt' <- genTypeP' True (unsafeCoerce rt :: CC.Type 'Zero) (retOf fn)
   funClasses %= M.alter (insertSetMap (fn,attr)) (Function t' rt')
   body <- case __cogent_fintermediate_vars of
     True  -> do (rv,rvdecl,rvstm) <- declareInit rt' e' M.empty
@@ -1404,12 +1495,16 @@ splitCType (CStruct tid) = (mkDeclSpec $ C.Tstruct (Just $ cId tid) Nothing [] n
 splitCType (CUnion {}) = __impossible "splitCType"
 splitCType (CEnum tid) = (mkDeclSpec $ C.Tenum (Just $ cId tid) [] [] noLoc, C.DeclRoot noLoc)
 splitCType (CPtr ty) = let (tysp, decl) = splitCType ty in (tysp, C.Ptr [] decl noLoc)
-splitCType (CArray t msize) = 
-  let arrsize = case msize of CNoArraySize -> C.NoArraySize noLoc
-                              CVariableArraySize -> C.VariableArraySize noLoc
-                              CArraySize sz -> C.ArraySize False (cExpr sz) noLoc  -- True will print `static sz'.
-      (C.DeclSpec _ _ tsp _,dl) = splitCType t
-   in (mkDeclSpec tsp, C.Array [] arrsize dl noLoc)
+splitCType (CArray t msize)
+  | CPtrToArray <- msize = 
+      let (C.DeclSpec _ _ tsp _,dl) = splitCType t
+       in (mkDeclSpec tsp, C.Ptr [] dl noLoc)
+  | otherwise =
+      let arrsize = case msize of
+            CNoArraySize -> C.NoArraySize noLoc
+            CArraySize sz -> C.ArraySize False (cExpr sz) noLoc  -- True will print `static sz'.
+          (C.DeclSpec _ _ tsp _,dl) = splitCType t
+       in (mkDeclSpec tsp, C.Array [] arrsize dl noLoc)
 splitCType (CIdent tn) = (mkDeclSpec $ C.Tnamed (cId tn) [] noLoc, C.DeclRoot noLoc)
 splitCType (CFunction t1 t2) = __fixme $ splitCType t2  -- FIXME: this type is rarely used and is never tested / zilinc
 splitCType CVoid = (mkDeclSpec $ C.Tvoid noLoc, C.DeclRoot noLoc)
@@ -1471,6 +1566,7 @@ cStmt CContinue = [cstm| continue; |]
 cStmt (CIfStmt c th el) = [cstm| if ($(cExpr c)) $stm:(cStmt th) else $stm:(cStmt el) |]
 cStmt (CSwitch e alts) = [cstm| switch ($(cExpr e)) { $items:(map cAlt alts) } |]
 cStmt CEmptyStmt = [cstm| ; |]
+cStmt (CComment c s) = C.Comment c (cStmt s) noLoc
 
 cAlt :: (Maybe CExpr, CStmt) -> C.BlockItem
 cAlt (Nothing, s) = [citem| default: $stm:(cStmt s) |]

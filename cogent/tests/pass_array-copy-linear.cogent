@@ -1,0 +1,4 @@
+type A = { f : U32 }
+
+foo : A[2] -> A[2]
+foo x = x
