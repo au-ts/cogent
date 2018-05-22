@@ -33,6 +33,9 @@ import Control.Monad
 import Data.Char
 import Data.Foldable (foldrM)
 import qualified Data.Map as M
+#if __GLASGOW_HASKELL__ < 803
+import Data.Monoid ((<>))
+#endif
 import qualified Data.List as L
 import Data.Version (showVersion)
 import Generics.Pointless.MonadCombinators
@@ -194,7 +197,11 @@ extTup3r d (a,b,c) = (a,b,c,d)
 extTup2l :: a -> (b,c) -> (a,b,c)
 extTup2l a (b,c) = (a,b,c)
 
+#if __GLASGOW_HASKELL__ < 803
+concatTup2 :: Monoid a => (a, a) -> a
+#else
 concatTup2 :: Semigroup a => (a, a) -> a
+#endif
 concatTup2 (a1,a2) = a1 <> a2
 
 whenM :: (Monad m, Monoid a) => Bool -> m a -> m a
