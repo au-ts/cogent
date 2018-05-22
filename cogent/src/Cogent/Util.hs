@@ -188,8 +188,14 @@ third4 = (_3 %~)
 fourth4 :: (d -> d') -> (a, b, c, d) -> (a, b, c, d')
 fourth4 = (_4 %~)
 
-extTup3 :: d -> (a,b,c) -> (a,b,c,d)
-extTup3 d (a,b,c) = (a,b,c,d)
+extTup3r :: d -> (a,b,c) -> (a,b,c,d)
+extTup3r d (a,b,c) = (a,b,c,d)
+
+extTup2l :: a -> (b,c) -> (a,b,c)
+extTup2l a (b,c) = (a,b,c)
+
+concatTup2 :: Semigroup a => (a, a) -> a
+concatTup2 (a1,a2) = a1 <> a2
 
 whenM :: (Monad m, Monoid a) => Bool -> m a -> m a
 whenM b ma = if b then ma else return mempty
