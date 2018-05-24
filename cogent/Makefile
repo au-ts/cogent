@@ -104,7 +104,7 @@ tests/include/%_dummy.h: tests/%.cogent
 .test-setup:
 	$(Q)mkdir -p tests/include
 
-tests: test-clean .test-cogent test-tc test-ds test-an test-mn test-cg \
+tests: test-clean .test-cogent test-pp test-tc test-ds test-an test-mn test-cg \
 	test-tc-proof test-aq test-aq test-shallow-proof test-ee test-gcc
 
 test-clean:
@@ -117,27 +117,31 @@ ifeq ($(shell which cogent 2> /dev/null; echo $$? ),1)
 	$(error Cogent not installed, or is not available in your PATH)
 endif
 
-test-tc: .gen-types
+test-pp:
+	$(E) "=== Parser & Pretty-Printer Tests ==="
+	$(SCRIPTS_DIR)/cogent_validate.sh -pp
+
+test-tc:
 	$(E) "=== Type Checking Tests ==="
 	$(SCRIPTS_DIR)/cogent_validate.sh -tc
 
-test-ds: .gen-types
+test-ds:
 	$(E) "=== Desugaring Tests ==="
 	$(SCRIPTS_DIR)/cogent_validate.sh -ds
 
-test-an: .gen-types
+test-an:
 	$(E) "=== A-normal transform Tests ==="
 	$(SCRIPTS_DIR)/cogent_validate.sh -an
 
-test-mn: .gen-types
+test-mn:
 	$(E) "=== Monomorphization Tests ==="
 	$(SCRIPTS_DIR)/cogent_validate.sh -mn
 
-test-cg: .gen-types
+test-cg:
 	$(E) "=== Code Generation Tests ==="
 	$(SCRIPTS_DIR)/cogent_validate.sh -cg
 
-test-tc-proof: .gen-types
+test-tc-proof:
 	$(E) "=== Proof Generation For Type Checking Tests ==="
 	$(SCRIPTS_DIR)/cogent_validate.sh -tc-proof
 

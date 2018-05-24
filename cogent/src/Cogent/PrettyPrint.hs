@@ -79,7 +79,8 @@ fieldname = magenta . string
 tagname = dullmagenta . string
 symbol = string
 kindsig = red . string
-typeargs = encloseSep lbracket rbracket (comma <> space)
+typeargs [] = empty
+typeargs xs = encloseSep lbracket rbracket (comma <> space) xs
 array = encloseSep lbracket rbracket (comma <> space)
 record = encloseSep (lbrace <> space) (space <> rbrace) (comma <> space)
 variant = encloseSep (langle <> space) rangle (symbol "|" <> space) . map (<> space)
@@ -105,12 +106,6 @@ commaList = encloseSep empty empty (comma <> space)
 -- associativity
 -- ~~~~~~~~~~~~~~~~
 
-level :: Associativity -> Int
-level (LeftAssoc i) = i
-level (RightAssoc i) = i
-level (NoAssoc i) = i
-level (Prefix) = 0
-
 associativity :: String -> Associativity
 associativity = S.associativity . symbolOp
 
@@ -119,30 +114,41 @@ associativity = S.associativity . symbolOp
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 class Prec a where  -- precedence
-  prec :: a -> Int
+  prec :: a -> Int  -- smaller the number stronger the associativity
+
+instance Prec Associativity where
+  prec (LeftAssoc  i) = i
+  prec (RightAssoc i) = i
+  prec (NoAssoc    i) = i
+  prec (Prefix)       = 9  -- as in the expression builder
 
 instance Prec (Expr t p ip e) where
-  prec (Lam  {}) = 100
-  prec (LamC {}) = 100
-  prec (App  {}) = 2
-  prec (AppC {}) = 2
-  prec (PrimOp n _) = level (associativity n)
-  prec (Member {}) = 0
+  -- vvv terms
   prec (Var {}) = 0
-  prec (IntLit {}) = 0
+  prec (TypeApp {}) = 0
   prec (BoolLit {}) = 0
+  prec (Con _ []) = 0
+  prec (IntLit {}) = 0
   prec (CharLit {}) = 0
   prec (StringLit {}) = 0
-  prec (ArrayLit {}) = 0
-  prec (ArrayIndex {}) = 1  -- takes precedence over App
-  prec (Tuple {}) = 0
   prec (Unitel) = 0
-  prec (Con {}) = 2
-  prec (Annot {}) = 50
-  prec (UnboxedRecord {}) = 100
-  prec (Put {}) = 100
-  prec (TypeApp {}) = 100
-  prec (Upcast {}) = 100
+  prec (Tuple {}) = 0
+  prec (ArrayLit {}) = 0
+  prec (UnboxedRecord {}) = 0
+  -- vvv parsed by the expression builder
+  prec (Member {}) = 8
+  prec (Upcast {}) = 9
+  prec (App  _ _ False) = 9
+  prec (AppC {}) = 9
+  prec (Con _ _) = 9
+  prec (Put {}) = 9
+  prec (ArrayIndex {}) = 10
+  prec (PrimOp n _) = prec (associativity n)  -- range 11 - 19
+  prec (Annot {}) = 30
+  prec (App  _ _ True) = 31
+  -- vvv expressions
+  prec (Lam  {}) = 100
+  prec (LamC {}) = 100
   prec (Seq {}) = 100
   prec (Match {}) = 100
   prec (If {}) = 100
@@ -205,9 +211,11 @@ instance (PrettyName pv, PatnType ip, Pretty ip) => PatnType (IrrefutablePattern
   prettyP p = pretty p
 
   prettyB (p, Just t, e) i
-       = group (pretty p <+> symbol ":" <+> pretty t <+> symbol "=" <+> (if i then (prettyPrec 100) else pretty) e)
+    = group (pretty p <+> symbol ":" <+> pretty t <+> symbol "=" <+>
+             (if i then (prettyPrec 100) else pretty) e)
   prettyB (p, Nothing, e) i
-       = group (pretty p <+> symbol "=" <+> (if i then (prettyPrec 100) else pretty) e)
+    = group (pretty p <+> symbol "=" <+>
+             (if i then (prettyPrec 100) else pretty) e)
 
 instance PatnType RawIrrefPatn where
   isPVar  (RIP p) = isPVar p
@@ -269,6 +277,8 @@ instance TypeType (Type e t) where
   isTakePut _          = False
   isAtomic t | isFun t || isTakePut t = False
              | TCon _ (_:_) _ <- t = False
+             | TUnbox _ <- t = False
+             | TBang  _ <- t= False
              | otherwise = True
 
 instance TypeType RawType where
@@ -375,29 +385,30 @@ instance (ExprType e, Prec e, Pretty t, PatnType p, Pretty p, PatnType ip, Prett
   pretty (Var x)             = varname x
   pretty (TypeApp x ts note) = pretty note <> varname x
                                  <> typeargs (map (\case Nothing -> symbol "_"; Just t -> pretty t) ts)
-  pretty (Member x f)        = prettyPrec 1 x <> symbol "." <> fieldname f
+  pretty (Member x f)        = prettyPrec 9 x <> symbol "." <> fieldname f
   pretty (IntLit i)          = literal (string $ show i)
   pretty (BoolLit b)         = literal (string $ show b)
   pretty (CharLit c)         = literal (string $ show c)
   pretty (StringLit s)       = literal (string $ show s)
   pretty (ArrayLit es)       = array $ map pretty es
-  pretty (ArrayIndex e i)    = prettyPrec 2 e <+> symbol "@" <+> prettyPrec 1 i
+  pretty (ArrayIndex e i)    = prettyPrec 11 e <+> symbol "@" <+> prettyPrec 10 i
   pretty (Unitel)            = string "()"
   pretty (PrimOp n [a,b])
      | LeftAssoc  l <- associativity n = prettyPrec (l+1) a <+> primop n <+> prettyPrec l     b
      | RightAssoc l <- associativity n = prettyPrec l     a <+> primop n <+> prettyPrec (l+1) b
      | NoAssoc    l <- associativity n = prettyPrec l     a <+> primop n <+> prettyPrec l     b
-  pretty (PrimOp n [e])      = primop n <+> prettyPrec 1 e
+  pretty (PrimOp n [e]) 
+     | a  <- associativity n = primop n <+> prettyPrec (prec a) e
   pretty (PrimOp n es)       = primop n <+> tupled (map pretty es)
-  pretty (Upcast e)          = keyword "upcast" <+> prettyPrec 1 e
+  pretty (Upcast e)          = keyword "upcast" <+> prettyPrec 9 e
   pretty (Lam p mt e)        = string "\\" <> pretty p <> 
-                               (case mt of Nothing -> empty; Just t -> space <> symbol ":" <+> pretty t) <+> symbol "=>" <+> prettyPrec 100 e
+                               (case mt of Nothing -> empty; Just t -> space <> symbol ":" <+> pretty t) <+> symbol "=>" <+> prettyPrec 101 e
   pretty (LamC p mt e _)     = pretty (Lam p mt e :: Expr t p ip e)
-  pretty (App  a b)          = prettyPrec 3 a <+> prettyPrec 2 b
-  pretty (AppC a b)          = prettyPrec 3 a <+> prettyPrec 2 b
+  pretty (App  a b False)    = prettyPrec 10 a <+> prettyPrec 9 b
+  pretty (App  a b True )    = prettyPrec 31 a <+> symbol "$" <+> prettyPrec 32 b
+  pretty (AppC a b)          = prettyPrec 10 a <+> prettyPrec 9 b
   pretty (Con n [] )         = tagname n
-  pretty (Con n [e])         = tagname n <+> prettyPrec 2 e
-  pretty (Con n es )         = tagname n <+> spaceList (map (prettyPrec 2) es)
+  pretty (Con n es )         = tagname n <+> spaceList (map (prettyPrec 9) es)
   pretty (Tuple es)          = tupled (map pretty es)
   pretty (UnboxedRecord fs)  = string "#" <> record (map (handlePutAssign . Just) fs)
   pretty (If c vs t e)       = group (keyword "if" <+> handleBangedIf vs (prettyPrec 100 c)
@@ -405,10 +416,12 @@ instance (ExprType e, Prec e, Pretty t, PatnType p, Pretty p, PatnType ip, Prett
                                                    <$> indent (keyword "else" </> pretty e))
     where handleBangedIf []  = id
           handleBangedIf vs  = (<+> hsep (map (letbangvar . ('!':)) vs))
-  pretty (Match e bs alts)   = handleLetBangs bs (prettyPrec 100 e)
+  pretty (Match e [] alts)   = prettyPrec 100 e
                                <> mconcat (map ((hardline <>) . indent . prettyA False) alts)
-    where handleLetBangs []  = id
-          handleLetBangs bs  = (<+> hsep (map (letbangvar . ('!':)) bs))
+  -- vvv It's a hack here. See the notes in <tests/pass_letbang-cond-type-annot.cogent>
+  pretty (Match e bs alts)   = handleLetBangs bs (prettyPrec 30 e)
+                               <> mconcat (map ((hardline <>) . indent . prettyA False) alts)
+    where handleLetBangs bs  = (<+> hsep (map (letbangvar . ('!':)) bs))
   pretty (Seq a b)           = prettyPrec 100 a <> symbol ";" <$> pretty b
   pretty (Let []     e)      = __impossible "pretty (in RawExpr)"
   pretty (Let (b:[]) e)      = keyword "let" <+> indent (pretty b)
@@ -416,8 +429,8 @@ instance (ExprType e, Prec e, Pretty t, PatnType p, Pretty p, PatnType ip, Prett
   pretty (Let (b:bs) e)      = keyword "let" <+> indent (pretty b)
                                              <$> vsep (map ((keyword "and" <+>) . indent . pretty) bs)
                                              <$> keyword "in" <+> indent (pretty e)
-  pretty (Put e fs)          = prettyPrec 1 e <+> record (map handlePutAssign fs)
-  pretty (Annot e t)         = prettyPrec 50 e <+> symbol ":" <+> pretty t
+  pretty (Put e fs)          = prettyPrec 10 e <+> record (map handlePutAssign fs)
+  pretty (Annot e t)         = prettyPrec 31 e <+> symbol ":" <+> pretty t
 
 instance Pretty RawExpr where
   pretty (RE e) = pretty e
@@ -462,7 +475,7 @@ instance (Pretty t, TypeType t, Pretty e) => Pretty (Type e t) where
   pretty (TVariant ts) = variant (map (\(a,bs) -> case bs of
                                           [] -> tagname a
                                           _  -> tagname a <+> spaceList (map prettyT' bs)) $ M.toList (fmap fst ts))
-  pretty (TFun t t') = prettyT' t <+> typesymbol "->" <+> pretty t'
+  pretty (TFun t t') = prettyT' t <+> typesymbol "->" <+> prettyT' t'
     where prettyT' e | isFun e   = parens (pretty e)
                      | otherwise = pretty e
   pretty (TUnbox t) = (typesymbol "#" <> prettyT' t) & (if __cogent_fdisambiguate_pp then (<+> comment "{- unbox -}") else id)

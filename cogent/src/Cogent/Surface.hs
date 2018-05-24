@@ -80,7 +80,7 @@ data Expr t p ip e = PrimOp OpName [e]
                    | Con TagName [e]
                    | Seq e e
                    | Lam ip (Maybe t) e
-                   | App e e
+                   | App e e Bool   -- True for infix App
                    | LamC ip (Maybe t) e [VarName]  -- closure lambda
                    | AppC e e             -- closure application
                    | If e [VarName] e e
@@ -211,7 +211,7 @@ instance Traversable (Flip (Expr t p) e) where  -- ip
   traverse _ (Flip (Seq e e'))          = pure $ Flip (Seq e e')
   traverse f (Flip (Lam  ip mt e))      = Flip <$> (Lam  <$> f ip <*> pure mt <*> pure e)
   traverse f (Flip (LamC ip mt e vs))   = Flip <$> (LamC <$> f ip <*> pure mt <*> pure e <*> pure vs)
-  traverse _ (Flip (App  e e'))         = pure $ Flip (App  e e')
+  traverse _ (Flip (App  e e' i))       = pure $ Flip (App  e e' i)
   traverse _ (Flip (AppC e e'))         = pure $ Flip (AppC e e')
   traverse _ (Flip (If c vs e e'))      = pure $ Flip (If c vs e e')
   traverse _ (Flip (Member e f))        = pure $ Flip (Member e f)
@@ -237,7 +237,7 @@ instance Traversable (Flip2 (Expr t) e ip) where  -- p
   traverse _ (Flip2 (Seq e e'))         = pure $ Flip2 (Seq e e')
   traverse _ (Flip2 (Lam  ip mt e))     = pure $ Flip2 (Lam  ip mt e)
   traverse _ (Flip2 (LamC ip mt e vs))  = pure $ Flip2 (LamC ip mt e vs)
-  traverse _ (Flip2 (App  e e'))        = pure $ Flip2 (App  e e')
+  traverse _ (Flip2 (App  e e' i))      = pure $ Flip2 (App  e e' i)
   traverse _ (Flip2 (AppC e e'))        = pure $ Flip2 (AppC e e')
   traverse _ (Flip2 (If c vs e e'))     = pure $ Flip2 (If c vs e e')
   traverse _ (Flip2 (Member e f))       = pure $ Flip2 (Member e f)
@@ -263,7 +263,7 @@ instance Traversable (Flip3 Expr e ip p) where  -- t
   traverse _ (Flip3 (Seq e e'))          = pure $ Flip3 (Seq e e')
   traverse f (Flip3 (Lam  ip mt e))      = Flip3 <$> (Lam  ip <$> traverse f mt <*> pure e)
   traverse f (Flip3 (LamC ip mt e vs))   = Flip3 <$> (LamC ip <$> traverse f mt <*> pure e <*> pure vs)
-  traverse _ (Flip3 (App  e e'))         = pure $ Flip3 (App  e e')
+  traverse _ (Flip3 (App  e e' i))       = pure $ Flip3 (App  e e' i)
   traverse _ (Flip3 (AppC e e'))         = pure $ Flip3 (AppC e e')
   traverse _ (Flip3 (If c vs e e'))      = pure $ Flip3 (If c vs e e')
   traverse _ (Flip3 (Member e f))        = pure $ Flip3 (Member e f)

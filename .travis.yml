@@ -140,6 +140,7 @@ script:
  # Check if Cogent has been correctly installed
  - which cogent || travis_terminate 1
  # - echo 'Running tests'
+ - make test-pp
  - make test-tc
  - make test-ds
  - make test-an

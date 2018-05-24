@@ -280,13 +280,13 @@ cg' exp@(Lam pat mt e) t = do
            L.<$> text "generate constraint" <+> prettyC c <> semi)
   return (c,lam)
 
-cg' (App e1 e2) t = do
+cg' (App e1 e2 _) t = do
   alpha     <- freshTVar
   (c1, e1') <- cg e1 (T (TFun alpha t))
   (c2, e2') <- cg e2 alpha
 
   let c = c1 <> c2
-      e = App e1' e2'
+      e = App e1' e2' False
   traceTc "gen" (text "cg for funapp:" <+> prettyE e)
   return (c,e)
 

@@ -47,13 +47,17 @@ import System.Directory
 import System.FilePath
 import Debug.Trace
 
+
+type Parser a t = ParsecT String t Identity a
+
 language :: LanguageDef st
 language = haskellStyle
            { T.reservedOpNames = ["+","*","/","%","&&","||",">=","<=",">","<","==","/=",
                                   ".&.",".|.",".^.",">>","<<",
-                                  ":","=","!",":<",".","_","..","#",
+                                  ":","=","!",":<",".","_","..","#","$",
                                   "@","@@","->","=>","~>","<=","|","|>"]
-           , T.reservedNames   = ["let","in","type","include","all","take","put","inline", "repr", "variant","record", "at",
+           , T.reservedNames   = ["let","in","type","include","all","take","put","inline",
+                                  "repr","variant","record","at",
                                   "if","then","else","not","complement","and","True","False"]
            , T.identStart = letter
            }
@@ -128,6 +132,29 @@ boolean = True <$ reserved "True"
       <|> False <$ reserved "False"
       <?> "boolean literal"
 
+
+expr m = do avoidInitial
+            LocExpr <$> getPosition <*>
+                 (Let <$ reserved "let" <*> bindings <* reserved "in" <*> expr m
+              <|> If  <$ reserved "if" <*> basicExpr m <*> many (reservedOp "!" >> variableName)
+                      <* reserved "then" <*> expr m <* reserved "else" <*> expr m
+              <|> Lam <$ string "\\" <*> irrefutablePattern <*> optionMaybe (reservedOp ":" *> monotype)
+                      <* reservedOp "=>" <*> expr m)
+          <|> matchExpr m
+          <?> "expression"
+  where binding = (Binding <$> irrefutablePattern <*> optionMaybe (reservedOp ":" *> monotype)
+                           <*  reservedOp "=" <*> expr 1 <*> many (reservedOp "!" >> variableName))
+              <|> do p <- pattern 
+                     mt <- optionMaybe (reservedOp ":" *> monotype)
+                     reservedOp "<="
+                     e <- expr 1
+                     bs <- many (reservedOp "!" >> variableName)
+                     c <- sourceColumn <$> getPosition
+                     guard (c > m)
+                     alts <- F.fold <$> optionMaybe (reservedOp "|>" >> sepByAligned1 (alternative c) (reservedOp "|>") c)
+                     return $ BindingAlts p mt e bs alts
+        bindings = binding `sepBy1` reserved "and"
+
 -- A hack to handle boolean matching exhaustivity :)
 matchExpr m =  flip fmap (matchExpr' m) (\case
   (LocExpr p (Match e bs [Alt (LocPatn p1 (PBoolLit True )) a e1, Alt (LocPatn p2 (PBoolLit False)) a' e2])) ->
@@ -152,19 +179,18 @@ alternative m = (Alt <$> pattern <*> matchArrow <*> expr m) <?> "alternative"
                   <|> Unlikely <$ reservedOp "~>"
                   <|> Regular  <$ reservedOp "->"
 
-postfix p = Postfix . chainl1 p $ return (flip (.))
 
 basicExpr m = do e <- basicExpr'
                  LocExpr (posOfE e) . Seq e <$ semi <*> expr m
                   <|> pure e
 basicExpr' = avoidInitial >> buildExpressionParser
             [ [postfix ((\f e -> LocExpr (posOfE e) (Member e f)) <$ reservedOp "." <*> variableName)]
+            , [Prefix (getPosition >>= \p -> reserved "upcast" *> pure (LocExpr p . Upcast)),
+               Prefix (getPosition >>= \p -> reserved "complement" *> pure (LocExpr p . PrimOp "complement" . (:[]))),
+               Prefix (getPosition >>= \p -> reserved "not" *> pure (LocExpr p . PrimOp "not" . (:[]))),
+               Infix funapp AssocLeft,
+               Postfix ((\rs x -> LocExpr (posOfE x) (Put x rs)) <$> braces recAssignsAndOrWildcard)]
             , [Infix (reservedOp "@" *> pure (\e i -> LocExpr (posOfE e) (ArrayIndex e (stripLocE i)))) AssocLeft]
-            , [Prefix (getPosition >>= \p -> reserved "upcast" *> pure (LocExpr p . Upcast))] 
-            , [Prefix (getPosition >>= \p -> reserved "complement" *> pure (LocExpr p . PrimOp "complement" . (:[])))]
-            , [Prefix (getPosition >>= \p -> reserved "not" *> pure (LocExpr p . PrimOp "not" . (:[])))]
-            , [Infix (pure (\a b -> LocExpr (posOfE a) (App a b))) AssocLeft]
-            , [Postfix ((\rs x -> LocExpr (posOfE x) (Put x rs)) <$> braces recAssignsAndOrWildcard)]
             , [binary "*" AssocLeft, binary "/" AssocLeft, binary "%" AssocLeft ]
             , [binary "+" AssocLeft, binary "-" AssocLeft ]
             , map (`binary` AssocNone) [">", "<", ">=", "<=", "==", "/="]
@@ -174,8 +200,17 @@ basicExpr' = avoidInitial >> buildExpressionParser
             , [binary ">>" AssocLeft, binary "<<" AssocLeft]
             , [binary "&&" AssocRight]
             , [binary "||" AssocRight]
-            ] annot <?> "basic expression"
+            , [postfix ((\t e -> LocExpr (posOfE e) (Annot e t)) <$ reservedOp ":" <*> monotype)]
+            , [Infix (reservedOp "$" *> pure (\a b -> LocExpr (posOfE a) (App a b True))) AssocRight]
+            ] term <?> "basic expression"
   where binary name = Infix (reservedOp name *> pure (\a b -> LocExpr (posOfE a) (PrimOp name [a,b])))
+
+        funapp = (pure (\a b -> case a of
+                                  LocExpr p (Con n es) -> LocExpr p (Con n (es ++ [b]))
+                                  _ -> LocExpr (posOfE a) (App a b False)))
+
+        postfix :: Parser (LocExpr -> LocExpr) t -> Operator String t Identity LocExpr
+        postfix p = Postfix . chainl1 p $ return (flip (.))
 
 term = avoidInitial >> (LocExpr <$> getPosition <*>
           (var <$> optionMaybe (reserved "inline")
@@ -183,7 +218,7 @@ term = avoidInitial >> (LocExpr <$> getPosition <*>
                <*> optionMaybe (brackets (commaSep1 ((char '_' >> return Nothing)
                                                  <|> (Just <$> monotype))))
        <|> BoolLit <$> boolean
-       <|> Con <$> typeConName <*> many term
+       <|> Con <$> typeConName <*> pure []
        <|> IntLit <$> natural
        <|> CharLit <$> charLiteral
        <|> StringLit <$> stringLiteral
@@ -213,39 +248,6 @@ recAssignsAndOrWildcard = ((:[]) <$> wildcard)
                       <|> ((:) <$> recAssign
                                <*> ((++) <$> many (try (comma >> recAssign))
                                          <*> (liftM maybeToList . optionMaybe) (comma >> wildcard)))
-
-expr m = try (expr' m) <|> annot
-
-expr' m = do avoidInitial
-             LocExpr <$> getPosition <*>
-                  (Let <$ reserved "let" <*> bindings <* reserved "in" <*> expr m
-               <|> try (If <$ reserved "if" <*> parens (expr m) <*> many (reservedOp "!" >> variableName)
-                           <* reserved "then" <*> expr m <* reserved "else" <*> expr m)
-               <|> If  <$ reserved "if" <*> expr' m <*> many (reservedOp "!" >> variableName)
-                       <* reserved "then" <*> expr m <* reserved "else" <*> expr m
-               <|> Lam <$ string "\\" <*> irrefutablePattern <*> optionMaybe (reservedOp ":" *> monotype)
-                       <* reservedOp "=>" <*> expr m)
-          <|> matchExpr m
-          <?> "expression"
-  where binding = (Binding <$> irrefutablePattern <*> optionMaybe (reservedOp ":" *> monotype)
-                           <*  reservedOp "=" <*> expr 1 <*> many (reservedOp "!" >> variableName))
-              <|> do p <- pattern 
-                     mt <- optionMaybe (reservedOp ":" *> monotype)
-                     reservedOp "<="
-                     e <- expr 1
-                     bs <- many (reservedOp "!" >> variableName)
-                     c <- sourceColumn <$> getPosition
-                     guard (c > m)
-                     alts <- F.fold <$> optionMaybe (reservedOp "|>" >> sepByAligned1 (alternative c) (reservedOp "|>") c)
-                     return $ BindingAlts p mt e bs alts
-        bindings = binding `sepBy1` reserved "and"
-
-annot = do avoidInitial
-           p <- getPosition
-           e <- term
-           mt <- optionMaybe (reservedOp ":" >> monotype)
-           case mt of Nothing -> return e
-                      Just t  -> return $ LocExpr p (Annot e t)
 
 
 -- monotype ::= typeA1 ("->" typeA1)?
@@ -369,8 +371,6 @@ toplevel' = do
       sepByAligned1 (alternative c) (reservedOp "|") c
     functionSingle = Alt <$> (LocPatn <$> getPosition <*> (PIrrefutable <$> irrefutablePattern))
                          <*> pure Regular <* reservedOp "=" <*> expr 1
-
-type Parser a t = ParsecT String t Identity a
 
 program :: Parser [(SourcePos, DocString, TopLevel LocType LocPatn LocExpr)] t
 program = whiteSpace *> many1 toplevel <* eof

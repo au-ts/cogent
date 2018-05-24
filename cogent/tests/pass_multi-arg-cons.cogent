@@ -1,0 +1,2 @@
+foo : () -> <A U32 Bool () <Just U32|Nothing>>
+foo _ = A 8 True () (Just 1)

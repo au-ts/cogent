@@ -283,63 +283,116 @@ static inline t22 deserialise_Node(t18 a1)
     t22 r8;
     
     if (r7.tag == TAG_ENUM_Success) {
-        t18 r9 = (t18) {.p1 = r6, .p2 = r3, .p3 = r4};
-        t19 r10 = deserialise_U32(r9);
-        SysState *r11 = r10.p1;
-        u32 r12 = r10.p2;
-        u32 r13 = r10.p3;
-        t17 r14;
+        t18 r9;
+        
+        r9.p1 = r6;
+        r9.p2 = r3;
+        r9.p3 = r4;
+        
+        t18 r10 = r9;
+        t19 r11 = deserialise_U32(r10);
+        SysState *r12 = r11.p1;
+        u32 r13 = r11.p2;
+        u32 r14 = r11.p3;
+        t17 r15;
         
         if (LETBANG_TRUE) {
-            t14 r15 = (t14) {.p1 = r11, .p2 = r3, .p3 = r13, .p4 = r12};
+            t14 r16;
             
-            r14 = deserialise_CString(r15);
+            r16.p1 = r12;
+            r16.p2 = r3;
+            r16.p3 = r14;
+            r16.p4 = r13;
+            
+            t14 r17 = r16;
+            
+            r15 = deserialise_CString(r17);
         } else
             ;
         
-        SysState *r16 = r14.p1;
-        t16 r17 = r14.p2;
-        t22 r18;
+        SysState *r18 = r15.p1;
+        t16 r19 = r15.p2;
+        t22 r20;
         
-        if (r17.tag == TAG_ENUM_Success) {
-            CString r19 = r17.Success.p1;
-            u32 r20 = r17.Success.p2;
-            t4 *r21 = r7.Success;
+        if (r19.tag == TAG_ENUM_Success) {
+            CString r21 = r19.Success.p1;
+            u32 r22 = r19.Success.p2;
+            t4 *r23 = r7.Success;
             
-            (*r21).len = r12;
-            
-            t4 *r22 = r21;
-            t4 *r23 = r22;
-            
-            (*r23).key = r19;
+            (*r23).len = r13;
             
             t4 *r24 = r23;
-            t20 r25 = (t20) {.p1 = r24, .p2 = r20};
-            t21 r26 = (t21) {.tag = TAG_ENUM_Success, .Success = r25};
-            t22 r27 = (t22) {.p1 = r16, .p2 = r26};
+            t4 *r25 = r24;
             
-            r18 = r27;
+            (*r25).key = r21;
+            
+            t4 *r26 = r25;
+            t20 r27;
+            
+            r27.p1 = r26;
+            r27.p2 = r22;
+            
+            t20 r28 = r27;
+            t21 r29;
+            
+            r29.tag = TAG_ENUM_Success;
+            r29.Success = r28;
+            
+            t21 r30 = r29;
+            t22 r31;
+            
+            r31.p1 = r18;
+            r31.p2 = r30;
+            
+            t22 r32 = r31;
+            
+            r20 = r32;
         } else {
-            u32 r28 = r17.Error;
-            t9 r29 = (t9) {.p1 = r16, .p2 = r7.Success};
-            SysState *r30 = free_Node(r29);
-            t21 r31 = (t21) {.tag = TAG_ENUM_Error, .Error = r28};
-            t22 r32 = (t22) {.p1 = r30, .p2 = r31};
+            u32 r33 = r19.Error;
+            t9 r34;
             
-            r18 = r32;
+            r34.p1 = r18;
+            r34.p2 = r7.Success;
+            
+            t9 r35 = r34;
+            SysState *r36 = free_Node(r35);
+            t21 r37;
+            
+            r37.tag = TAG_ENUM_Error;
+            r37.Error = r33;
+            
+            t21 r38 = r37;
+            t22 r39;
+            
+            r39.p1 = r36;
+            r39.p2 = r38;
+            
+            t22 r40 = r39;
+            
+            r20 = r40;
         }
-        r8 = r18;
+        r8 = r20;
     } else {
-        u32 r33 = r7.Error;
-        t21 r34 = (t21) {.tag = TAG_ENUM_Error, .Error = r33};
-        t22 r35 = (t22) {.p1 = r6, .p2 = r34};
+        u32 r41 = r7.Error;
+        t21 r42;
         
-        r8 = r35;
+        r42.tag = TAG_ENUM_Error;
+        r42.Error = r41;
+        
+        t21 r43 = r42;
+        t22 r44;
+        
+        r44.p1 = r6;
+        r44.p2 = r43;
+        
+        t22 r45 = r44;
+        
+        r8 = r45;
     }
     
-    t22 r36 = r8;
+    t22 r46 = r8;
     
-    return r36;
+    return r46;
 }
 static inline t6 cmp_inc(t3 a1)
 {
@@ -349,59 +402,120 @@ static inline t6 cmp_inc(t3 a1)
     t2 r5 = a1.obsv;
     Buffer *r6 = r5.p1;
     CString r7 = r5.p2;
-    t18 r8 = (t18) {.p1 = r3, .p2 = r6, .p3 = r4};
-    t22 r9 = deserialise_Node(r8);
-    SysState *r10 = r9.p1;
-    t21 r11 = r9.p2;
-    t6 r12;
+    t18 r8;
     
-    if (r11.tag == TAG_ENUM_Success) {
-        t4 *r13 = r11.Success.p1;
-        u32 r14 = r11.Success.p2;
-        bool_t r15;
+    r8.p1 = r3;
+    r8.p2 = r6;
+    r8.p3 = r4;
+    
+    t18 r9 = r8;
+    t22 r10 = deserialise_Node(r9);
+    SysState *r11 = r10.p1;
+    t21 r12 = r10.p2;
+    t6 r13;
+    
+    if (r12.tag == TAG_ENUM_Success) {
+        t4 *r14 = r12.Success.p1;
+        u32 r15 = r12.Success.p2;
+        bool_t r16;
         
         if (LETBANG_TRUE) {
-            CString r16 = (*r13).key;
-            t13 r17 = (t13) {.p1 = r16, .p2 = r7};
+            CString r17 = (*r14).key;
+            t13 r18;
             
-            r15 = string_cmp(r17);
+            r18.p1 = r17;
+            r18.p2 = r7;
+            
+            t13 r19 = r18;
+            
+            r16 = string_cmp(r19);
         } else
             ;
         
-        t6 r18;
+        t6 r20;
         
-        if (r15.boolean) {
-            t1 r19 = (t1) {.p1 = r10, .p2 = r14};
-            t5 r20 = (t5) {.tag = TAG_ENUM_Break, .Break = r13};
-            t6 r21 = (t6) {.p1 = r19, .p2 = r20};
+        if (r16.boolean) {
+            t1 r21;
             
-            r18 = r21;
+            r21.p1 = r11;
+            r21.p2 = r15;
+            
+            t1 r22 = r21;
+            t5 r23;
+            
+            r23.tag = TAG_ENUM_Break;
+            r23.Break = r14;
+            
+            t5 r24 = r23;
+            t6 r25;
+            
+            r25.p1 = r22;
+            r25.p2 = r24;
+            
+            t6 r26 = r25;
+            
+            r20 = r26;
         } else {
-            u32 r22 = (*r13).len;
-            CString r23 = (*r13).key;
-            t9 r24 = (t9) {.p1 = r10, .p2 = r13};
-            SysState *r25 = free_Node(r24);
-            t1 r26 = (t1) {.p1 = r25, .p2 = r14};
-            unit_t r27 = (unit_t) {.dummy = 0};
-            t5 r28 = (t5) {.tag = TAG_ENUM_Iterate, .Iterate = r27};
-            t6 r29 = (t6) {.p1 = r26, .p2 = r28};
+            u32 r27 = (*r14).len;
+            CString r28 = (*r14).key;
+            t9 r29;
             
-            r18 = r29;
+            r29.p1 = r11;
+            r29.p2 = r14;
+            
+            t9 r30 = r29;
+            SysState *r31 = free_Node(r30);
+            t1 r32;
+            
+            r32.p1 = r31;
+            r32.p2 = r15;
+            
+            t1 r33 = r32;
+            unit_t r34 = (unit_t) {.dummy = 0};
+            t5 r35;
+            
+            r35.tag = TAG_ENUM_Iterate;
+            r35.Iterate = r34;
+            
+            t5 r36 = r35;
+            t6 r37;
+            
+            r37.p1 = r33;
+            r37.p2 = r36;
+            
+            t6 r38 = r37;
+            
+            r20 = r38;
         }
-        r12 = r18;
+        r13 = r20;
     } else {
-        u32 r30 = r11.Error;
-        t1 r31 = (t1) {.p1 = r10, .p2 = r4};
-        unit_t r32 = (unit_t) {.dummy = 0};
-        t5 r33 = (t5) {.tag = TAG_ENUM_Iterate, .Iterate = r32};
-        t6 r34 = (t6) {.p1 = r31, .p2 = r33};
+        u32 r39 = r12.Error;
+        t1 r40;
         
-        r12 = r34;
+        r40.p1 = r11;
+        r40.p2 = r4;
+        
+        t1 r41 = r40;
+        unit_t r42 = (unit_t) {.dummy = 0};
+        t5 r43;
+        
+        r43.tag = TAG_ENUM_Iterate;
+        r43.Iterate = r42;
+        
+        t5 r44 = r43;
+        t6 r45;
+        
+        r45.p1 = r41;
+        r45.p2 = r44;
+        
+        t6 r46 = r45;
+        
+        r13 = r46;
     }
     
-    t6 r35 = r12;
+    t6 r47 = r13;
     
-    return r35;
+    return r47;
 }
 static inline t25 find_str(t23 a1)
 {
@@ -416,36 +530,74 @@ static inline t25 find_str(t23 a1)
     u32 r10 = (u32) r9;
     t7 r11 = FUN_ENUM_cmp_inc;
     u32 r12 = 0U;
-    t1 r13 = (t1) {.p1 = r2, .p2 = r12};
-    t2 r14 = (t2) {.p1 = r3, .p2 = r4};
-    t8 r15 = (t8) {.frm = r6, .to = r8, .step = r10, .f = r11, .acc = r13,
-                   .obsv = r14};
-    t6 r16 = seq32_0(r15);
-    t1 r17 = r16.p1;
-    t5 r18 = r16.p2;
-    SysState *r19 = r17.p1;
-    u32 r20 = r17.p2;
-    u32 r21 = r20;
-    t25 r22;
+    t1 r13;
     
-    if (r18.tag == TAG_ENUM_Iterate) {
-        unit_t r23 = r18.Iterate;
-        unit_t r24 = (unit_t) {.dummy = 0};
-        t24 r25 = (t24) {.tag = TAG_ENUM_None, .None = r24};
-        t25 r26 = (t25) {.p1 = r19, .p2 = r25};
+    r13.p1 = r2;
+    r13.p2 = r12;
+    
+    t1 r14 = r13;
+    t2 r15;
+    
+    r15.p1 = r3;
+    r15.p2 = r4;
+    
+    t2 r16 = r15;
+    t8 r17;
+    
+    r17.frm = r6;
+    r17.to = r8;
+    r17.step = r10;
+    r17.f = r11;
+    r17.acc = r14;
+    r17.obsv = r16;
+    
+    t8 r18 = r17;
+    t6 r19 = seq32_0(r18);
+    t1 r20 = r19.p1;
+    t5 r21 = r19.p2;
+    SysState *r22 = r20.p1;
+    u32 r23 = r20.p2;
+    u32 r24 = r23;
+    t25 r25;
+    
+    if (r21.tag == TAG_ENUM_Iterate) {
+        unit_t r26 = r21.Iterate;
+        unit_t r27 = (unit_t) {.dummy = 0};
+        t24 r28;
         
-        r22 = r26;
+        r28.tag = TAG_ENUM_None;
+        r28.None = r27;
+        
+        t24 r29 = r28;
+        t25 r30;
+        
+        r30.p1 = r22;
+        r30.p2 = r29;
+        
+        t25 r31 = r30;
+        
+        r25 = r31;
     } else {
-        t4 *r27 = r18.Break;
-        t24 r28 = (t24) {.tag = TAG_ENUM_Some, .Some = r27};
-        t25 r29 = (t25) {.p1 = r19, .p2 = r28};
+        t4 *r32 = r21.Break;
+        t24 r33;
         
-        r22 = r29;
+        r33.tag = TAG_ENUM_Some;
+        r33.Some = r32;
+        
+        t24 r34 = r33;
+        t25 r35;
+        
+        r35.p1 = r22;
+        r35.p2 = r34;
+        
+        t25 r36 = r35;
+        
+        r25 = r36;
     }
     
-    t25 r30 = r22;
+    t25 r37 = r25;
     
-    return r30;
+    return r37;
 }
 t17 deserialise_CString(t14 args)
 {

@@ -46,15 +46,15 @@ data Associativity = LeftAssoc Int
                    deriving Eq
 
 associativity :: Op -> Associativity
-associativity x | x `elem` [Times, Divide, Mod] = LeftAssoc 3
-                | x `elem` [Plus, Minus] = LeftAssoc 4
-                | x `elem` [LShift, RShift] = LeftAssoc 5
-                | x `elem` [Gt, Lt, Le, Ge, Eq, NEq] = NoAssoc 6
-                | x `elem` [BitAnd] = LeftAssoc 8
-                | x `elem` [BitXor] = LeftAssoc 9
-                | x `elem` [BitOr]  = LeftAssoc 10
-                | x `elem` [And] = RightAssoc 11
-                | x `elem` [Or]  = RightAssoc 12
+associativity x | x `elem` [Times, Divide, Mod] = LeftAssoc 11
+                | x `elem` [Plus, Minus] = LeftAssoc 12
+                | x `elem` [Gt, Lt, Le, Ge, Eq, NEq] = NoAssoc 13
+                | x `elem` [BitAnd] = LeftAssoc 14
+                | x `elem` [BitXor] = LeftAssoc 15
+                | x `elem` [BitOr]  = LeftAssoc 16
+                | x `elem` [LShift, RShift] = LeftAssoc 17
+                | x `elem` [And] = RightAssoc 18
+                | x `elem` [Or]  = RightAssoc 19
                 | otherwise = Prefix
 
 symbolOp :: OpName -> Op

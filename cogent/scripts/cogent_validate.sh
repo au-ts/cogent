@@ -28,8 +28,9 @@ fi
 # Usage
 long_usage()
 {
-    echo "Usage: $0 -[tc|ds|an|mn|cg|gcc|tc-proof|ac|flags|ffi-gen|aq|shallow-proof|hs-shallow|examples|goanna|libgum|all|clean] [-q|-i|]"
+    echo "Usage: $0 -[pp|tc|ds|an|mn|cg|gcc|tc-proof|ac|flags|ffi-gen|aq|shallow-proof|hs-shallow|examples|goanna|libgum|all|clean] [-q|-i|]"
     echo 'Run (one or more) tests for the Cogent compilation tools.'
+    echo '  -pp      Test the parser and the pretty-printer are roughly inverse of each other'
     echo '  -tc      Test type checking'
     echo '  -ds      Test desugaring'
     echo '  -an      Test A-normal transform'
@@ -55,12 +56,12 @@ long_usage()
 
 short_usage()
 {
-    echo "Usage: $0 -[tc|ds|an|mn|cg|gcc|tc-proof|ac|flags|ffi-gen|aq|shallow-proof|hs-shallow|examples|goanna|libgum|all|clean] [-q|-i|]"
+    echo "Usage: $0 -[pp|tc|ds|an|mn|cg|gcc|tc-proof|ac|flags|ffi-gen|aq|shallow-proof|hs-shallow|examples|goanna|libgum|all|clean] [-q|-i|]"
     echo 'Run with -h for detailed explanation of all the options.'
 }
 
 # Parse options
-OPTS=$(getopt -o h --alternative --long tc,ds,an,mn,cg,gcc,tc-proof,ac,flags,ffi-gen,aq,shallow-proof,hs-shallow,examples,goanna,ee,libgum,all,help,clean,q,i -n "$0" -- "$@")
+OPTS=$(getopt -o h --alternative --long pp,tc,ds,an,mn,cg,gcc,tc-proof,ac,flags,ffi-gen,aq,shallow-proof,hs-shallow,examples,goanna,ee,libgum,all,help,clean,q,i -n "$0" -- "$@")
 if [ $? != 0 ]
 then
     short_usage
@@ -84,7 +85,7 @@ while true; do
         --q) QUIET=1; shift;;
         --i) INTERACTIVE=1; shift;;
         --clean) DO_CLEAN=1; shift;;
-        --all) TESTSPEC='--tc--ds--an--mn--aq--cg--gcc--tc-proof--ffi-gen--ac--flags--shallow-proof--hs-shallow--goanna--ee--libgum'; shift;;
+        --all) TESTSPEC='--pp--tc--ds--an--mn--aq--cg--gcc--tc-proof--ffi-gen--ac--flags--shallow-proof--hs-shallow--goanna--ee--libgum'; shift;;
         *) TESTSPEC="${TESTSPEC}$1"; shift;;
     esac
 done
@@ -226,6 +227,38 @@ fi
 
 declare -i all_passed=0 all_total=0 all_ignored=0
 declare -i passed total
+
+test_parser_prettyprinter()
+{
+    echo "=== Parser ==="
+    all_total+=1
+    passed=0
+    total=0
+
+    if [ -e "$COUT" -a -d "$COUT" ]
+    then echo "rm -r $COUT"
+         rm -r "$COUT"
+    fi
+    mkdir -p "$COUT" || exit
+    for source in "$TESTS"/pass_*.cogent
+    do
+        echo -n "$source: "
+        f=$(basename "$source")
+        total+=1
+        if check_output ">$COUT/$f" $COGENT --pretty-parse "$source" && \
+           check_output $COGENT --parse "$COUT/$f"
+        then passed+=1; echo "$pass_msg"
+        else echo "$fail_msg"
+        fi
+    done
+
+    # rm -rf "$COUT"
+    echo "Passed $passed out of $total."
+    if [[ $passed = $total ]]
+    then all_passed+=1
+    fi
+
+}
 
 test_type_checking()
 {
@@ -772,6 +805,10 @@ test_libgum()
 #
 # TODO: We will have to refactor th following 'if' statement blocks
 #
+if [[ "$TESTSPEC" =~ '--pp--' ]];
+then
+    test_parser_prettyprinter
+fi
 if [[ "$TESTSPEC" =~ '--tc--' ]];
 then
     test_type_checking
