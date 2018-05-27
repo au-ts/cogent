@@ -290,6 +290,18 @@ cg' (App e1 e2 _) t = do
   traceTc "gen" (text "cg for funapp:" <+> prettyE e)
   return (c,e)
 
+cg' (Comp f g) t = do
+  alpha1 <- freshTVar
+  alpha2 <- freshTVar
+  alpha3 <- freshTVar
+  
+  (c1, f') <- cg f (T (TFun alpha2 alpha3))
+  (c2, g') <- cg g (T (TFun alpha1 alpha2))
+  let e = Comp f' g'
+      c = c1 <> c2 <> F (T $ TFun alpha1 alpha3) :< F t
+  traceTc "gen" (text "cg for comp:" <+> prettyE e)
+  return (c,e)
+
 cg' (Con k es) t = do
   (ts, c', es') <- cgMany es
 
@@ -298,7 +310,7 @@ cg' (Con k es) t = do
   traceTc "gen" (text "cg for constructor:" <+> prettyE e
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint" <+> prettyC c)
-  return (c' <> c,e)
+  return (c' <> c, e)
 
 cg' (Tuple es) t = do
   (ts, c', es') <- cgMany es
@@ -308,7 +320,7 @@ cg' (Tuple es) t = do
   traceTc "gen" (text "cg for tuple:" <+> prettyE e
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint" <+> prettyC c)
-  return (c' <> c,e)
+  return (c' <> c, e)
 
 cg' (UnboxedRecord fes) t = do
   let (fs, es) = unzip fes
@@ -320,7 +332,7 @@ cg' (UnboxedRecord fes) t = do
   traceTc "gen" (text "cg for unboxed record:" <+> prettyE e
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint" <+> prettyC c)
-  return (c' <> c,e)
+  return (c' <> c, e)
 
 cg' (Seq e1 e2) t = do
   alpha <- freshTVar
@@ -333,7 +345,7 @@ cg' (Seq e1 e2) t = do
 
 cg' (TypeApp f as i) t = do
   tvs <- use knownTypeVars
-  (ct,getCompose -> as') <- validateTypes (fmap stripLocT $ Compose as) 
+  (ct, getCompose -> as') <- validateTypes (fmap stripLocT $ Compose as) 
   lift (use $ knownFuns.at f) >>= \case
     Just (PT vs tau) -> let
         match :: [(TyVarName, Kind)] -> [Maybe TCType] -> CG ([(TyVarName, TCType)], Constraint)

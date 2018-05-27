@@ -57,7 +57,7 @@ language = haskellStyle
                                   ":","=","!",":<",".","_","..","#","$",
                                   "@","@@","->","=>","~>","<=","|","|>"]
            , T.reservedNames   = ["let","in","type","include","all","take","put","inline",
-                                  "repr","variant","record","at",
+                                  "repr","variant","record","at","o",
                                   "if","then","else","not","complement","and","True","False"]
            , T.identStart = letter
            }
@@ -190,7 +190,8 @@ basicExpr' = avoidInitial >> buildExpressionParser
                Prefix (getPosition >>= \p -> reserved "not" *> pure (LocExpr p . PrimOp "not" . (:[]))),
                Infix funapp AssocLeft,
                Postfix ((\rs x -> LocExpr (posOfE x) (Put x rs)) <$> braces recAssignsAndOrWildcard)]
-            , [Infix (reservedOp "@" *> pure (\e i -> LocExpr (posOfE e) (ArrayIndex e (stripLocE i)))) AssocLeft]
+            , [Infix (reservedOp "@" *> pure (\e i -> LocExpr (posOfE e) (ArrayIndex e (stripLocE i)))) AssocLeft,
+               Infix (reserved "o" *> pure (\f g -> LocExpr (posOfE f) (Comp f g))) AssocRight]
             , [binary "*" AssocLeft, binary "/" AssocLeft, binary "%" AssocLeft ]
             , [binary "+" AssocLeft, binary "-" AssocLeft ]
             , map (`binary` AssocNone) [">", "<", ">=", "<=", "==", "/="]

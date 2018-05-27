@@ -44,6 +44,7 @@ import qualified Cogent.Vec as Vec
 
 import Control.Applicative
 import Control.Arrow
+import Control.Lens (view, _2)
 import Control.Monad.Except hiding (fmap, forM_)
 import Control.Monad.Extra (allM)
 import Control.Monad.Reader hiding (fmap, forM_)
@@ -165,7 +166,7 @@ newtype TC (t :: Nat) (v :: Nat) a = TC {unTC :: ExceptT String
                                                          (ReaderT (Vec t Kind, Map FunName FunctionType)
                                                                   (State (Vec v (Maybe (Type t)))))
                                                          a}
-                                   deriving (Functor, Applicative, Alternative, Monad, MonadPlus)
+                                   deriving (Functor, Applicative, Alternative, Monad, MonadPlus, MonadReader (Vec t Kind, Map FunName FunctionType))
 
 infixl 4 <||>
 (<||>) :: TC t v (a -> b) -> TC t v a -> TC t v b
@@ -334,7 +335,8 @@ typecheck (E (Variable v))
         return (TE t (Variable v))
 typecheck (E (Fun f ts note))
    | ExI (Flip ts') <- Vec.fromList ts
-   = do Just (FT ks ti to) <- funType f
+   = do xxx <- view _2
+        Just (FT ks ti to) <- funType f
         case Vec.length ts' =? Vec.length ks
           of Just Refl -> let ti' = substitute ts' ti
                               to' = substitute ts' to

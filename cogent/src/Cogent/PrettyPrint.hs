@@ -143,6 +143,7 @@ instance Prec (Expr t p ip e) where
   prec (Con _ _) = 9
   prec (Put {}) = 9
   prec (ArrayIndex {}) = 10
+  prec (Comp {}) = 10
   prec (PrimOp n _) = prec (associativity n)  -- range 11 - 19
   prec (Annot {}) = 30
   prec (App  _ _ True) = 31
@@ -406,6 +407,7 @@ instance (ExprType e, Prec e, Pretty t, PatnType p, Pretty p, PatnType ip, Prett
   pretty (LamC p mt e _)     = pretty (Lam p mt e :: Expr t p ip e)
   pretty (App  a b False)    = prettyPrec 10 a <+> prettyPrec 9 b
   pretty (App  a b True )    = prettyPrec 31 a <+> symbol "$" <+> prettyPrec 32 b
+  pretty (Comp f g)          = prettyPrec 10 f <+> symbol "o" <+> prettyPrec 9 g
   pretty (AppC a b)          = prettyPrec 10 a <+> prettyPrec 9 b
   pretty (Con n [] )         = tagname n
   pretty (Con n es )         = tagname n <+> spaceList (map (prettyPrec 9) es)

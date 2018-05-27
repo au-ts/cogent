@@ -58,7 +58,7 @@ import Data.Traversable (forM)
 import Text.PrettyPrint.ANSI.Leijen (pretty)
 -- import qualified Traversable as Trav (mapM)
 
--- import Debug.Trace
+import Debug.Trace
 
 
 -- __ghc_trac_14777 = undefined
@@ -105,25 +105,30 @@ desugar tls ctygen pragmas =
       abstydecs  = filter isAbsTypeDec tls where isAbsTypeDec (S.AbsTypeDec {}) = True; isAbsTypeDec _ = False
       constdefs  = filter isConstDef   tls where isConstDef   (S.ConstDef {})   = True; isConstDef   _ = False
       initialReader = (M.fromList $ P.map fromTypeDec typedecs, M.fromList $ P.map fromConstDef constdefs, pragmas)
-      initialState  = DsState Nil Nil 0 []
-  in flip3 evalRWS initialState initialReader $
-       runDS (do defs' <- concat <$> (forM (abstydecs ++ typedecs ++ absdecs ++ fundefs) $ \x -> do
-                   put initialState
-                   x' <- lamLftTlv x
-                   typCtx .= Nil; varCtx .= Nil; oracle .= 0
-                   lfdefs <- reverse <$> use lftFun
-                   mlfdefs' <- mapM (\d -> put initialState >> desugarTlv d pragmas) lfdefs  -- no more lambda-lifting
-                   put initialState
-                   mdef' <- desugarTlv x' pragmas
-                   return . catMaybes $ mlfdefs' ++ [mdef'])
-                 write <- ask
-                 consts' <- desugarConsts constdefs
-                 ctygen' <- desugarCustTyGen ctygen
-                 tell $ Last (Just (write^._1, write^._2, consts'))
-                 return (defs',ctygen')
-             )
-  where fromTypeDec  (S.TypeDec tn vs t) = (tn,(vs,t)); fromTypeDec  _ = __impossible "fromTypeDec (in desugarProgram)"
-        fromConstDef (S.ConstDef vn t e) = (vn,e)     ; fromConstDef _ = __impossible "fromConstDef (in desguarProgram)"
+  in flip3 evalRWS initialState initialReader $ runDS $ do
+       defs' <- concat <$> mapM go (abstydecs ++ typedecs ++ absdecs ++ fundefs)
+       write <- ask
+       consts' <- desugarConsts constdefs
+       ctygen' <- desugarCustTyGen ctygen
+       tell $ Last (Just (write^._1, write^._2, consts'))
+       return (defs',ctygen')
+  where 
+    initialState  = DsState Nil Nil 0 []
+        
+    go :: S.TopLevel S.RawType B.TypedPatn B.TypedExpr -> DS 'Zero 'Zero [Definition UntypedExpr VarName]
+    go x = do typCtx .= Nil; varCtx .= Nil; lftFun .= []
+              x' <- lamLftTlv x
+              typCtx .= Nil; varCtx .= Nil;
+              def' <- desugarTlv x' pragmas  -- it generates a few more lifted functions
+              lfdefs <- reverse <$> use lftFun
+              lfdefs' <- concat <$> mapM go lfdefs
+              return $ lfdefs' ++ [def']
+
+    fromTypeDec  (S.TypeDec tn vs t) = (tn,(vs,t))
+    fromTypeDec  _ = __impossible "fromTypeDec (in desugarProgram)"
+
+    fromConstDef (S.ConstDef vn t e) = (vn,e)
+    fromConstDef _ = __impossible "fromConstDef (in desguarProgram)"
 
 
 
@@ -152,7 +157,7 @@ withTypeBinding :: TyVarName -> DS ('Suc t) v a -> DS t v a
 withTypeBinding t ds = do readers <- ask
                           st <- get
                           let (a, st', _) = flip3 runRWS (st & typCtx %~ (Cons t)) readers $ runDS ds
-                          oracle .= st'^.oracle
+                          put $ st' & typCtx .~ st^.typCtx & oracle .~ st^.oracle
                           return a
 
 withTypeBindings :: Vec k TyVarName -> DS (t :+: k) v a -> DS t v a
@@ -163,7 +168,7 @@ withBinding :: VarName -> DS t ('Suc v) a -> DS t v a
 withBinding v ds = do readers <- ask
                       st <- get
                       let (a, st', _) = flip3 runRWS (st & varCtx %~ (Cons v)) readers $ runDS ds
-                      oracle .= (st'^.oracle)
+                      put $ st' & varCtx .~ st^.varCtx & oracle .~ st^.oracle
                       return a
 
 withBindings :: Vec k VarName -> DS t (v :+: k) x -> DS t v x
@@ -222,20 +227,20 @@ lamLftExpr f (B.TE t e l) = B.TE t <$> traverse (lamLftExpr f) e <*> pure l
 
 desugarTlv :: S.TopLevel S.RawType B.TypedPatn B.TypedExpr
            -> [Pragma]
-           -> DS 'Zero 'Zero (Maybe (Definition UntypedExpr VarName))
+           -> DS 'Zero 'Zero (Definition UntypedExpr VarName)
 desugarTlv (S.Include    _) _ = __impossible "desugarTlv"
 desugarTlv (S.IncludeStd _) _ = __impossible "desugarTlv"
 desugarTlv (S.TypeDec tn vs t) _ | ExI (Flip vs') <- Vec.fromList vs
                                  , Vec.Refl <- zeroPlusNEqualsN (Vec.length vs') = do
   tenv <- use typCtx
   t' <- withTypeBindings vs' $ desugarType t
-  return . Just $ TypeDef tn vs' (Just t')
-desugarTlv (S.AbsTypeDec tn vs _) _ | ExI (Flip vs') <- Vec.fromList vs = return . Just $ TypeDef tn vs' Nothing
+  return $ TypeDef tn vs' (Just t')
+desugarTlv (S.AbsTypeDec tn vs _) _ | ExI (Flip vs') <- Vec.fromList vs = return $ TypeDef tn vs' Nothing
 desugarTlv (S.AbsDec fn sigma) pragmas | S.PT vs t <- sigma
                                        , ExI (Flip vs') <- Vec.fromList vs
                                        , Refl <- zeroPlusNEqualsN $ Vec.length vs'
   = do TFun ti' to' <- withTypeBindings (fmap fst vs') $ desugarType t
-       return . Just $ AbsDecl (pragmaToAttr pragmas fn mempty) fn vs' ti' to'
+       return $ AbsDecl (pragmaToAttr pragmas fn mempty) fn vs' ti' to'
 desugarTlv (S.FunDef fn sigma alts) pragmas | S.PT vs t <- sigma
                                             , ExI (Flip vs') <- Vec.fromList vs
                                             , Refl <- zeroPlusNEqualsN $ Vec.length vs'
@@ -245,7 +250,7 @@ desugarTlv (S.FunDef fn sigma alts) pragmas | S.PT vs t <- sigma
       v <- freshVar
       let e0 = B.TE ti (S.Var v) noPos
       e <- withBinding v $ desugarAlts e0 alts
-      return . Just $ FunDef (pragmaToAttr pragmas fn mempty) fn vs' ti' to' e
+      return $ FunDef (pragmaToAttr pragmas fn mempty) fn vs' ti' to' e
 desugarTlv (S.ConstDef _ _ _) _ = __impossible "desugarTlv"
 desugarTlv (S.DocBlock _    ) _ = __impossible "desugarTlv"
 
@@ -535,6 +540,18 @@ desugarExpr (B.TE _ (S.Seq e1 e2) _) = do
   E <$> (Let v <$> desugarExpr e1 <*> withBinding v (desugarExpr e2))
 desugarExpr (B.TE _ (S.Lam p mt e) _) = __impossible "desugarExpr (Lam)"
 desugarExpr (B.TE _ (S.App e1 e2 _) _) = E <$> (App <$> desugarExpr e1 <*> desugarExpr e2)
+desugarExpr (B.TE t (S.Comp f g) l) = do
+  v <- freshVar
+  compf <- freshVar
+  let S.RT (S.TFun t1 t3) = t
+      S.RT (S.TFun _  t2) = B.getTypeTE g
+      tv = t1
+      p = B.TIP (S.PVar (v,tv)) l
+      v' = B.TE tv (S.Var v) (B.getLocTE g)
+      g' = B.TE t2 (S.App g v' False) (B.getLocTE f)
+      e = B.TE t3 (S.App f g' False) l
+  e' <- lamLftExpr compf (B.TE t (S.Lam p Nothing e) l)
+  desugarExpr e'
 desugarExpr (B.TE _ (S.If c [] th el) _) = E <$> (If <$> desugarExpr c <*> desugarExpr th <*> desugarExpr el)
 desugarExpr (B.TE _ (S.If c vs th el) _) = do
   venv <- use varCtx
