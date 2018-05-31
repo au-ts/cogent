@@ -41,7 +41,7 @@ by (induct l, auto)
 
 lemma map_snd3_ignore3[simp]:
 shows "map (fst \<circ> snd \<circ> (\<lambda> (a, b, c). (a, b, f c))) l = map (fst \<circ> snd) l"
-by (induct l, auto)
+  by (induct l, auto)
 
 lemma map_fst_update:
 assumes "ts ! f = (t, x)"
@@ -70,15 +70,6 @@ using assms
   apply (auto)
 done
 
-lemma map_filter_fst:
-shows "map (\<lambda>(c, t). (c, f t)) [x\<leftarrow>ts . P (fst x)]
-     = [x \<leftarrow> map (\<lambda>(c,t). (c, f t)) ts. P (fst x)]"
-proof -
-have "(\<lambda>x. P (fst x)) \<circ> (\<lambda>(c, t). (c, f t)) = (\<lambda>x. P (fst x))"
-  by (rule ext, case_tac x, simp)
-then show ?thesis by (simp add: filter_map)
-qed
-
 lemma set_subset_map:
 assumes "set a \<subseteq> set b"
 shows   "set (map f a) \<subseteq> set (map f b)"
@@ -91,10 +82,19 @@ shows   "a \<in> set (map fst l)"
 and     "b \<in> set (map snd l)"
 using assms by (force intro: imageI)+ 
 
-lemma filter_fst_ignore:
-shows "filter (\<lambda> x. P (fst x)) (map (\<lambda>(a,b). (a, f b)) ls) 
-     = map (\<lambda>(a,b). (a, f b)) (filter (\<lambda> x. P (fst x)) ls)"
+lemma filter_fst_ignore_tuple:
+shows "filter (\<lambda>x. P (fst x)) (map (\<lambda>(a,b). (a, f b)) ls)
+     = map (\<lambda>(a,b). (a, f b)) (filter (\<lambda>x. P (fst x)) ls)"
 by (induct_tac ls, auto)
+
+lemma filter_fst_ignore_triple:
+shows "filter (\<lambda>x. P (fst x)) (map (\<lambda>(a,b,c). (a, f (b,c))) ls)
+     = map (\<lambda>(a,b,c). (a, f (b,c))) (filter (\<lambda>x. P (fst x)) ls)"
+by (induct_tac ls, auto)
+
+lemma filter_map_map_filter_thd3_app2:
+  shows "filter (P \<circ> snd \<circ> snd) (map (\<lambda>(a, b, c). (a, f b, c)) ls) = map (\<lambda>(a, b, c). (a, f b, c)) (filter (P \<circ> snd \<circ> snd) ls)"
+  by (induct_tac ls, (simp split: prod.splits)+)
 
 lemma filtered_member: "[a] = filter f x \<Longrightarrow> a \<in> set x"
   apply (induction x)
@@ -274,14 +274,13 @@ fun bang :: "type \<Rightarrow> type" where
 | "bang (TRecord ts s) = TRecord (map (\<lambda> (t, b). (bang t, b)) ts) (bang_sigil s)"
 | "bang (TUnit)        = TUnit"
 
-
 fun instantiate :: "type substitution \<Rightarrow> type \<Rightarrow> type" where 
   "instantiate \<delta> (TVar i)       = (if i < length \<delta> then \<delta> ! i else TVar i)"
 | "instantiate \<delta> (TVarBang i)   = (if i < length \<delta> then bang (\<delta> ! i) else TVarBang i)"
 | "instantiate \<delta> (TCon n ts s)  = TCon n (map (instantiate \<delta>) ts) s"
 | "instantiate \<delta> (TFun a b)     = TFun (instantiate \<delta> a) (instantiate \<delta> b)"
 | "instantiate \<delta> (TPrim p)      = TPrim p"
-| "instantiate \<delta> (TSum ps)      = TSum (map (\<lambda> (c, (t, b)). (c, (instantiate \<delta> t, b))) ps)"
+| "instantiate \<delta> (TSum ps)      = TSum (map (\<lambda> (c, t, b). (c, instantiate \<delta> t, b)) ps)"
 | "instantiate \<delta> (TProduct t u) = TProduct (instantiate \<delta> t) (instantiate \<delta> u)"
 | "instantiate \<delta> (TRecord ts s) = TRecord (map (\<lambda> (t, b). (instantiate \<delta> t, b)) ts) s"
 | "instantiate \<delta> (TUnit)        = TUnit"
@@ -321,6 +320,7 @@ definition singleton :: "nat \<Rightarrow> index \<Rightarrow> type \<Rightarrow
   "singleton n i t \<equiv> (empty n)[i := Some t]"
 
 declare singleton_def [simp]
+
 definition instantiate_ctx :: "type substitution \<Rightarrow> ctx \<Rightarrow> ctx" where
   "instantiate_ctx \<delta> \<Gamma> \<equiv> map (map_option (instantiate \<delta>)) \<Gamma>"
 
@@ -508,7 +508,7 @@ inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Right
                    ; set (map fst ts) = set (map fst ts')
                    ; K \<turnstile>* (map (fst \<circ> snd) ts') wellformed
                    ; distinct (map fst ts')
-                   ; (c,(t,b)) \<in> set ts \<longrightarrow> ((c,(t,b')) \<in> set ts' \<and> (b' \<longrightarrow> b))
+                   ; \<forall>c t b. (c,t,b) \<in> set ts \<longrightarrow> (\<exists>b'. (b' \<longrightarrow> b) \<and> ((c,(t,b')) \<in> set ts'))
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Promote ts' x : TSum ts'"
 
 | typing_cast   : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> e : TPrim (Num \<tau>)
@@ -1090,32 +1090,63 @@ by ( induct "[] :: kind list"  t k
    , auto, (case_tac s,auto)+)
 
 
-subsection {* Specialisation *}
-
+subsection {* Specialisation *} 
 
 lemma specialisation:
 assumes well_kinded: "list_all2 (kinding K') \<delta> K"
 shows "\<Xi> , K , \<Gamma> \<turnstile>  e  : \<tau>  \<Longrightarrow> \<Xi> , K' , instantiate_ctx \<delta> \<Gamma> \<turnstile> specialise \<delta> e : instantiate \<delta> \<tau> "
 and   "\<Xi> , K , \<Gamma> \<turnstile>* es : \<tau>s \<Longrightarrow> \<Xi> , K' , instantiate_ctx \<delta> \<Gamma> \<turnstile>* map (specialise \<delta>) es : map (instantiate \<delta>) \<tau>s"
-using assms proof (induct rule: typing_typing_all.inducts)
-next case typing_case   then show ?case by (force intro:  typing_typing_all.intros instantiate_ctx_split 
-                                                  simp:   set_conv_nth 
-                                                          filter_fst_ignore [where P ="\<lambda>f. f \<noteq> c" for c]
-                                                  split:  prod.split)
+  using assms
+proof (induct rule: typing_typing_all.inducts)
+next case (typing_case K \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> x ts tag t a u b)
+  then have "\<Xi>, K', instantiate_ctx \<delta> \<Gamma> \<turnstile> Case (specialise \<delta> x) tag (specialise \<delta> a) (specialise \<delta> b) : instantiate \<delta> u"
+    using image_iff
+      filter_fst_ignore_triple[where ls=ts and f="\<lambda>(t,b). (instantiate \<delta> t, b)" and P="\<lambda>p. p \<noteq> tag"]
+  proof (intro typing_typing_all.typing_case)
+    show "(tag, instantiate \<delta> t, False) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts)"
+      using typing_case.hyps(4) image_iff by fastforce
+  qed (force intro: instantiate_ctx_split)+
+  then show ?case by simp
 next case (typing_afun \<Xi> f ks t u K ts ks)
-then also have "instantiate \<delta> (instantiate ts t) = instantiate (map (instantiate \<delta>) ts) t"
-          and  "instantiate \<delta> (instantiate ts u) = instantiate (map (instantiate \<delta>) ts) u"
-          by (force dest: list_all2_lengthD intro: instantiate_instantiate)+
-ultimately show ?case by (auto intro!: list_all2_substitutivity
-                                       typing_typing_all.typing_afun [simplified] 
-                                       instantiate_ctx_consumed)
+  then also have "instantiate \<delta> (instantiate ts t) = instantiate (map (instantiate \<delta>) ts) t"
+    and  "instantiate \<delta> (instantiate ts u) = instantiate (map (instantiate \<delta>) ts) u"
+    by (force dest: list_all2_lengthD intro: instantiate_instantiate)+
+  ultimately show ?case by (auto intro!: list_all2_substitutivity
+        typing_typing_all.typing_afun [simplified] 
+        instantiate_ctx_consumed)
 next case (typing_fun \<Xi> K t f u \<Gamma> ks ts)
-then also have "instantiate \<delta> (instantiate ts t) = instantiate (map (instantiate \<delta>) ts) t"
-          and  "instantiate \<delta> (instantiate ts u) = instantiate (map (instantiate \<delta>) ts) u"
-          by (force dest: list_all2_lengthD intro: instantiate_instantiate dest!: typing_to_kinding)+
-ultimately show ?case by (auto intro!: list_all2_substitutivity
-                                       typing_typing_all.typing_fun [simplified] 
-                                       instantiate_ctx_consumed)
+  then also have "instantiate \<delta> (instantiate ts t) = instantiate (map (instantiate \<delta>) ts) t"
+    and  "instantiate \<delta> (instantiate ts u) = instantiate (map (instantiate \<delta>) ts) u"
+    by (force dest: list_all2_lengthD intro: instantiate_instantiate dest!: typing_to_kinding)+
+  ultimately show ?case by (auto intro!: list_all2_substitutivity
+        typing_typing_all.typing_fun [simplified] 
+        instantiate_ctx_consumed)
+next
+  case (typing_prom \<Xi> K \<Gamma> x ts ts')
+  then have "\<Xi>, K', instantiate_ctx \<delta> \<Gamma> \<turnstile> Promote (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts') (specialise \<delta> x) : TSum (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts')" 
+  proof (intro typing_typing_all.typing_prom)
+    show "K' \<turnstile>* map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts') wellformed"
+      using typing_prom.hyps(4) substitutivity(1)[OF typing_prom.prems]
+      by (simp add: kinding_all_set, blast)
+  next
+    show "\<forall>c t b. (c,t,b)\<in>set (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts) \<longrightarrow> (\<exists>b'. (b' \<longrightarrow> b) \<and> (c, t, b') \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts'))"
+    proof clarsimp
+      fix c t b
+      assume "(c,t,b) \<in> set ts"
+      then obtain b' where "b' \<longrightarrow> b" and "(c, t, b') \<in> set ts'"
+        using typing_prom.hyps(6) by blast+
+      moreover then have "(c, instantiate \<delta> t, b') \<in> (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ` set ts'"
+        by (metis (mono_tags) rev_image_eqI case_prod_conv)
+      ultimately show "\<exists>b'. (b' \<longrightarrow> b) \<and> (c, instantiate \<delta> t, b') \<in> (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ` set ts'"
+        by blast
+    qed
+  qed simp+
+next
+  case (typing_esac \<Xi> K \<Gamma> x ts uu t)
+  then show ?case
+    by (force intro!: typing_typing_all.typing_esac
+                simp: filter_map_map_filter_thd3_app2
+                      typing_esac.hyps(3)[symmetric])+
 qed (force intro!: typing_struct_instantiate
                    typing_typing_all.intros
            dest:   substitutivity
@@ -1124,8 +1155,8 @@ qed (force intro!: typing_struct_instantiate
                    instantiate_ctx_weaken
                    instantiate_ctx_consumed
            simp:   instantiate_ctx_def [where \<Gamma> = "[]", simplified]
-                   map_update)+
-
+                   map_update
+           split:  prod.splits)+
 
 
 fun expr_size :: "'f expr \<Rightarrow> nat" where
@@ -1137,11 +1168,11 @@ fun expr_size :: "'f expr \<Rightarrow> nat" where
 | "expr_size (Cast t x) = Suc (expr_size x)"
 | "expr_size (Con c x ts) = Suc (expr_size ts)"
 | "expr_size (App a b) = Suc ((expr_size a) + (expr_size b))"
-| "expr_size (Prim p as) = Suc (listsum (map expr_size as))"
+| "expr_size (Prim p as) = Suc (sum_list (map expr_size as))"
 | "expr_size (Var v) = 0"
 | "expr_size (AFun v va) = 0"
 | "expr_size (Promote v va) = Suc (expr_size va)"
-| "expr_size (Struct v va) = Suc (listsum ( map expr_size va))"
+| "expr_size (Struct v va) = Suc (sum_list ( map expr_size va))"
 | "expr_size (Lit v) = 0"
 | "expr_size (Tuple v va) = Suc ((expr_size v) + (expr_size va))"
 | "expr_size (Put v va vb) = Suc ((expr_size v) + (expr_size vb))"
@@ -1155,7 +1186,7 @@ lemma specialise_size [simp]:
   shows "expr_size (specialise \<tau>s x) = expr_size x"
 proof -
 have "\<forall> as . (\<forall> x. x \<in> set as \<longrightarrow> expr_size (specialise \<tau>s x) = expr_size x) \<longrightarrow>
-  listsum (map (expr_size \<circ> specialise \<tau>s) as) = listsum (map expr_size as)"
+  sum_list (map (expr_size \<circ> specialise \<tau>s) as) = sum_list (map expr_size as)"
 by (rule allI, induct_tac as, simp+)
 then show ?thesis by (induct x rule: expr_size.induct, auto)
 qed
