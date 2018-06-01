@@ -118,6 +118,7 @@ install:
  - git submodule update --init -- z3
  - cd z3
  - mkdir -p "$HOME"/z3
+ - export PATH="$HOME/z3/bin:$PATH"
  - |
    if ! which z3;
    then # install z3
@@ -126,7 +127,6 @@ install:
      make
      make install
    fi
- - export PATH="$HOME/z3/bin:$PATH"
  - which z3 || travis_terminate 1
 
 # Here starts the actual work to be performed for the package under test;
