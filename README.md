@@ -10,17 +10,15 @@ our [project homepage](http://ts.data61.csiro.au/projects/TS/cogent.pml).
 
 ## Installation
 
-Instructions tested on Debian GNU/Linux 8.2 (“jessie”). May need to be adapted for other systems.
+Instructions tested on Debian GNU/Linux 8.2 ("jessie") and Ubuntu 16.04 ("xenial"). May need to be adapted for other systems.
 
 Install dependencies from the Debian repository.
 ```
 sudo apt-get install git # git
-sudo apt-get install libgmp-dev libncurses5-dev # Haskell
 sudo apt-get install python-lxml python-psutil python-pycparser # regression tester
 ```
 
-You need a recent version of Glasgow Haskell Compiler (8.0.1+), cabal-install, alex, and happy.
-For instructions, consult file [cogent/README.md](./cogent/README.md) for details. 
+To install the Cogent compiler, consult file [cogent/README.md](./cogent/README.md) for details. 
 
 [`l4v`](https://github.com/seL4/l4v/tree/47d5b746fc2f052586db11aa6048c5ae7c357155) and [`isabelle`](https://github.com/seL4/isabelle/tree/Isabelle2015) are two submodules in the repository.
 To get them: `git submodule update --init --recursive`.

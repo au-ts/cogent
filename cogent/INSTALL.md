@@ -8,6 +8,7 @@
 * [The Haskell Cabal](https://www.haskell.org/cabal/)
 * [`alex`](https://www.haskell.org/alex/)
 * [`happy`](https://www.haskell.org/happy/)
+* [`z3`](https://github.com/Z3Prover/z3) (which is also included as a submodule for convenience)
 
 
 ## Installation Instructions
@@ -31,6 +32,16 @@ _NOTE_: The supported versions of GHC and Cabal are specified [here](./cogent.ca
 cabal install alex happy
 ```
 Usually, the executables are located `$HOME/.cabal/bin/`. Make sure you add them to your `$PATH`.
+
+#### `z3` SMT-solver
+
+(_NOTE_: This is optional. You don't have to install `z3` if you don't plan to use Cogent's type-level computation features.)
+
+Follow their [instructions](../z3/README.md). Make sure that the executable is included in your `$PATH`.
+
+_NOTE_: We only tested against the snapshot checked-in in the [submodule](../z3). Similar versions of `z3`
+have a chance to work but not guaranteed. We invoke `z3` via `sbv` package. You can find the `z3` versions that
+are compatible with the `sbv` package you installed [on their github](https://github.com/LeventErkok/sbv/blob/master/SMTSolverVersions.md).
 
 
 ### Install Cogent
