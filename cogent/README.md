@@ -3,9 +3,6 @@
 
 Cogent builds with the Glasgow Haskell Compiler (GHC)
 
-Tested with GHC-8.0.1, GHC-8.0.2, GHC-8.2.1 and GHC-8.2.2. Similar versions have a chance
-to work (if you wish to fix breakage). cabal-install-1.24 or above is required.
-
 See [INSTALL.md](./INSTALL.md) for details.
 
 
@@ -15,20 +12,7 @@ See [INSTALL.md](./INSTALL.md) for details.
 Run `cogent -?` to see the help message
 `cogent --version` will print the git revision against which you build your Cogent compiler.
 
-
-## Testing
--------
-
-1. Run `./validate` (with appropriate arguments) to test Cogent compiler. Test files are in `./tests`
-
-2. Cogent compiler also comes with a small unit-test module. To run that, do this:
-```
-  $> cabal configure --enable-tests
-  $> cabal build
-  $> cabal test
-```
-Note: You might run into this problem: "You need to re-run the 'configure' command".
-      For more info, see https://github.com/haskell/cabal/issues/2214
+Run `. misc/cogent_autocomplete.sh` for bash auto-complete support. (The script requires an installed Cogent)
 
 
 ## Contents in This Directory
@@ -39,7 +23,7 @@ Note: You might run into this problem: "You need to re-run the 'configure' comma
 * [lib](./lib): C library for generated C code
 * [Setup.hs](./Setup.hs): runhaskell entry.
 * [doc](./doc): The Cogent compiler documentation.
-* [misc](./misc): Miscellaneous helper scripts(Emacs/Vim syntax and Bash autocompletion files).
+* [misc](./misc): Miscellaneous helper scripts (Emacs/Vim syntax, Bash autocompletion, cabal.config files).
 * [tests](./tests): Cogent test files.
 * [examples](./examples): Some tiny but self-contained examples that newcomers should have a look.
 

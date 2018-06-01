@@ -43,10 +43,13 @@ Usually, the executables are located `$HOME/.cabal/bin/`. Make sure you add them
 
 #### Build with Makefile
 
-To configure, edit [config.mk](../config.mk). The default values should work for most people.
-Then simply run `make`. If Cabal fails to solve package dependencies, you can copy the config
-file of your GHC version from [misc/cabal.config.d](./misc/cabal.config.d/) to `./cabal.config`
-in this folder and rerun `make`.
+* To configure, edit [config.mk](../config.mk). The default values should work for most people.
+* Copy the config file of the GHC version you want to use from [misc/cabal.config.d](./misc/cabal.config.d/)
+to `./cabal.config` in this folder.
+* Run `make` or `make dev`. The latter builds Cogent instead of installing it, which is
+suitable for developers.
+
+For more info, run `make help`.
 
 #### Build with Cabal
 
@@ -66,7 +69,17 @@ maintain a Stack build scheme.
 
 ## Test Cogent
 
+1. Test files are in [./tests](./tests). Run `make` with relevant targets.
+
 * `make tests` runs the entire test suite, which is not what you would like to do in most cases.
 * There are individual tests that can be triggered by `make test-*`. See `make help` for details.
 * `make examples` builds a group of small but complete Cogent examples.
+
+
+2. Cogent compiler also comes with a small unit-test module. To run that, do this:
+```
+  $> cabal configure --enable-tests
+  $> cabal build
+  $> cabal test
+```
 
