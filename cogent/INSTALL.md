@@ -4,19 +4,13 @@
 
 * `libgmp.so`
 * `libncurses.so`
-* [The Glasgow Haskell Compiler (GHC)](https://www.haskell.org/) version 8.0.1+
-* [The Haskell Cabal](https://www.haskell.org/cabal/) version 2.0+
+* [The Glasgow Haskell Compiler (GHC)](https://www.haskell.org/)
+* [The Haskell Cabal](https://www.haskell.org/cabal/)
 * [`alex`](https://www.haskell.org/alex/)
 * [`happy`](https://www.haskell.org/happy/)
 
 
-## Install Cogent: In A Nutshell
-
-Once all dependencies have been installed (see below for more information on
-how to install them, if you don't know), simply type `make`.
-
-
-## More Detailed Installation Instructions
+## Installation Instructions
 
 ### Install Cogent dependencies
 
@@ -30,7 +24,7 @@ or adapt it to the package manager of your choice.
 
 See [GHC download page](https://www.haskell.org/downloads) and [Cabal homepage](https://www.haskell.org/cabal/) for details.
 
-_NOTE_: The supported versions of GHC and Cabal is specified [here](./cogent.cabal).
+_NOTE_: The supported versions of GHC and Cabal are specified [here](./cogent.cabal).
 
 #### `alex` and `happy`
 ```
@@ -71,7 +65,7 @@ maintain a Stack build scheme.
 
 1. Test files are in [./tests](./tests). Run `make` with relevant targets.
 
-* `make tests` runs the entire test suite, which is not what you would like to do in most cases.
+* `make tests` runs the entire test suite, which is NOT what you would like to do in most cases.
 * There are individual tests that can be triggered by `make test-*`. See `make help` for details.
 * `make examples` builds a group of small but complete Cogent examples.
 
