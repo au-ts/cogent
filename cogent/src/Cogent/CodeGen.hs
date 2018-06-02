@@ -209,24 +209,18 @@ mkConst pt (fromIntegral -> n)
   | otherwise = CConst $ CNumConst n (CogentPrim pt) DEC
 
 -- str.fld
-mkStr1 :: CId -> FieldName -> CExpr
-mkStr1 str fld = mkStr2 str fld
+strDot' :: CId -> CId -> CExpr
+strDot' str fld = strDot (variable str) fld
 
 -- str->fld
-mkStr1' :: CId -> FieldName -> CExpr
-mkStr1' str fld = mkStr2' str fld
+strArrow' :: CId -> CId -> CExpr
+strArrow' str fld = strArrow (variable str) fld
 
-mkStr2 :: CId -> CId -> CExpr
-mkStr2 str fld = mkStr3 (variable str) fld
+strDot :: CExpr -> CId -> CExpr
+strDot rec fld = CStructDot rec fld
 
-mkStr2' :: CId -> CId -> CExpr
-mkStr2' str fld = mkStr3' (variable str) fld
-
-mkStr3 :: CExpr -> CId -> CExpr
-mkStr3 rec fld = CStructDot rec fld
-
-mkStr3' :: CExpr -> CId -> CExpr
-mkStr3' rec fld = CStructDot (CDeref rec) fld
+strArrow :: CExpr -> CId -> CExpr
+strArrow rec fld = CStructDot (CDeref rec) fld
 
 mkArrIdx :: Integral t => CExpr -> t -> CExpr
 mkArrIdx arr idx = CArrayDeref arr (mkConst U32 idx)
@@ -782,8 +776,8 @@ genOp opr (CC.TPrim pt) es =
                Times       -> (\[e1,e2] -> downcast pt $ CBinOp C.Mul  (upcast pt e1) (upcast pt e2))
                Mod         -> (\[e1,e2] -> (if __cogent_fcheck_undefined then flip (CCondExpr e2) (mkConst pt 0) else id)
                                               (downcast pt $ CBinOp C.Mod (upcast pt e1) (upcast pt e2)))
-               And         -> (\[e1,e2] -> mkBoolLit (CBinOp C.Land (mkStr3 e1 boolField) (mkStr3 e2 boolField)))
-               Or          -> (\[e1,e2] -> mkBoolLit (CBinOp C.Lor  (mkStr3 e1 boolField) (mkStr3 e2 boolField)))
+               And         -> (\[e1,e2] -> mkBoolLit (CBinOp C.Land (strDot e1 boolField) (strDot e2 boolField)))
+               Or          -> (\[e1,e2] -> mkBoolLit (CBinOp C.Lor  (strDot e1 boolField) (strDot e2 boolField)))
                BitAnd      -> (\[e1,e2] -> downcast pt $ CBinOp C.And  (upcast pt e1) (upcast pt e2))
                BitXor      -> (\[e1,e2] -> downcast pt $ CBinOp C.Xor  (upcast pt e1) (upcast pt e2))
                BitOr       -> (\[e1,e2] -> downcast pt $ CBinOp C.Or   (upcast pt e1) (upcast pt e2))
@@ -798,13 +792,13 @@ genOp opr (CC.TPrim pt) es =
                Ge          -> (\[e1,e2] -> mkBoolLit $ CBinOp C.Ge e1 e2)
                Le          -> (\[e1,e2] -> mkBoolLit $ CBinOp C.Le e1 e2)
                Syn.Eq      -> (\[e1,e2] -> case pt of
-                                Boolean -> mkBoolLit (CBinOp C.Eq (mkStr3 e1 boolField) (mkStr3 e2 boolField))
+                                Boolean -> mkBoolLit (CBinOp C.Eq (strDot e1 boolField) (strDot e2 boolField))
                                 _       -> mkBoolLit (CBinOp C.Eq e1 e2))
                Syn.NEq     -> (\[e1,e2] -> case pt of
-                                Boolean -> mkBoolLit (CBinOp C.Ne (mkStr3 e1 boolField) (mkStr3 e2 boolField))
+                                Boolean -> mkBoolLit (CBinOp C.Ne (strDot e1 boolField) (strDot e2 boolField))
                                 _       -> mkBoolLit (CBinOp C.Ne e1 e2))
                -- unary
-               Syn.Not        -> (\[e1] -> mkBoolLit (CUnOp C.Lnot (mkStr3 e1 boolField)))
+               Syn.Not        -> (\[e1] -> mkBoolLit (CUnOp C.Lnot (strDot e1 boolField)))
                Syn.Complement -> (\[e1] -> downcast pt $ CUnOp C.Not (upcast pt e1))
    in return $ oprf es
   where width = \case U8 -> 8; U16 -> 16; U32 -> 32; U64 -> 64; Boolean -> 8
@@ -946,7 +940,7 @@ genExpr mv (TE t (Take _ rec fld e)) = do
   ft <- genType . fst . snd $ fs!!fld
   (f',fdecl,fstm,fp) <- (case __cogent_fintermediate_vars of
     True  -> return . (extTup3r M.empty) . (first3 variable) <=< flip (declareInit ft) M.empty
-    False -> return . (,[],[],M.empty)) $ (if s == Unboxed then mkStr3 else mkStr3') rec'' (fst $ fs!!fld)
+    False -> return . (,[],[],M.empty)) $ (if s == Unboxed then strDot else strArrow) rec'' (fst $ fs!!fld)
   (f'',fdecl',fstm',fp') <- aNewVar ft f' fp
   (e',edecl,estm,ep) <- withBindings (Cons f'' (Cons rec'' Nil)) $ genExpr mv e
   return (e', recdecl ++ recdecl' ++ fdecl ++ fdecl' ++ edecl,
@@ -965,7 +959,7 @@ genExpr mv (TE t (Put rec fld val)) = do
   (rec',recdecl,recstm,recp) <- genExpr_ rec
   (rec'',recdecl',recstm') <- declareInit t' rec' recp
   (val',valdecl,valstm,valp) <- genExpr_ val
-  (fdecl,fstm) <- assign fldt ((if s == Unboxed then mkStr3 else mkStr3') (variable rec'') (fst $ fs!!fld)) val'
+  (fdecl,fstm) <- assign fldt ((if s == Unboxed then strDot else strArrow) (variable rec'') (fst $ fs!!fld)) val'
   recycleVars valp
   (v,adecl,astm,vp) <- maybeAssign t' mv (variable rec'') M.empty
   return (v, recdecl ++ recdecl' ++ valdecl ++ fdecl ++ adecl,
@@ -1006,8 +1000,8 @@ genExpr mv (TE t (Tuple e1 e2)) = do
   (v,vdecl,vstm) <- maybeDecl mv t'
   t1' <- genType (exprType e1)
   t2' <- genType (exprType e2)
-  (a1decl,a1stm) <- assign t1' (mkStr2 v p1) e1'
-  (a2decl,a2stm) <- assign t2' (mkStr2 v p2) e2'
+  (a1decl,a1stm) <- assign t1' (strDot' v p1) e1'
+  (a2decl,a2stm) <- assign t2' (strDot' v p2) e2'
   return (variable v, e1decl ++ e2decl ++ vdecl ++ a1decl ++ a2decl,
           e1stm ++ e2stm ++ vstm ++ a2stm ++ a2stm, mergePools [e1p,e2p])
 
@@ -1017,7 +1011,7 @@ genExpr mv (TE t (Struct fs)) = do
   t' <- genType t
   ts' <- mapM (genType . exprType) es
   (v,vdecl,vstm) <- maybeDecl mv t'
-  blob <- forM (zip3 ns ts' es') $ \(n,t',e') -> assign t' (mkStr2 v n) e'
+  blob <- forM (zip3 ns ts' es') $ \(n,t',e') -> assign t' (strDot' v n) e'
   let (adecls, astms) = P.unzip blob
   return (variable v, concat decls ++ vdecl ++ concat adecls,
           concat stms ++ vstm ++ concat astms, mergePools eps)
@@ -1027,8 +1021,8 @@ genExpr mv (TE t (Con tag e tau)) = do  -- `tau' and `t' should be compatible
   te' <- genType (exprType e)
   t'  <- genType t
   (v,vdecl,vstm) <- maybeDecl mv t'
-  (a1decl,a1stm) <- assign (CIdent tagsT) (mkStr2 v fieldTag) (variable $ tagEnum tag)
-  (a2decl,a2stm) <- assign te' (mkStr2 v tag) e' 
+  (a1decl,a1stm) <- assign (CIdent tagsT) (strDot' v fieldTag) (variable $ tagEnum tag)
+  (a2decl,a2stm) <- assign te' (strDot' v tag) e' 
   return (variable v, edecl ++ vdecl ++ a1decl ++ a2decl, estm ++ vstm ++ a1stm ++ a2stm, ep)
 
 genExpr mv (TE t (Member rec fld)) = do
@@ -1036,7 +1030,7 @@ genExpr mv (TE t (Member rec fld)) = do
                  TRecord fs -> (Unboxed, fs)
                  TPtr (TRecord fs) s -> (s, fs)
   (rec',recdecl,recstm,recp) <- genExpr_ rec
-  let e' = (if s == Unboxed then mkStr3 else mkStr3') rec' (fst $ fs!!fld)
+  let e' = (if s == Unboxed then strDot else strArrow) rec' (fst $ fs!!fld)
   t' <- genType t
   (v',adecl,astm,vp) <- maybeAssign t' mv e' recp
   return (v', recdecl++adecl, recstm++astm, vp)
@@ -1058,9 +1052,9 @@ genExpr mv (TE t (If c e1 e2)) = do
   (a1decl,a1stm) <- assign t1 (variable v) e1'
   (a2decl,a2stm) <- assign t2 (variable v) e2'
   let ifstm = if __cogent_fintermediate_vars
-                then CBIStmt $ CIfStmt (mkStr3 c' boolField) (CBlock $ e1stm ++ a1stm)
+                then CBIStmt $ CIfStmt (strDot c' boolField) (CBlock $ e1stm ++ a1stm)
                                                              (CBlock $ e2stm ++ a2stm)
-                else CBIStmt $ CIfStmt (mkStr3 c' boolField) (CBlock e1stm) (CBlock e2stm)
+                else CBIStmt $ CIfStmt (strDot c' boolField) (CBlock e1stm) (CBlock e2stm)
   recycleVars (mergePools [cp, intersectPools e1p e2p])
   return (variable v, vdecl ++ cdecl ++ e1decl ++ e2decl ++ a1decl ++ a2decl,
           vstm ++ cstm ++ [ifstm], M.empty)
@@ -1073,10 +1067,10 @@ genExpr mv (TE t (Case e tag (l1,_,e1) (_,_,e2))) = do  -- NOTE: likelihood `l2'
   let et@(TSum altys) = exprType e
   (e'',edecl',estm',ep') <- flip3 aNewVar ep e' =<< genType et
   let tags = filter (/= tag) $ map fst altys
-      cnd = CBinOp C.Eq (mkStr3 e'' fieldTag) (variable $ tagEnum tag)
+      cnd = CBinOp C.Eq (strDot e'' fieldTag) (variable $ tagEnum tag)
       (alty1,False) = fromJust $ L.lookup tag altys
   pool0 <- use varPool
-  (v1,v1decl,v1stm,v1p) <- flip3 aNewVar M.empty (mkStr3 e'' tag) =<< genType alty1
+  (v1,v1decl,v1stm,v1p) <- flip3 aNewVar M.empty (strDot e'' tag) =<< genType alty1
   (e1',e1decl,e1stm,e1p) <- withBindings (Cons v1 Nil) $
                               genExpr (if __cogent_fintermediate_vars then Nothing else Just v) e1
   pool1 <- use varPool
@@ -1104,7 +1098,7 @@ genExpr mv (TE t (Esac e)) = do
   let TSum alts = exprType e
       [(tag,(_,False))] = filter (not . snd . snd) alts
   t' <- genType t
-  (v,adecl,astm,vp) <- flip (maybeAssign t' mv) ep $ mkStr3 e' tag
+  (v,adecl,astm,vp) <- flip (maybeAssign t' mv) ep $ strDot e' tag
   return (v, edecl++adecl, estm++astm, vp)
 
 genExpr mv (TE t (Split _ e1 e2)) = do
@@ -1113,8 +1107,8 @@ genExpr mv (TE t (Split _ e1 e2)) = do
   (e1'',e1decl',e1stm',e1p') <- flip3 aNewVar e1p e1' =<< genType e1t
   t1' <- genType t1
   t2' <- genType t2
-  (v1,v1decl,v1stm) <- declareInit t1' (mkStr3 e1'' p1) M.empty
-  (v2,v2decl,v2stm) <- declareInit t2' (mkStr3 e1'' p2) M.empty
+  (v1,v1decl,v1stm) <- declareInit t1' (strDot e1'' p1) M.empty
+  (v2,v2decl,v2stm) <- declareInit t2' (strDot e1'' p2) M.empty
   recycleVars e1p'
   (e2',e2decl,e2stm,e2p) <- withBindings (fromJust $ cvtFromList Vec.s2 [variable v1, variable v2]) $
                               genExpr mv e2
@@ -1122,7 +1116,7 @@ genExpr mv (TE t (Split _ e1 e2)) = do
           e1stm ++ e1stm' ++ v1stm ++ v2stm ++ e2stm, e2p)
   -- NOTE: It's commented out because split shoule behave like let / zilinc
   -- XXX | NOTE: It's an optimisation here, we no more generate new variables / zilinc
-  -- XXX | (e2',e2stm) <- withBindings (fromJust $ cvtFromList Vec.s2 [mkStr3 e1' p1, mkStr3 e1' p2]) $ genExpr mv e2
+  -- XXX | (e2',e2stm) <- withBindings (fromJust $ cvtFromList Vec.s2 [strDot e1' p1, strDot e1' p2]) $ genExpr mv e2
   -- XXX | return (e2', e1stm ++ e2stm)
 
 genExpr mv (TE t (Promote _ e)) = genExpr mv e
