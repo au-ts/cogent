@@ -92,9 +92,11 @@ library
               , Cogent.TypeProofs
               , Cogent.Util
               , Cogent.Vec
-
-  other-modules:
               -- Generated
+              , Paths_cogent
+              , Version_cogent
+
+  autogen-modules:
                 Paths_cogent
               , Version_cogent
 
