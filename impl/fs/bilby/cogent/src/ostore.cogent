@@ -203,23 +203,23 @@ ostore_clean(ex, ostore_st {rbuf,wbuf,opad,pools,fsm_st,index_st,ubi_vol,summary
 get_obj_oid: Obj! -> ObjId
 get_obj_oid obj =
   obj.ounion
-  | TObjInode o -> o.id
-  | TObjData o -> o.id
-  | TObjDentarr o -> o.id
-  | TObjDel o -> o.id
+  | TObjInode obj -> obj.id
+  | TObjData obj -> obj.id
+  | TObjDentarr obj -> obj.id
+  | TObjDel obj -> obj.id
   | _ -> nilObjId
 
 print_obj_type: Obj! -> ()
 #if DEBUG
 print_obj_type obj =
   obj.ounion
-  | TObjInode o -> cogent_debug "inode"
-  | TObjData o -> cogent_debug "data"
-  | TObjDentarr o -> cogent_debug "dentarr"
-  | TObjDel o -> cogent_debug "del"
-  | TObjPad o -> cogent_debug "pad"
-  | TObjSuper o -> cogent_debug "super"
-  | TObjSummary o -> cogent_debug "summary"
+  | TObjInode obj -> cogent_debug "inode"
+  | TObjData obj -> cogent_debug "data"
+  | TObjDentarr obj -> cogent_debug "dentarr"
+  | TObjDel obj -> cogent_debug "del"
+  | TObjPad obj -> cogent_debug "pad"
+  | TObjSuper obj -> cogent_debug "super"
+  | TObjSummary obj -> cogent_debug "summary"
 #else
 print_obj_type _ = ()
 #endif
@@ -628,7 +628,7 @@ trimObjSuper: ObjUnion! -> (ObjUnion take (TObjSummary, TObjSuper))!
 trimObjSuper u = u
   | TObjSummary _   -> TObjPad ()
   | TObjSuper _ -> TObjPad ()
-  | o -> o
+  | obj -> obj
 
 proc_obj: (SysState, MountState!, OstoreState take (summary), Obj!, U32) -> (SysState, OstoreState take (summary))
 proc_obj(ex, mount_st, ostore_st {oaddr}, obj, ebnum) =
@@ -948,9 +948,9 @@ deep_opt_freeObj: (SysState, Option Obj) -> SysState
 deep_opt_freeObj(ex, opt_obj) =
   opt_obj
   | None -> ex
-  | Some o ->
+  | Some obj ->
     cogent_assert False ;
-    deep_freeObj(ex, o)
+    deep_freeObj(ex, obj)
 
 scan_trans_obj: #{oelem:Option Obj, acc:(SysState, U32), obsv:(MountState, Buffer)!} -> LoopResult (Option Obj, (SysState, U32)) (Option Obj, R (SysState, U32) (ErrCode, SysState))
 scan_trans_obj #{oelem=obj_opt, acc=(ex, offs), obsv=(mount_st, buf)} =

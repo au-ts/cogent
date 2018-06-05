@@ -151,38 +151,38 @@ bilbyFsObjHeaderSize : U32
 bilbyFsObjHeaderSize = 24
 
 serialise_ObjHeader:(Buffer, BufOffs, Obj!) -> (Buffer, BufOffs)
-serialise_ObjHeader(buf, offs, o) =
-  let buf = serialise_le32(buf, offs, o.magic)
-  and buf = serialise_le32(buf, offs+4, o.crc)
-  and buf = serialise_le64(buf, offs+8, o.sqnum)
-  and buf = serialise_le32(buf, offs+16, o.len)
+serialise_ObjHeader(buf, offs, obj) =
+  let buf = serialise_le32(buf, offs, obj.magic)
+  and buf = serialise_le32(buf, offs+4, obj.crc)
+  and buf = serialise_le64(buf, offs+8, obj.sqnum)
+  and buf = serialise_le32(buf, offs+16, obj.len)
   and buf = serialise_u8(buf, offs+20, bilbyFsPadByte)
   and buf = serialise_u8(buf, offs+21, bilbyFsPadByte)
-  and buf = serialise_u8(buf, offs+22, o.trans)
-  and buf = serialise_u8(buf, offs+23, o.otype)
+  and buf = serialise_u8(buf, offs+22, obj.trans)
+  and buf = serialise_u8(buf, offs+23, obj.otype)
   in (buf, offs + bilbyFsObjHeaderSize)
 
 print_ObjHeader:(Obj take (ounion))! -> ()
 #if DEBUG
-print_ObjHeader o =
+print_ObjHeader obj =
   cogent_debug "ObjHeader = {magic=" ;
-  cogent_debug_u32_hex o.magic ;
+  cogent_debug_u32_hex obj.magic ;
   cogent_debug ",crc=" ;
-  cogent_debug_u32_hex(o.crc) ;
+  cogent_debug_u32_hex(obj.crc) ;
   cogent_debug ",sqnum=" ;
-  cogent_debug_u64_hex(o.sqnum) ;
+  cogent_debug_u64_hex(obj.sqnum) ;
   cogent_debug ",len=" ;
-  cogent_debug_u32(o.len) ;
+  cogent_debug_u32(obj.len) ;
   cogent_debug ",offs=" ;
-  cogent_debug_u32(o.offs) ;
+  cogent_debug_u32(obj.offs) ;
   cogent_debug ",pad=" ;
   cogent_debug_u8(bilbyFsPadByte) ;
   cogent_debug ",pad=" ;
   cogent_debug_u8(bilbyFsPadByte) ;
   cogent_debug ",trans=" ;
-  cogent_debug_u8(o.trans) ;
+  cogent_debug_u8(obj.trans) ;
   cogent_debug ",otype=" ;
-  cogent_debug_u8(o.otype) ;
+  cogent_debug_u8(obj.otype) ;
   cogent_debug "}\n"
 #else
 print_ObjHeader _ = ()
@@ -190,25 +190,25 @@ print_ObjHeader _ = ()
 
 print_ObjSuper:ObjSuper! -> ()
 #if DEBUG
-print_ObjSuper o =
+print_ObjSuper obj =
   cogent_debug "ObjSuper = {nb_eb=" ;
-  cogent_debug_u32 o.nb_eb ;
+  cogent_debug_u32 obj.nb_eb ;
   cogent_debug ",eb_size=" ;
-  cogent_debug_u32(o.eb_size) ;
+  cogent_debug_u32(obj.eb_size) ;
   cogent_debug ",io_size=" ;
-  cogent_debug_u32(o.io_size) ;
+  cogent_debug_u32(obj.io_size) ;
   cogent_debug ",nb_reserved_gc=" ;
-  cogent_debug_u32(o.nb_reserved_gc) ;
+  cogent_debug_u32(obj.nb_reserved_gc) ;
   cogent_debug ",nb_reserved_del=" ;
-  cogent_debug_u32(o.nb_reserved_del) ;
+  cogent_debug_u32(obj.nb_reserved_del) ;
   cogent_debug ",cur_eb=" ;
-  cogent_debug_u32(o.cur_eb) ;
+  cogent_debug_u32(obj.cur_eb) ;
   cogent_debug ",cur_offs=" ;
-  cogent_debug_u32(o.cur_offs) ;
+  cogent_debug_u32(obj.cur_offs) ;
   cogent_debug ",last_inum=" ;
-  cogent_debug_u32(o.last_inum) ;
+  cogent_debug_u32(obj.last_inum) ;
   cogent_debug ",next_sqnum=" ;
-  cogent_debug_u64(o.next_sqnum) ;
+  cogent_debug_u64(obj.next_sqnum) ;
   cogent_debug "}\n"
 #else
 print_ObjSuper _ = ()
@@ -216,13 +216,13 @@ print_ObjSuper _ = ()
 
 print_ObjDentry:ObjDentry! -> ()
 #if DEBUG
-print_ObjDentry o =
+print_ObjDentry obj =
   cogent_debug "ObjDentry = {ino=" ;
-  cogent_debug_u32 o.ino ;
+  cogent_debug_u32 obj.ino ;
   cogent_debug ",dtype=" ;
-  cogent_debug_u8(o.dtype) ;
+  cogent_debug_u8(obj.dtype) ;
   cogent_debug ",nlen=" ;
-  cogent_debug_u16(o.nlen) ;
+  cogent_debug_u16(obj.nlen) ;
   cogent_debug ",name=(not displayed)" ;
   cogent_debug "}\n"
 #else
@@ -231,37 +231,37 @@ print_ObjDentry _ = ()
 
 {-# cinline serialise_Obj #-}
 serialise_Obj:(Buffer, BufOffs, Obj!) -> (Buffer, BufOffs)
-serialise_Obj(buf, offs, o) =
-  let (buf, offs) = serialise_ObjHeader(buf, offs, o)
-  in serialise_ObjUnion(buf, offs, o.ounion, o.len)
+serialise_Obj(buf, offs, obj) =
+  let (buf, offs) = serialise_ObjHeader(buf, offs, obj)
+  in serialise_ObjUnion(buf, offs, obj.ounion, obj.len)
 
 deserialise_ObjUnion: (SysState, Buffer!, U32, (ObjType, U32)) -> R (SysState, ObjUnion, U32) (ErrCode, SysState)
 deserialise_ObjUnion(ex, buf, offs, (otype, olen)) =
   if otype == bilbyFsObjTypeInode then
     deserialise_ObjInode(ex, buf, offs)
     | Error (e,ex) -> Error (e, ex)
-    | Success (ex, o, offs) ->
-      Success (ex, TObjInode o, offs)
+    | Success (ex, obj, offs) ->
+      Success (ex, TObjInode obj, offs)
   else if otype == bilbyFsObjTypeData then
     deserialise_ObjData(ex, buf, offs, olen)
     | Error (e,ex) -> Error (e, ex)
-    | Success (ex, o, offs) ->
-      Success (ex, TObjData o, offs)
+    | Success (ex, obj, offs) ->
+      Success (ex, TObjData obj, offs)
   else if otype == bilbyFsObjTypeDentarr then
     deserialise_ObjDentarr(ex, buf, offs, olen)
     | Error (e,ex) -> Error (e, ex)
-    | Success (ex, o, offs) ->
-      Success (ex, TObjDentarr o, offs)
+    | Success (ex, obj, offs) ->
+      Success (ex, TObjDentarr obj, offs)
   else if otype == bilbyFsObjTypeDel then
     deserialise_ObjDel(ex, buf, offs)
     | Error (e,ex) -> Error (e, ex)
-    | Success (ex, o, offs) ->
-      Success (ex, TObjDel o, offs)
+    | Success (ex, obj, offs) ->
+      Success (ex, TObjDel obj, offs)
   else if otype == bilbyFsObjTypeSuper then
     deserialise_ObjSuper(ex, buf, offs)
     | Error (e,ex) -> Error (e, ex)
-    | Success (ex, o, offs) ->
-      Success (ex, TObjSuper o, offs)
+    | Success (ex, obj, offs) ->
+      Success (ex, TObjSuper obj, offs)
   -- if otype == bilbyFsObjTypeSummary, we return an padding object,
   -- we should NOT call this deserialisation function for summaries.
   -- Main reason for this exception is avoid allocation of gigantic
@@ -269,8 +269,8 @@ deserialise_ObjUnion(ex, buf, offs, (otype, olen)) =
   else -- if otype == bilbyFsObjTypePad then
     deserialise_ObjPad(ex, buf, offs, olen)
     | Error (e,ex) -> Error (e, ex)
-    | Success (ex, o, offs) ->
-      Success (ex, TObjPad o, offs)
+    | Success (ex, obj, offs) ->
+      Success (ex, TObjPad obj, offs)
 
 is_len_and_type_ok: (U8, U32) -> Bool
 is_len_and_type_ok(otype, olen) =
@@ -383,44 +383,44 @@ deserialise_ObjPad(ex, buf, offs, olen) =
 serialise_ObjUnion:(Buffer, BufOffs, ObjUnion!, U32) -> (Buffer, BufOffs)
 serialise_ObjUnion(buf, offs, ou, olen) =
   ou
-  | TObjDentarr o -> serialise_ObjDentarr(buf, offs, o)
-  | TObjInode o -> serialise_ObjInode(buf, offs, o)
-  | TObjData o -> serialise_ObjData(buf, offs, o, olen)
-  | TObjDel o -> serialise_ObjDel(buf, offs, o)
-  | TObjSuper o -> serialise_ObjSuper(buf, offs, o)
-  | TObjSummary o -> serialise_ObjSummary(buf, offs, o)
+  | TObjDentarr obj -> serialise_ObjDentarr(buf, offs, obj)
+  | TObjInode obj -> serialise_ObjInode(buf, offs, obj)
+  | TObjData obj -> serialise_ObjData(buf, offs, obj, olen)
+  | TObjDel obj -> serialise_ObjDel(buf, offs, obj)
+  | TObjSuper obj -> serialise_ObjSuper(buf, offs, obj)
+  | TObjSummary obj -> serialise_ObjSummary(buf, offs, obj)
   | TObjPad _ -> serialise_ObjPad(buf, offs, olen)
 
 {-# cinline deep_freeObjDentry #-}
 deep_freeObjDentry: (SysState, ObjDentry) -> SysState
-deep_freeObjDentry(ex, o {name}) =
-  let ex = freeObjDentry(ex, o)
+deep_freeObjDentry(ex, obj {name}) =
+  let ex = freeObjDentry(ex, obj)
   in wordarray_free[U8](ex, name)
 
 {-# cinline deep_freeObjDentarr #-}
 deep_freeObjDentarr: (SysState, ObjDentarr) -> SysState
-deep_freeObjDentarr(ex, o {id,nb_dentry,entries}) =
-  let ex = freeObjDentarr(ex, o)
+deep_freeObjDentarr(ex, obj {id,nb_dentry,entries}) =
+  let ex = freeObjDentarr(ex, obj)
   in array_free[ObjDentry] #{arr=entries, f=deep_freeObjDentry, ex}
 
 {-# cinline deep_freeObjUnion #-}
 deep_freeObjUnion: (SysState, ObjUnion) -> SysState
 deep_freeObjUnion(ex, ounion) =
  ounion
- | TObjDentarr o -> deep_freeObjDentarr(ex, o)
- | TObjInode o {id,size,atime_sec,ctime_sec,
+ | TObjDentarr obj -> deep_freeObjDentarr(ex, obj)
+ | TObjInode obj {id,size,atime_sec,ctime_sec,
                mtime_sec,nlink,uid,gid,mode, flags} ->
-   freeObjInode(ex, o)
- | TObjData o {id,odata} ->
-   let ex = freeObjData(ex, o)
+   freeObjInode(ex, obj)
+ | TObjData obj {id,odata} ->
+   let ex = freeObjData(ex, obj)
    in wordarray_free[U8](ex, odata)
- | TObjDel o {id} -> ex
- | TObjSuper o {nb_eb,eb_size,io_size,cur_eb,cur_offs,next_sqnum,
+ | TObjDel obj {id} -> ex
+ | TObjSuper obj {nb_eb,eb_size,io_size,cur_eb,cur_offs,next_sqnum,
                last_inum, nb_reserved_gc, nb_reserved_del} ->
-   freeObjSuper(ex, o)
- | TObjSummary o {nb_sum_entry,entries,sum_offs} ->
+   freeObjSuper(ex, obj)
+ | TObjSummary obj {nb_sum_entry,entries,sum_offs} ->
    let ex = wordarray_free[ObjSumEntry](ex, entries)
-   in freeObjSummary(ex, o)
+   in freeObjSummary(ex, obj)
  | TObjPad _ -> ex
 
 type ObjType = U8
@@ -626,7 +626,7 @@ serialise_size_ObjDentarr dentarr = bilbyFsObjDentarrHeaderSize + serialise_size
 deep_freeOptionObjDentry: (SysState, Option ObjDentry) -> SysState
 deep_freeOptionObjDentry (ex, opt_dent) =
   opt_dent | None -> ex
-           | Some o -> deep_freeObjDentry(ex, o)
+           | Some obj -> deep_freeObjDentry(ex, obj)
 
 -- #{oelem:Option ObjDentry, acc: (SysState, U32), obsv: Buffer!} -> LoopResult (Option ObjDentry, (SysState, U32)) (Option ObjDentry, (ErrCode, SysState))
 loop_deserialise_ObjDentry: ArrayMapF ObjDentry (SysState, U32) (Buffer!,U32) (ErrCode, SysState)
@@ -1272,20 +1272,20 @@ serialise_size_le64 _ = 8
 -- This function does not work with ounion.ObjPad and ounion.ObjData
 {-# cinline serialise_size_Obj #-}
 serialise_size_Obj: Obj! -> U32
-serialise_size_Obj o =
-  bilbyFsObjHeaderSize + serialise_size_ObjUnion o.ounion
+serialise_size_Obj obj =
+  bilbyFsObjHeaderSize + serialise_size_ObjUnion obj.ounion
 
 -- This function cannot be used with an ObjPad
 serialise_size_ObjUnion: ObjUnion! -> U32
-serialise_size_ObjUnion  ounion =
+serialise_size_ObjUnion ounion =
  ounion
- | TObjInode o -> serialise_size_ObjInode o
- | TObjData o -> serialise_size_ObjData o
- | TObjDentarr o -> serialise_size_ObjDentarr o
- | TObjDel o -> serialise_size_ObjDel o
- | TObjSuper o -> serialise_size_ObjSuper o
- | TObjSummary o -> serialise_size_ObjSummary o.nb_sum_entry
- | TObjPad o -> 0
+ | TObjInode obj -> serialise_size_ObjInode obj
+ | TObjData obj -> serialise_size_ObjData obj
+ | TObjDentarr obj -> serialise_size_ObjDentarr obj
+ | TObjDel obj -> serialise_size_ObjDel obj
+ | TObjSuper obj -> serialise_size_ObjSuper obj
+ | TObjSummary obj -> serialise_size_ObjSummary obj.nb_sum_entry
+ | TObjPad obj -> 0
 
 {-# cinline deep_freeObjInode #-}
 deep_freeObjInode: (SysState, ObjInode) -> SysState

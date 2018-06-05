@@ -167,8 +167,8 @@ set_obj #{oelem=opt_obj, acc=(ex, newopt_obj)} =
   newopt_obj
   | Some newo ->
     opt_obj
-    | Some o ->
-      let ex = deep_freeObj(ex, o)
+    | Some obj ->
+      let ex = deep_freeObj(ex, obj)
       in #{oelem=Some newo, acc=(ex, None)}
     | None -> #{oelem=Some newo, acc=(ex, None)}
   | None -> #{oelem=opt_obj, acc=(ex, None)}
@@ -177,7 +177,7 @@ free_opt_obj: (SysState, Option Obj) -> SysState
 free_opt_obj (ex, opt_obj) =
   opt_obj
   | None -> ex
-  | Some o -> deep_freeObj (ex, o)
+  | Some obj -> deep_freeObj (ex, obj)
 
 arrayobj_create1: (SysState, Obj) -> R (SysState, Array Obj) SysState
 {-
