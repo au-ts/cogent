@@ -105,7 +105,7 @@ tests/include/%_dummy.h: tests/%.cogent
 	$(Q)mkdir -p tests/include
 
 tests: test-clean .test-cogent test-pp test-tc test-ds test-an test-mn test-cg \
-	test-tc-proof test-aq test-aq test-shallow-proof test-ee test-gcc
+	test-tc-proof test-aq test-shallow-proof test-ee test-gcc
 
 test-clean:
 	$(E) "Cleaning up artefacts from earlier test runs."
@@ -149,15 +149,15 @@ test-ac: .gen-types
 	$(E) "=== Isabelle (AutoCorres) test ==="
 	$(SCRIPTS_DIR)/cogent_validate.sh -ac
 
-test-flags: .gen-types
+test-flags:
 	$(E) "=== FFI-generator Tests ==="
 	$(SCRIPTS_DIR)/cogent_validate.sh -flags
 
-test-aq: .gen-types
+test-aq:
 	$(E) "=== Anti-quotation Tests ==="
 	$(SCRIPTS_DIR)/cogent_validate.sh -aq
 
-test-shallow-proof: .gen-types
+test-shallow-proof:
 	$(E) "=== Shallow-embedding Proofs Tests ==="
 	$(SCRIPTS_DIR)/cogent_validate.sh -shallow-proof
 
