@@ -149,7 +149,6 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     base <- lift . lift $ use knownConsts
     let ctx = C.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) C.empty
     let ?loc = loc
-    (i,o) <- asFunType' t
     (((ct,t'),(c,alts')), flx, os) <- runCG ctx (map fst vs)
                                             ((,) <$> B.validateType t
                                                  <*> cgFunDef alts (toTCType t))

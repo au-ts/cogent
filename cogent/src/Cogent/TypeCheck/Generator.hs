@@ -22,7 +22,6 @@ module Cogent.TypeCheck.Generator
   , CG
   , cg
   , cgFunDef
-  , cgAlts
   , freshTVar
   , validateType
   ) where
