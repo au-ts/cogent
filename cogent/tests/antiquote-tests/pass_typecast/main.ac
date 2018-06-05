@@ -9,18 +9,19 @@
  */
 
 $esc:(#include <stdio.h>)
+$esc:(#include <stdlib.h>)
 #include <cogent-defns.h>
 #include <generated.c>
 
 int main(void) {
   $ty:(CoolType) c;
-  c->a = 3;
-  c->b = 6;
+  c.a = 3;
+  c.b = 6;
   $ty:(WarmType) w;
   w = ($ty:(WarmType)) $exp:(id_c) (c);
-  printf ("%d\n", w->a);
+  printf ("%d\n", w.a);
   w = $exp:(id_w) (($ty:(WarmType)) c);
-  printf ("%d\n", w->b);
+  printf ("%d\n", w.b);
   return 0;
 }
 

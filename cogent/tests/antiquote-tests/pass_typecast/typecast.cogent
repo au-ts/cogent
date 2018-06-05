@@ -10,12 +10,12 @@
 -- @TAG(DATA61_GPL)
 --
 
-type CoolType = {
+type CoolType = #{
   a: U32,
   b: U32
 }
 
-type WarmType = {
+type WarmType = #{
   a: U32,
   b: U32
 }

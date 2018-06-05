@@ -8,8 +8,8 @@
 # @TAG(NICTA_GPL)
 #
 
-make &&
-./typecast > out.tmp &&
-diff out.tmp out.txt &&
-make clean &&
+make && \
+./typecast > out.tmp && \
+diff out.tmp out.txt && \
+make clean && \
 rm out.tmp
