@@ -269,7 +269,7 @@ test_type_checking()
 
     for source in "$TESTS"/pass_*.cogent
     do
-        echo -n "$source: "
+        echo -n "  $(basename $source): "
         total+=1
         if check_output $COGENT -t "$source" $TCFLAGS
         then passed+=1; echo "$pass_msg"
@@ -279,7 +279,7 @@ test_type_checking()
 
     for source in "$TESTS"/fail_*.cogent
     do
-        echo -n "$source: "
+        echo -n "  $(basename $source): "
         total+=1
         $COGENT -t "$source" $TCFLAGS 2>/dev/null # avoid check_output
         ret=$?
@@ -320,9 +320,12 @@ test_type_checking()
     then all_passed+=1
     fi
     echo "$should problems we are aware of:"
-    echo "  $shouldpass should pass but don't;"
-    echo "  $shouldfail should fail but don't;"
-    echo "$wip are still under development and don't work ATM"
+    echo "* $shouldpass should pass but don't:"
+    find "$TESTS" -name "shouldpass_*.cogent" -printf "  %f\n"
+    echo "* $shouldfail should fail but don't:"
+    find "$TESTS" -name "shouldfail_*.cogent" -printf "  %f\n"
+    echo "* $wip are still under development and don't work ATM"
+    find "$TESTS" -name "wip_*.cogent" -printf "  %f\n"
 }
 
 test_desugaring()
