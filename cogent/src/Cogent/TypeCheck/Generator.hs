@@ -21,6 +21,7 @@ module Cogent.TypeCheck.Generator
   ( runCG
   , CG
   , cg
+  , cgFunDef
   , cgAlts
   , freshTVar
   , validateType
@@ -103,6 +104,15 @@ validateTypes ts = fmapFoldM validateType ts
 -- Term-level constraints
 -- -----------------------------------------------------------------------------
 
+cgFunDef :: (?loc :: SourcePos) => [Alt LocPatn LocExpr] -> TCType -> CG (Constraint, [Alt TCPatn TCExpr])
+cgFunDef alts t = do
+  alpha1 <- freshTVar
+  alpha2 <- freshTVar
+  (c, alts') <- cgAlts alts alpha2 alpha1
+  return (c <> (F $ T (TFun alpha1 alpha2)) :< F t, alts')
+
+-- cgAlts alts out_type in_type
+-- NOTE the order of arguments!
 cgAlts :: [Alt LocPatn LocExpr] -> TCType -> TCType -> CG (Constraint, [Alt TCPatn TCExpr])
 cgAlts alts top alpha = do
   let

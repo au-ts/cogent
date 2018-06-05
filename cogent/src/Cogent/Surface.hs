@@ -155,6 +155,9 @@ data LocType = LocType { posOfT :: SourcePos, typeOfLT' :: Type LocExpr LocType 
 typeOfLT (LocType _ t) = t
 typeOfLT (Documentation s t) = typeOfLT t
 
+posOfLT (LocType p _) = p
+posOfLT (Documentation _ t) = posOfLT t
+
 data RawType = RT { unRT :: Type RawExpr RawType } deriving (Eq, Ord, Show)
 data RawExpr = RE { unRE :: Expr RawType RawPatn RawIrrefPatn RawExpr } deriving (Eq, Ord, Show)
 data RawPatn = RP { unRP :: Pattern RawIrrefPatn } deriving (Eq, Ord, Show)

@@ -25,7 +25,7 @@ module Cogent.TypeCheck.Solver (runSolver, solve) where
 
 import           Cogent.Common.Syntax
 import           Cogent.Common.Types
-import           Cogent.Compiler (__impossible, __todo, __fixme)
+import           Cogent.Compiler (__impossible, __todo, __fixme, __assert)
 import           Cogent.PrettyPrint (prettyC)
 import           Cogent.Surface
 import qualified Cogent.TypeCheck.Assignment as Ass
@@ -731,7 +731,8 @@ classify g = case g of
 -- Push type information down from the RHS of :< to the LHS
 -- Expects a series of goals of the form U x :< tau
 impose :: [Goal] -> Solver [Goal]
-impose (Goal x1 (v :< tau_) : Goal x2 (_ :< tau'_) : xs) = do
+impose (Goal x1 (v :< tau_) : Goal x2 (v' :< tau'_) : xs) = do
+  __assert (v == v') $ "suggest type lower bound"
   (mt, tau, tau') <- glb tau_ tau'_
   case mt of
     Nothing    -> return [Goal x1 (Unsat (TypeMismatch tau tau'))]
@@ -750,7 +751,8 @@ imposeCast xs = return xs
 -- Push type information up from the LHS of :< to the RHS
 -- Expects a series of goals of the form tau :< U x
 suggest :: [Goal] -> Solver [Goal]
-suggest (Goal x1 (tau_ :< v) : Goal x2 (tau'_ :< _) : xs) = do
+suggest (Goal x1 (tau_ :< v) : Goal x2 (tau'_ :< v') : xs) = do
+  __assert (v == v') $ "suggest type upper bound"
   (mt,tau,tau') <- lub tau_ tau'_
   case mt of
     Nothing    -> return [Goal x1 (Unsat (TypeMismatch tau tau'))]
@@ -967,6 +969,7 @@ irreducible m ds | IM.null m = True
     irreducible' _ = False
 
 isGround (T (TCon x [] Unboxed)) = True
+-- isGround (T (TCon x [] Writable)) = True
 isGround _ = False
 
 -- when `!' is invertible
