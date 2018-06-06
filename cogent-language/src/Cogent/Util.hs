@@ -42,7 +42,7 @@ import Generics.Pointless.MonadCombinators
 import System.Environment
 import System.FilePath.Posix
 
-import Paths_cogent
+import Paths_cogent_language
 import Version_cogent (gitHash)
 
 --
