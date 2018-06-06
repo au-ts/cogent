@@ -22,7 +22,7 @@ import Cogent.Compiler (__impossible, __todo)
 import Cogent.PrettyPrint
 import Cogent.Surface
 import Cogent.Util
-import Paths_cogent
+import Paths_cogent_language
 
 import Control.Lens
 import Control.Monad.State as S
