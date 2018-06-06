@@ -73,6 +73,8 @@ install:
  - cd cogent
  - cabal sandbox init
  - cabal sandbox add-source ../isa-parser
+ - cabal sandbox add-source ../cogent-doc
+ - cabal sandbox add-source ../cogent-language
  - "sed -i 's/^jobs:.*$/jobs: 2/' $HOME/.cabal/config"
  # - sed -i 's/^jobs:/ jobs:/' ${HOME}/.cabal/config
  # Use fixed build plans

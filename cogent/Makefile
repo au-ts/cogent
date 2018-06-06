@@ -42,8 +42,10 @@ ifneq ($(wildcard .cabal-sandbox/),)
 else
 	$(E) "Building in a sandbox..."
 	$(CABAL) sandbox init
-	$(CABAL) sandbox add-source ../isa-parser
 endif
+	$(CABAL) sandbox add-source ../isa-parser
+	$(CABAL) sandbox add-source ../cogent-doc
+	$(CABAL) sandbox add-source ../cogent-language
 
 .install-deps:
 	$(E) "Installing dependencies"

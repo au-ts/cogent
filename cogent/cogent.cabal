@@ -32,66 +32,73 @@ source-repository head
 
 custom-setup
   setup-depends:
-                base >= 4.7
-              , Cabal >= 2.0
-              , directory >= 1.2
-              , filepath >= 1.4.0.0
-              , process >= 1.2.0.0
-
+                 base                            >= 4.7        && < 5
+               , Cabal                           == 2.0.*
+               , cabal-doctest                   == 1.0.5
+               , directory                       >= 1.2        && < 2
+               , filepath                        >= 1.4        && < 2
+               , process                         >= 1.2        && < 2
 
 library
   hs-source-dirs: src
   exposed-modules:
                 Cogent.ACInstall
+
               , Cogent.AllRefine
+
               , Cogent.CallGraph
+
               , Cogent.CodeGen
-              , Cogent.Common.Syntax
-              , Cogent.Common.Types
-              , Cogent.Common.Repr
-              , Cogent.Compiler
-              , Cogent.Context
+
               , Cogent.Core
+
               , Cogent.CorresProof
               , Cogent.CorresSetup
+
               , Cogent.Deep
+
               , Cogent.Desugar
+
               , Cogent.DList
-              , Cogent.DocGent
+
               , Cogent.GetOpt
+
               , Cogent.Glue
+
               , Cogent.GraphGen
+
               , Cogent.Hangman
+
               , Cogent.HscSyntax
+
               , Cogent.Inference
+
               , Cogent.Mono
               , Cogent.MonoProof
+
               , Cogent.Normal
               , Cogent.NormalProof
+
               , Cogent.Parser
-              , Cogent.PrettyPrint
+
               , Cogent.Preprocess
+
               , Cogent.ProofGen
-              , Cogent.Reorganizer
+
               , Cogent.Root
+
               , Cogent.Shallow
               , Cogent.ShallowHaskell
               , Cogent.ShallowTable
+
               , Cogent.Simplify
+
               , Cogent.SuParser
-              , Cogent.Surface
-              , Cogent.TypeCheck
-              , Cogent.TypeCheck.Assignment
-              , Cogent.TypeCheck.Base
-              , Cogent.TypeCheck.Generator
-              , Cogent.TypeCheck.GoalSet
-              , Cogent.TypeCheck.Post
-              , Cogent.TypeCheck.Solver
-              , Cogent.TypeCheck.Subst
-              , Cogent.TypeCheck.Util
+
               , Cogent.TypeProofs
-              , Cogent.Util
+
               , Cogent.Vec
+
               -- Generated
               , Paths_cogent
               , Version_cogent
@@ -101,53 +108,42 @@ library
               , Version_cogent
 
   build-depends:
-                ansi-terminal >= 0.6
-              , ansi-wl-pprint >= 0.6
-              , atomic-write >= 0.2.0.4
-              , base >= 4.7
-              , bifunctors >= 4.2
-              , blaze-html >= 0.8.1
-              , blaze-markup >= 0.7
-              , bytestring >= 0.10
-              , containers >= 0.5.8
-              , cpphs >= 1.19
-              , data-default >=0.5
-              , directory >= 1.2
-              , disassembler >= 0.2.0.0
-              -- , either >= 4.3.2
-              , extra >= 1.3
-              , filepath >= 1.4.0.0
-              , flippers >= 1.0.0
-              , graph-wrapper >= 0.2
-              , groups >= 0.4.0.0
-              , haskell-src-exts >= 1.19
-              , hscurses >= 1.4
-              , isa-parser >= 0.1.0.0
-              , language-c >= 0.4
-              , language-c-quote >= 0.10.2
-              , lens >= 4.6
-              , mainland-pretty >= 0.2.6
-              , MissingH >= 1.3
-              , monoid-subclasses >= 0.4
-              , mtl >= 2.2.1
-              , pandoc >= 1.19.2.4
-              , pandoc-types >= 1.16
-              , parsec >= 3.1
-              , pointless-haskell
-              , pretty-show >= 1.5
-              , process >= 1.2.0.0
-              , random >= 1.1
-              , reducers >= 3.10
-              , sbv >= 5.0
-              , shakespeare >= 2.0
-              , srcloc >= 0.4
-              , syb >= 0.4
-              , text >= 0.11.3.1
-              , time >= 1.5
-              , transformers >= 0.4.2
-              , tuple >= 0.3
-              , uniplate >= 1.6
-              , vector >= 0.10.0.1
+                base                            >= 4.7        && < 5
+              , cogent-language
+              , ansi-wl-pprint                  >= 0.6        && < 0.7
+              , directory                       >= 1.3        && < 1.4
+              , parsec                          >= 3.1        && < 3.2
+              , atomic-write                    >= 0.2.0.4
+              , bifunctors                      >= 4.2
+              , bytestring                      >= 0.10
+              , containers                      >= 0.5.8
+              , cpphs                           >= 1.19
+              , disassembler                    >= 0.2.0.0
+              , extra                           >= 1.3
+              , flippers                        >= 1.0.0
+              , filepath                        >= 1.4        && < 1.5
+              , haskell-src-exts                >= 1.19
+              , hscurses                        >= 1.4
+              , isa-parser                      >= 0.1.0.0
+              , language-c                      >= 0.4
+              , language-c-quote                >= 0.10.2
+              , lens                            >= 4.6        && < 5
+              , mainland-pretty                 >= 0.2.6
+              , MissingH                        >= 1.3
+              , monoid-subclasses               >= 0.4
+              , mtl                             >= 2.2.1
+              , pretty-show                     >= 1.5
+              , process                         >= 1.2.0.0
+              , random                          >= 1.1
+              , reducers                        >= 3.10
+              , srcloc                          >= 0.4
+              , syb                             >= 0.4
+              , text                            >= 0.11.3.1
+              , time                            >= 1.5
+              , transformers                    >= 0.4.2
+              , tuple                           >= 0.3
+              , uniplate                        >= 1.6
+              , vector                          >= 0.10.0.1
 
   default-language: Haskell2010
   default-extensions: CPP
@@ -162,6 +158,11 @@ library
     -fno-warn-unused-matches
     -O2
     -optP-Wno-nonportable-include-path
+
+    -- these occured on ghc 8.2
+    -fno-warn-warnings-deprecations
+    -fno-warn-overlapping-patterns
+
     -- -rtsopts
     -- +RTS -K256M
   -- if impl(ghc >= 7.10.1)
@@ -173,6 +174,8 @@ Executable cogent
 
   build-depends:
                 cogent
+              , cogent-language
+              , cogent-doc
               , ansi-wl-pprint >= 0.6
               , atomic-write >= 0.2.0.4
               , base >= 4.7
@@ -189,6 +192,7 @@ Executable cogent
               , time >= 1.5
               , transformers >= 0.4.2
               , tuple >= 0.3
+
   default-language: Haskell2010
   default-extensions: CPP
   build-tools:
@@ -215,6 +219,7 @@ test-suite test-util
   main-is: test-util.hs
   build-depends:
                 cogent
+              , cogent-language
               , base >= 4.7
               , containers >= 0.5
               , directory >=1.2
