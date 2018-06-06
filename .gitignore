@@ -1,4 +1,16 @@
+TAGS
+dist
+dist-newstyle
+cabal-dev
 *.o
+*.hi
+*.chi
+*.chs.h
+.virthualenv
+.cabal-sandbox
+cabal.sandbox.config
+/tmp
+/gen
 *.swp
 *.swo
 *~
