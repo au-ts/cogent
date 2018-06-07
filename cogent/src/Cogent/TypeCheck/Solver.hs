@@ -25,7 +25,7 @@ module Cogent.TypeCheck.Solver (runSolver, solve) where
 
 import           Cogent.Common.Syntax
 import           Cogent.Common.Types
-import           Cogent.Compiler (__impossible, __todo, __fixme, __assert)
+import           Cogent.Compiler
 import           Cogent.PrettyPrint (prettyC)
 import           Cogent.Surface
 import qualified Cogent.TypeCheck.Assignment as Ass
@@ -839,7 +839,7 @@ solveArithEqs es = either (Left . g) (Right . Ass.Assignment . IM.fromList . M.t
     getAssignments :: Solver (Either String (M.Map String Integer))
     getAssignments = do
       let s = bvAnd <$> evalStateT (mapM sexprToSbv es) (IM.empty, M.empty)
-          config = VD.z3 { V.verbose = False, V.isNonModelVar = \x -> head x /= '?' }
+          config = VD.z3 { V.verbose = __cogent_ddump_smt, V.isNonModelVar = \x -> head x /= '?' }
       V.AllSatResult (_,_,smtReses) <- liftIO $ VD.allSatWith config $ do
         V.setOption $ VC.ProduceUnsatCores True
         s
@@ -868,7 +868,7 @@ solveArithIneqs cs es = do
                        --   V.constrain $ (svalToWord32 v V..>= 0) V.&&& (svalToWord32 v V..< fromIntegral u32MAX)
                        mapM V.constrain $ map VI.SBV cs'
                        return es'
-      config = VD.z3 -- { V.verbose = True }
+      config = VD.z3 { V.verbose = __cogent_ddump_smt }
   V.ThmResult smtRes <- liftIO $ VD.proveWith config s
   case smtRes of
     V.Unsatisfiable _ Nothing      -> return Nothing
