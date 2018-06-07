@@ -645,10 +645,10 @@ instance Pretty TypeError where
                                       <+> fieldname f <+> err "into record/variant" <$> indent' (pretty t)
   pretty (DiscardWithoutMatch t)    = err "Variant tag"<+> tagname t <+> err "cannot be discarded without matching on it."
   pretty (RequiredTakenTag t)       = err "Required variant" <+> tagname t <+> err "but it has already been matched."
-  pretty (CannotSatisfyAllArithEquations es) = err "Unable to find an assignment which satisfies the following constraints" <> colon
-                                               <$> indent' (vsep (map ((<> semi) . pretty) es))
-  pretty (ArithInequationsUnsatisfiable es) = err "The following constraints are unsatisfiable" <> colon
+  pretty (ArithConstraintsUnsatisfiable es msg) = err "The following arithmetic constraints are unsatisfiable" <> colon
                                               <$> indent' (vsep (map ((<> semi) . pretty) es))
+                                              <$> err "The SMT-solver comments" <> colon
+                                              <$> indent' (pretty msg)
   pretty (CustTyGenIsSynonym t)     = err "Type synonyms have to be fully expanded in --cust-ty-gen file:" <$> indent' (pretty t)
   pretty (CustTyGenIsPolymorphic t) = err "Polymorphic types are not allowed in --cust-ty-gen file:" <$> indent' (pretty t)
   pretty (RepError e) = pretty e

@@ -43,6 +43,7 @@ import           Control.Lens hiding ((:<))
 import           Control.Monad.State hiding (modify)
 import           Control.Monad.Trans.Except
 import           Control.Monad.Trans.State (modify)
+import           Data.Either (either)
 import qualified Data.Foldable as F
 import           Data.Function (on)
 import           Data.Functor.Compose (Compose(..))
@@ -51,9 +52,12 @@ import qualified Data.IntSet as IS
 --import qualified Data.List as L
 import           Data.List (elemIndex)
 import qualified Data.Map as M
-import           Data.Maybe
+import           Data.Maybe (mapMaybe)
 import           Data.Monoid
 import qualified Data.SBV as V
+import qualified Data.SBV.Control as VC
+import qualified Data.SBV.Dynamic as VD
+import qualified Data.SBV.Internals as VI
 import qualified Data.Set as S
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
@@ -824,101 +828,115 @@ arithEqSolver gs = do
   solveArithEqs (cs ++ es)
 
 solveArithEqs :: [SExpr] -> Solver (Either GoalClasses Ass.Assignment)
-solveArithEqs es = maybe (Left g) (Right . Ass.Assignment . IM.fromList . M.toList
+solveArithEqs es = either (Left . g) (Right . Ass.Assignment . IM.fromList . M.toList
                  . M.mapKeys (read . tail) . M.map (SE . IntLit))
                  <$> getAssignments
   where
-    g = __fixme $ mempty {unsats = [Goal [] (Unsat $ CannotSatisfyAllArithEquations es)]}
+    g msg = __fixme $ mempty {unsats = [Goal [] (Unsat $ ArithConstraintsUnsatisfiable es msg)]}
         -- ^^^ FIXME: we should try to produce much better error msgs / zilinc
-    getAssignments :: Solver (Maybe (M.Map String Integer))
+    
+    -- find a satisfying assignment to the equality constraints
+    getAssignments :: Solver (Either String (M.Map String Integer))
     getAssignments = do
-      let s = V.solve =<< evalStateT (mapM sexprToSBV_B es) (IM.empty, M.empty)
-      liftIO $ V.isSatisfiable s >>= \case
-        False -> return Nothing
-        True  -> do
-          r@(V.AllSatResult (_,_,as)) <- V.allSatWith (V.defaultSMTCfg {V.isNonModelVar = \x -> head x /= '?'}) s
-          if | null as        -> return $ Just M.empty
-             | length as == 1 -> return $ Just $ M.map V.fromCW $ V.getModelDictionary (head as)
-             | otherwise      -> __impossible "getAssignments: multiple assignments"  -- FIXME: is it possible? / zilinc
+      let s = bvAnd <$> evalStateT (mapM sexprToSbv es) (IM.empty, M.empty)
+          config = VD.z3 { V.verbose = False, V.isNonModelVar = \x -> head x /= '?' }
+      V.AllSatResult (_,_,smtReses) <- liftIO $ VD.allSatWith config $ do
+        V.setOption $ VC.ProduceUnsatCores True
+        s
+      case smtReses of
+        [] -> return $ Left "no assignment found by the SMT-solver!"
+        [smtRes] -> return $ Right $ M.map V.fromCW $ V.getModelDictionary smtRes
+        _ -> return $ Left "multiple assignments found by the SMT-solver"
 
 
 arithIneqSolver :: [Goal] -> Solver (Maybe GoalClasses)
 arithIneqSolver gs = do
   cs <- kAxioms
   let es = flip map gs (\(Goal _ (Arith e)) -> e)
-      g = [Goal [] (Unsat $ ArithInequationsUnsatisfiable (cs++es))]
   solveArithIneqs cs es >>= \case
-    True  -> return Nothing
-    False -> __fixme $ return (Just $ mempty {unsats = g})
+    Nothing  -> return Nothing
+    Just msg -> let g = [Goal [] (Unsat $ ArithConstraintsUnsatisfiable (cs++es) msg)]
+                 in __fixme $ return (Just $ mempty {unsats = g})
 
-solveArithIneqs :: [SExpr] -> [SExpr] -> Solver Bool
+solveArithIneqs :: [SExpr] -> [SExpr] -> Solver (Maybe String)
 solveArithIneqs cs es = do
   traceTc "sol" (text "solving inequalities" <> colon
                 P.<$> vsep (map pretty es))
-  let s = V.solve =<< do ((cs',es'),(us,vs)) <- runStateT ((,) <$> mapM sexprToSBV_B cs <*> mapM sexprToSBV_B es) (IM.empty, M.empty)
-                         forM (IM.elems us) $ \v ->
-                           V.constrain $ (v V..>= 0) V.&&& (v V..< fromIntegral u32MAX)
-                         forM cs' V.constrain
-                         return es'
-  liftIO $ V.isTheorem s
+  let s = bvAnd <$> do ((cs',es'),(us,vs)) <- runStateT ((,) <$> mapM sexprToSbv cs <*> mapM sexprToSbv es) (IM.empty, M.empty)
+                       -- vvv NOTE: because they're bound unsigned integers
+                       -- forM (IM.elems us) $ \v ->
+                       --   V.constrain $ (svalToWord32 v V..>= 0) V.&&& (svalToWord32 v V..< fromIntegral u32MAX)
+                       mapM V.constrain $ map VI.SBV cs'
+                       return es'
+      config = VD.z3 -- { V.verbose = True }
+  V.ThmResult smtRes <- liftIO $ VD.proveWith config s
+  case smtRes of
+    V.Unsatisfiable _ Nothing      -> return Nothing
+    V.Satisfiable _ model -> return (Just $ VI.showModel config model)
+    V.SatExtField _ model -> return (Just $ VI.showModel config model)
+    V.Unknown    _ msg    -> return (Just msg)
+    V.ProofError _ msgs   -> return (Just $ unlines msgs)
 
-type UVars = IM.IntMap V.SInt32
-type EVars = M.Map VarName V.SInt32
+type UVars = IM.IntMap VD.SVal
+type EVars = M.Map VarName VD.SVal
 
 type SbvM a = StateT (UVars, EVars) V.Symbolic a
 
-sexprToSBV_I :: SExpr -> SbvM V.SInt32
-sexprToSBV_I (SE (PrimOp op [e1,e2])) = liftA2 (opToSBV_I2 op) (sexprToSBV_I e1) (sexprToSBV_I e2)
-sexprToSBV_I (SE (PrimOp op [e])) = liftA (opToSBV_I1 op) $ sexprToSBV_I e
-sexprToSBV_I (SE (Var v)) = do
+svalToWord32 :: VD.SVal -> V.SWord32
+svalToWord32 = VI.SBV
+
+bvAnd :: [VD.SVal] -> VD.SVal
+bvAnd = foldr (VD.svAnd) VD.svTrue
+
+sexprToSbv :: SExpr -> SbvM VD.SVal
+sexprToSbv (SE (PrimOp op [e1,e2])) = liftA2 (bopToSbv op) (sexprToSbv e1) (sexprToSbv e2)
+sexprToSbv (SE (PrimOp op [e])) = liftA (uopToSbv op) $ sexprToSbv e
+sexprToSbv (SE (Var v)) = do
   m <- use _2
   case M.lookup v m of
-    Nothing -> do u <- lift $ V.sInt32 v
+    Nothing -> do u <- lift $ VD.sWordN 32 v  -- FIXME: what type should we assign to `v`?
                   modify (second $ M.insert v u)
                   return u
     Just u -> return u
-sexprToSBV_I (SE (IntLit i)) = return . V.literal $ fromIntegral i
-sexprToSBV_I (SE (Upcast e)) = sexprToSBV_I e
-sexprToSBV_I (SE (Annot e _)) = sexprToSBV_I e
-sexprToSBV_I (SU i) = do
+sexprToSbv (SE (IntLit i)) = return $ VD.svInteger (VD.KBounded False 32) i
+sexprToSbv (SE (BoolLit b)) = return $ VD.svBool b
+sexprToSbv (SE (Upcast e)) = sexprToSbv e
+sexprToSbv (SE (Annot e _)) = sexprToSbv e
+sexprToSbv (SU i) = do
   m <- use _1
   case IM.lookup i m of
-    Nothing -> do v <- lift . V.sInt32 $ '?':show i
+    Nothing -> do v <- lift . VD.sWordN 32 $ '?':show i  -- FIXME: type
                   modify (first $ IM.insert i v)
                   return v
     Just v -> return v
-sexprToSBV_I _ = __todo "sexprToSBV_I: not yet implemented"
+sexprToSbv _ = __todo "sexprToSbv: not yet implemented"
 
-sexprToSBV_B :: SExpr -> SbvM V.SBool
-sexprToSBV_B (SE (PrimOp op [e1,e2])) = liftA2 (opToSBV_B2 op) (sexprToSBV_I e1) (sexprToSBV_I e2)
-sexprToSBV_B _ = __todo "sexprToSBV_B: not yet implemented"
+bopToSbv :: OpName -> (VD.SVal -> VD.SVal -> VD.SVal)
+bopToSbv = \case
+  "+"   -> VD.svPlus
+  "-"   -> VD.svMinus
+  "*"   -> VD.svTimes
+  "/"   -> VD.svDivide
+  "%"   -> VD.svQuot  -- NOTE: the behaviour of `svDivide` and `svQuot` here. / zilinc
+                      -- http://hackage.haskell.org/package/sbv-7.8/docs/Data-SBV-Dynamic.html#v:svDivide
+  "&&"  -> VD.svAnd
+  "||"  -> VD.svOr
+  ".&." -> VD.svAnd
+  ".|." -> VD.svOr
+  ".^." -> VD.svXOr
+  "<<"  -> VD.svShiftLeft
+  ">>"  -> VD.svShiftRight
+  "=="  -> VD.svEqual
+  "/="  -> VD.svNotEqual
+  ">"   -> VD.svGreaterThan
+  "<"   -> VD.svLessThan
+  ">="  -> VD.svGreaterEq
+  "<="  -> VD.svLessEq
 
-opToSBV_I1 :: OpName -> (V.SInt32 -> V.SInt32)
-opToSBV_I1 "complement" = V.complement
-
-opToSBV_I2 :: OpName -> (V.SInt32 -> V.SInt32 -> V.SInt32)
-opToSBV_I2 op = case op of
-  "+" -> (+)
-  "-" -> (-)
-  "*" -> (*)
-  "/" -> V.sDiv
-  "%" -> V.sMod  -- NOTE: the behaviour of div and mod here. / zilinc
-                 -- https://hackage.haskell.org/package/sbv-7.6/docs/Data-SBV.html#t:SDivisible
-  ".&." -> (V..&.)
-  ".|." -> (V..|.)
-  ".^." -> V.xor
-  "<<"  -> V.sShiftLeft
-  ">>"  -> V.sShiftRight
-
-opToSBV_B2 :: OpName -> (V.SInt32 -> V.SInt32 -> V.SBool)
-opToSBV_B2 op = case op of
-  "==" -> (V..==)
-  "/=" -> (V../=)
-  ">"  -> (V..>)
-  "<"  -> (V..<)
-  ">=" -> (V..>=)
-  "<=" -> (V..<=)
-
+uopToSbv :: OpName -> (VD.SVal -> VD.SVal)
+uopToSbv = \case
+  "not"        -> VD.svNot
+  "complement" -> VD.svNot
 
 -- Applies the current substitution to goals.
 instantiate :: Subst.Subst -> Ass.Assignment -> GoalClasses -> Solver [Goal]
