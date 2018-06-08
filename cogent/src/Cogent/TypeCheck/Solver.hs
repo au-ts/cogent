@@ -871,7 +871,11 @@ solveArithIneqs cs es = do
       config = VD.z3 { V.verbose = __cogent_ddump_smt }
   V.ThmResult smtRes <- liftIO $ VD.proveWith config s
   case smtRes of
-    V.Unsatisfiable _ Nothing      -> return Nothing
+#if MIN_VERSION_sbv(7,8,0)
+    V.Unsatisfiable _ _ -> return Nothing
+#else
+    V.Unsatisfiable _   -> return Nothing
+#endif
     V.Satisfiable _ model -> return (Just $ VI.showModel config model)
     V.SatExtField _ model -> return (Just $ VI.showModel config model)
     V.Unknown    _ msg    -> return (Just msg)
