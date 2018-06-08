@@ -19,9 +19,9 @@
 
 module Cogent.TypeCheck.Base where
 
+import qualified Cogent.Common.Repr as R
 import Cogent.Common.Syntax
 import Cogent.Common.Types
-import qualified Cogent.Common.Repr as R
 import Cogent.Compiler
 import Cogent.Surface
 -- import Cogent.TypeCheck.Util

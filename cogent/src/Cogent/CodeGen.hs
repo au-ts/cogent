@@ -589,7 +589,7 @@ typeCId t = use custTypeGen >>= \ctg ->
     typeCId' (TRecord fs) = getStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs) <*> pure True
     typeCId' (TUnit) = return unitT
     typeCId' (TArray t l) = getStrlTypeCId =<< Array <$> genType t <*> pure (Just $ fromIntegral l)
-    typeCId' (TPtr t _) = typeCId' t
+    typeCId' (TPtr t _ _) = typeCId' t
 
     typeCIdFlat :: CC.Type 'Zero -> Gen v CId
     typeCIdFlat (TProduct t1 t2) = do
@@ -636,7 +636,7 @@ genType t@(TRecord _)  = CIdent <$> typeCId t  -- c.f. genTypeA
 genType t@(TString)    = CPtr . CIdent <$> typeCId t
 genType t@(TCon _ _)   = CIdent <$> typeCId t
 genType   (TArray t l) = CArray <$> genType t <*> pure (CArraySize (mkConst U32 l))  -- c.f. genTypeP
-genType   (TPtr t _)   = CPtr   <$> genType t
+genType   (TPtr t _ _) = CPtr   <$> genType t
 genType t              = CIdent <$> typeCId t
 
 -- The following two functions have different behaviours than the `genType' function
@@ -661,7 +661,7 @@ lookupType t@(TRecord _)  = getCompose (CIdent <$> Compose (lookupTypeCId t))
 lookupType t@(TString)    = getCompose (CIdent <$> Compose (lookupTypeCId t))
 lookupType t@(TCon _ _)   = getCompose (CIdent <$> Compose (lookupTypeCId t))
 lookupType t@(TArray _ _) = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
-lookupType t@(TPtr _ _)   = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))  -- FIXME?
+lookupType t@(TPtr _ _ _) = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))  -- FIXME?
 lookupType t              = getCompose (       CIdent <$> Compose (lookupTypeCId t))
 
 -- Add a type synonym
@@ -935,7 +935,7 @@ genExpr mv (TE t (Take _ rec fld e)) = do
   let rect = exprType rec
       (s,fs) = case rect of
                  TRecord fs -> (Unboxed, fs)
-                 TPtr (TRecord fs) s -> (s, fs)
+                 TPtr (TRecord fs) _ s -> (s, fs)
   (rec'',recdecl',recstm',recp') <- flip3 aNewVar recp rec' =<< genType rect
   ft <- genType . fst . snd $ fs!!fld
   (f',fdecl,fstm,fp) <- (case __cogent_fintermediate_vars of
@@ -955,7 +955,7 @@ genExpr mv (TE t (Put rec fld val)) = do
   -- >  -- x shouldn't change its field f to fv
   let (s,fs) = case exprType rec of
                  TRecord fs -> (Unboxed, fs)
-                 TPtr (TRecord fs) s -> (s, fs)
+                 TPtr (TRecord fs) _ s -> (s, fs)
   (rec',recdecl,recstm,recp) <- genExpr_ rec
   (rec'',recdecl',recstm') <- declareInit t' rec' recp
   (val',valdecl,valstm,valp) <- genExpr_ val
@@ -1028,7 +1028,7 @@ genExpr mv (TE t (Con tag e tau)) = do  -- `tau' and `t' should be compatible
 genExpr mv (TE t (Member rec fld)) = do
   let (s,fs) = case exprType rec of
                  TRecord fs -> (Unboxed, fs)
-                 TPtr (TRecord fs) s -> (s, fs)
+                 TPtr (TRecord fs) _ s -> (s, fs)
   (rec',recdecl,recstm,recp) <- genExpr_ rec
   let e' = (if s == Unboxed then strDot else strArrow) rec' (fst $ fs!!fld)
   t' <- genType t
@@ -1608,7 +1608,7 @@ kindcheck (TProduct t1 t2) = kindcheck t1 <> kindcheck t2
 kindcheck (TRecord ts)     = mconcat $ L.map (kindcheck . fst . snd) (filter (not . snd .snd) ts)
 kindcheck (TUnit)          = mempty
 kindcheck (TArray e _)     = kindcheck e
-kindcheck (TPtr t s)       = kindcheck t `mappend` sigilKind s
+kindcheck (TPtr t _ s)     = kindcheck t `mappend` sigilKind s
 
 isTypeLinear :: Type 'Zero -> Bool
 isTypeLinear = flip isTypeHasKind k1

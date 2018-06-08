@@ -756,6 +756,7 @@ instance Pretty Assignment where
 instance Pretty a => Pretty (I.IntMap a) where
   pretty = vcat . map (\(k,v) -> pretty k <+> text "|->" <+> pretty v) . I.toList
 
+
 instance Pretty R.RepError where 
   pretty (R.UnknownRepr r ctx) 
      = indent (err "Unknown representation" <+> reprname r <$$> pretty ctx)
@@ -774,6 +775,16 @@ instance Pretty R.RepContext where
   pretty (R.InTag ctx) = context' "for the variant tag block" </> pretty ctx
   pretty (R.InAlt t po ctx) = context' "for the constructor" <+> tagname t <+> context' "(" <> pretty po <> context' ")" </> pretty ctx 
   pretty (R.InDecl (RepDecl p n _)) = context' "in the representation" <+> reprname n <+> context' "(" <> pretty p <> context' ")" 
+
+instance Pretty R.Representation where
+  pretty (R.Bits s o) = keyword "repr" <> parens (pretty s <> symbol "+" <> pretty o)
+  pretty (R.Variant ts to alts) = keyword "repr" <> parens (pretty ts <> symbol "+" <> pretty to)
+                               <> variant (map prettyAlt $ M.toList alts)
+    where prettyAlt (n,(v,r)) = tagname n <> parens (integer v) <> colon <> pretty r 
+  pretty (R.Record fs) = keyword "repr" <> record (map prettyField $ M.toList fs)
+    where prettyField (f,r) = fieldname f <> colon <> pretty r
+
+
 
 -- helper functions
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~

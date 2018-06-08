@@ -231,6 +231,11 @@ foldMapM :: (Monoid m, Foldable t, Monad f) => (a -> f m) -> t a -> f m
 foldMapM f x = foldrM f' mempty x
   where f' a b = mappend <$> f a <*> return b
 
+mapAccumLM :: (Monad m) => (a -> b -> m (a,c)) -> a -> [b] -> m (a, [c])
+mapAccumLM f a (x:xs) = do 
+    (a',c) <- f a x
+    fmap (c:) <$> mapAccumLM f a' xs
+mapAccumLM f a [] = pure (a, []) 
 
 -- stdoutPath = "/dev/stdout"
 -- nullPath = "/dev/null"

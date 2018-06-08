@@ -175,7 +175,7 @@ graphType (TRecord e)   = do
 graphType (TUnit)         = return $ GEGUnit
 graphType (t @ (TCon _ _))
     = failure ("graphType: no repr known for: " ++ show t)
-graphType (TCon _ _) = return $ GEGSingle ptrGTyp
+-- graphType (TCon _ _) = return $ GEGSingle ptrGTyp
 graphType (TSum alts) = do
     altGTs <- mapM (graphType . fst . snd) alts  -- FIXME: cogent.1
     return $ GEGSum (Data.List.zip (map fst alts) altGTs)
@@ -246,7 +246,7 @@ graph g (TE tp (Take _ (TE recTy (Variable v)) fld e)) n ret vs = do
             gfv <- getFieldVariable (prevNm, aggTy) fld
             res <- fmap (\z -> map (\(x,y) -> GVariable x y) z) (getFieldVariables gfv)
             return res
-        TPtr (TRecord flds) _ -> do
+        TPtr (TRecord flds) _ _ -> do
             mko <- mkFieldOffset (GVariable prevNm ptrGTyp, aggTy) fld
             res <- getFieldAccesses mko
             return res

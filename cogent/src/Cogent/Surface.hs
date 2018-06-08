@@ -58,15 +58,19 @@ data Binding t p ip e = Binding ip (Maybe t) e [VarName]
 data Inline = Inline
             | NoInline
             deriving (Eq, Ord, Show)
+
 data RepSize = Bytes Int | Bits Int | Add RepSize RepSize -- Future options, sizeof, offsetof, "after"
              deriving (Show, Eq, Ord)
+
 data RepDecl = RepDecl SourcePos RepName RepExpr deriving (Show, Eq, Ord)
+
 data RepExpr = Prim    RepSize
-             | Record  [(FieldName,SourcePos,RepExpr)] 
-             | Variant RepExpr [(TagName, SourcePos, Integer,RepExpr)]
+             | Record  [(FieldName, SourcePos, RepExpr)] 
+             | Variant RepExpr [(TagName, SourcePos, Integer, RepExpr)]
              | Offset RepExpr RepSize
              | RepRef RepName
             deriving (Show, Eq, Ord)
+
 allRepRefs :: RepExpr -> [RepName]
 allRepRefs (Record fs) = concatMap (allRepRefs . thd3) fs
 allRepRefs (Variant _ cs) = concatMap (\(_,_,_,e) -> allRepRefs e) cs

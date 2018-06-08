@@ -21,6 +21,7 @@ module Cogent.TypeCheck (
   tc
 ) where
 
+import qualified Cogent.Common.Repr as R
 import Cogent.Compiler
 import qualified Cogent.Context as C
 import Cogent.PrettyPrint (prettyC)
@@ -34,7 +35,7 @@ import Cogent.TypeCheck.Solver
 import Cogent.TypeCheck.Subst (apply, applyE, applyAlts)
 import Cogent.TypeCheck.Util
 import Cogent.Util (firstM)
-import qualified Cogent.Common.Repr as R
+
 import Control.Arrow (first, second)
 import Control.Lens
 -- import Control.Monad.Except

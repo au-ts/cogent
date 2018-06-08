@@ -212,7 +212,7 @@ monoType (TProduct t1 t2) = TProduct <$> monoType t1 <*> monoType t2
 monoType (TRecord fs) = TRecord <$> mapM (\(f,(t,b)) -> (f,) <$> (,b) <$> monoType t) fs
 monoType (TUnit) = pure TUnit
 monoType (TArray t l) = TArray <$> monoType t <*> pure l
-monoType (TPtr t s) = TPtr <$> monoType t <*> pure s
+monoType (TPtr t r s) = TPtr <$> monoType t <*> pure r <*> pure s
 
 -- ----------------------------------------------------------------------------
 -- custTyGen

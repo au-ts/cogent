@@ -39,6 +39,7 @@
 
 module Cogent.Core where
 
+import Cogent.Common.Repr
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler
@@ -49,6 +50,7 @@ import qualified Cogent.Vec as Vec
 
 import Control.Arrow hiding ((<+>))
 -- import Data.Data hiding (Refl)
+import Data.Function.Flippers (flip3)
 #if __GLASGOW_HASKELL__ < 709
 import Data.Traversable(traverse)
 #endif
@@ -68,12 +70,13 @@ data Type t
   | TUnit
   | TArray (Type t) ArraySize  -- use Int for now
                                -- XXX | ^^^ (UntypedExpr t 'Zero VarName)  -- stick to UntypedExpr to be simple / zilinc
-  | TPtr (Type t) Sigil  -- this sigil can only be readonly and writable
+  | TPtr (Type t) Representation Sigil  -- this sigil can only be readonly and writable
   deriving (Show, Eq, Ord)
 
-sigilise :: Sigil -> (Type t -> Type t)
-sigilise Unboxed  = id
-sigilise s = flip TPtr s
+sigilise :: Sigil -> Maybe Representation -> (Type t -> Type t)
+sigilise Unboxed _ = id
+sigilise s (Just r) = flip3 TPtr s r  -- TODO
+sigilise _ _ = __impossible "sigilise"
 
 data SupposedlyMonoType = forall (t :: Nat). SMT (Type t)
 
@@ -417,7 +420,7 @@ instance Pretty (Type t) where
   pretty (TCon tn []) = typename tn
   pretty (TCon tn ts) = typename tn <+> typeargs (map pretty ts)
   pretty (TArray t l) = pretty t <> brackets (pretty l)
-  pretty (TPtr t s) = symbol "*" <> pretty s <> parens (pretty t)
+  pretty (TPtr t r s) = symbol "*" <> pretty s <> parens (pretty t) <> pretty r
 
 prettyTaken :: Bool -> Doc
 prettyTaken True  = symbol "*"
