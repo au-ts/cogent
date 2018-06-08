@@ -44,6 +44,7 @@ import Prelude hiding (foldr)
 #else
 import Prelude hiding ((<$>), foldr)
 #endif
+import Data.Word (Word32)
 import System.FilePath (takeFileName)
 import Text.Parsec.Pos
 import Text.PrettyPrint.ANSI.Leijen hiding (indent, tupled)
@@ -316,6 +317,9 @@ instance Pretty t => PrettyName (VarName, t) where
 -- ------------------------------------
 
 -- class Pretty
+
+instance Pretty Word32 where
+  pretty = integer . fromIntegral
 
 instance Pretty Likelihood where
   pretty Likely   = symbol "=>"

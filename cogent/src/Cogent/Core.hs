@@ -42,6 +42,7 @@ module Cogent.Core where
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler
+import Cogent.PrettyPrint hiding (associativity, primop)
 import Cogent.Util
 import Cogent.Vec hiding (splitAt, length, zipWith, zip, unzip)
 import qualified Cogent.Vec as Vec
@@ -313,87 +314,34 @@ instance Functor (TypedExpr t v) where
 -- /////////////////////////////////////////////////////////////////////////////
 -- Core-lang pretty-printing
 
-indentation, ifIndentation :: Int
-indentation = 3
-ifIndentation = 3
-position = string
-varName = string
 primop = blue . (pretty :: Op -> Doc)
-keyword = bold . string
-typevar = blue . string
-typename = blue . bold . string
-literal = dullcyan
-typesymbol = cyan . string
-kind = bold . typesymbol
-funName = dullyellow . string
-fieldName = magenta . string
 fieldIndex = magenta . string . ('.':) . show
-tagName = dullmagenta . string
-symbol = string
-kindsig = red . string
-commaList = encloseSep empty empty (comma L.<> space)
-dotList = encloseSep empty empty (symbol ".")
-tupled = encloseSep lparen rparen (comma L.<> space)
-tupled1 [x] = x
-tupled1 x = encloseSep lparen rparen (comma L.<> space) x
-typeargs x = encloseSep lbracket rbracket (comma L.<> space) x
-array x = encloseSep lbracket rbracket (comma L.<> space) x
-err = red . string
-comment = black . string
-context = black . string
-letbangvar = dullgreen . string
-record = encloseSep (lbrace L.<> space) (space L.<> rbrace) (comma L.<> space)
-variant = encloseSep (langle L.<> space) rangle (symbol "|" L.<> space) . map (L.<> space)
-indent = nest indentation
-
-level :: Associativity -> Int
-level (LeftAssoc i) = i
-level (RightAssoc i) = i
-level (NoAssoc i) = i
-level (Prefix) = 0
-
 
 -- NOTE: the precedence levels are somewhat different to those of the surface lang / zilinc
-levelE :: Expr t v a e -> Int
-levelE (Op opr [_,_]) = level (associativity opr)
-levelE (ILit {}) = 0
-levelE (SLit {}) = 0
-levelE (ALit {}) = 0
-levelE (Variable {}) = 0
-levelE (Fun {}) = 0
-levelE (App {}) = 1
-levelE (Tuple {}) = 0
-levelE (Con {}) = 0
-levelE (Esac {}) = 0
-levelE (Member {}) = 0
-levelE (Take {}) = 0
-levelE (Put {}) = 1
-levelE (Promote {}) = 0
-levelE (Cast {}) = 0
-levelE _ = 100
 
-class Pretty a => PrettyP a where
-  prettyP :: Int -> a -> Doc
+instance Prec (Expr t v a e) where
+  prec (Op opr [_,_]) = prec (associativity opr)
+  prec (ILit {}) = 0
+  prec (SLit {}) = 0
+  prec (ALit {}) = 0
+  prec (Variable {}) = 0
+  prec (Fun {}) = 0
+  prec (App {}) = 1
+  prec (Tuple {}) = 0
+  prec (Con {}) = 0
+  prec (Esac {}) = 0
+  prec (Member {}) = 0
+  prec (Take {}) = 0
+  prec (Put {}) = 1
+  prec (Promote {}) = 0
+  prec (Cast {}) = 0
+  prec _ = 100
 
-instance (Pretty (Expr t v a e)) => PrettyP (Expr t v a e) where
-  prettyP l x | levelE x < l   = pretty x
-              | otherwise = parens (pretty x)
+instance Prec (TypedExpr t v a) where
+  prec (TE _ e) = prec e
 
-instance (Pretty a, Pretty (TypedExpr t v a)) => PrettyP (TypedExpr t v a) where
-  prettyP i (TE t x) | not __cogent_fshow_types_in_pretty = prettyP i x
-                     | otherwise = parens (pretty x <+> symbol "::" <+> pretty t)
-instance (Pretty a, Pretty (UntypedExpr t v a)) => PrettyP (UntypedExpr t v a) where
-  prettyP i (E x) = prettyP i x
-
-instance Pretty Likelihood where
-  pretty Likely = symbol "=>"
-  pretty Unlikely = symbol "~>"
-  pretty Regular = symbol "->"
-
--- prettyL :: Likelihood -> Doc
--- prettyL Likely = symbol "+%"
--- prettyL Regular = empty
--- prettyL Unlikely = symbol "-%"
+instance Prec (UntypedExpr t v a) where
+  prec (E e) = prec e
 
 prettyV = dullblue  . string . ("_v" ++) . show . finInt
 prettyT = dullgreen . string . ("_t" ++) . show . finInt
@@ -401,51 +349,52 @@ prettyT = dullgreen . string . ("_t" ++) . show . finInt
 instance Pretty a => Pretty (TypedExpr t v a) where
   pretty (TE t e) | not __cogent_fshow_types_in_pretty = pretty e
                   | otherwise = parens (pretty e <+> symbol "::" <+> pretty t)
+
 instance Pretty a => Pretty (UntypedExpr t v a) where
   pretty (E e) = pretty e
 
-instance (Pretty a, PrettyP (e t v a), Pretty (e t ('Suc v) a), Pretty (e t ('Suc ('Suc v)) a))
+instance (Pretty a, Prec (e t v a), Pretty (e t v a), Pretty (e t ('Suc v) a), Pretty (e t ('Suc ('Suc v)) a))
          => Pretty (Expr t v a e) where
   pretty (Op opr [a,b])
-     | LeftAssoc  l <- associativity opr = prettyP (l+1) a <+> primop opr <+> prettyP l b
-     | RightAssoc l <- associativity opr = prettyP l a <+> primop opr <+> prettyP (l+1)  b
-     | NoAssoc    l <- associativity opr = prettyP l a <+> primop opr <+> prettyP l  b
-  pretty (Op opr [e]) = primop opr <+> prettyP 1 e
+     | LeftAssoc  l <- associativity opr = prettyPrec (l+1) a <+> primop opr <+> prettyPrec l b
+     | RightAssoc l <- associativity opr = prettyPrec l a <+> primop opr <+> prettyPrec (l+1)  b
+     | NoAssoc    l <- associativity opr = prettyPrec l a <+> primop opr <+> prettyPrec l  b
+  pretty (Op opr [e]) = primop opr <+> prettyPrec 1 e
   pretty (Op opr es)  = primop opr <+> tupled (map pretty es)
   pretty (ILit i pt) = literal (string $ show i) <+> symbol "::" <+> pretty pt
   pretty (SLit s) = literal $ string s
   pretty (ALit es) = array $ map pretty es 
-  pretty (ArrayIndex arr idx) = prettyP 2 arr <+> symbol "@" <+> pretty idx
+  pretty (ArrayIndex arr idx) = prettyPrec 2 arr <+> symbol "@" <+> pretty idx
   pretty (Pop (v1,v2) e1 e2) = align (keyword "pop" <+> pretty v1 <> symbol ":@" <> pretty v2 <+> symbol "=" <+> pretty e1 L.<$>
                                 keyword "in"  <+> pretty e2)
   pretty (Singleton e) = keyword "singleton" <+> parens (pretty e)
   pretty (Variable x) = pretty (snd x) L.<> angles (prettyV $ fst x)
-  pretty (Fun fn ins nt) = pretty nt L.<> funName fn <+> pretty ins
-  pretty (App a b) = prettyP 2 a <+> prettyP 1 b
+  pretty (Fun fn ins nt) = pretty nt L.<> funname fn <+> pretty ins
+  pretty (App a b) = prettyPrec 2 a <+> prettyPrec 1 b
   pretty (Let a e1 e2) = align (keyword "let" <+> pretty a <+> symbol "=" <+> pretty e1 L.<$>
                                 keyword "in" <+> pretty e2)
   pretty (LetBang bs a e1 e2) = align (keyword "let!" <+> tupled (map (prettyV . fst) bs) <+> pretty a <+> symbol "=" <+> pretty e1 L.<$>
                                        keyword "in" <+> pretty e2)
   pretty (Unit) = tupled []
   pretty (Tuple e1 e2) = tupled (map pretty [e1, e2])
-  pretty (Struct fs) = symbol "#" L.<> record (map (\(n,e) -> fieldName n <+> symbol "=" <+> pretty e) fs)
-  pretty (Con tn e t) = parens (tagName tn <+> prettyP 1 e) <+> symbol "::" <+> pretty t
+  pretty (Struct fs) = symbol "#" L.<> record (map (\(n,e) -> fieldname n <+> symbol "=" <+> pretty e) fs)
+  pretty (Con tn e t) = parens (tagname tn <+> prettyPrec 1 e) <+> symbol "::" <+> pretty t
   pretty (If c t e) = group . align $ (keyword "if" <+> pretty c
                                        L.<$> indent (keyword "then" </> align (pretty t))
                                        L.<$> indent (keyword "else" </> align (pretty e)))
   pretty (Case e tn (l1,_,a1) (l2,_,a2)) = align (keyword "case" <+> pretty e <+> keyword "of"
-                                                  L.<$> indent (tagName tn <+> pretty l1 <+> align (pretty a1))
+                                                  L.<$> indent (tagname tn <+> pretty l1 <+> align (pretty a1))
                                                   L.<$> indent (symbol "*" <+> pretty l2 <+> align (pretty a2)))
   pretty (Esac e) = keyword "esac" <+> parens (pretty e)
   pretty (Split (v1,v2) e1 e2) = align (keyword "split" <+> parens (pretty v1 <> comma <> pretty v2) <+> symbol "=" <+> pretty e1 L.<$>
                                   keyword "in" <+> pretty e2)
-  pretty (Member x f) = prettyP 1 x L.<> symbol "." L.<> fieldIndex f
+  pretty (Member x f) = prettyPrec 1 x L.<> symbol "." L.<> fieldIndex f
   pretty (Take (a,b) rec f e) = align (keyword "take" <+> tupled [pretty a, pretty b] <+> symbol "="
-                                                      <+> prettyP 1 rec <+> record (fieldIndex f:[]) L.<$>
+                                                      <+> prettyPrec 1 rec <+> record (fieldIndex f:[]) L.<$>
                                        keyword "in" <+> pretty e)
-  pretty (Put rec f v) = prettyP 1 rec <+> record [fieldIndex f <+> symbol "=" <+> pretty v]
-  pretty (Promote t e) = prettyP 1 e <+> symbol "::" <+> pretty t
-  pretty (Cast t e) = prettyP 1 e <+> symbol ":::" <+> pretty t
+  pretty (Put rec f v) = prettyPrec 1 rec <+> record [fieldIndex f <+> symbol "=" <+> pretty v]
+  pretty (Promote t e) = prettyPrec 1 e <+> symbol "::" <+> pretty t
+  pretty (Cast t e) = prettyPrec 1 e <+> symbol ":::" <+> pretty t
 
 instance Pretty FunNote where
   pretty NoInline = empty
@@ -460,11 +409,11 @@ instance Pretty (Type t) where
   pretty (TString) = typename "String"
   pretty (TUnit) = typename "()"
   pretty (TProduct t1 t2) = tupled (map pretty [t1, t2])
-  pretty (TSum alts) = variant (map (\(n,(t,b)) -> tagName n L.<> prettyTaken b <+> pretty t) alts)  -- FIXME: cogent.1
+  pretty (TSum alts) = variant (map (\(n,(t,b)) -> tagname n L.<> prettyTaken b <+> pretty t) alts)  -- FIXME: cogent.1
   pretty (TFun t1 t2) = prettyT' t1 <+> typesymbol "->" <+> pretty t2
      where prettyT' e@(TFun {}) = parens (pretty e)
            prettyT' e           = pretty e
-  pretty (TRecord fs) = record (map (\(f,(t,b)) -> fieldName f <+> symbol ":" L.<> prettyTaken b <+> pretty t) fs)
+  pretty (TRecord fs) = record (map (\(f,(t,b)) -> fieldname f <+> symbol ":" L.<> prettyTaken b <+> pretty t) fs)
   pretty (TCon tn []) = typename tn
   pretty (TCon tn ts) = typename tn <+> typeargs (map pretty ts)
   pretty (TArray t l) = pretty t <> brackets (pretty l)
@@ -486,22 +435,16 @@ instance {-# OVERLAPPING #-} Pretty (TyVarName, Kind) where
 #endif
   pretty (v,k) = pretty v L.<> typesymbol ":<" L.<> pretty k
 
-instance Pretty Kind where
-  pretty (K False False False) = string "()"
-  pretty (K e s d) = if e then kind "E" else empty L.<>
-                         if s then kind "S" else empty L.<>
-                         if d then kind "D" else empty
-
 instance Pretty a => Pretty (Vec t a) where
   pretty Nil = empty
   pretty (Cons x Nil) = pretty x
   pretty (Cons x xs) = pretty x L.<> string "," <+> pretty xs
 
 instance Pretty (Definition e a) where
-  pretty (FunDef _ fn ts t rt e) = funName fn <+> symbol ":" <+> brackets (pretty ts) L.<> symbol "." <+>
+  pretty (FunDef _ fn ts t rt e) = funname fn <+> symbol ":" <+> brackets (pretty ts) L.<> symbol "." <+>
                                    parens (pretty t) <+> symbol "->" <+> parens (pretty rt) <+> symbol "=" L.<$>
                                    pretty e
-  pretty (AbsDecl _ fn ts t rt) = funName fn <+> symbol ":" <+> brackets (pretty ts) L.<> symbol "." <+>
+  pretty (AbsDecl _ fn ts t rt) = funname fn <+> symbol ":" <+> brackets (pretty ts) L.<> symbol "." <+>
                                   parens (pretty t) <+> symbol "->" <+> parens (pretty rt)
   pretty (TypeDef tn ts Nothing) = keyword "type" <+> typename tn <+> pretty ts
   pretty (TypeDef tn ts (Just t)) = keyword "type" <+> typename tn <+> pretty ts <+>

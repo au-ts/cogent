@@ -1,5 +1,5 @@
-a : U16[b-c]  -- b-c is non-negative
-a = x ()
+a : () -> U16[b-c]  -- b-c is non-negative
+a _ = x ()
 
 x : () -> U16[b-c]
 

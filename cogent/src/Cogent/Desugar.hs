@@ -46,6 +46,7 @@ import Control.Arrow ((&&&))
 import Control.Lens as Lens
 import Control.Monad.Reader hiding (forM)
 import Control.Monad.RWS.Strict hiding (forM)
+import Data.Bits
 import Data.Char (ord)
 -- import Data.Foldable
 import Data.Function.Flippers (flip3)
@@ -53,6 +54,7 @@ import Data.List as L (elemIndex)
 import Data.Map as M hiding (filter, map, (\\))
 import Data.Maybe
 import Data.Tuple.Select
+import Data.Word (Word32)
 import Prelude as P
 import Data.Traversable (forM)
 import Text.PrettyPrint.ANSI.Leijen (pretty)
@@ -672,8 +674,11 @@ desugarConsts = mapM desugarConst . P.map (\(S.ConstDef v _ e) -> (v,e))
 -- evaludate static indices
 --
 
-evalAExpr :: S.AExpr -> DS t v Int
-evalAExpr (S.RE (S.PrimOp op es)) = evalPrimAExpr op es
+-- FIXME: eventually must be made either dynamic or deeply embedded / zilinc
+
+evalAExpr :: S.AExpr -> DS t v Word32
+evalAExpr (S.RE (S.PrimOp op [e])) = evalPrimAExpr1 op e
+evalAExpr (S.RE (S.PrimOp op [e1,e2])) = evalPrimAExpr2 op e1 e2
 evalAExpr (S.RE (S.Var v)) = do
   ks <- view _2
   case ks ^. Lens.at v of
@@ -685,9 +690,35 @@ evalAExpr (S.RE (S.Upcast e)) = evalAExpr e
 evalAExpr (S.RE (S.Annot e _)) = evalAExpr e
 evalAExpr _ = __impossible "evalAExpr: too complicated to evaluate"
 
-evalPrimAExpr :: OpName -> [S.AExpr] -> DS t v Int
-evalPrimAExpr "+" [e1,e2] = (+) <$> evalAExpr e1 <*> evalAExpr e2
-evalPrimAExpr _ _ = __todo "not yet implemented"
+evalPrimAExpr1 :: OpName -> S.AExpr -> DS t v Word32
+evalPrimAExpr1 op e = evalAExprUop op <$> evalAExpr e
+
+evalPrimAExpr2 :: OpName -> S.AExpr -> S.AExpr -> DS t v Word32
+evalPrimAExpr2 op e1 e2 = evalAExprBop op <$> evalAExpr e1 <*> evalAExpr e2
+
+evalAExprBop = \case
+  "+" -> (+)
+  "-" -> (-)
+  "*" -> (*)
+  "/" -> div
+  "%" -> mod
+  -- "&&" -> (&&)
+  -- "||" -> (||)
+  -- ">=" -> (>=)
+  -- "<=" -> (<=)
+  -- ">"  -> (>)
+  -- "<"  -> (<)
+  -- "==" -> (==)
+  -- "/=" -> (/=)
+  ".&." -> (.&.)
+  ".|." -> (.|.)
+  ".^." -> xor
+  ">>" -> \x y -> x `shiftR` (fromIntegral y)
+  "<<" -> \x y -> x `shiftL` (fromIntegral y)
+
+evalAExprUop = \case
+  -- "not" -> not
+  "complement" -> complement
 
 -- ----------------------------------------------------------------------------
 -- custTyGen

@@ -10,6 +10,7 @@ import Cogent.Compiler
 import Data.Monoid
 #endif
 import Data.Group
+import Data.Word
 import Text.PrettyPrint.ANSI.Leijen
 
 type RepName     = String
@@ -21,8 +22,8 @@ type TyVarName   = String
 type TypeName    = String
 
 type FieldIndex = Int
-type ArrayIndex = Int
-type ArraySize  = Int
+type ArrayIndex = Word32
+type ArraySize  = Word32
 
 type OpName = String
 

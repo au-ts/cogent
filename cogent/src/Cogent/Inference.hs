@@ -302,7 +302,7 @@ typecheck (E (ALit es))
    = do es' <- mapM typecheck es
         let ts = map exprType es'
             t = lubAll ts
-            n = length es
+            n = fromIntegral $ length es
         isSub <- allM (`isSubtype` t) ts
         return (TE (TArray t n) (ALit es'))
   where
