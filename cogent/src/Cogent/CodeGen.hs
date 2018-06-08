@@ -1186,8 +1186,8 @@ genDefinition (FunDef attr fn Nil t rt e) = do
   return $ ffifunc ++ [ CDecl $ CExtFnDecl rt' fn [(t',Nothing)] fnspec
                       , CFnDefn (rt',fn) [(t',arg)] body fnspec ]
 genDefinition (AbsDecl attr fn Nil t rt)
-  = do t'  <- addSynonym genType (unsafeCoerce t  :: CC.Type 'Zero) (argOf fn)
-       rt' <- addSynonym genType (unsafeCoerce rt :: CC.Type 'Zero) (retOf fn)
+  = do t'  <- addSynonym genTypeA (unsafeCoerce t  :: CC.Type 'Zero) (argOf fn)
+       rt' <- addSynonym genTypeP (unsafeCoerce rt :: CC.Type 'Zero) (retOf fn)
        funClasses %= M.alter (insertSetMap (fn,attr)) (Function t' rt')
        return [CDecl $ CExtFnDecl rt' fn [(t',Nothing)] (fnSpecAttr attr noFnSpec)]
 -- NOTE: An ad hoc treatment to concreate non-parametric type synonyms / zilinc
