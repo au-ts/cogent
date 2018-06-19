@@ -93,8 +93,9 @@ Note: The syntax of \cogent is not restricted to regular expression, thus the fo
 not strictly formal. In particular, indentation rules are specified in a semi-formal manner. Superscript \col{c} means
 the associated construct starts at column $c$.
 
+{
 \small
-\begin{grammar}  
+\begin{grammar}
   \text{variable / field}           & v            & ::= & [\code{a-z}][\code{A-Za-z1-9'\_}]^*\ |\ \code{\_}[\code{A-Za-z1-9'\_}]^+ \\
   \text{type construtor / tag}      & T            & ::= & [\code{A-Z}][\code{A-Za-z1-9'\_}]^* \\
   \text{binding}                    & b            & ::= & p_i\ (\code{:}\ \tau)^?\ \code{=}\ e\ (\code{!} v)^* \\
@@ -151,7 +152,7 @@ the associated construct starts at column $c$.
                                     &              & |   & \tau_a \code{!}^? \\
   \text{type A1}                    & \tau_{A1}    & ::= & T\ \tau_{A2}^* \\
                                     &              & |   & \tau_{A2}\ ((\code{take}|\code{put})\ (v | \code{(} (v (\code{,}\ v)^* | \code{..}) \code{)}))^? \\
-  \text{mono-type}                  & \tau         & ::= & \tau_{A1}\ (\code{->}\ \tau_{A1})^? \\  
+  \text{mono-type}                  & \tau         & ::= & \tau_{A1}\ (\code{->}\ \tau_{A1})^? \\
   \text{poly-type}                  & \sigma       & ::= & (\code{all}\ \overline{s} \code{.})^?\ \tau\\
   \text{function signature}         & f_{\sigma}   & ::= & v\ \code{:}\ \sigma \\
   \text{function definition}        & f            & ::= & v\ ({a^{\col{c}}}^+ | v\ \code{=}\ e^{\col{1}}) \cmt{a^+\ \textit{are aligned, } c \textit{ is the first column of } a^+} \\
@@ -159,6 +160,7 @@ the associated construct starts at column $c$.
   \text{include}                    & i            & ::= & \code{include}\ \code{"} filepath \code{"} \\
   \text{program}                    & p            & ::= & {(f_{\sigma}|f_{\sigma}\ f|t|i)^{\col{0}}}^+
 \end{grammar}
+}
 
 \subsection{Comments}
 They are exactly the same as those of Haskell. Single-line comments start with \code{-}\code{-}, block comments are surrounded by \code{\{-} and \code{-\}}.
@@ -172,6 +174,7 @@ Pragmas all take the form \code{\{-\# \textit{word ...} \#-\}} where \codeit{wor
 
 \section{Abstract Syntax}
 
+{
 \small
 \begin{grammar}
   \text{irref. pattern} & irrp & ::= & pv \\
@@ -227,12 +230,12 @@ Pragmas all take the form \code{\{-\# \textit{word ...} \#-\}} where \codeit{wor
   \text{poly-type} & \sigma & ::= & \many{t_i <: \kappa_i}\ \tau \\
   \text{top level} & top & ::= & \sINCLUDE\ s \\
                    &     & |   & T\ \many{t_i} = \tau \\
-                   &     & |   & T\ \many{t_i} \\ 
+                   &     & |   & T\ \many{t_i} \\
                    &     & |   & v : \sigma \\
-                   &     & |   & v : \sigma = \many{alt_i} \\ 
+                   &     & |   & v : \sigma = \many{alt_i} \\
                    &     & |   & v : \tau = e
-\end{grammar} 
-
+\end{grammar}
+}
 
 \section{Surface Type Inference}
 
@@ -241,6 +244,8 @@ Pragmas all take the form \code{\{-\# \textit{word ...} \#-\}} where \codeit{wor
 \section{Desugaring}
 
 Note: $::$ is meta-lang.
+{
+\small
 \begin{inductive}{\desugar{\Gamma}{e}{e} \quad \text{(\HiCore{e} is core syntax. See \cite{greport})}}
 \inferrule
   {\desugar{\Gamma}{op}{o} \\
@@ -398,7 +403,7 @@ Note: $::$ is meta-lang.
    \desugar{\Gamma}{\sletin{pv = e'}{\scaseof{pv}{\many{alt_i}}}}{e}}
   {\desugaralts{\Gamma}{\scaseof{e'}{\salt{pat}{e_0}}, \many{alt_i}}{e}}
 \end{inductive}
-
+}
 
 \section{Types}
 
@@ -421,9 +426,9 @@ Now we have a type \code{T} in our program.
 
 \subsection{Linear type system}
 One major feature of \cogent is its linear type system. For detailed explanations, see \cite{Wadler_90} and our publications.
-Generally speaking, \emph{linear} objects are dynamically and explicitly allocated on the heap. By contrast, anything else are 
+Generally speaking, \emph{linear} objects are dynamically and explicitly allocated on the heap. By contrast, anything else are
 statically and implicitly allocated on the stack. For heap-allocated objects, we need to manage the references to them, which is
-where linear types help, to ensure that each object on the heap is pointed by \textbf{exactly} one reference. 
+where linear types help, to ensure that each object on the heap is pointed by \textbf{exactly} one reference.
 
 \paragraph{Kinds} In order to classify linearity properties of each type of objects, we introduce kinds.
 In \cogent, kinds are denoted by a combination of three letters -- \code{D} (discardable), \code{S} (shareable) and \code{E} (escapable).
@@ -436,7 +441,7 @@ In some cases, we want to create read-only ``copies'' of an object (say, give th
 It in fact doesn't copy it in memory (sure, because we don't modify it anyway), so it would be more accurate to say ``create read-only
 copies of the reference''. In \cogent's purely functional setting, we just don't have to distinguish references and the actual stored objects.
 For a linear object (kinded without \code{DS}), we can temporarily put it in a context where it becomes read-only. In this context, this
-linear object can be freely discarded or duplicated (for the reason we explained earlier), thus the kind of whose type changes, 
+linear object can be freely discarded or duplicated (for the reason we explained earlier), thus the kind of whose type changes,
 from linear to read-only, obtaining \code{DS}. But obviously, we cannot simply allow these read-only copies to escape
 this temporary context, otherwise we may have no or multiple references (one read-write, and arbitrarily many read-only) outside. For
 example, consider the following expression:
@@ -445,7 +450,7 @@ let obj_ro = let (obj_ro1, obj_ro2) = dup obj !obj
               in obj_ro1
  in foo (obj_ro, obj)
 \end{lstlisting}
-In this expression, \code{obj} is a linear object. \code{!obj} creates a context inside which \code{obj} becomes read-only.~\footnote{More 
+In this expression, \code{obj} is a linear object. \code{!obj} creates a context inside which \code{obj} becomes read-only.~\footnote{More
 about the term level operation to create the read-only context, see Section~\ref{ssec:letbang}.}
 The scope of read-only \code{obj} is in the binding (the inner \code{let}-\code{in} expression). The code in the binding is totally
 valid, as we can duplicate the read-only \code{obj} and discard one of them (\code{obj\_ro2}). The problem of this whole expression
@@ -455,13 +460,13 @@ the body of the outer binding, \code{obj\_ro} and \code{obj} are referencing to 
 We use \code{E} to encode this property. A normal
 linear type has \code{E}-property. After coming into a read-only context, it becomes \code{DS}-kinded, losing \code{E}. For non-linear types,
 they always have all \code{DSE}, as we don't put any constraints on the usage of them. A type without any of \code{DSE} is useless, so
-we don't consider them. 
+we don't consider them.
 
-To summarise, we have 3 kinds in \cogent, namely 0-kind (linear but read-only, \code{\{DS\}}), 
+To summarise, we have 3 kinds in \cogent, namely 0-kind (linear but read-only, \code{\{DS\}}),
 1-kind (linear, \code{\{E\}}), and 2-kind (non-linear, \code{\{DSE\}}).
 
 
-\subsection{Composite types} 
+\subsection{Composite types}
 
 Using the aforementioned base types, with the help of type constructors and modifiers, we can build up
 composite types. We generally have three different kinds of composite types --- record types, variant types
@@ -470,10 +475,10 @@ and tuples.
 \paragraph{Record types} Similar to C structs, each record consists of more than 1 field. Fields are order-sensitive.
 For example, \code{\{f1:T1, f2:T2, f3:T3\}} is an intensionally different type to \code{\{f2:T2, f1:T1, f3:T3\}}.
 Records (or sometimes to disambiguate we call them \emph{boxed} records) is a data structure allocated on the heap,
-explicitly, by abstract \Cogent functions. In pure \Cogent (without the help of abstract functions), there is no way to allocate/create 
+explicitly, by abstract \Cogent functions. In pure \Cogent (without the help of abstract functions), there is no way to allocate/create
 a boxed record, even though you have all the fields at hand, nor a way to free one. Each boxed record comes with
 one reference (to the ``box'' itself because the ``box'' is on the heap) regardless of its fields (which
-are unnecessarily on the heap, depending on each field's type), so every 
+are unnecessarily on the heap, depending on each field's type), so every
 boxed record is linear, even though all its fields are non-linear or taken. A boxed record is analogous to
 a box with one linear reference, which is capable of encapsulating all (if any) the references to its linear fields. So from outside
 a boxed record, we have no access to its linear fields. We will introduce term level operations for field access in later sections.
@@ -485,7 +490,7 @@ unboxed records cheaply, supplying or obtaining all it fields (especially linear
 is written as \code{\#\{f1:T1, f2:T2\}}, for example, with a leading \code{\#}. It's worth mentioning, though, the linear
 fields of an unboxed record are still allocated on the heap.
 
-\paragraph{Tuples} Tuples, written as \code{(T1,T2)} can be deemed as unnamed unboxed records. It is also order-sensitive. 
+\paragraph{Tuples} Tuples, written as \code{(T1,T2)} can be deemed as unnamed unboxed records. It is also order-sensitive.
 In the core calculus of \cogent, tuples are nested pairs, grouping from the right. For example, \code{(a,b,c,d)} is equal to
 \code{(a,(b,(c,d)))}. Other than that, it is pretty much the same as an unboxed record.
 
@@ -495,7 +500,7 @@ record types (be it boxed or not). They will be introduced in detail in Section~
 Here, we focus on the other two operators: \code{\#} and \code{!}.
 
 \paragraph{Unbox} \code{\#} is the sigil for unboxed data types. It works for
-abstract types and records. For an abstract type \code{A}, \code{\#A} 
+abstract types and records. For an abstract type \code{A}, \code{\#A}
 is the unboxed version of it. \code{\#} has to be put at its use site.
 For example, if we have code:
 \begin{lstlisting}[language=Cogent]
@@ -506,7 +511,7 @@ bar : #A -> Bool
 Note that the \code{A} in line 2 is still the boxed version, the \code{\#A} in
 line 3 is an unboxed type. We can tell that type \code{\#A} is of 2-kind.
 
-If we apply \code{\#} to records, they become unboxed records as described earlier. 
+If we apply \code{\#} to records, they become unboxed records as described earlier.
 If the record has a synonyms, then the operator can be put either at definition site
 or use site. For example,
 \begin{lstlisting}[language=Cogent]
@@ -548,14 +553,14 @@ In order to temporarily turn it into a shareable one, we use \code{!} operator, 
 By doing \code{(... r.f1 ...) !r} (the ellipses are meta-syntax, indicating the context in which \code{r} is read-only and consequently shareable).
 It's worth stressing that by doing member extraction, what you get is merely a \emph{value}. It does not correspond to any memory locations on the heap.
 
-To access the memory locations corresponding to fields, we need take. Take operation is in the form of pattern matching in the 
-surface language, written \code{r' \{f1 = f1\_obj\} = r} (of course, more than 1 field can be taken at once). 
+To access the memory locations corresponding to fields, we need take. Take operation is in the form of pattern matching in the
+surface language, written \code{r' \{f1 = f1\_obj\} = r} (of course, more than 1 field can be taken at once).
 It only works for records that are not read-only as a whole (fields do not matter) as we are destructing the
 record.
 This pattern matching does the following:
 \begin{enumerate}
 \item it takes field \code{f1} out of record \code{r}, and binds it to name \code{f1\_obj};
-\item it gives the ``new'' record \code{r'}, with field \code{f1} taken. 
+\item it gives the ``new'' record \code{r'}, with field \code{f1} taken.
 \end{enumerate}
 After doing it, the record \code{r'} no more contains the reference to object \code{f1\_obj} (via its field
 \code{f}), which is now a standalone reference.
@@ -563,7 +568,7 @@ To interpret it, we can:
 \begin{itemize}
 \item functionally, the old value \code{r} \emph{becomes} two new values, one of type \code{T1}, and the other of type
   \code{R take f1} (more detail in a second);
-\item and imperatively, you can consider it as assigning the pointer to \code{r -> f1} a new pointer \code{f1\_obj} and 
+\item and imperatively, you can consider it as assigning the pointer to \code{r -> f1} a new pointer \code{f1\_obj} and
 \code{r -> f1} becomes \code{NULL} in the record.
 \end{itemize}
 
@@ -574,7 +579,7 @@ separated by commas (e.g.\ \code{R take (f1,f2)}). If all are taken, a syntactic
 \emph{not} taken. It is just for convenience, when you have more fields taken than not. It is obvious that for \code{R}, we have
 \code{R take f1 == R put (f2,f3)}.
 
-The dual operation of take (the one in expressions) is, as you might have guessed, put. Note that the type operator 
+The dual operation of take (the one in expressions) is, as you might have guessed, put. Note that the type operator
 \code{put} is merely a syntactic sugar for type-level \code{take},
 whereas put operation (ironically not spelt out as \code{take} in the
 surface language) is a real thing in expressions, even in the core language.
@@ -582,12 +587,12 @@ surface language) is a real thing in expressions, even in the core language.
 Put, in contrast to take, appears in expressions (as opposed to patterns) in \cogent. Continuing on our running example, if we want to put object \code{f1\_obj} back to
 \code{r'}, we can do \code{r' \{f1 = f1\_obj\}}. You can see that the syntax is nearly identical to take, so do not get confused.
 Note that \cogent is a functional language, so this is an expression, not a command/statement. It does not have any effect on the state.
-Linear type system requires you bind the put-expression to a new binder, say \code{r''}. 
+Linear type system requires you bind the put-expression to a new binder, say \code{r''}.
 So at this stage, \code{r == r''}, and \code{r'} and \code{f1\_obj} no longer exist!
 
 Now, some syntactic sugar for take and put. If the field name is the same as the binder name, we can use name punning. E.g.\ instead of
 \code{let r' \{f1 = f1, f2 = f2\} = r in ...}, we can write \code{let r' \{f1,f2\} = r in ...}. If we want to take all (yet untaken) fields (if at all), then we can write
-\code{let r' \{..\} = r in ...}.~\footnote{It is a bit font overloading in this documentation, 
+\code{let r' \{..\} = r in ...}.~\footnote{It is a bit font overloading in this documentation,
 \code{..} is \cogent syntax, and \code{...} is meta-level text for any omitted source code.}
 Both of them apply to put as well, as expected. Once again, \code{take} and \code{put} are type-level
 syntax, and take and put in term-level (as patterns and expressions) have similar syntax using curly brackets.
@@ -595,7 +600,7 @@ syntax, and take and put in term-level (as patterns and expressions) have simila
 The aforementioned take operation applies to both linear fields and non-linear ones, although it turns out to be overweighted for non-linears. In order to ``take'' a non-linear field, the first
 choice is usually the member operation. To ``put'' a non-linear field, namely to update it
 destructively, we can do it by \code{r' = r \{f1 = new\_f1\}}. This is just the normal
-put syntax. For non-linear field, a special feature is, the field can be put 
+put syntax. For non-linear field, a special feature is, the field can be put
 in a row more than once (but can only be taken once, as usual). In theory, because the field
 is store on the stack, multiple takes is also valid. We forbid it for the purpose of modelling
 uninitialised field. When allocating a new record, we generally leave its non-linear fields
@@ -640,7 +645,7 @@ foo #{..} = ... bar (f1, f2) ...
 -- foo #{f1 = f1_var, f2 = f2_var} = ...
 \end{lstlisting}
 using the record wildcard syntax, we introduce names \code{f1} and \code{f2}
-into scope. Syntax \code{\#\{...\}} (the \code{...} is meta-syntax) is 
+into scope. Syntax \code{\#\{...\}} (the \code{...} is meta-syntax) is
 pattern matching the argument. The commented line is the general syntax to match
 an unboxed record. The downside of it, however, is that the record is passed by value
 instead of by reference.
@@ -660,7 +665,7 @@ we can construct one on the fly, which resembles creation of tuples. The code lo
 \code{\#\{f1 = f1\_value, f2 = f2\_value\}}, which creates an unboxed record with fields \code{f1}
 and \code{f2}, bound to value \code{f1\_value} and \code{f2\_value} respectively.
 The effectively equivalent tuple version is \code{(f1\_value, f2\_value)}.
-We can summarise that, for unboxed records and tuples, their patterns and expressions 
+We can summarise that, for unboxed records and tuples, their patterns and expressions
 share the same shape.
 
 \subsection{Let} \label{ssec:letbang}
@@ -668,7 +673,7 @@ share the same shape.
 by keyword \code{and}. When the binder is not important, we can use a wildcard \code{\_}
 as a placeholder. Alternatively, we can use sequence syntax, separated by \code{;}. In this
 case, the binder is unspoken (thus the type of the expression should be trivial in terms of
-linearity). Each binding can be given a type annotation, written as \code{let x : t = b in body}. 
+linearity). Each binding can be given a type annotation, written as \code{let x : t = b in body}.
 
 \subsection{!}
 In accordance to \cogent's linear type system, there is a way to turn a linear
@@ -707,13 +712,13 @@ iterate: all (y, r, s, acc, obsv). #{
 \end{lstlisting}
 In this example, \code{y}, \code{r}, \code{s}, \code{acc} and \code{obsv} are type variables. In some cases,
 we would like to constrain the kind of some type variables, which can be done using kind constraints (\code{:<}).
-For example, 
+For example,
 \begin{lstlisting}[language=Cogent]
 array_create    : all (a :< E  ). (Ex, U32) -> R (Ex, Array     a) Ex
 wordarray_create: all (a :< DSE). (Ex, U32) -> R (Ex, WordArray a) Ex
 \end{lstlisting}
 Comparing \code{array\_create} and \code{wordarray\_create}, we can see that the former function requires type argument
-\code{a}, namely the element type, to be \code{E}scapable (which means the elements are not read-only), whereas 
+\code{a}, namely the element type, to be \code{E}scapable (which means the elements are not read-only), whereas
 the later requires strictly more, that the element type
 has to be \code{D}iscardable, \code{S}hareable and \code{E}scapable (which is an approximation of ``Word'' types).
 
@@ -721,7 +726,7 @@ To call a polymorphic function, since \cogent compiler currently lacks the capab
 theoretically possible), the user has to explicitly apply a function to type arguments. For instance,
 \begin{lstlisting}[language=Cogent]
 let limit = ext2_last_byte (inode, n) - u16_to_u64 (ext2_dir_rec_len (1)) !inode
-and ((ex, maybe_dirent, kaddr, _), res) = 
+and ((ex, maybe_dirent, kaddr, _), res) =
       iterate_do [Ext2DirEnt, (), U32, EmptyDirentsInPageAcc, DirentsInPageObsv]
         (#{ init = dirent,
             gen = get_next_dirent_from_page4,
@@ -759,15 +764,15 @@ The list in square brackets are types which instantiate the type variables respe
 %  \inferrule{\splitenv{\Gamma}{\Gamma_1}{\Gamma_2}}
 %            {\splitenv{\Gamma, x : \intu{\tau}}{\Gamma_1, x : \intu{\tau}}{\Gamma_2, x : \intu{\tau}}}
 %            {\intu{\textsc{Contract}}}
-%  \quad  
+%  \quad
 %  \inferrule{\splitenv{\Gamma}{\Gamma_1}{\Gamma_2}}
 %            {\splitenv{\Gamma, x : \unboxed{\tau}}{\Gamma_1, x : \unboxed{\tau}}{\Gamma_2, x : \unboxed{\tau}}}
 %            {\unboxed{\textsc{Contract}}}
-%  \\                      
+%  \\
 %  \inferrule{\splitenv{\Gamma}{\Gamma_1}{\Gamma_2}}
 %            {\splitenv{\Gamma, x : \intu{\tau}}{\Gamma_1}{\Gamma_2}}
 %            {\intu{\textsc{Weaken}}}
-%  \quad  
+%  \quad
 %  \inferrule{\splitenv{\Gamma}{\Gamma_1}{\Gamma_2}}
 %            {\splitenv{\Gamma, x : \unboxed{\tau}}{\Gamma_1}{\Gamma_2}}
 %            {\unboxed{\textsc{Weaken}}}
@@ -776,7 +781,7 @@ The list in square brackets are types which instantiate the type variables respe
 %   We shall say $\Gamma \leadsto \Gamma'$ iff $\splitenv{\Gamma}{\Gamma'}{\epsilon}$
 %
 %   We also permit unlimited exchange, and assume w.l.o.g. that all variable names are unique.
-%\end{center}   
+%\end{center}
 %
 %\begin{inductive}{\types{\Gamma}{e}{\tau}}
 %  \inferrule{ \litType{L} = \primtype{t}}
@@ -787,13 +792,13 @@ The list in square brackets are types which instantiate the type variables respe
 %            { \types{x : \tau}{x}{\tau}}
 %            { \textsc{Var}}
 %  \qquad
-%  \inferrule{ \opType{o} = (\overline{\tau_i} \rightarrow \tau) 
+%  \inferrule{ \opType{o} = (\overline{\tau_i} \rightarrow \tau)
 %           \\ \typesS{\Gamma}{\overline{e_i}}{\overline{\tau_i}}}
 %            { \types{\Gamma}{o(\overline{e_i})}{\tau}}
 %            { \textsc{Op}}
 %\end{inductive}
 %\begin{inductive}{\typesS{\Gamma}{\overline{e}}{\overline{\tau}}}
-%  \inferrule{ }{\typesS{}{\epsilon}{\epsilon}}{\textsc{Empty}} 
+%  \inferrule{ }{\typesS{}{\epsilon}{\epsilon}}{\textsc{Empty}}
 %  \qquad
 %  \inferrule{\splitenv{\Gamma}{\Gamma_1}{\Gamma_2} \\ \types{\Gamma_1}{e}{\tau} \\ \typesS{\Gamma_2}{\overline{e_i}}{\overline{\tau_i}}}
 %            {\typesS{\Gamma}{e,\overline{e_i}}{\tau, \overline{\tau_i}}}{\textsc{Cons}}
@@ -803,7 +808,7 @@ The list in square brackets are types which instantiate the type variables respe
 %           \\ \typesS{\Gamma}{\overline{e_i}}{\overline{\tau_i}}}
 %            { \types{\Gamma}{f(\overline{e_i})}{\tau_r}}
 %            { \textsc{App}}
-%  \quad            
+%  \quad
 %  \inferrule{ \typesS{\Gamma}{\overline{e_i}}{\overline{\tau_i}} }
 %            { \types{\Gamma}{\return{\overline{e_i}}}{\overline{\tau_i}}}
 %            { \textsc{Return} }
@@ -813,31 +818,31 @@ The list in square brackets are types which instantiate the type variables respe
 %           \\ \types{\Gamma_2}{s_t}{\tau_r}
 %           \\ \types{\Gamma_2}{s_e}{\tau_r}}
 %            { \types{\Gamma}{\ifthenelse{e}{s_t}{s_e}}{\tau_r}}
-%            { \textsc{If}}            
+%            { \textsc{If}}
 %  \\
 %  \inferrule{ \splitenv{\Gamma}{\Gamma_1}{\Gamma_2}
-%           \\ \types{\Gamma_1}{e}{\linear{\variant{\overline{\datatag{p}_i :: T_i}}}} 
+%           \\ \types{\Gamma_1}{e}{\linear{\variant{\overline{\datatag{p}_i :: T_i}}}}
 %           \\\\ \text{for each $i$:}\ \types{x_i : \linear{T_i}, \Gamma_2}{s_i}{\tau_r}}
 %            { \types{\Gamma}{\case{e}{\overline{\datatag{p}_i\ x_i \rightarrow s_i}}}{\tau_r}}
-%            { \linear{\textsc{Case}}}            
+%            { \linear{\textsc{Case}}}
 %  \quad
 %  \inferrule{ \splitenv{\Gamma}{\Gamma_1}{\Gamma_2}
-%           \\ \types{\Gamma_1}{e}{\intu{\variant{\overline{\datatag{p}_i :: T_i}}}} 
+%           \\ \types{\Gamma_1}{e}{\intu{\variant{\overline{\datatag{p}_i :: T_i}}}}
 %           \\\\ \text{for each $i$:}\ \types{x_i : \intu{T_i}, \Gamma_2}{s_i}{\tau_r}}
 %            { \types{\Gamma}{\case{e}{\overline{\datatag{p}_i\ x_i \rightarrow s_i}}}{\tau_r}}
-%            { \intu{\textsc{Case}}}            
+%            { \intu{\textsc{Case}}}
 %  \\
 %  \inferrule{ \splitenv{\Gamma}{\Gamma_1}{\Gamma_2}
-%           \\ \types{\Gamma_1}{e}{\unboxed{\primtype{err}}} 
+%           \\ \types{\Gamma_1}{e}{\unboxed{\primtype{err}}}
 %           \\ \typesS{\Gamma_2}{\overline{e_i}}{\overline{\tau_i}} }
 %            { \types{\Gamma}{\fail{e, \overline{e_i}}}{\fails{\overline{\tau_i}}}}
-%            { \textsc{Fail} }            
+%            { \textsc{Fail} }
 %  \\
 %  \inferrule{ \splitenv{\Gamma}{\Gamma_1}{\Gamma_2}
 %           \\ \types{\Gamma_1}{e}{\linear{\placeholder{\record{\overline{\fieldname{f}_i :: \opened{\tau_i}},\overline{\fieldname{f}_j :: \closed{\tau_j}}}}}}
 %           \\ \typesS{\Gamma_2}{\overline{e_i}}{\overline{\tau_i}}}
 %            { \types{\Gamma}{\close{e}{\overline{\fieldname{f}_i = e_i}}}{\linear{\record{\overline{\fieldname{f}_i :: \tau_i},\overline{\fieldname{f}_j :: \tau_j}}}}}
-%            { \textsc{Close}}          
+%            { \textsc{Close}}
 %  \\
 %  \inferrule{ \splitenv{\Gamma}{\Gamma_1}{\Gamma_2}
 %           \\ \types{\Gamma_1}{e}{\linear{\record{\overline{\fieldname{f}_i :: \tau_i}, \overline{\fieldname{f}_j :: \tau_j}}}}
@@ -849,32 +854,32 @@ The list in square brackets are types which instantiate the type variables respe
 %          \\  \types{\Gamma_1}{s}{\tau'_r}
 %          \\\\  \types{\Gamma_2}{C}{\tau'_r \rightarrow \tau_r} }
 %            { \types{\Gamma}{\bind{s}{C}}{\tau_r} }
-%            { \textsc{Bind}}           
+%            { \textsc{Bind}}
 %\quad
 %  \inferrule{ \splitenv{\Gamma}{\Gamma_1}{\Gamma_2,\overline{x_i : \linear{T_i}}}
 %          \\  \types{\Gamma_1,\overline{x_i : \intu{\bang{T_i}}}}{s}{\tau'_r}
 %          \\\\  \safe{\tau'_r}
 %          \\  \types{\Gamma_2, \overline{x_i : \linear{T_i}}}{C}{\tau'_r \rightarrow \tau_r} }
 %            { \types{\Gamma}{\letbang{\overline{x_i}}{s}{C}}{\tau_r} }
-%            { \textsc{Let!}}        
+%            { \textsc{Let!}}
 %\\
 %  \inferrule{ \splitenv{\Gamma}{\Gamma_1}{\Gamma_2}
-%           \\ \types{\Gamma_1}{I}{(\overline{\tau_i} \rightarrow \overline{\tau_o}) \rightarrow \overline{\tau_t}} 
+%           \\ \types{\Gamma_1}{I}{(\overline{\tau_i} \rightarrow \overline{\tau_o}) \rightarrow \overline{\tau_t}}
 %           \\\\ \types{\Gamma_2, \overline{x_i : \tau_i}}{s}{\fails{\overline{\tau_o},\overline{\tau_e}} } }
 %            { \types{\Gamma}{\for{\overline{x_i}}{I}{s} }{ \fails{\overline{\tau_t},\overline{\tau_e}} } }
-%            { \textsc{For}_F}          
+%            { \textsc{For}_F}
 %\quad
 %\inferrule{ \splitenv{\Gamma}{\Gamma_1}{\Gamma_2}
-%           \\ \types{\Gamma_1}{I}{(\overline{\tau_i} \rightarrow \overline{\tau_o}) \rightarrow \overline{\tau_t}} 
+%           \\ \types{\Gamma_1}{I}{(\overline{\tau_i} \rightarrow \overline{\tau_o}) \rightarrow \overline{\tau_t}}
 %           \\\\ \types{\Gamma_2, \overline{x_i : \tau_i}}{s}{\succeeds{\overline{\tau_o}} } }
 %            { \types{\Gamma}{\for{\overline{x_i}}{I}{s} }{ \succeeds{\overline{\tau_t}} } }
-%            { \textsc{For}_S}                      
-%\\ 
+%            { \textsc{For}_S}
+%\\
 %\inferrule{ \splitenv{\Gamma}{\Gamma_1}{\Gamma_2}
-%           \\ \types{\Gamma_1}{I}{(\overline{\tau_i} \rightarrow \overline{\tau_o}) \rightarrow \overline{\tau_t}} 
+%           \\ \types{\Gamma_1}{I}{(\overline{\tau_i} \rightarrow \overline{\tau_o}) \rightarrow \overline{\tau_t}}
 %           \\\\ \types{\Gamma_2, \overline{x_i : \tau_i}}{s}{\canfail{\overline{\tau_o}}{\overline{\tau_o},\overline{\tau_e}} } }
 %            { \types{\Gamma}{\for{\overline{x_i}}{I}{s} }{ \canfail{\overline{\tau_t}}{\overline{\tau_t},\overline{\tau_e}} } }
-%            { \textsc{For}}                      
+%            { \textsc{For}}
 %\quad
 %  \inferrule{ \types{\Gamma}{s}{\succeeds{\overline{\tau_i}}} }
 %            { \types{\Gamma}{s}{\canfail{\overline{\tau_i}}{\overline{\tau_j}}} }
@@ -882,18 +887,18 @@ The list in square brackets are types which instantiate the type variables respe
 %\quad
 %  \inferrule{ \types{\Gamma}{s}{\fails{\overline{\tau_j}}} }
 %            { \types{\Gamma}{s}{\canfail{\overline{\tau_i}}{\overline{\tau_j}}} }
-%            { \textsc{Prom}_F}            
+%            { \textsc{Prom}_F}
 %\end{inductive}
 %\begin{inductive}{\types{\Gamma}{C}{\tau_C}}
 %  \inferrule{ \types{\Gamma, \overline{x_i : \tau_i}}{s}{\tau_r} }
 %            { \types{\Gamma}{\onlysuccess{\overline{x_i}}{s}}{\succeeds{\overline{\tau_i}} \rightarrow \tau_r} }
-%            { \textsc{Success}}          
+%            { \textsc{Success}}
 %  \quad
 %  \inferrule{ \types{\Gamma, \overline{x_i : \tau_i}, x_\text{err} : \unboxed{\primtype{err}}}{s}{\tau_r} }
 %            { \types{\Gamma}{\onlyfailure{x_\text{err}}{\overline{x_i}}{s}}{\fails{\overline{\tau_i}} \rightarrow \tau_r} }
-%            { \textsc{Failure}}            
-%  \\            
-%  \inferrule{ \types{\Gamma, \overline{x_j : \tau_j}, x_\text{err} : \unboxed{\primtype{err}}}{s_f}{\tau_r} 
+%            { \textsc{Failure}}
+%  \\
+%  \inferrule{ \types{\Gamma, \overline{x_j : \tau_j}, x_\text{err} : \unboxed{\primtype{err}}}{s_f}{\tau_r}
 %          \\  \types{\Gamma, \overline{x_i : \tau_i}}{s_s}{\tau_r} }
 %            { \types{\Gamma}{\handlefailure{\overline{x_i}}{s_s}{x_\text{err}}{\overline{x_j}}{s_f}}{\canfail{\overline{\tau_i}}{\overline{\tau_j}} \rightarrow \tau_r} }
 %            { \textsc{Both}}
@@ -908,7 +913,7 @@ The list in square brackets are types which instantiate the type variables respe
 %            {\textsc{Fold}}
 %  \\
 %  \inferrule{\splitenv{\Gamma}{\Gamma_1}{\Gamma_2}
-%          \\\\ \types{\Gamma_1}{I}{(\overline{\tau_i} \rightarrow \overline{\tau_o}) \rightarrow \overline{\tau_t}} 
+%          \\\\ \types{\Gamma_1}{I}{(\overline{\tau_i} \rightarrow \overline{\tau_o}) \rightarrow \overline{\tau_t}}
 %          \\ \types{\Gamma_2}{e}{\tau}}
 %            {\types{\Gamma}{\with{I}{e}}{((\overline{\tau_i},\tau) \rightarrow (\overline{\tau_o},\tau)) \rightarrow (\overline{\tau_t},\tau)} }
 %            {\textsc{With}}
@@ -933,11 +938,11 @@ The list in square brackets are types which instantiate the type variables respe
 %                  \quad
 %        \inferrule{\text{for each $j$:}\ \safe{\tau_j}}
 %                  { \safe{\fails{\overline{\tau_j}}}}
-%                  {\textsc{Safe}_F}     
-%        \\             
+%                  {\textsc{Safe}_F}
+%        \\
 %        \inferrule{\text{for each $j$:}\ \safe{\tau_j} \\ \text{for each $i$:}\ \safe{\tau_i}}
 %                  { \safe{\canfail{\overline{\tau_i}}{\overline{\tau_j}}}}
-%                  {\textsc{Safe}}                  
+%                  {\textsc{Safe}}
 %\end{inductive}
 %\end{sidebyside}
 %\begin{sidebyside}
@@ -950,7 +955,7 @@ The list in square brackets are types which instantiate the type variables respe
 %\end{fundef}
 %&
 %\begin{fundef}{\textbf{bang}'}{\tau \rightarrow \tau}
-%   \bangP{\linear{T}} & = & \intu{\bang{T}} & \textsc{Linear!} \\ 
+%   \bangP{\linear{T}} & = & \intu{\bang{T}} & \textsc{Linear!} \\
 %   \bangP{\intu{T}} & = & \intu{T} & \textsc{Shareable!} \\
 %   \bangP{\unboxed{T}} & = & \unboxed{T} & \textsc{Unboxed!}
 %\end{fundef}
@@ -965,7 +970,7 @@ The list in square brackets are types which instantiate the type variables respe
 %\newcommand{\eval}[4]{#1 , #2 \vdash #3 \Downarrow #4}
 %\newcommand{\evalS}[4]{#1 , #2 \vdash #3 \Downarrow^\star #4}
 %
-%\begin{inductive}{ \eval{\Sigma}{\gamma}{e}{v}} 
+%\begin{inductive}{ \eval{\Sigma}{\gamma}{e}{v}}
 %  \inferrule{ }
 %            { \eval{\Sigma}{\gamma}{L}{L}}
 %            { \textsc{Lit}}
@@ -974,7 +979,7 @@ The list in square brackets are types which instantiate the type variables respe
 %            { \eval{\Sigma}{\gamma}{x}{v}}
 %            { \textsc{Var}}
 %  \qquad
-%  \inferrule{ \evalS{\Sigma}{\gamma}{\overline{e_i}}{\overline{v_i}} 
+%  \inferrule{ \evalS{\Sigma}{\gamma}{\overline{e_i}}{\overline{v_i}}
 %           \\ \opsemantic{o}[\Sigma, \overline{v_i}] = v}
 %            { \eval{\Sigma}{\gamma}{o(\overline{e_i})}{v}}
 %            { \textsc{Op}}
@@ -982,7 +987,7 @@ The list in square brackets are types which instantiate the type variables respe
 %\begin{inductive}{ \eval{\Sigma}{\gamma}{s}{\evaled{s}}}
 %  \inferrule{ \evalS{\Sigma}{\gamma}{\overline{e_i}}{\overline{v_i}}}
 %            { \eval{\Sigma}{\gamma}{f(\overline{e_i})}{f(\overline{v_i})}}
-%            { \textsc{App}}  
+%            { \textsc{App}}
 %\quad
 %  \inferrule{ \eval{\Sigma}{\gamma}{I}{\evaled{I}}}
 %            {\eval{\Sigma}{\gamma}{\for{\overline{x_i}}{I}{s}}{\for{\overline{x_i}}{\evaled{I}}{s}}}
@@ -994,12 +999,12 @@ The list in square brackets are types which instantiate the type variables respe
 %  \quad
 %    \inferrule{ \eval{\Sigma}{\gamma}{s}{\evaled{s}} }
 %            { \eval{\Sigma}{\gamma}{\letbang{\overline{x_i}}{s}{C}}{\letbang{\overline{x_i}}{\evaled{s}}{C}}   }
-%            { \textsc{Let!}}  
+%            { \textsc{Let!}}
 %  \\
 %    \inferrule{ \eval{\Sigma}{\gamma}{e_\text{err}}{v_\text{err}} \\ \evalS{\Sigma}{\gamma}{\overline{e}}{\overline{v}}}
 %            { \eval{\Sigma}{\gamma}{\fail{e_\text{err}, \overline{e}}}{\fail{v_\text{err},\overline{v}}}}
-%            { \textsc{Fail}} 
-%\quad            
+%            { \textsc{Fail}}
+%\quad
 %  \inferrule{ \evalS{\Sigma}{\gamma}{\overline{e_i}}{\overline{v_i}}}
 %            { \eval{\Sigma}{\gamma}{\return{\overline{e_i}}}{\return{\overline{v_i}}}}
 %            { \textsc{Return}}
@@ -1008,17 +1013,17 @@ The list in square brackets are types which instantiate the type variables respe
 %            { \eval{\Sigma}{\gamma}{\open{e}{p}{\record{\overline{f_i = x_i}}}{s} }{\open{v}{p}{\record{\overline{f_i = x_i}}}{s}}}
 %            { \textsc{Open}}
 %  \\
-%  \inferrule{ \eval{\Sigma}{\gamma}{e}{v} 
+%  \inferrule{ \eval{\Sigma}{\gamma}{e}{v}
 %           \\ \evalS{\Sigma}{\gamma}{\overline{e_i}}{\overline{v_i}}}
 %            { \eval{\Sigma}{\gamma}{\close{e}{\overline{x_i = e_i}}}{\close{v}{\overline{x_i = v_i}}}}
 %            { \textsc{Close}}
 %  \\
-%  \inferrule{ \eval{\Sigma}{\gamma}{e}{\mathtt{True}} 
+%  \inferrule{ \eval{\Sigma}{\gamma}{e}{\mathtt{True}}
 %           \\ \eval{\Sigma}{\gamma}{s_t}{\evaled{s}}}
 %            { \eval{\Sigma}{\gamma}{\ifthenelse{e}{s_t}{s_e}}{E}}
-%            { \textsc{If}_1}          
+%            { \textsc{If}_1}
 %  \qquad
-%  \inferrule{ \eval{\Sigma}{\gamma}{e}{\mathtt{False}} 
+%  \inferrule{ \eval{\Sigma}{\gamma}{e}{\mathtt{False}}
 %           \\ \eval{\Sigma}{\gamma}{s_e}{\evaled{s}}}
 %            { \eval{\Sigma}{\gamma}{\ifthenelse{e}{s_t}{s_e}}{\evaled{s}}}
 %            { \textsc{If}_2}
@@ -1029,11 +1034,11 @@ The list in square brackets are types which instantiate the type variables respe
 %\end{inductive}
 %\begin{sidebyside}
 %  \begin{center}
-%  \textbf{Value Semantics}    
+%  \textbf{Value Semantics}
 %  \end{center}
 %  &
 %  \begin{center}
-%  \textbf{Update Semantics}    
+%  \textbf{Update Semantics}
 %  \end{center}
 %\end{sidebyside}
 %\begin{sidebyside}
@@ -1044,15 +1049,15 @@ The list in square brackets are types which instantiate the type variables respe
 %  \\
 %  \inferrule{ \eval{\Sigma}{\gamma}{e}{v} }
 %            { \eval{\Sigma}{\gamma}{\map{e}}{\map{v}}}
-%            { \textsc{Map}}                      
+%            { \textsc{Map}}
 %  \\
 %  \inferrule{ \eval{\Sigma}{\gamma}{e}{v} }
 %            { \eval{\Sigma}{\gamma}{\fold{e}}{\fold{v}}}
-%            { \textsc{Fold}}                      
+%            { \textsc{Fold}}
 %  \\
 %  \inferrule{ \eval{\Sigma}{\gamma}{I}{\evaled{I}} \\ \eval{\Sigma}{\gamma}{e}{v} }
 %            { \eval{\Sigma}{\gamma}{\with{I}{e}}{\with{\evaled{I}}{v}}}
-%            { \textsc{With}}                      
+%            { \textsc{With}}
 %\end{inductive}
 %&
 %\begin{inductive}{\eval{\Sigma}{\gamma}{I}{\evaled{I}}}
@@ -1062,15 +1067,15 @@ The list in square brackets are types which instantiate the type variables respe
 %  \\
 %  \inferrule{ \eval{\Sigma}{\gamma}{e}{\arraytype{\overline{v}}} }
 %            { \eval{\Sigma}{\gamma}{\map{e}}{\mapIter{\overline{v},\epsilon}}}
-%            { \textsc{Map}}                      
+%            { \textsc{Map}}
 %  \\
 %  \inferrule{ \eval{\Sigma}{\gamma}{e}{\arraytype{\overline{v}}} }
 %            { \eval{\Sigma}{\gamma}{\fold{e}}{\foldIter{\overline{v}}}}
-%            { \textsc{Fold}}                      
+%            { \textsc{Fold}}
 %  \\
 %  \inferrule{ \eval{\Sigma}{\gamma}{I}{\evaled{I}} \\ \eval{\Sigma}{\gamma}{e}{v} }
 %            { \eval{\Sigma}{\gamma}{\with{I}{e}}{\withIter{\evaled{I},v}}}
-%            { \textsc{With}}                      
+%            { \textsc{With}}
 %\end{inductive}
 %\end{sidebyside}
 %\begin{fundef}{\textbf{foldIter}}{\overline{v} \rightarrow \evaled{I}}
@@ -1083,11 +1088,11 @@ The list in square brackets are types which instantiate the type variables respe
 %\end{fundef}
 %\begin{fundef}{\textbf{withIter}}{\overline{v} \times \evaled{I} \rightarrow \evaled{I}}
 %  \withIter{v,\ \mathtt{inr}\ \overline{v_i}} & = & \mathtt{inr}\ \overline{v_i}\ v & \textsc{Term} \\
-%  \withIter{v,\ \mathtt{inl}\ (\overline{v_j}, f, g)} & = & \mathtt{inl}\ (\overline{v_j}\ v, \lambda \overline{x_s}\ x.\ \withIter{x,f[\overline{x_s}]},  \lambda \overline{x_f}\ x.\  (g[\overline{x_f}]\ x) & \textsc{Cont} \\ 
-%\end{fundef}  
+%  \withIter{v,\ \mathtt{inl}\ (\overline{v_j}, f, g)} & = & \mathtt{inl}\ (\overline{v_j}\ v, \lambda \overline{x_s}\ x.\ \withIter{x,f[\overline{x_s}]},  \lambda \overline{x_f}\ x.\  (g[\overline{x_f}]\ x) & \textsc{Cont} \\
+%\end{fundef}
 %\begin{verbatim}
 %\subsection{Algorithmic Typing Rules}
-%\begin{inductive}{\useVar{x : \tau}{\Gamma}{\Gamma'}} 
+%\begin{inductive}{\useVar{x : \tau}{\Gamma}{\Gamma'}}
 %  \inferrule{ x : \tau \in \Gamma \\ \tau =    \intu{\primtype{T}} }{\useVar{x : \tau}{\Gamma}{\Gamma}}
 %  \qquad
 %  \inferrule{ x : \tau \in \Gamma \\ \tau =    \unboxed{\primtype{t}} }{\useVar{x : \tau}{\Gamma}{\Gamma}}
@@ -1104,7 +1109,7 @@ The list in square brackets are types which instantiate the type variables respe
 %            { \typing{\Gamma}{x}{\tau}{\Gamma'}}
 %            { \textsc{Var}}
 %  \qquad
-%  \inferrule{ \opType{o} = (\overline{\tau_i} \rightarrow \tau) 
+%  \inferrule{ \opType{o} = (\overline{\tau_i} \rightarrow \tau)
 %           \\ \typingS{\Gamma}{\overline{e_i}}{\overline{\tau_i}}{\Gamma'}}
 %            { \typing{\Gamma}{o(\overline{e_i})}{\tau  }{\Gamma}}
 %            { \textsc{Op}}
@@ -1115,25 +1120,25 @@ The list in square brackets are types which instantiate the type variables respe
 %            { \typing{\Gamma}{f(\overline{e_i})}{\tau_m}{\Gamma'}}
 %            { \textsc{App}}
 %  \\
-%  \inferrule{ \typing{\Gamma}{e}{\tau}{\Gamma'} 
+%  \inferrule{ \typing{\Gamma}{e}{\tau}{\Gamma'}
 %           \\ \tau = \record{\overline{x_i :: \tau_i}}}
 %            { \typing{\Gamma}{\open{e}}{\M\ (\placeholder{\tau},\overline{\tau_i})}{\Gamma'}}
 %            { \textsc{Open}}
 %  \qquad
-%  \inferrule{ \typing{\Gamma}{e}{\placeholder{\tau}}{\Gamma'} 
-%          \\ \tau = \record{\overline{x_i :: \tau_i}} 
+%  \inferrule{ \typing{\Gamma}{e}{\placeholder{\tau}}{\Gamma'}
+%          \\ \tau = \record{\overline{x_i :: \tau_i}}
 %          \\ \typingS{\Gamma'}{\overline{e_i}}{\overline{\tau_i}}{\Gamma''}}
 %            { \typing{\Gamma}{\close{e}{\overline{x_i = e_i}}}{\M\ \tau}{\Gamma''}}
 %            { \textsc{Close} }
 %  \\
-%  \inferrule{ \typing{\Gamma}{s}{m\ \overline{\tau_i}}{\Gamma'} 
+%  \inferrule{ \typing{\Gamma}{s}{m\ \overline{\tau_i}}{\Gamma'}
 %           \\ \{\overline{x_i : \tau_i}\} \stackrel{\star}{\leadsto} R
 %           \\ \typing{\overline{x_i : \tau_i},\Gamma'}{s'}{m\ \overline{\tau_j}}{R\Gamma''}
 %           \\ \Gamma'' \subseteq \Gamma'}
 %            { \typing{\Gamma}{\overline{x_i}\leftarrow s; s'}{m\ \overline{\tau_j}}{\Gamma''}}
 %            { \textsc{Bind} }
 %  \\
-%%  \inferrule{ \typing{\Gamma}{s}{m\ ()}{\Gamma'} 
+%%  \inferrule{ \typing{\Gamma}{s}{m\ ()}{\Gamma'}
 %%           \\ \typing{\Gamma'}{s'}{m\ \overline{\tau_j}}{\Gamma''} }
 %%            { \typing{\Gamma}{s; s'}{m\ \overline{\tau_j}}{\Gamma''}}
 %%            { \textsc{Seq} }
@@ -1142,13 +1147,13 @@ The list in square brackets are types which instantiate the type variables respe
 %            { \typing{\Gamma}{\return{\overline{e_i}}}{m\ \overline{\tau_i}}{\Gamma'}}
 %            { \textsc{Return} }
 %  \qquad
-%  \inferrule{ \typing{\Gamma}{e}{\intu{\primtype{Bool}}}{\Gamma'} 
-%           \\ \typing{\Gamma'}{s_t}{m\ \overline{\tau_i}}{\Gamma''} 
+%  \inferrule{ \typing{\Gamma}{e}{\intu{\primtype{Bool}}}{\Gamma'}
+%           \\ \typing{\Gamma'}{s_t}{m\ \overline{\tau_i}}{\Gamma''}
 %           \\ \typing{\Gamma'}{s_e}{m\ \overline{\tau_i}}{\Gamma''}}
 %            { \typing{\Gamma}{\ifthenelse{e}{s_t}{s_e}}{m\ \overline{\tau_i}}{\Gamma''}}
 %            { \textsc{If}}
 %  \\
-%  \inferrule{ \typing{\Gamma}{e}{\variant{\overline{\datatag{p}_i :: \tau_i}}}{\Gamma'} 
+%  \inferrule{ \typing{\Gamma}{e}{\variant{\overline{\datatag{p}_i :: \tau_i}}}{\Gamma'}
 %           \\ \text{for each $i$:}\ \typing{x_i : \tau_i,\Gamma'}{s_i}{m\ \overline{\tau_r}}{\Gamma''}}
 %            { \typing{\Gamma}{\case{e}{\overline{\datatag{p}_i\ x_i \rightarrow s_i}}}{m\ (\variant{\overline{\datatag{p}_i :: \tau_i}} ,\overline{\tau_r})}{\Gamma''}}
 %            { \textsc{Case}}
@@ -1161,7 +1166,7 @@ The list in square brackets are types which instantiate the type variables respe
 %            { \typing{\Gamma}{s}{\ME\ \overline{\tau_i}}{\Gamma'}}
 %            { \textsc{Coerce}}
 %  \\
-%  \inferrule{ \typing{\Gamma}{s}{\ME\ \overline{\tau_i}}{\Gamma'} 
+%  \inferrule{ \typing{\Gamma}{s}{\ME\ \overline{\tau_i}}{\Gamma'}
 %           \\ \typing{x : \unboxed{\primtype{err}}, \Gamma'}{s_c}{\ME\ \overline{\tau_i}}{x : \unboxed{\primtype{err}}, \Gamma''}}
 %            { \typing{\Gamma}{\try{s}{x}{s_c}}{\M\ \overline{\tau}}{\Gamma''}}
 %            { \textsc{Try} }
@@ -1169,7 +1174,7 @@ The list in square brackets are types which instantiate the type variables respe
 %  \inferrule{ \typing{\overline{x_i : \intu{\primtype{T}_i}},\Gamma}{e}{\unboxed{\primtype{t}}}{\overline{x_i : \intu{\primtype{T}_i}},\Gamma'}
 %           \\ \typing{\overline{x_i : \linear{\primtype{T}_i}}, y : \unboxed{\primtype{t}}, \Gamma'}{s}{m\ \overline{\tau}}{y : \unboxed{\primtype{t}},\Gamma''}}
 %            { \typing{\overline{x_i : \linear{\primtype{T}_i}},\Gamma}{\letbang{\overline{x_i}}{y}{e}{s}}{m\ \overline{\tau} }{\Gamma''}}
-%            {\textsc{Let!}}            
+%            {\textsc{Let!}}
 %\end{inductive}
 %
 %\subsection{Execution Rules}
@@ -1177,11 +1182,11 @@ The list in square brackets are types which instantiate the type variables respe
 %\newcommand{\smallstep}[7]{#1 \vdash (#2, #3, #4) \mapsto (#5, #6, #7)}
 %\begin{sidebyside}
 %  \begin{center}
-%  \textbf{Value Semantics}    
+%  \textbf{Value Semantics}
 %  \end{center}
 %  &
 %  \begin{center}
-%  \textbf{Update Semantics}    
+%  \textbf{Update Semantics}
 %  \end{center}
 %\end{sidebyside}
 %\begin{sidebyside}
@@ -1197,30 +1202,30 @@ The list in square brackets are types which instantiate the type variables respe
 %    \\
 %    \inferrule{ \eval{\epsilon}{\overline{x_i \mapsto v_i}, \gamma}{s}{E}}
 %              {\smallstepV{\gamma}{W}{\overline{x_i} \leftarrow \return{\overline{v_i}}; s}{W}{\using{\overline{x_i \mapsto v_i}}{E}}}
-%              {\textsc{Bind}_2}                    
+%              {\textsc{Bind}_2}
 %    \\
 %    \inferrule{\smallstepV{\overline{x_i \mapsto v_i}, \gamma}{W}{E}{W'}{E'} }
 %              {\smallstepV{\gamma}{W}{\using{\overline{x_i \mapsto v_i}}{E}}{W'}{\using{\overline{x_i \mapsto v_i}}{E'}} }
-%              {\textsc{Using}_1}                    
-%    \\        
+%              {\textsc{Using}_1}
+%    \\
 %    \inferrule{ \quad }
 %              {\smallstepV{\gamma}{W}{\using{\overline{x_i \mapsto v_i}}{(\return{\overline{v_r}})}}{W}{\return{\overline{v_r}}} }
-%              {\textsc{Using}_2}                    
-%    \\        
+%              {\textsc{Using}_2}
+%    \\
 %    \inferrule{ \quad }
 %              {\smallstepV{\gamma}{W}{\using{\overline{x_i \mapsto v_i}}{(\throw{v_e})}}{W}{\throw{v_e}} }
-%              {\textsc{Using}_3}                
-%    \\        
+%              {\textsc{Using}_3}
+%    \\
 %%    \inferrule{\smallstepV{\gamma}{W}{E}{\gamma'}{W'}{E'}}
 %%              {\smallstepV{\gamma}{W}{E; s}{\gamma}{W'}{E'; s}}
 %%              {\textsc{Seq}_1}
 %%    \\
 %%    \inferrule{ }
 %%              {\smallstepV{\gamma}{W}{\return{()}; s}{\gamma}{W}{s}}
-%%              {\textsc{Seq}_2}                                
+%%              {\textsc{Seq}_2}
 %    \inferrule{ \quad }
 %              {\smallstepV{\gamma}{W}{\overline{x_i} \leftarrow \throw{v_c}; s}{W}{\throw{v_c}}}
-%              {\textsc{Raise}}                          
+%              {\textsc{Raise}}
 %    \\
 %    \inferrule{ \smallstepV{\gamma}{W}{E}{W'}{E'}}
 %              { \smallstepV{\gamma}{W}{\try{E}{x}{s_c}} { W'} {\try{E'}{x}{s_c}}}
@@ -1229,14 +1234,14 @@ The list in square brackets are types which instantiate the type variables respe
 %    \inferrule{ \eval{\epsilon}{x \mapsto v, \gamma}{s_c}{E}}
 %              { \smallstepV{\gamma}{W}{\try{(\throw{v})}{x}{s_c}} { W} {\using{x \mapsto v}{E}}}
 %              { \textsc{Try}_2}
-%    \\ 
+%    \\
 %    \inferrule{  \quad }
 %              { \smallstepV{\gamma}{W}{\try{(\return{\overline{v}})}{x}{s_c}}{ W}{\return{\overline{v}}}}
 %              { \textsc{Try}_3}
-%    \\    
+%    \\
 %    \inferrule{ \quad }
 %              { \smallstepV{\gamma}{W}{\open{\record{\overline{x_i = v_i}}}}{W}{\return{(\top,\overline{v_i})}}}
-%              { \textsc{Open}}      
+%              { \textsc{Open}}
 %    \\
 %    \inferrule{ \quad }
 %              { \smallstepV{\gamma}{W}{\close{\top}{\overline{x_i = v_i}}}{W}{\return{\record{\overline{x_i = v_i}}}}}
@@ -1244,7 +1249,7 @@ The list in square brackets are types which instantiate the type variables respe
 %    \\
 %    \inferrule{ \eval{\epsilon}{x_k \mapsto v, \cup \gamma}{s_k}{E}}
 %              { \smallstepV{\gamma}{W}{\case{\variant{\datatag{p}_k, v}}{\overline{\datatag{p}_i\ x_i \mapsto s_i}}}{W}{\using{x_k \mapsto v}{E}}}
-%              { \textsc{Case}}          
+%              { \textsc{Case}}
 %  \end{inductive}
 %  &
 %      \scriptsize
@@ -1255,24 +1260,24 @@ The list in square brackets are types which instantiate the type variables respe
 %    \\
 %    \inferrule{\smallstep{\gamma}{\Sigma}{W}{E}{\Sigma'}{W'}{E'}}
 %              {\smallstep{\gamma}{\Sigma}{W}{\overline{x} \leftarrow E; s}{\Sigma'}{W'}{\overline{x} \leftarrow E'; s}}
-%              {\textsc{Bind}_1}          
+%              {\textsc{Bind}_1}
 %    \\
 %    \inferrule{ \eval{\Sigma}{\overline{x_i \mapsto v_i}, \gamma}{s}{E}}
 %              {\smallstep{\gamma}{\Sigma}{W}{\overline{x_i} \leftarrow \return{\overline{v_i}}; s}{\Sigma}{W}{\using{\overline{x_i \mapsto v_i}}{E}}}
-%              {\textsc{Bind}_2}                            
+%              {\textsc{Bind}_2}
 %    \\
 %    \inferrule{\smallstep{\overline{x_i \mapsto v_i}, \gamma}{\Sigma}{W}{E}{\Sigma'}{W'}{E'} }
 %              {\smallstep{\gamma}{\Sigma}{W}{\using{\overline{x_i \mapsto v_i}}{E}}{\Sigma'}{W'}{\using{\overline{x_i \mapsto v_i}}{E'}} }
-%              {\textsc{Using}_1}                    
-%    \\        
+%              {\textsc{Using}_1}
+%    \\
 %    \inferrule{ \quad }
 %              {\smallstep{\gamma}{\Sigma}{W}{\using{\overline{x_i \mapsto v_i}}{(\return{\overline{v_r}})}}{\Sigma}{W}{\return{\overline{v_r}}} }
-%              {\textsc{Using}_2}                    
-%    \\        
+%              {\textsc{Using}_2}
+%    \\
 %    \inferrule{ \quad }
 %              {\smallstep{\gamma}{\Sigma}{W}{\using{\overline{x_i \mapsto v_i}}{(\throw{v_e})}}{\Sigma}{W}{\throw{v_e}} }
-%              {\textsc{Using}_3}                
-%    \\            
+%              {\textsc{Using}_3}
+%    \\
 %    \inferrule{ \quad }
 %              {\smallstep{\gamma}{\Sigma}{W}{\overline{x_i} \leftarrow \throw{v_c}; s}{\Sigma}{W}{\throw{v_c}}}
 %              {\textsc{Raise}}
@@ -1288,22 +1293,22 @@ The list in square brackets are types which instantiate the type variables respe
 %    \inferrule{ \quad }
 %              { \smallstep{\gamma}{\Sigma}{W}{\try{(\return{\overline{v}})}{x}{s_c}}{\Sigma}{ W}{\return{\overline{v}}}}
 %              { \textsc{Try}_3}
-%    \\    
+%    \\
 %%    \inferrule{\smallstep{\Sigma}{\gamma}{W}{E}{\Sigma'}{\gamma'}{W'}{E'}}
 %%              {\smallstep{\Sigma}{\gamma}{W}{E; s}{\Sigma'}{\gamma}{W'}{E'; s}}
-%%              {\textsc{Seq}_1}          
+%%              {\textsc{Seq}_1}
 %%    \\
 %%    \inferrule{ }
 %%              {\smallstep{\Sigma}{\gamma}{W}{\return{()}; s}{\Sigma}{\gamma}{W}{s}}
-%%              {\textsc{Seq}_2}                                
+%%              {\textsc{Seq}_2}
 %    \inferrule{ \Sigma[\ell] = \record{\overline{x_i = v_i}}}
 %              { \smallstep{\gamma}{\Sigma}{W}{\open{\ell}}{\Sigma}{W}{\return{(\placeholder{\ell},\overline{v_i})}}}
-%              { \textsc{Open}}   
+%              { \textsc{Open}}
 %    \\
 %    \inferrule{ \Sigma' = (\Sigma[\ell] := \record{\overline{x_i = v_i}})}
 %              { \smallstep{\gamma}{\Sigma}{W}{\close{(\placeholder{\ell})}{\overline{x_i = v_i}}}{\Sigma'}{W}{\return{\ell}}}
 %              { \textsc{Close}}
-%    \\    
+%    \\
 %    \inferrule{ \eval{\Sigma}{x_k \mapsto v, \gamma}{s_k}{E}}
 %              { \smallstep{\gamma}{\Sigma}{W}{\case{\variant{\datatag{p}_k, v}}{\overline{\datatag{p}_i\ x_i \mapsto s_i}}}{\Sigma}{W}{\using{x_k \mapsto v}{E}}}
 %              { \textsc{Case}}
@@ -1395,15 +1400,15 @@ The list in square brackets are types which instantiate the type variables respe
 %  \qquad
 %  \inferrule{ \valtype{v}{\unboxed{\primtype{err}}}}
 %            { \valtypeE{\Gamma}{\Sigma}{\throw{v}}{\ME\ \overline{\tau}}}
-%            { \textsc{Raise}}            
+%            { \textsc{Raise}}
 %  \\
 %  \inferrule{ \valtype{v}{\variant{\overline{\datatag{p}_i :: \tau_i}}} \\ \text{for each $i$,}\ \types{x_i : \tau_i, \Gamma'}{s_i}{m\ \overline{\tau}} }
 %            { \valtypeE{\Gamma\Gamma'}{\Sigma}{\case{v}{\overline{\datatag{p}_i\ x_i \rightarrow s_i}}}{m\ \overline{\tau}}}
 %            { \textsc{Case}}
-%  \\                    
+%  \\
 %  \inferrule{ \valtypeE{\Gamma}{\Sigma}{E}{\M\ \overline{\tau_i}}}
 %            { \valtypeE{\Gamma}{\Sigma}{E}{\ME\ \overline{\tau_i}}}
-%            { \textsc{Coerce}}    
+%            { \textsc{Coerce}}
 %  \qquad
 %  \inferrule{ \valtypeS{\overline{v_i}}{\overline{\tau_i}} \\ \valtypeE{\overline{x_i : \tau_i}, \Gamma'}{\Sigma}{E}{m\ \overline{\tau}} }
 %            { \valtypeE{\Gamma\Gamma'}{\Sigma}{\using{\overline{x_i \mapsto v_i}}{E}}{m\ \overline{\tau}} }
@@ -1427,7 +1432,7 @@ The list in square brackets are types which instantiate the type variables respe
 %  \qquad
 %  \inferrule{ \valtypeE{\Gamma, x : \linear{\primtype{t}}, x : \unboxed{\primtype{t}}}{\Sigma}{s}{\tau_m} }
 %            { \valtypeE{\Gamma, x : \linear{\primtype{t}}}{\Sigma}{s}{\tau_m} }
-%            { \textsc{Copy}}                
+%            { \textsc{Copy}}
 %\end{inductive}
 %\subsection{Definitely provable things}
 %\begin{itemize}
@@ -1435,7 +1440,7 @@ The list in square brackets are types which instantiate the type variables respe
 %  \begin{itemize}
 %    \item $ \typing{\Gamma}{e}{\tau}{\Gamma'} \implies \types{\Delta}{e}{\tau}$
 %  \end{itemize}
-%  \item \textbf{Type soundness w.r.t. evaluation}: Let $\gamma$ be an environment $\overline{x_i \mapsto v_i}$. Let $\Gamma$ be a type environment $\overline{x_i : \tau_i}$. We shall use the term that $\Gamma$ \emph{describes} $\gamma$ if $\valtypeS{\overline{v_i}}{\overline{\tau_i}}$. If $\Gamma$ describes $\gamma$ and $\types{\Gamma}{s}{\tau_m}$, then:  
+%  \item \textbf{Type soundness w.r.t. evaluation}: Let $\gamma$ be an environment $\overline{x_i \mapsto v_i}$. Let $\Gamma$ be a type environment $\overline{x_i : \tau_i}$. We shall use the term that $\Gamma$ \emph{describes} $\gamma$ if $\valtypeS{\overline{v_i}}{\overline{\tau_i}}$. If $\Gamma$ describes $\gamma$ and $\types{\Gamma}{s}{\tau_m}$, then:
 %  \begin{itemize}
 %    \item $\eval{\Sigma}{\gamma}{s}{E}$, and
 %    \item $\valtypeE{\Gamma}{\Sigma}{E}{\tau_m}$
@@ -1446,9 +1451,9 @@ The list in square brackets are types which instantiate the type variables respe
 %  \end{itemize}
 %  \item \textbf{Execution progress (value semantics):} If $\Gamma\ \text{describes}\ \gamma$ and $\valtypeE{\Gamma}{\epsilon}{E}{\tau_m}$ then there exists a $W'$ and $E'$ such that $\smallstepV{\gamma}{W}{E}{W'}{E'}$
 %  \item \textbf{Execution progress (update semantics):} If $\Gamma\ \text{describes}\ \gamma$ and $\valtypeE{\Gamma}{\Sigma}{E}{\tau_m}$ then there exists a $\Sigma'$, $W'$ and $E'$ such that $\smallstep{\gamma}{\Sigma}{W}{E}{\Sigma'}{W'}{E'}$.
-%  \item \textbf{Execution preservation (value semantics):} If $\Gamma\ \text{describes}\ \gamma$ and $\valtypeE{\Gamma}{\epsilon}{E}{\tau_m}$ and $\smallstepV{\gamma}{W}{E}{W'}{E'}$ then 
+%  \item \textbf{Execution preservation (value semantics):} If $\Gamma\ \text{describes}\ \gamma$ and $\valtypeE{\Gamma}{\epsilon}{E}{\tau_m}$ and $\smallstepV{\gamma}{W}{E}{W'}{E'}$ then
 %    $\valtypeE{\Gamma}{\epsilon}{E'}{\tau_m}$.
-%  \item \textbf{Execution preservation (update semantics):} If $\Gamma\ \text{describes}\ \gamma$ and $\valtypeE{\Gamma}{\Sigma}{E}{\tau_m}$ and $\smallstep{\gamma}{\Sigma}{W}{E}{\Sigma'}{W'}{E'}$ then $\valtypeE{\Gamma}{\Sigma'}{E'}{\tau_m}$.    
+%  \item \textbf{Execution preservation (update semantics):} If $\Gamma\ \text{describes}\ \gamma$ and $\valtypeE{\Gamma}{\Sigma}{E}{\tau_m}$ and $\smallstep{\gamma}{\Sigma}{W}{E}{\Sigma'}{W'}{E'}$ then $\valtypeE{\Gamma}{\Sigma'}{E'}{\tau_m}$.
 %\end{itemize}
 %
 %\subsection{Braindead speculation}
@@ -1460,15 +1465,15 @@ The list in square brackets are types which instantiate the type variables respe
 %  \end{itemize}
 %  \item Update semantics properties. Not sure these would be necessary to relate the two semantics, as they're stronger statements (\emph{all} data, not just data I'm accessing right now). Still, it'd be nice to generate proofs of this, because it shows that the C is not only correct with respect to its results but also in terms of memory management (in particular, freeing stuff).
 %  \begin{itemize}
-%    \item All allocated data is reachable. Reachable is defined inductively as: mentioned in the environment, an expression, or from a value that is itself reachable. Would have to demand proofs of this from abstract functions. 
-%    \item All reachable data is allocated. No invalid pointers. 
+%    \item All allocated data is reachable. Reachable is defined inductively as: mentioned in the environment, an expression, or from a value that is itself reachable. Would have to demand proofs of this from abstract functions.
+%    \item All reachable data is allocated. No invalid pointers.
 %    \item No linear-typed value is reachable in more than one way.
 %  \end{itemize}
 %  \item Relating the two semantics:
 %  \begin{itemize}
 %    \item Firstly we'll need some value relation that says that some $(\Sigma, v_u) \sim v_v$ where $v_u$ is a value in the update semantics, and $v_v$ is a value in the value semantics. Broadly this will mean that they are equivalent in some sense. This could be broadened easily to whole environments, as well as $E$'s, because they are little more than structure around a bunch of values.
 %    \item Show that one step of execution in both semantics preserves all of these relations.
-%    \item Show that state typing implies all of these relations in both semantics (assuming wellformed and matching environments). 
+%    \item Show that state typing implies all of these relations in both semantics (assuming wellformed and matching environments).
 %    \item Show that the outside-worlds are also equivalent/equal as evaluation progresses.
 %    \item Equivalence proof done :D
 %  \end{itemize}
@@ -1498,7 +1503,7 @@ The list in square brackets are types which instantiate the type variables respe
 %\begin{grammar}
 %ME \tau = M (!Either \tau  (Error, linearC \tau))
 %\end{grammar}
-%where 
+%where
 %\begin{grammar}
 %linearC (\linear{\tau}) = \tau \\
 %linearC (\linearAlloc{\tau}) = \{\} \\
@@ -1516,14 +1521,14 @@ The list in square brackets are types which instantiate the type variables respe
 %\end{alltt}
 %
 %\begin{alltt}
-%simpleobj_example (so : A.SimpleObj) : ME A.SimpleObj 
+%simpleobj_example (so : A.SimpleObj) : ME A.SimpleObj
 %= { buf          <- buf_create(42)
 %  ; buf, so      <- simpleobj_serialise(buf,so,0)
 %  ; so2          <- simpleobj_new('_',0)
 %  ; buf, so2     <- simpleobj_unserialise(buf, so2, 0)
 %  ; so' , a1, b1 <- open so
 %  ; so2', a2, b2 <- open so2
-%  ; raiseErr not(a1 == a2 && b1 == b2) 
+%  ; raiseErr not(a1 == a2 && b1 == b2)
 %     { free (so2)
 %     ; free (buff)
 %     ; return ()
