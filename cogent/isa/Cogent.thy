@@ -1098,7 +1098,7 @@ shows "\<Xi> , K , \<Gamma> \<turnstile>  e  : \<tau>  \<Longrightarrow> \<Xi> ,
 and   "\<Xi> , K , \<Gamma> \<turnstile>* es : \<tau>s \<Longrightarrow> \<Xi> , K' , instantiate_ctx \<delta> \<Gamma> \<turnstile>* map (specialise \<delta>) es : map (instantiate \<delta>) \<tau>s"
   using assms
 proof (induct rule: typing_typing_all.inducts)
-next case (typing_case K \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> x ts tag t a u b)
+  case (typing_case K \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> x ts tag t a u b)
   then have "\<Xi>, K', instantiate_ctx \<delta> \<Gamma> \<turnstile> Case (specialise \<delta> x) tag (specialise \<delta> a) (specialise \<delta> b) : instantiate \<delta> u"
     using image_iff
       filter_fst_ignore_triple[where ls=ts and f="\<lambda>(t,b). (instantiate \<delta> t, b)" and P="\<lambda>p. p \<noteq> tag"]
@@ -1141,6 +1141,8 @@ next
         by blast
     qed
   qed simp+
+  then show ?case
+    by simp
 next
   case (typing_esac \<Xi> K \<Gamma> x ts uu t)
   then show ?case
