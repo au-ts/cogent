@@ -49,8 +49,10 @@ import Control.Monad.Except hiding (fmap, forM_)
 import Control.Monad.Extra (allM)
 import Control.Monad.Reader hiding (fmap, forM_)
 import Control.Monad.State hiding (fmap, forM_)
+import Control.Monad.Trans.Maybe
 -- import Data.Data hiding (Refl)
 import Data.Foldable (forM_)
+import Data.Function.Flippers
 #if __GLASGOW_HASKELL__ < 709
 import Data.Traversable(traverse)
 #endif
@@ -74,58 +76,53 @@ guardShow' mh mb b = if b then return () else TC (throwError $ "GUARD: " ++ mh +
 -- ----------------------------------------------------------------------------
 -- Type reconstruction
 
--- FIXME: This section deserves a rework!! Too messy.
-
--- !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
--- start dirty section
-
 -- Types that don't have the same representation / don't satisfy subtyping.
 isUpcastable :: Type t -> Type t -> TC t v Bool
 isUpcastable (TPrim p1) (TPrim p2) = return $ isSubtypePrim p1 p2
 isUpcastable (TSum s1) (TSum s2) = do
-  c1 <- flip allM s1 (\(c,(t,b)) -> case lookup c s2 of Nothing -> return False; Just (t',b') -> (&&) <$> t `isSubtype` t' <*> pure (b == b'))
+  c1 <- flip allM s1 (\(c,(t,b)) -> case lookup c s2 of
+          Nothing -> return False
+          Just (t',b') -> (&&) <$> t `isSubtype` t' <*> pure (b == b'))
   c2 <- flip allM s2 (\(c,(t,b)) -> return $ case lookup c s1 of Nothing -> b; Just _ -> True)  -- other tags are all taken
   return $ c1 && c2
 isUpcastable _ _ = return False
 
 isSubtype :: Type t -> Type t -> TC t v Bool
--- isSubtype (TPrim p1) (TPrim p2) = isSubtypePrim p1 p2
-isSubtype (TSum s1) (TSum s2) = and <$> zipWithM (\(c1,(t1,b1)) (c2,(t2,b2)) -> ((c1 == c2 && b1 >= b2) &&) <$> t1 `isSubtype` t2) s1 s2  -- True > False
-isSubtype (TRecord r1) (TRecord r2) =
-  and <$> zipWithM (\(f1,(t1,b1)) (f2,(t2,b2)) -> do c1 <- return (f1 == f2)
-                                                     c2 <- t1 `isSubtype` t2
-                                                     c3 <- (kindcheck t1 >>= \k -> return $ (k /= k1 && b1 <= b2) || b1 == b2)
-                                                     return (and [c1,c2,c3])) r1 r2
-isSubtype (TArray t1 l1) (TArray t2 l2) = (&&) <$> t1 `isSubtype` t2  <*> pure (l1 == l2)  -- (checkUExpr_B $ E $ Op Eq [l1, l2])
-isSubtype (TPtr t1 r1 s1) (TPtr t2 r2 s2) = (&&) <$> isSubtype t1 t2 <*> pure (s1 == s2 && r1 == r2)
-isSubtype a b = return $ a == b
+isSubtype t1 t2 = runMaybeT (t1 `lub` t2) >>= \case Just t  -> return $ t == t2
+                                                    Nothing -> return False
 
--- NOTE: have to check if the resulting type is a supertype of two inputs / zilinc
-lub :: Type t -> Type t -> Type t
-lub t1@(TSum s1) t2@(TSum s2) = 
-  let m1 = M.fromList s1
-      m2 = M.fromList s2
-      s = M.unionWithKey (\c (t1,b1) (t2,b2) -> if b1 /= b2 then (t1 `lub` t2, False) else (t1 `lub` t2, b1)) m1 m2
-   in TSum $ M.toList s
-lub (TProduct t11 t12) (TProduct t21 t22) = TProduct (t11 `lub` t21) (t12 `lub` t22)
-lub (TFun t1 s1) (TFun t2 s2) = TFun (t1 `glb` t2) (s1 `lub` s2)
-lub (TRecord ts1) (TRecord ts2) = TRecord (zipWith (\(f1,(t1,b1)) (f2,(t2,b2)) -> (f1,(t1 `lub` t2, b1))) ts1 ts2)
-lub (TCon c1 ts1) (TCon c2 ts2) = TCon c1 (zipWith (\t1 t2 -> t1) ts1 ts2)
-lub (TArray t1 l1) (TArray t2 l2) = TArray (lub t1 t2) l1
-lub (TPtr t1 r1 s1) (TPtr t2 r2 s2) = TPtr (lub t1 t2) r1 s1
-lub t1 t2 = t1
+bound :: Bound -> Type t -> Type t -> MaybeT (TC t v) (Type t)
+bound _ t1 t2 | t1 == t2 = return t1
+bound b (TRecord s1) (TRecord s2) | map fst s2 == map fst s2 = do
+  let op = case b of LUB -> (||); GLB -> (&&)
+  s <- flip3 zipWithM s2 s1 $ \(f1,(t1,b1)) (_, (t2,b2)) -> do
+    t <- bound b t1 t2
+    k <- lift $ kindcheck t
+    if k == k1 then
+      if b1 /= b2 then fail "" else return (f1, (t, b1))
+    else return (f1, (t, b1 `op` b2))
+  return $ TRecord s
+bound b (TSum s1) (TSum s2) | s1' <- M.fromList s1, s2' <- M.fromList s2, M.keys s1' == M.keys s2' = do
+  let op = case b of LUB -> (&&); GLB -> (||)
+  s <- flip3 unionWithKeyM s2' s1' $ \k (t1,b1) (t2,b2) -> (,) <$> bound b t1 t2 <*> pure (b1 `op` b2)
+  return $ TSum $ M.toList s
+bound b (TProduct t11 t12) (TProduct t21 t22) = TProduct <$> bound b t11 t21 <*> bound b t12 t22
+bound b (TCon c1 t1) (TCon c2 t2) | c1 == c2 = TCon c1 <$> zipWithM (bound b) t1 t2
+bound b (TFun t1 s1) (TFun t2 s2) = TFun <$> bound (theOtherB b) t1 t2 <*> bound b s1 s2
+bound b (TArray t1 l1) (TArray t2 l2) | l1 == l2 = TArray <$> bound b t1 t2 <*> pure l1
+bound b (TPtr t1 r1 s1) (TPtr t2 r2 s2) | r1 == r2, s1 == s2 = TPtr <$> bound b t1 t2 <*> pure r1 <*> pure s1
+bound _ _ _ = fail ""  -- not comparable
 
-glb :: Type t -> Type t -> Type t
-glb t1 t2 = t1  -- FIXME: it seems only used by contra-variance, namely function arguments. / zilinc
+lub :: Type t -> Type t -> MaybeT (TC t v) (Type t)
+lub = bound LUB
+
+glb :: Type t -> Type t -> MaybeT (TC t v) (Type t)
+glb = bound GLB
 
 -- checkUExpr_B :: UntypedExpr -> TC t v Bool
 -- checkUExpr_B (E (Op op [e])) = return True
 -- checkUExpr_B (E (Op op [e1,e2])) = return True
 -- checkUExpr_B _ = return True
-
-
--- end dirty section
--- !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
 bang :: Type t -> Type t
@@ -301,16 +298,16 @@ typecheck (E (ALit [])) = __impossible "We don't allow 0-size array literals"
 typecheck (E (ALit es))
    = do es' <- mapM typecheck es
         let ts = map exprType es'
-            t = lubAll ts
             n = fromIntegral $ length es
+        t <- lubAll ts
         isSub <- allM (`isSubtype` t) ts
         return (TE (TArray t n) (ALit es'))
   where
-    lubAll :: [Type t] -> Type t
+    lubAll :: [Type t] -> TC t v (Type t)
     lubAll [] = __impossible "lubAll: empty list"
-    lubAll [t] = t
-    lubAll (t1:t2:ts) = let t = lub t1 t2
-                         in lubAll (t:ts)
+    lubAll [t] = return t
+    lubAll (t1:t2:ts) = do Just t <- runMaybeT $ lub t1 t2
+                           lubAll (t:ts)
 typecheck (E (ArrayIndex arr idx))
    = do arr'@(TE ta _) <- typecheck arr
         let TArray te l = ta
@@ -376,7 +373,7 @@ typecheck (E (If ec et ee))
         (et', ee') <- (,) <$> typecheck et <||> typecheck ee  -- have to use applicative functor, as they share the same initial env
         let tt = exprType et'
             te = exprType ee'
-            tlub = tt `lub` te
+        Just tlub <- runMaybeT $ tt `lub` te
         isSub <- (&&) <$> tt `isSubtype` tlub <*> te `isSubtype` tlub
         guardShow' "if-2" ["Then type:", show (pretty tt) ++ ";", "else type:", show (pretty te)] isSub
         let et'' = if tt /= tlub then TE tlub (Promote tlub et') else et'
@@ -391,7 +388,7 @@ typecheck (E (Case e tag (lt,at,et) (le,ae,ee)))
                          <||> withBinding restt (typecheck ee)
         let tt = exprType et'
             te = exprType ee'
-            tlub = tt `lub` te
+        Just tlub <- runMaybeT $ tt `lub` te
         isSub <- (&&) <$> tt `isSubtype` tlub <*> te `isSubtype` tlub
         guardShow' "case" ["Match type:", show (pretty tt) ++ ";", "rest type:", show (pretty te)] isSub
         let et'' = if tt /= tlub then TE tlub (Promote tlub et') else et'

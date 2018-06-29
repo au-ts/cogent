@@ -216,7 +216,7 @@ nubByM :: (Monad m) => (a -> a -> m Bool) -> [a] -> m [a]
 nubByM f [] = return []
 nubByM f (x:xs) = liftM (x:) $ filterM (return . not <=< f x) xs >>= nubByM f
 
--- borrowed from The definitive-base package <http://hackage.haskell.org/package/definitive-base-2.3>
+-- borrowed from the definitive-base package <http://hackage.haskell.org/package/definitive-base-2.3>
 (<*=) :: Monad m => m a -> (a -> m b) -> m a
 a <*= f = a >>= ((>>) <$> f <*> return)
 
@@ -236,6 +236,17 @@ mapAccumLM f a (x:xs) = do
     (a',c) <- f a x
     fmap (c:) <$> mapAccumLM f a' xs
 mapAccumLM f a [] = pure (a, []) 
+
+-- adapted from <http://hackage.haskell.org/package/hydrogen-0.3.0.0/docs/src/H-Util.html#unionWithM>
+unionWithKeyM :: (Ord k, Monad m) => (k -> a -> a -> m a) -> M.Map k a -> M.Map k a -> m (M.Map k a)
+unionWithKeyM f m1 m2 =
+  liftM M.fromList
+    . sequence
+    . fmap (\(k, v) -> liftM (k,) v)
+    . M.toList
+    $ M.unionWithKey f' (M.map return m1) (M.map return m2)
+  where
+    f' k mx my = mx >>= \x -> my >>= \y -> f k x y
 
 -- stdoutPath = "/dev/stdout"
 -- nullPath = "/dev/null"
@@ -286,3 +297,11 @@ u8MAX  = 256
 u16MAX = 65535
 u32MAX = 4294967296
 
+data Bound = GLB | LUB deriving (Eq, Ord)
+
+instance Show Bound where
+  show GLB = "lower bound"
+  show LUB = "upper bound"
+
+theOtherB GLB = LUB
+theOtherB LUB = GLB

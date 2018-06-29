@@ -180,15 +180,6 @@ warnToConstraint :: Bool -> TypeWarning -> Constraint
 warnToConstraint f w | f = SemiSat w
                      | otherwise = Sat
 
-
-data Bound = GLB | LUB deriving (Eq, Ord)
-
-instance Show Bound where
-  show GLB = "lower bound"
-  show LUB = "upper bound"
-
-
-
 -- -----------------------------------------------------------------------------
 -- Types for constraint generation and solving
 -- -----------------------------------------------------------------------------

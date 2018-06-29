@@ -35,7 +35,7 @@ import           Cogent.TypeCheck.Subst (Subst(..))
 import           Cogent.TypeCheck.Util
 import           Cogent.TypeCheck.GoalSet (Goal(..), goal, goalContext, GoalSet)
 import qualified Cogent.TypeCheck.GoalSet as GS
-import           Cogent.Util (u32MAX)
+import           Cogent.Util (u32MAX, Bound(..))
 
 import           Control.Applicative
 import           Control.Arrow (first, second)
