@@ -575,13 +575,55 @@ next case v_sem_afun    then show ?case by ( case_tac e, simp_all
                                            , fastforce intro: v_t_afun_instantiate)
 next case v_sem_fun     then show ?case by ( case_tac e, simp_all
                                            , fastforce intro: v_t_function_instantiate)
-next case v_sem_con     then show ?case
-    sorry
-(*    by ( case_tac e, simp_all
-                                           , fastforce intro: vval_typing_vval_typing_record.intros
-                                                       dest:  substitutivity)
-*)
-next case v_sem_promote then show ?case
+next case (v_sem_con \<xi> \<gamma> x x' uu tag)
+  then show ?case
+  proof (case_tac e, simp_all, clarsimp)
+    fix x1 x3
+    assume e_is: "e = Con x1 tag x3"
+      and uu_is: "uu = map (\<lambda>(c, t). (c, instantiate \<tau>s t)) x1"
+      and x_is: "x = specialise \<tau>s x3"
+      (* recover the information we get from knowing this is a typing_con *)
+    moreover then obtain ts :: "(name \<times> type) list"
+      and ts' \<tau>3
+      where \<tau>_is          : "\<tau> = TSum ts'"
+        and type_x3       : "\<Xi>, K, \<Gamma> \<turnstile> x3 : \<tau>3"
+        and \<tau>3_in_ts      : "(tag, \<tau>3) \<in> set ts"
+        and ts_wellformed : "K \<turnstile>* (map snd ts) wellformed"
+        and distinct_ts   : "distinct (map fst ts)"
+        and ts'_from_ts   : "ts' = map (\<lambda>(c,t). (c, t, c \<noteq> tag)) ts"
+      using v_sem_con.prems type_wellformed_all_def
+      by blast
+    moreover then have ts'_wellformed: "K \<turnstile>* (map (fst \<circ> snd) ts') wellformed"
+      by (simp add: comp_fst_tuple_lambda assoc_comp_snd_tuple_lambda,
+          metis (mono_tags, lifting) case_prod_beta map_eq_conv)
+    ultimately show "\<Xi> \<turnstile> VSum tag x' :v instantiate \<tau>s \<tau>"
+      using v_sem_con
+    proof (clarsimp, intro v_t_sum)
+      show "\<Xi> \<turnstile> x' :v instantiate \<tau>s \<tau>3"
+        using type_x3 v_sem_con.prems ts'_from_ts \<tau>3_in_ts image_iff
+        using x_is v_sem_con.hyps(2) by force
+    next
+      show "(tag, instantiate \<tau>s \<tau>3, False) \<in> set (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) \<circ> (\<lambda>(c, t). (c, t, c \<noteq> tag))) ts)"
+        using ts'_from_ts \<tau>3_in_ts
+        using image_iff by fastforce
+    next
+      from distinct_ts
+      have "distinct (map ((fst \<circ> (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) \<circ> (\<lambda>(c, t). (c, t, c \<noteq> tag))) ts)"
+        by (metis (mono_tags, lifting)  case_prod_beta comp_apply fst_conv map_eq_conv)
+      then show "distinct (map fst (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) \<circ> (\<lambda>(c, t). (c, t, c \<noteq> tag))) ts))"
+        by (simp add: comp_assoc)
+    next
+      from ts'_wellformed
+      have "[] \<turnstile>* map (instantiate \<tau>s \<circ> fst \<circ> snd) ts' wellformed"
+        by (metis (no_types, lifting) map_map substitutivity(2) type_wellformed_all_def v_sem_con.prems(2))
+      then have "[] \<turnstile>* map (fst \<circ> snd \<circ> (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) ts' wellformed"
+        by (simp only: comp_assoc map_fst3_app2[symmetric])
+      then show "[] \<turnstile>* map (fst \<circ> snd) (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) \<circ> (\<lambda>(c, t). (c, t, c \<noteq> tag))) ts) wellformed"
+        by (simp add: ts'_from_ts comp_assoc)
+    qed
+  qed
+next case v_sem_promote
+  then show ?case
     sorry
 (*
     by ( case_tac e, simp_all

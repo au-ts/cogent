@@ -43,6 +43,21 @@ lemma map_snd3_ignore3[simp]:
 shows "map (fst \<circ> snd \<circ> (\<lambda> (a, b, c). (a, b, f c))) l = map (fst \<circ> snd) l"
   by (induct l, auto)
 
+
+(* making these simp makes the final force on specalise take forever? / v.jackson *)
+lemma comp_fst_tuple_lambda: "fst \<circ> (\<lambda>(a,b). (f a b, g a b)) = (\<lambda>(a,b). f a b)"
+  by force
+
+lemma comp_snd_tuple_lambda: "snd \<circ> (\<lambda>(a,b). (f a b, g a b)) = (\<lambda>(a,b). g a b)"
+  by force
+
+lemma assoc_comp_fst_tuple_lambda: "h \<circ> fst \<circ> (\<lambda>(a,b). (f a b, g a b)) = h \<circ> (\<lambda>(a,b). f a b)"
+  by force
+
+lemma assoc_comp_snd_tuple_lambda: "h \<circ> snd \<circ> (\<lambda>(a,b). (f a b, g a b)) = h \<circ> (\<lambda>(a,b). g a b)"
+  by force
+
+
 lemma map_fst_update:
 assumes "ts ! f = (t, x)"
 and     "f < length ts"
