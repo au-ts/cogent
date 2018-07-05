@@ -72,24 +72,17 @@ shows "map (\<lambda> (a , b). (f a, g b)) (zip as bs) = zip (map f as) (map g b
 by (induct as arbitrary:bs, simp, case_tac bs, simp_all)
 
 lemma distinct_fst:
-assumes "distinct (map fst ls)"
-and     "(a, b) \<in> set ls"
-and     "(a, b') \<in> set ls"
+assumes "distinct (map fst xs)"
+and     "(a, b) \<in> set xs"
+and     "(a, b') \<in> set xs"
 shows   "b = b'"
-using assms
-  apply (clarsimp simp: set_conv_nth distinct_conv_nth)
-  apply (drule_tac x = i in spec, simp)
-  apply (drule_tac x = ia in spec, simp)
-  apply (case_tac "ls ! i")
-  apply (case_tac "ls ! ia")
-  apply (auto)
-done
+  using assms image_iff
+  by (induct xs, fastforce+)
 
 lemma set_subset_map:
 assumes "set a \<subseteq> set b"
 shows   "set (map f a) \<subseteq> set (map f b)"
 using assms by auto
-
 
 lemma prod_in_set:
 assumes "(a, b) \<in> set l"
@@ -97,14 +90,28 @@ shows   "a \<in> set (map fst l)"
 and     "b \<in> set (map snd l)"
 using assms by (force intro: imageI)+ 
 
+lemma list_all2_update_second:
+  assumes "list_all2 f xs (ys[i := a])"
+      and "f (xs ! i) a \<Longrightarrow> f (xs ! i) b"
+    shows "list_all2 f xs (ys[i := b])"
+  using assms
+  by (clarsimp simp add: list_all2_conv_all_nth, metis nth_list_update_eq nth_list_update_neq)
+
+
+
 lemma filter_fst_ignore_tuple:
 shows "filter (\<lambda>x. P (fst x)) (map (\<lambda>(a,b). (a, f b)) ls)
      = map (\<lambda>(a,b). (a, f b)) (filter (\<lambda>x. P (fst x)) ls)"
-by (induct_tac ls, auto)
+  by (induct_tac ls, auto)
 
 lemma filter_fst_ignore_triple:
-shows "filter (\<lambda>x. P (fst x)) (map (\<lambda>(a,b,c). (a, f (b,c))) ls)
-     = map (\<lambda>(a,b,c). (a, f (b,c))) (filter (\<lambda>x. P (fst x)) ls)"
+shows "filter (\<lambda>x. P (fst x)) (map (\<lambda>(a,b,c). (a, f b, c)) ls)
+     = map (\<lambda>(a,b,c). (a, f b, c)) (filter (\<lambda>x. P (fst x)) ls)"
+  by (induct_tac ls, auto)
+
+lemma filter_fst_ignore_app2:
+shows "filter (\<lambda>x. P (fst x)) (map (\<lambda>(a,b,c). (a,f b,c)) ls)
+     = map (\<lambda>(a,b,c). (a,f b,c)) (filter (\<lambda>x. P (fst x)) ls)"
 by (induct_tac ls, auto)
 
 lemma filter_map_map_filter_thd3_app2:
@@ -114,6 +121,49 @@ lemma filter_map_map_filter_thd3_app2:
 lemma filtered_member: "[a] = filter f x \<Longrightarrow> a \<in> set x"
   apply (induction x)
   by (auto split: if_splits)
+
+
+(* lemmas which are useful for TSum *)
+
+abbreviation map_pairs :: "('a \<rightharpoonup> 'b) \<Rightarrow> ('a \<times> 'b) set" where
+  "map_pairs m \<equiv> { z. m (fst z) = Some (snd z)}"
+
+lemma map_pairs_map_of_set:
+  assumes distinct_fst_xs: "distinct (map fst xs)"
+  shows "map_pairs (map_of xs) = set xs"
+  using assms
+proof (induct xs)
+  case Nil
+  then show ?case by simp
+next
+  case (Cons x xs)
+  moreover then have "{z. ((fst z = fst x \<longrightarrow> snd x = snd z) \<and> (fst z \<noteq> fst x \<longrightarrow> map_of xs (fst z) = Some (snd z)))}
+      = insert x ({z. fst z \<noteq> fst x} \<inter> set xs)"
+    by force
+  moreover have "set xs \<subseteq> {z. fst z \<noteq> fst x}"
+    using Cons.prems prod_in_set(1) by force
+  ultimately show ?case
+    by (clarsimp, blast)
+qed
+
+(* NOTE maybe we could just use maps in the type???
+        There are some disadvantages to this approach, namely loosing finiteness,
+        and thus the ability to search the values. *)
+lemma append_filter_fst_eqiv_map_update:
+  assumes "set xs = map_pairs (map_of xs)"
+    shows "(set ((fst z, f z) # [x\<leftarrow>xs. fst x \<noteq> fst z])) = (map_pairs ((map_of xs) (fst z \<mapsto> f z)))"
+  using assms
+  apply clarsimp
+  apply (subst insert_def)
+  apply (subst Collect_disj_eq[symmetric])
+  apply force
+  done
+
+
+
+
+
+
 
 section {* Terms and Types of Cogent *}
 
@@ -616,6 +666,7 @@ inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Right
                       ; \<Xi>, K, \<Gamma>2 \<turnstile>* es : ts
                       \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile>* (e # es) : (t # ts)"
 
+
 inductive_cases typing_num     [elim]: "\<Xi>, K, \<Gamma> \<turnstile> e : TPrim (Num \<tau>)"
 inductive_cases typing_bool    [elim]: "\<Xi>, K, \<Gamma> \<turnstile> e : TPrim Bool"
 inductive_cases typing_varE    [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Var i : \<tau>"
@@ -704,6 +755,7 @@ fun type_repr :: "type \<Rightarrow> repr" where
 | "type_repr (TRecord ts Unboxed) = RRecord (map (\<lambda>a. type_repr (fst a)) ts)"  
 | "type_repr (TRecord ts _)       = RPtr (RRecord (map (\<lambda>a. type_repr (fst a)) ts))"
 | "type_repr (TUnit)              = RUnit"
+
 
 section {* Kinding lemmas *}
 
@@ -1031,11 +1083,44 @@ lemma empty_length:
 shows "length (empty n) = n"
 by (induct n, simp_all add: empty_def)
 
+lemma split_length:
+  assumes "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+  shows "length \<Gamma> = length \<Gamma>1"
+    and "length \<Gamma> = length \<Gamma>2"
+  using assms
+  by (induct rule: split.inducts, force+)
+
+lemma split_preservation_some:
+  assumes splits: "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+    and idx: "\<Gamma>1 ! i = Some t \<or> \<Gamma>2 ! i = Some t"
+  shows "\<Gamma> ! i  = Some t"
+  using assms
+proof (induct arbitrary: i rule: split.induct)
+  case (split_empty K)
+  then show ?case
+    by blast
+next
+  case (split_cons K x a b xs as bs)
+  moreover have "a = Some t \<or> b = Some t \<Longrightarrow> x = Some t"
+    using split_cons.hyps(1)
+    by (fastforce elim: split_comp.cases)
+  ultimately show ?case
+    by (metis nth_non_equal_first_eq)
+qed
+
+lemma split_preserves_none:
+  assumes splits: "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+    and idx: "\<Gamma> ! i  = None"
+  shows "\<Gamma>1 ! i = None"
+    and "\<Gamma>2 ! i = None"
+  using assms
+  by (induct arbitrary: i rule: split.induct, (fastforce simp add: nth_Cons' elim: split_comp.cases)+)
+
 lemma weakening_length:
 shows "K \<turnstile> \<Gamma> \<leadsto>w \<Gamma>' \<Longrightarrow> length \<Gamma> = length \<Gamma>'"
 by (auto simp: weakening_def dest:list_all2_lengthD)
 
-lemma weakening_preservation:
+lemma weakening_preservation_some:
 assumes weak: "K \<turnstile> \<Gamma> \<leadsto>w \<Gamma>'"
 and     idx:  "\<Gamma>' ! x = Some t"
 shows   "\<Gamma>  ! x = Some t"
@@ -1045,7 +1130,19 @@ using weak[simplified weakening_def]
   proof (induct arbitrary: x rule: list_all2_induct)
      case Nil                then show ?case by auto
 next case (Cons x xs y ys a) then show ?case by (case_tac a, auto elim: weakening_comp.cases)
-qed           
+qed
+
+lemma weakening_preserves_none:
+assumes weak: "K \<turnstile> \<Gamma> \<leadsto>w \<Gamma>'"
+and     idx:  "\<Gamma>  ! x = None"
+shows   "\<Gamma>' ! x = None"
+using weak[simplified weakening_def]
+  and weakening_length[OF weak] 
+  and idx
+  proof (induct arbitrary: x rule: list_all2_induct)
+     case Nil                then show ?case by auto
+next case (Cons x xs y ys a) then show ?case by (case_tac a, auto elim: weakening_comp.cases)
+qed
 
 lemma weakening_nth:
 assumes weak: "K \<turnstile> \<Gamma> \<leadsto>w \<Gamma>'"
@@ -1058,7 +1155,7 @@ lemma typing_to_kinding :
 shows "\<Xi>, K, \<Gamma> \<turnstile>  e  : t  \<Longrightarrow> K \<turnstile>  t  wellformed" 
 and   "\<Xi>, K, \<Gamma> \<turnstile>* es : ts \<Longrightarrow> K \<turnstile>* ts wellformed"
 proof (induct rule: typing_typing_all.inducts)
-     case typing_var    then show ?case by (fastforce dest: weakening_preservation weakening_nth
+     case typing_var    then show ?case by (fastforce dest: weakening_preservation_some weakening_nth
                                                       simp: empty_length 
                                                       elim: weakening_comp.cases)
 next case typing_fun    then show ?case by (fastforce intro: kinding_kinding_all_kinding_record.intros 
@@ -1116,7 +1213,7 @@ proof (induct rule: typing_typing_all.inducts)
   case (typing_case K \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> x ts tag t a u b)
   then have "\<Xi>, K', instantiate_ctx \<delta> \<Gamma> \<turnstile> Case (specialise \<delta> x) tag (specialise \<delta> a) (specialise \<delta> b) : instantiate \<delta> u"
     using image_iff
-      filter_fst_ignore_triple[where ls=ts and f="\<lambda>(t,b). (instantiate \<delta> t, b)" and P="\<lambda>p. p \<noteq> tag"]
+      filter_fst_ignore_app2[where ls=ts and f="instantiate \<delta>" and P="\<lambda>p. p \<noteq> tag"]
   proof (intro typing_typing_all.typing_case)
     show "(tag, instantiate \<delta> t, False) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts)"
       using typing_case.hyps(4) image_iff by fastforce
