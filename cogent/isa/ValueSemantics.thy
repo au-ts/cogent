@@ -152,8 +152,8 @@ and vval_typing_record :: "('f \<Rightarrow> poly_type) \<Rightarrow> ('f, 'a) v
                   ; \<Xi> \<turnstile> b :v u 
                   \<rbrakk> \<Longrightarrow> \<Xi> \<turnstile> VProduct a b :v TProduct t u"
 
-| v_t_sum      : "\<lbrakk> \<Xi> \<turnstile> a :v t 
-                  ; (g, t, b) \<in> set ts 
+| v_t_sum      : "\<lbrakk> \<Xi> \<turnstile> a :v t
+                  ; (g, t, False) \<in> set ts
                   ; distinct (map fst ts)
                   ; [] \<turnstile>* map (fst \<circ> snd) ts wellformed
                   \<rbrakk> \<Longrightarrow> \<Xi> \<turnstile> VSum g a :v TSum ts"
@@ -701,11 +701,40 @@ next case (v_sem_case_nm \<xi> \<gamma> x tag' v tag n n' m)
                                         done (* TODO proper automation *)
 *)
 next case (v_sem_esac \<xi> \<gamma> t tag v)
-  then show ?case sorry
-(*
-    by ( case_tac e, simp_all
-                                           , fastforce)
-*)
+  from v_sem_esac.hyps(3)
+  show ?case
+  proof (case_tac e, simp_all)
+    fix x
+    assume e_is: "e = Esac x"
+       and t_is: "t = specialise \<tau>s x"
+    then have "\<Xi>, K, \<Gamma> \<turnstile> Esac x : \<tau>"
+      using v_sem_esac.prems
+      by simp
+    then obtain ts' tag' where x_typing: "\<Xi>, K, \<Gamma> \<turnstile> x : TSum ts'"
+                           and one_left: "[(tag', \<tau>, False)] = filter (HOL.Not \<circ> snd \<circ> snd) ts'"
+      by blast
+
+    have "\<Xi> \<turnstile> VSum tag v :v instantiate \<tau>s (TSum ts')"
+      using t_is v_sem_esac.hyps(2) v_sem_esac.prems x_typing
+      by blast
+    then obtain \<tau>' k where v_vval_typing: "\<Xi> \<turnstile> v :v instantiate \<tau>s \<tau>'"
+                       and instantiated_\<tau>'_in_ts': "(tag, instantiate \<tau>s \<tau>', False) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts')"
+                       and distinct_fst_ts': "distinct (map fst ts')"
+                       and instantiate_ts'_wellformed: "[] \<turnstile>* map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts') :\<kappa> k"
+      by force
+
+    have "\<And>tag \<tau>. (tag, \<tau>, False) \<in> set ts' \<Longrightarrow> tag = tag'"
+      by (metis bex_empty filter_set list.set(1) member_filter o_apply one_left prod.inject set_ConsD snd_conv)
+    then have "tag = tag'"
+      using instantiated_\<tau>'_in_ts'
+      by force
+    then have "instantiate \<tau>s \<tau>' = instantiate \<tau>s \<tau>"
+      using distinct_fst_ts' one_left instantiated_\<tau>'_in_ts' distinct_fst filtered_member
+      by fastforce
+    then show "\<Xi> \<turnstile> v :v instantiate \<tau>s \<tau>"
+      using v_vval_typing
+      by force
+  qed
 next case v_sem_let     then show ?case by ( case_tac e, simp_all
                                            , fastforce dest:   matches_split
                                                        intro!: matches_cons [simplified])
