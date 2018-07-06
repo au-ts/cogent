@@ -690,16 +690,58 @@ next case v_sem_case_m  then show ?case by ( case_tac e, simp_all
                                                               matches_cons [simplified]
                                                        dest:  distinct_fst)
 next case (v_sem_case_nm \<xi> \<gamma> x tag' v tag n n' m)
-  then show ?case sorry
-(*
-                                        apply (fastforce dest:  matches_split2 
-                                                           elim!: typing_caseE
-                                                           intro!: matches_cons [ where \<tau> = "TSum ts" for ts
-                                                                                , simplified]
-                                                                   sum_downcast 
-                                                           simp: filter_fst_ignore_tuple [ symmetric, where P = "\<lambda>x. x \<noteq> t" for t ])
-                                        done (* TODO proper automation *)
-*)
+  from v_sem_case_nm.hyps(6)
+  show ?case
+  proof (case_tac e, simp_all, clarsimp)
+    fix x1 x3 x4
+    assume e_is: "e = Case x1 tag x3 x4"
+      and x_is: "x = specialise \<tau>s x1"
+      and m_is: "m = specialise \<tau>s x3"
+      and n_is: "n = specialise \<tau>s x4"
+
+    then obtain \<Gamma>1 \<Gamma>2 ts ta where split\<Gamma>: "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+      and typing_x1: "\<Xi>, K, \<Gamma>1 \<turnstile> x1 : TSum ts"
+      and ta_in_ts: "(tag, ta, False) \<in> set ts"
+      and typing_x3: "\<Xi>, K, Some ta # \<Gamma>2 \<turnstile> x3 : \<tau>"
+      and typing_x4: "\<Xi>, K, Some (TSum ((tag, ta, True) # [x\<leftarrow>ts . fst x \<noteq> tag])) # \<Gamma>2 \<turnstile> x4 : \<tau>"
+      using v_sem_case_nm.prems
+      by fastforce
+
+    from split\<Gamma>
+    have \<gamma>_matches_\<Gamma>1: "\<Xi> \<turnstile> \<gamma> matches instantiate_ctx \<tau>s \<Gamma>1"
+      and \<gamma>_matches_\<Gamma>2: "\<Xi> \<turnstile> \<gamma> matches instantiate_ctx \<tau>s \<Gamma>2"
+      using matches_split2 v_sem_case_nm.prems
+      by fastforce+
+
+    have "\<Xi> \<turnstile> VSum tag' v :v instantiate \<tau>s (TSum ts)"
+      using x_is typing_x1 \<gamma>_matches_\<Gamma>1 v_sem_case_nm.hyps(2) v_sem_case_nm.prems
+      by fastforce
+    then obtain t k
+      where "\<Xi> \<turnstile> v :v t"
+        and tag'_in_ts: "(tag', t, False) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts)"
+        and distinct_fst_ts: "distinct (map fst ts)"
+        and wellformed_instiate_ts: "[] \<turnstile>* map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts) :\<kappa>  k"
+      by fastforce
+    then have "\<Xi> \<turnstile> VSum tag' v :v instantiate \<tau>s (TSum ((tag, ta, True) # [x\<leftarrow>ts . fst x \<noteq> tag]))"
+      using distinct_map_filter
+    proof (clarsimp, intro v_t_sum)
+      show "(tag', t, False) \<in> set ((tag, instantiate \<tau>s ta, True) # map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) [x\<leftarrow>ts . fst x \<noteq> tag])"
+        using distinct_fst_ts v_sem_case_nm.hyps(3) tag'_in_ts image_iff
+        by fastforce
+    next
+      show "[] \<turnstile>* map (fst \<circ> snd) ((tag, instantiate \<tau>s ta, True) # map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) [x\<leftarrow>ts . fst x \<noteq> tag]) wellformed "
+        using wellformed_instiate_ts kinding_all_set ta_in_ts
+        by force
+    qed force+
+    then have "\<Xi> \<turnstile> VSum tag' v # \<gamma> matches instantiate_ctx \<tau>s (Some (TSum ((tag, ta, True) # [x\<leftarrow>ts . fst x \<noteq> tag])) # \<Gamma>2)"
+      using \<gamma>_matches_\<Gamma>2 matches_cons v_sem_case_nm.prems(2)
+      by blast
+    then show "\<Xi> \<turnstile> n' :v instantiate \<tau>s \<tau>" 
+      using n_is typing_x4
+        v_sem_case_nm.prems
+        v_sem_case_nm.hyps(5)
+      by blast
+  qed
 next case (v_sem_esac \<xi> \<gamma> t tag v)
   from v_sem_esac.hyps(3)
   show ?case
