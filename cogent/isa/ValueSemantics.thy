@@ -249,23 +249,6 @@ next case v_t_r_cons2  then show ?case by (force intro: vval_typing_vval_typing_
                                                         bang_kind)
 qed (force intro: vval_typing_vval_typing_record.intros)+
 
-lemma vval_typing_promoted_tsums_same:
-  assumes vval_tsum_ts: "\<Xi> \<turnstile> x :v TSum ts"
-      and x_typing: "\<Xi>, K, \<Gamma> \<turnstile> e : TSum ts"
-      and distinct_fst_ts': "distinct (map fst ts')"
-      and taken_preservation: "\<forall>c t b. (c, t, b) \<in> set ts \<longrightarrow> (\<exists>b'. (b' \<longrightarrow> b) \<and> (c, t, b') \<in> set ts')"
-      and ts'_types_wellformed: "[] \<turnstile>* map (fst \<circ> snd) ts' wellformed"
-    shows "\<Xi> \<turnstile> x :v TSum ts'"
-  using assms
-proof -
-  obtain g a b' t where "(g, t, b') \<in> set ts"
-                and "\<Xi> \<turnstile> a :v t"
-    using vval_tsum_ts by blast
-  then show ?thesis
-    using assms
-    by (blast intro: v_t_sum)
-qed
-
 subsection {* vval_typing_record *}
 
 lemma vval_typing_record_length:
@@ -329,14 +312,47 @@ using assms
 by (force intro: vval_typing_vval_typing_record.intros)
 
 lemma sum_downcast:
-assumes "\<Xi> \<turnstile> VSum t v :v TSum ts"
-and     "t \<noteq> t'"
-shows   "\<Xi> \<turnstile> VSum t v :v TSum (filter (\<lambda> x. fst x \<noteq> t') ts)"
+  assumes vval_tsum_ts: "\<Xi> \<turnstile> VSum tag v :v TSum ts"
+    and   tag_neq_tag': "tag \<noteq> tag'"
+    and   tag'_in_ts  : "(tag', \<tau>, False) \<in> set ts"
+  shows   "\<Xi> \<turnstile> VSum tag v :v TSum ((tag', \<tau>, True) # [x\<leftarrow>ts. fst x \<noteq> tag'])"
 proof -
-have 1: "(\<lambda> x. x \<noteq> t') \<circ> fst = (\<lambda> x. fst x \<noteq> t')" by (auto)
-have 2: "map fst [ x \<leftarrow> ts. fst x \<noteq> t' ] = [ x \<leftarrow> map fst ts. x \<noteq> t' ]"by (simp add: 1 filter_map)
-with assms show ?thesis by (fastforce intro: vval_typing_vval_typing_record.intros 
-                                             kinding_all_subset)
+  from vval_tsum_ts
+  obtain k \<tau>1
+    where "\<Xi> \<turnstile> v :v \<tau>1"
+    and tag_in_ts: "(tag, \<tau>1, False) \<in> set ts"
+    and ts_distinct: "distinct (map fst ts)"
+    and ts_wellformed: "[] \<turnstile>* map (fst \<circ> snd) ts :\<kappa> k"
+    by force
+  moreover have 1: "(\<lambda> x. x \<noteq> tag') \<circ> fst = (\<lambda> x. fst x \<noteq> tag')" by force
+  moreover have 2: "map fst [x\<leftarrow>ts. fst x \<noteq> tag'] = [x\<leftarrow>map fst ts. x \<noteq> tag']" by (simp add: 1 filter_map)
+  ultimately show ?thesis
+    using assms
+  proof (intro v_t_sum)
+    thm kinding_all_set kinding_all_subset
+    have "[] \<turnstile>  \<tau> :\<kappa>  k"
+     and "\<And>tag \<tau> b. \<lbrakk> (tag, \<tau>, b) \<in> set ts; tag \<noteq> tag' \<rbrakk> \<Longrightarrow> [] \<turnstile>  \<tau> :\<kappa>  k"
+      using tag'_in_ts kinding_all_set ts_wellformed by force+
+    then show "[] \<turnstile>* map (fst \<circ> snd) ((tag', \<tau>, True) # [x\<leftarrow>ts . fst x \<noteq> tag']) wellformed"
+      using kinding_all_set by (simp, blast)
+  qed simp+
+  qed
+
+lemma vval_typing_promoted_tsums_same:
+  assumes vval_tsum_ts: "\<Xi> \<turnstile> x :v TSum ts"
+      and x_typing: "\<Xi>, K, \<Gamma> \<turnstile> e : TSum ts"
+      and distinct_fst_ts': "distinct (map fst ts')"
+      and taken_preservation: "\<forall>c t b. (c, t, b) \<in> set ts \<longrightarrow> (\<exists>b'. (b' \<longrightarrow> b) \<and> (c, t, b') \<in> set ts')"
+      and ts'_types_wellformed: "[] \<turnstile>* map (fst \<circ> snd) ts' wellformed"
+    shows "\<Xi> \<turnstile> x :v TSum ts'"
+  using assms
+proof -
+  obtain g a b' t where "(g, t, b') \<in> set ts"
+                and "\<Xi> \<turnstile> a :v t"
+    using vval_tsum_ts by blast
+  then show ?thesis
+    using assms
+    by (fastforce intro: v_t_sum)
 qed
 
 subsection {* Introductions under instantiations *}
@@ -1032,9 +1048,9 @@ from rest show ?case
   apply (frule(1) matches_split'(2))
   apply (rule v_sem_v_sem_all.intros, frule(6) IH1[simplified])
   apply (frule(3) IH2[OF _ _ _ matches_cons', simplified])
-    (* Doesn't work *)
-    (* apply (auto intro: sum_downcast dest: preservation[where \<tau>s = "[]" and K = "[]", simplified]) *)
-  sorry
+  apply simp_all
+  apply (force intro: sum_downcast dest: preservation[where \<tau>s = "[]" and K = "[]", simplified])
+  done
 next case v_sem_let
 note IH1 = this(2)
 and  IH2 = this(4)
