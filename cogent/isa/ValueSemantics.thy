@@ -732,23 +732,11 @@ next case (v_sem_case_nm \<xi> \<gamma> x tag' v tag n n' m)
     have "\<Xi> \<turnstile> VSum tag' v :v instantiate \<tau>s (TSum ts)"
       using x_is typing_x1 \<gamma>_matches_\<Gamma>1 v_sem_case_nm.hyps(2) v_sem_case_nm.prems
       by fastforce
-    then obtain t k
-      where "\<Xi> \<turnstile> v :v t"
-        and tag'_in_ts: "(tag', t, False) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts)"
-        and distinct_fst_ts: "distinct (map fst ts)"
-        and wellformed_instiate_ts: "[] \<turnstile>* map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts) :\<kappa>  k"
-      by fastforce
-    then have "\<Xi> \<turnstile> VSum tag' v :v instantiate \<tau>s (TSum ((tag, ta, True) # [x\<leftarrow>ts . fst x \<noteq> tag]))"
-      using distinct_map_filter
-    proof (clarsimp, intro v_t_sum)
-      show "(tag', t, False) \<in> set ((tag, instantiate \<tau>s ta, True) # map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) [x\<leftarrow>ts . fst x \<noteq> tag])"
-        using distinct_fst_ts v_sem_case_nm.hyps(3) tag'_in_ts image_iff
-        by fastforce
-    next
-      show "[] \<turnstile>* map (fst \<circ> snd) ((tag, instantiate \<tau>s ta, True) # map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) [x\<leftarrow>ts . fst x \<noteq> tag]) wellformed "
-        using wellformed_instiate_ts kinding_all_set ta_in_ts
-        by force
-    qed force+
+    then have foo: "\<Xi> \<turnstile> VSum tag' v :v TSum ((tag, instantiate \<tau>s ta, True) # [x\<leftarrow>map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts. fst x \<noteq> tag])"
+      using v_sem_case_nm.hyps(3) image_iff ta_in_ts
+      by (fastforce intro!: sum_downcast)
+    then have "\<Xi> \<turnstile> VSum tag' v :v instantiate \<tau>s (TSum ((tag, ta, True) # [x\<leftarrow>ts. fst x \<noteq> tag]))"
+      by (simp add: filter_fst_ignore_triple[where P="\<lambda>x. x \<noteq> tag"])
     then have "\<Xi> \<turnstile> VSum tag' v # \<gamma> matches instantiate_ctx \<tau>s (Some (TSum ((tag, ta, True) # [x\<leftarrow>ts . fst x \<noteq> tag])) # \<Gamma>2)"
       using \<gamma>_matches_\<Gamma>2 matches_cons v_sem_case_nm.prems(2)
       by blast
