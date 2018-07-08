@@ -630,21 +630,16 @@ next case (v_sem_con \<xi> \<gamma> x x' uu tag)
       by (simp add: comp_fst_tuple_lambda assoc_comp_snd_tuple_lambda,
           metis (mono_tags, lifting) case_prod_beta map_eq_conv)
     ultimately show "\<Xi> \<turnstile> VSum tag x' :v instantiate \<tau>s \<tau>"
-      using v_sem_con
+      using v_sem_con v_sem_con.hyps(2) v_sem_con.prems x_is
     proof (clarsimp, intro v_t_sum)
       show "\<Xi> \<turnstile> x' :v instantiate \<tau>s \<tau>3"
-        using type_x3 v_sem_con.prems ts'_from_ts \<tau>3_in_ts image_iff
-        using x_is v_sem_con.hyps(2) by force
+        using v_sem_con.prems v_sem_con.hyps(2) x_is image_iff
+              type_x3 ts'_from_ts \<tau>3_in_ts
+        by simp
     next
       show "(tag, instantiate \<tau>s \<tau>3, False) \<in> set (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) \<circ> (\<lambda>(c, t). (c, t, c \<noteq> tag))) ts)"
-        using ts'_from_ts \<tau>3_in_ts
-        using image_iff by fastforce
-    next
-      from distinct_ts
-      have "distinct (map ((fst \<circ> (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) \<circ> (\<lambda>(c, t). (c, t, c \<noteq> tag))) ts)"
-        by (metis (mono_tags, lifting)  case_prod_beta comp_apply fst_conv map_eq_conv)
-      then show "distinct (map fst (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) \<circ> (\<lambda>(c, t). (c, t, c \<noteq> tag))) ts))"
-        by (simp add: comp_assoc)
+        using ts'_from_ts \<tau>3_in_ts image_iff
+        by fastforce
     next
       from ts'_wellformed
       have "[] \<turnstile>* map (instantiate \<tau>s \<circ> fst \<circ> snd) ts' wellformed"
@@ -653,7 +648,7 @@ next case (v_sem_con \<xi> \<gamma> x x' uu tag)
         by (simp only: comp_assoc map_fst3_app2[symmetric])
       then show "[] \<turnstile>* map (fst \<circ> snd) (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) \<circ> (\<lambda>(c, t). (c, t, c \<noteq> tag))) ts) wellformed"
         by (simp add: ts'_from_ts comp_assoc)
-    qed
+    qed (fastforce simp add: case_prod_unfold distinct_conv_nth)
   qed
 next case (v_sem_promote \<xi> \<gamma> xa xa' t)
   from v_sem_promote.hyps(3)
@@ -737,13 +732,9 @@ next case (v_sem_case_nm \<xi> \<gamma> x tag' v tag n n' m)
       by (fastforce intro!: sum_downcast)
     then have "\<Xi> \<turnstile> VSum tag' v :v instantiate \<tau>s (TSum ((tag, ta, True) # [x\<leftarrow>ts. fst x \<noteq> tag]))"
       by (simp add: filter_fst_ignore_triple[where P="\<lambda>x. x \<noteq> tag"])
-    then have "\<Xi> \<turnstile> VSum tag' v # \<gamma> matches instantiate_ctx \<tau>s (Some (TSum ((tag, ta, True) # [x\<leftarrow>ts . fst x \<noteq> tag])) # \<Gamma>2)"
-      using \<gamma>_matches_\<Gamma>2 matches_cons v_sem_case_nm.prems(2)
-      by blast
     then show "\<Xi> \<turnstile> n' :v instantiate \<tau>s \<tau>" 
-      using n_is typing_x4
-        v_sem_case_nm.prems
-        v_sem_case_nm.hyps(5)
+      using v_sem_case_nm.prems v_sem_case_nm.hyps(5) \<gamma>_matches_\<Gamma>2 matches_cons
+        n_is typing_x4
       by blast
   qed
 next case (v_sem_esac \<xi> \<gamma> t tag v)
