@@ -727,7 +727,7 @@ next case (v_sem_case_nm \<xi> \<gamma> x tag' v tag n n' m)
     have "\<Xi> \<turnstile> VSum tag' v :v instantiate \<tau>s (TSum ts)"
       using x_is typing_x1 \<gamma>_matches_\<Gamma>1 v_sem_case_nm.hyps(2) v_sem_case_nm.prems
       by fastforce
-    then have foo: "\<Xi> \<turnstile> VSum tag' v :v TSum ((tag, instantiate \<tau>s ta, True) # [x\<leftarrow>map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts. fst x \<noteq> tag])"
+    then have "\<Xi> \<turnstile> VSum tag' v :v TSum ((tag, instantiate \<tau>s ta, True) # [x\<leftarrow>map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts. fst x \<noteq> tag])"
       using v_sem_case_nm.hyps(3) image_iff ta_in_ts
       by (fastforce intro!: sum_downcast)
     then have "\<Xi> \<turnstile> VSum tag' v :v instantiate \<tau>s (TSum ((tag, ta, True) # [x\<leftarrow>ts. fst x \<noteq> tag]))"
