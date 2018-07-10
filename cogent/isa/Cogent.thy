@@ -146,9 +146,6 @@ next
     by (clarsimp, blast)
 qed
 
-(* NOTE maybe we could just use maps in the type???
-        There are some disadvantages to this approach, namely loosing finiteness,
-        and thus the ability to search the values. *)
 lemma append_filter_fst_eqiv_map_update:
   assumes "set xs = map_pairs (map_of xs)"
     shows "(set ((fst z, f z) # [x\<leftarrow>xs. fst x \<noteq> fst z])) = (map_pairs ((map_of xs) (fst z \<mapsto> f z)))"
@@ -158,11 +155,6 @@ lemma append_filter_fst_eqiv_map_update:
   apply (subst Collect_disj_eq[symmetric])
   apply force
   done
-
-
-
-
-
 
 
 section {* Terms and Types of Cogent *}

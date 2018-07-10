@@ -81,10 +81,10 @@ where
                    \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, App x y) \<Down>! st"
 
 | u_sem_con     : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, x) \<Down>! (\<sigma>', x') 
-                   \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Con ts t x) \<Down>! (\<sigma>', USum t x' (map (\<lambda>(n,t).(n,type_repr t)) ts))"
+                   \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Con ts t x) \<Down>! (\<sigma>', USum t x' (map (\<lambda>(n,t). (n,type_repr t)) ts))"
 
 | u_sem_promote : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, x) \<Down>! (\<sigma>', USum c p ts)  
-                   \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Promote ts' x) \<Down>! (\<sigma>', USum c p (map (\<lambda>(n,t).(n,type_repr t)) ts'))"
+                   \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Promote ts' x) \<Down>! (\<sigma>', USum c p (map (\<lambda>(n,t,_). (n,type_repr t)) ts'))"
 
 | u_sem_member  : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, e) \<Down>! (\<sigma>', URecord fs)
                    \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Member e f) \<Down>! (\<sigma>', fst (fs ! f))"
@@ -172,7 +172,7 @@ locale update_sem =
 
 context update_sem begin
 
-fun uval_repr :: "('f, 'a,'l) uval \<Rightarrow> repr" where
+fun uval_repr :: "('f, 'a, 'l) uval \<Rightarrow> repr" where
   "uval_repr (UPrim lit) = RPrim (lit_type lit)"
 | "uval_repr (UProduct a b) = RProduct (uval_repr a) (uval_repr b)"
 | "uval_repr (USum a b reprs) = RSum reprs"
@@ -183,7 +183,7 @@ fun uval_repr :: "('f, 'a,'l) uval \<Rightarrow> repr" where
 | "uval_repr (UUnit) = RUnit"
 | "uval_repr (UPtr p r) = RPtr r"
 
-fun uval_repr_deep :: "('f, 'a,'l) uval \<Rightarrow> repr" where
+fun uval_repr_deep :: "('f, 'a, 'l) uval \<Rightarrow> repr" where
   "uval_repr_deep (UPrim lit) = RPrim (lit_type lit)"
 | "uval_repr_deep (UProduct a b) = RProduct (uval_repr_deep a) (uval_repr_deep b)"
 | "uval_repr_deep (USum a b reprs) = RSum reprs"
@@ -220,11 +220,11 @@ and uval_typing_record :: "('f \<Rightarrow> poly_type)
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UProduct a b :u TProduct t u \<langle>r \<union> r', w \<union> w'\<rangle>"
 
 | u_t_sum      : "\<lbrakk> \<Xi>, \<sigma> \<turnstile> a :u t \<langle>r, w\<rangle>
-                  ; (g, t) \<in> set ts 
+                  ; (g, t, False) \<in> set ts
                   ; distinct (map fst ts)
-                  ; [] \<turnstile>* map snd ts wellformed
+                  ; [] \<turnstile>* map (fst \<circ> snd) ts wellformed
                   ; map fst ts = map fst rs
-                  ; list_all2 (\<lambda> t r. type_repr t = r) (map snd ts) (map snd rs)
+                  ; list_all2 (\<lambda> t r. type_repr t = r) (map (fst \<circ> snd) ts) (map snd rs)
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> USum g a rs :u TSum ts \<langle>r, w\<rangle>"
 
 | u_t_struct   : "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* fs :ur ts \<langle>r, w\<rangle> 
@@ -524,16 +524,19 @@ using assms by (force dest: kinding_record_wellformed intro: bang_type_repr)
 lemma uval_typing_bang:
 shows   "\<Xi>, \<sigma> \<turnstile> v :u \<tau> \<langle>r, w\<rangle> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> v :u bang \<tau> \<langle>r \<union> w, {}\<rangle>"
 and     "\<Xi>, \<sigma> \<turnstile>* vs :ur \<tau>s \<langle>r, w\<rangle> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile>* vs :ur  (map (\<lambda> (t, b). (bang t, b)) \<tau>s) \<langle>r \<union> w, {}\<rangle>"
-using assms proof (induct rule: uval_typing_uval_typing_record.inducts)
+proof (induct rule: uval_typing_uval_typing_record.inducts)
 next case u_t_product  then show ?case by (auto  dest:  uval_typing_uval_typing_record.u_t_product 
                                                  intro: pointerset_helper)
-next case u_t_sum      then show ?case by (auto  intro!: uval_typing_uval_typing_record.intros exI
+next case u_t_sum      then show ?case
+    sorry
+(* by (auto  intro!: uval_typing_uval_typing_record.intros exI
                                                  dest:  bang_kind
                                                         list_all2_bang_type_helper
                                                           [ where ts = "map snd ts"
                                                             and   rs = "map snd rs"
                                                             for ts rs
                                                           , simplified])
+*)
 next case u_t_p_rec_ro
   then show ?case
     apply clarsimp
@@ -1169,27 +1172,31 @@ and     "t \<noteq> t'"
 shows   "\<Xi>, \<sigma> \<turnstile> USum t v (filter (\<lambda> x. fst x \<noteq> t') xs) :u TSum (filter (\<lambda> x. fst x \<noteq> t') ts) \<langle>r, w\<rangle>"
 proof -
 have 1: "(\<lambda> x. x \<noteq> t') \<circ> fst = (\<lambda> x. fst x \<noteq> t')" by (auto)
-have 2: "map fst [ x \<leftarrow> ts. fst x \<noteq> t' ] = [ x \<leftarrow> map fst ts. x \<noteq> t' ]"by (simp add: 1 filter_map)
-have 3: "[x\<leftarrow>map fst xs . x \<noteq> t'] = map fst [x\<leftarrow>xs . fst x \<noteq> t']" by (induct xs,simp,simp)
-have 4: "\<lbrakk> list_all2 (\<lambda>t. op = (type_repr t)) (map snd ts) (map snd xs)
+have 2: "[x\<leftarrow>map fst ts. x \<noteq> t'] = map fst [x\<leftarrow>ts. fst x \<noteq> t']" by (simp add: 1 filter_map)
+have 3: "[x\<leftarrow>map fst xs. x \<noteq> t'] = map fst [x\<leftarrow>xs. fst x \<noteq> t']" by (simp add: 1 filter_map)
+have 4: "\<lbrakk> list_all2 (\<lambda>t. op = (type_repr t)) (map (fst \<circ> snd) ts) (map snd xs)
          ; map fst ts = map fst xs
          \<rbrakk> \<Longrightarrow> list_all2 (\<lambda>t. op = (type_repr t)) 
-                 (map snd [x\<leftarrow>ts . fst x \<noteq> t']) 
-                 (map snd [x\<leftarrow>xs . fst x \<noteq> t'])"
-by ( induct "map snd ts" "map snd xs"
+                 (map (fst \<circ> snd) [x\<leftarrow>ts. fst x \<noteq> t'])
+                 (map snd [x\<leftarrow>xs. fst x \<noteq> t'])"
+by ( induct "map (fst \<circ> snd) ts" "map snd xs"
      arbitrary: ts xs
      rule: list_all2_induct
    , auto)
 
 from 1 2 assms show ?thesis apply -
-  apply (erule uval_typing.cases,simp_all)
-  apply (clarsimp)
-  apply (rule, simp,simp,simp)
-     apply (clarsimp, rule)
-    apply (force intro: kinding_all_subset)
+  apply (erule uval_typing.cases, simp_all)
+  apply clarsimp
+  apply (rule u_t_sum)
+       apply simp
+      apply simp
+     apply (simp add: distinct_map_filter)
+    apply simp
+    apply (rule_tac x=k in exI)
+    apply (simp add: kinding_all_set)
    apply (simp add: 3)
   apply (simp add: 4)
-done
+  done
 qed
 
 lemma list_all2_helper2:
@@ -1204,14 +1211,20 @@ using assms(2,1) by ( induct "map snd tsa" "map snd rs"
 lemma type_repr_uval_repr:
 shows"\<Xi>, \<sigma> \<turnstile> v :u t \<langle>r, w\<rangle> \<Longrightarrow> uval_repr v = type_repr t"
 and  "\<Xi>, \<sigma> \<turnstile>* fs :ur ts \<langle>r, w\<rangle> \<Longrightarrow> map snd fs = map (\<lambda> a. (type_repr (fst a))) ts"
-by ( induct rule: uval_typing_uval_typing_record.inducts
-   , auto dest: abs_typing_repr intro: list_all2_helper2 [symmetric])
+proof (induct rule: uval_typing_uval_typing_record.inducts)
+  case (u_t_sum \<Xi> \<sigma> a t r w g ts rs)
+  then show ?case
+    sorry
+qed (force dest: abs_typing_repr intro: list_all2_helper2 [symmetric])+
 
 lemma type_repr_uval_repr_deep:
 shows"\<Xi>, \<sigma> \<turnstile> v :u t \<langle>r, w\<rangle> \<Longrightarrow> uval_repr_deep v = type_repr t"
 and  "\<Xi>, \<sigma> \<turnstile>* fs :ur ts \<langle>r, w\<rangle> \<Longrightarrow> map uval_repr_deep (map fst fs) = map (\<lambda> a. (type_repr (fst a))) ts"
-by ( induct rule: uval_typing_uval_typing_record.inducts
-   , auto dest: abs_typing_repr intro: list_all2_helper2 [symmetric])
+proof (induct rule: uval_typing_uval_typing_record.inducts)
+  case (u_t_sum \<Xi> \<sigma> a t r w g ts rs)
+  then show ?case
+    sorry
+qed (force dest: abs_typing_repr intro: list_all2_helper2 [symmetric])+
 
 
 lemma uval_typing_record_take:
@@ -1384,11 +1397,13 @@ next case u_sem_afun      then show ?case by ( cases e, simp_all
                                              , fastforce intro: u_t_afun_instantiate
                                                                 frame_id
                                                          dest:  matches_ptrs_proj_consumed)
-next case u_sem_fun       then show ?case by ( cases e, simp_all
+next case u_sem_fun       then show ?case   by ( cases e, simp_all
                                              , fastforce intro: u_t_function_instantiate
                                                                 frame_id
                                                          dest:  matches_ptrs_proj_consumed)
-next case u_sem_promote   then show ?case by ( cases e, simp_all
+next case u_sem_promote   then show ?case  sorry
+(*
+  by ( cases e, simp_all
                                              , fastforce elim:   u_t_sumE typing_promE
                                                          intro!: u_t_sum
                                                          dest:   u_sem_promote(2)
@@ -1396,6 +1411,7 @@ next case u_sem_promote   then show ?case by ( cases e, simp_all
                                                                   [ where ts = "map snd ls" for ls
                                                                   , simplified]
                                                          simp:   list_all2_helper)
+*)
 next case u_sem_app
   note IH1  = this(2)
   and  IH2  = this(4)
@@ -1436,6 +1452,8 @@ next case u_sem_abs_app
   done
 
 next case u_sem_con
+  then show ?case sorry
+(*
   note IH   = this(2)
   and  rest = this(1,3-)
   from rest show ?case
@@ -1448,7 +1466,7 @@ next case u_sem_con
                         uval_typing_uval_typing_record.intros
                         substitutivity(2) [where ts = "map snd ls" for ls, simplified])
   done
-
+*)
 next case u_sem_let
   note IH1  = this(2)
   and  IH2  = this(4)
@@ -1519,9 +1537,15 @@ next case u_sem_tuple
     apply (frule(4) frame_noalias_2)
     apply (blast intro!: uval_typing_uval_typing_record.intros)
   done
-next case u_sem_esac      then show ?case by ( cases e, simp_all
+next case u_sem_esac
+  then show ?case sorry
+(*
+  by ( cases e, simp_all
                                              , fastforce elim!: u_t_sumE)
+*)
 next case u_sem_case_nm
+  then show ?case sorry
+(*
   note IH1 = this(2)
   and  IH2 = this(5)
   and rest = this(1,3-4,6-)
@@ -1543,6 +1567,7 @@ next case u_sem_case_nm
      apply (simp, rule, simp add: HELP[rule_format], blast,blast,blast,blast)
     apply (clarsimp, auto intro!: exI intro: frame_let simp: Un_commute)
   done
+*)
 next case u_sem_case_m
   note IH1 = this(2)
   and  IH2 = this(4)
@@ -1996,12 +2021,9 @@ lemma split_length_same:
   qed
 
 lemma same_type_as_weakened:
- "[] \<turnstile> \<Gamma>1 \<leadsto>w \<Gamma>'[x := Some t] \<Longrightarrow>  x < length \<Gamma>1 \<Longrightarrow> \<Gamma>1!x = Some t" 
-  apply(rule weakening_preservation)
-   apply simp
-  apply(drule weakening_length)
-   apply simp
-  done
+ "[] \<turnstile> \<Gamma>1 \<leadsto>w \<Gamma>'[x := Some t] \<Longrightarrow> x < length \<Gamma>1 \<Longrightarrow> \<Gamma>1!x = Some t" 
+  using weakening_length weakening_preservation_some
+  by fastforce
 
 lemma same_type_as_left_split:
  "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2  \<Longrightarrow>  x < length \<Gamma>1 \<Longrightarrow> \<Gamma>1!x = Some t \<Longrightarrow> \<Gamma>!x = Some t" 
@@ -2014,7 +2036,7 @@ lemma same_type_as_left_split:
   qed auto
 
 lemma same_type_as_right_split:
- "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2  \<Longrightarrow>  x < length \<Gamma>2 \<Longrightarrow> \<Gamma>2!x = Some t \<Longrightarrow> \<Gamma>!x = Some t" 
+ "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2  \<Longrightarrow> x < length \<Gamma>2 \<Longrightarrow> \<Gamma>2!x = Some t \<Longrightarrow> \<Gamma>!x = Some t" 
   proof(induction arbitrary: x t rule: split.induct)
    case (split_cons K \<Gamma>hd \<Gamma>1hd b \<Gamma>tl \<Gamma>1tl bs ) then 
    show ?case 
