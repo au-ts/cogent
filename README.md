@@ -20,13 +20,13 @@ sudo apt-get install python-lxml python-psutil python-pycparser # regression tes
 
 To install the Cogent compiler, consult file [cogent/README.md](./cogent/README.md) for details. 
 
-[`l4v`](https://github.com/seL4/l4v/tree/47d5b746fc2f052586db11aa6048c5ae7c357155) and [`isabelle`](https://github.com/seL4/isabelle/tree/Isabelle2017) are two submodules in the repository.
-To get them: `git submodule update --init --recursive`.
+[`l4v`](https://github.com/seL4/l4v), [`isabelle`](https://github.com/seL4/isabelle) and [`z3`](https://github.com/Z3Prover/z3)
+are submodules that the Cogent framework depends on. To get them: `git submodule update --init --recursive`.
 
-If you already have them on your machine, you can symlink them as `l4v` and `isabelle` respectively
-in the top-level directory of this repository and checkout relevant revisions:
+If you already have them on your machine, you can use your local copies, by checking out the compatible revisions:
 * `l4v`: `ffc7b107e5bd5978295da61f64ea87b9ea3ad4d1`
 * `isabelle`: any Isabelle2017 revision
+* `z3`: see [cogent/INSTALL.md](./cogent/INSTALL.md) for more information
 
 Add `isabelle/bin` to your PATH: `export PATH="$(pwd)/isabelle/bin:$PATH"`
 If you have an existing Isabelle install, you may want to set `ISABELLE_IDENTIFIER` instead of `PATH`.
