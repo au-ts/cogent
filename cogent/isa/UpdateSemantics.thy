@@ -1164,43 +1164,31 @@ next case Cons then show ?case
   qed
 qed
 
-
 lemma sum_downcast_u:
-assumes "\<Xi>, \<sigma> \<turnstile> USum t v xs :u TSum ts \<langle>r, w\<rangle>"
-and     "t \<noteq> t'"
-shows   "\<Xi>, \<sigma> \<turnstile> USum t v (filter (\<lambda> x. fst x \<noteq> t') xs) :u TSum (filter (\<lambda> x. fst x \<noteq> t') ts) \<langle>r, w\<rangle>"
-proof -
-have 1: "(\<lambda> x. x \<noteq> t') \<circ> fst = (\<lambda> x. fst x \<noteq> t')" by (auto)
-have 2: "[x\<leftarrow>map fst ts. x \<noteq> t'] = map fst [x\<leftarrow>ts. fst x \<noteq> t']" by (simp add: 1 filter_map)
-have 3: "[x\<leftarrow>map fst xs. x \<noteq> t'] = map fst [x\<leftarrow>xs. fst x \<noteq> t']" by (simp add: 1 filter_map)
-have 4: "\<lbrakk> list_all2 (\<lambda>t. op = (type_repr t)) (map (fst \<circ> snd) ts) (map snd xs)
-         ; map fst ts = map fst xs
-         \<rbrakk> \<Longrightarrow> list_all2 (\<lambda>t. op = (type_repr t)) 
-                 (map (fst \<circ> snd) [x\<leftarrow>ts. fst x \<noteq> t'])
-                 (map snd [x\<leftarrow>xs. fst x \<noteq> t'])"
-by ( induct "map (fst \<circ> snd) ts" "map snd xs"
-     arbitrary: ts xs
-     rule: list_all2_induct
-   , auto)
-
-  show ?thesis
-    sorry
-
-(*
-from 1 2 assms show ?thesis apply -
-  apply (erule uval_typing.cases, simp_all)
-  apply clarsimp
-  apply (rule u_t_sum)
-       apply simp
-      apply simp
-     apply (simp add: distinct_map_filter)
-    apply simp
-    apply (rule_tac x=k in exI)
-    apply (simp add: kinding_all_set)
-   apply (simp add: 3)
-  apply (simp add: 4)
-  done
-*)
+  assumes uval_tsum_ts: "\<Xi>, \<sigma> \<turnstile> USum tag v xs :u TSum ts \<langle>r, w\<rangle>"
+    and     tag_neq_tag': "tag \<noteq> tag'"
+    and     tag'_in_ts  : "(tag', \<tau>, False) \<in> set ts"
+  shows   "\<Xi>, \<sigma> \<turnstile> USum tag v [x\<leftarrow>xs. fst x \<noteq> tag'] :u TSum ((tag', \<tau>, True) # [x\<leftarrow>ts. fst x \<noteq> tag']) \<langle>r, w\<rangle>"
+  using uval_tsum_ts
+proof (elim u_t_sumE, clarsimp)
+  fix t k
+  assume "\<Xi>, \<sigma> \<turnstile> v :u t \<langle>r, w\<rangle>"
+    and "(tag, t, False) \<in> set ts"
+    and distinct_fst_ts: "distinct (map fst ts)"
+    and wellformed_ts: "[] \<turnstile>* map (fst \<circ> snd) ts :\<kappa>  k"
+    and "\<Xi>, \<sigma> \<turnstile> USum tag v (map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) [(c, \<tau>, y)\<leftarrow>ts . \<not> y]) :u TSum ts \<langle>r, w\<rangle>"
+    and "xs = map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) [(c, \<tau>, y)\<leftarrow>ts . \<not> y]"
+  then show "\<Xi>, \<sigma> \<turnstile> USum tag v [x\<leftarrow>map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) [(c, \<tau>, y)\<leftarrow>ts . \<not> y] . fst x \<noteq> tag'] :u TSum ((tag', \<tau>, True) # [x\<leftarrow>ts . fst x \<noteq> tag']) \<langle>r, w\<rangle>"
+    using tag_neq_tag' tag'_in_ts distinct_map_filter
+  proof (intro u_t_sum)
+    show "[] \<turnstile>* map (fst \<circ> snd) ((tag', \<tau>, True) # [x\<leftarrow>ts . fst x \<noteq> tag']) wellformed"
+      using wellformed_ts tag'_in_ts
+      by (fastforce simp add: kinding_all_set)
+  next
+    show "[x\<leftarrow>map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) [(c, \<tau>, y)\<leftarrow>ts . \<not> y] . fst x \<noteq> tag'] =
+            map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) [(c, \<tau>, b)\<leftarrow>(tag', \<tau>, True) # [x\<leftarrow>ts . fst x \<noteq> tag'] . \<not> b]"
+      by (simp add: filter_map split: prod.splits, meson)
+  qed fastforce+
 qed
 
 lemma list_all2_helper2:
