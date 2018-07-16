@@ -352,7 +352,7 @@ definition proc_env_matches_ptrs :: "(('f,'a,'l) uabsfuns) \<Rightarrow> ('f \<R
 lemma uval_typing_to_kinding:
 shows "\<Xi>, \<sigma> \<turnstile> v :u t \<langle>r, w\<rangle> \<Longrightarrow> [] \<turnstile> t wellformed"
 and   "\<Xi>, \<sigma> \<turnstile>* fs :ur ts \<langle>r, w\<rangle> \<Longrightarrow> [] \<turnstile>* (map fst ts) wellformed"
-proof (induct  arbitrary: k rule: uval_typing_uval_typing_record.inducts)
+proof (induct rule: uval_typing_uval_typing_record.inducts)
 next case u_t_sum      then show ?case by (force intro: kinding_kinding_all_kinding_record.intros)
 next case u_t_struct   then show ?case by ( clarsimp
                                           , intro exI kinding_kinding_all_kinding_record.intros
