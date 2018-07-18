@@ -81,10 +81,10 @@ where
                    \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, App x y) \<Down>! st"
 
 | u_sem_con     : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, x) \<Down>! (\<sigma>', x') 
-                   \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Con ts t x) \<Down>! (\<sigma>', USum t x' (map (\<lambda>(n,t). (n,type_repr t)) ts))"
+                   \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Con ts t x) \<Down>! (\<sigma>', USum t x' (map (\<lambda>(n,t). (n,type_repr t)) [x\<leftarrow>ts. fst x = t]))"
 
 | u_sem_promote : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, x) \<Down>! (\<sigma>', USum c p ts)  
-                   \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Promote ts' x) \<Down>! (\<sigma>', USum c p (map (\<lambda>(n,t,_). (n,type_repr t)) ts'))"
+                   \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Promote ts' x) \<Down>! (\<sigma>', USum c p (map (\<lambda>(n,t,_). (n, type_repr t)) (filter (HOL.Not \<circ> snd \<circ> snd) ts')))"
 
 | u_sem_member  : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, e) \<Down>! (\<sigma>', URecord fs)
                    \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Member e f) \<Down>! (\<sigma>', fst (fs ! f))"
@@ -220,12 +220,11 @@ and uval_typing_record :: "('f \<Rightarrow> poly_type)
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UProduct a b :u TProduct t u \<langle>r \<union> r', w \<union> w'\<rangle>"
 
 | u_t_sum      : "\<lbrakk> \<Xi>, \<sigma> \<turnstile> a :u t \<langle>r, w\<rangle>
-                  ; (g, t, False) \<in> set ts
+                  ; (tag, t, False) \<in> set ts
                   ; distinct (map fst ts)
                   ; [] \<turnstile>* map (fst \<circ> snd) ts wellformed
-                  ; map fst ts = map fst rs
-                  ; list_all2 (\<lambda> t r. type_repr t = r) (map (fst \<circ> snd) ts) (map snd rs)
-                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> USum g a rs :u TSum ts \<langle>r, w\<rangle>"
+                  ; rs = map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) [(c, \<tau>, b)\<leftarrow>ts. \<not> b]
+                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> USum tag a rs :u TSum ts \<langle>r, w\<rangle>"
 
 | u_t_struct   : "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* fs :ur ts \<langle>r, w\<rangle> 
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> URecord fs :u TRecord ts Unboxed \<langle>r, w\<rangle>"  
@@ -1184,6 +1183,10 @@ by ( induct "map (fst \<circ> snd) ts" "map snd xs"
      rule: list_all2_induct
    , auto)
 
+  show ?thesis
+    sorry
+
+(*
 from 1 2 assms show ?thesis apply -
   apply (erule uval_typing.cases, simp_all)
   apply clarsimp
@@ -1197,6 +1200,7 @@ from 1 2 assms show ?thesis apply -
    apply (simp add: 3)
   apply (simp add: 4)
   done
+*)
 qed
 
 lemma list_all2_helper2:
@@ -1297,7 +1301,9 @@ and     "w'a \<inter> w'b = {}"
 and     "f < length ts"
 shows   "\<exists>r''a\<subseteq> r'a. \<Xi>, \<sigma> \<turnstile>* fs[f := (e', snd (fs ! f))] :ur (ts[f := (t, False)]) \<langle>r''a \<union> r'b, w'a \<union> w'b\<rangle>"
 using assms proof (induct fs arbitrary: f r'a w'a ts)
-case Nil then show ?case by auto
+  case Nil
+  then show ?case
+    by (rule_tac x=r'a in exI, force)
 next case Cons then show ?case
   proof (cases f)
        case 0   with Cons(2-) show ?thesis
