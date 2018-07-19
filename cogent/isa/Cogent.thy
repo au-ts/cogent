@@ -740,7 +740,7 @@ datatype repr = RPtr repr
 fun type_repr :: "type \<Rightarrow> repr" where
   "type_repr (TFun t t')          = RFun"
 | "type_repr (TPrim t)            = RPrim t"
-| "type_repr (TSum ts)            = RSum (map (\<lambda>(a,(b,_)).(a, type_repr b)) ts)"
+| "type_repr (TSum ts)            = RSum (map (\<lambda>(a,(b,_)).(a, type_repr b)) [(c, \<tau>, y)\<leftarrow>ts . \<not> y])"
 | "type_repr (TProduct a b)       = RProduct (type_repr a) (type_repr b)"
 | "type_repr (TCon n ts Unboxed)  = RCon n (map type_repr ts)"
 | "type_repr (TCon n ts _)        = RPtr (RCon n (map type_repr ts))"
