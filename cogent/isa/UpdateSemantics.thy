@@ -525,17 +525,37 @@ shows   "\<Xi>, \<sigma> \<turnstile> v :u \<tau> \<langle>r, w\<rangle> \<Longr
 and     "\<Xi>, \<sigma> \<turnstile>* vs :ur \<tau>s \<langle>r, w\<rangle> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile>* vs :ur  (map (\<lambda> (t, b). (bang t, b)) \<tau>s) \<langle>r \<union> w, {}\<rangle>"
 proof (induct rule: uval_typing_uval_typing_record.inducts)
 next case u_t_product  then show ?case by (auto  dest:  uval_typing_uval_typing_record.u_t_product 
-                                                 intro: pointerset_helper)
-next case u_t_sum      then show ?case
-    sorry
-(* by (auto  intro!: uval_typing_uval_typing_record.intros exI
-                                                 dest:  bang_kind
-                                                        list_all2_bang_type_helper
-                                                          [ where ts = "map snd ts"
-                                                            and   rs = "map snd rs"
-                                                            for ts rs
-                                                          , simplified])
-*)
+        intro: pointerset_helper)
+next
+  case (u_t_sum \<Xi> \<sigma> a t r w g ts rs)
+  moreover have "fst ` set (map (\<lambda>(c, t, b). (c, bang t, b)) ts) = fst ` set ts"
+    by force
+  ultimately show ?case
+  proof (simp, intro uval_typing_uval_typing_record.u_t_sum)
+    show "(g, bang t, False) \<in> set (map (\<lambda>(c, t, b). (c, bang t, b)) ts)"
+      using u_t_sum.hyps by (force simp add: image_iff)
+  next
+    show "[] \<turnstile>* map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, bang t, b)) ts) wellformed"
+      using bang_kind(2) u_t_sum.hyps
+      unfolding type_wellformed_all_def
+      by fastforce
+  next
+    have f1: "(\<lambda>(c, \<tau>, y). \<not> y) \<circ> (\<lambda>(c, t, b). (c, bang t, b)) = (\<lambda>(c, \<tau>, y). \<not> y)"
+      by fastforce
+    have f2: "(\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) \<circ> (\<lambda>(c, t, b). (c, bang t, b)) = (\<lambda>(c, \<tau>, _). (c, type_repr (bang \<tau>)))"
+      by fastforce
+
+    obtain k where "[] \<turnstile>* map (fst \<circ> snd) ts :\<kappa>  k"
+      using u_t_sum.hyps by clarsimp
+    then have "map (\<lambda>(_, \<tau>, _). type_repr (bang \<tau>)) ts = map (\<lambda>(_, \<tau>, _). type_repr \<tau>) ts"
+      using bang_type_repr by fastforce
+    then have "map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) [(c, \<tau>, b)\<leftarrow>ts . \<not> b]
+         = map (\<lambda>(c, \<tau>, _). (c, type_repr (bang \<tau>))) [(c, \<tau>, b)\<leftarrow>ts . \<not> b]"
+      by (simp add: case_prod_beta)
+    then show "map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) [(c, \<tau>, b)\<leftarrow>ts . \<not> b]
+         = map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) [(c, \<tau>, b)\<leftarrow>map (\<lambda>(c, t, b). (c, bang t, b)) ts . \<not> b]"
+      by (simp add: filter_map f1 f2)
+  qed force+
 next case u_t_p_rec_ro
   then show ?case
     apply clarsimp
