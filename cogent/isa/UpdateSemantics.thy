@@ -83,7 +83,7 @@ where
 | u_sem_con     : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, x) \<Down>! (\<sigma>', x') 
                    \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Con ts t x) \<Down>! (\<sigma>', USum t x' (map (\<lambda>(n,t). (n,type_repr t)) [x\<leftarrow>ts. fst x = t]))"
 
-| u_sem_promote : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, x) \<Down>! (\<sigma>', USum c p ts)  
+| u_sem_promote : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, x) \<Down>! (\<sigma>', USum c p rs)  
                    \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Promote ts' x) \<Down>! (\<sigma>', USum c p (map (\<lambda>(n,t,_). (n, type_repr t)) (filter (HOL.Not \<circ> snd \<circ> snd) ts')))"
 
 | u_sem_member  : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, e) \<Down>! (\<sigma>', URecord fs)
@@ -1415,17 +1415,58 @@ next case u_sem_fun       then show ?case   by ( cases e, simp_all
                                              , fastforce intro: u_t_function_instantiate
                                                                 frame_id
                                                          dest:  matches_ptrs_proj_consumed)
-next case u_sem_promote   then show ?case  sorry
-(*
-  by ( cases e, simp_all
-                                             , fastforce elim:   u_t_sumE typing_promE
-                                                         intro!: u_t_sum
-                                                         dest:   u_sem_promote(2)
-                                                         intro:  substitutivity(2)
-                                                                  [ where ts = "map snd ls" for ls
-                                                                  , simplified]
-                                                         simp:   list_all2_helper)
-*)
+next case (u_sem_promote \<xi> \<gamma> \<sigma> x \<sigma>' c p rs instantiated_ts')
+  then show ?case
+  proof (cases e)
+    case (Promote ts' e1)
+
+    have x_is: "x = specialise \<tau>s e1"
+      and instantiated_ts'_is: "instantiated_ts' = map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts'"
+      using Promote u_sem_promote.hyps by simp+
+
+    obtain ts k
+      where \<tau>_is: "\<tau> = TSum ts'"
+      and e1_typing: "\<Xi>, K, \<Gamma> \<turnstile> e1 : TSum ts"
+      and fst_ts_ts1_same_set: "fst ` set ts = fst ` set ts'"
+      and distinct_ts': "distinct (map fst ts')"
+      and taken_preservation: "\<forall>c t b. (c, t, b) \<in> set ts \<longrightarrow> (\<exists>b'. (b' \<longrightarrow> b) \<and> (c, t, b') \<in> set ts')"
+      and ts'_wellformed: "K \<turnstile>* map (fst \<circ> snd) ts' :\<kappa>  k"
+      using u_sem_promote.prems(1) Promote
+      by blast
+
+    obtain r' w'
+      where "\<Xi>, \<sigma>' \<turnstile> USum c p rs :u instantiate \<tau>s (TSum ts) \<langle>r', w'\<rangle>"
+      and r'_sub_r: "r' \<subseteq> r"
+      and frame_w_w': "frame \<sigma> w \<sigma>' w'"
+      using u_sem_promote.hyps(2) u_sem_promote.prems x_is e1_typing
+      by blast
+    then obtain t''
+      where uval_typing_p: "\<Xi>, \<sigma>' \<turnstile> p :u t'' \<langle>r', w'\<rangle>"
+        and c_in_instantiated_ts: "(c, t'', False) \<in> (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ` set ts"
+      by fastforce
+    then have "\<Xi>, \<sigma>' \<turnstile> USum c p (map (\<lambda>(n, t, _). (n, type_repr t)) (filter (HOL.Not \<circ> snd \<circ> snd) instantiated_ts')) :u instantiate \<tau>s (TSum ts') \<langle>r', w'\<rangle>"
+      using distinct_ts' u_sem_promote.prems
+    proof (clarsimp, intro u_t_sum)
+      show "(c, t'', False) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts')"
+        using c_in_instantiated_ts taken_preservation image_iff by fastforce
+    next
+      show "[] \<turnstile>* map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts') wellformed"
+      proof (simp, rule exI)
+        show "[] \<turnstile>* map (instantiate \<tau>s \<circ> (fst \<circ> snd)) ts' :\<kappa>  k"
+          using ts'_wellformed kinding_all_set substitutivity(1) u_sem_promote.prems
+          by simp
+      qed
+    next
+      have "\<And>xs. filter (HOL.Not \<circ> snd \<circ> snd) xs = [(a,b,c)\<leftarrow>xs. \<not> c]"
+        by (metis case_prod_beta comp_apply)
+      then show "map (\<lambda>(n, t, _). (n, type_repr t)) (filter (HOL.Not \<circ> snd \<circ> snd) instantiated_ts')
+           = map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) [(c, \<tau>, b)\<leftarrow>map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts' . \<not> b]"
+        by (metis instantiated_ts'_is)
+    qed simp+
+    then show ?thesis
+      using instantiated_ts'_is \<tau>_is r'_sub_r frame_w_w'
+      by force
+  qed force+
 next case u_sem_app
   note IH1  = this(2)
   and  IH2  = this(4)
