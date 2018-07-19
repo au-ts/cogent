@@ -1631,13 +1631,53 @@ next case u_sem_tuple
     apply (frule(4) uval_typing_frame [rotated -1, OF _ _ frame_noalias_matches_ptrs(1)], blast)
     apply (frule(4) frame_noalias_2)
     apply (blast intro!: uval_typing_uval_typing_record.intros)
-  done
-next case u_sem_esac
-  then show ?case sorry
-(*
-  by ( cases e, simp_all
-                                             , fastforce elim!: u_t_sumE)
-*)
+    done
+next
+  case (u_sem_esac \<xi> \<gamma> \<sigma> e'' \<sigma>' tag v rs)
+  then show ?case
+  proof (cases e, simp_all)
+    case (Esac e')
+
+    have t_is: "e'' = specialise \<tau>s e'"
+      using Esac u_sem_esac.hyps
+      by force
+
+    obtain ts tag'
+      where e'_typing: "\<Xi>, K, \<Gamma> \<turnstile> e' : TSum ts"
+        and one_left: "[(tag', \<tau>, False)] = filter (HOL.Not \<circ> snd \<circ> snd) ts"
+      using u_sem_esac.prems Esac
+      by force
+
+    obtain r' w'
+      where "\<Xi>, \<sigma>' \<turnstile> USum tag v rs :u instantiate \<tau>s (TSum ts) \<langle>r', w'\<rangle>"
+        and r'_sub_r: "r' \<subseteq> r"
+        and frame_w_w': "frame \<sigma> w \<sigma>' w'"
+      using u_sem_esac.hyps t_is e'_typing u_sem_esac.prems
+      by blast
+    then obtain t''
+      where uval_typing_v: "\<Xi>, \<sigma>' \<turnstile> v :u t'' \<langle>r', w'\<rangle>"
+        and "(tag, t'', False) \<in> (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ` set ts"
+        and distinct_fst_ts: "distinct (map fst ts)"
+      using u_t_sumE
+      by auto[1]
+    then obtain \<tau>'
+      where t''_is: "t'' = instantiate \<tau>s \<tau>'"
+        and tag_\<tau>'_in_ts: "(tag, \<tau>', False) \<in>  set ts"
+      by force
+
+    have "\<And>tag'' \<tau>'. (tag'', \<tau>', False) \<in> set ts \<Longrightarrow> tag'' = tag'"
+      by (metis bex_empty filter_set list.set(1) member_filter o_apply one_left prod.inject set_ConsD snd_conv)
+    then have "tag = tag'"
+      and "\<tau>' = \<tau>"
+      using tag_\<tau>'_in_ts one_left distinct_fst_ts distinct_fst filtered_member
+      by fastforce+
+    then have "\<Xi>, \<sigma>' \<turnstile> v :u instantiate \<tau>s \<tau> \<langle>r', w'\<rangle>"
+      using uval_typing_v t''_is
+      by clarsimp
+    then show ?thesis
+      using r'_sub_r frame_w_w'
+      by fastforce
+  qed
 next case u_sem_case_nm
   then show ?case sorry
 (*
