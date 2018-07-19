@@ -1504,24 +1504,64 @@ next case u_sem_abs_app
     apply (clarsimp, auto intro!: exI
                           intro:  frame_trans subset_helper2'
                           dest:   frame_app [where w' = "{}", simplified])
-  done
+    done
+next case (u_sem_con \<xi> \<gamma> \<sigma> x \<sigma>' x' ts tag)
+  then show ?case
+  proof (cases e)
+    case (Con as' tag' e')
 
-next case u_sem_con
-  then show ?case sorry
-(*
-  note IH   = this(2)
-  and  rest = this(1,3-)
-  from rest show ?case
-    apply (cases e, simp_all)
-    apply (clarsimp elim!: typing_conE)
-    apply (frule(5) IH,clarsimp)
-    apply (auto dest: imageI [where f = "\<lambda>(c, t). (c, instantiate \<tau>s t)"]
-                simp: list_all2_helper
-                intro!: exI
-                        uval_typing_uval_typing_record.intros
-                        substitutivity(2) [where ts = "map snd ls" for ls, simplified])
-  done
-*)
+    have f1: "fst \<circ> (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) \<circ> (\<lambda>(c, t). (c, t, c \<noteq> tag')) = fst"
+      by force
+    have f2: "(\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) \<circ> (\<lambda>(c, t). (c, t, c \<noteq> tag')) = (\<lambda>(c, t). (c, instantiate \<tau>s t, c \<noteq> tag'))"
+      by force
+
+    have ts_is: "ts = map (\<lambda>(c, t). (c, instantiate \<tau>s t)) as'"
+      and tag_same: "tag' = tag"
+      and x_is: "x = specialise \<tau>s e'"
+      using u_sem_con.hyps Con
+      by simp+
+
+    obtain t'' k
+      where \<tau>_is: "\<tau> = TSum (map (\<lambda>(c, t). (c, t, c \<noteq> tag')) as')"
+        and e'_typing: "\<Xi>, K, \<Gamma> \<turnstile> e' : t''"
+        and tag'_in_as': "(tag', t'') \<in> set as'"
+        and distinct_fst_as': "distinct (map fst as')"
+        and snd_as_wellformed: "K \<turnstile>* map snd as' :\<kappa>  k"
+      using Con u_sem_con.prems
+      by force
+
+    obtain r' w'
+      where uval_x': "\<Xi>, \<sigma>' \<turnstile> x' :u instantiate \<tau>s t'' \<langle>r', w'\<rangle>"
+        and r'_sub_r: "r' \<subseteq> r"
+        and frame_w_w': "frame \<sigma> w \<sigma>' w'"
+      using u_sem_con.prems x_is u_sem_con.hyps(2) e'_typing
+      by blast
+
+    have "\<Xi>, \<sigma>' \<turnstile> USum tag x' (map (\<lambda>(n, t). (n, type_repr t)) [x\<leftarrow>ts. fst x = tag']) :u TSum (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) \<circ> (\<lambda>(c, t). (c, t, c \<noteq> tag'))) as') \<langle>r', w'\<rangle>"
+      using tag_same uval_x' tag'_in_as' ts_is
+    proof (intro u_t_sum)
+      show "distinct (map fst (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) \<circ> (\<lambda>(c, t). (c, t, c \<noteq> tag'))) as'))"
+        by (force simp add: distinct_fst_as' f1 o_assoc)
+    next
+      have "[] \<turnstile>* map (fst \<circ> snd) (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) \<circ> (\<lambda>(c, t). (c, t, c \<noteq> tag'))) as') :\<kappa> k"
+        using snd_as_wellformed substitutivity(1) u_sem_con.prems(2) kinding_all_set
+        by fastforce
+      then show "[] \<turnstile>* map (fst \<circ> snd) (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) \<circ> (\<lambda>(c, t). (c, t, c \<noteq> tag'))) as') wellformed"
+        by fastforce
+    next
+      have f3: "((\<lambda>x. fst x = tag') \<circ> (\<lambda>(c, t). (c, instantiate \<tau>s t))) = (\<lambda>x. fst x = tag')"
+        by force
+      have f4: "((\<lambda>(c, \<tau>, y). \<not> y) \<circ> (\<lambda>(c, t). (c, instantiate \<tau>s t, c \<noteq> tag'))) = (\<lambda>x. fst x = tag')"
+        by force
+
+      show "map (\<lambda>(n, t). (n, type_repr t)) [x\<leftarrow>ts . fst x = tag'] =
+            map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) [(c, \<tau>, b)\<leftarrow>map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) \<circ> (\<lambda>(c, t). (c, t, c \<noteq> tag'))) as' . \<not> b]"
+        by (simp add: ts_is filter_map f2 f3 f4)
+    qed force+
+    then show ?thesis
+      using r'_sub_r frame_w_w' \<tau>_is tag_same
+      by auto
+   qed simp+
 next case u_sem_let
   note IH1  = this(2)
   and  IH2  = this(4)
