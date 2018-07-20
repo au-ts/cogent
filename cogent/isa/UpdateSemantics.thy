@@ -1678,31 +1678,77 @@ next
       using r'_sub_r frame_w_w'
       by fastforce
   qed
-next case u_sem_case_nm
-  then show ?case sorry
-(*
-  note IH1 = this(2)
-  and  IH2 = this(5)
-  and rest = this(1,3-4,6-)
-  have HELP:
-  "\<forall> ts t. ([x\<leftarrow>map (\<lambda>(c, t). (c, instantiate \<tau>s t)) ts . fst x \<noteq> t]
-         = (map (\<lambda>(c, t). (c, instantiate \<tau>s t)) [x\<leftarrow>ts . fst x \<noteq> t]))"
-    by (clarsimp, induct_tac ts, auto  split: prod.split)
-  from rest show ?case
-    apply (cases e, simp_all)
-    apply (erule typing_caseE)
-    apply (frule matches_ptrs_noalias)
-    apply (frule(2) matches_ptrs_split, clarsimp)
-    apply (frule(5) IH1, clarsimp)
-    apply (frule(2) frame_noalias_matches_ptrs)
-    apply (frule(1) frame_noalias_matches_ptrs(2), blast)
-    apply (frule(2) matches_ptrs_frame, blast)
-    apply (frule(1) sum_downcast_u [rotated -1])
-    apply (frule(4) IH2 [rotated -1])
-     apply (simp, rule, simp add: HELP[rule_format], blast,blast,blast,blast)
-    apply (clarsimp, auto intro!: exI intro: frame_let simp: Un_commute)
-  done
-*)
+next
+  case (u_sem_case_nm \<xi> \<gamma> \<sigma> x \<sigma>'' tag' va rs tag n m)
+  then show ?case
+  proof (cases e, simp_all)
+    case (Case e' tag'' a b)
+    have x_is: "x = specialise \<tau>s e'"
+      and tag''_is: "tag'' = tag"
+      and m_is: "m = specialise \<tau>s a"
+      and n_is: "n = specialise \<tau>s b"
+      using Case u_sem_case_nm.hyps(6)
+      by simp+
+
+    obtain \<Gamma>1 \<Gamma>2 t ts
+      where \<Gamma>_split: "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+        and e'_typing: "\<Xi>, K, \<Gamma>1 \<turnstile> e' : TSum ts"
+        and tag''_in_ts: "(tag'', t, False) \<in> set ts"
+        and "\<Xi>, K, Some t # \<Gamma>2 \<turnstile> a : \<tau>"
+        and b_typing: "\<Xi>, K, Some (TSum ((tag'', t, True) # [x\<leftarrow>ts . fst x \<noteq> tag''])) # \<Gamma>2 \<turnstile> b : \<tau>"
+      using  u_sem_case_nm.prems(1) Case
+      by (force elim!: typing_caseE)
+
+    obtain r1 w1 r2 w2
+      where r_as_un: "r = r1 \<union> r2"
+        and w_as_un: "w = w1 \<union> w2"
+        and w1_w2_disjoint: "w1 \<inter> w2 = {}"
+        and matches_split1: "\<Xi>, \<sigma> \<turnstile> \<gamma> matches instantiate_ctx \<tau>s \<Gamma>1 \<langle>r1, w1\<rangle>"
+        and matches_split2: "\<Xi>, \<sigma> \<turnstile> \<gamma> matches instantiate_ctx \<tau>s \<Gamma>2 \<langle>r2, w2\<rangle>"
+      using matches_ptrs_split \<Gamma>_split u_sem_case_nm.prems
+      by metis
+    then have w2_r1_disjoint: "w2 \<inter> r1 = {}"
+         and w1_r2_disjoint: "w1 \<inter> r2 = {}"
+      using matches_ptrs_noalias u_sem_case_nm.prems
+      by blast+
+
+    obtain r1' w1'
+      where "\<Xi>, \<sigma>'' \<turnstile> USum tag' va rs :u instantiate \<tau>s (TSum ts) \<langle>r1', w1'\<rangle>"
+        and sub1: "r1' \<subseteq> r1"
+        and frame1: "frame \<sigma> w1 \<sigma>'' w1'"
+      using u_sem_case_nm.hyps(2) x_is e'_typing u_sem_case_nm.prems matches_split1
+      by blast
+    then have "\<Xi>, \<sigma>'' \<turnstile> USum tag' va [x\<leftarrow>rs . fst x \<noteq> tag] :u TSum ((tag, instantiate \<tau>s t, True) # [x\<leftarrow>map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts. fst x \<noteq> tag]) \<langle>r1', w1'\<rangle>"
+      using u_sem_case_nm.hyps(3) tag''_in_ts tag''_is
+      by (intro sum_downcast_u, (simp add: rev_image_eqI)+)
+    then have "\<Xi>, \<sigma>'' \<turnstile> USum tag' va [x\<leftarrow>rs . fst x \<noteq> tag] :u instantiate \<tau>s (TSum ((tag, t, True) # [x\<leftarrow>ts. fst x \<noteq> tag])) \<langle>r1', w1'\<rangle>"
+      by (simp add: filter_map case_prod_unfold comp_def)
+    moreover have "\<Xi>, \<sigma>'' \<turnstile> \<gamma> matches instantiate_ctx \<tau>s \<Gamma>2 \<langle>r2, w2\<rangle>"
+      using matches_ptrs_frame matches_split2 frame1 w1_r2_disjoint w1_w2_disjoint
+      by blast
+    moreover have "w1' \<inter> r2 = {}"
+      by (meson frame1 frame_noalias_matches_ptrs(2) matches_split2 w1_r2_disjoint)
+    moreover have "w1' \<inter> w2 = {}"
+      by (meson frame1 frame_noalias_matches_ptrs(1) matches_split2 w1_w2_disjoint)
+    moreover have "w2 \<inter> r1' = {}"
+      by (meson sub1 subset_eq subset_helper w2_r1_disjoint)
+    ultimately have "\<Xi>, \<sigma>'' \<turnstile> USum tag' va [x\<leftarrow>rs . fst x \<noteq> tag] # \<gamma> matches instantiate_ctx \<tau>s (Some (TSum ((tag, t, True) # [x\<leftarrow>ts . fst x \<noteq> tag])) # \<Gamma>2) \<langle>r2 \<union> r1', w2 \<union> w1'\<rangle>"
+      by (metis Un_commute instantiate_ctx_cons matches_ptrs_some)
+    then obtain r' w'
+      where "\<Xi>, \<sigma>' \<turnstile> v :u instantiate \<tau>s \<tau> \<langle>r', w'\<rangle>"
+      and r'_sub: "r' \<subseteq> r2 \<union> r1'"
+      and "frame \<sigma>'' (w2 \<union> w1') \<sigma>' w'"
+      using u_sem_case_nm.hyps(5) n_is b_typing u_sem_case_nm.prems(2-3,5) tag''_is
+      by blast
+    moreover then have "frame \<sigma> w \<sigma>' w'"
+      using frame_let frame1 w_as_un
+      by simp
+    moreover have "r' \<subseteq> r"
+      using r_as_un sub1 r'_sub
+      by blast
+    ultimately show ?thesis
+      by force
+  qed
 next case u_sem_case_m
   note IH1 = this(2)
   and  IH2 = this(4)
