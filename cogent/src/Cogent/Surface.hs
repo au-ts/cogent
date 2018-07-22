@@ -128,6 +128,7 @@ data Type e t =
               | TTuple [t]
               | TUnit
               | TArray t e
+              | TRefine VarName t e
               -- They will be eliminated at some point / zilinc
               | TUnbox   t
               | TBang    t
@@ -320,6 +321,7 @@ instance Traversable (Flip Type t) where  -- e
   traverse _ (Flip (TTuple ts))          = pure $ Flip (TTuple ts)
   traverse _ (Flip (TUnit))              = pure $ Flip (TUnit)
   traverse f (Flip (TArray t e))         = Flip <$> (TArray t <$> f e)
+  traverse f (Flip (TRefine v t e))      = Flip <$> (TRefine v t <$> f e)
   traverse _ (Flip (TUnbox t))           = pure $ Flip (TUnbox t)
   traverse _ (Flip (TBang t))            = pure $ Flip (TBang t)
   traverse _ (Flip (TTake fs t))         = pure $ Flip (TTake fs t)
@@ -420,6 +422,7 @@ fvT (RT (TVariant alts)) = foldMap (foldMap fvT . fst) alts
 fvT (RT (TTuple ts)) = foldMap fvT ts
 fvT (RT (TUnit)) = []
 fvT (RT (TArray t e)) = fvT t ++ fvE e
+fvT (RT (TRefine v t e)) = fvT t ++ filter (/= v) (fvE e)
 fvT (RT (TUnbox   t)) = fvT t
 fvT (RT (TBang    t)) = fvT t
 fvT (RT (TTake  _ t)) = fvT t

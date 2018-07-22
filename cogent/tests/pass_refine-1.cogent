@@ -1,0 +1,9 @@
+type U8Gt3 = [v:U8|v > 3]
+
+type FF = [b : Bool | b == False]
+
+foo : FF -> U8
+foo | False -> 0
+
+b : U8
+b = 1

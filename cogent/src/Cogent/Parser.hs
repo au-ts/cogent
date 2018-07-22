@@ -261,6 +261,7 @@ recAssignsAndOrWildcard = ((:[]) <$> wildcard)
 -- atomtype ::= "(" monotype "," ...")"
 --            | "{" fieldname ":" monotype "," ... "}"
 --            | "<" Con typeA2 "|" ... ">"
+--            | "[" var ":" monotyoe "|" expr "]"  -- first step, don't allow dependencies
 --            | var
 --            | Con
 
@@ -315,8 +316,15 @@ monotype = do avoidInitial
                   )
               -- <|> TCon <$> typeConName <*> pure [] <*> pure Writable
               <|> tuple <$> parens (commaSep monotype)
-              <|> TRecord <$> braces (commaSep1 ((\a b c -> (a,(b,c))) <$> variableName <* reservedOp ":" <*> monotype <*> pure False)) <*> pure (Boxed False noRepE)
-              <|> TVariant . M.fromList <$> angles (((,) <$> typeConName <*> fmap ((,False)) (many typeA2)) `sepBy` reservedOp "|"))
+              <|> TRecord <$> braces (commaSep1 ((\a b c -> (a,(b,c))) <$> variableName <* reservedOp ":" <*> monotype <*> pure False)) <*> pure Writable
+              <|> TVariant . M.fromList <$> angles (((,) <$> typeConName <*> fmap ((,False)) (many typeA2)) `sepBy` reservedOp "|")
+              <|> (brackets $ do v <- variableName
+                                 reservedOp ":"
+                                 t <- monotype
+                                 reservedOp "|"
+                                 e <- expr 1
+                                 return $ TRefine v t e))
+
     tuple [] = TUnit
     tuple [e] = typeOfLT e
     tuple es  = TTuple es

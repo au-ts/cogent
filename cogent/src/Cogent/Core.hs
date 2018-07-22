@@ -70,6 +70,7 @@ data Type t
   | TUnit
   | TArray (Type t) ArraySize  -- use Int for now
                                -- XXX | ^^^ (UntypedExpr t 'Zero VarName)  -- stick to UntypedExpr to be simple / zilinc
+  -- | TRefine (Type t) (TypedExpr t ('Suc 'Zero) VarName)
   deriving (Show, Eq, Ord)
 
 data SupposedlyMonoType = forall (t :: Nat). SMT (Type t)

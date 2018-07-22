@@ -94,6 +94,10 @@ validateType rt@(RT t) = do
                           cl = Arith (SE $ PrimOp ">" [l', SE $ IntLit 0])
                       (c,te') <- validateType te
                       return (c <> cl, T $ TArray te' l')
+    TRefine v t e -> do let t' = toTCType t
+                        context %= C.addScope (M.singleton v (t', noPos, Seq.singleton noPos))
+                        (c,e') <- cg (dummyLocE e) (T $ TCon "Bool" [] Unboxed)
+                        return (c, T $ TRefine v t' $ tcToSExpr e')
     _ -> second (T . ffmap toSExpr) <$> fmapFoldM validateType t 
 
 validateTypes :: (Traversable t) => t RawType -> CG (Constraint, t TCType)

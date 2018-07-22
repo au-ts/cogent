@@ -30,7 +30,7 @@ import Cogent.Surface
 import Cogent.TypeCheck.Assignment (assignT, assignE, assignAlts)
 import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Generator hiding (validateType)
-import qualified Cogent.TypeCheck.Generator as B (validateType)
+import qualified Cogent.TypeCheck.Generator as G (validateType)
 import Cogent.TypeCheck.Post (postT, postE, postA)
 import Cogent.TypeCheck.Solver
 import Cogent.TypeCheck.Subst (apply, applyE, applyAlts)
@@ -125,7 +125,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     base <- lift . lift $ use knownConsts
     let ctx = C.addScope (fmap (\(t,_,p) -> (t,p, Seq.singleton p)) base) C.empty  -- for consts, the definition is the first use.
     (((ct,t'),(c,e')), flx, os) <- runCG ctx [] 
-                                         ((,) <$> B.validateType t
+                                         ((,) <$> G.validateType t
                                               <*> cg e (toTCType t))
     let c' = ct <> c <> Share t' (Constant n)
     traceTc "tc" (text "constraint for const definition" <+> pretty n <+> text "is"
@@ -152,7 +152,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     let ctx = C.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) C.empty
     let ?loc = loc
     (((ct,t'),(c,alts')), flx, os) <- runCG ctx (map fst vs)
-                                            ((,) <$> B.validateType t
+                                            ((,) <$> G.validateType t
                                                  <*> cgFunDef alts (toTCType t))
     traceTc "tc" (text "constraint for fun definition" <+> pretty f <+> text "is"
                   L.<$> prettyC c)

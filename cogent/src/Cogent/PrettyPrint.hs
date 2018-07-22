@@ -466,6 +466,7 @@ instance (Pretty t, TypeType t, Pretty e) => Pretty (Type e t) where
   pretty (TTuple ts) = tupled (map pretty ts)
   pretty (TUnit)     = typesymbol "()" & (if __cogent_fdisambiguate_pp then (<+> comment "{- unit -}") else id)
   pretty (TArray t l) = prettyT' t <> brackets (pretty l)
+  pretty (TRefine v t e) = brackets $ typevar v <+> symbol ":" <+> pretty t <+> symbol "|" <+> pretty e
   pretty (TRecord ts s)
     | not . or $ map (snd . snd) ts = (if | s == Unboxed -> (typesymbol "#" <>)
                                           | readonly s -> (<> typesymbol "!")
