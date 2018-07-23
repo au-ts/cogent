@@ -1187,32 +1187,12 @@ lemma bang_type_repr [simp]:
 shows "[] \<turnstile> t :\<kappa> k \<Longrightarrow> (type_repr (bang t) = type_repr t)"
 and   "[] \<turnstile>* ts :\<kappa> k \<Longrightarrow> (map (type_repr \<circ> bang) ts) = map (type_repr) ts "
 and   "[] \<turnstile>* fs :\<kappa>r k \<Longrightarrow> (map (type_repr \<circ>  bang \<circ> fst) fs) = map (type_repr  \<circ> fst) fs"
-proof (induct "[] :: kind list" t k
-      and "[] :: kind list" ts k
-      and "[] :: kind list" fs k
-      rule: kinding_kinding_all_kinding_record.inducts)
+by ( induct "[] :: kind list"  t k
+           and "[] :: kind list" ts k
+           and "[] :: kind list" fs k
+     rule: kinding_kinding_all_kinding_record.inducts
+   , auto, (case_tac s,auto)+)
 
-  case (kind_tsum ts k)
-
-  have f1: "(\<lambda>(c, \<tau>, y). \<not> y) \<circ> (\<lambda>(c, t, b). (c, bang t, b)) = (\<lambda>(c, \<tau>, y). \<not> y)"
-    by fastforce
-  have f2: "(\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) \<circ> (\<lambda>(c, t, b). (c, bang t, b)) = (\<lambda>(c, \<tau>, _). (c, type_repr (bang \<tau>)))"
-    by fastforce
-
-  have "map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) [(c, \<tau>, b)\<leftarrow>ts . \<not> b]
-         = map (\<lambda>(c, \<tau>, _). (c, type_repr (bang \<tau>))) [(c, \<tau>, b)\<leftarrow>ts . \<not> b]"
-    using kind_tsum.hyps by auto
-  then show ?case
-    by (simp add: filter_map f1 f2)
-next
-  case (kind_tcon ts k s n)
-  then show ?case
-    by (case_tac s, auto)
-next
-  case (kind_trec ts k s)
-  then show ?case
-    by (case_tac s, auto)
-qed simp+
 
 subsection {* Specialisation *} 
 
