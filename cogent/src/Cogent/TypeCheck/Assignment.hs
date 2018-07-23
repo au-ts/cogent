@@ -13,8 +13,8 @@ import Prelude as P hiding (lookup)
 newtype Assignment = Assignment (M.IntMap SExpr)
 
 
-lookup :: Assignment -> Int -> SExpr
-lookup a@(Assignment m) i = maybe (SU i) (assign a) (M.lookup i m)
+lookup :: Assignment -> Int -> RawType -> SExpr
+lookup a@(Assignment m) i t = maybe (SU i t) (assign a) (M.lookup i m)
 
 singleton :: Int -> SExpr -> Assignment
 singleton i e = Assignment (M.fromList [(i, e)])
@@ -33,8 +33,8 @@ instance Monoid Assignment where
   mempty = Assignment M.empty
 #endif
 
-forUnknowns :: (Int -> SExpr) -> SExpr -> SExpr
-forUnknowns f (SU x) = f x
+forUnknowns :: (Int -> RawType -> SExpr) -> SExpr -> SExpr
+forUnknowns f (SU x t) = f x t
 forUnknowns f (SE x) = SE (fmap (forUnknowns f) x)
 
 assign :: Assignment -> SExpr -> SExpr

@@ -165,7 +165,7 @@ instance Prec (TExpr t) where
 
 instance Prec SExpr where
   prec (SE e) = prec e
-  prec (SU _) = 0
+  prec (SU {}) = 0
 
 -- NOTE: the difference from the definition of the fixity of Constraint
 instance Prec Constraint where
@@ -197,7 +197,7 @@ instance ExprType (TExpr t) where
 
 instance ExprType SExpr where
   isVar (SE e) = isVar e
-  isVar (SU _) = const False
+  isVar (SU {}) = const False
 
 -- ------------------------------------
 
@@ -448,7 +448,7 @@ instance Pretty t => Pretty (TExpr t) where
 
 instance Pretty SExpr where
   pretty (SE e) = pretty e
-  pretty (SU n) = warn ('?':show n)
+  pretty (SU n _) = warn ('?':show n)
 
 prettyT' :: (TypeType t, Pretty t) => t -> Doc
 prettyT' t | not $ isAtomic t = parens (pretty t)
@@ -673,6 +673,9 @@ instance Pretty TcLog where
 instance Pretty VarOrigin where
   pretty (ExpressionAt l) = warn ("the term at location " ++ show l)
   pretty (BoundOf a b d) = warn ("taking the " ++ show d ++ " of") <$> pretty a <$> warn "and" <$> pretty b
+  pretty (EqualIn e1 e2 t1 t2) = warn "equating" <+> pretty e1 <+> warn "of type" <+> pretty t1
+                                 <$> warn "and" <+> pretty e2 <+> warn "of type" <+> pretty t2
+  pretty (RefinementType ts) = warn "the refinement type(s)" <+> commaList (map pretty ts)
 
 analyseLeftover :: Constraint -> I.IntMap VarOrigin -> Doc
 analyseLeftover c@(F t :< F u) os
@@ -833,6 +836,7 @@ prettyCtx (AntiquotedExpr e) i = (if i then (<$> indent' (pretty (stripLocE e)))
                                (context "in the antiquoted expression at (" <> pretty (posOfE e) <> context ")" )
 prettyCtx (InAntiquotedCDefn n) _ = context "in the antiquoted C definition" <+> varname n
 prettyCtx (CustomisedCodeGen t) _ = context "in customising code-generation for type" <+> pretty t
+prettyCtx (Exhaustivity r) _ = context "in exhaustivity check using predicate" <+> pretty r
 
 handleTakeAssign :: (PatnType ip, Pretty ip) => Maybe (FieldName, ip) -> Doc
 handleTakeAssign Nothing = fieldname ".."

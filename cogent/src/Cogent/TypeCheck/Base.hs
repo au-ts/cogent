@@ -108,6 +108,7 @@ data ErrorContext = InExpression LocExpr TCType
                   | AntiquotedExpr LocExpr
                   | InAntiquotedCDefn VarName  -- C function or type name
                   | CustomisedCodeGen LocType
+                  | Exhaustivity SExpr
                   deriving (Eq, Show)
 
 instance Ord ErrorContext where
@@ -120,6 +121,7 @@ isCtxConstraint _ = False
 data VarOrigin = ExpressionAt SourcePos
                | BoundOf (TypeFragment TCType) (TypeFragment TCType) Bound
                | EqualIn SExpr SExpr TCType TCType
+               | RefinementType [TCType]
                deriving (Eq, Show, Ord)
 
 
@@ -153,6 +155,7 @@ data Constraint = (:<) (TypeFragment TCType) (TypeFragment TCType)
                 | Sat
                 | Exhaustive TCType [RawPatn]
                 | Arith SExpr
+              -- | Predicate SExpr  -- closed (quantified) predicate
                 deriving (Eq, Show, Ord)
 
 arithTCType :: TCType -> Bool
@@ -225,7 +228,8 @@ data TCType         = T (Type SExpr TCType)
                     deriving (Show, Eq, Ord)
 
 data SExpr          = SE (Expr RawType RawPatn RawIrrefPatn SExpr)
-                    | SU Int
+                    | SU Int RawType  -- FIXME: do we ever need `TCType' here?
+                  -- | SAll
                     deriving (Show, Eq, Ord)
 
 data FuncOrVar = MustFunc | MustVar | FuncOrVar deriving (Eq, Ord, Show)
@@ -401,6 +405,19 @@ substType vs (U x) = U x
 substType vs (T (TVar v False )) | Just x <- lookup v vs = x
 substType vs (T (TVar v True  )) | Just x <- lookup v vs = T (TBang x)
 substType vs (T t) = T (fmap (substType vs) t)
+
+substSExpr :: [(VarName, SExpr)] -> SExpr -> SExpr
+substSExpr vs (SU i t) = SU i t
+substSExpr vs e@(SE (Var v)) = case lookup v vs of
+                                 Just x -> x; Nothing -> e
+substSExpr vs (SE e) = SE (fmap (substSExpr vs) e)
+
+-- XXX | -- universally quantify an SExpr
+-- XXX | uqSExpr :: VarName -> SExpr -> SExpr
+-- XXX | uqSExpr v (SE (Var x)) | v == x = SAll
+-- XXX | uqSExpr v (SU i) = SU i
+-- XXX | uqSExpr v (SAll) = __impossible "uqSExpr: already a predicate"
+-- XXX | uqSExpr v (SE e) = SE $ fmap (uqSExpr v) e
 
 -- Check for type well-formedness
 validateType :: [VarName] -> RawType -> TcM TCType

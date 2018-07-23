@@ -254,7 +254,7 @@ cg' (ArrayLit es) t = do
 
 cg' (ArrayIndex e i) t = do
   alpha <- freshTVar
-  n <- freshEVar
+  n <- freshEVar (RT $ TCon "U32" [] Unboxed)
   let ta = T $ TArray alpha n
   (ce, e') <- cg e ta
   (ci, i') <- cg (dummyLocE i) (T $ TCon "U32" [] Unboxed)
@@ -597,14 +597,14 @@ freshTVar = fresh (ExpressionAt ?loc)
       flexOrigins %= IM.insert i ctx
       return $ U i
 
-freshEVar :: (?loc :: SourcePos) => CG SExpr
-freshEVar = fresh (ExpressionAt ?loc)
+freshEVar :: (?loc :: SourcePos) => RawType -> CG SExpr
+freshEVar t = fresh (ExpressionAt ?loc)
   where
     fresh :: VarOrigin -> CG SExpr
     fresh ctx = do
       i <- flexes <<%= succ  -- FIXME: do we need a different variable?
       flexOrigins %= IM.insert i ctx
-      return $ SU i
+      return $ SU i t
       
 integral :: TCType -> Constraint
 integral a = Upcastable (T (TCon "U8" [] Unboxed)) a

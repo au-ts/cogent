@@ -40,6 +40,7 @@ import           Cogent.Util (fst3, u32MAX, Bound(..))
 import           Control.Applicative
 import           Control.Arrow (first, second)
 import           Control.Lens hiding ((:<))
+import           Control.Monad.Reader (ask)
 import           Control.Monad.State hiding (modify)
 import           Control.Monad.Trans.Except
 import           Control.Monad.Trans.State (modify)
@@ -175,10 +176,10 @@ patternTag _ = Nothing
 -- for that to be true. E.g, (a,b) :< (c,d) becomes a :< c :& b :< d.
 -- Assumes that the input is simped (i.e conjunction and context free, with types in whnf)
 -- Returns `Nothing' if the constraint cannot be further transformed.
-rule' :: (?lvl :: Int) => Constraint -> IO (Maybe Constraint)
+rule' :: (?lvl :: Int) => Constraint -> Solver (Maybe Constraint)
 rule' c = ruleT c >>= return . ((:@ SolvingConstraint c) <$>)
 
-ruleT :: (?lvl :: Int) => Constraint -> IO (Maybe Constraint)
+ruleT :: (?lvl :: Int) => Constraint -> Solver (Maybe Constraint)
 ruleT c = do
   traceTc "sol" (brackets (int ?lvl) <+> text "apply rule to" <+> prettyC c)
   mc <- rule c
@@ -187,7 +188,15 @@ ruleT c = do
     Just c' -> text "becomes" <+> prettyC c'
   return mc
 
-rule :: (?lvl :: Int) => Constraint -> IO (Maybe Constraint)
+-- Return the set of values a pattern can cover
+pValueSet :: VarName -> RawPatn -> SExpr
+pValueSet v (RP (PCon t ips)) = undefined
+pValueSet v (RP (PIntLit  n))  = SE $ PrimOp "==" [SE $ Var v, SE $ IntLit  n]
+pValueSet v (RP (PBoolLit n))  = SE $ PrimOp "==" [SE $ Var v, SE $ BoolLit n]
+pValueSet v (RP (PCharLit n))  = SE $ PrimOp "==" [SE $ Var v, SE $ CharLit n]
+pValueSet v (RP (PIrrefutable _)) = SE $ BoolLit True
+
+rule :: (?lvl :: Int) => Constraint -> Solver (Maybe Constraint)
 rule (Exhaustive t ps) | any isIrrefutable ps = return $ Just Sat
 rule (Exhaustive (T (TVariant n)) ps)
   | s1 <- S.fromList (mapMaybe patternTag ps)
@@ -196,12 +205,24 @@ rule (Exhaustive (T (TVariant n)) ps)
                then Just Sat
                else Just $ Unsat (PatternsNotExhaustive (T (TVariant n)) (S.toList (s2 S.\\ s1)))
 
-rule (Exhaustive (T (TCon "Bool" [] Unboxed)) [RP (PBoolLit t), RP (PBoolLit f)])
-   = return $ if not (t && f) && (t || f) then Just Sat
-              else Just $ Unsat $ PatternsNotExhaustive (T (TCon "Bool" [] Unboxed)) []
+-- rule (Exhaustive (T (TCon "Bool" [] Unboxed)) [RP (PBoolLit t), RP (PBoolLit f)])
+--   = return $ if not (t && f) && (t || f) then Just Sat
+--              else Just $ Unsat $ PatternsNotExhaustive (T (TCon "Bool" [] Unboxed)) []
+
+rule (Exhaustive ty@(T (TRefine v t e)) [])
+  = do v' <- freshEVar (toRawType t) (RefinementType [ty])
+       let vs = [(v, v')]
+           e' = substSExpr vs e
+       return $ Just $ Arith (SE $ PrimOp "not" [e']) :@ (Exhaustivity e') -- empty set
+rule (Exhaustive (T (TRefine v t e)) (p:ps))
+  = let r = pValueSet v p
+        e' = SE $ PrimOp "&&" [e, SE $ PrimOp "not" [r]] -- e `union` r
+     in rule (Exhaustive (T (TRefine v t e')) ps)
 
 rule (Exhaustive t ps)
-  | not (notWhnf t) = return . Just . Unsat $ PatternsNotExhaustive t []
+  | not (notWhnf t) = do SU v _ <- freshEVar (toRawType t) (RefinementType [t]) 
+                         rule (Exhaustive (T (TRefine ('?':show v) t $ SE $ BoolLit True)) ps)
+  -- | not (notWhnf t) = return . Just . Unsat $ PatternsNotExhaustive t []
 
 rule (x :@ c) = do
   let ?lvl = ?lvl + 1
@@ -388,6 +409,18 @@ rule ct@(FRecord (M.fromList -> n) :< FRecord (M.fromList -> m))
   | ns <- M.keysSet n
   , ns == M.keysSet m
   = parRecords n m ns
+rule (F ty1@(T (TRefine v1 t1 e1)) :< F ty2@(T (TRefine v2 t2 e2)))
+  = do v <- freshEVar (toRawType t2) (RefinementType [ty1, ty2])
+       let vs1 = [(v1,v)]
+           vs2 = [(v2,v)]
+           e1' = substSExpr vs1 e1
+           e2' = substSExpr vs2 e2
+       return . Just $ (F t1 :< F t2) :&
+                       (Arith $ SE $ PrimOp "||" [SE $ PrimOp "not" [e1'], e2'])  -- e1 `subsetOf` e2
+rule (F t1@(T (TRefine v _ _)) :< F t2)
+  = rule $ F t1 :< F (T $ TRefine v t2 $ SE $ BoolLit True)
+rule (F t1 :< F t2@(T (TRefine v _ _)))
+  = rule $ F (T $ TRefine v t1 $ SE $ BoolLit True) :< F t2
 rule ct@(a :< b) = do
   traceTc "sol" (text "apply rule to" <+> prettyC ct <> semi
            P.<$> text "yield type mismatch")
@@ -426,21 +459,21 @@ parVariants n m ks =
 -- takeVariant (f:fs) vs es | f `M.member` vs = takeVariant fs (M.adjust (\(t,b) -> (t, False)) f vs ) es
 --                          | otherwise       = takeVariant fs vs (M.insertWith (&&) f False es)
 
-apply :: (Constraint -> TcBaseM Constraint) -> [Goal] -> TcBaseM [Goal]
+apply :: (Constraint -> Solver Constraint) -> [Goal] -> Solver [Goal]
 apply tactic = fmap concat . mapM each
   where each (Goal ctx c) = do
           traceTc "sol" (text "apply tactic to goal" <+> prettyC c)
           c' <- tactic c
           traceTc "sol" (text "after tactic" <+> prettyC c </> text "becomes" <+> prettyC c')
-          map (goalContext %~ (++ ctx)) <$> crunch c'
+          map (goalContext %~ (++ ctx)) <$> lift (crunch c')
 
 -- Applies simp and rules as much as possible
-auto :: Constraint -> TcBaseM Constraint
+auto :: Constraint -> Solver Constraint
 auto c = do
   traceTc "sol" (text "auto")
   let ?lvl = 0
-  c' <- simp' c
-  liftIO (rule' c') >>= \case
+  c' <- lift $ simp' c
+  rule' c' >>= \case
     Nothing  -> return c'
     Just c'' -> auto c''
 
@@ -453,6 +486,7 @@ simp (Share  t m)      = Share      <$> whnf t <*> pure m
 simp (Drop   t m)      = Drop       <$> whnf t <*> pure m
 simp (Escape t m)      = Escape     <$> whnf t <*> pure m
 simp (Arith e)         = pure (Arith e)
+-- simp (Predicate e)     = pure (Predicate e)
 simp (a :@ c)          = (:@)       <$> simp a <*> pure c
 simp (Unsat e)         = pure (Unsat e)
 simp (SemiSat w)       = pure (SemiSat w)
@@ -470,11 +504,11 @@ freshTVar ctx = do
   flexOrigins %= IM.insert i ctx
   return $ U i
 
-freshEVar :: VarOrigin -> Solver SExpr
-freshEVar ctx = do
+freshEVar :: RawType -> VarOrigin -> Solver SExpr
+freshEVar t ctx = do
   i <- flexes <<%= succ  -- FIXME: do we need a different variable?
   flexOrigins %= IM.insert i ctx
-  return $ SU i
+  return $ SU i t
  
 
 glb = bound GLB
@@ -592,7 +626,7 @@ bound' d t1@(T (TRecord fs s)) t2@(T (TRecord gs r))
       return $ Just t
 bound' d a@(T (TArray t l)) b@(T (TArray s n)) = do
   u <- freshTVar (BoundOf (F t) (F s) d)
-  m <- freshEVar (EqualIn l n a b)
+  m <- freshEVar (RT $ TCon "U32" [] Unboxed) (EqualIn l n a b)
   let c = T $ TArray u m
   traceTc "sol" (text "calculate bound of" <+> pretty a <+> text "and" <+> pretty b <> colon
                  P.<$> pretty c)
@@ -892,6 +926,10 @@ svalToWord32 = VI.SBV
 bvAnd :: [VD.SVal] -> VD.SVal
 bvAnd = foldr (VD.svAnd) VD.svTrue
 
+-- create a dynamic symbolic Boolean type
+sBoolD :: String -> V.Symbolic VD.SVal
+sBoolD nm = ask >>= liftIO . VD.svMkSymVar Nothing V.KBool (Just nm)
+
 sexprToSbv :: SExpr -> SbvM VD.SVal
 sexprToSbv (SE (PrimOp op [e1,e2])) = liftA2 (bopToSbv op) (sexprToSbv e1) (sexprToSbv e2)
 sexprToSbv (SE (PrimOp op [e])) = liftA (uopToSbv op) $ sexprToSbv e
@@ -906,10 +944,17 @@ sexprToSbv (SE (IntLit i)) = return $ VD.svInteger (VD.KBounded False 32) i
 sexprToSbv (SE (BoolLit b)) = return $ VD.svBool b
 sexprToSbv (SE (Upcast e)) = sexprToSbv e
 sexprToSbv (SE (Annot e _)) = sexprToSbv e
-sexprToSbv (SU i) = do
+sexprToSbv (SU i (RT t)) = do
+  let t' = case t of
+             TCon "U8"   [] Unboxed -> VD.sWordN 8
+             TCon "U16"  [] Unboxed -> VD.sWordN 16
+             TCon "U32"  [] Unboxed -> VD.sWordN 32
+             TCon "U64"  [] Unboxed -> VD.sWordN 64
+             TCon "Bool" [] Unboxed -> sBoolD
+             _ -> __todo $ "sexprToSbv: type " ++ show (pretty t) ++ " not yet supported"
   m <- use _1
   case IM.lookup i m of
-    Nothing -> do v <- lift . VD.sWordN 32 $ '?':show i  -- FIXME: type
+    Nothing -> do v <- lift . t' $ '?':show i
                   modify (first $ IM.insert i v)
                   return v
     Just v -> return v
@@ -970,7 +1015,7 @@ assumption gs = do
 -- Take an assorted list of goals, and break them down into neatly classified, simple flex/rigid goals.
 -- Removes any known facts about type variables.
 explode :: [Goal] -> Solver GoalClasses
-explode = assumption >=> (lift . apply auto) >=> (return . foldMap classify)
+explode = assumption >=> (apply auto) >=> (return . foldMap classify)
 
 irreducible :: IM.IntMap [Goal] -> IS.IntSet -> Bool
 irreducible m ds | IM.null m = True
