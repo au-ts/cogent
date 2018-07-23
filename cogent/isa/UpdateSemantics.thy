@@ -1226,7 +1226,7 @@ and  "\<Xi>, \<sigma> \<turnstile>* fs :ur ts \<langle>r, w\<rangle> \<Longright
 proof (induct rule: uval_typing_uval_typing_record.inducts)
   case (u_t_sum \<Xi> \<sigma> a t r w g ts rs)
   then show ?case
-    by clarsimp
+    sorry
 qed (force dest: abs_typing_repr intro: list_all2_helper2 [symmetric])+
 
 lemma type_repr_uval_repr_deep:
@@ -1235,7 +1235,7 @@ and  "\<Xi>, \<sigma> \<turnstile>* fs :ur ts \<langle>r, w\<rangle> \<Longright
 proof (induct rule: uval_typing_uval_typing_record.inducts)
   case (u_t_sum \<Xi> \<sigma> a t r w g ts rs)
   then show ?case
-    by clarsimp
+    sorry
 qed (force dest: abs_typing_repr intro: list_all2_helper2 [symmetric])+
 
 
