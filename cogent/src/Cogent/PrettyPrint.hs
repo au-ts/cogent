@@ -766,6 +766,8 @@ instance Pretty Assignment where
 instance Pretty a => Pretty (I.IntMap a) where
   pretty = vcat . map (\(k,v) -> pretty k <+> text "|->" <+> pretty v) . I.toList
 
+instance (Pretty k, Pretty v) => Pretty (M.Map k v) where
+  pretty  = vcat . map (\(k,v) -> pretty k <+> text "|->" <+> pretty v) . M.toList
 
 instance Pretty RepError where 
   pretty (UnknownRepr r ctx) 

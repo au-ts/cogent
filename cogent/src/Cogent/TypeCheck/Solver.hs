@@ -1101,7 +1101,10 @@ solve = lift . crunch >=> explode >=> go
           groundNB _                     = False
           groundKeys = IM.keysSet (IM.filter (groundNB . GS.toList) (cls g))
       -- FIXME: doesn't handle refinement types correctly!!! / zilinc
-      s <- F.fold <$> mapM (noBrainersT . GS.toList) (cls g `removeKeys` IS.toList (flexes g IS.\\ groundKeys))
+      let groundGoals = cls g `removeKeys` IS.toList (flexes g IS.\\ groundKeys)
+      traceTc "sol" (text "ground goals are" <> colon
+                     P.<$> pretty groundGoals)
+      s <- F.fold <$> mapM (noBrainersT . GS.toList) groundGoals
       traceTc "sol" (text "solve" <+> text msg <+> text "goals"
                      P.<$> bold (text "produce subst" <> colon)
                      P.<$> pretty s)

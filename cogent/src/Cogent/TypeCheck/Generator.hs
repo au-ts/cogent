@@ -111,8 +111,18 @@ cgFunDef :: (?loc :: SourcePos) => [Alt LocPatn LocExpr] -> TCType -> CG (Constr
 cgFunDef alts t = do
   alpha1 <- freshTVar
   alpha2 <- freshTVar
+  traceTc "gen" (text "function is given type" <> colon
+                 <+> pretty alpha1 <+> text "->" <+> pretty alpha2) 
   (c, alts') <- cgAlts alts alpha2 alpha1
   return (c <> (F $ T (TFun alpha1 alpha2)) :< F t, alts')
+
+-- TODO: When we encounter a pattern match, we take the union of the smallest type
+-- each pattern can represent. The sum will be used to compare with upper level types.
+-- E.g. x | False -> e1; | True -> e2
+-- PBool False : {b : Bool | b == False} == tt
+-- PBool True  : {b : Bool | b == True } == ff
+-- if x : ?0
+-- then ?0 :< tt `union` ff
 
 -- cgAlts alts out_type in_type
 -- NOTE the order of arguments!
@@ -214,6 +224,11 @@ cg' (Upcast e) t = do
   (c1, e1') <- cg e alpha
   let c = (integral alpha) <> Upcastable alpha t <> c1
   return (c, Upcast e1')
+
+
+-- TODO: In order to infer principal types, we need to generate a template for
+-- each type, refined. For example, 5 : {x : U8 | x <= ?0 && ?1 <= x} == tau,
+-- We generate constraints tau :< t :& {x : U8 | x == 5} :< tau
 
 cg' (BoolLit b) t = do
   let c = F (T (TCon "Bool" [] Unboxed)) :< F t

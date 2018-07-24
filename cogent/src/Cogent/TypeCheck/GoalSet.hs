@@ -31,16 +31,25 @@ data Goal = Goal { _goalContext :: [ErrorContext]
                  }  -- high-level context at the end of _goalContext
 
 instance Show Goal where
-  show (Goal c g) = const (show big) big
+  show (Goal c g) = show small
     where big = (small P.<$> (P.vcat $ map (flip prettyCtx True) c))
           small = pretty g
+
+instance Pretty Goal where
+  pretty (Goal c g) = text "Goal" <+> parens (pretty g)
 
 makeLenses ''Goal
 
 newtype GoalSet = GS (M.Map Constraint Goal) deriving (Show)
 
+instance Pretty GoalSet where
+  pretty (GS m) = text "GoalSet" <+> parens (pretty m)
+
+singleton :: Goal -> GoalSet
+singleton = insert mempty
+
 insert :: GoalSet -> Goal -> GoalSet
-insert (GS x) g = (GS (M.insert (g ^. goal) g x))
+insert (GS x) g = GS (M.insert (g ^. goal) g x)
 
 toList :: GoalSet -> [Goal]
 toList (GS x) = F.toList x
@@ -56,6 +65,3 @@ instance Monoid GoalSet where
   mempty = GS mempty
 #endif
 
-
-singleton :: Goal -> GoalSet
-singleton = insert mempty
