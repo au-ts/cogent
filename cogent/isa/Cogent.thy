@@ -1246,9 +1246,20 @@ shows "\<Xi> , K , \<Gamma> \<turnstile>  e  : \<tau>  \<Longrightarrow> \<Xi> ,
 and   "\<Xi> , K , \<Gamma> \<turnstile>* es : \<tau>s \<Longrightarrow> \<Xi> , K' , instantiate_ctx \<delta> \<Gamma> \<turnstile>* map (specialise \<delta>) es : map (instantiate \<delta>) \<tau>s"
   using assms
 proof (induct rule: typing_typing_all.inducts)
+  have f1: "(\<lambda>(c, p). (c, case p of (t, b) \<Rightarrow> (instantiate \<delta> t, b))) = (\<lambda>(c, t, b). (c, instantiate \<delta> t, b))"
+    by force
+
   case (typing_case K \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> x ts tag t a u b)
   then have "\<Xi>, K', instantiate_ctx \<delta> \<Gamma> \<turnstile> Case (specialise \<delta> x) tag (specialise \<delta> a) (specialise \<delta> b) : instantiate \<delta> u"
-    sorry
+  proof (intro typing_typing_all.typing_case)
+    have "\<Xi>, K', instantiate_ctx \<delta> (Some (TSum (tagged_list_update tag (t, True) ts)) # \<Gamma>2) \<turnstile> specialise \<delta> b : instantiate \<delta> u"
+      using typing_case.hyps(8) typing_case.prems by blast
+    moreover have "(map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) (tagged_list_update tag (t, True) ts)) = (tagged_list_update tag (instantiate \<delta> t, True) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts))"
+      using case_prod_conv f1 tagged_list_update_map_over[where f = id and g = "\<lambda>_ (t,b). (instantiate \<delta> t, b)", simplified]
+      by metis
+    ultimately show "\<Xi>, K', Some (TSum (tagged_list_update tag (instantiate \<delta> t, True) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts))) # instantiate_ctx \<delta> \<Gamma>2 \<turnstile> specialise \<delta> b : instantiate \<delta> u"
+      by clarsimp
+  qed (force intro: instantiate_ctx_split)+
   then show ?case by simp
 next case (typing_afun \<Xi> f ks t u K ts ks)
   then also have "instantiate \<delta> (instantiate ts t) = instantiate (map (instantiate \<delta>) ts) t"
