@@ -157,6 +157,50 @@ lemma append_filter_fst_eqiv_map_update:
   done
 
 
+subsection {* Tagged list update *}
+
+primrec tagged_list_update :: "'a \<Rightarrow> 'b \<Rightarrow> ('a \<times> 'b) list \<Rightarrow> ('a \<times> 'b) list" where
+  "tagged_list_update a' b' [] = []"
+| "tagged_list_update a' b' (x # xs) = (case x of (a, b) \<Rightarrow>
+                                      (if a = a'
+                                       then (a, b') # xs
+                                       else (a, b) # tagged_list_update a' b' xs))"
+
+lemma tagged_list_update_tag_not_present[simp]:
+  assumes "\<forall>i<length xs. fst (xs ! i) \<noteq> tag"
+  shows "tagged_list_update tag b xs = xs"
+    using assms
+    by (induct xs, fastforce+)
+
+lemma tagged_list_update_tag_present[simp]:
+  assumes "\<forall>j<i. fst (xs ! j) \<noteq> tag"
+    and "i<length xs"
+    and "fst (xs ! i) = tag"
+  shows "tagged_list_update tag b' xs = xs[i := (tag, b')]"
+  using assms
+proof (induct xs arbitrary: i)
+  case (Cons x xs)
+  then show ?case
+  proof (cases i)
+    case (Suc nat)
+    then show ?thesis
+      using Cons
+    proof (cases "fst x = fst (xs ! nat)")
+      case False
+      then show ?thesis
+        using Cons Suc
+        by (simp add: case_prod_beta, metis Suc_mono nth_Cons_Suc)
+    qed auto
+  qed (simp add: case_prod_beta)
+qed simp
+
+lemma tagged_list_update_map_over:
+  fixes f g
+  assumes inj_f: "inj f"
+  shows "map (\<lambda>(tag,b). (f tag, g tag b)) (tagged_list_update tag b' xs) = tagged_list_update (f tag) (g tag b') (map (\<lambda>(tag,b). (f tag, g tag b)) xs)"
+  by (induct xs, (simp add: inj_eq case_prod_beta inj_f)+)
+
+
 section {* Terms and Types of Cogent *}
 
 type_synonym name = string
@@ -598,7 +642,7 @@ inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Right
                    ; \<Xi>, K, \<Gamma>1 \<turnstile> x : TSum ts
                    ; (tag, (t,False)) \<in> set ts
                    ; \<Xi>, K, (Some t # \<Gamma>2) \<turnstile> a : u
-                   ; \<Xi>, K, (Some (TSum ((tag, (t,True)) # filter (\<lambda> x. fst x \<noteq> tag) ts)) # \<Gamma>2) \<turnstile> b : u
+                   ; \<Xi>, K, (Some (TSum (tagged_list_update tag (t, True) ts)) # \<Gamma>2) \<turnstile> b : u
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Case x tag a b : u"
 
 | typing_esac   : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : TSum ts
@@ -1204,12 +1248,7 @@ and   "\<Xi> , K , \<Gamma> \<turnstile>* es : \<tau>s \<Longrightarrow> \<Xi> ,
 proof (induct rule: typing_typing_all.inducts)
   case (typing_case K \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> x ts tag t a u b)
   then have "\<Xi>, K', instantiate_ctx \<delta> \<Gamma> \<turnstile> Case (specialise \<delta> x) tag (specialise \<delta> a) (specialise \<delta> b) : instantiate \<delta> u"
-    using image_iff
-      filter_fst_ignore_app2[where ls=ts and f="instantiate \<delta>" and P="\<lambda>p. p \<noteq> tag"]
-  proof (intro typing_typing_all.typing_case)
-    show "(tag, instantiate \<delta> t, False) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts)"
-      using typing_case.hyps(4) image_iff by fastforce
-  qed (force intro: instantiate_ctx_split)+
+    sorry
   then show ?case by simp
 next case (typing_afun \<Xi> f ks t u K ts ks)
   then also have "instantiate \<delta> (instantiate ts t) = instantiate (map (instantiate \<delta>) ts) t"
