@@ -5,5 +5,7 @@ type FF = [b : Bool | b == False]
 foo : FF -> U8
 foo | False -> 0
 
-b : U8
-b = 1
+-- It used to be `b' to test the reorganiser.
+-- I changed it to `c' for debugging. / zilinc
+c : U8
+c = 1

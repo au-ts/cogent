@@ -46,7 +46,7 @@ import           Control.Monad.Trans.Except
 import           Control.Monad.Trans.State (modify)
 import           Data.Either (either)
 import qualified Data.Foldable as F
-import           Data.Function (on)
+import           Data.Function (on, (&))
 import           Data.Functor.Compose (Compose(..))
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
@@ -862,23 +862,22 @@ kAxioms :: Solver [SExpr]
 kAxioms = map f <$> (filter (arithTCType . fst3 . snd) . M.toList <$> lift (use knownConsts))
   where f (v,(_,e,_)) = SE $ PrimOp "==" [SE (Var v), tcToSExpr e]
 
-arithEqSolver :: [Goal] -> Solver (Either GoalClasses Ass.Assignment)
-arithEqSolver gs = do
-  cs <- kAxioms
-  let es = flip map gs (\(Goal _ (Exists e)) -> e) 
-  solveArithEqs (cs ++ es)
-
-solveArithEqs :: [SExpr] -> Solver (Either GoalClasses Ass.Assignment)
-solveArithEqs es = either (Left . g) (Right . Ass.Assignment . IM.fromList . M.toList
-                 . M.mapKeys (read . tail) . M.map (SE . IntLit))
-                 <$> getAssignments
-  where
-    g msg = __fixme $ mempty {unsats = [Goal [] (Unsat $ CannotFindAssignment es msg)]}
-        -- ^^^ FIXME: we should try to produce much better error msgs / zilinc
-    
+-- get an assignment for unknowns
+arithAss :: [Goal] -> Solver (Either GoalClasses Ass.Assignment)
+arithAss gs = do
+    cs <- kAxioms
+    let es = flip map gs (\(Goal _ (Exists e)) -> e) 
+    go [] (cs++es) >>= \case  -- FIXME!!
+      Left  s -> let g = [Goal [] (Unsat $ CannotFindAssignment (cs++es) s)]
+                     -- FIXME: we should try to produce much better error msgs / zilinc
+                  in __fixme $ return (Left $ mempty {unsats = g})
+      Right m -> m & ( return . Right . Ass.Assignment . IM.fromList . M.toList
+                     . M.mapKeys (read . tail) . M.map (SE . IntLit) )
+  where 
     -- find a satisfying assignment to the equality constraints
-    getAssignments :: Solver (Either String (M.Map String Integer))
-    getAssignments = do
+    -- FIXME: distinguish cs and es
+    go :: [SExpr] -> [SExpr] -> Solver (Either String (M.Map String Integer))
+    go cs es = do
       let s = bvAnd <$> evalStateT (mapM sexprToSbv es) (IM.empty, M.empty)
           config = VD.z3 { V.verbose = __cogent_ddump_smt, V.isNonModelVar = \x -> head x /= '?' }
       V.AllSatResult (_,_,smtReses) <- liftIO $ VD.allSatWith config $ do
@@ -889,38 +888,38 @@ solveArithEqs es = either (Left . g) (Right . Ass.Assignment . IM.fromList . M.t
         [smtRes] -> return $ Right $ M.map V.fromCW $ V.getModelDictionary smtRes
         _ -> return $ Left "multiple assignments found by the SMT-solver"
 
-
-arithIneqSolver :: [Goal] -> Solver (Maybe GoalClasses)
-arithIneqSolver gs = do
-  cs <- kAxioms
-  let es = flip map gs (\(Goal _ (ForAll e)) -> e)
-  solveArithIneqs cs es >>= \case
-    Nothing  -> return Nothing
-    Just msg -> let g = [Goal [] (Unsat $ PredicatesDontHold (cs++es) msg)]
-                 in __fixme $ return (Just $ mempty {unsats = g})
-
-solveArithIneqs :: [SExpr] -> [SExpr] -> Solver (Maybe String)
-solveArithIneqs cs es = do
-  traceTc "sol" (text "solving inequalities" <> colon
-                P.<$> vsep (map pretty es))
-  let s = bvAnd <$> do ((cs',es'),(us,vs)) <- runStateT ((,) <$> mapM sexprToSbv cs <*> mapM sexprToSbv es) (IM.empty, M.empty)
-                       -- vvv NOTE: because they're bound unsigned integers
-                       -- forM (IM.elems us) $ \v ->
-                       --   V.constrain $ (svalToWord32 v V..>= 0) V.&&& (svalToWord32 v V..< fromIntegral u32MAX)
-                       mapM V.constrain $ map VI.SBV cs'
-                       return es'
-      config = VD.z3 { V.verbose = __cogent_ddump_smt }
-  V.ThmResult smtRes <- liftIO $ VD.proveWith config s
-  case smtRes of
+-- check the satisfiability of arithmetic constraints
+arithSat :: [Goal] -> Solver (Maybe GoalClasses)
+arithSat gs = do
+    cs <- kAxioms
+    let es = flip map gs (\(Goal _ (ForAll e)) -> e)
+    go cs es >>= \case
+      Nothing  -> return Nothing
+      Just msg -> let g = [Goal [] (Unsat $ PredicatesDontHold (cs++es) msg)]
+                   in __fixme $ return (Just $ mempty {unsats = g})
+  where
+    go :: [SExpr] -> [SExpr] -> Solver (Maybe String)
+    go cs es = do
+      traceTc "sol" (text "solving inequalities" <> colon
+                    P.<$> vsep (map pretty es))
+      let s = bvAnd <$> do ((cs',es'),(us,vs)) <- runStateT ((,) <$> mapM sexprToSbv cs <*> mapM sexprToSbv es) (IM.empty, M.empty)
+                           -- vvv NOTE: because they're bound unsigned integers
+                           -- forM (IM.elems us) $ \v ->
+                           --   V.constrain $ (svalToWord32 v V..>= 0) V.&&& (svalToWord32 v V..< fromIntegral u32MAX)
+                           mapM V.constrain $ map VI.SBV cs'
+                           return es'
+          config = VD.z3 { V.verbose = __cogent_ddump_smt }
+      V.ThmResult smtRes <- liftIO $ VD.proveWith config s
+      case smtRes of
 #if MIN_VERSION_sbv(7,7,0)
-    V.Unsatisfiable _ _ -> return Nothing
+        V.Unsatisfiable _ _ -> return Nothing
 #else
-    V.Unsatisfiable _   -> return Nothing
+        V.Unsatisfiable _   -> return Nothing
 #endif
-    V.Satisfiable _ model -> return (Just $ VI.showModel config model)
-    V.SatExtField _ model -> return (Just $ VI.showModel config model)
-    V.Unknown    _ msg    -> return (Just msg)
-    V.ProofError _ msgs   -> return (Just $ unlines msgs)
+        V.Satisfiable _ model -> return (Just $ VI.showModel config model)
+        V.SatExtField _ model -> return (Just $ VI.showModel config model)
+        V.Unknown    _ msg    -> return (Just msg)
+        V.ProofError _ msgs   -> return (Just $ unlines msgs)
 
 type UVars = IM.IntMap VD.SVal
 type EVars = M.Map VarName VD.SVal
@@ -940,13 +939,13 @@ sBoolD nm = ask >>= liftIO . VD.svMkSymVar Nothing V.KBool (Just nm)
 sexprToSbv :: SExpr -> SbvM VD.SVal
 sexprToSbv (SE (PrimOp op [e1,e2])) = liftA2 (bopToSbv op) (sexprToSbv e1) (sexprToSbv e2)
 sexprToSbv (SE (PrimOp op [e])) = liftA (uopToSbv op) $ sexprToSbv e
-sexprToSbv (SE (Var v)) = do
-  m <- use _2
-  case M.lookup v m of
-    Nothing -> do u <- lift $ VD.sWordN 32 v  -- FIXME: what type should we assign to `v`?
-                  modify (second $ M.insert v u)
-                  return u
-    Just u -> return u
+sexprToSbv (SE (Var v)) = __impossible $ "sexprToSbv: all vars should have been made symbolic (" ++ show v ++ ")"
+  -- m <- use _2
+  -- case M.lookup v m of
+  --   Nothing -> do u <- lift $ VD.sWordN 32 v  -- FIXME: what type should we assign to `v`?
+  --                 modify (second $ M.insert v u)
+  --                 return u
+  --   Just u -> return u
 sexprToSbv (SE (IntLit i)) = return $ VD.svInteger (VD.KBounded False 32) i
 sexprToSbv (SE (BoolLit b)) = return $ VD.svBool b
 sexprToSbv (SE (Upcast e)) = sexprToSbv e
@@ -1117,7 +1116,7 @@ solve = lift . crunch >=> explode >=> go
     go'' g ArithEqClass = do
       traceTc "sol" (text "solve arith equality goals" <> colon
                      P.<$> vsep (map (pretty . _goal) $ aritheqs g))
-      arithEqSolver (aritheqs g) >>= \case
+      arithAss (aritheqs g) >>= \case
         Left g' -> do
           traceTc "sol" (bold (text "equations not satisfiable"))
           go (g' <> g {aritheqs = []})  -- also turn unsats into an Unsat goal
@@ -1133,7 +1132,7 @@ solve = lift . crunch >=> explode >=> go
     go'' g ArithIneqClass = do
       traceTc "sol" (text "solve arith inequality goals" <> colon
                      P.<$> vsep (map (pretty . _goal) $ arithineqs g))
-      arithIneqSolver (arithineqs g) >>= \case
+      arithSat (arithineqs g) >>= \case
         Nothing -> do
           traceTc "sol" (text "arith inequalities satisfiable")
           go (g {arithineqs = []})
