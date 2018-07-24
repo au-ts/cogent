@@ -70,7 +70,8 @@ assignC a (Unsat e) = Unsat $ assignErr a e
 assignC a (SemiSat w) = SemiSat $ assignWarn a w
 assignC a (Sat) = Sat
 assignC a (Exhaustive t ps) = Exhaustive (assignT a t) ps
-assignC a (Arith e) = Arith (assign a e)
+assignC a (Exists e) = Exists (assign a e)
+assignC a (ForAll e) = ForAll (assign a e)
 
 assignErr :: Assignment -> TypeError -> TypeError
 assignErr a e = e  -- TODO

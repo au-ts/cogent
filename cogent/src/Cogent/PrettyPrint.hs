@@ -651,10 +651,14 @@ instance Pretty TypeError where
                                       <+> fieldname f <+> err "into record/variant" <$> indent' (pretty t)
   pretty (DiscardWithoutMatch t)    = err "Variant tag"<+> tagname t <+> err "cannot be discarded without matching on it."
   pretty (RequiredTakenTag t)       = err "Required variant" <+> tagname t <+> err "but it has already been matched."
-  pretty (ArithConstraintsUnsatisfiable es msg) = err "The following arithmetic constraints are unsatisfiable" <> colon
-                                              <$> indent' (vsep (map ((<> semi) . pretty) es))
-                                              <$> err "The SMT-solver comments" <> colon
-                                              <$> indent' (pretty msg)
+  pretty (CannotFindAssignment es msg) = err "Cannot find a satisfying assingment for constraints" <> colon
+                                     <$> indent' (vsep (map ((<> semi) . pretty) es))
+                                     <$> err "The SMT-solver comments" <> colon
+                                     <$> indent' (pretty msg)
+  pretty (PredicatesDontHold es msg) = err "The following predicates don't hold" <> colon
+                                   <$> indent' (vsep (map ((<> semi) . pretty) es))
+                                   <$> err "The SMT-solver comments" <> colon
+                                   <$> indent' (pretty msg)
   pretty (CustTyGenIsSynonym t)     = err "Type synonyms have to be fully expanded in --cust-ty-gen file:" <$> indent' (pretty t)
   pretty (CustTyGenIsPolymorphic t) = err "Polymorphic types are not allowed in --cust-ty-gen file:" <$> indent' (pretty t)
   pretty (RepError e) = pretty e
@@ -727,7 +731,8 @@ instance Pretty Constraint where
   pretty (Sat)            = warn "Sat"
   pretty (Exhaustive t p) = warn "Exhaustive" <+> pretty t <+> pretty p
   pretty (x :@ _)         = pretty x
-  pretty (Arith e)        = pretty e
+  pretty (Exists e)       = warn "∃" <+> pretty e
+  pretty (ForAll e)       = warn "∀" <+> pretty e
 
 -- a more verbose version of constraint pretty-printer which is mostly used for debugging
 prettyC :: Constraint -> Doc

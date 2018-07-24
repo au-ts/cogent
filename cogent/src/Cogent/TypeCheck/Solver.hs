@@ -213,7 +213,7 @@ rule (Exhaustive ty@(T (TRefine v t e)) [])
   = do v' <- freshEVar (toRawType t) (RefinementType [ty])
        let vs = [(v, v')]
            e' = substSExpr vs e
-       return $ Just $ Arith (SE $ PrimOp "not" [e']) :@ (Exhaustivity e') -- empty set
+       return $ Just $ ForAll (SE $ PrimOp "not" [e']) :@ (Exhaustivity e') -- empty set
 rule (Exhaustive (T (TRefine v t e)) (p:ps))
   = let r = pValueSet v p
         e' = SE $ PrimOp "&&" [e, SE $ PrimOp "not" [r]] -- e `union` r
@@ -286,7 +286,8 @@ rule (Share  (T (TArray t _)) m) = return . Just $ Share  t m
 rule (Drop   (T (TArray t _)) m) = return . Just $ Drop   t m
 rule (Escape (T (TArray t _)) m) = return . Just $ Escape t m
 
-rule (Arith e) = return Nothing
+rule (Exists e) = return Nothing
+rule (ForAll e) = return Nothing
 
 rule (F (T (TTuple xs)) :< F (T (TTuple ys)))
   | length xs /= length ys = return $ Just $ Unsat (TypeMismatch (F (T (TTuple xs))) (F (T (TTuple ys))))
@@ -360,7 +361,7 @@ rule (F y :< F (T (TPut fs (U x))))
 --   = return $ Just $ uncurry FVariant (takeVariant fs vs es) :<  F ( U x)
 rule (F (T (TArray t l)) :< F (T (TArray s n)))
   = let ?lvl = ?lvl + 1
-     in return $ Just (F t :< F s :& Arith (SE $ PrimOp "==" [l, n]))
+     in return $ Just (F t :< F s :& Exists (SE $ PrimOp "==" [l, n]))
 rule (F (T (TBang a)) :< F b)
   | isBangInv b = return $ Just (F a :< F b)
 rule (F a :< F (T (TBang b)))
@@ -416,11 +417,11 @@ rule (F ty1@(T (TRefine v1 t1 e1)) :< F ty2@(T (TRefine v2 t2 e2)))
            e1' = substSExpr vs1 e1
            e2' = substSExpr vs2 e2
        return . Just $ (F t1 :< F t2) :&
-                       (Arith $ SE $ PrimOp "||" [SE $ PrimOp "not" [e1'], e2'])  -- e1 `subsetOf` e2
+                       (ForAll . SE $ PrimOp "||" [SE $ PrimOp "not" [e1'], e2'])  -- e1 `subsetOf` e2
 rule (F t1@(T (TRefine v _ _)) :< F t2)
-  = rule $ F t1 :< F (T $ TRefine v t2 $ SE $ BoolLit True)
+  = rule $ F t1 :< F (T . TRefine v t2 . SE $ BoolLit True)
 rule (F t1 :< F t2@(T (TRefine v _ _)))
-  = rule $ F (T $ TRefine v t1 $ SE $ BoolLit True) :< F t2
+  = rule $ F (T . TRefine v t1 . SE $ BoolLit True) :< F t2
 rule ct@(a :< b) = do
   traceTc "sol" (text "apply rule to" <+> prettyC ct <> semi
            P.<$> text "yield type mismatch")
@@ -459,10 +460,10 @@ parVariants n m ks =
 -- takeVariant (f:fs) vs es | f `M.member` vs = takeVariant fs (M.adjust (\(t,b) -> (t, False)) f vs ) es
 --                          | otherwise       = takeVariant fs vs (M.insertWith (&&) f False es)
 
-apply :: (Constraint -> Solver Constraint) -> [Goal] -> Solver [Goal]
-apply tactic = fmap concat . mapM each
+apply :: String -> (Constraint -> Solver Constraint) -> [Goal] -> Solver [Goal]
+apply tnm tactic = fmap concat . mapM each
   where each (Goal ctx c) = do
-          traceTc "sol" (text "apply tactic to goal" <+> prettyC c)
+          traceTc "sol" (text "apply" <+> parens (text tnm) <+> text "to goal" <+> prettyC c)
           c' <- tactic c
           traceTc "sol" (text "after tactic" <+> prettyC c </> text "becomes" <+> prettyC c')
           map (goalContext %~ (++ ctx)) <$> lift (crunch c')
@@ -485,8 +486,8 @@ simp (a :& b)          = (:&)       <$> simp a <*> simp b
 simp (Share  t m)      = Share      <$> whnf t <*> pure m
 simp (Drop   t m)      = Drop       <$> whnf t <*> pure m
 simp (Escape t m)      = Escape     <$> whnf t <*> pure m
-simp (Arith e)         = pure (Arith e)
--- simp (Predicate e)     = pure (Predicate e)
+simp (Exists e)        = pure (Exists e)
+simp (ForAll e)        = pure (ForAll e)
 simp (a :@ c)          = (:@)       <$> simp a <*> pure c
 simp (Unsat e)         = pure (Unsat e)
 simp (SemiSat w)       = pure (SemiSat w)
@@ -631,6 +632,12 @@ bound' d a@(T (TArray t l)) b@(T (TArray s n)) = do
   traceTc "sol" (text "calculate bound of" <+> pretty a <+> text "and" <+> pretty b <> colon
                  P.<$> pretty c)
   return $ Just c
+bound' b (T (TRefine v1 t1 e1)) (T (TRefine v2 t2 e2))
+  = undefined
+bound' b (T (TRefine v1 t1 e1)) (T ty2)
+  = undefined
+bound' b (T ty1) (T (TRefine v2 t2 e2))
+  = undefined
 bound' _ a b = do
   traceTc "sol" (text "calculate bound (bound') of"
            P.<$> pretty a
@@ -757,9 +764,9 @@ classify g = case g of
                         , Nothing <- flexOf b -> mempty {downflexes = IS.singleton a', rest = [g]}
                         | Just b' <- flexOf b
                         , Nothing <- flexOf a -> mempty {upflexes = IS.singleton b', rest = [g]}
-  (Goal _ (Arith (SE (PrimOp "==" _))))       -> mempty {aritheqs = [g]}
-  (Goal _ (Arith _))                          -> mempty {arithineqs = [g]}
-  _                                           -> mempty {rest = [g]}
+  (Goal _ (Exists _))   -> mempty {aritheqs = [g]}
+  (Goal _ (ForAll _))   -> mempty {arithineqs = [g]}
+  _                     -> mempty {rest = [g]}
   where
     rigid :: TypeFragment TCType -> Bool
     rigid (F (U x)) = False
@@ -858,7 +865,7 @@ kAxioms = map f <$> (filter (arithTCType . fst3 . snd) . M.toList <$> lift (use 
 arithEqSolver :: [Goal] -> Solver (Either GoalClasses Ass.Assignment)
 arithEqSolver gs = do
   cs <- kAxioms
-  let es = flip map gs (\(Goal _ (Arith e)) -> e) 
+  let es = flip map gs (\(Goal _ (Exists e)) -> e) 
   solveArithEqs (cs ++ es)
 
 solveArithEqs :: [SExpr] -> Solver (Either GoalClasses Ass.Assignment)
@@ -866,7 +873,7 @@ solveArithEqs es = either (Left . g) (Right . Ass.Assignment . IM.fromList . M.t
                  . M.mapKeys (read . tail) . M.map (SE . IntLit))
                  <$> getAssignments
   where
-    g msg = __fixme $ mempty {unsats = [Goal [] (Unsat $ ArithConstraintsUnsatisfiable es msg)]}
+    g msg = __fixme $ mempty {unsats = [Goal [] (Unsat $ CannotFindAssignment es msg)]}
         -- ^^^ FIXME: we should try to produce much better error msgs / zilinc
     
     -- find a satisfying assignment to the equality constraints
@@ -886,10 +893,10 @@ solveArithEqs es = either (Left . g) (Right . Ass.Assignment . IM.fromList . M.t
 arithIneqSolver :: [Goal] -> Solver (Maybe GoalClasses)
 arithIneqSolver gs = do
   cs <- kAxioms
-  let es = flip map gs (\(Goal _ (Arith e)) -> e)
+  let es = flip map gs (\(Goal _ (ForAll e)) -> e)
   solveArithIneqs cs es >>= \case
     Nothing  -> return Nothing
-    Just msg -> let g = [Goal [] (Unsat $ ArithConstraintsUnsatisfiable (cs++es) msg)]
+    Just msg -> let g = [Goal [] (Unsat $ PredicatesDontHold (cs++es) msg)]
                  in __fixme $ return (Just $ mempty {unsats = g})
 
 solveArithIneqs :: [SExpr] -> [SExpr] -> Solver (Maybe String)
@@ -993,7 +1000,7 @@ instantiate s a (Classes ups downs upcasts downcasts errs semisats rest upfl dow
   let al  = (GS.toList =<< (F.toList =<< [ups, downs, upcasts, downcasts]))
             ++ errs ++ semisats ++ aritheqs ++ arithineqs ++ rest
       al' = al & map (goal %~ Subst.applyC s) & map (goalContext %~ map (Subst.applyCtx s))
-               & map (goal %~ Ass.assignC a)  & map (goalContext %~ map (Ass.assignCtx a))
+               & map (goal %~ Ass.assignC  a) & map (goalContext %~ map (Ass.assignCtx  a))
   -- traceTc "sol" (text "instantiate" <+> pretty (show al) P.<$> text "with substitution" P.<$> pretty s <> semi
   --                P.<$> text "end up with goals:" <+> pretty (show al'))
   return al'
@@ -1015,7 +1022,7 @@ assumption gs = do
 -- Take an assorted list of goals, and break them down into neatly classified, simple flex/rigid goals.
 -- Removes any known facts about type variables.
 explode :: [Goal] -> Solver GoalClasses
-explode = assumption >=> (apply auto) >=> (return . foldMap classify)
+explode = assumption >=> (apply "auto" auto) >=> (return . foldMap classify)
 
 irreducible :: IM.IntMap [Goal] -> IS.IntSet -> Bool
 irreducible m ds | IM.null m = True
@@ -1037,6 +1044,7 @@ irreducible m ds | IM.null m = True
 
 isGround (T (TCon x [] Unboxed)) = True
 -- isGround (T (TCon x [] Writable)) = True
+isGround (T (TRefine v t e)) = isGround t
 isGround _ = False
 
 -- when `!' is invertible
@@ -1045,6 +1053,8 @@ isBangInv (T (TFun {})) = True
 isBangInv (T TUnit) = True
 isBangInv _ = False
 
+-- check whether constraint `a :< b' is ground.
+-- i.e. one side has a flex, and the other side is ground.
 groundConstraint a b | Just a' <- flexOf a, isGround b = True
                      | Just b' <- flexOf b, isGround a = True
                      | otherwise = False
@@ -1091,6 +1101,7 @@ solve = lift . crunch >=> explode >=> go
           groundNB [Goal _ (F a :< F b)] = groundConstraint a b
           groundNB _                     = False
           groundKeys = IM.keysSet (IM.filter (groundNB . GS.toList) (cls g))
+      -- FIXME: doesn't handle refinement types correctly!!! / zilinc
       s <- F.fold <$> mapM (noBrainersT . GS.toList) (cls g `removeKeys` IS.toList (flexes g IS.\\ groundKeys))
       traceTc "sol" (text "solve" <+> text msg <+> text "goals"
                      P.<$> bold (text "produce subst" <> colon)

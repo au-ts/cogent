@@ -91,7 +91,7 @@ validateType rt@(RT t) = do
                    then second (T . ffmap toSExpr) <$> fmapFoldM validateType t
                    else return (Unsat $ DuplicateRecordFields (fields \\ fields'), toTCType rt)
     TArray te l -> do let l' = toSExpr l
-                          cl = Arith (SE $ PrimOp ">" [l', SE $ IntLit 0])
+                          cl = ForAll (SE $ PrimOp ">" [l', SE $ IntLit 0])
                       (c,te') <- validateType te
                       return (c <> cl, T $ TArray te' l')
     TRefine v t e -> do let t' = toTCType t
@@ -249,7 +249,7 @@ cg' (ArrayLit es) t = do
   blob <- forM es $ flip cg alpha
   let (cs,es') = unzip blob
       n = SE . IntLit . fromIntegral $ length es
-      cz = Arith (SE $ PrimOp ">" [n, SE (IntLit 0)])
+      cz = ForAll (SE $ PrimOp ">" [n, SE (IntLit 0)])
   return (mconcat cs <> cz <> F (T $ TArray alpha n) :< F t, ArrayLit es')
 
 cg' (ArrayIndex e i) t = do
@@ -259,13 +259,13 @@ cg' (ArrayIndex e i) t = do
   (ce, e') <- cg e ta
   (ci, i') <- cg (dummyLocE i) (T $ TCon "U32" [] Unboxed)
   let c = F alpha :< F t <> Share ta UsedInArrayIndexing
-        <> Arith (SE (PrimOp "<" [toSExpr i, n]))
-        -- <> Arith (SE (PrimOp ">=" [toSExpr i, SE (IntLit 0)]))  -- as we don't have negative values
+        <> ForAll (SE (PrimOp "<" [toSExpr i, n]))
+        -- <> ForAll (SE (PrimOp ">=" [toSExpr i, SE (IntLit 0)]))  -- as we don't have negative values
+  return (ce <> ci <> c, ArrayIndex e' i)
   traceTc "gen" (text "array indexing" <> colon
                  L.<$> text "index is" <+> pretty i <> semi
                  L.<$> text "bound is" <+> pretty n <> semi
                  L.<$> text "generate constraint" <+> prettyC c)
-  return (ce <> ci <> c, ArrayIndex e' i)
 
 cg' exp@(Lam pat mt e) t = do
   alpha <- freshTVar
