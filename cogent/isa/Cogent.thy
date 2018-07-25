@@ -200,6 +200,34 @@ lemma tagged_list_update_map_over:
   shows "map (\<lambda>(tag,b). (f tag, g tag b)) (tagged_list_update tag b' xs) = tagged_list_update (f tag) (g tag b') (map (\<lambda>(tag,b). (f tag, g tag b)) xs)"
   by (induct xs, (simp add: inj_eq case_prod_beta inj_f)+)
 
+lemma tagged_list_update_preserves_tags[simp]:
+  shows "map fst (tagged_list_update tag b' xs) = map fst xs"
+  by (induct xs, clarsimp+)
+
+lemma tagged_list_update_different_tag_preserves_values1[simp]:
+  "fst (xs ! i) \<noteq> tag \<Longrightarrow> (tagged_list_update tag b' xs) ! i = xs ! i"
+  by (induct xs arbitrary: i, (fastforce simp add: nth_Cons')+)
+
+lemma tagged_list_update_different_tag_preserves_values2:
+  "\<lbrakk> (tag, b) \<in> set xs; tag \<noteq> tag' \<rbrakk> \<Longrightarrow> (tag, b) \<in> set (tagged_list_update tag' b' xs)"
+  by (induct xs, (fastforce simp add: nth_Cons')+)
+
+lemma tagged_list_update_distinct[simp]:
+  assumes "distinct (map fst xs)"
+    and "i < length xs"
+  and "fst (xs ! i) = tag"
+shows "(tagged_list_update tag b' xs) = (xs[i := (tag, b')])"
+proof -
+  have "\<And>j. j < length xs \<Longrightarrow> i \<noteq> j \<Longrightarrow> fst (xs ! j) \<noteq> tag"
+    using assms
+    by (clarsimp simp add: distinct_conv_nth)
+  then have "\<forall>j<i. fst (xs ! j) \<noteq> tag"
+    using assms(2) by auto
+  then show ?thesis
+    using tagged_list_update_tag_present assms
+    by simp
+qed
+
 
 section {* Terms and Types of Cogent *}
 
