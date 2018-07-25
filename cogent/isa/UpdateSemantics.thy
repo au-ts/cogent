@@ -81,7 +81,7 @@ where
                    \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, App x y) \<Down>! st"
 
 | u_sem_con     : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, x) \<Down>! (\<sigma>', x') 
-                   \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Con ts t x) \<Down>! (\<sigma>', USum t x' (map (\<lambda>(n,t). (n,type_repr t)) [x\<leftarrow>ts. fst x = t]))"
+                   \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Con ts t x) \<Down>! (\<sigma>', USum t x' (map (\<lambda>(n,t). (n,type_repr t)) ts))"
 
 | u_sem_promote : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, x) \<Down>! (\<sigma>', USum c p rs)  
                    \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Promote ts' x) \<Down>! (\<sigma>', USum c p (map (\<lambda>(n,t,_). (n, type_repr t)) (filter (HOL.Not \<circ> snd \<circ> snd) ts')))"
@@ -114,9 +114,9 @@ where
                    ; \<xi> , (v # \<gamma>) \<turnstile> (\<sigma>', m) \<Down>! st
                    \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Case x t m n) \<Down>! st"
 
-| u_sem_case_nm : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, x) \<Down>! (\<sigma>', USum t' v ts)
+| u_sem_case_nm : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, x) \<Down>! (\<sigma>', USum t' v rs)
                    ; t' \<noteq> t
-                   ; \<xi> , (USum t' v (filter (\<lambda> x. fst x \<noteq> t) ts) # \<gamma>) \<turnstile> (\<sigma>', n) \<Down>! st
+                   ; \<xi> , (USum t' v rs # \<gamma>) \<turnstile> (\<sigma>', n) \<Down>! st
                    \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Case x t m n) \<Down>! st"
 
 | u_sem_if      : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, x) \<Down>! (\<sigma>', UPrim (LBool b))
@@ -223,7 +223,7 @@ and uval_typing_record :: "('f \<Rightarrow> poly_type)
                   ; (tag, t, False) \<in> set ts
                   ; distinct (map fst ts)
                   ; [] \<turnstile>* map (fst \<circ> snd) ts wellformed
-                  ; rs = map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) [(c, \<tau>, b)\<leftarrow>ts. \<not> b]
+                  ; rs = map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) ts
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> USum tag a rs :u TSum ts \<langle>r, w\<rangle>"
 
 | u_t_struct   : "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* fs :ur ts \<langle>r, w\<rangle> 
