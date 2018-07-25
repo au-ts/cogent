@@ -1705,7 +1705,7 @@ next
         and e'_typing: "\<Xi>, K, \<Gamma>1 \<turnstile> e' : TSum ts"
         and tag''_in_ts: "(tag'', t, False) \<in> set ts"
         and "\<Xi>, K, Some t # \<Gamma>2 \<turnstile> a : \<tau>"
-        and b_typing: "\<Xi>, K, Some (TSum ((tag'', t, True) # [x\<leftarrow>ts . fst x \<noteq> tag''])) # \<Gamma>2 \<turnstile> b : \<tau>"
+        and b_typing: "\<Xi>, K, Some (TSum (tagged_list_update tag'' (t, True) ts)) # \<Gamma>2 \<turnstile> b : \<tau>"
       using  u_sem_case_nm.prems(1) Case
       by (force elim!: typing_caseE)
 
@@ -1728,11 +1728,29 @@ next
         and frame1: "frame \<sigma> w1 \<sigma>'' w1'"
       using u_sem_case_nm.hyps(2) x_is e'_typing u_sem_case_nm.prems matches_split1
       by blast
-    then have "\<Xi>, \<sigma>'' \<turnstile> USum tag' va [x\<leftarrow>rs . fst x \<noteq> tag] :u TSum ((tag, instantiate \<tau>s t, True) # [x\<leftarrow>map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts. fst x \<noteq> tag]) \<langle>r1', w1'\<rangle>"
+    then have usem_instantiate_under: "\<Xi>, \<sigma>'' \<turnstile> USum tag' va rs :u TSum (tagged_list_update tag (instantiate \<tau>s t, True) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts)) \<langle>r1', w1'\<rangle>"
       using u_sem_case_nm.hyps(3) tag''_in_ts tag''_is
       by (intro sum_downcast_u, (simp add: rev_image_eqI)+)
-    then have "\<Xi>, \<sigma>'' \<turnstile> USum tag' va [x\<leftarrow>rs . fst x \<noteq> tag] :u instantiate \<tau>s (TSum ((tag, t, True) # [x\<leftarrow>ts. fst x \<noteq> tag])) \<langle>r1', w1'\<rangle>"
-      by (simp add: filter_map case_prod_unfold comp_def)
+
+    have "\<Xi>, \<sigma>'' \<turnstile> USum tag' va rs :u instantiate \<tau>s (TSum (tagged_list_update tag (t, True) ts)) \<langle>r1', w1'\<rangle>"
+    proof -
+      have f1: "(\<And>tag b'. (case (tag, b') of (c, t, b) \<Rightarrow> (c, instantiate \<tau>s t, b)) = (tag, case b' of (t, b) \<Rightarrow> (instantiate \<tau>s t, b)))"
+        by force
+      
+      obtain i where "ts ! i = (tag, t, False)"
+                 and "i < length ts"
+        using tag''_in_ts tag''_is in_set_conv_nth
+        by metis
+      then have "tagged_list_update tag (instantiate \<tau>s t, True) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts)
+            = map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) (tagged_list_update tag (t, True) ts)"
+        by (simp add: tagged_list_update_map_over2[where f="\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)"
+                                                     and b'="(t, True)"
+                                                     and g="\<lambda>(t,b). (instantiate \<tau>s t, b)",
+                                                   simplified f1, simplified])
+      then show ?thesis
+        using usem_instantiate_under
+        by simp
+    qed
     moreover have "\<Xi>, \<sigma>'' \<turnstile> \<gamma> matches instantiate_ctx \<tau>s \<Gamma>2 \<langle>r2, w2\<rangle>"
       using matches_ptrs_frame matches_split2 frame1 w1_r2_disjoint w1_w2_disjoint
       by blast
@@ -1742,8 +1760,8 @@ next
       by (meson frame1 frame_noalias_matches_ptrs(1) matches_split2 w1_w2_disjoint)
     moreover have "w2 \<inter> r1' = {}"
       by (meson sub1 subset_eq subset_helper w2_r1_disjoint)
-    ultimately have "\<Xi>, \<sigma>'' \<turnstile> USum tag' va [x\<leftarrow>rs . fst x \<noteq> tag] # \<gamma> matches instantiate_ctx \<tau>s (Some (TSum ((tag, t, True) # [x\<leftarrow>ts . fst x \<noteq> tag])) # \<Gamma>2) \<langle>r2 \<union> r1', w2 \<union> w1'\<rangle>"
-      by (metis Un_commute instantiate_ctx_cons matches_ptrs_some)
+    ultimately have "\<Xi>, \<sigma>'' \<turnstile> USum tag' va rs # \<gamma> matches instantiate_ctx \<tau>s (Some (TSum (tagged_list_update tag (t, True) ts)) # \<Gamma>2) \<langle>r2 \<union> r1', w2 \<union> w1'\<rangle>"
+      by (metis Un_commute matches_ptrs_cons u_sem_case_nm.prems(2))
     then obtain r' w'
       where "\<Xi>, \<sigma>' \<turnstile> v :u instantiate \<tau>s \<tau> \<langle>r', w'\<rangle>"
       and r'_sub: "r' \<subseteq> r2 \<union> r1'"
