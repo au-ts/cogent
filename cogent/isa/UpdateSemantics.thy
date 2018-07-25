@@ -84,7 +84,7 @@ where
                    \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Con ts t x) \<Down>! (\<sigma>', USum t x' (map (\<lambda>(n,t). (n,type_repr t)) ts))"
 
 | u_sem_promote : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, x) \<Down>! (\<sigma>', USum c p rs)  
-                   \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Promote ts' x) \<Down>! (\<sigma>', USum c p (map (\<lambda>(n,t,_). (n, type_repr t)) (filter (HOL.Not \<circ> snd \<circ> snd) ts')))"
+                   \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Promote ts' x) \<Down>! (\<sigma>', USum c p (map (\<lambda>(n,t,_). (n, type_repr t)) ts'))"
 
 | u_sem_member  : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, e) \<Down>! (\<sigma>', URecord fs)
                    \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Member e f) \<Down>! (\<sigma>', fst (fs ! f))"
@@ -1470,24 +1470,17 @@ next case (u_sem_promote \<xi> \<gamma> \<sigma> x \<sigma>' c p rs instantiated
       where uval_typing_p: "\<Xi>, \<sigma>' \<turnstile> p :u t'' \<langle>r', w'\<rangle>"
         and c_in_instantiated_ts: "(c, t'', False) \<in> (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ` set ts"
       by fastforce
-    then have "\<Xi>, \<sigma>' \<turnstile> USum c p (map (\<lambda>(n, t, _). (n, type_repr t)) (filter (HOL.Not \<circ> snd \<circ> snd) instantiated_ts')) :u instantiate \<tau>s (TSum ts') \<langle>r', w'\<rangle>"
-      using distinct_ts' u_sem_promote.prems
+    then have "\<Xi>, \<sigma>' \<turnstile> USum c p (map (\<lambda>(n, t, _). (n, type_repr t)) instantiated_ts') :u instantiate \<tau>s (TSum ts') \<langle>r', w'\<rangle>"
+      using distinct_ts' u_sem_promote.prems instantiated_ts'_is
     proof (clarsimp, intro u_t_sum)
       show "(c, t'', False) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts')"
         using c_in_instantiated_ts taken_preservation image_iff by fastforce
     next
-      show "[] \<turnstile>* map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts') wellformed"
-      proof (simp, rule exI)
-        show "[] \<turnstile>* map (instantiate \<tau>s \<circ> (fst \<circ> snd)) ts' :\<kappa>  k"
-          using ts'_wellformed kinding_all_set substitutivity(1) u_sem_promote.prems
-          by simp
-      qed
-    next
-      have "\<And>xs. filter (HOL.Not \<circ> snd \<circ> snd) xs = [(a,b,c)\<leftarrow>xs. \<not> c]"
-        by (metis case_prod_beta comp_apply)
-      then show "map (\<lambda>(n, t, _). (n, type_repr t)) (filter (HOL.Not \<circ> snd \<circ> snd) instantiated_ts')
-           = map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) [(c, \<tau>, b)\<leftarrow>map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts' . \<not> b]"
-        by (metis instantiated_ts'_is)
+      have "[] \<turnstile>* map (instantiate \<tau>s \<circ> (fst \<circ> snd)) ts' :\<kappa>  k"
+        using ts'_wellformed kinding_all_set substitutivity(1) u_sem_promote.prems
+        by simp
+      then show "[] \<turnstile>* map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts') wellformed"
+        by auto
     qed simp+
     then show ?thesis
       using instantiated_ts'_is \<tau>_is r'_sub_r frame_w_w'
@@ -1563,7 +1556,7 @@ next case (u_sem_con \<xi> \<gamma> \<sigma> x \<sigma>' x' ts tag)
       using u_sem_con.prems x_is u_sem_con.hyps(2) e'_typing
       by blast
 
-    have "\<Xi>, \<sigma>' \<turnstile> USum tag x' (map (\<lambda>(n, t). (n, type_repr t)) [x\<leftarrow>ts. fst x = tag']) :u TSum (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) \<circ> (\<lambda>(c, t). (c, t, c \<noteq> tag'))) as') \<langle>r', w'\<rangle>"
+    have "\<Xi>, \<sigma>' \<turnstile> USum tag x' (map (\<lambda>(n, t). (n, type_repr t)) ts) :u TSum (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) \<circ> (\<lambda>(c, t). (c, t, c \<noteq> tag'))) as') \<langle>r', w'\<rangle>"
       using tag_same uval_x' tag'_in_as' ts_is
     proof (intro u_t_sum)
       show "distinct (map fst (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) \<circ> (\<lambda>(c, t). (c, t, c \<noteq> tag'))) as'))"
@@ -1574,15 +1567,6 @@ next case (u_sem_con \<xi> \<gamma> \<sigma> x \<sigma>' x' ts tag)
         by fastforce
       then show "[] \<turnstile>* map (fst \<circ> snd) (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) \<circ> (\<lambda>(c, t). (c, t, c \<noteq> tag'))) as') wellformed"
         by fastforce
-    next
-      have f3: "((\<lambda>x. fst x = tag') \<circ> (\<lambda>(c, t). (c, instantiate \<tau>s t))) = (\<lambda>x. fst x = tag')"
-        by force
-      have f4: "((\<lambda>(c, \<tau>, y). \<not> y) \<circ> (\<lambda>(c, t). (c, instantiate \<tau>s t, c \<noteq> tag'))) = (\<lambda>x. fst x = tag')"
-        by force
-
-      show "map (\<lambda>(n, t). (n, type_repr t)) [x\<leftarrow>ts . fst x = tag'] =
-            map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) [(c, \<tau>, b)\<leftarrow>map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) \<circ> (\<lambda>(c, t). (c, t, c \<noteq> tag'))) as' . \<not> b]"
-        by (simp add: ts_is filter_map f2 f3 f4)
     qed force+
     then show ?thesis
       using r'_sub_r frame_w_w' \<tau>_is tag_same
