@@ -194,11 +194,16 @@ proof (induct xs arbitrary: i)
   qed (simp add: case_prod_beta)
 qed simp
 
-lemma tagged_list_update_map_over:
+lemma tagged_list_update_map_over1:
   fixes f g
   assumes inj_f: "inj f"
   shows "map (\<lambda>(tag,b). (f tag, g tag b)) (tagged_list_update tag b' xs) = tagged_list_update (f tag) (g tag b') (map (\<lambda>(tag,b). (f tag, g tag b)) xs)"
   by (induct xs, (simp add: inj_eq case_prod_beta inj_f)+)
+
+lemma tagged_list_update_map_over2:
+  assumes "\<And>tag b'. f (tag, b') = (tag, g b')"
+  shows "map f (tagged_list_update tag b' xs) = tagged_list_update tag (g b') (map f xs)"
+  using assms by (induct xs, clarsimp+)
 
 lemma tagged_list_update_preserves_tags[simp]:
   shows "map fst (tagged_list_update tag b' xs) = map fst xs"
@@ -1283,7 +1288,7 @@ proof (induct rule: typing_typing_all.inducts)
     have "\<Xi>, K', instantiate_ctx \<delta> (Some (TSum (tagged_list_update tag (t, True) ts)) # \<Gamma>2) \<turnstile> specialise \<delta> b : instantiate \<delta> u"
       using typing_case.hyps(8) typing_case.prems by blast
     moreover have "(map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) (tagged_list_update tag (t, True) ts)) = (tagged_list_update tag (instantiate \<delta> t, True) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts))"
-      using case_prod_conv f1 tagged_list_update_map_over[where f = id and g = "\<lambda>_ (t,b). (instantiate \<delta> t, b)", simplified]
+      using case_prod_conv f1 tagged_list_update_map_over1[where f = id and g = "\<lambda>_ (t,b). (instantiate \<delta> t, b)", simplified]
       by metis
     ultimately show "\<Xi>, K', Some (TSum (tagged_list_update tag (instantiate \<delta> t, True) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts))) # instantiate_ctx \<delta> \<Gamma>2 \<turnstile> specialise \<delta> b : instantiate \<delta> u"
       by clarsimp
