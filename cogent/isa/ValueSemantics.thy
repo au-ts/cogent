@@ -315,7 +315,7 @@ lemma sum_downcast:
   assumes vval_tsum_ts: "\<Xi> \<turnstile> VSum tag v :v TSum ts"
     and   tag_neq_tag': "tag \<noteq> tag'"
     and   tag'_in_ts  : "(tag', \<tau>, False) \<in> set ts"
-  shows   "\<Xi> \<turnstile> VSum tag v :v TSum ((tag', \<tau>, True) # [x\<leftarrow>ts. fst x \<noteq> tag'])"
+  shows   "\<Xi> \<turnstile> VSum tag v :v TSum (tagged_list_update tag' (\<tau>, True) ts)"
 proof -
   from vval_tsum_ts
   obtain k \<tau>1
@@ -329,14 +329,26 @@ proof -
   ultimately show ?thesis
     using assms
   proof (intro v_t_sum)
-    thm kinding_all_set kinding_all_subset
-    have "[] \<turnstile>  \<tau> :\<kappa>  k"
-     and "\<And>tag \<tau> b. \<lbrakk> (tag, \<tau>, b) \<in> set ts; tag \<noteq> tag' \<rbrakk> \<Longrightarrow> [] \<turnstile>  \<tau> :\<kappa>  k"
-      using tag'_in_ts kinding_all_set ts_wellformed by force+
-    then show "[] \<turnstile>* map (fst \<circ> snd) ((tag', \<tau>, True) # [x\<leftarrow>ts . fst x \<noteq> tag']) wellformed"
-      using kinding_all_set by (simp, blast)
+    show "(tag, \<tau>1, False) \<in> set (tagged_list_update tag' (\<tau>, True) ts)"
+      using tag_in_ts tag_neq_tag' tagged_list_update_different_tag_preserves_values2
+      by force
+  next
+    obtain i where "ts ! i = (tag', \<tau> , False)"
+               and "i < length ts"
+      using tag'_in_ts in_set_conv_nth
+      by metis
+    moreover then have "[] \<turnstile>  \<tau> :\<kappa>  k"
+      and "\<And>tag \<tau>' b. (tag, \<tau>', b) \<in> set ts \<Longrightarrow> [] \<turnstile>  \<tau>' :\<kappa>  k"
+      using tag'_in_ts kinding_all_set ts_wellformed by auto
+    moreover then have "\<And>tag \<tau>' b. (tag, \<tau>', b) \<in> set (ts[i := (tag', \<tau>, True)]) \<Longrightarrow> [] \<turnstile>  \<tau>' :\<kappa>  k"
+      by (metis (no_types, lifting) fst_conv in_set_conv_nth length_list_update nth_list_update_eq nth_list_update_neq snd_conv)
+    ultimately have "[] \<turnstile>* map (fst \<circ> snd) (tagged_list_update tag' (\<tau>, True) ts) :\<kappa> k"
+      using kinding_all_set ts_distinct by auto
+    then show "[] \<turnstile>* map (fst \<circ> snd) (tagged_list_update tag' (\<tau>, True) ts) wellformed"
+      using ts_distinct kinding_all_set
+      by auto
   qed simp+
-  qed
+qed
 
 lemma vval_typing_promoted_tsums_same:
   assumes vval_tsum_ts: "\<Xi> \<turnstile> x :v TSum ts"
@@ -714,7 +726,7 @@ next case (v_sem_case_nm \<xi> \<gamma> x tag' v tag n n' m)
       and typing_x1: "\<Xi>, K, \<Gamma>1 \<turnstile> x1 : TSum ts"
       and ta_in_ts: "(tag, ta, False) \<in> set ts"
       and typing_x3: "\<Xi>, K, Some ta # \<Gamma>2 \<turnstile> x3 : \<tau>"
-      and typing_x4: "\<Xi>, K, Some (TSum ((tag, ta, True) # [x\<leftarrow>ts . fst x \<noteq> tag])) # \<Gamma>2 \<turnstile> x4 : \<tau>"
+      and typing_x4: "\<Xi>, K, Some (TSum (tagged_list_update tag (ta, True) ts)) # \<Gamma>2 \<turnstile> x4 : \<tau>"
       using v_sem_case_nm.prems
       by fastforce
 
@@ -727,11 +739,11 @@ next case (v_sem_case_nm \<xi> \<gamma> x tag' v tag n n' m)
     have "\<Xi> \<turnstile> VSum tag' v :v instantiate \<tau>s (TSum ts)"
       using x_is typing_x1 \<gamma>_matches_\<Gamma>1 v_sem_case_nm.hyps(2) v_sem_case_nm.prems
       by fastforce
-    then have "\<Xi> \<turnstile> VSum tag' v :v TSum ((tag, instantiate \<tau>s ta, True) # [x\<leftarrow>map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts. fst x \<noteq> tag])"
+    then have "\<Xi> \<turnstile> VSum tag' v :v TSum (tagged_list_update tag (instantiate \<tau>s ta, True) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts))"
       using v_sem_case_nm.hyps(3) image_iff ta_in_ts
       by (fastforce intro!: sum_downcast)
-    then have "\<Xi> \<turnstile> VSum tag' v :v instantiate \<tau>s (TSum ((tag, ta, True) # [x\<leftarrow>ts. fst x \<noteq> tag]))"
-      by (simp add: filter_fst_ignore_triple[where P="\<lambda>x. x \<noteq> tag"])
+    then have "\<Xi> \<turnstile> VSum tag' v :v instantiate \<tau>s (TSum (tagged_list_update tag (ta, True) ts))"
+      by (simp add: tagged_list_update_map_over2[where f="\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)" and g="\<lambda>(t,b). (instantiate \<tau>s t, b)"] case_prod_beta)
     then show "\<Xi> \<turnstile> n' :v instantiate \<tau>s \<tau>" 
       using v_sem_case_nm.prems v_sem_case_nm.hyps(5) \<gamma>_matches_\<Gamma>2 matches_cons
         n_is typing_x4
