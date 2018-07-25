@@ -233,6 +233,18 @@ proof -
     by simp
 qed
 
+lemma tagged_list_update_same_distinct_is_equal[simp]:
+  assumes distinct_fst_xs: "distinct (map fst xs)"
+    and "i < length xs"
+    and "(xs ! i) = (tag, b)"
+  shows "tagged_list_update tag b xs = xs"
+  using assms
+proof (induct xs arbitrary: i)
+  case (Cons a xs)
+  then show ?case
+    by (metis fst_conv list_update_id tagged_list_update_distinct)
+qed simp+
+
 
 section {* Terms and Types of Cogent *}
 
