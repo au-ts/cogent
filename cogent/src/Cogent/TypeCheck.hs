@@ -85,20 +85,33 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     traceTc "tc" (text "typecheck type definition" <+> pretty n)
     let xs = ps \\ nub ps
     unless (null xs) $ logErrExit $ DuplicateTypeVariable xs
-    t' <- validateType ps t
-    lift . lift $ knownTypes <>= [(n, (ps, Just t'))]
-    t'' <- postT t'
-    return $ TypeDec n ps t''
+    base <- lift . lift $ use knownConsts
+    let ctx = C.addScope (fmap (\(t,_,p) -> (t,p, Seq.singleton p)) base) C.empty
+        vs = map fst ps
+    ((ct,t'),flx,os) <- runCG ctx vs (G.validateType t)
+    (logs, subst, assn, _) <- runSolver (solve ct) vs flx os
+    -- FIXME
+    let t'' = assignT assn $ apply subst $ t'
+    lift . lift $ knownTypes <>= [(n, (ps, Just t''))]
+    t''' <- postT t''
+    return $ TypeDec n ps t'''
 
   (AbsTypeDec n ps (map stripLocT -> ts)) -> do
     traceTc "tc" $ bold (text $ replicate 80 '=')
     traceTc "tc" (text "typecheck abstract type definition" <+> pretty n)
     let xs = ps \\ nub ps
     unless (null xs) $ logErrExit $ DuplicateTypeVariable xs
-    ts' <- mapM (validateType ps) ts
-    ts'' <- mapM postT ts'
+    base <- lift . lift $ use knownConsts
+    let ctx = C.addScope (fmap (\(t,_,p) -> (t,p, Seq.singleton p)) base) C.empty
+        vs = map fst ps
+    (cts,flx,os) <- runCG ctx vs (mapM G.validateType t)
+    let (cts,ts') = unzip cts
+    (logs, subst, assn, _) <- runSolver (solve $ mconcat cts) vs flx os
+    -- FIXME
+    let ts'' = map (assignT assn . apply subst) ts'
+    ts''' <- mapM postT ts''
     lift . lift $ knownTypes <>= [(n, (ps, Nothing))]
-    return $ AbsTypeDec n ps ts''
+    return $ AbsTypeDec n ps ts'''
 
   (AbsDec n (PT ps (stripLocT -> t))) -> do
     traceTc "tc" $ bold (text $ replicate 80 '=')
@@ -106,10 +119,16 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     let vs' = map fst ps
         xs = vs' \\ nub vs'
     unless (null xs) $ logErrExit $ DuplicateTypeVariable xs
-    t' <- validateType (map fst ps) t
-    lift . lift $ knownFuns %= M.insert n (PT ps t')
-    t'' <- postT t'
-    return $ AbsDec n (PT ps t'')
+    base <- lift . lift $ use knownConsts
+    let ctx = C.addScope (fmap (\(t,_,p) -> (t,p, Seq.singleton p)) base) C.empty
+        vs = map fst ps
+    ((ct,t'),flx,os) <- runCG ctx vs (G.validateType t)
+    (logs, subst, assn, _) <- runSolver (solve ct) vs flx os
+    -- FIXME
+    let t'' = assignT assn $ apply subst t'
+    lift . lift $ knownFuns %= M.insert n (PT ps t'')
+    t''' <- postT t''
+    return $ AbsDec n (PT ps t''')
   
   (RepDef d@(RepDecl pos n e)) -> do 
     traceTc "tc" (text "typecheck rep decl" <+> pretty n)
@@ -165,7 +184,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     let t'' = assignT assn $ apply subst t'
     lift . lift $ knownFuns %= M.insert f (PT vs t'')
     alts'' <- postA $ applyAlts subst $ assignAlts assn alts'
-    t'''    <- postT t''
+    t'''   <- postT t''
     return (FunDef f (PT vs t''') alts'')
 
 -- ----------------------------------------------------------------------------

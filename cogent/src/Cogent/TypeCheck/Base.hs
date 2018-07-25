@@ -144,6 +144,10 @@ data Metadata = Reused { varName :: VarName, boundAt :: SourcePos, usedAt :: Seq
               | Constant { varName :: VarName }
               deriving (Eq, Show, Ord)
 
+infixl 9 :@
+infix  8 :<
+infixl 4 :&
+
 data Constraint = (:<) (TypeFragment TCType) (TypeFragment TCType)
                 | (:&) Constraint Constraint
                 | Upcastable TCType TCType
@@ -229,10 +233,13 @@ data TCType         = T (Type SExpr TCType)
                     | U Int  -- unifier
                     deriving (Show, Eq, Ord)
 
-data SExpr          = SE (Expr RawType RawPatn RawIrrefPatn SExpr)
-                    | SU Int RawType  -- FIXME: do we ever need `TCType' here?
-                  -- | SAll
+data SExpr          = SE (Expr RawType RawPatn RawIrrefPatn SExpr) TCType
+                    | SU Int TCType
                     deriving (Show, Eq, Ord)
+
+unknownName :: SExpr -> VarName
+unknownName (SU i _) = '?':show i
+unknownName _ = __impossible "unknownName: not an unknown"
 
 data FuncOrVar = MustFunc | MustVar | FuncOrVar deriving (Eq, Ord, Show)
 
@@ -245,6 +252,8 @@ funcOrVar (T (TFun {})) = MustFunc
 funcOrVar _ = MustVar
 
 data TExpr      t = TE { getTypeTE :: t, getExpr :: Expr t (TPatn t) (TIrrefPatn t) (TExpr t), getLocTE :: SourcePos }
+deriving instance Eq   t => Eq   (TExpr t)
+deriving instance Ord  t => Ord  (TExpr t)
 deriving instance Show t => Show (TExpr t)
 
 data TPatn      t = TP { getPatn :: Pattern (TIrrefPatn t), getLocTP :: SourcePos }
@@ -283,10 +292,14 @@ toTCType :: RawType -> TCType
 toTCType (RT x) = T (fmap toTCType $ ffmap toSExpr x)
 
 toSExpr :: RawExpr -> SExpr
-toSExpr (RE e) = SE (fmap toSExpr e)
+toSExpr (RE e) = SE (fmap toSExpr e) undefined
 
 tcToSExpr :: TCExpr -> SExpr
-tcToSExpr = toSExpr . toRawExpr . toTypedExpr
+tcToSExpr (TE t e _) = SE ( ffffmap toRawType
+                          $ fffmap tcToRawPatn
+                          $ ffmap tcToRawIrrefPatn 
+                          $ fmap tcToSExpr e
+                          ) t
 
 -- Precondition: No unification variables left in the type
 toLocType :: SourcePos -> TCType -> LocType
@@ -309,11 +322,11 @@ toTypedAlts :: [Alt TCPatn TCExpr] -> [Alt TypedPatn TypedExpr]
 toTypedAlts = fmap (ffmap (fmap toRawType) . fmap (fmap toRawType))
 
 toRawType :: TCType -> RawType
-toRawType (T x) = RT (ffmap toRawExpr' $ fmap toRawType x)
+toRawType (T t) = RT (ffmap toRawExpr' $ fmap toRawType t)
 toRawType _ = error "panic: unification variable found"
 
 toRawExpr' :: SExpr -> RawExpr
-toRawExpr' (SE e) = RE (fmap toRawExpr' e)
+toRawExpr' (SE e _) = RE $ fmap toRawExpr' e
 toRawExpr' _ = __impossible "toRawExpr': unification variable found"
 
 toRawExpr :: TypedExpr -> RawExpr
@@ -325,7 +338,11 @@ toRawPatn (TP p _) = RP (fmap toRawIrrefPatn p)
 toRawIrrefPatn :: TypedIrrefPatn -> RawIrrefPatn
 toRawIrrefPatn (TIP ip _) = RIP (ffmap fst $ fmap toRawIrrefPatn ip)
 
+tcToRawPatn :: TCPatn -> RawPatn
+tcToRawPatn (TP p _) = RP (fmap tcToRawIrrefPatn p)
 
+tcToRawIrrefPatn :: TCIrrefPatn -> RawIrrefPatn
+tcToRawIrrefPatn (TIP ip _) = RIP (ffmap fst $ fmap tcToRawIrrefPatn ip)
 
 -- -----------------------------------------------------------------------------
 -- Monads for the typechecker, and their states
@@ -408,11 +425,14 @@ substType vs (T (TVar v False )) | Just x <- lookup v vs = x
 substType vs (T (TVar v True  )) | Just x <- lookup v vs = T (TBang x)
 substType vs (T t) = T (fmap (substType vs) t)
 
+-- Only substitute one-level of expressions.
+-- Don't go to the expressions in the types.
+-- TODO: Do we want to do it?
 substSExpr :: [(VarName, SExpr)] -> SExpr -> SExpr
 substSExpr vs (SU i t) = SU i t
-substSExpr vs e@(SE (Var v)) = case lookup v vs of
-                                 Just x -> x; Nothing -> e
-substSExpr vs (SE e) = SE (fmap (substSExpr vs) e)
+substSExpr vs e@(SE (Var v) _)
+  = case lookup v vs of Just x -> x; Nothing -> e
+substSExpr vs (SE e t) = SE (fmap (substSExpr vs) e) t
 
 -- XXX | -- universally quantify an SExpr
 -- XXX | uqSExpr :: VarName -> SExpr -> SExpr
@@ -463,6 +483,10 @@ flexOf (T (TPut  _ t))  = flexOf t
 flexOf (T (TBang  t))   = flexOf t
 flexOf (T (TUnbox t))   = flexOf t
 flexOf _ = Nothing
+
+rigid :: TCType -> Bool
+rigid (U _) = False
+rigid (T t) = foldr (\t acc -> rigid t && acc) True t
 
 isSynonym :: RawType -> TcBaseM Bool
 isSynonym (RT (TCon c _ _)) = lookup c <$> use knownTypes >>= \case

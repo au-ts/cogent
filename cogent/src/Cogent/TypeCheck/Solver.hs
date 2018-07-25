@@ -210,7 +210,7 @@ rule (Exhaustive (T (TVariant n)) ps)
 --              else Just $ Unsat $ PatternsNotExhaustive (T (TCon "Bool" [] Unboxed)) []
 
 rule (Exhaustive ty@(T (TRefine v t e)) [])
-  = do v' <- freshEVar (toRawType t) (RefinementType [ty])
+  = do v' <- freshEVar t (RefinementType [ty])
        let vs = [(v, v')]
            e' = substSExpr vs e
        return $ Just $ ForAll (SE $ PrimOp "not" [e']) :@ (Exhaustivity e') -- empty set
@@ -220,7 +220,7 @@ rule (Exhaustive (T (TRefine v t e)) (p:ps))
      in rule (Exhaustive (T (TRefine v t e')) ps)
 
 rule (Exhaustive t ps)
-  | not (notWhnf t) = do SU v _ <- freshEVar (toRawType t) (RefinementType [t]) 
+  | not (notWhnf t) = do SU v _ <- freshEVar t (RefinementType [t]) 
                          rule (Exhaustive (T (TRefine ('?':show v) t $ SE $ BoolLit True)) ps)
   -- | not (notWhnf t) = return . Just . Unsat $ PatternsNotExhaustive t []
 
@@ -411,7 +411,7 @@ rule ct@(FRecord (M.fromList -> n) :< FRecord (M.fromList -> m))
   , ns == M.keysSet m
   = parRecords n m ns
 rule (F ty1@(T (TRefine v1 t1 e1)) :< F ty2@(T (TRefine v2 t2 e2)))
-  = do v <- freshEVar (toRawType t2) (RefinementType [ty1, ty2])
+  = do v <- freshEVar t2 (RefinementType [ty1, ty2])
        let vs1 = [(v1,v)]
            vs2 = [(v2,v)]
            e1' = substSExpr vs1 e1
@@ -505,7 +505,7 @@ freshTVar ctx = do
   flexOrigins %= IM.insert i ctx
   return $ U i
 
-freshEVar :: RawType -> VarOrigin -> Solver SExpr
+freshEVar :: TCType -> VarOrigin -> Solver SExpr
 freshEVar t ctx = do
   i <- flexes <<%= succ  -- FIXME: do we need a different variable?
   flexOrigins %= IM.insert i ctx
@@ -627,7 +627,7 @@ bound' d t1@(T (TRecord fs s)) t2@(T (TRecord gs r))
       return $ Just t
 bound' d a@(T (TArray t l)) b@(T (TArray s n)) = do
   u <- freshTVar (BoundOf (F t) (F s) d)
-  m <- freshEVar (RT $ TCon "U32" [] Unboxed) (EqualIn l n a b)
+  m <- freshEVar (T t_u32) (EqualIn l n a b)
   let c = T $ TArray u m
   traceTc "sol" (text "calculate bound of" <+> pretty a <+> text "and" <+> pretty b <> colon
                  P.<$> pretty c)
@@ -676,8 +676,8 @@ data GoalClasses
     , rest :: [Goal]
     , upflexes :: IS.IntSet
     , downflexes :: IS.IntSet
-    , aritheqs :: [Goal]
-    , arithineqs :: [Goal]
+    , arithasses :: [Goal]
+    , arithsats :: [Goal]
     }
 
 instance Show GoalClasses where
@@ -700,9 +700,9 @@ instance Show GoalClasses where
                               unlines (map (("  " ++) . show) (IS.toList uf)) ++
                               "\ndownflexes:\n" ++
                               unlines (map (("  " ++) . show) (IS.toList df)) ++
-                              "\naritheqs:\n" ++
+                              "\narithasses:\n" ++
                               unlines (map (("  " ++) . show) (F.toList ae)) ++
-                              "\narithineqs:\n" ++
+                              "\narithsats:\n" ++
                               unlines (map (("  " ++) . show) (F.toList ai))
 
 #if __GLASGOW_HASKELL__ < 803
@@ -764,8 +764,8 @@ classify g = case g of
                         , Nothing <- flexOf b -> mempty {downflexes = IS.singleton a', rest = [g]}
                         | Just b' <- flexOf b
                         , Nothing <- flexOf a -> mempty {upflexes = IS.singleton b', rest = [g]}
-  (Goal _ (Exists _))   -> mempty {aritheqs = [g]}
-  (Goal _ (ForAll _))   -> mempty {arithineqs = [g]}
+  (Goal _ (Exists _))   -> mempty {arithasses = [g]}
+  (Goal _ (ForAll _))   -> mempty {arithsats  = [g]}
   _                     -> mempty {rest = [g]}
   where
     rigid :: TypeFragment TCType -> Bool
@@ -859,14 +859,14 @@ applyAssign a = traceTc "sol" (text "apply assign") >> assigns <>= a
 
 -- add axioms for constant equality
 kAxioms :: Solver [SExpr]
-kAxioms = map f <$> (filter (arithTCType . fst3 . snd) . M.toList <$> lift (use knownConsts))
-  where f (v,(_,e,_)) = SE $ PrimOp "==" [SE (Var v), tcToSExpr e]
+kAxioms = mapM f =<< (filter (arithTCType . fst3 . snd) . M.toList <$> lift (use knownConsts))
+  where f (v,(t,e,_)) = SE $ PrimOp "==" [SE (Var v) t, tcToSExpr e]
 
 -- get an assignment for unknowns
 arithAss :: [Goal] -> Solver (Either GoalClasses Ass.Assignment)
 arithAss gs = do
     cs <- kAxioms
-    let es = flip map gs (\(Goal _ (Exists e)) -> e) 
+    let es = filter typedSExpr $ flip map gs (\(Goal _ (Exists e)) -> e) 
     go [] (cs++es) >>= \case  -- FIXME!!
       Left  s -> let g = [Goal [] (Unsat $ CannotFindAssignment (cs++es) s)]
                      -- FIXME: we should try to produce much better error msgs / zilinc
@@ -876,6 +876,9 @@ arithAss gs = do
   where 
     -- find a satisfying assignment to the equality constraints
     -- FIXME: distinguish cs and es
+    --
+    -- NOTE: The SMT solver should return a value (whose type is dynamically known)
+    -- How do we handle it???
     go :: [SExpr] -> [SExpr] -> Solver (Either String (M.Map String Integer))
     go cs es = do
       let s = bvAnd <$> evalStateT (mapM sexprToSbv es) (IM.empty, M.empty)
@@ -892,7 +895,7 @@ arithAss gs = do
 arithSat :: [Goal] -> Solver (Maybe GoalClasses)
 arithSat gs = do
     cs <- kAxioms
-    let es = flip map gs (\(Goal _ (ForAll e)) -> e)
+    let es = filter typedSExpr $ flip map gs (\(Goal _ (ForAll e)) -> e)
     go cs es >>= \case
       Nothing  -> return Nothing
       Just msg -> let g = [Goal [] (Unsat $ PredicatesDontHold (cs++es) msg)]
@@ -936,21 +939,34 @@ bvAnd = foldr (VD.svAnd) VD.svTrue
 sBoolD :: String -> V.Symbolic VD.SVal
 sBoolD nm = ask >>= liftIO . VD.svMkSymVar Nothing V.KBool (Just nm)
 
+typedSExpr :: SExpr -> Bool
+typedSExpr (SU _ t) = rigid t
+typedSExpr (SE e _) = foldr (\e acc -> typedSExpr e && acc) True e
+
+
 sexprToSbv :: SExpr -> SbvM VD.SVal
-sexprToSbv (SE (PrimOp op [e1,e2])) = liftA2 (bopToSbv op) (sexprToSbv e1) (sexprToSbv e2)
-sexprToSbv (SE (PrimOp op [e])) = liftA (uopToSbv op) $ sexprToSbv e
-sexprToSbv (SE (Var v)) = __impossible $ "sexprToSbv: all vars should have been made symbolic (" ++ show v ++ ")"
+sexprToSbv (SE (PrimOp op [e1,e2]) _) = liftA2 (bopToSbv op) (sexprToSbv e1) (sexprToSbv e2)
+sexprToSbv (SE (PrimOp op [e]) _) = liftA (uopToSbv op) $ sexprToSbv e
+sexprToSbv (SE (Var v) _) = __impossible $ "sexprToSbv: all vars should have been made symbolic (" ++ show v ++ ")"
   -- m <- use _2
   -- case M.lookup v m of
   --   Nothing -> do u <- lift $ VD.sWordN 32 v  -- FIXME: what type should we assign to `v`?
   --                 modify (second $ M.insert v u)
   --                 return u
   --   Just u -> return u
-sexprToSbv (SE (IntLit i)) = return $ VD.svInteger (VD.KBounded False 32) i
-sexprToSbv (SE (BoolLit b)) = return $ VD.svBool b
-sexprToSbv (SE (Upcast e)) = sexprToSbv e
-sexprToSbv (SE (Annot e _)) = sexprToSbv e
-sexprToSbv (SU i (RT t)) = do
+sexprToSbv (SE (IntLit i) t) = 
+  let w = case t of
+            T (TCon "U8"   [] Unboxed) -> VD.sWordN 8
+            T (TCon "U16"  [] Unboxed) -> VD.sWordN 16
+            T (TCon "U32"  [] Unboxed) -> VD.sWordN 32
+            T (TCon "U64"  [] Unboxed) -> VD.sWordN 64
+            _ -> __impossible "sexprToSbv: wrong type for IntLit"
+   in return $ VD.svInteger (VD.KBounded False 32) i  -- TODO: how do we get the width?
+sexprToSbv (SE (BoolLit b) _) = return $ VD.svBool b
+sexprToSbv (SE (Upcast e) _) = sexprToSbv e
+sexprToSbv (SE (Annot e _) _) = sexprToSbv e
+sexprToSbv (SU i (U _)) = __impossible "sexprToSbv: it's too early to solve this constraint"
+sexprToSbv (SU i (T t)) = do
   let t' = case t of
              TCon "U8"   [] Unboxed -> VD.sWordN 8
              TCon "U16"  [] Unboxed -> VD.sWordN 16
@@ -995,9 +1011,9 @@ uopToSbv = \case
 
 -- Applies the current substitution to goals.
 instantiate :: Subst.Subst -> Ass.Assignment -> GoalClasses -> Solver [Goal]
-instantiate s a (Classes ups downs upcasts downcasts errs semisats rest upfl downfl aritheqs arithineqs) = do
+instantiate s a (Classes ups downs upcasts downcasts errs semisats rest upfl downfl arithasses arithsats) = do
   let al  = (GS.toList =<< (F.toList =<< [ups, downs, upcasts, downcasts]))
-            ++ errs ++ semisats ++ aritheqs ++ arithineqs ++ rest
+            ++ errs ++ semisats ++ arithasses ++ arithsats ++ rest
       al' = al & map (goal %~ Subst.applyC s) & map (goalContext %~ map (Subst.applyCtx s))
                & map (goal %~ Ass.assignC  a) & map (goalContext %~ map (Ass.assignCtx  a))
   -- traceTc "sol" (text "instantiate" <+> pretty (show al) P.<$> text "with substitution" P.<$> pretty s <> semi
@@ -1043,7 +1059,7 @@ irreducible m ds | IM.null m = True
 
 isGround (T (TCon x [] Unboxed)) = True
 -- isGround (T (TCon x [] Writable)) = True
-isGround (T (TRefine v t e)) = isGround t
+-- isGround (T (TRefine v t e)) = isGround t
 isGround _ = False
 
 -- when `!' is invertible
@@ -1059,7 +1075,7 @@ groundConstraint a b | Just a' <- flexOf a, isGround b = True
                      | otherwise = False
 
 data GoalClass = UpClass | DownClass | UpcastClass | DowncastClass
-               | ArithEqClass | ArithIneqClass
+               | ArithAssClass | ArithSatClass
 
 -- In a loop, we:
 --   1. Smash all goals into smaller, simple flex/rigid goals. Exit if any of them are Unsat, remove any Sat.
@@ -1082,8 +1098,8 @@ solve = lift . crunch >=> explode >=> go
     go g | not (irreducible (fmap GS.toList $ ups   g) (upflexes   g)) = go' g UpClass
     go g | not (IM.null (downcastables g)) = go' g DowncastClass
     go g | not (IM.null (upcastables   g)) = go' g UpcastClass
-    go g | not (null (aritheqs   g)) = go'' g ArithEqClass
-    go g | not (null (arithineqs g)) = go'' g ArithIneqClass
+    go g | not (null (arithasses g)) = go'' g ArithAssClass
+    go g | not (null (arithsats  g)) = go'' g ArithSatClass
     go g | not (null (rest g)) = do
       os <- use flexOrigins
       return $ map toWarn (semisats g) ++
@@ -1116,32 +1132,32 @@ solve = lift . crunch >=> explode >=> go
           instantiate s mempty g >>= explode >>= go
 
     go'' :: GoalClasses -> GoalClass -> Solver [ContextualisedTcLog]
-    go'' g ArithEqClass = do
-      traceTc "sol" (text "solve arith equality goals" <> colon
-                     P.<$> vsep (map (pretty . _goal) $ aritheqs g))
-      arithAss (aritheqs g) >>= \case
+    go'' g ArithAssClass = do
+      traceTc "sol" (text "trying to find an assignment for arith constriants" <> colon
+                     P.<$> vsep (map (pretty . _goal) $ arithasses g))
+      arithAss (arithasses g) >>= \case
         Left g' -> do
-          traceTc "sol" (bold (text "equations not satisfiable"))
-          go (g' <> g {aritheqs = []})  -- also turn unsats into an Unsat goal
+          traceTc "sol" (bold (text "no assignment found"))
+          go (g' <> g {arithasses = []})  -- also turn unsats into an Unsat goal
         Right a -> do
           traceTc "sol" (bold (text "produce assign" <> colon)
                          P.<$> pretty a)
           if Ass.null a then
-            go (g {aritheqs = []})
+            go (g {arithasses = []})
           else do
             applyAssign a
             instantiate mempty a g >>= explode >>= go
 
-    go'' g ArithIneqClass = do
-      traceTc "sol" (text "solve arith inequality goals" <> colon
-                     P.<$> vsep (map (pretty . _goal) $ arithineqs g))
-      arithSat (arithineqs g) >>= \case
+    go'' g ArithSatClass = do
+      traceTc "sol" (text "solve arith satisfiability goals" <> colon
+                     P.<$> vsep (map (pretty . _goal) $ arithsats g))
+      arithSat (arithsats g) >>= \case
         Nothing -> do
-          traceTc "sol" (text "arith inequalities satisfiable")
-          go (g {arithineqs = []})
+          traceTc "sol" (text "arith constraints satisfiable")
+          go (g {arithsats = []})
         Just g' -> do
-          traceTc "sol" (text "arith inequalities unsatisfiable")
-          go (g' <> g {arithineqs = []})
+          traceTc "sol" (text "arith constraints unsatisfiable")
+          go (g' <> g {arithsats = []})
 
     removeKeys = foldr IM.delete
 

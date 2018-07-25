@@ -168,23 +168,27 @@ cg x@(LocExpr l e) t = do
   (c, e') <- cg' e t
   return (c :@ InExpression x t, TE t e' l)
 
-cg' :: (?loc :: SourcePos) => Expr LocType LocPatn LocIrrefPatn LocExpr -> TCType -> CG (Constraint, Expr TCType TCPatn TCIrrefPatn TCExpr)
+cg' :: (?loc :: SourcePos)
+    => Expr LocType LocPatn LocIrrefPatn LocExpr
+    -> TCType
+    -> CG (Constraint, Expr TCType TCPatn TCIrrefPatn TCExpr)
+-- TODO: generate refinement constraints for prim-ops
 cg' (PrimOp o [e1, e2]) t
   | o `elem` words "+ - * / % .&. .|. .^. >> <<"
   = do (c1, e1') <- cg e1 t
        (c2, e2') <- cg e2 t
-       return (integral t <> c1 <> c2, PrimOp o [e1', e2'] )
+       return (integral t <> c1 <> c2, PrimOp o [e1', e2'])
   | o `elem` words "&& ||"
   = do (c1, e1') <- cg e1 t
        (c2, e2') <- cg e2 t
-       return (F (T (TCon "Bool" [] Unboxed)) :< F t <> c1 <> c2, PrimOp o [e1', e2'] )
+       return (F (T (TCon "Bool" [] Unboxed)) :< F t <> c1 <> c2, PrimOp o [e1', e2'])
   | o `elem` words "== /= >= <= > <"
   = do alpha <- freshTVar
        (c1, e1') <- cg e1 alpha
        (c2, e2') <- cg e2 alpha
        let c  = F (T (TCon "Bool" [] Unboxed)) :< F t
            c' = integral alpha
-       return (c <> c' <> c1 <> c2, PrimOp o [e1', e2'] )
+       return (c <> c' <> c1 <> c2, PrimOp o [e1', e2'])
 cg' (PrimOp o [e]) t
   | o == "complement"  = do
       (c, e') <- cg e t
@@ -226,12 +230,14 @@ cg' (Upcast e) t = do
   return (c, Upcast e1')
 
 
--- TODO: In order to infer principal types, we need to generate a template for
--- each type, refined. For example, 5 : {x : U8 | x <= ?0 && ?1 <= x} == tau,
--- We generate constraints tau :< t :& {x : U8 | x == 5} :< tau
-
+-- TODO: What type should be infer for primitive types?
+-- It seems that we should generate the most specific types
+-- but it will incur extensive subtyping relations in the
+-- syntax tree. / zilinc
 cg' (BoolLit b) t = do
-  let c = F (T (TCon "Bool" [] Unboxed)) :< F t
+  v <- freshEVar (T t_bool)
+  let r = SE $ PrimOp "==" [v, SE $ BoolLit b]
+      c = F (T (TRefine (unknownName v) (T t_bool) r)) :< F t
       e = BoolLit b
   return (c,e)
 
@@ -255,7 +261,14 @@ cg' (IntLit i) t = do
                       | i < u16MAX     = "U16"
                       | i < u32MAX     = "U32"
                       | otherwise      = "U64"
-      c = Upcastable (T (TCon minimumBitwidth [] Unboxed)) t
+  let bt = TCon minimumBitwidth [] Unboxed
+  t' <- freshTVar
+  v  <- freshEVar t'
+  let r = SE $ PrimOp "==" [v, SE $ IntLit i]
+      -- NOTE: We need a 2-step promition scheme here. E.g.:
+      -- (1) U8 :~> U32  (upcast)
+      -- (2) {v : U32 | P'(v)} :<  {v : U32 | Q (v)}  (ref. subtyping)
+      c = Upcastable (T bt) t :& (F $ T $ TRefine (unknownName v) t' r) :< F t
       e = IntLit i
   return (c,e)
 
@@ -269,10 +282,10 @@ cg' (ArrayLit es) t = do
 
 cg' (ArrayIndex e i) t = do
   alpha <- freshTVar
-  n <- freshEVar (RT $ TCon "U32" [] Unboxed)
+  n <- freshEVar (T t_u32)
   let ta = T $ TArray alpha n
   (ce, e') <- cg e ta
-  (ci, i') <- cg (dummyLocE i) (T $ TCon "U32" [] Unboxed)
+  (ci, i') <- cg (dummyLocE i) (T t_u32)
   let c = F alpha :< F t <> Share ta UsedInArrayIndexing
         <> ForAll (SE (PrimOp "<" [toSExpr i, n]))
         -- <> ForAll (SE (PrimOp ">=" [toSExpr i, SE (IntLit 0)]))  -- as we don't have negative values
@@ -612,12 +625,12 @@ freshTVar = fresh (ExpressionAt ?loc)
       flexOrigins %= IM.insert i ctx
       return $ U i
 
-freshEVar :: (?loc :: SourcePos) => RawType -> CG SExpr
+freshEVar :: (?loc :: SourcePos) => TCType -> CG SExpr
 freshEVar t = fresh (ExpressionAt ?loc)
   where
     fresh :: VarOrigin -> CG SExpr
     fresh ctx = do
-      i <- flexes <<%= succ  -- FIXME: do we need a different variable?
+      i <- flexes <<%= succ  -- FIXME: do we need a different counter?
       flexOrigins %= IM.insert i ctx
       return $ SU i t
       
