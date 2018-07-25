@@ -343,7 +343,8 @@ proof -
     moreover then have "\<And>tag \<tau>' b. (tag, \<tau>', b) \<in> set (ts[i := (tag', \<tau>, True)]) \<Longrightarrow> [] \<turnstile>  \<tau>' :\<kappa>  k"
       by (metis (no_types, lifting) fst_conv in_set_conv_nth length_list_update nth_list_update_eq nth_list_update_neq snd_conv)
     ultimately have "[] \<turnstile>* map (fst \<circ> snd) (tagged_list_update tag' (\<tau>, True) ts) :\<kappa> k"
-      using kinding_all_set ts_distinct by auto
+      using kinding_all_set ts_distinct
+      by (auto simp add: tagged_list_update_distinct)
     then show "[] \<turnstile>* map (fst \<circ> snd) (tagged_list_update tag' (\<tau>, True) ts) wellformed"
       using ts_distinct kinding_all_set
       by auto

@@ -217,7 +217,7 @@ lemma tagged_list_update_different_tag_preserves_values2:
   "\<lbrakk> (tag, b) \<in> set xs; tag \<noteq> tag' \<rbrakk> \<Longrightarrow> (tag, b) \<in> set (tagged_list_update tag' b' xs)"
   by (induct xs, (fastforce simp add: nth_Cons')+)
 
-lemma tagged_list_update_distinct[simp]:
+lemma tagged_list_update_distinct:
   assumes "distinct (map fst xs)"
     and "i < length xs"
   and "fst (xs ! i) = tag"
@@ -233,7 +233,7 @@ proof -
     by simp
 qed
 
-lemma tagged_list_update_same_distinct_is_equal[simp]:
+lemma tagged_list_update_same_distinct_is_equal:
   assumes distinct_fst_xs: "distinct (map fst xs)"
     and "i < length xs"
     and "(xs ! i) = (tag, b)"
