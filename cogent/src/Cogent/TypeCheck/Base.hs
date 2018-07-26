@@ -235,6 +235,7 @@ data TCType         = T (Type SExpr TCType)
 
 data SExpr          = SE (Expr RawType RawPatn RawIrrefPatn SExpr) TCType
                     | SU Int TCType
+                    | SAll Int SExpr
                     deriving (Show, Eq, Ord)
 
 unknownName :: SExpr -> VarName
@@ -433,6 +434,12 @@ substSExpr vs (SU i t) = SU i t
 substSExpr vs e@(SE (Var v) _)
   = case lookup v vs of Just x -> x; Nothing -> e
 substSExpr vs (SE e t) = SE (fmap (substSExpr vs) e) t
+substSExpr vs (SAll v e) = SAll v $ substSExpr vs e
+
+substSExpr' :: [(Int, SExpr)] -> SExpr -> SExpr
+substSExpr' vs e@(SU i t) = case lookup i vs of Just x -> x; Nothing -> e
+substSExpr' vs (SE e t) = SE (fmap (substSExpr' vs) e) t
+substSExpr' _ _ = __impossible "substSExpr': SAll encountered"
 
 -- XXX | -- universally quantify an SExpr
 -- XXX | uqSExpr :: VarName -> SExpr -> SExpr

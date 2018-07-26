@@ -189,12 +189,12 @@ ruleT c = do
   return mc
 
 -- Return the set of values a pattern can cover
-pValueSet :: VarName -> RawPatn -> SExpr
-pValueSet v (RP (PCon t ips)) = undefined
-pValueSet v (RP (PIntLit  n))  = SE $ PrimOp "==" [SE $ Var v, SE $ IntLit  n]
-pValueSet v (RP (PBoolLit n))  = SE $ PrimOp "==" [SE $ Var v, SE $ BoolLit n]
-pValueSet v (RP (PCharLit n))  = SE $ PrimOp "==" [SE $ Var v, SE $ CharLit n]
-pValueSet v (RP (PIrrefutable _)) = SE $ BoolLit True
+pValueSet :: TCType -> VarName -> RawPatn -> SExpr
+pValueSet t v (RP (PCon c ips)) = undefined
+pValueSet t v (RP (PIntLit  n))  = SE (PrimOp "==" [SE (Var v) t, SE (IntLit  n) t]) (T t_bool)
+pValueSet t v (RP (PBoolLit n))  = SE (PrimOp "==" [SE (Var v) t, SE (BoolLit n) t]) (T t_bool)
+pValueSet t v (RP (PCharLit n))  = SE (PrimOp "==" [SE (Var v) t, SE (CharLit n) t]) (T t_bool)
+pValueSet t v (RP (PIrrefutable _)) = SE (BoolLit True) (T t_bool)
 
 rule :: (?lvl :: Int) => Constraint -> Solver (Maybe Constraint)
 rule (Exhaustive t ps) | any isIrrefutable ps = return $ Just Sat
@@ -213,15 +213,15 @@ rule (Exhaustive ty@(T (TRefine v t e)) [])
   = do v' <- freshEVar t (RefinementType [ty])
        let vs = [(v, v')]
            e' = substSExpr vs e
-       return $ Just $ ForAll (SE $ PrimOp "not" [e']) :@ (Exhaustivity e') -- empty set
+       return $ Just $ ForAll (SE (PrimOp "not" [e']) (T t_bool)) :@ (Exhaustivity e') -- empty set
 rule (Exhaustive (T (TRefine v t e)) (p:ps))
-  = let r = pValueSet v p
-        e' = SE $ PrimOp "&&" [e, SE $ PrimOp "not" [r]] -- e `union` r
+  = let r = pValueSet t v p
+        e' = SE (PrimOp "&&" [e, SE (PrimOp "not" [r]) (T t_bool)]) (T t_bool) -- e `union` r
      in rule (Exhaustive (T (TRefine v t e')) ps)
 
 rule (Exhaustive t ps)
   | not (notWhnf t) = do SU v _ <- freshEVar t (RefinementType [t]) 
-                         rule (Exhaustive (T (TRefine ('?':show v) t $ SE $ BoolLit True)) ps)
+                         rule (Exhaustive (T (TRefine ('?':show v) t $ SE (BoolLit True) (T t_bool))) ps)
   -- | not (notWhnf t) = return . Just . Unsat $ PatternsNotExhaustive t []
 
 rule (x :@ c) = do
@@ -361,7 +361,7 @@ rule (F y :< F (T (TPut fs (U x))))
 --   = return $ Just $ uncurry FVariant (takeVariant fs vs es) :<  F ( U x)
 rule (F (T (TArray t l)) :< F (T (TArray s n)))
   = let ?lvl = ?lvl + 1
-     in return $ Just (F t :< F s :& Exists (SE $ PrimOp "==" [l, n]))
+     in return $ Just (F t :< F s :& Exists (SE (PrimOp "==" [l, n]) (T t_bool)))
 rule (F (T (TBang a)) :< F b)
   | isBangInv b = return $ Just (F a :< F b)
 rule (F a :< F (T (TBang b)))
@@ -417,11 +417,11 @@ rule (F ty1@(T (TRefine v1 t1 e1)) :< F ty2@(T (TRefine v2 t2 e2)))
            e1' = substSExpr vs1 e1
            e2' = substSExpr vs2 e2
        return . Just $ (F t1 :< F t2) :&
-                       (ForAll . SE $ PrimOp "||" [SE $ PrimOp "not" [e1'], e2'])  -- e1 `subsetOf` e2
+                       (ForAll $ SE (PrimOp "||" [SE (PrimOp "not" [e1']) (T t_bool), e2']) (T t_bool))  -- e1 `subsetOf` e2
 rule (F t1@(T (TRefine v _ _)) :< F t2)
-  = rule $ F t1 :< F (T . TRefine v t2 . SE $ BoolLit True)
+  = rule $ F t1 :< F (T . TRefine v t2 $ SE (BoolLit True) (T t_bool))
 rule (F t1 :< F t2@(T (TRefine v _ _)))
-  = rule $ F (T . TRefine v t1 . SE $ BoolLit True) :< F t2
+  = rule $ F (T . TRefine v t1 $ SE (BoolLit True) (T t_bool)) :< F t2
 rule ct@(a :< b) = do
   traceTc "sol" (text "apply rule to" <+> prettyC ct <> semi
            P.<$> text "yield type mismatch")
@@ -632,8 +632,16 @@ bound' d a@(T (TArray t l)) b@(T (TArray s n)) = do
   traceTc "sol" (text "calculate bound of" <+> pretty a <+> text "and" <+> pretty b <> colon
                  P.<$> pretty c)
   return $ Just c
-bound' b (T (TRefine v1 t1 e1)) (T (TRefine v2 t2 e2))
-  = undefined
+-- TODO: We need to check if `t1 == t2'. In order to do so, we must fully solve
+-- these base types and normalise (Post.hs) them. After the whole process done, we repeat to solve
+-- the refinement ones. It means, constraint generation can(?) be done in one go, and 
+-- solving, substitution, normalising must be done in a loop until it reaches a fixed point.
+bound' b (T (TRefine _ t1 (SAll v1 e1))) (T (TRefine _ t2 (SAll v2 e2)))
+  = bound' b t1 t2 >>= mapM (\t -> do
+      let op = case b of GLB -> "||"; LUB -> "&&"
+          e2' = substSExpr' [(v1,undefined)] e2
+          e  = SAll v1 $ SE (PrimOp op [e1,e2']) (T t_bool)
+      return (T $ TRefine ('?':show v1) t e))
 bound' b (T (TRefine v1 t1 e1)) (T ty2)
   = undefined
 bound' b (T ty1) (T (TRefine v2 t2 e2))
@@ -859,8 +867,8 @@ applyAssign a = traceTc "sol" (text "apply assign") >> assigns <>= a
 
 -- add axioms for constant equality
 kAxioms :: Solver [SExpr]
-kAxioms = mapM f =<< (filter (arithTCType . fst3 . snd) . M.toList <$> lift (use knownConsts))
-  where f (v,(t,e,_)) = SE $ PrimOp "==" [SE (Var v) t, tcToSExpr e]
+kAxioms = map f <$> (filter (arithTCType . fst3 . snd) . M.toList <$> lift (use knownConsts))
+  where f (v,(t,e,_)) = SE (PrimOp "==" [SE (Var v) t, tcToSExpr e]) (T t_bool)
 
 -- get an assignment for unknowns
 arithAss :: [Goal] -> Solver (Either GoalClasses Ass.Assignment)
@@ -872,14 +880,14 @@ arithAss gs = do
                      -- FIXME: we should try to produce much better error msgs / zilinc
                   in __fixme $ return (Left $ mempty {unsats = g})
       Right m -> m & ( return . Right . Ass.Assignment . IM.fromList . M.toList
-                     . M.mapKeys (read . tail) . M.map (SE . IntLit) )
+                     . M.mapKeys (read . tail) )
   where 
     -- find a satisfying assignment to the equality constraints
     -- FIXME: distinguish cs and es
     --
     -- NOTE: The SMT solver should return a value (whose type is dynamically known)
     -- How do we handle it???
-    go :: [SExpr] -> [SExpr] -> Solver (Either String (M.Map String Integer))
+    go :: [SExpr] -> [SExpr] -> Solver (Either String (M.Map String SExpr))
     go cs es = do
       let s = bvAnd <$> evalStateT (mapM sexprToSbv es) (IM.empty, M.empty)
           config = VD.z3 { V.verbose = __cogent_ddump_smt, V.isNonModelVar = \x -> head x /= '?' }
@@ -888,7 +896,7 @@ arithAss gs = do
         s
       case smtReses of
         [] -> return $ Left "no assignment found by the SMT-solver!"
-        [smtRes] -> return $ Right $ M.map V.fromCW $ V.getModelDictionary smtRes
+        [smtRes] -> return $ Right $ M.map sbvToSExpr $ V.getModelDictionary smtRes
         _ -> return $ Left "multiple assignments found by the SMT-solver"
 
 -- check the satisfiability of arithmetic constraints
@@ -942,7 +950,7 @@ sBoolD nm = ask >>= liftIO . VD.svMkSymVar Nothing V.KBool (Just nm)
 typedSExpr :: SExpr -> Bool
 typedSExpr (SU _ t) = rigid t
 typedSExpr (SE e _) = foldr (\e acc -> typedSExpr e && acc) True e
-
+typedSExpr (SAll _ e) = typedSExpr e
 
 sexprToSbv :: SExpr -> SbvM VD.SVal
 sexprToSbv (SE (PrimOp op [e1,e2]) _) = liftA2 (bopToSbv op) (sexprToSbv e1) (sexprToSbv e2)
@@ -956,12 +964,12 @@ sexprToSbv (SE (Var v) _) = __impossible $ "sexprToSbv: all vars should have bee
   --   Just u -> return u
 sexprToSbv (SE (IntLit i) t) = 
   let w = case t of
-            T (TCon "U8"   [] Unboxed) -> VD.sWordN 8
-            T (TCon "U16"  [] Unboxed) -> VD.sWordN 16
-            T (TCon "U32"  [] Unboxed) -> VD.sWordN 32
-            T (TCon "U64"  [] Unboxed) -> VD.sWordN 64
+            T (TCon "U8"   [] Unboxed) -> 8
+            T (TCon "U16"  [] Unboxed) -> 16
+            T (TCon "U32"  [] Unboxed) -> 32
+            T (TCon "U64"  [] Unboxed) -> 64
             _ -> __impossible "sexprToSbv: wrong type for IntLit"
-   in return $ VD.svInteger (VD.KBounded False 32) i  -- TODO: how do we get the width?
+   in return $ VD.svInteger (VI.KBounded False w) i
 sexprToSbv (SE (BoolLit b) _) = return $ VD.svBool b
 sexprToSbv (SE (Upcast e) _) = sexprToSbv e
 sexprToSbv (SE (Annot e _) _) = sexprToSbv e
@@ -1008,6 +1016,11 @@ uopToSbv :: OpName -> (VD.SVal -> VD.SVal)
 uopToSbv = \case
   "not"        -> VD.svNot
   "complement" -> VD.svNot
+
+sbvToSExpr :: VI.CW -> SExpr
+sbvToSExpr _ = undefined
+
+
 
 -- Applies the current substitution to goals.
 instantiate :: Subst.Subst -> Ass.Assignment -> GoalClasses -> Solver [Goal]

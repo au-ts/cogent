@@ -91,7 +91,7 @@ validateType rt@(RT t) = do
                    then second (T . ffmap toSExpr) <$> fmapFoldM validateType t
                    else return (Unsat $ DuplicateRecordFields (fields \\ fields'), toTCType rt)
     TArray te l -> do let l' = toSExpr l
-                          cl = ForAll (SE $ PrimOp ">" [l', SE $ IntLit 0])
+                          cl = ForAll (SE (PrimOp ">" [l', SE (IntLit 0) (T t_u32)]) (T t_bool))
                       (c,te') <- validateType te
                       return (c <> cl, T $ TArray te' l')
     TRefine v t e -> do let t' = toTCType t
@@ -235,8 +235,8 @@ cg' (Upcast e) t = do
 -- but it will incur extensive subtyping relations in the
 -- syntax tree. / zilinc
 cg' (BoolLit b) t = do
-  v <- freshEVar (T t_bool)
-  let r = SE $ PrimOp "==" [v, SE $ BoolLit b]
+  v@(SU i _) <- freshEVar (T t_bool)
+  let r = SAll i $ SE (PrimOp "==" [v, SE (BoolLit b) (T t_bool)]) (T t_bool)
       c = F (T (TRefine (unknownName v) (T t_bool) r)) :< F t
       e = BoolLit b
   return (c,e)
@@ -256,28 +256,28 @@ cg' Unitel t = do
       e = Unitel
   return (c,e)
 
-cg' (IntLit i) t = do
-  let minimumBitwidth | i < u8MAX      = "U8"
-                      | i < u16MAX     = "U16"
-                      | i < u32MAX     = "U32"
+cg' (IntLit n) t = do
+  let minimumBitwidth | n < u8MAX      = "U8"
+                      | n < u16MAX     = "U16"
+                      | n < u32MAX     = "U32"
                       | otherwise      = "U64"
   let bt = TCon minimumBitwidth [] Unboxed
   t' <- freshTVar
-  v  <- freshEVar t'
-  let r = SE $ PrimOp "==" [v, SE $ IntLit i]
+  v@(SU i _) <- freshEVar t'
+  let r = SAll i $ SE (PrimOp "==" [v, SE (IntLit n) t']) (T t_bool)
       -- NOTE: We need a 2-step promition scheme here. E.g.:
       -- (1) U8 :~> U32  (upcast)
       -- (2) {v : U32 | P'(v)} :<  {v : U32 | Q (v)}  (ref. subtyping)
       c = Upcastable (T bt) t :& (F $ T $ TRefine (unknownName v) t' r) :< F t
-      e = IntLit i
+      e = IntLit n
   return (c,e)
 
 cg' (ArrayLit es) t = do
   alpha <- freshTVar
   blob <- forM es $ flip cg alpha
   let (cs,es') = unzip blob
-      n = SE . IntLit . fromIntegral $ length es
-      cz = ForAll (SE $ PrimOp ">" [n, SE (IntLit 0)])
+      n = SE (IntLit . fromIntegral $ length es) (T t_u32)
+      cz = ForAll (SE (PrimOp ">" [n, SE (IntLit 0) (T t_u32)]) (T t_bool))
   return (mconcat cs <> cz <> F (T $ TArray alpha n) :< F t, ArrayLit es')
 
 cg' (ArrayIndex e i) t = do
@@ -287,7 +287,7 @@ cg' (ArrayIndex e i) t = do
   (ce, e') <- cg e ta
   (ci, i') <- cg (dummyLocE i) (T t_u32)
   let c = F alpha :< F t <> Share ta UsedInArrayIndexing
-        <> ForAll (SE (PrimOp "<" [toSExpr i, n]))
+        <> ForAll (SE (PrimOp "<" [toSExpr i, n]) (T t_bool))
         -- <> ForAll (SE (PrimOp ">=" [toSExpr i, SE (IntLit 0)]))  -- as we don't have negative values
   return (ce <> ci <> c, ArrayIndex e' i)
   traceTc "gen" (text "array indexing" <> colon
@@ -607,7 +607,7 @@ match' (PArray ps) t = do
   alpha <- freshTVar
   blob <- mapM (flip match alpha) ps
   let (ss,cs,ps') = unzip3 blob
-      l = SE . IntLit . fromIntegral $ length ps
+      l = SE (IntLit . fromIntegral $ length ps) (T t_u32)
       c = F t :< F (T $ TArray alpha l)
   return (M.unions ss, mconcat cs <> c, PArray ps')
 

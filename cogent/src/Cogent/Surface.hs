@@ -148,7 +148,7 @@ numOfArgs (PT x _) = length x
 data TopLevel t p e = Include    String
                     | IncludeStd String
                     | DocBlock   String
-                    | AbsTypeDec TypeName [TyVarName] [t]
+                    | AbsTypeDec TypeName [TyVarName] [t]  -- this [t] is a list of deps
                     | TypeDec    TypeName [TyVarName] t
                     | AbsDec VarName (Polytype t)
                     | FunDef VarName (Polytype t) [Alt p e]

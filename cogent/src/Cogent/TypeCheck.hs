@@ -22,6 +22,7 @@ module Cogent.TypeCheck (
 ) where
 
 import qualified Cogent.Common.Repr as R
+import Cogent.Common.Types (k2)
 import Cogent.Compiler
 import qualified Cogent.Context as C
 import Cogent.PrettyPrint (prettyC)
@@ -71,9 +72,8 @@ tc ds cts = flip runStateT (TcState M.empty knownTypes M.empty M.empty)
 
 typecheck :: [(SourcePos, TopLevel LocType LocPatn LocExpr)]
           -> TcM [TopLevel RawType TypedPatn TypedExpr]
-typecheck = mapM (uncurry checkOne)
+typecheck = mapM (uncurry checkOne)  -- TODO: output multiple groups of errors at a time
 
--- TODO: Check for prior definition
 checkOne :: SourcePos -> TopLevel LocType LocPatn LocExpr
          -> TcM (TopLevel RawType TypedPatn TypedExpr)
 checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
@@ -87,10 +87,9 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     unless (null xs) $ logErrExit $ DuplicateTypeVariable xs
     base <- lift . lift $ use knownConsts
     let ctx = C.addScope (fmap (\(t,_,p) -> (t,p, Seq.singleton p)) base) C.empty
-        vs = map fst ps
-    ((ct,t'),flx,os) <- runCG ctx vs (G.validateType t)
-    (logs, subst, assn, _) <- runSolver (solve ct) vs flx os
-    -- FIXME
+    ((ct,t'),flx,os) <- runCG ctx ps (G.validateType t)
+    (logs, subst, assn, _) <- runSolver (solve ct) (map (,k2) ps) flx os
+    exitOnErr $ mapM_ logTc =<< mapM (\(c,l) -> lift (use errCtx) >>= \c' -> return (c++c',l)) logs
     let t'' = assignT assn $ apply subst $ t'
     lift . lift $ knownTypes <>= [(n, (ps, Just t''))]
     t''' <- postT t''
@@ -103,32 +102,31 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     unless (null xs) $ logErrExit $ DuplicateTypeVariable xs
     base <- lift . lift $ use knownConsts
     let ctx = C.addScope (fmap (\(t,_,p) -> (t,p, Seq.singleton p)) base) C.empty
-        vs = map fst ps
-    (cts,flx,os) <- runCG ctx vs (mapM G.validateType t)
-    let (cts,ts') = unzip cts
-    (logs, subst, assn, _) <- runSolver (solve $ mconcat cts) vs flx os
-    -- FIXME
+    -- `ts' are the dependencies
+    (cts,flx,os) <- runCG ctx [] (mapM G.validateType ts)
+    let (cs,ts') = unzip cts
+    (logs, subst, assn, _) <- runSolver (solve $ mconcat cs) [] flx os
+    exitOnErr $ mapM_ logTc =<< mapM (\(c,l) -> lift (use errCtx) >>= \c' -> return (c++c',l)) logs
     let ts'' = map (assignT assn . apply subst) ts'
     ts''' <- mapM postT ts''
     lift . lift $ knownTypes <>= [(n, (ps, Nothing))]
     return $ AbsTypeDec n ps ts'''
 
-  (AbsDec n (PT ps (stripLocT -> t))) -> do
+  (AbsDec n (PT vs (stripLocT -> t))) -> do
     traceTc "tc" $ bold (text $ replicate 80 '=')
     traceTc "tc" (text "typecheck abstract function" <+> pretty n)
-    let vs' = map fst ps
+    let vs' = map fst vs
         xs = vs' \\ nub vs'
     unless (null xs) $ logErrExit $ DuplicateTypeVariable xs
     base <- lift . lift $ use knownConsts
     let ctx = C.addScope (fmap (\(t,_,p) -> (t,p, Seq.singleton p)) base) C.empty
-        vs = map fst ps
-    ((ct,t'),flx,os) <- runCG ctx vs (G.validateType t)
+    ((ct,t'),flx,os) <- runCG ctx vs' (G.validateType t)
     (logs, subst, assn, _) <- runSolver (solve ct) vs flx os
-    -- FIXME
+    exitOnErr $ mapM_ logTc =<< mapM (\(c,l) -> lift (use errCtx) >>= \c' -> return (c++c',l)) logs
     let t'' = assignT assn $ apply subst t'
-    lift . lift $ knownFuns %= M.insert n (PT ps t'')
+    lift . lift $ knownFuns %= M.insert n (PT vs t'')
     t''' <- postT t''
-    return $ AbsDec n (PT ps t''')
+    return $ AbsDec n (PT vs t''')
   
   (RepDef d@(RepDecl pos n e)) -> do 
     traceTc "tc" (text "typecheck rep decl" <+> pretty n)

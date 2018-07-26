@@ -36,6 +36,7 @@ instance Monoid Assignment where
 forUnknowns :: (Int -> TCType -> SExpr) -> SExpr -> SExpr
 forUnknowns f (SU x t) = f x t
 forUnknowns f (SE x t) = SE (fmap (forUnknowns f) x) t
+forUnknowns f (SAll v e) = SAll v (forUnknowns f e)
 
 assign :: Assignment -> SExpr -> SExpr
 assign = forUnknowns . lookup
