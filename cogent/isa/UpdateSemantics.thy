@@ -1249,20 +1249,14 @@ using assms(2,1) by ( induct "map snd tsa" "map snd rs"
 lemma type_repr_uval_repr:
 shows"\<Xi>, \<sigma> \<turnstile> v :u t \<langle>r, w\<rangle> \<Longrightarrow> uval_repr v = type_repr t"
 and  "\<Xi>, \<sigma> \<turnstile>* fs :ur ts \<langle>r, w\<rangle> \<Longrightarrow> map snd fs = map (\<lambda> a. (type_repr (fst a))) ts"
-proof (induct rule: uval_typing_uval_typing_record.inducts)
-  case (u_t_sum \<Xi> \<sigma> a t r w g ts rs)
-  then show ?case
-    sorry
-qed (force dest: abs_typing_repr intro: list_all2_helper2 [symmetric])+
+  by (induct rule: uval_typing_uval_typing_record.inducts,
+      (force dest: abs_typing_repr intro: list_all2_helper2 [symmetric])+)
 
 lemma type_repr_uval_repr_deep:
 shows"\<Xi>, \<sigma> \<turnstile> v :u t \<langle>r, w\<rangle> \<Longrightarrow> uval_repr_deep v = type_repr t"
 and  "\<Xi>, \<sigma> \<turnstile>* fs :ur ts \<langle>r, w\<rangle> \<Longrightarrow> map uval_repr_deep (map fst fs) = map (\<lambda> a. (type_repr (fst a))) ts"
-proof (induct rule: uval_typing_uval_typing_record.inducts)
-  case (u_t_sum \<Xi> \<sigma> a t r w g ts rs)
-  then show ?case
-    sorry
-qed (force dest: abs_typing_repr intro: list_all2_helper2 [symmetric])+
+  by (induct rule: uval_typing_uval_typing_record.inducts,
+      (force dest: abs_typing_repr intro: list_all2_helper2 [symmetric])+)
 
 
 lemma uval_typing_record_take:
