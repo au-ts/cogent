@@ -10,7 +10,7 @@
 
 theory TypeTrackingSemantics imports
   UpdateSemantics
-  Focus
+  
 begin
 
 datatype type_split_kind = TSK_L | TSK_S | TSK_NS
@@ -32,8 +32,8 @@ fun
   follow_typing_tree :: "tree_ctx \<Rightarrow> tree_ctx \<times> tree_ctx"
 where
   "follow_typing_tree (TyTrSplit sps xs T1 ys T2, \<Gamma>)
-    = ((T1, xs @ map (fst o Product_Type.split apply_tsk) (zip sps \<Gamma>)),
-        (T2, ys @ map (snd o Product_Type.split apply_tsk) (zip sps \<Gamma>)))"
+    = ((T1, xs @ map (fst o case_prod apply_tsk) (zip sps \<Gamma>)),
+        (T2, ys @ map (snd o case_prod apply_tsk) (zip sps \<Gamma>)))"
 
 fun
   new_tt_types :: "tree_ctx \<Rightarrow> ctx"
@@ -206,21 +206,21 @@ lemma split_bang_nth:
    apply (auto elim: split_bang.cases intro: split_bang_empty)[1]
   apply (rule iffI)
    apply (erule split_bang.cases, simp)
-    apply (clarsimp split del: split_if)
+    apply clarsimp
     apply (case_tac i)
      apply simp
-    apply (simp add: Suc_mem_image_pred split del: split_if cong: if_cong)
-   apply (clarsimp split del: split_if)
+    apply (simp add: Suc_mem_image_pred cong: if_cong)
+   apply clarsimp
    apply (case_tac i)
     apply simp
-   apply (simp add: Suc_mem_image_pred_remove split del: split_if cong: if_cong)
+   apply (simp add: Suc_mem_image_pred_remove cong: if_cong)
   apply (clarsimp simp: length_Suc_conv forall_less_Suc_eq)
   apply (frule_tac x=0 in spec, simp(no_asm_use))
   apply (case_tac "0 \<in> is", simp_all)
    apply clarsimp
    apply (erule split_bang_bang, rule refl)
-   apply (simp add: Suc_mem_image_pred_remove split del: split_if cong: if_cong)
-  apply (rule split_bang_cons, (simp_all add: Suc_mem_image_pred split del: split_if cong: if_cong))
+   apply (simp add: Suc_mem_image_pred_remove cong: if_cong)
+  apply (rule split_bang_cons, (simp_all add: Suc_mem_image_pred cong: if_cong))
   done
 
 lemma ttsplit_bang_imp_split_bang:
@@ -229,7 +229,7 @@ lemma ttsplit_bang_imp_split_bang:
         \<and> snd \<Gamma>1 = xs @ \<Gamma>1a & snd \<Gamma>2 = ys @ \<Gamma>2a)"
   apply (clarsimp simp: ttsplit_bang_def ttsplit_bang_inner_def
                         split_bang_nth nth_enumerate_eq
-              split del: split_if cong: if_cong)
+             split del: if_splits cong: if_cong)
   apply clarsimp
   apply (case_tac "\<Gamma>b ! i")
    apply (simp add: split_comp.none)
@@ -302,9 +302,9 @@ where
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> T\<turnstile> LetBang is x y : u"
 
 | ttyping_case   : "\<lbrakk> ttsplit K \<Gamma> ijs [] \<Gamma>1 [] \<Gamma>2
-                   ; ttsplit_triv \<Gamma>2 [Some t] \<Gamma>3 [Some (TSum (filter (\<lambda> x. fst x \<noteq> tag) ts))] \<Gamma>4
+                   ; ttsplit_triv \<Gamma>2 [Some t] \<Gamma>3 [Some (TSum (filter (\<lambda>x. fst x \<noteq> tag) ts))] \<Gamma>4
                    ; \<Xi>, K, \<Gamma>1 T\<turnstile> x : TSum ts
-                   ; (tag, t) \<in> set ts
+                   ; (tag, t, taken) \<in> set ts
                    ; \<Xi>, K, \<Gamma>3 T\<turnstile> a : u
                    ; \<Xi>, K, \<Gamma>4 T\<turnstile> b : u
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> T\<turnstile> Case x tag a b : u" 
@@ -330,16 +330,24 @@ where
 lemma ttyping_imp_typing:
 assumes "\<Xi>, K, \<Gamma> T\<turnstile> e : u"
 shows   "\<Xi>, K, (snd \<Gamma>) \<turnstile> e : u"
-using assms by ( induct rule: ttyping.induct
-               , auto simp:  ttsplit_triv_def
-                      dest!: ttsplit_imp_split ttsplit_bang_imp_split_bang
-                      intro: typing_typing_all.intros)
+  using assms
+proof (induct rule: ttyping.induct)
+  case (ttyping_case K \<Gamma> ijs \<Gamma>1 \<Gamma>2 t \<Gamma>3 tag ts \<Gamma>4 \<Xi> x taken a u b)
+  then show ?case
+    sorry
+qed (auto simp:  ttsplit_triv_def
+         dest!: ttsplit_imp_split ttsplit_bang_imp_split_bang
+         intro: typing_typing_all.intros)
 
 lemma typing_imp_ttyping_induct:
 shows " (\<Xi>, K, \<Gamma> \<turnstile> e : u \<Longrightarrow> (\<exists> tt. \<Xi>, K, (tt, \<Gamma>) T\<turnstile> e : u))"
 and   " (\<Xi>, K, \<Gamma> \<turnstile>* es : us \<Longrightarrow> True)"
 proof (induct rule: typing_typing_all.inducts)
-  
+  case (typing_prom \<Xi> K \<Gamma> x ts ts')
+  then show ?case sorry
+next
+  case (typing_case K \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> x ts tag t a u b)
+  then show ?case sorry
 qed (fastforce intro: ttyping_split[rotated] ttyping_let[rotated] ttyping_letb[rotated]
                       ttyping_case[rotated 2] ttyping_if[rotated 2] ttyping_take[rotated 2]
                       ttyping_default typing_typing_all.intros
@@ -510,7 +518,7 @@ next
 
 next
 
-  note split_if[split del]
+  note if_splits[split del]
   case u_sem_if show ?case using u_sem_if.prems u_sem_if.hyps(1, 3)
     apply -
     apply (erule ttyping.cases, simp_all)
@@ -526,9 +534,10 @@ next
     apply (clarsimp simp: ttsplit_triv_def)
     apply (frule(2) frame_noalias_matches_ptrs)
     apply (frule(1) frame_noalias_matches_ptrs(2), blast)
-    apply (rule u_sem_if.hyps(4), simp split: split_if, assumption)
-     apply (simp split: split_if, erule(2) matches_ptrs_frame)
-     apply blast
+    apply (rule u_sem_if.hyps(4), simp split: if_splits, assumption)
+     apply (simp split: if_splits, erule(2) matches_ptrs_frame)
+      apply blast
+    apply (meson matches_ptrs_frame subset_helper sup.cobounded1 sup.cobounded2)
     apply assumption
     done 
 
@@ -577,6 +586,8 @@ next
      , erule ttyping_eq_typing[THEN iffD2, OF exI])
     apply (clarsimp simp: ttsplit_triv_def)
     apply (erule u_t_sumE, clarsimp)
+    sorry
+(*
     apply (erule(1) u_sem_case_nm.hyps(5))
      apply simp
      apply (rule matches_ptrs_some)
@@ -589,7 +600,7 @@ next
      apply blast
     apply assumption
     done
-
+*)
 next
 
   case u_sem_take
@@ -621,6 +632,8 @@ next
      apply (clarsimp)
      apply (frule(2) shareable_not_writable(1))
      apply simp
+    sorry
+(*
      (* FIXME: use new subgoal command or remove entirely.
       * Note that legacy_subgoal pulls existing assumptions into "assms"
       * and also leaves \<And>-quantified variables untouched.
@@ -662,6 +675,7 @@ next
              apply (simp+, blast+)
       done
     done
+*)
 next
 
   case u_sem_take_ub show ?case using u_sem_take_ub.prems u_sem_take_ub.hyps(1, 3)
@@ -732,7 +746,6 @@ next
     done
 
 next
-
   case u_sem_app show ?case using u_sem_app.prems u_sem_app.hyps(5)
       UpdateSemantics.u_sem_app[OF u_sem_app.hyps(1, 3, 5)]
     apply -
@@ -740,17 +753,23 @@ next
       apply simp
      apply (auto dest: ttyping_imp_typing)
     done
-
+next
+  case (u_sem_promote \<xi> \<gamma> \<sigma> x \<sigma>' c p rs ts')
+  then show ?case sorry
 qed  (fastforce intro!: u_tt_sem_pres_default
                intro: u_sem_u_sem_all.intros
                simp: composite_anormal_expr_def
                dest: ttyping_imp_typing
-               )+
+               )+ (* takes about 8s *)
 
 lemma u_tt_sem_pres_imp_u_sem:
   "\<Xi>, \<xi>, \<gamma>, [], \<Gamma>, \<tau> T\<turnstile> (\<sigma>, x) \<Down>! (\<sigma>', uv)
     \<Longrightarrow> \<xi>, \<gamma> \<turnstile> (\<sigma>, x) \<Down>! (\<sigma>', uv)"
-  by (induct rule: u_tt_sem_pres.induct, auto intro: u_sem_u_sem_all.intros)
+proof (induct rule: u_tt_sem_pres.induct)
+  case (u_tt_sem_pres_case_nm K \<Gamma> sps \<Gamma>1 \<Gamma>2 typ1 \<Gamma>3 typ2 \<Gamma>4 \<Xi> \<xi> \<gamma> ts \<sigma> x \<sigma>' t' v rs t \<tau> n st m)
+  then show ?case
+    sorry
+qed (auto intro: u_sem_u_sem_all.intros)
 
 end
 
