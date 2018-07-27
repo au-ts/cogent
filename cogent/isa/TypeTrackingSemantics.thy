@@ -23,7 +23,8 @@ type_synonym tree_ctx = "typing_tree * ctx"
 fun
   apply_tsk :: "type_split_kind option \<Rightarrow> type option \<Rightarrow> type option \<times> type option"
 where
-    "apply_tsk None t = (None, t)"  | "apply_tsk (Some TSK_L) t = (t, None)"
+    "apply_tsk None t = (None, t)"
+  | "apply_tsk (Some TSK_L) t = (t, None)"
   | "apply_tsk (Some TSK_S) t = (t, t)"
   | "apply_tsk (Some TSK_NS) t = (map_option bang t, t)"
 
@@ -352,10 +353,40 @@ shows " (\<Xi>, K, \<Gamma> \<turnstile> e : u \<Longrightarrow> (\<exists> tt. 
 and   " (\<Xi>, K, \<Gamma> \<turnstile>* es : us \<Longrightarrow> True)"
 proof (induct rule: typing_typing_all.inducts)
   case (typing_prom \<Xi> K \<Gamma> x ts ts')
-  then show ?case sorry
+  
+  obtain tt where "\<Xi>, K, (tt, \<Gamma>) T\<turnstile> x : TSum ts"
+    using typing_prom.hyps(2) by blast
+  then have "\<Xi>, K, (tt, \<Gamma>) T\<turnstile> Promote ts' x : TSum ts'"
+  proof (intro ttyping.intros)
+    show "\<not> composite_anormal_expr (Promote ts' x)"
+      unfolding composite_anormal_expr_def by simp
+  next
+    show "\<Xi>, K, \<Gamma> \<turnstile> Promote ts' x : TSum ts'"
+      using typing_prom.hyps typing_typing_all.typing_prom by blast
+  qed
+  then show ?case
+    by blast
 next
   case (typing_case K \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> x ts tag t a u b)
-  then show ?case sorry
+  moreover then obtain sps tt1 tt2 tt  ijs tt2a tt2a'
+    where "ttsplit K (tt, \<Gamma>) sps [] (tt1, \<Gamma>1) [] (tt2, \<Gamma>2)"
+      and "tt = TyTrSplit sps [] tt1 [] tt2"
+      and "\<Xi>, K, (tt1, \<Gamma>1) T\<turnstile> x : TSum ts"
+      and "\<Xi>, K, (tt2a, Some t # \<Gamma>2) T\<turnstile> a : u"
+      and "\<Xi>, K, (tt2a', Some (TSum (tagged_list_update tag (t, True) ts)) # \<Gamma>2) T\<turnstile> b : u"
+      and tt2_is: "tt2 = TyTrSplit ijs [Some t] tt2a [Some (TSum (tagged_list_update tag (t, True) ts))] tt2a'"
+    using split_imp_ttsplit[where xs="[]" and ys="[]"] by blast
+  ultimately have "\<Xi>, K, (tt, \<Gamma>) T\<turnstile> Case x tag a b : u"
+  proof (intro ttyping.ttyping_case)
+    from tt2_is
+    show "ttsplit_triv (tt2, \<Gamma>2)
+            [Some t] (tt2a, Some t # \<Gamma>2)
+            [Some (TSum (tagged_list_update tag (t, True) ts))] (tt2a', Some (TSum (tagged_list_update tag (t, True) ts)) # \<Gamma>2)"
+      unfolding ttsplit_triv_def
+      by simp
+  qed blast+
+  then show ?case
+    by blast
 qed (fastforce intro: ttyping_split[rotated] ttyping_let[rotated] ttyping_letb[rotated]
                       ttyping_case[rotated 2] ttyping_if[rotated 2] ttyping_take[rotated 2]
                       ttyping_default typing_typing_all.intros
