@@ -443,7 +443,7 @@ where
                            ; ttsplit_triv \<Gamma>2 [typ1] \<Gamma>3 [typ2] \<Gamma>4
                            ; \<Xi>, \<xi> , \<gamma>, K, \<Gamma>1, TSum ts T\<turnstile> (\<sigma>, x) \<Down>! (\<sigma>', USum t' v rs)
                            ; t' \<noteq> t
-                           ; \<Xi>, \<xi> , (USum t' v [x \<leftarrow> rs. fst x \<noteq> t] # \<gamma>), K, \<Gamma>4, \<tau> T\<turnstile> (\<sigma>', n) \<Down>! st
+                           ; \<Xi>, \<xi> , (USum t' v rs # \<gamma>), K, \<Gamma>4, \<tau> T\<turnstile> (\<sigma>', n) \<Down>! st
                            \<rbrakk> \<Longrightarrow> \<Xi>, \<xi> , \<gamma>, K, \<Gamma>, \<tau> T\<turnstile> (\<sigma>, Case x t m n) \<Down>! st"
 
 | u_tt_sem_pres_if      : "\<lbrakk> ttsplit K \<Gamma> sps [] \<Gamma>1 [] \<Gamma>2
@@ -615,37 +615,77 @@ next
     done
 
 next
+  case (u_sem_case_nm \<xi> \<gamma> \<sigma> x \<sigma>'' t' v' rs t n m)
 
-  case u_sem_case_nm show ?case using u_sem_case_nm.prems u_sem_case_nm.hyps(1, 3)
-    apply -
-    apply (erule ttyping.cases, simp_all)
-     apply (auto simp: composite_anormal_expr_def)[1]
-    apply (frule ttsplit_imp_split)
-    apply (frule matches_ptrs_noalias)
-    apply clarsimp
-    apply (frule(1) matches_ptrs_split', clarsimp)
-    apply (erule(1) u_tt_sem_pres_case_nm)
-      apply (rule u_sem_case_nm.hyps(2), simp+)[1]
-     apply assumption
-    apply (frule(2) preservation(1)[where \<tau>s=Nil, simplified, OF refl, OF _ _ _ u_sem_case_nm.hyps(1)]
-     , erule ttyping_eq_typing[THEN iffD2, OF exI])
-    apply (clarsimp simp: ttsplit_triv_def)
-    apply (erule u_t_sumE, clarsimp)
-    sorry
-(*
-    apply (erule(1) u_sem_case_nm.hyps(5))
-     apply simp
-     apply (rule matches_ptrs_some)
-         apply (erule sum_downcast_u[rotated -1])
-         apply (rule, assumption, auto)[1]
-        apply (erule(2) matches_ptrs_frame)
-        apply (drule(1) frame_noalias_matches_ptrs(2), blast, blast)
-       apply (force dest: frame_noalias_matches_ptrs(1))
-      apply (force dest!: frame_noalias_matches_ptrs(2))
-     apply blast
-    apply assumption
-    done
-*)
+  from u_sem_case_nm.prems(1)
+  show ?case
+  proof (rule ttyping_caseE)
+    fix \<Gamma>' tt
+    assume "\<Gamma> = (tt, \<Gamma>')"
+      and "\<not> composite_anormal_expr (Case x t m n)"
+    then show ?thesis
+      unfolding composite_anormal_expr_def
+      by simp
+  next
+    fix ijs t\<Gamma>1 t\<Gamma>2 ta t\<Gamma>3 ts t\<Gamma>4
+    assume \<Gamma>_split: "ttsplit [] \<Gamma> ijs [] t\<Gamma>1 [] t\<Gamma>2"
+      and \<Gamma>2_split: "ttsplit_triv t\<Gamma>2 [Some ta] t\<Gamma>3 [Some (TSum (tagged_list_update t (ta, True) ts))] t\<Gamma>4"
+      and ttyping_x: "\<Xi>, [], t\<Gamma>1 T\<turnstile> x : TSum ts"
+      and ta_nontaken_in_ts: "(t, ta, False) \<in> set ts"
+      and "\<Xi>, [], t\<Gamma>3 T\<turnstile> m : \<tau>"
+      and ttyping_n: "\<Xi>, [], t\<Gamma>4 T\<turnstile> n : \<tau>"
+    moreover have "[] \<turnstile> snd \<Gamma> \<leadsto> snd t\<Gamma>1 | snd t\<Gamma>2"
+      using \<Gamma>_split ttsplit_imp_split by fastforce
+    moreover then obtain r1 w1 r2 w2
+      where matches1: "\<Xi>, \<sigma> \<turnstile> \<gamma> matches snd t\<Gamma>1 \<langle>r1, w1\<rangle>"
+        and matches2: "\<Xi>, \<sigma> \<turnstile> \<gamma> matches snd t\<Gamma>2 \<langle>r2, w2\<rangle>"
+        and r_as_un: "r = r1 \<union> r2"
+        and w_as_un: "w = w1 \<union> w2"
+        and w1_2_disjoint: "w1 \<inter> w2 = {}"
+      using matches_ptrs_split' u_sem_case_nm.prems(3)
+      by blast
+    moreover then have
+      w1_r2_noalias: "w1 \<inter> r2 = {}"
+      and w2_r1_noalias: "w2 \<inter> r1 = {}"
+      using matches_ptrs_noalias u_sem_case_nm.prems(3) by blast+
+    moreover obtain ijs \<Gamma>1a \<Gamma>2a
+       where "fst t\<Gamma>2 = TyTrSplit ijs [Some ta] \<Gamma>1a [Some (TSum (tagged_list_update t (ta, True) ts))] \<Gamma>2a"
+       and "t\<Gamma>3 = (\<Gamma>1a, [Some ta] @ snd t\<Gamma>2)"
+       and t\<Gamma>4_is: "t\<Gamma>4 = (\<Gamma>2a, [Some (TSum (tagged_list_update t (ta, True) ts))] @ snd t\<Gamma>2)"
+      using ttsplit_triv_def \<Gamma>2_split by blast
+    ultimately show "\<Xi>, \<xi>, \<gamma>, [], \<Gamma>, \<tau> T\<turnstile> (\<sigma>, Case x t m n) \<Down>! (\<sigma>', v)"
+      using u_sem_case_nm.hyps
+    proof (intro u_tt_sem_pres_case_nm)
+      show "\<Xi>, \<xi>, \<gamma>, [], t\<Gamma>1, TSum ts T\<turnstile> (\<sigma>, x) \<Down>! (\<sigma>'', USum t' v' rs)"
+        using u_sem_case_nm.hyps(2) matches1 u_sem_case_nm.prems ttyping_x by simp
+    next
+      have "\<Xi>, [], snd t\<Gamma>1 \<turnstile> x : TSum ts"
+        by (simp add: ttyping_imp_typing ttyping_x)
+      then obtain r1' w1'
+        where usum_rs_under_\<sigma>'': "\<Xi>, \<sigma>'' \<turnstile> USum t' v' rs :u TSum ts \<langle>r1', w1'\<rangle>"
+          and r1'_sub: "r1' \<subseteq> r1"
+          and frame1: "frame \<sigma> w1 \<sigma>'' w1'"
+        using preservation(1)[where \<tau>s=Nil, simplified] u_sem_case_nm.prems(2,4) matches1 u_sem_case_nm.hyps(1)
+        by blast
+
+      show "\<Xi>, \<xi>, USum t' v' rs # \<gamma>, [], t\<Gamma>4, \<tau> T\<turnstile> (\<sigma>'', n) \<Down>! (\<sigma>', v)"
+        using u_sem_case_nm.prems ttyping_n
+      proof (intro u_sem_case_nm.hyps(5))
+        show "\<Xi>, \<sigma>'' \<turnstile> USum t' v' rs # \<gamma> matches snd t\<Gamma>4 \<langle>r1' \<union> r2, w1' \<union> w2\<rangle>"
+          using frame1 frame_noalias_matches_ptrs matches2  w1_2_disjoint w1_r2_noalias
+        proof (simp add: t\<Gamma>4_is, intro matches_ptrs_some)
+          show "\<Xi>, \<sigma>'' \<turnstile> USum t' v' rs :u TSum (tagged_list_update t (ta, True) ts) \<langle>r1', w1'\<rangle>"
+            by (simp add: sum_downcast_u ta_nontaken_in_ts u_sem_case_nm.hyps(3) usum_rs_under_\<sigma>'')
+        next
+          show "\<Xi>, \<sigma>'' \<turnstile> \<gamma> matches snd t\<Gamma>2 \<langle>r2, w2\<rangle>"
+            using frame1 matches2 matches_ptrs_frame w1_2_disjoint w1_r2_noalias by blast
+        next
+          show "w2 \<inter> r1' = {}"
+            using r1'_sub w2_r1_noalias by blast
+        qed blast+
+      qed simp+
+    qed simp+
+  qed
 next
 
   case u_sem_take
