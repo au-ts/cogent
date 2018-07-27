@@ -23,8 +23,7 @@ type_synonym tree_ctx = "typing_tree * ctx"
 fun
   apply_tsk :: "type_split_kind option \<Rightarrow> type option \<Rightarrow> type option \<times> type option"
 where
-    "apply_tsk None t = (None, t)"
-  | "apply_tsk (Some TSK_L) t = (t, None)"
+    "apply_tsk None t = (None, t)"  | "apply_tsk (Some TSK_L) t = (t, None)"
   | "apply_tsk (Some TSK_S) t = (t, t)"
   | "apply_tsk (Some TSK_NS) t = (map_option bang t, t)"
 
@@ -302,9 +301,9 @@ where
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> T\<turnstile> LetBang is x y : u"
 
 | ttyping_case   : "\<lbrakk> ttsplit K \<Gamma> ijs [] \<Gamma>1 [] \<Gamma>2
-                   ; ttsplit_triv \<Gamma>2 [Some t] \<Gamma>3 [Some (TSum (filter (\<lambda>x. fst x \<noteq> tag) ts))] \<Gamma>4
+                   ; ttsplit_triv \<Gamma>2 [Some t] \<Gamma>3 [Some (TSum (tagged_list_update tag (t, True) ts))] \<Gamma>4
                    ; \<Xi>, K, \<Gamma>1 T\<turnstile> x : TSum ts
-                   ; (tag, t, taken) \<in> set ts
+                   ; (tag, t, False) \<in> set ts
                    ; \<Xi>, K, \<Gamma>3 T\<turnstile> a : u
                    ; \<Xi>, K, \<Gamma>4 T\<turnstile> b : u
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> T\<turnstile> Case x tag a b : u" 
@@ -332,9 +331,18 @@ assumes "\<Xi>, K, \<Gamma> T\<turnstile> e : u"
 shows   "\<Xi>, K, (snd \<Gamma>) \<turnstile> e : u"
   using assms
 proof (induct rule: ttyping.induct)
-  case (ttyping_case K \<Gamma> ijs \<Gamma>1 \<Gamma>2 t \<Gamma>3 tag ts \<Gamma>4 \<Xi> x taken a u b)
+  case (ttyping_case K t\<Gamma> ijs t\<Gamma>1 t\<Gamma>2 t t\<Gamma>3 tag ts t\<Gamma>4 \<Xi> x a u b)
   then show ?case
-    sorry
+  proof (intro typing_typing_all.intros)
+    show "K \<turnstile> snd t\<Gamma> \<leadsto> snd t\<Gamma>1 | snd t\<Gamma>2"
+      using ttsplit_imp_split ttyping_case.hyps(1) by fastforce
+  next
+    show "\<Xi>, K, Some t # snd t\<Gamma>2 \<turnstile> a : u"
+      using ttsplit_triv_def ttyping_case.hyps(2,7) by auto
+  next
+    show "\<Xi>, K, Some (TSum (tagged_list_update tag (t, True) ts)) # snd t\<Gamma>2 \<turnstile> b : u"
+      using ttsplit_triv_def ttyping_case.hyps(2,9) by auto
+  qed simp+
 qed (auto simp:  ttsplit_triv_def
          dest!: ttsplit_imp_split ttsplit_bang_imp_split_bang
          intro: typing_typing_all.intros)
