@@ -326,6 +326,12 @@ where
                    ; \<Xi>, K, \<Gamma>2 T\<turnstile> e' : u
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> T\<turnstile> Take e f e' : u"
 
+inductive_cases ttyping_splitE[elim]: "\<Xi>, K, \<Gamma> T\<turnstile> Split x y : t'"
+inductive_cases ttyping_letE[elim]: "\<Xi>, K, \<Gamma> T\<turnstile> Let x y : u"
+inductive_cases ttyping_letbE[elim]: "\<Xi>, K, \<Gamma> T\<turnstile> LetBang is x y : u"
+inductive_cases ttyping_caseE[elim]: "\<Xi>, K, \<Gamma> T\<turnstile> Case x tag a b : u"
+inductive_cases ttyping_ifE[elim]: "\<Xi>, K, \<Gamma> T\<turnstile> If x a b : t"
+inductive_cases ttyping_takeE[elim]: "\<Xi>, K, \<Gamma> T\<turnstile> Take e f e' : u"
 
 lemma ttyping_imp_typing:
 assumes "\<Xi>, K, \<Gamma> T\<turnstile> e : u"
