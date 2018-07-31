@@ -146,9 +146,6 @@ next
     by (clarsimp, blast)
 qed
 
-(* NOTE maybe we could just use maps in the type???
-        There are some disadvantages to this approach, namely loosing finiteness,
-        and thus the ability to search the values. *)
 lemma append_filter_fst_eqiv_map_update:
   assumes "set xs = map_pairs (map_of xs)"
     shows "(set ((fst z, f z) # [x\<leftarrow>xs. fst x \<noteq> fst z])) = (map_pairs ((map_of xs) (fst z \<mapsto> f z)))"
@@ -160,9 +157,93 @@ lemma append_filter_fst_eqiv_map_update:
   done
 
 
+subsection {* Tagged list update *}
 
+primrec tagged_list_update :: "'a \<Rightarrow> 'b \<Rightarrow> ('a \<times> 'b) list \<Rightarrow> ('a \<times> 'b) list" where
+  "tagged_list_update a' b' [] = []"
+| "tagged_list_update a' b' (x # xs) = (case x of (a, b) \<Rightarrow>
+                                      (if a = a'
+                                       then (a, b') # xs
+                                       else (a, b) # tagged_list_update a' b' xs))"
 
+lemma tagged_list_update_tag_not_present[simp]:
+  assumes "\<forall>i<length xs. fst (xs ! i) \<noteq> tag"
+  shows "tagged_list_update tag b xs = xs"
+    using assms
+    by (induct xs, fastforce+)
 
+lemma tagged_list_update_tag_present[simp]:
+  assumes "\<forall>j<i. fst (xs ! j) \<noteq> tag"
+    and "i<length xs"
+    and "fst (xs ! i) = tag"
+  shows "tagged_list_update tag b' xs = xs[i := (tag, b')]"
+  using assms
+proof (induct xs arbitrary: i)
+  case (Cons x xs)
+  then show ?case
+  proof (cases i)
+    case (Suc nat)
+    then show ?thesis
+      using Cons
+    proof (cases "fst x = fst (xs ! nat)")
+      case False
+      then show ?thesis
+        using Cons Suc
+        by (simp add: case_prod_beta, metis Suc_mono nth_Cons_Suc)
+    qed auto
+  qed (simp add: case_prod_beta)
+qed simp
+
+lemma tagged_list_update_map_over1:
+  fixes f g
+  assumes inj_f: "inj f"
+  shows "map (\<lambda>(tag,b). (f tag, g tag b)) (tagged_list_update tag b' xs) = tagged_list_update (f tag) (g tag b') (map (\<lambda>(tag,b). (f tag, g tag b)) xs)"
+  by (induct xs, (simp add: inj_eq case_prod_beta inj_f)+)
+
+lemma tagged_list_update_map_over2:
+  assumes "\<And>tag b'. f (tag, b') = (tag, g b')"
+  shows "map f (tagged_list_update tag b' xs) = tagged_list_update tag (g b') (map f xs)"
+  using assms by (induct xs, clarsimp+)
+
+lemma tagged_list_update_preserves_tags[simp]:
+  shows "map fst (tagged_list_update tag b' xs) = map fst xs"
+  by (induct xs, clarsimp+)
+
+lemma tagged_list_update_different_tag_preserves_values1[simp]:
+  "fst (xs ! i) \<noteq> tag \<Longrightarrow> (tagged_list_update tag b' xs) ! i = xs ! i"
+  by (induct xs arbitrary: i, (fastforce simp add: nth_Cons')+)
+
+lemma tagged_list_update_different_tag_preserves_values2:
+  "\<lbrakk> (tag, b) \<in> set xs; tag \<noteq> tag' \<rbrakk> \<Longrightarrow> (tag, b) \<in> set (tagged_list_update tag' b' xs)"
+  by (induct xs, (fastforce simp add: nth_Cons')+)
+
+lemma tagged_list_update_distinct:
+  assumes "distinct (map fst xs)"
+    and "i < length xs"
+  and "fst (xs ! i) = tag"
+shows "(tagged_list_update tag b' xs) = (xs[i := (tag, b')])"
+proof -
+  have "\<And>j. j < length xs \<Longrightarrow> i \<noteq> j \<Longrightarrow> fst (xs ! j) \<noteq> tag"
+    using assms
+    by (clarsimp simp add: distinct_conv_nth)
+  then have "\<forall>j<i. fst (xs ! j) \<noteq> tag"
+    using assms(2) by auto
+  then show ?thesis
+    using tagged_list_update_tag_present assms
+    by simp
+qed
+
+lemma tagged_list_update_same_distinct_is_equal:
+  assumes distinct_fst_xs: "distinct (map fst xs)"
+    and "i < length xs"
+    and "(xs ! i) = (tag, b)"
+  shows "tagged_list_update tag b xs = xs"
+  using assms
+proof (induct xs arbitrary: i)
+  case (Cons a xs)
+  then show ?case
+    by (metis fst_conv list_update_id tagged_list_update_distinct)
+qed simp+
 
 
 section {* Terms and Types of Cogent *}
@@ -606,7 +687,7 @@ inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Right
                    ; \<Xi>, K, \<Gamma>1 \<turnstile> x : TSum ts
                    ; (tag, (t,False)) \<in> set ts
                    ; \<Xi>, K, (Some t # \<Gamma>2) \<turnstile> a : u
-                   ; \<Xi>, K, (Some (TSum ((tag, (t,True)) # filter (\<lambda> x. fst x \<noteq> tag) ts)) # \<Gamma>2) \<turnstile> b : u
+                   ; \<Xi>, K, (Some (TSum (tagged_list_update tag (t, True) ts)) # \<Gamma>2) \<turnstile> b : u
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Case x tag a b : u"
 
 | typing_esac   : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : TSum ts
@@ -1210,13 +1291,19 @@ shows "\<Xi> , K , \<Gamma> \<turnstile>  e  : \<tau>  \<Longrightarrow> \<Xi> ,
 and   "\<Xi> , K , \<Gamma> \<turnstile>* es : \<tau>s \<Longrightarrow> \<Xi> , K' , instantiate_ctx \<delta> \<Gamma> \<turnstile>* map (specialise \<delta>) es : map (instantiate \<delta>) \<tau>s"
   using assms
 proof (induct rule: typing_typing_all.inducts)
+  have f1: "(\<lambda>(c, p). (c, case p of (t, b) \<Rightarrow> (instantiate \<delta> t, b))) = (\<lambda>(c, t, b). (c, instantiate \<delta> t, b))"
+    by force
+
   case (typing_case K \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> x ts tag t a u b)
   then have "\<Xi>, K', instantiate_ctx \<delta> \<Gamma> \<turnstile> Case (specialise \<delta> x) tag (specialise \<delta> a) (specialise \<delta> b) : instantiate \<delta> u"
-    using image_iff
-      filter_fst_ignore_app2[where ls=ts and f="instantiate \<delta>" and P="\<lambda>p. p \<noteq> tag"]
   proof (intro typing_typing_all.typing_case)
-    show "(tag, instantiate \<delta> t, False) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts)"
-      using typing_case.hyps(4) image_iff by fastforce
+    have "\<Xi>, K', instantiate_ctx \<delta> (Some (TSum (tagged_list_update tag (t, True) ts)) # \<Gamma>2) \<turnstile> specialise \<delta> b : instantiate \<delta> u"
+      using typing_case.hyps(8) typing_case.prems by blast
+    moreover have "(map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) (tagged_list_update tag (t, True) ts)) = (tagged_list_update tag (instantiate \<delta> t, True) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts))"
+      using case_prod_conv f1 tagged_list_update_map_over1[where f = id and g = "\<lambda>_ (t,b). (instantiate \<delta> t, b)", simplified]
+      by metis
+    ultimately show "\<Xi>, K', Some (TSum (tagged_list_update tag (instantiate \<delta> t, True) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts))) # instantiate_ctx \<delta> \<Gamma>2 \<turnstile> specialise \<delta> b : instantiate \<delta> u"
+      by clarsimp
   qed (force intro: instantiate_ctx_split)+
   then show ?case by simp
 next case (typing_afun \<Xi> f ks t u K ts ks)
