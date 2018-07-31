@@ -687,80 +687,159 @@ next
     qed simp+
   qed
 next
+  case (u_sem_take \<xi> \<gamma> \<sigma> x \<sigma>'' p r' fs f e)
 
-  case u_sem_take
-  have HELP2: "\<forall> \<tau>s. ((\<lambda>(a, b). type_repr a) \<circ> (\<lambda>(t, y). (instantiate \<tau>s t, y)))
-                   = (\<lambda>(t,y). type_repr (instantiate \<tau>s t))"
-  by (force split: prod.split)
-  show ?case using u_sem_take.prems u_sem_take.hyps(1, 3)
+  show ?case
+    using u_sem_take.prems(1)
+  proof (rule ttyping_takeE)
+    fix \<Gamma>' tt
+    assume "\<Gamma> = (tt, \<Gamma>')"
+      and "\<not> composite_anormal_expr (Take x f e)"
+      and "\<Xi>, [], \<Gamma>' \<turnstile> Take x f e : \<tau>"
+    then show "\<Xi>, \<xi>, \<gamma>, [], \<Gamma>, \<tau> T\<turnstile> (\<sigma>, Take x f e) \<Down>! (\<sigma>', v)"
+      unfolding composite_anormal_expr_def by simp
+  next
+    fix ijs t\<Gamma>3 t ts taken s t\<Gamma>4 k
+    assume ttsplit_\<Gamma>: "ttsplit [] \<Gamma> ijs [] t\<Gamma>3 [Some t, Some (TRecord (ts[f := (t, taken)]) s)] t\<Gamma>4"
+      and ttyping_x: "\<Xi>, [], t\<Gamma>3 T\<turnstile> x : TRecord ts s"
+      and s_not_ro: "s \<noteq> ReadOnly"
+      and f_bounded_len_ts: "f < length ts"
+      and ts_at_f_is: "ts ! f = (t, False)"
+      and welltyped_t: "[] \<turnstile>  t :\<kappa>  k"
+      and sharable_or_taken: "S \<in> k \<or> taken"
+      and ttyping_e: "\<Xi>, [], t\<Gamma>4 T\<turnstile> e : \<tau>"
 
-    apply -
-    apply (erule ttyping.cases, simp_all)
-     apply (auto simp: composite_anormal_expr_def)[1]
-    apply (frule ttsplit_imp_split)
-    apply (frule matches_ptrs_noalias)
-    apply clarsimp
-    apply (frule(1) matches_ptrs_split', clarsimp)
-    apply (frule(2) preservation(1)[where \<tau>s=Nil, simplified, OF refl, OF _ _ _ u_sem_take.hyps(1)]
-     , erule ttyping_eq_typing[THEN iffD2, OF exI])
-    apply clarsimp
-    apply (erule u_t_p_recE, simp_all)
-    apply (erule u_tt_sem_pres_take)
-      apply (rule u_sem_take.hyps(2), simp+)[1]
-     apply assumption
-    apply (frule(2) frame_noalias_matches_ptrs)
-    apply (frule(1) frame_noalias_matches_ptrs(2), blast)
-    apply (frule(1) uval_typing_record_take, force, simp)
-    apply (elim conjE exE )
-    apply (frule(2) matches_ptrs_frame, blast)
-    apply (simp, erule disjE)
-     apply (clarsimp)
-     apply (frule(2) shareable_not_writable(1))
-     apply simp
-    sorry
-(*
-     (* FIXME: use new subgoal command or remove entirely.
-      * Note that legacy_subgoal pulls existing assumptions into "assms"
-      * and also leaves \<And>-quantified variables untouched.
-      * The proof below relies on both, and the new “subgoal” preserves neither. *)
-     legacy_subgoal
-       apply (rule u_sem_take.hyps(5) [simplified assms], simp+)
-        apply (case_tac taken)
-         apply (rule matches_ptrs_some [OF _ matches_ptrs_some])
-                 apply (simp)
-                using u_t_p_rec_w'
-                apply (force intro!: u_t_p_rec_w' simp: list_helper HELP2 map_update intro: list_helper [symmetric])
-               apply (simp)
-              apply (blast)
-             apply (blast)
-            apply (blast)
-           apply (blast)
-          apply (blast)
-         apply (blast)
-        apply (clarsimp)
-        apply (rule pointerset_helper_matches_ptrs)
-          apply (rule matches_ptrs_some [OF _ matches_ptrs_some])
-                  apply (simp)
-                 apply (force intro!: u_t_p_rec_w' simp: list_helper HELP2 map_update intro: list_helper [symmetric])
-                apply (simp)
-               apply (blast)
-              apply (blast)
-             apply (blast)
-            apply (blast)
-           apply (blast)
-          apply (blast)
-         apply (blast)
-        apply (blast)
-       apply (clarsimp)
-     done
-     legacy_subgoal
-       apply (rule u_sem_take.hyps(5) [simplified assms], simp+)
-       apply (rule matches_ptrs_some [OF _ matches_ptrs_some],assumption, erule(1) u_t_p_rec_w',simp)
-              apply (force simp add: map_update intro: list_helper[symmetric])
-             apply (simp+, blast+)
-      done
-    done
-*)
+    obtain \<Gamma>1 \<Gamma>2
+      where "[] \<turnstile> snd \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+        and snd_t\<Gamma>3_is: "snd t\<Gamma>3 = [] @ \<Gamma>1"
+        and snd_t\<Gamma>4_is: "snd t\<Gamma>4 = [Some t, Some (TRecord (ts[f := (t, taken)]) s)] @ \<Gamma>2"
+      using ttsplit_imp_split ttsplit_\<Gamma> by blast
+    moreover then obtain r1 w1 r2 w2
+      where matches1: "\<Xi>, \<sigma> \<turnstile> \<gamma> matches \<Gamma>1 \<langle>r1, w1\<rangle>"
+        and matches2: "\<Xi>, \<sigma> \<turnstile> \<gamma> matches \<Gamma>2 \<langle>r2, w2\<rangle>"
+        and r_as_un: "r = r1 \<union> r2"
+        and w_as_un: "w = w1 \<union> w2"
+        and w1_w2_disjoint: "w1 \<inter> w2 = {}"
+      using matches_ptrs_split' u_sem_take.prems(3) by blast
+    moreover then have
+      w1_r2_noalias: "w1 \<inter> r2 = {}"
+      and w2_r1_noalias: "w2 \<inter> r1 = {}"
+      using matches_ptrs_noalias u_sem_take.prems(3) by blast+
+
+    have "\<Xi>, [], \<Gamma>1 \<turnstile> x : TRecord ts s"
+      using snd_t\<Gamma>3_is ttyping_imp_typing ttyping_x by fastforce
+    then obtain r1' w1'
+      where uptr_p_under_\<sigma>'': "\<Xi>, \<sigma>'' \<turnstile> UPtr p r' :u TRecord ts s \<langle>r1', w1'\<rangle>"
+        and r1'_sub: "r1' \<subseteq> r1"
+        and frame1: "frame \<sigma> w1 \<sigma>'' w1'"
+      using preservation(1)[where \<tau>s=Nil, simplified]
+        u_sem_take.prems(2,4) matches1 u_sem_take.hyps(1)
+      by blast
+
+    have matches2_under_\<sigma>'': "\<Xi>, \<sigma>'' \<turnstile> \<gamma> matches \<Gamma>2 \<langle>r2, w2\<rangle>"
+      using matches2 frame1 matches_ptrs_frame w1_w2_disjoint w1_r2_noalias 
+      by blast
+
+    show "\<Xi>, \<xi>, \<gamma>, [], \<Gamma>, \<tau> T\<turnstile> (\<sigma>, Take x f e) \<Down>! (\<sigma>', v)"
+      using uptr_p_under_\<sigma>''
+    proof (rule u_t_p_recE)
+      fix fsa w1''
+      assume w1'_is: "w1' = insert p w1''"
+        and ut_all_fs: "\<Xi>, \<sigma>'' \<turnstile>* fsa :ur ts \<langle>r1', w1''\<rangle>"
+        and \<sigma>''_at_p: "\<sigma>'' p = Some (URecord fsa)"
+        and r'_is: "r' = RRecord (map (\<lambda>(a, b). type_repr a) ts)"
+        and s_writable: "s = Writable"
+        and p_nin_w1'': "p \<notin> w1''"
+        and p_nin_r1': "p \<notin> r1'"
+
+      have fsa_is: "fsa = fs"
+        using \<sigma>''_at_p u_sem_take.hyps by auto
+      then obtain rf wf r1a w1a
+        where ut_fs_at_f: "\<Xi>, \<sigma>'' \<turnstile> fst (fs ! f) :u t \<langle>rf, wf\<rangle>"
+          and ut_fs_taken_f: "\<Xi>, \<sigma>'' \<turnstile>* fs :ur ts[f := (t, True)] \<langle>r1a, w1a\<rangle>"
+          and r1'_is: "r1' = rf \<union> r1a"
+          and w1''_is: "w1'' = wf \<union> w1a"
+          and "wf \<inter> w1a = {}"
+        using uval_typing_record_take[simplified] ut_all_fs ts_at_f_is f_bounded_len_ts welltyped_t
+        by blast
+
+      have disjointness_lemmas:
+        "({p} \<union> wf \<union> w1a) \<inter> w2 = {}"
+        "({p} \<union> wf \<union> w1a) \<inter> r2 = {}"
+        "(rf \<union> r1a) \<inter> (wf \<union> w1a) = {}"
+        "{p} \<inter> (wf \<union> w1a) = {}"
+        "{p} \<inter> (rf \<union> r1a) = {}"
+        "wf \<inter> w1a = {}"
+        "w2 \<inter> (rf \<union> r1a) = {}"
+        using frame_noalias_matches_ptrs(1)[OF frame1 matches2 w1_w2_disjoint]
+          frame_noalias_matches_ptrs(2)[OF frame1 matches2 w1_r2_noalias]
+          r1'_is  w1''_is w1'_is
+              apply (force+)[2]
+        using ut_all_fs uval_typing_pointers_noalias(2) r1'_is  w1''_is w1'_is
+            apply metis
+        using p_nin_w1'' w1''_is p_nin_r1' r1'_is
+           apply (blast+)[2]
+        using \<open>wf \<inter> w1a = {}\<close>
+         apply assumption
+        using r1'_is r1'_sub w2_r1_noalias
+        apply blast
+        done
+
+      show "\<Xi>, \<xi>, \<gamma>, [], \<Gamma>, \<tau> T\<turnstile> (\<sigma>, Take x f e) \<Down>! (\<sigma>', v)"
+        using \<sigma>''_at_p fsa_is ttsplit_\<Gamma> s_writable
+      proof (intro u_tt_sem_pres_take)
+        show "\<Xi>, \<xi>, \<gamma>, [], t\<Gamma>3, TRecord ts Writable T\<turnstile> (\<sigma>, x) \<Down>! (\<sigma>'', UPtr p r')"
+          using u_sem_take.hyps(2) u_sem_take.prems matches1 snd_t\<Gamma>3_is s_writable ttyping_x
+          by simp
+      next
+        show "\<Xi>, \<xi>, fst (fs ! f) # UPtr p r' # \<gamma>, [], t\<Gamma>4, \<tau> T\<turnstile> (\<sigma>'', e) \<Down>! (\<sigma>', v)"
+        proof (cases taken)
+          case True
+
+          show ?thesis
+            using u_sem_take.prems ttyping_e
+          proof (intro u_sem_take.hyps(5))
+            show "\<Xi>, \<sigma>'' \<turnstile> fst (fs ! f) # UPtr p r' # \<gamma> matches snd t\<Gamma>4 \<langle>rf \<union> (r1a \<union> r2), wf \<union> (insert p w1a \<union> w2)\<rangle>"
+              using ut_fs_at_f matches2_under_\<sigma>'' disjointness_lemmas
+            proof (simp only: snd_t\<Gamma>4_is append_Cons append.left_neutral, intro matches_ptrs_some[OF _ matches_ptrs_some])
+              show "\<Xi>, \<sigma>'' \<turnstile> UPtr p r' :u TRecord (ts[f := (t, taken)]) s \<langle>r1a, insert p w1a\<rangle>"
+                using \<sigma>''_at_p fsa_is ut_fs_taken_f p_nin_r1' p_nin_w1'' r1'_is w1''_is
+              proof (simp add: s_writable, intro u_t_p_rec_w')
+                show "\<Xi>, \<sigma>'' \<turnstile>* fs :ur ts[f := (t, taken)] \<langle>r1a, w1a\<rangle>"
+                  by (simp add: ut_fs_taken_f True)
+              next
+                show "r' = RRecord (map (\<lambda>(a, b). type_repr a) (ts[f := (t, taken)]))"
+                  using r'_is ts_at_f_is
+                  by (metis (no_types, lifting) case_prod_conv list_update_id map_update)
+              qed fastforce+
+            qed fast+
+          qed simp+
+        next
+          case False
+
+          have k_is_sharable: "S \<in> k"
+            using False sharable_or_taken
+            by simp
+          then have wf_empty: "wf = {}"
+            using shareable_not_writable(1) ut_fs_at_f welltyped_t
+            by blast
+
+          show ?thesis
+            using u_sem_take.prems ttyping_e
+          proof (intro u_sem_take.hyps(5))
+            show "\<Xi>, \<sigma>'' \<turnstile> fst (fs ! f) # UPtr p r' # \<gamma> matches snd t\<Gamma>4 \<langle>rf \<union> ((rf \<union> r1a) \<union> r2), {} \<union> (insert p w1a \<union> w2)\<rangle>"
+              using ut_fs_at_f matches2_under_\<sigma>'' disjointness_lemmas wf_empty
+            proof (simp only: snd_t\<Gamma>4_is append_Cons append.left_neutral, intro matches_ptrs_some[OF _ matches_ptrs_some])
+              have "ts[f := (t, False)] = ts"
+                by (simp add: list_helper ts_at_f_is)
+              then show "\<Xi>, \<sigma>'' \<turnstile> UPtr p r' :u TRecord (ts[f := (t, taken)]) s \<langle>rf \<union> r1a, insert p w1a\<rangle>"
+                using wf_empty r1'_is uptr_p_under_\<sigma>'' w1''_is w1'_is False by auto
+            qed fast+
+          qed simp+
+        qed
+      qed simp+
+    qed (simp add: s_not_ro)
+  qed
 next
 
   case u_sem_take_ub show ?case using u_sem_take_ub.prems u_sem_take_ub.hyps(1, 3)
