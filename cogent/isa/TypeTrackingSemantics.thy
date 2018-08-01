@@ -917,13 +917,9 @@ next
       apply simp
      apply (auto dest: ttyping_imp_typing)
     done
-next
-  case (u_sem_promote \<xi> \<gamma> \<sigma> x \<sigma>' c p rs ts')
-  then show ?case sorry
 qed  (fastforce intro!: u_tt_sem_pres_default
-               intro: u_sem_u_sem_all.intros
+               intro: u_sem_u_sem_all.intros ttyping_imp_typing
                simp: composite_anormal_expr_def
-               dest: ttyping_imp_typing
                )+ (* takes about 8s *)
 
 lemma u_tt_sem_pres_imp_u_sem:
