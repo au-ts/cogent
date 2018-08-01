@@ -927,6 +927,8 @@ lemma u_tt_sem_pres_imp_u_sem:
     \<Longrightarrow> \<xi>, \<gamma> \<turnstile> (\<sigma>, x) \<Down>! (\<sigma>', uv)"
   by (induct rule: u_tt_sem_pres.induct, auto intro: u_sem_u_sem_all.intros)
 
+end
+
 lemma split_type_wellformed:
   "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2 \<Longrightarrow> Some t \<in> set \<Gamma>
     \<Longrightarrow> K \<turnstile>  t wellformed"
