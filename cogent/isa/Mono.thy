@@ -289,31 +289,61 @@ lemma rename_monoexpr_correct:
   apply (fastforce intro!: IH2 dest: distinct_fst)
   done
   next 
-  case (v_sem_case_nm \<xi> re f rv f' rne rnv rme \<gamma> e \<tau> \<Gamma>)
-  note IH1=this(2) 
-  and IH2 = this(5) 
-  and rest = this(1,3,4,6-) 
-  from rest show ?case
-  apply (cases e, simp_all)
-  apply (rename_tac exp1 tag exp2 exp3)
-  apply (clarsimp elim!: typing_caseE)
-  apply (rename_tac  \<Gamma>1 \<Gamma>2 ts tf)
-  apply (frule(1) matches_split'(1))
-  apply (frule(1) matches_split'(2))
-  apply (cut_tac IH1[OF _ _ _ _ _ _ matches_split'(1)], simp_all)
-  apply clarsimp
-  apply (rename_tac v1)
-  apply (case_tac v1, simp_all)
-  apply (frule(4) preservation [where \<tau>s = "[]" and K = "[]", simplified, rotated -3])
-    apply (drule(1) sum_downcast[OF _ not_sym])
-    sorry
-(*
-     apply (drule(2) matches_cons'[OF matches_split'(2)])
-  apply (subgoal_tac "\<exists>v. \<xi>\<^sub>p , v1 # \<gamma> \<turnstile> exp3 \<Down> v \<and> rnv = rename_val rename (monoval v)") 
-   apply (fastforce intro!: v_sem_v_sem_all.v_sem_case_nm)
-      apply (force intro!: IH2)
-  done
-*)
+    case (v_sem_case_nm \<xi> rea f rv f' rne rnv rme \<gamma> e \<tau> \<Gamma>)
+    then show ?case
+    proof (cases e)
+      case (Case ea f'' me ne)
+      have rea_is: "rea = rename_expr rename (monoexpr ea)"
+        and f''_is: "f'' = f'"
+        and rme_is: "rme = rename_expr rename (monoexpr me)"
+        and rne_is: "rne = rename_expr rename (monoexpr ne)"
+        using v_sem_case_nm.hyps(6) Case
+        by simp+
+
+      obtain \<Gamma>1 \<Gamma>2 ts t
+        where split\<Gamma>: "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+          and typing_renamed_ea: "\<Xi>, [], \<Gamma>1 \<turnstile> rename_expr rename (monoexpr ea) : TSum ts"
+          and f'_in_ts: "(f', t, False) \<in> set ts"
+          and "\<Xi>, [], Some t # \<Gamma>2 \<turnstile> rename_expr rename (monoexpr me) : \<tau>"
+          and typing_renamed_ne: "\<Xi>, [], Some (TSum (tagged_list_update f' (t, True) ts)) # \<Gamma>2 \<turnstile> rename_expr rename (monoexpr ne) : \<tau>"
+        using v_sem_case_nm.prems Case f''_is by auto
+      have matches1: "\<Xi> \<turnstile> map (rename_val rename \<circ> monoval) \<gamma> matches \<Gamma>1"
+        and matches2: "\<Xi> \<turnstile> map (rename_val rename \<circ> monoval) \<gamma> matches \<Gamma>2"
+        using matches_split' split\<Gamma> v_sem_case_nm.prems(5) by blast+
+
+      obtain v1'
+        where "\<xi>\<^sub>p , \<gamma> \<turnstile> ea \<Down> v1'"
+          and "VSum f rv = rename_val rename (monoval v1')"
+        using matches1 rea_is typing_renamed_ea v_sem_case_nm.hyps(2) v_sem_case_nm.prems
+        by blast
+      then obtain v1
+        where rv_is: "rv = rename_val rename (monoval v1)"
+          and ea_usem: "\<xi>\<^sub>p , \<gamma> \<turnstile> ea \<Down> VSum f v1"
+        by (case_tac v1', simp+)
+
+      have "\<Xi> \<turnstile> rename_val rename (monoval (VSum f v1)) :v TSum ts"
+        using preservation(1)[where \<tau>s="[]" and K="[]", simplified]
+          v_sem_case_nm.prems(2-3) v_sem_case_nm.hyps(1)
+          matches1 typing_renamed_ea rea_is rv_is
+        by auto
+      then have "\<Xi> \<turnstile> VSum f (rename_val rename (monoval v1)) :v TSum ts"
+        by force
+      then have "\<Xi> \<turnstile> VSum f (rename_val rename (monoval v1)) :v TSum (tagged_list_update f' (t, True) ts)"
+        by (metis f'_in_ts sum_downcast[OF _ not_sym] v_sem_case_nm.hyps(3))
+      then have matches2_aug: "\<Xi> \<turnstile> map (rename_val rename \<circ> monoval) (VSum f v1 # \<gamma>) matches Some (TSum (tagged_list_update f' (t, True) ts)) # \<Gamma>2"
+        using matches2 rv_is by (force intro: matches_cons')
+      then obtain v2
+        where ne_usem: "\<xi>\<^sub>p , VSum f v1 # \<gamma> \<turnstile> ne \<Down> v2"
+        and rnv_is: "rnv = rename_val rename (monoval v2)"
+        using v_sem_case_nm.hyps(5)[OF _ _ typing_renamed_ne] v_sem_case_nm.prems(2-4) rne_is rv_is
+        by force
+
+      have "\<xi>\<^sub>p , \<gamma> \<turnstile> Case ea f'' me ne \<Down> v2"
+        using ea_usem ne_usem f''_is v_sem_case_nm.hyps(3)
+        by (auto intro: v_sem_v_sem_all.v_sem_case_nm)
+      then show ?thesis
+        using rnv_is Case by fast
+    qed simp+
   next
   case (v_sem_member \<xi> re fs f \<gamma> e \<tau> \<Gamma>)
   note IH=this(2) 
