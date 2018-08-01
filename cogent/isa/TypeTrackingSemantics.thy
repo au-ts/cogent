@@ -925,13 +925,7 @@ qed  (fastforce intro!: u_tt_sem_pres_default
 lemma u_tt_sem_pres_imp_u_sem:
   "\<Xi>, \<xi>, \<gamma>, [], \<Gamma>, \<tau> T\<turnstile> (\<sigma>, x) \<Down>! (\<sigma>', uv)
     \<Longrightarrow> \<xi>, \<gamma> \<turnstile> (\<sigma>, x) \<Down>! (\<sigma>', uv)"
-proof (induct rule: u_tt_sem_pres.induct)
-  case (u_tt_sem_pres_case_nm K \<Gamma> sps \<Gamma>1 \<Gamma>2 typ1 \<Gamma>3 typ2 \<Gamma>4 \<Xi> \<xi> \<gamma> ts \<sigma> x \<sigma>' t' v rs t \<tau> n st m)
-  then show ?case
-    sorry
-qed (auto intro: u_sem_u_sem_all.intros)
-
-end
+  by (induct rule: u_tt_sem_pres.induct, auto intro: u_sem_u_sem_all.intros)
 
 lemma split_type_wellformed:
   "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2 \<Longrightarrow> Some t \<in> set \<Gamma>
