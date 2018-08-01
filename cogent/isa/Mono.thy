@@ -131,8 +131,22 @@ lemma rename_monoexpr_correct:
   apply (cases e, simp_all)
   by (fastforce intro!: v_sem_v_sem_all.v_sem_con)
   next 
-  case (v_sem_promote \<xi> x x' t \<gamma> e \<tau> \<Gamma>) then show ?case 
-  by (cases e, simp_all) (fastforce intro!: v_sem_v_sem_all.v_sem_promote)
+    case (v_sem_promote \<xi> x x' t \<gamma> e \<tau> \<Gamma>)
+    then show ?case
+    proof (cases e)
+      case (Promote t' rx)
+
+      obtain ts where "\<Xi>, [], \<Gamma> \<turnstile> rename_expr rename (monoexpr rx) : TSum ts"
+        using v_sem_promote.prems(1) Promote
+        by auto
+      moreover have "x = rename_expr rename (monoexpr rx)"
+          using v_sem_promote.hyps(3) Promote
+          by simp+
+      ultimately obtain v where "(\<xi>\<^sub>p , \<gamma> \<turnstile> rx \<Down> v) \<and> x' = rename_val rename (monoval v)"
+        using v_sem_promote by blast
+      then show ?thesis
+        using Promote v_sem_v_sem_all.v_sem_promote by blast
+    qed simp+
   next 
   case (v_sem_unit \<xi> \<gamma> e \<tau> \<Gamma>) then show ?case
   apply (cases e, simp_all) 
@@ -167,7 +181,7 @@ lemma rename_monoexpr_correct:
   apply (subgoal_tac "\<exists>va. (\<xi>\<^sub>p , \<gamma> \<turnstile> if b then exp2 else exp3 \<Down> va) \<and> v = rename_val rename (monoval va)")
    apply (fastforce intro: v_sem_v_sem_all.v_sem_if)
   apply (rule IH2[OF _ _ _ _ _ _ matches_split'(2)], simp_all)
-  apply (fastforce split: split_if_asm)
+  apply (fastforce split: if_splits)
   done
   next 
   case v_sem_all_empty then show ?case 
@@ -291,12 +305,15 @@ lemma rename_monoexpr_correct:
   apply (rename_tac v1)
   apply (case_tac v1, simp_all)
   apply (frule(4) preservation [where \<tau>s = "[]" and K = "[]", simplified, rotated -3])
-  apply (drule(1) sum_downcast[OF _ not_sym])
-  apply (drule(2) matches_cons'[OF matches_split'(2)])
+    apply (drule(1) sum_downcast[OF _ not_sym])
+    sorry
+(*
+     apply (drule(2) matches_cons'[OF matches_split'(2)])
   apply (subgoal_tac "\<exists>v. \<xi>\<^sub>p , v1 # \<gamma> \<turnstile> exp3 \<Down> v \<and> rnv = rename_val rename (monoval v)") 
    apply (fastforce intro!: v_sem_v_sem_all.v_sem_case_nm)
-  apply (force intro!: IH2)
+      apply (force intro!: IH2)
   done
+*)
   next
   case (v_sem_member \<xi> re fs f \<gamma> e \<tau> \<Gamma>)
   note IH=this(2) 
