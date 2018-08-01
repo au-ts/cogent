@@ -36,11 +36,13 @@ lemma typing_prim' : "\<lbrakk> prim_op_type oper = (ts,t)
                       \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Prim oper args : TPrim t"
   by (simp only: typing_prim)
 
-lemma typing_con': "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : t; (tag,t) \<in> set ts 
-                    ; ts' = (map snd ts)
-                    ; K \<turnstile>* ts' wellformed
-                    ; distinct (map fst ts)
-                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Con ts tag x : TSum ts" 
+
+lemma typing_con' : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : t
+                     ; (tag,t) \<in> set ts
+                     ; K \<turnstile>* (map snd ts) wellformed
+                     ; distinct (map fst ts)
+                     ; ts' = map (\<lambda>(c,t). (c, (t, c \<noteq> tag))) ts
+                     \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Con ts tag x : TSum ts'"
   by (simp only: typing_con)
 
 lemma typing_struct': "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile>* es : ts
@@ -117,7 +119,7 @@ lemma ttsplit_weak_lemma:
   apply (drule_tac x=y in spec)+
   apply clarsimp
   apply (drule_tac x=i in spec)+
-  apply (clarsimp split: split_if_asm)
+  apply (clarsimp split: if_splits)
   done
 
 lemma ttsplit_weakI:
@@ -135,13 +137,13 @@ lemma ttsplit_triv_type_ctxt_wellformed:
 
 lemma ttyping_case':  "\<lbrakk> ttsplit K \<Gamma> ijs [] \<Gamma>1 [] \<Gamma>2
                    ; \<Xi>, K, \<Gamma>1 T\<turnstile> x : TSum ts
-                   ; (tag, t) \<in> set ts
-                   ; ttsplit_triv \<Gamma>2 [Some t] \<Gamma>3 [Some (TSum (filter (\<lambda> x. fst x \<noteq> tag) ts))] \<Gamma>4
+                   ; (tag, t, False) \<in> set ts
+                   ; ttsplit_triv \<Gamma>2 [Some t] \<Gamma>3 [Some (TSum (tagged_list_update tag (t, True) ts))] \<Gamma>4
                    ; \<Xi>, K, \<Gamma>3 T\<turnstile> a : u
                    ; \<Xi>, K, \<Gamma>4 T\<turnstile> b : u
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> T\<turnstile> Case x tag a b : u"
   by (simp only: ttyping_case[rotated])
-
+           
 lemma ttyping_take': "\<lbrakk> ttsplit K \<Gamma> ijs [] \<Gamma>1 [Some t, Some (TRecord ts' s)] \<Gamma>2 
                    ; \<Xi>, K, \<Gamma>1 T\<turnstile> e : TRecord ts s
                    ; s \<noteq> ReadOnly
