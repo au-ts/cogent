@@ -53,11 +53,10 @@ and upd_val_rel_record :: "('f \<Rightarrow> poly_type)
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UProduct a b \<sim> VProduct a' b' : TProduct t u \<langle>r \<union> r', w \<union> w'\<rangle>"
 
 | u_v_sum      : "\<lbrakk> \<Xi>, \<sigma> \<turnstile> a \<sim> a' : t \<langle>r, w\<rangle>
-                  ; (g, t) \<in> set ts 
+                  ; (g, t, False) \<in> set ts 
                   ; distinct (map fst ts)
-                  ; [] \<turnstile>* map snd ts wellformed
-                  ; map fst ts = map fst rs
-                  ; list_all2 (\<lambda> t r. type_repr t = r) (map snd ts) (map snd rs)
+                  ; [] \<turnstile>* map (fst \<circ> snd) ts wellformed
+                  ; rs = map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) ts
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> USum g a rs \<sim> VSum g a' : TSum ts \<langle>r, w\<rangle>"
 
 
@@ -114,62 +113,36 @@ and upd_val_rel_record :: "('f \<Rightarrow> poly_type)
 | u_v_r_cons2  : "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* xs \<sim> xs' :r ts \<langle>r, w\<rangle>
                   ; [] \<turnstile> t wellformed
                   ; type_repr t = rp
-                  ; uval_repr x = rp
-                  ; uval_repr_deep x = rp
+                  ; upd.uval_repr x = rp
+                  ; upd.uval_repr_deep x = rp
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile>* ((x,rp) # xs) \<sim> (x' # xs') :r ((t, True) # ts) \<langle>r, w\<rangle>"
 
-
-
 lemma upd_val_rel_to_vval_typing:
-shows "\<Xi>, \<sigma> \<turnstile>  u  \<sim> v  :  \<tau>  \<langle>r, w\<rangle> \<Longrightarrow> vval_typing \<Xi> v \<tau>"
-and   "\<Xi>, \<sigma> \<turnstile>* us \<sim> vs :r \<tau>s \<langle>r, w\<rangle> \<Longrightarrow> vval_typing_record \<Xi> vs \<tau>s"
-using assms proof (induct rule: upd_val_rel_upd_val_rel_record.inducts )
-     case u_v_prim     then show ?case by (auto intro!: vval_typing_vval_typing_record.intros)
-next case u_v_product  then show ?case by (auto intro!: vval_typing_vval_typing_record.intros)
-next case u_v_sum      then show ?case by (auto intro!: vval_typing_vval_typing_record.intros)
-next case u_v_function then show ?case by (auto intro!: vval_typing_vval_typing_record.intros)
-next case u_v_afun     then show ?case by (auto intro!: vval_typing_vval_typing_record.intros)
-next case u_v_unit     then show ?case by (auto intro!: vval_typing_vval_typing_record.intros)
-next case u_v_struct   then show ?case by (auto intro!: vval_typing_vval_typing_record.intros)
-next case u_v_p_rec_ro then show ?case by (auto intro!: vval_typing_vval_typing_record.intros)
-next case u_v_p_rec_w  then show ?case by (auto intro!: vval_typing_vval_typing_record.intros)
-next case u_v_r_empty  then show ?case by (auto intro!: vval_typing_vval_typing_record.intros)
-next case u_v_r_cons1  then show ?case by (auto intro!: vval_typing_vval_typing_record.intros)
-next case u_v_r_cons2  then show ?case by (auto intro!: vval_typing_vval_typing_record.intros)
-next case u_v_abstract then show ?case by (auto intro!: vval_typing_vval_typing_record.intros
+shows "\<Xi>, \<sigma> \<turnstile>  u  \<sim> v  :  \<tau>  \<langle>r, w\<rangle> \<Longrightarrow> val.vval_typing \<Xi> v \<tau>"
+and   "\<Xi>, \<sigma> \<turnstile>* us \<sim> vs :r \<tau>s \<langle>r, w\<rangle> \<Longrightarrow> val.vval_typing_record \<Xi> vs \<tau>s"
+proof (induct rule: upd_val_rel_upd_val_rel_record.inducts)
+     case u_v_abstract then show ?case by (auto intro!: val.vval_typing_vval_typing_record.intros
                                                         abs_upd_val_to_vval_typing)
-next case u_v_p_abs_ro then show ?case by (auto intro!: vval_typing_vval_typing_record.intros
+next case u_v_p_abs_ro then show ?case by (auto intro!: val.vval_typing_vval_typing_record.intros
                                                         abs_upd_val_to_vval_typing)
-next case u_v_p_abs_w  then show ?case by (auto intro!: vval_typing_vval_typing_record.intros
+next case u_v_p_abs_w  then show ?case by (auto intro!: val.vval_typing_vval_typing_record.intros
                                                         abs_upd_val_to_vval_typing)
-qed
+qed (auto intro!: val.vval_typing_vval_typing_record.intros)
 
 
 lemma upd_val_rel_to_uval_typing:
-shows "\<Xi>, \<sigma> \<turnstile>  u  \<sim> v  :  \<tau>  \<langle>r, w\<rangle> \<Longrightarrow> uval_typing \<Xi> \<sigma> u \<tau> r w"
-and   "\<Xi>, \<sigma> \<turnstile>* us \<sim> vs :r \<tau>s \<langle>r, w\<rangle> \<Longrightarrow> uval_typing_record \<Xi> \<sigma> us \<tau>s r w"
-using assms proof (induct rule: upd_val_rel_upd_val_rel_record.inducts )
-     case u_v_prim     then show ?case by (auto intro!: uval_typing_uval_typing_record.intros)
-next case u_v_product  then show ?case by (auto intro!: uval_typing_uval_typing_record.intros)
-next case u_v_sum      then show ?case by (auto intro!: uval_typing_uval_typing_record.intros)
-next case u_v_function then show ?case by (auto intro!: uval_typing_uval_typing_record.intros)
-next case u_v_afun     then show ?case by (auto intro!: uval_typing_uval_typing_record.intros)
-next case u_v_unit     then show ?case by (auto intro!: uval_typing_uval_typing_record.intros)
-next case u_v_struct   then show ?case by (auto intro!: uval_typing_uval_typing_record.intros)
-next case u_v_p_rec_ro then show ?case by (auto intro!: uval_typing_uval_typing_record.intros)
-next case u_v_p_rec_w  then show ?case by (auto intro!: uval_typing_uval_typing_record.intros)
-next case u_v_r_empty  then show ?case by (auto intro!: uval_typing_uval_typing_record.intros)
-next case u_v_r_cons1  then show ?case by (auto intro!: uval_typing_uval_typing_record.intros)
-next case u_v_r_cons2  then show ?case by (auto intro!: uval_typing_uval_typing_record.intros)
-next case u_v_abstract then show ?case by (auto intro!: uval_typing_uval_typing_record.intros
+shows "\<Xi>, \<sigma> \<turnstile>  u  \<sim> v  :  \<tau>  \<langle>r, w\<rangle> \<Longrightarrow> upd.uval_typing \<Xi> \<sigma> u \<tau> r w"
+and   "\<Xi>, \<sigma> \<turnstile>* us \<sim> vs :r \<tau>s \<langle>r, w\<rangle> \<Longrightarrow> upd.uval_typing_record \<Xi> \<sigma> us \<tau>s r w"
+proof (induct rule: upd_val_rel_upd_val_rel_record.inducts)
+     case u_v_abstract then show ?case by (auto intro!: upd.uval_typing_uval_typing_record.intros
                                                         abs_upd_val_to_uval_typing)
-next case u_v_p_abs_ro then show ?case by (auto dest:   abs_typing_readonly [rotated 1]
+next case u_v_p_abs_ro then show ?case by (auto dest:   upd.abs_typing_readonly [rotated 1]
                                                         abs_upd_val_to_uval_typing
-                                                intro!: uval_typing_uval_typing_record.intros)
-next case u_v_p_abs_w  then show ?case by (auto dest:   abs_typing_readonly [rotated 1]
+                                                intro!: upd.uval_typing_uval_typing_record.intros)
+next case u_v_p_abs_w  then show ?case by (auto dest:   upd.abs_typing_readonly [rotated 1]
                                                         abs_upd_val_to_uval_typing
-                                                intro!: uval_typing_uval_typing_record.intros)
-qed
+                                                intro!: upd.uval_typing_uval_typing_record.intros)
+qed (auto intro!: upd.uval_typing_uval_typing_record.intros)
 
 
 lemma u_v_prim' : "\<tau> = lit_type l \<Longrightarrow> l = l' \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPrim l \<sim> VPrim l' : TPrim \<tau> \<langle>{}, {}\<rangle>"
@@ -204,18 +177,18 @@ inductive upd_val_rel_all :: "('f \<Rightarrow> poly_type)
                     \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile>* (x # xs) \<sim> (x' # xs') : (t # ts) \<langle>r \<union> r', w \<union> w'\<rangle>"
 
 lemma upd_val_rel_all_to_vval_typing_all:
-shows "\<Xi>, \<sigma> \<turnstile>* us \<sim> vs : \<tau>s  \<langle>r, w\<rangle> \<Longrightarrow> vval_typing_all \<Xi> vs \<tau>s"
+shows "\<Xi>, \<sigma> \<turnstile>* us \<sim> vs : \<tau>s  \<langle>r, w\<rangle> \<Longrightarrow> val.vval_typing_all \<Xi> vs \<tau>s"
 proof (induct rule: upd_val_rel_all.inducts)
-case u_v_all_empty then show ?case by (simp add: vval_typing_all_def)
-case u_v_all_cons  then show ?case by (simp add: vval_typing_all_def upd_val_rel_to_vval_typing) 
+case u_v_all_empty then show ?case by (simp add: val.vval_typing_all_def)
+case u_v_all_cons  then show ?case by (simp add: val.vval_typing_all_def upd_val_rel_to_vval_typing) 
 qed
 
 
 lemma upd_val_rel_all_to_uval_typing_all:
-shows "\<Xi>, \<sigma> \<turnstile>* us \<sim> vs : \<tau>s \<langle>r, w\<rangle> \<Longrightarrow> uval_typing_all \<Xi> \<sigma> us \<tau>s r w"
-using assms proof (induct rule: upd_val_rel_all.inducts )
-case u_v_all_empty then show ?case by (rule)
-case u_v_all_cons  then show ?case by (auto intro: uval_typing_all.intros
+shows "\<Xi>, \<sigma> \<turnstile>* us \<sim> vs : \<tau>s \<langle>r, w\<rangle> \<Longrightarrow> upd.uval_typing_all \<Xi> \<sigma> us \<tau>s r w"
+proof (induct rule: upd_val_rel_all.inducts )
+case u_v_all_empty then show ?case by (rule upd.u_t_all_empty)
+case u_v_all_cons  then show ?case by (auto intro: upd.uval_typing_all.intros
                                             simp:  upd_val_rel_to_uval_typing)
 qed
 
@@ -246,18 +219,18 @@ lemma u_v_matches_to_matches:
 assumes "\<Xi>, \<sigma> \<turnstile> us \<sim> vs matches \<Gamma> \<langle>r, w\<rangle>"
 shows   "val.matches \<Xi> vs \<Gamma>"
 using assms proof (induct rule: u_v_matches.inducts)
-case u_v_matches_empty then show ?case by (simp add: matches_def)
-case u_v_matches_none  then show ?case by (simp add: matches_def)
-case u_v_matches_some  then show ?case by (simp add: matches_def upd_val_rel_to_vval_typing)
+case u_v_matches_empty then show ?case by (simp add: val.matches_def)
+case u_v_matches_none  then show ?case by (simp add: val.matches_def)
+case u_v_matches_some  then show ?case by (simp add: val.matches_def upd_val_rel_to_vval_typing)
 qed
 
 lemma u_v_matches_to_matches_ptrs:
 assumes "\<Xi>, \<sigma> \<turnstile> us \<sim> vs matches \<Gamma> \<langle>r, w\<rangle>"
-shows   "matches_ptrs \<Xi> \<sigma> us \<Gamma> r w"
+shows   "upd.matches_ptrs \<Xi> \<sigma> us \<Gamma> r w"
 using assms proof (induct rule: u_v_matches.inducts)
 case u_v_matches_empty then show ?case by rule
-case u_v_matches_none  then show ?case by (auto intro: matches_ptrs_none)
-case u_v_matches_some  then show ?case by (auto intro: matches_ptrs_some
+case u_v_matches_none  then show ?case by (auto intro: upd.matches_ptrs_none)
+case u_v_matches_some  then show ?case by (auto intro: upd.matches_ptrs_some
                                                 simp: upd_val_rel_to_uval_typing)
 qed
 
@@ -275,7 +248,7 @@ definition proc_env_u_v_matches :: "(('f, 'au, 'l) uabsfuns)
                       \<longrightarrow> \<xi> f (\<sigma>, a) (\<sigma>', v)
                       \<longrightarrow> (\<xi>' f a' v'
                            \<longrightarrow> (\<exists>r' w'. (\<Xi> , \<sigma>' \<turnstile> v \<sim> v' : instantiate \<tau>s \<tau>o \<langle>r', w'\<rangle>)
-                                    \<and> r' \<subseteq> r \<and> frame \<sigma> w \<sigma>' w'))
+                                    \<and> r' \<subseteq> r \<and> upd.frame \<sigma> w \<sigma>' w'))
                        \<and> (\<exists> v'. \<xi>' f a' v')))"
 
 lemma upd_val_rel_record:
@@ -290,48 +263,48 @@ qed
 lemma upd_val_rel_pointers_noalias:
 shows "\<lbrakk> \<Xi>, \<sigma> \<turnstile>  v  \<sim> v'  :  \<tau>  \<langle> r , w \<rangle> \<rbrakk> \<Longrightarrow> r \<inter> w = {}"
 and   "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* vs \<sim> vs' :r \<tau>s \<langle> r , w \<rangle> \<rbrakk> \<Longrightarrow> r \<inter> w = {}"
-by (auto dest!: upd_val_rel_to_uval_typing  uval_typing_pointers_noalias)
+by (auto dest!: upd_val_rel_to_uval_typing  upd.uval_typing_pointers_noalias)
 
 lemma u_v_shareable_not_writable:
 assumes "S \<in> k"
 shows "\<lbrakk> \<Xi>, \<sigma> \<turnstile>  v  \<sim> v'  :  \<tau>  \<langle> r , w \<rangle>; K \<turnstile>  \<tau>  :\<kappa>  k \<rbrakk> \<Longrightarrow> w = {}"
 and   "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* fs \<sim> fs' :r \<tau>s \<langle> r , w \<rangle>; K \<turnstile>* \<tau>s :\<kappa>r k \<rbrakk> \<Longrightarrow> w = {}"
-using assms by (fastforce dest: upd_val_rel_to_uval_typing shareable_not_writable)+
+using assms by (fastforce dest: upd_val_rel_to_uval_typing upd.shareable_not_writable)+
 
 lemma u_v_discardable_not_writable:
 assumes "D \<in> k"
 shows "\<lbrakk> \<Xi>, \<sigma> \<turnstile>  v  \<sim> v'  :  \<tau>  \<langle> r , w \<rangle>; K \<turnstile>  \<tau>  :\<kappa>  k \<rbrakk> \<Longrightarrow> w = {}"
 and   "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* fs \<sim> fs' :r \<tau>s \<langle> r , w \<rangle>; K \<turnstile>* \<tau>s :\<kappa>r k \<rbrakk> \<Longrightarrow> w = {}"
-using assms by (fastforce dest: upd_val_rel_to_uval_typing discardable_not_writable)+
+using assms by (fastforce dest: upd_val_rel_to_uval_typing upd.discardable_not_writable)+
 
 
 lemma u_v_discardable_not_writable_all:
 assumes "D \<in> k"
 shows   "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* fs \<sim> fs' : \<tau>s \<langle> r , w \<rangle>; K \<turnstile>* \<tau>s :\<kappa> k \<rbrakk> \<Longrightarrow> w = {}"
-using assms by (fastforce dest: upd_val_rel_all_to_uval_typing_all discardable_not_writable_all)
+using assms by (fastforce dest: upd_val_rel_all_to_uval_typing_all upd.discardable_not_writable_all)
 
 lemma u_v_escapable_no_readers:
 shows   "\<lbrakk> \<Xi> , \<sigma> \<turnstile>  x  \<sim> x'  :  \<tau>  \<langle>r, w\<rangle> ; E \<in> k; [] \<turnstile>  \<tau>  :\<kappa>  k \<rbrakk> \<Longrightarrow> r = {}"
 and     "\<lbrakk> \<Xi> , \<sigma> \<turnstile>* xs \<sim> xs' :r \<tau>s \<langle>r, w\<rangle> ; E \<in> k; [] \<turnstile>* \<tau>s :\<kappa>r k \<rbrakk> \<Longrightarrow> r = {}"
-by (auto dest: upd_val_rel_to_uval_typing escapable_no_readers)
+by (auto dest: upd_val_rel_to_uval_typing upd.escapable_no_readers)
 
 lemma u_v_tprim_no_pointers:
 assumes "\<Xi> , \<sigma> \<turnstile> u \<sim> v : TPrim \<tau> \<langle>r, w\<rangle>"
 shows   "r = {}"
 and     "w = {}"
-using assms by (auto dest: upd_val_rel_to_uval_typing tprim_no_pointers)
+using assms by (auto dest: upd_val_rel_to_uval_typing upd.tprim_no_pointers)
 
 lemma u_v_tfun_no_pointers:
 assumes "\<Xi> , \<sigma> \<turnstile> u \<sim> v : TFun \<tau> \<rho> \<langle>r, w\<rangle>"
 shows   "r = {}"
 and     "w = {}"
-using assms by (auto dest: upd_val_rel_to_uval_typing tfun_no_pointers)
+using assms by (auto dest: upd_val_rel_to_uval_typing upd.tfun_no_pointers)
 
 lemma u_v_map_tprim_no_pointers:
 assumes "\<Xi> , \<sigma> \<turnstile>* us \<sim> vs : map TPrim \<tau>s \<langle>r, w\<rangle>"
 shows   "r = {}"
 and     "w = {}"
-using assms by (auto dest: upd_val_rel_all_to_uval_typing_all map_tprim_no_pointers)
+using assms by (auto dest: upd_val_rel_all_to_uval_typing_all upd.map_tprim_no_pointers)
 
 lemma u_v_map_tprim_no_pointers':
 assumes "\<Xi> , \<sigma> \<turnstile>* us \<sim> vs : map TPrim \<tau>s \<langle>r, w\<rangle>"
@@ -375,17 +348,21 @@ using assms by auto
 lemma upd_val_rel_bang:
 shows" \<Xi>, \<sigma> \<turnstile>  u  \<sim> v  :  \<tau>  \<langle>r, w\<rangle> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile>  u  \<sim> v  :  bang \<tau> \<langle>r \<union> w, {}\<rangle>"
 and   "\<Xi>, \<sigma> \<turnstile>* us \<sim> vs :r \<tau>s \<langle>r, w\<rangle> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile>* us \<sim> vs :r (map (\<lambda> (t, b). (bang t, b)) \<tau>s) \<langle>r \<union> w, {}\<rangle>"
-using assms proof (induct rule: upd_val_rel_upd_val_rel_record.inducts)
+proof (induct rule: upd_val_rel_upd_val_rel_record.inducts)
      case u_v_prim     then show ?case by (auto  intro: upd_val_rel_upd_val_rel_record.intros)
 next case u_v_product  then show ?case by (auto  dest:  upd_val_rel_upd_val_rel_record.u_v_product 
                                                  intro: u_v_pointerset_helper)
-next case u_v_sum      then show ?case by (auto  intro!: upd_val_rel_upd_val_rel_record.intros exI
+next case u_v_sum      then show ?case
+    sorry
+(*
+by (auto  intro!: upd_val_rel_upd_val_rel_record.intros exI
                                                  dest:  bang_kind
-                                                        list_all2_bang_type_helper
-                                                          [ where ts = "map snd ts"
+                                                        upd.list_all2_bang_type_helper
+                                                         [ where ts = "map snd ts"
                                                             and   rs = "map snd rs"
                                                             for ts rs
                                                           , simplified])
+*)
 next case u_v_struct   then show ?case by (auto  intro: upd_val_rel_upd_val_rel_record.intros)
 next case u_v_abstract then show ?case by (force intro: upd_val_rel_upd_val_rel_record.intros 
                                                         abs_upd_val_bang [where s = Unboxed, simplified]
@@ -397,23 +374,23 @@ next case u_v_p_rec_ro
   then show ?case
     apply clarsimp
     apply (drule upd_val_rel_to_uval_typing)
-    apply (drule uval_typing_to_kinding(2))
+    apply (drule upd.uval_typing_to_kinding(2))
     apply (frule upd_val_rel_upd_val_rel_record.u_v_p_rec_ro)
-    apply (auto dest!: kinding_all_record' bang_type_repr')
+    apply (auto dest!: kinding_all_record' upd.bang_type_repr')
   done
 next case u_v_p_rec_w  
   then show ?case
     apply clarsimp
     apply (drule upd_val_rel_to_uval_typing)
-    apply (drule uval_typing_to_kinding(2))
+    apply (drule upd.uval_typing_to_kinding(2))
     apply (frule upd_val_rel_upd_val_rel_record.u_v_p_rec_ro)
-    apply (auto dest!: kinding_all_record' bang_type_repr')
+    apply (auto dest!: kinding_all_record' upd.bang_type_repr')
   done
 next case u_v_p_abs_ro
   then show ?case
     apply (clarsimp)
     apply (frule abs_upd_val_to_uval_typing)
-    apply (drule abs_typing_readonly [rotated 1],simp,clarsimp)
+    apply (drule upd.abs_typing_readonly [rotated 1],simp,clarsimp)
     apply (drule abs_upd_val_bang [where s = ReadOnly and w = "{}", simplified])
     apply (frule bang_kind)
     apply (force dest:upd_val_rel_upd_val_rel_record.u_v_p_abs_ro) 
@@ -435,8 +412,8 @@ next case u_v_r_cons1
                        and   ts = " map (\<lambda>(a,b).(bang a, b)) ts"
                        for t ts]
           , blast, blast, blast, simp)
-    apply ( rule u_v_pointerset_helper_record
-          , (force dest: upd_val_rel_to_uval_typing uval_typing_to_kinding)+)
+    apply ( rule u_v_pointerset_helper_record)
+    apply (force dest: upd_val_rel_to_uval_typing upd.uval_typing_to_kinding)+ (* takes ~5.0s *)
   done
 next case u_v_r_cons2  then show ?case by (force intro: upd_val_rel_upd_val_rel_record.intros bang_kind)
 qed
@@ -485,7 +462,7 @@ qed
 lemma u_v_matches_noalias:
 assumes "\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches \<Gamma> \<langle>r, w\<rangle>"
 shows   "w \<inter> r = {}"
-using assms by (auto dest: u_v_matches_to_matches_ptrs matches_ptrs_noalias) 
+using assms by (auto dest: u_v_matches_to_matches_ptrs upd.matches_ptrs_noalias) 
 
 
 lemma u_v_matches_some_bang:
@@ -710,7 +687,7 @@ lemma u_v_matches_empty_env:
 assumes "\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches empty n \<langle>r, w\<rangle>"
 shows   "r = {}"
 and     "w = {}"
-using assms by (auto dest: u_v_matches_to_matches_ptrs matches_ptrs_empty_env)
+using assms by (auto dest: u_v_matches_to_matches_ptrs upd.matches_ptrs_empty_env)
 
 lemma u_v_matches_proj':
 assumes "\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches \<Gamma> \<langle>r, w\<rangle>"
@@ -829,8 +806,8 @@ and     "\<xi> f (\<sigma>, a) (\<sigma>', v)"
 and     "\<xi>' f a' v'"
 shows   "\<exists>r' w'.
              \<Xi> , \<sigma>' \<turnstile> v \<sim> v' : instantiate \<tau>s \<tau>o \<langle>r', w'\<rangle>
-            \<and> r' \<subseteq> r \<and> frame \<sigma> w \<sigma>' w'"
-using assms by (clarsimp simp: proc_env_u_v_matches_def, drule_tac x = f in spec, fastforce)
+            \<and> r' \<subseteq> r \<and> upd.frame \<sigma> w \<sigma>' w'"
+  using assms by (clarsimp simp: proc_env_u_v_matches_def, drule_tac x = f in spec, fastforce)
 
 section {* frame *}
 
@@ -872,16 +849,16 @@ lemma upd_val_rel_valid:
 assumes "p \<in> (r \<union> w)"
 shows   "\<Xi> , \<sigma> \<turnstile>  u  \<sim> v  :  t  \<langle> r , w \<rangle> \<Longrightarrow> \<sigma> p \<noteq> None"
 and     "\<Xi> , \<sigma> \<turnstile>* us \<sim> vs :r ts \<langle> r , w \<rangle> \<Longrightarrow> \<sigma> p \<noteq> None"
-using assms by (auto dest: upd_val_rel_to_uval_typing intro: uval_typing_valid [simplified])
+using assms by (auto dest: upd_val_rel_to_uval_typing intro: upd.uval_typing_valid [simplified])
 
 lemma u_v_matches_valid:
 assumes "\<Xi> , \<sigma> \<turnstile> u \<sim> u' matches t \<langle> r , w \<rangle>"
 and     "p \<in> (r \<union> w)"
 shows   "\<sigma> p \<noteq> None"
-using assms by (auto dest: u_v_matches_to_matches_ptrs matches_ptrs_valid)
+using assms by (auto dest: u_v_matches_to_matches_ptrs upd.matches_ptrs_valid)
 
 lemma upd_val_rel_frame:
-assumes "frame \<sigma> w1 \<sigma>' w2"
+assumes "upd.frame \<sigma> w1 \<sigma>' w2"
 and     "w \<inter> w1 = {}"
 and     "r \<inter> w1 = {}"
 shows   "\<Xi> , \<sigma> \<turnstile>  u  \<sim> v  :  t  \<langle> r , w \<rangle> \<Longrightarrow> \<Xi> , \<sigma>' \<turnstile>  u  \<sim> v  : t   \<langle> r , w \<rangle>"
@@ -896,22 +873,22 @@ next case u_v_function then show ?case by (simp add: upd_val_rel_upd_val_rel_rec
 next case u_v_afun     then show ?case by (simp add: upd_val_rel_upd_val_rel_record.u_v_afun)
 next case u_v_unit     then show ?case by (simp add: upd_val_rel_upd_val_rel_record.u_v_unit)
 next case u_v_p_rec_ro then show ?case by (auto intro!: upd_val_rel_upd_val_rel_record.u_v_p_rec_ro
-                                                simp:   frame_def)
+                                                simp:   upd.frame_def)
 next case u_v_p_rec_w  then show ?case by (auto intro!: upd_val_rel_upd_val_rel_record.u_v_p_rec_w
-                                                simp:   frame_def)
+                                                simp:   upd.frame_def)
 next case u_v_p_abs_ro then show ?case by (auto intro!: upd_val_rel_upd_val_rel_record.u_v_p_abs_ro
-                                                simp:   frame_def)
+                                                simp:   upd.frame_def)
 next case u_v_p_abs_w  then show ?case by (auto intro!: upd_val_rel_upd_val_rel_record.u_v_p_abs_w
-                                                simp:   frame_def)
+                                                simp:   upd.frame_def)
 next case u_v_r_empty  then show ?case by (simp add: upd_val_rel_upd_val_rel_record.u_v_r_empty)
 next case u_v_r_cons1  then show ?case by (force intro!: upd_val_rel_upd_val_rel_record.u_v_r_cons1
-                                                 simp: frame_def)
+                                                 simp: upd.frame_def)
 next case u_v_r_cons2  then show ?case by (simp add: upd_val_rel_upd_val_rel_record.u_v_r_cons2)
 qed
 
 lemma u_v_matches_frame:
 assumes "\<Xi> , \<sigma> \<turnstile> u \<sim> v matches t \<langle> r , w \<rangle>"
-and     "frame \<sigma> w1 \<sigma>' w2"
+and     "upd.frame \<sigma> w1 \<sigma>' w2"
 and     "w1 \<inter> w = {}"
 and     "w1 \<inter> r = {}"
 shows   "\<Xi> , \<sigma>' \<turnstile> u \<sim> v matches t \<langle> r , w \<rangle>"
@@ -923,30 +900,30 @@ next case u_v_matches_some  then show ?case by (fast dest:   upd_val_rel_frame(1
 qed
 
 lemma frame_noalias_upd_val_rel :
-assumes "frame \<sigma> u \<sigma>' u'"
+assumes "upd.frame \<sigma> u \<sigma>' u'"
 and     "\<Xi>, \<sigma> \<turnstile> v \<sim> v' : \<tau> \<langle>r, w\<rangle>"
 shows   "u  \<inter> w = {} \<Longrightarrow> u' \<inter> w = {}"
 and     "u  \<inter> r = {} \<Longrightarrow> u' \<inter> r = {}"
-using assms by (auto dest: upd_val_rel_to_uval_typing frame_noalias_uval_typing)
+  using assms by (auto dest: upd_val_rel_to_uval_typing upd.frame_noalias_uval_typing)
 
 lemma frame_noalias_u_v_matches :
-assumes "frame \<sigma> u \<sigma>' u'"
+assumes "upd.frame \<sigma> u \<sigma>' u'"
 and     "\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches \<Gamma> \<langle>r, w\<rangle>"
 shows   "u  \<inter> w = {} \<Longrightarrow> u' \<inter> w = {}"
 and     "u  \<inter> r = {} \<Longrightarrow> u' \<inter> r = {}"
-using assms by (auto dest: u_v_matches_to_matches_ptrs frame_noalias_matches_ptrs)
+  using assms by (auto dest: u_v_matches_to_matches_ptrs upd.frame_noalias_matches_ptrs)
 
 lemma frame_noalias_upd_val_rel' :
-assumes "frame \<sigma> u \<sigma>' u'"
+assumes "upd.frame \<sigma> u \<sigma>' u'"
 and     "\<Xi>, \<sigma> \<turnstile> v \<sim> v' : \<tau> \<langle>r, w\<rangle>"
 shows   "w \<inter> u = {} \<Longrightarrow> w \<inter> u' = {}"
 and     "r \<inter> u = {} \<Longrightarrow> r \<inter> u' = {}"
-using assms by (auto dest: upd_val_rel_to_uval_typing frame_noalias_uval_typing)
+using assms by (auto dest: upd_val_rel_to_uval_typing upd.frame_noalias_uval_typing)
 
 
 lemma frame_noalias_2_uv :
-assumes "frame \<sigma>  u \<sigma>'  u'"
-and     "frame \<sigma>' w \<sigma>'' w'"
+assumes "upd.frame \<sigma>  u \<sigma>'  u'"
+and     "upd.frame \<sigma>' w \<sigma>'' w'"
 and     "\<Xi>, \<sigma>  \<turnstile> \<gamma> \<sim> \<gamma>' matches \<Gamma>  \<langle>r , w\<rangle>"
 and     "\<Xi>, \<sigma>' \<turnstile> v \<sim> v' : \<tau> \<langle>r', u'\<rangle>"
 and     "u \<inter> w = {}"
@@ -976,10 +953,12 @@ lemma sum_downcast_u_v:
 assumes "\<Xi>, \<sigma> \<turnstile> USum t v xs \<sim> VSum tv v' : TSum ts \<langle>r, w\<rangle>"
 and     "t \<noteq> t'"
 shows   "\<Xi>, \<sigma> \<turnstile> USum t v (filter (\<lambda> x. fst x \<noteq> t') xs)  \<sim> VSum tv v' : TSum (filter (\<lambda> x. fst x \<noteq> t') ts) \<langle>r, w\<rangle>"
+  sorry
+(*
 proof -
-have 1: "(\<lambda> x. x \<noteq> t') \<circ> fst = (\<lambda> x. fst x \<noteq> t')" by (auto)
-have 2: "map fst [ x \<leftarrow> ts. fst x \<noteq> t' ] = [ x \<leftarrow> map fst ts. x \<noteq> t' ]"by (simp add: 1 filter_map)
-have 3: "[x\<leftarrow>map fst xs . x \<noteq> t'] = map fst [x\<leftarrow>xs . fst x \<noteq> t']" by (induct xs,simp,simp)
+  have 1: "(\<lambda> x. x \<noteq> t') \<circ> fst = (\<lambda> x. fst x \<noteq> t')" by (auto)
+  have 2: "map fst [ x \<leftarrow> ts. fst x \<noteq> t' ] = [ x \<leftarrow> map fst ts. x \<noteq> t' ]"by (simp add: 1 filter_map)
+  have 3: "[x\<leftarrow>map fst xs . x \<noteq> t'] = map fst [x\<leftarrow>xs . fst x \<noteq> t']" by (induct xs,simp,simp)
 have 4: "\<lbrakk> list_all2 (\<lambda>t. op = (type_repr t)) (map snd ts) (map snd xs)
          ; map fst ts = map fst xs
          \<rbrakk> \<Longrightarrow> list_all2 (\<lambda>t. op = (type_repr t)) 
@@ -1000,6 +979,7 @@ from 1 2 assms show ?thesis apply -
   apply (simp add: 4)
 done
 qed
+*)
 
 lemma upd_val_rel_record_take:
 assumes "\<Xi>, \<sigma> \<turnstile>* fs \<sim> fs' :r \<tau>s \<langle>r, w\<rangle>"
@@ -1018,8 +998,8 @@ next case Cons then show ?case
        case 0   with Cons(2-) show ?thesis by ( clarsimp, elim u_v_r_consE'
                                               , auto intro!: exI
                                                              upd_val_rel_upd_val_rel_record.intros
-                                                       simp: type_repr_uval_repr_deep(1)[OF upd_val_rel_to_uval_typing(1)]
-                                                             type_repr_uval_repr(1)[OF upd_val_rel_to_uval_typing(1)])
+                                                       simp: upd.type_repr_uval_repr_deep(1)[OF upd_val_rel_to_uval_typing(1)]
+                                                             upd.type_repr_uval_repr(1)[OF upd_val_rel_to_uval_typing(1)])
   next case Suc with Cons(2-) show ?thesis
     apply (clarsimp)
     apply (erule u_v_r_consE')
@@ -1154,13 +1134,13 @@ shows   "\<lbrakk> \<xi> , \<gamma>  \<turnstile> (\<sigma>, specialise \<tau>s 
          ; \<Xi>, K, \<Gamma> \<turnstile> e : \<tau> 
          \<rbrakk> \<Longrightarrow> \<exists>r' w'. (\<Xi> , \<sigma>' \<turnstile> v \<sim> v' : instantiate \<tau>s \<tau> \<langle>r', w'\<rangle>) 
                      \<and> r' \<subseteq> r 
-                     \<and> frame \<sigma> w \<sigma>' w'"
+                     \<and> upd.frame \<sigma> w \<sigma>' w'"
 and     "\<lbrakk> \<xi> , \<gamma>  \<turnstile>* (\<sigma>, map (specialise \<tau>s) es) \<Down>! (\<sigma>', vs)
          ; \<xi>', \<gamma>' \<turnstile>*     map (specialise \<tau>s) es  \<Down>       vs' 
          ; \<Xi>, K, \<Gamma> \<turnstile>* es : \<tau>s'
          \<rbrakk> \<Longrightarrow> \<exists>r' w'. (\<Xi>, \<sigma>' \<turnstile>* vs \<sim> vs' : map (instantiate \<tau>s) \<tau>s' \<langle>r', w'\<rangle>)
                      \<and> r' \<subseteq> r
-                     \<and> frame \<sigma> w \<sigma>' w'"
+                     \<and> upd.frame \<sigma> w \<sigma>' w'"
 using assms proof (induct "(\<sigma>, specialise \<tau>s e)"        "(\<sigma>', v )" 
                       and "(\<sigma>, map (specialise \<tau>s) es)" "(\<sigma>', vs)" 
                       arbitrary:  e  \<tau>s K \<tau>   \<Gamma> r w v  \<sigma>' \<sigma> \<gamma>' v'
@@ -1169,7 +1149,7 @@ using assms proof (induct "(\<sigma>, specialise \<tau>s e)"        "(\<sigma>',
      case u_sem_var       then show ?case by ( cases e, simp_all
                                              , fastforce elim!:  typing_varE
                                                          dest!:  u_v_matches_proj
-                                                         intro:  frame_id)
+                                                         intro:  upd.frame_id)
 next case u_sem_prim      then show ?case by ( cases e, simp_all
                                              , auto      elim!:  typing_primE
                                                          dest!:  u_sem_prim(2)
@@ -1179,23 +1159,27 @@ next case u_sem_prim      then show ?case by ( cases e, simp_all
 next case u_sem_lit       then show ?case by ( cases e, simp_all
                                              , fastforce dest:   u_v_matches_proj_consumed
                                                          intro!: upd_val_rel_upd_val_rel_record.intros
-                                                                 frame_id)
+                                                                 upd.frame_id)
 next case u_sem_fun       then show ?case by ( cases e, simp_all
                                              , force elim!:  typing_funE
                                                      dest:   typing_to_kinding u_v_matches_proj_consumed
-                                                     intro!: exI u_v_function_instantiate frame_id)
+                                                     intro!: exI u_v_function_instantiate upd.frame_id)
 next case u_sem_afun      then show ?case apply (cases e, simp_all)
                                           apply (fastforce elim!:  typing_afunE v_sem_afunE
-                                                           intro!: u_v_afun_instantiate frame_id
+                                                           intro!: u_v_afun_instantiate upd.frame_id
                                                            dest:   u_v_matches_proj_consumed).
-next case u_sem_promote   then show ?case by ( cases e, simp_all
+next case u_sem_promote   then show ?case
+    sorry
+(*
+by ( cases e, simp_all
                                              , fastforce elim:   u_v_sumE typing_promE
                                                          intro!: u_v_sum
                                                          dest:   u_sem_promote(2)
                                                          intro:  substitutivity(2)
                                                                   [ where ts = "map snd ls" for ls
                                                                   , simplified]
-                                                         simp:   list_all2_helper)
+                                                         simp:   upd.list_all2_helper)
+*)
 next case u_sem_app
   note IH1  = this(2)
   and  IH2  = this(4)
@@ -1216,13 +1200,13 @@ next case u_sem_app
     apply (erule u_v_functionE)
     apply (clarsimp)
     apply (frule(8) IH2 [OF _ _ _ _ _  u_v_matches_frame, rotated -1])
-     apply (fastforce intro!: subset_helper dest: subset_helper2 subset_helper2')
+     apply (fastforce intro!: upd.subset_helper dest: upd.subset_helper2 upd.subset_helper2')
     apply (clarsimp elim!: u_v_functionE)
     apply (frule(4) IH3 [OF refl, rotated -1])
      apply (force intro!: u_v_matches.intros simp: instantiate_ctx_def)
     apply (clarsimp, auto intro!: exI
-                          intro:  frame_trans subset_helper2'
-                          dest:   frame_app [where w' = "{}", simplified])
+                          intro:  upd.frame_trans upd.subset_helper2'
+                          dest:   upd.frame_app [where w' = "{}", simplified])
   done
 next case u_sem_abs_app
   note IH1  = this(2)
@@ -1236,12 +1220,12 @@ next case u_sem_abs_app
     apply (erule v_sem_appE)
      apply (frule(6) IH1, clarsimp)
      apply (frule(8) IH2 [OF _ _ _ _ _ u_v_matches_frame, rotated -1])
-      apply (fastforce intro!: subset_helper dest: subset_helper2 subset_helper2')
+      apply (fastforce intro!: upd.subset_helper dest: upd.subset_helper2 upd.subset_helper2')
      apply (clarsimp elim!: u_v_afunE)
      apply (frule(5) proc_env_u_v_matches_abstract)
      apply (clarsimp)
      apply (intro exI conjI, force, blast)
-     apply (force intro: frame_trans subset_helper2' dest: frame_app [where w'="{}",simplified])
+     apply (force intro: upd.frame_trans upd.subset_helper2' dest: upd.frame_app [where w'="{}",simplified])
     apply (frule(6) IH1, clarsimp)
     apply (erule upd_val_rel.cases,simp_all)
   done
@@ -1257,8 +1241,8 @@ next case u_sem_con
                 intro!: exI
                         upd_val_rel_upd_val_rel_record.intros
                         substitutivity(2) [where ts = "map snd ls" for ls, simplified]
-                 simp: list_all2_helper)
-  done
+                 simp: upd.list_all2_helper)
+    sorry
 next case u_sem_let
   note IH1  = this(2)
   and  IH2  = this(4)
@@ -1275,7 +1259,7 @@ next case u_sem_let
        apply (force dest: frame_noalias_u_v_matches(1))
       apply (force dest!: frame_noalias_u_v_matches(2))
      apply (blast)
-    apply (fastforce intro: frame_let simp: Un_commute)
+    apply (fastforce intro: upd.frame_let simp: Un_commute)
   done
 
 next case u_sem_letbang
@@ -1298,15 +1282,15 @@ next case u_sem_letbang
     apply (clarsimp)
     apply (auto intro!: exI
                 simp:   Un_assoc
-                intro:  frame_let
-                intro:  pointerset_helper_frame [OF _ _ refl])
+                intro:  upd.frame_let
+                intro:  upd.pointerset_helper_frame [OF _ _ refl])
   done
 
 next case u_sem_unit      then show ?case by ( cases e, simp_all
                                              , auto elim!:  typing_unitE
                                                     intro!: exI
                                                     dest!:  u_v_matches_proj_consumed
-                                                    intro:  frame_id
+                                                    intro:  upd.frame_id
                                                             upd_val_rel_upd_val_rel_record.intros)
 
 next case u_sem_cast      then show ?case apply ( cases e, simp_all)
@@ -1327,15 +1311,19 @@ next case u_sem_tuple
     apply (frule(6) IH1, clarsimp)
     apply (frule(2) u_v_matches_frame, blast)
     apply (frule(6) IH2, clarsimp)
-    apply (frule(1) frame_app)
+    apply (frule(1) upd.frame_app)
 
     apply (frule(2) frame_noalias_u_v_matches(2) [where u = "w \<union> w'" for w and w'])
     apply (frule(4) upd_val_rel_frame [rotated -1, OF _ _ frame_noalias_u_v_matches(1)], blast)
     apply (frule(4) frame_noalias_2_uv)
     apply (blast intro!: upd_val_rel_upd_val_rel_record.intros)
   done
-next case u_sem_esac      then show ?case by ( cases e, simp_all
+next case u_sem_esac      then show ?case
+    sorry
+  (*
+by ( cases e, simp_all
                                              , fastforce elim!: u_v_sumE)
+*)
 next case u_sem_case_nm
   note IH1 = this(2)
   and  IH2 = this(5)
@@ -1358,9 +1346,12 @@ next case u_sem_case_nm
     apply (frule(2) u_v_matches_frame, blast)
     apply (frule(1) sum_downcast_u_v [rotated -1])
     apply (frule(5) IH2 [rotated -1])
+    sorry
+(*
      apply (simp, rule, simp add: HELP[rule_format], blast,blast,blast,blast)
     apply (clarsimp, auto intro!: exI intro: frame_let simp: Un_commute)
   done
+*)
 next case u_sem_case_m 
   note IH1 = this(2)
   and  IH2 = this(4)
@@ -1379,7 +1370,7 @@ next case u_sem_case_m
       apply (drule(1) distinct_fst [rotated 1],simp,simp)
      apply (frule(5) IH2 [rotated -1])
       apply (force intro!: u_v_matches_some)
-     apply (clarsimp, force intro!: exI simp: Un_commute intro: frame_let)
+     apply (clarsimp, force intro!: exI simp: Un_commute intro: upd.frame_let)
     apply (force dest!: IH1 elim: upd_val_rel.cases)
   done
 next case (u_sem_if _ _ _ _ _ b)
@@ -1399,7 +1390,7 @@ next case (u_sem_if _ _ _ _ _ b)
                         , OF _ _ u_v_matches_frame ])
          apply (blast, simp)
        apply (cases b, simp, simp)+
-    apply (fastforce intro: frame_let)
+    apply (fastforce intro: upd.frame_let)
   done
 next case u_sem_struct    then show ?case by ( cases e, simp_all
                                              , fastforce intro!: upd_val_rel_upd_val_rel_record.intros
@@ -1473,7 +1464,7 @@ next case (u_sem_take _ _ _ _ _ p)
       apply (case_tac taken)
        apply (rule u_v_matches_some [OF _ u_v_matches_some])
                apply (simp)
-              apply (force intro!: u_v_p_rec_w' simp: HELP2 map_update intro: list_helper [symmetric])
+              apply (force intro!: u_v_p_rec_w' simp: HELP2 map_update intro: upd.list_helper [symmetric])
              apply (simp)
             apply (blast)
            apply (blast)
@@ -1485,7 +1476,7 @@ next case (u_sem_take _ _ _ _ _ p)
       apply (rule u_v_pointerset_helper_matches)
         apply (rule u_v_matches_some [OF _ u_v_matches_some])
                 apply (simp)
-               apply (force intro!: u_v_p_rec_w' simp: list_helper HELP2 map_update intro: list_helper [symmetric])
+               apply (force intro!: u_v_p_rec_w' simp: upd.list_helper HELP2 map_update intro: upd.list_helper [symmetric])
               apply (simp)
              apply (blast)
             apply (blast)
@@ -1495,12 +1486,12 @@ next case (u_sem_take _ _ _ _ _ p)
         apply (blast)
        apply (blast)
       apply (blast)
-     apply (clarsimp, intro exI conjI, simp, blast, force simp: Un_commute intro: frame_let)
+     apply (clarsimp, intro exI conjI, simp, blast, force simp: Un_commute intro: upd.frame_let)
     apply (clarsimp)
     apply (frule(5) IH2 [rotated -1], simp)
      apply (rule u_v_matches_some [OF _ u_v_matches_some])
              apply (simp)
-            apply (force intro!: u_v_p_rec_w' simp: list_helper HELP2 map_update intro: list_helper [symmetric])
+            apply (force intro!: u_v_p_rec_w' simp: upd.list_helper HELP2 map_update intro: upd.list_helper [symmetric])
            apply (simp)
           apply (blast)
          apply (blast)
@@ -1508,7 +1499,7 @@ next case (u_sem_take _ _ _ _ _ p)
        apply (blast)
       apply (blast)
      apply (blast)
-    apply (clarsimp, auto intro!: exI intro: frame_let pointerset_helper_frame)
+    apply (clarsimp, auto intro!: exI intro: upd.frame_let upd.pointerset_helper_frame)
   done    
 next case u_sem_take_ub
   note IH1  = this(2)
@@ -1555,7 +1546,7 @@ next case u_sem_take_ub
       apply (rule u_v_pointerset_helper_matches)
         apply (rule u_v_matches_some [OF _ u_v_matches_some])
                 apply (simp)
-               apply (force intro!: u_v_struct simp: list_helper)
+               apply (force intro!: u_v_struct simp: upd.list_helper)
               apply (simp)
              apply (blast) 
             apply (blast)
@@ -1565,7 +1556,7 @@ next case u_sem_take_ub
         apply (blast)
        apply (blast) 
       apply (blast)
-     apply (clarsimp, intro exI conjI, simp, blast, force simp: Un_commute intro: frame_let) 
+     apply (clarsimp, intro exI conjI, simp, blast, force simp: Un_commute intro: upd.frame_let) 
     apply (clarsimp)
     apply (frule(5) IH2 [rotated -1], simp)
      apply (rule u_v_matches_some [OF _ u_v_matches_some])
@@ -1578,7 +1569,7 @@ next case u_sem_take_ub
        apply (blast)
       apply (blast) 
      apply (blast)
-    apply (clarsimp, auto intro!: exI intro: frame_let pointerset_helper_frame) 
+    apply (clarsimp, auto intro!: exI intro: upd.frame_let upd.pointerset_helper_frame) 
   done    
 
 next case u_sem_put
@@ -1609,10 +1600,10 @@ next case u_sem_put
     apply (frule(1) frame_noalias_upd_val_rel, blast)
     apply (frule(1) frame_noalias_upd_val_rel(2), blast)
     apply (erule u_v_p_recE, simp,clarsimp)
-    apply (drule(1) frame_app)
+    apply (drule(1) upd.frame_app)
     apply (drule(2) upd_val_rel_frame(2) [rotated -1], blast)
-    apply (drule(1) upd_val_rel_frame(1) [OF frame_single_update, simplified, rotated -1], blast)
-    apply (drule(2) upd_val_rel_frame(2) [OF frame_single_update, simplified, rotated -1])
+    apply (drule(1) upd_val_rel_frame(1) [OF upd.frame_single_update, simplified, rotated -1], blast)
+    apply (drule(2) upd_val_rel_frame(2) [OF upd.frame_single_update, simplified, rotated -1])
 
     apply (frule(5) upd_val_rel_record_put [ where ts = "map (\<lambda>(t, y). (instantiate \<tau>s t, y)) ts" for ts
                                            , OF _ _ HELP [rule_format]
@@ -1624,7 +1615,7 @@ next case u_sem_put
      apply (fastforce intro: substitutivity) 
     apply (clarsimp, intro conjI exI, rule u_v_p_rec_w')
     apply (simp add: map_update)
-    apply (auto intro!: list_helper[symmetric] simp: HELP2 map_update frame_def)
+    apply (auto intro!: upd.list_helper[symmetric] simp: HELP2 map_update upd.frame_def)
   done
 next case u_sem_put_ub
   note IH1  = this(2) 
@@ -1651,7 +1642,7 @@ next case u_sem_put_ub
     apply (frule(1) frame_noalias_upd_val_rel, blast)
     apply (frule(1) frame_noalias_upd_val_rel(2), blast)
     apply (erule u_v_recE, simp,clarsimp)
-    apply (drule(1) frame_app)
+    apply (drule(1) upd.frame_app)
     apply (drule(2) upd_val_rel_frame(2) [rotated -1], blast)
 
     apply (frule(5) upd_val_rel_record_put [ where ts = "map (\<lambda>(t, y). (instantiate \<tau>s t, y)) ts" for ts
@@ -1662,7 +1653,7 @@ next case u_sem_put_ub
        apply (fast)
       apply (fast) 
      apply (fastforce intro: substitutivity) 
-    apply (clarsimp, auto intro!: exI u_v_struct simp: map_update frame_def) 
+    apply (clarsimp, auto intro!: exI u_v_struct simp: map_update upd.frame_def) 
   done
 next case u_sem_split
   note IH1  = this(2)
@@ -1690,10 +1681,10 @@ next case u_sem_split
        apply (blast)
       apply (blast)
      apply (blast)
-    apply (clarsimp, auto intro!: exI intro: frame_let pointerset_helper_frame)
+    apply (clarsimp, auto intro!: exI intro: upd.frame_let upd.pointerset_helper_frame)
   done
 next case u_sem_all_empty then show ?case by ( cases es, simp_all
-                                             , fastforce intro!: frame_id
+                                             , fastforce intro!: upd.frame_id
                                                                  upd_val_rel_all.intros
                                                          dest: u_v_matches_empty_env(2))
 next case u_sem_all_cons
@@ -1707,7 +1698,7 @@ next case u_sem_all_cons
     apply (frule(6) IH1, clarsimp)
     apply (frule u_v_matches_noalias)
     apply (frule(8) IH2 [OF _ _ _ _ _ u_v_matches_frame, rotated -1], blast, clarsimp)
-    apply (frule(1) frame_app)
+    apply (frule(1) upd.frame_app)
     apply (frule(2) frame_noalias_u_v_matches(2) [where u = "w \<union> w'" for w and w'])
     apply (frule(4) upd_val_rel_frame [rotated -1, OF _ _ frame_noalias_u_v_matches(1)], blast)
     apply (frule(4) frame_noalias_2_uv)
@@ -1760,7 +1751,7 @@ next case u_sem_app
     apply (frule(1) IH3 [OF _ _ u_v_matches_frame])
     apply (simp,rule u_v_matches_some)
     apply (simp)
-    apply (auto simp: instantiate_ctx_def intro!: u_v_matches.intros frame_id v_sem_v_sem_all.intros)
+    apply (auto simp: instantiate_ctx_def intro!: u_v_matches.intros upd.frame_id v_sem_v_sem_all.intros)
     done
 next case (u_sem_abs_app _ _ _ _ _ f)
   note IH1 = this(2)
@@ -1837,7 +1828,7 @@ next case u_sem_let
     apply (erule(2) u_v_matches_frame,blast)
     apply (erule(2) frame_noalias_u_v_matches)
     apply (erule(1) frame_noalias_u_v_matches(2),blast)
-    apply (auto simp: instantiate_ctx_def intro!: u_v_matches.intros frame_id v_sem_v_sem_all.intros)
+    apply (auto simp: instantiate_ctx_def intro!: u_v_matches.intros upd.frame_id v_sem_v_sem_all.intros)
   done
 next case u_sem_letbang 
   note IH1 = this(2)
@@ -1856,7 +1847,7 @@ next case u_sem_letbang
     apply (erule(1) u_v_matches_frame,blast, blast)
     apply (erule(1) frame_noalias_u_v_matches,blast)
     apply (erule(1) frame_noalias_u_v_matches(2),blast)
-    apply (auto simp: instantiate_ctx_def intro!: u_v_matches.intros frame_id v_sem_v_sem_all.intros)
+    apply (auto simp: instantiate_ctx_def intro!: u_v_matches.intros upd.frame_id v_sem_v_sem_all.intros)
   done
   
 next case u_sem_tuple
@@ -1885,7 +1876,7 @@ next case u_sem_if
     apply (erule upd_val_rel.cases, simp_all)
     apply (drule_tac t = "l" in sym)
     apply (clarsimp)
-    apply (frule(2) IH2 [rotated 1], force simp add: split_if)
+    apply (frule(2) IH2 [rotated 1], force simp add: if_splits)
     apply (force intro: v_sem_v_sem_all.intros)
   done
 next case u_sem_split
@@ -1947,7 +1938,9 @@ next case u_sem_case_nm
     apply (erule upd_val_rel.cases, simp_all)
     apply (clarsimp)
     apply (frule(2) IH2 [rotated -1])
-    apply (rule u_v_matches_some)
+     apply (rule u_v_matches_some)
+    sorry
+(*
     apply (rule sum_downcast_u_v)
     apply (rule)
     apply (simp,simp,simp,force,simp,simp,simp)
@@ -1956,7 +1949,8 @@ next case u_sem_case_nm
     apply (erule(1) frame_noalias_u_v_matches(2),blast)
     apply (blast)
     apply (force intro: v_sem_v_sem_all.intros)
-  done 
+  done
+*)
 next case u_sem_take
   note IH1 = this(2)
   and  IH2 = this(5)
@@ -1998,7 +1992,7 @@ next case u_sem_take
      apply (frule(2) u_v_shareable_not_writable, clarsimp)
      apply (rule u_v_pointerset_helper_matches)
        apply (rule u_v_matches_some, simp, rule u_v_matches_some)
-              apply (force intro!: u_v_p_rec_w' simp: list_helper simp: HELP)
+              apply (force intro!: u_v_p_rec_w' simp: upd.list_helper simp: HELP)
              apply (simp)
             apply (blast)
            apply (blast)
@@ -2051,7 +2045,7 @@ next case u_sem_take_ub
      apply (frule(2) u_v_shareable_not_writable, clarsimp)
      apply (rule u_v_pointerset_helper_matches)
        apply (rule u_v_matches_some, simp, rule u_v_matches_some)
-              apply (force intro!: u_v_struct simp: list_helper simp: HELP)
+              apply (force intro!: u_v_struct simp: upd.list_helper simp: HELP)
              apply (simp)
             apply (blast)
            apply (blast)
