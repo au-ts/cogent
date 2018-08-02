@@ -352,17 +352,19 @@ proof (induct rule: upd_val_rel_upd_val_rel_record.inducts)
      case u_v_prim     then show ?case by (auto  intro: upd_val_rel_upd_val_rel_record.intros)
 next case u_v_product  then show ?case by (auto  dest:  upd_val_rel_upd_val_rel_record.u_v_product 
                                                  intro: u_v_pointerset_helper)
-next case u_v_sum      then show ?case
-    sorry
-(*
-by (auto  intro!: upd_val_rel_upd_val_rel_record.intros exI
-                                                 dest:  bang_kind
-                                                        upd.list_all2_bang_type_helper
-                                                         [ where ts = "map snd ts"
-                                                            and   rs = "map snd rs"
-                                                            for ts rs
-                                                          , simplified])
-*)
+next case (u_v_sum \<Xi> \<sigma> a a' t r w g ts rs)
+  then show ?case
+  proof (simp, intro upd_val_rel_upd_val_rel_record.intros)
+    show "[] \<turnstile>* map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, bang t, b)) ts) wellformed"
+      using bang_kind(2) u_v_sum.hyps
+      unfolding type_wellformed_all_def
+      by fastforce
+  next
+    obtain k where "\<And>tag \<tau> b. (tag, \<tau>, b) \<in> set ts \<Longrightarrow> [] \<turnstile> \<tau> :\<kappa> k"
+      using u_v_sum.hyps(5)  kinding_all_set by fastforce
+    then show "map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) ts = map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) (map (\<lambda>(c, t, b). (c, bang t, b)) ts)"
+      using bang_type_repr by fastforce
+  qed force+
 next case u_v_struct   then show ?case by (auto  intro: upd_val_rel_upd_val_rel_record.intros)
 next case u_v_abstract then show ?case by (force intro: upd_val_rel_upd_val_rel_record.intros 
                                                         abs_upd_val_bang [where s = Unboxed, simplified]
