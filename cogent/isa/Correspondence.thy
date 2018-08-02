@@ -952,36 +952,65 @@ qed
 
 
 lemma sum_downcast_u_v:
-assumes "\<Xi>, \<sigma> \<turnstile> USum t v xs \<sim> VSum tv v' : TSum ts \<langle>r, w\<rangle>"
-and     "t \<noteq> t'"
-shows   "\<Xi>, \<sigma> \<turnstile> USum t v (filter (\<lambda> x. fst x \<noteq> t') xs)  \<sim> VSum tv v' : TSum (filter (\<lambda> x. fst x \<noteq> t') ts) \<langle>r, w\<rangle>"
-  sorry
-(*
+  assumes u_v_sum_before: "\<Xi>, \<sigma> \<turnstile> USum t v xs \<sim> VSum t v' : TSum ts \<langle>r, w\<rangle>"
+    and t_not_t': "t \<noteq> t'"
+    and t'_in_ts: "(t', \<tau>', False) \<in> set ts"
+  shows "\<Xi>, \<sigma> \<turnstile> USum t v xs \<sim> VSum t v' : TSum (tagged_list_update t' (\<tau>', True) ts) \<langle>r, w\<rangle>"
 proof -
-  have 1: "(\<lambda> x. x \<noteq> t') \<circ> fst = (\<lambda> x. fst x \<noteq> t')" by (auto)
-  have 2: "map fst [ x \<leftarrow> ts. fst x \<noteq> t' ] = [ x \<leftarrow> map fst ts. x \<noteq> t' ]"by (simp add: 1 filter_map)
-  have 3: "[x\<leftarrow>map fst xs . x \<noteq> t'] = map fst [x\<leftarrow>xs . fst x \<noteq> t']" by (induct xs,simp,simp)
-have 4: "\<lbrakk> list_all2 (\<lambda>t. op = (type_repr t)) (map snd ts) (map snd xs)
-         ; map fst ts = map fst xs
-         \<rbrakk> \<Longrightarrow> list_all2 (\<lambda>t. op = (type_repr t)) 
-                 (map snd [x\<leftarrow>ts . fst x \<noteq> t']) 
-                 (map snd [x\<leftarrow>xs . fst x \<noteq> t'])"
-by ( induct "map snd ts" "map snd xs"
-     arbitrary: ts xs
-     rule: list_all2_induct
-   , auto)
+  obtain \<tau> k
+    where "USum t v xs = USum t v (map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) ts)"
+      and "VSum t v' = VSum t v'"
+      and val_rel_v_v': "\<Xi>, \<sigma> \<turnstile> v \<sim> v' : \<tau> \<langle>r, w\<rangle>"
+      and t_in_ts: "(t, \<tau>, False) \<in> set ts"
+      and distinct_fst_ts: "distinct (map fst ts)"
+      and wellformed_ts: "[] \<turnstile>* map (fst \<circ> snd) ts :\<kappa>  k"
+      and xs_is: "xs = map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) ts"
+    using u_v_sum_before by auto
 
-from 1 2 assms show ?thesis apply -
-  apply (erule upd_val_rel.cases,simp_all)
-  apply (clarsimp)
-  apply (rule, simp,simp,simp)
-     apply (clarsimp, rule)
-    apply (force intro: kinding_all_subset)
-   apply (simp add: 3)
-  apply (simp add: 4)
-done
+  obtain i
+    where list_update_i: "tagged_list_update t' (\<tau>', True) ts = ts[i := (t', \<tau>', True)]"
+      and original_i: "ts ! i = (t', \<tau>', False)"
+      and i_in_bounds: "i < length ts"
+    using tagged_list_update_distinct distinct_fst_ts t'_in_ts
+    by (metis fst_conv in_set_conv_nth)
+
+  show ?thesis
+    using val_rel_v_v' distinct_fst_ts t_in_ts t_not_t' tagged_list_update_different_tag_preserves_values2
+  proof (intro u_v_sum)
+    have "[] \<turnstile>* map (fst \<circ> snd) (tagged_list_update t' (\<tau>', True) ts) :\<kappa> k"
+    proof (clarsimp simp add: kinding_all_set)
+      fix tag \<tau>'' b
+      assume tag_in_updated_ts: "(tag, \<tau>'', b) \<in> set (tagged_list_update t' (\<tau>', True) ts)"
+      show "[] \<turnstile>  \<tau>'' :\<kappa>  k"
+      proof (cases "tag = t'")
+        case True
+        
+        have "(t', \<tau>', True) \<in> set (tagged_list_update t' (\<tau>', True) ts)"
+          by (simp add: list_update_i i_in_bounds set_update_memI)
+        then have \<tau>''_is: "\<tau>'' = \<tau>'"
+          using True distinct_fst distinct_fst_ts tag_in_updated_ts
+            tagged_list_update_preserves_tags
+          by (metis Pair_inject)
+        then show ?thesis
+          using kinding_all_set t'_in_ts wellformed_ts by auto
+      next
+        case False
+        moreover have "(tag, \<tau>'', b) \<in> set ts \<Longrightarrow> [] \<turnstile>  \<tau>'' :\<kappa>  k"
+          using wellformed_ts kinding_all_set by auto
+        ultimately show "[] \<turnstile>  \<tau>'' :\<kappa>  k"
+          using tagged_list_update_different_tag_preserves_values2 tag_in_updated_ts by metis
+      qed
+    qed
+    then show "[] \<turnstile>* map (fst \<circ> snd) (tagged_list_update t' (\<tau>', True) ts) wellformed"
+      by auto
+  next
+    have "(\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) (t', \<tau>', False) = (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) (t', \<tau>', True)"
+      by simp
+    then show "xs = map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) (tagged_list_update t' (\<tau>', True) ts)"
+      by (metis (no_types, lifting) xs_is list_update_i list_update_id map_update original_i)
+  qed fastforce+
 qed
-*)
+
 
 lemma upd_val_rel_record_take:
 assumes "\<Xi>, \<sigma> \<turnstile>* fs \<sim> fs' :r \<tau>s \<langle>r, w\<rangle>"
