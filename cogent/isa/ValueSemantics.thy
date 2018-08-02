@@ -331,7 +331,7 @@ proof -
   proof (intro v_t_sum)
     show "(tag, \<tau>1, False) \<in> set (tagged_list_update tag' (\<tau>, True) ts)"
       using tag_in_ts tag_neq_tag' tagged_list_update_different_tag_preserves_values2
-      by force
+      by metis
   next
     obtain i where "ts ! i = (tag', \<tau> , False)"
                and "i < length ts"

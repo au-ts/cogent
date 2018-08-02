@@ -214,8 +214,16 @@ lemma tagged_list_update_different_tag_preserves_values1[simp]:
   by (induct xs arbitrary: i, (fastforce simp add: nth_Cons')+)
 
 lemma tagged_list_update_different_tag_preserves_values2:
-  "\<lbrakk> (tag, b) \<in> set xs; tag \<noteq> tag' \<rbrakk> \<Longrightarrow> (tag, b) \<in> set (tagged_list_update tag' b' xs)"
-  by (induct xs, (fastforce simp add: nth_Cons')+)
+  "tag \<noteq> tag' \<Longrightarrow> (tag, b) \<in> set xs \<longleftrightarrow> (tag, b) \<in> set (tagged_list_update tag' b' xs)"
+proof (induct xs)
+  case (Cons a xs)
+  then show ?case
+  proof (cases "a = (tag,b)")
+    case False
+    then show ?thesis
+      by (clarsimp, metis Cons.hyps Cons.prems surj_pair)
+  qed (simp add: Cons.prems)
+qed simp+
 
 lemma tagged_list_update_distinct:
   assumes "distinct (map fst xs)"
