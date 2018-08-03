@@ -980,6 +980,27 @@ and   "K \<turnstile>* fs :\<kappa>r k \<Longrightarrow> K \<turnstile>* map (\<
            intro!: bang_sigil_kind
            simp add: case_prod_unfold comp_def)
 
+section {* Typing lemmas *}
+
+lemma promote_preservation_mapping_other_way:
+  assumes typing_x: "\<Xi>, K, \<Gamma> \<turnstile> x : TSum ts"
+    and distinct_fst_ts': "distinct (map fst ts')"
+    and fst_set_same: "fst ` set ts = fst ` set ts'"
+    and preservation_condition: "\<And>c t b. (c,t,b) \<in> set ts \<Longrightarrow> \<exists>b'. (c,t,b') \<in> set ts' \<and> (b' \<longrightarrow> b)"
+    and c_in_ts': "(c,t,b') \<in> set ts'"
+  obtains b
+  where "(c,t,b) \<in> set ts"
+    and "b' \<longrightarrow> b"
+proof -
+    have "c \<in> fst ` set ts"
+      using c_in_ts' fst_set_same by force
+    then obtain b
+      where "(c, t, b) \<in> set ts"
+        and "b' \<longrightarrow> b"
+      using c_in_ts' distinct_fst distinct_fst_ts' preservation_condition
+      by fastforce
+    then show thesis ..
+qed
 
 section {* Instantiation *}
 
