@@ -1490,34 +1490,160 @@ next
     then show ?thesis
       using r'_sub_r frame_w_w' by blast
   qed simp+
-next case u_sem_case_nm
-  note IH1 = this(2)
-  and  IH2 = this(5)
-  and rest = this(1,3-4,6-)
-  have HELP:
-  "\<forall> ts t. ([x\<leftarrow>map (\<lambda>(c, t). (c, instantiate \<tau>s t)) ts . fst x \<noteq> t]
-         = (map (\<lambda>(c, t). (c, instantiate \<tau>s t)) [x\<leftarrow>ts . fst x \<noteq> t]))"
-    by (clarsimp, induct_tac ts, auto  split: prod.split)
-  from rest show ?case
-    apply (cases e, simp_all)
-    apply (erule typing_caseE)
-    apply (frule u_v_matches_noalias)
-    apply (frule(2) u_v_matches_split, clarsimp)
-    apply (erule v_sem_caseE)
-     apply (force dest!: IH1 elim: upd_val_rel.cases)
-    apply (frule(6) IH1)
-    apply (clarsimp)
-    apply (frule(2) frame_noalias_u_v_matches)
-    apply (frule(1) frame_noalias_u_v_matches(2), blast)
-    apply (frule(2) u_v_matches_frame, blast)
-    sorry
-(*
-    apply (frule(1) sum_downcast_u_v)
-    apply (frule(5) IH2 [rotated -1])
-     apply (simp, rule, simp add: HELP[rule_format], blast,blast,blast,blast)
-    apply (clarsimp, auto intro!: exI intro: frame_let simp: Un_commute)
-  done
-*)
+
+next
+  case (u_sem_case_nm \<xi> \<gamma> \<sigma>a x \<sigma>a' tag va rs tag'' n m)
+  then show ?case
+  proof (cases e)
+    case (Case x' tag' m' n')
+
+    have x_is: "x = specialise \<tau>s x'"
+      and tag''_is: "tag'' = tag'"
+      and m_is: "m = specialise \<tau>s m'"
+      and n_is: "n = specialise \<tau>s n'"
+      using Case u_sem_case_nm.hyps(6)
+      by simp+
+    then have vsem_case: "\<xi>' , \<gamma>' \<turnstile> Case (specialise \<tau>s x') tag' (specialise \<tau>s m') (specialise \<tau>s n') \<Down> v'"
+      using u_sem_case_nm.prems(1) u_sem_case_nm.hyps(6) by simp
+
+    have "\<Xi>, K, \<Gamma> \<turnstile> Case x' tag' m' n' : \<tau>"
+      using Case u_sem_case_nm.prems
+      by simp
+    then obtain \<Gamma>1 \<Gamma>2 ts t
+      where split_\<Gamma>: "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+        and typing_x': "\<Xi>, K, \<Gamma>1 \<turnstile> x' : TSum ts"
+        and tag'_in_ts: "(tag', t, False) \<in> set ts"
+        and "\<Xi>, K, Some t # \<Gamma>2 \<turnstile> m' : \<tau>"
+        and typing_n': "\<Xi>, K, Some (TSum (tagged_list_update tag' (t, True) ts)) # \<Gamma>2 \<turnstile> n' : \<tau>"
+      by auto
+    then obtain r1 w1 r2 w2
+      where matches1: "\<Xi>, \<sigma>a \<turnstile> \<gamma> \<sim> \<gamma>' matches instantiate_ctx \<tau>s \<Gamma>1 \<langle>r1, w1\<rangle>"
+        and matches2: "\<Xi>, \<sigma>a \<turnstile> \<gamma> \<sim> \<gamma>' matches instantiate_ctx \<tau>s \<Gamma>2 \<langle>r2, w2\<rangle>"
+        and r_as_un: "r = r1 \<union> r2"
+        and w_as_un: "w = w1 \<union> w2"
+        and w1_w2_disjoint: "w1 \<inter> w2 = {}"
+      using u_sem_case_nm.prems(3,5) u_v_matches_split by blast
+    then have w1_r2_disjoint: "w1 \<inter> r2 = {}"
+      and w2_r1_disjoint: "w2 \<inter> r1 = {}"
+      using u_sem_case_nm.prems(5) u_v_matches_noalias
+      by blast+
+
+    obtain vx
+      where vsem_specialise_x': "\<xi>' , \<gamma>' \<turnstile> specialise \<tau>s x' \<Down> VSum tag vx"
+        and vsem_specialise_n': "\<xi>' , VSum tag vx # \<gamma>' \<turnstile> specialise \<tau>s n' \<Down> v'"
+      using vsem_case
+    proof (cases rule: v_sem.cases)
+      case (v_sem_case_m v)
+      then obtain r' w'
+        where "\<Xi>, \<sigma>a' \<turnstile> USum tag va rs \<sim> VSum tag' v : instantiate \<tau>s (TSum ts) \<langle>r', w'\<rangle>"
+        using u_sem_case_nm.hyps(2) u_sem_case_nm.prems x_is typing_x' matches1
+        by blast
+      then have "tag = tag'"
+        by auto
+      then show ?thesis
+        using u_sem_case_nm.hyps(3) tag''_is
+        by simp
+    next
+      case (v_sem_case_nm taga v)
+      moreover then have taga_is: "taga = tag"
+        using u_sem_case_nm.hyps(2) u_sem_case_nm.prems x_is v_sem_case_nm typing_x' matches1
+        by fastforce
+      moreover assume "\<And>v. \<lbrakk> \<xi>' , \<gamma>' \<turnstile> specialise \<tau>s x' \<Down> VSum tag v; \<xi>' , VSum tag v # \<gamma>' \<turnstile> specialise \<tau>s n' \<Down> v' \<rbrakk> \<Longrightarrow> thesis"
+      ultimately show ?thesis
+        by blast
+    qed
+    then obtain w1' r1'
+      where u_v_rel_sum_tag: "\<Xi>, \<sigma>a' \<turnstile> USum tag va rs \<sim> VSum tag vx : instantiate \<tau>s (TSum ts) \<langle>r1', w1'\<rangle>"
+        and r_sub1: "r1' \<subseteq> r1"
+        and frame1: "upd.frame \<sigma>a w1 \<sigma>a' w1'"
+      using u_sem_case_nm.hyps(2) u_sem_case_nm.prems x_is v_sem_case_nm typing_x' matches1
+      by blast
+
+
+    have "\<Xi>, \<sigma>a' \<turnstile> USum tag va rs # \<gamma> \<sim> VSum tag vx # \<gamma>' matches instantiate_ctx \<tau>s (Some (TSum (tagged_list_update tag' (t, True) ts)) # \<Gamma>2) \<langle>r1' \<union> r2, w1' \<union> w2 \<rangle>"
+      using frame1 frame_noalias_u_v_matches matches2 w1_w2_disjoint w1_r2_disjoint r_sub1 w2_r1_disjoint
+    proof (simp add: r_as_un w_as_un, intro u_v_matches_some)
+      obtain t' k
+        where rs_is: "rs = (map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts))"
+          and u_v_rel_va_vx: "\<Xi>, \<sigma>a' \<turnstile> va \<sim> vx : t' \<langle>r1', w1'\<rangle>"
+          and tag_in_instantiated_ts: "(tag, t', False) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts)"
+          and distinct_fst_ts: "distinct (map fst ts)"
+          and wellformed_instantiated_ts: "[] \<turnstile>* map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts) :\<kappa>  k"
+        using u_v_rel_sum_tag
+        by auto
+
+      obtain i
+        where updated_ts_is: "tagged_list_update tag' (t, True) ts = ts[i := (tag', t, True)]"
+          and ts_at_i: "ts ! i = (tag', t, False)"
+          and inst_ts_at_i: "(map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts) ! i = (tag', instantiate \<tau>s t, False)"
+        using tag'_in_ts distinct_fst_ts tagged_list_update_distinct
+        by (force simp add: in_set_conv_nth)
+
+      show "\<Xi>, \<sigma>a' \<turnstile> USum tag va rs \<sim> VSum tag vx : TSum (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) (tagged_list_update tag' (t, True) ts)) \<langle>r1', w1'\<rangle>"
+      proof (intro u_v_sum)
+        show "\<Xi>, \<sigma>a' \<turnstile> va \<sim> vx : t' \<langle>r1', w1'\<rangle>"
+          using u_v_rel_va_vx .
+      next
+        obtain j
+          where inst_ts_at_j: "(map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts) ! j = (tag, t', False)"
+            and j_bounded_len_ts: "j < length ts"
+          using tag_in_instantiated_ts
+          by (metis (no_types, lifting) in_set_conv_nth length_map)
+
+        have i_neq_j: "i \<noteq> j"
+          using inst_ts_at_i inst_ts_at_j tag''_is u_sem_case_nm.hyps(3)
+          by auto
+
+        show "(tag, t', False) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) (tagged_list_update tag' (t, True) ts))"
+          using i_neq_j j_bounded_len_ts inst_ts_at_j
+          by (simp add: updated_ts_is,
+              metis (no_types, lifting) length_list_update list_update_id list_update_swap
+              rev_image_eqI set_update_memI)
+      next
+        have "distinct (map fst (tagged_list_update tag' (t, True) ts))"
+          by (metis distinct_fst_ts tagged_list_update_preserves_tags)
+        then show "distinct (map fst (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) (tagged_list_update tag' (t, True) ts)))"
+          by simp
+      next
+        have wellformed_ignores_taken: "(instantiate \<tau>s \<circ> (fst \<circ> snd)) (tag', t, False) = (instantiate \<tau>s \<circ> (fst \<circ> snd)) (tag', t, True)"
+          by auto
+
+        have "[] \<turnstile>* map (instantiate \<tau>s \<circ> (fst \<circ> snd)) ts :\<kappa>  k"
+          using wellformed_instantiated_ts
+          by simp
+        then have "[] \<turnstile>* map (instantiate \<tau>s \<circ> (fst \<circ> snd)) (tagged_list_update tag' (t, True) ts) :\<kappa>  k"
+          by (metis (no_types, lifting) wellformed_ignores_taken list_update_id map_update ts_at_i updated_ts_is)
+        then show "[] \<turnstile>* map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) (tagged_list_update tag' (t, True) ts)) wellformed"
+          by auto
+      next
+        have "map ((\<lambda>(cs, t, b). (cs, type_repr t)) \<circ> (\<lambda>(cs, t, b). (cs, instantiate \<tau>s t, b))) ts
+            = map ((\<lambda>(cs, t, b). (cs, type_repr t)) \<circ> (\<lambda>(cs, t, b). (cs, instantiate \<tau>s t, b))) ts [i := ((\<lambda>(cs, t, b). (cs, type_repr t)) \<circ> (\<lambda>(cs, t, b). (cs, instantiate \<tau>s t, b))) (tag', t, False)]"
+          by (metis (no_types) list_update_id map_update ts_at_i)
+        then have "map ((\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) \<circ> (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) ts 
+                  = map ((\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) \<circ> (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) (tagged_list_update tag' (t, True) ts)"
+          by (simp add: map_update updated_ts_is)
+        then show "rs = map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) (tagged_list_update tag' (t, True) ts))"
+          using rs_is by simp
+      qed
+    next
+      show "\<Xi>, \<sigma>a' \<turnstile> \<gamma> \<sim> \<gamma>' matches instantiate_ctx \<tau>s \<Gamma>2 \<langle>r2, w2\<rangle>"
+        using u_sem_case_nm.prems(5) frame1 matches2 r_as_un 
+          u_v_matches_frame u_v_matches_noalias
+          w1_w2_disjoint w_as_un
+        by blast
+    qed fast+
+    then obtain r12' w12'
+      where "\<Xi>, \<sigma>' \<turnstile> v \<sim> v' : instantiate \<tau>s \<tau> \<langle>r12', w12'\<rangle>"
+        and r_sub12: "r12' \<subseteq> r1' \<union> r2"
+        and frame12: "upd.frame \<sigma>a' (w1' \<union> w2) \<sigma>' w12'"
+      using u_sem_case_nm.hyps(5) n_is vsem_specialise_n' typing_n' u_sem_case_nm.prems
+      by blast
+    moreover have "upd.frame \<sigma>a w \<sigma>' w12'"
+      by (metis upd.frame_let w_as_un frame1 frame12 inf_sup_aci(5))
+    ultimately show ?thesis
+      using r_as_un r_sub1 by auto
+  qed simp+
+
 next case u_sem_case_m 
   note IH1 = this(2)
   and  IH2 = this(4)
