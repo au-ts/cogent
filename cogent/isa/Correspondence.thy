@@ -1438,12 +1438,58 @@ next case u_sem_tuple
     apply (frule(4) frame_noalias_2_uv)
     apply (blast intro!: upd_val_rel_upd_val_rel_record.intros)
   done
-next case u_sem_esac      then show ?case
-    sorry
-  (*
-by ( cases e, simp_all
-                                             , fastforce elim!: u_v_sumE)
-*)
+next
+  case (u_sem_esac \<xi> \<gamma> \<sigma> t \<sigma>' tagu v tsu')
+  then show ?case
+  proof (cases e)
+    case (Esac x1)
+
+    have t_is: "t = specialise \<tau>s x1"
+      using u_sem_esac.hyps(3) Esac by simp
+
+    obtain tag
+      where v_sem_specialise_x1: "\<xi>' , \<gamma>' \<turnstile> specialise \<tau>s x1 \<Down> VSum tag v'"
+      using u_sem_esac.prems(1) Esac by auto
+
+    obtain tsty tag'
+      where typing_x1: "\<Xi>, K, \<Gamma> \<turnstile> x1 : TSum tsty"
+        and "[(tag', \<tau>, False)] = filter (HOL.Not \<circ> snd \<circ> snd) tsty"
+      using typing_esacE u_sem_esac.prems(2) Esac
+      by auto
+    then have "set [(tag', \<tau>, False)] = set (filter (HOL.Not \<circ> snd \<circ> snd) tsty)"
+      by presburger
+    then have tag'_last_case: "{(tag', \<tau>, False)} = {(c, t, b) \<in> set tsty. \<not> b}"
+      by force
+
+    obtain r' w'
+      where "\<Xi>, \<sigma>' \<turnstile> USum tagu v tsu' \<sim> VSum tag v' : instantiate \<tau>s (TSum tsty) \<langle>r', w'\<rangle>"
+        and r'_sub_r: "r' \<subseteq> r"
+        and frame_w_w': "upd.frame \<sigma> w \<sigma>' w'"
+      using u_sem_esac.hyps(2) u_sem_esac.prems t_is v_sem_specialise_x1 typing_x1
+      by blast
+    then obtain ta k
+      where tagu_is: "tagu = tag"
+        and tsu'_is: "tsu' = map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) tsty)"
+        and u_v_sem_v_v'_ta: "\<Xi>, \<sigma>' \<turnstile> v \<sim> v' : ta \<langle>r', w'\<rangle>"
+        and "(tag, ta, False) \<in> (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ` set tsty"
+        and "distinct (map fst tsty)"
+        and "[] \<turnstile>* map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) tsty) :\<kappa>  k"
+      by auto
+    then obtain t''
+      where ta_is: "ta = instantiate \<tau>s t''"
+        and "(tag, t'', False) \<in> set tsty"
+      by fast
+    moreover have "\<And>c t. (c, t, False) \<in> set tsty \<Longrightarrow> c = tag' \<and> t = \<tau>"
+      using tag'_last_case
+      by (metis (no_types, lifting) mem_Collect_eq prod.simps(1) singletonD split_conv)
+    ultimately have tag_is: "tag = tag'"
+      and t''_Is: "t'' = \<tau>"
+      by blast+
+    then have " \<Xi>, \<sigma>' \<turnstile> v \<sim> v' : instantiate \<tau>s \<tau> \<langle>r', w'\<rangle>"
+      using u_v_sem_v_v'_ta ta_is by simp
+    then show ?thesis
+      using r'_sub_r frame_w_w' by blast
+  qed simp+
 next case u_sem_case_nm
   note IH1 = this(2)
   and  IH2 = this(5)
