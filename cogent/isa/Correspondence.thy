@@ -1312,20 +1312,57 @@ next case u_sem_abs_app
     apply (frule(6) IH1, clarsimp)
     apply (erule upd_val_rel.cases,simp_all)
   done
-next case u_sem_con
-  note IH   = this(2)
-  and  rest = this(1,3-)
-  from rest show ?case
-    apply (cases e, simp_all)
-    apply (clarsimp elim!: typing_conE)
-    apply (frule(5) IH,clarsimp)
-    apply (clarsimp)
-    apply (auto dest: imageI [where f = "\<lambda>(c, t). (c, instantiate \<tau>s t)"]
-                intro!: exI
-                        upd_val_rel_upd_val_rel_record.intros
-                        substitutivity(2) [where ts = "map snd ls" for ls, simplified]
-                 simp: upd.list_all2_helper)
-    sorry
+next
+  case (u_sem_con \<xi> \<gamma> \<sigma> x' \<sigma>' x'' ts' tag')
+  then show ?case
+  proof (cases e)
+  next
+    case (Con ts tag x)
+
+    have ts'_is: "ts' = map (\<lambda>(c, t). (c, instantiate \<tau>s t)) ts"
+      and tag'_is: "tag' = tag"
+      and x'_is: "x' = specialise \<tau>s x"
+      using u_sem_con.hyps(3) Con by simp+
+
+    obtain xa
+      where v'_is: "v' = VSum tag xa"
+        and vsem_specialised_x: "\<xi>' , \<gamma>' \<turnstile> specialise \<tau>s x \<Down> xa"
+      using u_sem_con.prems(1) Con by auto
+
+    obtain t k
+      where \<tau>_is: "\<tau> = TSum (map (\<lambda>(c, t). (c, t, c \<noteq> tag)) ts)"
+        and typing_x: "\<Xi>, K, \<Gamma> \<turnstile> x : t"
+        and tag_in_ts: "(tag, t) \<in> set ts"
+        and distinct_fst_ts: "distinct (map fst ts)"
+        and ts_wellformed: "K \<turnstile>* map snd ts :\<kappa>  k"
+      using typing_conE u_sem_con.prems(2) Con
+      by auto
+
+    obtain r' w'
+      where "\<Xi>, \<sigma>' \<turnstile> x'' \<sim> xa : instantiate \<tau>s t \<langle>r', w'\<rangle>"
+        and r'_sub_r: "r' \<subseteq> r"
+        and frame_w_w': "upd.frame \<sigma> w \<sigma>' w'"
+      using u_sem_con.hyps(2) x'_is vsem_specialised_x typing_x u_sem_con.prems
+      by blast
+    then have "\<Xi>, \<sigma>' \<turnstile> USum tag x'' (map (\<lambda>(n, t). (n, type_repr t)) ts') \<sim> VSum tag xa : TSum (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) \<circ> (\<lambda>(c, t). (c, t, c \<noteq> tag))) ts) \<langle>r', w'\<rangle>"
+      using tag_in_ts ts'_is
+    proof (intro upd_val_rel_upd_val_rel_record.u_v_sum)
+      have "(fst \<circ> ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) \<circ> (\<lambda>(c, t). (c, t, c \<noteq> tag)))) = fst"
+        by force
+      then show "distinct (map fst (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) \<circ> (\<lambda>(c, t). (c, t, c \<noteq> tag))) ts))"
+        using distinct_fst_ts by simp
+    next
+      have "(fst \<circ> snd \<circ> (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) \<circ> (\<lambda>(c, t). (c, t, c \<noteq> tag))) = (instantiate \<tau>s \<circ> snd)"
+        by force
+      moreover have "[] \<turnstile>* map (instantiate \<tau>s \<circ> snd) ts :\<kappa>  k"
+        using substitutivity(2) u_sem_con.prems(3) ts_wellformed
+        by fastforce
+      ultimately show "[] \<turnstile>* map (fst \<circ> snd) (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) \<circ> (\<lambda>(c, t). (c, t, c \<noteq> tag))) ts) wellformed"
+        by (force simp add: o_assoc)
+    qed force+
+    then show ?thesis
+      using r'_sub_r frame_w_w' v'_is \<tau>_is tag'_is by auto
+  qed simp+
 next case u_sem_let
   note IH1  = this(2)
   and  IH2  = this(4)
@@ -1427,10 +1464,10 @@ next case u_sem_case_nm
     apply (frule(2) frame_noalias_u_v_matches)
     apply (frule(1) frame_noalias_u_v_matches(2), blast)
     apply (frule(2) u_v_matches_frame, blast)
-    apply (frule(1) sum_downcast_u_v [rotated -1])
-    apply (frule(5) IH2 [rotated -1])
     sorry
 (*
+    apply (frule(1) sum_downcast_u_v)
+    apply (frule(5) IH2 [rotated -1])
      apply (simp, rule, simp add: HELP[rule_format], blast,blast,blast,blast)
     apply (clarsimp, auto intro!: exI intro: frame_let simp: Un_commute)
   done
