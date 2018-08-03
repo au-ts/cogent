@@ -1199,18 +1199,70 @@ next case u_sem_afun      then show ?case apply (cases e, simp_all)
                                           apply (fastforce elim!:  typing_afunE v_sem_afunE
                                                            intro!: u_v_afun_instantiate upd.frame_id
                                                            dest:   u_v_matches_proj_consumed).
-next case u_sem_promote   then show ?case
-    sorry
-(*
-by ( cases e, simp_all
-                                             , fastforce elim:   u_v_sumE typing_promE
-                                                         intro!: u_v_sum
-                                                         dest:   u_sem_promote(2)
-                                                         intro:  substitutivity(2)
-                                                                  [ where ts = "map snd ls" for ls
-                                                                  , simplified]
-                                                         simp:   upd.list_all2_helper)
-*)
+next
+  case (u_sem_promote \<xi> \<gamma> \<sigma> x \<sigma>' c p rs ts')
+  then show ?case
+  proof (cases e)
+  next
+    case (Promote ts'' e'')
+
+    have ts'_is: "ts' = map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts''"
+      and x_is: "x = specialise \<tau>s e''"
+      using Promote u_sem_promote.hyps(3) by simp+
+
+    obtain ts k
+      where typing_prom_e'': "\<Xi>, K, \<Gamma> \<turnstile> Promote ts'' e'' : TSum ts''"
+        and \<tau>_is: "\<tau> = TSum ts''"
+        and typing_e'': "\<Xi>, K, \<Gamma> \<turnstile> e'' : TSum ts"
+        and fst_set_same_ts_ts'': "fst ` set ts = fst ` set ts''"
+        and distinct_fst_ts'': "distinct (map fst ts'')"
+        and preservation_condition: "\<forall>c t b. (c, t, b) \<in> set ts \<longrightarrow> (\<exists>b'. (b' \<longrightarrow> b) \<and> (c, t, b') \<in> set ts'')"
+        and "K \<turnstile>* map (fst \<circ> snd) ts'' :\<kappa> k"
+      using Promote typing_promE u_sem_promote.prems(2)
+      by blast
+
+    have "\<xi>' , \<gamma>' \<turnstile> specialise \<tau>s e'' \<Down> v'"
+      using u_sem_promote.prems(1) Promote by auto
+    then obtain r' w'
+      where "\<Xi>, \<sigma>' \<turnstile> USum c p rs \<sim> v' : instantiate \<tau>s (TSum ts) \<langle>r', w'\<rangle>"
+        and r'_sub_r: "r' \<subseteq> r"
+        and frame_w_w': "upd.frame \<sigma> w \<sigma>' w'"
+      using u_sem_promote.hyps(2) u_sem_promote.prems x_is typing_e''
+      by metis
+    then obtain a' t k
+      where rs_is: "rs = map ((\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) \<circ> (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) ts"
+        and v'_is: "v' = VSum c a'"
+        and u_v_sem_p: "\<Xi>, \<sigma>' \<turnstile> p \<sim> a' : t \<langle>r', w'\<rangle>"
+        and c_in_instantiated_ts: "(c, t, False) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts)"
+        and distinct_fst_instantiate_ts: "distinct (map fst (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts))"
+        and wellformed_instantiate_ts: "[] \<turnstile>* map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts) :\<kappa>  k"
+      by auto
+    then have "\<Xi>, \<sigma>' \<turnstile> USum c p (map (\<lambda>(n, t, _). (n, type_repr t)) ts') \<sim> VSum c a' : TSum (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts'') \<langle>r', w'\<rangle>"
+      using distinct_fst_instantiate_ts distinct_fst_ts'' ts'_is
+    proof (intro upd_val_rel_upd_val_rel_record.u_v_sum)
+      from c_in_instantiated_ts
+      obtain t''
+        where t_is: "t = instantiate \<tau>s t''"
+          and "(c, t'', False) \<in> set ts"
+        by auto
+      then have "(c, t'', False) \<in> set ts''"
+        using preservation_condition by (metis (full_types))
+      then show "(c, t, False) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts'')"
+        using t_is by force
+    next
+      have "\<And>tag t'' b. (tag, t'', b) \<in> set ts'' \<Longrightarrow> \<exists>b'. (tag, t'', b') \<in> set ts"
+        using promote_preservation_mapping_other_way[OF typing_e'' distinct_fst_ts''] 
+          fst_set_same_ts_ts'' preservation_condition 
+        by metis
+      then have "[] \<turnstile>* map (instantiate \<tau>s \<circ> (fst \<circ> snd)) ts'' :\<kappa>  k"
+        using wellformed_instantiate_ts[simplified kinding_all_set, simplified]
+        by (fastforce simp add: kinding_all_set)
+      then show "[] \<turnstile>* map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts'') wellformed"
+        by auto
+    qed simp+
+    then show ?thesis
+      using \<tau>_is v'_is r'_sub_r frame_w_w' by auto
+  qed simp+
 next case u_sem_app
   note IH1  = this(2)
   and  IH2  = this(4)
