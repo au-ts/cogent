@@ -619,23 +619,11 @@ next
 
   from u_sem_case_nm.prems(1)
   show ?case
-  proof (rule ttyping_caseE)
-    fix \<Gamma>' tt
-    assume "\<Gamma> = (tt, \<Gamma>')"
-      and "\<not> composite_anormal_expr (Case x t m n)"
-    then show ?thesis
-      unfolding composite_anormal_expr_def
-      by simp
-  next
-    fix ijs t\<Gamma>1 t\<Gamma>2 ta t\<Gamma>3 ts t\<Gamma>4
-    assume \<Gamma>_split: "ttsplit [] \<Gamma> ijs [] t\<Gamma>1 [] t\<Gamma>2"
-      and \<Gamma>2_split: "ttsplit_triv t\<Gamma>2 [Some ta] t\<Gamma>3 [Some (TSum (tagged_list_update t (ta, True) ts))] t\<Gamma>4"
-      and ttyping_x: "\<Xi>, [], t\<Gamma>1 T\<turnstile> x : TSum ts"
-      and ta_nontaken_in_ts: "(t, ta, False) \<in> set ts"
-      and "\<Xi>, [], t\<Gamma>3 T\<turnstile> m : \<tau>"
-      and ttyping_n: "\<Xi>, [], t\<Gamma>4 T\<turnstile> n : \<tau>"
+  proof (cases rule: ttyping.cases)
+    case (ttyping_case ijs t\<Gamma>1 t\<Gamma>2 ta t\<Gamma>3 ts t\<Gamma>4)
+
     moreover have "[] \<turnstile> snd \<Gamma> \<leadsto> snd t\<Gamma>1 | snd t\<Gamma>2"
-      using \<Gamma>_split ttsplit_imp_split by fastforce
+      using ttyping_case ttsplit_imp_split by fastforce
     moreover then obtain r1 w1 r2 w2
       where matches1: "\<Xi>, \<sigma> \<turnstile> \<gamma> matches snd t\<Gamma>1 \<langle>r1, w1\<rangle>"
         and matches2: "\<Xi>, \<sigma> \<turnstile> \<gamma> matches snd t\<Gamma>2 \<langle>r2, w2\<rangle>"
@@ -652,15 +640,15 @@ next
        where "fst t\<Gamma>2 = TyTrSplit ijs [Some ta] \<Gamma>1a [Some (TSum (tagged_list_update t (ta, True) ts))] \<Gamma>2a"
        and "t\<Gamma>3 = (\<Gamma>1a, [Some ta] @ snd t\<Gamma>2)"
        and t\<Gamma>4_is: "t\<Gamma>4 = (\<Gamma>2a, [Some (TSum (tagged_list_update t (ta, True) ts))] @ snd t\<Gamma>2)"
-      using ttsplit_triv_def \<Gamma>2_split by blast
+      using ttsplit_triv_def ttyping_case by blast
     ultimately show "\<Xi>, \<xi>, \<gamma>, [], \<Gamma>, \<tau> T\<turnstile> (\<sigma>, Case x t m n) \<Down>! (\<sigma>', v)"
       using u_sem_case_nm.hyps
     proof (intro u_tt_sem_pres_case_nm)
       show "\<Xi>, \<xi>, \<gamma>, [], t\<Gamma>1, TSum ts T\<turnstile> (\<sigma>, x) \<Down>! (\<sigma>'', USum t' v' rs)"
-        using u_sem_case_nm.hyps(2) matches1 u_sem_case_nm.prems ttyping_x by simp
+        using u_sem_case_nm.hyps(2) matches1 u_sem_case_nm.prems ttyping_case by simp
     next
       have "\<Xi>, [], snd t\<Gamma>1 \<turnstile> x : TSum ts"
-        by (simp add: ttyping_imp_typing ttyping_x)
+        by (simp add: ttyping_imp_typing ttyping_case)
       then obtain r1' w1'
         where usum_rs_under_\<sigma>'': "\<Xi>, \<sigma>'' \<turnstile> USum t' v' rs :u TSum ts \<langle>r1', w1'\<rangle>"
           and r1'_sub: "r1' \<subseteq> r1"
@@ -669,13 +657,13 @@ next
         by blast
 
       show "\<Xi>, \<xi>, USum t' v' rs # \<gamma>, [], t\<Gamma>4, \<tau> T\<turnstile> (\<sigma>'', n) \<Down>! (\<sigma>', v)"
-        using u_sem_case_nm.prems ttyping_n
+        using u_sem_case_nm.prems ttyping_case
       proof (intro u_sem_case_nm.hyps(5))
         show "\<Xi>, \<sigma>'' \<turnstile> USum t' v' rs # \<gamma> matches snd t\<Gamma>4 \<langle>r1' \<union> r2, w1' \<union> w2\<rangle>"
           using frame1 frame_noalias_matches_ptrs matches2  w1_2_disjoint w1_r2_noalias
         proof (simp add: t\<Gamma>4_is, intro matches_ptrs_some)
           show "\<Xi>, \<sigma>'' \<turnstile> USum t' v' rs :u TSum (tagged_list_update t (ta, True) ts) \<langle>r1', w1'\<rangle>"
-            by (simp add: sum_downcast_u ta_nontaken_in_ts u_sem_case_nm.hyps(3) usum_rs_under_\<sigma>'')
+            by (simp add: sum_downcast_u ttyping_case u_sem_case_nm.hyps(3) usum_rs_under_\<sigma>'')
         next
           show "\<Xi>, \<sigma>'' \<turnstile> \<gamma> matches snd t\<Gamma>2 \<langle>r2, w2\<rangle>"
             using frame1 matches2 matches_ptrs_frame w1_2_disjoint w1_r2_noalias by blast
@@ -685,7 +673,7 @@ next
         qed blast+
       qed simp+
     qed simp+
-  qed
+  qed (simp add: composite_anormal_expr_def)
 next
   case (u_sem_take \<xi> \<gamma> \<sigma> x \<sigma>'' p r' fs f e)
 
@@ -727,25 +715,18 @@ next
 
     show "\<Xi>, \<xi>, \<gamma>, [], \<Gamma>, \<tau> T\<turnstile> (\<sigma>, Take x f e) \<Down>! (\<sigma>', v)"
       using uptr_p_under_\<sigma>''
-    proof (rule u_t_p_recE)
-      fix fsa w1''
-      assume w1'_is: "w1' = insert p w1''"
-        and ut_all_fs: "\<Xi>, \<sigma>'' \<turnstile>* fsa :ur ts \<langle>r1', w1''\<rangle>"
-        and \<sigma>''_at_p: "\<sigma>'' p = Some (URecord fsa)"
-        and r'_is: "r' = RRecord (map (\<lambda>(a, b). type_repr a) ts)"
-        and s_writable: "s = Writable"
-        and p_nin_w1'': "p \<notin> w1''"
-        and p_nin_r1': "p \<notin> r1'"
+    proof (cases)
+      case (u_t_p_rec_w fsa w1'')
 
       have fsa_is: "fsa = fs"
-        using \<sigma>''_at_p u_sem_take.hyps by auto
+        using u_t_p_rec_w u_sem_take.hyps by auto
       then obtain rf wf r1a w1a
         where ut_fs_at_f: "\<Xi>, \<sigma>'' \<turnstile> fst (fs ! f) :u t \<langle>rf, wf\<rangle>"
           and ut_fs_taken_f: "\<Xi>, \<sigma>'' \<turnstile>* fs :ur ts[f := (t, True)] \<langle>r1a, w1a\<rangle>"
           and r1'_is: "r1' = rf \<union> r1a"
           and w1''_is: "w1'' = wf \<union> w1a"
           and "wf \<inter> w1a = {}"
-        using uval_typing_record_take[simplified] ut_all_fs ttyping_take
+        using uval_typing_record_take[simplified] u_t_p_rec_w ttyping_take
         by blast
 
       have disjointness_lemmas:
@@ -758,11 +739,11 @@ next
         "w2 \<inter> (rf \<union> r1a) = {}"
         using frame_noalias_matches_ptrs(1)[OF frame1 matches2 w1_w2_disjoint]
           frame_noalias_matches_ptrs(2)[OF frame1 matches2 w1_r2_noalias]
-          r1'_is  w1''_is w1'_is
+          u_t_p_rec_w r1'_is  w1''_is
               apply (force+)[2]
-        using ut_all_fs uval_typing_pointers_noalias(2) r1'_is  w1''_is w1'_is
+        using u_t_p_rec_w uval_typing_pointers_noalias(2) r1'_is  w1''_is
             apply metis
-        using p_nin_w1'' w1''_is p_nin_r1' r1'_is
+        using u_t_p_rec_w u_t_p_rec_w w1''_is r1'_is
            apply (blast+)[2]
         using \<open>wf \<inter> w1a = {}\<close>
          apply assumption
@@ -771,10 +752,10 @@ next
         done
 
       show "\<Xi>, \<xi>, \<gamma>, [], \<Gamma>, \<tau> T\<turnstile> (\<sigma>, Take x f e) \<Down>! (\<sigma>', v)"
-        using \<sigma>''_at_p fsa_is ttyping_take s_writable
+        using u_t_p_rec_w fsa_is ttyping_take
       proof (intro u_tt_sem_pres_take)
         show "\<Xi>, \<xi>, \<gamma>, [], t\<Gamma>3, TRecord ts Writable T\<turnstile> (\<sigma>, x) \<Down>! (\<sigma>'', UPtr p r')"
-          using u_sem_take.hyps(2) u_sem_take.prems matches1 snd_t\<Gamma>3_is s_writable ttyping_take
+          using u_t_p_rec_w u_sem_take.hyps(2) u_sem_take.prems matches1 snd_t\<Gamma>3_is ttyping_take
           by simp
       next
         show "\<Xi>, \<xi>, fst (fs ! f) # UPtr p r' # \<gamma>, [], t\<Gamma>4, \<tau> T\<turnstile> (\<sigma>'', e) \<Down>! (\<sigma>', v)"
@@ -790,11 +771,11 @@ next
               have "\<Xi>, \<sigma>'' \<turnstile>* fs :ur ts[f := (t, taken)] \<langle>r1a, w1a\<rangle>"
                 by (simp add: ut_fs_taken_f True)
               moreover have "r' = RRecord (map (\<lambda>(a, b). type_repr a) (ts[f := (t, taken)]))"
-                using r'_is ttyping_take
+                using u_t_p_rec_w ttyping_take
                 by (metis (no_types, lifting) case_prod_conv list_update_id map_update)
               ultimately show "\<Xi>, \<sigma>'' \<turnstile> UPtr p r' :u TRecord (ts[f := (t, taken)]) s \<langle>r1a, insert p w1a\<rangle>"
-                using \<sigma>''_at_p fsa_is ut_fs_taken_f p_nin_r1' p_nin_w1'' r1'_is w1''_is
-                by (simp add: s_writable, intro u_t_p_rec_w') fastforce+
+                using u_t_p_rec_w fsa_is ut_fs_taken_f r1'_is w1''_is
+                by (simp add: u_t_p_rec_w(2), intro u_t_p_rec_w') fastforce+
             qed fast+
           qed simp+
         next
@@ -816,7 +797,7 @@ next
               have "ts[f := (t, False)] = ts"
                 by (simp add: list_helper ttyping_take)
               thus "\<Xi>, \<sigma>'' \<turnstile> UPtr p r' :u TRecord (ts[f := (t, taken)]) s \<langle>rf \<union> r1a, insert p w1a\<rangle>"
-                using wf_empty r1'_is uptr_p_under_\<sigma>'' w1''_is w1'_is False by auto
+                using u_t_p_rec_w wf_empty r1'_is uptr_p_under_\<sigma>'' w1''_is False by auto
             qed fast+
           qed simp+
         qed
