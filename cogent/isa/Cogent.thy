@@ -890,6 +890,18 @@ and     "set us \<subseteq> set ts"
 shows   "K \<turnstile>* us :\<kappa> k"
 using assms by (auto simp add: kinding_all_set)
 
+lemma kinding_all_list_all:
+  shows "(K \<turnstile>* ts :\<kappa> k) = list_all (\<lambda>t. K \<turnstile> t :\<kappa> k) ts"
+proof (induct ts)
+  case Nil
+  then show ?case
+    by (simp add: kind_all_empty)
+next
+  case (Cons a ts)
+  then show ?case
+    using kind_all_cons by auto
+qed
+
 lemma kinding_record_wellformed:
 assumes "K \<turnstile>* ts :\<kappa>r k"
 and     "(a,b) \<in> set ts" 
