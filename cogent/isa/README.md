@@ -11,7 +11,7 @@ file                                    depends on                    status
 ├── AssocLookup.thy                                                   [broken]
 ├── Cogent.thy                                                        [good]
 ├── CogentHelper.thy                    (TypeTrackingSemantics)       [broken]
-├── Correspondence.thy                  (UpdateSemantics)             [broken]
+├── Correspondence.thy                  (UpdateSemantics)             [good]
 ├── Mono.thy                            (ValueSemantics)              [good]
 ├── Mono_Tac.thy                        (Mono,AssocLookup)            [broken]
 ├── ProofTrace.thy                                                    [broken]

@@ -205,6 +205,32 @@ lemma tagged_list_update_map_over2:
   shows "map f (tagged_list_update tag b' xs) = tagged_list_update tag (g b') (map f xs)"
   using assms by (induct xs, clarsimp+)
 
+lemma tagged_list_update_map_over_indistinguishable:
+  assumes xs_at_i: "xs ! i = (tag, b)"
+    and i_in_bounds: "i < length xs"
+    and distinct_fst: "distinct (map fst xs)"
+    and f_maps_b_same: "f b = f b'"
+  shows "map (f \<circ> snd) (tagged_list_update tag b' xs) = (map (f \<circ> snd) xs)[i := (f b')]"
+  using assms
+proof (induct xs arbitrary: i)
+  case (Cons x xs)
+  then show ?case
+  proof (cases i)
+    case (Suc j)
+    then show ?thesis
+    proof (cases x)
+      case (Pair tag' q)
+      have "tag' \<noteq> tag"
+        using Cons Suc Pair
+        using nth_mem prod_in_set(1) by fastforce
+      then show ?thesis
+        using Cons Suc Pair
+        by clarsimp
+    qed
+  qed simp
+qed simp
+
+
 lemma tagged_list_update_preserves_tags[simp]:
   shows "map fst (tagged_list_update tag b' xs) = map fst xs"
   by (induct xs, clarsimp+)
@@ -214,8 +240,16 @@ lemma tagged_list_update_different_tag_preserves_values1[simp]:
   by (induct xs arbitrary: i, (fastforce simp add: nth_Cons')+)
 
 lemma tagged_list_update_different_tag_preserves_values2:
-  "\<lbrakk> (tag, b) \<in> set xs; tag \<noteq> tag' \<rbrakk> \<Longrightarrow> (tag, b) \<in> set (tagged_list_update tag' b' xs)"
-  by (induct xs, (fastforce simp add: nth_Cons')+)
+  "tag \<noteq> tag' \<Longrightarrow> (tag, b) \<in> set xs \<longleftrightarrow> (tag, b) \<in> set (tagged_list_update tag' b' xs)"
+proof (induct xs)
+  case (Cons a xs)
+  then show ?case
+  proof (cases "a = (tag,b)")
+    case False
+    then show ?thesis
+      by (clarsimp, metis Cons.hyps Cons.prems surj_pair)
+  qed (simp add: Cons.prems)
+qed simp+
 
 lemma tagged_list_update_distinct:
   assumes "distinct (map fst xs)"
@@ -882,6 +916,18 @@ and     "set us \<subseteq> set ts"
 shows   "K \<turnstile>* us :\<kappa> k"
 using assms by (auto simp add: kinding_all_set)
 
+lemma kinding_all_list_all:
+  shows "(K \<turnstile>* ts :\<kappa> k) = list_all (\<lambda>t. K \<turnstile> t :\<kappa> k) ts"
+proof (induct ts)
+  case Nil
+  then show ?case
+    by (simp add: kind_all_empty)
+next
+  case (Cons a ts)
+  then show ?case
+    using kind_all_cons by auto
+qed
+
 lemma kinding_record_wellformed:
 assumes "K \<turnstile>* ts :\<kappa>r k"
 and     "(a,b) \<in> set ts" 
@@ -972,6 +1018,27 @@ and   "K \<turnstile>* fs :\<kappa>r k \<Longrightarrow> K \<turnstile>* map (\<
            intro!: bang_sigil_kind
            simp add: case_prod_unfold comp_def)
 
+section {* Typing lemmas *}
+
+lemma promote_preservation_mapping_other_way:
+  assumes typing_x: "\<Xi>, K, \<Gamma> \<turnstile> x : TSum ts"
+    and distinct_fst_ts': "distinct (map fst ts')"
+    and fst_set_same: "fst ` set ts = fst ` set ts'"
+    and preservation_condition: "\<And>c t b. (c,t,b) \<in> set ts \<Longrightarrow> \<exists>b'. (c,t,b') \<in> set ts' \<and> (b' \<longrightarrow> b)"
+    and c_in_ts': "(c,t,b') \<in> set ts'"
+  obtains b
+  where "(c,t,b) \<in> set ts"
+    and "b' \<longrightarrow> b"
+proof -
+    have "c \<in> fst ` set ts"
+      using c_in_ts' fst_set_same by force
+    then obtain b
+      where "(c, t, b) \<in> set ts"
+        and "b' \<longrightarrow> b"
+      using c_in_ts' distinct_fst distinct_fst_ts' preservation_condition
+      by fastforce
+    then show thesis ..
+qed
 
 section {* Instantiation *}
 

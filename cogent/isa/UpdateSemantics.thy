@@ -1192,8 +1192,8 @@ proof (elim u_t_sumE, clarsimp)
     using tag_neq_tag' tag'_in_ts
   proof (intro u_t_sum)
     show "(tag, t, False) \<in> set (tagged_list_update tag' (\<tau>, True) ts)"
-      using tag_in_ts
-      by (simp add: tag_neq_tag' tagged_list_update_different_tag_preserves_values2)
+      using tag_neq_tag' tag_in_ts tagged_list_update_different_tag_preserves_values2
+      by metis
   next
     obtain i
       where "ts ! i = (tag', \<tau> , False)"
