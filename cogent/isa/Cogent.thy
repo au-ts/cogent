@@ -205,6 +205,32 @@ lemma tagged_list_update_map_over2:
   shows "map f (tagged_list_update tag b' xs) = tagged_list_update tag (g b') (map f xs)"
   using assms by (induct xs, clarsimp+)
 
+lemma tagged_list_update_map_over_indistinguishable:
+  assumes xs_at_i: "xs ! i = (tag, b)"
+    and i_in_bounds: "i < length xs"
+    and distinct_fst: "distinct (map fst xs)"
+    and f_maps_b_same: "f b = f b'"
+  shows "map (f \<circ> snd) (tagged_list_update tag b' xs) = (map (f \<circ> snd) xs)[i := (f b')]"
+  using assms
+proof (induct xs arbitrary: i)
+  case (Cons x xs)
+  then show ?case
+  proof (cases i)
+    case (Suc j)
+    then show ?thesis
+    proof (cases x)
+      case (Pair tag' q)
+      have "tag' \<noteq> tag"
+        using Cons Suc Pair
+        using nth_mem prod_in_set(1) by fastforce
+      then show ?thesis
+        using Cons Suc Pair
+        by clarsimp
+    qed
+  qed simp
+qed simp
+
+
 lemma tagged_list_update_preserves_tags[simp]:
   shows "map fst (tagged_list_update tag b' xs) = map fst xs"
   by (induct xs, clarsimp+)
