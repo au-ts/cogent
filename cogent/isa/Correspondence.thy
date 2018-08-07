@@ -1580,10 +1580,8 @@ next
         by (force simp add: in_set_conv_nth)
 
       show "\<Xi>, \<sigma>a' \<turnstile> USum tag va rs \<sim> VSum tag vx : TSum (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) (tagged_list_update tag' (t, True) ts)) \<langle>r1', w1'\<rangle>"
+        using u_v_rel_va_vx
       proof (intro u_v_sum)
-        show "\<Xi>, \<sigma>a' \<turnstile> va \<sim> vx : t' \<langle>r1', w1'\<rangle>"
-          using u_v_rel_va_vx .
-      next
         obtain j
           where inst_ts_at_j: "(map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts) ! j = (tag, t', False)"
             and j_bounded_len_ts: "j < length ts"
@@ -2216,33 +2214,91 @@ next case u_sem_case_m
     apply (blast)
     apply (force intro: v_sem_v_sem_all.intros)
   done
-next case u_sem_case_nm 
-  note IH1 = this(2)
-  and  IH2 = this(5)
-  and rest = this(1,3-4,6-)
-  from rest show ?case
-    apply (clarsimp elim!: typing_caseE)
-    apply (frule u_v_matches_noalias)
-    apply (frule(1) u_v_matches_split',clarsimp)
-    apply (frule(3) IH1, clarsimp)
-    apply (frule(5) mono_correspondence [rotated -1], clarsimp)
-    apply (frule(2) u_v_matches_frame, blast)
-    apply (erule upd_val_rel.cases, simp_all)
-    apply (clarsimp)
-    apply (frule(2) IH2 [rotated -1])
-     apply (rule u_v_matches_some)
-    sorry
-(*
-    apply (rule sum_downcast_u_v)
-    apply (rule)
-    apply (simp,simp,simp,force,simp,simp,simp)
-    apply (simp)
-    apply (erule(2) frame_noalias_u_v_matches)
-    apply (erule(1) frame_noalias_u_v_matches(2),blast)
-    apply (blast)
-    apply (force intro: v_sem_v_sem_all.intros)
-  done
-*)
+next
+  case (u_sem_case_nm \<xi> \<gamma> \<sigma> x \<sigma>'' tag' va rs tag n m)
+
+  obtain \<Gamma>1 \<Gamma>2 ts ta
+    where split\<Gamma>: "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+      and typing_x: "\<Xi>, [], \<Gamma>1 \<turnstile> x : TSum ts"
+      and tag_in_ts: "(tag, ta, False) \<in> set ts"
+      and typing_m: "\<Xi>, [], Some ta # \<Gamma>2 \<turnstile> m : \<tau>"
+      and typing_n: "\<Xi>, [], Some (TSum (tagged_list_update tag (ta, True) ts)) # \<Gamma>2 \<turnstile> n : \<tau>"
+    using u_sem_case_nm.prems by auto
+
+  have w_r_disjoint: "w \<inter> r = {}"
+    using u_v_matches_noalias u_sem_case_nm.prems
+    by blast
+
+  obtain r1 w1 r2 w2
+    where r_as_un: "r = r1 \<union> r2"
+      and w_as_un: "w = w1 \<union> w2"
+      and w1_w2_disjoint: "w1 \<inter> w2 = {}"
+      and matches1: "\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches \<Gamma>1 \<langle>r1, w1\<rangle>"
+      and matches2: "\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches \<Gamma>2 \<langle>r2, w2\<rangle>"
+    using u_v_matches_split'[OF split\<Gamma> u_sem_case_nm.prems(3)]
+    by force
+
+  obtain vxsum
+    where vsem_x: "\<xi>', \<gamma>' \<turnstile> x \<Down> vxsum"
+    using u_sem_case_nm.hyps(2) u_sem_case_nm.prems typing_x matches1
+    by blast
+
+ obtain r1' w1'
+    where "\<Xi>, \<sigma>'' \<turnstile> USum tag' va rs \<sim> vxsum : TSum ts \<langle>r1', w1'\<rangle>"
+      and r1'_sub_r1: "r1' \<subseteq> r1"
+      and frame1: "upd.frame \<sigma> w1 \<sigma>'' w1'"
+   using mono_correspondence(1) u_sem_case_nm.hyps(1) u_sem_case_nm.prems matches1 vsem_x typing_x
+   by blast
+  then obtain vv t k
+    where rs_is: "rs = (map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) ts)"
+      and vxsum_is: "vxsum = VSum tag' vv"
+      and u_v_rel_va_vv: "\<Xi>, \<sigma>'' \<turnstile> va \<sim> vv : t \<langle>r1', w1'\<rangle>"
+      and tag'_in_ts: "(tag', t, False) \<in> set ts"
+      and distinct_fst_ts: "distinct (map fst ts)"
+      and wellformed_ts: "[] \<turnstile>* map (fst \<circ> snd) ts :\<kappa>  k"
+    by auto
+
+  have "\<Xi>, \<sigma>'' \<turnstile> USum tag' va rs \<sim> VSum tag' vv : TSum (tagged_list_update tag (ta, True) ts) \<langle>r1', w1'\<rangle>"
+    using u_v_rel_va_vv distinct_fst_ts
+  proof (intro u_v_sum)
+    show "(tag', t, False) \<in> set (tagged_list_update tag (ta, True) ts)"
+      by (meson tag'_in_ts tagged_list_update_different_tag_preserves_values2 u_sem_case_nm.hyps(3))
+  next
+    have "map (fst \<circ> snd) ts = map (fst \<circ> snd) (tagged_list_update tag (ta, True) ts)"
+      using tagged_list_update_map_over_indistinguishable tagged_list_update_same_distinct_is_equal
+        tag_in_ts distinct_fst_ts
+      by (metis (no_types, lifting) fst_conv in_set_conv_nth)
+    then have "[] \<turnstile>* map (fst \<circ> snd) (tagged_list_update tag (ta, True) ts) :\<kappa>  k"
+      using wellformed_ts
+      by (clarsimp simp add: kinding_all_list_all)
+    then show "[] \<turnstile>* map (fst \<circ> snd) (tagged_list_update tag (ta, True) ts) wellformed"
+      by auto
+  next
+    obtain i
+      where ts_upd_is: "tagged_list_update tag (ta, True) ts = ts[i := (tag, ta, True)]"
+        and i_in_bounds: "i < length ts"
+        and "ts ! i = (tag, ta, False)"
+      using tagged_list_update_distinct distinct_fst_ts
+      by (metis fst_conv in_set_conv_nth tag_in_ts)
+    then have "(tag, type_repr ta) = map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) ts ! i"
+      by simp
+    then show "rs = map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) (tagged_list_update tag (ta, True) ts)"
+      by (simp add: rs_is ts_upd_is map_update)
+  qed simp+
+  then have "\<Xi>, \<sigma>'' \<turnstile> USum tag' va rs # \<gamma> \<sim> VSum tag' vv # \<gamma>' matches Some (TSum (tagged_list_update tag (ta, True) ts)) # \<Gamma>2 \<langle>r1' \<union> r2, w1' \<union> w2\<rangle>"
+    using w_r_disjoint[simplified r_as_un w_as_un] w1_w2_disjoint
+      matches2 frame1 frame_noalias_u_v_matches r1'_sub_r1 u_v_matches_frame
+    by (fast intro!: u_v_matches_some)
+  then obtain nvv
+    where "\<xi>', VSum tag' vv # \<gamma>' \<turnstile> n \<Down> nvv"
+    using u_sem_case_nm.hyps(5)  u_sem_case_nm.prems typing_n by blast
+  then 
+  have "\<xi>', \<gamma>' \<turnstile> (Case x tag m n) \<Down> nvv"
+    using vsem_x vxsum_is u_sem_case_nm.hyps(3) v_sem_case_nm
+    by fastforce
+  then show ?case
+    by blast
+
 next case u_sem_take
   note IH1 = this(2)
   and  IH2 = this(5)
