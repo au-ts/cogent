@@ -21,6 +21,8 @@ sudo apt-get install libgmp-dev	libncurses5-dev
 ```
 or adapt it to the package manager of your choice.
 
+Note `apt-get` doesn't work on macOS. MacOS has `ncurses5` by default, no installation necessary. Not sure about `gmp-dev` - may have to install Homebrew and run `brew install gmp`.
+
 #### The GHC compiler and Cabal
 
 See [GHC download page](https://www.haskell.org/downloads) and [Cabal homepage](https://www.haskell.org/cabal/) for details.
@@ -50,7 +52,7 @@ are compatible with the `sbv` package you installed [on their github](https://gi
 
 * To configure, edit [config.mk](../config.mk). The default values should work for most people.
 * Copy the config file of the GHC version you want to use from [misc/cabal.config.d](./misc/cabal.config.d/)
-to `./cabal.config` in this folder.
+into this folder, and then rename to `./cabal.config`.
 * Run `make` or `make dev`. The latter builds Cogent instead of installing it, which is
 suitable for developers.
 
@@ -87,4 +89,16 @@ maintain a Stack build scheme.
   $> cabal build
   $> cabal test
 ```
+
+
+### Testing on macOS
+The default `cpp` bundled with macOS isn't compatible with Cogent – running `make examples` will fail.
+
+A solution:
+1. Install Homebrew
+2. Run `brew install gcc`. This will create symlinks `gcc-8` and `cpp-8` (or whatever the latest gcc version number is) in `/usr/local/bin` to the newly installed version of `gcc`.
+3. Provided `ls /usr/local/bin/cpp` outputs `No such file or directory`, it should be safe to run `ln -s /usr/local/bin/cpp-8 /usr/local/bin/cpp`.
+4. If `which cpp` doesn't print `/usr/local/bin/cpp` (ie. `/usr/local/bin` isn't early enough in the `PATH` environment variable) , then you can run the command `export PATH=/usr/local/bin/cpp-8:$PATH` in any shell where you want run the examples.
+
+Running `make examples` should now be successful.
 
