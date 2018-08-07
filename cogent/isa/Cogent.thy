@@ -209,7 +209,6 @@ lemma tagged_list_update_map_over_indistinguishable:
   assumes xs_at_i: "xs ! i = (tag, b)"
     and i_in_bounds: "i < length xs"
     and distinct_fst: "distinct (map fst xs)"
-    and f_maps_b_same: "f b = f b'"
   shows "map (f \<circ> snd) (tagged_list_update tag b' xs) = (map (f \<circ> snd) xs)[i := (f b')]"
   using assms
 proof (induct xs arbitrary: i)
