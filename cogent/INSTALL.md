@@ -15,19 +15,24 @@
 
 ### Install Cogent dependencies
 
-#### `libgmp` and `libncurses`
-```
-sudo apt-get install libgmp-dev	libncurses5-dev
-```
-or adapt it to the package manager of your choice.
-
-Note `apt-get` doesn't work on macOS. MacOS has `ncurses5` by default, no installation necessary. Not sure about `gmp-dev` - may have to install Homebrew and run `brew install gmp`.
-
 #### The GHC compiler and Cabal
 
-See [GHC download page](https://www.haskell.org/downloads) and [Cabal homepage](https://www.haskell.org/cabal/) for details.
+Follow the instructions on the [Haskell platform page](https://www.haskell.org/platform/) to install the Haskell Platform (which includes GHC and Cabal). It is sufficient to install Core.
 
 _NOTE_: The supported versions of GHC and Cabal are specified [here](./cogent.cabal).
+
+_NOTE_: On Linux you may also have to install `libgmp-dev`. This can be done with the command
+```
+sudo apt-get install libgmp-dev
+```
+or the equivalent command for your Linux distribution.
+
+#### `libncurses`
+Some Cogent features depend on `ncurses`. `ncurses` is bundled with macOS. `ncurses` can be installed with the command
+```
+sudo apt-get install libncurses5-dev
+```
+or the equivalent command for your Linux distribution.
 
 #### `alex` and `happy`
 ```
@@ -90,15 +95,14 @@ maintain a Stack build scheme.
   $> cabal test
 ```
 
-
 ### Testing on macOS
-The default `cpp` bundled with macOS isn't compatible with Cogent – running `make examples` will fail.
+To run Cogent examples and some tests, you need a GNU compatible version of `cpp` installed in your `PATH`. The default `cpp` installed on `macOS` isn't GNU compatible.
 
 A solution:
 1. Install Homebrew
 2. Run `brew install gcc`. This will create symlinks `gcc-8` and `cpp-8` (or whatever the latest gcc version number is) in `/usr/local/bin` to the newly installed version of `gcc`.
 3. Provided `ls /usr/local/bin/cpp` outputs `No such file or directory`, it should be safe to run `ln -s /usr/local/bin/cpp-8 /usr/local/bin/cpp`.
-4. If `which cpp` doesn't print `/usr/local/bin/cpp` (ie. `/usr/local/bin` isn't early enough in the `PATH` environment variable) , then you can run the command `export PATH=/usr/local/bin/cpp-8:$PATH` in any shell where you want run the examples.
+4. If `which cpp` doesn't print `/usr/local/bin/cpp`, then running `export PATH=/usr/local/bin:$PATH` in any shell where you want run the examples will ensure that the correct version of `cpp` is used.
 
 Running `make examples` should now be successful.
 
