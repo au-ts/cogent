@@ -61,16 +61,6 @@ lemmas v_sem_elims =
   v_sem_all_ConsE
   v_sem_unitE
 
-(*
-consts valRel :: "(funtyp,'b) vabsfuns \<Rightarrow> 'a \<Rightarrow> (funtyp,'b) vval \<Rightarrow> bool"
-overloading
-  valRel_bool \<equiv> "valRel :: (funtyp,'b) vabsfuns \<Rightarrow> bool \<Rightarrow> (funtyp,'b) vval \<Rightarrow> bool"
-begin
-fun valRel_bool where
-"valRel_bool \<xi> b (vval.VPrim (LBool b)) = valRel"
-end
-*)
-
 (* Should we use type class here, instead of using "defs (overloaded)"?
  * Christine's approach with type class looks more systematic.*)
 consts valRel :: "(funtyp,'b) vabsfuns \<Rightarrow> 'a \<Rightarrow> (funtyp,'b) vval \<Rightarrow> bool"
