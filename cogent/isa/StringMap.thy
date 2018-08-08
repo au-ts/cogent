@@ -29,7 +29,7 @@ definition
   "(s \<le> t) = ((s :: LexOrdString) < t \<or> s = t)"
 
 lemma nat_of_char_trans:
-  "transP (\<lambda>c c'. nat_of_char c < nat_of_char c')"
+  "trans {(c, c'). nat_of_char c < nat_of_char c'}"
   by (auto intro!: transI)
 
 instance
@@ -49,10 +49,11 @@ instance
    apply (drule(1) lexord_trans[OF _ _ nat_of_char_trans])
    apply (simp add: lexord_irreflexive)
   apply (clarsimp split: LexOrdString.split)
-  apply (cut_tac x=list and y=lista in lexord_linear)
+  apply (rename_tac lista listb)
+  apply (cut_tac x=lista and y=listb in lexord_linear)
    defer
    apply blast
-  apply (auto simp: nat_of_char_eq_iff)
+  apply auto
   done
 
 end
