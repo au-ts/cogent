@@ -8,7 +8,7 @@ The proofs are in the middle of being updated.
 This is the status of the proofs at the moment:
 ```
 file                                    depends on                    status
-├── AssocLookup.thy                                                   [broken]
+├── AssocLookup.thy                                                   [good]
 ├── Cogent.thy                                                        [good]
 ├── CogentHelper.thy                    (TypeTrackingSemantics)       [broken]
 ├── Correspondence.thy                  (UpdateSemantics)             [good]
