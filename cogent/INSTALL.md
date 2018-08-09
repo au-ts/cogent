@@ -15,17 +15,24 @@
 
 ### Install Cogent dependencies
 
-#### `libgmp` and `libncurses`
-```
-sudo apt-get install libgmp-dev	libncurses5-dev
-```
-or adapt it to the package manager of your choice.
-
 #### The GHC compiler and Cabal
 
-See [GHC download page](https://www.haskell.org/downloads) and [Cabal homepage](https://www.haskell.org/cabal/) for details.
+Follow the instructions on the [Haskell platform page](https://www.haskell.org/platform/) to install the Haskell Platform (which includes GHC and Cabal). It is sufficient to install Core.
 
 _NOTE_: The supported versions of GHC and Cabal are specified [here](./cogent.cabal).
+
+_NOTE_: On Linux you may also have to install `libgmp-dev`. This can be done with the command
+```
+sudo apt-get install libgmp-dev
+```
+or the equivalent command for your Linux distribution.
+
+#### `libncurses`
+Some Cogent features depend on `ncurses`. `ncurses` is bundled with macOS. `ncurses` can be installed with the command
+```
+sudo apt-get install libncurses5-dev
+```
+or the equivalent command for your Linux distribution.
 
 #### `alex` and `happy`
 ```
@@ -50,7 +57,7 @@ are compatible with the `sbv` package you installed [on their github](https://gi
 
 * To configure, edit [config.mk](../config.mk). The default values should work for most people.
 * Copy the config file of the GHC version you want to use from [misc/cabal.config.d](./misc/cabal.config.d/)
-to `./cabal.config` in this folder.
+into this folder, and then rename to `./cabal.config`.
 * Run `make` or `make dev`. The latter builds Cogent instead of installing it, which is
 suitable for developers.
 
@@ -87,4 +94,15 @@ maintain a Stack build scheme.
   $> cabal build
   $> cabal test
 ```
+
+### Testing on macOS
+To run Cogent examples and some tests, you need a GNU compatible version of `cpp` installed in your `PATH`. The default `cpp` installed on `macOS` isn't GNU compatible.
+
+A solution:
+1. Install Homebrew
+2. Run `brew install gcc`. This will create symlinks `gcc-8` and `cpp-8` (or whatever the latest gcc version number is) in `/usr/local/bin` to the newly installed version of `gcc`.
+3. Provided `ls /usr/local/bin/cpp` outputs `No such file or directory`, it should be safe to run `ln -s /usr/local/bin/cpp-8 /usr/local/bin/cpp`.
+4. If `which cpp` doesn't print `/usr/local/bin/cpp`, then running `export PATH=/usr/local/bin:$PATH` in any shell where you want run the examples will ensure that the correct version of `cpp` is used.
+
+Running `make examples` should now be successful.
 
