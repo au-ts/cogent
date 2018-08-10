@@ -1129,7 +1129,6 @@ inductive_cases v_sem_primE   [elim!] : " \<xi> , \<gamma> \<turnstile> (Prim p 
 inductive_cases v_sem_litE    [elim!] : " \<xi> , \<gamma> \<turnstile> Lit l \<Down> v"
 inductive_cases v_sem_funE    [elim!] : " \<xi> , \<gamma> \<turnstile> Fun e ts \<Down> v"
 inductive_cases v_sem_unitE   [elim!] : " \<xi> , \<gamma> \<turnstile> Unit \<Down> v"
-inductive_cases v_sem_promE   [elim!] : " \<xi> , \<gamma> \<turnstile> Promote a b \<Down> v"
 inductive_cases v_sem_castE   [elim!] : " \<xi> , \<gamma> \<turnstile> Cast a b \<Down> v"
 inductive_cases v_sem_esacE   [elim!] : " \<xi> , \<gamma> \<turnstile> Esac e \<Down> v"
 inductive_cases v_sem_splitE  [elim!] : " \<xi> , \<gamma> \<turnstile> Split e e' \<Down> v"
@@ -1199,70 +1198,6 @@ next case u_sem_afun      then show ?case apply (cases e, simp_all)
                                           apply (fastforce elim!:  typing_afunE v_sem_afunE
                                                            intro!: u_v_afun_instantiate upd.frame_id
                                                            dest:   u_v_matches_proj_consumed).
-next
-  case (u_sem_promote \<xi> \<gamma> \<sigma> x \<sigma>' c p rs ts')
-  then show ?case
-  proof (cases e)
-  next
-    case (Promote ts'' e'')
-
-    have ts'_is: "ts' = map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts''"
-      and x_is: "x = specialise \<tau>s e''"
-      using Promote u_sem_promote.hyps(3) by simp+
-
-    obtain ts k
-      where typing_prom_e'': "\<Xi>, K, \<Gamma> \<turnstile> Promote ts'' e'' : TSum ts''"
-        and \<tau>_is: "\<tau> = TSum ts''"
-        and typing_e'': "\<Xi>, K, \<Gamma> \<turnstile> e'' : TSum ts"
-        and fst_set_same_ts_ts'': "fst ` set ts = fst ` set ts''"
-        and distinct_fst_ts'': "distinct (map fst ts'')"
-        and preservation_condition: "\<forall>c t b. (c, t, b) \<in> set ts \<longrightarrow> (\<exists>b'. (b' \<longrightarrow> b) \<and> (c, t, b') \<in> set ts'')"
-        and "K \<turnstile>* map (fst \<circ> snd) ts'' :\<kappa> k"
-      using Promote typing_promE u_sem_promote.prems(2)
-      by blast
-
-    have "\<xi>' , \<gamma>' \<turnstile> specialise \<tau>s e'' \<Down> v'"
-      using u_sem_promote.prems(1) Promote by auto
-    then obtain r' w'
-      where "\<Xi>, \<sigma>' \<turnstile> USum c p rs \<sim> v' : instantiate \<tau>s (TSum ts) \<langle>r', w'\<rangle>"
-        and r'_sub_r: "r' \<subseteq> r"
-        and frame_w_w': "upd.frame \<sigma> w \<sigma>' w'"
-      using u_sem_promote.hyps(2) u_sem_promote.prems x_is typing_e''
-      by metis
-    then obtain a' t k
-      where rs_is: "rs = map ((\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) \<circ> (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) ts"
-        and v'_is: "v' = VSum c a'"
-        and u_v_sem_p: "\<Xi>, \<sigma>' \<turnstile> p \<sim> a' : t \<langle>r', w'\<rangle>"
-        and c_in_instantiated_ts: "(c, t, False) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts)"
-        and distinct_fst_instantiate_ts: "distinct (map fst (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts))"
-        and wellformed_instantiate_ts: "[] \<turnstile>* map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts) :\<kappa>  k"
-      by auto
-    then have "\<Xi>, \<sigma>' \<turnstile> USum c p (map (\<lambda>(n, t, _). (n, type_repr t)) ts') \<sim> VSum c a' : TSum (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts'') \<langle>r', w'\<rangle>"
-      using distinct_fst_instantiate_ts distinct_fst_ts'' ts'_is
-    proof (intro upd_val_rel_upd_val_rel_record.u_v_sum)
-      from c_in_instantiated_ts
-      obtain t''
-        where t_is: "t = instantiate \<tau>s t''"
-          and "(c, t'', False) \<in> set ts"
-        by auto
-      then have "(c, t'', False) \<in> set ts''"
-        using preservation_condition by (metis (full_types))
-      then show "(c, t, False) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts'')"
-        using t_is by force
-    next
-      have "\<And>tag t'' b. (tag, t'', b) \<in> set ts'' \<Longrightarrow> \<exists>b'. (tag, t'', b') \<in> set ts"
-        using promote_preservation_mapping_other_way[OF typing_e'' distinct_fst_ts''] 
-          fst_set_same_ts_ts'' preservation_condition 
-        by metis
-      then have "[] \<turnstile>* map (instantiate \<tau>s \<circ> (fst \<circ> snd)) ts'' :\<kappa>  k"
-        using wellformed_instantiate_ts[simplified kinding_all_set, simplified]
-        by (fastforce simp add: kinding_all_set)
-      then show "[] \<turnstile>* map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts'') wellformed"
-        by auto
-    qed simp+
-    then show ?thesis
-      using \<tau>_is v'_is r'_sub_r frame_w_w' by auto
-  qed simp+
 next case u_sem_app
   note IH1  = this(2)
   and  IH2  = this(4)
@@ -1313,16 +1248,17 @@ next case u_sem_abs_app
     apply (erule upd_val_rel.cases,simp_all)
   done
 next
-  case (u_sem_con \<xi> \<gamma> \<sigma> x' \<sigma>' x'' ts' tag')
+  case (u_sem_con \<xi> \<gamma> \<sigma> x_spec \<sigma>' x'' ts_inst tag')
   then show ?case
   proof (cases e)
   next
     case (Con ts tag x)
 
-    have ts'_is: "ts' = map (\<lambda>(c, t). (c, instantiate \<tau>s t)) ts"
+    have ts_inst_is: "ts_inst = map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts"
       and tag'_is: "tag' = tag"
-      and x'_is: "x' = specialise \<tau>s x"
-      using u_sem_con.hyps(3) Con by simp+
+      and x_spec_is: "x_spec = specialise \<tau>s x"
+      using u_sem_con.hyps(3) Con
+      by simp+
 
     obtain xa
       where v'_is: "v' = VSum tag xa"
@@ -1330,11 +1266,11 @@ next
       using u_sem_con.prems(1) Con by auto
 
     obtain t k
-      where \<tau>_is: "\<tau> = TSum (map (\<lambda>(c, t). (c, t, c \<noteq> tag)) ts)"
+      where \<tau>_is: "\<tau> = TSum ts"
         and typing_x: "\<Xi>, K, \<Gamma> \<turnstile> x : t"
-        and tag_in_ts: "(tag, t) \<in> set ts"
+        and tag_in_ts: "(tag, t, False) \<in> set ts"
         and distinct_fst_ts: "distinct (map fst ts)"
-        and ts_wellformed: "K \<turnstile>* map snd ts :\<kappa>  k"
+        and ts_wellformed: "K \<turnstile>* map (fst \<circ> snd) ts :\<kappa>  k"
       using typing_conE u_sem_con.prems(2) Con
       by auto
 
@@ -1342,26 +1278,21 @@ next
       where "\<Xi>, \<sigma>' \<turnstile> x'' \<sim> xa : instantiate \<tau>s t \<langle>r', w'\<rangle>"
         and r'_sub_r: "r' \<subseteq> r"
         and frame_w_w': "upd.frame \<sigma> w \<sigma>' w'"
-      using u_sem_con.hyps(2) x'_is vsem_specialised_x typing_x u_sem_con.prems
+      using u_sem_con.hyps(2) x_spec_is vsem_specialised_x typing_x u_sem_con.prems
       by blast
-    then have "\<Xi>, \<sigma>' \<turnstile> USum tag x'' (map (\<lambda>(n, t). (n, type_repr t)) ts') \<sim> VSum tag xa : TSum (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) \<circ> (\<lambda>(c, t). (c, t, c \<noteq> tag))) ts) \<langle>r', w'\<rangle>"
-      using tag_in_ts ts'_is
+    then have "\<Xi>, \<sigma>' \<turnstile> USum tag x'' (map ((\<lambda>(n, t, _). (n, type_repr t)) \<circ> (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) ts)
+                        \<sim> VSum tag xa : TSum (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts) \<langle>r', w'\<rangle>"
+      using tag_in_ts  distinct_fst_ts
     proof (intro upd_val_rel_upd_val_rel_record.u_v_sum)
-      have "(fst \<circ> ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) \<circ> (\<lambda>(c, t). (c, t, c \<noteq> tag)))) = fst"
-        by force
-      then show "distinct (map fst (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) \<circ> (\<lambda>(c, t). (c, t, c \<noteq> tag))) ts))"
-        using distinct_fst_ts by simp
-    next
-      have "(fst \<circ> snd \<circ> (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) \<circ> (\<lambda>(c, t). (c, t, c \<noteq> tag))) = (instantiate \<tau>s \<circ> snd)"
-        by force
-      moreover have "[] \<turnstile>* map (instantiate \<tau>s \<circ> snd) ts :\<kappa>  k"
+      have "[] \<turnstile>* map (instantiate \<tau>s \<circ> (fst \<circ> snd)) ts :\<kappa>  k"
         using substitutivity(2) u_sem_con.prems(3) ts_wellformed
         by fastforce
-      ultimately show "[] \<turnstile>* map (fst \<circ> snd) (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) \<circ> (\<lambda>(c, t). (c, t, c \<noteq> tag))) ts) wellformed"
-        by (force simp add: o_assoc)
+      then show "[] \<turnstile>* map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts) wellformed"
+        by force
     qed force+
     then show ?thesis
-      using r'_sub_r frame_w_w' v'_is \<tau>_is tag'_is by auto
+      using r'_sub_r frame_w_w' v'_is \<tau>_is tag'_is ts_inst_is
+      by auto
   qed simp+
 next case u_sem_let
   note IH1  = this(2)
@@ -2071,15 +2002,6 @@ next case u_sem_member
   and rest = this(1,3-)
   from rest show ?case
     apply (clarsimp elim!: typing_memberE)
-    apply (frule(3) IH, clarsimp)
-    apply (frule(5) mono_correspondence, clarsimp)
-    apply (force elim: upd_val_rel.cases intro!: v_sem_v_sem_all.intros)
-  done
-next case u_sem_promote
-  note IH = this(2)
-  and rest = this(1,3-)
-  from rest show ?case
-    apply (clarsimp elim!: typing_promE)
     apply (frule(3) IH, clarsimp)
     apply (frule(5) mono_correspondence, clarsimp)
     apply (force elim: upd_val_rel.cases intro!: v_sem_v_sem_all.intros)
