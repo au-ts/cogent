@@ -20,7 +20,6 @@ inductive_cases v_sem_letE: "\<xi> , \<gamma> \<turnstile> Let a b \<Down> b'"
 inductive_cases v_sem_letBangE: "\<xi> , \<gamma> \<turnstile> LetBang vs a b \<Down> b'"
 inductive_cases v_sem_litE: "\<xi> , \<gamma> \<turnstile> Lit l \<Down> v"
 inductive_cases v_sem_primE: "\<xi> , \<gamma> \<turnstile> Prim p as \<Down> r"
-inductive_cases v_sem_promoteE: "\<xi> , \<gamma> \<turnstile> Promote ts x \<Down> r"
 inductive_cases v_sem_memberE: "\<xi> , \<gamma> \<turnstile> Member x f \<Down> r"
 inductive_cases v_sem_tupleE: "\<xi> , \<gamma> \<turnstile> Tuple a b \<Down> r"
 inductive_cases v_sem_if: " \<xi> , \<gamma> \<turnstile> If x t e \<Down> r"
@@ -43,7 +42,6 @@ lemmas v_sem_elims =
   v_sem_letBangE
   v_sem_litE
   v_sem_primE
-  v_sem_promoteE
   v_sem_memberE
   v_sem_tupleE
   v_sem_if

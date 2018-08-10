@@ -358,21 +358,6 @@ lemma typing_imp_ttyping_induct:
 shows " (\<Xi>, K, \<Gamma> \<turnstile> e : u \<Longrightarrow> (\<exists> tt. \<Xi>, K, (tt, \<Gamma>) T\<turnstile> e : u))"
 and   " (\<Xi>, K, \<Gamma> \<turnstile>* es : us \<Longrightarrow> True)"
 proof (induct rule: typing_typing_all.inducts)
-  case (typing_prom \<Xi> K \<Gamma> x ts ts')
-  
-  obtain tt where "\<Xi>, K, (tt, \<Gamma>) T\<turnstile> x : TSum ts"
-    using typing_prom.hyps(2) by blast
-  then have "\<Xi>, K, (tt, \<Gamma>) T\<turnstile> Promote ts' x : TSum ts'"
-  proof (intro ttyping.intros)
-    show "\<not> composite_anormal_expr (Promote ts' x)"
-      unfolding composite_anormal_expr_def by simp
-  next
-    show "\<Xi>, K, \<Gamma> \<turnstile> Promote ts' x : TSum ts'"
-      using typing_prom.hyps typing_typing_all.typing_prom by blast
-  qed
-  then show ?case
-    by blast
-next
   case (typing_case K \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> x ts tag t a u b)
   moreover then obtain sps tt1 tt2 tt  ijs tt2a tt2a'
     where "ttsplit K (tt, \<Gamma>) sps [] (tt1, \<Gamma>1) [] (tt2, \<Gamma>2)"
