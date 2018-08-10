@@ -348,23 +348,6 @@ proof -
   qed simp+
 qed
 
-lemma vval_typing_promoted_tsums_same:
-  assumes vval_tsum_ts: "\<Xi> \<turnstile> x :v TSum ts"
-      and x_typing: "\<Xi>, K, \<Gamma> \<turnstile> e : TSum ts"
-      and distinct_fst_ts': "distinct (map fst ts')"
-      and taken_preservation: "\<forall>c t b. (c, t, b) \<in> set ts \<longrightarrow> (\<exists>b'. (b' \<longrightarrow> b) \<and> (c, t, b') \<in> set ts')"
-      and ts'_types_wellformed: "[] \<turnstile>* map (fst \<circ> snd) ts' wellformed"
-    shows "\<Xi> \<turnstile> x :v TSum ts'"
-  using assms
-proof -
-  obtain g a b' t where "(g, t, b') \<in> set ts"
-                and "\<Xi> \<turnstile> a :v t"
-    using vval_tsum_ts by blast
-  then show ?thesis
-    using assms
-    by (fastforce intro: v_t_sum)
-qed
-
 subsection {* Introductions under instantiations *}
 
 text {* An alternative introduction rule used for showing a value is a function under some type instantiation *}

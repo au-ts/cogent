@@ -1007,6 +1007,9 @@ and   "K \<turnstile>* fs :\<kappa>r k \<Longrightarrow> K \<turnstile>* map (\<
 
 section {* Typing lemmas *}
 
+(*
+This lemma was used with promote, which has been removed. However it could be relevant to subtyping later ~ v.jackson 2018-08-10
+
 lemma promote_preservation_mapping_other_way:
   assumes typing_x: "\<Xi>, K, \<Gamma> \<turnstile> x : TSum ts"
     and distinct_fst_ts': "distinct (map fst ts')"
@@ -1026,6 +1029,7 @@ proof -
       by fastforce
     then show thesis ..
 qed
+*)
 
 section {* Instantiation *}
 
