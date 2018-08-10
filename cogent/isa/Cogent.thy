@@ -349,8 +349,7 @@ datatype 'f expr = Var index
                  | Fun "'f expr" "type list"
                  | Prim prim_op "'f expr list"
                  | App "'f expr" "'f expr"
-                 | Con "(name \<times> type) list" name "'f expr" (* promotes "inlined" *)
-                 | Promote "(name \<times> (type \<times> bool)) list" "'f expr"
+                 | Con "(name \<times> type \<times> bool) list" name "'f expr"
                  | Struct "type list" "'f expr list"
                  | Member "'f expr" field 
                  | Unit
@@ -470,8 +469,7 @@ fun specialise :: "type substitution \<Rightarrow> 'f expr \<Rightarrow> 'f expr
 | "specialise \<delta> (AFun f ts)       = AFun f (map (instantiate \<delta>) ts)"
 | "specialise \<delta> (Prim p es)       = Prim p (map (specialise \<delta>) es)"
 | "specialise \<delta> (App a b)         = App (specialise \<delta> a) (specialise \<delta> b)"
-| "specialise \<delta> (Con as t e)      = Con (map (\<lambda> (c,t). (c, instantiate \<delta> t)) as) t (specialise \<delta> e)" 
-| "specialise \<delta> (Promote as e)    = Promote (map (\<lambda> (c,(t,b)). (c, (instantiate \<delta> t, b))) as) (specialise \<delta> e)"
+| "specialise \<delta> (Con as t e)      = Con (map (\<lambda> (c,t,b). (c, instantiate \<delta> t, b)) as) t (specialise \<delta> e)" 
 | "specialise \<delta> (Struct ts vs)    = Struct (map (instantiate \<delta>) ts) (map (specialise \<delta>) vs)"
 | "specialise \<delta> (Member v f)      = Member (specialise \<delta> v) f"
 | "specialise \<delta> (Unit)            = Unit"
@@ -677,18 +675,10 @@ inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Right
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> App a b : y"
 
 | typing_con    : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : t
-                   ; (tag,t) \<in> set ts
-                   ; K \<turnstile>* (map snd ts) wellformed
+                   ; (tag, t, False) \<in> set ts
+                   ; K \<turnstile>* (map (fst \<circ> snd) ts) wellformed
                    ; distinct (map fst ts)
-                   ; ts' = map (\<lambda> (c,t). (c, (t, c \<noteq> tag))) ts
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Con ts tag x : TSum ts'"
-
-| typing_prom   : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : TSum ts
-                   ; set (map fst ts) = set (map fst ts')
-                   ; K \<turnstile>* (map (fst \<circ> snd) ts') wellformed
-                   ; distinct (map fst ts')
-                   ; \<forall>c t b. (c,t,b) \<in> set ts \<longrightarrow> (\<exists>b'. (b' \<longrightarrow> b) \<and> ((c,(t,b')) \<in> set ts'))
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Promote ts' x : TSum ts'"
+                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Con ts tag x : TSum ts"
 
 | typing_cast   : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> e : TPrim (Num \<tau>)
                    ; upcast_valid \<tau> \<tau>' 
@@ -791,7 +781,6 @@ inductive_cases typing_afunE   [elim]: "\<Xi>, K, \<Gamma> \<turnstile> AFun f t
 inductive_cases typing_ifE     [elim]: "\<Xi>, K, \<Gamma> \<turnstile> If c t e : \<tau>"
 inductive_cases typing_conE    [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Con ts t e : \<tau>"
 inductive_cases typing_unitE   [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Unit : \<tau>"
-inductive_cases typing_promE   [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Promote ts e : \<tau>"
 inductive_cases typing_primE   [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Prim p es : \<tau>"
 inductive_cases typing_memberE [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Member e f : \<tau>"
 inductive_cases typing_tupleE  [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Tuple a b : \<tau>"
@@ -817,7 +806,6 @@ inductive atom ::"'f expr \<Rightarrow> bool" where
 | "atom (AFun f ts)"
 | "atom (Prim p (map Var is))"
 | "atom (Con ts n (Var x))"
-| "atom (Promote ts (Var x))"
 | "atom (Struct ts (map Var is))"
 | "atom (Cast t (Var x))"
 | "atom (Member (Var x) f)"
@@ -1319,16 +1307,6 @@ next case typing_struct then show ?case by ( clarsimp
 next case typing_take   then show ?case by (simp)  
 next case typing_put    then show ?case by (fastforce intro: kinding_kinding_all_kinding_record.intros
                                                              kinding_record_update)
-next case (typing_con \<Xi> K \<Gamma> x t tag ts ts')
-  hence "map fst ts = map fst ts'" by fastforce
-  with typing_con have a1: "distinct (map fst ts')" by simp
-  from typing_con have "map snd ts = map (fst \<circ> snd) ts'" by fastforce
-  hence "(K \<turnstile>* map snd ts :\<kappa>  k) = (K \<turnstile>* map (fst \<circ> snd) ts' :\<kappa>  k)" for k by presburger
-  with typing_con[simplified] have "\<exists>k. K \<turnstile>* map (fst \<circ> snd) ts' :\<kappa>  k" by blast
-  then obtain k where a2: "K \<turnstile>* map (fst \<circ> snd) ts' :\<kappa>  k" by blast 
-  hence "distinct (map fst ts') \<Longrightarrow> K \<turnstile>* map (fst \<circ> snd) ts' :\<kappa>  k \<Longrightarrow> K \<turnstile> TSum ts' :\<kappa>  k" by (elim kind_tsum)
-  from a1 a2 show ?case by (fastforce elim: kind_tsum)
-
 qed (auto intro: supersumption kinding_kinding_all_kinding_record.intros)
 
 lemma upcast_valid_cast_to :
@@ -1387,28 +1365,6 @@ next case (typing_fun \<Xi> K t f u \<Gamma> ks ts)
         typing_typing_all.typing_fun [simplified] 
         instantiate_ctx_consumed)
 next
-  case (typing_prom \<Xi> K \<Gamma> x ts ts')
-  then have "\<Xi>, K', instantiate_ctx \<delta> \<Gamma> \<turnstile> Promote (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts') (specialise \<delta> x) : TSum (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts')" 
-  proof (intro typing_typing_all.typing_prom)
-    show "K' \<turnstile>* map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts') wellformed"
-      using typing_prom.hyps(4) substitutivity(1)[OF typing_prom.prems]
-      by (simp add: kinding_all_set, blast)
-  next
-    show "\<forall>c t b. (c,t,b)\<in>set (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts) \<longrightarrow> (\<exists>b'. (b' \<longrightarrow> b) \<and> (c, t, b') \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts'))"
-    proof clarsimp
-      fix c t b
-      assume "(c,t,b) \<in> set ts"
-      then obtain b' where "b' \<longrightarrow> b" and "(c, t, b') \<in> set ts'"
-        using typing_prom.hyps(6) by blast+
-      moreover then have "(c, instantiate \<delta> t, b') \<in> (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ` set ts'"
-        by (metis (mono_tags) rev_image_eqI case_prod_conv)
-      ultimately show "\<exists>b'. (b' \<longrightarrow> b) \<and> (c, instantiate \<delta> t, b') \<in> (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ` set ts'"
-        by blast
-    qed
-  qed simp+
-  then show ?case
-    by simp
-next
   case (typing_esac \<Xi> K \<Gamma> x ts uu t)
   then show ?case
     by (force intro!: typing_typing_all.typing_esac
@@ -1438,7 +1394,6 @@ fun expr_size :: "'f expr \<Rightarrow> nat" where
 | "expr_size (Prim p as) = Suc (sum_list (map expr_size as))"
 | "expr_size (Var v) = 0"
 | "expr_size (AFun v va) = 0"
-| "expr_size (Promote v va) = Suc (expr_size va)"
 | "expr_size (Struct v va) = Suc (sum_list ( map expr_size va))"
 | "expr_size (Lit v) = 0"
 | "expr_size (Tuple v va) = Suc ((expr_size v) + (expr_size va))"
