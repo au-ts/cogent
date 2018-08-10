@@ -28,7 +28,6 @@ where
 | "rename_expr rename (Prim p es)       = Prim p (map (rename_expr rename) es)"
 | "rename_expr rename (App a b)         = App (rename_expr rename a) (rename_expr rename b)"
 | "rename_expr rename (Con as t e)      = Con as t (rename_expr rename e)" 
-| "rename_expr rename (Promote as e)    = Promote as (rename_expr rename e)"
 | "rename_expr rename (Struct ts vs)    = Struct ts (map (rename_expr rename) vs)"
 | "rename_expr rename (Member v f)      = Member (rename_expr rename v) f"
 | "rename_expr rename (Unit)            = Unit"
@@ -130,23 +129,6 @@ lemma rename_monoexpr_correct:
   case (v_sem_con \<xi> re rv as t \<gamma> e \<tau> \<Gamma>) then show ?case
   apply (cases e, simp_all)
   by (fastforce intro!: v_sem_v_sem_all.v_sem_con)
-  next 
-    case (v_sem_promote \<xi> x x' t \<gamma> e \<tau> \<Gamma>)
-    then show ?case
-    proof (cases e)
-      case (Promote t' rx)
-
-      obtain ts where "\<Xi>, [], \<Gamma> \<turnstile> rename_expr rename (monoexpr rx) : TSum ts"
-        using v_sem_promote.prems(1) Promote
-        by auto
-      moreover have "x = rename_expr rename (monoexpr rx)"
-          using v_sem_promote.hyps(3) Promote
-          by simp+
-      ultimately obtain v where "(\<xi>\<^sub>p , \<gamma> \<turnstile> rx \<Down> v) \<and> x' = rename_val rename (monoval v)"
-        using v_sem_promote by blast
-      then show ?thesis
-        using Promote v_sem_v_sem_all.v_sem_promote by blast
-    qed simp+
   next 
   case (v_sem_unit \<xi> \<gamma> e \<tau> \<Gamma>) then show ?case
   apply (cases e, simp_all) 
