@@ -10,7 +10,7 @@ This is the status of the proofs at the moment:
 file                                    depends on                    status
 ├── AssocLookup.thy                                                   [good]
 ├── Cogent.thy                                                        [good]
-├── CogentHelper.thy                    (TypeTrackingSemantics)       [broken]
+├── CogentHelper.thy                    (TypeTrackingSemantics)       [good]
 ├── Correspondence.thy                  (UpdateSemantics)             [good]
 ├── Mono.thy                            (ValueSemantics)              [good]
 ├── Mono_Tac.thy                        (Mono,AssocLookup)            [broken]

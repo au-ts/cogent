@@ -9,7 +9,7 @@
  *)
 
 theory CogentHelper
-imports "TypeTrackingSemantics"
+imports "TypeTrackingSemantics" "ML_Old"
 keywords "ML_quiet" :: thy_decl % "ML"
 begin
 
@@ -181,29 +181,6 @@ lemma list_update_eq_id:
   by (induct xs arbitrary: i n, auto split: nat.split)
 
 lemmas ttsplit_innerI_True = ttsplit_innerI[where kndng=True, simplified]
-
-
-ML {*
-
-val term_pat_setup =
-let
-  val name_inner_syntax = Args.name_token >> Token.inner_syntax_of
-  val parser = Args.context -- Scan.lift name_inner_syntax
-
-  fun term_pat (ctxt, str) =
-    str |> Proof_Context.read_term_pattern ctxt
-        |> ML_Syntax.print_term
-        |> ML_Syntax.atomic
-
-in
-  ML_Antiquotation.inline @{binding "term_pat"} (parser >> term_pat)
-end
-
-fun rtac rl = resolve0_tac [rl]
-
-*}
-
-setup {* term_pat_setup *}
 
 
 ML {*
