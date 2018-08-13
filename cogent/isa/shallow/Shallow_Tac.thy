@@ -9,7 +9,7 @@
  *)
 
 theory Shallow_Tac
-imports Shallow
+imports Shallow "../ML_Old"
 begin
 
 locale shallow = value_sem

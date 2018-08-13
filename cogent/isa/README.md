@@ -22,8 +22,8 @@ file                                    depends on                    status
 ├── Util.thy                                                          [good]
 ├── ValueSemantics.thy                  (Cogent)                      [good]
 └── shallow
-    ├── Shallow.thy                     (ValueSemantics,Util)         [broken]
+    ├── Shallow.thy                     (ValueSemantics,Util)         [good]
     ├── ShallowTuples.thy               (Util)                        [good]
     ├── Shallow_Normalisation_Tac.thy   (Util)                        [broken]
-    └── Shallow_Tac.thy                 (Shallow)                     [broken]
+    └── Shallow_Tac.thy                 (Shallow)                     [good]
 ```
