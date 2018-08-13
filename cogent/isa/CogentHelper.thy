@@ -38,11 +38,10 @@ lemma typing_prim' : "\<lbrakk> prim_op_type oper = (ts,t)
 
 
 lemma typing_con' : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : t
-                     ; (tag,t) \<in> set ts
-                     ; K \<turnstile>* (map snd ts) wellformed
+                     ; (tag,t,False) \<in> set ts
+                     ; K \<turnstile>* (map (fst \<circ> snd) ts) wellformed
                      ; distinct (map fst ts)
-                     ; ts' = map (\<lambda>(c,t). (c, (t, c \<noteq> tag))) ts
-                     \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Con ts tag x : TSum ts'"
+                     \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Con ts tag x : TSum ts"
   by (simp only: typing_con)
 
 lemma typing_struct': "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile>* es : ts
@@ -183,6 +182,30 @@ lemma list_update_eq_id:
 
 lemmas ttsplit_innerI_True = ttsplit_innerI[where kndng=True, simplified]
 
+
+ML {*
+
+val term_pat_setup =
+let
+  val name_inner_syntax = Args.name_token >> Token.inner_syntax_of
+  val parser = Args.context -- Scan.lift name_inner_syntax
+
+  fun term_pat (ctxt, str) =
+    str |> Proof_Context.read_term_pattern ctxt
+        |> ML_Syntax.print_term
+        |> ML_Syntax.atomic
+
+in
+  ML_Antiquotation.inline @{binding "term_pat"} (parser >> term_pat)
+end
+
+fun rtac rl = resolve0_tac [rl]
+
+*}
+
+setup {* term_pat_setup *}
+
+
 ML {*
 
 structure TTyping_Tactics = struct
@@ -294,7 +317,7 @@ fun kind_proofs ((@{term SomeT} $ t) :: ts) k ctxt hints = let
         [RTac thm] => Display.pretty_thm ctxt thm |> Pretty.writeln
       | _ => warning "unexpected kinding tacs"
 *)
-    val t = betapplys (@{term "kinding"}, [k, t, Thm.term_of @{cpat "?k :: kind"}])
+    val t = betapplys (@{term "kinding"}, [k, t, (@{term_pat "?k :: kind"})])
     val ct = Thm.cterm_of ctxt (@{term Trueprop} $ t)
     val rs = EVERY (map (fn t => interpret_tac t ctxt 1) tacs) (Thm.trivial ct)
     val t = (case Seq.pull rs of NONE => raise TERM ("kind_proofs: failed", [k, t])
