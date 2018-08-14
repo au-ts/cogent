@@ -1473,10 +1473,35 @@ next case u_sem_afun      then show ?case by ( cases e, simp_all
                                              , fastforce intro: u_t_afun_instantiate
                                                                 frame_id
                                                          dest:  matches_ptrs_proj_consumed)
-next case u_sem_fun       then show ?case   by ( cases e, simp_all
-                                             , fastforce intro: u_t_function_instantiate
-                                                                frame_id
-                                                         dest:  matches_ptrs_proj_consumed)
+next 
+  case (u_sem_fun \<xi> \<gamma> \<sigma> f ts_inst)
+  then show ?case
+  proof (cases e)
+    case (Fun f' ts)
+
+    have f'_is: "f' = f"
+      and ts_inst_is: "ts_inst = map (instantiate \<tau>s) ts"
+      using u_sem_fun Fun
+      by simp+
+
+    then obtain r' w'
+      where "\<Xi>, \<sigma> \<turnstile> UFunction f ts :u instantiate \<tau>s \<tau> \<langle>r', w'\<rangle>"
+        and "r' \<subseteq> r"
+        and "frame \<sigma> w \<sigma> w'"
+      using u_t_function_instantiate frame_id matches_ptrs_proj_consumed
+      sorry
+    then show ?thesis
+      by blast
+
+      using u_sem_fun
+      apply clarsimp
+      apply (simp add: frame_id)
+      apply (fastforce intro: u_t_function_instantiate frame_id
+                        dest: matches_ptrs_proj_consumed)
+      done
+    thm matches_ptrs_proj_consumed u_t_function_instantiate frame_id
+      sorry
+  qed simp+
 next case u_sem_app
   note IH1  = this(2)
   and  IH2  = this(4)
