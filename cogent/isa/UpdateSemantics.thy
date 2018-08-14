@@ -1483,24 +1483,23 @@ next
       and ts_inst_is: "ts_inst = map (instantiate \<tau>s) ts"
       using u_sem_fun Fun
       by simp+
-
-    then obtain r' w'
-      where "\<Xi>, \<sigma> \<turnstile> UFunction f ts :u instantiate \<tau>s \<tau> \<langle>r', w'\<rangle>"
-        and "r' \<subseteq> r"
-        and "frame \<sigma> w \<sigma> w'"
-      using u_t_function_instantiate frame_id matches_ptrs_proj_consumed
-      sorry
-    then show ?thesis
+    then obtain K' t u k
+      where \<tau>_is: "\<tau> = TFun (instantiate ts t) (instantiate ts u)"
+        and typing_f': "\<Xi>, K', [Some t] \<turnstile> f' : u"
+        and \<Gamma>consumed: "K \<turnstile> \<Gamma> consumed"
+        and "list_all2 (kinding K) ts K'"
+        and t_wellformed: "K' \<turnstile>  t :\<kappa>  k"
+      using u_sem_fun Fun is_consumed_def
       by blast
-
-      using u_sem_fun
-      apply clarsimp
-      apply (simp add: frame_id)
-      apply (fastforce intro: u_t_function_instantiate frame_id
-                        dest: matches_ptrs_proj_consumed)
-      done
-    thm matches_ptrs_proj_consumed u_t_function_instantiate frame_id
-      sorry
+    then have "\<Xi>, \<sigma> \<turnstile> UFunction f' (map (instantiate \<tau>s) ts) :u TFun (instantiate \<tau>s (instantiate ts t)) (instantiate \<tau>s (instantiate ts u)) \<langle>{}, {}\<rangle>"
+      using u_t_function_instantiate typing_f' u_sem_fun(3) t_wellformed
+      by fastforce
+    moreover have w_is: "w = {}"
+      using matches_ptrs_proj_consumed u_sem_fun \<Gamma>consumed
+      by blast
+    ultimately show ?thesis
+      using frame_id 
+      by (auto simp add: ts_inst_is \<tau>_is f'_is)
   qed simp+
 next case u_sem_app
   note IH1  = this(2)
@@ -1995,11 +1994,11 @@ next case u_sem_take_ub
             apply (fastforce intro!: u_t_struct simp: map_update)
            apply (simp)
           apply (blast)
-         apply (blast)
-        apply (blast) (* TODO: slow *)
-       apply (blast)
-      apply (blast) (* TODO: slow *)
-     apply (blast)
+         apply auto[1]
+        apply auto[1]
+       apply blast
+      apply fast
+     apply fast
     apply (clarsimp, auto intro!: exI intro: frame_let pointerset_helper_frame)
   done    
 next case u_sem_put
@@ -2039,14 +2038,16 @@ next case u_sem_put
                                            , OF _ _ HELP [rule_format]
                                            , simplified
                                            ])
-        apply (fast) (* TODO: slow *)
-       apply (fast) (* TODO: slow *)
-      apply (fast)
+        apply auto[1]
+       apply auto[1]
+      apply blast
      apply (fastforce intro: substitutivity)
     apply (clarsimp, intro conjI exI, rule u_t_p_rec_w')
-    apply (simp add: map_update)
-    apply (auto intro!: list_helper[symmetric] simp: HELP2 map_update frame_def) (* TODO: slow *)
-  done
+         apply (simp add: map_update)
+        apply simp
+       apply force
+      apply (auto intro!: list_helper[symmetric] simp: HELP2 map_update frame_def)
+    done
 next case u_sem_put_ub
   note IH1  = this(2)
   and  IH2  = this(4)
@@ -2079,9 +2080,9 @@ next case u_sem_put_ub
                                            , OF _ _ HELP [rule_format]
                                            , simplified
                                            ])
-        apply (fast) (* TODO: slow *)
-       apply (fast) (* TODO: slow *)
-      apply (fast)
+        apply blast
+       apply auto[1]
+      apply blast
      apply (fastforce intro: substitutivity)
     apply (clarsimp, auto intro!: exI u_t_struct simp: map_update frame_def)  (* TODO: slow *)
   done
@@ -2102,17 +2103,17 @@ next case u_sem_split
       apply (simp)
       apply (rule matches_ptrs_some, simp, rule matches_ptrs_some, simp)
             apply (rule matches_ptrs_frame, simp, simp)
-             apply (blast)
-            apply (blast)
-           apply (blast)
-          apply (blast) (* TODO: slow *)
-         apply (blast)
-        apply (blast)
-       apply (blast) (* TODO: slow *)
-      apply (blast)
-     apply (blast)
+             apply fast
+            apply fast
+           apply auto[1]
+          apply auto[1]
+         apply blast
+        apply auto[1]
+       apply auto[1]
+      apply blast
+     apply blast
     apply (clarsimp, auto intro!: exI intro: frame_let pointerset_helper_frame)
-  done
+    done
 
 next case u_sem_all_empty then show ?case by ( cases es, simp_all
                                              , fastforce intro!: frame_id
