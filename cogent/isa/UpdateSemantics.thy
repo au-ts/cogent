@@ -1325,31 +1325,76 @@ and     "w'a \<inter> r'b = {}"
 and     "w'a \<inter> w'b = {}"
 and     "f < length ts"
 shows   "\<exists>r''a\<subseteq> r'a. \<Xi>, \<sigma> \<turnstile>* fs[f := (e', snd (fs ! f))] :ur (ts[f := (t, False)]) \<langle>r''a \<union> r'b, w'a \<union> w'b\<rangle>"
-using assms proof (induct fs arbitrary: f r'a w'a ts)
+  using assms proof (induct fs arbitrary: f r'a w'a ts)
   case Nil
   then show ?case
     by (rule_tac x=r'a in exI, force)
-next case Cons then show ?case
+next case (Cons f' fs') then show ?case
   proof (cases f)
-       case 0   with Cons(2-) show ?thesis
-         apply (clarsimp)
-         apply (frule(2) discardable_not_writable)
-         apply (elim u_t_r_consE, simp)
-         apply (rotate_tac 3, frule(2) discardable_not_writable)
-         apply (rule_tac x = r' in exI)
-         apply (rule, blast)
-         apply (rule pointerset_helper_record,(fastforce intro!:  u_t_r_cons2 u_t_r_cons1)+)
-       done
-  next case Suc with Cons(2-) show ?thesis
-         apply (clarsimp)
-         apply (elim u_t_r_consE)
-          apply (frule(1) Cons(1), simp,blast,blast,blast,blast,blast, simp)
-          apply (clarsimp, rule_tac x = "r \<union> r''a" in exI, rule, blast)
-          apply (rule pointerset_helper_record,(force intro!:  u_t_r_cons2 u_t_r_cons1), blast,blast)
-         apply (frule(1) Cons(1), simp,blast,blast,blast,blast,blast, simp)
-         apply (clarsimp, rule_tac x = "r''a" in exI, rule, blast)
-         apply (rule pointerset_helper_record,(fastforce intro!:  u_t_r_cons2 u_t_r_cons1)+)
-    done
+    case 0   with Cons(2-) show ?thesis
+      apply (clarsimp)
+      apply (frule(2) discardable_not_writable)
+      apply (elim u_t_r_consE, simp)
+       apply (rotate_tac 3, frule(2) discardable_not_writable)
+       apply (rule_tac x = r' in exI)
+       apply (rule, blast)
+       apply (rule pointerset_helper_record,(fastforce intro!:  u_t_r_cons2 u_t_r_cons1)+)
+      done
+  next case (Suc nat)
+
+    have "\<exists>r''a\<subseteq>r'a. \<Xi>, \<sigma> \<turnstile>* (f' # fs')[f := (e', snd ((f' # fs') ! f))] :ur ts[f := (t, False)] \<langle>r''a \<union> r'b, w'a \<union> w'b\<rangle>"
+      using Cons(3)
+    proof (cases rule: uval_typing_record.cases)
+      case (u_t_r_cons1 x t' r w ts' r' w' rp)
+
+      have "ts' ! nat = (t, False)"
+        using Cons(4) u_t_r_cons1(2) Suc
+        by simp
+      moreover have "w'b \<inter> r' = {}"
+        and "w' \<inter> r'b = {}"
+        and "w' \<inter> w'b = {}"
+        using Cons.prems(6-8) u_t_r_cons1(3,4)
+        by blast+
+      moreover have "nat < length ts'"
+        using Cons.prems(9) Suc u_t_r_cons1(2)
+        by auto
+      ultimately obtain r''a
+        where r''a_sub_r': "r''a \<subseteq> r'"
+          and "\<Xi>, \<sigma> \<turnstile>* fs'[nat := (e', snd (fs' ! nat))] :ur ts'[nat := (t, False)] \<langle>r''a \<union> r'b, w' \<union> w'b\<rangle>"
+        using Cons.hyps Cons.prems u_t_r_cons1
+        by metis
+      moreover have "w \<inter> (w' \<union> w'b) = {}"
+        and "w \<inter> (r''a \<union> r'b) = {}"
+        and "(w' \<union> w'b) \<inter> r = {}"
+        using Cons.prems(6-8) u_t_r_cons1(3,4,7-9) r''a_sub_r'
+        by auto
+      ultimately have "\<Xi>, \<sigma> \<turnstile>* (x, rp) # fs'[nat := (e', snd (fs' ! nat))] :ur (t', False) # ts'[nat := (t, False)] \<langle>r \<union> (r''a \<union> r'b), w \<union> (w' \<union> w'b)\<rangle>"
+        using u_t_r_cons1(5,10)
+        by (intro uval_typing_uval_typing_record.u_t_r_cons1, simp)
+      then show ?thesis
+        using r''a_sub_r'
+        by (intro exI[where x="r \<union> r''a"],
+            auto simp add: u_t_r_cons1(1-4) Suc Cons(4) Un_assoc)
+    next
+      case (u_t_r_cons2 ts' t' rp x)
+
+      have "ts' ! nat = (t, False)"
+        using Cons(4) u_t_r_cons2(2) Suc
+        by simp
+      moreover have "nat < length ts'"
+        using Cons.prems(9) Suc u_t_r_cons2(2)
+        by auto
+      ultimately obtain r''a
+        where "r''a \<subseteq> r'a"
+          and "\<Xi>, \<sigma> \<turnstile>* fs'[nat := (e', snd (fs' ! nat))] :ur ts'[nat := (t, False)] \<langle>r''a \<union> r'b, w'a \<union> w'b\<rangle>"
+        using Cons u_t_r_cons2 assms
+        by metis
+      then show ?thesis
+        by (simp add: u_t_r_cons2(1-3) Suc,
+            metis u_t_r_cons2(4-7) uval_typing_uval_typing_record.u_t_r_cons2)
+    qed
+    then show ?thesis
+      by blast
   qed
 qed
 
@@ -1428,10 +1473,34 @@ next case u_sem_afun      then show ?case by ( cases e, simp_all
                                              , fastforce intro: u_t_afun_instantiate
                                                                 frame_id
                                                          dest:  matches_ptrs_proj_consumed)
-next case u_sem_fun       then show ?case   by ( cases e, simp_all
-                                             , fastforce intro: u_t_function_instantiate
-                                                                frame_id
-                                                         dest:  matches_ptrs_proj_consumed)
+next 
+  case (u_sem_fun \<xi> \<gamma> \<sigma> f ts_inst)
+  then show ?case
+  proof (cases e)
+    case (Fun f' ts)
+
+    have f'_is: "f' = f"
+      and ts_inst_is: "ts_inst = map (instantiate \<tau>s) ts"
+      using u_sem_fun Fun
+      by simp+
+    then obtain K' t u k
+      where \<tau>_is: "\<tau> = TFun (instantiate ts t) (instantiate ts u)"
+        and typing_f': "\<Xi>, K', [Some t] \<turnstile> f' : u"
+        and \<Gamma>consumed: "K \<turnstile> \<Gamma> consumed"
+        and "list_all2 (kinding K) ts K'"
+        and t_wellformed: "K' \<turnstile>  t :\<kappa>  k"
+      using u_sem_fun Fun is_consumed_def
+      by blast
+    then have "\<Xi>, \<sigma> \<turnstile> UFunction f' (map (instantiate \<tau>s) ts) :u TFun (instantiate \<tau>s (instantiate ts t)) (instantiate \<tau>s (instantiate ts u)) \<langle>{}, {}\<rangle>"
+      using u_t_function_instantiate typing_f' u_sem_fun(3) t_wellformed
+      by fastforce
+    moreover have w_is: "w = {}"
+      using matches_ptrs_proj_consumed u_sem_fun \<Gamma>consumed
+      by blast
+    ultimately show ?thesis
+      using frame_id 
+      by (auto simp add: ts_inst_is \<tau>_is f'_is)
+  qed simp+
 next case u_sem_app
   note IH1  = this(2)
   and  IH2  = this(4)
@@ -1925,11 +1994,11 @@ next case u_sem_take_ub
             apply (fastforce intro!: u_t_struct simp: map_update)
            apply (simp)
           apply (blast)
-         apply (blast)
-        apply (blast)
-       apply (blast)
-      apply (blast)
-     apply (blast)
+         apply auto[1]
+        apply auto[1]
+       apply blast
+      apply fast
+     apply fast
     apply (clarsimp, auto intro!: exI intro: frame_let pointerset_helper_frame)
   done    
 next case u_sem_put
@@ -1969,14 +2038,16 @@ next case u_sem_put
                                            , OF _ _ HELP [rule_format]
                                            , simplified
                                            ])
-        apply (fast)
-       apply (fast)
-      apply (fast)
+        apply auto[1]
+       apply auto[1]
+      apply blast
      apply (fastforce intro: substitutivity)
     apply (clarsimp, intro conjI exI, rule u_t_p_rec_w')
-    apply (simp add: map_update)
-    apply (auto intro!: list_helper[symmetric] simp: HELP2 map_update frame_def)
-  done
+         apply (simp add: map_update)
+        apply simp
+       apply force
+      apply (auto intro!: list_helper[symmetric] simp: HELP2 map_update frame_def)
+    done
 next case u_sem_put_ub
   note IH1  = this(2)
   and  IH2  = this(4)
@@ -2009,11 +2080,11 @@ next case u_sem_put_ub
                                            , OF _ _ HELP [rule_format]
                                            , simplified
                                            ])
-        apply (fast)
-       apply (fast)
-      apply (fast)
+        apply blast
+       apply auto[1]
+      apply blast
      apply (fastforce intro: substitutivity)
-    apply (clarsimp, auto intro!: exI u_t_struct simp: map_update frame_def) 
+    apply (clarsimp, auto intro!: exI u_t_struct simp: map_update frame_def)  (* TODO: slow *)
   done
 next case u_sem_split
   note IH1  = this(2)
@@ -2032,17 +2103,17 @@ next case u_sem_split
       apply (simp)
       apply (rule matches_ptrs_some, simp, rule matches_ptrs_some, simp)
             apply (rule matches_ptrs_frame, simp, simp)
-             apply (blast)
-            apply (blast)
-           apply (blast)
-          apply (blast)
-         apply (blast)
-        apply (blast)
-       apply (blast)
-      apply (blast)
-     apply (blast)
+             apply fast
+            apply fast
+           apply auto[1]
+          apply auto[1]
+         apply blast
+        apply auto[1]
+       apply auto[1]
+      apply blast
+     apply blast
     apply (clarsimp, auto intro!: exI intro: frame_let pointerset_helper_frame)
-  done
+    done
 
 next case u_sem_all_empty then show ?case by ( cases es, simp_all
                                              , fastforce intro!: frame_id
