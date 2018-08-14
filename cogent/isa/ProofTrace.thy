@@ -8,7 +8,11 @@
  * @TAG(NICTA_GPL)
  *)
 
-theory ProofTrace imports Main begin
+theory ProofTrace
+  imports
+    Main
+    "ML_Old"
+begin
 
 (* begin: tactic trace code *)
 (* Proof of concept implementation. DO NOT USE THIS CODE *)
@@ -176,7 +180,7 @@ fun my_unify_fact_tac ctxt subproof n state =
                                |> map (fn (v, t) => (cterm_of' v, cterm_of' t))
              in
              case Thm.instantiate ([], substs') state of state' =>
-               (case Proof_Context.fact_tac ctxt [Drule.gen_all 1 subproof] 1 state' |> Seq.pull of
+               (case Proof_Context.fact_tac ctxt [gen_all 1 subproof] 1 state' |> Seq.pull of
                    NONE => Seq.empty
                  | r => Seq.make (fn () => r))
              handle _ => Seq.empty

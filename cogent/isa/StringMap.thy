@@ -50,10 +50,8 @@ instance
    apply (simp add: lexord_irreflexive)
   apply (clarsimp split: LexOrdString.split)
   apply (rename_tac lista listb)
-  apply (cut_tac x=lista and y=listb in lexord_linear)
-   defer
-   apply blast
-  apply auto
+  apply (cut_tac lexord_linear[where r="{(c, c'). nat_of_char c < nat_of_char c'}"])
+   apply auto
   done
 
 end
@@ -62,12 +60,13 @@ ML {*
 
 structure StringMap = struct
 
-fun define_string_map name assocs ctxt = let
+fun define_string_map name assocs ctxt =
+  let
     val th_names = map (prefix (Binding.name_of name ^ "_") o fst) assocs
     val mappings = map (apfst HOLogic.mk_string) assocs
   in StaticFun.define_tree_and_save_thms name th_names mappings
-    @{term LexOrdString} @{thms nat_of_char_def} ctxt end
-
+    @{term LexOrdString} @{thms nat_of_char} ctxt
+  end
 end
 
 *}
