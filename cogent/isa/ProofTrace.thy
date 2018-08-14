@@ -118,7 +118,7 @@ fun my_typ_insts (Type (_, args)) (Type (_, args')) =
     in if exists (not o isSome) instss then NONE else
          SOME (List.mapPartial I instss |> List.concat) end
   | my_typ_insts (TFree _) (TFree _) = SOME []
-  | my_typ_insts (TVar tv) typ = SOME [(TVar tv, typ)]
+  | my_typ_insts (TVar tv) typ = SOME [(tv, typ)]
   | my_typ_insts _ _ = NONE
 fun my_typ_match' absvars (t as f $ x) t' =
       (case strip_comb t of
@@ -143,10 +143,10 @@ fun annotate_boundvar _ absvars (Bound n) =
         else raise TYPE ("annotate_boundvar", map snd absvars, [Bound n])
   | annotate_boundvar _ _ (t as Free (name, typ)) = (t, (name, typ))
   | annotate_boundvar i absvars t = (t, ("var" ^ Int.toString i, subterm_type absvars t))
-fun my_match' _ (Var v) t' = SOME [(Var v, [], t')]
+fun my_match' _ (Var v) t' = SOME [(v, [], t')]
   | my_match' absvars (t as f $ x) t' =
       (case strip_comb t of
-          (Var v, args) => SOME [(Var v, map (fn (i, arg) => annotate_boundvar i absvars arg)
+          (Var v, args) => SOME [(v, map (fn (i, arg) => annotate_boundvar i absvars arg)
                                              (enumerate args), t')]
         | _ => (case t' of
                    f' $ x' => (case (my_match' absvars f f', my_match' absvars x x') of
@@ -169,7 +169,7 @@ fun my_unify_fact_tac ctxt subproof n state =
   case my_typ_match stateterm proofterm of
      NONE => Seq.empty
    | SOME typinsts =>
-     (case Thm.instantiate (map (fn (v, t) => (ctyp_of' v, ctyp_of' t)) (nubBy fst typinsts), []) state of
+     (case Thm.instantiate (map (fn (v, t) => (v, ctyp_of' t)) (nubBy fst typinsts), []) state of
        state' =>
         let val stateterm' = nth (Thm.prems_of state') (n-1) in
         case my_match stateterm' proofterm of
@@ -177,7 +177,7 @@ fun my_unify_fact_tac ctxt subproof n state =
          | SOME substs =>
              let val substs' = nubBy #1 substs
                                |> map (fn (var, args, t') => (var, my_lambda args t'))
-                               |> map (fn (v, t) => (cterm_of' v, cterm_of' t))
+                               |> map (fn (v, t) => (v, cterm_of' t))
              in
              case Thm.instantiate ([], substs') state of state' =>
                (case Proof_Context.fact_tac ctxt [gen_all 1 subproof] 1 state' |> Seq.pull of

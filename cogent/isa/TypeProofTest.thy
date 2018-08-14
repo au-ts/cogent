@@ -9,7 +9,7 @@
  *)
 
 theory TypeProofTest
-imports "CogentHelper" "ProofTrace"
+imports "CogentHelper" "ProofTrace" "ML_Old"
 begin
 
 definition
@@ -19,7 +19,9 @@ definition
   "foo \<equiv> Let (Var 0) (Take (Var 0) 0 (Put (Var 1) 0 (Var 0)))"
 
 definition
-  "\<Xi> func_name' \<equiv> case func_name' of ''foo'' \<Rightarrow> foo_type"
+  "\<Xi> \<equiv> undefined(''foo'' := foo_type)"
+
+lemmas typing_put_better = typing_put'
 
 lemma 
   "\<Xi>, fst foo_type, [Some (fst (snd foo_type))] \<turnstile> foo : snd (snd foo_type)"
