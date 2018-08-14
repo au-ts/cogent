@@ -161,9 +161,6 @@ script:
  - cd $REPO/impl/fs/bilby/cogent && travis_wait make .c-gen
 
 notifications:
-  hipchat:
-    rooms:
-      secure: BbgWKKsYcSrujfxOS7bHn9oKhTIAOsG0WbTkFybIfcTL3Ma3EhlGRr6Kj2S2f9Qf8SpewEcCBFbCCBqX0lb0vpbopEyRXnlA85k9WsJWC6Xxy/LbPDRXw54OeKnyO3w17FuvvzXIT62eBN1s7HeRDAU4UzLHbehhmmLBN8dn8PeEt4U4bXqHhpIJrFhNDvQY20KJDYzgQFbZPkF36XW3UGYumOE8YYwgwipIchpFmWanhydIKRPd7E4XlT61C+9d3awcxNpmRpx/G3nrxmea4kQDokrbBxrZvc/2xKGYHo+demsLz7d3NQROSeilOkrxZW41Sb4lFzw5yTY82qOfuR3hpZtGXDmKYeJ4xIuX8cGhPEtsO1ZqFqk6uHUjMCu+Q057R+918AeNqyjPcrcFn+kLnhWhcHbIGeJf4JRsC+jNP14M6BBYsjxVeWiTz3TzCUtMSMSh8sMIMCef40V7gUf32sDk/wR8j8cfkjK2BENprzKgqsnxiseDggEHTRKSoysXUiIPYs6+IDQSS178xJXzWy2V8TzLEEPvyuyUzSyVsvjYQ6TeNgkwxhk7Z4XYH0w5x1LCOgV0PWX/g00Wp08zMwv5I7JOUi4PkyzEP2zGPg6GQN9Ar9NRYbFbjBCv8I1XeCpTeFzwBeReNHTWRHh+YVrgmiAADCIsC+3GjfQ=
   slack:
     rooms:
       - cogent-club:dUKOfdIU3BGsvalWStE0BCGG#dev
