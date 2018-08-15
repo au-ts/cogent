@@ -61,7 +61,7 @@ data TypingTree t = TyTrLeaf
                   | TyTrSplit [Maybe TypeSplitKind] (TreeCtx t) (TreeCtx t)
 type TreeCtx t = ([Maybe (Type t)], TypingTree t)
 
-deepTypeProof :: NameMod -> Bool -> Bool -> String -> [Definition TypedExpr a] -> String -> Doc
+deepTypeProof :: (Pretty a) => NameMod -> Bool -> Bool -> String -> [Definition TypedExpr a] -> String -> Doc
 deepTypeProof mod withDecls withBodies thy decls log =
   let header = (string ("(*\n" ++ log ++ "\n*)\n") <$>)
       ta = getTypeAbbrevs mod decls
@@ -144,7 +144,7 @@ formatTypecorrectProof fn =
      ProofDone)) ]
 
 
-prove :: [Definition TypedExpr a] -> Definition TypedExpr a
+prove :: (Pretty a) => [Definition TypedExpr a] -> Definition TypedExpr a
       -> State TypingSubproofs ([TheoryDecl I.Type I.Term], [TheoryDecl I.Type I.Term])
 prove decls (FunDef _ fn k ti to e) = do
   mod <- use nameMod
@@ -157,13 +157,13 @@ prove decls (FunDef _ fn k ti to e) = do
   where eexpr = pushDown (Cons (Just ti) Nil) (splitEnv (Cons (Just ti) Nil) e)
 prove _ _ = return ([], [])
 
-proofs :: [Definition TypedExpr a]
+proofs :: (Pretty a) => [Definition TypedExpr a]
        -> State TypingSubproofs [TheoryDecl I.Type I.Term]
 proofs decls = do
     bodies <- mapM (prove decls) decls
     return $ concat $ map fst bodies ++ map snd bodies
 
-funTypeTree :: NameMod -> TypeAbbrevs -> Definition TypedExpr a -> [TheoryDecl I.Type I.Term]
+funTypeTree :: (Pretty a) => NameMod -> TypeAbbrevs -> Definition TypedExpr a -> [TheoryDecl I.Type I.Term]
 funTypeTree mod ta (FunDef _ fn _ ti _ e) = [deepTyTreeDef mod ta fn (typeTree eexpr)]
   where eexpr = pushDown (Cons (Just ti) Nil) (splitEnv (Cons (Just ti) Nil) e)
 funTypeTree _ _ _ = []
@@ -257,7 +257,7 @@ selectEnv [] env = cleared env
 selectEnv ((v,_):vs) env = update (selectEnv vs env) v (env `at` v)
 
 -- Annotates a typed expression with the environment required to successfully execute it
-splitEnv :: Vec v (Maybe (Type t)) -> TypedExpr t v a -> EnvExpr t v a
+splitEnv :: (Pretty a) => Vec v (Maybe (Type t)) -> TypedExpr t v a -> EnvExpr t v a
 splitEnv env (TE t Unit)          = EE t Unit          $ cleared env
 splitEnv env (TE t (ILit i t'))   = EE t (ILit i t')   $ cleared env
 splitEnv env (TE t (SLit s))      = EE t (SLit s)      $ cleared env
@@ -338,14 +338,16 @@ splitEnv env (TE t (Case e tag (lt,at,et) (le,ae,ee)))
 
 splitEnv env (TE t (Take a e f e2)) =
     let e' = splitEnv env e
+        ts = case typeOf e' of
+                TRecord ts -> ts
+                TPtr (TRecord ts) _ _ -> ts
         e2' = splitEnv (Cons (Just $ recType (ts!!f)) (Cons (Just $ TRecord (setAt ts f (fst (ts!!f), (recType (ts!!f), True)))) env)) e2 -- fix this
-        TRecord ts = typeOf e'
      in EE t (Take a e' f e2') $ envOf e' <|> peel2 (envOf e2')
 
 
 -- Ensures that the environment of an expression is equal to the sum of the
 -- environments of the subexpressions.
-pushDown :: Vec v (Maybe (Type t)) -> EnvExpr t v a -> EnvExpr t v a
+pushDown :: (Pretty a) => Vec v (Maybe (Type t)) -> EnvExpr t v a -> EnvExpr t v a
 pushDown unused (EE ty e@Unit       _) = EE ty e unused
 pushDown unused (EE ty e@(ILit _ _) _) = EE ty e unused
 pushDown unused (EE ty e@(SLit _)   _) = EE ty e unused
@@ -416,8 +418,10 @@ pushDown unused (EE ty (Member e f) env)
     = let e' = pushDown unused e
        in EE ty (Member e' f) $ unused <|> env
 
-pushDown unused (EE ty (Take a e@(EE (TRecord ts) _ _) f e2) env)
-    = let e'@(EE (TRecord ts) _ _) = pushDown (unused <\> env) e
+pushDown unused (EE ty (Take a e f e2) env)
+    = let e'@(EE rt _ _) = pushDown (unused <\> env) e
+          ts = case rt of TRecord ts -> ts
+                          TPtr (TRecord ts) _ _ -> ts
           e2' = pushDown (Cons (Just $ recType $ ts!!f) (Cons (Just $ TRecord (setAt ts f (fst (ts!!f), (recType $ ts!!f, True)))) (cleared env))) e2 -- fix this
        in EE ty (Take a e' f e2') $ unused <|> env
 
@@ -430,7 +434,7 @@ pushDown unused (EE ty (Promote ty' e) env)
     = let e' = pushDown unused e
        in EE ty (Promote ty' e') $ unused <|> env
 
-pushDown _ _ = error "TypeProofs: reached default case of pushDown"
+pushDown _ e = __impossible $ "pushDown:" ++ show (pretty e) ++ " is not yet implemented"
 
 treeSplit :: Maybe (Type t) -> Maybe (Type t) -> Maybe (Type t) -> Maybe TypeSplitKind
 treeSplit Nothing  Nothing  Nothing  = Nothing

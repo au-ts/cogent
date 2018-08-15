@@ -9,6 +9,7 @@
 --
 
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeOperators #-}
@@ -17,11 +18,10 @@ module Cogent.ProofGen where
 
 import Cogent.Common.Types
 import Cogent.Common.Syntax
-#if __GLASGOW_HASKELL__ < 711
 import Cogent.Compiler
-#endif
 import Cogent.Core hiding (kind)
 import Cogent.Deep
+import Cogent.PrettyPrint
 import Cogent.Vec hiding (splitAt, length, zipWith, zip, unzip)
 import qualified Cogent.Vec as Vec
 import Cogent.Util
@@ -33,12 +33,22 @@ import Data.Map (Map)
 import Data.Maybe (catMaybes)
 import qualified Data.Map as M
 import Isabelle.InnerAST hiding (Type)
+import Text.PrettyPrint.ANSI.Leijen
 
 type Xi a = [Definition TypedExpr a]
-data EnvExpr t v a = EE { eexprType :: Type t , eexprExpr :: Expr t v a EnvExpr , eexprEnv :: Vec v (Maybe (Type t))} deriving (Show)
+data EnvExpr t v a = EE { eexprType :: Type t
+                        , eexprExpr :: Expr t v a EnvExpr
+                        , eexprEnv :: Vec v (Maybe (Type t))
+                        } deriving (Show)
 
 instance Functor (EnvExpr t v) where
   fmap f (EE t e env) = EE t (ffmap f e) env
+
+instance Prec (EnvExpr t v a) where
+  prec (EE _ e _) = prec e
+
+instance (Pretty a) => Pretty (EnvExpr t v a) where
+  pretty (EE t e env) = pretty e
 
 data Thm = Thm String
          | NthThm String Int
@@ -77,6 +87,7 @@ data Hints = KindingTacs [Tactic]
            | TypingTacs [Tactic]
   deriving Show
 
+-- Same as `Type' in Core, but without type indices.
 data Type'
   = TVar' Int
   | TVarBang' Int
@@ -84,7 +95,7 @@ data Type'
   | TFun' Type' Type'
   | TPrim' PrimInt
   | TString'
-  | TSum' [(TagName, Type')]
+  | TSum' [(TagName, (Type', Bool))]
   | TProduct' Type' Type'
   | TRecord' [(FieldName, (Type', Bool))]
   | TUnit'
@@ -98,7 +109,7 @@ deepType' (TCon' tn ts) = mkApp (mkId "TCon") [mkString tn, mkList (map deepType
 deepType' (TFun' ti to) = mkApp (mkId "TFun") [deepType' ti, deepType' to]
 deepType' (TPrim' pt) = mkApp (mkId "TPrim") [deepPrimType pt]
 deepType' (TString') = mkApp (mkId "TPrim") [mkId "String"]
-deepType' (TSum' alts) = mkApp (mkId "TSum") [mkList $ map (\(n,t) -> mkPair (mkString n) (deepType' t)) alts]
+deepType' (TSum' alts) = mkApp (mkId "TSum") [mkList $ map (\(n,(t,b)) -> mkPair (mkString n) (mkPair (deepType' t) (mkBool b))) alts]
 deepType' (TProduct' t1 t2) = mkApp (mkId "TProduct") [deepType' t1, deepType' t2]
 deepType' (TRecord' fs) = mkApp (mkId "TRecord") [mkList $ map (\(fn,(t,b)) -> mkPair (deepType' t) (mkBool b)) fs]
 deepType' (TUnit') = mkId "TUnit"
@@ -110,10 +121,11 @@ stripType (TCon t ts) = TCon' t (map stripType ts)
 stripType (TFun t u) = TFun' (stripType t) (stripType u)
 stripType (TPrim t) = TPrim' t
 stripType TString = TString'
-stripType (TSum ts) = TSum' (map (\(n,(t,_)) -> (n, stripType t)) ts)  -- FIXME: cogent.1
+stripType (TSum ts) = TSum' (map (\(n,(t,b)) -> (n, (stripType t, b))) ts)
 stripType (TProduct t u) = TProduct' (stripType t) (stripType u)
-stripType (TRecord fs) = TRecord' (map (\(n, (t, tk)) -> (n, (stripType t, tk))) fs)
+stripType (TRecord fs) = TRecord' (map (\(n,(t,b)) -> (n, (stripType t, b))) fs)
 stripType TUnit = TUnit'
+stripType (TPtr t r s) = TPtr' (stripType t) s
 
 {-
 We cache some subproofs to avoid duplication.
@@ -226,170 +238,38 @@ allVars [] = True
 allVars _ = False
 
 typing :: Xi a -> Vec t Kind -> EnvExpr t v a -> State TypingSubproofs [Tactic]
-typing xi k (EE _ Unit env) = tacSequence [
-  return [rule "typing_unit"], -- Ξ, K, Γ ⊢ Unit : TUnit if
-  consumed k env                 -- K ⊢ Γ consumed
-  ]
-
-typing xi k (EE _ (ILit _ t) env) = tacSequence [
-  return [rule "typing_lit'"], -- Ξ, K, Γ ⊢ Lit l : TPrim t if
-  consumed k env,                -- K ⊢ Γ consumed
-  return [simp]                  -- t = lit_type l
-  ]
-
-typing xi k (EE _ (SLit t) env) = tacSequence [
-  return [rule "typing_lit'"], -- Ξ, K, Γ ⊢ Lit l : TPrim t if
-  consumed k env,                -- K ⊢ Γ consumed
-  return [simp]                  -- t = lit_type l
-  ]
-
 typing xi k (EE t (Variable i) env) = tacSequence [
-  return $ [rule "typing_var"], -- Ξ, K, Γ ⊢ Var i : t if
-  weakens k env (singleton (fst i) env), -- K ⊢ Γ ↝w singleton (length Γ) i t
-  return [simp]                          -- i < length Γ
-  ]
-
-typing xi k (EE _ (Esac x) _) = tacSequence [
-  return [rule "typing_esac"], -- Ξ, K, Γ ⊢ Esac x : t if
-  typing xi k x                  -- Ξ, K, Γ ⊢ x : TSum [(tag,t)]
-  ]
-
-typing xi k (EE _ (Promote ty e) env)
-  | EE (TPrim pt) _ _ <- e, TPrim pt' <- ty, pt /= Boolean = tacSequence [
-    return [rule "typing_cast"], -- Ξ, K, Γ ⊢ Cast τ' e : TPrim (Num τ') if
-    typing xi k e,                 -- Ξ, K, Γ ⊢ e : TPrim (Num τ)
-    return [simp]                  -- upcast_valid τ τ'
-    ]
-  | EE (TSum _) (Con cn v t) _ <- e, TSum as <- ty = typing xi k (EE (TSum as) (Con cn v t) env) -- inlined Con
-  | TSum as <- ty = tacSequence [
-    return [rule "typing_prom"], -- Ξ, K, Γ ⊢ Promote ts' e : TSum ts'
-    typing xi k e,                 -- Ξ, K, Γ ⊢ e : TSum ts
-    return [simp],                 -- set ts ⊆ set ts'
-    wellformedAll k (map (fst . snd) as),  -- K ⊢* (map snd ts') wellformed  -- FIXME: cogent.1
-    return (distinct (map fst as)) -- distinct (map fst ts')
-    ]
-
-typing xi k (EE y (App a b) env) = tacSequence [
-  return [rule "typing_app"], -- Ξ, K, Γ ⊢ App a b : y if
-  splits k env (envOf a) (envOf b), -- K ⊢ Γ ↝ Γ1 | Γ2
-  typing xi k a,                    -- Ξ, K, Γ1 ⊢ a : TFun x y
-  typing xi k b                     -- Ξ, K, Γ2 ⊢ b : x
-  ]
-
-typing xi k (EE _ (Tuple t u) env) = tacSequence [
-  return [rule "typing_tuple"], -- Ξ, K, Γ ⊢ Tuple t u : TProduct T U if
-  splits k env (envOf t) (envOf u), -- K ⊢ Γ ↝ Γ1 | Γ2
-  typing xi k t,                    -- Ξ, K, Γ1 ⊢ t : T
-  typing xi k u                     -- Ξ, K, Γ2 ⊢ u : U
-  ]
-
-typing xi k (EE u (Let a x y) env) = tacSequence [
-  return [rule "typing_let"], -- Ξ, K, Γ ⊢ Let x y : u if
-  splits k env (envOf x) (peel $ envOf y), -- K ⊢ Γ ↝ Γ1 | Γ2
-  typing xi k x,                           -- Ξ, K, Γ1 ⊢ x : t
-  typing xi k y                            -- Ξ, K, (Some t # Γ2) ⊢ y : u
-  ]
-
-typing xi k (EE t' (Split a x y) env) = tacSequence [
-  return [rule "typing_split"], -- Ξ, K, Γ ⊢ Split x y : t' if
-  splits k env (envOf x) (peel2 $ envOf y), -- K ⊢ Γ ↝ Γ1 | Γ2
-  typing xi k x,                            -- Ξ, K, Γ1 ⊢ x : TProduct t u
-  typing xi k y                             -- Ξ, K, (Some t)#(Some u)#Γ2 ⊢ y : t'
-  ]
-
-typing xi k (EE t (Member e f) env) = tacSequence [
-  return [rule "typing_member"], -- Ξ, K, Γ ⊢ Member e f : t if
-  typing xi k e,                   -- Ξ, K, Γ ⊢ e : TRecord ts s
-  kinding k (eexprType e),         -- K ⊢ TRecord ts s :κ k (* k introduced *)
-  return [simp, simp, simp]        -- S ∈ k;  f < length ts; ts ! f = (t, False)
-  ]
-
-typing xi k (EE t (Struct fs) env) = tacSequence [
-  return [rule "typing_struct'"], -- Ξ, K, Γ ⊢ Struct es : TRecord ts' Unboxed
-  typingAll xi k env (map snd fs),  -- Ξ, K, Γ ⊢* es : ts
-  return [simp]                     -- ts' = (zip ts (replicate (length ts) Fal
-  ]
-
-typing xi k (EE t (If x a b) env) = tacSequence [
-  return [rule "typing_if"], -- Ξ, K, Γ ⊢ If x a b : t if
-  splits k env (envOf x) (envOf a <|> envOf b), -- K ⊢ Γ ↝ Γ1 | Γ2
-  typing xi k x,                                -- Ξ, K, Γ1 ⊢ x : TPrim Bool
-  typing xi k a,                                -- Ξ, K, Γ2 ⊢ a : t
-  typing xi k b                                 -- Ξ, K, Γ2 ⊢ b : t
-  ]
-
-typing xi k (EE (TPrim t) (Op o es) env) = tacSequence [
-  return [rule "typing_prim'"], -- Ξ, K, Γ ⊢ Prim o es : TPrim t if
-  return [simp],                  -- prim_op_type oper = (ts,t)
-  return [simp],                  -- ts' = map TPrim ts;
-  typingAll xi k env es           -- Ξ, K, Γ ⊢* args : ts'
-  ]
-
-typing xi k (EE (TSum ts) (Con tag e t) env) = tacSequence [
-  return [rule "typing_con"], -- Ξ, K, Γ ⊢ Con ts tag x : TSum ts if
-  typing xi k e,                 -- Ξ, K, Γ ⊢ x : t
-  return [simp],                 -- (tag,t) ∈ set ts
-  wellformedAll k (map (fst . snd) ts),  -- K ⊢* (map snd ts) wellformed  -- FIXME: cogent.1
-  return (distinct (map fst ts)) -- distinct (map fst ts)
-  ]
-
-typing xi k (EE u (Case x _ (_,_,a) (_,_,b)) env) = tacSequence [
-  return [rule "typing_case"], -- Ξ, K, Γ ⊢ Case x tag a b : u if
-  splits k env (envOf x) (peel $ envOf b <|> envOf a), -- K ⊢ Γ ↝ Γ1 | Γ2
-  typing xi k x,                                       -- Ξ, K, Γ1 ⊢ x : TSum ts
-  return [simp],                                       -- (tag, t) ∈ set ts
-  typing xi k a,                                       -- Ξ, K, (Some t # Γ) ⊢ a : u
-  typing xi k b                                        -- Ξ, K, (Some (TSum (filter (λ x. fst x ≠ tag) ts)) # Γ2) ⊢ b : u
-  ]
-
-typing xi k (EE u (Take a e@(EE (TRecord ts) _ _) f e') env) = tacSequence [
-  return [rule "typing_take"], -- Ξ, K, Γ ⊢ Take e f e' : u if
-  splits k env (envOf e) (peel2 $ envOf e'), -- K ⊢ Γ ↝ Γ1 | Γ2
-  typing xi k e,                             -- Ξ, K, Γ1 ⊢ e : TRecord ts s
-  return [simp, simp, simp],                 -- s ≠ ReadOnly; f < length ts; ts ! f = (t, False) (* instantiates t *)
-  kinding k (fst $ snd $ ts !! f),           -- K ⊢ t :κ k
-  return (sharableOrTaken f (envOf e')),     -- S ∈ k ∨ taken (* instantiates taken *)
-  return [simp],
-  typing xi k e'                             -- Ξ, K, (Some t # Some (TRecord (ts [f := (t,taken)]) s) # Γ2) ⊢ e' : u
-  ]
-
-typing xi k (EE ty (Put e1@(EE (TRecord ts) _ _) f e2@(EE t _ _)) env) = tacSequence [
-  return [rule "typing_put'"], -- Ξ, K, Γ ⊢ Put e f e' : TRecord ts' s if
-  splits k env (envOf e1) (envOf e2),                -- K ⊢ Γ ↝ Γ1 | Γ2
-  typing xi k e1,                                    -- Ξ, K, Γ1 ⊢ e : TRecord ts s
-  return [simp, simp],                               -- s ≠ ReadOnly; f < length ts;
-  return [simp_del ["Product_Type.prod.inject"]],    -- ts ! f = (t, taken)
-  kinding k t,                                       -- K ⊢ t :κ k
-  return (destroyableOrTaken (snd $ snd $ ts !! f)), -- D ∈ k ∨ taken
-  typing xi k e2,                                    -- Ξ, K, Γ2 ⊢ e' : t
-  return [simp]                                      -- ts' = (ts [f := (t,False)])
+  return $ [rule "typing_var"],           -- Ξ, K, Γ ⊢ Var i : t if
+  weakens k env (singleton (fst i) env),  -- K ⊢ Γ ↝w singleton (length Γ) i t
+  return [simp]                           -- i < length Γ
   ]
 
 typing xi k (EE t' (Fun f ts _) env) = case findfun f xi of
-    FunDef _ _ ks' t u _ ->
-      let ks = fmap snd ks' in tacSequence [
-        return [rule "typing_fun'"], -- Ξ, K, Γ ⊢ Fun f ts : t' if
-        do ta <- use tsTypeAbbrevs
-           mod <- use nameMod
-           let unabbrev | M.null (fst ta) = "" | otherwise = " " ++ typeAbbrevBucketName
-           return [rule (fn_proof (mod f) unabbrev)], -- Ξ, ks, (tt, [Some t]) T⊢ f : u
-        allKindCorrect k ts ks, -- list_all2 (kinding K) ts ks
-        return [simp],          -- t' = instantiate ts (TFun t u)
-        wellformed ks t,        -- ks ⊢ t wellformed
-        consumed k env          -- K ⊢ Γ consumed
-        ]
     AbsDecl _ _ ks' t u ->
       let ks = fmap snd ks' in tacSequence [
-        return [rule "typing_afun'"], -- Ξ, K, Γ ⊢ AFun f ts : t' if
+        return [rule "typing_afun'"],  -- Ξ, K, Γ ⊢ AFun f ts : t' if
         do ta <- use tsTypeAbbrevs
            mod <- use nameMod
            let unabbrev | M.null (fst ta) = ""
                         | otherwise = "[unfolded " ++ typeAbbrevBucketName ++ "]"
-           return [simp_add ["\\<Xi>_def", mod f ++ "_type_def" ++ unabbrev]], -- Ξ f = (ks, t, u)
-        allKindCorrect k ts ks,   -- list_all2 (kinding K) ts ks
-        return [simp],            -- t' = instantiate ts (TFun t u)
-        wellformed ks (TFun t u), -- ks ⊢ TFun t u wellformed
-        consumed k env            -- K ⊢ Γ consumed
+           return [simp_add ["\\<Xi>_def", mod f ++ "_type_def" ++ unabbrev]],  -- Ξ f = (K', t, u)
+        allKindCorrect k ts ks,    -- list_all2 (kinding K) ts K'
+        return [simp],             -- instantiate ts (TFun t u)
+        wellformed ks (TFun t u),  -- K' ⊢ TFun t u wellformed
+        consumed k env             -- K ⊢ Γ consumed
+        ]
+
+    FunDef _ _ ks' t u _ ->
+      let ks = fmap snd ks' in tacSequence [
+        return [rule "typing_fun'"],  -- Ξ, K, Γ ⊢ Fun f ts : t' if
+        do ta <- use tsTypeAbbrevs
+           mod <- use nameMod
+           let unabbrev | M.null (fst ta) = "" | otherwise = " " ++ typeAbbrevBucketName
+           return [rule (fn_proof (mod f) unabbrev)],  -- Ξ, K', [Some t] ⊢ f : u
+        allKindCorrect k ts ks,  -- list_all2 (kinding K) ts K'
+        return [simp],           -- t' = instantiate ts (TFun t u)
+        wellformed ks t,         -- K' ⊢ t wellformed
+        consumed k env           -- K ⊢ Γ consumed
         ]
 
     _ -> error $ "ProofGen Fun: bad function call " ++ show f
@@ -403,19 +283,147 @@ typing xi k (EE t' (Fun f ts _) env) = case findfun f xi of
           fn ++ "_typecorrect[simplified " ++ fn ++ "_type_def " ++
                               fn ++ "_typetree_def" ++ unabbrev ++ ", simplified]"
 
+typing xi k (EE y (App a b) env) = tacSequence [
+  return [rule "typing_app"],        -- Ξ, K, Γ ⊢ App a b : y if
+  splits k env (envOf a) (envOf b),  -- K ⊢ Γ ↝ Γ1 | Γ2
+  typing xi k a,                     -- Ξ, K, Γ1 ⊢ a : TFun x y
+  typing xi k b                      -- Ξ, K, Γ2 ⊢ b : x
+  ]
+
+typing xi k (EE (TSum ts) (Con tag e t) env) = tacSequence [
+  return [rule "typing_con"],            -- Ξ, K, Γ ⊢ Con ts tag x : TSum ts if
+  typing xi k e,                         -- Ξ, K, Γ ⊢ x : t
+  return [simp],                         -- (tag,t,False) ∈ set ts
+  wellformedAll k (map (fst . snd) ts),  -- K ⊢* (map (fst ∘ snd) ts) wellformed
+  return (distinct (map fst ts))         -- distinct (map fst ts)
+  ]
+
+typing xi k (EE u (Cast t e) env) = __todo "typing: Cast"
+  -- | EE (TPrim pt) _ _ <- e, TPrim pt' <- ty, pt /= Boolean = tacSequence [
+  --   return [rule "typing_cast"],   -- Ξ, K, Γ ⊢ Cast τ' e : TPrim (Num τ') if
+  --   typing xi k e,                 -- Ξ, K, Γ ⊢ e : TPrim (Num τ)
+  --   return [simp]                  -- upcast_valid τ τ'
+  --   ]
+
+typing xi k (EE _ (Tuple t u) env) = tacSequence [
+  return [rule "typing_tuple"],      -- Ξ, K, Γ ⊢ Tuple t u : TProduct T U if
+  splits k env (envOf t) (envOf u),  -- K ⊢ Γ ↝ Γ1 | Γ2
+  typing xi k t,                     -- Ξ, K, Γ1 ⊢ t : T
+  typing xi k u                      -- Ξ, K, Γ2 ⊢ u : U
+  ]
+
+typing xi k (EE t' (Split a x y) env) = tacSequence [
+  return [rule "typing_split"],              -- Ξ, K, Γ ⊢ Split x y : t' if
+  splits k env (envOf x) (peel2 $ envOf y),  -- K ⊢ Γ ↝ Γ1 | Γ2
+  typing xi k x,                             -- Ξ, K, Γ1 ⊢ x : TProduct t u
+  typing xi k y                              -- Ξ, K, (Some t)#(Some u)#Γ2 ⊢ y : t'
+  ]
+
+typing xi k (EE u (Let a x y) env) = tacSequence [
+  return [rule "typing_let"],               -- Ξ, K, Γ ⊢ Let x y : u if
+  splits k env (envOf x) (peel $ envOf y),  -- K ⊢ Γ ↝ Γ1 | Γ2
+  typing xi k x,                            -- Ξ, K, Γ1 ⊢ x : t
+  typing xi k y                             -- Ξ, K, (Some t # Γ2) ⊢ y : u
+  ]
+
 typing xi k (EE u (LetBang is a x y) env) = tacSequence [
-  return [rule "typing_letb"], -- Ξ, K, Γ ⊢ LetBang is x y : u if
-  error "split_bang: should be ttyping LetBang",
+  return [rule "typing_letb"],                    -- Ξ, K, Γ ⊢ LetBang is x y : u if
+  error "split_bang: should be ttyping LetBang",  -- split_bang K is Γ Γ1 Γ2
   typing xi k x,                                  -- Ξ, K, Γ1 ⊢ x : t
   typing xi k y,                                  -- Ξ, K, (Some t # Γ2) ⊢ y : u
   kinding k (typeOf x),                           -- K ⊢ t :κ k
   return [simp]                                   -- E ∈ k
   ]
 
+typing xi k (EE u (Case x _ (_,_,a) (_,_,b)) env) = tacSequence [
+  return [rule "typing_case"],  -- Ξ, K, Γ ⊢ Case x tag a b : u if
+  splits k env (envOf x) (peel $ envOf b <|> envOf a),  -- K ⊢ Γ ↝ Γ1 | Γ2
+  typing xi k x,                -- Ξ, K, Γ1 ⊢ x : TSum ts
+  return [simp],                -- (tag, (t,False)) ∈ set ts
+  typing xi k a,                -- Ξ, K, (Some t # Γ2) ⊢ a : u
+  typing xi k b                 -- Ξ, K, (Some (TSum (tagged_list_update tag (t, True) ts)) # Γ2) ⊢ b : u
+  ]
+
+typing xi k (EE _ (Esac x) _) = tacSequence [
+  return [rule "typing_esac"],  -- Ξ, K, Γ ⊢ Esac x : t if
+  typing xi k x                 -- Ξ, K, Γ ⊢ x : TSum ts
+                                -- [(_, (t,False))] = filter (HOL.Not ∘ snd ∘ snd) ts
+  ]
+
+typing xi k (EE t (If x a b) env) = tacSequence [
+  return [rule "typing_if"],                     -- Ξ, K, Γ ⊢ If x a b : t if
+  splits k env (envOf x) (envOf a <|> envOf b),  -- K ⊢ Γ ↝ Γ1 | Γ2
+  typing xi k x,                                 -- Ξ, K, Γ1 ⊢ x : TPrim Bool
+  typing xi k a,                                 -- Ξ, K, Γ2 ⊢ a : t
+  typing xi k b                                  -- Ξ, K, Γ2 ⊢ b : t
+  ]
+
+typing xi k (EE (TPrim t) (Op o es) env) = tacSequence [
+  return [rule "typing_prim'"],  -- Ξ, K, Γ ⊢ Prim oper args : TPrim t if
+  return [simp],                 -- prim_op_type oper = (ts,t)
+  return [simp],                 -- ts' = map TPrim ts;
+  typingAll xi k env es          -- Ξ, K, Γ ⊢* args : ts'
+  ]
+
+typing xi k (EE _ (ILit _ t) env) = tacSequence [
+  return [rule "typing_lit'"],  -- Ξ, K, Γ ⊢ Lit l : TPrim t if
+  consumed k env,               -- K ⊢ Γ consumed
+  return [simp]                 -- t = lit_type l
+  ]
+
+typing xi k (EE _ (SLit t) env) = tacSequence [
+  return [rule "typing_lit'"],  -- Ξ, K, Γ ⊢ Lit l : TPrim t if
+  consumed k env,               -- K ⊢ Γ consumed
+  return [simp]                 -- t = lit_type l
+  ]
+
+typing xi k (EE _ Unit env) = tacSequence [
+  return [rule "typing_unit"],  -- Ξ, K, Γ ⊢ Unit : TUnit if
+  consumed k env                -- K ⊢ Γ consumed
+  ]
+
+typing xi k (EE t (Struct fs) env) = tacSequence [
+  return [rule "typing_struct'"],    -- Ξ, K, Γ ⊢ Struct ts es : TRecord ts' Unboxed
+  typingAll xi k env (map snd fs),   -- Ξ, K, Γ ⊢* es : ts
+  return [simp]                      -- ts' = zip ts (replicate (length ts) False)
+  ]
+
+typing xi k (EE t (Member e f) env) = tacSequence [
+  return [rule "typing_member"],   -- Ξ, K, Γ ⊢ Member e f : t if
+  typing xi k e,                   -- Ξ, K, Γ ⊢ e : TRecord ts s
+  kinding k (eexprType e),         -- K ⊢ TRecord ts s :κ k (* k introduced *)
+  return [simp, simp, simp]        -- S ∈ k;  f < length ts; ts ! f = (t, False)
+  ]
+
+typing xi k (EE u (Take a e@(EE (TRecord ts) _ _) f e') env) = tacSequence [
+  return [rule "typing_take"],                -- Ξ, K, Γ ⊢ Take e f e' : u if
+  splits k env (envOf e) (peel2 $ envOf e'),  -- K ⊢ Γ ↝ Γ1 | Γ2
+  typing xi k e,                              -- Ξ, K, Γ1 ⊢ e : TRecord ts s
+  return [simp, simp, simp],                  -- s ≠ ReadOnly; f < length ts; ts ! f = (t, False) (* instantiates t *)
+  kinding k (fst $ snd $ ts !! f),            -- K ⊢ t :κ k
+  return (sharableOrTaken f (envOf e')),      -- S ∈ k ∨ taken (* instantiates taken *)
+  return [simp],
+  typing xi k e'                              -- Ξ, K, (Some t # Some (TRecord (ts [f := (t,taken)]) s) # Γ2) ⊢ e' : u
+  ]
+
+typing xi k (EE ty (Put e1@(EE (TRecord ts) _ _) f e2@(EE t _ _)) env) = tacSequence [
+  return [rule "typing_put'"],                        -- Ξ, K, Γ ⊢ Put e f e' : TRecord ts' s if
+  splits k env (envOf e1) (envOf e2),                 -- K ⊢ Γ ↝ Γ1 | Γ2
+  typing xi k e1,                                     -- Ξ, K, Γ1 ⊢ e : TRecord ts s
+  return [simp, simp],                                -- s ≠ ReadOnly; f < length ts;
+  return [simp_del ["Product_Type.prod.inject"]],     -- ts ! f = (t, taken)
+  kinding k t,                                        -- K ⊢ t :κ k
+  return (destroyableOrTaken (snd $ snd $ ts !! f)),  -- D ∈ k ∨ taken
+  typing xi k e2,                                     -- Ξ, K, Γ2 ⊢ e' : t
+  return [simp]                                       -- ts' = (ts [f := (t,False)])
+  ]
+
+typing xi k (EE _ (Promote ty e) env) = __todo "typing Promote"
+
 typing xi k _ = error "attempted to generate proof of ill-typed program"
 
 typingAll :: Xi a -> Vec t Kind -> Vec v (Maybe (Type t)) -> [EnvExpr t v a] -> State TypingSubproofs [Tactic]
--- Γ = empty n ⟹ Ξ, K, Γ ⊢* [] : []
+-- Γ = empty n ⟹  Ξ, K, Γ ⊢* [] : []
 typingAll xi k g [] = return [rule_tac "typing_all_empty'" [("n", show . Vec.toInt . Vec.length $ g)],
                               simp_add ["empty_def"]]
 -- Ξ, K, Γ ⊢* (e # es) : (t # ts)
@@ -468,21 +476,23 @@ kind ks (TVar v)         k = return [simp, simp]
 kind ks (TVarBang v)     k = return [simp, simp]
 kind ks (TUnit)          k = return []
 kind ks (TProduct t1 t2) k = tacSequence [kinding' ks t1 k, kinding' ks t2 k]
-kind ks (TSum ts)        k = tacSequence [return [simp, simp], kindingAll ks (map (fst . snd) ts) k]  -- FIXME: cogent.1
+kind ks (TSum ts)        k = tacSequence [return [simp, simp], kindingAll ks (map (fst . snd) ts) k]
 kind ks (TFun ti to)     k = tacSequence [kinding ks ti, kinding ks to]
 kind ks (TRecord ts)     k = tacSequence [kindingRecord ks (map snd ts) k, return [simp]]
 kind ks (TPrim i)        k = return []
 kind ks (TString)        k = return []
 kind ks (TCon n ts)      k = tacSequence [kindingAll ks ts k, return [simp]]
-
+kind ks (TPtr t _ s)     k = kind ks t k
 
 kindingAll :: Vec t Kind -> [Type t] -> Kind -> State TypingSubproofs [Tactic]
 kindingAll ks []     k = return [rule "kind_all_empty"]
 kindingAll ks (t:ts) k = tacSequence [return [rule "kind_all_cons"], kinding' ks t k, kindingAll ks ts k]
 
 kindingRecord :: Vec t Kind -> [(Type t, Bool)] -> Kind -> State TypingSubproofs [Tactic]
-kindingRecord ks ((t, False):ts) k = tacSequence [return [rule "kind_record_cons1"], kinding' ks t k, kindingRecord ks ts k]
-kindingRecord ks ((t, True) :ts) k = tacSequence [return [rule "kind_record_cons2"], kinding ks t, kindingRecord ks ts k]
+kindingRecord ks ((t, False):ts) k
+  = tacSequence [return [rule "kind_record_cons1"], kinding' ks t k, kindingRecord ks ts k]
+kindingRecord ks ((t, True) :ts) k
+  = tacSequence [return [rule "kind_record_cons2"], kinding ks t, kindingRecord ks ts k]
 kindingRecord _ [] _ = return [rule "kind_record_empty"]
 
 allKindCorrect :: Vec t' Kind -> [Type t'] -> Vec t Kind -> State TypingSubproofs [Tactic]
@@ -504,14 +514,19 @@ allKindCorrect k ts ks = do
     Just (proofId, _, _) -> return [rule $ typingSubproofPrefix ++ show proofId]
 
 allKindCorrect' :: Vec t' Kind -> [Type t'] -> Vec t Kind -> State TypingSubproofs [Tactic]
-allKindCorrect' kind (t:ts) (Cons k ks) = tacSequence [return (breakConj ts), kinding' kind t k, allKindCorrect' kind ts ks]
+allKindCorrect' kind (t:ts) (Cons k ks)
+  = tacSequence [return (breakConj ts), kinding' kind t k, allKindCorrect' kind ts ks]
 allKindCorrect' _ [] Nil = return []
 allKindCorrect' _ _ _ = error "kind mismatch"
 
 splits :: Vec t Kind -> Vec v (Maybe (Type t)) -> Vec v (Maybe (Type t)) -> Vec v (Maybe (Type t)) -> State TypingSubproofs [Tactic]
 splits k g g1 g2 = ((:[]) . SplitsTac (length (cvtToList g))) `fmap` splitsHint 0 k g g1 g2
 
-ttsplit_innerHint :: Vec t Kind -> Maybe (Type t) -> Maybe (Type t) -> Maybe (Type t) -> State TypingSubproofs [Hints]
+ttsplit_innerHint :: Vec t Kind
+                  -> Maybe (Type t)
+                  -> Maybe (Type t)
+                  -> Maybe (Type t)
+                  -> State TypingSubproofs [Hints]
 ttsplit_innerHint k Nothing Nothing Nothing = return []
 ttsplit_innerHint k (Just t) _ _            = kindingHint k t
 ttsplit_innerHint _ g x y = error $ "bad ttsplit: " ++ show (g, x, y)
@@ -554,13 +569,14 @@ distinct _ = [simp]
 
 -- K ⊢ τ wellformed ≡ ∃k. K ⊢ τ :κ k
 wellformed :: Vec t Kind -> Type t -> State TypingSubproofs [Tactic]
-wellformed ks t = tacSequence [return [simp, rule_tac "exI" [("x", deepKindStr $ mostGeneralKind ks t)]], kinding ks t]
+wellformed ks t = tacSequence [return [simp, rule_tac "exI" [("x", deepKindStr $ mostGeneralKind ks t)]],
+                               kinding ks t]
 
 -- K ⊢* τs wellformed ≡ ∃k. K ⊢* τs :κ k
 wellformedAll :: Vec t Kind -> [Type t] -> State TypingSubproofs [Tactic]
 wellformedAll ks ts = tacSequence [return [simp, rule_tac "exI" [("x", deepKindStr k)]],
                                    kindingAll ks ts k]
-  where k = foldr kIntersect topKind (map (mostGeneralKind ks) ts)
+  where k = foldr (<>) mempty (map (mostGeneralKind ks) ts)
 
 -- K ⊢ Γ consumed ≡ K ⊢ Γ ↝w empty (length Γ)
 consumed :: Vec t Kind -> Vec v (Maybe (Type t)) -> State TypingSubproofs [Tactic]
@@ -582,7 +598,9 @@ weakens k g g' = do
     case M.lookup (k', glt, glt') wmap of
       Nothing -> do mod <- use nameMod
                     let prop = mkApp (mkId "weakening")
-                                 [mkList (map deepKind k'), mkList (map (deepMaybeTy mod ta) gl), mkList (map (deepMaybeTy mod ta) gl')]
+                                 [mkList (map deepKind k'),
+                                  mkList (map (deepMaybeTy mod ta) gl),
+                                  mkList (map (deepMaybeTy mod ta) gl')]
                     proofIds <- kindingAssms (zip gl gl')
                     thms <- mapM (thmTypeAbbrev . (typingSubproofPrefix ++) . show) (nub proofIds)
                     proofId <- newSubproofId
@@ -616,15 +634,15 @@ singleton v env = update (cleared env) v (env `at` v)
 mostGeneralKind :: Vec t Kind -> Type t -> Kind
 mostGeneralKind k (TVar v)         = k `at` v
 mostGeneralKind k (TVarBang v)     = sigilKind ReadOnly
-mostGeneralKind k (TUnit)          = topKind
-mostGeneralKind k (TProduct t1 t2) = mostGeneralKind k t1 `kIntersect` mostGeneralKind k t2
-mostGeneralKind k (TSum ts)        = foldl kIntersect topKind $ map (mostGeneralKind k . fst . snd) ts  -- FIXME: cogent.1
-mostGeneralKind k (TFun ti to)     = topKind
-mostGeneralKind k (TRecord ts)     = foldl kIntersect mempty $ map (mostGeneralKind k) [t | (_, (t, b)) <- ts, not b]
-mostGeneralKind k (TPrim i)        = topKind
-mostGeneralKind k (TString)        = topKind
-mostGeneralKind k (TCon n ts)      = foldl kIntersect mempty $ map (mostGeneralKind k) ts
-
+mostGeneralKind k (TUnit)          = mempty
+mostGeneralKind k (TProduct t1 t2) = mostGeneralKind k t1 <> mostGeneralKind k t2
+mostGeneralKind k (TSum ts)        = foldl (<>) mempty $ map (mostGeneralKind k . fst . snd) ts
+mostGeneralKind k (TFun ti to)     = mempty
+mostGeneralKind k (TRecord ts)     = foldl (<>) mempty $ map (mostGeneralKind k) [t | (_, (t, b)) <- ts, not b]
+mostGeneralKind k (TPrim i)        = mempty 
+mostGeneralKind k (TString)        = mempty 
+mostGeneralKind k (TCon n ts)      = foldl (<>) mempty $ map (mostGeneralKind k) ts
+mostGeneralKind k (TPtr t _ s)     = mostGeneralKind k t <> sigilKind s
 
 kindRule :: Type t -> String
 kindRule (TVar v)         = "kind_tvar"
@@ -637,6 +655,7 @@ kindRule (TRecord ts)     = "kind_trec"
 kindRule (TPrim i)        = "kind_tprim"
 kindRule (TString)        = "kind_tprim"
 kindRule (TCon n ts)      = "kind_tcon"
+kindRule (TPtr t _ s)     = "kind_tptr"
 
 envOf = eexprEnv
 typeOf = eexprType
@@ -660,13 +679,6 @@ cleared = emptyvec . Vec.length
     where emptyvec :: SNat a -> Vec a (Maybe t)
           emptyvec (SSuc n) = Cons Nothing $ emptyvec n
           emptyvec (SZero)  = Nil
-
-
-topKind = K True True True
-
--- kind intersection
-kIntersect :: Kind -> Kind -> Kind
-kIntersect (K a b c) (K a' b' c') = K (a && a') (b && b') (c && c')
 
 deepKindStr (K e s d) = "{" ++ intercalate "," [flag | (f, flag) <- zip [e, s, d] ["E", "S", "D"], f] ++ "}"
 

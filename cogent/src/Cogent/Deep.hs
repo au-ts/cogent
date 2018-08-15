@@ -45,14 +45,21 @@ type TypeAbbrevs = (Map.Map Term Int, Int)
 deepTypeInner :: NameMod -> TypeAbbrevs -> CC.Type t -> Term
 deepTypeInner mod ta (TVar v) = mkApp (mkId "TVar") [deepIndex v]
 deepTypeInner mod ta (TVarBang v) = mkApp (mkId "TVarBang") [deepIndex v]
-deepTypeInner mod ta (TCon tn ts) = mkApp (mkId "TCon") [mkString tn, mkList (map (deepType mod ta) ts)]
+deepTypeInner mod ta (TCon tn ts) = mkApp (mkId "TCon") [mkString tn, mkList (map (deepType mod ta) ts), deepSigil Unboxed]
 deepTypeInner mod ta (TFun ti to) = mkApp (mkId "TFun") [deepType mod ta ti, deepType mod ta to]
 deepTypeInner mod ta (TPrim pt) = mkApp (mkId "TPrim") [deepPrimType pt]
 deepTypeInner mod ta (TString) = mkApp (mkId "TPrim") [mkId "String"]
-deepTypeInner mod ta (TSum alts) = mkApp (mkId "TSum") [mkList $ map (\(n,(t,_)) -> mkPair (mkString n) (deepType mod ta t)) $ sort alts]  -- FIXME: cogent.1
+deepTypeInner mod ta (TSum alts)
+  = mkApp (mkId "TSum")
+          [mkList $ map (\(n,(t,b)) -> mkPair (mkString n) (mkPair (deepType mod ta t) (mkBool b))) $ sort alts]
 deepTypeInner mod ta (TProduct t1 t2) = mkApp (mkId "TProduct") [deepType mod ta t1, deepType mod ta t2]
-deepTypeInner mod ta (TRecord fs) = mkApp (mkId "TRecord") [mkList $ map (\(fn,(t,b)) -> mkPair (deepType mod ta t) (mkBool b)) fs]
+deepTypeInner mod ta (TRecord fs) = mkApp (mkId "TRecord") [mkList $ map (\(fn,(t,b)) -> mkPair (deepType mod ta t) (mkBool b)) fs, deepSigil Unboxed]
 deepTypeInner mod ta (TUnit) = mkId "TUnit"
+deepTypeInner mod ta (TPtr t r s) 
+  | TCon tn ts <- t = mkApp (mkId "TCon") [mkString tn, mkList (map (deepType mod ta) ts), deepSigil s]
+  | TRecord fs <- t = mkApp (mkId "TRecord") [mkList $ map (\(fn,(t,b)) -> mkPair (deepType mod ta t) (mkBool b)) fs, deepSigil s]
+  | otherwise = __impossible "deepTypeInner: ill-formed type"
+deepTypeInner _ _ t = __impossible $ show t ++ " is not yet implemented"
 
 mkAbbrevNm :: NameMod -> Int -> String
 mkAbbrevNm mod n = mod $ "abbreviatedType" ++ show n
