@@ -293,6 +293,9 @@ datatype prim_type = Num num_type | Bool | String
 
 datatype sigil = ReadOnly | Writable | Unboxed
 
+datatype ptr_repr = PtrBits int int
+                  | PtrVariant int int "(name \<times> int \<times> ptr_repr) list"
+                  | PtrRecord "(name \<times> ptr_repr) list"
 
 datatype prim_op 
   = Plus num_type 
@@ -320,10 +323,11 @@ datatype type = TVar index
               | TCon name "type list" sigil
               | TFun type type 
               | TPrim prim_type
-              | TSum "(name \<times> (type \<times> bool)) list"
+              | TSum "(name \<times> type \<times> bool) list"
               | TProduct type type
-              | TRecord "(type \<times> bool) list" sigil
+              | TRecord "(type \<times> bool) list"
               | TUnit
+              | TPtr type ptr_repr sigil (* sigil only ever ro / rw, never unbox *)
 
 datatype lit = LBool bool
              | LU8 "8 word"
@@ -382,7 +386,9 @@ primrec sigil_kind :: "sigil \<Rightarrow> kind" where
 | "sigil_kind Writable  = {E}"
 | "sigil_kind Unboxed   = {D,S,E}"
 
-
+fun sigilise :: "sigil \<Rightarrow> ptr_repr option \<Rightarrow> type \<Rightarrow> type" where
+  "sigilise Unboxed _ t  = t"
+| "sigilise s (Some r) t = TPtr t r s"
 
 inductive kinding        :: "kind env \<Rightarrow> type               \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>  _ :\<kappa>  _" [30,0,20] 60) 
       and kinding_all    :: "kind env \<Rightarrow> type list          \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa>  _" [30,0,20] 60) 
@@ -395,8 +401,9 @@ inductive kinding        :: "kind env \<Rightarrow> type               \<Rightar
 |  kind_tprim   : "K \<turnstile> TPrim p :\<kappa> k"
 |  kind_tsum    : "\<lbrakk> distinct (map fst ts); K \<turnstile>* map (fst \<circ> snd) ts :\<kappa> k \<rbrakk> \<Longrightarrow> K \<turnstile> TSum ts :\<kappa> k"
 |  kind_tprod   : "\<lbrakk> K \<turnstile> t :\<kappa> k; K \<turnstile> u :\<kappa> k \<rbrakk>  \<Longrightarrow> K \<turnstile> TProduct t u :\<kappa> k"
-|  kind_trec    : "\<lbrakk> K \<turnstile>* ts :\<kappa>r k ; k \<subseteq> sigil_kind s \<rbrakk> \<Longrightarrow> K \<turnstile> TRecord ts s :\<kappa> k"
+|  kind_trec    : "\<lbrakk> K \<turnstile>* ts :\<kappa>r k \<rbrakk> \<Longrightarrow> K \<turnstile> TRecord ts :\<kappa> k"
 |  kind_tunit   : "K \<turnstile> TUnit :\<kappa> k"
+|  kind_tptr    : "\<lbrakk> K \<turnstile> t :\<kappa> k; k \<subseteq> sigil_kind s \<rbrakk> \<Longrightarrow> K \<turnstile> TPtr t _ s :\<kappa> k"
 
 |  kind_all_empty : "K \<turnstile>* [] :\<kappa> k"
 |  kind_all_cons  : "\<lbrakk> K \<turnstile> x :\<kappa> k ; K \<turnstile>* xs :\<kappa> k \<rbrakk> \<Longrightarrow> K \<turnstile>* (x # xs) :\<kappa> k"
@@ -411,14 +418,14 @@ inductive_cases kind_tconE         [elim] : "K \<turnstile> TCon n ts s :\<kappa
 inductive_cases kind_tfunE         [elim] : "K \<turnstile> TFun a b :\<kappa> k"
 inductive_cases kind_tsumE         [elim] : "K \<turnstile> TSum ts :\<kappa> k"
 inductive_cases kind_tprodE        [elim] : "K \<turnstile> TProduct t u :\<kappa> k"
-inductive_cases kind_trecE         [elim] : "K \<turnstile> TRecord ts s :\<kappa> k"
+inductive_cases kind_trecE         [elim] : "K \<turnstile> TRecord ts :\<kappa> k"
+inductive_cases kind_tptrE         [elim] : "K \<turnstile> TPtr ts r s :\<kappa> k"
 inductive_cases kind_all_emptyE    [elim] : "K \<turnstile>* [] :\<kappa> k"
 inductive_cases kind_all_consE     [elim] : "K \<turnstile>* (x # xs) :\<kappa> k"
 inductive_cases kind_record_emptyE [elim] : "K \<turnstile>* [] :\<kappa>r k"
 inductive_cases kind_record_consE  [elim] : "K \<turnstile>* (x # xs) :\<kappa>r k"
 inductive_cases kind_record_cons1E [elim] : "K \<turnstile>* ((x,False) # xs) :\<kappa>r k"
 inductive_cases kind_record_cons2E [elim] : "K \<turnstile>* ((x,True)  # xs) :\<kappa>r k"
-
 
 definition type_wellformed :: "kind env \<Rightarrow> type \<Rightarrow> bool" ("_ \<turnstile> _ wellformed" [30,20] 60) where
   "K \<turnstile> \<tau> wellformed \<equiv> \<exists>k. K \<turnstile> \<tau> :\<kappa> k"  
@@ -447,10 +454,11 @@ fun bang :: "type \<Rightarrow> type" where
 | "bang (TCon n ts s)  = TCon n (map bang ts) (bang_sigil s)"
 | "bang (TFun a b)     = TFun a b"
 | "bang (TPrim p)      = TPrim p"
-| "bang (TSum ps)      = TSum (map (\<lambda> (c, (t, b)). (c, (bang t, b))) ps)"
+| "bang (TSum ps)      = TSum (map (\<lambda> (c, t, b). (c, bang t, b)) ps)"
 | "bang (TProduct t u) = TProduct (bang t) (bang u)"
-| "bang (TRecord ts s) = TRecord (map (\<lambda> (t, b). (bang t, b)) ts) (bang_sigil s)"
+| "bang (TRecord ts)   = TRecord (map (\<lambda>(t, b). (bang t, b)) ts)"
 | "bang (TUnit)        = TUnit"
+| "bang (TPtr t r s)   = TPtr (bang t) r (bang_sigil s)"
 
 fun instantiate :: "type substitution \<Rightarrow> type \<Rightarrow> type" where 
   "instantiate \<delta> (TVar i)       = (if i < length \<delta> then \<delta> ! i else TVar i)"
@@ -460,8 +468,9 @@ fun instantiate :: "type substitution \<Rightarrow> type \<Rightarrow> type" whe
 | "instantiate \<delta> (TPrim p)      = TPrim p"
 | "instantiate \<delta> (TSum ps)      = TSum (map (\<lambda> (c, t, b). (c, instantiate \<delta> t, b)) ps)"
 | "instantiate \<delta> (TProduct t u) = TProduct (instantiate \<delta> t) (instantiate \<delta> u)"
-| "instantiate \<delta> (TRecord ts s) = TRecord (map (\<lambda> (t, b). (instantiate \<delta> t, b)) ts) s"
+| "instantiate \<delta> (TRecord ts)   = TRecord (map (\<lambda> (t, b). (instantiate \<delta> t, b)) ts)"
 | "instantiate \<delta> (TUnit)        = TUnit"
+| "instantiate \<delta> (TPtr t r s)   = TPtr (instantiate \<delta> t) r s"
 
 fun specialise :: "type substitution \<Rightarrow> 'f expr \<Rightarrow> 'f expr" where 
   "specialise \<delta> (Var i)           = Var i"
@@ -734,34 +743,38 @@ inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Right
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Unit : TUnit"
 
 | typing_struct : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile>* es : ts
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Struct ts es : TRecord (zip ts (replicate (length ts) False)) Unboxed"
+                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Struct ts es : TRecord (zip ts (replicate (length ts) False))"
 
-| typing_member : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> e : TRecord ts s
-                   ; K \<turnstile> TRecord ts s :\<kappa> k
+| typing_member : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> e : \<tau>
+                   ; \<tau> = TPtr (TRecord ts) r s \<or> \<tau> = TRecord ts
+                   ; K \<turnstile> \<tau> :\<kappa> k
                    ; S \<in> k
                    ; f < length ts
                    ; ts ! f = (t, False)
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Member e f : t"
 
 | typing_take   : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2 
-                   ; \<Xi>, K, \<Gamma>1 \<turnstile> e : TRecord ts s
+                   ; \<Xi>, K, \<Gamma>1 \<turnstile> e : \<tau>
+                   ; \<tau> = TPtr (TRecord ts) r s \<or> \<tau> = TRecord ts
                    ; s \<noteq> ReadOnly
                    ; f < length ts
                    ; ts ! f = (t, False)
                    ; K \<turnstile> t :\<kappa> k
                    ; S \<in> k \<or> taken
-                   ; \<Xi>, K, (Some t # Some (TRecord (ts [f := (t,taken)]) s) # \<Gamma>2) \<turnstile> e' : u
+                   ; \<Xi>, K, (Some t # Some (TRecord (ts [f := (t,taken)])) # \<Gamma>2) \<turnstile> e' : u
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Take e f e' : u"
 
 | typing_put    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
-                   ; \<Xi>, K, \<Gamma>1 \<turnstile> e : TRecord ts s
+                   ; \<Xi>, K, \<Gamma>1 \<turnstile> e : \<tau>
+                   ; \<tau> = TPtr (TRecord ts) r s \<or> \<tau> = TRecord ts
                    ; s \<noteq> ReadOnly
                    ; f < length ts
                    ; ts ! f = (t, taken)
                    ; K \<turnstile> t :\<kappa> k
                    ; D \<in> k \<or> taken
                    ; \<Xi>, K, \<Gamma>2 \<turnstile> e' : t
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Put e f e' : TRecord (ts [f := (t,False)]) s"
+                   ; ts' = ts [f := (t,False)]
+                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Put e f e' : TRecord ts'"
 
 | typing_all_empty : "\<Xi>, K, empty n \<turnstile>* [] : []"
 
@@ -848,15 +861,15 @@ datatype repr = RPtr repr
               | RUnit
 
 fun type_repr :: "type \<Rightarrow> repr" where
-  "type_repr (TFun t t')          = RFun"
-| "type_repr (TPrim t)            = RPrim t"
-| "type_repr (TSum ts)            = RSum (map (\<lambda>(a,(b,_)).(a, type_repr b)) ts)"
-| "type_repr (TProduct a b)       = RProduct (type_repr a) (type_repr b)"
-| "type_repr (TCon n ts Unboxed)  = RCon n (map type_repr ts)"
-| "type_repr (TCon n ts _)        = RPtr (RCon n (map type_repr ts))"
-| "type_repr (TRecord ts Unboxed) = RRecord (map (\<lambda>a. type_repr (fst a)) ts)"  
-| "type_repr (TRecord ts _)       = RPtr (RRecord (map (\<lambda>a. type_repr (fst a)) ts))"
-| "type_repr (TUnit)              = RUnit"
+  "type_repr (TFun t t')         = RFun"
+| "type_repr (TPrim t)           = RPrim t"
+| "type_repr (TSum ts)           = RSum (map (\<lambda>(a,(b,_)).(a, type_repr b)) ts)"
+| "type_repr (TProduct a b)      = RProduct (type_repr a) (type_repr b)"
+| "type_repr (TCon n ts Unboxed) = RCon n (map type_repr ts)"
+| "type_repr (TCon n ts _)       = RPtr (RCon n (map type_repr ts))"
+| "type_repr (TRecord ts)        = RRecord (map (\<lambda>a. type_repr (fst a)) ts)"
+| "type_repr (TUnit)             = RUnit"
+| "type_repr (TPtr t r s)        = RPtr (type_repr t)" (* TODO work out if we can leverage the r here ~ v.jackson / 2018-08-16 *)
 
 
 section {* Kinding lemmas *}
@@ -1324,11 +1337,16 @@ lemma bang_type_repr [simp]:
 shows "[] \<turnstile> t :\<kappa> k \<Longrightarrow> (type_repr (bang t) = type_repr t)"
 and   "[] \<turnstile>* ts :\<kappa> k \<Longrightarrow> (map (type_repr \<circ> bang) ts) = map (type_repr) ts "
 and   "[] \<turnstile>* fs :\<kappa>r k \<Longrightarrow> (map (type_repr \<circ>  bang \<circ> fst) fs) = map (type_repr  \<circ> fst) fs"
-by ( induct "[] :: kind list"  t k
+proof ( induct "[] :: kind list"  t k
            and "[] :: kind list" ts k
            and "[] :: kind list" fs k
-     rule: kinding_kinding_all_kinding_record.inducts
-   , auto, (case_tac s,auto)+)
+     rule: kinding_kinding_all_kinding_record.inducts)
+
+  case (kind_tcon ts k s n)
+  then show ?case
+    by (cases s, auto)
+qed auto
+   
 
 
 subsection {* Specialisation *} 
@@ -1374,6 +1392,21 @@ next
     by (force intro!: typing_typing_all.typing_esac
                 simp: filter_map_map_filter_thd3_app2
                       typing_esac.hyps(3)[symmetric])+
+next
+  case (typing_member \<Xi> K \<Gamma> e \<tau> ts r s k f t)
+  then show ?case
+    using substitutivity(1)[where t=\<tau>] 
+    by (auto intro!: typing_typing_all.intros)
+next
+  case (typing_take K \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> e \<tau> ts r s f t k taken e' u)
+  then show ?case
+    using substitutivity(1)[where t=t] instantiate_ctx_split
+    by (auto intro!: typing_typing_all.intros simp add: map_update)
+next
+  case (typing_put K \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> e \<tau> ts r s f t taken k e' ts')
+  then show ?case
+    using substitutivity(1)[where t=t] instantiate_ctx_split
+    by (auto intro!: typing_typing_all.intros simp add: map_update)
 qed (force intro!: typing_struct_instantiate
                    typing_typing_all.intros
            dest:   substitutivity
