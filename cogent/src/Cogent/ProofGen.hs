@@ -418,7 +418,7 @@ typing xi k (EE ty (Put e1@(EE (TRecord ts) _ _) f e2@(EE t _ _)) env) = tacSequ
   return [simp]                                       -- ts' = (ts [f := (t,False)])
   ]
 
-typing xi k (EE _ (Promote ty e) env) = __todo "typing Promote"
+typing xi k (EE _ (Promote ty e) env) = typing xi k e  -- FIXME: also requires a proof for subtyping / zilinc
 
 typing xi k _ = error "attempted to generate proof of ill-typed program"
 

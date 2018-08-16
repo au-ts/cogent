@@ -629,13 +629,13 @@ desugarExpr (B.TE t (S.Upcast e) _) = E <$> (Cast <$> desugarType t <*> desugarE
 desugarExpr (B.TE t (S.Annot e tau) _) = E <$> (Promote <$> desugarType tau <*> desugarExpr e)
   -- ^^^ NOTE [How to handle type annotations?]
   -- We need to insert a `Promote' node here, even the type of `e' is the same
-  -- as the annotated type `tau'. The reason is, the desugarer will infer `e''s type
+  -- as the annotated type `tau'. The reason is, the core-tc will infer `e''s type
   -- to be the "smallest", if `e' is a data constructor. This could render the type
   -- of `e' different from what the surface typechecker has inferred. For example,
   -- (Success a : <Success A | Error B>) :: <Success A | Error B>
   -- If the above is given by the surface Tc, after desugaring the inner, it becomes
-  -- `(Success a <Success A | Error* E>)', which `Error' is taken.
-  -- In the case which the annoated type is indeed the same as the desugarer-inferred
+  -- `(Success a <Success A | Error* E>)' with `Error' taken.
+  -- In the case where the annoated type is indeed the same as the core-tc-inferred
   -- type, we can remove the `Promote' later, or keep it even. / zilinc
 desugarExpr (B.TE t (S.Con c es) p) = __impossible "desugarExpr (Con)"
 -- = do

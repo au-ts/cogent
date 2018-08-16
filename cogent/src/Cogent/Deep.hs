@@ -59,7 +59,7 @@ deepTypeInner mod ta (TPtr t r s)
   | TCon tn ts <- t = mkApp (mkId "TCon") [mkString tn, mkList (map (deepType mod ta) ts), deepSigil s]
   | TRecord fs <- t = mkApp (mkId "TRecord") [mkList $ map (\(fn,(t,b)) -> mkPair (deepType mod ta t) (mkBool b)) fs, deepSigil s]
   | otherwise = __impossible "deepTypeInner: ill-formed type"
-deepTypeInner _ _ t = __impossible $ show t ++ " is not yet implemented"
+deepTypeInner _ _ t = __impossible $ "deepTypeInner: " ++ show (pretty t) ++ " is not yet implemented"
 
 mkAbbrevNm :: NameMod -> Int -> String
 mkAbbrevNm mod n = mod $ "abbreviatedType" ++ show n
@@ -120,42 +120,61 @@ deepPrimOp CS.Complement t = mkApp (mkId "Complement") [deepNumType t]
 deepExpr :: NameMod -> TypeAbbrevs -> [Definition TypedExpr a] -> TypedExpr t v a -> Term
 deepExpr mod ta defs (TE _ (Variable v)) = mkApp (mkId "Var") [deepIndex (fst v)]
 deepExpr mod ta defs (TE _ (Fun fn ts _))
-  | concreteFun fn = mkApp (mkId "Fun") [mkId (mod fn), mkList (map (deepType mod ta) ts)]
-  | otherwise = mkApp (mkId "AFun") [mkString fn, mkList (map (deepType mod ta) ts)]
+  | concreteFun fn = mkApp (mkId "Fun")  [mkId (mod fn), mkList (map (deepType mod ta) ts)]
+  | otherwise      = mkApp (mkId "AFun") [mkString fn, mkList (map (deepType mod ta) ts)]
   where concreteFun f = any (\def -> isFuncId f def && case def of FunDef{} -> True; _ -> False) defs
-deepExpr mod ta defs (TE _ (Op opr es)) = mkApp (mkId "Prim") [deepPrimOp opr (let TPrim pt = exprType $ head es in pt),
-                                                               mkList (map (deepExpr mod ta defs) es)]
-deepExpr mod ta defs (TE _ (App f arg)) = mkApp (mkId "App") [deepExpr mod ta defs f, deepExpr mod ta defs arg]
-deepExpr mod ta defs (TE (TSum alts) (Con cn e _)) = mkApp (mkId "Con") [mkList t', mkString cn, deepExpr mod ta defs e]
-  where t' = map (\(c,(ty,_)) -> mkPair (mkString c) (deepType mod ta ty)) alts  -- FIXME: cogent.1
-deepExpr _ _ _ (TE _ (Con _ _ _)) = __impossible "deepExpr"
+deepExpr mod ta defs (TE _ (Op opr es))
+  = mkApp (mkId "Prim") [deepPrimOp opr (let TPrim pt = exprType $ head es in pt),
+                         mkList (map (deepExpr mod ta defs) es)]
+deepExpr mod ta defs (TE _ (App f arg))
+  = mkApp (mkId "App") [deepExpr mod ta defs f, deepExpr mod ta defs arg]
+deepExpr mod ta defs (TE (TSum alts) (Con cn e _))
+  = mkApp (mkId "Con") [mkList t', mkString cn, deepExpr mod ta defs e]
+  where t' = map (\(c,(t,b)) -> mkPair (mkString c) (mkPair (deepType mod ta t) (mkBool b))) alts
+deepExpr _ _ _ (TE _ (Con _ _ _)) = __impossible "deepExpr: Con"
 deepExpr mod ta defs (TE _ (Promote ty e))
-  | TE (TPrim pt) _ <- e, TPrim pt' <- ty, pt /= Boolean = mkApp (mkId "Cast") [deepNumType pt', deepExpr mod ta defs e]  -- primInt cast
-  | TE (TSum _) (Con cn v _) <- e, TSum as <- ty =
-      mkApp (mkId "Con") [mkList $ map (\(an,(at,_)) -> mkPair (mkString an) (deepType mod ta at)) as, mkString cn, deepExpr mod ta defs v]  -- inlined Con  -- FIXME: cogent.1
-  | TSum as <- ty = mkApp (mkId "Promote") [mkList $ map (\(an,(at,_)) -> mkPair (mkString an) (deepType mod ta at)) as, deepExpr mod ta defs e]  -- FIMXE: cogent.1
-  | otherwise = __impossible "deepExpr"
-deepExpr mod ta defs (TE _ (Struct fs)) = mkApp (mkId "Struct") [mkList (map (deepType mod ta . exprType . snd) fs), mkList (map (deepExpr mod ta defs . snd) fs)]
-deepExpr mod ta defs (TE _ (Member e fld)) = mkApp (mkId "Member") [deepExpr mod ta defs e, mkInt (fromIntegral fld)]
+  = deepExpr mod ta defs e
+--   | TE (TPrim pt) _ <- e, TPrim pt' <- ty, pt /= Boolean
+--   = mkApp (mkId "Cast") [deepNumType pt', deepExpr mod ta defs e]  -- primInt cast
+--   | TE (TSum _) (Con cn v _) <- e, TSum as <- ty
+--   = mkApp (mkId "Con") [mkList $ map (\(an,(at,_)) -> mkPair (mkString an) (deepType mod ta at)) as, mkString cn, deepExpr mod ta defs v]  -- inlined Con  -- FIXME: cogent.1
+--   | TSum as <- ty = mkApp (mkId "Promote") [mkList $ map (\(an,(at,_)) -> mkPair (mkString an) (deepType mod ta at)) as, deepExpr mod ta defs e]  -- FIMXE: cogent.1
+--   | otherwise = __impossible "deepExpr"
+deepExpr mod ta defs (TE _ (Struct fs))
+  = mkApp (mkId "Struct") [mkList (map (deepType mod ta . exprType . snd) fs),
+                           mkList (map (deepExpr mod ta defs . snd) fs)]
+deepExpr mod ta defs (TE _ (Member e fld))
+  = mkApp (mkId "Member") [deepExpr mod ta defs e, mkInt (fromIntegral fld)]
 deepExpr mod ta defs (TE _ (Unit)) = mkId "Unit"
 deepExpr mod ta defs (TE _ (ILit n pt)) = mkApp (mkId "Lit") [deepILit n pt]
 deepExpr mod ta defs (TE _ (SLit s)) = __todo "deepExpr: SLit"
-deepExpr mod ta defs (TE _ (Tuple e1 e2)) = mkApp (mkId "Tuple") [deepExpr mod ta defs e1, deepExpr mod ta defs e2]
-deepExpr mod ta defs (TE _ (Put rec fld e)) = mkApp (mkId "Put") [deepExpr mod ta defs rec, mkInt (fromIntegral fld), deepExpr mod ta defs e]
-deepExpr mod ta defs (TE _ (Let _ e1 e2)) = mkApp (mkId "Let") [deepExpr mod ta defs e1, deepExpr mod ta defs e2]
-deepExpr mod ta defs (TE _ (LetBang vs _ e1 e2)) = let vs' = mkApp (mkId "set") [mkList $ map (deepIndex . fst) vs]
-                                               in mkApp (mkId "LetBang") [vs', deepExpr mod ta defs e1, deepExpr mod ta defs e2]
-deepExpr mod ta defs (TE _ (Case e tag (l1,_,e1) (l2,_,e2))) = mkApp (mkId "Case") [deepExpr mod ta defs e, mkString tag, deepExpr mod ta defs e1, deepExpr mod ta defs e2]
+deepExpr mod ta defs (TE _ (Tuple e1 e2))
+  = mkApp (mkId "Tuple") [deepExpr mod ta defs e1, deepExpr mod ta defs e2]
+deepExpr mod ta defs (TE _ (Put rec fld e))
+  = mkApp (mkId "Put") [deepExpr mod ta defs rec, mkInt (fromIntegral fld), deepExpr mod ta defs e]
+deepExpr mod ta defs (TE _ (Let _ e1 e2))
+  = mkApp (mkId "Let") [deepExpr mod ta defs e1, deepExpr mod ta defs e2]
+deepExpr mod ta defs (TE _ (LetBang vs _ e1 e2))
+  = let vs' = mkApp (mkId "set") [mkList $ map (deepIndex . fst) vs]
+     in mkApp (mkId "LetBang") [vs', deepExpr mod ta defs e1, deepExpr mod ta defs e2]
+deepExpr mod ta defs (TE _ (Case e tag (l1,_,e1) (l2,_,e2)))
+  = mkApp (mkId "Case") [deepExpr mod ta defs e,
+                         mkString tag,
+                         deepExpr mod ta defs e1,
+                         deepExpr mod ta defs e2]
 deepExpr mod ta defs (TE _ (Esac e)) = mkApp (mkId "Esac") [deepExpr mod ta defs e]
 deepExpr mod ta defs (TE _ (If c th el)) = mkApp (mkId "If") $ map (deepExpr mod ta defs) [c, th, el]
-deepExpr mod ta defs (TE _ (Take _ rec fld e)) = mkApp (mkId "Take") [deepExpr mod ta defs rec, mkInt (fromIntegral fld), deepExpr mod ta defs e]
-deepExpr mod ta defs (TE _ (Split _ e1 e2)) = mkApp (mkId "Split") [deepExpr mod ta defs e1, deepExpr mod ta defs e2]
+deepExpr mod ta defs (TE _ (Take _ rec fld e))
+  = mkApp (mkId "Take") [deepExpr mod ta defs rec, mkInt (fromIntegral fld), deepExpr mod ta defs e]
+deepExpr mod ta defs (TE _ (Split _ e1 e2))
+  = mkApp (mkId "Split") [deepExpr mod ta defs e1, deepExpr mod ta defs e2]
 
 deepKind :: Kind -> Term
 deepKind (K e s d) = ListTerm "{" [ mkId str | (sig, str) <- [(e, "E"), (s, "S"), (d, "D")], sig ] "}"
 
 deepPolyType :: NameMod -> TypeAbbrevs -> FunctionType -> Term
-deepPolyType mod ta (FT ks ti to) = mkPair (mkList $ map deepKind $ cvtToList ks) (mkPair (deepType mod ta ti) (deepType mod ta to))
+deepPolyType mod ta (FT ks ti to) = mkPair (mkList $ map deepKind $ cvtToList ks)
+                                           (mkPair (deepType mod ta ti) (deepType mod ta to))
 
 imports :: TheoryImports
 imports = TheoryImports $ [__cogent_root_dir </> "cogent/isa/Cogent"]
@@ -198,7 +217,7 @@ deepDefinitions mod ta defs = foldr (deepDefinition mod ta defs) [] defs ++
 scanAggregates :: CC.Type t -> [CC.Type t]
 scanAggregates (TCon tn ts) = concatMap scanAggregates ts
 scanAggregates (TFun ti to) = scanAggregates ti ++ scanAggregates to
-scanAggregates (TSum alts) = concatMap (scanAggregates . fst . snd) alts ++ [TSum alts]  -- FIXME: cogent.1
+scanAggregates (TSum alts) = concatMap (scanAggregates . fst . snd) alts ++ [TSum alts]
 scanAggregates (TProduct t1 t2) = scanAggregates t1 ++ scanAggregates t2
 scanAggregates (TRecord fs) = concatMap (scanAggregates . fst . snd) fs ++ [TRecord fs]
 scanAggregates _ = []
