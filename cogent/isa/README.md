@@ -19,7 +19,7 @@ file                                    depends on
 ├── UpdateSemantics.thy                 (ValueSemantics,Cogent)
 ├── Util.thy
 ├── ValueSemantics.thy                  (Cogent)
-└── shallo
+└── shallow
     ├── Shallow.thy                     (ValueSemantics,Util)
     ├── ShallowTuples.thy               (Util)
     ├── Shallow_Normalisation_Tac.thy   (Util)

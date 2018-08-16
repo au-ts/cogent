@@ -1,11 +1,13 @@
 (*
- * Copyright 2016, NICTA
+ * Copyright 2018, Data61
+ * Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+ * ABN 41 687 119 230.
  *
  * This software may be distributed and modified according to the terms of
  * the GNU General Public License version 2. Note that NO WARRANTY is provided.
  * See "LICENSE_GPLv2.txt" for details.
  *
- * @TAG(NICTA_GPL)
+ * @TAG(DATA61_GPL)
  *)
 
 theory Cogent
@@ -390,7 +392,7 @@ fun sigilise :: "sigil \<Rightarrow> ptr_repr option \<Rightarrow> type \<Righta
   "sigilise Unboxed _ t  = t"
 | "sigilise s (Some r) t = TPtr t r s"
 
-inductive kinding        :: "kind env \<Rightarrow> type               \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>  _ :\<kappa>  _" [30,0,20] 60)
+inductive kinding        :: "kind env \<Rightarrow> type               \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile> _ :\<kappa> _" [30,0,20] 60)
       and kinding_all    :: "kind env \<Rightarrow> type list          \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa>  _" [30,0,20] 60)
       and kinding_record :: "kind env \<Rightarrow> (type \<times> bool) list \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa>r _" [30,0,20] 60) where
 
