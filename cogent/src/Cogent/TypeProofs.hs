@@ -277,6 +277,10 @@ splitEnv env (TE t (Promote ty e))
     = let e' = splitEnv env e
        in EE t (Promote ty e') $ envOf e'
 
+splitEnv env (TE t (Cast ty e))
+    = let e' = splitEnv env e
+       in EE t (Cast ty e') $ envOf e'
+
 splitEnv env (TE t (Member e f))
     = let e' = splitEnv env e
        in EE t (Member e' f) $ envOf e'
@@ -438,6 +442,10 @@ pushDown unused (EE ty (Put e1 f e2) env)
 pushDown unused (EE ty (Promote ty' e) env)
     = let e' = pushDown unused e
        in EE ty (Promote ty' e') $ unused <|> env
+ 
+pushDown unused (EE ty (Cast ty' e) env)
+    = let e' = pushDown unused e
+       in EE ty (Cast ty' e') $ unused <|> env
 
 pushDown _ e = __impossible $ "pushDown:" ++ show (pretty e) ++ " is not yet implemented"
 
