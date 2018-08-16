@@ -1,11 +1,13 @@
 --
--- Copyright 2016, NICTA
+-- Copyright 2018, Data61
+-- Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+-- ABN 41 687 119 230.
 --
 -- This software may be distributed and modified according to the terms of
 -- the GNU General Public License version 2. Note that NO WARRANTY is provided.
 -- See "LICENSE_GPLv2.txt" for details.
 --
--- @TAG(NICTA_GPL)
+-- @TAG(DATA61_GPL)
 --
 
 {-# LANGUAGE QuasiQuotes #-}
@@ -117,7 +119,7 @@ deepPrimOp CS.LShift t = mkApp (mkId "LShift") [deepNumType t]
 deepPrimOp CS.RShift t = mkApp (mkId "RShift") [deepNumType t]
 deepPrimOp CS.Complement t = mkApp (mkId "Complement") [deepNumType t]
 
-deepExpr :: NameMod -> TypeAbbrevs -> [Definition TypedExpr a] -> TypedExpr t v a -> Term
+deepExpr :: (Pretty a) => NameMod -> TypeAbbrevs -> [Definition TypedExpr a] -> TypedExpr t v a -> Term
 deepExpr mod ta defs (TE _ (Variable v)) = mkApp (mkId "Var") [deepIndex (fst v)]
 deepExpr mod ta defs (TE _ (Fun fn ts _))
   | concreteFun fn = mkApp (mkId "Fun")  [mkId (mod fn), mkList (map (deepType mod ta) ts)]
@@ -168,6 +170,10 @@ deepExpr mod ta defs (TE _ (Take _ rec fld e))
   = mkApp (mkId "Take") [deepExpr mod ta defs rec, mkInt (fromIntegral fld), deepExpr mod ta defs e]
 deepExpr mod ta defs (TE _ (Split _ e1 e2))
   = mkApp (mkId "Split") [deepExpr mod ta defs e1, deepExpr mod ta defs e2]
+deepExpr mod ta defs (TE _ (Cast t e))
+  | TE (TPrim pt) _ <- e, TPrim pt' <- t, pt /= Boolean
+  = mkApp (mkId "Cast") [deepNumType pt', deepExpr mod ta defs e]
+deepExpr mod ta defs (TE _ e) = __todo $ "deepExpr: " ++ show (pretty e)
 
 deepKind :: Kind -> Term
 deepKind (K e s d) = ListTerm "{" [ mkId str | (sig, str) <- [(e, "E"), (s, "S"), (d, "D")], sig ] "}"
