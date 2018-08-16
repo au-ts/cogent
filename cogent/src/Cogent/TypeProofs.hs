@@ -1,13 +1,14 @@
 --
--- Copyright 2017, NICTA
+-- Copyright 2018, Data61
+-- Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+-- ABN 41 687 119 230.
 --
 -- This software may be distributed and modified according to the terms of
 -- the GNU General Public License version 2. Note that NO WARRANTY is provided.
 -- See "LICENSE_GPLv2.txt" for details.
 --
--- @TAG(NICTA_GPL)
+-- @TAG(DATA61_GPL)
 --
-
 
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE ExistentialQuantification #-}
@@ -205,27 +206,31 @@ escapedFunName fn | '\'' `elem` fn = "[" ++ intercalate "," (map repr fn) ++ "]"
                         repr x = printf "Char Nibble%X Nibble%X" (strint $ take 4 $ binstr x :: Int) (strint $ drop 4 $ binstr x :: Int)
 
 funTypeCase :: NameMod -> Definition TypedExpr a -> [String] -> [String]
-funTypeCase mod (FunDef  _ fn _ _ _ _) ds = (escapedFunName fn ++ " \\<Rightarrow> " ++ mod fn ++ "_type"):ds
-funTypeCase mod (AbsDecl _ fn _ _ _  ) ds = (escapedFunName fn ++ " \\<Rightarrow> " ++ mod fn ++ "_type"):ds
+funTypeCase mod (FunDef  _ fn _ _ _ _) ds = (escapedFunName fn ++ " := " ++ mod fn ++ "_type"):ds
+funTypeCase mod (AbsDecl _ fn _ _ _  ) ds = (escapedFunName fn ++ " := " ++ mod fn ++ "_type"):ds
 funTypeCase _ _ ds = ds
 
 funTypeEnv :: NameMod -> [Definition TypedExpr a] -> [TheoryDecl I.Type I.Term]
 funTypeEnv mod fs = funTypeEnv' $ foldr (funTypeCase mod) [] fs
 
-funTypeEnv' fs = let binds = mkId $ intercalate " | " (fs ++ ["_ \\<Rightarrow> ([], TUnit, TUnit)"])
-                     tysig = [isaType| string \<Rightarrow> Cogent.kind list \<times> Cogent.type \<times> Cogent.type |]
-                  in [[isaDecl| definition \<Xi> :: "$tysig"
-                                  where "\<Xi> func_name' \<equiv> case func_name' of $binds" |]]
+funTypeEnv' upds = let unit = "\\<lambda>_.([], TUnit, TUnit)"
+                       updates = mkId $ foldl' (\acc upd -> "(" ++ acc ++ ")(" ++ upd ++ ")") unit upds
+                       -- NOTE: as the isa-parser's antiQ doesn't handle terms well and it doesn't
+                       -- keep parens, we have to fall back on strings / zilinc
+                       tysig = [isaType| string \<Rightarrow> Cogent.kind list \<times> Cogent.type \<times> Cogent.type |]
+                    in [[isaDecl| definition \<Xi> :: "$tysig"
+                                  where "\<Xi> \<equiv> $updates" |]]
 
 funDefCase :: Definition TypedExpr a -> [String] -> [String]
-funDefCase (AbsDecl _ fn _ _ _  ) ds = (escapedFunName fn ++ " \\<Rightarrow> (\\<lambda>_ _. False)"):ds
+funDefCase (AbsDecl _ fn _ _ _  ) ds = (escapedFunName fn ++ " := (\\<lambda>_ _. False)"):ds
 funDefCase _ ds = ds
 
 funDefEnv :: [Definition TypedExpr a] -> [TheoryDecl I.Type I.Term]
 funDefEnv fs = funDefEnv' $ foldr funDefCase [] fs
 
-funDefEnv' fs = let binds = mkId $ intercalate " | " (fs ++ ["_ \\<Rightarrow> (\\<lambda>_ _. False)"])
-             in [[isaDecl| definition "\<xi> func_name' \<equiv> case func_name' of $binds" |]]
+funDefEnv' upds = let unit = "\\<lambda>_. (\\<lambda>_ _. False)"
+                      updates = mkId $ foldl' (\acc upd -> "(" ++ acc ++ ")(" ++ upd ++ ")") unit upds
+                   in [[isaDecl| definition "\<xi> \<equiv> $updates" |]]
 
 (<\>) :: Vec v (Maybe t) -> Vec v (Maybe t) -> Vec v (Maybe t)
 (<\>) (Cons x xs) (Cons Nothing ys)  = Cons x       $ xs <\> ys
