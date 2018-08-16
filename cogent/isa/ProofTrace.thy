@@ -297,7 +297,7 @@ fun unprop (Const (@{const_name Pure.prop}, _) $ t) = unprop t
 ML{*
     fun tree_hd (Tree (head, _)) = head
     fun tree_rest (Tree (_, rest)) = rest
-    fun tree_map f (Tree (head,rest)) = Tree (f head, map (tree_map f) rest) 
+    fun tree_map f (Tree (head,rest)) = Tree (f head, map (tree_map f) rest)
 *}
 
 ML {*

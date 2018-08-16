@@ -15,20 +15,20 @@ begin
 
 section {* Utility lemmas, probably should be in a separate theory *}
 
-lemma map_snd_app [simp]: 
-shows "map (snd \<circ> (\<lambda> (a , b). (a , f b))) l  =  map (f \<circ> snd) l" 
+lemma map_snd_app [simp]:
+shows "map (snd \<circ> (\<lambda> (a , b). (a , f b))) l  =  map (f \<circ> snd) l"
 by (induct l, auto)
 
-lemma map_snd_ignore [simp]: 
-shows "map (snd \<circ> (\<lambda> (a , b). (f a , b))) l  =  map (snd) l" 
+lemma map_snd_ignore [simp]:
+shows "map (snd \<circ> (\<lambda> (a , b). (f a , b))) l  =  map (snd) l"
 by (induct l, auto)
 
 lemma map_fst_app [simp]:
-shows "map (fst \<circ> (\<lambda> (a , b). (f a , b))) l =  map (f \<circ> fst) l" 
+shows "map (fst \<circ> (\<lambda> (a , b). (f a , b))) l =  map (f \<circ> fst) l"
 by (induct l, auto)
 
 lemma map_fst_ignore [simp]:
-shows "map (fst \<circ> (\<lambda> (a , b). (a , f b))) l = map fst l" 
+shows "map (fst \<circ> (\<lambda> (a , b). (a , f b))) l = map fst l"
 by (induct l, auto)
 
 lemma map_fst3_app2 [simp]:
@@ -88,7 +88,7 @@ lemma prod_in_set:
 assumes "(a, b) \<in> set l"
 shows   "a \<in> set (map fst l)"
 and     "b \<in> set (map snd l)"
-using assms by (force intro: imageI)+ 
+using assms by (force intro: imageI)+
 
 lemma list_all2_update_second:
   assumes "list_all2 f xs (ys[i := a])"
@@ -287,7 +287,7 @@ type_synonym index = nat
 
 type_synonym field = nat
 
-datatype num_type = U8 | U16 | U32 | U64 
+datatype num_type = U8 | U16 | U32 | U64
 
 datatype prim_type = Num num_type | Bool | String
 
@@ -297,22 +297,22 @@ datatype ptr_repr = PtrBits int int
                   | PtrVariant int int "(name \<times> int \<times> ptr_repr) list"
                   | PtrRecord "(name \<times> ptr_repr) list"
 
-datatype prim_op 
-  = Plus num_type 
-  | Minus num_type 
-  | Times num_type 
-  | Divide num_type 
+datatype prim_op
+  = Plus num_type
+  | Minus num_type
+  | Times num_type
+  | Divide num_type
   | Mod num_type
   | Not | And | Or
   | Gt num_type
-  | Lt num_type 
-  | Le num_type 
-  | Ge num_type 
-  | Eq prim_type 
+  | Lt num_type
+  | Le num_type
+  | Ge num_type
+  | Eq prim_type
   | NEq prim_type
-  | BitAnd num_type 
-  | BitOr num_type 
-  | BitXor num_type 
+  | BitAnd num_type
+  | BitOr num_type
+  | BitXor num_type
   | LShift num_type
   | RShift num_type
   | Complement num_type
@@ -321,7 +321,7 @@ datatype prim_op
 datatype type = TVar index
               | TVarBang index
               | TCon name "type list" sigil
-              | TFun type type 
+              | TFun type type
               | TPrim prim_type
               | TSum "(name \<times> type \<times> bool) list"
               | TProduct type type
@@ -355,7 +355,7 @@ datatype 'f expr = Var index
                  | App "'f expr" "'f expr"
                  | Con "(name \<times> type \<times> bool) list" name "'f expr"
                  | Struct "type list" "'f expr list"
-                 | Member "'f expr" field 
+                 | Member "'f expr" field
                  | Unit
                  | Lit lit
                  | Cast num_type "'f expr"
@@ -381,7 +381,7 @@ type_synonym 'a substitution = "'a list"
 
 section {* Kinding rules *}
 
-primrec sigil_kind :: "sigil \<Rightarrow> kind" where 
+primrec sigil_kind :: "sigil \<Rightarrow> kind" where
   "sigil_kind ReadOnly  = {D,S}"
 | "sigil_kind Writable  = {E}"
 | "sigil_kind Unboxed   = {D,S,E}"
@@ -390,8 +390,8 @@ fun sigilise :: "sigil \<Rightarrow> ptr_repr option \<Rightarrow> type \<Righta
   "sigilise Unboxed _ t  = t"
 | "sigilise s (Some r) t = TPtr t r s"
 
-inductive kinding        :: "kind env \<Rightarrow> type               \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>  _ :\<kappa>  _" [30,0,20] 60) 
-      and kinding_all    :: "kind env \<Rightarrow> type list          \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa>  _" [30,0,20] 60) 
+inductive kinding        :: "kind env \<Rightarrow> type               \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>  _ :\<kappa>  _" [30,0,20] 60)
+      and kinding_all    :: "kind env \<Rightarrow> type list          \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa>  _" [30,0,20] 60)
       and kinding_record :: "kind env \<Rightarrow> (type \<times> bool) list \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa>r _" [30,0,20] 60) where
 
    kind_tvar    : "\<lbrakk> k \<subseteq> (K ! i) ; i < length K \<rbrakk> \<Longrightarrow> K \<turnstile> TVar i :\<kappa> k"
@@ -428,13 +428,13 @@ inductive_cases kind_record_cons1E [elim] : "K \<turnstile>* ((x,False) # xs) :\
 inductive_cases kind_record_cons2E [elim] : "K \<turnstile>* ((x,True)  # xs) :\<kappa>r k"
 
 definition type_wellformed :: "kind env \<Rightarrow> type \<Rightarrow> bool" ("_ \<turnstile> _ wellformed" [30,20] 60) where
-  "K \<turnstile> \<tau> wellformed \<equiv> \<exists>k. K \<turnstile> \<tau> :\<kappa> k"  
+  "K \<turnstile> \<tau> wellformed \<equiv> \<exists>k. K \<turnstile> \<tau> :\<kappa> k"
 
 declare type_wellformed_def [simp]
 
 
 definition type_wellformed_all :: "kind env \<Rightarrow> type list \<Rightarrow> bool" ("_ \<turnstile>* _ wellformed"[30,20]60) where
-  "K \<turnstile>* \<tau>s wellformed \<equiv> \<exists>k. K \<turnstile>* \<tau>s :\<kappa> k"  
+  "K \<turnstile>* \<tau>s wellformed \<equiv> \<exists>k. K \<turnstile>* \<tau>s :\<kappa> k"
 
 declare type_wellformed_all_def [simp]
 
@@ -443,12 +443,12 @@ definition proc_ctx_wellformed :: "('f \<Rightarrow> poly_type) \<Rightarrow> bo
 
 section {* Observation and type instantiation *}
 
-primrec bang_sigil :: "sigil \<Rightarrow> sigil" where 
+primrec bang_sigil :: "sigil \<Rightarrow> sigil" where
   "bang_sigil (ReadOnly)   = ReadOnly"
 | "bang_sigil (Writable)   = ReadOnly"
 | "bang_sigil (Unboxed)    = Unboxed"
 
-fun bang :: "type \<Rightarrow> type" where 
+fun bang :: "type \<Rightarrow> type" where
   "bang (TVar i)       = TVarBang i"
 | "bang (TVarBang i)   = TVarBang i"
 | "bang (TCon n ts s)  = TCon n (map bang ts) (bang_sigil s)"
@@ -460,7 +460,7 @@ fun bang :: "type \<Rightarrow> type" where
 | "bang (TUnit)        = TUnit"
 | "bang (TPtr t r s)   = TPtr (bang t) r (bang_sigil s)"
 
-fun instantiate :: "type substitution \<Rightarrow> type \<Rightarrow> type" where 
+fun instantiate :: "type substitution \<Rightarrow> type \<Rightarrow> type" where
   "instantiate \<delta> (TVar i)       = (if i < length \<delta> then \<delta> ! i else TVar i)"
 | "instantiate \<delta> (TVarBang i)   = (if i < length \<delta> then bang (\<delta> ! i) else TVarBang i)"
 | "instantiate \<delta> (TCon n ts s)  = TCon n (map (instantiate \<delta>) ts) s"
@@ -472,13 +472,13 @@ fun instantiate :: "type substitution \<Rightarrow> type \<Rightarrow> type" whe
 | "instantiate \<delta> (TUnit)        = TUnit"
 | "instantiate \<delta> (TPtr t r s)   = TPtr (instantiate \<delta> t) r s"
 
-fun specialise :: "type substitution \<Rightarrow> 'f expr \<Rightarrow> 'f expr" where 
+fun specialise :: "type substitution \<Rightarrow> 'f expr \<Rightarrow> 'f expr" where
   "specialise \<delta> (Var i)           = Var i"
 | "specialise \<delta> (Fun f ts)        = Fun f (map (instantiate \<delta>) ts)"
 | "specialise \<delta> (AFun f ts)       = AFun f (map (instantiate \<delta>) ts)"
 | "specialise \<delta> (Prim p es)       = Prim p (map (specialise \<delta>) es)"
 | "specialise \<delta> (App a b)         = App (specialise \<delta> a) (specialise \<delta> b)"
-| "specialise \<delta> (Con as t e)      = Con (map (\<lambda> (c,t,b). (c, instantiate \<delta> t, b)) as) t (specialise \<delta> e)" 
+| "specialise \<delta> (Con as t e)      = Con (map (\<lambda> (c,t,b). (c, instantiate \<delta> t, b)) as) t (specialise \<delta> e)"
 | "specialise \<delta> (Struct ts vs)    = Struct (map (instantiate \<delta>) ts) (map (specialise \<delta>) vs)"
 | "specialise \<delta> (Member v f)      = Member (specialise \<delta> v) f"
 | "specialise \<delta> (Unit)            = Unit"
@@ -496,13 +496,13 @@ fun specialise :: "type substitution \<Rightarrow> 'f expr \<Rightarrow> 'f expr
 
 
 section {* Contexts *}
- 
+
 type_synonym ctx = "type option env"
 
-definition empty :: "nat \<Rightarrow> ctx" where 
+definition empty :: "nat \<Rightarrow> ctx" where
   "empty \<equiv> (\<lambda> x. replicate x None)"
 
-definition singleton :: "nat \<Rightarrow> index \<Rightarrow> type \<Rightarrow> ctx" where 
+definition singleton :: "nat \<Rightarrow> index \<Rightarrow> type \<Rightarrow> ctx" where
   "singleton n i t \<equiv> (empty n)[i := Some t]"
 
 declare singleton_def [simp]
@@ -515,7 +515,7 @@ inductive split_comp :: "kind env \<Rightarrow> type option \<Rightarrow> type o
   none  : "K \<turnstile> None \<leadsto> None \<parallel> None"
 | left  : "\<lbrakk> K \<turnstile> t :\<kappa> k         \<rbrakk> \<Longrightarrow> K \<turnstile> Some t \<leadsto> Some t \<parallel> None"
 | right : "\<lbrakk> K \<turnstile> t :\<kappa> k         \<rbrakk> \<Longrightarrow> K \<turnstile> Some t \<leadsto> None   \<parallel> (Some t)"
-| share : "\<lbrakk> K \<turnstile> t :\<kappa> k ; S \<in> k \<rbrakk> \<Longrightarrow> K \<turnstile> Some t \<leadsto> Some t \<parallel> Some t" 
+| share : "\<lbrakk> K \<turnstile> t :\<kappa> k ; S \<in> k \<rbrakk> \<Longrightarrow> K \<turnstile> Some t \<leadsto> Some t \<parallel> Some t"
 
 inductive split :: "kind env \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool" ("_ \<turnstile> _ \<leadsto> _ | _" [30,0,0,20] 60) where
   split_empty : "K \<turnstile> [] \<leadsto> [] | []"
@@ -524,13 +524,13 @@ inductive split :: "kind env \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> c
 definition pred :: "nat \<Rightarrow> nat" where
   "pred n \<equiv> (case n of Suc n' \<Rightarrow> n')"
 
-inductive split_bang :: "kind env \<Rightarrow> index set \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool" where 
+inductive split_bang :: "kind env \<Rightarrow> index set \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool" where
   split_bang_empty : "split_bang K is [] [] []"
-| split_bang_cons  : "\<lbrakk> 0 \<notin> is 
+| split_bang_cons  : "\<lbrakk> 0 \<notin> is
                       ; K \<turnstile> x \<leadsto> a \<parallel> b
                       ; split_bang K (pred ` is) xs as bs
                       \<rbrakk>  \<Longrightarrow> split_bang K is (x # xs) (a # as) (b # bs) "
-| split_bang_bang  : "\<lbrakk> 0 \<in> is 
+| split_bang_bang  : "\<lbrakk> 0 \<in> is
                       ; is' = Set.remove (0 :: index) is
                       ; split_bang K (pred ` is') xs as bs
                       \<rbrakk>  \<Longrightarrow> split_bang K is (Some x # xs) (Some (bang x) # as) (Some x # bs)"
@@ -541,17 +541,17 @@ inductive weakening_comp :: "kind env \<Rightarrow> type option \<Rightarrow> ty
 | keep : "\<lbrakk> K \<turnstile> t :\<kappa> k \<rbrakk>         \<Longrightarrow> weakening_comp K (Some t) (Some t)"
 | drop : "\<lbrakk> K \<turnstile> t :\<kappa> k ; D \<in> k \<rbrakk> \<Longrightarrow> weakening_comp K (Some t) None"
 
-definition weakening :: "kind env \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool" ("_ \<turnstile> _ \<leadsto>w _" [30,0,20] 60) where 
+definition weakening :: "kind env \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool" ("_ \<turnstile> _ \<leadsto>w _" [30,0,20] 60) where
   "weakening \<equiv> (\<lambda>K. list_all2 (weakening_comp K))"
 
-definition is_consumed :: "kind env \<Rightarrow> ctx \<Rightarrow> bool" ("_ \<turnstile> _ consumed" [30,20] 60 ) where  
-  "K \<turnstile> \<Gamma> consumed \<equiv> K \<turnstile> \<Gamma> \<leadsto>w empty (length \<Gamma>)" 
+definition is_consumed :: "kind env \<Rightarrow> ctx \<Rightarrow> bool" ("_ \<turnstile> _ consumed" [30,20] 60 ) where
+  "K \<turnstile> \<Gamma> consumed \<equiv> K \<turnstile> \<Gamma> \<leadsto>w empty (length \<Gamma>)"
 
 declare is_consumed_def [simp]
 
 section {* Built-in types *}
 
-primrec prim_op_type :: "prim_op \<Rightarrow> prim_type list \<times> prim_type" where 
+primrec prim_op_type :: "prim_op \<Rightarrow> prim_type list \<times> prim_type" where
   "prim_op_type (Plus t)   = ([Num t, Num t], Num t)"
 | "prim_op_type (Times t)  = ([Num t, Num t], Num t)"
 | "prim_op_type (Minus t)  = ([Num t, Num t], Num t)"
@@ -573,11 +573,11 @@ primrec prim_op_type :: "prim_op \<Rightarrow> prim_type list \<times> prim_type
 | "prim_op_type (Or)       = ([Bool , Bool ], Bool )"
 | "prim_op_type (Not)      = ([Bool],         Bool )"
 
-primrec lit_type :: "lit \<Rightarrow> prim_type" where 
-  "lit_type (LBool _) = Bool" 
-| "lit_type (LU8  _)  = Num U8" 
-| "lit_type (LU16 _)  = Num U16" 
-| "lit_type (LU32 _)  = Num U32" 
+primrec lit_type :: "lit \<Rightarrow> prim_type" where
+  "lit_type (LBool _) = Bool"
+| "lit_type (LU8  _)  = Num U8"
+| "lit_type (LU16 _)  = Num U16"
+| "lit_type (LU32 _)  = Num U32"
 | "lit_type (LU64 _)  = Num U64"
 
 fun upcast_valid :: "num_type \<Rightarrow> num_type \<Rightarrow> bool" where
@@ -657,22 +657,22 @@ inductive subtyping :: "kind env \<Rightarrow> type \<Rightarrow> type \<Rightar
                    ; \<forall> c c'. c \<in> set (map fst ts) \<longrightarrow> lookup c ts = lookup c ts' \<rbrakk> \<Longrightarrow> K \<turnstile> TSum ts \<sqsubseteq> TSum ts'"
 *)
 
-inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Rightarrow> ctx \<Rightarrow> 'f expr \<Rightarrow> type \<Rightarrow> bool" 
+inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Rightarrow> ctx \<Rightarrow> 'f expr \<Rightarrow> type \<Rightarrow> bool"
           ("_, _, _ \<turnstile> _ : _" [30,0,0,0,20] 60)
       and typing_all :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Rightarrow> ctx \<Rightarrow> 'f expr list \<Rightarrow> type list \<Rightarrow> bool"
           ("_, _, _ \<turnstile>* _ : _" [30,0,0,0,20] 60) where
 
-  typing_var    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto>w singleton (length \<Gamma>) i t 
+  typing_var    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto>w singleton (length \<Gamma>) i t
                    ; i < length \<Gamma>
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Var i : t"
 
 | typing_afun   : "\<lbrakk> \<Xi> f = (K', t, u)
-                   ; list_all2 (kinding K) ts K' 
+                   ; list_all2 (kinding K) ts K'
                    ; K' \<turnstile> TFun t u wellformed
                    ; K \<turnstile> \<Gamma> consumed
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> AFun f ts : instantiate ts (TFun t u)"
 
-| typing_fun    : "\<lbrakk> \<Xi>, K', [Some t] \<turnstile> f : u 
+| typing_fun    : "\<lbrakk> \<Xi>, K', [Some t] \<turnstile> f : u
                    ; K \<turnstile> \<Gamma> consumed
                    ; K' \<turnstile> t wellformed
                    ; list_all2 (kinding K) ts K'
@@ -680,7 +680,7 @@ inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Right
 
 | typing_app    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
                    ; \<Xi>, K, \<Gamma>1 \<turnstile> a : TFun x y
-                   ; \<Xi>, K, \<Gamma>2 \<turnstile> b : x 
+                   ; \<Xi>, K, \<Gamma>2 \<turnstile> b : x
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> App a b : y"
 
 | typing_con    : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : t
@@ -690,20 +690,20 @@ inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Right
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Con ts tag x : TSum ts"
 
 | typing_cast   : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> e : TPrim (Num \<tau>)
-                   ; upcast_valid \<tau> \<tau>' 
+                   ; upcast_valid \<tau> \<tau>'
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Cast \<tau>' e : TPrim (Num \<tau>')"
 
 | typing_tuple  : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
-                   ; \<Xi>, K, \<Gamma>1 \<turnstile> t : T 
+                   ; \<Xi>, K, \<Gamma>1 \<turnstile> t : T
                    ; \<Xi>, K, \<Gamma>2 \<turnstile> u : U
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Tuple t u : TProduct T U"
 
 | typing_split  : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
                    ; \<Xi>, K, \<Gamma>1 \<turnstile> x : TProduct t u
                    ; \<Xi>, K, (Some t)#(Some u)#\<Gamma>2 \<turnstile> y : t'
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Split x y : t'" 
+                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Split x y : t'"
 
-| typing_let    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2 
+| typing_let    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
                    ; \<Xi>, K, \<Gamma>1 \<turnstile> x : t
                    ; \<Xi>, K, (Some t # \<Gamma>2) \<turnstile> y : u
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Let x y : u"
@@ -732,12 +732,12 @@ inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Right
                    ; \<Xi>, K, \<Gamma>2 \<turnstile> b : t
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> If x a b : t"
 
-| typing_prim   : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile>* args : map TPrim ts 
+| typing_prim   : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile>* args : map TPrim ts
                    ; prim_op_type oper = (ts,t)
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Prim oper args : TPrim t"
 
 | typing_lit    : "\<lbrakk> K \<turnstile> \<Gamma> consumed
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Lit l : TPrim (lit_type l)" 
+                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Lit l : TPrim (lit_type l)"
 
 | typing_unit   : "\<lbrakk> K \<turnstile> \<Gamma> consumed
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Unit : TUnit"
@@ -753,7 +753,7 @@ inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Right
                    ; ts ! f = (t, False)
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Member e f : t"
 
-| typing_take   : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2 
+| typing_take   : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
                    ; \<Xi>, K, \<Gamma>1 \<turnstile> e : \<tau>
                    ; \<tau> = TPtr (TRecord ts) r s \<or> \<tau> = TRecord ts
                    ; s \<noteq> ReadOnly
@@ -813,7 +813,7 @@ section {* Syntax structural judgements *}
 
 subsection {* A-normal form *}
 
-inductive atom ::"'f expr \<Rightarrow> bool" where 
+inductive atom ::"'f expr \<Rightarrow> bool" where
   "atom (Var x)"
 | "atom (Fun f ts)"
 | "atom (AFun f ts)"
@@ -831,7 +831,7 @@ inductive atom ::"'f expr \<Rightarrow> bool" where
 | "atom (App (AFun f ts) (Var b))"
 | "atom (Put (Var x) f (Var y))"
 
-inductive a_normal :: "'f expr \<Rightarrow> bool" where 
+inductive a_normal :: "'f expr \<Rightarrow> bool" where
   "\<lbrakk> atom x \<rbrakk> \<Longrightarrow> a_normal x"
 | "\<lbrakk> atom x ; a_normal y \<rbrakk> \<Longrightarrow> a_normal (Let x y)"
 | "\<lbrakk> a_normal x ; a_normal y \<rbrakk> \<Longrightarrow> a_normal (LetBang is x y)"
@@ -877,7 +877,7 @@ section {* Kinding lemmas *}
 lemma supersumption:
 fixes k' :: kind
 assumes k_is_superset : "k' \<subseteq> k"
-shows "K \<turnstile>  t  :\<kappa> k  \<Longrightarrow> K \<turnstile>  t  :\<kappa> k'" 
+shows "K \<turnstile>  t  :\<kappa> k  \<Longrightarrow> K \<turnstile>  t  :\<kappa> k'"
 and   "K \<turnstile>* ts :\<kappa> k  \<Longrightarrow> K \<turnstile>* ts :\<kappa> k'"
 and   "K \<turnstile>* fs :\<kappa>r k \<Longrightarrow> K \<turnstile>* fs :\<kappa>r k'"
 using k_is_superset proof (induct rule: kinding_kinding_all_kinding_record.inducts)
@@ -890,7 +890,7 @@ by (force intro: kind_comp.exhaust)
 
 lemma kinding_all_nth:
 fixes n :: nat
-assumes "K \<turnstile>* ts :\<kappa> k" 
+assumes "K \<turnstile>* ts :\<kappa> k"
 and     "n < length ts"
 shows   "K \<turnstile> (ts ! n) :\<kappa> k"
 using assms proof (induct ts arbitrary: n)
@@ -906,7 +906,7 @@ then show   "\<forall> t \<in> set ts. K \<turnstile> t :\<kappa> k"
      by (rule kinding_kinding_all_kinding_record.inducts, simp+)
 
 next assume "\<forall> t \<in> set ts. K \<turnstile> t :\<kappa> k"
-then show   "K \<turnstile>* ts :\<kappa> k" 
+then show   "K \<turnstile>* ts :\<kappa> k"
      by (induct ts, auto intro: kinding_kinding_all_kinding_record.intros)
 qed
 
@@ -930,7 +930,7 @@ qed
 
 lemma kinding_record_wellformed:
 assumes "K \<turnstile>* ts :\<kappa>r k"
-and     "(a,b) \<in> set ts" 
+and     "(a,b) \<in> set ts"
 shows   "K \<turnstile> a wellformed"
 using assms proof (induct ts)
      case Nil  then show ?case by (simp add:   set_conv_nth)
@@ -941,10 +941,10 @@ qed
 lemma kinding_record_wellformed_nth:
 assumes "K \<turnstile>* ts :\<kappa>r k"
 and     "ts ! n = (a,b)"
-and     "n < length ts" 
+and     "n < length ts"
 shows   "K \<turnstile> a wellformed"
 using assms(1)
-  and assms(2) [THEN sym] 
+  and assms(2) [THEN sym]
   and assms(3) by (force intro: kinding_record_wellformed [simplified]
                          simp:  set_conv_nth)
 
@@ -979,10 +979,10 @@ next case Cons
   note A = this
   show ?case proof (cases n)
          case 0   with A show ?thesis by (force elim!:  kind_record_consE
-                                                intro!: kinding_kinding_all_kinding_record.intros 
+                                                intro!: kinding_kinding_all_kinding_record.intros
                                                 intro:  supersumption)
     next case Suc with A show ?thesis by (force elim!:  kind_record_consE
-                                                intro!: kinding_kinding_all_kinding_record.intros 
+                                                intro!: kinding_kinding_all_kinding_record.intros
                                                 intro:  supersumption)
   qed
 qed
@@ -1005,8 +1005,8 @@ shows "bang (bang \<tau>) = bang \<tau>"
 by (force intro: bang.induct [where P = "\<lambda> \<tau> . bang (bang \<tau>) = bang \<tau>"]
           simp:  bang_sigil_idempotent)
 
-lemma bang_sigil_kind: 
-shows "{D , S} \<subseteq> sigil_kind (bang_sigil s)" 
+lemma bang_sigil_kind:
+shows "{D , S} \<subseteq> sigil_kind (bang_sigil s)"
 by (case_tac s,auto)
 
 lemma bang_kind:
@@ -1048,7 +1048,7 @@ section {* Instantiation *}
 
 lemma instantiate_bang [simp]:
 shows "instantiate \<delta> (bang \<tau>) = bang (instantiate \<delta> \<tau>)"
-by (force intro: bang.induct [where P = "\<lambda> \<tau>. instantiate \<delta> (bang \<tau>) = bang (instantiate \<delta> \<tau>)"] 
+by (force intro: bang.induct [where P = "\<lambda> \<tau>. instantiate \<delta> (bang \<tau>) = bang (instantiate \<delta> \<tau>)"]
           simp:  bang_idempotent)
 
 find_theorems name: kinding_kinding_all_kinding_record
@@ -1073,11 +1073,11 @@ next case (6 \<delta> ps) note IH   = this(1)
                                                           , simplified])+
                        apply (erule kinding.cases; simp_all)
                        apply (bestsimp dest: kinding_all_nth [ where ts = "map (fst \<circ> snd) ps" and n = "i" for i ps
-                                                             , simplified] 
+                                                             , simplified]
                                              sym [ where ?t = "ps ! i" for i ])
                        done
 qed (force dest: list_all2_lengthD)+
-                        
+
 lemma instantiate_tprim [simp]:
 shows "instantiate \<delta> \<circ> TPrim = TPrim"
 by (rule ext, simp)
@@ -1125,7 +1125,7 @@ using well_kinded proof (induct rule: kinding_kinding_all_kinding_record.inducts
      case (kind_tvar k K i)
        assume "list_all2 (kinding K') \<delta> K"
        and    "i < length K"
-       and    "k \<subseteq> K ! i" 
+       and    "k \<subseteq> K ! i"
        moreover   then have "i < length \<delta>" by (auto dest: list_all2_lengthD)
        ultimately also have "K' \<turnstile> (\<delta> ! i) :\<kappa> (K ! i)" by (auto intro: list_all2_nthD)
        ultimately show ?case by (auto intro: supersumption)
@@ -1155,11 +1155,11 @@ assumes "K \<turnstile> \<Gamma> \<leadsto>w \<Gamma>'"
 and     "list_all2 (kinding K') \<delta> K"
 shows   "K' \<turnstile> instantiate_ctx \<delta> \<Gamma> \<leadsto>w instantiate_ctx \<delta> \<Gamma>'"
 using assms(1) [simplified weakening_def] and assms(2) proof (induct rule: list_all2_induct)
-     case Nil  then show ?case by (simp add: instantiate_ctx_def weakening_def) 
-next case Cons then show ?case by (fastforce intro: weakening_comp.intros 
+     case Nil  then show ?case by (simp add: instantiate_ctx_def weakening_def)
+next case Cons then show ?case by (fastforce intro: weakening_comp.intros
                                              elim:  weakening_comp.cases
-                                             simp:  instantiate_ctx_def 
-                                                    weakening_def 
+                                             simp:  instantiate_ctx_def
+                                                    weakening_def
                                              dest:  substitutivity)
 qed
 
@@ -1173,8 +1173,8 @@ by (induct l, simp_all add: empty_def
 
 lemma instantiate_ctx_singleton [simplified, simp]:
 shows "instantiate_ctx \<delta> (singleton l i \<tau>) = singleton l i (instantiate \<delta> \<tau>)"
-by (induct l arbitrary: i, simp_all add:   instantiate_ctx_def 
-                                           empty_def 
+by (induct l arbitrary: i, simp_all add:   instantiate_ctx_def
+                                           empty_def
                                     split: nat.split)
 
 lemma instantiate_ctx_length [simp]:
@@ -1192,7 +1192,7 @@ assumes "K \<turnstile> c \<leadsto> c1 \<parallel> c2"
 and     "list_all2 (kinding K') \<delta> K"
 shows   "K' \<turnstile> map_option (instantiate \<delta>) c \<leadsto> map_option (instantiate \<delta>) c1 \<parallel> map_option (instantiate \<delta>) c2"
 using assms(1) by ( rule split_comp.cases
-                  , auto elim: split_comp.cases 
+                  , auto elim: split_comp.cases
                          intro: substitutivity(1) assms(2) split_comp.intros)
 
 lemma instantiate_ctx_split:
@@ -1218,7 +1218,7 @@ using assms proof (induct rule: split_bang.induct)
 next case split_bang_cons  then show ?case by (auto simp:  instantiate_ctx_def
                                                     intro: split_bang.intros
                                                            map_option_instantiate_split_comp)
-next case split_bang_bang  then show ?case by (auto simp: instantiate_ctx_def 
+next case split_bang_bang  then show ?case by (auto simp: instantiate_ctx_def
                                                     intro: split_bang.intros)
 qed
 
@@ -1231,7 +1231,7 @@ by (simp add: instantiate_ctx_def)
 
 section {* Lemmas about contexts, splitting and weakening *}
 
-lemma empty_length: 
+lemma empty_length:
 shows "length (empty n) = n"
 by (induct n, simp_all add: empty_def)
 
@@ -1277,7 +1277,7 @@ assumes weak: "K \<turnstile> \<Gamma> \<leadsto>w \<Gamma>'"
 and     idx:  "\<Gamma>' ! x = Some t"
 shows   "\<Gamma>  ! x = Some t"
 using weak[simplified weakening_def]
-  and weakening_length[OF weak] 
+  and weakening_length[OF weak]
   and idx
   proof (induct arbitrary: x rule: list_all2_induct)
      case Nil                then show ?case by auto
@@ -1289,7 +1289,7 @@ assumes weak: "K \<turnstile> \<Gamma> \<leadsto>w \<Gamma>'"
 and     idx:  "\<Gamma>  ! x = None"
 shows   "\<Gamma>' ! x = None"
 using weak[simplified weakening_def]
-  and weakening_length[OF weak] 
+  and weakening_length[OF weak]
   and idx
   proof (induct arbitrary: x rule: list_all2_induct)
      case Nil                then show ?case by auto
@@ -1304,15 +1304,15 @@ using assms by (auto simp add: weakening_def dest: list_all2_nthD)
 
 
 lemma typing_to_kinding :
-shows "\<Xi>, K, \<Gamma> \<turnstile>  e  : t  \<Longrightarrow> K \<turnstile>  t  wellformed" 
+shows "\<Xi>, K, \<Gamma> \<turnstile>  e  : t  \<Longrightarrow> K \<turnstile>  t  wellformed"
 and   "\<Xi>, K, \<Gamma> \<turnstile>* es : ts \<Longrightarrow> K \<turnstile>* ts wellformed"
 proof (induct rule: typing_typing_all.inducts)
      case typing_var    then show ?case by (fastforce dest: weakening_preservation_some weakening_nth
-                                                      simp: empty_length 
+                                                      simp: empty_length
                                                       elim: weakening_comp.cases)
-next case typing_fun    then show ?case by (fastforce intro: kinding_kinding_all_kinding_record.intros 
+next case typing_fun    then show ?case by (fastforce intro: kinding_kinding_all_kinding_record.intros
                                                              substitutivity)
-next case typing_afun   then show ?case by (fastforce intro: kinding_kinding_all_kinding_record.intros 
+next case typing_afun   then show ?case by (fastforce intro: kinding_kinding_all_kinding_record.intros
                                                              substitutivity)
 next case typing_esac   then show ?case by (fastforce dest: filtered_member
                                                       elim: kinding.cases
@@ -1321,7 +1321,7 @@ next case typing_member then show ?case by (fastforce intro: kinding_record_well
 next case typing_struct then show ?case by ( clarsimp
                                            , intro exI kind_trec kinding_all_record
                                            , simp_all add: kind_top )
-next case typing_take   then show ?case by (simp)  
+next case typing_take   then show ?case by (simp)
 next case typing_put    then show ?case by (fastforce intro: kinding_kinding_all_kinding_record.intros
                                                              kinding_record_update)
 qed (auto intro: supersumption kinding_kinding_all_kinding_record.intros)
@@ -1346,10 +1346,10 @@ proof ( induct "[] :: kind list"  t k
   then show ?case
     by (cases s, auto)
 qed auto
-   
 
 
-subsection {* Specialisation *} 
+
+subsection {* Specialisation *}
 
 lemma specialisation:
 assumes well_kinded: "list_all2 (kinding K') \<delta> K"
@@ -1377,14 +1377,14 @@ next case (typing_afun \<Xi> f ks t u K ts ks)
     and  "instantiate \<delta> (instantiate ts u) = instantiate (map (instantiate \<delta>) ts) u"
     by (force dest: list_all2_lengthD intro: instantiate_instantiate)+
   ultimately show ?case by (auto intro!: list_all2_substitutivity
-        typing_typing_all.typing_afun [simplified] 
+        typing_typing_all.typing_afun [simplified]
         instantiate_ctx_consumed)
 next case (typing_fun \<Xi> K t f u \<Gamma> ks ts)
   then also have "instantiate \<delta> (instantiate ts t) = instantiate (map (instantiate \<delta>) ts) t"
     and  "instantiate \<delta> (instantiate ts u) = instantiate (map (instantiate \<delta>) ts) u"
     by (force dest: list_all2_lengthD intro: instantiate_instantiate dest!: typing_to_kinding)+
   ultimately show ?case by (auto intro!: list_all2_substitutivity
-        typing_typing_all.typing_fun [simplified] 
+        typing_typing_all.typing_fun [simplified]
         instantiate_ctx_consumed)
 next
   case (typing_esac \<Xi> K \<Gamma> x ts uu t)
@@ -1395,7 +1395,7 @@ next
 next
   case (typing_member \<Xi> K \<Gamma> e \<tau> ts r s k f t)
   then show ?case
-    using substitutivity(1)[where t=\<tau>] 
+    using substitutivity(1)[where t=\<tau>]
     by (auto intro!: typing_typing_all.intros)
 next
   case (typing_take K \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> e \<tau> ts r s f t k taken e' u)

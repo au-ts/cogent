@@ -246,7 +246,7 @@ fun normalisation_tac ctxt
       |> Conv.fconv_rule (dest_first_order ctxt)
       (* Rewrite numeric literal promotions.
        * These always appear as "ucast n" where n is a HOL numeric literal. *)
-      |> Conv.fconv_rule (Simplifier.rewrite (put_simpset HOL_basic_ss ctxt addsimprocs 
+      |> Conv.fconv_rule (Simplifier.rewrite (put_simpset HOL_basic_ss ctxt addsimprocs
           [ Simplifier.cert_simproc @{theory} "ucast_simproc"
             { lhss = [ @{term_pat "ucast (numeral _)"}
                      , @{term_pat "ucast zero_class.zero"}

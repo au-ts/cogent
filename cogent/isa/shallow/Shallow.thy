@@ -8,7 +8,7 @@
  * @TAG(NICTA_GPL)
  *)
 
-theory Shallow     
+theory Shallow
 imports
   "../ValueSemantics"
   "../Util"
@@ -96,7 +96,7 @@ fun valRel_pair :: "(funtyp,'b) vabsfuns \<Rightarrow> 'x \<times> 'y \<Rightarr
 
 fun valRel_fun :: "(funtyp,'b) vabsfuns \<Rightarrow> ('x \<Rightarrow> 'y) \<Rightarrow> (funtyp,'b) vval \<Rightarrow> bool" where
   "valRel_fun \<xi> f f' =
-((\<exists>e ts. f' = VFunction e ts \<and> 
+((\<exists>e ts. f' = VFunction e ts \<and>
           (\<forall>x x' v'. valRel \<xi> x x' \<longrightarrow> (\<xi>, [x'] \<turnstile> specialise ts e \<Down> v') \<longrightarrow> valRel \<xi> (f x) v')) \<or>
   (\<exists>afun ts. f' = VAFunction afun ts \<and> (\<forall>x x' v'. valRel \<xi> x x' \<longrightarrow> \<xi> afun x' v' \<longrightarrow> valRel \<xi> (f x) v')))"
 
@@ -105,7 +105,7 @@ end
 context value_sem
 begin
 
-text {* Shallow & deep embedding correspondence: 
+text {* Shallow & deep embedding correspondence:
   deep embedding is a refinement of the shallow representation
 *}
 definition

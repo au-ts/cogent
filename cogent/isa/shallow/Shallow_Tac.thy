@@ -46,15 +46,15 @@ let
                           ("\<lambda>(n::string). scorres " ^ Aname ^ "." ^ abs_name ^ " (AFun n ts) \<gamma> \<xi>"),
                        HOLogic.mk_string abs_name)
   val ctxt = Variable.auto_fixes prop lthy
-  val thm = Goal.prove ctxt [] [] (HOLogic.mk_Trueprop prop) 
+  val thm = Goal.prove ctxt [] [] (HOLogic.mk_Trueprop prop)
                (fn _ => Skip_Proof.cheat_tac ctxt 1) (* FIXME: def and proof instead *)
   val thm' = hd ((map (Goal.norm_result lthy) o Proof_Context.export ctxt lthy) [thm])
 in
   (abs_thm_name abs_name, thm')
 end
 
-fun gen_scorres_abs_assms Aname abs_names lthy = 
-let 
+fun gen_scorres_abs_assms Aname abs_names lthy =
+let
   val thms = map (gen_scorres_abs_thm lthy Aname) abs_names;
   val athms = map #2 thms
   val atts = [];

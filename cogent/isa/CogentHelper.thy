@@ -15,7 +15,7 @@ begin
 
 (* Rewrite rules to get expressions in the assumptions *)
 
-lemma typing_lit': "\<lbrakk> K \<turnstile> \<Gamma> consumed; t = lit_type l \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Lit l : TPrim t" 
+lemma typing_lit': "\<lbrakk> K \<turnstile> \<Gamma> consumed; t = lit_type l \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Lit l : TPrim t"
   by (simp only: typing_lit)
 
 lemma typing_put':  "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
@@ -32,7 +32,7 @@ lemma typing_put':  "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<
 
 lemma typing_prim' : "\<lbrakk> prim_op_type oper = (ts,t)
                       ; ts' = map TPrim ts
-                      ; \<Xi>, K, \<Gamma> \<turnstile>* args : ts' 
+                      ; \<Xi>, K, \<Gamma> \<turnstile>* args : ts'
                       \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Prim oper args : TPrim t"
   by (simp only: typing_prim)
 
@@ -50,11 +50,11 @@ lemma typing_struct': "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile>* es : ts
   by (simp only: typing_struct)
 
 lemma typing_afun': "\<lbrakk> \<Xi> f = (ks, t, u)
-                     ; list_all2 (kinding K) ts ks 
+                     ; list_all2 (kinding K) ts ks
                      ; t' = instantiate ts (TFun t u)
                      ; ks \<turnstile> TFun t u wellformed
                      ; K \<turnstile> \<Gamma> consumed
-                     \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> AFun f ts : t'" 
+                     \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> AFun f ts : t'"
   by (simp only: typing_afun)
 
 lemma typing_fun': "\<lbrakk> \<Xi>, ks, (typtree, [Some t]) T\<turnstile> f : u
@@ -66,7 +66,7 @@ lemma typing_fun': "\<lbrakk> \<Xi>, ks, (typtree, [Some t]) T\<turnstile> f : u
   by (auto simp only: typing_fun snd_conv dest: ttyping_imp_typing)
 
 lemma typing_var_weak: "\<lbrakk> K \<turnstile> t :\<kappa> k
-                   ; K \<turnstile> \<Gamma> \<leadsto>w singleton (length \<Gamma>) i t 
+                   ; K \<turnstile> \<Gamma> \<leadsto>w singleton (length \<Gamma>) i t
                    ; i < length \<Gamma>
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Var i : t"
   (* weaker than typing_var - the kinding assumption lets
@@ -85,7 +85,7 @@ lemma typing_all_empty'':
   apply simp
   done
 
-lemma split_bang_bang' :"\<lbrakk> 0 \<in> is 
+lemma split_bang_bang' :"\<lbrakk> 0 \<in> is
                       ; x' = bang x
                       ; is' = pred ` (Set.remove 0 is)
                       ; split_bang K is' xs as bs
@@ -142,8 +142,8 @@ lemma ttyping_case':  "\<lbrakk> ttsplit K \<Gamma> ijs [] \<Gamma>1 [] \<Gamma>
                    ; \<Xi>, K, \<Gamma>4 T\<turnstile> b : u
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> T\<turnstile> Case x tag a b : u"
   by (simp only: ttyping_case[rotated])
-           
-lemma ttyping_take': "\<lbrakk> ttsplit K \<Gamma> ijs [] \<Gamma>1 [Some t, Some (TRecord ts' s)] \<Gamma>2 
+
+lemma ttyping_take': "\<lbrakk> ttsplit K \<Gamma> ijs [] \<Gamma>1 [Some t, Some (TRecord ts' s)] \<Gamma>2
                    ; \<Xi>, K, \<Gamma>1 T\<turnstile> e : TRecord ts s
                    ; s \<noteq> ReadOnly
                    ; f < length ts
@@ -258,7 +258,7 @@ fun apply_split @{term "Some TSK_L"} hints t = ((t, NONE), hints)
   | apply_split @{term "Some TSK_S"} hints t = ((t, t), hints)
   | apply_split @{term "Some TSK_NS"} hints t = let
     val (tacs, hints) = kinding hints
-    val thm = case tacs of [RTac thm] => thm 
+    val thm = case tacs of [RTac thm] => thm
       | _ => raise HINTS ("apply_split: TSK_NS", [KindingTacs tacs])
   in ((SOME thm, t), hints) end
   | apply_split @{term "None :: type_split_kind option"} hints t = ((NONE, t), hints)

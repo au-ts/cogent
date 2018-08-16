@@ -10,7 +10,7 @@
 
 theory TypeTrackingSemantics imports
   UpdateSemantics
-  
+
 begin
 
 datatype type_split_kind = TSK_L | TSK_S | TSK_NS
@@ -97,7 +97,7 @@ lemma ttsplit_innerI:
     \<Longrightarrow> ttsplit_inner K (Some TSK_L # sps) kndng (Some \<gamma> # \<Gamma>b) (Some \<gamma> # \<Gamma>1) (None # \<Gamma>2)"
   "K \<turnstile> \<gamma> :\<kappa>  k \<Longrightarrow> S \<in> k \<Longrightarrow> ttsplit_inner K sps kndng \<Gamma>b \<Gamma>1 \<Gamma>2
     \<Longrightarrow> ttsplit_inner K (Some TSK_S # sps) kndng (Some \<gamma> # \<Gamma>b) (Some \<gamma> # \<Gamma>1) (Some \<gamma> # \<Gamma>2)"
-  "ttsplit_inner K [] kndng [] [] []"  
+  "ttsplit_inner K [] kndng [] [] []"
   by (auto simp add: ttsplit_inner_def forall_less_Suc_eq)
 
 lemma split_list_zip:
@@ -154,10 +154,10 @@ where
         \<and> \<Gamma>2 = map (\<lambda> (sp, v). if sp \<noteq> Some TSK_L then v else None)
                         (zip sps \<Gamma>b)
         \<and> (\<forall>i < length \<Gamma>b. nth sps i \<noteq> Some TSK_NS \<and> \<Gamma>b ! i \<noteq> None \<longrightarrow> (\<exists>k. K \<turnstile> the (\<Gamma>b ! i) :\<kappa> k))
-        \<and> (\<forall>i < length \<Gamma>b. nth sps i = Some TSK_NS \<longrightarrow> nth \<Gamma>b i \<noteq> None) 
+        \<and> (\<forall>i < length \<Gamma>b. nth sps i = Some TSK_NS \<longrightarrow> nth \<Gamma>b i \<noteq> None)
         \<and> (\<forall>i < length \<Gamma>b. nth sps i = Some TSK_S
             \<longrightarrow> nth \<Gamma>b i \<noteq> None \<and> (\<exists>k. K \<turnstile> (the (nth \<Gamma>b i)) :\<kappa> k \<and> S \<in> k)))"
- 
+
 definition
   "ttsplit_bang is sps K \<Gamma> xs \<Gamma>1 ys \<Gamma>2 =
     (\<exists>\<Gamma>b \<Gamma>1a \<Gamma>2a T1 T2. \<Gamma> = (TyTrSplit sps xs T1 ys T2, \<Gamma>b)
@@ -276,7 +276,7 @@ lemma split_follow_typing_tree:
   apply (case_tac aa, simp_all)
   done
 
-inductive ttyping :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Rightarrow> tree_ctx \<Rightarrow> 'f expr \<Rightarrow> type \<Rightarrow> bool" 
+inductive ttyping :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Rightarrow> tree_ctx \<Rightarrow> 'f expr \<Rightarrow> type \<Rightarrow> bool"
           ("_, _, _ T\<turnstile> _ : _" [30,0,0,0,20] 60)
 where
 
@@ -287,9 +287,9 @@ where
 | ttyping_split  : "\<lbrakk> ttsplit K \<Gamma> ijs [] \<Gamma>1 [Some t, Some u] \<Gamma>2
                    ; \<Xi>, K, \<Gamma>1 T\<turnstile> x : TProduct t u
                    ; \<Xi>, K, \<Gamma>2 T\<turnstile> y : t'
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> T\<turnstile> Split x y : t'" 
+                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> T\<turnstile> Split x y : t'"
 
-| ttyping_let    : "\<lbrakk> ttsplit K \<Gamma> ijs [] \<Gamma>1 [Some t] \<Gamma>2 
+| ttyping_let    : "\<lbrakk> ttsplit K \<Gamma> ijs [] \<Gamma>1 [Some t] \<Gamma>2
                    ; \<Xi>, K, \<Gamma>1 T\<turnstile> x : t
                    ; \<Xi>, K, \<Gamma>2 T\<turnstile> y : u
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> T\<turnstile> Let x y : u"
@@ -307,7 +307,7 @@ where
                    ; (tag, t, False) \<in> set ts
                    ; \<Xi>, K, \<Gamma>3 T\<turnstile> a : u
                    ; \<Xi>, K, \<Gamma>4 T\<turnstile> b : u
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> T\<turnstile> Case x tag a b : u" 
+                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> T\<turnstile> Case x tag a b : u"
 
 | ttyping_if     : "\<lbrakk> ttsplit K \<Gamma> ijs [] \<Gamma>1 [] \<Gamma>2
                    ; ttsplit_triv \<Gamma>2 [] \<Gamma>3 [] \<Gamma>4
@@ -316,7 +316,7 @@ where
                    ; \<Xi>, K, \<Gamma>4 T\<turnstile> b : t
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> T\<turnstile> If x a b : t"
 
-| ttyping_take   : "\<lbrakk> ttsplit K \<Gamma> ijs [] \<Gamma>1 [Some t, Some (TRecord (ts [f := (t, taken)]) s)] \<Gamma>2 
+| ttyping_take   : "\<lbrakk> ttsplit K \<Gamma> ijs [] \<Gamma>1 [Some t, Some (TRecord (ts [f := (t, taken)]) s)] \<Gamma>2
                    ; \<Xi>, K, \<Gamma>1 T\<turnstile> e : TRecord ts s
                    ; s \<noteq> ReadOnly
                    ; f < length ts
@@ -393,29 +393,29 @@ by (auto dest: ttyping_imp_typing typing_imp_ttyping_induct)
 context update_sem begin
 
 inductive u_tt_sem_pres :: "('f \<Rightarrow> poly_type)
-                          \<Rightarrow> ('f,'a,'l) uabsfuns 
+                          \<Rightarrow> ('f,'a,'l) uabsfuns
                           \<Rightarrow> ('f,'a,'l) uval env
                           \<Rightarrow> kind env
                           \<Rightarrow> tree_ctx
                           \<Rightarrow> type
-                          \<Rightarrow> ('f,'a,'l) store \<times> 'f expr 
+                          \<Rightarrow> ('f,'a,'l) store \<times> 'f expr
                           \<Rightarrow> ('f,'a,'l) store \<times> ('f,'a,'l) uval
                           \<Rightarrow> bool"  ("_, _, _, _, _, _ T\<turnstile> _ \<Down>! _" [30,0,0,0,0,20] 60)
-where 
+where
   u_tt_sem_pres_default : "\<lbrakk> \<not> composite_anormal_expr x
                            ; \<xi> , \<gamma> \<turnstile> (\<sigma>, x) \<Down>! st
                            ; \<Xi>, K, snd \<Gamma> \<turnstile> x : \<tau>
                            ; \<exists>rs ws. matches_ptrs \<Xi> \<sigma> \<gamma> (snd \<Gamma>) rs ws
                            \<rbrakk> \<Longrightarrow> \<Xi>, \<xi> , \<gamma>, K, \<Gamma>, \<tau> T\<turnstile> (\<sigma>, x) \<Down>! st"
 
-| u_tt_sem_pres_let     : "\<lbrakk> ttsplit K \<Gamma> sps [] \<Gamma>1 [Some t] \<Gamma>2 
+| u_tt_sem_pres_let     : "\<lbrakk> ttsplit K \<Gamma> sps [] \<Gamma>1 [Some t] \<Gamma>2
                            ; \<Xi>, \<xi> , \<gamma>, K, \<Gamma>1, t T\<turnstile> (\<sigma>, a) \<Down>! (\<sigma>', a')
-                           ; \<Xi>, \<xi> , (a' # \<gamma>), K, \<Gamma>2, \<tau> T\<turnstile> (\<sigma>', b) \<Down>! st 
-                           \<rbrakk> \<Longrightarrow> \<Xi>, \<xi> , \<gamma>, K, \<Gamma>, \<tau> T\<turnstile> (\<sigma>, Let a b) \<Down>! st" 
+                           ; \<Xi>, \<xi> , (a' # \<gamma>), K, \<Gamma>2, \<tau> T\<turnstile> (\<sigma>', b) \<Down>! st
+                           \<rbrakk> \<Longrightarrow> \<Xi>, \<xi> , \<gamma>, K, \<Gamma>, \<tau> T\<turnstile> (\<sigma>, Let a b) \<Down>! st"
 
 | u_tt_sem_pres_letbang : "\<lbrakk> ttsplit_bang is sps K \<Gamma> [] \<Gamma>1 [Some t] \<Gamma>2
-                           ; \<Xi>, \<xi> , \<gamma>, K, \<Gamma>1, t T\<turnstile> (\<sigma>, a) \<Down>! (\<sigma>', a') 
-                           ; \<Xi>, \<xi> , (a' # \<gamma>), K, \<Gamma>2, \<tau> T\<turnstile> (\<sigma>', b) \<Down>! st 
+                           ; \<Xi>, \<xi> , \<gamma>, K, \<Gamma>1, t T\<turnstile> (\<sigma>, a) \<Down>! (\<sigma>', a')
+                           ; \<Xi>, \<xi> , (a' # \<gamma>), K, \<Gamma>2, \<tau> T\<turnstile> (\<sigma>', b) \<Down>! st
                            \<rbrakk> \<Longrightarrow> \<Xi>, \<xi> , \<gamma>, K, \<Gamma>, \<tau> T\<turnstile> (\<sigma>, LetBang vs a b) \<Down>! st"
 
 | u_tt_sem_pres_case_m  : "\<lbrakk> ttsplit K \<Gamma> sps [] \<Gamma>1 [] \<Gamma>2
@@ -435,37 +435,37 @@ where
                            ; ttsplit_triv \<Gamma>2 [] \<Gamma>3 [] \<Gamma>4
                            ; \<Xi>, \<xi> , \<gamma>, K, \<Gamma>1, TPrim Bool T\<turnstile> (\<sigma>, x) \<Down>! (\<sigma>', UPrim (LBool b))
                            ; \<Xi>, \<xi> , \<gamma>, K, (if b then \<Gamma>3 else \<Gamma>4), \<tau> T\<turnstile> (\<sigma>', if b then t else e) \<Down>! st
-                           \<rbrakk> \<Longrightarrow> \<Xi>, \<xi> , \<gamma>, K, \<Gamma>, \<tau> T\<turnstile> (\<sigma>, If x t e) \<Down>! st" 
+                           \<rbrakk> \<Longrightarrow> \<Xi>, \<xi> , \<gamma>, K, \<Gamma>, \<tau> T\<turnstile> (\<sigma>, If x t e) \<Down>! st"
 
-| u_tt_sem_pres_take    : "\<lbrakk> ttsplit K \<Gamma> sps [] \<Gamma>1 [Some f_ty, Some (TRecord tak_fs Writable)] \<Gamma>2 
+| u_tt_sem_pres_take    : "\<lbrakk> ttsplit K \<Gamma> sps [] \<Gamma>1 [Some f_ty, Some (TRecord tak_fs Writable)] \<Gamma>2
                            ; \<Xi>, \<xi> , \<gamma>, K, \<Gamma>1, TRecord ts Writable T\<turnstile> (\<sigma>, x) \<Down>! (\<sigma>', UPtr p rp)
                            ; \<sigma>' p = Some (URecord fs)
-                           ; \<Xi>, \<xi> , (fst (fs ! f) # UPtr p rp # \<gamma>), K, \<Gamma>2, \<tau> T\<turnstile> (\<sigma>', e) \<Down>! st 
+                           ; \<Xi>, \<xi> , (fst (fs ! f) # UPtr p rp # \<gamma>), K, \<Gamma>2, \<tau> T\<turnstile> (\<sigma>', e) \<Down>! st
                            \<rbrakk> \<Longrightarrow> \<Xi>, \<xi> , \<gamma>, K, \<Gamma>, \<tau> T\<turnstile> (\<sigma>, Take x f e) \<Down>! st"
 
-| u_tt_sem_pres_take_ub : "\<lbrakk> ttsplit K \<Gamma> sps [] \<Gamma>1 [Some f_ty, Some (TRecord tak_ts Unboxed)] \<Gamma>2 
+| u_tt_sem_pres_take_ub : "\<lbrakk> ttsplit K \<Gamma> sps [] \<Gamma>1 [Some f_ty, Some (TRecord tak_ts Unboxed)] \<Gamma>2
                            ; \<Xi>, \<xi> , \<gamma>, K, \<Gamma>1, TRecord ts Unboxed T\<turnstile> (\<sigma>, x) \<Down>! (\<sigma>', URecord fs)
-                           ; \<Xi>, \<xi> , (fst (fs ! f) # URecord fs # \<gamma>), K, \<Gamma>2, \<tau> T\<turnstile> (\<sigma>', e) \<Down>! st 
+                           ; \<Xi>, \<xi> , (fst (fs ! f) # URecord fs # \<gamma>), K, \<Gamma>2, \<tau> T\<turnstile> (\<sigma>', e) \<Down>! st
                            \<rbrakk> \<Longrightarrow> \<Xi>, \<xi> , \<gamma>, K, \<Gamma>, \<tau> T\<turnstile> (\<sigma>, Take x f e) \<Down>! st"
 
-| u_tt_sem_pres_split   : "\<lbrakk> ttsplit K \<Gamma> sps [] \<Gamma>1 [Some t, Some u] \<Gamma>2 
+| u_tt_sem_pres_split   : "\<lbrakk> ttsplit K \<Gamma> sps [] \<Gamma>1 [Some t, Some u] \<Gamma>2
                            ; \<Xi>, \<xi> , \<gamma>, K, \<Gamma>1, TProduct t u T\<turnstile> (\<sigma>, x) \<Down>! (\<sigma>', UProduct a b)
-                           ; \<Xi>, \<xi> , (a # b # \<gamma>), K, \<Gamma>2, \<tau> T\<turnstile> (\<sigma>', e) \<Down>! st 
+                           ; \<Xi>, \<xi> , (a # b # \<gamma>), K, \<Gamma>2, \<tau> T\<turnstile> (\<sigma>', e) \<Down>! st
                            \<rbrakk> \<Longrightarrow> \<Xi>, \<xi> , \<gamma>, K, \<Gamma>, \<tau> T\<turnstile> (\<sigma>, Split x e) \<Down>! st"
 
 
-theorem intermediate_preservation: 
+theorem intermediate_preservation:
 assumes "proc_ctx_wellformed \<Xi>"
 and     "\<Xi>, \<sigma> \<turnstile> \<gamma> matches (snd \<Gamma>) \<langle>r, w\<rangle>"
 and     "\<xi> matches-u \<Xi>"
 shows   "\<lbrakk> \<xi>, \<gamma> \<turnstile>  (\<sigma>, e) \<Down>! (\<sigma>', v)
-         ; \<Xi>, [], \<Gamma> T\<turnstile> e : \<tau> 
+         ; \<Xi>, [], \<Gamma> T\<turnstile> e : \<tau>
          \<rbrakk> \<Longrightarrow> \<Xi>, \<xi> , \<gamma>, [], \<Gamma>, \<tau> T\<turnstile> (\<sigma>, e) \<Down>! (\<sigma>', v)"
 and     "\<lbrakk> \<xi>, \<gamma> \<turnstile>* (\<sigma>, es) \<Down>! (\<sigma>', vs)
          ; \<Xi>, [], (snd \<Gamma>) \<turnstile>* es : \<tau>s'
          \<rbrakk> \<Longrightarrow> True"
-using assms proof (induct "(\<sigma>, e)"        "(\<sigma>', v )" 
-                      and "(\<sigma>, es)" "(\<sigma>', vs)" 
+using assms proof (induct "(\<sigma>, e)"        "(\<sigma>', v )"
+                      and "(\<sigma>, es)" "(\<sigma>', vs)"
                       arbitrary:  e   \<tau>   \<Gamma> r w v  \<sigma>' \<sigma>
                              and  es  \<tau>s' \<Gamma> r w vs \<sigma>' \<sigma>
                       rule: u_sem_u_sem_all.inducts)
@@ -494,7 +494,7 @@ using assms proof (induct "(\<sigma>, e)"        "(\<sigma>', v )"
     apply simp
     done
 
-next 
+next
 
   case u_sem_letbang show ?case using u_sem_letbang.prems u_sem_letbang.hyps(1, 3)
     apply -
@@ -569,7 +569,7 @@ next
       apply blast
     apply (meson matches_ptrs_frame subset_helper sup.cobounded1 sup.cobounded2)
     apply assumption
-    done 
+    done
 
 next
 
@@ -695,7 +695,7 @@ next
       by blast
 
     have matches2_under_\<sigma>'': "\<Xi>, \<sigma>'' \<turnstile> \<gamma> matches \<Gamma>2 \<langle>r2, w2\<rangle>"
-      using matches2 frame1 matches_ptrs_frame w1_w2_disjoint w1_r2_noalias 
+      using matches2 frame1 matches_ptrs_frame w1_w2_disjoint w1_r2_noalias
       by blast
 
     show "\<Xi>, \<xi>, \<gamma>, [], \<Gamma>, \<tau> T\<turnstile> (\<sigma>, Take x f e) \<Down>! (\<sigma>', v)"
