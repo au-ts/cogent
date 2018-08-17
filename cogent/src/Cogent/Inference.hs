@@ -423,8 +423,8 @@ typecheck (E (Take a e f e2))
         let (s,r,ts) = case t of
                          TRecord ts -> (Unboxed, Nothing, ts)
                          TPtr (TRecord ts) r s -> (s, Just r, ts)
-        guardShow "take-1" $ s /= ReadOnly
-        guardShow "take-2" $ f < length ts
+        guardShow "take: sigil not readonly" $ s /= ReadOnly
+        guardShow "take-1" $ f < length ts
         let (init, (fn,(tau,False)):rest) = splitAt f ts
         k <- kindcheck tau
         e2' <- withBindings (Cons tau (Cons (sigilise s r $ TRecord (init ++ (fn,(tau,True )):rest)) Nil)) (typecheck e2)  -- take that field regardless of its shareability
@@ -434,6 +434,7 @@ typecheck (E (Put e1 f e2))
         let (s,r,ts) = case t1 of
                          TRecord ts -> (Unboxed, Nothing, ts)
                          TPtr (TRecord ts) r s -> (s, Just r, ts)
+        guardShow "put: sigil not readonly" $ s /= ReadOnly
         guardShow "put-1" $ f < length ts
         let (init, (fn,(tau,taken)):rest) = splitAt f ts
         k <- kindcheck tau
