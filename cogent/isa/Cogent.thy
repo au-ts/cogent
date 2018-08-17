@@ -757,8 +757,7 @@ inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Right
 
 | typing_take   : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
                    ; \<Xi>, K, \<Gamma>1 \<turnstile> e : \<tau>
-                   ; \<tau> = TPtr (TRecord ts) r s \<or> \<tau> = TRecord ts
-                   ; s \<noteq> ReadOnly
+                   ; \<tau> = TRecord ts
                    ; f < length ts
                    ; ts ! f = (t, False)
                    ; K \<turnstile> t :\<kappa> k
@@ -766,10 +765,20 @@ inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Right
                    ; \<Xi>, K, (Some t # Some (TRecord (ts [f := (t,taken)])) # \<Gamma>2) \<turnstile> e' : u
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Take e f e' : u"
 
+| typing_take_ptr: "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
+                    ; \<Xi>, K, \<Gamma>1 \<turnstile> e : \<tau>
+                    ; \<tau> = TPtr (TRecord ts) r s
+                    ; s \<noteq> ReadOnly
+                    ; f < length ts
+                    ; ts ! f = (t, False)
+                    ; K \<turnstile> t :\<kappa> k
+                    ; S \<in> k \<or> taken
+                    ; \<Xi>, K, (Some t # Some (TPtr (TRecord (ts [f := (t,taken)])) r s) # \<Gamma>2) \<turnstile> e' : u
+                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Take e f e' : u"
+
 | typing_put    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
                    ; \<Xi>, K, \<Gamma>1 \<turnstile> e : \<tau>
-                   ; \<tau> = TPtr (TRecord ts) r s \<or> \<tau> = TRecord ts
-                   ; s \<noteq> ReadOnly
+                   ; \<tau> = TRecord ts
                    ; f < length ts
                    ; ts ! f = (t, taken)
                    ; K \<turnstile> t :\<kappa> k
@@ -777,6 +786,19 @@ inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Right
                    ; \<Xi>, K, \<Gamma>2 \<turnstile> e' : t
                    ; ts' = ts [f := (t,False)]
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Put e f e' : TRecord ts'"
+
+| typing_put_ptr: "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
+                   ; \<Xi>, K, \<Gamma>1 \<turnstile> e : \<tau>
+                   ; \<tau> = TPtr (TRecord ts) r s
+                   ; s \<noteq> ReadOnly
+                   ; f < length ts
+                   ; ts ! f = (t, taken)
+                   ; K \<turnstile> t :\<kappa> k
+                   ; D \<in> k \<or> taken
+                   ; \<Xi>, K, \<Gamma>2 \<turnstile> e' : t
+                   ; ts' = ts [f := (t,False)]
+                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Put e f e' : TPtr (TRecord ts') r s"
+
 
 | typing_all_empty : "\<Xi>, K, empty n \<turnstile>* [] : []"
 
@@ -1323,9 +1345,12 @@ next case typing_member then show ?case by (fastforce intro: kinding_record_well
 next case typing_struct then show ?case by ( clarsimp
                                            , intro exI kind_trec kinding_all_record
                                            , simp_all add: kind_top )
-next case typing_take   then show ?case by (simp)
-next case typing_put    then show ?case by (fastforce intro: kinding_kinding_all_kinding_record.intros
-                                                             kinding_record_update)
+next case (typing_put K \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> e \<tau> ts f t taken k e' ts')
+  then show ?case
+    by (fastforce intro: kinding_kinding_all_kinding_record.intros kinding_record_update)
+next case (typing_put_ptr K \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> e \<tau> ts r s f t taken k e' ts')
+  then show ?case
+    by (fastforce intro: kinding_kinding_all_kinding_record.intros kinding_record_update)
 qed (auto intro: supersumption kinding_kinding_all_kinding_record.intros)
 
 lemma upcast_valid_cast_to :
@@ -1400,15 +1425,25 @@ next
     using substitutivity(1)[where t=\<tau>]
     by (auto intro!: typing_typing_all.intros)
 next
-  case (typing_take K \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> e \<tau> ts r s f t k taken e' u)
+  case (typing_take K \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> e \<tau> ts f t k taken e' u)
   then show ?case
     using substitutivity(1)[where t=t] instantiate_ctx_split
-    by (auto intro!: typing_typing_all.intros simp add: map_update)
+    by (auto intro!: typing_typing_all.typing_take simp add: map_update)
 next
-  case (typing_put K \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> e \<tau> ts r s f t taken k e' ts')
+  case (typing_take_ptr K \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> e \<tau> ts r s f t k taken e' u)
   then show ?case
     using substitutivity(1)[where t=t] instantiate_ctx_split
-    by (auto intro!: typing_typing_all.intros simp add: map_update)
+    by (auto intro!: typing_typing_all.typing_take_ptr simp add: map_update)
+next
+  case (typing_put K \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> e \<tau> ts f t taken k e' ts')
+  then show ?case
+    using substitutivity(1)[where t=t] instantiate_ctx_split
+    by (auto intro!: typing_typing_all.typing_put simp add: map_update)
+next
+  case (typing_put_ptr K \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> e \<tau> ts r s f t taken k e' ts')
+    then show ?case
+    using substitutivity(1)[where t=t] instantiate_ctx_split
+    by (auto intro!: typing_typing_all.typing_put_ptr simp add: map_update)
 qed (force intro!: typing_struct_instantiate
                    typing_typing_all.intros
            dest:   substitutivity
