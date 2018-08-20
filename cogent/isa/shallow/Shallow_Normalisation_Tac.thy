@@ -11,8 +11,8 @@
  *)
 
 theory Shallow_Normalisation_Tac imports
-  "../Util"
   "../ML_Old"
+  ShallowUtil
 begin
 
 (*

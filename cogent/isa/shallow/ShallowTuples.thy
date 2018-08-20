@@ -14,8 +14,8 @@
  * Proving refinement between Cogent shallow embeddings
  * with tuples and without tuples (desugared to records).
  *)
-theory ShallowTuples imports
-  "../Util"
+theory ShallowTuples
+  imports ShallowUtil "~~/src/HOL/Word/Word"
 begin
 
 (* shallow_tuples_rel: relation between tupled and non-tupled values (and functions).

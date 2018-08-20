@@ -11,494 +11,295 @@
  *)
 
 theory Util
-imports Main
-        "~~/src/HOL/Word/Word"
+  imports Main
+    "~~/src/HOL/Word/Word"
 begin
 
-definition
-  fun_app :: "('a \<Rightarrow> 'b) \<Rightarrow> 'a \<Rightarrow> 'b" (infixr "$" 10)
-where
-  "f $ v \<equiv> f v"
-
-declare fun_app_def [simp]
-
+section {* Word related lemmas *}
 definition
   checked_shift :: "(('a :: len) word \<Rightarrow> nat \<Rightarrow> 'a word) \<Rightarrow> 'a word \<Rightarrow> 'a word \<Rightarrow> 'a word"
-where
-  checked_shift_def[simp]:
-  "checked_shift shifter x y = (if y < of_nat (len_of TYPE('a)) then shifter x (unat y) else 0)"
+  where
+    checked_shift_def[simp]:
+    "checked_shift shifter x y = (if y < of_nat (len_of TYPE('a)) then shifter x (unat y) else 0)"
 
 definition
   checked_div :: "'a \<Rightarrow> 'a \<Rightarrow> ('a :: {zero, Rings.divide})"
-where
-  "checked_div x y = (if y = 0 then 0 else x div y)"
+  where
+    "checked_div x y = (if y = 0 then 0 else x div y)"
 
 definition
   checked_mod :: "'a \<Rightarrow> 'a \<Rightarrow> ('a :: {zero, Rings.modulo})"
-where
-  checked_mod_def[simp]:
-  "checked_mod x y = (if y = 0 then 0 else x mod y)"
+  where
+    checked_mod_def[simp]:
+    "checked_mod x y = (if y = 0 then 0 else x mod y)"
 
-definition
-  Let\<^sub>d\<^sub>s :: "'a \<Rightarrow> ('a \<Rightarrow> 'b) \<Rightarrow> 'b"
-where
- "Let\<^sub>d\<^sub>s s f \<equiv> f s"
 
-definition
-  take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t :: "'a \<Rightarrow> ('a \<Rightarrow> 'b) \<Rightarrow> ('b \<times> 'a)"
-where
- "take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t rec field  \<equiv> (field rec, rec)"
+section {* Tuple lemmas *}
 
-(* for n in range(2, 15+1):
-     for k in range(1, n+1):
-       print('definition "P{n}_p{k}\\<^sub>f \\<equiv> \\<lambda>({tup}). p{k}"'
-             .format(n=n, k=k, tup=', '.join('p' + str(k) for k in range(1, n+1))))
-     print('') *)
-definition "P2_p1\<^sub>f \<equiv> \<lambda>(p1, p2). p1"
-definition "P2_p2\<^sub>f \<equiv> \<lambda>(p1, p2). p2"
+lemma map_snd_app [simp]:
+  shows "map (snd \<circ> (\<lambda> (a , b). (a , f b))) l  =  map (f \<circ> snd) l"
+  by (induct l, auto)
 
-definition "P3_p1\<^sub>f \<equiv> \<lambda>(p1, p2, p3). p1"
-definition "P3_p2\<^sub>f \<equiv> \<lambda>(p1, p2, p3). p2"
-definition "P3_p3\<^sub>f \<equiv> \<lambda>(p1, p2, p3). p3"
+lemma map_snd_ignore [simp]:
+  shows "map (snd \<circ> (\<lambda> (a , b). (f a , b))) l  =  map (snd) l"
+  by (induct l, auto)
 
-definition "P4_p1\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4). p1"
-definition "P4_p2\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4). p2"
-definition "P4_p3\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4). p3"
-definition "P4_p4\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4). p4"
+lemma map_fst_app [simp]:
+  shows "map (fst \<circ> (\<lambda> (a , b). (f a , b))) l =  map (f \<circ> fst) l"
+  by (induct l, auto)
 
-definition "P5_p1\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5). p1"
-definition "P5_p2\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5). p2"
-definition "P5_p3\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5). p3"
-definition "P5_p4\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5). p4"
-definition "P5_p5\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5). p5"
+lemma map_fst_ignore [simp]:
+  shows "map (fst \<circ> (\<lambda> (a , b). (a , f b))) l = map fst l"
+  by (induct l, auto)
 
-definition "P6_p1\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6). p1"
-definition "P6_p2\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6). p2"
-definition "P6_p3\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6). p3"
-definition "P6_p4\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6). p4"
-definition "P6_p5\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6). p5"
-definition "P6_p6\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6). p6"
+lemma map_fst3_app2 [simp]:
+  shows "map ((fst \<circ> snd) \<circ> (\<lambda> (a, b, c). (a, f b, c))) l = map (f \<circ> (fst \<circ> snd)) l"
+  by (induct l, auto)
 
-definition "P7_p1\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7). p1"
-definition "P7_p2\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7). p2"
-definition "P7_p3\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7). p3"
-definition "P7_p4\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7). p4"
-definition "P7_p5\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7). p5"
-definition "P7_p6\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7). p6"
-definition "P7_p7\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7). p7"
+lemma map_fst3_ignore2[simp]:
+  shows "map (fst \<circ> (\<lambda> (a, b, c). (a, f b, c))) l = map fst l"
+  by (induct l, auto)
 
-definition "P8_p1\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8). p1"
-definition "P8_p2\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8). p2"
-definition "P8_p3\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8). p3"
-definition "P8_p4\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8). p4"
-definition "P8_p5\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8). p5"
-definition "P8_p6\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8). p6"
-definition "P8_p7\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8). p7"
-definition "P8_p8\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8). p8"
+lemma map_snd3_ignore3[simp]:
+  shows "map (fst \<circ> snd \<circ> (\<lambda> (a, b, c). (a, b, f c))) l = map (fst \<circ> snd) l"
+  by (induct l, auto)
 
-definition "P9_p1\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9). p1"
-definition "P9_p2\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9). p2"
-definition "P9_p3\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9). p3"
-definition "P9_p4\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9). p4"
-definition "P9_p5\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9). p5"
-definition "P9_p6\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9). p6"
-definition "P9_p7\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9). p7"
-definition "P9_p8\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9). p8"
-definition "P9_p9\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9). p9"
 
-definition "P10_p1\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10). p1"
-definition "P10_p2\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10). p2"
-definition "P10_p3\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10). p3"
-definition "P10_p4\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10). p4"
-definition "P10_p5\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10). p5"
-definition "P10_p6\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10). p6"
-definition "P10_p7\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10). p7"
-definition "P10_p8\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10). p8"
-definition "P10_p9\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10). p9"
-definition "P10_p10\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10). p10"
+(* making these simp makes the final force on specalise take forever? / v.jackson *)
+lemma comp_fst_tuple_lambda: "fst \<circ> (\<lambda>(a,b). (f a b, g a b)) = (\<lambda>(a,b). f a b)"
+  by force
 
-definition "P11_p1\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11). p1"
-definition "P11_p2\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11). p2"
-definition "P11_p3\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11). p3"
-definition "P11_p4\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11). p4"
-definition "P11_p5\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11). p5"
-definition "P11_p6\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11). p6"
-definition "P11_p7\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11). p7"
-definition "P11_p8\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11). p8"
-definition "P11_p9\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11). p9"
-definition "P11_p10\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11). p10"
-definition "P11_p11\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11). p11"
+lemma comp_snd_tuple_lambda: "snd \<circ> (\<lambda>(a,b). (f a b, g a b)) = (\<lambda>(a,b). g a b)"
+  by force
 
-definition "P12_p1\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12). p1"
-definition "P12_p2\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12). p2"
-definition "P12_p3\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12). p3"
-definition "P12_p4\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12). p4"
-definition "P12_p5\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12). p5"
-definition "P12_p6\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12). p6"
-definition "P12_p7\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12). p7"
-definition "P12_p8\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12). p8"
-definition "P12_p9\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12). p9"
-definition "P12_p10\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12). p10"
-definition "P12_p11\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12). p11"
-definition "P12_p12\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12). p12"
+lemma assoc_comp_fst_tuple_lambda: "h \<circ> fst \<circ> (\<lambda>(a,b). (f a b, g a b)) = h \<circ> (\<lambda>(a,b). f a b)"
+  by force
 
-definition "P13_p1\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13). p1"
-definition "P13_p2\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13). p2"
-definition "P13_p3\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13). p3"
-definition "P13_p4\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13). p4"
-definition "P13_p5\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13). p5"
-definition "P13_p6\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13). p6"
-definition "P13_p7\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13). p7"
-definition "P13_p8\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13). p8"
-definition "P13_p9\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13). p9"
-definition "P13_p10\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13). p10"
-definition "P13_p11\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13). p11"
-definition "P13_p12\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13). p12"
-definition "P13_p13\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13). p13"
+lemma assoc_comp_snd_tuple_lambda: "h \<circ> snd \<circ> (\<lambda>(a,b). (f a b, g a b)) = h \<circ> (\<lambda>(a,b). g a b)"
+  by force
 
-definition "P14_p1\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14). p1"
-definition "P14_p2\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14). p2"
-definition "P14_p3\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14). p3"
-definition "P14_p4\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14). p4"
-definition "P14_p5\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14). p5"
-definition "P14_p6\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14). p6"
-definition "P14_p7\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14). p7"
-definition "P14_p8\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14). p8"
-definition "P14_p9\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14). p9"
-definition "P14_p10\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14). p10"
-definition "P14_p11\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14). p11"
-definition "P14_p12\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14). p12"
-definition "P14_p13\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14). p13"
-definition "P14_p14\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14). p14"
 
-definition "P15_p1\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15). p1"
-definition "P15_p2\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15). p2"
-definition "P15_p3\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15). p3"
-definition "P15_p4\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15). p4"
-definition "P15_p5\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15). p5"
-definition "P15_p6\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15). p6"
-definition "P15_p7\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15). p7"
-definition "P15_p8\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15). p8"
-definition "P15_p9\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15). p9"
-definition "P15_p10\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15). p10"
-definition "P15_p11\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15). p11"
-definition "P15_p12\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15). p12"
-definition "P15_p13\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15). p13"
-definition "P15_p14\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15). p14"
-definition "P15_p15\<^sub>f \<equiv> \<lambda>(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15). p15"
+section {* Misc lemmas *}
 
-(* for n in range(2, 15+1):
-     print('lemmas P{}_px ='.format(n))
-     for k in range(1, n+1):
-       print('  P{}_p{}\\<^sub>f_def'.format(n, k))
-     print('') *)
-lemmas P2_px =
-  P2_p1\<^sub>f_def
-  P2_p2\<^sub>f_def
+lemma map_fst_update:
+  assumes "ts ! f = (t, x)"
+    and     "f < length ts"
+  shows "map fst (ts[f := (t,x')]) = map fst ts"
+proof -
+  from assms have  "map fst ts ! f = t" by (clarsimp)
+  then show ?thesis by (auto simp add: map_update)
+qed
 
-lemmas P3_px =
-  P3_p1\<^sub>f_def
-  P3_p2\<^sub>f_def
-  P3_p3\<^sub>f_def
+lemma map_zip [simp]:
+  shows "map (\<lambda> (a , b). (f a, g b)) (zip as bs) = zip (map f as) (map g bs)"
+  by (induct as arbitrary:bs, simp, case_tac bs, simp_all)
 
-lemmas P4_px =
-  P4_p1\<^sub>f_def
-  P4_p2\<^sub>f_def
-  P4_p3\<^sub>f_def
-  P4_p4\<^sub>f_def
+lemma distinct_fst:
+  assumes "distinct (map fst xs)"
+    and     "(a, b) \<in> set xs"
+    and     "(a, b') \<in> set xs"
+  shows   "b = b'"
+  using assms image_iff
+  by (induct xs, fastforce+)
 
-lemmas P5_px =
-  P5_p1\<^sub>f_def
-  P5_p2\<^sub>f_def
-  P5_p3\<^sub>f_def
-  P5_p4\<^sub>f_def
-  P5_p5\<^sub>f_def
+lemma set_subset_map:
+  assumes "set a \<subseteq> set b"
+  shows   "set (map f a) \<subseteq> set (map f b)"
+  using assms by auto
 
-lemmas P6_px =
-  P6_p1\<^sub>f_def
-  P6_p2\<^sub>f_def
-  P6_p3\<^sub>f_def
-  P6_p4\<^sub>f_def
-  P6_p5\<^sub>f_def
-  P6_p6\<^sub>f_def
+lemma prod_in_set:
+  assumes "(a, b) \<in> set l"
+  shows   "a \<in> set (map fst l)"
+    and     "b \<in> set (map snd l)"
+  using assms by (force intro: imageI)+
 
-lemmas P7_px =
-  P7_p1\<^sub>f_def
-  P7_p2\<^sub>f_def
-  P7_p3\<^sub>f_def
-  P7_p4\<^sub>f_def
-  P7_p5\<^sub>f_def
-  P7_p6\<^sub>f_def
-  P7_p7\<^sub>f_def
+lemma list_all2_update_second:
+  assumes "list_all2 f xs (ys[i := a])"
+    and "f (xs ! i) a \<Longrightarrow> f (xs ! i) b"
+  shows "list_all2 f xs (ys[i := b])"
+  using assms
+  by (clarsimp simp add: list_all2_conv_all_nth, metis nth_list_update_eq nth_list_update_neq)
 
-lemmas P8_px =
-  P8_p1\<^sub>f_def
-  P8_p2\<^sub>f_def
-  P8_p3\<^sub>f_def
-  P8_p4\<^sub>f_def
-  P8_p5\<^sub>f_def
-  P8_p6\<^sub>f_def
-  P8_p7\<^sub>f_def
-  P8_p8\<^sub>f_def
 
-lemmas P9_px =
-  P9_p1\<^sub>f_def
-  P9_p2\<^sub>f_def
-  P9_p3\<^sub>f_def
-  P9_p4\<^sub>f_def
-  P9_p5\<^sub>f_def
-  P9_p6\<^sub>f_def
-  P9_p7\<^sub>f_def
-  P9_p8\<^sub>f_def
-  P9_p9\<^sub>f_def
 
-lemmas P10_px =
-  P10_p1\<^sub>f_def
-  P10_p2\<^sub>f_def
-  P10_p3\<^sub>f_def
-  P10_p4\<^sub>f_def
-  P10_p5\<^sub>f_def
-  P10_p6\<^sub>f_def
-  P10_p7\<^sub>f_def
-  P10_p8\<^sub>f_def
-  P10_p9\<^sub>f_def
-  P10_p10\<^sub>f_def
+lemma filter_fst_ignore_tuple:
+  shows "filter (\<lambda>x. P (fst x)) (map (\<lambda>(a,b). (a, f b)) ls)
+     = map (\<lambda>(a,b). (a, f b)) (filter (\<lambda>x. P (fst x)) ls)"
+  by (induct_tac ls, auto)
 
-lemmas P11_px =
-  P11_p1\<^sub>f_def
-  P11_p2\<^sub>f_def
-  P11_p3\<^sub>f_def
-  P11_p4\<^sub>f_def
-  P11_p5\<^sub>f_def
-  P11_p6\<^sub>f_def
-  P11_p7\<^sub>f_def
-  P11_p8\<^sub>f_def
-  P11_p9\<^sub>f_def
-  P11_p10\<^sub>f_def
-  P11_p11\<^sub>f_def
+lemma filter_fst_ignore_triple:
+  shows "filter (\<lambda>x. P (fst x)) (map (\<lambda>(a,b,c). (a, f b, c)) ls)
+     = map (\<lambda>(a,b,c). (a, f b, c)) (filter (\<lambda>x. P (fst x)) ls)"
+  by (induct_tac ls, auto)
 
-lemmas P12_px =
-  P12_p1\<^sub>f_def
-  P12_p2\<^sub>f_def
-  P12_p3\<^sub>f_def
-  P12_p4\<^sub>f_def
-  P12_p5\<^sub>f_def
-  P12_p6\<^sub>f_def
-  P12_p7\<^sub>f_def
-  P12_p8\<^sub>f_def
-  P12_p9\<^sub>f_def
-  P12_p10\<^sub>f_def
-  P12_p11\<^sub>f_def
-  P12_p12\<^sub>f_def
+lemma filter_fst_ignore_app2:
+  shows "filter (\<lambda>x. P (fst x)) (map (\<lambda>(a,b,c). (a,f b,c)) ls)
+     = map (\<lambda>(a,b,c). (a,f b,c)) (filter (\<lambda>x. P (fst x)) ls)"
+  by (induct_tac ls, auto)
 
-lemmas P13_px =
-  P13_p1\<^sub>f_def
-  P13_p2\<^sub>f_def
-  P13_p3\<^sub>f_def
-  P13_p4\<^sub>f_def
-  P13_p5\<^sub>f_def
-  P13_p6\<^sub>f_def
-  P13_p7\<^sub>f_def
-  P13_p8\<^sub>f_def
-  P13_p9\<^sub>f_def
-  P13_p10\<^sub>f_def
-  P13_p11\<^sub>f_def
-  P13_p12\<^sub>f_def
-  P13_p13\<^sub>f_def
+lemma filter_map_map_filter_thd3_app2:
+  shows "filter (P \<circ> snd \<circ> snd) (map (\<lambda>(a, b, c). (a, f b, c)) ls) = map (\<lambda>(a, b, c). (a, f b, c)) (filter (P \<circ> snd \<circ> snd) ls)"
+  by (induct_tac ls, (simp split: prod.splits)+)
 
-lemmas P14_px =
-  P14_p1\<^sub>f_def
-  P14_p2\<^sub>f_def
-  P14_p3\<^sub>f_def
-  P14_p4\<^sub>f_def
-  P14_p5\<^sub>f_def
-  P14_p6\<^sub>f_def
-  P14_p7\<^sub>f_def
-  P14_p8\<^sub>f_def
-  P14_p9\<^sub>f_def
-  P14_p10\<^sub>f_def
-  P14_p11\<^sub>f_def
-  P14_p12\<^sub>f_def
-  P14_p13\<^sub>f_def
-  P14_p14\<^sub>f_def
+lemma filtered_member: "[a] = filter f x \<Longrightarrow> a \<in> set x"
+  apply (induction x)
+  by (auto split: if_splits)
 
-lemmas P15_px =
-  P15_p1\<^sub>f_def
-  P15_p2\<^sub>f_def
-  P15_p3\<^sub>f_def
-  P15_p4\<^sub>f_def
-  P15_p5\<^sub>f_def
-  P15_p6\<^sub>f_def
-  P15_p7\<^sub>f_def
-  P15_p8\<^sub>f_def
-  P15_p9\<^sub>f_def
-  P15_p10\<^sub>f_def
-  P15_p11\<^sub>f_def
-  P15_p12\<^sub>f_def
-  P15_p13\<^sub>f_def
-  P15_p14\<^sub>f_def
-  P15_p15\<^sub>f_def
 
-(* print('lemmas Px_px = ' + ' '.join('P{}_px'.format(n) for n in range(2, 15+1))) *)
-lemmas Px_px = P2_px P3_px P4_px P5_px P6_px P7_px P8_px P9_px P10_px P11_px P12_px P13_px P14_px P15_px
+section {* TSum as map lemmas *}
 
-(*
-for n in range(2, 15+1):
-  vars = ' '.join('x' + str(k) for k in range(1, n+1))
-  print('  "(let ' +
-        ';\n        '.join('(x{k}, r) = take\\<^sub>c\\<^sub>d\\<^sub>s\\<^sub>l {r} P{n}_p{k}\\<^sub>f'.
-                           format(n=n, k=k, r='r' if k>1 else 'R'+str(n)) for k in range(1, n+1)) +
-        '\n    in Q' + str(n) + ' ' + vars + ') =\n' +
-        '   (let (' + ', '.join('x' + str(k) for k in range(1, n+1)) + ') = R' + str(n) + ' in Q' + str(n) + ' ' + vars + ')"')
-*)
-lemma tuple_simps:
-  "(let (x1, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t R2 P2_p1\<^sub>f;
-        (x2, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P2_p2\<^sub>f
-    in Q2 x1 x2) =
-   (let (x1, x2) = R2 in Q2 x1 x2)"
-  "(let (x1, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t R3 P3_p1\<^sub>f;
-        (x2, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P3_p2\<^sub>f;
-        (x3, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P3_p3\<^sub>f
-    in Q3 x1 x2 x3) =
-   (let (x1, x2, x3) = R3 in Q3 x1 x2 x3)"
-  "(let (x1, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t R4 P4_p1\<^sub>f;
-        (x2, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P4_p2\<^sub>f;
-        (x3, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P4_p3\<^sub>f;
-        (x4, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P4_p4\<^sub>f
-    in Q4 x1 x2 x3 x4) =
-   (let (x1, x2, x3, x4) = R4 in Q4 x1 x2 x3 x4)"
-  "(let (x1, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t R5 P5_p1\<^sub>f;
-        (x2, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P5_p2\<^sub>f;
-        (x3, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P5_p3\<^sub>f;
-        (x4, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P5_p4\<^sub>f;
-        (x5, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P5_p5\<^sub>f
-    in Q5 x1 x2 x3 x4 x5) =
-   (let (x1, x2, x3, x4, x5) = R5 in Q5 x1 x2 x3 x4 x5)"
-  "(let (x1, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t R6 P6_p1\<^sub>f;
-        (x2, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P6_p2\<^sub>f;
-        (x3, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P6_p3\<^sub>f;
-        (x4, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P6_p4\<^sub>f;
-        (x5, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P6_p5\<^sub>f;
-        (x6, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P6_p6\<^sub>f
-    in Q6 x1 x2 x3 x4 x5 x6) =
-   (let (x1, x2, x3, x4, x5, x6) = R6 in Q6 x1 x2 x3 x4 x5 x6)"
-  "(let (x1, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t R7 P7_p1\<^sub>f;
-        (x2, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P7_p2\<^sub>f;
-        (x3, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P7_p3\<^sub>f;
-        (x4, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P7_p4\<^sub>f;
-        (x5, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P7_p5\<^sub>f;
-        (x6, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P7_p6\<^sub>f;
-        (x7, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P7_p7\<^sub>f
-    in Q7 x1 x2 x3 x4 x5 x6 x7) =
-   (let (x1, x2, x3, x4, x5, x6, x7) = R7 in Q7 x1 x2 x3 x4 x5 x6 x7)"
-  "(let (x1, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t R8 P8_p1\<^sub>f;
-        (x2, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P8_p2\<^sub>f;
-        (x3, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P8_p3\<^sub>f;
-        (x4, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P8_p4\<^sub>f;
-        (x5, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P8_p5\<^sub>f;
-        (x6, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P8_p6\<^sub>f;
-        (x7, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P8_p7\<^sub>f;
-        (x8, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P8_p8\<^sub>f
-    in Q8 x1 x2 x3 x4 x5 x6 x7 x8) =
-   (let (x1, x2, x3, x4, x5, x6, x7, x8) = R8 in Q8 x1 x2 x3 x4 x5 x6 x7 x8)"
-  "(let (x1, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t R9 P9_p1\<^sub>f;
-        (x2, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P9_p2\<^sub>f;
-        (x3, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P9_p3\<^sub>f;
-        (x4, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P9_p4\<^sub>f;
-        (x5, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P9_p5\<^sub>f;
-        (x6, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P9_p6\<^sub>f;
-        (x7, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P9_p7\<^sub>f;
-        (x8, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P9_p8\<^sub>f;
-        (x9, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P9_p9\<^sub>f
-    in Q9 x1 x2 x3 x4 x5 x6 x7 x8 x9) =
-   (let (x1, x2, x3, x4, x5, x6, x7, x8, x9) = R9 in Q9 x1 x2 x3 x4 x5 x6 x7 x8 x9)"
-  "(let (x1, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t R10 P10_p1\<^sub>f;
-        (x2, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P10_p2\<^sub>f;
-        (x3, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P10_p3\<^sub>f;
-        (x4, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P10_p4\<^sub>f;
-        (x5, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P10_p5\<^sub>f;
-        (x6, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P10_p6\<^sub>f;
-        (x7, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P10_p7\<^sub>f;
-        (x8, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P10_p8\<^sub>f;
-        (x9, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P10_p9\<^sub>f;
-        (x10, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P10_p10\<^sub>f
-    in Q10 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10) =
-   (let (x1, x2, x3, x4, x5, x6, x7, x8, x9, x10) = R10 in Q10 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10)"
-  "(let (x1, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t R11 P11_p1\<^sub>f;
-        (x2, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P11_p2\<^sub>f;
-        (x3, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P11_p3\<^sub>f;
-        (x4, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P11_p4\<^sub>f;
-        (x5, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P11_p5\<^sub>f;
-        (x6, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P11_p6\<^sub>f;
-        (x7, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P11_p7\<^sub>f;
-        (x8, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P11_p8\<^sub>f;
-        (x9, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P11_p9\<^sub>f;
-        (x10, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P11_p10\<^sub>f;
-        (x11, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P11_p11\<^sub>f
-    in Q11 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11) =
-   (let (x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11) = R11 in Q11 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11)"
-  "(let (x1, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t R12 P12_p1\<^sub>f;
-        (x2, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P12_p2\<^sub>f;
-        (x3, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P12_p3\<^sub>f;
-        (x4, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P12_p4\<^sub>f;
-        (x5, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P12_p5\<^sub>f;
-        (x6, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P12_p6\<^sub>f;
-        (x7, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P12_p7\<^sub>f;
-        (x8, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P12_p8\<^sub>f;
-        (x9, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P12_p9\<^sub>f;
-        (x10, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P12_p10\<^sub>f;
-        (x11, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P12_p11\<^sub>f;
-        (x12, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P12_p12\<^sub>f
-    in Q12 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12) =
-   (let (x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12) = R12 in Q12 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12)"
-  "(let (x1, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t R13 P13_p1\<^sub>f;
-        (x2, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P13_p2\<^sub>f;
-        (x3, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P13_p3\<^sub>f;
-        (x4, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P13_p4\<^sub>f;
-        (x5, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P13_p5\<^sub>f;
-        (x6, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P13_p6\<^sub>f;
-        (x7, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P13_p7\<^sub>f;
-        (x8, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P13_p8\<^sub>f;
-        (x9, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P13_p9\<^sub>f;
-        (x10, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P13_p10\<^sub>f;
-        (x11, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P13_p11\<^sub>f;
-        (x12, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P13_p12\<^sub>f;
-        (x13, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P13_p13\<^sub>f
-    in Q13 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13) =
-   (let (x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13) = R13 in Q13 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13)"
-  "(let (x1, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t R14 P14_p1\<^sub>f;
-        (x2, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P14_p2\<^sub>f;
-        (x3, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P14_p3\<^sub>f;
-        (x4, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P14_p4\<^sub>f;
-        (x5, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P14_p5\<^sub>f;
-        (x6, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P14_p6\<^sub>f;
-        (x7, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P14_p7\<^sub>f;
-        (x8, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P14_p8\<^sub>f;
-        (x9, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P14_p9\<^sub>f;
-        (x10, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P14_p10\<^sub>f;
-        (x11, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P14_p11\<^sub>f;
-        (x12, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P14_p12\<^sub>f;
-        (x13, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P14_p13\<^sub>f;
-        (x14, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P14_p14\<^sub>f
-    in Q14 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14) =
-   (let (x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14) = R14 in Q14 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14)"
-  "(let (x1, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t R15 P15_p1\<^sub>f;
-        (x2, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P15_p2\<^sub>f;
-        (x3, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P15_p3\<^sub>f;
-        (x4, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P15_p4\<^sub>f;
-        (x5, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P15_p5\<^sub>f;
-        (x6, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P15_p6\<^sub>f;
-        (x7, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P15_p7\<^sub>f;
-        (x8, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P15_p8\<^sub>f;
-        (x9, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P15_p9\<^sub>f;
-        (x10, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P15_p10\<^sub>f;
-        (x11, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P15_p11\<^sub>f;
-        (x12, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P15_p12\<^sub>f;
-        (x13, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P15_p13\<^sub>f;
-        (x14, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P15_p14\<^sub>f;
-        (x15, r) = take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t r P15_p15\<^sub>f
-    in Q15 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15) =
-   (let (x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15) = R15 in Q15 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15)"
-  by (simp add: Let_def prod.case_eq_if take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t_def Px_px)+
+abbreviation map_pairs :: "('a \<rightharpoonup> 'b) \<Rightarrow> ('a \<times> 'b) set" where
+  "map_pairs m \<equiv> { z. m (fst z) = Some (snd z)}"
+
+lemma map_pairs_map_of_set:
+  assumes distinct_fst_xs: "distinct (map fst xs)"
+  shows "map_pairs (map_of xs) = set xs"
+  using assms
+proof (induct xs)
+  case Nil
+  then show ?case by simp
+next
+  case (Cons x xs)
+  moreover then have "{z. ((fst z = fst x \<longrightarrow> snd x = snd z) \<and> (fst z \<noteq> fst x \<longrightarrow> map_of xs (fst z) = Some (snd z)))}
+      = insert x ({z. fst z \<noteq> fst x} \<inter> set xs)"
+    by force
+  moreover have "set xs \<subseteq> {z. fst z \<noteq> fst x}"
+    using Cons.prems prod_in_set(1) by force
+  ultimately show ?case
+    by (clarsimp, blast)
+qed
+
+lemma append_filter_fst_eqiv_map_update:
+  assumes "set xs = map_pairs (map_of xs)"
+  shows "(set ((fst z, f z) # [x\<leftarrow>xs. fst x \<noteq> fst z])) = (map_pairs ((map_of xs) (fst z \<mapsto> f z)))"
+  using assms
+  apply clarsimp
+  apply (subst insert_def)
+  apply (subst Collect_disj_eq[symmetric])
+  apply force
+  done
+
+section {* Tagged List lemmas *}
+
+subsection {* Tagged list update *}
+
+primrec tagged_list_update :: "'a \<Rightarrow> 'b \<Rightarrow> ('a \<times> 'b) list \<Rightarrow> ('a \<times> 'b) list" where
+  "tagged_list_update a' b' [] = []"
+| "tagged_list_update a' b' (x # xs) = (case x of (a, b) \<Rightarrow>
+                                      (if a = a'
+                                       then (a, b') # xs
+                                       else (a, b) # tagged_list_update a' b' xs))"
+
+lemma tagged_list_update_tag_not_present[simp]:
+  assumes "\<forall>i<length xs. fst (xs ! i) \<noteq> tag"
+  shows "tagged_list_update tag b xs = xs"
+  using assms
+  by (induct xs, fastforce+)
+
+lemma tagged_list_update_tag_present[simp]:
+  assumes "\<forall>j<i. fst (xs ! j) \<noteq> tag"
+    and "i<length xs"
+    and "fst (xs ! i) = tag"
+  shows "tagged_list_update tag b' xs = xs[i := (tag, b')]"
+  using assms
+proof (induct xs arbitrary: i)
+  case (Cons x xs)
+  then show ?case
+  proof (cases i)
+    case (Suc nat)
+    then show ?thesis
+      using Cons
+    proof (cases "fst x = fst (xs ! nat)")
+      case False
+      then show ?thesis
+        using Cons Suc
+        by (simp add: case_prod_beta, metis Suc_mono nth_Cons_Suc)
+    qed auto
+  qed (simp add: case_prod_beta)
+qed simp
+
+lemma tagged_list_update_map_over1:
+  fixes f g
+  assumes inj_f: "inj f"
+  shows "map (\<lambda>(tag,b). (f tag, g tag b)) (tagged_list_update tag b' xs) = tagged_list_update (f tag) (g tag b') (map (\<lambda>(tag,b). (f tag, g tag b)) xs)"
+  by (induct xs, (simp add: inj_eq case_prod_beta inj_f)+)
+
+lemma tagged_list_update_map_over2:
+  assumes "\<And>tag b'. f (tag, b') = (tag, g b')"
+  shows "map f (tagged_list_update tag b' xs) = tagged_list_update tag (g b') (map f xs)"
+  using assms by (induct xs, clarsimp+)
+
+lemma tagged_list_update_map_over_indistinguishable:
+  assumes xs_at_i: "xs ! i = (tag, b)"
+    and i_in_bounds: "i < length xs"
+    and distinct_fst: "distinct (map fst xs)"
+  shows "map (f \<circ> snd) (tagged_list_update tag b' xs) = (map (f \<circ> snd) xs)[i := (f b')]"
+  using assms
+proof (induct xs arbitrary: i)
+  case (Cons x xs)
+  then show ?case
+  proof (cases i)
+    case (Suc j)
+    then show ?thesis
+    proof (cases x)
+      case (Pair tag' q)
+      have "tag' \<noteq> tag"
+        using Cons Suc Pair
+        using nth_mem prod_in_set(1) by fastforce
+      then show ?thesis
+        using Cons Suc Pair
+        by clarsimp
+    qed
+  qed simp
+qed simp
+
+
+lemma tagged_list_update_preserves_tags[simp]:
+  shows "map fst (tagged_list_update tag b' xs) = map fst xs"
+  by (induct xs, clarsimp+)
+
+lemma tagged_list_update_different_tag_preserves_values1[simp]:
+  "fst (xs ! i) \<noteq> tag \<Longrightarrow> (tagged_list_update tag b' xs) ! i = xs ! i"
+  by (induct xs arbitrary: i, (fastforce simp add: nth_Cons')+)
+
+lemma tagged_list_update_different_tag_preserves_values2:
+  "tag \<noteq> tag' \<Longrightarrow> (tag, b) \<in> set xs \<longleftrightarrow> (tag, b) \<in> set (tagged_list_update tag' b' xs)"
+proof (induct xs)
+  case (Cons a xs)
+  then show ?case
+  proof (cases "a = (tag,b)")
+    case False
+    then show ?thesis
+      by (clarsimp, metis Cons.hyps Cons.prems surj_pair)
+  qed (simp add: Cons.prems)
+qed simp+
+
+lemma tagged_list_update_distinct:
+  assumes "distinct (map fst xs)"
+    and "i < length xs"
+    and "fst (xs ! i) = tag"
+  shows "(tagged_list_update tag b' xs) = (xs[i := (tag, b')])"
+proof -
+  have "\<And>j. j < length xs \<Longrightarrow> i \<noteq> j \<Longrightarrow> fst (xs ! j) \<noteq> tag"
+    using assms
+    by (clarsimp simp add: distinct_conv_nth)
+  then have "\<forall>j<i. fst (xs ! j) \<noteq> tag"
+    using assms(2) by auto
+  then show ?thesis
+    using tagged_list_update_tag_present assms
+    by simp
+qed
+
+lemma tagged_list_update_same_distinct_is_equal:
+  assumes distinct_fst_xs: "distinct (map fst xs)"
+    and "i < length xs"
+    and "(xs ! i) = (tag, b)"
+  shows "tagged_list_update tag b xs = xs"
+  using assms
+proof (induct xs arbitrary: i)
+  case (Cons a xs)
+  then show ?case
+    by (metis fst_conv list_update_id tagged_list_update_distinct)
+qed simp+
 
 end

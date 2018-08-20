@@ -6,7 +6,7 @@
 ```
 file                                    depends on
 ├── AssocLookup.thy
-├── Cogent.thy
+├── Cogent.thy                          (Util)
 ├── CogentHelper.thy                    (TypeTrackingSemantics,ML_Old)
 ├── Correspondence.thy                  (UpdateSemantics)
 ├── ML_Old.thy
@@ -20,8 +20,9 @@ file                                    depends on
 ├── Util.thy
 ├── ValueSemantics.thy                  (Cogent)
 └── shallow
-    ├── Shallow.thy                     (ValueSemantics,Util)
-    ├── ShallowTuples.thy               (Util)
-    ├── Shallow_Normalisation_Tac.thy   (Util)
+    ├── Shallow.thy                     (ValueSemantics,ShallowUtil)
+    ├── ShallowTuples.thy               (ShallowUtil)
+    ├── Shallow_Normalisation_Tac.thy   (ShallowUtil)
+    ├── ShallowUtil.thy
     └── Shallow_Tac.thy                 (Shallow)
 ```

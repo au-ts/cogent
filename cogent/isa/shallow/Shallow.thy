@@ -13,7 +13,7 @@
 theory Shallow
 imports
   "../ValueSemantics"
-  "../Util"
+  ShallowUtil
 begin
 
 type_synonym funtyp = "char list"
