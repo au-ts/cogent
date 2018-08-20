@@ -14,20 +14,17 @@ theory Cogent
   imports Util
 begin
 
-section {* Terms and Types of Cogent *}
-
 type_synonym name = string
 
 type_synonym index = nat
 
 type_synonym field = nat
 
+section {* Prim Ops  *}
+
 datatype num_type = U8 | U16 | U32 | U64
 
 datatype prim_type = Num num_type | Bool | String
-
-datatype sigil = ReadOnly | Writable | Unboxed
-
 
 datatype prim_op
   = Plus num_type
@@ -49,6 +46,22 @@ datatype prim_op
   | RShift num_type
   | Complement num_type
 
+
+section {* Types *}
+
+datatype ptr_repr = PtrBits int int
+                  | PtrVariant int int "(name \<times> int \<times> ptr_repr) list"
+                  | PtrRecord "(name \<times> ptr_repr) list"
+
+datatype access_perm = ReadOnly | Writable
+
+(* Sigils represent where the memory that makes up the datatype is, and it's access permissions.
+ *
+ * Data is either boxed (on the heap), or unboxed (on the stack). If data is on the heap, we keep
+ * track of how it is represented, and what access permissions it requires.
+ *)
+datatype sigil = Boxed access_perm ptr_repr
+               | Unboxed
 
 datatype type = TVar index
               | TVarBang index
@@ -79,6 +92,8 @@ fun cast_to :: "num_type \<Rightarrow> lit \<Rightarrow> lit option" where
 | "cast_to U64 (LU32 x) = Some (LU64 (ucast x))"
 | "cast_to U64 (LU64 x) = Some (LU64 x)"
 
+section {* Expressions *}
+
 datatype 'f expr = Var index
                  | AFun 'f  "type list"
                  | Fun "'f expr" "type list"
@@ -100,6 +115,12 @@ datatype 'f expr = Var index
                  | Take "'f expr" field "'f expr"
                  | Split "'f expr" "'f expr"
 
+section {* Kinds *}
+
+(* TODO Liam said these probably shouldn't be named kinds; instead something like
+ * permissions/constraints. ~ v.jackson / 2018-08-20
+ *)
+
 datatype kind_comp = D | S | E
 
 type_synonym kind = "kind_comp set"
@@ -110,14 +131,10 @@ type_synonym 'v env  = "'v list"
 
 type_synonym 'a substitution = "'a list"
 
-section {* Kinding rules *}
-
-primrec sigil_kind :: "sigil \<Rightarrow> kind" where
-  "sigil_kind ReadOnly  = {D,S}"
-| "sigil_kind Writable  = {E}"
-| "sigil_kind Unboxed   = {D,S,E}"
-
-
+fun sigil_kind :: "sigil \<Rightarrow> kind" where
+  "sigil_kind (Boxed ReadOnly _) = {D,S}"
+| "sigil_kind (Boxed Writable _) = {E}"
+| "sigil_kind Unboxed            = {D,S,E}"
 
 inductive kinding        :: "kind env \<Rightarrow> type               \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile> _ :\<kappa> _" [30,0,20] 60)
       and kinding_all    :: "kind env \<Rightarrow> type list          \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa> _" [30,0,20] 60)
@@ -129,8 +146,8 @@ inductive kinding        :: "kind env \<Rightarrow> type               \<Rightar
 |  kind_tfun    : "\<lbrakk> K \<turnstile> a :\<kappa> ka ; K \<turnstile> b :\<kappa> kb \<rbrakk> \<Longrightarrow> K \<turnstile> TFun a b :\<kappa> k"
 |  kind_tprim   : "K \<turnstile> TPrim p :\<kappa> k"
 |  kind_tsum    : "\<lbrakk> distinct (map fst ts); K \<turnstile>* map (fst \<circ> snd) ts :\<kappa> k \<rbrakk> \<Longrightarrow> K \<turnstile> TSum ts :\<kappa> k"
-|  kind_tprod   : "\<lbrakk> K \<turnstile> t :\<kappa> k; K \<turnstile> u :\<kappa> k \<rbrakk>  \<Longrightarrow> K \<turnstile> TProduct t u :\<kappa> k"
-|  kind_trec    : "\<lbrakk> K \<turnstile>* ts :\<kappa>r k ; k \<subseteq> sigil_kind s \<rbrakk> \<Longrightarrow> K \<turnstile> TRecord ts s :\<kappa> k"
+|  kind_tprod   : "\<lbrakk> K \<turnstile> t :\<kappa> k; K \<turnstile> u :\<kappa> k \<rbrakk> \<Longrightarrow> K \<turnstile> TProduct t u :\<kappa> k"
+|  kind_trec    : "\<lbrakk> K \<turnstile>* ts :\<kappa>r k; k \<subseteq> sigil_kind s \<rbrakk> \<Longrightarrow> K \<turnstile> TRecord ts s :\<kappa> k"
 |  kind_tunit   : "K \<turnstile> TUnit :\<kappa> k"
 
 |  kind_all_empty : "K \<turnstile>* [] :\<kappa> k"
@@ -171,10 +188,10 @@ definition proc_ctx_wellformed :: "('f \<Rightarrow> poly_type) \<Rightarrow> bo
 
 section {* Observation and type instantiation *}
 
-primrec bang_sigil :: "sigil \<Rightarrow> sigil" where
-  "bang_sigil (ReadOnly)   = ReadOnly"
-| "bang_sigil (Writable)   = ReadOnly"
-| "bang_sigil (Unboxed)    = Unboxed"
+fun bang_sigil :: "sigil \<Rightarrow> sigil" where
+  "bang_sigil (Boxed ReadOnly r) = Boxed ReadOnly r"
+| "bang_sigil (Boxed Writable r) = Boxed ReadOnly r"
+| "bang_sigil Unboxed            = Unboxed"
 
 fun bang :: "type \<Rightarrow> type" where
   "bang (TVar i)       = TVarBang i"
@@ -184,7 +201,7 @@ fun bang :: "type \<Rightarrow> type" where
 | "bang (TPrim p)      = TPrim p"
 | "bang (TSum ps)      = TSum (map (\<lambda> (c, (t, b)). (c, (bang t, b))) ps)"
 | "bang (TProduct t u) = TProduct (bang t) (bang u)"
-| "bang (TRecord ts s) = TRecord (map (\<lambda> (t, b). (bang t, b)) ts) (bang_sigil s)"
+| "bang (TRecord ts s) = TRecord (map (\<lambda>(t, b). (bang t, b)) ts) (bang_sigil s)"
 | "bang (TUnit)        = TUnit"
 
 fun instantiate :: "type substitution \<Rightarrow> type \<Rightarrow> type" where
