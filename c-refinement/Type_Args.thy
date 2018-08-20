@@ -17,6 +17,6 @@ type_synonym funtyp = "char list"
 (* Placeholder. We will need to add proper abstract value representations later on. *)
 type_synonym abstyp = unit
 
-type_synonym ptrtyp = "32 word"
+type_synonym ptrtyp = "64 word"
 
 end

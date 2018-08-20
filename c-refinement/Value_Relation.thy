@@ -15,7 +15,7 @@
  *)
 theory Value_Relation
 imports
-  "../cogent/isa/UpdateSemantics" 
+  "../cogent/isa/UpdateSemantics"
   "../l4v/tools/autocorres/AutoCorres"
   "Type_Args"
 begin
@@ -42,7 +42,7 @@ instantiation bit1 :: (type) knows_sign begin
 end
 
 class cogent_C_val = c_type +
-  fixes val_rel :: " (funtyp, abstyp, ptrtyp) uval \<Rightarrow>'a \<Rightarrow> bool"
+  fixes val_rel :: "(funtyp, abstyp, ptrtyp) uval \<Rightarrow>'a \<Rightarrow> bool"
   fixes type_rel :: "repr \<Rightarrow> 'a itself \<Rightarrow> bool"
 
 (* The signed word relation is the relation for function tags, so we can only
