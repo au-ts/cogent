@@ -120,7 +120,7 @@ primrec sigil_kind :: "sigil \<Rightarrow> kind" where
 
 
 inductive kinding        :: "kind env \<Rightarrow> type               \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile> _ :\<kappa> _" [30,0,20] 60)
-      and kinding_all    :: "kind env \<Rightarrow> type list          \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa>  _" [30,0,20] 60)
+      and kinding_all    :: "kind env \<Rightarrow> type list          \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa> _" [30,0,20] 60)
       and kinding_record :: "kind env \<Rightarrow> (type \<times> bool) list \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa>r _" [30,0,20] 60) where
 
    kind_tvar    : "\<lbrakk> k \<subseteq> (K ! i) ; i < length K \<rbrakk> \<Longrightarrow> K \<turnstile> TVar i :\<kappa> k"
@@ -732,8 +732,8 @@ shows "{D , S} \<subseteq> sigil_kind (bang_sigil s)"
 by (case_tac s,auto)
 
 lemma bang_kind:
-shows "K \<turnstile>  t  :\<kappa>  k \<Longrightarrow> K \<turnstile>  bang t                       :\<kappa>  {D, S}"
-and   "K \<turnstile>* ts :\<kappa>  k \<Longrightarrow> K \<turnstile>* map bang ts                  :\<kappa>  {D, S}"
+shows "K \<turnstile>  t  :\<kappa> k \<Longrightarrow> K \<turnstile>  bang t                       :\<kappa> {D, S}"
+and   "K \<turnstile>* ts :\<kappa> k \<Longrightarrow> K \<turnstile>* map bang ts                  :\<kappa> {D, S}"
 and   "K \<turnstile>* fs :\<kappa>r k \<Longrightarrow> K \<turnstile>* map (\<lambda>(a,b). (bang a, b)) fs :\<kappa>r {D, S}"
   apply (induct rule: kinding_kinding_all_kinding_record.inducts)
   by (auto intro: kinding_kinding_all_kinding_record.intros
@@ -840,8 +840,8 @@ lemma substitutivity:
 fixes \<delta>    :: "type substitution"
 and   K K' :: "kind env"
 assumes well_kinded: "list_all2 (kinding K') \<delta> K"
-shows "K \<turnstile> t :\<kappa> k    \<Longrightarrow> K' \<turnstile>  instantiate \<delta> t                       :\<kappa>  k"
-and   "K \<turnstile>* ts :\<kappa> k  \<Longrightarrow> K' \<turnstile>* map (instantiate \<delta>) ts                :\<kappa>  k"
+shows "K \<turnstile> t :\<kappa> k    \<Longrightarrow> K' \<turnstile>  instantiate \<delta> t                       :\<kappa> k"
+and   "K \<turnstile>* ts :\<kappa> k  \<Longrightarrow> K' \<turnstile>* map (instantiate \<delta>) ts                :\<kappa> k"
 and   "K \<turnstile>* fs :\<kappa>r k \<Longrightarrow> K' \<turnstile>* map (\<lambda>(a,b). (instantiate \<delta> a, b)) fs :\<kappa>r k"
 using well_kinded proof (induct rule: kinding_kinding_all_kinding_record.inducts)
      case (kind_tvar k K i)
