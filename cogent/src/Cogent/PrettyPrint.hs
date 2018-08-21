@@ -468,7 +468,7 @@ instance (Pretty t, TypeType t, Pretty e) => Pretty (Type e t) where
   pretty (TArray t l) = prettyT' t <> brackets (pretty l)
   pretty (TRecord ts s)
     | not . or $ map (snd . snd) ts = (if | s == Unboxed -> (typesymbol "#" <>)
-                                          | writable s -> (<> typesymbol "!")
+                                          | readonly s -> (<> typesymbol "!")
                                           | otherwise -> id) $
         record (map (\(a,(b,c)) -> fieldname a <+> symbol ":" <+> pretty b) ts)  -- all untaken
     | otherwise = pretty (TRecord (map (second . second $ const False) ts) s :: Type e t)
