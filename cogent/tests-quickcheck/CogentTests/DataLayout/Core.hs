@@ -1,5 +1,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
-module Cogent.DataLayout.QuickCheck.Core where
+{-# LANGUAGE TemplateHaskell #-}
+module CogentTests.DataLayout.Core where
 
 import Data.Map (Map)
 import qualified Data.Map as M
@@ -8,14 +9,15 @@ import Test.QuickCheck
 
 import Cogent.DataLayout.Core
 import Cogent.DataLayout.TypeCheck
-import Cogent.Common.Syntax (SourcePos, FieldName, TagName, RepName)
+import Cogent.Common.Syntax (FieldName, TagName, RepName)
+import Cogent.DataLayout.Syntax (SourcePos)
 
 {- PROPERTIES -}
 
-propSizePreserved range =
+prop_sizePreserved range =
   foldr (\x -> (+) (bitSizeABR x)) 0 (rangeToAlignedRanges range) == bitSizeBR range
   
-propRoundTrip range =
+prop_roundTrip range =
   case (alignedRangesToRanges . rangeToAlignedRanges) range of
     [range'] -> range == range'
     _        -> False
@@ -180,3 +182,7 @@ allNonAllocatedRanges maxBitIndex alloc path = do
   case [(range, path)] /\ alloc of
     Left _         -> []
     Right newAlloc -> return (range, newAlloc)
+
+
+return []
+testAll = $quickCheckAll
