@@ -1,6 +1,7 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
-module Cogent.DataLayout.QuickCheck.TypeCheck where
+{-# LANGUAGE TemplateHaskell #-}
+module CogentTests.DataLayout.TypeCheck where
 
 import Data.Set (Set, union, empty, intersection)
 import qualified Data.Set as S
@@ -11,31 +12,32 @@ import qualified Data.Map as M
 import Control.Monad (guard)
 
 import Test.QuickCheck
+import Test.QuickCheck.All
 
 import Cogent.DataLayout.Surface
 import Cogent.DataLayout.Core
 import Cogent.DataLayout.TypeCheck
-import Cogent.DataLayout.QuickCheck.Core
+import CogentTests.DataLayout.Core
 import Cogent.Common.Syntax (RepName)
 import Cogent.DataLayout.Syntax (SourcePos)
 
-
 {- PROPERTIES -}
-propAllocationDisj :: Allocation -> Allocation -> Bool
-propAllocationDisj a b = case a \/ b of
+prop_allocationDisj :: Allocation -> Allocation -> Bool
+prop_allocationDisj a b = case a \/ b of
   Left  _ -> False
   Right c -> toSet c == (toSet a) `union` (toSet b)
 
-propAllocationConj :: Allocation -> Allocation -> Bool
-propAllocationConj a b = case a /\ b of
+prop_allocationConj :: Allocation -> Allocation -> Bool
+prop_allocationConj a b = case a /\ b of
   Left  overlapping -> not (toSet a `disjoint` toSet b)
   Right c           ->
     (toSet a) `disjoint` (toSet b) &&
     (toSet a) `union`    (toSet b) == toSet c 
     
-propOverlaps :: BitRange -> BitRange -> Bool
-propOverlaps a b = overlaps a b == not (toSet a `disjoint` toSet b)
+prop_overlaps :: BitRange -> BitRange -> Bool
+prop_overlaps a b = overlaps a b == not (toSet a `disjoint` toSet b)
 
+prop_returnTrip = propReturnTrip 30
 propReturnTrip :: Int -> RepName -> SourcePos -> Property
 propReturnTrip size repName pos =
   forAll (genDataLayout size (InDecl repName pos)) $ \(layout, alloc) ->
@@ -94,3 +96,5 @@ instance SetLike BitRange where
 instance SetLike Allocation where
   toSet = foldr union empty . fmap (toSet . fst)
     
+return []
+testAll = $quickCheckAll
