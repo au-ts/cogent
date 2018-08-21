@@ -528,7 +528,7 @@ lookupTypeCId :: CC.Type 'Zero -> Gen v (Maybe CId)
 lookupTypeCId (TVar     {}) = __impossible "lookupTypeCId"
 lookupTypeCId (TVarBang {}) = __impossible "lookupTypeCId"
 lookupTypeCId (TCon tn [] _) = fmap (const tn) . M.lookup tn <$> use absTypes
-lookupTypeCId (TCon tn ts _) = getCompose (forM ts (\t -> (if isUnboxed t then ('p':) else id) <$> (Compose . lookupTypeCId) t) >>= \ts' ->
+lookupTypeCId (TCon tn ts _) = getCompose (forM ts (\t -> (if isUnboxed t then ('u':) else id) <$> (Compose . lookupTypeCId) t) >>= \ts' ->
                                            Compose (M.lookup tn <$> use absTypes) >>= \tss ->
                                            Compose $ return (if ts' `S.member` tss
                                                                then return $ tn ++ "_" ++ L.intercalate "_" ts'
