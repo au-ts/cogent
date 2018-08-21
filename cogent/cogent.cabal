@@ -92,6 +92,13 @@ library
               , Cogent.TypeProofs
               , Cogent.Util
               , Cogent.Vec
+              , Cogent.DataLayout.Core
+              , Cogent.DataLayout.Surface
+              , Cogent.DataLayout.TypeCheck
+              , Cogent.DataLayout.Syntax
+              , Cogent.DataLayout.QuickCheck.Core
+              , Cogent.DataLayout.QuickCheck.Surface
+              , Cogent.DataLayout.QuickCheck.TypeCheck
               -- Generated
               , Paths_cogent
               , Version_cogent
@@ -148,6 +155,7 @@ library
               , tuple >= 0.3
               , uniplate >= 1.6
               , vector >= 0.10.0.1
+              , QuickCheck >= 2.11.3
 
   default-language: Haskell2010
   default-extensions: CPP
