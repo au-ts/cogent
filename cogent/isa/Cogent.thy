@@ -49,9 +49,9 @@ datatype prim_op
 
 section {* Types *}
 
-datatype ptr_repr = PtrBits int int
-                  | PtrVariant int int "(name \<times> int \<times> ptr_repr) list"
-                  | PtrRecord "(name \<times> ptr_repr) list"
+datatype ptr_layout = PtrBits int int
+                    | PtrVariant int int "(name \<times> int \<times> ptr_layout) list"
+                    | PtrRecord "(name \<times> ptr_layout) list"
 
 datatype access_perm = ReadOnly | Writable
 
@@ -60,8 +60,21 @@ datatype access_perm = ReadOnly | Writable
  * Data is either boxed (on the heap), or unboxed (on the stack). If data is on the heap, we keep
  * track of how it is represented, and what access permissions it requires.
  *)
-datatype sigil = Boxed access_perm ptr_repr
+datatype sigil = Boxed access_perm ptr_layout
                | Unboxed
+
+lemma sigil_cases:
+  obtains (SBoxRo) r where "x = Boxed ReadOnly r"
+  | (SBoxWr) r where "x = Boxed Writable r"
+  | (SUnbox) "x = Unboxed"
+proof (cases x)
+  case (Boxed p r)
+  moreover assume "(\<And>r. x = Boxed ReadOnly r \<Longrightarrow> thesis)"
+    and "(\<And>r. x = Boxed Writable r \<Longrightarrow> thesis)"
+  ultimately show ?thesis
+    by (cases p, simp+)
+qed simp
+
 
 datatype type = TVar index
               | TVarBang index
@@ -497,7 +510,7 @@ inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Right
 
 | typing_take   : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
                    ; \<Xi>, K, \<Gamma>1 \<turnstile> e : TRecord ts s
-                   ; s \<noteq> ReadOnly
+                   ; s = Boxed p r \<Longrightarrow> p \<noteq> ReadOnly
                    ; f < length ts
                    ; ts ! f = (t, False)
                    ; K \<turnstile> t :\<kappa> k
@@ -507,7 +520,7 @@ inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Right
 
 | typing_put    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
                    ; \<Xi>, K, \<Gamma>1 \<turnstile> e : TRecord ts s
-                   ; s \<noteq> ReadOnly
+                   ; s = Boxed p r \<Longrightarrow> p \<noteq> ReadOnly
                    ; f < length ts
                    ; ts ! f = (t, taken)
                    ; K \<turnstile> t :\<kappa> k
@@ -727,17 +740,17 @@ next case Cons
 qed
 
 lemma sigil_kind_writable:
-assumes "s \<noteq> ReadOnly"
-and     "k \<subseteq> sigil_kind Writable"
-shows   "k \<subseteq> sigil_kind s"
-proof (cases s)
-qed (simp_all add: assms(1) assms(2)[simplified] kind_top)
+  assumes "\<And>p r. s = Boxed p r \<Longrightarrow> p = Writable"
+    and     "\<And>r. k \<subseteq> sigil_kind (Boxed Writable r)"
+  shows   "k \<subseteq> sigil_kind s"
+  using assms
+  by (case_tac s rule: bang_sigil.cases, auto)
 
 section {* Bang lemmas *}
 
 lemma bang_sigil_idempotent:
 shows "bang_sigil (bang_sigil s) = bang_sigil s"
-by (cases s, simp+)
+  by (cases s rule: bang_sigil.cases, simp+)
 
 lemma bang_idempotent:
 shows "bang (bang \<tau>) = bang \<tau>"
@@ -746,7 +759,7 @@ by (force intro: bang.induct [where P = "\<lambda> \<tau> . bang (bang \<tau>) =
 
 lemma bang_sigil_kind:
 shows "{D , S} \<subseteq> sigil_kind (bang_sigil s)"
-by (case_tac s,auto)
+  by (case_tac s rule: bang_sigil.cases, auto)
 
 lemma bang_kind:
 shows "K \<turnstile>  t  :\<kappa> k \<Longrightarrow> K \<turnstile>  bang t                       :\<kappa> {D, S}"
@@ -1073,14 +1086,16 @@ obtains x where "cast_to \<tau>' l = Some x"
 using assms by (cases l, auto elim: upcast_valid.elims)
 
 lemma bang_type_repr [simp]:
-shows "[] \<turnstile> t :\<kappa> k \<Longrightarrow> (type_repr (bang t) = type_repr t)"
-and   "[] \<turnstile>* ts :\<kappa> k \<Longrightarrow> (map (type_repr \<circ> bang) ts) = map (type_repr) ts "
-and   "[] \<turnstile>* fs :\<kappa>r k \<Longrightarrow> (map (type_repr \<circ>  bang \<circ> fst) fs) = map (type_repr  \<circ> fst) fs"
-by ( induct "[] :: kind list"  t k
-           and "[] :: kind list" ts k
-           and "[] :: kind list" fs k
-     rule: kinding_kinding_all_kinding_record.inducts
-   , auto, (case_tac s,auto)+)
+  shows "[] \<turnstile> t :\<kappa> k \<Longrightarrow> (type_repr (bang t) = type_repr t)"
+    and   "[] \<turnstile>* ts :\<kappa> k \<Longrightarrow> (map (type_repr \<circ> bang) ts) = map (type_repr) ts "
+    and   "[] \<turnstile>* fs :\<kappa>r k \<Longrightarrow> (map (type_repr \<circ>  bang \<circ> fst) fs) = map (type_repr  \<circ> fst) fs"
+    apply (induct "[] :: kind list"  t k
+      and "[] :: kind list" ts k
+      and "[] :: kind list" fs k
+      rule: kinding_kinding_all_kinding_record.inducts)
+               apply auto
+   apply (case_tac s rule: sigil_cases, fastforce+)+
+  done
 
 
 
