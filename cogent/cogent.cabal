@@ -166,7 +166,6 @@ library
               , tuple >= 0.3
               , uniplate >= 1.6
               , vector >= 0.10.0.1
-              , QuickCheck >= 2.11.3
 
   default-language: Haskell2010
   default-extensions: CPP
@@ -240,4 +239,30 @@ test-suite test-util
               , directory >=1.2
               , filepath >= 1.4.0.0
               , mtl >= 2.2.1
+
+library cogent-quickcheck
+  hs-source-dirs: tests-quickcheck
+  default-language: Haskell2010
+  default-extensions: CPP
+  exposed-modules:
+                  CogentTests.DataLayout.Core
+                , CogentTests.DataLayout.Surface
+                , CogentTests.DataLayout.TypeCheck
+  build-depends:
+                cogent
+              , base >= 4.7
+              , containers >= 0.5
+              , Cabal >= 1.9.2
+              , QuickCheck >= 2.11.3
+
+
+test-suite tests-quickcheck
+  type: exitcode-stdio-1.0
+  default-language: Haskell2010
+  default-extensions: CPP
+  main-is: tests-quickcheck-run.hs
+  build-depends:
+                cogent-quickcheck
+              , base >= 4.7
+              , QuickCheck >= 2.11.3
 
