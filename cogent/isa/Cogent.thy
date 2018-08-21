@@ -75,7 +75,6 @@ proof (cases x)
     by (cases p, simp+)
 qed simp
 
-
 datatype type = TVar index
               | TVarBang index
               | TCon name "type list" sigil
@@ -510,7 +509,7 @@ inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Right
 
 | typing_take   : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
                    ; \<Xi>, K, \<Gamma>1 \<turnstile> e : TRecord ts s
-                   ; s = Boxed p r \<Longrightarrow> p \<noteq> ReadOnly
+                   ; \<And>l. s \<noteq> Boxed ReadOnly l
                    ; f < length ts
                    ; ts ! f = (t, False)
                    ; K \<turnstile> t :\<kappa> k
@@ -520,7 +519,7 @@ inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Right
 
 | typing_put    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
                    ; \<Xi>, K, \<Gamma>1 \<turnstile> e : TRecord ts s
-                   ; s = Boxed p r \<Longrightarrow> p \<noteq> ReadOnly
+                   ; \<And>l. s \<noteq> Boxed ReadOnly l
                    ; f < length ts
                    ; ts ! f = (t, taken)
                    ; K \<turnstile> t :\<kappa> k

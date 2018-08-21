@@ -162,8 +162,8 @@ locale update_sem =
   and   abs_repr   :: "'a \<Rightarrow> name \<times> repr list"
   assumes abs_typing_bang : "abs_typing av n \<tau>s s r w \<Longrightarrow> abs_typing av n (map bang \<tau>s) (bang_sigil s) (r \<union> w) {}"
   and     abs_typing_noalias : "abs_typing av n \<tau>s s r w \<Longrightarrow> r \<inter> w = {}"
-  and     abs_typing_readonly : "s \<noteq> Writable \<Longrightarrow> abs_typing av n \<tau>s s r w \<Longrightarrow> w = {}"
-  and     abs_typing_escape   : "s \<noteq> ReadOnly \<Longrightarrow> [] \<turnstile>* \<tau>s :\<kappa> k \<Longrightarrow> E \<in> k \<Longrightarrow> abs_typing av n \<tau>s s r w \<Longrightarrow> r = {}"
+  and     abs_typing_readonly : "(\<And>l. s \<noteq> Boxed Writable l) \<Longrightarrow> abs_typing av n \<tau>s s r w \<Longrightarrow> w = {}"
+  and     abs_typing_escape   : "(\<And>l. s \<noteq> Boxed ReadOnly l) \<Longrightarrow> [] \<turnstile>* \<tau>s :\<kappa> k \<Longrightarrow> E \<in> k \<Longrightarrow> abs_typing av n \<tau>s s r w \<Longrightarrow> r = {}"
   and     abs_typing_valid : "abs_typing av n \<tau>s s r w \<Longrightarrow> p \<in> r \<union> w \<Longrightarrow> \<sigma> p \<noteq> None"
   and     abs_typing_unique_repr   : "abs_typing av n \<tau>s s r w \<Longrightarrow> abs_typing av n' \<tau>s' s' r' w'
                                     \<Longrightarrow> type_repr (TCon n \<tau>s s) = type_repr (TCon n' \<tau>s' s')"
@@ -246,23 +246,23 @@ and uval_typing_record :: "('f \<Rightarrow> poly_type)
 
 | u_t_p_rec_ro : "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* fs :ur ts \<langle>r, {}\<rangle>
                   ; \<sigma> l = Some (URecord fs)
-                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RRecord (map (\<lambda>(a,b). type_repr a) ts)) :u TRecord ts ReadOnly \<langle>insert l r, {}\<rangle>"
+                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RRecord (map (\<lambda>(a,b). type_repr a) ts)) :u TRecord ts (Boxed ReadOnly ptrl) \<langle>insert l r, {}\<rangle>"
 
 | u_t_p_rec_w  : "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* fs :ur ts \<langle>r, w\<rangle>
                   ; \<sigma> l = Some (URecord fs)
                   ; l \<notin> (w \<union> r)
-                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RRecord (map (\<lambda>(a,b). type_repr a) ts)) :u TRecord ts Writable \<langle>r, insert l w\<rangle>"
+                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RRecord (map (\<lambda>(a,b). type_repr a) ts)) :u TRecord ts (Boxed Writable ptrl) \<langle>r, insert l w\<rangle>"
 
-| u_t_p_abs_ro : "\<lbrakk> abs_typing a n ts ReadOnly r {}
+| u_t_p_abs_ro : "\<lbrakk> \<And>ptrl. abs_typing a n ts (Boxed ReadOnly ptrl) r {}
                   ; [] \<turnstile>* ts wellformed
                   ; \<sigma> l = Some (UAbstract a)
-                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map (type_repr) ts)) :u TCon n ts ReadOnly \<langle>insert l r, {}\<rangle>"
+                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map (type_repr) ts)) :u TCon n ts (Boxed ReadOnly ptrl) \<langle>insert l r, {}\<rangle>"
 
-| u_t_p_abs_w  : "\<lbrakk> abs_typing a n ts Writable r w
+| u_t_p_abs_w  : "\<lbrakk> \<And>ptrl. abs_typing a n ts (Boxed Writable ptrl) r w
                   ; [] \<turnstile>* ts wellformed
                   ; \<sigma> l = Some (UAbstract a)
                   ; l \<notin> (w \<union> r)
-                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map (type_repr) ts)) :u TCon n ts Writable \<langle>r, insert l w\<rangle>"
+                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map (type_repr) ts)) :u TCon n ts (Boxed Writable ptrl) \<langle>r, insert l w\<rangle>"
 
 | u_t_r_empty  : "\<Xi>, \<sigma> \<turnstile>* [] :ur [] \<langle>{}, {}\<rangle>"
 | u_t_r_cons1  : "\<lbrakk> \<Xi>, \<sigma> \<turnstile>  x  :u  t  \<langle>r , w \<rangle>
@@ -379,7 +379,14 @@ lemma uval_typing_pointers_noalias:
 shows "\<lbrakk> \<Xi>, \<sigma> \<turnstile>  v  :u  \<tau>  \<langle> r , w \<rangle> \<rbrakk> \<Longrightarrow> r \<inter> w = {}"
 and   "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* vs :ur \<tau>s \<langle> r , w \<rangle> \<rbrakk> \<Longrightarrow> r \<inter> w = {}"
 proof (induct rule: uval_typing_uval_typing_record.inducts)
-qed (auto simp: abs_typing_noalias [where s = Unboxed] abs_typing_noalias [where s = Writable])
+  case (u_t_abstract a n ts r w \<Xi> \<sigma>)
+  then show ?case
+    using abs_typing_readonly by fast
+next
+  case (u_t_p_abs_w a n ts r \<sigma> l w \<Xi> ptrl)
+  then show ?case
+    using abs_typing_noalias by blast
+qed auto
 
 lemma shareable_not_writable:
 assumes "S \<in> k"
@@ -407,8 +414,11 @@ lemma escapable_no_readers:
 shows   "\<lbrakk> \<Xi> , \<sigma> \<turnstile>  x  :u  \<tau>  \<langle>r, w\<rangle> ; E \<in> k; [] \<turnstile>  \<tau>  :\<kappa>  k \<rbrakk> \<Longrightarrow> r = {}"
 and     "\<lbrakk> \<Xi> , \<sigma> \<turnstile>* xs :ur \<tau>s \<langle>r, w\<rangle> ; E \<in> k; [] \<turnstile>* \<tau>s :\<kappa>r k \<rbrakk> \<Longrightarrow> r = {}"
 proof (induct arbitrary: k and k rule: uval_typing_uval_typing_record.inducts)
+next
+  case (u_t_p_abs_w a n ts r w \<sigma> l \<Xi> ptrl)
+  then show ?case
+    using abs_typing_escape by blast
 qed (fastforce dest!: abs_typing_escape [where s = Unboxed , simplified, rotated -1]
-                      abs_typing_escape [where s = Writable, simplified, rotated -1]
                simp:  kinding_all_set)+
 
 
@@ -559,20 +569,31 @@ next case u_t_p_rec_w
     apply (frule uval_typing_uval_typing_record.u_t_p_rec_ro)
     apply (auto dest!: kinding_all_record' bang_type_repr')
   done
-next case u_t_p_abs_ro
+next
+  case (u_t_p_abs_ro a n ts r \<sigma> l \<Xi> ptrl)
+  then have "\<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map type_repr (map bang ts))) :u TCon n (map bang ts) (Boxed ReadOnly ptrl) \<langle>insert l r, {}\<rangle>"
+    using update_sem_axioms
+  proof (intro uval_typing_uval_typing_record.u_t_p_abs_ro)
+    show "\<And>ptrl. abs_typing a n (map bang ts) (Boxed ReadOnly ptrl) r {}"
+      using u_t_p_abs_ro abs_typing_bang by fastforce
+  next
+    show "[] \<turnstile>* map bang ts wellformed"
+      using u_t_p_abs_ro(2) bang_kind(2) by auto
+  qed simp
   then show ?case
-    apply (clarsimp)
-    apply (drule abs_typing_bang [where s = ReadOnly and w = "{}", simplified])
-    apply (frule bang_kind)
-    apply (force dest: uval_typing_uval_typing_record.u_t_p_abs_ro)
-  done
-next case u_t_p_abs_w
+    using u_t_p_abs_ro by clarsimp
+next
+  case (u_t_p_abs_w a n ts r w \<sigma> l \<Xi> ptrl)
+  then have "\<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map type_repr (map bang ts))) :u TCon n (map bang ts) (Boxed ReadOnly ptrl) \<langle>insert l (r \<union> w), {}\<rangle>"
+  proof (intro uval_typing_uval_typing_record.u_t_p_abs_ro)
+    show "\<And>ptrl. abs_typing a n (map bang ts) (Boxed ReadOnly ptrl) (r \<union> w) {}"
+      using u_t_p_abs_w abs_typing_bang by fastforce
+  next
+    show "[] \<turnstile>* map bang ts wellformed"
+      using bang_kind(2) u_t_p_abs_w.hyps(2) by auto
+  qed simp
   then show ?case
-    apply (clarsimp)
-    apply (drule abs_typing_bang [where s = Writable, simplified])
-    apply (frule bang_kind)
-    apply (force dest:uval_typing_uval_typing_record.u_t_p_abs_ro)
-  done
+    using u_t_p_abs_w by clarsimp
 next case u_t_r_cons1
   then show ?case
     apply (clarsimp)
@@ -1015,12 +1036,19 @@ using assms u_t_prim[where \<Xi>=\<Xi> and l="case eval_prim_u p vs of UPrim v \
 by (clarsimp simp add: eval_prim_u_def o_def eval_prim_op_lit_type dest!: u_t_map_UPrimD)
 
 lemma uval_typing_valid:
-assumes "p \<in> (r \<union> w)"
-shows   "\<Xi> , \<sigma> \<turnstile> u :u t \<langle> r , w \<rangle> \<Longrightarrow> \<sigma> p \<noteq> None"
-and     "\<Xi> , \<sigma> \<turnstile>* us :ur ts \<langle> r , w \<rangle> \<Longrightarrow> \<sigma> p \<noteq> None"
-using assms proof(induct  rule: uval_typing_uval_typing_record.inducts)
-qed (auto dest: abs_typing_readonly [ where s = Unboxed, simplified]
-                abs_typing_valid)
+  assumes "p \<in> (r \<union> w)"
+  shows   "\<Xi> , \<sigma> \<turnstile> u :u t \<langle> r , w \<rangle> \<Longrightarrow> \<sigma> p \<noteq> None"
+    and   "\<Xi> , \<sigma> \<turnstile>* us :ur ts \<langle> r , w \<rangle> \<Longrightarrow> \<sigma> p \<noteq> None"
+  using assms
+proof (induct rule: uval_typing_uval_typing_record.inducts)
+  case (u_t_p_abs_ro a n ts r \<sigma> l \<Xi> ptrl)
+  then show ?case
+    using abs_typing_valid by fast
+next
+  case (u_t_p_abs_w a n ts r w \<sigma> l \<Xi> ptrl)
+  then show ?case
+    using abs_typing_valid by (fast dest: abs_typing_valid)
+qed (auto dest: abs_typing_valid)
 
 lemma matches_ptrs_valid:
 assumes "\<Xi> , \<sigma> \<turnstile> u matches t \<langle> r , w \<rangle>"
@@ -1434,7 +1462,7 @@ assumes "\<Xi>, \<sigma> \<turnstile>* fs :ur ts \<langle>r, w\<rangle>"
 and     "\<sigma> l = Some (URecord fs)"
 and     "l \<notin> w \<union> r"
 and     "rp = (RRecord (map (\<lambda>(a,b). type_repr a) ts)) "
-shows   "\<Xi>, \<sigma> \<turnstile> UPtr l rp :u TRecord ts Writable \<langle> r, insert l w \<rangle>"
+shows   "\<Xi>, \<sigma> \<turnstile> UPtr l rp :u TRecord ts (Boxed Writable ptrl) \<langle> r, insert l w \<rangle>"
 using assms by (auto intro: u_t_p_rec_w)
 
 theorem preservation:
@@ -1860,79 +1888,198 @@ next case u_sem_memb_b
    apply ( auto dest!: uval_typing_record_nth
          , fastforce )
  done
-next case (u_sem_take _ _ _ _ _ p)
-  note IH1  = this(2)
-  and  IH2  = this(5)
-  and  rest = this(1,3-4,6-)
-  have HELP: "\<forall> ts f \<tau>. (f < length ts \<and> (ts ! f = (\<tau>, False))
-          \<longrightarrow> (map (\<lambda>(t, y). (instantiate \<tau>s t, y)) ts ! f = (instantiate \<tau>s \<tau>, False)))"
-    apply (rule allI, induct_tac ts, simp)
-    apply (simp split: prod.split)
-    apply (clarsimp)
-    apply (case_tac f, simp, simp)
-  done
-  have HELP2: "\<forall> \<tau>s. ((\<lambda>(a, b). type_repr a) \<circ> (\<lambda>(t, y). (instantiate \<tau>s t, y)))
-                   = (\<lambda>(t,y). type_repr (instantiate \<tau>s t))"
-  by (force split: prod.split)
-  from rest show ?case
-    apply (cases e, simp_all)
-    apply (erule typing_takeE)
-    apply (frule matches_ptrs_noalias)
-    apply (frule(2) matches_ptrs_split,clarsimp)
-    apply (frule(5) IH1, clarsimp)
-    apply (erule u_t_p_recE, simp_all)
-    apply (frule(2) frame_noalias_matches_ptrs)
-    apply (frule(1) frame_noalias_matches_ptrs(2), blast)
-    apply (frule uval_typing_record_take [ where \<tau>s = "map (\<lambda>(t, y). (instantiate \<tau>s t, y)) ts" for ts
-                                         , simplified
-                                         , OF _ HELP [rule_format]],
-           force, force intro: substitutivity, force)
-    apply (elim exE conjE)
-    apply (frule(2) matches_ptrs_frame, blast)
-    apply (simp, erule disjE)
-     apply (clarsimp)
-     apply (frule(3) shareable_not_writable(1) [OF _ _ substitutivity(1)], clarsimp)
-     apply (frule(4) IH2 [rotated -1], simp)
-      apply (case_tac taken)
-       apply (rule matches_ptrs_some [OF _ matches_ptrs_some])
-               apply (simp)
-              apply (force intro!: u_t_p_rec_w' simp: HELP2 map_update intro: list_helper [symmetric])
-             apply (simp)
-            apply (blast)
-           apply (blast)
-          apply (blast)
-         apply (blast)
-        apply (blast)
-       apply (blast)
-      apply (clarsimp)
-      apply (rule pointerset_helper_matches_ptrs)
-        apply (rule matches_ptrs_some [OF _ matches_ptrs_some])
-                apply (simp)
-               apply (force intro!: u_t_p_rec_w' simp: list_helper HELP2 map_update intro: list_helper [symmetric])
-              apply (simp)
-             apply (blast)
-            apply (blast)
-           apply (blast)
-          apply (blast)
-         apply (blast)
-        apply (blast)
-       apply (blast)
-      apply (blast)
-     apply (clarsimp, intro exI conjI, simp, blast, force simp: Un_commute intro: frame_let)
-    apply (clarsimp)
-    apply (frule(4) IH2 [rotated -1], simp)
-     apply (rule matches_ptrs_some [OF _ matches_ptrs_some])
-             apply (simp)
-            apply (force intro!: u_t_p_rec_w' simp: list_helper HELP2 map_update intro: list_helper [symmetric])
-           apply (simp)
-          apply (blast)
-         apply (blast)
-        apply (blast)
-       apply (blast)
-      apply (blast)
-     apply (blast)
-    apply (clarsimp, auto intro!: exI intro: frame_let pointerset_helper_frame)
-  done
+next
+  case (u_sem_take \<xi> \<gamma> \<sigma> x_spec \<sigma>'' pa ra fs f ea_spec)
+  then show ?case
+  proof (cases e)
+    case (Take x f' ea)
+
+    have case_simps:
+      "x_spec = specialise \<tau>s x"
+      "f = f'"
+      "ea_spec = specialise \<tau>s ea"
+      using Take u_sem_take.hyps by auto
+
+    obtain \<Gamma>1 \<Gamma>2 ts s t k taken
+      where typing_e_elim_lemmas:
+        "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+        "\<Xi>, K, \<Gamma>1 \<turnstile> x : TRecord ts s"
+        "\<And>l. s \<noteq> Boxed ReadOnly l"
+        "f' < length ts"
+        "ts ! f' = (t, False)"
+        "K \<turnstile> t :\<kappa> k"
+        "S \<in> k \<or> taken"
+        "\<Xi>, K, Some t # Some (TRecord (ts[f' := (t, taken)]) s) # \<Gamma>2 \<turnstile> ea : \<tau>"
+      using Take u_sem_take.prems
+      by fastforce
+
+    obtain r1 w1 r2 w2
+      where ptrs_split_lemmas:
+        "r = r1 \<union> r2"
+        "w = w1 \<union> w2"
+        "w1 \<inter> w2 = {}"
+        "\<Xi>, \<sigma> \<turnstile> \<gamma> matches instantiate_ctx \<tau>s \<Gamma>1 \<langle>r1, w1\<rangle>"
+        "\<Xi>, \<sigma> \<turnstile> \<gamma> matches instantiate_ctx \<tau>s \<Gamma>2 \<langle>r2, w2\<rangle>"
+        "(w1 \<union> w2) \<inter> (r1 \<union> r2) = {}"
+      using u_sem_take.prems matches_ptrs_split matches_ptrs_noalias typing_e_elim_lemmas 
+      by metis
+
+    obtain r1' w1pa'
+      where IH1_lemmas: "\<Xi>, \<sigma>'' \<turnstile> UPtr pa ra :u instantiate \<tau>s (TRecord ts s) \<langle>r1', w1pa'\<rangle>"
+        "r1' \<subseteq> r1"
+        "frame \<sigma> w1 \<sigma>'' w1pa'"
+      using u_sem_take.hyps(2) u_sem_take.prems ptrs_split_lemmas typing_e_elim_lemmas case_simps
+      by blast
+
+    obtain w1' ptrl
+      where IH1_uptr_elim_lemmas:
+        "w1pa' = insert pa w1'"
+        "\<Xi>, \<sigma>'' \<turnstile>* fs :ur map (\<lambda>(t, y). (instantiate \<tau>s t, y)) ts \<langle>r1', w1'\<rangle>"
+        "ra = RRecord (map (\<lambda>(a, b). type_repr a) (map (\<lambda>(t, y). (instantiate \<tau>s t, y)) ts))"
+        "s = Boxed Writable ptrl"
+        "pa \<notin> w1'"
+        "pa \<notin> r1'"
+      using u_sem_take.hyps(3) IH1_lemmas
+      by (force simp add: typing_e_elim_lemmas)
+
+    have pointer_noalias_lemmas1:
+      "w1pa' \<inter> w2 = {}"
+      "w1pa' \<inter> r1 = {}"
+      "w1pa' \<inter> r2 = {}"
+      using frame_noalias_matches_ptrs[OF IH1_lemmas(3)] ptrs_split_lemmas[simplified Int_Un_distrib Int_Un_distrib2 Un_empty]
+      by meson+
+
+    have inst_t_wellkinded: "[] \<turnstile> instantiate \<tau>s t :\<kappa> k"
+      using substitutivity(1) typing_e_elim_lemmas(6) u_sem_take.prems(2) by blast
+
+    have "map (\<lambda>(t, y). (instantiate \<tau>s t, y)) ts ! f' = (instantiate \<tau>s t, False)"
+      by (simp add: typing_e_elim_lemmas(4) typing_e_elim_lemmas(5))
+    then obtain r1'' w1'' r1''' w1'''
+      where utype_record_take_lemmas:
+        "\<Xi>, \<sigma>'' \<turnstile> fst (fs ! f') :u instantiate \<tau>s t \<langle>r1'', w1''\<rangle>"
+        "\<Xi>, \<sigma>'' \<turnstile>* fs :ur map (\<lambda>(t, y). (instantiate \<tau>s t, y)) ts[f' := (instantiate \<tau>s t, True)] \<langle>r1''', w1'''\<rangle>"
+        "r1' = r1'' \<union> r1'''"
+        "w1' = w1'' \<union> w1'''"
+        "w1'' \<inter> w1''' = {}"
+      using uval_typing_record_take[where \<tau>s = "map (\<lambda>(t, y). (instantiate \<tau>s t, y)) ts" for ts, simplified]
+        typing_e_elim_lemmas IH1_uptr_elim_lemmas inst_t_wellkinded
+      by blast
+
+    have pointers_disjoint: "({pa} \<union> w1'' \<union> w1''' \<union> w2) \<inter> (r1'' \<union> r1''' \<union> r2) = {}"
+      using utype_record_take_lemmas(3,4) ptrs_split_lemmas(6) IH1_lemmas IH1_uptr_elim_lemmas
+        pointer_noalias_lemmas1
+      by (clarsimp simp add: Int_Un_distrib Int_commute,
+          meson equalityE subset_helper)
+
+    have \<sigma>''_matches2: "\<Xi>, \<sigma>'' \<turnstile> \<gamma> matches instantiate_ctx \<tau>s \<Gamma>2 \<langle>r2, w2\<rangle>"
+      using matches_ptrs_frame ptrs_split_lemmas IH1_lemmas
+      by blast
+
+    have "map ((\<lambda>(a, b). type_repr a) \<circ> (\<lambda>(t, y). (instantiate \<tau>s t, y))) ts ! f' = type_repr (instantiate \<tau>s t)"
+      by (simp add: typing_e_elim_lemmas(4) typing_e_elim_lemmas(5))
+    then have type_repr_inst_ts_taken_same:
+      "map (\<lambda>(a, b). type_repr a) (map (\<lambda>(t, y). (instantiate \<tau>s t, y)) (ts[f' := (t, taken)]))
+        = map ((\<lambda>(a, b). type_repr a) \<circ> (\<lambda>(t, y). (instantiate \<tau>s t, y))) ts"
+      by (simp add: map_update list_helper)
+
+    show ?thesis
+    proof (cases taken)
+      case True
+
+      have "\<Xi>, \<sigma>'' \<turnstile> fst (fs ! f') # UPtr pa ra # \<gamma>
+            matches Some (instantiate \<tau>s t)
+              # Some (TRecord (map (\<lambda>(t, y). (instantiate \<tau>s t, y)) ts[f' := (instantiate \<tau>s t, True)]) (Boxed Writable ptrl))
+              # instantiate_ctx \<tau>s \<Gamma>2
+            \<langle>r1'' \<union> (r1''' \<union> r2), w1'' \<union> (insert pa w1''' \<union> w2)\<rangle>"
+        using utype_record_take_lemmas u_sem_take.hyps(3) \<sigma>''_matches2
+      proof (intro matches_ptrs_some[OF _ matches_ptrs_some[OF u_t_p_rec_w']])
+        show "ra = RRecord (map (\<lambda>(a, b). type_repr a) (map (\<lambda>(t, y). (instantiate \<tau>s t, y)) ts[f' := (instantiate \<tau>s t, True)]))"
+          using type_repr_inst_ts_taken_same IH1_uptr_elim_lemmas
+          by (simp add: map_update)
+      next
+        show "pa \<notin> w1''' \<union> r1'''"
+          and "insert pa w1''' \<inter> w2 = {}"
+          and "w1'' \<inter> (insert pa w1''' \<union> w2) = {}"
+          using IH1_uptr_elim_lemmas utype_record_take_lemmas pointer_noalias_lemmas1
+          by blast+
+
+        show "insert pa w1''' \<inter> r2 = {}"
+          and "w2 \<inter> r1''' = {}"
+          and "w1'' \<inter> (r1''' \<union> r2) = {}"
+          and "(insert pa w1''' \<union> w2) \<inter> r1'' = {}"
+          using pointers_disjoint
+          by blast+
+      qed simp+
+      then have "\<exists>r' w'. \<Xi>, \<sigma>' \<turnstile> v :u instantiate \<tau>s \<tau> \<langle>r', w'\<rangle> \<and> r' \<subseteq> r1'' \<union> (r1''' \<union> r2) \<and> frame \<sigma>'' (insert pa (w1'' \<union> (w1''' \<union> w2))) \<sigma>' w'"
+        using u_sem_take.hyps(5) typing_e_elim_lemmas(8) u_sem_take.prems True IH1_uptr_elim_lemmas case_simps
+        by (simp add: map_update)
+      then obtain r' w'
+        where
+          "\<Xi>, \<sigma>' \<turnstile> v :u instantiate \<tau>s \<tau> \<langle>r', w'\<rangle>"
+          "r' \<subseteq> r1'' \<union> r1''' \<union> r2"
+          "frame \<sigma>'' (insert pa (w1'' \<union> w1''' \<union> w2)) \<sigma>' w'"
+        by (force simp add: Un_assoc)
+      moreover then have "r' \<subseteq> r"
+        and "frame \<sigma>'' (w2 \<union> w1pa') \<sigma>' w'"
+        using ptrs_split_lemmas(1) utype_record_take_lemmas(3) IH1_lemmas
+         apply blast
+        apply (metis IH1_uptr_elim_lemmas(1) Un_insert_right calculation(3) inf_sup_aci(5) utype_record_take_lemmas(4))
+        done
+      ultimately show ?thesis
+        using frame_let ptrs_split_lemmas(2) IH1_lemmas(3)
+        by blast
+    next
+      case False
+
+      have is_sharable: "S \<in> k"
+        using False typing_e_elim_lemmas
+        by auto
+      then have w1''_empty: "w1'' = {}"
+        using shareable_not_writable(1) inst_t_wellkinded utype_record_take_lemmas(1) by blast
+      then have w1'''_is: "w1''' = w1'"
+        by (simp add: utype_record_take_lemmas(4))
+
+      have "\<Xi>, \<sigma>'' \<turnstile> fst (fs ! f') # UPtr pa ra # \<gamma>
+            matches Some (instantiate \<tau>s t)
+              # Some (TRecord (map (\<lambda>(t, y). (instantiate \<tau>s t, y)) ts) (Boxed Writable ptrl))
+              # instantiate_ctx \<tau>s \<Gamma>2
+            \<langle>r1'' \<union> (r1' \<union> r2), {} \<union> (insert pa w1' \<union> w2)\<rangle>"
+        using utype_record_take_lemmas u_sem_take.hyps(3) \<sigma>''_matches2 w1''_empty IH1_uptr_elim_lemmas
+      proof (intro matches_ptrs_some[OF _ matches_ptrs_some[OF u_t_p_rec_w']])
+        show "pa \<notin> w1' \<union> r1'"
+          and "insert pa w1' \<inter> w2 = {}"
+          using IH1_uptr_elim_lemmas utype_record_take_lemmas pointer_noalias_lemmas1 
+          by blast+
+
+        show "w2 \<inter> r1' = {}"
+          and "insert pa w1' \<inter> r2 = {}"
+          and "(insert pa w1' \<union> w2) \<inter> r1'' = {}"
+          using pointers_disjoint utype_record_take_lemmas(3) IH1_uptr_elim_lemmas(1)
+            pointer_noalias_lemmas1(3) w1'''_is
+          by blast+
+
+        show "{} \<inter> (insert pa w1' \<union> w2) = {}"
+          and "{} \<inter> (r1' \<union> r2) = {}"
+          by simp+
+      qed simp+
+      moreover have "ts[f' := (t, False)] = ts"
+        by (metis list_update_id typing_e_elim_lemmas(5))
+      ultimately have "\<exists>r' w'. \<Xi>, \<sigma>' \<turnstile> v :u instantiate \<tau>s \<tau> \<langle>r', w'\<rangle> \<and> r' \<subseteq> r1'' \<union> (r1' \<union> r2) \<and> frame \<sigma>'' (insert pa (w1' \<union> w2)) \<sigma>' w'"
+        using u_sem_take.hyps(5) typing_e_elim_lemmas(8) u_sem_take.prems False IH1_uptr_elim_lemmas case_simps
+        by (simp add: map_update)
+      then obtain r' w'
+        where "\<Xi>, \<sigma>' \<turnstile> v :u instantiate \<tau>s \<tau> \<langle>r', w'\<rangle>"
+          and "r' \<subseteq> r1'' \<union> (r1' \<union> r2)"
+          and "frame \<sigma>'' (insert pa (w1' \<union> w2)) \<sigma>' w'"
+        by blast
+      moreover then have "r' \<subseteq> r"
+        and "frame \<sigma> (w1 \<union> w2) \<sigma>' w'"
+        using IH1_lemmas IH1_uptr_elim_lemmas ptrs_split_lemmas(1) utype_record_take_lemmas(3) 
+        by (auto simp add: frame_let sup_commute)
+      ultimately show ?thesis
+        using ptrs_split_lemmas(2) by blast
+    qed
+  qed simp+
 next case u_sem_take_ub
   note IH1  = this(2)
   and  IH2  = this(4)
@@ -2030,7 +2177,9 @@ next case u_sem_put
     apply (frule(5) IH2, clarsimp)
     apply (frule(1) frame_noalias_uval_typing, blast)
     apply (frule(1) frame_noalias_uval_typing(2), blast)
-    apply (erule u_t_p_recE, simp,clarsimp)
+    apply (erule u_t_p_recE)
+     apply presburger
+    apply clarsimp
     apply (drule(1) frame_app)
     apply (drule(2) uval_typing_frame(2) [rotated -1], blast)
     apply (drule(1) uval_typing_frame(1) [OF frame_single_update, simplified, rotated -1], blast)
