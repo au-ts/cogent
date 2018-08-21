@@ -347,10 +347,8 @@ splitEnv env (TE t (Case e tag (lt,at,et) (le,ae,ee)))
 
 splitEnv env (TE t (Take a e f e2)) =
     let e' = splitEnv env e
-        ts = case typeOf e' of
-                TRecord ts -> ts
-                TPtr (TRecord ts) _ _ -> ts
-        e2' = splitEnv (Cons (Just $ recType (ts!!f)) (Cons (Just $ TRecord (setAt ts f (fst (ts!!f), (recType (ts!!f), True)))) env)) e2 -- fix this
+        TRecord ts s = typeOf e'
+        e2' = splitEnv (Cons (Just $ recType (ts!!f)) (Cons (Just $ TRecord (setAt ts f (fst (ts!!f), (recType (ts!!f), True))) s) env)) e2
      in EE t (Take a e' f e2') $ envOf e' <|> peel2 (envOf e2')
 
 
@@ -429,9 +427,8 @@ pushDown unused (EE ty (Member e f) env)
 
 pushDown unused (EE ty (Take a e f e2) env)
     = let e'@(EE rt _ _) = pushDown (unused <\> env) e
-          ts = case rt of TRecord ts -> ts
-                          TPtr (TRecord ts) _ _ -> ts
-          e2' = pushDown (Cons (Just $ recType $ ts!!f) (Cons (Just $ TRecord (setAt ts f (fst (ts!!f), (recType $ ts!!f, True)))) (cleared env))) e2 -- fix this
+          TRecord ts s = rt
+          e2' = pushDown (Cons (Just $ recType $ ts!!f) (Cons (Just $ TRecord (setAt ts f (fst (ts!!f), (recType $ ts!!f, True))) s) (cleared env))) e2
        in EE ty (Take a e' f e2') $ unused <|> env
 
 pushDown unused (EE ty (Put e1 f e2) env)

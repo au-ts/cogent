@@ -73,6 +73,7 @@ library
               , Cogent.Preprocess
               , Cogent.ProofGen
               , Cogent.Reorganizer
+              , Cogent.ReprCheck
               , Cogent.Root
               , Cogent.Shallow
               , Cogent.ShallowHaskell

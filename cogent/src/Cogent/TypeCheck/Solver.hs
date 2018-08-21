@@ -242,24 +242,24 @@ rule (Drop   (T (TVariant n)) m) = return . Just $ foldMap (\(ts, t) -> if t the
 rule (Escape (T (TVariant n)) m) = return . Just $ foldMap (\(ts, t) -> if t then Sat else mconcat $ map (flip Escape m) ts) n
 
 rule (Share  t@(T (TRecord fs s)) m)
-  | s /= Writable = return . Just $ foldMap (\(x, t) -> if not t then Share x m else Sat) $ map snd fs
-  | otherwise     = return . Just $ Unsat $ TypeNotShareable t m
+  | not (writable s) = return . Just $ foldMap (\(x, t) -> if not t then Share x m else Sat) $ map snd fs
+  | otherwise        = return . Just $ Unsat $ TypeNotShareable t m
 rule (Drop   t@(T (TRecord fs s)) m)
-  | s /= Writable = return . Just $ foldMap (\(x, t) -> if not t then Drop x m else Sat) $ map snd fs
-  | otherwise     = return . Just $ Unsat $ TypeNotDiscardable t m
+  | not (writable s) = return . Just $ foldMap (\(x, t) -> if not t then Drop x m else Sat) $ map snd fs
+  | otherwise        = return . Just $ Unsat $ TypeNotDiscardable t m
 rule (Escape t@(T (TRecord fs s)) m)
-  | s /= ReadOnly = return . Just $ foldMap (\(x, t) -> if not t then Escape x m else Sat) $ map snd fs
-  | otherwise     = return . Just $ Unsat $ TypeNotEscapable t m
+  | not (readonly s) = return . Just $ foldMap (\(x, t) -> if not t then Escape x m else Sat) $ map snd fs
+  | otherwise        = return . Just $ Unsat $ TypeNotEscapable t m
 
 rule (Share  t@(T (TCon n ts s)) m)
-  | s /= Writable = return $ Just Sat
-  | otherwise     = return $ Just $ Unsat $ TypeNotShareable t m
+  | not (writable s) = return $ Just Sat
+  | otherwise        = return $ Just $ Unsat $ TypeNotShareable t m
 rule (Drop   t@(T (TCon n ts s)) m)
-  | s /= Writable = return $ Just Sat
-  | otherwise     = return $ Just $ Unsat $ TypeNotDiscardable t m
+  | not (writable s) = return $ Just Sat
+  | otherwise        = return $ Just $ Unsat $ TypeNotDiscardable t m
 rule (Escape t@(T (TCon n ts s)) m)
-  | s /= ReadOnly = return $ Just Sat
-  | otherwise     = return $ Just $ Unsat $ TypeNotEscapable t m
+  | not (readonly s) = return $ Just Sat
+  | otherwise        = return $ Just $ Unsat $ TypeNotEscapable t m
 
 rule (Share  (T (TArray t _)) m) = return . Just $ Share  t m
 rule (Drop   (T (TArray t _)) m) = return . Just $ Drop   t m

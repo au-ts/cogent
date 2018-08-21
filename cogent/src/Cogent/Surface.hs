@@ -14,6 +14,7 @@
 
 module Cogent.Surface where
 
+import Cogent.Common.Repr (Representation)
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Util
@@ -62,7 +63,6 @@ data Inline = Inline
 data RepSize = Bytes Int | Bits Int | Add RepSize RepSize -- Future options, sizeof, offsetof, "after"
              deriving (Show, Eq, Ord)
 
-data RepDecl = RepDecl SourcePos RepName RepExpr deriving (Show, Eq, Ord)
 
 data RepExpr = Prim    RepSize
              | Record  [(FieldName, SourcePos, RepExpr)] 
@@ -71,11 +71,21 @@ data RepExpr = Prim    RepSize
              | RepRef RepName
             deriving (Show, Eq, Ord)
 
+noRepE = RepRef "_|_"  -- TODO
+
 allRepRefs :: RepExpr -> [RepName]
 allRepRefs (Record fs) = concatMap (allRepRefs . thd3) fs
 allRepRefs (Variant _ cs) = concatMap (\(_,_,_,e) -> allRepRefs e) cs
 allRepRefs (RepRef n) = [n]
 allRepRefs _ = []
+
+data RepDecl = RepDecl SourcePos RepName RepExpr deriving (Show, Eq, Ord)
+
+data RepData = Rep
+               { originalDecl :: RepDecl
+               , name :: RepName
+               , representation :: Representation
+               }
 
 data Expr t p ip e = PrimOp OpName [e]
                    | Var VarName
@@ -110,10 +120,10 @@ type Taken  = Bool
 
 data Type e t =
               -- They are in WHNF
-                TCon TypeName [t] Sigil
+                TCon TypeName [t] (Sigil RepExpr)  -- FIXME: can polymophise the `Representation`
               | TVar VarName Banged
               | TFun t t
-              | TRecord [(FieldName, (t, Taken))] Sigil
+              | TRecord [(FieldName, (t, Taken))] (Sigil RepExpr)
               | TVariant (M.Map TagName ([t], Taken))
               | TTuple [t]
               | TUnit

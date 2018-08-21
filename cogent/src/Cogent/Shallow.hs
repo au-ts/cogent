@@ -100,18 +100,18 @@ shallowRecTupleType fs = shallowTupleType <$> mapM shallowType (map (fst . snd) 
 shallowType :: CC.Type t -> SG I.Type
 shallowType (TVar v) = I.TyVar <$> ((!!) <$> asks typeVars <*> pure (finInt v))
 shallowType (TVarBang v) = shallowType (TVar v)
-shallowType (TCon tn ts) = I.TyDatatype tn <$> mapM shallowType ts
+shallowType (TCon tn ts _) = I.TyDatatype tn <$> mapM shallowType ts
 shallowType (TFun t1 t2) = I.TyArrow <$> shallowType t1 <*> shallowType t2
 shallowType (TPrim pt) = pure $ shallowPrimType pt
 shallowType (TString) = pure $ I.AntiType "string"
 shallowType (TSum alts) = shallowTypeWithName (TSum alts)
 shallowType (TProduct t1 t2) = I.TyTuple <$> shallowType t1 <*> shallowType t2
-shallowType (TRecord fs) = do
+shallowType (TRecord fs s) = do
   tuples <- asks recoverTuples
   if tuples && isRecTuple (map fst fs) then
     shallowRecTupleType fs
   else
-    shallowTypeWithName (TRecord fs)
+    shallowTypeWithName (TRecord fs s)
 shallowType (TUnit) = return $ I.AntiType "unit"
 
 shallowPrimType :: PrimInt -> I.Type
@@ -179,10 +179,10 @@ findShortType t = do
   map <- use concTypeSyns
   case M.lookup (hashType t) map of
    Nothing -> findType t
-   Just tn -> pure $ TCon tn []
+   Just tn -> pure $ TCon tn [] (__impossible "findShortType")
 
 findTypeSyn :: CC.Type t -> SG String
-findTypeSyn t = findType t >>= \(TCon nm _) -> pure nm
+findTypeSyn t = findType t >>= \(TCon nm _ _) -> pure nm
 
 shallowPromote :: TypeName -> CC.Type t -> TypedExpr t v VarName -> SG Term
 shallowPromote _ (TPrim pt) (TE _ (ILit n _)) = pure $ shallowILit n pt
@@ -221,11 +221,11 @@ shallowExpr (TE t (Case e tag (_,n1,e1) (_,n2,e2))) = do
   let TSum alts = exprType e
       falts = (filter ((/=) tag . fst) alts)
       tags = map fst alts
-      types = map (fst . snd) falts  -- FIXME: cogent.1
+      types = map (fst . snd) falts
   tnto <- findTypeSyn $ TSum falts
   -- Types of the shrinked variant type so that we can generate a
   -- TermWithType and prevent Isabelle from complaining about not knowing the type
-  stypes <- shallowType $ TCon tnto types
+  stypes <- shallowType $ TCon tnto types (__impossible "shallowExpr")
   e1' <- mkLambdaE [snm n1] e1
   e2' <- mkLambdaE [snm n2] e2
   -- Increment the variable generator, we need to generate a variable
@@ -310,7 +310,7 @@ shallowGetter :: TypedExpr t v VarName -> Int -> Term -> SG Term
 shallowGetter rec idx rect = mkApp <$> (mkId <$> getRecordFieldName (exprType rec) idx) <*> pure [rect]
 
 getRecordFieldName :: CC.Type t -> Int -> SG String
-getRecordFieldName t@(TRecord fs) ind = do
+getRecordFieldName t@(TRecord fs _) ind = do
   tn <- findTypeSyn t
   let fnms = map fst fs
   tuples <- asks recoverTuples
@@ -322,17 +322,17 @@ typarUpd typar v = v {typeVars = typar}
 
 -- Clear out all taken annotations and mark all sigil as Writable
 sanitizeType :: CC.Type t -> CC.Type t
-sanitizeType (TSum ts) = TSum (map (\(tn,(t,b)) -> (tn,(sanitizeType t,b))) ts)  -- FIXME: cogent.1
-sanitizeType (TRecord ts) = TRecord (map (\(tn, (t,_)) -> (tn, (sanitizeType t, False))) ts)
-sanitizeType (TCon tn ts) = TCon tn (map sanitizeType ts)
+sanitizeType (TSum ts) = TSum (map (\(tn,(t,b)) -> (tn,(sanitizeType t,b))) ts)
+sanitizeType (TRecord ts s) = TRecord (map (\(tn, (t,_)) -> (tn, (sanitizeType t, False))) ts) s
+sanitizeType (TCon tn ts s) = TCon tn (map sanitizeType ts) s
 sanitizeType (TFun ti to) = TFun (sanitizeType ti) (sanitizeType to)
 sanitizeType (TProduct t t') = TProduct (sanitizeType t) (sanitizeType t')
 sanitizeType t = t
 
 hashType :: CC.Type t -> String
-hashType (TSum ts)    = show (sanitizeType $ TSum ts)
-hashType (TRecord ts) = show (sanitizeType $ TRecord ts)
-hashType _            = error "Should only pass Variant and Record types"
+hashType (TSum ts)      = show (sanitizeType $ TSum ts)
+hashType (TRecord ts s) = show (sanitizeType $ TRecord ts s)
+hashType _              = error "Should only pass Variant and Record types"
 
 shallowTypeDefSaveSyn:: TypeName -> [TyVarName] -> CC.Type t -> SG [TheoryDecl I.Type I.Term]
 shallowTypeDefSaveSyn tn ps r = do
@@ -344,9 +344,9 @@ shallowTypeDefSaveSyn tn ps r = do
   pure [TypeSynonym (TypeSyn syname st ps)]
 
 shallowTypeDef :: TypeName -> [TyVarName] -> CC.Type t -> SG [TheoryDecl I.Type I.Term]
-shallowTypeDef tn ps (TPrim p) = pure [TypeSynonym (TypeSyn tn (shallowPrimType p) ps)]
-shallowTypeDef tn ps (TRecord fs) = shallowTypeDefSaveSyn tn ps (TRecord fs)
-shallowTypeDef tn ps (TSum ts) = shallowTypeDefSaveSyn tn ps (TSum ts)
+shallowTypeDef tn ps (TPrim p)      = pure [TypeSynonym (TypeSyn tn (shallowPrimType p) ps)]
+shallowTypeDef tn ps (TRecord fs s) = shallowTypeDefSaveSyn tn ps (TRecord fs s)
+shallowTypeDef tn ps (TSum ts)      = shallowTypeDefSaveSyn tn ps (TSum ts)
 shallowTypeDef tn ps t = do
   st <- shallowType t
   pure [TypeSynonym (TypeSyn tn st ps)]
@@ -468,7 +468,7 @@ pad0 :: Int -> String -> String
 pad0 n s = replicate (max 0 $ n - P.length s) '0' ++ s
 
 synAllTypeStr :: Definition TypedExpr VarName -> [(TypeStr, TypeName)]
-synAllTypeStr (TypeDef tn _ (Just (TRecord fs))) = [(RecordStr $ P.map fst fs, tn)]
+synAllTypeStr (TypeDef tn _ (Just (TRecord fs _))) = [(RecordStr $ P.map fst fs, tn)]
 synAllTypeStr (TypeDef tn _ (Just (TSum tgty))) =
   let tags = P.map fst tgty
       genmask = \n -> pad0 (P.length tags) $ showIntAtBase 2 intToDigit n ""
@@ -482,10 +482,10 @@ shallowTypeFromTable = do
   table <- asks typeStrs
   let itable = P.zip [0..] table
   (decls1,decls2,lemmas,defnames,maps) <- unzip5 <$> mapM shallowTT itable
-  pure $ ( concat decls1
-         , map snd (concat decls2) ++ concat lemmas ++
-           lemmaBuckets (concat decls2) ++ defNameBucket (concat defnames)
-         , M.unions maps )
+  pure ( concat decls1
+       , map snd (concat decls2) ++ concat lemmas ++
+         lemmaBuckets (concat decls2) ++ defNameBucket (concat defnames)
+       , M.unions maps )
   where
     defNameBucket [] = []
     defNameBucket ns@(_:_) = [O.LemmasDecl (O.Lemmas (O.TheoremDecl (Just "tuple_defs") [Attribute "simp" []]) $ map thmDecl ns)]

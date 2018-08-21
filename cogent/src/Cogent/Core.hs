@@ -60,23 +60,17 @@ import qualified Text.PrettyPrint.ANSI.Leijen as L ((<$>))
 data Type t
   = TVar (Fin t)
   | TVarBang (Fin t)
-  | TCon TypeName [Type t]
+  | TCon TypeName [Type t] (Sigil Representation)
   | TFun (Type t) (Type t)
   | TPrim PrimInt
   | TString
   | TSum [(TagName, (Type t, Bool))]  -- True means taken (since 2.0.4)
   | TProduct (Type t) (Type t)
-  | TRecord [(FieldName, (Type t, Bool))]  -- True means taken
+  | TRecord [(FieldName, (Type t, Bool))] (Sigil Representation)  -- True means taken
   | TUnit
   | TArray (Type t) ArraySize  -- use Int for now
                                -- XXX | ^^^ (UntypedExpr t 'Zero VarName)  -- stick to UntypedExpr to be simple / zilinc
-  | TPtr (Type t) Representation Sigil  -- this sigil can only be readonly and writable
   deriving (Show, Eq, Ord)
-
-sigilise :: Sigil -> Maybe Representation -> (Type t -> Type t)
-sigilise Unboxed _ = id
-sigilise s (Just r) = flip3 TPtr s r  -- TODO
-sigilise _ _ = __impossible "sigilise"
 
 data SupposedlyMonoType = forall (t :: Nat). SMT (Type t)
 
@@ -84,9 +78,10 @@ isTFun :: Type t -> Bool
 isTFun (TFun {}) = True
 isTFun _ = False
 
-isPtr :: Type t -> Bool
-isPtr (TPtr {}) = True
-isPtr _ = False
+isUnboxed :: Type t -> Bool
+isUnboxed (TCon _ _ Unboxed) = True
+isUnboxed (TRecord _ Unboxed) =  True
+isUnboxed _ = False
 
 data FunNote = NoInline | InlineMe | MacroCall | InlinePlease  -- order is important, larger value has stronger precedence
              deriving (Bounded, Eq, Ord, Show)
@@ -412,23 +407,23 @@ instance Pretty (Type t) where
   pretty (TString) = typename "String"
   pretty (TUnit) = typename "()"
   pretty (TProduct t1 t2) = tupled (map pretty [t1, t2])
-  pretty (TSum alts) = variant (map (\(n,(t,b)) -> tagname n L.<> prettyTaken b <+> pretty t) alts)  -- FIXME: cogent.1
+  pretty (TSum alts) = variant (map (\(n,(t,b)) -> tagname n L.<> prettyTaken b <+> pretty t) alts)
   pretty (TFun t1 t2) = prettyT' t1 <+> typesymbol "->" <+> pretty t2
      where prettyT' e@(TFun {}) = parens (pretty e)
            prettyT' e           = pretty e
-  pretty (TRecord fs) = record (map (\(f,(t,b)) -> fieldname f <+> symbol ":" L.<> prettyTaken b <+> pretty t) fs)
-  pretty (TCon tn []) = typename tn
-  pretty (TCon tn ts) = typename tn <+> typeargs (map pretty ts)
+  pretty (TRecord fs s) = record (map (\(f,(t,b)) -> fieldname f <+> symbol ":" L.<> prettyTaken b <+> pretty t) fs)
+                          <> pretty s
+  pretty (TCon tn [] s) = typename tn <> pretty s
+  pretty (TCon tn ts s) = typename tn <> pretty s <+> typeargs (map pretty ts)
   pretty (TArray t l) = pretty t <> brackets (pretty l)
-  pretty (TPtr t r s) = symbol "*" <> pretty s <> parens (pretty t) <> pretty r
 
 prettyTaken :: Bool -> Doc
 prettyTaken True  = symbol "*"
 prettyTaken False = empty
 
-instance Pretty Sigil where
-  pretty Writable = empty
-  pretty ReadOnly = typesymbol "!"
+instance Pretty (Sigil r) where
+  pretty (Boxed False _) = empty
+  pretty (Boxed True  _) = typesymbol "!"
   pretty Unboxed  = typesymbol "#"
 
 #if __GLASGOW_HASKELL__ < 709

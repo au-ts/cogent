@@ -25,6 +25,7 @@ import qualified Cogent.Common.Repr as R
 import Cogent.Compiler
 import qualified Cogent.Context as C
 import Cogent.PrettyPrint (prettyC)
+import Cogent.ReprCheck (compile)
 import Cogent.Surface
 import Cogent.TypeCheck.Assignment (assignT, assignE, assignAlts)
 import Cogent.TypeCheck.Base
@@ -113,7 +114,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
   (RepDef d@(RepDecl pos n e)) -> do 
     traceTc "tc" (text "typecheck rep decl" <+> pretty n)
     reps <- lift . lift $ use knownReps
-    case R.compile reps d of 
+    case compile reps d of 
        Left e -> logErr $ RepError e
        Right result -> lift . lift $ knownReps %= M.insert n result
     return $ RepDef d
