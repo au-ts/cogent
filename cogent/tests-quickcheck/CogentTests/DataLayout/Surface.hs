@@ -9,9 +9,9 @@ import qualified Data.Map as M
 import Control.Monad (guard)
 
 import Test.QuickCheck
+import Text.Parsec.Pos (SourcePos)
 
 import Cogent.Common.Syntax (FieldName, TagName)
-import Cogent.DataLayout.Syntax (SourcePos)
 import Cogent.DataLayout.Surface
 import CogentTests.DataLayout.TypeCheck (bitSizeToRepSize)
 
@@ -46,7 +46,8 @@ genRepExpr size = oneof
           otherFields <- genFields (size - fieldSize)
           fieldName <- arbitrary
           fieldRepExpr <- genRepExpr fieldSize
-          return $ (fieldName, (), fieldRepExpr) : otherFields
+          sourcePos <- arbitrary
+          return $ (fieldName, sourcePos, fieldRepExpr) : otherFields
         
     
     genVariant :: Int -> Gen RepExpr
@@ -67,7 +68,8 @@ genRepExpr size = oneof
           altName <- arbitrary
           altValue <- arbitrary
           altRepExpr <- genRepExpr altSize
-          return $ (altName, (), altValue, altRepExpr) : otherAlts
+          sourcePos <- arbitrary
+          return $ (altName, sourcePos, altValue, altRepExpr) : otherAlts
     
     genOffset :: Int -> Gen RepExpr
     genOffset size = Offset <$> (genRepExpr size) <*> arbitrary
