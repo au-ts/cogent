@@ -19,11 +19,12 @@
 
 module Cogent.TypeCheck.Base where
 
-import qualified Cogent.Common.Repr as R
+import Cogent.DataLayout.TypeCheck  (DataLayoutSurfaceToCoreError, Allocation)
+import Cogent.DataLayout.Core       (DataLayout, BitRange)
+
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler
-import Cogent.ReprCheck as R
 import Cogent.Surface
 import Cogent.TypeCheck.Row (Row)
 import qualified Cogent.TypeCheck.Row as Row
@@ -88,7 +89,7 @@ data TypeError = FunctionNotFound VarName
                | CustTyGenIsPolymorphic TCType
                | CustTyGenIsSynonym TCType
                | TypeWarningAsError TypeWarning
-               | RepError R.RepError
+               | RepError DataLayoutSurfaceToCoreError
                deriving (Eq, Show, Ord)
 
 isWarnAsError :: TypeError -> Bool
@@ -358,7 +359,7 @@ type TypeDict = [(TypeName, ([VarName], Maybe TCType))]  -- `Nothing' for abstra
 data TcState = TcState { _knownFuns    :: M.Map FunName (Polytype TCType)
                        , _knownTypes   :: TypeDict
                        , _knownConsts  :: M.Map VarName (TCType, TCExpr, SourcePos)
-                       , _knownReps    :: M.Map RepName (R.Allocation, RepData)
+                       , _knownReps    :: M.Map RepName (DataLayout BitRange, Allocation)
                        }
 
 makeLenses ''TcState

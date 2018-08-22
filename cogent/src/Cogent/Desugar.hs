@@ -30,8 +30,8 @@
 {-# LANGUAGE ViewPatterns #-}
 
 module Cogent.Desugar where
+import Cogent.DataLayout.Desugar
 
-import Cogent.Common.Repr
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler
@@ -544,9 +544,9 @@ desugarType = \case
 #endif
   notInWHNF -> __impossible $ "desugarType (type" ++ show (pretty notInWHNF) ++ "is not in WHNF)"
 
-desugarSigil :: Sigil S.RepExpr -> Sigil Representation
+desugarSigil :: Sigil S.RepExpr -> Sigil (DataLayout BitRange)
 desugarSigil Unboxed = Unboxed
-desugarSigil (Boxed ro r) = Boxed ro dummyRepr
+desugarSigil (Boxed ro l) = Boxed ro (desugarDataLayout (__todo "Add DataLayoutDefns to the desugar state!") l)
 
 desugarNote :: S.Inline -> FunNote
 desugarNote S.NoInline = NoInline
