@@ -18,7 +18,6 @@
 
 module Cogent.ProofGen where
 
-import Cogent.Common.Repr
 import Cogent.Common.Types
 import Cogent.Common.Syntax
 import Cogent.Compiler
@@ -94,13 +93,13 @@ data Hints = KindingTacs [Tactic]
 data Type'
   = TVar' Int
   | TVarBang' Int
-  | TCon' TypeName [Type'] (Sigil Representation)
+  | TCon' TypeName [Type'] (Sigil (DataLayout BitRange))
   | TFun' Type' Type'
   | TPrim' PrimInt
   | TString'
   | TSum' [(TagName, (Type', Bool))]
   | TProduct' Type' Type'
-  | TRecord' [(FieldName, (Type', Bool))] (Sigil Representation)
+  | TRecord' [(FieldName, (Type', Bool))] (Sigil (DataLayout BitRange))
   | TUnit'
   deriving (Eq, Ord)
 

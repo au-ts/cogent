@@ -72,7 +72,6 @@ library
               , Cogent.Preprocess
               , Cogent.ProofGen
               , Cogent.Reorganizer
-              , Cogent.ReprCheck
               , Cogent.Root
               , Cogent.Shallow
               , Cogent.ShallowHaskell
@@ -95,6 +94,7 @@ library
               , Cogent.DataLayout.Core
               , Cogent.DataLayout.Surface
               , Cogent.DataLayout.TypeCheck
+              , Cogent.DataLayout.Desugar
               -- Generated
               , Paths_cogent
               , Version_cogent
