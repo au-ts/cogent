@@ -297,7 +297,8 @@ monotype = do avoidInitial
                          ; return (LocType (posOfT t) $ TArray t l)
                          } )
            <|>  (atomtype >>= \t -> optionMaybe bang >>= \op -> case op of Nothing -> return t; Just f -> return (f t)))
-    paramtype = avoidInitial >> LocType <$> getPosition <*> (TCon <$> typeConName <*> many1 typeA2 <*> pure Writable)
+    paramtype = avoidInitial >> LocType <$> getPosition
+                                        <*> (TCon <$> typeConName <*> many1 typeA2 <*> pure (Boxed False noRepE))
     unbox = avoidInitial >> reservedOp "#" >> return (\x -> LocType (posOfT x) (TUnbox x))
     bang  = avoidInitial >> reservedOp "!" >> return (\x -> LocType (posOfT x) (TBang x))
     takeput = avoidInitial >>
@@ -309,12 +310,12 @@ monotype = do avoidInitial
               <|> (do tn <- typeConName
                       let s = if tn `elem` primTypeCons  -- give correct sigil to primitive types
                                 then Unboxed
-                                else Writable
+                                else Boxed False noRepE 
                       return $ TCon tn [] s
                   )
               -- <|> TCon <$> typeConName <*> pure [] <*> pure Writable
               <|> tuple <$> parens (commaSep monotype)
-              <|> TRecord <$> braces (commaSep1 ((\a b c -> (a,(b,c))) <$> variableName <* reservedOp ":" <*> monotype <*> pure False)) <*> pure Writable
+              <|> TRecord <$> braces (commaSep1 ((\a b c -> (a,(b,c))) <$> variableName <* reservedOp ":" <*> monotype <*> pure False)) <*> pure (Boxed False noRepE)
               <|> TVariant . M.fromList <$> angles (((,) <$> typeConName <*> fmap ((,False)) (many typeA2)) `sepBy` reservedOp "|"))
     tuple [] = TUnit
     tuple [e] = typeOfLT e

@@ -26,6 +26,7 @@ import Cogent.Common.Types
 import qualified Cogent.Common.Repr as R
 import Cogent.Compiler
 import Cogent.Reorganizer (ReorganizeError(..), SourceObject(..))
+import Cogent.ReprCheck
 import Cogent.Surface
 -- import Cogent.TypeCheck --hiding (context)
 import Cogent.TypeCheck.Assignment
@@ -454,12 +455,12 @@ prettyT' t | not $ isAtomic t = parens (pretty t)
            | otherwise        = pretty t
 
 instance (Pretty t, TypeType t, Pretty e) => Pretty (Type e t) where
-  pretty (TCon n [] s) = ($ typename n) (if | s == ReadOnly -> (<> typesymbol "!")
-                                            | s == Unboxed && (n `notElem` primTypeCons) -> (typesymbol "#" <>)
-                                            | otherwise     -> id)
-  pretty (TCon n as s) = (if | s == ReadOnly -> (<> typesymbol "!") . parens
-                             | s == Unboxed  -> (typesymbol "#" <>)
-                             | otherwise     -> id) $
+  pretty (TCon n [] s) = (if | readonly s -> (<> typesymbol "!")
+                             | s == Unboxed && n `notElem` primTypeCons -> (typesymbol "#" <>)
+                             | otherwise -> id) $ typename n
+  pretty (TCon n as s) = (if | readonly s -> (<> typesymbol "!") . parens
+                             | s == Unboxed -> (typesymbol "#" <>)
+                             | otherwise -> id) $
                          typename n <+> hsep (map prettyT' as)
   pretty (TVar n b)  = typevar n <> (if b then typesymbol "!" else empty)
   pretty (TTuple ts) = tupled (map pretty ts)
@@ -467,7 +468,7 @@ instance (Pretty t, TypeType t, Pretty e) => Pretty (Type e t) where
   pretty (TArray t l) = prettyT' t <> brackets (pretty l)
   pretty (TRecord ts s)
     | not . or $ map (snd . snd) ts = (if | s == Unboxed -> (typesymbol "#" <>)
-                                          | s == ReadOnly -> (<> typesymbol "!")
+                                          | readonly s -> (<> typesymbol "!")
                                           | otherwise -> id) $
         record (map (\(a,(b,c)) -> fieldname a <+> symbol ":" <+> pretty b) ts)  -- all untaken
     | otherwise = pretty (TRecord (map (second . second $ const False) ts) s :: Type e t)
@@ -757,12 +758,12 @@ instance Pretty a => Pretty (I.IntMap a) where
   pretty = vcat . map (\(k,v) -> pretty k <+> text "|->" <+> pretty v) . I.toList
 
 
-instance Pretty R.RepError where 
-  pretty (R.UnknownRepr r ctx) 
+instance Pretty RepError where 
+  pretty (UnknownRepr r ctx) 
      = indent (err "Unknown representation" <+> reprname r <$$> pretty ctx)
-  pretty (R.TagMustBeSingleBlock ctx) 
+  pretty (TagMustBeSingleBlock ctx) 
      = indent (err "Variant tag must be a single block of bits" <$$> pretty ctx)
-  pretty (R.OverlappingBlocks (R.Block s1 o1 c1) (R.Block s2 o2 c2)) 
+  pretty (OverlappingBlocks (Block s1 o1 c1) (Block s2 o2 c2)) 
      = err "Two memory blocks are overlapping." <$$> 
        indent (err "The first block is of size" <+> literal (string $ show s1) <+> err "bits at offset" <+> literal (string $ show o1) <+> err "bits." <$$>
        -- TODO make the bits show up as bytes/bits.
@@ -770,11 +771,11 @@ instance Pretty R.RepError where
        indent (err "The second block is of size" <+> literal (string $ show s2) <+> err "bits at offset" <+> literal (string $ show o2) <+> err "bits" <$$> 
        pretty c2)
 
-instance Pretty R.RepContext where 
-  pretty (R.InField n po ctx) = context' "for field" <+> fieldname n <+> context' "(" <> pretty po <> context' ")" </> pretty ctx 
-  pretty (R.InTag ctx) = context' "for the variant tag block" </> pretty ctx
-  pretty (R.InAlt t po ctx) = context' "for the constructor" <+> tagname t <+> context' "(" <> pretty po <> context' ")" </> pretty ctx 
-  pretty (R.InDecl (RepDecl p n _)) = context' "in the representation" <+> reprname n <+> context' "(" <> pretty p <> context' ")" 
+instance Pretty RepContext where 
+  pretty (InField n po ctx) = context' "for field" <+> fieldname n <+> context' "(" <> pretty po <> context' ")" </> pretty ctx 
+  pretty (InTag ctx) = context' "for the variant tag block" </> pretty ctx
+  pretty (InAlt t po ctx) = context' "for the constructor" <+> tagname t <+> context' "(" <> pretty po <> context' ")" </> pretty ctx 
+  pretty (InDecl (RepDecl p n _)) = context' "in the representation" <+> reprname n <+> context' "(" <> pretty p <> context' ")" 
 
 instance Pretty R.Representation where
   pretty (R.Bits s o) = keyword "repr" <> parens (pretty s <> symbol "+" <> pretty o)

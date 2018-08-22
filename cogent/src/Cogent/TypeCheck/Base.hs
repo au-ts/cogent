@@ -23,6 +23,7 @@ import qualified Cogent.Common.Repr as R
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler
+import Cogent.ReprCheck as R
 import Cogent.Surface
 -- import Cogent.TypeCheck.Util
 import Cogent.Util
@@ -301,7 +302,7 @@ type TypeDict = [(TypeName, ([VarName], Maybe TCType))]  -- `Nothing' for abstra
 data TcState = TcState { _knownFuns    :: M.Map FunName (Polytype TCType)
                        , _knownTypes   :: TypeDict
                        , _knownConsts  :: M.Map VarName (TCType, TCExpr, SourcePos)
-                       , _knownReps    :: M.Map RepName (R.Allocation, R.RepData)
+                       , _knownReps    :: M.Map RepName (R.Allocation, RepData)
                        }
 
 makeLenses ''TcState

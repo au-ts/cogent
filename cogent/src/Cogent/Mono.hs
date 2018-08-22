@@ -17,12 +17,12 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 --{-# LANGUAGE ImpredicativeTypes #-}
-{-# LANGUAGE KindSignatures #-}
+{- LANGUAGE KindSignatures #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE StandaloneDeriving #-}
+{- LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -45,7 +45,7 @@ import Control.Monad.RWS.Strict hiding (Product, Sum, mapM)
 import Data.Function.Flippers (flip3)
 import Data.List as L (partition)
 import Data.Map as M
-import Data.Maybe (catMaybes, fromJust)
+import Data.Maybe (catMaybes, fromJust, fromMaybe)
 import Data.Set as S
 import Prelude as P
 
@@ -93,12 +93,10 @@ mono :: [Definition TypedExpr VarName]
      -> [(SupposedlyMonoType, String)]
      -> Maybe (FunMono, TypeMono)
      -> ((FunMono, TypeMono), ([Warning], [Definition TypedExpr VarName], [(Type 'Zero, String)]))
-mono ds ctygen initmap = (second . second3 $ reverse) . (flip3 execRWS initmap' []) . runMono $ monoDefinitions (reverse ds) >> monoCustTyGen ctygen
+mono ds ctygen initmap = (second . second3 $ reverse) . flip3 execRWS initmap' [] . runMono $ monoDefinitions (reverse ds) >> monoCustTyGen ctygen
   where initmap' :: (FunMono, TypeMono)  -- a map consists of all function names, each of which has no instances
-        initmap' = case initmap of
-                     Nothing -> ( M.fromList $ P.zip (catMaybes $ P.map getFuncId ds) (P.repeat M.empty)  -- [] can never appear in the map
-                                , M.empty)
-                     Just m  -> m
+        initmap' = fromMaybe ( M.fromList $ P.zip (catMaybes $ P.map getFuncId ds) (P.repeat M.empty)  -- [] can never appear in the map
+                             , M.empty ) initmap
 
 monoDefinitions :: [Definition TypedExpr VarName] -> Mono ()
 monoDefinitions = mapM_ monoDefinition
@@ -192,15 +190,15 @@ monoExpr (TE t e) = TE <$> monoType t <*> monoExpr' e
 monoType :: Type t -> Mono (Type 'Zero)
 monoType (TVar v) = atList <$> ask <*> pure v
 monoType (TVarBang v) = bang <$> (atList <$> ask <*> pure v)
-monoType (TCon n []) = do
+monoType (TCon n [] s) = do
   modify . second $ M.insert n S.empty
-  return $ TCon n []
-monoType (TCon n ts) = do
+  return $ TCon n [] s
+monoType (TCon n ts s) = do
   ts' <- mapM monoType ts
   let f Nothing   = Just $ S.singleton ts'   -- If n is not in the set
       f (Just is) = Just $ S.insert ts' is   -- Otherwise
   modify . second $ M.alter f n
-  return $ TCon n ts'
+  return $ TCon n ts' s
 monoType (TFun t1 t2) = TFun <$> monoType t1 <*> monoType t2
 monoType (TPrim p) = pure $ TPrim p
 monoType (TString) = pure $ TString
@@ -209,10 +207,9 @@ monoType (TSum alts) = do
   ts' <- mapM monoType ts
   return $ TSum $ P.zip ns $ P.zip ts' bs
 monoType (TProduct t1 t2) = TProduct <$> monoType t1 <*> monoType t2
-monoType (TRecord fs) = TRecord <$> mapM (\(f,(t,b)) -> (f,) <$> (,b) <$> monoType t) fs
+monoType (TRecord fs s) = TRecord <$> mapM (\(f,(t,b)) -> (f,) <$> (,b) <$> monoType t) fs <*> pure s
 monoType (TUnit) = pure TUnit
 monoType (TArray t l) = TArray <$> monoType t <*> pure l
-monoType (TPtr t r s) = TPtr <$> monoType t <*> pure r <*> pure s
 
 -- ----------------------------------------------------------------------------
 -- custTyGen

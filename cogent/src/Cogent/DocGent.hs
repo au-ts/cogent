@@ -158,14 +158,17 @@ prettyType (LocType _ (TTuple ts)) x       = let rest = foldMap id x
                                                  row t s = let t' = prettyType t Nothing in [shamlet|<tr><td>#{s}</td><td class='spaced'>#{t'}</td>|]
                                                  rows = zipWith row ts $ '(' : repeat ','
                                               in [shamlet|<table>#{rows}<tr><td>)</td><td>#{rest}</td><td></td></tr>|]
-prettyType (LocType p (TCon t ts Unboxed))  x = if t `elem` primTypeCons then prettyType (LocType p (TCon t ts Writable)) x
-                                                                         else prettyType (LocType p (TUnbox (LocType p (TCon t ts Writable)))) x
-prettyType (LocType p (TCon t ts ReadOnly)) x = prettyType (LocType p (TBang (LocType p (TCon t ts Writable)))) x
-prettyType (LocType p (TCon t ts Writable)) x | not $ null ts = let rest = foldMap id x
-                                                                    row t = let t' = prettyType t Nothing in [shamlet|<tr><td></td><td class='spaced'>#{t'}</td>|]
-                                                                    rows = map row ts
-                                                                    t' = withLinking ?knowns t
-                                                                in [shamlet|<table><tr><td class='fg-Vivid-Blue BoldIntensity'>#{t'}</td><td></td><td></td></tr>#{rows}<tr><td></td><td>#{rest}</td></tr>|]
+prettyType (LocType p (TCon t ts Unboxed)) x 
+  = if t `elem` primTypeCons then prettyType (LocType p (TCon t ts $ Boxed False noRepE)) x
+                             else prettyType (LocType p (TUnbox (LocType p (TCon t ts $ Boxed False noRepE)))) x
+prettyType (LocType p (TCon t ts (Boxed True  r))) x
+  = prettyType (LocType p (TBang (LocType p (TCon t ts $ Boxed False r)))) x
+prettyType (LocType p (TCon t ts (Boxed False r))) x 
+  | not $ null ts = let rest = foldMap id x
+                        row t = let t' = prettyType t Nothing in [shamlet|<tr><td></td><td class='spaced'>#{t'}</td>|]
+                        rows = map row ts
+                        t' = withLinking ?knowns t
+                     in [shamlet|<table><tr><td class='fg-Vivid-Blue BoldIntensity'>#{t'}</td><td></td><td></td></tr>#{rows}<tr><td></td><td>#{rest}</td></tr>|]
 prettyType (LocType p (TVariant ts)) x | any snd $ (F.toList ts)
                                        , ls <- map fst $ filter (snd . snd) (M.toList ts)
                                        , ts' <- fmap (fmap (const False)) ts
@@ -175,14 +178,17 @@ prettyType (LocType p (TVariant ts)) x | any snd $ (F.toList ts)
                                                  row (g,ts) s = let t' = listTypes ts in [shamlet|<tr><td>#{s}</td><td class='fg-Dull-Magenta spaced'>#{g}</td><td class='spaced'>#{t'}</td>|]
                                                  rows = zipWith row (M.toList $ fmap fst ts) $ '<' : repeat '|'
                                               in [shamlet|<table>#{rows}<tr><td>></td><td class='spaced' colspan=2>#{rest}</td><td></td></tr>|]
-prettyType (LocType p (TRecord ts Unboxed))  x = prettyType (LocType p (TUnbox (LocType p (TRecord ts Writable)))) x
-prettyType (LocType p (TRecord ts ReadOnly)) x = prettyType (LocType p (TBang (LocType p (TRecord ts Writable)))) x
-prettyType (LocType p (TRecord ts Writable)) x | ls <- map fst (filter (snd . snd) ts)
-                                               , not (null ls) = prettyType (LocType p (TTake (Just ls) (LocType p (TRecord ts Writable)))) x
-                                               | otherwise = let rest = foldMap id x
-                                                                 row (g,(t,_)) s = let t' = prettyType t Nothing in [shamlet|<tr><td>#{s}</td><td class='spaced fg-Vivid-Magenta'>#{g}</td><td class='spaced'>:</td><td class='spaced'>#{t'}</td>|]
-                                                                 rows = zipWith row ts $ '{' : repeat ','
-                                                              in [shamlet|<table>#{rows}<tr><td>}</td><td class='spaced' colspan=3>#{rest}</td><td></td></tr>|]
+prettyType (LocType p (TRecord ts Unboxed))  x
+  = prettyType (LocType p (TUnbox (LocType p (TRecord ts $ Boxed False noRepE)))) x
+prettyType (LocType p (TRecord ts (Boxed True r))) x
+  = prettyType (LocType p (TBang (LocType p (TRecord ts $ Boxed False r)))) x
+prettyType (LocType p (TRecord ts (Boxed False r))) x
+  | ls <- map fst (filter (snd . snd) ts)
+  , not (null ls) = prettyType (LocType p (TTake (Just ls) (LocType p (TRecord ts $ Boxed False noRepE)))) x
+  | otherwise = let rest = foldMap id x
+                    row (g,(t,_)) s = let t' = prettyType t Nothing in [shamlet|<tr><td>#{s}</td><td class='spaced fg-Vivid-Magenta'>#{g}</td><td class='spaced'>:</td><td class='spaced'>#{t'}</td>|]
+                    rows = zipWith row ts $ '{' : repeat ','
+                 in [shamlet|<table>#{rows}<tr><td>}</td><td class='spaced' colspan=3>#{rest}</td><td></td></tr>|]
 prettyType x (Just y) = fst (runState (displayHTML (prettyPrint id [pretty x])) defaultState) `mappend` y
 prettyType x Nothing = fst (runState (displayHTML (prettyPrint id [pretty x])) defaultState)
 

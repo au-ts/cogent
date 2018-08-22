@@ -10,16 +10,23 @@ import Data.Monoid
 #endif
 import Text.PrettyPrint.ANSI.Leijen hiding (tupled,indent)
 
+type ReadOnly = Bool  -- True for r/o
 
-data Sigil = ReadOnly  -- 0-kind
-           | Writable  -- 1-kind
-           | Unboxed   -- 2-kind
-           deriving (Show, Eq, Ord)
+data Sigil r = Boxed ReadOnly r  -- 0- or 1-kinded
+             | Unboxed  -- 2-kinded
+             deriving (Show, Eq, Ord)
 
-bangSigil :: Sigil -> Sigil
-bangSigil ReadOnly = ReadOnly
-bangSigil Writable = ReadOnly
-bangSigil Unboxed  = Unboxed
+bangSigil :: Sigil r -> Sigil r
+bangSigil (Boxed _ r)  = Boxed True r
+bangSigil Unboxed      = Unboxed
+
+writable :: Sigil r -> Bool
+writable (Boxed False _) = True
+writable _ = False
+
+readonly :: Sigil r -> Bool
+readonly (Boxed True _) = True
+readonly _ = False
 
 data PrimInt = U8 | U16 | U32 | U64 | Boolean deriving (Show, Eq, Ord)
 
@@ -43,10 +50,9 @@ instance Pretty PrimInt where
 data Kind = K { canEscape :: Bool, canShare :: Bool, canDiscard :: Bool }
           deriving (Show, Eq, Ord)
 
-sigilKind :: Sigil -> Kind
-sigilKind ReadOnly = k0
-sigilKind Writable = k1
-sigilKind Unboxed  = k2
+sigilKind :: Sigil r -> Kind
+sigilKind (Boxed ro _) = if ro then k0 else k1
+sigilKind Unboxed      = k2
 
 k0, k1, k2 :: Kind
 k0 = K False True  True

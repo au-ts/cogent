@@ -11,7 +11,7 @@
 
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE KindSignatures #-}
+{- LANGUAGE KindSignatures #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -52,10 +52,10 @@ toTypeStr (TProduct t1 t2) = nub $ toTypeStr t1 ++ toTypeStr t2
 toTypeStr (TSum ts)        = nub $ VariantStr (sort $ P.map fst ts) : concat (P.map (toTypeStr . fst . snd) ts)
    -- ^ NOTE: alternatives are sorted, however they should have been sorted by desugarer, `toList' / zilinc  -- FIXME: cogent.1
 toTypeStr (TFun ti to)     = nub $ toTypeStr ti ++ toTypeStr to
-toTypeStr (TRecord ts)     = nub $ RecordStr (P.map fst ts) : concat (P.map (toTypeStr . fst . snd) ts)
+toTypeStr (TRecord ts s)   = nub $ RecordStr (P.map fst ts) : concat (P.map (toTypeStr . fst . snd) ts)  -- TODO: sigil
 toTypeStr (TPrim i)        = []
 toTypeStr (TString)        = []
-toTypeStr (TCon n ts)      = nub $ concat $ P.map toTypeStr ts
+toTypeStr (TCon n ts s)    = nub $ concat $ P.map toTypeStr ts  -- TODO: sigil
 
 getStrlType :: M.Map TypeStr TypeName -> [TypeStr] -> Type t -> Type t
 getStrlType tsmap table (TSum ts) =  -- FIXME: cogent.1
@@ -65,18 +65,18 @@ getStrlType tsmap table (TSum ts) =  -- FIXME: cogent.1
   in case M.lookup tstr tsmap of
     Nothing ->
       let idx = findIndex tstr table
-      in TCon ('T':show idx) tps
+      in TCon ('T':show idx) tps Unboxed
     Just tn ->
-      TCon tn tps 
-getStrlType tsmap table (TRecord fs) =
+      TCon tn tps Unboxed
+getStrlType tsmap table (TRecord fs s) =
   let tstr = RecordStr (P.map fst fs)
       tps = P.map (fst . snd) fs
   in case M.lookup tstr tsmap of
     Nothing ->
       let idx = findIndex tstr table
-      in TCon ('T':show idx) tps
+      in TCon ('T':show idx) tps s
     Just tn ->
-      TCon tn tps
+      TCon tn tps s
 getStrlType _ _ t = t
 
 type ST = State [TypeStr]

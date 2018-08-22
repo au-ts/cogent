@@ -604,17 +604,7 @@ betaR _ _ _ _ _ = __ghc_t4139 "betaR"
 lookupKind :: Fin t -> Simp t Kind
 lookupKind f = (`V.at` f) <$> use kindEnv
 
-kindcheck :: Type t -> Simp t Kind
-kindcheck (TVar v)         = lookupKind v
-kindcheck (TVarBang v)     = bangKind <$> lookupKind v
-kindcheck (TUnit)          = return mempty
-kindcheck (TProduct t1 t2) = mappend <$> kindcheck t1 <*> kindcheck t2
-kindcheck (TSum ts)        = mconcat <$> (mapM (kindcheck . fst . snd) ts)
-kindcheck (TFun ti to)     = return mempty
-kindcheck (TRecord ts)     = mconcat <$> (mapM (kindcheck . fst . snd) (L.filter (not . snd .snd) ts))
-kindcheck (TPrim i)        = return mempty
-kindcheck (TString)        = return mempty
-kindcheck (TCon n vs)      = mconcat <$> mapM kindcheck vs
+kindcheck = kindcheck_ lookupKind
 
 typeNotLinear :: Type t -> Simp t Bool
 typeNotLinear t = kindcheck t >>= \k -> return (canDiscard k && canShare k)  -- NOTE: depending on definition of linear types, judgement may change / zilinc
