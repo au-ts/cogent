@@ -3,8 +3,10 @@ module Cogent.DataLayout.Core where
   
 import Data.Map (Map)
 
+import Text.Parsec.Pos (SourcePos)
+
 import Cogent.Common.Syntax (TagName, FieldName)
-import Cogent.DataLayout.Syntax (SourcePos)
+
 
 {- CORE DATALAYOUT TYPES -}
 

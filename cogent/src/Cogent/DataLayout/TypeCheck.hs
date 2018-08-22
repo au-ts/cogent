@@ -10,7 +10,7 @@ import Control.Monad (guard)
 
 import Cogent.Util (mapAccumLM)
 import Cogent.Common.Syntax (FieldName, TagName, RepName)
-import Cogent.DataLayout.Syntax (SourcePos)
+import Text.Parsec.Pos (SourcePos)
 import Cogent.DataLayout.Core
 import Cogent.DataLayout.Surface
 
