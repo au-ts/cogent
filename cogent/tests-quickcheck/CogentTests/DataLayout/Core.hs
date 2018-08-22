@@ -5,12 +5,12 @@ module CogentTests.DataLayout.Core where
 import Data.Map (Map)
 import qualified Data.Map as M
 
+import Text.Parsec.Pos (SourcePos, newPos)
 import Test.QuickCheck
 
 import Cogent.DataLayout.Core
 import Cogent.DataLayout.TypeCheck
 import Cogent.Common.Syntax (FieldName, TagName, RepName)
-import Cogent.DataLayout.Syntax (SourcePos)
 
 {- PROPERTIES -}
 
@@ -116,11 +116,12 @@ genSumLayout maxBitIndex maxSize path alloc =
     genAlts _ m n alloc | m == n = return (M.empty, alloc)
         
     genAlts maxSize tagValue maxTagValue alloc = do
+      sourcePos <- arbitrary
       altSize <- choose (1, maxSize)
       (remainingAlts, remainingAlloc) <- genAlts (maxSize - altSize) (tagValue + 1) maxTagValue alloc
       let altName = show tagValue
-      (altLayout, altAlloc) <- genDataLayout' maxBitIndex altSize (InAlt altName () path) alloc
-      return $ (M.insert altName (tagValue, altLayout, ()) remainingAlts, altAlloc ++ remainingAlloc)
+      (altLayout, altAlloc) <- genDataLayout' maxBitIndex altSize (InAlt altName sourcePos path) alloc
+      return $ (M.insert altName (tagValue, altLayout, sourcePos) remainingAlts, altAlloc ++ remainingAlloc)
 
     
 genRecordLayout
@@ -143,10 +144,11 @@ genRecordLayout maxBitIndex maxSize path alloc =
     genFields 0 _ alloc = return (M.empty, alloc)
     genFields maxSize name alloc = do
       fieldSize <- choose (1, maxSize)
+      sourcePos <- arbitrary
       (remainingFields, alloc') <- genFields (maxSize - fieldSize) (name + 1) alloc
       let fieldName = show name
-      (fieldLayout, alloc'') <- genDataLayout' maxBitIndex fieldSize (InField fieldName () path) alloc'
-      return $ (M.insert fieldName (fieldLayout, ()) remainingFields, alloc'')
+      (fieldLayout, alloc'') <- genDataLayout' maxBitIndex fieldSize (InField fieldName sourcePos path) alloc'
+      return $ (M.insert fieldName (fieldLayout, sourcePos) remainingFields, alloc'')
 
 
 -- Generates an unallocated BitRange
@@ -166,9 +168,9 @@ genBitRange maxBitIndex maxSize accumAlloc pathToRange = do
 -- Enumerates all bitranges from smallest last bit index to maxBitIndex
 allNonEmptyRanges :: Integer -> [BitRange]
 allNonEmptyRanges maxBitIndex = do
-  lastBitIndex <- [1 .. maxBitIndex]
-  size      <- [1 .. lastBitIndex]
-  let offset = lastBitIndex - size
+  lastBitIndex  <- [1 .. maxBitIndex]
+  size          <- [1 .. lastBitIndex]
+  let offset    = lastBitIndex - size
   return $ BitRange size offset
   
 -- Enumerates all ranges which are not allocated in the given Allocation
@@ -183,6 +185,14 @@ allNonAllocatedRanges maxBitIndex alloc path = do
     Left _         -> []
     Right newAlloc -> return (range, newAlloc)
 
+{- Arbitrary instances -}
+
+instance Arbitrary SourcePos where
+  arbitrary = do
+    sourceName <- arbitrary
+    line <- choose (0, 100)
+    column <- choose (0, 80)
+    return $ newPos sourceName line column
 
 return []
 testAll = $quickCheckAll
