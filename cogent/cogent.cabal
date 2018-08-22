@@ -81,6 +81,10 @@ library
               , Cogent.Preprocess
               , Cogent.Reorganizer
               , Cogent.ReprCheck
+              , Cogent.Root
+              , Cogent.Shallow
+              , Cogent.ShallowHaskell
+              , Cogent.ShallowTable
               , Cogent.Simplify
               , Cogent.SuParser
               , Cogent.Surface
@@ -101,6 +105,7 @@ library
               , Cogent.DataLayout.QuickCheck.Core
               , Cogent.DataLayout.QuickCheck.Surface
               , Cogent.DataLayout.QuickCheck.TypeCheck
+              , Cogent.DataLayout.Desugar
               , Data.DList
               , Data.Ex
               , Data.LeafTree

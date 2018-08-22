@@ -35,7 +35,7 @@ data DataLayoutPath
 -- The RepDecl being checked may contain references to any already declared Rep's in the Map.
 -- If so, we use the corresponding DataLayout and Allocation from the Map in place of that Rep reference.
 dataLayoutSurfaceToCore
-  :: Map RepName (DataLayout BitRange, Allocation, RepDecl)
+  :: Map RepName (DataLayout BitRange, Allocation)
   -> RepDecl
   -> Either DataLayoutSurfaceToCoreError (DataLayout BitRange, Allocation)
 dataLayoutSurfaceToCore env (RepDecl repPos repName repExpr) = evalRepExpr (InDecl repName repPos) repExpr
@@ -44,7 +44,7 @@ dataLayoutSurfaceToCore env (RepDecl repPos repName repExpr) = evalRepExpr (InDe
     
     evalRepExpr path (RepRef n) =
       case M.lookup n env of 
-        Just (layout, allocation, _) -> Right (layout, allocation)
+        Just (layout, allocation) -> Right (layout, allocation)
         Nothing                      -> Left $ UnknownRepr n path
             
     evalRepExpr path (Prim size) =

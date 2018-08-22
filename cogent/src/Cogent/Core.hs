@@ -37,9 +37,12 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-orphans -fno-warn-missing-signatures #-}
 
-module Cogent.Core where
+module Cogent.Core
+  ( module Cogent.Core
+  , module Cogent.DataLayout.Core
+  ) where
 
-import Cogent.Common.Repr
+import Cogent.DataLayout.Core
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler
@@ -62,13 +65,13 @@ import qualified Text.PrettyPrint.ANSI.Leijen as L ((<$>))
 data Type t
   = TVar (Fin t)
   | TVarBang (Fin t)
-  | TCon TypeName [Type t] (Sigil Representation)
+  | TCon TypeName [Type t] (Sigil (DataLayout BitRange))
   | TFun (Type t) (Type t)
   | TPrim PrimInt
   | TString
   | TSum [(TagName, (Type t, Bool))]  -- True means taken (since 2.0.4)
   | TProduct (Type t) (Type t)
-  | TRecord [(FieldName, (Type t, Bool))] (Sigil Representation)  -- True means taken
+  | TRecord [(FieldName, (Type t, Bool))] (Sigil (DataLayout BitRange))  -- True means taken
   | TUnit
   | TArray (Type t) ArraySize  -- use Int for now
                                -- XXX | ^^^ (UntypedExpr t 'Zero VarName)  -- stick to UntypedExpr to be simple / zilinc
