@@ -13,13 +13,13 @@ import Control.Monad (guard)
 
 import Test.QuickCheck
 import Test.QuickCheck.All
+import Text.Parsec.Pos (SourcePos)
 
 import Cogent.DataLayout.Surface
 import Cogent.DataLayout.Core
 import Cogent.DataLayout.TypeCheck
 import CogentTests.DataLayout.Core
 import Cogent.Common.Syntax (RepName)
-import Cogent.DataLayout.Syntax (SourcePos)
 
 {- PROPERTIES -}
 prop_allocationDisj :: Allocation -> Allocation -> Bool
@@ -80,7 +80,7 @@ toRepExpr (SumLayout tagBitRange alternatives) =
     
 {- ARBITRARY INSTANCES -}
 instance Arbitrary DataLayoutPath where
-  arbitrary = return $ InDecl "Dummy" ()
+  arbitrary = InDecl <$> arbitrary <*> arbitrary
     
 
 {- SET UTIL FUNCTIONS -}
