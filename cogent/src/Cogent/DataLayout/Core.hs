@@ -55,7 +55,7 @@ data DataLayout bits
   | RecordLayout
     { fieldsDL        :: Map FieldName (DataLayout bits, SourcePos)
     }
-  deriving (Show, Eq, Functor)
+  deriving (Show, Eq, Functor, Ord)
   
 {- WORD ALIGNMENT TRANSFORMATION -}
 wordSizeBits :: Integer
