@@ -48,7 +48,6 @@ library
               , Cogent.CodeGen
               , Cogent.Common.Syntax
               , Cogent.Common.Types
-              , Cogent.Common.Repr
               , Cogent.Compiler
               , Cogent.Context
               , Cogent.Core
