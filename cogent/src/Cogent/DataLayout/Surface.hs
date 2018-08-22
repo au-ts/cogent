@@ -1,6 +1,6 @@
 module Cogent.DataLayout.Surface where
 import Cogent.Common.Syntax (FieldName, TagName, RepName)
-import Cogent.DataLayout.Syntax (SourcePos)
+import Text.Parsec.Pos (SourcePos)
 
 {- SURFACE DATALAYOUT TYPES -}
 
