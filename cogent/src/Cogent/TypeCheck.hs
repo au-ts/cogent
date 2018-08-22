@@ -22,11 +22,10 @@ module Cogent.TypeCheck (
 , typecheck
 ) where
 
-import qualified Cogent.Common.Repr as R
+import Cogent.DataLayout.TypeCheck
 import Cogent.Compiler
 import qualified Cogent.Context as C
 import Cogent.PrettyPrint (prettyC)
-import Cogent.ReprCheck (compile)
 import Cogent.Surface
 import Cogent.TypeCheck.Assignment (assignT, assignE, assignAlts)
 import Cogent.TypeCheck.Base
@@ -38,6 +37,7 @@ import Cogent.TypeCheck.Errors
 import Cogent.TypeCheck.Subst (apply, applyE, applyAlts)
 import Cogent.TypeCheck.Util
 import Cogent.Util (firstM)
+
 
 import Control.Arrow (first, second)
 -- import Control.Monad.Except
@@ -113,7 +113,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
   (RepDef d@(RepDecl pos n e)) -> do 
     traceTc "tc" (text "typecheck rep decl" <+> pretty n)
     reps <- lift . lift $ use knownReps
-    case compile reps d of 
+    case dataLayoutSurfaceToCore reps d of 
        Left e -> logErr $ RepError e
        Right result -> lift . lift $ knownReps %= M.insert n result
     return $ RepDef d
