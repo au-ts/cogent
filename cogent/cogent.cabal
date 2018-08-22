@@ -280,6 +280,7 @@ library cogent-quickcheck
               , containers >= 0.5
               , Cabal >= 1.9.2
               , QuickCheck >= 2.11.3
+              , parsec >= 3.1
 
 
 test-suite tests-quickcheck
