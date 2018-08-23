@@ -75,6 +75,10 @@ proof (cases x)
     by (cases p, simp+)
 qed simp
 
+primrec sigil_perm :: "sigil \<Rightarrow> access_perm option" where
+  "sigil_perm (Boxed p _) = Some p"
+| "sigil_perm Unboxed     = None"
+
 datatype type = TVar index
               | TVarBang index
               | TCon name "type list" sigil
@@ -509,7 +513,7 @@ inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Right
 
 | typing_take   : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
                    ; \<Xi>, K, \<Gamma>1 \<turnstile> e : TRecord ts s
-                   ; \<And>l. s \<noteq> Boxed ReadOnly l
+                   ; sigil_perm s \<noteq> Some ReadOnly
                    ; f < length ts
                    ; ts ! f = (t, False)
                    ; K \<turnstile> t :\<kappa> k
@@ -519,7 +523,7 @@ inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Right
 
 | typing_put    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
                    ; \<Xi>, K, \<Gamma>1 \<turnstile> e : TRecord ts s
-                   ; \<And>l. s \<noteq> Boxed ReadOnly l
+                   ; sigil_perm s \<noteq> Some ReadOnly
                    ; f < length ts
                    ; ts ! f = (t, taken)
                    ; K \<turnstile> t :\<kappa> k
@@ -739,11 +743,11 @@ next case Cons
 qed
 
 lemma sigil_kind_writable:
-  assumes "\<And>p r. s = Boxed p r \<Longrightarrow> p = Writable"
-    and     "\<And>r. k \<subseteq> sigil_kind (Boxed Writable r)"
-  shows   "k \<subseteq> sigil_kind s"
+  assumes "sigil_perm s = Some Writable"
+    and "\<And>r. k \<subseteq> sigil_kind (Boxed Writable r)"
+  shows "k \<subseteq> sigil_kind s"
   using assms
-  by (case_tac s rule: bang_sigil.cases, auto)
+  by (case_tac s rule: sigil_cases, auto)
 
 section {* Bang lemmas *}
 

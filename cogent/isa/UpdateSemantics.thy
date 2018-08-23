@@ -162,8 +162,8 @@ locale update_sem =
   and   abs_repr   :: "'a \<Rightarrow> name \<times> repr list"
   assumes abs_typing_bang : "abs_typing av n \<tau>s s r w \<Longrightarrow> abs_typing av n (map bang \<tau>s) (bang_sigil s) (r \<union> w) {}"
   and     abs_typing_noalias : "abs_typing av n \<tau>s s r w \<Longrightarrow> r \<inter> w = {}"
-  and     abs_typing_readonly : "(\<And>l. s \<noteq> Boxed Writable l) \<Longrightarrow> abs_typing av n \<tau>s s r w \<Longrightarrow> w = {}"
-  and     abs_typing_escape   : "(\<And>l. s \<noteq> Boxed ReadOnly l) \<Longrightarrow> [] \<turnstile>* \<tau>s :\<kappa> k \<Longrightarrow> E \<in> k \<Longrightarrow> abs_typing av n \<tau>s s r w \<Longrightarrow> r = {}"
+  and     abs_typing_readonly : "sigil_perm s \<noteq> Some Writable \<Longrightarrow> abs_typing av n \<tau>s s r w \<Longrightarrow> w = {}"
+  and     abs_typing_escape   : "sigil_perm s \<noteq> Some ReadOnly \<Longrightarrow> [] \<turnstile>* \<tau>s :\<kappa> k \<Longrightarrow> E \<in> k \<Longrightarrow> abs_typing av n \<tau>s s r w \<Longrightarrow> r = {}"
   and     abs_typing_valid : "abs_typing av n \<tau>s s r w \<Longrightarrow> p \<in> r \<union> w \<Longrightarrow> \<sigma> p \<noteq> None"
   and     abs_typing_unique_repr   : "abs_typing av n \<tau>s s r w \<Longrightarrow> abs_typing av n' \<tau>s' s' r' w'
                                     \<Longrightarrow> type_repr (TCon n \<tau>s s) = type_repr (TCon n' \<tau>s' s')"
@@ -253,16 +253,18 @@ and uval_typing_record :: "('f \<Rightarrow> poly_type)
                   ; l \<notin> (w \<union> r)
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RRecord (map (\<lambda>(a,b). type_repr a) ts)) :u TRecord ts (Boxed Writable ptrl) \<langle>r, insert l w\<rangle>"
 
-| u_t_p_abs_ro : "\<lbrakk> \<And>ptrl. abs_typing a n ts (Boxed ReadOnly ptrl) r {}
+| u_t_p_abs_ro : "\<lbrakk> s = Boxed ReadOnly ptrl
+                  ; abs_typing a n ts s r {}
                   ; [] \<turnstile>* ts wellformed
                   ; \<sigma> l = Some (UAbstract a)
-                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map (type_repr) ts)) :u TCon n ts (Boxed ReadOnly ptrl) \<langle>insert l r, {}\<rangle>"
+                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map (type_repr) ts)) :u TCon n ts s \<langle>insert l r, {}\<rangle>"
 
-| u_t_p_abs_w  : "\<lbrakk> \<And>ptrl. abs_typing a n ts (Boxed Writable ptrl) r w
+| u_t_p_abs_w  : "\<lbrakk> s = Boxed Writable ptrl
+                  ; abs_typing a n ts s r w
                   ; [] \<turnstile>* ts wellformed
                   ; \<sigma> l = Some (UAbstract a)
                   ; l \<notin> (w \<union> r)
-                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map (type_repr) ts)) :u TCon n ts (Boxed Writable ptrl) \<langle>r, insert l w\<rangle>"
+                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map (type_repr) ts)) :u TCon n ts s \<langle>r, insert l w\<rangle>"
 
 | u_t_r_empty  : "\<Xi>, \<sigma> \<turnstile>* [] :ur [] \<langle>{}, {}\<rangle>"
 | u_t_r_cons1  : "\<lbrakk> \<Xi>, \<sigma> \<turnstile>  x  :u  t  \<langle>r , w \<rangle>
@@ -380,12 +382,10 @@ shows "\<lbrakk> \<Xi>, \<sigma> \<turnstile>  v  :u  \<tau>  \<langle> r , w \<
 and   "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* vs :ur \<tau>s \<langle> r , w \<rangle> \<rbrakk> \<Longrightarrow> r \<inter> w = {}"
 proof (induct rule: uval_typing_uval_typing_record.inducts)
   case (u_t_abstract a n ts r w \<Xi> \<sigma>)
-  then show ?case
-    using abs_typing_readonly by fast
+  then show ?case using abs_typing_readonly by force
 next
   case (u_t_p_abs_w a n ts r \<sigma> l w \<Xi> ptrl)
-  then show ?case
-    using abs_typing_noalias by blast
+  then show ?case using abs_typing_noalias by blast
 qed auto
 
 lemma shareable_not_writable:
@@ -415,9 +415,9 @@ shows   "\<lbrakk> \<Xi> , \<sigma> \<turnstile>  x  :u  \<tau>  \<langle>r, w\<
 and     "\<lbrakk> \<Xi> , \<sigma> \<turnstile>* xs :ur \<tau>s \<langle>r, w\<rangle> ; E \<in> k; [] \<turnstile>* \<tau>s :\<kappa>r k \<rbrakk> \<Longrightarrow> r = {}"
 proof (induct arbitrary: k and k rule: uval_typing_uval_typing_record.inducts)
 next
-  case (u_t_p_abs_w a n ts r w \<sigma> l \<Xi> ptrl)
-  then show ?case
-    using abs_typing_escape by blast
+  case (u_t_p_abs_w s ptrl n ts r w \<sigma> l \<Xi>)
+  then show ?case using abs_typing_escape[where s=s]
+    by fastforce
 qed (fastforce dest!: abs_typing_escape [where s = Unboxed , simplified, rotated -1]
                simp:  kinding_all_set)+
 
@@ -570,28 +570,17 @@ next case u_t_p_rec_w
     apply (auto dest!: kinding_all_record' bang_type_repr')
   done
 next
-  case (u_t_p_abs_ro a n ts r \<sigma> l \<Xi> ptrl)
+  case (u_t_p_abs_ro s ptrl a n ts r \<sigma> l \<Xi>)
   then have "\<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map type_repr (map bang ts))) :u TCon n (map bang ts) (Boxed ReadOnly ptrl) \<langle>insert l r, {}\<rangle>"
-    using update_sem_axioms
-  proof (intro uval_typing_uval_typing_record.u_t_p_abs_ro)
-    show "\<And>ptrl. abs_typing a n (map bang ts) (Boxed ReadOnly ptrl) r {}"
-      using u_t_p_abs_ro abs_typing_bang by fastforce
-  next
-    show "[] \<turnstile>* map bang ts wellformed"
-      using u_t_p_abs_ro(2) bang_kind(2) by auto
-  qed simp
+    using abs_typing_bang bang_kind(2)
+    by (fastforce intro!: uval_typing_uval_typing_record.u_t_p_abs_ro)
   then show ?case
     using u_t_p_abs_ro by clarsimp
 next
-  case (u_t_p_abs_w a n ts r w \<sigma> l \<Xi> ptrl)
+  case (u_t_p_abs_w s ptrl a n ts r w \<sigma> l \<Xi>)
   then have "\<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map type_repr (map bang ts))) :u TCon n (map bang ts) (Boxed ReadOnly ptrl) \<langle>insert l (r \<union> w), {}\<rangle>"
-  proof (intro uval_typing_uval_typing_record.u_t_p_abs_ro)
-    show "\<And>ptrl. abs_typing a n (map bang ts) (Boxed ReadOnly ptrl) (r \<union> w) {}"
-      using u_t_p_abs_w abs_typing_bang by fastforce
-  next
-    show "[] \<turnstile>* map bang ts wellformed"
-      using bang_kind(2) u_t_p_abs_w.hyps(2) by auto
-  qed simp
+    using bang_kind(2) abs_typing_bang 
+    by (fastforce intro!: uval_typing_uval_typing_record.u_t_p_abs_ro)
   then show ?case
     using u_t_p_abs_w by clarsimp
 next case u_t_r_cons1
@@ -2178,7 +2167,7 @@ next case u_sem_put
     apply (frule(1) frame_noalias_uval_typing, blast)
     apply (frule(1) frame_noalias_uval_typing(2), blast)
     apply (erule u_t_p_recE)
-     apply presburger
+     apply force
     apply clarsimp
     apply (drule(1) frame_app)
     apply (drule(2) uval_typing_frame(2) [rotated -1], blast)
