@@ -61,7 +61,7 @@ ML {*
 fun gen_monoexpr_thm
       (poly_thy: string) (mono_thy: string)
       (rename_fn: term)
-      (rename_inv: (string ML_Old* term) Symtab.table) (* mono name -> poly inst *)
+      (rename_inv: (string * term) Symtab.table) (* mono name -> poly inst *)
       (callees: thm list) (f: string)
       (extra_simps: thm list) ctxt = let
   val (poly_name, type_inst) = case Symtab.lookup rename_inv f of
