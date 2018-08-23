@@ -19,11 +19,11 @@ file                                    depends on
 ├── Deep_Embedding_Auto.thy             (Specialised_Lemma, Cogent_C_Val_Auto, Cogent_C_Heap_Auto, Heap_Relation_Generation)
 ├── Heap_Relation_Generation.thy        (Read_Table)
 ├── Read_Table.thy                      (Specialised_Lemma_Utils)
-├── SpecialisedLemmaTactic.thy          (Read_Table, SpecialisedLemmaTactic)
+├── SpecialisedLemmaTactic.thy          (Cogent_Corres, Specialised_Lemma_Utils)
 ├── Specialised_Lemma.thy               (Read_Table, SpecialisedLemmaTactic)
 ├── Specialised_Lemma_URecord.thy       (Read_Table, SpecialisedLemmaTactic)
 ├── Specialised_Lemma_USum.thy          (Read_Table, SpecialisedLemmaTactic)
-├── Specialised_Lemma_Utils.thy
+├── Specialised_Lemma_Utils.thy         (Utils)
 ├── Tidy.thy
 ├── Type_Args.thy
 ├── Type_Relation_Generation.thy        (Cogent_Corres, Read_Table)
