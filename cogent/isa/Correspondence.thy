@@ -83,24 +83,28 @@ and upd_val_rel_record :: "('f \<Rightarrow> poly_type)
 
 | u_v_p_rec_ro : "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* fs \<sim> fs' :r ts \<langle>r, {}\<rangle>
                   ; \<sigma> l = Some (URecord fs)
-                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RRecord (map (\<lambda>(a,b). type_repr a) ts)) \<sim> VRecord fs' : TRecord ts ReadOnly \<langle>insert l r, {}\<rangle>"
+                  ; s = Boxed ReadOnly ptrl
+                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RRecord (map (\<lambda>(a,b). type_repr a) ts)) \<sim> VRecord fs' : TRecord ts s \<langle>insert l r, {}\<rangle>"
 
 | u_v_p_rec_w  : "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* fs \<sim> fs' :r ts \<langle>r, w\<rangle>
                   ; \<sigma> l = Some (URecord fs)
                   ; l \<notin> (w \<union> r)
-                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RRecord (map (\<lambda>(a,b). type_repr a) ts)) \<sim> VRecord fs' : TRecord ts Writable \<langle>r, insert l w\<rangle>"
+                  ; s = Boxed Writable ptrl
+                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RRecord (map (\<lambda>(a,b). type_repr a) ts)) \<sim> VRecord fs' : TRecord ts s \<langle>r, insert l w\<rangle>"
 
-| u_v_p_abs_ro : "\<lbrakk> abs_upd_val a a' n ts ReadOnly r w
+| u_v_p_abs_ro : "\<lbrakk> s = Boxed ReadOnly ptrl
+                  ; abs_upd_val a a' n ts s r w
                   ; [] \<turnstile>* ts wellformed
                   ; \<sigma> l = Some (UAbstract a)
-                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map type_repr ts)) \<sim> VAbstract a' : TCon n ts ReadOnly \<langle>insert l r, {}\<rangle>"
+                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map type_repr ts)) \<sim> VAbstract a' : TCon n ts s \<langle>insert l r, {}\<rangle>"
 
 
-| u_v_p_abs_w  : "\<lbrakk> abs_upd_val a a' n ts Writable r w
+| u_v_p_abs_w  : "\<lbrakk> s = Boxed Writable ptrl
+                  ; abs_upd_val a a' n ts s r w
                   ; [] \<turnstile>* ts wellformed
                   ; \<sigma> l = Some (UAbstract a)
                   ; l \<notin> (w \<union> r)
-                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map type_repr ts)) \<sim> VAbstract a' : TCon n ts Writable \<langle>r, insert l w\<rangle>"
+                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map type_repr ts)) \<sim> VAbstract a' : TCon n ts s \<langle>r, insert l w\<rangle>"
 
 | u_v_r_empty  : "\<Xi>, \<sigma> \<turnstile>* [] \<sim> [] :r [] \<langle>{}, {}\<rangle>"
 
@@ -136,14 +140,22 @@ lemma upd_val_rel_to_uval_typing:
 shows "\<Xi>, \<sigma> \<turnstile>  u  \<sim> v  :  \<tau>  \<langle>r, w\<rangle> \<Longrightarrow> upd.uval_typing \<Xi> \<sigma> u \<tau> r w"
 and   "\<Xi>, \<sigma> \<turnstile>* us \<sim> vs :r \<tau>s \<langle>r, w\<rangle> \<Longrightarrow> upd.uval_typing_record \<Xi> \<sigma> us \<tau>s r w"
 proof (induct rule: upd_val_rel_upd_val_rel_record.inducts)
-     case u_v_abstract then show ?case by (auto intro!: upd.uval_typing_uval_typing_record.intros
-                                                        abs_upd_val_to_uval_typing)
-next case u_v_p_abs_ro then show ?case by (auto dest:   upd.abs_typing_readonly [rotated 1]
-                                                        abs_upd_val_to_uval_typing
-                                                intro!: upd.uval_typing_uval_typing_record.intros)
-next case u_v_p_abs_w  then show ?case by (auto dest:   upd.abs_typing_readonly [rotated 1]
-                                                        abs_upd_val_to_uval_typing
-                                                intro!: upd.uval_typing_uval_typing_record.intros)
+  case u_v_abstract
+  then show ?case
+    by (auto intro!: upd.uval_typing_uval_typing_record.intros abs_upd_val_to_uval_typing)
+next
+  case (u_v_p_abs_ro s ptrl a a' n ts r w \<sigma> l \<Xi>)
+  moreover then have "upd_abs_typing a n ts s r w"
+    using abs_upd_val_to_uval_typing by simp
+  moreover then have "w = {}"
+    using upd.abs_typing_readonly u_v_p_abs_ro by force
+  ultimately show ?case
+    using upd.u_t_p_abs_ro by blast
+next
+  case (u_v_p_abs_w s  ptrl  a a' n ts r w \<sigma> l \<Xi>)
+  then show ?case
+    by (auto dest: upd.abs_typing_readonly abs_upd_val_to_uval_typing
+        intro!: upd.uval_typing_uval_typing_record.intros)
 qed (auto intro!: upd.uval_typing_uval_typing_record.intros)
 
 
@@ -390,35 +402,51 @@ next case u_v_p_rec_w
     apply (frule upd_val_rel_upd_val_rel_record.u_v_p_rec_ro)
     apply (auto dest!: kinding_all_record' upd.bang_type_repr')
   done
-next case u_v_p_abs_ro
+next
+  case (u_v_p_abs_ro s ptrl a a' n ts r w \<sigma> l \<Xi>)
+  have f1: "map (type_repr \<circ> bang) ts = map type_repr ts"
+    using bang_type_repr(2) type_wellformed_all_def u_v_p_abs_ro.hyps(3)
+    by blast
+  
+  have "\<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map type_repr (map bang ts))) \<sim> VAbstract a' : TCon n (map bang ts) (bang_sigil s) \<langle>insert l r , {}\<rangle>"
+    using u_v_p_abs_ro
+  proof (intro upd_val_rel_upd_val_rel_record.u_v_p_abs_ro)
+    have "upd_abs_typing a n ts s r w"
+      using u_v_p_abs_ro abs_upd_val_to_uval_typing by blast
+    then have "w = {}"
+      using u_v_p_abs_ro upd.abs_typing_readonly by force
+    moreover have "abs_upd_val a a' n (map bang ts) (bang_sigil s) (r \<union> w) {}"
+      using u_v_p_abs_ro(2) abs_upd_val_bang by simp
+    ultimately show "abs_upd_val a a' n (map bang ts) (bang_sigil s) r {}"
+      by simp
+  next
+    have "[] \<turnstile>* map bang ts :\<kappa> {D, S}"
+      using u_v_p_abs_ro bang_kind by auto
+    then show "[] \<turnstile>* map bang ts wellformed"
+      by auto
+  qed simp+
   then show ?case
-    apply (clarsimp)
-    apply (frule abs_upd_val_to_uval_typing)
-    apply (drule upd.abs_typing_readonly [rotated 1],simp,clarsimp)
-    apply (drule abs_upd_val_bang [where s = ReadOnly and w = "{}", simplified])
-    apply (frule bang_kind)
-    apply (force dest:upd_val_rel_upd_val_rel_record.u_v_p_abs_ro)
-  done
-next case u_v_p_abs_w
+    by (simp add: f1)
+next case (u_v_p_abs_w s ptrl a a' n ts r w \<sigma> l \<Xi>)
   then show ?case
-    apply (clarsimp)
+    apply clarsimp
     apply (frule abs_upd_val_to_uval_typing)
-    apply (drule abs_upd_val_bang [where s = Writable, simplified])
+    apply (drule abs_upd_val_bang[where s ="Boxed Writable ptrl", simplified])
     apply (frule bang_kind)
-    apply (force dest:upd_val_rel_upd_val_rel_record.u_v_p_abs_ro)
-  done
+    using u_v_p_abs_ro
+    apply fastforce
+    done
 next case u_v_r_empty  then show ?case by (force intro: upd_val_rel_upd_val_rel_record.intros)
-next case u_v_r_cons1
+next
+  case (u_v_r_cons1 \<Xi> \<sigma> x x' t r w xs xs' ts r' w' rp)
   then show ?case
     apply (clarsimp)
-    apply ( drule(1) upd_val_rel_upd_val_rel_record.u_v_r_cons1
-                     [ where t = "bang t"
-                       and   ts = " map (\<lambda>(a,b).(bang a, b)) ts"
-                       for t ts]
-          , blast, blast, blast, simp)
-    apply ( rule u_v_pointerset_helper_record)
-    apply (force dest: upd_val_rel_to_uval_typing upd.uval_typing_to_kinding)+ (* takes ~5.0s *)
-  done
+    apply (drule(1) upd_val_rel_upd_val_rel_record.u_v_r_cons1
+        [where t = "bang t" and ts = " map (\<lambda>(a,b).(bang a, b)) ts"]
+        , blast, blast, blast, simp)
+    apply (rule u_v_pointerset_helper_record)
+    apply (force dest: upd_val_rel_to_uval_typing upd.uval_typing_to_kinding(1))+
+    done
 next case u_v_r_cons2  then show ?case by (force intro: upd_val_rel_upd_val_rel_record.intros bang_kind)
 qed
 
@@ -1153,7 +1181,8 @@ assumes "\<Xi>, \<sigma> \<turnstile>* fs \<sim> fs' :r ts \<langle>r, w\<rangle
 and     "\<sigma> l = Some (URecord fs)"
 and     "l \<notin> w \<union> r"
 and     "rp = (RRecord (map (\<lambda>(a,b). type_repr a) ts)) "
-shows   "\<Xi>, \<sigma> \<turnstile> UPtr l rp \<sim> VRecord fs' : TRecord ts Writable \<langle> r, insert l w \<rangle>"
+and     "s = Boxed Writable ptrl"
+shows   "\<Xi>, \<sigma> \<turnstile> UPtr l rp \<sim> VRecord fs' : TRecord ts s \<langle> r, insert l w \<rangle>"
 using assms by (auto intro: u_v_p_rec_w)
 
 theorem correspondence:
@@ -1895,15 +1924,15 @@ next case u_sem_split
       apply (simp)
       apply (rule u_v_matches_some, simp, rule u_v_matches_some, simp)
             apply (rule u_v_matches_frame, simp, simp)
-             apply (blast)
-            apply (blast)
-           apply (blast)
-          apply (blast)
-         apply (blast)
-        apply (blast)
-       apply (blast)
-      apply (blast)
-     apply (blast)
+             apply fast
+            apply fast
+           apply blast
+          apply fast
+         apply blast
+        apply blast
+       apply fast
+      apply blast
+     apply blast
     apply (clarsimp, auto intro!: exI intro: upd.frame_let upd.pointerset_helper_frame)
   done
 next case u_sem_all_empty then show ?case by ( cases es, simp_all
@@ -2249,18 +2278,19 @@ next case u_sem_take
      apply (case_tac "taken")
       apply (clarsimp)
       apply (rule u_v_pointerset_helper_matches)
+        apply (clarsimp simp add: Int_Un_distrib Int_Un_distrib2)
         apply (rule u_v_matches_some, simp, rule u_v_matches_some)
-               apply (fastforce intro!: u_v_p_rec_w' simp:HELP)
-              apply (simp)
-             apply (blast) (* go get a cup of tea *)
-            apply (blast)
-           apply (blast)
-          apply (blast)
-         apply (fastforce)
-        apply (fastforce)
-       apply (simp)
-      apply (simp)
-     apply (clarsimp)
+               apply (fastforce intro!: u_v_p_rec_w' simp: HELP)
+              apply fast
+             apply fast
+            apply force
+           apply fast
+          apply blast
+         apply (simp add: Int_Un_distrib Int_Un_distrib2, fast)
+        apply auto[1]
+       apply simp
+      apply simp
+     apply clarsimp
      apply (frule(2) u_v_shareable_not_writable, clarsimp)
      apply (rule u_v_pointerset_helper_matches)
        apply (rule u_v_matches_some, simp, rule u_v_matches_some)
@@ -2302,17 +2332,18 @@ next case u_sem_take_ub
      apply (case_tac "taken")
       apply (clarsimp)
       apply (rule u_v_pointerset_helper_matches)
+        apply (clarsimp simp add: Int_Un_distrib Int_Un_distrib2)
         apply (rule u_v_matches_some, simp, rule u_v_matches_some)
                apply (fastforce intro!: u_v_struct simp:HELP)
-              apply (simp)
-             apply (blast) (* go get a cup of tea *)
-            apply (blast)
-           apply (blast)
-          apply (blast)
-         apply (fastforce)
-        apply (fastforce)
-       apply (simp)
-      apply (simp)
+              apply fast
+             apply fast
+            apply blast
+           apply blast
+          apply blast
+         apply (simp add: Int_Un_distrib Int_Un_distrib2, blast)
+        apply auto[1]
+       apply simp
+      apply simp
      apply (clarsimp)
      apply (frule(2) u_v_shareable_not_writable, clarsimp)
      apply (rule u_v_pointerset_helper_matches)
