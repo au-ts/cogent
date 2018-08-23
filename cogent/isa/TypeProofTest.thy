@@ -15,7 +15,20 @@ imports "CogentHelper" "ProofTrace" "ML_Old"
 begin
 
 definition
-  "foo_type \<equiv> Pair Nil (Pair (TRecord (Cons (Pair (TCon ''A'' Nil Writable) False) (Cons (Pair (TCon ''B'' Nil Writable) False) Nil)) Writable) (TRecord (Cons (Pair (TCon ''A'' Nil Writable) False) (Cons (Pair (TCon ''B'' Nil Writable) False) Nil)) Writable))"
+  "foo_type \<equiv>
+    (Pair
+      Nil
+      (Pair
+        (TRecord
+          (Cons
+            (Pair (TCon ''A'' Nil (Boxed Writable undefined)) False)
+            (Cons (Pair (TCon ''B'' Nil (Boxed Writable undefined)) False) Nil))
+             (Boxed Writable undefined))
+        (TRecord
+          (Cons
+            (Pair (TCon ''A'' Nil (Boxed Writable undefined)) False)
+            (Cons (Pair (TCon ''B'' Nil (Boxed Writable undefined)) False) Nil))
+          (Boxed Writable undefined))))"
 
 definition
   "foo \<equiv> Let (Var 0) (Take (Var 0) 0 (Put (Var 1) 0 (Var 0)))"

@@ -22,7 +22,7 @@ lemma typing_lit': "\<lbrakk> K \<turnstile> \<Gamma> consumed; t = lit_type l \
 
 lemma typing_put':  "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
                      ; \<Xi>, K, \<Gamma>1 \<turnstile> e : TRecord ts s
-                     ; s \<noteq> ReadOnly
+                     ; sigil_perm s \<noteq> Some ReadOnly
                      ; f < length ts
                      ; ts ! f = (t, taken)
                      ; K \<turnstile> t :\<kappa> k
@@ -147,7 +147,7 @@ lemma ttyping_case':  "\<lbrakk> ttsplit K \<Gamma> ijs [] \<Gamma>1 [] \<Gamma>
 
 lemma ttyping_take': "\<lbrakk> ttsplit K \<Gamma> ijs [] \<Gamma>1 [Some t, Some (TRecord ts' s)] \<Gamma>2
                    ; \<Xi>, K, \<Gamma>1 T\<turnstile> e : TRecord ts s
-                   ; s \<noteq> ReadOnly
+                   ; sigil_perm s \<noteq> Some ReadOnly
                    ; f < length ts
                    ; ts ! f = (t, False)
                    ; K \<turnstile> t :\<kappa> k
