@@ -76,7 +76,7 @@ lemma cogent_C_unused_return__internal:
   by (monad_eq simp: cogent_C_unused_return__internal_def | blast)+
 
 (* Test: *)
-schematic_lemma
+schematic_goal
   (* input *)
   "(do stuff1;
        stuff2;
@@ -1168,7 +1168,7 @@ fun corres_tac_driver corres_tac typing_tree_of ctxt (tab : obligations) thm_nam
   | v => error ("corres_tac_driver: tab contents: " ^ thm_name ^ ": " ^ @{make_string} v)
 
 fun finalise (tab : obligations) ctxt thm_tab = let
-    fun to_rsn NONE = Thm.trivial @{cpat "?P :: prop"}
+    fun to_rsn NONE = Thm.trivial (Thm.global_cterm_of @{theory} @{schematic_term "?P :: prop"})
       | to_rsn (SOME thm) = thm
 
     fun cleanup thm = thm

@@ -525,15 +525,15 @@ val (_, h_typing_tree, h_typing_bucket)
 *}
 
 context value_sem begin
-schematic_lemma "monoexpr g = ?g"
+schematic_goal "monoexpr g = ?g"
   apply (clarsimp simp: g_def f_def)
   by (rule refl)
 
-schematic_lemma "monoexpr h = ?h"
+schematic_goal "monoexpr h = ?h"
   apply (clarsimp simp: h_def)
   by (rule refl)
 
-schematic_lemma "monoexpr h = ?h"
+schematic_goal "monoexpr h = ?h"
   apply (clarsimp simp: h_def g_def f_def)
   by (rule refl)
 
