@@ -52,7 +52,7 @@ fun local_setup_heap_rel file_nm lthy =
              |> rm_redundancy 
              |> get_uvals_for_which_ac_mk_heap_getters file_nm thy;
   val heap_rel = mk_heap_rel lthy uvals;
-  val lthy' = Specification.definition (NONE, ((Binding.name ("heap_rel_def"), []), heap_rel)) lthy |> snd;
+  val lthy' = Specification.definition NONE [] [] ((Binding.name ("heap_rel_def"), []), heap_rel) lthy |> snd;
  in lthy' end;
 
 end;

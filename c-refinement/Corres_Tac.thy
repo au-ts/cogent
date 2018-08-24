@@ -1001,8 +1001,8 @@ fun define_uabsfuns (defs : string list list) ctxt : ((term * (string * thm)) li
         val typ = @{typ "(funtyp, abstyp, ptrtyp) uabsfuns"}
         val rhs = Const (@{const_name undefined}, typ) (* FIXME *)
         val (thm, ctxt) = Specification.definition
-              (NONE, ((Binding.name (name ^ "_def"), []),
-                      @{mk_term "?name \<equiv> ?def" (name, def)} (Free (name, typ), rhs))) ctxt
+              NONE [] [] ((Binding.name (name ^ "_def"), []),
+                      @{mk_term "?name \<equiv> ?def" (name, def)} (Free (name, typ), rhs)) ctxt
         val (thms, ctxt) = define (n+1) defs' ctxt
         in (thm::thms, ctxt) end
   in define 0 defs ctxt end
