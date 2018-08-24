@@ -1371,78 +1371,78 @@ lemma list_all2_map_filter_helper[rule_format]:
   by (induct xs ys rule: list_induct2') auto
 
 lemma corres_case:
-  "\<lbrakk> x < length \<Gamma>';
-     \<Gamma>'!x = Some (TSum \<tau>s);
-     [] \<turnstile> \<Gamma>' \<leadsto> \<Gamma>1 | \<Gamma>2;
-     get_tag' x' = tag' \<longrightarrow> val_rel (\<gamma>!x) x';
-     case (\<gamma>!x) of USum vtag vval vtyps \<Rightarrow>
+  fixes \<tau>s :: "(char list \<times> Cogent.type \<times> bool) list"
+  assumes
+    "x < length \<Gamma>'"
+    "\<Gamma>'!x = Some (TSum \<tau>s)"
+    "[] \<turnstile> \<Gamma>' \<leadsto> \<Gamma>1 | \<Gamma>2"
+    "get_tag' x' = tag' \<longrightarrow> val_rel (\<gamma>!x) x'"
+    "case (\<gamma>!x) of USum vtag vval vtyps \<Rightarrow>
        if get_tag' x' = tag'
          then tag = vtag \<and> val_rel vval (get_A' x')
-         else tag \<noteq> vtag \<and> val_rel (USum vtag vval [x\<leftarrow>vtyps. fst x \<noteq> tag]) (wrap_rest' x');
-     \<Xi>', [], \<Gamma>1 \<turnstile> Var x : TSum \<tau>s;
-     \<Xi>', [], Some (snd (the (find (\<lambda>x. fst x = tag) \<tau>s))) # \<Gamma>2 \<turnstile> match : t;
-     \<Xi>', [], Some (TSum [x\<leftarrow>\<tau>s. fst x \<noteq> tag]) # \<Gamma>2 \<turnstile> not_match : t;
-     \<And>a a'. val_rel a a' \<Longrightarrow> corres srel match (match' a') \<xi>' (a # \<gamma>) \<Xi>' (Some (snd (the (find (\<lambda>x. fst x = tag) \<tau>s))) # \<Gamma>2) \<sigma> s;
-     \<And>r r'. val_rel r r' \<Longrightarrow> corres srel not_match (not_match' r') \<xi>' (r # \<gamma>) \<Xi>' (Some (TSum [x\<leftarrow>\<tau>s. fst x \<noteq> tag]) # \<Gamma>2) \<sigma> s
-   \<rbrakk> \<Longrightarrow>
-   corres srel (Case (Var x) tag match not_match)
-     (condition (\<lambda>_. get_tag' x' = tag')
-        (match' (get_A' x'))
-        (do v \<leftarrow> gets (\<lambda>_. wrap_rest' x');
-            not_match' v od))
-     \<xi>' \<gamma> \<Xi>' \<Gamma>' \<sigma> s"
+         else tag \<noteq> vtag \<and> val_rel (USum vtag vval vtyps) (wrap_rest' x')"
+    "\<Xi>', [], \<Gamma>1 \<turnstile> Var x : TSum \<tau>s"
+    "\<Xi>', [], Some (fst (snd (the (find (\<lambda>x. fst x = tag) \<tau>s)))) # \<Gamma>2 \<turnstile> match : t"
+    "\<Xi>', [], Some (TSum \<tau>s) # \<Gamma>2 \<turnstile> not_match : t"
+    "\<And>a a'. val_rel a a' \<Longrightarrow> corres srel match (match' a') \<xi>' (a # \<gamma>) \<Xi>' (Some (fst (snd (the (find (\<lambda>x. fst x = tag) \<tau>s)))) # \<Gamma>2) \<sigma> s"
+    "\<And>r r'. val_rel r r' \<Longrightarrow> corres srel not_match (not_match' r') \<xi>' (r # \<gamma>) \<Xi>' (Some (TSum \<tau>s) # \<Gamma>2) \<sigma> s"
+  shows "corres srel (Case (Var x) tag match not_match)
+            (condition (\<lambda>_. get_tag' x' = tag')
+              (match' (get_A' x'))
+              (do v \<leftarrow> gets (\<lambda>_. wrap_rest' x');
+                  not_match' v od))
+            \<xi>' \<gamma> \<Xi>' \<Gamma>' \<sigma> s"
+  using assms
   apply (clarsimp simp: corres_def)
   apply (frule (1) matches_ptrs_split', clarsimp)
+  apply (rename_tac r1 w1 r2 w2)
   apply (frule (2) preservation_mono(1)[where \<Gamma>="\<Gamma>1" and e="Var x"])
     apply (rule u_sem_var)
    apply assumption
   apply clarsimp
+  apply (rename_tac rx wx)
   apply (erule u_t_sumE, clarsimp)
-  apply (rename_tac vval vtyp vtag vtyps k)
-  apply (drule_tac x=vval in meta_spec, drule_tac x="get_A' x'" in meta_spec)
-  apply (drule_tac x="USum vtag vval [x\<leftarrow>vtyps. fst x \<noteq> tag]" in meta_spec,
-         drule_tac x="wrap_rest' x'" in meta_spec)
+  apply (rename_tac vval vtyp vtag k)
+  apply (drule_tac x=vval in meta_spec)
+  apply (drule_tac x="get_A' x'" in meta_spec)
+  apply (drule_tac x="USum vtag vval (map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) \<tau>s)" in meta_spec,
+      drule_tac x="wrap_rest' x'" in meta_spec)
   apply (case_tac "get_tag' x' = tag'")
 
    apply clarsimp
    apply (erule impE)
-    apply (rule_tac x="r'a \<union> r''" in exI, rule_tac x="w'a \<union> w''" in exI)
+    apply (rule_tac x="rx \<union> r2" in exI, rule_tac x="wx \<union> w2" in exI)
     apply (rule matches_ptrs_some)
         apply (fastforce simp: lookup_distinct_list)
        apply assumption
       apply (drule (2) frame_noalias_matches_ptrs(1)[where \<Gamma>=\<Gamma>2])
       apply assumption
-     using matches_ptrs_noalias frame_noalias_matches_ptrs(2)
-     apply fast (* slow *)
-    using matches_ptrs_noalias frame_noalias_matches_ptrs(1)
-    apply fast (* slow *)
+  using matches_ptrs_noalias frame_noalias_matches_ptrs(2)
+     apply fast
+  using matches_ptrs_noalias frame_noalias_matches_ptrs(1)
+    apply fast
    apply clarsimp
    apply (metis u_sem_case_m u_sem_var)
 
   apply clarsimp
   apply (erule impE)
-   apply (rule_tac x="r'a \<union> r''" in exI, rule_tac x="w'a \<union> w''" in exI)
+   apply (rule_tac x="rx \<union> r2" in exI, rule_tac x="wx \<union> w2" in exI)
    apply (rule matches_ptrs_some)
        apply (rule u_t_sum)
-            apply simp
-           apply force
-          apply (subst filter_map[symmetric, simplified o_def])
-          apply simp
-         apply (force simp: kinding_all_set) (* slow *)
-        apply (subst filter_map[symmetric, simplified o_def])+
-        apply simp
-       apply (rule list_all2_map_filter_helper)
-        apply (metis map_map[where f="\<lambda>x. x \<noteq> tag", simplified o_def])
-       apply assumption
-      apply assumption
+           apply simp
+          apply force
+         apply force
+        apply (force simp: kinding_all_set) (* slow *)
+       apply (simp add: map_update)
+      apply simp
      apply (drule (2) frame_noalias_matches_ptrs(1)[where \<Gamma>=\<Gamma>2])
-     apply assumption
+     apply blast
     using matches_ptrs_noalias frame_noalias_matches_ptrs(2)
     apply fast (* slow *)
    using matches_ptrs_noalias frame_noalias_matches_ptrs(1)
    apply fast (* slow *)
   apply clarsimp
-  apply (erule_tac x=r'b in allE)
+  apply (erule_tac x=r' in allE)
   apply (erule_tac x=s' in allE)
   apply clarsimp
   apply (rule exI)+
