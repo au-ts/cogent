@@ -14,7 +14,7 @@ imports
   "../cogent/isa/ProofTrace"
   "../cogent/isa/CogentHelper"
   Value_Relation_Generation
-
+  "../cogent/isa/ML_Old"
 begin    
 
 (*
@@ -306,7 +306,6 @@ fun atom_stmts @{const_name Var}     = SOME 1
   | atom_stmts @{const_name Prim}    = NONE
   | atom_stmts @{const_name App}     = SOME 2
   | atom_stmts @{const_name Con}     = SOME 1
-  | atom_stmts @{const_name Promote} = SOME 1
   | atom_stmts @{const_name Struct}  = SOME 1
   | atom_stmts @{const_name Unit}    = SOME 1
   | atom_stmts @{const_name Lit}     = SOME 1
@@ -466,7 +465,6 @@ let
   val corres_afun = get_thm "corres_afun";
   val corres_cast = get_thms "corres_cast";
   val corres_struct = get_thm "corres_struct";
-  val corres_promote = get_thm "corres_promote";
   val corres_let_put_unboxed = get_thm "corres_let_put_unboxed'";
   val corres_no_let_put_unboxed = get_thm "corres_no_let_put_unboxed'";
 
@@ -704,12 +702,6 @@ let
         ORELSE check_Cogent_head @{const_name App}
         (APPEND_LIST (map apply_absfun absfun_corres)
          THEN print "corres_app_abstract")
-
-        ORELSE
-        (rule corres_promote 1
-         THEN print "corres_promote"
-         THEN TRY (TRY_FST (simp 1) (rule_tree' (tree_nth 0) 0 1) |> SOLVES)
-         THEN subgoal_val_rel_clarsimp_add [] 1)
 
         ORELSE
         (rules corres_esac 1
