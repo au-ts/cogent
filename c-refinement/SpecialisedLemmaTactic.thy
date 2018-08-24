@@ -176,7 +176,7 @@ ML{* fun corres_case_tac ctxt = SUBGOAL (fn (t, i) => let
     val x = case xs of [] => raise TERM ("corres_case_tac: no x'", [t])
         | _ => hd xs
     val x = Thm.cterm_of ctxt (Free x)
-    val thm = cterm_instantiate [(@{cpat "?x' :: (?'c :: cogent_C_val)"}, x)] thm
+    val thm = Thm.instantiate [(@{schematic_term "?x' :: (?'c :: cogent_C_val)"}, x)] thm
     val tag_simps = Proof_Context.get_thms ctxt "tag_t_defs"
   in rtac thm 
     THEN_ALL_NEW (TRY o atac)

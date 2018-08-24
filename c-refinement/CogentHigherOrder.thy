@@ -212,6 +212,7 @@ fun make_HO_call_hints ctxt C_src f = let
                         |> FunctionInfo.get_functions
       val struct_info = Symtab.lookup (HeapInfo.get (Proof_Context.theory_of ctxt)) C_src
                         |> Utils.the' ("No such C file: " ^ quote C_src)
+                        |> #heap_info
                         |> #struct_types
       in get_HO_calls ctxt f
          |> map (fn (call, ptrs) => let
