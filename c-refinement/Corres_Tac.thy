@@ -1196,7 +1196,7 @@ fun finalise (tab : obligations) ctxt thm_tab = let
 fun all_corres_goals corres_tac typing_tree_of time_limit ctxt (tab : obligations) =
   let
     val tl = Time.fromSeconds time_limit
-    fun driver nm = Timing.timing (try (TimeLimit.timeLimit tl
+    fun driver nm = Timing.timing (try (Timeout.apply tl
             (corres_tac_driver corres_tac typing_tree_of ctxt tab))) nm
         |> (fn (dur, res) => (tracing ("Time for " ^ nm ^ ": " ^ Timing.message dur); res))
         |> (fn NONE => (tracing ("Failed: " ^ nm); (nm, NONE))
@@ -1295,7 +1295,7 @@ fun corres_tree tr typing_tree_of corres_tac run_proofs skip_initial time_limit 
                                     failed_proofs := thm_name :: !failed_proofs;
                                     Goal.prove ctxt [] [] prop (K (Skip_Proof.cheat_tac ctxt 1)))
             val (time, thms) = (fn f => Timing.timing f ()) (fn () =>
-                 [(TimeLimit.timeLimit (Time.fromSeconds time_limit) (fn () =>
+                 [(Timeout.apply (Time.fromSeconds time_limit) (fn () =>
                    (((((Goal.prove ctxt [] [] prop (fn {context, prems} =>
                      if not run_proofs then Skip_Proof.cheat_tac ctxt 1 else
                         (corres_tac context (peel_two (typing_tree_of name)) fun_defs
@@ -1306,7 +1306,7 @@ fun corres_tree tr typing_tree_of corres_tac run_proofs skip_initial time_limit 
                  handle THM t => fallback_thm (@{make_string} (THM t)))
                  handle TERM t => fallback_thm (@{make_string} (TERM t)))
                  handle ERROR e => fallback_thm (@{make_string} (ERROR e))) ()
-                handle TimeLimit.TimeOut => fallback_thm (@{make_string} TimeLimit.TimeOut))
+                 handle Timeout.TIMEOUT t => fallback_thm (@{make_string} (Timeout.TIMEOUT t)))
                 |> unfold_Cogent_types ctxt type_unfold_simps name])
             val _ = tracing ("Time for " ^ thm_name ^ ": " ^ Timing.message time)
           in thms end)
