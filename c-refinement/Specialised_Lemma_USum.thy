@@ -79,7 +79,8 @@ ML{* fun mk_case_prop from_uval to_uval field_num file_nm ctxt =
   val to_struct_C_nm   = get_ty_nm_C to_uval;
   val _ = tracing ("  casting from " ^ from_struct_C_nm ^ " to " ^ to_struct_C_nm)
   val heap = Symtab.lookup (HeapInfo.get (Proof_Context.theory_of ctxt)) file_nm 
-      |> Utils.the' "heap in mk_case_prop failed.";
+      |> Utils.the' "heap in mk_case_prop failed."
+      |> #heap_info;
   val get_struct_info  = fn struct_C_nm => Symtab.lookup (heap |> #structs) struct_C_nm 
       |> Utils.the' "get_struct_info in mk_prop in Specialised_Lemma_USum.thy failed.";
   val from_struct_info = get_struct_info from_struct_C_nm;
