@@ -22,27 +22,31 @@ theory ML_Old
 begin
   ML {*
 
-  val term_pat_setup =
+  val schematic_term_setup =
   let
     val name_inner_syntax = Args.name_token >> Token.inner_syntax_of
     val parser = Args.context -- Scan.lift name_inner_syntax
 
-    fun term_pat (ctxt, str) =
+    fun schematic_term (ctxt, str) =
       str |> Proof_Context.read_term_pattern ctxt
           |> ML_Syntax.print_term
           |> ML_Syntax.atomic
 
   in
-    ML_Antiquotation.inline @{binding "term_pat"} (parser >> term_pat)
+    ML_Antiquotation.inline @{binding "schematic_term"} (parser >> schematic_term)
   end
   *}
 
-setup {* term_pat_setup *}
+setup {* schematic_term_setup *}
 
 ML {*
-  fun rtac rl = resolve0_tac [rl]
+  fun rtac rl = resolve0_tac [rl];
+  fun etac rl = eresolve0_tac [rl];
 
   fun atac i = PRIMSEQ (Thm.assumption NONE i);
+
+  fun forward0_tac rls = resolve0_tac (map make_elim rls) THEN' atac;
+  fun ftac rl = forward0_tac [rl];
 *}
 
 ML {*

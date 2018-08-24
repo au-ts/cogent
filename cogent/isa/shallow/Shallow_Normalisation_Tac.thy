@@ -189,7 +189,7 @@ fun anormal_proc extra_rules = fn _ => fn ctxt => fn ct =>
 
 fun anormal_simproc extra_rules =
   cert_simproc @{theory} "cogent_anormal"
-  { lhss = [@{term_pat "_ $ _"}]
+  { lhss = [@{schematic_term "_ $ _"}]
   , proc = anormal_proc extra_rules
   }
 
@@ -250,9 +250,9 @@ fun normalisation_tac ctxt
        * These always appear as "ucast n" where n is a HOL numeric literal. *)
       |> Conv.fconv_rule (Simplifier.rewrite (put_simpset HOL_basic_ss ctxt addsimprocs
           [ Simplifier.cert_simproc @{theory} "ucast_simproc"
-            { lhss = [ @{term_pat "ucast (numeral _)"}
-                     , @{term_pat "ucast zero_class.zero"}
-                     , @{term_pat "ucast one_class.one"}
+            { lhss = [ @{schematic_term "ucast (numeral _)"}
+                     , @{schematic_term "ucast zero_class.zero"}
+                     , @{schematic_term "ucast one_class.one"}
                      ]
             , proc = conv_to_simproc
                 (fn ct : cterm => Simplifier.rewrite ctxt ct) (* NB: outer ctxt to avoid recursion *)

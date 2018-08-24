@@ -457,12 +457,12 @@ lemmas dispatch_t2'_def' = dispatch_t2'.simps
 
 
 (* Specializations for dispatch_t2 *)
-schematic_lemma t2_dispatch_id_loopbody:
+schematic_goal t2_dispatch_id_loopbody:
   "\<lbrakk> tag = FUN_ENUM_id_loopbody; 0 < m \<rbrakk> \<Longrightarrow>
    dispatch_t2' m tag args = id_loopbody' args"
   by (monad_eq simp: dispatch_t2'_def')
 
-schematic_lemma t2_dispatch_triangular_loopbody:
+schematic_goal t2_dispatch_triangular_loopbody:
   "\<lbrakk> tag = FUN_ENUM_triangular_loopbody; 0 < m \<rbrakk> \<Longrightarrow>
    dispatch_t2' m tag args = triangular_loopbody' (recguard_dec m) args"
   by (monad_eq simp: dispatch_t2'_def' FUN_ENUM_id_loopbody_def FUN_ENUM_triangular_loopbody_def)

@@ -14,7 +14,7 @@ imports
   "../cogent/isa/ProofTrace"
   "../cogent/isa/CogentHelper"
   Value_Relation_Generation
-
+  "../cogent/isa/ML_Old"
 begin    
 
 (*
@@ -76,7 +76,7 @@ lemma cogent_C_unused_return__internal:
   by (monad_eq simp: cogent_C_unused_return__internal_def | blast)+
 
 (* Test: *)
-schematic_lemma
+schematic_goal
   (* input *)
   "(do stuff1;
        stuff2;
@@ -306,7 +306,6 @@ fun atom_stmts @{const_name Var}     = SOME 1
   | atom_stmts @{const_name Prim}    = NONE
   | atom_stmts @{const_name App}     = SOME 2
   | atom_stmts @{const_name Con}     = SOME 1
-  | atom_stmts @{const_name Promote} = SOME 1
   | atom_stmts @{const_name Struct}  = SOME 1
   | atom_stmts @{const_name Unit}    = SOME 1
   | atom_stmts @{const_name Lit}     = SOME 1
@@ -466,7 +465,6 @@ let
   val corres_afun = get_thm "corres_afun";
   val corres_cast = get_thms "corres_cast";
   val corres_struct = get_thm "corres_struct";
-  val corres_promote = get_thm "corres_promote";
   val corres_let_put_unboxed = get_thm "corres_let_put_unboxed'";
   val corres_no_let_put_unboxed = get_thm "corres_no_let_put_unboxed'";
 
@@ -704,12 +702,6 @@ let
         ORELSE check_Cogent_head @{const_name App}
         (APPEND_LIST (map apply_absfun absfun_corres)
          THEN print "corres_app_abstract")
-
-        ORELSE
-        (rule corres_promote 1
-         THEN print "corres_promote"
-         THEN TRY (TRY_FST (simp 1) (rule_tree' (tree_nth 0) 0 1) |> SOLVES)
-         THEN subgoal_val_rel_clarsimp_add [] 1)
 
         ORELSE
         (rules corres_esac 1
@@ -1001,8 +993,8 @@ fun define_uabsfuns (defs : string list list) ctxt : ((term * (string * thm)) li
         val typ = @{typ "(funtyp, abstyp, ptrtyp) uabsfuns"}
         val rhs = Const (@{const_name undefined}, typ) (* FIXME *)
         val (thm, ctxt) = Specification.definition
-              (NONE, ((Binding.name (name ^ "_def"), []),
-                      @{mk_term "?name \<equiv> ?def" (name, def)} (Free (name, typ), rhs))) ctxt
+              NONE [] [] ((Binding.name (name ^ "_def"), []),
+                      @{mk_term "?name \<equiv> ?def" (name, def)} (Free (name, typ), rhs)) ctxt
         val (thms, ctxt) = define (n+1) defs' ctxt
         in (thm::thms, ctxt) end
   in define 0 defs ctxt end
@@ -1176,7 +1168,7 @@ fun corres_tac_driver corres_tac typing_tree_of ctxt (tab : obligations) thm_nam
   | v => error ("corres_tac_driver: tab contents: " ^ thm_name ^ ": " ^ @{make_string} v)
 
 fun finalise (tab : obligations) ctxt thm_tab = let
-    fun to_rsn NONE = Thm.trivial @{cpat "?P :: prop"}
+    fun to_rsn NONE = Thm.trivial (Thm.global_cterm_of @{theory} @{schematic_term "?P :: prop"})
       | to_rsn (SOME thm) = thm
 
     fun cleanup thm = thm
@@ -1204,7 +1196,7 @@ fun finalise (tab : obligations) ctxt thm_tab = let
 fun all_corres_goals corres_tac typing_tree_of time_limit ctxt (tab : obligations) =
   let
     val tl = Time.fromSeconds time_limit
-    fun driver nm = Timing.timing (try (TimeLimit.timeLimit tl
+    fun driver nm = Timing.timing (try (Timeout.apply tl
             (corres_tac_driver corres_tac typing_tree_of ctxt tab))) nm
         |> (fn (dur, res) => (tracing ("Time for " ^ nm ^ ": " ^ Timing.message dur); res))
         |> (fn NONE => (tracing ("Failed: " ^ nm); (nm, NONE))
@@ -1303,7 +1295,7 @@ fun corres_tree tr typing_tree_of corres_tac run_proofs skip_initial time_limit 
                                     failed_proofs := thm_name :: !failed_proofs;
                                     Goal.prove ctxt [] [] prop (K (Skip_Proof.cheat_tac ctxt 1)))
             val (time, thms) = (fn f => Timing.timing f ()) (fn () =>
-                 [(TimeLimit.timeLimit (Time.fromSeconds time_limit) (fn () =>
+                 [(Timeout.apply (Time.fromSeconds time_limit) (fn () =>
                    (((((Goal.prove ctxt [] [] prop (fn {context, prems} =>
                      if not run_proofs then Skip_Proof.cheat_tac ctxt 1 else
                         (corres_tac context (peel_two (typing_tree_of name)) fun_defs
@@ -1314,7 +1306,7 @@ fun corres_tree tr typing_tree_of corres_tac run_proofs skip_initial time_limit 
                  handle THM t => fallback_thm (@{make_string} (THM t)))
                  handle TERM t => fallback_thm (@{make_string} (TERM t)))
                  handle ERROR e => fallback_thm (@{make_string} (ERROR e))) ()
-                handle TimeLimit.TimeOut => fallback_thm (@{make_string} TimeLimit.TimeOut))
+                 handle Timeout.TIMEOUT t => fallback_thm (@{make_string} (Timeout.TIMEOUT t)))
                 |> unfold_Cogent_types ctxt type_unfold_simps name])
             val _ = tracing ("Time for " ^ thm_name ^ ": " ^ Timing.message time)
           in thms end)

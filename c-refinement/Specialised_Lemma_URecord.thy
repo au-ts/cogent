@@ -29,7 +29,8 @@ ML{* fun mk_specialised_corres_take (field_num:int) uval file_nm ctxt =
   val struct_ty       = Syntax.read_typ ctxt struct_C_nm;
   val struct_C_ptr_ty = Syntax.read_typ ctxt (struct_C_nm ^ " ptr");
   val heap            = Symtab.lookup (HeapInfo.get (Proof_Context.theory_of ctxt)) file_nm 
-                        |> Utils.the' "heap in mk_specialised_corres_take failed.";
+                        |> Utils.the' "heap in mk_specialised_corres_take failed."
+                        |> #heap_info;
   val field_info      = Symtab.lookup (#structs heap) struct_C_nm
                         |> Utils.the' "field_info in mk_specialised_corres_take failed." 
                         |> #field_info;
@@ -125,7 +126,8 @@ ML{* fun mk_specialised_corres_put (field_num:int) uval file_nm ctxt =
   val struct_ty       = Syntax.read_typ ctxt struct_C_nm;
   val struct_C_ptr_ty = Syntax.read_typ ctxt (struct_C_nm ^ " ptr");
   val heap            = Symtab.lookup (HeapInfo.get (Proof_Context.theory_of ctxt)) file_nm 
-                       |> Utils.the' "heap in mk_specialised_corres_put failed." 
+                       |> Utils.the' "heap in mk_specialised_corres_put failed."
+                       |> #heap_info;
   val field_info = Symtab.lookup (heap |> #structs) struct_C_nm 
                  |> Utils.the' "field_info in mk_specialised_corres_put failed." 
                  |> #field_info;
@@ -326,7 +328,8 @@ ML{* fun mk_urecord_lems_for_uval file_nm ctxt (uval:uval) =
   val ml_sigil    = get_uval_sigil uval;
   val struct_C_nm = get_ty_nm_C uval;
   val _ = tracing ("mk_urecord_lems_for_uval is generating lems for " ^ struct_C_nm)
-  val heap = Symtab.lookup (HeapInfo.get thy) file_nm 
+  val heap = Symtab.lookup (HeapInfo.get thy) file_nm
+              |> Option.map #heap_info;
   fun get_structs heap = Symtab.lookup (#structs heap) struct_C_nm : 'a option;
   val field_info = heap ?> get_structs +> #field_info |> these;
   val num_of_fields = List.length field_info;
