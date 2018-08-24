@@ -40,11 +40,13 @@ begin
 setup {* schematic_term_setup *}
 
 ML {*
-  fun rtac rl = resolve0_tac [rl]
+  fun rtac rl = resolve0_tac [rl];
+  fun etac rl = eresolve0_tac [rl];
 
   fun atac i = PRIMSEQ (Thm.assumption NONE i);
 
-  fun etac rl = eresolve0_tac [rl]
+  fun forward0_tac rls = resolve0_tac (map make_elim rls) THEN' atac;
+  fun ftac rl = forward0_tac [rl];
 *}
 
 ML {*
