@@ -79,7 +79,7 @@ lemma assoc_comp_snd_tuple_lambda: "h \<circ> snd \<circ> (\<lambda>(a,b). (f a 
   by force
 
 
-section {* Misc lemmas *}
+section {* list related lemmas *}
 
 lemma map_fst_update:
   assumes "ts ! f = (t, x)"
@@ -93,6 +93,24 @@ qed
 lemma map_zip [simp]:
   shows "map (\<lambda> (a , b). (f a, g b)) (zip as bs) = zip (map f as) (map g bs)"
   by (induct as arbitrary:bs, simp, case_tac bs, simp_all)
+
+lemma eq_updated_same_pace_imp_eq:
+  assumes "length xs = length ys"
+    and "i < length xs"
+    and "xs[i := x] = ys[i := y]"
+  shows "x = y"
+  using assms
+  by (induct "length xs" arbitrary: xs ys i; metis nth_list_update_eq)
+
+lemma list_all2_update_second:
+  assumes "list_all2 f xs (ys[i := a])"
+    and "f (xs ! i) a \<Longrightarrow> f (xs ! i) b"
+  shows "list_all2 f xs (ys[i := b])"
+  using assms
+  by (clarsimp simp add: list_all2_conv_all_nth, metis nth_list_update_eq nth_list_update_neq)
+
+
+section {* Misc lemmas *}
 
 lemma distinct_fst:
   assumes "distinct (map fst xs)"
@@ -112,14 +130,6 @@ lemma prod_in_set:
   shows   "a \<in> set (map fst l)"
     and     "b \<in> set (map snd l)"
   using assms by (force intro: imageI)+
-
-lemma list_all2_update_second:
-  assumes "list_all2 f xs (ys[i := a])"
-    and "f (xs ! i) a \<Longrightarrow> f (xs ! i) b"
-  shows "list_all2 f xs (ys[i := b])"
-  using assms
-  by (clarsimp simp add: list_all2_conv_all_nth, metis nth_list_update_eq nth_list_update_neq)
-
 
 
 lemma filter_fst_ignore_tuple:
