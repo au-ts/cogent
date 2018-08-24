@@ -1507,28 +1507,6 @@ lemma corres_member_boxed:
   apply (fastforce intro!: u_sem_memb_b u_sem_var elim: subst)
   done
 
-lemma corres_promote:
- assumes typing_x: "\<Xi>', [], \<Gamma>' \<turnstile> Var x : TSum ts"
- assumes val_rel_promote: "case (\<gamma>!x) of USum vtag vval vtyps \<Rightarrow> 
-            val_rel (USum vtag vval (map (\<lambda>(n,t).(n,type_repr t)) ts')) (wrap_fields' x')"
- shows "corres state_rel (Promote ts' (Var x))
-        (gets (\<lambda>_. wrap_fields' x'))
-        \<xi>' \<gamma> \<Xi>' \<Gamma>' \<sigma> s"
-  apply (monad_eq simp: corres_def)
-  apply (insert assms)[]
-  apply (frule(2) preservation_mono(1)[where \<Gamma>="\<Gamma>'" and e="Var x"])
-    apply (rule u_sem_var)
-   apply (rule typing_x)
-  apply clarsimp
-  apply (erule u_t_sumE)
-  apply (rename_tac vval vtyp vtag vtyps k)
-  apply clarsimp
-  apply (rule_tac x=\<sigma> in exI)
-  apply (rule_tac x="USum vtag vval (map (\<lambda>(n, t). (n, type_repr t)) ts')" in exI)
-  apply clarsimp
-  apply(metis  u_sem_promote u_sem_var)
- done
-
 lemma corres_fun:
   "val_rel (UFunction f []) (fun_tag' :: 32 signed word) \<Longrightarrow>
    corres srel (Fun f []) (gets (\<lambda>_. fun_tag')) \<xi>' \<gamma> \<Xi>' \<Gamma>' \<sigma> s"
@@ -1707,17 +1685,18 @@ lemma afun_corres:
 
 end
 
+(* TODO: revise this ML code! *)
 ML {*
 fun simp_xi ctxt = let
     val xi_def = Proof_Context.get_thm ctxt "\<Xi>_def"
   in
     full_simplify (put_simpset HOL_basic_ss ctxt
         addsimps [xi_def]
-        addsimps @{thms fst_conv snd_conv list.case char.case nibble.case}
+        addsimps @{thms fst_conv snd_conv list.case} (* TODO these were used here, but no longer exist in Isabelle2017 char.case nibble.case} *)
         |> Simplifier.add_cong @{thm list.case_cong_weak})
   end
 
-val simp_xi_att = Attrib.thms >> (fn thms => Thm.rule_attribute (fn cg => let
+val simp_xi_att = Attrib.thms >> (fn thms => Thm.rule_attribute thms (fn cg => let
     val ctxt = Context.proof_of cg
     val abb_tys = Proof_Context.get_thms ctxt "abbreviated_type_defs"
   in
