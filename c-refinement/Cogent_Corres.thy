@@ -1472,25 +1472,26 @@ lemma corres_member_unboxed:
   by auto
 
 lemma corres_member_boxed:
-  "\<lbrakk>val_rel (\<gamma>!x) (x'::('a::cogent_C_val) ptr);  
-   \<Gamma>'!x = Some (TRecord typ sigil);
-   \<gamma> ! x = UPtr (ptr_val x') repr;
-   \<Xi>', [], \<Gamma>' \<turnstile> Member (Var x) f : te';
-    \<And>fs r w. \<lbrakk>(\<sigma>, s)\<in> srel; \<sigma> (ptr_val x') = Some (URecord fs); 
+  assumes
+    "val_rel (\<gamma>!x) (x'::('a::cogent_C_val) ptr)"
+    "\<Gamma>'!x = Some (TRecord typ sigil)"
+    "\<gamma> ! x = UPtr (ptr_val x') repr"
+    "\<Xi>', [], \<Gamma>' \<turnstile> Member (Var x) f : te'"
+    "\<And>fs r w. \<lbrakk>(\<sigma>, s)\<in> srel; \<sigma> (ptr_val x') = Some (URecord fs); 
                \<Xi>', \<sigma> \<turnstile> UPtr (ptr_val x') repr :u TRecord typ sigil \<langle>r, w\<rangle>\<rbrakk> \<Longrightarrow> 
-              is_valid' s x' \<and> val_rel (fst(fs!f)) ((f' s)::'bb::cogent_C_val)
-   \<rbrakk> \<Longrightarrow>
-   corres srel (Member (Var x) f) 
-    (do _ \<leftarrow> guard (\<lambda>s. is_valid' s x');
-       gets (\<lambda>s. f' s )
-    od) \<xi>' \<gamma> \<Xi>' \<Gamma>' \<sigma> s"
+              is_valid' s x' \<and> val_rel (fst(fs!f)) ((f' s)::'bb::cogent_C_val)"
+  shows "corres srel (Member (Var x) f) 
+          (do _ \<leftarrow> guard (\<lambda>s. is_valid' s x');
+             gets (\<lambda>s. f' s )
+          od) \<xi>' \<gamma> \<Xi>' \<Gamma>' \<sigma> s"
+  using assms
   apply (monad_eq simp: corres_def val_rel_ptr_def) 
   apply (rename_tac r w)
   apply atomize
   apply (erule typing_memberE)
   apply (rename_tac tr access k)
   apply (erule typing_varE)
-    apply (frule_tac matches_ptrs_proj', simp+)
+  apply (frule_tac matches_ptrs_proj', simp+)
   apply clarsimp
   apply (rename_tac rr)
   apply (drule(1) same_type_as_weakened)
@@ -1501,7 +1502,7 @@ lemma corres_member_boxed:
    apply (erule impE, fast)
    apply clarsimp
    apply (rule_tac x=\<sigma> in exI)
-   apply (rule_tac x="fst (fs' ! f)" in exI)
+   apply (rule exI)
    apply (fastforce intro!: u_sem_memb_b u_sem_var elim: subst)
   apply (fastforce intro!: u_sem_memb_b u_sem_var elim: subst)
   done
