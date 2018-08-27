@@ -37,9 +37,11 @@ import Text.PrettyPrint.ANSI.Leijen hiding ((</>))
 deepIndex :: Fin v -> Term
 deepIndex = mkInt . fromIntegral . finInt
 
+-- TODO these undefineds should be swapped out for representations of the layout, once we work out what the C refinement framework
+-- is going to do with them ~ v.jackson / 2018-08-27
 deepSigil :: Sigil s -> Term
-deepSigil (Boxed True  _) = mkId "ReadOnly"
-deepSigil (Boxed False _) = mkId "Writable"
+deepSigil (Boxed True  _) = mkApp (mkId "Boxed") [(mkId "ReadOnly"), (mkId "undefined")]
+deepSigil (Boxed False _) = mkApp (mkId "Boxed") [(mkId "Writable"), (mkId "undefined")]
 deepSigil Unboxed         = mkId "Unboxed"
 
 type TypeAbbrevs = (Map.Map Term Int, Int)
