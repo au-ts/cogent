@@ -84,7 +84,6 @@ fun funcall_sem :: "'f InValue env \<Rightarrow> 'f expr \<Rightarrow> ('f FunCa
      (let (calls, ptrs) = funcall_sem \<gamma> x
       in (calls @ [(Inr f, ptrs)], []))"
 | "funcall_sem \<gamma> (App f x) = (fst (funcall_sem \<gamma> f) @ fst (funcall_sem \<gamma> x), [])"
-| "funcall_sem \<gamma> (Promote ty x) = funcall_sem \<gamma> x"
 | "funcall_sem \<gamma> (Con _ tag x) =
      (let (calls, ptrs) = funcall_sem \<gamma> x
       in (calls, map (op # (InSum tag)) ptrs))"
