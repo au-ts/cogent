@@ -173,10 +173,10 @@ ML{* fun corres_case_tac ctxt = SUBGOAL (fn (t, i) => let
     val vr_simps = lookup_thm_index vr_simp_idx (scrape_C_types_term t)
     val thm = Proof_Context.get_thm ctxt "corres_case"
     val xs = Term.add_frees t [] |> filter (fn (s, _) => s = "x'")
-    val x = case xs of [] => raise TERM ("corres_case_tac: no x'", [t])
+    val xrawvar = case xs of [] => raise TERM ("corres_case_tac: no x'", [t])
         | _ => hd xs
-    val x = Thm.cterm_of ctxt (Free x)
-    val thm = Thm.instantiate [(@{schematic_term "?x' :: (?'c :: cogent_C_val)"}, x)] thm
+    val x = Thm.cterm_of ctxt (Free xrawvar)
+    val thm = Drule.infer_instantiate ctxt [(("x'", 0), x)] thm   (* TODO check 0 is the one we want here! It should be, hopefully. *)
     val tag_simps = Proof_Context.get_thms ctxt "tag_t_defs"
   in rtac thm 
     THEN_ALL_NEW (TRY o atac)
