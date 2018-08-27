@@ -120,7 +120,7 @@ type Taken  = Bool
 
 data Type e t =
               -- They are in WHNF
-                TCon TypeName [t] (Sigil RepExpr)  -- FIXME: can polymophise the `Representation`
+                TCon TypeName [t] (Sigil RepExpr)  -- FIXME: can polymorphise the `Representation`
               | TVar VarName Banged
               | TFun t t
               | TRecord [(FieldName, (t, Taken))] (Sigil RepExpr)

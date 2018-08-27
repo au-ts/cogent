@@ -155,6 +155,21 @@ data Constraint = (:<) (TypeFragment TCType) (TypeFragment TCType)
                 | Arith SExpr
                 deriving (Eq, Show, Ord)
 
+splitArithConstraints :: Constraint -> ([SExpr], Constraint)
+splitArithConstraints (c1 :& c2)
+  = let (e1,c1') = splitArithConstraints c1
+        (e2,c2') = splitArithConstraints c2
+     in (e1 <> e2, c1' <> c2')
+splitArithConstraints (c :@ ctx )
+  = let (e,c') = splitArithConstraints c
+     in (e, c' :@ ctx)
+splitArithConstraints (Arith e ) = ([e], Sat)
+splitArithConstraints c          = ([], c)
+
+andSExprs :: [SExpr] -> SExpr
+andSExprs [] = SE $ BoolLit True
+andSExprs (e:es) = SE $ PrimOp "&&" [e, andSExprs es]
+
 #if __GLASGOW_HASKELL__ < 803
 instance Monoid Constraint where
   mempty = Sat
@@ -191,13 +206,13 @@ data TypeFragment t = F t
                     | FVariant (M.Map TagName ([t], Taken))
                     deriving (Eq, Show, Functor, Foldable, Traversable, Ord)
 
-data TCType       = T (Type SExpr TCType)
-                  | U Int  -- unifier
-                  deriving (Show, Eq, Ord)
+data TCType         = T (Type SExpr TCType)
+                    | U Int  -- unifier
+                    deriving (Show, Eq, Ord)
 
-data SExpr        = SE (Expr RawType RawPatn RawIrrefPatn SExpr)
-                  | SU Int
-                  deriving (Show, Eq, Ord)
+data SExpr          = SE (Expr RawType RawPatn RawIrrefPatn SExpr)
+                    | SU Int
+                    deriving (Show, Eq, Ord)
 
 data FuncOrVar = MustFunc | MustVar | FuncOrVar deriving (Eq, Ord, Show)
 

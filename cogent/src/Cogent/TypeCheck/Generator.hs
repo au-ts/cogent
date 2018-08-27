@@ -257,6 +257,10 @@ cg' (ArrayIndex e i) t = do
   let c = F alpha :< F t <> Share ta UsedInArrayIndexing
         <> Arith (SE (PrimOp "<" [toSExpr i, n]))
         -- <> Arith (SE (PrimOp ">=" [toSExpr i, SE (IntLit 0)]))  -- as we don't have negative values
+  traceTc "gen" (text "array indexing" <> colon
+                 L.<$> text "index is" <+> pretty i <> semi
+                 L.<$> text "bound is" <+> pretty n <> semi
+                 L.<$> text "generate constraint" <+> prettyC c)
   return (ce <> ci <> c, ArrayIndex e' i)
 
 cg' exp@(Lam pat mt e) t = do
@@ -393,12 +397,18 @@ cg' (Member e f) t = do
            L.<$> text "generate constraint" <+> prettyC c)
   return (c' <> c, f')
 
+-- FIXME: This is very hacky. But since we don't yet have implications in our
+-- constraint system, ... / zilinc
 cg' (If e1 bs e2 e3) t = do
   (c1, e1') <- letBang bs (cg e1) (T (TCon "Bool" [] Unboxed))
   (c, [(c2, e2'), (c3, e3')]) <- parallel' [(ThenBranch, cg e2 t), (ElseBranch, cg e3 t)]
   let e = If e1' bs e2' e3'
   traceTc "gen" (text "cg for if:" <+> prettyE e)
-  return (c1 <> c <> c2 <> c3, e)
+  let (ca2,cc2) = splitArithConstraints c2
+      (ca3,cc3) = splitArithConstraints c3
+  let c2' = Arith (SE $ PrimOp "||" [SE $ PrimOp "not" [tcToSExpr e1'], andSExprs ca2])
+      c3' = Arith (SE $ PrimOp "||" [tcToSExpr e1', andSExprs ca3])
+  return (c1 <> c <> c2' <> c3' <> cc2 <> cc3, e)
 
 cg' (Put e ls) t | not (any isNothing ls) = do
   alpha <- freshTVar

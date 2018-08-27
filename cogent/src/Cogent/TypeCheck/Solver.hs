@@ -913,7 +913,7 @@ sexprToSbv (SU i) = do
                   modify (first $ IM.insert i v)
                   return v
     Just v -> return v
-sexprToSbv _ = __todo "sexprToSbv: not yet implemented"
+sexprToSbv e = __todo $ "sexprToSbv: not yet implemented: " ++ show e
 
 bopToSbv :: OpName -> (VD.SVal -> VD.SVal -> VD.SVal)
 bopToSbv = \case
