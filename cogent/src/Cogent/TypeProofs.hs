@@ -67,7 +67,7 @@ deepTypeProof mod withDecls withBodies thy decls log =
   let header = (string ("(*\n" ++ log ++ "\n*)\n") <$>)
       ta = getTypeAbbrevs mod decls
       imports = if __cogent_fml_typing_tree then [__cogent_root_dir </> "c-refinement/TypeProofGen"]
-                                          else [__cogent_root_dir </> "cogent/isa/CogentHelper"]
+                                            else [__cogent_root_dir </> "cogent/isa/CogentHelper"]
       proofDecls | withDecls  = deepTypeAbbrevs mod ta ++ deepDefinitions mod ta decls
                                 ++ funTypeEnv mod decls ++ funDefEnv decls
                                 ++ concatMap (funTypeTree mod ta) decls
