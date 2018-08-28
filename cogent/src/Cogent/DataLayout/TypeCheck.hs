@@ -9,14 +9,14 @@ import qualified Data.Map as M
 import Control.Monad (guard)
 
 import Cogent.Util (mapAccumLM)
-import Cogent.Common.Syntax (FieldName, TagName, RepName)
+import Cogent.Common.Syntax (FieldName, TagName, RepName, Size)
 import Text.Parsec.Pos (SourcePos)
 import Cogent.DataLayout.Core
 import Cogent.DataLayout.Surface
 
 {-+ Data layouts go through two phases of type checking.
   | 1. When surface `RepDecl` syntax trees are converted to core `DataLayout` syntax trees
-  | 2. After monomorphisation, for every type `Ptr T L`, we check the type `T` matches the layout `L`
+  | 2. After monomorphisation, whenever a type `T` has a `Boxed _ L` sigil, we that `T` matches the layout `L`.
   +-}
 
 -- A path from a particular part of a RepDecl/DataLayout tree to the root decl.
@@ -45,7 +45,7 @@ dataLayoutSurfaceToCore env (RepDecl repPos repName repExpr) = evalRepExpr (InDe
     evalRepExpr path (RepRef n) =
       case M.lookup n env of 
         Just (layout, allocation) -> Right (layout, allocation)
-        Nothing                      -> Left $ UnknownRepr n path
+        Nothing                   -> Left $ UnknownRepr n path
             
     evalRepExpr path (Prim size) =
       if bitSize == 0
@@ -84,9 +84,9 @@ dataLayoutSurfaceToCore env (RepDecl repPos repName repExpr) = evalRepExpr (InDe
       where
         evalAlternative
           :: BitRange -- Of the variant's tag
-          -> (Allocation, Map Integer TagName) -- The accumulated (allocation, set of used tag values) from already evaluated alternatives
-          -> (TagName, SourcePos, Integer, RepExpr) -- The alternative to evaluate
-          -> Either DataLayoutSurfaceToCoreError ((Allocation, Map Integer TagName), (TagName, (Integer, DataLayout BitRange, SourcePos)))
+          -> (Allocation, Map Size TagName) -- The accumulated (allocation, set of used tag values) from already evaluated alternatives
+          -> (TagName, SourcePos, Size, RepExpr) -- The alternative to evaluate
+          -> Either DataLayoutSurfaceToCoreError ((Allocation, Map Size TagName), (TagName, (Size, DataLayout BitRange, SourcePos)))
           
         evalAlternative range (accumAlloc, accumTagValues) (tagName, pos, tagValue, repExpr) = do
           (layout, alternativeAlloc)  <- evalRepExpr (InAlt tagName pos path) repExpr
@@ -94,7 +94,7 @@ dataLayoutSurfaceToCore env (RepDecl repPos repName repExpr) = evalRepExpr (InDe
           tagValues                   <- checkedTagValues
           return ((alloc, tagValues), (tagName, (tagValue, layout, pos)))
           where
-            checkedTagValues :: Either DataLayoutSurfaceToCoreError (Map Integer TagName)
+            checkedTagValues :: Either DataLayoutSurfaceToCoreError (Map Size TagName)
             checkedTagValues
               | tagValue < 0 || tagValue >= 2^(bitSizeBR range) =
                   Left $ OversizedTagValue path range tagName tagValue
@@ -103,7 +103,7 @@ dataLayoutSurfaceToCore env (RepDecl repPos repName repExpr) = evalRepExpr (InDe
               | otherwise =
                   Right $ M.insert tagValue tagName accumTagValues
           
-    evalSize :: RepSize -> Integer
+    evalSize :: RepSize -> Size
     evalSize (Bytes b) = b * 8
     evalSize (Bits b)  = b
     evalSize (Add a b) = evalSize a + evalSize b
@@ -120,10 +120,10 @@ data DataLayoutSurfaceToCoreError
     
   | TagNotSingleBlock       DataLayoutPath
   
-  | SameTagValues           DataLayoutPath TagName TagName Integer
+  | SameTagValues           DataLayoutPath TagName TagName Size
     -- Path to two tags in the same variant and their common value
     
-  | OversizedTagValue       DataLayoutPath BitRange TagName Integer
+  | OversizedTagValue       DataLayoutPath BitRange TagName Size
     -- Used a tag value which is too large to fit in the variant's tag bit range
     -- Path to the variant, bits for its bit range, name of the alternative, it's tag value
     
@@ -173,14 +173,10 @@ overlaps (BitRange s1 o1) (BitRange s2 o2) =
 -- we want to add offset bits to all blocks inside the repExpr,
 -- as well as the allocation corresponding to that repExpr.
 class Offsettable a where
-  offset :: Integer -> a -> a
+  offset :: Size -> a -> a
   
 instance Offsettable BitRange where
   offset n range@(BitRange { bitOffsetBR }) = range { bitOffsetBR = bitOffsetBR + n}
-  
-instance Offsettable Block where
-  offset n (DataBlock range) = DataBlock $ offset n range
-  offset n block             = block
   
 instance Offsettable a => Offsettable (DataLayout a) where
   offset n = fmap (offset n)

@@ -10,7 +10,7 @@ import Test.QuickCheck
 
 import Cogent.DataLayout.Core
 import Cogent.DataLayout.TypeCheck
-import Cogent.Common.Syntax (FieldName, TagName, RepName)
+import Cogent.Common.Syntax (FieldName, TagName, RepName, Size)
 
 {- PROPERTIES -}
 
@@ -61,14 +61,14 @@ instance Arbitrary BitRange where
 {- GENERATORS -}
 -- Generates a valid datalayout
 genDataLayout
-  :: Int -- For sizing
+  :: Size -- For sizing
   -> DataLayoutPath -- Path to new layout
   -> Gen (DataLayout BitRange, Allocation)
 genDataLayout n path = genDataLayout' (fromIntegral n) n path []
 
 genDataLayout'
-  :: Integer -- max allowed allocated bit index
-  -> Int -- max allowed total bit size of the layout
+  :: Size -- max allowed allocated bit index
+  -> Size -- max allowed total bit size of the layout
   -> DataLayoutPath -- path in the DataLayout to this sublayout
   -> Allocation -- existing allocation
   -> Gen (DataLayout BitRange, Allocation)
@@ -82,8 +82,8 @@ genDataLayout' maxBitIndex maxSize path alloc =
     ]
         
 genPrimLayout
-  :: Integer -- max allowed allocated bit index
-  -> Int -- max allowed bit size for the range
+  :: Size -- max allowed allocated bit index
+  -> Size -- max allowed bit size for the range
   -> DataLayoutPath -- Path to the prim layout
   -> Allocation -- Existing allocation
   -> Gen (DataLayout BitRange, Allocation)
@@ -92,8 +92,8 @@ genPrimLayout maxBitIndex maxSize path alloc = do
   return (PrimLayout range, alloc')
     
 genSumLayout
-  :: Integer -- max allowed allocated bit index
-  -> Int -- max allowed total bit size for the records fields
+  :: Size -- max allowed allocated bit index
+  -> Size -- max allowed total bit size for the records fields
   -> DataLayoutPath -- Path to the record in the DataLayout
   -> Allocation -- Existing allocation
   -> Gen (DataLayout BitRange, Allocation)
@@ -106,11 +106,11 @@ genSumLayout maxBitIndex maxSize path alloc =
     return (SumLayout tagBitRange alts, alloc'')
   where
     genAlts
-      :: Int -- max allowed total bit size for remaining fields
-      -> Integer -- tag value for alternative
-      -> Integer -- max number of alternatives
+      :: Size -- max allowed total bit size for remaining fields
+      -> Size -- tag value for alternative
+      -> Size -- max number of alternatives
       -> Allocation -- existing allocation
-      -> Gen (Map TagName (Integer, DataLayout BitRange, SourcePos), Allocation)
+      -> Gen (Map TagName (Size, DataLayout BitRange, SourcePos), Allocation)
             
     genAlts 0 _ _ alloc          = return (M.empty, alloc)
     genAlts _ m n alloc | m == n = return (M.empty, alloc)
@@ -125,8 +125,8 @@ genSumLayout maxBitIndex maxSize path alloc =
 
     
 genRecordLayout
-  :: Integer -- max allowed allocated bit index
-  -> Int -- max allowed total bit size for the records fields
+  :: Size -- max allowed allocated bit index
+  -> Size -- max allowed total bit size for the records fields
   -> DataLayoutPath -- Path to the record in the DataLayout
   -> Allocation -- Existing allocation
   -> Gen (DataLayout BitRange, Allocation)
@@ -136,8 +136,8 @@ genRecordLayout maxBitIndex maxSize path alloc =
     return (RecordLayout fields, alloc')
   where
     genFields
-      :: Int -- max allowed total bit size for remaining fields
-      -> Int -- for generating unique field names
+      :: Size -- max allowed total bit size for remaining fields
+      -> Size -- for generating unique field names
       -> Allocation -- existing allocation
       -> Gen (Map FieldName (DataLayout BitRange, SourcePos), Allocation)
             
@@ -155,8 +155,8 @@ genRecordLayout maxBitIndex maxSize path alloc =
 -- of size at most the requested allocSize
 -- and the corresponding new allocation
 genBitRange
-  :: Integer -- Max allowed bit index
-  -> Int -- Max size for the new range
+  :: Size -- Max allowed bit index
+  -> Size -- Max size for the new range
   -> Allocation -- Existing allocation which range must not overlap
   -> DataLayoutPath -- Path to range in the DataLayout
   -> Gen (BitRange, Allocation)
@@ -166,16 +166,16 @@ genBitRange maxBitIndex maxSize accumAlloc pathToRange = do
   elements allSizedRanges
 
 -- Enumerates all bitranges from smallest last bit index to maxBitIndex
-allNonEmptyRanges :: Integer -> [BitRange]
+allNonEmptyRanges :: Size -> [BitRange]
 allNonEmptyRanges maxBitIndex = do
   lastBitIndex  <- [1 .. maxBitIndex]
   size          <- [1 .. lastBitIndex]
-  let offset    = lastBitIndex - size
+  let offset    =  lastBitIndex - size
   return $ BitRange size offset
   
 -- Enumerates all ranges which are not allocated in the given Allocation
 allNonAllocatedRanges
-  :: Integer -- Max allowed bit index
+  :: Size -- Max allowed bit index
   -> Allocation -- Existing allocation
   -> DataLayoutPath -- Path to new range
   -> [(BitRange, Allocation)] -- All possible new (range, allocation) pairs
@@ -193,6 +193,7 @@ instance Arbitrary SourcePos where
     line <- choose (0, 100)
     column <- choose (0, 80)
     return $ newPos sourceName line column
+
 
 return []
 testAll = $quickCheckAll
