@@ -1,5 +1,5 @@
 module Cogent.DataLayout.Surface where
-import Cogent.Common.Syntax (FieldName, TagName, RepName)
+import Cogent.Common.Syntax (FieldName, TagName, RepName, Size)
 import Text.Parsec.Pos (SourcePos)
 import Cogent.Compiler (__fixme)
 
@@ -7,8 +7,8 @@ import Cogent.Compiler (__fixme)
 
 -- Rename to DataLayoutSize
 data RepSize 
-  = Bytes Integer
-  | Bits  Integer
+  = Bytes Size
+  | Bits  Size
   | Add   RepSize RepSize
   -- Future options, sizeof, offsetof, "after"
   deriving (Show, Eq, Ord)
@@ -22,7 +22,7 @@ data RepDecl
 data RepExpr
   = Prim    RepSize
   | Record  [(FieldName, SourcePos, RepExpr)] 
-  | Variant RepExpr [(TagName, SourcePos, Integer, RepExpr)]
+  | Variant RepExpr [(TagName, SourcePos, Size, RepExpr)]
   | Offset  RepExpr RepSize
   | RepRef  RepName
   deriving (Show, Eq, Ord)
