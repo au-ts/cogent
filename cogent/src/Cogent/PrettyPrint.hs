@@ -848,7 +848,7 @@ instance Pretty a => Pretty (DataLayout a) where
 
   pretty SumLayout {tagDL, alternativesDL} = 
     keyword "repr" <> parens (pretty tagDL) <> variant (map prettyAlt $ M.toList alternativesDL)
-    where prettyAlt (n,(v,l,_)) = tagname n <> parens (integer v) <> colon <> pretty l
+    where prettyAlt (n,(v,l,_)) = tagname n <> parens (integer $ fromIntegral v) <> colon <> pretty l
 
   pretty RecordLayout {fieldsDL} =
     keyword "repr" <> record (map prettyField $ M.toList fieldsDL)
