@@ -869,7 +869,6 @@ applySubst s = do
 applyAssign :: Ass.Assignment -> Solver ()
 applyAssign a = traceTc "sol" (text "apply assign") >> assigns <>= a
 
-
 -- add axioms for constant equality
 kAxioms :: Solver [SExpr]
 kAxioms = map f <$> (filter (arithTCType . fst3 . snd) . M.toList <$> lift (use knownConsts))
@@ -967,7 +966,7 @@ sexprToSbv (SE (Var v) t) = lift (f v)
               T (TCon "U32"  [] Unboxed) -> VD.sWordN 32
               T (TCon "U64"  [] Unboxed) -> VD.sWordN 64
               T (TCon "Bool" [] Unboxed) -> sBoolD
-              _ -> __impossible "sexprToSbv: unsupported type for Var"
+              _ -> __impossible $ "sexprToSbv: unsupported type " ++ show (pretty t) ++ " for Var"
 sexprToSbv (SE (IntLit i) t) = 
   let w = case t of
             T (TCon "U8"   [] Unboxed) -> 8

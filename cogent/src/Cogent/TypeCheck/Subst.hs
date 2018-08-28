@@ -83,7 +83,7 @@ applyC s (Upcastable a b) = apply s a `Upcastable` apply s b
 applyC s (Share t m) = Share (apply s t) m
 applyC s (Drop t m) = Drop (apply s t) m
 applyC s (Escape t m) = Escape (apply s t) m
-applyC s (Arith e) = Arith e
+applyC s (Arith e) = Arith $ applySE s e
 -- applyC s (Exists e) = Exists e
 -- applyC s (ForAll e) = ForAll e
 applyC s (Unsat e) = Unsat (applyErr s e)
@@ -99,3 +99,6 @@ applyE s (TE t e l) = TE (apply s t)
                          $ ffffmap (apply s) e)
                          l
 
+applySE :: Subst -> SExpr -> SExpr
+applySE s (SE e t) = SE (fmap (applySE s) e) (apply s t)
+applySE s (SU n t) = SU n (apply s t)
