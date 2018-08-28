@@ -19,7 +19,7 @@ import Cogent.DataLayout.Surface
 import Cogent.DataLayout.Core
 import Cogent.DataLayout.TypeCheck
 import CogentTests.DataLayout.Core
-import Cogent.Common.Syntax (RepName)
+import Cogent.Common.Syntax (RepName, Size)
 
 {- PROPERTIES -}
 prop_allocationDisj :: Allocation -> Allocation -> Bool
@@ -38,7 +38,7 @@ prop_overlaps :: BitRange -> BitRange -> Bool
 prop_overlaps a b = overlaps a b == not (toSet a `disjoint` toSet b)
 
 prop_returnTrip = propReturnTrip 30
-propReturnTrip :: Int -> RepName -> SourcePos -> Property
+propReturnTrip :: Size -> RepName -> SourcePos -> Property
 propReturnTrip size repName pos =
   forAll (genDataLayout size (InDecl repName pos)) $ \(layout, alloc) ->
   let
@@ -53,7 +53,7 @@ propReturnTrip size repName pos =
   | Convert core DataLayout values back to surface RepExprs for round trip testing.
   +-}
   
-bitSizeToRepSize :: Integer -> RepSize
+bitSizeToRepSize :: Size -> RepSize
 bitSizeToRepSize size =
   if bytes == 0
     then Bits bits
@@ -88,7 +88,7 @@ disjoint :: Ord a => Set a -> Set a -> Bool
 disjoint a b = a `intersection` b == empty
 
 class SetLike a where
-  toSet :: a -> Set Integer
+  toSet :: a -> Set Size
 
 instance SetLike BitRange where
   toSet (BitRange size offset) = S.fromList [offset..offset + size - 1]
