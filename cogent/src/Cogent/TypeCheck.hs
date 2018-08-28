@@ -30,7 +30,7 @@ import Cogent.ReprCheck (compile)
 import Cogent.Surface
 import Cogent.TypeCheck.Assignment (assignT, assignE, assignAlts)
 import Cogent.TypeCheck.Base
-import Cogent.TypeCheck.Generator hiding (validateType)
+import Cogent.TypeCheck.Generator
 import qualified Cogent.TypeCheck.Generator as G (validateType)
 import Cogent.TypeCheck.Post (postT, postE, postA)
 import Cogent.TypeCheck.Solver
@@ -196,5 +196,10 @@ typecheckCustTyGen = mapM . firstM $ \t -> do
     then logErrExit (CustTyGenIsPolymorphic $ toTCType t')
     else lift (lift $ isSynonym t') >>= \case
            True -> logErrExit (CustTyGenIsSynonym $ toTCType t')
-           _    -> validateType [] t' >>= postT
+           _    -> do base <- lift . lift $ use knownConsts
+                      let ctx = C.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) C.empty
+                      ((ct,t''),flx,os) <- runCG ctx [] (G.validateType t')
+                      (logs,subst,assn,_) <- runSolver (solve ct) [] flx os
+                      exitOnErr $ mapM_ logTc =<< mapM (\(c,l) -> lift (use errCtx) >>= \c' -> return (c++c',l)) logs
+                      postT $ assignT assn $ apply subst t''
 

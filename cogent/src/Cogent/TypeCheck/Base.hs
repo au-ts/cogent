@@ -445,33 +445,6 @@ substSExpr vs (SE e t) = SE (fmap (substSExpr vs) e) t
 -- XXX | uqSExpr v (SAll) = __impossible "uqSExpr: already a predicate"
 -- XXX | uqSExpr v (SE e) = SE $ fmap (uqSExpr v) e
 
--- Check for type well-formedness
-validateType :: [VarName] -> RawType -> TcM TCType
-validateType vs t = either (\e -> logErr e >> exitErr) return =<< lift (lift $ runExceptT $ validateType' vs t)
-
--- don't log erros, but instead return them
-validateType' :: [VarName] -> RawType -> TcErrM TypeError TCType
-validateType' vs (RT t) = do
-  ts <- use knownTypes
-  case t of
-    TVar v _    | v `notElem` vs         -> throwE (UnknownTypeVariable v)
-    TCon t as _ | Nothing <- lookup t ts -> throwE (UnknownTypeConstructor t)
-                | Just (vs, _) <- lookup t ts
-                , provided <- length as
-                , required <- length vs
-                , provided /= required
-               -> throwE (TypeArgumentMismatch t provided required)
-    TRecord fs _ | fields  <- map fst fs
-                 , fields' <- nub fields
-                -> if fields' == fields
-                   then T <$> (mmapM (return . toSExpr) <=< mapM (validateType' vs)) t
-                   else throwE (DuplicateRecordFields (fields \\ fields'))
-    -- TArray te l -> check l >= 0  -- TODO!!!
-    _ -> T <$> (mmapM (return . toSExpr) <=< mapM (validateType' vs)) t
-
-validateTypes' :: (Traversable t) => [VarName] -> t RawType -> TcErrM TypeError (t TCType)
-validateTypes' vs rs = mapM (validateType' vs) rs
-
 
 -- Remove a pattern from a type, for case expressions.
 removeCase :: LocPatn -> TCType -> TCType

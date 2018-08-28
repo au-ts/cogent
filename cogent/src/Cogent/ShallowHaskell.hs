@@ -39,7 +39,7 @@ import Control.Lens hiding (Context, (<*=))
 import Control.Monad.Extra (concatMapM)
 import Control.Monad.RWS hiding (Product, Sum, mapM)
 -- import Data.Char (ord, chr)
-import Data.Foldable (toList)
+import qualified Data.Foldable as F (toList)
 import Data.Function (on)
 import Data.List as L
 import qualified Data.Map as M
@@ -128,7 +128,7 @@ varTypeName = "V"
 typeparam   = "t"
 
 isSubtypeOfAny :: Foldable t => TypeStr -> t TypeStr -> Bool
-isSubtypeOfAny t ts = or $ P.map (t `isSubtypeStr`) $ toList ts
+isSubtypeOfAny t ts = or $ P.map (t `isSubtypeStr`) $ F.toList ts
 
 isSubtypeStr :: TypeStr -> TypeStr -> Bool
 isSubtypeStr (VariantStr alts1) (VariantStr alts2) = let s1 = Set.fromList alts1 
@@ -410,7 +410,7 @@ shallowDefinition (CC.FunDef _ fn ps ti to e) =
     pure [sig,dec]
   where fn'   = mkName $ snm fn
         arg0  = mkName $ snm $ D.freshVarPrefix ++ "0"
-        typar = map fst $ Vec.cvtToList ps
+        typar = map fst $ toList ps
 shallowDefinition (CC.AbsDecl _ fn ps ti to) =
     local (typarUpd typar) $ do
       ty <- shallowType $ CC.TFun ti to
@@ -418,7 +418,7 @@ shallowDefinition (CC.AbsDecl _ fn ps ti to) =
           dec = FunBind () [Match () fn' [] (UnGuardedRhs () $ mkVarE $ mkName "undefined") Nothing]
       pure [sig,dec]
   where fn' = mkName $ snm fn
-        typar = map fst $ Vec.cvtToList ps
+        typar = map fst $ toList ps
 shallowDefinition (CC.TypeDef tn ps Nothing) =
     let dec = DataDecl () (DataType ()) Nothing (mkDeclHead (mkName tn) (P.map (mkName . snm) typar)) []
 #if MIN_VERSION_haskell_src_exts(1,20,0)
@@ -427,10 +427,10 @@ shallowDefinition (CC.TypeDef tn ps Nothing) =
                 Nothing
 #endif
      in local (typarUpd typar) $ pure [dec]
-  where typar = Vec.cvtToList ps
+  where typar = toList ps
 shallowDefinition (CC.TypeDef tn ps (Just t)) = do
     local (typarUpd typar) $ ((:[]) <$> shallowTypeDef tn typar t)
-  where typar = Vec.cvtToList ps
+  where typar = toList ps
 
 shallowDefinitions :: [CC.Definition TypedExpr VarName] -> SG [Decl ()]
 shallowDefinitions = (concat <$>) . mapM shallowDefinition

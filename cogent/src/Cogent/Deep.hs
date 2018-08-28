@@ -20,7 +20,7 @@ import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Core as CC
 import Cogent.Util (NameMod, Stage(..))
-import Cogent.Vec (cvtToList, Fin, finInt)
+import Cogent.Vec (toList, Fin, finInt)
 import Data.List (sort)
 import qualified Data.Map.Strict as Map
 import Isabelle.ExprTH
@@ -177,7 +177,7 @@ deepKind :: Kind -> Term
 deepKind (K e s d) = ListTerm "{" [ mkId str | (sig, str) <- [(e, "E"), (s, "S"), (d, "D")], sig ] "}"
 
 deepPolyType :: NameMod -> TypeAbbrevs -> FunctionType -> Term
-deepPolyType mod ta (FT ks ti to) = mkPair (mkList $ map deepKind $ cvtToList ks)
+deepPolyType mod ta (FT ks ti to) = mkPair (mkList $ map deepKind $ toList ks)
                                            (mkPair (deepType mod ta ti) (deepType mod ta to))
 
 imports :: TheoryImports

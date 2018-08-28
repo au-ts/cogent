@@ -34,9 +34,9 @@
 module Cogent.Glue where
 
 import qualified Cogent.CodeGen as CG
-import Cogent.Common.Syntax
-import Cogent.Common.Types
-import Cogent.Compiler
+import           Cogent.Common.Syntax
+import           Cogent.Common.Types
+import           Cogent.Compiler
 import qualified Cogent.Context   as Ctx
 import qualified Cogent.Core      as CC
 import qualified Cogent.Desugar   as DS
@@ -44,11 +44,11 @@ import qualified Cogent.DList     as DList
 import qualified Cogent.Inference as IN
 import qualified Cogent.Mono      as MN
 import qualified Cogent.Parser    as PS
-import Cogent.PrettyPrint
+import           Cogent.PrettyPrint
 import qualified Cogent.Surface   as SF
 import qualified Cogent.TypeCheck.Assignment as TC
 import qualified Cogent.TypeCheck.Base       as TC
-import qualified Cogent.TypeCheck.Generator  as TC hiding (validateType)
+import qualified Cogent.TypeCheck.Generator  as TC
 import qualified Cogent.TypeCheck.Post       as TC
 import qualified Cogent.TypeCheck.Solver     as TC
 import qualified Cogent.TypeCheck.Subst      as TC
@@ -259,10 +259,15 @@ parseType s loc = parseAnti s PS.monotype loc 4
 
 tcType :: SF.LocType -> GlDefn t SF.RawType
 tcType t = do
-  tvs <- L.map fst <$> (Vec.cvtToList <$> view kenv)
-  flip tcAnti t $ \t -> do TC.errCtx %= (TC.AntiquotedType t :)
-                           t' <- TC.validateType tvs $ SF.stripLocT t
-                           TC.postT t'
+  vs <- Vec.toList <$> view kenv
+  flip tcAnti t $ \t -> do 
+    TC.errCtx %= (TC.AntiquotedType t :)
+    base <- lift . lift $ use TC.knownConsts
+    let ctx = Ctx.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) Ctx.empty
+    ((ct,t''),flx,os) <- TC.runCG ctx (L.map fst vs) (TC.validateType $ SF.stripLocT t)
+    (logs,subst,assn,_) <- TC.runSolver (TC.solve ct) vs flx os
+    TC.exitOnErr $ mapM_ TC.logTc =<< mapM (\(c,l) -> lift (use TC.errCtx) >>= \c' -> return (c++c',l)) logs
+    TC.postT $ TC.assignT assn $ TC.apply subst t''
 
 desugarType :: SF.RawType -> GlDefn t (CC.Type t)
 desugarType = desugarAnti DS.desugarType
@@ -348,7 +353,7 @@ tcExp :: SF.LocExpr -> GlDefn t TC.TypedExpr
 tcExp e = do
   base <- lift . lift $ use (tcState.consts)
   let ctx = Ctx.addScope (fmap (\(t,_,p) -> (t, p, Seq.singleton p)) base) Ctx.empty
-  vs <- Vec.cvtToList <$> view kenv
+  vs <- Vec.toList <$> view kenv
   flip tcAnti e $ \e ->
     do let ?loc = SF.posOfE e
        TC.errCtx %= (TC.AntiquotedExpr e :)

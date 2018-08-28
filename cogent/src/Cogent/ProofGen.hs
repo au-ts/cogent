@@ -179,8 +179,8 @@ follow_tt :: Vec t Kind -> Vec v (Maybe (Type t)) -> Vec vx (Maybe (Type t))
 follow_tt k env env_x env_y = tacSequence (map (kindingHint k) new)
   where
     l = toInt (Vec.length env)
-    n_x = take (toInt (Vec.length env_x) - l) (cvtToList env_x)
-    n_y = take (toInt (Vec.length env_y) - l) (cvtToList env_y)
+    n_x = take (toInt (Vec.length env_x) - l) (toList env_x)
+    n_y = take (toInt (Vec.length env_y) - l) (toList env_y)
     new = catMaybes (n_x ++ n_y)
 
 proofSteps :: Xi a -> Vec t Kind -> Type t -> EnvExpr t v a
@@ -441,7 +441,7 @@ kinding k t = do
 
 kindingRaw :: Vec t Kind -> Type t -> State TypingSubproofs SubproofId
 kindingRaw k t = do
-  let k' = cvtToList k
+  let k' = toList k
       t' = stripType t
       gk = mostGeneralKind k t
   ta <- use tsTypeAbbrevs
@@ -457,7 +457,7 @@ kindingRaw k t = do
 
 kinding' :: Vec t Kind -> Type t -> Kind -> State TypingSubproofs [Tactic]
 kinding' ks t k = do
-  let ks' = cvtToList ks
+  let ks' = toList ks
       t' = stripType t
   ta <- use tsTypeAbbrevs
   kmap <- use subproofKinding
@@ -497,9 +497,9 @@ kindingRecord _ [] _ = return [rule "kind_record_empty"]
 
 allKindCorrect :: Vec t' Kind -> [Type t'] -> Vec t Kind -> State TypingSubproofs [Tactic]
 allKindCorrect k ts ks = do
-  let k' = cvtToList k
+  let k' = toList k
       ts' = map stripType ts
-      ks' = cvtToList ks
+      ks' = toList ks
   ta <- use tsTypeAbbrevs
   akmap <- use subproofAllKindCorrect
   case M.lookup (k', ts', ks') akmap of
@@ -520,7 +520,7 @@ allKindCorrect' _ [] Nil = return []
 allKindCorrect' _ _ _ = error "kind mismatch"
 
 splits :: Vec t Kind -> Vec v (Maybe (Type t)) -> Vec v (Maybe (Type t)) -> Vec v (Maybe (Type t)) -> State TypingSubproofs [Tactic]
-splits k g g1 g2 = ((:[]) . SplitsTac (length (cvtToList g))) `fmap` splitsHint 0 k g g1 g2
+splits k g g1 g2 = ((:[]) . SplitsTac (length (toList g))) `fmap` splitsHint 0 k g g1 g2
 
 ttsplit_innerHint :: Vec t Kind
                   -> Maybe (Type t)
@@ -585,8 +585,8 @@ consumed k g = weakens k g $ cleared g
 -- K ⊢ Γ ↝w Γ'
 weakens :: Vec t Kind -> Vec v (Maybe (Type t)) -> Vec v (Maybe (Type t)) -> State TypingSubproofs [Tactic]
 weakens k g g' = do
-  let k' = cvtToList k
-      [gl, gl'] = map cvtToList [g, g']
+  let k' = toList k
+      [gl, gl'] = map toList [g, g']
       [glt, glt'] = map (map (fmap stripType)) [gl, gl']
   ta <- use tsTypeAbbrevs
   if not cacheWeakeningProofs

@@ -32,7 +32,7 @@ import Cogent.Compiler
 import qualified Cogent.Context as C
 import Cogent.PrettyPrint (prettyC)
 import Cogent.Surface
-import Cogent.TypeCheck.Base hiding (validateType)
+import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Util
 import Cogent.Util hiding (Warning)
 
@@ -306,9 +306,8 @@ cg' exp@(Lam pat mt e) t = do
     Nothing -> return (Sat, alpha)
     Just t' -> do
       tvs <- use knownTypeVars
-      lift (runExceptT $ validateType' tvs (stripLocT t')) >>= \case
-        Left  e   -> return (Unsat e, alpha)
-        Right t'' -> return (F alpha :< F t'', t'')
+      (c,t'') <- validateType (stripLocT t')
+      return (F alpha :< F t'' <> c, t'')
   (s, cp, pat') <- match pat alpha'
   let fvs = fvE $ stripLocE (LocExpr noPos $ Lam pat mt e)
   ctx <- use context
@@ -482,9 +481,8 @@ cg' (Match e bs alts) t = do
 cg' (Annot e tau) t = do
   tvs <- use knownTypeVars
   let t' = stripLocT tau
-  (c, t'') <- lift (runExceptT $ validateType' tvs t') >>= \case
-    Left  e'' -> return (Unsat e'', t)
-    Right t'' -> return (F t :< F t'', t'')
+  (c, t'') <- do (c,t'') <- validateType t'
+                 return (F t :< F t'' <> c, t'')
   (c', e') <- cg e t''
   return (c <> c', Annot e' t'')
 
@@ -693,9 +691,8 @@ withBindings (Binding pat tau e0 bs : xs) e top = do
     Nothing -> return (Sat, alpha)
     Just tau' -> do
       tvs <- use knownTypeVars
-      lift (runExceptT $ validateType' tvs (stripLocT tau')) >>= \case
-        Left  e -> return (Unsat e, alpha)
-        Right t -> return (F alpha :< F t, t)
+      (c,t) <- validateType (stripLocT tau')
+      return (F alpha :< F t <> c, t)
   (s, cp, pat') <- match pat alpha'
   context %= C.addScope s
   (c', xs', e') <- withBindings xs e top
@@ -719,9 +716,8 @@ withBindings (BindingAlts pat tau e0 bs alts : xs) e top = do
     Nothing -> return (Sat, alpha)
     Just tau' -> do
       tvs <- use knownTypeVars
-      lift (runExceptT $ validateType' tvs (stripLocT tau')) >>= \case
-        Left  e -> return (Unsat e, alpha)
-        Right t -> return (F alpha :< F t, t)
+      (c,t) <- validateType (stripLocT tau')
+      return (F alpha :< F t <> c, t)
   (calts, alts') <- cgAlts (Alt pat Regular (LocExpr (posOfE e) (Let xs e)) : alts) top alpha'
   let c = c0 <> ct <> calts
       (Alt pat' _ (TE _ (Let xs' e') _)) : altss' = alts'
