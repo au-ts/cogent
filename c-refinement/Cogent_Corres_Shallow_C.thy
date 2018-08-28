@@ -110,16 +110,16 @@ definition corres_shallow_C where
 lemma corres_shallow_C_intro:
     (* Procedure monomorphisation *)
       assumes mono_prog:
-       "prog\<^sub>m = rename_expr rename (monoexpr prog\<^sub>p)"
+       "prog\<^sub>m = val.rename_expr rename (val.monoexpr prog\<^sub>p)"
     (* Dynamic environment *)
       assumes mono_env:
        "vv\<^sub>m = val.rename_val rename (val.monoval vv\<^sub>p)"
     (* Program typing *)
       assumes mono_proc_env_matches:
-       "proc_env_matches \<xi>\<^sub>m \<Xi>"
+       "val.proc_env_matches \<xi>\<^sub>m \<Xi>"
     (* Program monomorphisation *)
       assumes mono_proc_env:
-       "rename_mono_prog rename \<Xi> \<xi>\<^sub>m \<xi>\<^sub>p"
+       "val.rename_mono_prog rename \<Xi> \<xi>\<^sub>m \<xi>\<^sub>p"
     (* Procedure typing *)
       assumes typingP:
        "\<Xi>, [], [Some \<tau>i] \<turnstile> prog\<^sub>m : \<tau>o"
@@ -128,7 +128,7 @@ lemma corres_shallow_C_intro:
        "corres srel prog\<^sub>m (prog\<^sub>C uv\<^sub>C) \<xi>\<^sub>u\<^sub>m [uv\<^sub>m] \<Xi> [Some \<tau>i] \<sigma> s"
     (* Shallow-deep refinement *)
       assumes scorresP:
-       "scorres (prog\<^sub>s vv\<^sub>s) prog\<^sub>p [vv\<^sub>p] \<xi>\<^sub>p"
+       "val.scorres (prog\<^sub>s vv\<^sub>s) prog\<^sub>p [vv\<^sub>p] \<xi>\<^sub>p"
     (* Shallow-tuples refinement *)
       assumes shallow_tuplesP:
        "shallow_tuples_rel prog\<^sub>s prog\<^sub>t"
@@ -159,14 +159,14 @@ lemma corres_shallow_C_intro:
   apply (frule(3) val_executes_from_upd_executes, rule typingP)
   apply clarsimp
   apply (rename_tac vv')
-  apply (cut_tac v'="vv'" in rename_monoexpr_correct(1)
+  apply (cut_tac v'="vv'" in val.rename_monoexpr_correct(1)
    [OF _ mono_proc_env_matches mono_proc_env, 
     where \<gamma>="[vv\<^sub>p]" and \<Gamma>="[Some \<tau>i]" and e="prog\<^sub>p"])
       apply simp
      apply (simp add: mono_env[symmetric] mono_env_matches)
     apply (simp add: mono_prog mono_env[symmetric])
    using mono_prog typingP apply fast 
-  apply (cut_tac scorresP[unfolded scorres_def])
+   apply (cut_tac scorresP[unfolded val.scorres_def])
   apply (frule(4) mono_correspondence(1))
    apply (rule typingP)
   apply (blast intro: shallow_tuplesP[THEN shallow_tuples_rel_funD])
@@ -245,7 +245,7 @@ fun make_corres_shallow_C desugar_tup_thy desugar_thy deep_thy ctxt f = let
   val corres_thm = Proof_Context.get_thm ctxt ("corres_" ^ f)
 
   (* Also instantiate scorres_thm to monomorphic type *)
-  val scorres_thm = cterm_instantiate [(@{cpat "?ts :: type list"}, @{cterm "[] :: type list"})] scorres_thm
+  val scorres_thm = Drule.infer_instantiate ctxt [(("ts", 0), @{cterm "[] :: type list"})] scorres_thm
                     |> Simplifier.rewrite_rule ctxt @{thms specialise_nothing[THEN eq_reflection]}
 
   (* Abstract function assumptions for CorresProof *)
