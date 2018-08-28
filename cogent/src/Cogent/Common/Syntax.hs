@@ -25,6 +25,8 @@ type FieldIndex = Int
 type ArrayIndex = Word32
 type ArraySize  = Word32
 
+type Size = Integer -- Not sure why quickcheck tests infinite loop if Size = Word32.
+
 type OpName = String
 
 data Op
