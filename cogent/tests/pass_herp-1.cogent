@@ -1,0 +1,173 @@
+prim_not : Bool -> Bool
+type Double
+send_c1 : (U32[1], U32) -> Bool
+recv_c1 : (U32[1], U32) -> Bool
+send_c2 : (U32[1], U32) -> Bool
+recv_c2 : (U32[1], U32) -> Bool
+even : #{ x : U32 } -> Bool
+even #{ x } =
+   let y : U32 = upcast x % 2
+   in y == 0
+type State_dummy =
+   < State_dummy_0
+   | State_dummy_1 >
+type Vars_dummy = { c1 : U32[1]
+                  , c2 : U32[1] }
+delta_dummy : (State_dummy
+              , #Vars_dummy) -> < Left < Failure
+                                       | Success >
+                                | Right (State_dummy
+                                        , #Vars_dummy) >
+delta_dummy (state_dummy
+            , #{ c1, c2 }) =
+   let c1 = #{ c1, c2 }.c1
+   and c2 = #{ c1, c2 }.c2
+   in state_dummy
+      | State_dummy_0 -> let _ = send_c1 (c1
+                                         , 273645)
+         in Right (State_dummy_1
+                  , #{ c1, c2 })
+      | State_dummy_1 -> Left Success
+type State_p1 = < State_p1_10
+                | State_p1_11
+                | State_p1_12
+                | State_p1_13
+                | State_p1_14
+                | State_p1_15
+                | State_p1_16
+                | State_p1_17
+                | State_p1_18
+                | State_p1_19
+                | State_p1_2
+                | State_p1_20
+                | State_p1_3
+                | State_p1_4
+                | State_p1_5
+                | State_p1_6
+                | State_p1_7
+                | State_p1_8
+                | State_p1_9 >
+type Vars_p1 = { c1 : U32[1]
+               , c2 : U32[1]
+               , x : U32 }
+delta_p1 : (State_p1
+           , #Vars_p1) -> < Left < Failure
+                                 | Success >
+                          | Right (State_p1, #Vars_p1) >
+delta_p1 (state_p1
+         , #{ c1, c2, x }) =
+   let c1 = #{ c1, c2, x }.c1
+   and c2 = #{ c1, c2, x }.c2
+   and x = #{ c1, c2, x }.x
+   in state_p1
+      | State_p1_2 -> Left Success
+      | State_p1_3 -> Right (State_p1_4
+                            , #{ c1, c2, x = 0 })
+      | State_p1_4 -> Left Success
+      | State_p1_5 -> let _ = send_c1 (c1
+                                      , x)
+         in Right (State_p1_6
+                  , #{ c1, c2, x })
+      | State_p1_6 -> Left Success
+      | State_p1_7 -> if x == 1
+         then Right (State_p1_8
+                    , #{ c1, c2, x })
+         else if even #{ x }
+            then Right (State_p1_12
+                       , #{ c1, c2, x })
+            else if True
+               then Right (State_p1_14
+                          , #{ c1, c2, x })
+               else Right (State_p1_20
+                          , #{ c1, c2, x })
+      | State_p1_8 -> Left Success
+      | State_p1_9 -> let _ = send_c2 (c2
+                                      , x)
+         in Right (State_p1_10
+                  , #{ c1, c2, x })
+      | State_p1_10 -> Left Success
+      | State_p1_11 -> Right (State_p1_7
+                             , #{ c1, c2, x })
+      | State_p1_12 -> Right (State_p1_13
+                             , #{ c1, c2, x = x / 2 })
+      | State_p1_13 -> Left Success
+      | State_p1_14 -> Left Success
+      | State_p1_15 -> let _ = send_c2 (c2
+                                       , x)
+         in Right (State_p1_16
+                  , #{ c1, c2, x })
+      | State_p1_16 -> Left Success
+      | State_p1_17 -> let _ = send_c1 (c1
+                                       , x)
+         in Right (State_p1_18
+                  , #{ c1, c2, x })
+      | State_p1_18 -> Left Success
+      | State_p1_19 -> Right (State_p1_7
+                             , #{ c1, c2, x })
+      | State_p1_20 -> Left Success
+type State_p2 = < State_p2_21
+                | State_p2_22
+                | State_p2_23
+                | State_p2_24
+                | State_p2_25
+                | State_p2_26
+                | State_p2_27
+                | State_p2_28
+                | State_p2_29
+                | State_p2_30
+                | State_p2_31
+                | State_p2_32
+                | State_p2_33
+                | State_p2_34
+                | State_p2_35
+                | State_p2_36 >
+type Vars_p2 = { c1 : U32[1]
+               , c2 : U32[1]
+               , x : U32 }
+delta_p2 : (State_p2
+           , #Vars_p2) -> < Left < Failure
+                                 | Success >
+                          | Right (State_p2, #Vars_p2) >
+delta_p2 (state_p2
+         , #{ c1, c2, x }) =
+   let c1 = #{ c1, c2, x }.c1
+   and c2 = #{ c1, c2, x }.c2
+   and x = #{ c1, c2, x }.x
+   in state_p2
+      | State_p2_21 -> Left Success
+      | State_p2_22 -> Right (State_p2_23
+                             , #{ c1, c2, x = 0 })
+      | State_p2_23 -> Left Success
+      | State_p2_24 -> let _ = send_c2 (c2
+                                       , x)
+         in Right (State_p2_25
+                  , #{ c1, c2, x })
+      | State_p2_25 -> Left Success
+      | State_p2_26 -> if x == 1
+         then Right (State_p2_27
+                    , #{ c1, c2, x })
+         else if True
+            then Right (State_p2_28
+                       , #{ c1, c2, x })
+            else Right (State_p2_36
+                       , #{ c1, c2, x })
+      | State_p2_27 -> Right (State_p2_26
+                             , #{ c1, c2, x })
+      | State_p2_28 -> Left Success
+      | State_p2_29 -> Right (State_p2_30
+                             , #{ c1, c2, x = 3 * x + 1 })
+      | State_p2_30 -> Left Success
+      | State_p2_31 -> let _ = send_c1 (c1
+                                       , x)
+         in Right (State_p2_32
+                  , #{ c1, c2, x })
+      | State_p2_32 -> Left Success
+      | State_p2_33 -> let _ = send_c2 (c2
+                                       , x)
+         in Right (State_p2_34
+                  , #{ c1, c2, x })
+      | State_p2_34 -> Left Success
+      | State_p2_35 -> Right (State_p2_26
+                             , #{ c1, c2, x })
+      | State_p2_36 -> Left Success
+
