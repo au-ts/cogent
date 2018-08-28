@@ -100,14 +100,18 @@ tests/include/%_dummy.h: tests/%.cogent
 .test-setup:
 	$(Q)mkdir -p tests/include
 
-test-compiler: .test-cogent
+test-compiler: test-clean .test-cogent
 	./tests/run-test-suite.py \
 	# test-tc test-ds test-an test-mn test-cg test-gcc \
 	# test-pp test-aq \
-	# test-hs
+	# test-hs \
+	# test-quickcheck
 
 tests: test-compiler \
-	test-tc-proof test-shallow-proof test-ee 
+	test-tc-proof test-shallow-proof test-ee
+
+test-quickcheck:
+	cabal test test-quickcheck
 
 test-clean:
 	$(E) "Cleaning up artefacts from earlier test runs."
