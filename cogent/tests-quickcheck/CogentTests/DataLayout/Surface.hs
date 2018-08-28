@@ -11,7 +11,7 @@ import Control.Monad (guard)
 import Test.QuickCheck
 import Text.Parsec.Pos (SourcePos)
 
-import Cogent.Common.Syntax (FieldName, TagName)
+import Cogent.Common.Syntax (FieldName, TagName, Size)
 import Cogent.DataLayout.Surface
 import CogentTests.DataLayout.TypeCheck (bitSizeToRepSize)
 
@@ -58,7 +58,7 @@ genRepExpr size = oneof
       return $ Variant tagExpr alternatives
       
     
-    genAlternatives :: Int -> Gen [(TagName, SourcePos, Integer, RepExpr)]
+    genAlternatives :: Int -> Gen [(TagName, SourcePos, Size, RepExpr)]
     genAlternatives size = do
       altSize <- choose (0, size)
       if altSize == 0

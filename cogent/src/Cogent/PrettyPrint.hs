@@ -34,7 +34,6 @@ import Cogent.TypeCheck.Subst
 import Cogent.DataLayout.Core
 import Cogent.DataLayout.TypeCheck
 
-
 import Control.Arrow (second)
 import qualified Data.Foldable as F
 import Data.Function ((&))
@@ -818,7 +817,7 @@ instance Pretty a => Pretty (DataLayout a) where
 
   pretty SumLayout {tagDL, alternativesDL} = 
     keyword "repr" <> parens (pretty tagDL) <> variant (map prettyAlt $ M.toList alternativesDL)
-    where prettyAlt (n,(v,l,_)) = tagname n <> parens (integer v) <> colon <> pretty l
+    where prettyAlt (n,(v,l,_)) = tagname n <> parens (integer $ fromIntegral v) <> colon <> pretty l
 
   pretty RecordLayout {fieldsDL} =
     keyword "repr" <> record (map prettyField $ M.toList fieldsDL)
