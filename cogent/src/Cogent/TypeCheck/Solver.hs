@@ -98,49 +98,49 @@ crunch x     = return [Goal [] x]
 
 whnf :: TCType -> TcErrM TypeError TCType
 whnf (T (TUnbox t)) = do
-   t' <- whnf t
-   return $ case t' of
-     _ | notWhnf t'    -> T (TUnbox t')
-     (T (TCon x ps _)) -> T (TCon x ps Unboxed)
-     (T (TRecord l _)) -> T (TRecord l Unboxed)
-     (T (TArray  _ _)) -> t'
-     (T o)             -> T (fmap (T . TUnbox) o)
-     _                 -> __impossible "whnf"
+  t' <- whnf t
+  return $ case t' of
+    _ | notWhnf t'    -> T (TUnbox t')
+    (T (TCon x ps _)) -> T (TCon x ps Unboxed)
+    (T (TRecord l _)) -> T (TRecord l Unboxed)
+    (T (TArray  _ _)) -> t'
+    (T o)             -> T (fmap (T . TUnbox) o)
+    _                 -> __impossible "whnf"
 
 whnf (T (TBang t)) = do
-   t' <- whnf t
-   return $ case t' of
-     _ | notWhnf t'    -> T (TBang t')
-     (T (TCon x ps s)) -> T (TCon x (map (T . TBang) ps) (bangSigil s))
-     (T (TRecord l s)) -> T (TRecord (map (fmap (_1 %~ T . TBang)) l) (bangSigil s))
-     (T (TVar b _))    -> T (TVar b True)
-     (T (TFun {}))     -> t'
-     (T o)             -> T (fmap (T . TBang) o)
-     _                 -> __impossible "whnf"
+  t' <- whnf t
+  return $ case t' of
+    _ | notWhnf t'    -> T (TBang t')
+    (T (TCon x ps s)) -> T (TCon x (map (T . TBang) ps) (bangSigil s))
+    (T (TRecord l s)) -> T (TRecord (map (fmap (_1 %~ T . TBang)) l) (bangSigil s))
+    (T (TVar b _))    -> T (TVar b True)
+    (T (TFun {}))     -> t'
+    (T o)             -> T (fmap (T . TBang) o)
+    _                 -> __impossible "whnf"
 
 whnf (T (TTake fs t)) = do
-   t' <- whnf t
-   case t' of
-     (T (TRecord l s)) -> return $ T (TRecord (takeFields fs l) s)
-     (T (TVariant l))  -> return $ T (TVariant (M.fromList $ takeFields fs $ M.toList l))
-     _ | Just fs' <- fs, null fs'  -> return $ t'
-     _ -> return $ T (TTake fs t')
- where
-   takeFields :: Maybe [FieldName] -> [(FieldName, (a , Bool))] -> [(FieldName, (a, Bool))]
-   takeFields Nothing   = map (fmap (fmap (const True)))  -- not implemented
-   takeFields (Just fs) = map (\(f, (t, b)) -> (f, (t, f `elem` fs || b)))
+  t' <- whnf t
+  case t' of
+    (T (TRecord l s)) -> return $ T (TRecord (takeFields fs l) s)
+    (T (TVariant l))  -> return $ T (TVariant (M.fromList $ takeFields fs $ M.toList l))
+    _ | Just fs' <- fs, null fs'  -> return $ t'
+    _ -> return $ T (TTake fs t')
+  where
+    takeFields :: Maybe [FieldName] -> [(FieldName, (a , Bool))] -> [(FieldName, (a, Bool))]
+    takeFields Nothing   = map (fmap (fmap (const True)))  -- not implemented
+    takeFields (Just fs) = map (\(f, (t, b)) -> (f, (t, f `elem` fs || b)))
 
 whnf (T (TPut fs t)) = do
-   t' <- whnf t
-   case t' of
-     (T (TRecord l s)) -> return $ T (TRecord (putFields fs l) s)
-     (T (TVariant l))  -> return $ T (TVariant (M.fromList $ putFields fs $ M.toList l))
-     _ | Just fs' <- fs, null fs'  -> return $ t'
-     _ -> return $ T (TPut fs t')
- where
-   putFields :: Maybe [FieldName] -> [(FieldName, (a, Bool))] -> [(FieldName, (a, Bool))]
-   putFields Nothing   = map (fmap (fmap (const False)))
-   putFields (Just fs) = map (\(f, (t, b)) -> (f, (t,  (f `notElem` fs) && b)))
+  t' <- whnf t
+  case t' of
+    (T (TRecord l s)) -> return $ T (TRecord (putFields fs l) s)
+    (T (TVariant l))  -> return $ T (TVariant (M.fromList $ putFields fs $ M.toList l))
+    _ | Just fs' <- fs, null fs'  -> return $ t'
+    _ -> return $ T (TPut fs t')
+  where
+    putFields :: Maybe [FieldName] -> [(FieldName, (a, Bool))] -> [(FieldName, (a, Bool))]
+    putFields Nothing   = map (fmap (fmap (const False)))
+    putFields (Just fs) = map (\(f, (t, b)) -> (f, (t,  (f `notElem` fs) && b)))
 
 whnf (T (TCon n as b)) = do
   kts <- use knownTypes
@@ -776,6 +776,7 @@ classify g = case g of
                         , Nothing <- flexOf b -> mempty {downflexes = IS.singleton a', rest = [g]}
                         | Just b' <- flexOf b
                         , Nothing <- flexOf a -> mempty {upflexes = IS.singleton b', rest = [g]}
+  (Goal _ (Arith _))   -> mempty {arithasses = [g]}
   -- (Goal _ (Exists _))   -> mempty {arithasses = [g]}
   -- (Goal _ (ForAll _))   -> mempty {arithsats  = [g]}
   _                     -> mempty {rest = [g]}
@@ -959,13 +960,14 @@ typedSExpr (SE e _) = foldr (\e acc -> typedSExpr e && acc) True e
 sexprToSbv :: SExpr -> SbvM VD.SVal
 sexprToSbv (SE (PrimOp op [e1,e2]) _) = liftA2 (bopToSbv op) (sexprToSbv e1) (sexprToSbv e2)
 sexprToSbv (SE (PrimOp op [e]) _) = liftA (uopToSbv op) $ sexprToSbv e
-sexprToSbv (SE (Var v) _) = __impossible $ "sexprToSbv: all vars should have been made symbolic (" ++ show v ++ ")"
-  -- m <- use _2
-  -- case M.lookup v m of
-  --   Nothing -> do u <- lift $ VD.sWordN 32 v  -- FIXME: what type should we assign to `v`?
-  --                 modify (second $ M.insert v u)
-  --                 return u
-  --   Just u -> return u
+sexprToSbv (SE (Var v) t) = lift (f v)
+  where f = case t of
+              T (TCon "U8"   [] Unboxed) -> VD.sWordN 8
+              T (TCon "U16"  [] Unboxed) -> VD.sWordN 16
+              T (TCon "U32"  [] Unboxed) -> VD.sWordN 32
+              T (TCon "U64"  [] Unboxed) -> VD.sWordN 64
+              T (TCon "Bool" [] Unboxed) -> sBoolD
+              _ -> __impossible "sexprToSbv: unsupported type for Var"
 sexprToSbv (SE (IntLit i) t) = 
   let w = case t of
             T (TCon "U8"   [] Unboxed) -> 8
@@ -979,16 +981,16 @@ sexprToSbv (SE (Upcast e) _) = sexprToSbv e
 sexprToSbv (SE (Annot e _) _) = sexprToSbv e
 sexprToSbv (SU i (U _)) = __impossible "sexprToSbv: it's too early to solve this constraint"
 sexprToSbv (SU i (T t)) = do
-  let t' = case t of
-             TCon "U8"   [] Unboxed -> VD.sWordN 8
-             TCon "U16"  [] Unboxed -> VD.sWordN 16
-             TCon "U32"  [] Unboxed -> VD.sWordN 32
-             TCon "U64"  [] Unboxed -> VD.sWordN 64
-             TCon "Bool" [] Unboxed -> sBoolD
-             _ -> __todo $ "sexprToSbv: type " ++ show (pretty t) ++ " not yet supported"
+  let f = case t of
+            TCon "U8"   [] Unboxed -> VD.sWordN 8
+            TCon "U16"  [] Unboxed -> VD.sWordN 16
+            TCon "U32"  [] Unboxed -> VD.sWordN 32
+            TCon "U64"  [] Unboxed -> VD.sWordN 64
+            TCon "Bool" [] Unboxed -> sBoolD
+            _ -> __todo $ "sexprToSbv: type " ++ show (pretty t) ++ " not yet supported"
   m <- use _1
   case IM.lookup i m of
-    Nothing -> do v <- lift . t' $ '?':show i
+    Nothing -> do v <- lift . f $ '?':show i
                   modify (first $ IM.insert i v)
                   return v
     Just v -> return v
