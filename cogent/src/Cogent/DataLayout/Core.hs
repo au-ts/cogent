@@ -5,44 +5,17 @@ import Data.Map (Map)
 
 import Text.Parsec.Pos (SourcePos)
 
-import Cogent.Common.Syntax (TagName, FieldName)
-
+import Cogent.Common.Syntax (TagName, FieldName, Size)
 
 {- CORE DATALAYOUT TYPES -}
 
--- A range of bit indices into a data type.
+-- A specification of the bit layout of a Cogent type
 --
--- Should satisfy `bitSizeBR >= 1` and `bitOffset >= 0`.
--- Represents the set {bitOffset, bitOffset + 1, ..., bitOffset + bitSize - 1}
-data BitRange
-  = BitRange { bitSizeBR :: Integer, bitOffsetBR :: Integer }
-  deriving (Eq, Show, Ord)
-  
--- A range of bit indices into a data type.
+-- The Cogent core language type is `DataLayout BitRange`.
+-- Will transform to `DataLayout [AlignedBitRange]` immediately before code generation.
 --
--- Should satisfy `bitSizeABR >= 1`, `bitOffsetABR >= 0` and `wordOffsetABR >= 0`.
--- Should be aligned in the sense that `bitSizeABR + bitOffsetABR <= wordSizeBits`.
--- Represents the set
--- { wordOffset * wordSizeBits + bitOffset
--- , wordOffset * wordSizeBits + bitOffset + 1
--- , ...
--- , wordOffset * wordSizeBits + bitOffset + bitSize - 1
--- }
-data AlignedBitRange
-  = AlignedBitRange { bitSizeABR :: Integer, bitOffsetABR :: Integer, wordOffsetABR :: Integer }
-  deriving (Eq, Show, Ord)
-
--- A specification of how to get/set the bits for part of a primitive type
---
--- Size 0 surface language blocks go to core language UnitLayout rather than PrimLayout.
--- After splitting, the BitRange of DataBlocks cannot contain a multiple of the wordSize.
--- This ensures that each block is fully contained within an aligned word.
--- All heap allocated structures must be a multiple of a word in size. Malloc guarantees this by default???
-data Block
-  = DataBlock     BitRange
-  | PaddingBlock  Integer
-  deriving (Show, Eq)
-
+-- NOTE: We may wish to retain more SourcePos information to enable better error messages
+-- when matching `DataLayout BitRange`s with monomorphised cogent core types / mdimeglio
 data DataLayout bits
   = UnitLayout
   | PrimLayout
@@ -50,15 +23,42 @@ data DataLayout bits
     }
   | SumLayout
     { tagDL           :: bits
-    , alternativesDL  :: Map TagName (Integer, DataLayout bits, SourcePos)
+    , alternativesDL  :: Map TagName (Size, DataLayout bits, SourcePos)
     }
   | RecordLayout
     { fieldsDL        :: Map FieldName (DataLayout bits, SourcePos)
     }
   deriving (Show, Eq, Functor, Ord)
+
+-- A range of bit indices into a data type.
+--
+-- Should satisfy `bitSizeBR >= 1`.
+-- Represents the set {bitOffset, bitOffset + 1, ..., bitOffset + bitSize - 1}
+data BitRange
+  = BitRange { bitSizeBR :: Size, bitOffsetBR :: Size }
+  deriving (Eq, Show, Ord)
+  
+-- A range of bit indices into a data type.
+--
+-- Should satisfy `bitSizeABR >= 1`, `bitOffsetABR >= 0` and `wordOffsetABR >= 0`.
+-- Should be aligned in the sense that `bitSizeABR + bitOffsetABR <= wordSizeBits`.
+--
+-- Represents the set
+-- { wordOffset * wordSizeBits + bitOffset
+-- , wordOffset * wordSizeBits + bitOffset + 1
+-- , ...
+-- , wordOffset * wordSizeBits + bitOffset + bitSize - 1
+-- }
+--
+-- All heap allocated structures are a multiple of a word in size (malloc guarantees this?)
+-- and will be word aligned. Hence accesses to an aligned bitrange of a heap-allocated
+-- datastructure will be word aligned.
+data AlignedBitRange
+  = AlignedBitRange { bitSizeABR :: Size, bitOffsetABR :: Size, wordOffsetABR :: Size }
+  deriving (Eq, Show, Ord)
   
 {- WORD ALIGNMENT TRANSFORMATION -}
-wordSizeBits :: Integer
+wordSizeBits :: Size
 wordSizeBits = 32
   
 -- Splits a BitRange into an equivalent collection of AlignedBitRanges
@@ -74,7 +74,7 @@ rangeToAlignedRanges (BitRange size offset) =
   in 
     rangeToAlignedRanges' offsetWords offsetBits size
   where
-    rangeToAlignedRanges' :: Integer -> Integer -> Integer -> [AlignedBitRange]
+    rangeToAlignedRanges' :: Size -> Size -> Size -> [AlignedBitRange]
     rangeToAlignedRanges'           _          _                 0 = []
     rangeToAlignedRanges' offsetWords offsetBits remainingSizeBits =
       let
