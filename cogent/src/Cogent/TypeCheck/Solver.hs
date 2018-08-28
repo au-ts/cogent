@@ -501,7 +501,7 @@ freshName_ = freshName ""
 
 freshName :: VarName -> Solver VarName
 freshName v = do i <- freshNames <<%= succ
-                 return $ "%sol_" ++ v ++ "_" ++ show v
+                 return $ "%sol_" ++ v ++ "_" ++ show i
 
 freshTVar :: VarOrigin -> Solver TCType
 freshTVar ctx = do

@@ -625,7 +625,7 @@ freshName_ = freshName ""
 
 freshName :: VarName -> CG VarName
 freshName v = do i <- freshNames <<%= succ
-                 return $ "%gen_" ++ v ++ "_" ++ show v
+                 return $ "%gen_" ++ v ++ "_" ++ show i
 
 freshTVar :: (?loc :: SourcePos) => CG TCType
 freshTVar = fresh (ExpressionAt ?loc)
