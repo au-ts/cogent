@@ -403,11 +403,14 @@ cg' (If e1 bs e2 e3) t = do
   (c1, e1') <- letBang bs (cg e1) (T (TCon "Bool" [] Unboxed))
   (c, [(c2, e2'), (c3, e3')]) <- parallel' [(ThenBranch, cg e2 t), (ElseBranch, cg e3 t)]
   let e = If e1' bs e2' e3'
+      ((c2',cc2),(c3',cc3)) = if arithTCExpr e1' then
+        let (ca2,cc2) = splitArithConstraints c2
+            (ca3,cc3) = splitArithConstraints c3
+            c2' = Arith (SE $ PrimOp "||" [SE $ PrimOp "not" [tcToSExpr e1'], andSExprs ca2])
+            c3' = Arith (SE $ PrimOp "||" [tcToSExpr e1', andSExprs ca3])
+         in ((c2',cc2),(c3',cc3))
+      else ((c2,Sat),(c3,Sat))
   traceTc "gen" (text "cg for if:" <+> prettyE e)
-  let (ca2,cc2) = splitArithConstraints c2
-      (ca3,cc3) = splitArithConstraints c3
-  let c2' = Arith (SE $ PrimOp "||" [SE $ PrimOp "not" [tcToSExpr e1'], andSExprs ca2])
-      c3' = Arith (SE $ PrimOp "||" [tcToSExpr e1', andSExprs ca3])
   return (c1 <> c <> c2' <> c3' <> cc2 <> cc3, e)
 
 cg' (Put e ls) t | not (any isNothing ls) = do

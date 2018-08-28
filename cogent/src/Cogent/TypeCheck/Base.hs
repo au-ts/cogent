@@ -155,6 +155,20 @@ data Constraint = (:<) (TypeFragment TCType) (TypeFragment TCType)
                 | Arith SExpr
                 deriving (Eq, Show, Ord)
 
+arithTCType :: TCType -> Bool
+arithTCType (T (TCon n [] Unboxed)) | n `elem` ["U8", "U16", "U32", "U64", "Bool"] = True
+arithTCType (U _) = False
+arithTCType _ = False
+
+arithTCExpr :: TCExpr -> Bool
+arithTCExpr (TE _ (PrimOp _ es) _) | length es `elem` [1,2] = all arithTCExpr es
+arithTCExpr (TE _ (Var _      ) _) = True
+arithTCExpr (TE _ (IntLit _   ) _) = True
+arithTCExpr (TE _ (BoolLit _  ) _) = True
+arithTCExpr (TE _ (Upcast e   ) _) = arithTCExpr e
+arithTCExpr (TE _ (Annot e _  ) _) = arithTCExpr e
+arithTCExpr _ = False
+
 splitArithConstraints :: Constraint -> ([SExpr], Constraint)
 splitArithConstraints (c1 :& c2)
   = let (e1,c1') = splitArithConstraints c1

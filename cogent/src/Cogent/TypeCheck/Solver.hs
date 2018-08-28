@@ -35,7 +35,7 @@ import           Cogent.TypeCheck.Subst (Subst(..))
 import           Cogent.TypeCheck.Util
 import           Cogent.TypeCheck.GoalSet (Goal(..), goal, goalContext, GoalSet)
 import qualified Cogent.TypeCheck.GoalSet as GS
-import           Cogent.Util (u32MAX, Bound(..))
+import           Cogent.Util (fst3, u32MAX, Bound(..))
 
 import           Control.Applicative
 import           Control.Arrow (first, second)
@@ -818,7 +818,7 @@ applyAssign a = traceTc "sol" (text "apply assign") >> assigns <>= a
 
 -- add axioms for constant equality
 kAxioms :: Solver [SExpr]
-kAxioms = map f <$> (M.toList <$> lift (use knownConsts))
+kAxioms = map f <$> (filter (arithTCType . fst3 . snd) . M.toList <$> lift (use knownConsts))
   where f (v,(_,e,_)) = SE $ PrimOp "==" [SE (Var v), tcToSExpr e]
 
 arithEqSolver :: [Goal] -> Solver (Either GoalClasses Ass.Assignment)
@@ -913,7 +913,7 @@ sexprToSbv (SU i) = do
                   modify (first $ IM.insert i v)
                   return v
     Just v -> return v
-sexprToSbv e = __todo $ "sexprToSbv: not yet implemented: " ++ show e
+sexprToSbv e = __todo "sexprToSbv: not yet support this expression"
 
 bopToSbv :: OpName -> (VD.SVal -> VD.SVal -> VD.SVal)
 bopToSbv = \case
