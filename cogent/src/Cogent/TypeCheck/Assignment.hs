@@ -36,7 +36,7 @@ instance Monoid Assignment where
 forUnknowns :: (Int -> TCType -> SExpr) -> SExpr -> SExpr
 forUnknowns f (SU x t) = f x t
 forUnknowns f (SE x t) = SE (fmap (forUnknowns f) x) t
-forUnknowns f (SAll v e) = SAll v (forUnknowns f e)
+-- forUnknowns f (SAll v e) = SAll v (forUnknowns f e)
 
 assign :: Assignment -> SExpr -> SExpr
 assign = forUnknowns . lookup
@@ -71,8 +71,9 @@ assignC a (Unsat e) = Unsat $ assignErr a e
 assignC a (SemiSat w) = SemiSat $ assignWarn a w
 assignC a (Sat) = Sat
 assignC a (Exhaustive t ps) = Exhaustive (assignT a t) ps
-assignC a (Exists e) = Exists (assign a e)
-assignC a (ForAll e) = ForAll (assign a e)
+assignC a (Arith e) = Arith (assign a e)
+-- assignC a (Exists e) = Exists (assign a e)
+-- assignC a (ForAll e) = ForAll (assign a e)
 
 assignErr :: Assignment -> TypeError -> TypeError
 assignErr a e = e  -- TODO

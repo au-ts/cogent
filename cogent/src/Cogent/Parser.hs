@@ -316,7 +316,7 @@ monotype = do avoidInitial
                   )
               -- <|> TCon <$> typeConName <*> pure [] <*> pure Writable
               <|> tuple <$> parens (commaSep monotype)
-              <|> TRecord <$> braces (commaSep1 ((\a b c -> (a,(b,c))) <$> variableName <* reservedOp ":" <*> monotype <*> pure False)) <*> pure Writable
+              <|> TRecord <$> braces (commaSep1 ((\a b c -> (a,(b,c))) <$> variableName <* reservedOp ":" <*> monotype <*> pure False)) <*> pure (Boxed False noRepE)
               <|> TVariant . M.fromList <$> angles (((,) <$> typeConName <*> fmap ((,False)) (many typeA2)) `sepBy` reservedOp "|")
               <|> (brackets $ do v <- variableName
                                  reservedOp ":"

@@ -731,8 +731,9 @@ instance Pretty Constraint where
   pretty (Sat)            = warn "Sat"
   pretty (Exhaustive t p) = warn "Exhaustive" <+> pretty t <+> pretty p
   pretty (x :@ _)         = pretty x
-  pretty (Exists e)       = warn "∃" <+> pretty e
-  pretty (ForAll e)       = warn "∀" <+> pretty e
+  pretty (Arith e)        = pretty e
+  -- pretty (Exists e)       = warn "∃" <+> pretty e
+  -- pretty (ForAll e)       = warn "∀" <+> pretty e
 
 -- a more verbose version of constraint pretty-printer which is mostly used for debugging
 prettyC :: Constraint -> Doc

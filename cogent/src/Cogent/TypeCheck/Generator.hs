@@ -57,6 +57,7 @@ data GenState = GenState { _context :: C.Context TCType
                          , _knownTypeVars :: [TyVarName]
                          , _flexes :: Int
                          , _flexOrigins :: IM.IntMap VarOrigin
+                         , _freshNames :: Int
                          }
 
 makeLenses ''GenState
@@ -65,7 +66,7 @@ type CG a = TcConsM GenState a
 
 runCG :: C.Context TCType -> [TyVarName] -> CG a -> TcM (a, Int, IM.IntMap VarOrigin)
 runCG g vs ma = do
-  (a, GenState _ _ f os) <- withTcConsM (GenState g vs 0 mempty) ((,) <$> ma <*> get)
+  (a, GenState _ _ f os _) <- withTcConsM (GenState g vs 0 mempty 0) ((,) <$> ma <*> get)
   return (a,f,os)
 
 
@@ -91,13 +92,16 @@ validateType rt@(RT t) = do
                    then second (T . ffmap toSExpr) <$> fmapFoldM validateType t
                    else return (Unsat $ DuplicateRecordFields (fields \\ fields'), toTCType rt)
     TArray te l -> do let l' = toSExpr l
-                          cl = ForAll (SE (PrimOp ">" [l', SE (IntLit 0) (T t_u32)]) (T t_bool))
+                          cl = Arith (SE (PrimOp ">" [l', SE (IntLit 0) (T t_u32)]) (T t_bool))
                       (c,te') <- validateType te
                       return (c <> cl, T $ TArray te' l')
     TRefine v t e -> do let t' = toTCType t
                         context %= C.addScope (M.singleton v (t', noPos, Seq.singleton noPos))
-                        (c,e') <- cg (dummyLocE e) (T $ TCon "Bool" [] Unboxed)
-                        return (c, T $ TRefine v t' $ tcToSExpr e')
+                        v' <- freshName v  -- NOTE: it guarantees that all refinement types after this point
+                                           -- in the compiler have unique names / zilinc
+                        let e' = substRawExpr [(v,v')] e
+                        (c,e'') <- cg (dummyLocE e') (T $ TCon "Bool" [] Unboxed)
+                        return (c, T $ TRefine v' t' $ tcToSExpr e'')
     _ -> second (T . ffmap toSExpr) <$> fmapFoldM validateType t 
 
 validateTypes :: (Traversable t) => t RawType -> CG (Constraint, t TCType)
@@ -230,14 +234,14 @@ cg' (Upcast e) t = do
   return (c, Upcast e1')
 
 
--- TODO: What type should be infer for primitive types?
+-- TODO: What type should be inferred for primitives?
 -- It seems that we should generate the most specific types
 -- but it will incur extensive subtyping relations in the
 -- syntax tree. / zilinc
 cg' (BoolLit b) t = do
-  v@(SU i _) <- freshEVar (T t_bool)
-  let r = SAll i $ SE (PrimOp "==" [v, SE (BoolLit b) (T t_bool)]) (T t_bool)
-      c = F (T (TRefine (unknownName v) (T t_bool) r)) :< F t
+  v <- freshName_
+  let r = SE (PrimOp "==" [SE (Var v) (T t_bool), SE (BoolLit b) (T t_bool)]) (T t_bool)
+      c = F (T (TRefine v (T t_bool) r)) :< F t
       e = BoolLit b
   return (c,e)
 
@@ -263,12 +267,12 @@ cg' (IntLit n) t = do
                       | otherwise      = "U64"
   let bt = TCon minimumBitwidth [] Unboxed
   t' <- freshTVar
-  v@(SU i _) <- freshEVar t'
-  let r = SAll i $ SE (PrimOp "==" [v, SE (IntLit n) t']) (T t_bool)
+  v <- freshName_
+  let r = SE (PrimOp "==" [SE (Var v) t', SE (IntLit n) t']) (T t_bool)
       -- NOTE: We need a 2-step promition scheme here. E.g.:
       -- (1) U8 :~> U32  (upcast)
       -- (2) {v : U32 | P'(v)} :<  {v : U32 | Q (v)}  (ref. subtyping)
-      c = Upcastable (T bt) t :& (F $ T $ TRefine (unknownName v) t' r) :< F t
+      c = Upcastable (T bt) t :& (F $ T $ TRefine v t' r) :< F t
       e = IntLit n
   return (c,e)
 
@@ -277,7 +281,7 @@ cg' (ArrayLit es) t = do
   blob <- forM es $ flip cg alpha
   let (cs,es') = unzip blob
       n = SE (IntLit . fromIntegral $ length es) (T t_u32)
-      cz = ForAll (SE (PrimOp ">" [n, SE (IntLit 0) (T t_u32)]) (T t_bool))
+      cz = Arith (SE (PrimOp ">" [n, SE (IntLit 0) (T t_u32)]) (T t_bool))
   return (mconcat cs <> cz <> F (T $ TArray alpha n) :< F t, ArrayLit es')
 
 cg' (ArrayIndex e i) t = do
@@ -286,14 +290,14 @@ cg' (ArrayIndex e i) t = do
   let ta = T $ TArray alpha n
   (ce, e') <- cg e ta
   (ci, i') <- cg (dummyLocE i) (T t_u32)
-  let c = F alpha :< F t <> Share ta UsedInArrayIndexing
-        <> ForAll (SE (PrimOp "<" [toSExpr i, n]) (T t_bool))
-        -- <> ForAll (SE (PrimOp ">=" [toSExpr i, SE (IntLit 0)]))  -- as we don't have negative values
-  return (ce <> ci <> c, ArrayIndex e' i)
+  let c = F alpha :< F t <> Share ta UsedInArrayIndexing <>
+          Arith (SE (PrimOp "<" [toSExpr i, n]) (T t_bool))
+        -- <> Arith (SE (PrimOp ">=" [toSExpr i, SE (IntLit 0)]))  -- as we don't have negative values
   traceTc "gen" (text "array indexing" <> colon
                  L.<$> text "index is" <+> pretty i <> semi
                  L.<$> text "bound is" <+> pretty n <> semi
                  L.<$> text "generate constraint" <+> prettyC c)
+  return (ce <> ci <> c, ArrayIndex e' i)
 
 cg' exp@(Lam pat mt e) t = do
   alpha <- freshTVar
@@ -435,13 +439,14 @@ cg' (If e1 bs e2 e3) t = do
   (c1, e1') <- letBang bs (cg e1) (T (TCon "Bool" [] Unboxed))
   (c, [(c2, e2'), (c3, e3')]) <- parallel' [(ThenBranch, cg e2 t), (ElseBranch, cg e3 t)]
   let e = If e1' bs e2' e3'
-      ((c2',cc2),(c3',cc3)) = if arithTCExpr e1' then
-        let (ca2,cc2) = splitArithConstraints c2
-            (ca3,cc3) = splitArithConstraints c3
-            c2' = Arith (SE $ PrimOp "||" [SE $ PrimOp "not" [tcToSExpr e1'], andSExprs ca2])
-            c3' = Arith (SE $ PrimOp "||" [tcToSExpr e1', andSExprs ca3])
-         in ((c2',cc2),(c3',cc3))
-      else ((c2,Sat),(c3,Sat))
+      ((c2',cc2),(c3',cc3)) = 
+        if arithTCExpr e1' then
+          let (ca2,cc2) = splitArithConstraints c2
+              (ca3,cc3) = splitArithConstraints c3
+              c2' = Arith (SE (PrimOp "||" [SE (PrimOp "not" [tcToSExpr e1']) (T t_bool), andSExprs ca2]) (T t_bool))
+              c3' = Arith (SE (PrimOp "||" [tcToSExpr e1', andSExprs ca3]) (T t_bool))
+           in ((c2',cc2),(c3',cc3))
+        else ((c2,Sat),(c3,Sat))
   traceTc "gen" (text "cg for if:" <+> prettyE e)
   return (c1 <> c <> c2' <> c3' <> cc2 <> cc3, e)
 
@@ -616,6 +621,12 @@ match' (PArray ps) t = do
 -- Auxiliaries
 -- -----------------------------------------------------------------------------
 
+freshName_ = freshName ""
+
+freshName :: VarName -> CG VarName
+freshName v = do i <- freshNames <<%= succ
+                 return $ "%gen_" ++ v ++ "_" ++ show v
+
 freshTVar :: (?loc :: SourcePos) => CG TCType
 freshTVar = fresh (ExpressionAt ?loc)
   where
@@ -625,15 +636,19 @@ freshTVar = fresh (ExpressionAt ?loc)
       flexOrigins %= IM.insert i ctx
       return $ U i
 
-freshEVar :: (?loc :: SourcePos) => TCType -> CG SExpr
-freshEVar t = fresh (ExpressionAt ?loc)
-  where
-    fresh :: VarOrigin -> CG SExpr
+freshEVar_ :: (?loc :: SourcePos) => CG Int
+freshEVar_ = fresh (ExpressionAt ?loc)
+  where 
+    fresh :: VarOrigin -> CG Int
     fresh ctx = do
       i <- flexes <<%= succ  -- FIXME: do we need a different counter?
       flexOrigins %= IM.insert i ctx
-      return $ SU i t
-      
+      return i
+
+
+freshEVar :: (?loc :: SourcePos) => TCType -> CG SExpr
+freshEVar t = SU <$> freshEVar_ <*> pure t
+
 integral :: TCType -> Constraint
 integral a = Upcastable (T (TCon "U8" [] Unboxed)) a
 

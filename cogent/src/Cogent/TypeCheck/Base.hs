@@ -159,9 +159,9 @@ data Constraint = (:<) (TypeFragment TCType) (TypeFragment TCType)
                 | SemiSat TypeWarning
                 | Sat
                 | Exhaustive TCType [RawPatn]
-                -- | Arith SExpr
-                | Exists SExpr
-                | ForAll SExpr
+                | Arith SExpr
+              -- | Exists SExpr  -- FIXME: unknwons
+              -- | ForAll SExpr  -- FIXME: variables
                 deriving (Eq, Show, Ord)
 
 arithTCType :: TCType -> Bool
@@ -183,15 +183,17 @@ splitArithConstraints (c1 :& c2)
   = let (e1,c1') = splitArithConstraints c1
         (e2,c2') = splitArithConstraints c2
      in (e1 <> e2, c1' <> c2')
-splitArithConstraints (c :@ ctx )
+splitArithConstraints (c :@ ctx)
   = let (e,c') = splitArithConstraints c
      in (e, c' :@ ctx)
-splitArithConstraints (Arith e ) = ([e], Sat)
+splitArithConstraints (Arith e) = ([e], Sat)  -- FIXME
+-- splitArithConstraints (Exists e) = ([e], Sat)  -- FIXME
+-- splitArithConstraints (ForAll e) = ([e], Sat)  -- FIXME
 splitArithConstraints c          = ([], c)
 
 andSExprs :: [SExpr] -> SExpr
-andSExprs [] = SE $ BoolLit True
-andSExprs (e:es) = SE $ PrimOp "&&" [e, andSExprs es]
+andSExprs [] = SE (BoolLit True) (T t_bool)
+andSExprs (e:es) = SE (PrimOp "&&" [e, andSExprs es]) (T t_bool)
 
 #if __GLASGOW_HASKELL__ < 803
 instance Monoid Constraint where
@@ -235,7 +237,7 @@ data TCType         = T (Type SExpr TCType)
 
 data SExpr          = SE (Expr RawType RawPatn RawIrrefPatn SExpr) TCType
                     | SU Int TCType
-                    | SAll Int SExpr
+                  -- | SAll Int SExpr
                     deriving (Show, Eq, Ord)
 
 unknownName :: SExpr -> VarName
@@ -419,27 +421,22 @@ exitOnErr ma = do a <- ma
 -- Functions operating on types. Type wellformedness checks
 -- -----------------------------------------------------------------------------
 
-
 substType :: [(VarName, TCType)] -> TCType -> TCType
 substType vs (U x) = U x
 substType vs (T (TVar v False )) | Just x <- lookup v vs = x
 substType vs (T (TVar v True  )) | Just x <- lookup v vs = T (TBang x)
 substType vs (T t) = T (fmap (substType vs) t)
 
--- Only substitute one-level of expressions.
--- Don't go to the expressions in the types.
--- TODO: Do we want to do it?
-substSExpr :: [(VarName, SExpr)] -> SExpr -> SExpr
-substSExpr vs (SU i t) = SU i t
-substSExpr vs e@(SE (Var v) _)
-  = case lookup v vs of Just x -> x; Nothing -> e
-substSExpr vs (SE e t) = SE (fmap (substSExpr vs) e) t
-substSExpr vs (SAll v e) = SAll v $ substSExpr vs e
+substRawExpr :: [(VarName, VarName)] -> RawExpr -> RawExpr
+substRawExpr vs (RE (Var v))
+  = RE . Var $ case lookup v vs of Just v' -> v'; Nothing -> v
+substRawExpr vs (RE e) = RE $ fmap (substRawExpr vs) e
 
-substSExpr' :: [(Int, SExpr)] -> SExpr -> SExpr
-substSExpr' vs e@(SU i t) = case lookup i vs of Just x -> x; Nothing -> e
-substSExpr' vs (SE e t) = SE (fmap (substSExpr' vs) e) t
-substSExpr' _ _ = __impossible "substSExpr': SAll encountered"
+substSExpr :: [(VarName, VarName)] -> SExpr -> SExpr
+substSExpr vs e@(SU {}) = e
+substSExpr vs (SE (Var v) t)
+  = SE (Var $ case lookup v vs of Just v' -> v'; Nothing -> v) t
+substSExpr vs (SE e t) = SE (fmap (substSExpr vs) e) t
 
 -- XXX | -- universally quantify an SExpr
 -- XXX | uqSExpr :: VarName -> SExpr -> SExpr

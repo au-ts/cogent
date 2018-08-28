@@ -70,6 +70,7 @@ data SolverState = SolverState { _axioms      :: [(TyVarName, Kind)]
                                , _assigns     :: Ass.Assignment
                                , _flexes      :: Int
                                , _flexOrigins :: IM.IntMap VarOrigin
+                               , _freshNames  :: Int
                                }
 
 makeLenses ''SolverState
@@ -80,7 +81,7 @@ type Solver a = TcConsM SolverState a
 runSolver :: Solver a -> [(TyVarName, Kind)] -> Int -> IM.IntMap VarOrigin
           -> TcM (a, Subst, Ass.Assignment, IM.IntMap VarOrigin)
 runSolver mx ks f os = do
-  (x, SolverState _ s a _ o) <- withTcConsM (SolverState ks mempty mempty f os) ((,) <$> mx <*> get)
+  (x, SolverState _ s a _ o _) <- withTcConsM (SolverState ks mempty mempty f os 0) ((,) <$> mx <*> get)
   return (x,s,a,o)
 
 -- Flatten a constraint tree into a set of flat goals
@@ -210,18 +211,15 @@ rule (Exhaustive (T (TVariant n)) ps)
 --              else Just $ Unsat $ PatternsNotExhaustive (T (TCon "Bool" [] Unboxed)) []
 
 rule (Exhaustive ty@(T (TRefine v t e)) [])
-  = do v' <- freshEVar t (RefinementType [ty])
-       let vs = [(v, v')]
-           e' = substSExpr vs e
-       return $ Just $ ForAll (SE (PrimOp "not" [e']) (T t_bool)) :@ (Exhaustivity e') -- empty set
+  = return $ Just $ Arith (SE (PrimOp "not" [e]) (T t_bool)) :@ (Exhaustivity e) -- empty set
 rule (Exhaustive (T (TRefine v t e)) (p:ps))
   = let r = pValueSet t v p
         e' = SE (PrimOp "&&" [e, SE (PrimOp "not" [r]) (T t_bool)]) (T t_bool) -- e `union` r
      in rule (Exhaustive (T (TRefine v t e')) ps)
 
 rule (Exhaustive t ps)
-  | not (notWhnf t) = do SU v _ <- freshEVar t (RefinementType [t]) 
-                         rule (Exhaustive (T (TRefine ('?':show v) t $ SE (BoolLit True) (T t_bool))) ps)
+  | not (notWhnf t) = do v <- freshName_
+                         rule (Exhaustive (T (TRefine v t $ SE (BoolLit True) (T t_bool))) ps)
   -- | not (notWhnf t) = return . Just . Unsat $ PatternsNotExhaustive t []
 
 rule (x :@ c) = do
@@ -286,8 +284,9 @@ rule (Share  (T (TArray t _)) m) = return . Just $ Share  t m
 rule (Drop   (T (TArray t _)) m) = return . Just $ Drop   t m
 rule (Escape (T (TArray t _)) m) = return . Just $ Escape t m
 
-rule (Exists e) = return Nothing
-rule (ForAll e) = return Nothing
+rule (Arith e) = return Nothing
+-- rule (Exists e) = return Nothing
+-- rule (ForAll e) = return Nothing
 
 rule (F (T (TTuple xs)) :< F (T (TTuple ys)))
   | length xs /= length ys = return $ Just $ Unsat (TypeMismatch (F (T (TTuple xs))) (F (T (TTuple ys))))
@@ -361,7 +360,7 @@ rule (F y :< F (T (TPut fs (U x))))
 --   = return $ Just $ uncurry FVariant (takeVariant fs vs es) :<  F ( U x)
 rule (F (T (TArray t l)) :< F (T (TArray s n)))
   = let ?lvl = ?lvl + 1
-     in return $ Just (F t :< F s :& Exists (SE (PrimOp "==" [l, n]) (T t_bool)))
+     in return $ Just (F t :< F s :& Arith (SE (PrimOp "==" [l, n]) (T t_bool)))
 rule (F (T (TBang a)) :< F b)
   | isBangInv b = return $ Just (F a :< F b)
 rule (F a :< F (T (TBang b)))
@@ -411,13 +410,11 @@ rule ct@(FRecord (M.fromList -> n) :< FRecord (M.fromList -> m))
   , ns == M.keysSet m
   = parRecords n m ns
 rule (F ty1@(T (TRefine v1 t1 e1)) :< F ty2@(T (TRefine v2 t2 e2)))
-  = do v <- freshEVar t2 (RefinementType [ty1, ty2])
-       let vs1 = [(v1,v)]
-           vs2 = [(v2,v)]
-           e1' = substSExpr vs1 e1
-           e2' = substSExpr vs2 e2
+  = do let subst = [(v1,v2)]
+           e1' = substSExpr subst e1
+           e2' = e2
        return . Just $ (F t1 :< F t2) :&
-                       (ForAll $ SE (PrimOp "||" [SE (PrimOp "not" [e1']) (T t_bool), e2']) (T t_bool))  -- e1 `subsetOf` e2
+                       (Arith $ SE (PrimOp "||" [SE (PrimOp "not" [e1']) (T t_bool), e2']) (T t_bool))  -- e1 `subsetOf` e2
 rule (F t1@(T (TRefine v _ _)) :< F t2)
   = rule $ F t1 :< F (T . TRefine v t2 $ SE (BoolLit True) (T t_bool))
 rule (F t1 :< F t2@(T (TRefine v _ _)))
@@ -486,8 +483,9 @@ simp (a :& b)          = (:&)       <$> simp a <*> simp b
 simp (Share  t m)      = Share      <$> whnf t <*> pure m
 simp (Drop   t m)      = Drop       <$> whnf t <*> pure m
 simp (Escape t m)      = Escape     <$> whnf t <*> pure m
-simp (Exists e)        = pure (Exists e)
-simp (ForAll e)        = pure (ForAll e)
+simp (Arith e)         = pure (Arith e)
+-- simp (Exists e)        = pure (Exists e)
+-- simp (ForAll e)        = pure (ForAll e)
 simp (a :@ c)          = (:@)       <$> simp a <*> pure c
 simp (Unsat e)         = pure (Unsat e)
 simp (SemiSat w)       = pure (SemiSat w)
@@ -498,6 +496,12 @@ simp' :: Constraint -> TcBaseM Constraint
 simp' c = runExceptT (simp c) >>= \case
             Left e  -> return $ Unsat e
             Right c -> return c
+
+freshName_ = freshName ""
+
+freshName :: VarName -> Solver VarName
+freshName v = do i <- freshNames <<%= succ
+                 return $ "%sol_" ++ v ++ "_" ++ show v
 
 freshTVar :: VarOrigin -> Solver TCType
 freshTVar ctx = do
@@ -632,16 +636,16 @@ bound' d a@(T (TArray t l)) b@(T (TArray s n)) = do
   traceTc "sol" (text "calculate bound of" <+> pretty a <+> text "and" <+> pretty b <> colon
                  P.<$> pretty c)
   return $ Just c
--- TODO: We need to check if `t1 == t2'. In order to do so, we must fully solve
--- these base types and normalise (Post.hs) them. After the whole process done, we repeat to solve
--- the refinement ones. It means, constraint generation can(?) be done in one go, and 
--- solving, substitution, normalising must be done in a loop until it reaches a fixed point.
-bound' b (T (TRefine _ t1 (SAll v1 e1))) (T (TRefine _ t2 (SAll v2 e2)))
-  = bound' b t1 t2 >>= mapM (\t -> do
-      let op = case b of GLB -> "||"; LUB -> "&&"
-          e2' = substSExpr' [(v1,undefined)] e2
-          e  = SAll v1 $ SE (PrimOp op [e1,e2']) (T t_bool)
-      return (T $ TRefine ('?':show v1) t e))
+-- -- TODO: We need to check if `t1 == t2'. In order to do so, we must fully solve
+-- -- these base types and normalise (Post.hs) them. After the whole process done, we repeat to solve
+-- -- the refinement ones. It means, constraint generation can(?) be done in one go, and 
+-- -- solving, substitution, normalising must be done in a loop until it reaches a fixed point.
+-- bound' b (T (TRefine _ t1 (SAll v1 e1))) (T (TRefine _ t2 (SAll v2 e2)))
+--   = bound' b t1 t2 >>= mapM (\t -> do
+--       let op = case b of GLB -> "||"; LUB -> "&&"
+--           e2' = substSExpr' [(v1,undefined)] e2
+--           e  = SAll v1 $ SE (PrimOp op [e1,e2']) (T t_bool)
+--       return (T $ TRefine ('?':show v1) t e))
 bound' b (T (TRefine v1 t1 e1)) (T ty2)
   = undefined
 bound' b (T ty1) (T (TRefine v2 t2 e2))
@@ -772,8 +776,8 @@ classify g = case g of
                         , Nothing <- flexOf b -> mempty {downflexes = IS.singleton a', rest = [g]}
                         | Just b' <- flexOf b
                         , Nothing <- flexOf a -> mempty {upflexes = IS.singleton b', rest = [g]}
-  (Goal _ (Exists _))   -> mempty {arithasses = [g]}
-  (Goal _ (ForAll _))   -> mempty {arithsats  = [g]}
+  -- (Goal _ (Exists _))   -> mempty {arithasses = [g]}
+  -- (Goal _ (ForAll _))   -> mempty {arithsats  = [g]}
   _                     -> mempty {rest = [g]}
   where
     rigid :: TypeFragment TCType -> Bool
@@ -874,7 +878,7 @@ kAxioms = map f <$> (filter (arithTCType . fst3 . snd) . M.toList <$> lift (use 
 arithAss :: [Goal] -> Solver (Either GoalClasses Ass.Assignment)
 arithAss gs = do
     cs <- kAxioms
-    let es = filter typedSExpr $ flip map gs (\(Goal _ (Exists e)) -> e) 
+    let es = filter typedSExpr $ flip map gs (\(Goal _ (Arith e)) -> e) 
     go [] (cs++es) >>= \case  -- FIXME!!
       Left  s -> let g = [Goal [] (Unsat $ CannotFindAssignment (cs++es) s)]
                      -- FIXME: we should try to produce much better error msgs / zilinc
@@ -903,7 +907,7 @@ arithAss gs = do
 arithSat :: [Goal] -> Solver (Maybe GoalClasses)
 arithSat gs = do
     cs <- kAxioms
-    let es = filter typedSExpr $ flip map gs (\(Goal _ (ForAll e)) -> e)
+    let es = filter typedSExpr $ flip map gs (\(Goal _ (Arith e)) -> e)
     go cs es >>= \case
       Nothing  -> return Nothing
       Just msg -> let g = [Goal [] (Unsat $ PredicatesDontHold (cs++es) msg)]
@@ -950,7 +954,7 @@ sBoolD nm = ask >>= liftIO . VD.svMkSymVar Nothing V.KBool (Just nm)
 typedSExpr :: SExpr -> Bool
 typedSExpr (SU _ t) = rigid t
 typedSExpr (SE e _) = foldr (\e acc -> typedSExpr e && acc) True e
-typedSExpr (SAll _ e) = typedSExpr e
+-- typedSExpr (SAll _ e) = typedSExpr e
 
 sexprToSbv :: SExpr -> SbvM VD.SVal
 sexprToSbv (SE (PrimOp op [e1,e2]) _) = liftA2 (bopToSbv op) (sexprToSbv e1) (sexprToSbv e2)
