@@ -146,7 +146,6 @@ u8   = TCon "U8"   [] Unboxed
 u32  = TCon "U32"  [] Unboxed
 bool = TCon "Bool" [] Unboxed
 
-
 data Polytype t = PT [(TyVarName, Kind)] [(DLVarName, t)] t
   deriving (Data, Eq, Show, Functor, Foldable, Traversable, Ord)
 

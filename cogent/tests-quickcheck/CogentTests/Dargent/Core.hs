@@ -136,7 +136,6 @@ genSumLayout maxBitIndex maxSize alloc =
       let altAlloc' = fmap (InAlt altName sourcePos) altAlloc
       return (M.insert altName (tagValue, altLayout) remainingAlts, altAlloc' \/ remainingAlloc)
 
-
 genRecordLayout
   :: Size -- max allowed allocated bit index
   -> Size -- max allowed total bit size for the records fields
