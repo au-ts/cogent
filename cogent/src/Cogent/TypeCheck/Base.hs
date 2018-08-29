@@ -21,9 +21,14 @@
 
 module Cogent.TypeCheck.Base where
 
-import Cogent.Dargent.Allocation
-import Cogent.Dargent.TypeCheck
-
+import Cogent.DataLayout.TypeCheck  ( DataLayoutTypeCheckError
+                                    , Allocation
+                                    , NamedDataLayouts
+                                    , typeCheckDataLayoutExpr
+                                    )
+import Cogent.DataLayout.Core       ( DataLayout
+                                    , BitRange
+                                    )
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler
