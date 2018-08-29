@@ -14,6 +14,7 @@ import Data.Word
 import Text.PrettyPrint.ANSI.Leijen
 
 type RepName     = String
+type DataLayoutName = RepName -- For gradual transition to eliminate Rep from the compiler
 type FieldName   = String
 type TagName     = String
 type FunName     = String

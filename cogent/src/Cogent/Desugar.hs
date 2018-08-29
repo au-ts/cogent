@@ -530,9 +530,6 @@ desugarType = \case
 #endif
   notInWHNF -> __impossible $ "desugarType (type" ++ show (pretty notInWHNF) ++ "is not in WHNF)"
 
-desugarSigil :: Sigil S.RepExpr -> Sigil (DataLayout BitRange)
-desugarSigil Unboxed = Unboxed
-desugarSigil (Boxed ro l) = Boxed ro (desugarDataLayout (__todo "Add DataLayoutDefns to the desugar state!") l)
 
 desugarNote :: S.Inline -> FunNote
 desugarNote S.NoInline = NoInline

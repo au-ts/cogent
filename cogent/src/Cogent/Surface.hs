@@ -111,17 +111,19 @@ type Taken  = Bool
 
 data Type e t =
               -- They are in WHNF
-                TCon TypeName [t] (Sigil RepExpr)  -- FIXME: can polymorphise the `Representation`
+                TCon TypeName [t] (Sigil (Maybe RepExpr))  -- FIXME: can polymophise the `Representation`
               | TVar VarName Banged
               | TFun t t
-              | TRecord [(FieldName, (t, Taken))] (Sigil RepExpr)
+              | TRecord [(FieldName, (t, Taken))] (Sigil (Maybe RepExpr))
               | TVariant (M.Map TagName ([t], Taken))
               | TTuple [t]
               | TUnit
 #ifdef BUILTIN_ARRAYS
               | TArray t e
 #endif
-              -- They will be eliminated at some point / zilinc
+              -- In TypeCheck.Post, the TUnbox and TBang typeoperators
+              -- are normalised out of the syntax tree by altering the Sigil
+              -- of the type they act on / zilinc, mdimeglio
               | TUnbox   t
               | TBang    t
               -- Used for both field names in records and tag names in variants

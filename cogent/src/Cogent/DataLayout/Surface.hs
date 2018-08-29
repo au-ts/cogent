@@ -5,6 +5,11 @@ import Cogent.Compiler (__fixme)
 
 {- SURFACE DATALAYOUT TYPES -}
 
+-- For gradual transition to eliminate Rep from the language.
+type DataLayoutSize = RepSize
+type DataLayoutDecl = RepDecl
+type DataLayoutExpr = RepExpr
+
 -- Rename to DataLayoutSize
 data RepSize 
   = Bytes Size
@@ -26,8 +31,3 @@ data RepExpr
   | Offset  RepExpr RepSize
   | RepRef  RepName
   deriving (Show, Eq, Ord)
-
-noRepE = __fixme $ RepRef "Haven't implemented parsing repExprs in boxed types"
--- Must remove noRepE from project when this is implemented
--- Ask Zilin - Why is all types which aren't primitive Boxed types?
--- See atomtype line 306 of Parser.hs

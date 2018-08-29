@@ -108,13 +108,18 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     t'' <- postT t'
     return $ AbsDec n (PT ps t'')
   
-  (RepDef d@(RepDecl pos n e)) -> do 
-    traceTc "tc" (text "typecheck rep decl" <+> pretty n)
-    reps <- lift . lift $ use knownReps
-    case dataLayoutSurfaceToCore reps d of 
-       Left e -> logErr $ RepError e
-       Right result -> lift . lift $ knownReps %= M.insert n result
-    return $ RepDef d
+  (RepDef decl@(RepDecl pos name expr)) -> do 
+    traceTc "tc" (text "typecheck rep decl" <+> pretty name)
+    namedLayouts            <- lift . lift $ use knownDataLayouts
+    let (errors, allocation) = typeCheckDataLayoutDecl namedLayouts decl
+    case errors of
+      (anError : _) -> logErr $ DataLayoutError anError
+      _             -> return ()
+    -- We add the decl to the knownDataLayouts regarldess of error, so we can continue
+    -- typechecking DataLayoutExprs which might contain the decl.
+    lift . lift $ knownDataLayouts %= M.insert name (expr, allocation)
+    let decl' = normaliseDataLayoutDecl namedLayouts decl
+    return $ RepDef decl'
 
   (ConstDef n (stripLocT -> t) e) -> do
     traceTc "tc" $ bold (text $ replicate 80 '=')

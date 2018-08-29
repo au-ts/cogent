@@ -210,7 +210,7 @@ tcAnti f a = lift . lift $
   StateT $ \s -> let state = TC.TcState { TC._knownFuns    = view (tcState.tfuncs) s
                                         , TC._knownTypes   = view (tcState.ttypes) s
                                         , TC._knownConsts  = view (tcState.consts) s
-                                        , TC._knownReps    = M.empty -- FIXME: Not sure what I'm doing here /liamoc
+                                        , TC._knownDataLayouts   = (__fixme M.empty) -- FIXME: Not sure what I'm doing here /liamoc
                                         }
                      turn :: s -> (Maybe b, TC.TcLogState) -> Either String (b,s)
                      turn s (Just x, TC.TcLogState l _) = Right (x,s)  -- FIXME: ignore warnings atm / zilinc
