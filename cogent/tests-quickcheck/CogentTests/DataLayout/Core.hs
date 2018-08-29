@@ -178,8 +178,8 @@ allNonAllocatedRanges
 allNonAllocatedRanges maxBitIndex alloc = do
   range <- allNonEmptyRanges maxBitIndex
   case [(range, PathEnd)] /\ alloc of
-    Left _         -> []
-    Right newAlloc -> return (range, newAlloc)
+    ([], newAlloc) -> return (range, newAlloc)
+    _              -> []
 
 {- Arbitrary instances -}
 
