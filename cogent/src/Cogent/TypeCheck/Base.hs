@@ -160,9 +160,13 @@ data Constraint = (:<) (TypeFragment TCType) (TypeFragment TCType)
                 | Sat
                 | Exhaustive TCType [RawPatn]
                 | Arith SExpr
-              -- | Exists SExpr  -- FIXME: unknwons
-              -- | ForAll SExpr  -- FIXME: variables
+                | Exists Int SExpr
+                | ForAll Int SExpr
                 deriving (Eq, Show, Ord)
+
+__uniqueEVar = "%nu"
+eVarName v i = '%':v ++ "__" ++ show i
+eVarName_ i = eVarName ""
 
 arithTCType :: TCType -> Bool
 arithTCType (T (TCon n [] Unboxed)) | n `elem` ["U8", "U16", "U32", "U64", "Bool"] = True
@@ -187,9 +191,7 @@ splitArithConstraints (c :@ ctx)
   = let (e,c') = splitArithConstraints c
      in (e, c' :@ ctx)
 splitArithConstraints (Arith e) = ([e], Sat)  -- FIXME
--- splitArithConstraints (Exists e) = ([e], Sat)  -- FIXME
--- splitArithConstraints (ForAll e) = ([e], Sat)  -- FIXME
-splitArithConstraints c          = ([], c)
+splitArithConstraints c          = ([], c)  -- ForAll and Exists go here
 
 andSExprs :: [SExpr] -> SExpr
 andSExprs [] = SE (BoolLit True) (T t_bool)
@@ -237,8 +239,11 @@ data TCType         = T (Type SExpr TCType)
 
 data SExpr          = SE (Expr RawType RawPatn RawIrrefPatn SExpr) TCType
                     | SU Int TCType
-                  -- | SAll Int SExpr
                     deriving (Show, Eq, Ord)
+
+-- TODO: which change SExpr to this type
+data RefExpr t      = RefE (Expr RawType RawPatn RawIrrefPatn (RefExpr t)) t
+                    | RefU Int t
 
 unknownName :: SExpr -> VarName
 unknownName (SU i _) = '?':show i
@@ -383,6 +388,8 @@ type TcConsM lcl a = StateT  lcl (StateT TcState IO) a
 type TcErrM  err a = ExceptT err (StateT TcState IO) a
 type TcBaseM     a =              StateT TcState IO  a
 
+-- vvv A collection of constraint solving internals, tracking fresh type/term variables
+type FreshST = (Int, IM.IntMap VarOrigin, IM.IntMap TCType, IM.IntMap TCType)
 
 -- -----------------------------------------------------------------------------
 -- Error logging functions and exception handling
@@ -464,6 +471,20 @@ flexOf _ = Nothing
 rigid :: TCType -> Bool
 rigid (U _) = False
 rigid (T t) = foldr (\t acc -> rigid t && acc) True t
+
+isSimpleType :: TCType -> Bool
+isSimpleType (T (TCon _ ts _)) = all isSimpleType ts
+isSimpleType (T (TVar {})) = True
+isSimpleType (T (TFun t1 t2)) = isSimpleType t1 && isSimpleType t2
+isSimpleType (T (TRecord fs _)) = all (isSimpleType . fst . snd) fs
+isSimpleType (T (TVariant alts)) = all (all isSimpleType . fst . snd) $ M.toList alts
+isSimpleType (T (TArray t _)) = isSimpleType t
+isSimpleType (T (TRefine {})) = False
+isSimpleType (T (TUnbox t)) = isSimpleType t
+isSimpleType (T (TBang  t)) = isSimpleType t
+isSimpleType (T (TTake _ t)) = isSimpleType t
+isSimpleType (T (TPut  _ t)) = isSimpleType t
+isSimpleType (U {}) = True
 
 isSynonym :: RawType -> TcBaseM Bool
 isSynonym (RT (TCon c _ _)) = lookup c <$> use knownTypes >>= \case

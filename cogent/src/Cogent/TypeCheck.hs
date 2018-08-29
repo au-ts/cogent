@@ -87,8 +87,8 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     unless (null xs) $ logErrExit $ DuplicateTypeVariable xs
     base <- lift . lift $ use knownConsts
     let ctx = C.addScope (fmap (\(t,_,p) -> (t,p, Seq.singleton p)) base) C.empty
-    ((ct,t'),flx,os) <- runCG ctx ps (G.validateType t)
-    (logs, subst, assn, _) <- runSolver (solve ct) (map (,k2) ps) flx os
+    ((ct,t'),fresh) <- runGenerator ctx ps (G.validateType t)
+    (logs, subst, assn, _) <- runSolver (solve ct) (map (,k2) ps) fresh
     exitOnErr $ mapM_ logTc =<< mapM (\(c,l) -> lift (use errCtx) >>= \c' -> return (c++c',l)) logs
     let t'' = assignT assn $ apply subst $ t'
     lift . lift $ knownTypes <>= [(n, (ps, Just t''))]
@@ -103,9 +103,9 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     base <- lift . lift $ use knownConsts
     let ctx = C.addScope (fmap (\(t,_,p) -> (t,p, Seq.singleton p)) base) C.empty
     -- `ts' are the dependencies
-    (cts,flx,os) <- runCG ctx [] (mapM G.validateType ts)
+    (cts,fresh) <- runGenerator ctx [] (mapM G.validateType ts)
     let (cs,ts') = unzip cts
-    (logs, subst, assn, _) <- runSolver (solve $ mconcat cs) [] flx os
+    (logs, subst, assn, _) <- runSolver (solve $ mconcat cs) [] fresh
     exitOnErr $ mapM_ logTc =<< mapM (\(c,l) -> lift (use errCtx) >>= \c' -> return (c++c',l)) logs
     let ts'' = map (assignT assn . apply subst) ts'
     ts''' <- mapM postT ts''
@@ -120,8 +120,8 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     unless (null xs) $ logErrExit $ DuplicateTypeVariable xs
     base <- lift . lift $ use knownConsts
     let ctx = C.addScope (fmap (\(t,_,p) -> (t,p, Seq.singleton p)) base) C.empty
-    ((ct,t'),flx,os) <- runCG ctx vs' (G.validateType t)
-    (logs, subst, assn, _) <- runSolver (solve ct) vs flx os
+    ((ct,t'),fresh) <- runGenerator ctx vs' (G.validateType t)
+    (logs, subst, assn, _) <- runSolver (solve ct) vs fresh
     exitOnErr $ mapM_ logTc =<< mapM (\(c,l) -> lift (use errCtx) >>= \c' -> return (c++c',l)) logs
     let t'' = assignT assn $ apply subst t'
     lift . lift $ knownFuns %= M.insert n (PT vs t'')
@@ -141,13 +141,13 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     traceTc "tc" (text "typecheck const definition" <+> pretty n)
     base <- lift . lift $ use knownConsts
     let ctx = C.addScope (fmap (\(t,_,p) -> (t,p, Seq.singleton p)) base) C.empty  -- for consts, the definition is the first use.
-    (((ct,t'),(c,e')), flx, os) <- runCG ctx [] 
-                                         ((,) <$> G.validateType t
-                                              <*> cg e (toTCType t))
+    (((ct,t'),(c,e')),fresh) <- runGenerator ctx [] 
+                                      ((,) <$> G.validateType t
+                                           <*> cg e (toTCType t))
     let c' = ct <> c <> Share t' (Constant n)
     traceTc "tc" (text "constraint for const definition" <+> pretty n <+> text "is"
                   L.<$> prettyC c')
-    (logs, subst, assn, _) <- runSolver (solve c') [] flx os
+    (logs, subst, assn, _) <- runSolver (solve c') [] fresh
     exitOnErr $ mapM_ logTc =<< mapM (\(c,l) -> lift (use errCtx >>= \c' -> return (c++c',l))) logs
     traceTc "tc" (text "substs for const definition" <+> pretty n <+> text "is"
                   L.<$> pretty subst
@@ -168,12 +168,12 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     base <- lift . lift $ use knownConsts
     let ctx = C.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) C.empty
     let ?loc = loc
-    (((ct,t'),(c,alts')), flx, os) <- runCG ctx (map fst vs)
-                                            ((,) <$> G.validateType t
-                                                 <*> cgFunDef alts (toTCType t))
+    (((ct,t'),(c,alts')),fresh) <- runGenerator ctx (map fst vs)
+                                         ((,) <$> G.validateType t
+                                              <*> cgFunDef alts (toTCType t))
     traceTc "tc" (text "constraint for fun definition" <+> pretty f <+> text "is"
                   L.<$> prettyC c)
-    (logs, subst, assn, _) <- runSolver (solve $ ct <> c) vs flx os
+    (logs, subst, assn, _) <- runSolver (solve $ ct <> c) vs fresh
     exitOnErr $ mapM_ logTc =<< mapM (\(c,l) -> lift (use errCtx) >>= \c' -> return (c++c',l)) logs
     traceTc "tc" (text "substs for fun definition" <+> pretty f <+> text "is"
                   L.<$> pretty subst
@@ -198,8 +198,8 @@ typecheckCustTyGen = mapM . firstM $ \t -> do
            True -> logErrExit (CustTyGenIsSynonym $ toTCType t')
            _    -> do base <- lift . lift $ use knownConsts
                       let ctx = C.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) C.empty
-                      ((ct,t''),flx,os) <- runCG ctx [] (G.validateType t')
-                      (logs,subst,assn,_) <- runSolver (solve ct) [] flx os
+                      ((ct,t''),fresh) <- runGenerator ctx [] (G.validateType t')
+                      (logs,subst,assn,_) <- runSolver (solve ct) [] fresh
                       exitOnErr $ mapM_ logTc =<< mapM (\(c,l) -> lift (use errCtx) >>= \c' -> return (c++c',l)) logs
                       postT $ assignT assn $ apply subst t''
 

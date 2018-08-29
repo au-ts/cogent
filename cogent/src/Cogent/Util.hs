@@ -165,6 +165,10 @@ snd3 (a,b,c) = b
 thd3 :: (a,b,c) -> c
 thd3 (a,b,c) = c
 
+bindM2 :: (Monad m) => (a -> b -> m c) -> m a -> m b -> m c
+bindM2 f ma mb = do a <- ma; b <- mb; f a b
+
+
 infixr 3 ***^^
 
 (***^^) :: Applicative f => (a -> f a') -> (b -> f b') -> (a, b) -> f (a', b')
@@ -297,11 +301,22 @@ u8MAX  = 256
 u16MAX = 65535
 u32MAX = 4294967296
 
+class Binary x where
+  flipB :: x -> x
+
 data Bound = GLB | LUB deriving (Eq, Ord)
 
 instance Show Bound where
   show GLB = "lower bound"
   show LUB = "upper bound"
 
-theOtherB GLB = LUB
-theOtherB LUB = GLB
+instance Binary Bound where
+  flipB GLB = LUB
+  flipB LUB = GLB
+
+data Quantifier = ALL | EX deriving (Eq, Ord)
+
+instance Binary Quantifier where
+  flipB ALL = EX
+  flipB EX  = ALL
+

@@ -18,8 +18,8 @@
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 
 module Cogent.TypeCheck.Generator
-  ( runCG
-  , CG
+  ( runGenerator
+  , Generator
   , cg
   , cgFunDef
   , freshTVar
@@ -57,24 +57,25 @@ data GenState = GenState { _context :: C.Context TCType
                          , _knownTypeVars :: [TyVarName]
                          , _flexes :: Int
                          , _flexOrigins :: IM.IntMap VarOrigin
-                         , _freshNames :: Int
+                         , _schematics :: IM.IntMap TCType
+                         , _universals :: IM.IntMap TCType
                          }
 
 makeLenses ''GenState
 
-type CG a = TcConsM GenState a
+type Generator a = TcConsM GenState a
 
-runCG :: C.Context TCType -> [TyVarName] -> CG a -> TcM (a, Int, IM.IntMap VarOrigin)
-runCG g vs ma = do
-  (a, GenState _ _ f os _) <- withTcConsM (GenState g vs 0 mempty 0) ((,) <$> ma <*> get)
-  return (a,f,os)
+runGenerator :: C.Context TCType -> [TyVarName] -> Generator a -> TcM (a, FreshST)
+runGenerator g vs ma = do
+  (a, GenState _ _ f os s u) <- withTcConsM (GenState g vs 0 mempty mempty mempty) ((,) <$> ma <*> get)
+  return (a,(f,os,s,u))
 
 
 -- -----------------------------------------------------------------------------
 -- Type-level constraints
 -- -----------------------------------------------------------------------------
 
-validateType :: RawType -> CG (Constraint, TCType)
+validateType :: RawType -> Generator (Constraint, TCType)
 validateType rt@(RT t) = do
   vs <- use knownTypeVars
   ts <- lift $ use knownTypes
@@ -97,21 +98,18 @@ validateType rt@(RT t) = do
                       return (c <> cl, T $ TArray te' l')
     TRefine v t e -> do let t' = toTCType t
                         context %= C.addScope (M.singleton v (t', noPos, Seq.singleton noPos))
-                        v' <- freshName v  -- NOTE: it guarantees that all refinement types after this point
-                                           -- in the compiler have unique names / zilinc
-                        let e' = substRawExpr [(v,v')] e
-                        (c,e'') <- cg (dummyLocE e') (T $ TCon "Bool" [] Unboxed)
-                        return (c, T $ TRefine v' t' $ tcToSExpr e'')
+                        (c,e') <- cg (dummyLocE e) (T $ TCon "Bool" [] Unboxed)
+                        return (c, T $ TRefine v t' $ tcToSExpr e')
     _ -> second (T . ffmap toSExpr) <$> fmapFoldM validateType t 
 
-validateTypes :: (Traversable t) => t RawType -> CG (Constraint, t TCType)
+validateTypes :: (Traversable t) => t RawType -> Generator (Constraint, t TCType)
 validateTypes ts = fmapFoldM validateType ts
 
 -- -----------------------------------------------------------------------------
 -- Term-level constraints
 -- -----------------------------------------------------------------------------
 
-cgFunDef :: (?loc :: SourcePos) => [Alt LocPatn LocExpr] -> TCType -> CG (Constraint, [Alt TCPatn TCExpr])
+cgFunDef :: (?loc :: SourcePos) => [Alt LocPatn LocExpr] -> TCType -> Generator (Constraint, [Alt TCPatn TCExpr])
 cgFunDef alts t = do
   alpha1 <- freshTVar
   alpha2 <- freshTVar
@@ -130,7 +128,7 @@ cgFunDef alts t = do
 
 -- cgAlts alts out_type in_type
 -- NOTE the order of arguments!
-cgAlts :: [Alt LocPatn LocExpr] -> TCType -> TCType -> CG (Constraint, [Alt TCPatn TCExpr])
+cgAlts :: [Alt LocPatn LocExpr] -> TCType -> TCType -> Generator (Constraint, [Alt TCPatn TCExpr])
 cgAlts alts top alpha = do
   let
     altPattern (Alt p _ _) = p
@@ -157,7 +155,7 @@ cgAlts alts top alpha = do
 -- Expression constraints
 -- -----------------------------------------------------------------------------
 
-cgMany :: (?loc :: SourcePos) => [LocExpr] -> CG ([TCType], Constraint, [TCExpr])
+cgMany :: (?loc :: SourcePos) => [LocExpr] -> Generator ([TCType], Constraint, [TCExpr])
 cgMany es = do
   let each (ts,c,es') e = do
         alpha    <- freshTVar
@@ -166,7 +164,7 @@ cgMany es = do
   (ts, c', es') <- foldM each ([], Sat, []) es  -- foldM is the same as foldlM
   return (reverse ts, c', reverse es')
 
-cg :: LocExpr -> TCType -> CG (Constraint, TCExpr)
+cg :: LocExpr -> TCType -> Generator (Constraint, TCExpr)
 cg x@(LocExpr l e) t = do
   let ?loc = l
   (c, e') <- cg' e t
@@ -175,7 +173,7 @@ cg x@(LocExpr l e) t = do
 cg' :: (?loc :: SourcePos)
     => Expr LocType LocPatn LocIrrefPatn LocExpr
     -> TCType
-    -> CG (Constraint, Expr TCType TCPatn TCIrrefPatn TCExpr)
+    -> Generator (Constraint, Expr TCType TCPatn TCIrrefPatn TCExpr)
 -- TODO: generate refinement constraints for prim-ops
 cg' (PrimOp o [e1, e2]) t
   | o `elem` words "+ - * / % .&. .|. .^. >> <<"
@@ -239,8 +237,8 @@ cg' (Upcast e) t = do
 -- but it will incur extensive subtyping relations in the
 -- syntax tree. / zilinc
 cg' (BoolLit b) t = do
-  v <- freshName_
-  let r = SE (PrimOp "==" [SE (Var v) (T t_bool), SE (BoolLit b) (T t_bool)]) (T t_bool)
+  let v = __uniqueEVar
+      r = SE (PrimOp "==" [SE (Var v) (T t_bool), SE (BoolLit b) (T t_bool)]) (T t_bool)
       c = F (T (TRefine v (T t_bool) r)) :< F t
       e = BoolLit b
   return (c,e)
@@ -267,8 +265,8 @@ cg' (IntLit n) t = do
                       | otherwise      = "U64"
   let bt = TCon minimumBitwidth [] Unboxed
   t' <- freshTVar
-  v <- freshName_
-  let r = SE (PrimOp "==" [SE (Var v) t', SE (IntLit n) t']) (T t_bool)
+  let v = __uniqueEVar
+      r = SE (PrimOp "==" [SE (Var v) t', SE (IntLit n) t']) (T t_bool)
       -- NOTE: We need a 2-step promition scheme here. E.g.:
       -- (1) U8 :~> U32  (upcast)
       -- (2) {v : U32 | P'(v)} :<  {v : U32 | Q (v)}  (ref. subtyping)
@@ -286,8 +284,9 @@ cg' (ArrayLit es) t = do
 
 cg' (ArrayIndex e i) t = do
   alpha <- freshTVar
-  n <- freshEVar (T t_u32)
-  let ta = T $ TArray alpha n
+  v <- freshEVar EX (T t_u32) (ExpressionAt ?loc)
+  let n = SU v (T t_u32)
+      ta = T $ TArray alpha n
   (ce, e') <- cg e ta
   (ci, i') <- cg (dummyLocE i) (T t_u32)
   let c = F alpha :< F t <> Share ta UsedInArrayIndexing <>
@@ -396,7 +395,7 @@ cg' (TypeApp f as i) t = do
   (ct, getCompose -> as') <- validateTypes (fmap stripLocT $ Compose as) 
   lift (use $ knownFuns.at f) >>= \case
     Just (PT vs tau) -> let
-        match :: [(TyVarName, Kind)] -> [Maybe TCType] -> CG ([(TyVarName, TCType)], Constraint)
+        match :: [(TyVarName, Kind)] -> [Maybe TCType] -> Generator ([(TyVarName, TCType)], Constraint)
         match [] []    = return ([], Sat)
         match [] (_:_) = return ([], Unsat (TooManyTypeArguments f (PT vs tau)))
         match vs []    = freshTVar >>= match vs . return . Just
@@ -491,7 +490,7 @@ cg' (Annot e tau) t = do
 -- Pattern constraints
 -- -----------------------------------------------------------------------------
 
-matchA :: LocPatn -> TCType -> CG (M.Map VarName (C.Row TCType), Constraint, TCPatn)
+matchA :: LocPatn -> TCType -> Generator (M.Map VarName (C.Row TCType), Constraint, TCPatn)
 matchA x@(LocPatn l p) t = do
   let ?loc = l
   (s,c,p') <- matchA' p t
@@ -499,7 +498,7 @@ matchA x@(LocPatn l p) t = do
 
 matchA' :: (?loc :: SourcePos)
        => Pattern LocIrrefPatn -> TCType
-       -> CG (M.Map VarName (C.Row TCType), Constraint, Pattern TCIrrefPatn)
+       -> Generator (M.Map VarName (C.Row TCType), Constraint, Pattern TCIrrefPatn)
 
 matchA' (PIrrefutable i) t = do
   (s, c, i') <- match i t
@@ -533,7 +532,7 @@ matchA' (PBoolLit b) t =
 matchA' (PCharLit c) t =
   return (M.empty, F t :< F (T (TCon "U8" [] Unboxed)), PCharLit c)
 
-match :: LocIrrefPatn -> TCType -> CG (M.Map VarName (C.Row TCType), Constraint, TCIrrefPatn)
+match :: LocIrrefPatn -> TCType -> Generator (M.Map VarName (C.Row TCType), Constraint, TCIrrefPatn)
 match x@(LocIrrefPatn l ip) t = do
   let ?loc = l
   (s,c,ip') <- match' ip t
@@ -541,7 +540,7 @@ match x@(LocIrrefPatn l ip) t = do
 
 match' :: (?loc :: SourcePos)
       => IrrefutablePattern VarName LocIrrefPatn -> TCType
-      -> CG (M.Map VarName (C.Row TCType), Constraint, IrrefutablePattern TCName TCIrrefPatn)
+      -> Generator (M.Map VarName (C.Row TCType), Constraint, IrrefutablePattern TCName TCIrrefPatn)
 
 match' (PVar x) t = do
   let p = PVar (x,t)
@@ -619,46 +618,37 @@ match' (PArray ps) t = do
 -- Auxiliaries
 -- -----------------------------------------------------------------------------
 
-freshName_ = freshName ""
-
-freshName :: VarName -> CG VarName
-freshName v = do i <- freshNames <<%= succ
-                 return $ "%gen_" ++ v ++ "_" ++ show i
-
-freshTVar :: (?loc :: SourcePos) => CG TCType
+freshTVar :: (?loc :: SourcePos) => Generator TCType
 freshTVar = fresh (ExpressionAt ?loc)
   where
-    fresh :: VarOrigin -> CG TCType
+    fresh :: VarOrigin -> Generator TCType
     fresh ctx = do
       i <- flexes <<%= succ
       flexOrigins %= IM.insert i ctx
       return $ U i
 
-freshEVar_ :: (?loc :: SourcePos) => CG Int
-freshEVar_ = fresh (ExpressionAt ?loc)
-  where 
-    fresh :: VarOrigin -> CG Int
-    fresh ctx = do
-      i <- flexes <<%= succ  -- FIXME: do we need a different counter?
-      flexOrigins %= IM.insert i ctx
-      return i
+freshEVar :: (?loc :: SourcePos) => Quantifier -> TCType -> VarOrigin -> Generator Int
+freshEVar q t ctx = do
+  im <- use (case q of EX -> schematics; ALL -> universals)
+  let s = IM.size im
+  case q of
+    EX  -> schematics %= IM.insert s t
+    ALL -> universals %= IM.insert s t
+  return s
 
-
-freshEVar :: (?loc :: SourcePos) => TCType -> CG SExpr
-freshEVar t = SU <$> freshEVar_ <*> pure t
-
+-- FIXME: this means that U8 ~~> {x : U32 | x == c}
 integral :: TCType -> Constraint
 integral a = Upcastable (T (TCon "U8" [] Unboxed)) a
 
 dropConstraintFor :: M.Map VarName (C.Row TCType) -> Constraint
 dropConstraintFor m = foldMap (\(i, (t,x,us)) -> if null us then Drop t (Unused i x) else Sat) $ M.toList m
 
-parallel' :: [(ErrorContext, CG (Constraint, a))] -> CG (Constraint, [(Constraint, a)])
+parallel' :: [(ErrorContext, Generator (Constraint, a))] -> Generator (Constraint, [(Constraint, a)])
 parallel' ls = parallel (map (second (\a _ -> ((),) <$> a)) ls) ()
 
-parallel :: [(ErrorContext, acc -> CG (acc, (Constraint, a)))]
+parallel :: [(ErrorContext, acc -> Generator (acc, (Constraint, a)))]
          -> acc
-         -> CG (Constraint, [(Constraint, a)])
+         -> Generator (Constraint, [(Constraint, a)])
 parallel []       _   = return (Sat, [])
 parallel [(ct,f)] acc = (Sat,) . return . first (:@ ct) . snd <$> f acc
 parallel ((ct,f):xs) acc = do
@@ -680,7 +670,7 @@ withBindings :: (?loc::SourcePos)
   => [Binding LocType LocPatn LocIrrefPatn LocExpr]
   -> LocExpr -- expression e to be checked with the bindings
   -> TCType  -- the type for e
-  -> CG (Constraint, [Binding TCType TCPatn TCIrrefPatn TCExpr], TCExpr)
+  -> Generator (Constraint, [Binding TCType TCPatn TCIrrefPatn TCExpr], TCExpr)
 withBindings [] e top = do
   (c, e') <- cg e top
   return (c, [], e')
@@ -724,7 +714,11 @@ withBindings (BindingAlts pat tau e0 bs alts : xs) e top = do
       b0' = BindingAlts pat' (fmap (const alpha) tau) e0' bs altss'
   return (c, b0':xs', e')
 
-letBang :: (?loc :: SourcePos) => [VarName] -> (TCType -> CG (Constraint, TCExpr)) -> TCType -> CG (Constraint, TCExpr)
+letBang :: (?loc :: SourcePos)
+        => [VarName]
+        -> (TCType -> Generator (Constraint, TCExpr))
+        -> TCType
+        -> Generator (Constraint, TCExpr)
 letBang [] f t = f t
 letBang bs f t = do
   c <- foldMap id <$> mapM validateVariable bs
@@ -739,7 +733,7 @@ letBang bs f t = do
            L.<$> text "generate constraint" <+> prettyC c'')
   return (c <> c' <> c'', e)
 
-validateVariable :: VarName -> CG Constraint
+validateVariable :: VarName -> Generator Constraint
 validateVariable v = do
   x <- use context
   return $ if C.contains x v then Sat else Unsat (NotInScope MustVar v)

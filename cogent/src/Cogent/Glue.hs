@@ -264,8 +264,8 @@ tcType t = do
     TC.errCtx %= (TC.AntiquotedType t :)
     base <- lift . lift $ use TC.knownConsts
     let ctx = Ctx.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) Ctx.empty
-    ((ct,t''),flx,os) <- TC.runCG ctx (L.map fst vs) (TC.validateType $ SF.stripLocT t)
-    (logs,subst,assn,_) <- TC.runSolver (TC.solve ct) vs flx os
+    ((ct,t''),fresh) <- TC.runGenerator ctx (L.map fst vs) (TC.validateType $ SF.stripLocT t)
+    (logs,subst,assn,_) <- TC.runSolver (TC.solve ct) vs fresh
     TC.exitOnErr $ mapM_ TC.logTc =<< mapM (\(c,l) -> lift (use TC.errCtx) >>= \c' -> return (c++c',l)) logs
     TC.postT $ TC.assignT assn $ TC.apply subst t''
 
@@ -357,8 +357,8 @@ tcExp e = do
   flip tcAnti e $ \e ->
     do let ?loc = SF.posOfE e
        TC.errCtx %= (TC.AntiquotedExpr e :)
-       ((c,e'),flx,os) <- TC.runCG ctx (L.map fst vs) (TC.cg e =<< TC.freshTVar)
-       (logs,subst,assign,_) <- TC.runSolver (TC.solve c) vs flx os
+       ((c,e'),fresh) <- TC.runGenerator ctx (L.map fst vs) (TC.cg e =<< TC.freshTVar)
+       (logs,subst,assign,_) <- TC.runSolver (TC.solve c) vs fresh
        TC.exitOnErr $ mapM_ TC.logTc logs
        TC.postE $ TC.applyE subst $ TC.assignE assign e'
 

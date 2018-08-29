@@ -105,7 +105,7 @@ bound b (TSum s1) (TSum s2) | s1' <- M.fromList s1, s2' <- M.fromList s2, M.keys
   return $ TSum $ M.toList s
 bound b (TProduct t11 t12) (TProduct t21 t22) = TProduct <$> bound b t11 t21 <*> bound b t12 t22
 bound b (TCon c1 t1 s1) (TCon c2 t2 s2) | c1 == c2, s1 == s2 = TCon c1 <$> zipWithM (bound b) t1 t2 <*> pure s1
-bound b (TFun t1 s1) (TFun t2 s2) = TFun <$> bound (theOtherB b) t1 t2 <*> bound b s1 s2
+bound b (TFun t1 s1) (TFun t2 s2) = TFun <$> bound (flipB b) t1 t2 <*> bound b s1 s2
 bound b (TArray t1 l1) (TArray t2 l2) | l1 == l2 = TArray <$> bound b t1 t2 <*> pure l1
 bound _ _ _ = __impossible "bound: not comparable"
 

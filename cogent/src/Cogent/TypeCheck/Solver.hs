@@ -30,12 +30,13 @@ import           Cogent.PrettyPrint (prettyC)
 import           Cogent.Surface
 import qualified Cogent.TypeCheck.Assignment as Ass
 import           Cogent.TypeCheck.Base
+import           Cogent.TypeCheck.Solver.Z3
 import qualified Cogent.TypeCheck.Subst as Subst
 import           Cogent.TypeCheck.Subst (Subst(..))
 import           Cogent.TypeCheck.Util
 import           Cogent.TypeCheck.GoalSet (Goal(..), goal, goalContext, GoalSet)
 import qualified Cogent.TypeCheck.GoalSet as GS
-import           Cogent.Util (fst3, u32MAX, Bound(..))
+import           Cogent.Util (fst3, u32MAX, Bound(..), Quantifier(..))
 
 import           Control.Applicative
 import           Control.Arrow (first, second)
@@ -55,10 +56,6 @@ import           Data.List (elemIndex)
 import qualified Data.Map as M
 import           Data.Maybe (mapMaybe)
 import           Data.Monoid
-import qualified Data.SBV as V
-import qualified Data.SBV.Control as VC
-import qualified Data.SBV.Dynamic as VD
-import qualified Data.SBV.Internals as VI
 import qualified Data.Set as S
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
@@ -70,7 +67,8 @@ data SolverState = SolverState { _axioms      :: [(TyVarName, Kind)]
                                , _assigns     :: Ass.Assignment
                                , _flexes      :: Int
                                , _flexOrigins :: IM.IntMap VarOrigin
-                               , _freshNames  :: Int
+                               , _schematics  :: IM.IntMap TCType
+                               , _universals  :: IM.IntMap TCType
                                }
 
 makeLenses ''SolverState
@@ -78,11 +76,12 @@ makeLenses ''SolverState
 type Solver a = TcConsM SolverState a
 
 
-runSolver :: Solver a -> [(TyVarName, Kind)] -> Int -> IM.IntMap VarOrigin
+runSolver :: Solver a -> [(TyVarName, Kind)] -> FreshST
           -> TcM (a, Subst, Ass.Assignment, IM.IntMap VarOrigin)
-runSolver mx ks f os = do
-  (x, SolverState _ s a _ o _) <- withTcConsM (SolverState ks mempty mempty f os 0) ((,) <$> mx <*> get)
-  return (x,s,a,o)
+runSolver mx ks (f,os,s,u) = do
+  (x, SolverState _ subst assn _ o _ _) <- 
+    withTcConsM (SolverState ks mempty mempty f os s u) ((,) <$> mx <*> get)
+  return (x,subst,assn,o)
 
 -- Flatten a constraint tree into a set of flat goals
 crunch :: Constraint -> TcBaseM [Goal]
@@ -218,8 +217,7 @@ rule (Exhaustive (T (TRefine v t e)) (p:ps))
      in rule (Exhaustive (T (TRefine v t e')) ps)
 
 rule (Exhaustive t ps)
-  | not (notWhnf t) = do v <- freshName_
-                         rule (Exhaustive (T (TRefine v t $ SE (BoolLit True) (T t_bool))) ps)
+  | not (notWhnf t) = rule (Exhaustive (T (TRefine __uniqueEVar t $ SE (BoolLit True) (T t_bool))) ps)
   -- | not (notWhnf t) = return . Just . Unsat $ PatternsNotExhaustive t []
 
 rule (x :@ c) = do
@@ -285,8 +283,8 @@ rule (Drop   (T (TArray t _)) m) = return . Just $ Drop   t m
 rule (Escape (T (TArray t _)) m) = return . Just $ Escape t m
 
 rule (Arith e) = return Nothing
--- rule (Exists e) = return Nothing
--- rule (ForAll e) = return Nothing
+rule (Exists {}) = return Nothing
+rule (ForAll {}) = return Nothing
 
 rule (F (T (TTuple xs)) :< F (T (TTuple ys)))
   | length xs /= length ys = return $ Just $ Unsat (TypeMismatch (F (T (TTuple xs))) (F (T (TTuple ys))))
@@ -410,11 +408,12 @@ rule ct@(FRecord (M.fromList -> n) :< FRecord (M.fromList -> m))
   , ns == M.keysSet m
   = parRecords n m ns
 rule (F ty1@(T (TRefine v1 t1 e1)) :< F ty2@(T (TRefine v2 t2 e2)))
-  = do let subst = [(v1,v2)]
-           e1' = substSExpr subst e1
-           e2' = e2
+  = do i <- freshEVar ALL t2 (RefinementType [ty1,ty2])  -- FIXME: what type should be given?
+       let v = eVarName (v1 ++ "_" ++ v2) i
+           e1' = substSExpr [(v1,v)] e1
+           e2' = substSExpr [(v2,v)] e2
        return . Just $ (F t1 :< F t2) :&
-                       (Arith $ SE (PrimOp "||" [SE (PrimOp "not" [e1']) (T t_bool), e2']) (T t_bool))  -- e1 `subsetOf` e2
+                       (ForAll i $ SE (PrimOp "||" [SE (PrimOp "not" [e1']) (T t_bool), e2']) (T t_bool))  -- e1 `subsetOf` e2
 rule (F t1@(T (TRefine v _ _)) :< F t2)
   = rule $ F t1 :< F (T . TRefine v t2 $ SE (BoolLit True) (T t_bool))
 rule (F t1 :< F t2@(T (TRefine v _ _)))
@@ -484,8 +483,8 @@ simp (Share  t m)      = Share      <$> whnf t <*> pure m
 simp (Drop   t m)      = Drop       <$> whnf t <*> pure m
 simp (Escape t m)      = Escape     <$> whnf t <*> pure m
 simp (Arith e)         = pure (Arith e)
--- simp (Exists e)        = pure (Exists e)
--- simp (ForAll e)        = pure (ForAll e)
+simp (Exists xs e)     = pure (Exists xs e)
+simp (ForAll xs e)     = pure (ForAll xs e)
 simp (a :@ c)          = (:@)       <$> simp a <*> pure c
 simp (Unsat e)         = pure (Unsat e)
 simp (SemiSat w)       = pure (SemiSat w)
@@ -497,24 +496,20 @@ simp' c = runExceptT (simp c) >>= \case
             Left e  -> return $ Unsat e
             Right c -> return c
 
-freshName_ = freshName ""
-
-freshName :: VarName -> Solver VarName
-freshName v = do i <- freshNames <<%= succ
-                 return $ "%sol_" ++ v ++ "_" ++ show i
-
 freshTVar :: VarOrigin -> Solver TCType
 freshTVar ctx = do
   i <- flexes <<%= succ
   flexOrigins %= IM.insert i ctx
   return $ U i
 
-freshEVar :: TCType -> VarOrigin -> Solver SExpr
-freshEVar t ctx = do
-  i <- flexes <<%= succ  -- FIXME: do we need a different variable?
-  flexOrigins %= IM.insert i ctx
-  return $ SU i t
- 
+freshEVar :: Quantifier -> TCType -> VarOrigin -> Solver Int
+freshEVar q t ctx = do
+  im <- use (case q of EX -> schematics; ALL -> universals)
+  let s = IM.size im
+  case q of
+    EX  -> schematics %= IM.insert s t
+    ALL -> universals %= IM.insert s t
+  return s
 
 glb = bound GLB
 lub = bound LUB
@@ -631,8 +626,8 @@ bound' d t1@(T (TRecord fs s)) t2@(T (TRecord gs r))
       return $ Just t
 bound' d a@(T (TArray t l)) b@(T (TArray s n)) = do
   u <- freshTVar (BoundOf (F t) (F s) d)
-  m <- freshEVar (T t_u32) (EqualIn l n a b)
-  let c = T $ TArray u m
+  i <- freshEVar EX (T t_u32) (EqualIn l n a b)
+  let c = T $ TArray u (SU i (T t_u32))
   traceTc "sol" (text "calculate bound of" <+> pretty a <+> text "and" <+> pretty b <> colon
                  P.<$> pretty c)
   return $ Just c
@@ -640,16 +635,19 @@ bound' d a@(T (TArray t l)) b@(T (TArray s n)) = do
 -- -- these base types and normalise (Post.hs) them. After the whole process done, we repeat to solve
 -- -- the refinement ones. It means, constraint generation can(?) be done in one go, and 
 -- -- solving, substitution, normalising must be done in a loop until it reaches a fixed point.
--- bound' b (T (TRefine _ t1 (SAll v1 e1))) (T (TRefine _ t2 (SAll v2 e2)))
---   = bound' b t1 t2 >>= mapM (\t -> do
---       let op = case b of GLB -> "||"; LUB -> "&&"
---           e2' = substSExpr' [(v1,undefined)] e2
---           e  = SAll v1 $ SE (PrimOp op [e1,e2']) (T t_bool)
---       return (T $ TRefine ('?':show v1) t e))
-bound' b (T (TRefine v1 t1 e1)) (T ty2)
-  = undefined
-bound' b (T ty1) (T (TRefine v2 t2 e2))
-  = undefined
+bound' d a@(T (TRefine v1 t1 e1)) b@(T (TRefine v2 t2 e2))
+  = bound' d t1 t2 >>= mapM (\t -> do
+      -- v <- freshEVar ALL t (BoundOf a b d)
+      let v = __uniqueEVar
+          op = case d of GLB -> "||"; LUB -> "&&"
+          e1' = substSExpr [(v1,v)] e1
+          e2' = substSExpr [(v2,v)] e2
+          e  = SE (PrimOp op [e1',e2']) (T t_bool)
+      return (T $ TRefine v t e))
+bound' d a@(T (TRefine v1 t1 e1)) b@(T _)  -- FIXME: can `b' be a `U _' type?
+  | isSimpleType b = bound' d a (T (TRefine __uniqueEVar b (SE (BoolLit True) (T t_bool))))
+bound' d a@(T _) b@(T (TRefine v2 t2 e2))
+  | isSimpleType a = bound' d (T (TRefine __uniqueEVar a (SE (BoolLit True) (T t_bool)))) b
 bound' _ a b = do
   traceTc "sol" (text "calculate bound (bound') of"
            P.<$> pretty a
@@ -776,9 +774,9 @@ classify g = case g of
                         , Nothing <- flexOf b -> mempty {downflexes = IS.singleton a', rest = [g]}
                         | Just b' <- flexOf b
                         , Nothing <- flexOf a -> mempty {upflexes = IS.singleton b', rest = [g]}
-  (Goal _ (Arith _))   -> mempty {arithasses = [g]}
-  -- (Goal _ (Exists _))   -> mempty {arithasses = [g]}
-  -- (Goal _ (ForAll _))   -> mempty {arithsats  = [g]}
+  (Goal _ (Arith _))    -> mempty {arithasses = [g]}
+  (Goal _ (Exists {}))  -> mempty {arithasses = [g]}
+  (Goal _ (ForAll {}))  -> mempty {arithasses = [g]}
   _                     -> mempty {rest = [g]}
   where
     rigid :: TypeFragment TCType -> Bool
@@ -878,30 +876,37 @@ kAxioms = map f <$> (filter (arithTCType . fst3 . snd) . M.toList <$> lift (use 
 arithAss :: [Goal] -> Solver (Either GoalClasses Ass.Assignment)
 arithAss gs = do
     cs <- kAxioms
-    let es = filter typedSExpr $ flip map gs (\(Goal _ (Arith e)) -> e) 
+    let es = filter typedSExpr $ flip map gs (\case (Goal _ (Arith e)) -> e
+                                                    (Goal _ (ForAll _ e)) -> e
+                                                    (Goal _ (Exists _ e)) -> e) 
     go [] (cs++es) >>= \case  -- FIXME!!
       Left  s -> let g = [Goal [] (Unsat $ CannotFindAssignment (cs++es) s)]
                      -- FIXME: we should try to produce much better error msgs / zilinc
                   in __fixme $ return (Left $ mempty {unsats = g})
-      Right m -> m & ( return . Right . Ass.Assignment . IM.fromList . M.toList
-                     . M.mapKeys (read . tail) )
+      Right m -> m & ( return . Right . Ass.Assignment)
   where 
     -- find a satisfying assignment to the equality constraints
     -- FIXME: distinguish cs and es
     --
     -- NOTE: The SMT solver should return a value (whose type is dynamically known)
-    -- How do we handle it???
-    go :: [SExpr] -> [SExpr] -> Solver (Either String (M.Map String SExpr))
-    go cs es = do
-      let s = bvAnd <$> evalStateT (mapM sexprToSbv es) (IM.empty, M.empty)
-          config = VD.z3 { V.verbose = __cogent_ddump_smt, V.isNonModelVar = \x -> head x /= '?' }
-      V.AllSatResult (_,_,smtReses) <- liftIO $ VD.allSatWith config $ do
-        V.setOption $ VC.ProduceUnsatCores True
-        s
-      case smtReses of
-        [] -> return $ Left "no assignment found by the SMT-solver!"
-        [smtRes] -> return $ Right $ M.map sbvToSExpr $ V.getModelDictionary smtRes
-        _ -> return $ Left "multiple assignments found by the SMT-solver"
+    go :: [SExpr] -> [SExpr] -> Solver (Either String (IM.IntMap SExpr))
+    go cs es = do 
+      schms <- use schematics
+      univs <- use universals
+      (isSat, mbModel) <- lift . lift $ model schms univs (cs++es)
+      case (isSat, mbModel) of
+        (False, _      ) -> return $ Left "unsat!"
+        (True , Nothing) -> return $ Left "no model!"
+        (True , Just m ) -> return $ Right m
+      -- let s = bvAnd <$> evalStateT (mapM sexprToSbv es) (IM.empty, M.empty)
+      --     config = VD.z3 { V.verbose = __cogent_ddump_smt, V.isNonModelVar = \x -> head x /= '?' }
+      -- V.AllSatResult (_,_,smtReses) <- liftIO $ VD.allSatWith config $ do
+      --   V.setOption $ VC.ProduceUnsatCores True
+      --   s
+      -- case smtReses of
+      --   [] -> return $ Left "no assignment found by the SMT-solver!"
+      --   [smtRes] -> return $ Right $ M.map sbvToSExpr $ V.getModelDictionary smtRes
+      --   _ -> return $ Left "multiple assignments found by the SMT-solver"
 
 -- check the satisfiability of arithmetic constraints
 arithSat :: [Goal] -> Solver (Maybe GoalClasses)
@@ -917,115 +922,28 @@ arithSat gs = do
     go cs es = do
       traceTc "sol" (text "solving inequalities" <> colon
                     P.<$> vsep (map pretty es))
-      let s = bvAnd <$> do ((cs',es'),(us,vs)) <- runStateT ((,) <$> mapM sexprToSbv cs <*> mapM sexprToSbv es) (IM.empty, M.empty)
-                           -- vvv NOTE: because they're bound unsigned integers
-                           -- forM (IM.elems us) $ \v ->
-                           --   V.constrain $ (svalToWord32 v V..>= 0) V.&&& (svalToWord32 v V..< fromIntegral u32MAX)
-                           mapM V.constrain $ map VI.SBV cs'
-                           return es'
-          config = VD.z3 { V.verbose = __cogent_ddump_smt }
-      V.ThmResult smtRes <- liftIO $ VD.proveWith config s
-      case smtRes of
-#if MIN_VERSION_sbv(7,7,0)
-        V.Unsatisfiable _ _ -> return Nothing
-#else
-        V.Unsatisfiable _   -> return Nothing
-#endif
-        V.Satisfiable _ model -> return (Just $ VI.showModel config model)
-        V.SatExtField _ model -> return (Just $ VI.showModel config model)
-        V.Unknown    _ msg    -> return (Just msg)
-        V.ProofError _ msgs   -> return (Just $ unlines msgs)
+      return Nothing   -- TODO
+      -- let s = bvAnd <$> do ((cs',es'),(us,vs)) <- runStateT ((,) <$> mapM sexprToSbv cs <*> mapM sexprToSbv es) (IM.empty, M.empty)
+      --                      -- vvv NOTE: because they're bound unsigned integers
+      --                      -- forM (IM.elems us) $ \v ->
+      --                      --   V.constrain $ (svalToWord32 v V..>= 0) V.&&& (svalToWord32 v V..< fromIntegral u32MAX)
+      --                      mapM V.constrain $ map VI.SBV cs'
+      --                      return es'
+      --     config = VD.z3 { V.verbose = __cogent_ddump_smt }
+      -- V.ThmResult smtRes <- liftIO $ VD.proveWith config s
+      -- case smtRes of
+      --   V.Unsatisfiable _   -> return Nothing
+      --   V.Satisfiable _ model -> return (Just $ VI.showModel config model)
+      --   V.SatExtField _ model -> return (Just $ VI.showModel config model)
+      --   V.Unknown    _ msg    -> return (Just msg)
+      --   V.ProofError _ msgs   -> return (Just $ unlines msgs)
 
-type UVars = IM.IntMap VD.SVal
-type EVars = M.Map VarName VD.SVal
-
-type SbvM a = StateT (UVars, EVars) V.Symbolic a
-
-svalToWord32 :: VD.SVal -> V.SWord32
-svalToWord32 = VI.SBV
-
-bvAnd :: [VD.SVal] -> VD.SVal
-bvAnd = foldr (VD.svAnd) VD.svTrue
-
--- create a dynamic symbolic Boolean type
-sBoolD :: String -> V.Symbolic VD.SVal
-sBoolD nm = ask >>= liftIO . VD.svMkSymVar Nothing V.KBool (Just nm)
 
 typedSExpr :: SExpr -> Bool
-typedSExpr (SU _ t) = rigid t
-typedSExpr (SE e _) = foldr (\e acc -> typedSExpr e && acc) True e
+typedSExpr _ = True  -- FIXME
+-- typedSExpr (SU _ t) = rigid t
+-- typedSExpr (SE e _) = foldr (\e acc -> typedSExpr e && acc) True e
 -- typedSExpr (SAll _ e) = typedSExpr e
-
-sexprToSbv :: SExpr -> SbvM VD.SVal
-sexprToSbv (SE (PrimOp op [e1,e2]) _) = liftA2 (bopToSbv op) (sexprToSbv e1) (sexprToSbv e2)
-sexprToSbv (SE (PrimOp op [e]) _) = liftA (uopToSbv op) $ sexprToSbv e
-sexprToSbv (SE (Var v) t) = lift (f v)
-  where f = case t of
-              T (TCon "U8"   [] Unboxed) -> VD.sWordN 8
-              T (TCon "U16"  [] Unboxed) -> VD.sWordN 16
-              T (TCon "U32"  [] Unboxed) -> VD.sWordN 32
-              T (TCon "U64"  [] Unboxed) -> VD.sWordN 64
-              T (TCon "Bool" [] Unboxed) -> sBoolD
-              _ -> __impossible $ "sexprToSbv: unsupported type " ++ show (pretty t) ++ " for Var"
-sexprToSbv (SE (IntLit i) t) = 
-  let w = case t of
-            T (TCon "U8"   [] Unboxed) -> 8
-            T (TCon "U16"  [] Unboxed) -> 16
-            T (TCon "U32"  [] Unboxed) -> 32
-            T (TCon "U64"  [] Unboxed) -> 64
-            _ -> __impossible "sexprToSbv: wrong type for IntLit"
-   in return $ VD.svInteger (VI.KBounded False w) i
-sexprToSbv (SE (BoolLit b) _) = return $ VD.svBool b
-sexprToSbv (SE (Upcast e) _) = sexprToSbv e
-sexprToSbv (SE (Annot e _) _) = sexprToSbv e
-sexprToSbv (SU i (U _)) = __impossible "sexprToSbv: it's too early to solve this constraint"
-sexprToSbv (SU i (T t)) = do
-  let f = case t of
-            TCon "U8"   [] Unboxed -> VD.sWordN 8
-            TCon "U16"  [] Unboxed -> VD.sWordN 16
-            TCon "U32"  [] Unboxed -> VD.sWordN 32
-            TCon "U64"  [] Unboxed -> VD.sWordN 64
-            TCon "Bool" [] Unboxed -> sBoolD
-            _ -> __todo $ "sexprToSbv: type " ++ show (pretty t) ++ " not yet supported"
-  m <- use _1
-  case IM.lookup i m of
-    Nothing -> do v <- lift . f $ '?':show i
-                  modify (first $ IM.insert i v)
-                  return v
-    Just v -> return v
-sexprToSbv e = __todo "sexprToSbv: not yet support this expression"
-
-bopToSbv :: OpName -> (VD.SVal -> VD.SVal -> VD.SVal)
-bopToSbv = \case
-  "+"   -> VD.svPlus
-  "-"   -> VD.svMinus
-  "*"   -> VD.svTimes
-  "/"   -> VD.svDivide
-  "%"   -> VD.svQuot  -- NOTE: the behaviour of `svDivide` and `svQuot` here. / zilinc
-                      -- http://hackage.haskell.org/package/sbv-7.8/docs/Data-SBV-Dynamic.html#v:svDivide
-  "&&"  -> VD.svAnd
-  "||"  -> VD.svOr
-  ".&." -> VD.svAnd
-  ".|." -> VD.svOr
-  ".^." -> VD.svXOr
-  "<<"  -> VD.svShiftLeft
-  ">>"  -> VD.svShiftRight
-  "=="  -> VD.svEqual
-  "/="  -> VD.svNotEqual
-  ">"   -> VD.svGreaterThan
-  "<"   -> VD.svLessThan
-  ">="  -> VD.svGreaterEq
-  "<="  -> VD.svLessEq
-
-uopToSbv :: OpName -> (VD.SVal -> VD.SVal)
-uopToSbv = \case
-  "not"        -> VD.svNot
-  "complement" -> VD.svNot
-
-sbvToSExpr :: VI.CW -> SExpr
-sbvToSExpr _ = undefined
-
-
 
 -- Applies the current substitution to goals.
 instantiate :: Subst.Subst -> Ass.Assignment -> GoalClasses -> Solver [Goal]
