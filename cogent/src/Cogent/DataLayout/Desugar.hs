@@ -50,7 +50,5 @@ desugarDataLayout (Variant tagExpr alts) =
 
 -- Type checking, and the post type checking normalisation (Cogent.TypeCheck.Post)
 -- guarantees that Boxed types have an associated layout
-desugarSigil :: Sigil (Maybe DataLayoutExpr) -> Sigil (DataLayout BitRange)
-desugarSigil Unboxed              = Unboxed
-desugarSigil (Boxed ro (Just l))  = Boxed ro (desugarDataLayout l)
-desugarSigil (Boxed ro Nothing)   = __impossible $ "desugarSigil (Nothing is not in WHNF)"
+desugarSigil :: Sigil (Maybe DataLayoutExpr) -> Sigil (Maybe (DataLayout BitRange))
+desugarSigil  = fmap (fmap desugarDataLayout)
