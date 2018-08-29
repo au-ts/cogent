@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE NamedFieldPuns #-}
 module Cogent.DataLayout.Core where
   
 import Data.Map (Map)
@@ -89,3 +90,16 @@ rangeToAlignedRanges (BitRange size offset) =
 
 alignLayout :: DataLayout BitRange -> DataLayout [AlignedBitRange]
 alignLayout = fmap rangeToAlignedRanges
+
+
+-- When transforming (Offset repExpr offsetSize),
+-- we want to add offset bits to all blocks inside the repExpr,
+-- as well as the allocation corresponding to that repExpr.
+class Offsettable a where
+  offset :: Size -> a -> a
+  
+instance Offsettable BitRange where
+  offset n range@(BitRange { bitOffsetBR }) = range { bitOffsetBR = bitOffsetBR + n}
+  
+instance Offsettable a => Offsettable (DataLayout a) where
+  offset n = fmap (offset n)
