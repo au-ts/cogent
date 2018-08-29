@@ -5,14 +5,13 @@ import Control.Monad
 import System.Exit
 import CogentTests.DataLayout.TypeCheck
 import CogentTests.DataLayout.Core
-import Cogent.DataLayout.Core
-import Cogent.DataLayout.Desugar
-import Cogent.DataLayout.TypeCheck
+import CogentTests.DataLayout.Desugar
 
 main = do
   isSuccess <- foldr <$> pure (&&) <*> pure True <*> sequenceA
       [ CogentTests.DataLayout.TypeCheck.testAll
       , CogentTests.DataLayout.Core.testAll
+      , CogentTests.DataLayout.Desugar.testAll
       ]
   if isSuccess
     then exitSuccess
