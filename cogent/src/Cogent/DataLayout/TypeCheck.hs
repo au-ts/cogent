@@ -2,30 +2,86 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE TupleSections #-}
 module Cogent.DataLayout.TypeCheck where
 
 import Data.Map (Map)
 import qualified Data.Map as M
 
-import Control.Monad (guard)
+import Control.Monad (guard, foldM)
 
-import Cogent.Util (mapAccumLM)
 import Cogent.Common.Syntax (FieldName, TagName, DataLayoutName, Size)
 import Cogent.Common.Types (Sigil)
 import Cogent.DataLayout.Core
 import Cogent.DataLayout.Surface
+import Cogent.DataLayout.Desugar (desugarSize)
 import Cogent.Compiler (__fixme)
 
 import Text.Parsec.Pos (SourcePos)
 
-
-
-{- IMPORTANT FUNCTIONS -}
+{- IMPORTANT EXPORTED FUNCTIONS -}
 typeCheckDataLayoutExpr
   :: NamedDataLayouts
   -> DataLayoutExpr
   -> ([DataLayoutTypeCheckError], Allocation)
-typeCheckDataLayoutExpr _ _ = __fixme ([], [])
+
+typeCheckDataLayoutExpr env (RepRef n) =
+  case M.lookup n env of 
+    Just (_, allocation) -> mapPaths (InDecl n) $ return allocation
+    Nothing              -> returnError $ UnknownDataLayout n PathEnd
+        
+typeCheckDataLayoutExpr _ (Prim size) =
+  if bitSize == 0
+    then return []
+    else return [(bitRange, PathEnd)]
+  where
+    bitSize = desugarSize size
+    bitRange = BitRange bitSize 0
+  
+typeCheckDataLayoutExpr env (Offset dataLayoutExpr offsetSize) =
+  offset (evalSize offsetSize) <$> typeCheckDataLayoutExpr env dataLayoutExpr
+    
+typeCheckDataLayoutExpr env (Record fields) = foldM typeCheckField [] fields
+  where
+    typeCheckField
+      :: Allocation -- The accumulated allocation from previous alternatives
+      -> (FieldName, SourcePos, DataLayoutExpr)
+      -> ([DataLayoutTypeCheckError], Allocation)
+        
+    typeCheckField accumAlloc (fieldName, pos, dataLayoutExpr) = do
+      fieldsAlloc <- mapPaths (InField fieldName pos) (typeCheckDataLayoutExpr env dataLayoutExpr)
+      accumAlloc /\ fieldsAlloc
+          
+typeCheckDataLayoutExpr env (Variant tagExpr alternatives) = do
+  case primitiveBitRange tagExpr of
+    Just tagBits  -> do altsAlloc <- fst <$> foldM (typeCheckAlternative tagBits) ([], M.empty) alternatives
+                        [(tagBits, InTag PathEnd)] /\ altsAlloc
+    Nothing       -> returnError $ TagNotSingleBlock (InTag PathEnd)
+  where
+    typeCheckAlternative
+      :: BitRange -- Of the variant's tag
+      -> (Allocation, Map Size TagName)  -- The accumulated (allocation, set of used tag values) from already evaluated alternatives
+      -> (TagName, SourcePos, Size, DataLayoutExpr) -- The alternative to evaluate
+      -> ([DataLayoutTypeCheckError], (Allocation, Map Size TagName))
+      
+    typeCheckAlternative range (accumAlloc, accumTagValues) (tagName, pos, tagValue, dataLayoutExpr) = do
+      alloc     <- (accumAlloc ++) <$> mapPaths (InAlt tagName pos) (typeCheckDataLayoutExpr env dataLayoutExpr)
+      tagValues <- checkedTagValues
+      return $ (alloc, tagValues) 
+      where
+        checkedTagValues :: ([DataLayoutTypeCheckError], Map Size TagName)
+        checkedTagValues
+          | tagValue < 0 || tagValue >= 2^(bitSizeBR range) =
+              returnError $ OversizedTagValue (InAlt tagName pos PathEnd) range tagName tagValue
+          | Just conflictingTagName <- tagValue `M.lookup` accumTagValues =
+              returnError $ SameTagValues (InAlt tagName pos PathEnd) conflictingTagName tagName tagValue
+          | otherwise =
+              return $ M.insert tagValue tagName accumTagValues
+
+    primitiveBitRange :: DataLayoutExpr -> Maybe BitRange
+    primitiveBitRange (Prim size)        = Just $ BitRange (desugarSize size) 0
+    primitiveBitRange (Offset expr size) = offset (desugarSize size) <$> primitiveBitRange expr
+    primitiveBitRange _                  = Nothing
 
 -- Normalises the layout remove references to named layouts
 normaliseDataLayoutExpr
@@ -57,7 +113,7 @@ data DataLayoutTypeCheckErrorP p
     -- Used a tag value which is too large to fit in the variant's tag bit range
     -- Path to the variant, bits for its bit range, name of the alternative, it's tag value
     
-  deriving (Eq, Show, Ord)
+  deriving (Eq, Show, Ord, Functor)
 
 -- Allows errors messages to pinpoint the exact location where the error occurred in a DataLayoutExpr/Decl
 data DataLayoutPath
@@ -71,7 +127,7 @@ data DataLayoutPath
 
 
 
-{- OTHER FUNCTIONS -}
+{- OTHER EXPORTED FUNCTIONS -}
 typeCheckDataLayoutDecl
   :: NamedDataLayouts
   -> DataLayoutDecl
@@ -94,6 +150,16 @@ normaliseSigil
 
 normaliseSigil _ sigil = __fixme sigil
 
+returnError :: Monoid a => DataLayoutTypeCheckError -> ([DataLayoutTypeCheckError], a)
+returnError e = ([e], mempty)
+
+
+{- OTHER FUNCTIONS -}
+evalSize :: RepSize -> Size
+evalSize (Bytes b) = b * 8
+evalSize (Bits b)  = b
+evalSize (Add a b) = evalSize a + evalSize b
+
 
 {- ALLOCATIONS -}
 
@@ -102,30 +168,23 @@ normaliseSigil _ sigil = __fixme sigil
 -- Represents the set which is the union of the sets represented by the `BitRange`s in the list.
 type Allocation = [(BitRange, DataLayoutPath)]
 
--- Disjunction of allocations
---
--- Used when the two allocations will never be used simultaneously, and so they may overlap.
--- For example, if they are allocations for two alternatives of the same variant.
-(\/) :: Allocation -> Allocation -> Either DataLayoutTypeCheckError Allocation 
-a1 \/ a2 = Right (a1 ++ a2)
-
 -- Conjunction of allocations
 --
 -- Used when the two allocations could be used simultaneously, and so they must not overlap.
 -- For example, if they are allocations for two fields of the same record.
 -- An OverlappingBlocks DataLayoutTypeCheckError is returned if the two allocations overlap.
-(/\) :: Allocation -> Allocation -> Either DataLayoutTypeCheckError Allocation
+(/\) :: Allocation -> Allocation -> ([DataLayoutTypeCheckError], Allocation)
 a1 /\ a2 =
   case allOverlappingBlocks a1 a2 of
-    ((p1, p2) : _) -> Left $ OverlappingBlocks p1 p2
-    []             -> Right (a1 ++ a2) 
+    overlappingBlocks@(_ : _) -> (overlappingBlocks, [])
+    []                          -> return (a1 ++ a2)
   where
-    allOverlappingBlocks :: Allocation -> Allocation -> [((BitRange, DataLayoutPath), (BitRange, DataLayoutPath))]
+    allOverlappingBlocks :: Allocation -> Allocation -> [DataLayoutTypeCheckError]
     allOverlappingBlocks a b = do
-      pair1@(block1, path1) <- a
-      pair2@(block2, path2) <- b
+      pair1@(block1, _) <- a
+      pair2@(block2, _) <- b
       guard $ overlaps block1 block2
-      return $ (pair1, pair2)
+      return $ OverlappingBlocks pair1 pair2
      
 overlaps :: BitRange -> BitRange -> Bool
 overlaps (BitRange s1 o1) (BitRange s2 o2) =
@@ -139,6 +198,12 @@ mapOntoPaths
   -> Allocation
   -> Allocation
 mapOntoPaths = fmap . fmap
+
+mapPaths
+  :: (DataLayoutPath -> DataLayoutPath)
+  -> ([DataLayoutTypeCheckError], Allocation)
+  -> ([DataLayoutTypeCheckError], Allocation)
+mapPaths f (errors, alloc) = (fmap (fmap f) errors, mapOntoPaths f alloc)
 
 -- When transforming (Offset repExpr offsetSize),
 -- we want to add offset bits to all blocks inside the repExpr,
