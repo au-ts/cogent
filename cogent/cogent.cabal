@@ -254,6 +254,7 @@ test-suite test-quickcheck
                 CogentTests.DataLayout.Core
               , CogentTests.DataLayout.Surface
               , CogentTests.DataLayout.TypeCheck
+              , CogentTests.DataLayout.Desugar
   build-depends:
                 cogent
               , base >= 4.7
