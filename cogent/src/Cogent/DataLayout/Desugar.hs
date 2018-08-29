@@ -1,9 +1,9 @@
 module Cogent.DataLayout.Desugar where
 import Data.Map (Map)
 
-import Cogent.Compiler        (__fixme, __impossible)
-import Cogent.Common.Syntax     (DataLayoutName, Size)
-import Cogent.Common.Types      (Sigil(Unboxed, Boxed))
+import Cogent.Compiler            (__fixme, __impossible)
+import Cogent.Common.Syntax       (DataLayoutName, Size)
+import Cogent.Common.Types        (Sigil(Unboxed, Boxed))
 import Cogent.DataLayout.Surface  (DataLayoutExpr, DataLayoutSize, RepSize(Bytes, Bits, Add))
 import Cogent.DataLayout.Core
 
