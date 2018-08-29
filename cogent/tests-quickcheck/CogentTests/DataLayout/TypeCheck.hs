@@ -37,16 +37,13 @@ prop_allocationConj a b = case a /\ b of
 prop_overlaps :: BitRange -> BitRange -> Bool
 prop_overlaps a b = overlaps a b == not (toSet a `disjoint` toSet b)
 
-prop_returnTrip = propReturnTrip 30
-propReturnTrip :: Size -> RepName -> SourcePos -> Property
-propReturnTrip size repName pos =
-  forAll (genDataLayout size (InDecl repName pos)) $ \(layout, alloc) ->
-  let
-    repDecl = RepDecl pos repName (toRepExpr layout)
-  in
-    case dataLayoutSurfaceToCore M.empty repDecl of
-      Left _                  -> False
-      Right (layout', alloc') -> layout == layout' && (toSet alloc) == (toSet alloc')  
+prop_typecheckValidGivesNoErrors :: Property
+prop_typecheckValidGivesNoErrors =
+  forAll (genDataLayout size) $ \(layout, alloc) ->
+    case typeCheckDataLayoutExpr M.empty (undesugarDataLayout layout) of
+      ([], alloc')  -> toSet alloc == toSet alloc'
+      _             -> False
+  where size = 30
 
 {-+ INVERSE FUNCTIONS
   |
@@ -64,19 +61,19 @@ bitSizeToRepSize size =
     bytes = size `div` 8
     bits  = size `mod` 8
     
-rangeToRepExpr :: BitRange -> RepExpr
-rangeToRepExpr (BitRange size offset) =
+undesugarBitRange :: BitRange -> DataLayoutExpr
+undesugarBitRange (BitRange size offset) =
   Offset (Prim (bitSizeToRepSize size)) (bitSizeToRepSize offset)
     
-toRepExpr :: DataLayout BitRange -> RepExpr
-toRepExpr UnitLayout = Prim (Bits 0)
-toRepExpr (PrimLayout bitRange) = rangeToRepExpr bitRange
-toRepExpr (RecordLayout fields) =
-  Record $ fmap (\(name, (layout, pos)) -> (name, pos, (toRepExpr layout))) (M.toList fields)
-toRepExpr (SumLayout tagBitRange alternatives) =
+undesugarDataLayout  :: DataLayout BitRange -> DataLayoutExpr
+undesugarDataLayout  UnitLayout = Prim (Bits 0)
+undesugarDataLayout  (PrimLayout bitRange) = undesugarBitRange bitRange
+undesugarDataLayout  (RecordLayout fields) =
+  Record $ fmap (\(name, (layout, pos)) -> (name, pos, (undesugarDataLayout  layout))) (M.toList fields)
+undesugarDataLayout  (SumLayout tagBitRange alternatives) =
   Variant
-    (rangeToRepExpr tagBitRange)
-    (fmap (\(tagName, (tagValue, altLayout, altPos)) -> (tagName, altPos, tagValue, (toRepExpr altLayout))) (M.toList alternatives))
+    (undesugarBitRange tagBitRange)
+    (fmap (\(tagName, (tagValue, altLayout, altPos)) -> (tagName, altPos, tagValue, (undesugarDataLayout  altLayout))) (M.toList alternatives))
     
 {- ARBITRARY INSTANCES -}
 instance Arbitrary DataLayoutPath where
