@@ -216,22 +216,8 @@ mapPaths
   -> ([DataLayoutTypeCheckError], Allocation)
 mapPaths f (errors, alloc) = (fmap (fmap f) errors, mapOntoPaths f alloc)
 
--- When transforming (Offset repExpr offsetSize),
--- we want to add offset bits to all blocks inside the repExpr,
--- as well as the allocation corresponding to that repExpr.
-class Offsettable a where
-  offset :: Size -> a -> a
-  
-instance Offsettable BitRange where
-  offset n range@(BitRange { bitOffsetBR }) = range { bitOffsetBR = bitOffsetBR + n}
-  
-instance Offsettable a => Offsettable (DataLayout a) where
-  offset n = fmap (offset n)
-  
 instance Offsettable Allocation where
   offset n = fmap $ \(range, path) -> (offset n range, path)
-
-
 
 
 
