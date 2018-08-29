@@ -93,13 +93,13 @@ data Hints = KindingTacs [Tactic]
 data Type'
   = TVar' Int
   | TVarBang' Int
-  | TCon' TypeName [Type'] (Sigil (DataLayout BitRange))
+  | TCon' TypeName [Type'] (Sigil (Maybe (DataLayout BitRange)))
   | TFun' Type' Type'
   | TPrim' PrimInt
   | TString'
   | TSum' [(TagName, (Type', Bool))]
   | TProduct' Type' Type'
-  | TRecord' [(FieldName, (Type', Bool))] (Sigil (DataLayout BitRange))
+  | TRecord' [(FieldName, (Type', Bool))] (Sigil (Maybe (DataLayout BitRange)))
   | TUnit'
   deriving (Eq, Ord)
 
