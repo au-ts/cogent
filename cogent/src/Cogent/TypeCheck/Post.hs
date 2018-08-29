@@ -27,6 +27,8 @@ import Cogent.TypeCheck.Util
 import qualified Cogent.TypeCheck.Row as Row
 import Cogent.Util
 
+import Cogent.DataLayout.TypeCheck (normaliseSigil)
+
 -- import Control.Arrow (first)
 import Data.Bifunctor
 import Control.Monad
@@ -152,10 +154,18 @@ normaliseT d (T (TPut fs t)) = do
      forM fs' $ \(f,(t,b)) -> do when (f `elem` fs && not b && __cogent_wdodgy_take_put) $ logWarn (PutUntakenField f t')
                                  return (f, (t,  (f `notElem` fs) && b))
 
-normaliseT d (T (TCon n ts b)) =
+normaliseT d (T (TCon n ts s)) = do
   case lookup n d of
+    -- In the first case, the sigil `s` should be `Nothing`
+    -- because 
     Just (ts', Just b) -> normaliseT d (substType (zip ts' ts) b)
-    _ -> mapM (normaliseT d) ts >>= \ts' -> return (T (TCon n ts' b))
+    _ -> do
+      ts' <- mapM (normaliseT d) ts
+      s'  <- normaliseS s
+      return $ T (TCon n ts' s)
+normaliseT d (T (TRecord l s)) = do
+  s' <- normaliseS s
+  return (T (TRecord l s'))
 normaliseT d (Synonym n ts) = 
   case lookup n d of
     Just (ts', Just b) -> normaliseT d (substType (zip ts' ts) b)
@@ -173,3 +183,10 @@ normaliseT d (T x) = T <$> traverse (normaliseT d) x
 tkNorm :: Either Taken Int -> Taken
 tkNorm (Left tk) = tk
 tkNorm (Right _) = __impossible "normaliseT: taken variable unsolved at normisation"
+
+-- Normalises the layouts in sigils to remove `DataLayoutRefs`
+normaliseS :: Sigil (Maybe DataLayoutExpr) -> Post (Sigil (Maybe DataLayoutExpr))
+normaliseS sigil = do
+  layouts <- lift . lift $ use knownDataLayouts
+  return $ normaliseSigil layouts sigil
+
