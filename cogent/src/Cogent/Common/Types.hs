@@ -11,7 +11,6 @@
 --
 
 {-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveFunctor #-}
 
 module Cogent.Common.Types where

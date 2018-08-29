@@ -15,7 +15,7 @@ import Cogent.Common.Types (Sigil)
 import Cogent.DataLayout.Core
 import Cogent.DataLayout.Surface
 import Cogent.DataLayout.Desugar (desugarSize)
-import Cogent.Compiler (__fixme)
+import Cogent.Compiler (__fixme, __impossible)
 
 import Text.Parsec.Pos (SourcePos)
 
@@ -88,7 +88,17 @@ normaliseDataLayoutExpr
   :: NamedDataLayouts
   -> DataLayoutExpr
   -> DataLayoutExpr
-normaliseDataLayoutExpr _ expr = __fixme expr
+
+normaliseDataLayoutExpr env (RepRef n) =
+  case M.lookup n env of 
+    Just (expr, _) -> normaliseDataLayoutExpr env expr
+    Nothing        -> __impossible $ "normaliseDataLayoutExpr (RepRef " ++ show n ++ " already known to exist)"
+normaliseDataLayoutExpr env (Record fields) =
+  Record (fmap (\(fn, pos, expr) -> (fn, pos, normaliseDataLayoutExpr env expr)) fields)
+normaliseDataLayoutExpr env (Variant tag alts) =
+  Variant tag (fmap (\(tn, pos, size, expr) -> (tn, pos, size, normaliseDataLayoutExpr env expr)) alts)
+normaliseDataLayoutExpr env (Offset expr size) = Offset (normaliseDataLayoutExpr env expr) size
+
 
 {- IMPORTANT TYPES -}
 type NamedDataLayouts = Map DataLayoutName (DataLayoutExpr, Allocation)
@@ -133,22 +143,23 @@ typeCheckDataLayoutDecl
   -> DataLayoutDecl
   -> ([DataLayoutTypeCheckError], Allocation)
 
-typeCheckDataLayoutDecl _ _ = __fixme ([], [])
+typeCheckDataLayoutDecl env (RepDecl pos name expr) =
+  mapPaths (InDecl name) (typeCheckDataLayoutExpr env expr)
 
 normaliseDataLayoutDecl
   :: NamedDataLayouts
   -> DataLayoutDecl
   -> DataLayoutDecl
 
-normaliseDataLayoutDecl _ decl = __fixme decl
+normaliseDataLayoutDecl env (RepDecl pos name expr) =
+  RepDecl pos name (normaliseDataLayoutExpr env expr)
 
 -- Normalises the layout in the sigil to remove references to named layouts
 normaliseSigil
   :: NamedDataLayouts
   -> Sigil (Maybe DataLayoutExpr)
   -> Sigil (Maybe DataLayoutExpr)
-
-normaliseSigil _ sigil = __fixme sigil
+normaliseSigil env = fmap (fmap (normaliseDataLayoutExpr env))
 
 returnError :: Monoid a => DataLayoutTypeCheckError -> ([DataLayoutTypeCheckError], a)
 returnError e = ([e], mempty)
