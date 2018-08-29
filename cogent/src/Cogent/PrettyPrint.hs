@@ -690,7 +690,7 @@ instance Pretty TypeError where
 #endif
   pretty (CustTyGenIsSynonym t)     = err "Type synonyms have to be fully expanded in --cust-ty-gen file:" <$> indent' (pretty t)
   pretty (CustTyGenIsPolymorphic t) = err "Polymorphic types are not allowed in --cust-ty-gen file:" <$> indent' (pretty t)
-  pretty (RepError e) = pretty e
+  pretty (DataLayoutError e) = pretty e
   pretty (TypeWarningAsError w)          = pretty w
 
 instance Pretty TypeWarning where
@@ -815,8 +815,8 @@ instance Pretty a => Pretty (I.IntMap a) where
   pretty = vcat . map (\(k,v) -> pretty k <+> text "|->" <+> pretty v) . I.toList
 
 
-instance Pretty DataLayoutSurfaceToCoreError where 
-  pretty (UnknownRepr r ctx) 
+instance Pretty DataLayoutTypeCheckError where 
+  pretty (UnknownDataLayout r ctx) 
      =  err "Undeclared data layout" <+> reprname r <$$> pretty ctx
   pretty (TagNotSingleBlock ctx) 
      = err "Variant tag must be a single block of bits" <$$> pretty ctx
@@ -833,9 +833,9 @@ instance Pretty DataLayoutSurfaceToCoreError where
 
 instance Pretty DataLayoutPath where 
   pretty (InField n po ctx) = context' "for field" <+> fieldname n <+> context' "(" <> pretty po <> context' ")" </> pretty ctx 
-  pretty (InTag ctx) = context' "for the variant tag block" </> pretty ctx
-  pretty (InAlt t po ctx) = context' "for the constructor" <+> tagname t <+> context' "(" <> pretty po <> context' ")" </> pretty ctx 
-  pretty (InDecl n p) = context' "in the representation" <+> reprname n <+> context' "(" <> pretty p <> context' ")" 
+  pretty (InTag ctx)        = context' "for the variant tag block" </> pretty ctx
+  pretty (InAlt t po ctx)   = context' "for the constructor" <+> tagname t <+> context' "(" <> pretty po <> context' ")" </> pretty ctx 
+  pretty (InDecl n p)       = context' "in the representation" <+> reprname n <+> context' "(" <> pretty p <> context' ")" 
 
 instance Pretty a => Pretty (DataLayout a) where
   pretty UnitLayout =

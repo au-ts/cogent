@@ -343,26 +343,39 @@ monotype = do avoidInitial
                          } )
 #endif
            <|>  (atomtype >>= \t -> optionMaybe bang >>= \op -> case op of Nothing -> return t; Just f -> return (f t)))
-    paramtype = avoidInitial >> LocType <$> getPosition
-                                        <*> (TCon <$> typeConName <*> many1 typeA2 <*> pure (Boxed False noRepE))
+    
+    
+    paramtype = avoidInitial >> LocType <$> getPosition <*>
+      -- If the type `typeConName` refers to an abstract type, its sigil should be `Boxed`
+      -- and should have no associated layout. 
+      -- If the type `typeConName` is a type alias, the sigil we choose here is ignored
+      -- because the actual sigil comes from the aliased type. /mdimeglio
+      (TCon <$> typeConName <*> many1 typeA2 <*> pure (Boxed False Nothing))
+
     unbox = avoidInitial >> reservedOp "#" >> return (\x -> LocType (posOfT x) (TUnbox x))
     bang  = avoidInitial >> reservedOp "!" >> return (\x -> LocType (posOfT x) (TBang x))
     takeput = avoidInitial >>
              ((reservedOp "take" >> fList >>= \fs -> return (\x -> LocType (posOfT x) (TTake fs x)))
           <|> (reservedOp "put"  >> fList >>= \fs -> return (\x -> LocType (posOfT x) (TPut  fs x))))
-    atomtype = avoidInitial >>
-               LocType <$> getPosition <*>
-                 (TVar <$> variableName <*> pure False
-              <|> (do tn <- typeConName
-                      let s = if tn `elem` primTypeCons  -- give correct sigil to primitive types
-                                then Unboxed
-                                else Boxed False noRepE 
-                      return $ TCon tn [] s
-                  )
-              -- <|> TCon <$> typeConName <*> pure [] <*> pure Writable
-              <|> tuple <$> parens (commaSep monotype)
-              <|> TRecord <$> braces (commaSep1 ((\a b c -> (a,(b,c))) <$> variableName <* reservedOp ":" <*> monotype <*> pure False)) <*> pure (Boxed False noRepE)
-              <|> TVariant . M.fromList <$> angles (((,) <$> typeConName <*> fmap ((,False)) (many typeA2)) `sepBy` reservedOp "|"))
+    
+    atomtype = avoidInitial >> LocType <$> getPosition <*> (
+          TVar <$> variableName <*> pure False
+      <|> (do tn <- typeConName
+              let s = if tn `elem` primTypeCons  -- give correct sigil to primitive types
+                        then Unboxed
+                       -- If the type `typeConName` refers to an abstract type, its sigil should be `Boxed`
+                       -- and should have no associated layout. 
+                       -- If the type `typeConName` is a type alias, the sigil we choose here is ignored
+                       -- because the actual sigil comes from the aliased type. /mdimeglio
+                        else Boxed False Nothing
+              return $ TCon tn [] s)
+      -- <|> TCon <$> typeConName <*> pure [] <*> pure Writable
+      <|> tuple <$> parens (commaSep monotype)
+      <|> TRecord
+          <$> braces (commaSep1 ((\a b c -> (a,(b,c))) <$> variableName <* reservedOp ":" <*> monotype <*> pure False))
+          <*> pure (Boxed False (__fixme Nothing)) -- Should actually parse the layout
+      <|> TVariant . M.fromList <$> angles (((,) <$> typeConName <*> fmap ((,False)) (many typeA2)) `sepBy` reservedOp "|"))
+    
     tuple [] = TUnit
     tuple [e] = typeOfLT e
     tuple es  = TTuple es
