@@ -22,17 +22,13 @@ import CogentTests.DataLayout.Core
 import Cogent.Common.Syntax (RepName, Size)
 
 {- PROPERTIES -}
-prop_allocationDisj :: Allocation -> Allocation -> Bool
-prop_allocationDisj a b = case a \/ b of
-  Left  _ -> False
-  Right c -> toSet c == (toSet a) `union` (toSet b)
 
 prop_allocationConj :: Allocation -> Allocation -> Bool
 prop_allocationConj a b = case a /\ b of
-  Left  overlapping -> not (toSet a `disjoint` toSet b)
-  Right c           ->
+  ([], c)  ->
     (toSet a) `disjoint` (toSet b) &&
     (toSet a) `union`    (toSet b) == toSet c 
+  _ -> not (toSet a `disjoint` toSet b)
     
 prop_overlaps :: BitRange -> BitRange -> Bool
 prop_overlaps a b = overlaps a b == not (toSet a `disjoint` toSet b)
