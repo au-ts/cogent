@@ -104,8 +104,8 @@ tests/include/%_dummy.h: tests/%.cogent
 .test-setup:
 	$(Q)mkdir -p tests/include
 
-tests: test-clean test-quickcheck .test-cogent test-pp test-tc test-ds test-an test-mn test-cg \
-	test-tc-proof test-aq test-shallow-proof test-ee test-gcc
+tests: test-clean .test-cogent test-pp test-tc test-ds test-an test-mn test-cg \
+	test-tc-proof test-aq test-shallow-proof test-ee test-gcc test-quickcheck
 
 test-quickcheck:
 	cabal test test-quickcheck
