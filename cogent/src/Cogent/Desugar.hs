@@ -511,9 +511,6 @@ desugarType = \case
   S.RT (S.TArray t l) -> TArray <$> desugarType t <*> evalAExpr l  -- desugarExpr' l
   notInWHNF -> __impossible $ "desugarType (type" ++ show (pretty notInWHNF) ++ "is not in WHNF)"
 
-desugarSigil :: Sigil S.RepExpr -> Sigil (DataLayout BitRange)
-desugarSigil Unboxed = Unboxed
-desugarSigil (Boxed ro l) = Boxed ro (desugarDataLayout (__todo "Add DataLayoutDefns to the desugar state!") l)
 
 desugarNote :: S.Inline -> FunNote
 desugarNote S.NoInline = NoInline
