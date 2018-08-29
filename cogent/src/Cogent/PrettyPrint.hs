@@ -836,7 +836,8 @@ instance Pretty DataLayoutPath where
   pretty (InTag ctx)        = context' "for the variant tag block" </> pretty ctx
   pretty (InAlt t po ctx)   = context' "for the constructor" <+> tagname t <+> context' "(" <> pretty po <> context' ")" </> pretty ctx 
   pretty (InDecl n p)       = context' "in the representation" <+> reprname n <+> context' "(" <> pretty p <> context' ")" 
-
+  pretty (PathEnd)          = mempty
+  
 instance Pretty a => Pretty (DataLayout a) where
   pretty UnitLayout =
     keyword "repr" <> parens (literal (pretty (0::Int)))
