@@ -1,12 +1,18 @@
+{-# LANGUAGE TemplateHaskell #-}
+module CogentTests.DataLayout.Desugar where
+
+import Test.QuickCheck
+import Test.QuickCheck.All
+import CogentTests.DataLayout.Core
+import CogentTests.DataLayout.TypeCheck (undesugarDataLayout)
+import Cogent.DataLayout.Desugar
 
 
-prop_returnTrip = propReturnTrip 30
-propReturnTrip :: Size -> RepName -> SourcePos -> Property
-propReturnTrip size repName pos =
-  forAll (genDataLayout size (InDecl repName pos)) $ \(layout, alloc) ->
-  let
-    repDecl = RepDecl pos repName (toRepExpr layout)
-  in
-    case dataLayoutSurfaceToCore M.empty repDecl of
-      Left _                  -> False
-      Right (layout', alloc') -> layout == layout' && (toSet alloc) == (toSet alloc')  
+prop_returnTrip :: Property
+prop_returnTrip =
+  forAll (genDataLayout size) $ \(layout, _) ->
+    desugarDataLayout (undesugarDataLayout layout) == layout
+  where size = 30
+
+return []
+testAll = $quickCheckAll
