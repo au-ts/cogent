@@ -214,7 +214,7 @@ ttyping xi k (EE u (Case x _ (_,_,a) (_,_,b)) env) = tacSequence [ -- Ξ, K, Γ 
   ttyping xi k x,                                       -- Ξ, K, Γ1 ⊢ x : TSum ts
   follow_tt k (envOf x) (envOf a) (envOf b),
   ttyping xi k a,                                       -- Ξ, K, (Some t # Γ) ⊢ a : u
-  ttyping xi k b                                        -- Ξ, K, (Some (TSum (filter (λ x. fst x ≠ tag) ts)) # Γ2) ⊢ b : u
+  ttyping xi k b                                        -- Ξ, K, (Some (TSum (tagged_list_update tag (t, True) ts)) # Γ2) ⊢ b : u
   ]
 ttyping xi k (EE u (Take a e@(EE (TRecord ts _) _ _) f e') env) = tacSequence [ -- Ξ, K, Γ T⊢ Take e f e' : u if
   follow_tt k env (envOf e) (envOf e'),
