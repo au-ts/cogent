@@ -182,11 +182,6 @@ data RawExpr = RE { unRE :: Expr RawType RawPatn RawIrrefPatn RawExpr } deriving
 data RawPatn = RP { unRP :: Pattern RawIrrefPatn } deriving (Eq, Ord, Show)
 data RawIrrefPatn = RIP { unRIP :: IrrefutablePattern VarName RawIrrefPatn } deriving (Eq, Ord, Show)
 
--- baseType :: RawType -> RawType
--- baseType (RT (TRefine v t r)) = t
--- baseType (RT t) = RT $ fmap baseType t
-
-
 -- -----------------------------------------------------------------------------
 
 instance Foldable (Flip Alt e) where

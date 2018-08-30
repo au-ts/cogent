@@ -89,8 +89,28 @@ install:
      cat installplan.txt;  # Display errors
    fi
 
+# Install z3 (which has to happen before `cabal install --only-dependencies')
+ - cd $REPO
+ - git submodule update --init -- z3
+ - cd z3
+ - mkdir -p "$HOME"/z3
+ - export PATH="$HOME/z3/bin:$PATH"
+ - |
+   if ! which z3;
+   then # install z3
+     python scripts/mk_make.py --prefix="$HOME/z3"
+     cd build
+     make
+     make install
+   fi
+ - which z3 || travis_terminate 1
+ # Copy files to standard places
+ - sudo cp -r "$HOME"/z3/include/* /usr/include/
+ - sudo cp -r "$HOME"/z3/lib/* /usr/lib/
+
 # check whether current requested install-plan matches cached package-db snapshot
  - |
+   cd "$REPO"/cogent
    if diff -u $HOME/.cabsnap/installplan.txt installplan.txt;
    then
      echo "==== cabal build-cache HIT ====";  # so copy cached sandbox
@@ -112,22 +132,6 @@ install:
       cp installplan.txt $HOME/.cabsnap/.
       cp -a $SANDBOX $HOME/.cabsnap/
    fi
-
-# Install z3
- - cd $REPO
- - git submodule update --init -- z3
- - cd z3
- - mkdir -p "$HOME"/z3
- - export PATH="$HOME/z3/bin:$PATH"
- - |
-   if ! which z3;
-   then # install z3
-     python scripts/mk_make.py --prefix="$HOME/z3"
-     cd build
-     make
-     make install
-   fi
- - which z3 || travis_terminate 1
 
 # Here starts the actual work to be performed for the package under test;
 # any command which exits with a non-zero exit code causes the build to fail.
