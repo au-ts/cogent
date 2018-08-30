@@ -35,6 +35,7 @@ import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
 import Control.Monad.Writer hiding (Alt)
 import Data.Either (either, isLeft)
+import Data.Foldable (foldl')
 import qualified Data.IntMap as IM
 import Data.List (nub, (\\))
 import qualified Data.Map as M
@@ -472,18 +473,14 @@ rigid :: TCType -> Bool
 rigid (U _) = False
 rigid (T t) = foldr (\t acc -> rigid t && acc) True t
 
+baseType :: TCType -> TCType
+baseType (T (TRefine v t r)) = t
+-- baseType (T t) = RT $ fmap baseType t  -- Uncomment this line if we allow refinement types to be inside other types
+baseType t = t
+
 isSimpleType :: TCType -> Bool
-isSimpleType (T (TCon _ ts _)) = all isSimpleType ts
-isSimpleType (T (TVar {})) = True
-isSimpleType (T (TFun t1 t2)) = isSimpleType t1 && isSimpleType t2
-isSimpleType (T (TRecord fs _)) = all (isSimpleType . fst . snd) fs
-isSimpleType (T (TVariant alts)) = all (all isSimpleType . fst . snd) $ M.toList alts
-isSimpleType (T (TArray t _)) = isSimpleType t
 isSimpleType (T (TRefine {})) = False
-isSimpleType (T (TUnbox t)) = isSimpleType t
-isSimpleType (T (TBang  t)) = isSimpleType t
-isSimpleType (T (TTake _ t)) = isSimpleType t
-isSimpleType (T (TPut  _ t)) = isSimpleType t
+isSimpleType (T t) = foldl' (\b t -> isSimpleType t && b) True t
 isSimpleType (U {}) = True
 
 isSynonym :: RawType -> TcBaseM Bool

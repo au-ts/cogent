@@ -269,7 +269,7 @@ cg' (IntLit n) t = do
       r = SE (PrimOp "==" [SE (Var v) t', SE (IntLit n) t']) (T t_bool)
       -- NOTE: We need a 2-step promition scheme here. E.g.:
       -- (1) U8 :~> U32  (upcast)
-      -- (2) {v : U32 | P'(v)} :<  {v : U32 | Q (v)}  (ref. subtyping)
+      -- (2) {v : U32 | P (v)} :<  {v : U32 | Q (v)}  (ref. subtyping)
       c = Upcastable (T bt) t :& (F $ T $ TRefine v t' r) :< F t
       e = IntLit n
   return (c,e)
