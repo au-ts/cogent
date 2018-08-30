@@ -68,14 +68,19 @@ and TraceSubgoal_erase_backtracking (TraceSubgoal trace) =
                    , step = #step trace
                    , subproof = #subproof trace |> TraceSuccess_erase_backtracking
                    }
-
-datatype ('l, 'r) Either = Left of 'l | Right of 'r
-fun mapEither fl _ (Left l) = Left (fl l)
-  | mapEither _ fr (Right r) = Right (fr r)
 *}
 
 ML {*
+datatype ('l, 'r) Either = Left of 'l | Right of 'r
 
+fun mapEither fl _ (Left l) = Left (fl l)
+  | mapEither _ fr (Right r) = Right (fr r)
+
+fun mapEitherL f e = mapEither f (fn x => x) e
+fun mapEitherR f e = mapEither (fn x => x) f e
+*}
+
+ML {*
 fun findIndex p =
   let fun find _ [] = NONE
         | find n (x::xs) = if p x then SOME (x, n) else find (n+1) xs
@@ -91,7 +96,9 @@ fun enumerate xs = let
   in enum 0 xs end
 fun nubBy _ [] = []
   | nubBy f (x::xs) = x :: filter (fn y => f x <> f y) (nubBy f xs)
+*}
 
+ML {*
 (* generalised Term.lambda *)
 fun my_lambda args =
   let val n = length args
@@ -274,9 +281,16 @@ fun trace_solve_tac (ctxt : Proof.context)
 *}
 (* end: tactic trace code *)
 
-(* extract relevant subproofs *)
 ML {*
 datatype 'a Tree = Tree of 'a * 'a Tree list;
+
+fun tree_hd (Tree (head, _)) = head
+fun tree_rest (Tree (_, rest)) = rest
+fun tree_map f (Tree (head,rest)) = Tree (f head, map (tree_map f) rest)
+*}
+
+(* extract relevant subproofs *)
+ML {*
 
 fun filter_trace PSuccess PSubgoal (TraceSuccess tr) =
       if not (PSuccess tr) then [] else
@@ -293,13 +307,6 @@ fun unprop (Const (@{const_name Pure.prop}, _) $ t) = unprop t
   | unprop (Const (@{const_name Pure.all}, _) $ t) = unprop t
   | unprop (Const (@{const_name HOL.Trueprop}, _) $ t) = unprop t
   | unprop t = t;
-*}
-
-
-ML{*
-    fun tree_hd (Tree (head, _)) = head
-    fun tree_rest (Tree (_, rest)) = rest
-    fun tree_map f (Tree (head,rest)) = Tree (f head, map (tree_map f) rest)
 *}
 
 ML {*
