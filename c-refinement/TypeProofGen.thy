@@ -19,7 +19,7 @@ lemma ttsplit_imp_split':
     k \<turnstile> snd \<Gamma> \<leadsto> drop (length xs) (snd \<Gamma>1) | drop (length ys) (snd \<Gamma>2)"
   by (fastforce dest: ttsplit_imp_split)
 
-(* TODO: This has to be double-checked. 
+(* TODO: This has to be double-checked.
          The True in the assumption seems very suspicious.*)
 lemma ttsplit_inner_imp_split:
   "ttsplit_inner k splits True \<Gamma>b \<Gamma>1 \<Gamma>2 \<Longrightarrow>
@@ -64,7 +64,8 @@ fun get_typing_tree ctxt f proof =
              map (fn t => t ctxt) proof))
        is_typing ctxt
      |> (fn r => case r of
-            Right tr => tr | _ => error ("get_typing_tree failed for function " ^ f))
+            Right tr => tr
+          | Left _ => error ("get_typing_tree failed for function " ^ f))
   end
 
 fun simplify_thm ctxt thm =

@@ -60,4 +60,8 @@ ML {*
   in fold elim (Drule.outer_params prop) th end;
 *}
 
+ML {*
+fun debug_print_to_file pathstr s = File.write (Path.explode pathstr) s
+*}
+
 end

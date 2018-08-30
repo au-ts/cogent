@@ -36,7 +36,7 @@ import Data.Map (Map)
 import Data.Maybe (catMaybes)
 import qualified Data.Map as M
 import Isabelle.InnerAST hiding (Type)
-import Text.PrettyPrint.ANSI.Leijen
+import Text.PrettyPrint.ANSI.Leijen hiding ((<$>))
 
 type Xi a = [Definition TypedExpr a]
 data EnvExpr t v a = EE { eexprType :: Type t
@@ -211,8 +211,8 @@ ttyping xi k (EE t (If x a b) env) = tacSequence [ -- Ξ, K, Γ ⊢ If x a b : t
   ttyping xi k b                                 -- Ξ, K, Γ2 ⊢ b : t
   ]
 ttyping xi k (EE u (Case x _ (_,_,a) (_,_,b)) env) = tacSequence [ -- Ξ, K, Γ ⊢ Case x tag a b : u if
-  follow_tt k (envOf x) (envOf a) (envOf b),
   ttyping xi k x,                                       -- Ξ, K, Γ1 ⊢ x : TSum ts
+  follow_tt k (envOf x) (envOf a) (envOf b),
   ttyping xi k a,                                       -- Ξ, K, (Some t # Γ) ⊢ a : u
   ttyping xi k b                                        -- Ξ, K, (Some (TSum (filter (λ x. fst x ≠ tag) ts)) # Γ2) ⊢ b : u
   ]
@@ -222,7 +222,7 @@ ttyping xi k (EE u (Take a e@(EE (TRecord ts _) _ _) f e') env) = tacSequence [ 
   kindingHint k (fst $ snd $ ts !! f),        -- K ⊢ t :κ k
   ttyping xi k e'                             -- Ξ, K, Γ2 T⊢ e' : u
   ]
-ttyping xi k e = fmap ((:[]) . TypingTacs) $ typingWrapper xi k e
+ttyping xi k e = (:[]) . TypingTacs <$> typingWrapper xi k e
 
 typingWrapper :: Xi a -> Vec t Kind -> EnvExpr t v a
               -> State TypingSubproofs [Tactic]
@@ -347,8 +347,8 @@ typing xi k (EE u (Case x _ (_,_,a) (_,_,b)) env) = tacSequence [
 
 typing xi k (EE _ (Esac x) _) = tacSequence [
   return [rule "typing_esac"],  -- Ξ, K, Γ ⊢ Esac x : t if
-  typing xi k x                 -- Ξ, K, Γ ⊢ x : TSum ts
-                                -- [(_, (t,False))] = filter (HOL.Not ∘ snd ∘ snd) ts
+  typing xi k x,                -- Ξ, K, Γ ⊢ x : TSum ts
+  return [simp]                 -- [(_, (t,False))] = filter (HOL.Not ∘ snd ∘ snd) ts
   ]
 
 typing xi k (EE t (If x a b) env) = tacSequence [
@@ -639,8 +639,8 @@ mostGeneralKind k (TProduct t1 t2) = mostGeneralKind k t1 <> mostGeneralKind k t
 mostGeneralKind k (TSum ts)        = foldl (<>) mempty $ map (mostGeneralKind k . fst . snd) ts
 mostGeneralKind k (TFun ti to)     = mempty
 mostGeneralKind k (TRecord ts s)   = foldl (<>) (sigilKind s) $ map (mostGeneralKind k) [t | (_, (t, b)) <- ts, not b]
-mostGeneralKind k (TPrim i)        = mempty 
-mostGeneralKind k (TString)        = mempty 
+mostGeneralKind k (TPrim i)        = mempty
+mostGeneralKind k (TString)        = mempty
 mostGeneralKind k (TCon n ts s)    = foldl (<>) (sigilKind s) $ map (mostGeneralKind k) ts
 
 kindRule :: Type t -> String

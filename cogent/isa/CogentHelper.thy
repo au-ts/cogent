@@ -441,9 +441,9 @@ fun ttyping (Const (@{const_name Split}, _) $ x $ y) tt k ctxt hints = let
     @ [simp, RTac @{thm ttsplit_trivI}, simp, simp] @ c_tac @ x_tac @ y_tac, hints) end
   | ttyping (Const (@{const_name Case}, _) $ x $ _ $ m $ nm) tt k ctxt hints = let
     val (ltt, rtt, hints) = follow_tt tt k ctxt hints
+    val (x_tac, hints) = ttyping x ltt k ctxt hints
     val (m_tt, nm_tt, hints) = follow_tt rtt k ctxt hints
     val split_tac = ttsplit tt
-    val (x_tac, hints) = ttyping x ltt k ctxt hints
     val (m_tac, hints) = ttyping m m_tt k ctxt hints
     val (nm_tac, hints) = ttyping nm nm_tt k ctxt hints
   in ([RTac @{thm ttyping_case'}] @ split_tac @ x_tac @ [simp]
