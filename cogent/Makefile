@@ -104,8 +104,12 @@ tests/include/%_dummy.h: tests/%.cogent
 .test-setup:
 	$(Q)mkdir -p tests/include
 
-tests: test-clean .test-cogent test-pp test-tc test-ds test-an test-mn test-cg \
-	test-tc-proof test-aq test-shallow-proof test-ee test-gcc
+test-compiler: test-clean .test-cogent \
+	test-tc test-ds test-an test-mn test-cg test-gcc \
+	test-pp test-aq 
+
+tests: test-compiler \
+	test-tc-proof test-shallow-proof test-ee 
 
 test-clean:
 	$(E) "Cleaning up artefacts from earlier test runs."
@@ -205,8 +209,8 @@ help:
 	$(E) "* make tests"
 	$(E) "  Run all tests."
 	$(E) ""
-	$(E) "* make tests"
-	$(E) "  Run all tests."
+	$(E) "* make test-compiler"
+	$(E) "  Run all compiler tests (excl. Isabelle proofs)."
 	$(E) ""
 	$(E) "* make test-clean"
 	$(E) "  Cleanup artefacts from earlier test runs."
