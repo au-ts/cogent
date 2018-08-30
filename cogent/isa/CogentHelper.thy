@@ -370,10 +370,10 @@ fun dest_all_vars' (Const (@{const_name Var}, _) $ i :: vs)
 
 val dest_all_vars = try (dest_all_vars' o HOLogic.dest_list)
 
-fun the_G G (SOME p) = p
+fun the_G _ (SOME p) = p
   | the_G G NONE = raise THM ("the_G", 1, (map (fn NONE => @{thm TrueI} | SOME t => t) G))
 
-fun typing_all_vars ctxt G [] = let
+fun typing_all_vars _ _ [] = let
   in [RTac @{thm typing_all_empty''}, simp] end
   | typing_all_vars ctxt G (ix :: ixs) = let
     fun null (NONE : thm option) = true
@@ -396,20 +396,27 @@ fun typing (Const (@{const_name Var}, _) $ i) G _ hints = let
     val i = dest_nat i
     val thm = the_G G (nth G i)
     val thms = map_filter I G
-    val ([], hints) = typing_hint hints
+    val hints = (case typing_hint hints of
+                  ([], hints) => hints
+                | _ => raise HINTS ("too many tacs", hints))
   in ([RTac @{thm typing_var_weak[unfolded singleton_def Cogent.empty_def]},
       RTac thm, simp, WeakeningTac thms, simp], hints) end
   | typing (Const (@{const_name Struct}, _) $ _ $ xs) G ctxt hints
   = (case dest_all_vars xs of SOME ixs => let
-    val ([], hints) = typing_hint hints
+    val hints = (case typing_hint hints of
+                  ([], hints) => hints
+                | _ => raise HINTS ("too many tacs", hints))
   in ([RTac @{thm typing_struct'}] @ typing_all_vars ctxt G ixs @ [simp], hints) end
     | NONE => typing_hint hints)
   | typing (Const (@{const_name Prim}, _) $ _ $ xs) G ctxt hints
   = (case dest_all_vars xs of SOME ixs => let
-    val ([], hints) = typing_hint hints
+    val hints = (case typing_hint hints of
+                  ([], hints) => hints
+                | _ => raise HINTS ("too many tacs", hints))
   in ([RTac @{thm typing_prim'}, simp, simp] @ typing_all_vars ctxt G ixs, hints) end
     | NONE => typing_hint hints)
-  | typing _ _ _ hints = typing_hint hints
+  | typing _ _ _ hints = let
+    in typing_hint hints end
 
 fun ttyping (Const (@{const_name Split}, _) $ x $ y) tt k ctxt hints = let
     val (ltt, rtt, hints) = follow_tt tt k ctxt hints
