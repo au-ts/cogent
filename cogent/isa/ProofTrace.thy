@@ -26,8 +26,8 @@ datatype SolveTacFailure =
   | SolveTac_ProofFailed   (* nested TraceFailure gives reason *)
 
 datatype 'tag TraceSuccess = TraceSuccess of { goal : thm
+                                             , succeeded : 'tag TraceSubgoal list
                                              , theorem : thm
-                                             , subproofs : 'tag TraceSubgoal list
                                              }
      and 'tag TraceFailure = TraceFailure of { goal : thm
                                              , succeeded : 'tag TraceSubgoal list
@@ -48,25 +48,25 @@ datatype 'tag TraceSuccess = TraceSuccess of { goal : thm
                                              , subproof : 'tag TraceSuccess
                                              }
 
-fun TraceSuccess_erase_backtracking (TraceSuccess { goal = goal, theorem = theorem, subproofs = subproofs }) =
-      TraceSuccess { goal = goal, theorem = theorem, subproofs = map TraceSubgoal_erase_backtracking subproofs }
-and TraceFailure_erase_backtracking (TraceFailure trace) =
-      TraceFailure { goal = #goal trace
-                   , succeeded = #succeeded trace |> map TraceSubgoal_erase_backtracking
-                   , failed = { subgoal = #failed trace |> #subgoal
-                              , fail_steps = #failed trace |> #fail_steps |> take 1
+fun TraceSuccess_erase_backtracking (TraceSuccess { goal, theorem, succeeded }) =
+      TraceSuccess { goal = goal, theorem = theorem, succeeded = map TraceSubgoal_erase_backtracking succeeded }
+and TraceFailure_erase_backtracking (TraceFailure {goal, succeeded, failed, remaining_goals }) =
+      TraceFailure { goal = goal
+                   , succeeded = succeeded |> map TraceSubgoal_erase_backtracking
+                   , failed = { subgoal = #subgoal failed
+                              , fail_steps = failed |> #fail_steps |> take 1
                                              |> map (fn fs => { step = #step fs
                                                               , trace = #trace fs |> TraceFailure_erase_backtracking })
-                              , fail_reason = #failed trace |> #fail_reason
+                              , fail_reason = #fail_reason failed
                               }
-                   , remaining_goals = #remaining_goals trace
+                   , remaining_goals = remaining_goals
                    }
-and TraceSubgoal_erase_backtracking (TraceSubgoal trace) =
-      TraceSubgoal { subgoal = #subgoal trace
-                   , subtheorem = #subtheorem trace
+and TraceSubgoal_erase_backtracking (TraceSubgoal { subgoal, subtheorem, fail_steps = _, step, subproof }) =
+      TraceSubgoal { subgoal = subgoal
+                   , subtheorem = subtheorem
                    , fail_steps = []
-                   , step = #step trace
-                   , subproof = #subproof trace |> TraceSuccess_erase_backtracking
+                   , step = step
+                   , subproof = TraceSuccess_erase_backtracking subproof
                    }
 *}
 
@@ -96,6 +96,8 @@ fun enumerate xs = let
   in enum 0 xs end
 fun nubBy _ [] = []
   | nubBy f (x::xs) = x :: filter (fn y => f x <> f y) (nubBy f xs)
+
+val option_decr = Option.map (fn x => x - 1)
 *}
 
 ML {*
@@ -206,8 +208,6 @@ fun my_unify_fact_tac ctxt subproof n state =
 *}
 
 ML {*
-val option_decr = Option.map (fn x => x - 1)
-
 fun trace_solve_tac (ctxt : Proof.context)
                     (backtrack : bool)
                     (get_tacs : 'data -> term -> ('data * 'tag * tactic) list)
@@ -218,7 +218,7 @@ fun trace_solve_tac (ctxt : Proof.context)
       val subgoals0 = Thm.prems_of goal0
   in
   (* special case, technically would be covered by solve. Copied because we want depth failure *after* this *)
-  if null subgoals0 then (data0, TraceSuccess { goal = goal0, theorem = goal0, subproofs = [] } |> Right) else
+  if null subgoals0 then (data0, TraceSuccess { goal = goal0, theorem = goal0, succeeded = [] } |> Right) else
   if depth_limit = SOME 0 then
       (data0, TraceFailure { goal = goal0
                            , succeeded = []
@@ -233,7 +233,7 @@ fun trace_solve_tac (ctxt : Proof.context)
         case Thm.prems_of goal of
             [] => (data, TraceSuccess { goal = goal0
                                       , theorem = goal
-                                      , subproofs = rev subproofs_rev
+                                      , succeeded = rev subproofs_rev
                                       } |> Right)
           | (subgoal_term :: remaining_subgoals) =>
               let (* Try all results from all tactics until we obtain a successful proof.
@@ -268,6 +268,7 @@ fun trace_solve_tac (ctxt : Proof.context)
                                                   , subproof = trace
                                                   } |> Right)
                         end
+
                     in try_results 0 (tactic subgoal) fails end
                in case try_tacs (get_tacs data subgoal_term) [] of
                       (_, Left fails) => (data, TraceFailure
@@ -310,7 +311,7 @@ ML {*
 fun filter_trace PSuccess PSubgoal (TraceSuccess tr) =
       if not (PSuccess tr) then [] else
         [ Tree (#theorem tr,
-                List.concat (map (filter_TraceSubgoal PSuccess PSubgoal) (#subproofs tr))) ]
+                List.concat (map (filter_TraceSubgoal PSuccess PSubgoal) (#succeeded tr))) ]
 and filter_TraceSubgoal PSuccess PSubgoal (TraceSubgoal tr) =
       if not (PSubgoal tr) then [] else filter_trace PSuccess PSubgoal (#subproof tr);
 
