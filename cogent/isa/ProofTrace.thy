@@ -129,6 +129,7 @@ fun my_typ_insts (Type (_, args)) (Type (_, args')) =
   | my_typ_insts (TFree _) (TFree _) = SOME []
   | my_typ_insts (TVar tv) typ = SOME [(tv, typ)]
   | my_typ_insts _ _ = NONE
+
 fun my_typ_match' absvars (t as f $ x) t' =
       (case strip_comb t of
           (Var _, _) => my_typ_insts (subterm_type absvars t) (subterm_type absvars t')
@@ -144,6 +145,7 @@ fun my_typ_match' absvars (t as f $ x) t' =
   | my_typ_match' absvars t t' = case my_typ_insts (subterm_type absvars t) (subterm_type absvars t') of
        SOME x => SOME x
      | NONE => raise TYPE ("my_typ_insts fail", [subterm_type absvars t, subterm_type absvars t'], [t, t'])
+
 fun my_typ_match t t' = my_typ_match' [] (Envir.beta_norm t) t'
                         handle TYPE (msg, typs, terms) => raise TYPE (msg, typs, terms @ [t, t'])
 
@@ -152,6 +154,7 @@ fun annotate_boundvar _ absvars (Bound n) =
         else raise TYPE ("annotate_boundvar", map snd absvars, [Bound n])
   | annotate_boundvar _ _ (t as Free (name, typ)) = (t, (name, typ))
   | annotate_boundvar i absvars t = (t, ("var" ^ Int.toString i, subterm_type absvars t))
+
 fun my_match' _ (Var v) t' = SOME [(v, [], t')]
   | my_match' absvars (t as f $ x) t' =
       (case strip_comb t of
@@ -165,6 +168,7 @@ fun my_match' _ (Var v) t' = SOME [(v, [], t')]
   | my_match' absvars (Abs (name, typ, t)) (Abs (_, typ', t')) =
       if typ = typ' then my_match' ((name, typ)::absvars) t t' else NONE
   | my_match' absvars t t' = if t = t' then SOME [] else NONE
+
 fun my_match t t' = my_match' [] (Envir.beta_norm t) t'
 
 fun my_unify_fact_tac ctxt subproof n state =
@@ -202,6 +206,8 @@ fun my_unify_fact_tac ctxt subproof n state =
 *}
 
 ML {*
+val option_decr = Option.map (fn x => x - 1)
+
 fun trace_solve_tac (ctxt : Proof.context)
                     (backtrack : bool)
                     (get_tacs : 'data -> term -> ('data * 'tag * tactic) list)
@@ -209,9 +215,9 @@ fun trace_solve_tac (ctxt : Proof.context)
                     (depth_limit : int option)
                     : 'data * ('tag TraceFailure, 'tag TraceSuccess) Either =
   let val cterm_of' = Thm.cterm_of ctxt
-      val option_decr = Option.map (fn x => x - 1)
       val subgoals0 = Thm.prems_of goal0
   in
+  (* special case, technically would be covered by solve. Copied because we want depth failure *after* this *)
   if null subgoals0 then (data0, TraceSuccess { goal = goal0, theorem = goal0, subproofs = [] } |> Right) else
   if depth_limit = SOME 0 then
       (data0, TraceFailure { goal = goal0
@@ -225,11 +231,13 @@ fun trace_solve_tac (ctxt : Proof.context)
   else let
     fun solve data goal subproofs_rev : 'data * ('tag TraceFailure, 'tag TraceSuccess) Either =
         case Thm.prems_of goal of
-            [] => (data, TraceSuccess { goal = goal0, theorem = goal, subproofs = rev subproofs_rev }
-                         |> Right)
-          | (subgoal_term::remaining_subgoals) =>
+            [] => (data, TraceSuccess { goal = goal0
+                                      , theorem = goal
+                                      , subproofs = rev subproofs_rev
+                                      } |> Right)
+          | (subgoal_term :: remaining_subgoals) =>
               let (* Try all results from all tactics until we obtain a successful proof.
-                    * NB: tactics should return finite results! *)
+                   * NB: tactics should return finite results! *)
                 val subgoal = Goal.init (cterm_of' subgoal_term)
 
                 (* try all the tactics in the list to solve subgoal *)
@@ -260,7 +268,6 @@ fun trace_solve_tac (ctxt : Proof.context)
                                                   , subproof = trace
                                                   } |> Right)
                         end
-
                     in try_results 0 (tactic subgoal) fails end
                in case try_tacs (get_tacs data subgoal_term) [] of
                       (_, Left fails) => (data, TraceFailure
@@ -300,7 +307,6 @@ fun tree_map f (Tree (head,rest)) = Tree (f head, map (tree_map f) rest)
 
 (* extract relevant subproofs *)
 ML {*
-
 fun filter_trace PSuccess PSubgoal (TraceSuccess tr) =
       if not (PSuccess tr) then [] else
         [ Tree (#theorem tr,
