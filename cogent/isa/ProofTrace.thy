@@ -21,26 +21,23 @@ begin
 ML {*
 datatype 'tag Step = Step of ('tag * tactic * int)
 
-datatype SolveTacFailure =
-    SolveTac_DepthExceeded (* depth_limit reached 0 *)
-  | SolveTac_ProofFailed   (* nested TraceFailure gives reason *)
-
 datatype 'tag TraceSuccess = TraceSuccess of { goal : thm
                                              , succeeded : 'tag TraceSubgoal list
                                              , theorem : thm
                                              }
      and 'tag TraceFailure = TraceFailure of { goal : thm
                                              , succeeded : 'tag TraceSubgoal list
-                                             , failed : { subgoal : thm
-                                                        , fail_steps : { step : 'tag Step
-                                                                       , trace : 'tag TraceFailure
-                                                                       } list
-                                                        , fail_reason : SolveTacFailure
-                                                        }
+                                             , failed : 'tag FailedSubgoal
                                              , remaining_goals : term list
                                              }
+     and 'tag FailedSubgoal = FailedProof of { subgoal : thm
+                                             , fail_steps : { step : 'tag Step
+                                                            , trace : 'tag TraceFailure
+                                                            } list
+                                             } (* nested TraceFailure gives reason *)
+                            | FailedDepth      (* depth_limit reached 0 *)
      and 'tag TraceSubgoal = TraceSubgoal of { subgoal : thm
-                                             , subtheorem : thm
+                                             , subtheorem : thm (* same as `#theorem subproof` *) 
                                              , fail_steps : { step : 'tag Step
                                                             , trace : 'tag TraceFailure
                                                             } list
@@ -53,14 +50,17 @@ fun TraceSuccess_erase_backtracking (TraceSuccess { goal, theorem, succeeded }) 
 and TraceFailure_erase_backtracking (TraceFailure {goal, succeeded, failed, remaining_goals }) =
       TraceFailure { goal = goal
                    , succeeded = succeeded |> map TraceSubgoal_erase_backtracking
-                   , failed = { subgoal = #subgoal failed
-                              , fail_steps = failed |> #fail_steps |> take 1
-                                             |> map (fn fs => { step = #step fs
-                                                              , trace = #trace fs |> TraceFailure_erase_backtracking })
-                              , fail_reason = #fail_reason failed
-                              }
+                   , failed = FailedSubgoal_erase_backtracking failed
                    , remaining_goals = remaining_goals
                    }
+and FailedSubgoal_erase_backtracking (FailedProof { subgoal, fail_steps }) =
+  FailedProof { subgoal = subgoal
+              , fail_steps = fail_steps |> take 1 (* get rid of everything but the one that succeeded *)
+                                        |> map (fn fs => { step = #step fs
+                                                         , trace = #trace fs |> TraceFailure_erase_backtracking
+                                                         })
+              }
+| FailedSubgoal_erase_backtracking FailedDepth = FailedDepth
 and TraceSubgoal_erase_backtracking (TraceSubgoal { subgoal, subtheorem, fail_steps = _, step, subproof }) =
       TraceSubgoal { subgoal = subgoal
                    , subtheorem = subtheorem
@@ -222,11 +222,8 @@ fun trace_solve_tac (ctxt : Proof.context)
   if depth_limit = SOME 0 then
       (data0, TraceFailure { goal = goal0
                            , succeeded = []
-                           , failed = { subgoal = (Goal.init (cterm_of' (hd subgoals0)))
-                                      , fail_steps = []
-                                      , fail_reason = SolveTac_DepthExceeded
-                                      }
-                           , remaining_goals = tl subgoals0
+                           , failed = FailedDepth
+                           , remaining_goals = subgoals0
                            } |> Left)
   else let
     fun solve data goal subproofs_rev : 'data * ('tag TraceFailure, 'tag TraceSuccess) Either =
@@ -274,10 +271,9 @@ fun trace_solve_tac (ctxt : Proof.context)
                       (_, Left fails) => (data, TraceFailure
                                                 { goal = goal0
                                                 , succeeded = rev subproofs_rev
-                                                , failed = { subgoal = subgoal
-                                                           , fail_steps = fails
-                                                           , fail_reason = SolveTac_ProofFailed
-                                                           }
+                                                , failed = FailedProof { subgoal = subgoal
+                                                                       , fail_steps = fails
+                                                                       }
                                                 , remaining_goals = remaining_subgoals
                                                 } |> Left)
                     | (data, Right (subproof as TraceSubgoal subproof')) =>
