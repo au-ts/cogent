@@ -161,14 +161,17 @@ normaliseT d (T (TCon n ts s)) = do
     _ -> do
       ts' <- mapM (normaliseT d) ts
       s'  <- normaliseS s
-      return $ T (TCon n ts' s)
+      return $ T (TCon n ts' s')
+
 normaliseT d (T (TRecord l s)) = do
   s' <- normaliseS s
   return (T (TRecord l s'))
+
 normaliseT d (Synonym n ts) = 
   case lookup n d of
     Just (ts', Just b) -> normaliseT d (substType (zip ts' ts) b)
     _ -> __impossible ("normaliseT: unresolved synonym " ++ show n)
+
 normaliseT d (V x) = T . TVariant . M.fromList . Row.toEntryList . fmap (:[]) <$> traverse (normaliseT d) x
 normaliseT d (R x (Left s)) = T . flip TRecord (fmap (const noRepE) s) . Row.toEntryList <$> traverse (normaliseT d) x
 normaliseT d (R x (Right s)) =  __impossible ("normaliseT: invalid sigil (?" ++ show s ++ ")")
