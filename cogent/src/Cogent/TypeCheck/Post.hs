@@ -164,7 +164,8 @@ normaliseT d (T (TCon n ts s)) = do
 
 normaliseT d (T (TRecord l s)) = do
   s' <- normaliseS s
-  return (T (TRecord l s'))
+  l' <- mapM ((secondM . firstM) (normaliseT d)) l
+  return (T (TRecord l' s'))
 
 -- normaliseT d (RemoveCase p t) = do
 --   t' <- normaliseT d t
