@@ -160,7 +160,7 @@ normaliseT d (T (TCon n ts s)) = do
     _ -> do
       ts' <- mapM (normaliseT d) ts
       s'  <- normaliseS s
-      return $ T (TCon n ts' s)
+      return $ T (TCon n ts' s')
 
 normaliseT d (T (TRecord l s)) = do
   s' <- normaliseS s
