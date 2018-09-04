@@ -109,6 +109,10 @@ test-compiler: test-clean .test-cogent \
 tests: test-compiler \
 	test-tc-proof test-shallow-proof test-ee
 
+test-compiler: test-clean .test-cogent \
+ 	test-tc test-ds test-an test-mn test-cg test-gcc \
+ 	test-pp test-aq 
+ 	
 test-quickcheck:
 	cabal test test-quickcheck
 
