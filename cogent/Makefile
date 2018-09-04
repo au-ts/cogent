@@ -110,6 +110,10 @@ test-compiler: test-clean .test-cogent
 	# test-hs \
 	# test-quickcheck
 
+test-compiler: test-clean .test-cogent \
+ 	test-tc test-ds test-an test-mn test-cg test-gcc \
+ 	test-pp test-aq 
+ 	
 test-quickcheck:
 	$(Q) cabal test test-quickcheck
 
