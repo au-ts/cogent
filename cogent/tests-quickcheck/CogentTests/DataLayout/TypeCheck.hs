@@ -33,8 +33,8 @@ prop_allocationConj a b = case a /\ b of
 prop_overlaps :: BitRange -> BitRange -> Bool
 prop_overlaps a b = overlaps a b == not (toSet a `disjoint` toSet b)
 
-prop_typecheckValidGivesNoErrors :: Property
-prop_typecheckValidGivesNoErrors =
+prop_typeCheckValidGivesNoErrors :: Property
+prop_typeCheckValidGivesNoErrors =
   forAll (genDataLayout size) $ \(layout, alloc) ->
     case typeCheckDataLayoutExpr M.empty (undesugarDataLayout layout) of
       ([], alloc')  -> toSet alloc == toSet alloc'
