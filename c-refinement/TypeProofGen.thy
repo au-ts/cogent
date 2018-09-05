@@ -34,6 +34,8 @@ lemma ttsplit_bang_imp_split_bang':
 
 (* Generate type system lemma buckets *)
 ML {*
+
+(* identify judgements related to typing *)
 fun is_typing t = head_of t |>
   (fn h => is_const "TypeTrackingSemantics.ttyping" h orelse
            is_const "TypeTrackingSemantics.ttsplit" h orelse
@@ -42,26 +44,31 @@ fun is_typing t = head_of t |>
            is_const "Cogent.typing" h orelse
            is_const "Cogent.split" h orelse
            is_const "Cogent.kinding" h);
+
 (* NB: flattening the proof tree is unsafe in general, but this program is a small example *)
 fun flatten_Tree (Tree (x, ts)) = x :: List.concat (map flatten_Tree ts);
+
+(* remove consecutive duplicates *)
 fun uniq cmp (x::y::xs) = (case cmp (x,y) of EQUAL => uniq cmp (x::xs)
                                            | _ => x::uniq cmp (y::xs))
   | uniq _ xs = xs
 
-fun get_typing_tree ctxt f proof =
+fun get_typing_tree ctxt f proof : thm Tree list =
   let val abbrev_defs = Proof_Context.get_thms ctxt "abbreviated_type_defs"
-                        handle ERROR _ => []
+                        handle ERROR _ => [];
+      (* generate a simpset of all the definitions of the `f` function, type, and typetree *)
       val defs = maps (Proof_Context.get_thms ctxt)
                    (map (prefix f) ["_def", "_type_def", "_typetree_def"] @ ["replicate_unfold"])
-                 @ abbrev_defs
+                 @ abbrev_defs;
   in extract_subproofs
+       (* The typing goal for `f` *)
        (Syntax.read_term ctxt
          ("Trueprop (\<Xi>, fst " ^ f ^ "_type, (" ^ f ^ "_typetree, [Some (fst (snd " ^ f ^ "_type))])" ^
           "            T\<turnstile> " ^ f ^ " : snd (snd " ^ f ^ "_type))")
         |> Thm.cterm_of ctxt)
-       (map (fn x => ((), x))
-            (asm_full_simp_tac (ctxt addsimps defs) 1 ::
-             map (fn t => t ctxt) proof))
+       (map
+          (fn x => ((), x))
+          (asm_full_simp_tac (ctxt addsimps defs) 1 :: map (fn t => t ctxt) proof))
        is_typing ctxt
      |> (fn r => case r of
             Right tr => tr
@@ -87,15 +94,19 @@ fun get_final_typing_tree ctxt f proof =
   get_typing_tree ctxt f proof
   |> map (tree_map (cleanup_typing_tree_thm ctxt))
 
+(* covert a typing tree to a list of typing theorems *)
 val typing_tree_to_bucket =
-  map flatten_Tree #> List.concat
-  #> sort_distinct Thm.thm_ord
+  map flatten_Tree
+    #> List.concat
+    #> sort_distinct Thm.thm_ord
 
 fun get_typing_bucket ctxt f proof =
   get_typing_tree ctxt f proof
-  |> map flatten_Tree |> List.concat
-  |> map (cleanup_typing_tree_thm ctxt)
-  |> sort Thm.thm_ord |> uniq Thm.thm_ord
+    |> map flatten_Tree
+    |> List.concat
+    |> map (cleanup_typing_tree_thm ctxt)
+    |> sort Thm.thm_ord
+    |> uniq Thm.thm_ord
 
 type details = (thm list * thm Tree list * thm list)
 

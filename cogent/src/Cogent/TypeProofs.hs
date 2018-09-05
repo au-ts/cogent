@@ -121,7 +121,7 @@ formatMLTreeGen name =
   [ TheoryString ( "ML_quiet {*\nval " ++ name ++ "_ttyping_details_future"
     ++ " = get_all_typing_details_future @{context} \"" ++ name ++ "\"\n"
     ++ "   " ++ name ++ "_typecorrect_script"
-    ++ "*}\n"
+    ++ "\n*}\n"
   ) ]
 
 formatMLTreeFinalise :: String -> [TheoryDecl I.Type I.Term]
@@ -439,7 +439,7 @@ pushDown unused (EE ty (Put e1 f e2) env)
 pushDown unused (EE ty (Promote ty' e) env)
     = let e' = pushDown unused e
        in EE ty (Promote ty' e') $ unused <|> env
- 
+
 pushDown unused (EE ty (Cast ty' e) env)
     = let e' = pushDown unused e
        in EE ty (Cast ty' e') $ unused <|> env
