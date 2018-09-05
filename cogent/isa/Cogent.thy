@@ -444,9 +444,10 @@ inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Right
 
 | typing_con    : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : t
                    ; (tag, t, False) \<in> set ts
-                   ; K \<turnstile>* (map (fst \<circ> snd) ts) wellformed
-                   ; distinct (map fst ts)
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Con ts tag x : TSum ts"
+                   ; K \<turnstile>* (map (fst \<circ> snd) ts') wellformed
+                   ; distinct (map fst ts')
+                   ; \<And>c t b. (c,t,b) \<in> set ts \<Longrightarrow> \<exists>b'. (b' \<longrightarrow> b) \<and> ((c,(t,b')) \<in> set ts')
+                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Con ts tag x : TSum ts'"
 
 | typing_cast   : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> e : TPrim (Num \<tau>)
                    ; upcast_valid \<tau> \<tau>'
@@ -1057,7 +1058,6 @@ and           "i < length \<Gamma>"
 shows         "weakening_comp K (\<Gamma>!i) (\<Gamma>'!i)"
 using assms by (auto simp add: weakening_def dest: list_all2_nthD)
 
-
 lemma typing_to_kinding :
 shows "\<Xi>, K, \<Gamma> \<turnstile>  e  : t  \<Longrightarrow> K \<turnstile>  t  wellformed"
 and   "\<Xi>, K, \<Gamma> \<turnstile>* es : ts \<Longrightarrow> K \<turnstile>* ts wellformed"
@@ -1069,6 +1069,8 @@ next case typing_fun    then show ?case by (fastforce intro: kinding_kinding_all
                                                              substitutivity)
 next case typing_afun   then show ?case by (fastforce intro: kinding_kinding_all_kinding_record.intros
                                                              substitutivity)
+next case typing_con    then show ?case by (fastforce simp add: kinding_all_set
+                                                      intro!: kinding_kinding_all_kinding_record.intros)
 next case typing_esac   then show ?case by (fastforce dest: filtered_member
                                                       elim: kinding.cases
                                                       simp add: kinding_all_set)
@@ -1139,6 +1141,26 @@ next case (typing_fun \<Xi> K t f u \<Gamma> ks ts)
   ultimately show ?case by (auto intro!: list_all2_substitutivity
         typing_typing_all.typing_fun [simplified]
         instantiate_ctx_consumed)
+next case (typing_con \<Xi> K \<Gamma> x t tag ts ts')
+  show ?case
+    using typing_con
+  proof (simp, intro typing_typing_all.intros)
+    show "K' \<turnstile>* map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts') wellformed"
+      using typing_con substitutivity(2) by fastforce
+  next
+    fix c inst_t b
+    assume "(c, inst_t, b) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts)"
+    then obtain t where inst_t_lemmas:
+      "inst_t = instantiate \<delta> t"
+      "(c,t,b) \<in> set ts"
+      by clarsimp
+    then obtain b' where "b' \<longrightarrow> b" and "(c, t, b') \<in> set ts'"
+      using typing_con.hyps by blast+
+    moreover then have "(c, instantiate \<delta> t, b') \<in> (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ` set ts'"
+      by (metis (mono_tags) rev_image_eqI case_prod_conv)
+    ultimately show "\<exists>b'. (b' \<longrightarrow> b) \<and> (c, inst_t, b') \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts')"
+      by (metis (no_types, lifting) inst_t_lemmas(1) list.set_map)
+  qed force+
 next
   case (typing_esac \<Xi> K \<Gamma> x ts uu t)
   then show ?case
