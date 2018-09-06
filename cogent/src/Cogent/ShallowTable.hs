@@ -50,15 +50,15 @@ toTypeStr (TVarBang v)     = []
 toTypeStr (TUnit)          = []
 toTypeStr (TProduct t1 t2) = nub $ toTypeStr t1 ++ toTypeStr t2
 toTypeStr (TSum ts)        = nub $ VariantStr (sort $ P.map fst ts) : concat (P.map (toTypeStr . fst . snd) ts)
-   -- ^ NOTE: alternatives are sorted, however they should have been sorted by desugarer, `toList' / zilinc  -- FIXME: cogent.1
+   -- ^ NOTE: alternatives are sorted, however they should have been sorted by desugarer, `toList' / zilinc  -- FIXME: cogent-2.1
 toTypeStr (TFun ti to)     = nub $ toTypeStr ti ++ toTypeStr to
-toTypeStr (TRecord ts s)   = nub $ RecordStr (P.map fst ts) : concat (P.map (toTypeStr . fst . snd) ts)  -- TODO: sigil
+toTypeStr (TRecord ts _)   = nub $ RecordStr (P.map fst ts) : concat (P.map (toTypeStr . fst . snd) ts)
 toTypeStr (TPrim i)        = []
 toTypeStr (TString)        = []
-toTypeStr (TCon n ts s)    = nub $ concat $ P.map toTypeStr ts  -- TODO: sigil
+toTypeStr (TCon n ts _)    = nub $ concat $ P.map toTypeStr ts
 
 getStrlType :: M.Map TypeStr TypeName -> [TypeStr] -> Type t -> Type t
-getStrlType tsmap table (TSum ts) =  -- FIXME: cogent.1
+getStrlType tsmap table (TSum ts) =  -- FIXME: cogent-2.1
   let ts' = sortBy (compare `on` fst) ts
       tstr = VariantStr (P.map fst ts')
       tps = P.map (fst . snd) ts'

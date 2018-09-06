@@ -31,11 +31,11 @@ import Cogent.Shallow (isRecTuple)
 import Cogent.ShallowTable (TypeStr(..), st)
 import qualified Cogent.Surface as S
 import Cogent.Util (Stage(..), secondM)
-import Cogent.Vec as Vec
+import Cogent.Vec as Vec hiding (sym)
 
 import Control.Arrow (second)
 import Control.Applicative
-import Control.Lens hiding (Context, (<*=))
+import Control.Lens hiding (Context, op, (<*=))
 import Control.Monad.Extra (concatMapM)
 import Control.Monad.RWS hiding (Product, Sum, mapM)
 -- import Data.Char (ord, chr)
@@ -46,6 +46,7 @@ import qualified Data.Map as M
 import Data.Maybe (maybe)
 import Data.Set as Set (empty, fromList, insert, isSubsetOf)
 -- import GHC.LanguageExtensions.Type
+import Language.Haskell.Exts.Build
 import Language.Haskell.Exts.Pretty
 import Language.Haskell.Exts.Syntax as HS
 -- import Language.Haskell.HS.LanguageExtensions
@@ -60,11 +61,11 @@ import Prelude as P
 -- This module assumes:
 --   *) No tag duplication in Cogent source file
 --   *) Constants and field names share the same namespace, so no duplicates allowed
---   *) No reserved names in this module are present in source file
+--   *) No reserved names in this module are present in source files
 --   *) No unused constants which have types which are otherwise absent in the code
 
 
-data ReaderGen = ReaderGen { _typeStrs :: [TypeStr]
+data ReaderGen = ReaderGen { _typeStrs :: [TypeStr]  -- type structures, as in Isabelle shallow embd. gen.
                            , _typeVars :: [TyVarName]
                            , _recoverTuples :: Bool
                            , _localBindings :: [M.Map VarName VarName]
@@ -114,6 +115,7 @@ needless = __impossible "shouldn't need this"
 keywords = ["data", "type", "newtype", "if", "then", "else", "case", "of", "where"]  -- FIXME: more / zilinc
 
 -- FIXME! / zilinc
+-- shallow name modifier --- to deal with name clashes etc.
 snm :: String -> String
 snm s | s `elem` keywords = s ++ "_"
 snm s = s
@@ -123,9 +125,11 @@ snm s = s
 -- type generators
 --
 
-recTypeName = "R"
-varTypeName = "V"
+recTypeName = "R"  -- records
+varTypeName = "V"  -- variants
 typeparam   = "t"
+
+-- FIXME: subtypes may no longer need be tracked, due to cogent-2.1 changes / zilinc
 
 isSubtypeOfAny :: Foldable t => TypeStr -> t TypeStr -> Bool
 isSubtypeOfAny t ts = or $ P.map (t `isSubtypeStr`) $ toList ts
@@ -148,6 +152,7 @@ isRecOrVar (CC.TSum {}) = True
 isRecOrVar _ = False
 
 -- ASSUME: isRecOrVar input == True
+-- `compTypes' takes a record or variant and returns a list of its components in the right order
 compTypes :: CC.Type t -> [(String, CC.Type t)]
 compTypes (CC.TRecord fs _) = P.map (second fst) fs
 compTypes (CC.TSum alts) = P.map (second fst) $ sortBy (compare `on` fst) alts  -- NOTE: this sorting must stay in-sync with the algorithm `toTypeStr` in ShallowTable.hs / zilinc
@@ -402,6 +407,8 @@ shallowTypeDef tn tvs t = do
   t' <- shallowType t
   pure $ TypeDecl () (mkDeclHead (mkName tn) (P.map (mkName . snm) tvs)) t'
 
+-- TODO: abstract definitions should be generated in a separate file, so that
+-- users' change to the .hs file won't get overwritten by later compilations
 shallowDefinition :: CC.Definition TypedExpr VarName -> SG [Decl ()]
 shallowDefinition (CC.FunDef _ fn ps ti to e) =
     local (typarUpd typar) $ do
@@ -509,11 +516,10 @@ shallow tuples name stg defs consts log =
 -- ----------------------------------------------------------------------------
 -- Below are smart constructors for Language.Haskell.Exts.Syntax
 --
--- should have used Language.Haskell.Exts.Build instead :( / zilinc
 
 mkName :: String -> Name ()
-mkName s | P.head s `elem` ":!#$%&*+./<=>?@\\^|-~" = Symbol () s  -- roughly
-mkName s = Ident () s
+mkName s | P.head s `elem` ":!#$%&*+./<=>?@\\^|-~" = sym s  -- roughly
+mkName s = name s
 
 mkDeclHead :: Name () -> [Name ()] -> DeclHead ()
 mkDeclHead n [] = DHead () n
@@ -535,23 +541,23 @@ mkTupleT :: [HS.Type ()] -> HS.Type ()
 mkTupleT ts = TyTuple () Boxed ts
 
 mkVarE :: Name () -> Exp ()
-mkVarE n = Var () (UnQual () n)
+mkVarE = var
 
 mkConE :: Name () -> Exp ()
 mkConE = HS.Con () . UnQual ()
 
 mkVarP :: Name () -> Pat ()
-mkVarP = PVar ()
+mkVarP = pvar
 
 mkVarOp :: Name () -> QOp ()
-mkVarOp = QVarOp () . UnQual ()
+mkVarOp = op
 
 mkAppE :: Exp () -> [Exp ()] -> Exp ()
-mkAppE e es = foldl' (HS.App ()) e es
+mkAppE = appFun
 
 mkLetE :: [(Pat (), Exp ())] -> Exp () -> Exp ()
 mkLetE bs e = 
-  let decls = P.map (\(p,r) -> PatBind () p (UnGuardedRhs () r) Nothing) bs
-   in HS.Let () (BDecls () decls) e
+  let decls = P.map (uncurry patBind) bs
+   in letE decls e
 
 
