@@ -296,7 +296,10 @@ typing xi k (EE (TSum ts) (Con tag e t) env) = tacSequence [
   typing xi k e,                         -- Ξ, K, Γ ⊢ x : t
   return [simp],                         -- (tag,t,False) ∈ set ts
   wellformedAll k (map (fst . snd) ts),  -- K ⊢* (map (fst ∘ snd) ts) wellformed
-  return (distinct (map fst ts))         -- distinct (map fst ts)
+  return (distinct (map fst ts)),        -- distinct (map fst ts)
+  return [simp],                         -- map fst ts = map fst ts'
+  return [simp],                         -- map (fst ∘ snd) ts = map (fst ∘ snd) ts'
+  return [simp]                          -- list_all2 (λx y. snd (snd y) ⟶ snd (snd x)) ts ts'
   ]
 
 typing xi k (EE u (Cast t e) env) = __todo "typing: Cast"

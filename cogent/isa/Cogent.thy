@@ -446,7 +446,10 @@ inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Right
                    ; (tag, t, False) \<in> set ts
                    ; K \<turnstile>* (map (fst \<circ> snd) ts) wellformed
                    ; distinct (map fst ts)
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Con ts tag x : TSum ts"
+                   ; map fst ts = map fst ts'
+                   ; map (fst \<circ> snd) ts = map (fst \<circ> snd) ts'
+                   ; list_all2 (\<lambda>x y. snd (snd y) \<longrightarrow> snd (snd x)) ts ts'
+                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Con ts tag x : TSum ts'"
 
 | typing_cast   : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> e : TPrim (Num \<tau>)
                    ; upcast_valid \<tau> \<tau>'
@@ -799,6 +802,34 @@ proof -
 qed
 *)
 
+lemma variant_element_subtyping_mapping:
+  assumes tag_in_ts: "(tag, t, b) \<in> set ts"
+    and distinct_ts: "distinct (map fst ts')"
+    and tags_same: "map fst ts = map fst ts'"
+    and types_same: "map (fst \<circ> snd) ts = map (fst \<circ> snd) ts'"
+    and taken_subcond: "list_all2 (\<lambda>x y. snd (snd y) \<longrightarrow> snd (snd x)) ts ts'"
+  shows "\<exists>b'. (tag, t, b') \<in> set ts' \<and> (b' \<longrightarrow> b)"
+proof -
+  obtain i
+    where i_in_bounds: "i < length ts"
+      and ts_at_i: "ts ! i = (tag, t, b)"
+    by (meson tag_in_ts in_set_conv_nth)
+  then obtain tag' t' b' where "ts' ! i = (tag', t', b')"
+    using prod_cases3 by blast
+  then have ts'_at_i: "ts' ! i = (tag, t, b')"
+    by (metis (no_types, lifting) ts_at_i comp_apply fst_conv i_in_bounds length_map nth_map snd_conv tags_same types_same) 
+  moreover have "b' \<longrightarrow> b"
+  proof -
+    have "snd (snd (ts' ! i)) \<longrightarrow> snd (snd (ts ! i))"
+      using taken_subcond i_in_bounds
+      by (simp add: list_all2_conv_all_nth)
+    then show ?thesis
+      using ts_at_i ts'_at_i by force
+  qed
+  ultimately show ?thesis
+    by (metis i_in_bounds length_map nth_mem tags_same)
+qed
+
 section {* Instantiation *}
 
 lemma instantiate_bang [simp]:
@@ -863,9 +894,27 @@ lemma specialise_nothing_id[simp]:
 shows "specialise [] = id"
 by (rule ext, simp add: specialise_nothing)
 
-
-
 lemmas typing_struct_instantiate = typing_struct [where ts = "map (instantiate \<delta>) ts" for ts, simplified]
+
+lemma instantiate_over_variants_subvariants:
+  assumes tags_same: "map fst ts = map fst ts'"
+    and types_same: "map (fst \<circ> snd) ts = map (fst \<circ> snd) ts'"
+  shows "map (\<lambda>(n, t, _). (n, type_repr t)) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts) =
+         map (\<lambda>(c, t, _). (c, type_repr t)) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts')"
+proof -
+  have f1: "((\<lambda>(n, t, _). (n, type_repr t)) \<circ> (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) = (\<lambda>(n, t, _). (n, type_repr (instantiate \<tau>s t)))"
+    by fastforce
+  have f2: "(\<lambda>(n, t, _). (n, type_repr (instantiate \<tau>s t))) = (\<lambda>p. (fst p, (type_repr \<circ> (instantiate \<tau>s) \<circ> (fst \<circ> snd)) p))"
+    by fastforce
+
+  have "(map (type_repr \<circ> (instantiate \<tau>s) \<circ> (fst \<circ> snd)) ts) = (map (type_repr \<circ> (instantiate \<tau>s) \<circ> (fst \<circ> snd)) ts')"
+    using types_same map_map by metis
+  then have "map (\<lambda>(n, t, _). (n, type_repr (instantiate \<tau>s t))) ts =
+          map (\<lambda>(n, t, _). (n, type_repr (instantiate \<tau>s t))) ts'"
+    by (fastforce intro: pair_list_eqI simp add: f2 comp_def tags_same)
+  then show ?thesis
+    by (simp add: f1)
+qed
 
 subsection {* substitutivity *}
 
@@ -1057,7 +1106,6 @@ and           "i < length \<Gamma>"
 shows         "weakening_comp K (\<Gamma>!i) (\<Gamma>'!i)"
 using assms by (auto simp add: weakening_def dest: list_all2_nthD)
 
-
 lemma typing_to_kinding :
 shows "\<Xi>, K, \<Gamma> \<turnstile>  e  : t  \<Longrightarrow> K \<turnstile>  t  wellformed"
 and   "\<Xi>, K, \<Gamma> \<turnstile>* es : ts \<Longrightarrow> K \<turnstile>* ts wellformed"
@@ -1069,6 +1117,8 @@ next case typing_fun    then show ?case by (fastforce intro: kinding_kinding_all
                                                              substitutivity)
 next case typing_afun   then show ?case by (fastforce intro: kinding_kinding_all_kinding_record.intros
                                                              substitutivity)
+next case typing_con    then show ?case by (fastforce simp add: kinding_all_set
+                                                      intro!: kinding_kinding_all_kinding_record.intros)
 next case typing_esac   then show ?case by (fastforce dest: filtered_member
                                                       elim: kinding.cases
                                                       simp add: kinding_all_set)
@@ -1139,6 +1189,22 @@ next case (typing_fun \<Xi> K t f u \<Gamma> ks ts)
   ultimately show ?case by (auto intro!: list_all2_substitutivity
         typing_typing_all.typing_fun [simplified]
         instantiate_ctx_consumed)
+next case (typing_con \<Xi> K \<Gamma> x t tag ts ts')
+  show ?case
+    using typing_con
+  proof (simp, intro typing_typing_all.intros)
+    show "K' \<turnstile>* map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts) wellformed"
+      apply (simp add: kinding_all_set)
+      apply (metis (no_types, lifting) typing_con.hyps(4) typing_con.prems comp_apply
+              kinding_all_set list.set_map rev_image_eqI substitutivity(2) type_wellformed_all_def)
+      done
+  next
+    show "map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts) = map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts')"
+      using map_fst3_app2 map_map typing_con.hyps by metis
+  next
+    show "list_all2 (\<lambda>x y. snd (snd y) \<longrightarrow> snd (snd x)) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts')"
+      by (simp add: list_all2_map1 list_all2_map2 case_prod_beta' typing_con.hyps(8))
+  qed force+
 next
   case (typing_esac \<Xi> K \<Gamma> x ts uu t)
   then show ?case

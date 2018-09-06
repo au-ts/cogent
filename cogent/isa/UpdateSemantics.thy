@@ -1454,6 +1454,7 @@ and     "rp = (RRecord (map (\<lambda>(a,b). type_repr a) ts)) "
 shows   "\<Xi>, \<sigma> \<turnstile> UPtr l rp :u TRecord ts (Boxed Writable ptrl) \<langle> r, insert l w \<rangle>"
 using assms by (auto intro: u_t_p_rec_w)
 
+
 theorem preservation:
 assumes "list_all2 (kinding []) \<tau>s K"
 and     "proc_ctx_wellformed \<Xi>"
@@ -1568,12 +1569,16 @@ next case (u_sem_con \<xi> \<gamma> \<sigma> x_spec \<sigma>' x' ts_inst tag)
       and x_spec_is: "x_spec = specialise \<tau>s x"
       using u_sem_con.hyps Con
       by simp+
-    then obtain t k
-      where \<tau>_is: "\<tau> = TSum ts"
+    then obtain t k ts'
+      where \<tau>_is: "\<tau> = TSum ts'"
         and x_typing: "\<Xi>, K, \<Gamma> \<turnstile> x : t"
         and tag_in_ts: "(tag, t, False) \<in> set ts"
-        and distinct_fst_ts: "distinct (map fst ts)"
-        and ts_wellformed: "K \<turnstile>* map (fst \<circ> snd) ts :\<kappa>  k"
+        and tags_same: "map fst ts = map fst ts'"
+        and distinct_fst_ts': "distinct (map fst ts')"
+        and tags_same: "map fst ts = map fst ts'"
+        and types_same: "map (fst \<circ> snd) ts = map (fst \<circ> snd) ts'"
+        and taken_subcond: "list_all2 (\<lambda>x y. snd (snd y) \<longrightarrow> snd (snd x)) ts ts'"
+        and ts_wellformed: "K \<turnstile>* (map (fst \<circ> snd) ts') :\<kappa> k"
       using Con u_sem_con.prems
       by blast
 
@@ -1584,20 +1589,23 @@ next case (u_sem_con \<xi> \<gamma> \<sigma> x_spec \<sigma>' x' ts_inst tag)
       using u_sem_con.prems x_spec_is u_sem_con.hyps(2) x_typing
       by blast
 
-    have "\<Xi>, \<sigma>' \<turnstile> USum tag x' (map (\<lambda>(n,t,_). (n, type_repr t)) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts)) :u TSum (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) ts) \<langle>r', w'\<rangle>"
-      using uval_x' distinct_fst_ts
+    have "\<Xi>, \<sigma>' \<turnstile> USum tag x' (map (\<lambda>(n,t,_). (n, type_repr t)) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts)) :u TSum (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) ts') \<langle>r', w'\<rangle>"
+      using uval_x' distinct_fst_ts' tags_same types_same instantiate_over_variants_subvariants
     proof (intro u_t_sum)
-      show "(tag, instantiate \<tau>s t, False) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts)"
-        using image_iff tag_in_ts by fastforce
+      have "(tag, t, False) \<in> set ts'"
+        using distinct_fst_ts' tag_in_ts tags_same taken_subcond types_same variant_element_subtyping_mapping
+        by fastforce
+      then show "(tag, instantiate \<tau>s t, False) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts')"
+        using image_iff by fastforce
     next
-      have "[] \<turnstile>* map (fst \<circ> snd) (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) ts) :\<kappa> k"
-        using ts_wellformed substitutivity(1) u_sem_con.prems kinding_all_set
-        by simp
-      then show "[] \<turnstile>* map (fst \<circ> snd) (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) ts) wellformed"
+      have "[] \<turnstile>* map (fst \<circ> snd) (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) ts') :\<kappa> k"
+        using ts_wellformed substitutivity(1) u_sem_con.prems kinding_all_set by simp
+      then show "[] \<turnstile>* map (fst \<circ> snd) (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) ts') wellformed"
         by auto
     qed simp+
     then show ?thesis
       using r'_sub_r frame_w_w' \<tau>_is tag'_is ts_inst_is
+      apply simp
       by auto
    qed simp+
 next case u_sem_let

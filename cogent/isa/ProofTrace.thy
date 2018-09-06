@@ -236,7 +236,6 @@ fun trace_solve_tac (ctxt : Proof.context)
               let (* Try all results from all tactics until we obtain a successful proof.
                    * NB: tactics should return finite results! *)
                 val subgoal = Goal.init (cterm_of' subgoal_term)
-
                 (* try all the tactics in the list to solve subgoal *)
                 fun try_tacs [] fails = (data, Left fails)
                   | try_tacs ((data, tag, tactic) :: rest) fails =
@@ -324,7 +323,10 @@ fun unprop (Const (@{const_name Pure.prop}, _) $ t) = unprop t
 ML {*
 fun extract_subproofs goal tactics is_interesting ctxt =
   trace_solve_tac ctxt true
-    (fn n => K [nth tactics n |> (fn (tag, tac) => (n+1, tag, tac))]) 0
+    (fn n => (if n >= length tactics
+              then raise (ERROR ("bad subscript for tactics list, len: " ^ (@{make_string} (length tactics)) ^ ", idx: " ^ (@{make_string} n)))
+              else K [nth tactics n |> (fn (tag, tac) => (n+1, tag, tac))]))
+    0
     (Goal.init goal)
     NONE
   |> (fn (_, result) =>
