@@ -446,7 +446,9 @@ inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Right
                    ; (tag, t, False) \<in> set ts
                    ; K \<turnstile>* (map (fst \<circ> snd) ts') wellformed
                    ; distinct (map fst ts')
-                   ; \<And>c t b. (c,t,b) \<in> set ts \<Longrightarrow> \<exists>b'. (b' \<longrightarrow> b) \<and> ((c,(t,b')) \<in> set ts')
+                   ; map fst ts = map fst ts'
+                   ; map (fst \<circ> snd) ts = map (fst \<circ> snd) ts'
+                   ; list_all2 (\<lambda>x y. snd (snd y) \<longrightarrow> snd (snd x)) ts ts'
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Con ts tag x : TSum ts'"
 
 | typing_cast   : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> e : TPrim (Num \<tau>)
@@ -1146,20 +1148,16 @@ next case (typing_con \<Xi> K \<Gamma> x t tag ts ts')
     using typing_con
   proof (simp, intro typing_typing_all.intros)
     show "K' \<turnstile>* map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts') wellformed"
-      using typing_con substitutivity(2) by fastforce
+      apply (simp add: kinding_all_set)
+      apply (metis (no_types, lifting) typing_con.hyps(4) typing_con.prems comp_apply
+              kinding_all_set list.set_map rev_image_eqI substitutivity(2) type_wellformed_all_def)
+      done
   next
-    fix c inst_t b
-    assume "(c, inst_t, b) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts)"
-    then obtain t where inst_t_lemmas:
-      "inst_t = instantiate \<delta> t"
-      "(c,t,b) \<in> set ts"
-      by clarsimp
-    then obtain b' where "b' \<longrightarrow> b" and "(c, t, b') \<in> set ts'"
-      using typing_con.hyps by blast+
-    moreover then have "(c, instantiate \<delta> t, b') \<in> (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ` set ts'"
-      by (metis (mono_tags) rev_image_eqI case_prod_conv)
-    ultimately show "\<exists>b'. (b' \<longrightarrow> b) \<and> (c, inst_t, b') \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts')"
-      by (metis (no_types, lifting) inst_t_lemmas(1) list.set_map)
+    show "map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts) = map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts')"
+      using map_fst3_app2 map_map typing_con.hyps by metis
+  next
+    show "list_all2 (\<lambda>x y. snd (snd y) \<longrightarrow> snd (snd x)) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts')"
+      by (simp add: list_all2_map1 list_all2_map2 case_prod_beta' typing_con.hyps(8))
   qed force+
 next
   case (typing_esac \<Xi> K \<Gamma> x ts uu t)

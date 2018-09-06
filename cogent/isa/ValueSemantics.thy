@@ -613,28 +613,45 @@ next case (v_sem_con \<xi> \<gamma> x_spec x' ts_inst tag)
       and x_spec_is: "x_spec = specialise \<tau>s x"
       using v_sem_con.hyps(3) Con
       by clarsimp+
-    moreover then obtain t k
-      where \<tau>_is: "\<tau> = TSum ts"
+    moreover then obtain t k ts'
+      where \<tau>_is: "\<tau> = TSum ts'"
         and typing_x: "\<Xi>, K, \<Gamma> \<turnstile> x : t"
         and tag_in_ts: "(tag, t, False) \<in> set ts"
-        and distinct_ts: "distinct (map fst ts)"
-        and ts_wellformed: "K \<turnstile>* (map (fst \<circ> snd) ts) :\<kappa> k"
-      using Con v_sem_con.prems
-      by blast
-    ultimately have "\<Xi> \<turnstile> VSum tag x' :v TSum (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts)"
+        and distinct_ts: "distinct (map fst ts')"
+        and tags_same: "map fst ts = map fst ts'"
+        and types_same: "map (fst \<circ> snd) ts = map (fst \<circ> snd) ts'"
+        and taken_subcond: "list_all2 (\<lambda>x y. snd (snd y) \<longrightarrow> snd (snd x)) ts ts'"
+        and ts_wellformed: "K \<turnstile>* (map (fst \<circ> snd) ts') :\<kappa> k"
+      using Con v_sem_con.prems by auto
+    ultimately have "\<Xi> \<turnstile> VSum tag x' :v TSum (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts')"
     proof (intro v_t_sum)
       show "\<Xi> \<turnstile> x' :v instantiate \<tau>s t"
         using v_sem_con.hyps(2) v_sem_con.prems x_spec_is typing_x tag_in_ts
         by simp
     next
-      show "(tag, instantiate \<tau>s t, False) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts)"
-        using typing_x tag_in_ts image_iff by fastforce
+      obtain i
+        where "ts ! i = (tag, t, False)"
+          and i_in_bounds: " i < length ts"
+        by (meson in_set_conv_nth tag_in_ts)
+      moreover then have "snd (snd (ts' ! i)) \<longrightarrow> False"
+        using list_all2_nthD taken_subcond by fastforce
+      ultimately have
+        "fst (ts' ! i) = tag"
+        "fst (snd (ts' ! i)) = t"
+        "snd (snd (ts' ! i)) = False"
+        using tags_same types_same fst_conv length_map nth_map comp_def snd_conv
+        by metis+
+      then have "ts' ! i = (tag, t, False)"
+        by (metis (full_types) prod.collapse)
+      then show "(tag, instantiate \<tau>s t, False) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts')"
+        using i_in_bounds in_set_conv_nth length_map nth_map old.prod.case tags_same
+        by (metis (no_types, lifting))
     next
-      have "[] \<turnstile>* map (instantiate \<tau>s \<circ> (fst \<circ> snd)) ts :\<kappa>  k"
+      have "[] \<turnstile>* map (instantiate \<tau>s \<circ> (fst \<circ> snd)) ts' :\<kappa>  k"
         using ts_wellformed substitutivity(2) v_sem_con.prems(2) by fastforce
-      then show "[] \<turnstile>* map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts) wellformed"
+      then show "[] \<turnstile>* map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts') wellformed"
         by auto
-    qed simp
+    qed simp+
     then show ?thesis
       using \<tau>_is by auto
   qed simp+
