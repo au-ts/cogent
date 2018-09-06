@@ -444,8 +444,8 @@ inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Right
 
 | typing_con    : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : t
                    ; (tag, t, False) \<in> set ts
-                   ; K \<turnstile>* (map (fst \<circ> snd) ts') wellformed
-                   ; distinct (map fst ts')
+                   ; K \<turnstile>* (map (fst \<circ> snd) ts) wellformed
+                   ; distinct (map fst ts)
                    ; map fst ts = map fst ts'
                    ; map (fst \<circ> snd) ts = map (fst \<circ> snd) ts'
                    ; list_all2 (\<lambda>x y. snd (snd y) \<longrightarrow> snd (snd x)) ts ts'
@@ -1193,7 +1193,7 @@ next case (typing_con \<Xi> K \<Gamma> x t tag ts ts')
   show ?case
     using typing_con
   proof (simp, intro typing_typing_all.intros)
-    show "K' \<turnstile>* map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts') wellformed"
+    show "K' \<turnstile>* map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts) wellformed"
       apply (simp add: kinding_all_set)
       apply (metis (no_types, lifting) typing_con.hyps(4) typing_con.prems comp_apply
               kinding_all_set list.set_map rev_image_eqI substitutivity(2) type_wellformed_all_def)

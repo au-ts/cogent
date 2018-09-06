@@ -39,15 +39,7 @@ lemma typing_prim' : "\<lbrakk> prim_op_type oper = (ts,t)
   by (simp only: typing_prim)
 
 
-lemma typing_con' : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : t
-                     ; (tag,t,False) \<in> set ts
-                     ; K \<turnstile>* (map (fst \<circ> snd) ts) wellformed
-                     ; distinct (map fst ts')
-                     ; map fst ts = map fst ts'
-                     ; map (fst \<circ> snd) ts = map (fst \<circ> snd) ts'
-                     ; list_all2 (\<lambda>x y. snd (snd y) \<longrightarrow> snd (snd x)) ts ts'
-                     \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Con ts tag x : TSum ts'"
-  by (simp only: typing_con)
+lemmas typing_con' = typing_con
 
 lemma typing_struct': "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile>* es : ts
                        ; ts' =  (zip ts (replicate (length ts) False))
