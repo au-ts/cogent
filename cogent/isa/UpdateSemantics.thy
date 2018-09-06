@@ -1568,12 +1568,16 @@ next case (u_sem_con \<xi> \<gamma> \<sigma> x_spec \<sigma>' x' ts_inst tag)
       and x_spec_is: "x_spec = specialise \<tau>s x"
       using u_sem_con.hyps Con
       by simp+
-    then obtain t k
-      where \<tau>_is: "\<tau> = TSum ts"
+    then obtain t k ts'
+      where \<tau>_is: "\<tau> = TSum ts'"
         and x_typing: "\<Xi>, K, \<Gamma> \<turnstile> x : t"
         and tag_in_ts: "(tag, t, False) \<in> set ts"
-        and distinct_fst_ts: "distinct (map fst ts)"
-        and ts_wellformed: "K \<turnstile>* map (fst \<circ> snd) ts :\<kappa>  k"
+        and tags_same: "map fst ts = map fst ts'"
+        and distinct_fst_ts': "distinct (map fst ts')"
+        and tags_same: "map fst ts = map fst ts'"
+        and types_same: "map (fst \<circ> snd) ts = map (fst \<circ> snd) ts'"
+        and taken_subcond: "list_all2 (\<lambda>x y. snd (snd y) \<longrightarrow> snd (snd x)) ts ts'"
+        and ts_wellformed: "K \<turnstile>* (map (fst \<circ> snd) ts') :\<kappa> k"
       using Con u_sem_con.prems
       by blast
 
@@ -1584,20 +1588,35 @@ next case (u_sem_con \<xi> \<gamma> \<sigma> x_spec \<sigma>' x' ts_inst tag)
       using u_sem_con.prems x_spec_is u_sem_con.hyps(2) x_typing
       by blast
 
-    have "\<Xi>, \<sigma>' \<turnstile> USum tag x' (map (\<lambda>(n,t,_). (n, type_repr t)) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts)) :u TSum (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) ts) \<langle>r', w'\<rangle>"
-      using uval_x' distinct_fst_ts
+    have "\<Xi>, \<sigma>' \<turnstile> USum tag x' (map (\<lambda>(n,t,_). (n, type_repr t)) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts)) :u TSum (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) ts') \<langle>r', w'\<rangle>"
+      using uval_x' distinct_fst_ts'
     proof (intro u_t_sum)
-      show "(tag, instantiate \<tau>s t, False) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts)"
-        using image_iff tag_in_ts by fastforce
+      show "(tag, instantiate \<tau>s t, False) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts')"
+        using image_iff tag_in_ts tags_same
+        sorry
     next
-      have "[] \<turnstile>* map (fst \<circ> snd) (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) ts) :\<kappa> k"
-        using ts_wellformed substitutivity(1) u_sem_con.prems kinding_all_set
-        by simp
-      then show "[] \<turnstile>* map (fst \<circ> snd) (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) ts) wellformed"
+      have "[] \<turnstile>* map (fst \<circ> snd) (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) ts') :\<kappa> k"
+        using ts_wellformed substitutivity(1) u_sem_con.prems kinding_all_set by simp
+      then show "[] \<turnstile>* map (fst \<circ> snd) (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) ts') wellformed"
         by auto
+    next
+      have f1: "((\<lambda>(n, t, _). (n, type_repr t)) \<circ> (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) = (\<lambda>(n, t, _). (n, type_repr (instantiate \<tau>s t)))"
+        by fastforce
+      have f2: "(\<lambda>(n, t, _). (n, type_repr (instantiate \<tau>s t))) = (\<lambda>p. (fst p, (type_repr \<circ> (instantiate \<tau>s) \<circ> (fst \<circ> snd)) p))"
+        by fastforce
+
+      have "(map (type_repr \<circ> (instantiate \<tau>s) \<circ> (fst \<circ> snd)) ts) = (map (type_repr \<circ> (instantiate \<tau>s) \<circ> (fst \<circ> snd)) ts')"
+        using types_same map_map by metis
+      then have "map (\<lambda>(n, t, _). (n, type_repr (instantiate \<tau>s t))) ts =
+            map (\<lambda>(n, t, _). (n, type_repr (instantiate \<tau>s t))) ts'"
+        by (fastforce intro: pair_list_eqI simp add: f2 comp_def tags_same)
+      then show "map (\<lambda>(n, t, _). (n, type_repr t)) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts) =
+            map (\<lambda>(c, t, _). (c, type_repr t)) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts')"
+        by (simp add: f1)
     qed simp+
     then show ?thesis
       using r'_sub_r frame_w_w' \<tau>_is tag'_is ts_inst_is
+      apply simp
       by auto
    qed simp+
 next case u_sem_let
