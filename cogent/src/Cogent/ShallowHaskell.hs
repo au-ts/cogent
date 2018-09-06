@@ -342,6 +342,7 @@ shallowExpr (TE _ (CC.Con cn e _))  = do
   e' <- shallowExpr e
   pure $ mkAppE (mkConE $ mkName cn) [e']
 shallowExpr (TE _ (CC.Promote ty e)) = shallowPromote e ty
+shallowExpr (TE _ (CC.Cast    ty e)) = shallowPromote e ty
 shallowExpr (TE t (CC.Struct fs)) = do 
   (tn,_) <- findShortType t
   RecConstr () (UnQual () $ mkName tn) <$> mapM (\(f,e) -> FieldUpdate () (UnQual () . mkName $ snm f) <$> shallowExpr e) fs
@@ -365,7 +366,8 @@ shallowExpr (TE t (CC.Case e tag (_,n1,e1) (_,n2,e2))) = do
       c2 = HS.Alt () (mkVarP . mkName $ snm n2') (UnGuardedRhs () e2') Nothing
   pure $ HS.Case () e' [c1,c2]
 shallowExpr (TE t (CC.Esac e)) = do
-  let (CC.TSum [(f,_)]) = exprType e
+  let (CC.TSum alts) = exprType e
+      [(f,_)] = filter (not . snd . snd) alts
   vn <- freshInt <<+= 1
   let v = mkName $ internalVar ++ show vn
   mkAppE (Lambda () [PApp () (UnQual () . mkName $ snm f) [mkVarP v]] (mkVarE v)) <$> ((:[]) <$> shallowExpr e)

@@ -117,6 +117,7 @@ stExpr (TE t e) = stExpr' e >> stType t
     stExpr' (Take a rec fld e) = stExpr rec >> stExpr e
     stExpr' (Put rec fld v)  = stExpr rec >> stExpr v
     stExpr' (Promote ty e)   = stExpr e
+    stExpr' (Cast    ty e)   = stExpr e
 
 -- Add types to the table if not exists
 stType :: Type t -> ST ()

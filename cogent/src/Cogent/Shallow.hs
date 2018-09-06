@@ -187,11 +187,11 @@ findTypeSyn t = findType t >>= \(TCon nm _ _) -> pure nm
 shallowPromote :: TypeName -> CC.Type t -> TypedExpr t v VarName -> SG Term
 shallowPromote _ (TPrim pt) (TE _ (ILit n _)) = pure $ shallowILit n pt
 shallowPromote _ (TPrim pt) te = TermWithType <$> (mkApp (mkId "ucast") <$> ((:[]) <$> shallowExpr te)) <*> pure (shallowPrimType pt)
-shallowPromote tnto ty e@(TE t@(TSum alts) _) = do
-  tnfrm <- findTypeSyn t
-  ecase <- shallowExpr e
-  let es = map (\(tag,_) -> mkApp (mkStr [tnto,".",tag]) []) alts
-  pure $ mkApp (mkStr ["case_",tnfrm]) $ es ++ [ecase]
+-- shallowPromote tnto ty e@(TE t@(TSum alts) _) = do
+--   tnfrm <- findTypeSyn t
+--   ecase <- shallowExpr e
+--   let es = map (\(tag,_) -> mkApp (mkStr [tnto,".",tag]) []) alts
+--   pure $ mkApp (mkStr ["case_",tnfrm]) $ es ++ [ecase]
 shallowPromote _ _ _ = __impossible "shallowPromote"
 
 shallowExpr :: TypedExpr t v VarName -> SG Term
@@ -203,18 +203,14 @@ shallowExpr (TE t (Con cn e _))  = do
   tn <- findTypeSyn t
   econ <- mkApp <$> pure (mkStr [tn,".",cn]) <*> (mapM shallowExpr [e])
   TermWithType econ <$> shallowType t
-shallowExpr (TE t (Promote ty (TE _ (Con cn e _)))) = shallowExpr (TE t (Con cn e ty))
-shallowExpr (TE _ (Promote ty@(TPrim _) e)) = shallowPromote (__impossible "shallowExpr") ty e
-shallowExpr (TE _ (Promote ty e)) = findTypeSyn ty >>= \tn -> shallowPromote tn ty e
-shallowExpr (TE t (Struct fs)) = shallowMaker t fs
-shallowExpr (TE _ (Member rec fld)) = shallowExpr rec >>= \e -> shallowGetter rec fld e
 shallowExpr (TE _ (Unit)) = pure $ mkId "()"
 shallowExpr (TE _ (ILit n pt)) = pure $ shallowILit n pt
 shallowExpr (TE _ (SLit s)) = pure $ mkString s
-shallowExpr (TE _ (Tuple e1 e2)) = mkApp <$> (pure $ mkId "Pair") <*> (mapM shallowExpr [e1, e2])
-shallowExpr (TE _ (Put rec fld e)) = shallowSetter rec fld e
 shallowExpr (TE _ (Let nm e1 e2)) = shallowLet nm e1 e2
 shallowExpr (TE _ (LetBang vs nm e1 e2)) = shallowLet nm e1 e2
+shallowExpr (TE _ (Tuple e1 e2)) = mkApp <$> (pure $ mkId "Pair") <*> (mapM shallowExpr [e1, e2])
+shallowExpr (TE t (Struct fs)) = shallowMaker t fs
+shallowExpr (TE _ (If c th el)) = mkApp <$> (pure $ mkId "HOL.If") <*> mapM shallowExpr [c, th, el]
 shallowExpr (TE t (Case e tag (_,n1,e1) (_,n2,e2))) = do
   ecase <- shallowExpr e
   tn <- findTypeSyn $ exprType e
@@ -250,15 +246,19 @@ shallowExpr (TE t (Esac e)) = do
   tn <- findTypeSyn $ exprType e
   e' <- shallowExpr e
   pure $ mkApp (mkStr ["case_",tn]) [mkId "Fun.id", e']
-shallowExpr (TE _ (If c th el)) = mkApp <$> (pure $ mkId "HOL.If") <*> mapM shallowExpr [c, th, el]
+shallowExpr (TE _ (Split (n1,n2) e1 e2)) = mkApp <$> mkLambdaE [mkPrettyPair n1 n2] e2 <*> mapM shallowExpr [e1]
+shallowExpr (TE _ (Member rec fld)) = shallowExpr rec >>= \e -> shallowGetter rec fld e
 shallowExpr (TE _ (Take (n1,n2) rec fld e)) = do
   erec <- shallowExpr rec
   efield <- mkId <$> getRecordFieldName (exprType rec) fld
   take <- pure $ mkApp (mkId $ "take" ++ subSymStr "cogent") [erec, efield]
   let pp = mkPrettyPair n1 n2
   mkLet pp take <$> shallowExpr e
-
-shallowExpr (TE _ (Split (n1,n2) e1 e2)) = mkApp <$> mkLambdaE [mkPrettyPair n1 n2] e2 <*> mapM shallowExpr [e1]
+shallowExpr (TE _ (Put rec fld e)) = shallowSetter rec fld e
+shallowExpr (TE t (Promote ty (TE _ (Con cn e _)))) = shallowExpr (TE t (Con cn e ty))
+shallowExpr (TE _ (Promote ty@(TPrim _) e)) = __impossible "shallowExpr: promoting a primitive type"
+shallowExpr (TE _ (Promote ty e)) = shallowExpr e  -- findTypeSyn ty >>= \tn -> shallowPromote tn ty e
+shallowExpr (TE _ (Cast    ty@(TPrim _) e)) = shallowPromote (__impossible "shallowExpr") ty e
 
 mkL :: VarName -> Term -> Term -> Term
 mkL nm t1 t2 = mkApp (mkLambda [snm nm] t2) [t1]
