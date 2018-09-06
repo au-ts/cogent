@@ -1454,6 +1454,7 @@ and     "rp = (RRecord (map (\<lambda>(a,b). type_repr a) ts)) "
 shows   "\<Xi>, \<sigma> \<turnstile> UPtr l rp :u TRecord ts (Boxed Writable ptrl) \<langle> r, insert l w \<rangle>"
 using assms by (auto intro: u_t_p_rec_w)
 
+
 theorem preservation:
 assumes "list_all2 (kinding []) \<tau>s K"
 and     "proc_ctx_wellformed \<Xi>"
@@ -1589,30 +1590,18 @@ next case (u_sem_con \<xi> \<gamma> \<sigma> x_spec \<sigma>' x' ts_inst tag)
       by blast
 
     have "\<Xi>, \<sigma>' \<turnstile> USum tag x' (map (\<lambda>(n,t,_). (n, type_repr t)) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts)) :u TSum (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) ts') \<langle>r', w'\<rangle>"
-      using uval_x' distinct_fst_ts'
+      using uval_x' distinct_fst_ts' tags_same types_same instantiate_over_variants_subvariants
     proof (intro u_t_sum)
-      show "(tag, instantiate \<tau>s t, False) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts')"
-        using image_iff tag_in_ts tags_same
-        sorry
+      have "(tag, t, False) \<in> set ts'"
+        using distinct_fst_ts' tag_in_ts tags_same taken_subcond types_same variant_element_subtyping_mapping
+        by fastforce
+      then show "(tag, instantiate \<tau>s t, False) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts')"
+        using image_iff by fastforce
     next
       have "[] \<turnstile>* map (fst \<circ> snd) (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) ts') :\<kappa> k"
         using ts_wellformed substitutivity(1) u_sem_con.prems kinding_all_set by simp
       then show "[] \<turnstile>* map (fst \<circ> snd) (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) ts') wellformed"
         by auto
-    next
-      have f1: "((\<lambda>(n, t, _). (n, type_repr t)) \<circ> (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) = (\<lambda>(n, t, _). (n, type_repr (instantiate \<tau>s t)))"
-        by fastforce
-      have f2: "(\<lambda>(n, t, _). (n, type_repr (instantiate \<tau>s t))) = (\<lambda>p. (fst p, (type_repr \<circ> (instantiate \<tau>s) \<circ> (fst \<circ> snd)) p))"
-        by fastforce
-
-      have "(map (type_repr \<circ> (instantiate \<tau>s) \<circ> (fst \<circ> snd)) ts) = (map (type_repr \<circ> (instantiate \<tau>s) \<circ> (fst \<circ> snd)) ts')"
-        using types_same map_map by metis
-      then have "map (\<lambda>(n, t, _). (n, type_repr (instantiate \<tau>s t))) ts =
-            map (\<lambda>(n, t, _). (n, type_repr (instantiate \<tau>s t))) ts'"
-        by (fastforce intro: pair_list_eqI simp add: f2 comp_def tags_same)
-      then show "map (\<lambda>(n, t, _). (n, type_repr t)) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts) =
-            map (\<lambda>(c, t, _). (c, type_repr t)) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts')"
-        by (simp add: f1)
     qed simp+
     then show ?thesis
       using r'_sub_r frame_w_w' \<tau>_is tag'_is ts_inst_is

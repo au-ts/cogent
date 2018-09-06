@@ -1296,14 +1296,17 @@ next
         and vsem_specialised_x: "\<xi>' , \<gamma>' \<turnstile> specialise \<tau>s x \<Down> xa"
       using u_sem_con.prems(1) Con by auto
 
-    obtain t k
-      where \<tau>_is: "\<tau> = TSum ts"
+    obtain t ts' k
+      where \<tau>_is: "\<tau> = TSum ts'"
         and typing_x: "\<Xi>, K, \<Gamma> \<turnstile> x : t"
         and tag_in_ts: "(tag, t, False) \<in> set ts"
-        and distinct_fst_ts: "distinct (map fst ts)"
-        and ts_wellformed: "K \<turnstile>* map (fst \<circ> snd) ts :\<kappa>  k"
+        and distinct_fst_ts: "distinct (map fst ts')"
+        and tags_same: "map fst ts = map fst ts'"
+        and types_same: "map (fst \<circ> snd) ts = map (fst \<circ> snd) ts'"
+        and taken_subcond: "list_all2 (\<lambda>x y. snd (snd y) \<longrightarrow> snd (snd x)) ts ts'"
+        and ts'_wellformed: "K \<turnstile>* map (fst \<circ> snd) ts' :\<kappa>  k"
       using typing_conE u_sem_con.prems(2) Con
-      by auto
+      by blast
 
     obtain r' w'
       where "\<Xi>, \<sigma>' \<turnstile> x'' \<sim> xa : instantiate \<tau>s t \<langle>r', w'\<rangle>"
@@ -1312,17 +1315,25 @@ next
       using u_sem_con.hyps(2) x_spec_is vsem_specialised_x typing_x u_sem_con.prems
       by blast
     then have "\<Xi>, \<sigma>' \<turnstile> USum tag x'' (map ((\<lambda>(n, t, _). (n, type_repr t)) \<circ> (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) ts)
-                        \<sim> VSum tag xa : TSum (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts) \<langle>r', w'\<rangle>"
-      using tag_in_ts  distinct_fst_ts
+                        \<sim> VSum tag xa : TSum (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts') \<langle>r', w'\<rangle>"
+      using distinct_fst_ts tags_same types_same instantiate_over_variants_subvariants
     proof (intro upd_val_rel_upd_val_rel_record.u_v_sum)
-      have "[] \<turnstile>* map (instantiate \<tau>s \<circ> (fst \<circ> snd)) ts :\<kappa>  k"
-        using substitutivity(2) u_sem_con.prems(3) ts_wellformed
+      have "(tag, t, False) \<in> set ts'"
+        using tag_in_ts distinct_fst_ts types_same tags_same taken_subcond
+          variant_element_subtyping_mapping
         by fastforce
-      then show "[] \<turnstile>* map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts) wellformed"
+      then show "(tag, instantiate \<tau>s t, False) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts')"
+        using image_iff by fastforce
+    next
+      have "[] \<turnstile>* map (instantiate \<tau>s \<circ> (fst \<circ> snd)) ts' :\<kappa>  k"
+        using substitutivity(2) u_sem_con.prems(3) ts'_wellformed
+        by fastforce
+      then show "[] \<turnstile>* map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts') wellformed"
         by force
-    qed force+
+    qed simp+
     then show ?thesis
       using r'_sub_r frame_w_w' v'_is \<tau>_is tag'_is ts_inst_is
+      apply simp
       by auto
   qed simp+
 next case u_sem_let
