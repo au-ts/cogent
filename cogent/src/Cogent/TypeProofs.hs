@@ -199,11 +199,13 @@ deepCtxTree mod ta (TyTrSplit f (lctx, l) (rctx, r)) =
 
 -- dodgy fix
 escapedFunName :: FunName -> String
-escapedFunName fn | '\'' `elem` fn = "[" ++ intercalate "," (map repr fn) ++ "]"
+escapedFunName fn | '\'' `elem` fn = "[" ++ intercalate "," (repr fn) ++ "]"
                   | otherwise = "''" ++ fn ++ "''"
-                  where binstr = printf "%08s" . flip (showIntAtBase 2 intToDigit . ord) []
-                        strint x = fst $ head $ readInt 2 (`elem` "10") digitToInt x
-                        repr x = printf "Char Nibble%X Nibble%X" (strint $ take 4 $ binstr x :: Int) (strint $ drop 4 $ binstr x :: Int)
+                  where
+                    repr :: String -> [String]
+                    repr x = if all isAscii x
+                                    then map (printf "char_of_nat %d" . ord) x
+                                    else error "Function anme contained a non-ascii char! Isabelle doesn't support this."
 
 funTypeCase :: NameMod -> Definition TypedExpr a -> [String] -> [String]
 funTypeCase mod (FunDef  _ fn _ _ _ _) ds = (escapedFunName fn ++ " := " ++ mod fn ++ "_type"):ds
