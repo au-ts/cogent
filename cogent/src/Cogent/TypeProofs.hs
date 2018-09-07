@@ -205,7 +205,7 @@ escapedFunName fn | '\'' `elem` fn = "[" ++ intercalate "," (repr fn) ++ "]"
                     repr :: String -> [String]
                     repr x = if all isAscii x
                                     then map (printf "char_of_nat %d" . ord) x
-                                    else error "Function anme contained a non-ascii char! Isabelle doesn't support this."
+                                    else error "Function name contained a non-ascii char! Isabelle doesn't support this."
 
 funTypeCase :: NameMod -> Definition TypedExpr a -> [String] -> [String]
 funTypeCase mod (FunDef  _ fn _ _ _ _) ds = (escapedFunName fn ++ " := " ++ mod fn ++ "_type"):ds
