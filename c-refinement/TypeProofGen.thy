@@ -13,6 +13,7 @@ theory TypeProofGen imports
   "../cogent/isa/ProofTrace"
 begin
 
+
 (* Convert ttyping subproofs to standard typing subproofs. *)
 lemma ttsplit_imp_split':
   "ttsplit k \<Gamma> splits xs \<Gamma>1 ys \<Gamma>2 \<Longrightarrow>
@@ -66,13 +67,13 @@ fun get_typing_tree ctxt f proof : thm Tree list =
          ("Trueprop (\<Xi>, fst " ^ f ^ "_type, (" ^ f ^ "_typetree, [Some (fst (snd " ^ f ^ "_type))])" ^
           "            T\<turnstile> " ^ f ^ " : snd (snd " ^ f ^ "_type))")
         |> Thm.cterm_of ctxt)
-       (map
-          (fn x => ((), x))
-          (asm_full_simp_tac (ctxt addsimps defs) 1 :: map (fn t => t ctxt) proof))
+       (let val hinted_tacs = map (fn (tag, t) => (SOME tag, t ctxt)) proof
+            val all_tacs = (NONE, asm_full_simp_tac (ctxt addsimps defs) 1) :: hinted_tacs
+          in all_tacs end)
        is_typing ctxt
      |> (fn r => case r of
             Right tr => tr
-          | Left _ => error ("get_typing_tree failed for function " ^ f))
+          | Left err => (@{print} err; error ("get_typing_tree failed for function " ^ f)))
   end
 
 fun simplify_thm ctxt thm =
@@ -113,7 +114,7 @@ type details = (thm list * thm Tree list * thm list)
 fun get_all_typing_details ctxt name script : details = let
     val tacs = TTyping_Tactics.mk_ttsplit_tacs_final name
         @{term "[] :: kind env"} ctxt script
-    val tacs' = map (fn f => fn ctxt => f ctxt 1) tacs
+    val tacs' = map (fn (tac, f) => (tac, fn ctxt => f ctxt 1)) tacs
     val orig_typing_tree = get_typing_tree ctxt name tacs'
     val typecorrect_thms = map (Goal.finish ctxt) (map tree_hd orig_typing_tree)
       |> map (simplify ctxt #> Thm.varifyT_global)

@@ -226,7 +226,7 @@ fun trace_solve_tac (ctxt : Proof.context)
                            , remaining_goals = subgoals0
                            } |> Left)
   else let
-    fun solve data goal subproofs_rev : 'data * ('tag TraceFailure, 'tag TraceSuccess) Either =
+    fun solve data goal subproofs_rev =
         case Thm.prems_of goal of
             [] => (data, TraceSuccess { goal = goal0
                                       , theorem = goal

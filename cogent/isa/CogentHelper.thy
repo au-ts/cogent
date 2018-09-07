@@ -393,11 +393,11 @@ fun typing (Const (@{const_name Var}, _) $ i) G _ hints = let
     val i = dest_nat i
     val thm = the_G G (nth G i)
     val thms = map_filter I G
-    val hints = (case typing_hint hints of
-                  ([], hints) => hints
+        val hints = (case typing_hint hints of
+                  (_, hints) => hints
                 | _ => raise HINTS ("too many tacs", hints))
   in ([RTac @{thm typing_var_weak[unfolded singleton_def Cogent.empty_def]},
-      RTac thm, simp, WeakeningTac thms, simp], hints) end
+                RTac thm, simp, WeakeningTac thms, simp], hints) end
   | typing (Const (@{const_name Struct}, _) $ _ $ xs) G ctxt hints
   = (case dest_all_vars xs of SOME ixs => let
     val hints = (case typing_hint hints of
@@ -482,11 +482,11 @@ fun mk_ttsplit_tacs nm k ctxt hints = let
   in tacs end
 
 fun mk_ttsplit_tacs_final nm k ctxt hints
-    = map interpret_tac (mk_ttsplit_tacs nm k ctxt hints)
+    = map (fn tac => (tac, interpret_tac tac)) (mk_ttsplit_tacs nm k ctxt hints)
 
 fun apply_ttsplit_tacs_simple nm ctxt hints
     = mk_ttsplit_tacs_final nm @{term "[] :: kind env"} ctxt hints
-    |> map (fn t => DETERM (t ctxt 1))
+    |> map (fn (_, t) => DETERM (t ctxt 1))
     |> EVERY
 
 fun tactic_debug_tac ctxt tacs = let
