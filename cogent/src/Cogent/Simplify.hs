@@ -285,7 +285,7 @@ emptyInScopeSet = flip V.repeat (Just Unknown)
 
 data VarDef t v = Unknown  -- new var introduced by other continuations that no out-expr is present
                 | BoundTo (OutExpr t v) OccInfo
-                -- | NotAmong [TagName]
+                -- \| NotAmong [TagName]
                 deriving (Show)
 
 data Context t v = Stop

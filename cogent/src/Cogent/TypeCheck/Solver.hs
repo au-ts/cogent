@@ -833,7 +833,7 @@ solveArithEqs es = either (Left . g) (Right . Ass.Assignment . IM.fromList . M.t
                  <$> getAssignments
   where
     g msg = __fixme $ mempty {unsats = [Goal [] (Unsat $ ArithConstraintsUnsatisfiable es msg)]}
-        -- ^^^ FIXME: we should try to produce much better error msgs / zilinc
+        -- \^ FIXME: we should try to produce much better error msgs / zilinc
     
     -- find a satisfying assignment to the equality constraints
     getAssignments :: Solver (Either String (M.Map String Integer))

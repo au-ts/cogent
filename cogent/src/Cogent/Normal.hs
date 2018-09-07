@@ -66,13 +66,13 @@ isNormal (E (Let _ e1 e2)) | __cogent_fnormalisation == ANF && isAtom e1 && isNo
                            | __cogent_fnormalisation `elem` [KNF, LNF] && isNormal e1 && isNormal e2 = True
 isNormal (E (LetBang vs _ e1 e2)) | isNormal e1 && isNormal e2 = True
 isNormal (E (Case e tn (l1,_,e1) (l2,_,e2))) | isVar e && isNormal e1 && isNormal e2 = True
-  -- | ANF <- __cogent_fnormalisation, isVar  e && isNormal e1 && isNormal e2 = True
-  -- | KNF <- __cogent_fnormalisation, isAtom e && isNormal e1 && isNormal e2 = True
+  -- \| ANF <- __cogent_fnormalisation, isVar  e && isNormal e1 && isNormal e2 = True
+  -- \| KNF <- __cogent_fnormalisation, isAtom e && isNormal e1 && isNormal e2 = True
 isNormal (E (If  c th el)) | isVar c  && isNormal th && isNormal el = True
 isNormal (E (Pop _ e1 e2)) | isVar e1 && isNormal e2 = True
 isNormal (E (Split _ p e)) | isVar p  && isNormal e  = True
-  -- | ANF <- __cogent_fnormalisation, isVar  p && isNormal e = True
-  -- | KNF <- __cogent_fnormalisation, isAtom p && isNormal e = True
+  -- \| ANF <- __cogent_fnormalisation, isVar  p && isNormal e = True
+  -- \| KNF <- __cogent_fnormalisation, isAtom p && isNormal e = True
 isNormal (E (Take _ rec fld e)) | isVar rec && isNormal e = True
 isNormal _ = False
 
@@ -136,7 +136,7 @@ normalise v   (E (Pop a e1 e2)) k
           withAssocSS v n n' $ \Refl -> k (SSuc (SSuc (sadd n n')))))
 normalise v   (E (Singleton e)) k = normaliseName v e $ \n e' -> k n (E $ Singleton e')
 normalise v   (E (Let a e1 e2)) k
-  | __cogent_fnormalisation `elem` [KNF, LNF]  -- || (__cogent_fnormalisation == ANF && __cogent_fcondition_knf && isCondition e1)
+  | __cogent_fnormalisation `elem` [KNF, LNF]  -- \ || (__cogent_fnormalisation == ANF && __cogent_fcondition_knf && isCondition e1)
   = do e1' <- normaliseExpr v e1
        E <$> (Let a e1' <$> (normalise (SSuc v) e2 $ \n -> case addSucLeft v n of Refl -> k (SSuc n)))
   | __cogent_fnormalisation == ANF

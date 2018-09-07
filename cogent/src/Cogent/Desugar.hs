@@ -88,7 +88,7 @@ makeLenses ''DsState
 
 newtype DS (t :: Nat) (v :: Nat) a = DS { runDS :: RWS (Typedefs, Constants, [Pragma])
                                                        (Last (Typedefs, Constants, [CoreConst UntypedExpr]))
-                                                       -- ^ NOTE: it's a hack to export the reader! / zilinc
+                                                       -- \^ NOTE: it's a hack to export the reader! / zilinc
                                                        (DsState t v)
                                                        a }
                                    deriving (Functor, Applicative, Monad,
@@ -590,7 +590,7 @@ desugarExpr (B.TE t (S.Tuple (e1:e2:es)) _) | not __cogent_ftuples_as_sugar = __
   --     e2' = B.TE t2' $ S.Tuple (e2:es)
   -- desugarExpr $ B.TE (S.RT $ S.TTuple [t1,t2']) $ S.Tuple [e1,e2']
 -- desugarExpr (B.TE _ (S.Tuple (reverse -> (e:es)))) | B.TE _ (S.Tuple _) <- e = __impossible "desugarExpr"
-desugarExpr (B.TE _ (S.Tuple es) _) = E . Struct <$> (P.zip (P.map (('p':) . show) [1 :: Integer ..]) <$> mapM desugarExpr es)  -- | __cogent_ftuples_as_sugar
+desugarExpr (B.TE _ (S.Tuple es) _) = E . Struct <$> (P.zip (P.map (('p':) . show) [1 :: Integer ..]) <$> mapM desugarExpr es)  -- \| __cogent_ftuples_as_sugar
 desugarExpr (B.TE _ (S.UnboxedRecord fs) _) = E . Struct <$> mapM (\(f,e) -> (f,) <$> desugarExpr e) fs
 desugarExpr (B.TE _ (S.Let [] e) _) = __impossible "desugarExpr (Let)"
 desugarExpr (B.TE _ (S.Let [S.Binding p mt e0 []] e) _) = desugarAlt' e0 (S.PIrrefutable p) e
@@ -629,7 +629,7 @@ desugarExpr (B.TE t (S.Put e (fa@(Just (f0,_)):fas)) l) = do
 desugarExpr (B.TE t (S.Upcast e) _) = E <$> (Cast <$> desugarType t <*> desugarExpr e)
 -- desugarExpr (B.TE t (S.Widen  e) _) = E <$> (Cast <$> desugarType t <*> desugarExpr e)
 desugarExpr (B.TE t (S.Annot e tau) _) = E <$> (Promote <$> desugarType tau <*> desugarExpr e)
-  -- ^^^ NOTE [How to handle type annotations?]
+  -- \ ^^^ NOTE [How to handle type annotations?]
   -- We need to insert a `Promote' node here, even the type of `e' is the same
   -- as the annotated type `tau'. The reason is, the core-tc will infer `e''s type
   -- to be the "smallest", if `e' is a data constructor. This could render the type
