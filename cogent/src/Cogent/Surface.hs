@@ -443,6 +443,20 @@ fcT (RT (TCon n ts _)) = n : foldMap fcT ts
 fcT (RT (TArray t e)) = fcT t ++ fcE e
 fcT (RT t) = foldMap fcT t
 
+tvT :: RawType -> [TyVarName]
+tvT (RT (TCon _ ts _)) = foldMap tvT ts
+tvT (RT (TVar v _)) = [v]
+tvT (RT (TFun t1 t2)) = tvT t1 ++ tvT t2
+tvT (RT (TRecord fs _)) = foldMap (tvT . fst . snd) fs
+tvT (RT (TVariant alts)) = foldMap (foldMap tvT . fst) alts
+tvT (RT (TTuple ts)) = foldMap tvT ts
+tvT (RT (TUnit)) = []
+tvT (RT (TArray t e)) = tvT t  -- TODO: tvE
+tvT (RT (TUnbox   t)) = tvT t
+tvT (RT (TBang    t)) = tvT t
+tvT (RT (TTake  _ t)) = tvT t
+tvT (RT (TPut   _ t)) = tvT t
+
 -- -----------------------------------------------------------------------------
 
 stripLocT :: LocType -> RawType

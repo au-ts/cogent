@@ -103,9 +103,12 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
   (AbsDec n (PT ps (stripLocT -> t))) -> do
     traceTc "tc" $ bold (text $ replicate 80 '=')
     traceTc "tc" (text "typecheck abstract function" <+> pretty n)
-    let vs' = map fst ps
-        xs = vs' \\ nub vs'
+    let vs = map fst ps
+        xs = vs \\ nub vs
     unless (null xs) $ logErrExit $ DuplicateTypeVariable xs
+    let tvs = nub (tvT t)  -- type variables appearing to `t'
+        ys = vs \\ tvs     -- we know `vs' has no duplicates
+    unless (null ys) $ logErrExit $ SuperfluousTypeVariable ys
     t' <- validateType (map fst ps) t
     lift . lift $ knownFuns %= M.insert n (PT ps t')
     t'' <- postT t'
@@ -148,6 +151,9 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     let vs' = map fst vs
         xs = vs' \\ nub vs'
     unless (null xs) $ logErrExit $ DuplicateTypeVariable xs
+    let tvs = nub (tvT t)  -- type variables appearing to `t'
+        ys = vs' \\ tvs    -- we know `vs' has no duplicates
+    unless (null ys) $ logErrExit $ SuperfluousTypeVariable ys
     base <- lift . lift $ use knownConsts
     let ctx = C.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) C.empty
     let ?loc = loc

@@ -71,6 +71,7 @@ data TypeError = FunctionNotFound VarName
                | NotAFunctionType TCType
                | DuplicateRecordFields [FieldName]
                | DuplicateTypeVariable [VarName]
+               | SuperfluousTypeVariable [VarName]
                | TakeFromNonRecordOrVariant (Maybe [FieldName]) TCType
                | PutToNonRecordOrVariant    (Maybe [FieldName]) TCType
                | TakeNonExistingField FieldName TCType
