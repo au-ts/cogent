@@ -46,6 +46,7 @@ module Cogent.ShallowHaskell (
 , shallowTypeDef
 , shallowConst
   -- * Type generation
+  -- $containment
 , typeStr
 , isRecOrVar
 , typeComponents, typeStrFields
@@ -71,6 +72,7 @@ module Cogent.ShallowHaskell (
   -- * Naming convensions
 , keywords
 , snm
+, tagName
 , recTypeName, varTypeName
 , typeParam 
 ) where
@@ -175,6 +177,11 @@ snm :: String -> String
 snm s | s `elem` keywords = s ++ "_"
 snm s = s
 
+-- | Constructs a Haskell data constructor name according to the 
+--   type constructor name and the tag name. (See NOTE [How to deal with variant
+--   types]: "Cogent.ShallowHaskell#containment")
+tagName :: String -> String -> String
+tagName tn tag = tn ++ '_':tag
 
 -- ----------------------------------------------------------------------------
 -- Type generators
@@ -230,6 +237,23 @@ nominalTypeStr st = do
     Nothing -> __impossible "should find a type"
     Just tn -> pure (tn, typeStrFields st)
 
+
+-- $containment #containment#
+-- __NOTE:__ [How to deal with variant types] / zilinc
+--
+-- Containment doesn\'t mean Cogent subtyping relations. Instead, they refer to a relation mainly
+-- for variant types that /doesn\'t/ form a subtyping relation. For example, @\<A a | B b\>@ is
+-- /contained/ in a larger type @\<A a | B b | C c\>@. We need to keep track of these relations as
+-- in Haskell, data constructors can not duplicate. Two different solutions will work: 
+--
+--   1. Generate different names for duplicate constructors;
+--
+--   2. When a smaller type is used, we use a larger type instead and leave some of the alternatives
+--      impossible to happen.
+--
+-- As of now, I prefer 1 over 2, as it will not create partial functions which might complicate
+-- Isabelle verification. The downside, however, is that names look ugly.
+
 -- $type_gen
 -- For examples, if we have @type X a b = {f1:a, f2:{g1:b, g2:T}}@ defined in Cogent,
 -- and we know from the env that @S t1 t2 = {f1:t1, f2:t2}@ and @P t3 t3 = {g1:t3, g2:t4}@,
@@ -273,7 +297,7 @@ decTypeStr (VariantStr tags) = do
   vn <- freshInt <<+= 1
   let tn = varTypeName ++ show vn
       tvns = P.zipWith (\_ n -> mkName $ typeParam ++ show n) tags [1::Int ..]
-      cs = P.zipWith (\tag n -> QualConDecl () Nothing Nothing $ ConDecl () (mkName tag) [mkVarT n]) tags tvns
+      cs = P.zipWith (\tag n -> QualConDecl () Nothing Nothing $ ConDecl () (mkName (tagName tn tag)) [mkVarT n]) tags tvns
       dec = DataDecl () (DataType ()) Nothing (mkDeclHead (mkName tn) tvns) cs
 #if MIN_VERSION_haskell_src_exts(1,20,0)
               []
@@ -435,9 +459,10 @@ shallowExpr (TE _ (CC.Op opr es)) = shallowPrimOp <$> pure opr <*> (mapM shallow
 
 shallowExpr (TE _ (CC.App f arg)) = mkAppE <$> shallowExpr f <*> (mapM shallowExpr [arg])
 
-shallowExpr (TE _ (CC.Con cn e _))  = do
+shallowExpr (TE t (CC.Con cn e _))  = do
   e' <- shallowExpr e
-  pure $ mkAppE (mkConE $ mkName cn) [e']
+  (tn,_) <- nominalType t
+  pure $ mkAppE (mkConE $ mkName (tagName tn cn)) [e']
 
 shallowExpr (TE _ (CC.Unit)) = pure $ HS.Con () $ Special () $ UnitCon ()
 shallowExpr (TE _ (CC.ILit n pt)) = pure $ shallowILit n pt
@@ -468,16 +493,19 @@ shallowExpr (TE t (CC.Case e tag (_,n1,e1) (_,n2,e2))) = do
   n2' <- getSafeBinder n2
   e1' <- local (addBindings [(n1,n1')] . pushScope) $ shallowExpr e1
   e2' <- local (addBindings [(n2,n2')] . pushScope) $ shallowExpr e2
-  let c1 = HS.Alt () (PApp () (UnQual () $ mkName tag) [mkVarP $ mkName $ snm n1']) (UnGuardedRhs () e1') Nothing
+  (tn,_) <- nominalType (exprType e)
+  let c1 = HS.Alt () (PApp () (UnQual () $ mkName (tagName tn tag)) [mkVarP $ mkName $ snm n1']) (UnGuardedRhs () e1') Nothing
       c2 = HS.Alt () (mkVarP . mkName $ snm n2') (UnGuardedRhs () e2') Nothing
   pure $ HS.Case () e' [c1,c2]
 
 shallowExpr (TE t (CC.Esac e)) = do
-  let (CC.TSum alts) = exprType e
-      [(f,_)] = filter (not . snd . snd) alts
+  let te@(CC.TSum alts) = exprType e
+      [(tag,_)] = filter (not . snd . snd) alts
+  (tn,_) <- nominalType te
   vn <- freshInt <<+= 1
   let v = mkName $ internalVar ++ show vn
-  mkAppE (Lambda () [PApp () (UnQual () . mkName $ snm f) [mkVarP v]] (mkVarE v)) <$> ((:[]) <$> shallowExpr e)
+  mkAppE (Lambda () [PApp () (UnQual () . mkName $ snm (tagName tn tag)) [mkVarP v]] (mkVarE v)) <$>
+    ((:[]) <$> shallowExpr e)
 
 shallowExpr (TE _ (CC.Split (n1,n2) e1 e2)) = do
   n1' <- getSafeBinder n1
