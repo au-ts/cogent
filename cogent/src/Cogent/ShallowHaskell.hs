@@ -550,8 +550,6 @@ shallowTypeDef tn tvs t = do
   t' <- shallowType t
   pure $ TypeDecl () (mkDeclHead (mkName tn) (P.map (mkName . snm) tvs)) t'
 
--- TODO: abstract definitions should be generated in a separate file, so that
--- users' change to the .hs file won't get overwritten by later compilations
 shallowDefinition :: CC.Definition TypedExpr VarName -> SG [Decl ()]
 shallowDefinition (CC.FunDef _ fn ps ti to e) =
     local (typarUpd typar) $ do
@@ -613,13 +611,17 @@ shallow :: Bool    -- ^ Whether we recover the tuple syntax for tuple types.
         -> String                             -- ^ The log header to be included in the generated code
         -> String
 shallow tuples name stg defs consts log =
-  let (decs,w) = evalRWS (runSG (shallowTypesFromTable >> ((++) <$> concatMapM shallowConst consts <*> shallowDefinitions defs)))
-                         (ReaderGen (st defs) [] tuples [])
-                         (StateGen 0 M.empty)
+  let (decls,w) = evalRWS (runSG $ do shallowTypesFromTable
+                                      cs <- concatMapM shallowConst consts
+                                      ds <- shallowDefinitions defs
+                                      return $ cs ++ ds
+                               )
+                               (ReaderGen (st defs) [] tuples [])
+                               (StateGen 0 M.empty)
       tds = datatypes w
       header = (("{-\n" ++ log ++ "\n-}\n") ++)
-      shhs = name ++ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage stg ++ (if tuples then __cogent_suffix_of_recover_tuples else [])
-      mh = ModuleHead () (ModuleName () shhs) Nothing Nothing
+      hsName = name ++ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage stg ++ (if tuples then __cogent_suffix_of_recover_tuples else [])
+      moduleHead = ModuleHead () (ModuleName () hsName) Nothing Nothing
       exts = P.map (\s -> LanguagePragma () [Ident () s]) 
                    [ "DisambiguateRecordFields"
                    , "DuplicateRecordFields"
@@ -641,10 +643,12 @@ shallow tuples name stg defs consts log =
              , ImportDecl () (ModuleName () "Data.Word") False False False Nothing Nothing (Just $ ImportSpecList () False import_word)
              , ImportDecl () (ModuleName () "Prelude"  ) False False False Nothing Nothing (Just $ ImportSpecList () False import_prelude)
              ]
-      in header $ prettyPrintStyleMode
-                    (style {lineLength = 220, ribbonsPerLine = 0.1})  -- if using https://github.com/zilinc/haskell-src-exts, no need for very long lines
-                    (defaultMode {caseIndent = 2})
-                    (Module () (Just mh) exts imps $ decs ++ tds)
+      hsModule = Module () (Just moduleHead) exts imps decls
+      in hsModule & header . 
+           prettyPrintStyleMode
+             (style {lineLength = 220, ribbonsPerLine = 0.1})
+             -- \ ^ if using https://github.com/zilinc/haskell-src-exts, no need for very long lines
+             (defaultMode {caseIndent = 2})
 
 -- ----------------------------------------------------------------------------
 -- Below are smart constructors for Language.Haskell.Exts.Syntax

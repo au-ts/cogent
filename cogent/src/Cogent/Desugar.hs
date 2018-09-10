@@ -120,6 +120,9 @@ desugar tls ctygen pragmas =
         
     go :: S.TopLevel S.RawType B.TypedPatn B.TypedExpr -> DS 'Zero 'Zero [Definition UntypedExpr VarName]
     go x = do put initialState
+              -- \ ^^^ NOTE: We need to set the oracle to 0 for every top-level definition, as in the 
+              -- ShallowHaskell module we assume each top-level function have bound variable 0 (de Bruijn)
+              -- of name `freshVarPrefix ++ "0"' / zilinc
               x' <- lamLftTlv x
               typCtx .= Nil; varCtx .= Nil;
               def' <- desugarTlv x' pragmas  -- it generates a few more lifted functions
