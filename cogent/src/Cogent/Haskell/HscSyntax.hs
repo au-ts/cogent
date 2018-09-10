@@ -9,7 +9,7 @@
 --
 
 
-module Cogent.HscSyntax where
+module Cogent.Haskell.HscSyntax where
 
 import Cogent.Compiler (__impossible)
 

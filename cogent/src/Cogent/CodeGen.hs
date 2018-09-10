@@ -47,7 +47,7 @@ import           Cogent.Common.Types   as Typ
 import           Cogent.Core           as CC
 import           Cogent.Deep
 import qualified Cogent.DList          as DList
-import qualified Cogent.HscSyntax      as Hsc
+import qualified Cogent.Haskell.HscSyntax     as Hsc
 import           Cogent.Inference             (kindcheck_)
 import           Cogent.Mono                  (Instance)
 import           Cogent.Normal                (isAtom)
@@ -122,7 +122,7 @@ data CType = CInt Bool CIntType    -- true is signed
            | CEnum CId
            | CPtr CType
            | CArray CType CArraySize
-           -- | CBitfield Bool c  -- True for signed field
+           -- \ | CBitfield Bool c  -- True for signed field
            | CIdent CId
            | CFunction CType CType
            | CVoid
@@ -160,7 +160,7 @@ data CExpr = CBinOp CBinOp CExpr CExpr
            | CSizeofTy CType
            | CEFnCall CExpr [CExpr]
            | CCompLit CType [([CDesignator], CInitializer)]
-           -- | CArbitrary (CType CExpr)
+           -- \ | CArbitrary (CType CExpr)
            | CMKBOOL CExpr
            deriving (Eq, Ord, Show)
 
@@ -249,11 +249,11 @@ type CUnOp     = C.UnOp
 
 data CStmt = CAssign CExpr CExpr
            | CAssignFnCall (Maybe CExpr) CExpr [CExpr]  -- lval, fn, args
-           -- | CChaos     CExpr
-           -- | CEmbFnCall CExpr CExpr [CExpr] -- lval, fn, args
+           -- \ | CChaos     CExpr
+           -- \ | CEmbFnCall CExpr CExpr [CExpr] -- lval, fn, args
            | CBlock [CBlockItem]
            | CWhile CExpr CStmt  -- elide `string wrap option'
-           -- | CTrap CTrappable CStmt
+           -- \ | CTrap CTrappable CStmt
            | CReturn (Maybe CExpr)
            | CReturnFnCall CExpr [CExpr]
            | CBreak
@@ -262,7 +262,7 @@ data CStmt = CAssign CExpr CExpr
            | CSwitch CExpr [(Maybe CExpr, CStmt)]  -- simplified
            | CEmptyStmt
            -- elide `Auxupd' `Ghostupd' `Spec' and `AsmStmt'
-           -- | CLocalInit CExpr
+           -- \ | CLocalInit CExpr
            | CComment String CStmt  -- to accommodate comments
            deriving (Show)
 
@@ -1133,8 +1133,13 @@ fnSpecKind ti to = (if | isTypeHasKind ti k2 && isTypeHasKind to k2 -> fnSpecAtt
 fnSpecAttrConst (FnSpec st tq ats) = FnSpec st tq (GccAttrs [GccAttr "const" []]:ats)
 fnSpecAttrPure  (FnSpec st tq ats) = FnSpec st tq (GccAttrs [GccAttr "pure"  []]:ats)
 
-
-genFfiFunc :: CType -> CId -> [CType] -> Gen 'Zero [CExtDecl]
+-- | This function generates an FFI function for a Cogent function if it's input
+--   or output type is not marshallable. See [Haskell2010 Standard](https://www.haskell.org/onlinereport/haskell2010/haskellch8.html#x15-1570008.4.2) 
+--   for a description of marshallable types.
+genFfiFunc :: CType                 -- ^ return type of a function
+           -> CId                   -- ^ function name
+           -> [CType]               -- ^ function argument types
+           -> Gen 'Zero [CExtDecl]  -- ^ generate a list of function prototypes and definitions
 genFfiFunc rt fn [t]
     | [rtm,tm] <- map isPotentiallyUnmarshallable [rt,t], or [rtm,tm] = do
         arg <- freshLocalCId 'a'
@@ -1248,7 +1253,7 @@ gen hfn defs ctygen insts log =
       tsyns' = M.toList $ st ^. typeSynonyms
       absts' = M.toList $ st ^. absTypes
       tycorr = reverse $ DList.toList $ st ^. typeCorres
-      gn = L.map (\c -> if not (isAlphaNum c) then '_' else toUpper c) hfn ++ "__"
+      gn = L.map (\c -> if not (isAlphaNum c) then '_' else toUpper c) hfn ++ "__"  -- guard name
       tdefs'' = concat (map (flip genTyDecl tns) tdefs')
   in (L.map (\l -> C.EscDef ("// " ++ l) noLoc) (lines log) ++
       C.EscDef "" noLoc :
@@ -1277,6 +1282,7 @@ gen hfn defs ctygen insts log =
       absts',  -- table of abstract types
       map TableCTypes tycorr,  -- table of Cogent types |-> C types
       hscModule "FFI" "FIXME: user supplied" tdefs'' (enum ++ fenums),  -- FFI file in hsc
+      -- \ ^^^ FIXME: Which file should the user supply? / zilinc
       st''
      )
 
@@ -1285,9 +1291,6 @@ gen hfn defs ctygen insts log =
 -- Haskell FFI generator
 
 -- Generate hsc2hs
-
-
-
 
 hscModule :: String -> String -> [CExtDecl] -> [CExtDecl] -> Hsc.HscModule
 hscModule name cname ctys cenums =
@@ -1357,9 +1360,9 @@ hscPrimType t = Hsc.TyCon (toHscName $ primCId t) []
 
 hscPtr = "ptr"
 
-
+-- | generate 'Foreign.Storable.Storable' instances
 hscStorageInst :: CExtDecl -> Maybe Hsc.Declaration
-hscStorageInst (CDecl (CStructDecl n flds)) = Just . Hsc.HsDecl $ Hsc.InstDecl "Storage" [] (Hsc.TyCon (toHscName n) []) bindings
+hscStorageInst (CDecl (CStructDecl n flds)) = Just . Hsc.HsDecl $ Hsc.InstDecl "Storable" [] (Hsc.TyCon (toHscName n) []) bindings
   where bindings = [sizeof, alignement, peek, poke]
         sizeof = Hsc.Binding "sizeOf" [Hsc.PUnderscore] $ Hsc.EHsc Hsc.HashSize [n]
         alignement = Hsc.Binding "alignment" [Hsc.PUnderscore] $ Hsc.EHsc Hsc.HashAlignment [n]

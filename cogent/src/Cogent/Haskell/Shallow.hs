@@ -31,7 +31,7 @@
 --   4. No unused constants which have types which are otherwise absent in the code
 
 
-module Cogent.ShallowHaskell (
+module Cogent.Haskell.Shallow (
   shallow
   -- * Contexts
 , SG (..)

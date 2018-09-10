@@ -27,41 +27,41 @@
 
 module Main where
 
-import Cogent.ACInstall      as AC (acInstallDefault)
-import Cogent.AllRefine      as AR (allRefine)
-import Cogent.CallGraph      as CF (daX86, printIntel)
-import Cogent.CodeGen        as CG (gen, printCTable, printATM)
+import Cogent.ACInstall       as AC (acInstallDefault)
+import Cogent.AllRefine       as AR (allRefine)
+import Cogent.CallGraph       as CF (daX86, printIntel)
+import Cogent.CodeGen         as CG (gen, printCTable, printATM)
 import Cogent.Compiler
-import Cogent.Core           as CC (isConFun, getDefinitionId, untypeD)  -- FIXME: zilinc
-import Cogent.CorresProof    as CP (corresProof)
-import Cogent.CorresSetup    as CS (corresSetup)
-import Cogent.Deep           as DP (deep)
-import Cogent.Desugar        as DS (desugar)
-import Cogent.DocGent        as DG (docGent)
+import Cogent.Core            as CC (isConFun, getDefinitionId, untypeD)  -- FIXME: zilinc
+import Cogent.CorresProof     as CP (corresProof)
+import Cogent.CorresSetup     as CS (corresSetup)
+import Cogent.Deep            as DP (deep)
+import Cogent.Desugar         as DS (desugar)
+import Cogent.DocGent         as DG (docGent)
 import Cogent.GetOpt
-import Cogent.Glue           as GL (defaultExts, defaultTypnames, GlState, glue, GlueMode(..), mkGlState, parseFile, parseFile')
-import Cogent.Hangman              (hangman)
-import Cogent.Inference      as IN (tc, tc_, tcConsts, retype)
-import Cogent.Mono           as MN (mono, printAFM)
-import Cogent.MonoProof      as MP  -- FIXME: zilinc
-import Cogent.Normal         as NF (normal, verifyNormal)
-import Cogent.NormalProof    as NP (normalProof)
-import Cogent.Parser         as PA (parseWithIncludes, parseCustTyGen)
-import Cogent.Preprocess     as PR
-import Cogent.PrettyPrint    as PP (prettyPrint, prettyRE, prettyTWE)
-import Cogent.Reorganizer    as RO (reorganize)
-import Cogent.Root           as RT (root)
-import Cogent.Shallow        as SH (shallowConsts, shallow, shallowTuplesProof)
-import Cogent.ShallowHaskell as SHHS
-import Cogent.ShallowTable   as ST (st, printTable)  -- for debugging only
-import Cogent.Simplify       as SM
-import Cogent.SuParser       as SU (parse)
-import Cogent.Surface        as SR (stripAllLoc)
-import Cogent.TypeCheck      as TC (tc)
-import Cogent.TypeCheck.Base as TC
-import Cogent.TypeProofs     as TP (deepTypeProof)
-import Cogent.GraphGen       as GG
-import Cogent.Util           as UT
+import Cogent.Glue            as GL (defaultExts, defaultTypnames, GlState, glue, GlueMode(..), mkGlState, parseFile, parseFile')
+import Cogent.Hangman               (hangman)
+import Cogent.Haskell.Shallow as HS
+import Cogent.Inference       as IN (tc, tc_, tcConsts, retype)
+import Cogent.Mono            as MN (mono, printAFM)
+import Cogent.MonoProof       as MP  -- FIXME: zilinc
+import Cogent.Normal          as NF (normal, verifyNormal)
+import Cogent.NormalProof     as NP (normalProof)
+import Cogent.Parser          as PA (parseWithIncludes, parseCustTyGen)
+import Cogent.Preprocess      as PR
+import Cogent.PrettyPrint     as PP (prettyPrint, prettyRE, prettyTWE)
+import Cogent.Reorganizer     as RO (reorganize)
+import Cogent.Root            as RT (root)
+import Cogent.Shallow         as SH (shallowConsts, shallow, shallowTuplesProof)
+import Cogent.ShallowTable    as ST (st, printTable)  -- for debugging only
+import Cogent.Simplify        as SM
+import Cogent.SuParser        as SU (parse)
+import Cogent.Surface         as SR (stripAllLoc)
+import Cogent.TypeCheck       as TC (tc)
+import Cogent.TypeCheck.Base  as TC
+import Cogent.TypeProofs      as TP (deepTypeProof)
+import Cogent.GraphGen        as GG
+import Cogent.Util            as UT
 
 -- import BuildInfo_cogent (githash, buildtime)
 #if __GLASGOW_HASKELL__ < 709
@@ -878,8 +878,8 @@ parseArgs args = case getOpt' Permute options args of
           (shal,shrd,scorr,shallowTypeNames) = SH.shallow False thy stg defns log
           (shal_tup,shrd_tup,_,_) = SH.shallow True thy STGDesugar defns log
           constsTypeCheck = IN.tcConsts (sel3 $ fromJust $ getLast typedefs) fts
-          shalhs     consts = SHHS.shallow False thy stg defns consts log  -- experimental!!!
-          shalhs_tup consts = SHHS.shallow True  thy stg defns consts log  -- experimental!!!
+          shalhs     consts = HS.shallow False thy stg defns consts log  -- experimental!!!
+          shalhs_tup consts = HS.shallow True  thy stg defns consts log  -- experimental!!!
           tup_proof_thy = shallowTuplesProof thy
                             (mkProofName source (Just $ __cogent_suffix_of_shallow_shared))
                             (mkProofName source (Just $ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage stg))

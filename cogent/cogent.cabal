@@ -62,7 +62,8 @@ library
               , Cogent.Glue
               , Cogent.GraphGen
               , Cogent.Hangman
-              , Cogent.HscSyntax
+              , Cogent.Haskell.HscSyntax
+              , Cogent.Haskell.Shallow
               , Cogent.Inference
               , Cogent.Mono
               , Cogent.MonoProof
@@ -76,7 +77,6 @@ library
               , Cogent.ReprCheck
               , Cogent.Root
               , Cogent.Shallow
-              , Cogent.ShallowHaskell
               , Cogent.ShallowTable
               , Cogent.Simplify
               , Cogent.SuParser
