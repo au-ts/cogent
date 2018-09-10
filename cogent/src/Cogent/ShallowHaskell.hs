@@ -83,6 +83,7 @@ import Cogent.Compiler
 import qualified Cogent.Core as CC
 import Cogent.Core (TypedExpr(..))
 import Cogent.Desugar as D (freshVarPrefix)
+import Cogent.PrettyPrint ()
 import Cogent.Shallow (isRecTuple)
 import Cogent.ShallowTable (TypeStr(..), st)
 import qualified Cogent.Surface as S
@@ -110,6 +111,7 @@ import Language.Haskell.Exts.Syntax as HS
 -- import Language.Haskell.HS.Ppr    as PP
 -- import Language.Haskell.HS.PprLib as PP
 import Prelude as P
+import Text.PrettyPrint.ANSI.Leijen (pretty)
 
 -- import Debug.Trace
 
@@ -529,8 +531,9 @@ shallowExpr (TE _ (CC.Take (n1,n2) rec fld e)) = do
 shallowExpr (TE _ (CC.Put rec fld e))
   = shallowSetter rec fld <$> shallowExpr rec <*> shallowType (exprType rec) <*> shallowExpr e
 
-shallowExpr (TE _ (CC.Promote (CC.TSum {}) e)) = shallowExpr e
-shallowExpr (TE _ (CC.Promote _ e)) = __impossible "shallowExpr: invalid Promote"
+shallowExpr (TE _ (CC.Promote _ e)) = shallowExpr e  
+-- \ ^^^ NOTE: We guarantee that `Promote' doesn't change the underlying presentation, thus
+-- we don't can what type we promote to here. / zilinc
 
 shallowExpr (TE _ (CC.Cast    t e)) = do
   e' <- shallowExpr e

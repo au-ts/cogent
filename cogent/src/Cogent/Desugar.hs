@@ -119,7 +119,7 @@ desugar tls ctygen pragmas =
     initialState  = DsState Nil Nil 0 []
         
     go :: S.TopLevel S.RawType B.TypedPatn B.TypedExpr -> DS 'Zero 'Zero [Definition UntypedExpr VarName]
-    go x = do typCtx .= Nil; varCtx .= Nil; lftFun .= []
+    go x = do put initialState
               x' <- lamLftTlv x
               typCtx .= Nil; varCtx .= Nil;
               def' <- desugarTlv x' pragmas  -- it generates a few more lifted functions
