@@ -29,8 +29,9 @@ module Main where
 
 import Cogent.ACInstall       as AC (acInstallDefault)
 import Cogent.AllRefine       as AR (allRefine)
+import Cogent.C.Compile       as CG (printCTable, printATM)
 import Cogent.CallGraph       as CF (daX86, printIntel)
-import Cogent.CodeGen         as CG (gen, printCTable, printATM)
+import Cogent.CodeGen         as CG (cgen)
 import Cogent.Compiler
 import Cogent.Core            as CC (isConFun, getDefinitionId, untypeD)  -- FIXME: zilinc
 import Cogent.CorresProof     as CP (corresProof)
@@ -751,7 +752,7 @@ parseArgs args = case getOpt' Permute options args of
 
     cg cmds monoed ctygen insts source tced tcst typedefs fts buildinfo log = do
       let hfile = mkOutputName source Nothing <.> __cogent_ext_of_h
-          (h,c,atm,ct,hsc,genst) = gen hfile monoed ctygen (fst insts) log
+          (h,c,atm,ct,hsc,genst) = cgen hfile monoed ctygen (fst insts) log
       when (TableAbsTypeMono `elem` cmds) $ do
         let atmfile = mkFileName source Nothing __cogent_ext_of_atm
         putProgressLn "Generating table for monomorphised asbtract types..."

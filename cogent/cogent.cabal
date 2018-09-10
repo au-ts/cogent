@@ -44,6 +44,9 @@ library
   exposed-modules:
                 Cogent.ACInstall
               , Cogent.AllRefine
+              , Cogent.C.Compile
+              , Cogent.C.Render
+              , Cogent.C.Syntax
               , Cogent.CallGraph
               , Cogent.CodeGen
               , Cogent.Common.Syntax
@@ -62,6 +65,7 @@ library
               , Cogent.Glue
               , Cogent.GraphGen
               , Cogent.Hangman
+              , Cogent.Haskell.HscGen
               , Cogent.Haskell.HscSyntax
               , Cogent.Haskell.Shallow
               , Cogent.Inference

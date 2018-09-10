@@ -33,7 +33,9 @@
 
 module Cogent.Glue where
 
-import qualified Cogent.CodeGen as CG
+import qualified Cogent.C.Compile as CG
+import qualified Cogent.C.Render  as CG
+import qualified Cogent.C.Syntax  as CG
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler
@@ -216,7 +218,7 @@ desugarAnti :: (a -> DS.DS t 'Zero b) -> a -> GlDefn t b
 desugarAnti m a = view kenv >>= \(fmap fst -> ts) -> lift . lift $
   StateT $ \s -> let tdefs = view (dsState.typedefs ) s
                      cdefs = view (dsState.constdefs) s
-                  in return (fst (flip3 evalRWS (DS.DsState ts Nil 0 []) (tdefs, cdefs, []) $ DS.runDS $ m a), s)  -- FIXME: pragmas / zilinc
+                  in return (fst (flip3 evalRWS (DS.DsState ts Nil 0 0 []) (tdefs, cdefs, []) $ DS.runDS $ m a), s)  -- FIXME: pragmas / zilinc
 
 icAnti :: (a -> IN.TC t 'Zero b) -> a -> GlDefn t b
 icAnti m a = view kenv >>= \(fmap snd -> ts) -> lift . lift $

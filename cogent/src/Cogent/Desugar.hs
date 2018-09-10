@@ -80,7 +80,8 @@ type Enumerator = Int
 
 data DsState t v = DsState { _typCtx :: TypeVars t
                            , _varCtx :: TermVars v
-                           , _oracle :: Enumerator
+                           , _oracleLcl :: Enumerator
+                           , _oracleGbl :: Enumerator
                            , _lftFun :: [S.TopLevel S.RawType B.TypedPatn B.TypedExpr]  -- reversed
                            }
 
@@ -116,13 +117,16 @@ desugar tls ctygen pragmas =
        tell $ Last (Just (write^._1, write^._2, consts'))
        return (defs',ctygen')
   where 
-    initialState  = DsState Nil Nil 0 []
+    initialState  = DsState Nil Nil 0 0 []
         
     go :: S.TopLevel S.RawType B.TypedPatn B.TypedExpr -> DS 'Zero 'Zero [Definition UntypedExpr VarName]
-    go x = do put initialState
-              -- \ ^^^ NOTE: We need to set the oracle to 0 for every top-level definition, as in the 
+    go x = do gbl <- use oracleGbl
+              put initialState
+              oracleGbl .= gbl
+              -- \ ^^^ NOTE: We need to set the local oracle to 0 for every top-level definition, as in the 
               -- ShallowHaskell module we assume each top-level function have bound variable 0 (de Bruijn)
-              -- of name `freshVarPrefix ++ "0"' / zilinc
+              -- of name `freshVarPrefix ++ "0"'. The global oracle must __not__ be reset, as it's global.
+              -- / zilinc
               x' <- lamLftTlv x
               typCtx .= Nil; varCtx .= Nil;
               def' <- desugarTlv x' pragmas  -- it generates a few more lifted functions
@@ -152,18 +156,18 @@ freshVar :: DS t v VarName
 freshVar = P.head <$> freshVars 1
 
 freshVars :: Int -> DS t v [VarName]
-freshVars n = do x <- oracle <<%= (+n)
+freshVars n = do x <- oracleLcl <<%= (+n)
                  return $ P.map ((++) freshVarPrefix . show) $ P.take n (iterate (+1) x)
 
 freshFun :: FunName -> DS t v FunName
-freshFun f = do x <- oracle <<%= (+1)
-                return $ freshFunPrefix ++ f ++ show x
+freshFun f = do x <- oracleGbl <<%= (+1)
+                return $ freshFunPrefix ++ f ++ "_" ++ show x
 
 withTypeBinding :: TyVarName -> DS ('Suc t) v a -> DS t v a
 withTypeBinding t ds = do readers <- ask
                           st <- get
                           let (a, st', _) = flip3 runRWS (st & typCtx %~ Cons t) readers $ runDS ds
-                          put $ st' & typCtx .~ st^.typCtx & oracle .~ st^.oracle
+                          put $ st' & typCtx .~ st^.typCtx & oracleLcl .~ st^.oracleLcl
                           return a
 
 withTypeBindings :: Vec k TyVarName -> DS (t :+: k) v a -> DS t v a
@@ -174,7 +178,7 @@ withBinding :: VarName -> DS t ('Suc v) a -> DS t v a
 withBinding v ds = do readers <- ask
                       st <- get
                       let (a, st', _) = flip3 runRWS (st & varCtx %~ Cons v) readers $ runDS ds
-                      put $ st' & varCtx .~ st^.varCtx & oracle .~ st^.oracle
+                      put $ st' & varCtx .~ st^.varCtx & oracleLcl .~ st^.oracleLcl
                       return a
 
 withBindings :: Vec k VarName -> DS t (v :+: k) x -> DS t v x
