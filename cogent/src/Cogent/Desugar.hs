@@ -484,10 +484,14 @@ desugarType = \case
   S.RT (S.TCon "Bool"   [] Unboxed) -> return $ TPrim Boolean
   S.RT (S.TCon "Char"   [] Unboxed) -> return $ TPrim U8
   S.RT (S.TCon "String" [] Unboxed) -> return $ TString
-  S.RT (S.TCon tn tvs s) -> TCon tn <$> mapM desugarType tvs <*> pure (desugarSigil s)
+  S.RT (S.TCon tn tvs s) -> TCon tn <$> mapM desugarType tvs <*> pure (desugarAbstractTypeSigil s)
   S.RT (S.TVar vn b)     -> (findIx vn <$> use typCtx) >>= \(Just v) -> return $ if b then TVarBang v else TVar v
   S.RT (S.TFun ti to)    -> TFun <$> desugarType ti <*> desugarType to
-  S.RT (S.TRecord fs s)  -> TRecord <$> mapM (\(f,(t,x)) -> (f,) . (,x) <$> desugarType t) fs <*> pure (desugarSigil s)
+  S.RT (S.TRecord fs Unboxed) -> TRecord <$> mapM (\(f,(t,x)) -> (f,) . (,x) <$> desugarType t) fs <*> pure Unboxed
+  S.RT (S.TRecord fs sigil)  -> do
+    unboxedDesugared@(TRecord fs' Unboxed) <- desugarType $ S.RT (S.TRecord fs Unboxed)
+    TRecord <$> pure fs' <*> pure (desugarSigil unboxedDesugared sigil)
+  
   S.RT (S.TVariant alts) -> TSum <$> mapM (\(c,(ts,x)) -> (c,) . (,x) <$> desugarType (group ts)) (M.toList alts)
     where group [] = S.RT S.TUnit
           group (t:[]) = t

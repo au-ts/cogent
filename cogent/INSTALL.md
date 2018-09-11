@@ -96,12 +96,17 @@ maintain a Stack build scheme.
 ```
 
 ### Testing on macOS
-To run Cogent examples and some tests, you need a GNU compatible version of `cpp` installed in your `PATH`. The default `cpp` installed on `macOS` isn't GNU compatible.
+To run Cogent examples and some tests, you need a GNU compatible version of `cpp` and `sed` installed in your `PATH`. The default `cpp` and `sed` installed on `macOS` isn't GNU compatible.
 
 A solution:
 1. Install Homebrew
-2. Run `brew install gcc`. This will create symlinks `gcc-8` and `cpp-8` (or whatever the latest gcc version number is) in `/usr/local/bin` to the newly installed version of `gcc`.
-3. Provided `ls /usr/local/bin/cpp` outputs `No such file or directory`, it should be safe to run `ln -s /usr/local/bin/cpp-8 /usr/local/bin/cpp`.
+2. Run `brew install gcc` and `brew install sed`
+3. Modify your `PATH` in your `bashrc` like
+```sh
+PATH="/usr/local/opt/gnu-sed/libexec/gnubin:$PATH"
+```
+to put the gnu version of `sed` in your path.
+4. Provided `ls /usr/local/bin/cpp` outputs `No such file or directory`, it should be safe to run `ln -s /usr/local/bin/cpp-8 /usr/local/bin/cpp`.
 4. If `which cpp` doesn't print `/usr/local/bin/cpp`, then running `export PATH=/usr/local/bin:$PATH` in any shell where you want run the examples will ensure that the correct version of `cpp` is used.
 
 Running `make examples` should now be successful.
