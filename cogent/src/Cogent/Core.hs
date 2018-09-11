@@ -68,13 +68,13 @@ data Type t
   = TVar (Fin t)
   | TVarBang (Fin t)
   | TVarUnboxed (Fin t)
-  | TCon TypeName [Type t] (Sigil (Maybe (DataLayout BitRange))) -- Layout will be nothing for abstract types
+  | TCon TypeName [Type t] (Sigil ()) -- Layout will be nothing for abstract types
   | TFun (Type t) (Type t)
   | TPrim PrimInt
   | TString
   | TSum [(TagName, (Type t, Bool))]  -- True means taken (since 2.0.4)
   | TProduct (Type t) (Type t)
-  | TRecord [(FieldName, (Type t, Bool))] (Sigil (Maybe (DataLayout BitRange)))  -- True means taken, Layout will be nothing for abstract types
+  | TRecord [(FieldName, (Type t, Bool))] (Sigil (DataLayout BitRange))  -- True means taken, Layout will be nothing for abstract types
   | TUnit
 #ifdef BUILTIN_ARRAYS
   | TArray (Type t) ArraySize  -- use Int for now
