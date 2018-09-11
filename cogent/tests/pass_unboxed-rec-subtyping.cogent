@@ -17,3 +17,5 @@ foo a = #{f1 = 8, f2 = a}
 
 bar : <None ()>
 bar = None ()
+
+dummy : <None ()> -> ()
