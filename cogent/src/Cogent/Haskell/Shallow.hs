@@ -376,7 +376,7 @@ nominalTypeStr :: TypeStr -> SG (TypeName, [String])
 nominalTypeStr st = do
   map <- use nominalTypes
   case M.lookup st map of
-    Nothing -> __impossible "should find a type"
+    Nothing -> __impossible "nominalTypeStr: please check all the assumptions at the top of this file are met."
     Just tn -> pure (tn, typeStrFields st)
 
 
