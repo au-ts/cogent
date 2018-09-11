@@ -33,6 +33,7 @@ import Data.List as L hiding (findIndex, maximum)
 import Data.Map as M hiding (findIndex, null)
 import Data.Maybe
 import Prelude as P hiding (maximum)
+import Cogent.Compiler (__fixme)
 
 -- import Debug.Trace
 
@@ -74,9 +75,9 @@ getStrlType tsmap table (TRecord fs s) =
   in case M.lookup tstr tsmap of
     Nothing ->
       let idx = findIndex tstr table
-      in TCon ('T':show idx) tps s
+      in TCon ('T':show idx) tps (fmap (\ _ -> ()) s) -- The DataLayout is not included in shallow embeddings /mdimeglio zilinc
     Just tn ->
-      TCon tn tps s
+      TCon tn tps  (fmap (\ _ -> ()) s) -- The DataLayout is not included in shallow embeddings /mdimeglio zilinc
 getStrlType _ _ t = t
 
 type ST = State [TypeStr]
