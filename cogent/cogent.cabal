@@ -69,6 +69,7 @@ library
               , Cogent.Haskell.HscSyntax
               , Cogent.Haskell.Shallow
               , Cogent.Inference
+              , Cogent.LeafTree
               , Cogent.Mono
               , Cogent.MonoProof
               , Cogent.Normal

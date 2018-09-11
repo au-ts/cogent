@@ -28,6 +28,7 @@ import Cogent.PrettyPrint
 import Cogent.Vec hiding (splitAt, length, zipWith, zip, unzip)
 import qualified Cogent.Vec as Vec
 import Cogent.Util
+import Cogent.LeafTree
 
 import Control.Lens (makeLenses, (%=), (.=), use)
 import Control.Monad.State.Strict
