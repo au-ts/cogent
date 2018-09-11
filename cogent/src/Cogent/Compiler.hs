@@ -322,6 +322,9 @@ __cogent_ext_of_h = "h"
 __cogent_ext_of_hs :: String
 __cogent_ext_of_hs = "hs"
 
+__cogent_ext_of_hsc :: String
+__cogent_ext_of_hsc = "hsc"
+
 __cogent_ext_of_thy :: String
 __cogent_ext_of_thy = "thy"
 
@@ -656,7 +659,9 @@ __cogent_root_dir_ref :: IORef FilePath
 {-# NOINLINE __cogent_root_dir_ref #-}
 __cogent_root_dir_ref = unsafePerformIO $ newIORef (cogentRelDir "." __cogent_dist_dir)
 
--- Naming conventions of theory files
+
+-- ----------
+-- Naming conventions for theory files
 
 -- TODO: zilinc
 
@@ -709,7 +714,14 @@ __cogent_suffix_of_stage s | s == STGDesugar = "_Desugar"
                          | otherwise       = __impossible "__cogent_suffix_of_stage"
 
 -- ----------
--- Naming conventions of antiquotation files
+-- Naming conventions for Hs files
+
+__cogent_suffix_of_ffi :: String
+__cogent_suffix_of_ffi = "_FFI"
+
+
+-- ----------
+-- Naming conventions for antiquotation files
 
 __cogent_suffix_of_pp :: String
 __cogent_suffix_of_pp = unsafePerformIO $ readIORef __cogent_suffix_of_pp_ref

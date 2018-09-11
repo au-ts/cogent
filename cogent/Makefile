@@ -183,6 +183,10 @@ test-hs:
 	$(E) "=== Generate Haskell shallow embedding and compile using GHC ==="
 	$(SCRIPTS_DIR)/cogent_validate.sh -hs-shallow
 
+test-hsc:
+	$(E) "=== Generate C FFI in .hsc form and compile with hsc2hs ==="
+	$(SCRIPTS_DIR)/cogent_validate.sh -hsc-gen
+
 test-libgum:
 	$(E) "=== Typechecking libgum ==="
 	$(SCRIPTS_DIR)/cogent_validate.sh -libgum
@@ -261,6 +265,9 @@ help:
 	$(E) ""
 	$(E) "* make test-hs"
 	$(E) "  Generate Haskell shallow embedding and compile with GHC."
+	$(E) ""
+	$(E) "* make test-hsc"
+	$(E) "  Generate C FFI in .hsc form and compile with hsc2hs."
 	$(E) ""
 	$(E) "* make test-libgum"
 	$(E) "  Run libgum Typechecking Tests."

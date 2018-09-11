@@ -30,15 +30,16 @@ import Data.Set as S
 import qualified "language-c-quote" Language.C as C (Definition)
 
 cgen :: FilePath
+     -> FilePath
      -> [Definition TypedExpr VarName]
      -> [(Type 'Zero, String)]
      -> M.Map FunName (M.Map Instance Int)
      -> String
      -> ([C.Definition], [C.Definition], [(TypeName, S.Set [CId])], [TableCTypes], HscModule, GenState)
-cgen hName defs ctygen insts log = 
+cgen hName proofName defs ctygen insts log = 
   let (enums,tydefns,fndecls,disps,tydefs,fndefns,absts,corres,st) = compile defs ctygen insts
       (h,c) = render hName (enums++tydefns++fndecls++disps++tydefs) fndefns log
-      hsc = hscModule "FFI" hName tydefns enums
+      hsc = hscModule proofName hName tydefns enums
    in (h,c,absts,corres,hsc,st)
 
 

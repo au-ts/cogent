@@ -31,7 +31,7 @@ fi
 # Usage
 long_usage()
 {
-    echo "Usage: $0 -[pp|tc|ds|an|mn|cg|gcc|tc-proof|ac|flags|ffi-gen|aq|shallow-proof|hs-shallow|examples|goanna|libgum|all|clean] [-q|-i|]"
+    echo "Usage: $0 -[pp|tc|ds|an|mn|cg|gcc|tc-proof|ac|flags|hsc-gen|aq|shallow-proof|hs-shallow|examples|goanna|libgum|all|clean] [-q|-i|]"
     echo 'Run (one or more) tests for the Cogent compilation tools.'
     echo '  -pp      Test the parser and the pretty-printer are roughly inverse of each other'
     echo '  -tc      Test type checking'
@@ -59,12 +59,12 @@ long_usage()
 
 short_usage()
 {
-    echo "Usage: $0 -[pp|tc|ds|an|mn|cg|gcc|tc-proof|ac|flags|ffi-gen|aq|shallow-proof|hs-shallow|examples|goanna|libgum|all|clean] [-q|-i|]"
+    echo "Usage: $0 -[pp|tc|ds|an|mn|cg|gcc|tc-proof|ac|flags|hsc-gen|aq|shallow-proof|hs-shallow|examples|goanna|libgum|all|clean] [-q|-i|]"
     echo 'Run with -h for detailed explanation of all the options.'
 }
 
 # Parse options
-OPTS=$(getopt -o h --alternative --long pp,tc,ds,an,mn,cg,gcc,tc-proof,ac,flags,ffi-gen,aq,shallow-proof,hs-shallow,examples,goanna,ee,libgum,all,help,clean,q,i -n "$0" -- "$@")
+OPTS=$(getopt -o h --alternative --long pp,tc,ds,an,mn,cg,gcc,tc-proof,ac,flags,hsc-gen,aq,shallow-proof,hs-shallow,examples,goanna,ee,libgum,all,help,clean,q,i -n "$0" -- "$@")
 if [ $? != 0 ]
 then
     short_usage
@@ -88,7 +88,7 @@ while true; do
         --q) QUIET=1; shift;;
         --i) INTERACTIVE=1; shift;;
         --clean) DO_CLEAN=1; shift;;
-        --all) TESTSPEC='--pp--tc--ds--an--mn--aq--cg--gcc--tc-proof--ffi-gen--ac--flags--shallow-proof--hs-shallow--goanna--ee--libgum'; shift;;
+        --all) TESTSPEC='--pp--tc--ds--an--mn--aq--cg--gcc--tc-proof--hsc-gen--ac--flags--shallow-proof--hs-shallow--goanna--ee--libgum'; shift;;
         *) TESTSPEC="${TESTSPEC}$1"; shift;;
     esac
 done
@@ -177,7 +177,11 @@ if [[ "$TESTSPEC" =~ '--gcc--' && ! ( "$TESTSPEC" =~ '--cg--' ) && $HAVE_DONE_CG
   then echo 'Note: adding --cg because --gcc depends on it' >&2
        TESTSPEC="${TESTSPEC}cg--"
 fi
-
+if [[ "$TESTSPEC" =~ '--hsc-gen--' && ! ( "$TESTSPEC" =~ '--gcc--' ) && $HAVE_DONE_GCC = 0 ]]
+  then echo 'Note: adding --gcc because --hsc-gen depends on it' >&2
+  # -gcc helps to tweak the .h files to include the right things
+       TESTSPEC="${TESTSPEC}gcc--"
+fi
 
 # check_output [>file] cmd...
 # Equivalent to running "cmd... [>file]" except the output is
@@ -219,6 +223,7 @@ badpass_msg="${bldred}passed but should FAIL${txtrst}"
 
 if [[ -z "$COGENT" ]]; then COGENT=cogent; fi
 if [[ -z "$GHC" ]]; then GHC=ghc; fi
+if [[ -z "$HSC2HS" ]]; then HSC2HS=hsc2hs; fi
 if [[ -z "$HC_PKG" ]]; then HC_PKG=ghc-pkg; fi
 if [[ -z "$DIST" ]]; then DIST=dist; fi
 if [[ -z "$PACKAGE_DB" ]]; then
@@ -600,9 +605,9 @@ test_end_to_end()
     fi
 }
 
-test_ffi_generator()
+test_cogent_flags()
 {
-    echo '=== FFI-generator ==='
+    echo '=== Test different Cogent flags ==='
     all_total+=1
     passed=0
     total=0
@@ -720,7 +725,36 @@ test_haskell_shallow_embedding()
         name=$(basename $source .cogent)
         name=`echo ${name^} | tr "-" "_"`
         if check_output cogent --hs-shallow-desugar --dist-dir="$COUT" --proof-name="$name" $source
-        then ghc -w "$COUT"/"$name"_Shallow_Desugar.hs && passed+=1 && echo "$pass_msg" ;
+        then $GHC -w "$COUT"/"$name"_Shallow_Desugar.hs && passed+=1 && echo "$pass_msg" ;
+        else echo "$fail_msg"
+        fi
+    done
+
+    echo "Passed $passed out of $total."
+    if [[ $passed = $total ]]
+    then all_passed+=1
+    fi
+}
+
+test_hsc_gen()
+{
+    echo "=== Test .hsc file generation ==="
+    all_total+=1
+    passed=0
+    total=0
+
+    if [[ ! -e "$COUT" ]]; then
+        mkdir "$COUT"
+    fi
+
+    for source in "$TESTS"/pass_*.cogent
+    do
+        echo $source
+        total+=1
+        name=$(basename $source .cogent)
+        name=`echo ${name^} | tr "-" "_"`
+        if check_output cogent --ffi-hsc --dist-dir="$COUT" --proof-name="$name" $source
+        then $HSC2HS -I "$COUT" -I "$COGENTDIR"/lib -I "$TESTS" "$COUT"/"$name"_FFI.hsc && passed+=1 && echo "$pass_msg" ;
         else echo "$fail_msg"
         fi
     done
@@ -867,7 +901,7 @@ fi
 
 if [[ "$TESTSPEC" =~ '--flags--' ]];
 then
-    test_ffi_generator
+    test_cogent_flags
 fi
 
 if [[ "$TESTSPEC" =~ '--aq--' ]];
@@ -883,6 +917,11 @@ fi
 if [[ "$TESTSPEC" =~ '--hs-shallow' ]];
 then
     test_haskell_shallow_embedding
+fi
+
+if [[ "$TESTSPEC" =~ '--hsc-gen' ]];
+then
+    test_hsc_gen
 fi
 
 if [[ "$TESTSPEC" =~ '--examples' ]];

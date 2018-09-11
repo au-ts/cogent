@@ -752,7 +752,8 @@ parseArgs args = case getOpt' Permute options args of
 
     cg cmds monoed ctygen insts source tced tcst typedefs fts buildinfo log = do
       let hfile = mkOutputName source Nothing <.> __cogent_ext_of_h
-          (h,c,atm,ct,hsc,genst) = cgen hfile monoed ctygen (fst insts) log
+          prfName = mkProofName source (Just __cogent_suffix_of_ffi)
+          (h,c,atm,ct,hsc,genst) = cgen hfile prfName monoed ctygen (fst insts) log
       when (TableAbsTypeMono `elem` cmds) $ do
         let atmfile = mkFileName source Nothing __cogent_ext_of_atm
         putProgressLn "Generating table for monomorphised asbtract types..."
@@ -765,7 +766,7 @@ parseArgs args = case getOpt' Permute options args of
         output ctyfile $ \h -> fontSwitch h >>= \s -> printCTable h s ct log
       when (HscGen `elem` cmds) $ do
         putProgressLn "Generating Hsc file..."
-        let hscf = Just $ __cogent_dist_dir `combine` "FFI" <.> "hsc"  -- FIXME
+        let hscf = mkFileName prfName Nothing __cogent_ext_of_hsc
         writeFileMsg hscf
         output hscf $ flip LJ.hPutDoc $ LJ.pretty hsc
       when (CodeGen `elem` cmds) $ do
