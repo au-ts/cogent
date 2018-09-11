@@ -14,12 +14,16 @@ import Cogent.Common.Syntax (FieldName, TagName, DataLayoutName, Size)
 import Cogent.Common.Types (Sigil)
 import Cogent.DataLayout.Core
 import Cogent.DataLayout.Surface
-import Cogent.DataLayout.Desugar (desugarSize)
 import Cogent.Compiler (__fixme, __impossible)
+-- import Cogent.TypeCheck.Base (TypeDict)  -- TODO: needed to implement `typeCheckDataLayoutTypeMatch`
 
 import Text.Parsec.Pos (SourcePos)
 
 {- IMPORTANT EXPORTED FUNCTIONS -}
+-- Checks that the layout structure is valid
+--
+-- This includes that relevant blocks of bits don't overlap
+-- And tag values are in the right ranges
 typeCheckDataLayoutExpr
   :: NamedDataLayouts
   -> DataLayoutExpr
@@ -83,6 +87,28 @@ typeCheckDataLayoutExpr env (Variant tagExpr alternatives) = do
     primitiveBitRange (Offset expr size) = offset (desugarSize size) <$> primitiveBitRange expr
     primitiveBitRange _                  = Nothing
 
+
+{-
+-- TODO: this will be complicated code because it works on the Surface type syntax rather than the core
+-- It also will change when the surface language is changed to support data layouts.
+
+-- Checks that the type and layout match
+-- If no layout is provided, only checks that the type can be layed out
+typeCheckDataLayoutTypeMatch :: TypeDict -> NamedTypes -> RawType -> Maybe DataLayoutExpr -> [DataLayoutTypeMatchError]
+
+-- Unboxed types
+typeCheckDataLayoutTypeMatch typeEnv layoutEnv (TUnbox type) layout
+   | TRecord fields sigil <- type
+   | TVariant alternatives <- type
+   | TCon name typevars sigil <- type
+
+typeCheckDataLayoutTypeMatch typeEnv layoutEnv ()
+-- Boxed types must be a primitive layout of pointer size
+typeCheckDataLayoutTypeMatch typeEnv layoutEnv (TRecord fields sigil) layout
+
+-- Boxed Record/Variant
+-}
+
 -- Normalises the layout remove references to named layouts
 normaliseDataLayoutExpr
   :: NamedDataLayouts
@@ -103,7 +129,20 @@ normaliseDataLayoutExpr env (Offset expr size) = Offset (normaliseDataLayoutExpr
 {- IMPORTANT TYPES -}
 type NamedDataLayouts = Map DataLayoutName (DataLayoutExpr, Allocation)
 type DataLayoutTypeCheckError = DataLayoutTypeCheckErrorP DataLayoutPath
+-- type DataLayoutTypeMatchError = DataLayoutTypeCheckErrorP DataLayoutPath -- TODO: needed to implement `typeCheckDataLayoutTypeMatch`
 
+-- Allows errors messages to pinpoint the exact location where the error occurred in a DataLayoutExpr/Decl
+data DataLayoutPath
+  = InField FieldName SourcePos DataLayoutPath
+  | InTag   DataLayoutPath
+  | InAlt   TagName SourcePos DataLayoutPath
+  | InDecl  DataLayoutName DataLayoutPath
+  | PathEnd
+  deriving (Eq, Show, Ord)
+
+
+-- Errors when checking a DataLayout's structure
+--
 -- The type parameter p is the type of the path to the error (DataLayoutPath)
 -- We parameterise by p so we can use the functor instance to map changes to the path
 data DataLayoutTypeCheckErrorP p
@@ -125,16 +164,30 @@ data DataLayoutTypeCheckErrorP p
     
   deriving (Eq, Show, Ord, Functor)
 
--- Allows errors messages to pinpoint the exact location where the error occurred in a DataLayoutExpr/Decl
-data DataLayoutPath
-  = InField FieldName SourcePos DataLayoutPath
-  | InTag   DataLayoutPath
-  | InAlt   TagName SourcePos DataLayoutPath
-  | InDecl  DataLayoutName DataLayoutPath
-  | PathEnd
+{- TODO: needed to implement `typeCheckDataLayoutTypeMatch`
+-- Errors when checking a Type matches a DataLayout
+--
+-- The type parameter p is the type of the path to the error (DataLayoutPath)
+-- We parameterise by p so we can use the functor instance to map changes to the path
+data DataLayoutTypeMatchErrorP p
+  = TypeUnsupported p RawType
+  -- Path to where we found a non-layoutable type and the type which wasn't layoutable
+  | FieldMissing          p FieldName
+  -- Path to the record with a missing field, and expected name of the field
+  | FieldUnknown          p FieldName
+  -- Path to the record with an unknown field and the field name
+  | AltMissing            p TagName
+  -- Path to the variant with the missing alternative, and expected name of the alternative
+  | AltUnknown            p TagName
+  -- Path to the variant with the unknown alternative
+  | RecordLayoutExpected  p
+  -- Path to where we expect to find a record layout
+  | SumLayoutExpected     p
+  -- Path to where we expect to find a sum layout
+  | PrimLayoutExpected    p
+  -- Path to where we expect to find a bit layout
   deriving (Eq, Show, Ord)
-
-
+-}
 
 
 {- OTHER EXPORTED FUNCTIONS -}
@@ -171,6 +224,10 @@ evalSize (Bytes b) = b * 8
 evalSize (Bits b)  = b
 evalSize (Add a b) = evalSize a + evalSize b
 
+desugarSize :: DataLayoutSize -> Size
+desugarSize (Bytes b) = b * 8
+desugarSize (Bits b)  = b
+desugarSize (Add a b) = desugarSize a + desugarSize b
 
 {- ALLOCATIONS -}
 
