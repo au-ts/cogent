@@ -13,9 +13,9 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE ViewPatterns #-}
 
--- * Haskell FFI generator
+-- | Haskell FFI generator
 --
--- Generates .hsc files to be compiled by the [hsc2hs tool](http://hackage.haskell.org/package/hsc2hs)
+-- Generates .hsc files to be compiled by the [hsc2hs](http://hackage.haskell.org/package/hsc2hs) tool
 
 
 module Cogent.Haskell.HscGen (

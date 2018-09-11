@@ -140,6 +140,7 @@ script:
  # - cabal build   # this builds all libraries and executables (including tests/benchmarks)
  # - cabal test  # this rarely changes, so disabled for now to save some time / zilinc
  # - cabal check
+ - cabal haddock
  # Check if Cogent has been correctly installed
  - which cogent || travis_terminate 1
  # - echo 'Running tests'
