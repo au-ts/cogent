@@ -1,11 +1,13 @@
 --
--- Copyright 2017, NICTA
+-- Copyright 2018, Data61
+-- Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+-- ABN 41 687 119 230.
 --
 -- This software may be distributed and modified according to the terms of
 -- the GNU General Public License version 2. Note that NO WARRANTY is provided.
 -- See "LICENSE_GPLv2.txt" for details.
 --
--- @TAG(NICTA_GPL)
+-- @TAG(DATA61_GPL)
 --
 
 {-# LANGUAGE DataKinds #-}
@@ -17,7 +19,9 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeOperators #-}
-
+{- OPTIONS_HADDOCK ignore-exports #-}  -- FIXME: when we turn this on, we need to 
+                                       -- order declarations properly so it makes
+                                       -- sense to whoever uses it. / zilinc
 
 -- | __NOTE:__
 -- This module assumes:
@@ -651,7 +655,7 @@ shallow tuples name stg defs consts log =
              (defaultMode {caseIndent = 2})
 
 -- ----------------------------------------------------------------------------
--- Below are smart constructors for Language.Haskell.Exts.Syntax
+-- * Below are smart constructors for "Language.Haskell.Exts.Syntax"
 --
 
 mkName :: String -> Name ()
