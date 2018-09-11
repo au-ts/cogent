@@ -106,7 +106,8 @@ tests/include/%_dummy.h: tests/%.cogent
 
 test-compiler: test-clean .test-cogent \
 	test-tc test-ds test-an test-mn test-cg test-gcc \
-	test-pp test-aq 
+	test-pp test-aq \
+	test-hs
 
 tests: test-compiler \
 	test-tc-proof test-shallow-proof test-ee 
@@ -177,6 +178,10 @@ test-ee: .gen-types
 test-gcc: .gen-types
 	$(E) "=== Compile generated code using GCC ==="
 	$(SCRIPTS_DIR)/cogent_validate.sh -gcc
+
+test-hs:
+	$(E) "=== Generate Haskell shallow embedding and compile using GHC ==="
+	$(SCRIPTS_DIR)/cogent_validate.sh -hs-shallow
 
 test-libgum:
 	$(E) "=== Typechecking libgum ==="
@@ -253,6 +258,9 @@ help:
 	$(E) ""
 	$(E) "* make test-gcc"
 	$(E) "  Compile generated code using GCC."
+	$(E) ""
+	$(E) "* make test-hs"
+	$(E) "  Generate Haskell shallow embedding and compile with GHC."
 	$(E) ""
 	$(E) "* make test-libgum"
 	$(E) "  Run libgum Typechecking Tests."

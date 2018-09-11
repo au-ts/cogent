@@ -1,8 +1,8 @@
-type R1 = { f1 : U8 } take f1
-type R2 = { f1 : U8 }
+type Rec1 = { f1 : U8 } take f1
+type Rec2 = { f1 : U8 }
 
 
-foo : <Con R1> -> ()
+foo : <Con Rec1> -> ()
 
-bar : <Con R2> -> ()
+bar : <Con Rec2> -> ()
 bar x = foo x

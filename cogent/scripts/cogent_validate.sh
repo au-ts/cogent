@@ -717,8 +717,11 @@ test_haskell_shallow_embedding()
     do
         echo $source
         total+=1
-        if check_output cogent --hs-shallow-desugar --dist-dir="$COUT" --proof-name="Hs_Temp" $source
-        then ghc -w "$COUT"/Hs_Temp_Shallow_Desugar.hs && passed+=1
+        name=$(basename $source .cogent)
+        name=`echo ${name^} | tr "-" "_"`
+        if check_output cogent --hs-shallow-desugar --dist-dir="$COUT" --proof-name="$name" $source
+        then ghc -w "$COUT"/"$name"_Shallow_Desugar.hs && passed+=1 && echo "$pass_msg" ;
+        else echo "$fail_msg"
         fi
     done
 

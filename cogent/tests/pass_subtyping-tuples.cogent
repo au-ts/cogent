@@ -1,7 +1,9 @@
-type R1 = { f1 : U8 } take f1
-type R2 = { f1 : U8 }
+-- avoid calling them `R1' and `R2', because it will conflict
+-- with the Haskell shallow embedding generation
+type Rec1 = { f1 : U8 } take f1
+type Rec2 = { f1 : U8 }
 
-foo : (R1, U8) -> ()
+foo : (Rec1, U8) -> ()
 
-bar : (R2, U8) -> ()
+bar : (Rec2, U8) -> ()
 bar x = foo x

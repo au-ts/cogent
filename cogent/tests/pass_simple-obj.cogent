@@ -36,11 +36,12 @@ print : SimpleObj! -> ()
 
 type USynonym = U8 
 
-b : U8
-b = 10
+-- Don't name them `a' and `b'. Avoiding --hs-shallow conflicts.
+x : U8
+x = 10
 
-c : U8
-c = b
+y : U8
+y = x
 
 
 buf_size : U8

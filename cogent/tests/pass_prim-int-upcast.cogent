@@ -8,9 +8,9 @@
 -- @TAG(NICTA_GPL)
 --
 
-type R1 = { x : U32 }
+type Rec1 = { x : U32 }
 
-wordcast : R1 -> < Success R1 >
+wordcast : Rec1 -> < Success Rec1 >
 wordcast r =
    let r { x = _ } = r
    and vx = 42

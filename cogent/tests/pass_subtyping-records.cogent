@@ -1,14 +1,14 @@
-foo : R1 -> ()
+foo : Rec1 -> ()
 
 type A
-type R1 = { f1 : #A, f2 : Bool } take f1
-type R2 = { f1 : #A, f2 : Bool } -- R2 is a subtype of R1
+type Rec1 = { f1 : #A, f2 : Bool } take f1
+type Rec2 = { f1 : #A, f2 : Bool } -- R2 is a subtype of R1
 
-bar : R2 -> ()
+bar : Rec2 -> ()
 bar x = foo x
 
-type RR1 = { g1 : R1, g2 : U8 }
-type RR2 = { g1 : R2, g2 : U8 }
+type RR1 = { g1 : Rec1, g2 : U8 }
+type RR2 = { g1 : Rec2, g2 : U8 }
 
 foo' : RR1 -> ()
 
