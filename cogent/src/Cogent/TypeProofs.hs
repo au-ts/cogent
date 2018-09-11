@@ -33,6 +33,7 @@ import Cogent.Deep (deepDefinitions, deepTypeAbbrevs, getTypeAbbrevs, TypeAbbrev
 import Cogent.ProofGen
 import Cogent.Core
 import Cogent.Inference
+import Cogent.LeafTree
 import Cogent.Util (NameMod)
 import Cogent.Vec hiding (splitAt, length, zipWith, zip, unzip, head)
 import qualified Cogent.Vec as V
@@ -41,6 +42,7 @@ import Control.Arrow (second)
 import Control.Lens ((^.), use)
 import Control.Monad.State.Strict
 import Data.Char
+import Data.Foldable
 import Data.List
 import qualified Data.Map as M
 import Data.Ord (comparing)
@@ -151,7 +153,7 @@ prove decls (FunDef _ fn k ti to e) = do
   mod <- use nameMod
   proofSteps' <- proofSteps decls (fmap snd k) ti eexpr
   ta <- use tsTypeAbbrevs
-  return $ (formatMLProof (mod fn ++ "_typecorrect_script") "hints" (map show proofSteps')
+  return $ (formatMLProof (mod fn ++ "_typecorrect_script") "hints" (map show $ toList proofSteps')
            ++ (if __cogent_fml_typing_tree then formatMLTreeGen (mod fn) else [])
            ++ formatTypecorrectProof (mod fn),
            (if __cogent_fml_typing_tree then formatMLTreeFinalise (mod fn) else []))

@@ -172,12 +172,15 @@ newSubproofId = do
 tacSequence :: [State a [t]] -> State a [t]
 tacSequence = fmap concat . sequence
 
-kindingHint :: Vec t Kind -> Type t -> State TypingSubproofs [Hints]
-kindingHint k t = ((:[]) . KindingTacs) `fmap` kinding k t
+hintListSequence :: [State TypingSubproofs (LeafTree Hints)] -> State TypingSubproofs (LeafTree Hints)
+hintListSequence sths = Branch <$> sequence sths
+
+kindingHint :: Vec t Kind -> Type t -> State TypingSubproofs (LeafTree Hints)
+kindingHint k t = (pure . KindingTacs) `fmap` kinding k t
 
 follow_tt :: Vec t Kind -> Vec v (Maybe (Type t)) -> Vec vx (Maybe (Type t))
-          -> Vec vy (Maybe (Type t)) -> State TypingSubproofs [Hints]
-follow_tt k env env_x env_y = tacSequence (map (kindingHint k) new)
+          -> Vec vy (Maybe (Type t)) -> State TypingSubproofs (LeafTree Hints)
+follow_tt k env env_x env_y = hintListSequence $ map (kindingHint k) new
   where
     l = toInt (Vec.length env)
     n_x = take (toInt (Vec.length env_x) - l) (cvtToList env_x)
@@ -185,45 +188,45 @@ follow_tt k env env_x env_y = tacSequence (map (kindingHint k) new)
     new = catMaybes (n_x ++ n_y)
 
 proofSteps :: Xi a -> Vec t Kind -> Type t -> EnvExpr t v a
-           -> State TypingSubproofs [Hints]
-proofSteps xi k ti x = tacSequence [ kindingHint k ti, ttyping xi k x ]
+           -> State TypingSubproofs (LeafTree Hints)
+proofSteps xi k ti x = hintListSequence [ kindingHint k ti, ttyping xi k x ]
 
-ttyping :: Xi a -> Vec t Kind -> EnvExpr t v a -> State TypingSubproofs [Hints]
-ttyping xi k (EE t' (Split a x y) env) = tacSequence [ -- Ξ, K, Γ ⊢ Split x y : t' if
+ttyping :: Xi a -> Vec t Kind -> EnvExpr t v a -> State TypingSubproofs (LeafTree Hints)
+ttyping xi k (EE t' (Split a x y) env) = hintListSequence [ -- Ξ, K, Γ ⊢ Split x y : t' if
   follow_tt k env (envOf x) (envOf y),
   ttyping xi k x,                            -- Ξ, K, Γ1 ⊢ x : TProduct t u
   ttyping xi k y                             -- Ξ, K, Some t # Some u # Γ2 ⊢ y : t'
   ]
-ttyping xi k (EE u (Let a x y) env) = tacSequence [ -- Ξ, K, Γ ⊢ Let x y : u if
+ttyping xi k (EE u (Let a x y) env) = hintListSequence [ -- Ξ, K, Γ ⊢ Let x y : u if
   follow_tt k env (envOf x) (envOf y),
   ttyping xi k x,                           -- Ξ, K, Γ1 ⊢ x : t
   ttyping xi k y                            -- Ξ, K, Some t # Γ2 ⊢ y : u
   ]
-ttyping xi k (EE u (LetBang is a x y) env) = tacSequence [ -- Ξ, K, Γ ⊢ LetBang is x y : u if
+ttyping xi k (EE u (LetBang is a x y) env) = hintListSequence [ -- Ξ, K, Γ ⊢ LetBang is x y : u if
   ttsplit_bang k 0 (map (finInt . fst) is) env (envOf x),
   follow_tt k env (envOf x) (envOf y),
   ttyping xi k x,                                   -- Ξ, K, Γ1 ⊢ x : t
   ttyping xi k y,                                   -- Ξ, K, Some t # Γ2 ⊢ y : u
   kindingHint k (typeOf x)                          -- K ⊢ t :κ k
   ]
-ttyping xi k (EE t (If x a b) env) = tacSequence [ -- Ξ, K, Γ ⊢ If x a b : t if
+ttyping xi k (EE t (If x a b) env) = hintListSequence [ -- Ξ, K, Γ ⊢ If x a b : t if
   ttyping xi k x,                                -- Ξ, K, Γ1 ⊢ x : TPrim Bool
   ttyping xi k a,                                -- Ξ, K, Γ2 ⊢ a : t
   ttyping xi k b                                 -- Ξ, K, Γ2 ⊢ b : t
   ]
-ttyping xi k (EE u (Case x _ (_,_,a) (_,_,b)) env) = tacSequence [ -- Ξ, K, Γ ⊢ Case x tag a b : u if
+ttyping xi k (EE u (Case x _ (_,_,a) (_,_,b)) env) = hintListSequence [ -- Ξ, K, Γ ⊢ Case x tag a b : u if
   ttyping xi k x,                                       -- Ξ, K, Γ1 ⊢ x : TSum ts
   follow_tt k (envOf x) (envOf a) (envOf b),
   ttyping xi k a,                                       -- Ξ, K, (Some t # Γ) ⊢ a : u
   ttyping xi k b                                        -- Ξ, K, (Some (TSum (tagged_list_update tag (t, True) ts)) # Γ2) ⊢ b : u
   ]
-ttyping xi k (EE u (Take a e@(EE (TRecord ts _) _ _) f e') env) = tacSequence [ -- Ξ, K, Γ T⊢ Take e f e' : u if
+ttyping xi k (EE u (Take a e@(EE (TRecord ts _) _ _) f e') env) = hintListSequence [ -- Ξ, K, Γ T⊢ Take e f e' : u if
   follow_tt k env (envOf e) (envOf e'),
   ttyping xi k e,                             -- Ξ, K, Γ1 T⊢ e : TRecord ts s
   kindingHint k (fst $ snd $ ts !! f),        -- K ⊢ t :κ k
   ttyping xi k e'                             -- Ξ, K, Γ2 T⊢ e' : u
   ]
-ttyping xi k e = (:[]) . TypingTacs <$> typingWrapper xi k e
+ttyping xi k e = pure . TypingTacs <$> typingWrapper xi k e
 
 typingWrapper :: Xi a -> Vec t Kind -> EnvExpr t v a
               -> State TypingSubproofs [Tactic]
@@ -530,8 +533,8 @@ ttsplit_innerHint :: Vec t Kind
                   -> Maybe (Type t)
                   -> Maybe (Type t)
                   -> Maybe (Type t)
-                  -> State TypingSubproofs [Hints]
-ttsplit_innerHint k Nothing Nothing Nothing = return []
+                  -> State TypingSubproofs (LeafTree Hints)
+ttsplit_innerHint k Nothing Nothing Nothing = return $ Branch []
 ttsplit_innerHint k (Just t) _ _            = kindingHint k t
 ttsplit_innerHint _ g x y = error $ "bad ttsplit: " ++ show (g, x, y)
 
@@ -557,15 +560,15 @@ splitHint n k (Just t) (Just _) (Just _) = (\t -> [(n, [rule "split_comp.share"]
 splitHint _ k g x y = error $ "bad split: " ++ show (g, x, y)
 
 ttsplit_bang :: Vec t Kind -> Int -> [Int] -> Vec v (Maybe (Type t))
-             -> Vec v (Maybe (Type t)) -> State TypingSubproofs [Hints]
+             -> Vec v (Maybe (Type t)) -> State TypingSubproofs (LeafTree Hints)
 ttsplit_bang k ix ixs (Cons g gs) (Cons (Just x) xs) = do
-    this <- if ix `elem` ixs then kindingHint k x else return []
+    this <- if ix `elem` ixs then kindingHint k x else return $ Branch []
     rest <- ttsplit_bang k (ix + 1) ixs gs xs
-    return (this ++ rest)
+    return $ Branch [this, rest]
 ttsplit_bang k ix ixs (Cons g gs) (Cons Nothing xs) =
     if ix `elem` ixs then error "bad split_bang"
         else ttsplit_bang k (ix + 1) ixs gs xs
-ttsplit_bang k ix ixs Nil Nil = return []
+ttsplit_bang k ix ixs Nil Nil = return $ Branch []
 #if __GLASGOW_HASKELL__ < 711
 ttsplit_bang _ _ _ _ _ = error "bad split_bang end"
 #endif
