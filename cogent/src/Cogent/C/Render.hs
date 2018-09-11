@@ -31,6 +31,7 @@ import Control.Arrow (second, (***))
 import Data.Char (isAlphaNum, toUpper)
 import Data.List as L
 import Data.Loc (noLoc)
+import Data.Monoid ((<>))
 import qualified "language-c-quote" Language.C as C
 import Language.C.Quote.C
 import "language-c-quote" Language.C.Syntax ()
