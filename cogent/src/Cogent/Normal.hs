@@ -25,6 +25,7 @@ import Cogent.Common.Syntax (VarName)
 import Cogent.Compiler
 import Cogent.Core
 import Cogent.Data.Vec
+import Cogent.Data.PropEq
 
 import Control.Applicative
 import Control.Arrow (second, (***))

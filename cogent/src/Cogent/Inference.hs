@@ -41,6 +41,7 @@ import Cogent.Core
 import Cogent.Util
 import Cogent.Data.Vec hiding (splitAt, length, zipWith, zip, unzip)
 import qualified Cogent.Data.Vec as Vec
+import Cogent.Data.PropEq
 
 import Control.Applicative
 import Control.Arrow

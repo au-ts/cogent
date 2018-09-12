@@ -27,6 +27,8 @@ import Cogent.Compiler (__ghc_t3927)
 #endif
 import Cogent.Util
 
+import Cogent.Data.PropEq
+
 import Control.Applicative
 #if __GLASGOW_HASKELL__ >= 709
 import Data.Foldable (find)
@@ -47,9 +49,6 @@ type family (:+:) (a :: Nat) (b :: Nat) :: Nat where
    x :+: 'Zero = x
    x :+: ('Suc n) = 'Suc (x :+: n)
 
-data (:=:) :: k -> k -> * where
-  Refl :: a :=: a
-
 zeroPlusNEqualsN :: SNat n -> ('Zero :+: n) :=: n
 zeroPlusNEqualsN SZero = Refl
 zeroPlusNEqualsN (SSuc n) | Refl <- zeroPlusNEqualsN n = Refl
@@ -64,9 +63,6 @@ addSucLeft' (SSuc v) n | Refl <- addSucLeft v n, Refl <- addSucLeft' v n = Refl
 
 sucZeroIsSuc :: SNat n -> ('Suc 'Zero :+: n) :=: ('Suc n)
 sucZeroIsSuc n | Refl <- sym (addSucLeft SZero n), Refl <- zeroPlusNEqualsN n = Refl
-
-sym :: a :=: b -> b :=: a
-sym Refl = Refl
 
 assoc :: SNat a -> SNat b -> SNat c -> (a :+: (b :+: c)) :=: ((a :+: b) :+: c)
 assoc a b SZero                          = Refl

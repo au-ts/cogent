@@ -41,6 +41,7 @@ import qualified Cogent.Surface as S
 import Cogent.TypeCheck.Base as B
 import Cogent.Util
 import Cogent.Data.Vec as Vec
+import Cogent.Data.PropEq ((:=:)(Refl))
 
 import Control.Applicative
 import Control.Arrow ((&&&))
@@ -241,7 +242,7 @@ desugarTlv :: S.TopLevel S.RawType B.TypedPatn B.TypedExpr
 desugarTlv (S.Include    _) _ = __impossible "desugarTlv"
 desugarTlv (S.IncludeStd _) _ = __impossible "desugarTlv"
 desugarTlv (S.TypeDec tn vs t) _ | ExI (Flip vs') <- Vec.fromList vs
-                                 , Vec.Refl <- zeroPlusNEqualsN (Vec.length vs') = do
+                                 , Refl <- zeroPlusNEqualsN (Vec.length vs') = do
   tenv <- use typCtx
   t' <- withTypeBindings vs' $ desugarType t
   return $ TypeDef tn vs' (Just t')

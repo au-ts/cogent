@@ -59,6 +59,7 @@ library
               , Cogent.CorresSetup
               , Cogent.Data.DList
               , Cogent.Data.LeafTree
+              , Cogent.Data.PropEq
               , Cogent.Data.Vec
               , Cogent.Deep
               , Cogent.Desugar
