@@ -11,7 +11,7 @@
  *)
 
 theory CogentHelper
-imports "TypeTrackingSemantics" "ML_Old"
+imports "TypeTrackingSemantics" "ML_Old" Data
 keywords "ML_quiet" :: thy_decl % "ML"
 begin
 
@@ -178,7 +178,6 @@ lemma list_update_eq_id:
   by (induct xs arbitrary: i n, auto split: nat.split)
 
 lemmas ttsplit_innerI_True = ttsplit_innerI[where kndng=True, simplified]
-
 
 ML {*
 

@@ -14,6 +14,7 @@ theory ProofTrace
   imports
     Main
     "ML_Old"
+    Data
 begin
 
 (* begin: tactic trace code *)
@@ -68,36 +69,6 @@ and TraceSubgoal_erase_backtracking (TraceSubgoal { subgoal, subtheorem, fail_st
                    , step = step
                    , subproof = TraceSuccess_erase_backtracking subproof
                    }
-*}
-
-ML {*
-datatype ('l, 'r) Either = Left of 'l | Right of 'r
-
-fun mapEither fl _ (Left l) = Left (fl l)
-  | mapEither _ fr (Right r) = Right (fr r)
-
-fun mapEitherL f e = mapEither f (fn x => x) e
-fun mapEitherR f e = mapEither (fn x => x) f e
-*}
-
-ML {*
-fun findIndex p =
-  let fun find _ [] = NONE
-        | find n (x::xs) = if p x then SOME (x, n) else find (n+1) xs
-  in find 0 end
-fun zipWith _ [] _ = []
-  | zipWith _ _ [] = []
-  | zipWith f (x::xs) (y::ys) = f x y :: zipWith f xs ys
-fun isSome (SOME _) = true
-  | isSome _ = false
-fun enumerate xs = let
-  fun enum _ [] = []
-    | enum n (x::xs) = (n, x) :: enum (n+1) xs
-  in enum 0 xs end
-fun nubBy _ [] = []
-  | nubBy f (x::xs) = x :: filter (fn y => f x <> f y) (nubBy f xs)
-
-val option_decr = Option.map (fn x => x - 1)
 *}
 
 ML {*
@@ -292,14 +263,6 @@ fun trace_solve_tac (ctxt : Proof.context)
   end
 *}
 (* end: tactic trace code *)
-
-ML {*
-datatype 'a Tree = Tree of 'a * 'a Tree list;
-
-fun tree_hd (Tree (head, _)) = head
-fun tree_rest (Tree (_, rest)) = rest
-fun tree_map f (Tree (head,rest)) = Tree (f head, map (tree_map f) rest)
-*}
 
 (* extract relevant subproofs *)
 ML {*

@@ -13,7 +13,6 @@ theory TypeProofGen imports
   "../cogent/isa/ProofTrace"
 begin
 
-
 (* Convert ttyping subproofs to standard typing subproofs. *)
 lemma ttsplit_imp_split':
   "ttsplit k \<Gamma> splits xs \<Gamma>1 ys \<Gamma>2 \<Longrightarrow>
