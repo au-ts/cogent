@@ -111,8 +111,11 @@ fun get_typing_bucket ctxt f proof =
 type details = (thm list * thm Tree list * thm list)
 
 fun get_all_typing_details ctxt name script : details = let
+    val script_tree = (case parse_treesteps script of
+        SOME tree => tree
+      | NONE => raise ERROR ("failed to parse script tree"))
     val tacs = TTyping_Tactics.mk_ttsplit_tacs_final name
-        @{term "[] :: kind env"} ctxt script
+        @{term "[] :: kind env"} ctxt script_tree
     val tacs' = map (fn (tac, f) => (tac, fn ctxt => f ctxt 1)) tacs
     val orig_typing_tree = get_typing_tree ctxt name tacs'
     val typecorrect_thms = map (Goal.finish ctxt) (map tree_hd orig_typing_tree)

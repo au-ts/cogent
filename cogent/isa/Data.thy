@@ -32,8 +32,8 @@ fun tree_map f (Tree (head,rest)) = Tree (f head, map (tree_map f) rest)
 
 datatype 'a leaftree = Branch of 'a leaftree list | Leaf of 'a
 
-fun leaftree_map (f : 'a -> 'b) (Branch tas) = Branch (map (leaftree_map f) tas)
-  | leaftree_map (f : 'a -> 'b) (Leaf a)     = Leaf (f a)
+fun map_leaftree (f : 'a -> 'b) (Branch tas) = Branch (map (map_leaftree f) tas)
+  | map_leaftree (f : 'a -> 'b) (Leaf a)     = Leaf (f a)
 
 fun unfold_leaftree (f : 'b -> ('a, ('b list)) Either) (init : 'b) : 'a leaftree = (case f init of
   Left a => Leaf a

@@ -242,21 +242,21 @@ datatype hints = KindingTacs of tac list
   | TTSplitBangTacs of tac list
   | TypingTacs of tac list
 
-exception HINTS of string * hints treestep list
+exception HINTS of string * hints leaftree
 
-fun kinding (StepDown :: Val (KindingTacs tac) :: hints) = (tac, hints)
-  | kinding hints = raise HINTS ("kinding", hints)
+fun kinding (Branch (Leaf (KindingTacs tac) :: hint_rest)) = (tac, Branch hint_rest)
+  | kinding hint_tree_bad = raise HINTS ("kinding", hint_tree_bad)
 
-fun typing_hint (Val (TypingTacs tac) :: hints) = (tac, hints)
-  | typing_hint hints = raise HINTS ("typing", hints)
+fun typing_hint (Branch (Leaf (TypingTacs tac) :: hint_rest)) = (tac, Branch hint_rest)
+  | typing_hint hint_tree_bad = raise HINTS ("typing", hint_tree_bad)
 
-fun apply_split @{term "Some TSK_L"} hints t = ((t, NONE), hints)
-  | apply_split @{term "Some TSK_S"} hints t = ((t, t), hints)
-  | apply_split @{term "Some TSK_NS"} hints t = let
-    val (tacs, hints) = kinding hints
+fun apply_split @{term "Some TSK_L"} hint_tree t = ((t, NONE), hint_tree)
+  | apply_split @{term "Some TSK_S"} hint_tree t = ((t, t), hint_tree)
+  | apply_split @{term "Some TSK_NS"} hint_tree t = let
+    val (tacs, hint_tree) = kinding hint_tree
     val thm = case tacs of [RTac thm] => thm
-      | _ => raise HINTS ("apply_split: TSK_NS", [Val (KindingTacs tacs)])
-  in ((SOME thm, t), hints) end
+      | _ => raise HINTS ("apply_split: TSK_NS", Leaf (KindingTacs tacs))
+  in ((SOME thm, t), hint_tree) end
   | apply_split @{term "None :: type_split_kind option"} hints t = ((NONE, t), hints)
   | apply_split t _ _ = raise TERM ("apply_split", [t])
 
@@ -283,8 +283,8 @@ and cogent_guided_splits_tac ctxt sz script =
                  mktac (i+1) ((n, tacs)::script')
   in mktac 0 script end
 
-fun kind_proofs ((@{term SomeT} $ t) :: ts) k ctxt hints = let
-    val (tacs, hints) = kinding hints
+fun kind_proofs ((@{term SomeT} $ t) :: ts) k ctxt hint_tree = let
+    val (tacs, hints) = kinding hint_tree
 (*
     val _ = case tacs of
         [RTac thm] => Display.pretty_thm ctxt thm |> Pretty.writeln
@@ -462,7 +462,7 @@ fun ttyping (Const (@{const_name Split}, _) $ x $ y) tt k ctxt hints = let
   in ([RTac @{thm ttyping_default}, SimpTac (@{thms composite_anormal_expr_def}, [])] @ ty_tac, hints) end
   | ttyping t _ _ _ _ = raise TERM ("ttyping", [t])
 
-fun mk_ttsplit_tacs nm k ctxt (hints : hints treestep list) = let
+fun mk_ttsplit_tacs nm k ctxt hint_tree = let
     val ss = put_simpset HOL_basic_ss ctxt
         addsimps @{thms replicate_unfold}
         addsimps (Proof_Context.get_thms ctxt "abbreviated_type_defs")
@@ -473,13 +473,15 @@ fun mk_ttsplit_tacs nm k ctxt (hints : hints treestep list) = let
     val (_, tt) = Logic.dest_equals (Thm.concl_of (safe_mk_meta_eq (simplify ss tt_def)))
     val (_, ty) = Logic.dest_equals (Thm.concl_of (safe_mk_meta_eq (simplify ss ty_def)))
     val (ity, _) = HOLogic.dest_prod ty |> snd |> HOLogic.dest_prod
-    val (ps, hints) = kind_proofs [@{term SomeT} $ ity] k ctxt hints
-    val (tacs, hints) = ttyping body (tt, ps) k ctxt hints
-    val _ = case hints of [] => () | _ => raise HINTS ("mk_ttsplit_tacs: remaining", hints)
+    val (ps, hint_tree) = kind_proofs [@{term SomeT} $ ity] k ctxt hint_tree
+    val (tacs, hint_tree) = ttyping body (tt, ps) k ctxt hint_tree
+    val _ = case hint_tree of
+                (Branch []) => ()
+              | _ => raise HINTS ("mk_ttsplit_tacs: remaining", hint_tree)
   in tacs end
 
-fun mk_ttsplit_tacs_final nm k ctxt hints
-    = map (fn tac => (tac, interpret_tac tac)) (mk_ttsplit_tacs nm k ctxt hints)
+fun mk_ttsplit_tacs_final nm k ctxt hint_tree
+    = map (fn tac => (tac, interpret_tac tac)) (mk_ttsplit_tacs nm k ctxt hint_tree)
 
 fun apply_ttsplit_tacs_simple nm ctxt hints
     = mk_ttsplit_tacs_final nm @{term "[] :: kind env"} ctxt hints
