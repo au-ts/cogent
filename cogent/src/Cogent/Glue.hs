@@ -42,7 +42,7 @@ import Cogent.Compiler
 import qualified Cogent.Context   as Ctx
 import qualified Cogent.Core      as CC
 import qualified Cogent.Desugar   as DS
-import qualified Cogent.DList     as DList
+import qualified Cogent.Data.DList     as DList
 import qualified Cogent.Inference as IN
 import qualified Cogent.Mono      as MN
 import qualified Cogent.Parser    as PS
@@ -56,7 +56,7 @@ import qualified Cogent.TypeCheck.Solver     as TC
 import qualified Cogent.TypeCheck.Subst      as TC
 -- import qualified Cogent.TypeCheck.Util      as TC
 import Cogent.Util
-import Cogent.Vec as Vec hiding (repeat)
+import Cogent.Data.Vec as Vec hiding (repeat)
 
 import Control.Applicative
 import Control.Arrow (Arrow(..), second, (&&&))
@@ -166,7 +166,7 @@ data GlState = GlState { _tcDefs   :: [SF.TopLevel SF.RawType TC.TypedPatn TC.Ty
 data FileState = FileState { _file :: FilePath }
 
 data DefnState t = DefnState { _kenv :: Vec t (TyVarName, Kind)
-                             , _ectx :: [TC.ErrorContext] 
+                             , _ectx :: [TC.ErrorContext]
                              }
 
 data MonoState = MonoState { _inst :: (MN.Instance, Maybe Int) }  -- Either ([], Nothing), or (_:_, Just _)

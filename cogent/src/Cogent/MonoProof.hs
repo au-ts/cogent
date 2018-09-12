@@ -21,7 +21,7 @@ import Cogent.Core as CC
 import Cogent.Deep hiding (imports)
 import Cogent.Mono
 import Cogent.Util
-import Cogent.Vec
+import Cogent.Data.Vec
 import Isabelle.ExprTH
 import Isabelle.InnerAST as I
 import Isabelle.OuterAST as O hiding (Instance)

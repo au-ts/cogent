@@ -76,7 +76,7 @@ module Cogent.Haskell.Shallow (
 , snm
 , tagName
 , recTypeName, varTypeName
-, typeParam 
+, typeParam
 ) where
 
 
@@ -91,7 +91,7 @@ import Cogent.Shallow (isRecTuple)
 import Cogent.ShallowTable (TypeStr(..), st)
 import qualified Cogent.Surface as S
 import Cogent.Util (Stage(..), secondM)
-import Cogent.Vec as Vec hiding (sym)
+import Cogent.Data.Vec as Vec hiding (sym)
 
 import Control.Arrow (second)
 import Control.Applicative
@@ -121,7 +121,7 @@ import Text.PrettyPrint.ANSI.Leijen (pretty)
 
 -- * Contexts
 
-data ReaderGen = ReaderGen 
+data ReaderGen = ReaderGen
   { _typeStrs :: [TypeStr]    -- ^ type structures, as in the Isabelle shallow embedding generator
   , _typeVars :: [TyVarName]  -- ^ type variables in scope
   , _recoverTuples :: Bool    -- ^ whether we use unboxed records for tuples
@@ -141,11 +141,11 @@ pushScope = localBindings %~ (M.empty:)
 addBindings :: [(VarName, VarName)] -> ReaderGen -> ReaderGen
 addBindings vs = localBindings %~ (\(h:t) -> (M.fromList vs `M.union` h):t)  -- left-biased union for shadowing
 
-data WriterGen = WriterGen 
+data WriterGen = WriterGen
   { datatypes :: [HS.Decl ()]  -- ^ Haskell datatypes defined
   }
 
-data StateGen = StateGen 
+data StateGen = StateGen
   { _freshInt :: Int
   , _nominalTypes :: M.Map TypeStr TypeName         -- ^ how a structural type maps to a nominal type
   }
@@ -194,7 +194,7 @@ shallow tuples name stg defs consts log =
       header = (("{-\n" ++ log ++ "\n-}\n") ++)
       hsName = name ++ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage stg ++ (if tuples then __cogent_suffix_of_recover_tuples else [])
       moduleHead = ModuleHead () (ModuleName () hsName) Nothing Nothing
-      exts = P.map (\s -> LanguagePragma () [Ident () s]) 
+      exts = P.map (\s -> LanguagePragma () [Ident () s])
                    [ "DisambiguateRecordFields"
                    , "DuplicateRecordFields"
                    , "NamedFieldPuns"
@@ -204,7 +204,7 @@ shallow tuples name stg defs consts log =
       importVar s = IVar () $ Ident  () s
       importSym s = IVar () $ Symbol () s
       importAbs s = IAbs () (NoNamespace ()) $ Ident () s
-      import_bits = P.map importSym [".&.", ".|."] ++ 
+      import_bits = P.map importSym [".&.", ".|."] ++
                     P.map importVar ["complement", "xor", "shiftL", "shiftR"]
       import_word = P.map importAbs ["Word8", "Word16", "Word32", "Word64"]
       import_prelude = P.map importVar ["not", "div", "mod", "fromIntegral", "undefined"] ++
@@ -216,7 +216,7 @@ shallow tuples name stg defs consts log =
              , ImportDecl () (ModuleName () "Prelude"  ) False False False Nothing Nothing (Just $ ImportSpecList () False import_prelude)
              ]
       hsModule = Module () (Just moduleHead) exts imps $ tds ++ decls
-      in hsModule & header . 
+      in hsModule & header .
            prettyPrintStyleMode
              (style {lineLength = 220, ribbonsPerLine = 0.1})
              -- \ ^ if using https://github.com/zilinc/haskell-src-exts, no need for very long lines
@@ -303,7 +303,7 @@ snm :: String -> String
 snm s | s `elem` keywords = s ++ "_"
 snm s = s
 
--- | Constructs a Haskell data constructor name according to the 
+-- | Constructs a Haskell data constructor name according to the
 --   type constructor name and the tag name. (See NOTE [How to deal with variant
 --   types]: "Cogent.ShallowHaskell#containment")
 tagName :: String -> String -> String
@@ -326,7 +326,7 @@ typeParam   = "t"
 -- Containment doesn\'t mean Cogent subtyping relations. Instead, they refer to a relation mainly
 -- for variant types that /doesn\'t/ form a subtyping relation. For example, @\<A a | B b\>@ is
 -- /contained/ in a larger type @\<A a | B b | C c\>@. We need to keep track of these relations as
--- in Haskell, data constructors can not duplicate. Two different solutions will work: 
+-- in Haskell, data constructors can not duplicate. Two different solutions will work:
 --
 --   1. Generate different names for duplicate constructors;
 --
@@ -356,7 +356,7 @@ isRecOrVar _ = False
 --   __ASSUME:__ @'isRecOrVar' input == 'True'@
 typeComponents :: CC.Type t -> [(String, CC.Type t)]
 typeComponents (CC.TRecord fs _) = P.map (second fst) fs
-typeComponents (CC.TSum alts) = P.map (second fst) $ sortBy (compare `on` fst) alts  
+typeComponents (CC.TSum alts) = P.map (second fst) $ sortBy (compare `on` fst) alts
   -- \ ^^^ NOTE: this sorting must stay in-sync with the algorithm `toTypeStr` in ShallowTable.hs / zilinc
 typeComponents _ = __impossible "Precondition failed: isRecOrVar input == True"
 
@@ -365,7 +365,7 @@ typeStrFields :: TypeStr -> [String]
 typeStrFields (RecordStr fs) = fs
 typeStrFields (VariantStr alts) = alts
 
--- | Given a Cogent type, it returns a nominal type @(type_name, [field/tag_name])@ 
+-- | Given a Cogent type, it returns a nominal type @(type_name, [field/tag_name])@
 --
 --   __ASSUME:__ @'isRecOrVar' input == 'True'@
 nominalType :: CC.Type t -> SG (TypeName, [String])
@@ -391,7 +391,7 @@ nominalTypeStr st = do
 --   prop>            = S a (P b T)
 --
 -- This is essentially what the following function (and helpers) is doing.
--- 
+--
 
 -- | convert a Cogent composite type to a Haskell datatype
 --
@@ -410,7 +410,7 @@ decTypeStr (RecordStr fs) = do
   let tn = recTypeName ++ show vn
       tvns = P.zipWith (\_ n -> mkName $ typeParam ++ show n) fs [1::Int ..]
       rfs = P.zipWith (\f n -> FieldDecl () [mkName $ snm f] (mkVarT n)) fs tvns
-      dec = DataDecl () (DataType ()) Nothing (mkDeclHead (mkName tn) tvns) 
+      dec = DataDecl () (DataType ()) Nothing (mkDeclHead (mkName tn) tvns)
               [QualConDecl () Nothing Nothing $ RecDecl () (mkName tn) rfs]
 #if MIN_VERSION_haskell_src_exts(1,20,0)
               []
@@ -490,7 +490,7 @@ shallowExpr (TE _ (CC.Unit)) = pure $ HS.Con () $ Special () $ UnitCon ()
 shallowExpr (TE _ (CC.ILit n pt)) = pure $ shallowILit n pt
 shallowExpr (TE _ (CC.SLit s)) = pure $ Lit () $ String () s s
 
-shallowExpr (TE _ (CC.Let       nm e1 e2)) = do 
+shallowExpr (TE _ (CC.Let       nm e1 e2)) = do
   nm' <- getSafeBinder nm
   shallowLet s1 [(nm,nm')] (mkVarP $ mkName $ snm nm') e1 e2
 
@@ -498,7 +498,7 @@ shallowExpr (TE t (CC.LetBang _ nm e1 e2)) = shallowExpr (TE t $ CC.Let nm e1 e2
 
 shallowExpr (TE _ (CC.Tuple e1 e2)) = HS.Tuple () Boxed <$> mapM shallowExpr [e1,e2]
 
-shallowExpr (TE t (CC.Struct fs)) = do 
+shallowExpr (TE t (CC.Struct fs)) = do
   (tn,_) <- nominalType t
   RecConstr () (UnQual () $ mkName tn) <$>
     mapM (\(f,e) -> FieldUpdate () (UnQual () . mkName $ snm f) <$> shallowExpr e) fs
@@ -551,7 +551,7 @@ shallowExpr (TE _ (CC.Take (n1,n2) rec fld e)) = do
 shallowExpr (TE _ (CC.Put rec fld e))
   = shallowSetter rec fld <$> shallowExpr rec <*> shallowType (exprType rec) <*> shallowExpr e
 
-shallowExpr (TE _ (CC.Promote _ e)) = shallowExpr e  
+shallowExpr (TE _ (CC.Promote _ e)) = shallowExpr e
 -- \ ^^^ NOTE: We guarantee that `Promote' doesn't change the underlying presentation, thus
 -- we don't can what type we promote to here. / zilinc
 
@@ -563,24 +563,24 @@ shallowExpr (TE _ (CC.Cast    t e)) = do
 
 -- | __NOTE:__ add parens because the precendence is different from Haskell's
 shallowPrimOp :: CS.Op -> [Exp ()] -> Exp ()
-shallowPrimOp CS.Plus   [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "+"     ) e2 
-shallowPrimOp CS.Minus  [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "-"     ) e2 
-shallowPrimOp CS.Times  [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "*"     ) e2 
-shallowPrimOp CS.Divide [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "div"   ) e2 
-shallowPrimOp CS.Mod    [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "mod"   ) e2 
-shallowPrimOp CS.And    [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "&&"    ) e2  
-shallowPrimOp CS.Or     [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "||"    ) e2  
-shallowPrimOp CS.Gt     [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName ">"     ) e2 
-shallowPrimOp CS.Lt     [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "<"     ) e2 
-shallowPrimOp CS.Le     [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "<="    ) e2 
-shallowPrimOp CS.Ge     [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName ">="    ) e2 
-shallowPrimOp CS.Eq     [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "=="    ) e2 
-shallowPrimOp CS.NEq    [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "/="    ) e2 
-shallowPrimOp CS.BitAnd [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName ".&."   ) e2 
-shallowPrimOp CS.BitOr  [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName ".|."   ) e2 
-shallowPrimOp CS.BitXor [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "xor"   ) e2 
-shallowPrimOp CS.LShift [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "shiftL") (mkAppE (mkVarE $ mkName "fromIntegral") [e2]) 
-shallowPrimOp CS.RShift [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "shiftR") (mkAppE (mkVarE $ mkName "fromIntegral") [e2]) 
+shallowPrimOp CS.Plus   [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "+"     ) e2
+shallowPrimOp CS.Minus  [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "-"     ) e2
+shallowPrimOp CS.Times  [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "*"     ) e2
+shallowPrimOp CS.Divide [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "div"   ) e2
+shallowPrimOp CS.Mod    [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "mod"   ) e2
+shallowPrimOp CS.And    [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "&&"    ) e2
+shallowPrimOp CS.Or     [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "||"    ) e2
+shallowPrimOp CS.Gt     [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName ">"     ) e2
+shallowPrimOp CS.Lt     [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "<"     ) e2
+shallowPrimOp CS.Le     [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "<="    ) e2
+shallowPrimOp CS.Ge     [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName ">="    ) e2
+shallowPrimOp CS.Eq     [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "=="    ) e2
+shallowPrimOp CS.NEq    [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "/="    ) e2
+shallowPrimOp CS.BitAnd [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName ".&."   ) e2
+shallowPrimOp CS.BitOr  [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName ".|."   ) e2
+shallowPrimOp CS.BitXor [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "xor"   ) e2
+shallowPrimOp CS.LShift [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "shiftL") (mkAppE (mkVarE $ mkName "fromIntegral") [e2])
+shallowPrimOp CS.RShift [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "shiftR") (mkAppE (mkVarE $ mkName "fromIntegral") [e2])
 shallowPrimOp CS.Not        [e] = HS.App () (mkVarE $ mkName "not"       ) e
 shallowPrimOp CS.Complement [e] = HS.App () (mkVarE $ mkName "complement") e
 shallowPrimOp _ _ = __impossible "PrimOP arity wrong"
@@ -632,7 +632,7 @@ shallowGetter rec idx rec' = mkAppE (mkVarE . mkName . snm $ getRecordFieldName 
 -- @rec {f = x} = ...@ becomes
 --
 -- @
---   let R {f, g, h, ...} = rec  -- field puns are used 
+--   let R {f, g, h, ...} = rec  -- field puns are used
 --    in f
 -- @
 shallowGetter' :: TypedExpr t v VarName -> FieldIndex -> Exp () -> SG (Exp ())  -- use puns
@@ -656,11 +656,11 @@ shallowGetter' rec idx rec' = do
 --
 --   [@e\'@]: the value we want to put in
 --
---    __NOTE:__ the type signature is required due to 
+--    __NOTE:__ the type signature is required due to
 --   [GHC T11343](https://ghc.haskell.org/trac/ghc/ticket/11343)
 shallowSetter :: TypedExpr t v VarName -> FieldIndex -> Exp () -> HS.Type () -> Exp () -> Exp ()
 shallowSetter rec idx rec' rect' e'
-  = RecUpdate () (Paren () $ ExpTypeSig () rec' rect') 
+  = RecUpdate () (Paren () $ ExpTypeSig () rec' rect')
       [FieldUpdate () (UnQual () . mkName . snm $ getRecordFieldName rec idx) e']
 
 
@@ -711,7 +711,7 @@ mkAppE :: Exp () -> [Exp ()] -> Exp ()
 mkAppE = appFun
 
 mkLetE :: [(Pat (), Exp ())] -> Exp () -> Exp ()
-mkLetE bs e = 
+mkLetE bs e =
   let decls = P.map (uncurry patBind) bs
    in letE decls e
 

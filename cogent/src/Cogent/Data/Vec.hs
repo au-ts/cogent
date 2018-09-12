@@ -19,7 +19,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Cogent.Vec where
+module Cogent.Data.Vec where
 
 import Cogent.Compiler (__impossible)
 #if __GLASGOW_HASKELL__ < 711

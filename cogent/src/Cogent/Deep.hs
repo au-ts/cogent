@@ -20,7 +20,7 @@ import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Core as CC
 import Cogent.Util (NameMod, Stage(..))
-import Cogent.Vec (cvtToList, Fin, finInt)
+import Cogent.Data.Vec (cvtToList, Fin, finInt)
 import Data.List (sort)
 import qualified Data.Map.Strict as Map
 import Isabelle.ExprTH

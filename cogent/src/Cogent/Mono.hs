@@ -36,7 +36,7 @@ import Cogent.Common.Types
 import Cogent.Core
 import Cogent.Inference
 import Cogent.Util (Warning, first3, second3, third3)
-import Cogent.Vec as Vec hiding (head)
+import Cogent.Data.Vec as Vec hiding (head)
 
 import Control.Applicative
 import Control.Arrow (first, second, (***))
@@ -171,7 +171,7 @@ monoExpr (TE t e) = TE <$> monoType t <*> monoExpr' e
     monoExpr' (SLit    s          ) = pure $ SLit s
     monoExpr' (ALit    es         ) = ALit <$> mapM monoExpr es
     monoExpr' (ArrayIndex e i     ) = ArrayIndex <$> monoExpr e <*> pure i
-    monoExpr' (Pop     a e1 e2    ) = Pop a <$> monoExpr e1 <*> monoExpr e2 
+    monoExpr' (Pop     a e1 e2    ) = Pop a <$> monoExpr e1 <*> monoExpr e2
     monoExpr' (Singleton e        ) = Singleton <$> monoExpr e
     monoExpr' (Let     a e1 e2    ) = Let a <$> monoExpr e1 <*> monoExpr e2
     monoExpr' (LetBang vs a e1 e2 ) = LetBang vs a <$> monoExpr e1 <*> monoExpr e2

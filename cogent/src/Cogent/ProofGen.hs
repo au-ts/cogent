@@ -25,10 +25,10 @@ import Cogent.Compiler
 import Cogent.Core hiding (kind)
 import Cogent.Deep
 import Cogent.PrettyPrint
-import Cogent.Vec hiding (splitAt, length, zipWith, zip, unzip)
-import qualified Cogent.Vec as Vec
+import Cogent.Data.Vec hiding (splitAt, length, zipWith, zip, unzip)
+import qualified Cogent.Data.Vec as Vec
 import Cogent.Util
-import Cogent.LeafTree
+import Cogent.Data.LeafTree
 
 import Control.Lens (makeLenses, (%=), (.=), use)
 import Control.Monad.State.Strict

@@ -27,7 +27,7 @@ module Cogent.Shallow
 --   , shallowConsts
 --   , shallowTuplesProof
 --   , MapTypeName
---   ) 
+--   )
   where
 
 import Cogent.Common.Syntax as CS
@@ -38,7 +38,7 @@ import Cogent.Desugar as D (freshVarPrefix)
 import Cogent.Normal as N (freshVarPrefix)
 import Cogent.ShallowTable (TypeStr(..), st, getStrlType, toTypeStr)
 import Cogent.Util (Stage(..), Warning)
-import Cogent.Vec as Vec
+import Cogent.Data.Vec as Vec
 
 import Isabelle.ExprTH
 import Isabelle.InnerAST as I

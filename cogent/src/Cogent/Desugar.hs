@@ -40,7 +40,7 @@ import Cogent.PrettyPrint ()
 import qualified Cogent.Surface as S
 import Cogent.TypeCheck.Base as B
 import Cogent.Util
-import Cogent.Vec as Vec
+import Cogent.Data.Vec as Vec
 
 import Control.Applicative
 import Control.Arrow ((&&&))
@@ -116,14 +116,14 @@ desugar tls ctygen pragmas =
        ctygen' <- desugarCustTyGen ctygen
        tell $ Last (Just (write^._1, write^._2, consts'))
        return (defs',ctygen')
-  where 
+  where
     initialState  = DsState Nil Nil 0 0 []
-        
+
     go :: S.TopLevel S.RawType B.TypedPatn B.TypedExpr -> DS 'Zero 'Zero [Definition UntypedExpr VarName]
     go x = do gbl <- use oracleGbl
               put initialState
               oracleGbl .= gbl
-              -- \ ^^^ NOTE: We need to set the local oracle to 0 for every top-level definition, as in the 
+              -- \ ^^^ NOTE: We need to set the local oracle to 0 for every top-level definition, as in the
               -- ShallowHaskell module we assume each top-level function have bound variable 0 (de Bruijn)
               -- of name `freshVarPrefix ++ "0"'. The global oracle must __not__ be reset, as it's global.
               -- / zilinc
@@ -207,7 +207,7 @@ lamLftTlv (S.FunDef fn sigma alts) = S.FunDef fn sigma <$> mapM (lamLftAlt fn) a
 lamLftTlv d = return d
 
 lamLftAlt :: FunName -> S.Alt B.TypedPatn B.TypedExpr -> DS t v (S.Alt B.TypedPatn B.TypedExpr)
-lamLftAlt f (S.Alt p l e) = S.Alt p l <$> lamLftExpr f e 
+lamLftAlt f (S.Alt p l e) = S.Alt p l <$> lamLftExpr f e
 
 lamLftExpr :: FunName -> B.TypedExpr -> DS t v B.TypedExpr
 lamLftExpr f (B.TE t (S.Lam p mt e) l) = do
@@ -446,7 +446,7 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArray [B.TIP (S.PVar (v,_)) _]) _)) e 
   e'  <- withBinding v $ desugarExpr e
   return $ E (Let v (E $ Singleton e0') e')
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArray [p]) pos)) e = do
-  -- Idea: 
+  -- Idea:
   --    e0 | [p] in e ~~> let [v] = e0; p = v in e
   v <- freshVar
   let B.TE te0 _ _ = e0

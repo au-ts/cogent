@@ -46,12 +46,12 @@ import           Cogent.Common.Syntax  as Syn
 import           Cogent.Common.Types   as Typ
 import           Cogent.Core           as CC
 import           Cogent.Deep
-import qualified Cogent.DList          as DList
+import qualified Cogent.Data.DList          as DList
 import           Cogent.Inference             (kindcheck_)
 import           Cogent.Mono                  (Instance)
 import           Cogent.Normal                (isAtom)
 import           Cogent.Util           (decap, extTup2l, extTup3r, first3, secondM, toCName, whenM)
-import           Cogent.Vec            as Vec hiding (repeat, zipWith)
+import           Cogent.Data.Vec            as Vec hiding (repeat, zipWith)
 
 import           Control.Applicative          hiding (empty)
 import           Control.Arrow                       ((***), (&&&), second)
@@ -185,7 +185,7 @@ isTrivialCExpr (CCondExpr {}) = False
 isTrivialCExpr (CConst {}) = True
 isTrivialCExpr (CVar {}) = True
 isTrivialCExpr (CStructDot (CDeref e) _) = False  -- NOTE: Not sure why but we cannot do `isTrivialCExpr e && not __cogent_fintermediate_vars' / zilinc
-isTrivialCExpr (CArrayDeref e idx) = __fixme $ isTrivialCExpr e && isTrivialCExpr idx 
+isTrivialCExpr (CArrayDeref e idx) = __fixme $ isTrivialCExpr e && isTrivialCExpr idx
 isTrivialCExpr (CStructDot e _) = isTrivialCExpr e && not __cogent_fintermediate_vars
 isTrivialCExpr (CDeref e) = isTrivialCExpr e && not __cogent_fintermediate_vars
 isTrivialCExpr (CAddrOf e) = isTrivialCExpr e && not __cogent_fintermediate_vars
@@ -422,7 +422,7 @@ typeCId :: CC.Type 'Zero -> Gen v CId
 typeCId t = use custTypeGen >>= \ctg ->
             case M.lookup t ctg of
               Just (n,_) -> return n
-              Nothing -> 
+              Nothing ->
                 (if __cogent_fflatten_nestings then typeCIdFlat else typeCId') t >>= \n ->
                 when (isUnstable t) (typeCorres %= DList.cons (toCName n, t)) >>
                 return n
@@ -724,7 +724,7 @@ genExpr mv (TE t (Pop _ e1 e2)) = do  -- FIXME: varpool - as above
   (v2,v2decl,v2stm) <- declare trest'
   -- recycleVars v1p
   (adecl,astm) <- assign trest' (variable v2) (CBinOp C.Add e1' (mkConst U32 1))
-  (e2',e2decl,e2stm,e2p) <- withBindings (fromJust $ cvtFromList (SSuc $ SSuc SZero) [v1, variable v2]) $ genExpr mv e2 
+  (e2',e2decl,e2stm,e2p) <- withBindings (fromJust $ cvtFromList (SSuc $ SSuc SZero) [v1, variable v2]) $ genExpr mv e2
   return (e2', e1decl ++ v1decl ++ v2decl ++ adecl ++ e2decl,
           e1stm ++ v1stm ++ v2stm ++ astm ++ e2stm, e2p)
 
@@ -881,7 +881,7 @@ genExpr mv (TE t (Con tag e tau)) = do  -- `tau' and `t' should be compatible
   t'  <- genType t
   (v,vdecl,vstm) <- maybeDecl mv t'
   (a1decl,a1stm) <- assign (CIdent tagsT) (strDot' v fieldTag) (variable $ tagEnum tag)
-  (a2decl,a2stm) <- assign te' (strDot' v tag) e' 
+  (a2decl,a2stm) <- assign te' (strDot' v tag) e'
   return (variable v, edecl ++ vdecl ++ a1decl ++ a2decl, estm ++ vstm ++ a1stm ++ a2stm, ep)
 
 genExpr mv (TE t (Member rec fld)) = do
@@ -998,7 +998,7 @@ fnSpecAttrConst (FnSpec st tq ats) = FnSpec st tq (GccAttrs [GccAttr "const" []]
 fnSpecAttrPure  (FnSpec st tq ats) = FnSpec st tq (GccAttrs [GccAttr "pure"  []]:ats)
 
 -- | This function generates an FFI function for a Cogent function if it's input
---   or output type is not marshallable. See [Haskell2010 Standard](https://www.haskell.org/onlinereport/haskell2010/haskellch8.html#x15-1570008.4.2) 
+--   or output type is not marshallable. See [Haskell2010 Standard](https://www.haskell.org/onlinereport/haskell2010/haskellch8.html#x15-1570008.4.2)
 --   for a description of marshallable types.
 genFfiFunc :: CType                 -- ^ return type of a function
            -> CId                   -- ^ function name

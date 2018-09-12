@@ -13,7 +13,7 @@
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE ExplicitForAll #-}
 
-module Cogent.LeafTree where
+module Cogent.Data.LeafTree where
 
 import Prelude
 

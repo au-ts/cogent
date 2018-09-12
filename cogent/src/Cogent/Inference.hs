@@ -39,8 +39,8 @@ import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Core
 import Cogent.Util
-import Cogent.Vec hiding (splitAt, length, zipWith, zip, unzip)
-import qualified Cogent.Vec as Vec
+import Cogent.Data.Vec hiding (splitAt, length, zipWith, zip, unzip)
+import qualified Cogent.Data.Vec as Vec
 
 import Control.Applicative
 import Control.Arrow
@@ -232,8 +232,8 @@ tc = flip tc' M.empty
 tc_ :: [Definition UntypedExpr a] -> Either String [Definition TypedExpr a]
 tc_ = fmap fst . tc
 
-tcConsts :: [CoreConst UntypedExpr] 
-         -> Map FunName FunctionType 
+tcConsts :: [CoreConst UntypedExpr]
+         -> Map FunName FunctionType
          -> Either String ([CoreConst TypedExpr], Map FunName FunctionType)
 tcConsts [] reader = return ([], reader)
 tcConsts ((v,e):ds) reader =

@@ -38,7 +38,7 @@ import Cogent.Compiler
 import Cogent.Core
 import Cogent.Inference hiding (kindcheck, lookupKind, withBinding)
 import Cogent.Util (Flip(..), secondM)
-import Cogent.Vec as V
+import Cogent.Data.Vec as V
 
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative

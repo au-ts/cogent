@@ -45,8 +45,8 @@ import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.PrettyPrint hiding (associativity, primop)
 import Cogent.Util
-import Cogent.Vec hiding (splitAt, length, zipWith, zip, unzip)
-import qualified Cogent.Vec as Vec
+import Cogent.Data.Vec hiding (splitAt, length, zipWith, zip, unzip)
+import qualified Cogent.Data.Vec as Vec
 
 import Control.Arrow hiding ((<+>))
 -- import Data.Data hiding (Refl)
@@ -304,7 +304,7 @@ instance Functor (TypedExpr t v) where
 --   fmap f (FunDef  attr fn ts ti to e) = FunDef  attr fn ts ti to (fmap f e)
 --   fmap f (AbsDecl attr fn ts ti to)   = AbsDecl attr fn ts ti to
 --   fmap f (TypeDef tn ts mt)      = TypeDef tn ts mt
--- 
+--
 -- stripNameTD :: Definition TypedExpr VarName -> Definition TypedExpr ()
 -- stripNameTD = fmap $ const ()
 
@@ -361,7 +361,7 @@ instance (Pretty a, Prec (e t v a), Pretty (e t v a), Pretty (e t ('Suc v) a), P
   pretty (Op opr es)  = primop opr <+> tupled (map pretty es)
   pretty (ILit i pt) = literal (string $ show i) <+> symbol "::" <+> pretty pt
   pretty (SLit s) = literal $ string s
-  pretty (ALit es) = array $ map pretty es 
+  pretty (ALit es) = array $ map pretty es
   pretty (ArrayIndex arr idx) = prettyPrec 2 arr <+> symbol "@" <+> pretty idx
   pretty (Pop (v1,v2) e1 e2) = align (keyword "pop" <+> pretty v1 <> symbol ":@" <> pretty v2 <+> symbol "=" <+> pretty e1 L.<$>
                                 keyword "in"  <+> pretty e2)
