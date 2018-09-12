@@ -239,6 +239,8 @@ datatype tac = RTac of thm
 
 val simp = SimpTac ([], [])
 
+datatype 'a treestep = StepDown | StepUp | Val of 'a
+
 datatype hints = KindingTacs of tac list
   | TTSplitBangTacs of tac list
   | TypingTacs of tac list

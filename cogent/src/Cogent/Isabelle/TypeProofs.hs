@@ -57,6 +57,7 @@ import Prelude hiding ((<$>))
 import System.FilePath ((</>))
 import Text.PrettyPrint.ANSI.Leijen hiding ((</>))
 import Text.Printf
+import Text.Show
 
 data TypeSplitKind = TSK_L | TSK_S | TSK_NS
   deriving Eq
@@ -146,18 +147,23 @@ formatTypecorrectProof fn =
                     ++ "    @{context} " ++ fn ++ "_typecorrect_script *}"]])
      ProofDone)) ]
 
+data TreeSteps a = StepDown | StepUp | Val a
+    deriving (Eq, Read, Show)
+
+flattenHintTree :: LeafTree Hints -> [TreeSteps Hints]
+flattenHintTree (Branch ths) = StepDown : concatMap flattenHintTree ths ++ [StepUp]
+flattenHintTree (Leaf h) = [Val h]
 
 prove :: (Pretty a) => [Definition TypedExpr a] -> Definition TypedExpr a
       -> State TypingSubproofs ([TheoryDecl I.Type I.Term], [TheoryDecl I.Type I.Term])
 prove decls (FunDef _ fn k ti to e) = do
   mod <- use nameMod
+  let eexpr = pushDown (Cons (Just ti) Nil) (splitEnv (Cons (Just ti) Nil) e)
   proofSteps' <- proofSteps decls (fmap snd k) ti eexpr
   ta <- use tsTypeAbbrevs
-  return $ (formatMLProof (mod fn ++ "_typecorrect_script") "hints" (map show $ toList proofSteps')
-           ++ (if __cogent_fml_typing_tree then formatMLTreeGen (mod fn) else [])
-           ++ formatTypecorrectProof (mod fn),
-           (if __cogent_fml_typing_tree then formatMLTreeFinalise (mod fn) else []))
-  where eexpr = pushDown (Cons (Just ti) Nil) (splitEnv (Cons (Just ti) Nil) e)
+  let typecorrect_script = formatMLProof (mod fn ++ "_typecorrect_script") "hints treestep" (map show $ flattenHintTree proofSteps')
+  let fn_typecorrect_proof = typecorrect_script ++ (if __cogent_fml_typing_tree then formatMLTreeGen (mod fn) else []) ++ formatTypecorrectProof (mod fn)
+  return (fn_typecorrect_proof, if __cogent_fml_typing_tree then formatMLTreeFinalise (mod fn) else [])
 prove _ _ = return ([], [])
 
 proofs :: (Pretty a) => [Definition TypedExpr a]
