@@ -57,6 +57,7 @@ library
               , Cogent.Core
               , Cogent.CorresProof
               , Cogent.CorresSetup
+              , Cogent.Data.Ex
               , Cogent.Data.DList
               , Cogent.Data.LeafTree
               , Cogent.Data.Nat

@@ -27,8 +27,9 @@ import Cogent.Compiler (__ghc_t3927)
 #endif
 import Cogent.Util
 
-import Cogent.Data.PropEq
+import Cogent.Data.Ex
 import Cogent.Data.Nat
+import Cogent.Data.PropEq
 
 import Control.Applicative
 #if __GLASGOW_HASKELL__ >= 709
@@ -40,9 +41,6 @@ import Data.Monoid
 import Data.Traversable
 import Prelude hiding (length, repeat, splitAt, take, unzip, zip, zipWith)
 import qualified Text.PrettyPrint.ANSI.Leijen as L
-
-data Exists :: (k -> *) -> * where
-  ExI :: l v -> Exists l
 
 data Fin :: Nat -> * where
   FZero :: Fin ('Suc n)

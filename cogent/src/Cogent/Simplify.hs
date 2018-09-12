@@ -38,6 +38,7 @@ import Cogent.Compiler
 import Cogent.Core
 import Cogent.Inference hiding (kindcheck, lookupKind, withBinding)
 import Cogent.Util (Flip(..), secondM)
+import Cogent.Data.Ex
 import Cogent.Data.Nat
 import Cogent.Data.PropEq
 import Cogent.Data.Vec as V

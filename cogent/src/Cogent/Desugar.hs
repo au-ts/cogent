@@ -40,6 +40,7 @@ import Cogent.PrettyPrint ()
 import qualified Cogent.Surface as S
 import Cogent.TypeCheck.Base as B
 import Cogent.Util
+import Cogent.Data.Ex
 import Cogent.Data.Nat
 import Cogent.Data.PropEq ((:=:)(Refl))
 import Cogent.Data.Vec as Vec
