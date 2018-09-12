@@ -10,3 +10,6 @@ data (:=:) :: k -> k -> * where
 
 sym :: a :=: b -> b :=: a
 sym Refl = Refl
+
+trans :: a :=: b -> b :=: c -> a :=: c
+trans Refl Refl = Refl
