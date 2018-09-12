@@ -19,6 +19,7 @@ import Cogent.C.Compile (compile, GenState, TableCTypes)
 import Cogent.C.Render  (render)
 import Cogent.C.Syntax
 import Cogent.Common.Syntax
+import Cogent.Compiler
 import Cogent.Core (Definition, Type, TypedExpr)
 import Cogent.Haskell.HscGen (hscModule)
 import Cogent.Haskell.HscSyntax (HscModule)
@@ -28,6 +29,7 @@ import Cogent.Vec
 import Data.Map as M
 import Data.Set as S
 import qualified "language-c-quote" Language.C as C (Definition)
+-- import System.FilePath ((-<.>))
 
 cgen :: FilePath
      -> FilePath

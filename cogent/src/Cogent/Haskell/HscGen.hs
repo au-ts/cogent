@@ -22,12 +22,12 @@ module Cogent.Haskell.HscGen (
   hscModule
 ) where
 
-import Cogent.C.Compile
+import Cogent.C.Compile (boolT, primCId, tagsT, untypedFuncEnum)
 import Cogent.C.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Haskell.HscSyntax as Hsc
-import Cogent.Util
+import Cogent.Util (decap, toCName)
 
 import Data.List as L
 import Data.Maybe (catMaybes, fromJust)
@@ -64,7 +64,7 @@ hscEnum (CDecl (CEnumDecl (Just ((==) untypedFuncEnum -> True)) ms)) =
 hscEnum _ = Nothing
 
 hscTag :: (CId, Maybe CExpr) -> (Hsc.TagName, Maybe Hsc.Expression)
-hscTag (n, me) = (n, fmap hscExpr me)
+hscTag (n, me) = (toCName n, fmap hscExpr me)
 
 hscExpr :: CExpr -> Hsc.Expression
 hscExpr (CConst (CNumConst i _ DEC)) = Hsc.ELit $ Hsc.LitInt i
@@ -90,6 +90,7 @@ hscType (CStruct tn) = Hsc.TyCon (toHscName tn) []
 hscType (CUnion {}) = __todo "hscType: c union types"
 hscType (CEnum tn) = Hsc.TyCon (toHscName tn) []
 hscType (CPtr t) = Hsc.TyCon "Ptr" [hscType t]
+hscType (CArray t _) = Hsc.TyCon "Ptr" [hscType t]
 hscType (CIdent tn) = Hsc.TyCon (toHscName tn) []
 hscType (CFunction t1 t2) = __todo "hscType: c function types"
 hscType (CVoid) = __impossible "hscType: void type shouldn't appear"  -- Hsc.TyTuple []

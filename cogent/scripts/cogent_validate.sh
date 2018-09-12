@@ -161,27 +161,31 @@ if [[ "$TESTSPEC" =~ '--ac--' && ! ( "$TESTSPEC" =~ '--gcc--' ) && $HAVE_DONE_GC
   then echo 'Note: adding --gcc because --ac depends on it' >&2
        TESTSPEC="${TESTSPEC}gcc--"
 fi
-if [[ "$TESTSPEC" =~ '--ac--' && ! ( "$TESTSPEC" =~ '--cg--' ) && $HAVE_DONE_CG = 0 ]]
-  then echo 'Note: adding --cg because --ac depends on it' >&2
-       TESTSPEC="${TESTSPEC}cg--"
-fi
-if [[ "$TESTSPEC" =~ '--goanna--' && ! ( "$TESTSPEC" =~ '--gcc--' ) && $HAVE_DONE_GCC = 0 ]]
-  then echo 'Note: adding --gcc because --goanna depends on it' >&2
-       TESTSPEC="${TESTSPEC}gcc--"
-fi
-if [[ "$TESTSPEC" =~ '--goanna--' && ! ( "$TESTSPEC" =~ '--cg--' ) && $HAVE_DONE_CG = 0 ]]
-  then echo 'Note: adding --cg because --goanna depends on it' >&2
-       TESTSPEC="${TESTSPEC}cg--"
-fi
-if [[ "$TESTSPEC" =~ '--gcc--' && ! ( "$TESTSPEC" =~ '--cg--' ) && $HAVE_DONE_CG = 0 ]]
-  then echo 'Note: adding --cg because --gcc depends on it' >&2
-       TESTSPEC="${TESTSPEC}cg--"
-fi
 if [[ "$TESTSPEC" =~ '--hsc-gen--' && ! ( "$TESTSPEC" =~ '--gcc--' ) && $HAVE_DONE_GCC = 0 ]]
   then echo 'Note: adding --gcc because --hsc-gen depends on it' >&2
   # -gcc helps to tweak the .h files to include the right things
        TESTSPEC="${TESTSPEC}gcc--"
 fi
+if [[ "$TESTSPEC" =~ '--goanna--' && ! ( "$TESTSPEC" =~ '--gcc--' ) && $HAVE_DONE_GCC = 0 ]]
+  then echo 'Note: adding --gcc because --goanna depends on it' >&2
+       TESTSPEC="${TESTSPEC}gcc--"
+fi
+if [[ "$TESTSPEC" =~ '--ac--' && ! ( "$TESTSPEC" =~ '--cg--' ) && $HAVE_DONE_CG = 0 ]]
+  then echo 'Note: adding --cg because --ac depends on it' >&2
+       TESTSPEC="${TESTSPEC}cg--"
+fi
+
+if [[ "$TESTSPEC" =~ '--goanna--' && ! ( "$TESTSPEC" =~ '--cg--' ) && $HAVE_DONE_CG = 0 ]]
+  then echo 'Note: adding --cg because --goanna depends on it' >&2
+       TESTSPEC="${TESTSPEC}cg--"
+fi
+# This must come after all tests that -gcc needs be added.
+if [[ "$TESTSPEC" =~ '--gcc--' && ! ( "$TESTSPEC" =~ '--cg--' ) && $HAVE_DONE_CG = 0 ]]
+  then echo 'Note: adding --cg because --gcc depends on it' >&2
+       TESTSPEC="${TESTSPEC}cg--"
+fi
+
+echo "TESTSPEC = $TESTSPEC"
 
 # check_output [>file] cmd...
 # Equivalent to running "cmd... [>file]" except the output is

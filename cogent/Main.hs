@@ -751,9 +751,9 @@ parseArgs args = case getOpt' Permute options args of
           exitSuccessWithBuildInfo cmds buildinfo
 
     cg cmds monoed ctygen insts source tced tcst typedefs fts buildinfo log = do
-      let hfile = mkOutputName source Nothing <.> __cogent_ext_of_h
+      let hName = mkOutputName source Nothing <.> __cogent_ext_of_h
           prfName = mkProofName source (Just __cogent_suffix_of_ffi)
-          (h,c,atm,ct,hsc,genst) = cgen hfile prfName monoed ctygen (fst insts) log
+          (h,c,atm,ct,hsc,genst) = cgen hName prfName monoed ctygen (fst insts) log
       when (TableAbsTypeMono `elem` cmds) $ do
         let atmfile = mkFileName source Nothing __cogent_ext_of_atm
         putProgressLn "Generating table for monomorphised asbtract types..."
