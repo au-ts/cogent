@@ -56,6 +56,7 @@ import qualified Cogent.TypeCheck.Solver     as TC
 import qualified Cogent.TypeCheck.Subst      as TC
 -- import qualified Cogent.TypeCheck.Util      as TC
 import Cogent.Util
+import Cogent.Data.Nat (Nat(Zero,Suc))
 import Cogent.Data.Vec as Vec hiding (repeat)
 
 import Control.Applicative

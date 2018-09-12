@@ -25,10 +25,12 @@ import Cogent.Compiler
 import Cogent.Core hiding (kind)
 import Cogent.Deep
 import Cogent.PrettyPrint
+import Cogent.Data.LeafTree
+import Cogent.Data.Nat (Nat(Zero, Suc), SNat(SZero, SSuc))
+import qualified Cogent.Data.Nat as Nat
 import Cogent.Data.Vec hiding (splitAt, length, zipWith, zip, unzip)
 import qualified Cogent.Data.Vec as Vec
 import Cogent.Util
-import Cogent.Data.LeafTree
 
 import Control.Lens (makeLenses, (%=), (.=), use)
 import Control.Monad.State.Strict
@@ -182,9 +184,9 @@ follow_tt :: Vec t Kind -> Vec v (Maybe (Type t)) -> Vec vx (Maybe (Type t))
           -> Vec vy (Maybe (Type t)) -> State TypingSubproofs (LeafTree Hints)
 follow_tt k env env_x env_y = hintListSequence $ map (kindingHint k) new
   where
-    l = toInt (Vec.length env)
-    n_x = take (toInt (Vec.length env_x) - l) (cvtToList env_x)
-    n_y = take (toInt (Vec.length env_y) - l) (cvtToList env_y)
+    l = Nat.toInt (Vec.length env)
+    n_x = take (Nat.toInt (Vec.length env_x) - l) (cvtToList env_x)
+    n_y = take (Nat.toInt (Vec.length env_y) - l) (cvtToList env_y)
     new = catMaybes (n_x ++ n_y)
 
 proofSteps :: Xi a -> Vec t Kind -> Type t -> EnvExpr t v a
@@ -432,7 +434,7 @@ typing xi k _ = error "attempted to generate proof of ill-typed program"
 
 typingAll :: Xi a -> Vec t Kind -> Vec v (Maybe (Type t)) -> [EnvExpr t v a] -> State TypingSubproofs [Tactic]
 -- Γ = empty n ⟹  Ξ, K, Γ ⊢* [] : []
-typingAll xi k g [] = return [rule_tac "typing_all_empty'" [("n", show . Vec.toInt . Vec.length $ g)],
+typingAll xi k g [] = return [rule_tac "typing_all_empty'" [("n", show . Nat.toInt . Vec.length $ g)],
                               simp_add ["empty_def"]]
 -- Ξ, K, Γ ⊢* (e # es) : (t # ts)
 typingAll xi k g (e:es) =

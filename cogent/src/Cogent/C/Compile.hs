@@ -51,6 +51,7 @@ import           Cogent.Inference             (kindcheck_)
 import           Cogent.Mono                  (Instance)
 import           Cogent.Normal                (isAtom)
 import           Cogent.Util           (decap, extTup2l, extTup3r, first3, secondM, toCName, whenM)
+import           Cogent.Data.Nat            as Nat
 import           Cogent.Data.Vec            as Vec hiding (repeat, zipWith)
 
 import           Control.Applicative          hiding (empty)
@@ -967,13 +968,13 @@ genExpr mv (TE t (Split _ e1 e2)) = do
   (v1,v1decl,v1stm) <- declareInit t1' (strDot e1'' p1) M.empty
   (v2,v2decl,v2stm) <- declareInit t2' (strDot e1'' p2) M.empty
   recycleVars e1p'
-  (e2',e2decl,e2stm,e2p) <- withBindings (fromJust $ cvtFromList Vec.s2 [variable v1, variable v2]) $
+  (e2',e2decl,e2stm,e2p) <- withBindings (fromJust $ cvtFromList Nat.s2 [variable v1, variable v2]) $
                               genExpr mv e2
   return (e2', e1decl ++ e1decl' ++ v1decl ++ v2decl ++ e2decl,
           e1stm ++ e1stm' ++ v1stm ++ v2stm ++ e2stm, e2p)
   -- NOTE: It's commented out because split shoule behave like let / zilinc
   -- XXX | NOTE: It's an optimisation here, we no more generate new variables / zilinc
-  -- XXX | (e2',e2stm) <- withBindings (fromJust $ cvtFromList Vec.s2 [strDot e1' p1, strDot e1' p2]) $ genExpr mv e2
+  -- XXX | (e2',e2stm) <- withBindings (fromJust $ cvtFromList Nat.s2 [strDot e1' p1, strDot e1' p2]) $ genExpr mv e2
   -- XXX | return (e2', e1stm ++ e2stm)
 
 genExpr mv (TE t (Promote _ e)) = genExpr mv e

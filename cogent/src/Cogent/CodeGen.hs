@@ -24,6 +24,7 @@ import Cogent.Core (Definition, Type, TypedExpr)
 import Cogent.Haskell.HscGen (hscModule)
 import Cogent.Haskell.HscSyntax (HscModule)
 import Cogent.Mono (Instance)
+import Cogent.Data.Nat (Nat(Zero,Suc))
 import Cogent.Data.Vec
 
 import Data.Map as M

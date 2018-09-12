@@ -45,6 +45,8 @@ import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.PrettyPrint hiding (associativity, primop)
 import Cogent.Util
+import Cogent.Data.Nat (Nat(Zero, Suc))
+import qualified Cogent.Data.Nat as Nat
 import Cogent.Data.Vec hiding (splitAt, length, zipWith, zip, unzip)
 import qualified Cogent.Data.Vec as Vec
 
@@ -160,9 +162,9 @@ getFuncId (AbsDecl _ fn _ _ _  ) = Just fn
 getFuncId _ = Nothing
 
 getTypeVarNum :: Definition e a -> Int
-getTypeVarNum (FunDef  _ _ tvs _ _ _) = Vec.toInt $ Vec.length tvs
-getTypeVarNum (AbsDecl _ _ tvs _ _  ) = Vec.toInt $ Vec.length tvs
-getTypeVarNum (TypeDef _ tvs _    ) = Vec.toInt $ Vec.length tvs
+getTypeVarNum (FunDef  _ _ tvs _ _ _) = Nat.toInt $ Vec.length tvs
+getTypeVarNum (AbsDecl _ _ tvs _ _  ) = Nat.toInt $ Vec.length tvs
+getTypeVarNum (TypeDef _ tvs _    ) = Nat.toInt $ Vec.length tvs
 
 isDefinitionId :: String -> Definition e a -> Bool
 isDefinitionId n d = n == getDefinitionId d
