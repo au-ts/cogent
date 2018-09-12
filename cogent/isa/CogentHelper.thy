@@ -238,18 +238,16 @@ datatype tac = RTac of thm
 
 val simp = SimpTac ([], [])
 
-datatype 'a treestep = StepDown | StepUp | Val of 'a
-
 datatype hints = KindingTacs of tac list
   | TTSplitBangTacs of tac list
   | TypingTacs of tac list
 
-exception HINTS of string * hints list
+exception HINTS of string * hints treestep list
 
-fun kinding (KindingTacs tac :: hints) = (tac, hints)
+fun kinding (StepDown :: Val (KindingTacs tac) :: hints) = (tac, hints)
   | kinding hints = raise HINTS ("kinding", hints)
 
-fun typing_hint (TypingTacs tac :: hints) = (tac, hints)
+fun typing_hint (Val (TypingTacs tac) :: hints) = (tac, hints)
   | typing_hint hints = raise HINTS ("typing", hints)
 
 fun apply_split @{term "Some TSK_L"} hints t = ((t, NONE), hints)
@@ -257,7 +255,7 @@ fun apply_split @{term "Some TSK_L"} hints t = ((t, NONE), hints)
   | apply_split @{term "Some TSK_NS"} hints t = let
     val (tacs, hints) = kinding hints
     val thm = case tacs of [RTac thm] => thm
-      | _ => raise HINTS ("apply_split: TSK_NS", [KindingTacs tacs])
+      | _ => raise HINTS ("apply_split: TSK_NS", [Val (KindingTacs tacs)])
   in ((SOME thm, t), hints) end
   | apply_split @{term "None :: type_split_kind option"} hints t = ((NONE, t), hints)
   | apply_split t _ _ = raise TERM ("apply_split", [t])
@@ -393,7 +391,7 @@ fun typing (Const (@{const_name Var}, _) $ i) G _ hints = let
     val thm = the_G G (nth G i)
     val thms = map_filter I G
         val hints = (case typing_hint hints of
-                  (_, hints) => hints
+                  ([], hints) => hints
                 | _ => raise HINTS ("too many tacs", hints))
   in ([RTac @{thm typing_var_weak[unfolded singleton_def Cogent.empty_def]},
                 RTac thm, simp, WeakeningTac thms, simp], hints) end
@@ -464,7 +462,7 @@ fun ttyping (Const (@{const_name Split}, _) $ x $ y) tt k ctxt hints = let
   in ([RTac @{thm ttyping_default}, SimpTac (@{thms composite_anormal_expr_def}, [])] @ ty_tac, hints) end
   | ttyping t _ _ _ _ = raise TERM ("ttyping", [t])
 
-fun mk_ttsplit_tacs nm k ctxt hints = let
+fun mk_ttsplit_tacs nm k ctxt (hints : hints treestep list) = let
     val ss = put_simpset HOL_basic_ss ctxt
         addsimps @{thms replicate_unfold}
         addsimps (Proof_Context.get_thms ctxt "abbreviated_type_defs")

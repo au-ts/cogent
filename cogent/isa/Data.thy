@@ -40,6 +40,23 @@ fun unfold_leaftree (f : 'b -> ('a, ('b list)) Either) (init : 'b) : 'a leaftree
 | Right bs => Branch (map (unfold_leaftree f) bs))
 
 
+datatype 'a treestep = StepDown | StepUp | Val of 'a
+
+fun parse_treesteps' [] = ([], [])
+  | parse_treesteps' (StepDown :: rest) = let
+    val (children, rest) = parse_treesteps' rest
+    val (siblings, rest) = parse_treesteps' rest
+   in (Branch children :: siblings, rest) end
+  | parse_treesteps' (StepUp :: rest) = ([], rest)
+  | parse_treesteps' ((Val a) :: rest) = let
+      val (siblings, rest) = parse_treesteps' rest
+    in (Leaf a :: siblings, rest) end
+
+fun parse_treesteps steps = (case parse_treesteps' steps of
+    ((t :: []),[]) => SOME t
+  | (_,_) => NONE)
+
+
 (* list things *)
 
 fun findIndex p =
