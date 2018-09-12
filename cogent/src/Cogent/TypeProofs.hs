@@ -33,10 +33,10 @@ import Cogent.Deep (deepDefinitions, deepTypeAbbrevs, getTypeAbbrevs, TypeAbbrev
 import Cogent.ProofGen
 import Cogent.Core
 import Cogent.Inference
-import Cogent.Data.LeafTree
+import Data.LeafTree
 import Cogent.Util (NameMod)
-import Cogent.Data.Vec hiding (splitAt, length, zipWith, zip, unzip, head)
-import qualified Cogent.Data.Vec as V
+import Data.Vec hiding (splitAt, length, zipWith, zip, unzip, head)
+import qualified Data.Vec as V
 
 import Control.Arrow (second)
 import Control.Lens ((^.), use)

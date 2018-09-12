@@ -8,7 +8,7 @@
 -- @TAG(NICTA_GPL)
 --
 
-module Cogent.Data.DList (DList(..), empty, cons, fromList, toList) where
+module Data.DList (DList(..), empty, cons, fromList, toList) where
 
 import qualified Data.Set as S
 import Data.List (foldl')

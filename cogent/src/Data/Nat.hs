@@ -6,9 +6,9 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Cogent.Data.Nat where
+module Data.Nat where
 
-import Cogent.Data.PropEq
+import Data.PropEq
 
 import qualified Text.PrettyPrint.ANSI.Leijen as L
 

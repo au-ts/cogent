@@ -24,9 +24,9 @@ module Cogent.Normal where
 import Cogent.Common.Syntax (VarName)
 import Cogent.Compiler
 import Cogent.Core
-import Cogent.Data.Nat
-import Cogent.Data.Vec
-import Cogent.Data.PropEq
+import Data.Nat
+import Data.Vec
+import Data.PropEq
 
 import Control.Applicative
 import Control.Arrow (second, (***))

@@ -18,7 +18,7 @@ import qualified Cogent.Common.Syntax as CS
 import Cogent.Common.Types as CT
 import Cogent.Core
 import Cogent.Normal
-import Cogent.Data.Vec
+import Data.Vec
 
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative

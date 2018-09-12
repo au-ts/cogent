@@ -3,7 +3,7 @@
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Cogent.Data.PropEq where
+module Data.PropEq where
 
 data (:=:) :: k -> k -> * where
     Refl :: a :=: a

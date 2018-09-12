@@ -38,8 +38,8 @@ import Cogent.Desugar as D (freshVarPrefix)
 import Cogent.Normal as N (freshVarPrefix)
 import Cogent.ShallowTable (TypeStr(..), st, getStrlType, toTypeStr)
 import Cogent.Util (Stage(..), Warning)
-import Cogent.Data.Nat (Nat(Zero,Suc))
-import Cogent.Data.Vec as Vec
+import Data.Nat (Nat(Zero,Suc))
+import Data.Vec as Vec
 
 import Isabelle.ExprTH
 import Isabelle.InnerAST as I

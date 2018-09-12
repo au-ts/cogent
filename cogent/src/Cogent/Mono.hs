@@ -36,8 +36,8 @@ import Cogent.Common.Types
 import Cogent.Core
 import Cogent.Inference
 import Cogent.Util (Warning, first3, second3, third3)
-import Cogent.Data.Nat (Nat(Zero, Suc), SNat(SZero, SSuc))
-import Cogent.Data.Vec as Vec hiding (head)
+import Data.Nat (Nat(Zero, Suc), SNat(SZero, SSuc))
+import Data.Vec as Vec hiding (head)
 
 import Control.Applicative
 import Control.Arrow (first, second, (***))

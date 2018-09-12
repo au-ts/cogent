@@ -91,8 +91,8 @@ import Cogent.Shallow (isRecTuple)
 import Cogent.ShallowTable (TypeStr(..), st)
 import qualified Cogent.Surface as S
 import Cogent.Util (Stage(..), secondM)
-import Cogent.Data.Nat as Nat
-import Cogent.Data.Vec as Vec hiding (sym)
+import Data.Nat as Nat
+import Data.Vec as Vec hiding (sym)
 
 import Control.Arrow (second)
 import Control.Applicative

@@ -45,10 +45,10 @@ import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.PrettyPrint hiding (associativity, primop)
 import Cogent.Util
-import Cogent.Data.Nat (Nat(Zero, Suc))
-import qualified Cogent.Data.Nat as Nat
-import Cogent.Data.Vec hiding (splitAt, length, zipWith, zip, unzip)
-import qualified Cogent.Data.Vec as Vec
+import Data.Nat (Nat(Zero, Suc))
+import qualified Data.Nat as Nat
+import Data.Vec hiding (splitAt, length, zipWith, zip, unzip)
+import qualified Data.Vec as Vec
 
 import Control.Arrow hiding ((<+>))
 -- import Data.Data hiding (Refl)

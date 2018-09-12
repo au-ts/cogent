@@ -46,13 +46,13 @@ import           Cogent.Common.Syntax  as Syn
 import           Cogent.Common.Types   as Typ
 import           Cogent.Core           as CC
 import           Cogent.Deep
-import qualified Cogent.Data.DList          as DList
+import qualified Data.DList          as DList
 import           Cogent.Inference             (kindcheck_)
 import           Cogent.Mono                  (Instance)
 import           Cogent.Normal                (isAtom)
 import           Cogent.Util           (decap, extTup2l, extTup3r, first3, secondM, toCName, whenM)
-import           Cogent.Data.Nat            as Nat
-import           Cogent.Data.Vec            as Vec hiding (repeat, zipWith)
+import           Data.Nat            as Nat
+import           Data.Vec            as Vec hiding (repeat, zipWith)
 
 import           Control.Applicative          hiding (empty)
 import           Control.Arrow                       ((***), (&&&), second)

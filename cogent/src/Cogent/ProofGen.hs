@@ -25,11 +25,11 @@ import Cogent.Compiler
 import Cogent.Core hiding (kind)
 import Cogent.Deep
 import Cogent.PrettyPrint
-import Cogent.Data.LeafTree
-import Cogent.Data.Nat (Nat(Zero, Suc), SNat(SZero, SSuc))
-import qualified Cogent.Data.Nat as Nat
-import Cogent.Data.Vec hiding (splitAt, length, zipWith, zip, unzip)
-import qualified Cogent.Data.Vec as Vec
+import Data.LeafTree
+import Data.Nat (Nat(Zero, Suc), SNat(SZero, SSuc))
+import qualified Data.Nat as Nat
+import Data.Vec hiding (splitAt, length, zipWith, zip, unzip)
+import qualified Data.Vec as Vec
 import Cogent.Util
 
 import Control.Lens (makeLenses, (%=), (.=), use)

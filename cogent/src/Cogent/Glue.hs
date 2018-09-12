@@ -42,7 +42,7 @@ import Cogent.Compiler
 import qualified Cogent.Context   as Ctx
 import qualified Cogent.Core      as CC
 import qualified Cogent.Desugar   as DS
-import qualified Cogent.Data.DList     as DList
+import qualified Data.DList     as DList
 import qualified Cogent.Inference as IN
 import qualified Cogent.Mono      as MN
 import qualified Cogent.Parser    as PS
@@ -56,9 +56,9 @@ import qualified Cogent.TypeCheck.Solver     as TC
 import qualified Cogent.TypeCheck.Subst      as TC
 -- import qualified Cogent.TypeCheck.Util      as TC
 import Cogent.Util
-import Cogent.Data.Ex
-import Cogent.Data.Nat (Nat(Zero,Suc))
-import Cogent.Data.Vec as Vec hiding (repeat)
+import Data.Ex
+import Data.Nat (Nat(Zero,Suc))
+import Data.Vec as Vec hiding (repeat)
 
 import Control.Applicative
 import Control.Arrow (Arrow(..), second, (&&&))
