@@ -24,7 +24,9 @@ module Cogent.Normal where
 import Cogent.Common.Syntax (VarName)
 import Cogent.Compiler
 import Cogent.Core
-import Cogent.Vec
+import Cogent.Data.Nat
+import Cogent.Data.Vec
+import Cogent.Data.PropEq
 
 import Control.Applicative
 import Control.Arrow (second, (***))
@@ -48,8 +50,8 @@ isAtom (E (Unit)) = True
 isAtom (E (ILit {})) = True
 isAtom (E (SLit _)) = True
 isAtom (E (ALit es)) | and (map isVar es) = True
-isAtom (E (ArrayIndex e i)) | isVar e = True 
-isAtom (E (Singleton e)) | isVar e = True 
+isAtom (E (ArrayIndex e i)) | isVar e = True
+isAtom (E (Singleton e)) | isVar e = True
 isAtom (E (Tuple e1 e2)) | isVar e1 && isVar e2 = True
 isAtom (E (Struct fs)) | and (map (isVar . snd) fs) = True
 isAtom (E (Esac e)) | isVar e = True

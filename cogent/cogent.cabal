@@ -57,9 +57,14 @@ library
               , Cogent.Core
               , Cogent.CorresProof
               , Cogent.CorresSetup
+              , Cogent.Data.Ex
+              , Cogent.Data.DList
+              , Cogent.Data.LeafTree
+              , Cogent.Data.Nat
+              , Cogent.Data.PropEq
+              , Cogent.Data.Vec
               , Cogent.Deep
               , Cogent.Desugar
-              , Cogent.DList
               , Cogent.DocGent
               , Cogent.GetOpt
               , Cogent.Glue
@@ -69,7 +74,6 @@ library
               , Cogent.Haskell.HscSyntax
               , Cogent.Haskell.Shallow
               , Cogent.Inference
-              , Cogent.LeafTree
               , Cogent.Mono
               , Cogent.MonoProof
               , Cogent.Normal
@@ -97,7 +101,6 @@ library
               , Cogent.TypeCheck.Util
               , Cogent.TypeProofs
               , Cogent.Util
-              , Cogent.Vec
               -- Generated
               , Paths_cogent
               , Version_cogent

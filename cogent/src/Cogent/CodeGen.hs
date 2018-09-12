@@ -24,7 +24,8 @@ import Cogent.Core (Definition, Type, TypedExpr)
 import Cogent.Haskell.HscGen (hscModule)
 import Cogent.Haskell.HscSyntax (HscModule)
 import Cogent.Mono (Instance)
-import Cogent.Vec
+import Cogent.Data.Nat (Nat(Zero,Suc))
+import Cogent.Data.Vec
 
 import Data.Map as M
 import Data.Set as S
@@ -38,7 +39,7 @@ cgen :: FilePath
      -> M.Map FunName (M.Map Instance Int)
      -> String
      -> ([C.Definition], [C.Definition], [(TypeName, S.Set [CId])], [TableCTypes], HscModule, GenState)
-cgen hName proofName defs ctygen insts log = 
+cgen hName proofName defs ctygen insts log =
   let (enums,tydefns,fndecls,disps,tydefs,fndefns,absts,corres,st) = compile defs ctygen insts
       (h,c) = render hName (enums++tydefns++fndecls++disps++tydefs) fndefns log
       hsc = hscModule proofName hName tydefns enums

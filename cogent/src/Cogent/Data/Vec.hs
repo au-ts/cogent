@@ -19,13 +19,17 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Cogent.Vec where
+module Cogent.Data.Vec where
 
 import Cogent.Compiler (__impossible)
 #if __GLASGOW_HASKELL__ < 711
 import Cogent.Compiler (__ghc_t3927)
 #endif
 import Cogent.Util
+
+import Cogent.Data.Ex
+import Cogent.Data.Nat
+import Cogent.Data.PropEq
 
 import Control.Applicative
 #if __GLASGOW_HASKELL__ >= 709
@@ -37,79 +41,6 @@ import Data.Monoid
 import Data.Traversable
 import Prelude hiding (length, repeat, splitAt, take, unzip, zip, zipWith)
 import qualified Text.PrettyPrint.ANSI.Leijen as L
-
-data Nat = Zero | Suc Nat
-
-data Exists :: (k -> *) -> * where
-  ExI :: l v -> Exists l
-
-type family (:+:) (a :: Nat) (b :: Nat) :: Nat where
-   x :+: 'Zero = x
-   x :+: ('Suc n) = 'Suc (x :+: n)
-
-data (:=:) :: k -> k -> * where
-  Refl :: a :=: a
-
-zeroPlusNEqualsN :: SNat n -> ('Zero :+: n) :=: n
-zeroPlusNEqualsN SZero = Refl
-zeroPlusNEqualsN (SSuc n) | Refl <- zeroPlusNEqualsN n = Refl
-
-addSucLeft :: SNat v -> SNat n -> ('Suc (v :+: n)) :=: ('Suc v :+: n)
-addSucLeft v SZero = Refl
-addSucLeft v (SSuc n) | Refl <- addSucLeft v n = Refl
-
-addSucLeft' :: SNat v -> SNat n -> ('Suc (v :+: n)) :=: ('Suc n :+: v)
-addSucLeft' SZero n | Refl <- zeroPlusNEqualsN n = Refl
-addSucLeft' (SSuc v) n | Refl <- addSucLeft v n, Refl <- addSucLeft' v n = Refl
-
-sucZeroIsSuc :: SNat n -> ('Suc 'Zero :+: n) :=: ('Suc n)
-sucZeroIsSuc n | Refl <- sym (addSucLeft SZero n), Refl <- zeroPlusNEqualsN n = Refl
-
-sym :: a :=: b -> b :=: a
-sym Refl = Refl
-
-assoc :: SNat a -> SNat b -> SNat c -> (a :+: (b :+: c)) :=: ((a :+: b) :+: c)
-assoc a b SZero                          = Refl
-assoc a b (SSuc n) | Refl <- assoc a b n = Refl
-
-annoying :: SNat v -> SNat n -> SNat n1 -> 'Suc (v :+: n) :+: n1 :=: 'Suc (v :+: (n :+: n1))
-annoying v n n1 | Refl <- assoc v n n1
-                , Refl <- addSucLeft (sadd v n) n1
-                = Refl
-
-annoying' :: SNat v -> SNat n -> SNat n1 -> ('Suc ('Suc (v :+: n)) :+: n1) :=: (v :+: ('Suc ('Suc (n :+: n1))))
-annoying' v n n1 | Refl <- assoc v n n1
-                 , Refl <- addSucLeft (sadd v n) n1
-                 , Refl <- addSucLeft (SSuc (sadd v n)) n1
-                 = Refl
-
-withAssocSS :: SNat v -> SNat n -> SNat n1 -> (('Suc ('Suc (v :+: n)) :+: n1) :=: (v :+: ('Suc ('Suc (n :+: n1)))) -> p) -> p
-withAssocSS a b c = ($ annoying' a b c)
-
-withAssocS :: SNat v -> SNat n -> SNat n1 -> ('Suc (v :+: n) :+: n1 :=: 'Suc (v :+: (n :+: n1)) -> p) -> p
-withAssocS v n n1 = ($ annoying v n n1)
-
-withAssoc :: SNat v -> SNat n -> SNat n1 -> ((v :+: n) :+: n1 :=: (v :+: (n :+: n1)) -> p) -> p
-withAssoc v n n1 = ($ sym $ assoc v n n1)
-
-
-(=?)  :: SNat a -> SNat b -> Maybe (a :=: b)
-SZero  =? SZero  = Just Refl
-SSuc n =? SSuc m | Just Refl <- n =? m = Just Refl
-_ =? _ = Nothing
-
-data SNat :: Nat -> * where
-  SZero :: SNat 'Zero
-  SSuc :: SNat n -> SNat ('Suc n)
-
-deriving instance Show (SNat n)
-
-s0 = SZero
-s1 = SSuc s0
-s2 = SSuc s1
-
-instance L.Pretty (SNat n) where
-  pretty = L.dullred . L.string . ('S':) . show . toInt
 
 data Fin :: Nat -> * where
   FZero :: Fin ('Suc n)
@@ -150,10 +81,6 @@ instance Traversable (Vec n) where
 (<++>) :: Vec a t -> Vec b t -> Vec (a :+: b) t
 v <++> Nil = v
 v <++> Cons x xs = Cons x (v <++> xs)
-
-sadd :: SNat v -> SNat n -> SNat (v :+: n)
-sadd m SZero = m
-sadd m (SSuc n) = SSuc (m `sadd` n)
 
 length :: Vec a t -> SNat a
 length Nil = SZero
@@ -239,10 +166,6 @@ zip = zipWith (,)
 unzip :: Vec n (a,b) -> (Vec n a, Vec n b)
 unzip Nil = (Nil, Nil)
 unzip (Cons (x,y) (unzip -> (xs, ys))) = (Cons x xs, Cons y ys)
-
-toInt :: SNat v -> Int
-toInt SZero = 0
-toInt (SSuc n) = 1 + toInt n
 
 widen :: Fin n -> Fin ('Suc n)
 widen FZero = FZero
