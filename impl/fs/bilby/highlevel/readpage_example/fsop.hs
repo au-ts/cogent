@@ -14,7 +14,7 @@ type U16 = Word16
 type U32 = Word32
 type U64 = Word64
 
--- FIXME: needs some check I guess
+-- FIXME: this is implemented as a C cast in bilby
 downcast = fromIntegral
 
 data R a e = Error e | Success a
@@ -25,12 +25,12 @@ type ErrCode = U32
 data SysState
 data FsState = FsState { fsop_st   :: FsopState
                        , mount_st  :: MountState
-                       , ostore_st :: OStoreState
+                       , ostore_st :: OstoreState
                        }
 
 data FsopState
 data MountState
-data OStoreState
+data OstoreState
 
 data VfsInode = VfsInode VfsInodeAbstract FsInode
 
@@ -70,24 +70,19 @@ read_block ex fs_st@(FsState _ mount_st ostore_st) vnode buf block =
       ((ex',ostore_st'), r) = ostore_read ex mount_st ostore_st oid
       fs_st' = fs_st { ostore_st = ostore_st' }
    in case r of
-        Error e -> if e == eNoEnt then
-                     let buf' = buf_memset buf 0 bilbyFsBlockSize 0
-                      in ((ex',fs_st',buf'), Success ())
-                   else ((ex',fs_st',buf), Success ())
-        Success obj -> case extract_data_from_union ex' (ounion obj) of
-                         Error ex -> absurd undefined
-                         Success (ex,od) ->
-                           let ex' = freeObj ex obj
-                               size = wordarray_length (odata od)
-                            in if size > bilbyFsBlockSize then
-                                 let ex'' = deep_freeObjData ex' od
-                                  in ((ex'',fs_st',buf), Error eInval)
-                               else let bdata = buf_data buf
-                                        bdata' = wordarray_copy bdata (odata od) 0 0 size
-                                        buf' = buf { buf_data = bdata' }
-                                        buf'' = buf_memset buf' size (bilbyFsBlockSize - size) 0
-                                        ex'' = deep_freeObjData ex' od
-                                     in ((ex'',fs_st',buf''), Success ())
+        Error e -> 
+          let buf' = if e == eNoEnt then buf_memset buf 0 bilbyFsBlockSize 0 else buf
+           in ((ex',fs_st',buf'), Success ())
+        Success obj ->
+          case extract_data_from_union ex' (ounion obj) of
+            Error ex -> absurd undefined
+            Success (ex,od) ->
+              let size = wordarray_length $ odata od
+               in if size > bilbyFsBlockSize then
+                    ((ex,fs_st',buf), Error eInval)
+                  else let bdata = wordarray_copy (buf_data buf) (odata od) 0 0 size
+                           buf' = buf_memset (buf { buf_data = bdata }) size (bilbyFsBlockSize - size) 0
+                        in ((ex',fs_st',buf'), Success ())
 
 extract_data_from_union :: SysState -> ObjUnion -> R (SysState, ObjData) SysState 
 extract_data_from_union ex u = case u of TObjData v -> Success (ex,v)
@@ -150,19 +145,8 @@ bilbyFsObjTypeData :: U8
 bilbyFsObjTypeData = 1
 
 
-deep_freeObjData :: SysState -> ObjData -> SysState
-deep_freeObjData ex v = let odata' = odata v
-                            ex' = wordarray_free ex odata'
-                         in freeObjData ex' v
-
-freeObjData :: SysState -> ObjData -> SysState
-freeObjData ex _ = ex
-
--- abstract function
-freeObj :: SysState -> Obj -> SysState
-freeObj ex _ = ex
-
 -- TODO: out-of-scope
+ostore_read :: SysState -> MountState -> OstoreState -> ObjId -> ((SysState, OstoreState), R Obj ErrCode)
 ostore_read = undefined
 
 
@@ -197,6 +181,3 @@ wordarray_copy dest src dest_off src_off len = undefined
 wordarray_length :: WordArray a -> U32
 wordarray_length = snd . bounds 
 
--- abstract function
-wordarray_free :: SysState -> WordArray a -> SysState
-wordarray_free ex _ = ex
