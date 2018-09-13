@@ -22,7 +22,6 @@ type R_ e = R () e
 
 type ErrCode = U32
 
-data SysState
 data FsState = FsState { fsop_st   :: FsopState
                        , mount_st  :: MountState
                        , ostore_st :: OstoreState
@@ -53,48 +52,46 @@ bilbyFsBlockSize = 4096 :: U32
 eNoEnt = 1
 eInval = 22
 
-fsop_readpage :: SysState -> FsState -> VfsInode -> OSPageOffset -> Buffer
-              -> ((SysState, FsState, VfsInode, Buffer), R_ ErrCode)
-fsop_readpage ex fs_st vnode block addr =
+fsop_readpage :: FsState -> VfsInode -> OSPageOffset -> Buffer
+              -> ((FsState, VfsInode, Buffer), R_ ErrCode)
+fsop_readpage fs_st vnode block addr =
   let size = vfs_inode_get_size vnode :: U64
       limit = size `shiftR` fromIntegral bilbyFsBlockShift
    in if | block > limit -> let addr' = buf_memset addr 0 bilbyFsBlockSize 0
-                             in ((ex,fs_st,vnode,addr'), Error eNoEnt)
-         | block == limit && (size `mod` fromIntegral bilbyFsBlockSize == 0) -> ((ex,fs_st,vnode,addr), Success ())
-         | otherwise -> first (\(ex,fs_st,addr) -> (ex,fs_st,vnode,addr)) $ read_block ex fs_st vnode addr block
+                             in ((fs_st,vnode,addr'), Error eNoEnt)
+         | block == limit && (size `mod` fromIntegral bilbyFsBlockSize == 0) -> ((fs_st,vnode,addr), Success ())
+         | otherwise -> first (\(fs_st,addr) -> (fs_st,vnode,addr)) $ read_block fs_st vnode addr block
 
-read_block :: SysState -> FsState -> VfsInode -> Buffer -> OSPageOffset 
-           -> ((SysState, FsState, Buffer), R_ ErrCode)
-read_block ex fs_st@(FsState _ mount_st ostore_st) vnode buf block =
+read_block :: FsState -> VfsInode -> Buffer -> OSPageOffset 
+           -> ((FsState, Buffer), R_ ErrCode)
+read_block fs_st@(FsState _ mount_st ostore_st) vnode buf block =
   let oid = obj_id_data_mk (vfs_inode_get_ino vnode) (downcast block)
-      ((ex',ostore_st'), r) = ostore_read ex mount_st ostore_st oid
+      ((ostore_st'), r) = ostore_read mount_st ostore_st oid
       fs_st' = fs_st { ostore_st = ostore_st' }
    in case r of
         Error e -> 
           let buf' = if e == eNoEnt then buf_memset buf 0 bilbyFsBlockSize 0 else buf
-           in ((ex',fs_st',buf'), Success ())
+           in ((fs_st',buf'), Success ())
         Success obj ->
-          case extract_data_from_union ex' (ounion obj) of
-            Error ex -> absurd undefined
-            Success (ex,od) ->
+          case extract_data_from_union (ounion obj) of
+            Error _ -> absurd undefined
+            Success od ->
               let size = wordarray_length $ odata od
                in if size > bilbyFsBlockSize then
-                    ((ex,fs_st',buf), Error eInval)
+                    ((fs_st',buf), Error eInval)
                   else let bdata = wordarray_copy (buf_data buf) (odata od) 0 0 size
                            buf' = buf_memset (buf { buf_data = bdata }) size (bilbyFsBlockSize - size) 0
-                        in ((ex',fs_st',buf'), Success ())
+                        in ((fs_st',buf'), Success ())
 
-extract_data_from_union :: SysState -> ObjUnion -> R (SysState, ObjData) SysState 
-extract_data_from_union ex u = case u of TObjData v -> Success (ex,v)
-                                         _ -> absurd undefined
+extract_data_from_union :: ObjUnion -> R ObjData ()
+extract_data_from_union u = case u of TObjData v -> Success v
+                                      _ -> absurd undefined
 
 data Obj = Obj { magic  :: U32
                , crc    :: U32
                , sqnum  :: U64
                , offs   :: U32  -- in-mem only field
                , len    :: U32
-               -- , pad1 : U8
-               -- , pad2 : U8
                , trans  :: ObjTrans
                , otype  :: ObjType
                , ounion :: ObjUnion
@@ -146,7 +143,7 @@ bilbyFsObjTypeData = 1
 
 
 -- TODO: out-of-scope
-ostore_read :: SysState -> MountState -> OstoreState -> ObjId -> ((SysState, OstoreState), R Obj ErrCode)
+ostore_read :: MountState -> OstoreState -> ObjId -> (OstoreState, R Obj ErrCode)
 ostore_read = undefined
 
 

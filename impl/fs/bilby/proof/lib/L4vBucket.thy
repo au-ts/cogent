@@ -10,7 +10,7 @@
 
 theory L4vBucket
 imports
-  "../../../../../l4v/lib/WordLemmaBucket"
+  "../../../../../l4v/lib/Word_Lib/Word_Lemmas"
 begin
 
 no_notation fun_app (infixr "$" 10)
