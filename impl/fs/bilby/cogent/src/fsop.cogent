@@ -1756,17 +1756,16 @@ read_block:(SysState, FsState, VfsInode!, Buffer, OSPageOffset) -> RR (SysState,
 read_block(ex, fs_st {ostore_st}, vnode, buf, block) =
   let oid = obj_id_data_mk(vfs_inode_get_ino(vnode), u64_to_u32(block)) !vnode
   and ((ex, ostore_st), r) = ostore_read(ex, fs_st.mount_st, ostore_st, oid) !fs_st
+  and fs_st = fs_st {ostore_st}
   in r
   | Error e ->
-    let fs_st = fs_st {ostore_st}
-    in if e == eNoEnt then
+    if e == eNoEnt then
       let buf = buf_memset(buf, 0, bilbyFsBlockSize, 0)
       in ((ex, fs_st, buf), Success ())
     else
       ((ex, fs_st, buf), Error e)
   | Success (obj {ounion}) ->
-    let fs_st = fs_st {ostore_st}
-    in extract_data_from_union(ex, ounion)
+    extract_data_from_union(ex, ounion)
     | Error ex ->
       cogent_assert False ;
       let ex = freeObj(ex, obj)
@@ -1802,9 +1801,7 @@ fsop_readpage #{ex, fs_st, vnode, block, addr} =
     (#{ex, fs_st, vnode, addr}, Success ())
   else
    let ((ex, fs_st, addr), r) = read_block(ex, fs_st, vnode, addr, block) !vnode
-   in r
-   | Error err  -> (#{ex, fs_st, vnode, addr}, Error err) 
-   | Success () -> (#{ex, fs_st, vnode, addr}, Success ())
+   in (#{ex, fs_st, vnode, addr}, r) 
 
 type FsopWriteP = #{ex:SysState, fs_st: FsState, vnode: VfsInode, pos: OSPageOffset, len:U32, addr: Buffer}
 type FsopWriteRR = #{ex:SysState, fs_st: FsState, vnode: VfsInode, addr: Buffer}

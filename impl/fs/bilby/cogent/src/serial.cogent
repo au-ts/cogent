@@ -1294,7 +1294,7 @@ deep_freeObjInode(ex, v) = freeObjInode(ex, v)
 {-# cinline deep_freeObjData #-}
 deep_freeObjData: (SysState, ObjData) -> SysState
 deep_freeObjData(ex, v) =
-  let v {odata,id} = v
+  let v {odata} = v
   and ex = wordarray_free[U8] (ex, odata) in
   freeObjData(ex, v)
 
