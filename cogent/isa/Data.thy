@@ -6,6 +6,26 @@ begin
 
 ML {*
 
+(* list things *)
+
+fun findIndex p =
+  let fun find _ [] = NONE
+        | find n (x::xs) = if p x then SOME (x, n) else find (n+1) xs
+  in find 0 end
+
+fun zipWith _ [] _ = []
+  | zipWith _ _ [] = []
+  | zipWith f (x::xs) (y::ys) = f x y :: zipWith f xs ys
+
+fun enumerate xs = let
+  fun enum _ [] = []
+    | enum n (x::xs) = (n, x) :: enum (n+1) xs
+  in enum 0 xs end
+
+fun nubBy _ [] = []
+  | nubBy f (x::xs) = x :: filter (fn y => f x <> f y) (nubBy f xs)
+
+
 (* either *)
 datatype ('l, 'r) Either = Left of 'l | Right of 'r
 
@@ -32,12 +52,12 @@ fun tree_map f (Tree (head,rest)) = Tree (f head, map (tree_map f) rest)
 
 datatype 'a leaftree = Branch of 'a leaftree list | Leaf of 'a
 
-fun map_leaftree (f : 'a -> 'b) (Branch tas) = Branch (map (map_leaftree f) tas)
-  | map_leaftree (f : 'a -> 'b) (Leaf a)     = Leaf (f a)
-
-fun unfold_leaftree (f : 'b -> ('a, ('b list)) Either) (init : 'b) : 'a leaftree = (case f init of
+fun leaftree_unfold (f : 'b -> ('a, ('b list)) Either) (init : 'b) : 'a leaftree = (case f init of
   Left a => Leaf a
-| Right bs => Branch (map (unfold_leaftree f) bs))
+| Right bs => Branch (map (leaftree_unfold f) bs))
+
+fun leaftree_map f (Branch tas) = Branch (map (fn t => leaftree_map f t) tas)
+  | leaftree_map f (Leaf a)     = Leaf (f a)
 
 
 datatype 'a treestep = StepDown | StepUp | Val of 'a
@@ -55,26 +75,6 @@ fun parse_treesteps' [] = ([], [])
 fun parse_treesteps steps = (case parse_treesteps' steps of
     ((t :: []),[]) => SOME t
   | (_,_) => NONE)
-
-
-(* list things *)
-
-fun findIndex p =
-  let fun find _ [] = NONE
-        | find n (x::xs) = if p x then SOME (x, n) else find (n+1) xs
-  in find 0 end
-
-fun zipWith _ [] _ = []
-  | zipWith _ _ [] = []
-  | zipWith f (x::xs) (y::ys) = f x y :: zipWith f xs ys
-
-fun enumerate xs = let
-  fun enum _ [] = []
-    | enum n (x::xs) = (n, x) :: enum (n+1) xs
-  in enum 0 xs end
-
-fun nubBy _ [] = []
-  | nubBy f (x::xs) = x :: filter (fn y => f x <> f y) (nubBy f xs)
 
 (* option things *)
 
