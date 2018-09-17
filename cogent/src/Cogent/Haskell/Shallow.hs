@@ -86,9 +86,9 @@ import Cogent.Compiler
 import qualified Cogent.Core as CC
 import Cogent.Core (TypedExpr(..))
 import Cogent.Desugar as D (freshVarPrefix)
+import Cogent.Isabelle.Shallow (isRecTuple)
+import Cogent.Isabelle.ShallowTable (TypeStr(..), st)
 import Cogent.PrettyPrint ()
-import Cogent.Shallow (isRecTuple)
-import Cogent.ShallowTable (TypeStr(..), st)
 import qualified Cogent.Surface as S
 import Cogent.Util (Stage(..), secondM)
 import Data.Nat as Nat

@@ -8,7 +8,7 @@
 -- @TAG(NICTA_GPL)
 --
 
-module Cogent.Root where
+module Cogent.Isabelle.Root where
 
 import Cogent.Compiler
 import Cogent.Util (Stage(..))

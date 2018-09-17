@@ -13,12 +13,12 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -Wwarn #-}
 
-module Cogent.MonoProof where
+module Cogent.Isabelle.MonoProof where
 
 import Cogent.Common.Syntax
 import Cogent.Compiler
 import Cogent.Core as CC
-import Cogent.Deep hiding (imports)
+import Cogent.Isabelle.Deep hiding (imports)
 import Cogent.Mono
 import Cogent.Util
 import Data.Nat (Nat(Zero, Suc))

@@ -15,7 +15,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Cogent.ShallowTable where
+module Cogent.Isabelle.ShallowTable where
 
 import Cogent.Common.Syntax
 import Cogent.Common.Types

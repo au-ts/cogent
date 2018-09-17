@@ -13,19 +13,20 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# OPTIONS_GHC -Wwarn #-}
 
-module Cogent.Deep where
+module Cogent.Isabelle.Deep where
 
 import Cogent.Common.Syntax as CS
 import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Core as CC
 import Cogent.Util (NameMod, Stage(..))
-import Data.Vec (cvtToList, Fin, finInt)
 import Data.List (sort)
 import qualified Data.Map.Strict as Map
+import Data.Vec (cvtToList, Fin, finInt)
 import Isabelle.ExprTH
 import Isabelle.InnerAST as I
 import Isabelle.OuterAST as O
+
 #if __GLASGOW_HASKELL__ >= 709
 import Prelude hiding ((<$>))
 #endif

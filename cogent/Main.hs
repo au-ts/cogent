@@ -27,42 +27,44 @@
 
 module Main where
 
-import Cogent.ACInstall       as AC (acInstallDefault)
-import Cogent.AllRefine       as AR (allRefine)
-import Cogent.C.Compile       as CG (printCTable, printATM)
-import Cogent.CallGraph       as CF (daX86, printIntel)
-import Cogent.CodeGen         as CG (cgen)
+import Cogent.C.Compile                as CG (printCTable, printATM)
+import Cogent.CallGraph                as CF (daX86, printIntel)
+import Cogent.CodeGen                  as CG (cgen)
 import Cogent.Compiler
-import Cogent.Core            as CC (isConFun, getDefinitionId, untypeD)  -- FIXME: zilinc
-import Cogent.CorresProof     as CP (corresProof)
-import Cogent.CorresSetup     as CS (corresSetup)
-import Cogent.Deep            as DP (deep)
-import Cogent.Desugar         as DS (desugar)
-import Cogent.DocGent         as DG (docGent)
+import Cogent.Core                     as CC (isConFun, getDefinitionId, untypeD)  -- FIXME: zilinc
+import Cogent.Desugar                  as DS (desugar)
+import Cogent.DocGent                  as DG (docGent)
 import Cogent.GetOpt
-import Cogent.Glue            as GL (defaultExts, defaultTypnames, GlState, glue, GlueMode(..), mkGlState, parseFile, parseFile')
-import Cogent.Hangman               (hangman)
-import Cogent.Haskell.Shallow as HS
-import Cogent.Inference       as IN (tc, tc_, tcConsts, retype)
-import Cogent.Mono            as MN (mono, printAFM)
-import Cogent.MonoProof       as MP  -- FIXME: zilinc
-import Cogent.Normal          as NF (normal, verifyNormal)
-import Cogent.NormalProof     as NP (normalProof)
-import Cogent.Parser          as PA (parseWithIncludes, parseCustTyGen)
-import Cogent.Preprocess      as PR
-import Cogent.PrettyPrint     as PP (prettyPrint, prettyRE, prettyTWE)
-import Cogent.Reorganizer     as RO (reorganize)
-import Cogent.Root            as RT (root)
-import Cogent.Shallow         as SH (shallowConsts, shallow, shallowTuplesProof)
-import Cogent.ShallowTable    as ST (st, printTable)  -- for debugging only
-import Cogent.Simplify        as SM
-import Cogent.SuParser        as SU (parse)
-import Cogent.Surface         as SR (stripAllLoc)
-import Cogent.TypeCheck       as TC (tc)
-import Cogent.TypeCheck.Base  as TC
-import Cogent.TypeProofs      as TP (deepTypeProof)
-import Cogent.GraphGen        as GG
-import Cogent.Util            as UT
+import Cogent.Glue                     as GL (defaultExts, defaultTypnames,
+                                              GlState, glue, GlueMode(..), mkGlState,
+                                              parseFile, parseFile')
+import Cogent.Hangman                        (hangman)
+import Cogent.Haskell.Shallow          as HS
+import Cogent.Inference                as IN (tc, tc_, tcConsts, retype)
+import Cogent.Isabelle.ACInstall       as AC (acInstallDefault)
+import Cogent.Isabelle.AllRefine       as AR (allRefine)
+import Cogent.Isabelle.CorresProof     as CP (corresProof)
+import Cogent.Isabelle.CorresSetup     as CS (corresSetup)
+import Cogent.Isabelle.Deep            as DP (deep)
+import Cogent.Isabelle.MonoProof       as MP  -- FIXME: zilinc
+import Cogent.Isabelle.NormalProof     as NP (normalProof)
+import Cogent.Isabelle.Root            as RT (root)
+import Cogent.Isabelle.Shallow         as SH (shallowConsts, shallow, shallowTuplesProof)
+import Cogent.Isabelle.ShallowTable    as ST (st, printTable)  -- for debugging only
+import Cogent.Isabelle.TypeProofs      as TP (deepTypeProof)
+import Cogent.Isabelle.GraphGen        as GG
+import Cogent.Mono                     as MN (mono, printAFM)
+import Cogent.Normal                   as NF (normal, verifyNormal)
+import Cogent.Parser                   as PA (parseWithIncludes, parseCustTyGen)
+import Cogent.Preprocess               as PR
+import Cogent.PrettyPrint              as PP (prettyPrint, prettyRE, prettyTWE)
+import Cogent.Reorganizer              as RO (reorganize)
+import Cogent.Simplify                 as SM
+import Cogent.SuParser                 as SU (parse)
+import Cogent.Surface                  as SR (stripAllLoc)
+import Cogent.TypeCheck                as TC (tc)
+import Cogent.TypeCheck.Base           as TC
+import Cogent.Util                     as UT
 
 -- import BuildInfo_cogent (githash, buildtime)
 #if __GLASGOW_HASKELL__ < 709

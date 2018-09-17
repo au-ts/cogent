@@ -25,16 +25,16 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module Cogent.TypeProofs where
+module Cogent.Isabelle.TypeProofs where
 
 import Cogent.Common.Syntax
 import Cogent.Compiler
-import Cogent.Deep (deepDefinitions, deepTypeAbbrevs, getTypeAbbrevs, TypeAbbrevs)
-import Cogent.ProofGen
 import Cogent.Core
 import Cogent.Inference
-import Data.LeafTree
+import Cogent.Isabelle.Deep (deepDefinitions, deepTypeAbbrevs, getTypeAbbrevs, TypeAbbrevs)
+import Cogent.Isabelle.ProofGen
 import Cogent.Util (NameMod)
+import Data.LeafTree
 import Data.Vec hiding (splitAt, length, zipWith, zip, unzip, head)
 import qualified Data.Vec as V
 

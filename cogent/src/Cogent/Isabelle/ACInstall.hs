@@ -9,7 +9,7 @@
 --
 
 
-module Cogent.ACInstall where
+module Cogent.Isabelle.ACInstall where
 
 import Cogent.Compiler
 

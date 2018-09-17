@@ -8,7 +8,7 @@
 -- @TAG(NICTA_GPL)
 --
 
-module Cogent.CorresProof where
+module Cogent.Isabelle.CorresProof where
 
 import Cogent.Common.Syntax (FunName)
 import Cogent.Compiler

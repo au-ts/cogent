@@ -16,21 +16,21 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Cogent.ProofGen where
+module Cogent.Isabelle.ProofGen where
 
 import Cogent.Common.Repr
 import Cogent.Common.Types
 import Cogent.Common.Syntax
 import Cogent.Compiler
 import Cogent.Core hiding (kind)
-import Cogent.Deep
+import Cogent.Isabelle.Deep
 import Cogent.PrettyPrint
+import Cogent.Util
 import Data.LeafTree
 import Data.Nat (Nat(Zero, Suc), SNat(SZero, SSuc))
 import qualified Data.Nat as Nat
 import Data.Vec hiding (splitAt, length, zipWith, zip, unzip)
 import qualified Data.Vec as Vec
-import Cogent.Util
 
 import Control.Lens (makeLenses, (%=), (.=), use)
 import Control.Monad.State.Strict

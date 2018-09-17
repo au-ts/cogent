@@ -8,7 +8,7 @@
 -- @TAG(NICTA_GPL)
 --
 
-module Cogent.CorresSetup where
+module Cogent.Isabelle.CorresSetup where
 
 import Cogent.Compiler
 

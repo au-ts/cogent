@@ -22,7 +22,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Cogent.Shallow
+module Cogent.Isabelle.Shallow
 --   ( shallow
 --   , shallowConsts
 --   , shallowTuplesProof
@@ -35,8 +35,8 @@ import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Core as CC
 import Cogent.Desugar as D (freshVarPrefix)
+import Cogent.Isabelle.ShallowTable (TypeStr(..), st, getStrlType, toTypeStr)
 import Cogent.Normal as N (freshVarPrefix)
-import Cogent.ShallowTable (TypeStr(..), st, getStrlType, toTypeStr)
 import Cogent.Util (Stage(..), Warning)
 import Data.Nat (Nat(Zero,Suc))
 import Data.Vec as Vec

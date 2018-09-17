@@ -8,7 +8,7 @@
 -- @TAG(NICTA_GPL)
 --
 
-module Cogent.AllRefine where
+module Cogent.Isabelle.AllRefine where
 
 import Cogent.Compiler
 import Cogent.Util

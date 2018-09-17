@@ -11,7 +11,7 @@
 
 {-# LANGUAGE ExistentialQuantification #-}
 
-module Cogent.GraphGen where
+module Cogent.Isabelle.GraphGen where
 
 -- import Cogent.Compiler (__impossible)
 import qualified Cogent.Common.Syntax as CS

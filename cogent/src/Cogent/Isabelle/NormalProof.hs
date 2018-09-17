@@ -10,15 +10,14 @@
 
 {-# LANGUAGE MultiWayIf #-}
 
-module Cogent.NormalProof (normalProof) where
+module Cogent.Isabelle.NormalProof (normalProof) where
 
 import Cogent.Common.Syntax
 import Cogent.Compiler
 import Cogent.Core
+import Cogent.Isabelle.Shallow (MapTypeName)
+import Cogent.Isabelle.ShallowTable (TypeStr (..))
 import Cogent.Util
-import Cogent.Shallow (MapTypeName)
-import Cogent.ShallowTable (TypeStr (..))
-
 import Isabelle.InnerAST as I
 import Isabelle.OuterAST as O
 

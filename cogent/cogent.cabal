@@ -42,9 +42,7 @@ custom-setup
 library
   hs-source-dirs: src
   exposed-modules:
-                Cogent.ACInstall
-              , Cogent.AllRefine
-              , Cogent.C.Compile
+                Cogent.C.Compile
               , Cogent.C.Render
               , Cogent.C.Syntax
               , Cogent.CallGraph
@@ -55,32 +53,35 @@ library
               , Cogent.Compiler
               , Cogent.Context
               , Cogent.Core
-              , Cogent.CorresProof
-              , Cogent.CorresSetup
-              , Cogent.Deep
               , Cogent.Desugar
               , Cogent.DocGent
               , Cogent.GetOpt
               , Cogent.Glue
-              , Cogent.GraphGen
               , Cogent.Hangman
               , Cogent.Haskell.HscGen
               , Cogent.Haskell.HscSyntax
               , Cogent.Haskell.Shallow
               , Cogent.Inference
+              , Cogent.Isabelle.ACInstall
+              , Cogent.Isabelle.AllRefine
+              , Cogent.Isabelle.CorresProof
+              , Cogent.Isabelle.CorresSetup
+              , Cogent.Isabelle.Deep
+              , Cogent.Isabelle.GraphGen
+              , Cogent.Isabelle.MonoProof
+              , Cogent.Isabelle.NormalProof
+              , Cogent.Isabelle.ProofGen
+              , Cogent.Isabelle.Root
+              , Cogent.Isabelle.Shallow
+              , Cogent.Isabelle.ShallowTable
+              , Cogent.Isabelle.TypeProofs
               , Cogent.Mono
-              , Cogent.MonoProof
               , Cogent.Normal
-              , Cogent.NormalProof
               , Cogent.Parser
               , Cogent.PrettyPrint
               , Cogent.Preprocess
-              , Cogent.ProofGen
               , Cogent.Reorganizer
               , Cogent.ReprCheck
-              , Cogent.Root
-              , Cogent.Shallow
-              , Cogent.ShallowTable
               , Cogent.Simplify
               , Cogent.SuParser
               , Cogent.Surface
@@ -93,7 +94,6 @@ library
               , Cogent.TypeCheck.Solver
               , Cogent.TypeCheck.Subst
               , Cogent.TypeCheck.Util
-              , Cogent.TypeProofs
               , Cogent.Util
               , Data.DList
               , Data.Ex
