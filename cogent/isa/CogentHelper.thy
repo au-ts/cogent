@@ -293,7 +293,8 @@ fun kind_proofs ((@{term SomeT} $ t) :: ts) k ctxt hint_tree = let
     val t = betapplys (@{term "kinding"}, [k, t, (@{schematic_term "?k :: kind"})])
     val ct = Thm.cterm_of ctxt (@{term Trueprop} $ t)
     val rs = EVERY (map (fn t => interpret_tac t ctxt 1) tacs) (Thm.trivial ct)
-    val t = (case Seq.pull rs of NONE => raise TERM ("kind_proofs: failed", [k, t])
+    val t = (case Seq.pull rs of
+          NONE => raise TERM ("kind_proofs: failed", [k, t])
         | SOME (t, _) => t)
     val (ts, hints) = kind_proofs ts k ctxt hints
   in (SOME t :: ts, hints) end
@@ -469,10 +470,10 @@ fun mk_ttsplit_tacs nm k ctxt hint_tree = let
     val body_def = Proof_Context.get_thm ctxt (nm ^ "_def")
     val ty_def = Proof_Context.get_thm ctxt (nm ^ "_type_def")
     val tt_def = Proof_Context.get_thm ctxt (nm ^ "_typetree_def")
-    val (_, body) = Logic.dest_equals (Thm.concl_of (safe_mk_meta_eq (simplify ss body_def)))
-    val (_, tt) = Logic.dest_equals (Thm.concl_of (safe_mk_meta_eq (simplify ss tt_def)))
-    val (_, ty) = Logic.dest_equals (Thm.concl_of (safe_mk_meta_eq (simplify ss ty_def)))
-    val (ity, _) = HOLogic.dest_prod ty |> snd |> HOLogic.dest_prod
+    val body = body_def |> simplify ss |> safe_mk_meta_eq |> Thm.concl_of |> Logic.dest_equals |> snd
+    val tt   = tt_def |> simplify ss |> safe_mk_meta_eq |> Thm.concl_of |> Logic.dest_equals |> snd
+    val ty   = ty_def |> simplify ss |> safe_mk_meta_eq |> Thm.concl_of |> Logic.dest_equals |> snd
+    val ity  = ty |> HOLogic.dest_prod |> snd |> HOLogic.dest_prod |> fst
     val (ps, hint_tree) = kind_proofs [@{term SomeT} $ ity] k ctxt hint_tree
     val (tacs, hint_tree) = ttyping body (tt, ps) k ctxt hint_tree
     val _ = case hint_tree of
