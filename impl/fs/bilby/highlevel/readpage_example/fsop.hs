@@ -17,8 +17,7 @@ type U64 = Word64
 -- FIXME: this is implemented as a C cast in bilby
 downcast = fromIntegral
 
-data R a e = Error e | Success a
-type R_ e = R () e
+data R a e = Success a | Error e
 
 type ErrCode = U32
 
@@ -31,7 +30,8 @@ data FsopState
 data MountState
 data OstoreState
 
-data VfsInode = VfsInode VfsInodeAbstract FsInode
+-- We make it abstract
+data VfsInode  -- = VfsInode VfsInodeAbstract FsInode
 
 -- abstract function
 vfs_inode_get_ino :: VfsInode -> U32
@@ -72,43 +72,37 @@ when block = 3, that's the special case. We return the old buffer unmodified.
 -}
 
 
-fsop_readpage :: FsState -> VfsInode -> OSPageOffset
-              -> ((FsState, Buffer), R_ ErrCode)
-fsop_readpage fs_st vnode block =
+fsop_readpage :: OstoreState -> VfsInode -> OSPageOffset -> R (WordArray U8) ErrCode
+fsop_readpage ostore vnode block =
   let size = vfs_inode_get_size vnode :: U64  -- the number of bytes we need to read
       limit = size `shiftR` fromIntegral bilbyFsBlockShift  -- the number of blocks we need to read
-   in if | block > limit -> let addr = buf_memset 0 bilbyFsBlockSize 0
-                             in ((fs_st,vnode,addr), Error eNoEnt)
+   in if | block > limit -> Error eNoEnt
          -- ^ if we are reading beyond the last block we need to read, return an zeroed buffer
-         | block == limit && (size `mod` fromIntegral bilbyFsBlockSize == 0) -> ((fs_st,vnode), Success ())
+         | block == limit && (size `mod` fromIntegral bilbyFsBlockSize == 0) -> 
+             Success $ wordarray_create 0
          -- ^ if we are reading the "last" one which extra bytes in this block is 0, then return old buffer
-         | otherwise -> first (\(fs_st,addr) -> (fs_st,vnode,addr)) $ read_block fs_st vnode addr block
+         | otherwise -> read_block ostore vnode block
          -- ^ if we are reading a block which contains data, then we read the block
 
-read_block :: FsState -> VfsInode -> Buffer -> OSPageOffset 
-           -> ((FsState, Buffer), R_ ErrCode)
-read_block fs_st@(FsState _ mount_st ostore_st) vnode buf block =
-  let oid = obj_id_data_mk (vfs_inode_get_ino vnode) (downcast block)
-      ((ostore_st'), r) = ostore_read mount_st ostore_st oid
-      fs_st' = fs_st { ostore_st = ostore_st' }
-   in case r of
-        Error e -> 
-          let buf' = if e == eNoEnt then buf_memset buf 0 bilbyFsBlockSize 0 else buf
-           in ((fs_st',buf'), Success ())
-        Success obj ->
-          case extract_data_from_union (ounion obj) of
-            Error _ -> absurd undefined
-            Success od ->
-              let size = wordarray_length $ odata od
-               in if size > bilbyFsBlockSize then
-                    ((fs_st',buf), Error eInval)
-                  else let bdata = wordarray_copy (buf_data buf) (odata od) 0 0 size
-                           buf' = buf_memset (buf { buf_data = bdata }) size (bilbyFsBlockSize - size) 0
-                        in ((fs_st',buf'), Success ())
 
-extract_data_from_union :: ObjUnion -> R ObjData ()
-extract_data_from_union u = case u of TObjData v -> Success v
-                                      _ -> absurd undefined
+read_block :: OstoreState -> VfsInode -> OSPageOffset -> R (WordArray U8) ErrCode
+read_block ostore vnode block =
+  let oid = obj_id_data_mk (vfs_inode_get_ino vnode) (downcast block)
+   in case ostore_read ostore oid of
+        Error e -> if e == eNoEnt 
+                      then Success $ wordarray_create_nz bilbyFsBlockSize
+                      else Error e
+        Success obj ->
+          let bdata = odata . extract_data_from_union $ ounion obj
+              size = wordarray_length bdata
+           in if size > bilbyFsBlockSize
+                 then Error eInval
+                 else Success . listArray (0, bilbyFsBlockSize - 1) $
+                        elems bdata ++ (replicate (fromIntegral $ bilbyFsBlockSize - size) (0 :: U8))
+
+
+extract_data_from_union :: ObjUnion -> ObjData
+extract_data_from_union u = case u of TObjData v -> v
 
 data Obj = Obj { magic  :: U32
                , crc    :: U32
@@ -166,7 +160,7 @@ bilbyFsObjTypeData = 1
 
 
 -- TODO: out-of-scope
-ostore_read :: MountState -> OstoreState -> ObjId -> (OstoreState, R Obj ErrCode)
+ostore_read :: OstoreState -> ObjId -> R Obj ErrCode
 ostore_read = undefined
 
 
@@ -176,13 +170,6 @@ type VfsSize = U64
 vfs_inode_get_size :: VfsInode -> VfsSize
 vfs_inode_get_size = undefined
 
-buf_memset :: Buffer -> U32 -> U32 -> U8 -> Buffer
-buf_memset buf@(Buffer bdata bbound) frm len val = 
-  let frm' = if frm < bbound then frm else bbound
-      len' = if frm' + len < bbound then len else bbound - frm'
-      bdata' = wordarray_set bdata frm' len' val 
-   in buf { buf_data = bdata' }
-
 -- abstract datatype
 -- NOTE: we assume that the lower bound is always 1
 type WordArray a = Array U32 a
@@ -190,14 +177,14 @@ type WordArray a = Array U32 a
 type WordArrayIndex = U32
 
 -- TODO: abstract function
-wordarray_set :: WordArray a -> U32 -> U32 -> a -> WordArray a
-wordarray_set = undefined
+wordarray_create :: (Num a) => U32 -> WordArray a
+wordarray_create = wordarray_create_nz
 
 -- TODO: abstract function
-wordarray_copy :: WordArray a -> WordArray a -> WordArrayIndex -> WordArrayIndex -> U32 -> WordArray a
-wordarray_copy dest src dest_off src_off len = undefined
+wordarray_create_nz :: (Num a) => U32 -> WordArray a
+wordarray_create_nz l = listArray (0, l-1) (replicate (fromIntegral l) 0)
 
 -- abstract function
-wordarray_length :: WordArray a -> U32
+wordarray_length :: (Num a) => WordArray a -> U32
 wordarray_length = snd . bounds 
 
