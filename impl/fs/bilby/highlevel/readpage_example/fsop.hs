@@ -52,15 +52,38 @@ bilbyFsBlockSize = 4096 :: U32
 eNoEnt = 1
 eInval = 22
 
-fsop_readpage :: FsState -> VfsInode -> OSPageOffset -> Buffer
-              -> ((FsState, VfsInode, Buffer), R_ ErrCode)
-fsop_readpage fs_st vnode block addr =
-  let size = vfs_inode_get_size vnode :: U64
-      limit = size `shiftR` fromIntegral bilbyFsBlockShift
-   in if | block > limit -> let addr' = buf_memset addr 0 bilbyFsBlockSize 0
-                             in ((fs_st,vnode,addr'), Error eNoEnt)
-         | block == limit && (size `mod` fromIntegral bilbyFsBlockSize == 0) -> ((fs_st,vnode,addr), Success ())
+{-
+ 
+|<-------------------- data ----------------------->|
++--------------+--------------+--------------+---------------
+|xxxxxxxxxxxxxx|xxxxxxxxxxxxxx|xxxxxxxxxxxxxx|xxxxxxx........  -- (A)
++--------------+--------------+--------------+---------------
+|xxxxxxxxxxxxxx|xxxxxxxxxxxxxx|xxxxxxxxxxxxxx|...............  -- (B)
++--------------+--------------+--------------+---------------
+|<- block 0 -->|      1              2               3
+
+In case (A), limit = 3.
+When block = 0,1,2 just read.
+     block = 3, because the size of the data is not perfectly aligned at the end, we still read.
+     block >= 4, return empty.
+In case (B), limit = 3.
+when block = 3, that's the special case. We return the old buffer unmodified.
+
+-}
+
+
+fsop_readpage :: FsState -> VfsInode -> OSPageOffset
+              -> ((FsState, Buffer), R_ ErrCode)
+fsop_readpage fs_st vnode block =
+  let size = vfs_inode_get_size vnode :: U64  -- the number of bytes we need to read
+      limit = size `shiftR` fromIntegral bilbyFsBlockShift  -- the number of blocks we need to read
+   in if | block > limit -> let addr = buf_memset 0 bilbyFsBlockSize 0
+                             in ((fs_st,vnode,addr), Error eNoEnt)
+         -- ^ if we are reading beyond the last block we need to read, return an zeroed buffer
+         | block == limit && (size `mod` fromIntegral bilbyFsBlockSize == 0) -> ((fs_st,vnode), Success ())
+         -- ^ if we are reading the "last" one which extra bytes in this block is 0, then return old buffer
          | otherwise -> first (\(fs_st,addr) -> (fs_st,vnode,addr)) $ read_block fs_st vnode addr block
+         -- ^ if we are reading a block which contains data, then we read the block
 
 read_block :: FsState -> VfsInode -> Buffer -> OSPageOffset 
            -> ((FsState, Buffer), R_ ErrCode)

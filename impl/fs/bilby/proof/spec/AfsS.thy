@@ -518,7 +518,8 @@ where
  "pad_block data len \<equiv> data @ drop (length data) (replicate (unat len) 0)"
 
 (* No support for holes for now *)
-(* Q: Why do we need to return afs_state and vnode at all? They don't change. / zilinc *)
+(* Q: Why do we need to return afs_state and vnode at all? They don't change. 
+      Also the input buffer (addr) is not used. / zilinc *)
 definition
   afs_readpage :: "afs_state \<Rightarrow> vnode \<Rightarrow> U64 \<Rightarrow> U8 WordArray \<Rightarrow>
                    ((afs_state \<times> vnode \<times> U8 WordArray) \<times> (unit, ErrCode) R\<^sub>T) cogent_monad"
