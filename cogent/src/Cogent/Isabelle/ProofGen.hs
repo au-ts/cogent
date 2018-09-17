@@ -213,6 +213,7 @@ ttyping xi k (EE u (LetBang is a x y) env) = hintListSequence [ -- Ξ, K, Γ ⊢
   ]
 ttyping xi k (EE t (If x a b) env) = hintListSequence [ -- Ξ, K, Γ ⊢ If x a b : t if
   ttyping xi k x,                                -- Ξ, K, Γ1 ⊢ x : TPrim Bool
+  follow_tt k (envOf x) (envOf a) (envOf b),
   ttyping xi k a,                                -- Ξ, K, Γ2 ⊢ a : t
   ttyping xi k b                                 -- Ξ, K, Γ2 ⊢ b : t
   ]
