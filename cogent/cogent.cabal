@@ -139,6 +139,11 @@ library
               , Cogent.Compiler
               , Cogent.Context
               , Cogent.Core
+              , Cogent.DataLayout.Core
+              , Cogent.DataLayout.Surface
+              , Cogent.DataLayout.TypeCheck
+              , Cogent.DataLayout.Desugar
+              , Cogent.DataLayout.CoreTypeCheck
               , Cogent.Desugar
               , Cogent.GetOpt
               , Cogent.Glue
@@ -166,11 +171,6 @@ library
               , Cogent.Preprocess
               , Cogent.Quote
               , Cogent.Reorganizer
-              , Cogent.ReprCheck
-              , Cogent.Root
-              , Cogent.Shallow
-              , Cogent.ShallowHaskell
-              , Cogent.ShallowTable
               , Cogent.Simplify
               , Cogent.SuParser
               , Cogent.Surface
@@ -194,15 +194,6 @@ library
               , Cogent.TypeCheck.Subst
               , Cogent.TypeCheck.Util
               , Cogent.Util
-              , Cogent.DataLayout.Core
-              , Cogent.DataLayout.Surface
-              , Cogent.DataLayout.TypeCheck
-              , Cogent.DataLayout.Syntax
-              , Cogent.DataLayout.QuickCheck.Core
-              , Cogent.DataLayout.QuickCheck.Surface
-              , Cogent.DataLayout.QuickCheck.TypeCheck
-              , Cogent.DataLayout.Desugar
-              , Cogent.DataLayout.CoreTypeCheck
               , Data.DList
               , Data.Ex
               , Data.LeafTree
