@@ -554,7 +554,7 @@ shallowExpr (TE _ (CC.Put rec fld e))
 
 shallowExpr (TE _ (CC.Promote _ e)) = shallowExpr e
 -- \ ^^^ NOTE: We guarantee that `Promote' doesn't change the underlying presentation, thus
--- we don't can what type we promote to here. / zilinc
+-- we don't care what type we promote to here. / zilinc
 
 shallowExpr (TE _ (CC.Cast    t e)) = do
   e' <- shallowExpr e

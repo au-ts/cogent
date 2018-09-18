@@ -70,15 +70,17 @@ isaReservedNames = ["o", "value", "from"]
 
 type MapTypeName = M.Map TypeStr TypeName
 
-data SGTables = SGTables { typeStrs :: [TypeStr], typeNameMap :: MapTypeName, typeVars :: [String]
-                         , recoverTuples :: Bool -- not a table, but convenient to add here
+data SGTables = SGTables { typeStrs      :: [TypeStr]
+                         , typeNameMap   :: MapTypeName
+                         , typeVars      :: [String]     -- ^ @Cogent var &#x21A6; Isabelle var@
+                         , recoverTuples :: Bool         -- ^ not a table, but convenient to be included here
                          }
 
 type MapConcTypeSyn = M.Map String TypeName
 
 data StateGen = StateGen {
-    _varNameGen   :: Int, -- counter of variable name generated
-    _concTypeSyns :: MapConcTypeSyn
+    _varNameGen   :: Int,            -- ^ counter for fresh variables
+    _concTypeSyns :: MapConcTypeSyn  -- ^ @type structure hash &#x21A6; Cogent type synonym name@
 }
 
 makeLenses ''StateGen
@@ -153,7 +155,7 @@ shallowPrimOp CS.RShift _ = __impossible "shallowPrimOp"
 shallowPrimOp CS.Complement [e] = mkApp (mkId "NOT") [e]
 shallowPrimOp CS.Complement _ = __impossible "shallowPrimOp"
 
--- Strip names and format them for Isabelle
+-- | Strip names and format them for Isabelle
 snm :: String -> String
 snm nm = case nm `elem` isaReservedNames of
   True -> nm ++ I.subSym ++ "r"
@@ -185,16 +187,6 @@ findShortType t = do
 findTypeSyn :: CC.Type t -> SG String
 findTypeSyn t = findType t >>= \(TCon nm _ _) -> pure nm
 
-shallowPromote :: TypeName -> CC.Type t -> TypedExpr t v VarName -> SG Term
-shallowPromote _ (TPrim pt) (TE _ (ILit n _)) = pure $ shallowILit n pt
-shallowPromote _ (TPrim pt) te = TermWithType <$> (mkApp (mkId "ucast") <$> ((:[]) <$> shallowExpr te)) <*> pure (shallowPrimType pt)
--- shallowPromote tnto ty e@(TE t@(TSum alts) _) = do
---   tnfrm <- findTypeSyn t
---   ecase <- shallowExpr e
---   let es = map (\(tag,_) -> mkApp (mkStr [tnto,".",tag]) []) alts
---   pure $ mkApp (mkStr ["case_",tnfrm]) $ es ++ [ecase]
-shallowPromote _ _ _ = __impossible "shallowPromote"
-
 shallowExpr :: TypedExpr t v VarName -> SG Term
 shallowExpr (TE _ (Variable (_,v))) = pure $ mkId (snm v)
 shallowExpr (TE _ (Fun fn ts _)) = pure $ mkId (snm fn)  -- only prints the fun name
@@ -213,40 +205,36 @@ shallowExpr (TE _ (Tuple e1 e2)) = mkApp <$> (pure $ mkId "Pair") <*> (mapM shal
 shallowExpr (TE t (Struct fs)) = shallowMaker t fs
 shallowExpr (TE _ (If c th el)) = mkApp <$> (pure $ mkId "HOL.If") <*> mapM shallowExpr [c, th, el]
 shallowExpr (TE t (Case e tag (_,n1,e1) (_,n2,e2))) = do
-  ecase <- shallowExpr e
-  tn <- findTypeSyn $ exprType e
-  let TSum alts = exprType e
-      falts = (filter ((/=) tag . fst) alts)
-      tags = map fst alts
-      types = map (fst . snd) falts
-  tnto <- findTypeSyn $ TSum falts
-  -- Types of the shrinked variant type so that we can generate a
-  -- TermWithType and prevent Isabelle from complaining about not knowing the type
-  stypes <- shallowType $ TCon tnto types (__impossible "shallowExpr")
+  e' <- shallowExpr e
+  let te@(TSum alts) = exprType e
+  tn  <- findTypeSyn te
+  te' <- shallowType te
   e1' <- mkLambdaE [snm n1] e1
   e2' <- mkLambdaE [snm n2] e2
-  -- Increment the variable generator, we need to generate a variable
-  -- for emulating Cogent case, the shrinked variant requires asserting
-  -- its type
-  vn <- use varNameGen
-  varNameGen .= vn + 1
-  -- vn2 is used to give a name to e2' as in large case pattern matching
-  -- it is referenced many, many times.
-  vn2 <- use varNameGen
-  varNameGen .= vn + 1
+  vn <- varNameGen <<%= (+1)
+  vn2 <- varNameGen <<%= (+1)
   let vgn = "v" ++ (subSymStr $ "G" ++ show vn)
-      vgn2 = "v" ++ (subSymStr $ "G" ++ show vn2)
-      es = map (\tag' -> if tag == tag' then e1' else
-                   let cons = mkApp (mkStr [tnto,".",tag']) [mkId vgn]
-                       typedCons = TermWithType cons stypes
-                   in mkLambda [vgn] $ mkApp (mkId vgn2) [typedCons]) tags
-      rcase = mkApp (mkStr ["case_",tn]) $ es ++ [ecase]
-      e2named = mkL vgn2 e2' rcase
-  pure $ e2named
+      vgn2 = "v" ++ (subSymStr $ "G" ++ show vn2)  -- This is the continuation @e2@
+      es = flip map alts $ \(tag',(t',b')) ->
+             if | tag == tag' -> e1'
+                | b' -> mkId "undefined"
+                | otherwise -> 
+                    let cons = mkApp (mkStr [tn,".",tag']) [mkId vgn]
+                        typedCons = TermWithType cons te'
+                     in mkLambda [vgn] $ mkApp (mkId vgn2) [typedCons]
+      rcase = mkApp (mkStr ["case_",tn]) $ es ++ [e']
+  pure $ mkL vgn2 e2' rcase
+-- \ ^^^ NOTE: We can't use the @case _ of@ syntax as our @case@s are binary (and nested).
+-- It seems that Isabelle spends exponential time on processing the @case _ of@ syntax depending
+-- on the level of nestings. / zilinc
 shallowExpr (TE t (Esac e)) = do
   tn <- findTypeSyn $ exprType e
   e' <- shallowExpr e
-  pure $ mkApp (mkStr ["case_",tn]) [mkId "Fun.id", e']
+  let TSum alts = exprType e
+      es = flip map alts $ \(tag',(t',b')) -> 
+             if | b' -> mkId "undefined"
+                | otherwise -> mkId "Fun.id"
+  pure $ mkApp (mkStr ["case_",tn]) $ es ++ [e'] 
 shallowExpr (TE _ (Split (n1,n2) e1 e2)) = mkApp <$> mkLambdaE [mkPrettyPair n1 n2] e2 <*> mapM shallowExpr [e1]
 shallowExpr (TE _ (Member rec fld)) = shallowExpr rec >>= \e -> shallowGetter rec fld e
 shallowExpr (TE _ (Take (n1,n2) rec fld e)) = do
@@ -256,11 +244,14 @@ shallowExpr (TE _ (Take (n1,n2) rec fld e)) = do
   let pp = mkPrettyPair n1 n2
   mkLet pp take <$> shallowExpr e
 shallowExpr (TE _ (Put rec fld e)) = shallowSetter rec fld e
-shallowExpr (TE t (Promote ty (TE _ (Con cn e _)))) = shallowExpr (TE t (Con cn e ty))
-shallowExpr (TE _ (Promote ty@(TPrim _) e)) = __impossible "shallowExpr: promoting a primitive type"
-shallowExpr (TE _ (Promote ty e)) = shallowExpr e  -- findTypeSyn ty >>= \tn -> shallowPromote tn ty e
-shallowExpr (TE _ (Cast    ty@(TPrim _) e)) = shallowPromote (__impossible "shallowExpr") ty e
+shallowExpr (TE _ (Promote ty e)) = shallowExpr e
+shallowExpr (TE _ (Cast    (TPrim pt) (TE _ (ILit n _)))) = pure $ shallowILit n pt
+shallowExpr (TE _ (Cast    (TPrim pt) e)) =
+  TermWithType <$> (mkApp (mkId "ucast") <$> ((:[]) <$> shallowExpr e)) <*> pure (shallowPrimType pt)
 
+-- | @'mkL' nm t1 t2@: 
+--
+--   It generates term @(&#x03bb; nm. t2) t1@
 mkL :: VarName -> Term -> Term -> Term
 mkL nm t1 t2 = mkApp (mkLambda [snm nm] t2) [t1]
 
@@ -335,6 +326,7 @@ hashType (TSum ts)      = show (sanitizeType $ TSum ts)
 hashType (TRecord ts s) = show (sanitizeType $ TRecord ts s)
 hashType _              = error "Should only pass Variant and Record types"
 
+-- | if the type synonym is parameterised, a subscript @\"T\"@ will be added to the Isabelle name
 shallowTypeDefSaveSyn:: TypeName -> [TyVarName] -> CC.Type t -> SG [TheoryDecl I.Type I.Term]
 shallowTypeDefSaveSyn tn ps r = do
   st <- shallowType r
@@ -723,7 +715,7 @@ shallowDefinition (TypeDef tn ps (Just t)) =
 shallowDefinitions :: [Definition TypedExpr VarName] -> SG ([Either (TheoryDecl I.Type I.Term) (TheoryDecl I.Type I.Term)], [FunName])
 shallowDefinitions = (((concat *** catMaybes) . P.unzip) <$>) . mapM ((varNameGen .= 0 >>) . shallowDefinition)
 
--- Returns: (shallow, shallow_shared, scorres, type names)
+-- | Returns @(shallow, shallow_shared, scorres, type names)@
 shallowFile :: String -> Stage -> [Definition TypedExpr VarName]
             -> SG (Theory I.Type I.Term, Theory I.Type I.Term, Theory I.Type I.Term, MapTypeName)
 shallowFile thy stg defs = do
@@ -741,7 +733,8 @@ shallowFile thy stg defs = do
       ssthy = thy ++ __cogent_suffix_of_shallow_shared ++ (if tuples then __cogent_suffix_of_recover_tuples else "")
       scthy = thy ++ __cogent_suffix_of_scorres ++ __cogent_suffix_of_stage stg
       shalImports = TheoryImports [ssthy]
-      shrdImports = TheoryImports [__cogent_root_dir </> "cogent/isa/Util"]
+      shrdImports = TheoryImports [ __cogent_root_dir </> "cogent/isa/Util"
+                                  , __cogent_root_dir </> "cogent/isa/shallow/ShallowUtil" ]
       scorImports = TheoryImports [shthy, dpthy, __cogent_root_dir </> "cogent/isa/shallow/Shallow_Tac"]
       strippedTypeMap = M.filterWithKey (\ts _ -> ts `S.member` S.fromList fullTypes) fullTypeMap
   return $ ( Theory shthy shalImports $ lefts isadefs
@@ -756,7 +749,7 @@ shallowFile thy stg defs = do
            , strippedTypeMap
            )
 
--- Returns: (shallow, shallow_shared, scorres, type names)
+-- | Returns @(shallow, shallow_shared, scorres, type names)@
 shallow :: Bool -> String -> Stage -> [Definition TypedExpr VarName] -> String -> (Doc, Doc, Doc, MapTypeName)
 shallow recoverTuples thy stg defs log =
   let (shal,shrd,scor,typeMap) = fst $ evalRWS (runSG (shallowFile thy stg defs))

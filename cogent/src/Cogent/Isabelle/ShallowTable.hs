@@ -44,13 +44,14 @@ instance Show TypeStr where
   show (RecordStr  fs) = "{" ++ intercalate ", " fs ++ "}"
   show (VariantStr as) = "<" ++ intercalate "| " as ++ ">"
 
+-- | collect type structures from a Cogent type
 toTypeStr :: Type t -> [TypeStr]
 toTypeStr (TVar v)         = []
 toTypeStr (TVarBang v)     = []
 toTypeStr (TUnit)          = []
 toTypeStr (TProduct t1 t2) = nub $ toTypeStr t1 ++ toTypeStr t2
-toTypeStr (TSum ts)        = nub $ VariantStr (sort $ P.map fst ts) : concat (P.map (toTypeStr . fst . snd) ts)
-   -- \ ^^^ NOTE: alternatives are sorted, however they should have been sorted by desugarer, `toList' / zilinc  -- FIXME: cogent-2.1
+toTypeStr (TSum ts)        = nub $ VariantStr (P.map fst ts) : concat (P.map (toTypeStr . fst . snd) ts)
+   -- \ ^^^ NOTE: alternatives are ordered throughout the compiler / zilinc
 toTypeStr (TFun ti to)     = nub $ toTypeStr ti ++ toTypeStr to
 toTypeStr (TRecord ts _)   = nub $ RecordStr (P.map fst ts) : concat (P.map (toTypeStr . fst . snd) ts)
 toTypeStr (TPrim i)        = []
@@ -58,10 +59,9 @@ toTypeStr (TString)        = []
 toTypeStr (TCon n ts _)    = nub $ concat $ P.map toTypeStr ts
 
 getStrlType :: M.Map TypeStr TypeName -> [TypeStr] -> Type t -> Type t
-getStrlType tsmap table (TSum ts) =  -- FIXME: cogent-2.1
-  let ts' = sortBy (compare `on` fst) ts
-      tstr = VariantStr (P.map fst ts')
-      tps = P.map (fst . snd) ts'
+getStrlType tsmap table (TSum ts) =
+  let tstr = VariantStr (P.map fst ts)
+      tps = P.map (fst . snd) ts
   in case M.lookup tstr tsmap of
     Nothing ->
       let idx = findIndex tstr table
@@ -81,7 +81,7 @@ getStrlType _ _ t = t
 
 type ST = State [TypeStr]
 
--- ds: from after desugaring, RHS's are unfolded already
+-- since desugaring, the RHSes have been unfolded already
 st :: [Definition TypedExpr VarName] -> [TypeStr]
 st ds = execState (stDefinitions ds) []
 
