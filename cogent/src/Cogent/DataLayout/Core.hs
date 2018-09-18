@@ -10,7 +10,7 @@ import Text.Parsec.Pos (SourcePos)
 
 import Cogent.Common.Syntax (TagName, FieldName, Size)
 
-import Cogent.Common.Types (PrimInt (U8, U16, U32, U64, Boolean))
+import Cogent.Common.Types (PrimInt (..))
 
 {- * CORE DATALAYOUT TYPES -}
 
@@ -94,7 +94,7 @@ primIntSizeBits U8      = 8
 primIntSizeBits U16     = 16
 primIntSizeBits U32     = 32
 primIntSizeBits U64     = 64
-primIntSizeBits Boolean = 32
+primIntSizeBits Boolean = 8
 
 primBitRange :: PrimInt -> BitRange
 primBitRange primInt = BitRange { bitSizeBR = primIntSizeBits primInt, bitOffsetBR = 0 }
