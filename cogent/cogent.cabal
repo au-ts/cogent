@@ -121,6 +121,7 @@ library
               , Cogent.DataLayout.QuickCheck.Surface
               , Cogent.DataLayout.QuickCheck.TypeCheck
               , Cogent.DataLayout.Desugar
+              , Cogent.DataLayout.CoreTypeCheck
               , Data.DList
               , Data.Ex
               , Data.LeafTree
