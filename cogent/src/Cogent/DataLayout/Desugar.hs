@@ -26,12 +26,12 @@ import Cogent.DataLayout.Surface    ( DataLayoutExpr
                                     )
 import Cogent.DataLayout.TypeCheck  (desugarSize)
 import Cogent.DataLayout.Core
-import Cogent.Core                  ( Type (TUnit, TPrim, TSum, TRecord, TCon, TVar, TVarBang, TFun, TString, TArray, TProduct)
+import Cogent.Core                  ( Type (..)
                                     )
 
 {- * DESUGARING 'Sigil's -}
 
--- | After normalisation, 'TCon _ _ _' values only represent primitive and abstract types.
+-- | After WH-normalisation, 'TCon _ _ _' values only represent primitive and abstract types.
 --   Primitive types have no sigil, and abstract types may be boxed or unboxed but have no layout.
 --   'desugarAbstractTypeSigil' should only be used when desugaring the sigils of abstract types, to eliminate the `Maybe DataLayoutExpr`.
 desugarAbstractTypeSigil
@@ -54,6 +54,11 @@ desugarSigil
       --   1. Start with the raw type that the `Sigil` is attached to
       --   2. Replace the top level sigil with `Unboxed`
       --   3. Desugar the resulting type
+      --
+      --   Explanation of why:
+      --   The generation algorithm will lay out the internals of unboxed records,
+      --   but give boxed records a 'PrimLayout' of pointer size. However, we want to layout
+      --   the internals of the top level record.
   :: (Type t)
 
       -- | Since desugarSigil is only called for normalising boxed records (and later, boxed variants),
