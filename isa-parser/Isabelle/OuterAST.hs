@@ -193,7 +193,7 @@ instance (Pretty terms, Pretty types) =>  Pretty (Theory types terms) where
                          prettyThyDecls (thyBody thy) <>
                          string "end" <$$> empty
 
-prettyThyDecls :: Pretty (TheoryDecl types terms) => [TheoryDecl types terms] -> Doc
+prettyThyDecls :: (Pretty terms, Pretty types) => [TheoryDecl types terms] -> Doc
 prettyThyDecls [] = empty
 prettyThyDecls thyDecls = (vsepPad . map pretty $ thyDecls) <$$> empty
 

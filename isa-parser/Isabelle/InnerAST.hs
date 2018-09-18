@@ -40,6 +40,7 @@ data Term = TermIdent      Ident
           | AntiTerm       String
           | ConstTerm      Const
           | ListTerm       String     [Term]  String
+          | CaseOf         Term       [(Term, Term)]
   deriving (Data, Typeable, Eq, Ord, Show)
 
 data Const = TrueC | FalseC
@@ -251,6 +252,10 @@ prettyTerm p t = case t of
   ListTerm l ts r       -> pretty l <> hcat (intersperse (string ", ") (map (prettyTerm termAppPrec) ts)) <> pretty r
   ConstTerm const       -> pretty const
   AntiTerm str          -> pretty str  -- FIXME: zilinc
+  CaseOf e alts         -> parens (string "case" <+> pretty e <+> string "of" <+> sep (punctuate (text "|") (map prettyAlt alts)))
+
+prettyAlt :: (Term, Term) -> Doc
+prettyAlt (p, e) = pretty p <+> pretty "\\<Rightarrow>" <+> pretty e
 
 prettyBinOpTerm :: Precedence -> TermBinOp -> Term -> Term -> Doc
 prettyBinOpTerm p b = prettyBinOp p prettyTerm (termBinOpRec b) prettyTerm
@@ -302,7 +307,7 @@ tyTupleSym = "\\<times>"
 prettyTypeVars :: [Type] -> Doc
 prettyTypeVars [] = empty
 prettyTypeVars [ty] = prettyType 100 ty -- application has highest precedence
-prettyTypeVars tys = char '(' <> (hsep . punctuate (char ',') . map (prettyType 0) $ tys) <> char ')'
+prettyTypeVars tys = char '(' <> (hsep . punctuate (char ',') . map (prettyType 0) $ tys) <> char ')'  -- FIXME: not very pretty / zilinc
 
 prettyType :: Precedence -> Type -> Doc
 prettyType p ty =
