@@ -42,6 +42,7 @@ deriving instance Ord bits => Ord (DataLayout bits)
 --
 --   Should satisfy
 --   prop> bitSizeBR >= 1
+--   prop> bitOffsetBR >= 0
 --
 --   Represents the set
 --   @
