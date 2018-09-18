@@ -1,7 +1,9 @@
 module Cogent.DataLayout.Desugar
  ( desugarAbstractTypeSigil
  , desugarSigil
- , desugarDataLayout -- Exposed only for testing
+ -- Remaining exports for testing only
+ , desugarDataLayout
+ , constructDataLayout
  ) where
 
 import Data.Map (Map)
