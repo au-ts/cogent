@@ -42,21 +42,21 @@ data Term = TermIdent      Ident
           | ListTerm       String     [Term]  String
   deriving (Data, Typeable, Eq, Ord, Show)
 
-data Const = TrueC | FalseC 
+data Const = TrueC | FalseC
            | IntLiteral    Integer
-           | CharLiteral   Char 
+           | CharLiteral   Char
            | StringLiteral String
            | Top | Bottom
- deriving (Data, Typeable, Eq, Ord, Show) 
+ deriving (Data, Typeable, Eq, Ord, Show)
 
 data Quantifier = MetaBind    -- \<And>
-                | Lambda 
+                | Lambda
                 | Forall      -- \<forall>
                 | Exists      -- \<exists>
-                | ExistsBang 
+                | ExistsBang
   deriving (Data, Typeable, Eq, Ord, Show)
 
-data TermBinOp = 
+data TermBinOp =
               -- Isabelle/Pure
                  Equiv
                | MetaImp -- ==> or \<Longrightarrow>
@@ -69,7 +69,7 @@ data TermBinOp =
                | Implies
   deriving (Data, Typeable, Eq, Ord, Show)
 
-data TermUnOp = 
+data TermUnOp =
   -- Isabelle/HOL
   Not deriving (Data, Typeable, Eq, Ord, Show)
 
@@ -82,14 +82,14 @@ data Ident = Id Id
 
 data PrimType = IntT
               | BoolT
-              | NatT 
+              | NatT
   deriving (Data, Typeable, Eq, Ord, Show)
 
 data Type = TyVar      String
           | TyDatatype String   [Type]
           | TyPrim     PrimType
           | TyArrow    Type     Type
-          | AntiType   String 
+          | AntiType   String
           | TyTuple    Type     Type
   deriving (Data, Typeable, Eq, Ord, Show)
 
@@ -165,7 +165,7 @@ binOps = [Equiv, MetaImp, Eq, NotEq, Iff, Conj, Disj, Implies]
 
 termBinOpPrec :: TermBinOp -> Precedence
 termBinOpPrec b = if p >= termAppPrec
-               then error (show (binOpRecSym baux) ++ 
+               then error (show (binOpRecSym baux) ++
                      " should not have a precedence higher than that of application (termAppPrec)")
                else p
   where
@@ -176,18 +176,18 @@ termBinOpSym :: TermBinOp -> String
 termBinOpSym = binOpRecSym . termBinOpRec
 
 termBinOpAssoc :: TermBinOp -> Assoc
-termBinOpAssoc = binOpRecAssoc . termBinOpRec 
+termBinOpAssoc = binOpRecAssoc . termBinOpRec
 
 -- Predence for a unary operator
 --
 -- The precedences for Isabelle/HOL terms can be found in the Isabelle source at src/HOL/HOL.thy
 -- For Isabelle/Pure terms I don't know where to look. I consulted a cheat sheet.
 --
-termUnOpRec :: TermUnOp -> UnOpRec 
+termUnOpRec :: TermUnOp -> UnOpRec
 termUnOpRec u = case u of
   Not -> UnOpRec 40 "\\<not>"
 
-termUnOpPrec = unOpRecPrec . termUnOpRec 
+termUnOpPrec = unOpRecPrec . termUnOpRec
 termUnOpSym = unOpRecSym . termUnOpRec
 
 -- You must include all unary operators in this list. Miss one and it doesn't get parsed.
@@ -195,7 +195,7 @@ termUnOpSym = unOpRecSym . termUnOpRec
 termUnOps = [Not]
 
 
-data QuantifierRec = QuantifierRec { quantifierRecPrecedence :: Precedence, quantifierRecSymbol :: String } 
+data QuantifierRec = QuantifierRec { quantifierRecPrecedence :: Precedence, quantifierRecSymbol :: String }
 
 --
 -- The precedences for Isabelle/HOL terms can be found in the Isabelle source at src/HOL/HOL.thy
@@ -256,9 +256,9 @@ prettyBinOpTerm :: Precedence -> TermBinOp -> Term -> Term -> Doc
 prettyBinOpTerm p b = prettyBinOp p prettyTerm (termBinOpRec b) prettyTerm
 
 prettyUnOpTerm :: Precedence -> TermUnOp -> Term -> Doc
-prettyUnOpTerm p u = prettyUnOp p (termUnOpRec u) prettyTerm 
+prettyUnOpTerm p u = prettyUnOp p (termUnOpRec u) prettyTerm
 
--- 
+--
 -- [| P_1; ...; P_n |] ==> Q is syntactic sugar for P_1 ==> ... ==> P_n ==> Q
 --
 -- @prettyMetaImp@ takes care of printing it that way.
@@ -269,15 +269,15 @@ prettyMetaImp p t t' = case t' of
   where
     p' = termBinOpPrec MetaImp
     go ts (TermBinOp MetaImp t t') = go (t:ts) t'
-    go ts t                    = 
-      string "\\<lbrakk>" <> 
+    go ts t                    =
+      string "\\<lbrakk>" <>
       (hsep . punctuate semi . map (prettyTerm (p'+1)) . reverse $ ts) <>
       string "\\<rbrakk>" <+> string (termBinOpSym MetaImp) <+> prettyTerm p' t
 
 prettyQuantifier :: Precedence -> Quantifier -> [Ident] -> Term -> Doc
 prettyQuantifier p q is t = prettyParen (p > quantifierPrec q) $ string (quantifierSym q) <>
                               (hsep . map pretty $ is) <> char '.' <+> pretty t
-  
+
 instance Pretty Ident where
   pretty ident = case ident of
     Id id            -> string id
@@ -305,7 +305,7 @@ prettyTypeVars [ty] = prettyType 100 ty -- application has highest precedence
 prettyTypeVars tys = char '(' <> (hsep . punctuate (char ',') . map (prettyType 0) $ tys) <> char ')'
 
 prettyType :: Precedence -> Type -> Doc
-prettyType p ty = 
+prettyType p ty =
     case ty of
       TyVar v          -> char '\'' <> string v
       TyDatatype s tys -> prettyTypeVars tys <+> string s
