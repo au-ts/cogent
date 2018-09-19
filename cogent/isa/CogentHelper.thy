@@ -247,25 +247,25 @@ exception HINTS of string * hints leaftree
 fun kinding (Leaf (KindingTacs tac)) = tac
   | kinding hint_tree_bad = raise HINTS ("kinding", hint_tree_bad)
 
-fun typing_hint (Branch (Leaf (TypingTacs tac) :: hint_rest)) = (tac, Branch hint_rest)
+fun typing_hint (Leaf (TypingTacs tacs)) = tacs
   | typing_hint hint_tree_bad = raise HINTS ("typing", hint_tree_bad)
 
-fun apply_split @{term "Some TSK_L"} _ t = (t, NONE)
-  | apply_split @{term "Some TSK_S"} _ t = (t, t)
-  | apply_split @{term "Some TSK_NS"} hint_tree t = let
-    val tacs = kinding hint_tree
+fun apply_split @{term "Some TSK_L"} hints t = ((t, NONE), hints)
+  | apply_split @{term "Some TSK_S"} hints t = ((t, t), hints)
+  | apply_split @{term "Some TSK_NS"} hints t = let
+    val (kindhint, hints) = (case hints of
+                      kindhint :: hints => (kindhint, hints)
+                    | _ => raise HINTS ("apply_split: no kind hint found", Branch hints))
+    val tacs = kinding kindhint
     val thm = case tacs of [RTac thm] => thm
-      | _ => raise HINTS ("apply_split: TSK_NS", hint_tree)
-  in (SOME thm, t) end
-  | apply_split @{term "None :: type_split_kind option"} _ t = (NONE, t)
+      | _ => raise HINTS ("apply_split: kindhint failed to create an RTac", kindhint)
+  in ((SOME thm, t), hints) end
+  | apply_split @{term "None :: type_split_kind option"} hints t = ((NONE, t), hints)
   | apply_split t _ _ = raise TERM ("apply_split", [t])
 
 fun apply_splits ((sp, t) :: sp_ts) hints = let
-    val (hinthd, hinttl) = (case hints of
-                              hinthd :: hinttl => (hinthd, hinttl)
-                            | _ => raise HINTS ("apply_splits: expected more hints, got none", Branch hints))
-    val (x, y) = apply_split sp hinthd t
-    val ((xs, ys), hints) = apply_splits sp_ts hinttl
+    val ((x, y), hints) = apply_split sp hints t
+    val ((xs, ys), hints) = apply_splits sp_ts hints
   in (((x :: xs), (y :: ys)), hints) end
   | apply_splits [] hints = (([], []), hints)
 
@@ -294,7 +294,7 @@ fun kind_proof_single (@{term SomeT} $ t) k ctxt hint = let
     val ct = Thm.cterm_of ctxt (@{term Trueprop} $ t)
     val rs = EVERY (map (fn t => interpret_tac t ctxt 1) tac) (Thm.trivial ct)
     val t = (case Seq.pull rs of
-          NONE => raise TERM ("kind_proofs: failed", [k, t])
+          NONE => raise TERM ("kind_proof_single: failed", [k, t])
         | SOME (t, _) => t)
     in SOME t end
   | kind_proof_single @{term NoneT} k ctxt hints = NONE
@@ -415,24 +415,24 @@ fun typing (Const (@{const_name Var}, _) $ i) G _ hints = let
     val i = dest_nat i
     val thm = the_G G (nth G i)
     val thms = map_filter I G
-        val hints = (case typing_hint hints of
-                  ([], hints) => hints
-                | _ => raise HINTS ("too many tacs", hints))
+    val _ = (case typing_hint hints of
+               [] => ()
+             | _ => raise HINTS ("too many tacs", hints))
   in ([RTac @{thm typing_var_weak[unfolded singleton_def Cogent.empty_def]},
-                RTac thm, simp, WeakeningTac thms, simp], hints) end
+                RTac thm, simp, WeakeningTac thms, simp]) end
   | typing (Const (@{const_name Struct}, _) $ _ $ xs) G ctxt hints
   = (case dest_all_vars xs of SOME ixs => let
-    val hints = (case typing_hint hints of
-                  ([], hints) => hints
-                | _ => raise HINTS ("too many tacs", hints))
-  in ([RTac @{thm typing_struct'}] @ typing_all_vars ctxt G ixs @ [simp], hints) end
+      val _ = (case typing_hint hints of
+                 [] => ()
+               | _ => raise HINTS ("too many tacs", hints))
+  in ([RTac @{thm typing_struct'}] @ typing_all_vars ctxt G ixs @ [simp]) end
     | NONE => typing_hint hints)
   | typing (Const (@{const_name Prim}, _) $ _ $ xs) G ctxt hints
   = (case dest_all_vars xs of SOME ixs => let
-    val hints = (case typing_hint hints of
-                  ([], hints) => hints
-                | _ => raise HINTS ("too many tacs", hints))
-  in ([RTac @{thm typing_prim'}, simp, simp] @ typing_all_vars ctxt G ixs, hints) end
+    val _ = (case typing_hint hints of
+               [] => ()
+             | _ => raise HINTS ("too many tacs", hints))
+  in ([RTac @{thm typing_prim'}, simp, simp] @ typing_all_vars ctxt G ixs) end
     | NONE => typing_hint hints)
   | typing _ _ _ hints = let
     in typing_hint hints end
@@ -505,10 +505,7 @@ fun ttyping (Const (@{const_name Split}, _) $ x $ y) tt k ctxt hint_tree = let
   in ([RTac @{thm ttyping_take'}] @ split_tac @ x_tac
     @ [simp, simp, simp] @ k_tac @ [simp] @ y_tac) end
   | ttyping x (@{term TyTrLeaf}, G) _ ctxt hint_tree = let
-    val typinghint = (case hint_tree of
-        Branch [typinghint] => typinghint
-      | _ => raise HINTS  ("ttyping: not enough hints for TyTrLeaf", hint_tree))
-    val (ty_tac, _) = typing x G ctxt typinghint
+    val ty_tac = typing x G ctxt hint_tree
   in ([RTac @{thm ttyping_default}, SimpTac (@{thms composite_anormal_expr_def}, [])] @ ty_tac) end
   | ttyping t _ _ _ _ = raise TERM ("ttyping", [t])
 
