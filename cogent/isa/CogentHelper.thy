@@ -324,15 +324,11 @@ fun kind_proofs ((@{term SomeT} $ t) :: ts) k ctxt hints = let
   | kind_proofs [] _ _ hints = ([], hints)
   | kind_proofs ts _ _ _ = raise TERM ("kind_proofs", ts)
 
-fun follow_tt (Const (@{const_name TyTrSplit}, _) $ sps $ x $ T1 $ y $ T2, ts) k ctxt hint_tree = let
-    val hints = (case hint_tree of
-                   Branch hints => hints
-                 | _ => raise HINTS ("follow_tt: expected branch" , hint_tree))
+fun follow_tt (Const (@{const_name TyTrSplit}, _) $ sps $ x $ T1 $ y $ T2, ts) k ctxt hints = let
     val ((ts1, ts2), hints) = apply_splits (HOLogic.dest_list sps ~~ ts) hints
     val (x_proofs, hints) = kind_proofs (HOLogic.dest_list x) k ctxt hints
     val (y_proofs, hints) = kind_proofs (HOLogic.dest_list y) k ctxt hints
-    val _ = (case hints of [] => () | _ => raise HINTS ("follow_tt: kinding hints not exhausted", Branch hints))
-  in ((T1, x_proofs @ ts1), (T2, y_proofs @ ts2)) end
+  in (((T1, x_proofs @ ts1), (T2, y_proofs @ ts2)), hints) end
   | follow_tt (tt, _) _ _ _ = raise TERM ("follow_tt", [tt])
 
 fun ttsplit_inner (@{term "Some TSK_S"} :: tsks) (SOME p :: Gamma) = let
@@ -438,66 +434,74 @@ fun typing (Const (@{const_name Var}, _) $ i) G _ hints = let
     in typing_hint hints end
 
 fun ttyping (Const (@{const_name Split}, _) $ x $ y) tt k ctxt hint_tree = let
-    val (followhint, typxhint, typyhint) = (case hint_tree of
-        Branch [followhint, typxhint, typyhint] => (followhint, typxhint, typyhint)
-      | _ => raise HINTS  ("ttyping: not enough hints for Const", hint_tree))
-    val (ltt, rtt) = follow_tt tt k ctxt followhint
+    val (splithints, typxhint, typyhint) = (case hint_tree of
+        Branch [Branch splithints, typxhint, typyhint] => (splithints, typxhint, typyhint)
+      | _ => raise HINTS  ("ttyping(Const): not enough hints", hint_tree))
+    val ((ltt, rtt), splithints) = follow_tt tt k ctxt splithints
+    val _ = (case splithints of [] => () | _ => raise HINTS ("ttyping(Const): hints not exhausted", hint_tree))
     val split_tac = ttsplit tt
     val l_tac = ttyping x ltt k ctxt typxhint
     val r_tac = ttyping y rtt k ctxt typyhint
   in ([RTac @{thm ttyping_split}] @ split_tac @ l_tac @ r_tac) end
   | ttyping (Const (@{const_name Let}, _) $ x $ y) tt k ctxt hint_tree = let
-    val (followhint, typxhint, typyhint) = (case hint_tree of
-        Branch [followhint, typxhint, typyhint] => (followhint, typxhint, typyhint)
-      | _ => raise HINTS  ("ttyping: not enough hints for Let", hint_tree))
-    val (ltt, rtt) = follow_tt tt k ctxt followhint
+    val (splithints, typxhint, typyhint) = (case hint_tree of
+        Branch [Branch splithints, typxhint, typyhint] => (splithints, typxhint, typyhint)
+      | _ => raise HINTS  ("ttyping(Let): not enough hints", hint_tree))
+    val ((ltt, rtt), splithints) = follow_tt tt k ctxt splithints
+val _ = (case splithints of [] => () | _ => raise HINTS ("ttyping(Let): hints not exhausted", hint_tree))
     val split_tac = ttsplit tt
     val (l_tac) = ttyping x ltt k ctxt typxhint
     val (r_tac) = ttyping y rtt k ctxt typyhint
   in ([RTac @{thm ttyping_let}] @ split_tac @ l_tac @ r_tac) end
   | ttyping (Const (@{const_name LetBang}, _) $ _ $ x $ y) tt k ctxt hint_tree = let
-    val (followhint, typxhint, typyhint, kindhint) = (case hint_tree of
-        Branch [_, followhint, typxhint, typyhint, kindhint] =>
-               (followhint, typxhint, typyhint, kindhint)
-      | _ => raise HINTS  ("ttyping: not enough hints for LetBang", hint_tree))
-    val (ltt, rtt) = follow_tt tt k ctxt followhint
+    val (splithints, typxhint, typyhint, kindhint) = (case hint_tree of
+        Branch [_, Branch splithints, typxhint, typyhint, kindhint] =>
+               (splithints, typxhint, typyhint, kindhint)
+      | _ => raise HINTS  ("ttyping(LetBang): not enough hints", hint_tree))
+    val ((ltt, rtt), splithints) = follow_tt tt k ctxt splithints
+    val _ = (case splithints of [] => () | _ => raise HINTS ("ttyping(LetBang): hints not exhausted", hint_tree))
     val tsb_tac = ttsplit_bang tt
     val x_tac = ttyping x ltt k ctxt typxhint
     val y_tac = ttyping y rtt k ctxt typyhint
     val k_tac = kinding kindhint
   in ([RTac @{thm ttyping_letb}] @ tsb_tac @ x_tac @ y_tac @ k_tac @ [simp]) end
   | ttyping (Const (@{const_name Cogent.If}, _) $ c $ x $ y) tt k ctxt hint_tree = let
-    val (typxhint, splithint, typahint, typbhint) = (case hint_tree of
-        Branch [typxhint, splithint, typahint, typbhint] =>
-               (typxhint, splithint, typahint, typbhint)
-      | _ => raise HINTS  ("ttyping: not enough hints for If", hint_tree))
-    val (condtt, casestt) = follow_tt tt k ctxt splithint
-    (* val (x_tt, y_tt) = follow_tt casestt k ctxt hints *)
+    val (typxhint, splithints, typahint, typbhint) = (case hint_tree of
+        Branch [typxhint, Branch splithints, typahint, typbhint] =>
+               (typxhint, splithints, typahint, typbhint)
+      | _ => raise HINTS  ("ttyping(If): not enough hints", hint_tree))
+    val ((condtt, casestt), splithints) = follow_tt tt k ctxt splithints
+    (* The tt tree is generated with an additional split here.
+       Technically it should be unnecessary, but would require changing how things work ~ v.jackson / 2018.09.19 *)
+    val ((x_tt, y_tt), splithints) = follow_tt casestt k ctxt splithints
+    val _ = (case splithints of [] => () | _ => raise HINTS ("ttyping(If): hints not exhausted", hint_tree))
     val split_tac = ttsplit tt
     val c_tac = ttyping c condtt k ctxt typxhint
-    val x_tac = ttyping x casestt k ctxt typahint
-    val y_tac = ttyping y casestt k ctxt typbhint
+    val x_tac = ttyping x x_tt k ctxt typahint
+    val y_tac = ttyping y y_tt k ctxt typbhint
   in ([RTac @{thm ttyping_if}] @ split_tac
     @ [simp, RTac @{thm ttsplit_trivI}, simp, simp] @ c_tac @ x_tac @ y_tac) end
   | ttyping (Const (@{const_name Case}, _) $ x $ _ $ m $ nm) tt k ctxt hint_tree = let
-    val (typxhint, splithint, typahint, typbhint) = (case hint_tree of
-        Branch [typxhint, splithint, typahint, typbhint] =>
-               (typxhint, splithint, typahint, typbhint)
-      | _ => raise HINTS  ("ttyping: not enough hints for Case", hint_tree))
-    val (ltt, rtt) = follow_tt tt k ctxt splithint
+    val (typxhint, splithints, typahint, typbhint) = (case hint_tree of
+        Branch [typxhint, Branch splithints, typahint, typbhint] =>
+               (typxhint, splithints, typahint, typbhint)
+      | _ => raise HINTS  ("ttyping(Case): not enough hints", hint_tree))
+    val ((ltt, rtt), splithints) = follow_tt tt k ctxt splithints
     val x_tac = ttyping x ltt k ctxt typxhint
-    val (m_tt, nm_tt) = raise ERROR (@{make_string} rtt) (* follow_tt rtt k ctxt hints *)
+    val ((m_tt, nm_tt), splithints) = follow_tt rtt k ctxt splithints
+    val _ = (case splithints of [] => () | _ => raise HINTS ("ttyping(Case): hints not exhausted", hint_tree))
     val split_tac = ttsplit tt
     val m_tac = ttyping m m_tt k ctxt typahint
     val nm_tac = ttyping nm nm_tt k ctxt typbhint
   in ([RTac @{thm ttyping_case'}] @ split_tac @ x_tac @ [simp]
     @ [simp, RTac @{thm ttsplit_trivI}, simp, simp] @ m_tac @ nm_tac) end
   | ttyping (Const (@{const_name Take}, _) $ x $ _ $ y) tt k ctxt hint_tree = let
-    val (splithint, typehint, kindhint, type'hint) = (case hint_tree of
-        Branch [splithint, typehint, kindhint, type'hint] =>
-               (splithint, typehint, kindhint, type'hint)
-      | _ => raise HINTS  ("ttyping: not enough hints for Take", hint_tree))
-    val (ltt, rtt) = follow_tt tt k ctxt splithint
+    val (splithints, typehint, kindhint, type'hint) = (case hint_tree of
+        Branch [Branch splithints, typehint, kindhint, type'hint] =>
+               (splithints, typehint, kindhint, type'hint)
+      | _ => raise HINTS  ("ttyping(Take): not enough hints", hint_tree))
+    val ((ltt, rtt), splithints) = follow_tt tt k ctxt splithints
+    val _ = (case splithints of [] => () | _ => raise HINTS ("ttyping(Take): hints not exhausted", hint_tree))
     val split_tac = ttsplit tt
     val x_tac = ttyping x ltt k ctxt typehint
     val k_tac = kinding kindhint
