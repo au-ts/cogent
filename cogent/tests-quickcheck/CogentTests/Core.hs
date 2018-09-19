@@ -1,8 +1,8 @@
-{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DataKinds, PackageImports #-}
 module CogentTests.Core (genLayoutableType) where
 import Cogent.Core
 import Test.QuickCheck
-import Cogent.Vec (Nat(..))
+import "cogent" Data.Nat (Nat(..))
 import Cogent.Common.Syntax (FieldName, TagName, RepName, Size)
 import Cogent.Common.Types (Sigil (..), PrimInt (..))
 import Cogent.Compiler (__fixme)
