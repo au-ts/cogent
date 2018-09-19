@@ -205,7 +205,7 @@ ttyping xi k (EE u (Let a x y) env) = hintListSequence [ -- Ξ, K, Γ ⊢ Let x 
   ttyping xi k y                            -- Ξ, K, Some t # Γ2 ⊢ y : u
   ]
 ttyping xi k (EE u (LetBang is a x y) env) = hintListSequence [ -- Ξ, K, Γ ⊢ LetBang is x y : u if
-  ttsplit_bang k 0 (map (finInt . fst) is) env (envOf x),
+  Branch <$> ttsplit_bang k 0 (map (finInt . fst) is) env (envOf x),
   follow_tt k env (envOf x) (envOf y),
   ttyping xi k x,                                   -- Ξ, K, Γ1 ⊢ x : t
   ttyping xi k y,                                   -- Ξ, K, Some t # Γ2 ⊢ y : u
@@ -564,15 +564,17 @@ splitHint n k (Just t) (Just _) (Just _) = (\t -> [(n, [rule "split_comp.share"]
 splitHint _ k g x y = error $ "bad split: " ++ show (g, x, y)
 
 ttsplit_bang :: Vec t Kind -> Int -> [Int] -> Vec v (Maybe (Type t))
-             -> Vec v (Maybe (Type t)) -> State TypingSubproofs (LeafTree Hints)
+             -> Vec v (Maybe (Type t)) -> State TypingSubproofs [LeafTree Hints]
 ttsplit_bang k ix ixs (Cons g gs) (Cons (Just x) xs) = do
-    this <- if ix `elem` ixs then kindingHint k x else return $ Branch []
+    this <- if ix `elem` ixs then Just <$> kindingHint k x else pure Nothing
     rest <- ttsplit_bang k (ix + 1) ixs gs xs
-    return $ Branch [this, rest]
+    return $ case this of
+              Just this -> this : rest
+              Nothing -> rest
 ttsplit_bang k ix ixs (Cons g gs) (Cons Nothing xs) =
     if ix `elem` ixs then error "bad split_bang"
         else ttsplit_bang k (ix + 1) ixs gs xs
-ttsplit_bang k ix ixs Nil Nil = return $ Branch []
+ttsplit_bang k ix ixs Nil Nil = return []
 #if __GLASGOW_HASKELL__ < 711
 ttsplit_bang _ _ _ _ _ = error "bad split_bang end"
 #endif

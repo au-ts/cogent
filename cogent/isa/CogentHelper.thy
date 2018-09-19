@@ -454,11 +454,11 @@ val _ = (case splithints of [] => () | _ => raise HINTS ("ttyping(Let): hints no
     val (r_tac) = ttyping y rtt k ctxt typyhint
   in ([RTac @{thm ttyping_let}] @ split_tac @ l_tac @ r_tac) end
   | ttyping (Const (@{const_name LetBang}, _) $ _ $ x $ y) tt k ctxt hint_tree = let
-    val (splithints, typxhint, typyhint, kindhint) = (case hint_tree of
-        Branch [_, Branch splithints, typxhint, typyhint, kindhint] =>
-               (splithints, typxhint, typyhint, kindhint)
+    val (splitbanghints, splithints, typxhint, typyhint, kindhint) = (case hint_tree of
+        Branch [Branch splitbanghints, Branch splithints, typxhint, typyhint, kindhint] =>
+               (splitbanghints, splithints, typxhint, typyhint, kindhint)
       | _ => raise HINTS  ("ttyping(LetBang): not enough hints", hint_tree))
-    val ((ltt, rtt), splithints) = follow_tt tt k ctxt splithints
+    val ((ltt, rtt), splithints) = follow_tt tt k ctxt (append splitbanghints splithints)
     val _ = (case splithints of [] => () | _ => raise HINTS ("ttyping(LetBang): hints not exhausted", hint_tree))
     val tsb_tac = ttsplit_bang tt
     val x_tac = ttyping x ltt k ctxt typxhint
