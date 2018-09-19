@@ -101,7 +101,7 @@ tests/include/%_dummy.h: tests/%.cogent
 	$(Q)mkdir -p tests/include
 
 tests: test-compiler \
-       test-tc-proof test-shallow-proof test-ee test-hs
+       test-tc-proof test-shallow-proof test-ee test-hs test-quickcheck
 
 test-compiler: test-clean .test-cogent
 	./tests/run-test-suite.py \
@@ -110,10 +110,6 @@ test-compiler: test-clean .test-cogent
 	# test-hs \
 	# test-quickcheck
 
-test-compiler: test-clean .test-cogent \
- 	test-tc test-ds test-an test-mn test-cg test-gcc \
- 	test-pp test-aq 
- 	
 test-quickcheck:
 	$(Q) cabal test test-quickcheck
 
