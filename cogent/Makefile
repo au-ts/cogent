@@ -107,7 +107,6 @@ tests/include/%_dummy.h: tests/%.cogent
 test-compiler: test-clean .test-cogent \
 	test-tc test-ds test-an test-mn test-cg test-gcc \
 	test-pp test-aq \
-	test-hs \
     test-quickcheck
 
 tests: test-compiler \
