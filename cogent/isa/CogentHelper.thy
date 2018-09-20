@@ -436,7 +436,8 @@ fun typing (Const (@{const_name Var}, _) $ i) G _ hints = let
 fun ttyping (Const (@{const_name Split}, _) $ x $ y) tt k ctxt hint_tree = let
     val (splithints, typxhint, typyhint) = (case hint_tree of
         Branch [Branch splithints, typxhint, typyhint] => (splithints, typxhint, typyhint)
-      | _ => raise HINTS  ("ttyping(Const): not enough hints", hint_tree))
+      | Leaf (TypingTacs _) => raise HINTS ("ttyping(Const): expected ttyping rule, got typing rule", hint_tree)
+      | _ => raise HINTS ("ttyping(Const): hints in incorrect form", hint_tree))
     val ((ltt, rtt), splithints) = follow_tt tt k ctxt splithints
     val _ = (case splithints of [] => () | _ => raise HINTS ("ttyping(Const): hints not exhausted", hint_tree))
     val split_tac = ttsplit tt
@@ -446,7 +447,8 @@ fun ttyping (Const (@{const_name Split}, _) $ x $ y) tt k ctxt hint_tree = let
   | ttyping (Const (@{const_name Let}, _) $ x $ y) tt k ctxt hint_tree = let
     val (splithints, typxhint, typyhint) = (case hint_tree of
         Branch [Branch splithints, typxhint, typyhint] => (splithints, typxhint, typyhint)
-      | _ => raise HINTS  ("ttyping(Let): not enough hints", hint_tree))
+      | Leaf (TypingTacs _) => raise HINTS ("ttyping(Let): expected ttyping rule, got typing rule", hint_tree)
+      | _ => raise HINTS  ("ttyping(Let): hints in incorrect form", hint_tree))
     val ((ltt, rtt), splithints) = follow_tt tt k ctxt splithints
 val _ = (case splithints of [] => () | _ => raise HINTS ("ttyping(Let): hints not exhausted", hint_tree))
     val split_tac = ttsplit tt
@@ -457,7 +459,8 @@ val _ = (case splithints of [] => () | _ => raise HINTS ("ttyping(Let): hints no
     val (splitbanghints, splithints, typxhint, typyhint, kindhint) = (case hint_tree of
         Branch [Branch splitbanghints, Branch splithints, typxhint, typyhint, kindhint] =>
                (splitbanghints, splithints, typxhint, typyhint, kindhint)
-      | _ => raise HINTS  ("ttyping(LetBang): not enough hints", hint_tree))
+      | Leaf (TypingTacs _) => raise HINTS ("ttyping(LetBang): expected ttyping rule, got typing rule", hint_tree)
+      | _ => raise HINTS  ("ttyping(LetBang): hints in incorrect form", hint_tree))
     val ((ltt, rtt), splithints) = follow_tt tt k ctxt (append splitbanghints splithints)
     val _ = (case splithints of [] => () | _ => raise HINTS ("ttyping(LetBang): hints not exhausted", hint_tree))
     val tsb_tac = ttsplit_bang tt
@@ -469,7 +472,8 @@ val _ = (case splithints of [] => () | _ => raise HINTS ("ttyping(Let): hints no
     val (typxhint, splithints, typahint, typbhint) = (case hint_tree of
         Branch [typxhint, Branch splithints, typahint, typbhint] =>
                (typxhint, splithints, typahint, typbhint)
-      | _ => raise HINTS  ("ttyping(If): not enough hints", hint_tree))
+      | Leaf (TypingTacs _) => raise HINTS ("ttyping(If): expected ttyping rule, got typing rule", hint_tree)
+      | _ => raise HINTS  ("ttyping(If): hints in incorrect form", hint_tree))
     val ((condtt, casestt), splithints) = follow_tt tt k ctxt splithints
     (* The tt tree is generated with an additional split here.
        Technically it should be unnecessary, but would require changing how things work ~ v.jackson / 2018.09.19 *)
@@ -485,7 +489,8 @@ val _ = (case splithints of [] => () | _ => raise HINTS ("ttyping(Let): hints no
     val (typxhint, splithints, typahint, typbhint) = (case hint_tree of
         Branch [typxhint, Branch splithints, typahint, typbhint] =>
                (typxhint, splithints, typahint, typbhint)
-      | _ => raise HINTS  ("ttyping(Case): not enough hints", hint_tree))
+      | Leaf (TypingTacs _) => raise HINTS ("ttyping(Case): expected ttyping rule, got typing rule", hint_tree)
+      | _ => raise HINTS  ("ttyping(Case): hints in incorrect form", hint_tree))
     val ((ltt, rtt), splithints) = follow_tt tt k ctxt splithints
     val x_tac = ttyping x ltt k ctxt typxhint
     val ((m_tt, nm_tt), splithints) = follow_tt rtt k ctxt splithints
@@ -499,7 +504,8 @@ val _ = (case splithints of [] => () | _ => raise HINTS ("ttyping(Let): hints no
     val (splithints, typehint, kindhint, type'hint) = (case hint_tree of
         Branch [Branch splithints, typehint, kindhint, type'hint] =>
                (splithints, typehint, kindhint, type'hint)
-      | _ => raise HINTS  ("ttyping(Take): not enough hints", hint_tree))
+      | Leaf (TypingTacs _) => raise HINTS ("ttyping(Take): expected ttyping rule, got typing rule", hint_tree)
+      | _ => raise HINTS  ("ttyping(Take): hints in incorrect form", hint_tree))
     val ((ltt, rtt), splithints) = follow_tt tt k ctxt splithints
     val _ = (case splithints of [] => () | _ => raise HINTS ("ttyping(Take): hints not exhausted", hint_tree))
     val split_tac = ttsplit tt
