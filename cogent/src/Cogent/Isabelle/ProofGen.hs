@@ -228,6 +228,7 @@ ttyping xi k (EE u (Take a e@(EE (TRecord ts _) _ _) f e') env) = hintListSequen
   kindingHint k (fst $ snd $ ts !! f),        -- K ⊢ t :κ k
   ttyping xi k e'                             -- Ξ, K, Γ2 T⊢ e' : u
   ]
+ttyping xi k (EE _ (Promote ty e) env) = ttyping xi k e  -- FIXME: also requires a proof for subtyping / zilinc
 ttyping xi k e = pure . TypingTacs <$> typingWrapper xi k e
 
 typingWrapper :: Xi a -> Vec t Kind -> EnvExpr t v a
