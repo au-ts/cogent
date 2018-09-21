@@ -60,23 +60,41 @@ __assert ass msg = unless ass $ error ("ASSERTION FAILED: " ++ msg)
 
 cogentRelDir s d = relDir s d __cogent_current_dir
 
+mkOutputName' :: (String -> String) -> FilePath -> Maybe String -> String
+mkOutputName' mod src mbsuf = mod $ maybe (takeBaseName src) id __cogent_output_name ++ maybe [] id mbsuf
+
 mkOutputName :: FilePath -> Maybe String -> String
-mkOutputName src mbsuf = maybe (takeBaseName src) id __cogent_output_name ++ maybe [] id mbsuf
+mkOutputName src mbsuf = mkOutputName' id src mbsuf
+
+
+mkFileName' :: (String -> String) -> FilePath -> Maybe String -> String -> Maybe FilePath
+mkFileName' mod src mbsuf ext =
+  if __cogent_fdump_to_stdout
+    then Nothing 
+    else Just $ __cogent_dist_dir `combine` mkOutputName' mod src mbsuf <.> ext
 
 mkFileName :: FilePath -> Maybe String -> String -> Maybe FilePath
-mkFileName src mbsuf ext =
-  if __cogent_fdump_to_stdout then Nothing else Just $ __cogent_dist_dir `combine` mkOutputName src mbsuf <.> ext
+mkFileName src mbsuf ext = mkFileName' id src mbsuf ext
 
+mkHsFileName  src suf = mkFileName' toHsName  src (Just suf) __cogent_ext_of_hs
+mkHscFileName src suf = mkFileName' toHsName  src (Just suf) __cogent_ext_of_hsc
+
+-- Proofs are special; they have an extra flag to specify names
+
+-- | Construct an Isabelle theory file.
+--   If '__cogent_proof_name' is present, use it; otherwise
+--   if '__cogent_output_name' is present, use it; otherwise
+--   derive from Cogent source name.
 mkProofName :: FilePath -> Maybe String -> String
-mkProofName src mbsuf = maybe (toIsaName $ takeBaseName src) id __cogent_proof_name ++ maybe [] id mbsuf
+mkProofName src mbsuf = maybe (mkOutputName' toIsaName src Nothing) toIsaName __cogent_proof_name ++
+                        maybe [] id mbsuf
 
 mkThyFileName :: FilePath -> String -> Maybe FilePath
-mkThyFileName src suffix =
-  if __cogent_fdump_to_stdout then Nothing else Just $ __cogent_dist_dir `combine` (mkProofName src $ Just suffix) <.> __cogent_ext_of_thy
+mkThyFileName src suf = 
+  if __cogent_fdump_to_stdout
+    then Nothing
+    else Just $ __cogent_dist_dir `combine` mkProofName src (Just suf)
 
-mkHsFileName :: FilePath -> String -> Maybe FilePath
-mkHsFileName src suffix = 
-  if __cogent_fdump_to_stdout then Nothing else Just $ __cogent_dist_dir `combine` (mkProofName src $ Just suffix) <.> __cogent_ext_of_hs
 
 -- Cogent Flags
 

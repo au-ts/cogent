@@ -93,6 +93,8 @@ decap (h:t) = toLower h : t
 toIsaName :: String -> String
 toIsaName = cap . map (\c -> if c == '-' then '_' else c)
 
+toHsName = toIsaName
+
 toCName :: String -> String
 toCName = concatMap (\c -> if c == '\'' then "_prime" else [c])
 

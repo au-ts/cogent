@@ -417,7 +417,7 @@ flags =
   [
   -- names
     Option ['o']      ["output-name"]     1 (ReqArg set_flag_outputName "NAME")            "specify base name for output files (default is derived from source Cogent file)"
-  , Option ['y']      ["proof-name"]      1 (ReqArg set_flag_proofName "NAME")             "specify base name for theory files (default is derived from source Cogent file)"
+  , Option ['y']      ["proof-name"]      1 (ReqArg set_flag_proofName "NAME")             "specify Isabelle theory file name (default is derived from source Cogent file)"
   -- dir specification
   , Option []         ["abs-type-dir"]    1 (ReqArg set_flag_absTypeDir "PATH")            "abstract type definitions will be in $DIR/abstract/, which must exist (default=./)"
   , Option []         ["dist-dir"]        1 (ReqArg set_flag_distDir "PATH")               "specify path to all output files (default=./)"
@@ -768,7 +768,7 @@ parseArgs args = case getOpt' Permute options args of
         output ctyfile $ \h -> fontSwitch h >>= \s -> printCTable h s ct log
       when (HscGen `elem` cmds) $ do
         putProgressLn "Generating Hsc file..."
-        let hscf = mkFileName prfName Nothing __cogent_ext_of_hsc
+        let hscf = mkHscFileName source __cogent_suffix_of_ffi
         writeFileMsg hscf
         output hscf $ flip LJ.hPutDoc $ LJ.pretty hsc
       when (CodeGen `elem` cmds) $ do
