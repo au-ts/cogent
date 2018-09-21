@@ -17,7 +17,7 @@ ifeq ($(KERNELRELEASE),)
 include $(ROOT_DIR)build-env.mk
 endif
 
-OUTPUT=generated
+OUTPUT=vfat
 SRC=src/super.cogent
 TYPES=data/types.txt
 DEFNS=data/defns.txt
@@ -149,7 +149,7 @@ linux: .c-gen
 	#$(Q) $(MAKE) OBJ="$(OBJ)" CFLAGS="$(CFLAGS)" EXTRA_CFLAGS="$(EXTRA_CFLAGS)" -C $(KERNELDIR) M=$(PWD) modules
 # generate verification-clean C code and proof scripts
 verification: .verif-gen
-	$(Q)mv $(DIST_DIR)/generated.table $(DIST_DIR)/wrapper_pp_inferred.table
+	$(Q)mv $(DIST_DIR)/$(OUTPUT).table $(DIST_DIR)/wrapper_pp_inferred.table
 
 
 clean:
@@ -161,12 +161,12 @@ clean:
 	$(Q) rm -f $(RTMPPPC)
 	$(Q) rm -f $(MODULE).mod.[co] $(MODULE).o $(MODULE).ko Module.symvers modules.order
 	$(Q) rm -f abstract/*.h
-	$(Q) rm -rf *.thy ROOT generated.table BUILD_INFO
+	$(Q) rm -rf *.thy ROOT $(OUTPUT).table BUILD_INFO
 	$(Q) find . -name *.thy -exec rm -f {} \;
 	$(Q) find . -name ROOT -exec rm -f {} \;
 	$(Q) find . -name BUILD_INFO -exec rm -f {} \;
 	$(Q) find . -name *_pp* -exec rm -f {} \;
-	$(Q) find . -name generated.* -exec rm -f {} \;
+	$(Q) find . -name $(OUTPUT).* -exec rm -f {} \;
 	$(Q)find . -name *.cmd -exec rm -f {} \;
 
 help:

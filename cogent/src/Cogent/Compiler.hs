@@ -93,7 +93,7 @@ mkThyFileName :: FilePath -> String -> Maybe FilePath
 mkThyFileName src suf = 
   if __cogent_fdump_to_stdout
     then Nothing
-    else Just $ __cogent_dist_dir `combine` mkProofName src (Just suf)
+    else Just $ __cogent_dist_dir `combine` mkProofName src (Just suf) <.> __cogent_ext_of_thy
 
 
 -- Cogent Flags

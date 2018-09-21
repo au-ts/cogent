@@ -147,12 +147,12 @@ clean:
 	$(Q) rm -f $(RTMPPPC)
 	$(Q) rm -f $(MODULE).mod.[co] $(MODULE).o $(MODULE).ko Module.symvers modules.order
 	$(Q) rm -f abstract/*.h
-	$(Q) rm -rf *.thy ROOT generated.table BUILD_INFO
+	$(Q) rm -rf *.thy ROOT $(OUTPUT).table BUILD_INFO
 	$(Q) find . -name *.thy -exec rm -f {} \;
 	$(Q) find . -name ROOT -exec rm -f {} \;
 	$(Q) find . -name BUILD_INFO -exec rm -f {} \;
 	$(Q) find . -name *_pp* -exec rm -f {} \;
-	$(Q) find . -name generated.* -exec rm -f {} \;
+	$(Q) find . -name $(OUTPUT).* -exec rm -f {} \;
 	$(Q)find . -name *.cmd -exec rm -f {} \;
 
 help:

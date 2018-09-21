@@ -15,7 +15,7 @@ $esc:(#include <fat.h>)
 $esc:(#include <wraphead.h>)
 
 #include <abstract.h>
-#include <generated.c>
+#include <vfat.c>
 #include <gum/anti/iterator.ac>
 
 /*=================*

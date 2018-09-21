@@ -87,4 +87,4 @@ typedef struct SpinLock {
 #define printk(...) (void*)0
 
 /* COGENT-generated code follows... */
-#include <generated.c>
+#include <ext2.c>

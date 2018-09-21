@@ -17,7 +17,7 @@ ifeq ($(KERNELRELEASE),)
 include $(ROOT_DIR)build-env.mk
 endif
 
-OUTPUT=generated
+OUTPUT=bilbyfs
 SRC=src/fsop.cogent
 DEFNS=data/defns.txt
 PROOF_ID=BilbyFs
@@ -140,6 +140,15 @@ all: .c-gen $(OBJ)
                 --infer-c-funcs="$(ACFILES)" \
 								--ext-types="$(LINUX_TYPES)"
 
+qc:
+	$(Q)cogent $(SRC) -Q $(COGENT_FLAGS) \
+                --cpp-args="-std=c99 \$$CPPIN -o \$$CPPOUT -E -P $(EXTRA_CFLAGS)" \
+								--proof-name=$(PROOF_ID) \
+                --dist-dir=$(DIST_DIR) \
+                --infer-c-funcs="$(ACFILES)" \
+								--ext-types="$(LINUX_TYPES)"
+
+
 .verif-gen:
 	$(Q)cogent $(SRC) -A $(COGENT_FLAGS) \
                 --cpp-args="-std=c99 \$$CPPIN -o \$$CPPOUT -E -P $(EXTRA_CFLAGS)" \
@@ -156,7 +165,7 @@ linux: .c-gen
 
 # generate verification-clean C code and proof scripts
 verification: .verif-gen
-	$(Q)mv $(DIST_DIR)/generated.table $(DIST_DIR)/wrapper_pp_inferred.table
+	$(Q)mv $(DIST_DIR)/$(OUTPUT).table $(DIST_DIR)/wrapper_pp_inferred.table
 
 clean:
 	$(E) "Cleaning up.."
@@ -166,12 +175,12 @@ clean:
 	$(Q)rm -f $(RTMPPPC)
 	$(Q)rm -f $(MODULE).mod.[co] $(MODULE).o $(MODULE).ko Module.symvers modules.order
 	$(Q)rm -f abstract/*.h
-	$(Q)rm -rf *.thy ROOT generated.table BUILD_INFO
+	$(Q)rm -rf *.thy ROOT $(OUTPUT).table BUILD_INFO
 	$(Q)find . -name *.thy -exec rm -f {} \;
 	$(Q)find . -name ROOT -exec rm -f {} \;
 	$(Q)find . -name BUILD_INFO -exec rm -f {} \;
 	$(Q)find . -name *_pp* -exec rm -f {} \;
-	$(Q)find . -name generated.* -exec rm -f {} \;
+	$(Q)find . -name $(OUTPUT).* -exec rm -f {} \;
 	$(Q)find . -name *.cmd -exec rm -f {} \;
 
 help:

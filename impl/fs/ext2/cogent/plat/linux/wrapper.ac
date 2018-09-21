@@ -13,7 +13,7 @@ $esc:(#include <wrapper.h>)
 
 #include <abstract.h>
 #include <c/linux/abstract-defns.h> /* In lib gum */
-#include <generated.c>
+#include <ext2.c>
 
 /*
  *  EXT2_I: gets the container COGENT structure, given the inode field
