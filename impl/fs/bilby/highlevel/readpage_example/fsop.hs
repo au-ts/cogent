@@ -6,6 +6,7 @@ module Fsop where
 import Control.Arrow
 import Data.Array
 import Data.Bits
+import qualified Data.Map as M
 import Data.Word
 import Data.Void
 
@@ -21,36 +22,60 @@ data R a e = Success a | Error e
 
 type ErrCode = U32
 
-data FsState = FsState { fsop_st   :: FsopState
-                       , mount_st  :: MountState
-                       , ostore_st :: OstoreState
-                       }
-
-data FsopState
-data MountState
-data OstoreState
+type OstoreState = M.Map ObjId Obj
 
 -- We make it abstract
-data VfsInode  -- = VfsInode VfsInodeAbstract FsInode
+data VfsInode = VfsInode { ino :: U32 }
 
 -- abstract function
 vfs_inode_get_ino :: VfsInode -> U32
-vfs_inode_get_ino = undefined
-
-data VfsInodeAbstract
-data FsInode
-
-type BufOffs = U32
-
-data Buffer = Buffer { buf_data :: WordArray U8, buf_bound :: BufOffs }
+vfs_inode_get_ino (VfsInode ino) = ino
 
 type OSPageOffset = U64
 
 bilbyFsBlockShift = 12  :: U32
 bilbyFsBlockSize = 4096 :: U32
 
-eNoEnt = 1
-eInval = 22
+ePerm        = 1    :: ErrCode
+eNoEnt       = 2    :: ErrCode
+eSrch        = 3    :: ErrCode
+eIntr        = 4    :: ErrCode
+eIO          = 5    :: ErrCode
+eNXIO        = 6    :: ErrCode
+eTooBig      = 7    :: ErrCode
+eNoExec      = 8    :: ErrCode
+eBadF        = 9    :: ErrCode
+eChild       = 10   :: ErrCode
+eAgain       = 11   :: ErrCode
+eAcces       = 13   :: ErrCode
+eNoMem       = 12   :: ErrCode
+eFault       = 14   :: ErrCode
+eNotBlk      = 15   :: ErrCode
+eBusy        = 16   :: ErrCode
+eExist       = 17   :: ErrCode
+eXDev        = 18   :: ErrCode
+eNoDev       = 19   :: ErrCode
+eNotDir      = 20   :: ErrCode
+eIsDir       = 21   :: ErrCode
+eInval       = 22   :: ErrCode
+eNFile       = 23   :: ErrCode
+eMFile       = 24   :: ErrCode
+eNoTty       = 25   :: ErrCode
+eTxtBsy      = 26   :: ErrCode
+eFBig        = 27   :: ErrCode
+eNoSpc       = 28   :: ErrCode
+eSPipe       = 29   :: ErrCode
+eRoFs        = 30   :: ErrCode
+eMLink       = 31   :: ErrCode
+ePipe        = 32   :: ErrCode
+eDom         = 33   :: ErrCode
+eRange       = 34   :: ErrCode
+eNameTooLong = 36   :: ErrCode
+eNotEmpty    = 39   :: ErrCode
+eNoData      = 42   :: ErrCode
+eCrap        = 66   :: ErrCode
+eOverflow    = 75   :: ErrCode
+eRecover     = 88   :: ErrCode
 
 {-
  
@@ -161,7 +186,7 @@ bilbyFsObjTypeData = 1
 
 -- TODO: out-of-scope
 ostore_read :: OstoreState -> ObjId -> R Obj ErrCode
-ostore_read = undefined
+ostore_read ostore oid = undefined
 
 
 type VfsSize = U64
