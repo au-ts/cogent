@@ -93,16 +93,19 @@ OBJ?=plat/linux/module.o plat/linux/rbt.o
 # ACFILES
 linux: ACFILES = $(LINUX_ACFILES)
 .c-gen: ACFILES = $(LINUX_ACFILES)
+qc: ACFILES = $(LINUX_ACFILES)
 verification: ACFILES = $(VERIF_ACFILES)
 .verif-gen: ACFILES = $(VERIF_ACFILES)
 # DISTDIR
 linux: DIST_DIR = plat/linux
 .c-gen: DIST_DIR = plat/linux
+qc: DIST_DIR = plat/linux
 verification: DIST_DIR = plat/verification
 .verif-gen: DIST_DIR = plat/verification
 # EXTRA_CFLAGS
 linux: EXTRA_CFLAGS = $(LINUX_EXTRA_CFLAGS)
 .c-gen: EXTRA_CFLAGS = $(LINUX_EXTRA_CFLAGS)
+qc: EXTRA_CFLAGS = $(LINUX_EXTRA_CFLAGS)
 verification: EXTRA_CFLAGS = $(VERIF_EXTRA_CFLAGS)
 .verif-gen: EXTRA_CFLAGS = $(VERIF_EXTRA_CFLAGS)
 

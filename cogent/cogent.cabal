@@ -58,6 +58,7 @@ library
               , Cogent.GetOpt
               , Cogent.Glue
               , Cogent.Hangman
+              , Cogent.Haskell.FFIGen
               , Cogent.Haskell.HscGen
               , Cogent.Haskell.HscSyntax
               , Cogent.Haskell.Shallow
@@ -143,6 +144,7 @@ library
               , pandoc-types >= 1.16
               , parsec >= 3.1
               , pointless-haskell
+              , pretty
               , pretty-show >= 1.5
               , process >= 1.2.0.0
               , random >= 1.1
@@ -192,6 +194,7 @@ Executable cogent
               , lens >= 4.6
               , mainland-pretty >= 0.2.6
               , MissingH >= 1.3
+              , pretty
               , pretty-show >= 1.5
               , process >= 1.2.0.0
               , text >= 0.11.3.1

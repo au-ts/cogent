@@ -737,6 +737,9 @@ __cogent_suffix_of_stage s | s == STGDesugar = "_Desugar"
 __cogent_suffix_of_ffi :: String
 __cogent_suffix_of_ffi = "_FFI"
 
+__cogent_suffix_of_ffi_types :: String
+__cogent_suffix_of_ffi_types = "_FFI_Types"
+
 
 -- ----------
 -- Naming conventions for antiquotation files

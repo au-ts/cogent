@@ -15,34 +15,39 @@
 
 module Cogent.CodeGen where
 
-import Cogent.C.Compile (compile, GenState, TableCTypes)
+import Cogent.C.Compile (compile, ffiFuncs, GenState, TableCTypes)
 import Cogent.C.Render  (render)
 import Cogent.C.Syntax
 import Cogent.Common.Syntax
 import Cogent.Compiler
 import Cogent.Core (Definition, Type, TypedExpr)
-import Cogent.Haskell.HscGen (hscModule)
-import Cogent.Haskell.HscSyntax (HscModule)
+import Cogent.Haskell.FFIGen (ffiHs)
+import Cogent.Haskell.HscGen (ffiHsc)
 import Cogent.Mono (Instance)
 import Data.Nat (Nat(Zero,Suc))
 import Data.Vec
 
+import Control.Lens ((^.))
 import Data.Map as M
 import Data.Set as S
 import qualified "language-c-quote" Language.C as C (Definition)
 -- import System.FilePath ((-<.>))
+import Text.PrettyPrint as PP (Doc)
+import Text.PrettyPrint.ANSI.Leijen as Leijen
 
 cgen :: FilePath
+     -> FilePath
      -> FilePath
      -> [Definition TypedExpr VarName]
      -> [(Type 'Zero, String)]
      -> M.Map FunName (M.Map Instance Int)
      -> String
-     -> ([C.Definition], [C.Definition], [(TypeName, S.Set [CId])], [TableCTypes], HscModule, GenState)
-cgen hName proofName defs ctygen insts log =
+     -> ([C.Definition], [C.Definition], [(TypeName, S.Set [CId])], [TableCTypes], Leijen.Doc, PP.Doc, GenState)
+cgen hName hscName hsName defs ctygen insts log =
   let (enums,tydefns,fndecls,disps,tydefs,fndefns,absts,corres,st) = compile defs ctygen insts
       (h,c) = render hName (enums++tydefns++fndecls++disps++tydefs) fndefns log
-      hsc = hscModule proofName hName tydefns enums
-   in (h,c,absts,corres,hsc,st)
+      hsc = ffiHsc hscName hName tydefns enums log
+      hs  = ffiHs  (st^.ffiFuncs) hsName hscName fndecls log
+   in (h,c,absts,corres,hsc,hs,st)
 
 

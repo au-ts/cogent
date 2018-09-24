@@ -248,6 +248,7 @@ genAnti m a =
                                           , CG._localOracle  = view (cgState.localOracle ) s   -- FIXME
                                           , CG._globalOracle = view (cgState.globalOracle) s
                                           , CG._varPool      = M.empty
+                                          , CG._ffiFuncs     = M.empty
                                           }
                   in return (fst $ evalRWS (CG.runGen $ m a) reader state, s)
 

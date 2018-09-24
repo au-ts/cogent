@@ -90,20 +90,24 @@ import Unsafe.Coerce (unsafeCoerce)
 -- *****************************************************************************
 -- * The state for code-generation
 
-type FunClass  = M.Map StrlType (S.Set (FunName, Attr))  -- c_strl_type |-> funnames
-type VarPool   = M.Map CType [CId]  -- vars available (ty_id |-> [var_id])
+type FunClass  = M.Map StrlType (S.Set (FunName, Attr))  -- ^ @c_strl_type &#x21A6; funnames@
+type VarPool   = M.Map CType [CId]  -- ^ vars available @(ty_id &#x21A6; [var_id])@
 type GenRead v = Vec v CExpr
 
 data GenState  = GenState { _cTypeDefs    :: [(StrlType, CId)]
                           , _cTypeDefMap  :: M.Map StrlType CId
                           , _typeSynonyms :: M.Map TypeName CType
-                          , _typeCorres   :: DList.DList (CId, CC.Type 'Zero)  -- C type names corresponding to Cogent types
+  , _typeCorres   :: DList.DList (CId, CC.Type 'Zero)  -- ^ C type names corresponding to Cogent types
                           , _absTypes     :: M.Map TypeName (S.Set [CId])
                           , _custTypeGen  :: M.Map (CC.Type 'Zero) (CId, CustTyGenInfo)
                           , _funClasses   :: FunClass
                           , _localOracle  :: Integer
                           , _globalOracle :: Integer
                           , _varPool      :: VarPool
+                          , _ffiFuncs     :: M.Map FunName (CType, CType)
+                            -- ^ A map containing functions that need to generate C FFI functions. 
+                            --   The map is from the original function names (before prefixing with @\"ffi_\"@ to a pair of @(marshallable_arg_type, marshallable_ret_type)@.
+                            --   This map is needed when we generate the Haskell side of the FFI.
                           }
 
 makeLenses ''GenState
@@ -1017,6 +1021,7 @@ genFfiFunc rt fn [t]
                                              [if tm then CDeref (variable arg) else variable arg]
                    , CBIStmt $ CReturn (Just $ variable ret)
                    ]
+        ffiFuncs %= (M.insert fn (ref t, ref rt))
         return [ CDecl $ CExtFnDecl (ref rt) ("ffi_" ++ fn) [(ref t,Nothing)] noFnSpec
                , CFnDefn (ref rt, "ffi_" ++ fn) [(ref t,arg)] body noFnSpec
                ]
@@ -1109,6 +1114,7 @@ compile defs ctygen insts =
                         , _localOracle  = 0
                         , _globalOracle = 0
                         , _varPool      = M.empty
+                        , _ffiFuncs     = M.empty
                         })
       (enum, st', _) = runRWS (runGen . getMon $ Mon genLetTrueEnum <> Mon genEnum) Nil st  -- `LET_TRUE', `LETBANG_TRUE' & `_tag' enums
       ((funclasses,tns), st'', _) = runRWS (runGen genFunClasses) Nil st'  -- fun_enums & dispatch functions

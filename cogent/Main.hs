@@ -102,14 +102,15 @@ import System.Exit hiding (exitSuccess, exitFailure)
 import System.FilePath hiding ((</>))
 import System.IO
 import System.Process (readProcessWithExitCode)
-import Text.Show.Pretty (ppShow)
-import Text.PrettyPrint.ANSI.Leijen as LJ (displayIO, Doc, hPutDoc, plain, pretty)
+import Text.PrettyPrint as PP (render)
+import Text.PrettyPrint.ANSI.Leijen as LJ (displayIO, Doc, hPutDoc, plain)
 #if MIN_VERSION_mainland_pretty(0,6,0)
 import Text.PrettyPrint.Mainland as M (hPutDoc, line, string, (</>))
 import Text.PrettyPrint.Mainland.Class as M (ppr)
 #else
 import Text.PrettyPrint.Mainland as M (ppr, hPutDoc, line, string, (</>))
 #endif
+import Text.Show.Pretty (ppShow)
 
 -- import Debug.Trace
 
@@ -140,7 +141,7 @@ data Command = AstC Int
              | Pretty    Stage
              | HsShallow Stage
              | HsShallowTuples
-             | HscGen
+             | HsFFIGen
              | Deep      Stage
              | Shallow   Stage
              | ShallowTuples -- STGDesugar
@@ -245,7 +246,7 @@ setActions c@(Documentation) = setActions (Compile STGParse) ++ [c]
 setActions c@(Pretty    stg) = setActions (Compile stg) ++ [c]
 setActions c@(HsShallow stg) = setActions (Compile stg) ++ [c]
 setActions c@(HsShallowTuples) = setActions (Compile STGDesugar) ++ [c]
-setActions c@(HscGen       ) = setActions (Compile STGCodeGen) ++ [c]
+setActions c@(HsFFIGen       ) = setActions (Compile STGCodeGen) ++ [c]
 setActions c@(Deep      stg) = setActions (Compile stg) ++ [c]
 setActions c@(Shallow   stg) = setActions (Compile stg) ++ [c]
 setActions c@(ShallowTuples) = setActions (Compile STGDesugar) ++ [c]
@@ -272,7 +273,7 @@ setActions c@(AllRefine    ) = setActions (Compile STGMono)    ++ [c]
 setActions c@(Root         ) = setActions (Compile STGMono)    ++ [c]  -- FIXME: can be earlier / zilinc
 setActions c@(BuildInfo    ) = setActions (Compile STGMono)    ++ [c]
 setActions c@(GraphGen     ) = setActions (Compile STGMono)    ++ [c]
-setActions c@(QuickCheck   ) = nub $ setActions (HscGen) ++
+setActions c@(QuickCheck   ) = nub $ setActions (HsFFIGen) ++
                                      setActions (CodeGen) ++
                                      setActions (HsShallow STGDesugar) ++
                                      setActions (HsShallowTuples) ++
@@ -357,7 +358,7 @@ options = [
   , Option []         ["hs-shallow-desugar"]         2 (NoArg (HsShallow STGDesugar))  (hsShallowMsg STGDesugar False)
   , Option []         ["hs-shallow-desugar-tuples"]  2 (NoArg HsShallowTuples)  (hsShallowMsg STGDesugar True)
   -- FFI
-  , Option []         ["ffi-hsc"]         2 (NoArg HscGen)                  "generate a .hsc module for Haskell's FFI"
+  , Option []         ["hs-ffi"]          2 (NoArg HsFFIGen)                  "generate Haskell FFI code to access generated C code (incl. a .hsc module for types and a .hs module for functions)"
   -- deep
   , Option ['D']      ["deep-desugar"]    1 (NoArg (Deep STGDesugar))       (deepMsg STGDesugar)
   , Option ['N']      ["deep-normal"]     1 (NoArg (Deep STGNormal ))       (deepMsg STGNormal)
@@ -754,8 +755,9 @@ parseArgs args = case getOpt' Permute options args of
 
     cg cmds monoed ctygen insts source tced tcst typedefs fts buildinfo log = do
       let hName = mkOutputName source Nothing <.> __cogent_ext_of_h
-          prfName = mkProofName source (Just __cogent_suffix_of_ffi)
-          (h,c,atm,ct,hsc,genst) = cgen hName prfName monoed ctygen (fst insts) log
+          hscName = mkProofName source (Just __cogent_suffix_of_ffi_types)
+          hsName  = mkProofName source (Just __cogent_suffix_of_ffi)
+          (h,c,atm,ct,hsc,hs,genst) = cgen hName hscName hsName monoed ctygen (fst insts) log
       when (TableAbsTypeMono `elem` cmds) $ do
         let atmfile = mkFileName source Nothing __cogent_ext_of_atm
         putProgressLn "Generating table for monomorphised asbtract types..."
@@ -766,11 +768,15 @@ parseArgs args = case getOpt' Permute options args of
         putProgressLn "Generating table for C-Cogent type correspondence..."
         writeFileMsg ctyfile
         output ctyfile $ \h -> fontSwitch h >>= \s -> printCTable h s ct log
-      when (HscGen `elem` cmds) $ do
+      when (HsFFIGen `elem` cmds) $ do
         putProgressLn "Generating Hsc file..."
-        let hscf = mkHscFileName source __cogent_suffix_of_ffi
+        let hscf = mkHscFileName source __cogent_suffix_of_ffi_types
         writeFileMsg hscf
-        output hscf $ flip LJ.hPutDoc $ LJ.pretty hsc
+        output hscf $ flip LJ.hPutDoc hsc
+        putProgressLn "Generating Hs file..."
+        let hsf = mkHsFileName source __cogent_suffix_of_ffi
+        writeFileMsg hsf
+        output hsf $ flip hPutStrLn (PP.render hs)
       when (CodeGen `elem` cmds) $ do
         putProgressLn "Generating C code..."
         let hf = mkFileName source Nothing __cogent_ext_of_h

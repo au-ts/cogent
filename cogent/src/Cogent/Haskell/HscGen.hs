@@ -19,7 +19,8 @@
 
 
 module Cogent.Haskell.HscGen (
-  hscModule
+  ffiHsc
+, hscType
 ) where
 
 import Cogent.C.Compile (boolT, primCId, tagsT, untypedFuncEnum)
@@ -31,6 +32,13 @@ import Cogent.Util (decap, toCName)
 
 import Data.List as L
 import Data.Maybe (catMaybes, fromJust)
+import Text.PrettyPrint.ANSI.Leijen as P
+
+ffiHsc :: String -> String -> [CExtDecl] -> [CExtDecl] -> String -> Doc
+ffiHsc name cname ctys cenums log =
+  text "{-" P.<$> text log P.<$> text "-}" P.<$> 
+  pretty (hscModule name cname ctys cenums)
+
 
 hscModule :: String -> String -> [CExtDecl] -> [CExtDecl] -> Hsc.HscModule
 hscModule name cname ctys cenums =
