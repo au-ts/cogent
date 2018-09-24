@@ -39,7 +39,15 @@ lemma typing_prim' : "\<lbrakk> prim_op_type oper = (ts,t)
   by (simp only: typing_prim)
 
 
-lemmas typing_con' = typing_con
+lemma typing_con' : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : t
+                     ; (tag, t, False) \<in> set ts
+                     ; K \<turnstile>* (map (fst \<circ> snd) ts) wellformed
+                     ; distinct (map fst ts)
+                     ; map fst ts = map fst ts'
+                     ; map (fst \<circ> snd) ts = map (fst \<circ> snd) ts'
+                     ; list_all2 (\<lambda>x y. snd (snd y) \<longrightarrow> snd (snd x)) ts ts'
+                     \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Con ts tag x : TSum ts'"
+  by (simp add: typing_con)
 
 lemma typing_struct': "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile>* es : ts
                        ; ts' =  (zip ts (replicate (length ts) False))
@@ -450,7 +458,7 @@ fun ttyping (Const (@{const_name Split}, _) $ x $ y) tt k ctxt hint_tree = let
       | Leaf (TypingTacs _) => raise HINTS ("ttyping(Let): expected ttyping rule, got typing rule", hint_tree)
       | _ => raise HINTS  ("ttyping(Let): hints in incorrect form", hint_tree))
     val ((ltt, rtt), splithints) = follow_tt tt k ctxt splithints
-val _ = (case splithints of [] => () | _ => raise HINTS ("ttyping(Let): hints not exhausted", hint_tree))
+    val _ = (case splithints of [] => () | _ => raise HINTS ("ttyping(Let): hints not exhausted", hint_tree))
     val split_tac = ttsplit tt
     val (l_tac) = ttyping x ltt k ctxt typxhint
     val (r_tac) = ttyping y rtt k ctxt typyhint
