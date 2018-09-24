@@ -10,8 +10,8 @@
 -- @TAG(DATA61_GPL)
 --
 
-{-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE ExplicitForAll #-}
+{-# LANGUAGE InstanceSigs #-}
 
 module Data.LeafTree where
 
@@ -19,6 +19,7 @@ import Prelude
 
 import Data.Foldable (fold)
 import Data.Traversable (sequenceA)
+import Control.Applicative
 
 {-
 A `LeafTree` as opposed to Data.Tree
@@ -61,6 +62,10 @@ instance Foldable LeafTree where
 
 -- TODO verify the identity and composition laws
 instance Traversable LeafTree where
-    sequenceA :: Applicative f => LeafTree (f a) -> f (LeafTree a)
-    sequenceA (Branch tfas) = pure Branch <*> traverse sequenceA tfas
-    sequenceA (Leaf fa)     = pure Leaf   <*> fa
+    -- sequenceA :: Applicative f => LeafTree (f a) -> f (LeafTree a)
+    -- sequenceA (Branch tfas) = pure Branch <*> traverse sequenceA tfas
+    -- sequenceA (Leaf fa)     = pure Leaf   <*> fa
+
+    traverse :: Applicative f => (a -> f b) -> LeafTree a -> f (LeafTree b)
+    traverse g (Branch tas) = pure Branch <*> traverse (traverse g) tas
+    traverse g (Leaf fa) = pure Leaf <*> g fa
