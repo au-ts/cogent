@@ -128,7 +128,7 @@ normaliseT d (T (TTake fs t)) = do
    takeFields :: Maybe [FieldName] -> [(FieldName, (a, Bool))] -> TCType -> Post [(FieldName, (a, Bool))]
    takeFields Nothing   fs' _  = return $ map (fmap (fmap (const True))) fs'
    takeFields (Just fs) fs' t' = do 
-     forM fs $ \f -> when (f `notElem` map fst fs') $ logErrExit (TakeNonExistingField f t')
+     forM_ fs $ \f -> when (f `notElem` map fst fs') $ logErrExit (TakeNonExistingField f t')
      forM fs' $ \(f,(t,b)) -> do when (f `elem` fs && b && __cogent_wdodgy_take_put) $ logWarn (TakeTakenField f t')
                                  return (f, (t, f `elem` fs || b))
 
@@ -142,11 +142,11 @@ normaliseT d (T (TPut fs t)) = do
    putFields :: Maybe [FieldName] -> [(FieldName, (a, Bool))] -> TCType -> Post [(FieldName, (a, Bool))]
    putFields Nothing   fs' _  = return $ map (fmap (fmap (const False))) fs'
    putFields (Just fs) fs' t' = do
-     forM fs $ \f -> when (f `notElem` map fst fs') $ logErrExit (PutNonExistingField f t')
+     forM_ fs $ \f -> when (f `notElem` map fst fs') $ logErrExit (PutNonExistingField f t')
      forM fs' $ \(f,(t,b)) -> do when (f `elem` fs && not b && __cogent_wdodgy_take_put) $ logWarn (PutUntakenField f t')
                                  return (f, (t,  (f `notElem` fs) && b))
 
-normaliseT d (T (TCon n ts b)) = do
+normaliseT d (T (TCon n ts b)) =
   case lookup n d of
     Just (ts', Just b) -> normaliseT d (substType (zip ts' ts) b)
     _ -> mapM (normaliseT d) ts >>= \ts' -> return (T (TCon n ts' b))

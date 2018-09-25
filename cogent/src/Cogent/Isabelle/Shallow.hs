@@ -240,8 +240,8 @@ shallowExpr (TE _ (Member rec fld)) = shallowExpr rec >>= \e -> shallowGetter re
 shallowExpr (TE _ (Take (n1,n2) rec fld e)) = do
   erec <- shallowExpr rec
   efield <- mkId <$> getRecordFieldName (exprType rec) fld
-  take <- pure $ mkApp (mkId $ "take" ++ subSymStr "cogent") [erec, efield]
-  let pp = mkPrettyPair n1 n2
+  let take = mkApp (mkId $ "take" ++ subSymStr "cogent") [erec, efield]
+      pp = mkPrettyPair n1 n2
   mkLet pp take <$> shallowExpr e
 shallowExpr (TE _ (Put rec fld e)) = shallowSetter rec fld e
 shallowExpr (TE _ (Promote ty e)) = shallowExpr e
@@ -307,7 +307,7 @@ getRecordFieldName t@(TRecord fs _) ind = do
   let fnms = map fst fs
   tuples <- asks recoverTuples
   let prefix = if tuples && isRecTuple fnms then recTupleName fnms ++ "_" else tn ++ "."
-  pure $ prefix ++ ((map fst fs) !! ind) ++ subSymStr "f"
+  pure $ prefix ++ (map fst fs !! ind) ++ subSymStr "f"
 getRecordFieldName _ _ = __impossible "getRecordFieldName"
 
 typarUpd typar v = v {typeVars = typar}
@@ -333,7 +333,7 @@ shallowTypeDefSaveSyn tn ps r = do
   let syname = tn ++ subSymStr "T"
       hash = hashType r
   -- FIXME: We might want to support type parameters but I can't be bothered.
-  unless (P.length ps > 0) (concTypeSyns %= M.insert hash syname)
+  unless (not $ null ps) (concTypeSyns %= M.insert hash syname)
   pure [TypeSynonym (TypeSyn syname st ps)]
 
 shallowTypeDef :: TypeName -> [TyVarName] -> CC.Type t -> SG [TheoryDecl I.Type I.Term]
@@ -359,7 +359,7 @@ simpLemma nm tag =
    in LemmaDecl $ Lemma False (Just (TheoremDecl (Just thmN) [simp])) prop (Proof methods ProofDone)
 
 mkPrettyTuple :: [VarName] -> String
-mkPrettyTuple vn = "(" ++ (intercalate "," vn) ++ ")"
+mkPrettyTuple vn = "(" ++ intercalate "," vn ++ ")"
 
 recTupleAccessors :: [FieldName] -> FieldName -> [(TheoryDecl I.Type I.Term, Name)]
 recTupleAccessors fs fn =
@@ -384,7 +384,7 @@ recTupleName :: [FieldName] -> String
 recTupleName fs = recTuplePrefix ++ (show $ P.length fs)
 
 recTupleDecls :: [FieldName] -> [(TheoryDecl I.Type I.Term, Name)]
-recTupleDecls fs = concat $ map (recTupleAccessors fs) fs
+recTupleDecls fs = concatMap (recTupleAccessors fs) fs
 
 shallowTupleType :: [I.Type] -> I.Type
 shallowTupleType [] = error "Record should have at least 2 fields"  -- FIXME: does this error msg make sense? / zilinc
@@ -402,7 +402,7 @@ shallowTT :: (Int, TypeStr) -> SG ([TheoryDecl I.Type I.Term],[(DeclT,TheoryDecl
 shallowTT (tidx, t) = do
   tnmap <- asks typeNameMap
   let mbsyn = M.lookup t tnmap
-      nm = maybe (typeNameFromIdx tidx) id mbsyn
+      nm = fromMaybe (typeNameFromIdx tidx) mbsyn
       newmap = M.insert t nm tnmap
   case t of
     RecordStr fs -> do
@@ -464,7 +464,7 @@ synAllTypeStr :: Definition TypedExpr VarName -> [(TypeStr, TypeName)]
 synAllTypeStr (TypeDef tn _ (Just (TRecord fs _))) = [(RecordStr $ P.map fst fs, tn)]
 synAllTypeStr (TypeDef tn _ (Just (TSum tgty))) =
   let tags = P.map fst tgty
-      genmask = \n -> pad0 (P.length tags) $ showIntAtBase 2 intToDigit n ""
+      genmask n = pad0 (P.length tags) $ showIntAtBase 2 intToDigit n ""
       -- we use the binary rep of these number to cover all possible combinations
       combs = map genmask [1 :: Integer .. 2 ^ P.length tags - 1]
   in map (genVariantStr tn tags) combs
@@ -592,7 +592,7 @@ toCaseLemma (SCCD {..}) = let
                 "scorres (match (shallow_tac__var v)) match' (v'#\\<gamma>) \\<xi>) \\<Longrightarrow> \n"++
               "(\\<And>v v'. valRel \\<xi> v v' \\<Longrightarrow> "++
                 "scorres (rest (shallow_tac__var v)) rest' (v'#\\<gamma>) \\<xi>) \\<Longrightarrow> \n"++
-              "scorres (case_" ++ bigType ++ " " ++ intercalate " " (map shallowCase typeStr) ++
+              "scorres (case_" ++ bigType ++ " " ++ unwords (map shallowCase typeStr) ++
                 " x) (Case x' " ++ tagString ++ " match' rest') \\<gamma> \\<xi>"
     shallowCase tag' | tag == tag' = "match"
                      | otherwise   = "(\\<lambda>x. rest (" ++ smallType ++ "." ++ tag' ++ " x))"
@@ -628,7 +628,7 @@ toCaseLemma (SCPromote {..}) = let
   thmName = "scorres_promote_" ++ mangleNames [smallType, bigType]
   propStr = "scorres x x' \\<gamma> \\<xi> \\<Longrightarrow> " ++
             "scorres (case_" ++ smallType ++ " " ++
-              intercalate " " (map ((bigType ++ ".") ++) typeStr) ++ " x) " ++
+              unwords (map ((bigType ++ ".") ++) typeStr) ++ " x) " ++
             "(Promote ts x') \\<gamma> \\<xi>"
   methods = [Method "fastforce" ["simp:", "scorres_def", "valRel_" ++ bigType, "valRel_" ++ smallType,
                                  "split:", smallType ++ ".splits", "elim!:", "v_sem_elims"]]
@@ -709,7 +709,7 @@ shallowDefinition (TypeDef tn ps Nothing) =
     local (typarUpd typar) $ pure ([Right $ TypeDeclDecl $ TypeDecl tn typar], Nothing)
   where typar = Vec.cvtToList ps
 shallowDefinition (TypeDef tn ps (Just t)) =
-    local (typarUpd typar) $ (, Nothing) <$> (shallowTypeDef tn typar t >>= return . map Right)
+    local (typarUpd typar) $ (, Nothing) <$> (map Right <$> shallowTypeDef tn typar t)
   where typar = Vec.cvtToList ps
 
 shallowDefinitions :: [Definition TypedExpr VarName] -> SG ([Either (TheoryDecl I.Type I.Term) (TheoryDecl I.Type I.Term)], [FunName])
@@ -776,7 +776,7 @@ shallowConsts recoverTuples thy stg consts defs log =
  where genConstTheoryDecls cs defs = fst $ evalRWS (runSG $ shallowConsts cs)
                                      (SGTables (st defs) (stsyn defs) [] recoverTuples)
                                      (StateGen 0 M.empty)
-       shallowConsts cs = mapM genConstDecl cs
+       shallowConsts = mapM genConstDecl
        header = (string ("(*\n" ++ log ++ "\n*)\n") L.<$$>)
 
 
@@ -858,7 +858,7 @@ shallowTuplesProof baseName sharedDefThy defThy tupSharedDefThy tupDefThy typeMa
                    ] ++
                    indent 5 constrAssms ++
                    [ "  \\<rbrakk> \\<Longrightarrow> shallow_tuples_rel " ++
-                     "(" ++ fullName ++ ".make " ++ intercalate " " ["x" ++ show f | f <- [1 .. P.length fields]] ++ ") " ++
+                     "(" ++ fullName ++ ".make " ++ unwords ["x" ++ show f | f <- [1 .. P.length fields]] ++ ") " ++
                      "(" ++ intercalate ", " ["xt" ++ show f | f <- [1 .. P.length fields]] ++ ")\""
                    , "  by (simp add: shallow_tuples_rel_" ++ typeName ++ "_def " ++
                      fullName ++ ".defs Px_px)"
@@ -905,8 +905,8 @@ shallowTuplesProof baseName sharedDefThy defThy tupSharedDefThy tupDefThy typeMa
                    ] ++
                    indent 5 constrAssms ++
                    [ "  \\<rbrakk> \\<Longrightarrow> shallow_tuples_rel " ++
-                     "(" ++ fullName ++ ".make " ++ intercalate " " ["x" ++ show f | f <- [1 .. P.length fields]] ++ ") " ++
-                     "(" ++ tupleFullName ++ ".make " ++ intercalate " " ["xt" ++ show f | f <- [1 .. P.length fields]] ++ ")\""
+                     "(" ++ fullName ++ ".make " ++ unwords ["x" ++ show f | f <- [1 .. P.length fields]] ++ ") " ++
+                     "(" ++ tupleFullName ++ ".make " ++ unwords ["xt" ++ show f | f <- [1 .. P.length fields]] ++ ")\""
                    , "  by (simp add: shallow_tuples_rel_" ++ typeName ++ "_def " ++
                      fullName ++ ".defs " ++ tupleFullName ++ ".defs)"
                    ] ++
@@ -966,8 +966,8 @@ shallowTuplesProof baseName sharedDefThy defThy tupSharedDefThy tupDefThy typeMa
                  ] ++
                  indent 5 caseAssms ++
                  [ "   \\<rbrakk> \\<Longrightarrow>"
-                 , "   shallow_tuples_rel (" ++ intercalate " " ([caseTerm] ++ handlers "f" ++ ["x"]) ++ ") " ++
-                   "(" ++ intercalate " " ([tupleCaseTerm] ++ handlers "ft" ++ ["xt"]) ++ ")\""
+                 , "   shallow_tuples_rel (" ++ unwords ([caseTerm] ++ handlers "f" ++ ["x"]) ++ ") " ++
+                   "(" ++ unwords ([tupleCaseTerm] ++ handlers "ft" ++ ["xt"]) ++ ")\""
                  , "  by (fastforce simp: shallow_tuples_rel_" ++ typeName ++ "_def"
                  , "        split: " ++ fullName ++ ".splits " ++ tupleFullName ++ ".splits)"
                  ] ++
@@ -998,7 +998,7 @@ shallowTuplesProof baseName sharedDefThy defThy tupSharedDefThy tupDefThy typeMa
                  [ "lemma " ++ mangleNames ["shallow_tuples", funName] ++ " [" ++ proofBucket ++ "]:"
                  , "  \"shallow_tuples_rel " ++ fullName ++ " " ++ tupleFullName ++ "\""
                  , "  apply (rule shallow_tuples_rel_funI)"
-                 , "  apply (unfold " ++ intercalate " " [funDef, tupleFunDef, "id_def" {- in Esacs -}] ++ ")"
+                 , "  apply (unfold " ++ unwords [funDef, tupleFunDef, "id_def" {- in Esacs -}] ++ ")"
                    -- main iteration
                  , "  by (assumption |"
                  , "      rule shallow_tuples_basic_bucket " ++ ruleBucket

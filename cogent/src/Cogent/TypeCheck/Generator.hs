@@ -40,6 +40,7 @@ import Control.Arrow (first, second)
 import Control.Lens hiding (Context, each, zoom, (:<))
 import Control.Monad.State
 import Control.Monad.Trans.Except
+import Data.Foldable (fold)
 import Data.Functor.Compose
 import Data.List (nub, (\\))
 import qualified Data.Map as M
@@ -97,7 +98,7 @@ validateType rt@(RT t) = do
     _ -> second (T . ffmap toSExpr) <$> fmapFoldM validateType t 
 
 validateTypes :: (Traversable t) => t RawType -> CG (Constraint, t TCType)
-validateTypes ts = fmapFoldM validateType ts
+validateTypes = fmapFoldM validateType
 
 -- -----------------------------------------------------------------------------
 -- Term-level constraints
@@ -208,7 +209,7 @@ cg' (Var n) t = do
 cg' (Upcast e) t = do
   alpha <- freshTVar
   (c1, e1') <- cg e alpha
-  let c = (integral alpha) <> Upcastable alpha t <> c1
+  let c = integral alpha <> Upcastable alpha t <> c1
   return (c, Upcast e1')
 
 cg' (BoolLit b) t = do
@@ -358,7 +359,7 @@ cg' (Seq e1 e2) t = do
 
 cg' (TypeApp f as i) t = do
   tvs <- use knownTypeVars
-  (ct, getCompose -> as') <- validateTypes (fmap stripLocT $ Compose as) 
+  (ct, getCompose -> as') <- validateTypes (stripLocT <$> Compose as) 
   lift (use $ knownFuns.at f) >>= \case
     Just (PT vs tau) -> let
         match :: [(TyVarName, Kind)] -> [Maybe TCType] -> CG ([(TyVarName, TCType)], Constraint)
@@ -573,7 +574,7 @@ match' (PTake r fs) t | not (any isNothing fs) = do
 
 match' (PArray ps) t = do
   alpha <- freshTVar
-  blob <- mapM (flip match alpha) ps
+  blob <- mapM (`match` alpha) ps
   let (ss,cs,ps') = unzip3 blob
       l = SE . IntLit . fromIntegral $ length ps
       c = F t :< F (T $ TArray alpha l)
@@ -603,10 +604,10 @@ freshEVar = fresh (ExpressionAt ?loc)
       return $ SU i
       
 integral :: TCType -> Constraint
-integral a = Upcastable (T (TCon "U8" [] Unboxed)) a
+integral = Upcastable (T (TCon "U8" [] Unboxed))
 
 dropConstraintFor :: M.Map VarName (C.Row TCType) -> Constraint
-dropConstraintFor m = foldMap (\(i, (t,x,us)) -> if null us then Drop t (Unused i x) else Sat) $ M.toList m
+dropConstraintFor = foldMap (\(i, (t,x,us)) -> if null us then Drop t (Unused i x) else Sat) . M.toList
 
 parallel' :: [(ErrorContext, CG (Constraint, a))] -> CG (Constraint, [(Constraint, a)])
 parallel' ls = parallel (map (second (\a _ -> ((),) <$> a)) ls) ()
@@ -684,7 +685,7 @@ withBindings (BindingAlts pat tau e0 bs alts : xs) e top = do
 letBang :: (?loc :: SourcePos) => [VarName] -> (TCType -> CG (Constraint, TCExpr)) -> TCType -> CG (Constraint, TCExpr)
 letBang [] f t = f t
 letBang bs f t = do
-  c <- foldMap id <$> mapM validateVariable bs
+  c <- fold <$> mapM validateVariable bs
   ctx <- use context
   let (ctx', undo) = C.mode ctx bs (\(t,p,_) -> (T (TBang t), p, Seq.singleton ?loc))  -- FIXME: shall we also take the old `us'?
   context .= ctx'

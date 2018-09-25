@@ -12,6 +12,8 @@
 {- LANGUAGE DeriveFoldable #-}
 {- LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE StandaloneDeriving #-}
@@ -68,6 +70,14 @@ deriving instance Eq a => Eq (Vec n a)
 instance Functor (Vec n) where
   fmap f Nil = Nil
   fmap f (Cons x y) = Cons (f x) (fmap f y)
+
+instance Applicative (Vec 'Zero) where
+  pure _ = Nil
+  _ <*> _ = Nil
+
+instance (Applicative (Vec n)) => Applicative (Vec (Suc n)) where
+  pure x = Cons x $ pure x
+  fs <*> xs = zipWith id fs xs
 
 instance Foldable (Vec n) where
   foldMap f Nil = mempty

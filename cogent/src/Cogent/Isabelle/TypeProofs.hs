@@ -81,7 +81,7 @@ deepTypeProof mod withDecls withBodies thy decls log =
                                  proofScript
                   | otherwise = []
         where (proofScript, st) = runState (proofs decls) (typingSubproofsInit mod ta)
-              subproofs = sortBy (comparing (\(proofId, _, _) -> proofId)) $
+              subproofs = sortOn ((\(proofId, _, _) -> proofId)) $
                             M.elems (st ^. subproofKinding) ++
                             M.elems (st ^. subproofAllKindCorrect) ++
                             M.elems (st ^. subproofSplits) ++
@@ -365,10 +365,10 @@ splitEnv env (TE t (Take a e f e2)) =
 -- Ensures that the environment of an expression is equal to the sum of the
 -- environments of the subexpressions.
 pushDown :: (Pretty a) => Vec v (Maybe (Type t)) -> EnvExpr t v a -> EnvExpr t v a
-pushDown unused (EE ty e@Unit       _) = EE ty e unused
-pushDown unused (EE ty e@(ILit _ _) _) = EE ty e unused
-pushDown unused (EE ty e@(SLit _)   _) = EE ty e unused
-pushDown unused (EE ty e@(Fun _ _ _) _) = EE ty e unused
+pushDown unused (EE ty e@Unit      _) = EE ty e unused
+pushDown unused (EE ty e@(ILit {}) _) = EE ty e unused
+pushDown unused (EE ty e@(SLit {}) _) = EE ty e unused
+pushDown unused (EE ty e@(Fun  {}) _) = EE ty e unused
 pushDown unused (EE ty e@(Variable _) env) = EE ty e $ unused <|> env
 
 -- This case may be impossible to prove if unused is non-empty (!!)

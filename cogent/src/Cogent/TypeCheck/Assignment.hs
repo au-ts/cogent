@@ -59,7 +59,7 @@ assignT a (T t) = T $ ffmap (assign a) $ fmap (assignT a) t
 assignT a (U n) = U n
 
 assignC :: Assignment -> Constraint -> Constraint
-assignC a (t1 :< t2) = (fmap (assignT a) t1) :< (fmap (assignT a) t2)
+assignC a (t1 :< t2) = fmap (assignT a) t1 :< fmap (assignT a) t2
 assignC a (c1 :& c2) = assignC a c1 :& assignC a c2
 assignC a (Upcastable t1 t2) = Upcastable (assignT a t1) (assignT a t2)
 assignC a (Share t m) = Share (assignT a t) m

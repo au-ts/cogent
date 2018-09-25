@@ -19,13 +19,6 @@ ostore_read_A ostore oid = do
     Nothing -> return $ Error eNoEnt
     Just o  -> elements $ Success o : map Error [eIO, eNoMem, eInval, eBadF]
 
--- prop_read_blockG :: Property
--- prop_read_blockG =
---   forAll (arbitrary :: OstoreState) $ \ostore -> 
---     forAll (aribitrary :: VfsInode) $ \vnode ->
---       forAll (arbitrary :: OSPageOffset) $ \block ->
---         forAll (arbitrary :: ObjId) $ \oid ->
-
 read_block_A :: OstoreState -> VfsInode -> OSPageOffset -> Gen (R (WordArray U8) ErrCode)
 read_block_A ostore vnode block = do
   let oid = obj_id_data_mk (vfs_inode_get_ino vnode) (downcast block)
@@ -52,3 +45,16 @@ fsop_readpage_A ostore vnode block =
          -- ^ if we are reading the "last" one which extra bytes in this block is 0, then return old buffer
          | otherwise -> read_block_A ostore vnode block
          -- ^ if we are reading a block which contains data, then we read the block
+
+
+
+class Corres ta tc where
+  corres :: ta -> tc -> Bool
+
+
+instance (Corres OstoreState Ct78, Corres ObjId Word64) => Corres (OstoreState, ObjId) Ct484 where
+  corres (ostore_st, oid) (Ct484 ex mount_st ostore_st' oid')
+    = corres oid oid' && corres ostore_st ostore_st'
+
+instance Corres OstoreState Ct178 where
+  corres ostore_st (Ct78 next_inum next_sqnum rbuf wbuf_ed wbuf used sync_offs opad pools oaddr fsm_st index_st ubi_vol summary sum_obj) = undefined

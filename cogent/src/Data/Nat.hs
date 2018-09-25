@@ -15,8 +15,8 @@ import qualified Text.PrettyPrint.ANSI.Leijen as L
 data Nat = Zero | Suc Nat
 
 type family (:+:) (a :: Nat) (b :: Nat) :: Nat where
-   x :+: 'Zero = x
-   x :+: ('Suc n) = 'Suc (x :+: n)
+  x :+: 'Zero  = x
+  x :+: 'Suc n = 'Suc (x :+: n)
 
 (=?)  :: SNat a -> SNat b -> Maybe (a :=: b)
 SZero  =? SZero  = Just Refl
@@ -56,15 +56,15 @@ zeroPlusNEqualsN :: SNat n -> ('Zero :+: n) :=: n
 zeroPlusNEqualsN SZero = Refl
 zeroPlusNEqualsN (SSuc n) | Refl <- zeroPlusNEqualsN n = Refl
 
-addSucLeft :: SNat v -> SNat n -> ('Suc (v :+: n)) :=: ('Suc v :+: n)
+addSucLeft :: SNat v -> SNat n -> 'Suc (v :+: n) :=: ('Suc v :+: n)
 addSucLeft v SZero = Refl
 addSucLeft v (SSuc n) | Refl <- addSucLeft v n = Refl
 
-addSucLeft' :: SNat v -> SNat n -> ('Suc (v :+: n)) :=: ('Suc n :+: v)
+addSucLeft' :: SNat v -> SNat n -> 'Suc (v :+: n) :=: ('Suc n :+: v)
 addSucLeft' SZero n | Refl <- zeroPlusNEqualsN n = Refl
 addSucLeft' (SSuc v) n | Refl <- addSucLeft v n, Refl <- addSucLeft' v n = Refl
 
-sucZeroIsSuc :: SNat n -> ('Suc 'Zero :+: n) :=: ('Suc n)
+sucZeroIsSuc :: SNat n -> ('Suc 'Zero :+: n) :=: 'Suc n
 sucZeroIsSuc n | Refl <- sym (addSucLeft SZero n), Refl <- zeroPlusNEqualsN n = Refl
 
 assoc :: SNat a -> SNat b -> SNat c -> (a :+: (b :+: c)) :=: ((a :+: b) :+: c)
@@ -76,13 +76,13 @@ annoying v n n1 | Refl <- assoc v n n1
                 , Refl <- addSucLeft (sadd v n) n1
                 = Refl
 
-annoying' :: SNat v -> SNat n -> SNat n1 -> ('Suc ('Suc (v :+: n)) :+: n1) :=: (v :+: ('Suc ('Suc (n :+: n1))))
+annoying' :: SNat v -> SNat n -> SNat n1 -> ('Suc ('Suc (v :+: n)) :+: n1) :=: (v :+: 'Suc ('Suc (n :+: n1)))
 annoying' v n n1 | Refl <- assoc v n n1
                  , Refl <- addSucLeft (sadd v n) n1
                  , Refl <- addSucLeft (SSuc (sadd v n)) n1
                  = Refl
 
-withAssocSS :: SNat v -> SNat n -> SNat n1 -> (('Suc ('Suc (v :+: n)) :+: n1) :=: (v :+: ('Suc ('Suc (n :+: n1)))) -> p) -> p
+withAssocSS :: SNat v -> SNat n -> SNat n1 -> (('Suc ('Suc (v :+: n)) :+: n1) :=: (v :+: 'Suc ('Suc (n :+: n1))) -> p) -> p
 withAssocSS a b c = ($ annoying' a b c)
 
 withAssocS :: SNat v -> SNat n -> SNat n1 -> ('Suc (v :+: n) :+: n1 :=: 'Suc (v :+: (n :+: n1)) -> p) -> p

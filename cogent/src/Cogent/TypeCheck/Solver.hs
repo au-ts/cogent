@@ -52,7 +52,7 @@ import qualified Data.IntSet as IS
 --import qualified Data.List as L
 import           Data.List (elemIndex)
 import qualified Data.Map as M
-import           Data.Maybe (mapMaybe)
+import           Data.Maybe (fromMaybe, mapMaybe)
 import           Data.Monoid
 import qualified Data.SBV as V
 import qualified Data.SBV.Control as VC
@@ -176,7 +176,7 @@ patternTag _ = Nothing
 -- Assumes that the input is simped (i.e conjunction and context free, with types in whnf)
 -- Returns `Nothing' if the constraint cannot be further transformed.
 rule' :: (?lvl :: Int) => Constraint -> IO (Maybe Constraint)
-rule' c = ruleT c >>= return . ((:@ SolvingConstraint c) <$>)
+rule' c = ((:@ SolvingConstraint c) <$>) <$> ruleT c
 
 ruleT :: (?lvl :: Int) => Constraint -> IO (Maybe Constraint)
 ruleT c = do
@@ -205,7 +205,7 @@ rule (Exhaustive t ps)
 
 rule (x :@ c) = do
   let ?lvl = ?lvl + 1
-  return . ((:@ c) <$>) =<< ruleT x
+  ((:@ c) <$>) <$> ruleT x
 
 rule (x :& y) = do
   let ?lvl = ?lvl + 1
@@ -514,7 +514,7 @@ bound d a@(FRecord isL) b@(F (T (TRecord jsL s)))
   | is <- M.fromList isL
   , js <- M.fromList jsL
   , M.keysSet is `S.isSubsetOf` M.keysSet js
-  , a' <- F (T (TRecord (map (\(k,v) -> (k, case M.lookup k is of Nothing -> v; Just v' -> v')) jsL) s))  -- left-biased
+  , a' <- F (T (TRecord (map (\(k,v) -> (k, fromMaybe v (M.lookup k is))) jsL) s))  -- left-biased
   = bound d a' b
 bound d a@(F (T (TRecord jsL s))) b@(FRecord isL) = bound d b a  -- symm
 bound d a@(FRecord is_) b@(FRecord js_)
@@ -559,7 +559,7 @@ bound' d t1@(T (TVariant is)) t2@(T (TVariant js))
            return (k, (ts, ib `op` jb))
 bound' d t1@(T (TTuple is)) t2@(T (TTuple js))
   | length is /= length js = return Nothing
-  | otherwise = do t <- T . TTuple <$> traverse (const $ (freshTVar $ BoundOf (F t1) (F t2) d) ) is
+  | otherwise = do t <- T . TTuple <$> traverse (const $ freshTVar $ BoundOf (F t1) (F t2) d) is
                    traceTc "sol" (text "calculate bound of" <+> pretty t1 <+> text "and" <+> pretty t2 <> colon
                                   P.<$> pretty t)
                    return $ Just t
@@ -866,7 +866,7 @@ solveArithIneqs cs es = do
                        -- vvv NOTE: because they're bound unsigned integers
                        -- forM (IM.elems us) $ \v ->
                        --   V.constrain $ (svalToWord32 v V..>= 0) V.&&& (svalToWord32 v V..< fromIntegral u32MAX)
-                       mapM V.constrain $ map VI.SBV cs'
+                       mapM_ (V.constrain . VI.SBV) cs'
                        return es'
       config = VD.z3 { V.verbose = __cogent_ddump_smt }
   V.ThmResult smtRes <- liftIO $ VD.proveWith config s
@@ -1024,8 +1024,8 @@ solve = lift . crunch >=> explode >=> go
     go :: GoalClasses -> Solver [ContextualisedTcLog]
     go g | not (null (unsats g)) = return $ map toWarn (semisats g) ++
                                             map toErr  (unsats   g)
-    go g | not (irreducible (fmap GS.toList $ downs g) (downflexes g)) = go' g DownClass
-    go g | not (irreducible (fmap GS.toList $ ups   g) (upflexes   g)) = go' g UpClass
+    go g | not (irreducible (GS.toList <$> downs g) (downflexes g)) = go' g DownClass
+    go g | not (irreducible (GS.toList <$> ups   g) (upflexes   g)) = go' g UpClass
     go g | not (IM.null (downcastables g)) = go' g DowncastClass
     go g | not (IM.null (upcastables   g)) = go' g UpcastClass
     go g | not (null (aritheqs   g)) = go'' g ArithEqClass

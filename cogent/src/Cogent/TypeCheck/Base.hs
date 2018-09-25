@@ -377,7 +377,7 @@ logErrExit e = logErr e >> exitErr
 logWarn :: TypeWarning -> TcM ()
 logWarn w = case __cogent_warning_switch of
                 Flag_w -> return ()
-                Flag_Wwarn  -> logTc =<< ((, Right $ w) <$> lift (use errCtx))
+                Flag_Wwarn  -> logTc =<< ((, Right $ w                   ) <$> lift (use errCtx))
                 Flag_Werror -> logTc =<< ((, Left  $ TypeWarningAsError w) <$> lift (use errCtx))
 
 logTc :: ContextualisedTcLog -> TcM ()
@@ -389,7 +389,7 @@ exitErr = MaybeT $ return Nothing
 exitOnErr :: TcM a -> TcM a
 exitOnErr ma = do a <- ma
                   log <- lift $ use errLog
-                  if null (filter isLeft $ map snd log) then return a else exitErr
+                  if not (any isLeft $ map snd log) then return a else exitErr
 
 
 -- -----------------------------------------------------------------------------
@@ -428,7 +428,7 @@ validateType' vs (RT t) = do
     _ -> T <$> (mmapM (return . toSExpr) <=< mapM (validateType' vs)) t
 
 validateTypes' :: (Traversable t) => [VarName] -> t RawType -> TcErrM TypeError (t TCType)
-validateTypes' vs rs = mapM (validateType' vs) rs
+validateTypes' vs = mapM (validateType' vs)
 
 
 -- Remove a pattern from a type, for case expressions.

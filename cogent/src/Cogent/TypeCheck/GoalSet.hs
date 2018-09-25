@@ -31,8 +31,8 @@ data Goal = Goal { _goalContext :: [ErrorContext]
                  }  -- high-level context at the end of _goalContext
 
 instance Show Goal where
-  show (Goal c g) = const (show big) big
-    where big = (small P.<$> (P.vcat $ map (flip prettyCtx True) c))
+  show (Goal c g) = show big
+    where big = (small P.<$> (P.vcat $ map (`prettyCtx` True) c))
           small = pretty g
 
 makeLenses ''Goal

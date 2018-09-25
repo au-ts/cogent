@@ -53,10 +53,10 @@ toTypeStr (TProduct t1 t2) = nub $ toTypeStr t1 ++ toTypeStr t2
 toTypeStr (TSum ts)        = nub $ VariantStr (P.map fst ts) : concat (P.map (toTypeStr . fst . snd) ts)
    -- \ ^^^ NOTE: alternatives are ordered throughout the compiler / zilinc
 toTypeStr (TFun ti to)     = nub $ toTypeStr ti ++ toTypeStr to
-toTypeStr (TRecord ts _)   = nub $ RecordStr (P.map fst ts) : concat (P.map (toTypeStr . fst . snd) ts)
+toTypeStr (TRecord ts _)   = nub $ RecordStr (P.map fst ts) : concatMap (toTypeStr . fst . snd) ts
 toTypeStr (TPrim i)        = []
 toTypeStr (TString)        = []
-toTypeStr (TCon n ts _)    = nub $ concat $ P.map toTypeStr ts
+toTypeStr (TCon n ts _)    = nub $ concatMap toTypeStr ts
 
 getStrlType :: M.Map TypeStr TypeName -> [TypeStr] -> Type t -> Type t
 getStrlType tsmap table (TSum ts) =
@@ -128,7 +128,7 @@ stType (toTypeStr -> ts) = forM_ ts $ \t -> do
     Just _  -> return ()
 
 findIndex :: TypeStr -> [TypeStr] -> Int
-findIndex = (fromJust .) . L.findIndex . (==)
+findIndex = (fromJust .) . L.elemIndex
 
 lookupTypeStr :: TypeStr -> [TypeStr] -> Maybe TypeStr
 lookupTypeStr = find . (==)

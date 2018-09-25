@@ -29,7 +29,7 @@ import Data.Vec
 import Data.PropEq
 
 import Control.Applicative
-import Control.Arrow (second, (***))
+import Control.Arrow (first, second)
 import Control.Monad.State
 import Prelude as P
 
@@ -42,18 +42,18 @@ isVar _ = False
 isAtom :: UntypedExpr t v a -> Bool
 isAtom (E (Variable x)) = True
 isAtom (E (Fun fn ts _)) = True
-isAtom (E (Op opr es)) | and (map isVar es) = True
+isAtom (E (Op opr es)) | all isVar es = True
 isAtom (E (App (E (Fun fn ts _)) arg)) | isVar arg = True
 isAtom (E (App f arg)) | isVar f && isVar arg = True
 isAtom (E (Con cn x _)) | isVar x = True
 isAtom (E (Unit)) = True
 isAtom (E (ILit {})) = True
 isAtom (E (SLit _)) = True
-isAtom (E (ALit es)) | and (map isVar es) = True
+isAtom (E (ALit es)) | all isVar es = True
 isAtom (E (ArrayIndex e i)) | isVar e = True
 isAtom (E (Singleton e)) | isVar e = True
 isAtom (E (Tuple e1 e2)) | isVar e1 && isVar e2 = True
-isAtom (E (Struct fs)) | and (map (isVar . snd) fs) = True
+isAtom (E (Struct fs)) | all (isVar . snd) fs = True
 isAtom (E (Esac e)) | isVar e = True
 isAtom (E (Member rec f)) | isVar rec = True
 isAtom (E (Put rec f v)) | isVar rec && isVar v = True
@@ -96,8 +96,8 @@ verifyNormal [] = True
 verifyNormal (d:ds) =
   let b = case d of
             FunDef _ _ _ _ _ e -> isNormal e
-            otherwise -> True
-  in if b then verifyNormal ds else False
+            _ -> True
+   in b && verifyNormal ds
 
 normaliseDefinition :: Definition UntypedExpr VarName -> AN (Definition UntypedExpr VarName)
 normaliseDefinition (FunDef attr fn ts ti to e) = FunDef attr fn ts ti to <$> (wrapPut =<< normaliseExpr s1 e)
@@ -119,12 +119,12 @@ normalise v e@(E (Fun fn ts _)) k = k s0 e
 normalise v   (E (Op opr es)) k = normaliseNames v es $ \n es' -> k n (E $ Op opr es')
 normalise v e@(E (App (E (Fun fn ts nt)) arg)) k
   = normaliseName v arg$ \n' arg' ->
-          k n' ((E $ App (E (Fun fn ts nt)) arg'))
+          k n' (E $ App (E (Fun fn ts nt)) arg')
 normalise v e@(E (App f arg)) k
   = normaliseName v f $ \n f' ->
       normaliseName (sadd v n) (upshiftExpr n v f0 arg) $ \n' arg' ->
         withAssoc v n n' $ \Refl ->
-          k (sadd n n') ((E $ App (upshiftExpr n' (sadd v n) f0 f') arg'))
+          k (sadd n n') (E $ App (upshiftExpr n' (sadd v n) f0 f') arg')
 normalise v   (E (Con cn e t)) k = normaliseName v e $ \n e' -> k n (E $ Con cn e' t)
 normalise v e@(E (Unit)) k = k s0 e
 normalise v e@(E (ILit {})) k = k s0 e
@@ -162,8 +162,8 @@ normalise v (E (If c th el)) k | LNF <- __cogent_fnormalisation =
   normaliseName v c $ \n c' ->
   E <$> (Let a (E $ If c' (upshiftExpr n v f0 th') (upshiftExpr n v f0 el')) <$> k (SSuc n) (E $ Variable (f0, a)))
 normalise v (E (If c th el)) k = normaliseName v c $ \n c' ->
-  E <$> (If c' <$> (normalise (sadd v n) (upshiftExpr n v f0 th) (\n' -> withAssoc v n n' $ \Refl -> k (sadd n n')))
-               <*> (normalise (sadd v n) (upshiftExpr n v f0 el) (\n' -> withAssoc v n n' $ \Refl -> k (sadd n n'))))
+  E <$> (If c' <$> normalise (sadd v n) (upshiftExpr n v f0 th) (\n' -> withAssoc v n n' $ \Refl -> k (sadd n n'))
+               <*> normalise (sadd v n) (upshiftExpr n v f0 el) (\n' -> withAssoc v n n' $ \Refl -> k (sadd n n')))
 normalise v (E (Case e tn (l1,a1,e1) (l2,a2,e2))) k | LNF <- __cogent_fnormalisation =
   freshVar >>= \a ->
   normaliseExpr (SSuc v) e1 >>= \e1' ->
@@ -205,11 +205,11 @@ normaliseAtom v e k = normalise v e $ \n e' -> if isAtom e' then k n e' else cas
   (E (LetBang vs a e1 e2)) -> freshVar >>= \a' -> E <$> (LetBang vs a e1 <$> (normaliseAtom (SSuc (sadd v n)) e2 $
      \n' e2'  -> withAssocS v n n' $ \Refl -> E <$> (Let a' e2' <$> (k (SSuc (sadd n (SSuc n'))) $ E $ Variable (f0, a')))))
   (E (Case e tn (l1,a1,e1) (l2,a2,e2))) ->
-     E <$> (Case e tn <$> ((l1,a1,) <$> (normaliseAtom (SSuc (sadd v n)) e1 (\n' -> withAssocS v n n' $ \Refl -> k (sadd n (SSuc n')))))
-                                    <*> ((l2,a2,) <$> (normaliseAtom (SSuc (sadd v n)) e2 (\n' -> withAssocS v n n' $ \Refl -> k (sadd n (SSuc n'))))))
+     E <$> (Case e tn <$> ((l1,a1,) <$> normaliseAtom (SSuc (sadd v n)) e1 (\n' -> withAssocS v n n' $ \Refl -> k (sadd n (SSuc n'))))
+                                    <*> ((l2,a2,) <$> normaliseAtom (SSuc (sadd v n)) e2 (\n' -> withAssocS v n n' $ \Refl -> k (sadd n (SSuc n')))))
   -- FIXME: does this one also need to be changed for LNF? / zilinc
-  (E (If c th el)) -> E <$> (If c <$> (normaliseAtom (sadd v n) th (\n' -> withAssoc v n n' $ \Refl -> k (sadd n n')))
-                                  <*> (normaliseAtom (sadd v n) el (\n' -> withAssoc v n n' $ \Refl -> k (sadd n n'))))
+  (E (If c th el)) -> E <$> (If c <$> normaliseAtom (sadd v n) th (\n' -> withAssoc v n n' $ \Refl -> k (sadd n n'))
+                                  <*> normaliseAtom (sadd v n) el (\n' -> withAssoc v n n' $ \Refl -> k (sadd n n')))
   (E (Split a p e)) -> E <$> (Split a p <$> (normaliseAtom (SSuc (SSuc (sadd v n))) e $ \n' ->
      withAssocSS v n n' $ \Refl -> k (sadd n (SSuc (SSuc n')))))
   (E (Take a rec fld e)) -> E <$> (Take a rec fld <$> (normaliseAtom (SSuc (SSuc (sadd v n))) e $ \n' ->
@@ -245,7 +245,7 @@ insertIdxAt :: Fin ('Suc v) -> UntypedExpr t v a -> UntypedExpr t ('Suc v) a
 insertIdxAt cut (E e) = E $ insertIdxAt' cut e
   where
     insertIdxAt' :: Fin ('Suc v) -> Expr t v a UntypedExpr -> Expr t ('Suc v) a UntypedExpr
-    insertIdxAt' cut (Variable v) = Variable $ (liftIdx cut *** id) v
+    insertIdxAt' cut (Variable v) = Variable $ first (liftIdx cut) v
     insertIdxAt' cut (Fun fn ty nt) = Fun fn ty nt
     insertIdxAt' cut (Op opr es) = Op opr $ map (insertIdxAt cut) es
     insertIdxAt' cut (App e1 e2) = App (insertIdxAt cut e1) (insertIdxAt cut e2)
@@ -258,7 +258,7 @@ insertIdxAt cut (E e) = E $ insertIdxAt' cut e
     insertIdxAt' cut (Pop a e1 e2) = Pop a (insertIdxAt cut e1) (insertIdxAt (FSuc (FSuc cut)) e2)
     insertIdxAt' cut (Singleton e) = Singleton (insertIdxAt cut e)
     insertIdxAt' cut (Let a e1 e2) = Let a (insertIdxAt cut e1) (insertIdxAt (FSuc cut) e2)
-    insertIdxAt' cut (LetBang vs a e1 e2) = LetBang (map (liftIdx cut *** id) vs) a (insertIdxAt cut e1) (insertIdxAt (FSuc cut) e2)
+    insertIdxAt' cut (LetBang vs a e1 e2) = LetBang (map (first $ liftIdx cut) vs) a (insertIdxAt cut e1) (insertIdxAt (FSuc cut) e2)
     insertIdxAt' cut (Tuple e1 e2) = Tuple (insertIdxAt cut e1) (insertIdxAt cut e2)
     insertIdxAt' cut (Struct fs) = Struct $ map (second $ insertIdxAt cut) fs
     insertIdxAt' cut (If c e1 e2) = If (insertIdxAt cut c) (insertIdxAt cut e1) (insertIdxAt cut e2)

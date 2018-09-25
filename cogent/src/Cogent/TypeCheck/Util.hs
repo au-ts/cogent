@@ -46,7 +46,6 @@ traceTcBracket s d1 m f
   | otherwise = do
       liftIO . dumpMsg $ indent (text ("[dump-tc/" ++ s ++ "]") <+> d1)
       a <- m
-      d2 <- return $ f a
-      liftIO . dumpMsg $ indent d2 L.<$> line
+      liftIO . dumpMsg $ indent (f a) L.<$> line
       return a
 
