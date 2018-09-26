@@ -152,7 +152,7 @@ lemma obj_is_valid_valid_entries:
 definition obj_inv_oid :: "Obj\<^sub>T \<Rightarrow> bool"
 where
 "obj_inv_oid obj \<equiv> (obj_is_inode obj \<or> obj_is_dentarr obj \<or> obj_is_data obj) \<longrightarrow>
-                    obj_id_type (get_obj_oid obj) = u8_to_u64 (otype\<^sub>f obj)"
+                    obj_id_type (get_obj_oid obj) = ucast (otype\<^sub>f obj)"
 
 definition
  inv_read_obj :: "Obj\<^sub>T \<Rightarrow> bool"

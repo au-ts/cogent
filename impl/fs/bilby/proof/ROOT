@@ -9,6 +9,7 @@
  *)
 
 session CogentUtil = "HOL-Word" +
+  sessions "Eisbach"
   theories "../../../../cogent/isa/Util"
 
 session "BilbyFsCode" (main) = "CogentUtil" +

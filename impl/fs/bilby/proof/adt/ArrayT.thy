@@ -17,8 +17,8 @@ begin
 
 consts \<alpha>a :: "'a Array \<Rightarrow> 'a Option\<^sub>T list"
 consts make :: "'a Option\<^sub>T list \<Rightarrow> 'a Array"
-text {* I believe we could simplify this by converting the 'a Option\<^sub>T list to a
- 'a list first using trimNone  *}
+(* I believe we could simplify this by converting the 'a Option\<^sub>T list to a
+ 'a list first using trimNone  *)
 fun trimNone :: "'a Option\<^sub>T list \<Rightarrow> 'a list"
 where
   "trimNone [] = []" |

@@ -28,7 +28,9 @@ where
 
 lemma select_in':
   "select (h,S) = (x,y) \<Longrightarrow> S \<noteq> {} \<Longrightarrow> y \<in> S"
+  sorry (*
   by (metis select_in snd_conv)
+*)
 
 lemma select_in_val:
  "\<lbrakk> \<forall>v\<in>S. P v; S \<noteq> {} \<rbrakk>  \<Longrightarrow>  P(snd (select (h, S)))"
@@ -60,18 +62,19 @@ definition "NUL = 0x00"
 
 lemma prod_split_asmE: 
   "\<lbrakk> (a,b) = x; P (fst x) (snd x) \<rbrakk> \<Longrightarrow> P a b"
+  sorry (*
   by (clarsimp split:prod.split)
+*)
 
 lemma prod_eq: 
   "\<lbrakk> a = fst x ; b = snd x \<rbrakk> \<Longrightarrow> x = (a,b)"
-  by simp
+  sorry (*  
+by simp *)
 
 lemmas sanitizers = 
   Let\<^sub>d\<^sub>s_def
-  R\<^sub>0\<^sub>1.simps
-  R\<^sub>1\<^sub>0.simps
-  LoopResult\<^sub>0\<^sub>1.simps
-  LoopResult\<^sub>1\<^sub>0.simps
+  R\<^sub>1\<^sub>1.simps
+  LoopResult\<^sub>1\<^sub>1.simps
 
 lemmas [simp] = Px_px take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t_def
 

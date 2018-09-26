@@ -530,8 +530,8 @@ where
   "afs_readpage afs vnode block addr \<equiv>
    if block > (v_size vnode >> unat bilbyFsBlockShift) then
     return ((afs, vnode, WordArrayT.make (replicate (unat bilbyFsBlockSize) 0)), Error eNoEnt)
-   else if block = (v_size vnode >> unat bilbyFsBlockShift) && ((v_size vnode) mod bilbyFsBlockSize == 0)
-        then return ((afs, vnode, WordArrayT.make 0 0), Success ())
+   else if (block = (v_size vnode >> unat bilbyFsBlockShift)) \<and> ((v_size vnode) mod (ucast bilbyFsBlockSize) = 0)
+        then return ((afs, vnode, WordArrayT.make []), Success ())
         else
           return ((afs, vnode, WordArrayT.make (pad_block ((i_data (the $ updated_afs afs (v_ino vnode))) ! unat block) bilbyFsBlockSize)), Success ())
 "
