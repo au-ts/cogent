@@ -133,14 +133,14 @@ where
  in ObjDentarr.make
      (ple64 data offs) (* id *)
      (nb_dentry) (* nb_dentry *)
-     (fst (pArrObjDentry (take (unat (offs+olen-bilbyFsObjHeaderSize)) data) (offs+bilbyFsObjDentarrHeaderSize) nb_dentry))
+     (prod.fst (pArrObjDentry (take (unat (offs+olen-bilbyFsObjHeaderSize)) data) (offs+bilbyFsObjDentarrHeaderSize) nb_dentry))
      "
 
 definition pObjDentarrSize :: "U8 list \<Rightarrow> U32 \<Rightarrow> U32 \<Rightarrow> U32"
 where
 "pObjDentarrSize data offs olen \<equiv>
  let nb_dentry = ple32 data (offs+8)
- in (fst (snd (pArrObjDentry (take (unat (offs+olen-bilbyFsObjHeaderSize)) data) (offs+bilbyFsObjDentarrHeaderSize) nb_dentry)))
+ in (prod.fst (prod.snd (pArrObjDentry (take (unat (offs+olen-bilbyFsObjHeaderSize)) data) (offs+bilbyFsObjDentarrHeaderSize) nb_dentry)))
  "
 
 definition pObjSuper :: "U8 list \<Rightarrow> U32 \<Rightarrow> ObjSuper\<^sub>T"
@@ -1376,10 +1376,11 @@ lemma map_deserialise_waU8_map_eq_slice:
   assumes bound: "unat acc + unat n \<le> length (\<alpha>wa d)"
   assumes "length xs = unat (n:: 32 word)"
   shows "
-    fst (mapAccumObs 0 (unat n) deserialise_waU8_map xs acc d) =
+    prod.fst (mapAccumObs 0 (unat n) deserialise_waU8_map xs acc d) =
      (FunBucket.slice (unat acc) (unat acc + unat n ) (\<alpha>wa d))"
   using map_deserialise_waU8_map_eq_slice_apply[THEN arg_cong[where f=prod.fst]]
         assms
+
  by (subgoal_tac "xs \<noteq> []") (fastforce simp: unat_arith_simps)+
 
 lemma deserialise_wordarray_U8_ret:
@@ -1864,7 +1865,7 @@ lemma fst_snd_fold_triple_simp:
 definition dentarr_offs_list_drop :: "U8 list \<Rightarrow> U32 \<Rightarrow> nat list \<Rightarrow> U32 \<Rightarrow> (32 word list)"
 where
  "dentarr_offs_list_drop data ost entriesno offs =
-    snd (fold (\<lambda>_ (doffs, offslist).
+    prod.snd (fold (\<lambda>_ (doffs, offslist).
       let dentry = pObjDentry (drop (unat offs) data) (doffs - offs);
           newoffs = doffs + 8 + wordarray_length (ObjDentry.name\<^sub>f dentry)
        in (newoffs, offslist @ [newoffs]))
@@ -1879,7 +1880,7 @@ where
 
 definition
  "dentarr_offs_list data ost entriesno \<equiv> 
-  (snd (fold (\<lambda>_ (doffs, offslist).
+  (prod.snd (fold (\<lambda>_ (doffs, offslist).
      let dentry = pObjDentry data doffs;
          newoffs = doffs + 8 + wordarray_length (ObjDentry.name\<^sub>f dentry)
      in (newoffs, offslist @ [newoffs]))

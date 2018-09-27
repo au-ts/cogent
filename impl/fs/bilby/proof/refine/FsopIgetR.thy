@@ -30,7 +30,7 @@ where
           avnode = vnode))"
      
 lemmas iget_simps = FsopIgetP.defs  FsopIgetRR.defs
-lemmas ObjUnion_simps =  ObjUnion\<^sub>0\<^sub>1\<^sub>1\<^sub>1\<^sub>0\<^sub>1\<^sub>1.simps ObjUnion\<^sub>1\<^sub>1\<^sub>1\<^sub>1\<^sub>0\<^sub>1\<^sub>1.simps ObjUnion\<^sub>0\<^sub>0\<^sub>1\<^sub>1\<^sub>0\<^sub>1\<^sub>1.simps ObjUnion\<^sub>0\<^sub>0\<^sub>1\<^sub>1\<^sub>0\<^sub>1\<^sub>0.simps ObjUnion\<^sub>0\<^sub>0\<^sub>1\<^sub>1\<^sub>0\<^sub>0\<^sub>0.simps ObjUnion\<^sub>0\<^sub>0\<^sub>0\<^sub>1\<^sub>0\<^sub>0\<^sub>0.simps
+lemmas ObjUnion_simps =  ObjUnion\<^sub>1\<^sub>1\<^sub>1\<^sub>1\<^sub>1\<^sub>1\<^sub>1.simps
  
 lemma rel_afs_fsop_matchD:
  "afs_fsop_rel afs_data fs_st \<Longrightarrow> afs_fsop_match (updated_afs afs_data) (\<alpha>_ostore_uptodate $ ostore_st\<^sub>f fs_st)"

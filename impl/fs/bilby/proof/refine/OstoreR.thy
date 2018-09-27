@@ -282,24 +282,24 @@ notes list_trans.simps[simp del]
   notes   pad_to' = pad_to[simplified padding_to_eq_align32_simp[OF inv_mount_st_no_summaryD[OF inv_mount_st]]]
 
 shows
- "snd (list_trans_no_pad
+ "prod.snd (list_trans_no_pad
           (buf_slice (buf_memset (wbuf\<^sub>f ostore_st, used\<^sub>f ostore_st, pad_to - used\<^sub>f ostore_st, bilbyFsPadByte))
             frm pad_to)) =
- snd (list_trans_no_pad (buf_slice (wbuf\<^sub>f ostore_st) frm (used\<^sub>f ostore_st)))"
+ prod.snd (list_trans_no_pad (buf_slice (wbuf\<^sub>f ostore_st) frm (used\<^sub>f ostore_st)))"
 proof -
  have sync_le_used: "sync_offs\<^sub>f ostore_st \<le> used\<^sub>f ostore_st" using sync_lt_used by unat_arith
 show ?thesis
 using buf_slice_buf_memset_is_append_padding[OF inv_ostore inv_mount_st pad_to, where frm=frm]
   apply simp
   apply (case_tac "frm = 0")
-   using frm apply (simp add: buf_slice_0_eq_buf_take)
+  using frm apply (simp add: buf_slice_0_eq_buf_take)
    apply (rule snd_list_trans_no_pad_padding_unchanged)
    apply (rule inv_ostore_valid_list_trans_wbuf[OF inv_ostore used_gt_zero sync_lt_used])
   using frm apply simp
   apply (rule snd_list_trans_no_pad_padding_unchanged)
   using inv_bufsD[OF inv_ostore, simplified sync_lt_used]
   apply (simp add: valid_list_trans_no_pad_def)
- done
+  done
 qed
 
 lemma ostore_log_objects_padding_bytes:
@@ -344,19 +344,19 @@ proof -
   done
 
   have snd_list_trans_no_pad:
-    "snd (list_trans_no_pad (buf_slice (wbuf\<^sub>f ostore_st) 0 (used\<^sub>f ostore_st))) \<noteq> []"
+    "prod.snd (list_trans_no_pad (buf_slice (wbuf\<^sub>f ostore_st) 0 (used\<^sub>f ostore_st))) \<noteq> []"
    using inv_bufsD[OF inv_ostore] used_gt_zero sync_lt_used
    apply (clarsimp simp add: unat_arith_simps  valid_list_trans_no_pad_def del: notI)
    apply (drule (1) list_trans_no_pad_append)
    apply (simp only: length_greater_0_conv[symmetric] buf_slice_0_eq_buf_take )
    using buf_take_buf_slice_adjacent[OF sync_le_used, where b="(wbuf\<^sub>f ostore_st)",symmetric]
    apply simp
-   using list_trans_no_pad_append val_ys by fastforce
+   using list_trans_no_pad_append val_ys  by fastforce
 
   have buf_slice_not_Nil: "\<And>xs. buf_slice (wbuf\<^sub>f ostore_st) 0 (used\<^sub>f ostore_st)@ xs \<noteq> []"
    using inv_ostore_eb_size_wbuf_eqD[OF inv_ostore] inv_mount_st[simplified inv_mount_st_def Let_def] used_gt_zero
    by (clarsimp simp add:  buf_slice_def slice_def unat_arith_simps)
-  have prod_eq: "\<And>x y z. x = (y,z) = (fst x = y \<and> snd x = z)" by auto
+  have prod_eq: "\<And>x y z. x = (y,z) = (prod.fst x = y \<and> prod.snd x = z)" by auto
   have opt_eq: "\<And>i. i < length (list_eb_log_wbuf  ostore_st) \<Longrightarrow> (list_eb_log_wbuf ?ostore_st ! i) = [] = ((list_eb_log_wbuf ostore_st ! i) = [])"
    apply (simp add: list_eb_log_wbuf_def list_eb_log_def used_gt_zero  
             buf_slice_buf_memset_is_append_padding[OF inv_ostore
@@ -400,7 +400,7 @@ proof -
    apply (simp add: list_eb_log_wbuf_def)
    using snd_list_trans_memset[OF inv_ostore inv_mount_st pad_to used_gt_zero sync_lt_used, where frm=0, simplified ]
    apply (simp only:)
-  done
+   done
   thus ?thesis
     unfolding ostore_log_objects_def by simp
 qed
@@ -635,13 +635,12 @@ using inv_ostore
          using inv_ostore_bound_le_lenD[OF inv_ostore] apply (simp add: buf_simps)
     using used_le_padding_to[OF inv_ostore inv_mount_st] apply (simp add: pad_to' pad_to padding_to_def[unfolded tuple_simps sanitizers] ostoreWriteNone_def)
    by (clarsimp simp: pad_to' buf_memset_length_eq)
-  moreover have "inv_log (list_eb_log (\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ?ostore_st))) (snd (list_trans_no_pad
+  moreover have "inv_log (list_eb_log (\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ?ostore_st))) (prod.snd (list_trans_no_pad
      (buf_slice (buf_memset (wbuf\<^sub>f ostore_st, used\<^sub>f ostore_st, pad_to - used\<^sub>f ostore_st, bilbyFsPadByte)) (sync_offs\<^sub>f ostore_st) pad_to)))"
      using snd_list_trans_no_pad_padding_unchanged
      using snd_list_trans_memset[OF inv_ostore inv_mount_st pad_to used_gt_zero sync_lt_used, where frm="sync_offs\<^sub>f ostore_st",simplified]
      apply simp
-     using inv_logD[OF inv_ostore, folded inv_log_def] apply simp
-    done
+     using inv_logD[OF inv_ostore, folded inv_log_def] by simp
 
   moreover have "used\<^sub>f ?ostore_st < used\<^sub>f ?ostore_st + io_size\<^sub>f (super\<^sub>f mount_st)"
     using padding_to_io_size_no_overflow[OF inv_ostore inv_mount_st]
@@ -649,8 +648,7 @@ using inv_ostore
     
 
   ultimately show ?thesis
-  using inv_ostore apply (clarsimp simp: pad_to inv_ostore_def inv_bufs inv_flash_def)
-  done
+    using inv_ostore by (clarsimp simp: pad_to inv_ostore_def inv_bufs inv_flash_def)
 qed
 
 lemma take_n_m_padding:
@@ -854,7 +852,7 @@ lemma snd_list_trans_sObj_eq_sObj:
   notes Obj_inverse[where xs=Nil, simplified, simp]
   shows
  "valid_list_trans (sObj obj) \<Longrightarrow>
-   snd (list_trans (sObj obj)) = [[obj]]"
+   prod.snd (list_trans (sObj obj)) = [[obj]]"
    using valid_obj apply (clarsimp simp: valid_pad_obj_def  simp del: list_trans.simps)
   apply (erule valid_list_trans.elims)
   apply (clarsimp split: if_splits)
@@ -865,7 +863,6 @@ lemma snd_list_trans_sObj_eq_sObj:
     apply (drule_tac t="x#xs" in sym, simp)
    apply (drule_tac t="x#xs" in sym, simp)
    apply (frule is_valid_ObjHeader_length_sObj[OF valid_obj], simp)
-
   apply (erule valid_trans.elims, clarsimp simp add: is_valid_ObjTrans split: if_splits)
    apply (rename_tac x xs)
    apply (drule_tac t="x#xs" in sym, simp)
@@ -874,6 +871,7 @@ lemma snd_list_trans_sObj_eq_sObj:
   apply (drule_tac t="x#xs" in sym, simp)
   apply (frule is_valid_ObjHeader_length_sObj[OF valid_obj], simp)
  done
+
 
 lemma valid_commit_pad_obj:
   assumes inv_ostore: "inv_ostore mount_st ostore_st"
@@ -927,16 +925,16 @@ lemma snd_list_trans_no_pad_padding_obj:
 
   notes   pad_to' = pad_to[simplified padding_to_eq_align32_simp[OF inv_mount_st_no_summaryD[OF inv_mount_st]]]
   shows
-   "snd (list_trans_no_pad
+   "prod.snd (list_trans_no_pad
           (buf_slice (wbuf\<^sub>f ostore_st) (sync_offs\<^sub>f ostore_st) (used\<^sub>f ostore_st) @
            sObj obj)) =
-    snd (list_trans_no_pad
+    prod.snd (list_trans_no_pad
           (buf_slice (wbuf\<^sub>f ostore_st) (sync_offs\<^sub>f ostore_st) (used\<^sub>f ostore_st)))"
     using obj length_sObj[where obj=obj]  apply (simp add: ostore_update_padding_obj' )
      apply (erule meta_impE)
       apply (fold bilbyFsObjHeaderSize_def)
       using padding_obj apply clarsimp
-      apply (drule arg_cong[where f="Obj.len\<^sub>f"], simp)
+       apply (drule arg_cong[where f="Obj.len\<^sub>f"], simp)
      apply (subst list_trans_no_pad_append[symmetric])
        using inv_bufsD[OF inv_ostore, simplified sync_lt_used] apply (simp add: valid_list_trans_no_pad_def)
       using valid_list_trans_pad_obj  apply (simp add: obj ostore_update_padding_obj')
@@ -947,7 +945,7 @@ lemma snd_list_trans_no_pad_padding_obj:
                         prod.case_eq_if valid_pad_obj_def is_valid_Obj_def
                   del:list_trans.simps)
        apply clarsimp
-    done
+     done
 
 lemma  len_sObj:
  assumes valid_hdr:  "is_valid_ObjHeader obj (sObj obj)"
@@ -1128,10 +1126,10 @@ lemma snd_list_trans_no_pad_padding_obj_sync_pad_to:
   and     snd_list_trans_no_pad_padding_obj = snd_list_trans_no_pad_padding_obj[OF invs pad_to sync_lt_used obj padding_obj ]
 
   shows
-    "snd (list_trans_no_pad (buf_slice (wbuf\<^sub>f ostore_st \<lparr>data\<^sub>f :=
+    "prod.snd (list_trans_no_pad (buf_slice (wbuf\<^sub>f ostore_st \<lparr>data\<^sub>f :=
       WordArrayT.make (buf_sub_slice (wbuf\<^sub>f ostore_st) (used\<^sub>f ostore_st) pad_to (sObj obj))\<rparr>)
        (sync_offs\<^sub>f ostore_st) pad_to)) =
-    snd (list_trans_no_pad (buf_slice (wbuf\<^sub>f ostore_st) (sync_offs\<^sub>f ostore_st) (used\<^sub>f ostore_st)))"
+    prod.snd (list_trans_no_pad (buf_slice (wbuf\<^sub>f ostore_st) (sync_offs\<^sub>f ostore_st) (used\<^sub>f ostore_st)))"
    apply (simp add: buf_slice_def wordarray_make)
    apply (subst  slice_buf_sub_slice[OF sync_le_used])
       using used_le_padding_to[OF invs] apply (simp add: pad_to)
@@ -1164,19 +1162,19 @@ lemma snd_list_trans_no_pad_all_padding_obj:
   and   invs_pad_offs =  inv_ostore inv_mount_st pad_to used_gt_zero sync_lt_used 
 
   shows
- "snd (list_trans_no_pad
-          (buf_slice
-            (wbuf\<^sub>f ostore_st
-             \<lparr>data\<^sub>f :=
+ "prod.snd (list_trans_no_pad
+            (buf_slice
+             (wbuf\<^sub>f ostore_st
+              \<lparr>data\<^sub>f :=
                 WordArrayT.make
                  (buf_sub_slice (wbuf\<^sub>f ostore_st) (used\<^sub>f ostore_st) pad_to (sObj obj))\<rparr>)
             0 pad_to)) =
-    snd (list_trans_no_pad (buf_slice (wbuf\<^sub>f ostore_st) 0 (used\<^sub>f ostore_st)))"
+    prod.snd (list_trans_no_pad (buf_slice (wbuf\<^sub>f ostore_st) 0 (used\<^sub>f ostore_st)))"
    apply (simp add: buf_slice_0_eq_buf_take)
    apply (subst buf_take_buf_slice_adjacent[symmetric, where st="sync_offs\<^sub>f ostore_st" and ?end="used\<^sub>f ostore_st"])
     using sync_lt_used apply simp
    apply (subst buf_take_buf_slice_adjacent[symmetric, where st="sync_offs\<^sub>f ostore_st" and ?end="pad_to"])
-   using sync_offs_le_padding_to[OF invs] apply (simp add: pad_to)
+    using sync_offs_le_padding_to[OF invs] apply (simp add: pad_to)
    apply (subst list_trans_no_pad_append[symmetric])
    using valid_list_trans_buf_take_sync_offs[OF invs_pad_offs] apply (simp)
    using valid_list_trans_buf_slice_sync_offs_pad_to[OF invs_pad_offs valid_hdr obj valid_pad_obj padding_obj]
@@ -1195,7 +1193,7 @@ lemma snd_list_trans_no_pad_all_padding_obj:
     apply (simp add: buf_take_def len_sObj')
     using len_sObj'[OF invs pad_to valid_hdr obj valid_pad_obj] snd_list_trans_no_pad_padding_obj [OF valid_list_trans_pad_obj ]
     apply (simp add: buf_slice_def)
-   done
+    done
 
 lemma \<alpha>_updates_padding_objeq:
   assumes inv_ostore: "inv_ostore mount_st ostore_st"
@@ -1234,7 +1232,7 @@ lemma \<alpha>_updates_padding_objeq:
 
     using len_sObj'[OF invs pad_to valid_hdr obj valid_pad_obj]  snd_list_trans_no_pad_padding_obj[OF valid_list_trans_pad_obj]
     apply (simp add:  len_sObj' buf_slice_def)
-   done
+    done
 
 lemmas Obj_ext_eq_expand = trans[OF _ Obj.ext_inject,
     OF arg_cong2[where f="op ="], OF refl Obj.surjective]
@@ -1339,9 +1337,9 @@ proof -
       apply (simp add: list_eb_log_wbuf_def )
       using snd_list_trans_no_pad_all_padding_obj fsm_st
      apply (clarsimp simp add: padding_obj list_eb_log_wbuf_def prepared_fsm_padding_obj_def)
-    using inv_ostore_fsmD[OF inv_ostore, simplified inv_ostore_fsm_def] fsm_st
+      using inv_ostore_fsmD[OF inv_ostore, simplified inv_ostore_fsm_def] fsm_st
     apply (fastforce simp add: padding_obj prepared_fsm_padding_obj_def)
-   done
+  done
 
   moreover have "inv_bufs mount_st ?ostore_st"
     using inv_ostore_sync_offsD[OF inv_ostore] inv_ostore_used_len_wbufD[OF invs]
@@ -1374,7 +1372,7 @@ proof -
       using padding_to_le_length_wbuf[OF invs] apply (simp add: pad_simps)
      using len_sObj[OF valid_hdr obj valid_pad_obj]  apply (simp add: pad_to')
      using snd_list_trans_no_pad_padding_obj[OF valid_list_trans_pad_obj] apply simp
-   using inv_bufsD[OF inv_ostore]  apply (clarsimp simp add: valid_list_trans_no_pad_def buf_take_def)
+     using inv_bufsD[OF inv_ostore]  apply (clarsimp simp add: valid_list_trans_no_pad_def buf_take_def)
    done
 
   moreover have "inv_fsm_st mount_st (fsm_st\<^sub>f ?ostore_st)"
@@ -1393,14 +1391,16 @@ proof -
     qed
   moreover have "inv_flash (list_eb_log_wbuf ?ostore_st) " by (simp add: inv_flash_def)
   moreover have "inv_log (list_eb_log (\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st)))
-     (snd (list_trans_no_pad (buf_slice (wbuf\<^sub>f ?ostore_st) (sync_offs\<^sub>f ostore_st) (pad_to))))"
+     (prod.snd (list_trans_no_pad (buf_slice (wbuf\<^sub>f ?ostore_st) (sync_offs\<^sub>f ostore_st) (pad_to))))"
      using snd_list_trans_no_pad_padding_obj_sync_pad_to
-           inv_logD[OF inv_ostore, folded inv_log_def] by simp
+           inv_logD[OF inv_ostore, folded inv_log_def] 
+     by simp
 
   moreover have "inv_opad obj"
     using inv_opadD[OF inv_ostore]  obj padding_obj
     by clarsimp (simp add: inv_opad_def ostore_update_padding_obj' bilbyFsTransCommit_def
             bilbyFsObjHeaderSize_def)
+
   ultimately  show ?thesis
   using padding_to_io_size_no_overflow[OF inv_ostore inv_mount_st]
         inv_ostore inv_opadD[OF inv_ostore]
@@ -1743,7 +1743,7 @@ lemma snd_list_trans_buf_prepared_eq:
 
   notes  invs_pad_ofs = inv_ostore inv_mount_st pad_to used_gt_zero sync_lt_used
   shows
-  "snd (list_trans_no_pad
+  "prod.snd (list_trans_no_pad
    (buf_slice
      (wbuf\<^sub>f ostore_st
       \<lparr>data\<^sub>f :=
@@ -1754,7 +1754,7 @@ lemma snd_list_trans_buf_prepared_eq:
               (padding_to (mount_st, ostore_st, ostoreWriteNone)) crc))\<rparr>)
      (sync_offs\<^sub>f ostore_st)
      (padding_to (mount_st, ostore_st, ostoreWriteNone)))) =
-   snd (list_trans_no_pad (buf_slice (wbuf\<^sub>f ostore_st) (sync_offs\<^sub>f ostore_st)
+   prod.snd(list_trans_no_pad (buf_slice (wbuf\<^sub>f ostore_st) (sync_offs\<^sub>f ostore_st)
        (used\<^sub>f ostore_st)))"
  proof -
    show ?thesis
@@ -1842,8 +1842,8 @@ and valid_drop: "valid_list_trans (drop to xs)"
 and "frm \<le> to"
 and "to \<le> length xs"
 shows
- "snd (list_trans_no_pad (slice frm to xs)) @ snd (list_trans_no_pad (drop to xs)) =
-  snd (list_trans_no_pad (drop frm xs))"
+ "prod.snd (list_trans_no_pad (slice frm to xs)) @ prod.snd (list_trans_no_pad (drop to xs)) =
+  prod.snd (list_trans_no_pad (drop frm xs))"
   using list_trans_no_pad_append[where xs="slice frm to xs" and ys="drop to xs"]
         assms
   by (clarsimp simp: slice_drop)
@@ -1880,21 +1880,21 @@ lemma inj_on_filter_key_eq:
    apply simp
   apply (drule meta_mp, erule subset_inj_on)
    apply auto[1]
-  apply (drule_tac x=k and y=a in inj_on_iff, auto)
+  apply (drule_tac x=k and y=a in inj_on_eq_iff, auto)
   done
 
 lemma filter_eq_replicate_count_multiset:
-  "filter (op = k) xs = replicate (count (multiset_of xs) k) k"
+  "filter (op = k) xs = replicate (count (mset xs) k) k"
   by (induct xs, auto)
 
 lemma sort_key_multiset_eq:
-  assumes multiset: "multiset_of xs = multiset_of ys"
+  assumes multiset: "mset xs = mset ys"
         and inj_on: "inj_on f (set xs)"
   shows "sort_key f xs = sort_key f ys"
 proof -
   from multiset have set:
     "set xs = set ys"
-    by (metis set_of_multiset_of)
+    by (rule mset_eq_setD)
   note filter = inj_on_filter_key_eq[OF subset_inj_on, OF inj_on]
   show ?thesis
   apply (rule properties_for_sort_key)
@@ -1922,16 +1922,14 @@ proof -
     apply (cut_tac n=i and xs=xs in append_take_drop_id, simp)
     done
 
-  from i have multiset: "multiset_of (concat (map f (drop n xs))) + multiset_of (f ys) =
-        multiset_of (concat (map f (drop n (xs[i := xs ! i @ ys]))))"
+  from i have multiset: "mset (concat (map f (drop n xs))) + mset (f ys) =
+        mset (concat (map f (drop n (xs[i := xs ! i @ ys]))))"
 
     apply (simp add: xs_split drop_list_update)
     apply (simp add: list_update_append nth_append f[simplified xi])
-    apply (simp add: add.assoc)
-    apply (simp add: add.commute)
     done
 
-  note set = arg_cong[where f=set_of, OF multiset[symmetric], simplified]
+  note set = arg_cong[where f=set_mset, OF multiset[symmetric], simplified]
 
   show ?thesis
     apply (rule sort_key_multiset_eq)
@@ -1945,22 +1943,22 @@ lemma sort_key_concat_ignores_order:
  assumes inv_ostore: "inv_ostore mount_st ostore_st"
  assumes trans_order:
  "\<forall>x\<in>set (concat $ list_eb_log (\<alpha>wubi $ OstoreState.ubi_vol\<^sub>f ostore_st)).
-       \<forall>y\<in>set (snd (list_trans_no_pad xs)).
+       \<forall>y\<in>set (prod.snd (list_trans_no_pad xs)).
           trans_order x < trans_order y"
  assumes inj: "inj_on trans_order
      (set (concat
-            (map (snd \<circ> list_trans_no_pad)
+            (map (prod.snd \<circ> list_trans_no_pad)
               (drop (unat bilbyFsFirstLogEbNum) (\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st)) @
                [xs]))))"
  assumes used_gt_0: "0 < used\<^sub>f ostore_st"
  assumes valid_xs: "valid_list_trans xs"
 shows
 "sort_key trans_order
- (concat (map (snd \<circ> list_trans_no_pad) (drop (unat bilbyFsFirstLogEbNum)
+ (concat (map (prod.snd \<circ> list_trans_no_pad) (drop (unat bilbyFsFirstLogEbNum)
   (\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st) [unat (wbuf_eb\<^sub>f ostore_st) :=
     \<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st) ! unat (wbuf_eb\<^sub>f ostore_st) @ xs])))) =
 sort_key trans_order
- (concat (map (snd \<circ> list_trans_no_pad) (drop (unat bilbyFsFirstLogEbNum)
+ (concat (map (prod.snd \<circ> list_trans_no_pad) (drop (unat bilbyFsFirstLogEbNum)
  (\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st)) @ [xs])))"
   apply (rule sort_key_concat_map)
      using inv_ostore apply (clarsimp simp: inv_ostore_def inv_bufs_def inv_ubi_vol_def, unat_arith)
@@ -1978,8 +1976,8 @@ sort_key trans_order
 lemma inv_ostore_list_trans_wbuf_sorted[simplified Let_def]:
  "inv_ostore mount_st ostore_st \<Longrightarrow> 
   (let sync_to_used = buf_slice (wbuf\<^sub>f ostore_st) (sync_offs\<^sub>f ostore_st) (used\<^sub>f ostore_st) in
-  sort_key trans_order (snd (list_trans_no_pad sync_to_used)) =
-     snd (list_trans_no_pad sync_to_used))"
+  sort_key trans_order (prod.snd (list_trans_no_pad sync_to_used)) =
+     prod.snd (list_trans_no_pad sync_to_used))"
  by (drule inv_bufsD, clarsimp simp: Let_def)
 
 lemma ostore_sync_\<alpha>_ostore_uptodate:
@@ -2020,10 +2018,10 @@ shows
  
 proof -
 
-have sort_key_trans_key_eq: "sort_key trans_order (concat  (map (snd \<circ> list_trans_no_pad)
+have sort_key_trans_key_eq: "sort_key trans_order (concat  (map (prod.snd \<circ> list_trans_no_pad)
    (drop (unat bilbyFsFirstLogEbNum) (?ubi
        [?wbuf_eb := ?ubi ! ?wbuf_eb @ ?buf_prepared])))) =
- sort_key trans_order (concat  (map (snd \<circ> list_trans_no_pad)
+ sort_key trans_order (concat  (map (prod.snd \<circ> list_trans_no_pad)
    (drop (unat bilbyFsFirstLogEbNum) ?ubi @ [?buf_prepared])))"
    apply (subst sort_key_concat_ignores_order[OF inv_ostore _ _ used_gt_zero])
        using snd_list_trans_buf_prepared_eq[OF invs_pad_offs]
@@ -2042,7 +2040,7 @@ have sort_key_trans_key_eq: "sort_key trans_order (concat  (map (snd \<circ> lis
   have sort_trans_key_list_eb_log_eq_append_list_trans: 
   "sort_key trans_order (concat (list_eb_log (\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st')))) =
     sort_key trans_order (concat (list_eb_log (\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st))) @
-      snd (list_trans_no_pad (buf_slice (wbuf\<^sub>f ostore_st) (sync_offs\<^sub>f ostore_st) (used\<^sub>f ostore_st))))"
+      prod.snd (list_trans_no_pad (buf_slice (wbuf\<^sub>f ostore_st) (sync_offs\<^sub>f ostore_st) (used\<^sub>f ostore_st))))"
    apply (simp only: wubi)
    apply (simp add:  ostore_m list_eb_log_def Let_def)
    apply (simp only: sort_key_trans_key_eq)
@@ -2052,7 +2050,7 @@ have sort_key_trans_key_eq: "sort_key trans_order (concat  (map (snd \<circ> lis
 
  from inv_logD[OF inv_ostore] have trans_order':
  "\<forall>x\<in>set (concat $ list_eb_log $ \<alpha>wubi $ OstoreState.ubi_vol\<^sub>f ostore_st).
-       \<forall>y\<in>set (snd (list_trans_no_pad (buf_slice (wbuf\<^sub>f ostore_st)
+       \<forall>y\<in>set (prod.snd (list_trans_no_pad (buf_slice (wbuf\<^sub>f ostore_st)
                 (sync_offs\<^sub>f ostore_st) (used\<^sub>f ostore_st)))).
           trans_order x < trans_order y"
     by (simp add: snd_list_trans_buf_prepared_eq[OF inv_ostore inv_mount_st])
@@ -2101,22 +2099,22 @@ lemma inv_ostore_updated_ubi_preserved:
 (* copy-paste from proof above should unify them somehow*)
  from inv_logD[OF inv_ostore] have trans_order':
  "\<forall>x\<in>set (concat ( list_eb_log ( \<alpha>wubi ( OstoreState.ubi_vol\<^sub>f ostore_st)))).
-       \<forall>y\<in>set (snd (list_trans_no_pad (buf_slice (wbuf\<^sub>f ostore_st)
+       \<forall>y\<in>set (prod.snd (list_trans_no_pad (buf_slice (wbuf\<^sub>f ostore_st)
                 (sync_offs\<^sub>f ostore_st) (used\<^sub>f ostore_st)))).
           trans_order x < trans_order y"
     by (simp add: snd_list_trans_buf_prepared_eq[OF inv_ostore inv_mount_st])
 
 have sort_key_trans_key_eq:
   "sort_key trans_order
-     (concat (map (snd \<circ> list_trans_no_pad)
+     (concat (map (prod.snd \<circ> list_trans_no_pad)
                (drop (unat bilbyFsFirstLogEbNum)
                  (\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st)
                   [unat (wbuf_eb\<^sub>f ostore_st) :=
                      \<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st) ! unat (wbuf_eb\<^sub>f ostore_st) @
                      buf_slice (wbuf\<^sub>f ostore_st) (sync_offs\<^sub>f ostore_st) (used\<^sub>f ostore_st)])))) =
     sort_key trans_order
-     (concat (map (snd \<circ> list_trans_no_pad) (drop (unat bilbyFsFirstLogEbNum) (\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st)))) @
-      snd (list_trans_no_pad (buf_slice (wbuf\<^sub>f ostore_st) (sync_offs\<^sub>f ostore_st) (used\<^sub>f ostore_st))))"
+     (concat (map (prod.snd \<circ> list_trans_no_pad) (drop (unat bilbyFsFirstLogEbNum) (\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st)))) @
+      prod.snd (list_trans_no_pad (buf_slice (wbuf\<^sub>f ostore_st) (sync_offs\<^sub>f ostore_st) (used\<^sub>f ostore_st))))"
    apply (subst sort_key_concat_ignores_order[OF inv_ostore _ _ used_gt_zero])
        apply (simp add: trans_order')
        using inv_logD[OF inv_ostore]
@@ -2129,7 +2127,7 @@ have sort_key_trans_key_eq:
   have sort_trans_key_list_eb_log_eq_append_list_trans: 
   "sort_key trans_order (concat (list_eb_log (\<alpha>wubi ubi_vol'))) =
     sort_key trans_order (concat (list_eb_log (\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st))) @
-      snd (list_trans_no_pad (buf_slice (wbuf\<^sub>f ostore_st) (sync_offs\<^sub>f ostore_st) (used\<^sub>f ostore_st))))"
+      prod.snd (list_trans_no_pad (buf_slice (wbuf\<^sub>f ostore_st) (sync_offs\<^sub>f ostore_st) (used\<^sub>f ostore_st))))"
    apply (simp only: wubi nb_bytes_eq)
    apply (simp add:  list_eb_log_def Let_def)
    apply (simp only: sort_key_trans_key_eq)
@@ -2194,7 +2192,7 @@ have sort_key_trans_key_eq:
     by fastforce
 
   moreover have " inv_log (list_eb_log (\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ?ostore_st)))
-    (snd $ list_trans_no_pad (buf_slice (wbuf\<^sub>f ?ostore_st) (sync_offs\<^sub>f ?ostore_st) (used\<^sub>f ?ostore_st)))"
+    (prod.snd $ list_trans_no_pad (buf_slice (wbuf\<^sub>f ?ostore_st) (sync_offs\<^sub>f ?ostore_st) (used\<^sub>f ?ostore_st)))"
     using inv_logD[OF inv_ostore, THEN conjunct2]
     apply (simp add: wubi buf_slice_n_n inv_log_def nb_bytes_eq list_eb_log_def del: set_concat)
     using inv_ostore_wbuf_eb_rangeD[OF inv_ostore ] inv_ubi_vol
