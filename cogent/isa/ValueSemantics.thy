@@ -399,18 +399,16 @@ assumes "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
 and     "\<Xi> \<turnstile> \<gamma> matches \<Gamma>"
 shows   "\<Xi> \<turnstile> \<gamma> matches \<Gamma>1"
 and     "\<Xi> \<turnstile> \<gamma> matches \<Gamma>2"
-using assms proof (induct arbitrary: \<gamma> rule: split.induct)
-     case split_empty
-       case 1 then show ?case by simp
-       case 2 then show ?case by simp
-next case split_cons note prems = this
-       case 1 with prems show ?case by (force simp:  matches_def
-                                              iff:   list_all2_Cons2
-                                              elim!: split_comp.cases)
-       case 2 with prems show ?case by (force simp:  matches_def
-                                              iff:   list_all2_Cons2
-                                              elim!: split_comp.cases)
+proof -
+  have "\<And>a x y z. [] \<turnstile> x \<leadsto> y \<parallel> z \<Longrightarrow> \<forall>\<tau>. x = Some \<tau> \<longrightarrow> \<Xi> \<turnstile> a :v \<tau> \<Longrightarrow> (\<forall>\<tau>. y = Some \<tau> \<longrightarrow> \<Xi> \<turnstile> a :v \<tau>) \<and> (\<forall>\<tau>. z = Some \<tau> \<longrightarrow> \<Xi> \<turnstile> a :v \<tau>)"
+    by (force simp add: split_comp.simps)
+  then show "\<Xi> \<turnstile> \<gamma> matches \<Gamma>1" "\<Xi> \<turnstile> \<gamma> matches \<Gamma>2"
+    using list_all3_product_over_list_all2
+      [where A="\<lambda>x m. \<forall>\<tau>. m = Some \<tau> \<longrightarrow> \<Xi> \<turnstile> x :v \<tau>" and P="split_comp []",
+              simplified matches_def[symmetric] split_def[symmetric]]
+    using assms by blast+
 qed
+
 
 lemma matches_split:
 assumes "\<Xi> \<turnstile> \<gamma> matches (instantiate_ctx \<tau>s \<Gamma>)"

@@ -109,6 +109,99 @@ lemma list_all2_update_second:
   using assms
   by (clarsimp simp add: list_all2_conv_all_nth, metis nth_list_update_eq nth_list_update_neq)
 
+subsection {* list_all3 *}
+
+inductive list_all3 :: "('a \<Rightarrow> 'b \<Rightarrow> 'c \<Rightarrow> bool) \<Rightarrow> 'a list \<Rightarrow> 'b list \<Rightarrow> 'c list \<Rightarrow> bool" where
+  all3Nil : "list_all3 P [] [] []"
+| all3Cons : "P x y z \<Longrightarrow> list_all3 P xs ys zs \<Longrightarrow> list_all3 P (x # xs) (y # ys) (z # zs)"
+
+lemma list_all3_induct
+  [consumes 1, case_names Nil Cons, induct set: list_all3]:
+  assumes P: "list_all3 P xs ys zs"
+  assumes Nil: "R [] [] []"
+  assumes Cons: "\<And>x xs y ys z zs.
+    \<lbrakk>P x y z; list_all3 P xs ys zs; R xs ys zs\<rbrakk> \<Longrightarrow> R (x # xs) (y # ys) (z # zs)"
+  shows "R xs ys zs"
+  using P
+  by (induct xs arbitrary: ys zs) (auto elim: list_all3.cases simp add: Nil Cons)
+
+lemma list_induct3':
+  "\<lbrakk> P [] [] [];
+   \<And>x xs. P (x#xs) [] [];
+   \<And>y ys. P [] (y#ys) [];
+   \<And>z zs. P [] [] (z#zs);
+   \<And>x xs y ys. P (x#xs) (y#ys) [];
+   \<And>y ys z zs. P [] (y#ys) (z#zs);
+   \<And>x xs z zs. P (x#xs) [] (z#zs);
+   \<And>x xs y ys z zs. P xs ys zs  \<Longrightarrow> P (x#xs) (y#ys) (z # zs) \<rbrakk>
+ \<Longrightarrow> P xs ys zs"
+  apply (induct xs arbitrary: ys zs)
+   apply (rename_tac ys zs, case_tac ys; case_tac zs; force)
+  apply (rename_tac x xs ys zs, case_tac ys; case_tac zs; force)
+  done
+
+lemma list_all3_iff:
+  "list_all3 P xs ys zs \<longleftrightarrow> length xs = length ys \<and> length ys = length zs \<and> (\<forall>(x, y, z) \<in> set (zip xs (zip ys zs)). P x y z)"
+  apply (rule iffI)
+   apply (induct xs ys zs rule: list_all3.induct; simp)
+  apply (induct xs ys zs rule: list_induct3'; simp add: list_all3.intros)
+  done
+
+lemma list_all3_Nil1 [iff, code]: "list_all3 P [] ys zs = (ys = [] \<and> zs = [])"
+  by (force simp add: list_all3_iff)
+
+lemma list_all3_Nil2 [iff, code]: "list_all3 P xs [] zs = (xs = [] \<and> zs = [])"
+  by (simp add: list_all3_iff)
+
+lemma list_all3_Nil3 [iff, code]: "list_all3 P xs ys [] = (xs = [] \<and> ys = [])"
+  by (force simp add: list_all3_iff)
+
+lemma list_all3_Cons[iff, code]: "list_all3 P (x # xs) (y # ys) (z # zs) = (P x y z \<and> list_all3 P xs ys zs)"
+  by (force simp add: list_all3_iff)
+
+lemma list_all3_Cons1: "list_all3 P (x # xs') ys zs = (\<exists>y ys' z zs'. ys = y # ys' \<and> zs = z # zs'  \<and> (P x y z \<and> list_all3 P xs' ys' zs'))"
+  by (cases ys; cases zs; force simp add: list_all3_iff)
+
+lemma list_all3_Cons2: "list_all3 P xs (y # ys') zs = (\<exists>x xs' z zs'. xs = x # xs' \<and> zs = z # zs'  \<and> (P x y z \<and> list_all3 P xs' ys' zs'))"
+  by (cases xs; cases zs; force simp add: list_all3_iff)
+
+lemma list_all3_Cons3: "list_all3 P xs ys (z # zs') = (\<exists>x xs' y ys'. xs = x # xs' \<and> ys = y # ys'  \<and> (P x y z \<and> list_all3 P xs' ys' zs'))"
+  by (cases xs; cases ys; force simp add: list_all3_iff)
+
+lemma list_all3_mono[intro?]:
+  assumes "list_all3 P xs ys zs"
+    and "\<And>x y z. P x y z \<Longrightarrow> Q x y z"
+  shows "list_all3 Q xs ys zs"
+  using assms
+  by (force simp add: list_all3_iff)
+
+lemma list_all3_conv_all_nth:
+  "list_all3 P xs ys zs \<longleftrightarrow> length xs = length ys \<and> length ys = length zs \<and> (\<forall>i<length xs. P (xs ! i) (ys ! i) (zs ! i))"
+  by (force simp add: list_all3_iff set_zip)
+
+
+(* n.b. the conditions are essentially functor laws *)
+lemma list_all3_map_over:
+  assumes "list_all3 P xs ys zs"
+  and "f [] = []" and "g [] = []" and "h [] = []"
+  and "\<And>a as. f (a # as) = f' a # f as"
+  and "\<And>a as. g (a # as) = g' a # g as"
+  and "\<And>a as. h (a # as) = h' a # h as"
+  and "\<And>x y z. P x y z \<Longrightarrow> Q (f' x) (g' y) (h' z)"
+  shows "list_all3 Q (f xs) (g ys) (h zs)"
+  using assms
+  by (induct rule: list_all3_induct; simp)
+
+
+lemma list_all3_product_over_list_all2:
+  assumes "list_all3 P xs ys zs"
+    and "\<And>a x y z. P x y z \<Longrightarrow> A a x \<Longrightarrow> A a y \<and> A a z"
+    and "list_all2 A as xs"
+  shows "list_all2 A as ys"
+    and "list_all2 A as zs"
+  using assms
+  by (induct arbitrary: as rule: list_all3_induct, (clarsimp simp add: list_all2_Cons2)+)
+
 
 section {* Misc lemmas *}
 

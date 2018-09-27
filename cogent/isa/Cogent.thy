@@ -276,9 +276,14 @@ inductive split_comp :: "kind env \<Rightarrow> type option \<Rightarrow> type o
 | right : "\<lbrakk> K \<turnstile> t :\<kappa> k         \<rbrakk> \<Longrightarrow> K \<turnstile> Some t \<leadsto> None   \<parallel> (Some t)"
 | share : "\<lbrakk> K \<turnstile> t :\<kappa> k ; S \<in> k \<rbrakk> \<Longrightarrow> K \<turnstile> Some t \<leadsto> Some t \<parallel> Some t"
 
-inductive split :: "kind env \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool" ("_ \<turnstile> _ \<leadsto> _ | _" [30,0,0,20] 60) where
-  split_empty : "K \<turnstile> [] \<leadsto> [] | []"
-| split_cons  : "\<lbrakk> K \<turnstile> x \<leadsto> a \<parallel> b ; K \<turnstile> xs \<leadsto> as | bs \<rbrakk> \<Longrightarrow> K \<turnstile> (x # xs) \<leadsto> (a # as) | (b # bs)"
+definition split :: "kind env \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool" ("_ \<turnstile> _ \<leadsto> _ | _" [30,0,0,20] 60) where
+  "split K \<equiv> list_all3 (split_comp K)"
+
+lemmas split_induct[consumes 1, case_names split_empty split_cons, induct set: list_all3]
+ = list_all3_induct[where P="split_comp K" for K, simplified split_def[symmetric]]
+
+lemmas split_empty = all3Nil[where P="split_comp K" for K, simplified split_def[symmetric]]
+lemmas split_cons = all3Cons[where P="split_comp K" for K, simplified split_def[symmetric]]
 
 definition pred :: "nat \<Rightarrow> nat" where
   "pred n \<equiv> (case n of Suc n' \<Rightarrow> n')"
@@ -301,7 +306,7 @@ inductive weakening_comp :: "kind env \<Rightarrow> type option \<Rightarrow> ty
 | drop : "\<lbrakk> K \<turnstile> t :\<kappa> k ; D \<in> k \<rbrakk> \<Longrightarrow> weakening_comp K (Some t) None"
 
 definition weakening :: "kind env \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool" ("_ \<turnstile> _ \<leadsto>w _" [30,0,20] 60) where
-  "weakening \<equiv> (\<lambda>K. list_all2 (weakening_comp K))"
+  "weakening K \<equiv> list_all2 (weakening_comp K)"
 
 definition is_consumed :: "kind env \<Rightarrow> ctx \<Rightarrow> bool" ("_ \<turnstile> _ consumed" [30,20] 60 ) where
   "K \<turnstile> \<Gamma> consumed \<equiv> K \<turnstile> \<Gamma> \<leadsto>w empty (length \<Gamma>)"
@@ -1003,13 +1008,8 @@ lemma instantiate_ctx_split:
 assumes "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
 and     "list_all2 (kinding K') \<delta> K"
 shows   "K' \<turnstile> instantiate_ctx \<delta> \<Gamma> \<leadsto> instantiate_ctx \<delta> \<Gamma>1 | instantiate_ctx \<delta> \<Gamma>2"
-using assms proof (induct rule: split.induct)
-case split_empty then show ?case by (auto simp:  instantiate_ctx_def
-                                          intro: split.intros)
-case split_cons  then show ?case by (auto simp:  instantiate_ctx_def
-                                          intro: split.intros
-                                                 map_option_instantiate_split_comp)
-qed
+  using assms
+  by (auto intro: list_all3_map_over simp: map_option_instantiate_split_comp instantiate_ctx_def split_def)
 
 
 lemma instantiate_ctx_split_bang:
@@ -1044,25 +1044,14 @@ lemma split_length:
   shows "length \<Gamma> = length \<Gamma>1"
     and "length \<Gamma> = length \<Gamma>2"
   using assms
-  by (induct rule: split.inducts, force+)
+  by (induct rule: split_induct, force+)
 
 lemma split_preservation_some:
   assumes splits: "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
     and idx: "\<Gamma>1 ! i = Some t \<or> \<Gamma>2 ! i = Some t"
   shows "\<Gamma> ! i  = Some t"
   using assms
-proof (induct arbitrary: i rule: split.induct)
-  case (split_empty K)
-  then show ?case
-    by blast
-next
-  case (split_cons K x a b xs as bs)
-  moreover have "a = Some t \<or> b = Some t \<Longrightarrow> x = Some t"
-    using split_cons.hyps(1)
-    by (fastforce elim: split_comp.cases)
-  ultimately show ?case
-    by (metis nth_non_equal_first_eq)
-qed
+  by (induct arbitrary: i rule: split_induct; fastforce simp add: nth_Cons' elim: split_comp.cases)
 
 lemma split_preserves_none:
   assumes splits: "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
@@ -1070,7 +1059,8 @@ lemma split_preserves_none:
   shows "\<Gamma>1 ! i = None"
     and "\<Gamma>2 ! i = None"
   using assms
-  by (induct arbitrary: i rule: split.induct, (fastforce simp add: nth_Cons' elim: split_comp.cases)+)
+  by (induct arbitrary: i rule: split_induct, (fastforce simp add: nth_Cons' elim: split_comp.cases)+)
+
 
 lemma weakening_length:
 shows "K \<turnstile> \<Gamma> \<leadsto>w \<Gamma>' \<Longrightarrow> length \<Gamma> = length \<Gamma>'"

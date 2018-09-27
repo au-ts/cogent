@@ -520,10 +520,10 @@ shows   "\<exists>r' w' r'' w''. r = r' \<union> r''
                        \<and> w' \<inter> w'' = {}
                        \<and> (\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches \<Gamma>1 \<langle>r' , w' \<rangle>)
                        \<and> (\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches \<Gamma>2 \<langle>r'', w''\<rangle>)"
-using assms proof (induct arbitrary: \<gamma> \<gamma>' r w rule: split.induct)
+using assms proof (induct arbitrary: \<gamma> \<gamma>' r w rule: split_induct)
      case split_empty then show ?case by (fastforce elim:  u_v_matches.cases
                                                     intro: u_v_matches.intros)
-next case (split_cons K x a b xs as bs \<gamma> \<gamma>' r w)
+next case (split_cons x xs a as b bs)
   then show ?case
   proof (cases \<Xi> \<sigma> \<gamma> \<gamma>' x xs r w rule: u_v_matches_consE)
        case 1 with split_cons show ?case   by simp
