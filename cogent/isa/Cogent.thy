@@ -236,6 +236,47 @@ qed
 end
 
 
+subsection {* variants *}
+
+fun variant_un_step :: "(['t, 't] \<Rightarrow> 't) \<Rightarrow> ([bool, bool] \<Rightarrow> bool) \<Rightarrow> ('a \<times> 't \<times> bool) \<Rightarrow> ('a \<times> 't \<times> bool) list \<Rightarrow> ('a \<times> 't \<times> bool) option" where
+  "variant_un_step f g (tag, t, b) ys = (case find (\<lambda>p. fst p = tag) ys of
+                                          Some (tag', t', b') \<Rightarrow> Some (tag, f t t', g b b')
+                                        | None \<Rightarrow> None)"
+
+(* precondition: \<open>fst ` set xs = fst ` set ys\<close> *)
+definition variant_un :: "(['t, 't] \<Rightarrow> 't) \<Rightarrow> ([bool, bool] \<Rightarrow> bool) \<Rightarrow> ('a \<times> 't \<times> bool) list \<Rightarrow> ('a \<times> 't \<times> bool) list \<Rightarrow> ('a \<times> 't \<times> bool) list" where
+  "variant_un f g xs ys = fold (\<lambda>x acc. case variant_un_step f g x ys of
+                                          Some xy \<Rightarrow> xy # acc
+                                        | None \<Rightarrow> acc) xs []"
+
+
+fun variant_un_tailrec :: "(['t, 't] \<Rightarrow> 't) \<Rightarrow> ([bool, bool] \<Rightarrow> bool) \<Rightarrow> ('a \<times> 't \<times> bool) list \<Rightarrow> ('a \<times> 't \<times> bool) list \<Rightarrow> ('a \<times> 't \<times> bool) list \<Rightarrow> ('a \<times> 't \<times> bool) list" where
+  "variant_un_tailrec f g [] ys acc = acc"
+| "variant_un_tailrec f g (x # xs) ys acc = (case find (\<lambda>p. fst p = fst x) ys of
+                                          Some p \<Rightarrow> (fst x, f (fst (snd x)) (fst (snd p)), g (snd (snd x)) (snd (snd p))) # acc
+                                        | None \<Rightarrow> acc)"
+
+lemma variant_un_bound_generalised:
+  shows "length (fold (\<lambda>x acc. case variant_un_step f g x ys of
+                                 Some xy \<Rightarrow> xy # acc
+                               | None \<Rightarrow> acc) xs init) \<le> length init + length xs + length ys"
+proof (induct xs arbitrary: init)
+  case (Cons x xs)
+  then show ?case
+  proof (cases "variant_un_step f g x ys")
+    case (Some a)
+    then show ?thesis
+      using Cons
+      by (simp, metis (no_types, lifting) add_Suc length_Cons)
+  qed (simp add: le_Suc_eq)
+qed simp
+
+lemma variant_un_bound: "length (variant_un f g xs ys) \<le> length xs + length ys"
+  using variant_un_bound_generalised[where init="[]"]
+  by (simp add: variant_un_def)
+
+
+subsection {* types *}
 
 datatype type = TVar index
               | TVarBang index
@@ -571,6 +612,91 @@ lemma eval_prim_op_lit_type:
   by (cases pop, auto split: lit.split)
 
 section {* Typing rules *}
+
+inductive foo :: "'a \<Rightarrow> 'b \<Rightarrow> 'c \<Rightarrow> bool" and bar :: "'a list \<Rightarrow> 'b list \<Rightarrow> 'c list \<Rightarrow> bool" where
+  foo1: "foo a b c"
+| bar1: "list_all3 foo xs ys zs \<Longrightarrow> bar xs ys zs"
+
+inductive type_lub :: "kind env \<Rightarrow> type \<Rightarrow> type \<Rightarrow> type \<Rightarrow> bool" ("_ \<turnstile> _ \<leftarrow> _ \<squnion> _" [60,0,0,60] 60)
+  and type_glb :: "kind env \<Rightarrow> type \<Rightarrow> type \<Rightarrow> type \<Rightarrow> bool" ("_ \<turnstile> _ \<leftarrow> _ \<sqinter> _" [60,0,0,60] 60)
+  where
+  lub_tvar   : "\<lbrakk> n = n1
+                ; n2 = n1
+                \<rbrakk> \<Longrightarrow> K \<turnstile> TVar n \<leftarrow> TVar n1 \<squnion> TVar n2"
+| lub_tvarb  : "\<lbrakk> n = n1
+                ; n2 = n1
+                \<rbrakk> \<Longrightarrow> K \<turnstile> TVarBang n \<leftarrow> TVarBang n1 \<squnion> TVarBang n2"
+| lub_tcon   : "\<lbrakk> n = n1 ; n2 = n1
+                ; s = s1 ; s2 = s1
+                ; list_all3 (type_lub K) ts ts1 ts2
+                \<rbrakk> \<Longrightarrow> K \<turnstile> TCon n ts s \<leftarrow> TCon n1 ts1 s1 \<squnion> TCon n2 ts2 s2"
+| lub_tfun   : "\<lbrakk> K \<turnstile> t \<leftarrow> t1 \<sqinter> t2
+                ; K \<turnstile> u \<leftarrow> u1 \<squnion> u2
+                \<rbrakk> \<Longrightarrow> K \<turnstile> TFun t u \<leftarrow> TFun t1 u1 \<squnion> TFun t2 u2"
+| lub_tprim  : "\<lbrakk> p = p1
+                ; p2 = p1
+                \<rbrakk> \<Longrightarrow> K \<turnstile> TPrim p \<leftarrow> TPrim p1 \<squnion> TPrim p2"
+| lub_trecord: "\<lbrakk> \<And>n t b. (n,t,b) \<in> set ts \<Longrightarrow> \<exists>t1 b1 t2 b2. (n,t1,b1) \<in> set ts1 \<and>
+                                                             (n,t2,b2) \<in> set ts2 \<and>
+                                                             (K \<turnstile> t \<leftarrow> t1 \<squnion> t2) \<and>
+                                                             (b = inf b1 b2)
+                ; distinct (map fst ts1)
+                ; distinct (map fst ts2)
+                ; fst ` set ts1 = fst ` set ts2
+                \<rbrakk> \<Longrightarrow> K \<turnstile> TRecord ts s \<leftarrow> TRecord ts1 s1 \<squnion> TRecord ts2 s2"
+| lub_tprod  : "\<lbrakk> K \<turnstile> t \<leftarrow> t1 \<squnion> t2
+                ; K \<turnstile> u \<leftarrow> u1 \<squnion> u2
+                \<rbrakk> \<Longrightarrow> K \<turnstile> TProduct t u \<leftarrow> TProduct t1 u1 \<squnion> TProduct t2 u2"
+| lub_tsum   : "\<lbrakk> \<And>n t b. (n,t,b) \<in> set ts \<Longrightarrow> \<exists>t1 b1 t2 b2. (n,t1,b1) \<in> set ts1 \<and>
+                                                             (n,t2,b2) \<in> set ts2 \<and>
+                                                             (K \<turnstile> t \<leftarrow> t1 \<squnion> t2) \<and>
+                                                             (b = inf b1 b2)
+                ; fst ` set ts1 = fst ` set ts2
+                ; distinct (map fst ts1)
+                ; distinct (map fst ts2)
+                \<rbrakk> \<Longrightarrow> K \<turnstile> TSum ts \<leftarrow> TSum ts1 \<squnion> TSum ts2"
+| lub_tunit  : "K \<turnstile> TUnit \<leftarrow> TUnit \<squnion> TUnit"
+
+| glb_tvar   : "\<lbrakk> n = n1
+                ; n2 = n1
+                \<rbrakk> \<Longrightarrow> K \<turnstile> TVar n \<leftarrow> TVar n1 \<sqinter> TVar n2"
+| glb_tvarb  : "\<lbrakk> n = n1
+                ; n2 = n1
+                \<rbrakk> \<Longrightarrow> K \<turnstile> TVarBang n \<leftarrow> TVarBang n1 \<sqinter> TVarBang n2"
+| glb_tcon   : "\<lbrakk> n = n1 ; n2 = n1
+                ; s = s1 ; s2 = s1
+                ; list_all3 (type_glb K) ts ts1 ts2
+                \<rbrakk> \<Longrightarrow> K \<turnstile> TCon n ts s \<leftarrow> TCon n1 ts1 s1 \<sqinter> TCon n2 ts2 s2"
+| glb_tfun   : "\<lbrakk> K \<turnstile> t \<leftarrow> t1 \<squnion> t2
+                ; K \<turnstile> u \<leftarrow> u1 \<sqinter> u2
+                \<rbrakk> \<Longrightarrow> K \<turnstile> TFun t u \<leftarrow> TFun t1 u1 \<sqinter> TFun t2 u2"
+| glb_tprim  : "\<lbrakk> p = p1
+                ; p2 = p1
+                \<rbrakk> \<Longrightarrow> K \<turnstile> TPrim p \<leftarrow> TPrim p1 \<sqinter> TPrim p2"
+| glb_trecord: "\<lbrakk> \<And>n t b. (n,t,b) \<in> set ts \<Longrightarrow> \<exists>t1 b1 t2 b2. (n,t1,b1) \<in> set ts1 \<and>
+                                                             (n,t2,b2) \<in> set ts2 \<and>
+                                                             (K \<turnstile> t \<leftarrow> t1 \<sqinter> t2) \<and>
+                                                             (b = sup b1 b2)
+                ; fst ` set ts1 = fst ` set ts2
+                ; distinct (map fst ts1)
+                ; distinct (map fst ts2)
+                \<rbrakk> \<Longrightarrow> K \<turnstile> TRecord ts s \<leftarrow> TRecord ts1 s1 \<sqinter> TRecord ts2 s2"
+| glb_tprod  : "\<lbrakk> K \<turnstile> t \<leftarrow> t1 \<sqinter> t2
+                ; K \<turnstile> u \<leftarrow> u1 \<sqinter> u2
+                \<rbrakk> \<Longrightarrow> K \<turnstile> TProduct t u \<leftarrow> TProduct t1 u1 \<sqinter> TProduct t2 u2"
+| glb_tsum   : "\<lbrakk> \<And>n t b. (n,t,b) \<in> set ts \<Longrightarrow> \<exists>t1 b1 t2 b2. (n,t1,b1) \<in> set ts1 \<and>
+                                                             (n,t2,b2) \<in> set ts2 \<and>
+                                                             (K \<turnstile> t \<leftarrow> t1 \<sqinter> t2) \<and>
+                                                             (b = sup b1 b2)
+                ; fst ` set ts1 = fst ` set ts2
+                ; distinct (map fst ts1)
+                ; distinct (map fst ts2)
+                \<rbrakk> \<Longrightarrow> K \<turnstile> TSum ts \<leftarrow> TSum ts1 \<sqinter> TSum ts2"
+| glb_tunitl : "K \<turnstile> x \<leftarrow> TUnit \<sqinter> x"
+| glb_tunitr : "K \<turnstile> x \<leftarrow> x \<sqinter> TUnit"
+
+definition subtyping :: "kind env \<Rightarrow> type \<Rightarrow> type \<Rightarrow> bool" ("_ \<turnstile> _ \<sqsubseteq> _" [30,0,0] 60) where
+  "(K \<turnstile> t1 \<sqsubseteq> t2) \<equiv> (K \<turnstile> t1 \<leftarrow> t1 \<squnion> t2)"
 
 (*
 inductive subtyping :: "kind env \<Rightarrow> type \<Rightarrow> type \<Rightarrow> bool" ("_ \<turnstile> _ \<sqsubseteq> _" [30,0,0] 60) where
@@ -917,6 +1043,14 @@ lemma kinding_variant_wellformed_elem:
   using assms
   by (induct ts; force simp add: kinding_defs)
 
+lemma kinding_variant_all_wellformed:
+  assumes
+    "K \<turnstile>* ts :\<kappa>v k"
+    "(n,t,b) \<in> set ts"
+  shows   "K \<turnstile> t wellformed"
+  using assms
+  by (case_tac b; force simp add: kinding_variant_set)
+
 lemma kinding_all_variant':
   assumes "K \<turnstile>* map (fst \<circ> snd) ts :\<kappa> k"
   shows   "K \<turnstile>* ts :\<kappa>v k"
@@ -970,6 +1104,7 @@ proof -
     using tag_elem_at assms
     by (simp add: kinding_variant_set tagged_list_update_distinct)
 qed
+
 
 lemma kinding_record_cons:
   shows "(K \<turnstile>* t # ts :\<kappa>r k) \<longleftrightarrow> (case snd (snd t) of Taken \<Rightarrow> K \<turnstile> fst (snd t) wellformed | Present \<Rightarrow> K \<turnstile> fst (snd t) :\<kappa> k) \<and> (K \<turnstile>* ts :\<kappa>r k)"
@@ -1104,6 +1239,156 @@ and   "K \<turnstile>* map (fst \<circ> snd) fs wellformed \<Longrightarrow> K \
   using bang_wellformed bang_kinding_fn
   by (fastforce simp add: kinding_defs INT_subset_iff simp del: insert_subset
       split: variant_state.split record_state.split)+
+
+
+section {* Subtyping lemmas *}
+
+lemma type_lub_type_glb_idem:
+  assumes "K \<turnstile> t wellformed"
+  shows
+  "K \<turnstile> t \<leftarrow> t \<squnion> t"
+  "K \<turnstile> t \<leftarrow> t \<sqinter> t"
+  using assms
+proof (induct t)
+  case (TCon ns ts s)
+  moreover assume "K \<turnstile> TCon ns ts s wellformed"
+  ultimately show
+    "K \<turnstile> TCon ns ts s \<leftarrow> TCon ns ts s \<squnion> TCon ns ts s"
+    "K \<turnstile> TCon ns ts s \<leftarrow> TCon ns ts s \<sqinter> TCon ns ts s"
+    by (fastforce simp add: list_all3_same kinding_all_set elim!: kind_tconE intro!: type_lub_type_glb.intros)+
+next
+  case (TSum ts)
+  assume assms1: "K \<turnstile> TSum ts wellformed"
+  {
+    fix n t b
+    assume "(n, t, b) \<in> set ts"
+    moreover then have
+      "K \<turnstile> t \<leftarrow> t \<sqinter> t"
+      "K \<turnstile> t \<leftarrow> t \<squnion> t"
+      using TSum.hyps assms1 kinding_variant_all_wellformed
+      by auto
+    ultimately have
+      "\<exists>t1 b1 t2 b2. (n, t1, b1) \<in> set ts \<and> (n, t2, b2) \<in> set ts \<and> K \<turnstile> t \<leftarrow> t1 \<sqinter> t2 \<and> b = sup b1 b2"
+      "\<exists>t1 b1 t2 b2. (n, t1, b1) \<in> set ts \<and> (n, t2, b2) \<in> set ts \<and> K \<turnstile> t \<leftarrow> t1 \<squnion> t2 \<and> b = inf b1 b2"
+      by fastforce+
+  }
+  then show
+    "K \<turnstile> TSum ts \<leftarrow> TSum ts \<squnion> TSum ts"
+    "K \<turnstile> TSum ts \<leftarrow> TSum ts \<sqinter> TSum ts"
+    using assms1
+    by (auto intro!: type_lub_type_glb.intros)
+next
+  case (TRecord ts s)
+  assume assms1: "K \<turnstile> TRecord ts s wellformed"
+  {
+    fix n t b
+    assume "(n, t, b) \<in> set ts"
+    moreover then have
+      "K \<turnstile> t \<leftarrow> t \<sqinter> t"
+      "K \<turnstile> t \<leftarrow> t \<squnion> t"
+      using TRecord.hyps assms1 kinding_record_wellformed
+      by auto
+    ultimately have
+      "\<exists>t1 b1 t2 b2. (n, t1, b1) \<in> set ts \<and> (n, t2, b2) \<in> set ts \<and> K \<turnstile> t \<leftarrow> t1 \<sqinter> t2 \<and> b = sup b1 b2"
+      "\<exists>t1 b1 t2 b2. (n, t1, b1) \<in> set ts \<and> (n, t2, b2) \<in> set ts \<and> K \<turnstile> t \<leftarrow> t1 \<squnion> t2 \<and> b = inf b1 b2"
+      by fastforce+
+  }
+  then show
+    "K \<turnstile> TRecord ts s \<leftarrow> TRecord ts s \<squnion> TRecord ts s"
+    "K \<turnstile> TRecord ts s \<leftarrow> TRecord ts s \<sqinter> TRecord ts s"
+    using assms1
+    by (auto intro!: type_lub_type_glb.intros)
+qed (force intro: type_lub_type_glb.intros)+
+
+lemma type_lub_type_glb_commut:
+  assumes "K \<turnstile> t wellformed"
+  shows
+  "K \<turnstile> t \<leftarrow> t1 \<squnion> t2 \<Longrightarrow> K \<turnstile> t \<leftarrow> t2 \<squnion> t1"
+  "K \<turnstile> t \<leftarrow> t1 \<sqinter> t2 \<Longrightarrow> K \<turnstile> t \<leftarrow> t2 \<sqinter> t1"
+  using assms
+proof (induct rule: type_lub_type_glb.inducts)
+  case (lub_tcon ns ns1 ns2 s s1 s2 K ts ts1 ts2)
+  then show ?case
+    by (fastforce simp add: list_all3_conv_all_nth kinding_all_set
+        intro!: type_lub_type_glb.intros)
+next
+  case (lub_trecord ts ts1 ts2 K s s1 s2)
+  then show ?case
+  proof (intro type_lub_type_glb.intros)
+    fix n t b
+    assume "(n,t,b) \<in> set ts"
+    moreover then obtain t1 b1 t2 b2
+    where
+      "(n, t1, b1) \<in> set ts1"
+      "(n, t2, b2) \<in> set ts2"
+      "K \<turnstile> t \<leftarrow> t1 \<squnion> t2"
+      "K \<turnstile> t \<leftarrow> t2 \<squnion> t1"
+      "b = inf b1 b2"
+      using lub_trecord
+      by (meson kind_trecE kinding_record_wellformed type_wellformed_def)
+    then show "\<exists>t1 b1 t2 b2. (n, t1, b1) \<in> set ts2 \<and> (n, t2, b2) \<in> set ts1 \<and> K \<turnstile> t \<leftarrow> t1 \<squnion> t2 \<and> b = inf b1 b2"
+      using inf_commute by blast
+  qed simp+
+next
+  case (lub_tsum ts ts1 ts2 K)
+  then show ?case
+  proof (intro type_lub_type_glb.intros)
+    fix n t b
+    assume "(n,t,b) \<in> set ts"
+    moreover then obtain t1 b1 t2 b2
+      where
+        "(n, t1, b1) \<in> set ts1"
+        "(n, t2, b2) \<in> set ts2"
+        "K \<turnstile> t \<leftarrow> t1 \<squnion> t2"
+        "K \<turnstile> t \<leftarrow> t2 \<squnion> t1"
+        "b = inf b1 b2"
+      using lub_tsum
+      by (meson kind_tsumE kinding_variant_all_wellformed type_wellformed_def)
+    ultimately show "\<exists>t1 b1 t2 b2. (n, t1, b1) \<in> set ts2 \<and> (n, t2, b2) \<in> set ts1 \<and> K \<turnstile> t \<leftarrow> t1 \<squnion> t2 \<and> b = inf b1 b2"
+      using inf_commute by blast
+  qed simp+
+next
+  case (glb_tcon ns ns1 ns2 s s1 s2 K ts ts1 ts2)
+  then show ?case
+    using kinding_typelist_wellformed_elem
+    by (auto intro!: type_lub_type_glb.intros simp add: list_all3_conv_all_nth)
+next
+  case (glb_trecord ts ts1 ts2 K s s1 s2)
+  then show ?case
+  proof (intro type_lub_type_glb.intros)
+    fix n t b
+    assume "(n,t,b) \<in> set ts"
+    moreover then obtain t1 b1 t2 b2
+    where
+      "(n, t1, b1) \<in> set ts1"
+      "(n, t2, b2) \<in> set ts2"
+      "K \<turnstile> t \<leftarrow> t1 \<sqinter> t2"
+      "K \<turnstile> t \<leftarrow> t2 \<sqinter> t1"
+      "b = sup b1 b2"
+      using glb_trecord
+      by (meson kind_trecE kinding_record_wellformed type_wellformed_def)
+    then show "\<exists>t1 b1 t2 b2. (n, t1, b1) \<in> set ts2 \<and> (n, t2, b2) \<in> set ts1 \<and> K \<turnstile> t \<leftarrow> t1 \<sqinter> t2 \<and> b = sup b1 b2"
+      using sup_commute by blast
+  qed simp+
+next
+  case (glb_tsum ts ts1 ts2 K)
+  then show ?case
+  proof (intro type_lub_type_glb.intros)
+    fix n t b
+    assume "(n,t,b) \<in> set ts"
+    moreover then obtain t1 b1 t2 b2
+      where
+        "(n, t1, b1) \<in> set ts1"
+        "(n, t2, b2) \<in> set ts2"
+        "K \<turnstile> t \<leftarrow> t1 \<sqinter> t2"
+        "K \<turnstile> t \<leftarrow> t2 \<sqinter> t1"
+        "b = sup b1 b2"
+      using glb_tsum
+      by (meson kind_tsumE kinding_variant_all_wellformed type_wellformed_def)
+    ultimately show "\<exists>t1 b1 t2 b2. (n, t1, b1) \<in> set ts2 \<and> (n, t2, b2) \<in> set ts1 \<and> K \<turnstile> t \<leftarrow> t1 \<sqinter> t2 \<and> b = sup b1 b2"
+      using sup_commute by blast
+  qed simp+
+qed (force intro: type_lub_type_glb.intros)+
 
 section {* Typing lemmas *}
 
