@@ -33,15 +33,7 @@ endif
 # ADT headers required by BilbyFs
 AHFILES=$(wildcard $(STDGUM)/gum/anti/abstract/*.ah)
 # ADT C files required by BilbyFs
-LINUX_ACFILES=$(addprefix $(STDGUM)/gum/anti/, \
-		common.ac \
-		wordarray.ac \
-		array.ac \
-		rbt.ac \
-		os.ac \
-		list.ac \
-		crc32.ac) \
-		plat/linux/wrapper.ac
+LINUX_ACFILES=plat/linux/wrapper.ac
 # ADT C files required by verification
 VERIF_ACFILES=plat/verification/wrapper.ac
 LINUX_TYPES=plat/linux/data/types.txt
