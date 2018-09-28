@@ -34,14 +34,14 @@ import Data.List as L
 import Data.Maybe (catMaybes, fromJust)
 import Text.PrettyPrint.ANSI.Leijen as P
 
-ffiHsc :: String -> String -> [CExtDecl] -> [CExtDecl] -> String -> Doc
-ffiHsc name cname ctys cenums log =
+ffiHsc :: String -> [FilePath] -> [CExtDecl] -> [CExtDecl] -> String -> Doc
+ffiHsc name cnames ctys cenums log =
   text "{-" P.<$> text log P.<$> text "-}" P.<$> 
-  pretty (hscModule name cname ctys cenums)
+  pretty (hscModule name cnames ctys cenums)
 
 
-hscModule :: String -> String -> [CExtDecl] -> [CExtDecl] -> Hsc.HscModule
-hscModule name cname ctys cenums =
+hscModule :: String -> [FilePath] -> [CExtDecl] -> [CExtDecl] -> Hsc.HscModule
+hscModule name cnames ctys cenums =
   Hsc.HscModule pragmas name $
     imports ++
     include ++
@@ -57,7 +57,7 @@ hscModule name cname ctys cenums =
                     , Hsc.ImportDecl "Foreign.C.Types" False Nothing [] []
                     , Hsc.ImportDecl "Util" False Nothing [] [] ]
                   ++ [Hsc.EmptyDecl]
-        include = [Hsc.HscDecl $ Hsc.HashInclude cname, Hsc.EmptyDecl]
+        include = (map (Hsc.HscDecl . Hsc.HashInclude) cnames) ++ [Hsc.EmptyDecl]
 
 hscTagsT = "Tag"
 hscUntypedFuncEnum = "FuncEnum"

@@ -36,6 +36,7 @@ import Text.PrettyPrint as PP (Doc)
 import Text.PrettyPrint.ANSI.Leijen as Leijen
 
 cgen :: FilePath
+     -> [FilePath]
      -> FilePath
      -> FilePath
      -> [Definition TypedExpr VarName]
@@ -43,11 +44,11 @@ cgen :: FilePath
      -> M.Map FunName (M.Map Instance Int)
      -> String
      -> ([C.Definition], [C.Definition], [(TypeName, S.Set [CId])], [TableCTypes], Leijen.Doc, PP.Doc, GenState)
-cgen hName hscName hsName defs ctygen insts log =
+cgen hName cNames hscName hsName defs ctygen insts log =
   let (enums,tydefns,fndecls,disps,tydefs,fndefns,absts,corres,st) = compile defs ctygen insts
       (h,c) = render hName (enums++tydefns++fndecls++disps++tydefs) fndefns log
-      hsc = ffiHsc hscName hName tydefns enums log
-      hs  = ffiHs  (st^.ffiFuncs) hsName hscName fndecls log
+      hsc = ffiHsc hscName cNames tydefns enums log
+      hs  = ffiHs (st^.ffiFuncs) hsName hscName fndecls log
    in (h,c,absts,corres,hsc,hs,st)
 
 
