@@ -110,7 +110,7 @@ test-compiler: test-clean .test-cogent \
     test-quickcheck
 
 tests: test-compiler \
-	test-tc-proof test-shallow-proof test-ee
+	test-tc-proof test-shallow-proof test-ee test-hs
 
 test-compiler: test-clean .test-cogent \
  	test-tc test-ds test-an test-mn test-cg test-gcc \
