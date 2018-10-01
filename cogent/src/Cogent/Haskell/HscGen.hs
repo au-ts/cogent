@@ -76,9 +76,11 @@ hscModule name cnames ctys cenums absts fclsts =
                     , Hsc.ImportDecl "Foreign.Ptr" False Nothing [] []
                     , Hsc.ImportDecl "Foreign.C.String" False Nothing [] []
                     , Hsc.ImportDecl "Foreign.C.Types" False Nothing [] []
-                    , Hsc.ImportDecl "Util" False Nothing [] [] ]
+                    , Hsc.ImportDecl "Util" False Nothing [] []
+                    , Hsc.ImportDecl hscAbs False Nothing [] [] ]
                   ++ [Hsc.EmptyDecl]
         include = (map (Hsc.HscDecl . Hsc.HashInclude) cnames) ++ [Hsc.EmptyDecl]
+        hscAbs = name ++ "_Abs"
 
 hscTagsT = "Tag"
 hscUntypedFuncEnum = "FuncEnum"
@@ -165,7 +167,7 @@ hscStorageInst (CDecl (CStructDecl n flds)) = Just . Hsc.HsDecl $ Hsc.InstDecl "
         poke = Hsc.Binding "poke" [Hsc.PVar hscPtr, Hsc.PCon (toHscName n) fnames] $ Hsc.EDo pokeFields
         fnames = map (Hsc.PVar . decap . fromJust . snd) flds
         pokeFields = map pokeField flds
-        pokeField (_, Just cid) = Hsc.DoBind [] $ Hsc.EApp (Hsc.EHsc Hsc.HashPoke [n, cid]) [Hsc.EVar hscPtr, Hsc.EVar cid]
+        pokeField (_, Just cid) = Hsc.DoBind [] $ Hsc.EApp (Hsc.EHsc Hsc.HashPoke [n, cid]) [Hsc.EVar hscPtr, Hsc.EVar (decap cid)]
         pokeField _ = __todo "pokeField: no support for --funion-for-variants yet"
 hscStorageInst _ = Nothing
 
