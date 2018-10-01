@@ -82,10 +82,11 @@ absFuns = (P.map getDefinitionId *** P.map getDefinitionId)
 -- Without this flag, unused functions will be numbered 0
 -- Mono-functions are always numbered -1
 absFunMono :: FunMono -> [Definition TypedExpr VarName] -> M.Map FunName Int
-absFunMono (M.toList -> l) (absFuns -> (ms,ps)) = M.fromList . catMaybes $ flip P.map l $ \(fn, M.size -> num) ->
-                                                  if | fn `elem` ps -> Just (fn, num)
-                                                     | fn `elem` ms -> Just (fn, -1)
-                                                     | otherwise -> Nothing
+absFunMono (M.toList -> l) (absFuns -> (ms,ps))
+  = M.fromList . catMaybes $ flip P.map l $ \(fn, M.size -> num) ->
+      if | fn `elem` ps -> Just (fn, num)
+         | fn `elem` ms -> Just (fn, -1)
+         | otherwise -> Nothing
 
 printAFM :: FunMono -> [Definition TypedExpr VarName] -> String
 printAFM = ((unlines . P.map (\(n,i) -> n ++ ", " ++ show i) . M.toList) .) . absFunMono

@@ -97,7 +97,8 @@ type GenRead v = Vec v CExpr
 data GenState  = GenState { _cTypeDefs    :: [(StrlType, CId)]
                           , _cTypeDefMap  :: M.Map StrlType CId
                           , _typeSynonyms :: M.Map TypeName CType
-  , _typeCorres   :: DList.DList (CId, CC.Type 'Zero)  -- ^ C type names corresponding to Cogent types
+                          , _typeCorres   :: DList.DList (CId, CC.Type 'Zero)
+                            -- ^ C type names corresponding to Cogent types
                           , _absTypes     :: M.Map TypeName (S.Set [CId])
                           , _custTypeGen  :: M.Map (CC.Type 'Zero) (CId, CustTyGenInfo)
                           , _funClasses   :: FunClass
@@ -491,14 +492,6 @@ typeCId t = use custTypeGen >>= \ctg ->
     isUnstable (TRecord {}) = True
     isUnstable (TArray {}) = True
     isUnstable _ = False
-
--- Made for Glue
-absTypeCId :: CC.Type 'Zero -> Gen v CId
-absTypeCId (TCon tn [] _) = return tn
-absTypeCId (TCon tn ts _) = do
-  ts' <- forM ts $ \t -> (if isUnboxed t then ('u':) else id) <$> typeCId t
-  return (tn ++ "_" ++ L.intercalate "_" ts')
-absTypeCId _ = __impossible "absTypeCId"
 
 -- Returns the right C type
 genType :: CC.Type 'Zero -> Gen v CType
@@ -1089,7 +1082,6 @@ genDefinition _ = return []
 
 compile :: [Definition TypedExpr VarName]
         -> [(Type 'Zero, String)]
-        -> M.Map FunName (M.Map Instance Int)
         -> ( [CExtDecl]  -- enum definitions
            , [CExtDecl]  -- type definitions
            , [CExtDecl]  -- function declarations
@@ -1098,9 +1090,10 @@ compile :: [Definition TypedExpr VarName]
            , [CExtDecl]  -- function definitions
            , [(TypeName, S.Set [CId])]
            , [TableCTypes]
+           , [TypeName]
            , GenState
            )
-compile defs ctygen insts =
+compile defs ctygen =
   let (tdefs, fdefs) = L.partition isTypeDef defs
       (extDecls, st, ()) = runRWS (runGen $
         concat <$> mapM genDefinition (fdefs ++ tdefs)  -- `fdefs' will collect the types that are used in the program, and `tdefs' can generate synonyms
@@ -1133,8 +1126,10 @@ compile defs ctygen insts =
      , fndefns
      , absts'  -- table of abstract types
      , map TableCTypes tycorr  -- table of Cogent types |-> C types
+     , tns  -- list of funclass typenames (for HscGen)
      , st''
      )
+
 
 -- ----------------------------------------------------------------------------
 -- * Table of Abstract types

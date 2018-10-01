@@ -758,7 +758,7 @@ parseArgs args = case getOpt' Permute options args of
           hscName = mkProofName source (Just __cogent_suffix_of_ffi_types)
           hsName  = mkProofName source (Just __cogent_suffix_of_ffi)
           cNames  = map (\n -> takeBaseName n ++ __cogent_suffix_of_pp ++ __cogent_suffix_of_inferred <.> __cogent_ext_of_c) __cogent_infer_c_func_files
-          (h,c,atm,ct,hsc,hs,genst) = cgen hName cNames hscName hsName monoed ctygen (fst insts) log
+          (h,c,atm,ct,hsc,hs,genst) = cgen hName cNames hscName hsName monoed ctygen log
       when (TableAbsTypeMono `elem` cmds) $ do
         let atmfile = mkFileName source Nothing __cogent_ext_of_atm
         putProgressLn "Generating table for monomorphised asbtract types..."

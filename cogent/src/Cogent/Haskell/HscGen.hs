@@ -30,22 +30,43 @@ import Cogent.Compiler
 import Cogent.Haskell.HscSyntax as Hsc
 import Cogent.Util (decap, toCName)
 
+-- import Control.Monad
+import Data.Char (isNumber)
 import Data.List as L
+-- import qualified Data.Map as M
 import Data.Maybe (catMaybes, fromJust)
-import Text.PrettyPrint.ANSI.Leijen as P
+import qualified Data.Set as S
+import qualified Text.PrettyPrint.ANSI.Leijen as P ((<$>))
+import Text.PrettyPrint.ANSI.Leijen as P hiding ((<$>))
 
-ffiHsc :: String -> [FilePath] -> [CExtDecl] -> [CExtDecl] -> String -> Doc
-ffiHsc name cnames ctys cenums log =
+ffiHsc :: String
+       -> [FilePath]
+       -> [CExtDecl]
+       -> [CExtDecl]
+       -> [(TypeName, S.Set [CId])]
+       -> [TypeName]
+       -> String
+       -> Doc
+ffiHsc name cnames ctys cenums absts fclsts log =
   text "{-" P.<$> text log P.<$> text "-}" P.<$> 
-  pretty (hscModule name cnames ctys cenums)
+  pretty (hscModule name cnames ctys cenums absts fclsts)
 
-
-hscModule :: String -> [FilePath] -> [CExtDecl] -> [CExtDecl] -> Hsc.HscModule
-hscModule name cnames ctys cenums =
+hscModule :: String
+          -> [FilePath]
+          -> [CExtDecl]
+          -> [CExtDecl]
+          -> [(TypeName, S.Set [CId])]
+          -> [TypeName]
+          -> Hsc.HscModule
+hscModule name cnames ctys cenums absts fclsts =
   Hsc.HscModule pragmas name $
     imports ++
     include ++
-    L.intersperse Hsc.EmptyDecl (catMaybes (map hscEnum cenums ++ map hscTyDecl ctys ++ map hscStorageInst ctys))
+    L.intersperse Hsc.EmptyDecl (catMaybes (map hscEnum cenums ++
+                                            map hscTyDecl ctys ++
+                                            map hscStorageInst ctys) ++
+                                 map hscEnumTypes fclsts ++
+                                 [])  -- concatMap hscTypeDefs absts)
   where pragmas = map Hsc.LanguagePragma [ "DisambiguateRecordFields"
                                          , "DuplicateRecordFields"
                                          , "ForeignFunctionInterface"
@@ -80,7 +101,8 @@ hscExpr _ = __todo "hscExpr: other expressions have not been implemented"
 
 hscTyDecl :: CExtDecl -> Maybe Hsc.Declaration
 hscTyDecl (CDecl (CStructDecl n flds)) = Just . Hsc.HsDecl $ Hsc.DataDecl (toHscName n) [] [Hsc.DataCon (toHscName n) $ flds']
-  where flds' = map (\(t, Just f) -> (decap f, hscType t)) flds  -- TODO: it does not support --funion-for-variants yet
+  where flds' = map (\(t, Just f) -> (decap f, hscType t)) flds
+  -- \ ^ TODO: it does not support --funion-for-variants yet
 hscTyDecl _ = Nothing
 
 hscType :: CType -> Hsc.Type
@@ -108,6 +130,27 @@ hscPrimType Boolean = Hsc.TyCon (toHscName boolT) []
 hscPrimType t = Hsc.TyCon (toHscName $ primCId t) []
 
 hscPtr = "ptr"
+
+-- NOTE: parametric abstract types are defined monomorphically, thus there's
+--       no point in generating type synonyms for them. They should be derived
+--       from the .ah files, which could be quite tricky to do. / zilinc
+{-
+hscTypeDefs :: (TypeName, S.Set [CId]) -> [Hsc.Declaration]
+hscTypeDefs _ = []
+hscTypeDefs (tn, insts) = flip L.map (S.toList insts) $ \ts ->
+    let tn' = toHscName $ tn ++ "_" ++ L.intercalate "_" ts
+        ty  = TyCon (toHscName tn) (map (flip TyCon [] . trim) ts)
+     in HsDecl (TypeDecl tn' [] ty)
+  where 
+        -- This function is very hacky! / zilinc
+        trim [] = __impossible "trim: empty constructor name"
+        trim n@('u':n':_) | isNumber n' = toHscName n  -- primitive types
+        trim   ('u':ns) = toHscName ns
+        trim n = toHscName n
+-}
+
+hscEnumTypes :: TypeName -> Hsc.Declaration
+hscEnumTypes tn = HsDecl $ TypeDecl (toHscName tn) [] (TyCon "Int" [])
 
 -- | generate 'Foreign.Storable.Storable' instances
 hscStorageInst :: CExtDecl -> Maybe Hsc.Declaration

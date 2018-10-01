@@ -41,13 +41,12 @@ cgen :: FilePath
      -> FilePath
      -> [Definition TypedExpr VarName]
      -> [(Type 'Zero, String)]
-     -> M.Map FunName (M.Map Instance Int)
      -> String
      -> ([C.Definition], [C.Definition], [(TypeName, S.Set [CId])], [TableCTypes], Leijen.Doc, PP.Doc, GenState)
-cgen hName cNames hscName hsName defs ctygen insts log =
-  let (enums,tydefns,fndecls,disps,tydefs,fndefns,absts,corres,st) = compile defs ctygen insts
+cgen hName cNames hscName hsName defs ctygen log =
+  let (enums,tydefns,fndecls,disps,tydefs,fndefns,absts,corres,fclsts,st) = compile defs ctygen
       (h,c) = render hName (enums++tydefns++fndecls++disps++tydefs) fndefns log
-      hsc = ffiHsc hscName cNames tydefns enums log
+      hsc = ffiHsc hscName cNames tydefns enums absts fclsts log
       hs  = ffiHs (st^.ffiFuncs) hsName hscName fndecls log
    in (h,c,absts,corres,hsc,hs,st)
 
