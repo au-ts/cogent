@@ -17,7 +17,7 @@ ifeq ($(KERNELRELEASE),)
 include $(ROOT_DIR)build-env.mk
 endif
 
-OUTPUT=generated
+OUTPUT=wa
 SRC=wa.cogent
 DEFNS=defns.txt
 
@@ -27,10 +27,7 @@ STDGUM=$(COGENT_STD_GUM_DIR)
 AHFILES=$(addprefix $(STDGUM)/gum/anti/abstract/, \
 	WordArray.ah)
 # ADT C files required by BilbyFs
-LINUX_ACFILES=$(addprefix $(STDGUM)/gum/anti/, \
-		common.ac \
-		wordarray.ac) \
-		wa_wrapper.ac
+LINUX_ACFILES=wa_wrapper.ac
 # ADT C files required by verification
 LINUX_TYPES=types.txt
 
@@ -74,6 +71,7 @@ ACFILES = $(LINUX_ACFILES)
 DIST_DIR = build
 # EXTRA_CFLAGS
 EXTRA_CFLAGS = $(LINUX_EXTRA_CFLAGS)
+EXTRA_CFLAGS += -D BUG_ON(x)=  -D printk=printf
 
 # call from kernel build system
 ifneq ($(KERNELRELEASE),)
@@ -86,8 +84,8 @@ PWD:= $(shell pwd)
 .PHONY: default all clean c-gen o-gen hs-gen
 
 
-default: c-gen o-gen hs-gen
-all: c-gen o-gen hs-gen
+default: c-gen o-gen
+all: c-gen o-gen
 
 # generate executable C code
 # NOTE: We run cpp with in c99 mode, as the default mode that cpp runs in is gnu99,

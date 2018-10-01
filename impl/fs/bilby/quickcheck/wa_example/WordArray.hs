@@ -42,9 +42,11 @@ import Test.QuickCheck.Monadic
 import CogentMonad hiding (return, (>>=), (>>))
 import qualified CogentMonad as CogentMonad
 import Corres
-import FFI
+import Wa_FFI_Types
+import Wa_FFI_Types_Abs
+import Wa_FFI
 -- import qualified FFI as FFI
-import Wa_Shallow_Desugar 
+-- import Wa_Shallow_Desugar 
 -- import WordArray
 import Util
 
