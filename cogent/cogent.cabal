@@ -144,6 +144,7 @@ library
               , Cogent.DataLayout.TypeCheck
               , Cogent.DataLayout.Desugar
               , Cogent.DataLayout.CoreTypeCheck
+              , Cogent.DataLayout.CodeGen
               , Cogent.Desugar
               , Cogent.GetOpt
               , Cogent.Glue
@@ -342,6 +343,8 @@ test-suite test-quickcheck
               , CogentTests.DataLayout.Surface
               , CogentTests.DataLayout.TypeCheck
               , CogentTests.DataLayout.Desugar
+              , CogentTests.DataLayout.CodeGen
+              , CogentTests.Core
   build-depends:
                 cogent
               , base >= 4.7
@@ -349,4 +352,5 @@ test-suite test-quickcheck
               , containers >= 0.5
               , Cabal >= 1.9.2
               , parsec >= 3.1
+              , mainland-pretty >= 0.2.6
 
