@@ -1,12 +1,111 @@
 {-# LANGUAGE NamedFieldPuns #-}
-module Cogent.DataLayout.CodeGen where
+{-# LANGUAGE DataKinds #-}
+module Cogent.DataLayout.CodeGen
+  ( genBoxedGetField
+  , genAlignedRangeGetter -- Exported only for testing
+  , genAlignedRangeSetter -- Exported only for testing
+  ) where
+    
 import Cogent.C.Syntax
-import Cogent.Compiler
-  ( __impossible
-  )
+import Cogent.Common.Syntax (FieldName)
+import Data.Nat
+import Cogent.C.Compile (Gen)
+import Cogent.Core (Type (..))
+import Cogent.Compiler (__impossible)
 import Cogent.DataLayout.Core
   ( AlignedBitRange (..)
+  , DataLayout (..)
   )
+
+type CogentType t = Type t
+
+
+-- | Returns a getter function C expression for a field of a boxed record.
+--
+--   Will generate the getter function if it has not yet been generated
+--   (ie. checks to see if it is already recorded in the GenState)
+genBoxedGetField
+  :: CogentType 'Zero
+     -- ^ Cogent type of an unboxed record.
+
+  -> FieldName
+     -- ^ Name of field in the unboxed record to extract.
+
+  -> Gen v CExpr
+     -- ^ The 'CExpr' which is the name of the getter function
+     --   for the field of the record.
+     --
+     --   Use this 'CExpr' as the first argument of 'CEFnCall' when you want
+     --   to call this getter function.
+genBoxedGetField = undefined
+
+
+-- | Returns a getter function C expression for a part of a boxed record.
+--
+--   Will always generate the getter function and record it in the GenState.
+genBoxedGet
+  :: CType
+     -- ^ The CType for the root boxed type which contains
+     --   the embedded value that we would like to extract
+
+  -> CogentType 'Zero
+     -- ^ The Cogent type of the embedded value that we would like to extract
+
+  -> DataLayout AlignedBitRange
+     -- ^ The part of the root boxed type's DataLayout corresponding to
+     --   the embedded value that we would like to extract.
+
+  -> Gen v CExpr
+     -- ^ The 'CExpr' which is the name of the generated getter function
+     --   for the field of the record.
+     --
+     --   Use this 'CExpr' as the first argument of 'CEFnCall' when you want
+     --   to call this getter function.
+genBoxedGet = undefined
+
+-- | Returns a setter function C expression for a field of a boxed record.
+--
+--   Will generate the setter function if it has not yet been generated
+--   (ie. checks to see if it is already recorded in the GenState)
+genBoxedSetField
+  :: CogentType 'Zero
+     -- ^ Cogent type of an unboxed record.
+
+  -> FieldName
+     -- ^ Name of field in the unboxed record to put.
+
+  -> Gen v CExpr
+     -- ^ The 'CExpr' which is the name of the setter function
+     --   for the field of the record.
+     --
+     --   Use this 'CExpr' as the first argument of 'CEFnCall' when you want
+     --   to call this setter function.
+genBoxedSetField = undefined
+
+-- | Returns a setter function C expression for a part of a boxed record.
+--
+--   Will always generate the setter function and record it in the GenState.
+genBoxedSet
+  :: CType
+     -- ^ The CType for the root boxed type which contains
+     --   the embedded value that we would like to put
+
+  -> CogentType 'Zero
+     -- ^ The Cogent type of the embedded value that we would like to put
+
+  -> DataLayout AlignedBitRange
+     -- ^ The part of the root boxed type's DataLayout corresponding to
+     --   the embedded value that we would like to put.
+
+  -> Gen v CExpr
+     -- ^ The 'CExpr' which is the name of the generated setter function
+     --   for the field of the record.
+     --
+     --   Use this 'CExpr' as the first argument of 'CEFnCall' when you want
+     --   to call this setter function.
+genBoxedSet = undefined
+
+
 
 {- | Creates a C function to extract the contents of an
      AlignedBitRange from a Cogent boxed type.
