@@ -103,8 +103,10 @@ type GenRead v = Vec v CExpr
 
 data GenState  = GenState { _cTypeDefs    :: [(StrlType, CId)]
                           , _cTypeDefMap  :: M.Map StrlType CId
-                            -- ^ We keep both a Map and a List of the type definitions we've seen
-                            --   because the list remembers the order,
+                            -- ^ Maps structural types we've seen so far to the
+                            --   C identifiers corresponding to the structural type.
+                            --
+                            --   We keep both a Map and a List because the list remembers the order,
                             --   but the map gives performant reads.
 
                           , _typeSynonyms :: M.Map TypeName CType
