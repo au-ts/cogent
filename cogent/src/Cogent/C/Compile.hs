@@ -91,16 +91,30 @@ import Unsafe.Coerce (unsafeCoerce)
 -- *****************************************************************************
 -- * The state for code-generation
 
+-- | A FunClass is a map from the structural types of functions to a set of all names
+--   of declared functions with that structural type. It is used to generate the
+--   dispatch functions needed to implement higher order functions in C.
 type FunClass  = M.Map StrlType (S.Set (FunName, Attr))  -- ^ @c_strl_type &#x21A6; funnames@
 type VarPool   = M.Map CType [CId]  -- ^ vars available @(ty_id &#x21A6; [var_id])@
+
+-- | The 'i'th element of the vector is the C expression bound to the variable in scope
+--   with DeBruijn index 'i'. The type parameter 'v' is the number of variables in scope.
 type GenRead v = Vec v CExpr
 
 data GenState  = GenState { _cTypeDefs    :: [(StrlType, CId)]
                           , _cTypeDefMap  :: M.Map StrlType CId
+                            -- ^ We keep both a Map and a List of the type definitions we've seen
+                            --   because the list remembers the order,
+                            --   but the map gives performant reads.
+
                           , _typeSynonyms :: M.Map TypeName CType
                           , _typeCorres   :: DList.DList (CId, CC.Type 'Zero)
                             -- ^ C type names corresponding to Cogent types
                           , _absTypes     :: M.Map TypeName (S.Set [CId])
+                            -- ^ Maps TypeNames of abstract Cogent types to
+                            --   the Set of all monomorphised type argument lists
+                            --   which the abstract type is applied to in the program.
+
                           , _custTypeGen  :: M.Map (CC.Type 'Zero) (CId, CustTyGenInfo)
                           , _funClasses   :: FunClass
                           , _localOracle  :: Integer
@@ -693,7 +707,36 @@ genExpr_ = genExpr Nothing
 
 -- The first argument is the return value on one level up
 -- Returns: (expr, decls, stmts, reusable_var_pool)
-genExpr :: Maybe CId -> TypedExpr 'Zero v VarName -> Gen v (CExpr, [CBlockItem], [CBlockItem], VarPool)
+genExpr
+  :: Maybe CId
+     -- ^ If 'Just v', then
+     --   1. A C statement is added to the list of
+     --      generated C statements which assigns the
+     --      C expression which evaluates to the same value
+     --      as the cogent expression to the variable
+     --      whose name is the identifier 'v'.
+     --   2. The generated expression is the variable 'v'
+     --
+     --   Otherwise, the generated C expression
+     --   is returned directly.
+
+  -> TypedExpr 'Zero v VarName
+     -- ^ The cogent expression to generate C code for.
+
+  -> Gen v
+      ( CExpr
+        -- ^ A C expression which evaluates to the same result as the cogent expression
+        --   provided this C expression is evaluated after all the returned declarations
+        --   and statements.
+
+      , [CBlockItem]
+        -- ^ All the generated declarations.
+
+      , [CBlockItem]
+        -- ^ All the generated statements
+
+      , VarPool
+      )
 genExpr _ (TE t (Op opr [])) = __impossible "genExpr"
 
 genExpr mv (TE t (Op opr es@(e1:_))) = do
