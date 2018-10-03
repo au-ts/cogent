@@ -2,44 +2,28 @@
 {- LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE RankNTypes #-}
 
-module CogentMonad where
+module CogentMonad (
+  CogentMonad
+, flatten
+, image
+, select
+, alternative, (<|>) 
+) where
 
--- import Control.Monad
-import Data.Set as S
-import Prelude hiding (return, (>>=), (>>))
+import Control.Applicative
+import Data.List as L
 
-type Cogent_monad a = Set a
+type CogentMonad a = [a]
 
--- copied from http://hackage.haskell.org/package/set-extra-1.4
-flatten :: (Ord a) => Set (Set a) -> Set a
-flatten ss' = fold union empty ss'
---flatten = unions . toList
+flatten :: [[a]] -> [a]
+flatten = concat
 
-image :: (a -> b) -> Set a -> Set b
-image f s = S.mapMonotonic f s  -- may not hold
+image :: (a -> b) -> [a] -> [b]
+image = fmap
 
-instance Functor Set where
-  fmap = image
-
--- instance Applicative Set where
---   pure = return
---   (<*>) = ap
-
--- instance Monad Set where
-return :: a -> Set a
-return = singleton
-  
-infixl 1 >>=, >>
-
-(>>=) :: (Ord b) => Set a -> (a -> Set b) -> Set b
-m >>= f = flatten (f `image` m)
-
-(>>) :: (Ord b) => Set a -> Set b -> Set b
-x >> y = x >>= \_ -> y
-
-select :: Set a -> Cogent_monad a
+select :: [a] -> CogentMonad a
 select = id
 
-alternative :: (Ord a) => Cogent_monad a -> Cogent_monad a -> Cogent_monad a
-alternative = union
+alternative :: CogentMonad a -> CogentMonad a -> CogentMonad a
+alternative = (<|>)
 

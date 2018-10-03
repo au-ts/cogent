@@ -43,8 +43,7 @@ import Test.QuickCheck.Function
 import Test.QuickCheck.Gen
 import Test.QuickCheck.Monadic
 
-import CogentMonad hiding (return, (>>=), (>>))
-import qualified CogentMonad as CogentMonad
+import CogentMonad
 import Corres
 import Wa_FFI_Types
 import Wa_FFI_Types_Abs
@@ -59,43 +58,57 @@ import Util
 -- | The Haskell type for wordarrays
 type WordArray e = Array Word32 e
 
-hs_wordarray_create :: Word32 -> WordArray e
-hs_wordarray_create l = array (0, l-1) []  -- elements will be undefined
+hs_wordarray_create :: Word32 -> CogentMonad (Maybe (WordArray e))
+hs_wordarray_create l = (return $ Just (array (0, l-1) []))  -- elements will be undefined
+                          <|>
+                        (return $ Nothing)
 
-hs_wordarray_create_nz :: (Integral e) => Word32 -> WordArray e
-hs_wordarray_create_nz l = array (0, l-1) [(i,v) | i <- [0..l-1], v <- [0]]
+hs_wordarray_create_nz :: (Integral e) => Word32 -> CogentMonad (Maybe (WordArray e))
+hs_wordarray_create_nz l = (return $ Just (array (0, l-1) [(i,v) | i <- [0..l-1], v <- [0]]))
+                             <|> 
+                           (return $ Nothing)
 
-hs_wordarray_free :: WordArray e -> ()
-hs_wordarray_free _ = ()
+hs_wordarray_free :: WordArray e -> CogentMonad ()
+hs_wordarray_free _ = return ()
 
-hs_wordarray_get_bounded :: Integral e => WordArray e -> Word32 -> Maybe e
-hs_wordarray_get_bounded xs i =
+hs_wordarray_get_bounded :: Integral e => WordArray e -> Word32 -> CogentMonad (Maybe e)
+hs_wordarray_get_bounded xs i = return $
     if i `is_inbound` xs then Just $ xs ! i
                          else Nothing
 
 is_inbound :: Word32 -> WordArray e -> Bool
 is_inbound i xs = case bounds xs of (l,u) -> l <= i && i <= u
 
-hs_wordarray_modify :: WordArray e -> Word32 -> ((e, acc, obsv) -> (e, acc)) -> acc -> obsv -> (WordArray e, acc)
+hs_wordarray_modify :: WordArray e
+                    -> Word32
+                    -> ((e, acc, obsv) -> (e, acc))
+                    -> acc
+                    -> obsv
+                    -> CogentMonad (WordArray e, acc)
 hs_wordarray_modify xs i f acc obsv
   | i `is_inbound` xs = 
       let (e',acc') = f (xs ! i, acc, obsv)
-       in (xs // [(i, e')], acc')
-  | otherwise = (xs, acc)                          
+       in return (xs // [(i, e')], acc')
+  | otherwise = return (xs, acc)                          
 
-hs_wordarray_put :: WordArray e -> Word32 -> e -> Either (WordArray e) (WordArray e)
-hs_wordarray_put xs i _ | not (i `is_inbound` xs) = Left xs
-hs_wordarray_put xs i a = Right $ xs // [(i,a)]
+hs_wordarray_put :: WordArray e -> Word32 -> e -> CogentMonad (Either (WordArray e) (WordArray e))
+hs_wordarray_put xs i _ | not (i `is_inbound` xs) = return $ Left xs
+hs_wordarray_put xs i a = return $ Right $ xs // [(i,a)]
 
-hs_wordarray_length :: WordArray e -> Word32
-hs_wordarray_length = fromIntegral . length
+hs_wordarray_length :: WordArray e -> CogentMonad Word32
+hs_wordarray_length = return . fromIntegral . length
 
-hs_wordarray_clone :: WordArray e -> WordArray e
-hs_wordarray_clone xs = xs
+hs_wordarray_clone :: WordArray e -> CogentMonad (Maybe (WordArray e))
+hs_wordarray_clone xs = (return $ Just xs) <|> (return Nothing)
 
-hs_wordarray_map :: WordArray e -> Word32 -> Word32 -> ((e, acc, obsv) -> (e, acc, Maybe rbrk)) -> acc -> obsv
-                 -> (WordArray e, acc, Maybe rbrk)
-hs_wordarray_map xs frm to f acc obsv = 
+hs_wordarray_map :: WordArray e
+                 -> Word32
+                 -> Word32
+                 -> ((e, acc, obsv) -> (e, acc, Maybe rbrk))
+                 -> acc
+                 -> obsv
+                 -> CogentMonad (WordArray e, acc, Maybe rbrk)
+hs_wordarray_map xs frm to f acc obsv = return $
   let (l, u) = bounds xs
       frm' = max l frm
       to'  = min u to
