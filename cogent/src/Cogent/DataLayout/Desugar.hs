@@ -51,8 +51,8 @@ desugarAbstractTypeSigil = fmap desugarMaybeLayout
 --
 --   Should not be used to desugar sigils associated with 'TCon _ _ _' types, ie. abstract types.
 desugarSigil
-
-      -- | This type should be obtained by
+  :: (Type t)
+      -- ^ This type should be obtained by
       --   1. Start with the raw type that the `Sigil` is attached to
       --   2. Replace the top level sigil with `Unboxed`
       --   3. Desugar the resulting type
@@ -61,11 +61,11 @@ desugarSigil
       --   The generation algorithm will lay out the internals of unboxed records,
       --   but give boxed records a 'PrimLayout' of pointer size. However, we want to layout
       --   the internals of the top level record.
-  :: (Type t)
 
-      -- | Since desugarSigil is only called for normalising boxed records (and later, boxed variants),
-      --   the 'Maybe DataLayoutExpr' should always be in the 'Just layout' alternative.
   -> Sigil (Maybe DataLayoutExpr)
+      -- ^ Since desugarSigil is only called for normalising boxed records (and later, boxed variants),
+      --   the 'Maybe DataLayoutExpr' should always be in the 'Just layout' alternative.
+  
   -> Sigil (DataLayout BitRange)
 
 desugarSigil t = fmap desugarMaybeLayout
@@ -120,7 +120,7 @@ constructDataLayout (TSum alternatives)
         constructAlternativeLayout
           :: (Size, Integer) -- ^ Offset and tag value for this alternative.
           -> (TagName, (Type t, Bool))
-          -> ((Size, Integer) -- ^ Offset and tag value for next alternative.
+          -> ((Size, Integer) -- Offset and tag value for next alternative.
              ,(TagName, (Integer, DataLayout BitRange, SourcePos)))
 
         constructAlternativeLayout (minBitOffset, tagValue) (name, (coreType, _)) =
