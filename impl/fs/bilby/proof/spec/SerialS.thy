@@ -1042,7 +1042,7 @@ qed
 lemmas ObjUnion_splits = ObjUnion\<^sub>1\<^sub>1\<^sub>1\<^sub>1\<^sub>1\<^sub>1\<^sub>1.splits
 
 lemma take_drop_decomp:"x \<ge> a \<Longrightarrow> take (x - a) (drop a xs) @ drop x xs = drop a xs"
-  sorry (* 
+  sorry (*
 by (subst take_drop_append[where b="x-a" and xs=xs], simp)
 *)
 
@@ -2029,7 +2029,7 @@ proof -
   apply (rule conjI)
    apply (simp add: pu8_def )
    apply (rule arg_cong[where f=word_rcat])
-   apply (simp only: slice_def drop_take Util.fun_app_def)
+   apply (simp only: slice_def drop_take fun_app_def)
    using ost_offs_x ost_4_nat
    apply simp
    apply (simp add: take_drop offs_cancel)

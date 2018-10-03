@@ -36,13 +36,15 @@ import Language.Haskell.Exts.Pretty
 import Language.Haskell.Exts.Syntax as HS
 import Text.PrettyPrint
 
+import Debug.Trace
+
 type FFIFuncs = M.Map FunName (CType, CType)
 
-type Gen a = ReaderT FFIFuncs Identity a
+type Gen a = ReaderT (FFIFuncs, [FunName]) Identity a
 
 ffiHs :: FFIFuncs -> String -> String -> [CExtDecl] -> String -> Doc
 ffiHs m name hscname decls log = 
-  let mod = flip runReader m $ ffiModule name hscname decls
+  let mod = flip runReader (m, map ("ffi_" ++) $ M.keys m) $ ffiModule name hscname decls
    in text "{-" $+$ text log $+$ text "-}" $+$ prettyPrim mod
 
 
@@ -53,29 +55,33 @@ ffiModule name hscname decls = do
       pragmas = [LanguagePragma () [Ident () "ForeignFunctionInterface"]]
       imps = [ ImportDecl () (ModuleName () "Foreign") False False False Nothing Nothing Nothing
              , ImportDecl () (ModuleName () "Foreign.C.Types") False False False Nothing Nothing Nothing
-             , ImportDecl () (ModuleName () hscname) True False False Nothing (Just (ModuleName () "FFI")) Nothing
+             , ImportDecl () (ModuleName () "Util") False False False Nothing Nothing Nothing
+             , ImportDecl () (ModuleName () hscname) False False False Nothing (Just (ModuleName () "FFI")) Nothing
+             , ImportDecl () (ModuleName () (hscname ++ "_Abs")) False False False Nothing (Just (ModuleName () "FFI")) Nothing
              ]
   return $ Module () (Just mhead) pragmas imps hs_decls
 
 ffiDefinition :: CExtDecl -> Gen (Maybe (Decl ()))
 ffiDefinition (CDecl (CExtFnDecl rt name [(t,_)] _)) = do
-  m <- ask
-  let (name',(t',rt')) = case M.lookup name m of
-                           Nothing -> (name, (t,rt))
-                           Just ts -> ("ffi_" ++ name, ts)
-      hs_t  = hsc2hsType $ hscType t'
-      hs_rt = hsc2hsType $ hscType rt'
-  return . Just $ 
-    ForImp () (CCall ())
-              (Just $ PlayRisky ())
-              (Just name')
-              (Ident () $ "cogent_" ++ name')
-              (TyFun () hs_t hs_rt)
+  (m, ffis) <- ask
+  if name `elem` ffis then return Nothing
+  else do
+    let (name',(t',rt')) = case M.lookup name m of
+                             Nothing -> (name, (t,rt))
+                             Just ts -> ("ffi_" ++ name, ts)
+        hs_t  = hsc2hsType $ hscType t'
+        hs_rt = hsc2hsType $ hscType rt'
+    return . Just $ 
+      ForImp () (CCall ())
+                (Just $ PlayRisky ())
+                (Just name')
+                (Ident () $ "cogent_" ++ name')
+                (TyFun () hs_t hs_rt)
 ffiDefinition _ = return Nothing
 
 hsc2hsType :: Hsc.Type -> Type ()
 hsc2hsType (Hsc.TyCon n ts)
-  = mkTyCon (TyCon () $ Qual () (ModuleName () "FFI") (Ident () n))
+  = mkTyCon (TyCon () $ UnQual () (Ident () n))
             (map hsc2hsType ts)
 hsc2hsType (Hsc.TyVar v) = TyVar () (Ident () v)
 hsc2hsType (Hsc.TyTuple ts) = TyTuple () Boxed $ map hsc2hsType ts

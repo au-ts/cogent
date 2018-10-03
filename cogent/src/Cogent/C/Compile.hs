@@ -111,7 +111,7 @@ data GenState  = GenState { _cTypeDefs    :: [(StrlType, CId)]
                           , _typeSynonyms :: M.Map TypeName CType
                           , _typeCorres   :: DList.DList (CId, CC.Type 'Zero)
                             -- ^ C type names corresponding to Cogent types
-                            
+
                           , _absTypes     :: M.Map TypeName (S.Set [CId])
                             -- ^ Maps TypeNames of abstract Cogent types to
                             --   the Set of all monomorphised type argument lists
@@ -509,14 +509,6 @@ typeCId t = use custTypeGen >>= \ctg ->
     isUnstable (TRecord {}) = True
     isUnstable (TArray {}) = True
     isUnstable _ = False
-
--- Made for Glue
-absTypeCId :: CC.Type 'Zero -> Gen v CId
-absTypeCId (TCon tn [] _) = return tn
-absTypeCId (TCon tn ts _) = do
-  ts' <- forM ts $ \t -> (if isUnboxed t then ('u':) else id) <$> typeCId t
-  return (tn ++ "_" ++ L.intercalate "_" ts')
-absTypeCId _ = __impossible "absTypeCId"
 
 -- Returns the right C type
 genType :: CC.Type 'Zero -> Gen v CType
@@ -1108,7 +1100,8 @@ genDefinition (AbsDecl attr fn Nil t rt)
   = do t'  <- addSynonym genTypeA (unsafeCoerce t  :: CC.Type 'Zero) (argOf fn)
        rt' <- addSynonym genTypeP (unsafeCoerce rt :: CC.Type 'Zero) (retOf fn)
        funClasses %= M.alter (insertSetMap (fn,attr)) (Function t' rt')
-       return [CDecl $ CExtFnDecl rt' fn [(t',Nothing)] (fnSpecAttr attr noFnSpec)]
+       ffifunc <- if __cogent_fffi_c_functions then genFfiFunc rt' fn [t'] else return []
+       return $ ffifunc ++ [CDecl $ CExtFnDecl rt' fn [(t',Nothing)] (fnSpecAttr attr noFnSpec)]
 -- NOTE: An ad hoc treatment to concreate non-parametric type synonyms / zilinc
 genDefinition (TypeDef tn ins (Just (unsafeCoerce -> ty :: CC.Type 'Zero)))
   -- NOTE: We need to make sure that ty doesn't consist of any function type with no function members / zilinc
@@ -1141,7 +1134,6 @@ genDefinition _ = return []
 
 compile :: [Definition TypedExpr VarName]
         -> [(Type 'Zero, String)]
-        -> M.Map FunName (M.Map Instance Int)
         -> ( [CExtDecl]  -- enum definitions
            , [CExtDecl]  -- type definitions
            , [CExtDecl]  -- function declarations
@@ -1150,9 +1142,10 @@ compile :: [Definition TypedExpr VarName]
            , [CExtDecl]  -- function definitions
            , [(TypeName, S.Set [CId])]
            , [TableCTypes]
+           , [TypeName]
            , GenState
            )
-compile defs ctygen insts =
+compile defs ctygen =
   let (tdefs, fdefs) = L.partition isTypeDef defs
       (extDecls, st, ()) = runRWS (runGen $
         concat <$> mapM genDefinition (fdefs ++ tdefs)  -- `fdefs' will collect the types that are used in the program, and `tdefs' can generate synonyms
@@ -1185,8 +1178,10 @@ compile defs ctygen insts =
      , fndefns
      , absts'  -- table of abstract types
      , map TableCTypes tycorr  -- table of Cogent types |-> C types
+     , tns  -- list of funclass typenames (for HscGen)
      , st''
      )
+
 
 -- ----------------------------------------------------------------------------
 -- * Table of Abstract types
