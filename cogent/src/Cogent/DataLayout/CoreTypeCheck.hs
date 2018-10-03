@@ -37,7 +37,8 @@ checkType _                    = True
 
 checkDataLayout :: DataLayout BitRange -> Bool
 checkDataLayout _ = __fixme (True)
-  -- ^ Need to check
+  -- FIXME:
+  -- Need to check
   --   1. Blocks for different fields of a record don't overlap
   --   2. Block for tag of an alternative doesn't overlap with blocks for
   --      any of the alternatives.
@@ -49,11 +50,13 @@ matchesDataLayout (TCon _ _       (Boxed _ _))  (PrimLayout (BitRange { bitSizeB
 matchesDataLayout (TRecord _      (Boxed _ _))  (PrimLayout (BitRange { bitSizeBR })) = bitSizeBR == pointerSizeBits
 matchesDataLayout (TPrim primInt)               (PrimLayout (BitRange { bitSizeBR })) = bitSizeBR == primIntSizeBits primInt 
 matchesDataLayout (TSum alts)                   (SumLayout tagLayout altLayouts)      = __fixme (True)
-  -- ^ Need to check the alternative names match,
-  --   and that each alternative's type matches the corresponding layout.
+  -- FIXME:
+  -- Need to check the alternative names match,
+  -- and that each alternative's type matches the corresponding layout.
 matchesDataLayout (TRecord fields Unboxed)      (RecordLayout fieldLayouts)           = __fixme (True)
-  -- ^ Need to check the field names match,
-  --   and that each field's type matches the corresponding layout.
+  -- FIXME:
+  -- Need to check the field names match,
+  -- and that each field's type matches the corresponding layout.
 matchesDataLayout (TUnit)                       (UnitLayout)                          = True
 matchesDataLayout _                             _                                     = False
 

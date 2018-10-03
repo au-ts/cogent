@@ -711,34 +711,39 @@ genExpr_ = genExpr Nothing
 -- Returns: (expr, decls, stmts, reusable_var_pool)
 genExpr
   :: Maybe CId
-     -- ^ If 'Just v', then
-     --   1. A C statement is added to the list of
-     --      generated C statements which assigns the
-     --      C expression which evaluates to the same value
-     --      as the cogent expression to the variable
-     --      whose name is the identifier 'v'.
-     --   2. The generated expression is the variable 'v'
+     -- ^
+     -- If @Just v@, then
      --
-     --   Otherwise, the generated C expression
-     --   is returned directly.
+     -- 1. A C statement is added to the list of
+     --    generated C statements which assigns the
+     --    C expression which evaluates to the same value
+     --    as the cogent expression to the variable
+     --    whose name is the identifier 'v'.
+     --
+     -- 2. The generated expression is the variable 'v'
+     --
+     -- Otherwise, the generated C expression
+     -- is returned directly.
 
   -> TypedExpr 'Zero v VarName
      -- ^ The cogent expression to generate C code for.
 
-  -> Gen v
-      ( CExpr
-        -- ^ A C expression which evaluates to the same result as the cogent expression
-        --   provided this C expression is evaluated after all the returned declarations
-        --   and statements.
+  -> Gen v (CExpr, [CBlockItem], [CBlockItem], VarPool)
+     -- ^
+     -- The parts of the returned tuple are:
+     --
+     -- [@CExpr@]
+     --   A C expression which evaluates to the same result as the cogent expression
+     --   provided this C expression is evaluated after all the returned declarations
+     --   and statements.
+     --
+     -- [@[CBlockItem\]@]
+     --   All the generated declarations.
+     --
+     -- [@[CBlockItem\]@]
+     --   All the generated statements
 
-      , [CBlockItem]
-        -- ^ All the generated declarations.
-
-      , [CBlockItem]
-        -- ^ All the generated statements
-
-      , VarPool
-      )
+      
 genExpr _ (TE t (Op opr [])) = __impossible "genExpr"
 
 genExpr mv (TE t (Op opr es@(e1:_))) = do
