@@ -19,6 +19,8 @@
 {-# OPTIONS_GHC -Wno-missing-fields #-}
 {- OPTIONS_GHC -F -pgmFderive -optF-F #-}
 
+module Fsm where
+
 import Control.Monad.State
 import Data.Set as S
 import Foreign

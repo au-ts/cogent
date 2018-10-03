@@ -62,7 +62,7 @@ library cogent-quickcheck-utils
   -- other-extensions:
 
   -- Other library packages from which modules are imported.
-  build-depends:       base >=4.9 && <4.10
+  build-depends:       base >=4.9 && <4.12
                      , extra
                      , QuickCheck
 
@@ -78,12 +78,12 @@ library wa-example
   other-modules:       Wa_FFI
                      , Wa_FFI_Types
                      , Wa_FFI_Types_Abs
-  build-depends:       base >=4.9 && <4.10
+  build-depends:       base >=4.9 && <4.12
                      , array
                      , extra
                      , QuickCheck
                      , cogent-quickcheck-utils
-  hs-source-dirs:      wa_example wa_example/build
+  hs-source-dirs:      wa_example, wa_example/build
   default-language:    Haskell2010
   -- cpp-options:
   include-dirs:        . wa_example wa_example/build $(COGENT_STD_GUM_DIR)
@@ -93,9 +93,11 @@ library wa-example
 library fsm-example
   exposed-modules:     Fsm
   other-modules:
-  build-depends:       base >=4.9 && <4.10
+  build-depends:       base >=4.9 && <4.12
                      , QuickCheck
                      , cogent-quickcheck-utils
+                     , containers
+                     , mtl
   hs-source-dirs:      fsm_example
   default-language:    Haskell2010
   -- build-tools:         hsc2hs
@@ -104,7 +106,7 @@ library readpage-example
   exposed-modules:     Readpage
                      , QuickCheck
   other-modules:       
-  build-depends:       base >=4.9 && <4.10
+  build-depends:       base >=4.9 && <4.12
                      , QuickCheck
                      , cogent-quickcheck-utils
   hs-source-dirs:      readpage_example
@@ -123,7 +125,7 @@ executable cogent-quickcheck
   -- other-extensions:
 
   -- Other library packages from which modules are imported.
-  build-depends:       base >=4.9 && <4.10
+  build-depends:       base >=4.9 && <4.12
                      , extra
                      , QuickCheck
                      , cogent-quickcheck-utils
@@ -132,7 +134,10 @@ executable cogent-quickcheck
                      , readpage-example
 
   -- Directories containing source files.
-  hs-source-dirs:      wa_example fsm_example readpage_example .
+  hs-source-dirs:      .
+                     , wa_example
+                     , fsm_example
+                     , readpage_example
 
   -- Base language which the package is written in.
   default-language:    Haskell2010
