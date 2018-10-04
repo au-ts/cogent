@@ -75,8 +75,8 @@ ffiDefinition (CDecl (CExtFnDecl rt name [(t,_)] _)) = do
       ForImp () (CCall ())
                 (Just $ PlayRisky ())
                 (Just name')
-                (Ident () $ "cogent_" ++ name')
-                (TyFun () hs_t hs_rt)
+                (Ident () $ "cogent_" ++ name)
+                (TyFun () hs_t (inIO hs_rt))
 ffiDefinition _ = return Nothing
 
 hsc2hsType :: Hsc.Type -> Type ()
@@ -88,3 +88,6 @@ hsc2hsType (Hsc.TyTuple ts) = TyTuple () Boxed $ map hsc2hsType ts
 
 mkTyCon :: Type () -> [Type ()] -> Type ()
 mkTyCon t xs = foldl (TyApp ()) t xs
+
+inIO :: Type () -> Type ()
+inIO t = mkTyCon (TyCon () (UnQual () (Ident () "IO"))) [t] 

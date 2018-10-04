@@ -44,6 +44,8 @@ enum untyped_func_enum {
     FUN_ENUM_wordarray_clone_u8,
     FUN_ENUM_wordarray_copy_0,
     FUN_ENUM_wordarray_create_0,
+    FUN_ENUM_wordarray_create_nz_0,
+    FUN_ENUM_wordarray_create_nz_u8,
     FUN_ENUM_wordarray_create_u8,
     FUN_ENUM_wordarray_free_0,
     FUN_ENUM_wordarray_free_u8,
@@ -199,6 +201,8 @@ SysState *ffi_wordarray_free_0(t3 *);
 static inline SysState *wordarray_free_0(t3);
 t5 *ffi_wordarray_create_0(t4 *);
 static inline t5 wordarray_create_0(t4);
+t5 *ffi_wordarray_create_nz_0(t4 *);
+static inline t5 wordarray_create_nz_0(t4);
 t7 *ffi_wordarray_put_0(t6 *);
 static inline t7 wordarray_put_0(t6);
 t15 *ffi_wordarray_map_0(t13 *);
@@ -213,6 +217,8 @@ t5 *ffi_wordarray_clone_0(t3 *);
 static inline t5 wordarray_clone_0(t3);
 t5 *ffi_wordarray_clone_u8(t3 *);
 t5 wordarray_clone_u8(t3);
+t5 *ffi_wordarray_create_nz_u8(t4 *);
+t5 wordarray_create_nz_u8(t4);
 t5 *ffi_wordarray_create_u8(t4 *);
 t5 wordarray_create_u8(t4);
 t21 *ffi_wordarray_get_bounded_0(t2 *);
@@ -314,6 +320,12 @@ static inline t5 dispatch_t30(untyped_func_enum a2, t4 a3)
       case FUN_ENUM_wordarray_create_0:
         return wordarray_create_0(a3);
         
+      case FUN_ENUM_wordarray_create_nz_0:
+        return wordarray_create_nz_0(a3);
+        
+      case FUN_ENUM_wordarray_create_nz_u8:
+        return wordarray_create_nz_u8(a3);
+        
       default:
         return wordarray_create_u8(a3);
     }
@@ -348,6 +360,10 @@ typedef t1 wordarray_copy_0_arg;
 typedef WordArray_u8 *wordarray_copy_0_ret;
 typedef t4 wordarray_create_0_arg;
 typedef t5 wordarray_create_0_ret;
+typedef t4 wordarray_create_nz_0_arg;
+typedef t5 wordarray_create_nz_0_ret;
+typedef t4 wordarray_create_nz_u8_arg;
+typedef t5 wordarray_create_nz_u8_ret;
 typedef t4 wordarray_create_u8_arg;
 typedef t5 wordarray_create_u8_ret;
 typedef t3 wordarray_free_0_arg;
@@ -416,29 +432,37 @@ t5 *ffi_wordarray_create_0(t4 *a9)
     *r10 = wordarray_create_0(*a9);
     return r10;
 }
-t7 *ffi_wordarray_put_0(t6 *a11)
+t5 *ffi_wordarray_create_nz_0(t4 *a11)
 {
-    t7 *r12;
+    t5 *r12;
     
-    r12 = malloc(sizeof(t7));
-    *r12 = wordarray_put_0(*a11);
+    r12 = malloc(sizeof(t5));
+    *r12 = wordarray_create_nz_0(*a11);
     return r12;
 }
-t15 *ffi_wordarray_map_0(t13 *a13)
+t7 *ffi_wordarray_put_0(t6 *a13)
 {
-    t15 *r14;
+    t7 *r14;
     
-    r14 = malloc(sizeof(t15));
-    *r14 = wordarray_map_0(*a13);
+    r14 = malloc(sizeof(t7));
+    *r14 = wordarray_put_0(*a13);
     return r14;
 }
-t20 *ffi_wordarray_modify_0(t19 *a15)
+t15 *ffi_wordarray_map_0(t13 *a15)
 {
-    t20 *r16;
+    t15 *r16;
     
-    r16 = malloc(sizeof(t20));
-    *r16 = wordarray_modify_0(*a15);
+    r16 = malloc(sizeof(t15));
+    *r16 = wordarray_map_0(*a15);
     return r16;
+}
+t20 *ffi_wordarray_modify_0(t19 *a17)
+{
+    t20 *r18;
+    
+    r18 = malloc(sizeof(t20));
+    *r18 = wordarray_modify_0(*a17);
+    return r18;
 }
 u32 *ffi_wordarray_length_u8(WordArray_u8 *a4)
 {
@@ -556,6 +580,21 @@ t5 wordarray_clone_u8(t3 a1)
 {
     t3 r2 = a1;
     t5 r3 = wordarray_clone_0(r2);
+    
+    return r3;
+}
+t5 *ffi_wordarray_create_nz_u8(t4 *a4)
+{
+    t5 *r5;
+    
+    r5 = malloc(sizeof(t5));
+    *r5 = wordarray_create_nz_u8(*a4);
+    return r5;
+}
+t5 wordarray_create_nz_u8(t4 a1)
+{
+    t4 r2 = a1;
+    t5 r3 = wordarray_create_nz_0(r2);
     
     return r3;
 }
@@ -963,6 +1002,31 @@ WordArray_u8 *wordarray_copy_0(t1 args)
     return dst;
 }
 t5 wordarray_create_0(t4 args)
+{
+    SysState *ex = args.p1;
+    u32 size = args.p2;
+    t5 ret;
+    WordArray_u8 *array = kmalloc(sizeof(*array));
+    
+    if (array == NULL || !size) {
+        ret.tag = TAG_ENUM_Error;
+        ret.Error = ex;
+    } else {
+        array->values = kzalloc(size * sizeof(*array->values));
+        if (array->values == NULL) {
+            kfree(array);
+            ret.tag = TAG_ENUM_Error;
+            ret.Error = ex;
+        } else {
+            array->len = size;
+            ret.tag = TAG_ENUM_Success;
+            ret.Success.p1 = ex;
+            ret.Success.p2 = array;
+        }
+    }
+    return ret;
+}
+t5 wordarray_create_nz_0(t4 args)
 {
     SysState *ex = args.p1;
     u32 size = args.p2;

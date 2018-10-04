@@ -15,6 +15,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {- LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
@@ -24,6 +25,8 @@
 module WordArray where
 
 -- import Control.Monad.State
+import Control.Monad (join)
+import Control.Monad.Trans.Class (lift)
 import Data.Array.IArray
 import Data.Array.IO
 import Data.Either.Extra  -- extra-1.6
@@ -37,6 +40,7 @@ import Foreign.Marshal.Alloc
 import Foreign.Ptr
 import Foreign.Storable
 import Prelude as P
+import QuickCheck.GenT
 import Test.QuickCheck hiding (Success)
 import Test.QuickCheck.Arbitrary
 import Test.QuickCheck.Function
@@ -52,6 +56,12 @@ import Wa_FFI
 -- import Wa_Shallow_Desugar 
 -- import WordArray
 import Util
+
+{- |
+To run the REPL: 
+> cabal v1-repl wa-example --ghc-options=" wa_example/build/wa.o"
+-}
+
 
 -- * Haskell specification
 
@@ -117,57 +127,77 @@ hs_wordarray_map xs frm to f acc obsv = return $
                                _ -> r) (xs, acc, Nothing) [frm' .. to']
 
 
--- \////////////////////////////////////////////////////////////////////////////
+-- /////////////////////////////////////////////////////////////////////////////
 --
+-- * Testing @wordarray_create@.
+
+-- | _FIXME_: Can we use 'forAllM' instead of 'wp'? / zilinc
+prop_wordarray_create_u8_corres :: Property
+prop_wordarray_create_u8_corres = monadicIO $
+  wp (join . generate $ runGenT gen_c_wordarray_create_u8_arg) $ \ic -> run $ do
+    oc <- cogent_wordarray_create_u8 ic
+    oa <- hs_wordarray_create @ Word8 <$> abs_wordarray_create_u8_arg ic
+    corresM wordarray_create_u8_ret_corres oa oc
+
+gen_c_wordarray_create_u8_arg :: GenT IO (Ptr Ct4)
+gen_c_wordarray_create_u8_arg = do
+  p1 <- lift pDummyCSysState
+  ct4 <- Ct4 p1 <$> liftGen arbitrary
+  lift $ new ct4
+
+abs_wordarray_create_u8_arg :: Ptr Ct4 -> IO Word32
+abs_wordarray_create_u8_arg ia = do
+  Ct4 _ p2 <- peek ia
+  return $ fromIntegral p2
+
+wordarray_create_u8_ret_corres :: Maybe (WordArray Word8) -> Ptr Ct5 -> IO Bool
+wordarray_create_u8_ret_corres oa oc = do
+  Ct5 tag err suc <- peek oc
+  if | fromEnum tag == fromEnum tagEnumError, Nothing <- oa -> return True
+     | fromEnum tag == fromEnum tagEnumSuccess, Just wa <- oa -> return True  -- nothing that we can check about the values of the wordarrays
+     | otherwise -> return False
+
+
+-- /////////////////////////////////////////////////////////////////////////////
 --
+-- * Testing @wordarray_create_nz@
 
--- wordarray_u8_corres :: WordArray Word8 -> CWordArray Cu8 -> IO Bool
--- wordarray_u8_corres hs_arr c_arr = do
---   arr <- peekArray (fromIntegral $ len c_arr) (values c_arr)
---   return $ arr == P.map fromIntegral hs_arr
--- 
--- toC_wordarray_u8 :: WordArray Word8 -> IO (CWordArray Cu8)
--- toC_wordarray_u8 hs_arr = do
---   p_vals <- newArray $ P.map fromIntegral hs_arr
---   let len = length hs_arr
---   return $ CWordArray (fromIntegral len) p_vals
+prop_wordarray_create_nz_u8_corres :: Property
+prop_wordarray_create_nz_u8_corres = monadicIO $
+  wp (join . generate $ runGenT gen_c_wordarray_create_nz_u8_arg) $ \ic -> run $ do
+    oc <- cogent_wordarray_create_nz_u8 ic
+    oa <- hs_wordarray_create_nz @ Word8 <$> abs_wordarray_create_nz_u8_arg ic
+    corresM wordarray_create_nz_u8_ret_corres oa oc
 
--- prop_wordarray_create_u8_corres = monadicIO $
---   forAllM gen_wordarray_create_u8_arg $ \arg -> run $ do
---     rc <- cogent_wordarray_create_u8 =<< toC_wordarray_create_u8_arg arg
---     ra <- return $ hs_wordarray_create (abs_wordarray_create_u8_arg arg)
---     corresM wordarray_create_u8_corres ra rc
--- 
--- gen_wordarray_create_u8_arg :: Gen (R15 SysState Word32)
--- gen_wordarray_create_u8_arg = do
---   s <- arbitrary
---   l <- elements [0..100]
---   return $ R15 s l
--- 
--- toC_wordarray_create_u8_arg :: R15 SysState Word32 -> IO Ct4
--- toC_wordarray_create_u8_arg (R15 p1 p2) = do
---   p1' <- pDummyCSysState
---   p2' <- return $ fromIntegral p2
---   return $ Ct4 p1' p2'
--- 
--- abs_wordarray_create_u8_arg :: R15 SysState Word32 -> Word32
--- abs_wordarray_create_u8_arg (R15 _ p2) = p2
--- 
--- wordarray_create_u8_corres :: Maybe (WordArray Word8) -> Ct5 -> IO Bool
--- wordarray_create_u8_corres Nothing    (Ct5 {..}) | fromEnum tag == fromEnum tagEnumError = pure True
--- wordarray_create_u8_corres (Just arr) (Ct5 {..}) | fromEnum tag == fromEnum tagEnumSuccess = do
---   let Ct3 _ p_arr = success
---   wordarray_u8_corres arr =<< peek p_arr
--- wordarray_create_u8_corres _ _ = return False
--- 
--- cogent_wordarray_create_u8 :: Ct4 -> IO Ct5
--- cogent_wordarray_create_u8 arg = peek =<< c_wordarray_create_u8 =<< new arg
--- 
--- hs_wordarray_create :: (Integral a) => Word32 -> Cogent_monad (Maybe (WordArray a))
--- hs_wordarray_create l = (return . Just $ replicate (fromIntegral l) (fromIntegral 0)) `alternative` (return Nothing)
---   where return = CogentMonad.return
---         (>>=)  = (CogentMonad.>>=)
---         (>>)   = (CogentMonad.>>)
+gen_c_wordarray_create_nz_u8_arg :: GenT IO (Ptr Ct4)
+gen_c_wordarray_create_nz_u8_arg = do
+  p1 <- lift pDummyCSysState
+  ct4 <- Ct4 p1 <$> liftGen arbitrary
+  lift $ new ct4
+
+abs_wordarray_create_nz_u8_arg :: Ptr Ct4 -> IO Word32
+abs_wordarray_create_nz_u8_arg ia = do
+  Ct4 _ p2 <- peek ia
+  return $ fromIntegral p2
+
+wordarray_create_nz_u8_ret_corres :: Maybe (WordArray Word8) -> Ptr Ct5 -> IO Bool
+wordarray_create_nz_u8_ret_corres oa oc = do
+  Ct5 tag err suc <- peek oc
+  if | fromEnum tag == fromEnum tagEnumError, Nothing <- oa -> return True
+     | fromEnum tag == fromEnum tagEnumSuccess, Just wa <- oa ->
+         case suc of Ct3 _ p -> do 
+           CWordArray_u8 l v <- peek p
+           arr <- peekArray (fromIntegral l) v
+           return $ map fromIntegral (elems wa) == arr
+     | otherwise -> return False
+
+
+
+
+
+
+
+
 
 -- prop_wordarray_get_u8_corres = monadicIO $
 --   forAllM gen_wordarray_get_u8_arg $ \arg -> run $ do

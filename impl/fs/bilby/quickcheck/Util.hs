@@ -8,8 +8,11 @@ module Util where
 
 import Foreign
 import Foreign.C.Types
+import QuickCheck.GenT (GenT(..), runGenT)
+import Test.QuickCheck
 import Test.QuickCheck.Arbitrary
 import Test.QuickCheck.Gen
+import Test.QuickCheck.Monadic
 
 newtype Flip f (a :: a') (b :: b') = Flip { unflip :: f b a }
 
@@ -54,7 +57,4 @@ instance Arbitrary Cbool_t where
 const_unit = Cunit_t $ CInt 0
 const_true  = Cbool_t $ CUChar 1
 const_false = Cbool_t $ CUChar 0
-
-
-
 
