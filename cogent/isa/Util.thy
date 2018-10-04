@@ -95,6 +95,10 @@ lemma map_zip [simp]:
   shows "map (\<lambda> (a , b). (f a, g b)) (zip as bs) = zip (map f as) (map g bs)"
   by (induct as arbitrary:bs, simp, case_tac bs, simp_all)
 
+lemma map_zip3 [simp]:
+  shows "map (\<lambda> (a,b,c). (f a, g b, h c)) (zip as (zip bs cs)) = zip (map f as) (zip (map g bs) (map h cs))"
+  by (induct as arbitrary: bs cs; case_tac bs; case_tac cs; simp)
+
 lemma eq_updated_same_pace_imp_eq:
   assumes "length xs = length ys"
     and "i < length xs"
