@@ -36,6 +36,7 @@ definition
 
 section {* Tuple lemmas *}
 
+
 lemma map_snd_app [simp]:
   shows "map (snd \<circ> (\<lambda> (a , b). (a , f b))) l  =  map (f \<circ> snd) l"
   by (induct l, auto)
@@ -175,9 +176,20 @@ lemma list_all3_mono[intro?]:
   using assms
   by (force simp add: list_all3_iff)
 
+lemma list_all3_mono'[mono]: "P \<le> Q \<Longrightarrow> list_all3 P \<le> list_all3 Q"
+  apply (clarsimp intro!: le_funI)
+  apply (induct_tac rule: list_all3_induct)
+    apply assumption
+   apply (auto dest: le_funD)[2]
+  done
+
 lemma list_all3_conv_all_nth:
   "list_all3 P xs ys zs \<longleftrightarrow> length xs = length ys \<and> length ys = length zs \<and> (\<forall>i<length xs. P (xs ! i) (ys ! i) (zs ! i))"
   by (force simp add: list_all3_iff set_zip)
+
+lemma list_all3_same:
+  "list_all3 P xs xs xs = (\<forall>x\<in>set xs. P x x x)"
+  by (induct xs; simp)
 
 
 (* n.b. the conditions are essentially functor laws *)
