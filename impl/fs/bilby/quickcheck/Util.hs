@@ -8,7 +8,7 @@ module Util where
 
 import Foreign
 import Foreign.C.Types
-import QuickCheck.GenT (GenT(..), runGenT)
+-- import QuickCheck.GenT (GenT(..), runGenT)
 import Test.QuickCheck
 import Test.QuickCheck.Arbitrary
 import Test.QuickCheck.Gen

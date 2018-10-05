@@ -65,7 +65,7 @@ library cogent-quickcheck-utils
   build-depends:       base >=4.9 && <4.12
                      , extra
                      , QuickCheck
-                     , QuickCheck-GenT
+                     -- , QuickCheck-GenT
 
   -- Directories containing source files.
   hs-source-dirs:      .
@@ -84,7 +84,7 @@ library wa-example
                      , extra
                      , transformers
                      , QuickCheck
-                     , QuickCheck-GenT
+                     -- , QuickCheck-GenT
                      , cogent-quickcheck-utils
   hs-source-dirs:      wa_example, wa_example/build
   default-language:    Haskell2010

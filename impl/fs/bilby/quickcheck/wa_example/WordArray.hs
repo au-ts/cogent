@@ -220,20 +220,30 @@ prop_wordarray_get_bounded_u8_corres = monadicIO $
                        free parr)
             (\_ -> corresM wordarray_get_bounded_u8_ret_corres oa oc)
 
+-- prop_wordarray_get_bounded_u8_corres' :: Property
+-- prop_wordarray_get_bounded_u8_corres' = monadicIO $
+--   forAllM gen_c_wordarray_get_bounded_u8_arg' $ \(l,elems,idx) -> run $ do
+--     let (arr,idx') = mk_hs_wordarray_get_bounded_u8_arg (l,elems,idx)
+--         oa = hs_wordarray_get_bounded @ Word8 arr idx'
+--     bracket (mk_c_wordarray_get_bounded_u8_arg (l,elems,idx))
+--             (\ic -> do Ct2 parr _ <- peek ic
+--                        free parr)
+--             (\ic -> do oc <- cogent_wordarray_get_bounded_u8 ic
+--                        corresM wordarray_get_bounded_u8_ret_corres oa oc)
+
 prop_wordarray_get_bounded_u8_corres' :: Property
 prop_wordarray_get_bounded_u8_corres' = monadicIO $
   forAllM gen_c_wordarray_get_bounded_u8_arg' $ \(l,elems,idx) -> run $ do
     let (arr,idx') = mk_hs_wordarray_get_bounded_u8_arg (l,elems,idx)
         oa = hs_wordarray_get_bounded @ Word8 arr idx'
-    bracket (mk_c_wordarray_get_bounded_u8_arg (l,elems,idx))
-            (\ic -> do Ct2 parr _ <- peek ic
-                       free parr)
-            (\ic -> do oc <- cogent_wordarray_get_bounded_u8 ic
-                       corresM wordarray_get_bounded_u8_ret_corres oa oc)
+    ic <- mk_c_wordarray_get_bounded_u8_arg (l,elems,idx)
+    oc <- cogent_wordarray_get_bounded_u8 ic
+    corresM wordarray_get_bounded_u8_ret_corres oa oc
 
+-- NOTE: length can't be 0. Otherwise segfault. / zilinc
 gen_c_wordarray_get_bounded_u8_arg :: Gen (Ptr Ct2)
 gen_c_wordarray_get_bounded_u8_arg = do
-  l <- choose (0, 200) :: Gen CInt
+  l <- choose (1, 200) :: Gen CInt
   arr <- gen_CWordArray_u8 (fromIntegral l)
   let parr = unsafeLocalState $ new arr
   idx <- frequency [(1, fmap (+l) $ getPositive <$> (arbitrary :: Gen (Positive CInt))), (3, choose (0, l))]
@@ -250,14 +260,15 @@ gen_CWordArray_u8 l = do
 
 gen_c_wordarray_get_bounded_u8_arg' :: Gen (Int, [Word8], Word32)
 gen_c_wordarray_get_bounded_u8_arg' = do
-  l <- choose (0, 200) :: Gen Int
+  l <- choose (1, 200) :: Gen Int
   elems <- vector l :: Gen [Word8]
-  idx <- frequency [(1, fmap (+l) $ getPositive <$> arbitrary), (3, choose (0, l))]
+  idx <- frequency [(1, fmap (+l) $ getNonNegative <$> arbitrary), (3, choose (0, l-1))]
+  -- idx <- choose (0, 250) :: Gen Int
   return (l, elems, fromIntegral idx)
 
 mk_c_wordarray_get_bounded_u8_arg :: (Int, [Word8], Word32) -> IO (Ptr Ct2)
 mk_c_wordarray_get_bounded_u8_arg (l, elems, idx) = do
-  pvalues <- newArray (map fromIntegral elems)
+  pvalues <- newArray (map fromIntegral elems :: [Cu8])
   let arr = CWordArray_u8 (fromIntegral l) pvalues
   parr <- new arr
   new $ Ct2 parr (fromIntegral idx)
@@ -277,7 +288,6 @@ abs_wordarray_get_bounded_u8_arg ia = do
 abs_CWordArray_u8 :: CWordArray_u8 -> IO (WordArray Word8)
 abs_CWordArray_u8 (CWordArray_u8 len values) = do
   elems <- peekArray (fromIntegral len) values
-  putStrLn $ "elems = " ++ show elems
   return $ array (0, fromIntegral len - 1) $ zip [0..] (map fromIntegral elems)
 
 wordarray_get_bounded_u8_ret_corres :: Maybe Word8 -> Ptr Ct21 -> IO Bool
