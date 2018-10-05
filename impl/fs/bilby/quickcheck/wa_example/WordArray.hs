@@ -24,8 +24,9 @@
 
 module WordArray where
 
+import Control.Exception (bracket)
 -- import Control.Monad.State
-import Control.Monad (join)
+import Control.Monad (void)
 import Control.Monad.Trans.Class (lift)
 import Data.Array.IArray
 import Data.Array.IO
@@ -33,14 +34,16 @@ import Data.Either.Extra  -- extra-1.6
 -- import Data.Function
 import Data.Ix
 -- import Data.Set as S
-import Foreign
+import Foreign hiding (void)
 import Foreign.C.String hiding (CString)
 import Foreign.C.Types
+import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc
+import Foreign.Marshal.Unsafe (unsafeLocalState)
 import Foreign.Ptr
 import Foreign.Storable
 import Prelude as P
-import QuickCheck.GenT
+-- import QuickCheck.GenT
 import Test.QuickCheck hiding (Success)
 import Test.QuickCheck.Arbitrary
 import Test.QuickCheck.Function
@@ -131,19 +134,25 @@ hs_wordarray_map xs frm to f acc obsv = return $
 --
 -- * Testing @wordarray_create@.
 
--- | _FIXME_: Can we use 'forAllM' instead of 'wp'? / zilinc
 prop_wordarray_create_u8_corres :: Property
 prop_wordarray_create_u8_corres = monadicIO $
-  wp (join . generate $ runGenT gen_c_wordarray_create_u8_arg) $ \ic -> run $ do
-    oc <- cogent_wordarray_create_u8 ic
+  forAllM gen_c_wordarray_create_u8_arg $ \ic -> run $ do
     oa <- hs_wordarray_create @ Word8 <$> abs_wordarray_create_u8_arg ic
-    corresM wordarray_create_u8_ret_corres oa oc
+    bracket (cogent_wordarray_create_u8 ic)
+            (\oc -> do Ct5 tag err suc <- peek oc
+                       if | fromEnum tag == fromEnum tagEnumError -> return ()
+                          | fromEnum tag == fromEnum tagEnumSuccess -> do 
+                              psuc <- new suc
+                              cogent_wordarray_free_u8 psuc
+                              return ()
+                          | otherwise -> fail "impossible")
+            (\oc -> corresM wordarray_create_u8_ret_corres oa oc)
 
-gen_c_wordarray_create_u8_arg :: GenT IO (Ptr Ct4)
+gen_c_wordarray_create_u8_arg :: Gen (Ptr Ct4)
 gen_c_wordarray_create_u8_arg = do
-  p1 <- lift pDummyCSysState
-  ct4 <- Ct4 p1 <$> liftGen arbitrary
-  lift $ new ct4
+  let p1 = unsafeLocalState pDummyCSysState
+  ct4 <- Ct4 p1 <$> choose (0, 4095)
+  return $ unsafeLocalState $ new ct4
 
 abs_wordarray_create_u8_arg :: Ptr Ct4 -> IO Word32
 abs_wordarray_create_u8_arg ia = do
@@ -164,31 +173,33 @@ wordarray_create_u8_ret_corres oa oc = do
 
 prop_wordarray_create_nz_u8_corres :: Property
 prop_wordarray_create_nz_u8_corres = monadicIO $
-  wp (join . generate $ runGenT gen_c_wordarray_create_nz_u8_arg) $ \ic -> run $ do
-    oc <- cogent_wordarray_create_nz_u8 ic
+  forAllM gen_c_wordarray_create_nz_u8_arg $ \ic -> run $ do
     oa <- hs_wordarray_create_nz @ Word8 <$> abs_wordarray_create_nz_u8_arg ic
-    corresM wordarray_create_nz_u8_ret_corres oa oc
+    bracket (cogent_wordarray_create_nz_u8 ic)
+            (\oc -> do Ct5 tag err suc <- peek oc
+                       if | fromEnum tag == fromEnum tagEnumError -> return ()
+                          | fromEnum tag == fromEnum tagEnumSuccess -> do 
+                              psuc <- new suc
+                              cogent_wordarray_free_u8 psuc
+                              return ()
+                          | otherwise -> fail "impossible")
+            (\oc -> corresM wordarray_create_nz_u8_ret_corres oa oc)
 
-gen_c_wordarray_create_nz_u8_arg :: GenT IO (Ptr Ct4)
-gen_c_wordarray_create_nz_u8_arg = do
-  p1 <- lift pDummyCSysState
-  ct4 <- Ct4 p1 <$> liftGen arbitrary
-  lift $ new ct4
+gen_c_wordarray_create_nz_u8_arg :: Gen (Ptr Ct4)
+gen_c_wordarray_create_nz_u8_arg = gen_c_wordarray_create_u8_arg
 
 abs_wordarray_create_nz_u8_arg :: Ptr Ct4 -> IO Word32
-abs_wordarray_create_nz_u8_arg ia = do
-  Ct4 _ p2 <- peek ia
-  return $ fromIntegral p2
+abs_wordarray_create_nz_u8_arg = abs_wordarray_create_u8_arg
 
 wordarray_create_nz_u8_ret_corres :: Maybe (WordArray Word8) -> Ptr Ct5 -> IO Bool
 wordarray_create_nz_u8_ret_corres oa oc = do
   Ct5 tag err suc <- peek oc
   if | fromEnum tag == fromEnum tagEnumError, Nothing <- oa -> return True
-     | fromEnum tag == fromEnum tagEnumSuccess, Just wa <- oa ->
-         case suc of Ct3 _ p -> do 
-           CWordArray_u8 l v <- peek p
-           arr <- peekArray (fromIntegral l) v
-           return $ map fromIntegral (elems wa) == arr
+     | fromEnum tag == fromEnum tagEnumSuccess, Just wa <- oa -> do
+         let Ct3 _ p = suc
+         CWordArray_u8 l v <- peek p
+         arr <- peekArray (fromIntegral l) v
+         return $ map fromIntegral (elems wa) == arr
      | otherwise -> return False
 
 

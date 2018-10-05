@@ -27,10 +27,10 @@ import Cogent.Common.Syntax
 import Cogent.Haskell.HscGen
 import qualified Cogent.Haskell.HscSyntax as Hsc
 
+import Control.Monad.Extra (concatMapM)
 import Control.Monad.Identity
 import Control.Monad.Trans.Reader
 import qualified Data.Map as M
-import Data.Maybe (catMaybes)
 import Language.Haskell.Exts.Build
 import Language.Haskell.Exts.Pretty
 import Language.Haskell.Exts.Syntax as HS
@@ -50,7 +50,7 @@ ffiHs m name hscname decls log =
 
 ffiModule :: String -> String -> [CExtDecl] -> Gen (Module ())
 ffiModule name hscname decls = do
-  hs_decls <- catMaybes <$> mapM ffiDefinition decls
+  hs_decls <- concatMapM ffiDefinition decls
   let mhead = ModuleHead () (ModuleName () name) Nothing Nothing
       pragmas = [LanguagePragma () [Ident () "ForeignFunctionInterface"]]
       imps = [ ImportDecl () (ModuleName () "Foreign") False False False Nothing Nothing Nothing
@@ -61,23 +61,30 @@ ffiModule name hscname decls = do
              ]
   return $ Module () (Just mhead) pragmas imps hs_decls
 
-ffiDefinition :: CExtDecl -> Gen (Maybe (Decl ()))
+ffiDefinition :: CExtDecl -> Gen [Decl ()]
 ffiDefinition (CDecl (CExtFnDecl rt name [(t,_)] _)) = do
   (m, ffis) <- ask
-  if name `elem` ffis then return Nothing
-  else do
+  if name `elem` ffis then return []  -- This is an FFI function for another function.
+  else do  -- Origin Cogent functions
     let (name',(t',rt')) = case M.lookup name m of
                              Nothing -> (name, (t,rt))
                              Just ts -> ("ffi_" ++ name, ts)
         hs_t  = hsc2hsType $ hscType t'
         hs_rt = hsc2hsType $ hscType rt'
-    return . Just $ 
-      ForImp () (CCall ())
-                (Just $ PlayRisky ())
-                (Just name')
-                (Ident () $ "cogent_" ++ name)
-                (TyFun () hs_t (inIO hs_rt))
-ffiDefinition _ = return Nothing
+    return [ ForImp () (CCall ())
+               (Just $ PlayRisky ())
+               (Just name')
+               (Ident () $ "cogent_" ++ name)
+               (TyFun () hs_t (inIO hs_rt))
+           -- NOTE: The return type of these functions are barely @IO ()@ and thus don't meet
+           --       what @FinalizerPtr a = FunPtr (Ptr a -> IO ())@ wants. / zilinc
+           -- , ForImp () (CCall ())
+           --     (Nothing)
+           --     (Just $ '&':name')
+           --     (Ident () $ "p_cogent_" ++ name)
+           --     (mkTyCon (TyCon () (UnQual () (Ident () "FunPtr"))) [TyFun () hs_t (inIO hs_rt)])
+           ]
+ffiDefinition _ = return []
 
 hsc2hsType :: Hsc.Type -> Type ()
 hsc2hsType (Hsc.TyCon n ts)
