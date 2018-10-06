@@ -74,11 +74,13 @@ To run the REPL:
 type WordArray e = Array Word32 e
 
 hs_wordarray_create :: Word32 -> CogentMonad (Maybe (WordArray e))
+hs_wordarray_create 0 = (return $ Nothing)
 hs_wordarray_create l = (return $ Just (array (0, l-1) []))  -- elements will be undefined
                           <|>
                         (return $ Nothing)
 
 hs_wordarray_create_nz :: (Integral e) => Word32 -> CogentMonad (Maybe (WordArray e))
+hs_wordarray_create_nz 0 = (return $ Nothing)
 hs_wordarray_create_nz l = (return $ Just (array (0, l-1) [(i,v) | i <- [0..l-1], v <- [0]]))
                              <|> 
                            (return $ Nothing)
@@ -220,25 +222,16 @@ prop_wordarray_get_bounded_u8_corres = monadicIO $
                        free parr)
             (\_ -> corresM wordarray_get_bounded_u8_ret_corres oa oc)
 
--- prop_wordarray_get_bounded_u8_corres' :: Property
--- prop_wordarray_get_bounded_u8_corres' = monadicIO $
---   forAllM gen_c_wordarray_get_bounded_u8_arg' $ \(l,elems,idx) -> run $ do
---     let (arr,idx') = mk_hs_wordarray_get_bounded_u8_arg (l,elems,idx)
---         oa = hs_wordarray_get_bounded @ Word8 arr idx'
---     bracket (mk_c_wordarray_get_bounded_u8_arg (l,elems,idx))
---             (\ic -> do Ct2 parr _ <- peek ic
---                        free parr)
---             (\ic -> do oc <- cogent_wordarray_get_bounded_u8 ic
---                        corresM wordarray_get_bounded_u8_ret_corres oa oc)
-
 prop_wordarray_get_bounded_u8_corres' :: Property
 prop_wordarray_get_bounded_u8_corres' = monadicIO $
   forAllM gen_c_wordarray_get_bounded_u8_arg' $ \(l,elems,idx) -> run $ do
     let (arr,idx') = mk_hs_wordarray_get_bounded_u8_arg (l,elems,idx)
         oa = hs_wordarray_get_bounded @ Word8 arr idx'
-    ic <- mk_c_wordarray_get_bounded_u8_arg (l,elems,idx)
-    oc <- cogent_wordarray_get_bounded_u8 ic
-    corresM wordarray_get_bounded_u8_ret_corres oa oc
+    bracket (mk_c_wordarray_get_bounded_u8_arg (l,elems,idx))
+            (\ic -> do Ct2 parr _ <- peek ic
+                       free parr)
+            (\ic -> do oc <- cogent_wordarray_get_bounded_u8 ic
+                       corresM wordarray_get_bounded_u8_ret_corres oa oc)
 
 -- NOTE: length can't be 0. Otherwise segfault. / zilinc
 gen_c_wordarray_get_bounded_u8_arg :: Gen (Ptr Ct2)
