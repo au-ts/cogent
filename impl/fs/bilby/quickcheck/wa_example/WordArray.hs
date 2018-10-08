@@ -434,38 +434,28 @@ mk_c_wordarray_map_u8_arg (elems, f) = do
   new $ Ct4 parr (toEnum f)
 
 
+
+-- /////////////////////////////////////////////////////////////////////////////
+--
+-- * Properties atop the Haskell spec.
+
+prop_wordarray_get_put = 
+  forAll (choose (1, 200)) $ \len ->
+  forAll (vector len :: Gen [Word8]) $ \elems ->
+  forAll (choose (0, 2 * fromIntegral len)) $ \idx ->
+  forAll (arbitrary :: Gen Word8) $ \val ->
+    let arr = listArray (0, fromIntegral len - 1) elems
+     in and $ do r <- hs_wordarray_put arr idx val
+                 if | idx < fromIntegral len, Right arr' <- r -> do
+                        Just val' <- hs_wordarray_get_bounded arr' idx
+                        return $ val == val'
+                    | idx >= fromIntegral len, Left arr' <- r -> 
+                        return $ arr' == arr
+                    | otherwise -> return False
+
 -- /////////////////////////////////////////////////////////////////////////////
 --
 -- * Main function
 
 return []
 main = $quickCheckAll
-
--- -- /////////////////////////////////////////////////////////////////////////////
-
--- prop_wordarray_get_put = 
---   forAll (listOf (arbitrary :: Gen Word8)) $ \arr ->
---     forAll (elements [0 .. 2 * fromIntegral (length arr)]) $ \idx ->
---       forAll (arbitrary :: Gen Word8) $ \val ->
---         if idx < fromIntegral (length arr)
---            then let Right arr' = hs_wordarray_put arr idx val in hs_wordarray_get arr' idx === val
---            else Left arr === hs_wordarray_put arr idx val
--- 
--- -- This is useless, but looks really weird
--- prop_wordarray_get_put_c = monadicIO $
---   forAllM (listOf (arbitrary :: Gen Word8)) $ \arr ->
---     forAllM (elements [0 .. 2 * fromIntegral (length arr)]) $ \idx ->
---       forAllM (arbitrary :: Gen Word8) $ \val -> run $ do
---         p_arr <- new =<< toC_wordarray_u8 arr
---         c_idx <- return $ fromIntegral idx
---         c_val <- return $ fromIntegral val
---         Ct7 tag error success <- cogent_wordarray_put_u8 (Ct6 p_arr c_idx c_val)
---         let p_arr' = if fromEnum tag == fromEnum tagEnumError
---                        then error else success
---         ret <- cogent_wordarray_get_u8 (Ct2 p_arr' idx)
---         if idx < fromIntegral (length arr)
---            then return $ ret === c_val
---            else return $ p_arr' === p_arr
--- 
-
-
