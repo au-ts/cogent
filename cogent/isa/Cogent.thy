@@ -613,11 +613,7 @@ lemma eval_prim_op_lit_type:
 
 section {* Typing rules *}
 
-inductive foo :: "'a \<Rightarrow> 'b \<Rightarrow> 'c \<Rightarrow> bool" and bar :: "'a list \<Rightarrow> 'b list \<Rightarrow> 'c list \<Rightarrow> bool" where
-  foo1: "foo a b c"
-| bar1: "list_all3 foo xs ys zs \<Longrightarrow> bar xs ys zs"
-
-inductive type_lub :: "type \<Rightarrow> type \<Rightarrow> type \<Rightarrow> bool" ("_ \<leftarrow> _ \<squnion> _" [60,0,60] 60)
+inductive type_lub :: "type \<Rightarrow> type \<Rightarrow> type \<Rightarrow> bool" ("_ \<leftarrow> _ \<squnion> _ " [60,0,60] 60)
   and type_glb :: "type \<Rightarrow> type \<Rightarrow> type \<Rightarrow> bool" ("_ \<leftarrow> _ \<sqinter> _" [60,0,60] 60)
   where
   lub_tvar   : "\<lbrakk> n = n1
@@ -636,24 +632,20 @@ inductive type_lub :: "type \<Rightarrow> type \<Rightarrow> type \<Rightarrow> 
 | lub_tprim  : "\<lbrakk> p = p1
                 ; p2 = p1
                 \<rbrakk> \<Longrightarrow> TPrim p \<leftarrow> TPrim p1 \<squnion> TPrim p2"
-| lub_trecord: "\<lbrakk> \<And>n t b. (n,t,b) \<in> set ts \<Longrightarrow> \<exists>t1 b1 t2 b2. (n,t1,b1) \<in> set ts1 \<and>
-                                                             (n,t2,b2) \<in> set ts2 \<and>
-                                                             (t \<leftarrow> t1 \<squnion> t2) \<and>
-                                                             (b = inf b1 b2)
-                ; distinct (map fst ts1)
-                ; distinct (map fst ts2)
-                ; fst ` set ts1 = fst ` set ts2
+| lub_trecord: "\<lbrakk> \<And>n t b t1 t2 b1 b2. \<lbrakk> (n,t,b) \<in> set ts; (n,t1,b1) \<in> set ts1; (n,t2,b2) \<in> set ts2 \<rbrakk> \<Longrightarrow> t \<leftarrow> t1 \<squnion> t2 \<and> (b = inf b1 b2)
+                ; distinct (map fst ts)
+                ; fst ` set ts = fst ` set ts1
+                ; fst ` set ts2 = fst ` set ts1
+                ; s = s1
+                ; s1 = s2
                 \<rbrakk> \<Longrightarrow> TRecord ts s \<leftarrow> TRecord ts1 s1 \<squnion> TRecord ts2 s2"
 | lub_tprod  : "\<lbrakk> t \<leftarrow> t1 \<squnion> t2
                 ; u \<leftarrow> u1 \<squnion> u2
                 \<rbrakk> \<Longrightarrow> TProduct t u \<leftarrow> TProduct t1 u1 \<squnion> TProduct t2 u2"
-| lub_tsum   : "\<lbrakk> \<And>n t b. (n,t,b) \<in> set ts \<Longrightarrow> \<exists>t1 b1 t2 b2. (n,t1,b1) \<in> set ts1 \<and>
-                                                             (n,t2,b2) \<in> set ts2 \<and>
-                                                             (t \<leftarrow> t1 \<squnion> t2) \<and>
-                                                             (b = inf b1 b2)
-                ; fst ` set ts1 = fst ` set ts2
-                ; distinct (map fst ts1)
-                ; distinct (map fst ts2)
+| lub_tsum   : "\<lbrakk> \<And>n t b t1 t2 b1 b2. \<lbrakk> (n,t,b) \<in> set ts; (n,t1,b1) \<in> set ts1; (n,t2,b2) \<in> set ts2 \<rbrakk> \<Longrightarrow> t \<leftarrow> t1 \<squnion> t2 \<and> (b = inf b1 b2)
+                ; distinct (map fst ts)
+                ; fst ` set ts = fst ` set ts1
+                ; fst ` set ts2 = fst ` set ts1
                 \<rbrakk> \<Longrightarrow> TSum ts \<leftarrow> TSum ts1 \<squnion> TSum ts2"
 | lub_tunit  : "TUnit \<leftarrow> TUnit \<squnion> TUnit"
 
@@ -673,27 +665,22 @@ inductive type_lub :: "type \<Rightarrow> type \<Rightarrow> type \<Rightarrow> 
 | glb_tprim  : "\<lbrakk> p = p1
                 ; p2 = p1
                 \<rbrakk> \<Longrightarrow> TPrim p \<leftarrow> TPrim p1 \<sqinter> TPrim p2"
-| glb_trecord: "\<lbrakk> \<And>n t b. (n,t,b) \<in> set ts \<Longrightarrow> \<exists>t1 b1 t2 b2. (n,t1,b1) \<in> set ts1 \<and>
-                                                             (n,t2,b2) \<in> set ts2 \<and>
-                                                             (t \<leftarrow> t1 \<sqinter> t2) \<and>
-                                                             (b = sup b1 b2)
-                ; fst ` set ts1 = fst ` set ts2
-                ; distinct (map fst ts1)
-                ; distinct (map fst ts2)
+| glb_trecord: "\<lbrakk> \<And>n t b t1 t2 b1 b2. \<lbrakk> (n,t,b) \<in> set ts; (n,t1,b1) \<in> set ts1; (n,t2,b2) \<in> set ts2 \<rbrakk> \<Longrightarrow> t \<leftarrow> t1 \<sqinter> t2 \<and> (b = sup b1 b2)
+                ; distinct (map fst ts)
+                ; fst ` set ts = fst ` set ts1
+                ; fst ` set ts2 = fst ` set ts1
+                ; s = s1
+                ; s1 = s2
                 \<rbrakk> \<Longrightarrow> TRecord ts s \<leftarrow> TRecord ts1 s1 \<sqinter> TRecord ts2 s2"
 | glb_tprod  : "\<lbrakk> t \<leftarrow> t1 \<sqinter> t2
                 ; u \<leftarrow> u1 \<sqinter> u2
                 \<rbrakk> \<Longrightarrow> TProduct t u \<leftarrow> TProduct t1 u1 \<sqinter> TProduct t2 u2"
-| glb_tsum   : "\<lbrakk> \<And>n t b. (n,t,b) \<in> set ts \<Longrightarrow> \<exists>t1 b1 t2 b2. (n,t1,b1) \<in> set ts1 \<and>
-                                                             (n,t2,b2) \<in> set ts2 \<and>
-                                                             (t \<leftarrow> t1 \<sqinter> t2) \<and>
-                                                             (b = sup b1 b2)
-                ; fst ` set ts1 = fst ` set ts2
-                ; distinct (map fst ts1)
-                ; distinct (map fst ts2)
+| glb_tsum   : "\<lbrakk> \<And>n t b t1 t2 b1 b2. \<lbrakk> (n,t,b) \<in> set ts; (n,t1,b1) \<in> set ts1; (n,t2,b2) \<in> set ts2 \<rbrakk> \<Longrightarrow> t \<leftarrow> t1 \<sqinter> t2 \<and> (b = sup b1 b2)
+                ; distinct (map fst ts)
+                ; fst ` set ts = fst ` set ts1
+                ; fst ` set ts2 = fst ` set ts1
                 \<rbrakk> \<Longrightarrow> TSum ts \<leftarrow> TSum ts1 \<sqinter> TSum ts2"
-| glb_tunitl : "x \<leftarrow> TUnit \<sqinter> x"
-| glb_tunitr : "x \<leftarrow> x \<sqinter> TUnit"
+| glb_tunit  : "TUnit \<leftarrow> TUnit \<sqinter> TUnit"
 
 definition subtyping :: "type \<Rightarrow> type \<Rightarrow> bool" ("_ \<sqsubseteq> _" [30,0] 60) where
   "(t1 \<sqsubseteq> t2) \<equiv> (t1 \<leftarrow> t1 \<squnion> t2)"
@@ -1049,7 +1036,7 @@ lemma kinding_variant_all_wellformed:
     "(n,t,b) \<in> set ts"
   shows   "K \<turnstile> t wellformed"
   using assms
-  by (case_tac b; force simp add: kinding_variant_set)
+  by (case_tac b; force simp add: kinding_variant_set kinding_defs)
 
 lemma kinding_all_variant':
   assumes "K \<turnstile>* map (fst \<circ> snd) ts :\<kappa> k"
@@ -1389,6 +1376,7 @@ next
       using sup_commute by blast
   qed simp+
 qed (force intro: type_lub_type_glb.intros)+
+
 
 section {* Typing lemmas *}
 

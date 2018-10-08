@@ -230,6 +230,30 @@ lemma list_all3_same:
   "list_all3 P xs xs xs = (\<forall>x\<in>set xs. P x x x)"
   by (induct xs; simp)
 
+lemma list_all3_split_conj:
+  shows "list_all3 (\<lambda> x y z. P x y z \<and> Q x y z) xs ys zs \<longleftrightarrow> list_all3 P xs ys zs \<and> list_all3 Q xs ys zs"
+  apply (rule iffI)
+   apply (induct rule: list_all3_induct, simp+)
+  apply (clarsimp, induct rule: list_all3_induct, simp+)
+  done
+
+lemma list_all3_split_all:
+  shows "list_all3 (\<lambda> x y z. \<forall>a. P x y z a) xs ys zs \<longleftrightarrow> (\<forall>a. list_all3 (\<lambda>x y z. P x y z a) xs ys zs)"
+  apply (rule iffI)
+   apply (induct rule: list_all3_induct, simp+)
+  apply (induct xs arbitrary: ys zs; case_tac ys; case_tac zs; clarsimp)
+  done
+
+lemma list_all3_impD:
+  assumes
+    "list_all3 (\<lambda> x y z. P x y z \<longrightarrow> Q x y z) xs ys zs"
+    "list_all3 P xs ys zs"
+  shows
+    "list_all3 Q xs ys zs"
+  using assms
+  by (induct rule: list_all3_induct, simp+)
+
+
 
 (* n.b. the conditions are essentially functor laws *)
 lemma list_all3_map_over:
