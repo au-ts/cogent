@@ -33,16 +33,25 @@ wordarray_clone_u8 : (SysState, (WordArray U8)!) -> R (SysState, WordArray U8) S
 wordarray_clone_u8 arg = wordarray_clone [U8] arg
 
 
+wordarray_map_u8 : (WordArray U8, U8 -> U8) -> WordArray U8
+wordarray_map_u8 arg = wordarray_map_ [U8] arg
+
+map_body_f : U8 -> U8
+map_body_f x = x + 1
+
+map_body_g : U8 -> U8
+map_body_g x = x * 2
+
 -- type LoopResult a b = <Iterate a|Break b>
 -- type LRR acc brk = (acc, LoopResult () brk)
 -- type WordArrayMapF a acc obsv rbrk = ElemAO a acc obsv -> LRR (a, acc) rbrk
 -- type WordArrayMapP a acc obsv rbrk = #{arr: WordArray a, frm: WordArrayIndex, to: WordArrayIndex, f: WordArrayMapF a acc obsv rbrk, acc: acc, obsv: obsv}
 -- type WordArrayMapRE a acc rbrk = LRR (WordArray a, acc) (rbrk)
-wordarray_map_u8 : WordArrayMapP U8 U8 U8 () -> WordArrayMapRE U8 U8 ()
-wordarray_map_u8 arg = wordarray_map [U8, U8, U8, ()] arg
 
-map_body_f : ElemAO U8 U8 U8 -> LRR (U8, U8) ()
-map_body_f #{elem, acc, obsv} = 
-  let acc' = acc + elem in
-  if acc' < obsv then ((acc', acc'), Iterate ())
-                 else ((elem, acc ), Break ())
+-- wordarray_map_u8 : #{ arr : WordArray U8, f : U8 -> U8 } -> WordArray U8
+-- wordarray_map_u8 #{arr, f} = 
+--   fst o fst $ wordarray_map #{arr, frm = 0, to = wordarray_length arr, f = mapper_u8 f, acc = (), obsv = ()}
+-- 
+-- mapper_u8 : (U8 -> U8) -> WordArrayMapF U8 () () ()
+-- mapper_u8 f = \ #{elem, acc, obsv} => ((), Iterate $ f elem)
+

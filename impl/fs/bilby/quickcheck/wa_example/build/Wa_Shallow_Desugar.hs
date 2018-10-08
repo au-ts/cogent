@@ -250,6 +250,9 @@ wordarray_length = undefined
 wordarray_map' :: R19 (WordArray a) (R21 acc obsv a -> R18 acc a) acc obsv -> R18 (WordArray a) acc
 wordarray_map' = undefined
 
+wordarray_map_ :: R18 (WordArray a) (a -> a) -> WordArray a
+wordarray_map_ = undefined
+
 wordarray_put2 :: R20 (WordArray a) Word32 a -> WordArray a
 wordarray_put2 = undefined
 
@@ -370,6 +373,12 @@ min_u32 __ds_var_0
           b = let R18{p1 = __shallow_v41, p2 = __shallow_v42} = __ds_var_1 in __shallow_v42
         in if (a < b) then a else b
 
+map_body_g :: Word8 -> Word8
+map_body_g __ds_var_0 = let x = __ds_var_0 in (x * (2 :: Word8))
+
+map_body_f :: Word8 -> Word8
+map_body_f __ds_var_0 = let x = __ds_var_0 in (x + (1 :: Word8))
+
 in_range_u32 :: R21 Word32 Word32 Word32 -> Bool
 in_range_u32 __ds_var_0
   = let __ds_var_1 = __ds_var_0
@@ -441,6 +450,9 @@ align32 __ds_var_0
 
 wordarray_length_u8 :: WordArray Word8 -> Word32
 wordarray_length_u8 __ds_var_0 = let arg = __ds_var_0 in wordarray_length arg
+
+wordarray_map_u8 :: R18 (WordArray Word8) (Word8 -> Word8) -> WordArray Word8
+wordarray_map_u8 __ds_var_0 = let arg = __ds_var_0 in wordarray_map_ arg
 
 wordarray_free' :: R0 SysState (WordArray a) -> SysState
 wordarray_free' __ds_var_0
@@ -552,9 +564,6 @@ resultToOption __ds_var_0
       V15_Error __ds_var_1 -> let __ds_var_3 = __ds_var_1 in V14_None ()
       __ds_var_2 -> let a = (\ (V15_Success __shallow_v108) -> __shallow_v108) __ds_var_2 in V14_Some a
 
-wordarray_map_u8 :: R5 (WordArray Word8) Word32 Word32 (R6 Word8 Word8 Word8 -> R18 (R18 Word8 Word8) (V11 () ())) Word8 Word8 -> R18 (R18 (WordArray Word8) Word8) (V11 () ())
-wordarray_map_u8 __ds_var_0 = let arg = __ds_var_0 in wordarray_map arg
-
 copy_n :: R6 a Word32 (WordArray a) -> R18 a Word32
 copy_n __ds_var_0
   = let __ds_var_2 = __ds_var_0
@@ -567,8 +576,8 @@ copy_n __ds_var_0
             afrm = let R6{elem = __shallow_v115, acc = __shallow_v116, obsv = __shallow_v117} = __ds_var_3 in __shallow_v117
           in R18{p1 = wordarray_get R18{p1 = afrm, p2 = idx}, p2 = (idx + (1 :: Word32))}
 
-map_body_f :: R6 Word8 Word8 Word8 -> R18 (R18 Word8 Word8) (V11 () ())
-map_body_f __ds_var_0
+modify_body_f :: R6 Word8 Word8 Bool -> R4 Word8 Word8
+modify_body_f __ds_var_0
   = let __ds_var_2 = __ds_var_0
         elem = let R6{elem = __shallow_v118, acc = __shallow_v119, obsv = __shallow_v120} = __ds_var_0 in __shallow_v118
       in
@@ -577,18 +586,6 @@ map_body_f __ds_var_0
         in
         let __ds_var_1 = __ds_var_3
             obsv = let R6{elem = __shallow_v124, acc = __shallow_v125, obsv = __shallow_v126} = __ds_var_3 in __shallow_v126
-          in let acc' = (acc + elem) in if (acc' < obsv) then R18{p1 = R18{p1 = acc', p2 = acc'}, p2 = V11_Iterate ()} else R18{p1 = R18{p1 = elem, p2 = acc}, p2 = V11_Break ()}
-
-modify_body_f :: R6 Word8 Word8 Bool -> R4 Word8 Word8
-modify_body_f __ds_var_0
-  = let __ds_var_2 = __ds_var_0
-        elem = let R6{elem = __shallow_v127, acc = __shallow_v128, obsv = __shallow_v129} = __ds_var_0 in __shallow_v127
-      in
-      let __ds_var_3 = __ds_var_2
-          acc = let R6{elem = __shallow_v130, acc = __shallow_v131, obsv = __shallow_v132} = __ds_var_2 in __shallow_v131
-        in
-        let __ds_var_1 = __ds_var_3
-            obsv = let R6{elem = __shallow_v133, acc = __shallow_v134, obsv = __shallow_v135} = __ds_var_3 in __shallow_v135
           in if obsv then R4{elem = (elem + acc), acc = (elem + acc)} else R4{elem = elem, acc = acc}
 
 wordarray_modify_u8 :: R3 (WordArray Word8) Word32 (R6 Word8 Word8 Bool -> R4 Word8 Word8) Word8 Bool -> R1 (WordArray Word8) Word8

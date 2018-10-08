@@ -328,6 +328,15 @@ $ty:((WordArray b, acc)) $id:wordarray_map' ($ty:((WordArray a, (acc, obsv, a) -
   return ret;
 }
 
+$ty:(WordArray a) $id:wordarray_map_ ($ty:((WordArray a, a -> a)) args)
+{
+  u32 i;
+  for (i = 0; i < args.p1->len; i++) {
+    args.p1->values[i] = (($spec:(a -> a)) args.p2) (args.p1->values[i]);
+  }
+  return args.p1;
+}
+
 $ty:((WordArray a)!) $id:wordarray_take ($ty:(((WordArray a)!, WordArrayIndex)) args)
 {
   $ty:(WordArray a) arr;
