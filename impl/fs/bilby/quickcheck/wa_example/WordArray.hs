@@ -55,12 +55,9 @@ import Corres
 import Wa_FFI_Types
 import Wa_FFI_Types_Abs
 import Wa_FFI
--- import qualified FFI as FFI
--- import Wa_Shallow_Desugar 
--- import WordArray
 import Util
 
-import Debug.Trace
+-- import Debug.Trace
 
 {- |
 To run the REPL: 
