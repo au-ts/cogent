@@ -9,5 +9,10 @@ extra-deps:
 - disassembler-0.2.0.1
 - flippers-1.0.1
 - hscurses-1.4.2.0
-resolver: lts-11.9
+- pointless-haskell-0.0.9
+- sbv-7.8
+- GHood-0.0.7
+- crackNum-2.2
+- FloatingHex-0.4
+resolver: lts-12.12
 allow-newer: true
