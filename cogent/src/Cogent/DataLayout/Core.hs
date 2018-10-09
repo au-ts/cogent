@@ -19,6 +19,7 @@ import Cogent.Common.Types (PrimInt (..))
 --   The Cogent core language type for layouts is 'DataLayout BitRange'.
 --   Will transform to 'DataLayout [AlignedBitRange]' immediately before code generation.
 --
+--
 --   NOTE: We may wish to retain more 'SourcePos' information to enable better error messages
 --   when matching 'DataLayout BitRange's with monomorphised cogent core types / mdimeglio
 data DataLayout bits
@@ -74,6 +75,24 @@ data BitRange
 --   All heap allocated structures are a multiple of a word in size (malloc guarantees this?)
 --   and will be word aligned. Hence accesses to an aligned bitrange of a heap-allocated
 --   datastructure will be word aligned.
+--
+--   Suppose a 2 Word data type is represented using the following array of 'AlignedBitRange's:
+--
+--   @
+--   [ AlignedBitRange { bitSizeABR = 19, ... }  -- Range 0
+--   , AlignedBitRange { bitSizeABR = 21, ... }  -- Range 1
+--   , AlignedBitRange { bitSizeABR = 24, ... }  -- Range 2
+--   ]
+--   @
+--
+--   Then the bits for the 2 word data structure would be obtained as follows
+--   @
+--   HI                                                             LO
+--   64                      40                   19                 0 
+--   +-------+-------+-------+-------+-------+----+--+-------+-------+
+--   |HI      Range 2      LO|HI    Range 1     LO|HI    Range 0   LO|
+--   +-------+-------+-------+-------+-------+----+--+-------+-------+
+--   @
 data AlignedBitRange
   = AlignedBitRange { bitSizeABR :: Size, bitOffsetABR :: Size, wordOffsetABR :: Size }
   deriving (Eq, Show, Ord)
