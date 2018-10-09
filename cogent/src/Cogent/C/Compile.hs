@@ -126,6 +126,13 @@ data GenState  = GenState { _cTypeDefs    :: [(StrlType, CId)]
                             -- ^ A map containing functions that need to generate C FFI functions. 
                             --   The map is from the original function names (before prefixing with @\"ffi_\"@ to a pair of @(marshallable_arg_type, marshallable_ret_type)@.
                             --   This map is needed when we generate the Haskell side of the FFI.
+                          
+                          , _boxedRecordSetters :: M.Map (CC.Type 'Zero, FieldName) CExpr
+                          , _boxedRecordGetters :: M.Map (CC.Type 'Zero, FieldName) CExpr
+                            -- ^ The expressions to call the generated setter and getter functions for the fields of boxed cogent records.
+
+                          , _boxedSettersAndGetters :: [CExtDecl]
+                            -- ^ A list of the implementations of all generated setter and getter functions
                           }
 
 makeLenses ''GenState
@@ -1199,6 +1206,9 @@ compile defs ctygen =
                         , _globalOracle = 0
                         , _varPool      = M.empty
                         , _ffiFuncs     = M.empty
+                        , _boxedRecordSetters = M.empty
+                        , _boxedRecordGetters = M.empty
+                        , _boxedSettersAndGetters = []
                         })
       (enum, st', _) = runRWS (runGen $ (mappend <$> genLetTrueEnum <*> genEnum)) Nil st  -- `LET_TRUE', `LETBANG_TRUE' & `_tag' enums
       ((funclasses,tns), st'', _) = runRWS (runGen genFunClasses) Nil st'  -- fun_enums & dispatch functions
