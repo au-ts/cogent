@@ -3,6 +3,7 @@ import Cogent.DataLayout.CodeGen
 import Cogent.DataLayout.Core
 import Cogent.C.Render
 import Cogent.C.Compile
+import Cogent.C.Syntax
 import Control.Monad
 import Text.PrettyPrint.Mainland.Class as M (pprint)
 
@@ -41,18 +42,33 @@ alignedBitRangeExamples =
     }
   ]
 
+rangesToComposedRangeInput :: String -> [AlignedBitRange] -> [(AlignedBitRange, CExpr)]
+rangesToComposedRangeInput functionPrefix ranges =
+  zip ranges (fmap (\x -> CVar (functionPrefix ++ "Range" ++ show x) Nothing) [1 ..])
+
 
 compileSanityCheck :: IO ()
 compileSanityCheck = do
-  putStrLn "Printing examples of generated getters and setters for visual inspection."
+  putStrLn "Printing examples of generated C code for visual inspection."
   forM_ alignedBitRangeExamples $ \alignedBitRange -> do
     putStrLn "Cogent aligned range:"
     putStrLn $ show alignedBitRange
     putStrLn "Pretty C getter:"
-    pprint $ cExtDecl $ genAlignedRangeGetter alignedBitRange "getFoo"
+    pprint $ cExtDecl $ alignedRangeGetter (CStruct "boxType") alignedBitRange "getFoo"
     putStrLn "Pretty C setter:"
-    pprint $ cExtDecl $ genAlignedRangeSetter alignedBitRange "setFoo"
+    pprint $ cExtDecl $ alignedRangeSetter (CStruct "boxType") alignedBitRange "setFoo"
     putStrLn ""
+  putStrLn "List of cogent aligned ranges:"
+  putStrLn $ show alignedBitRangeExamples
+  putStrLn "Pretty C getter:"
+  pprint $ cExtDecl $ composedAlignedRangeGetter (rangesToComposedRangeInput "get" alignedBitRangeExamples) (CStruct "boxType") (CIdent "embeddedType") "getFoo"
+  putStrLn "Pretty C setter:"
+  pprint $ cExtDecl $ composedAlignedRangeSetter (rangesToComposedRangeInput "set" alignedBitRangeExamples) (CStruct "boxType") (CIdent "embeddedType") "setFoo"
+  putStrLn ""
+
+
+
+    
 
 
 
