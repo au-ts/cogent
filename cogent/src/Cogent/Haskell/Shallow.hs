@@ -193,8 +193,7 @@ shallow tuples name stg defs consts log =
                                (StateGen 0 M.empty)
       tds = datatypes w
       header = (("{-\n" ++ log ++ "\n-}\n") ++)
-      hsName = name ++ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage stg ++ (if tuples then __cogent_suffix_of_recover_tuples else [])
-      moduleHead = ModuleHead () (ModuleName () hsName) Nothing Nothing
+      moduleHead = ModuleHead () (ModuleName () name) Nothing Nothing
       exts = P.map (\s -> LanguagePragma () [Ident () s])
                    [ "DisambiguateRecordFields"
                    , "DuplicateRecordFields"
