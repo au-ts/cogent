@@ -8,7 +8,7 @@
 # @TAG(NICTA_GPL)
 #
 
-MODULE=cgbilbyfs
+MODULE=wa_example
 
 ROOT_DIR=../../../../../
 

@@ -108,20 +108,18 @@ library fsm-example
 library readpage-example
   exposed-modules:     Fsop
                      , Readpage
-                     , Readpage_FFI
-                     , Readpage_FFI_Types
-                     , Readpage_FFI_Types_Abs
-  other-modules:       
+  other-modules:       Bilbyfs_Shallow_Desugar
   build-depends:       base >=4.9 && <4.12
                      , array
+                     , containers
                      , transformers
                      , QuickCheck
                      , cogent-quickcheck-utils
                      , wa-example
-  hs-source-dirs:      readpage_example, readpage_example/build
+  hs-source-dirs:      readpage_example
   default-language:    Haskell2010
   -- build-tools:         hsc2hs
-  include-dirs:        . readpage_example readpage_example/build $(COGENT_STD_GUM_DIR)
+  include-dirs:        . readpage_example
 
 
 executable cogent-quickcheck
