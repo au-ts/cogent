@@ -142,7 +142,7 @@ context value_sem begin
 
 inductive vval_typing  :: "('f \<Rightarrow> poly_type) \<Rightarrow> ('f, 'a) vval \<Rightarrow> type \<Rightarrow> bool"
           ("_ \<turnstile> _ :v _" [30,0,20] 80)
-and vval_typing_record :: "('f \<Rightarrow> poly_type) \<Rightarrow> ('f, 'a) vval list \<Rightarrow> (type \<times> bool) list \<Rightarrow> bool"
+and vval_typing_record :: "('f \<Rightarrow> poly_type) \<Rightarrow> ('f, 'a) vval list \<Rightarrow> (name \<times> type \<times> bool) list \<Rightarrow> bool"
           ("_ \<turnstile>* _ :vr _" [30,0,20] 80) where
 
   v_t_prim     : "\<Xi> \<turnstile> VPrim l :v TPrim (lit_type l)"
@@ -158,6 +158,7 @@ and vval_typing_record :: "('f \<Rightarrow> poly_type) \<Rightarrow> ('f, 'a) v
                   \<rbrakk> \<Longrightarrow> \<Xi> \<turnstile> VSum g a :v TSum ts"
 
 | v_t_record   : "\<lbrakk> \<Xi> \<turnstile>* fs :vr ts
+                  ; distinct (map fst ts)
                   \<rbrakk> \<Longrightarrow> \<Xi> \<turnstile> VRecord fs :v TRecord ts s"
 
 | v_t_abstract : "\<lbrakk> abs_typing a n ts
@@ -180,11 +181,11 @@ and vval_typing_record :: "('f \<Rightarrow> poly_type) \<Rightarrow> ('f, 'a) v
 
 | v_t_r_cons1  : "\<lbrakk> \<Xi> \<turnstile> x :v t
                   ; \<Xi> \<turnstile>* xs :vr ts
-                  \<rbrakk> \<Longrightarrow> \<Xi> \<turnstile>* (x # xs) :vr ((t, False) # ts)"
+                  \<rbrakk> \<Longrightarrow> \<Xi> \<turnstile>* (x # xs) :vr ((n, t, False) # ts)"
 
 | v_t_r_cons2  : "\<lbrakk> \<Xi> \<turnstile>* xs :vr ts
                   ; [] \<turnstile> t wellformed
-                  \<rbrakk> \<Longrightarrow> \<Xi> \<turnstile>* (x # xs) :vr ((t, True) # ts)"
+                  \<rbrakk> \<Longrightarrow> \<Xi> \<turnstile>* (x # xs) :vr ((n, t, True) # ts)"
 
 
 lemma v_t_prim' [intro]:
@@ -226,17 +227,17 @@ section {* vval_typing lemmas *}
 
 lemma vval_typing_to_kinding:
 shows "\<Xi> \<turnstile> v :v \<tau>     \<Longrightarrow> [] \<turnstile> \<tau> wellformed"
-and   "\<Xi> \<turnstile>* vs :vr fs \<Longrightarrow> [] \<turnstile>* map fst fs wellformed"
+and   "\<Xi> \<turnstile>* vs :vr fs \<Longrightarrow> [] \<turnstile>* map (fst \<circ> snd) fs wellformed"
 proof (induct rule: vval_typing_vval_typing_record.inducts)
      case v_t_function then show ?case by (force dest!: typing_to_kinding
                                                  intro: kinding_kinding_all_kinding_record.intros
                                                         substitutivity)
-next case v_t_afun     then show ?case by (force dest: substitutivity)
-qed (auto intro: kinding_kinding_all_kinding_record.intros supersumption kinding_all_record')
+   next case v_t_afun     then show ?case by (force dest: substitutivity)
+qed (auto intro: kinding_kinding_all_kinding_record.intros supersumption dest: kinding_all_record'[simplified o_def])
 
 lemma vval_typing_bang:
 shows  "\<Xi> \<turnstile> x :v \<tau> \<Longrightarrow> \<Xi> \<turnstile> x :v bang \<tau>"
-and    "\<Xi> \<turnstile>* fs :vr \<tau>s \<Longrightarrow> \<Xi> \<turnstile>* fs :vr map (\<lambda> (x, y). (bang x, y)) \<tau>s"
+and    "\<Xi> \<turnstile>* fs :vr \<tau>s \<Longrightarrow> \<Xi> \<turnstile>* fs :vr map (\<lambda>(n, x, y). (n, bang x, y)) \<tau>s"
 proof (induct rule: vval_typing_vval_typing_record.inducts)
      case v_t_sum      then show ?case by (force intro: vval_typing_vval_typing_record.intros
                                                         bang_kind(2) [ where ts="map (fst \<circ> snd) ts"
@@ -258,7 +259,7 @@ qed (auto)
 
 lemma vval_typing_record_nth:
 assumes "\<Xi> \<turnstile>* fs :vr \<tau>s"
-and     "\<tau>s ! f = (\<tau>, False)"
+and     "\<tau>s ! f = (n, \<tau>, False)"
 and     "f < length \<tau>s"
 shows   "\<Xi> \<turnstile> fs ! f :v \<tau>"
 using assms proof (induct fs arbitrary: f \<tau>s)
@@ -268,36 +269,38 @@ qed
 
 
 lemma vval_typing_all_record:
-assumes "\<Xi> \<turnstile>* vs :v ts"
-shows "\<Xi> \<turnstile>* vs :vr zip ts (replicate (length ts) False)"
-using assms[simplified vval_typing_all_def] proof (induct rule: list_all2_induct)
-qed (auto intro: vval_typing_vval_typing_record.intros)
+  assumes "\<Xi> \<turnstile>* vs :v ts"
+  and "length ns = length ts"
+shows "\<Xi> \<turnstile>* vs :vr zip ns (zip ts (replicate (length ts) False))"
+  using assms[simplified vval_typing_all_def]
+  by (induct arbitrary: ns rule: list_all2_induct)
+    (auto simp add: length_Suc_conv intro!: vval_typing_vval_typing_record.intros)
 
 lemma vval_typing_record_take:
 assumes "\<Xi> \<turnstile>* ts :vr \<tau>s"
-and     "\<tau>s ! f = (t, False)"
+and     "\<tau>s ! f = (n, t, False)"
 and     "[] \<turnstile> t :\<kappa> k"
 and     "S \<in> k \<or> taken"
-shows   "\<Xi> \<turnstile>* ts :vr \<tau>s[ f := (t, taken) ]"
+shows   "\<Xi> \<turnstile>* ts :vr \<tau>s[ f := (n, t, taken) ]"
 using assms proof (induct ts arbitrary: \<tau>s f)
      case Nil  then show ?case by ( force intro: vval_typing_vval_typing_record.intros)
-next case Cons then show ?case by ( cases taken
+next case Cons then show ?case by (cases taken
                                   , (force split: nat.split
-                                           intro: vval_typing_vval_typing_record.intros)+ )
+                                           intro!: vval_typing_vval_typing_record.intros)+ )
 qed
 
 lemma vval_typing_record_put:
 assumes "\<Xi> \<turnstile>* ts :vr \<tau>s"
-and     "\<tau>s ! f = (t, taken)"
+and     "\<tau>s ! f = (n, t, taken)"
 and     "[] \<turnstile> t :\<kappa> k"
 and     "D \<in> k \<or> taken"
 and     "\<Xi> \<turnstile> v :v t"
-shows   "\<Xi> \<turnstile>* ts[ f := v ] :vr \<tau>s[ f := (t, False) ]"
+shows   "\<Xi> \<turnstile>* ts[ f := v ] :vr \<tau>s[ f := (n, t, False) ]"
 using assms proof (induct ts arbitrary: \<tau>s f)
      case Nil  then show ?case by ( force intro: vval_typing_vval_typing_record.intros)
 next case Cons then show ?case by ( cases taken
-                                  , (fastforce split: nat.split
-                                               intro: vval_typing_vval_typing_record.intros)+ )
+                                  , (force split: nat.split
+                                           intro!: vval_typing_vval_typing_record.intros)+ )
 qed
 
 subsection {* Sums and subtyping *}
@@ -749,8 +752,13 @@ next case v_sem_struct  then show ?case by ( case_tac e, simp_all
                                            , fastforce intro: vval_typing_vval_typing_record.intros
                                                               vval_typing_all_record [ where ts = "map f ts" for f ts
                                                                                      , simplified])
-next case v_sem_take    then show ?case apply (case_tac e, simp_all, clarsimp elim!: typing_takeE)
-                                        apply (drule(2) matches_split2)
+next
+  case (v_sem_take \<xi> \<gamma> x fs f e e')
+  then show ?case
+    sorry
+(*
+      next case v_sem_take    then show ?case apply (case_tac e, simp_all, clarsimp elim!: typing_takeE)
+            apply (drule(2) matches_split2)
                                         apply (fastforce intro!: matches_cons
                                                                  vval_typing_vval_typing_record.intros
                                                                  vval_typing_record_take
@@ -758,12 +766,56 @@ next case v_sem_take    then show ?case apply (case_tac e, simp_all, clarsimp el
                                                          simp:   map_update
                                                          intro:  substitutivity)
                                         done (* TODO automate properly *)
-next case v_sem_put     then show ?case by ( case_tac e, simp_all
-                                           , fastforce simp:  map_update
-                                                       intro: vval_typing_vval_typing_record.intros
-                                                              vval_typing_record_put
-                                                              substitutivity
-                                                              matches_split)
+*)
+next
+  case (v_sem_put \<xi> \<gamma> x_spec fs ea_spec ea' f)
+  
+  then show ?case
+  proof (case_tac e; clarsimp)
+    fix x ea
+    assume assms1:
+      "e = Put x f ea"
+      "x_spec = specialise \<tau>s x"
+      "ea_spec = specialise \<tau>s ea"
+    then obtain \<Gamma>1 \<Gamma>2 ts s n t taken k
+      where typingelims:
+        "\<tau> = TRecord (ts[f := (n, t, False)]) s"
+        "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+        "\<Xi>, K, \<Gamma>1 \<turnstile> x : TRecord ts s"
+        "sigil_perm s \<noteq> Some ReadOnly"
+        "f < length ts"
+        "ts ! f = (n, t, taken)"
+        "K \<turnstile> t :\<kappa> k"
+        "D \<in> k \<or> taken"
+        "\<Xi>, K, \<Gamma>2 \<turnstile> ea : t"
+      using v_sem_put by blast
+    
+    have IHresults:
+      "\<Xi> \<turnstile> VRecord fs :v instantiate \<tau>s (TRecord ts s)"
+      "\<Xi> \<turnstile> ea' :v instantiate \<tau>s t"
+      using v_sem_put.prems assms1 typingelims matches_split
+      by (fast intro: v_sem_put.hyps(2,4))+
+    then obtain ts' s'
+      where instvrecordelims:
+        "instantiate \<tau>s (TRecord ts s) = TRecord ts' s'"
+        "\<Xi> \<turnstile>* fs :vr ts'"
+        "distinct (map fst ts')"
+      by blast
+
+    show "\<Xi> \<turnstile> VRecord (fs[f := ea']) :v instantiate \<tau>s \<tau>"
+      using v_sem_put assms1 typingelims IHresults instvrecordelims
+    proof (simp add: map_update, intro vval_typing_vval_typing_record.intros vval_typing_record_put)
+      show "[] \<turnstile> instantiate \<tau>s t :\<kappa> k"
+        using v_sem_put.prems typingelims
+        by (blast intro: substitutivity)
+    next
+      show "ts' ! f = (n, instantiate \<tau>s t, taken)"
+        using instvrecordelims typingelims by fastforce
+      then show "distinct (map fst (ts'[f := (n, instantiate \<tau>s t, False)]))"
+        using instvrecordelims typingelims
+        by (fastforce simp add: map_fst_update)
+    qed simp+
+  qed
 next case v_sem_split   then show ?case by ( case_tac e, simp_all
                                            , fastforce intro!: matches_cons
                                                        intro:  matches_split)
@@ -908,28 +960,43 @@ next case v_sem_con then show ?case by (fastforce intro!: v_sem_v_sem_all.v_sem_
 next case v_sem_unit then show ?case by (simp add: v_sem_v_sem_all.v_sem_unit)
 next case v_sem_tuple then show ?case by (clarsimp elim!: typing_tupleE simp: matches_split' v_sem_v_sem_all.v_sem_tuple)
 next case v_sem_esac then show ?case by (fastforce intro!: v_sem_v_sem_all.v_sem_esac)
-next case v_sem_take
-note IH1 = this(2)
-and  IH2 = this(4)
-and rest = this(1,3,5-)
-from rest show ?case
-  apply (clarsimp elim!: typing_takeE)
-  apply (frule(1) matches_split'(1))
-  apply (frule(1) matches_split'(2))
-  apply (rule v_sem_v_sem_all.v_sem_take)
-   apply (frule(5) IH1[simplified])
-  apply (frule(4) preservation [where \<tau>s = "[]" and K = "[]", simplified, rotated -3])
-  apply (erule v_t_recordE, simp)
-  apply (frule(2) IH2[simplified])
-    apply (rule matches_cons')
-     apply (rule matches_cons')
-      apply (simp)
-     apply (frule(3) vval_typing_record_take)
-     apply (rule)
-     apply (simp)
-    apply (frule(4) vval_typing_record_nth)
-  apply (simp add: vval_typing_record_length)
-done
+next case (v_sem_take \<xi> \<gamma> x fs f e e')
+  obtain \<Gamma>1 \<Gamma>2 ts s n t k taken
+    where takeelims:
+      "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+      "\<Xi>, [], \<Gamma>1 \<turnstile> x : TRecord ts s"
+      "sigil_perm s \<noteq> Some ReadOnly"
+      "f < length ts"
+      "ts ! f = (n, t, False)"
+      "[] \<turnstile> t :\<kappa> k"
+      "S \<in> k \<or> taken"
+      "\<Xi>, [], Some t # Some (TRecord (ts[f := (n, t, taken)]) s) # \<Gamma>2 \<turnstile> e : \<tau>"
+    using v_sem_take.prems typing_takeE
+    by blast
+
+  have submatches:
+    "\<Xi> \<turnstile> \<gamma> matches \<Gamma>1"
+    "\<Xi> \<turnstile> \<gamma> matches \<Gamma>2"
+    using matches_split' takeelims v_sem_take.prems
+    by blast+
+
+  have ts_v_sem_lemmas:
+    "\<Xi> \<turnstile>* fs :vr ts"
+    "distinct (map fst ts)"
+    using preservation[where \<tau>s="[]" and K="[]", simplified] submatches takeelims v_sem_take
+    by blast+
+
+  have "\<Xi> \<turnstile> VRecord fs :v TRecord (ts[f := (n, t, taken)]) s"
+    using takeelims ts_v_sem_lemmas
+    by (fastforce intro: vval_typing_vval_typing_record.intros vval_typing_record_take simp add: map_fst_update)
+  moreover have "\<Xi> \<turnstile> fs ! f :v t"
+    using takeelims ts_v_sem_lemmas vval_typing_record_nth by blast
+  ultimately have "\<xi>' , map monoval fs ! f # VRecord (map monoval fs) # map monoval \<gamma> \<turnstile> monoexpr e \<Down> monoval e'"
+    using v_sem_take.prems takeelims submatches ts_v_sem_lemmas vval_typing_record_take
+    by (force dest!: v_sem_take.hyps(4) intro!: matches_cons' simp add: vval_typing_record_length)
+  then show ?case
+    using v_sem_take takeelims submatches
+    by (auto intro!: v_sem_v_sem_all.intros)
 next case v_sem_all_empty then show ?case by (simp add: v_sem_v_sem_all.v_sem_all_empty)
 next case v_sem_all_cons then show ?case by (auto elim!: typing_all_consE dest: matches_split' intro!: v_sem_v_sem_all.intros)
 next case v_sem_split

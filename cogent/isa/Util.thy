@@ -229,6 +229,19 @@ lemma distinct_fst:
   using assms image_iff
   by (induct xs, fastforce+)
 
+lemma distinct_fst_nth:
+  assumes "distinct (map fst xs)"
+    and "i < length xs"
+    and "xs ! i = (a, b)"
+    and "j < length xs"
+    and "xs ! j = (a, b')"
+  shows
+    "i = j"
+    "b = b'"
+  using assms
+  by (induct xs arbitrary: i j)
+      (fastforce dest: nth_mem simp add: image_iff less_Suc_eq_0_disj nth_Cons)+
+
 lemma set_subset_map:
   assumes "set a \<subseteq> set b"
   shows   "set (map f a) \<subseteq> set (map f b)"

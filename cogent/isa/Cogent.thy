@@ -724,7 +724,6 @@ proof (induct ts arbitrary: ns)
     by (fastforce simp add: length_Cons intro: kinding_kinding_all_kinding_record.intros)
 qed (force intro: kinding_kinding_all_kinding_record.intros)
 
-(*
 lemma kinding_all_record':
   assumes "K \<turnstile>* map (fst \<circ> snd) ts :\<kappa> k"
   shows   "K \<turnstile>* ts :\<kappa>r k"
@@ -738,7 +737,6 @@ proof (induct ts)
      apply (auto intro: kinding_kinding_all_kinding_record.intros)
     done
 qed (force intro: kinding_kinding_all_kinding_record.intros)
-*)
 
 lemma kinding_record_update:
   assumes "K \<turnstile>* ts :\<kappa>r k"
@@ -753,7 +751,7 @@ proof (induct ts arbitrary: n)
         intro!: kinding_kinding_all_kinding_record.intros
         intro: supersumption)
 qed (force intro: kinding_kinding_all_kinding_record.intros)
-
+    
 
 lemma sigil_kind_writable:
   assumes "sigil_perm s = Some Writable"
