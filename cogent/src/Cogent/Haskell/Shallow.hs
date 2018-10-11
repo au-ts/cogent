@@ -212,6 +212,8 @@ shallow tuples name stg defs consts log =
                        P.map importAbs ["Char", "String", "Int"] ++
                        [IThingAll () $ Ident () "Bool"]
       imps = [ ImportDecl () (ModuleName () "Data.Bits") False False False Nothing Nothing (Just $ ImportSpecList () False import_bits)
+             , ImportDecl () (ModuleName () "Data.Tuple.Select") True False False Nothing (Just $ ModuleName () "Tup") Nothing
+             , ImportDecl () (ModuleName () "Data.Tuple.Update") True False False Nothing (Just $ ModuleName () "Tup") Nothing
              , ImportDecl () (ModuleName () "Data.Word") False False False Nothing Nothing (Just $ ImportSpecList () False import_word)
              , ImportDecl () (ModuleName () "Prelude"  ) False False False Nothing Nothing (Just $ ImportSpecList () False import_prelude)
              ]
@@ -287,7 +289,7 @@ shallowTypesFromTable = do
 
 
 -- ----------------------------------------------------------------------------
--- * Naming convensions
+-- * Naming conventions
 --
 
 -- | a list of Haskell keywords
@@ -500,8 +502,13 @@ shallowExpr (TE _ (CC.Tuple e1 e2)) = HS.Tuple () Boxed <$> mapM shallowExpr [e1
 
 shallowExpr (TE t (CC.Struct fs)) = do
   (tn,_) <- nominalType t
-  RecConstr () (UnQual () $ mkName tn) <$>
-    mapM (\(f,e) -> FieldUpdate () (UnQual () . mkName $ snm f) <$> shallowExpr e) fs
+  tuple <- view recoverTuples
+  let fnms = map fst fs
+  if tuple && isRecTuple fnms then
+    HS.Tuple () Boxed <$> mapM shallowExpr (map snd fs)
+  else
+    RecConstr () (UnQual () $ mkName tn) <$>
+      mapM (\(f,e) -> FieldUpdate () (UnQual () . mkName $ snm f) <$> shallowExpr e) fs
 
 shallowExpr (TE _ (CC.If c th el)) = do
   c'  <- shallowExpr c
@@ -536,7 +543,9 @@ shallowExpr (TE _ (CC.Split (n1,n2) e1 e2)) = do
       p2 = mkVarP . mkName $ snm n2'
   shallowLet s2 [(n1,n1'),(n2,n2')] (PTuple () Boxed [p1,p2]) e1 e2
 
-shallowExpr (TE _ (CC.Member rec fld)) = shallowGetter' rec fld =<< shallowExpr rec
+shallowExpr (TE _ (CC.Member rec fld)) = do
+  let (CC.TRecord fs _) = exprType rec
+  shallowGetter' rec (map fst fs) fld =<< shallowExpr rec
 
 shallowExpr (TE _ (CC.Take (n1,n2) rec fld e)) = do
   rec' <- shallowExpr rec
@@ -544,12 +553,17 @@ shallowExpr (TE _ (CC.Take (n1,n2) rec fld e)) = do
   n2' <- getSafeBinder n2
   let pf = mkVarP . mkName $ snm n1'  -- taken field
       pr = mkVarP . mkName $ snm n2'  -- new record
-  f' <- shallowGetter' rec fld rec'
+      rect@(CC.TRecord fs _) = exprType rec
+  f' <- shallowGetter' rec (map fst fs) fld rec'
   e' <- local (addBindings [(n1,n1'),(n2,n2')]) $ shallowExpr e
   pure $ mkLetE [(pr,rec'), (pf,f')] e'
 
-shallowExpr (TE _ (CC.Put rec fld e))
-  = shallowSetter rec fld <$> shallowExpr rec <*> shallowType (exprType rec) <*> shallowExpr e
+shallowExpr (TE _ (CC.Put rec fld e)) = do
+  rec' <- shallowExpr rec
+  let rect@(CC.TRecord fs _) = exprType rec
+  rect' <- shallowType rect
+  e' <- shallowExpr e
+  shallowSetter rec (map fst fs) fld rec' rect' e'
 
 shallowExpr (TE _ (CC.Promote _ e)) = shallowExpr e
 -- \ ^^^ NOTE: We guarantee that `Promote' doesn't change the underlying presentation, thus
@@ -624,8 +638,11 @@ getRecordFieldName _ _ = __impossible "input should be of record type"
 --   [@rec\'@]: the Haskell embedding of @rec@
 --
 --   For example: @rec { f = x } = ...@ becomes @f rec@
-shallowGetter :: TypedExpr t v VarName -> FieldIndex -> Exp () -> Exp ()
-shallowGetter rec idx rec' = mkAppE (mkVarE . mkName . snm $ getRecordFieldName rec idx) [rec']
+shallowGetter :: TypedExpr t v VarName -> [FieldName] -> FieldIndex -> Exp () -> SG (Exp ())
+shallowGetter rec fnms idx rec' = do
+  tuples <- view recoverTuples
+  return $ if | tuples, isRecTuple fnms -> mkAppE (mkQVarE "Tup" . mkName $ "sel" ++ show (idx+1)) [rec']
+              | otherwise -> mkAppE (mkVarE . mkName . snm $ getRecordFieldName rec idx) [rec']
 
 -- | Another way to extract a field from a record. E.g.:
 --
@@ -635,14 +652,18 @@ shallowGetter rec idx rec' = mkAppE (mkVarE . mkName . snm $ getRecordFieldName 
 --   let R {f, g, h, ...} = rec  -- field puns are used
 --    in f
 -- @
-shallowGetter' :: TypedExpr t v VarName -> FieldIndex -> Exp () -> SG (Exp ())  -- use puns
-shallowGetter' rec idx rec' = do
-  let t@(CC.TRecord fs _) = exprType rec
-  vs <- mapM (\_ -> freshInt <<+= 1) fs
-  (tn,_) <- nominalType t
-  let bs = P.map (\v -> mkName $ internalVar ++ show v) vs
-      p' = PRec () (UnQual () $ mkName tn) (P.zipWith (\(f,_) b -> PFieldPat () (UnQual () . mkName $ snm f) (mkVarP b)) fs bs)
-  pure $ mkLetE [(p',rec')] $ mkVarE (bs !! idx)
+shallowGetter' :: TypedExpr t v VarName -> [FieldName] -> FieldIndex -> Exp () -> SG (Exp ())  -- use puns
+shallowGetter' rec fnms idx rec' = do
+  tuples <- view recoverTuples
+  if | tuples, isRecTuple fnms -> shallowGetter rec fnms idx rec'
+     | otherwise -> do
+         let t@(CC.TRecord fs _) = exprType rec
+         vs <- mapM (\_ -> freshInt <<+= 1) fs
+         (tn,_) <- nominalType t
+         let bs = P.map (\v -> mkName $ internalVar ++ show v) vs
+             p' = PRec () (UnQual () $ mkName tn)
+                       (P.zipWith (\(f,_) b -> PFieldPat () (UnQual () . mkName $ snm f) (mkVarP b)) fs bs)
+         pure $ mkLetE [(p',rec')] $ mkVarE (bs !! idx)
 
 -- | @'shallowSetter' rec idx rec\' rect\' e\'@:
 --
@@ -658,10 +679,12 @@ shallowGetter' rec idx rec' = do
 --
 --    __NOTE:__ the type signature is required due to
 --   [GHC T11343](https://ghc.haskell.org/trac/ghc/ticket/11343)
-shallowSetter :: TypedExpr t v VarName -> FieldIndex -> Exp () -> HS.Type () -> Exp () -> Exp ()
-shallowSetter rec idx rec' rect' e'
-  = RecUpdate () (Paren () $ ExpTypeSig () rec' rect')
-      [FieldUpdate () (UnQual () . mkName . snm $ getRecordFieldName rec idx) e']
+shallowSetter :: TypedExpr t v VarName -> [FieldName] -> FieldIndex -> Exp () -> HS.Type () -> Exp () -> SG (Exp ())
+shallowSetter rec fnms idx rec' rect' e' = do
+  tuples <- view recoverTuples
+  return $ if | tuples, isRecTuple fnms -> mkAppE (mkQVarE "Tup" . mkName $ "upd" ++ show (idx+1)) [e', rec']
+              | otherwise -> RecUpdate () (Paren () $ ExpTypeSig () rec' rect')
+                               [FieldUpdate () (UnQual () . mkName . snm $ getRecordFieldName rec idx) e']
 
 
 -- | prefix for internally introduced variables
@@ -697,6 +720,9 @@ mkTupleT ts = TyTuple () Boxed ts
 
 mkVarE :: Name () -> Exp ()
 mkVarE = var
+
+mkQVarE :: String -> Name () -> Exp ()
+mkQVarE mod v = Var () (Qual () (ModuleName () mod) v)
 
 mkConE :: Name () -> Exp ()
 mkConE = HS.Con () . UnQual ()
