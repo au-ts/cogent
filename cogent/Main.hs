@@ -755,8 +755,8 @@ parseArgs args = case getOpt' Permute options args of
 
     cg cmds monoed ctygen insts source tced tcst typedefs fts buildinfo log = do
       let hName = mkOutputName source Nothing <.> __cogent_ext_of_h
-          hscName = mkOutputName' toHsName source (Just __cogent_suffix_of_ffi_types)
-          hsName  = mkOutputName' toHsName source (Just __cogent_suffix_of_ffi)
+          hscName = mkOutputName' toHsModName source (Just __cogent_suffix_of_ffi_types)
+          hsName  = mkOutputName' toHsModName source (Just __cogent_suffix_of_ffi)
           cNames  = map (\n -> takeBaseName n ++ __cogent_suffix_of_pp ++ __cogent_suffix_of_inferred <.> __cogent_ext_of_c) __cogent_infer_c_func_files
           (h,c,atm,ct,hsc,hs,genst) = cgen hName cNames hscName hsName monoed ctygen log
       when (TableAbsTypeMono `elem` cmds) $ do
@@ -886,8 +886,8 @@ parseArgs args = case getOpt' Permute options args of
           shhs_tupfile = mkHsFileName source (__cogent_suffix_of_shallow ++ __cogent_suffix_of_stage STGDesugar ++ __cogent_suffix_of_recover_tuples)
 
           thy = mkProofName source Nothing
-          hsname = mkOutputName' toHsName source (Just $ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage stg)
-          hs_tupname = mkOutputName' toHsName source (Just $ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage STGDesugar ++ __cogent_suffix_of_recover_tuples)
+          hsname = mkOutputName' toHsModName source (Just $ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage stg)
+          hs_tupname = mkOutputName' toHsModName source (Just $ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage STGDesugar ++ __cogent_suffix_of_recover_tuples)
           (shal,shrd,scorr,shallowTypeNames) = SH.shallow False thy stg defns log
           (shal_tup,shrd_tup,_,_) = SH.shallow True thy STGDesugar defns log
           constsTypeCheck = IN.tcConsts (sel3 $ fromJust $ getLast typedefs) fts

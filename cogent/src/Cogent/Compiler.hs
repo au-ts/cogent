@@ -76,8 +76,8 @@ mkFileName' mod src mbsuf ext =
 mkFileName :: FilePath -> Maybe String -> String -> Maybe FilePath
 mkFileName src mbsuf ext = mkFileName' id src mbsuf ext
 
-mkHsFileName  src suf = mkFileName' toHsName  src (Just suf) __cogent_ext_of_hs
-mkHscFileName src suf = mkFileName' toHsName  src (Just suf) __cogent_ext_of_hsc
+mkHsFileName  src suf = mkFileName' toHsModName  src (Just suf) __cogent_ext_of_hs
+mkHscFileName src suf = mkFileName' toHsModName  src (Just suf) __cogent_ext_of_hsc
 
 -- Proofs are special; they have an extra flag to specify names
 
@@ -86,7 +86,7 @@ mkHscFileName src suf = mkFileName' toHsName  src (Just suf) __cogent_ext_of_hsc
 --   if '__cogent_output_name' is present, use it; otherwise
 --   derive from Cogent source name.
 mkProofName :: FilePath -> Maybe String -> String
-mkProofName src mbsuf = maybe (mkOutputName' toIsaName src Nothing) toIsaName __cogent_proof_name ++
+mkProofName src mbsuf = maybe (mkOutputName' toIsaThyName src Nothing) toIsaThyName __cogent_proof_name ++
                         maybe [] id mbsuf
 
 mkThyFileName :: FilePath -> String -> Maybe FilePath

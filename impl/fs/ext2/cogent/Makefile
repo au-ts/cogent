@@ -174,7 +174,7 @@ clean:
 	$(Q)find . -name ROOT -exec rm -f {} \;
 	$(Q)find . -name BUILD_INFO -exec rm -f {} \;
 	$(Q)find . -name *_pp* -exec rm -f {} \;
-	$(Q)find . -name $(OUTPUT).* -exec rm -f {} \;
+	$(Q)find . -name $(OUTPUT).[ch] -exec rm -f {} \;
 	$(Q)find . -name *.cmd -exec rm -f {} \;
 
 help:

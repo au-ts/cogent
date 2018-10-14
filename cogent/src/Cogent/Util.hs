@@ -86,14 +86,21 @@ cap :: String -> String
 cap [] = error "cap"
 cap (h:t) = toUpper h : t
 
+cap' :: String -> String
+cap' [] = error "cap'"
+cap' (h:t) = if not (isAlpha h) then "Hs"++h:t
+             else cap $ h:t
+
 decap :: String -> String
 decap [] = error "decap"
 decap (h:t) = toLower h : t
 
-toIsaName :: String -> String
-toIsaName = cap . map (\c -> if c == '-' then '_' else c)
+toIsaThyName :: String -> String
+toIsaThyName = cap . map (\c -> if c == '-' then '_' else c)
 
-toHsName = toIsaName
+toHsModName  = cap'
+toHsTypeName = cap'
+toHsTermName = map (\c -> if c == '-' then '_' else c)
 
 toCName :: String -> String
 toCName = concatMap (\c -> if c == '\'' then "_prime" else [c])

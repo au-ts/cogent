@@ -90,7 +90,7 @@ import Cogent.Isabelle.Shallow (isRecTuple)
 import Cogent.Isabelle.ShallowTable (TypeStr(..), st)
 import Cogent.PrettyPrint ()
 import qualified Cogent.Surface as S
-import Cogent.Util (Stage(..), secondM)
+import Cogent.Util (Stage(..), secondM, toHsTypeName)
 import Data.Nat as Nat
 import Data.Vec as Vec hiding (sym)
 
@@ -209,7 +209,7 @@ shallow tuples name stg defs consts log =
       import_word = P.map importAbs ["Word8", "Word16", "Word32", "Word64"]
       import_prelude = P.map importVar ["not", "div", "mod", "fromIntegral", "undefined"] ++
                        P.map importSym ["+", "-", "*", "&&", "||", ">", ">=", "<", "<=", "==", "/="] ++
-                       P.map importAbs ["Char", "String", "Int"] ++
+                       P.map importAbs ["Char", "String", "Int", "Show"] ++
                        [IThingAll () $ Ident () "Bool"]
       imps = [ ImportDecl () (ModuleName () "Data.Bits") False False False Nothing Nothing (Just $ ImportSpecList () False import_bits)
              , ImportDecl () (ModuleName () "Data.Tuple.Select") True False False Nothing (Just $ ModuleName () "Tup") Nothing
@@ -236,7 +236,7 @@ shallowTypeDef tn tvs t = do
 
 shallowDefinition :: CC.Definition TypedExpr VarName -> SG [Decl ()]
 shallowDefinition (CC.FunDef _ fn ps ti to e) =
-    local (typarUpd typar) $ do
+  local (typarUpd typar) $ do
     e' <- local pushScope $ shallowExpr e
     ty <- shallowType $ CC.TFun ti to
     let sig = TypeSig () [fn'] ty
@@ -246,11 +246,11 @@ shallowDefinition (CC.FunDef _ fn ps ti to e) =
         arg0  = mkName $ snm $ D.freshVarPrefix ++ "0"
         typar = map fst $ Vec.cvtToList ps
 shallowDefinition (CC.AbsDecl _ fn ps ti to) =
-    local (typarUpd typar) $ do
-      ty <- shallowType $ CC.TFun ti to
-      let sig = TypeSig () [fn'] ty
-          dec = FunBind () [Match () fn' [] (UnGuardedRhs () $ mkVarE $ mkName "undefined") Nothing]
-      pure [sig,dec]
+  local (typarUpd typar) $ do
+    ty <- shallowType $ CC.TFun ti to
+    let sig = TypeSig () [fn'] ty
+        dec = FunBind () [Match () fn' [] (UnGuardedRhs () $ mkVarE $ mkName "undefined") Nothing]
+    pure [sig,dec]
   where fn' = mkName $ snm fn
         typar = map fst $ Vec.cvtToList ps
 shallowDefinition (CC.TypeDef tn ps Nothing) =
@@ -412,12 +412,13 @@ decTypeStr (RecordStr fs) = do
   let tn = recTypeName ++ show vn
       tvns = P.zipWith (\_ n -> mkName $ typeParam ++ show n) fs [1::Int ..]
       rfs = P.zipWith (\f n -> FieldDecl () [mkName $ snm f] (mkVarT n)) fs tvns
+      irule = IRule () Nothing Nothing (IHCon () (UnQual () (mkName "Show")))
       dec = DataDecl () (DataType ()) Nothing (mkDeclHead (mkName tn) tvns)
               [QualConDecl () Nothing Nothing $ RecDecl () (mkName tn) rfs]
 #if MIN_VERSION_haskell_src_exts(1,20,0)
-              []
+              [Deriving () Nothing [irule]]
 #else
-              Nothing
+              (Just (Deriving () [irule])) 
 #endif
   tell $ WriterGen [dec]
   return tn
@@ -426,11 +427,12 @@ decTypeStr (VariantStr tags) = do
   let tn = varTypeName ++ show vn
       tvns = P.zipWith (\_ n -> mkName $ typeParam ++ show n) tags [1::Int ..]
       cs = P.zipWith (\tag n -> QualConDecl () Nothing Nothing $ ConDecl () (mkName (tagName tn tag)) [mkVarT n]) tags tvns
+      irule = IRule () Nothing Nothing (IHCon () (UnQual () (mkName "Show")))
       dec = DataDecl () (DataType ()) Nothing (mkDeclHead (mkName tn) tvns) cs
 #if MIN_VERSION_haskell_src_exts(1,20,0)
-              []
+              [Deriving () Nothing [irule]]
 #else
-              Nothing
+              (Just (Deriving () [irule])) 
 #endif
   tell $ WriterGen [dec]
   return tn

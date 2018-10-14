@@ -108,11 +108,13 @@ library fsm-example
 library readpage-example
   exposed-modules:     Fsop
                      , Readpage
-  other-modules:       Bilbyfs_Shallow_Desugar
+  other-modules:       Bilbyfs_Shallow_Desugar_Tuples
   build-depends:       base >=4.9 && <4.12
                      , array
                      , containers
+                     , template-haskell
                      , transformers
+                     , tuple
                      , QuickCheck
                      , cogent-quickcheck-utils
                      , wa-example

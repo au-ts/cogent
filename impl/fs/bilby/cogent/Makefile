@@ -85,19 +85,19 @@ OBJ?=plat/linux/module.o plat/linux/rbt.o
 # ACFILES
 linux: ACFILES = $(LINUX_ACFILES)
 .c-gen: ACFILES = $(LINUX_ACFILES)
-qc: ACFILES = $(LINUX_ACFILES)
+hs: ACFILES = $(LINUX_ACFILES)
 verification: ACFILES = $(VERIF_ACFILES)
 .verif-gen: ACFILES = $(VERIF_ACFILES)
 # DISTDIR
 linux: DIST_DIR = plat/linux
 .c-gen: DIST_DIR = plat/linux
-qc: DIST_DIR = plat/linux
+hs: DIST_DIR = plat/linux
 verification: DIST_DIR = plat/verification
 .verif-gen: DIST_DIR = plat/verification
 # EXTRA_CFLAGS
 linux: EXTRA_CFLAGS = $(LINUX_EXTRA_CFLAGS)
 .c-gen: EXTRA_CFLAGS = $(LINUX_EXTRA_CFLAGS)
-qc: EXTRA_CFLAGS = $(LINUX_EXTRA_CFLAGS)
+hs: EXTRA_CFLAGS = $(LINUX_EXTRA_CFLAGS)
 verification: EXTRA_CFLAGS = $(VERIF_EXTRA_CFLAGS)
 .verif-gen: EXTRA_CFLAGS = $(VERIF_EXTRA_CFLAGS)
 
@@ -135,8 +135,8 @@ all: .c-gen $(OBJ)
                 --infer-c-funcs="$(ACFILES)" \
 								--ext-types="$(LINUX_TYPES)"
 
-qc:
-	$(Q)cogent $(SRC) -Q $(COGENT_FLAGS) \
+hs:
+	$(Q)cogent $(SRC) --hs-shallow-desugar-tuples $(COGENT_FLAGS) \
                 --cpp-args="-std=c99 \$$CPPIN -o \$$CPPOUT -E -P $(EXTRA_CFLAGS)" \
 								--proof-name=$(PROOF_ID) \
                 --dist-dir=$(DIST_DIR) \
@@ -175,7 +175,7 @@ clean:
 	$(Q)find . -name ROOT -exec rm -f {} \;
 	$(Q)find . -name BUILD_INFO -exec rm -f {} \;
 	$(Q)find . -name *_pp* -exec rm -f {} \;
-	$(Q)find . -name $(OUTPUT).* -exec rm -f {} \;
+	$(Q)find . -name $(OUTPUT).[ch] -exec rm -f {} \;
 	$(Q)find . -name *.cmd -exec rm -f {} \;
 
 help:

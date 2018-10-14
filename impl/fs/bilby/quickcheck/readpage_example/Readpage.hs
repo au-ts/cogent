@@ -26,10 +26,13 @@ import Test.QuickCheck hiding (Success, Error)
 
 import CogentMonad
 import Corres
--- import Bilbyfs_Shallow_Desugar
+import qualified Bilbyfs_Shallow_Desugar_Tuples as Conc
 import Fsop
 import Util
 
+-- /////////////////////////////////////////////////////////////////////////////
+--
+-- * Haskell spec.
 
 hs_read_block :: OstoreState -> VfsInode -> OSPageOffset -> CogentMonad (R (WordArray U8) ErrCode)
 hs_read_block ostore vnode block = do
@@ -64,5 +67,28 @@ hs_ostore_read ostore oid = do
     Nothing -> return $ Error eNoEnt
     Just o  -> return (Success o) <|> map Error [eIO, eNoMem, eInval, eBadF]
 
+
+
+-- /////////////////////////////////////////////////////////////////////////////
+--
+-- * Testing @fsop_readpage@
+
+
+prop_corres_fsop_readpage :: Property
+prop_corres_fsop_readpage = 
+  forAll gen_fsop_readpage_arg $ \ic -> 
+    let (ostore_st,vnode,block) = abs_fsop_readpage_arg ic
+        oa = hs_fsop_readpage ostore_st vnode block
+        oc = Conc.fsop_readpage ic
+     in corres rel_fsop_readpage_ret oa oc
+
+gen_fsop_readpage_arg :: Gen Conc.Fsop_readpage_argT
+gen_fsop_readpage_arg = undefined
+
+abs_fsop_readpage_arg :: Conc.Fsop_readpage_argT -> (OstoreState, VfsInode, OSPageOffset)
+abs_fsop_readpage_arg = undefined
+
+rel_fsop_readpage_ret :: R (WordArray U8) ErrCode -> Conc.Fsop_readpage_retT -> Bool
+rel_fsop_readpage_ret = undefined
 
 
