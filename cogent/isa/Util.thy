@@ -65,6 +65,18 @@ lemma map_snd3_ignore3[simp]:
   shows "map (fst \<circ> snd \<circ> (\<lambda> (a, b, c). (a, b, f c))) l = map (fst \<circ> snd) l"
   by (induct l, auto)
 
+lemma map_fst3_keep:
+  shows "(\<lambda>(a,b,c). (f a, b, c)) = apfst f"
+  by fastforce
+
+lemma map_snd3_keep:
+  shows "(\<lambda>(a,b,c). (a, f b, c)) = apsnd (apfst f)"
+  by fastforce
+
+lemma map_thd3_keep:
+  shows "(\<lambda>(a,b,c). (a, b, f c)) = apsnd (apsnd f)"
+  by fastforce
+
 
 (* making these simp makes the final force on specalise take forever? / v.jackson *)
 lemma comp_fst_tuple_lambda: "fst \<circ> (\<lambda>(a,b). (f a b, g a b)) = (\<lambda>(a,b). f a b)"
