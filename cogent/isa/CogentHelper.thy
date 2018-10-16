@@ -24,11 +24,11 @@ lemma typing_put':  "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<
                      ; \<Xi>, K, \<Gamma>1 \<turnstile> e : TRecord ts s
                      ; sigil_perm s \<noteq> Some ReadOnly
                      ; f < length ts
-                     ; ts ! f = (t, taken)
+                     ; ts ! f = (n,t, taken)
                      ; K \<turnstile> t :\<kappa> k
                      ; D \<in> k \<or> taken
                      ; \<Xi>, K, \<Gamma>2 \<turnstile> e' : t
-                     ; ts' = (ts [f := (t,False)])
+                     ; ts' = (ts [f := (n,t,False)])
                      \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Put e f e' : TRecord ts' s"
   by (simp add: typing_put)
 
@@ -50,7 +50,9 @@ lemma typing_con' : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : t
   by (simp add: typing_con)
 
 lemma typing_struct': "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile>* es : ts
-                       ; ts' =  (zip ts (replicate (length ts) False))
+                       ; length ns = length ts
+                       ; distinct ns
+                       ; ts' = (zip ns (zip ts (replicate (length ts) False)))
                        \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Struct ts es : TRecord ts' Unboxed"
   by (simp only: typing_struct)
 
@@ -152,9 +154,9 @@ lemma ttyping_take': "\<lbrakk> ttsplit K \<Gamma> ijs [] \<Gamma>1 [Some t, Som
                    ; \<Xi>, K, \<Gamma>1 T\<turnstile> e : TRecord ts s
                    ; sigil_perm s \<noteq> Some ReadOnly
                    ; f < length ts
-                   ; ts ! f = (t, False)
+                   ; ts ! f = (n, t, False)
                    ; K \<turnstile> t :\<kappa> k
-                   ; ts = ts'[f := (t, False)] \<and> fst (ts' ! f) = t \<and> (S \<in> k \<or> snd (ts' ! f))
+                   ; ts = ts'[f := (n, t, False)] \<and> fst (ts' ! f) = n \<and> fst (snd (ts' ! f)) = t \<and> (S \<in> k \<or> snd (snd (ts' ! f)))
                    ; \<Xi>, K, \<Gamma>2 T\<turnstile> e' : u
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> T\<turnstile> Take e f e' : u"
   apply clarify
