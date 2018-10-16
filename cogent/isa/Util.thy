@@ -119,6 +119,15 @@ lemma eq_updated_same_pace_imp_eq:
   using assms
   by (induct "length xs" arbitrary: xs ys i; metis nth_list_update_eq)
 
+lemma map_update_eq_if_indistinguishable:
+  assumes
+    "xs ! i = a"
+    "i < length xs"
+    "f (g (xs ! i)) = f (xs ! i)"
+  shows "map f xs = map f (xs[i := g a])"
+  using assms
+  by (metis list_update_id map_update)
+
 lemma list_all2_update_second:
   assumes "list_all2 f xs (ys[i := a])"
     and "f (xs ! i) a \<Longrightarrow> f (xs ! i) b"

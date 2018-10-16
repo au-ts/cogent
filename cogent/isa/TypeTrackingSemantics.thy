@@ -305,11 +305,11 @@ where
                    ; \<Xi>, K, \<Gamma>4 T\<turnstile> b : t
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> T\<turnstile> If x a b : t"
 
-| ttyping_take   : "\<lbrakk> ttsplit K \<Gamma> ijs [] \<Gamma>1 [Some t, Some (TRecord (ts [f := (t, taken)]) s)] \<Gamma>2
+| ttyping_take   : "\<lbrakk> ttsplit K \<Gamma> ijs [] \<Gamma>1 [Some t, Some (TRecord (ts [f := (n, t, taken)]) s)] \<Gamma>2
                    ; \<Xi>, K, \<Gamma>1 T\<turnstile> e : TRecord ts s
                    ; sigil_perm s \<noteq> Some ReadOnly
                    ; f < length ts
-                   ; ts ! f = (t, False)
+                   ; ts ! f = (n, t, False)
                    ; K \<turnstile> t :\<kappa> k
                    ; S \<in> k \<or> taken
                    ; \<Xi>, K, \<Gamma>2 T\<turnstile> e' : u
@@ -662,12 +662,12 @@ next
   show ?case
     using u_sem_take.prems(1)
   proof (cases rule: ttyping.cases)
-    case (ttyping_take ijs t\<Gamma>3 t ts taken s t\<Gamma>4 k)
+    case (ttyping_take ijs t\<Gamma>3 t ts n taken s t\<Gamma>4 k)
 
     obtain \<Gamma>1 \<Gamma>2
       where "[] \<turnstile> snd \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
         and snd_t\<Gamma>3_is: "snd t\<Gamma>3 = [] @ \<Gamma>1"
-        and snd_t\<Gamma>4_is: "snd t\<Gamma>4 = [Some t, Some (TRecord (ts[f := (t, taken)]) s)] @ \<Gamma>2"
+        and snd_t\<Gamma>4_is: "snd t\<Gamma>4 = [Some t, Some (TRecord (ts[f := (n, t, taken)]) s)] @ \<Gamma>2"
       using ttsplit_imp_split ttyping_take by blast
     moreover then obtain r1 w1 r2 w2
       where matches1: "\<Xi>, \<sigma> \<turnstile> \<gamma> matches \<Gamma>1 \<langle>r1, w1\<rangle>"
@@ -700,7 +700,8 @@ next
         "w1' = insert p w1''"
         "\<Xi>, \<sigma>'' \<turnstile>* fs :ur ts \<langle>r1', w1''\<rangle>"
         "\<sigma>'' p = Some (URecord fs)"
-        "r' = RRecord (map (\<lambda>(a, b). type_repr a) ts)"
+        "r' = RRecord (map (type_repr \<circ> fst \<circ> snd) ts)"
+        "distinct (map fst ts)"
         "s = Boxed Writable ptrl"
         "p \<notin> w1''"
         "p \<notin> r1'"
@@ -709,7 +710,7 @@ next
 
     then obtain rf wf r1a w1a
       where ut_fs_at_f: "\<Xi>, \<sigma>'' \<turnstile> fst (fs ! f) :u t \<langle>rf, wf\<rangle>"
-        and ut_fs_taken_f: "\<Xi>, \<sigma>'' \<turnstile>* fs :ur ts[f := (t, True)] \<langle>r1a, w1a\<rangle>"
+        and ut_fs_taken_f: "\<Xi>, \<sigma>'' \<turnstile>* fs :ur ts[f := (n, t, True)] \<langle>r1a, w1a\<rangle>"
         and r1'_is: "r1' = rf \<union> r1a"
         and w1''_is: "w1'' = wf \<union> w1a"
         and "wf \<inter> w1a = {}"
@@ -748,14 +749,17 @@ next
         show "\<Xi>, \<sigma>'' \<turnstile> fst (fs ! f) # UPtr p r' # \<gamma> matches snd t\<Gamma>4 \<langle>rf \<union> (r1a \<union> r2), wf \<union> (insert p w1a \<union> w2)\<rangle>"
           using ut_fs_at_f matches2_under_\<sigma>'' disjointness_lemmas
         proof (simp only: snd_t\<Gamma>4_is append_Cons append.left_neutral, intro matches_ptrs_some[OF _ matches_ptrs_some])
-          have "\<Xi>, \<sigma>'' \<turnstile>* fs :ur ts[f := (t, taken)] \<langle>r1a, w1a\<rangle>"
+          have "\<Xi>, \<sigma>'' \<turnstile>* fs :ur ts[f := (n, t, taken)] \<langle>r1a, w1a\<rangle>"
             by (simp add: ut_fs_taken_f True)
-          moreover have "r' = RRecord (map (\<lambda>(a, b). type_repr a) (ts[f := (t, taken)]))"
-            using uptr_p_elim_lemmas ttyping_take
-            by (metis (no_types, lifting) case_prod_conv list_update_id map_update)
-          ultimately show "\<Xi>, \<sigma>'' \<turnstile> UPtr p r' :u TRecord (ts[f := (t, taken)]) s \<langle>r1a, insert p w1a\<rangle>"
+          moreover have "r' = RRecord (map (type_repr \<circ> fst \<circ> snd) (ts[f := (n, t, taken)]))"
+              using True type_repr_uval_repr uptr_p_elim_lemmas ut_fs_taken_f
+              by (metis (full_types))
+          ultimately show "\<Xi>, \<sigma>'' \<turnstile> UPtr p r' :u TRecord (ts[f := (n, t, taken)]) s \<langle>r1a, insert p w1a\<rangle>"
             using uptr_p_elim_lemmas ut_fs_taken_f r1'_is w1''_is
-            by (simp add: uptr_p_elim_lemmas(2), intro u_t_p_rec_w') fastforce+
+            by (simp, intro u_t_p_rec_w';
+                fastforce
+                simp add: uptr_p_elim_lemmas ttyping_take map_update
+                intro!: distinct_list_update)
         qed fast+
       qed simp+
     next
@@ -774,9 +778,9 @@ next
         show "\<Xi>, \<sigma>'' \<turnstile> fst (fs ! f) # UPtr p r' # \<gamma> matches snd t\<Gamma>4 \<langle>rf \<union> ((rf \<union> r1a) \<union> r2), {} \<union> (insert p w1a \<union> w2)\<rangle>"
           using ut_fs_at_f matches2_under_\<sigma>'' disjointness_lemmas wf_empty
         proof (simp only: snd_t\<Gamma>4_is append_Cons append.left_neutral, intro matches_ptrs_some[OF _ matches_ptrs_some])
-          have "ts[f := (t, False)] = ts"
+          have "ts[f := (n, t, False)] = ts"
             by (simp add: list_helper ttyping_take)
-          thus "\<Xi>, \<sigma>'' \<turnstile> UPtr p r' :u TRecord (ts[f := (t, taken)]) s \<langle>rf \<union> r1a, insert p w1a\<rangle>"
+          thus "\<Xi>, \<sigma>'' \<turnstile> UPtr p r' :u TRecord (ts[f := (n, t, taken)]) s \<langle>rf \<union> r1a, insert p w1a\<rangle>"
             using uptr_p_elim_lemmas wf_empty r1'_is uptr_p_under_\<sigma>'' w1''_is False by auto
         qed fast+
       qed simp+
@@ -784,28 +788,36 @@ next
     moreover have "\<Xi>, \<xi>, \<gamma>, [], t\<Gamma>3, TRecord ts s T\<turnstile> (\<sigma>, x) \<Down>! (\<sigma>'', UPtr p r')"
       using u_sem_take.hyps(2) u_sem_take.prems ttyping_take matches1 snd_t\<Gamma>3_is by auto
     ultimately show "\<Xi>, \<xi>, \<gamma>, [], \<Gamma>, \<tau> T\<turnstile> (\<sigma>, Take x f e) \<Down>! (\<sigma>', v)"
-      by (metis u_tt_sem_pres_take local.ttyping_take(1) uptr_p_elim_lemmas(3) uptr_p_elim_lemmas(5))
+      using ttyping_take uptr_p_elim_lemmas
+      by (force intro!: u_tt_sem_pres_take)
   qed (simp add: composite_anormal_expr_def)
 next
-
-  case u_sem_take_ub show ?case using u_sem_take_ub.prems u_sem_take_ub.hyps(1, 3)
+  case (u_sem_take_ub \<xi> \<gamma> \<sigma> x \<sigma>'' fs f e)
+  show ?case using u_sem_take_ub.prems u_sem_take_ub.hyps(1,3)
     apply -
     apply (erule ttyping.cases, simp_all)
      apply (auto simp: composite_anormal_expr_def)[1]
+    apply clarsimp
+    apply (rename_tac \<Gamma>a \<Gamma>b ijs \<Gamma>1a \<Gamma>1b t ts n taken s \<Gamma>2a TR\<Gamma>2b k)
     apply (frule ttsplit_imp_split)
     apply (frule matches_ptrs_noalias)
     apply clarsimp
+    apply (rename_tac \<Gamma>2b)
     apply (frule(1) matches_ptrs_split', clarsimp)
+    apply (rename_tac r1 w1 r2 w2)
     apply (frule(2) preservation(1)[where \<tau>s=Nil, simplified, OF refl, OF _ _ _ u_sem_take_ub.hyps(1)]
-     , erule ttyping_eq_typing[THEN iffD2, OF exI])
+        , erule ttyping_eq_typing[THEN iffD2, OF exI])
     apply clarsimp
+    apply (rename_tac r1' w1')
     apply (erule u_t_recE, simp_all)
+    apply (rename_tac tsa)
     apply (erule u_tt_sem_pres_take_ub)
      apply (rule u_sem_take_ub.hyps(2), simp+)[1]
     apply (frule(2) frame_noalias_matches_ptrs)
     apply (frule(1) frame_noalias_matches_ptrs(2), blast)
     apply (frule(1) uval_typing_record_take, force, simp)
-    apply (elim conjE exE )
+    apply (elim conjE exE)
+    apply (rename_tac r1a w1a r1b w1b)
     apply (frule(2) matches_ptrs_frame, blast)
     apply (simp, erule disjE)
      apply (clarsimp)
@@ -816,34 +828,31 @@ next
       apply (case_tac taken)
        apply (rule matches_ptrs_some [OF _ matches_ptrs_some])
                apply (simp)
-              apply (force intro!: u_t_struct simp: map_update)
-             apply (simp)
-            apply (blast)
-           apply (blast)
-          apply (blast)
-         apply (blast)
-        apply (blast)
-       apply (blast)
-      apply (clarsimp)
+              apply (fastforce intro!: u_t_struct simp add: map_update intro: distinct_list_update)
+             apply fast
+            apply (blast+)[6]
       apply (rule pointerset_helper_matches_ptrs)
         apply (rule matches_ptrs_some [OF _ matches_ptrs_some])
                 apply (simp)
                apply (force intro!: u_t_struct simp: list_helper)
-              apply (simp)
-             apply (blast)
-            apply (blast)
-           apply (blast)
-          apply (blast)
-         apply (blast)
-        apply (blast)
-       apply (blast)
-      apply (blast)
-    apply (clarsimp)
-  apply (erule(1) u_sem_take_ub.hyps)
-   apply simp
-   apply (rule matches_ptrs_some [OF _ matches_ptrs_some], assumption, erule(1) u_t_struct)
-         apply blast+
-   done
+              apply (blast+)[10]
+    apply (rule u_sem_take_ub.hyps(4))
+       apply simp
+      apply simp
+     defer
+     apply simp
+
+    apply simp
+    apply (rule pointerset_helper_matches_ptrs)
+      apply (rule matches_ptrs_some [OF _ matches_ptrs_some])
+              apply (simp+)[2]
+             apply (fastforce intro!: u_t_struct simp add: map_update intro: distinct_list_update)
+            apply auto[3]
+         apply blast
+        apply auto[1]
+       apply (blast+)[2]
+     apply (simp+)[2]
+    done
 
 next
 
