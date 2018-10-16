@@ -133,10 +133,6 @@ datatype 'f expr = Var index
 
 section {* Kinds *}
 
-(* TODO Liam said these probably shouldn't be named kinds; instead something like
- * permissions/constraints. ~ v.jackson / 2018-08-20
- *)
-
 datatype kind_comp = D | S | E
 
 type_synonym kind = "kind_comp set"
