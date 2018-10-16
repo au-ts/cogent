@@ -65,6 +65,18 @@ lemma map_snd3_ignore3[simp]:
   shows "map (fst \<circ> snd \<circ> (\<lambda> (a, b, c). (a, b, f c))) l = map (fst \<circ> snd) l"
   by (induct l, auto)
 
+lemma map_fst3_keep:
+  shows "(\<lambda>(a,b,c). (f a, b, c)) = apfst f"
+  by fastforce
+
+lemma map_snd3_keep:
+  shows "(\<lambda>(a,b,c). (a, f b, c)) = apsnd (apfst f)"
+  by fastforce
+
+lemma map_thd3_keep:
+  shows "(\<lambda>(a,b,c). (a, b, f c)) = apsnd (apsnd f)"
+  by fastforce
+
 
 (* making these simp makes the final force on specalise take forever? / v.jackson *)
 lemma comp_fst_tuple_lambda: "fst \<circ> (\<lambda>(a,b). (f a b, g a b)) = (\<lambda>(a,b). f a b)"
@@ -95,6 +107,10 @@ lemma map_zip [simp]:
   shows "map (\<lambda> (a , b). (f a, g b)) (zip as bs) = zip (map f as) (map g bs)"
   by (induct as arbitrary:bs, simp, case_tac bs, simp_all)
 
+lemma map_zip3 [simp]:
+  shows "map (\<lambda> (a,b,c). (f a, g b, h c)) (zip as (zip bs cs)) = zip (map f as) (zip (map g bs) (map h cs))"
+  by (induct as arbitrary: bs cs; case_tac bs; case_tac cs; simp)
+
 lemma eq_updated_same_pace_imp_eq:
   assumes "length xs = length ys"
     and "i < length xs"
@@ -102,6 +118,15 @@ lemma eq_updated_same_pace_imp_eq:
   shows "x = y"
   using assms
   by (induct "length xs" arbitrary: xs ys i; metis nth_list_update_eq)
+
+lemma map_update_eq_if_indistinguishable:
+  assumes
+    "xs ! i = a"
+    "i < length xs"
+    "f (g (xs ! i)) = f (xs ! i)"
+  shows "map f xs = map f (xs[i := g a])"
+  using assms
+  by (metis list_update_id map_update)
 
 lemma list_all2_update_second:
   assumes "list_all2 f xs (ys[i := a])"
@@ -224,6 +249,19 @@ lemma distinct_fst:
   shows   "b = b'"
   using assms image_iff
   by (induct xs, fastforce+)
+
+lemma distinct_fst_nth:
+  assumes "distinct (map fst xs)"
+    and "i < length xs"
+    and "xs ! i = (a, b)"
+    and "j < length xs"
+    and "xs ! j = (a, b')"
+  shows
+    "i = j"
+    "b = b'"
+  using assms
+  by (induct xs arbitrary: i j)
+      (fastforce dest: nth_mem simp add: image_iff less_Suc_eq_0_disj nth_Cons)+
 
 lemma set_subset_map:
   assumes "set a \<subseteq> set b"

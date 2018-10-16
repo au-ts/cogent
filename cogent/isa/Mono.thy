@@ -374,7 +374,7 @@ lemma rename_monoexpr_correct:
   apply (case_tac e, simp_all)
   apply (rename_tac exp1 field exp2)
   apply (clarsimp elim!: typing_takeE)
-  apply (rename_tac \<Gamma>1 \<Gamma>2 ts s t k taken)
+  apply (rename_tac \<Gamma>1 \<Gamma>2 ts s n t k taken)
   apply (cut_tac IH1[OF _ _ _ _ _ _ matches_split'(1)], simp_all)
   apply clarsimp
   apply (rename_tac v)
@@ -382,17 +382,20 @@ lemma rename_monoexpr_correct:
   apply (rename_tac fs')
   apply (frule(5) preservation [where \<tau>s = "[]" and K = "[]", OF _ _ matches_split'(1), simplified])
   apply (drule(1) matches_split'(2)[rotated])
-  apply (drule_tac x="VRecord (map (rename_val rename \<circ> monoval) fs')" and \<tau>="TRecord (ts[f := (t, taken)]) s" and \<Gamma>=\<Gamma>2
+  apply (drule_tac x="VRecord (map (rename_val rename \<circ> monoval) fs')" and \<tau>="TRecord (ts[f := (n, t, taken)]) s" and \<Gamma>=\<Gamma>2
          in matches_cons')
-   apply (fastforce dest: vval_typing_record_take intro:v_t_record)
-  apply (erule v_t_recordE)
-  apply (frule vval_typing_record_length)
-  apply (drule_tac x="(map (rename_val rename \<circ> monoval) fs')!f" in matches_cons')
-   apply (fastforce dest: vval_typing_record_nth)
-  apply (subgoal_tac "\<exists>v. \<xi>\<^sub>p , fs' ! f # VRecord fs' # \<gamma> \<turnstile> exp2 \<Down> v \<and> rv = rename_val rename (monoval v)")
-   apply (fastforce intro: v_sem_v_sem_all.v_sem_take)
-  apply (force intro!: IH2)
-  done
+     apply (clarsimp simp add: map_update)
+     apply (erule v_t_recordE)
+     apply (fastforce intro: v_t_record dest: vval_typing_record_take simp add: map_fst_update)
+    apply (drule_tac x="(map (rename_val rename \<circ> monoval) fs')!f" in matches_cons')
+     apply (fastforce dest: vval_typing_record_nth)
+    apply (subgoal_tac "\<exists>v. \<xi>\<^sub>p , fs' ! f # VRecord fs' # \<gamma> \<turnstile> exp2 \<Down> v \<and> rv = rename_val rename (monoval v)")
+     apply (fastforce intro: v_sem_v_sem_all.v_sem_take)
+    apply (intro IH2)
+          apply (force dest: vval_typing_record_length)
+         apply (blast+)[5]
+    apply (force simp add: matches_Cons dest: vval_typing_record_length)
+    done
   next
   case (v_sem_app \<xi> re f ts e' rv rsv \<gamma> e \<tau> \<Gamma>)
   note IH1 = this(2)
