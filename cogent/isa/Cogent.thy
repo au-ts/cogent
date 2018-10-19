@@ -613,7 +613,7 @@ lemma eval_prim_op_lit_type:
 
 section {* Typing rules *}
 
-inductive type_lub :: "kind env \<Rightarrow> type \<Rightarrow> type \<Rightarrow> type \<Rightarrow> bool" ("_ \<turnstile> _ \<leftarrow> _ \<squnion> _ " [60,0,0,60] 60)
+inductive type_lub :: "kind env \<Rightarrow> type \<Rightarrow> type \<Rightarrow> type \<Rightarrow> bool" ("_ \<turnstile> _ \<leftarrow> _ \<squnion> _" [60,0,0,60] 60)
   and type_glb :: "kind env \<Rightarrow> type \<Rightarrow> type \<Rightarrow> type \<Rightarrow> bool" ("_ \<turnstile> _ \<leftarrow> _ \<sqinter> _" [60,0,0,60] 60)
   where
   lub_tvar   : "\<lbrakk> n = n1
@@ -690,21 +690,17 @@ inductive type_lub :: "kind env \<Rightarrow> type \<Rightarrow> type \<Rightarr
                 \<rbrakk> \<Longrightarrow> K \<turnstile> TSum ts \<leftarrow> TSum ts1 \<sqinter> TSum ts2"
 | glb_tunit  : "K \<turnstile> TUnit \<leftarrow> TUnit \<sqinter> TUnit"
 
+
 definition subtyping :: "kind env \<Rightarrow> type \<Rightarrow> type \<Rightarrow> bool" ("_ \<turnstile> _ \<sqsubseteq> _" [30,0,0] 60) where
   "(K \<turnstile> t1 \<sqsubseteq> t2) \<equiv> (K \<turnstile> t1 \<leftarrow> t1 \<squnion> t2)"
 
-(*
-inductive subtyping :: "kind env \<Rightarrow> type \<Rightarrow> type \<Rightarrow> bool" ("_ \<turnstile> _ \<sqsubseteq> _" [30,0,0] 60) where
-  tsum_subtyping: "\<lbrakk> set (map fst ts) = set (map fst ts')
-                   ; \<forall> c c'. c \<in> set (map fst ts) \<longrightarrow> lookup c ts = lookup c ts' \<rbrakk> \<Longrightarrow> K \<turnstile> TSum ts \<sqsubseteq> TSum ts'"
-*)
 
 inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Rightarrow> ctx \<Rightarrow> 'f expr \<Rightarrow> type \<Rightarrow> bool"
           ("_, _, _ \<turnstile> _ : _" [30,0,0,0,20] 60)
       and typing_all :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Rightarrow> ctx \<Rightarrow> 'f expr list \<Rightarrow> type list \<Rightarrow> bool"
           ("_, _, _ \<turnstile>* _ : _" [30,0,0,0,20] 60) where
 
-  typing_var    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto>w singleton (length \<Gamma>) i t
+typing_var    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto>w singleton (length \<Gamma>) i t
                    ; i < length \<Gamma>
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Var i : t"
 
@@ -1255,6 +1251,72 @@ next
   then show ?case
     by (auto dest!: meta_spec elim!: kind_tfunE intro: kinding_kinding_all_kinding_variant_kinding_record.intros)
 qed (auto intro: kinding_kinding_all_kinding_variant_kinding_record.intros)
+
+lemma type_lub_type_glb_idem:
+  assumes "K \<turnstile> t wellformed"
+  shows
+  "K \<turnstile> t \<leftarrow> t \<squnion> t"
+  "K \<turnstile> t \<leftarrow> t \<sqinter> t"
+  using assms
+proof (induct t)
+  case (TCon ns ts s)
+  moreover assume "K \<turnstile> TCon ns ts s wellformed"
+  ultimately show
+    "K \<turnstile> TCon ns ts s \<leftarrow> TCon ns ts s \<squnion> TCon ns ts s"
+    "K \<turnstile> TCon ns ts s \<leftarrow> TCon ns ts s \<sqinter> TCon ns ts s"
+     by (simp, fastforce simp add: list_all3_same kinding_all_set intro!: type_lub_type_glb.intros)+
+next
+  case (TSum ts)
+  assume ts_wellformed: "K \<turnstile> TSum ts wellformed"
+  {
+    fix n t t1 t2 b b1 b2
+    assume assms1:
+      "(n, t, b) \<in> set ts"
+      "(n, t1, b1) \<in> set ts"
+      "(n, t2, b2) \<in> set ts"
+    moreover have "t1 = t" "t2 = t" "b1 = b" "b2 = b"
+      using assms1 ts_wellformed
+        distinct_fst[where xs=ts and b="(p, q)" and b'="(p', q')" for p q p' q']
+      by fastforce+
+    ultimately have
+      "b1 = b" "b2 = b"
+      "K \<turnstile> t \<leftarrow> t1 \<squnion> t2 \<and> (b = inf b1 b2)"
+      "K \<turnstile> t \<leftarrow> t1 \<sqinter> t2 \<and> (b = sup b1 b2)"
+      using TSum ts_wellformed kinding_variant_all_wellformed
+      by auto
+  }
+  then show
+    "K \<turnstile> TSum ts \<leftarrow> TSum ts \<squnion> TSum ts"
+    "K \<turnstile> TSum ts \<leftarrow> TSum ts \<sqinter> TSum ts"
+    using ts_wellformed
+    by (auto elim!: kind_tsumE intro!: type_lub_type_glb.intros kind_tsum simp add: type_wellformed_def)
+next
+  case (TRecord ts s)
+  assume ts_wellformed: "K \<turnstile> TRecord ts s wellformed"
+  {
+    fix n t t1 t2 b b1 b2
+    assume assms1:
+      "(n, t, b) \<in> set ts"
+      "(n, t1, b1) \<in> set ts"
+      "(n, t2, b2) \<in> set ts"
+    moreover have "t1 = t" "t2 = t" "b1 = b" "b2 = b"
+      using assms1 ts_wellformed
+        distinct_fst[where xs=ts and b="(p, q)" and b'="(p', q')" for p q p' q']
+      by fastforce+
+    ultimately have
+      "b1 = b" "b2 = b"
+      "K \<turnstile> t \<leftarrow> t1 \<squnion> t2 \<and> (b = inf b1 b2)"
+      "K \<turnstile> t \<leftarrow> t1 \<sqinter> t2 \<and> (b = sup b1 b2)"
+      using TRecord ts_wellformed kinding_record_wellformed
+      by auto
+  }
+  then show
+    "K \<turnstile> TRecord ts s \<leftarrow> TRecord ts s \<squnion> TRecord ts s"
+    "K \<turnstile> TRecord ts s \<leftarrow> TRecord ts s \<sqinter> TRecord ts s"
+    using ts_wellformed
+    by (auto elim!: kind_trecE intro!: type_lub_type_glb.intros kind_trec simp add: type_wellformed_def)
+qed (force intro: type_lub_type_glb.intros)+
+
 
 section {* Typing lemmas *}
 
