@@ -66,6 +66,10 @@ mkOutputName' mod src mbsuf = mod $ maybe (takeBaseName src) id __cogent_output_
 mkOutputName :: FilePath -> Maybe String -> String
 mkOutputName src mbsuf = mkOutputName' id src mbsuf
 
+nameToFileName :: String -> String -> Maybe FilePath
+nameToFileName name ext =
+  if __cogent_fdump_to_stdout then Nothing
+  else Just $ __cogent_dist_dir `combine` name <.> ext
 
 mkFileName' :: (String -> String) -> FilePath -> Maybe String -> String -> Maybe FilePath
 mkFileName' mod src mbsuf ext =

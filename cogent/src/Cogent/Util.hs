@@ -260,6 +260,14 @@ unionWithKeyM f m1 m2 =
 -- stdoutPath = "/dev/stdout"
 -- nullPath = "/dev/null"
 
+-- | Used for adding terminators to each line.
+delimiter :: String -> String -> String
+delimiter d = unlines . go d . lines
+  where go d [] = []
+        go _ [x] = [x]
+        go d (x:xs) = (x++d) : go d xs
+
+
 data Stage = STGParse | STGTypeCheck | STGDesugar | STGNormal | STGSimplify | STGMono | STGCodeGen
            deriving (Enum, Eq, Ord, Show)
 

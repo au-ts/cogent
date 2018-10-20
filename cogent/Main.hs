@@ -873,26 +873,30 @@ parseArgs args = case getOpt' Permute options args of
 
     genShallow cmds source stg defns typedefs fts log (False,False,False,False,False,False,False,False) = return empty
     genShallow cmds source stg defns typedefs fts log (sh,sc,ks,sh_tup,ks_tup,tup_proof,shhs,shhs_tup) = do
+          -- Isabelle files
       let shfile = mkThyFileName source (__cogent_suffix_of_shallow ++ __cogent_suffix_of_stage stg)
           ssfile = mkThyFileName source (__cogent_suffix_of_shallow_shared)
           scfile = mkThyFileName source (__cogent_suffix_of_scorres ++ __cogent_suffix_of_stage stg)
           ksfile = mkThyFileName source (__cogent_suffix_of_shallow_consts ++ __cogent_suffix_of_stage stg)
-          shhsfile = mkHsFileName source (__cogent_suffix_of_shallow ++ __cogent_suffix_of_stage stg)
-
           sh_tupfile = mkThyFileName source (__cogent_suffix_of_shallow ++ __cogent_suffix_of_stage STGDesugar ++ __cogent_suffix_of_recover_tuples)
           ss_tupfile = mkThyFileName source (__cogent_suffix_of_shallow_shared ++ __cogent_suffix_of_recover_tuples)
           ks_tupfile = mkThyFileName source (__cogent_suffix_of_shallow_consts ++ __cogent_suffix_of_stage STGDesugar ++ __cogent_suffix_of_recover_tuples)
           tup_prooffile = mkThyFileName source __cogent_suffix_of_shallow_tuples_proof
-          shhs_tupfile = mkHsFileName source (__cogent_suffix_of_shallow ++ __cogent_suffix_of_stage STGDesugar ++ __cogent_suffix_of_recover_tuples)
 
           thy = mkProofName source Nothing
-          hsname = mkOutputName' toHsModName source (Just $ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage stg)
-          hs_tupname = mkOutputName' toHsModName source (Just $ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage STGDesugar ++ __cogent_suffix_of_recover_tuples)
-          (shal,shrd,scorr,shallowTypeNames) = SH.shallow False thy stg defns log
-          (shal_tup,shrd_tup,_,_) = SH.shallow True thy STGDesugar defns log
+          -- Haskell shallow embedding
+          hsShalName    = mkOutputName' toHsModName source (Just $ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage stg)
+          hsShalTupName = mkOutputName' toHsModName source (Just $ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage STGDesugar ++ __cogent_suffix_of_recover_tuples)
+          hsShalFile         = nameToFileName hsShalName    __cogent_ext_of_hs
+          hsShalTupFile      = nameToFileName hsShalTupName __cogent_ext_of_hs
+          hsShalTypesFile    = nameToFileName (hsShalName    ++ "_Types") __cogent_ext_of_hs
+          hsShalTupTypesFile = nameToFileName (hsShalTupName ++ "_Types") __cogent_ext_of_hs
+          -- Run the generators
+          (shal    ,shrd    ,scorr,shallowTypeNames) = SH.shallow False thy stg        defns log
+          (shal_tup,shrd_tup,_    ,_               ) = SH.shallow True  thy STGDesugar defns log
           constsTypeCheck = IN.tcConsts (sel3 $ fromJust $ getLast typedefs) fts
-          shalhs     consts = HS.shallow False hsname stg defns consts log  -- experimental!!!
-          shalhs_tup consts = HS.shallow True  hs_tupname stg defns consts log  -- experimental!!!
+          hsShal    = \consts -> HS.shallow False hsShalName    stg defns consts log
+          hsShalTup = \consts -> HS.shallow True  hsShalTupName stg defns consts log
           tup_proof_thy = shallowTuplesProof thy
                             (mkProofName source (Just $ __cogent_suffix_of_shallow_shared))
                             (mkProofName source (Just $ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage stg))
@@ -909,8 +913,11 @@ parseArgs args = case getOpt' Permute options args of
         putProgressLn ("Generating Haskell shallow embedding (" ++ stgMsg stg ++ ")...")
         case constsTypeCheck of
           Left err -> hPutStrLn stderr ("Internal TC failed: " ++ err) >> exitFailure
-          Right (cs,_) -> do writeFileMsg shhsfile
-                             output shhsfile $ flip hPutStrLn (shalhs cs)
+          Right (cs,_) -> do let (hs,tys) = hsShal cs
+                             writeFileMsg hsShalFile
+                             output hsShalFile $ flip hPutStrLn hs
+                             writeFileMsg hsShalTypesFile
+                             output hsShalTypesFile $ flip hPutStrLn tys
       when ks $ do
         putProgressLn ("Generating shallow constants (" ++ stgMsg stg ++ ")...")
         case constsTypeCheck of
@@ -931,8 +938,11 @@ parseArgs args = case getOpt' Permute options args of
         putProgressLn ("Generating Haskell shallow embedding (with Haskell tuples)...")
         case constsTypeCheck of
           Left err -> hPutStrLn stderr ("Internal TC failed: " ++ err) >> exitFailure
-          Right (cs,_) -> do writeFileMsg shhs_tupfile
-                             output shhs_tupfile $ flip hPutStrLn (shalhs_tup cs)
+          Right (cs,_) -> do let (hs,tys) = hsShalTup cs
+                             writeFileMsg hsShalTupFile
+                             output hsShalTupFile $ flip hPutStrLn hs
+                             writeFileMsg hsShalTupTypesFile
+                             output hsShalTupTypesFile $ flip hPutStrLn tys
       when ks_tup $ do
         putProgressLn ("Generating shallow constants (with HOL tuples)...")
         case constsTypeCheck of

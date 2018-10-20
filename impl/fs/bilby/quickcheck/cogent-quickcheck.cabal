@@ -121,7 +121,10 @@ library readpage-example
   hs-source-dirs:      readpage_example
   default-language:    Haskell2010
   -- build-tools:         hsc2hs
+  build-tools:         cpphs >= 1.19
+  ghc-options:         -pgmP cpphs -optP --cpp   
   include-dirs:        . readpage_example
+  -- default-extensions:    CPP
 
 
 executable cogent-quickcheck
