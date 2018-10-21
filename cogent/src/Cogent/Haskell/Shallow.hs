@@ -102,6 +102,8 @@ import Control.Monad.RWS hiding (Product, Sum, mapM)
 -- import Data.Char (ord, chr)
 import Data.Foldable (toList)
 import Data.Function (on)
+import Data.Generics.Aliases (mkQ)
+import Data.Generics.Schemes (everything)
 import Data.List as L
 import qualified Data.Map as M
 import Data.Maybe (maybe)
@@ -182,15 +184,15 @@ shallow :: Bool    -- ^ Whether we recover the tuple syntax for tuple types.
         -> [CC.Definition TypedExpr VarName]  -- ^ A list of Cogent definitions
         -> [CC.CoreConst TypedExpr]           -- ^ A list of Cogent constants
         -> String                             -- ^ The log header to be included in the generated code
-        -> (String, String)                   -- ^ (shallow embedding, macro defns of types)
+        -> String
 shallow tuples name stg defs consts log =
-  let ((decls,tsyns),w) = evalRWS (runSG $ do shallowTypesFromTable
-                                              cs <- concatMapM shallowConst consts
-                                              (ds,ts) <- shallowDefinitions defs
-                                              return (cs ++ ds, ts)
-                                  )
-                                  (ReaderGen (st defs) [] tuples [])
-                                  (StateGen 0 M.empty)
+  let (decls,w) = evalRWS (runSG $ do shallowTypesFromTable
+                                      cs <- concatMapM shallowConst consts
+                                      ds <- shallowDefinitions defs
+                                      return $ cs ++ ds
+                          )
+                          (ReaderGen (st defs) [] tuples [])
+                          (StateGen 0 M.empty)
       tds = datatypes w
       header = (("{-\n" ++ log ++ "\n-}\n") ++)
       moduleHead = ModuleHead () (ModuleName () name) Nothing Nothing
@@ -216,23 +218,13 @@ shallow tuples name stg defs consts log =
              , ImportDecl () (ModuleName () "Data.Tuple.Update") True False False Nothing (Just $ ModuleName () "Tup") Nothing
              , ImportDecl () (ModuleName () "Data.Word") False False False Nothing Nothing (Just $ ImportSpecList () False import_word)
              , ImportDecl () (ModuleName () "Prelude"  ) False False False Nothing Nothing (Just $ ImportSpecList () False import_prelude)
-             , ImportDecl () (ModuleName () (name ++ "_Types")) False False False Nothing Nothing Nothing
              ]
       hsModule = Module () (Just moduleHead) exts imps $ tds ++ decls
-      macroModule = unlines $ [ "{-# LANGUAGE CPP #-}"
-                              -- , "{-# OPTIONS_GHC -optF --layout #-}"
-                              , ""
-                              , "module " ++ name ++ "_Types" ++ " where"
-                              , ""
-                              ] ++
-                              map (\(n,t) -> "#define " ++ n ++ " \\\n" ++ delimiter " \\" (prettyPrint t)) tsyns
-      in ( hsModule & header .
-             prettyPrintStyleMode
-               (style {lineLength = 220, ribbonsPerLine = 0.1})
-               -- \ ^ if using https://github.com/zilinc/haskell-src-exts, no need for very long lines
-               (defaultMode {caseIndent = 2})
-         , macroModule
-         )
+      in hsModule & header .
+           prettyPrintStyleMode
+             (style {lineLength = 220, ribbonsPerLine = 0.1})
+             -- \ ^ if using https://github.com/zilinc/haskell-src-exts, no need for very long lines
+             (defaultMode {caseIndent = 2})
 
 -- ----------------------------------------------------------------------------
 -- * Top-level definition generation
@@ -243,7 +235,7 @@ shallowTypeDef tn tvs t = do
   t' <- shallowType t
   pure $ TypeDecl () (mkDeclHead (mkName tn) (P.map (mkName . snm) tvs)) t'
 
-shallowDefinition :: CC.Definition TypedExpr VarName -> SG ([Decl ()], [(String, Type ())])
+shallowDefinition :: CC.Definition TypedExpr VarName -> SG [Decl ()]
 shallowDefinition (CC.FunDef _ fn ps ti to e) =
   local (typarUpd typar) $ do
     ti' <- shallowType ti
@@ -252,10 +244,14 @@ shallowDefinition (CC.FunDef _ fn ps ti to e) =
     ty <- shallowType $ CC.TFun ti to
     let tiname = toHsTypeName fn' ++ "_ArgT"
         toname = toHsTypeName fn' ++ "_RetT"
-        sig = TypeSig () [mkName fn'] 
-                (TyFun () (TyCon () (mkQName tiname)) (TyCon () (mkQName toname)))
+        tyvars = tyVars ty
+        ti'' = mkAppT (TyCon () (mkQName tiname)) (map (TyVar ()) tyvars)
+        to'' = mkAppT (TyCon () (mkQName toname)) (map (TyVar ()) tyvars)
+        sig = TypeSig () [mkName fn'] (TyFun () ti'' to'')
         dec = FunBind () [Match () (mkName fn') [PVar () arg0] (UnGuardedRhs () e') Nothing]
-    pure ([sig,dec], [(tiname, ti'),(toname, to')])
+        tidef = TypeDecl () (mkDeclHead (mkName tiname) tyvars) ti'
+        todef = TypeDecl () (mkDeclHead (mkName toname) tyvars) to'
+    pure [tidef,todef,sig,dec]
   where fn'   = snm fn
         arg0  = mkName $ snm $ D.freshVarPrefix ++ "0"
         typar = map fst $ Vec.cvtToList ps
@@ -266,10 +262,14 @@ shallowDefinition (CC.AbsDecl _ fn ps ti to) =
     ty <- shallowType $ CC.TFun ti to
     let tiname = toHsTypeName fn' ++ "_ArgT"
         toname = toHsTypeName fn' ++ "_RetT"
-        sig = TypeSig () [mkName fn']
-                (TyFun () (TyCon () (mkQName tiname)) (TyCon () (mkQName toname)))
+        tyvars = tyVars ty
+        ti'' = mkAppT (TyCon () (mkQName tiname)) (map (TyVar ()) tyvars)
+        to'' = mkAppT (TyCon () (mkQName toname)) (map (TyVar ()) tyvars)
+        sig = TypeSig () [mkName fn'] (TyFun () ti'' to'')
         dec = FunBind () [Match () (mkName fn') [] (UnGuardedRhs () $ mkVarE $ mkName "undefined") Nothing]
-    pure ([sig,dec], [(tiname, ti'),(toname, to')])
+        tidef = TypeDecl () (mkDeclHead (mkName tiname) tyvars) ti'
+        todef = TypeDecl () (mkDeclHead (mkName toname) tyvars) to'
+    pure [tidef,todef,sig,dec]
   where fn' = snm fn
         typar = map fst $ Vec.cvtToList ps
 shallowDefinition (CC.TypeDef tn ps Nothing) =
@@ -279,15 +279,15 @@ shallowDefinition (CC.TypeDef tn ps Nothing) =
 #else
                 Nothing
 #endif
-     in local (typarUpd typar) $ pure ([dec], [])
+     in local (typarUpd typar) $ pure [dec]
   where typar = Vec.cvtToList ps
 shallowDefinition (CC.TypeDef tn ps (Just t)) = do
-    local (typarUpd typar) $ ((,[]) . (:[]) <$> shallowTypeDef tn typar t)
+    local (typarUpd typar) $ (:[]) <$> shallowTypeDef tn typar t
   where typar = Vec.cvtToList ps
 
 
-shallowDefinitions :: [CC.Definition TypedExpr VarName] -> SG ([Decl ()], [(String, Type())])
-shallowDefinitions = ((concat *** concat) . P.unzip <$>) . mapM shallowDefinition
+shallowDefinitions :: [CC.Definition TypedExpr VarName] -> SG [Decl ()]
+shallowDefinitions = (concat <$>) . mapM shallowDefinition
 
 shallowConst :: CC.CoreConst TypedExpr -> SG [HS.Decl ()]
 shallowConst (n, te@(TE t _)) = do
@@ -727,6 +727,9 @@ mkDeclHead :: Name () -> [Name ()] -> DeclHead ()
 mkDeclHead n [] = DHead () n
 mkDeclHead n vs = foldl' (\acc v -> DHApp () acc (UnkindedVar () v)) (mkDeclHead n []) vs
 
+mkForallT :: [Name ()] -> Type () -> Type ()
+mkForallT ts t = TyForall () (Just (map (UnkindedVar ()) ts)) Nothing t
+
 mkTyConT :: Name () -> HS.Type ()
 mkTyConT = TyCon () . UnQual ()
 
@@ -765,4 +768,13 @@ mkLetE bs e =
   let decls = P.map (uncurry patBind) bs
    in letE decls e
 
+
+-- -----------------------------------------------------------------------------
+-- misc. helpers
+
+tyVars :: Type () -> [Name ()]
+tyVars = nub . everything (++) ([] `mkQ` go) 
+  where
+    go (TyVar () n) = [n]
+    go t = []
 

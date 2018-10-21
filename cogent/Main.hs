@@ -889,8 +889,6 @@ parseArgs args = case getOpt' Permute options args of
           hsShalTupName = mkOutputName' toHsModName source (Just $ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage STGDesugar ++ __cogent_suffix_of_recover_tuples)
           hsShalFile         = nameToFileName hsShalName    __cogent_ext_of_hs
           hsShalTupFile      = nameToFileName hsShalTupName __cogent_ext_of_hs
-          hsShalTypesFile    = nameToFileName (hsShalName    ++ "_Types") __cogent_ext_of_hs
-          hsShalTupTypesFile = nameToFileName (hsShalTupName ++ "_Types") __cogent_ext_of_hs
           -- Run the generators
           (shal    ,shrd    ,scorr,shallowTypeNames) = SH.shallow False thy stg        defns log
           (shal_tup,shrd_tup,_    ,_               ) = SH.shallow True  thy STGDesugar defns log
@@ -913,11 +911,8 @@ parseArgs args = case getOpt' Permute options args of
         putProgressLn ("Generating Haskell shallow embedding (" ++ stgMsg stg ++ ")...")
         case constsTypeCheck of
           Left err -> hPutStrLn stderr ("Internal TC failed: " ++ err) >> exitFailure
-          Right (cs,_) -> do let (hs,tys) = hsShal cs
-                             writeFileMsg hsShalFile
-                             output hsShalFile $ flip hPutStrLn hs
-                             writeFileMsg hsShalTypesFile
-                             output hsShalTypesFile $ flip hPutStrLn tys
+          Right (cs,_) -> do writeFileMsg hsShalFile
+                             output hsShalFile $ flip hPutStrLn (hsShal cs)
       when ks $ do
         putProgressLn ("Generating shallow constants (" ++ stgMsg stg ++ ")...")
         case constsTypeCheck of
@@ -938,11 +933,8 @@ parseArgs args = case getOpt' Permute options args of
         putProgressLn ("Generating Haskell shallow embedding (with Haskell tuples)...")
         case constsTypeCheck of
           Left err -> hPutStrLn stderr ("Internal TC failed: " ++ err) >> exitFailure
-          Right (cs,_) -> do let (hs,tys) = hsShalTup cs
-                             writeFileMsg hsShalTupFile
-                             output hsShalTupFile $ flip hPutStrLn hs
-                             writeFileMsg hsShalTupTypesFile
-                             output hsShalTupTypesFile $ flip hPutStrLn tys
+          Right (cs,_) -> do writeFileMsg hsShalTupFile
+                             output hsShalTupFile $ flip hPutStrLn (hsShalTup cs)
       when ks_tup $ do
         putProgressLn ("Generating shallow constants (with HOL tuples)...")
         case constsTypeCheck of

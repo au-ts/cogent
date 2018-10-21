@@ -31,7 +31,6 @@ import qualified Bilbyfs_Shallow_Desugar_Tuples as Conc
 import Fsop
 import Util
 
-#include "Bilbyfs_Shallow_Desugar_Tuples_Types.hs"
 
 -- /////////////////////////////////////////////////////////////////////////////
 --
@@ -85,13 +84,13 @@ prop_corres_fsop_readpage =
         oc = Conc.fsop_readpage ic
      in corres rel_fsop_readpage_ret oa oc
 
-gen_fsop_readpage_arg :: Gen Fsop_readpage_ArgT
+gen_fsop_readpage_arg :: Gen Conc.Fsop_readpage_ArgT
 gen_fsop_readpage_arg = undefined
 
-abs_fsop_readpage_arg :: Fsop_readpage_ArgT -> (OstoreState, VfsInode, OSPageOffset)
+abs_fsop_readpage_arg :: Conc.Fsop_readpage_ArgT -> (OstoreState, VfsInode, OSPageOffset)
 abs_fsop_readpage_arg = undefined
 
-rel_fsop_readpage_ret :: R (WordArray U8) ErrCode -> Fsop_readpage_RetT -> Bool
+rel_fsop_readpage_ret :: R (WordArray U8) ErrCode -> Conc.Fsop_readpage_RetT -> Bool
 rel_fsop_readpage_ret = undefined
 
 
