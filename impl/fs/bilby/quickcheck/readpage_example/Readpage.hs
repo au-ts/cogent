@@ -27,7 +27,7 @@ import Test.QuickCheck hiding (Success, Error)
 
 import CogentMonad
 import Corres
-import qualified Bilbyfs_Shallow_Desugar_Tuples as Conc
+import qualified Bilbyfs_Shallow_Desugar_Tuples as C
 import Fsop
 import Util
 
@@ -81,16 +81,24 @@ prop_corres_fsop_readpage =
   forAll gen_fsop_readpage_arg $ \ic -> 
     let (ostore_st,vnode,block) = abs_fsop_readpage_arg ic
         oa = hs_fsop_readpage ostore_st vnode block
-        oc = Conc.fsop_readpage ic
+        oc = C.fsop_readpage ic
      in corres rel_fsop_readpage_ret oa oc
 
-gen_fsop_readpage_arg :: Gen Conc.Fsop_readpage_ArgT
+gen_fsop_readpage_arg :: Gen C.Fsop_readpage_ArgT
 gen_fsop_readpage_arg = undefined
 
-abs_fsop_readpage_arg :: Conc.Fsop_readpage_ArgT -> (OstoreState, VfsInode, OSPageOffset)
+abs_fsop_readpage_arg :: C.Fsop_readpage_ArgT -> (OstoreState, VfsInode, OSPageOffset)
 abs_fsop_readpage_arg = undefined
 
-rel_fsop_readpage_ret :: R (WordArray U8) ErrCode -> Conc.Fsop_readpage_RetT -> Bool
-rel_fsop_readpage_ret = undefined
+rel_fsop_readpage_ret :: R (WordArray U8) ErrCode -> C.Fsop_readpage_RetT -> Bool
+rel_fsop_readpage_ret (Error e_a) (_, C.V112_Error e_c) = e_a == e_c
+rel_fsop_readpage_ret (Success arr_a) (C.R24 _ _ _ (C.R66 data_c bound_c), C.V112_Success ()) =
+  let (l_a, u_a) = bounds arr_a
+      (l_c, u_c) = bounds data_c
+   in u_a - 1 == min (u_c - 1) bound_c - 1 &&
+      l_a == 0 && l_c == 0 &&
+      elems arr_a == elems data_c
+
+rel_fsop_readpage_ret _ _ = False
 
 
