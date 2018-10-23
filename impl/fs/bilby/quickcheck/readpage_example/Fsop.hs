@@ -2,9 +2,9 @@
 {-# LANGUAGE TupleSections #-}
 
 module Fsop (
-  module WordArray
-, module Fsop
-            ) where
+  module Fsop
+, module WordArray
+) where
 
 import Control.Arrow
 -- import Data.Array
@@ -20,24 +20,7 @@ type U16 = Word16
 type U32 = Word32
 type U64 = Word64
 
--- FIXME: this is implemented as a C cast in bilby
-downcast :: (Integral a, Integral b) => a -> b
-downcast = fromIntegral
-
-data R a e = Success a | Error e
-
 type ErrCode = U32
-
-type OstoreState = M.Map ObjId Obj
-
--- We make it abstract
-data VfsInode = VfsInode { ino :: U32 } deriving (Eq, Ord, Show)
-
--- abstract function
-vfs_inode_get_ino :: VfsInode -> U32
-vfs_inode_get_ino (VfsInode ino) = ino
-
-type OSPageOffset = U64
 
 bilbyFsBlockShift = 12  :: U32
 bilbyFsBlockSize = 4096 :: U32
@@ -104,6 +87,7 @@ when block = 3, that's the special case. We return the old buffer unmodified.
 
 -}
 
+type OstoreState = M.Map ObjId Obj
 
 data Obj = Obj { magic  :: U32
                , crc    :: U32
@@ -114,6 +98,7 @@ data Obj = Obj { magic  :: U32
                , otype  :: ObjType
                , ounion :: ObjUnion
                }
+         deriving (Eq, Ord, Show)
 
 type ObjTrans = U8
 type ObjType  = U8
@@ -124,15 +109,17 @@ data ObjUnion = TObjDentarr ObjDentarr
               | TObjSuper ObjSuper
               | TObjSummary ObjSummary
               | TObjPad ()
+              deriving (Eq, Ord, Show)
 
 -- Their definitions shouldn't matter for this example
-data ObjDentarr
-data ObjInode
-data ObjDel
-data ObjSuper
-data ObjSummary
+data ObjDentarr = ObjDentarr deriving (Eq, Ord, Show) 
+data ObjInode   = ObjInode   deriving (Eq, Ord, Show)
+data ObjDel     = ObjDel     deriving (Eq, Ord, Show) 
+data ObjSuper   = ObjSuper   deriving (Eq, Ord, Show) 
+data ObjSummary = ObjSummary deriving (Eq, Ord, Show)
 
 data ObjData = ObjData { oid :: ObjId, odata :: WordArray U8 }
+             deriving (Eq, Ord, Show)
 
 type ObjId = U64
 
@@ -159,10 +146,6 @@ bilbyFsObjTypeInode = 0
 bilbyFsObjTypeData :: U8
 bilbyFsObjTypeData = 1
 
-
 type VfsSize = U64
 
--- TODO: abstract function
-vfs_inode_get_size :: VfsInode -> VfsSize
-vfs_inode_get_size = undefined
 

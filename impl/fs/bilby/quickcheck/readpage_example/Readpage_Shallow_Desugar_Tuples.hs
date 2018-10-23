@@ -511,7 +511,7 @@ type SysState = ()
 
 data SpinLock
 
-data OstoreState = OstoreState deriving Show
+type OstoreState = Ax.OstoreState
 
 data ObjSuper
 
