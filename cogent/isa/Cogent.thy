@@ -89,14 +89,25 @@ datatype record_state = Present | Taken
 (* variant and record states have instantiations of lattice.
    This should match up with the subtyping lattice ops. *)
 
-instantiation variant_state :: lattice
+instantiation variant_state :: boolean_algebra
 begin
+
+fun uminus_variant_state :: "variant_state \<Rightarrow> variant_state" where
+  "uminus_variant_state Checked   = Unchecked"
+| "uminus_variant_state Unchecked = Checked"
+
+definition top_variant_state :: variant_state where
+  "top_variant_state \<equiv> Unchecked"
+declare top_variant_state_def[simp]
+
+definition bot_variant_state :: variant_state where
+  "bot_variant_state \<equiv> Checked"
+declare bot_variant_state_def[simp]
 
 fun inf_variant_state :: "variant_state \<Rightarrow> variant_state \<Rightarrow> variant_state" where
   "inf_variant_state Checked   _         = Checked"
 | "inf_variant_state Unchecked Checked   = Checked"
 | "inf_variant_state Unchecked Unchecked = Unchecked"
-  
 
 fun sup_variant_state :: "variant_state \<Rightarrow> variant_state \<Rightarrow> variant_state" where
   "sup_variant_state Unchecked _         = Unchecked"
@@ -113,6 +124,10 @@ fun less_variant_state :: "variant_state \<Rightarrow> variant_state \<Rightarro
 | "less_variant_state Unchecked Unchecked = False"
 | "less_variant_state Checked   Unchecked = True"
 
+definition minus_variant_state :: "variant_state \<Rightarrow> variant_state \<Rightarrow> variant_state" where
+  "minus_variant_state x y \<equiv> inf x (- y)"
+declare minus_variant_state_def[simp]
+
 instance proof
   fix x y z :: variant_state
 
@@ -124,10 +139,8 @@ instance proof
     by (cases x; cases y; cases z; clarsimp)
   show "x \<le> y \<Longrightarrow> y \<le> x \<Longrightarrow> x = y"
     by (cases x; cases y; clarsimp)
-  show "inf x y \<le> x"
-    by (cases x; cases y; clarsimp)
-  show "inf x y \<le> y"
-    by (cases x; cases y; clarsimp)
+  show "inf x y \<le> x" "inf x y \<le> y"
+    by (cases x; cases y; clarsimp)+
   show "x \<le> y \<Longrightarrow> x \<le> z \<Longrightarrow> x \<le> inf y z"
     by (cases x; cases y; cases z; clarsimp)
   show "x \<le> sup x y"
@@ -136,17 +149,38 @@ instance proof
     by (cases x; cases y; clarsimp)
   show "y \<le> x \<Longrightarrow> z \<le> x \<Longrightarrow> sup y z \<le> x"
     by (cases x; cases y; cases z; clarsimp)
+  show "bot \<le> x" "x \<le> top"
+    by (cases x; simp)+
+  show "sup x (inf y z) = inf (sup x y) (sup x z)"
+    by (cases x; cases y; cases z; simp)
+  show
+    "inf x (- x) = bot"
+    "sup x (- x) = top"
+    by (cases x; simp)+
+  show "x - y = inf x (- y)"
+    by simp
 qed
 end
 
-instantiation record_state :: lattice
+instantiation record_state :: boolean_algebra
 begin
+
+fun uminus_record_state :: "record_state \<Rightarrow> record_state" where
+  "uminus_record_state Taken   = Present"
+| "uminus_record_state Present = Taken"
+
+definition top_record_state :: record_state where
+  "top_record_state \<equiv> Present"
+declare top_record_state_def[simp]
+
+definition bot_record_state :: record_state where
+  "bot_record_state \<equiv> Taken"
+declare bot_record_state_def[simp]
 
 fun inf_record_state :: "record_state \<Rightarrow> record_state \<Rightarrow> record_state" where
   "inf_record_state Taken   _       = Taken"
 | "inf_record_state Present Taken   = Taken"
 | "inf_record_state Present Present = Present"
-  
 
 fun sup_record_state :: "record_state \<Rightarrow> record_state \<Rightarrow> record_state" where
   "sup_record_state Present _       = Present"
@@ -163,6 +197,10 @@ fun less_record_state :: "record_state \<Rightarrow> record_state \<Rightarrow> 
 | "less_record_state Present Present = False"
 | "less_record_state Taken   Present = True"
 
+definition minus_record_state :: "record_state \<Rightarrow> record_state \<Rightarrow> record_state" where
+  "minus_record_state x y \<equiv> inf x (- y)"
+declare minus_record_state_def[simp]
+
 instance proof
   fix x y z :: record_state
 
@@ -174,10 +212,8 @@ instance proof
     by (cases x; cases y; cases z; clarsimp)
   show "x \<le> y \<Longrightarrow> y \<le> x \<Longrightarrow> x = y"
     by (cases x; cases y; clarsimp)
-  show "inf x y \<le> x"
-    by (cases x; cases y; clarsimp)
-  show "inf x y \<le> y"
-    by (cases x; cases y; clarsimp)
+  show "inf x y \<le> x" "inf x y \<le> y"
+    by (cases x; cases y; clarsimp)+
   show "x \<le> y \<Longrightarrow> x \<le> z \<Longrightarrow> x \<le> inf y z"
     by (cases x; cases y; cases z; clarsimp)
   show "x \<le> sup x y"
@@ -186,6 +222,16 @@ instance proof
     by (cases x; cases y; clarsimp)
   show "y \<le> x \<Longrightarrow> z \<le> x \<Longrightarrow> sup y z \<le> x"
     by (cases x; cases y; cases z; clarsimp)
+  show "bot \<le> x" "x \<le> top"
+    by (cases x; simp)+
+  show "sup x (inf y z) = inf (sup x y) (sup x z)"
+    by (cases x; cases y; cases z; simp)
+  show
+    "inf x (- x) = bot"
+    "sup x (- x) = top"
+    by (cases x; simp)+
+  show "x - y = inf x (- y)"
+    by simp
 qed
 end
 
