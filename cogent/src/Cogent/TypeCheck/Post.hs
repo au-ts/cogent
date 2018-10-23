@@ -123,7 +123,8 @@ normaliseT d (T (TTake fs t)) = do
    case t' of
      (T (TRecord l s)) -> takeFields fs l t >>= \r -> normaliseT d (T (TRecord r s))
      (T (TVariant ts)) -> takeFields fs (M.toList ts) t' >>= \r -> normaliseT d (T (TVariant (M.fromList r)))
-     e                 -> logErrExit (TakeFromNonRecordOrVariant fs t)
+     _                 -> if __cogent_flax_take_put then return t
+                                                    else logErrExit (TakeFromNonRecordOrVariant fs t)
  where
    takeFields :: Maybe [FieldName] -> [(FieldName, (a, Bool))] -> TCType -> Post [(FieldName, (a, Bool))]
    takeFields Nothing   fs' _  = return $ map (fmap (fmap (const True))) fs'
@@ -137,7 +138,8 @@ normaliseT d (T (TPut fs t)) = do
    case t' of
      (T (TRecord l s)) -> putFields fs l t >>= \r -> normaliseT d (T (TRecord r s))
      (T (TVariant ts)) -> putFields fs (M.toList ts) t' >>= \r -> normaliseT d (T (TVariant (M.fromList r)))
-     e                 -> logErrExit (PutToNonRecordOrVariant fs t)
+     _                 -> if __cogent_flax_take_put then return t'
+                                                    else logErrExit (PutToNonRecordOrVariant fs t)
  where
    putFields :: Maybe [FieldName] -> [(FieldName, (a, Bool))] -> TCType -> Post [(FieldName, (a, Bool))]
    putFields Nothing   fs' _  = return $ map (fmap (fmap (const False))) fs'

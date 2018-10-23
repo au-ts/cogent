@@ -121,7 +121,8 @@ whnf (T (TTake fs t)) = do
    case t' of
      (T (TRecord l s)) -> return $ T (TRecord (takeFields fs l) s)
      (T (TVariant l))  -> return $ T (TVariant (M.fromList $ takeFields fs $ M.toList l))
-     _ | Just fs' <- fs, null fs'  -> return $ t'
+     _ | Just fs' <- fs, null fs' -> return t'
+     (T (TCon {})) | __cogent_flax_take_put -> return t'
      _ -> return $ T (TTake fs t')
  where
    takeFields :: Maybe [FieldName] -> [(FieldName, (a , Bool))] -> [(FieldName, (a, Bool))]
@@ -133,7 +134,8 @@ whnf (T (TPut fs t)) = do
    case t' of
      (T (TRecord l s)) -> return $ T (TRecord (putFields fs l) s)
      (T (TVariant l))  -> return $ T (TVariant (M.fromList $ putFields fs $ M.toList l))
-     _ | Just fs' <- fs, null fs'  -> return $ t'
+     _ | Just fs' <- fs, null fs' -> return t'
+     (T (TCon {})) | __cogent_flax_take_put -> return t'
      _ -> return $ T (TPut fs t')
  where
    putFields :: Maybe [FieldName] -> [(FieldName, (a, Bool))] -> [(FieldName, (a, Bool))]

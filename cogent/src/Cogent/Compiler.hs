@@ -128,6 +128,7 @@ set_flag_ffullSrcPath = writeIORef __cogent_ffull_src_path_ref True
 set_flag_ffuncPurityAttr = writeIORef __cogent_ffunc_purity_attr_ref True
 set_flag_fgenHeader = writeIORef __cogent_fgen_header_ref True
 set_flag_fintermediateVars = writeIORef __cogent_fintermediate_vars_ref True
+set_flag_flaxTakePut = writeIORef __cogent_flax_take_put_ref True
 set_flag_fletInIf = writeIORef __cogent_flet_in_if_ref True
 set_flag_fletbangInIf = writeIORef __cogent_fletbang_in_if_ref True
 set_flag_fmlTypingTree = writeIORef __cogent_fml_typing_tree_ref True
@@ -137,6 +138,7 @@ set_flag_fnoFncallAsMacro = writeIORef __cogent_ffncall_as_macro_ref False
 set_flag_fnoFuncPurityAttr = writeIORef __cogent_ffunc_purity_attr_ref False
 set_flag_fnoGenHeader = writeIORef __cogent_fgen_header_ref False
 set_flag_fnoIntermediateVars = writeIORef __cogent_fintermediate_vars_ref False
+set_flag_fnoLaxTakePut = writeIORef __cogent_flax_take_put_ref False
 set_flag_fnoLetInIf = writeIORef __cogent_flet_in_if_ref False
 set_flag_fnoLetbangInIf = writeIORef __cogent_fletbang_in_if_ref False
 set_flag_fnoMlTypingTree = writeIORef __cogent_fml_typing_tree_ref False
@@ -441,6 +443,13 @@ __cogent_fintermediate_vars = unsafePerformIO $ readIORef __cogent_fintermediate
 __cogent_fintermediate_vars_ref :: IORef Bool
 {-# NOINLINE __cogent_fintermediate_vars_ref #-}
 __cogent_fintermediate_vars_ref = unsafePerformIO $ newIORef True
+
+__cogent_flax_take_put :: Bool
+__cogent_flax_take_put = unsafePerformIO $ readIORef __cogent_flax_take_put_ref
+
+__cogent_flax_take_put_ref :: IORef Bool
+{-# NOINLINE __cogent_flax_take_put_ref #-}
+__cogent_flax_take_put_ref = unsafePerformIO $ newIORef False
 
 __cogent_flet_in_if :: Bool
 __cogent_flet_in_if = unsafePerformIO $ readIORef __cogent_flet_in_if_ref
