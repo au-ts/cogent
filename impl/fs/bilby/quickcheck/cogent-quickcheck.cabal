@@ -108,7 +108,7 @@ library fsm-example
 library readpage-example
   exposed-modules:     Fsop
                      , Readpage
-  other-modules:       Bilbyfs_Shallow_Desugar_Tuples
+  other-modules:       Readpage_Shallow_Desugar_Tuples
   build-depends:       base >=4.9 && <4.12
                      , array
                      , containers
@@ -123,7 +123,7 @@ library readpage-example
   -- build-tools:         hsc2hs
   -- build-tools:         cpphs >= 1.19
   -- ghc-options:         -pgmP cpphs -optP --cpp   
-  include-dirs:        . readpage_example
+  -- include-dirs:        . 
   -- default-extensions:    CPP
 
 

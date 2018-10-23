@@ -70,6 +70,9 @@ To run the REPL:
 -- | The Haskell type for wordarrays
 type WordArray e = Array Word32 e
 
+empty_array :: WordArray e
+empty_array = array (0, 0) []
+
 hs_wordarray_create :: Word32 -> CogentMonad (Maybe (WordArray e))
 hs_wordarray_create 0 = (return $ Nothing)
 hs_wordarray_create l = (return $ Just (array (0, l-1) []))  -- elements will be undefined
