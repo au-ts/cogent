@@ -203,7 +203,7 @@ inductive uval_typing :: "('f \<Rightarrow> poly_type)
 and uval_typing_record :: "('f \<Rightarrow> poly_type)
                         \<Rightarrow> ('f, 'a, 'l) store
                         \<Rightarrow> (('f, 'a, 'l) uval \<times> repr) list
-                        \<Rightarrow> (name \<times> type \<times> bool) list
+                        \<Rightarrow> (name \<times> type \<times> record_state) list
                         \<Rightarrow> 'l set
                         \<Rightarrow> 'l set
                         \<Rightarrow> bool" ("_, _ \<turnstile>* _ :ur _ \<langle>_, _\<rangle>" [30,0,0,0,20] 80) where
@@ -219,7 +219,7 @@ and uval_typing_record :: "('f \<Rightarrow> poly_type)
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UProduct a b :u TProduct t u \<langle>r \<union> r', w \<union> w'\<rangle>"
 
 | u_t_sum      : "\<lbrakk> \<Xi>, \<sigma> \<turnstile> a :u t \<langle>r, w\<rangle>
-                  ; (tag, t, False) \<in> set ts
+                  ; (tag, t, Unchecked) \<in> set ts
                   ; distinct (map fst ts)
                   ; [] \<turnstile>* map (fst \<circ> snd) ts wellformed
                   ; rs = map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) ts
@@ -276,14 +276,14 @@ and uval_typing_record :: "('f \<Rightarrow> poly_type)
                   ; w  \<inter> r' = {}
                   ; w' \<inter> r  = {}
                   ; type_repr t = rp
-                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile>* ((x,rp) # xs) :ur ((n, t, False) # ts) \<langle>r \<union> r', w \<union> w'\<rangle>"
+                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile>* ((x,rp) # xs) :ur ((n, t, Present) # ts) \<langle>r \<union> r', w \<union> w'\<rangle>"
 
 | u_t_r_cons2  : "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* xs :ur ts \<langle>r, w\<rangle>
                   ; [] \<turnstile> t wellformed
                   ; type_repr t = rp
                   ; uval_repr x = rp
                   ; uval_repr_deep x = rp
-                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile>* ((x,rp) # xs) :ur ((n, t, True) # ts) \<langle>r, w\<rangle>"
+                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile>* ((x,rp) # xs) :ur ((n, t, Taken) # ts) \<langle>r, w\<rangle>"
 
 lemma u_t_prim' : "\<tau> = lit_type l \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPrim l :u TPrim \<tau> \<langle>{}, {}\<rangle>"
    by (simp add: u_t_prim)
@@ -384,7 +384,7 @@ lemma uval_typing_all_record:
     "\<Xi>, \<sigma> \<turnstile>* vs :u ts \<langle>r, w\<rangle>"
     "length ns = length ts"
   shows
-    "\<Xi>, \<sigma> \<turnstile>* (zip vs (map (type_repr) ts)) :ur zip ns (zip ts (replicate (length ts) False)) \<langle>r, w\<rangle>"
+    "\<Xi>, \<sigma> \<turnstile>* (zip vs (map (type_repr) ts)) :ur zip ns (zip ts (replicate (length ts) Present)) \<langle>r, w\<rangle>"
   using assms
 proof (induct arbitrary: ns rule: uval_typing_all.induct)
 qed (auto intro!: uval_typing_uval_typing_record.intros simp add: length_Suc_conv)
@@ -554,7 +554,7 @@ next
     by force
   ultimately show ?case
   proof (simp, intro uval_typing_uval_typing_record.u_t_sum)
-    show "(g, bang t, False) \<in> set (map (\<lambda>(c, t, b). (c, bang t, b)) ts)"
+    show "(g, bang t, Unchecked) \<in> set (map (\<lambda>(c, t, b). (c, bang t, b)) ts)"
       using u_t_sum.hyps by (force simp add: image_iff)
   next
     show "[] \<turnstile>* map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, bang t, b)) ts) wellformed"
@@ -607,7 +607,7 @@ next
     apply (auto simp: f1 intro!: uval_typing_uval_typing_record.u_t_r_cons1[where w="{}" and w'="{}" and r="r \<union> w" and r'="r' \<union> w'", simplified])
     apply (fastforce dest: bang_type_repr(1) uval_typing_to_kinding(1))+
     done
-  have "\<Xi>, \<sigma> \<turnstile>* (x, type_repr (bang t)) # xs :ur (n, bang t, False) # map (apsnd (apfst bang)) ts \<langle>r \<union> w \<union> (r' \<union> w'), {}\<rangle>"
+  have "\<Xi>, \<sigma> \<turnstile>* (x, type_repr (bang t)) # xs :ur (n, bang t, Present) # map (apsnd (apfst bang)) ts \<langle>r \<union> w \<union> (r' \<union> w'), {}\<rangle>"
     using u_t_r_cons1 uval_typing_uval_typing_record.u_t_r_cons1[where w="{}" and w'="{}"]
     by fastforce
 qed (force simp add: map_snd3_keep
@@ -1196,7 +1196,7 @@ using assms by blast
 
 lemma uval_typing_record_nth:
 assumes "\<Xi>, \<sigma> \<turnstile>* fs :ur \<tau>s \<langle>r, {}\<rangle>"
-and     "\<tau>s ! f = (n, \<tau>, False)"
+and     "\<tau>s ! f = (n, \<tau>, Present)"
 and     "f < length \<tau>s"
 shows "\<exists>r' \<subseteq> r. \<Xi>, \<sigma> \<turnstile> fst (fs ! f) :u \<tau> \<langle>r', {}\<rangle>"
 using assms proof (induct fs arbitrary: f r \<tau>s)
@@ -1211,38 +1211,38 @@ qed
 lemma sum_downcast_u:
   assumes uval_tsum_ts: "\<Xi>, \<sigma> \<turnstile> USum tag v xs :u TSum ts \<langle>r, w\<rangle>"
     and     tag_neq_tag': "tag \<noteq> tag'"
-    and     tag'_in_ts  : "(tag', \<tau>, False) \<in> set ts"
-  shows   "\<Xi>, \<sigma> \<turnstile> USum tag v xs :u TSum (tagged_list_update tag' (\<tau>, True) ts) \<langle>r, w\<rangle>"
+    and     tag'_in_ts  : "(tag', \<tau>, Unchecked) \<in> set ts"
+  shows   "\<Xi>, \<sigma> \<turnstile> USum tag v xs :u TSum (tagged_list_update tag' (\<tau>, Checked) ts) \<langle>r, w\<rangle>"
   using uval_tsum_ts
 proof (elim u_t_sumE, clarsimp)
   fix t k
   assume "\<Xi>, \<sigma> \<turnstile> v :u t \<langle>r, w\<rangle>"
-    and tag_in_ts: "(tag, t, False) \<in> set ts"
+    and tag_in_ts: "(tag, t, Unchecked) \<in> set ts"
     and ts_distinct: "distinct (map fst ts)"
     and ts_wellformed: "[] \<turnstile>* map (fst \<circ> snd) ts :\<kappa>  k"
     and "\<Xi>, \<sigma> \<turnstile> USum tag v (map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) ts) :u TSum ts \<langle>r, w\<rangle>"
     and "xs = map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) ts"
-  then show "\<Xi>, \<sigma> \<turnstile> USum tag v (map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) ts) :u TSum (tagged_list_update tag' (\<tau>, True) ts) \<langle>r, w\<rangle>"
+  then show "\<Xi>, \<sigma> \<turnstile> USum tag v (map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) ts) :u TSum (tagged_list_update tag' (\<tau>, Checked) ts) \<langle>r, w\<rangle>"
     using tag_neq_tag' tag'_in_ts
   proof (intro u_t_sum)
-    show "(tag, t, False) \<in> set (tagged_list_update tag' (\<tau>, True) ts)"
+    show "(tag, t, Unchecked) \<in> set (tagged_list_update tag' (\<tau>, Checked) ts)"
       using tag_neq_tag' tag_in_ts tagged_list_update_different_tag_preserves_values2
       by metis
   next
     obtain i
-      where "ts ! i = (tag', \<tau> , False)"
+      where "ts ! i = (tag', \<tau> , Unchecked)"
         and "i < length ts"
       using tag'_in_ts in_set_conv_nth
       by metis
     moreover then have "[] \<turnstile>  \<tau> :\<kappa>  k"
       and "\<And>tag \<tau>' b. (tag, \<tau>', b) \<in> set ts \<Longrightarrow> [] \<turnstile>  \<tau>' :\<kappa>  k"
       using tag'_in_ts kinding_all_set ts_wellformed by auto
-    moreover then have "\<And>tag \<tau>' b. (tag, \<tau>', b) \<in> set (ts[i := (tag', \<tau>, True)]) \<Longrightarrow> [] \<turnstile>  \<tau>' :\<kappa>  k"
+    moreover then have "\<And>tag \<tau>' b. (tag, \<tau>', b) \<in> set (ts[i := (tag', \<tau>, Checked)]) \<Longrightarrow> [] \<turnstile>  \<tau>' :\<kappa>  k"
       by (metis (no_types, lifting) fst_conv in_set_conv_nth length_list_update nth_list_update_eq nth_list_update_neq snd_conv)
-    ultimately have "[] \<turnstile>* map (fst \<circ> snd) (tagged_list_update tag' (\<tau>, True) ts) :\<kappa> k"
+    ultimately have "[] \<turnstile>* map (fst \<circ> snd) (tagged_list_update tag' (\<tau>, Checked) ts) :\<kappa> k"
       using kinding_all_set ts_distinct tagged_list_update_distinct
       by (auto simp add: tagged_list_update_distinct)
-    then show "[] \<turnstile>* map (fst \<circ> snd) (tagged_list_update tag' (\<tau>, True) ts) wellformed"
+    then show "[] \<turnstile>* map (fst \<circ> snd) (tagged_list_update tag' (\<tau>, Checked) ts) wellformed"
       using ts_distinct kinding_all_set
       by auto
   next
@@ -1254,7 +1254,7 @@ proof (elim u_t_sumE, clarsimp)
     have "tagged_list_update tag' (type_repr \<tau>) (map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) ts) = map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) ts"
     proof -
       obtain i
-        where "ts ! i = (tag', \<tau>, False)"
+        where "ts ! i = (tag', \<tau>, Unchecked)"
           and "i < length ts"
         using tag'_in_ts in_set_conv_nth
         by metis
@@ -1264,9 +1264,9 @@ proof (elim u_t_sumE, clarsimp)
         using ts_distinct
         by (simp add: f1 tagged_list_update_same_distinct_is_equal)
     qed
-    moreover have "map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) (tagged_list_update tag' (\<tau>, True) ts) = tagged_list_update tag' (type_repr \<tau>) (map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) ts)"
+    moreover have "map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) (tagged_list_update tag' (\<tau>, Checked) ts) = tagged_list_update tag' (type_repr \<tau>) (map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) ts)"
       by (simp add: f2 tagged_list_update_map_over2)
-    ultimately show "map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) ts = map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) (tagged_list_update tag' (\<tau>, True) ts)"
+    ultimately show "map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) ts = map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) (tagged_list_update tag' (\<tau>, Checked) ts)"
       by simp
   qed fastforce+
 qed
@@ -1295,11 +1295,11 @@ and  "\<Xi>, \<sigma> \<turnstile>* fs :ur ts \<langle>r, w\<rangle> \<Longright
 
 lemma uval_typing_record_take:
 assumes "\<Xi>, \<sigma> \<turnstile>* fs :ur \<tau>s \<langle>r, w\<rangle>"
-and     "\<tau>s ! f = (n, \<tau>, False)"
+and     "\<tau>s ! f = (n, \<tau>, Present)"
 and     "[] \<turnstile> \<tau> wellformed"
 and     "f < length \<tau>s"
 shows   "\<exists>r' w' r'' w''. (\<Xi>, \<sigma> \<turnstile> fst (fs ! f) :u  \<tau>                     \<langle>r' , w' \<rangle>)
-                       \<and> (\<Xi>, \<sigma> \<turnstile>* fs          :ur (\<tau>s [f := (n, \<tau>, True)]) \<langle>r'', w''\<rangle>)
+                       \<and> (\<Xi>, \<sigma> \<turnstile>* fs          :ur (\<tau>s [f := (n, \<tau>, Taken)]) \<langle>r'', w''\<rangle>)
                        \<and> r = r' \<union> r''
                        \<and> w = w' \<union> w''
                        \<and> w' \<inter> w'' = {}"
@@ -1325,12 +1325,12 @@ qed
 lemma uval_typing_record_put_taken:
 assumes "\<Xi>, \<sigma> \<turnstile>  e' :u  t  \<langle>r'b, w'b\<rangle>"
 and     "\<Xi>, \<sigma> \<turnstile>* fs :ur ts \<langle>r'a, w'a\<rangle>"
-and     "ts ! f = (n, t, True)"
+and     "ts ! f = (n, t, Taken)"
 and     "w'b \<inter> r'a = {}"
 and     "w'a \<inter> r'b = {}"
 and     "w'a \<inter> w'b = {}"
 and     "f < length ts"
-shows   "\<Xi>, \<sigma> \<turnstile>* fs[f := (e', snd (fs ! f))] :ur (ts[f := (n, t, False)]) \<langle>r'a \<union> r'b, w'a \<union> w'b\<rangle>"
+shows   "\<Xi>, \<sigma> \<turnstile>* fs[f := (e', snd (fs ! f))] :ur (ts[f := (n, t, Present)]) \<langle>r'a \<union> r'b, w'a \<union> w'b\<rangle>"
 using assms proof (induct fs arbitrary: f r'a w'a ts)
 case Nil then show ?case by auto
 next case Cons then show ?case
@@ -1354,14 +1354,14 @@ qed
 lemma uval_typing_record_put_discardable:
 assumes "\<Xi>, \<sigma> \<turnstile>  e' :u  t  \<langle>r'b, w'b\<rangle>"
 and     "\<Xi>, \<sigma> \<turnstile>* fs :ur ts \<langle>r'a, w'a\<rangle>"
-and     "ts ! f = (n, t, False)"
+and     "ts ! f = (n, t, Present)"
 and     "[] \<turnstile> t :\<kappa> k"
 and     "D \<in> k"
 and     "w'b \<inter> r'a = {}"
 and     "w'a \<inter> r'b = {}"
 and     "w'a \<inter> w'b = {}"
 and     "f < length ts"
-shows   "\<exists>r''a\<subseteq> r'a. \<Xi>, \<sigma> \<turnstile>* fs[f := (e', snd (fs ! f))] :ur (ts[f := (n, t, False)]) \<langle>r''a \<union> r'b, w'a \<union> w'b\<rangle>"
+shows   "\<exists>r''a\<subseteq> r'a. \<Xi>, \<sigma> \<turnstile>* fs[f := (e', snd (fs ! f))] :ur (ts[f := (n, t, Present)]) \<langle>r''a \<union> r'b, w'a \<union> w'b\<rangle>"
   using assms
 proof (induct fs arbitrary: f r'a w'a ts)
   case (Cons f' fs')
@@ -1392,10 +1392,10 @@ proof (induct fs arbitrary: f r'a w'a ts)
       obtain r''a
         where IHresults:
           "r''a \<subseteq> r'"
-          "\<Xi>, \<sigma> \<turnstile>* fs'[fa := (e', snd (fs' ! fa))] :ur ts'[fa := (n, t, False)] \<langle>r''a \<union> r'b, w' \<union> w'b\<rangle>"
+          "\<Xi>, \<sigma> \<turnstile>* fs'[fa := (e', snd (fs' ! fa))] :ur ts'[fa := (n, t, Present)] \<langle>r''a \<union> r'b, w' \<union> w'b\<rangle>"
         using u_t_r_cons1 Cons Suc
         by (clarsimp simp add: w'b_empty Int_Un_distrib2, meson)
-      then have "\<Xi>, \<sigma> \<turnstile>* (x, rp) # fs'[fa := (e', snd (fs' ! fa))] :ur (n', t', False) # ts'[fa := (n, t, False)] \<langle>r \<union> (r''a \<union> r'b), w \<union> (w' \<union> w'b)\<rangle>"
+      then have "\<Xi>, \<sigma> \<turnstile>* (x, rp) # fs'[fa := (e', snd (fs' ! fa))] :ur (n', t', Present) # ts'[fa := (n, t, Present)] \<langle>r \<union> (r''a \<union> r'b), w \<union> (w' \<union> w'b)\<rangle>"
         using u_t_r_cons1 Cons.prems
         by (auto intro!: uval_typing_uval_typing_record.u_t_r_cons1 simp add: Int_Un_distrib Int_Un_distrib2)
       then show ?thesis
@@ -1405,7 +1405,7 @@ proof (induct fs arbitrary: f r'a w'a ts)
       case (u_t_r_cons2 ts' t' rp x n')
       then obtain r''a
         where "r''a \<subseteq> r'a"
-          and "\<Xi>, \<sigma> \<turnstile>* fs'[fa := (e', snd (fs' ! fa))] :ur ts'[fa := (n, t, False)] \<langle>r''a \<union> r'b, w'a \<union> w'b\<rangle>"
+          and "\<Xi>, \<sigma> \<turnstile>* fs'[fa := (e', snd (fs' ! fa))] :ur ts'[fa := (n, t, Present)] \<langle>r''a \<union> r'b, w'a \<union> w'b\<rangle>"
         using Cons Suc
         by (clarsimp simp add: w'b_empty Int_Un_distrib2, meson)
       then show ?thesis
@@ -1420,16 +1420,16 @@ lemma uval_typing_record_put:
 assumes "\<Xi>, \<sigma> \<turnstile>  e' :u  t  \<langle>r'b, w'b\<rangle>"
 and     "\<Xi>, \<sigma> \<turnstile>* fs :ur ts \<langle>r'a, w'a\<rangle>"
 and     "ts ! f = (n, t, taken)"
-and     "D \<in> k \<or> taken"
+and     "D \<in> k \<or> taken = Taken"
 and     "w'b \<inter> r'a = {}"
 and     "w'a \<inter> r'b = {}"
 and     "w'a \<inter> w'b = {}"
 and     "f < length ts"
 and     "[] \<turnstile> t :\<kappa> k"
-shows   "\<exists>r''a\<subseteq> r'a. \<Xi>, \<sigma> \<turnstile>* fs[f := (e', snd (fs ! f))] :ur (ts[f := (n, t, False)]) \<langle>r''a \<union> r'b, w'a \<union> w'b\<rangle>"
+shows   "\<exists>r''a\<subseteq> r'a. \<Xi>, \<sigma> \<turnstile>* fs[f := (e', snd (fs ! f))] :ur (ts[f := (n, t, Present)]) \<langle>r''a \<union> r'b, w'a \<union> w'b\<rangle>"
 using assms proof (cases taken)
-     case False with assms show ?thesis by (fastforce intro!: uval_typing_record_put_discardable)
-next case True  with assms show ?thesis by (fastforce intro!: uval_typing_record_put_taken)
+     case Present with assms show ?thesis by (fastforce intro!: uval_typing_record_put_discardable)
+next case Taken  with assms show ?thesis by (fastforce intro!: uval_typing_record_put_taken)
 qed
 
 lemma list_helper:
@@ -1563,23 +1563,26 @@ next case u_sem_abs_app
 next case (u_sem_con \<xi> \<gamma> \<sigma> x_spec \<sigma>' x' ts_inst tag)
   then show ?case
   proof (cases e)
-    case (Con ts tag' x)
+    have f1: "(\<lambda>(n, t, _). (n, type_repr t)) \<circ> (\<lambda>(n, t, b). (n, instantiate \<tau>s t, b)) = (\<lambda>(n, t, b). (n, type_repr (instantiate \<tau>s t)))"
+      by fastforce
 
-    have ts_inst_is: "ts_inst = map (\<lambda>(c,t,b). (c, instantiate \<tau>s t, b)) ts"
-      and tag'_is: "tag' = tag"
-      and x_spec_is: "x_spec = specialise \<tau>s x"
-      using u_sem_con.hyps Con
-      by simp+
+    case (Con ts tag' x)
+    then have spec_simps:
+      "ts_inst = map (\<lambda>(c,t,b). (c, instantiate \<tau>s t, b)) ts"
+      "tag' = tag"
+      "x_spec = specialise \<tau>s x"
+      using u_sem_con.hyps by simp+
     then obtain t k ts'
-      where \<tau>_is: "\<tau> = TSum ts'"
-        and x_typing: "\<Xi>, K, \<Gamma> \<turnstile> x : t"
-        and tag_in_ts: "(tag, t, False) \<in> set ts"
-        and tags_same: "map fst ts = map fst ts'"
-        and distinct_fst_ts': "distinct (map fst ts')"
-        and tags_same: "map fst ts = map fst ts'"
-        and types_same: "map (fst \<circ> snd) ts = map (fst \<circ> snd) ts'"
-        and taken_subcond: "list_all2 (\<lambda>x y. snd (snd y) \<longrightarrow> snd (snd x)) ts ts'"
-        and ts_wellformed: "K \<turnstile>* (map (fst \<circ> snd) ts') :\<kappa> k"
+      where typing_elims:
+        "\<tau> = TSum ts'"
+        "\<Xi>, K, \<Gamma> \<turnstile> x : t"
+        "(tag, t, Unchecked) \<in> set ts"
+        "map fst ts = map fst ts'"
+        "distinct (map fst ts')"
+        "map fst ts = map fst ts'"
+        "map (fst \<circ> snd) ts = map (fst \<circ> snd) ts'"
+        "list_all2 (\<lambda>x y. snd (snd x) \<le> snd (snd y)) ts ts'"
+        "K \<turnstile>* (map (fst \<circ> snd) ts') :\<kappa> k"
       using Con u_sem_con.prems
       by blast
 
@@ -1587,26 +1590,44 @@ next case (u_sem_con \<xi> \<gamma> \<sigma> x_spec \<sigma>' x' ts_inst tag)
       where uval_x': "\<Xi>, \<sigma>' \<turnstile> x' :u instantiate \<tau>s t \<langle>r', w'\<rangle>"
         and r'_sub_r: "r' \<subseteq> r"
         and frame_w_w': "frame \<sigma> w \<sigma>' w'"
-      using u_sem_con.prems x_spec_is u_sem_con.hyps(2) x_typing
+      using u_sem_con.prems spec_simps typing_elims u_sem_con.hyps(2)
       by blast
-
-    have "\<Xi>, \<sigma>' \<turnstile> USum tag x' (map (\<lambda>(n,t,_). (n, type_repr t)) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts)) :u TSum (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) ts') \<langle>r', w'\<rangle>"
-      using uval_x' distinct_fst_ts' tags_same types_same instantiate_over_variants_subvariants
+    then have "\<Xi>, \<sigma>' \<turnstile> USum tag x' (map (\<lambda>(n,t,_). (n, type_repr t)) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts)) :u TSum (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) ts') \<langle>r', w'\<rangle>"
+      using u_sem_con.hyps(2) u_sem_con.prems typing_elims spec_simps
     proof (intro u_t_sum)
-      have "(tag, t, False) \<in> set ts'"
-        using distinct_fst_ts' tag_in_ts tags_same taken_subcond types_same variant_element_subtyping_mapping
-        by fastforce
-      then show "(tag, instantiate \<tau>s t, False) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts')"
-        using image_iff by fastforce
+      obtain i where tagelem_at:
+        "ts ! i = (tag, t, Unchecked)"
+        "i < length ts"
+        by (meson typing_elims in_set_conv_nth)
+      then have
+        "fst (ts' ! i) = tag"
+        "fst (snd (ts' ! i)) = t"
+        "snd (snd (ts' ! i)) = Unchecked"
+        using typing_elims
+        by (fastforce simp add: list_all2_eq list_all2_conv_all_nth order.antisym)+
+      then have
+        "ts' ! i = (tag, t, Unchecked)"
+        "i < length ts'"
+        using tagelem_at typing_elims
+        by (metis length_map prod.collapse)+
+      then show "(tag, instantiate \<tau>s t, Unchecked) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts')"
+        by (fastforce simp add: in_set_conv_nth simp del: set_map)
     next
-      have "[] \<turnstile>* map (fst \<circ> snd) (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) ts') :\<kappa> k"
-        using ts_wellformed substitutivity(1) u_sem_con.prems kinding_all_set by simp
-      then show "[] \<turnstile>* map (fst \<circ> snd) (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) ts') wellformed"
-        by auto
-    qed simp+
+      have f2: "(\<lambda>(n, t, b). n) = fst"
+        by (simp add: cond_case_prod_eta)
+      have f3: "(\<lambda>(n, t, b). type_repr (instantiate \<tau>s t)) = type_repr \<circ> instantiate \<tau>s \<circ> fst \<circ> snd"
+        by fastforce
+
+      have "map (\<lambda>(n, t, b). (n, type_repr (instantiate \<tau>s t))) ts = map (\<lambda>(n, t, b). (n, type_repr (instantiate \<tau>s t))) ts'"
+        apply (auto intro!: pair_list_eqI simp add: comp_tuple_in3_out2_fst comp_tuple_in3_out2_snd)
+        using typing_elims(6,7) map_map f2 f3
+         apply metis+
+        done
+      then show "map (\<lambda>(n, t, _). (n, type_repr t)) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts) = map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts')"
+        by (clarsimp simp add: f1)
+    qed (fastforce dest: substitutivity(2))+
     then show ?thesis
-      using r'_sub_r frame_w_w' \<tau>_is tag'_is ts_inst_is
-      apply simp
+      using r'_sub_r frame_w_w' spec_simps typing_elims
       by auto
    qed simp+
 next case u_sem_let
@@ -1680,49 +1701,48 @@ next case u_sem_tuple
     apply (blast intro!: uval_typing_uval_typing_record.intros)
     done
 next
-  case (u_sem_esac \<xi> \<gamma> \<sigma> e'' \<sigma>' tag v rs)
+  case (u_sem_esac \<xi> \<gamma> \<sigma> spec_a \<sigma>' tag v rs)
   then show ?case
   proof (cases e, simp_all)
-    case (Esac e')
+    case (Esac a)
 
-    have t_is: "e'' = specialise \<tau>s e'"
+    have spec_simps: "spec_a = specialise \<tau>s a"
       using Esac u_sem_esac.hyps
       by force
 
     obtain ts tag'
-      where e'_typing: "\<Xi>, K, \<Gamma> \<turnstile> e' : TSum ts"
-        and one_left: "[(tag', \<tau>, False)] = filter (HOL.Not \<circ> snd \<circ> snd) ts"
+      where typing_elims:
+        "\<Xi>, K, \<Gamma> \<turnstile> a : TSum ts"
+        "[(tag', \<tau>, Unchecked)] = filter (op = Unchecked \<circ> snd \<circ> snd) ts"
       using u_sem_esac.prems Esac
-      by force
+      by blast
 
     obtain r' w'
-      where "\<Xi>, \<sigma>' \<turnstile> USum tag v rs :u instantiate \<tau>s (TSum ts) \<langle>r', w'\<rangle>"
-        and r'_sub_r: "r' \<subseteq> r"
-        and frame_w_w': "frame \<sigma> w \<sigma>' w'"
-      using u_sem_esac.hyps t_is e'_typing u_sem_esac.prems
+      where ih_results:
+        "\<Xi>, \<sigma>' \<turnstile> USum tag v rs :u instantiate \<tau>s (TSum ts) \<langle>r', w'\<rangle>"
+        "r' \<subseteq> r"
+        "frame \<sigma> w \<sigma>' w'"
+      using u_sem_esac.hyps u_sem_esac.prems spec_simps typing_elims
       by blast
-    then obtain t''
-      where uval_typing_v: "\<Xi>, \<sigma>' \<turnstile> v :u t'' \<langle>r', w'\<rangle>"
-        and "(tag, t'', False) \<in> (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ` set ts"
-        and distinct_fst_ts: "distinct (map fst ts)"
-      using u_t_sumE
-      by auto[1]
-    then obtain \<tau>'
-      where t''_is: "t'' = instantiate \<tau>s \<tau>'"
-        and tag_\<tau>'_in_ts: "(tag, \<tau>', False) \<in>  set ts"
-      by force
-
-    have "\<And>tag'' \<tau>'. (tag'', \<tau>', False) \<in> set ts \<Longrightarrow> tag'' = tag'"
-      by (metis bex_empty filter_set list.set(1) member_filter o_apply one_left prod.inject set_ConsD snd_conv)
-    then have "tag = tag'"
-      and "\<tau>' = \<tau>"
-      using tag_\<tau>'_in_ts one_left distinct_fst_ts distinct_fst filtered_member
-      by fastforce+
+    then obtain instt
+      where ih_elims:
+        "\<Xi>, \<sigma>' \<turnstile> v :u instt \<langle>r', w'\<rangle>"
+        "(tag, instt, Unchecked) \<in> (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ` set ts"
+      using u_t_sumE[OF ih_results(1)[simplified]]
+      by auto
+    moreover obtain us vs
+      where
+        "ts = us @ (tag', \<tau>, Unchecked) # vs"
+        "\<forall>u\<in>set us. Unchecked \<noteq> snd (snd u)"
+        "\<forall>u\<in>set vs. Unchecked \<noteq> snd (snd u)"
+      using typing_elims
+      by (force simp add: filter_eq_singleton_iff2)
+    ultimately have "(tag, instt, Unchecked) = (tag', instantiate \<tau>s \<tau>, Unchecked)"
+      using typing_elims by auto
     then have "\<Xi>, \<sigma>' \<turnstile> v :u instantiate \<tau>s \<tau> \<langle>r', w'\<rangle>"
-      using uval_typing_v t''_is
-      by clarsimp
+      using spec_simps ih_elims by blast
     then show ?thesis
-      using r'_sub_r frame_w_w'
+      using ih_results
       by fastforce
   qed
 next
@@ -1740,9 +1760,9 @@ next
     obtain \<Gamma>1 \<Gamma>2 t ts
       where \<Gamma>_split: "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
         and e'_typing: "\<Xi>, K, \<Gamma>1 \<turnstile> e' : TSum ts"
-        and tag''_in_ts: "(tag'', t, False) \<in> set ts"
+        and tag''_in_ts: "(tag'', t, Unchecked) \<in> set ts"
         and "\<Xi>, K, Some t # \<Gamma>2 \<turnstile> a : \<tau>"
-        and b_typing: "\<Xi>, K, Some (TSum (tagged_list_update tag'' (t, True) ts)) # \<Gamma>2 \<turnstile> b : \<tau>"
+        and b_typing: "\<Xi>, K, Some (TSum (tagged_list_update tag'' (t, Checked) ts)) # \<Gamma>2 \<turnstile> b : \<tau>"
       using  u_sem_case_nm.prems(1) Case
       by (force elim!: typing_caseE)
 
@@ -1765,23 +1785,23 @@ next
         and frame1: "frame \<sigma> w1 \<sigma>'' w1'"
       using u_sem_case_nm.hyps(2) x_is e'_typing u_sem_case_nm.prems matches_split1
       by blast
-    then have usem_instantiate_under: "\<Xi>, \<sigma>'' \<turnstile> USum tag' va rs :u TSum (tagged_list_update tag (instantiate \<tau>s t, True) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts)) \<langle>r1', w1'\<rangle>"
+    then have usem_instantiate_under: "\<Xi>, \<sigma>'' \<turnstile> USum tag' va rs :u TSum (tagged_list_update tag (instantiate \<tau>s t, Checked) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts)) \<langle>r1', w1'\<rangle>"
       using u_sem_case_nm.hyps(3) tag''_in_ts tag''_is
       by (intro sum_downcast_u, (simp add: rev_image_eqI)+)
 
-    have "\<Xi>, \<sigma>'' \<turnstile> USum tag' va rs :u instantiate \<tau>s (TSum (tagged_list_update tag (t, True) ts)) \<langle>r1', w1'\<rangle>"
+    have "\<Xi>, \<sigma>'' \<turnstile> USum tag' va rs :u instantiate \<tau>s (TSum (tagged_list_update tag (t, Checked) ts)) \<langle>r1', w1'\<rangle>"
     proof -
       have f1: "(\<And>tag b'. (case (tag, b') of (c, t, b) \<Rightarrow> (c, instantiate \<tau>s t, b)) = (tag, case b' of (t, b) \<Rightarrow> (instantiate \<tau>s t, b)))"
         by force
 
-      obtain i where "ts ! i = (tag, t, False)"
+      obtain i where "ts ! i = (tag, t, Unchecked)"
                  and "i < length ts"
         using tag''_in_ts tag''_is in_set_conv_nth
         by metis
-      then have "tagged_list_update tag (instantiate \<tau>s t, True) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts)
-            = map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) (tagged_list_update tag (t, True) ts)"
+      then have "tagged_list_update tag (instantiate \<tau>s t, Checked) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts)
+            = map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) (tagged_list_update tag (t, Checked) ts)"
         by (simp add: tagged_list_update_map_over2[where f="\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)"
-                                                     and b'="(t, True)"
+                                                     and b'="(t, Checked)"
                                                      and g="\<lambda>(t,b). (instantiate \<tau>s t, b)",
                                                    simplified f1, simplified])
       then show ?thesis
@@ -1797,7 +1817,7 @@ next
       by (meson frame1 frame_noalias_matches_ptrs(1) matches_split2 w1_w2_disjoint)
     moreover have "w2 \<inter> r1' = {}"
       by (meson sub1 subset_eq subset_helper w2_r1_disjoint)
-    ultimately have "\<Xi>, \<sigma>'' \<turnstile> USum tag' va rs # \<gamma> matches instantiate_ctx \<tau>s (Some (TSum (tagged_list_update tag (t, True) ts)) # \<Gamma>2) \<langle>r2 \<union> r1', w2 \<union> w1'\<rangle>"
+    ultimately have "\<Xi>, \<sigma>'' \<turnstile> USum tag' va rs # \<gamma> matches instantiate_ctx \<tau>s (Some (TSum (tagged_list_update tag (t, Checked) ts)) # \<Gamma>2) \<langle>r2 \<union> r1', w2 \<union> w1'\<rangle>"
       by (metis Un_commute matches_ptrs_cons u_sem_case_nm.prems(2))
     then obtain r' w'
       where "\<Xi>, \<sigma>' \<turnstile> v :u instantiate \<tau>s \<tau> \<langle>r', w'\<rangle>"
@@ -1904,9 +1924,9 @@ next
         "\<Xi>, K, \<Gamma>1 \<turnstile> x : TRecord ts s"
         "\<And>l. s \<noteq> Boxed ReadOnly l"
         "f' < length ts"
-        "ts ! f' = (n, t, False)"
+        "ts ! f' = (n, t, Present)"
         "K \<turnstile> t :\<kappa> k"
-        "S \<in> k \<or> taken"
+        "S \<in> k \<or> taken = Taken"
         "\<Xi>, K, Some t # Some (TRecord (ts[f' := (n, t, taken)]) s) # \<Gamma>2 \<turnstile> ea : \<tau>"
       using Take u_sem_take.prems
       by fastforce
@@ -1953,12 +1973,12 @@ next
     have inst_t_wellkinded: "[] \<turnstile> instantiate \<tau>s t :\<kappa> k"
       using substitutivity(1) typing_e_elim_lemmas(6) u_sem_take.prems(2) by blast
 
-    have "map (\<lambda>(n, t, y). (n, instantiate \<tau>s t, y)) ts ! f' = (n, instantiate \<tau>s t, False)"
+    have "map (\<lambda>(n, t, y). (n, instantiate \<tau>s t, y)) ts ! f' = (n, instantiate \<tau>s t, Present)"
       by (simp add: typing_e_elim_lemmas(4) typing_e_elim_lemmas(5))
     then obtain r1'' w1'' r1''' w1'''
       where utype_record_take_lemmas:
         "\<Xi>, \<sigma>'' \<turnstile> fst (fs ! f') :u instantiate \<tau>s t \<langle>r1'', w1''\<rangle>"
-        "\<Xi>, \<sigma>'' \<turnstile>* fs :ur map (\<lambda>(n, t, y). (n, instantiate \<tau>s t, y)) ts[f' := (n, instantiate \<tau>s t, True)] \<langle>r1''', w1'''\<rangle>"
+        "\<Xi>, \<sigma>'' \<turnstile>* fs :ur map (\<lambda>(n, t, y). (n, instantiate \<tau>s t, y)) ts[f' := (n, instantiate \<tau>s t, Taken)] \<langle>r1''', w1'''\<rangle>"
         "r1' = r1'' \<union> r1'''"
         "w1' = w1'' \<union> w1'''"
         "w1'' \<inter> w1''' = {}"
@@ -1985,16 +2005,16 @@ next
 
     show ?thesis
     proof (cases taken)
-      case True
+      case Taken
 
       have "\<Xi>, \<sigma>'' \<turnstile> fst (fs ! f') # UPtr pa ra # \<gamma>
             matches Some (instantiate \<tau>s t)
-              # Some (TRecord (map (\<lambda>(n, t, y). (n, instantiate \<tau>s t, y)) ts[f' := (n, instantiate \<tau>s t, True)]) (Boxed Writable ptrl))
+              # Some (TRecord (map (\<lambda>(n, t, y). (n, instantiate \<tau>s t, y)) ts[f' := (n, instantiate \<tau>s t, Taken)]) (Boxed Writable ptrl))
               # instantiate_ctx \<tau>s \<Gamma>2
             \<langle>r1'' \<union> (r1''' \<union> r2), w1'' \<union> (insert pa w1''' \<union> w2)\<rangle>"
         using utype_record_take_lemmas u_sem_take.hyps(3) \<sigma>''_matches2
       proof (intro matches_ptrs_some[OF _ matches_ptrs_some[OF u_t_p_rec_w']])
-        show "ra = RRecord (map (type_repr \<circ> fst \<circ> snd) (map (\<lambda>(n, t, y). (n, instantiate \<tau>s t, y)) ts[f' := (n, instantiate \<tau>s t, True)]))"
+        show "ra = RRecord (map (type_repr \<circ> fst \<circ> snd) (map (\<lambda>(n, t, y). (n, instantiate \<tau>s t, y)) ts[f' := (n, instantiate \<tau>s t, Taken)]))"
           using type_repr_inst_ts_taken_same IH1_uptr_elim_lemmas
           by (simp add: map_update)
       next
@@ -2011,12 +2031,12 @@ next
           using pointers_disjoint
           by blast+
       next
-        show "distinct (map fst (map (\<lambda>(n, t, y). (n, instantiate \<tau>s t, y)) ts[f' := (n, instantiate \<tau>s t, True)]))"
+        show "distinct (map fst (map (\<lambda>(n, t, y). (n, instantiate \<tau>s t, y)) ts[f' := (n, instantiate \<tau>s t, Taken)]))"
           using IH1_uptr_elim_lemmas typing_e_elim_lemmas
           by (auto simp add: distinct_map map_update intro: distinct_list_update)
       qed clarsimp+
       then have "\<exists>r' w'. \<Xi>, \<sigma>' \<turnstile> v :u instantiate \<tau>s \<tau> \<langle>r', w'\<rangle> \<and> r' \<subseteq> r1'' \<union> (r1''' \<union> r2) \<and> frame \<sigma>'' (insert pa (w1'' \<union> (w1''' \<union> w2))) \<sigma>' w'"
-        using u_sem_take.hyps(5) typing_e_elim_lemmas(8) u_sem_take.prems True IH1_uptr_elim_lemmas case_simps
+        using u_sem_take.hyps(5) typing_e_elim_lemmas(8) u_sem_take.prems Taken IH1_uptr_elim_lemmas case_simps
         by (simp add: map_update)
       then obtain r' w'
         where
@@ -2034,10 +2054,10 @@ next
         using frame_let ptrs_split_lemmas(2) IH1_lemmas(3)
         by blast
     next
-      case False
+      case Present
 
       have is_sharable: "S \<in> k"
-        using False typing_e_elim_lemmas
+        using Present typing_e_elim_lemmas
         by auto
       then have w1''_empty: "w1'' = {}"
         using shareable_not_writable(1) inst_t_wellkinded utype_record_take_lemmas(1) by blast
@@ -2067,10 +2087,10 @@ next
           and "{} \<inter> (r1' \<union> r2) = {}"
           by simp+
       qed simp+
-      moreover have "ts[f' := (n, t, False)] = ts"
+      moreover have "ts[f' := (n, t, Present)] = ts"
         by (metis list_update_id typing_e_elim_lemmas(5))
       ultimately have "\<exists>r' w'. \<Xi>, \<sigma>' \<turnstile> v :u instantiate \<tau>s \<tau> \<langle>r', w'\<rangle> \<and> r' \<subseteq> r1'' \<union> (r1' \<union> r2) \<and> frame \<sigma>'' (insert pa (w1' \<union> w2)) \<sigma>' w'"
-        using u_sem_take.hyps(5) typing_e_elim_lemmas(8) u_sem_take.prems False IH1_uptr_elim_lemmas case_simps
+        using u_sem_take.hyps(5) typing_e_elim_lemmas(8) u_sem_take.prems Present IH1_uptr_elim_lemmas case_simps
         by (simp add: map_update)
       then obtain r' w'
         where "\<Xi>, \<sigma>' \<turnstile> v :u instantiate \<tau>s \<tau> \<langle>r', w'\<rangle>"
@@ -2089,8 +2109,8 @@ next case u_sem_take_ub
   note IH1  = this(2)
   and  IH2  = this(4)
   and  rest = this(1,3,5-)
-  have HELP: "\<forall> ts f \<tau> n. (f < length ts \<and> (ts ! f = (n, \<tau>, False))
-          \<longrightarrow> (map (\<lambda>(n, t, y). (n, instantiate \<tau>s t, y)) ts ! f = (n, instantiate \<tau>s \<tau>, False)))"
+  have HELP: "\<forall> ts f \<tau> n. (f < length ts \<and> (ts ! f = (n, \<tau>, Present))
+          \<longrightarrow> (map (\<lambda>(n, t, y). (n, instantiate \<tau>s t, y)) ts ! f = (n, instantiate \<tau>s \<tau>, Present)))"
     apply (rule allI, induct_tac ts, simp)
     apply (simp split: prod.split)
     apply (clarsimp)
@@ -2337,19 +2357,19 @@ lemma matches_ptrs_some_some:
 lemma uval_typing_taken_field':
   assumes "\<Xi>, \<sigma> \<turnstile>* fs :ur \<tau>s \<langle>r, w\<rangle>"
   assumes "f < length \<tau>s"
-  assumes "\<tau>s!f = (n, t, False)"
+  assumes "\<tau>s!f = (n, t, Present)"
   assumes "[] \<turnstile>  t :\<kappa>  k"
   shows "\<exists>r'. \<exists>w'. \<Xi>, \<sigma> \<turnstile>* fs :ur \<tau>s[f := (n, t, taken)] \<langle>r', w'\<rangle> \<and> r' \<subseteq> r \<and> w'\<subseteq> w"
   proof (cases taken)
-   case False show ?thesis
+   case Present show ?thesis
    by (rule_tac x="r" in exI,rule_tac x="w" in exI, simp)
-      (metis(full_types) False list_update_id assms(1,3))
+      (metis(full_types) Present list_update_id assms(1,3))
   next
-   case True thus ?thesis using assms
+   case Taken thus ?thesis using assms
    proof (induct fs arbitrary: f r w \<tau>s)
     case Cons then show ?case
     proof (cases f)
-     case 0  with Cons(2-) show ?thesis by (fastforce elim!: u_t_r_consE type_repr_uval_repr type_repr_uval_repr_deep intro: u_t_r_cons2)
+     case 0  with Cons(2-) show ?thesis by (fastforce elim!: u_t_r_consE type_repr_uval_repr type_repr_uval_repr_deep intro!: u_t_r_cons2)
     next
      case Suc with Cons(2-) show ?thesis
      apply (elim u_t_r_consE)
@@ -2366,14 +2386,14 @@ qed
 lemma uval_typing_taken_field:
   assumes "\<Xi>, \<sigma> \<turnstile>* fs :ur \<tau>s \<langle>r, w\<rangle>"
   assumes "f < length \<tau>s"
-  assumes "\<tau>s!f = (n, t, False)"
+  assumes "\<tau>s!f = (n, t, Present)"
   assumes "[] \<turnstile>  t :\<kappa>  k"
   shows "\<exists>r' \<subseteq> r. \<exists>w'\<subseteq> w. \<Xi>, \<sigma> \<turnstile>* fs :ur \<tau>s[f := (n, t, taken)] \<langle>r', w'\<rangle>"
   by (meson uval_typing_taken_field'[OF assms])
 
 lemma uval_typing_record_nth':
   assumes "\<Xi>, \<sigma> \<turnstile>* fs :ur \<tau>s \<langle>r , w\<rangle>"
-  assumes "\<tau>s ! f = (n, \<tau>, False)"
+  assumes "\<tau>s ! f = (n, \<tau>, Present)"
   assumes "f < length \<tau>s"
   shows "\<exists> r'\<subseteq>r. \<exists>w'\<subseteq>w. \<Xi>, \<sigma> \<turnstile>  fst (fs!f)  :u  \<tau>  \<langle>r' , w'\<rangle>"
 using assms proof (induct fs arbitrary: f r w \<tau>s)

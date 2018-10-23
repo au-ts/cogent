@@ -78,12 +78,20 @@ lemma map_thd3_keep:
   by fastforce
 
 
-(* making these simp makes the final force on specalise take forever? / v.jackson *)
-lemma comp_fst_tuple_lambda: "fst \<circ> (\<lambda>(a,b). (f a b, g a b)) = (\<lambda>(a,b). f a b)"
+(* making these simp makes the final force on specialise take forever? / v.jackson *)
+lemma comp_tuple_in2_out2_fst: "fst \<circ> (\<lambda>(a,b). (f a b, g a b)) = (\<lambda>(a,b). f a b)"
   by force
 
-lemma comp_snd_tuple_lambda: "snd \<circ> (\<lambda>(a,b). (f a b, g a b)) = (\<lambda>(a,b). g a b)"
+lemma comp_tuple_in2_out2_snd: "snd \<circ> (\<lambda>(a,b). (f a b, g a b)) = (\<lambda>(a,b). g a b)"
   by force
+
+
+lemma comp_tuple_in3_out2_fst: "fst \<circ> (\<lambda>(a,b,c). (f a b c, g a b c)) = (\<lambda>(a,b,c). f a b c)"
+  by force
+
+lemma comp_tuple_in3_out2_snd: "snd \<circ> (\<lambda>(a,b,c). (f a b c, g a b c)) = (\<lambda>(a,b,c). g a b c)"
+  by force
+
 
 lemma assoc_comp_fst_tuple_lambda: "h \<circ> fst \<circ> (\<lambda>(a,b). (f a b, g a b)) = h \<circ> (\<lambda>(a,b). f a b)"
   by force

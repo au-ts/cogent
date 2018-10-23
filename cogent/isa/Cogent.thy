@@ -83,10 +83,10 @@ primrec sigil_perm :: "sigil \<Rightarrow> access_perm option" where
 subsection {* Types *}
 
 (* the states of elements in variants/records *)
-datatype variant_state = Unchecked | Checked
-datatype record_state = Present | Taken
+datatype variant_state = Checked | Unchecked
+datatype record_state = Taken | Present
 
-(* variant and record states have instantiations of lattice.
+(* variant and record states are booelan algebras.
    This should match up with the subtyping lattice ops. *)
 
 instantiation variant_state :: boolean_algebra
