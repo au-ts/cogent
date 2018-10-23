@@ -308,6 +308,14 @@ lemma filter_member:
   apply (case_tac "P a"; clarsimp)
   done
 
+lemma filter_member2:
+  assumes
+    "ys = filter P xs"
+    "y \<in> set ys"
+  shows "y \<in> set xs"
+  using assms filter_member
+  by fast
+
 lemma filter_member_unique_nth:
   assumes "filter P xs = [a]"
   shows "\<exists>!i. i < length xs \<and> xs ! i = a"

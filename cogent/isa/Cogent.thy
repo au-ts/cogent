@@ -561,7 +561,7 @@ inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Right
                    ; distinct (map fst ts)
                    ; map fst ts = map fst ts'
                    ; map (fst \<circ> snd) ts = map (fst \<circ> snd) ts'
-                   ; list_all2 (\<lambda>x y. snd (snd y) \<le> snd (snd x)) ts ts'
+                   ; list_all2 (\<lambda>x y. snd (snd x) \<le> snd (snd y)) ts ts'
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Con ts tag x : TSum ts'"
 
 | typing_cast   : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> e : TPrim (Num \<tau>)
@@ -598,7 +598,7 @@ inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Right
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Case x tag a b : u"
 
 | typing_esac   : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : TSum ts
-                   ; [(_, t, Unchecked)] = filter (\<lambda>x. snd (snd x) = Unchecked) ts
+                   ; [(_, t, Unchecked)] = filter (op = Unchecked \<circ> snd \<circ> snd) ts
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Esac x : t"
 
 | typing_if     : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
@@ -1196,9 +1196,7 @@ next case typing_afun   then show ?case by (fastforce intro: kinding_kinding_all
                                                              substitutivity)
 next case typing_con    then show ?case by (fastforce simp add: kinding_all_set
                                                       intro!: kinding_kinding_all_kinding_record.intros)
-next case typing_esac   then show ?case by (fastforce dest: filtered_member
-                                                      elim: kinding.cases
-                                                      simp add: kinding_all_set)
+next case typing_esac   then show ?case by (fastforce dest: filter_member2 elim!: kind_tsumE simp add: kinding_all_set)
 next case typing_member then show ?case by (fastforce intro: kinding_record_wellformed_nth)
 next case typing_struct then show ?case by ( clarsimp
                                            , intro exI kind_trec kinding_all_record
@@ -1283,14 +1281,14 @@ next case (typing_con \<Xi> K \<Gamma> x t tag ts ts')
     show "map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts) = map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts')"
       using map_fst3_app2 map_map typing_con.hyps by metis
   next
-    show "list_all2 (\<lambda>x y. snd (snd y) \<le> snd (snd x)) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts')"
+    show "list_all2 (\<lambda>x y. snd (snd x) \<le> snd (snd y)) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts')"
       by (simp add: list_all2_map1 list_all2_map2 case_prod_beta' typing_con.hyps(8))
   qed force+
 next
   case (typing_esac \<Xi> K \<Gamma> x ts uu t)
   then show ?case
     by (force intro!: typing_typing_all.typing_esac
-                simp: filter_map_map_filter_thd3_app2[where P="\<lambda>x. x = Unchecked", simplified o_def]
+                simp: filter_map_map_filter_thd3_app2
                       typing_esac.hyps(3)[symmetric])+
 qed (force intro!: typing_struct_instantiate
                    typing_typing_all.intros
