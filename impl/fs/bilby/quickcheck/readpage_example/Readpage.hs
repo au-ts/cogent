@@ -28,7 +28,7 @@ import Test.QuickCheck hiding (Success, Error)
 import CogentMonad
 import Corres
 import qualified Bilbyfs_Shallow_Desugar_Tuples as C
-import Fsop
+import Fsop as Ax
 import Util
 
 
@@ -88,7 +88,11 @@ gen_fsop_readpage_arg :: Gen C.Fsop_readpage_ArgT
 gen_fsop_readpage_arg = undefined
 
 abs_fsop_readpage_arg :: C.Fsop_readpage_ArgT -> (OstoreState, VfsInode, OSPageOffset)
-abs_fsop_readpage_arg = undefined
+abs_fsop_readpage_arg (C.R25 _ fs_st_c vnode_c block_c _) =
+  let ostore_st_a = undefined
+      vnode_a = vnode_c
+      block_a = block_c
+   in (ostore_st_a, vnode_a, block_a)
 
 rel_fsop_readpage_ret :: R (WordArray U8) ErrCode -> C.Fsop_readpage_RetT -> Bool
 rel_fsop_readpage_ret (Error e_a) (_, C.V112_Error e_c) = e_a == e_c
@@ -98,7 +102,6 @@ rel_fsop_readpage_ret (Success arr_a) (C.R24 _ _ _ (C.R66 data_c bound_c), C.V11
    in u_a - 1 == min (u_c - 1) bound_c - 1 &&
       l_a == 0 && l_c == 0 &&
       elems arr_a == elems data_c
-
 rel_fsop_readpage_ret _ _ = False
 
 

@@ -20,12 +20,10 @@ downcast = fromIntegral
 
 data R a e = Success a | Error e
 
-type ErrCode = U32
-
 type OstoreState = M.Map ObjId Obj
 
 -- We make it abstract
-data VfsInode = VfsInode { ino :: U32 }
+data VfsInode = VfsInode { ino :: U32 } deriving (Eq, Ord, Show)
 
 -- abstract function
 vfs_inode_get_ino :: VfsInode -> U32
@@ -33,49 +31,6 @@ vfs_inode_get_ino (VfsInode ino) = ino
 
 type OSPageOffset = U64
 
-bilbyFsBlockShift = 12  :: U32
-bilbyFsBlockSize = 4096 :: U32
-
-ePerm        = 1    :: ErrCode
-eNoEnt       = 2    :: ErrCode
-eSrch        = 3    :: ErrCode
-eIntr        = 4    :: ErrCode
-eIO          = 5    :: ErrCode
-eNXIO        = 6    :: ErrCode
-eTooBig      = 7    :: ErrCode
-eNoExec      = 8    :: ErrCode
-eBadF        = 9    :: ErrCode
-eChild       = 10   :: ErrCode
-eAgain       = 11   :: ErrCode
-eAcces       = 13   :: ErrCode
-eNoMem       = 12   :: ErrCode
-eFault       = 14   :: ErrCode
-eNotBlk      = 15   :: ErrCode
-eBusy        = 16   :: ErrCode
-eExist       = 17   :: ErrCode
-eXDev        = 18   :: ErrCode
-eNoDev       = 19   :: ErrCode
-eNotDir      = 20   :: ErrCode
-eIsDir       = 21   :: ErrCode
-eInval       = 22   :: ErrCode
-eNFile       = 23   :: ErrCode
-eMFile       = 24   :: ErrCode
-eNoTty       = 25   :: ErrCode
-eTxtBsy      = 26   :: ErrCode
-eFBig        = 27   :: ErrCode
-eNoSpc       = 28   :: ErrCode
-eSPipe       = 29   :: ErrCode
-eRoFs        = 30   :: ErrCode
-eMLink       = 31   :: ErrCode
-ePipe        = 32   :: ErrCode
-eDom         = 33   :: ErrCode
-eRange       = 34   :: ErrCode
-eNameTooLong = 36   :: ErrCode
-eNotEmpty    = 39   :: ErrCode
-eNoData      = 42   :: ErrCode
-eCrap        = 66   :: ErrCode
-eOverflow    = 75   :: ErrCode
-eRecover     = 88   :: ErrCode
 
 {-
  
@@ -96,34 +51,6 @@ when block = 3, that's the special case. We return the old buffer unmodified.
 
 -}
 
-
-fsop_readpage :: OstoreState -> VfsInode -> OSPageOffset -> R (WordArray U8) ErrCode
-fsop_readpage ostore vnode block =
-  let size = vfs_inode_get_size vnode :: U64  -- the number of bytes we need to read
-      limit = size `shiftR` fromIntegral bilbyFsBlockShift  -- the number of blocks we need to read
-   in if | block > limit -> Error eNoEnt
-         -- ^ if we are reading beyond the last block we need to read, return an zeroed buffer
-         | block == limit && (size `mod` fromIntegral bilbyFsBlockSize == 0) -> 
-             Success $ wordarray_create 0
-         -- ^ if we are reading the "last" one which extra bytes in this block is 0, then return old buffer
-         | otherwise -> read_block ostore vnode block
-         -- ^ if we are reading a block which contains data, then we read the block
-
-
-read_block :: OstoreState -> VfsInode -> OSPageOffset -> R (WordArray U8) ErrCode
-read_block ostore vnode block =
-  let oid = obj_id_data_mk (vfs_inode_get_ino vnode) (downcast block)
-   in case ostore_read ostore oid of
-        Error e -> if e == eNoEnt 
-                      then Success $ wordarray_create_nz bilbyFsBlockSize
-                      else Error e
-        Success obj ->
-          let bdata = odata . extract_data_from_union $ ounion obj
-              size = wordarray_length bdata
-           in if size > bilbyFsBlockSize
-                 then Error eInval
-                 else Success . listArray (0, bilbyFsBlockSize - 1) $
-                        elems bdata ++ (replicate (fromIntegral $ bilbyFsBlockSize - size) (0 :: U8))
 
 
 extract_data_from_union :: ObjUnion -> ObjData
@@ -194,22 +121,4 @@ type VfsSize = U64
 -- TODO: abstract function
 vfs_inode_get_size :: VfsInode -> VfsSize
 vfs_inode_get_size = undefined
-
--- abstract datatype
--- NOTE: we assume that the lower bound is always 1
-type WordArray a = Array U32 a
-
-type WordArrayIndex = U32
-
--- TODO: abstract function
-wordarray_create :: (Num a) => U32 -> WordArray a
-wordarray_create = wordarray_create_nz
-
--- TODO: abstract function
-wordarray_create_nz :: (Num a) => U32 -> WordArray a
-wordarray_create_nz l = listArray (0, l-1) (replicate (fromIntegral l) 0)
-
--- abstract function
-wordarray_length :: (Num a) => WordArray a -> U32
-wordarray_length = snd . bounds 
 
