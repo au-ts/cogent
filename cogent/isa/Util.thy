@@ -297,6 +297,15 @@ lemma filter_map_map_filter_thd3_app2:
 lemma filter_empty_conv2: "([] = filter P xs) = (\<forall>x\<in>set xs. \<not> P x)"
   using filter_empty_conv by metis
 
+lemma filter_eq_singleton_iff:
+  shows "(filter P ys = [x]) = (\<exists>us vs. ys = us @ x # vs \<and> (\<forall>u\<in>set us. \<not> P u) \<and> P x \<and> (\<forall>u\<in>set vs. \<not> P u))"
+  by (simp add: filter_eq_Cons_iff filter_empty_conv2)
+
+lemma filter_eq_singleton_iff2:
+  shows "([x] = filter P ys) = (\<exists>us vs. ys = us @ x # vs \<and> (\<forall>u\<in>set us. \<not> P u) \<and> P x \<and> (\<forall>u\<in>set vs. \<not> P u))"
+  by (fastforce simp add: filter_eq_singleton_iff[symmetric])
+
+
 lemma filter_member:
   assumes
     "filter P xs = ys"
