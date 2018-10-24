@@ -306,6 +306,19 @@ fun sigil_kind :: "sigil \<Rightarrow> kind" where
 | "sigil_kind (Boxed Writable _) = {E}"
 | "sigil_kind Unboxed            = {D,S,E}"
 
+
+fun kinding_fn :: "kind env \<Rightarrow> type \<Rightarrow> kind" where
+  "kinding_fn K (TVar i)         = (if i < length K then K ! i else undefined)"
+| "kinding_fn K (TVarBang i)     = (if i < length K then {D,S} else undefined)"
+| "kinding_fn K (TCon n ts s)    = (fold (\<lambda>t kacc. kinding_fn K t \<inter> kacc) ts {}) \<inter> (sigil_kind s)"
+| "kinding_fn K (TFun ta tb)     = kinding_fn K ta \<inter> kinding_fn K tb"
+| "kinding_fn K (TPrim p)        = UNIV"
+| "kinding_fn K (TSum ts)        = (fold (\<lambda>ntb kacc. case snd (snd ntb) of Unchecked \<Rightarrow> kinding_fn K (fst (snd ntb)) \<inter> kacc | Checked \<Rightarrow> kacc) ts UNIV)"
+| "kinding_fn K (TProduct ta tb) = kinding_fn K ta \<inter> kinding_fn K tb"
+| "kinding_fn K (TRecord ts s)  = (fold (\<lambda>ntb kacc. case snd (snd ntb) of Present \<Rightarrow> kinding_fn K (fst (snd ntb)) \<inter> kacc | Taken \<Rightarrow> kacc) ts UNIV) \<inter> (sigil_kind s)"
+| "kinding_fn K TUnit            = UNIV"
+
+
 inductive kinding         :: "kind env \<Rightarrow> type               \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile> _ :\<kappa> _" [30,0,30] 60)
       and kinding_all     :: "kind env \<Rightarrow> type list          \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa> _" [30,0,30] 60)
       and kinding_variant :: "kind env \<Rightarrow> (name \<times> type \<times> variant_state) list \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa>v _" [30,0,30] 60)
