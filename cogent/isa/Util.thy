@@ -78,12 +78,20 @@ lemma map_thd3_keep:
   by fastforce
 
 
-(* making these simp makes the final force on specalise take forever? / v.jackson *)
-lemma comp_fst_tuple_lambda: "fst \<circ> (\<lambda>(a,b). (f a b, g a b)) = (\<lambda>(a,b). f a b)"
+(* making these simp makes the final force on specialise take forever? / v.jackson *)
+lemma comp_tuple_in2_out2_fst: "fst \<circ> (\<lambda>(a,b). (f a b, g a b)) = (\<lambda>(a,b). f a b)"
   by force
 
-lemma comp_snd_tuple_lambda: "snd \<circ> (\<lambda>(a,b). (f a b, g a b)) = (\<lambda>(a,b). g a b)"
+lemma comp_tuple_in2_out2_snd: "snd \<circ> (\<lambda>(a,b). (f a b, g a b)) = (\<lambda>(a,b). g a b)"
   by force
+
+
+lemma comp_tuple_in3_out2_fst: "fst \<circ> (\<lambda>(a,b,c). (f a b c, g a b c)) = (\<lambda>(a,b,c). f a b c)"
+  by force
+
+lemma comp_tuple_in3_out2_snd: "snd \<circ> (\<lambda>(a,b,c). (f a b c, g a b c)) = (\<lambda>(a,b,c). g a b c)"
+  by force
+
 
 lemma assoc_comp_fst_tuple_lambda: "h \<circ> fst \<circ> (\<lambda>(a,b). (f a b, g a b)) = h \<circ> (\<lambda>(a,b). f a b)"
   by force
@@ -294,10 +302,63 @@ lemma filter_map_map_filter_thd3_app2:
   shows "filter (P \<circ> snd \<circ> snd) (map (\<lambda>(a, b, c). (a, f b, c)) ls) = map (\<lambda>(a, b, c). (a, f b, c)) (filter (P \<circ> snd \<circ> snd) ls)"
   by (induct_tac ls, (simp split: prod.splits)+)
 
-lemma filtered_member: "[a] = filter f x \<Longrightarrow> a \<in> set x"
-  apply (induction x)
-  by (auto split: if_splits)
+lemma filter_empty_conv2: "([] = filter P xs) = (\<forall>x\<in>set xs. \<not> P x)"
+  using filter_empty_conv by metis
 
+lemma filter_eq_singleton_iff:
+  shows "(filter P ys = [x]) = (\<exists>us vs. ys = us @ x # vs \<and> (\<forall>u\<in>set us. \<not> P u) \<and> P x \<and> (\<forall>u\<in>set vs. \<not> P u))"
+  by (simp add: filter_eq_Cons_iff filter_empty_conv2)
+
+lemma filter_eq_singleton_iff2:
+  shows "([x] = filter P ys) = (\<exists>us vs. ys = us @ x # vs \<and> (\<forall>u\<in>set us. \<not> P u) \<and> P x \<and> (\<forall>u\<in>set vs. \<not> P u))"
+  by (fastforce simp add: filter_eq_singleton_iff[symmetric])
+
+
+lemma filter_member:
+  assumes
+    "filter P xs = ys"
+    "y \<in> set ys"
+  shows "y \<in> set xs"
+  using assms
+  apply (induct xs arbitrary: ys)
+   apply clarsimp
+  apply (case_tac "P a"; clarsimp)
+  done
+
+lemma filter_member2:
+  assumes
+    "ys = filter P xs"
+    "y \<in> set ys"
+  shows "y \<in> set xs"
+  using assms filter_member
+  by fast
+
+lemma filter_member_unique_nth:
+  assumes "filter P xs = [a]"
+  shows "\<exists>!i. i < length xs \<and> xs ! i = a"
+proof -
+  obtain us vs where xs_decomp:
+    "xs = us @ a # vs"
+    "\<forall>u\<in>set us. \<not> P u"
+    "P a"
+    "\<forall>u\<in>set vs. \<not> P u"
+    using assms 
+    by (clarsimp simp add: filter_eq_Cons_iff filter_empty_conv2)
+  then have a_not_left_right:
+    "a \<notin> set us"
+    "a \<notin> set vs"
+    by blast+
+
+  have "\<And>i. \<lbrakk> i < length xs ; xs ! i = a \<rbrakk> \<Longrightarrow> i = length us"
+    using a_not_left_right
+    apply (clarsimp simp add: xs_decomp nth_append)
+    apply (metis (no_types, lifting) add.right_neutral add_Suc_right add_diff_inverse_nat add_less_cancel_left less_Suc_eq_le nth_equal_first_eq nth_mem)
+    done
+  then show ?thesis
+    apply (clarsimp simp add: Ex1_def Ex_less_Suc)
+    apply (metis length_append length_pos_if_in_set less_add_same_cancel1 list.set_intros(1) nth_append_length xs_decomp(1))
+    done
+qed
 
 section {* TSum as map lemmas *}
 

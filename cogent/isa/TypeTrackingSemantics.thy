@@ -291,9 +291,9 @@ where
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> T\<turnstile> LetBang is x y : u"
 
 | ttyping_case   : "\<lbrakk> ttsplit K \<Gamma> ijs [] \<Gamma>1 [] \<Gamma>2
-                   ; ttsplit_triv \<Gamma>2 [Some t] \<Gamma>3 [Some (TSum (tagged_list_update tag (t, True) ts))] \<Gamma>4
+                   ; ttsplit_triv \<Gamma>2 [Some t] \<Gamma>3 [Some (TSum (tagged_list_update tag (t, Checked) ts))] \<Gamma>4
                    ; \<Xi>, K, \<Gamma>1 T\<turnstile> x : TSum ts
-                   ; (tag, t, False) \<in> set ts
+                   ; (tag, t, Unchecked) \<in> set ts
                    ; \<Xi>, K, \<Gamma>3 T\<turnstile> a : u
                    ; \<Xi>, K, \<Gamma>4 T\<turnstile> b : u
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> T\<turnstile> Case x tag a b : u"
@@ -309,9 +309,9 @@ where
                    ; \<Xi>, K, \<Gamma>1 T\<turnstile> e : TRecord ts s
                    ; sigil_perm s \<noteq> Some ReadOnly
                    ; f < length ts
-                   ; ts ! f = (n, t, False)
+                   ; ts ! f = (n, t, Present)
                    ; K \<turnstile> t :\<kappa> k
-                   ; S \<in> k \<or> taken
+                   ; S \<in> k \<or> taken = Taken
                    ; \<Xi>, K, \<Gamma>2 T\<turnstile> e' : u
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> T\<turnstile> Take e f e' : u"
 
@@ -336,7 +336,7 @@ proof (induct rule: ttyping.induct)
     show "\<Xi>, K, Some t # snd t\<Gamma>2 \<turnstile> a : u"
       using ttsplit_triv_def ttyping_case.hyps(2,7) by auto
   next
-    show "\<Xi>, K, Some (TSum (tagged_list_update tag (t, True) ts)) # snd t\<Gamma>2 \<turnstile> b : u"
+    show "\<Xi>, K, Some (TSum (tagged_list_update tag (t, Checked) ts)) # snd t\<Gamma>2 \<turnstile> b : u"
       using ttsplit_triv_def ttyping_case.hyps(2,9) by auto
   qed simp+
 qed (auto simp:  ttsplit_triv_def
@@ -353,15 +353,15 @@ proof (induct rule: typing_typing_all.inducts)
       and "tt = TyTrSplit sps [] tt1 [] tt2"
       and "\<Xi>, K, (tt1, \<Gamma>1) T\<turnstile> x : TSum ts"
       and "\<Xi>, K, (tt2a, Some t # \<Gamma>2) T\<turnstile> a : u"
-      and "\<Xi>, K, (tt2a', Some (TSum (tagged_list_update tag (t, True) ts)) # \<Gamma>2) T\<turnstile> b : u"
-      and tt2_is: "tt2 = TyTrSplit ijs [Some t] tt2a [Some (TSum (tagged_list_update tag (t, True) ts))] tt2a'"
+      and "\<Xi>, K, (tt2a', Some (TSum (tagged_list_update tag (t, Checked) ts)) # \<Gamma>2) T\<turnstile> b : u"
+      and tt2_is: "tt2 = TyTrSplit ijs [Some t] tt2a [Some (TSum (tagged_list_update tag (t, Checked) ts))] tt2a'"
     using split_imp_ttsplit[where xs="[]" and ys="[]"] by blast
   ultimately have "\<Xi>, K, (tt, \<Gamma>) T\<turnstile> Case x tag a b : u"
   proof (intro ttyping.ttyping_case)
     from tt2_is
     show "ttsplit_triv (tt2, \<Gamma>2)
             [Some t] (tt2a, Some t # \<Gamma>2)
-            [Some (TSum (tagged_list_update tag (t, True) ts))] (tt2a', Some (TSum (tagged_list_update tag (t, True) ts)) # \<Gamma>2)"
+            [Some (TSum (tagged_list_update tag (t, Checked) ts))] (tt2a', Some (TSum (tagged_list_update tag (t, Checked) ts)) # \<Gamma>2)"
       unfolding ttsplit_triv_def
       by simp
   qed blast+
@@ -619,9 +619,9 @@ next
       and w2_r1_noalias: "w2 \<inter> r1 = {}"
       using matches_ptrs_noalias u_sem_case_nm.prems(3) by blast+
     moreover obtain ijs \<Gamma>1a \<Gamma>2a
-       where "fst t\<Gamma>2 = TyTrSplit ijs [Some ta] \<Gamma>1a [Some (TSum (tagged_list_update t (ta, True) ts))] \<Gamma>2a"
+       where "fst t\<Gamma>2 = TyTrSplit ijs [Some ta] \<Gamma>1a [Some (TSum (tagged_list_update t (ta, Checked) ts))] \<Gamma>2a"
        and "t\<Gamma>3 = (\<Gamma>1a, [Some ta] @ snd t\<Gamma>2)"
-       and t\<Gamma>4_is: "t\<Gamma>4 = (\<Gamma>2a, [Some (TSum (tagged_list_update t (ta, True) ts))] @ snd t\<Gamma>2)"
+       and t\<Gamma>4_is: "t\<Gamma>4 = (\<Gamma>2a, [Some (TSum (tagged_list_update t (ta, Checked) ts))] @ snd t\<Gamma>2)"
       using ttsplit_triv_def ttyping_case by blast
     ultimately show "\<Xi>, \<xi>, \<gamma>, [], \<Gamma>, \<tau> T\<turnstile> (\<sigma>, Case x t m n) \<Down>! (\<sigma>', v)"
       using u_sem_case_nm.hyps
@@ -644,7 +644,7 @@ next
         show "\<Xi>, \<sigma>'' \<turnstile> USum t' v' rs # \<gamma> matches snd t\<Gamma>4 \<langle>r1' \<union> r2, w1' \<union> w2\<rangle>"
           using frame1 frame_noalias_matches_ptrs matches2  w1_2_disjoint w1_r2_noalias
         proof (simp add: t\<Gamma>4_is, intro matches_ptrs_some)
-          show "\<Xi>, \<sigma>'' \<turnstile> USum t' v' rs :u TSum (tagged_list_update t (ta, True) ts) \<langle>r1', w1'\<rangle>"
+          show "\<Xi>, \<sigma>'' \<turnstile> USum t' v' rs :u TSum (tagged_list_update t (ta, Checked) ts) \<langle>r1', w1'\<rangle>"
             by (simp add: sum_downcast_u ttyping_case u_sem_case_nm.hyps(3) usum_rs_under_\<sigma>'')
         next
           show "\<Xi>, \<sigma>'' \<turnstile> \<gamma> matches snd t\<Gamma>2 \<langle>r2, w2\<rangle>"
@@ -710,7 +710,7 @@ next
 
     then obtain rf wf r1a w1a
       where ut_fs_at_f: "\<Xi>, \<sigma>'' \<turnstile> fst (fs ! f) :u t \<langle>rf, wf\<rangle>"
-        and ut_fs_taken_f: "\<Xi>, \<sigma>'' \<turnstile>* fs :ur ts[f := (n, t, True)] \<langle>r1a, w1a\<rangle>"
+        and ut_fs_taken_f: "\<Xi>, \<sigma>'' \<turnstile>* fs :ur ts[f := (n, t, Taken)] \<langle>r1a, w1a\<rangle>"
         and r1'_is: "r1' = rf \<union> r1a"
         and w1''_is: "w1'' = wf \<union> w1a"
         and "wf \<inter> w1a = {}"
@@ -741,7 +741,7 @@ next
 
     have "\<Xi>, \<xi>, fst (fs ! f) # UPtr p r' # \<gamma>, [], t\<Gamma>4, \<tau> T\<turnstile> (\<sigma>'', e) \<Down>! (\<sigma>', v)"
     proof (cases taken)
-      case True
+      case Taken
 
       show ?thesis
         using u_sem_take.prems ttyping_take
@@ -750,9 +750,9 @@ next
           using ut_fs_at_f matches2_under_\<sigma>'' disjointness_lemmas
         proof (simp only: snd_t\<Gamma>4_is append_Cons append.left_neutral, intro matches_ptrs_some[OF _ matches_ptrs_some])
           have "\<Xi>, \<sigma>'' \<turnstile>* fs :ur ts[f := (n, t, taken)] \<langle>r1a, w1a\<rangle>"
-            by (simp add: ut_fs_taken_f True)
+            by (simp add: ut_fs_taken_f Taken)
           moreover have "r' = RRecord (map (type_repr \<circ> fst \<circ> snd) (ts[f := (n, t, taken)]))"
-              using True type_repr_uval_repr uptr_p_elim_lemmas ut_fs_taken_f
+              using Taken type_repr_uval_repr uptr_p_elim_lemmas ut_fs_taken_f
               by (metis (full_types))
           ultimately show "\<Xi>, \<sigma>'' \<turnstile> UPtr p r' :u TRecord (ts[f := (n, t, taken)]) s \<langle>r1a, insert p w1a\<rangle>"
             using uptr_p_elim_lemmas ut_fs_taken_f r1'_is w1''_is
@@ -763,11 +763,7 @@ next
         qed fast+
       qed simp+
     next
-      case False
-
-      have k_is_sharable: "S \<in> k"
-        using False ttyping_take
-        by simp
+      case Present
       then have wf_empty: "wf = {}"
         using shareable_not_writable(1) ut_fs_at_f ttyping_take
         by blast
@@ -778,10 +774,10 @@ next
         show "\<Xi>, \<sigma>'' \<turnstile> fst (fs ! f) # UPtr p r' # \<gamma> matches snd t\<Gamma>4 \<langle>rf \<union> ((rf \<union> r1a) \<union> r2), {} \<union> (insert p w1a \<union> w2)\<rangle>"
           using ut_fs_at_f matches2_under_\<sigma>'' disjointness_lemmas wf_empty
         proof (simp only: snd_t\<Gamma>4_is append_Cons append.left_neutral, intro matches_ptrs_some[OF _ matches_ptrs_some])
-          have "ts[f := (n, t, False)] = ts"
+          have "ts[f := (n, t, Present)] = ts"
             by (simp add: list_helper ttyping_take)
           thus "\<Xi>, \<sigma>'' \<turnstile> UPtr p r' :u TRecord (ts[f := (n, t, taken)]) s \<langle>rf \<union> r1a, insert p w1a\<rangle>"
-            using uptr_p_elim_lemmas wf_empty r1'_is uptr_p_under_\<sigma>'' w1''_is False by auto
+            using uptr_p_elim_lemmas wf_empty r1'_is uptr_p_under_\<sigma>'' w1''_is Present by auto
         qed fast+
       qed simp+
     qed

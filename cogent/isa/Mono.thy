@@ -287,9 +287,9 @@ lemma rename_monoexpr_correct:
       obtain \<Gamma>1 \<Gamma>2 ts t
         where split\<Gamma>: "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
           and typing_renamed_ea: "\<Xi>, [], \<Gamma>1 \<turnstile> rename_expr rename (monoexpr ea) : TSum ts"
-          and f'_in_ts: "(f', t, False) \<in> set ts"
+          and f'_in_ts: "(f', t, Unchecked) \<in> set ts"
           and "\<Xi>, [], Some t # \<Gamma>2 \<turnstile> rename_expr rename (monoexpr me) : \<tau>"
-          and typing_renamed_ne: "\<Xi>, [], Some (TSum (tagged_list_update f' (t, True) ts)) # \<Gamma>2 \<turnstile> rename_expr rename (monoexpr ne) : \<tau>"
+          and typing_renamed_ne: "\<Xi>, [], Some (TSum (tagged_list_update f' (t, Checked) ts)) # \<Gamma>2 \<turnstile> rename_expr rename (monoexpr ne) : \<tau>"
         using v_sem_case_nm.prems Case f''_is by auto
       have matches1: "\<Xi> \<turnstile> map (rename_val rename \<circ> monoval) \<gamma> matches \<Gamma>1"
         and matches2: "\<Xi> \<turnstile> map (rename_val rename \<circ> monoval) \<gamma> matches \<Gamma>2"
@@ -312,9 +312,9 @@ lemma rename_monoexpr_correct:
         by auto
       then have "\<Xi> \<turnstile> VSum f (rename_val rename (monoval v1)) :v TSum ts"
         by force
-      then have "\<Xi> \<turnstile> VSum f (rename_val rename (monoval v1)) :v TSum (tagged_list_update f' (t, True) ts)"
+      then have "\<Xi> \<turnstile> VSum f (rename_val rename (monoval v1)) :v TSum (tagged_list_update f' (t, Checked) ts)"
         by (metis f'_in_ts sum_downcast[OF _ not_sym] v_sem_case_nm.hyps(3))
-      then have matches2_aug: "\<Xi> \<turnstile> map (rename_val rename \<circ> monoval) (VSum f v1 # \<gamma>) matches Some (TSum (tagged_list_update f' (t, True) ts)) # \<Gamma>2"
+      then have matches2_aug: "\<Xi> \<turnstile> map (rename_val rename \<circ> monoval) (VSum f v1 # \<gamma>) matches Some (TSum (tagged_list_update f' (t, Checked) ts)) # \<Gamma>2"
         using matches2 rv_is by (force intro: matches_cons')
       then obtain v2
         where ne_usem: "\<xi>\<^sub>p , VSum f v1 # \<gamma> \<turnstile> ne \<Down> v2"

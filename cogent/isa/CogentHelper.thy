@@ -26,9 +26,9 @@ lemma typing_put':  "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<
                      ; f < length ts
                      ; ts ! f = (n,t, taken)
                      ; K \<turnstile> t :\<kappa> k
-                     ; D \<in> k \<or> taken
+                     ; D \<in> k \<or> taken = Taken
                      ; \<Xi>, K, \<Gamma>2 \<turnstile> e' : t
-                     ; ts' = (ts [f := (n,t,False)])
+                     ; ts' = (ts [f := (n,t,Present)])
                      \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Put e f e' : TRecord ts' s"
   by (simp add: typing_put)
 
@@ -40,19 +40,19 @@ lemma typing_prim' : "\<lbrakk> prim_op_type oper = (ts,t)
 
 
 lemma typing_con' : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : t
-                     ; (tag, t, False) \<in> set ts
+                     ; (tag, t, Unchecked) \<in> set ts
                      ; K \<turnstile>* (map (fst \<circ> snd) ts) wellformed
                      ; distinct (map fst ts)
                      ; map fst ts = map fst ts'
                      ; map (fst \<circ> snd) ts = map (fst \<circ> snd) ts'
-                     ; list_all2 (\<lambda>x y. snd (snd y) \<longrightarrow> snd (snd x)) ts ts'
+                     ; list_all2 (\<lambda>x y. snd (snd x) \<le> snd (snd y)) ts ts'
                      \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Con ts tag x : TSum ts'"
   by (simp add: typing_con)
 
 lemma typing_struct': "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile>* es : ts
                        ; length ns = length ts
                        ; distinct ns
-                       ; ts' = (zip ns (zip ts (replicate (length ts) False)))
+                       ; ts' = (zip ns (zip ts (replicate (length ts) Present)))
                        \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Struct ts es : TRecord ts' Unboxed"
   by (simp only: typing_struct)
 
@@ -143,8 +143,8 @@ lemma ttsplit_triv_type_ctxt_wellformed:
 
 lemma ttyping_case':  "\<lbrakk> ttsplit K \<Gamma> ijs [] \<Gamma>1 [] \<Gamma>2
                    ; \<Xi>, K, \<Gamma>1 T\<turnstile> x : TSum ts
-                   ; (tag, t, False) \<in> set ts
-                   ; ttsplit_triv \<Gamma>2 [Some t] \<Gamma>3 [Some (TSum (tagged_list_update tag (t, True) ts))] \<Gamma>4
+                   ; (tag, t, Unchecked) \<in> set ts
+                   ; ttsplit_triv \<Gamma>2 [Some t] \<Gamma>3 [Some (TSum (tagged_list_update tag (t, Checked) ts))] \<Gamma>4
                    ; \<Xi>, K, \<Gamma>3 T\<turnstile> a : u
                    ; \<Xi>, K, \<Gamma>4 T\<turnstile> b : u
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> T\<turnstile> Case x tag a b : u"
@@ -154,9 +154,9 @@ lemma ttyping_take': "\<lbrakk> ttsplit K \<Gamma> ijs [] \<Gamma>1 [Some t, Som
                    ; \<Xi>, K, \<Gamma>1 T\<turnstile> e : TRecord ts s
                    ; sigil_perm s \<noteq> Some ReadOnly
                    ; f < length ts
-                   ; ts ! f = (n, t, False)
+                   ; ts ! f = (n, t, Present)
                    ; K \<turnstile> t :\<kappa> k
-                   ; ts = ts'[f := (n, t, False)] \<and> fst (ts' ! f) = n \<and> fst (snd (ts' ! f)) = t \<and> (S \<in> k \<or> snd (snd (ts' ! f)))
+                   ; ts = ts'[f := (n, t, Present)] \<and> fst (ts' ! f) = n \<and> fst (snd (ts' ! f)) = t \<and> (S \<in> k \<or> snd (snd (ts' ! f)) = Taken)
                    ; \<Xi>, K, \<Gamma>2 T\<turnstile> e' : u
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> T\<turnstile> Take e f e' : u"
   apply clarify

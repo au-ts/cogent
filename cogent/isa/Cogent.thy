@@ -79,14 +79,172 @@ primrec sigil_perm :: "sigil \<Rightarrow> access_perm option" where
   "sigil_perm (Boxed p _) = Some p"
 | "sigil_perm Unboxed     = None"
 
+
+subsection {* Types *}
+
+(* the states of elements in variants/records *)
+datatype variant_state = Checked | Unchecked
+datatype record_state = Taken | Present
+
+(* variant and record states are booelan algebras.
+   This should match up with the subtyping lattice ops. *)
+
+instantiation variant_state :: boolean_algebra
+begin
+
+fun uminus_variant_state :: "variant_state \<Rightarrow> variant_state" where
+  "uminus_variant_state Checked   = Unchecked"
+| "uminus_variant_state Unchecked = Checked"
+
+definition top_variant_state :: variant_state where
+  "top_variant_state \<equiv> Unchecked"
+declare top_variant_state_def[simp]
+
+definition bot_variant_state :: variant_state where
+  "bot_variant_state \<equiv> Checked"
+declare bot_variant_state_def[simp]
+
+fun inf_variant_state :: "variant_state \<Rightarrow> variant_state \<Rightarrow> variant_state" where
+  "inf_variant_state Checked   _         = Checked"
+| "inf_variant_state Unchecked Checked   = Checked"
+| "inf_variant_state Unchecked Unchecked = Unchecked"
+
+fun sup_variant_state :: "variant_state \<Rightarrow> variant_state \<Rightarrow> variant_state" where
+  "sup_variant_state Unchecked _         = Unchecked"
+| "sup_variant_state Checked   Unchecked = Unchecked"
+| "sup_variant_state Checked   Checked   = Checked"
+
+fun less_eq_variant_state :: "variant_state \<Rightarrow> variant_state \<Rightarrow> bool" where
+  "less_eq_variant_state _         Unchecked = True"
+| "less_eq_variant_state Checked   Checked   = True"
+| "less_eq_variant_state Unchecked Checked   = False"
+
+fun less_variant_state :: "variant_state \<Rightarrow> variant_state \<Rightarrow> bool" where
+  "less_variant_state _         Checked   = False"
+| "less_variant_state Unchecked Unchecked = False"
+| "less_variant_state Checked   Unchecked = True"
+
+definition minus_variant_state :: "variant_state \<Rightarrow> variant_state \<Rightarrow> variant_state" where
+  "minus_variant_state x y \<equiv> inf x (- y)"
+declare minus_variant_state_def[simp]
+
+instance proof
+  fix x y z :: variant_state
+
+  show "(x < y) = (x \<le> y \<and> \<not> y \<le> x)"
+    by (cases x; cases y; clarsimp)
+  show "x \<le> x"
+    by (cases x; clarsimp)
+  show "x \<le> y \<Longrightarrow> y \<le> z \<Longrightarrow> x \<le> z"
+    by (cases x; cases y; cases z; clarsimp)
+  show "x \<le> y \<Longrightarrow> y \<le> x \<Longrightarrow> x = y"
+    by (cases x; cases y; clarsimp)
+  show "inf x y \<le> x" "inf x y \<le> y"
+    by (cases x; cases y; clarsimp)+
+  show "x \<le> y \<Longrightarrow> x \<le> z \<Longrightarrow> x \<le> inf y z"
+    by (cases x; cases y; cases z; clarsimp)
+  show "x \<le> sup x y"
+    by (cases x; cases y; clarsimp)
+  show "y \<le> sup x y"
+    by (cases x; cases y; clarsimp)
+  show "y \<le> x \<Longrightarrow> z \<le> x \<Longrightarrow> sup y z \<le> x"
+    by (cases x; cases y; cases z; clarsimp)
+  show "bot \<le> x" "x \<le> top"
+    by (cases x; simp)+
+  show "sup x (inf y z) = inf (sup x y) (sup x z)"
+    by (cases x; cases y; cases z; simp)
+  show
+    "inf x (- x) = bot"
+    "sup x (- x) = top"
+    by (cases x; simp)+
+  show "x - y = inf x (- y)"
+    by simp
+qed
+end
+
+instantiation record_state :: boolean_algebra
+begin
+
+fun uminus_record_state :: "record_state \<Rightarrow> record_state" where
+  "uminus_record_state Taken   = Present"
+| "uminus_record_state Present = Taken"
+
+definition top_record_state :: record_state where
+  "top_record_state \<equiv> Present"
+declare top_record_state_def[simp]
+
+definition bot_record_state :: record_state where
+  "bot_record_state \<equiv> Taken"
+declare bot_record_state_def[simp]
+
+fun inf_record_state :: "record_state \<Rightarrow> record_state \<Rightarrow> record_state" where
+  "inf_record_state Taken   _       = Taken"
+| "inf_record_state Present Taken   = Taken"
+| "inf_record_state Present Present = Present"
+
+fun sup_record_state :: "record_state \<Rightarrow> record_state \<Rightarrow> record_state" where
+  "sup_record_state Present _       = Present"
+| "sup_record_state Taken   Present = Present"
+| "sup_record_state Taken   Taken   = Taken"
+
+fun less_eq_record_state :: "record_state \<Rightarrow> record_state \<Rightarrow> bool" where
+  "less_eq_record_state _       Present = True"
+| "less_eq_record_state Taken   Taken   = True"
+| "less_eq_record_state Present Taken   = False"
+
+fun less_record_state :: "record_state \<Rightarrow> record_state \<Rightarrow> bool" where
+  "less_record_state _       Taken   = False"
+| "less_record_state Present Present = False"
+| "less_record_state Taken   Present = True"
+
+definition minus_record_state :: "record_state \<Rightarrow> record_state \<Rightarrow> record_state" where
+  "minus_record_state x y \<equiv> inf x (- y)"
+declare minus_record_state_def[simp]
+
+instance proof
+  fix x y z :: record_state
+
+  show "(x < y) = (x \<le> y \<and> \<not> y \<le> x)"
+    by (cases x; cases y; clarsimp)
+  show "x \<le> x"
+    by (cases x; clarsimp)
+  show "x \<le> y \<Longrightarrow> y \<le> z \<Longrightarrow> x \<le> z"
+    by (cases x; cases y; cases z; clarsimp)
+  show "x \<le> y \<Longrightarrow> y \<le> x \<Longrightarrow> x = y"
+    by (cases x; cases y; clarsimp)
+  show "inf x y \<le> x" "inf x y \<le> y"
+    by (cases x; cases y; clarsimp)+
+  show "x \<le> y \<Longrightarrow> x \<le> z \<Longrightarrow> x \<le> inf y z"
+    by (cases x; cases y; cases z; clarsimp)
+  show "x \<le> sup x y"
+    by (cases x; cases y; clarsimp)
+  show "y \<le> sup x y"
+    by (cases x; cases y; clarsimp)
+  show "y \<le> x \<Longrightarrow> z \<le> x \<Longrightarrow> sup y z \<le> x"
+    by (cases x; cases y; cases z; clarsimp)
+  show "bot \<le> x" "x \<le> top"
+    by (cases x; simp)+
+  show "sup x (inf y z) = inf (sup x y) (sup x z)"
+    by (cases x; cases y; cases z; simp)
+  show
+    "inf x (- x) = bot"
+    "sup x (- x) = top"
+    by (cases x; simp)+
+  show "x - y = inf x (- y)"
+    by simp
+qed
+end
+
+
+
 datatype type = TVar index
               | TVarBang index
               | TCon name "type list" sigil
               | TFun type type
               | TPrim prim_type
-              | TSum "(name \<times> (type \<times> bool)) list"
+              | TSum "(name \<times> type \<times> variant_state) list"
               | TProduct type type
-              | TRecord "(name \<times> type \<times> bool) list" sigil
+              | TRecord "(name \<times> type \<times> record_state) list" sigil
               | TUnit
 
 datatype lit = LBool bool
@@ -115,7 +273,7 @@ datatype 'f expr = Var index
                  | Fun "'f expr" "type list"
                  | Prim prim_op "'f expr list"
                  | App "'f expr" "'f expr"
-                 | Con "(name \<times> type \<times> bool) list" name "'f expr"
+                 | Con "(name \<times> type \<times> variant_state) list" name "'f expr"
                  | Struct "type list" "'f expr list"
                  | Member "'f expr" field
                  | Unit
@@ -150,7 +308,7 @@ fun sigil_kind :: "sigil \<Rightarrow> kind" where
 
 inductive kinding        :: "kind env \<Rightarrow> type               \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile> _ :\<kappa> _" [30,0,20] 60)
       and kinding_all    :: "kind env \<Rightarrow> type list          \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa> _" [30,0,20] 60)
-      and kinding_record :: "kind env \<Rightarrow> (name \<times> type \<times> bool) list \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa>r _" [30,0,20] 60) where
+      and kinding_record :: "kind env \<Rightarrow> (name \<times> type \<times> record_state) list \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa>r _" [30,0,20] 60) where
 
    kind_tvar    : "\<lbrakk> k \<subseteq> (K ! i) ; i < length K \<rbrakk> \<Longrightarrow> K \<turnstile> TVar i :\<kappa> k"
 |  kind_tvarb   : "\<lbrakk> k \<subseteq> {D, S} ; i < length K \<rbrakk> \<Longrightarrow> K \<turnstile> TVarBang i :\<kappa> k"
@@ -166,8 +324,8 @@ inductive kinding        :: "kind env \<Rightarrow> type               \<Rightar
 |  kind_all_cons  : "\<lbrakk> K \<turnstile> x :\<kappa> k ; K \<turnstile>* xs :\<kappa> k \<rbrakk> \<Longrightarrow> K \<turnstile>* (x # xs) :\<kappa> k"
 
 |  kind_record_empty : "K \<turnstile>* [] :\<kappa>r k"
-|  kind_record_cons1 : "\<lbrakk> K \<turnstile> x :\<kappa> k  ; K \<turnstile>* xs :\<kappa>r k \<rbrakk> \<Longrightarrow> K \<turnstile>* ((name,x,False) # xs) :\<kappa>r k"
-|  kind_record_cons2 : "\<lbrakk> K \<turnstile> x :\<kappa> k' ; K \<turnstile>* xs :\<kappa>r k \<rbrakk> \<Longrightarrow> K \<turnstile>* ((name,x,True)  # xs) :\<kappa>r k"
+|  kind_record_cons1 : "\<lbrakk> K \<turnstile> x :\<kappa> k  ; K \<turnstile>* xs :\<kappa>r k \<rbrakk> \<Longrightarrow> K \<turnstile>* ((name,x,Present) # xs) :\<kappa>r k"
+|  kind_record_cons2 : "\<lbrakk> K \<turnstile> x :\<kappa> k' ; K \<turnstile>* xs :\<kappa>r k \<rbrakk> \<Longrightarrow> K \<turnstile>* ((name,x,Taken)  # xs) :\<kappa>r k"
 
 inductive_cases kind_tvarE         [elim] : "K \<turnstile> TVar i :\<kappa> k"
 inductive_cases kind_tvarbE        [elim] : "K \<turnstile> TVarBang i :\<kappa> k"
@@ -180,8 +338,8 @@ inductive_cases kind_all_emptyE    [elim] : "K \<turnstile>* [] :\<kappa> k"
 inductive_cases kind_all_consE     [elim] : "K \<turnstile>* (x # xs) :\<kappa> k"
 inductive_cases kind_record_emptyE [elim] : "K \<turnstile>* [] :\<kappa>r k"
 inductive_cases kind_record_consE  [elim] : "K \<turnstile>* (x # xs) :\<kappa>r k"
-inductive_cases kind_record_cons1E [elim] : "K \<turnstile>* ((name,x,False) # xs) :\<kappa>r k"
-inductive_cases kind_record_cons2E [elim] : "K \<turnstile>* ((name,x,True)  # xs) :\<kappa>r k"
+inductive_cases kind_record_cons1E [elim] : "K \<turnstile>* ((name,x,Present) # xs) :\<kappa>r k"
+inductive_cases kind_record_cons2E [elim] : "K \<turnstile>* ((name,x,Taken)  # xs) :\<kappa>r k"
 
 
 definition type_wellformed :: "kind env \<Rightarrow> type \<Rightarrow> bool" ("_ \<turnstile> _ wellformed" [30,20] 60) where
@@ -444,12 +602,12 @@ inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Right
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> App a b : y"
 
 | typing_con    : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : t
-                   ; (tag, t, False) \<in> set ts
+                   ; (tag, t, Unchecked) \<in> set ts
                    ; K \<turnstile>* (map (fst \<circ> snd) ts) wellformed
                    ; distinct (map fst ts)
                    ; map fst ts = map fst ts'
                    ; map (fst \<circ> snd) ts = map (fst \<circ> snd) ts'
-                   ; list_all2 (\<lambda>x y. snd (snd y) \<longrightarrow> snd (snd x)) ts ts'
+                   ; list_all2 (\<lambda>x y. snd (snd x) \<le> snd (snd y)) ts ts'
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Con ts tag x : TSum ts'"
 
 | typing_cast   : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> e : TPrim (Num \<tau>)
@@ -480,13 +638,13 @@ inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Right
 
 | typing_case   : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
                    ; \<Xi>, K, \<Gamma>1 \<turnstile> x : TSum ts
-                   ; (tag, (t,False)) \<in> set ts
+                   ; (tag, t, Unchecked) \<in> set ts
                    ; \<Xi>, K, (Some t # \<Gamma>2) \<turnstile> a : u
-                   ; \<Xi>, K, (Some (TSum (tagged_list_update tag (t, True) ts)) # \<Gamma>2) \<turnstile> b : u
+                   ; \<Xi>, K, (Some (TSum (tagged_list_update tag (t, Checked) ts)) # \<Gamma>2) \<turnstile> b : u
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Case x tag a b : u"
 
 | typing_esac   : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : TSum ts
-                   ; [(_, (t,False))] = filter (HOL.Not \<circ> snd \<circ> snd) ts
+                   ; [(_, t, Unchecked)] = filter (op = Unchecked \<circ> snd \<circ> snd) ts
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Esac x : t"
 
 | typing_if     : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
@@ -508,23 +666,23 @@ inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Right
 | typing_struct : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile>* es : ts
                    ; distinct ns
                    ; length ns = length ts
-                   ; ts' = (zip ns (zip ts (replicate (length ts) False)))
+                   ; ts' = (zip ns (zip ts (replicate (length ts) Present)))
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Struct ts es : TRecord ts' Unboxed"
 
 | typing_member : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> e : TRecord ts s
                    ; K \<turnstile> TRecord ts s :\<kappa> k
                    ; S \<in> k
                    ; f < length ts
-                   ; ts ! f = (n, t, False)
+                   ; ts ! f = (n, t, Present)
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Member e f : t"
 
 | typing_take   : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
                    ; \<Xi>, K, \<Gamma>1 \<turnstile> e : TRecord ts s
                    ; sigil_perm s \<noteq> Some ReadOnly
                    ; f < length ts
-                   ; ts ! f = (n, t, False)
+                   ; ts ! f = (n, t, Present)
                    ; K \<turnstile> t :\<kappa> k
-                   ; S \<in> k \<or> taken
+                   ; S \<in> k \<or> taken = Taken
                    ; \<Xi>, K, (Some t # Some (TRecord (ts [f := (n,t,taken)]) s) # \<Gamma>2) \<turnstile> e' : u
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Take e f e' : u"
 
@@ -534,9 +692,9 @@ inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Right
                    ; f < length ts
                    ; ts ! f = (n, t, taken)
                    ; K \<turnstile> t :\<kappa> k
-                   ; D \<in> k \<or> taken
+                   ; D \<in> k \<or> taken = Taken
                    ; \<Xi>, K, \<Gamma>2 \<turnstile> e' : t
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Put e f e' : TRecord (ts [f := (n,t,False)]) s"
+                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Put e f e' : TRecord (ts [f := (n,t,Present)]) s"
 
 | typing_all_empty : "\<Xi>, K, empty n \<turnstile>* [] : []"
 
@@ -710,7 +868,7 @@ lemma kinding_all_record:
     "K \<turnstile>* ts :\<kappa> k"
     "length ns = length ts"
   shows
-    "K \<turnstile>* zip ns (zip ts (replicate (length ts) False)) :\<kappa>r k"
+    "K \<turnstile>* zip ns (zip ts (replicate (length ts) Present)) :\<kappa>r k"
   using assms
 proof (induct ts arbitrary: ns)
   case (Cons a ts)
@@ -738,7 +896,7 @@ lemma kinding_record_update:
   assumes "K \<turnstile>* ts :\<kappa>r k"
     and "ts ! n = (name, a, b)"
     and "K \<turnstile> a :\<kappa> k'"
-  shows "K \<turnstile>* (ts[ n := (name, a, False)]) :\<kappa>r (k \<inter> k')"
+  shows "K \<turnstile>* (ts[ n := (name, a, Present)]) :\<kappa>r (k \<inter> k')"
   using assms
 proof (induct ts arbitrary: n)
   case (Cons a ts)
@@ -807,6 +965,29 @@ proof -
       using ts_at_i ts'_at_i by force
   qed
   ultimately show ?thesis
+    by (metis i_in_bounds length_map nth_mem tags_same)
+qed
+
+lemma variant_subtyping_elem_unchecked_preservation:
+  assumes tag_in_ts: "(tag, t, Unchecked) \<in> set ts"
+    and tags_same: "map fst ts = map fst ts'"
+    and types_same: "map (fst \<circ> snd) ts = map (fst \<circ> snd) ts'"
+    and taken_subcond: "list_all2 (\<lambda>x y. snd (snd x) \<le> snd (snd y)) ts ts'"
+  shows "(tag, t, Unchecked) \<in> set ts'"
+proof -
+  obtain i
+    where i_in_bounds: "i < length ts"
+      and ts_at_i: "ts ! i = (tag, t, Unchecked)"
+    by (meson tag_in_ts in_set_conv_nth)
+  moreover then have
+    "fst (ts ! i) = fst (ts' ! i)"
+    "fst (snd (ts ! i)) = fst (snd (ts' ! i))"
+    by (metis comp_apply i_in_bounds length_map nth_map tags_same types_same)+
+  moreover have "Unchecked \<le> snd (snd (ts' ! i))"
+    by (metis i_in_bounds list_all2_conv_all_nth snd_conv taken_subcond ts_at_i)
+  ultimately have "ts' ! i = (tag, t, Unchecked)"
+    by (cases "snd (snd (ts' ! i))"; simp add: prod_eqI)
+  then show ?thesis
     by (metis i_in_bounds length_map nth_mem tags_same)
 qed
 
@@ -1084,19 +1265,19 @@ next case typing_afun   then show ?case by (fastforce intro: kinding_kinding_all
                                                              substitutivity)
 next case typing_con    then show ?case by (fastforce simp add: kinding_all_set
                                                       intro!: kinding_kinding_all_kinding_record.intros)
-next case typing_esac   then show ?case by (fastforce dest: filtered_member
-                                                      elim: kinding.cases
-                                                      simp add: kinding_all_set)
+next case typing_esac   then show ?case by (fastforce dest: filter_member2 elim!: kind_tsumE simp add: kinding_all_set)
 next case typing_member then show ?case by (fastforce intro: kinding_record_wellformed_nth)
 next case typing_struct then show ?case by ( clarsimp
                                            , intro exI kind_trec kinding_all_record
                                            , simp_all add: kind_top map_fst_zip )
 next case typing_take   then show ?case by (simp)
-next case typing_put    then show ?case by (fastforce 
+next case typing_put    then show ?case by (fastforce
                                             simp add: map_update
                                             intro: kinding_kinding_all_kinding_record.intros
                                                    distinct_list_update kinding_record_update)
 qed (auto intro: supersumption kinding_kinding_all_kinding_record.intros)
+
+thm record_state.exhaust
 
 lemma upcast_valid_cast_to :
 assumes "upcast_valid \<tau> \<tau>'"
@@ -1133,12 +1314,12 @@ proof (induct rule: typing_typing_all.inducts)
   case (typing_case K \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> x ts tag t a u b)
   then have "\<Xi>, K', instantiate_ctx \<delta> \<Gamma> \<turnstile> Case (specialise \<delta> x) tag (specialise \<delta> a) (specialise \<delta> b) : instantiate \<delta> u"
   proof (intro typing_typing_all.typing_case)
-    have "\<Xi>, K', instantiate_ctx \<delta> (Some (TSum (tagged_list_update tag (t, True) ts)) # \<Gamma>2) \<turnstile> specialise \<delta> b : instantiate \<delta> u"
+    have "\<Xi>, K', instantiate_ctx \<delta> (Some (TSum (tagged_list_update tag (t, Checked) ts)) # \<Gamma>2) \<turnstile> specialise \<delta> b : instantiate \<delta> u"
       using typing_case.hyps(8) typing_case.prems by blast
-    moreover have "(map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) (tagged_list_update tag (t, True) ts)) = (tagged_list_update tag (instantiate \<delta> t, True) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts))"
+    moreover have "(map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) (tagged_list_update tag (t, Checked) ts)) = (tagged_list_update tag (instantiate \<delta> t, Checked) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts))"
       using case_prod_conv f1 tagged_list_update_map_over1[where f = id and g = "\<lambda>_ (t,b). (instantiate \<delta> t, b)", simplified]
       by metis
-    ultimately show "\<Xi>, K', Some (TSum (tagged_list_update tag (instantiate \<delta> t, True) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts))) # instantiate_ctx \<delta> \<Gamma>2 \<turnstile> specialise \<delta> b : instantiate \<delta> u"
+    ultimately show "\<Xi>, K', Some (TSum (tagged_list_update tag (instantiate \<delta> t, Checked) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts))) # instantiate_ctx \<delta> \<Gamma>2 \<turnstile> specialise \<delta> b : instantiate \<delta> u"
       by clarsimp
   qed (force intro: instantiate_ctx_split)+
   then show ?case by simp
@@ -1169,7 +1350,7 @@ next case (typing_con \<Xi> K \<Gamma> x t tag ts ts')
     show "map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts) = map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts')"
       using map_fst3_app2 map_map typing_con.hyps by metis
   next
-    show "list_all2 (\<lambda>x y. snd (snd y) \<longrightarrow> snd (snd x)) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts')"
+    show "list_all2 (\<lambda>x y. snd (snd x) \<le> snd (snd y)) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts')"
       by (simp add: list_all2_map1 list_all2_map2 case_prod_beta' typing_con.hyps(8))
   qed force+
 next
