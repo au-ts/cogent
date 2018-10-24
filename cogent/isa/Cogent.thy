@@ -306,22 +306,26 @@ fun sigil_kind :: "sigil \<Rightarrow> kind" where
 | "sigil_kind (Boxed Writable _) = {E}"
 | "sigil_kind Unboxed            = {D,S,E}"
 
-inductive kinding        :: "kind env \<Rightarrow> type               \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile> _ :\<kappa> _" [30,0,20] 60)
-      and kinding_all    :: "kind env \<Rightarrow> type list          \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa> _" [30,0,20] 60)
-      and kinding_record :: "kind env \<Rightarrow> (name \<times> type \<times> record_state) list \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa>r _" [30,0,20] 60) where
-
+inductive kinding         :: "kind env \<Rightarrow> type               \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile> _ :\<kappa> _" [30,0,20] 60)
+      and kinding_all     :: "kind env \<Rightarrow> type list          \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa> _" [30,0,20] 60)
+      and kinding_variant :: "kind env \<Rightarrow> (name \<times> type \<times> variant_state) list \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa>v _" [30,0,20] 60)
+      and kinding_record  :: "kind env \<Rightarrow> (name \<times> type \<times> record_state) list \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa>r _" [30,0,20] 60) where
    kind_tvar    : "\<lbrakk> k \<subseteq> (K ! i) ; i < length K \<rbrakk> \<Longrightarrow> K \<turnstile> TVar i :\<kappa> k"
 |  kind_tvarb   : "\<lbrakk> k \<subseteq> {D, S} ; i < length K \<rbrakk> \<Longrightarrow> K \<turnstile> TVarBang i :\<kappa> k"
 |  kind_tcon    : "\<lbrakk> K \<turnstile>* ts :\<kappa> k ; k \<subseteq> sigil_kind s \<rbrakk> \<Longrightarrow> K \<turnstile> TCon n ts s :\<kappa> k"
 |  kind_tfun    : "\<lbrakk> K \<turnstile> a :\<kappa> ka ; K \<turnstile> b :\<kappa> kb \<rbrakk> \<Longrightarrow> K \<turnstile> TFun a b :\<kappa> k"
 |  kind_tprim   : "K \<turnstile> TPrim p :\<kappa> k"
-|  kind_tsum    : "\<lbrakk> distinct (map fst ts); K \<turnstile>* map (fst \<circ> snd) ts :\<kappa> k \<rbrakk> \<Longrightarrow> K \<turnstile> TSum ts :\<kappa> k"
+|  kind_tsum    : "\<lbrakk> distinct (map fst ts); K \<turnstile>* ts :\<kappa>v k \<rbrakk> \<Longrightarrow> K \<turnstile> TSum ts :\<kappa> k"
 |  kind_tprod   : "\<lbrakk> K \<turnstile> t :\<kappa> k; K \<turnstile> u :\<kappa> k \<rbrakk> \<Longrightarrow> K \<turnstile> TProduct t u :\<kappa> k"
 |  kind_trec    : "\<lbrakk> distinct (map fst ts); K \<turnstile>* ts :\<kappa>r k; k \<subseteq> sigil_kind s \<rbrakk> \<Longrightarrow> K \<turnstile> TRecord ts s :\<kappa> k"
 |  kind_tunit   : "K \<turnstile> TUnit :\<kappa> k"
 
 |  kind_all_empty : "K \<turnstile>* [] :\<kappa> k"
 |  kind_all_cons  : "\<lbrakk> K \<turnstile> x :\<kappa> k ; K \<turnstile>* xs :\<kappa> k \<rbrakk> \<Longrightarrow> K \<turnstile>* (x # xs) :\<kappa> k"
+
+|  kind_variant_empty : "K \<turnstile>* [] :\<kappa>v k"
+|  kind_variant_cons1 : "\<lbrakk> K \<turnstile> x :\<kappa> k  ; K \<turnstile>* xs :\<kappa>v k \<rbrakk> \<Longrightarrow> K \<turnstile>* ((name,x,Unchecked) # xs) :\<kappa>v k"
+|  kind_variant_cons2 : "\<lbrakk> K \<turnstile> x :\<kappa> k' ; K \<turnstile>* xs :\<kappa>v k \<rbrakk> \<Longrightarrow> K \<turnstile>* ((name,x,Checked)  # xs) :\<kappa>v k"
 
 |  kind_record_empty : "K \<turnstile>* [] :\<kappa>r k"
 |  kind_record_cons1 : "\<lbrakk> K \<turnstile> x :\<kappa> k  ; K \<turnstile>* xs :\<kappa>r k \<rbrakk> \<Longrightarrow> K \<turnstile>* ((name,x,Present) # xs) :\<kappa>r k"
@@ -336,6 +340,10 @@ inductive_cases kind_tprodE        [elim] : "K \<turnstile> TProduct t u :\<kapp
 inductive_cases kind_trecE         [elim] : "K \<turnstile> TRecord ts s :\<kappa> k"
 inductive_cases kind_all_emptyE    [elim] : "K \<turnstile>* [] :\<kappa> k"
 inductive_cases kind_all_consE     [elim] : "K \<turnstile>* (x # xs) :\<kappa> k"
+inductive_cases kind_variant_emptyE [elim] : "K \<turnstile>* [] :\<kappa>v k"
+inductive_cases kind_variant_consE  [elim] : "K \<turnstile>* (x # xs) :\<kappa>v k"
+inductive_cases kind_variant_cons1E [elim] : "K \<turnstile>* ((name,x,Unchecked) # xs) :\<kappa>v k"
+inductive_cases kind_variant_cons2E [elim] : "K \<turnstile>* ((name,x,Checked)  # xs) :\<kappa>v k"
 inductive_cases kind_record_emptyE [elim] : "K \<turnstile>* [] :\<kappa>r k"
 inductive_cases kind_record_consE  [elim] : "K \<turnstile>* (x # xs) :\<kappa>r k"
 inductive_cases kind_record_cons1E [elim] : "K \<turnstile>* ((name,x,Present) # xs) :\<kappa>r k"
@@ -603,7 +611,7 @@ inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Right
 
 | typing_con    : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : t
                    ; (tag, t, Unchecked) \<in> set ts
-                   ; K \<turnstile>* (map (fst \<circ> snd) ts) wellformed
+                   ; K \<turnstile> TSum ts' wellformed
                    ; distinct (map fst ts)
                    ; map fst ts = map fst ts'
                    ; map (fst \<circ> snd) ts = map (fst \<circ> snd) ts'
@@ -799,9 +807,10 @@ fixes k' :: kind
 assumes k_is_superset : "k' \<subseteq> k"
 shows "K \<turnstile>  t  :\<kappa> k  \<Longrightarrow> K \<turnstile>  t  :\<kappa> k'"
 and   "K \<turnstile>* ts :\<kappa> k  \<Longrightarrow> K \<turnstile>* ts :\<kappa> k'"
+and   "K \<turnstile>* xs :\<kappa>v k \<Longrightarrow> K \<turnstile>* xs :\<kappa>v k'"
 and   "K \<turnstile>* fs :\<kappa>r k \<Longrightarrow> K \<turnstile>* fs :\<kappa>r k'"
-using k_is_superset proof (induct rule: kinding_kinding_all_kinding_record.inducts)
-qed (auto intro: subset_trans kinding_kinding_all_kinding_record.intros)
+using k_is_superset proof (induct rule: kinding_kinding_all_kinding_variant_kinding_record.inducts)
+qed (auto intro: subset_trans kinding_kinding_all_kinding_variant_kinding_record.intros)
 
 
 lemma kind_top:
@@ -823,11 +832,11 @@ shows "(K \<turnstile>* ts :\<kappa> k) = (\<forall> t \<in> set ts. K \<turnsti
 proof (rule iffI)
      assume "K \<turnstile>* ts :\<kappa> k"
 then show   "\<forall> t \<in> set ts. K \<turnstile> t :\<kappa> k"
-     by (rule kinding_kinding_all_kinding_record.inducts, simp+)
+     by (rule kinding_kinding_all_kinding_variant_kinding_record.inducts, simp+)
 
 next assume "\<forall> t \<in> set ts. K \<turnstile> t :\<kappa> k"
 then show   "K \<turnstile>* ts :\<kappa> k"
-     by (induct ts, auto intro: kinding_kinding_all_kinding_record.intros)
+     by (induct ts, auto intro: kinding_kinding_all_kinding_variant_kinding_record.intros)
 qed
 
 lemma kinding_all_subset:
@@ -845,6 +854,56 @@ lemma kinding_typelist_wellformed_elem:
     and "t \<in> set ts"
   shows "K \<turnstile> t wellformed"
   using assms kinding_all_set by auto
+
+
+lemma kinding_variant_cons:
+  shows "(K \<turnstile>* t # ts :\<kappa>v k) \<longleftrightarrow> (case snd (snd t) of Checked \<Rightarrow> K \<turnstile> fst (snd t) wellformed | Unchecked \<Rightarrow> K \<turnstile> fst (snd t) :\<kappa> k) \<and> (K \<turnstile>* ts :\<kappa>v k)"
+  by (cases t, case_tac c; force intro: kinding_kinding_all_kinding_variant_kinding_record.intros)
+
+lemma kinding_variant_conv_all_nth:
+  shows "(K \<turnstile>* ts :\<kappa>v k) \<longleftrightarrow> (\<forall>i < length ts. case snd (snd (ts ! i)) of
+                                                Checked \<Rightarrow> K \<turnstile> fst (snd (ts ! i)) wellformed
+                                              | Unchecked \<Rightarrow> K \<turnstile> fst (snd (ts ! i)) :\<kappa> k)"
+proof (induct ts)
+  case (Cons a ts)
+  then show ?case
+    apply (clarsimp simp add: kinding_variant_cons All_less_Suc2)
+  apply (metis nth_Cons_0 nth_Cons_Suc)
+  done
+qed (simp add: kind_variant_empty)
+
+lemma kinding_variant_set:
+  shows "(K \<turnstile>* ts :\<kappa>v k) = (\<forall>(n,t,b)\<in>set ts. case b of Checked \<Rightarrow> K \<turnstile> t wellformed | Unchecked \<Rightarrow> K \<turnstile> t :\<kappa> k)"
+proof (induct ts)
+  case (Cons a ts)
+  then show ?case
+    by (cases a; case_tac c; clarsimp simp add: kinding_variant_cons)
+qed (simp add: kind_variant_empty)
+
+
+lemma kinding_record_cons:
+  shows "(K \<turnstile>* t # ts :\<kappa>r k) \<longleftrightarrow> (case snd (snd t) of Taken \<Rightarrow> K \<turnstile> fst (snd t) wellformed | Present \<Rightarrow> K \<turnstile> fst (snd t) :\<kappa> k) \<and> (K \<turnstile>* ts :\<kappa>r k)"
+  by (cases t; case_tac c; force intro: kinding_kinding_all_kinding_variant_kinding_record.intros)
+
+lemma kinding_record_conv_all_nth:
+  shows "(K \<turnstile>* ts :\<kappa>r k) \<longleftrightarrow> (\<forall>i < length ts. case snd (snd (ts ! i)) of
+                                                Taken \<Rightarrow> K \<turnstile> fst (snd (ts ! i)) wellformed
+                                              | Present \<Rightarrow> K \<turnstile> fst (snd (ts ! i)) :\<kappa> k)"
+proof (induct ts)
+  case (Cons a ts)
+  then show ?case
+    apply (clarsimp simp add: kinding_record_cons All_less_Suc2)
+  apply (metis nth_Cons_0 nth_Cons_Suc)
+  done
+qed (simp add: kind_record_empty)
+
+lemma kinding_record_set:
+  shows "(K \<turnstile>* ts :\<kappa>r k) = (\<forall>(n,t,b)\<in>set ts. case b of Taken \<Rightarrow> K \<turnstile> t wellformed | Present \<Rightarrow> K \<turnstile> t :\<kappa> k)"
+proof (induct ts)
+  case (Cons a ts)
+  then show ?case
+    by (cases a; case_tac c; clarsimp simp add: kinding_record_cons)
+qed (simp add: kind_record_empty)
 
 lemma kinding_record_wellformed:
   assumes "K \<turnstile>* ts :\<kappa>r k"
@@ -875,8 +934,8 @@ proof (induct ts arbitrary: ns)
   moreover then obtain n ns' where "ns = n # ns'"
     by (metis Suc_length_conv length_Cons)
   ultimately show ?case
-    by (fastforce simp add: length_Cons intro: kinding_kinding_all_kinding_record.intros)
-qed (force intro: kinding_kinding_all_kinding_record.intros)
+    by (fastforce simp add: length_Cons intro: kinding_kinding_all_kinding_variant_kinding_record.intros)
+qed (force intro: kinding_kinding_all_kinding_variant_kinding_record.intros)
 
 lemma kinding_all_record':
   assumes "K \<turnstile>* map (fst \<circ> snd) ts :\<kappa> k"
@@ -888,9 +947,9 @@ proof (induct ts)
     apply clarsimp
     apply (case_tac a)
     apply (case_tac c)
-     apply (auto intro: kinding_kinding_all_kinding_record.intros)
+     apply (auto intro: kinding_kinding_all_kinding_variant_kinding_record.intros)
     done
-qed (force intro: kinding_kinding_all_kinding_record.intros)
+qed (force intro: kinding_kinding_all_kinding_variant_kinding_record.intros)
 
 lemma kinding_record_update:
   assumes "K \<turnstile>* ts :\<kappa>r k"
@@ -902,9 +961,9 @@ proof (induct ts arbitrary: n)
   case (Cons a ts)
   then show ?case
     by (cases n; force elim!: kind_record_consE
-        intro!: kinding_kinding_all_kinding_record.intros
+        intro!: kinding_kinding_all_kinding_variant_kinding_record.intros
         intro: supersumption)
-qed (force intro: kinding_kinding_all_kinding_record.intros)
+qed (force intro: kinding_kinding_all_kinding_variant_kinding_record.intros)
     
 
 lemma sigil_kind_writable:
@@ -913,6 +972,7 @@ lemma sigil_kind_writable:
   shows "k \<subseteq> sigil_kind s"
   using assms
   by (case_tac s rule: sigil_cases, auto)
+
 
 section {* Bang lemmas *}
 
@@ -932,63 +992,64 @@ shows "{D , S} \<subseteq> sigil_kind (bang_sigil s)"
 lemma bang_kind:
 shows "K \<turnstile>  t  :\<kappa> k \<Longrightarrow> K \<turnstile>  bang t                       :\<kappa> {D, S}"
 and   "K \<turnstile>* ts :\<kappa> k \<Longrightarrow> K \<turnstile>* map bang ts                  :\<kappa> {D, S}"
+and   "K \<turnstile>* xs :\<kappa>v k \<Longrightarrow> K \<turnstile>* map (\<lambda>(n,t,b). (n, bang t, b)) xs :\<kappa>v {D, S}"
 and   "K \<turnstile>* fs :\<kappa>r k \<Longrightarrow> K \<turnstile>* map (\<lambda>(n,t,b). (n, bang t, b)) fs :\<kappa>r {D, S}"
-  apply (induct rule: kinding_kinding_all_kinding_record.inducts)
-  by (auto intro: kinding_kinding_all_kinding_record.intros
+  apply (induct rule: kinding_kinding_all_kinding_variant_kinding_record.inducts)
+  by (auto intro: kinding_kinding_all_kinding_variant_kinding_record.intros
            intro!: bang_sigil_kind
            simp add: case_prod_unfold comp_def)
 
 section {* Typing lemmas *}
 
-lemma variant_element_subtyping_mapping:
+lemma variant_elem_preservation:
   assumes tag_in_ts: "(tag, t, b) \<in> set ts"
-    and distinct_ts: "distinct (map fst ts')"
-    and tags_same: "map fst ts = map fst ts'"
-    and types_same: "map (fst \<circ> snd) ts = map (fst \<circ> snd) ts'"
-    and taken_subcond: "list_all2 (\<lambda>x y. snd (snd y) \<longrightarrow> snd (snd x)) ts ts'"
-  shows "\<exists>b'. (tag, t, b') \<in> set ts' \<and> (b' \<longrightarrow> b)"
-proof -
-  obtain i
-    where i_in_bounds: "i < length ts"
-      and ts_at_i: "ts ! i = (tag, t, b)"
-    by (meson tag_in_ts in_set_conv_nth)
-  then obtain tag' t' b' where "ts' ! i = (tag', t', b')"
-    using prod_cases3 by blast
-  then have ts'_at_i: "ts' ! i = (tag, t, b')"
-    by (metis (no_types, lifting) ts_at_i comp_apply fst_conv i_in_bounds length_map nth_map snd_conv tags_same types_same) 
-  moreover have "b' \<longrightarrow> b"
-  proof -
-    have "snd (snd (ts' ! i)) \<longrightarrow> snd (snd (ts ! i))"
-      using taken_subcond i_in_bounds
-      by (simp add: list_all2_conv_all_nth)
-    then show ?thesis
-      using ts_at_i ts'_at_i by force
-  qed
-  ultimately show ?thesis
-    by (metis i_in_bounds length_map nth_mem tags_same)
-qed
-
-lemma variant_subtyping_elem_unchecked_preservation:
-  assumes tag_in_ts: "(tag, t, Unchecked) \<in> set ts"
     and tags_same: "map fst ts = map fst ts'"
     and types_same: "map (fst \<circ> snd) ts = map (fst \<circ> snd) ts'"
     and taken_subcond: "list_all2 (\<lambda>x y. snd (snd x) \<le> snd (snd y)) ts ts'"
-  shows "(tag, t, Unchecked) \<in> set ts'"
+  shows "\<exists>b'. (tag, t, b') \<in> set ts' \<and> (b \<le> b')"
 proof -
   obtain i
-    where i_in_bounds: "i < length ts"
-      and ts_at_i: "ts ! i = (tag, t, Unchecked)"
+    where ts_at_i:
+      "i < length ts"
+      "ts ! i = (tag, t, b)"
     by (meson tag_in_ts in_set_conv_nth)
-  moreover then have
-    "fst (ts ! i) = fst (ts' ! i)"
-    "fst (snd (ts ! i)) = fst (snd (ts' ! i))"
-    by (metis comp_apply i_in_bounds length_map nth_map tags_same types_same)+
-  moreover have "Unchecked \<le> snd (snd (ts' ! i))"
-    by (metis i_in_bounds list_all2_conv_all_nth snd_conv taken_subcond ts_at_i)
-  ultimately have "ts' ! i = (tag, t, Unchecked)"
-    by (cases "snd (snd (ts' ! i))"; simp add: prod_eqI)
-  then show ?thesis
-    by (metis i_in_bounds length_map nth_mem tags_same)
+  moreover then obtain b' where ts'_at_i: "ts' ! i = (tag, t, b')"
+    by (metis comp_eq_dest_lhs eq_fst_iff length_map nth_map snd_conv tags_same types_same)
+  ultimately show ?thesis
+    using taken_subcond ts_at_i ts'_at_i nth_mem
+    by (fastforce simp add: list_all2_conv_all_nth)
+qed
+
+lemma variant_elem_preservation_unchecked:
+  assumes
+    "(tag, t, Unchecked) \<in> set ts"
+    "map fst ts = map fst ts'"
+    "map (fst \<circ> snd) ts = map (fst \<circ> snd) ts'"
+    "list_all2 (\<lambda>x y. snd (snd x) \<le> snd (snd y)) ts ts'"
+  shows "(tag, t, Unchecked) \<in> set ts'"
+  using variant_elem_preservation assms
+  by (metis less_eq_variant_state.elims(2))
+
+lemma variant_elem_preservation_reverse:
+  assumes tag_in_ts': "(tag', t', b') \<in> set ts'"
+    and tags_same: "map fst ts = map fst ts'"
+    and types_same: "map (fst \<circ> snd) ts = map (fst \<circ> snd) ts'"
+    and taken_subcond: "list_all2 (\<lambda>x y. snd (snd x) \<le> snd (snd y)) ts ts'"
+  shows "\<exists>b. (tag', t', b) \<in> set ts \<and> (b \<le> b')"
+proof -
+  obtain i
+    where ts'_at_i:
+      "i < length ts'"
+      "ts' ! i = (tag', t', b')"
+    by (meson tag_in_ts' in_set_conv_nth)
+  then obtain b where ts_at_i: "ts ! i = (tag', t', b)"
+    by (metis comp_eq_dest_lhs eq_fst_iff length_map nth_map snd_conv tags_same types_same)
+  moreover have "b \<le> b'"
+    using taken_subcond ts_at_i ts'_at_i
+    by (fastforce simp add: list_all2_conv_all_nth)
+  ultimately show ?thesis
+    using taken_subcond ts_at_i ts'_at_i nth_mem
+    by (metis length_map tags_same)
 qed
 
 section {* Instantiation *}
@@ -998,31 +1059,22 @@ shows "instantiate \<delta> (bang \<tau>) = bang (instantiate \<delta> \<tau>)"
 by (force intro: bang.induct [where P = "\<lambda> \<tau>. instantiate \<delta> (bang \<tau>) = bang (instantiate \<delta> \<tau>)"]
           simp:  bang_idempotent)
 
-find_theorems name: kinding_kinding_all_kinding_record
-
 lemma instantiate_instantiate [simp]:
 assumes "list_all2 (kinding K') \<delta>' K"
 and     "length K' = length \<delta>"
 shows   "K \<turnstile> x wellformed \<Longrightarrow> instantiate \<delta> (instantiate \<delta>' x) = instantiate (map (instantiate \<delta>) \<delta>') x"
-using assms proof (induct x arbitrary: \<delta>' rule: instantiate.induct)
-
-next case 3 then show ?case by (force simp: set_conv_nth
-                                      dest: kinding_all_nth)
+  using assms
+proof (induct x arbitrary: \<delta>' rule: instantiate.induct)
+next case 3 then show ?case by (force simp: set_conv_nth dest: kinding_all_nth)
 next case 8 then show ?case by (fastforce dest: kinding_record_wellformed)
-next case (6 \<delta> ps) note IH   = this(1)
-                   and  REST = this(2-)
-  from REST show ?case apply (clarsimp)
-                       apply (rule IH, simp, simp)
-                       apply (auto simp:  set_conv_nth comp_def
-                                   intro: kind_tsum
-                                   dest!: prod_in_set(2)
-                                   dest:  kinding_all_nth [ where ts = "map (fst \<circ> snd) ts" for ts
-                                                          , simplified])+
-                       apply (erule kinding.cases; simp_all)
-                       apply (bestsimp dest: kinding_all_nth [ where ts = "map (fst \<circ> snd) ps" and n = "i" for i ps
-                                                             , simplified]
-                                             sym [ where ?t = "ps ! i" for i ])
-                       done
+next case (6 \<delta> ps)
+  show ?case
+  proof clarsimp
+    fix n t b
+    assume "(n,t,b) \<in> set ps"
+    then show "instantiate \<delta> (instantiate \<delta>' t) = instantiate (map (instantiate \<delta>) \<delta>') t"
+      using "6" by (cases b; fastforce simp add: kinding_variant_set)
+  qed
 qed (force dest: list_all2_lengthD)+
 
 lemma instantiate_tprim [simp]:
@@ -1085,8 +1137,9 @@ and   K K' :: "kind env"
 assumes well_kinded: "list_all2 (kinding K') \<delta> K"
 shows "K \<turnstile> t :\<kappa> k    \<Longrightarrow> K' \<turnstile>  instantiate \<delta> t                       :\<kappa> k"
 and   "K \<turnstile>* ts :\<kappa> k  \<Longrightarrow> K' \<turnstile>* map (instantiate \<delta>) ts                :\<kappa> k"
+and   "K \<turnstile>* xs :\<kappa>v k \<Longrightarrow> K' \<turnstile>* map (\<lambda>(n,a,b). (n,instantiate \<delta> a, b)) xs :\<kappa>v k"
 and   "K \<turnstile>* fs :\<kappa>r k \<Longrightarrow> K' \<turnstile>* map (\<lambda>(n,a,b). (n,instantiate \<delta> a, b)) fs :\<kappa>r k"
-using well_kinded proof (induct rule: kinding_kinding_all_kinding_record.inducts)
+using well_kinded proof (induct rule: kinding_kinding_all_kinding_variant_kinding_record.inducts)
      case (kind_tvar k K i)
        assume "list_all2 (kinding K') \<delta> K"
        and    "i < length K"
@@ -1101,7 +1154,7 @@ next case (kind_tvarb k i K)
        moreover   then have "i < length \<delta>" by (auto dest: list_all2_lengthD)
        ultimately also have "K' \<turnstile> (\<delta> ! i) :\<kappa> (K ! i)" by (auto intro: list_all2_nthD)
        ultimately show ?case by (auto intro: supersumption bang_kind)
-qed (auto intro: kinding_kinding_all_kinding_record.intros)
+qed (auto intro: kinding_kinding_all_kinding_variant_kinding_record.intros)
 
 
 
@@ -1259,13 +1312,11 @@ proof (induct rule: typing_typing_all.inducts)
      case typing_var    then show ?case by (fastforce dest: weakening_preservation_some weakening_nth
                                                       simp: empty_length
                                                       elim: weakening_comp.cases)
-next case typing_fun    then show ?case by (fastforce intro: kinding_kinding_all_kinding_record.intros
+next case typing_fun    then show ?case by (fastforce intro: kinding_kinding_all_kinding_variant_kinding_record.intros
                                                              substitutivity)
-next case typing_afun   then show ?case by (fastforce intro: kinding_kinding_all_kinding_record.intros
+next case typing_afun   then show ?case by (fastforce intro: kinding_kinding_all_kinding_variant_kinding_record.intros
                                                              substitutivity)
-next case typing_con    then show ?case by (fastforce simp add: kinding_all_set
-                                                      intro!: kinding_kinding_all_kinding_record.intros)
-next case typing_esac   then show ?case by (fastforce dest: filter_member2 elim!: kind_tsumE simp add: kinding_all_set)
+next case typing_esac   then show ?case by (fastforce dest: filter_member2 elim!: kind_tsumE simp add: kinding_variant_set)
 next case typing_member then show ?case by (fastforce intro: kinding_record_wellformed_nth)
 next case typing_struct then show ?case by ( clarsimp
                                            , intro exI kind_trec kinding_all_record
@@ -1273,11 +1324,9 @@ next case typing_struct then show ?case by ( clarsimp
 next case typing_take   then show ?case by (simp)
 next case typing_put    then show ?case by (fastforce
                                             simp add: map_update
-                                            intro: kinding_kinding_all_kinding_record.intros
+                                            intro: kinding_kinding_all_kinding_variant_kinding_record.intros
                                                    distinct_list_update kinding_record_update)
-qed (auto intro: supersumption kinding_kinding_all_kinding_record.intros)
-
-thm record_state.exhaust
+qed (auto intro: supersumption kinding_kinding_all_kinding_variant_kinding_record.intros)
 
 lemma upcast_valid_cast_to :
 assumes "upcast_valid \<tau> \<tau>'"
@@ -1289,11 +1338,13 @@ using assms by (cases l, auto elim: upcast_valid.elims)
 lemma bang_type_repr [simp]:
   shows "[] \<turnstile> t :\<kappa> k \<Longrightarrow> (type_repr (bang t) = type_repr t)"
     and "[] \<turnstile>* ts :\<kappa> k \<Longrightarrow> (map (type_repr \<circ> bang) ts) = map (type_repr) ts "
+    and "[] \<turnstile>* xs :\<kappa>v k \<Longrightarrow> (map (type_repr \<circ>  bang \<circ> fst \<circ> snd) xs) = map (type_repr \<circ> fst \<circ> snd) xs"
     and "[] \<turnstile>* fs :\<kappa>r k \<Longrightarrow> (map (type_repr \<circ>  bang \<circ> fst \<circ> snd) fs) = map (type_repr \<circ> fst \<circ> snd) fs"
     apply (induct "[] :: kind list"  t k
       and "[] :: kind list" ts k
+      and "[] :: kind list" xs k
       and "[] :: kind list" fs k
-      rule: kinding_kinding_all_kinding_record.inducts)
+      rule: kinding_kinding_all_kinding_variant_kinding_record.inducts)
                apply auto
    apply (case_tac s rule: sigil_cases, fastforce+)+
   done
@@ -1337,22 +1388,19 @@ next case (typing_fun \<Xi> K t f u \<Gamma> ks ts)
   ultimately show ?case by (auto intro!: list_all2_substitutivity
         typing_typing_all.typing_fun [simplified]
         instantiate_ctx_consumed)
-next case (typing_con \<Xi> K \<Gamma> x t tag ts ts')
-  show ?case
-    using typing_con
-  proof (simp, intro typing_typing_all.intros)
-    show "K' \<turnstile>* map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts) wellformed"
-      apply (simp add: kinding_all_set)
-      apply (metis (no_types, lifting) typing_con.hyps(4) typing_con.prems comp_apply
-              kinding_all_set list.set_map rev_image_eqI substitutivity(2) type_wellformed_all_def)
-      done
+next
+  case (typing_con \<Xi> K \<Gamma> x t tag ts ts')
+  then show ?case
+  proof (clarsimp, intro typing_typing_all.intros)
+    show "(tag, instantiate \<delta> t, Unchecked) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts)"
+      using typing_con.hyps(3) by force
   next
     show "map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts) = map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts')"
       using map_fst3_app2 map_map typing_con.hyps by metis
   next
     show "list_all2 (\<lambda>x y. snd (snd x) \<le> snd (snd y)) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts')"
       by (simp add: list_all2_map1 list_all2_map2 case_prod_beta' typing_con.hyps(8))
-  qed force+
+  qed (fastforce intro: substitutivity kinding_kinding_all_kinding_variant_kinding_record.intros)+
 next
   case (typing_esac \<Xi> K \<Gamma> x ts uu t)
   then show ?case
