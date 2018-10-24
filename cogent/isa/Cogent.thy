@@ -55,7 +55,7 @@ datatype ptr_layout = PtrBits int int
 
 datatype access_perm = ReadOnly | Writable
 
-(* Sigils represent where the memory that makes up the datatype is, and it's access permissions.
+(* Sigils represent where the memory that makes up the datatype is, and its access permissions.
  *
  * Data is either boxed (on the heap), or unboxed (on the stack). If data is on the heap, we keep
  * track of how it is represented, and what access permissions it requires.
@@ -86,7 +86,7 @@ subsection {* Types *}
 datatype variant_state = Checked | Unchecked
 datatype record_state = Taken | Present
 
-(* variant and record states are booelan algebras.
+(* variant and record states are boolean algebras.
    This should match up with the subtyping lattice ops. *)
 
 instantiation variant_state :: boolean_algebra
