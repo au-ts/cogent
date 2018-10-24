@@ -968,6 +968,29 @@ proof -
     by (metis i_in_bounds length_map nth_mem tags_same)
 qed
 
+lemma variant_subtyping_elem_unchecked_preservation:
+  assumes tag_in_ts: "(tag, t, Unchecked) \<in> set ts"
+    and tags_same: "map fst ts = map fst ts'"
+    and types_same: "map (fst \<circ> snd) ts = map (fst \<circ> snd) ts'"
+    and taken_subcond: "list_all2 (\<lambda>x y. snd (snd x) \<le> snd (snd y)) ts ts'"
+  shows "(tag, t, Unchecked) \<in> set ts'"
+proof -
+  obtain i
+    where i_in_bounds: "i < length ts"
+      and ts_at_i: "ts ! i = (tag, t, Unchecked)"
+    by (meson tag_in_ts in_set_conv_nth)
+  moreover then have
+    "fst (ts ! i) = fst (ts' ! i)"
+    "fst (snd (ts ! i)) = fst (snd (ts' ! i))"
+    by (metis comp_apply i_in_bounds length_map nth_map tags_same types_same)+
+  moreover have "Unchecked \<le> snd (snd (ts' ! i))"
+    by (metis i_in_bounds list_all2_conv_all_nth snd_conv taken_subcond ts_at_i)
+  ultimately have "ts' ! i = (tag, t, Unchecked)"
+    by (cases "snd (snd (ts' ! i))"; simp add: prod_eqI)
+  then show ?thesis
+    by (metis i_in_bounds length_map nth_mem tags_same)
+qed
+
 section {* Instantiation *}
 
 lemma instantiate_bang [simp]:
