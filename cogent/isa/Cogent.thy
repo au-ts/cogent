@@ -306,16 +306,32 @@ fun sigil_kind :: "sigil \<Rightarrow> kind" where
 | "sigil_kind (Boxed Writable _) = {E}"
 | "sigil_kind Unboxed            = {D,S,E}"
 
+(* ensures all type-variables are in bounds *)
+fun type_wellformed2 :: "nat \<Rightarrow> type \<Rightarrow> bool" where
+  "type_wellformed2 n (TVar i) = (i < n)"
+| "type_wellformed2 n (TVarBang i) = (i < n)"
+| "type_wellformed2 n (TCon _ ts _) = (\<forall>t \<in> set ts. type_wellformed2 n t)"
+| "type_wellformed2 n (TFun t1 t2) = (type_wellformed2 n t1 \<and> type_wellformed2 n t2)"
+| "type_wellformed2 n (TPrim _) = True"
+| "type_wellformed2 n (TSum ts) = (distinct (map fst ts) \<and> (\<forall>t \<in> (fst \<circ> snd) ` set ts. type_wellformed2 n t))"
+| "type_wellformed2 n (TProduct t1 t2) = (type_wellformed2 n t1 \<and> type_wellformed2 n t2)"
+| "type_wellformed2 n (TRecord ts _) = (distinct (map fst ts) \<and> (\<forall>t \<in> (fst \<circ> snd) ` set ts. type_wellformed2 n t))"
+| "type_wellformed2 n TUnit = True"
+
+definition type_wellformed2_pretty :: "kind env \<Rightarrow> type \<Rightarrow> bool" ("_ \<turnstile> _ wellformed2" [30,20] 60) where
+  "type_wellformed2_pretty K t \<equiv> type_wellformed2 (length K) t"
+declare type_wellformed2_pretty_def[simp]
+
 
 fun kinding_fn :: "kind env \<Rightarrow> type \<Rightarrow> kind" where
   "kinding_fn K (TVar i)         = (if i < length K then K ! i else undefined)"
 | "kinding_fn K (TVarBang i)     = (if i < length K then {D,S} else undefined)"
-| "kinding_fn K (TCon n ts s)    = (fold (\<lambda>t kacc. kinding_fn K t \<inter> kacc) ts {}) \<inter> (sigil_kind s)"
+| "kinding_fn K (TCon n ts s)    = (\<Inter>t\<in>set ts. kinding_fn K t) \<inter> (sigil_kind s)"
 | "kinding_fn K (TFun ta tb)     = kinding_fn K ta \<inter> kinding_fn K tb"
 | "kinding_fn K (TPrim p)        = UNIV"
-| "kinding_fn K (TSum ts)        = (fold (\<lambda>ntb kacc. case snd (snd ntb) of Unchecked \<Rightarrow> kinding_fn K (fst (snd ntb)) \<inter> kacc | Checked \<Rightarrow> kacc) ts UNIV)"
+| "kinding_fn K (TSum ts)        = (\<Inter>(_,t,b)\<in>set ts. case b of Unchecked \<Rightarrow> kinding_fn K t | Checked \<Rightarrow> UNIV)"
 | "kinding_fn K (TProduct ta tb) = kinding_fn K ta \<inter> kinding_fn K tb"
-| "kinding_fn K (TRecord ts s)  = (fold (\<lambda>ntb kacc. case snd (snd ntb) of Present \<Rightarrow> kinding_fn K (fst (snd ntb)) \<inter> kacc | Taken \<Rightarrow> kacc) ts UNIV) \<inter> (sigil_kind s)"
+| "kinding_fn K (TRecord ts s)   = (\<Inter>(_,t,b)\<in>set ts. case b of Present \<Rightarrow> kinding_fn K t | Taken \<Rightarrow> UNIV) \<inter> (sigil_kind s)"
 | "kinding_fn K TUnit            = UNIV"
 
 
@@ -949,8 +965,8 @@ proof (induct ts)
   case (Cons a ts)
   then show ?case
     apply (clarsimp simp add: kinding_record_cons All_less_Suc2)
-  apply (metis nth_Cons_0 nth_Cons_Suc)
-  done
+    apply (metis nth_Cons_0 nth_Cons_Suc)
+    done
 qed (simp add: kind_record_empty)
 
 lemma kinding_record_set:
@@ -1024,6 +1040,44 @@ lemma sigil_kind_writable:
   shows "k \<subseteq> sigil_kind s"
   using assms
   by (case_tac s rule: sigil_cases, auto)
+
+
+lemma kinding_to_kinding_fn_completeness:
+  assumes
+    "K \<turnstile> t wellformed2"
+    "k \<subseteq> kinding_fn K t"
+  shows "K \<turnstile> t :\<kappa> k"
+  using assms
+proof (induct t arbitrary: k)
+  case (TCon n ts s)
+  then show ?case
+    by (auto intro: kinding_kinding_all_kinding_variant_kinding_record.intros
+        simp add: kinding_all_list_all list_all_iff INT_subset_iff)
+next
+  case (TSum ts)
+  then show ?case
+  proof (auto intro!: kinding_kinding_all_kinding_variant_kinding_record.intros simp add: kinding_variant_set)
+    fix n t b
+    presume assms:
+      "\<And>k. k \<subseteq> kinding_fn K t \<Longrightarrow> K \<turnstile> t :\<kappa> k"
+      "k \<subseteq> (case b of Checked \<Rightarrow> UNIV | Unchecked \<Rightarrow> kinding_fn K t)"
+      "(n, t, b) \<in> set ts"
+    then show "case b of Checked \<Rightarrow> K \<turnstile> t wellformed | Unchecked \<Rightarrow> K \<turnstile> t :\<kappa> k"
+      by (cases b; fastforce)
+  qed (auto simp add: INT_subset_iff)
+next
+  case (TRecord ts s)
+  then show ?case
+  proof (auto intro!: kinding_kinding_all_kinding_variant_kinding_record.intros simp add: kinding_record_set)
+    fix n t b
+    presume assms:
+      "\<And>k. k \<subseteq> kinding_fn K t \<Longrightarrow> K \<turnstile> t :\<kappa> k"
+      "k \<subseteq> (case b of Taken \<Rightarrow> UNIV | Present \<Rightarrow> kinding_fn K t)"
+      "(n, t, b) \<in> set ts"
+    then show "case b of Taken \<Rightarrow> K \<turnstile> t wellformed | Present \<Rightarrow> K \<turnstile> t :\<kappa> k"
+      by (cases b; fastforce)
+  qed (auto simp add: INT_subset_iff)
+qed (auto intro: kinding_kinding_all_kinding_variant_kinding_record.intros)+
 
 
 section {* Bang lemmas *}
@@ -1372,6 +1426,7 @@ next case typing_put    then show ?case by (fastforce
                                             intro: kinding_kinding_all_kinding_variant_kinding_record.intros
                                                    distinct_list_update kinding_record_update)
 qed (auto intro: supersumption kinding_kinding_all_kinding_variant_kinding_record.intros)
+
 
 lemma upcast_valid_cast_to :
 assumes "upcast_valid \<tau> \<tau>'"
