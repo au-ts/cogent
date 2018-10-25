@@ -1063,16 +1063,6 @@ proof -
     by (fastforce simp add: list_all2_conv_all_nth)
 qed
 
-lemma variant_elem_preservation_unchecked:
-  assumes
-    "(tag, t, Unchecked) \<in> set ts"
-    "map fst ts = map fst ts'"
-    "map (fst \<circ> snd) ts = map (fst \<circ> snd) ts'"
-    "list_all2 (\<lambda>x y. snd (snd x) \<le> snd (snd y)) ts ts'"
-  shows "(tag, t, Unchecked) \<in> set ts'"
-  using variant_elem_preservation assms
-  by (metis less_eq_variant_state.elims(2))
-
 lemma variant_elem_preservation_reverse:
   assumes tag_in_ts': "(tag', t', b') \<in> set ts'"
     and tags_same: "map fst ts = map fst ts'"
