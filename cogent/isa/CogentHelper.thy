@@ -41,7 +41,7 @@ lemma typing_prim' : "\<lbrakk> prim_op_type oper = (ts,t)
 
 lemma typing_con' : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : t
                      ; (tag, t, Unchecked) \<in> set ts
-                     ; K \<turnstile>* (map (fst \<circ> snd) ts) wellformed
+                     ; K \<turnstile> TSum ts' wellformed
                      ; distinct (map fst ts)
                      ; map fst ts = map fst ts'
                      ; map (fst \<circ> snd) ts = map (fst \<circ> snd) ts'
