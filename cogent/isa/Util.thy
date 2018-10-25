@@ -410,7 +410,7 @@ lemma tagged_list_update_tag_not_present[simp]:
   using assms
   by (induct xs, fastforce+)
 
-lemma tagged_list_update_tag_present[simp]:
+lemma tagged_list_update_tag_present:
   assumes "\<forall>j<i. fst (xs ! j) \<noteq> tag"
     and "i<length xs"
     and "fst (xs ! i) = tag"
@@ -500,8 +500,8 @@ proof -
   then have "\<forall>j<i. fst (xs ! j) \<noteq> tag"
     using assms(2) by auto
   then show ?thesis
-    using tagged_list_update_tag_present assms
-    by simp
+    using assms
+    by (simp add: tagged_list_update_tag_present)
 qed
 
 lemma tagged_list_update_same_distinct_is_equal:
@@ -515,5 +515,11 @@ proof (induct xs arbitrary: i)
   then show ?case
     by (metis fst_conv list_update_id tagged_list_update_distinct)
 qed simp+
+
+lemma tagged_list_update_success_contains_updated_elem:
+  assumes "i \<in> fst ` set xs"
+  shows "(i, a) \<in> set (tagged_list_update i a xs)"
+  using assms
+  by (induct xs; fastforce)
 
 end

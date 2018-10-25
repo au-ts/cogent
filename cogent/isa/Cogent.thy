@@ -306,10 +306,10 @@ fun sigil_kind :: "sigil \<Rightarrow> kind" where
 | "sigil_kind (Boxed Writable _) = {E}"
 | "sigil_kind Unboxed            = {D,S,E}"
 
-inductive kinding         :: "kind env \<Rightarrow> type               \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile> _ :\<kappa> _" [30,0,20] 60)
-      and kinding_all     :: "kind env \<Rightarrow> type list          \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa> _" [30,0,20] 60)
-      and kinding_variant :: "kind env \<Rightarrow> (name \<times> type \<times> variant_state) list \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa>v _" [30,0,20] 60)
-      and kinding_record  :: "kind env \<Rightarrow> (name \<times> type \<times> record_state) list \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa>r _" [30,0,20] 60) where
+inductive kinding         :: "kind env \<Rightarrow> type               \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile> _ :\<kappa> _" [30,0,30] 60)
+      and kinding_all     :: "kind env \<Rightarrow> type list          \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa> _" [30,0,30] 60)
+      and kinding_variant :: "kind env \<Rightarrow> (name \<times> type \<times> variant_state) list \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa>v _" [30,0,30] 60)
+      and kinding_record  :: "kind env \<Rightarrow> (name \<times> type \<times> record_state) list \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa>r _" [30,0,30] 60) where
    kind_tvar    : "\<lbrakk> k \<subseteq> (K ! i) ; i < length K \<rbrakk> \<Longrightarrow> K \<turnstile> TVar i :\<kappa> k"
 |  kind_tvarb   : "\<lbrakk> k \<subseteq> {D, S} ; i < length K \<rbrakk> \<Longrightarrow> K \<turnstile> TVarBang i :\<kappa> k"
 |  kind_tcon    : "\<lbrakk> K \<turnstile>* ts :\<kappa> k ; k \<subseteq> sigil_kind s \<rbrakk> \<Longrightarrow> K \<turnstile> TCon n ts s :\<kappa> k"
@@ -880,6 +880,49 @@ proof (induct ts)
     by (cases a; case_tac c; clarsimp simp add: kinding_variant_cons)
 qed (simp add: kind_variant_empty)
 
+lemma kinding_all_variant':
+  assumes "K \<turnstile>* map (fst \<circ> snd) ts :\<kappa> k"
+  shows   "K \<turnstile>* ts :\<kappa>v k"
+  using assms
+proof (induct ts)
+  case (Cons a ts)
+  then show ?case
+    by (case_tac a; case_tac c; auto intro: kinding_kinding_all_kinding_variant_kinding_record.intros)
+qed (force intro: kinding_kinding_all_kinding_variant_kinding_record.intros)
+
+lemma kinding_variant_tagged_list_update:
+  assumes "n \<in> fst ` set ts"
+  shows
+    "K \<turnstile>* (tagged_list_update n (\<tau>, Checked) ts) :\<kappa>v k \<Longrightarrow> K \<turnstile> \<tau> wellformed"
+    "K \<turnstile>* (tagged_list_update n (\<tau>, Unchecked) ts) :\<kappa>v k \<Longrightarrow> K \<turnstile> \<tau> :\<kappa> k"
+  using assms tagged_list_update_success_contains_updated_elem
+  by (fastforce dest: bspec[where x="(n,\<tau>,Checked)"] simp add: kinding_variant_set)+
+
+lemma kinding_variant_downcast:
+  assumes
+    "K \<turnstile>* ts :\<kappa>v k"
+    "distinct (map fst ts)"
+    "(tag, t, Unchecked) \<in> set ts"
+  shows
+    "K \<turnstile>* tagged_list_update tag (t, Checked) ts :\<kappa>v k"
+proof -
+  obtain i
+    where tag_elem_at:
+      "ts ! i = (tag, t, Unchecked)"
+      "i < length ts"
+    using assms by (meson in_set_conv_nth)
+  then have
+    "K \<turnstile> t :\<kappa> k"
+    "\<forall>(n, t, b) \<in> set ts. case b of Checked \<Rightarrow> K \<turnstile> t wellformed | Unchecked \<Rightarrow> K \<turnstile> t :\<kappa> k"
+    using assms kinding_variant_conv_all_nth kinding_variant_set by auto
+  then have "\<forall>(n, t, b) \<in> insert (tag, t, Checked) (set ts). case b of Checked \<Rightarrow> K \<turnstile> t wellformed | Unchecked \<Rightarrow> K \<turnstile> t :\<kappa> k"
+    by auto
+  then have "\<forall>(n, t, b) \<in> set (ts[i := (tag, t, Checked)]). case b of Checked \<Rightarrow> K \<turnstile> t wellformed | Unchecked \<Rightarrow> K \<turnstile> t :\<kappa> k"
+    by (metis (no_types, lifting) set_update_subset_insert subsetCE)
+  then show ?thesis
+    using tag_elem_at assms
+    by (simp add: kinding_variant_set tagged_list_update_distinct)
+qed
 
 lemma kinding_record_cons:
   shows "(K \<turnstile>* t # ts :\<kappa>r k) \<longleftrightarrow> (case snd (snd t) of Taken \<Rightarrow> K \<turnstile> fst (snd t) wellformed | Present \<Rightarrow> K \<turnstile> fst (snd t) :\<kappa> k) \<and> (K \<turnstile>* ts :\<kappa>r k)"
@@ -944,11 +987,7 @@ lemma kinding_all_record':
 proof (induct ts)
   case (Cons a ts)
   then show ?case
-    apply clarsimp
-    apply (case_tac a)
-    apply (case_tac c)
-     apply (auto intro: kinding_kinding_all_kinding_variant_kinding_record.intros)
-    done
+    by (case_tac a; case_tac c; auto intro: kinding_kinding_all_kinding_variant_kinding_record.intros)
 qed (force intro: kinding_kinding_all_kinding_variant_kinding_record.intros)
 
 lemma kinding_record_update:
@@ -998,6 +1037,10 @@ and   "K \<turnstile>* fs :\<kappa>r k \<Longrightarrow> K \<turnstile>* map (\<
   by (auto intro: kinding_kinding_all_kinding_variant_kinding_record.intros
            intro!: bang_sigil_kind
            simp add: case_prod_unfold comp_def)
+
+lemma bang_kind_tsum:
+  shows "K \<turnstile> TSum ts :\<kappa> k \<Longrightarrow> K \<turnstile> TSum (map (\<lambda>(c, t, b). (c, bang t, b)) ts) :\<kappa> {D, S}"
+  using bang_kind(1) by fastforce
 
 section {* Typing lemmas *}
 
