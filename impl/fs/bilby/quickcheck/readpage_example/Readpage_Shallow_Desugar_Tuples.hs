@@ -15,10 +15,10 @@ import Data.Bits ((.&.), (.|.), complement, xor, shiftL, shiftR)
 import qualified Data.Tuple.Select as Tup
 import qualified Data.Tuple.Update as Tup
 import Data.Word (Word8, Word16, Word32, Word64)
-import Prelude (not, div, mod, fromIntegral, undefined, (+), (-), (*), (&&), (||), (>), (>=), (<), (<=), (==), (/=), Char, String, Int, Show, Bool(..), return, ($))
+import Prelude (not, div, mod, fromIntegral, undefined, (+), (-), (*), (&&), (||), (>), (>=), (<), (<=), (==), (/=), Char, String, Int, Show, Bool(..), return, ($), zip, repeat, Ord, Eq)
 import System.IO.Unsafe
 import qualified Test.QuickCheck as Q
--- import qualified Data.Array as A
+import qualified Data.Array as A
 import qualified Fsop as Ax
 
 data R0 t1 t2 = R0{ex :: t1, obj :: t2}
@@ -48,7 +48,7 @@ data R7 t1 t2 t3 t4 t5 = R7{ex :: t1, fs_st :: t2, vnode :: t3, block :: t4, add
                            deriving Show
 
 data R8 t1 t2 = R8{data_ :: t1, bound :: t2}
-                  deriving Show
+  deriving (Ord, Eq, Show)
 
 data R9 t1 t2 t3 t4 t5 = R9{dirs :: t1, src_inode :: t2, src_name :: t3, dest_inode :: t4, dest_name :: t5}
                            deriving Show
@@ -501,7 +501,8 @@ data VfsStat
 
 data VfsMemoryMap
 
-data VfsInodeAbstract = VfsInodeAbstract deriving Show
+data VfsInodeAbstract = VfsInodeAbstract VfsIno VfsSize 
+                      deriving Show
 
 data VfsIattr
 
@@ -525,7 +526,7 @@ data ObjDel
 
 data OSDirContext
 
-data MountState = MountState deriving Show
+type MountState = ()
 
 data LE64
 
@@ -533,7 +534,7 @@ data LE32
 
 data LE16
 
-data FsopState = FsopState deriving Show
+type FsopState = ()
 
 data BE64
 
@@ -880,7 +881,7 @@ type Wordarray_length_ArgT a = WordArray a
 type Wordarray_length_RetT a = Word32
 
 wordarray_length :: Wordarray_length_ArgT a -> Wordarray_length_RetT a
-wordarray_length = undefined
+wordarray_length arr = let (0,u) = A.bounds arr in u - 1
 
 type Wordarray_map'_ArgT a acc obsv = (WordArray a, (acc, obsv, a) -> (acc, a), acc, obsv)
 
@@ -908,7 +909,11 @@ type Wordarray_set_ArgT a = (WordArray a, Word32, Word32, a)
 type Wordarray_set_RetT a = WordArray a
 
 wordarray_set :: Wordarray_set_ArgT a -> Wordarray_set_RetT a
-wordarray_set = undefined
+wordarray_set (arr, frm, n, a) = 
+  let len = wordarray_length arr
+      frm' = if frm >= len then len else frm
+      to'  = if frm + n > len then len else frm + n
+   in arr A.// (zip [frm' .. to'] (repeat a))
 
 type Wordarray_split_ArgT a = (WordArray a, Word32)
 
@@ -1384,7 +1389,7 @@ type Vfs_inode_get_ino_ArgT = R20 VfsInodeAbstract (R21 Word32)
 type Vfs_inode_get_ino_RetT = Word32
 
 vfs_inode_get_ino :: Vfs_inode_get_ino_ArgT -> Vfs_inode_get_ino_RetT
-vfs_inode_get_ino = undefined
+vfs_inode_get_ino (R20 (VfsInodeAbstract ino _) _) = ino
 
 type Vfs_inode_get_ino2_ArgT = R20 VfsInodeAbstract (R21 Word32)
 
@@ -1433,7 +1438,7 @@ type Vfs_inode_get_size_ArgT = R20 VfsInodeAbstract (R21 Word32)
 type Vfs_inode_get_size_RetT = Word64
 
 vfs_inode_get_size :: Vfs_inode_get_size_ArgT -> Vfs_inode_get_size_RetT
-vfs_inode_get_size = undefined
+vfs_inode_get_size (R20 (VfsInodeAbstract _ sz) _) = sz
 
 type Vfs_inode_get_uid_ArgT = R20 VfsInodeAbstract (R21 Word32)
 
@@ -1637,7 +1642,7 @@ type Ostore_read_RetT = ((SysState, OstoreState), V34 Word32 (R28 Word32 Word32 
 
 ostore_read :: Ostore_read_ArgT -> Ostore_read_RetT
 ostore_read (ex, mount_st, ostore_st, oid) =
-  let err = unsafePerformIO $ Q.generate $ Q.frequency [ (1, return 0)
+  let err = unsafePerformIO $ Q.generate $ Q.frequency [ (0, return 0)
                                                        , (1, Q.elements [eNoEnt, eIO, eNoMem, eInval, eBadF])]
    in ((ex, ostore_st), error err)
 

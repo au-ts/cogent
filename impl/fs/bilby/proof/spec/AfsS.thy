@@ -524,36 +524,36 @@ where
       invariants on these inputs/outputs.
  *)
 
-(* Q: wordarray allocation never fails?
-   Q: wordarray allocation allows 0-sized ones? / zilinc *)
 definition
-  afs_readpage :: "afs_state \<Rightarrow> vnode \<Rightarrow> U64 \<Rightarrow> U8 WordArray \<Rightarrow>
-                   ((afs_state \<times> vnode \<times> U8 WordArray) \<times> (unit, ErrCode) R\<^sub>T) cogent_monad"
+  afs_readpage :: "afs_state \<Rightarrow> vnode \<Rightarrow> U64 \<Rightarrow>
+                   ((afs_state \<times> vnode \<times> U8 WordArray option) \<times> (unit, ErrCode) R\<^sub>T) cogent_monad"
 where
-  "afs_readpage afs vnode block addr \<equiv>
+  "afs_readpage afs vnode block \<equiv>
    if block > (v_size vnode >> unat bilbyFsBlockShift) then
-    return ((afs, vnode, WordArrayT.make (replicate (unat bilbyFsBlockSize) 0)), Error eNoEnt)
+    return ((afs, vnode, Some $ WordArrayT.make (replicate (unat bilbyFsBlockSize) 0)), Error eNoEnt)
    else if (block = (v_size vnode >> unat bilbyFsBlockShift)) \<and> ((v_size vnode) mod (ucast bilbyFsBlockSize) = 0)
-        then return ((afs, vnode, WordArrayT.make []), Success ())
-        else
-          return ((afs, vnode, WordArrayT.make (pad_block ((i_data (the $ updated_afs afs (v_ino vnode))) ! unat block) bilbyFsBlockSize)), Success ())
+        then return ((afs, vnode, None), Success ())
+        else do
+          err \<leftarrow> {eIO, eNoMem, eInval, eBadF, eNoEnt};
+          return ((afs, vnode, Some $ WordArrayT.make (pad_block ((i_data (the $ updated_afs afs (v_ino vnode))) ! unat block) bilbyFsBlockSize)), Success ()) \<sqinter> return ((afs, vnode, None), Error err)
+          od
 "
 
 definition
-  afs_write_begin :: "afs_state \<Rightarrow> vnode \<Rightarrow> U64 \<Rightarrow> U32 \<Rightarrow> U8 WordArray \<Rightarrow>
-                   ((afs_state \<times> vnode \<times> U8 WordArray) \<times> (unit, ErrCode) R\<^sub>T) cogent_monad"
+  afs_write_begin :: "afs_state \<Rightarrow> vnode \<Rightarrow> U64 \<Rightarrow> U32 \<Rightarrow>
+                   ((afs_state \<times> vnode \<times> U8 WordArray option) \<times> (unit, ErrCode) R\<^sub>T) cogent_monad"
 where
-  "afs_write_begin afs vnode pos len addr \<equiv>
+  "afs_write_begin afs vnode pos len \<equiv>
   if a_is_readonly afs then
-    return ((afs, vnode, addr), Error eRoFs)
+    return ((afs, vnode, None), Error eRoFs)
   else 
     do
-     ((afs, vnode, addr), r) \<leftarrow> afs_readpage afs vnode (pos >> unat bilbyFsBlockShift) addr ;
+     ((afs, vnode, addr'), r) \<leftarrow> afs_readpage afs vnode (pos >> unat bilbyFsBlockShift);
     case r of
       Error e \<Rightarrow> 
-      return ((afs, vnode, addr), if e = eNoEnt then Success () else Error e)
+      return ((afs, vnode, addr'), if e = eNoEnt then Success () else Error e)
     | Success () \<Rightarrow>
-      return ((afs, vnode, addr), Success())
+      return ((afs, vnode, addr'), Success())
     od
 "
 
