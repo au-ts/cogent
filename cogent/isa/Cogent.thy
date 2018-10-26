@@ -1114,7 +1114,6 @@ lemma instantiate_tprim [simp]:
 shows "instantiate \<delta> \<circ> TPrim = TPrim"
 by (rule ext, simp)
 
-
 lemma instantiate_nothing:
 shows "instantiate [] e = e"
 by (induct e) (auto simp: prod_set_defs intro: map_idI)
@@ -1140,7 +1139,7 @@ lemma specialise_nothing_id[simp]:
 shows "specialise [] = id"
 by (rule ext, simp add: specialise_nothing)
 
-lemmas typing_struct_instantiate = typing_struct [where ts = "map (instantiate \<delta>) ts" for ts, simplified]
+lemmas typing_struct_instantiate = typing_struct[where ts = "map (instantiate \<delta>) ts" for \<delta> ts, simplified]
 
 lemma instantiate_over_variants_subvariants:
   assumes tags_same: "map fst ts = map fst ts'"
