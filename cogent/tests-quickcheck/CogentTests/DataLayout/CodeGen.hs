@@ -65,9 +65,34 @@ compileSanityCheck = do
   putStrLn "Pretty C setter:"
   pprint $ cExtDecl $ composedAlignedRangeSetter (rangesToComposedRangeInput "set" alignedBitRangeExamples) (CStruct "boxType") (CIdent "embeddedType") "setFoo"
   putStrLn ""
+  recordGetterSanityCheck
 
 
 
+
+
+
+recordFieldExamples =
+  [ [ ("field1", CVar "getSetField1" Nothing)
+    , ("field2", CVar "getSetField2" Nothing)]
+  
+  , [("field1", CVar "getSetField1" Nothing)]
+  
+  , []
+  ]
+
+
+recordGetterSanityCheck :: IO ()
+recordGetterSanityCheck = do
+  putStrLn "Printing examples of getters for embedded records:"
+  forM_ recordFieldExamples $ \recordFields -> do
+    putStrLn "Field names, getter/setter names:"
+    putStrLn $ show recordFields
+    putStrLn "Pretty C getter:"
+    pprint $ cExtDecl $ recordGetter recordFields (CStruct "boxType") (CIdent "embeddedType") "getFoo"
+    putStrLn "Pretty C setter:"
+    pprint $ cExtDecl $ recordSetter recordFields (CStruct "boxType") (CIdent "embeddedType") "getFoo"
+  putStrLn ""
     
 
 
