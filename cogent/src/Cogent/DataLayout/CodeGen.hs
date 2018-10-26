@@ -4,8 +4,10 @@ module Cogent.DataLayout.CodeGen where
 
 import Cogent.C.Syntax
 import Cogent.Common.Syntax (FieldName)
+import Cogent.Common.Types (Sigil (..))
 import Data.Nat
 import Data.List (foldl', scanl')
+import Data.Map ((!))
 import Control.Lens ((%=))
 import Cogent.C.Compile (Gen, genType, freshGlobalCId, boxedSettersAndGetters)
 import Cogent.Core (Type (..))
@@ -87,8 +89,23 @@ genBoxedGetter boxType embeddedType@(TPrim _) (PrimLayout {bitsDL = bitRanges}) 
 {-
 genBoxedGetter boxType (TSum alternatives) (SumLayout {tagDL, alternativesDL}) =
   undefined
+-}
 
-genBoxedGetter boxType (TRecord fields sigil) (RecordLayout { fieldsDL }) =
+genBoxedGetter boxType embeddedTypeCogent@(TRecord fields Unboxed) (RecordLayout { fieldsDL }) = do
+  embeddedTypeC         <- genType embeddedTypeCogent
+  functionName          <- freshGlobalCId 'g'
+  fieldNamesAndGetters  <- mapM
+                            ( \(fieldName, (fieldType, _)) -> do
+                                let fieldLayout = fst $ fieldsDL ! fieldName
+                                getter <- genBoxedGetter boxType fieldType fieldLayout
+                                return (fieldName, getter)
+                            )
+                            fields
+  declareSetterOrGetter $ recordGetter fieldNamesAndGetters boxType embeddedTypeC functionName
+  return (CVar functionName Nothing)
+
+{-
+genBoxedGetter boxType (TRecord fields Unboxed) (RecordLayout { fieldsDL }) =
   undefined
 
 genBoxedGetter boxType (TUnit) (UnitLayout) =
@@ -157,9 +174,26 @@ genBoxedSetter boxType embeddedType@(TPrim _) (PrimLayout {bitsDL = bitRanges}) 
 {-
 genBoxedSetter boxType (TSum alternatives) (SumLayout {tagDL, alternativesDL}) =
   undefined
+-}
 
+
+genBoxedSetter boxType embeddedTypeCogent@(TRecord fields Unboxed) (RecordLayout { fieldsDL }) = do
+  embeddedTypeC         <- genType embeddedTypeCogent
+  functionName          <- freshGlobalCId 's'
+  fieldNamesAndSetters  <- mapM
+                            ( \(fieldName, (fieldType, _)) -> do
+                                let fieldLayout = fst $ fieldsDL ! fieldName
+                                setter <- genBoxedSetter boxType fieldType fieldLayout
+                                return (fieldName, setter)
+                            )
+                            fields
+  declareSetterOrGetter $ recordSetter fieldNamesAndSetters boxType embeddedTypeC functionName
+  return (CVar functionName Nothing)
+
+{-
 genBoxedSetter boxType (TRecord fields sigil) (RecordLayout { fieldsDL }) =
   undefined
+
 
 genBoxedSetter boxType (TUnit) (UnitLayout) =
   undefined
@@ -169,6 +203,117 @@ genBoxedSetter boxCType _ _ = __impossible $
   "genBoxedSetter: Type checking should restrict the types which can be embedded in boxed records," ++
   "and ensure that the data layouts match the types."
 
+
+
+
+
+{-|
+Calling
+@recordGetter [(field1, field1Getter), ...] boxType embeddedType recordGetter@ will return
+the C Syntax for the following function.
+@
+static embeddedType recordGetter(boxType p) {
+  return (embeddedType)
+    { .field1 = field1Getter(p)
+    , .field2 = field2Getter(p)
+    , ...
+    };
+}
+@
+
+-}
+recordGetter
+  :: [(CId, CExpr)]
+      -- ^
+      -- ( Name of the field in the struct for the embedded data
+      -- , Expression for the getter function which will extract that field from the boxed data
+      -- )
+  -> CType
+      -- ^ The C type of the box.
+  -> CType
+      -- ^ The C type of the embedded data.
+  -> CId
+      -- ^ The name to give the generated getter function
+  -> CExtDecl
+      -- ^ The C syntax tree for a function which extracts the embedded data from the box.
+
+recordGetter fields boxType embeddedType functionName =
+  ( CFnDefn
+  
+    -- (return type, function name)
+    ( embeddedType, functionName )
+    
+    -- [(param type, param name)]
+    [ ( boxType, boxIdentifier ) ]
+    
+    -- statements
+    [ CBIStmt $ CReturn $ Just $ CCompLit embeddedType $
+        fmap
+        (\(fieldName, fieldGetter) -> ([CDesignFld fieldName], CInitE $ CEFnCall fieldGetter [boxVariable]))
+        fields
+    ]
+  
+    staticInlineFnSpec
+  )
+  where
+    boxIdentifier = "b"
+    boxVariable   = CVar boxIdentifier Nothing
+
+{-|
+Calling
+@recordSetter [(field1, field1Setter), ...] boxType embeddedType recordSetter@ will return
+the C Syntax for the following function.
+@
+static void recordSetter(boxType p, embeddedType v) {
+  field1Setter(p, v.field1);
+  field2Setter(p, v.field2);
+  ...
+}
+@
+-}
+recordSetter
+  :: [(CId, CExpr)]
+      -- ^
+      -- ( Name of the field in the struct for the embedded data
+      -- , Expression for the setter function which will extract that field from the boxed data
+      -- )
+  -> CType
+      -- ^ The C type of the box.
+  -> CType
+      -- ^ The C type of the embedded data.
+  -> CId
+      -- ^ The name to give the generated getter function
+  -> CExtDecl
+      -- ^ The C syntax tree for a function which extracts the embedded data from the box.
+
+recordSetter fields boxType embeddedType functionName =
+  ( CFnDefn
+  
+    -- (return type, function name)
+    ( CVoid, functionName )
+    
+    -- [(param type, param name)]
+    [ ( boxType, boxIdentifier ) 
+    , ( embeddedType, valueIdentifier )
+    ]
+    
+    -- statements
+    ( fmap
+      (\(fieldName, fieldGetter) ->
+        CBIStmt $ CAssignFnCall Nothing fieldGetter [boxVariable, CStructDot valueVariable fieldName])
+      fields
+    )
+  
+    staticInlineFnSpec
+  )
+  where
+    boxIdentifier = "b"
+    boxVariable   = CVar boxIdentifier Nothing
+
+    valueIdentifier = "v"
+    valueVariable   = CVar valueIdentifier Nothing
+
+    
 
 
 {-|
@@ -201,9 +346,9 @@ genComposedAlignedRangeSetter :: [AlignedBitRange] -> CType -> CogentType -> Gen
 genComposedAlignedRangeSetter bitRanges boxType embeddedTypeCogent = do
   embeddedTypeC   <- genType embeddedTypeCogent
   functionName    <- freshGlobalCId 's'
-  rangesGetters   <- mapM (genAlignedRangeGetter boxType) bitRanges
+  rangesSetters   <- mapM (genAlignedRangeSetter boxType) bitRanges
   declareSetterOrGetter $
-    composedAlignedRangeGetter (zip bitRanges rangesGetters) boxType embeddedTypeC functionName
+    composedAlignedRangeSetter (zip bitRanges rangesSetters) boxType embeddedTypeC functionName
   return (CVar functionName Nothing)
 
 
@@ -339,10 +484,12 @@ composedAlignedRangeSetter
   ( CFnDefn
   
     -- (return type, function name)
-    ( embeddedType, functionName )
+    ( CVoid, functionName )
     
     -- [(param type, param name)]
-    [ ( boxType, boxIdentifier ) ]
+    [ ( boxType, boxIdentifier )
+    , ( embeddedType, valueIdentifier )
+    ]
     
     -- statements
     ( fmap
@@ -367,7 +514,7 @@ composedAlignedRangeSetter
     @genSetAlignedRangeAtBitOffset setRangeFunction offset size@ will return the 'CExpr'
 
     @
-      `setRangeFunction`(b, (v >> `offset`) & `size`)`
+      `setRangeFunction`(b, (unsigned int) ((v >> `offset`) & `size`))
     @
     -}
     genSetAlignedRangeAtBitOffset :: CExpr -> Integer -> Integer -> CStmt
@@ -415,12 +562,12 @@ genAlignedRangeSetter boxType bitRange = do
 Creates a C function to extract the contents of an
 AlignedBitRange from a Cogent boxed type.
      
-@alignedRangeGetter AlignedBitRange { bitSizeABR, bitOffsetABR, wordOffsetABR} functionNameIdentifier@
+@alignedRangeGetter boxType AlignedBitRange { bitSizeABR, bitOffsetABR, wordOffsetABR} functionNameIdentifier@
 should be the C function
 
 @
-static inline unsigned int get`functionNameIdentifier`(unsigned int *p) {
-  return (*(p + `wordOffsetABR`) >> `bitOffsetABR`) & `mask bitSizeABR`;
+static inline unsigned int get`functionNameIdentifier`(`boxType` p) {
+  return (p.data[`wordOffsetABR`] >> `bitOffsetABR`) & `mask bitSizeABR`;
 }
 @
 -}
@@ -460,13 +607,13 @@ alignedRangeGetter
 Creates a C function to set the contents of an
 AlignedBitRange in a Cogent boxed type.
 
-@alignedRangeSetter AlignedBitRange { bitSizeABR, bitOffsetABR, wordOffsetABR} functionNameIdentifier@
+@alignedRangeSetter boxType AlignedBitRange { bitSizeABR, bitOffsetABR, wordOffsetABR} functionNameIdentifier@
 should be the C function
 
 @
-static inline void set`functionNameIdentifier`(unsigned int *p, unsigned int v) {
-  *(p + `wordOffsetABR`)
-    = *(p + `wordOffsetABR`)
+static inline void set`functionNameIdentifier`(`boxType` p, unsigned int v) {
+  p.data[`wordOffsetABR`]
+    = p.data[`wordOffsetABR`]
 
     // clear the bits
     & ~(`sizeToMask bitSizeABR` << `bitOffsetABR`)) 
@@ -539,7 +686,7 @@ declareSetterOrGetter function = boxedSettersAndGetters %= (function :)
 @genBoxWordExpr boxExpr wordOffset@
 returns syntax for the 'CExpr'
 @
-*(`boxExpr`.data + `wordOffset`)
+`boxExpr`.data[`wordOffset`]
 @
 -}
 genBoxWordExpr :: CExpr -> Integer -> CExpr
