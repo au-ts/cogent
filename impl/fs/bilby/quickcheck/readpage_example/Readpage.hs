@@ -32,6 +32,7 @@ import qualified Readpage_Shallow_Desugar_Tuples as C
 import Fsop as Ax
 import Util
 
+import Debug.Trace
 
 -- /////////////////////////////////////////////////////////////////////////////
 --
@@ -95,10 +96,13 @@ prop_corres_fsop_readpage =
 gen_fsop_readpage_arg :: Gen C.Fsop_readpage_ArgT
 gen_fsop_readpage_arg = do
   ino <- arbitrary
+  m <- getSmall <$> arbitrary
+  isize <- frequency [ (1, pure (m * fromIntegral bilbyFsBlockSize))
+                     , (1, arbitrary) ]  -- FIXME: what's the range of this size?
   C.R7 <$> pure ()
        <*> gen_FsState ino
-       <*> gen_VfsInode ino
-       <*> gen_OSPageOffset
+       <*> gen_VfsInode ino isize
+       <*> gen_OSPageOffset isize
        <*> gen_Buffer
 
 gen_FsState :: C.VfsIno -> Gen C.FsState
@@ -115,7 +119,7 @@ gen_OstoreState ino = do
   let gen_entry = (,) <$> arbitrary <*> gen_Obj
       hit_entry = (,) <$> pure (fromIntegral ino) <*> gen_Obj
   l <- (:) <$> hit_entry <*> listOf gen_entry
-  return $ M.fromList l
+  M.fromList <$> shuffle l
   
 gen_Obj :: Gen Ax.Obj
 gen_Obj = Ax.Obj <$> arbitrary
@@ -131,28 +135,31 @@ gen_ObjUnion_Data :: Gen Ax.ObjUnion
 gen_ObjUnion_Data = TObjData <$> gen_ObjData
 
 gen_ObjData :: Gen Ax.ObjData
-gen_ObjData = Ax.ObjData <$> arbitrary <*> gen_WordArray_Word8
+gen_ObjData = Ax.ObjData <$> arbitrary <*> (gen_WordArray_Word8 =<< choose (1, bilbyFsBlockSize))
 
-gen_VfsInode :: C.VfsIno -> Gen C.VfsInode
-gen_VfsInode ino = C.R20 <$> gen_VfsInodeAbstract ino <*> (C.R21 <$> arbitrary)
+gen_VfsInode :: C.VfsIno -> C.VfsSize -> Gen C.VfsInode
+gen_VfsInode ino isize = C.R20 <$> gen_VfsInodeAbstract ino isize <*> (C.R21 <$> arbitrary)
 
-gen_VfsInodeAbstract :: C.VfsIno -> Gen C.VfsInodeAbstract
-gen_VfsInodeAbstract ino = C.VfsInodeAbstract ino <$> arbitrary  -- FIXME: what's the range of the size?
+gen_VfsInodeAbstract :: C.VfsIno -> C.VfsSize -> Gen C.VfsInodeAbstract
+gen_VfsInodeAbstract = (return .) . C.VfsInodeAbstract
 
-gen_OSPageOffset :: Gen C.OSPageOffset
-gen_OSPageOffset = arbitrary  -- FIXME: what does this mean in the FS?
+gen_OSPageOffset :: C.VfsSize -> Gen C.OSPageOffset
+gen_OSPageOffset isize = do
+  let limit = isize `shiftR` fromIntegral bilbyFsBlockShift
+  pos <- getPositive <$> arbitrary
+  frequency [ (1, pure $ limit + pos)
+            , (1, pure $ limit)
+            , (3, choose (1, limit - 1))
+            ]
 
 gen_Buffer :: Gen C.Buffer
 gen_Buffer = do
-  arr <- gen_WordArray_Word8
-  let (0, u) = bounds arr
-  b <- choose (0, u)
-  return $ C.R8 arr b
+  arr <- gen_WordArray_Word8 bilbyFsBlockSize
+  return $ C.R8 arr bilbyFsBlockSize
 
-gen_WordArray_Word8 :: Gen (WordArray Word8)
-gen_WordArray_Word8 = do 
-  l <- choose (1, 200)
-  elems <- vector l
+gen_WordArray_Word8 :: Word32 -> Gen (WordArray Word8)
+gen_WordArray_Word8 sz = do 
+  elems <- vector (fromIntegral sz)
   return $ listArray (0, fromIntegral $ length elems - 1) elems
 
 abs_fsop_readpage_arg :: C.Fsop_readpage_ArgT -> (OstoreState, VfsInode, OSPageOffset)
@@ -169,12 +176,21 @@ rel_fsop_readpage_ret :: Either ErrCode (Maybe (WordArray U8))
 rel_fsop_readpage_ret (Left e_a) (_, (_, C.V34_Error e_c)) = e_a == e_c
 rel_fsop_readpage_ret (Right Nothing) (C.R7 _ _ _ _ addr, (C.R6 _ _ _ addr', C.V34_Success ())) =
   addr == addr'
-rel_fsop_readpage_ret (Right (Just arr_a)) (_, (C.R6 _ _ _ (C.R8 data_c bound_c), C.V34_Success ())) =
+rel_fsop_readpage_ret (Right (Just arr_a)) (C.R7 _ _ _ _ (C.R8 data_c1 bound_c1), (C.R6 _ _ _ (C.R8 data_c bound_c), C.V34_Success ())) =
   let (l_a, u_a) = bounds arr_a
       (l_c, u_c) = bounds data_c
-   in u_a - 1 == min (u_c - 1) bound_c - 1 &&
+   in trace ("arr_a = " ++ show (take 10 $ elems arr_a) ++ "\narr_c = " ++ show (elems data_c) ++
+             "\narr_c1 = " ++ show (elems data_c1)) $ u_a == min u_c bound_c &&
       l_a == 0 && l_c == 0 &&
       elems arr_a == elems data_c
 rel_fsop_readpage_ret _ _ = False
+
+
+
+-- /////////////////////////////////////////////////////////////////////////////
+-- 
+-- top level
+
+main = quickCheckWith (stdArgs { chatty = False }) prop_corres_fsop_readpage
 
 

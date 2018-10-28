@@ -15,11 +15,15 @@ import Data.Bits ((.&.), (.|.), complement, xor, shiftL, shiftR)
 import qualified Data.Tuple.Select as Tup
 import qualified Data.Tuple.Update as Tup
 import Data.Word (Word8, Word16, Word32, Word64)
-import Prelude (not, div, mod, fromIntegral, undefined, (+), (-), (*), (&&), (||), (>), (>=), (<), (<=), (==), (/=), Char, String, Int, Show, Bool(..), return, ($), zip, repeat, Ord, Eq)
+import Prelude (not, div, mod, fromIntegral, undefined, (+), (-), (*), (&&), (||), (>), (>=), (<), (<=), (==), (/=), Char, String, Int, Show, Bool(..), return, ($), zip, repeat, Ord, Eq, Maybe(..), fromIntegral, (.), (++), show)
 import System.IO.Unsafe
 import qualified Test.QuickCheck as Q
 import qualified Data.Array as A
 import qualified Fsop as Ax
+import qualified Data.Map as M
+import Data.List (minimum, genericDrop, genericTake)
+
+import Debug.Trace
 
 data R0 t1 t2 = R0{ex :: t1, obj :: t2}
                   deriving Show
@@ -720,7 +724,7 @@ type U64_to_u32_ArgT = Word64
 type U64_to_u32_RetT = Word32
 
 u64_to_u32 :: U64_to_u32_ArgT -> U64_to_u32_RetT
-u64_to_u32 = undefined
+u64_to_u32 = fromIntegral
 
 type U64_to_u16_ArgT = Word64
 
@@ -860,7 +864,14 @@ type Wordarray_copy_ArgT a = (WordArray a, WordArray a, Word32, Word32, Word32)
 type Wordarray_copy_RetT a = WordArray a
 
 wordarray_copy :: Wordarray_copy_ArgT a -> Wordarray_copy_RetT a
-wordarray_copy = undefined
+wordarray_copy (dst,src,dst_offs,src_offs,n) =
+  let (0,u_dst) = A.bounds dst
+      (0,u_src) = A.bounds src
+      dst_avl = u_dst - 1 - dst_offs
+      src_avl = u_src - 1 - src_offs
+      n' = minimum [n, dst_avl, src_avl]
+      src_cpy = genericTake n' . genericDrop (src_offs - 1) $ A.elems src 
+   in dst A.// zip [dst_offs .. dst_offs + n'] src_cpy
 
 type Wordarray_fold'_ArgT a acc obsv = (WordArray a, (acc, obsv, a) -> acc, acc, obsv)
 
@@ -1642,9 +1653,18 @@ type Ostore_read_RetT = ((SysState, OstoreState), V34 Word32 (R28 Word32 Word32 
 
 ostore_read :: Ostore_read_ArgT -> Ostore_read_RetT
 ostore_read (ex, mount_st, ostore_st, oid) =
-  let err = unsafePerformIO $ Q.generate $ Q.frequency [ (0, return 0)
+  let err = unsafePerformIO $ Q.generate $ Q.frequency [ (1, return 0)
                                                        , (1, Q.elements [eNoEnt, eIO, eNoMem, eInval, eBadF])]
-   in ((ex, ostore_st), error err)
+   in if | err == 0 ->
+        case M.lookup oid ostore_st of
+          Nothing  -> ((ex, ostore_st), error eNoEnt)
+          Just obj -> let Ax.Obj magic crc sqnum offs len trans otype ounion = obj
+                          Ax.TObjData obj_data = ounion
+                          Ax.ObjData oid odata = obj_data
+                          odata' = R30 oid odata
+                          obj' = R28 magic crc sqnum offs len trans otype (V29_TObjData odata')
+                       in ((ex, ostore_st), success obj')
+         | otherwise -> ((ex, ostore_st), error err)
 
 type Wordarray_fold_ArgT a acc obsv rbrk = R14 (WordArray a) Word32 Word32 (R15 a acc obsv -> V25 rbrk acc) acc obsv
 

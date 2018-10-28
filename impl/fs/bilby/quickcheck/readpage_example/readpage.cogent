@@ -76,7 +76,6 @@ read_block(ex, fs_st {ostore_st}, vnode, buf, block) =
         in ((ex, fs_st, buf), Error eInval)
       else
         let buf {data} = buf
-        --and data = wordarray_copy_n[U8] #{dest=data, src=od.odata, size} !od
         and data = wordarray_copy[U8] (data, od.odata, 0, 0, size) !od
         and buf = buf {data}
         and buf = buf_memset (buf, size, bilbyFsBlockSize - size, 0)

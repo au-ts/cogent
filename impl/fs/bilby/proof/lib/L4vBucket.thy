@@ -11,7 +11,7 @@
 theory L4vBucket
 imports
   "../../../../../l4v/lib/Word_Lib/Word_Lemmas"
-  ShallowUtil
+  "../../../../../cogent/isa/shallow/ShallowUtil"
 begin
 
 
