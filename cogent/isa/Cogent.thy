@@ -327,7 +327,7 @@ fun kinding_fn :: "kind env \<Rightarrow> type \<Rightarrow> kind" where
   "kinding_fn K (TVar i)         = (if i < length K then K ! i else undefined)"
 | "kinding_fn K (TVarBang i)     = (if i < length K then {D,S} else undefined)"
 | "kinding_fn K (TCon n ts s)    = (\<Inter>t\<in>set ts. kinding_fn K t) \<inter> (sigil_kind s)"
-| "kinding_fn K (TFun ta tb)     = kinding_fn K ta \<inter> kinding_fn K tb"
+| "kinding_fn K (TFun ta tb)     = UNIV"
 | "kinding_fn K (TPrim p)        = UNIV"
 | "kinding_fn K (TSum ts)        = (\<Inter>(_,t,b)\<in>set ts. case b of Unchecked \<Rightarrow> kinding_fn K t | Checked \<Rightarrow> UNIV)"
 | "kinding_fn K (TProduct ta tb) = kinding_fn K ta \<inter> kinding_fn K tb"
@@ -1041,6 +1041,14 @@ lemma sigil_kind_writable:
   using assms
   by (case_tac s rule: sigil_cases, auto)
 
+lemma kinding_to_kinding_fn_soundness:
+  shows
+    "K \<turnstile> t :\<kappa> k     \<Longrightarrow> K \<turnstile> t wellformed2 \<and> k \<subseteq> kinding_fn K t"
+    "K \<turnstile>* ts :\<kappa> k   \<Longrightarrow> (\<forall>t\<in>set ts. K \<turnstile> t wellformed2) \<and> k \<subseteq> (\<Inter>t\<in>set ts. kinding_fn K t)"
+    "K \<turnstile>* tvs :\<kappa>v k \<Longrightarrow> (\<forall>(_,t,_)\<in>set tvs. K \<turnstile> t wellformed2) \<and> k \<subseteq> (\<Inter>(_,t,b)\<in>set tvs. (case b of Checked \<Rightarrow> UNIV | Unchecked \<Rightarrow> kinding_fn K t))"
+    "K \<turnstile>* trs :\<kappa>r k \<Longrightarrow> (\<forall>(_,t,_)\<in>set trs. K \<turnstile> t wellformed2) \<and> k \<subseteq> (\<Inter>(_,t,b)\<in>set trs. (case b of Taken \<Rightarrow> UNIV | Present \<Rightarrow> kinding_fn K t))"
+proof (induct rule: kinding_kinding_all_kinding_variant_kinding_record.inducts)
+qed auto
 
 lemma kinding_to_kinding_fn_completeness:
   assumes
