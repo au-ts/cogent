@@ -1191,7 +1191,7 @@ type Extract_data_from_union_ArgT = (SysState, V29 (R30 Word64 (WordArray Word8)
 type Extract_data_from_union_RetT = V34 SysState (SysState, R30 Word64 (WordArray Word8))
 
 extract_data_from_union :: Extract_data_from_union_ArgT -> Extract_data_from_union_RetT
-extract_data_from_union = undefined
+extract_data_from_union (st, V29_TObjData odata) = success (st, odata)
 
 type FreeObj_ArgT = (SysState, R28 Word32 Word32 Word64 Word32 Word32 Word8 Word8 (V29 (R30 Word64 (WordArray Word8)) ObjDel ObjDentarr ObjInode () ObjSummary ObjSuper))
 

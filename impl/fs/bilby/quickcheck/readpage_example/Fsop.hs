@@ -132,6 +132,9 @@ obj_id_inode_mk ino = (fromIntegral ino `shiftL` 32) .|. bilbyFsOidMaskInode
 obj_id_data_mk :: VfsIno -> U32 -> ObjId
 obj_id_data_mk ino blk = obj_id_inode_mk ino .|. bilbyFsOidMaskData .|. fromIntegral blk
 
+inum_from_obj_id :: ObjId -> VfsIno
+inum_from_obj_id oid = fromIntegral (oid `shiftR` 32)
+
 bilbyFsOidMaskData :: U64
 bilbyFsOidMaskData = fromIntegral bilbyFsObjTypeData `shiftL` fromIntegral bilbyFsXinfoShift
 

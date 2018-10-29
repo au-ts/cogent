@@ -23,9 +23,12 @@ import Data.Bits
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe (fromJust)
+import Data.Tuple.Select (sel1, sel2, sel3)
 import Data.Word
 -- import Data.Void
-import Test.QuickCheck hiding (Success, Error)
+import Numeric (showHex)
+import Test.QuickCheck hiding (Success)
+import qualified Test.QuickCheck as Qc (Result(..))
 
 import CogentMonad
 import Corres
@@ -72,7 +75,6 @@ read_block afs inode block =
   let pages = fromJust $ M.lookup (vfs_inode_get_ino inode) afs 
    in pages !! fromIntegral block
 
-
 -- /////////////////////////////////////////////////////////////////////////////
 --
 -- * Testing @fsop_readpage@
@@ -93,13 +95,13 @@ gen_fsop_readpage_arg = do
   isize <- frequency [ (1, pure (m * fromIntegral bilbyFsBlockSize))
                      , (1, arbitrary) ]  -- FIXME: what's the range of this size?
   C.R7 <$> pure ()
-       <*> gen_FsState ino
+       <*> gen_FsState ino isize
        <*> gen_VfsInode ino isize
        <*> gen_OSPageOffset isize
        <*> gen_Buffer
 
-gen_FsState :: C.VfsIno -> Gen C.FsState
-gen_FsState ino = C.R22 <$> gen_FsopState <*> gen_MountState <*> gen_OstoreState ino
+gen_FsState :: C.VfsIno -> C.VfsSize -> Gen C.FsState
+gen_FsState ino isize = C.R22 <$> gen_FsopState <*> gen_MountState <*> gen_OstoreState ino isize
 
 gen_FsopState :: Gen C.FsopState
 gen_FsopState = arbitrary
@@ -107,12 +109,14 @@ gen_FsopState = arbitrary
 gen_MountState :: Gen C.MountState
 gen_MountState = arbitrary
 
-gen_OstoreState :: C.VfsIno -> Gen C.OstoreState
-gen_OstoreState ino = do
-  let gen_entry = (,) <$> arbitrary <*> gen_Obj
-      hit_entry = (,) <$> pure (fromIntegral ino) <*> gen_Obj
-  l <- (:) <$> hit_entry <*> listOf gen_entry
-  M.fromList <$> shuffle l
+gen_OstoreState :: C.VfsIno -> C.VfsSize -> Gen C.OstoreState
+gen_OstoreState ino isize = do
+  let numOfBlk = ceiling (fromInteger (fromIntegral isize) / fromInteger (fromIntegral bilbyFsBlockSize))
+  blk <- choose (0, numOfBlk - 1)
+  oids <- sublistOf (map (obj_id_data_mk ino . fromIntegral) $ blk `delete` [0 .. numOfBlk - 1])
+  hit_entry <- (,) <$> pure (obj_id_data_mk ino blk) <*> gen_Obj
+  entries <- zip oids <$> listOf gen_Obj
+  return $ M.fromList (hit_entry : entries)
   
 gen_Obj :: Gen C.Obj
 gen_Obj = C.R28 <$> arbitrary  -- magic
@@ -128,7 +132,7 @@ gen_ObjUnion_Data :: Gen C.ObjUnion
 gen_ObjUnion_Data = C.V29_TObjData <$> gen_ObjData
 
 gen_ObjData :: Gen C.ObjData
-gen_ObjData = C.R30 <$> arbitrary <*> (gen_WordArray_Word8 =<< choose (1, bilbyFsBlockSize))
+gen_ObjData = C.R30 <$> arbitrary <*> (gen_WordArray_Word8 =<< pure bilbyFsBlockSize)
 
 gen_VfsInode :: C.VfsIno -> C.VfsSize -> Gen C.VfsInode
 gen_VfsInode ino isize = C.R20 <$> gen_VfsInodeAbstract ino isize <*> (C.R21 <$> arbitrary)
@@ -148,12 +152,12 @@ gen_OSPageOffset isize = do
 gen_Buffer :: Gen C.Buffer
 gen_Buffer = do
   arr <- gen_WordArray_Word8 bilbyFsBlockSize
-  return $ C.R8 arr bilbyFsBlockSize
+  return $ C.R8 arr (bilbyFsBlockSize - 1)
 
 gen_WordArray_Word8 :: Word32 -> Gen (WordArray Word8)
 gen_WordArray_Word8 sz = do 
   elems <- vector (fromIntegral sz)
-  return $ listArray (0, fromIntegral $ length elems - 1) elems
+  return $ listArray (0, fromIntegral sz - 1) elems
 
 abs_fsop_readpage_arg :: C.Fsop_readpage_ArgT -> (AfsState, VfsInode, OSPageOffset, WordArray U8)
 abs_fsop_readpage_arg (C.R7 _ fs_st_c vnode_c block_c buf_c) =
@@ -162,16 +166,30 @@ abs_fsop_readpage_arg (C.R7 _ fs_st_c vnode_c block_c buf_c) =
       vnode_a = VfsInode ino isize
       block_a = block_c
       buf_a = abs_Buffer buf_c
-      afs_a = abs_OstoreState ostore_c
+      afs_a = abs_OstoreState ostore_c isize
    in (afs_a, vnode_a, block_a, buf_a)
 
-abs_OstoreState :: C.OstoreState -> AfsState
-abs_OstoreState ostore = undefined
+-- We know that all entries have the same inode number from the generator
+abs_OstoreState :: C.OstoreState -> C.VfsSize -> AfsState
+abs_OstoreState ostore isize =
+  let ostore' = M.toList ostore
+      tuples = for ostore' $ \(oid, obj) -> 
+                 let C.R28 _ _ _ _ _ _ _ ounion = obj
+                     C.V29_TObjData (C.R30 _ odata) = ounion
+                     ino = inum_from_obj_id oid
+                     blk = oid Data.Bits..&. 2047  -- lower 11 bits
+                  in (ino, blk, odata)
+      ino = sel1 $ head tuples
+      numOfBlk = ceiling (fromInteger (fromIntegral isize) / fromInteger (fromIntegral bilbyFsBlockSize))
+      all0 = listArray (0, bilbyFsBlockSize - 1) (replicate (fromIntegral bilbyFsBlockSize) 0)
+      base = map (\idx -> (idx, all0)) [0 .. numOfBlk - 1]
+      pages = M.fromList base `M.union` (M.fromList $ map (\(_,b,c) -> (b,c)) tuples)
+   in M.fromList [(ino, M.elems pages)]
 
 abs_Buffer :: C.Buffer -> WordArray U8
 abs_Buffer (C.R8 buf bd) =
   let (0, u) = bounds buf
-      u' = min u bd
+      u' = min u bd + 1
       arrElems = genericTake u' $ elems buf
    in listArray (0, u'-1) arrElems
 
@@ -182,9 +200,9 @@ rel_fsop_readpage_ret (Left e_a) (_, C.V34_Error e_c) = e_a == e_c
 rel_fsop_readpage_ret (Right arr_a) (C.R6 _ _ _ (C.R8 data_c bound_c), C.V34_Success ()) =
   let (l_a, u_a) = bounds arr_a
       (l_c, u_c) = bounds data_c
-   in trace ("arr_a = " ++ show (take 10 $ elems arr_a) ++ "\narr_c = " ++ show (elems data_c)) $ 
-        u_a == min u_c bound_c &&
-      l_a == 0 && l_c == 0 &&
+   in trace ("arr_a = " ++ show (take 20 $ elems arr_a) ++ "\narr_c = " ++ show (take 20 $ elems data_c)) $
+      u_a == min u_c bound_c &&
+      l_a == 0 && l_c == 0 && 
       elems arr_a == elems data_c
 rel_fsop_readpage_ret _ _ = False
 
@@ -192,8 +210,17 @@ rel_fsop_readpage_ret _ _ = False
 
 -- /////////////////////////////////////////////////////////////////////////////
 -- 
+-- misc.
+
+for = flip map
+
+-- /////////////////////////////////////////////////////////////////////////////
+-- 
 -- top level
 
-main = quickCheckWith (stdArgs { chatty = False }) prop_corres_fsop_readpage
+main = do
+  r <- quickCheckWithResult (stdArgs { chatty = False, maxSuccess = 500, maxSize = 30 }) prop_corres_fsop_readpage
+  case r of Qc.Success {} -> putStrLn "Passed!"
+            _ -> putStrLn $ "Failed!"
 
 

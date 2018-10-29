@@ -518,11 +518,6 @@ where
  "pad_block data len \<equiv> data @ drop (length data) (replicate (unat len) 0)"
 
 (* No support for holes for now *)
-(* Q: Why do we need to return afs_state and vnode at all? They don't change. 
-      Also the input buffer (addr) is not used. / zilinc
-   A: They're made for matching the implementation and also for us to specify
-      invariants on these inputs/outputs.
- *)
 
 definition
   afs_readpage :: "afs_state \<Rightarrow> vnode \<Rightarrow> U64 \<Rightarrow> U8 WordArray \<Rightarrow>
