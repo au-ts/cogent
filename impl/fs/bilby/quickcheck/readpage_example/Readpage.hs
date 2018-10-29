@@ -20,6 +20,7 @@ module Readpage where
 import Control.Arrow
 import Data.Array
 import Data.Bits
+import Data.List
 import qualified Data.Map as M
 import Data.Maybe (fromJust)
 import Data.Word
@@ -49,35 +50,27 @@ vfs_inode_get_size  = isize
 
 type OSPageOffset = U64
 
-hs_fsop_readpage :: OstoreState
+hs_fsop_readpage :: AfsState
                  -> VfsInode
                  -> OSPageOffset
-                 -> CogentMonad (Either ErrCode (Maybe (WordArray U8)))
-hs_fsop_readpage ostore vnode block =
+                 -> WordArray U8
+                 -> CogentMonad (Either ErrCode (WordArray U8))
+hs_fsop_readpage afs vnode block buf =
   let size = vfs_inode_get_size vnode :: U64  -- the number of bytes we need to read
       limit = size `shiftR` fromIntegral bilbyFsBlockShift  -- the number of blocks we need to read
    in if | block > limit -> return $ Left eNoEnt
          -- ^ if we are reading beyond the last block we need to read, return an zeroed buffer
          | block == limit && (size `mod` fromIntegral bilbyFsBlockSize == 0) ->
-             return $ Right Nothing
+             return $ Right buf
          -- ^ if we are reading the "last" one which extra bytes in this block is 0, then return old buffer
-         | otherwise -> return (Right $ Just $ read_block ostore vnode block) <|>
+         | otherwise -> return (Right $ read_block afs vnode block) <|>
                         (Left <$> [eIO, eNoMem, eInval, eBadF, eNoEnt])
          -- ^ if we are reading a block which contains data, then we read the block
 
-read_block :: OstoreState -> VfsInode -> OSPageOffset -> WordArray U8
-read_block ostore inode block =
-  let obj   = fromJust $ M.lookup (fromIntegral $ vfs_inode_get_ino inode) ostore
-      idata = odata (extract_data_from_obj obj)
-      arrElems = elems idata ++ take (fromIntegral bilbyFsBlockSize - length idata) (repeat 0 :: [U8])
-   in listArray (0, fromIntegral bilbyFsBlockSize - 1) arrElems
-
-extract_data_from_obj :: Obj -> ObjData
-extract_data_from_obj obj =
-  let union = ounion obj
-   in case union of
-        TObjData d -> d
-        _ -> error "extract_data_from_obj: must be of type ObjData"
+read_block :: AfsState -> VfsInode -> OSPageOffset -> WordArray U8
+read_block afs inode block =
+  let pages = fromJust $ M.lookup (vfs_inode_get_ino inode) afs 
+   in pages !! fromIntegral block
 
 
 -- /////////////////////////////////////////////////////////////////////////////
@@ -88,10 +81,10 @@ extract_data_from_obj obj =
 prop_corres_fsop_readpage :: Property
 prop_corres_fsop_readpage = 
   forAll gen_fsop_readpage_arg $ \ic -> 
-    let (ostore_st,vnode,block) = abs_fsop_readpage_arg ic
-        oa = hs_fsop_readpage ostore_st vnode block
+    let (afs,vnode,block,buf) = abs_fsop_readpage_arg ic
+        oa = hs_fsop_readpage afs vnode block buf
         oc = C.fsop_readpage ic
-     in corres rel_fsop_readpage_ret oa (ic,oc)
+     in corres rel_fsop_readpage_ret oa oc
 
 gen_fsop_readpage_arg :: Gen C.Fsop_readpage_ArgT
 gen_fsop_readpage_arg = do
@@ -121,21 +114,21 @@ gen_OstoreState ino = do
   l <- (:) <$> hit_entry <*> listOf gen_entry
   M.fromList <$> shuffle l
   
-gen_Obj :: Gen Ax.Obj
-gen_Obj = Ax.Obj <$> arbitrary
-                 <*> arbitrary
-                 <*> arbitrary
-                 <*> arbitrary
-                 <*> arbitrary
-                 <*> arbitrary
-                 <*> arbitrary
-                 <*> gen_ObjUnion_Data
+gen_Obj :: Gen C.Obj
+gen_Obj = C.R28 <$> arbitrary  -- magic
+                <*> arbitrary  -- crc
+                <*> arbitrary  -- sqnum
+                <*> arbitrary  -- offs
+                <*> arbitrary  -- len
+                <*> arbitrary  -- trans
+                <*> arbitrary  -- otype
+                <*> gen_ObjUnion_Data  -- ounion
 
-gen_ObjUnion_Data :: Gen Ax.ObjUnion
-gen_ObjUnion_Data = TObjData <$> gen_ObjData
+gen_ObjUnion_Data :: Gen C.ObjUnion
+gen_ObjUnion_Data = C.V29_TObjData <$> gen_ObjData
 
-gen_ObjData :: Gen Ax.ObjData
-gen_ObjData = Ax.ObjData <$> arbitrary <*> (gen_WordArray_Word8 =<< choose (1, bilbyFsBlockSize))
+gen_ObjData :: Gen C.ObjData
+gen_ObjData = C.R30 <$> arbitrary <*> (gen_WordArray_Word8 =<< choose (1, bilbyFsBlockSize))
 
 gen_VfsInode :: C.VfsIno -> C.VfsSize -> Gen C.VfsInode
 gen_VfsInode ino isize = C.R20 <$> gen_VfsInodeAbstract ino isize <*> (C.R21 <$> arbitrary)
@@ -162,25 +155,35 @@ gen_WordArray_Word8 sz = do
   elems <- vector (fromIntegral sz)
   return $ listArray (0, fromIntegral $ length elems - 1) elems
 
-abs_fsop_readpage_arg :: C.Fsop_readpage_ArgT -> (OstoreState, VfsInode, OSPageOffset)
-abs_fsop_readpage_arg (C.R7 _ fs_st_c vnode_c block_c _) =
-  let ostore_st_a = C.ostore_st fs_st_c
+abs_fsop_readpage_arg :: C.Fsop_readpage_ArgT -> (AfsState, VfsInode, OSPageOffset, WordArray U8)
+abs_fsop_readpage_arg (C.R7 _ fs_st_c vnode_c block_c buf_c) =
+  let ostore_c = C.ostore_st fs_st_c
       C.R20 (C.VfsInodeAbstract ino isize) _ = vnode_c
       vnode_a = VfsInode ino isize
       block_a = block_c
-   in (ostore_st_a, vnode_a, block_a)
+      buf_a = abs_Buffer buf_c
+      afs_a = abs_OstoreState ostore_c
+   in (afs_a, vnode_a, block_a, buf_a)
 
-rel_fsop_readpage_ret :: Either ErrCode (Maybe (WordArray U8))
-                      -> (C.Fsop_readpage_ArgT, C.Fsop_readpage_RetT)
+abs_OstoreState :: C.OstoreState -> AfsState
+abs_OstoreState ostore = undefined
+
+abs_Buffer :: C.Buffer -> WordArray U8
+abs_Buffer (C.R8 buf bd) =
+  let (0, u) = bounds buf
+      u' = min u bd
+      arrElems = genericTake u' $ elems buf
+   in listArray (0, u'-1) arrElems
+
+rel_fsop_readpage_ret :: Either ErrCode (WordArray U8)
+                      -> C.Fsop_readpage_RetT
                       -> Bool
-rel_fsop_readpage_ret (Left e_a) (_, (_, C.V34_Error e_c)) = e_a == e_c
-rel_fsop_readpage_ret (Right Nothing) (C.R7 _ _ _ _ addr, (C.R6 _ _ _ addr', C.V34_Success ())) =
-  addr == addr'
-rel_fsop_readpage_ret (Right (Just arr_a)) (C.R7 _ _ _ _ (C.R8 data_c1 bound_c1), (C.R6 _ _ _ (C.R8 data_c bound_c), C.V34_Success ())) =
+rel_fsop_readpage_ret (Left e_a) (_, C.V34_Error e_c) = e_a == e_c
+rel_fsop_readpage_ret (Right arr_a) (C.R6 _ _ _ (C.R8 data_c bound_c), C.V34_Success ()) =
   let (l_a, u_a) = bounds arr_a
       (l_c, u_c) = bounds data_c
-   in trace ("arr_a = " ++ show (take 10 $ elems arr_a) ++ "\narr_c = " ++ show (elems data_c) ++
-             "\narr_c1 = " ++ show (elems data_c1)) $ u_a == min u_c bound_c &&
+   in trace ("arr_a = " ++ show (take 10 $ elems arr_a) ++ "\narr_c = " ++ show (elems data_c)) $ 
+        u_a == min u_c bound_c &&
       l_a == 0 && l_c == 0 &&
       elems arr_a == elems data_c
 rel_fsop_readpage_ret _ _ = False

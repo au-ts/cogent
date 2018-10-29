@@ -87,7 +87,8 @@ when block = 3, that's the special case. We return the old buffer unmodified.
 
 -}
 
-type OstoreState = M.Map ObjId Obj
+type Page = WordArray U8
+type AfsState = M.Map VfsIno [Page]
 
 data Obj = Obj { magic  :: U32
                , crc    :: U32

@@ -83,7 +83,7 @@ definition
  where
   i_dir_update_def[simp]:
   "i_dir_update m i \<equiv> i \<lparr>i_type:= IDir (m (i_dir i)) \<rparr>"
-
+                                                  
 abbreviation i_type_data :: "afs_inode_type \<Rightarrow> file_data"
 where
   "i_type_data it \<equiv> (case it of IReg data \<Rightarrow> data)"
@@ -525,35 +525,35 @@ where
  *)
 
 definition
-  afs_readpage :: "afs_state \<Rightarrow> vnode \<Rightarrow> U64 \<Rightarrow>
-                   ((afs_state \<times> vnode \<times> U8 WordArray option) \<times> (unit, ErrCode) R\<^sub>T) cogent_monad"
+  afs_readpage :: "afs_state \<Rightarrow> vnode \<Rightarrow> U64 \<Rightarrow> U8 WordArray \<Rightarrow>
+                   ((afs_state \<times> vnode \<times> U8 WordArray) \<times> (unit, ErrCode) R\<^sub>T) cogent_monad"
 where
-  "afs_readpage afs vnode block \<equiv>
+  "afs_readpage afs vnode block buf \<equiv>
    if block > (v_size vnode >> unat bilbyFsBlockShift) then
-    return ((afs, vnode, Some $ WordArrayT.make (replicate (unat bilbyFsBlockSize) 0)), Error eNoEnt)
+    return ((afs, vnode, WordArrayT.make (replicate (unat bilbyFsBlockSize) 0)), Error eNoEnt)
    else if (block = (v_size vnode >> unat bilbyFsBlockShift)) \<and> ((v_size vnode) mod (ucast bilbyFsBlockSize) = 0)
-        then return ((afs, vnode, None), Success ())
+        then return ((afs, vnode, buf), Success ())
         else do
           err \<leftarrow> {eIO, eNoMem, eInval, eBadF, eNoEnt};
-          return ((afs, vnode, Some $ WordArrayT.make (pad_block ((i_data (the $ updated_afs afs (v_ino vnode))) ! unat block) bilbyFsBlockSize)), Success ()) \<sqinter> return ((afs, vnode, None), Error err)
+          return ((afs, vnode, WordArrayT.make (pad_block ((i_data (the $ updated_afs afs (v_ino vnode))) ! unat block) bilbyFsBlockSize)), Success ()) \<sqinter> return ((afs, vnode, buf), Error err)
           od
 "
 
 definition
-  afs_write_begin :: "afs_state \<Rightarrow> vnode \<Rightarrow> U64 \<Rightarrow> U32 \<Rightarrow>
-                   ((afs_state \<times> vnode \<times> U8 WordArray option) \<times> (unit, ErrCode) R\<^sub>T) cogent_monad"
+  afs_write_begin :: "afs_state \<Rightarrow> vnode \<Rightarrow> U64 \<Rightarrow> U32 \<Rightarrow> U8 WordArray \<Rightarrow>
+                   ((afs_state \<times> vnode \<times> U8 WordArray) \<times> (unit, ErrCode) R\<^sub>T) cogent_monad"
 where
-  "afs_write_begin afs vnode pos len \<equiv>
+  "afs_write_begin afs vnode pos len buf \<equiv>
   if a_is_readonly afs then
-    return ((afs, vnode, None), Error eRoFs)
+    return ((afs, vnode, buf), Error eRoFs)
   else 
     do
-     ((afs, vnode, addr'), r) \<leftarrow> afs_readpage afs vnode (pos >> unat bilbyFsBlockShift);
+     ((afs, vnode, buf'), r) \<leftarrow> afs_readpage afs vnode (pos >> unat bilbyFsBlockShift) buf;
     case r of
       Error e \<Rightarrow> 
-      return ((afs, vnode, addr'), if e = eNoEnt then Success () else Error e)
+      return ((afs, vnode, buf'), if e = eNoEnt then Success () else Error e)
     | Success () \<Rightarrow>
-      return ((afs, vnode, addr'), Success())
+      return ((afs, vnode, buf'), Success())
     od
 "
 

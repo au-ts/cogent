@@ -7,6 +7,7 @@ Isabelle input files).
 -}
 {-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE PartialTypeSignatures #-}
@@ -15,7 +16,7 @@ import Data.Bits ((.&.), (.|.), complement, xor, shiftL, shiftR)
 import qualified Data.Tuple.Select as Tup
 import qualified Data.Tuple.Update as Tup
 import Data.Word (Word8, Word16, Word32, Word64)
-import Prelude (not, div, mod, fromIntegral, undefined, (+), (-), (*), (&&), (||), (>), (>=), (<), (<=), (==), (/=), Char, String, Int, Show, Bool(..), return, ($), zip, repeat, Ord, Eq, Maybe(..), fromIntegral, (.), (++), show)
+import Prelude (not, div, mod, fromIntegral, undefined, (+), (-), (*), (&&), (||), (>), (>=), (<), (<=), (==), (/=), Char, String, Int, Show, Bool(..), return, ($), zip, repeat, Ord, Eq, Maybe(..), fromIntegral, (.), (++), show, otherwise)
 import System.IO.Unsafe
 import qualified Test.QuickCheck as Q
 import qualified Data.Array as A
@@ -516,17 +517,17 @@ type SysState = ()
 
 data SpinLock
 
-type OstoreState = Ax.OstoreState
+type OstoreState = M.Map ObjId Obj
 
-data ObjSuper
+type ObjSuper = ()
 
-data ObjSummary
+type ObjSummary = ()
 
-data ObjInode
+type ObjInode = ()
 
-data ObjDentarr
+type ObjDentarr = ()
 
-data ObjDel
+type ObjDel = ()
 
 data OSDirContext
 
@@ -1654,16 +1655,10 @@ type Ostore_read_RetT = ((SysState, OstoreState), V34 Word32 (R28 Word32 Word32 
 ostore_read :: Ostore_read_ArgT -> Ostore_read_RetT
 ostore_read (ex, mount_st, ostore_st, oid) =
   let err = unsafePerformIO $ Q.generate $ Q.frequency [ (1, return 0)
-                                                       , (1, Q.elements [eNoEnt, eIO, eNoMem, eInval, eBadF])]
-   in if | err == 0 ->
-        case M.lookup oid ostore_st of
-          Nothing  -> ((ex, ostore_st), error eNoEnt)
-          Just obj -> let Ax.Obj magic crc sqnum offs len trans otype ounion = obj
-                          Ax.TObjData obj_data = ounion
-                          Ax.ObjData oid odata = obj_data
-                          odata' = R30 oid odata
-                          obj' = R28 magic crc sqnum offs len trans otype (V29_TObjData odata')
-                       in ((ex, ostore_st), success obj')
+                                                       , (1, Q.elements [eIO, eNoMem, eInval, eBadF])]
+   in if | err == 0 -> case M.lookup oid ostore_st of
+             Nothing  -> ((ex, ostore_st), error eNoEnt)
+             Just obj -> ((ex, ostore_st), success obj)
          | otherwise -> ((ex, ostore_st), error err)
 
 type Wordarray_fold_ArgT a acc obsv rbrk = R14 (WordArray a) Word32 Word32 (R15 a acc obsv -> V25 rbrk acc) acc obsv
