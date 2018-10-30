@@ -68,7 +68,7 @@ where
         \<and> \<Gamma>2 = map (\<lambda> (sp, v). if sp = Some TSK_L then None else v)
                         (zip sps \<Gamma>b)
         \<and> Some TSK_NS \<notin> set sps
-        \<and> (\<forall>t \<in> set \<Gamma>b. t \<noteq> None \<longrightarrow> kndng \<longrightarrow> (K \<turnstile> the t wellformed))
+        \<and> (\<forall>t \<in> set \<Gamma>b. t \<noteq> None \<longrightarrow> kndng \<longrightarrow> (K \<turnstile> the t wellkinded))
         \<and> (\<forall>i < length \<Gamma>b. nth sps i = Some TSK_S
             \<longrightarrow> nth \<Gamma>b i \<noteq> None \<and> (\<exists>k. K \<turnstile> (the (nth \<Gamma>b i)) :\<kappa> k \<and> S \<in> k)))"
 
@@ -100,7 +100,7 @@ lemma ttsplit_innerI:
   "K \<turnstile> \<gamma> :\<kappa>  k \<Longrightarrow> S \<in> k \<Longrightarrow> ttsplit_inner K sps kndng \<Gamma>b \<Gamma>1 \<Gamma>2
     \<Longrightarrow> ttsplit_inner K (Some TSK_S # sps) kndng (Some \<gamma> # \<Gamma>b) (Some \<gamma> # \<Gamma>1) (Some \<gamma> # \<Gamma>2)"
   "ttsplit_inner K [] kndng [] [] []"
-  by (auto simp add: ttsplit_inner_def forall_less_Suc_eq)
+  by (auto simp add: kinding_def ttsplit_inner_def forall_less_Suc_eq)
 
 lemma ttsplit_imp_split:
   "ttsplit K \<Gamma> ijs xs \<Gamma>1 ys \<Gamma>2 \<Longrightarrow> (\<exists>\<Gamma>1a \<Gamma>2a. split K (snd \<Gamma>) \<Gamma>1a \<Gamma>2a
@@ -110,7 +110,7 @@ lemma ttsplit_imp_split:
    apply (clarsimp simp add: split_comp.simps)
   apply (case_tac "ijs ! i = Some TSK_S")
    apply (force simp add: split_comp.simps)
-  apply (fastforce dest: nth_mem simp add: split_comp.simps)
+  apply (fastforce dest: nth_mem simp add: kinding_def split_comp.simps)
   done
 
 lemma split_imp_ttsplit:
@@ -445,7 +445,7 @@ where
 
 
 theorem intermediate_preservation:
-assumes "proc_ctx_wellformed \<Xi>"
+assumes "proc_ctx_wellkinded \<Xi>"
 and     "\<Xi>, \<sigma> \<turnstile> \<gamma> matches (snd \<Gamma>) \<langle>r, w\<rangle>"
 and     "\<xi> matches-u \<Xi>"
 shows   "\<lbrakk> \<xi>, \<gamma> \<turnstile>  (\<sigma>, e) \<Down>! (\<sigma>', v)
@@ -880,35 +880,35 @@ lemma u_tt_sem_pres_imp_u_sem:
 
 end
 
-lemma split_type_wellformed:
-  "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2 \<Longrightarrow> Some t \<in> set \<Gamma> \<Longrightarrow> K \<turnstile> t wellformed"
+lemma split_type_wellkinded:
+  "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2 \<Longrightarrow> Some t \<in> set \<Gamma> \<Longrightarrow> K \<turnstile> t wellkinded"
   by (fastforce simp add: split_def split_comp.simps in_set_conv_nth list_all3_conv_all_nth)
 
-lemma split_bang_type_wellformed:
+lemma split_bang_type_wellkinded:
   "split_bang K is \<Gamma> \<Gamma>1 \<Gamma>2 \<Longrightarrow> Some t \<in> set \<Gamma>
-    \<Longrightarrow> Some t \<in> set \<Gamma>1 \<or> Some t \<in> set \<Gamma>2 \<or> K \<turnstile> t wellformed"
+    \<Longrightarrow> Some t \<in> set \<Gamma>1 \<or> Some t \<in> set \<Gamma>2 \<or> K \<turnstile> t wellkinded"
   by (induct arbitrary: "is" rule: split_bang.induct,
     auto elim!: split_comp.cases)
 
-lemma weakening_type_wellformed:
-  "K \<turnstile> \<Gamma> \<leadsto>w \<Gamma>' \<Longrightarrow> Some t \<in> set \<Gamma> \<Longrightarrow> K \<turnstile> t wellformed"
+lemma weakening_type_wellkinded:
+  "K \<turnstile> \<Gamma> \<leadsto>w \<Gamma>' \<Longrightarrow> Some t \<in> set \<Gamma> \<Longrightarrow> K \<turnstile> t wellkinded"
   by (fastforce simp add: weakening_def weakening_comp.simps in_set_conv_nth list_all2_conv_all_nth)
 
 lemma typing_to_kinding_env:
   "\<Xi>, K, \<Gamma> \<turnstile> e : u \<Longrightarrow> Some t \<in> set \<Gamma>
-    \<Longrightarrow> K \<turnstile> t wellformed"
+    \<Longrightarrow> K \<turnstile> t wellkinded"
   "\<Xi>, K, \<Gamma> \<turnstile>* es : us \<Longrightarrow> Some t \<in> set \<Gamma>
-    \<Longrightarrow> K \<turnstile> t wellformed"
+    \<Longrightarrow> K \<turnstile> t wellkinded"
   by (induct rule: typing_typing_all.inducts,
     auto simp add: Cogent.empty_def
-      dest: split_bang_type_wellformed weakening_type_wellformed split_type_wellformed)
+      dest: split_bang_type_wellkinded weakening_type_wellkinded split_type_wellkinded)
 
-lemma ttyping_type_wellformed:
+lemma ttyping_type_wellkinded:
   "\<lbrakk> \<Xi>, K, \<Gamma> T\<turnstile> x : \<tau> \<rbrakk>
-    \<Longrightarrow> \<forall>t. Some t \<in> set (snd \<Gamma>) \<longrightarrow> K \<turnstile> t wellformed"
+    \<Longrightarrow> \<forall>t. Some t \<in> set (snd \<Gamma>) \<longrightarrow> K \<turnstile> t wellkinded"
   by (induct rule: ttyping.induct,
     auto dest!: ttsplit_imp_split ttsplit_bang_imp_split_bang
-      dest: split_bang_type_wellformed split_type_wellformed typing_to_kinding_env)
+      dest: split_bang_type_wellkinded split_type_wellkinded typing_to_kinding_env)
 
 context update_sem begin
 
@@ -916,22 +916,22 @@ lemma matches_ptrs_replicate_None:
   "length \<gamma> = n \<Longrightarrow> \<Xi>, \<sigma>' \<turnstile> \<gamma> matches replicate n None \<langle>{}, {}\<rangle>"
   by (hypsubst_thin, induct \<gamma>, auto intro: matches_ptrs.intros)
 
-lemma u_tt_sem_pres_type_wellformed:
+lemma u_tt_sem_pres_type_wellkinded:
   "\<lbrakk> \<Xi>, \<xi> , \<gamma>, K, \<Gamma>, \<tau> T\<turnstile> (\<sigma>, a) \<Down>! (\<sigma>', x) \<rbrakk>
-    \<Longrightarrow> \<forall>t. Some t \<in> set (snd \<Gamma>) \<longrightarrow> K \<turnstile> t wellformed"
+    \<Longrightarrow> \<forall>t. Some t \<in> set (snd \<Gamma>) \<longrightarrow> K \<turnstile> t wellkinded"
   by (induct rule: u_tt_sem_pres.induct,
     auto dest!: ttsplit_imp_split ttsplit_bang_imp_split_bang
-      dest: split_bang_type_wellformed split_type_wellformed typing_to_kinding_env)
+      dest: split_bang_type_wellkinded split_type_wellkinded typing_to_kinding_env)
 
-lemma u_tt_sem_pres_type_wellformed2:
+lemma u_tt_sem_pres_type_wellkinded2:
   "\<lbrakk> \<Xi>, \<xi> , \<gamma>, K, \<Gamma>, \<tau> T\<turnstile> (\<sigma>, a) \<Down>! (\<sigma>', x) \<rbrakk>
-    \<Longrightarrow> K \<turnstile>  \<tau> wellformed"
+    \<Longrightarrow> K \<turnstile>  \<tau> wellkinded"
   by (induct rule: u_tt_sem_pres.induct,
     auto dest!: typing_to_kinding)
 
 lemma u_tt_sem_pres_preservation:
   "\<Xi>, \<xi>, \<gamma>, K, \<Gamma>, \<tau> T\<turnstile> st \<Down>! st' \<Longrightarrow> K = [] \<Longrightarrow>
-    proc_ctx_wellformed \<Xi> \<Longrightarrow> \<xi> matches-u \<Xi> \<Longrightarrow>
+    proc_ctx_wellkinded \<Xi> \<Longrightarrow> \<xi> matches-u \<Xi> \<Longrightarrow>
     \<exists>rs ws. \<Xi>, fst st' \<turnstile> snd st' :u \<tau> \<langle>rs, ws\<rangle>"
   apply (induct rule: u_tt_sem_pres.induct, simp_all)
   apply clarsimp
@@ -949,13 +949,13 @@ lemma u_tt_sem_pres_length:
 
 lemma let_elaborate_u_tt_sem_pres:
   "\<lbrakk> \<Xi>, \<xi> , \<gamma>, K, \<Gamma>, \<tau> T\<turnstile> (\<sigma>, a) \<Down>! (\<sigma>', x); K = [];
-        proc_ctx_wellformed \<Xi>; \<xi> matches-u \<Xi> \<rbrakk>
+        proc_ctx_wellkinded \<Xi>; \<xi> matches-u \<Xi> \<rbrakk>
     \<Longrightarrow> \<Xi>, \<xi> , \<gamma>, K, (TyTrSplit (map (\<lambda>_. Some TSK_L) (snd \<Gamma>)) [] (fst \<Gamma>)
     [Some \<tau>] TyTrLeaf, snd \<Gamma>), \<tau> T\<turnstile> (\<sigma>, Let a (Var 0)) \<Down>! (\<sigma>', x)"
   apply (rule u_tt_sem_pres_let)
     apply (rule ttsplitI[OF _ refl refl])
     apply (simp only: ttsplit_inner_def zip_map1 map_map o_def Product_Type.split_def, simp)
-    apply (fastforce dest: u_tt_sem_pres_type_wellformed)
+    apply (fastforce dest: u_tt_sem_pres_type_wellkinded)
    apply simp
   apply (rule u_tt_sem_pres_default)
      apply (simp add: composite_anormal_expr_def)
@@ -963,7 +963,7 @@ lemma let_elaborate_u_tt_sem_pres:
    apply simp
    apply (rule typing_var, simp_all add: weakening_def Cogent.empty_def
              zip_same_conv_map o_def map_replicate_const list_all2_same)
-   apply (frule u_tt_sem_pres_type_wellformed2)
+   apply (frule u_tt_sem_pres_type_wellkinded2)
    apply (clarsimp simp add: weakening_comp.intros)
   apply (frule u_tt_sem_pres_preservation, simp+)
   apply clarsimp
