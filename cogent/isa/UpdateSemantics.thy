@@ -221,7 +221,7 @@ and uval_typing_record :: "('f \<Rightarrow> poly_type)
 | u_t_sum      : "\<lbrakk> \<Xi>, \<sigma> \<turnstile> a :u t \<langle>r, w\<rangle>
                   ; (tag, t, Unchecked) \<in> set ts
                   ; distinct (map fst ts)
-                  ; [] \<turnstile> TSum ts wellformed
+                  ; [] \<turnstile> TSum ts wellkinded
                   ; rs = map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) ts
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> USum tag a rs :u TSum ts \<langle>r, w\<rangle>"
 
@@ -230,16 +230,16 @@ and uval_typing_record :: "('f \<Rightarrow> poly_type)
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> URecord fs :u TRecord ts Unboxed \<langle>r, w\<rangle>"
 
 | u_t_abstract : "\<lbrakk> abs_typing a n ts Unboxed r w
-                  ; [] \<turnstile>* ts wellformed
+                  ; [] \<turnstile>* ts wellkinded
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UAbstract a :u TCon n ts Unboxed \<langle>r, w\<rangle>"
 
 | u_t_afun     : "\<lbrakk> \<Xi> f = (ks, a, b)
                   ; list_all2 (kinding []) ts ks
-                  ; ks \<turnstile> TFun a b wellformed
+                  ; ks \<turnstile> TFun a b wellkinded
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UAFunction f ts :u TFun (instantiate ts a) (instantiate ts b) \<langle>{}, {}\<rangle>"
 
 | u_t_function : "\<lbrakk> \<Xi> , K , [ Some t ] \<turnstile> f : u
-                  ; K \<turnstile> t wellformed
+                  ; K \<turnstile> t wellkinded
                   ; list_all2 (kinding []) ts K
                   \<rbrakk> \<Longrightarrow> \<Xi> , \<sigma> \<turnstile> UFunction f ts :u TFun (instantiate ts t) (instantiate ts u) \<langle>{}, {}\<rangle>"
 
@@ -258,13 +258,13 @@ and uval_typing_record :: "('f \<Rightarrow> poly_type)
 
 | u_t_p_abs_ro : "\<lbrakk> s = Boxed ReadOnly ptrl
                   ; abs_typing a n ts s r {}
-                  ; [] \<turnstile>* ts wellformed
+                  ; [] \<turnstile>* ts wellkinded
                   ; \<sigma> l = Some (UAbstract a)
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map type_repr ts)) :u TCon n ts s \<langle>insert l r, {}\<rangle>"
 
 | u_t_p_abs_w  : "\<lbrakk> s = Boxed Writable ptrl
                   ; abs_typing a n ts s r w
-                  ; [] \<turnstile>* ts wellformed
+                  ; [] \<turnstile>* ts wellkinded
                   ; \<sigma> l = Some (UAbstract a)
                   ; l \<notin> (w \<union> r)
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map type_repr ts)) :u TCon n ts s \<langle>r, insert l w\<rangle>"
@@ -279,7 +279,7 @@ and uval_typing_record :: "('f \<Rightarrow> poly_type)
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile>* ((x,rp) # xs) :ur ((n, t, Present) # ts) \<langle>r \<union> r', w \<union> w'\<rangle>"
 
 | u_t_r_cons2  : "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* xs :ur ts \<langle>r, w\<rangle>
-                  ; [] \<turnstile> t wellformed
+                  ; [] \<turnstile> t wellkinded
                   ; type_repr t = rp
                   ; uval_repr x = rp
                   ; uval_repr_deep x = rp
@@ -353,29 +353,24 @@ definition proc_env_matches_ptrs :: "(('f,'a,'l) uabsfuns) \<Rightarrow> ('f \<R
                                               \<and> r' \<subseteq> r \<and> frame \<sigma> w \<sigma>' w')))"
 
 lemma uval_typing_to_kinding:
-  shows "\<Xi>, \<sigma> \<turnstile> v :u t \<langle>r, w\<rangle> \<Longrightarrow> [] \<turnstile> t wellformed"
-    and "\<Xi>, \<sigma> \<turnstile>* fs :ur ts \<langle>r, w\<rangle> \<Longrightarrow> [] \<turnstile>* (map (fst \<circ> snd) ts) wellformed"
+  shows "\<Xi>, \<sigma> \<turnstile> v :u t \<langle>r, w\<rangle> \<Longrightarrow> [] \<turnstile> t wellkinded"
+    and "\<Xi>, \<sigma> \<turnstile>* fs :ur ts \<langle>r, w\<rangle> \<Longrightarrow> [] \<turnstile>* (map (fst \<circ> snd) ts) wellkinded"
 proof (induct rule: uval_typing_uval_typing_record.inducts)
-next case u_t_sum      then show ?case by (force intro: kinding_kinding_all_kinding_variant_kinding_record.intros)
-next case u_t_struct   then show ?case by ( clarsimp
-                                          , intro exI kinding_kinding_all_kinding_variant_kinding_record.intros
-                                          , auto intro: kinding_all_record' simp: kind_top o_def)
-next case u_t_abstract then show ?case by ( clarsimp
-                                          , intro exI kinding_kinding_all_kinding_variant_kinding_record.intros
-                                          , auto simp: kind_top)
-next case u_t_function then show ?case by (force dest!: typing_to_kinding
-                                                 intro: substitutivity kinding_kinding_all_kinding_variant_kinding_record.intros)
-next case u_t_afun     then show ?case by (force intro: substitutivity kinding_kinding_all_kinding_variant_kinding_record.intros)
+next case u_t_sum      then show ?case by (force simp add: kinding_simps)
+next case u_t_struct   then show ?case
+    by (fastforce simp add: kinding_simps kinding_all_set kinding_record_set kind_top
+        intro: kinding_all_record' split: prod.splits record_state.splits)
+next case u_t_abstract then show ?case
+    by (fastforce simp add: kinding_simps kind_top)
+next case u_t_function then show ?case
+    by (fastforce simp add: kinding_simps intro: substitutivity dest: typing_to_kinding)
+next case u_t_afun     then show ?case
+    by (fastforce simp add: kinding_simps intro: substitutivity)
 next case u_t_p_rec_ro then show ?case
-    by (auto intro!: exI kinding_kinding_all_kinding_variant_kinding_record.intros
-        intro: kinding_all_record'[OF supersumption(2) [where k' = "{}"]] simp: o_def)
+    by (auto simp add: kinding_simps dest: kinding_all_record'[simplified o_def] supersumption(2)[OF empty_subsetI])
 next case u_t_p_rec_w then show ?case
-    by (auto intro!: exI kinding_kinding_all_kinding_variant_kinding_record.intros
-        intro: kinding_all_record'[OF supersumption(2) [where k' = "{}"]] simp: o_def)
-qed (auto intro: kinding_kinding_all_kinding_variant_kinding_record.intros
-                 kind_tcon [OF supersumption(2) [where k' ="{}"]]
-                 kinding_all_record' [OF supersumption(2) [where k' = "{}"]]
-                 supersumption)
+    by (auto simp add: kinding_simps dest: kinding_all_record'[simplified o_def] supersumption(2)[OF empty_subsetI])
+qed (auto simp add: kinding_simps intro: supersumption)
 
 
 
@@ -407,22 +402,21 @@ shows "\<lbrakk> \<Xi>, \<sigma> \<turnstile>  v  :u  \<tau>  \<langle> r , w \<
 and   "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* fs :ur \<tau>s \<langle> r , w \<rangle>; K \<turnstile>* \<tau>s :\<kappa>r k \<rbrakk> \<Longrightarrow> w = {}"
   using assms
 proof (induct rule: uval_typing_uval_typing_record.inducts)
-qed (force simp: kinding_all_set kinding_variant_set abs_typing_readonly [where s = Unboxed])+
+qed (force simp add: kinding_simps kinding_all_set kinding_variant_set abs_typing_readonly[where s = Unboxed])+
 
 lemma discardable_not_writable:
 assumes "D \<in> k"
 shows "\<lbrakk> \<Xi>, \<sigma> \<turnstile>  v  :u  \<tau>  \<langle> r , w \<rangle>; K \<turnstile>  \<tau>  :\<kappa>  k \<rbrakk> \<Longrightarrow> w = {}"
 and   "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* fs :ur \<tau>s \<langle> r , w \<rangle>; K \<turnstile>* \<tau>s :\<kappa>r k \<rbrakk> \<Longrightarrow> w = {}"
 using assms proof (induct rule: uval_typing_uval_typing_record.inducts)
-qed (force simp: kinding_all_set kinding_variant_set abs_typing_readonly [where s = Unboxed])+
+qed (force simp add: kinding_simps kinding_all_set kinding_variant_set abs_typing_readonly [where s = Unboxed])+
 
 
 lemma discardable_not_writable_all:
 assumes "D \<in> k"
 shows   "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* fs :u \<tau>s \<langle> r , w \<rangle>; K \<turnstile>* \<tau>s :\<kappa> k \<rbrakk> \<Longrightarrow> w = {}"
 proof (induct rule: uval_typing_all.induct)
-qed (auto elim: kinding_all.cases
-          dest: discardable_not_writable [OF assms])
+qed (auto simp add: kinding_simps dest: discardable_not_writable [OF assms])
 
 lemma escapable_no_readers:
 shows   "\<lbrakk> \<Xi> , \<sigma> \<turnstile>  x  :u  \<tau>  \<langle>r, w\<rangle> ; E \<in> k; [] \<turnstile>  \<tau>  :\<kappa>  k \<rbrakk> \<Longrightarrow> r = {}"
@@ -431,14 +425,14 @@ proof (induct arbitrary: k and k rule: uval_typing_uval_typing_record.inducts)
 next
   case (u_t_p_abs_w s ptrl n ts r w \<sigma> l \<Xi>)
   then show ?case using abs_typing_escape[where s=s]
-    by fastforce
+    by (fastforce simp add: kinding_simps)
 qed (fastforce dest!: abs_typing_escape [where s = Unboxed , simplified, rotated -1]
-               simp:  kinding_all_set kinding_variant_set)+
+               simp add: kinding_simps kinding_all_set kinding_variant_set)+
 
 
 lemma map_tprim_kinding:
 shows "[] \<turnstile>* map (TPrim) \<tau>s :\<kappa> {D,S,E}"
-proof (induct \<tau>s) qed (auto intro: kinding_kinding_all_kinding_variant_kinding_record.intros)
+proof (induct \<tau>s) qed (auto simp add: kinding_simps)
 
 lemma tprim_no_pointers:
 assumes "\<Xi> , \<sigma> \<turnstile> v :u TPrim \<tau> \<langle>r, w\<rangle>"
@@ -446,7 +440,7 @@ shows   "r = {}"
 and     "w = {}"
 proof -
   from assms show "w = {}"by (auto intro!: discardable_not_writable(1) [OF _ assms, where k = "{D}"]
-                                           kinding_kinding_all_kinding_variant_kinding_record.intros)
+                                   simp add: kinding_simps)
   from assms show "r = {}"by (auto elim!:  uval_typing.cases)
 qed
 
@@ -534,38 +528,36 @@ by (rule ext, clarsimp simp: bang_idempotent)
 lemma list_all2_bang_type_helper:
  "\<lbrakk> list_all2 (\<lambda>t. op = (type_repr t)) ts rs ; [] \<turnstile>* ts :\<kappa>  k\<rbrakk>
         \<Longrightarrow> list_all2 (\<lambda>t. op = (type_repr t)) (map (bang) ts) rs"
-by (induct rule: list_all2_induct, auto dest: bang_type_repr)
-
+  by (induct rule: list_all2_induct; auto simp add: kinding_simps intro!: bang_type_repr)
 
 lemma bang_type_repr':
 assumes "[] \<turnstile>* ts :\<kappa>r k"
 shows   "(map (type_repr \<circ> fst \<circ> snd \<circ> apsnd (apfst bang)) ts) = (map (type_repr \<circ> fst \<circ> snd) ts)"
-  using assms by (force dest: kinding_record_wellformed intro: bang_type_repr)
-
+  using assms
+  by (fastforce dest: bang_type_repr)
 
 lemma uval_typing_bang:
 shows   "\<Xi>, \<sigma> \<turnstile> v :u \<tau> \<langle>r, w\<rangle> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> v :u bang \<tau> \<langle>r \<union> w, {}\<rangle>"
 and     "\<Xi>, \<sigma> \<turnstile>* vs :ur \<tau>s \<langle>r, w\<rangle> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile>* vs :ur  (map (apsnd (apfst bang)) \<tau>s) \<langle>r \<union> w, {}\<rangle>"
 proof (induct rule: uval_typing_uval_typing_record.inducts)
-  case u_t_product
-  then show ?case by (auto dest: uval_typing_uval_typing_record.u_t_product intro: pointerset_helper)
+  case u_t_product then show ?case
+    by (auto dest: uval_typing_uval_typing_record.u_t_product intro: pointerset_helper)
 next
   case (u_t_sum \<Xi> \<sigma> a t r w g ts rs)
-  moreover have "fst ` set (map (\<lambda>(c, t, b). (c, bang t, b)) ts) = fst ` set ts"
-    by force
-  ultimately show ?case
-  proof (simp, intro uval_typing_uval_typing_record.u_t_sum)
-    show "(g, bang t, Unchecked) \<in> set (map (\<lambda>(c, t, b). (c, bang t, b)) ts)"
-      using u_t_sum.hyps by (force simp add: image_iff)
+  then show ?case
+  proof (clarsimp, intro uval_typing_uval_typing_record.intros)
+    show "[] \<turnstile> TSum (map (\<lambda>(c, t, b). (c, bang t, b)) ts) wellkinded"
+      using u_t_sum
+      by (force dest: bang_kind_tsum)
   next
-    show "[] \<turnstile> TSum (map (\<lambda>(c, t, b). (c, bang t, b)) ts) wellformed"
-      using bang_kind_tsum u_t_sum.hyps by auto
-  next
-    show "map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) ts
-         = map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) (map (\<lambda>(c, t, b). (c, bang t, b)) ts)"
-      using u_t_sum.hyps bang_type_repr
-      by fastforce
+    show "map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) ts = map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) (map (\<lambda>(c, t, b). (c, bang t, b)) ts)"
+      using u_t_sum
+      by (fastforce dest: bang_type_repr)
   qed force+
+next
+  case u_t_abstract then show ?case by (force simp add: kinding_simps dest: bang_kind
+    intro!: uval_typing_uval_typing_record.intros
+    intro: abs_typing_bang[where s = Unboxed, simplified])
 next
   case (u_t_p_rec_ro \<Xi> \<sigma> fs ts r l ptrl)
   moreover have "\<Xi>, \<sigma> \<turnstile> UPtr l (RRecord (map (type_repr \<circ> fst \<circ> snd \<circ> apsnd (apfst bang)) ts)) :u TRecord (map (apsnd (apfst bang)) ts) (Boxed ReadOnly ptrl) \<langle>insert l r, {}\<rangle>"
@@ -599,25 +591,21 @@ next
   case (u_t_r_cons1 \<Xi> \<sigma> x t r w xs ts r' w' rp n)
   have f1: "r \<union> r' \<union> (w \<union> w') = (r \<union> w) \<union> (r' \<union> w')"
     by blast
-
   from u_t_r_cons1
   show ?case
     apply (auto simp: f1 intro!: uval_typing_uval_typing_record.u_t_r_cons1[where w="{}" and w'="{}" and r="r \<union> w" and r'="r' \<union> w'", simplified])
     apply (fastforce dest: bang_type_repr(1) uval_typing_to_kinding(1))+
     done
-  have "\<Xi>, \<sigma> \<turnstile>* (x, type_repr (bang t)) # xs :ur (n, bang t, Present) # map (apsnd (apfst bang)) ts \<langle>r \<union> w \<union> (r' \<union> w'), {}\<rangle>"
-    using u_t_r_cons1 uval_typing_uval_typing_record.u_t_r_cons1[where w="{}" and w'="{}"]
-    by fastforce
-qed (force simp add: map_snd3_keep
-    intro: uval_typing_uval_typing_record.intros
-    bang_kind abs_typing_bang[where s = Unboxed, simplified])+
+next case u_t_r_cons2 then show ?case
+    by (force dest: bang_kind intro!: uval_typing_uval_typing_record.intros intro: bang_type_repr)
+qed (auto simp add: map_snd3_keep intro!: uval_typing_uval_typing_record.intros)
 
 
 lemma u_t_afun_instantiate:
 assumes "list_all2 (kinding K') ts K"
 and     "list_all2 (kinding []) \<delta> K'"
-and     "K \<turnstile> t wellformed"
-and     "K \<turnstile> u wellformed"
+and     "K \<turnstile> t wellkinded"
+and     "K \<turnstile> u wellkinded"
 and     "\<Xi> f = (K, t, u)"
 shows   "\<Xi> , \<sigma> \<turnstile> UAFunction f (map (instantiate \<delta>) ts) :u TFun (instantiate \<delta> (instantiate ts t))
                                                                (instantiate \<delta> (instantiate ts u)) \<langle>{}, {}\<rangle>"
@@ -629,12 +617,12 @@ from assms have "TFun (instantiate \<delta> (instantiate ts t))
            by (force intro: instantiate_instantiate dest: list_all2_lengthD)
 with assms show ?thesis by (force intro: uval_typing_uval_typing_record.intros
                                          list_all2_substitutivity
-                                         kinding_kinding_all_kinding_variant_kinding_record.intros)
+                                  simp add: kinding_simps)
 qed
 
 lemma u_t_function_instantiate:
   assumes "\<Xi>, K, [Some t] \<turnstile> f : u"
-  and     "K \<turnstile> t wellformed"
+  and     "K \<turnstile> t wellkinded"
   and     "list_all2 (kinding []) \<delta> K'"
   assumes "list_all2 (kinding K') ts K"
   shows   "\<Xi> , \<sigma> \<turnstile> UFunction f (map (instantiate \<delta>) ts) :u TFun (instantiate \<delta> (instantiate ts t))
@@ -647,7 +635,7 @@ from assms have "TFun (instantiate \<delta> (instantiate ts t))
            by (force intro: instantiate_instantiate dest: list_all2_lengthD dest!: typing_to_kinding)
 with assms show ?thesis by (force intro: uval_typing_uval_typing_record.intros
                                          list_all2_substitutivity
-                                         kinding_kinding_all_kinding_variant_kinding_record.intros)
+                                  simp add: kinding_simps)
 qed
 
 lemma matches_ptrs_noalias:
@@ -1221,7 +1209,7 @@ proof -
       "(tag, \<tau>1, Unchecked) \<in> set ts"
       "distinct (map fst ts)"
       "[] \<turnstile>* ts :\<kappa>v k"
-    by fast
+    by (fastforce simp add: kinding_simps)
   moreover obtain i
     where tag_at:
       "i < length ts"
@@ -1244,8 +1232,8 @@ proof -
     have "[] \<turnstile>* tagged_list_update tag' (\<tau>, Checked) ts :\<kappa>v k"
       using uval_elim_lemmas tag'_in_ts
       by (blast dest: kinding_variant_downcast)
-    then show "[] \<turnstile> TSum (tagged_list_update tag' (\<tau>, Checked) ts) wellformed"
-      by (auto intro!: kinding_kinding_all_kinding_variant_kinding_record.intros simp add: uval_elim_lemmas)
+    then show "[] \<turnstile> TSum (tagged_list_update tag' (\<tau>, Checked) ts) wellkinded"
+      by (auto simp add: kinding_simps uval_elim_lemmas)
   qed simp+
 qed
 
@@ -1274,7 +1262,7 @@ and  "\<Xi>, \<sigma> \<turnstile>* fs :ur ts \<langle>r, w\<rangle> \<Longright
 lemma uval_typing_record_take:
 assumes "\<Xi>, \<sigma> \<turnstile>* fs :ur \<tau>s \<langle>r, w\<rangle>"
 and     "\<tau>s ! f = (n, \<tau>, Present)"
-and     "[] \<turnstile> \<tau> wellformed"
+and     "[] \<turnstile> \<tau> wellkinded"
 and     "f < length \<tau>s"
 shows   "\<exists>r' w' r'' w''. (\<Xi>, \<sigma> \<turnstile> fst (fs ! f) :u  \<tau>                     \<langle>r' , w' \<rangle>)
                        \<and> (\<Xi>, \<sigma> \<turnstile>* fs          :ur (\<tau>s [f := (n, \<tau>, Taken)]) \<langle>r'', w''\<rangle>)
@@ -1435,7 +1423,7 @@ lemma u_t_p_rec_w':
 
 theorem preservation:
 assumes "list_all2 (kinding []) \<tau>s K"
-and     "proc_ctx_wellformed \<Xi>"
+and     "proc_ctx_wellkinded \<Xi>"
 and     "\<Xi>, \<sigma> \<turnstile> \<gamma> matches (instantiate_ctx \<tau>s \<Gamma>) \<langle>r, w\<rangle>"
 and     "\<xi> matches-u \<Xi>"
 shows   "\<lbrakk> \<xi>, \<gamma> \<turnstile>  (\<sigma>, specialise \<tau>s e) \<Down>! (\<sigma>', v)
@@ -1471,7 +1459,8 @@ next case u_sem_lit       then show ?case by ( cases e, simp_all
 next case u_sem_afun      then show ?case by ( cases e, simp_all
                                              , fastforce intro: u_t_afun_instantiate
                                                                 frame_id
-                                                         dest:  matches_ptrs_proj_consumed)
+                                                         dest:  matches_ptrs_proj_consumed
+                                                         simp add: kinding_simps)
 next
   case (u_sem_fun \<xi> \<gamma> \<sigma> f ts_inst)
   then show ?case
@@ -1487,11 +1476,11 @@ next
         and typing_f': "\<Xi>, K', [Some t] \<turnstile> f' : u"
         and \<Gamma>consumed: "K \<turnstile> \<Gamma> consumed"
         and "list_all2 (kinding K) ts K'"
-        and t_wellformed: "K' \<turnstile>  t :\<kappa>  k"
+        and t_wellkinded: "K' \<turnstile>  t :\<kappa>  k"
       using u_sem_fun Fun is_consumed_def
       by blast
     then have "\<Xi>, \<sigma> \<turnstile> UFunction f' (map (instantiate \<tau>s) ts) :u TFun (instantiate \<tau>s (instantiate ts t)) (instantiate \<tau>s (instantiate ts u)) \<langle>{}, {}\<rangle>"
-      using u_t_function_instantiate typing_f' u_sem_fun(3) t_wellformed
+      using u_t_function_instantiate typing_f' u_sem_fun(3) t_wellkinded
       by fastforce
     moreover have w_is: "w = {}"
       using matches_ptrs_proj_consumed u_sem_fun \<Gamma>consumed
@@ -1592,9 +1581,9 @@ next case (u_sem_con \<xi> \<gamma> \<sigma> x_spec \<sigma>' x' ts_inst tag)
       then show "map (\<lambda>(n, t, _). (n, type_repr t)) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts) = map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts')"
         by (clarsimp simp add: f1)
     next
-      show "[] \<turnstile> TSum (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts') wellformed"
+      show "[] \<turnstile> TSum (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts') wellkinded"
         using typing_elims u_sem_con.prems
-        by (metis substitutivity(1) instantiate.simps(6) type_wellformed_def)
+        by (metis substitutivity(1) instantiate.simps(6) type_wellkinded_def)
     qed simp+
     then show ?thesis
       using r'_sub_r frame_w_w' spec_simps typing_elims
@@ -1853,9 +1842,8 @@ next case u_sem_member
    apply ( frule(5) u_sem_member(2)
          , clarsimp )
    apply ( frule(1) shareable_not_writable
-         , fastforce elim!:  kind_trecE
-                     intro!: kind_trec
-                             substitutivity
+         , fastforce simp add: kinding_simps
+                     intro!: substitutivity
          , clarsimp elim!: u_t_recE)
    apply ( auto dest!: uval_typing_record_nth
          , fastforce )
@@ -1868,9 +1856,8 @@ next case u_sem_memb_b
    apply ( frule(5) u_sem_memb_b(2)
          , clarsimp )
    apply ( frule(1) shareable_not_writable
-         , fastforce elim!:  kind_trecE
-                     intro!: kind_trec
-                             substitutivity
+         , fastforce simp add: kinding_simps
+                     intro!: substitutivity
          , clarsimp)
    apply ( erule u_t_p_recE)
    apply ( auto dest!: uval_typing_record_nth
