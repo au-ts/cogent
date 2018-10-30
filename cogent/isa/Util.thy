@@ -393,6 +393,7 @@ lemma append_filter_fst_eqiv_map_update:
   apply force
   done
 
+
 section {* Tagged List lemmas *}
 
 subsection {* Tagged list update *}
