@@ -866,13 +866,13 @@ type Wordarray_copy_RetT a = WordArray a
 
 wordarray_copy :: Wordarray_copy_ArgT a -> Wordarray_copy_RetT a
 wordarray_copy (dst,src,dst_offs,src_offs,n) =
-  let (0,u_dst) = A.bounds dst
-      (0,u_src) = A.bounds src
-      dst_avl = u_dst + 1 - dst_offs
-      src_avl = u_src + 1 - src_offs
+  let len_dst = fromIntegral $ length dst
+      len_src = fromIntegral $ length src
+      dst_avl = len_dst - dst_offs
+      src_avl = len_src - src_offs
       n' = minimum [n, dst_avl, src_avl]
       src_cpy = genericTake n' . genericDrop src_offs $ A.elems src 
-   in if dst_offs > u_dst - 1 then dst 
+   in if dst_offs > len_dst - 1 then dst 
       else dst A.// zip [dst_offs .. dst_offs + n' - 1] src_cpy
 
 type Wordarray_fold'_ArgT a acc obsv = (WordArray a, (acc, obsv, a) -> acc, acc, obsv)
@@ -894,7 +894,7 @@ type Wordarray_length_ArgT a = WordArray a
 type Wordarray_length_RetT a = Word32
 
 wordarray_length :: Wordarray_length_ArgT a -> Wordarray_length_RetT a
-wordarray_length arr = let (0,u) = A.bounds arr in u + 1
+wordarray_length = fromIntegral . length
 
 type Wordarray_map'_ArgT a acc obsv = (WordArray a, (acc, obsv, a) -> (acc, a), acc, obsv)
 

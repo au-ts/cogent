@@ -192,8 +192,7 @@ abs_OstoreState ostore isize =
 
 abs_Buffer :: C.Buffer -> WordArray U8
 abs_Buffer (C.R8 buf bd) =
-  let (0, u) = bounds buf
-      len = min (u + 1) bd
+  let len = min (fromIntegral $ length buf) bd
       arrElems = genericTake len $ elems buf
    in listArray (0, len - 1) arrElems
 
@@ -202,10 +201,9 @@ rel_fsop_readpage_ret :: Either ErrCode (WordArray U8)
                       -> Bool
 rel_fsop_readpage_ret (Left e_a) (_, C.V34_Error e_c) = e_a == e_c
 rel_fsop_readpage_ret (Right arr_a) (C.R6 _ _ _ (C.R8 data_c bound_c), C.V34_Success ()) =
-  let (l_a, u_a) = bounds arr_a
-      (l_c, u_c) = bounds data_c
-   in u_a == min u_c (bound_c - 1) &&
-      l_a == 0 && l_c == 0 && 
+  let len_a = length arr_a
+      len_c = length data_c
+   in len_a == min len_c (fromIntegral bound_c) &&
       elems arr_a == elems data_c
 rel_fsop_readpage_ret _ _ = False
 
