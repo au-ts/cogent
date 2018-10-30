@@ -36,7 +36,7 @@ import qualified Readpage_Shallow_Desugar_Tuples as C
 import Fsop as Ax
 import Util
 
-import Debug.Trace
+-- import Debug.Trace
 
 -- /////////////////////////////////////////////////////////////////////////////
 --
@@ -93,7 +93,8 @@ gen_fsop_readpage_arg = do
   ino <- arbitrary
   m <- getSmall <$> arbitrary
   isize <- frequency [ (1, pure (m * fromIntegral bilbyFsBlockSize))
-                     , (1, arbitrary) ]  -- FIXME: what's the range of this size?
+                     , (1, fromIntegral <$> (arbitrary :: Gen VfsSize)) ]
+  -- \ ^ NOTE: when this size is too large, it will be extremely slow
   C.R7 <$> pure ()
        <*> gen_FsState ino isize
        <*> gen_VfsInode ino isize
@@ -152,7 +153,7 @@ gen_OSPageOffset isize = do
 gen_Buffer :: Gen C.Buffer
 gen_Buffer = do
   arr <- gen_WordArray_Word8 bilbyFsBlockSize
-  return $ C.R8 arr (bilbyFsBlockSize - 1)
+  return $ C.R8 arr bilbyFsBlockSize
 
 gen_WordArray_Word8 :: Word32 -> Gen (WordArray Word8)
 gen_WordArray_Word8 sz = do 
@@ -170,6 +171,7 @@ abs_fsop_readpage_arg (C.R7 _ fs_st_c vnode_c block_c buf_c) =
    in (afs_a, vnode_a, block_a, buf_a)
 
 -- We know that all entries have the same inode number from the generator
+-- This algorithm is extremely slow, when @isize@ is too large
 abs_OstoreState :: C.OstoreState -> C.VfsSize -> AfsState
 abs_OstoreState ostore isize =
   let ostore' = M.toList ostore
@@ -177,21 +179,21 @@ abs_OstoreState ostore isize =
                  let C.R28 _ _ _ _ _ _ _ ounion = obj
                      C.V29_TObjData (C.R30 _ odata) = ounion
                      ino = inum_from_obj_id oid
-                     blk = oid Data.Bits..&. 2047  -- lower 11 bits
+                     blk = oid Data.Bits..&. 0x1fffffff  -- lower 29 bits
                   in (ino, blk, odata)
       ino = sel1 $ head tuples
       numOfBlk = ceiling (fromInteger (fromIntegral isize) / fromInteger (fromIntegral bilbyFsBlockSize))
       all0 = listArray (0, bilbyFsBlockSize - 1) (replicate (fromIntegral bilbyFsBlockSize) 0)
       base = map (\idx -> (idx, all0)) [0 .. numOfBlk - 1]
-      pages = M.fromList base `M.union` (M.fromList $ map (\(_,b,c) -> (b,c)) tuples)
+      pages = (M.fromList $ map (\(_,b,c) -> (b,c)) tuples) `M.union` M.fromList base 
    in M.fromList [(ino, M.elems pages)]
 
 abs_Buffer :: C.Buffer -> WordArray U8
 abs_Buffer (C.R8 buf bd) =
   let (0, u) = bounds buf
-      u' = min u bd + 1
-      arrElems = genericTake u' $ elems buf
-   in listArray (0, u'-1) arrElems
+      len = min (u + 1) bd
+      arrElems = genericTake len $ elems buf
+   in listArray (0, len - 1) arrElems
 
 rel_fsop_readpage_ret :: Either ErrCode (WordArray U8)
                       -> C.Fsop_readpage_RetT
@@ -200,8 +202,7 @@ rel_fsop_readpage_ret (Left e_a) (_, C.V34_Error e_c) = e_a == e_c
 rel_fsop_readpage_ret (Right arr_a) (C.R6 _ _ _ (C.R8 data_c bound_c), C.V34_Success ()) =
   let (l_a, u_a) = bounds arr_a
       (l_c, u_c) = bounds data_c
-   in trace ("arr_a = " ++ show (take 20 $ elems arr_a) ++ "\narr_c = " ++ show (take 20 $ elems data_c)) $
-      u_a == min u_c bound_c &&
+   in u_a == min u_c (bound_c - 1) &&
       l_a == 0 && l_c == 0 && 
       elems arr_a == elems data_c
 rel_fsop_readpage_ret _ _ = False
@@ -219,7 +220,7 @@ for = flip map
 -- top level
 
 main = do
-  r <- quickCheckWithResult (stdArgs { chatty = False, maxSuccess = 500, maxSize = 30 }) prop_corres_fsop_readpage
+  r <- quickCheckWithResult (stdArgs { chatty = True, maxSuccess = 500, maxSize = 40 }) prop_corres_fsop_readpage
   case r of Qc.Success {} -> putStrLn "Passed!"
             _ -> putStrLn $ "Failed!"
 

@@ -22,9 +22,9 @@ import qualified Test.QuickCheck as Q
 import qualified Data.Array as A
 import qualified Fsop as Ax
 import qualified Data.Map as M
-import Data.List (minimum, genericDrop, genericTake)
+import Data.List (minimum, genericDrop, genericTake, length, drop)
 
-import Debug.Trace
+-- import Debug.Trace
 
 data R0 t1 t2 = R0{ex :: t1, obj :: t2}
                   deriving Show
@@ -868,11 +868,12 @@ wordarray_copy :: Wordarray_copy_ArgT a -> Wordarray_copy_RetT a
 wordarray_copy (dst,src,dst_offs,src_offs,n) =
   let (0,u_dst) = A.bounds dst
       (0,u_src) = A.bounds src
-      dst_avl = u_dst - 1 - dst_offs
-      src_avl = u_src - 1 - src_offs
+      dst_avl = u_dst + 1 - dst_offs
+      src_avl = u_src + 1 - src_offs
       n' = minimum [n, dst_avl, src_avl]
-      src_cpy = genericTake n' . genericDrop (src_offs - 1) $ A.elems src 
-   in dst A.// zip [dst_offs .. dst_offs + n'] src_cpy
+      src_cpy = genericTake n' . genericDrop src_offs $ A.elems src 
+   in if dst_offs > u_dst - 1 then dst 
+      else dst A.// zip [dst_offs .. dst_offs + n' - 1] src_cpy
 
 type Wordarray_fold'_ArgT a acc obsv = (WordArray a, (acc, obsv, a) -> acc, acc, obsv)
 
@@ -893,7 +894,7 @@ type Wordarray_length_ArgT a = WordArray a
 type Wordarray_length_RetT a = Word32
 
 wordarray_length :: Wordarray_length_ArgT a -> Wordarray_length_RetT a
-wordarray_length arr = let (0,u) = A.bounds arr in u - 1
+wordarray_length arr = let (0,u) = A.bounds arr in u + 1
 
 type Wordarray_map'_ArgT a acc obsv = (WordArray a, (acc, obsv, a) -> (acc, a), acc, obsv)
 
@@ -925,7 +926,7 @@ wordarray_set (arr, frm, n, a) =
   let len = wordarray_length arr
       frm' = if frm >= len then len else frm
       to'  = if frm + n > len then len else frm + n
-   in arr A.// (zip [frm' .. to'] (repeat a))
+   in arr A.// (zip [frm' .. to' - 1] (repeat a))
 
 type Wordarray_split_ArgT a = (WordArray a, Word32)
 
