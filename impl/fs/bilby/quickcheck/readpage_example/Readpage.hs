@@ -135,7 +135,7 @@ gen_ObjUnion_Data = C.V29_TObjData <$> gen_ObjData
 -- In fact, the buffers in ObjData can be smaller than the max size, then the abs
 -- function @abs_OstoreState@ will do more work to pad the smaller ones.
 gen_ObjData :: Gen C.ObjData
-gen_ObjData = C.R30 <$> arbitrary <*> (gen_WordArray_Word8 =<< pure bilbyFsBlockSize)
+gen_ObjData = C.R30 <$> arbitrary <*> (gen_WordArray_Word8 =<< choose (1, bilbyFsBlockSize))
 
 gen_VfsInode :: C.VfsIno -> C.VfsSize -> Gen C.VfsInode
 gen_VfsInode ino isize = C.R20 <$> gen_VfsInodeAbstract ino isize <*> (C.R21 <$> arbitrary)
@@ -172,8 +172,6 @@ abs_fsop_readpage_arg (C.R7 _ fs_st_c vnode_c block_c buf_c) =
       afs_a = abs_OstoreState ostore_c isize
    in (afs_a, vnode_a, block_a, buf_a)
 
--- We know that all entries have the same inode number from the generator
--- This algorithm is extremely slow, when @isize@ is too large
 abs_OstoreState :: C.OstoreState -> C.VfsSize -> AfsState
 abs_OstoreState ostore isize =
   let ostore' = M.toList ostore
@@ -188,7 +186,13 @@ abs_OstoreState ostore isize =
       all0 = listArray (0, bilbyFsBlockSize - 1) (replicate (fromIntegral bilbyFsBlockSize) 0)
       base = map (\idx -> (idx, all0)) [0 .. numOfBlk - 1]
       pages = (M.fromList $ map (\(_,b,c) -> (b,c)) tuples) `M.union` M.fromList base 
-   in M.fromList [(ino, M.elems pages)]
+      pages' = M.map (\page -> if fromIntegral (length page) < bilbyFsBlockSize then pad page else page) pages
+   in M.fromList [(ino, M.elems pages')]
+  where
+    pad :: WordArray U8 -> WordArray U8
+    pad arr = let elems' = elems arr ++ repeat 0
+               in listArray (0, bilbyFsBlockSize - 1) elems'
+
 
 abs_Buffer :: C.Buffer -> WordArray U8
 abs_Buffer (C.R8 buf bd) =
