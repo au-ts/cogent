@@ -132,6 +132,8 @@ gen_Obj = C.R28 <$> arbitrary  -- magic
 gen_ObjUnion_Data :: Gen C.ObjUnion
 gen_ObjUnion_Data = C.V29_TObjData <$> gen_ObjData
 
+-- In fact, the buffers in ObjData can be smaller than the max size, then the abs
+-- function @abs_OstoreState@ will do more work to pad the smaller ones.
 gen_ObjData :: Gen C.ObjData
 gen_ObjData = C.R30 <$> arbitrary <*> (gen_WordArray_Word8 =<< pure bilbyFsBlockSize)
 
