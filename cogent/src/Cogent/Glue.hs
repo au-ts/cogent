@@ -36,6 +36,7 @@ module Cogent.Glue where
 import qualified Cogent.C.Compile as CG
 import qualified Cogent.C.Render  as CG
 import qualified Cogent.C.Syntax  as CG
+import qualified Cogent.C.GenState as CG
 import           Cogent.Common.Syntax
 import           Cogent.Common.Types
 import           Cogent.Compiler
