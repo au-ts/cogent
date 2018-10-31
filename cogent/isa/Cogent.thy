@@ -1097,17 +1097,13 @@ next
 qed auto
 
 lemma bang_kind:
-shows "K \<turnstile>  t  :\<kappa> k \<Longrightarrow> K \<turnstile> bang t :\<kappa> {D, S}"
-and   "K \<turnstile>* ts :\<kappa> k \<Longrightarrow> K \<turnstile>* map bang ts :\<kappa> {D, S}"
-and   "K \<turnstile>* xs :\<kappa>v k \<Longrightarrow> K \<turnstile>* map (\<lambda>(n,t,b). (n, bang t, b)) xs :\<kappa>v {D, S}"
-and   "K \<turnstile>* fs :\<kappa>r k \<Longrightarrow> K \<turnstile>* map (\<lambda>(n,t,b). (n, bang t, b)) fs :\<kappa>r {D, S}"
+shows "K \<turnstile>  t  wellformed \<Longrightarrow> K \<turnstile> bang t :\<kappa> {D, S}"
+and   "K \<turnstile>* ts wellformed \<Longrightarrow> K \<turnstile>* map bang ts :\<kappa> {D, S}"
+and   "K \<turnstile>* map (fst \<circ> snd) xs wellformed \<Longrightarrow> K \<turnstile>* map (\<lambda>(n,t,b). (n, bang t, b)) xs :\<kappa>v {D, S}"
+and   "K \<turnstile>* map (fst \<circ> snd) fs wellformed \<Longrightarrow> K \<turnstile>* map (\<lambda>(n,t,b). (n, bang t, b)) fs :\<kappa>r {D, S}"
   using bang_wellformed bang_kinding_fn
   by (fastforce simp add: kinding_defs INT_subset_iff simp del: insert_subset
       split: variant_state.split record_state.split)+
-
-lemma bang_kind_tsum:
-  shows "K \<turnstile> TSum ts :\<kappa> k \<Longrightarrow> K \<turnstile> TSum (map (\<lambda>(c, t, b). (c, bang t, b)) ts) :\<kappa> {D, S}"
-  using bang_kind(1) by fastforce
 
 section {* Typing lemmas *}
 
