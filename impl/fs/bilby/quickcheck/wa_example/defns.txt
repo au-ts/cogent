@@ -7,6 +7,7 @@ modify_body_f
 wordarray_put_u8
 wordarray_length_u8
 wordarray_clone_u8
+wordarray_copy_u8
 wordarray_map_u8
 map_body_f
 map_body_g

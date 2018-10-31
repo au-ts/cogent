@@ -34,6 +34,7 @@ import Data.Array.IO hiding (newArray)
 import Data.Either.Extra  -- extra-1.6
 -- import Data.Function
 import Data.Ix
+import Data.List (genericDrop, genericTake)
 -- import Data.Set as S
 import Foreign hiding (void)
 import Foreign.C.String hiding (CString)
@@ -132,6 +133,17 @@ hs_wordarray_clone :: (?o :: O) => WordArray e -> Maybe (WordArray e)
 hs_wordarray_clone xs
   | o_mallocFail = Nothing
   | otherwise    = Just xs
+
+hs_wordarray_copy :: WordArray e -> WordArray e -> Word32 -> Word32 -> Word32 -> WordArray e
+hs_wordarray_copy dst src dst_offs src_offs n =
+  let len_dst = fromIntegral $ length dst
+      len_src = fromIntegral $ length src
+      dst_avl = len_dst - dst_offs
+      src_avl = len_src - src_offs
+      n' = minimum [n, dst_avl, src_avl]
+      src_cpy = genericTake n' . genericDrop src_offs $ elems src 
+   in if dst_offs > len_dst - 1 then dst 
+      else dst // zip [dst_offs .. dst_offs + n' - 1] src_cpy
 
 hs_wordarray_map :: WordArray e
                  -> (e -> e)
@@ -244,9 +256,7 @@ prop_corres_wordarray_get_bounded_u8' = monadicIO $
         oa = hs_wordarray_get_bounded @ Word8 arr idx'
     bracket (mk_c_wordarray_get_bounded_u8_arg (elems,idx))
             (\ic -> do Ct2 parr _ <- peek ic
-                       CWordArray_u8 _ pvalues <- peek parr
-                       free pvalues
-                       free parr)
+                       free_CWordArray_u8 parr)
             (\ic -> do oc <- cogent_wordarray_get_bounded_u8 ic
                        corresM' rel_wordarray_get_bounded_u8_ret oa oc)
 
@@ -309,6 +319,12 @@ rel_wordarray_get_bounded_u8_ret oa oc = do
          return $ fromIntegral a == suc
      | otherwise -> return False
 
+free_CWordArray_u8 :: Ptr CWordArray_u8 -> IO ()
+free_CWordArray_u8 parr = do
+  CWordArray_u8 _ pvalues <- peek parr
+  free pvalues
+  free parr
+
 
 -- /////////////////////////////////////////////////////////////////////////////
 --
@@ -321,9 +337,7 @@ prop_corres_wordarray_put_u8 = monadicIO $
         oa = hs_wordarray_put @ Word8 arr idx a
     bracket (mk_c_wordarray_put_u8_arg args)
             (\ic -> do Ct8 parr _ _ <- peek ic
-                       CWordArray_u8 _ pvalues <- peek parr
-                       free pvalues
-                       free parr)
+                       free_CWordArray_u8 parr)
             (\ic -> do oc <- cogent_wordarray_put_u8 ic
                        corresM' rel_wordarray_put_u8_ret oa oc)
 
@@ -355,6 +369,47 @@ rel_wordarray_put_u8_ret oa oc = do
 
 -- /////////////////////////////////////////////////////////////////////////////
 --
+-- * Testing @wordarray_copy@
+
+prop_corres_wordarray_copy_u8 :: Property
+prop_corres_wordarray_copy_u8 = monadicIO $
+  forAllM gen_wordarray_copy_u8_arg' $ \args -> run $ do
+    let (dst,src,idx_dst,idx_src,len) = mk_hs_wordarray_copy_u8_arg args
+        oa = hs_wordarray_copy dst src idx_dst idx_src len
+    bracket (mk_c_wordarray_copy_u8_arg args)
+            (\ic -> do Ct1 pdst psrc _ _ _ <- peek ic
+                       free_CWordArray_u8 pdst
+                       free_CWordArray_u8 psrc)
+            (\ic -> do oc <- cogent_wordarray_copy_u8 ic
+                       corresM' rel_wordarray_u8 oa oc)
+
+gen_wordarray_copy_u8_arg' :: Gen ([Word8], [Word8], Word32, Word32, Word32)
+gen_wordarray_copy_u8_arg' = do
+  l_dst <- choose (1, 20) :: Gen Word32
+  l_src <- choose (1, 20) :: Gen Word32
+  dst <- vector $ fromIntegral l_dst
+  src <- vector $ fromIntegral l_src
+  idx_dst <- choose (0, 19)
+  idx_src <- choose (0, 19)
+  len <- choose (0, 9)
+  return (dst, src, idx_dst, idx_src, len)
+
+mk_hs_wordarray_copy_u8_arg :: ([Word8], [Word8], Word32, Word32, Word32)
+                            -> (WordArray Word8, WordArray Word8, Word32, Word32, Word32)
+mk_hs_wordarray_copy_u8_arg (dst, src, idx_dst, idx_src, len) =
+  let arr_dst = listArray (0, fromIntegral (length dst) - 1) dst
+      arr_src = listArray (0, fromIntegral (length src) - 1) src
+   in (arr_dst, arr_src, idx_dst, idx_src, len)
+
+mk_c_wordarray_copy_u8_arg :: ([Word8], [Word8], Word32, Word32, Word32) -> IO (Ptr Ct1)
+mk_c_wordarray_copy_u8_arg (dst, src, idx_dst, idx_src, len) = do
+  p_dst <- mk_c_wordarray_u8 dst
+  p_src <- mk_c_wordarray_u8 src
+  new $ Ct1 p_dst p_src (fromIntegral idx_dst) (fromIntegral idx_src) (fromIntegral len)
+
+
+-- /////////////////////////////////////////////////////////////////////////////
+--
 -- * Testing @wordarray_modify@
 
 prop_corres_wordarray_modify_u8 :: Property
@@ -364,9 +419,7 @@ prop_corres_wordarray_modify_u8 = monadicIO $
         oa = hs_wordarray_modify arr idx f acc obsv
     bracket (mk_c_wordarray_modify_u8_arg args)
             (\ic -> do Ct13 parr _ _ _ _ <- peek ic
-                       CWordArray_u8 _ pvalues <- peek parr
-                       free pvalues
-                       free parr)
+                       free_CWordArray_u8 parr)
             (\ic -> do oc <- cogent_wordarray_modify_u8 ic
                        corresM' rel_wordarray_modify_u8_ret oa oc)
 
@@ -402,6 +455,7 @@ rel_wordarray_modify_u8_ret (hs_arr, hs_acc) oc = do
   barr <- rel_wordarray_u8 hs_arr c_arr
   return $ barr && (fromIntegral hs_acc == c_acc)
 
+
 -- /////////////////////////////////////////////////////////////////////////////
 --
 -- * Testing @wordarray_map@
@@ -413,9 +467,7 @@ prop_corres_wordarray_map_u8 = monadicIO $
         oa = hs_wordarray_map arr f
     bracket (mk_c_wordarray_map_u8_arg args)
             (\ic -> do Ct4 parr _ <- peek ic
-                       CWordArray_u8 _ pvalues <- peek parr
-                       free pvalues
-                       free parr)
+                       free_CWordArray_u8 parr)
             (\ic -> do oc <- cogent_wordarray_map_u8 ic
                        corresM' rel_wordarray_u8 oa oc)
 

@@ -42,6 +42,7 @@ enum untyped_func_enum {
     FUN_ENUM_wordarray_clone_0,
     FUN_ENUM_wordarray_clone_u8,
     FUN_ENUM_wordarray_copy_0,
+    FUN_ENUM_wordarray_copy_u8,
     FUN_ENUM_wordarray_create_0,
     FUN_ENUM_wordarray_create_nz_0,
     FUN_ENUM_wordarray_create_nz_u8,
@@ -176,6 +177,8 @@ u8 *ffi_map_body_g(u8 *);
 __attribute__((const)) u8 map_body_g(u8);
 u8 *ffi_map_body_f(u8 *);
 __attribute__((const)) u8 map_body_f(u8);
+WordArray_u8 *ffi_wordarray_copy_u8(t1 *);
+WordArray_u8 *wordarray_copy_u8(t1);
 u32 *ffi_wordarray_length_u8(WordArray_u8 *);
 __attribute__((pure)) u32 wordarray_length_u8(WordArray_u8 *);
 WordArray_u8 *ffi_wordarray_map_u8(t4 *);
@@ -213,7 +216,14 @@ static inline u32 dispatch_t16(untyped_func_enum a2, WordArray_u8 *a3)
 }
 static inline WordArray_u8 *dispatch_t17(untyped_func_enum a2, t1 a3)
 {
-    return wordarray_copy_0(a3);
+    switch (a2) {
+        
+      case FUN_ENUM_wordarray_copy_0:
+        return wordarray_copy_0(a3);
+        
+      default:
+        return wordarray_copy_u8(a3);
+    }
 }
 static inline t11 dispatch_t12(untyped_func_enum a2, t10 a3)
 {
@@ -332,6 +342,8 @@ typedef t5 wordarray_clone_u8_arg;
 typedef t7 wordarray_clone_u8_ret;
 typedef t1 wordarray_copy_0_arg;
 typedef WordArray_u8 *wordarray_copy_0_ret;
+typedef t1 wordarray_copy_u8_arg;
+typedef WordArray_u8 *wordarray_copy_u8_ret;
 typedef t6 wordarray_create_0_arg;
 typedef t7 wordarray_create_0_ret;
 typedef t6 wordarray_create_nz_0_arg;
@@ -469,6 +481,21 @@ __attribute__((const)) u8 map_body_f(u8 a1)
     u8 r4 = (u8) ((u32) r2 + (u32) r3);
     
     return r4;
+}
+WordArray_u8 *ffi_wordarray_copy_u8(t1 *a4)
+{
+    WordArray_u8 *r5;
+    
+    ;
+    r5 = wordarray_copy_u8(*a4);
+    return r5;
+}
+WordArray_u8 *wordarray_copy_u8(t1 a1)
+{
+    t1 r2 = a1;
+    WordArray_u8 *r3 = wordarray_copy_0(r2);
+    
+    return r3;
 }
 u32 *ffi_wordarray_length_u8(WordArray_u8 *a4)
 {

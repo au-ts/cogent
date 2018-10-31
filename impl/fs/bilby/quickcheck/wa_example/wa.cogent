@@ -32,6 +32,9 @@ wordarray_length_u8 arg = wordarray_length [U8] arg
 wordarray_clone_u8 : (SysState, (WordArray U8)!) -> R (SysState, WordArray U8) SysState
 wordarray_clone_u8 arg = wordarray_clone [U8] arg
 
+wordarray_copy_u8 : (WordArray U8, (WordArray U8)!, WordArrayIndex, WordArrayIndex, U32)
+                  -> WordArray U8
+wordarray_copy_u8 arg = wordarray_copy [U8] arg
 
 wordarray_map_u8 : (WordArray U8, U8 -> U8) -> WordArray U8
 wordarray_map_u8 arg = wordarray_map_ [U8] arg
