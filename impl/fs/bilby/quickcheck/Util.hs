@@ -2,10 +2,13 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Util where
 
+import Control.Lens hiding (elements)
 import Foreign
 import Foreign.C.Types
 -- import QuickCheck.GenT (GenT(..), runGenT)
@@ -13,6 +16,17 @@ import Test.QuickCheck
 import Test.QuickCheck.Arbitrary
 import Test.QuickCheck.Gen
 import Test.QuickCheck.Monadic
+
+
+data O = O { _mallocFail :: Bool } deriving (Show)
+
+makeLenses ''O
+
+o_allGood :: O
+o_allGood = O False
+
+o_mallocFail :: (?o :: O) => Bool
+o_mallocFail = ?o^.mallocFail
 
 newtype Flip f (a :: a') (b :: b') = Flip { unflip :: f b a }
 

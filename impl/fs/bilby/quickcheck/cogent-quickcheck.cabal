@@ -64,6 +64,7 @@ library cogent-quickcheck-utils
   -- Other library packages from which modules are imported.
   build-depends:       base >=4.9 && <4.12
                      , extra
+                     , lens
                      , QuickCheck
                      -- , QuickCheck-GenT
 

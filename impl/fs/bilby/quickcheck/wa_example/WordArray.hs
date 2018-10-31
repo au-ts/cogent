@@ -4,13 +4,14 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
+{-# LANGUAGE ImplicitParams #-}
+{- LANGUAGE ImplicitPrelude #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {- LANGUAGE RebindableSyntax #-}
-{- LANGUAGE ImplicitPrelude #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {- LANGUAGE StandaloneDeriving #-}
@@ -70,28 +71,28 @@ To run the REPL:
 -- | The Haskell type for wordarrays
 type WordArray e = Array Word32 e
 
+
 empty_array :: WordArray e
 empty_array = array (0, 0) []
 
-hs_wordarray_create :: Word32 -> CogentMonad (Maybe (WordArray e))
-hs_wordarray_create 0 = (return $ Nothing)
-hs_wordarray_create l = (return $ Just (array (0, l-1) []))  -- elements will be undefined
-                          <|>
-                        (return $ Nothing)
+hs_wordarray_create :: (?o :: O) => Word32 -> Maybe (WordArray e)
+hs_wordarray_create 0 = Nothing
+hs_wordarray_create l
+  | o_mallocFail = Nothing
+  | otherwise    = Just (array (0, l-1) [])  -- elements will be undefined
 
-hs_wordarray_create_nz :: (Integral e) => Word32 -> CogentMonad (Maybe (WordArray e))
-hs_wordarray_create_nz 0 = (return $ Nothing)
-hs_wordarray_create_nz l = (return $ Just (array (0, l-1) [(i,v) | i <- [0..l-1], v <- [0]]))
-                             <|> 
-                           (return $ Nothing)
+hs_wordarray_create_nz :: (Integral e, ?o :: O) => Word32 -> Maybe (WordArray e)
+hs_wordarray_create_nz 0 = Nothing
+hs_wordarray_create_nz l
+  | o_mallocFail = Nothing
+  | otherwise    = Just (array (0, l-1) [(i,v) | i <- [0..l-1], v <- [0]])
 
-hs_wordarray_free :: WordArray e -> CogentMonad ()
-hs_wordarray_free _ = return ()
+hs_wordarray_free :: WordArray e -> ()
+hs_wordarray_free _ = ()
 
-hs_wordarray_get_bounded :: Integral e => WordArray e -> Word32 -> CogentMonad (Maybe e)
-hs_wordarray_get_bounded xs i = return $
-    if i `is_inbound` xs then Just $ xs ! i
-                         else Nothing
+hs_wordarray_get_bounded :: Integral e => WordArray e -> Word32 -> Maybe e
+hs_wordarray_get_bounded xs i = 
+  if i `is_inbound` xs then Just $ xs ! i else Nothing
 
 is_inbound :: Word32 -> WordArray e -> Bool
 is_inbound i xs = case bounds xs of (l,u) -> l <= i && i <= u
@@ -101,12 +102,12 @@ hs_wordarray_modify :: WordArray e
                     -> ((e, acc, obsv) -> (e, acc))
                     -> acc
                     -> obsv
-                    -> CogentMonad (WordArray e, acc)
+                    -> (WordArray e, acc)
 hs_wordarray_modify xs i f acc obsv
   | i `is_inbound` xs = 
       let (e',acc') = f (xs ! i, acc, obsv)
-       in return (xs // [(i, e')], acc')
-  | otherwise = return (xs, acc)                          
+       in (xs // [(i, e')], acc')
+  | otherwise = (xs, acc)                          
 
 -- | __NOTE__: We also need to specify all inner functions used. As on the Cogent
 -- side, due to the way higher-order function calls are made, we cannot generate
@@ -120,20 +121,22 @@ hs_modify_body_f :: (Word8, Word8, Bool) -> (Word8, Word8)
 hs_modify_body_f (e, acc, obsv) =
   if obsv then (e + acc, e + acc) else (e, acc)
 
-hs_wordarray_put :: WordArray e -> Word32 -> e -> CogentMonad (Either (WordArray e) (WordArray e))
-hs_wordarray_put xs i _ | not (i `is_inbound` xs) = return $ Left xs
-hs_wordarray_put xs i a = return $ Right $ xs // [(i,a)]
+hs_wordarray_put :: WordArray e -> Word32 -> e -> Either (WordArray e) (WordArray e)
+hs_wordarray_put xs i _ | not (i `is_inbound` xs) = Left xs
+hs_wordarray_put xs i a = Right $ xs // [(i,a)]
 
-hs_wordarray_length :: WordArray e -> CogentMonad Word32
-hs_wordarray_length = return . fromIntegral . length
+hs_wordarray_length :: WordArray e -> Word32
+hs_wordarray_length = fromIntegral . length
 
-hs_wordarray_clone :: WordArray e -> CogentMonad (Maybe (WordArray e))
-hs_wordarray_clone xs = (return $ Just xs) <|> (return Nothing)
+hs_wordarray_clone :: (?o :: O) => WordArray e -> Maybe (WordArray e)
+hs_wordarray_clone xs
+  | o_mallocFail = Nothing
+  | otherwise    = Just xs
 
 hs_wordarray_map :: WordArray e
                  -> (e -> e)
-                 -> CogentMonad (WordArray e)
-hs_wordarray_map xs f = return $ fmap f xs
+                 -> WordArray e
+hs_wordarray_map xs f = fmap f xs
 
 hs_map_body_f = (+1)
 hs_map_body_g = (*2)
@@ -143,18 +146,19 @@ hs_map_body_g = (*2)
 -- * Testing @wordarray_create@.
 
 prop_corres_wordarray_create_u8 :: Property
-prop_corres_wordarray_create_u8 = monadicIO $
-  forAllM gen_c_wordarray_create_u8_arg $ \ic -> run $ do
-    oa <- hs_wordarray_create @ Word8 <$> abs_wordarray_create_u8_arg ic
-    bracket (cogent_wordarray_create_u8 ic)
-            (\oc -> do Ct7 tag err suc <- peek oc
-                       if | fromEnum tag == fromEnum tagEnumError -> return ()
-                          | fromEnum tag == fromEnum tagEnumSuccess -> do 
-                              psuc <- new suc
-                              cogent_wordarray_free_u8 psuc
-                              return ()
-                          | otherwise -> fail "impossible")
-            (\oc -> corresM rel_wordarray_create_u8_ret oa oc)
+prop_corres_wordarray_create_u8 = 
+  forAll (pure o_allGood) $ \o -> let ?o = o in 
+    monadicIO $ forAllM gen_c_wordarray_create_u8_arg $ \ic -> run $ do
+      oa <- hs_wordarray_create @ Word8 <$> abs_wordarray_create_u8_arg ic
+      bracket (cogent_wordarray_create_u8 ic)
+              (\oc -> do Ct7 tag err suc <- peek oc
+                         if | fromEnum tag == fromEnum tagEnumError -> return ()
+                            | fromEnum tag == fromEnum tagEnumSuccess -> do 
+                                psuc <- new suc
+                                cogent_wordarray_free_u8 psuc
+                                return ()
+                            | otherwise -> fail "impossible")
+              (\oc -> corresM' rel_wordarray_create_u8_ret oa oc)
 
 gen_c_wordarray_create_u8_arg :: Gen (Ptr Ct6)
 gen_c_wordarray_create_u8_arg = do
@@ -180,18 +184,19 @@ rel_wordarray_create_u8_ret oa oc = do
 -- * Testing @wordarray_create_nz@
 
 prop_corres_wordarray_create_nz_u8 :: Property
-prop_corres_wordarray_create_nz_u8 = monadicIO $
-  forAllM gen_c_wordarray_create_nz_u8_arg $ \ic -> run $ do
-    oa <- hs_wordarray_create_nz @ Word8 <$> abs_wordarray_create_nz_u8_arg ic
-    bracket (cogent_wordarray_create_nz_u8 ic)
-            (\oc -> do Ct7 tag err suc <- peek oc
-                       if | fromEnum tag == fromEnum tagEnumError -> return ()
-                          | fromEnum tag == fromEnum tagEnumSuccess -> do 
-                              psuc <- new suc
-                              cogent_wordarray_free_u8 psuc
-                              return ()
-                          | otherwise -> fail "impossible")
-            (\oc -> corresM rel_wordarray_create_nz_u8_ret oa oc)
+prop_corres_wordarray_create_nz_u8 = 
+  forAll (pure o_allGood) $ \o -> let ?o = o in
+    monadicIO $ forAllM gen_c_wordarray_create_nz_u8_arg $ \ic -> run $ do
+      oa <- hs_wordarray_create_nz @ Word8 <$> abs_wordarray_create_nz_u8_arg ic
+      bracket (cogent_wordarray_create_nz_u8 ic)
+              (\oc -> do Ct7 tag err suc <- peek oc
+                         if | fromEnum tag == fromEnum tagEnumError -> return ()
+                            | fromEnum tag == fromEnum tagEnumSuccess -> do 
+                                psuc <- new suc
+                                cogent_wordarray_free_u8 psuc
+                                return ()
+                            | otherwise -> fail "impossible")
+              (\oc -> corresM' rel_wordarray_create_nz_u8_ret oa oc)
 
 gen_c_wordarray_create_nz_u8_arg :: Gen (Ptr Ct6)
 gen_c_wordarray_create_nz_u8_arg = gen_c_wordarray_create_u8_arg
@@ -230,7 +235,7 @@ prop_corres_wordarray_get_bounded_u8 = monadicIO $
                        CWordArray_u8 _ pvalues <- peek parr
                        free pvalues
                        free parr)
-            (\_ -> corresM rel_wordarray_get_bounded_u8_ret oa oc)
+            (\_ -> corresM' rel_wordarray_get_bounded_u8_ret oa oc)
 
 prop_corres_wordarray_get_bounded_u8' :: Property
 prop_corres_wordarray_get_bounded_u8' = monadicIO $
@@ -243,7 +248,7 @@ prop_corres_wordarray_get_bounded_u8' = monadicIO $
                        free pvalues
                        free parr)
             (\ic -> do oc <- cogent_wordarray_get_bounded_u8 ic
-                       corresM rel_wordarray_get_bounded_u8_ret oa oc)
+                       corresM' rel_wordarray_get_bounded_u8_ret oa oc)
 
 -- NOTE: length can't be 0. Otherwise segfault. / zilinc
 gen_c_wordarray_get_bounded_u8_arg :: Gen (Ptr Ct2)
@@ -320,7 +325,7 @@ prop_corres_wordarray_put_u8 = monadicIO $
                        free pvalues
                        free parr)
             (\ic -> do oc <- cogent_wordarray_put_u8 ic
-                       corresM rel_wordarray_put_u8_ret oa oc)
+                       corresM' rel_wordarray_put_u8_ret oa oc)
 
 gen_wordarray_put_u8_arg' :: Gen ([Word8], Word32, Word8)
 gen_wordarray_put_u8_arg' = do
@@ -363,7 +368,7 @@ prop_corres_wordarray_modify_u8 = monadicIO $
                        free pvalues
                        free parr)
             (\ic -> do oc <- cogent_wordarray_modify_u8 ic
-                       corresM rel_wordarray_modify_u8_ret oa oc)
+                       corresM' rel_wordarray_modify_u8_ret oa oc)
 
 gen_wordarray_modify_u8_arg' :: Gen ([Word8], Word32, Int, Word8, Bool)
 gen_wordarray_modify_u8_arg' = do
@@ -412,7 +417,7 @@ prop_corres_wordarray_map_u8 = monadicIO $
                        free pvalues
                        free parr)
             (\ic -> do oc <- cogent_wordarray_map_u8 ic
-                       corresM rel_wordarray_u8 oa oc)
+                       corresM' rel_wordarray_u8 oa oc)
 
 gen_wordarray_map_u8_arg' :: Gen ([Word8], Int)
 gen_wordarray_map_u8_arg' = do
@@ -445,13 +450,13 @@ prop_wordarray_get_put =
   forAll (choose (0, 2 * fromIntegral len)) $ \idx ->
   forAll (arbitrary :: Gen Word8) $ \val ->
     let arr = listArray (0, fromIntegral len - 1) elems
-     in and $ do r <- hs_wordarray_put arr idx val
-                 if | idx < fromIntegral len, Right arr' <- r -> do
-                        Just val' <- hs_wordarray_get_bounded arr' idx
-                        return $ val == val'
-                    | idx >= fromIntegral len, Left arr' <- r -> 
-                        return $ arr' == arr
-                    | otherwise -> return False
+        r = hs_wordarray_put arr idx val
+     in if | idx < fromIntegral len, Right arr' <- r ->
+               let Just val' = hs_wordarray_get_bounded arr' idx
+                in val == val'
+           | idx >= fromIntegral len, Left arr' <- r -> 
+               arr' == arr
+           | otherwise -> False
 
 -- /////////////////////////////////////////////////////////////////////////////
 --
