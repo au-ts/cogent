@@ -41,7 +41,7 @@ lemma typing_prim' : "\<lbrakk> prim_op_type oper = (ts,t)
 
 lemma typing_con' : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : t
                      ; (tag, t, Unchecked) \<in> set ts
-                     ; K \<turnstile> TSum ts' wellkinded
+                     ; K \<turnstile> TSum ts' wellformed
                      ; distinct (map fst ts)
                      ; map fst ts = map fst ts'
                      ; map (fst \<circ> snd) ts = map (fst \<circ> snd) ts'
@@ -59,7 +59,7 @@ lemma typing_struct': "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile>* es : ts
 lemma typing_afun': "\<lbrakk> \<Xi> f = (ks, t, u)
                      ; list_all2 (kinding K) ts ks
                      ; t' = instantiate ts (TFun t u)
-                     ; ks \<turnstile> TFun t u wellkinded
+                     ; ks \<turnstile> TFun t u wellformed
                      ; K \<turnstile> \<Gamma> consumed
                      \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> AFun f ts : t'"
   by (simp only: typing_afun)
@@ -67,7 +67,7 @@ lemma typing_afun': "\<lbrakk> \<Xi> f = (ks, t, u)
 lemma typing_fun': "\<lbrakk> \<Xi>, ks, (typtree, [Some t]) T\<turnstile> f : u
                     ; list_all2 (kinding K) ts ks
                     ; t' = instantiate ts (TFun t u)
-                    ; ks \<turnstile> t wellkinded
+                    ; ks \<turnstile> t wellformed
                     ; K \<turnstile> \<Gamma> consumed
                     \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Fun f ts : t'"
   by (auto simp only: typing_fun snd_conv dest: ttyping_imp_typing)
@@ -100,9 +100,9 @@ lemma split_bang_bang' :"\<lbrakk> 0 \<in> is
                       by (simp only: split_bang_bang)
 
 definition
-  type_ctx_wellkinded :: "kind env \<Rightarrow> ctx \<Rightarrow> bool"
+  type_ctx_wellformed :: "kind env \<Rightarrow> ctx \<Rightarrow> bool"
 where
-  "type_ctx_wellkinded K \<Gamma> = (\<forall>t. Some t \<in> set \<Gamma> \<longrightarrow> K \<turnstile> t wellkinded)"
+  "type_ctx_wellformed K \<Gamma> = (\<forall>t. Some t \<in> set \<Gamma> \<longrightarrow> K \<turnstile> t wellformed)"
 
 definition ttsplit_weak :: "kind env \<Rightarrow> tree_ctx \<Rightarrow> type_split_kind option list
         \<Rightarrow> ctx \<Rightarrow> tree_ctx \<Rightarrow> ctx \<Rightarrow> tree_ctx \<Rightarrow> bool"
@@ -115,10 +115,10 @@ where
 
 lemma ttsplit_weak_lemma:
   "ttsplit_weak K \<Gamma> sps xs \<Gamma>1 ys \<Gamma>2
-    \<Longrightarrow> type_ctx_wellkinded K (snd \<Gamma>1)
-    \<Longrightarrow> type_ctx_wellkinded K (snd \<Gamma>2)
+    \<Longrightarrow> type_ctx_wellformed K (snd \<Gamma>1)
+    \<Longrightarrow> type_ctx_wellformed K (snd \<Gamma>2)
     \<Longrightarrow> ttsplit K \<Gamma> sps xs \<Gamma>1 ys \<Gamma>2"
-  apply (clarsimp simp: ttsplit_def ttsplit_weak_def type_ctx_wellkinded_def)
+  apply (clarsimp simp: ttsplit_def ttsplit_weak_def type_ctx_wellformed_def)
   apply (subst ttsplit_inner_def, clarsimp)
   apply (clarsimp simp: ttsplit_inner_def in_set_conv_nth all_conj_distrib)
   apply (clarsimp simp: image_def Product_Type.split_def set_zip)
@@ -133,13 +133,13 @@ lemma ttsplit_weakI:
     \<Longrightarrow> ttsplit_weak K (TyTrSplit sps xs T1 ys T2, \<Gamma>b) sps xs (T1, xs') ys (T2, ys')"
   by (simp add: ttsplit_weak_def)
 
-lemmas ttyping_type_ctx_wellkinded = ttyping_type_wellkinded[folded type_ctx_wellkinded_def]
+lemmas ttyping_type_ctx_wellformed = ttyping_type_wellformed[folded type_ctx_wellformed_def]
 
-lemma ttsplit_triv_type_ctxt_wellkinded:
+lemma ttsplit_triv_type_ctxt_wellformed:
   "ttsplit_triv \<Gamma> x \<Gamma>1 y \<Gamma>2
-    \<Longrightarrow> type_ctx_wellkinded K (snd \<Gamma>1) \<or> type_ctx_wellkinded K (snd \<Gamma>2)
-    \<Longrightarrow> type_ctx_wellkinded K (snd \<Gamma>)"
-  by (auto simp: ttsplit_triv_def type_ctx_wellkinded_def)
+    \<Longrightarrow> type_ctx_wellformed K (snd \<Gamma>1) \<or> type_ctx_wellformed K (snd \<Gamma>2)
+    \<Longrightarrow> type_ctx_wellformed K (snd \<Gamma>)"
+  by (auto simp: ttsplit_triv_def type_ctx_wellformed_def)
 
 lemma ttyping_case':  "\<lbrakk> ttsplit K \<Gamma> ijs [] \<Gamma>1 [] \<Gamma>2
                    ; \<Xi>, K, \<Gamma>1 T\<turnstile> x : TSum ts

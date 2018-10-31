@@ -57,7 +57,7 @@ and upd_val_rel_record :: "('f \<Rightarrow> poly_type)
 | u_v_sum      : "\<lbrakk> \<Xi>, \<sigma> \<turnstile> a \<sim> a' : t \<langle>r, w\<rangle>
                   ; (g, t, Unchecked) \<in> set ts
                   ; distinct (map fst ts)
-                  ; [] \<turnstile> TSum ts wellkinded
+                  ; [] \<turnstile> TSum ts wellformed
                   ; rs = map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) ts
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> USum g a rs \<sim> VSum g a' : TSum ts \<langle>r, w\<rangle>"
 
@@ -67,17 +67,17 @@ and upd_val_rel_record :: "('f \<Rightarrow> poly_type)
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> URecord fs \<sim> VRecord fs' : TRecord ts Unboxed \<langle>r, w\<rangle>"
 
 | u_v_abstract : "\<lbrakk> abs_upd_val a a' n ts Unboxed r w
-                  ; [] \<turnstile>* ts wellkinded
+                  ; [] \<turnstile>* ts wellformed
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UAbstract a \<sim> VAbstract a' : TCon n ts Unboxed \<langle>r, w\<rangle>"
 
 | u_v_function : "\<lbrakk> \<Xi> , ks , [ Some a ] \<turnstile> f : b
                   ; list_all2 (kinding []) ts ks
-                  ; ks \<turnstile> a wellkinded
+                  ; ks \<turnstile> a wellformed
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UFunction f ts \<sim> VFunction f ts : TFun (instantiate ts a) (instantiate ts b) \<langle>{}, {}\<rangle>"
 
 | u_v_afun     : "\<lbrakk> \<Xi> f = (ks, a, b)
                   ; list_all2 (kinding []) ts ks
-                  ; ks \<turnstile> TFun a b wellkinded
+                  ; ks \<turnstile> TFun a b wellformed
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UAFunction f ts \<sim> VAFunction f ts : TFun (instantiate ts a) (instantiate ts b) \<langle>{}, {}\<rangle>"
 
 | u_v_unit     : "\<Xi>, \<sigma> \<turnstile> UUnit \<sim> VUnit : TUnit \<langle>{}, {}\<rangle>"
@@ -97,14 +97,14 @@ and upd_val_rel_record :: "('f \<Rightarrow> poly_type)
 
 | u_v_p_abs_ro : "\<lbrakk> s = Boxed ReadOnly ptrl
                   ; abs_upd_val a a' n ts s r w
-                  ; [] \<turnstile>* ts wellkinded
+                  ; [] \<turnstile>* ts wellformed
                   ; \<sigma> l = Some (UAbstract a)
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map type_repr ts)) \<sim> VAbstract a' : TCon n ts s \<langle>insert l r, {}\<rangle>"
 
 
 | u_v_p_abs_w  : "\<lbrakk> s = Boxed Writable ptrl
                   ; abs_upd_val a a' n ts s r w
-                  ; [] \<turnstile>* ts wellkinded
+                  ; [] \<turnstile>* ts wellformed
                   ; \<sigma> l = Some (UAbstract a)
                   ; l \<notin> (w \<union> r)
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map type_repr ts)) \<sim> VAbstract a' : TCon n ts s \<langle>r, insert l w\<rangle>"
@@ -120,7 +120,7 @@ and upd_val_rel_record :: "('f \<Rightarrow> poly_type)
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile>* ((x,rp) # xs) \<sim> (x' # xs') :r ((n, t, Present) # ts) \<langle>r \<union> r', w \<union> w'\<rangle>"
 
 | u_v_r_cons2  : "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* xs \<sim> xs' :r ts \<langle>r, w\<rangle>
-                  ; [] \<turnstile> t wellkinded
+                  ; [] \<turnstile> t wellformed
                   ; type_repr t = rp
                   ; upd.uval_repr x = rp
                   ; upd.uval_repr_deep x = rp
@@ -178,7 +178,7 @@ inductive_cases u_v_r_consE'  [elim] : "\<Xi>, \<sigma> \<turnstile>* (a # b) \<
 
 lemma u_v_p_abs_ro': "\<lbrakk> s = Boxed ReadOnly ptrl
                       ; abs_upd_val a a' n ts s r w
-                      ; [] \<turnstile>* ts wellkinded
+                      ; [] \<turnstile>* ts wellformed
                       ; \<sigma> l = Some (UAbstract a)
                       ; ts' = map type_repr ts
                       \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RCon n ts') \<sim> VAbstract a' : TCon n ts s \<langle>insert l r, {}\<rangle>"
@@ -186,7 +186,7 @@ lemma u_v_p_abs_ro': "\<lbrakk> s = Boxed ReadOnly ptrl
 
 lemma u_v_p_abs_w': "\<lbrakk> s = Boxed Writable ptrl
                      ; abs_upd_val a a' n ts s r w
-                     ; [] \<turnstile>* ts wellkinded
+                     ; [] \<turnstile>* ts wellformed
                      ; \<sigma> l = Some (UAbstract a)
                      ; l \<notin> (w \<union> r)
                      ; ts' = map type_repr ts
@@ -388,20 +388,13 @@ proof (induct rule: upd_val_rel_upd_val_rel_record.inducts)
      case u_v_prim     then show ?case by (auto  intro: upd_val_rel_upd_val_rel_record.intros)
 next case u_v_product  then show ?case by (auto  dest:  upd_val_rel_upd_val_rel_record.u_v_product
                                                  intro: u_v_pointerset_helper)
-next case (u_v_sum \<Xi> \<sigma> a a' t r w g ts rs)
-  then show ?case
-  proof (simp, intro upd_val_rel_upd_val_rel_record.intros)
-    show "[] \<turnstile> TSum (map (\<lambda>(c, t, b). (c, bang t, b)) ts) wellkinded"
-      using bang_kind_tsum u_v_sum.hyps by auto
-  next
-    show "map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) ts = map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) (map (\<lambda>(c, t, b). (c, bang t, b)) ts)"
-      using u_v_sum.hyps bang_type_repr by fastforce
-  qed force+
+next case u_v_sum      then show ?case by (force dest: bang_type_repr intro: bang_wellformed
+                                                 intro!: upd_val_rel_upd_val_rel_record.intros)
 next case u_v_struct   then show ?case by (auto intro: upd_val_rel_upd_val_rel_record.intros
-                                             simp add: map_snd3_keep)
-next case u_v_abstract then show ?case by (force intro: upd_val_rel_upd_val_rel_record.intros
-                                                        abs_upd_val_bang [where s = Unboxed, simplified]
-                                                        bang_kind)
+                                                simp add: map_snd3_keep)
+next case u_v_abstract then show ?case by (force intro!: upd_val_rel_upd_val_rel_record.intros
+                                                 intro : bang_wellformed bang_kind
+                                                         abs_upd_val_bang[where s=Unboxed, simplified])
 next case u_v_function then show ?case by (force intro: upd_val_rel_upd_val_rel_record.intros)
 next case u_v_afun     then show ?case by (force intro: upd_val_rel_upd_val_rel_record.intros)
 next case u_v_unit     then show ?case by (force intro: upd_val_rel_upd_val_rel_record.intros)
@@ -409,48 +402,41 @@ next case u_v_p_rec_ro
   then show ?case
     apply clarsimp
     apply (drule upd_val_rel_to_uval_typing)
-    apply (drule upd.uval_typing_to_kinding(2))
+    apply (drule upd.uval_typing_to_wellformed(2))
     apply (frule upd_val_rel_upd_val_rel_record.u_v_p_rec_ro)
-    apply (auto dest!: kinding_all_record' upd.bang_type_repr' simp add: map_snd3_keep)
-  done
+       apply (auto dest!: kinding_all_record' upd.bang_type_repr'
+        simp add: fst_apfst_compcomp snd_apsnd_compcomp map_snd3_keep)
+    done
 next case u_v_p_rec_w
   then show ?case
     apply clarsimp
     apply (drule upd_val_rel_to_uval_typing)
-    apply (drule upd.uval_typing_to_kinding(2))
+    apply (drule upd.uval_typing_to_wellformed(2))
     apply (frule upd_val_rel_upd_val_rel_record.u_v_p_rec_ro)
-    apply (auto dest!: kinding_all_record' upd.bang_type_repr' simp add: map_snd3_keep)
-  done
+       apply (auto dest!: kinding_all_record' upd.bang_type_repr'
+        simp add: fst_apfst_compcomp snd_apsnd_compcomp map_snd3_keep)
+    done
 next
   case (u_v_p_abs_ro s ptrl a a' n ts r w \<sigma> l \<Xi>)
   have f1: "map (type_repr \<circ> bang) ts = map type_repr ts"
-    using bang_type_repr(2) type_wellkinded_all_def u_v_p_abs_ro.hyps(3)
-    by blast
+    using bang_type_repr u_v_p_abs_ro.hyps
+    by force
   
   have "\<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map type_repr (map bang ts))) \<sim> VAbstract a' : TCon n (map bang ts) (bang_sigil s) \<langle>insert l r , {}\<rangle>"
-    using u_v_p_abs_ro
+    using u_v_p_abs_ro bang_wellformed
   proof (intro upd_val_rel_upd_val_rel_record.u_v_p_abs_ro)
     have "upd_abs_typing a n ts s r w"
       using u_v_p_abs_ro abs_upd_val_to_uval_typing by blast
     then have "w = {}"
-      using u_v_p_abs_ro upd.abs_typing_readonly by force
+      using u_v_p_abs_ro upd.abs_typing_readonly[where w=w] by force
     moreover have "abs_upd_val a a' n (map bang ts) (bang_sigil s) (r \<union> w) {}"
       using u_v_p_abs_ro(2) abs_upd_val_bang by simp
     ultimately show "abs_upd_val a a' n (map bang ts) (bang_sigil s) r {}"
       by simp
-  next
-    have "[] \<turnstile>* map bang ts :\<kappa> {D, S}"
-      using u_v_p_abs_ro bang_kind by auto
-    then show "[] \<turnstile>* map bang ts wellkinded"
-      by auto
-  qed simp+
+  qed force+
   then show ?case
     by (simp add: f1)
-next case (u_v_p_abs_w s ptrl a a' n ts r w \<sigma> l \<Xi>)
-  then show ?case
-    apply (clarsimp, intro u_v_p_abs_ro')
-    using u_v_p_abs_w
-    by (auto dest: bang_kind abs_upd_val_bang)
+next case u_v_p_abs_w  then show ?case by (auto intro!: u_v_p_abs_ro' bang_wellformed dest: bang_kind abs_upd_val_bang)
 next case u_v_r_empty  then show ?case by (force intro: upd_val_rel_upd_val_rel_record.intros)
 next
   case (u_v_r_cons1 \<Xi> \<sigma> x x' t r w xs xs' ts r' w' rp)
@@ -460,19 +446,18 @@ next
         [where t = "bang t" and ts = "map (apsnd (apfst bang)) ts"]
         , blast, blast, blast, simp)
     apply (rule u_v_pointerset_helper_record)
-    apply (force dest: upd_val_rel_to_uval_typing upd.uval_typing_to_kinding(1))+
+    apply (force dest: upd_val_rel_to_uval_typing upd.uval_typing_to_wellformed(1))+
     done
 next case u_v_r_cons2 then show ?case
-    by (force simp add: kinding_simps dest: bang_kind intro: bang_type_repr
-        intro!: upd_val_rel_upd_val_rel_record.intros)
+    by (auto intro!: upd_val_rel_upd_val_rel_record.intros intro: bang_wellformed bang_type_repr)
 qed
 
 
 lemma u_v_function_instantiate:
 assumes "list_all2 (kinding K') ts K"
 and     "list_all2 (kinding []) \<delta> K'"
-and     "K \<turnstile> t wellkinded"
-and     "K \<turnstile> u wellkinded"
+and     "K \<turnstile> t wellformed"
+and     "K \<turnstile> u wellformed"
 and     "\<Xi>, K, [Some t] \<turnstile> f : u"
 shows   "\<Xi>, \<sigma> \<turnstile> UFunction f (map (instantiate \<delta>) ts)
               \<sim> VFunction f (map (instantiate \<delta>) ts) : TFun (instantiate \<delta> (instantiate ts t))
@@ -491,8 +476,8 @@ qed
 lemma u_v_afun_instantiate:
 assumes "list_all2 (kinding K') ts K"
 and     "list_all2 (kinding []) \<delta> K'"
-and     "K \<turnstile> t wellkinded"
-and     "K \<turnstile> u wellkinded"
+and     "K \<turnstile> t wellformed"
+and     "K \<turnstile> u wellformed"
 and     "\<Xi> f = (K, t, u)"
 shows   "\<Xi>, \<sigma> \<turnstile> UAFunction f (map (instantiate \<delta>) ts)
               \<sim> VAFunction f (map (instantiate \<delta>) ts) : TFun (instantiate \<delta> (instantiate ts t))
@@ -1004,15 +989,14 @@ lemma sum_downcast_u_v:
     and tag'_in_ts: "(tag', \<tau>, Unchecked) \<in> set ts"
   shows "\<Xi>, \<sigma> \<turnstile> USum tag v xs \<sim> VSum tag v' : TSum (tagged_list_update tag' (\<tau>, Checked) ts) \<langle>r, w\<rangle>"
 proof -
-  obtain \<tau>1 k
-    where uvval_elim_lemmas:
+  obtain \<tau>1
+    where uv_val_elim_lemmas:
       "xs = map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) ts"
       "\<Xi>, \<sigma> \<turnstile> v \<sim> v' : \<tau>1 \<langle>r, w\<rangle>"
       "(tag, \<tau>1, Unchecked) \<in> set ts"
       "distinct (map fst ts)"
-      "[] \<turnstile> TSum ts :\<kappa>  k"
-    using u_v_val_ts
-    by fast
+      "[] \<turnstile> TSum ts wellformed"
+    using u_v_val_ts by force
   moreover obtain i
     where tag_at:
       "i < length ts"
@@ -1025,18 +1009,16 @@ proof -
     have "map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) (ts[i := (tag', \<tau>, Checked)]) = map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) ts"
       by (metis (mono_tags, lifting) list_update_id map_update old.prod.case tag_at(2))
     then show "xs = map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) (tagged_list_update tag' (\<tau>, Checked) ts)"
-      using uvval_elim_lemmas tag_at
+      using uv_val_elim_lemmas tag_at
       by (clarsimp simp add: tagged_list_update_distinct)
   next
     show "(tag, \<tau>1, Unchecked) \<in> set (tagged_list_update tag' (\<tau>, Checked) ts)"
-      using uvval_elim_lemmas tag_neq_tag' tagged_list_update_different_tag_preserves_values2
+      using uv_val_elim_lemmas tag_neq_tag' tagged_list_update_different_tag_preserves_values2
       by metis
   next
-    have "[] \<turnstile>* tagged_list_update tag' (\<tau>, Checked) ts :\<kappa>v k"
-      using uvval_elim_lemmas tag'_in_ts
-      by (force simp add: kinding_simps dest: kinding_variant_downcast)
-    then show "[] \<turnstile> TSum (tagged_list_update tag' (\<tau>, Checked) ts) wellkinded"
-      by (auto simp add: kinding_simps uvval_elim_lemmas)
+    show "[] \<turnstile> TSum (tagged_list_update tag' (\<tau>, Checked) ts) wellformed"
+      using uv_val_elim_lemmas tag'_in_ts prod_in_set(1)
+      by (fastforce intro!: variant_tagged_list_update_wellformedI)
   qed simp+
 qed
 
@@ -1044,7 +1026,7 @@ qed
 lemma upd_val_rel_record_take:
 assumes "\<Xi>, \<sigma> \<turnstile>* fs \<sim> fs' :r \<tau>s \<langle>r, w\<rangle>"
 and     "\<tau>s ! f = (n, \<tau>, Present)"
-and     "[] \<turnstile> \<tau> wellkinded"
+and     "[] \<turnstile> \<tau> wellformed"
 and     "f < length \<tau>s"
 shows   "\<exists>r' w' r'' w''. (\<Xi>, \<sigma> \<turnstile>  fst (fs ! f) \<sim> fs' ! f :  \<tau>                     \<langle>r' , w' \<rangle>)
                        \<and> (\<Xi>, \<sigma> \<turnstile>* fs           \<sim> fs'     :r (\<tau>s [f := (n, \<tau>, Taken)]) \<langle>r'', w''\<rangle>)
@@ -1187,7 +1169,7 @@ shows   "\<Xi>, \<sigma> \<turnstile> UPtr l rp \<sim> VRecord fs' : TRecord ts 
 
 theorem correspondence:
 assumes "list_all2 (kinding []) \<tau>s K"
-and     "proc_ctx_wellkinded \<Xi>"
+and     "proc_ctx_wellformed \<Xi>"
 and     "\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches (instantiate_ctx \<tau>s \<Gamma>) \<langle>r, w\<rangle>"
 and     "\<xi> \<sim> \<xi>' matches-u-v \<Xi>"
 shows   "\<lbrakk> \<xi> , \<gamma>  \<turnstile> (\<sigma>, specialise \<tau>s e) \<Down>! (\<sigma>', v)
@@ -1223,7 +1205,7 @@ next case u_sem_lit       then show ?case by ( cases e, simp_all
                                                                  upd.frame_id)
 next case u_sem_fun       then show ?case by ( cases e, simp_all
                                              , force elim!:  typing_funE
-                                                     dest:   typing_to_kinding u_v_matches_proj_consumed
+                                                     dest:   typing_to_wellformed u_v_matches_proj_consumed
                                                      intro!: exI u_v_function_instantiate upd.frame_id)
 next case u_sem_afun      then show ?case apply (cases e, simp_all)
                                           apply (fastforce elim!:  typing_afunE v_sem_afunE
@@ -1297,7 +1279,7 @@ next
         and vsem_specialised_x: "\<xi>' , \<gamma>' \<turnstile> specialise \<tau>s x \<Down> xa"
       using u_sem_con.prems(1) Con by auto
 
-    obtain t ts' k
+    obtain t ts'
       where typing_elims:
         "\<tau> = TSum ts'"
         "\<Xi>, K, \<Gamma> \<turnstile> x : t"
@@ -1306,9 +1288,9 @@ next
         "map fst ts = map fst ts'"
         "map (fst \<circ> snd) ts = map (fst \<circ> snd) ts'"
         "list_all2 (\<lambda>x y. snd (snd x) \<le> snd (snd y)) ts ts'"
-        "K \<turnstile> TSum ts' :\<kappa>  k"
+        "K \<turnstile> TSum ts' wellformed"
       using typing_conE u_sem_con.prems(2) Con
-      by blast
+      by auto
 
     obtain r' w'
       where "\<Xi>, \<sigma>' \<turnstile> x'' \<sim> xa : instantiate \<tau>s t \<langle>r', w'\<rangle>"
@@ -1326,10 +1308,11 @@ next
       then show "(tag, instantiate \<tau>s t, Unchecked) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts')"
         using image_iff by fastforce
     next
-      show "[] \<turnstile> TSum (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts') wellkinded"
-        unfolding type_wellkinded_def
-        using substitutivity(1) typing_elims(8) u_sem_con.prems(3)
-        by force
+      show "[] \<turnstile> TSum (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts') wellformed"
+        using u_sem_con.prems typing_elims
+        by (force intro!: instantiate_wellformed
+            dest: list_all2_kinding_wellformedD kinding_to_wellformedD
+            simp add: map_snd3_keep)
     qed simp+
     then show ?thesis
       using r'_sub_r frame_w_w' v'_is typing_elims tag'_is ts_inst_is
@@ -1528,12 +1511,12 @@ next
     have "\<Xi>, \<sigma>a' \<turnstile> USum tag va rs # \<gamma> \<sim> VSum tag vx # \<gamma>' matches instantiate_ctx \<tau>s (Some (TSum (tagged_list_update tag' (t, Checked) ts)) # \<Gamma>2) \<langle>r1' \<union> r2, w1' \<union> w2 \<rangle>"
       using frame1 frame_noalias_u_v_matches matches2 w1_w2_disjoint w1_r2_disjoint r_sub1 w2_r1_disjoint
     proof (simp add: r_as_un w_as_un, intro u_v_matches_some)
-      obtain t' k
+      obtain t'
         where rs_is: "rs = (map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts))"
           and u_v_rel_va_vx: "\<Xi>, \<sigma>a' \<turnstile> va \<sim> vx : t' \<langle>r1', w1'\<rangle>"
           and tag_in_instantiated_ts: "(tag, t', Unchecked) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts)"
           and distinct_fst_ts: "distinct (map fst ts)"
-          and wellkinded_instantiated_ts: "[] \<turnstile> TSum (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts) :\<kappa> k"
+          and wellformed_instantiated_ts: "[] \<turnstile> TSum (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts) wellformed"
         using u_v_rel_sum_tag
         by auto
 
@@ -1558,7 +1541,7 @@ next
           by auto
 
         show "(tag, t', Unchecked) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) (tagged_list_update tag' (t, Checked) ts))"
-          apply (simp add: wellkinded_instantiated_ts)
+          apply (simp add: wellformed_instantiated_ts)
           apply (metis (mono_tags, lifting) i_neq_j image_iff inst_ts_at_j j_bounded_len_ts
               length_list_update nth_list_update_neq nth_map nth_mem updated_ts_is)
           done
@@ -1566,23 +1549,12 @@ next
         show "distinct (map fst (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) (tagged_list_update tag' (t, Checked) ts)))"
           by (simp, metis distinct_fst_ts tagged_list_update_preserves_tags)
       next
-        have "\<And>tag b'. (case (tag, b') of (c, t, b) \<Rightarrow> (c, instantiate \<tau>s t, b)) = (tag, case b' of (t, b) \<Rightarrow> (instantiate \<tau>s t, b))"
-          by fast
-        then have f1: "map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) (tagged_list_update tag' (t, Checked) ts)
-              = tagged_list_update tag' (instantiate \<tau>s t, Checked) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts)"
+        have "[] \<turnstile> TSum (tagged_list_update tag' (instantiate \<tau>s t, Checked) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts)) wellformed"
+          using wellformed_instantiated_ts tag'_in_ts
+          by (intro variant_tagged_list_update_wellformedI; force simp add: map_snd3_keep image_iff)
+        then show "[] \<turnstile> TSum (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) (tagged_list_update tag' (t, Checked) ts)) wellformed"
           using tagged_list_update_map_over2[where f="\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)" and g="\<lambda>(t, b). (instantiate \<tau>s t, b)"]
-          by force
-
-        have "[] \<turnstile>* map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts :\<kappa>v k"
-          using wellkinded_instantiated_ts by (force simp add: kinding_simps)
-        then have "[] \<turnstile>* tagged_list_update tag' (instantiate \<tau>s t, Checked) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts) :\<kappa>v k"
-          using kinding_variant_downcast
-          by (metis (mono_tags, lifting) image_eqI kinding_simps list.set_map old.prod.case tag'_in_ts wellkinded_instantiated_ts)
-        then have "[] \<turnstile>* map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) (tagged_list_update tag' (t, Checked) ts) :\<kappa>v k"
-          by (clarsimp simp add: f1)
-        then show "[] \<turnstile> TSum (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) (tagged_list_update tag' (t, Checked) ts)) wellkinded"
-          using wellkinded_instantiated_ts
-          by (auto simp add: kinding_simps f1)
+          by (metis case_prod_conv prod.case_distrib)
       next
         have "map ((\<lambda>(cs, t, b). (cs, type_repr t)) \<circ> (\<lambda>(cs, t, b). (cs, instantiate \<tau>s t, b))) ts
             = map ((\<lambda>(cs, t, b). (cs, type_repr t)) \<circ> (\<lambda>(cs, t, b). (cs, instantiate \<tau>s t, b))) ts [i := ((\<lambda>(cs, t, b). (cs, type_repr t)) \<circ> (\<lambda>(cs, t, b). (cs, instantiate \<tau>s t, b))) (tag', t, Unchecked)]"
@@ -1709,10 +1681,12 @@ next case (u_sem_take \<xi> \<gamma> \<sigma> x \<sigma>'' p ra fs f e)
     apply (erule u_v_p_recE, simp_all)
     apply (frule(2) frame_noalias_u_v_matches)
     apply (frule(1) frame_noalias_u_v_matches(2), blast)
+    apply (frule list_all2_kinding_wellformedD)
+    apply (frule kinding_to_wellformedD)
     apply (frule upd_val_rel_record_take [ where \<tau>s = "map (\<lambda>(n, t, y). (n, instantiate \<tau>s t, y)) ts" for ts
           , simplified
           , OF _ HELP [rule_format]],
-        force, force intro: substitutivity, force)
+        force, force intro: instantiate_wellformed, force)
     apply (elim exE conjE)
     apply (frule(2) u_v_matches_frame, blast)
     apply (simp, erule disjE)
@@ -1780,9 +1754,11 @@ next case u_sem_take_ub
     apply (frule(2) frame_noalias_u_v_matches)
     apply (frule(1) frame_noalias_u_v_matches(2), blast)
     apply (clarsimp)
+    apply (frule list_all2_kinding_wellformedD)
+    apply (frule kinding_to_wellformedD)
     apply (frule upd_val_rel_record_take [ where \<tau>s = "map (\<lambda>(n,t,y). (n, instantiate \<tau>s t, y)) ts" for ts
                                          , simplified
-                                         , OF _ HELP [rule_format]], force, force intro: substitutivity, force)
+                                         , OF _ HELP [rule_format]], force, force intro: instantiate_wellformed, force)
     apply (elim exE conjE)
     apply (frule(2) u_v_matches_frame, blast)
     apply (simp, erule disjE)
@@ -1978,7 +1954,7 @@ qed
 lemmas mono_correspondence = correspondence [where \<tau>s = "[]" and K = "[]", simplified]
 
 lemma val_executes_from_upd_executes:
-assumes "proc_ctx_wellkinded \<Xi>"
+assumes "proc_ctx_wellformed \<Xi>"
 and     "\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches \<Gamma> \<langle>r, w\<rangle>"
 and     "\<xi> \<sim> \<xi>' matches-u-v \<Xi>"
 shows   "\<lbrakk> \<xi> , \<gamma>  \<turnstile> (\<sigma>, e) \<Down>! (\<sigma>', v)
@@ -2224,7 +2200,7 @@ next
       and u_v_rel_va_vv: "\<Xi>, \<sigma>'' \<turnstile> va \<sim> vv : t \<langle>r1', w1'\<rangle>"
       and tag'_in_ts: "(tag', t, Unchecked) \<in> set ts"
       and distinct_fst_ts: "distinct (map fst ts)"
-      and wellkinded_ts: "[] \<turnstile> TSum ts :\<kappa>  k"
+      and wellformed_ts: "[] \<turnstile> TSum ts wellformed"
     by auto
 
   have "\<Xi>, \<sigma>'' \<turnstile> USum tag' va rs \<sim> VSum tag' vv : TSum (tagged_list_update tag (ta, Checked) ts) \<langle>r1', w1'\<rangle>"
@@ -2233,9 +2209,9 @@ next
     show "(tag', t, Unchecked) \<in> set (tagged_list_update tag (ta, Checked) ts)"
       by (meson tag'_in_ts tagged_list_update_different_tag_preserves_values2 u_sem_case_nm.hyps(3))
   next
-    show "[] \<turnstile> TSum (tagged_list_update tag (ta, Checked) ts) wellkinded"
-      using wellkinded_ts tag_in_ts   
-      by (auto simp add: kinding_simps dest: kinding_variant_downcast)
+    show "[] \<turnstile> TSum (tagged_list_update tag (ta, Checked) ts) wellformed"
+      using wellformed_ts tag_in_ts prod_in_set(1)
+      by (fastforce intro!: variant_tagged_list_update_wellformedI)
   next
     obtain i
       where ts_upd_is: "tagged_list_update tag (ta, Checked) ts = ts[i := (tag, ta, Checked)]"
@@ -2282,7 +2258,7 @@ next case u_sem_take
     apply (frule(2) frame_noalias_u_v_matches)
     apply (frule(1) frame_noalias_u_v_matches(2),blast)
     apply (erule upd_val_rel.cases, simp_all, clarsimp)
-    apply (frule(1) upd_val_rel_record_take, force, force)
+    apply (frule(1) upd_val_rel_record_take, force simp add: kinding_def, force)
     apply (elim exE conjE)
     apply (frule(2) IH2 [rotated -1])
      apply (case_tac "taken")
@@ -2342,7 +2318,7 @@ next case u_sem_take_ub
     apply (frule(2) frame_noalias_u_v_matches)
     apply (frule(1) frame_noalias_u_v_matches(2),blast)
     apply (erule upd_val_rel.cases, simp_all, clarsimp)
-    apply (frule(1) upd_val_rel_record_take, force, force)
+    apply (frule(1) upd_val_rel_record_take, force simp add: kinding_def, force)
     apply (elim exE conjE)
     apply (frule(2) IH2 [rotated -1])
      apply (case_tac "taken")
