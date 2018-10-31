@@ -14,7 +14,8 @@
 
 module Cogent.CodeGen where
 
-import Cogent.C.Compile (compile, ffiFuncs, GenState, TableCTypes)
+import Cogent.C.Compile (compile, TableCTypes)
+import Cogent.C.GenState (ffiFuncs, GenState)
 import Cogent.C.Render  (render)
 import Cogent.C.Syntax
 import Cogent.Common.Syntax
