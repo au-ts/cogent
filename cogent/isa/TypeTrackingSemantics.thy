@@ -100,7 +100,7 @@ lemma ttsplit_innerI:
   "K \<turnstile> \<gamma> :\<kappa>  k \<Longrightarrow> S \<in> k \<Longrightarrow> ttsplit_inner K sps kndng \<Gamma>b \<Gamma>1 \<Gamma>2
     \<Longrightarrow> ttsplit_inner K (Some TSK_S # sps) kndng (Some \<gamma> # \<Gamma>b) (Some \<gamma> # \<Gamma>1) (Some \<gamma> # \<Gamma>2)"
   "ttsplit_inner K [] kndng [] [] []"
-  by (auto simp add: ttsplit_inner_def forall_less_Suc_eq)
+  by (auto simp add: kinding_def ttsplit_inner_def forall_less_Suc_eq)
 
 lemma ttsplit_imp_split:
   "ttsplit K \<Gamma> ijs xs \<Gamma>1 ys \<Gamma>2 \<Longrightarrow> (\<exists>\<Gamma>1a \<Gamma>2a. split K (snd \<Gamma>) \<Gamma>1a \<Gamma>2a
@@ -110,7 +110,7 @@ lemma ttsplit_imp_split:
    apply (clarsimp simp add: split_comp.simps)
   apply (case_tac "ijs ! i = Some TSK_S")
    apply (force simp add: split_comp.simps)
-  apply (fastforce dest: nth_mem simp add: split_comp.simps)
+  apply (fastforce dest: nth_mem simp add: kinding_def split_comp.simps)
   done
 
 lemma split_imp_ttsplit:
@@ -121,7 +121,7 @@ lemma split_imp_ttsplit:
         (tt, \<Gamma>1') ys (tt2, \<Gamma>2')"
   apply (clarsimp simp: ttsplit_def ttsplit_inner_def split_def list_all3_conv_all_nth image_def)
   apply (subst (0 1) list_eq_iff_nth_eq)
-  apply (fastforce simp add: split_comp.simps in_set_conv_nth)
+  apply (fastforce simp add: kinding_def split_comp.simps in_set_conv_nth)
   done
 
 definition ttsplit_triv :: "tree_ctx \<Rightarrow> ctx \<Rightarrow> tree_ctx \<Rightarrow> ctx \<Rightarrow> tree_ctx \<Rightarrow> bool"
@@ -714,8 +714,8 @@ next
         and r1'_is: "r1' = rf \<union> r1a"
         and w1''_is: "w1'' = wf \<union> w1a"
         and "wf \<inter> w1a = {}"
-      using uval_typing_record_take[simplified] u_t_p_rec_w ttyping_take
-      by blast
+      using uval_typing_record_take u_t_p_rec_w ttyping_take
+      by (blast dest!: kinding_to_wellformedD)
 
     have disjointness_lemmas:
       "({p} \<union> wf \<union> w1a) \<inter> w2 = {}"
@@ -811,6 +811,7 @@ next
      apply (rule u_sem_take_ub.hyps(2), simp+)[1]
     apply (frule(2) frame_noalias_matches_ptrs)
     apply (frule(1) frame_noalias_matches_ptrs(2), blast)
+    apply (frule kinding_to_wellformedD)
     apply (frule(1) uval_typing_record_take, force, simp)
     apply (elim conjE exE)
     apply (rename_tac r1a w1a r1b w1b)
@@ -882,7 +883,7 @@ end
 
 lemma split_type_wellformed:
   "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2 \<Longrightarrow> Some t \<in> set \<Gamma> \<Longrightarrow> K \<turnstile> t wellformed"
-  by (fastforce simp add: split_def split_comp.simps in_set_conv_nth list_all3_conv_all_nth)
+  by (auto simp add: split_def split_comp.simps in_set_conv_nth list_all3_conv_all_nth kinding_def)
 
 lemma split_bang_type_wellformed:
   "split_bang K is \<Gamma> \<Gamma>1 \<Gamma>2 \<Longrightarrow> Some t \<in> set \<Gamma>
@@ -892,7 +893,7 @@ lemma split_bang_type_wellformed:
 
 lemma weakening_type_wellformed:
   "K \<turnstile> \<Gamma> \<leadsto>w \<Gamma>' \<Longrightarrow> Some t \<in> set \<Gamma> \<Longrightarrow> K \<turnstile> t wellformed"
-  by (fastforce simp add: weakening_def weakening_comp.simps in_set_conv_nth list_all2_conv_all_nth)
+  by (fastforce simp add: kinding_def weakening_def weakening_comp.simps in_set_conv_nth list_all2_conv_all_nth)
 
 lemma typing_to_kinding_env:
   "\<Xi>, K, \<Gamma> \<turnstile> e : u \<Longrightarrow> Some t \<in> set \<Gamma>
@@ -927,7 +928,7 @@ lemma u_tt_sem_pres_type_wellformed2:
   "\<lbrakk> \<Xi>, \<xi> , \<gamma>, K, \<Gamma>, \<tau> T\<turnstile> (\<sigma>, a) \<Down>! (\<sigma>', x) \<rbrakk>
     \<Longrightarrow> K \<turnstile>  \<tau> wellformed"
   by (induct rule: u_tt_sem_pres.induct,
-    auto dest!: typing_to_kinding)
+    auto dest!: typing_to_wellformed)
 
 lemma u_tt_sem_pres_preservation:
   "\<Xi>, \<xi>, \<gamma>, K, \<Gamma>, \<tau> T\<turnstile> st \<Down>! st' \<Longrightarrow> K = [] \<Longrightarrow>
@@ -964,11 +965,9 @@ lemma let_elaborate_u_tt_sem_pres:
    apply (rule typing_var, simp_all add: weakening_def Cogent.empty_def
              zip_same_conv_map o_def map_replicate_const list_all2_same)
    apply (frule u_tt_sem_pres_type_wellformed2)
-   apply (clarsimp simp add: weakening_comp.intros)
-  apply (frule u_tt_sem_pres_preservation, simp+)
-  apply clarsimp
-  apply (fastforce elim: matches_ptrs_some[OF _ matches_ptrs_replicate_None]
-              dest: u_tt_sem_pres_length)
+   apply (force simp add: kinding_def weakening_comp.simps)
+   apply (frule u_tt_sem_pres_preservation, (simp+)[3])
+  apply (force dest: u_tt_sem_pres_length intro: matches_ptrs_some matches_ptrs_replicate_None)
   done
 
 end

@@ -77,6 +77,12 @@ lemma map_thd3_keep:
   shows "(\<lambda>(a,b,c). (a, b, f c)) = apsnd (apsnd f)"
   by fastforce
 
+lemma fst_apfst_compcomp: "f \<circ> fst \<circ> apfst g = f \<circ> g \<circ> fst"
+  by (clarsimp simp add: comp_assoc)
+
+lemma snd_apsnd_compcomp: "f \<circ> snd \<circ> apsnd g = f \<circ> g \<circ> snd"
+  by (clarsimp simp add: comp_assoc)
+
 
 (* making these simp makes the final force on specialise take forever? / v.jackson *)
 lemma comp_tuple_in2_out2_fst: "fst \<circ> (\<lambda>(a,b). (f a b, g a b)) = (\<lambda>(a,b). f a b)"
@@ -392,6 +398,7 @@ lemma append_filter_fst_eqiv_map_update:
   apply (subst Collect_disj_eq[symmetric])
   apply force
   done
+
 
 section {* Tagged List lemmas *}
 
