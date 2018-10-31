@@ -65,7 +65,7 @@ definition
 where
   "rename_mono_prog rename \<Xi> \<xi>\<^sub>r\<^sub>m \<xi>\<^sub>p \<equiv>
      \<xi>\<^sub>r\<^sub>m matches \<Xi> \<longrightarrow>
-     proc_ctx_wellkinded \<Xi> \<longrightarrow>
+     proc_ctx_wellformed \<Xi> \<longrightarrow>
      (\<forall>f ts v v'. \<xi>\<^sub>r\<^sub>m (rename (f, ts)) (rename_val rename (monoval v)) v' \<longrightarrow>
         (\<exists> v''. v' = rename_val rename (monoval v'') \<and>  \<xi>\<^sub>p f v v''))"
 
@@ -85,7 +85,7 @@ lemma map_rename_monoval_prim_prim:
   by (induct vs arbitrary: ls) (auto simp: rename_monoval_prim_prim)
 
 lemma rename_monoexpr_correct:
-  assumes "proc_ctx_wellkinded \<Xi>"
+  assumes "proc_ctx_wellformed \<Xi>"
   and     "\<xi>\<^sub>r\<^sub>m matches \<Xi>"
   and     "rename_mono_prog rename \<Xi> \<xi>\<^sub>r\<^sub>m \<xi>\<^sub>p"
   and     "\<Xi> \<turnstile> map (rename_val rename \<circ> monoval) \<gamma> matches \<Gamma>"
