@@ -1234,23 +1234,15 @@ and   "K \<turnstile>* map (fst \<circ> snd) fs wellformed \<Longrightarrow> K \
 
 section {* Subtyping lemmas *}
 
-lemma type_lub_type_glb_preserves_wellformed:
+lemma type_lub_type_glb_wellformed:
   assumes
-    "K \<turnstile> t1 :\<kappa> k1"
-    "K \<turnstile> t2 :\<kappa> k2"
+    "K \<turnstile> t1 wellformed"
+    "K \<turnstile> t2 wellformed"
   shows
     "K \<turnstile> t \<leftarrow> t1 \<squnion> t2 \<Longrightarrow> K \<turnstile> t wellformed"
     "K \<turnstile> t \<leftarrow> t1 \<sqinter> t2 \<Longrightarrow> K \<turnstile> t wellformed"
   using assms
-proof (induct arbitrary: k1 k2 and k1 k2 rule: type_lub_type_glb.inducts)
-  case (lub_tfun K t t1 t2 u u1 u2)
-  then show ?case
-    by (auto dest!: meta_spec elim!: kind_tfunE intro: kinding_kinding_all_kinding_variant_kinding_record.intros)
-next
-  case (glb_tfun t t1 t2 u u1 u2)
-  then show ?case
-    by (auto dest!: meta_spec elim!: kind_tfunE intro: kinding_kinding_all_kinding_variant_kinding_record.intros)
-qed (auto intro: kinding_kinding_all_kinding_variant_kinding_record.intros)
+  by (induct rule: type_lub_type_glb.inducts, auto)
 
 lemma type_lub_type_glb_idem:
   assumes "K \<turnstile> t wellformed"
@@ -1289,7 +1281,7 @@ next
     "K \<turnstile> TSum ts \<leftarrow> TSum ts \<squnion> TSum ts"
     "K \<turnstile> TSum ts \<leftarrow> TSum ts \<sqinter> TSum ts"
     using ts_wellformed
-    by (auto elim!: kind_tsumE intro!: type_lub_type_glb.intros kind_tsum simp add: type_wellformed_def)
+    by (auto intro!: type_lub_type_glb.intros)
 next
   case (TRecord ts s)
   assume ts_wellformed: "K \<turnstile> TRecord ts s wellformed"
@@ -1307,14 +1299,14 @@ next
       "b1 = b" "b2 = b"
       "K \<turnstile> t \<leftarrow> t1 \<squnion> t2 \<and> (b = inf b1 b2)"
       "K \<turnstile> t \<leftarrow> t1 \<sqinter> t2 \<and> (b = sup b1 b2)"
-      using TRecord ts_wellformed kinding_record_wellformed
+      using TRecord ts_wellformed
       by auto
   }
   then show
     "K \<turnstile> TRecord ts s \<leftarrow> TRecord ts s \<squnion> TRecord ts s"
     "K \<turnstile> TRecord ts s \<leftarrow> TRecord ts s \<sqinter> TRecord ts s"
     using ts_wellformed
-    by (auto elim!: kind_trecE intro!: type_lub_type_glb.intros kind_trec simp add: type_wellformed_def)
+    by (auto intro!: type_lub_type_glb.intros)
 qed (force intro: type_lub_type_glb.intros)+
 
 lemma type_lub_type_glb_commut:
@@ -1338,8 +1330,8 @@ next
       "(n, t1, b1) \<in> set ts1"
       "(n, t2, b2) \<in> set ts2"
     then show "K \<turnstile> t \<leftarrow> t2 \<squnion> t1 \<and> b = inf b2 b1"
-      using lub_trecord.hyps(1) lub_trecord.prems type_wellformed_def inf_commute
-      by (blast dest: kinding_record_wellformed elim!: kind_trecE)
+      using lub_trecord
+      by (auto simp add: inf_commute)
   qed simp+
 next
   case (lub_tsum ts ts1 ts2 K)
@@ -1351,8 +1343,8 @@ next
       "(n, t1, b1) \<in> set ts1"
       "(n, t2, b2) \<in> set ts2"
     then show "K \<turnstile> t \<leftarrow> t2 \<squnion> t1 \<and> b = inf b2 b1"
-      using lub_tsum type_wellformed_def inf_commute
-      by (blast dest: kinding_variant_all_wellformed elim!: kind_tsumE)
+      using lub_tsum
+      by (auto simp add: inf_commute)
   qed simp+
 next
   case (glb_tcon ns ns1 ns2 s s1 s2 ts ts1 ts2)
@@ -1369,21 +1361,21 @@ next
       "(n, t1, b1) \<in> set ts1"
       "(n, t2, b2) \<in> set ts2"
     then show "K \<turnstile> t \<leftarrow> t2 \<sqinter> t1 \<and> b = sup b2 b1"
-      using glb_trecord type_wellformed_def sup_commute
-      by (blast dest: kinding_record_wellformed elim!: kind_trecE)
+      using glb_trecord
+      by (auto simp add: sup_commute)
   qed simp+
 next
-  case (glb_tsum ts ts2 ts1 K)
+  case (glb_tsum ts ts1 ts2 K)
   then show ?case
   proof (intro type_lub_type_glb.intros)
     fix n t t1 t2 b b1 b2
     assume
+      "(n, t, b) \<in> set ts"
       "(n, t1, b1) \<in> set ts1"
       "(n, t2, b2) \<in> set ts2"
-      "(n, t, b) \<in> set ts"
-    then show "K \<turnstile> t \<leftarrow> t1 \<sqinter> t2 \<and> b = sup b1 b2"
-      using glb_tsum type_wellformed_def sup_commute
-      by (blast dest: kinding_variant_all_wellformed elim!: kind_tsumE)
+    then show "K \<turnstile> t \<leftarrow> t2 \<sqinter> t1 \<and> b = sup b2 b1"
+      using glb_tsum
+      by (auto simp add: sup_commute)
   qed simp+
 qed (force intro: type_lub_type_glb.intros)+
 
