@@ -625,7 +625,6 @@ inductive type_lub :: "kind env \<Rightarrow> type \<Rightarrow> type \<Rightarr
 | lub_tcon   : "\<lbrakk> n = n1 ; n2 = n1
                 ; s = s1 ; s2 = s1
                 ; list_all3 (type_lub K) ts ts1 ts2
-                ; K \<turnstile> TCon n ts s wellformed
                 \<rbrakk> \<Longrightarrow> K \<turnstile> TCon n ts s \<leftarrow> TCon n1 ts1 s1 \<squnion> TCon n2 ts2 s2"
 | lub_tfun   : "\<lbrakk> K \<turnstile> t \<leftarrow> t1 \<sqinter> t2
                 ; K \<turnstile> u \<leftarrow> u1 \<squnion> u2
@@ -639,17 +638,14 @@ inductive type_lub :: "kind env \<Rightarrow> type \<Rightarrow> type \<Rightarr
                 ; fst ` set ts2 = fst ` set ts1
                 ; s = s1
                 ; s1 = s2
-                ; K \<turnstile> TRecord ts s wellformed
                 \<rbrakk> \<Longrightarrow> K \<turnstile> TRecord ts s \<leftarrow> TRecord ts1 s1 \<squnion> TRecord ts2 s2"
 | lub_tprod  : "\<lbrakk> K \<turnstile> t \<leftarrow> t1 \<squnion> t2
                 ; K \<turnstile> u \<leftarrow> u1 \<squnion> u2
-                ; K \<turnstile> TProduct t u wellformed
                 \<rbrakk> \<Longrightarrow> K \<turnstile> TProduct t u \<leftarrow> TProduct t1 u1 \<squnion> TProduct t2 u2"
 | lub_tsum   : "\<lbrakk> \<And>n t b t1 t2 b1 b2. \<lbrakk> (n,t,b) \<in> set ts; (n,t1,b1) \<in> set ts1; (n,t2,b2) \<in> set ts2 \<rbrakk> \<Longrightarrow> K \<turnstile> t \<leftarrow> t1 \<squnion> t2 \<and> (b = inf b1 b2)
                 ; distinct (map fst ts)
                 ; fst ` set ts = fst ` set ts1
                 ; fst ` set ts2 = fst ` set ts1
-                ; K \<turnstile> TSum ts wellformed
                 \<rbrakk> \<Longrightarrow> K \<turnstile> TSum ts \<leftarrow> TSum ts1 \<squnion> TSum ts2"
 | lub_tunit  : "K \<turnstile> TUnit \<leftarrow> TUnit \<squnion> TUnit"
 
@@ -662,7 +658,6 @@ inductive type_lub :: "kind env \<Rightarrow> type \<Rightarrow> type \<Rightarr
 | glb_tcon   : "\<lbrakk> n = n1 ; n2 = n1
                 ; s = s1 ; s2 = s1
                 ; list_all3 (type_glb K) ts ts1 ts2
-                ; K \<turnstile> TCon n ts s wellformed
                 \<rbrakk> \<Longrightarrow> K \<turnstile> TCon n ts s \<leftarrow> TCon n1 ts1 s1 \<sqinter> TCon n2 ts2 s2"
 | glb_tfun   : "\<lbrakk> K \<turnstile> t \<leftarrow> t1 \<squnion> t2
                 ; K \<turnstile> u \<leftarrow> u1 \<sqinter> u2
@@ -676,17 +671,14 @@ inductive type_lub :: "kind env \<Rightarrow> type \<Rightarrow> type \<Rightarr
                 ; fst ` set ts2 = fst ` set ts1
                 ; s = s1
                 ; s1 = s2
-                ; K \<turnstile> TRecord ts s wellformed
                 \<rbrakk> \<Longrightarrow> K \<turnstile> TRecord ts s \<leftarrow> TRecord ts1 s1 \<sqinter> TRecord ts2 s2"
 | glb_tprod  : "\<lbrakk> K \<turnstile> t \<leftarrow> t1 \<sqinter> t2
                 ; K \<turnstile> u \<leftarrow> u1 \<sqinter> u2
-                ; K \<turnstile> TProduct t u wellformed
                 \<rbrakk> \<Longrightarrow> K \<turnstile> TProduct t u \<leftarrow> TProduct t1 u1 \<sqinter> TProduct t2 u2"
 | glb_tsum   : "\<lbrakk> \<And>n t b t1 t2 b1 b2. \<lbrakk> (n,t,b) \<in> set ts; (n,t1,b1) \<in> set ts1; (n,t2,b2) \<in> set ts2 \<rbrakk> \<Longrightarrow> K \<turnstile> t \<leftarrow> t1 \<sqinter> t2 \<and> (b = sup b1 b2)
                 ; distinct (map fst ts)
                 ; fst ` set ts = fst ` set ts1
                 ; fst ` set ts2 = fst ` set ts1
-                ; K \<turnstile> TSum ts wellformed
                 \<rbrakk> \<Longrightarrow> K \<turnstile> TSum ts \<leftarrow> TSum ts1 \<sqinter> TSum ts2"
 | glb_tunit  : "K \<turnstile> TUnit \<leftarrow> TUnit \<sqinter> TUnit"
 
@@ -1242,7 +1234,73 @@ lemma type_lub_type_glb_wellformed:
     "K \<turnstile> t \<leftarrow> t1 \<squnion> t2 \<Longrightarrow> K \<turnstile> t wellformed"
     "K \<turnstile> t \<leftarrow> t1 \<sqinter> t2 \<Longrightarrow> K \<turnstile> t wellformed"
   using assms
-  by (induct rule: type_lub_type_glb.inducts, auto)
+proof (induct rule: type_lub_type_glb.inducts)
+  case lub_tcon then show ?case
+    by (fastforce simp add: list_all3_conv_all_nth Ball_def in_set_conv_nth)
+next
+  case (lub_trecord ts ts1 ts2 K s s1 s2)
+  { fix n t b
+    assume n_in_ts: "(n,t,b) \<in> set ts"
+    obtain t1 b1 where "(n,t1,b1) \<in> set ts1"
+      using n_in_ts lub_trecord.hyps
+      by (metis (no_types, hide_lams) eq_fst_iff image_iff)
+    moreover obtain t2 b2 where "(n,t2,b2) \<in> set ts2"
+      using n_in_ts lub_trecord.hyps
+      by (metis (no_types, hide_lams) eq_fst_iff image_iff)
+    ultimately have "type_wellformed (length K) t"
+      using lub_trecord n_in_ts
+      by fastforce
+  } then show ?case
+    using lub_trecord by auto
+next
+  case (lub_tsum ts ts1 ts2 K)
+  { fix n t b
+    assume n_in_ts: "(n,t,b) \<in> set ts"
+    obtain t1 b1 where "(n,t1,b1) \<in> set ts1"
+      using n_in_ts lub_tsum.hyps
+      by (metis (no_types, hide_lams) eq_fst_iff image_iff)
+    moreover obtain t2 b2 where "(n,t2,b2) \<in> set ts2"
+      using n_in_ts lub_tsum.hyps
+      by (metis (no_types, hide_lams) eq_fst_iff image_iff)
+    ultimately have "type_wellformed (length K) t"
+      using lub_tsum n_in_ts
+      by fastforce
+  } then show ?case
+    using lub_tsum by auto
+next
+  case glb_tcon then show ?case
+    by (fastforce simp add: list_all3_conv_all_nth Ball_def in_set_conv_nth)
+next
+  case (glb_trecord ts ts1 ts2 K s s1 s2)
+  { fix n t b
+    assume n_in_ts: "(n,t,b) \<in> set ts"
+    obtain t1 b1 where "(n,t1,b1) \<in> set ts1"
+      using n_in_ts glb_trecord.hyps
+      by (metis (no_types, hide_lams) eq_fst_iff image_iff)
+    moreover obtain t2 b2 where "(n,t2,b2) \<in> set ts2"
+      using n_in_ts glb_trecord.hyps
+      by (metis (no_types, hide_lams) eq_fst_iff image_iff)
+    ultimately have "type_wellformed (length K) t"
+      using glb_trecord n_in_ts
+      by fastforce
+  } then show ?case
+    using glb_trecord by auto
+next
+  case (glb_tsum ts ts1 ts2 K)
+  { fix n t b
+    assume n_in_ts: "(n,t,b) \<in> set ts"
+    obtain t1 b1 where "(n,t1,b1) \<in> set ts1"
+      using n_in_ts glb_tsum.hyps
+      by (metis (no_types, hide_lams) eq_fst_iff image_iff)
+    moreover obtain t2 b2 where "(n,t2,b2) \<in> set ts2"
+      using n_in_ts glb_tsum.hyps
+      by (metis (no_types, hide_lams) eq_fst_iff image_iff)
+    ultimately have "type_wellformed (length K) t"
+      using glb_tsum n_in_ts
+      by fastforce
+  } then show ?case
+    using glb_tsum by auto
+qed auto
 
 lemma type_lub_type_glb_idem:
   assumes "K \<turnstile> t wellformed"
