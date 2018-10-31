@@ -634,6 +634,8 @@ inductive type_lub :: "type \<Rightarrow> type \<Rightarrow> type \<Rightarrow> 
                 \<rbrakk> \<Longrightarrow> TPrim p \<leftarrow> TPrim p1 \<squnion> TPrim p2"
 | lub_trecord: "\<lbrakk> \<And>n t b t1 t2 b1 b2. \<lbrakk> (n,t,b) \<in> set ts; (n,t1,b1) \<in> set ts1; (n,t2,b2) \<in> set ts2 \<rbrakk> \<Longrightarrow> t \<leftarrow> t1 \<squnion> t2 \<and> (b = inf b1 b2)
                 ; distinct (map fst ts)
+                ; distinct (map fst ts1)
+                ; distinct (map fst ts2)
                 ; fst ` set ts = fst ` set ts1
                 ; fst ` set ts2 = fst ` set ts1
                 ; s = s1
@@ -644,6 +646,8 @@ inductive type_lub :: "type \<Rightarrow> type \<Rightarrow> type \<Rightarrow> 
                 \<rbrakk> \<Longrightarrow> TProduct t u \<leftarrow> TProduct t1 u1 \<squnion> TProduct t2 u2"
 | lub_tsum   : "\<lbrakk> \<And>n t b t1 t2 b1 b2. \<lbrakk> (n,t,b) \<in> set ts; (n,t1,b1) \<in> set ts1; (n,t2,b2) \<in> set ts2 \<rbrakk> \<Longrightarrow> t \<leftarrow> t1 \<squnion> t2 \<and> (b = inf b1 b2)
                 ; distinct (map fst ts)
+                ; distinct (map fst ts1)
+                ; distinct (map fst ts2)
                 ; fst ` set ts = fst ` set ts1
                 ; fst ` set ts2 = fst ` set ts1
                 \<rbrakk> \<Longrightarrow> TSum ts \<leftarrow> TSum ts1 \<squnion> TSum ts2"
@@ -667,6 +671,8 @@ inductive type_lub :: "type \<Rightarrow> type \<Rightarrow> type \<Rightarrow> 
                 \<rbrakk> \<Longrightarrow> TPrim p \<leftarrow> TPrim p1 \<sqinter> TPrim p2"
 | glb_trecord: "\<lbrakk> \<And>n t b t1 t2 b1 b2. \<lbrakk> (n,t,b) \<in> set ts; (n,t1,b1) \<in> set ts1; (n,t2,b2) \<in> set ts2 \<rbrakk> \<Longrightarrow> t \<leftarrow> t1 \<sqinter> t2 \<and> (b = sup b1 b2)
                 ; distinct (map fst ts)
+                ; distinct (map fst ts1)
+                ; distinct (map fst ts2)
                 ; fst ` set ts = fst ` set ts1
                 ; fst ` set ts2 = fst ` set ts1
                 ; s = s1
@@ -677,6 +683,8 @@ inductive type_lub :: "type \<Rightarrow> type \<Rightarrow> type \<Rightarrow> 
                 \<rbrakk> \<Longrightarrow> TProduct t u \<leftarrow> TProduct t1 u1 \<sqinter> TProduct t2 u2"
 | glb_tsum   : "\<lbrakk> \<And>n t b t1 t2 b1 b2. \<lbrakk> (n,t,b) \<in> set ts; (n,t1,b1) \<in> set ts1; (n,t2,b2) \<in> set ts2 \<rbrakk> \<Longrightarrow> t \<leftarrow> t1 \<sqinter> t2 \<and> (b = sup b1 b2)
                 ; distinct (map fst ts)
+                ; distinct (map fst ts1)
+                ; distinct (map fst ts2)
                 ; fst ` set ts = fst ` set ts1
                 ; fst ` set ts2 = fst ` set ts1
                 \<rbrakk> \<Longrightarrow> TSum ts \<leftarrow> TSum ts1 \<sqinter> TSum ts2"
@@ -1368,11 +1376,9 @@ next
 qed (force intro: type_lub_type_glb.intros)+
 
 lemma type_lub_type_glb_commut:
-  assumes "K \<turnstile> t wellformed"
   shows
   "t \<leftarrow> t1 \<squnion> t2 \<Longrightarrow> t \<leftarrow> t2 \<squnion> t1"
   "t \<leftarrow> t1 \<sqinter> t2 \<Longrightarrow> t \<leftarrow> t2 \<sqinter> t1"
-  using assms
 proof (induct rule: type_lub_type_glb.inducts)
   case (lub_tcon ns ns1 ns2 s s2 s1 ts ts1 ts2)
   then show ?case
@@ -1437,6 +1443,94 @@ next
   qed simp+
 qed (force intro: type_lub_type_glb.intros)+
 
+lemma type_lub_type_glb_absorb:
+  shows
+    "c \<leftarrow> a \<squnion> b \<Longrightarrow> a \<leftarrow> a \<sqinter> c"
+    "c \<leftarrow> a \<sqinter> b \<Longrightarrow> a \<leftarrow> a \<squnion> c"
+proof (induct rule: type_lub_type_glb.inducts)
+  case (lub_tcon n n1 n2 s s1 s2 ts ts1 ts2)
+  then show ?case by (force intro!: type_lub_type_glb.intros simp add: list_all3_conv_all_nth)
+next
+  case (lub_trecord ts ts1 ts2 s s1 s2)
+  then show ?case
+  proof (intro type_lub_type_glb.intros)
+    fix n t1' b1' t1 b1 t b
+    assume assms1:
+      "(n, t1, b1) \<in> set ts1"
+      "(n, t1', b1') \<in> set ts1"
+      "(n, t, b) \<in> set ts"
+    moreover obtain t2 b2 where "(n, t2, b2) \<in> set ts2"
+      using lub_trecord.hyps assms1
+      by (metis (mono_tags, hide_lams) fst_conv image_iff surjective_pairing)
+    ultimately have
+      "(t \<leftarrow> t1 \<squnion> t2 \<and> t1 \<leftarrow> t1 \<sqinter> t) \<and> b = inf b1 b2"
+      using lub_trecord.hyps by blast+
+    then show "t1' \<leftarrow> t1 \<sqinter> t \<and> b1' = sup b1 b"
+      using lub_trecord.hyps assms1 distinct_fst[where xs=ts1] by fastforce
+  qed auto
+next
+  case (lub_tsum ts ts1 ts2)
+  then show ?case
+  proof (intro type_lub_type_glb.intros)
+    fix n t1' b1' t1 b1 t b
+    assume assms1:
+      "(n, t1, b1) \<in> set ts1"
+      "(n, t1', b1') \<in> set ts1"
+      "(n, t, b) \<in> set ts"
+    moreover obtain t2 b2 where "(n, t2, b2) \<in> set ts2"
+      using lub_tsum.hyps assms1
+      by (metis (mono_tags, hide_lams) fst_conv image_iff surjective_pairing)
+    ultimately have
+      "(t \<leftarrow> t1 \<squnion> t2 \<and> t1 \<leftarrow> t1 \<sqinter> t) \<and> b = inf b1 b2"
+      using lub_tsum.hyps by blast+
+    then show "t1' \<leftarrow> t1 \<sqinter> t \<and> b1' = sup b1 b"
+      using lub_tsum.hyps assms1 distinct_fst[where xs=ts1] by fastforce
+  qed auto
+next
+  case (glb_tcon n n1 n2 s s1 s2 ts ts1 ts2)
+  then show ?case by (force intro!: type_lub_type_glb.intros simp add: list_all3_conv_all_nth)
+next
+  case (glb_trecord ts ts1 ts2 s s1 s2)
+  then show ?case
+  proof (intro type_lub_type_glb.intros)
+    fix n t1' b1' t1 b1 t b
+    assume assms1:
+      "(n, t1, b1) \<in> set ts1"
+      "(n, t1', b1') \<in> set ts1"
+      "(n, t, b) \<in> set ts"
+    moreover obtain t2 b2 where "(n, t2, b2) \<in> set ts2"
+      using glb_trecord.hyps assms1
+      by (metis (mono_tags, hide_lams) fst_conv image_iff surjective_pairing)
+    ultimately have
+      "(t \<leftarrow> t1 \<sqinter> t2 \<and> t1 \<leftarrow> t1 \<squnion> t) \<and> b = sup b1 b2"
+      using glb_trecord.hyps by blast+
+    then show "t1' \<leftarrow> t1 \<squnion> t \<and> b1' = inf b1 b"
+      using glb_trecord.hyps assms1 distinct_fst[where xs=ts1] by fastforce
+  qed auto
+next
+  case (glb_tsum ts ts1 ts2)
+  then show ?case
+  proof (intro type_lub_type_glb.intros)
+    fix n t1' b1' t1 b1 t b
+    assume assms1:
+      "(n, t1, b1) \<in> set ts1"
+      "(n, t1', b1') \<in> set ts1"
+      "(n, t, b) \<in> set ts"
+    moreover obtain t2 b2 where "(n, t2, b2) \<in> set ts2"
+      using glb_tsum.hyps assms1 
+      by (metis (mono_tags, hide_lams) fst_conv image_iff surjective_pairing)
+    ultimately have
+      "(t \<leftarrow> t1 \<sqinter> t2 \<and> t1 \<leftarrow> t1 \<squnion> t) \<and> b = sup b1 b2"
+      using glb_tsum.hyps by blast+
+    then show "t1' \<leftarrow> t1 \<squnion> t \<and> b1' = inf b1 b"
+      using glb_tsum.hyps assms1 distinct_fst[where xs=ts1] by fastforce
+  qed auto
+qed (force intro: type_lub_type_glb.intros)+
+
+(* prove the subtyping order respects lub/glb correctly *)
+lemma subtyping_correct:
+  "a \<leftarrow> a \<squnion> b \<longleftrightarrow> b \<leftarrow> a \<sqinter> b"
+  by (auto intro: type_lub_type_glb_absorb type_lub_type_glb_commut)
 
 section {* Typing lemmas *}
 
