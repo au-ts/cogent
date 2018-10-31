@@ -313,9 +313,9 @@ fun type_wellformed :: "nat \<Rightarrow> type \<Rightarrow> bool" where
 | "type_wellformed n (TCon _ ts _) = (\<forall>t \<in> set ts. type_wellformed n t)"
 | "type_wellformed n (TFun t1 t2) = (type_wellformed n t1 \<and> type_wellformed n t2)"
 | "type_wellformed n (TPrim _) = True"
-| "type_wellformed n (TSum ts) = (distinct (map fst ts) \<and> (\<forall>t \<in> (fst \<circ> snd) ` set ts. type_wellformed n t))"
+| "type_wellformed n (TSum ts) = (distinct (map fst ts) \<and> (\<forall>x\<in>set ts. type_wellformed n (fst (snd x))))"
 | "type_wellformed n (TProduct t1 t2) = (type_wellformed n t1 \<and> type_wellformed n t2)"
-| "type_wellformed n (TRecord ts _) = (distinct (map fst ts) \<and> (\<forall>t \<in> (fst \<circ> snd) ` set ts. type_wellformed n t))"
+| "type_wellformed n (TRecord ts _) = (distinct (map fst ts) \<and> (\<forall>x\<in>set ts. type_wellformed n (fst (snd x))))"
 | "type_wellformed n TUnit = True"
 
 definition type_wellformed_pretty :: "kind env \<Rightarrow> type \<Rightarrow> bool" ("_ \<turnstile> _ wellformed" [30,20] 60) where
@@ -1238,7 +1238,7 @@ next
   then show ?case
     using bang_wellformed
     by (clarsimp simp add: list_all_length)
-qed auto  
+qed auto
 
 lemma substitutivity_kinding_fn:
   assumes
@@ -1279,12 +1279,11 @@ proof -
     by (simp add: kinding_def)
 qed
 
-lemma substitutivity:
+lemma substitutivity_rest:
 fixes \<delta>    :: "type substitution"
 and   K K' :: "kind env"
 assumes well_kinded: "list_all2 (kinding K') \<delta> K"
-shows "K \<turnstile> t :\<kappa> k    \<Longrightarrow> K' \<turnstile>  instantiate \<delta> t                       :\<kappa> k"
-and   "K \<turnstile>* ts :\<kappa> k  \<Longrightarrow> K' \<turnstile>* map (instantiate \<delta>) ts                :\<kappa> k"
+shows "K \<turnstile>* ts :\<kappa> k  \<Longrightarrow> K' \<turnstile>* map (instantiate \<delta>) ts                :\<kappa> k"
 and   "K \<turnstile>* xs :\<kappa>v k \<Longrightarrow> K' \<turnstile>* map (\<lambda>(n,a,b). (n,instantiate \<delta> a, b)) xs :\<kappa>v k"
 and   "K \<turnstile>* fs :\<kappa>r k \<Longrightarrow> K' \<turnstile>* map (\<lambda>(n,a,b). (n,instantiate \<delta> a, b)) fs :\<kappa>r k"
   using substitutivity_single well_kinded instantiate_wellformed
@@ -1294,6 +1293,8 @@ and   "K \<turnstile>* fs :\<kappa>r k \<Longrightarrow> K' \<turnstile>* map (\
    apply (fastforce simp add: kinding_variant_set kinding_iff_wellformed split: variant_state.split)
   apply (fastforce simp add: kinding_record_set kinding_iff_wellformed split: record_state.split)
   done
+
+lemmas substitutivity = substitutivity_single substitutivity_rest
 
 lemma list_all2_substitutivity:
 fixes \<delta>    :: "type substitution"
