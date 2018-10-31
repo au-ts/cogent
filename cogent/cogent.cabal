@@ -61,6 +61,7 @@ library
   hs-source-dirs: src
   exposed-modules:
                 Cogent.C.Compile
+              , Cogent.C.GenState
               , Cogent.C.Render
               , Cogent.C.Syntax
               , Cogent.CodeGen

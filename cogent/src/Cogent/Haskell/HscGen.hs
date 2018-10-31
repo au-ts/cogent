@@ -23,7 +23,7 @@ module Cogent.Haskell.HscGen (
 , hscType
 ) where
 
-import Cogent.C.Compile (boolT, primCId, tagsT, untypedFuncEnum)
+import Cogent.C.GenState (boolT, primCId, tagsT, untypedFuncEnum)
 import Cogent.C.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler

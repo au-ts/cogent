@@ -7,14 +7,33 @@ import Cogent.Common.Syntax (FieldName)
 import Cogent.Common.Types (Sigil (..))
 import Data.Nat
 import Data.List (foldl', scanl')
-import Data.Map ((!))
-import Control.Lens ((%=))
-import Cogent.C.Compile (Gen, genType, freshGlobalCId, boxedSettersAndGetters)
+import Data.Map
+  ( (!)
+  , fromList
+  , insert
+  )
+import Control.Lens
+  ( (%=)
+  , (^.)
+  , at
+  , (&)
+  , (?=)
+  , use
+  )
+import Cogent.C.GenState
+  ( Gen
+  , genType
+  , freshGlobalCId
+  , boxedSettersAndGetters
+  , boxedRecordGetters
+  , boxedRecordSetters
+  )
 import Cogent.Core (Type (..))
 import Cogent.Compiler (__impossible)
 import Cogent.DataLayout.Core
   ( AlignedBitRange (..)
   , DataLayout (..)
+  , alignLayout
   )
 
 type CogentType = Type 'Zero
@@ -40,7 +59,55 @@ genBoxedGetField
      --
      -- Use this 'CExpr' as the first argument of 'CEFnCall' when you want
      -- to call this getter function.
-genBoxedGetField = undefined
+genBoxedGetField cogentType fieldName = do
+  boxedRecordGetter <- use (boxedRecordGetters . at (cogentType, fieldName))
+  case boxedRecordGetter of
+    Just getFieldFunction -> return getFieldFunction
+    Nothing -> do
+      let TRecord fieldTypes (Boxed _ (RecordLayout fieldLayouts))
+                          = cogentType
+          fieldType       = fst $ (fromList fieldTypes) ! fieldName
+          fieldLayout     = alignLayout $ fst $ fieldLayouts ! fieldName
+      boxCType            <- genType cogentType
+      getFieldFunction    <- genBoxedGetter boxCType fieldType fieldLayout
+      (boxedRecordGetters . at (cogentType, fieldName)) ?= getFieldFunction
+      return getFieldFunction
+
+
+{-|
+Returns a setter function C expression for a field of a boxed record.
+
+Will generate the setter function if it has not yet been generated
+(ie. checks to see if it is already recorded in the GenState)
+-}
+genBoxedSetField
+  :: CogentType
+     -- ^ Cogent type of an unboxed record.
+
+  -> FieldName
+     -- ^ Name of field in the unboxed record to put.
+
+  -> Gen v CExpr
+     -- ^
+     -- The 'CExpr' which is the name of the setter function
+     -- for the field of the record.
+     --
+     -- Use this 'CExpr' as the first argument of 'CEFnCall' when you want
+     -- to call this setter function.
+genBoxedSetField cogentType fieldName = do
+  boxedRecordSetter <- use (boxedRecordSetters . at (cogentType, fieldName))
+  case boxedRecordSetter of
+    Just setFieldFunction -> return setFieldFunction
+    Nothing -> do
+      let TRecord fieldTypes (Boxed _ (RecordLayout fieldLayouts))
+                          = cogentType
+          fieldType       = fst $ (fromList fieldTypes) ! fieldName
+          fieldLayout     = alignLayout $ fst $ fieldLayouts ! fieldName
+      boxCType            <- genType cogentType
+      setFieldFunction    <- genBoxedSetter boxCType fieldType fieldLayout
+      (boxedRecordSetters . at (cogentType, fieldName)) ?= setFieldFunction
+      return setFieldFunction
+
 
 
 {-|
@@ -116,27 +183,8 @@ genBoxedGetter boxCType _ _ = __impossible $
   "genBoxedGetter: Type checking should restrict the types which can be embedded in boxed records," ++
   "and ensure that the data layouts match the types."
 
-{-|
-Returns a setter function C expression for a field of a boxed record.
 
-Will generate the setter function if it has not yet been generated
-(ie. checks to see if it is already recorded in the GenState)
--}
-genBoxedSetField
-  :: CogentType
-     -- ^ Cogent type of an unboxed record.
 
-  -> FieldName
-     -- ^ Name of field in the unboxed record to put.
-
-  -> Gen v CExpr
-     -- ^
-     -- The 'CExpr' which is the name of the setter function
-     -- for the field of the record.
-     --
-     -- Use this 'CExpr' as the first argument of 'CEFnCall' when you want
-     -- to call this setter function.
-genBoxedSetField = undefined
 
 {-|
 Returns a setter function C expression for a part of a boxed record.
