@@ -45,6 +45,7 @@ library
                 Cogent.C.Compile
               , Cogent.C.Render
               , Cogent.C.Syntax
+              , Cogent.C.GenState
               , Cogent.CallGraph
               , Cogent.CodeGen
               , Cogent.Common.Syntax
