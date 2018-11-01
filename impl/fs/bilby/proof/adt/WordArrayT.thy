@@ -121,7 +121,7 @@ where
                   offs = src_offs \<Longrightarrow>
                   offs \<le> offs + len \<Longrightarrow>
                   unat (offs + len) \<le> length (\<alpha>wa src) \<Longrightarrow>
-         P (WordArrayT.make (take (unat offs) (\<alpha>wa dst) @ slice (unat offs) (unat offs + unat len) (\<alpha>wa src) @ drop (unat (offs+len)) (\<alpha>wa src))) \<rbrakk>
+         P (WordArrayT.make (take (unat offs) (\<alpha>wa dst) @ slice (unat offs) (unat offs + unat len) (\<alpha>wa src) @ drop (unat (offs+len)) (\<alpha>wa dst))) \<rbrakk>
      \<Longrightarrow>
       P (wordarray_copy(dst, src, offs, src_offs, len))"
 

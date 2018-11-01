@@ -191,7 +191,7 @@ $ty:(WordArray a) $id:wordarray_copy($ty:(WordArrayCopyP a) args)
         u32 len = args.p5;
 
         // early exit -- tried to copy beyond dest
-        if (dst_index > dst->len) {
+        if (dst_index > dst->len || src_index > src->len) {
             return dst;
         }
 

@@ -142,7 +142,7 @@ hs_wordarray_copy dst src dst_offs src_offs n =
       src_avl = len_src - src_offs
       n' = minimum [n, dst_avl, src_avl]
       src_cpy = genericTake n' . genericDrop src_offs $ elems src 
-   in if dst_offs > len_dst - 1 then dst 
+   in if dst_offs > len_dst - 1 || src_offs > len_src - 1 then dst 
       else dst // zip [dst_offs .. dst_offs + n' - 1] src_cpy
 
 hs_wordarray_map :: WordArray e
@@ -509,6 +509,7 @@ prop_wordarray_get_put =
            | idx >= fromIntegral len, Left arr' <- r -> 
                arr' == arr
            | otherwise -> False
+
 
 -- /////////////////////////////////////////////////////////////////////////////
 --
