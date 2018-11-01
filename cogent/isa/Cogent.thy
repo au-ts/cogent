@@ -613,7 +613,7 @@ lemma eval_prim_op_lit_type:
 
 section {* Typing rules *}
 
-inductive subtyping :: "type \<Rightarrow> type \<Rightarrow> bool" ("_ \<sqsubseteq> _" [30,30] 60) where
+inductive subtyping :: "type \<Rightarrow> type \<Rightarrow> bool" ("_ \<sqsubseteq> _" [40,40] 60) where
   subty_tvar   : "n1 = n2 \<Longrightarrow> TVar n1 \<sqsubseteq> TVar n2"
 | subty_tvarb  : "n1 = n2 \<Longrightarrow> TVarBang n1 \<sqsubseteq> TVarBang n2"
 | subty_tcon   : "\<lbrakk> n1 = n2 ; s1 = s2

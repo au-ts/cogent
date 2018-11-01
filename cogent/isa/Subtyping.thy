@@ -229,8 +229,8 @@ qed (force intro: type_lub_type_glb.intros)+
 
 lemma type_lub_type_glb_commut:
   shows
-  "t \<leftarrow> t1 \<squnion> t2 \<Longrightarrow> t \<leftarrow> t2 \<squnion> t1"
-  "t \<leftarrow> t1 \<sqinter> t2 \<Longrightarrow> t \<leftarrow> t2 \<sqinter> t1"
+  "c \<leftarrow> a \<squnion> b \<Longrightarrow> c \<leftarrow> b \<squnion> a"
+  "c \<leftarrow> a \<sqinter> b \<Longrightarrow> c \<leftarrow> b \<sqinter> a"
 proof (induct rule: type_lub_type_glb.inducts)
   case (lub_tcon ns ns1 ns2 s s2 s1 ts ts1 ts2)
   then show ?case
@@ -379,8 +379,154 @@ next
   qed auto
 qed (force intro: type_lub_type_glb.intros)+
 
-lemma type_lub_type_glb_order_same: "a \<leftarrow> a \<squnion> b \<longleftrightarrow> b \<leftarrow> a \<sqinter> b"
+
+lemma type_lub_type_glb_order_correct: "a \<leftarrow> a \<squnion> b \<longleftrightarrow> b \<leftarrow> a \<sqinter> b"
   by (auto intro: type_lub_type_glb_absorb type_lub_type_glb_commut)
 
+lemma glb_lub_subtyping_order_correct:
+  shows
+    "c \<leftarrow> a \<squnion> b \<Longrightarrow> (c \<sqsubseteq> a) \<and> (c \<sqsubseteq> b)"
+    "c \<leftarrow> a \<sqinter> b \<Longrightarrow> (a \<sqsubseteq> c) \<and> (b \<sqsubseteq> c)"
+proof (induct rule: type_lub_type_glb.inducts)
+  case (lub_tcon n n1 n2 s s1 s2 ts ts1 ts2)
+  then show ?case
+    by (auto intro!: subtyping.intros simp add: list_all3_conv_all_nth list_all2_conv_all_nth)
+next
+  case (lub_trecord ts ts1 ts2 s s1 s2)
+  moreover { fix n t b t1 b1
+    assume
+      "(n, t, b) \<in> set ts"
+      "(n, t1, b1) \<in> set ts1"
+    moreover then obtain t2 b2 where "(n, t2, b2) \<in> set ts2"
+      using lub_trecord.hyps
+      by (metis (no_types, hide_lams) eq_fst_iff image_iff)
+    ultimately have "t \<sqsubseteq> t1 \<and> b \<le> b1"
+      using lub_trecord.hyps by fastforce
+  }
+  moreover { fix n t b t2 b2
+    assume
+      "(n, t, b) \<in> set ts"
+      "(n, t2, b2) \<in> set ts2"
+    moreover then obtain t1 b1 where "(n, t1, b1) \<in> set ts1"
+      using lub_trecord.hyps
+      by (metis (no_types, hide_lams) eq_fst_iff image_iff)
+    ultimately have "t \<sqsubseteq> t2 \<and> b \<le> b2"
+      using lub_trecord.hyps by fastforce
+  }
+  moreover have
+    "\<And>n t b. (n, t, b) \<in> set ts \<Longrightarrow> \<exists>t1 b1. (n, t1, b1) \<in> set ts1"
+    "\<And>n t2 b2. (n, t2, b2) \<in> set ts2 \<Longrightarrow> \<exists>t1 b1. (n, t1, b1) \<in> set ts1"
+    using lub_trecord.hyps
+    by (metis (no_types, hide_lams) eq_fst_iff image_iff)+
+  ultimately show ?case
+    by (auto intro!: subtyping.intros simp add: image_iff Bex_def)
+next
+  case (lub_tsum ts ts1 ts2)
+  moreover { fix n t b t1 b1
+    assume
+      "(n, t, b) \<in> set ts"
+      "(n, t1, b1) \<in> set ts1"
+    moreover then obtain t2 b2 where "(n, t2, b2) \<in> set ts2"
+      using lub_tsum.hyps
+      by (metis (no_types, hide_lams) eq_fst_iff image_iff)
+    ultimately have "t \<sqsubseteq> t1 \<and> b \<le> b1"
+      using lub_tsum.hyps by fastforce
+  }
+  moreover { fix n t b t2 b2
+    assume
+      "(n, t, b) \<in> set ts"
+      "(n, t2, b2) \<in> set ts2"
+    moreover then obtain t1 b1 where "(n, t1, b1) \<in> set ts1"
+      using lub_tsum.hyps
+      by (metis (no_types, hide_lams) eq_fst_iff image_iff)
+    ultimately have "t \<sqsubseteq> t2 \<and> b \<le> b2"
+      using lub_tsum.hyps by fastforce
+  }
+  moreover have
+    "\<And>n t b. (n, t, b) \<in> set ts \<Longrightarrow> \<exists>t1 b1. (n, t1, b1) \<in> set ts1"
+    "\<And>n t2 b2. (n, t2, b2) \<in> set ts2 \<Longrightarrow> \<exists>t1 b1. (n, t1, b1) \<in> set ts1"
+    using lub_tsum.hyps
+    by (metis (no_types, hide_lams) eq_fst_iff image_iff)+
+  ultimately show ?case
+    by (auto intro!: subtyping.intros simp add: image_iff Bex_def)
+next
+  case (glb_tcon n n1 n2 s s1 s2 ts ts1 ts2)
+  then show ?case
+    by (auto intro!: subtyping.intros simp add: list_all3_conv_all_nth list_all2_conv_all_nth)
+next
+  case (glb_trecord ts ts1 ts2 s s1 s2)
+  moreover { fix n t b t1 b1
+    assume
+      "(n, t, b) \<in> set ts"
+      "(n, t1, b1) \<in> set ts1"
+    moreover then obtain t2 b2 where "(n, t2, b2) \<in> set ts2"
+      using glb_trecord.hyps
+      by (metis (no_types, hide_lams) eq_fst_iff image_iff)
+    ultimately have "t1 \<sqsubseteq> t \<and> b1 \<le> b"
+      using glb_trecord.hyps by fastforce
+  }
+  moreover { fix n t b t2 b2
+    assume
+      "(n, t, b) \<in> set ts"
+      "(n, t2, b2) \<in> set ts2"
+    moreover then obtain t1 b1 where "(n, t1, b1) \<in> set ts1"
+      using glb_trecord.hyps
+      by (metis (no_types, hide_lams) eq_fst_iff image_iff)
+    ultimately have "t2 \<sqsubseteq> t \<and> b2 \<le> b"
+      using glb_trecord.hyps by fastforce
+  }
+  moreover have
+    "\<And>n t b. (n, t, b) \<in> set ts \<Longrightarrow> \<exists>t1 b1. (n, t1, b1) \<in> set ts1"
+    "\<And>n t2 b2. (n, t2, b2) \<in> set ts2 \<Longrightarrow> \<exists>t1 b1. (n, t1, b1) \<in> set ts1"
+    using glb_trecord.hyps
+    by (metis (no_types, hide_lams) eq_fst_iff image_iff)+
+  ultimately show ?case
+    by (auto intro!: subtyping.intros simp add: image_iff Bex_def)
+next
+  case (glb_tsum ts ts1 ts2)
+  moreover { fix n t b t1 b1
+    assume
+      "(n, t, b) \<in> set ts"
+      "(n, t1, b1) \<in> set ts1"
+    moreover then obtain t2 b2 where "(n, t2, b2) \<in> set ts2"
+      using glb_tsum.hyps
+      by (metis (no_types, hide_lams) eq_fst_iff image_iff)
+    ultimately have "t1 \<sqsubseteq> t \<and> b1 \<le> b"
+      using glb_tsum.hyps by fastforce
+  }
+  moreover { fix n t b t2 b2
+    assume
+      "(n, t, b) \<in> set ts"
+      "(n, t2, b2) \<in> set ts2"
+    moreover then obtain t1 b1 where "(n, t1, b1) \<in> set ts1"
+      using glb_tsum.hyps
+      by (metis (no_types, hide_lams) eq_fst_iff image_iff)
+    ultimately have "t2 \<sqsubseteq> t \<and> b2 \<le> b"
+      using glb_tsum.hyps by fastforce
+  }
+  moreover have
+    "\<And>n t b. (n, t, b) \<in> set ts \<Longrightarrow> \<exists>t1 b1. (n, t1, b1) \<in> set ts1"
+    "\<And>n t2 b2. (n, t2, b2) \<in> set ts2 \<Longrightarrow> \<exists>t1 b1. (n, t1, b1) \<in> set ts1"
+    using glb_tsum.hyps
+    by (metis (no_types, hide_lams) eq_fst_iff image_iff)+
+  ultimately show ?case
+    by (auto intro!: subtyping.intros simp add: image_iff Bex_def)
+qed (auto intro!: subtyping.intros)
+
+
+lemma type_lub_type_glb_to_subtyping:
+  shows
+    "a \<leftarrow> a \<squnion> b \<Longrightarrow> a \<sqsubseteq> b"
+    "b \<leftarrow> a \<sqinter> b \<Longrightarrow> a \<sqsubseteq> b"
+  using glb_lub_subtyping_order_correct
+  by fast+
+
+(* this would be nice:
+theorem type_glb_type_lub_subtyping_equivalent:
+  shows
+    "a \<leftarrow> a \<squnion> b \<longleftrightarrow> a \<sqsubseteq> b"
+    "b \<leftarrow> a \<sqinter> b \<longleftrightarrow> a \<sqsubseteq> b"
+  sorry
+*)
 
 end
