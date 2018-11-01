@@ -216,9 +216,11 @@ set_flag_Werror = writeIORef __cogent_warning_switch_ref Flag_Werror
 set_flag_WdodgyTakePut = writeIORef __cogent_wdodgy_take_put_ref True
 set_flag_WdynamicVariantPromotion = writeIORef __cogent_wdynamic_variant_promotion_ref True
 set_flag_WimplicitIntLitPromotion = writeIORef __cogent_wimplicit_int_lit_promotion_ref True
+set_flag_Wmono = writeIORef __cogent_wmono_ref True
 set_flag_WnoDodgyTakePut = writeIORef __cogent_wdodgy_take_put_ref False
 set_flag_WnoDynamicVariantPromotion = writeIORef __cogent_wdynamic_variant_promotion_ref False
 set_flag_WnoImplicitIntLitPromotion = writeIORef __cogent_wimplicit_int_lit_promotion_ref False
+set_flag_WnoMono = writeIORef __cogent_wmono_ref False
 set_flag_WnoUnusedLocalBinds = writeIORef __cogent_wunused_local_binds_ref False
 set_flag_WunusedLocalBinds = writeIORef __cogent_wunused_local_binds_ref True
 set_flag_Wwarn  = writeIORef __cogent_warning_switch_ref Flag_Wwarn
@@ -800,6 +802,13 @@ __cogent_wimplicit_int_lit_promotion = unsafePerformIO $ readIORef __cogent_wimp
 __cogent_wimplicit_int_lit_promotion_ref :: IORef Bool
 {-# NOINLINE __cogent_wimplicit_int_lit_promotion_ref #-}
 __cogent_wimplicit_int_lit_promotion_ref = unsafePerformIO $ newIORef True
+
+__cogent_wmono :: Bool
+__cogent_wmono = unsafePerformIO $ readIORef __cogent_wmono_ref
+
+__cogent_wmono_ref :: IORef Bool
+{-# NOINLINE __cogent_wmono_ref #-}
+__cogent_wmono_ref = unsafePerformIO $ newIORef False
 
 __cogent_wunused_local_binds :: Bool
 __cogent_wunused_local_binds = unsafePerformIO $ readIORef __cogent_wunused_local_binds_ref

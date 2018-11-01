@@ -506,9 +506,11 @@ flags =
   , Option []         ["Wdodgy-take-put"]             2 (NoArg set_flag_WdodgyTakePut) "(default) enable warnings on ill-formed take or put in types"
   , Option []         ["Wdynamic-variant-promotion"]  2 (NoArg set_flag_WdynamicVariantPromotion) "enable warnings on dynamic variant type promotion"
   , Option []         ["Wimplicit-int-lit-promotion"] 2 (NoArg set_flag_WimplicitIntLitPromotion) "(default) enable warning on implicit integer literal promotion"
+  , Option []         ["Wmono"]                       3 (NoArg set_flag_Wmono) "enable warnings during monomorphisation"
   , Option []         ["Wunused-local-binds"]         2 (NoArg set_flag_WunusedLocalBinds) "warn about unused local binders"
   , Option []         ["Wno-dodgy-take-put"]             2 (NoArg set_flag_WnoDodgyTakePut) "reverse of --Wdodgy-take-put"
   , Option []         ["Wno-dynamic-variant-promotion"]  2 (NoArg set_flag_WnoDynamicVariantPromotion) "(default) reverse of --Wdynamic-variant-promotion"
+  , Option []         ["Wno-mono"]                       3 (NoArg set_flag_WnoMono) "(default) reverse of --Wmono"
   , Option []         ["Wno-implicit-int-lit-promotion"] 2 (NoArg set_flag_WnoImplicitIntLitPromotion) "reverse of --Wimplicit-int-lit-promotion"
   , Option []         ["Wno-unused-local-binds"]         2 (NoArg set_flag_WnoUnusedLocalBinds) "(default) reverse of --Wunused-local-binds"
   , Option ['w']      ["Wno-warn"]      1 (NoArg set_flag_w)                               "turn off all warnings"
@@ -990,7 +992,8 @@ parseArgs args = case getOpt' Permute options args of
     lessPretty h a = hPutStrLn h (ppShow a)
     -- Warnings
     printWarnings :: [Warning] -> IO ()
-    printWarnings ws = hPutStr stderr $ unlines $ map ("Warning: " ++) ws
+    printWarnings ws | __cogent_wmono = hPutStr stderr $ unlines $ map ("Warning: " ++) ws
+                     | otherwise = return ()
 
     writeFileMsg :: Maybe FilePath -> IO ()
     writeFileMsg mbfile = when (isJust mbfile) $ putProgressLn ("  > Writing to file: " ++ fromJust mbfile)
