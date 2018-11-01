@@ -236,6 +236,47 @@ qed
 end
 
 
+subsection {* variants *}
+
+fun variant_un_step :: "(['t, 't] \<Rightarrow> 't) \<Rightarrow> ([bool, bool] \<Rightarrow> bool) \<Rightarrow> ('a \<times> 't \<times> bool) \<Rightarrow> ('a \<times> 't \<times> bool) list \<Rightarrow> ('a \<times> 't \<times> bool) option" where
+  "variant_un_step f g (tag, t, b) ys = (case find (\<lambda>p. fst p = tag) ys of
+                                          Some (tag', t', b') \<Rightarrow> Some (tag, f t t', g b b')
+                                        | None \<Rightarrow> None)"
+
+(* precondition: \<open>fst ` set xs = fst ` set ys\<close> *)
+definition variant_un :: "(['t, 't] \<Rightarrow> 't) \<Rightarrow> ([bool, bool] \<Rightarrow> bool) \<Rightarrow> ('a \<times> 't \<times> bool) list \<Rightarrow> ('a \<times> 't \<times> bool) list \<Rightarrow> ('a \<times> 't \<times> bool) list" where
+  "variant_un f g xs ys = fold (\<lambda>x acc. case variant_un_step f g x ys of
+                                          Some xy \<Rightarrow> xy # acc
+                                        | None \<Rightarrow> acc) xs []"
+
+
+fun variant_un_tailrec :: "(['t, 't] \<Rightarrow> 't) \<Rightarrow> ([bool, bool] \<Rightarrow> bool) \<Rightarrow> ('a \<times> 't \<times> bool) list \<Rightarrow> ('a \<times> 't \<times> bool) list \<Rightarrow> ('a \<times> 't \<times> bool) list \<Rightarrow> ('a \<times> 't \<times> bool) list" where
+  "variant_un_tailrec f g [] ys acc = acc"
+| "variant_un_tailrec f g (x # xs) ys acc = (case find (\<lambda>p. fst p = fst x) ys of
+                                          Some p \<Rightarrow> (fst x, f (fst (snd x)) (fst (snd p)), g (snd (snd x)) (snd (snd p))) # acc
+                                        | None \<Rightarrow> acc)"
+
+lemma variant_un_bound_generalised:
+  shows "length (fold (\<lambda>x acc. case variant_un_step f g x ys of
+                                 Some xy \<Rightarrow> xy # acc
+                               | None \<Rightarrow> acc) xs init) \<le> length init + length xs + length ys"
+proof (induct xs arbitrary: init)
+  case (Cons x xs)
+  then show ?case
+  proof (cases "variant_un_step f g x ys")
+    case (Some a)
+    then show ?thesis
+      using Cons
+      by (simp, metis (no_types, lifting) add_Suc length_Cons)
+  qed (simp add: le_Suc_eq)
+qed simp
+
+lemma variant_un_bound: "length (variant_un f g xs ys) \<le> length xs + length ys"
+  using variant_un_bound_generalised[where init="[]"]
+  by (simp add: variant_un_def)
+
+
+subsection {* types *}
 
 datatype type = TVar index
               | TVarBang index
@@ -572,18 +613,39 @@ lemma eval_prim_op_lit_type:
 
 section {* Typing rules *}
 
-(*
-inductive subtyping :: "kind env \<Rightarrow> type \<Rightarrow> type \<Rightarrow> bool" ("_ \<turnstile> _ \<sqsubseteq> _" [30,0,0] 60) where
-  tsum_subtyping: "\<lbrakk> set (map fst ts) = set (map fst ts')
-                   ; \<forall> c c'. c \<in> set (map fst ts) \<longrightarrow> lookup c ts = lookup c ts' \<rbrakk> \<Longrightarrow> K \<turnstile> TSum ts \<sqsubseteq> TSum ts'"
-*)
+inductive subtyping :: "type \<Rightarrow> type \<Rightarrow> bool" ("_ \<sqsubseteq> _" [40,40] 60) where
+  subty_tvar   : "n1 = n2 \<Longrightarrow> TVar n1 \<sqsubseteq> TVar n2"
+| subty_tvarb  : "n1 = n2 \<Longrightarrow> TVarBang n1 \<sqsubseteq> TVarBang n2"
+| subty_tcon   : "\<lbrakk> n1 = n2 ; s1 = s2
+                  ; list_all2 subtyping ts1 ts2
+                  \<rbrakk> \<Longrightarrow> TCon n1 ts1 s1 \<sqsubseteq> TCon n2 ts2 s2"
+| subty_tfun   : "\<lbrakk> t2 \<sqsubseteq> t1
+                  ; u1 \<sqsubseteq> u2
+                  \<rbrakk> \<Longrightarrow> TFun t1 u1 \<sqsubseteq> TFun t2 u2"
+| subty_tprim  : "\<lbrakk> p1 = p2
+                  \<rbrakk> \<Longrightarrow> TPrim p1 \<sqsubseteq> TPrim p2"
+| subty_trecord: "\<lbrakk> \<And>n t1 t2 b1 b2. \<lbrakk> (n,t1,b1) \<in> set ts1; (n,t2,b2) \<in> set ts2 \<rbrakk> \<Longrightarrow> (t1 \<sqsubseteq> t2) \<and> (b1 \<le> b2)
+                  ; distinct (map fst ts1)
+                  ; distinct (map fst ts2)
+                  ; fst ` set ts1 = fst ` set ts2
+                  ; s1 = s2
+                  \<rbrakk> \<Longrightarrow> TRecord ts1 s1 \<sqsubseteq> TRecord ts2 s2"
+| subty_tprod  : "\<lbrakk> t1 \<sqsubseteq> t2
+                  ; u1 \<sqsubseteq> u2
+                  \<rbrakk> \<Longrightarrow> TProduct t1 u1 \<sqsubseteq> TProduct t2 u2"
+| subty_tsum   : "\<lbrakk> \<And>n t1 t2 b1 b2. \<lbrakk> (n,t1,b1) \<in> set ts1; (n,t2,b2) \<in> set ts2 \<rbrakk> \<Longrightarrow> (t1 \<sqsubseteq> t2) \<and> (b1 \<le> b2)
+                  ; distinct (map fst ts1)
+                  ; distinct (map fst ts2)
+                  ; fst ` set ts1 = fst ` set ts2
+                  \<rbrakk> \<Longrightarrow> TSum ts1 \<sqsubseteq> TSum ts2"
+| subty_tunit  : "TUnit \<sqsubseteq> TUnit"
 
 inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Rightarrow> ctx \<Rightarrow> 'f expr \<Rightarrow> type \<Rightarrow> bool"
           ("_, _, _ \<turnstile> _ : _" [30,0,0,0,20] 60)
       and typing_all :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Rightarrow> ctx \<Rightarrow> 'f expr list \<Rightarrow> type list \<Rightarrow> bool"
           ("_, _, _ \<turnstile>* _ : _" [30,0,0,0,20] 60) where
 
-  typing_var    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto>w singleton (length \<Gamma>) i t
+typing_var    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto>w singleton (length \<Gamma>) i t
                    ; i < length \<Gamma>
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Var i : t"
 
@@ -917,6 +979,14 @@ lemma kinding_variant_wellformed_elem:
   using assms
   by (induct ts; force simp add: kinding_defs)
 
+lemma kinding_variant_all_wellformed:
+  assumes
+    "K \<turnstile>* ts :\<kappa>v k"
+    "(n,t,b) \<in> set ts"
+  shows   "K \<turnstile> t wellformed"
+  using assms
+  by (case_tac b; force simp add: kinding_variant_set kinding_defs)
+
 lemma kinding_all_variant':
   assumes "K \<turnstile>* map (fst \<circ> snd) ts :\<kappa> k"
   shows   "K \<turnstile>* ts :\<kappa>v k"
@@ -970,6 +1040,7 @@ proof -
     using tag_elem_at assms
     by (simp add: kinding_variant_set tagged_list_update_distinct)
 qed
+
 
 lemma kinding_record_cons:
   shows "(K \<turnstile>* t # ts :\<kappa>r k) \<longleftrightarrow> (case snd (snd t) of Taken \<Rightarrow> K \<turnstile> fst (snd t) wellformed | Present \<Rightarrow> K \<turnstile> fst (snd t) :\<kappa> k) \<and> (K \<turnstile>* ts :\<kappa>r k)"
@@ -1104,6 +1175,90 @@ and   "K \<turnstile>* map (fst \<circ> snd) fs wellformed \<Longrightarrow> K \
   using bang_wellformed bang_kinding_fn
   by (fastforce simp add: kinding_defs INT_subset_iff simp del: insert_subset
       split: variant_state.split record_state.split)+
+
+section {* Subtyping lemmas *}
+
+lemma subtyping_simps:
+  shows
+  "\<And>n1 n2. TVar n1 \<sqsubseteq> TVar n2 \<longleftrightarrow> n1 = n2"
+  "\<And>n1 n2. TVarBang n1 \<sqsubseteq> TVarBang n2 \<longleftrightarrow> n1 = n2"
+  "\<And>n1 ts1 s1 n2 ts2 s2. TCon n1 ts1 s1 \<sqsubseteq> TCon n2 ts2 s2 \<longleftrightarrow> n1 = n2 \<and> s1 = s2 \<and> list_all2 subtyping ts1 ts2"
+  "\<And>t1 u1 t2 u2. TFun t1 u1 \<sqsubseteq> TFun t2 u2 \<longleftrightarrow> t2 \<sqsubseteq> t1 \<and> u1 \<sqsubseteq> u2"
+  "\<And>p1 p2. TPrim p1 \<sqsubseteq> TPrim p2 \<longleftrightarrow> p1 = p2"
+  "\<And>ts1 s1 ts2 s2. TRecord ts1 s1 \<sqsubseteq> TRecord ts2 s2
+                    \<longleftrightarrow> (\<forall>n t1 t2 b1 b2. (n,t1,b1) \<in> set ts1 \<longrightarrow> (n,t2,b2) \<in> set ts2 \<longrightarrow> (t1 \<sqsubseteq> t2) \<and> (b1 \<le> b2))
+                    \<and> distinct (map fst ts1)
+                    \<and> distinct (map fst ts2)
+                    \<and> fst ` set ts1 = fst ` set ts2
+                    \<and> s1 = s2"
+  "\<And>t1 u1 t2 u2. TProduct t1 u1 \<sqsubseteq> TProduct t2 u2 \<longleftrightarrow> t1 \<sqsubseteq> t2 \<and> u1 \<sqsubseteq> u2"
+  "\<And>ts1 ts2. TSum ts1 \<sqsubseteq> TSum ts2
+                    \<longleftrightarrow> (\<forall>n t1 t2 b1 b2. (n,t1,b1) \<in> set ts1 \<longrightarrow> (n,t2,b2) \<in> set ts2 \<longrightarrow> (t1 \<sqsubseteq> t2) \<and> (b1 \<le> b2))
+                    \<and> distinct (map fst ts1)
+                    \<and> distinct (map fst ts2)
+                    \<and> fst ` set ts1 = fst ` set ts2"
+  "TUnit \<sqsubseteq> TUnit"
+  by (auto intro!: subtyping.intros elim!: subtyping.cases)
+
+lemma subtyping_refl:
+  assumes "K \<turnstile> t wellformed"
+  shows "t \<sqsubseteq> t"
+  using assms
+proof (induct t)
+  case (TSum x)
+  then show ?case
+    using distinct_fst
+    by (fastforce intro!: subtyping.intros)
+next
+  case (TRecord x1a x2a)
+  then show ?case
+    using distinct_fst
+    by (fastforce intro!: subtyping.intros)
+qed (auto intro!: subtyping.intros simp add: list.rel_refl_strong)
+
+lemma specialisation_subtyping:
+  assumes
+    "t \<sqsubseteq> t'"
+    "K \<turnstile> t wellformed"
+    "K \<turnstile> t' wellformed"
+    "list_all2 (kinding K') \<delta> K"
+  shows "instantiate \<delta> t \<sqsubseteq> instantiate \<delta>  t'"
+  using assms
+proof (induct rule: subtyping.inducts)
+  case (subty_tvar i' i)
+  then show ?case
+    by (auto intro!: subtyping.intros subtyping_refl simp add: kinding_def list_all2_conv_all_nth)
+next
+  case (subty_tvarb i' i)
+  moreover then have "type_wellformed (length K') (bang (\<delta> ! i))"
+    by (auto dest: bang_wellformed simp add: kinding_def list_all2_conv_all_nth)
+  ultimately show ?case
+    by (auto intro!: subtyping.intros subtyping_refl simp add: kinding_def list_all2_conv_all_nth)
+next
+  case (subty_tcon n1 n2 s1 s2 ts1 ts2)
+  then show ?case
+    by (auto intro!: subtyping.intros subtyping_refl simp add: kinding_def list_all2_conv_all_nth)
+next
+  case (subty_trecord ts1 ts2 s1 s2)
+  then show ?case
+    apply clarsimp
+    apply (intro subtyping.intros)
+        apply fastforce
+       apply (auto simp add: image_iff Bex_def)
+     apply (metis (no_types, hide_lams) eq_fst_iff image_iff)
+    apply (metis (no_types, hide_lams) eq_fst_iff image_iff)
+    done
+next
+  case (subty_tsum ts1 ts2)
+  then show ?case
+    apply clarsimp
+    apply (intro subtyping.intros)
+       apply fastforce
+      apply (auto simp add: image_iff Bex_def)
+     apply (metis (no_types, hide_lams) eq_fst_iff image_iff)
+    apply (metis (no_types, hide_lams) eq_fst_iff image_iff)
+    done
+qed (auto intro!: subtyping.intros)
 
 section {* Typing lemmas *}
 
