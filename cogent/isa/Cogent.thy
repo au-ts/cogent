@@ -1176,6 +1176,89 @@ and   "K \<turnstile>* map (fst \<circ> snd) fs wellformed \<Longrightarrow> K \
   by (fastforce simp add: kinding_defs INT_subset_iff simp del: insert_subset
       split: variant_state.split record_state.split)+
 
+section {* Subtyping lemmas *}
+
+lemma subtyping_simps:
+  shows
+  "\<And>n1 n2. TVar n1 \<sqsubseteq> TVar n2 \<longleftrightarrow> n1 = n2"
+  "\<And>n1 n2. TVarBang n1 \<sqsubseteq> TVarBang n2 \<longleftrightarrow> n1 = n2"
+  "\<And>n1 ts1 s1 n2 ts2 s2. TCon n1 ts1 s1 \<sqsubseteq> TCon n2 ts2 s2 \<longleftrightarrow> n1 = n2 \<and> s1 = s2 \<and> list_all2 subtyping ts1 ts2"
+  "\<And>t1 u1 t2 u2. TFun t1 u1 \<sqsubseteq> TFun t2 u2 \<longleftrightarrow> t2 \<sqsubseteq> t1 \<and> u1 \<sqsubseteq> u2"
+  "\<And>p1 p2. TPrim p1 \<sqsubseteq> TPrim p2 \<longleftrightarrow> p1 = p2"
+  "\<And>ts1 s1 ts2 s2. TRecord ts1 s1 \<sqsubseteq> TRecord ts2 s2
+                    \<longleftrightarrow> (\<forall>n t1 t2 b1 b2. (n,t1,b1) \<in> set ts1 \<longrightarrow> (n,t2,b2) \<in> set ts2 \<longrightarrow> (t1 \<sqsubseteq> t2) \<and> (b1 \<le> b2))
+                    \<and> distinct (map fst ts1)
+                    \<and> distinct (map fst ts2)
+                    \<and> fst ` set ts1 = fst ` set ts2
+                    \<and> s1 = s2"
+  "\<And>t1 u1 t2 u2. TProduct t1 u1 \<sqsubseteq> TProduct t2 u2 \<longleftrightarrow> t1 \<sqsubseteq> t2 \<and> u1 \<sqsubseteq> u2"
+  "\<And>ts1 ts2. TSum ts1 \<sqsubseteq> TSum ts2
+                    \<longleftrightarrow> (\<forall>n t1 t2 b1 b2. (n,t1,b1) \<in> set ts1 \<longrightarrow> (n,t2,b2) \<in> set ts2 \<longrightarrow> (t1 \<sqsubseteq> t2) \<and> (b1 \<le> b2))
+                    \<and> distinct (map fst ts1)
+                    \<and> distinct (map fst ts2)
+                    \<and> fst ` set ts1 = fst ` set ts2"
+  "TUnit \<sqsubseteq> TUnit"
+  by (auto intro!: subtyping.intros elim!: subtyping.cases)
+
+lemma subtyping_refl:
+  assumes "K \<turnstile> t wellformed"
+  shows "t \<sqsubseteq> t"
+  using assms
+proof (induct t)
+  case (TSum x)
+  then show ?case
+    using distinct_fst
+    by (fastforce intro!: subtyping.intros)
+next
+  case (TRecord x1a x2a)
+  then show ?case
+    using distinct_fst
+    by (fastforce intro!: subtyping.intros)
+qed (auto intro!: subtyping.intros simp add: list.rel_refl_strong)
+
+lemma specialisation_subtyping:
+  assumes
+    "t \<sqsubseteq> t'"
+    "K \<turnstile> t wellformed"
+    "K \<turnstile> t' wellformed"
+    "list_all2 (kinding K') \<delta> K"
+  shows "instantiate \<delta> t \<sqsubseteq> instantiate \<delta>  t'"
+  using assms
+proof (induct rule: subtyping.inducts)
+  case (subty_tvar i' i)
+  then show ?case
+    by (auto intro!: subtyping.intros subtyping_refl simp add: kinding_def list_all2_conv_all_nth)
+next
+  case (subty_tvarb i' i)
+  moreover then have "type_wellformed (length K') (bang (\<delta> ! i))"
+    by (auto dest: bang_wellformed simp add: kinding_def list_all2_conv_all_nth)
+  ultimately show ?case
+    by (auto intro!: subtyping.intros subtyping_refl simp add: kinding_def list_all2_conv_all_nth)
+next
+  case (subty_tcon n1 n2 s1 s2 ts1 ts2)
+  then show ?case
+    by (auto intro!: subtyping.intros subtyping_refl simp add: kinding_def list_all2_conv_all_nth)
+next
+  case (subty_trecord ts1 ts2 s1 s2)
+  then show ?case
+    apply clarsimp
+    apply (intro subtyping.intros)
+        apply fastforce
+       apply (auto simp add: image_iff Bex_def)
+     apply (metis (no_types, hide_lams) eq_fst_iff image_iff)
+    apply (metis (no_types, hide_lams) eq_fst_iff image_iff)
+    done
+next
+  case (subty_tsum ts1 ts2)
+  then show ?case
+    apply clarsimp
+    apply (intro subtyping.intros)
+       apply fastforce
+      apply (auto simp add: image_iff Bex_def)
+     apply (metis (no_types, hide_lams) eq_fst_iff image_iff)
+    apply (metis (no_types, hide_lams) eq_fst_iff image_iff)
+    done
+qed (auto intro!: subtyping.intros)
 
 section {* Typing lemmas *}
 
