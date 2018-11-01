@@ -138,7 +138,7 @@ deepExpr mod ta defs (TE _ (Promote ty e))
 --   | TE (TPrim pt) _ <- e, TPrim pt' <- ty, pt /= Boolean
 --   = mkApp (mkId "Cast") [deepNumType pt', deepExpr mod ta defs e]  -- primInt cast
 --   | TE (TSum _) (Con cn v _) <- e, TSum as <- ty
---   = mkApp (mkId "Con") [mkList $ map (\(an,(at,_)) -> mkPair (mkString an) (deepType mod ta at)) as, mkString cn, deepExpr mod ta defs v]  -- inlined Con  -- FIXME: cogent.1
+--   = mkApp (mkId "Con") [mkList $ map (\(an,(at,_)) -> mkPair (mkString an) (deepType mod ta at)) as, mkString cn, deepExpr mod ta defs v]  -- inlined Con
 --   | TSum as <- ty = mkApp (mkId "Promote") [mkList $ map (\(an,(at,_)) -> mkPair (mkString an) (deepType mod ta at)) as, deepExpr mod ta defs e]  -- FIMXE: cogent.1
 --   | otherwise = __impossible "deepExpr"
 deepExpr mod ta defs (TE _ (Struct fs))
@@ -148,7 +148,7 @@ deepExpr mod ta defs (TE _ (Member e fld))
   = mkApp (mkId "Member") [deepExpr mod ta defs e, mkInt (fromIntegral fld)]
 deepExpr mod ta defs (TE _ (Unit)) = mkId "Unit"
 deepExpr mod ta defs (TE _ (ILit n pt)) = mkApp (mkId "Lit") [deepILit n pt]
-deepExpr mod ta defs (TE _ (SLit s)) = __todo "deepExpr: SLit"
+deepExpr mod ta defs (TE _ (SLit s)) = __fixme $ mkApp (mkId "SLit") [mkString s]  -- FIXME: there's no @SLit@ in the Isabelle definition at the moment / zilinc
 deepExpr mod ta defs (TE _ (Tuple e1 e2))
   = mkApp (mkId "Tuple") [deepExpr mod ta defs e1, deepExpr mod ta defs e2]
 deepExpr mod ta defs (TE _ (Put rec fld e))
