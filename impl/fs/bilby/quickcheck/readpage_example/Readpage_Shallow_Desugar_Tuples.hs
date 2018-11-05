@@ -23,6 +23,7 @@ import qualified Data.Array as A
 import qualified Fsop as Ax
 import qualified Data.Map as M
 import Data.List (minimum, genericDrop, genericTake, length, drop)
+import Util
 
 -- import Debug.Trace
 
@@ -866,14 +867,7 @@ type Wordarray_copy_RetT a = WordArray a
 
 wordarray_copy :: Wordarray_copy_ArgT a -> Wordarray_copy_RetT a
 wordarray_copy (dst,src,dst_offs,src_offs,n) =
-  let len_dst = fromIntegral $ length dst
-      len_src = fromIntegral $ length src
-      dst_avl = len_dst - dst_offs
-      src_avl = len_src - src_offs
-      n' = minimum [n, dst_avl, src_avl]
-      src_cpy = genericTake n' . genericDrop src_offs $ A.elems src 
-   in if dst_offs > len_dst - 1 then dst 
-      else dst A.// zip [dst_offs .. dst_offs + n' - 1] src_cpy
+  Ax.hs_wordarray_copy dst src dst_offs src_offs n
 
 type Wordarray_fold'_ArgT a acc obsv = (WordArray a, (acc, obsv, a) -> acc, acc, obsv)
 
@@ -894,7 +888,7 @@ type Wordarray_length_ArgT a = WordArray a
 type Wordarray_length_RetT a = Word32
 
 wordarray_length :: Wordarray_length_ArgT a -> Wordarray_length_RetT a
-wordarray_length = fromIntegral . length
+wordarray_length = Ax.hs_wordarray_length
 
 type Wordarray_map'_ArgT a acc obsv = (WordArray a, (acc, obsv, a) -> (acc, a), acc, obsv)
 
@@ -922,11 +916,7 @@ type Wordarray_set_ArgT a = (WordArray a, Word32, Word32, a)
 type Wordarray_set_RetT a = WordArray a
 
 wordarray_set :: Wordarray_set_ArgT a -> Wordarray_set_RetT a
-wordarray_set (arr, frm, n, a) = 
-  let len = wordarray_length arr
-      frm' = if frm >= len then len else frm
-      to'  = if frm + n > len then len else frm + n
-   in arr A.// (zip [frm' .. to' - 1] (repeat a))
+wordarray_set = uncurry4 Ax.hs_wordarray_set
 
 type Wordarray_split_ArgT a = (WordArray a, Word32)
 

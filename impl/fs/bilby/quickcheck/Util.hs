@@ -36,6 +36,30 @@ ffmap f = unflip . fmap f . Flip
 ttraverse :: (Traversable (Flip f b), Applicative m) => (a -> m a') -> f a b -> m (f a' b)
 ttraverse f = fmap unflip . traverse f . Flip
 
+curry3 :: ((a,b,c) -> d) -> a -> b -> c -> d
+curry3 fn a b c = fn (a,b,c)
+
+uncurry3 :: (a -> b -> c -> d) -> (a,b,c) -> d
+uncurry3 fn (a,b,c) = fn a b c
+
+curry4 :: ((a,b,c,d) -> e) -> a -> b -> c -> d -> e
+curry4 fn a b c d = fn (a,b,c,d)
+
+uncurry4 :: (a -> b -> c -> d -> e) -> (a,b,c,d) -> e
+uncurry4 fn (a,b,c,d) = fn a b c d
+
+curry5 :: ((a,b,c,d,e) -> f) -> a -> b -> c -> d -> e -> f
+curry5 fn a b c d e = fn (a,b,c,d,e)
+
+uncurry5 :: (a -> b -> c -> d -> e -> f) -> (a,b,c,d,e) -> f
+uncurry5 fn (a,b,c,d,e) = fn a b c d e
+
+curry6 :: ((a,b,c,d,e,f) -> g) -> a -> b -> c -> d -> e -> f -> g
+curry6 fn a b c d e f = fn (a,b,c,d,e,f)
+
+uncurry6 :: (a -> b -> c -> d -> e -> f -> g) -> (a,b,c,d,e,f) -> g
+uncurry6 fn (a,b,c,d,e,f) = fn a b c d e f
+
 
 type Cu8  = CUChar
 type Cu16 = CUShort 
