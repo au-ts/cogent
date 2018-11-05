@@ -149,6 +149,32 @@ lemma list_all2_update_second:
   using assms
   by (clarsimp simp add: list_all2_conv_all_nth, metis nth_list_update_eq nth_list_update_neq)
 
+lemma elem_in_list_set_update:
+  assumes
+    "x \<in> set xs \<or> x = y"
+    "xs ! i \<noteq> x"
+    "i < length xs"
+  shows "x \<in> set (xs[i := y])"
+proof -
+  have "x \<in> insert y (set xs)"
+    using assms by auto
+  then show "x \<in> set (xs[i := y])"
+    by (metis assms in_set_conv_nth length_list_update nth_list_update_neq set_update_memI)
+qed
+  
+
+lemma distinct_fst_tags_update:
+  assumes
+    "distinct (map fst xs)"
+    "fst (xs ! i) = a"
+    "i < length xs"
+  shows "distinct (map fst (xs[i := (a, b, c)]))"
+  using assms
+  apply (clarsimp simp add: map_update)
+  apply (induct xs arbitrary: i)
+   apply (simp split: nat.split add: image_set map_update[symmetric] del: image_set[symmetric])+
+  done
+
 subsection {* list_all3 *}
 
 inductive list_all3 :: "('a \<Rightarrow> 'b \<Rightarrow> 'c \<Rightarrow> bool) \<Rightarrow> 'a list \<Rightarrow> 'b list \<Rightarrow> 'c list \<Rightarrow> bool" where

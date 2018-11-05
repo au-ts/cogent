@@ -1544,9 +1544,16 @@ lemma split_length:
   using assms
   by (induct rule: split_induct, force+)
 
-lemma split_preservation_some:
+lemma split_preservation_some_left:
   assumes splits: "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
-    and idx: "\<Gamma>1 ! i = Some t \<or> \<Gamma>2 ! i = Some t"
+    and idx: "\<Gamma>1 ! i = Some t"
+  shows "\<Gamma> ! i  = Some t"
+  using assms
+  by (induct arbitrary: i rule: split_induct; fastforce simp add: nth_Cons' elim: split_comp.cases)
+
+lemma split_preservation_some_right:
+  assumes splits: "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+    and idx: "\<Gamma>2 ! i = Some t"
   shows "\<Gamma> ! i  = Some t"
   using assms
   by (induct arbitrary: i rule: split_induct; fastforce simp add: nth_Cons' elim: split_comp.cases)
@@ -1587,6 +1594,31 @@ using weak[simplified weakening_def]
      case Nil                then show ?case by auto
 next case (Cons x xs y ys a) then show ?case by (case_tac a, auto elim: weakening_comp.cases)
 qed
+
+lemma same_type_as_weakened:
+  assumes
+    "K \<turnstile> \<Gamma> \<leadsto>w \<Gamma>'[i := Some t]"
+    "i < length \<Gamma>"
+  shows "\<Gamma> ! i = Some t"
+  using assms weakening_length weakening_preservation_some
+  by fastforce
+
+lemma same_type_as_split_weakened_left:
+  assumes
+    "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+    "K \<turnstile> \<Gamma>1 \<leadsto>w \<Gamma>1'[x := Some t]"
+    "x < length \<Gamma>1"
+  shows "\<Gamma> ! x = Some t"
+  using assms same_type_as_weakened split_preservation_some_left by blast
+
+lemma same_type_as_split_weakened_right:
+  assumes
+    "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+    "K \<turnstile> \<Gamma>2 \<leadsto>w \<Gamma>2'[x := Some t]"
+    "x < length \<Gamma>2"
+  shows "\<Gamma> ! x = Some t"
+  using assms same_type_as_weakened split_preservation_some_right by blast
+
 
 lemma weakening_nth:
 assumes weak: "K \<turnstile> \<Gamma> \<leadsto>w \<Gamma>'"
