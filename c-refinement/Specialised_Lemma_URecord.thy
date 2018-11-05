@@ -57,13 +57,13 @@ ML{* fun mk_specialised_corres_take (field_num:int) uval file_nm ctxt =
   val ass3 = @{mk_term "val_rel (\<gamma>!x) ?x'" x'} (Free ("x'", ty));
   val ass4 = strip_atype @{term "\<lambda> isa_sigil ty . type_rel (type_repr (TRecord typ isa_sigil)) ty"} 
             $ isa_sigil $ (Const ("Pure.type", Term.itselfT ty) |> strip_atype);
-  val ass5 = strip_atype @{term "\<lambda> field_num ty . type_rel (type_repr (fst (typ ! field_num))) ty"}
+  val ass5 = strip_atype @{term "\<lambda> field_num ty . type_rel (type_repr (fst (snd (typ ! field_num)))) ty"}
             $ isa_field_num $ (Const ("Pure.type", Term.itselfT field_ty) |> strip_atype);
   val ass6 = strip_atype @{term "\<lambda> field_num . \<Xi>', [], \<Gamma>' \<turnstile> Take (Var x) field_num e : te"} $ isa_field_num;
   val ass7 = strip_atype @{term "\<lambda> isa_sigil . \<Xi>', [], \<Gamma>x \<turnstile> (Var x) : TRecord typ isa_sigil"} $ isa_sigil;
   val ass8 = strip_atype @{term "\<lambda> isa_sigil field_num . 
-             (\<Xi>', [], Some (fst (typ ! field_num)) #
-              Some (TRecord (typ[field_num := (fst (typ ! field_num), taken)]) isa_sigil) # \<Gamma>e \<turnstile> e : te)"}
+             (\<Xi>', [], Some (fst (snd (typ ! field_num))) #
+              Some (TRecord (typ[field_num := (fst (typ ! field_num), fst (snd (typ ! field_num)), taken)]) isa_sigil) # \<Gamma>e \<turnstile> e : te)"}
             $ isa_sigil $ isa_field_num;
   (* For some reason, I cannot use the mk-term antiquotation for ass9.*)
   val ass9 = strip_atype @{term "\<lambda> field_num . [] \<turnstile> fst (typ ! field_num) :\<kappa> k"} $ isa_field_num;
@@ -75,7 +75,7 @@ ML{* fun mk_specialised_corres_take (field_num:int) uval file_nm ctxt =
               in
               (strip_atype @{term "\<And> state_rel isa_sigil field_num vf z. val_rel vf z \<Longrightarrow> 
                corres state_rel e (e' z) \<xi> (vf # (\<gamma>!x) # \<gamma>) \<Xi>' 
-                (Some (fst (typ ! field_num)) # Some (TRecord (typ[field_num := (fst (typ ! field_num), taken)]) 
+                (Some (fst (snd (typ ! field_num))) # Some (TRecord (typ[field_num := (fst (typ ! field_num), fst (snd (typ ! field_num)), taken)]) 
                 isa_sigil) # \<Gamma>e) \<sigma> s"})
                |> rep_Bound_n_with 4 state_rel
                |> rep_Bound_n_with 3 isa_sigil
@@ -150,7 +150,7 @@ ML{* fun mk_specialised_corres_put (field_num:int) uval file_nm ctxt =
   val ass5 = strip_atype @{term "\<lambda> v' . val_rel (\<gamma>!v) v'"} $ Free ("v'", field_ty);
   val ass6 = strip_atype @{term "\<lambda> field_num . 
              \<Xi>', [], \<Gamma>' \<turnstile> Put (Var x) field_num (Var v) : 
-                         TRecord (typ[field_num := (fst (typ ! field_num), False)]) (Boxed Writable ptrl)"} $ isa_int;
+                         TRecord (typ[field_num := (fst (typ ! field_num), fst (snd (typ ! field_num)), Present)]) (Boxed Writable ptrl)"} $ isa_int;
   val ass7 = strip_atype @{term "\<lambda> leng . length typ = leng"} $ isa_int_struct_leng;
   val prms = map (HOLogic.mk_Trueprop o strip_atype) 
             [ass1, ass2, ass3, ass4, ass5, ass6, ass7];
@@ -214,7 +214,7 @@ ML{* fun mk_specialised_corres_let_put (field_num:int) uval file_nm ctxt =
              \<Xi>', [], \<Gamma>' \<turnstile> expr.Let (Put (Var x) field_num (Var v)) e : ts"} $ isa_int;
   val ass7 = strip_atype @{term "\<lambda> field_num . 
              \<Xi>', [], \<Gamma>x \<turnstile> Put (Var x) field_num (Var v) : 
-                         TRecord (typ[field_num := (fst (typ ! field_num), False)]) (Boxed Writable ptrl)"} $ isa_int;
+                         TRecord (typ[field_num := (fst (typ ! field_num), fst (snd (typ ! field_num)), Present)]) (Boxed Writable ptrl)"} $ isa_int;
   val ass8 = strip_atype @{term "\<lambda> leng . length typ = leng"} $ isa_int_struct_leng;
   val ass9 = let 
               fun rep_Bound_n_with n new = strip_1qnt o 
@@ -222,7 +222,7 @@ ML{* fun mk_specialised_corres_let_put (field_num:int) uval file_nm ctxt =
              in
               strip_atype @{term "\<And> state_rel field_num \<sigma> s. 
                corres state_rel e (e' x') \<xi> ((\<gamma>!x) # \<gamma>) \<Xi>' 
-               (Some (TRecord (typ[field_num := (fst (typ ! field_num), False)]) (Boxed Writable ptrl)) # \<Gamma>e) \<sigma> s"}
+               (Some (TRecord (typ[field_num := (fst (typ ! field_num), fst (snd (typ ! field_num)), Present)]) (Boxed Writable ptrl)) # \<Gamma>e) \<sigma> s"}
                |> rep_Bound_n_with 3 state_rel |> rep_Bound_n_with 2 isa_int 
              end;
   val prms = map (HOLogic.mk_Trueprop o strip_atype) 
@@ -284,7 +284,7 @@ ML{* fun mk_specialised_corres_member (field_num:int) uval file_nm ctxt =
   val ass3 = @{term "\<lambda> x'. val_rel (\<gamma>!x) x'"} $ (Free ("x'", ty));
   val ass4 = @{term "\<lambda> ty. type_rel (type_repr (TRecord typ (Boxed ReadOnly ptrl))) ty"}
              $ (Const ("Pure.type", Term.itselfT ty));
-  val ass5 = @{term "\<lambda> ty isa_field_num. type_rel (type_repr (fst (typ ! isa_field_num))) ty"}
+  val ass5 = @{term "\<lambda> ty isa_field_num. type_rel (type_repr (fst (snd (typ ! isa_field_num)))) ty"}
              $ (Const ("Pure.type", Term.itselfT field_ty)) $ isa_field_num;
   val ass6 = @{term "\<lambda> isa_field_num . \<Xi>', [], \<Gamma>' \<turnstile> Member (Var x) isa_field_num : te"} $ isa_field_num; 
   val ass7 = @{term " \<Xi>', [], \<Gamma>' \<turnstile> Var x : TRecord typ (Boxed ReadOnly ptrl)"};
