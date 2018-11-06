@@ -587,9 +587,9 @@ where
   | "eval_prim_op Or xs = LBool (prim_lbool (hd xs) \<or> prim_lbool (xs ! 1))"
   | "eval_prim_op (Eq _) xs = LBool (hd xs = xs ! 1)"
   | "eval_prim_op (NEq _) xs = LBool (hd xs \<noteq> xs ! 1)"
-  | "eval_prim_op (Plus _) xs = prim_word_op (op +) (op +) (op +) (op +) xs"
-  | "eval_prim_op (Minus _) xs = prim_word_op (op -) (op -) (op -) (op -) xs"
-  | "eval_prim_op (Times _) xs = prim_word_op (op *) (op *) (op *) (op *) xs"
+  | "eval_prim_op (Plus _) xs = prim_word_op (+) (+) (+) (+) xs"
+  | "eval_prim_op (Minus _) xs = prim_word_op (-) (-) (-) (-) xs"
+  | "eval_prim_op (Times _) xs = prim_word_op ( * ) ( * ) ( * ) ( * ) xs"
   | "eval_prim_op (Divide _) xs = prim_word_op checked_div checked_div checked_div checked_div  xs"
   | "eval_prim_op (Mod _) xs = prim_word_op checked_mod checked_mod checked_mod checked_mod xs"
   | "eval_prim_op (Gt _) xs = prim_word_comp greater greater greater greater xs"
@@ -709,7 +709,7 @@ typing_var    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto>w singleton (length
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Case x tag a b : u"
 
 | typing_esac   : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : TSum ts
-                   ; [(_, t, Unchecked)] = filter (op = Unchecked \<circ> snd \<circ> snd) ts
+                   ; [(_, t, Unchecked)] = filter ((=) Unchecked \<circ> snd \<circ> snd) ts
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Esac x : t"
 
 | typing_if     : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2

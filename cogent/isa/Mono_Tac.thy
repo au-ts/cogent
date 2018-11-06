@@ -72,7 +72,7 @@ fun gen_monoexpr_thm
   val poly_def = Proof_Context.get_thm ctxt (poly_thy ^ "." ^ poly_name ^ "_def")
   val mono_def = Proof_Context.get_thm ctxt (mono_thy ^ "." ^ f ^ "_def")
   val poly_f_spec = if null (HOLogic.dest_list type_inst) then poly_f else @{term specialise} $ type_inst $ poly_f
-  val prop = @{term "op ="} $ (@{term "rename_expr"} $ rename_fn $ (@{term "monoexpr"} $ poly_f_spec))
+  val prop = @{term "(=)"} $ (@{term "rename_expr"} $ rename_fn $ (@{term "monoexpr"} $ poly_f_spec))
                             $ mono_f
              |> map_types (K dummyT) |> Syntax.check_term ctxt
   val thm = Timing.timeap_msg ("gen_monoexpr_thm: " ^ poly_name ^ " -> " ^ f)

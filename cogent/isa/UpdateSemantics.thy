@@ -516,8 +516,8 @@ shows "((\<lambda>(c, t). (c, bang t)) \<circ> (\<lambda>(a, b). (a, bang b))) =
 by (rule ext, clarsimp simp: bang_idempotent)
 
 lemma list_all2_bang_type_helper:
- "\<lbrakk> list_all2 (\<lambda>t. op = (type_repr t)) ts rs ; [] \<turnstile>* ts :\<kappa>  k\<rbrakk>
-        \<Longrightarrow> list_all2 (\<lambda>t. op = (type_repr t)) (map (bang) ts) rs"
+ "\<lbrakk> list_all2 (\<lambda>t. (=) (type_repr t)) ts rs ; [] \<turnstile>* ts :\<kappa>  k\<rbrakk>
+        \<Longrightarrow> list_all2 (\<lambda>t. (=) (type_repr t)) (map (bang) ts) rs"
   by (induct rule: list_all2_induct; auto simp add: kinding_simps intro!: bang_type_repr)
 
 lemma bang_type_repr':
@@ -1215,7 +1215,7 @@ qed
 
 lemma list_all2_helper2:
 assumes "map fst tsa = map fst rs"
-and     "list_all2 (\<lambda>t. op = (type_repr t)) (map snd tsa) (map snd rs)"
+and     "list_all2 (\<lambda>t. (=) (type_repr t)) (map snd tsa) (map snd rs)"
 shows   "map (\<lambda>(a,b). (a,type_repr b)) tsa = rs"
 using assms(2,1) by ( induct "map snd tsa" "map snd rs"
                       arbitrary: tsa rs
@@ -1381,7 +1381,7 @@ using assms by auto
 
 
 lemma list_all2_helper:
-shows "list_all2 (\<lambda>t. op = (type_repr t))
+shows "list_all2 (\<lambda>t. (=) (type_repr t))
                  (map (instantiate \<tau>s \<circ> snd) list)
                  (map (snd \<circ> ((\<lambda>(n, t). (n, type_repr t)) \<circ> (\<lambda>(c, t). (c, instantiate \<tau>s t)))) list)"
 by (induct list, (simp+, (case_tac a)?)+)
@@ -1648,7 +1648,7 @@ next
     obtain ts tag'
       where typing_elims:
         "\<Xi>, K, \<Gamma> \<turnstile> a : TSum ts"
-        "[(tag', \<tau>, Unchecked)] = filter (op = Unchecked \<circ> snd \<circ> snd) ts"
+        "[(tag', \<tau>, Unchecked)] = filter ((=) Unchecked \<circ> snd \<circ> snd) ts"
       using u_sem_esac.prems Esac
       by blast
 

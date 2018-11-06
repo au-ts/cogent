@@ -90,7 +90,7 @@ proof -
     by (simp add: ex_disj_distrib)
 qed
 
-lift_definition finmap_le :: "('i,'a) finmap \<Rightarrow> ('i,'a) finmap \<Rightarrow> bool" is "op \<subseteq>\<^sub>m" .
+lift_definition finmap_le :: "('i,'a) finmap \<Rightarrow> ('i,'a) finmap \<Rightarrow> bool" is "(\<subseteq>\<^sub>m)" .
 
 subsection {* BNF *}
 

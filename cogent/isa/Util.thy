@@ -16,6 +16,7 @@ theory Util
 begin
 
 section {* Word related lemmas *}
+
 definition
   checked_shift :: "(('a :: len) word \<Rightarrow> nat \<Rightarrow> 'a word) \<Rightarrow> 'a word \<Rightarrow> 'a word \<Rightarrow> 'a word"
   where
@@ -35,7 +36,6 @@ definition
 
 
 section {* Tuple lemmas *}
-
 
 lemma map_snd_app [simp]:
   shows "map (snd \<circ> (\<lambda> (a , b). (a , f b))) l  =  map (f \<circ> snd) l"

@@ -122,7 +122,7 @@ end
 (* Remove the @{term "op $"}. Code nicked from AutoCorres. *)
 fun dest_first_order ctxt ct =
   Conv.bottom_conv (K (Conv.try_conv (Conv.rewr_conv
-    @{lemma "(op $) == (%a b. a b)" by (rule meta_ext, rule ext, simp)}))) ctxt ct
+    @{lemma "($) == (%a b. a b)" by (rule meta_ext, rule ext, simp)}))) ctxt ct
 
 fun conv_to_simproc conv = fn _ => fn _ => fn ct => let
   val dummy_thm = @{thm TrueI}

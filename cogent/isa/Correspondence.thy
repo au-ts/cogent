@@ -1410,7 +1410,7 @@ next
     obtain tsty tag'
       where typing_elims:
         "\<Xi>, K, \<Gamma> \<turnstile> x : TSum tsty"
-        "[(tag', \<tau>, Unchecked)] = filter (op = Unchecked \<circ> snd \<circ> snd) tsty"
+        "[(tag', \<tau>, Unchecked)] = filter ((=) Unchecked \<circ> snd \<circ> snd) tsty"
       using typing_esacE u_sem_esac.prems Esac
       by auto
 

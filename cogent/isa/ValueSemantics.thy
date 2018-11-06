@@ -723,7 +723,7 @@ next
     then obtain ts' tag'
       where esac_elims:
         "\<Xi>, K, \<Gamma> \<turnstile> a : TSum ts'"
-        "[(tag', \<tau>, Unchecked)] = filter (op = Unchecked \<circ> snd \<circ> snd) ts'"
+        "[(tag', \<tau>, Unchecked)] = filter ((=) Unchecked \<circ> snd \<circ> snd) ts'"
       using v_sem_esac.prems Esac
       by blast
 

@@ -13,7 +13,7 @@
 theory StringMap
 
 (* assumes CParser or AutoCorres to find StaticFun *)
-imports StaticFun
+imports CParser.StaticFun
 
 begin
 
@@ -24,14 +24,14 @@ instantiation LexOrdString :: linorder begin
 definition
   less_LexOrdString_def[simp]:
   "(s < t) = (case s of LexOrdString s' \<Rightarrow> case t of LexOrdString t' \<Rightarrow>
-    (s', t') \<in> lexord {(c, c'). nat_of_char c < nat_of_char c'})"
+    (s', t') \<in> lexord {(c, c'). (of_char c :: nat) < of_char c'})"
 
 definition
   le_LexOrdString_def[simp]:
   "(s \<le> t) = ((s :: LexOrdString) < t \<or> s = t)"
 
 lemma nat_of_char_trans:
-  "trans {(c, c'). nat_of_char c < nat_of_char c'}"
+  "trans {(c, c'). (of_char c :: nat) < of_char c'}"
   by (auto intro!: transI)
 
 instance
@@ -52,7 +52,7 @@ instance
    apply (simp add: lexord_irreflexive)
   apply (clarsimp split: LexOrdString.split)
   apply (rename_tac lista listb)
-  apply (cut_tac lexord_linear[where r="{(c, c'). nat_of_char c < nat_of_char c'}"])
+  apply (cut_tac lexord_linear[where r="{(c, c'). (of_char c :: nat) < of_char c'}"])
    apply auto
   done
 
@@ -67,7 +67,7 @@ fun define_string_map name assocs ctxt =
     val th_names = map (prefix (Binding.name_of name ^ "_") o fst) assocs
     val mappings = map (apfst HOLogic.mk_string) assocs
   in StaticFun.define_tree_and_save_thms name th_names mappings
-    @{term LexOrdString} @{thms nat_of_char} ctxt
+    @{term LexOrdString} @{thms of_char_def} ctxt
   end
 end
 

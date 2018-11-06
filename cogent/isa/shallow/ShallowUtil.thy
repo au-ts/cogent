@@ -11,7 +11,7 @@
  *)
 
 theory ShallowUtil
-  imports "~~/src/HOL/Word/Word"
+  imports "../Util" "~~/src/HOL/Word/Word"
 begin
 
 definition
