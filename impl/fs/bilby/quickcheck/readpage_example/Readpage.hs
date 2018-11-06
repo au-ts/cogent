@@ -11,6 +11,7 @@
 --
 
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -83,10 +84,17 @@ read_block afs inode block =
 prop_corres_fsop_readpage :: Property
 prop_corres_fsop_readpage = 
   forAll gen_fsop_readpage_arg $ \ic -> 
-    let (afs,vnode,block,buf) = abs_fsop_readpage_arg ic
-        oa = hs_fsop_readpage afs vnode block buf
-        oc = C.fsop_readpage ic
-     in corres rel_fsop_readpage_ret oa oc
+    forAll gen_oracle $ \o -> 
+      let ?o = o in
+      let ia = abs_fsop_readpage_arg ic
+          oa = uncurry4 hs_fsop_readpage ia
+          oc = C.fsop_readpage ic
+       in corres rel_fsop_readpage_ret oa oc
+
+gen_oracle :: Gen O
+gen_oracle = frequency [ (9, pure 0) 
+                       , (1, elements [eIO, eNoMem, eInval, eBadF])
+                       ]
 
 gen_fsop_readpage_arg :: Gen C.Fsop_readpage_ArgT
 gen_fsop_readpage_arg = do
@@ -211,6 +219,10 @@ rel_fsop_readpage_ret (Right arr_a) (C.R6 _ _ _ (C.R8 data_c bound_c), C.V34_Suc
       elems arr_a == elems data_c
 rel_fsop_readpage_ret _ _ = False
 
+
+-- /////////////////////////////////////////////////////////////////////////////
+--
+-- low-levle properties
 
 
 -- /////////////////////////////////////////////////////////////////////////////

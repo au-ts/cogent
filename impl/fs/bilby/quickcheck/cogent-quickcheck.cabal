@@ -64,7 +64,6 @@ library cogent-quickcheck-utils
   -- Other library packages from which modules are imported.
   build-depends:       base >=4.9 && <4.12
                      , extra
-                     , lens
                      , QuickCheck
                      -- , QuickCheck-GenT
 
@@ -83,6 +82,7 @@ library wa-example
   build-depends:       base >=4.9 && <4.12
                      , array
                      , extra
+                     , lens
                      , transformers
                      , QuickCheck
                      -- , QuickCheck-GenT
@@ -113,6 +113,7 @@ library readpage-example
   build-depends:       base >=4.9 && <4.12
                      , array
                      , containers
+                     , lens
                      , template-haskell
                      , transformers
                      , tuple

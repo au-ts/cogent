@@ -26,6 +26,7 @@
 module WordArray where
 
 import Control.Exception (bracket)
+import Control.Lens hiding (elements)
 -- import Control.Monad.State
 import Control.Monad (void)
 import Control.Monad.Trans.Class (lift)
@@ -72,6 +73,15 @@ To run the REPL:
 -- | The Haskell type for wordarrays
 type WordArray e = Array Word32 e
 
+data O = O { _mallocFail :: Bool } deriving (Show)
+
+makeLenses ''O
+
+o_allGood :: O
+o_allGood = O False
+
+o_mallocFail :: (?o :: O) => Bool
+o_mallocFail = ?o^.mallocFail
 
 empty_array :: WordArray e
 empty_array = array (0, 0) []

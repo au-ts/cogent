@@ -7,6 +7,7 @@ Isabelle input files).
 -}
 {-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE NoImplicitPrelude #-}
@@ -1643,14 +1644,12 @@ type Ostore_read_ArgT = (SysState, MountState, OstoreState, Word64)
 
 type Ostore_read_RetT = ((SysState, OstoreState), V34 Word32 (R28 Word32 Word32 Word64 Word32 Word32 Word8 Word8 (V29 (R30 Word64 (WordArray Word8)) ObjDel ObjDentarr ObjInode () ObjSummary ObjSuper)))
 
-ostore_read :: Ostore_read_ArgT -> Ostore_read_RetT
+ostore_read :: (?o :: Ax.O) => Ostore_read_ArgT -> Ostore_read_RetT
 ostore_read (ex, mount_st, ostore_st, oid) =
-  let err = unsafePerformIO $ Q.generate $ Q.frequency [ (1, return 0)
-                                                       , (1, Q.elements [eIO, eNoMem, eInval, eBadF])]
-   in if | err == 0 -> case M.lookup oid ostore_st of
-             Nothing  -> ((ex, ostore_st), error eNoEnt)
-             Just obj -> ((ex, ostore_st), success obj)
-         | otherwise -> ((ex, ostore_st), error err)
+  if | ?o == 0 -> case M.lookup oid ostore_st of
+         Nothing  -> ((ex, ostore_st), error eNoEnt)
+         Just obj -> ((ex, ostore_st), success obj)
+     | otherwise -> ((ex, ostore_st), error ?o)
 
 type Wordarray_fold_ArgT a acc obsv rbrk = R14 (WordArray a) Word32 Word32 (R15 a acc obsv -> V25 rbrk acc) acc obsv
 
@@ -2362,7 +2361,7 @@ type Read_block_ArgT = (SysState, R22 FsopState MountState OstoreState, R20 VfsI
 
 type Read_block_RetT = ((SysState, R22 FsopState MountState OstoreState, R8 (WordArray Word8) Word32), V34 Word32 ())
 
-read_block :: Read_block_ArgT -> Read_block_RetT
+read_block :: (?o :: Ax.O) => Read_block_ArgT -> Read_block_RetT
 read_block __ds_var_0
   = let __ds_var_2 = __ds_var_0
         ex = Tup.sel1 __ds_var_0
@@ -2439,7 +2438,7 @@ type Fsop_readpage_ArgT = R7 SysState (R22 FsopState MountState OstoreState) (R2
 
 type Fsop_readpage_RetT = (R6 SysState (R22 FsopState MountState OstoreState) (R20 VfsInodeAbstract (R21 Word32)) (R8 (WordArray Word8) Word32), V34 Word32 ())
 
-fsop_readpage :: Fsop_readpage_ArgT -> Fsop_readpage_RetT
+fsop_readpage :: (?o :: Ax.O) => Fsop_readpage_ArgT -> Fsop_readpage_RetT
 fsop_readpage __ds_var_0
   = let __ds_var_2 = __ds_var_0
         ex = let R7{ex = __shallow_v164, fs_st = __shallow_v165, vnode = __shallow_v166, block = __shallow_v167, addr = __shallow_v168} = __ds_var_0 in __shallow_v164

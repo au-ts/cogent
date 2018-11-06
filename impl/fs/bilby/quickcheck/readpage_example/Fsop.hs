@@ -1,3 +1,4 @@
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE TupleSections #-}
 
@@ -13,7 +14,7 @@ import qualified Data.Map as M
 import Data.Word
 import Data.Void
 
-import WordArray
+import WordArray hiding (O)
 
 type U8  = Word8
 type U16 = Word16
@@ -21,6 +22,8 @@ type U32 = Word32
 type U64 = Word64
 
 type ErrCode = U32
+
+type O = ErrCode
 
 bilbyFsBlockShift = 12  :: U32
 bilbyFsBlockSize = 4096 :: U32
