@@ -47,6 +47,14 @@ deepSigil Unboxed         = mkId "Unboxed"
 
 type TypeAbbrevs = (Map.Map Term Int, Int)
 
+deepVariantState :: Bool -> Term
+deepVariantState False = mkId "Unchecked"
+deepVariantState True  = mkId "Checked"
+
+deepRecordState :: Bool -> Term
+deepRecordState False = mkId "Present"
+deepRecordState True  = mkId "Taken"
+
 deepTypeInner :: NameMod -> TypeAbbrevs -> CC.Type t -> Term
 deepTypeInner mod ta (TVar v) = mkApp (mkId "TVar") [deepIndex v]
 deepTypeInner mod ta (TVarBang v) = mkApp (mkId "TVarBang") [deepIndex v]
@@ -56,9 +64,9 @@ deepTypeInner mod ta (TPrim pt) = mkApp (mkId "TPrim") [deepPrimType pt]
 deepTypeInner mod ta (TString) = mkApp (mkId "TPrim") [mkId "String"]
 deepTypeInner mod ta (TSum alts)
   = mkApp (mkId "TSum")
-          [mkList $ map (\(n,(t,b)) -> mkPair (mkString n) (mkPair (deepType mod ta t) (mkBool b))) $ sort alts]
+          [mkList $ map (\(n,(t,b)) -> mkPair (mkString n) (mkPair (deepType mod ta t) (deepVariantState b))) $ sort alts]
 deepTypeInner mod ta (TProduct t1 t2) = mkApp (mkId "TProduct") [deepType mod ta t1, deepType mod ta t2]
-deepTypeInner mod ta (TRecord fs s) = mkApp (mkId "TRecord") [mkList $ map (\(fn,(t,b)) -> mkPair (deepType mod ta t) (mkBool b)) fs, deepSigil s]
+deepTypeInner mod ta (TRecord fs s) = mkApp (mkId "TRecord") [mkList $ map (\(fn,(t,b)) -> mkPair (deepType mod ta t) (deepRecordState b)) fs, deepSigil s]
 deepTypeInner mod ta (TUnit) = mkId "TUnit"
 deepTypeInner _ _ t = __impossible $ "deepTypeInner: " ++ show (pretty t) ++ " is not yet implemented"
 
@@ -131,7 +139,7 @@ deepExpr mod ta defs (TE _ (App f arg))
   = mkApp (mkId "App") [deepExpr mod ta defs f, deepExpr mod ta defs arg]
 deepExpr mod ta defs (TE (TSum alts) (Con cn e _))
   = mkApp (mkId "Con") [mkList t', mkString cn, deepExpr mod ta defs e]
-  where t' = map (\(c,(t,b)) -> mkPair (mkString c) (mkPair (deepType mod ta t) (mkBool b))) alts
+  where t' = map (\(c,(t,b)) -> mkPair (mkString c) (mkPair (deepType mod ta t) (deepVariantState b))) alts
 deepExpr _ _ _ (TE _ (Con _ _ _)) = __impossible "deepExpr: Con"
 deepExpr mod ta defs (TE _ (Promote ty e))
   = deepExpr mod ta defs e
