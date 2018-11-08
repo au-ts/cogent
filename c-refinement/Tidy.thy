@@ -90,8 +90,8 @@ fun tidy_C_fun_def f ctxt = let
 
   (* Use a schematic lemma to rewrite AutoCorres function defs.
    * We can assume the Cogent compiler generates all functions with only one argument. *)
-  val prop = if fun_rec then @{mk_term "Trueprop (?f m arg = ?A)" f} fun_term
-                        else @{mk_term "Trueprop (?f arg = ?A)" f} fun_term
+  val prop = if fun_rec then @{mk_term "Trueprop (?f m a = ?A)" f} fun_term
+                        else @{mk_term "Trueprop (?f a = ?A)" f} fun_term
 
   fun subst thms = EqSubst.eqsubst_tac ctxt [0] thms 1
 
@@ -113,7 +113,7 @@ fun tidy_C_fun_def f ctxt = let
              (* Simplify uninitialised variables *)
              THEN subst' (@{thms unknown_bind_ignore unknown_bind_if_True} @ unknown_bind_more_thms)
              THEN rtac @{thm refl} 1 (* final definition *)
-  in Goal.prove ctxt (if fun_rec then ["m", "arg"] else ["arg"]) [] prop (K tacs) end
+  in Goal.prove ctxt (if fun_rec then ["m", "a"] else ["a"]) [] prop (K tacs) end
 
 fun tidy_C_fun_def' f ctxt =
   Utils.define_lemmas (f ^ "'_def'") [tidy_C_fun_def f ctxt] ctxt |> snd

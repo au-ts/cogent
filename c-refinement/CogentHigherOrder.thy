@@ -210,7 +210,8 @@ fun ptrs_to_C_getter struct_info C_typ (InRecord n :: ptrs) = let
 fun make_HO_call_hints ctxt C_src f = let
       val ACfunctions = Symtab.lookup (AutoCorresFunctionInfo.get (Proof_Context.theory_of ctxt)) C_src
                         |> Utils.the' ("No such C file: " ^ quote C_src)
-                        |> FunctionInfo.get_functions
+                        |> (fn finfo => FunctionInfo.Phasetab.lookup finfo FunctionInfo.TS)
+                        |> Utils.the' ("Failed to get type strengthening function table")
       val struct_info = Symtab.lookup (HeapInfo.get (Proof_Context.theory_of ctxt)) C_src
                         |> Utils.the' ("No such C file: " ^ quote C_src)
                         |> #heap_info
