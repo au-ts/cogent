@@ -13,6 +13,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE DataKinds #-}
 
 -- | Most of the abstract syntax is derived from Absyn.ML in c-parser.
 --   Currently we just implement the smallest set used in our CG.
@@ -26,6 +27,8 @@ module Cogent.C.Syntax (
 
 import Cogent.Common.Syntax
 import Cogent.Common.Types
+import Cogent.Core           as CC
+import           Data.Nat            as Nat
 
 import Data.Map as M
 import qualified "language-c-quote" Language.C as C
@@ -158,7 +161,12 @@ data CExtDecl = CFnDefn (CType, CId) [(CType, CId)] [CBlockItem] FnSpec
 
 -- | 'StrlType' tried to unify some of the types we have in Core.
 --   It can be deemed as the C representation for Cogent types.
-data StrlType = Record  [(CId, CType)] Bool  -- ^ @(fieldname &#x21A6; fieldtype) * is_unboxed@
+data StrlType = Record  [(CId, CType)]       -- ^ @(fieldname &#x21A6; fieldtype)@
+              | BoxedRecord (CC.Type 'Zero)
+                -- ^ Depends on the Cogent type of the record, so that different boxed cogent records
+                --   get given different StrlTypes and thus different CTypes.
+                --   The CType will always be a struct with a single field
+                --   named 'data' of type 'unsigned int *'.
               | Product CType CType          -- ^ pair
               | Variant (M.Map CId CType)    -- ^ one tag field, and fields for all possibilities
               | Function CType CType
