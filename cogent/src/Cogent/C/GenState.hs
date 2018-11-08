@@ -152,7 +152,8 @@ newtype Gen v a = Gen { runGen :: RWS (GenRead v) () GenState a }
 
 
 genTyDecl :: (StrlType, CId) -> [TypeName] -> [CExtDecl]
-genTyDecl (Record x _, n) _ = [CDecl $ CStructDecl n (map (second Just . swap) x), genTySynDecl (n, CStruct n)]
+genTyDecl (Record x, n) _ = [CDecl $ CStructDecl n (map (second Just . swap) x), genTySynDecl (n, CStruct n)]
+genTyDecl (BoxedRecord _, n) _ = [CDecl $ CStructDecl n [(CPtr (CInt False CIntT), Just "data")], genTySynDecl (n, CStruct n)]
 genTyDecl (Product t1 t2, n) _ = [CDecl $ CStructDecl n [(t1, Just p1), (t2, Just p2)]]
 genTyDecl (Variant x, n) _ = case __cogent_funion_for_variants of
   False -> [CDecl $ CStructDecl n ((CIdent tagsT, Just fieldTag) : map (second Just . swap) (M.toList x)),
@@ -208,10 +209,11 @@ lookupTypeCId (TCon tn ts _) = getCompose (forM ts (\t -> (if isUnboxed t then (
                                            Compose $ return (if ts' `S.member` tss
                                                                then return $ tn ++ "_" ++ L.intercalate "_" ts'
                                                                else Nothing))
-lookupTypeCId (TProduct t1 t2) = getCompose (Compose . lookupStrlTypeCId =<< Record <$> (P.zip [p1,p2] <$> mapM (Compose . lookupType) [t1,t2]) <*> pure True)
+lookupTypeCId (TProduct t1 t2) = getCompose (Compose . lookupStrlTypeCId =<< Record <$> (P.zip [p1,p2] <$> mapM (Compose . lookupType) [t1,t2]))
 lookupTypeCId (TSum fs) = getCompose (Compose . lookupStrlTypeCId =<< Variant . M.fromList <$> mapM (secondM (Compose . lookupType) . second fst) fs)
 lookupTypeCId (TFun t1 t2) = getCompose (Compose . lookupStrlTypeCId =<< Function <$> (Compose . lookupType) t1 <*> (Compose . lookupType) t2)  -- Use the enum type for function dispatching
-lookupTypeCId (TRecord fs _) = getCompose (Compose . lookupStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> (Compose . lookupType) b) fs) <*> pure True)
+lookupTypeCId (TRecord fs Unboxed) = getCompose (Compose . lookupStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> (Compose . lookupType) b) fs))
+lookupTypeCId cogentType@(TRecord _ (Boxed _ _)) = lookupStrlTypeCId (BoxedRecord cogentType)
 lookupTypeCId (TArray t l) = getCompose (Compose . lookupStrlTypeCId =<< Array <$> (Compose . lookupType) t <*> pure (Just $ fromIntegral l))
 lookupTypeCId t = Just <$> typeCId t
 
@@ -259,10 +261,11 @@ typeCId t = use custTypeGen >>= \ctg ->
                       cTypeDefMap %= M.insert (AbsType tn') tn'
         Just _  -> return ()
       return tn'
-    typeCId' (TProduct t1 t2) = getStrlTypeCId =<< Record <$> (P.zip [p1,p2] <$> mapM genType [t1,t2]) <*> pure True
+    typeCId' (TProduct t1 t2) = getStrlTypeCId =<< Record <$> (P.zip [p1,p2] <$> mapM genType [t1,t2])
     typeCId' (TSum fs) = getStrlTypeCId =<< Variant . M.fromList <$> mapM (secondM genType . second fst) fs
     typeCId' (TFun t1 t2) = getStrlTypeCId =<< Function <$> genType t1 <*> genType t2  -- Use the enum type for function dispatching
-    typeCId' (TRecord fs _) = getStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs) <*> pure True
+    typeCId' (TRecord fs Unboxed) = getStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs)
+    typeCId' cogentType@(TRecord _ (Boxed _ _)) = getStrlTypeCId (BoxedRecord cogentType)
     typeCId' (TUnit) = return unitT
     typeCId' (TArray t l) = getStrlTypeCId =<< Array <$> genType t <*> pure (Just $ fromIntegral l)
 
@@ -272,15 +275,15 @@ typeCId t = use custTypeGen >>= \ctg ->
       fss <- forM (P.zip3 [p1,p2] [t1,t2] ts') $ \(f,t,t') -> case t' of
         CPtr _ -> return [(f,t')]
         _      -> collFields f t
-      getStrlTypeCId $ Record (concat fss) True
+      getStrlTypeCId $ Record (concat fss)
     -- typeCIdFlat (TSum fs) = __todo  -- Don't flatten variants for now. It's not clear how to incorporate with --funion-for-variants
-    typeCIdFlat (TRecord fs _) = do
+    typeCIdFlat (TRecord fs Unboxed) = do
       let (fns,ts) = P.unzip $ P.map (second fst) fs
       ts' <- mapM genType ts
       fss <- forM (P.zip3 fns ts ts') $ \(f,t,t') -> case t' of
         CPtr _ -> return [(f,t')]
         _      -> collFields f t
-      getStrlTypeCId $ Record (concat fss) True
+      getStrlTypeCId $ Record (concat fss)
     typeCIdFlat t = typeCId' t
 
     collFields :: FieldName -> CC.Type 'Zero -> Gen v [(CId, CType)]
@@ -307,7 +310,6 @@ absTypeCId _ = __impossible "absTypeCId"
 
 -- Returns the right C type
 genType :: CC.Type 'Zero -> Gen v CType
-genType t@(TRecord _ s) | s /= Unboxed = CPtr . CIdent <$> typeCId t  -- c.f. genTypeA
 genType t@(TString)                    = CPtr . CIdent <$> typeCId t
 genType t@(TCon _ _ s)  | s /= Unboxed = CPtr . CIdent <$> typeCId t
 genType   (TArray t l)                 = CArray <$> genType t <*> pure (CArraySize (mkConst U32 l))  -- c.f. genTypeP

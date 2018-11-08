@@ -196,9 +196,10 @@ check_output() {
   else text=$("$@" 2>&1)
   fi
   ret=$?
-  if [[ $ret != 0 && $QUIET = 0 ]]
-  then echo "$text"
-  fi
+  #if [[ $ret != 0 && $QUIET = 0 ]]
+  #then echo "$text"
+  #fi
+  echo "$text"
   return $ret
 }
 
