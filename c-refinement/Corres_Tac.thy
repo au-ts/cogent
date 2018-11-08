@@ -152,7 +152,7 @@ fun make_contextual_eq_thms (context : term) (eq_thms : thm list) ctxt : thm lis
         let val ((_, [thm]), _) = Variable.import true [thm0] (Variable.set_body false ctxt);
             val (lhs, rhs) = dest_eq (Thm.prop_of thm)
                              handle TERM _ => raise THM ("make_contextual_eq_thms: not an equation", 0, [thm0])
-            val prop = @{term Trueprop} $ (@{term "op ="} $ (context $ lhs) $ (context $ rhs))
+            val prop = @{term Trueprop} $ (@{term "(=)"} $ (context $ lhs) $ (context $ rhs))
             val prop' = map_types (K dummyT) prop |> Syntax.check_term ctxt
                         handle ERROR _ => raise TERM ("make_contextual_eq_thms: equality term is invalid", [prop])
             fun free_var v = case Syntax.check_term ctxt (Free (v, dummyT)) of

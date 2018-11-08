@@ -13,6 +13,7 @@
 session Cogent_Static = AutoCorres +
   theories
     "ValueSemantics"
+    "UpdateSemantics"
     "Correspondence"
     "Mono"
 
@@ -26,11 +27,10 @@ session Shallow_Deep_Static = Shallow_Shallow_Static +
 
 session Deep_C_Static = Shallow_Deep_Static +
   theories
-     "../../c-refinement/TypeProofGen"
-     "../../c-refinement/CogentHigherOrder"
-     "../../c-refinement/Deep_Embedding_Auto"
-     "../../c-refinement/Cogent_Corres"
-     "../../c-refinement/Tidy"
-     "../../c-refinement/Corres_Tac"
-     "../../c-refinement/Cogent_Corres_Shallow_C"
-
+    "../../c-refinement/TypeProofGen"
+    "../../c-refinement/CogentHigherOrder"
+    "../../c-refinement/Deep_Embedding_Auto"
+    "../../c-refinement/Cogent_Corres"
+    "../../c-refinement/Tidy"
+    "../../c-refinement/Corres_Tac"
+    "../../c-refinement/Cogent_Corres_Shallow_C"

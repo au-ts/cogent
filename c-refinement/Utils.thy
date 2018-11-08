@@ -10,7 +10,7 @@
 
 theory Utils
 imports
-  "../l4v/tools/autocorres/AutoCorres"
+  "AutoCorres.AutoCorres"
 keywords "foobar_prove" :: thy_goal (* from Cookbook.*)
 begin
 

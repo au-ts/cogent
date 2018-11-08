@@ -14,10 +14,11 @@
  This file also gives program-independent instances for cogent_C_val.
  *)
 theory Value_Relation
-imports
-  "../cogent/isa/UpdateSemantics"
-  "../l4v/tools/autocorres/AutoCorres"
+  imports
+  "AutoCorres.AutoCorres"
+  "HOL-Word.Word"
   "Type_Args"
+  "../cogent/isa/UpdateSemantics"
 begin
 
 (* Mechanism to get different instances of cogent_C_val for signed and unsigned words. *)

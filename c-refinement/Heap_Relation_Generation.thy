@@ -9,7 +9,7 @@
  *)
 
 theory Heap_Relation_Generation
-imports "Read_Table" 
+imports Read_Table
 begin
 
 ML{* (* local_setup_heap_rel *)

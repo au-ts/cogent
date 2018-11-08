@@ -11,7 +11,7 @@
  *)
 
 theory UpdateSemantics
-imports ValueSemantics Cogent
+  imports ValueSemantics Cogent
 begin
 
 

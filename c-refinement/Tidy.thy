@@ -11,7 +11,7 @@
 (* Preprocess AutoCorres translation of Cogent compiler's output code. *)
 theory Tidy
   imports
-    "../l4v/tools/autocorres/AutoCorres"
+    "AutoCorres.AutoCorres"
     "../cogent/isa/ML_Old"
 begin
 

@@ -15,7 +15,7 @@
  * with tuples and without tuples (desugared to records).
  *)
 theory ShallowTuples
-  imports ShallowUtil "~~/src/HOL/Word/Word"
+  imports ShallowUtil
 begin
 
 (* shallow_tuples_rel: relation between tupled and non-tupled values (and functions).

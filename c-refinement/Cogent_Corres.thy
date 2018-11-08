@@ -10,8 +10,8 @@
 
 theory Cogent_Corres
 imports 
-  "../cogent/isa/UpdateSemantics"
   "Value_Relation"
+  "../cogent/isa/UpdateSemantics"
   "../cogent/isa/TypeTrackingSemantics"
   "../cogent/isa/Util"
 begin
@@ -480,7 +480,7 @@ lemma list_to_map_singleton: "[f x] = (map f [x])"  by auto
 lemma list_to_map_more: "(f x) # (map f xs) = (map f (x#xs))" by auto 
 
 lemma u_sem_all_var:
-  "\<xi>, \<gamma> \<turnstile>* (\<sigma>, map Var xs) \<Down>! (\<sigma>, map (op ! \<gamma>) xs)"
+  "\<xi>, \<gamma> \<turnstile>* (\<sigma>, map Var xs) \<Down>! (\<sigma>, map ((!) \<gamma>) xs)"
 proof (induct xs)
    case Cons thus ?case by (fastforce intro: u_sem_all_cons u_sem_var)
 qed (simp add: u_sem_all_empty)

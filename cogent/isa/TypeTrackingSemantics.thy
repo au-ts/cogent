@@ -10,9 +10,8 @@
  * @TAG(DATA61_GPL)
  *)
 
-theory TypeTrackingSemantics imports
-  UpdateSemantics
-
+theory TypeTrackingSemantics
+  imports UpdateSemantics
 begin
 
 datatype type_split_kind = TSK_L | TSK_S | TSK_NS

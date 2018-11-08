@@ -10,7 +10,7 @@
 
 theory CogentHigherOrder imports
   "TypeProofGen"
-  "../l4v/tools/autocorres/AutoCorres"
+  "AutoCorres.AutoCorres"
 begin
 
 (*
@@ -86,23 +86,23 @@ fun funcall_sem :: "'f InValue env \<Rightarrow> 'f expr \<Rightarrow> ('f FunCa
 | "funcall_sem \<gamma> (App f x) = (fst (funcall_sem \<gamma> f) @ fst (funcall_sem \<gamma> x), [])"
 | "funcall_sem \<gamma> (Con _ tag x) =
      (let (calls, ptrs) = funcall_sem \<gamma> x
-      in (calls, map (op # (InSum tag)) ptrs))"
+      in (calls, map ((#) (InSum tag)) ptrs))"
 | "funcall_sem \<gamma> (Struct tys xs) =
      (let (callss, ptrss) = unzip (map (funcall_sem \<gamma>) xs)
-      in (concat callss, concat (map (\<lambda>(n, v). map (op # (InRecord n)) v) (enumerate 0 ptrss))))"
+      in (concat callss, concat (map (\<lambda>(n, v). map ((#) (InRecord n)) v) (enumerate 0 ptrss))))"
 | "funcall_sem \<gamma> (Member x f) =
      (case funcall_sem \<gamma> x of (calls, ptrs) \<Rightarrow>
         (calls, map tl (filter (\<lambda>ptr. case ptr of InRecord f' # _ \<Rightarrow> f = f' | _ \<Rightarrow> BadType) ptrs)))"
 | "funcall_sem \<gamma> (Cast _ x) = funcall_sem \<gamma> x"
 | "funcall_sem \<gamma> (Tuple x y) = (let (calls, ptrs) = funcall_sem \<gamma> x;
                                    (calls', ptrs') = funcall_sem \<gamma> y
-                               in (calls @ calls', map (op # (InProduct 0)) ptrs @ map (op # (InProduct 1)) ptrs'))"
+                               in (calls @ calls', map ((#) (InProduct 0)) ptrs @ map ((#) (InProduct 1)) ptrs'))"
 | "funcall_sem \<gamma> (Put x f y) =
      (let (calls, ptrs) = funcall_sem \<gamma> x;
           (calls', ptrs') = funcall_sem \<gamma> y
       in (calls @ calls',
           filter (\<lambda>ptr. case ptr of InRecord f' # _ \<Rightarrow> f \<noteq> f' | _ \<Rightarrow> BadType) ptrs @
-          map (op # (InRecord f)) ptrs'))"
+          map ((#) (InRecord f)) ptrs'))"
 | "funcall_sem \<gamma> (Let x y) =
      (let (calls, ptrs) = funcall_sem \<gamma> x;
           (calls', ptrs') = funcall_sem (ptrs # \<gamma>) y

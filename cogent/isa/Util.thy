@@ -11,8 +11,7 @@
  *)
 
 theory Util
-  imports Main
-    "~~/src/HOL/Word/Word"
+  imports Main "HOL-Word.Word"
 begin
 
 section {* Word related lemmas *}

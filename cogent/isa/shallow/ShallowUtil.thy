@@ -10,8 +10,7 @@
  * @TAG(DATA61_GPL)
  *)
 
-theory ShallowUtil
-  imports "../Util" "~~/src/HOL/Word/Word"
+theory ShallowUtil imports "../Util" "HOL-Word.Word"
 begin
 
 definition
