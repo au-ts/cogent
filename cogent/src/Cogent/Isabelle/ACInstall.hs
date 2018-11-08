@@ -23,7 +23,7 @@ instance ML Bool where
 -- ////////////////////////////////////////////////////////////////////////////
 
 acInstallDefault :: String -> FilePath -> String -> [String]
-acInstallDefault proj cfile log = acInstall proj "AutoCorres" False True cfile log
+acInstallDefault proj cfile log = acInstall proj "AutoCorres.AutoCorres" False True cfile log
 
 -- Given theory name, generate text
 acInstall :: String -> FilePath -> Bool -> Bool -> FilePath -> String -> [String]
