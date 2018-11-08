@@ -24,8 +24,8 @@ To install the Cogent compiler, consult file [cogent/README.md](./cogent/README.
 are submodules that the Cogent framework depends on. To get them: `git submodule update --init --recursive`.
 
 If you already have them on your machine, you can use your local copies, by checking out the compatible revisions:
-* `l4v`: `ffc7b107e5bd5978295da61f64ea87b9ea3ad4d1`
-* `isabelle`: any Isabelle2017 revision
+* `l4v`: `ecc84ffc6ead5a4d80aac7dabacf4b010c05dfca`
+* `isabelle`: any Isabelle2018 revision
 * `z3`: see [cogent/INSTALL.md](./cogent/INSTALL.md) for more information
 
 Add `isabelle/bin` to your PATH: `export PATH="$(pwd)/isabelle/bin:$PATH"`
