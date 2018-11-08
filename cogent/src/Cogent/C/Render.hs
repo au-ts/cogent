@@ -96,11 +96,11 @@ isCTypeSigned (CogentPrim _) = False
 isCTypeSigned _ = True  -- FIXME
 
 cLitConst :: CLitConst -> C.Exp
-cLitConst (CNumConst n (isCTypeSigned -> False) DEC) | n < 65536 = [cexp| $uint:n |]
-                                                     | n < 4294967296 = [cexp| $ulint:n |]
+cLitConst (CNumConst n (isCTypeSigned -> False) DEC) | n < 2^32 = [cexp| $uint:n |]
+                                                     | n < 2^64 = [cexp| $ulint:n |]
                                                      | otherwise = [cexp| $ullint:n |]
-cLitConst (CNumConst n s DEC) | n < 65536 = [cexp| $int:n |]
-                              | n < 4294967296 = [cexp| $lint:n |]
+cLitConst (CNumConst n s DEC) | n < 2^16 = [cexp| $int:n |]
+                              | n < 2^32 = [cexp| $lint:n |]
                               | otherwise = [cexp| $llint:n |]
 cLitConst (CNumConst {}) = __impossible "cLitConst"  -- NOTE: currently we parse everything to its decimal form / zilinc
 cLitConst (CCharConst c) = [cexp| $char:c |]
