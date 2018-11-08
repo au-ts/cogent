@@ -5,6 +5,7 @@ module Cogent.DataLayout.CodeGen where
 import Cogent.C.Syntax
 import Cogent.Common.Syntax (FieldName)
 import Cogent.Common.Types (Sigil (..))
+import Cogent.Compiler (__fixme)
 import Data.Nat
 import Data.List (foldl', scanl')
 import Data.Map
@@ -34,6 +35,7 @@ import Cogent.DataLayout.Core
   ( AlignedBitRange (..)
   , DataLayout (..)
   , alignLayout
+  , wordSizeBits
   )
 
 type CogentType = Type 'Zero
@@ -47,10 +49,10 @@ Will generate the getter function if it has not yet been generated
 -}
 genBoxedGetField
   :: CogentType
-     -- ^ Cogent type of an unboxed record.
+     -- ^ Cogent type of a boxed record.
 
   -> FieldName
-     -- ^ Name of field in the unboxed record to extract.
+     -- ^ Name of field in the boxed record to extract.
 
   -> Gen v CExpr
      -- ^
@@ -82,10 +84,10 @@ Will generate the setter function if it has not yet been generated
 -}
 genBoxedSetField
   :: CogentType
-     -- ^ Cogent type of an unboxed record.
+     -- ^ Cogent type of a boxed record.
 
   -> FieldName
-     -- ^ Name of field in the unboxed record to put.
+     -- ^ Name of field in the boxed record to put.
 
   -> Gen v CExpr
      -- ^
@@ -648,7 +650,7 @@ alignedRangeGetter
     boxVariable   = CVar boxIdentifier Nothing
   
     bitOffsetLiteral  = unsignedIntLiteral bitOffsetABR
-    maskLiteral       = unsignedIntLiteral $ sizeToMask bitSizeABR
+    maskLiteral       = unsignedIntMask $ sizeToMask bitSizeABR
 
 
 {-|
@@ -714,12 +716,12 @@ alignedRangeSetter
     valueVariable   = CVar valueIdentifier Nothing
     
     bitOffsetLiteral  = unsignedIntLiteral bitOffsetABR
-    maskLiteral       = unsignedIntLiteral $ sizeToMask bitSizeABR
+    maskLiteral       = unsignedIntMask $ sizeToMask bitSizeABR
     
-    
+sizeToMask :: Integer -> Integer
 sizeToMask n
-  | 0 <= n && n <= 8  = 2^n - 1
-  | otherwise         = __impossible $ "After alignment"
+  | 0 <= n && n <= wordSizeBits = 2^n - 1
+  | otherwise = __impossible $ "DataLayout.CodeGen: sizeToMask " ++ show n ++ ": n not in range [0, " ++ show wordSizeBits ++ "] after alignment"
 
 
 {-|
@@ -739,13 +741,18 @@ returns syntax for the 'CExpr'
 -}
 genBoxWordExpr :: CExpr -> Integer -> CExpr
 genBoxWordExpr boxExpr wordOffset =
-  CArrayDeref (CStructDot boxExpr "data") (unsignedIntLiteral wordOffset)
+  CArrayDeref (CStructDot boxExpr boxFieldName) (unsignedIntLiteral wordOffset)
   -- ALTERNATELY: CDeref ( CBinOp Add (CStructDot boxExpr "data") (unsignedIntLiteral wordOffset))
 
+boxFieldName :: CId
+boxFieldName = "data"
 
 -- | Produces a C expression for an unsigned integer literal with the given integer value.
 unsignedIntLiteral :: Integer -> CExpr
 unsignedIntLiteral n = CConst $ CNumConst n unsignedIntType DEC
+
+unsignedIntMask :: Integer -> CExpr
+unsignedIntMask n = CConst $ CNumConst n unsignedIntType (__fixme DEC) {- TODO: Change DEC to BIN. Requires implementing this in cLitConst function of Render.hs -}
 
 unsignedIntType = CInt False CIntT
 
