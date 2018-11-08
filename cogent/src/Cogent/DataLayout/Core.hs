@@ -127,10 +127,17 @@ pointerBitRange = BitRange { bitSizeBR = pointerSizeBits, bitOffsetBR = 0 }
 -- | Aligns an 'Offsettable' (assumed to initially have offset 0)
 --   so that its new offset is the smallest offset which is at least 'minBitOffset'
 --   and aligned to a multiple of 'alignBitSize'
+--   
+--   That is:
+-- @
+-- 0 -> 0
+-- [1, ..., alignBitSize] -> 1
+-- [alignBitSize + 1, ..., 2 * alignBitSize] -> 2
+-- @
 alignOffsettable :: Offsettable a => Size -> Size -> a -> a
 alignOffsettable alignBitSize minBitOffset = offset bitOffset
   where
-    bitOffset = (minBitOffset `div` alignBitSize + 1) * alignBitSize
+    bitOffset = minBitOffset + ((alignBitSize - minBitOffset `mod` alignBitSize) `mod` alignBitSize)
 
 -- Splits a 'BitRange' into an equivalent collection of 'AlignedBitRange's
 -- satisfying the conditions listed on 'AlignedBitRange'.
