@@ -77,13 +77,15 @@ instance Pretty Op where
 
 data Likelihood = Unlikely | Regular | Likely deriving (Show, Eq, Ord)
 
+instance Semigroup Likelihood where
+  (<>) Unlikely Likely   = Regular
+  (<>) Unlikely _        = Unlikely
+  (<>) Likely   Unlikely = Regular
+  (<>) Likely   _        = Likely
+  (<>) Regular  l        = l
+
 instance Monoid Likelihood where
   mempty = Regular
-  mappend Unlikely Likely   = Regular
-  mappend Unlikely _        = Unlikely
-  mappend Likely   Unlikely = Regular
-  mappend Likely   _        = Likely
-  mappend Regular  l        = l
 
 instance Group Likelihood where
   invert Regular  = Regular
@@ -101,7 +103,7 @@ tagFail    = "Fail"    :: TagName
 data CustTyGenInfo = CTGI  deriving (Show) -- TODO: info like field mapping, etc.
 
 -- ex1 :: M.Map (Type 'Zero) (String, CustTypeGenInfo)
--- ex1 = M.singleton (TRecord [("f1", (TCon "A" [] Unboxed, False)), 
+-- ex1 = M.singleton (TRecord [("f1", (TCon "A" [] Unboxed, False)),
 --                             ("f2", (TCon "B" [] Unboxed, False)),
 --                             ("f3", (TCon "C" [] Writable, False))] Writable) ("T_c_t", CTGI)
 

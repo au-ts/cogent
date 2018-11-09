@@ -65,7 +65,7 @@ import qualified Data.List           as L
 import           Data.Loc                    (noLoc)
 import qualified Data.Map            as M
 import           Data.Maybe                  (fromJust)
-import           Data.Monoid                 ((<>))
+import           Data.Semigroup              ((<>))
 import           Data.Semigroup.Monad
 -- import           Data.Semigroup.Reducer      (foldReduce)
 import qualified Data.Set            as S
@@ -531,7 +531,7 @@ typeCId :: SF.Type 'Zero -> Gen v CId
 typeCId t = use custTypeGen >>= \ctg ->
             case M.lookup t ctg of
               Just (n,_) -> return n
-              Nothing -> 
+              Nothing ->
                 (if __cogent_fflatten_nestings then typeCIdFlat else typeCId') t >>= \n ->
                 when (isUnstable t) (typeCorres %= DList.cons (toCName n, t)) >>
                 return n
@@ -1319,7 +1319,7 @@ cExtDecl (CDecl decl) = [cedecl| $decl:(cDeclaration decl); |]
 cExtDecl (CMacro s) = C.EscDef s noLoc
 cExtDecl (CFnMacro fn as body) = C.EscDef (string1 ++ "\\\n" ++ string2) noLoc
   where macro1, macro2 :: ML.Doc
-        macro1 = ML.string "#define" ML.<+> ML.string fn ML.<> ML.parens (ML.commasep $ L.map ML.string as)
+        macro1 = ML.string "#define" ML.<+> ML.string fn <> ML.parens (ML.commasep $ L.map ML.string as)
         macro2 = ML.ppr [citems| $items:(L.map cBlockItem body) |]
         string1, string2 :: String
         string1 = L.filter (/= '\n') $ ML.pretty 100 macro1

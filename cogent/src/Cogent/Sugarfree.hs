@@ -137,9 +137,11 @@ deriving instance Show FunctionType
 
 data Attr = Attr { inlineDef :: Bool, fnMacro :: Bool } deriving (Eq, Ord, Show)
 
+instance Semigroup Attr where
+  (Attr a1 a2) <> (Attr a1' a2') = Attr (a1 || a1') (a2 || a2')
+
 instance Monoid Attr where
   mempty = Attr False False
-  (Attr a1 a2) `mappend` (Attr a1' a2') = Attr (a1 || a1') (a2 || a2')
 
 data Definition e a
   = forall t. (Pretty a, Pretty (e t ('Suc 'Zero) a)) => FunDef  Attr FunName (Vec t (TyVarName, Kind)) (Type t) (Type t) (e t ('Suc 'Zero) a)
@@ -294,7 +296,7 @@ instance Functor (TypedExpr t v) where
 --   fmap f (FunDef  attr fn ts ti to e) = FunDef  attr fn ts ti to (fmap f e)
 --   fmap f (AbsDecl attr fn ts ti to)   = AbsDecl attr fn ts ti to
 --   fmap f (TypeDef tn ts mt)      = TypeDef tn ts mt
--- 
+--
 -- stripNameTD :: Definition TypedExpr VarName -> Definition TypedExpr ()
 -- stripNameTD = fmap $ const ()
 

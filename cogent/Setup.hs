@@ -36,7 +36,7 @@ import System.Process (readProcess)
 isRelease :: S.ConfigFlags -> Bool
 isRelease flags =
 #if MIN_VERSION_Cabal (2,0,0)
-  case lookup (mkFlagName "release") (S.configConfigurationsFlags flags) of
+  case lookupFlagAssignment (mkFlagName "release") (S.configConfigurationsFlags flags) of
 #else
   case lookup (FlagName "release") (S.configConfigurationsFlags flags) of
 #endif

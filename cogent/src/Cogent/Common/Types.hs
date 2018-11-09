@@ -53,9 +53,8 @@ k1 = K True  False False
 k2 = mempty
 -- kAll = K False False False
 
-instance Monoid Kind where
-  mempty = K True True True  -- 2-kind
-  mappend (K a b c) (K a' b' c') = K (a && a') (b && b') (c && c')
+instance Semigroup Kind where
+  (<>) (K a b c) (K a' b' c') = K (a && a') (b && b') (c && c')
     -- mappend   ka   0    1    2
     --    kb     +-----------------
     --    0      |    0    1x   0
@@ -63,6 +62,9 @@ instance Monoid Kind where
     --    2      |    -    -    2
     --    !      |    0    0    2
     -- 1x is a non-escapable linear kind
+
+instance Monoid Kind where
+  mempty = K True True True  -- 2-kind
 
 bangKind :: Kind -> Kind
 bangKind (K e s d) = K (e && s && d) True True
