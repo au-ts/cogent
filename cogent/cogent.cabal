@@ -2,7 +2,7 @@
 -- see http://haskell.org/cabal/users-guide/
 
 name:                cogent
-version:             2.0.8.0
+version:             2.0.8.1
 -- synopsis:
 -- description:
 -- license:
@@ -129,7 +129,7 @@ Library
               , pandoc-types >= 1.16
               , data-default >= 0.5
   if impl(ghc >= 8.2.1)
-  -- Cabal-2.0 is in the way, not ghc per se. 
+  -- Cabal-2.0 is in the way, not ghc per se.
   -- Thus this conditional is an approximation.
     build-depends:
                 pandoc >= 1.19.2.4
