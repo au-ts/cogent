@@ -82,28 +82,27 @@ ttttraverse f = fmap unflip3 . traverse f . Flip3
 --
 -- name conversion
 
-cap :: String -> String
-cap [] = error "cap"
-cap (h:t) = toUpper h : t
-
-cap' :: String -> String
-cap' [] = error "cap'"
-cap' (h:t) = if not (isAlpha h) then "Hs"++h:t
-             else cap $ h:t
+cap :: String -> String -> String
+cap pre [] = error "cap"
+cap pre s@(h:t) = if not (isAlpha h) then pre ++ s
+                    else toUpper h : t
 
 decap :: String -> String
 decap [] = error "decap"
 decap (h:t) = toLower h : t
 
 toIsaThyName :: String -> String
-toIsaThyName = cap . map (\c -> if c == '-' then '_' else c)
+toIsaThyName = cap "Isa" . dehyphens
 
-toHsModName  = cap'
-toHsTypeName = cap'
-toHsTermName = map (\c -> if c == '-' then '_' else c)
+toHsModName  = cap "Hs" . dehyphens
+toHsTypeName = cap "Hs" . dehyphens
+toHsTermName = dehyphens
 
 toCName :: String -> String
 toCName = concatMap (\c -> if c == '\'' then "_prime" else [c])
+
+dehyphens :: String -> String
+dehyphens = map (\c -> if c == '-' then '_' else c)
 
 --
 -- file path

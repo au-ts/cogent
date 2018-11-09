@@ -729,7 +729,7 @@ test_haskell_shallow_embedding()
         name=$(basename $source .cogent)
         name=`echo ${name^} | tr "-" "_"`
         if check_output cogent --hs-shallow-desugar --dist-dir="$COUT" --proof-name="$name" $source
-        then $GHC -w "$COUT"/"$name"_Shallow_Desugar.hs && passed+=1 && echo "$pass_msg" ;
+        then $GHC -w "$COUT"/"$name"_Shallow_Desugar.hs -package-db="$PACKAGE_DB" && passed+=1 && echo "$pass_msg" ;
         else echo "$fail_msg"
         fi
     done
