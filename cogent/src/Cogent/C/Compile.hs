@@ -624,7 +624,18 @@ genExpr mv (TE t (Con tag e tau)) = do  -- `tau' and `t' should be compatible
 genExpr mv (TE t (Member rec fld)) = do
   let TRecord fs s = exprType rec
   (rec',recdecl,recstm,recp) <- genExpr_ rec
-  let e' = (if s == Unboxed then strDot else strArrow) rec' (fst $ fs!!fld)
+
+  let fieldName = fst $ fs !! fld
+  e' <-
+    if s == Unboxed
+    then
+      return $ strDot rec' fieldName
+    else do
+      fieldGetter <- genBoxedGetField (exprType rec) fieldName
+      return $ trace
+          ("Generated getter: " ++ show fieldGetter ++ "\nfor record type:\n" ++ show (exprType rec) ++ "\nfield: " ++ show fieldName ++ "\nrecordExpr" ++ show rec' ++ "\n")
+          (CEFnCall fieldGetter [rec'])
+
   t' <- genType t
   (v',adecl,astm,vp) <- maybeAssign t' mv e' recp
   return (v', recdecl++adecl, recstm++astm, vp)
