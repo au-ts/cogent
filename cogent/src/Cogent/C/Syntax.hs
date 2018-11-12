@@ -13,6 +13,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DataKinds #-}
 
 -- | Most of the abstract syntax is derived from Absyn.ML in c-parser.
@@ -27,8 +28,9 @@ module Cogent.C.Syntax (
 
 import Cogent.Common.Syntax
 import Cogent.Common.Types
+import Cogent.Compiler (__impossible)
 import Cogent.Core           as CC
-import           Data.Nat            as Nat
+import Data.Nat              as Nat
 
 import Data.Map as M
 import qualified "language-c-quote" Language.C as C
@@ -162,7 +164,7 @@ data CExtDecl = CFnDefn (CType, CId) [(CType, CId)] [CBlockItem] FnSpec
 -- | 'StrlType' tried to unify some of the types we have in Core.
 --   It can be deemed as the C representation for Cogent types.
 data StrlType = Record  [(CId, CType)]       -- ^ @(fieldname &#x21A6; fieldtype)@
-              | BoxedRecord (CC.Type 'Zero)
+              | BoxedRecord StrlCogentType
                 -- ^ Depends on the Cogent type of the record, so that different boxed cogent records
                 --   get given different StrlTypes and thus different CTypes.
                 --   The CType will always be a struct with a single field
@@ -173,4 +175,46 @@ data StrlType = Record  [(CId, CType)]       -- ^ @(fieldname &#x21A6; fieldtype
               | AbsType CId
               | Array CType (Maybe Int)
               deriving (Eq, Ord, Show)
+
+
+-- Custom equality for `BoxedRecord` case of `StrlType`
+-- Needed to allow us to ignore whether fields/alternatives are/aren't "taken"
+-- when deciding whether two cogent types should go to the same C type
+newtype StrlCogentType = StrlCogentType (CC.Type 'Zero)
+                       deriving Show
+
+instance Eq StrlCogentType where
+  (StrlCogentType t1) == (StrlCogentType t2) = strlCogentTypeEq t1 t2
+
+instance Ord StrlCogentType where
+  (StrlCogentType t1) <= (StrlCogentType t2) = strlCogentTypeEq t1 t2 || t1 <= t2
+
+
+{- |
+Compares cogent types ignoring whether fields are or aren't taken
+-}
+strlCogentTypeEq :: CC.Type 'Zero -> CC.Type 'Zero -> Bool
+strlCogentTypeEq (TCon n1 ts1 s1) (TCon n2 ts2 s2) = n1 == n2 && ts1 == ts2 && strlSigilEq s1 s2
+strlCogentTypeEq (TPrim p1)       (TPrim p2)       = p1 == p2
+strlCogentTypeEq (TSum alts1)     (TSum alts2)     = all (\((n1, (t1, _)), (n2, (t2, _))) -> n1 == n2 && strlCogentTypeEq t1 t2) $ zip alts1 alts2
+strlCogentTypeEq (TRecord fs1 s1) (TRecord fs2 s2) = strlSigilEq s1 s2 && all (\((n1, (t1, _)), (n2, (t2, _))) -> n1 == n2 && strlCogentTypeEq t1 t2) (zip fs1 fs2)
+strlCogentTypeEq TUnit            TUnit            = True
+strlCogentTypeEq a1@(TArray _ _)  (TArray _ _)     = __impossible $ "Cogent.C.Syntax: StrlCogentType instance Eq: Type " ++ show a1 ++ " cannot be embedded in a boxed record."
+strlCogentTypeEq a1@(TProduct _ _)(TProduct _ _)   = __impossible $ "Cogent.C.Syntax: StrlCogentType instance Eq: Type " ++ show a1 ++ " cannot be embedded in a boxed record."
+strlCogentTypeEq a1@(TString)     (TString)        = __impossible $ "Cogent.C.Syntax: StrlCogentType instance Eq: Type " ++ show a1 ++ " cannot be embedded in a boxed record."
+strlCogentTypeEq a1@(TFun _ _)    (TFun _ _)       = __impossible $ "Cogent.C.Syntax: StrlCogentType instance Eq: Type " ++ show a1 ++ " cannot be embedded in a boxed record."
+strlCogentTypeEq a1@(TVar _)      (TVar _)         = __impossible $ "Cogent.C.Syntax: StrlCogentType instance Eq: Type " ++ show a1 ++ " cannot be embedded in a boxed record."
+strlCogentTypeEq a1@(TVarBang _)  (TVarBang _)     = __impossible $ "Cogent.C.Syntax: StrlCogentType instance Eq: Type " ++ show a1 ++ " cannot be embedded in a boxed record."
+strlCogentTypeEq _                _                = False
+
+strlSigilEq :: Eq a => Sigil a -> Sigil a -> Bool
+strlSigilEq (Boxed _ l1) (Boxed _ l2) = l1 == l2
+strlSigilEq Unboxed      Unboxed      = True
+strlSigilEq _            _            = False
+
+
+
+  
+
+
 
