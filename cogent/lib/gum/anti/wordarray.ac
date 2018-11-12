@@ -1,14 +1,16 @@
 /*
- * Copyright 2016, NICTA
+ * Copyright 2018, Data61
+ * Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+ * ABN 41 687 119 230.
  *
  * This software may be distributed and modified according to the terms of
  * the GNU General Public License version 2. Note that NO WARRANTY is provided.
  * See "LICENSE_GPLv2.txt" for details.
  *
- * @TAG(NICTA_GPL)
+ * @TAG(DATA61_GPL)
  */
 
-$ty:a $id:wordarray_get ($ty:(((WordArray a)!, WordArrayIndex)) args)
+$ty:a $id:wordarray_get($ty:(((WordArray a)!, WordArrayIndex)) args)
 {
         if (args.p2 >= (args.p1)->len) {
                 return 0;
@@ -16,10 +18,10 @@ $ty:a $id:wordarray_get ($ty:(((WordArray a)!, WordArrayIndex)) args)
         return (args.p1)->values[args.p2];
 }
 
-$ty:(R (WordArray a) (WordArray a)) $id:wordarray_put ($ty:((#{arr: WordArray a, idx: WordArrayIndex, val: a})) args)
+$ty:(R (WordArray a) (WordArray a)) $id:wordarray_put($ty:((#{arr: WordArray a, idx: WordArrayIndex, val: a})) args)
 {
         $ty:(R (WordArray a) (WordArray a)) ret;
-        
+
         if (args.idx >= (args.arr)->len) {
                 ret.tag = TAG_ENUM_Error;
                 ret.Error = args.arr;
@@ -58,25 +60,23 @@ $ty:(ArrA (WordArray a) acc) $id:wordarray_modify($ty:(WordArrayModifyP a acc ob
         return ret;
 }
 
-$ty:(Bool) $id:wordarray_cmp ($ty:(((WordArray U8)!, (WordArray U8)!)) args)
+$ty:(Bool) $id:wordarray_cmp($ty:(((WordArray U8)!, (WordArray U8)!)) args)
 {
         $ty:((WordArray U8)!) a = args.p1;
         $ty:((WordArray U8)!) b = args.p2;
         $ty:(Bool) ret;
-        int i;
+        int len, r;
 
         if (a->len != b->len) {
                 ret.boolean = 0;
                 return ret;
         }
 
-        for (i = 0; i < a->len; i++) {
-                if (a->values[i] != b->values[i]) {
-                        ret.boolean = 0;
-                        return ret;
-                }
-        }
-        ret.boolean = 1;
+        len = a->len;
+
+        r = memcmp(a->values, b->values, len);
+        ret.boolean = (r == 0) ? 1 : 0;
+
         return ret;
 }
 
@@ -107,7 +107,7 @@ $ty:(WordArrayMapRE a acc rbrk) $id:wordarray_map($ty:(WordArrayMapP a acc obsv 
 	$ty:((WordArray a, acc)) init_ret = {.p1 = args.arr, .p2 = args.acc };
 	$ty:(WordArrayMapRE a acc rbrk) ret = {.p1 = init_ret, .p2 = default_variant };
 
-	// setup in case we don't ever loop at all
+	/* setup in case we don't ever loop at all */
 	ret.p2.tag = TAG_ENUM_Iterate;
 
 	$ty:(ElemAO a acc obsv) fargs = { .obsv = args.obsv };
@@ -137,7 +137,7 @@ $ty:(LoopResult acc rbrk) $id:wordarray_fold($ty:(WordArrayFoldP a acc obsv rbrk
         $ty:(LoopResult acc rbrk) fret;
         u32 to = args.to > args.arr->len ? args.arr->len : args.to;
         u32 i;
-        
+
         fargs.obsv = args.obsv;
         fargs.acc = args.acc;
         fret.tag = TAG_ENUM_Iterate;
@@ -145,7 +145,7 @@ $ty:(LoopResult acc rbrk) $id:wordarray_fold($ty:(WordArrayFoldP a acc obsv rbrk
         for (i = args.frm; i < to; i++) {
                fargs.elem = args.arr->values[i];
                fret = (($spec:(WordArrayFoldF a acc obsv rbrk)) args.f) (fargs);
-        
+
                if (fret.tag == TAG_ENUM_Break)
                        return fret;
                fargs.acc = fret.Iterate;
@@ -158,24 +158,37 @@ $ty:(acc) $id:wordarray_fold_no_break($ty:(WordArrayFoldNoBreakP a acc obsv) arg
         $ty:(ElemAO a acc obsv) fargs;
         u32 to = args.to > args.arr->len ? args.arr->len : args.to;
         u32 i;
-        
+
         fargs.obsv = args.obsv;
         fargs.acc = args.acc;
+
         for (i = args.frm; i < to; i++) {
                fargs.elem = args.arr->values[i];
                fargs.acc = (($spec:(WordArrayFoldNoBreakF a acc obsv)) args.f) (fargs);
         }
+
         return fargs.acc;
 }
 
 $ty:(WordArray a) $id:wordarray_set($ty:(WordArraySetP a) args)
 {
-	if (args.p2 > args.p1->len) {
-		args.p2 = args.p1->len;
+        /*
+         * args.p1 : array
+         * args.p2 : start position
+         * args.p3 : end position
+         * args.p4 : element to set
+         */
+        u32 start = args.p2;
+        u32 end = args.p3;
+
+	if (start > args.p1->len) {
+		start = args.p1->len;
 	}
 
-        u32 to = (args.p2 + args.p3) > args.p1->len ? args.p1->len : (args.p2 + args.p3);
-	memset (args.p1->values + args.p2, args.p4, to);
+        u32 len = (start + end) > args.p1->len ?
+                (args.p1->len - start) : (end - start);
+
+        memset(args.p1->values + start, args.p4, len);
 
         return args.p1;
 }
@@ -184,30 +197,25 @@ $ty:(WordArray a) $id:wordarray_copy($ty:(WordArrayCopyP a) args)
 {
         $ty:(WordArray a) dst = args.p1;
         $ty:(WordArray a) src = args.p2;
-
         u32 dst_index = args.p3;
         u32 src_index = args.p4;
-
         u32 len = args.p5;
 
-        // early exit -- tried to copy beyond dest
+        u32 avail = 0;
+        u32 n = 0;
+
+        /* early exit -- tried to copy beyond dest */
         if (dst_index > dst->len || src_index > src->len) {
             return dst;
         }
 
-        // truncate write to destination if overflow
-        int dst_avail = dst->len - dst_index;
-        if (len > dst_avail) {
-            len = dst_avail;
-        }
+        avail = (dst->len - dst_index) < (src->len - src_index) ?
+                (dst->len - dst_index) : (src->len - src_index);
 
-        // truncate write from source destination if overflow
-        int src_avail = src->len - src_index;
-        if (len > src_avail) {
-            len = src_avail;
-        }
+        n = (avail < len) ? avail : len;
 
-        memcpy (dst->values + dst_index, src->values + src_index, len);
+        memcpy(dst->values + dst_index, src->values + src_index, n);
+
         return dst;
 }
 
@@ -215,9 +223,7 @@ $ty:(WordArray a) $id:wordarray_put2($ty:(WordArrayPutP a) args)
 {
 	if (likely(args.idx < (args.arr)->len)) {
 		args.arr->values[args.idx] = args.val;
-	}/* else {
-		printk("WARN: tried to put %d at idx %d but outside bounds %d (arr %p)\n", args.val, args.idx, (args.arr)->len, args.arr);
-	}*/
+	}
 
 	return args.arr;
 }
@@ -232,6 +238,7 @@ $ty:(FindResult) $id:wordarray_findsub ($ty:(WordArrayFindSubP a) args)
 
 	u32 i;
 	u32 j;
+
 	for (i = start; i < haystack->len; i++) {
 		for (j = 0; j < needles->len; j++) {
 			if (haystack->values[i + j] != needles->values[j]) {
@@ -260,7 +267,7 @@ u32 $id:wordarray_u8_as_u32($ty:((WordArray U8)!) args)
 	return result;
 }
 
-// (SysState, WordArray!, start, end) -> RR SysState WordArray ()
+/* (SysState, WordArray!, start, end) -> RR SysState WordArray () */
 $ty:(RR SysState (WordArray a) ()) $id:wordarray_slice($ty:(WordArraySliceP a) args)
 {
 	$ty:(RR SysState (WordArray a) ()) ret = { .p1 = args.p1 };
@@ -272,7 +279,7 @@ $ty:(RR SysState (WordArray a) ()) $id:wordarray_slice($ty:(WordArraySliceP a) a
 	}
 
 	if (start > end) {
-		// out of range
+		/* out of range */
 		ret.p2.tag = TAG_ENUM_Error;
 		return ret;
 	}
@@ -295,89 +302,105 @@ $ty:(RR SysState (WordArray a) ()) $id:wordarray_slice($ty:(WordArraySliceP a) a
 	return ret;
 }
 
-// //////////////////////////////////////////////////////////////////
-// experimental
-
+/**
+ *  Experimental
+ **/
 $ty:acc $id:wordarray_fold' ($ty:(((WordArray a)!, (acc,obsv,a) -> acc, acc, obsv)) args)
 {
-  $ty:((acc,obsv,a)) fargs;
-  u32 i;
-  fargs.p1 = args.p3;
-  fargs.p2 = args.p4;
-  for (i = 0; i < args.p1->len; i++) {
-    fargs.p3 = args.p1->values[i];
-    fargs.p1 = (($spec:((acc,obsv,a) -> acc)) args.p2) (fargs);
-  }
-  return fargs.p1;
+        $ty:((acc,obsv,a)) fargs;
+        u32 i;
+
+        fargs.p1 = args.p3;
+        fargs.p2 = args.p4;
+
+        for (i = 0; i < args.p1->len; i++) {
+                fargs.p3 = args.p1->values[i];
+                fargs.p1 = (($spec:((acc,obsv,a) -> acc)) args.p2) (fargs);
+        }
+
+        return fargs.p1;
 }
 
 $ty:((WordArray b, acc)) $id:wordarray_map' ($ty:((WordArray a, (acc, obsv, a) -> (acc, a), acc, obsv)) args)
 {
-  $ty:((WordArray b, acc)) ret;
-  $ty:((acc, obsv, a)) fargs;
-  $ty:((acc, a)) fret;
-  fargs.p1 = args.p3;
-  fargs.p2 = args.p4;
-  u32 i;
-  for (i = 0; i < args.p1->len; i++) {
-    fargs.p3 = args.p1->values[i];
-    fret = (($spec:((acc, obsv, a) -> (acc, a))) args.p2) (fargs);
-    args.p1->values[i] = fret.p2;
-    fargs.p1 = fret.p1;
-  }
-  return ret;
+        $ty:((WordArray b, acc)) ret;
+        $ty:((acc, obsv, a)) fargs;
+        $ty:((acc, a)) fret;
+        u32 i;
+
+        fargs.p1 = args.p3;
+        fargs.p2 = args.p4;
+
+        for (i = 0; i < args.p1->len; i++) {
+                fargs.p3 = args.p1->values[i];
+                fret = (($spec:((acc, obsv, a) -> (acc, a))) args.p2) (fargs);
+                args.p1->values[i] = fret.p2;
+                fargs.p1 = fret.p1;
+        }
+
+        return ret;
 }
 
 $ty:(WordArray a) $id:wordarray_map_ ($ty:((WordArray a, a -> a)) args)
 {
-  u32 i;
-  for (i = 0; i < args.p1->len; i++) {
-    args.p1->values[i] = (($spec:(a -> a)) args.p2) (args.p1->values[i]);
-  }
-  return args.p1;
+        u32 i;
+
+        for (i = 0; i < args.p1->len; i++) {
+                args.p1->values[i] = (($spec:(a -> a)) args.p2) (args.p1->values[i]);
+        }
+
+        return args.p1;
 }
 
 $ty:((WordArray a)!) $id:wordarray_take ($ty:(((WordArray a)!, WordArrayIndex)) args)
 {
-  $ty:(WordArray a) arr;
-  arr->len = args.p2;
-  arr->values = args.p1->values;
-  return arr;
+        $ty:(WordArray a) arr;
+
+        arr->len = args.p2;
+        arr->values = args.p1->values;
+
+        return arr;
 }
 
 $ty:((WordArray a, WordArray a)) $id:wordarray_split ($ty:((WordArray a, WordArrayIndex)) args)
 {
-  $ty:(WordArrayIndex) cut = args.p2 > args.p1->len ? args.p1->len : args.p2;
-  $ty:((WordArray a, WordArray a)) ret;
-  ret.p1->len = cut;
-  ret.p2->len = args.p1->len - cut;
-  ret.p1->values = args.p1->values;
-  ret.p2->values = args.p1->values[cut];
-  return ret;
+        $ty:(WordArrayIndex) cut = args.p2 > args.p1->len ? args.p1->len : args.p2;
+        $ty:((WordArray a, WordArray a)) ret;
+
+        ret.p1->len = cut;
+        ret.p2->len = args.p1->len - cut;
+        ret.p1->values = args.p1->values;
+        ret.p2->values = args.p1->values[cut];
+
+        return ret;
 }
 
 $ty:(WordArrayView a) $id:wordarray_view ($ty:((WordArray a, WordArrayIndex, WordArrayIndex, WordArrayIndex)) args)
 {
-  $ty:(WordArrayView a) view;
-  view.arr = args.p1;
-  view.frm = args.p2 > 0 ? args.p2 : 0;
-  view.to  = args.p3 < view.arr->len ? args.p3 : view.arr->len;
-  view.step = args.p4;
-  return view;
+        $ty:(WordArrayView a) view;
+
+        view.arr = args.p1;
+        view.frm = args.p2 > 0 ? args.p2 : 0;
+        view.to  = args.p3 < view.arr->len ? args.p3 : view.arr->len;
+        view.step = args.p4;
+
+        return view;
 }
 
 $ty:(WordArray a) $id:wordarray_unview ($ty:(WordArrayView a) args)
 {
-  return args.arr;
+        return args.arr;
 }
 
 $ty:(WordArrayView a) $id:wordarray_map_view ($ty:((WordArrayView a, a -> a)) args)
 {
-  $ty:(WordArrayView a) view = args.p1;
-  u32 i;
-  for (i = view.frm; i < view.to; i = i + view.step) {
-    view.arr->values[i] = (($spec:(a -> a)) args.p2) (view.arr->values[i]);
-  }
-  return view;
+        $ty:(WordArrayView a) view = args.p1;
+        u32 i;
+
+        for (i = view.frm; i < view.to; i = i + view.step) {
+                view.arr->values[i] = (($spec:(a -> a)) args.p2) (view.arr->values[i]);
+        }
+
+        return view;
 }
 
