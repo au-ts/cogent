@@ -213,7 +213,7 @@ lookupTypeCId (TProduct t1 t2) = getCompose (Compose . lookupStrlTypeCId =<< Rec
 lookupTypeCId (TSum fs) = getCompose (Compose . lookupStrlTypeCId =<< Variant . M.fromList <$> mapM (secondM (Compose . lookupType) . second fst) fs)
 lookupTypeCId (TFun t1 t2) = getCompose (Compose . lookupStrlTypeCId =<< Function <$> (Compose . lookupType) t1 <*> (Compose . lookupType) t2)  -- Use the enum type for function dispatching
 lookupTypeCId (TRecord fs Unboxed) = getCompose (Compose . lookupStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> (Compose . lookupType) b) fs))
-lookupTypeCId cogentType@(TRecord _ (Boxed _ _)) = lookupStrlTypeCId (BoxedRecord cogentType)
+lookupTypeCId cogentType@(TRecord _ (Boxed _ _)) = lookupStrlTypeCId (BoxedRecord (StrlCogentType cogentType))
 lookupTypeCId (TArray t l) = getCompose (Compose . lookupStrlTypeCId =<< Array <$> (Compose . lookupType) t <*> pure (Just $ fromIntegral l))
 lookupTypeCId t = Just <$> typeCId t
 
@@ -265,7 +265,7 @@ typeCId t = use custTypeGen >>= \ctg ->
     typeCId' (TSum fs) = getStrlTypeCId =<< Variant . M.fromList <$> mapM (secondM genType . second fst) fs
     typeCId' (TFun t1 t2) = getStrlTypeCId =<< Function <$> genType t1 <*> genType t2  -- Use the enum type for function dispatching
     typeCId' (TRecord fs Unboxed) = getStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs)
-    typeCId' cogentType@(TRecord _ (Boxed _ _)) = getStrlTypeCId (BoxedRecord cogentType)
+    typeCId' cogentType@(TRecord _ (Boxed _ _)) = getStrlTypeCId (BoxedRecord (StrlCogentType cogentType))
     typeCId' (TUnit) = return unitT
     typeCId' (TArray t l) = getStrlTypeCId =<< Array <$> genType t <*> pure (Just $ fromIntegral l)
 
