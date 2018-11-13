@@ -88,8 +88,6 @@ import           Lens.Micro.TH
 import           Control.Monad.Identity (runIdentity)
 -- import Debug.Trace
 import Unsafe.Coerce (unsafeCoerce)
-import Debug.Trace (trace)
-
 
 recycleVars :: VarPool -> Gen v ()
 recycleVars pool =
@@ -498,7 +496,7 @@ genExpr mv (TE t (Take _ rec fld e)) = do
       TRecord fs s = rect
 
   cachedTypes <- use cTypeDefs
-  (rec'',recdecl',recstm',recp') <- flip3 aNewVar recp rec' =<< genType (trace ("Cached types:\n" ++ (foldr (++) "" $ map ((++ "\n") . show) cachedTypes) ++ "\n\n") rect)
+  (rec'',recdecl',recstm',recp') <- flip3 aNewVar recp rec' =<< genType rect
   
   -- 3. * If __cogent_fintermediate_vars is True, then
   --       1. Declares a new local variable and assigns it the value of the field being taken
@@ -512,9 +510,7 @@ genExpr mv (TE t (Take _ rec fld e)) = do
       return $ strDot rec'' fieldName
     else do
       fieldGetter <- genBoxedGetField rect fieldName
-      return $ trace
-          ("Generated getter: " ++ show fieldGetter ++ "\nfor record type:\n" ++ show rect ++ "\nfield: " ++ show fieldName ++ "\nrecordExpr" ++ show rec'' ++ "\n")
-          (CEFnCall fieldGetter [rec''])
+      return $ CEFnCall fieldGetter [rec'']
 
   ft <- genType . fst . snd $ fs !! fld
   (f', fdecl, fstm, fp) <-
@@ -552,9 +548,7 @@ genExpr mv (TE t (Put rec fld val)) = do
     else do
       let recordType = exprType rec
       fieldSetter <- genBoxedSetField recordType fieldName
-      return $ trace
-          ("Generated setter: " ++ show fieldSetter ++ "\nfor record type:\n" ++ show recordType ++ "\nfield: " ++ show fieldName ++ "\nrecordExpr" ++ show rec'' ++ "\n")
-          ([], [CBIStmt $ CAssignFnCall Nothing fieldSetter [variable rec'', val']])
+      return $ ([], [CBIStmt $ CAssignFnCall Nothing fieldSetter [variable rec'', val']])
   
   recycleVars valp
   (v,adecl,astm,vp) <- maybeAssign t' mv (variable rec'') M.empty
@@ -655,9 +649,7 @@ genExpr mv (TE t (Member rec fld)) = do
       return $ strDot rec' fieldName
     else do
       fieldGetter <- genBoxedGetField (exprType rec) fieldName
-      return $ trace
-          ("Generated getter: " ++ show fieldGetter ++ "\nfor record type:\n" ++ show (exprType rec) ++ "\nfield: " ++ show fieldName ++ "\nrecordExpr" ++ show rec' ++ "\n")
-          (CEFnCall fieldGetter [rec'])
+      return $ CEFnCall fieldGetter [rec']
 
   t' <- genType t
   (v',adecl,astm,vp) <- maybeAssign t' mv e' recp
