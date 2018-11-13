@@ -79,7 +79,7 @@ genBoxedGetField cogentType fieldName = do
           fieldType       = fst $ (fromList fieldTypes) ! fieldName
           fieldLayout     = alignLayout $ fst $ fieldLayouts ! fieldName
       boxCType            <- genType cogentType
-      getFieldFunction    <- genBoxedGetter boxCType fieldType fieldLayout
+      getFieldFunction    <- genBoxedGetter boxCType fieldType fieldLayout ("_" ++ fieldName)
       (boxedRecordGetters . at (cogentType, fieldName)) ?= getFieldFunction
       return getFieldFunction
 
@@ -114,7 +114,7 @@ genBoxedSetField cogentType fieldName = do
           fieldType       = fst $ (fromList fieldTypes) ! fieldName
           fieldLayout     = alignLayout $ fst $ fieldLayouts ! fieldName
       boxCType            <- genType cogentType
-      setFieldFunction    <- genBoxedSetter boxCType fieldType fieldLayout
+      setFieldFunction    <- genBoxedSetter boxCType fieldType fieldLayout ("_" ++ fieldName)
       (boxedRecordSetters . at (cogentType, fieldName)) ?= setFieldFunction
       return setFieldFunction
 
@@ -148,6 +148,9 @@ genBoxedGetter
      -- The part of the root boxed type's DataLayout corresponding to
      -- the embedded value that we would like to extract.
 
+  -> String
+     -- ^ To append onto generated function name for improved code readability
+
   -> Gen v CExpr
      -- ^
      -- The 'CExpr' which is the name of the generated getter function
@@ -157,24 +160,24 @@ genBoxedGetter
      -- to call this getter function.
 
 
-genBoxedGetter boxType embeddedType@(TCon _ _ _) (PrimLayout {bitsDL = bitRanges}) =
-  genComposedAlignedRangeGetter bitRanges boxType embeddedType
+genBoxedGetter boxType embeddedType@(TCon _ _ _) (PrimLayout {bitsDL = bitRanges}) getterName =
+  genComposedAlignedRangeGetter bitRanges boxType embeddedType getterName
 
-genBoxedGetter boxType embeddedType@(TPrim _) (PrimLayout {bitsDL = bitRanges}) =
-  genComposedAlignedRangeGetter bitRanges boxType embeddedType
+genBoxedGetter boxType embeddedType@(TPrim _) (PrimLayout {bitsDL = bitRanges}) getterName =
+  genComposedAlignedRangeGetter bitRanges boxType embeddedType getterName
 
 {-
 genBoxedGetter boxType (TSum alternatives) (SumLayout {tagDL, alternativesDL}) =
   undefined
 -}
 
-genBoxedGetter boxType embeddedTypeCogent@(TRecord fields Unboxed) (RecordLayout { fieldsDL }) = do
+genBoxedGetter boxType embeddedTypeCogent@(TRecord fields Unboxed) (RecordLayout { fieldsDL }) getterName = do
   embeddedTypeC         <- genType embeddedTypeCogent
-  functionName          <- freshGlobalCId 'g'
+  functionName          <- (++ getterName) <$> freshGlobalCId 'g' 
   fieldNamesAndGetters  <- mapM
                             ( \(fieldName, (fieldType, _)) -> do
                                 let fieldLayout = fst $ fieldsDL ! fieldName
-                                getter <- genBoxedGetter boxType fieldType fieldLayout
+                                getter <- genBoxedGetter boxType fieldType fieldLayout (getterName ++ "_" ++ fieldName)
                                 return (fieldName, getter)
                             )
                             fields
@@ -189,7 +192,7 @@ genBoxedGetter boxType (TUnit) (UnitLayout) =
   undefined
 -}
 
-genBoxedGetter boxCType _ _ = __impossible $
+genBoxedGetter boxCType _ _ _ = __impossible $
   "genBoxedGetter: Type checking should restrict the types which can be embedded in boxed records," ++
   "and ensure that the data layouts match the types."
 
@@ -215,6 +218,9 @@ genBoxedSetter
      -- The part of the root boxed type's DataLayout corresponding to
      -- the embedded value that we would like to put.
 
+  -> String
+     -- ^ To append onto generated function name for improved code readability
+
   -> Gen v CExpr
      -- ^
      -- The 'CExpr' which is the name of the generated setter function
@@ -223,11 +229,11 @@ genBoxedSetter
      -- Use this 'CExpr' as the first argument of 'CEFnCall' when you want
      -- to call this setter function.
 
-genBoxedSetter boxType embeddedType@(TCon _ _ _) (PrimLayout {bitsDL = bitRanges}) =
-  genComposedAlignedRangeSetter bitRanges boxType embeddedType
+genBoxedSetter boxType embeddedType@(TCon _ _ _) (PrimLayout {bitsDL = bitRanges}) setterName =
+  genComposedAlignedRangeSetter bitRanges boxType embeddedType setterName
 
-genBoxedSetter boxType embeddedType@(TPrim _) (PrimLayout {bitsDL = bitRanges}) =
-  genComposedAlignedRangeSetter bitRanges boxType embeddedType
+genBoxedSetter boxType embeddedType@(TPrim _) (PrimLayout {bitsDL = bitRanges}) setterName =
+  genComposedAlignedRangeSetter bitRanges boxType embeddedType setterName
 
 {-
 genBoxedSetter boxType (TSum alternatives) (SumLayout {tagDL, alternativesDL}) =
@@ -235,13 +241,13 @@ genBoxedSetter boxType (TSum alternatives) (SumLayout {tagDL, alternativesDL}) =
 -}
 
 
-genBoxedSetter boxType embeddedTypeCogent@(TRecord fields Unboxed) (RecordLayout { fieldsDL }) = do
+genBoxedSetter boxType embeddedTypeCogent@(TRecord fields Unboxed) (RecordLayout { fieldsDL }) setterName = do
   embeddedTypeC         <- genType embeddedTypeCogent
-  functionName          <- freshGlobalCId 's'
+  functionName          <- (++ setterName) <$> freshGlobalCId 's'
   fieldNamesAndSetters  <- mapM
                             ( \(fieldName, (fieldType, _)) -> do
                                 let fieldLayout = fst $ fieldsDL ! fieldName
-                                setter <- genBoxedSetter boxType fieldType fieldLayout
+                                setter <- genBoxedSetter boxType fieldType fieldLayout (setterName ++ "_" ++ fieldName)
                                 return (fieldName, setter)
                             )
                             fields
@@ -257,7 +263,7 @@ genBoxedSetter boxType (TUnit) (UnitLayout) =
   undefined
 -}
 
-genBoxedSetter boxCType _ _ = __impossible $
+genBoxedSetter boxCType _ _ _ = __impossible $
   "genBoxedSetter: Type checking should restrict the types which can be embedded in boxed records," ++
   "and ensure that the data layouts match the types."
 
@@ -382,11 +388,11 @@ given embedded value type.
 
 Calls the function `composedAlignedRangeSetter` to generate the function.
 -}
-genComposedAlignedRangeGetter :: [AlignedBitRange] -> CType -> CogentType -> Gen v CExpr
-genComposedAlignedRangeGetter bitRanges boxType embeddedTypeCogent = do
+genComposedAlignedRangeGetter :: [AlignedBitRange] -> CType -> CogentType -> String -> Gen v CExpr
+genComposedAlignedRangeGetter bitRanges boxType embeddedTypeCogent getterName = do
   embeddedTypeC   <- genType embeddedTypeCogent
-  functionName    <- freshGlobalCId 'g'
-  rangesGetters   <- mapM (genAlignedRangeGetter boxType) bitRanges
+  functionName    <- (++ getterName) <$> freshGlobalCId 'g'
+  rangesGetters   <- mapM (genAlignedRangeGetter boxType getterName) bitRanges
   declareSetterOrGetter $
     composedAlignedRangeGetter (zip bitRanges rangesGetters) boxType embeddedTypeC functionName
   return (CVar functionName Nothing)
@@ -400,11 +406,11 @@ value of the given embedded value type.
 
 Calls the function `composedAlignedRangeSetter` to generate the function.
 -}
-genComposedAlignedRangeSetter :: [AlignedBitRange] -> CType -> CogentType -> Gen v CExpr
-genComposedAlignedRangeSetter bitRanges boxType embeddedTypeCogent = do
+genComposedAlignedRangeSetter :: [AlignedBitRange] -> CType -> CogentType -> String -> Gen v CExpr
+genComposedAlignedRangeSetter bitRanges boxType embeddedTypeCogent setterName = do
   embeddedTypeC   <- genType embeddedTypeCogent
-  functionName    <- freshGlobalCId 's'
-  rangesSetters   <- mapM (genAlignedRangeSetter boxType) bitRanges
+  functionName    <- (++ setterName) <$> freshGlobalCId 's'
+  rangesSetters   <- mapM (genAlignedRangeSetter boxType setterName) bitRanges
   declareSetterOrGetter $
     composedAlignedRangeSetter (zip bitRanges rangesSetters) boxType embeddedTypeC functionName
   return (CVar functionName Nothing)
@@ -597,9 +603,9 @@ AlignedBitRange from a Cogent boxed type.
 
 Calls the function `alignedRangeGetter` to generate the function.
 -}
-genAlignedRangeGetter :: CType -> AlignedBitRange -> Gen v CExpr
-genAlignedRangeGetter boxType bitRange = do
-  functionIdentifier <- freshGlobalCId 'g'
+genAlignedRangeGetter :: CType -> String -> AlignedBitRange -> Gen v CExpr
+genAlignedRangeGetter boxType getterName bitRange = do
+  functionIdentifier <- (++ getterName) <$> freshGlobalCId 'g'
   declareSetterOrGetter $
     alignedRangeGetter boxType bitRange functionIdentifier
   return (CVar functionIdentifier Nothing)
@@ -612,9 +618,9 @@ AlignedBitRange in a Cogent boxed type.
 
 Calls the function `alignedRangeSetter` to generate the function.
 -}
-genAlignedRangeSetter :: CType -> AlignedBitRange -> Gen v CExpr
-genAlignedRangeSetter boxType bitRange = do
-  functionIdentifier <- freshGlobalCId 's'
+genAlignedRangeSetter :: CType -> String -> AlignedBitRange -> Gen v CExpr
+genAlignedRangeSetter boxType setterName bitRange = do
+  functionIdentifier <- (++ setterName) <$> freshGlobalCId 's'
   declareSetterOrGetter $
     alignedRangeSetter boxType bitRange functionIdentifier
   return (CVar functionIdentifier Nothing)
