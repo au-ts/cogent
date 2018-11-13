@@ -147,9 +147,9 @@ hs_wordarray_clone xs
 hs_wordarray_set :: WordArray a -> Word32 -> Word32 -> a -> WordArray a
 hs_wordarray_set arr frm n a = 
   let len = hs_wordarray_length arr
-      frm' = min frm (len - 1)
-      to'  = min (frm + n) len - 1
-   in arr // (zip [frm' .. to'] (repeat a))
+      to  = min (frm + n) len - 1
+   in if frm >= len then arr
+      else arr // (zip [frm .. to] (repeat a))
 
 hs_wordarray_copy :: WordArray e -> WordArray e -> Word32 -> Word32 -> Word32 -> WordArray e
 hs_wordarray_copy dst src dst_offs src_offs n =
