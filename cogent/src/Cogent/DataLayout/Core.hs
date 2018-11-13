@@ -106,8 +106,17 @@ endAllocatedBits = foldr (\range start -> max (bitOffsetBR range + bitSizeBR ran
 wordSizeBits :: Size
 wordSizeBits = 32
 
+
+data Architecture = X86_64 | X86_32
+
+architecture :: Architecture
+architecture = X86_64
+
+
 pointerSizeBits :: Size
-pointerSizeBits = 32
+pointerSizeBits = case architecture of
+  X86_32 -> 32
+  X86_64 -> 64
 
 primIntSizeBits :: PrimInt -> Size
 primIntSizeBits U8      = 8
