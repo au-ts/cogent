@@ -32,7 +32,10 @@ import Cogent.C.GenState
   , boolT
   )
 import Cogent.Core (Type (..))
-import Cogent.Compiler (__impossible)
+import Cogent.Compiler
+  ( __impossible
+  , __todo
+  )
 import Cogent.DataLayout.Core
   ( AlignedBitRange (..)
   , DataLayout (..)
@@ -166,10 +169,10 @@ genBoxedGetter boxType embeddedType@(TCon _ _ _) (PrimLayout {bitsDL = bitRanges
 genBoxedGetter boxType embeddedType@(TPrim _) (PrimLayout {bitsDL = bitRanges}) getterName =
   genComposedAlignedRangeGetter bitRanges boxType embeddedType getterName
 
-{-
-genBoxedGetter boxType (TSum alternatives) (SumLayout {tagDL, alternativesDL}) =
-  undefined
--}
+
+genBoxedGetter boxType (TSum alternatives) (SumLayout {tagDL, alternativesDL}) getterName =
+  __todo $ "Cogent.DataLayout.CodeGen: genBoxedGetter: Case for embedded variant types not yet implemented."
+
 
 genBoxedGetter boxType embeddedTypeCogent@(TRecord fields Unboxed) (RecordLayout { fieldsDL }) getterName = do
   embeddedTypeC         <- genType embeddedTypeCogent
@@ -184,16 +187,15 @@ genBoxedGetter boxType embeddedTypeCogent@(TRecord fields Unboxed) (RecordLayout
   declareSetterOrGetter $ recordGetter fieldNamesAndGetters boxType embeddedTypeC functionName
   return (CVar functionName Nothing)
 
-{-
-genBoxedGetter boxType (TRecord fields Unboxed) (RecordLayout { fieldsDL }) =
-  undefined
 
-genBoxedGetter boxType (TUnit) (UnitLayout) =
-  undefined
--}
+genBoxedGetter boxType (TRecord fields Unboxed) (RecordLayout { fieldsDL }) getterName =
+  __todo $ "Cogent.DataLayout.CodeGen: genBoxedGetter: Case for embedded boxed record not yet implemented."
+
+genBoxedGetter boxType (TUnit) (UnitLayout) getterName=
+  __todo $ "Cogent.DataLayout.CodeGen: genBoxedGetter: Case for embedded unit value not yet implemented."
 
 genBoxedGetter boxCType _ _ _ = __impossible $
-  "genBoxedGetter: Type checking should restrict the types which can be embedded in boxed records," ++
+  "Cogent.DataLayout.CodeGen: genBoxedGetter: Type checking should restrict the types which can be embedded in boxed records," ++
   "and ensure that the data layouts match the types."
 
 
@@ -235,10 +237,8 @@ genBoxedSetter boxType embeddedType@(TCon _ _ _) (PrimLayout {bitsDL = bitRanges
 genBoxedSetter boxType embeddedType@(TPrim _) (PrimLayout {bitsDL = bitRanges}) setterName =
   genComposedAlignedRangeSetter bitRanges boxType embeddedType setterName
 
-{-
-genBoxedSetter boxType (TSum alternatives) (SumLayout {tagDL, alternativesDL}) =
-  undefined
--}
+genBoxedSetter boxType (TSum alternatives) (SumLayout {tagDL, alternativesDL}) setterName =
+  __todo $ "Cogent.DataLayout.CodeGen: genBoxedSetter: Case for embedded variant types not yet implemented."
 
 
 genBoxedSetter boxType embeddedTypeCogent@(TRecord fields Unboxed) (RecordLayout { fieldsDL }) setterName = do
@@ -254,17 +254,16 @@ genBoxedSetter boxType embeddedTypeCogent@(TRecord fields Unboxed) (RecordLayout
   declareSetterOrGetter $ recordSetter fieldNamesAndSetters boxType embeddedTypeC functionName
   return (CVar functionName Nothing)
 
-{-
-genBoxedSetter boxType (TRecord fields sigil) (RecordLayout { fieldsDL }) =
-  undefined
+
+genBoxedSetter boxType (TRecord fields sigil) (RecordLayout { fieldsDL }) setterName =
+  __todo $ "Cogent.DataLayout.CodeGen: genBoxedSetter: Case for embedded boxed record not yet implemented."
 
 
-genBoxedSetter boxType (TUnit) (UnitLayout) =
-  undefined
--}
+genBoxedSetter boxType (TUnit) (UnitLayout) setterName =
+  __todo $ "Cogent.DataLayout.CodeGen: genBoxedSetter: Case for embedded unit value not yet implemented."
 
 genBoxedSetter boxCType _ _ _ = __impossible $
-  "genBoxedSetter: Type checking should restrict the types which can be embedded in boxed records," ++
+  "Cogent.DataLayout.CodeGen: genBoxedSetter: Type checking should restrict the types which can be embedded in boxed records," ++
   "and ensure that the data layouts match the types."
 
 
