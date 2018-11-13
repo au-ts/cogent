@@ -28,6 +28,8 @@ import Cogent.C.GenState
   , boxedSettersAndGetters
   , boxedRecordGetters
   , boxedRecordSetters
+  , boolField
+  , boolT
   )
 import Cogent.Core (Type (..))
 import Cogent.Compiler (__impossible)
@@ -36,10 +38,16 @@ import Cogent.DataLayout.Core
   , DataLayout (..)
   , alignLayout
   , wordSizeBits
+  , Architecture (..)
+  , architecture
   )
+import Debug.Trace (trace)
 
 type CogentType = Type 'Zero
 
+intTypeForPointer = case architecture of
+  X86_64 -> CInt False CLongT -- unsigned long
+  X86_32 -> CInt False CIntT -- unsigned int
 
 {-|
 Returns a getter function C expression for a field of a boxed record.
@@ -416,11 +424,11 @@ will return the C syntax for the C function
 
 @
 static `embeddedType` `functionName`(`boxType` p) {
-  return
-    (((`embeddedType`)`getBR0Identifier`(p)) << `0`) |
-    (((`embeddedType`)`getBR1Identifier`(p)) << `0 + firstBitSize`) |
-    (((`embeddedType`)`getBR2Identifier`(p)) << `0 + firstBitSize + secondBitSize`) |
-    ...;
+  return (`embeddedType`) (
+    (((`embeddedIntType`)`getBR0Identifier`(p)) << `0`) |
+    (((`embeddedIntType`)`getBR1Identifier`(p)) << `0 + firstBitSize`) |
+    (((`embeddedIntType`)`getBR2Identifier`(p)) << `0 + firstBitSize + secondBitSize`) |
+    ...);
 }
 @
 -}
@@ -454,7 +462,7 @@ composedAlignedRangeGetter
     [ ( boxType, boxIdentifier ) ]
     
     -- statements
-    [ CBIStmt $ CReturn $ Just $ snd $ foldl'
+    [ CBIStmt $ CReturn $ Just $ fromIntValue embeddedType $ snd $ foldl'
       (\ (accumulatedBitOffset, accumulatedExpr) (range, rangeGetterFunction) ->
         ( accumulatedBitOffset + bitSizeABR range
         , CBinOp Or accumulatedExpr
@@ -481,7 +489,7 @@ composedAlignedRangeGetter
     genGetAlignedRangeAtBitOffset :: CExpr -> Integer -> CExpr
     genGetAlignedRangeAtBitOffset getRangeFunction offset =
       CBinOp Lsh
-        ( CTypeCast embeddedType (CEFnCall getRangeFunction [boxVariable]) )
+        ( CTypeCast (intTypeForType embeddedType) (CEFnCall getRangeFunction [boxVariable]) )
         ( unsignedIntLiteral offset )
 
 composedAlignedRangeGetter _ _ _ _ = __impossible $
@@ -560,6 +568,10 @@ composedAlignedRangeSetter
     valueIdentifier = "v"
     valueVariable   = CVar valueIdentifier Nothing
 
+    -- If embeddedType is a boxed type, we cast valueVariable to the integer type of the correct size
+    -- If it is a boolean type, we extract the boolean value
+    valueExpression = toIntValue embeddedType valueVariable
+
     {-
     @genSetAlignedRangeAtBitOffset setRangeFunction offset size@ will return the 'CExpr'
 
@@ -574,7 +586,7 @@ composedAlignedRangeSetter
         , CTypeCast
             unsignedIntType
             ( CBinOp And
-              ( CBinOp Rsh valueVariable (unsignedIntLiteral offset) )
+              ( CBinOp Rsh valueExpression (unsignedIntLiteral offset) )
               ( unsignedIntLiteral size )
             )
         ]
@@ -755,6 +767,22 @@ unsignedIntMask :: Integer -> CExpr
 unsignedIntMask n = CConst $ CNumConst n unsignedIntType (__fixme DEC) {- TODO: Change DEC to BIN. Requires implementing this in cLitConst function of Render.hs -}
 
 unsignedIntType = CInt False CIntT
+
+
+toIntValue :: CType -> CExpr -> CExpr
+toIntValue (CPtr _)     cexpr              = CTypeCast intTypeForPointer cexpr
+toIntValue (CIdent t)   cexpr | t == boolT = CStructDot cexpr boolField
+toIntValue _            cexpr              = cexpr
+
+fromIntValue :: CType -> CExpr -> CExpr
+fromIntValue ctype@(CPtr _) cexpr              = CTypeCast ctype cexpr
+fromIntValue (CIdent t)     cexpr | t == boolT = CCompLit (CIdent boolT) [([CDesignFld boolField], CInitE cexpr)]
+fromIntValue _              cexpr              = cexpr
+
+intTypeForType :: CType -> CType
+intTypeForType (CPtr _)                = intTypeForPointer
+intTypeForType (CIdent t) | t == boolT = CInt False CCharT -- unsigned char
+intTypeForType ctype                   = ctype
 
 
 
