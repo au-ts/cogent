@@ -175,18 +175,19 @@ $ty:(WordArray a) $id:wordarray_set($ty:(WordArraySetP a) args)
         /*
          * args.p1 : array
          * args.p2 : start position
-         * args.p3 : end position
+         * args.p3 : length from start position
          * args.p4 : element to set
          */
         u32 start = args.p2;
-        u32 end = args.p3;
+        u32 len = args.p3;
 
 	if (start > args.p1->len) {
-		start = args.p1->len;
+                return args.p1;
 	}
 
-        u32 len = (start + end) > args.p1->len ?
-                (args.p1->len - start) : (end - start);
+        if (start + len > args.p1->len) {
+                len = args.p1->len - start;
+        }
 
         memset(args.p1->values + start, args.p4, len);
 
