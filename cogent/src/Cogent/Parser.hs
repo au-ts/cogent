@@ -258,7 +258,7 @@ recAssignsAndOrWildcard = ((:[]) <$> wildcard)
 -- typeA2   ::= "#" atomtype
 --            | atomtype "!"?
 --            | atomtype "[" int-expr "]"
--- atomtype ::= "(" monotype "," ...")"
+-- atomtype ::= "(" monotype* ")"  -- comma-separated list
 --            | "{" fieldname ":" monotype "," ... "}"
 --            | "<" Con typeA2 "|" ... ">"
 --            | var
