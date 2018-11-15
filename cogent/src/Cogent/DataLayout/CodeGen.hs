@@ -169,6 +169,8 @@ genBoxedGetter boxType embeddedType@(TCon _ _ _) (PrimLayout {bitsDL = bitRanges
 genBoxedGetter boxType embeddedType@(TPrim _) (PrimLayout {bitsDL = bitRanges}) getterName =
   genComposedAlignedRangeGetter bitRanges boxType embeddedType getterName
 
+genBoxedGetter boxType embeddedType@(TRecord fields (Boxed _ _)) (PrimLayout {bitsDL = bitRanges}) getterName =
+  genComposedAlignedRangeGetter bitRanges boxType embeddedType getterName
 
 genBoxedGetter boxType (TSum alternatives) (SumLayout {tagDL, alternativesDL}) getterName =
   __todo $ "Cogent.DataLayout.CodeGen: genBoxedGetter: Case for embedded variant types not yet implemented."
@@ -186,10 +188,6 @@ genBoxedGetter boxType embeddedTypeCogent@(TRecord fields Unboxed) (RecordLayout
                             fields
   declareSetterOrGetter $ recordGetter fieldNamesAndGetters boxType embeddedTypeC functionName
   return (CVar functionName Nothing)
-
-
-genBoxedGetter boxType (TRecord fields Unboxed) (RecordLayout { fieldsDL }) getterName =
-  __todo $ "Cogent.DataLayout.CodeGen: genBoxedGetter: Case for embedded boxed record not yet implemented."
 
 genBoxedGetter boxType (TUnit) (UnitLayout) getterName=
   __todo $ "Cogent.DataLayout.CodeGen: genBoxedGetter: Case for embedded unit value not yet implemented."
@@ -237,6 +235,9 @@ genBoxedSetter boxType embeddedType@(TCon _ _ _) (PrimLayout {bitsDL = bitRanges
 genBoxedSetter boxType embeddedType@(TPrim _) (PrimLayout {bitsDL = bitRanges}) setterName =
   genComposedAlignedRangeSetter bitRanges boxType embeddedType setterName
 
+genBoxedSetter boxType embeddedType@(TRecord fields (Boxed _ _)) (PrimLayout {bitsDL = bitRanges}) setterName =
+  genComposedAlignedRangeSetter bitRanges boxType embeddedType setterName
+
 genBoxedSetter boxType (TSum alternatives) (SumLayout {tagDL, alternativesDL}) setterName =
   __todo $ "Cogent.DataLayout.CodeGen: genBoxedSetter: Case for embedded variant types not yet implemented."
 
@@ -255,10 +256,6 @@ genBoxedSetter boxType embeddedTypeCogent@(TRecord fields Unboxed) (RecordLayout
   return (CVar functionName Nothing)
 
 
-genBoxedSetter boxType (TRecord fields sigil) (RecordLayout { fieldsDL }) setterName =
-  __todo $ "Cogent.DataLayout.CodeGen: genBoxedSetter: Case for embedded boxed record not yet implemented."
-
-
 genBoxedSetter boxType (TUnit) (UnitLayout) setterName =
   __todo $ "Cogent.DataLayout.CodeGen: genBoxedSetter: Case for embedded unit value not yet implemented."
 
@@ -272,10 +269,137 @@ genBoxedSetter boxCType _ _ _ = __impossible $
 
 {-|
 Calling
+@variantGetter [(field1, field1Getter), ...] boxType embeddedType recordGetter@ will return
+the C Syntax for the following function.
+@
+static inline embeddedType variantGetter(boxType p) {
+  return
+    (tagGetter(p) == boxedTagValue1)
+    ? (embeddedType)
+        { .tag = 0
+        , .alt1 = alt1Getter(p);
+        }
+    : (tagGetter(p) == boxedTagValue2)
+      ? (embeddedType)
+          { .tag = 1
+          , .alt2 = alt2Getter(p);
+          }
+      : ...
+              : (embeddedType) {} // Impossible to reach here
+}
+@
+-}
+variantGetter
+  :: [(CId, Int, Int, CExpr)]
+      -- ^
+      -- ( Name of the alternative of the variant,
+      -- , Tag number for this alternative in the boxed structure
+      -- , Tag number for this alternative in the unboxed structure
+      -- , Expression for the getter function which will extract that field from the boxed data
+      -- )
+  -> CType
+      -- ^ The C type of the box.
+  -> CType
+      -- ^ The C type of the embedded data.
+  -> CId
+      -- ^ The name to give the generated getter function
+  -> CExtDecl
+      -- ^ The C syntax tree for a function which extracts the embedded data from the box.
+
+variantGetter fields boxType embeddedType functionName = __todo "Cogent.DataLayout.CodeGen: variantGetter: unimplemented."
+{-
+  ( CFnDefn
+  
+    -- (return type, function name)
+    ( embeddedType, functionName )
+    
+    -- [(param type, param name)]
+    [ ( boxType, boxIdentifier ) ]
+    
+    -- statements
+    [ CBIStmt $ CReturn $ Just $ CCompLit embeddedType $
+        fmap
+        (\(fieldName, fieldGetter) -> ([CDesignFld fieldName], CInitE $ CEFnCall fieldGetter [boxVariable]))
+        fields
+    ]
+  
+    staticInlineFnSpec
+  )
+  where
+    boxIdentifier = "b"
+    boxVariable   = CVar boxIdentifier Nothing
+-}
+
+{-|
+Calling
+@variantSetter [(field1, field1Setter), ...] boxType embeddedType recordSetter@ will return
+the C Syntax for the following function.
+@
+static inline void variantSetter(boxType p, embeddedType v) {
+  if (v.tag == 0) {
+    tagSetter(p, alt0TagValue);
+    alt0Setter(p, v.alt0);
+  } else if (v.tag == 1) {
+    tagSetter(p, alt1TagValue);
+    alt1Setter(p, v.alt1);
+  } else if
+    ...
+  }
+}
+@
+-}
+variantSetter
+  :: [(CId, CExpr)]
+      -- ^
+      -- ( Name of the field in the struct for the embedded data
+      -- , Expression for the setter function which will extract that field from the boxed data
+      -- )
+  -> CType
+      -- ^ The C type of the box.
+  -> CType
+      -- ^ The C type of the embedded data.
+  -> CId
+      -- ^ The name to give the generated getter function
+  -> CExtDecl
+      -- ^ The C syntax tree for a function which extracts the embedded data from the box.
+
+variantSetter fields boxType embeddedType functionName = __todo "Cogent.DataLayout.CodeGen: variantSetter: unimplemented."
+{-
+  ( CFnDefn
+  
+    -- (return type, function name)
+    ( CVoid, functionName )
+    
+    -- [(param type, param name)]
+    [ ( boxType, boxIdentifier ) 
+    , ( embeddedType, valueIdentifier )
+    ]
+    
+    -- statements
+    ( fmap
+      (\(fieldName, fieldGetter) ->
+        CBIStmt $ CAssignFnCall Nothing fieldGetter [boxVariable, CStructDot valueVariable fieldName])
+      fields
+    )
+  
+    staticInlineFnSpec
+  )
+  where
+    boxIdentifier = "b"
+    boxVariable   = CVar boxIdentifier Nothing
+
+    valueIdentifier = "v"
+    valueVariable   = CVar valueIdentifier Nothing
+-}
+
+
+
+{-|
+Calling
 @recordGetter [(field1, field1Getter), ...] boxType embeddedType recordGetter@ will return
 the C Syntax for the following function.
 @
-static embeddedType recordGetter(boxType p) {
+static inline embeddedType recordGetter(boxType p) {
   return (embeddedType)
     { .field1 = field1Getter(p)
     , .field2 = field2Getter(p)
@@ -327,7 +451,7 @@ Calling
 @recordSetter [(field1, field1Setter), ...] boxType embeddedType recordSetter@ will return
 the C Syntax for the following function.
 @
-static void recordSetter(boxType p, embeddedType v) {
+static inline void recordSetter(boxType p, embeddedType v) {
   field1Setter(p, v.field1);
   field2Setter(p, v.field2);
   ...
@@ -428,7 +552,7 @@ to produce a value of the given embedded value type.
 will return the C syntax for the C function
 
 @
-static `embeddedType` `functionName`(`boxType` p) {
+static inline `embeddedType` `functionName`(`boxType` p) {
   return (`embeddedType`) (
     (((`embeddedIntType`)`getBR0Identifier`(p)) << `0`) |
     (((`embeddedIntType`)`getBR1Identifier`(p)) << `0 + firstBitSize`) |
@@ -515,7 +639,7 @@ in a boxed value from the pieces of a value of the given embedded value type.
 will return the C syntax for the C function
 
 @
-static void `functionName`(`boxType` b, `embeddedType` v) {
+static inline void `functionName`(`boxType` b, `embeddedType` v) {
   `setBR0Identifier`(b, (v >> `0`) & `bitSize0`);
   `setBR1Identifier`(b, (v >> `0 + bitSize0`) & `bitSize1`);
   `setBR2Identifier`(b, (v >> `0 + bitSize0 + bitSize1`) & `bitSize2`);
@@ -592,7 +716,7 @@ composedAlignedRangeSetter
             unsignedIntType
             ( CBinOp And
               ( CBinOp Rsh valueExpression (unsignedIntLiteral offset) )
-              ( unsignedIntLiteral size )
+              ( unsignedIntLiteral (sizeToMask size) )
             )
         ]
 
@@ -775,19 +899,29 @@ unsignedIntType = CInt False CIntT
 
 
 toIntValue :: CType -> CExpr -> CExpr
-toIntValue (CPtr _)     cexpr              = CTypeCast intTypeForPointer cexpr
-toIntValue (CIdent t)   cexpr | t == boolT = CStructDot cexpr boolField
-toIntValue _            cexpr              = cexpr
+toIntValue (CIdent t) cexpr
+  | t == boolT                            = CStructDot cexpr boolField
+  | t `elem` ["u8", "u16", "u32", "u64"]  = cexpr
+toIntValue (CPtr _)   cexpr               = CTypeCast intTypeForPointer cexpr
+toIntValue _          cexpr               = CTypeCast intTypeForPointer (CStructDot cexpr boxFieldName)
 
 fromIntValue :: CType -> CExpr -> CExpr
-fromIntValue ctype@(CPtr _) cexpr              = CTypeCast ctype cexpr
-fromIntValue (CIdent t)     cexpr | t == boolT = CCompLit (CIdent boolT) [([CDesignFld boolField], CInitE cexpr)]
-fromIntValue _              cexpr              = cexpr
+fromIntValue (CIdent t)     cexpr
+  | t == boolT                            = CCompLit (CIdent boolT) [([CDesignFld boolField], CInitE cexpr)]
+  | t `elem` ["u8", "u16", "u32", "u64"]  = cexpr
+fromIntValue ctype@(CPtr _) cexpr         = CTypeCast ctype cexpr
+fromIntValue ctype          cexpr         = CCompLit ctype [([CDesignFld boxFieldName], CInitE (CTypeCast (CPtr unsignedIntType) cexpr))]
 
+{-
+Given the CType of an embedded value (leaf of composite type tree) to extract,
+returns the corresponding integer type it should be extracted as before casting.
+-}
 intTypeForType :: CType -> CType
-intTypeForType (CPtr _)                = intTypeForPointer
-intTypeForType (CIdent t) | t == boolT = CInt False CCharT -- unsigned char
-intTypeForType ctype                   = ctype
+intTypeForType (CIdent t)
+  | t == boolT                            = CInt False CCharT -- embedded boolean
+  | t `elem` ["u8", "u16", "u32", "u64"]  = CIdent t
+intTypeForType (CPtr _)                   = intTypeForPointer -- embedded boxed abstract type
+intTypeForType _                          = intTypeForPointer -- embedded boxed record
 
 
 
