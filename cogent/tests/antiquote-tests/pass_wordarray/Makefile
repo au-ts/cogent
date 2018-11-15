@@ -48,6 +48,6 @@ gen-anti:
 clean:
 	rm -f $(COUTPUT) $(HOUTPUT) $(PP) $(PPINFER) $(OBJ)
 	rm -f generated.o
-	rm -f $(ABSDIR)/*.h
+	rm -rf $(ABSDIR)
 	rm -f $(NAME)
 

@@ -1,0 +1,33 @@
+--
+-- Copyright 2018, Data61
+-- Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+-- ABN 41 687 119 230.
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(DATA61_GPL)
+--
+
+genOther : () -> {c: U32, d: U64}
+
+type Simple = {
+	a: U8,
+	b: U16,
+	other: {
+		c: U32,
+		d: U64
+	}
+}
+
+putVals1: Simple take (a, b, other) -> Simple
+putVals1 simple = simple { a = 0x12, b=0x3456, other = genOther () }
+
+putVals2: {c: U32, d: U64} take (c, d) -> {c: U32, d: U64}
+putVals2 x = x {c = 0x7890abcd, d = 0xf0e1d2c3b4a59687}
+
+getVals: Simple -> (Simple, #{a: U8, b: U16, c: U32, d: U64})
+getVals simple =
+	let localSimple = #{a= simple.a, b= simple.b, c= simple.other.c, d=simple.other.d} ! simple
+	in (simple, localSimple)

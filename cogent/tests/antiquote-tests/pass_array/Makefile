@@ -54,6 +54,6 @@ gen-anti:
 clean:
 	rm -f $(COUTPUT) $(HOUTPUT) $(PP) $(PPINFER) $(OBJ)
 	@# rm -f *-gen.*
-	rm -f $(ABSDIR)/*.h
+	rm -rf $(ABSDIR)
 	rm -f $(NAME)
 
