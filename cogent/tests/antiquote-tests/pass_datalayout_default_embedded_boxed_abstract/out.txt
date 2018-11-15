@@ -1,0 +1,4 @@
+a.a:100
+a.b:-32
+a.c:Hello world!
+b:Bye
