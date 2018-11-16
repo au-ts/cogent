@@ -1,4 +1,5 @@
-{- LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -34,9 +35,12 @@ import Data.Array.IArray
 import Data.Array.IO hiding (newArray)
 import Data.Either.Extra  -- extra-1.6
 -- import Data.Function
+import Data.Functor.Classes
 import Data.Ix
 import Data.List (genericDrop, genericTake)
--- import Data.Set as S
+import qualified Data.Set as S
+-- import qualified Data.Set.Internal as S
+import Enumerate
 import Foreign hiding (void)
 import Foreign.C.String hiding (CString)
 import Foreign.C.Types
@@ -45,6 +49,7 @@ import Foreign.Marshal.Alloc
 import Foreign.Marshal.Unsafe (unsafeLocalState)
 import Foreign.Ptr
 import Foreign.Storable
+import GHC.Generics
 import Prelude as P
 -- import QuickCheck.GenT
 import Test.QuickCheck hiding (Success)
@@ -73,30 +78,33 @@ To run the REPL:
 -- | The Haskell type for wordarrays
 type WordArray e = Array Word32 e
 
-data O = O { _mallocFail :: Bool } deriving (Show)
-
-makeLenses ''O
-
-o_allGood :: O
-o_allGood = O False
-
-o_mallocFail :: (?o :: O) => Bool
-o_mallocFail = ?o^.mallocFail
+data O = O_mallocFail
+       | O_zeroLengthFail
+       | O_good
+       deriving (Show, Generic, Enumerable)
 
 empty_array :: WordArray e
 empty_array = array (0, 0) []
 
-hs_wordarray_create :: (?o :: O) => Word32 -> Maybe (WordArray e)
-hs_wordarray_create 0 = Nothing
+hs_wordarray_create :: (?o :: O, Integral e) => Word32 -> Maybe (WordArray e)
+hs_wordarray_create 0
+  | O_zeroLengthFail <- ?o = Nothing
+  | otherwise              = Just (array (1,0) [])
 hs_wordarray_create l
-  | o_mallocFail = Nothing
-  | otherwise    = Just (array (0, l-1) [])  -- elements will be undefined
+  | O_mallocFail <- ?o = Nothing
+  | otherwise          = Just (listArray (0, l-1) (repeat 0))
+
+hs_wordarray_create_nd :: (Integral e) => Word32 -> CogentMonad (Maybe (WordArray e))
+hs_wordarray_create_nd 0 = return Nothing <|> return (Just $ array (1,0) [])  -- either nothing or empty array
+hs_wordarray_create_nd l = return Nothing <|> return (Just $ listArray (0, l-1) (repeat 0))
 
 hs_wordarray_create_nz :: (Integral e, ?o :: O) => Word32 -> Maybe (WordArray e)
-hs_wordarray_create_nz 0 = Nothing
+hs_wordarray_create_nz 0
+  | O_zeroLengthFail <- ?o = Nothing
+  | otherwise              = Just (array (1,0) [])
 hs_wordarray_create_nz l
-  | o_mallocFail = Nothing
-  | otherwise    = Just (array (0, l-1) [(i,v) | i <- [0..l-1], v <- [0]])
+  | O_mallocFail <- ?o = Nothing
+  | otherwise          = Just (array (0, l-1) [(i,v) | i <- [0..l-1], v <- [0]])
 
 hs_wordarray_free :: WordArray e -> ()
 hs_wordarray_free _ = ()
@@ -141,8 +149,8 @@ hs_wordarray_length = fromIntegral . length
 
 hs_wordarray_clone :: (?o :: O) => WordArray e -> Maybe (WordArray e)
 hs_wordarray_clone xs
-  | o_mallocFail = Nothing
-  | otherwise    = Just xs
+  | O_mallocFail <- ?o = Nothing
+  | otherwise          = Just xs
 
 hs_wordarray_set :: WordArray a -> Word32 -> Word32 -> a -> WordArray a
 hs_wordarray_set arr frm n a = 
@@ -176,7 +184,7 @@ hs_map_body_g = (*2)
 
 prop_corres_wordarray_create_u8 :: Property
 prop_corres_wordarray_create_u8 = 
-  forAll (pure o_allGood) $ \o -> let ?o = o in 
+  forAll (pure O_good) $ \o -> let ?o = o in 
     monadicIO $ forAllM gen_c_wordarray_create_u8_arg $ \ic -> run $ do
       oa <- hs_wordarray_create @ Word8 <$> abs_wordarray_create_u8_arg ic
       bracket (cogent_wordarray_create_u8 ic)
@@ -188,6 +196,33 @@ prop_corres_wordarray_create_u8 =
                                 return ()
                             | otherwise -> fail "impossible")
               (\oc -> corresM' rel_wordarray_create_u8_ret oa oc)
+
+prop_corres_wordarray_create_u8_nd :: Property
+prop_corres_wordarray_create_u8_nd = monadicIO $ 
+  forAllM gen_c_wordarray_create_u8_arg $ \ic -> run $ do
+    oa <- hs_wordarray_create_nd @ Word8 <$> abs_wordarray_create_u8_arg ic
+    bracket (cogent_wordarray_create_u8 ic)
+            (\oc -> do Ct8 tag err suc <- peek oc
+                       if | fromEnum tag == fromEnum tagEnumError -> return ()
+                          | fromEnum tag == fromEnum tagEnumSuccess -> do 
+                              psuc <- new suc
+                              cogent_wordarray_free_u8 psuc
+                              return ()
+                          | otherwise -> fail "impossible")
+            (\oc -> corresM rel_wordarray_create_u8_ret oa oc)
+
+prop_equiv_wordarray_create_u8 :: Property
+prop_equiv_wordarray_create_u8 =
+  forAll (choose (0, 4095) :: Gen Word32) $ \l ->
+    let d_os = flip map (enumerated :: [O]) $ \o -> 
+                 let ?o = o
+                  in hs_wordarray_create @ Word8 l
+        nd_os = hs_wordarray_create_nd l
+     in liftEq eq (S.fromList d_os) (S.fromList nd_os)
+  where eq :: Maybe (WordArray Word8) -> Maybe (WordArray Word8) -> Bool
+        eq Nothing Nothing = True
+        eq (Just a1) (Just a2) = length a1 == length a2
+        eq _ _ = False
 
 gen_c_wordarray_create_u8_arg :: Gen (Ptr Ct7)
 gen_c_wordarray_create_u8_arg = do
@@ -214,7 +249,7 @@ rel_wordarray_create_u8_ret oa oc = do
 
 prop_corres_wordarray_create_nz_u8 :: Property
 prop_corres_wordarray_create_nz_u8 = 
-  forAll (pure o_allGood) $ \o -> let ?o = o in
+  forAll (pure O_good) $ \o -> let ?o = o in
     monadicIO $ forAllM gen_c_wordarray_create_nz_u8_arg $ \ic -> run $ do
       oa <- hs_wordarray_create_nz @ Word8 <$> abs_wordarray_create_nz_u8_arg ic
       bracket (cogent_wordarray_create_nz_u8 ic)

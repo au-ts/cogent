@@ -81,6 +81,8 @@ library wa-example
                      , Wa_FFI_Types_Abs
   build-depends:       base >=4.9 && <4.12
                      , array
+                     , containers
+                     , enumerate
                      , extra
                      , lens
                      , transformers
