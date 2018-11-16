@@ -46,7 +46,7 @@ import           Cogent.Compiler
 import           Cogent.Common.Syntax  as Syn
 import           Cogent.Common.Types   as Typ
 import           Cogent.Core           as CC
-import           Cogent.DataLayout.CodeGen    (genBoxedGetField, genBoxedSetField)
+import           Cogent.DataLayout.CodeGen    (genBoxedGetSetField, GetOrSet(..))
 import           Cogent.Inference             (kindcheck_)
 import           Cogent.Isabelle.Deep
 import           Cogent.Mono                  (Instance)
@@ -509,7 +509,7 @@ genExpr mv (TE t (Take _ rec fld e)) = do
     then
       return $ strDot rec'' fieldName
     else do
-      fieldGetter <- genBoxedGetField rect fieldName
+      fieldGetter <- genBoxedGetSetField rect fieldName Get
       return $ CEFnCall fieldGetter [rec'']
 
   ft <- genType . fst . snd $ fs !! fld
@@ -547,7 +547,7 @@ genExpr mv (TE t (Put rec fld val)) = do
       assign fldt (strDot (variable rec'') fieldName) val'
     else do
       let recordType = exprType rec
-      fieldSetter <- genBoxedSetField recordType fieldName
+      fieldSetter <- genBoxedGetSetField recordType fieldName Set
       return $ ([], [CBIStmt $ CAssignFnCall Nothing fieldSetter [variable rec'', val']])
   
   recycleVars valp
@@ -625,7 +625,7 @@ genExpr mv (TE t (Member rec fld)) = do
     then
       return $ strDot rec' fieldName
     else do
-      fieldGetter <- genBoxedGetField (exprType rec) fieldName
+      fieldGetter <- genBoxedGetSetField (exprType rec) fieldName Get
       return $ CEFnCall fieldGetter [rec']
 
   t' <- genType t
