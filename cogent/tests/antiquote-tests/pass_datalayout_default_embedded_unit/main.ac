@@ -19,10 +19,10 @@ int main(void) {
   $ty:(Simple take (..)) x;
   x.data = malloc(32);
   
-  $exp:(putVals) (x);
-  $ty:((Simple take (a), #Simple))y = $exp:(getVal)(x);
+  $exp:(putVal) (x);
+  $ty:((Simple take (a), ()))y = $exp:(getVal)(x);
   
-  printf("a:%x\n", y.p2.a);
+  printf("a:%x\n", y.p2.dummy);
   return 0;
 }
 
