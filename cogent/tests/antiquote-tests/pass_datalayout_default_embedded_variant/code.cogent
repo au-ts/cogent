@@ -11,7 +11,7 @@
 --
 
 type Simple = {
-	a: <A U8 | B U16>,
+	a: <A U8>,
 	b: <A U8 | B U16 | C U32 | D U64 | E Bool>
 }
 
