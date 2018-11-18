@@ -14,8 +14,8 @@ type Simple = {
 	a: ()
 }
 
-putVals: Simple take (a) -> Simple
-putVals simple = simple {a = ()}
+putVal: Simple take (a) -> Simple
+putVal simple = simple {a = ()}
 
 getVal: Simple -> (Simple take (a), ())
 getVal simple {a=a'} = (simple, a')

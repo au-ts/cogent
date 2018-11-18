@@ -423,7 +423,7 @@ isTrivialCDesignator (CDesignE e) = isTrivialCExpr e
 isTrivialCDesignator (CDesignFld _) = True
 
 -- *****************************************************************************
--- ** Naming convensions
+-- ** Naming conventions
 
 -- NOTE: Reserved names; users should NOT use them in Cogent programs!
 --       Prefixing underscores are disliked by C-parser / zilinc

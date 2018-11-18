@@ -15,17 +15,37 @@ $esc:(#include <stdlib.h>)
 #include <cogent-defns.h>
 #include <generated.c>
 
+void printVariant($ty:(#Simple) x) {
+	printf("a:");
+	switch (x.a.tag) {
+	case 0: printf("A %x", x.a.A); break;
+	default: printf("Unknown tag value %d", x.a.tag);
+	}
+	printf("\n");
+
+	printf("b:");
+	switch (x.b.tag) {
+	case 0: printf("A %x", x.b.A); break;
+	case 1: printf("B %x", x.b.B); break;
+	case 2: printf("C %x", x.b.C); break;
+	case 3: printf("D %llx", x.b.D); break;
+	case 4: printf("E %x", x.b.E.boolean); break;
+	default: printf("Unknown tag value %d", x.b.tag);
+	}
+	printf("\n");
+}
+
+
+
 int main(void) {
   $ty:(Simple take (..)) x;
   x.data = malloc(32);
   
   $exp:(putVals) (x);
-  $ty:((Simple take (a, b, c, d), #Simple))y = $exp:(getVals)(x);
+  $ty:((Simple take (a, b), #Simple))y = $exp:(getVals)(x);
   
-  printf("a:%x\n", y.p2.a);
-  printf("b:%x\n", y.p2.b);
-  printf("c:%x\n", y.p2.c);
-  printf("d:%llx\n", y.p2.d);
+  printVariant(y.p2);
   return 0;
 }
+
 

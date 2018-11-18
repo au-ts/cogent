@@ -1,1 +1,2 @@
-fail-incomplete test
+a:A 12
+b:C 7890abcd
