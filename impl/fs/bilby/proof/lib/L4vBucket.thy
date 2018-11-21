@@ -10,7 +10,7 @@
 
 theory L4vBucket
 imports
-  "../../../../../l4v/lib/Word_Lib/Word_Lemmas"
+  "Word_Lib.Word_Lemmas"
   "../../../../../cogent/isa/shallow/ShallowUtil"
 begin
 
@@ -283,7 +283,7 @@ next
       apply (clarsimp simp: field_simps)
       apply (rule ccontr)
       apply (drule (1) order_le_neq_trans)
-      apply (simp add: unat_power_lower)
+      apply (force simp add: unat_power_lower)
       done
     
     hence "2 ^ (len_of TYPE('a) - n) - 1 < k" using r
