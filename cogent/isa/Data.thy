@@ -38,11 +38,17 @@ fun mapEitherR f e = mapEither (fn x => x) f e
 
 (* rose trees *)
 
-datatype 'a Tree = Tree of 'a * 'a Tree list;
+datatype 'a tree = Tree of { value : 'a, branches : 'a tree list };
 
-fun tree_hd (Tree (head, _)) = head
-fun tree_rest (Tree (_, rest)) = rest
-fun tree_map f (Tree (head,rest)) = Tree (f head, map (tree_map f) rest)
+fun tree_value (Tree s) = #value s
+fun tree_branches (Tree s) = #branches s
+
+fun tree_map f (Tree { value, branches }) = Tree { value = f value, branches = map (tree_map f) branches }
+
+fun tree_foldl f (Tree { value, branches }) init = fold (tree_foldl f) branches (f init value)
+
+fun tree_foldr f (Tree { value, branches }) init = f (fold_rev (tree_foldr f) branches init) value
+
 
 
 (* leaf trees

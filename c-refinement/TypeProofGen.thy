@@ -51,14 +51,14 @@ fun is_typing t = head_of t |>
            is_const "Cogent.kinding" h);
 
 (* NB: flattening the proof tree is unsafe in general, but this program is a small example *)
-fun flatten_Tree (Tree (x, ts)) = x :: List.concat (map flatten_Tree ts);
+fun flatten_Tree (Tree { value, branches }) = value :: List.concat (map flatten_Tree branches);
 
 (* remove consecutive duplicates *)
 fun uniq cmp (x::y::xs) = (case cmp (x,y) of EQUAL => uniq cmp (x::xs)
                                            | _ => x::uniq cmp (y::xs))
   | uniq _ xs = xs
 
-fun get_typing_tree ctxt f proof : thm Tree list =
+fun get_typing_tree ctxt f proof : thm tree list =
   let val abbrev_defs = Proof_Context.get_thms ctxt "abbreviated_type_defs"
                         handle ERROR _ => [];
       (* generate a simpset of all the definitions of the `f` function, type, and typetree *)
@@ -113,7 +113,7 @@ fun get_typing_bucket ctxt f proof =
     |> sort Thm.thm_ord
     |> uniq Thm.thm_ord
 
-type details = (thm list * thm Tree list * thm list)
+type details = (thm list * thm tree list * thm list)
 
 fun get_all_typing_details ctxt name script : details = let
     val script_tree = (case parse_treesteps script of
@@ -123,7 +123,7 @@ fun get_all_typing_details ctxt name script : details = let
         @{term "[] :: kind env"} ctxt script_tree
     val tacs' = map (fn (tac, f) => (tac, fn ctxt => f ctxt 1)) tacs
     val orig_typing_tree = get_typing_tree ctxt name tacs'
-    val typecorrect_thms = map (Goal.finish ctxt) (map tree_hd orig_typing_tree)
+    val typecorrect_thms = map (Goal.finish ctxt) (map tree_value orig_typing_tree)
       |> map (simplify ctxt #> Thm.varifyT_global)
     val typing_tree = map (tree_map (cleanup_typing_tree_thm ctxt)) orig_typing_tree
     val bucket = typing_tree_to_bucket typing_tree

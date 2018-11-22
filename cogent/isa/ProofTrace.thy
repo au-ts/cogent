@@ -268,8 +268,8 @@ fun trace_solve_tac (ctxt : Proof.context)
 ML {*
 fun filter_trace PSuccess PSubgoal (TraceSuccess tr) =
       if not (PSuccess tr) then [] else
-        [ Tree (#theorem tr,
-                List.concat (map (filter_TraceSubgoal PSuccess PSubgoal) (#succeeded tr))) ]
+        [ Tree { value = #theorem tr,
+                branches = List.concat (map (filter_TraceSubgoal PSuccess PSubgoal) (#succeeded tr)) } ]
 and filter_TraceSubgoal PSuccess PSubgoal (TraceSubgoal tr) =
       if not (PSubgoal tr) then [] else filter_trace PSuccess PSubgoal (#subproof tr);
 
