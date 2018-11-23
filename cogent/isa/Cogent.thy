@@ -484,6 +484,11 @@ lemmas split_induct[consumes 1, case_names split_empty split_cons, induct set: l
 lemmas split_empty = all3Nil[where P="split_comp K" for K, simplified split_def[symmetric]]
 lemmas split_cons = all3Cons[where P="split_comp K" for K, simplified split_def[symmetric]]
 
+lemmas split_Cons = list_all3_Cons[where P="split_comp K" for K, simplified split_def[symmetric]]
+lemmas split_Cons1 = list_all3_Cons1[where P="split_comp K" for K, simplified split_def[symmetric]]
+lemmas split_Cons2 = list_all3_Cons2[where P="split_comp K" for K, simplified split_def[symmetric]]
+lemmas split_Cons3 = list_all3_Cons3[where P="split_comp K" for K, simplified split_def[symmetric]]
+
 definition pred :: "nat \<Rightarrow> nat" where
   "pred n \<equiv> (case n of Suc n' \<Rightarrow> n')"
 
@@ -1542,6 +1547,8 @@ lemma empty_length:
 shows "length (empty n) = n"
 by (induct n, simp_all add: empty_def)
 
+subsection {* split *}
+
 lemma split_length:
   assumes "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
   shows "length \<Gamma> = length \<Gamma>1"
@@ -1570,6 +1577,50 @@ lemma split_preserves_none:
     and "\<Gamma>2 ! i = None"
   using assms
   by (induct arbitrary: i rule: split_induct, (fastforce simp add: nth_Cons' elim: split_comp.cases)+)
+
+subsection {* split bang *}
+
+lemma split_bang_length:
+  assumes "K , isa \<turnstile> \<Gamma> \<leadsto>b \<Gamma>1 | \<Gamma>2"
+  shows "length \<Gamma> = length \<Gamma>1"
+    and "length \<Gamma> = length \<Gamma>2"
+    and "length \<Gamma>1 = length \<Gamma>2"
+  using assms
+  by (induct rule: split_bang.induct, force+)
+
+lemma split_bang_Cons1:
+  shows "(K , isa \<turnstile> x # \<Gamma>' \<leadsto>b \<Gamma>1 | \<Gamma>2) \<longleftrightarrow>
+          (\<exists>a \<Gamma>1' b \<Gamma>2'.
+            (K, (0 \<in> isa) \<turnstile> x \<leadsto>b a \<parallel> b) \<and>
+            (K , (pred ` Set.remove (0 :: index) isa) \<turnstile> \<Gamma>' \<leadsto>b \<Gamma>1' | \<Gamma>2') \<and>
+            \<Gamma>1 = a # \<Gamma>1' \<and>
+            \<Gamma>2 = b # \<Gamma>2' \<and>
+            length \<Gamma>1' = length \<Gamma>' \<and>
+            length \<Gamma>2' = length \<Gamma>')"
+  by (fastforce dest: split_bang_length elim: split_bang.cases intro!: split_bang.intros)
+
+lemma split_bang_Cons2:
+  shows "(K , isa \<turnstile> \<Gamma> \<leadsto>b a # \<Gamma>1' | \<Gamma>2) \<longleftrightarrow>
+          (\<exists>x \<Gamma>' b \<Gamma>2'.
+            (K, (0 \<in> isa) \<turnstile> x \<leadsto>b a \<parallel> b) \<and>
+            (K , (pred ` Set.remove (0 :: index) isa) \<turnstile> \<Gamma>' \<leadsto>b \<Gamma>1' | \<Gamma>2') \<and>
+            \<Gamma> = x # \<Gamma>' \<and>
+            \<Gamma>2 = b # \<Gamma>2' \<and>
+            length \<Gamma>' = length \<Gamma>1' \<and>
+            length \<Gamma>2' = length \<Gamma>1')"
+  by (fastforce dest: split_bang_length elim: split_bang.cases intro!: split_bang.intros)
+
+lemma split_bang_Cons3:
+  shows "(K , isa \<turnstile> \<Gamma> \<leadsto>b \<Gamma>1 | b # \<Gamma>2') \<longleftrightarrow>
+          (\<exists>x \<Gamma>' a \<Gamma>1'.
+            (K, (0 \<in> isa) \<turnstile> x \<leadsto>b a \<parallel> b) \<and>
+            (K , (pred ` Set.remove (0 :: index) isa) \<turnstile> \<Gamma>' \<leadsto>b \<Gamma>1' | \<Gamma>2') \<and>
+            \<Gamma> = x # \<Gamma>' \<and>
+            \<Gamma>1 = a # \<Gamma>1' \<and>
+            length \<Gamma>' = length \<Gamma>2' \<and>
+            length \<Gamma>1' = length \<Gamma>2')"
+  by (fastforce dest: split_bang_length elim: split_bang.cases intro!: split_bang.intros)
+
 
 
 lemma weakening_length:
