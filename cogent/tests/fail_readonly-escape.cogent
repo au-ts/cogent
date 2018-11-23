@@ -1,0 +1,7 @@
+type A
+
+f : A! -> ()
+f a = let v = 3
+      and w = a !v
+      and _ = a
+       in ()
