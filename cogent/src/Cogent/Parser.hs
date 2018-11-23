@@ -57,7 +57,7 @@ language = haskellStyle
                                   ".&.",".|.",".^.",">>","<<",
                                   ":","=","!",":<",".","_","..","#","$",
                                   "@","@@","->","=>","~>","<=","|","|>"]
-           , T.reservedNames   = ["let","in","type","include","all","take","put","inline",
+           , T.reservedNames   = ["let","in","type","include","all","take","put","inline","upcast",
                                   "repr","variant","record","at",
                                   "if","then","else","not","complement","and","True","False","o"]
            , T.identStart = letter
