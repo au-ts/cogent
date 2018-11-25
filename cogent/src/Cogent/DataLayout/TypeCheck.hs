@@ -19,8 +19,9 @@ import Cogent.Compiler (__fixme, __impossible)
 
 import Text.Parsec.Pos (SourcePos)
 
-{- IMPORTANT EXPORTED FUNCTIONS -}
--- Checks that the layout structure is valid
+{- * Important exported functions -}
+
+-- | Checks that the layout structure is valid
 --
 -- This includes that relevant blocks of bits don't overlap
 -- And tag values are in the right ranges
@@ -109,7 +110,7 @@ typeCheckDataLayoutTypeMatch typeEnv layoutEnv (TRecord fields sigil) layout
 -- Boxed Record/Variant
 -}
 
--- Normalises the layout remove references to named layouts
+-- | Normalises the layout remove references to named layouts
 normaliseDataLayoutExpr
   :: NamedDataLayouts
   -> DataLayoutExpr
@@ -126,12 +127,12 @@ normaliseDataLayoutExpr env (Variant tag alts) =
 normaliseDataLayoutExpr env (Offset expr size) = Offset (normaliseDataLayoutExpr env expr) size
 
 
-{- IMPORTANT TYPES -}
+{- * Types -}
 type NamedDataLayouts = Map DataLayoutName (DataLayoutExpr, Allocation)
 type DataLayoutTypeCheckError = DataLayoutTypeCheckErrorP DataLayoutPath
 -- type DataLayoutTypeMatchError = DataLayoutTypeCheckErrorP DataLayoutPath -- TODO: needed to implement `typeCheckDataLayoutTypeMatch`
 
--- Allows errors messages to pinpoint the exact location where the error occurred in a DataLayoutExpr/Decl
+-- | Allows errors messages to pinpoint the exact location where the error occurred in a DataLayoutExpr/Decl
 data DataLayoutPath
   = InField FieldName SourcePos DataLayoutPath
   | InTag   DataLayoutPath
@@ -141,25 +142,25 @@ data DataLayoutPath
   deriving (Eq, Show, Ord)
 
 
--- Errors when checking a DataLayout's structure
+-- | Errors when checking a DataLayout's structure
 --
--- The type parameter p is the type of the path to the error (DataLayoutPath)
--- We parameterise by p so we can use the functor instance to map changes to the path
+-- The type parameter @p@ is the type of the path to the error (@DataLayoutPath@)
+-- We parameterise by @p@ so we can use the functor instance to map changes to the path
 data DataLayoutTypeCheckErrorP p
   = OverlappingBlocks       (BitRange, p) (BitRange, p)
-    -- Have declared two overlapping bit ranges which shouldn't overlap
+    -- ^ Have declared two overlapping bit ranges which shouldn't overlap
     
   | UnknownDataLayout       DataLayoutName p
-    -- Have referenced a data layout which hasn't been declared
+    -- ^ Have referenced a data layout which hasn't been declared
     -- The path is the path to the use of that Rep in the RepExpr being checked
     
   | TagNotSingleBlock       p
   
   | SameTagValues           p TagName TagName Size
-    -- Path to two tags in the same variant and their common value
+    -- ^ Path to two tags in the same variant and their common value
     
   | OversizedTagValue       p BitRange TagName Size
-    -- Used a tag value which is too large to fit in the variant's tag bit range
+    -- ^ Used a tag value which is too large to fit in the variant's tag bit range
     -- Path to the variant, bits for its bit range, name of the alternative, it's tag value
     
   deriving (Eq, Show, Ord, Functor)
@@ -190,7 +191,7 @@ data DataLayoutTypeMatchErrorP p
 -}
 
 
-{- OTHER EXPORTED FUNCTIONS -}
+{- * Other exported functions -}
 typeCheckDataLayoutDecl
   :: NamedDataLayouts
   -> DataLayoutDecl
@@ -218,7 +219,7 @@ returnError :: Monoid a => DataLayoutTypeCheckError -> ([DataLayoutTypeCheckErro
 returnError e = ([e], mempty)
 
 
-{- OTHER FUNCTIONS -}
+{- * Other functions -}
 evalSize :: RepSize -> Size
 evalSize (Bytes b) = b * 8
 evalSize (Bits b)  = b
@@ -229,18 +230,18 @@ desugarSize (Bytes b) = b * 8
 desugarSize (Bits b)  = b
 desugarSize (Add a b) = desugarSize a + desugarSize b
 
-{- ALLOCATIONS -}
+{- * Allocations -}
 
--- A set of bit indices into a data type.
+-- | A set of bit indices into a data type.
 --
--- Represents the set which is the union of the sets represented by the `BitRange`s in the list.
+-- Represents the set which is the union of the sets represented by the 'BitRange's in the list.
 type Allocation = [(BitRange, DataLayoutPath)]
 
--- Conjunction of allocations
+-- | Conjunction of allocations
 --
 -- Used when the two allocations could be used simultaneously, and so they must not overlap.
 -- For example, if they are allocations for two fields of the same record.
--- An OverlappingBlocks DataLayoutTypeCheckError is returned if the two allocations overlap.
+-- An @OverlappingBlocks DataLayoutTypeCheckError@ is returned if the two allocations overlap.
 (/\) :: Allocation -> Allocation -> ([DataLayoutTypeCheckError], Allocation)
 a1 /\ a2 =
   case allOverlappingBlocks a1 a2 of

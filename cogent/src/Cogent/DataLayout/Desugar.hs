@@ -31,11 +31,11 @@ import Cogent.DataLayout.Core
 import Cogent.Core                  ( Type (..)
                                     )
 
-{- * DESUGARING 'Sigil's -}
+{- * Desugaring 'Sigil's -}
 
--- | After WH-normalisation, 'TCon _ _ _' values only represent primitive and abstract types.
+-- | After WH-normalisation, @TCon _ _ _@ values only represent primitive and abstract types.
 --   Primitive types have no sigil, and abstract types may be boxed or unboxed but have no layout.
---   'desugarAbstractTypeSigil' should only be used when desugaring the sigils of abstract types, to eliminate the `Maybe DataLayoutExpr`.
+--   'desugarAbstractTypeSigil' should only be used when desugaring the sigils of abstract types, to eliminate the @Maybe DataLayoutExpr@.
 desugarAbstractTypeSigil
   :: Sigil (Maybe DataLayoutExpr)
   -> Sigil ()
@@ -45,16 +45,17 @@ desugarAbstractTypeSigil = fmap desugarMaybeLayout
     desugarMaybeLayout _       = __impossible $ "desugarAbstractTypeSigil (Called on TCon after normalisation, only for case when it is an abstract type)"
 
 
--- | If a 'DataLayoutExpr' was provided, desugars the 'DataLayoutExpr' to a 'DataLayout BitRange'
---   Otherwise, constructs a 'DataLayout BitRange' which matches the type.
+-- | If a 'DataLayoutExpr' was provided, desugars the 'DataLayoutExpr' to a @DataLayout BitRange@
+--   Otherwise, constructs a @DataLayout BitRange@ which matches the type.
 --   TODO: Layout polymorphism and layout inference will require changing the second behavior /mdimeglio
 --
---   Should not be used to desugar sigils associated with 'TCon _ _ _' types, ie. abstract types.
+--   Should not be used to desugar sigils associated with @TCon _ _ _@ types, ie. abstract types.
 desugarSigil
   :: (Type t)
       -- ^ This type should be obtained by
-      --   1. Start with the raw type that the `Sigil` is attached to
-      --   2. Replace the top level sigil with `Unboxed`
+      --
+      --   1. Start with the raw type that the 'Sigil' is attached to
+      --   2. Replace the top level sigil with @Unboxed@
       --   3. Desugar the resulting type
       --
       --   Explanation of why:
@@ -64,7 +65,7 @@ desugarSigil
 
   -> Sigil (Maybe DataLayoutExpr)
       -- ^ Since desugarSigil is only called for normalising boxed records (and later, boxed variants),
-      --   the 'Maybe DataLayoutExpr' should always be in the 'Just layout' alternative.
+      --   the @Maybe DataLayoutExpr@ should always be in the @Just layout@ alternative.
   
   -> Sigil (DataLayout BitRange)
 
@@ -74,7 +75,7 @@ desugarSigil t = fmap desugarMaybeLayout
     desugarMaybeLayout (Just l) = desugarDataLayout l
 
 
-{- * DESUGARING 'DataLayout's -}
+{- * Desugaring 'DataLayout's -}
 
 desugarDataLayout :: DataLayoutExpr -> DataLayout BitRange
 desugarDataLayout (RepRef _) = __impossible "desugarDataLayout (Called after normalisation)"
