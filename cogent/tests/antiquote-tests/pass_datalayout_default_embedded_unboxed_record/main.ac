@@ -16,8 +16,7 @@ $esc:(#include <stdlib.h>)
 #include <generated.c>
 
 int main(void) {
-  $ty:(Simple take (..)) x;
-  x.data = malloc(32);
+  $ty:(Simple take (..)) x = malloc(32);
   
   $exp:(putVals) (x);
   $ty:((Simple take (a, b, other), #Simple))y = $exp:(getVals)(x);
