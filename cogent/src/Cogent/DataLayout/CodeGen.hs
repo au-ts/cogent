@@ -51,7 +51,7 @@ import Cogent.DataLayout.Core
   )
 import Debug.Trace (trace)
 
--- GETTER/SETTER GENERATION
+-- * Getter/setter generation
 
 {-|
 Returns a getter/setter function C expression for a field of a boxed record.
@@ -103,15 +103,6 @@ genBoxedGetterSetter
      -- ^
      -- The CType for the root boxed type which contains
      -- the embedded value that we would like to extract.
-     --
-     -- It will be the alternative @CStruct CId@ where the
-     -- struct has previously been defined as follows:
-     --
-     -- @
-     -- struct `CId` {
-     --   unsigned int *data;
-     -- }
-     -- @
 
   -> CogentType
      -- ^ The Cogent type of the embedded value that we would like to extract
@@ -228,12 +219,13 @@ genGetterSetterName path getOrSet =
   in  (++ (getOrSetString ++ pathString)) <$> freshGlobalCId 'd'
 
 
--- GETTER/SETTER FUNCTION DECLARATIONS
+-- * Getter/setter function declarations
 
 {-|
 Calling
 @variantGetterSetter [(alt1, alt1TagValue, alt1Getter), ...] boxType embeddedType recordGetter Get@ will return
 the C Syntax for the following function.
+
 @
 static inline embeddedType variantGetter(boxType p) {
   return
@@ -254,6 +246,7 @@ static inline embeddedType variantGetter(boxType p) {
 Calling
 @variantGetterSetter [(alt0, alt0TagValue, alt0Setter), ...] boxType embeddedType recordSetter Set@ will return
 the C Syntax for the following function.
+
 @
 static inline void variantSetter(boxType p, embeddedType v) {
   if (v.tag == TAG_ENUM_`alt0`) {
@@ -343,6 +336,7 @@ variantGetterSetter tagGetterSetter ((firstAltName, firstTagValue, firstAltGette
 Calling
 @recordGetterSetter [(field1, field1Getter), ...] boxType embeddedType recordGetter Get@ will return
 the C Syntax for the following function.
+
 @
 static inline embeddedType recordGetter(boxType p) {
   return (embeddedType)
@@ -356,6 +350,7 @@ static inline embeddedType recordGetter(boxType p) {
 Calling
 @recordGetterSetter [(field1, field1Setter), ...] boxType embeddedType recordSetter Set@ will return
 the C Syntax for the following function.
+
 @
 static inline void recordSetter(boxType p, embeddedType v) {
   field1Setter(p, v.field1);
@@ -425,6 +420,7 @@ unitGetterSetter boxType functionName getOrSet =
 
 {-|
 Creates a C function which either:
+
 * gets the contents of a list of aligned bitranges
   out of a boxed value and concatenates the retrieved values
   to produce a value of the given embedded value type.
@@ -649,7 +645,7 @@ getterSetterDecl boxType embeddedType functionName Set _ setStatements =
   )
 
  
--- AUXILLIARY FUNCTIONS, DEFINITIONS AND CONSTANTS
+-- * Auxilliary functions, definitions and constants
 
 
 -- | @sizeToMask n@ is an integer whose binary representation has
