@@ -153,7 +153,11 @@ newtype Gen v a = Gen { runGen :: RWS (GenRead v) () GenState a }
 
 genTyDecl :: (StrlType, CId) -> [TypeName] -> [CExtDecl]
 genTyDecl (Record x, n) _ = [CDecl $ CStructDecl n (map (second Just . swap) x), genTySynDecl (n, CStruct n)]
-genTyDecl (BoxedRecord _, n) _ = [CDecl $ CStructDecl n [(CPtr (CInt False CIntT), Just "data")], genTySynDecl (n, CStruct n)]
+genTyDecl (BoxedRecord (StrlCogentType (TRecord _ (Boxed _ layout))), n) _ =
+  let size      = dataLayoutSizeBytes layout
+      arrayType = CArray (CInt False CIntT) (CArraySize $ CConst $ CNumConst size (CInt False CIntT) DEC)
+  in [CDecl $ CStructDecl n [(arrayType, Just "data")], genTySynDecl (n, CPtr $ CStruct n)]
+
 genTyDecl (Product t1 t2, n) _ = [CDecl $ CStructDecl n [(t1, Just p1), (t2, Just p2)]]
 genTyDecl (Variant x, n) _ = case __cogent_funion_for_variants of
   False -> [CDecl $ CStructDecl n ((CIdent tagsT, Just fieldTag) : map (second Just . swap) (M.toList x)),
