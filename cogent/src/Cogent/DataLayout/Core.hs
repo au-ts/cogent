@@ -101,6 +101,9 @@ data AlignedBitRange
 endAllocatedBits :: DataLayout BitRange -> Size
 endAllocatedBits = foldr (\range start -> max (bitOffsetBR range + bitSizeBR range) start) 0
 
+dataLayoutSizeBytes :: DataLayout BitRange -> Size
+dataLayoutSizeBytes = (`div` wordSizeBits) . (alignSize wordSizeBits) . endAllocatedBits
+
 {- * DEFAULT BIT 'Sizes' AND 'BitRanges' -}
 
 wordSizeBits :: Size
@@ -133,20 +136,22 @@ pointerBitRange = BitRange { bitSizeBR = pointerSizeBits, bitOffsetBR = 0 }
   
 {- * WORD ALIGNMENT TRANSFORMATIONS -}
 
+alignSize :: Size -> Size -> Size
+alignSize toMultipleOf size =
+    size + ((toMultipleOf - size `mod` toMultipleOf) `mod` toMultipleOf)
+
 -- | Aligns an 'Offsettable' (assumed to initially have offset 0)
 --   so that its new offset is the smallest offset which is at least 'minBitOffset'
 --   and aligned to a multiple of 'alignBitSize'
 --   
 --   That is:
 -- @
--- 0 -> 0
--- [1, ..., alignBitSize] -> 1
--- [alignBitSize + 1, ..., 2 * alignBitSize] -> 2
+-- x = 0 -> 0
+-- x \in {1, ..., alignBitSize} -> 1
+-- x \in {alignBitSize + 1, ..., 2 * alignBitSize} -> 2
 -- @
 alignOffsettable :: Offsettable a => Size -> Size -> a -> a
-alignOffsettable alignBitSize minBitOffset = offset bitOffset
-  where
-    bitOffset = minBitOffset + ((alignBitSize - minBitOffset `mod` alignBitSize) `mod` alignBitSize)
+alignOffsettable alignBitSize minBitOffset = offset (alignSize alignBitSize minBitOffset)
 
 -- Splits a 'BitRange' into an equivalent collection of 'AlignedBitRange's
 -- satisfying the conditions listed on 'AlignedBitRange'.
