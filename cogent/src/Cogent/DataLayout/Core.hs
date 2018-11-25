@@ -12,16 +12,16 @@ import Cogent.Common.Syntax (TagName, FieldName, Size)
 
 import Cogent.Common.Types (PrimInt (..))
 
-{- * CORE DATALAYOUT TYPES -}
+{- * Core datalayout types -}
 
 -- | A specification of the bit layout of a Cogent type
 --
---   The Cogent core language type for layouts is 'DataLayout BitRange'.
---   Will transform to 'DataLayout [AlignedBitRange]' immediately before code generation.
+--   The Cogent core language type for layouts is @DataLayout BitRange@.
+--   Will transform to @DataLayout [AlignedBitRange]@ immediately before code generation.
 --
 --
 --   NOTE: We may wish to retain more 'SourcePos' information to enable better error messages
---   when matching 'DataLayout BitRange's with monomorphised cogent core types / mdimeglio
+--   when matching @DataLayout BitRange@s with monomorphised cogent core types / mdimeglio
 data DataLayout bits
   = UnitLayout
   | PrimLayout
@@ -42,13 +42,15 @@ deriving instance Ord bits => Ord (DataLayout bits)
 -- | A range of bit indices into a data type.
 --
 --   Should satisfy
---   prop> bitSizeBR >= 1
---   prop> bitOffsetBR >= 0
+--
+--  prop> bitSizeBR >= 1
+--  prop> bitOffsetBR >= 0
 --
 --   Represents the set
---   @
---   {bitOffset, bitOffset + 1, ..., bitOffset + bitSize - 1}
---   @
+--
+--  @
+--  {bitOffset, bitOffset + 1, ..., bitOffset + bitSize - 1}
+--  @
 data BitRange
   = BitRange { bitSizeBR :: Size, bitOffsetBR :: Size }
   deriving (Eq, Show, Ord)
@@ -56,21 +58,24 @@ data BitRange
 -- | A range of bit indices into a data type.
 --
 --   Should satisfy the following properties:
---   prop> bitSizeABR >= 1
---   prop> bitOffsetABR >= 0
---   prop> wordOffsetABR >= 0
+--
+--  prop> bitSizeABR >= 1
+--  prop> bitOffsetABR >= 0
+--  prop> wordOffsetABR >= 0
 --
 --   Should satisfy the alignment property:
---   prop> bitSizeABR + bitOffsetABR <= wordSizeBits
+--
+--  prop> bitSizeABR + bitOffsetABR <= wordSizeBits
 --
 --   Represents the set
---   @
---   { wordOffset * wordSizeBits + bitOffset
---   , wordOffset * wordSizeBits + bitOffset + 1
---   , ...
---   , wordOffset * wordSizeBits + bitOffset + bitSize - 1
---   }
---   @
+
+--  @
+--  { wordOffset * wordSizeBits + bitOffset
+--  , wordOffset * wordSizeBits + bitOffset + 1
+--  , ...
+--  , wordOffset * wordSizeBits + bitOffset + bitSize - 1
+--  }
+--  @
 --
 --   All heap allocated structures are a multiple of a word in size (malloc guarantees this?)
 --   and will be word aligned. Hence accesses to an aligned bitrange of a heap-allocated
@@ -78,33 +83,35 @@ data BitRange
 --
 --   Suppose a 2 Word data type is represented using the following array of 'AlignedBitRange's:
 --
---   @
---   [ AlignedBitRange { bitSizeABR = 19, ... }  -- Range 0
---   , AlignedBitRange { bitSizeABR = 21, ... }  -- Range 1
---   , AlignedBitRange { bitSizeABR = 24, ... }  -- Range 2
---   ]
---   @
+--  @
+--  [ AlignedBitRange { bitSizeABR = 19, ... }  -- Range 0
+--  , AlignedBitRange { bitSizeABR = 21, ... }  -- Range 1
+--  , AlignedBitRange { bitSizeABR = 24, ... }  -- Range 2
+--  ]
+--  @
 --
 --   Then the bits for the 2 word data structure would be obtained as follows
---   @
---   HI                                                             LO
---   64                      40                   19                 0 
---   +-------+-------+-------+-------+-------+----+--+-------+-------+
---   |HI      Range 2      LO|HI    Range 1     LO|HI    Range 0   LO|
---   +-------+-------+-------+-------+-------+----+--+-------+-------+
---   @
+--
+--  @
+--  HI                                                             LO
+--  64                      40                   19                 0 
+--  +-------+-------+-------+-------+-------+----+--+-------+-------+
+--  |HI      Range 2      LO|HI    Range 1     LO|HI    Range 0   LO|
+--  +-------+-------+-------+-------+-------+----+--+-------+-------+
+--  @
 data AlignedBitRange
   = AlignedBitRange { bitSizeABR :: Size, bitOffsetABR :: Size, wordOffsetABR :: Size }
   deriving (Eq, Show, Ord)
 
-{- * DataLayout 'BitRange' HELPERS -}
+{- * @DataLayout BitRange@ helpers -}
+
 endAllocatedBits :: DataLayout BitRange -> Size
 endAllocatedBits = foldr (\range start -> max (bitOffsetBR range + bitSizeBR range) start) 0
 
 dataLayoutSizeBytes :: DataLayout BitRange -> Size
 dataLayoutSizeBytes = (`div` wordSizeBits) . (alignSize wordSizeBits) . endAllocatedBits
 
-{- * DEFAULT BIT 'Sizes' AND 'BitRanges' -}
+{- * Default bit 'Sizes' and 'BitRanges' -}
 
 wordSizeBits :: Size
 wordSizeBits = 32
@@ -134,7 +141,7 @@ primBitRange primInt = BitRange { bitSizeBR = primIntSizeBits primInt, bitOffset
 pointerBitRange :: BitRange
 pointerBitRange = BitRange { bitSizeBR = pointerSizeBits, bitOffsetBR = 0 }
   
-{- * WORD ALIGNMENT TRANSFORMATIONS -}
+{- * Word alignment transformations -}
 
 alignSize :: Size -> Size -> Size
 alignSize toMultipleOf size =
@@ -145,6 +152,7 @@ alignSize toMultipleOf size =
 --   and aligned to a multiple of 'alignBitSize'
 --   
 --   That is:
+--
 -- @
 -- x = 0 -> 0
 -- x \in {1, ..., alignBitSize} -> 1
@@ -153,7 +161,7 @@ alignSize toMultipleOf size =
 alignOffsettable :: Offsettable a => Size -> Size -> a -> a
 alignOffsettable alignBitSize minBitOffset = offset (alignSize alignBitSize minBitOffset)
 
--- Splits a 'BitRange' into an equivalent collection of 'AlignedBitRange's
+-- | Splits a 'BitRange' into an equivalent collection of 'AlignedBitRange's
 -- satisfying the conditions listed on 'AlignedBitRange'.
 rangeToAlignedRanges
   :: BitRange
