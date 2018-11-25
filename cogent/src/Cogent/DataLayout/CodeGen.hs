@@ -570,8 +570,8 @@ should be the C function
 
 @
 static inline void set`functionNameIdentifier`(`boxType` p, unsigned int v) {
-  p.data[`wordOffsetABR`]
-    = p.data[`wordOffsetABR`]
+  p->data[`wordOffsetABR`]
+    = p->data[`wordOffsetABR`]
 
     // clear the bits
     & ~(`sizeToMask bitSizeABR` << `bitOffsetABR`)) 
@@ -676,7 +676,7 @@ returns syntax for the 'CExpr'
 -}
 genBoxWordExpr :: CExpr -> Integer -> CExpr
 genBoxWordExpr boxExpr wordOffset =
-  CArrayDeref (CStructDot boxExpr boxFieldName) (unsignedIntLiteral wordOffset)
+  CArrayDeref (CStructDot (CDeref boxExpr) boxFieldName) (unsignedIntLiteral wordOffset)
   -- ALTERNATELY: CDeref ( CBinOp Add (CStructDot boxExpr "data") (unsignedIntLiteral wordOffset))
 
 boxFieldName :: CId
@@ -711,16 +711,14 @@ toIntValue (CInt _ _) cexpr               = cexpr
 toIntValue (CIdent t) cexpr
   | t == boolT                            = CStructDot cexpr boolField
   | t `elem` ["u8", "u16", "u32", "u64"]  = cexpr
-toIntValue (CPtr _)   cexpr               = CTypeCast intTypeForPointer cexpr
-toIntValue _          cexpr               = CTypeCast intTypeForPointer (CStructDot cexpr boxFieldName)
+toIntValue _          cexpr               = CTypeCast intTypeForPointer cexpr
 
 fromIntValue :: CType -> CExpr -> CExpr
 fromIntValue (CInt _ _)     cexpr         = cexpr
 fromIntValue (CIdent t)     cexpr
   | t == boolT                            = CCompLit (CIdent boolT) [([CDesignFld boolField], CInitE cexpr)]
   | t `elem` ["u8", "u16", "u32", "u64"]  = cexpr
-fromIntValue ctype@(CPtr _) cexpr         = CTypeCast ctype cexpr
-fromIntValue ctype          cexpr         = CCompLit ctype [([CDesignFld boxFieldName], CInitE (CTypeCast (CPtr unsignedIntType) cexpr))]
+fromIntValue ctype          cexpr         = CTypeCast ctype cexpr
 
 {-
 Given the CType of an embedded value (leaf of composite type tree) to extract,
@@ -732,8 +730,7 @@ intTypeForType (CIdent t)
   | t == boolT                            = unsignedCharType-- embedded boolean
   | t == tagsT                            = unsignedIntType
   | t `elem` ["u8", "u16", "u32", "u64"]  = CIdent t
-intTypeForType (CPtr _)                   = intTypeForPointer -- embedded boxed abstract type
-intTypeForType _                          = intTypeForPointer -- embedded boxed record
+intTypeForType _                          = intTypeForPointer -- embedded boxed abstract type/record
 
 type CogentType = Type 'Zero
 
