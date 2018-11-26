@@ -96,8 +96,9 @@ lemma split_bang_bang' :"\<lbrakk> 0 \<in> is
                       ; x' = bang x
                       ; is' = pred ` (Set.remove 0 is)
                       ; split_bang K is' xs as bs
+                      ; type_wellformed (length K) x
                       \<rbrakk>  \<Longrightarrow> split_bang K is (Some x # xs) (Some x' # as) (Some x # bs)"
-                      by (simp only: split_bang_bang)
+  by (clarsimp intro!: split_bang_cons simp add: split_bang_comp.simps)
 
 definition
   type_ctx_wellformed :: "kind env \<Rightarrow> ctx \<Rightarrow> bool"
