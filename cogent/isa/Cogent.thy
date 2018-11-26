@@ -470,8 +470,9 @@ definition instantiate_ctx :: "type substitution \<Rightarrow> ctx \<Rightarrow>
 inductive split_comp :: "kind env \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> bool"
           ("_ \<turnstile> _ \<leadsto> _ \<parallel> _" [30,0,0,20] 60) where
   none  : "K \<turnstile> None \<leadsto> None \<parallel> None"
-| left  : "\<lbrakk> K \<turnstile> t :\<kappa> k         \<rbrakk> \<Longrightarrow> K \<turnstile> Some t \<leadsto> Some t \<parallel> None"
-| right : "\<lbrakk> K \<turnstile> t :\<kappa> k         \<rbrakk> \<Longrightarrow> K \<turnstile> Some t \<leadsto> None   \<parallel> (Some t)"
+| left  : "\<lbrakk> K \<turnstile> t wellformed \<rbrakk> \<Longrightarrow> K \<turnstile> Some t \<leadsto> Some t \<parallel> None"
+| right : "\<lbrakk> K \<turnstile> t wellformed \<rbrakk> \<Longrightarrow> K \<turnstile> Some t \<leadsto> None   \<parallel> (Some t)"
+\<comment>\<open> Note that (K \<turnstile> t :\<kappa> k \<and> S \<in> k \<longleftrightarrow> K \<turnstile> t :\<kappa> {S}), but this would require changing the generator\<close>
 | share : "\<lbrakk> K \<turnstile> t :\<kappa> k ; S \<in> k \<rbrakk> \<Longrightarrow> K \<turnstile> Some t \<leadsto> Some t \<parallel> Some t"
 
 definition split :: "kind env \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool" ("_ \<turnstile> _ \<leadsto> _ | _" [30,0,0,20] 60) where
@@ -483,19 +484,23 @@ lemmas split_induct[consumes 1, case_names split_empty split_cons, induct set: l
 lemmas split_empty = all3Nil[where P="split_comp K" for K, simplified split_def[symmetric]]
 lemmas split_cons = all3Cons[where P="split_comp K" for K, simplified split_def[symmetric]]
 
+lemmas split_Cons = list_all3_Cons[where P="split_comp K" for K, simplified split_def[symmetric]]
+lemmas split_Cons1 = list_all3_Cons1[where P="split_comp K" for K, simplified split_def[symmetric]]
+lemmas split_Cons2 = list_all3_Cons2[where P="split_comp K" for K, simplified split_def[symmetric]]
+lemmas split_Cons3 = list_all3_Cons3[where P="split_comp K" for K, simplified split_def[symmetric]]
+
 definition pred :: "nat \<Rightarrow> nat" where
   "pred n \<equiv> (case n of Suc n' \<Rightarrow> n')"
 
-inductive split_bang :: "kind env \<Rightarrow> index set \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool" where
-  split_bang_empty : "split_bang K is [] [] []"
-| split_bang_cons  : "\<lbrakk> 0 \<notin> is
-                      ; K \<turnstile> x \<leadsto> a \<parallel> b
-                      ; split_bang K (pred ` is) xs as bs
-                      \<rbrakk>  \<Longrightarrow> split_bang K is (x # xs) (a # as) (b # bs) "
-| split_bang_bang  : "\<lbrakk> 0 \<in> is
-                      ; is' = Set.remove (0 :: index) is
-                      ; split_bang K (pred ` is') xs as bs
-                      \<rbrakk>  \<Longrightarrow> split_bang K is (Some x # xs) (Some (bang x) # as) (Some x # bs)"
+inductive split_bang_comp :: "kind env \<Rightarrow> bool \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> bool" ("_ , _ \<turnstile> _ \<leadsto>b _ \<parallel> _") where
+  none   : "K \<turnstile> x \<leadsto> a \<parallel> b \<Longrightarrow> K , False \<turnstile> x \<leadsto>b a \<parallel> b"
+| dobang : "K \<turnstile> x wellformed \<Longrightarrow> K , True \<turnstile> Some x \<leadsto>b Some (bang x) \<parallel> Some x"
+
+inductive split_bang :: "kind env \<Rightarrow> index set \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool"  ("_ , _ \<turnstile> _ \<leadsto>b _ | _" [30,0,0,20] 60) where
+  split_bang_empty : "K , is \<turnstile> [] \<leadsto>b [] | []"
+| split_bang_cons  : "\<lbrakk> K , (pred ` Set.remove (0 :: index) is) \<turnstile> xs \<leadsto>b as | bs
+                      ; K, (0 \<in> is) \<turnstile> x \<leadsto>b a \<parallel> b
+                      \<rbrakk> \<Longrightarrow> K , is \<turnstile> x # xs \<leadsto>b a # as | b # bs"
 
 
 inductive weakening_comp :: "kind env \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> bool" where
@@ -1498,9 +1503,9 @@ lemma map_option_instantiate_split_comp:
 assumes "K \<turnstile> c \<leadsto> c1 \<parallel> c2"
 and     "list_all2 (kinding K') \<delta> K"
 shows   "K' \<turnstile> map_option (instantiate \<delta>) c \<leadsto> map_option (instantiate \<delta>) c1 \<parallel> map_option (instantiate \<delta>) c2"
-using assms(1) by ( rule split_comp.cases
-                  , auto elim: split_comp.cases
-                         intro: substitutivity(1) assms(2) split_comp.intros)
+  using assms
+  by (auto elim!: split_comp.cases simp add: instantiate_wellformed split_comp.intros
+      dest: substitutivity_single list_all2_kinding_wellformedD)
 
 lemma instantiate_ctx_split:
 assumes "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
@@ -1514,14 +1519,19 @@ lemma instantiate_ctx_split_bang:
 assumes "split_bang K is \<Gamma> \<Gamma>1 \<Gamma>2"
 and     "list_all2 (kinding K') \<delta> K"
 shows   "split_bang K' is (instantiate_ctx \<delta> \<Gamma>) (instantiate_ctx \<delta> \<Gamma>1) (instantiate_ctx \<delta> \<Gamma>2)"
-using assms proof (induct rule: split_bang.induct)
-     case split_bang_empty then show ?case by (auto simp:  instantiate_ctx_def
-                                                    intro: split_bang.intros)
-next case split_bang_cons  then show ?case by (auto simp:  instantiate_ctx_def
-                                                    intro: split_bang.intros
-                                                           map_option_instantiate_split_comp)
-next case split_bang_bang  then show ?case by (auto simp: instantiate_ctx_def
-                                                    intro: split_bang.intros)
+  using assms
+proof (induct rule: split_bang.induct)
+  case split_bang_empty
+  then show ?case
+    by (auto simp: instantiate_ctx_def intro: split_bang.intros)
+next
+  case split_bang_cons
+  then show ?case
+    by (auto
+        intro!: split_bang.intros substitutivity_single instantiate_wellformed
+        elim!: split_bang_comp.cases split_comp.cases
+        dest: list_all2_kinding_wellformedD
+        simp add: instantiate_ctx_def split_bang_comp.simps split_comp.simps)
 qed
 
 
@@ -1536,6 +1546,8 @@ section {* Lemmas about contexts, splitting and weakening *}
 lemma empty_length:
 shows "length (empty n) = n"
 by (induct n, simp_all add: empty_def)
+
+subsection {* split *}
 
 lemma split_length:
   assumes "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
@@ -1565,6 +1577,50 @@ lemma split_preserves_none:
     and "\<Gamma>2 ! i = None"
   using assms
   by (induct arbitrary: i rule: split_induct, (fastforce simp add: nth_Cons' elim: split_comp.cases)+)
+
+subsection {* split bang *}
+
+lemma split_bang_length:
+  assumes "K , isa \<turnstile> \<Gamma> \<leadsto>b \<Gamma>1 | \<Gamma>2"
+  shows "length \<Gamma> = length \<Gamma>1"
+    and "length \<Gamma> = length \<Gamma>2"
+    and "length \<Gamma>1 = length \<Gamma>2"
+  using assms
+  by (induct rule: split_bang.induct, force+)
+
+lemma split_bang_Cons1:
+  shows "(K , isa \<turnstile> x # \<Gamma>' \<leadsto>b \<Gamma>1 | \<Gamma>2) \<longleftrightarrow>
+          (\<exists>a \<Gamma>1' b \<Gamma>2'.
+            (K, (0 \<in> isa) \<turnstile> x \<leadsto>b a \<parallel> b) \<and>
+            (K , (pred ` Set.remove (0 :: index) isa) \<turnstile> \<Gamma>' \<leadsto>b \<Gamma>1' | \<Gamma>2') \<and>
+            \<Gamma>1 = a # \<Gamma>1' \<and>
+            \<Gamma>2 = b # \<Gamma>2' \<and>
+            length \<Gamma>1' = length \<Gamma>' \<and>
+            length \<Gamma>2' = length \<Gamma>')"
+  by (fastforce dest: split_bang_length elim: split_bang.cases intro!: split_bang.intros)
+
+lemma split_bang_Cons2:
+  shows "(K , isa \<turnstile> \<Gamma> \<leadsto>b a # \<Gamma>1' | \<Gamma>2) \<longleftrightarrow>
+          (\<exists>x \<Gamma>' b \<Gamma>2'.
+            (K, (0 \<in> isa) \<turnstile> x \<leadsto>b a \<parallel> b) \<and>
+            (K , (pred ` Set.remove (0 :: index) isa) \<turnstile> \<Gamma>' \<leadsto>b \<Gamma>1' | \<Gamma>2') \<and>
+            \<Gamma> = x # \<Gamma>' \<and>
+            \<Gamma>2 = b # \<Gamma>2' \<and>
+            length \<Gamma>' = length \<Gamma>1' \<and>
+            length \<Gamma>2' = length \<Gamma>1')"
+  by (fastforce dest: split_bang_length elim: split_bang.cases intro!: split_bang.intros)
+
+lemma split_bang_Cons3:
+  shows "(K , isa \<turnstile> \<Gamma> \<leadsto>b \<Gamma>1 | b # \<Gamma>2') \<longleftrightarrow>
+          (\<exists>x \<Gamma>' a \<Gamma>1'.
+            (K, (0 \<in> isa) \<turnstile> x \<leadsto>b a \<parallel> b) \<and>
+            (K , (pred ` Set.remove (0 :: index) isa) \<turnstile> \<Gamma>' \<leadsto>b \<Gamma>1' | \<Gamma>2') \<and>
+            \<Gamma> = x # \<Gamma>' \<and>
+            \<Gamma>1 = a # \<Gamma>1' \<and>
+            length \<Gamma>' = length \<Gamma>2' \<and>
+            length \<Gamma>1' = length \<Gamma>2')"
+  by (fastforce dest: split_bang_length elim: split_bang.cases intro!: split_bang.intros)
+
 
 
 lemma weakening_length:

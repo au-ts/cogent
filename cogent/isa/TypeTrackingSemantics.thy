@@ -141,10 +141,12 @@ where
                         (zip sps \<Gamma>b)
         \<and> \<Gamma>2 = map (\<lambda> (sp, v). if sp \<noteq> Some TSK_L then v else None)
                         (zip sps \<Gamma>b)
-        \<and> (\<forall>i < length \<Gamma>b. nth sps i \<noteq> Some TSK_NS \<and> \<Gamma>b ! i \<noteq> None \<longrightarrow> (\<exists>k. K \<turnstile> the (\<Gamma>b ! i) :\<kappa> k))
-        \<and> (\<forall>i < length \<Gamma>b. nth sps i = Some TSK_NS \<longrightarrow> nth \<Gamma>b i \<noteq> None)
-        \<and> (\<forall>i < length \<Gamma>b. nth sps i = Some TSK_S
-            \<longrightarrow> nth \<Gamma>b i \<noteq> None \<and> (\<exists>k. K \<turnstile> (the (nth \<Gamma>b i)) :\<kappa> k \<and> S \<in> k)))"
+        \<and> (\<forall>i < length \<Gamma>b. sps ! i = Some TSK_S \<longrightarrow>
+            ((\<Gamma>b ! i \<noteq> None) \<and> (\<exists>k. (K \<turnstile> (the (\<Gamma>b ! i)) :\<kappa> k) \<and> S \<in> k)))
+        \<and> (\<forall>i < length \<Gamma>b. sps ! i = Some TSK_NS \<longrightarrow> 
+            ((\<Gamma>b ! i \<noteq> None) \<and> (K \<turnstile> the (\<Gamma>b ! i) wellformed)))
+        \<and> (\<forall>i < length \<Gamma>b. \<comment> \<open> TODO: right split is conflated with None; sps ! i \<noteq> None \<and> \<close> \<Gamma>b ! i \<noteq> None \<longrightarrow>
+            (K \<turnstile> the (\<Gamma>b ! i) wellformed)))"
 
 definition
   "ttsplit_bang is sps K \<Gamma> xs \<Gamma>1 ys \<Gamma>2 =
@@ -164,16 +166,16 @@ lemma ttsplit_bangI:
 lemma ttsplit_bang_innerI:
   "ttsplit_bang_inner K sps \<Gamma>b \<Gamma>1 \<Gamma>2
     \<Longrightarrow> ttsplit_bang_inner K (None # sps) (None # \<Gamma>b) (None # \<Gamma>1) (None # \<Gamma>2)"
-  "K \<turnstile> \<gamma> :\<kappa>  k \<Longrightarrow> ttsplit_bang_inner K sps \<Gamma>b \<Gamma>1 \<Gamma>2
+  "K \<turnstile> \<gamma> :\<kappa> k \<Longrightarrow> ttsplit_bang_inner K sps \<Gamma>b \<Gamma>1 \<Gamma>2
     \<Longrightarrow> ttsplit_bang_inner K (None # sps) (Some \<gamma> # \<Gamma>b) (None # \<Gamma>1) (Some \<gamma> # \<Gamma>2)"
-  "K \<turnstile> \<gamma> :\<kappa>  k \<Longrightarrow> ttsplit_bang_inner K sps \<Gamma>b \<Gamma>1 \<Gamma>2
+  "K \<turnstile> \<gamma> :\<kappa> k \<Longrightarrow> ttsplit_bang_inner K sps \<Gamma>b \<Gamma>1 \<Gamma>2
     \<Longrightarrow> ttsplit_bang_inner K (Some TSK_L # sps) (Some \<gamma> # \<Gamma>b) (Some \<gamma> # \<Gamma>1) (None # \<Gamma>2)"
-  "K \<turnstile> \<gamma> :\<kappa>  k \<Longrightarrow> S \<in> k \<Longrightarrow> ttsplit_bang_inner K sps \<Gamma>b \<Gamma>1 \<Gamma>2
+  "K \<turnstile> \<gamma> :\<kappa> k \<Longrightarrow> S \<in> k \<Longrightarrow> ttsplit_bang_inner K sps \<Gamma>b \<Gamma>1 \<Gamma>2
     \<Longrightarrow> ttsplit_bang_inner K (Some TSK_S # sps) (Some \<gamma> # \<Gamma>b) (Some \<gamma> # \<Gamma>1) (Some \<gamma> # \<Gamma>2)"
-  "K \<turnstile> \<gamma> :\<kappa>  k \<Longrightarrow> \<gamma>' = bang \<gamma> \<Longrightarrow> ttsplit_bang_inner K sps \<Gamma>b \<Gamma>1 \<Gamma>2
+  "K \<turnstile> \<gamma> :\<kappa> k \<Longrightarrow> \<gamma>' = bang \<gamma> \<Longrightarrow> ttsplit_bang_inner K sps \<Gamma>b \<Gamma>1 \<Gamma>2
     \<Longrightarrow> ttsplit_bang_inner K (Some TSK_NS # sps) (Some \<gamma> # \<Gamma>b) (Some \<gamma>' # \<Gamma>1) (Some \<gamma> # \<Gamma>2)"
   "ttsplit_bang_inner K [] [] [] []"
-  by (auto simp add: ttsplit_bang_inner_def forall_less_Suc_eq)
+  by (auto simp add: ttsplit_bang_inner_def forall_less_Suc_eq kinding_def)
 
 lemma Suc_mem_image_pred:
   "0 \<notin> js \<Longrightarrow> (Suc n \<in> js) = (n \<in> pred ` js)"
@@ -187,42 +189,48 @@ lemma Suc_mem_image_pred_remove:
 
 lemma split_bang_nth:
   "split_bang K is \<Gamma> \<Gamma>1 \<Gamma>2 = (length \<Gamma>1 = length \<Gamma> \<and> length \<Gamma>2 = length \<Gamma>
-        \<and> (\<forall>i < length \<Gamma>. if i \<in> is then \<Gamma>2 ! i = \<Gamma> ! i \<and> \<Gamma> ! i \<noteq> None
-                \<and> \<Gamma>1 ! i = map_option bang (\<Gamma> ! i)
-            else split_comp K (\<Gamma> ! i) (\<Gamma>1 ! i) (\<Gamma>2 ! i)))"
-  apply (induct \<Gamma> arbitrary: "is" \<Gamma>1 \<Gamma>2)
-   apply (auto elim: split_bang.cases intro: split_bang_empty)[1]
-  apply (rule iffI)
-   apply (erule split_bang.cases, simp)
-    apply clarsimp
-    apply (case_tac i)
-     apply simp
-    apply (simp add: Suc_mem_image_pred cong: if_cong)
-   apply clarsimp
-   apply (case_tac i)
-    apply simp
-   apply (simp add: Suc_mem_image_pred_remove cong: if_cong)
-  apply (clarsimp simp: length_Suc_conv forall_less_Suc_eq)
-  apply (frule_tac x=0 in spec, simp(no_asm_use))
-  apply (case_tac "0 \<in> is", simp_all)
-   apply clarsimp
-   apply (erule split_bang_bang, rule refl)
-   apply (simp add: Suc_mem_image_pred_remove cong: if_cong)
-  apply (rule split_bang_cons, (simp_all add: Suc_mem_image_pred cong: if_cong))
-  done
+        \<and> (\<forall>i < length \<Gamma>.
+            (if i \<in> is
+              then
+                \<Gamma>2 ! i = \<Gamma> ! i \<and> \<Gamma> ! i \<noteq> None \<and>
+                \<Gamma>1 ! i = map_option bang (\<Gamma> ! i) \<and>
+                (K \<turnstile> the (\<Gamma> ! i) wellformed)
+              else split_comp K (\<Gamma> ! i) (\<Gamma>1 ! i) (\<Gamma>2 ! i))))"
+proof (induct \<Gamma> arbitrary: "is" \<Gamma>1 \<Gamma>2)
+  case (Cons a \<Gamma>)
+  then show ?case
+    apply -
+    apply (intro iffI)
+
+     apply (clarsimp simp add: split_bang_Cons1)
+     apply (case_tac i)
+      apply (force elim!: split_bang_comp.cases)
+     apply (case_tac "i \<in> is")
+      apply (fastforce simp add: Suc_mem_image_pred_remove)
+     apply (simp add: Suc_mem_image_pred_remove)
+
+    apply (clarsimp simp add: split_bang_Cons1 Suc_mem_image_pred_remove length_Suc_conv)
+    apply (rename_tac a1 \<Gamma>1 a2 \<Gamma>2)
+    apply (intro conjI)
+     apply (drule_tac x=0 in spec, cases "0 \<in> is"; force simp add: split_bang_comp.simps)
+    apply auto
+
+    done
+qed (fastforce elim: split_bang.cases intro: split_bang_empty)
 
 lemma ttsplit_bang_imp_split_bang:
   "ttsplit_bang is sps K \<Gamma> xs \<Gamma>1 ys \<Gamma>2 \<Longrightarrow>
     (\<exists>\<Gamma>1a \<Gamma>2a. split_bang K is (snd \<Gamma>) \<Gamma>1a \<Gamma>2a
         \<and> snd \<Gamma>1 = xs @ \<Gamma>1a & snd \<Gamma>2 = ys @ \<Gamma>2a)"
-  apply (clarsimp simp: ttsplit_bang_def ttsplit_bang_inner_def
-                        split_bang_nth nth_enumerate_eq
-             split del: if_splits cong: if_cong)
+  apply (clarsimp simp: ttsplit_bang_def ttsplit_bang_inner_def split_bang_nth nth_enumerate_eq)
+  apply (case_tac "sps ! i")
+   apply (clarsimp simp add: split_comp.simps kinding_def)
+  using option.collapse option.inject apply fastforce
+  apply (case_tac a)
+    apply clarsimp
+  using option.collapse option.inject apply (fastforce simp add: split_comp.simps)
+  using option.collapse option.inject apply (fastforce simp add: split_comp.simps)
   apply clarsimp
-  apply (case_tac "\<Gamma>b ! i")
-   apply (simp add: split_comp.none)
-  apply (drule spec, drule(1) mp)+
-  apply (auto intro: split_comp.intros)
   done
 
 lemma ttsplit_bang_inner_Cons:
@@ -236,19 +244,23 @@ lemma split_bang_imp_ttsplit:
     \<Longrightarrow> \<exists>sps. \<forall>xs ys \<Gamma>1' \<Gamma>2'. (\<Gamma>1' = xs @ \<Gamma>1 \<longrightarrow> \<Gamma>2' = ys @ \<Gamma>2
     \<longrightarrow> ttsplit_bang is sps K (TyTrSplit sps xs tt ys tt2, \<Gamma>) xs
         (tt, \<Gamma>1') ys (tt2, \<Gamma>2'))"
-  apply (clarsimp simp: ttsplit_bang_def)
-  apply (induct rule: split_bang.induct)
-    apply (simp add: ttsplit_bang_def ttsplit_bang_inner_def)
-   apply (clarsimp simp: forall_less_Suc_eq Suc_mem_image_pred)
-   apply (rule exI, rule conjI, erule_tac sp="if a = None then None
-        else if b = None then Some TSK_L else Some TSK_S" in ttsplit_bang_inner_Cons)
-    apply (auto simp: ttsplit_bang_inner_def elim!: split_comp.cases)[1]
-   apply (simp add: Set.remove_def)
-  apply (clarsimp simp: forall_less_Suc_eq Suc_mem_image_pred_remove)
-  apply (rule exI, rule conjI, erule_tac sp="Some TSK_NS" in ttsplit_bang_inner_Cons)
-   apply (simp add: ttsplit_bang_inner_def)
-  apply simp
-  done
+proof (clarsimp simp: ttsplit_bang_def, induct rule: split_bang.induct)
+  case (split_bang_cons K "is" xs as bs x a b)
+  then show ?case
+    apply (clarsimp simp: forall_less_Suc_eq Suc_mem_image_pred)
+    apply (rule exI, rule conjI, erule_tac sp=
+        "case a of
+           None \<Rightarrow> None
+         | Some aa \<Rightarrow> case b of
+                        None \<Rightarrow> Some TSK_L
+                      | Some bb \<Rightarrow> if 0 \<in> is then Some TSK_NS
+                                   else Some TSK_S" in ttsplit_bang_inner_Cons)
+     apply (clarsimp simp: ttsplit_bang_inner_def kinding_def split_comp.simps split_bang_comp.simps)
+     apply (cases "0 \<in> is"; force elim!: split_bang_comp.cases split_comp.cases)
+    apply (clarsimp simp: ttsplit_bang_inner_def kinding_def split_comp.simps split_bang_comp.simps)
+    apply (cases "0 \<in> is"; force simp add: Suc_mem_image_pred_remove)
+    done
+qed (simp add: ttsplit_bang_def ttsplit_bang_inner_def)
 
 lemma split_follow_typing_tree:
   "ttsplit K \<Gamma> sps' xs' \<Gamma>1 ys' \<Gamma>2 \<Longrightarrow> (\<Gamma>1, \<Gamma>2) = follow_typing_tree \<Gamma> \<and> new_tt_types \<Gamma> = ys'"
@@ -887,8 +899,9 @@ lemma split_type_wellformed:
 lemma split_bang_type_wellformed:
   "split_bang K is \<Gamma> \<Gamma>1 \<Gamma>2 \<Longrightarrow> Some t \<in> set \<Gamma>
     \<Longrightarrow> Some t \<in> set \<Gamma>1 \<or> Some t \<in> set \<Gamma>2 \<or> K \<turnstile> t wellformed"
-  by (induct arbitrary: "is" rule: split_bang.induct,
-    auto elim!: split_comp.cases)
+  apply (induct arbitrary: "is" rule: split_bang.induct)
+   apply (auto elim!: split_bang_comp.cases split_comp.cases)
+  done
 
 lemma weakening_type_wellformed:
   "K \<turnstile> \<Gamma> \<leadsto>w \<Gamma>' \<Longrightarrow> Some t \<in> set \<Gamma> \<Longrightarrow> K \<turnstile> t wellformed"

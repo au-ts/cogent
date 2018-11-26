@@ -586,66 +586,134 @@ shows   "\<exists>r' w' r'' w'' b. r = r' \<union> r''
                          \<and> b \<inter> (w' \<union> w'') = {}
                          \<and> (\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches \<Gamma>1 \<langle>r' \<union> b, w'     \<rangle>)
                          \<and> (\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches \<Gamma>2 \<langle>r''   , w'' \<union> b\<rangle>)"
-using assms proof (induct arbitrary: \<gamma> \<gamma>' r w rule: split_bang.induct)
-     case split_bang_empty then show ?case by (fastforce elim:  u_v_matches.cases
-                                                         intro: u_v_matches.intros)
-next case (split_bang_cons iss K x a b xs as bs \<gamma> \<gamma>' r w)
+  using assms
+proof (induct arbitrary: \<gamma> \<gamma>' r w rule: split_bang.induct)
+  case split_bang_empty then show ?case
+    by (fastforce elim: u_v_matches.cases intro: u_v_matches.intros)
+next case (split_bang_cons K "is" xs as bs x a b)
   then show ?case
-  proof (cases \<Xi> \<sigma> \<gamma> \<gamma>' x xs r w rule: u_v_matches_consE)
-       case 1 with split_bang_cons show ?case   by simp
-  next case 2 with split_bang_cons show ?thesis by (auto elim: split_comp.cases)
-  next case (3 _ _ _ rx wx _ _ rs ws)
-    with split_bang_cons(2,1,3-) show ?thesis
-    proof (cases rule: split_comp.cases)
-         case none  with 3 show ?thesis by simp
-    next case left  with 3 show ?thesis
-      apply (clarsimp dest!: split_bang_cons(4))
-      apply (rule_tac x = "rx \<union> r'" in exI)
-      apply (rule_tac x = "wx \<union> w'" in exI)
-      apply (rule_tac x = "r''"     in exI, rule, blast)
-      apply (rule_tac x = "w''"     in exI, rule, blast)
-      apply (rule_tac x = "ba"      in exI)
-      apply (auto simp: Un_assoc intro!: u_v_matches.intros)
-    done
-    next case right with 3 show ?thesis
-      apply (clarsimp dest!: split_bang_cons(4))
-      apply (rule_tac x = "r'"       in exI)
-      apply (rule_tac x = "w'"       in exI)
-      apply (rule_tac x = "rx \<union> r''" in exI, rule, blast)
-      apply (rule_tac x = "wx \<union> w''" in exI, rule, blast)
-      apply (rule_tac x = "ba"       in exI)
-      apply (auto simp: Un_assoc intro!: u_v_matches.intros)
-    done
-    next case share with 3 show ?thesis
-      apply (clarsimp dest!: split_bang_cons(4))
-      apply (drule(2) u_v_shareable_not_writable)
-      apply (clarsimp)
-      apply (rule_tac x = "rx \<union> r'"  in exI)
-      apply (rule_tac x = "w'"       in exI)
-      apply (rule_tac x = "rx \<union> r''" in exI, rule, blast)
-      apply (rule_tac x = "w''"      in exI, rule, blast)
-      apply (rule_tac x = "ba"       in exI)
-      apply (auto simp: Un_assoc intro: u_v_matches_some [where w = "{}", simplified])
-    done
+  proof (cases x)
+    case None
+    then obtain g \<gamma>a g' \<gamma>a'
+      where \<gamma>_\<gamma>'_are:
+        "\<gamma>  = g  # \<gamma>a"
+        "\<gamma>' = g' # \<gamma>a'"
+        and "\<Xi>, \<sigma> \<turnstile> \<gamma>a \<sim> \<gamma>a' matches xs \<langle>r, w\<rangle>"
+      using split_bang_cons.prems
+      by (fastforce elim: u_v_matches_consE)
+    then obtain r1 w1 r2 w2 p
+      where
+        "r = r1 \<union> r2"
+        "w1 \<inter> w2 = {}"
+        "w = w1 \<union> w2 \<union> p"
+        "p \<inter> (w1 \<union> w2) = {}"
+        "\<Xi>, \<sigma> \<turnstile> \<gamma>a \<sim> \<gamma>a' matches as \<langle>r1 \<union> p, w1\<rangle>"
+        "\<Xi>, \<sigma> \<turnstile> \<gamma>a \<sim> \<gamma>a' matches bs \<langle>r2, w2 \<union> p\<rangle>"
+      using split_bang_cons.hyps by meson
+    moreover have
+      "a = None"
+      "b = None"
+      using split_bang_cons.hyps
+      by (simp add: None split_bang_comp.simps split_comp.simps)+
+    ultimately show ?thesis
+      by (metis \<gamma>_\<gamma>'_are u_v_matches.intros)
+  next
+    case (Some t)
+    then obtain g \<gamma>a g' \<gamma>a' r1 w1 r2 w2
+      where split\<gamma>s:
+        "\<gamma>  = g  # \<gamma>a"
+        "\<gamma>' = g' # \<gamma>a'"
+        "r = r1 \<union> r2"
+        "w = w1 \<union> w2"
+        "\<Xi>, \<sigma> \<turnstile>  g \<sim> g' : t \<langle>r1, w1\<rangle>"
+        "\<Xi>, \<sigma> \<turnstile> \<gamma>a \<sim> \<gamma>a' matches xs \<langle>r2, w2\<rangle>"
+        "w1 \<inter> w2 = {}"
+        "w1 \<inter> r2 = {}"
+        "w2 \<inter> r1 = {}"
+      using split_bang_cons.prems
+      by (fastforce elim!: u_v_matches_consE)
+    then obtain r21 w21 r22 w22 p
+      where split\<gamma>as:
+        "r2 = r21 \<union> r22"
+        "w21 \<inter> w22 = {}"
+        "w2 = w21 \<union> w22 \<union> p"
+        "p \<inter> (w21 \<union> w22) = {}"
+        "\<Xi>, \<sigma> \<turnstile> \<gamma>a \<sim> \<gamma>a' matches as \<langle>r21 \<union> p, w21\<rangle>"
+        "\<Xi>, \<sigma> \<turnstile> \<gamma>a \<sim> \<gamma>a' matches bs \<langle>r22, w22 \<union> p\<rangle>"
+      using split_bang_cons.hyps by meson
+
+    show ?thesis
+    proof (cases "0 \<in> is")
+      case True
+      moreover have "\<Xi>, \<sigma> \<turnstile> g # \<gamma>a \<sim> g' # \<gamma>a' matches Some (bang t) # as \<langle>r1 \<union> (r21 \<union> (p \<union> w1)), w21\<rangle>"
+        using split\<gamma>s split\<gamma>as
+        by (auto intro!: u_v_matches_some_bang)
+      moreover have "\<Xi>, \<sigma> \<turnstile> g # \<gamma>a \<sim> g' # \<gamma>a' matches Some t # bs \<langle>r1 \<union> r22, w1 \<union> (w22 \<union> p)\<rangle>"
+        using split\<gamma>s split\<gamma>as
+        by (auto intro!: u_v_matches_some)
+      moreover have "a = Some (bang t)" "b = Some t"
+        using Some True split_bang_comp.cases split_bang_cons.hyps(3)
+        by force+
+      ultimately show ?thesis
+        apply (rule_tac x = "r1 \<union> r21" in exI)
+        apply (rule_tac x = "w21"      in exI)
+        apply (rule_tac x = "r1 \<union> r22" in exI)
+        apply (rule_tac x = "w22"      in exI)
+        apply (rule_tac x = "p \<union> w1"   in exI)
+        using split\<gamma>s split\<gamma>as
+        by (auto simp: Un_assoc Int_Un_distrib Int_Un_distrib2
+            intro:  u_v_pointerset_helper_matches)
+    next
+      case False
+
+      have "K \<turnstile> Some t \<leadsto> a \<parallel> b"
+        using False split_bang_cons.hyps
+        by (simp add: Some split_bang_comp.simps)
+      then show ?thesis
+      proof (cases rule: split_comp.cases)
+        case left
+        moreover have "\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches Some t # as \<langle>r1 \<union> (r21 \<union> p), w1 \<union> w21\<rangle>"
+          using split\<gamma>s split\<gamma>as
+          by (auto intro!: u_v_matches_some)
+        ultimately show ?thesis
+          apply (rule_tac x = "r1 \<union> r21" in exI)
+          apply (rule_tac x = "w1 \<union> w21" in exI)
+          apply (rule_tac x = "r22"      in exI)
+          apply (rule_tac x = "w22"      in exI)
+          apply (rule_tac x = "p"        in exI)
+          using split\<gamma>s split\<gamma>as
+          by (auto simp: Un_assoc)
+      next case right
+        moreover have "\<Xi>, \<sigma> \<turnstile> g # \<gamma>a \<sim> g' # \<gamma>a' matches Some t # bs \<langle>r1 \<union> r22, w1 \<union> (w22 \<union> p)\<rangle>"
+          using split\<gamma>s split\<gamma>as
+          by (auto intro!: u_v_matches_some)
+        ultimately show ?thesis
+          apply (rule_tac x = "r21"      in exI)
+          apply (rule_tac x = "w21"      in exI)
+          apply (rule_tac x = "r1 \<union> r22" in exI)
+          apply (rule_tac x = "w1 \<union> w22" in exI)
+          apply (rule_tac x = "p"        in exI)
+          using split\<gamma>s split\<gamma>as
+          by (auto simp: Un_assoc)
+      next case share
+        moreover then have w1_empty: "w1 = {}"
+          using u_v_shareable_not_writable split\<gamma>s by fast
+        moreover have "\<Xi>, \<sigma> \<turnstile> g # \<gamma>a \<sim> g' # \<gamma>a' matches Some t # as \<langle>r1 \<union> (r21 \<union> p), {} \<union> w21\<rangle>"
+          using split\<gamma>s split\<gamma>as
+          by (intro u_v_matches_some, auto simp add: w1_empty)
+        moreover have "\<Xi>, \<sigma> \<turnstile> g # \<gamma>a \<sim> g' # \<gamma>a' matches Some t # bs \<langle>r1 \<union> r22, {} \<union> (w22 \<union> p)\<rangle>"
+          using split\<gamma>s split\<gamma>as
+          by (intro u_v_matches_some, auto simp add: w1_empty)
+        ultimately show ?thesis
+          apply (rule_tac x = "r1 \<union> r21" in exI)
+          apply (rule_tac x = "w21"      in exI)
+          apply (rule_tac x = "r1 \<union> r22" in exI)
+          apply (rule_tac x = "w22"      in exI)
+          apply (rule_tac x = "p"        in exI)
+          using split\<gamma>s split\<gamma>as
+          by (auto simp: Un_assoc)
+      qed
     qed
-  qed
-next case (split_bang_bang iss iss' K xs as bs x \<gamma> \<gamma>' r w)
-  then show ?case
-  proof (cases \<Xi> \<sigma> \<gamma> \<gamma>' "Some x" xs r w rule: u_v_matches_consE)
-       case 1 with split_bang_bang show ?case by simp
-  next case 2 with split_bang_bang show ?thesis by simp
-  next case (3 _ _ _ rx wx _ _ rs ws) with split_bang_bang show ?thesis
-    apply (clarsimp dest!: split_bang_bang(4))
-    apply (rule_tac x = "rx \<union> r'"  in exI)
-    apply (rule_tac x = "w'"       in exI)
-    apply (rule_tac x = "rx \<union> r''" in exI, rule, blast)
-    apply (rule_tac x = "w''"      in exI, rule, blast)
-    apply (rule_tac x = "b \<union> wx"   in exI)
-    apply (auto simp:   Un_assoc
-                dest:   u_v_matches_some
-                intro!: u_v_matches_some_bang
-                intro:  u_v_pointerset_helper_matches)
-  done
   qed
 qed
 
