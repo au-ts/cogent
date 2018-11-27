@@ -59,7 +59,7 @@ import Text.PrettyPrint.ANSI.Leijen hiding ((</>))
 import Text.Printf
 import Text.Show
 
-data TypeSplitKind = TSK_L | TSK_S | TSK_NS
+data TypeSplitKind = TSK_R | TSK_L | TSK_S | TSK_NS
   deriving Eq
 data TypingTree t = TyTrLeaf
                   | TyTrSplit [Maybe TypeSplitKind] (TreeCtx t) (TreeCtx t)
@@ -183,6 +183,7 @@ deepTyTreeDef mod ta fn e = let ttfn = mkId $ mod fn ++ "_typetree"
                              in [isaDecl| definition "$ttfn \<equiv> $tt" |]
 
 deepTypeSplitKind :: TypeSplitKind -> Term
+deepTypeSplitKind TSK_R  = mkId "TSK_R"
 deepTypeSplitKind TSK_L  = mkId "TSK_L"
 deepTypeSplitKind TSK_S  = mkId "TSK_S"
 deepTypeSplitKind TSK_NS = mkId "TSK_NS"
@@ -459,7 +460,7 @@ pushDown _ e = __impossible $ "pushDown:" ++ show (pretty e) ++ " is not yet imp
 treeSplit :: Maybe (Type t) -> Maybe (Type t) -> Maybe (Type t) -> Maybe TypeSplitKind
 treeSplit Nothing  Nothing  Nothing  = Nothing
 treeSplit (Just t) (Just _) Nothing  = Just TSK_L
-treeSplit (Just t) Nothing  (Just _) = Nothing
+treeSplit (Just t) Nothing  (Just _) = Just TSK_R
 treeSplit (Just t) (Just _) (Just _) = Just TSK_S
 treeSplit g x y = error $ "bad split: " ++ show (g, x, y)
 
