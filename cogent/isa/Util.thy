@@ -107,6 +107,12 @@ lemma assoc_comp_snd_tuple_lambda: "h \<circ> snd \<circ> (\<lambda>(a,b). (f a 
 
 section {* list related lemmas *}
 
+lemma map2_mapL: "List.map2 h (map f xs) xs = map (\<lambda>x. h (f x) x) xs"
+  by (induction xs) (auto)
+
+lemma map2_mapR: "List.map2 h xs (map g xs) = map (\<lambda>x. h x (g x)) xs"
+  by (induction xs) (auto)
+
 lemma map_fst_update:
   assumes "ts ! f = (t, x)"
     and     "f < length ts"

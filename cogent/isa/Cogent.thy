@@ -489,6 +489,8 @@ lemmas split_Cons1 = list_all3_Cons1[where P="split_comp K" for K, simplified sp
 lemmas split_Cons2 = list_all3_Cons2[where P="split_comp K" for K, simplified split_def[symmetric]]
 lemmas split_Cons3 = list_all3_Cons3[where P="split_comp K" for K, simplified split_def[symmetric]]
 
+lemmas split_conv_all_nth = list_all3_conv_all_nth[where P="split_comp K" for K, simplified split_def[symmetric]]
+
 definition pred :: "nat \<Rightarrow> nat" where
   "pred n \<equiv> (case n of Suc n' \<Rightarrow> n')"
 
@@ -1621,6 +1623,38 @@ lemma split_bang_Cons3:
             length \<Gamma>1' = length \<Gamma>2')"
   by (fastforce dest: split_bang_length elim: split_bang.cases intro!: split_bang.intros)
 
+lemma Suc_mem_image_pred:
+  "0 \<notin> js \<Longrightarrow> (Suc n \<in> js) = (n \<in> pred ` js)"
+  apply (simp add: image_def pred_def)
+  apply (auto elim: rev_bexI split: nat.split_asm)
+  done
+
+lemma Suc_mem_image_pred_remove:
+  "(n \<in> pred ` Set.remove 0 js) = (Suc n \<in> js)"
+  by (simp add: Suc_mem_image_pred[symmetric])
+
+lemma split_bang_nth:
+  "split_bang K is \<Gamma> \<Gamma>1 \<Gamma>2 = (length \<Gamma>1 = length \<Gamma> \<and> length \<Gamma>2 = length \<Gamma>
+        \<and> (\<forall>i < length \<Gamma>. K , i \<in> is \<turnstile> \<Gamma> ! i \<leadsto>b \<Gamma>1 ! i \<parallel> \<Gamma>2 ! i))"
+proof (induct \<Gamma> arbitrary: "is" \<Gamma>1 \<Gamma>2)
+  case (Cons a \<Gamma>)
+  then show ?case
+    apply -
+    apply (intro iffI)
+
+     apply (clarsimp simp add: split_bang_Cons1)
+     apply (case_tac i)
+      apply force
+     apply (fastforce simp add: Suc_mem_image_pred_remove)
+
+    apply (clarsimp simp add: split_bang_Cons1 Suc_mem_image_pred_remove length_Suc_conv)
+    apply (rename_tac a1 \<Gamma>1 a2 \<Gamma>2)
+    apply (intro conjI)
+     apply (drule_tac x=0 in spec, cases "0 \<in> is"; force simp add: split_bang_comp.simps)
+    apply auto
+
+    done
+qed (fastforce elim: split_bang.cases intro: split_bang_empty)
 
 
 lemma weakening_length:
