@@ -19,13 +19,16 @@ lemma ttsplit_imp_split':
     k \<turnstile> snd \<Gamma> \<leadsto> drop (length xs) (snd \<Gamma>1) | drop (length ys) (snd \<Gamma>2)"
   by (fastforce dest: ttsplit_imp_split)
 
-(* TODO: This has to be double-checked.
-         The True in the assumption seems very suspicious.*)
+
 lemma ttsplit_inner_imp_split:
-  "ttsplit_inner k splits True \<Gamma>b \<Gamma>1 \<Gamma>2 \<Longrightarrow>
-   k \<turnstile> snd (TyTrSplit splits xs T1 ys T2, \<Gamma>b) \<leadsto>
-     drop (length xs) (snd (T1, xs @ \<Gamma>1)) | drop (length ys) (snd (T2, ys @ \<Gamma>2))"
-  by (fast dest: ttsplitI[THEN ttsplit_imp_split'])
+  assumes
+    "ttsplit_inner K splits \<Gamma>b \<Gamma>1 \<Gamma>2"
+    "\<forall>i < length splits. splits ! i \<noteq> Some TSK_NS"
+  shows
+    "K \<turnstile> snd (TyTrSplit splits xs T1 ys T2, \<Gamma>b) \<leadsto>
+      drop (length xs) (snd (T1, xs @ \<Gamma>1)) | drop (length ys) (snd (T2, ys @ \<Gamma>2))"
+  using assms
+  by (blast dest: ttsplitI ttsplit_imp_split')
 
 lemma ttsplit_bang_imp_split_bang':
   "ttsplit_bang is splits k \<Gamma> xs \<Gamma>1 ys \<Gamma>2 \<Longrightarrow>
