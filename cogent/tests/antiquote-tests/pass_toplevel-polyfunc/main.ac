@@ -1,9 +1,14 @@
+$esc:(#include <stdio.h>)
 #include <generated.c>
 
-$ty:(U32) $id:toU32 ($ty:(U8) args) {
+$ty:(U32) $id:(toU32[U8]) ($ty:(U8) args) {
   return ($ty:(U32))args;
 }
 
+$ty:(U32) $id:(toU32[U16]) ($ty:(U16) args) {
+  printf("The U16 -> U32 version of the function.\n");\
+  return ($ty:(U32)) args;
+}
 
 int main () {
   int a;

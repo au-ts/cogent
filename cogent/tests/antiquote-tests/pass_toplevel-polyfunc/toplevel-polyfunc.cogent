@@ -4,7 +4,12 @@
 -- f : Char -> U32
 -- f x = toU32[Char] x
 
+-- NOTE: `f` and `g` are here solely to let the compiler know that
+-- these two instantiations are going to be used. / zilinc
 f : U8 -> U32
 f x = toU32 x
+
+g : U16 -> U32
+g x = toU32 x
 
 toU32 : all a. a -> U32  -- abstract

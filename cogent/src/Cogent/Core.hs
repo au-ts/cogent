@@ -76,6 +76,10 @@ data Type t
 
 data SupposedlyMonoType = forall (t :: Nat). SMT (Type t)
 
+isTVar :: Type t -> Bool
+isTVar (TVar _) = True
+isTVar _ = False
+
 isTFun :: Type t -> Bool
 isTFun (TFun {}) = True
 isTFun _ = False

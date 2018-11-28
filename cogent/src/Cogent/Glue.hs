@@ -90,8 +90,9 @@ import System.FilePath (replaceBaseName, replaceExtension, takeBaseName, takeExt
 import Text.Parsec.Pos (newPos, SourcePos)
 import Text.Parsec.Prim as PP hiding (State)
 import Text.PrettyPrint.ANSI.Leijen (vsep)
+import Unsafe.Coerce
 
--- import Debug.Trace
+import Debug.Trace
 
 -- Parsing
 
@@ -140,7 +141,7 @@ data DsState = DsState { _typedefs  :: DS.Typedefs
                        , _constdefs :: DS.Constants
                        }
 
-data IcState = IcState { _funtypes :: Map FunName CC.FunctionType }
+data CoreTcState = CoreTcState { _funtypes :: Map FunName CC.FunctionType }
 
 data MnState = MnState { _funMono  :: MN.FunMono
                        , _typeMono :: MN.TypeMono
@@ -160,7 +161,7 @@ data CgState = CgState { _cTypeDefs    :: [(CG.StrlType, CG.CId)]
 data GlState = GlState { _tcDefs   :: [SF.TopLevel SF.RawType TC.TypedPatn TC.TypedExpr]
                        , _tcState  :: TcState
                        , _dsState  :: DsState
-                       , _icState  :: IcState
+                       , _coreTcState  :: CoreTcState
                        , _mnState  :: MnState
                        , _cgState  :: CgState
                        }
@@ -175,7 +176,7 @@ data MonoState = MonoState { _inst :: (MN.Instance, Maybe Int) }  -- Either ([],
 
 makeLenses ''TcState
 makeLenses ''DsState
-makeLenses ''IcState
+makeLenses ''CoreTcState
 makeLenses ''MnState
 makeLenses ''CgState
 makeLenses ''GlState
@@ -192,6 +193,7 @@ type GlErr    = ExceptT (String     ) (IO      )
 
 -- Monad transformers
 
+-- | The 4th argument @offset'@ is used to produce more accurate source positions.
 parseAnti :: String -> PP.Parsec String () a -> SrcLoc -> Int -> GlFile a
 parseAnti s parsec loc offset' = do
   let SrcLoc (Loc (Pos _ line col offset) _) = loc
@@ -222,11 +224,11 @@ desugarAnti m a = view kenv >>= \(fmap fst -> ts) -> lift . lift $
                      cdefs = view (dsState.constdefs) s
                   in return (fst (flip3 evalRWS (DS.DsState ts Nil 0 0 []) (tdefs, cdefs, []) $ DS.runDS $ m a), s)  -- FIXME: pragmas / zilinc
 
-icAnti :: (a -> IN.TC t 'Zero b) -> a -> GlDefn t b
-icAnti m a = view kenv >>= \(fmap snd -> ts) -> lift . lift $
-  StateT $ \s -> let reader = (ts, view (icState.funtypes) s)
+coreTcAnti :: (a -> IN.TC t 'Zero b) -> a -> GlDefn t b
+coreTcAnti m a = view kenv >>= \(fmap snd -> ts) -> lift . lift $
+  StateT $ \s -> let reader = (ts, view (coreTcState.funtypes) s)
                   in case flip evalState Nil $ flip runReaderT reader $ runExceptT $ IN.unTC $ m a of
-                       Left  e -> __impossible "icAnti"
+                       Left  e -> __impossible "coreTcAnti"
                        Right x -> return (x, s)
 
 monoAnti :: (a -> MN.Mono b) -> a -> GlMono t b
@@ -306,11 +308,11 @@ parseFnCall s loc = parseAnti s PS.basicExpr' loc 4
 
 tcFnCall :: SF.LocExpr -> GlDefn t TC.TypedExpr
 tcFnCall e = do
-  _ <- case e of
+  f <- case e of
          SF.LocExpr _ (SF.TypeApp f ts _) -> return f  -- TODO: make use of Inline to perform glue code inlining / zilinc
          SF.LocExpr _ (SF.Var f) -> return f
          otherwise -> throwError $ "Error: Not a function in $exp antiquote"
-  tcExp e
+  f `seq` tcExp e
 
 genFn :: CC.TypedExpr 'Zero 'Zero VarName -> Gl CS.Exp
 genFn = genAnti $ \case
@@ -324,9 +326,9 @@ genFnCall = genAnti $ \t -> do
 
 transFnCall :: CS.Exp -> GlMono t CS.Exp
 transFnCall (CS.FnCall (CS.AntiExp fn loc1) [e] loc0) = do
-  e'  <- lift . lift . lift . genFn =<< monoExp =<< lift . icExp =<<
+  e'  <- lift . lift . lift . genFn =<< monoExp =<< lift . coreTcExp =<<
          lift . desugarExp =<< lift . tcFnCall =<< (lift . lift) (parseFnCall fn loc1)
-  fn' <- lift . lift . lift . genFnCall =<< return . CC.exprType =<< monoExp =<< lift . icExp =<<
+  fn' <- lift . lift . lift . genFnCall =<< return . CC.exprType =<< monoExp =<< lift . coreTcExp =<<
          lift . desugarExp =<< lift . tcFnCall =<< (lift . lift) (parseFnCall fn loc1)
   return $ CS.FnCall fn' [e',e] loc0
 transFnCall e = return e
@@ -365,8 +367,8 @@ tcExp e = do
 desugarExp :: TC.TypedExpr -> GlDefn t (CC.UntypedExpr t 'Zero VarName)
 desugarExp = desugarAnti DS.desugarExpr
 
-icExp :: CC.UntypedExpr t 'Zero VarName -> GlDefn t (CC.TypedExpr t 'Zero VarName)
-icExp = icAnti IN.typecheck
+coreTcExp :: CC.UntypedExpr t 'Zero VarName -> GlDefn t (CC.TypedExpr t 'Zero VarName)
+coreTcExp = coreTcAnti IN.typecheck
 
 monoExp :: CC.TypedExpr t 'Zero VarName -> GlMono t (CC.TypedExpr 'Zero 'Zero VarName)
 monoExp = monoAnti MN.monoExpr
@@ -379,7 +381,7 @@ genExp = genAnti $ \e -> do (v,vdecl,vstm,_) <- CG.genExpr Nothing e
 
 transExp :: CS.Exp -> GlMono t CS.Exp
 transExp (CS.AntiExp s loc) = (lift . lift) (parseExp s loc) >>= lift . tcExp >>=
-                              lift . desugarExp >>= lift . icExp >>= monoExp >>= lift . lift . lift . genExp
+                              lift . desugarExp >>= lift . coreTcExp >>= monoExp >>= lift . lift . lift . genExp
 transExp e = return e
 
 traverseExp = traverseAnti transExp
@@ -388,10 +390,19 @@ traverseExp = traverseAnti transExp
 
 transFuncId :: CS.Definition -> GlMono t CS.Definition
 transFuncId (CS.FuncDef (CS.Func dcsp (CS.AntiId fn loc2) decl ps body loc1) loc0) =
-  view (inst._2) >>= \idx ->
-  return $ CS.FuncDef (CS.Func dcsp (CS.Id (toCName $ MN.monoName fn idx) loc2) decl ps body loc1) loc0
+  view (inst._2) >>= \idx -> do
+    fnName <- lift . lift $ genFuncId fn loc2
+    return $ CS.FuncDef (CS.Func dcsp (CS.Id (toCName $ MN.monoName fnName idx) loc2) decl ps body loc1) loc0
 transFuncId d = return d
 
+genFuncId :: String -> SrcLoc -> GlFile FunName
+genFuncId fn loc = do
+  surfaceFn <- parseFnCall fn loc
+  case surfaceFn of
+    SF.LocExpr _ (SF.TypeApp f _ _) -> return f
+    SF.LocExpr _ (SF.Var f)         -> return f
+    _ -> throwError $ "Error: `" ++ fn ++ 
+                      "' is not a valid function Id (with optional type arguments) in a $id antiquote"
 
 -- Type Id
 
@@ -468,19 +479,56 @@ traversals insts d = forM insts $ \inst ->
                          return . transEsc >=> traverseEscStm >=>
                          transFuncId >=> transTypeId >=> firstM traverseTypeId') d
 
-traverseOneFunc :: String -> CS.Definition -> GlFile [(CS.Definition, Maybe String)]
-traverseOneFunc fn d = do
+traverseOneFunc :: String -> CS.Definition -> SrcLoc -> GlFile [(CS.Definition, Maybe String)]
+traverseOneFunc fn d loc = do
+  -- First we need to __parse__ the function name, get the function name and the optional explicit type arguments.
+  -- If the function has no explicit type arguments, then we treat it as a poly-definition;
+  -- if it's applied to type arguments, then we consider it defined only for the applied types.
+  -- At this point, we can't further compile this function id (treated as a function call FnCall as it
+  -- can take type arguments), because any process beyond parsing requires us knowing what function it
+  -- is (in a monad at least 'GlDefn'), but this is indeed what we are trying to work out. The loop-breaker
+  -- is to manually extract the function name after parsing.
+  fnName <- genFuncId fn loc
+  -- After getting the function name, we can construct a 'GlDefn' monad environment.
   lift $ cgState.localOracle .= 0
-  monos <- lift $ use $ mnState.funMono
+  monos <- lift $ use $ mnState.funMono  -- acquire all valid instantiations used in this unit.
   defs  <- lift $ use tcDefs
-  case M.lookup fn monos of
-    Nothing -> return [] -- throwError $ "Error: Function `" ++ fn ++ "' is not defined in Cogent and thus cannot be antiquoted"
-    Just mp -> case L.find (SF.absFnDeclId fn) defs of  -- function declared/defined in Cogent
-                 Nothing -> throwError $ "Error: Function `" ++ fn ++ "' is not an abstract Cogent function and thus cannot be antiquoted"
-                 Just tl -> do let ts = tyVars tl
-                               case Vec.fromList ts of
-                                 ExI (Flip ts') -> let l = if L.null ts then [([], Nothing)] else L.map (second Just) (M.toList mp)
-                                                    in flip runReaderT (DefnState ts' [TC.InAntiquotedCDefn fn]) $ traversals l d
+  case M.lookup fnName monos of
+    -- This 'mono' should have entries for __all__ monomorphic (be it original monomorphic or monomorphised)
+    -- functions that appear in this unit. If @Nothing@, then it means this function is not defined in Cogent
+    -- or not used at all. The reason why we
+    -- don't throw an exception is, IIRC, if the library implementation (or some large system) is
+    -- arranged in such a way that a single @.ac@ file contains definitions for many @.cogent@
+    -- files or definitions of unused Cogent functions. / zilinc (28/11/18)
+    Nothing -> return []
+    Just mp ->
+      case L.find (SF.absFnDeclId fnName) defs of  -- function declared/defined in Cogent
+        Nothing -> throwError $ "Error: Function `" ++ fn ++
+                                "' is not an abstract Cogent function and thus cannot be antiquoted"
+        Just tl -> do 
+          let ts = tyVars tl
+          -- Here we need to match the type argument given in the @.ac@ definition and the ones in the
+          -- original Cogent definition, in order to decide which instantiations should be generated.
+          case Vec.fromList ts of
+            ExI (Flip ts') -> flip runReaderT (DefnState ts' [TC.InAntiquotedCDefn fn]) $ do
+              -- NOTE: if there are type variables in the type application, the type vars must be in-scope,
+              -- i.e. they must be the same ones as in the Cogent definition.
+              CC.TE _ (CC.Fun _ targs _) <- (lift . flip parseFnCall loc >=> tcFnCall >=> desugarExp >=> coreTcExp) fn
+              -- Matching @targs@ with @ts@. More specifically: match them in @mp@, and trim those in @mp@ that
+              --     don't match up @targs@.
+              -- E.g. if @ts = [U8,a]@ and in @mp@ we find @[U8,U32]@ and @[U8,Bool]@, we instantiate this
+              --      function definition to these two types.
+              --      if @ts = [U8,a]@ and @mp = ([Bool,U8],[U32,U8])@ then there's nothing we generate.
+              let match :: [CC.Type t] -> [CC.Type 'Zero] -> Bool
+                  match [] [] = True
+                  match [] ys = __impossible "match (in traverseOneFunc): number of type arguments don't match"
+                  match xs [] = __impossible "match (in traverseOneFunc): number of type arguments don't match"
+                  -- We for now ignore 'TVarBang's, and treat them as not matching anything.
+                  match (x:xs) (y:ys) = (unsafeCoerce x == y || CC.isTVar x) && match xs ys
+              let instantiations = if L.null ts then [([], Nothing)] 
+                                   else L.filter (\(ms,_) -> match targs ms) $ L.map (second Just) (M.toList mp)
+              traversals instantiations d
+
 
 traverseOneType :: String -> SrcLoc -> CS.Definition -> GlFile [(CS.Definition, Maybe String)]
 traverseOneType ty l d = do   -- type defined in Cogent
@@ -508,7 +556,7 @@ traverseOneType ty l d = do   -- type defined in Cogent
                           return (tn1 == tn2)) ins
 
 traverseOne :: CS.Definition -> GlFile [(CS.Definition, Maybe String)]
-traverseOne d@(CS.FuncDef (CS.Func _ (CS.AntiId fn _) _ _ _ _) _) = traverseOneFunc fn d
+traverseOne d@(CS.FuncDef (CS.Func _ (CS.AntiId fn loc) _ _ _ _) _) = traverseOneFunc fn d loc
 traverseOne d@(CS.DecDef initgrp  _)
   | CS.InitGroup dcsp _ _ _ <- initgrp
   , CS.DeclSpec _ _ tysp _ <- dcsp
@@ -520,6 +568,9 @@ traverseOne d@(CS.DecDef initgrp  _)
   , Just (CS.AntiId ty l) <- mid = traverseOneType ty l d
 traverseOne d = flip runReaderT (DefnState Nil [TC.InAntiquotedCDefn $ show d]) $ traversals [([], Nothing)] d  -- anything not defined in Cogent
 
+-- | This function returns a list of pairs, of each the second component is the type name if
+--   the first component is a type definition. We use the type name to generate a dedicated @.h@
+--   file for that type. If the first is a function definition, then the second is always 'Nothing'.
 traverseAll :: [CS.Definition] -> GlFile [(CS.Definition, Maybe String)]
 traverseAll ds = concat <$> mapM traverseOne ds
 
@@ -557,7 +608,7 @@ mkGlState tced tcState (Last (Just (typedefs, constdefs, _))) ftypes (funMono, t
                                , _consts = view TC.knownConsts tcState
                                }
           , _dsState = DsState typedefs constdefs
-          , _icState = IcState ftypes
+          , _coreTcState = CoreTcState ftypes
           , _mnState = MnState funMono typeMono
           , _cgState = CgState { _cTypeDefs    = view CG.cTypeDefs    genState
                                , _cTypeDefMap  = view CG.cTypeDefMap  genState
@@ -606,7 +657,7 @@ collectFnCall _ = return []
 
 analyseFuncId :: [(String, SrcLoc)] -> GlDefn t [(FunName, MN.Instance)]
 analyseFuncId ss = forM ss $ \(fn, loc) -> flip runReaderT (MonoState ([], Nothing)) $ do
-  (CC.TE _ (CC.Fun fn' ts _)) <- monoExp =<< lift . icExp =<< lift . desugarExp =<<
+  (CC.TE _ (CC.Fun fn' ts _)) <- monoExp =<< lift . coreTcExp =<< lift . desugarExp =<<
                                  lift . tcFnCall =<< (lift . lift) (parseFnCall fn loc)
   return (fn', ts)
 
