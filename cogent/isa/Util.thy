@@ -294,7 +294,6 @@ lemma list_all3_impD:
   by (induct rule: list_all3_induct, simp+)
 
 
-
 (* n.b. the conditions are essentially functor laws *)
 lemma list_all3_map_over:
   assumes "list_all3 P xs ys zs"
@@ -317,6 +316,127 @@ lemma list_all3_product_over_list_all2:
   using assms
   by (induct arbitrary: as rule: list_all3_induct, (clarsimp simp add: list_all2_Cons2)+)
 
+subsection {* list_all4 *}
+
+inductive list_all4 :: "('a \<Rightarrow> 'b \<Rightarrow> 'c \<Rightarrow> 'd \<Rightarrow> bool) \<Rightarrow> 'a list \<Rightarrow> 'b list \<Rightarrow> 'c list \<Rightarrow> 'd list \<Rightarrow> bool" where
+  all4Nil : "list_all4 P [] [] [] []"
+| all4Cons : "P x y z w \<Longrightarrow> list_all4 P xs ys zs ws \<Longrightarrow> list_all4 P (x # xs) (y # ys) (z # zs) (w # ws)"
+
+lemma list_all4_induct
+  [consumes 1, case_names Nil Cons, induct set: list_all4]:
+  assumes P: "list_all4 P xs ys zs ws"
+  assumes Nil: "R [] [] [] []"
+  assumes Cons: "\<And>x xs y ys z zs  w ws.
+    \<lbrakk>P x y z w; list_all4 P xs ys zs ws; R xs ys zs ws\<rbrakk> \<Longrightarrow> R (x # xs) (y # ys) (z # zs) (w # ws)"
+  shows "R xs ys zs ws"
+  using P
+  by (induct xs arbitrary: ys zs ws) (auto elim: list_all4.cases simp add: Nil Cons)
+
+lemma list_induct4':
+  "\<lbrakk> P [] [] [] [];
+   \<And>x xs               . P (x#xs) []     []     [];
+   \<And>     y ys          . P []     (y#ys) []     [];
+   \<And>x xs y ys          . P (x#xs) (y#ys) []     [];
+   \<And>          z zs     . P []     []     (z#zs) [];
+   \<And>x xs      z zs     . P (x#xs) []     (z#zs) [];
+   \<And>     y ys z zs     . P []     (y#ys) (z#zs) [];
+   \<And>x xs y ys z zs     . P (x#xs) (y#ys) (z#zs) [];
+   \<And>               w ws. P []     []     []     (w#ws);
+   \<And>x xs           w ws. P (x#xs) []     []     (w#ws);
+   \<And>     y ys      w ws. P []     (y#ys) []     (w#ws);
+   \<And>x xs y ys      w ws. P (x#xs) (y#ys) []     (w#ws);
+   \<And>          z zs w ws. P []     []     (z#zs) (w#ws);
+   \<And>x xs      z zs w ws. P (x#xs) []     (z#zs) (w#ws);
+   \<And>     y ys z zs w ws. P []     (y#ys) (z#zs) (w#ws);
+   \<And>x xs y ys z zs w ws. P xs ys zs ws \<Longrightarrow> P (x#xs) (y#ys) (z#zs) (w#ws) \<rbrakk>
+ \<Longrightarrow> P xs ys zs ws"
+  by (induct xs arbitrary: ys zs ws; rename_tac ys zs ws, case_tac ys; case_tac zs; case_tac ws; simp)
+
+lemma list_all4_iff:
+  "list_all4 P xs ys zs ws \<longleftrightarrow>
+    length xs = length ys \<and> length ys = length zs \<and> length zs = length ws \<and>
+    (\<forall>(x, y, z, w) \<in> set (zip xs (zip ys (zip zs ws))). P x y z w)"
+  apply (rule iffI)
+   apply (induct xs ys zs ws rule: list_all4.induct; simp)
+  apply (induct xs ys zs ws rule: list_induct4'; force intro!: list_all4.intros)
+  done
+
+lemma list_all4_Nil1 [iff, code]: "list_all4 P [] ys zs ws = (ys = [] \<and> zs = [] \<and> ws = [])"
+  by (force simp add: list_all4_iff)
+
+lemma list_all4_Nil2 [iff, code]: "list_all4 P xs [] zs ws = (xs = [] \<and> zs = [] \<and> ws = [])"
+  by (force simp add: list_all4_iff)
+
+lemma list_all4_Nil3 [iff, code]: "list_all4 P xs ys [] ws = (xs = [] \<and> ys = [] \<and> ws = [])"
+  by (force simp add: list_all4_iff)
+
+lemma list_all4_Nil4 [iff, code]: "list_all4 P xs ys zs [] = (xs = [] \<and> ys = [] \<and> zs = [])"
+  by (force simp add: list_all4_iff)
+
+lemma list_all4_Cons[iff, code]: "list_all4 P (x # xs) (y # ys) (z # zs) (w # ws) = (P x y z w \<and> list_all4 P xs ys zs ws)"
+  by (force simp add: list_all4_iff)
+
+lemma list_all4_Cons1: "list_all4 P (x # xs') ys zs ws =
+  (\<exists>y ys' z zs' w ws'. ys = y # ys' \<and> zs = z # zs' \<and> ws = w # ws' \<and> (P x y z w \<and> list_all4 P xs' ys' zs' ws'))"
+  by (cases ys; cases zs; cases ws; force simp add: list_all4_iff)
+
+lemma list_all4_Cons2: "list_all4 P xs (y # ys') zs ws =
+  (\<exists>x xs' z zs' w ws'. xs = x # xs' \<and> zs = z # zs' \<and> ws = w # ws' \<and> (P x y z w \<and> list_all4 P xs' ys' zs' ws'))"
+  by (cases xs; cases zs; cases ws; force simp add: list_all4_iff)
+
+lemma list_all4_Cons3: "list_all4 P xs ys (z # zs') ws =
+  (\<exists>x xs' y ys' w ws'. xs = x # xs' \<and> ys = y # ys' \<and> ws = w # ws' \<and> (P x y z w \<and> list_all4 P xs' ys' zs' ws'))"
+  by (cases xs; cases ys; cases ws; force simp add: list_all4_iff)
+
+lemma list_all4_Cons4: "list_all4 P xs ys zs (w # ws') =
+  (\<exists>x xs' y ys' z zs'. xs = x # xs' \<and> ys = y # ys' \<and> zs = z # zs' \<and> (P x y z w \<and> list_all4 P xs' ys' zs' ws'))"
+  by (cases xs; cases ys; cases zs; force simp add: list_all4_iff)
+
+lemma list_all4_mono[intro?]:
+  assumes "list_all4 P xs ys zs ws"
+    and "\<And>x y z w. P x y z w \<Longrightarrow> Q x y z w"
+  shows "list_all4 Q xs ys zs ws"
+  using assms
+  by (clarsimp simp add: list_all4_iff split: prod.splits)
+
+lemma list_all4_mono'[mono]: "P \<le> Q \<Longrightarrow> list_all4 P \<le> list_all4 Q"
+  apply (clarsimp intro!: le_funI)
+  apply (induct_tac rule: list_all4_induct)
+    apply assumption
+   apply (auto dest: le_funD)[2]
+  done
+
+lemma list_all4_conv_all_nth:
+  "list_all4 P xs ys zs ws \<longleftrightarrow> length xs = length ys \<and> length ys = length zs \<and> length zs = length ws \<and>
+    (\<forall>i<length xs. P (xs ! i) (ys ! i) (zs ! i) (ws ! i))"
+  by (force simp add: list_all4_iff set_zip)
+
+lemma list_all4_same:
+  "list_all4 P xs xs xs xs = (\<forall>x\<in>set xs. P x x x x)"
+  by (induct xs; simp)
+
+lemma list_all4_split_conj:
+  shows "list_all4 (\<lambda> x y z w. P x y z w \<and> Q x y z w) xs ys zs ws \<longleftrightarrow> list_all4 P xs ys zs ws \<and> list_all4 Q xs ys zs ws"
+  apply (rule iffI)
+   apply (induct rule: list_all4_induct, simp+)
+  apply (clarsimp, induct rule: list_all4_induct, simp+)
+  done
+
+lemma list_all4_split_all:
+  shows "list_all4 (\<lambda> x y z w. \<forall>a. P x y z w a) xs ys zs ws \<longleftrightarrow> (\<forall>a. list_all4 (\<lambda>x y z w. P x y z w a) xs ys zs ws)"
+  apply (rule iffI)
+   apply (induct rule: list_all4_induct, simp+)
+  apply (induct xs arbitrary: ys zs ws; case_tac ys; case_tac zs; case_tac ws; clarsimp)
+  done
+
+lemma list_all4_impD:
+  assumes
+    "list_all4 (\<lambda>x y z w. P x y z w \<longrightarrow> Q x y z w) xs ys zs ws"
+    "list_all4 P xs ys zs ws"
+  shows
+    "list_all4 Q xs ys zs ws"
+  using assms
+  by (induct rule: list_all4_induct, simp+)
 
 section {* Misc lemmas *}
 
