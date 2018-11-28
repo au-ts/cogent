@@ -461,7 +461,8 @@ kindingRaw k t = do
   case M.lookup (k', t', gk) kmap of
     Nothing -> do mod <- use nameMod
                   let prop = mkApp (mkId "kinding") [mkList (map deepKind k'), deepType mod ta t, deepKind gk]
-                  tac <- tacSequence [return [rule_tac (kindRule t) [("k", deepKindStr gk)]], kind k t gk]
+                  tac <- tacSequence
+                    [return [simp_add ["kinding_def", "kinding_all_def", "kinding_variant_def", "kinding_record_def"]]]
                   proofId <- newSubproofId
                   subproofKinding %= M.insert (k', t', gk) (proofId, (False, prop), tac)
                   return proofId
@@ -476,7 +477,8 @@ kinding' ks t k = do
   case M.lookup (ks', t', k) kmap of
     Nothing -> do mod <- use nameMod
                   let prop = mkApp (mkId "kinding") [mkList (map deepKind ks'), deepType mod ta t, deepKind k]
-                  tac <- tacSequence [return [rule (kindRule t)], kind ks t k]
+                  tac <- tacSequence
+                    [return [simp_add ["kinding_def", "kinding_all_def", "kinding_variant_def", "kinding_record_def"]]]
                   proofId <- newSubproofId
                   subproofKinding %= M.insert (ks', t', k) (proofId, (False, prop), tac)
                   thm <- thmTypeAbbrev $ typingSubproofPrefix ++ show proofId
@@ -484,28 +486,26 @@ kinding' ks t k = do
     Just (proofId, _, _) -> do thm <- thmTypeAbbrev $ typingSubproofPrefix ++ show proofId
                                return [RuleTac thm]
 
-kind :: Vec t Kind -> Type t -> Kind -> State TypingSubproofs [Tactic]
-kind ks (TVar v)         k = return [simp, simp]
-kind ks (TVarBang v)     k = return [simp, simp]
-kind ks (TUnit)          k = return []
-kind ks (TProduct t1 t2) k = tacSequence [kinding' ks t1 k, kinding' ks t2 k]
-kind ks (TSum ts)        k = tacSequence [return [simp, simp], kindingAll ks (map (fst . snd) ts) k]
-kind ks (TFun ti to)     k = tacSequence [kinding ks ti, kinding ks to]
-kind ks (TRecord ts s)   k = tacSequence [kindingRecord ks (map snd ts) k, return [simp]]
-kind ks (TPrim i)        k = return []
-kind ks (TString)        k = return []
-kind ks (TCon n ts s)    k = tacSequence [kindingAll ks ts k, return [simp]]
+-- kind :: Vec t Kind -> Type t -> Kind -> State TypingSubproofs [Tactic]
+-- kind ks (TVar v)         k = return [simp, simp]
+-- kind ks (TVarBang v)     k = return [simp, simp]
+-- kind ks (TUnit)          k = return []
+-- kind ks (TProduct t1 t2) k = tacSequence [kinding' ks t1 k, kinding' ks t2 k]
+-- kind ks (TSum ts)        k = tacSequence [kindingVariant ks (map snd ts) k, return [simp, simp], kindingAll ks (map (fst . snd) ts) k]
+-- kind ks (TFun ti to)     k = tacSequence [kinding ks ti, kinding ks to]
+-- kind ks (TRecord ts s)   k = tacSequence [kindingRecord ks (map snd ts) k, return [simp]]
+-- kind ks (TPrim i)        k = return []
+-- kind ks (TString)        k = return []
+-- kind ks (TCon n ts s)    k = tacSequence [kindingAll ks ts k, return [simp]]
 
 kindingAll :: Vec t Kind -> [Type t] -> Kind -> State TypingSubproofs [Tactic]
-kindingAll ks []     k = return [rule "kind_all_empty"]
-kindingAll ks (t:ts) k = tacSequence [return [rule "kind_all_cons"], kinding' ks t k, kindingAll ks ts k]
+kindingAll _ _ k = return [simp_add ["kinding_def", "kinding_all_def", "kinding_variant_def", "kinding_record_def"]]
 
 kindingRecord :: Vec t Kind -> [(Type t, Bool)] -> Kind -> State TypingSubproofs [Tactic]
-kindingRecord ks ((t, False):ts) k
-  = tacSequence [return [rule "kind_record_cons1"], kinding' ks t k, kindingRecord ks ts k]
-kindingRecord ks ((t, True) :ts) k
-  = tacSequence [return [rule "kind_record_cons2"], kinding ks t, kindingRecord ks ts k]
-kindingRecord _ [] _ = return [rule "kind_record_empty"]
+kindingRecord _ _ k = return [simp_add ["kinding_def", "kinding_all_def", "kinding_variant_def", "kinding_record_def"]]
+
+kindingVariant :: Vec t Kind -> [(Type t, Bool)] -> Kind -> State TypingSubproofs [Tactic]
+kindingVariant _ _ k = return [simp_add ["kinding_def", "kinding_all_def", "kinding_variant_def", "kinding_record_def"]]
 
 allKindCorrect :: Vec t' Kind -> [Type t'] -> Vec t Kind -> State TypingSubproofs [Tactic]
 allKindCorrect k ts ks = do
