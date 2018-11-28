@@ -79,6 +79,7 @@ import Data.Generics
 import Data.Loc
 import Data.List as L
 import Data.Map as M
+import Data.Maybe (fromJust, isJust, maybe)
 import Data.Semigroup.Applicative
 import qualified Data.Sequence as Seq
 import Data.Set as S
@@ -312,7 +313,7 @@ tcFnCall e = do
          SF.LocExpr _ (SF.TypeApp f ts _) -> return f  -- TODO: make use of Inline to perform glue code inlining / zilinc
          SF.LocExpr _ (SF.Var f) -> return f
          otherwise -> throwError $ "Error: Not a function in $exp antiquote"
-  f `seq` tcExp e
+  f `seq` tcExp e Nothing
 
 genFn :: CC.TypedExpr 'Zero 'Zero VarName -> Gl CS.Exp
 genFn = genAnti $ \case
@@ -351,15 +352,15 @@ traverseDispatch = traverseAnti transDispatch
 parseExp :: String -> SrcLoc -> GlFile SF.LocExpr
 parseExp s loc = parseAnti s (PS.expr 1) loc 4
 
-tcExp :: SF.LocExpr -> GlDefn t TC.TypedExpr
-tcExp e = do
+tcExp :: SF.LocExpr -> Maybe TC.TCType -> GlDefn t TC.TypedExpr
+tcExp e mt = do
   base <- lift . lift $ use (tcState.consts)
   let ctx = Ctx.addScope (fmap (\(t,_,p) -> (t, p, Seq.singleton p)) base) Ctx.empty
   vs <- Vec.cvtToList <$> view kenv
   flip tcAnti e $ \e ->
     do let ?loc = SF.posOfE e
        TC.errCtx %= (TC.AntiquotedExpr e :)
-       ((c,e'),flx,os) <- TC.runCG ctx (L.map fst vs) (TC.cg e =<< TC.freshTVar)
+       ((c,e'),flx,os) <- TC.runCG ctx (L.map fst vs) (TC.cg e =<< maybe TC.freshTVar return mt)
        (logs,subst,assign,_) <- TC.runSolver (TC.solve c) vs flx os
        TC.exitOnErr $ mapM_ TC.logTc logs
        TC.postE $ TC.applyE subst $ TC.assignE assign e'
@@ -380,7 +381,7 @@ genExp = genAnti $ \e -> do (v,vdecl,vstm,_) <- CG.genExpr Nothing e
                             return $ CS.StmExpr (bis' ++ [CS.BlockStm (CS.Exp (Just v') noLoc)]) noLoc
 
 transExp :: CS.Exp -> GlMono t CS.Exp
-transExp (CS.AntiExp s loc) = (lift . lift) (parseExp s loc) >>= lift . tcExp >>=
+transExp (CS.AntiExp s loc) = (lift . lift) (parseExp s loc) >>= lift . flip tcExp Nothing >>=
                               lift . desugarExp >>= lift . coreTcExp >>= monoExp >>= lift . lift . lift . genExp
 transExp e = return e
 
@@ -391,16 +392,16 @@ traverseExp = traverseAnti transExp
 transFuncId :: CS.Definition -> GlMono t CS.Definition
 transFuncId (CS.FuncDef (CS.Func dcsp (CS.AntiId fn loc2) decl ps body loc1) loc0) =
   view (inst._2) >>= \idx -> do
-    fnName <- lift . lift $ genFuncId fn loc2
+    (fnName, _) <- lift . lift $ genFuncId fn loc2
     return $ CS.FuncDef (CS.Func dcsp (CS.Id (toCName $ MN.monoName fnName idx) loc2) decl ps body loc1) loc0
 transFuncId d = return d
 
-genFuncId :: String -> SrcLoc -> GlFile FunName
+genFuncId :: String -> SrcLoc -> GlFile (FunName, [Maybe SF.LocType])
 genFuncId fn loc = do
   surfaceFn <- parseFnCall fn loc
   case surfaceFn of
-    SF.LocExpr _ (SF.TypeApp f _ _) -> return f
-    SF.LocExpr _ (SF.Var f)         -> return f
+    SF.LocExpr _ (SF.TypeApp f ts _) -> return (f, ts)
+    SF.LocExpr _ (SF.Var f)          -> return (f, [])
     _ -> throwError $ "Error: `" ++ fn ++ 
                       "' is not a valid function Id (with optional type arguments) in a $id antiquote"
 
@@ -488,7 +489,7 @@ traverseOneFunc fn d loc = do
   -- can take type arguments), because any process beyond parsing requires us knowing what function it
   -- is (in a monad at least 'GlDefn'), but this is indeed what we are trying to work out. The loop-breaker
   -- is to manually extract the function name after parsing.
-  fnName <- genFuncId fn loc
+  (fnName, targs) <- genFuncId fn loc
   -- After getting the function name, we can construct a 'GlDefn' monad environment.
   lift $ cgState.localOracle .= 0
   monos <- lift $ use $ mnState.funMono  -- acquire all valid instantiations used in this unit.
@@ -510,12 +511,37 @@ traverseOneFunc fn d loc = do
           -- Here we need to match the type argument given in the @.ac@ definition and the ones in the
           -- original Cogent definition, in order to decide which instantiations should be generated.
           case Vec.fromList ts of
+            -- This case is __solely__ for backward compatibility.
+            ExI (Flip ts') | L.null targs -> flip runReaderT (DefnState ts' [TC.InAntiquotedCDefn fn]) $ do
+              let instantiations = if L.null ts then [([], Nothing)] 
+                                   else L.map (second Just) (M.toList mp)
+              traversals instantiations d
             ExI (Flip ts') -> flip runReaderT (DefnState ts' [TC.InAntiquotedCDefn fn]) $ do
               -- NOTE: if there are type variables in the type application, the type vars must be in-scope,
               -- i.e. they must be the same ones as in the Cogent definition.
-              CC.TE _ (CC.Fun _ targs _) <- (lift . flip parseFnCall loc >=> tcFnCall >=> desugarExp >=> coreTcExp) fn
-              -- Matching @targs@ with @ts@. More specifically: match them in @mp@, and trim those in @mp@ that
-              --     don't match up @targs@.
+
+              -- We now try to get the type of the function because the surface Tc requires a top-level
+              -- type signature to infer the types. 
+              ft <- (lift . lift) (use $ tcState.tfuncs) >>= return . M.lookup fnName >>= \case
+                Nothing -> __impossible "traverseOneFunc: this function is not known to the surface Tc"
+                Just (SF.PT _ ft) -> return ft
+              
+              -- Substitute in the type arguments the user gives, and leave the rest intact.
+              targs' <- mapM (mapM (return . TC.toTCType <=< tcType)) targs
+              let subst = L.map (second fromJust) $ L.filter (isJust . snd) $ L.zip (L.map fst ts) targs'
+                  ft' = TC.substType subst ft
+
+              -- Then we can continue the normal compilation process.
+              -- NOTE: This is backward incompatible. For implicitly applied type arguments, if the
+              -- typechecker cannot infer when you write the same in a Cogent program, it won't infer
+              -- in a @.ac@ file either. Unlike before, where we never typecheck them.
+              CC.TE _ (CC.Fun _ coreTargs _) <- (lift . flip parseFnCall loc >=>
+                                                 flip tcExp (Just ft') >=>
+                                                 desugarExp >=>
+                                                 coreTcExp) fn
+              -- ^^^ TODO: the @Nothing@ should be the type of the function! / zilinc
+              -- Matching @coreTargs@ with @ts@. More specifically: match them in @mp@, and trim those in @mp@ that
+              --     don't match up @coreTargs@.
               -- E.g. if @ts = [U8,a]@ and in @mp@ we find @[U8,U32]@ and @[U8,Bool]@, we instantiate this
               --      function definition to these two types.
               --      if @ts = [U8,a]@ and @mp = ([Bool,U8],[U32,U8])@ then there's nothing we generate.
@@ -526,7 +552,8 @@ traverseOneFunc fn d loc = do
                   -- We for now ignore 'TVarBang's, and treat them as not matching anything.
                   match (x:xs) (y:ys) = (unsafeCoerce x == y || CC.isTVar x) && match xs ys
               let instantiations = if L.null ts then [([], Nothing)] 
-                                   else L.filter (\(ms,_) -> match targs ms) $ L.map (second Just) (M.toList mp)
+                                   else L.filter (\(ms,_) -> match coreTargs ms)
+                                        $ L.map (second Just) (M.toList mp)
               traversals instantiations d
 
 

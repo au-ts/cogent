@@ -7,9 +7,11 @@
 -- NOTE: `f` and `g` are here solely to let the compiler know that
 -- these two instantiations are going to be used. / zilinc
 f : U8 -> U32
-f x = toU32 x
+f x = toU32 x + const (1 : U32, ())
 
 g : U16 -> U32
-g x = toU32 x
+g x = toU32 x + const (1 : U32, 2) + const (1 : U32, 2 : U16)
 
 toU32 : all a. a -> U32  -- abstract
+
+const : all (a, b). (a, b) -> a
