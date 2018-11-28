@@ -105,6 +105,15 @@ lemma assoc_comp_snd_tuple_lambda: "h \<circ> snd \<circ> (\<lambda>(a,b). (f a 
   by force
 
 
+lemma prod_split_asmE: 
+  "\<lbrakk> (a,b) = x; P (fst x) (snd x) \<rbrakk> \<Longrightarrow> P a b"
+  by (clarsimp split: prod.split)
+
+lemma prod_eq: 
+  "\<lbrakk> a = fst x ; b = snd x \<rbrakk> \<Longrightarrow> x = (a,b)"
+  by simp
+
+
 section {* list related lemmas *}
 
 lemma map2_mapL: "List.map2 h (map f xs) xs = map (\<lambda>x. h (f x) x) xs"

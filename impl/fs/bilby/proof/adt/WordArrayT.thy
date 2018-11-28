@@ -32,19 +32,23 @@ lemma length_mapAccum_helper:
                                   in  (ys@[elem],acc)) (xs) (ys,a)
            )
          = length ys + length xs"
-  sorry (*
   by (induct xs arbitrary: a ys, auto simp: Let_def slice_def  split: prod.split)
-*)
 
 lemma length_mapAccum_slice_helper:
   "length (let (xs', _) = fold (\<lambda>x (ys,a'). let  (elem, acc) = loopbody x a'
                                   in  (ys@[elem],acc)) (slice frm to xs) (ys,a)
            in xs') = length ys + length (slice frm to xs)"
-  apply (simp only: Let_def  prod.case_eq_if)
-   using length_mapAccum_helper[unfolded fun_app_def prod.case_eq_if Let_def]
-  sorry (*
-   by fastforce
-*)
+proof -
+  have f1: "(\<lambda>x (ys, a'). (ys @ [TypBucket.fst (loopbody x a')], TypBucket.snd (loopbody x a'))) =
+            (\<lambda>x prod. (TypBucket.fst prod @ [TypBucket.fst (loopbody x (TypBucket.snd prod))], TypBucket.snd (loopbody x (TypBucket.snd prod))))"
+    using split_beta by blast
+  show ?thesis
+    apply simp
+    apply (simp only: Let_def prod.case_eq_if)
+    using length_mapAccum_helper[unfolded fun_app_def prod.case_eq_if Let_def]
+    apply (force simp add: f1)
+    done
+qed
 
 lemma slice_length:
  "length (slice frm to xs) = min (to - frm) (length xs - frm)"
@@ -56,17 +60,14 @@ lemma length_mapAccum_slice_helper':
            in (xs',acc))  @ drop (max frm to) xs) = length ys + length xs"
   unfolding Let_def  prod.case_eq_if
   using length_mapAccum_slice_helper[unfolded prod.case_eq_if Let_def, where xs=xs and ys=ys and frm=frm and to=to and loopbody=loopbody and a=a]
-  sorry (*
   by (simp add: slice_length)
-*)
 
 lemma length_mapAccum:
   "length (fst (mapAccumObs frm to fn xs a obs)) = length xs"
   unfolding mapAccumObs_def
   using length_mapAccum_slice_helper'[where frm=frm and to=to and xs=xs and a=a and ys="[]"]
-  sorry (*
-  by (auto simp:Let_def prod.case_eq_if)
-*)
+  by (auto simp: Let_def prod.case_eq_if)
+
 
 lemma length_mapAccumI:
   " P (length xs) \<Longrightarrow> P (length (fst (mapAccumObs frm to fn xs a obs)))"

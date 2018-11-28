@@ -9,7 +9,7 @@
  *)
 
 theory TypBucket
-imports Main
+  imports Main
       "../impl/BilbyFs_Shallow_Desugar_Tuples"
       "../impl/BilbyFs_ShallowConsts_Desugar_Tuples"
 begin
@@ -20,21 +20,40 @@ text {* Override Cogent defined constructors so that
 abbreviation Some :: "'a \<Rightarrow> 'a option" where "Some \<equiv> option.Some"
 abbreviation None :: "'a option" where "None \<equiv> option.None"
 
+abbreviation fst :: "'a \<times> 'b \<Rightarrow> 'a" where "fst \<equiv> Product_Type.fst"
+abbreviation snd :: "'a \<times> 'b \<Rightarrow> 'b" where "snd \<equiv> Product_Type.snd"
+
+(*
 (* Should this be in a locale so it can be instantiated? *)
 axiomatization
   select :: "('h \<times> 'a set) \<Rightarrow> ('h \<times> 'a)"
 where
   select_in: "S \<noteq> {} \<Longrightarrow> snd (select (h,S)) \<in> S"
+*)
+
+fun select :: "'h \<times> 'a set \<Rightarrow> 'h \<times> 'a" where
+  "select (h, S) = (h, (SOME x. x \<in> S))"
+
+lemma select_in:
+  "S \<noteq> {} \<Longrightarrow> (snd (select (h, S))) \<in> S"
+  by (simp add: some_in_eq)
 
 lemma select_in':
   "select (h,S) = (x,y) \<Longrightarrow> S \<noteq> {} \<Longrightarrow> y \<in> S"
-  sorry (*
   by (metis select_in snd_conv)
-*)
 
 lemma select_in_val:
  "\<lbrakk> \<forall>v\<in>S. P v; S \<noteq> {} \<rbrakk>  \<Longrightarrow>  P(snd (select (h, S)))"
  using select_in by metis
+
+lemma prod_split_asmE: 
+  "\<lbrakk> (a,b) = x; P (fst x) (snd x) \<rbrakk> \<Longrightarrow> P a b"
+  by (clarsimp split: prod.split)
+
+lemma prod_eq: 
+  "\<lbrakk> a = fst x ; b = snd x \<rbrakk> \<Longrightarrow> x = (a,b)"
+  by simp
+
 
 consts malloc :: "SysState \<Rightarrow> (SysState \<times> 'a Option\<^sub>T)"
        free :: "'a \<Rightarrow> SysState \<Rightarrow> SysState"
@@ -59,17 +78,6 @@ type_synonym Addr = U32
 
 definition "DOT = 0x2E"
 definition "NUL = 0x00"
-
-lemma prod_split_asmE: 
-  "\<lbrakk> (a,b) = x; P (fst x) (snd x) \<rbrakk> \<Longrightarrow> P a b"
-  sorry (*
-  by (clarsimp split:prod.split)
-*)
-
-lemma prod_eq: 
-  "\<lbrakk> a = fst x ; b = snd x \<rbrakk> \<Longrightarrow> x = (a,b)"
-  sorry (*  
-by simp *)
 
 lemmas sanitizers = 
   Let\<^sub>d\<^sub>s_def
