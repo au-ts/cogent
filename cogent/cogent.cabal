@@ -139,7 +139,6 @@ library
               , pandoc >= 1.19.2.4
               , pandoc-types >= 1.16
               , parsec >= 3.1
-              , pointless-haskell
               , pretty-show-ansi-wl >= 1.5
               , process >= 1.2.0.0
               , random >= 1.1

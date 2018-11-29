@@ -38,7 +38,6 @@ import Data.Monoid ((<>))
 #endif
 import qualified Data.List as L
 import Data.Version (showVersion)
-import Generics.Pointless.MonadCombinators
 import System.Environment
 import System.FilePath.Posix
 
@@ -234,6 +233,9 @@ fmapFold f = foldMap (fst . f) &&& fmap (snd . f)
 
 fmapFoldM :: (Monoid m, Traversable t, Monad f) => (a -> f (m, b)) -> t a -> f (m, t b)
 fmapFoldM f = foldMapM ((fst <$>) . f) /|\ traverse ((snd <$>) . f)
+  where
+   (/|\) :: Monad m => (a -> m b) -> (a -> m c) -> a -> m (b,c)
+   (f /|\ g) a = (,) <$> f a <*> g a 
 
 foldMapM :: (Monoid m, Foldable t, Monad f) => (a -> f m) -> t a -> f m
 foldMapM f x = foldrM f' mempty x
