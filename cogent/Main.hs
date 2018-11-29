@@ -101,7 +101,6 @@ import System.Exit hiding (exitSuccess, exitFailure)
 import System.FilePath hiding ((</>))
 import System.IO
 import System.Process (readProcessWithExitCode)
-import Text.PrettyPrint as PP (render)
 import Text.PrettyPrint.ANSI.Leijen as LJ (displayIO, Doc, hPutDoc, plain)
 #if MIN_VERSION_mainland_pretty(0,6,0)
 import Text.PrettyPrint.Mainland as M (hPutDoc, line, string, (</>))
@@ -764,7 +763,7 @@ parseArgs args = case getOpt' Permute options args of
         putProgressLn "Generating Hs file..."
         let hsf = mkHsFileName source __cogent_suffix_of_ffi
         writeFileMsg hsf
-        output hsf $ flip hPutStrLn (PP.render hs)
+        output hsf $ flip hPutStrLn hs
       when (CodeGen `elem` cmds) $ do
         putProgressLn "Generating C code..."
         let hf = mkFileName source Nothing __cogent_ext_of_h

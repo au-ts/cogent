@@ -117,7 +117,6 @@ import Language.Haskell.Exts.Syntax as HS
 -- import Language.Haskell.HS.Ppr    as PP
 -- import Language.Haskell.HS.PprLib as PP
 import Prelude as P
-import Text.PrettyPrint.ANSI.Leijen (pretty)
 
 -- import Debug.Trace
 

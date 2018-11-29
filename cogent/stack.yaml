@@ -1,4 +1,6 @@
-flags: {}
+flags:
+ language-c-quote:
+   full-haskell-antiquotes: false
 extra-package-dbs: []
 packages:
 - '.'
@@ -8,10 +10,16 @@ extra-deps:
 - happy-1.19.9
 - flippers-1.0.1
 - hscurses-1.4.2.0
+- haskell-exp-parser-0.1.1
 - pointless-haskell-0.0.9
 - sbv-7.8
 - GHood-0.0.7
 - crackNum-2.2
 - FloatingHex-0.4
+- pretty-show-ansi-wl-1.9.2
 resolver: lts-12.20
 allow-newer: true
+package-indices:
+  - name: HackageOrig
+    download-prefix: https://hackage.haskell.org/package/
+    http: https://hackage.haskell.org/01-index.tar.gz

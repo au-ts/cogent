@@ -11,7 +11,6 @@
 --
 
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE PackageImports #-}
 
 module Cogent.CodeGen where
 
@@ -30,9 +29,8 @@ import Data.Vec
 import Control.Lens ((^.))
 import Data.Map as M
 import Data.Set as S
-import qualified "language-c-quote" Language.C as C (Definition)
--- import System.FilePath ((-<.>))
-import Text.PrettyPrint as PP (Doc)
+import qualified Language.C as C (Definition)
+import qualified Text.PrettyPrint as PP (Doc, render)
 import Text.PrettyPrint.ANSI.Leijen as Leijen
 
 cgen :: FilePath
@@ -42,12 +40,12 @@ cgen :: FilePath
      -> [Definition TypedExpr VarName]
      -> [(Type 'Zero, String)]
      -> String
-     -> ([C.Definition], [C.Definition], [(TypeName, S.Set [CId])], [TableCTypes], Leijen.Doc, PP.Doc, GenState)
+     -> ([C.Definition], [C.Definition], [(TypeName, S.Set [CId])], [TableCTypes], Leijen.Doc, String, GenState)
 cgen hName cNames hscName hsName defs ctygen log =
   let (enums,tydefns,fndecls,disps,tydefs,fndefns,absts,corres,fclsts,st) = compile defs ctygen
       (h,c) = render hName (enums++tydefns++fndecls++disps++tydefs) fndefns log
       hsc = ffiHsc hscName cNames tydefns enums absts fclsts log
-      hs  = ffiHs (st^.ffiFuncs) hsName hscName fndecls log
+      hs  = PP.render (ffiHs (st^.ffiFuncs) hsName hscName fndecls log)
    in (h,c,absts,corres,hsc,hs,st)
 
 

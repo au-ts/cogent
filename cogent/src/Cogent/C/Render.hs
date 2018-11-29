@@ -202,7 +202,7 @@ cDeclaration (CVarDecl ty v ext Nothing) = [cdecl| $ty:(cType ty) $id:(cId v); |
 cDeclaration (CStructDecl tid flds) = [cdecl| struct $id:(cId tid) { $sdecls:(cFieldGroups flds) }; |]
 cDeclaration (CTypeDecl ty vs) = let (dcsp, decl) = splitCType ty
                                  in C.TypedefGroup dcsp [] (map (\v -> C.Typedef (cId v) decl [] noLoc) vs) noLoc
-cDeclaration (CExtFnDecl rt fn params fnsp) = [cdecl| $ty:(cFnSpecOnType fnsp $ cType rt) $id:(cId fn) ($params:(map cParam' params)); |]
+cDeclaration (CExtFnDecl rt fn params fnsp) = [cdecl| $ty:(cFnSpecOnType fnsp (cType rt)) $id:(cId fn) ($params:(map cParam' params)); |]
 cDeclaration (CEnumDecl mtid eis) =
   C.InitGroup (mkDeclSpec $ C.Tenum (fmap cId mtid) (map (\(ei, me) -> C.CEnum (cId ei) (fmap cExpr me) noLoc) eis) [] noLoc) [] [] noLoc
 
@@ -238,13 +238,13 @@ cBlockItem (CBIDecl decl) = [citem| $decl:(cDeclaration decl); |]
 
 cExtDecl :: CExtDecl -> C.Definition
 cExtDecl (CFnDefn (ty, fn) params bis fnsp) =
-  [cedecl| $ty:(cFnSpecOnType fnsp $ cType ty) $id:(cId fn) ($params:(map cParam params)) { $items:(map cBlockItem bis) }|]
+  [cedecl| $ty:(cFnSpecOnType fnsp (cType ty)) $id:(cId fn) ($params:(map cParam params)) { $items:(map cBlockItem bis) }|]
 cExtDecl (CDecl decl) = [cedecl| $decl:(cDeclaration decl); |]
 cExtDecl (CMacro s) = C.EscDef s noLoc
 cExtDecl (CFnMacro fn as body) = C.EscDef (string1 ++ "\\\n" ++ string2) noLoc
   where macro1, macro2 :: Doc
         macro1 = string "#define" <+> string fn <> parens (commasep $ L.map string as)
-        macro2 = ppr [citems| $items:(L.map cBlockItem body) |]
+        macro2 = let body' = L.map cBlockItem body in ppr [citems| $items:(body') |]
         string1, string2 :: String
         string1 = L.filter (/= '\n') $ pretty 100 macro1
         string2 = concat $ map (\c -> if c == '\n' then "\\\n" else [c]) $ pretty 100 macro2
