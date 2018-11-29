@@ -37,7 +37,6 @@ import Cogent.GetOpt
 import Cogent.Glue                     as GL (defaultExts, defaultTypnames,
                                               GlState, glue, GlueMode(..), mkGlState,
                                               parseFile)
-import Cogent.Hangman                        (hangman)
 import Cogent.Haskell.Shallow          as HS
 import Cogent.Inference                as IN (tc, tc_, tcConsts, retype)
 import Cogent.Isabelle.ACInstall       as AC (acInstallDefault)
@@ -514,7 +513,6 @@ flags =
 
 parseArgs :: [String] -> IO ()
 parseArgs args = case getOpt' Permute options args of
-    (cmds,xs,us,[]) | "hangman" `elem` xs -> hangman
     (cmds,xs,us,[]) -> case addCommands cmds of
                          Left  err -> exitErr (err ++ "\n")
                          Right (_,cmds') -> withCommands (cmds',xs,us,args)  -- XXX | noCommandError (cmds',xs,us,args)

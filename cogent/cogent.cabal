@@ -56,7 +56,6 @@ library
               , Cogent.DocGent
               , Cogent.GetOpt
               , Cogent.Glue
-              , Cogent.Hangman
               , Cogent.Haskell.FFIGen
               , Cogent.Haskell.HscGen
               , Cogent.Haskell.HscSyntax
@@ -131,7 +130,6 @@ library
               , graph-wrapper >= 0.2
               , groups >= 0.4.0.0
               , haskell-src-exts >= 1.19
-              , hscurses >= 1.4
               , isa-parser >= 0.1.0.0
               , language-c-quote >= 0.10.2
               , lens >= 4.6
