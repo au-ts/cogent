@@ -83,10 +83,9 @@ import Data.Maybe (fromJust, isJust, maybe)
 import Data.Semigroup.Applicative
 import qualified Data.Sequence as Seq
 import Data.Set as S
-import "language-c" Language.C               as LC
-import "language-c-quote" Language.C.Parser  as CP hiding (parseExp, parseType)
+import Language.C.Parser  as CP hiding (parseExp, parseType)
 -- import Language.C.Parser.Tokens as CT
-import "language-c-quote" Language.C.Syntax  as CS
+import Language.C.Syntax  as CS
 import System.FilePath (replaceBaseName, replaceExtension, takeBaseName, takeExtension, (<.>))
 import Text.Parsec.Pos (newPos, SourcePos)
 import Text.Parsec.Prim as PP hiding (State)
@@ -121,7 +120,7 @@ getTypnames = liftA lines . readFile
 
 
 -- Another parser
-
+{-
 parseFile' :: FilePath -> ExceptT String IO CTranslUnit
 parseFile' filename = do
   instream <- lift $ readInputStream filename
@@ -129,7 +128,7 @@ parseFile' filename = do
   case parseC instream pos of
     Left err -> throwE $ "Error: Failed to parse C: " ++ show err
     Right u  -> return u
-
+-}
 
 -- Desugaring, Monomorphising, and CG
 

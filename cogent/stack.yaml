@@ -6,7 +6,6 @@ packages:
 extra-deps:
 - alex-3.2.3
 - happy-1.19.9
-- disassembler-0.2.0.1
 - flippers-1.0.1
 - hscurses-1.4.2.0
 - pointless-haskell-0.0.9
@@ -14,5 +13,5 @@ extra-deps:
 - GHood-0.0.7
 - crackNum-2.2
 - FloatingHex-0.4
-resolver: lts-12.12
+resolver: lts-12.20
 allow-newer: true
