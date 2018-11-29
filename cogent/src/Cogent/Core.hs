@@ -52,7 +52,6 @@ import qualified Data.Vec as Vec
 
 import Control.Arrow hiding ((<+>))
 -- import Data.Data hiding (Refl)
-import Data.Function.Flippers (flip3)
 #if __GLASGOW_HASKELL__ < 709
 import Data.Traversable(traverse)
 #endif

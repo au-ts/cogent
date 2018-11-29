@@ -35,7 +35,7 @@ import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Core
 import Cogent.Inference
-import Cogent.Util (Warning, first3, second3, third3)
+import Cogent.Util (Warning, first3, second3, third3, flip3)
 import Data.Nat (Nat(Zero, Suc), SNat(SZero, SSuc))
 import Data.Vec as Vec hiding (head)
 
@@ -43,7 +43,6 @@ import Control.Applicative
 import Control.Arrow (first, second, (***))
 import Control.Monad.Reader     hiding (mapM)
 import Control.Monad.RWS.Strict hiding (Product, Sum, mapM)
-import Data.Function.Flippers (flip3)
 import Data.List as L (partition)
 import Data.Map as M
 import Data.Maybe (catMaybes, fromJust, fromMaybe)

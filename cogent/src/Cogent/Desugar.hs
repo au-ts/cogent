@@ -53,7 +53,6 @@ import Control.Monad.RWS.Strict hiding (forM)
 import Data.Bits
 import Data.Char (ord)
 -- import Data.Foldable
-import Data.Function.Flippers (flip3)
 import Data.List as L (elemIndex)
 import Data.Map as M hiding (filter, map, (\\))
 import Data.Maybe

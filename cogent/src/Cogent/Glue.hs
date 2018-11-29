@@ -73,7 +73,6 @@ import Control.Monad.Trans.Maybe
 import qualified Data.ByteString.Char8 as B
 -- import Data.Either (lefts)
 import Data.Data
-import Data.Function.Flippers
 import Data.Generics
 -- import qualified Data.IntMap as IM
 import Data.Loc

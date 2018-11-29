@@ -37,7 +37,7 @@ import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Core
 import Cogent.Inference hiding (kindcheck, lookupKind, withBinding)
-import Cogent.Util (Flip(..), secondM)
+import Cogent.Util (Flip(..), secondM, flip3)
 import Data.Ex
 import Data.Nat
 import Data.PropEq
@@ -52,7 +52,6 @@ import Control.Monad.State
 import Control.Lens hiding (Context)
 import Data.Biapplicative ((<<*>>))
 -- import qualified Data.Bifunctor as B
-import Data.Function.Flippers
 import Data.List as L
 import Data.Map as M
 import Data.Maybe (catMaybes, fromJust)
@@ -566,7 +565,8 @@ betaR (TE tau (Variable (v,a)))  idx n arg ts
       Left v' -> pure $ TE (substitute ts tau) $ Variable (v',a)
       Right e -> pure e
 betaR (TE tau (Fun fn tys note)) idx n arg ts = pure . TE (substitute ts tau) $ Fun fn (L.map (substitute ts) tys) note
-betaR (TE tau (Op opr es))       idx n arg ts = TE (substitute ts tau) <$> (Op opr <$> mapM (flip5 betaR ts arg n idx) es)
+betaR (TE tau (Op opr es))       idx n arg ts = TE (substitute ts tau) <$> (Op opr <$> mapM (\x -> betaR x idx n arg ts) es)
+
 betaR (TE tau (App e1 e2))       idx n arg ts = TE (substitute ts tau) <$> (App <$> betaR e1 idx n arg ts <*> betaR e2 idx n arg ts)
 betaR (TE tau (Con cn e t))      idx n arg ts = TE (substitute ts tau) <$> (Con cn <$> betaR e idx n arg ts <*> pure (substitute ts t))
 betaR (TE tau (Unit))            idx n arg ts = pure . TE (substitute ts tau) $ Unit
@@ -586,7 +586,7 @@ betaR e@(TE tau (LetBang vs a e1 e2)) idx n@(SSuc n0) arg ts
                    return $ TE (substitute ts tau) $ (Let vn arg' body')
   | Refl <- sym (addSucLeft' n idx) = TE (substitute ts tau) <$> (LetBang (L.map (first $ flip widenN n0) vs) a <$> betaR e1 idx n arg ts <*> betaR e2 (SSuc idx) n arg ts)
 betaR (TE tau (Tuple e1 e2)) idx n arg ts = TE (substitute ts tau) <$> (Tuple <$> betaR e1 idx n arg ts <*> betaR e2 idx n arg ts)
-betaR (TE tau (Struct fs))   idx n arg ts = TE (substitute ts tau) <$> (Struct <$> mapM (secondM $ flip5 betaR ts arg n idx) fs)
+betaR (TE tau (Struct fs))   idx n arg ts = TE (substitute ts tau) <$> (Struct <$> mapM (secondM (\x -> betaR x idx n arg ts)) fs)
 betaR (TE tau (If e1 e2 e3)) idx n arg ts = TE (substitute ts tau) <$> (If <$> betaR e1 idx n arg ts <*> betaR e2 idx n arg ts <*> betaR e3 idx n arg ts)
 betaR (TE tau (Case e tn (l1,a1,e1) (l2,a2,e2))) idx n arg ts = do
   e'  <- betaR e  idx n arg ts

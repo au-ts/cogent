@@ -49,7 +49,7 @@ import           Cogent.Inference             (kindcheck_)
 import           Cogent.Isabelle.Deep
 import           Cogent.Mono                  (Instance)
 import           Cogent.Normal                (isAtom)
-import           Cogent.Util           (decap, extTup2l, extTup3r, first3, secondM, toCName, whenM)
+import           Cogent.Util           (decap, extTup2l, extTup3r, first3, secondM, toCName, whenM, flip3)
 import qualified Data.DList          as DList
 import           Data.Nat            as Nat
 import           Data.Vec            as Vec hiding (repeat, zipWith)
@@ -63,7 +63,6 @@ import           Data.Char                    (isAlphaNum, toUpper)
 import           Data.Foldable                (mapM_)
 #endif
 import           Data.Functor.Compose
-import           Data.Function.Flippers       (flip3)
 import qualified Data.List           as L
 import           Data.Loc                     (noLoc)  -- FIXME: remove
 import qualified Data.Map            as M

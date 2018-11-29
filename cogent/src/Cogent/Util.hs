@@ -321,3 +321,6 @@ instance Show Bound where
 
 theOtherB GLB = LUB
 theOtherB LUB = GLB
+
+flip3 :: (a -> b -> c -> d) -> c -> b -> a -> d
+flip3 f c b a = f a b c

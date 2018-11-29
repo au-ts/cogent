@@ -8,7 +8,6 @@ packages:
 extra-deps:
 - alex-3.2.3
 - happy-1.19.9
-- flippers-1.0.1
 - haskell-exp-parser-0.1.1
 - pointless-haskell-0.0.9
 - sbv-7.8

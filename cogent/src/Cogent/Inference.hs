@@ -55,7 +55,6 @@ import Control.Monad.State hiding (fmap, forM_)
 import Control.Monad.Trans.Maybe
 -- import Data.Data hiding (Refl)
 import Data.Foldable (forM_)
-import Data.Function.Flippers
 #if __GLASGOW_HASKELL__ < 709
 import Data.Traversable(traverse)
 #endif
