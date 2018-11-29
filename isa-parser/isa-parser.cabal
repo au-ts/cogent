@@ -33,9 +33,9 @@ library
     QuasiQuotes
 
   build-depends:       
+    haskell-exp-parser >= 0.1.1,
     ansi-wl-pprint >= 0.6,
     base >= 4.7,
-    haskell-src-meta >= 0.6,
     mtl >= 2.2.1,
     parsec >= 3.1,
     syb >= 0.4,

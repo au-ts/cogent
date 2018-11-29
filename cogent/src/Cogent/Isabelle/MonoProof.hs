@@ -101,10 +101,11 @@ rename funMono = [isaDecl| definition $alist_name :: "$sig" where "$(mkId alist_
     monoTable :: [(Term, Term, Term)]
     monoTable = concatMap mkInst . map (second toList) . toList $ funMono
 
+    subscript fn num =  fn ++ "_" ++ show num
     mkInst :: (FunName, [(Instance, Int)]) -> [(Term, Term, Term)]
     mkInst (fn,insts) = if null insts
                           then [([isaTerm| $(mkString fn) |], [isaTerm| Nil |], [isaTerm| $(mkString fn) |])]
-                          else map (\(tys,num) -> ([isaTerm| $(mkString fn) |], mkTyList tys, [isaTerm| $(mkString $ fn ++ "_" ++ show num) |])) insts
+                          else map (\(tys,num) -> ([isaTerm| $(mkString fn) |], mkTyList tys, [isaTerm| $(mkString (subscript fn num)) |])) insts
 
     mkTyList :: [CC.Type 'Zero] -> Term
     mkTyList = I.mkList . map (deepType id (empty, 0))

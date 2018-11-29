@@ -12,7 +12,7 @@ module Isabelle.ExprTH where
 
 import Data.Generics.Aliases
 import Data.Data 
-import qualified Language.Haskell.Meta.Parse as M (parseExp)
+import qualified Language.Haskell.ParseExp as M (parseExp)
 import qualified Language.Haskell.TH as TH
 import Language.Haskell.TH.Quote
 import qualified Text.Parsec.Prim as P
