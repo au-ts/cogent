@@ -36,6 +36,12 @@ flag docgent
   manual: True
   default: False
 
+flag haskell-backend
+  description: Enable PBT/Haskell backend
+  manual: True
+  default: False
+
+
 source-repository head
   type:     git
   location: https://github.com/NICTA/cogent/
@@ -65,10 +71,6 @@ library
               , Cogent.Desugar
               , Cogent.GetOpt
               , Cogent.Glue
-              , Cogent.Haskell.FFIGen
-              , Cogent.Haskell.HscGen
-              , Cogent.Haskell.HscSyntax
-              , Cogent.Haskell.Shallow
               , Cogent.Inference
               , Cogent.Isabelle.ACInstall
               , Cogent.Isabelle.AllRefine
@@ -135,7 +137,6 @@ library
               , filepath >= 1.4.0.0
               , graph-wrapper >= 0.2
               , groups >= 0.4.0.0
-              , haskell-src-exts >= 1.19
               , isa-parser >= 0.1.0.0
               , language-c-quote >= 0.10.2
               , lens >= 4.6
@@ -156,6 +157,13 @@ library
               , tuple >= 0.3
               , uniplate >= 1.6
               , vector >= 0.10.0.1
+  if flag(haskell-backend)
+    exposed-modules: Cogent.Haskell.FFIGen
+                   , Cogent.Haskell.HscGen
+                   , Cogent.Haskell.HscSyntax
+                   , Cogent.Haskell.Shallow
+    cpp-options: -DWITH_HASKELL
+    build-depends: haskell-src-exts >= 1.19
   if flag(builtin-arrays)
     build-depends: sbv >= 5.0 && < 7.13
     cpp-options: -DBUILTIN_ARRAYS

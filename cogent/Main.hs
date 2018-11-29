@@ -39,7 +39,9 @@ import Cogent.GetOpt
 import Cogent.Glue                     as GL (defaultExts, defaultTypnames,
                                               GlState, glue, GlueMode(..), mkGlState,
                                               parseFile)
+#ifdef WITH_HASKELL
 import Cogent.Haskell.Shallow          as HS
+#endif
 import Cogent.Inference                as IN (tc, tc_, tcConsts, retype)
 import Cogent.Isabelle.ACInstall       as AC (acInstallDefault)
 import Cogent.Isabelle.AllRefine       as AR (allRefine)
@@ -304,8 +306,13 @@ stgCmd _          = __impossible "stgCmd"
 
 astMsg s       = "display core langauge AST (" ++ stgMsg s ++ ")"
 prettyMsg s    = "pretty-print core language (" ++ stgMsg s ++ ")"
+#ifdef WITH_HASKELL
 hsShallowMsg s tup = "generate Haskell shallow embedding (" ++ stgMsg s ++
                      (if tup then ", with Haskell Tuples" else "") ++ ")"
+#else
+hsShallowMsg s tup = "generate Haskell shallow embedding (" ++ stgMsg s ++
+                     (if tup then ", with Haskell Tuples" else "") ++ ") [disabled in this build]"
+#endif
 deepMsg s      = "generate Isabelle deep embedding (" ++ stgMsg s ++ ")"
 shallowMsg s tup = "generate Isabelle shallow embedding (" ++ stgMsg s ++
                    (if tup then ", with HOL tuples" else "") ++ ")"
@@ -354,8 +361,13 @@ options = [
   , Option []         ["hs-shallow-desugar"]         2 (NoArg (HsShallow STGDesugar))  (hsShallowMsg STGDesugar False)
   , Option []         ["hs-shallow-desugar-tuples"]  2 (NoArg HsShallowTuples)  (hsShallowMsg STGDesugar True)
   -- FFI
+#ifdef WITH_HASKELL
   , Option []         ["hs-ffi"]          2 (NoArg HsFFIGen)                  "generate Haskell FFI code to access generated C code (incl. a .hsc module for types and a .hs module for functions)"
+#else
+  , Option []         ["hs-ffi"]          2 (NoArg HsFFIGen)                  "generate Haskell FFI code to access generated C code (incl. a .hsc module for types and a .hs module for functions) [disabled in this build]"
+#endif
   -- deep
+
   , Option ['D']      ["deep-desugar"]    1 (NoArg (Deep STGDesugar))       (deepMsg STGDesugar)
   , Option ['N']      ["deep-normal"]     1 (NoArg (Deep STGNormal ))       (deepMsg STGNormal)
   , Option ['M']      ["deep-mono"]       1 (NoArg (Deep STGMono   ))       (deepMsg STGMono)
@@ -761,6 +773,7 @@ parseArgs args = case getOpt' Permute options args of
         putProgressLn "Generating table for C-Cogent type correspondence..."
         writeFileMsg ctyfile
         output ctyfile $ \h -> fontSwitch h >>= \s -> printCTable h s ct log
+#ifdef WITH_HASKELL
       when (HsFFIGen `elem` cmds) $ do
         putProgressLn "Generating Hsc file..."
         let hscf = mkHscFileName source __cogent_suffix_of_ffi_types
@@ -770,6 +783,7 @@ parseArgs args = case getOpt' Permute options args of
         let hsf = mkHsFileName source __cogent_suffix_of_ffi
         writeFileMsg hsf
         output hsf $ flip hPutStrLn hs
+#endif
       when (CodeGen `elem` cmds) $ do
         putProgressLn "Generating C code..."
         let hf = mkFileName source Nothing __cogent_ext_of_h
@@ -876,17 +890,19 @@ parseArgs args = case getOpt' Permute options args of
           tup_prooffile = mkThyFileName source __cogent_suffix_of_shallow_tuples_proof
 
           thy = mkProofName source Nothing
+          -- Run the generators
+          (shal    ,shrd    ,scorr,shallowTypeNames) = SH.shallow False thy stg        defns log
+          (shal_tup,shrd_tup,_    ,_               ) = SH.shallow True  thy STGDesugar defns log
+          constsTypeCheck = IN.tcConsts (sel3 $ fromJust $ getLast typedefs) fts
+#ifdef WITH_HASKELL
           -- Haskell shallow embedding
           hsShalName    = mkOutputName' toHsModName source (Just $ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage stg)
           hsShalTupName = mkOutputName' toHsModName source (Just $ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage STGDesugar ++ __cogent_suffix_of_recover_tuples)
           hsShalFile         = nameToFileName hsShalName    __cogent_ext_of_hs
           hsShalTupFile      = nameToFileName hsShalTupName __cogent_ext_of_hs
-          -- Run the generators
-          (shal    ,shrd    ,scorr,shallowTypeNames) = SH.shallow False thy stg        defns log
-          (shal_tup,shrd_tup,_    ,_               ) = SH.shallow True  thy STGDesugar defns log
-          constsTypeCheck = IN.tcConsts (sel3 $ fromJust $ getLast typedefs) fts
           hsShal    = \consts -> HS.shallow False hsShalName    stg defns consts log
           hsShalTup = \consts -> HS.shallow True  hsShalTupName stg defns consts log
+#endif
           tup_proof_thy = shallowTuplesProof thy
                             (mkProofName source (Just $ __cogent_suffix_of_shallow_shared))
                             (mkProofName source (Just $ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage stg))
@@ -899,12 +915,14 @@ parseArgs args = case getOpt' Permute options args of
         output ssfile $ flip LJ.hPutDoc shrd
         writeFileMsg shfile
         output shfile $ flip LJ.hPutDoc shal
+#ifdef WITH_HASKELL
       when shhs $ do
         putProgressLn ("Generating Haskell shallow embedding (" ++ stgMsg stg ++ ")...")
         case constsTypeCheck of
           Left err -> hPutStrLn stderr ("Internal TC failed: " ++ err) >> exitFailure
           Right (cs,_) -> do writeFileMsg hsShalFile
                              output hsShalFile $ flip hPutStrLn (hsShal cs)
+#endif
       when ks $ do
         putProgressLn ("Generating shallow constants (" ++ stgMsg stg ++ ")...")
         case constsTypeCheck of
@@ -921,12 +939,14 @@ parseArgs args = case getOpt' Permute options args of
         output ss_tupfile $ flip LJ.hPutDoc shrd_tup
         writeFileMsg sh_tupfile
         output sh_tupfile $ flip LJ.hPutDoc shal_tup
+#ifdef WITH_HASKELL
       when shhs_tup $ do
         putProgressLn ("Generating Haskell shallow embedding (with Haskell tuples)...")
         case constsTypeCheck of
           Left err -> hPutStrLn stderr ("Internal TC failed: " ++ err) >> exitFailure
           Right (cs,_) -> do writeFileMsg hsShalTupFile
                              output hsShalTupFile $ flip hPutStrLn (hsShalTup cs)
+#endif
       when ks_tup $ do
         putProgressLn ("Generating shallow constants (with HOL tuples)...")
         case constsTypeCheck of

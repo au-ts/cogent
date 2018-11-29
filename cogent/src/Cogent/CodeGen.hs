@@ -20,8 +20,10 @@ import Cogent.C.Syntax
 import Cogent.Common.Syntax
 import Cogent.Compiler
 import Cogent.Core (Definition, Type, TypedExpr)
+#ifdef WITH_HASKELL
 import Cogent.Haskell.FFIGen (ffiHs)
 import Cogent.Haskell.HscGen (ffiHsc)
+#endif
 import Cogent.Mono (Instance)
 import Data.Nat (Nat(Zero,Suc))
 import Data.Vec
@@ -44,8 +46,13 @@ cgen :: FilePath
 cgen hName cNames hscName hsName defs ctygen log =
   let (enums,tydefns,fndecls,disps,tydefs,fndefns,absts,corres,fclsts,st) = compile defs ctygen
       (h,c) = render hName (enums++tydefns++fndecls++disps++tydefs) fndefns log
+#ifdef WITH_HASKELL
       hsc = ffiHsc hscName cNames tydefns enums absts fclsts log
       hs  = PP.render (ffiHs (st^.ffiFuncs) hsName hscName fndecls log)
+#else
+      hsc = mempty
+      hs = mempty
+#endif
    in (h,c,absts,corres,hsc,hs,st)
 
 
