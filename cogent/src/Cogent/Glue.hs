@@ -79,7 +79,7 @@ import Data.Generics
 import Data.Loc
 import Data.List as L
 import Data.Map as M
-import Data.Maybe (fromJust, isJust, maybe)
+import Data.Maybe (fromJust, fromMaybe, isJust, maybe)
 import Data.Semigroup.Applicative
 import qualified Data.Sequence as Seq
 import Data.Set as S
@@ -510,34 +510,29 @@ traverseOneFunc fn d loc = do
           -- Here we need to match the type argument given in the @.ac@ definition and the ones in the
           -- original Cogent definition, in order to decide which instantiations should be generated.
           case Vec.fromList ts of
-            -- This case is __solely__ for backward compatibility.
-            ExI (Flip ts') | L.null targs -> flip runReaderT (DefnState ts' [TC.InAntiquotedCDefn fn]) $ do
-              let instantiations = if L.null ts then [([], Nothing)] 
-                                   else L.map (second Just) (M.toList mp)
-              traversals instantiations d
             ExI (Flip ts') -> flip runReaderT (DefnState ts' [TC.InAntiquotedCDefn fn]) $ do
               -- NOTE: if there are type variables in the type application, the type vars must be in-scope,
               -- i.e. they must be the same ones as in the Cogent definition.
 
-              -- We now try to get the type of the function because the surface Tc requires a top-level
-              -- type signature to infer the types. 
-              ft <- (lift . lift) (use $ tcState.tfuncs) >>= return . M.lookup fnName >>= \case
-                Nothing -> __impossible "traverseOneFunc: this function is not known to the surface Tc"
-                Just (SF.PT _ ft) -> return ft
+              -- NOTE: We now try to fill in missing type arguments, otherwise the typechecker might have
+              -- difficulty in inferring the types. This is partially for backward compatibility reasons:
+              -- For implicitly applied type arguments, if the typechecker cannot infer when you write
+              -- the same in a Cogent program, it won't infer in a @.ac@ file either. Unlike before, 
+              -- where we never typecheck them.
               
-              -- Substitute in the type arguments the user gives, and leave the rest intact.
-              targs' <- mapM (mapM (return . TC.toTCType <=< tcType)) targs
-              let subst = L.map (second fromJust) $ L.filter (isJust . snd) $ L.zip (L.map fst ts) targs'
-                  ft' = TC.substType subst ft
+              -- If the type arguments are omitted, we add them back
+              let targs' = L.zipWith
+                             (\tv mta -> Just $ fromMaybe (SF.dummyLocT . SF.RT $ SF.TVar tv False) mta)
+                             (L.map fst ts)
+                             (targs ++ repeat Nothing)
 
               -- Then we can continue the normal compilation process.
-              -- NOTE: This is backward incompatible. For implicitly applied type arguments, if the
-              -- typechecker cannot infer when you write the same in a Cogent program, it won't infer
-              -- in a @.ac@ file either. Unlike before, where we never typecheck them.
-              CC.TE _ (CC.Fun _ coreTargs _) <- (lift . flip parseFnCall loc >=>
-                                                 flip tcExp (Just ft') >=>
+              let SrcLoc (Loc (Pos filepath line col _) _) = loc
+                  pos = newPos filepath line col
+              CC.TE _ (CC.Fun _ coreTargs _) <- (flip tcExp (Nothing) >=>
                                                  desugarExp >=>
-                                                 coreTcExp) fn
+                                                 coreTcExp) $
+                                                (SF.LocExpr pos (SF.TypeApp fnName targs' SF.NoInline))
               -- Matching @coreTargs@ with @ts@. More specifically: match them in @mp@, and trim
               -- those in @mp@ that don't match up @coreTargs@.
               -- E.g. if @ts = [U8,a]@ and in @mp@ we find @[U8,U32]@ and @[U8,Bool]@, we instantiate this
@@ -545,8 +540,8 @@ traverseOneFunc fn d loc = do
               --      if @ts = [U8,a]@ and @mp = ([Bool,U8],[U32,U8])@ then there's nothing we generate.
               let match :: [CC.Type t] -> [CC.Type 'Zero] -> Bool
                   match [] [] = True
-                  match [] ys = __impossible "match (in traverseOneFunc): number of type arguments don't match"
-                  match xs [] = __impossible "match (in traverseOneFunc): number of type arguments don't match"
+                  match xs ys | L.null xs || L.null ys
+                    = __impossible "match (in traverseOneFunc): number of type arguments don't match"
                   -- We for now ignore 'TVarBang's, and treat them as not matching anything.
                   match (x:xs) (y:ys) = (unsafeCoerce x == y || CC.isTVar x) && match xs ys
               let instantiations = if L.null ts then [([], Nothing)] 
@@ -701,3 +696,10 @@ collectOne _ = return ()
 
 collectAll :: [CS.Definition] -> Gl ()
 collectAll = mapM_ collectOne
+
+
+-- /////////////////////////////////////////////////////////////////////////////
+--
+-- A simpler compilation process for the @--entry-funcs@ file.
+
+
