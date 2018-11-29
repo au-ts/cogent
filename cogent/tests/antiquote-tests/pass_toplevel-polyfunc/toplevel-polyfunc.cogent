@@ -1,17 +1,14 @@
--- f : all a. a -> U32
--- f x = toU32[a] x
 
--- f : Char -> U32
--- f x = toU32[Char] x
+-- NOTE: `coll` is here solely for letting the compiler know that
+-- these which instantiations are going to be used. / zilinc
+coll : () -> ()
+coll _ = let _ = toU32[U8]
+         and _ = toU32[U16]
+         and _ = const[U32,()]
+         and _ = const[U32,U8]
+         and _ = const[U32,U16]
+          in ()
 
--- NOTE: `f` and `g` are here solely to let the compiler know that
--- these two instantiations are going to be used. / zilinc
-f : U8 -> U32
-f x = toU32 x + const (1 : U32, ())
-
-g : U16 -> U32
-g x = toU32 x + const (1 : U32, 2) + const (1 : U32, 2 : U16)
-
-toU32 : all a. a -> U32  -- abstract
+toU32 : all a. a -> U32
 
 const : all (a, b). (a, b) -> a

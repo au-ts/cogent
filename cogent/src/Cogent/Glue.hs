@@ -539,9 +539,8 @@ traverseOneFunc fn d loc = do
                                                  flip tcExp (Just ft') >=>
                                                  desugarExp >=>
                                                  coreTcExp) fn
-              -- ^^^ TODO: the @Nothing@ should be the type of the function! / zilinc
-              -- Matching @coreTargs@ with @ts@. More specifically: match them in @mp@, and trim those in @mp@ that
-              --     don't match up @coreTargs@.
+              -- Matching @coreTargs@ with @ts@. More specifically: match them in @mp@, and trim
+              -- those in @mp@ that don't match up @coreTargs@.
               -- E.g. if @ts = [U8,a]@ and in @mp@ we find @[U8,U32]@ and @[U8,Bool]@, we instantiate this
               --      function definition to these two types.
               --      if @ts = [U8,a]@ and @mp = ([Bool,U8],[U32,U8])@ then there's nothing we generate.

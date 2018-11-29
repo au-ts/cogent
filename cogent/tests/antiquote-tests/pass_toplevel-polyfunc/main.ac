@@ -2,7 +2,7 @@ $esc:(#include <stdio.h>)
 #include <generated.c>
 
 $ty:(U32) $id:(toU32[U8]) ($ty:(U8) args) {
-  printf("The U16 -> U32 version of toU32.\n");
+  printf("The U8 -> U32 version of toU32.\n");
   return ($ty:(U32))args;
 }
 
@@ -12,23 +12,23 @@ $ty:(U32) $id:(toU32[U16]) ($ty:(U16) args) {
 }
 
 $ty:(U32) $id:(const[_,()]) ($ty:((U32, ())) args) {
-  printf ("The (U32, ()) version of const.\n");
+  printf ("The [U32, ()] version of const.\n");
   return args.p1;
 }
 
 $ty:(U32) $id:(const[U32,U8]) ($ty:((U32,U8)) args) {
-  printf ("The (U32, U8) version of const.\n");
+  printf ("The [U32, U8] version of const.\n");
   return args.p1;
 }
 
 $ty:(U32) $id:(const[a,U16]) ($ty:((U32,U16)) args) {
-  printf ("The (U32, U16) version of const.\n");
+  printf ("The [U32, U16] version of const.\n");
   return args.p1;
 }
 
 int main () {
   int a;
   $ty:(U8) c = 'c';  // FXIME: can't be Char atm!!!
-  a = $exp:f(c);
+  a = $exp:(toU32[U8])(c);
   return a;
 }
