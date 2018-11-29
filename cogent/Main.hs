@@ -32,7 +32,9 @@ import Cogent.CodeGen                  as CG (cgen)
 import Cogent.Compiler
 import Cogent.Core                     as CC (isConFun, getDefinitionId, untypeD)  -- FIXME: zilinc
 import Cogent.Desugar                  as DS (desugar)
+#ifdef WITH_DOCGENT
 import Cogent.DocGent                  as DG (docGent)
+#endif
 import Cogent.GetOpt
 import Cogent.Glue                     as GL (defaultExts, defaultTypnames,
                                               GlState, glue, GlueMode(..), mkGlState,
@@ -336,7 +338,11 @@ options = [
   , Option []         ["ast-simpl"]       2 (NoArg $ Ast STGSimplify)       (astMsg STGSimplify)
   , Option []         ["ast-mono"]        2 (NoArg $ Ast STGMono)           (astMsg STGMono)
   -- documentation
+#ifdef WITH_DOCGENT
   , Option []         ["docgent"]         2 (NoArg $ Documentation)         "generate HTML documentation"
+#else
+  , Option []         ["docgent"]         2 (NoArg $ Documentation)         "generate HTML documentation [disabled in this build]"
+#endif
   -- pretty
   , Option ['p']      ["pretty-parse"]    2 (NoArg $ Pretty STGParse)       (prettyMsg STGParse)
   , Option []         ["pretty-tc"]       2 (NoArg $ Pretty STGTypeCheck)   (prettyMsg STGTypeCheck)
@@ -590,7 +596,9 @@ parseArgs args = case getOpt' Permute options args of
             Left err -> printError prettyRE [err] >> exitFailure
             Right reorged -> do when (Ast stg `elem` cmds) $ genAst stg (map (stripAllLoc . thd3) reorged)
                                 when (Pretty stg `elem` cmds) $ genPretty stg (map (stripAllLoc . thd3) reorged)
+#ifdef WITH_DOCGENT
                                 when (Documentation `elem` cmds) $ DG.docGent reorged
+#endif
                                 let noDocs (a,_,c) = (a,c)
                                 when (Compile (succ stg) `elem` cmds) $ do
                                   ctygen <- mapM parseCustTyGen __cogent_cust_ty_gen
