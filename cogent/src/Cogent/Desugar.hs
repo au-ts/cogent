@@ -442,6 +442,7 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTake rec (fp:fps)) pos)) e = do
       b0 = S.Binding (B.TIP (S.PTake (e1, t1) [fp]) noPos) Nothing e0 []
       bs = S.Binding (B.TIP (S.PTake rec fps) pos) Nothing (B.TE t1 (S.Var e1) noPos) []
   desugarExpr $ B.TE (B.getTypeTE e) (S.Let [b0,bs] e) noPos
+#ifdef BUILTIN_ARRAYS
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArray []) pos)) e = __impossible "desugarAlts' (PSequence [] p)"
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArray [B.TIP (S.PVar (v,_)) _]) _)) e = do
   e0' <- desugarExpr e0
@@ -474,6 +475,7 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArray (p:ps)) pos)) e = do
       b1 = S.Binding (B.TIP (S.PArray ((B.TIP (S.PVar (v,te)) pos):ps)) pos) Nothing e0 []
       b2 = S.Binding p Nothing (B.TE te (S.Var v) pos) []
   desugarExpr $ B.TE (B.getTypeTE e) (S.Let [b1,b2] e) pos
+#endif
 desugarAlt' _ _ _ = __impossible "desugarAlt' (_)"  -- literals
 
 desugarPrimInt :: S.RawType -> PrimInt
@@ -507,7 +509,9 @@ desugarType = \case
   S.RT (S.TTuple (t1:t2:ts)) | not __cogent_ftuples_as_sugar -> __impossible "desugarType"  -- desugarType $ S.RT $ S.TTuple [t1, S.RT $ S.TTuple (t2:ts)]
   S.RT (S.TTuple ts) | __cogent_ftuples_as_sugar -> TRecord <$> (P.zipWith (\t n -> (n,(t, False))) <$> forM ts desugarType <*> pure (P.map (('p':) . show) [1 :: Integer ..])) <*> pure Unboxed
   S.RT (S.TUnit)   -> return TUnit
+#ifdef BUILTIN_ARRAYS
   S.RT (S.TArray t l) -> TArray <$> desugarType t <*> evalAExpr l  -- desugarExpr' l
+#endif
   notInWHNF -> __impossible $ "desugarType (type" ++ show (pretty notInWHNF) ++ "is not in WHNF)"
 
 desugarSigil :: Sigil S.RepExpr -> Sigil Representation
@@ -585,11 +589,13 @@ desugarExpr (B.TE t (S.IntLit n) _) = return $ E . ILit n $ desugarPrimInt t
 desugarExpr (B.TE _ (S.BoolLit b) _) = return $ E $ ILit (if b then 1 else 0) Boolean
 desugarExpr (B.TE _ (S.CharLit c) _) = return $ E $ ILit (fromIntegral $ ord c) U8
 desugarExpr (B.TE _ (S.StringLit s) _) = return $ E $ SLit s
+#ifdef BUILTIN_ARRAYS
 desugarExpr (B.TE _ (S.ArrayLit es) _) = E . ALit <$> mapM desugarExpr es
 desugarExpr (B.TE _ (S.ArrayIndex e i) _) = do
   e' <- desugarExpr e
   i' <- evalAExpr i
   return $ E (ArrayIndex e' i')
+#endif
 desugarExpr (B.TE _ (S.Tuple []) _) = return $ E Unit
 desugarExpr (B.TE _ (S.Tuple [e]) _) = __impossible "desugarExpr (Tuple)"
 desugarExpr (B.TE _ (S.Tuple (e1:e2:[])) _) | not __cogent_ftuples_as_sugar = E <$> (Tuple <$> desugarExpr e1 <*> desugarExpr e2)
@@ -665,11 +671,13 @@ desugarExpr' (S.RE (S.IntLit n)) = return $ E $ ILit n U32  -- FIXME: can we asc
 desugarExpr' (S.RE (S.BoolLit b)) = return $ E $ ILit (if b then 1 else 0) Boolean
 desugarExpr' (S.RE (S.CharLit c)) = return $ E $ ILit (fromIntegral $ ord c) U8
 desugarExpr' (S.RE (S.StringLit s)) = return $ E $ SLit s
+#ifdef BUILTIN_ARRAYS
 desugarExpr' (S.RE (S.ArrayLit es)) = E . ALit <$> mapM desugarExpr' es
 desugarExpr' (S.RE (S.ArrayIndex e i)) = do
   e' <- desugarExpr' e
   i' <- evalAExpr i
   return $ E (ArrayIndex e' i')
+#endif
 desugarExpr' (S.RE (S.Upcast e)) = E <$> (Cast (TPrim U32) <$> desugarExpr' e)  -- FIXME: U32!!! / zilinc
 desugarExpr' (S.RE (S.Annot e tau)) = E <$> (Promote <$> desugarType tau <*> desugarExpr' e)
 desugarExpr' _ = __todo "desugarExpr': we don't support these expressions in types right now"

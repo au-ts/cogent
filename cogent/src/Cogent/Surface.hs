@@ -40,7 +40,9 @@ data IrrefutablePattern pv ip = PVar pv
                               | PUnitel
                               | PTake pv [Maybe (FieldName, ip)]
                                   -- ^^^ Note: `Nothing' will be desugared to `Just' in TypeCheck / zilinc
+#ifdef BUILTIN_ARRAYS
                               | PArray [ip]
+#endif
                               deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
 data Pattern ip = PCon TagName [ip]
@@ -105,8 +107,10 @@ data Expr t p ip e = PrimOp OpName [e]
                    | BoolLit Bool
                    | CharLit Char
                    | StringLit String
+#ifdef BUILTIN_ARRAYS
                    | ArrayLit [e]
                    | ArrayIndex e AExpr
+#endif
                    | Tuple [e]
                    | UnboxedRecord [(FieldName, e)]
                    | Let [Binding t p ip e] e
@@ -127,7 +131,9 @@ data Type e t =
               | TVariant (M.Map TagName ([t], Taken))
               | TTuple [t]
               | TUnit
+#ifdef BUILTIN_ARRAYS
               | TArray t e
+#endif
               -- They will be eliminated at some point / zilinc
               | TUnbox   t
               | TBang    t
@@ -239,8 +245,10 @@ instance Traversable (Flip (Expr t p) e) where  -- ip
   traverse _ (Flip (BoolLit l))         = pure $ Flip (BoolLit l)
   traverse _ (Flip (CharLit l))         = pure $ Flip (CharLit l)
   traverse _ (Flip (StringLit l))       = pure $ Flip (StringLit l)
+#ifdef BUILTIN_ARRAYS
   traverse _ (Flip (ArrayLit es))       = pure $ Flip (ArrayLit es)
   traverse _ (Flip (ArrayIndex e i))    = pure $ Flip (ArrayIndex e i)
+#endif
   traverse _ (Flip (Tuple es))          = pure $ Flip (Tuple es)
   traverse _ (Flip (UnboxedRecord es))  = pure $ Flip (UnboxedRecord es)
   traverse f (Flip (Let bs e))          = Flip <$> (Let <$> (traverse (ttraverse f) bs) <*> pure e)
@@ -266,8 +274,10 @@ instance Traversable (Flip2 (Expr t) e ip) where  -- p
   traverse _ (Flip2 (BoolLit l))        = pure $ Flip2 (BoolLit l)
   traverse _ (Flip2 (CharLit l))        = pure $ Flip2 (CharLit l)
   traverse _ (Flip2 (StringLit l))      = pure $ Flip2 (StringLit l)
+#ifdef BUILTIN_ARRAYS
   traverse _ (Flip2 (ArrayLit es))      = pure $ Flip2 (ArrayLit es)
   traverse _ (Flip2 (ArrayIndex e i))   = pure $ Flip2 (ArrayIndex e i)
+#endif
   traverse _ (Flip2 (Tuple es))         = pure $ Flip2 (Tuple es)
   traverse _ (Flip2 (UnboxedRecord es)) = pure $ Flip2 (UnboxedRecord es)
   traverse f (Flip2 (Let bs e))         = Flip2 <$> (Let <$> traverse (tttraverse f) bs <*> pure e)
@@ -293,8 +303,10 @@ instance Traversable (Flip3 Expr e ip p) where  -- t
   traverse _ (Flip3 (BoolLit l))         = pure $ Flip3 (BoolLit l)
   traverse _ (Flip3 (CharLit l))         = pure $ Flip3 (CharLit l)
   traverse _ (Flip3 (StringLit l))       = pure $ Flip3 (StringLit l)
+#ifdef BUILTIN_ARRAYS
   traverse _ (Flip3 (ArrayLit es))       = pure $ Flip3 (ArrayLit es)
   traverse _ (Flip3 (ArrayIndex e i))    = pure $ Flip3 (ArrayIndex e i)
+#endif
   traverse _ (Flip3 (Tuple es))          = pure $ Flip3 (Tuple es)
   traverse _ (Flip3 (UnboxedRecord es))  = pure $ Flip3 (UnboxedRecord es)
   traverse f (Flip3 (Let bs e))          = Flip3 <$> (Let <$> (traverse (ttttraverse f) bs) <*> pure e)
@@ -309,7 +321,9 @@ instance Traversable (Flip IrrefutablePattern ip) where  -- pv
   traverse _ (Flip PUnderscore)          = pure $ Flip PUnderscore
   traverse _ (Flip PUnitel)              = pure $ Flip PUnitel
   traverse f (Flip (PTake pv mfs))       = Flip <$> (PTake <$> f pv <*> pure mfs)
+#ifdef BUILTIN_ARRAYS
   traverse _ (Flip (PArray ips))         = pure $ Flip (PArray ips)
+#endif
 
 instance Traversable (Flip Type t) where  -- e
   traverse _ (Flip (TCon n ts s))        = pure $ Flip (TCon n ts s)
@@ -319,7 +333,9 @@ instance Traversable (Flip Type t) where  -- e
   traverse _ (Flip (TVariant alts))      = pure $ Flip (TVariant alts)
   traverse _ (Flip (TTuple ts))          = pure $ Flip (TTuple ts)
   traverse _ (Flip (TUnit))              = pure $ Flip (TUnit)
+#ifdef BUILTIN_ARRAYS
   traverse f (Flip (TArray t e))         = Flip <$> (TArray t <$> f e)
+#endif
   traverse _ (Flip (TUnbox t))           = pure $ Flip (TUnbox t)
   traverse _ (Flip (TBang t))            = pure $ Flip (TBang t)
   traverse _ (Flip (TTake fs t))         = pure $ Flip (TTake fs t)
@@ -394,7 +410,9 @@ fvIP (RIP (PVar pv)) = [pv]
 fvIP (RIP (PTuple ips)) = foldMap fvIP ips
 fvIP (RIP (PUnboxedRecord mfs)) = foldMap (fvIP . snd) $ Compose mfs
 fvIP (RIP (PTake pv mfs)) = foldMap (fvIP . snd) $ Compose mfs
+#ifdef BUILTIN_ARRAYS
 fvIP (RIP (PArray ips)) = foldMap fvIP ips
+#endif
 fvIP _ = []
 
 fvE :: RawExpr -> [VarName]
@@ -406,8 +424,10 @@ fvE (RE (LamC _ _ _ vs)) = vs  -- FIXME
 fvE (RE (Let (b:bs) e)) = let (locals, fvs) = fvB b
                               fvs' = filter (`notElem` locals) (fvE (RE (Let bs e)))
                            in fvs ++ fvs'
+#ifdef BUILTIN_ARRAYS
 fvE (RE (ArrayLit es)) = foldMap fvE es
 fvE (RE (ArrayIndex e i)) = fvE e ++ fvE i
+#endif
 fvE (RE (Annot e t)) = fvE e ++ fvT t
 fvE (RE e) = foldMap fvE e
 
@@ -419,7 +439,9 @@ fvT (RT (TRecord fs _)) = foldMap (fvT . fst . snd) fs
 fvT (RT (TVariant alts)) = foldMap (foldMap fvT . fst) alts
 fvT (RT (TTuple ts)) = foldMap fvT ts
 fvT (RT (TUnit)) = []
+#ifdef BUILTIN_ARRAYS
 fvT (RT (TArray t e)) = fvT t ++ fvE e
+#endif
 fvT (RT (TUnbox   t)) = fvT t
 fvT (RT (TBang    t)) = fvT t
 fvT (RT (TTake  _ t)) = fvT t
@@ -440,7 +462,9 @@ fcE (RE e) = foldMap fcE e
 
 fcT :: RawType -> [TagName]
 fcT (RT (TCon n ts _)) = n : foldMap fcT ts
+#ifdef BUILTIN_ARRAYS
 fcT (RT (TArray t e)) = fcT t ++ fcE e
+#endif
 fcT (RT t) = foldMap fcT t
 
 tvT :: RawType -> [TyVarName]
@@ -451,7 +475,9 @@ tvT (RT (TRecord fs _)) = foldMap (tvT . fst . snd) fs
 tvT (RT (TVariant alts)) = foldMap (foldMap tvT . fst) alts
 tvT (RT (TTuple ts)) = foldMap tvT ts
 tvT (RT (TUnit)) = []
+#ifdef BUILTIN_ARRAYS
 tvT (RT (TArray t e)) = tvT t  -- TODO: tvE
+#endif
 tvT (RT (TUnbox   t)) = tvT t
 tvT (RT (TBang    t)) = tvT t
 tvT (RT (TTake  _ t)) = tvT t

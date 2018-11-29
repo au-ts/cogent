@@ -102,7 +102,9 @@ irrefutablePattern :: Parser LocIrrefPatn t
 irrefutablePattern = avoidInitial >> LocIrrefPatn <$> getPosition <*>
              (variableOrRecord <$> variableName <*> optionMaybe (braces recAssignsAndOrWildcard)
          <|> tuple <$> parens (commaSep irrefutablePattern)
+#ifdef BUILTIN_ARRAYS
          <|> PArray <$> brackets (commaSep1 irrefutablePattern)
+#endif
          <|> PUnboxedRecord <$ reservedOp "#" <*> braces recAssignsAndOrWildcard
          <|> PUnderscore <$ reservedOp "_")
        <?> "irrefutable pattern"
@@ -191,8 +193,14 @@ basicExpr' = avoidInitial >> buildExpressionParser
                Prefix (getPosition >>= \p -> reserved "not" *> pure (LocExpr p . PrimOp "not" . (:[]))),
                Infix funapp AssocLeft,
                Postfix ((\rs x -> LocExpr (posOfE x) (Put x rs)) <$> braces recAssignsAndOrWildcard)]
+
+#ifdef BUILTIN_ARRAYS
             , [Infix (reservedOp "@" *> pure (\e i -> LocExpr (posOfE e) (ArrayIndex e (stripLocE i)))) AssocLeft,
                Infix (reserved "o" *> pure (\f g -> LocExpr (posOfE f) (Comp f g))) AssocRight]
+#else
+            , [Infix (reserved "o" *> pure (\f g -> LocExpr (posOfE f) (Comp f g))) AssocRight]
+#endif
+
             , [binary "*" AssocLeft, binary "/" AssocLeft, binary "%" AssocLeft ]
             , [binary "+" AssocLeft, binary "-" AssocLeft ]
             , map (`binary` AssocNone) [">", "<", ">=", "<=", "==", "/="]
@@ -225,7 +233,9 @@ term = avoidInitial >> (LocExpr <$> getPosition <*>
        <|> CharLit <$> charLiteral
        <|> StringLit <$> stringLiteral
        <|> tuple <$> parens (commaSep $ expr 1)
+#ifdef BUILTIN_ARRAYS
        <|> ArrayLit <$> brackets (commaSep1 $ expr 1)
+#endif
        <|> UnboxedRecord <$ reservedOp "#" <*> braces (commaSep1 recordAssignment)))
     <?> "term"
 
@@ -292,10 +302,12 @@ monotype = do avoidInitial
                      )
     typeA2' = avoidInitial >>
                ((unbox >>= \op -> atomtype >>= \at -> return (op at))
+#ifdef BUILTIN_ARRAYS
            <|>  try ( do { t <- atomtype
                          ; l <- brackets $ expr 1
                          ; return (LocType (posOfT t) $ TArray t l)
                          } )
+#endif
            <|>  (atomtype >>= \t -> optionMaybe bang >>= \op -> case op of Nothing -> return t; Just f -> return (f t)))
     paramtype = avoidInitial >> LocType <$> getPosition
                                         <*> (TCon <$> typeConName <*> many1 typeA2 <*> pure (Boxed False noRepE))

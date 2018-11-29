@@ -108,7 +108,9 @@ bound b (TSum s1) (TSum s2) | s1' <- M.fromList s1, s2' <- M.fromList s2, M.keys
 bound b (TProduct t11 t12) (TProduct t21 t22) = TProduct <$> bound b t11 t21 <*> bound b t12 t22
 bound b (TCon c1 t1 s1) (TCon c2 t2 s2) | c1 == c2, s1 == s2 = TCon c1 <$> zipWithM (bound b) t1 t2 <*> pure s1
 bound b (TFun t1 s1) (TFun t2 s2) = TFun <$> bound (theOtherB b) t1 t2 <*> bound b s1 s2
+#ifdef BUILTIN_ARRAYS
 bound b (TArray t1 l1) (TArray t2 l2) | l1 == l2 = TArray <$> bound b t1 t2 <*> pure l1
+#endif
 bound _ _ _ = __impossible "bound: not comparable"
 
 lub :: Type t -> Type t -> MaybeT (TC t v) (Type t)
@@ -134,7 +136,9 @@ bang (TSum ts)        = TSum (map (second $ first bang) ts)
 bang (TProduct t1 t2) = TProduct (bang t1) (bang t2)
 bang (TRecord ts s)   = TRecord (map (second $ first bang) ts) (bangSigil s)
 bang (TUnit)          = TUnit
+#ifdef BUILTIN_ARRAYS
 bang (TArray t l)     = TArray (bang t) l
+#endif
 
 substitute :: Vec t (Type u) -> Type t -> Type u
 substitute vs (TVar v)         = vs `at` v
@@ -147,7 +151,9 @@ substitute vs (TProduct t1 t2) = TProduct (substitute vs t1) (substitute vs t2)
 substitute vs (TRecord ts s)   = TRecord (map (second (first $ substitute vs)) ts) s
 substitute vs (TSum ts)        = TSum (map (second (first $ substitute vs)) ts)
 substitute _  (TUnit)          = TUnit
+#ifdef BUILTIN_ARRAYS
 substitute vs (TArray t l)     = TArray (substitute vs t) l
+#endif
 
 remove :: (Eq a) => a -> [(a,b)] -> [(a,b)]
 remove k = filter ((/= k) . fst)
@@ -280,7 +286,10 @@ kindcheck_ f (TProduct t1 t2) = mappend <$> kindcheck_ f t1 <*> kindcheck_ f t2
 kindcheck_ f (TRecord ts s)   = mconcat <$> ((sigilKind s :) <$> mapM (kindcheck_ f . fst . snd) (filter (not . snd . snd) ts))
 kindcheck_ f (TSum ts)        = mconcat <$> mapM (kindcheck_ f . fst . snd) (filter (not . snd . snd) ts)
 kindcheck_ f (TUnit)          = return mempty
+
+#ifdef BUILTIN_ARRAYS
 kindcheck_ f (TArray t l)     = kindcheck_ f t
+#endif
 
 kindcheck = kindcheck_ lookupKind
 
@@ -291,6 +300,7 @@ typecheck (E (Op o es))
         return (TE t (Op o es'))
 typecheck (E (ILit i t)) = return (TE (TPrim t) (ILit i t))
 typecheck (E (SLit s)) = return (TE TString (SLit s))
+#ifdef BUILTIN_ARRAYS
 typecheck (E (ALit [])) = __impossible "We don't allow 0-size array literals"
 typecheck (E (ALit es))
    = do es' <- mapM typecheck es
@@ -324,6 +334,7 @@ typecheck (E (Singleton e))
         let TArray te l = t
         guardShow "singleton on a non-singleton array" $ l == 1
         return (TE te (Singleton e'))
+#endif
 typecheck (E (Variable v))
    = do Just t <- useVariable (fst v)
         return (TE t (Variable v))

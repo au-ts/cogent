@@ -70,7 +70,9 @@ assignC a (Unsat e) = Unsat $ assignErr a e
 assignC a (SemiSat w) = SemiSat $ assignWarn a w
 assignC a (Sat) = Sat
 assignC a (Exhaustive t ps) = Exhaustive (assignT a t) ps
+#ifdef BUILTIN_ARRAYS
 assignC a (Arith e) = Arith (assign a e)
+#endif
 
 assignErr :: Assignment -> TypeError -> TypeError
 assignErr a e = e  -- TODO

@@ -358,7 +358,9 @@ genTyDecl (Function t1 t2, n) tns =
   if n `elem` tns then []
                   else [CDecl $ CTypeDecl (CIdent fty) [n]]
   where fty = if __cogent_funtyped_func_enum then untypedFuncEnum else unitT
+#ifdef BUILTIN_ARRAYS
 genTyDecl (Array t ms, n) _ = [CDecl $ CVarDecl t n True Nothing]
+#endif
 genTyDecl (AbsType x, n) _ = [CMacro $ "#include <abstract/" ++ x ++ ".h>"]
 
 genTySynDecl :: (TypeName, CType) -> CExtDecl
@@ -407,7 +409,10 @@ lookupTypeCId (TProduct t1 t2) = getCompose (Compose . lookupStrlTypeCId =<< Rec
 lookupTypeCId (TSum fs) = getCompose (Compose . lookupStrlTypeCId =<< Variant . M.fromList <$> mapM (secondM (Compose . lookupType) . second fst) fs)
 lookupTypeCId (TFun t1 t2) = getCompose (Compose . lookupStrlTypeCId =<< Function <$> (Compose . lookupType) t1 <*> (Compose . lookupType) t2)  -- Use the enum type for function dispatching
 lookupTypeCId (TRecord fs _) = getCompose (Compose . lookupStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> (Compose . lookupType) b) fs) <*> pure True)
+
+#ifdef BUILTIN_ARRAYS
 lookupTypeCId (TArray t l) = getCompose (Compose . lookupStrlTypeCId =<< Array <$> (Compose . lookupType) t <*> pure (Just $ fromIntegral l))
+#endif
 lookupTypeCId t = Just <$> typeCId t
 
 -- XXX | -- NOTE: (Monad (Gen v), Reducer (Maybe a) (First a)) => Reducer (Gen v (Maybe a)) (Mon (Gen v) (First a)) / zilinc
@@ -459,7 +464,9 @@ typeCId t = use custTypeGen >>= \ctg ->
     typeCId' (TFun t1 t2) = getStrlTypeCId =<< Function <$> genType t1 <*> genType t2  -- Use the enum type for function dispatching
     typeCId' (TRecord fs _) = getStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs) <*> pure True
     typeCId' (TUnit) = return unitT
+#ifdef BUILTIN_ARRAYS
     typeCId' (TArray t l) = getStrlTypeCId =<< Array <$> genType t <*> pure (Just $ fromIntegral l)
+#endif
 
     typeCIdFlat :: CC.Type 'Zero -> Gen v CId
     typeCIdFlat (TProduct t1 t2) = do
@@ -489,7 +496,9 @@ typeCId t = use custTypeGen >>= \ctg ->
     isUnstable (TProduct {}) = True
     isUnstable (TSum _) = True
     isUnstable (TRecord {}) = True
+#ifdef BUILTIN_ARRAYS
     isUnstable (TArray {}) = True
+#endif
     isUnstable _ = False
 
 -- Returns the right C type
@@ -497,7 +506,9 @@ genType :: CC.Type 'Zero -> Gen v CType
 genType t@(TRecord _ s) | s /= Unboxed = CPtr . CIdent <$> typeCId t  -- c.f. genTypeA
 genType t@(TString)                    = CPtr . CIdent <$> typeCId t
 genType t@(TCon _ _ s)  | s /= Unboxed = CPtr . CIdent <$> typeCId t
+#ifdef BUILTIN_ARRAYS
 genType   (TArray t l)                 = CArray <$> genType t <*> pure (CArraySize (mkConst U32 l))  -- c.f. genTypeP
+#endif
 genType t                              = CIdent <$> typeCId t
 
 -- The following two functions have different behaviours than the `genType' function
@@ -510,18 +521,24 @@ genTypeA t = genType t
 
 -- It will generate a pointer type for an array, instead of the static-sized array type
 genTypeP :: CC.Type 'Zero -> Gen v CType
+#ifdef BUILTIN_ARRAYS
 genTypeP (TArray telm l) = CPtr <$> genTypeP telm
+#endif
 genTypeP t = genType t
 
 genTypeALit :: CC.Type 'Zero -> Gen v CType
+#ifdef BUILTIN_ARRAYS
 genTypeALit (TArray t l) = CArray <$> (genType t) <*> pure (CArraySize (mkConst U32 l))
+#endif
 genTypeALit t = genType t
 
 lookupType :: CC.Type 'Zero -> Gen v (Maybe CType)
 lookupType t@(TRecord _ s) | s /= Unboxed = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
 lookupType t@(TString)                    = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
 lookupType t@(TCon _ _ s)  | s /= Unboxed = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
+#ifdef BUILTIN_ARRAYS
 lookupType t@(TArray _ _)                 = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
+#endif
 lookupType t                              = getCompose (       CIdent <$> Compose (lookupTypeCId t))
 
 -- Add a type synonym
@@ -691,7 +708,7 @@ genExpr mv (TE t (ILit n pt)) = do
 genExpr mv (TE t (SLit s)) = do
   t' <- genType t
   maybeAssign t' mv (CConst $ CStringConst s) M.empty
-
+#ifdef BUILTIN_ARRAYS
 genExpr mv (TE t (ALit es)) = do
   blob <- mapM genExpr_ es
   let TArray telt _ = t
@@ -730,7 +747,7 @@ genExpr mv (TE t (Singleton e)) = do
   t' <- genType t
   (v,adecl,astm,vp) <- flip (maybeAssign t' mv) ep $ mkArrIdx e' 0
   return (v, edecl++adecl, estm++astm, vp)
-
+#endif
 genExpr mv (TE t (Unit)) = do
   t' <- genType t
   let e' = CCompLit t' [([CDesignFld dummyField], CInitE (CConst $ CNumConst 0 (CInt True CIntT) DEC))]

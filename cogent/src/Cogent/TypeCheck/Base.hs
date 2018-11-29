@@ -78,7 +78,9 @@ data TypeError = FunctionNotFound VarName
                | PutNonExistingField  FieldName TCType
                | DiscardWithoutMatch TagName
                | RequiredTakenTag TagName
+#ifdef BUILTIN_ARRAYS
                | ArithConstraintsUnsatisfiable [SExpr] String
+#endif
                | CustTyGenIsPolymorphic TCType
                | CustTyGenIsSynonym TCType
                | TypeWarningAsError TypeWarning
@@ -135,7 +137,9 @@ data Metadata = Reused { varName :: VarName, boundAt :: SourcePos, usedAt :: Seq
               | UnusedInThisBranch  { varName :: VarName, boundAt :: SourcePos, usedAt :: Seq.Seq SourcePos }
               | Suppressed
               | UsedInMember { fieldName :: FieldName }
+#ifdef BUILTIN_ARRAYS
               | UsedInArrayIndexing
+#endif
               | UsedInLetBang
               | TypeParam { functionName :: VarName, typeVarName :: VarName }
               | ImplicitlyTaken
@@ -153,9 +157,12 @@ data Constraint = (:<) (TypeFragment TCType) (TypeFragment TCType)
                 | SemiSat TypeWarning
                 | Sat
                 | Exhaustive TCType [RawPatn]
+#ifdef BUILTIN_ARRAYS
                 | Arith SExpr
+#endif
                 deriving (Eq, Show, Ord)
 
+#ifdef BUILTIN_ARRAYS
 arithTCType :: TCType -> Bool
 arithTCType (T (TCon n [] Unboxed)) | n `elem` ["U8", "U16", "U32", "U64", "Bool"] = True
 arithTCType (U _) = False
@@ -169,6 +176,7 @@ arithTCExpr (TE _ (BoolLit _  ) _) = True
 arithTCExpr (TE _ (Upcast e   ) _) = arithTCExpr e
 arithTCExpr (TE _ (Annot e _  ) _) = arithTCExpr e
 arithTCExpr _ = False
+
 
 splitArithConstraints :: Constraint -> ([SExpr], Constraint)
 splitArithConstraints (c1 :& c2)
@@ -184,23 +192,14 @@ splitArithConstraints c          = ([], c)
 andSExprs :: [SExpr] -> SExpr
 andSExprs [] = SE $ BoolLit True
 andSExprs (e:es) = SE $ PrimOp "&&" [e, andSExprs es]
+#endif
 
-#if __GLASGOW_HASKELL__ < 803
-instance Monoid Constraint where
-  mempty = Sat
-  mappend Sat x = x
-  mappend x Sat = x
-  -- mappend (Unsat r) x = Unsat r
-  -- mappend x (Unsat r) = Unsat r
-  mappend x y = x :& y
-#else
 instance Semigroup Constraint where
   Sat <> x = x
   x <> Sat = x
   x <> y = x :& y
 instance Monoid Constraint where
   mempty = Sat
-#endif
 
 kindToConstraint :: Kind -> TCType -> Metadata -> Constraint
 kindToConstraint k t m = (if canEscape  k then Escape t m else Sat)

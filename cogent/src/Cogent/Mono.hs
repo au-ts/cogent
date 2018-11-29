@@ -170,10 +170,12 @@ monoExpr (TE t e) = TE <$> monoType t <*> monoExpr' e
     monoExpr' (Unit               ) = pure Unit
     monoExpr' (ILit    n   pt     ) = pure $ ILit n pt
     monoExpr' (SLit    s          ) = pure $ SLit s
+#ifdef BUILTIN_ARRAYS
     monoExpr' (ALit    es         ) = ALit <$> mapM monoExpr es
     monoExpr' (ArrayIndex e i     ) = ArrayIndex <$> monoExpr e <*> pure i
     monoExpr' (Pop     a e1 e2    ) = Pop a <$> monoExpr e1 <*> monoExpr e2
     monoExpr' (Singleton e        ) = Singleton <$> monoExpr e
+#endif
     monoExpr' (Let     a e1 e2    ) = Let a <$> monoExpr e1 <*> monoExpr e2
     monoExpr' (LetBang vs a e1 e2 ) = LetBang vs a <$> monoExpr e1 <*> monoExpr e2
     monoExpr' (Tuple   e1 e2      ) = Tuple <$> monoExpr e1 <*> monoExpr e2
@@ -210,7 +212,9 @@ monoType (TSum alts) = do
 monoType (TProduct t1 t2) = TProduct <$> monoType t1 <*> monoType t2
 monoType (TRecord fs s) = TRecord <$> mapM (\(f,(t,b)) -> (f,) <$> (,b) <$> monoType t) fs <*> pure s
 monoType (TUnit) = pure TUnit
+#ifdef BUILTIN_ARRAYS
 monoType (TArray t l) = TArray <$> monoType t <*> pure l
+#endif
 
 -- ----------------------------------------------------------------------------
 -- custTyGen

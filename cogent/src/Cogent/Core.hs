@@ -69,8 +69,10 @@ data Type t
   | TProduct (Type t) (Type t)
   | TRecord [(FieldName, (Type t, Bool))] (Sigil Representation)  -- True means taken
   | TUnit
+#ifdef BUILTIN_ARRAYS
   | TArray (Type t) ArraySize  -- use Int for now
                                -- XXX | ^^^ (UntypedExpr t 'Zero VarName)  -- stick to UntypedExpr to be simple / zilinc
+#endif
   deriving (Show, Eq, Ord)
 
 data SupposedlyMonoType = forall (t :: Nat). SMT (Type t)
@@ -100,10 +102,12 @@ data Expr t v a e
   | Unit
   | ILit Integer PrimInt
   | SLit String
+#ifdef BUILTIN_ARRAYS
   | ALit [e t v a]
   | ArrayIndex (e t v a) ArrayIndex
   | Pop (a, a) (e t v a) (e t ('Suc ('Suc v)) a)
   | Singleton (e t v a)
+#endif
   | Let a (e t v a) (e t ('Suc v) a)
   | LetBang [(Fin v, a)] a (e t v a) (e t ('Suc v) a)
   | Tuple (e t v a) (e t v a)
@@ -202,7 +206,9 @@ traverseE f (Con cn e t)         = Con cn <$> f e <*> pure t
 traverseE f (Unit)               = pure $ Unit
 traverseE f (ILit i pt)          = pure $ ILit i pt
 traverseE f (SLit s)             = pure $ SLit s
+#ifdef BUILTIN_ARRAYS
 traverseE f (ALit es)            = ALit <$> traverse f es
+#endif
 traverseE f (Let a e1 e2)        = Let a <$> f e1 <*> f e2
 traverseE f (LetBang vs a e1 e2) = LetBang vs a <$> f e1 <*> f e2
 traverseE f (Tuple e1 e2)        = Tuple <$> f e1 <*> f e2
@@ -228,7 +234,9 @@ foldEPre unwrap f e = case unwrap e of
   Unit                -> f e
   ILit {}             -> f e
   SLit {}             -> f e
+#ifdef BUILTIN_ARRAYS
   ALit es             -> mconcat $ f e : map (foldEPre unwrap f) es
+#endif
   (Let _ e1 e2)       -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
   (LetBang _ _ e1 e2) -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
   (Tuple e1 e2)       -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
@@ -252,10 +260,12 @@ fmapE f (Con cn e t)         = Con cn (f e) t
 fmapE f (Unit)               = Unit
 fmapE f (ILit i pt)          = ILit i pt
 fmapE f (SLit s)             = SLit s
+#ifdef BUILTIN_ARRAYS
 fmapE f (ALit es)            = ALit (map f es)
 fmapE f (ArrayIndex e i)     = ArrayIndex (f e) i
 fmapE f (Pop a e1 e2)        = Pop a (f e1) (f e2)
 fmapE f (Singleton e)        = Singleton (f e)
+#endif
 fmapE f (Let a e1 e2)        = Let a (f e1) (f e2)
 fmapE f (LetBang vs a e1 e2) = LetBang vs a (f e1) (f e2)
 fmapE f (Tuple e1 e2)        = Tuple (f e1) (f e2)
@@ -287,7 +297,9 @@ instance (Functor (e t v), Functor (e t ('Suc v)), Functor (e t ('Suc ('Suc v)))
   fmap f (Flip (Unit)               ) = Flip $ Unit
   fmap f (Flip (ILit i pt)          ) = Flip $ ILit i pt
   fmap f (Flip (SLit s)             ) = Flip $ SLit s
+#ifdef BUILTIN_ARRAYS
   fmap f (Flip (ALit es)            ) = Flip $ ALit (map (fmap f) es)
+#endif
   fmap f (Flip (Let a e1 e2)        ) = Flip $ Let (f a) (fmap f e1) (fmap f e2)
   fmap f (Flip (LetBang vs a e1 e2) ) = Flip $ LetBang (map (second f) vs) (f a) (fmap f e1) (fmap f e2)
   fmap f (Flip (Tuple e1 e2)        ) = Flip $ Tuple (fmap f e1) (fmap f e2)
@@ -326,7 +338,9 @@ instance Prec (Expr t v a e) where
   prec (Op opr [_,_]) = prec (associativity opr)
   prec (ILit {}) = 0
   prec (SLit {}) = 0
+#ifdef BUILTIN_ARRAYS
   prec (ALit {}) = 0
+#endif
   prec (Variable {}) = 0
   prec (Fun {}) = 0
   prec (App {}) = 1
@@ -366,11 +380,13 @@ instance (Pretty a, Prec (e t v a), Pretty (e t v a), Pretty (e t ('Suc v) a), P
   pretty (Op opr es)  = primop opr <+> tupled (map pretty es)
   pretty (ILit i pt) = literal (string $ show i) <+> symbol "::" <+> pretty pt
   pretty (SLit s) = literal $ string s
+#ifdef BUILTIN_ARRAYS
   pretty (ALit es) = array $ map pretty es
   pretty (ArrayIndex arr idx) = prettyPrec 2 arr <+> symbol "@" <+> pretty idx
   pretty (Pop (v1,v2) e1 e2) = align (keyword "pop" <+> pretty v1 <> symbol ":@" <> pretty v2 <+> symbol "=" <+> pretty e1 L.<$>
                                 keyword "in"  <+> pretty e2)
   pretty (Singleton e) = keyword "singleton" <+> parens (pretty e)
+#endif
   pretty (Variable x) = pretty (snd x) L.<> angles (prettyV $ fst x)
   pretty (Fun fn ins nt) = pretty nt L.<> funname fn <+> pretty ins
   pretty (App a b) = prettyPrec 2 a <+> prettyPrec 1 b
@@ -420,7 +436,9 @@ instance Pretty (Type t) where
                           <> pretty s
   pretty (TCon tn [] s) = typename tn <> pretty s
   pretty (TCon tn ts s) = typename tn <> pretty s <+> typeargs (map pretty ts)
+#ifdef BUILTIN_ARRAYS
   pretty (TArray t l) = pretty t <> brackets (pretty l)
+#endif
 
 prettyTaken :: Bool -> Doc
 prettyTaken True  = symbol "*"

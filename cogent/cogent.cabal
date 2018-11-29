@@ -26,6 +26,11 @@ data-files:
     static/toc.min.js
     static/logo.png
 
+flag builtin-arrays
+  description: Enable experimental arrays with SMT solving
+  manual: True
+  default: False
+
 source-repository head
   type:     git
   location: https://github.com/NICTA/cogent/
@@ -143,7 +148,6 @@ library
               , process >= 1.2.0.0
               , random >= 1.1
               , reducers >= 3.10
-              , sbv >= 5.0 && < 7.9
               , shakespeare >= 2.0
               , srcloc >= 0.4
               , syb >= 0.4
@@ -153,6 +157,9 @@ library
               , tuple >= 0.3
               , uniplate >= 1.6
               , vector >= 0.10.0.1
+  if flag(builtin-arrays)
+    build-depends: sbv >= 5.0 && < 7.13
+    cpp-options: -DBUILTIN_ARRAYS
 
   default-language: Haskell2010
   default-extensions: CPP

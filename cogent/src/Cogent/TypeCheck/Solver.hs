@@ -54,10 +54,12 @@ import           Data.List (elemIndex)
 import qualified Data.Map as M
 import           Data.Maybe (fromMaybe, mapMaybe)
 import           Data.Monoid
+#ifdef BUILTIN_ARRAYS
 import qualified Data.SBV as V
 import qualified Data.SBV.Control as VC
 import qualified Data.SBV.Dynamic as VD
 import qualified Data.SBV.Internals as VI
+#endif
 import qualified Data.Set as S
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
@@ -101,8 +103,10 @@ whnf (T (TUnbox t)) = do
      _ | notWhnf t'    -> T (TUnbox t')
      (T (TCon x ps _)) -> T (TCon x ps Unboxed)
      (T (TRecord l _)) -> T (TRecord l Unboxed)
-     (T (TArray  _ _)) -> t'
      (T o)             -> T (fmap (T . TUnbox) o)
+#ifdef BUILTIN_ARRAYS
+     (T (TArray  _ _)) -> t'
+#endif
      _                 -> __impossible "whnf"
 
 whnf (T (TBang t)) = do
@@ -263,11 +267,13 @@ rule (Escape t@(T (TCon n ts s)) m)
   | not (readonly s) = return $ Just Sat
   | otherwise        = return $ Just $ Unsat $ TypeNotEscapable t m
 
+#ifdef BUILTIN_ARRAYS
 rule (Share  (T (TArray t _)) m) = return . Just $ Share  t m
 rule (Drop   (T (TArray t _)) m) = return . Just $ Drop   t m
 rule (Escape (T (TArray t _)) m) = return . Just $ Escape t m
 
 rule (Arith e) = return Nothing
+#endif
 
 rule (F (T (TTuple xs)) :< F (T (TTuple ys)))
   | length xs /= length ys = return $ Just $ Unsat (TypeMismatch (F (T (TTuple xs))) (F (T (TTuple ys))))
@@ -339,9 +345,11 @@ rule (F y :< F (T (TPut fs (U x))))
 --   = return $ Just $ uncurry FVariant (putVariant fs vs es) :< F (U x)
 -- rule (FVariant vs es :< F (T (TPut (Just fs) (U x))) )
 --   = return $ Just $ uncurry FVariant (takeVariant fs vs es) :<  F ( U x)
+#ifdef BUILTIN_ARRAYS
 rule (F (T (TArray t l)) :< F (T (TArray s n)))
   = let ?lvl = ?lvl + 1
      in return $ Just (F t :< F s :& Arith (SE $ PrimOp "==" [l, n]))
+#endif
 rule (F (T (TBang a)) :< F b)
   | isBangInv b = return $ Just (F a :< F b)
 rule (F a :< F (T (TBang b)))
@@ -454,7 +462,9 @@ simp (a :& b)          = (:&)       <$> simp a <*> simp b
 simp (Share  t m)      = Share      <$> whnf t <*> pure m
 simp (Drop   t m)      = Drop       <$> whnf t <*> pure m
 simp (Escape t m)      = Escape     <$> whnf t <*> pure m
+#ifdef BUILTIN_ARRAYS
 simp (Arith e)         = pure (Arith e)
+#endif
 simp (a :@ c)          = (:@)       <$> simp a <*> pure c
 simp (Unsat e)         = pure (Unsat e)
 simp (SemiSat w)       = pure (SemiSat w)
@@ -592,6 +602,7 @@ bound' d t1@(T (TRecord fs s)) t2@(T (TRecord gs r))
       traceTc "sol" (text "calculate bound of" <+> pretty t1 <+> text "and" <+> pretty t2 <> colon
                      P.<$> pretty t)
       return $ Just t
+#ifdef BUILTIN_ARRAYS
 bound' d a@(T (TArray t l)) b@(T (TArray s n)) = do
   u <- freshTVar (BoundOf (F t) (F s) d)
   m <- freshEVar (EqualIn l n a b)
@@ -599,6 +610,7 @@ bound' d a@(T (TArray t l)) b@(T (TArray s n)) = do
   traceTc "sol" (text "calculate bound of" <+> pretty a <+> text "and" <+> pretty b <> colon
                  P.<$> pretty c)
   return $ Just c
+#endif
 bound' _ a b = do
   traceTc "sol" (text "calculate bound (bound') of"
            P.<$> pretty a
@@ -666,22 +678,6 @@ instance Show GoalClasses where
                               "\narithineqs:\n" ++
                               unlines (map (("  " ++) . show) (F.toList ai))
 
-#if __GLASGOW_HASKELL__ < 803
-instance Monoid GoalClasses where
-  Classes u d uc dc e s r uf df ae ai `mappend` Classes u' d' uc' dc' e' s' r' uf' df' ae' ai'
-    = Classes (IM.unionWith (<>) u u')
-              (IM.unionWith (<>) d d')
-              (IM.unionWith (<>) uc uc')
-              (IM.unionWith (<>) dc dc')
-              (e <> e')
-              (s <> s')
-              (r <> r')
-              (IS.union uf uf')
-              (IS.union df df')
-              (ae <> ae')
-              (ai <> ai')
-  mempty = Classes IM.empty IM.empty IM.empty IM.empty [] [] [] IS.empty IS.empty [] []
-#else
 instance Semigroup GoalClasses where
   Classes u d uc dc e s r uf df ae ai <> Classes u' d' uc' dc' e' s' r' uf' df' ae' ai'
     = Classes (IM.unionWith (<>) u u')
@@ -697,7 +693,6 @@ instance Semigroup GoalClasses where
               (ai <> ai')
 instance Monoid GoalClasses where
   mempty = Classes IM.empty IM.empty IM.empty IM.empty [] [] [] IS.empty IS.empty [] []
-#endif
 
 
 -- Collects all flexes
@@ -725,8 +720,10 @@ classify g = case g of
                         , Nothing <- flexOf b -> mempty {downflexes = IS.singleton a', rest = [g]}
                         | Just b' <- flexOf b
                         , Nothing <- flexOf a -> mempty {upflexes = IS.singleton b', rest = [g]}
+#ifdef BUILTIN_ARRAYS
   (Goal _ (Arith (SE (PrimOp "==" _))))       -> mempty {aritheqs = [g]}
   (Goal _ (Arith _))                          -> mempty {arithineqs = [g]}
+#endif
   _                                           -> mempty {rest = [g]}
   where
     rigid :: TypeFragment TCType -> Bool
@@ -817,7 +814,7 @@ applySubst s = do
 applyAssign :: Ass.Assignment -> Solver ()
 applyAssign a = traceTc "sol" (text "apply assign") >> assigns <>= a
 
-
+#ifdef BUILTIN_ARRAYS
 -- add axioms for constant equality
 kAxioms :: Solver [SExpr]
 kAxioms = map f <$> (filter (arithTCType . fst3 . snd) . M.toList <$> lift (use knownConsts))
@@ -873,14 +870,10 @@ solveArithIneqs cs es = do
       config = VD.z3 { V.verbose = __cogent_ddump_smt }
   V.ThmResult smtRes <- liftIO $ VD.proveWith config s
   case smtRes of
-#if MIN_VERSION_sbv(7,7,0)
-    V.Unsatisfiable _ _ -> return Nothing
-#else
-    V.Unsatisfiable _   -> return Nothing
-#endif
+    V.Unsatisfiable {} -> return Nothing
     V.Satisfiable _ model -> return (Just $ VI.showModel config model)
     V.SatExtField _ model -> return (Just $ VI.showModel config model)
-    V.Unknown    _ msg    -> return (Just msg)
+    V.Unknown    _ msg    -> return (Just $ show msg)
     V.ProofError _ msgs   -> return (Just $ unlines msgs)
 
 type UVars = IM.IntMap VD.SVal
@@ -943,7 +936,7 @@ uopToSbv :: OpName -> (VD.SVal -> VD.SVal)
 uopToSbv = \case
   "not"        -> VD.svNot
   "complement" -> VD.svNot
-
+#endif
 -- Applies the current substitution to goals.
 instantiate :: Subst.Subst -> Ass.Assignment -> GoalClasses -> Solver [Goal]
 instantiate s a (Classes ups downs upcasts downcasts errs semisats rest upfl downfl aritheqs arithineqs) = do
@@ -1030,8 +1023,10 @@ solve = lift . crunch >=> explode >=> go
     go g | not (irreducible (GS.toList <$> ups   g) (upflexes   g)) = go' g UpClass
     go g | not (IM.null (downcastables g)) = go' g DowncastClass
     go g | not (IM.null (upcastables   g)) = go' g UpcastClass
+#ifdef BUILTIN_ARRAYS
     go g | not (null (aritheqs   g)) = go'' g ArithEqClass
     go g | not (null (arithineqs g)) = go'' g ArithIneqClass
+#endif
     go g | not (null (rest g)) = do
       os <- use flexOrigins
       return $ map toWarn (semisats g) ++
@@ -1059,6 +1054,7 @@ solve = lift . crunch >=> explode >=> go
           applySubst s
           instantiate s mempty g >>= explode >>= go
 
+#ifdef BUILTIN_ARRAYS
     go'' :: GoalClasses -> GoalClass -> Solver [ContextualisedTcLog]
     go'' g ArithEqClass = do
       traceTc "sol" (text "solve arith equality goals" <> colon
@@ -1086,7 +1082,7 @@ solve = lift . crunch >=> explode >=> go
         Just g' -> do
           traceTc "sol" (text "arith inequalities unsatisfiable")
           go (g' <> g {arithineqs = []})
-
+#endif
     removeKeys = foldr IM.delete
 
     toErr (Goal ctx (Unsat e)) = (ctx, Left e)

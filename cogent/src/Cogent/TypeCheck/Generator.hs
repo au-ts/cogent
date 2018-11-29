@@ -91,10 +91,12 @@ validateType rt@(RT t) = do
                 -> if fields' == fields
                    then second (T . ffmap toSExpr) <$> fmapFoldM validateType t
                    else return (Unsat $ DuplicateRecordFields (fields \\ fields'), toTCType rt)
+#ifdef BUILTIN_ARRAYS
     TArray te l -> do let l' = toSExpr l
                           cl = Arith (SE $ PrimOp ">" [l', SE $ IntLit 0])
                       (c,te') <- validateType te
                       return (c <> cl, T $ TArray te' l')
+#endif
     _ -> second (T . ffmap toSExpr) <$> fmapFoldM validateType t 
 
 validateTypes :: (Traversable t) => t RawType -> CG (Constraint, t TCType)
@@ -241,6 +243,7 @@ cg' (IntLit i) t = do
       e = IntLit i
   return (c,e)
 
+#ifdef BUILTIN_ARRAYS
 cg' (ArrayLit es) t = do
   alpha <- freshTVar
   blob <- forM es $ flip cg alpha
@@ -263,6 +266,7 @@ cg' (ArrayIndex e i) t = do
                  L.<$> text "bound is" <+> pretty n <> semi
                  L.<$> text "generate constraint" <+> prettyC c)
   return (ce <> ci <> c, ArrayIndex e' i)
+#endif 
 
 cg' exp@(Lam pat mt e) t = do
   alpha <- freshTVar
@@ -404,6 +408,7 @@ cg' (If e1 bs e2 e3) t = do
   (c1, e1') <- letBang bs (cg e1) (T (TCon "Bool" [] Unboxed))
   (c, [(c2, e2'), (c3, e3')]) <- parallel' [(ThenBranch, cg e2 t), (ElseBranch, cg e3 t)]
   let e = If e1' bs e2' e3'
+#ifdef BUILTIN_ARRAYS 
       ((c2',cc2),(c3',cc3)) = if arithTCExpr e1' then
         let (ca2,cc2) = splitArithConstraints c2
             (ca3,cc3) = splitArithConstraints c3
@@ -411,6 +416,9 @@ cg' (If e1 bs e2 e3) t = do
             c3' = Arith (SE $ PrimOp "||" [tcToSExpr e1', andSExprs ca3])
          in ((c2',cc2),(c3',cc3))
       else ((c2,Sat),(c3,Sat))
+#else
+      ((c2',cc2),(c3',cc3)) = ((c2,Sat),(c3,Sat))
+#endif
   traceTc "gen" (text "cg for if:" <+> prettyE e)
   return (c1 <> c <> c2' <> c3' <> cc2 <> cc3, e)
 
@@ -572,6 +580,7 @@ match' (PTake r fs) t | not (any isNothing fs) = do
 
   | otherwise = second3 (:& Unsat RecordWildcardsNotSupported) <$> match' (PTake r (filter isJust fs)) t
 
+#ifdef BUILTIN_ARRAYS
 match' (PArray ps) t = do
   alpha <- freshTVar
   blob <- mapM (`match` alpha) ps
@@ -579,7 +588,7 @@ match' (PArray ps) t = do
       l = SE . IntLit . fromIntegral $ length ps
       c = F t :< F (T $ TArray alpha l)
   return (M.unions ss, mconcat cs <> c, PArray ps')
-
+#endif
 
 -- -----------------------------------------------------------------------------
 -- Auxiliaries

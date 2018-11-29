@@ -6,13 +6,7 @@ packages:
 - '.'
 - '../isa-parser'
 extra-deps:
-- alex-3.2.3
-- happy-1.19.9
 - haskell-exp-parser-0.1.1
-- sbv-7.8
-- GHood-0.0.7
-- crackNum-2.2
-- FloatingHex-0.4
 - pretty-show-ansi-wl-1.9.2
 resolver: lts-12.20
 allow-newer: true

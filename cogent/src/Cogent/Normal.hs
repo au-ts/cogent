@@ -49,9 +49,11 @@ isAtom (E (Con cn x _)) | isVar x = True
 isAtom (E (Unit)) = True
 isAtom (E (ILit {})) = True
 isAtom (E (SLit _)) = True
+#ifdef BUILTIN_ARRAYS
 isAtom (E (ALit es)) | all isVar es = True
 isAtom (E (ArrayIndex e i)) | isVar e = True
 isAtom (E (Singleton e)) | isVar e = True
+#endif
 isAtom (E (Tuple e1 e2)) | isVar e1 && isVar e2 = True
 isAtom (E (Struct fs)) | all (isVar . snd) fs = True
 isAtom (E (Esac e)) | isVar e = True
@@ -71,7 +73,9 @@ isNormal (E (Case e tn (l1,_,e1) (l2,_,e2))) | isVar e && isNormal e1 && isNorma
   -- \| ANF <- __cogent_fnormalisation, isVar  e && isNormal e1 && isNormal e2 = True
   -- \| KNF <- __cogent_fnormalisation, isAtom e && isNormal e1 && isNormal e2 = True
 isNormal (E (If  c th el)) | isVar c  && isNormal th && isNormal el = True
+#ifdef BUILTIN_ARRAYS
 isNormal (E (Pop _ e1 e2)) | isVar e1 && isNormal e2 = True
+#endif
 isNormal (E (Split _ p e)) | isVar p  && isNormal e  = True
   -- \| ANF <- __cogent_fnormalisation, isVar  p && isNormal e = True
   -- \| KNF <- __cogent_fnormalisation, isAtom p && isNormal e = True
@@ -129,6 +133,7 @@ normalise v   (E (Con cn e t)) k = normaliseName v e $ \n e' -> k n (E $ Con cn 
 normalise v e@(E (Unit)) k = k s0 e
 normalise v e@(E (ILit {})) k = k s0 e
 normalise v e@(E (SLit {})) k = k s0 e
+#ifdef BUILTIN_ARRAYS
 normalise v   (E (ALit es)) k = normaliseNames v es $ \n es' -> k n (E $ ALit es')
 normalise v   (E (ArrayIndex e i)) k = normaliseName v e $ \n e' -> k n (E $ ArrayIndex e' i)
 normalise v   (E (Pop a e1 e2)) k
@@ -137,6 +142,7 @@ normalise v   (E (Pop a e1 e2)) k
         Refl -> E <$> (Pop a e1' <$> (normalise (sadd (SSuc (SSuc v)) n) (upshiftExpr n (SSuc $ SSuc v) f2 e2) $ \n' ->
           withAssocSS v n n' $ \Refl -> k (SSuc (SSuc (sadd n n')))))
 normalise v   (E (Singleton e)) k = normaliseName v e $ \n e' -> k n (E $ Singleton e')
+#endif
 normalise v   (E (Let a e1 e2)) k
   | __cogent_fnormalisation `elem` [KNF, LNF]  -- \ || (__cogent_fnormalisation == ANF && __cogent_fcondition_knf && isCondition e1)
   = do e1' <- normaliseExpr v e1
@@ -253,10 +259,12 @@ insertIdxAt cut (E e) = E $ insertIdxAt' cut e
     insertIdxAt' cut (Unit) = Unit
     insertIdxAt' cut (ILit n pt) = ILit n pt
     insertIdxAt' cut (SLit s) = SLit s
+#ifdef BUILTIN_ARRAYS
     insertIdxAt' cut (ALit es) = ALit $ map (insertIdxAt cut) es
     insertIdxAt' cut (ArrayIndex e l) = ArrayIndex (insertIdxAt cut e) l
     insertIdxAt' cut (Pop a e1 e2) = Pop a (insertIdxAt cut e1) (insertIdxAt (FSuc (FSuc cut)) e2)
     insertIdxAt' cut (Singleton e) = Singleton (insertIdxAt cut e)
+#endif
     insertIdxAt' cut (Let a e1 e2) = Let a (insertIdxAt cut e1) (insertIdxAt (FSuc cut) e2)
     insertIdxAt' cut (LetBang vs a e1 e2) = LetBang (map (first $ liftIdx cut) vs) a (insertIdxAt cut e1) (insertIdxAt (FSuc cut) e2)
     insertIdxAt' cut (Tuple e1 e2) = Tuple (insertIdxAt cut e1) (insertIdxAt cut e2)

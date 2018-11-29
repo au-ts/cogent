@@ -135,7 +135,9 @@ instance Prec (Expr t p ip e) where
   prec (StringLit {}) = 0
   prec (Unitel) = 0
   prec (Tuple {}) = 0
+#ifdef BUILTIN_ARRAYS
   prec (ArrayLit {}) = 0
+#endif
   prec (UnboxedRecord {}) = 0
   -- vvv parsed by the expression builder
   prec (Member {}) = 8
@@ -144,7 +146,9 @@ instance Prec (Expr t p ip e) where
   prec (AppC {}) = 9
   prec (Con _ _) = 9
   prec (Put {}) = 9
+#ifdef BUILTIN_ARRAYS
   prec (ArrayIndex {}) = 10
+#endif
   prec (Comp {}) = 10
   prec (PrimOp n _) = prec (associativity n)  -- range 11 - 19
   prec (Annot {}) = 30
@@ -334,7 +338,9 @@ instance (PrettyName pv, PatnType ip, Pretty ip) => Pretty (IrrefutablePattern p
   pretty (PUnderscore) = symbol "_"
   pretty (PUnitel) = string "()"
   pretty (PTake v fs) = prettyName v <+> record (fmap handleTakeAssign fs)
+#ifdef BUILTIN_ARRAYS
   pretty (PArray ps) = array $ map pretty ps
+#endif
 
 instance Pretty RawIrrefPatn where
   pretty (RIP ip) = pretty ip
@@ -396,8 +402,10 @@ instance (ExprType e, Prec e, Pretty t, PatnType p, Pretty p, PatnType ip, Prett
   pretty (BoolLit b)         = literal (string $ show b)
   pretty (CharLit c)         = literal (string $ show c)
   pretty (StringLit s)       = literal (string $ show s)
+#ifdef BUILTIN_ARRAYS
   pretty (ArrayLit es)       = array $ map pretty es
   pretty (ArrayIndex e i)    = prettyPrec 11 e <+> symbol "@" <+> prettyPrec 10 i
+#endif
   pretty (Unitel)            = string "()"
   pretty (PrimOp n [a,b])
      | LeftAssoc  l <- associativity n = prettyPrec (l+1) a <+> primop n <+> prettyPrec l     b
@@ -465,7 +473,9 @@ instance (Pretty t, TypeType t, Pretty e) => Pretty (Type e t) where
   pretty (TVar n b)  = typevar n <> (if b then typesymbol "!" else empty)
   pretty (TTuple ts) = tupled (map pretty ts)
   pretty (TUnit)     = typesymbol "()" & (if __cogent_fdisambiguate_pp then (<+> comment "{- unit -}") else id)
+#ifdef BUILTIN_ARRAYS
   pretty (TArray t l) = prettyT' t <> brackets (pretty l)
+#endif
   pretty (TRecord ts s)
     | not . or $ map (snd . snd) ts = (if | s == Unboxed -> (typesymbol "#" <>)
                                           | readonly s -> (<> typesymbol "!")
@@ -591,7 +601,9 @@ instance Pretty Metadata where
   pretty Suppressed = err "a binder for a value of this type is being suppressed."
   pretty (UsedInMember {fieldName}) = err "the field" <+> fieldname fieldName
                                        <+> err "is being extracted without taking the field in a pattern."
+#ifdef BUILTIN_ARRAYS
   pretty UsedInArrayIndexing = err "an element of the array is being extracted"
+#endif
   pretty UsedInLetBang = err "it is being returned from such a context."
   pretty (TypeParam {functionName, typeVarName }) = err "it is required by the type of" <+> funname functionName
                                                       <+> err "(type variable" <+> typevar typeVarName <+> err ")"
@@ -651,10 +663,12 @@ instance Pretty TypeError where
                                       <+> fieldname f <+> err "into record/variant" <$> indent' (pretty t)
   pretty (DiscardWithoutMatch t)    = err "Variant tag"<+> tagname t <+> err "cannot be discarded without matching on it."
   pretty (RequiredTakenTag t)       = err "Required variant" <+> tagname t <+> err "but it has already been matched."
+#ifdef BUILTIN_ARRAYS
   pretty (ArithConstraintsUnsatisfiable es msg) = err "The following arithmetic constraints are unsatisfiable" <> colon
                                               <$> indent' (vsep (map ((<> semi) . pretty) es))
                                               <$> err "The SMT-solver comments" <> colon
                                               <$> indent' (pretty msg)
+#endif
   pretty (CustTyGenIsSynonym t)     = err "Type synonyms have to be fully expanded in --cust-ty-gen file:" <$> indent' (pretty t)
   pretty (CustTyGenIsPolymorphic t) = err "Polymorphic types are not allowed in --cust-ty-gen file:" <$> indent' (pretty t)
   pretty (RepError e) = pretty e
@@ -724,7 +738,9 @@ instance Pretty Constraint where
   pretty (Sat)            = warn "Sat"
   pretty (Exhaustive t p) = warn "Exhaustive" <+> pretty t <+> pretty p
   pretty (x :@ _)         = pretty x
+#ifdef BUILTIN_ARRAYS
   pretty (Arith e)        = pretty e
+#endif
 
 -- a more verbose version of constraint pretty-printer which is mostly used for debugging
 prettyC :: Constraint -> Doc
