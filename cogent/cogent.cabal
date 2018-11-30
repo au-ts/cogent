@@ -136,7 +136,6 @@ library
               , mtl >= 2.2.1
               , parsec >= 3.1
               , pretty-show-ansi-wl >= 1.5
-              , reducers >= 3.10 
               , srcloc >= 0.4
               , syb >= 0.4
               , transformers >= 0.4.2

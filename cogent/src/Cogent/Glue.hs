@@ -79,7 +79,6 @@ import Data.Loc
 import Data.List as L
 import Data.Map as M
 import Data.Maybe (fromJust, fromMaybe, isJust, maybe)
-import Data.Semigroup.Applicative
 import qualified Data.Sequence as Seq
 import Data.Set as S
 import Language.C.Parser  as CP hiding (parseExp, parseType)
@@ -663,7 +662,7 @@ collect s typnames mode filenames = do
       -- NOTE: Lens doesn't support Arrow. See http://www.reddit.com/r/haskell/comments/1nwetz/lenses_that_work_with_arrows/ / zilinc
 
 collectAnti :: (Data a, Typeable b, Monoid r) => (b -> Gl r) -> a -> Gl r
-collectAnti f a = getAp $ everything mappend (mkQ mempty (Ap . f)) a
+collectAnti f a = everything (\a b -> mappend <$> a <*> b) (mkQ (pure mempty) f) a
 
 collectFuncId :: CS.Definition -> Gl [(String, SrcLoc)]
 -- collectFuncId (CS.FuncDef (CS.Func _ (CS.AntiId fn loc) _ _ bis _) _) = (fn, loc) : collectAnti collectFnCall bis

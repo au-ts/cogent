@@ -68,7 +68,7 @@ import           Data.Loc                     (noLoc)  -- FIXME: remove
 import qualified Data.Map            as M
 import           Data.Maybe                   (catMaybes, fromJust)
 import           Data.Monoid                  ((<>))
-import           Data.Semigroup.Monad
+-- import           Data.Semigroup.Monad
 -- import           Data.Semigroup.Reducer       (foldReduce)
 import qualified Data.Set            as S
 import           Data.String
@@ -293,8 +293,8 @@ genUnit = pure [ CDecl $ CStructDecl unitT [(CInt True CIntT, Just dummyField)] 
                , CDecl $ CTypeDecl (CStruct unitT) [unitT]]
 
 genLetTrueEnum :: Gen v [CExtDecl]
-genLetTrueEnum = getMon $
-    (whenM __cogent_flet_in_if $ pure $ [CDecl $ CEnumDecl Nothing [(letTrue, Just one)]]) <>
+genLetTrueEnum = mappend <$>
+    (whenM __cogent_flet_in_if $ pure $ [CDecl $ CEnumDecl Nothing [(letTrue, Just one)]]) <*>
     (whenM __cogent_fletbang_in_if $ pure $ [CDecl $ CEnumDecl Nothing [(letbangTrue, Just one)]])
   where one = CConst $ CNumConst 1 (CInt True CIntT) DEC
 
@@ -1126,7 +1126,7 @@ compile defs ctygen =
                         , _varPool      = M.empty
                         , _ffiFuncs     = M.empty
                         })
-      (enum, st', _) = runRWS (runGen . getMon $ Mon genLetTrueEnum <> Mon genEnum) Nil st  -- `LET_TRUE', `LETBANG_TRUE' & `_tag' enums
+      (enum, st', _) = runRWS (runGen $ (mappend <$> genLetTrueEnum <*> genEnum)) Nil st  -- `LET_TRUE', `LETBANG_TRUE' & `_tag' enums
       ((funclasses,tns), st'', _) = runRWS (runGen genFunClasses) Nil st'  -- fun_enums & dispatch functions
       (dispfs, fenums) = L.partition isFnDefn funclasses where isFnDefn (CFnDefn {}) = True; isFnDefn _ = False
       (fndefns,fndecls) = L.partition isFnDefn extDecls where isFnDefn (CFnDefn {}) = True; isFnDefn _ = False  -- there are no types
