@@ -50,12 +50,10 @@ import Control.Arrow
 import Control.Monad
 import Control.Monad.State
 import Control.Lens hiding (Context)
--- import qualified Data.Bifunctor as B
 import Data.List as L
 import Data.Map as M
 import Data.Maybe (catMaybes, fromJust)
 import Data.Monoid
-import Data.Monoid.Cancellative
 
 -- import Debug.Trace
 import Unsafe.Coerce
@@ -199,8 +197,6 @@ seqOcc, parOcc :: OccInfo -> OccInfo -> OccInfo
 seqOcc = (<>)
 parOcc OnceSafe OnceSafe = MultiSafe
 parOcc occ1 occ2 = occ1 `max` occ2
-
-instance CommutativeMonoid OccInfo
 
 getVOccs :: SNat v' -> Occ (v :+: v') a -> Occ v (a, OccEnv v')
 getVOccs v' ma = do (fenv,venv) <- get
