@@ -17,7 +17,7 @@ cache:
   directories:
     - $HOME/.cabsnap
     - $HOME/.ghc
-    - $HOME/.cabal/lib
+    - $HOME/cabal/lib
     - $HOME/.cabal/share
     - $HOME/.cabal/packages
     - $HOME/.cabal/bin
@@ -134,7 +134,7 @@ install:
 script:
  - cd $REPO/cogent
  # - echo 'Configuring Cogent'
- - cabal configure # --enable-tests  # or -v2 to provide useful information for debugging
+ - cabal configure --flags="builtin-arrays haskell-backend docgent"  # --enable-tests  # or -v2 to provide useful information for debugging
  # - echo 'Installing Cogent'
  - cabal install --force-reinstalls # --enable-tests
  # - cabal build   # this builds all libraries and executables (including tests/benchmarks)
