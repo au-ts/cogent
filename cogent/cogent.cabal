@@ -121,8 +121,7 @@ library
               , Version_cogent
 
   build-depends:
-                ansi-terminal >= 0.6
-              , ansi-wl-pprint >= 0.6
+                ansi-wl-pprint >= 0.6
               , atomic-write >= 0.2.0.4
               , base >= 4.10
               , bifunctors >= 4.2
@@ -166,7 +165,8 @@ library
     cpp-options: -DBUILTIN_ARRAYS
   if flag(docgent)
     cpp-options: -DWITH_DOCGENT
-    build-depends: pandoc >= 1.19.2.4
+    build-depends: ansi-terminal >= 0.6
+                 , pandoc >= 1.19.2.4
                  , pandoc-types >= 1.16
                  , shakespeare >= 2.0
                  , data-default >=0.5
