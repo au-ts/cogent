@@ -90,7 +90,6 @@ import Data.Maybe (fromJust, isJust)
 import Data.Monoid (getLast)
 import Data.Time
 import qualified Data.Traversable as T (forM)
-import Data.Tuple.Select (sel3)
 -- import Isabelle.InnerAST (subSymStr)
 -- import Language.Haskell.TH.Ppr ()
 import Prelude hiding (mapM_)
@@ -904,7 +903,7 @@ parseArgs args = case getOpt' Permute options args of
           -- Run the generators
           (shal    ,shrd    ,scorr,shallowTypeNames) = SH.shallow False thy stg        defns log
           (shal_tup,shrd_tup,_    ,_               ) = SH.shallow True  thy STGDesugar defns log
-          constsTypeCheck = IN.tcConsts (sel3 $ fromJust $ getLast typedefs) fts
+          constsTypeCheck = IN.tcConsts ( (\(a,b,c) -> c) $ fromJust $ getLast typedefs) fts
 #ifdef WITH_HASKELL
           -- Haskell shallow embedding
           hsShalName    = mkOutputName' toHsModName source (Just $ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage stg)

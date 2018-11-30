@@ -56,7 +56,6 @@ import Data.Char (ord)
 import Data.List as L (elemIndex)
 import Data.Map as M hiding (filter, map, (\\))
 import Data.Maybe
-import Data.Tuple.Select
 import Data.Word (Word32)
 import Prelude as P
 import Data.Traversable (forM)
@@ -404,7 +403,7 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple ps) _)) e | __cogent_ftuples_as_
   __assert (P.length ps == P.length ts) $ "desugarAlt': |ps| /= |ts|\nps = " ++ show ps ++ "\nts = " ++ show ts
   let pts = P.zip ps ts
   vpts <- forM pts $ \(p,t) -> case p of B.TIP (S.PVar (v,_)) _ -> return (v,p,t); _ -> (,p,t) <$> freshVar
-  let vpts' = P.filter (not . isPVar . sel2) vpts
+  let vpts' = P.filter (\(v,p,t) -> not (isPVar p)) vpts
       b0 = S.Binding (B.TIP (S.PTuple $ flip P.map vpts (\(v,p,t) -> B.TIP (S.PVar (v,t)) (B.getLocTIP p))) noPos) Nothing e0 []
       bs = flip P.map vpts' $ \(v,p,t) -> S.Binding p Nothing (B.TE t (S.Var v) noPos) []
   desugarExpr $ B.TE (B.getTypeTE e) (S.Let (b0:bs) e) noPos
