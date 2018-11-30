@@ -42,8 +42,8 @@ type FFIFuncs = M.Map FunName (CType, CType)
 
 type Gen a = ReaderT (FFIFuncs, [FunName]) Identity a
 
-ffiHs :: FFIFuncs -> String -> String -> [CExtDecl] -> String -> Doc
-ffiHs m name hscname decls log = 
+ffiHs :: FFIFuncs -> String -> String -> [CExtDecl] -> String -> String
+ffiHs m name hscname decls log = render $
   let mod = flip runReader (m, map ("ffi_" ++) $ M.keys m) $ ffiModule name hscname decls
    in text "{-" $+$ text log $+$ text "-}" $+$ prettyPrim mod
 
@@ -98,3 +98,4 @@ mkTyCon t xs = foldl (TyApp ()) t xs
 
 inIO :: Type () -> Type ()
 inIO t = mkTyCon (TyCon () (UnQual () (Ident () "IO"))) [t] 
+

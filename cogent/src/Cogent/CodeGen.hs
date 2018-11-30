@@ -32,7 +32,6 @@ import Control.Lens ((^.))
 import Data.Map as M
 import Data.Set as S
 import qualified Language.C as C (Definition)
-import qualified Text.PrettyPrint as PP (Doc, render)
 import Text.PrettyPrint.ANSI.Leijen as Leijen
 
 cgen :: FilePath
@@ -48,7 +47,7 @@ cgen hName cNames hscName hsName defs ctygen log =
       (h,c) = render hName (enums++tydefns++fndecls++disps++tydefs) fndefns log
 #ifdef WITH_HASKELL
       hsc = ffiHsc hscName cNames tydefns enums absts fclsts log
-      hs  = PP.render (ffiHs (st^.ffiFuncs) hsName hscName fndecls log)
+      hs  = ffiHs (st^.ffiFuncs) hsName hscName fndecls log
 #else
       hsc = mempty
       hs = mempty
