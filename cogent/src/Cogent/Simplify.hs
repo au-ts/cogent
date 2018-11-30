@@ -50,7 +50,6 @@ import Control.Arrow
 import Control.Monad
 import Control.Monad.State
 import Control.Lens hiding (Context)
-import Data.Biapplicative ((<<*>>))
 -- import qualified Data.Bifunctor as B
 import Data.List as L
 import Data.Map as M
@@ -165,12 +164,12 @@ markOcc sv (TE tau (Promote t e)) = TE tau . Promote t <$> markOcc sv e
 markOcc sv (TE tau (Cast t e)) = TE tau . Cast t <$> markOcc sv e
 
 branchEnv, concatEnv :: OccEnv v -> OccEnv v -> OccEnv v
-branchEnv = (<<*>>) . ((branchFuncEnv, V.zipWith parOcc) <<*>>)
-concatEnv = (<<*>>) . ((concatFuncEnv, V.zipWith seqOcc) <<*>>)
+branchEnv (fe, v) (fe', v') = (branchFuncEnv fe fe', V.zipWith parOcc v v')
+concatEnv (fe, v) (fe', v') = (concatFuncEnv fe fe', V.zipWith seqOcc v v')
 
 branchFuncEnv, concatFuncEnv :: FuncEnv -> FuncEnv -> FuncEnv
-branchFuncEnv = M.unionWith $ (<<*>>) . ((const, parOcc) <<*>>)
-concatFuncEnv = M.unionWith $ (<<*>>) . ((const, seqOcc) <<*>>)
+branchFuncEnv = M.unionWith $ \(a,b) (_,d) -> (a, parOcc b d)
+concatFuncEnv = M.unionWith $ \(a,b) (_,d) -> (a, seqOcc b d)
 
 #if __GLASGOW_HASKELL__ < 803
 instance Monoid OccInfo where
