@@ -678,6 +678,23 @@ instance Show GoalClasses where
                               "\narithineqs:\n" ++
                               unlines (map (("  " ++) . show) (F.toList ai))
 
+
+#if __GLASGOW_HASKELL__ < 803	
+instance Monoid GoalClasses where	
+  Classes u d uc dc e s r uf df ae ai `mappend` Classes u' d' uc' dc' e' s' r' uf' df' ae' ai'	
+    = Classes (IM.unionWith (<>) u u')	
+              (IM.unionWith (<>) d d')	
+              (IM.unionWith (<>) uc uc')	
+              (IM.unionWith (<>) dc dc')	
+              (e <> e')	
+              (s <> s')	
+              (r <> r')	
+              (IS.union uf uf')	
+              (IS.union df df')	
+              (ae <> ae')	
+              (ai <> ai')	
+  mempty = Classes IM.empty IM.empty IM.empty IM.empty [] [] [] IS.empty IS.empty [] []	
+#else
 instance Semigroup GoalClasses where
   Classes u d uc dc e s r uf df ae ai <> Classes u' d' uc' dc' e' s' r' uf' df' ae' ai'
     = Classes (IM.unionWith (<>) u u')
@@ -693,7 +710,7 @@ instance Semigroup GoalClasses where
               (ai <> ai')
 instance Monoid GoalClasses where
   mempty = Classes IM.empty IM.empty IM.empty IM.empty [] [] [] IS.empty IS.empty [] []
-
+#endif
 
 -- Collects all flexes
 flexesIn :: TypeFragment TCType -> IS.IntSet

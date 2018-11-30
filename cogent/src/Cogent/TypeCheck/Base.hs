@@ -194,12 +194,22 @@ andSExprs [] = SE $ BoolLit True
 andSExprs (e:es) = SE $ PrimOp "&&" [e, andSExprs es]
 #endif
 
+#if __GLASGOW_HASKELL__ < 803	
+instance Monoid Constraint where	
+  mempty = Sat	
+  mappend Sat x = x	
+  mappend x Sat = x	
+  -- mappend (Unsat r) x = Unsat r	
+  -- mappend x (Unsat r) = Unsat r	
+  mappend x y = x :& y	
+#else
 instance Semigroup Constraint where
   Sat <> x = x
   x <> Sat = x
   x <> y = x :& y
 instance Monoid Constraint where
   mempty = Sat
+#endif
 
 kindToConstraint :: Kind -> TCType -> Metadata -> Constraint
 kindToConstraint k t m = (if canEscape  k then Escape t m else Sat)
