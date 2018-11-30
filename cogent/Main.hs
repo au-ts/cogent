@@ -82,11 +82,9 @@ import Control.Monad.Trans.Except (runExceptT)
 -- import Control.Monad.Except (runExceptT)
 -- import Control.Monad.Trans.Either (eitherT, runEitherT)
 import Data.Char (isSpace)
-import Data.Either (isLeft)
-import Data.Either.Utils (fromLeft)
+import Data.Either (isLeft, fromLeft)
 import Data.Foldable (fold, foldrM)
 import Data.List as L (find, intersect, isPrefixOf, nub, partition)
-import Data.List.Utils (replace)
 import Data.Map (empty, fromList)
 import Data.Maybe (fromJust, isJust)
 import Data.Monoid (getLast)
@@ -639,7 +637,7 @@ parseArgs args = case getOpt' Permute options args of
       let (errs,warns) = partition (isLeft . snd) $ tclog^.errLog
       when (not $ null errs) $ do
         printError (prettyTWE __cogent_ftc_ctx_len) errs
-        when (and $ map (isWarnAsError . fromLeft . snd) errs) $ hPutStrLn stderr "Failing due to --Werror."
+        when (and $ map (isWarnAsError . fromLeft undefined . snd) errs) $ hPutStrLn stderr "Failing due to --Werror."
         exitFailure
       case mtc' of
         Nothing -> __impossible "main: typecheck"
