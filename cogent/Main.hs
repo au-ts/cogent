@@ -85,7 +85,7 @@ import Data.Char (isSpace)
 import Data.Either (isLeft)
 import Data.Either.Utils (fromLeft)
 import Data.Foldable (fold, foldrM)
-import Data.List as L (find, isPrefixOf, nub, partition)
+import Data.List as L (find, intersect, isPrefixOf, nub, partition)
 import Data.List.Utils (replace)
 import Data.Map (empty, fromList)
 import Data.Maybe (fromJust, isJust)
@@ -138,7 +138,7 @@ data Command = AstC
              | CRefinement  -- !
              | Ast       Stage
              | Pretty    Stage
-             | HsShallow Stage
+             | HsShallow
              | HsShallowTuples
              | HsFFIGen
              | Deep      Stage
@@ -160,7 +160,7 @@ data Command = AstC
              | AllRefine
              | Root
              | BuildInfo
-             | All  -- !
+             | All  -- ! (excl. Hs stuff)
              | QuickCheck  -- !
              | StdGumDir
              | Help Verbosity
@@ -240,7 +240,7 @@ setActions c@(Compile   stg) = setActions (Compile $ pred stg) ++ [c]
 setActions c@(Ast       stg) = setActions (Compile stg) ++ [c]
 setActions c@(Documentation) = setActions (Compile STGParse) ++ [c]
 setActions c@(Pretty    stg) = setActions (Compile stg) ++ [c]
-setActions c@(HsShallow stg) = setActions (Compile stg) ++ [c]
+setActions c@(HsShallow      ) = setActions (Compile STGDesugar) ++ [c]
 setActions c@(HsShallowTuples) = setActions (Compile STGDesugar) ++ [c]
 setActions c@(HsFFIGen       ) = setActions (Compile STGCodeGen) ++ [c]
 setActions c@(Deep      stg) = setActions (Compile stg) ++ [c]
@@ -271,7 +271,7 @@ setActions c@(BuildInfo    ) = setActions (Compile STGMono)    ++ [c]
 setActions c@(GraphGen     ) = setActions (Compile STGMono)    ++ [c]
 setActions c@(QuickCheck   ) = nub $ setActions (HsFFIGen) ++
                                      setActions (CodeGen) ++
-                                     setActions (HsShallow STGDesugar) ++
+                                     setActions (HsShallow) ++
                                      setActions (HsShallowTuples) ++
                                      setActions (ShallowTuplesProof)
 setActions c@(All          ) = nub $ setActions (TableCType) ++
@@ -358,12 +358,15 @@ options = [
   , Option []         ["pretty-simpl"]    2 (NoArg $ Pretty STGSimplify)    (prettyMsg STGSimplify)
   , Option []         ["pretty-mono"]     2 (NoArg $ Pretty STGMono)        (prettyMsg STGMono)
   -- Haskell shallow
-  , Option []         ["hs-shallow-desugar"]         2 (NoArg (HsShallow STGDesugar))  (hsShallowMsg STGDesugar False)
-  , Option []         ["hs-shallow-desugar-tuples"]  2 (NoArg HsShallowTuples)  (hsShallowMsg STGDesugar True)
-  -- FFI
 #ifdef WITH_HASKELL
+  , Option []         ["hs-shallow-desugar"]         2 (NoArg HsShallow      )  (hsShallowMsg STGDesugar False)
+  , Option []         ["hs-shallow-desugar-tuples"]  2 (NoArg HsShallowTuples)  (hsShallowMsg STGDesugar True )
+  -- FFI
   , Option []         ["hs-ffi"]          2 (NoArg HsFFIGen)                  "generate Haskell FFI code to access generated C code (incl. a .hsc module for types and a .hs module for functions)"
 #else
+  , Option []         ["hs-shallow-desugar"]         2 (NoArg HsShallow      )  (hsShallowMsg STGDesugar False)
+  , Option []         ["hs-shallow-desugar-tuples"]  2 (NoArg HsShallowTuples)  (hsShallowMsg STGDesugar True )
+  -- FFI
   , Option []         ["hs-ffi"]          2 (NoArg HsFFIGen)                  "generate Haskell FFI code to access generated C code (incl. a .hsc module for types and a .hs module for functions) [disabled in this build]"
 #endif
   -- deep
@@ -537,6 +540,16 @@ parseArgs args = case getOpt' Permute options args of
     (_,_,us,errs)   -> exitErr (concat errs)
   where
     withCommands :: ([Command], [String], [String], [String]) -> IO ()
+#ifndef WITH_HASKELL
+    withCommands (cs,_,_,_) | not . null $ [HsFFIGen, HsShallowTuples, HsShallow] `intersect` cs
+      = exitErr $ unlines [ "Haskell-related features are disabled in this build."
+                          , "Try building the Cogent compiler with the flag `haskell-backend' on."]
+#endif
+#ifndef WITH_DOCGENT
+    withCommands (cs,_,_,_) | Documentation `elem` cs
+      = exitErr $ unlines [ "Cogent documentation generation is disabled in this build."
+                          , "Try building the Cogent compiler with the flag `docgent' on."]
+#endif
     withCommands (cs,xs,us,args) = case getOpt Permute flags (filter (`elem` us ++ xs) args) of  -- Note: this is to keep the order of arguments / zilinc
       (flags,xs',[]) -> noFlagError (cs,flags,xs',args)
       (_,_,errs)     -> exitErr (concat errs)
@@ -654,7 +667,7 @@ parseArgs args = case getOpt' Permute options args of
                                                                        ShallowTuples `elem` cmds,
                                                                        ShallowConstsTuples `elem` cmds,
                                                                        ShallowTuplesProof `elem` cmds,
-                                                                       HsShallow stg `elem` cmds,
+                                                                       HsShallow `elem` cmds,
                                                                        HsShallowTuples `elem` cmds)
           when (TableShallow `elem` cmds) $ putProgressLn ("Generating shallow table...") >> putStrLn (printTable $ st desugared')
           when (Compile (succ stg) `elem` cmds) $ normal cmds desugared' ctygen' source tced tcst typedefs fts buildinfo log
