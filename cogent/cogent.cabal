@@ -124,7 +124,7 @@ library
                 ansi-wl-pprint >= 0.6
               , atomic-write >= 0.2.0.4
               , base >= 4.10
-              , bifunctors >= 4.2
+              --, bifunctors >= 4.2
               , bytestring >= 0.10
               , containers >= 0.5.8
               , cpphs >= 1.19
