@@ -25,9 +25,9 @@ module Cogent.Haskell.FFIGen (
 import Cogent.C.Syntax
 import Cogent.Common.Syntax
 import Cogent.Haskell.HscGen
+import Cogent.Util (concatMapM)
 import qualified Cogent.Haskell.HscSyntax as Hsc
 
-import Control.Monad.Extra (concatMapM)
 import Control.Monad.Identity
 import Control.Monad.Trans.Reader
 import qualified Data.Map as M

@@ -360,3 +360,19 @@ replace old new l = joinWith new . split old $ l
 joinWith :: [a] -> [[a]] -> [a]
 joinWith delim l = concat (intersperse delim l)
 
+
+-- the following are from the extra library, BSD3
+-- http://hackage.haskell.org/package/extra-1.6.13/docs/Control-Monad-Extra.html
+concatMapM :: Monad m => (a -> m [b]) -> [a] -> m [b]
+concatMapM op = foldr f (return [])
+    where f x xs = do x <- op x; if null x then xs else do xs <- xs; return $ x++xs
+
+allM :: Monad m => (a -> m Bool) -> [a] -> m Bool
+allM p [] = return True
+allM p (x:xs) = do v <- p x; if v then allM p xs else return False
+
+andM :: Monad m => [m Bool] -> m Bool
+andM = allM id
+
+ifM :: Monad m => m Bool -> m a -> m a -> m a
+ifM b t f = do b <- b; if b then t else f

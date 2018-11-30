@@ -49,7 +49,6 @@ import Control.Applicative
 import Control.Arrow
 import Control.Lens (view, _2)
 import Control.Monad.Except hiding (fmap, forM_)
-import Control.Monad.Extra (allM)
 import Control.Monad.Reader hiding (fmap, forM_)
 import Control.Monad.State hiding (fmap, forM_)
 import Control.Monad.Trans.Maybe

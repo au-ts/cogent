@@ -37,7 +37,7 @@ import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Core
 import Cogent.Inference hiding (kindcheck, lookupKind, withBinding)
-import Cogent.Util (Flip(..), secondM, flip3)
+import Cogent.Util (Flip(..), secondM, ifM, flip3, andM)
 import Data.Ex
 import Data.Nat
 import Data.PropEq
@@ -55,7 +55,6 @@ import Data.Biapplicative ((<<*>>))
 import Data.List as L
 import Data.Map as M
 import Data.Maybe (catMaybes, fromJust)
-import Control.Monad.Extra
 import Data.Monoid
 import Data.Monoid.Cancellative
 
@@ -411,27 +410,27 @@ inline _ _ _ = __impossible "inline"
 -- FIXME: these heuristics are now taking the most conservative decisions
 
 noLinear :: TypedExpr t v a -> Simp t Bool
-noLinear (TE tau e) = typeNotLinear tau &&^ noLinear' e
+noLinear (TE tau e) = (&&) <$> typeNotLinear tau <*> noLinear' e
   where
     noLinear' (Variable (v,a)) = return True
     noLinear' (Fun {}) = return True
     noLinear' (Op _ es) = and <$> mapM noLinear es
-    noLinear' (App e1 e2) = noLinear e1 &&^ noLinear e2
+    noLinear' (App e1 e2) = (&&) <$> noLinear e1 <*> noLinear e2
     noLinear' (Con _ e _) = noLinear e
     noLinear' (Unit) = return True
     noLinear' (ILit {}) = return True
     noLinear' (SLit {}) = return True
-    noLinear' (Let a e1 e2) = noLinear e1 &&^ noLinear e2
-    noLinear' (LetBang _ a e1 e2) = noLinear e1 &&^ noLinear e2
-    noLinear' (Tuple e1 e2) = noLinear e1 &&^ noLinear e2
+    noLinear' (Let a e1 e2) = (&&) <$> noLinear e1 <*> noLinear e2
+    noLinear' (LetBang _ a e1 e2) = (&&) <$> noLinear e1 <*> noLinear e2
+    noLinear' (Tuple e1 e2) = (&&) <$> noLinear e1 <*> noLinear e2
     noLinear' (Struct fs) = and <$> mapM (noLinear . snd) fs
     noLinear' (If e1 e2 e3) = andM [noLinear e1, noLinear e2, noLinear e3]
     noLinear' (Case e _ (_,_,e1) (_,_,e2)) = andM [noLinear e, noLinear e1, noLinear e2]
     noLinear' (Esac e) = noLinear e
-    noLinear' (Split a e1 e2) = noLinear e1 &&^ noLinear e2
+    noLinear' (Split a e1 e2) = (&&) <$> noLinear e1 <*> noLinear e2
     noLinear' (Member rec _) = noLinear rec
-    noLinear' (Take a rec _ e) = noLinear rec &&^ noLinear e
-    noLinear' (Put rec _ e) = noLinear rec &&^ noLinear e
+    noLinear' (Take a rec _ e) = (&&) <$> noLinear rec <*> noLinear e
+    noLinear' (Put rec _ e) = (&&) <$> noLinear rec <*> noLinear e
     noLinear' (Promote ty e) = noLinear e
     noLinear' (Cast ty e) = noLinear e
 

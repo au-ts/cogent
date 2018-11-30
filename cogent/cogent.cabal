@@ -133,7 +133,7 @@ library
               , pretty
               -- , disassembler >= 0.2.0.0
               -- , either >= 4.3.2
-              , extra >= 1.3
+              -- , extra >= 1.3
               , filepath >= 1.4.0.0
               , graph-wrapper >= 0.2
               , groups >= 0.4.0.0
@@ -155,7 +155,6 @@ library
               , transformers >= 0.4.2
               , tuple >= 0.3
               , uniplate >= 1.6
-              , vector >= 0.10.0.1
   if flag(haskell-backend)
     exposed-modules: Cogent.Haskell.FFIGen
                    , Cogent.Haskell.HscGen
