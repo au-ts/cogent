@@ -41,7 +41,7 @@ import qualified Data.List as L
 import Data.Version (showVersion)
 import System.Environment
 import System.FilePath.Posix
-
+import Control.Monad.Trans.Except (ExceptT(ExceptT))
 import Paths_cogent
 import Version_cogent (gitHash)
 
@@ -376,3 +376,10 @@ andM = allM id
 
 ifM :: Monad m => m Bool -> m a -> m a -> m a
 ifM b t f = do b <- b; if b then t else f
+
+-- from the errors library, BSD3
+-- http://hackage.haskell.org/package/errors-2.3.0
+exceptT :: Monad m => (a -> m c) -> (b -> m c) -> ExceptT a m b -> m c
+exceptT f g (ExceptT m) = m >>= \z -> case z of
+    Left  a -> f a
+    Right b -> g b

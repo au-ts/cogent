@@ -74,7 +74,6 @@ import Control.Applicative (liftA, (<$>))
 #else
 import Control.Applicative (liftA)
 #endif
-import Control.Error.Util (exceptT)
 import Control.Lens hiding (deep, (<.>))
 import Control.Monad (forM, forM_, unless, when)
 import Control.Monad.Trans.Except (runExceptT)

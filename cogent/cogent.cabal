@@ -192,7 +192,6 @@ Executable cogent
               , base >= 4.10
               , containers >= 0.5
               , directory >=1.2
-              , errors >= 2.2
               , filepath >= 1.4.0.0
               , lens >= 4.6
               , mainland-pretty >= 0.2.6
