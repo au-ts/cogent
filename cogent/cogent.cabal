@@ -129,7 +129,6 @@ library
               , directory >= 1.2
               , filepath >= 1.4.0.0 
               , graph-wrapper >= 0.2
-              , groups >= 0.4.0.0 
               , isa-parser >= 0.1.0.0
               , language-c-quote >= 0.10.2
               , lens >= 4.6 

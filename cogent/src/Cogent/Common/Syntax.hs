@@ -9,7 +9,6 @@ import Cogent.Compiler
 #if __GLASGOW_HASKELL__ < 709
 import Data.Monoid
 #endif
-import Data.Group
 import Data.Word
 import Text.PrettyPrint.ANSI.Leijen
 
@@ -126,13 +125,6 @@ instance Semigroup Likelihood where
 instance Monoid Likelihood where
   mempty = Regular
 #endif
-
-instance Group Likelihood where
-  invert Regular  = Regular
-  invert Likely   = Unlikely
-  invert Unlikely = Likely
-
-instance Abelian Likelihood
 
 tagSuccess = "Success" :: TagName
 tagFail    = "Fail"    :: TagName
