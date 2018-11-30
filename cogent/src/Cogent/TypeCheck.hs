@@ -38,7 +38,7 @@ import Cogent.TypeCheck.Util
 import Cogent.Util (firstM)
 
 import Control.Arrow (first, second)
-import Control.Lens
+
 -- import Control.Monad.Except
 import Control.Monad.State
 import Control.Monad.Trans.Maybe
@@ -51,7 +51,8 @@ import qualified Data.Sequence as Seq
 import Text.Parsec.Pos
 import qualified Text.PrettyPrint.ANSI.Leijen as L
 import Text.PrettyPrint.ANSI.Leijen hiding ((<>), (<$>))
-
+import Lens.Micro
+import Lens.Micro.Mtl
 -- import Debug.Trace
 
 tc :: [(SourcePos, TopLevel LocType LocPatn LocExpr)]
@@ -86,7 +87,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     let xs = ps \\ nub ps
     unless (null xs) $ logErrExit $ DuplicateTypeVariable xs
     t' <- validateType ps t
-    lift . lift $ knownTypes <>= [(n, (ps, Just t'))]
+    lift . lift $ knownTypes %= ( <> [(n, (ps, Just t'))])
     t'' <- postT t'
     return $ TypeDec n ps t''
 
@@ -97,7 +98,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     unless (null xs) $ logErrExit $ DuplicateTypeVariable xs
     ts' <- mapM (validateType ps) ts
     ts'' <- mapM postT ts'
-    lift . lift $ knownTypes <>= [(n, (ps, Nothing))]
+    lift . lift $ knownTypes %= (<> [(n, (ps, Nothing))])
     return $ AbsTypeDec n ps ts''
 
   (AbsDec n (PT ps (stripLocT -> t))) -> do

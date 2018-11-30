@@ -47,7 +47,6 @@ import Isabelle.OuterAST as O
 
 import Control.Applicative
 import Control.Arrow ((***))
-import Control.Lens hiding (Context)
 import Control.Monad.RWS hiding (Product, Sum, mapM)
 import Control.Monad.State
 import Control.Monad.Writer (Writer, runWriter)
@@ -63,7 +62,9 @@ import Prelude as P
 import System.FilePath ((</>))
 import Text.PrettyPrint.ANSI.Leijen (Doc, pretty, string)
 import qualified Text.PrettyPrint.ANSI.Leijen as L ((<$$>))
-
+import Lens.Micro
+import Lens.Micro.TH
+import Lens.Micro.Mtl
 -- import Debug.Trace
 
 isaReservedNames = ["o", "value", "from"]

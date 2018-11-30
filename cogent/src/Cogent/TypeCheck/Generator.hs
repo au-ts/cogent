@@ -37,7 +37,6 @@ import Cogent.TypeCheck.Util
 import Cogent.Util hiding (Warning)
 
 import Control.Arrow (first, second)
-import Control.Lens hiding (Context, each, zoom, (:<))
 import Control.Monad.State
 import Control.Monad.Trans.Except
 import Data.Foldable (fold)
@@ -51,7 +50,9 @@ import qualified Data.Sequence as Seq
 import Text.Parsec.Pos
 import Text.PrettyPrint.ANSI.Leijen hiding ((<>), (<$>))
 import qualified Text.PrettyPrint.ANSI.Leijen as L
-
+import Lens.Micro.TH
+import Lens.Micro
+import Lens.Micro.Mtl
 -- import Debug.Trace
 
 data GenState = GenState { _context :: C.Context TCType

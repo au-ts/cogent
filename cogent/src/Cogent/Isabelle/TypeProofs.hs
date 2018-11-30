@@ -39,7 +39,6 @@ import Data.Vec hiding (splitAt, length, zipWith, zip, unzip, head)
 import qualified Data.Vec as V
 
 import Control.Arrow (second)
-import Control.Lens ((^.), use)
 import Control.Monad.State.Strict
 import Data.Char
 import Data.Foldable
@@ -58,6 +57,8 @@ import System.FilePath ((</>))
 import Text.PrettyPrint.ANSI.Leijen hiding ((</>))
 import Text.Printf
 import Text.Show
+import Lens.Micro ((^.))
+import Lens.Micro.Mtl (use)
 
 data TypeSplitKind = TSK_R | TSK_L | TSK_S | TSK_NS
   deriving Eq

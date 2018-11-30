@@ -131,7 +131,10 @@ library
               , graph-wrapper >= 0.2
               , isa-parser >= 0.1.0.0
               , language-c-quote >= 0.10.2
-              , lens >= 4.6 
+              , microlens >= 0.4.9
+              , microlens-mtl >= 0.1.11
+              , microlens-th >= 0.4.2
+              , microlens-ghc >= 0.4.9
               , mainland-pretty >= 0.2.6
               , mtl >= 2.2.1
               , parsec >= 3.1
@@ -191,13 +194,13 @@ Executable cogent
               , containers >= 0.5
               , directory >=1.2
               , filepath >= 1.4.0.0
-              , lens >= 4.6
               , mainland-pretty >= 0.2.6
               , pretty-show-ansi-wl >= 1.5
               , process >= 1.2.0.0
               , text >= 0.11.3.1
               , time >= 1.5
               , transformers >= 0.4.2
+              , microlens >= 0.4.9
 
   if flag(haskell-backend)
     cpp-options: -DWITH_HASKELL

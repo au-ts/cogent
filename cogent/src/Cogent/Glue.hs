@@ -62,7 +62,9 @@ import Data.Vec as Vec hiding (repeat)
 
 import Control.Applicative
 import Control.Arrow (Arrow(..), second, (&&&))
-import Control.Lens hiding ((<.>))
+import Lens.Micro
+import Lens.Micro.TH
+import Lens.Micro.Mtl
 import Control.Monad.Except hiding (sequence, mapM_, mapM)
 import Control.Monad.Reader
 import Control.Monad.RWS.Strict

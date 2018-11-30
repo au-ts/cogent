@@ -47,7 +47,8 @@ import qualified Data.Vec as Vec
 
 import Control.Applicative
 import Control.Arrow
-import Control.Lens (view, _2)
+import Lens.Micro (_2)
+import Lens.Micro.Mtl (view)
 import Control.Monad.Except hiding (fmap, forM_)
 import Control.Monad.Reader hiding (fmap, forM_)
 import Control.Monad.State hiding (fmap, forM_)

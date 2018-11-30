@@ -56,7 +56,6 @@ import           Data.Vec            as Vec hiding (repeat, zipWith)
 
 import           Control.Applicative          hiding (empty)
 import           Control.Arrow                       ((***), (&&&), second)
-import           Control.Lens                 hiding (at, assign)
 import           Control.Monad.RWS.Strict     hiding (mapM, mapM_, Dual, (<>), Product, Sum)
 import           Data.Char                    (isAlphaNum, toUpper)
 #if __GLASGOW_HASKELL__ < 709
@@ -81,7 +80,10 @@ import           Prelude             as P    hiding (mapM)
 #endif
 import           System.IO (Handle, hPutChar)
 import qualified Text.PrettyPrint.ANSI.Leijen as PP hiding ((<$>), (<>))
-
+import           Lens.Micro hiding (at)
+import           Lens.Micro.Mtl hiding (assign)
+import           Lens.Micro.TH
+import           Control.Monad.Identity (runIdentity)
 -- import Debug.Trace
 import Unsafe.Coerce (unsafeCoerce)
 

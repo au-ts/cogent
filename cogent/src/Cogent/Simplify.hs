@@ -49,12 +49,13 @@ import Control.Applicative
 import Control.Arrow
 import Control.Monad
 import Control.Monad.State
-import Control.Lens hiding (Context)
 import Data.List as L
 import Data.Map as M
 import Data.Maybe (catMaybes, fromJust)
 import Data.Monoid
-
+import Lens.Micro.Mtl
+import Lens.Micro
+import Lens.Micro.TH
 -- import Debug.Trace
 import Unsafe.Coerce
 

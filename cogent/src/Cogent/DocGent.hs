@@ -24,7 +24,8 @@ import Cogent.Surface
 import Cogent.Util
 import Paths_cogent
 
-import Control.Lens
+import Lens.Micro.Mtl ((.=), use)
+import Lens.Micro.TH
 import Control.Monad.State as S
 import Data.Char (isLower, toUpper)
 import Data.Default

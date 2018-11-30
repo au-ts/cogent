@@ -47,7 +47,10 @@ import Data.Vec as Vec
 
 import Control.Applicative
 import Control.Arrow ((&&&))
-import Control.Lens as Lens
+import Lens.Micro as Lens
+import Lens.Micro.TH as Lens
+import Lens.Micro.Mtl as Lens
+import Lens.Micro.GHC as Lens
 import Control.Monad.Reader hiding (forM)
 import Control.Monad.RWS.Strict hiding (forM)
 import Data.Bits

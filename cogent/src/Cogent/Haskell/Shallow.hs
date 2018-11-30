@@ -90,13 +90,15 @@ import Cogent.Isabelle.Shallow (isRecTuple)
 import Cogent.Isabelle.ShallowTable (TypeStr(..), st)
 import Cogent.PrettyPrint ()
 import qualified Cogent.Surface as S
-import Cogent.Util (Stage(..), delimiter, secondM, toHsTypeName, concatMapM)
+import Cogent.Util (Stage(..), delimiter, secondM, toHsTypeName, concatMapM, (<<+=))
 import Data.Nat as Nat
 import Data.Vec as Vec hiding (sym)
 
 import Control.Arrow (second, (***))
 import Control.Applicative
-import Control.Lens hiding (Context, op, (<*=))
+import Lens.Micro
+import Lens.Micro.TH
+import Lens.Micro.Mtl
 import Control.Monad.RWS hiding (Product, Sum, mapM)
 -- import Data.Char (ord, chr)
 import Data.Foldable (toList)

@@ -28,7 +28,6 @@ import Control.Applicative ((<$>))
 import Data.Monoid
 #endif
 import Control.Arrow ((&&&))
-import Control.Lens
 import Data.List
 import Control.Monad
 import Data.Char
@@ -44,7 +43,11 @@ import System.FilePath.Posix
 import Control.Monad.Trans.Except (ExceptT(ExceptT))
 import Paths_cogent
 import Version_cogent (gitHash)
+import Lens.Micro
+import Lens.Micro.Mtl
 
+
+(<<+=) l n = l <<%= (+ n)
 --
 -- functors
 

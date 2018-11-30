@@ -29,7 +29,6 @@ import Cogent.Surface
 import Cogent.Util
 
 import Control.Arrow (second)
-import Control.Lens hiding (Context, (:<))
 import Control.Monad.State
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
@@ -44,7 +43,9 @@ import Data.Monoid ((<>))
 import qualified Data.Sequence as Seq
 -- import qualified Data.Set as S
 import Text.Parsec.Pos
-
+import Lens.Micro
+import Lens.Micro.TH
+import Lens.Micro.Mtl
 
 -- -----------------------------------------------------------------------------
 -- Typecheck errors, warnings and context

@@ -32,7 +32,8 @@ import qualified Data.Nat as Nat
 import Data.Vec hiding (splitAt, length, zipWith, zip, unzip)
 import qualified Data.Vec as Vec
 
-import Control.Lens (makeLenses, (%=), (.=), use)
+import Lens.Micro.TH (makeLenses)
+import Lens.Micro.Mtl ((%=), (.=), use)
 import Control.Monad.State.Strict
 import Data.List
 import Data.Map (Map)

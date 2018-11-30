@@ -24,8 +24,8 @@ module Cogent.Context
 
 import Cogent.Common.Syntax
 import Cogent.Compiler (__impossible)
-
-import Control.Lens hiding (Context, contains, use)
+import Lens.Micro.GHC()
+import Lens.Micro
 import Data.List (foldl', partition)
 import qualified Data.Sequence as Seq
 import qualified Data.Map.Strict as M
@@ -62,7 +62,7 @@ dropScope (Context [])     = error "dropScope of empty context!"
 
 mode' :: M.Map VarName x -> [VarName] -> (x -> x) -> (M.Map VarName x, M.Map VarName x -> M.Map VarName x)
 mode' c vs f =
-  let c' = c & itraversed.indices (`elem` vs) %~ f  -- for all `v's in c, if `v `elem` vs' then apply `f'
+  let c' = M.mapWithKey (\v x -> if v `elem` vs then f x else x) c 
       undo d = foldl' (\x v -> x & at v .~ M.lookup v c) d vs  -- update each `k |-> _' in map `d' to `k |-> lookup v c'
   in (c', undo)
 

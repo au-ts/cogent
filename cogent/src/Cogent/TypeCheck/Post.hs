@@ -28,7 +28,8 @@ import Cogent.Util
 
 -- import Control.Arrow (first)
 import Control.Monad
-import Control.Lens
+import Lens.Micro
+import Lens.Micro.Mtl
 -- import Control.Monad.Except
 -- import Control.Monad.Writer hiding (Alt)
 import Control.Monad.Trans.Class

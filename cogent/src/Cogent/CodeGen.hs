@@ -28,7 +28,7 @@ import Cogent.Mono (Instance)
 import Data.Nat (Nat(Zero,Suc))
 import Data.Vec
 
-import Control.Lens ((^.))
+import Lens.Micro ((^.))
 import Data.Map as M
 import Data.Set as S
 import qualified Language.C as C (Definition)

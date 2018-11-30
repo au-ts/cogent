@@ -74,7 +74,6 @@ import Control.Applicative (liftA, (<$>))
 #else
 import Control.Applicative (liftA)
 #endif
-import Control.Lens hiding (deep, (<.>))
 import Control.Monad (forM, forM_, unless, when)
 import Control.Monad.Trans.Except (runExceptT)
 -- import Control.Monad.Cont
@@ -108,7 +107,7 @@ import Text.PrettyPrint.Mainland.Class as M (ppr)
 import Text.PrettyPrint.Mainland as M (ppr, hPutDoc, line, string, (</>))
 #endif
 import Text.Show.Pretty (ppShow)
-
+import Lens.Micro((^.))
 -- import Debug.Trace
 
 -- Major modes of operation.

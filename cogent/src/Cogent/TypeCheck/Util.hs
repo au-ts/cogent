@@ -13,6 +13,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
 {- LANGUAGE TypeFamilies #-}
 
@@ -22,7 +23,6 @@ import Cogent.Compiler
 -- import Cogent.TypeCheck.Base
 -- import Cogent.PrettyPrint
 
--- import Control.Lens
 -- import Control.Monad.Except
 -- import Control.Monad.IO.Class
 import Control.Monad.State
@@ -31,6 +31,15 @@ import Control.Monad.State
 -- import Data.Function ((&))
 -- import System.IO
 import Text.PrettyPrint.ANSI.Leijen as L hiding (indent)
+import Lens.Micro
+import Lens.Micro.Mtl
+
+(%%=) :: MonadState s m => Lens s s a a -> (a -> (x, a)) -> m x  
+(%%=) bit f = do
+   st <- use bit
+   let (x,b) = f st
+   bit .= b
+   pure x
 
 indent = nest 2
 

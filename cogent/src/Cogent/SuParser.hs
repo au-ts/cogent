@@ -18,7 +18,7 @@ import Cogent.Common.Syntax
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative hiding (many, (<|>), optional)
 #endif
-import Control.Lens ((<&>))
+import Lens.Micro ((<&>))
 import Control.Monad
 import Data.Maybe
 import Text.Parsec.Char

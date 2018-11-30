@@ -39,7 +39,6 @@ import           Cogent.Util (fst3, u32MAX, Bound(..))
 
 import           Control.Applicative
 import           Control.Arrow (first, second)
-import           Control.Lens hiding ((:<))
 import           Control.Monad.State hiding (modify)
 import           Control.Monad.Trans.Except
 import           Control.Monad.Trans.State (modify)
@@ -63,7 +62,9 @@ import qualified Data.SBV.Internals as VI
 import qualified Data.Set as S
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
-
+import           Lens.Micro
+import           Lens.Micro.TH
+import           Lens.Micro.Mtl
 import Debug.Trace
 
 data SolverState = SolverState { _axioms      :: [(TyVarName, Kind)]
@@ -824,12 +825,12 @@ noBrainers _ = return mempty
 applySubst :: Subst -> Solver ()
 applySubst s = do
   traceTc "sol" (text "apply subst")
-  substs <>= s
+  substs %= (<> s)
   -- s' <- use substs
   -- substs %= \(Subst m) -> Subst (fmap (Subst.apply s') m)  -- FIXME: need to do this until fixed-point
 
 applyAssign :: Ass.Assignment -> Solver ()
-applyAssign a = traceTc "sol" (text "apply assign") >> assigns <>= a
+applyAssign a = traceTc "sol" (text "apply assign") >> assigns %= (<> a)
 
 #ifdef BUILTIN_ARRAYS
 -- add axioms for constant equality
