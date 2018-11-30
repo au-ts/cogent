@@ -143,7 +143,6 @@ library
               , reducers >= 3.10
               , srcloc >= 0.4
               , syb >= 0.4
-              , text >= 0.11.3.1
               , transformers >= 0.4.2
   if flag(haskell-backend)
     exposed-modules: Cogent.Haskell.FFIGen
@@ -161,6 +160,7 @@ library
                  , pandoc >= 1.19.2.4
                  , pandoc-types >= 1.16
                  , shakespeare >= 2.0
+                 , text >= 0.11.3.1
                  , data-default >=0.5
                  , blaze-html >= 0.8.1
                  , blaze-markup >= 0.7
