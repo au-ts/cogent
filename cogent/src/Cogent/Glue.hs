@@ -36,17 +36,16 @@ module Cogent.Glue where
 import qualified Cogent.C.Compile as CG
 import qualified Cogent.C.Render  as CG
 import qualified Cogent.C.Syntax  as CG
-import Cogent.Common.Syntax
-import Cogent.Common.Types
-import Cogent.Compiler
+import           Cogent.Common.Syntax
+import           Cogent.Common.Types
+import           Cogent.Compiler
 import qualified Cogent.Context   as Ctx
 import qualified Cogent.Core      as CC
 import qualified Cogent.Desugar   as DS
-import qualified Data.DList     as DList
 import qualified Cogent.Inference as IN
 import qualified Cogent.Mono      as MN
 import qualified Cogent.Parser    as PS
-import Cogent.PrettyPrint
+import           Cogent.PrettyPrint
 import qualified Cogent.Surface   as SF
 import qualified Cogent.TypeCheck.Assignment as TC
 import qualified Cogent.TypeCheck.Base       as TC
@@ -55,44 +54,45 @@ import qualified Cogent.TypeCheck.Post       as TC
 import qualified Cogent.TypeCheck.Solver     as TC
 import qualified Cogent.TypeCheck.Subst      as TC
 -- import qualified Cogent.TypeCheck.Util      as TC
-import Cogent.Util
-import Data.Ex
-import Data.Nat (Nat(Zero,Suc))
-import Data.Vec as Vec hiding (repeat)
+import           Cogent.Util
+import qualified Data.DList as DList
+import           Data.Ex
+import           Data.Nat (Nat(Zero,Suc))
+import           Data.Vec as Vec hiding (repeat)
 
-import Control.Applicative
-import Control.Arrow (Arrow(..), second, (&&&))
-import Lens.Micro
-import Lens.Micro.TH
-import Lens.Micro.Mtl
-import Control.Monad.Except hiding (sequence, mapM_, mapM)
-import Control.Monad.Reader
-import Control.Monad.RWS.Strict
-import Control.Monad.State
-import Control.Monad.Trans.Except
-import Control.Monad.Trans.Maybe
+import           Control.Applicative
+import           Control.Arrow (Arrow(..), second, (&&&))
+import           Control.Monad.Except hiding (sequence, mapM_, mapM)
+import           Control.Monad.Reader
+import           Control.Monad.RWS.Strict
+import           Control.Monad.State
+import           Control.Monad.Trans.Except
+import           Control.Monad.Trans.Maybe
 -- import Control.Monad.Writer
 import qualified Data.ByteString.Char8 as B
 -- import Data.Either (lefts)
-import Data.Data
-import Data.Generics
+import           Data.Data
+import           Data.Generics
 -- import qualified Data.IntMap as IM
-import Data.Loc
-import Data.List as L
-import Data.Map as M
-import Data.Maybe (fromJust, fromMaybe, isJust, maybe)
+import           Data.Loc
+import           Data.List as L
+import           Data.Map as M
+import           Data.Maybe (fromJust, fromMaybe, isJust, maybe)
 import qualified Data.Sequence as Seq
-import Data.Set as S
-import Language.C.Parser  as CP hiding (parseExp, parseType)
+import           Data.Set as S
+import           Language.C.Parser as CP hiding (parseExp, parseType)
 -- import Language.C.Parser.Tokens as CT
-import Language.C.Syntax  as CS
-import System.FilePath (replaceBaseName, replaceExtension, takeBaseName, takeExtension, (<.>))
-import Text.Parsec.Pos (newPos, SourcePos)
-import Text.Parsec.Prim as PP hiding (State)
-import Text.PrettyPrint.ANSI.Leijen (vsep)
-import Unsafe.Coerce
+import           Language.C.Syntax as CS
+import           Lens.Micro
+import           Lens.Micro.Mtl
+import           Lens.Micro.TH
+import           System.FilePath (replaceBaseName, replaceExtension, takeBaseName, takeExtension, (<.>))
+import           Text.Parsec.Pos (newPos, SourcePos)
+import           Text.Parsec.Prim as PP hiding (State)
+import           Text.PrettyPrint.ANSI.Leijen (vsep)
+import           Unsafe.Coerce
 
-import Debug.Trace
+-- import           Debug.Trace
 
 -- Parsing
 
@@ -193,12 +193,15 @@ type GlErr    = ExceptT (String     ) (IO      )
 
 -- Monad transformers
 
--- | The 4th argument @offset'@ is used to produce more accurate source positions.
+-- NOTE: The 4th argument @offset'@ is used to produce more accurate source positions.
+-- It also helps work around the @avoidInitial@ when parsing things. / zilinc
 parseAnti :: String -> PP.Parsec String () a -> SrcLoc -> Int -> GlFile a
 parseAnti s parsec loc offset' = do
-  let SrcLoc (Loc (Pos _ line col offset) _) = loc
   filename <- view file
-  case PP.parse (PP.setPosition (newPos filename line (col + offset + offset')) >> parsec) filename s of
+  let pos = case loc of
+              SrcLoc (Loc (Pos _ line col offset) _) -> newPos filename line (col + offset + offset')
+              SrcLoc NoLoc -> newPos filename 0 0
+  case PP.parse (PP.setPosition pos >> parsec) filename s of
     Left err -> throwError $ "Error: Cannot parse antiquote: \n" ++ show err
     Right t  -> return t
 
@@ -702,4 +705,30 @@ collectAll = mapM_ collectOne
 --
 -- A simpler compilation process for the @--entry-funcs@ file.
 
+readEntryFuncs :: [SF.TopLevel SF.RawType TC.TypedPatn TC.TypedExpr]
+               -> TC.TcState
+               -> Last (DS.Typedefs, DS.Constants, [CC.CoreConst CC.UntypedExpr])
+               -> M.Map FunName CC.FunctionType
+               -> [String]
+               -> IO MN.FunMono
+readEntryFuncs tced tcState dsState ftypes lns
+  = foldM (\m ln -> readEntryFunc ln >>= \(fn,inst) -> return $ updateFunMono m fn inst) M.empty lns
+  where
+    updateFunMono m fn []   = M.insertWith (\_ entry -> entry) fn M.empty m
+    updateFunMono m fn inst = M.insertWith (\_ entry -> M.insertWith (flip const) inst (M.size entry) entry) fn (M.singleton inst 0) m
 
+    -- Each string is a line in the @--entry-funcs@ file.
+    readEntryFunc :: String -> IO (FunName, MN.Instance)
+    readEntryFunc ln = do
+      er <- runExceptT $ flip evalStateT (mkGlState [] tcState dsState mempty (mempty, mempty) undefined) $
+              flip runReaderT (FileState "--entry-funcs file") $ do
+                (fnName, targs) <- genFuncId ln noLoc
+                inst <- forM targs $ \mt ->
+                          case mt of
+                            Nothing -> throwError "No wildcard allowed."
+                            Just t  -> flip runReaderT (DefnState Vec.Nil []) $
+                                         flip runReaderT (MonoState ([], Nothing))
+                                                         (lift . tcType >=> lift . desugarType >=> monoType $ t)
+                return (fnName, inst)
+      case er of Left s  -> putStrLn s >> return (ln, [])
+                 Right r -> return r

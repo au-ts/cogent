@@ -1,14 +1,2 @@
-
--- NOTE: `coll` is here solely for letting the compiler know that
--- these which instantiations are going to be used. / zilinc
-coll : () -> ()
-coll _ = let _ = toU32[U8]
-         and _ = toU32[U16]
-         and _ = const[U32,()]
-         and _ = const[U32,U8]
-         and _ = const[U32,U16]
-          in ()
-
 toU32 : all a. a -> U32
-
 const : all (a, b). (a, b) -> a

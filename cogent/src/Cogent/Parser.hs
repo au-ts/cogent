@@ -75,7 +75,8 @@ variableName = try (do (x:xs) <- identifier
 typeConName = try (do (x:xs) <- identifier
                       (if isUpper x then return else unexpected) $ x:xs)
 
-avoidInitial = do whiteSpace; p <- sourceColumn <$> getPosition; guard (p > 1)
+-- @p <= 0@ means unknown position
+avoidInitial = do whiteSpace; p <- sourceColumn <$> getPosition; guard (p > 1 || p <= 0)
 
 
 repDecl :: Parser RepDecl t
