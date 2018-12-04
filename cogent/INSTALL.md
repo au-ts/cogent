@@ -3,7 +3,6 @@
 ## Dependencies
 
 * `libgmp.so`
-* `libncurses.so`
 * [The Glasgow Haskell Compiler (GHC)](https://www.haskell.org/)
 * [The Haskell Cabal](https://www.haskell.org/cabal/)
 * [`alex`](https://www.haskell.org/alex/)
@@ -27,13 +26,6 @@ sudo apt-get install libgmp-dev
 ```
 or the equivalent command for your Linux distribution.
 
-#### `libncurses`
-Some Cogent features depend on `ncurses`. `ncurses` is bundled with macOS. `ncurses` can be installed with the command
-```
-sudo apt-get install libncurses5-dev
-```
-or the equivalent command for your Linux distribution.
-
 #### `alex` and `happy`
 ```
 cabal install alex happy
@@ -53,6 +45,18 @@ are compatible with the `sbv` package you installed [on their github](https://gi
 
 ### Install Cogent
 
+#### Optional features
+Cogent comes with several experimental (reads: very unstable) or additional features that you can
+opt-in. These features are (with the names of the respective flags in parentheses):
+1. built-in static arrays (`builtin-arrays`)
+2. documentation generation (`docgent`)
+3. property-based testing in Haskell (`haskell-backend`)
+
+Depending on which (combination of) features are needed, the dependencies will be different. By
+default, none of them are enabled. If you want them enabled, appropriate flags should be given
+while building Cogent (see below for instructions).
+
+
 #### Build with Makefile
 
 * To configure, edit [config.mk](../config.mk). The default values should work for most people.
@@ -69,6 +73,9 @@ The `Makefile` calls Cabal under the hood. It installs Cogent using a Cabal sand
 is not ideal for you (in rare cases), or you want to customise your installation further,
 just use Cabal in the normal way. You need to install [isa-parser](../isa-parser) before you
 build/install Cogent.
+
+To enable optional features, something like `--flags="flag1 flag2"` should be given when
+`cabal configure` and `cabal install` are executed.
 
 #### Build with Stack
 
