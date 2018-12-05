@@ -1,3 +1,4 @@
 packages: *.cabal
           ../isa-parser/*.cabal
+          ../graph-wrapper/*.cabal
 constraints: language-c-quote -full-haskell-antiquotes

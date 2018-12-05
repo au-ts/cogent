@@ -62,6 +62,7 @@ while building Cogent (see below for instructions).
 * To configure, edit [config.mk](../config.mk). The default values should work for most people.
 * Copy the config file of the GHC version you want to use from [misc/cabal.config.d](./misc/cabal.config.d/)
 into this folder, and then rename to `./cabal.config`.
+* Change the flags for building Cogent in that file.
 * Run `make` or `make dev`. The latter builds Cogent instead of installing it, which is
 suitable for developers.
 
@@ -74,8 +75,10 @@ is not ideal for you (in rare cases), or you want to customise your installation
 just use Cabal in the normal way. You need to install [isa-parser](../isa-parser) before you
 build/install Cogent.
 
-To enable optional features, something like `--flags="flag1 flag2"` should be given when
-`cabal configure` and `cabal install` are executed.
+Copy the config file of the GHC version you want to use from [misc/cabal.config.d](./misc/cabal.config.d/)
+into this folder, and then rename to `./cabal.config`, and change the flags accordingly.
+Alternatively, the flags can be overwritten if something like `--flags="flag1 flag2"` is given when
+running `cabal configure` and `cabal install`.
 
 #### Build with Stack
 
