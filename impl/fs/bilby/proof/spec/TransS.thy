@@ -118,11 +118,9 @@ lemma is_valid_ObjHeader_prefix_eq:
   apply (subgoal_tac "take (unat $ Obj.len\<^sub>f $ pObj xs 0) xs = take (unat $ Obj.len\<^sub>f $ pObj xs 0) ys")
    prefer 2
    apply (drule (1) prefix_n_takeD, fastforce)
-  sorry (*
   apply (frule prefix_length_le)
   apply (auto simp: is_valid_ObjHeader_def length_bilbyFsObjHeaderSize_le_trans)
- done
-*)
+  done
 
 lemma is_valid_ObjHeader_prefix:
  "is_valid_ObjHeader (pObj xs 0) xs \<Longrightarrow>
@@ -131,10 +129,8 @@ lemma is_valid_ObjHeader_prefix:
   apply (frule is_valid_ObjHeader_buf_len)
   apply (frule is_valid_ObjHeader_len)
   apply (drule is_valid_ObjHeader_prefix_eq) 
-  sorry (*
-  apply (clarsimp , unat_arith?)+
- done
-*)
+    apply (clarsimp , unat_arith?)+
+  done
 
 lemma is_valid_ObjHeader_prefix_rev:
  "is_valid_ObjHeader (pObj ys 0) ys \<Longrightarrow>
@@ -463,7 +459,7 @@ shows
   unat (Obj.len\<^sub>f (pObj (y#ys) 0)) = unat (Obj.len\<^sub>f (pObj (v#vs) 0))"
 proof -
   have prefix: "prefix (y#ys) (v#vs)"
-    using yys_eq sorry (*  by (metis take_is_prefix) *)
+    using yys_eq by (metis take_is_prefix)
   have len_eq: "unat (Obj.len\<^sub>f (pObj (y#ys) 0)) = unat (Obj.len\<^sub>f (pObj (v#vs) 0))"
     using hdr_sz_le_trans_len[where xs="v#vs"] 
     by (simp only: yys_eq[symmetric] bilbyFsObjHeaderSize_def
@@ -974,13 +970,11 @@ shows
   apply (drule_tac x=pad_len in meta_spec)
   apply (simp add: pTrans_remainder)
   apply (erule meta_impE)
-  sorry (*
   apply (simp add: prod_eq[symmetric] pTrans_remainder)
   apply (erule trans[rotated])
   apply (rule arg_cong[where f="\<lambda>xs. prod.snd (list_trans xs)"])
   apply (simp add: nopad_padding_append)
-done
-*)
+  done
 
 lemma snd_list_trans_no_pad_padding_unchanged:
  "valid_list_trans xs \<Longrightarrow> 

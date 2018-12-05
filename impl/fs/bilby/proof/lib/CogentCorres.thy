@@ -98,10 +98,10 @@ proof (cases r)
     thus ?thesis
     proof (cases r2) print_cases
       case(Error rc2)
-        thus ?thesis using Pair b[of "fst r1" "snd r1"] sorry (* by (cases r, clarsimp) *)
+        thus ?thesis using Pair b[of "fst r1" "snd r1"] by (cases r, clarsimp)
     next
       case (Success rd2)
-        thus ?thesis using Pair c[of "fst r1" "snd r1"] sorry (* by (cases r, clarsimp) *)
+        thus ?thesis using Pair c[of "fst r1" "snd r1"] by (cases r, clarsimp)
     qed
 qed
 

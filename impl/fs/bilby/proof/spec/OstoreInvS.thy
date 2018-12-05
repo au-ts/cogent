@@ -17,7 +17,7 @@ imports
   "../spec/UbiS"
   "../adt/BufferT"
   "../adt/RbtT"
-  "~~/src/HOL/Library/Sublist"
+  "HOL-Library.Sublist"
 begin
 
 definition
@@ -31,7 +31,7 @@ definition
   nopad :: "U8 list \<Rightarrow> U8 list"
 where
  "nopad xs \<equiv>
-    dropWhile (op = bilbyFsPadByte) xs"
+    dropWhile ((=) bilbyFsPadByte) xs"
 
 lemma pTrans_termination[simp]:
  "is_valid_ObjHeader obj (d # data) \<Longrightarrow>
@@ -88,12 +88,10 @@ a simpler way to achieve my goal. If you find one, please educate me.
 *}
 lemma pTrans_termination_argument:
  "(nd#nds, o'#os) = pTrans (d#data) \<Longrightarrow> length (nd#nds) < length (d#data)"
-  sorry (*
-  apply (clarsimp simp del: list.size split: split_if_asm
+  apply (clarsimp simp del: list.size split: if_splits
          simp : bilbyFsObjHeaderSize_def Let_def prod.case_eq_if)
   apply (fastforce dest: pTrans_length_helper simp: prod.case_eq_if)
- done
-*)
+  done
 
 definition
   is_valid_addr :: "MountState\<^sub>T \<Rightarrow> OstoreState\<^sub>T \<Rightarrow> ObjAddr\<^sub>T \<Rightarrow> bool"
@@ -373,7 +371,7 @@ by (case_tac n, auto simp: take_Suc)
 
 lemma prefix_length_le_Cons:
  "prefix xs (y#ys) \<Longrightarrow> length xs \<le> Suc (length ys)"
-  sorry
+  using prefix_length_le by fastforce
 
 function
   valid_list_trans :: "U8 list \<Rightarrow> bool"
@@ -448,7 +446,7 @@ where
       entries = take nb_entry $ \<alpha>wa $ entries\<^sub>f summary;
       nodel = filter (Not o obj_sum_entry_is_del) entries;
       maps = map (\<lambda>entry. Map.empty(ObjSumEntry.id\<^sub>f entry \<mapsto> pObj (\<alpha>wa $ data\<^sub>f $ wbuf\<^sub>f ostore_st) (obj_sum_entry_offs entry))) nodel;
-      omap = fold op ++ maps Map.empty;
+      omap = fold (++) maps Map.empty;
       dels = filter (obj_sum_entry_is_del) entries
   in fold (\<lambda>entry gos.
     (\<lambda>oid. if oid_is_deleted_by oid (ObjSumEntry.id\<^sub>f entry) then

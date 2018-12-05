@@ -1034,17 +1034,16 @@ lemma serialise_ObjHeader_ret:
   apply (rule arg_cong[where f="\<lambda>v. Buffer.data\<^sub>f_update v buf"])
   apply (rule ext)
   apply (rule arg_cong[where f="WordArrayT.make"])
-  apply simp
+   apply simp
   by (subst take_all, 
-          (simp add: length_sle32 length_sle64 | (unat_arith, auto)[1])+)+
+          ( simp add: length_sle32 length_sle64 | (unat_arith, auto)[1] )+
+     )+
 qed
   
 lemmas ObjUnion_splits = ObjUnion\<^sub>1\<^sub>1\<^sub>1\<^sub>1\<^sub>1\<^sub>1\<^sub>1.splits
 
 lemma take_drop_decomp:"x \<ge> a \<Longrightarrow> take (x - a) (drop a xs) @ drop x xs = drop a xs"
-  sorry (*
-by (subst take_drop_append[where b="x-a" and xs=xs], simp)
-*)
+  by (metis drop_take drop_take_drop)
 
 lemma serialise_ObjPad_ret:
   assumes no_overflow: "offs \<le> offs + (olen - bilbyFsObjHeaderSize)"
@@ -1678,10 +1677,10 @@ proof -
    apply (subst wordarray_length_ofnat)
     apply (simp add: wordarray_length_ret)
    apply (subst wordarray_make)
-   apply (simp add: slice_length)
-   sorry
+       apply (simp add: slice_length)
+       apply (subst min_absorb1)
+      sorry
 (*
-   apply (subst min.absorb1, simp_all) 
     using wellformed_buf[unfolded wellformed_buf_def]  no_buf_overflow[unfolded bilbyFsMaxEbSize_def]
     apply (simp add: unat_arith_simps)
   apply (subgoal_tac 
@@ -1722,7 +1721,7 @@ proof -
   using no_of_8 wellformed_buf
   apply (simp add: wellformed_buf_def)
   apply unat_arith
- done
+  done
 *)
 qed
 
@@ -2231,14 +2230,12 @@ lemma mapAccumObsOpt_loop_deserialise_ObjDentry_array_ret:
         dentarr_offs_list_drop_end_offs_pred data offs [0..<unat to] st_offs end_offs)"
   unfolding pArrObjDentry_def Let_def
   apply (clarsimp simp: array_make split: LoopResult\<^sub>1\<^sub>1.splits prod.splits)
-  sorry (*
   using mapAccumObsOpt_loop_deserialise_ObjDentry_ret[OF assms(1-4), simplified Let_def, 
        where frm=0 and to=to and ex=ex  and st_offs=st_offs and
        ys="replicate (unat to + 1)(Option\<^sub>1\<^sub>1.None ())", simplified take_0 drop_replicate replicate_simp]
    st_offs
   apply (clarsimp split: LoopResult\<^sub>1\<^sub>1.splits) 
- done
-*)
+  done
 
 lemma array_map_loop_deserialise_ObjDentry_ret:
   assumes wellformed_buf: "wellformed_buf buf"
@@ -2672,7 +2669,7 @@ lemma pObjUnion_take:
  done
 
 lemmas Obj_ext_eq_expand = trans[OF _ Obj.ext_inject,
-    OF arg_cong2[where f="op ="], OF refl Obj.surjective]
+    OF arg_cong2[where f="(=)"], OF refl Obj.surjective]
 
 lemma deserialise_Obj_ret:
   assumes wf: "wellformed_buf buf"

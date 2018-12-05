@@ -61,61 +61,10 @@ lemma alignUp_idem:
 lemma alignUp_not_aligned_eq:
   fixes a :: "'a :: len word"
   assumes al: "\<not> is_aligned a n"
-  and     sz: "n < len_of TYPE('a)"
-  shows   "alignUp a n = (a div 2 ^ n + 1) * 2 ^ n"
-proof -
-  have anz: "a mod 2 ^ n \<noteq> 0" 
-    by (rule not_aligned_mod_nz) fact+
-  
-  hence um: "unat (a mod 2 ^ n - 1) div 2 ^ n = 0" using sz
-    apply -
-    apply (rule div_less)
-    apply (simp add: unat_minus_one del: word_neq_0_conv)
-    apply (rule order_less_trans)
-     apply (rule diff_Suc_less)
-     apply (erule contrapos_np)
-     apply (simp add: unat_eq_zero)
-    apply (subst unat_power_lower [symmetric, OF sz[unfolded word_size]])  
-    apply (subst word_less_nat_alt [symmetric])
-    apply (rule word_mod_less_divisor)
-    apply (simp add: p2_gt_0)
-    done
-    
-  have "a + 2 ^ n - 1 = (a div 2 ^ n) * 2 ^ n + (a mod 2 ^ n) + 2 ^ n - 1"
-    by (simp add: word_mod_div_equality)
-  also have "\<dots> = (a mod 2 ^ n - 1) + (a div 2 ^ n + 1) * 2 ^ n"
-    by (simp add: field_simps)
-  finally show "alignUp a n = (a div 2 ^ n + 1) * 2 ^ n" using sz    
-    unfolding alignUp_def
-    apply (subst complement_mask)
-    apply (erule ssubst)
-    apply (subst neg_mask_is_div)
-    apply (simp add: word_arith_nat_div)
-    apply (subst unat_word_ariths(1) unat_word_ariths(2))+
-    apply (subst uno_simps)
-    apply (subst unat_1)
-    apply (subst mod_add_right_eq [symmetric])
-    apply (subst power_mod_div)
-    apply (simp)
-(*
-    apply (subst div_mult_self1)
-    apply simp
-    apply (subst um)
-    apply simp
-    apply (subst mod_mod_power)
-    apply simp
-    apply (subst word_unat_power, subst Abs_fnat_hom_mult)
-    apply (subst mult_mod_left)
-    apply (subst power_add [symmetric])
-    apply simp
-    apply (subst Abs_fnat_hom_1)
-    apply (subst Abs_fnat_hom_add)
-    apply (subst word_unat_power, subst Abs_fnat_hom_mult)
-    apply (subst word_unat.Rep_inverse[symmetric], subst Abs_fnat_hom_mult)
-    apply simp
-*)
-    sorry
-qed
+    and   sz: "n < len_of TYPE('a)"
+  shows "alignUp a n = (a div 2 ^ n + 1) * 2 ^ n"
+  using assms
+  by (metis alignUp_not_aligned_eq)
 
 lemma alignUp_ge:
   fixes a :: "'a :: len word"

@@ -75,9 +75,7 @@ lemmas buf_simps = buf_take_def buf_drop_def buf_slice_def
 
 lemma drop_take_drop:
   "n \<le> m \<Longrightarrow> drop n (take m xs) @ drop m xs = drop n xs"
-sorry (*
- by (metis Nat.le_iff_add add.commute take_drop take_drop_append)
-*)
+  by (metis add.commute atd_lem drop_drop drop_take le_add_diff_inverse)
 
 lemma buf_memset_bound_assm_eq:
   "unat (bound\<^sub>f buf) \<le>  length (\<alpha>wa (data\<^sub>f buf)) \<Longrightarrow>
@@ -126,16 +124,14 @@ lemma buf_memset_bound:
     buf_memset' buf offs (bound\<^sub>f buf - offs) v = buf_memset' buf offs len v"
   apply (simp add: buf_memset'_def)
   apply (subgoal_tac "unat (bound\<^sub>f buf - offs) = unat (bound\<^sub>f buf) - unat offs")
-   prefer 2
+   apply (simp add: min_absorb2)
+   apply (subgoal_tac "(unat len) \<ge> (unat (bound\<^sub>f buf) - unat offs)")
+    apply simp
+    apply (rule buf_bounded_update_bounded_prefix)
+     apply ((simp add: buf_simps)+)[2]
    apply unat_arith
-  apply (simp add: min_absorb2)
-  apply (subgoal_tac "(unat len) \<ge> (unat (bound\<^sub>f buf) - unat offs)")
-   prefer 2
-   apply unat_arith
-  apply simp
-  apply (rule buf_bounded_update_bounded_prefix)
-   apply (simp add: buf_simps)+
- done
+  apply unat_arith
+  done
 
 lemma take_n_m_double_append:
  "n \<le> m \<Longrightarrow> n \<le> length xs \<Longrightarrow>

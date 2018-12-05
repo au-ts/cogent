@@ -40,11 +40,7 @@ lemma test_bit_out_of_bounds:
   
 lemma mod_range_eq:
   "\<lbrakk>n \<ge> (a::nat)*8; (n::nat) < (a+1)*8\<rbrakk> \<Longrightarrow> n mod 8 = n - (a*8)"
-  sorry (*
-  apply (simp add: mod_div_equality')
-  apply (subst split_div_lemma[where q=a, THEN iffD1, symmetric], simp_all)
-  done
-*)
+  by (simp add: div_nat_eqI modulo_nat_def mult.commute)
   
 lemma range_le:
   "\<lbrakk>(n :: nat) \<ge> (a::nat)*8; n < (a+1)*8\<rbrakk> \<Longrightarrow>
@@ -221,10 +217,8 @@ lemma ple16_append:
   assumes no_overflow: "offs < offs + 2" 
   assumes len_ys: "unat (offs + 2) \<le> length ys"
   shows   "ple16 (ys@zs) offs = ple16 ys offs"
-  sorry (*
   using plus_no_overflow_unat_lift[OF no_overflow]  len_ys
   by (simp add: ple16_def)
-*)
   
 lemma ple16_append_Cons:
   assumes no_overflow: "offs < offs + 2"
