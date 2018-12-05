@@ -65,16 +65,9 @@ lemma dom_uptodate_eq_dom_index:
   assumes inv_ostore: "inv_ostore mount_st ostore_st"
  shows
  "dom (\<alpha>_ostore_uptodate ostore_st) = dom (\<alpha>rbt $ addrs\<^sub>f $ index_st\<^sub>f ostore_st)"
-  apply (simp add: inv_ostore_runtimeD[OF inv_ostore, symmetric])
-  using inv_ostore_indexD[OF inv_ostore]
-  apply (simp add: inv_ostore_index_def Let_def)
-  sorry (*
-  apply (rule dom_eqI)
-   apply (simp add: \<alpha>_ostore_runtime_def \<alpha>_index_def)
-   apply (clarsimp split: option.splits)
-  apply (simp add: \<alpha>_ostore_runtime_def \<alpha>_index_def)
- done
-*)
+  by (force intro!: Collect_eqI split: option.splits dest: inv_ostore_indexD
+       simp add: \<alpha>_ostore_runtime_def \<alpha>_index_def dom_def inv_ostore_index_def Let_def
+       inv_ostore_runtimeD[OF inv_ostore, symmetric])
 
 lemma inv_mount_st_io_size_not_0D:
  "inv_mount_st mount_st \<Longrightarrow> io_size\<^sub>f (super\<^sub>f mount_st) \<noteq> 0"
@@ -450,20 +443,63 @@ lemma ostore_maps_eq_rbuf_agnostic:
  done
 
 lemma inv_ostore_rbuf_agnostic:
- "inv_ostore mount_st ostore_st \<Longrightarrow>
-   buf'\<lparr>data\<^sub>f := v,bound\<^sub>f:= b\<rparr> = rbuf\<^sub>f ostore_st \<Longrightarrow>
-   wordarray_length (data\<^sub>f buf') = eb_size\<^sub>f (super\<^sub>f mount_st) \<Longrightarrow>
-  inv_ostore mount_st (ostore_st\<lparr>rbuf\<^sub>f := buf'\<rparr>)"
-  sorry (*
-  apply (clarsimp simp add: inv_ostore_simps Let_def buf_simps split del: split_if )
+  assumes
+    "inv_ostore mount_st ostore_st"
+    "buf'\<lparr>data\<^sub>f := v,bound\<^sub>f:= b\<rparr> = rbuf\<^sub>f ostore_st"
+    "wordarray_length (data\<^sub>f buf') = eb_size\<^sub>f (super\<^sub>f mount_st)"
+  shows
+    "inv_ostore mount_st (ostore_st\<lparr>rbuf\<^sub>f := buf'\<rparr>)"
+proof -
+  have "io_size\<^sub>f (super\<^sub>f mount_st) udvd sync_offs\<^sub>f ostore_st"
+    sorry
+  moreover have 
+    "dom (\<alpha>_index (index_st\<^sub>f ostore_st)) \<inter> dom (\<alpha>_fsm_gim (FsmState.gim\<^sub>f (fsm_st\<^sub>f ostore_st))) = {}"
+    thm ostore_maps_eq_rbuf_agnostic is_valid_addr_def ostore_get_obj_def list_eb_log_wbuf_def
+    sorry
+  moreover have 
+    "\<alpha>wa (used_eb\<^sub>f (fsm_st\<^sub>f ostore_st)) ! unat (wbuf_eb\<^sub>f ostore_st) \<noteq> 0"
+    sorry
+  moreover have 
+    "\<forall>ebnum\<in>{bilbyFsFirstLogEbNum..<nb_eb\<^sub>f (super\<^sub>f mount_st)}.
+        ebnum \<noteq> wbuf_eb\<^sub>f ostore_st \<longrightarrow> (\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st) ! unat ebnum = []) = (\<alpha>wa (used_eb\<^sub>f (fsm_st\<^sub>f ostore_st)) ! unat ebnum \<noteq> 0)"
+    sorry
+  moreover have 
+    "\<forall>ebnum\<in>{unat bilbyFsFirstLogEbNum..length (\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st))}.
+       unat (wbuf_eb\<^sub>f ostore_st) \<noteq> ebnum \<longrightarrow> length (\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st) ! ebnum) = unat (eb_size\<^sub>f (super\<^sub>f mount_st))"
+    sorry
+  moreover have 
+    "\<forall>oid\<in>dom (\<alpha>_index (index_st\<^sub>f ostore_st)).
+       let addr = the (\<alpha>_index (index_st\<^sub>f ostore_st) oid); obj = ostore_get_obj (ostore_st\<lparr>rbuf\<^sub>f := buf'\<rparr>) addr
+       in is_valid_addr mount_st (ostore_st\<lparr>rbuf\<^sub>f := buf'\<rparr>) addr \<and> is_obj_addr_consistent obj addr \<and> get_obj_oid obj = oid"
+    sorry
+  moreover have 
+    "\<forall>oid\<in>dom (\<alpha>_fsm_gim (FsmState.gim\<^sub>f (fsm_st\<^sub>f ostore_st))).
+       unat (GimNode.count\<^sub>f (the (\<alpha>_fsm_gim (FsmState.gim\<^sub>f (fsm_st\<^sub>f ostore_st)) oid))) =
+       card {x \<in> set (ostore_log_objects (list_eb_log_wbuf (ostore_st\<lparr>rbuf\<^sub>f := buf'\<rparr>))). oid_is_deleted_by (get_obj_oid x) oid}"
+    sorry
+  moreover have
+    "let synced = buf_take (wbuf\<^sub>f ostore_st) (sync_offs\<^sub>f ostore_st); sync_to_used = buf_slice (wbuf\<^sub>f ostore_st) (sync_offs\<^sub>f ostore_st) (used\<^sub>f ostore_st)
+    in \<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st) ! unat (wbuf_eb\<^sub>f ostore_st) = synced \<and>
+       (sync_offs\<^sub>f ostore_st < used\<^sub>f ostore_st \<longrightarrow> valid_list_trans_no_pad sync_to_used) \<and>
+       (0 < used\<^sub>f ostore_st \<longrightarrow> valid_list_trans_no_pad synced) \<and>
+       sort_key trans_order (TypBucket.snd (list_trans_no_pad sync_to_used)) = TypBucket.snd (list_trans_no_pad sync_to_used)"
+    sorry
+  ultimately show ?thesis
+    using assms
+    by (force intro: ostore_maps_eq_rbuf_agnostic simp add: inv_ostore_simps buf_length_def Let_def)
+ 
+(*
   apply (rule conjI)
    apply (erule ostore_maps_eq_rbuf_agnostic)
   apply (clarsimp simp add: is_valid_addr_def ostore_get_obj_def list_eb_log_wbuf_def)
+  apply (simp add: dom_def)
+
   apply (erule_tac x=oid in ballE)
-   apply fastforce (* takes forever *)
-  apply (simp add:dom_def)
- done
+
+  apply (simp add: dom_def)
+  done
 *)
+qed
 
 lemma \<alpha>_ostore_uptodate_rbuf_agnostic:
  "\<alpha>_ostore_uptodate (ostore_st\<lparr>rbuf\<^sub>f := rbuf\<rparr>) = \<alpha>_ostore_uptodate (ostore_st)"
