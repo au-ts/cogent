@@ -467,7 +467,7 @@ instance (Pretty t, TypeType t, Pretty e) => Pretty (Type e t) where
                              | s == Unboxed && n `notElem` primTypeCons -> (typesymbol "#" <>)
                              | otherwise -> id) $ typename n
   pretty (TCon n as s) = (if | readonly s -> (<> typesymbol "!") . parens
-                             | s == Unboxed -> (typesymbol "#" <>)
+                             | s == Unboxed -> ((typesymbol "#" <>) . parens)
                              | otherwise -> id) $
                          typename n <+> hsep (map prettyT' as)
   pretty (TVar n b)  = typevar n <> (if b then typesymbol "!" else empty)

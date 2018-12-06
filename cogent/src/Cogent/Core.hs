@@ -365,7 +365,7 @@ prettyT = dullgreen . string . ("_t" ++) . show . finInt
 
 instance Pretty a => Pretty (TypedExpr t v a) where
   pretty (TE t e) | not __cogent_fshow_types_in_pretty = pretty e
-                  | otherwise = parens (pretty e <+> symbol "::" <+> pretty t)
+                  | otherwise = parens (pretty e <+> symbol ":" <+> pretty t)
 
 instance Pretty a => Pretty (UntypedExpr t v a) where
   pretty (E e) = pretty e
@@ -412,7 +412,7 @@ instance (Pretty a, Prec (e t v a), Pretty (e t v a), Pretty (e t ('Suc v) a), P
                                                       <+> prettyPrec 1 rec <+> record (fieldIndex f:[]) L.<$>
                                        keyword "in" <+> pretty e)
   pretty (Put rec f v) = prettyPrec 1 rec <+> record [fieldIndex f <+> symbol "=" <+> pretty v]
-  pretty (Promote t e) = prettyPrec 1 e <+> symbol "::" <+> pretty t
+  pretty (Promote t e) = prettyPrec 1 e <+> symbol ":^:" <+> pretty t
   pretty (Cast t e) = prettyPrec 1 e <+> symbol ":::" <+> pretty t
 
 instance Pretty FunNote where
