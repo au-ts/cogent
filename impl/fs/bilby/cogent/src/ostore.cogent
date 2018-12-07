@@ -80,7 +80,7 @@ ostore_init (ex, mount_st, ostore_st) =
                 and ex = freeFsmState(ex, fsm_st)
                 in Error (eNoMem, ex, ostore_st)
               | Success (ex, addrs) ->
-                let (ex, r) = fsm_init(ex, mount_st, fsm_st) !mount_st
+                let (ex, r) = fsm_init(ex, mount_st, fsm_st)
                 in r
                 | Error (err, fsm_st) ->
                   let ex = buf_free(ex, rbuf)
@@ -395,7 +395,7 @@ ostore_sync(ex, mount_st, ostore_st, osw_flags) =
         ((ex, ostore_st), Error e)
       | Success () ->
         let nb_bytes = ostore_st.used - sync_offs !ostore_st
-        and ((ex, ostore_st), r) = ostore_write_buf (ex, mount_st, ostore_st, sync_offs, nb_bytes, osw_flags) !mount_st
+        and ((ex, ostore_st), r) = ostore_write_buf (ex, mount_st, ostore_st, sync_offs, nb_bytes, osw_flags)
         in r
         | Error e ->
           bilbyfs_error("ostore_sync: ostore_write_buf failed\n") ;
@@ -699,17 +699,17 @@ proc_obj_sum(ex, mount_st, ostore_st, obj) =
   and _ = cogent_debug ",type="
   and _ = print_obj_type obj
   and _ = cogent_debug ")\n"
-  and id = get_obj_oid obj !obj
+  and id = get_obj_oid obj
   in if id == nilObjId then
     (ex, ostore_st)
   else
-    let (sqnum, otype) = (obj.sqnum, obj.otype) !obj
+    let (sqnum, otype) = (obj.sqnum, obj.otype)
     in find_sum_entry (ostore_st.summary, id, sqnum, otype) !ostore_st
     -- Error means the entry we are trying to update is
     -- overruled by an more recent entry (sqnum check).
     | Error () -> (ex, ostore_st)
     | Success (idx_entry, count) ->
-      let len = obj.len !obj
+      let len = obj.len
       and del_flags_and_offs = if otype == bilbyFsObjTypeDel then bilbyFsSumEntryDelFlagMask else 0
       and del_flags_and_offs = del_flags_and_offs .|. obj.offs
       -- FIXME how do we know that this does not overflow?

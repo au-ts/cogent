@@ -1754,7 +1754,7 @@ extract_data_from_union(ex, ounion) =
 
 read_block:(SysState, FsState, VfsInode!, Buffer, OSPageOffset) -> RR (SysState, FsState, Buffer) () ErrCode
 read_block(ex, fs_st {ostore_st}, vnode, buf, block) =
-  let oid = obj_id_data_mk(vfs_inode_get_ino(vnode), u64_to_u32(block)) !vnode
+  let oid = obj_id_data_mk(vfs_inode_get_ino(vnode), u64_to_u32(block))
   and ((ex, ostore_st), r) = ostore_read(ex, fs_st.mount_st, ostore_st, oid) !fs_st
   and fs_st = fs_st {ostore_st}
   in r
@@ -1989,7 +1989,7 @@ fsop_do_setattr #{ex, fs_st, iattr, vnode} =
   and gid = vfs_inode_get_gid vnode !vnode
   and mtime = vfs_inode_get_mtime vnode !vnode
   and ctime = vfs_inode_get_ctime vnode !vnode
-  and valid = vfs_iattr_get_valid iattr !iattr
+  and valid = vfs_iattr_get_valid iattr
   and vnode = if is_set(valid, vfs_ATTR_MODE) then vfs_inode_set_mode (vnode, vfs_iattr_get_mode iattr) else vnode
   and vnode = if is_set(valid, vfs_ATTR_UID) then vfs_inode_set_uid (vnode, vfs_iattr_get_uid iattr) else vnode
   and vnode = if is_set(valid, vfs_ATTR_GID) then vfs_inode_set_gid (vnode, vfs_iattr_get_gid iattr) else vnode
@@ -2113,11 +2113,11 @@ fsop_do_truncate #{ex, fs_st, vnode, newsize} =
 fsop_setattr: FsopSetattrP -> RR FsopSetattrRR () ErrCode
 fsop_setattr #{ex, fs_st, iattr, vnode} =
   let is_ro = fs_st.fsop_st.is_ro !fs_st
-  and valid = vfs_iattr_get_valid iattr !iattr
+  and valid = vfs_iattr_get_valid iattr
   in if is_ro then
     (#{ex, fs_st, vnode}, Error eRoFs) 
   else if is_set(valid, vfs_ATTR_SIZE) then
-    let newsize = vfs_iattr_get_size iattr !iattr
+    let newsize = vfs_iattr_get_size iattr
     in fsop_do_truncate #{ex, fs_st, vnode, newsize}
   else
     fsop_do_setattr #{ex, fs_st, iattr, vnode}

@@ -847,7 +847,7 @@ deserialise_ObjSummary_crc (ex, buf, offs, obj, summary) =
       |> Error e -> ((ex, obj {ounion =TObjPad ()}, summary), Error e)
   and (summary, r) = deserialise_ObjSummary(buf, offs', summary)
   and Success offs' <= r |> Error e -> ((ex, obj {ounion =TObjPad ()}, summary), Error e)
-  and crcsum = crc32_buf #{buf, frm = offs + 8, to = offs'} !buf
+  and crcsum = crc32_buf #{buf, frm = offs + 8, to = offs'}
   and crc = obj.crc !obj
   and obj {offs=_} = obj
   and obj = obj {offs}
@@ -925,7 +925,7 @@ deserialise_wordarray_U8 (ex, buf, offs, len) =
   wordarray_create[U8] (ex, len)
   | Error ex -> Error (eNoMem, ex) 
   | Success (ex, wa) ->
-    let wa = wordarray_copy[U8] (wa, buf.data, 0, offs, len) !buf
+    let wa = wordarray_copy[U8] (wa, buf.data, 0, offs, len)
     in Success (ex, wa)
   
 {-
@@ -1188,7 +1188,7 @@ deserialise_Obj_crc(ex, buf, offs) =
     Error (err, ex)
   | Success (ex, obj, end_offs) ->
     -- assert (end_offs == offs + obj.len) !obj ;
-    let crcsum = crc32_buf #{buf, frm = offs + 8, to = end_offs} !buf
+    let crcsum = crc32_buf #{buf, frm = offs + 8, to = end_offs}
     and crc = obj.crc !obj
     and obj {offs=_} = obj
     and obj = obj {offs}
