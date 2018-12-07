@@ -90,7 +90,11 @@ cogentConfigure _ flags _ lbi = do
   where
     verbosity = S.fromFlag $ S.configVerbosity flags
     version = pkgVersion . package $ localPkgDescr lbi
+#if MIN_VERSION_Cabal (2,2,0)
     flagAssignment = map (first unFlagName) $ unFlagAssignment $ S.configConfigurationsFlags flags
+#else 
+    flagAssignment = map (first unFlagName) $ S.configConfigurationsFlags flags
+#endif
 
 -- Copy
 copyGumHdrs :: Verbosity -> PackageDescription -> LocalBuildInfo -> CopyDest -> IO ()
