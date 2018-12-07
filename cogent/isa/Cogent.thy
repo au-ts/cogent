@@ -671,16 +671,20 @@ typing_var    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto>w singleton (length
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Var i : t"
 
 | typing_afun   : "\<lbrakk> \<Xi> f = (K', t, u)
+                   ; t' = instantiate ts t
+                   ; u' = instantiate ts u
                    ; list_all2 (kinding K) ts K'
                    ; K' \<turnstile> TFun t u wellformed
                    ; K \<turnstile> \<Gamma> consumed
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> AFun f ts : instantiate ts (TFun t u)"
+                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> AFun f ts : TFun t' u'"
 
 | typing_fun    : "\<lbrakk> \<Xi>, K', [Some t] \<turnstile> f : u
+                   ; t' = instantiate ts t
+                   ; u' = instantiate ts u
                    ; K \<turnstile> \<Gamma> consumed
                    ; K' \<turnstile> t wellformed
                    ; list_all2 (kinding K) ts K'
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Fun f ts : instantiate ts (TFun t u)"
+                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Fun f ts : TFun t' u'"
 
 | typing_app    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
                    ; \<Xi>, K, \<Gamma>1 \<turnstile> a : TFun x y
@@ -1366,6 +1370,14 @@ qed simp+
 
 section {* Typing lemmas *}
 
+lemma typing_all_Cons1I:
+  assumes
+    "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+    "\<exists>ta tsa. ts = ta # tsa \<and> \<Xi>, K, \<Gamma>1 \<turnstile>  e : ta \<and> \<Xi>, K, \<Gamma>2 \<turnstile>* es : tsa"
+  shows "\<Xi>, K, \<Gamma> \<turnstile>* (e # es) : ts"
+  using assms
+  by (force intro: typing_all_cons)
+
 lemma variant_elem_preservation:
   assumes tag_in_ts: "(tag, t, b) \<in> set ts"
     and tags_same: "map fst ts = map fst ts'"
@@ -1899,7 +1911,7 @@ next case (typing_afun \<Xi> f ks t u K ts ks)
   ultimately show ?case by (auto intro!: list_all2_substitutivity
         typing_typing_all.typing_afun [simplified]
         instantiate_ctx_consumed)
-next case (typing_fun \<Xi> K t f u \<Gamma> ks ts)
+next case (typing_fun \<Xi> K t f u t' ts u' ks \<Gamma>)
   then also have "instantiate \<delta> (instantiate ts t) = instantiate (map (instantiate \<delta>) ts) t"
     and  "instantiate \<delta> (instantiate ts u) = instantiate (map (instantiate \<delta>) ts) u"
     by (force dest: list_all2_lengthD intro: instantiate_instantiate dest!: typing_to_wellformed)+
