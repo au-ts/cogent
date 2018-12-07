@@ -42,7 +42,7 @@ import System.Environment
 import System.FilePath.Posix
 import Control.Monad.Trans.Except (ExceptT(ExceptT))
 import Paths_cogent
-import Version_cogent (gitHash)
+import Version_cogent (gitHash, configFlags)
 import Lens.Micro
 import Lens.Micro.Mtl
 
@@ -280,7 +280,8 @@ type NameMod = String -> String
 
 
 -- getCogentVersion - returns the version of Cogent
-getCogentVersion = "Cogent development version: " ++ showVersion version ++ suffix
+getCogentVersion = "Cogent development version: " ++ showVersion version ++ suffix ++
+                   "\n" ++ "(" ++ configFlags ++ ")"
   where
     suffix = if gitHash == "" then "" else "-" ++ gitHash
 

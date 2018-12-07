@@ -12,7 +12,7 @@
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
 #endif
-
+import Control.Arrow (first)
 import Control.Exception (SomeException, catch)
 
 import Distribution.PackageDescription
@@ -54,35 +54,43 @@ gitHash = do h <- Control.Exception.catch (readProcess "git" ["rev-parse", "--sh
              return $ takeWhile (/= '\n') h
 
 -- Version Module
-generateVersionModule verbosity dir release = do
+generateVersionModule verbosity dir release flags = do
   hash <- gitHash
   let versionModulePath = dir </> "Version_cogent" <.> "hs"
   putStrLn $ "Generating " ++ versionModulePath ++
-    if release then " for release" else " for dev " ++ hash
+    if release then " for release" else " for dev " ++ hash ++ "\n" ++
+      "(Configured with flags: " ++ flagsInfo ++ ")"
   createDirectoryIfMissingVerbose verbosity True dir
+  
 #if MIN_VERSION_Cabal (2,0,0)
   rewriteFileEx verbosity versionModulePath (versionModuleContents hash)
 #else
   rewriteFile versionModulePath (versionModuleContents hash)
 #endif
 
-  where versionModuleContents h = "module Version_cogent where\n\n" ++
+  where 
+    flagsInfo = unwords (flip map flags (\(f,a) -> (if a then "+" else "-") ++ f))
+    versionModuleContents h = "module Version_cogent where\n\n" ++
           "gitHash :: String\n" ++
-          if release
-             then "gitHash = \"\"\n"
-          else "gitHash = \"" ++ h ++ "\"\n"
+            (if release
+               then "gitHash = \"\"\n"
+               else "gitHash = \"" ++ h ++ "\"\n") ++
+            "configFlags :: String" ++ "\n" ++
+            "configFlags = \"Built with flags: " ++ flagsInfo ++ "\""
+
 
 -- Configure
 cogentConfigure :: Args -> S.ConfigFlags -> PackageDescription -> LocalBuildInfo -> IO ()
 cogentConfigure _ flags _ lbi = do
 #if MIN_VERSION_Cabal (2,0,0)
-  generateVersionModule verbosity (autogenPackageModulesDir lbi) (isRelease (configFlags lbi))
+  generateVersionModule verbosity (autogenPackageModulesDir lbi) (isRelease (configFlags lbi)) flagAssignment
 #else
-  generateVersionModule verbosity (autogenModulesDir lbi) (isRelease (configFlags lbi))
+  generateVersionModule verbosity (autogenModulesDir lbi) (isRelease (configFlags lbi)) flagAssignment
 #endif
   where
     verbosity = S.fromFlag $ S.configVerbosity flags
-    version = pkgVersion .package $ localPkgDescr lbi
+    version = pkgVersion . package $ localPkgDescr lbi
+    flagAssignment = map (first unFlagName) $ unFlagAssignment $ S.configConfigurationsFlags flags
 
 -- Copy
 copyGumHdrs :: Verbosity -> PackageDescription -> LocalBuildInfo -> CopyDest -> IO ()
