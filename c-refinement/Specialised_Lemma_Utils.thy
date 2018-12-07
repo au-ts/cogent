@@ -12,17 +12,17 @@ theory Specialised_Lemma_Utils
 imports Utils
 begin
 
-text{* This theory file contains utility functions that are specific to the generation and proof of 
- the specialised lemmas. 
+text{* This theory file contains utility functions that are specific to the generation and proof of
+ the specialised lemmas.
 *}
 
-ML{* datatype bucket = 
-  TakeBoxed 
-| TakeUnboxed 
-| PutBoxed 
+ML{* datatype bucket =
+  TakeBoxed
+| TakeUnboxed
+| PutBoxed
 | LetPutBoxed
-| PutUnboxed 
-| MemberBoxed 
+| PutUnboxed
+| MemberBoxed
 | MemberReadOnly
 | TagDef
 | Esac
@@ -111,7 +111,7 @@ ML {* structure HeapSimp = Named_Thms_Ext
 setup{* (* Set up lemma buckets.*)
  TakeBoxed.setup o TakeUnboxed.setup o PutUnboxed.setup o PutBoxed.setup o
  MemberReadOnly.setup o MemberBoxed.setup o Case.setup o
- ValRelSimp.setup o IsValidSimp.setup o 
+ ValRelSimp.setup o IsValidSimp.setup o
  TypeRelSimp.setup o HeapSimp.setup *}
 
 ML{* fun local_setup_add_thm bucket thm = case bucket of
@@ -151,7 +151,7 @@ ML{* val local_setup_put_lemmas_in_bucket =
     fun note (name:string) (getter) lthy = Local_Theory.note ((Binding.make (name, @{here}), []), getter lthy) lthy |> snd;
   in
     note "type_rel_simp" TypeRelSimp.get #>
-    note "val_rel_simp" ValRelSimp.get #> 
+    note "val_rel_simp" ValRelSimp.get #>
     note "take_boxed" TakeBoxed.get #>
     note "take_unboxed" TakeUnboxed.get #>
     note "put_boxed" PutBoxed.get #>
@@ -167,7 +167,7 @@ ML{* val local_setup_put_lemmas_in_bucket =
 
 ML{* type lem = { name: string, bucket: bucket, prop: term, mk_tactic: Proof.context -> tactic }; *}
 
-ML{* val cheat_specialised_lemmas = 
+ML{* val cheat_specialised_lemmas =
  Attrib.setup_config_bool @{binding "cheat_specialised_lemmas"} (K false);
 *}
 (* An example to show how to manupulate this flag.*)
@@ -175,11 +175,11 @@ declare [[ cheat_specialised_lemmas = false ]]
 
 ML{* (* type definition on the ML-level.*)
 datatype sigil = ReadOnly | Writable | Unboxed
-datatype uval = UProduct of string 
+datatype uval = UProduct of string
               | USum of string * term (* term contains argument to TSum (excluding TSum itself) *)
               | URecord of string * sigil
               | UAbstract of string;
-; 
+;
 type uvals = uval list;*}
 
 ML{* (* unify_sigils to remove certain kind of duplication.*)
@@ -220,16 +220,16 @@ fun get_uval_sigil (URecord (_, sigil)) = sigil
  |  get_uval_sigil _ = error "get_uval_sigil failed. The tyep of this argument is not URecord."
 *}
 
-ML{* val get_uval_writable_records = 
- filter (fn uval => case uval of (URecord (_, Writable)) => true | _ => false); 
+ML{* val get_uval_writable_records =
+ filter (fn uval => case uval of (URecord (_, Writable)) => true | _ => false);
 *}
 
-ML{* val get_uval_unbox_records = 
+ML{* val get_uval_unbox_records =
  filter (fn uval => case uval of (URecord (_, Unboxed)) => true | _ => false);
 *}
 
-ML{* val get_uval_readonly_records = 
- filter (fn uval => case uval of (URecord (_, ReadOnly)) => true | _ => false); 
+ML{* val get_uval_readonly_records =
+ filter (fn uval => case uval of (URecord (_, ReadOnly)) => true | _ => false);
 *}
 
 ML{* fun usum_list_of_types ctxt uval = case uval of
@@ -237,17 +237,17 @@ ML{* fun usum_list_of_types ctxt uval = case uval of
   | _ => error ("usum_list_of_types: not USum")
 *}
 
-ML{* fun is_UAbstract (UAbstract _) = true 
+ML{* fun is_UAbstract (UAbstract _) = true
       |  is_UAbstract  _            = false;
 *}
 
 ML{* fun get_ty_nm_C uval = uval |> get_uval_name |> (fn nm => nm ^ "_C"); *}
 
-ML{* fun heap_info_uval_to_struct_info (heap:HeapLiftBase.heap_info) (uval:uval) = 
+ML{* fun heap_info_uval_to_struct_info (heap:HeapLiftBase.heap_info) (uval:uval) =
  let
   val uval_C_nm = get_uval_name uval ^ "_C";
  in
-  Symtab.lookup (#structs heap) uval_C_nm 
+  Symtab.lookup (#structs heap) uval_C_nm
   |> Utils.the' ("This heap_info does not have structs." ^ uval_C_nm)
  end : HeapLiftBase.struct_info;
 *}
@@ -266,19 +266,19 @@ ML{* fun ac_mk_struct_info_for file_nm thy uval =
 (* checks if autocorres generates struct_info for a given uval. Returns a boolean value.*)
  let
   val st_C_nm   = get_ty_nm_C uval;
-  val heap_info = Symtab.lookup (HeapInfo.get thy) file_nm 
+  val heap_info = Symtab.lookup (HeapInfo.get thy) file_nm
                  |> Utils.the' "heap_info in ac_mk_struct_info_for failed."
                  |> #heap_info;
   val flag      = Symtab.lookup (#structs heap_info) st_C_nm |> is_some;
  in flag end;
 *}
 
-ML{* fun get_uvals_for_which_ac_mk_st_info file_nm thy uvals = 
+ML{* fun get_uvals_for_which_ac_mk_st_info file_nm thy uvals =
  (* returns a list of uvals for which autocorres creates struct info.*)
  filter (ac_mk_struct_info_for file_nm thy) uvals;
 *}
 
-ML{* fun get_uvals_for_which_ac_mk_heap_getters file_nm thy uvals = 
+ML{* fun get_uvals_for_which_ac_mk_heap_getters file_nm thy uvals =
  (* returns a list of uvals for which autocorres creates #heap_getters info.*)
  filter (fn uval => ac_mk_heap_getters_for file_nm thy (get_ty_nm_C uval)) uvals;
 *}

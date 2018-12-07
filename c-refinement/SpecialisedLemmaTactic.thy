@@ -16,7 +16,7 @@ imports
   "../cogent/isa/ML_Old"
 begin
 
-context update_sem_init 
+context update_sem_init
 begin
 
 ML{* fun corres_take_boxed_tac ctxt = let
@@ -112,7 +112,7 @@ ML{* fun corres_let_put_boxed_tac ctxt = let
     val facts2 = maps gets
         ["state_rel_def", "heap_rel_def", "val_rel_ptr_def", "type_rel_ptr_def", "heap_rel_ptr_meta"]
     val facts3 = facts2 @ is_valids @ heap_simps
-  in 
+  in
     EVERY' [
     asm_full_simp_tac ((put_simpset HOL_basic_ss ctxt) addsimps facts1),
     REPEAT_ALL_NEW (etac @{thm exE}),
@@ -178,7 +178,7 @@ ML{* fun corres_case_tac ctxt = SUBGOAL (fn (t, i) => let
     val x = Thm.cterm_of ctxt (Free xrawvar)
     val thm = Drule.infer_instantiate ctxt [(("x'", 0), x)] thm   (* TODO check 0 is the one we want here! It should be, hopefully. *)
     val tag_simps = Proof_Context.get_thms ctxt "tag_t_defs"
-  in rtac thm 
+  in rtac thm
     THEN_ALL_NEW (TRY o atac)
     THEN_ALL_NEW asm_full_simp_tac (ctxt addsimps vr_simps)
     THEN_ALL_NEW clarsimp_tac ctxt

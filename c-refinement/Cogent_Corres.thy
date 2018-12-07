@@ -9,7 +9,7 @@
  *)
 
 theory Cogent_Corres
-imports 
+imports
   "Value_Relation"
   "../cogent/isa/UpdateSemantics"
   "../cogent/isa/TypeTrackingSemantics"
@@ -20,7 +20,7 @@ locale update_sem_init = update_sem +
 constrains abs_typing :: "abstyp \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> sigil \<Rightarrow> ptrtyp set \<Rightarrow> ptrtyp set \<Rightarrow> bool"
        and abs_repr :: "abstyp \<Rightarrow> name \<times> repr list"
 
-context update_sem_init 
+context update_sem_init
 begin
 
 inductive_cases u_sem_varE [elim]: "\<xi>, \<gamma> \<turnstile> (\<sigma>, Var x)  \<Down>! st"
@@ -32,12 +32,12 @@ inductive_cases u_sem_letE: "\<xi>,\<gamma> \<turnstile> (\<sigma>,Let x y)\<Dow
 
 
 definition
-  corres :: 
-  "((funtyp, abstyp, ptrtyp) store \<times> 's) set \<Rightarrow> 
-   funtyp expr \<Rightarrow> 
-   ('s,('a::cogent_C_val)) nondet_monad \<Rightarrow> 
+  corres ::
+  "((funtyp, abstyp, ptrtyp) store \<times> 's) set \<Rightarrow>
+   funtyp expr \<Rightarrow>
+   ('s,('a::cogent_C_val)) nondet_monad \<Rightarrow>
    (funtyp, abstyp, ptrtyp) uabsfuns \<Rightarrow>
-   (funtyp, abstyp, ptrtyp) uval env \<Rightarrow> 
+   (funtyp, abstyp, ptrtyp) uval env \<Rightarrow>
    (funtyp \<Rightarrow> poly_type) \<Rightarrow>
    ctx \<Rightarrow>
    (funtyp, abstyp, ptrtyp) store \<Rightarrow>
@@ -46,30 +46,30 @@ definition
 where
   "corres srel c m \<xi> \<gamma> \<Xi> \<Gamma> \<sigma> s \<equiv>
     proc_ctx_wellformed \<Xi> \<longrightarrow> \<xi> matches-u \<Xi> \<longrightarrow> (\<sigma>,s) \<in> srel \<longrightarrow>
-   (\<exists>r w. \<Xi>, \<sigma> \<turnstile> \<gamma> matches \<Gamma> \<langle>r, w\<rangle>) \<longrightarrow> 
-   (\<not> snd (m s) \<and> 
-   (\<forall>r' s'. (r',s') \<in> fst (m s) \<longrightarrow> 
+   (\<exists>r w. \<Xi>, \<sigma> \<turnstile> \<gamma> matches \<Gamma> \<langle>r, w\<rangle>) \<longrightarrow>
+   (\<not> snd (m s) \<and>
+   (\<forall>r' s'. (r',s') \<in> fst (m s) \<longrightarrow>
      (\<exists>\<sigma>' r.(\<xi>, \<gamma> \<turnstile> (\<sigma>,c)  \<Down>! (\<sigma>',r)) \<and> (\<sigma>',s') \<in> srel \<and> val_rel r r')))"
 
 
 abbreviation "correspond' srel c m \<xi> \<gamma> \<Xi> ENV \<equiv> (\<forall>\<sigma> s. corres srel c m \<xi> \<gamma> \<Xi> ENV \<sigma> s)"
 
 definition
-  correspond :: 
-  "((funtyp, abstyp, ptrtyp) store \<times> 's) set \<Rightarrow> 
-   funtyp expr \<Rightarrow> 
-   ('s,('a::cogent_C_val)) nondet_monad \<Rightarrow> 
+  correspond ::
+  "((funtyp, abstyp, ptrtyp) store \<times> 's) set \<Rightarrow>
+   funtyp expr \<Rightarrow>
+   ('s,('a::cogent_C_val)) nondet_monad \<Rightarrow>
    (funtyp,abstyp,ptrtyp) uabsfuns \<Rightarrow>
-   (funtyp, abstyp, ptrtyp) uval env \<Rightarrow> 
+   (funtyp, abstyp, ptrtyp) uval env \<Rightarrow>
    (funtyp \<Rightarrow> poly_type) \<Rightarrow>
    (funtyp, abstyp, ptrtyp) store \<Rightarrow>
    's \<Rightarrow>
    bool"
 where
   "correspond srel c m \<xi> \<gamma> \<Xi> \<sigma> s \<equiv>
-    proc_ctx_wellformed \<Xi> \<longrightarrow> \<xi> matches-u \<Xi> \<longrightarrow> (\<sigma>,s) \<in> srel \<longrightarrow> 
-   (\<not> snd (m s) \<and> 
-   (\<forall>r' s'. (r',s') \<in> fst (m s) \<longrightarrow> 
+    proc_ctx_wellformed \<Xi> \<longrightarrow> \<xi> matches-u \<Xi> \<longrightarrow> (\<sigma>,s) \<in> srel \<longrightarrow>
+   (\<not> snd (m s) \<and>
+   (\<forall>r' s'. (r',s') \<in> fst (m s) \<longrightarrow>
      (\<exists>\<sigma>' r.(\<xi>, \<gamma> \<turnstile> (\<sigma>,c)  \<Down>! (\<sigma>',r)) \<and> (\<sigma>',s') \<in> srel \<and> val_rel r r')))"
 
 
@@ -243,14 +243,14 @@ lemma corres_cast_32_64:
   apply (fastforce intro!: u_sem_cast u_sem_var elim: subst simp: val_rel_word)
   done
 
-lemmas corres_cast = 
+lemmas corres_cast =
   corres_cast_8_16 corres_cast_8_32 corres_cast_16_32 corres_cast_8_64 corres_cast_16_64 corres_cast_32_64
 
 (*
 lemma list_all2_corres_varI:
   assumes "corres srel (Var i) c \<xi> \<gamma> \<Xi> \<Gamma>  \<sigma> s"
   assumes "list_all2 (\<lambda>m c. corres srel m c \<xi> \<gamma> \<Xi> \<Gamma>) (map Var is) cs"
-  shows "list_all2 (\<lambda>m c. corres srel m c \<xi> \<gamma> \<Xi> \<Gamma>) (map Var []) []" 
+  shows "list_all2 (\<lambda>m c. corres srel m c \<xi> \<gamma> \<Xi> \<Gamma>) (map Var []) []"
   and "list_all2 (\<lambda>m c. corres srel m c \<xi> \<gamma> \<Xi> \<Gamma>) (map Var (i#is)) (c # cs)"
   oops
 *)
@@ -264,7 +264,7 @@ lemma corres_let:
   assumes split\<Gamma>: "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
   assumes typing_x: "\<Xi>, [], \<Gamma>1 \<turnstile> x : t"
   assumes corres_x: "corres srel x x' \<xi> \<gamma> \<Xi> \<Gamma>1 \<sigma> s"
-  assumes corres_cont: "\<And>v v' \<sigma>' s'. val_rel v (v'::'a::cogent_C_val) \<Longrightarrow> 
+  assumes corres_cont: "\<And>v v' \<sigma>' s'. val_rel v (v'::'a::cogent_C_val) \<Longrightarrow>
                       corres srel y (y' v') \<xi> (v # \<gamma>) \<Xi> (Some t # \<Gamma>2) \<sigma>' s'"
   shows "corres srel (Let x y) (x' >>= y') \<xi> \<gamma> \<Xi> \<Gamma> \<sigma> s"
   apply (clarsimp simp: corres_def snd_bind in_monad)
@@ -272,7 +272,7 @@ lemma corres_let:
   apply (frule matches_ptrs_split'[OF split\<Gamma>])
   apply clarsimp
   apply (rename_tac r' w' r'' w'')
-  apply (insert corres_x[unfolded corres_def])  
+  apply (insert corres_x[unfolded corres_def])
   apply simp
   apply (erule impE, fast)
   apply clarsimp
@@ -329,7 +329,7 @@ lemma corres_nested_let_base:
   assumes split\<Gamma>: "[] \<turnstile> \<Gamma>' \<leadsto> \<Gamma>1 | \<Gamma>2"
   assumes typing_x: "\<Xi>', [], \<Gamma>1 \<turnstile> x : t"
   assumes corres_x: "corres srel x x' \<xi> \<gamma> \<Xi>' \<Gamma>1 \<sigma> s"
-  assumes corres_cont: "\<And>v v' \<sigma>' s'. val_rel v (v'::'a::cogent_C_val) \<Longrightarrow> 
+  assumes corres_cont: "\<And>v v' \<sigma>' s'. val_rel v (v'::'a::cogent_C_val) \<Longrightarrow>
                       corres srel y (y' v') \<xi> (v # \<gamma>) \<Xi>' (Some t # \<Gamma>2) \<sigma>' s'"
   shows "corres srel (Let x y)
            (condition (\<lambda>_. LET_CONST \<noteq> 0) x' (dummy' dummy) >>= y')
@@ -386,7 +386,7 @@ lemma corres_letbang':
   assumes has_kind: " [] \<turnstile>  t :\<kappa>  k"
   assumes kind_escapable: "E \<in> k"
   assumes corres_x: "corres srel x x' \<xi>' \<gamma> \<Xi>' \<Gamma>1 \<sigma> s"
-  assumes corres_cont: "\<And>v v' \<sigma>' s'. val_rel v (v'::'a::cogent_C_val) \<Longrightarrow> 
+  assumes corres_cont: "\<And>v v' \<sigma>' s'. val_rel v (v'::'a::cogent_C_val) \<Longrightarrow>
                       corres srel y (y' v') \<xi>' (v # \<gamma>) \<Xi>' (Some t # \<Gamma>2) \<sigma>' s'"
   shows "corres srel (LetBang is x y) (x' >>= y') \<xi>' \<gamma> \<Xi>' \<Gamma>' \<sigma> s"
   apply (clarsimp simp: corres_def snd_bind in_monad)
@@ -394,7 +394,7 @@ lemma corres_letbang':
   apply (frule matches_ptrs_split_bang'[OF split\<Gamma>])
   apply clarsimp
   apply (rename_tac r' w' r'' w'' p)
-  apply (insert corres_x[unfolded corres_def])  
+  apply (insert corres_x[unfolded corres_def])
   apply simp
   apply (erule impE, fast)
   apply clarsimp
@@ -457,7 +457,7 @@ lemma corres_letbang:
   assumes has_kind: " [] \<turnstile>  t :\<kappa>  k"
   assumes kind_escapable: "E \<in> k"
   assumes corres_x: "corres srel x x' \<xi>' \<gamma> \<Xi>' \<Gamma>1 \<sigma> s"
-  assumes corres_cont: "\<And>v v' \<sigma>' s'. val_rel v (v'::'a::cogent_C_val) \<Longrightarrow> 
+  assumes corres_cont: "\<And>v v' \<sigma>' s'. val_rel v (v'::'a::cogent_C_val) \<Longrightarrow>
                       corres srel y (y' v') \<xi>' (v # \<gamma>) \<Xi>' (Some t # \<Gamma>2) \<sigma>' s'"
   shows "corres srel (LetBang is x y)
            (condition (\<lambda>s. 1 \<noteq> (0::32 signed word)) x' not_reached' >>= y')
@@ -474,10 +474,10 @@ lemma corres_tuple:
 assumes "val_rel (UProduct (\<gamma>!x) (\<gamma>!y)) p"
 shows "corres srel (Tuple (Var x) (Var y)) (gets (\<lambda>_. p)) \<xi> \<gamma> \<Xi> \<Gamma> \<sigma> s"
   by (fastforce intro: u_sem_tuple u_sem_var simp: assms corres_def snd_return in_return)
- 
+
 
 lemma list_to_map_singleton: "[f x] = (map f [x])"  by auto
-lemma list_to_map_more: "(f x) # (map f xs) = (map f (x#xs))" by auto 
+lemma list_to_map_more: "(f x) # (map f xs) = (map f (x#xs))" by auto
 
 lemma u_sem_all_var:
   "\<xi>, \<gamma> \<turnstile>* (\<sigma>, map Var xs) \<Down>! (\<sigma>, map ((!) \<gamma>) xs)"
@@ -486,7 +486,7 @@ proof (induct xs)
 qed (simp add: u_sem_all_empty)
 
 lemma corres_struct:
-assumes 
+assumes
  "\<And>\<sigma> s. (\<sigma>, s) \<in> srel \<Longrightarrow>
   val_rel (URecord (zip (map (nth \<gamma>) xs) (map type_repr ts))) p"
 shows "corres srel (Struct ts (map Var xs)) (gets (\<lambda>_. p)) \<xi> \<gamma> \<Xi> \<Gamma> \<sigma> s"
@@ -516,7 +516,7 @@ lemma corres_split:
   apply (clarsimp simp: corres_def)
   apply (rename_tac r w)
   apply (insert split\<Gamma> \<gamma>_x \<Gamma>_x typing_x typing_cont)
-  apply (erule typing_varE)  
+  apply (erule typing_varE)
   apply (frule(1) matches_ptrs_split')
   apply clarsimp
   apply (rename_tac r' w' r'' w'')
@@ -536,7 +536,7 @@ lemma corres_split:
   apply (rename_tac s' ev')
   apply (erule_tac x=s' in allE)
   apply (erule_tac x=ev' in allE)
-  apply clarsimp 
+  apply clarsimp
   apply (rename_tac \<sigma>'' ev)
   apply (rule_tac x=\<sigma>'' in exI)
   apply (rule_tac x=ev in exI)
@@ -636,7 +636,7 @@ shows "corres srel (Take (Var x) f e) (do z \<leftarrow> gets f'; e' z od) \<xi>
   apply (fastforce intro!: u_sem_take_ub u_sem_var elim:subst)
   done
 
-lemma corres_take_unboxed:  
+lemma corres_take_unboxed:
   assumes x_sigil: "\<Gamma>!x = Some (TRecord typ Unboxed)"
   assumes \<gamma>_x: "\<gamma>!x = URecord fs"
   assumes split\<Gamma>: "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
@@ -647,7 +647,7 @@ lemma corres_take_unboxed:
   assumes shareable_or_taken: "(S \<in> k \<or> taken = Taken)"
   assumes val_rel_f: "val_rel (fst (fs!f)) ((f' s)::'bb::cogent_C_val)"
   assumes type_rel_f: "type_rel (type_repr (fst (snd (typ!f)))) TYPE('bb)"
-  assumes corres_cont: 
+  assumes corres_cont:
    "\<And>fsf f's. val_rel fsf (f's::'bb) \<Longrightarrow>
     corres srel e (e' f's) \<xi> (fsf# (\<gamma>!x)# \<gamma>) \<Xi> (Some (fst (snd (typ!f)))# Some (TRecord (typ [f := (fst (typ!f), fst (snd (typ!f)),taken)]) Unboxed)# \<Gamma>2) \<sigma> s"
   shows "corres srel (Take (Var x) f e) (do z \<leftarrow> gets f'; e' z od) \<xi> \<gamma> \<Xi> \<Gamma> \<sigma> s"
@@ -676,7 +676,7 @@ lemma map_list_update_id:
   apply simp
   done
 
-lemma corres_take_boxed':  
+lemma corres_take_boxed':
   assumes sigil_wr: "sgl = Boxed Writable l"
   assumes x_sigil: "\<Gamma>!x = Some (TRecord typ sgl)"
   assumes \<gamma>_x: "\<gamma>!x = UPtr p repr"
@@ -688,15 +688,15 @@ lemma corres_take_boxed':
   assumes has_kind: "[] \<turnstile>  fst (snd (typ!f)) :\<kappa>  k"
   assumes shareable_or_taken: "(S \<in> k \<or> taken = Taken)"
   assumes x_boxed:
-    "\<And> fs r w. 
-    \<lbrakk>(\<sigma>,s)\<in>srel; \<sigma> p = Some (URecord fs); 
-    \<Xi>, \<sigma> \<turnstile> UPtr p repr :u TRecord typ sgl \<langle>r, w\<rangle>\<rbrakk> \<Longrightarrow> 
+    "\<And> fs r w.
+    \<lbrakk>(\<sigma>,s)\<in>srel; \<sigma> p = Some (URecord fs);
+    \<Xi>, \<sigma> \<turnstile> UPtr p repr :u TRecord typ sgl \<langle>r, w\<rangle>\<rbrakk> \<Longrightarrow>
       is_valid s x' \<and>
       corres srel e (e' (f' s)) \<xi> (fst(fs!f)# (\<gamma>!x)# \<gamma>) \<Xi> (Some (fst (snd (typ!f))) # Some (TRecord (typ [f := (fst (typ!f), fst (snd (typ!f)),taken)]) sgl) # \<Gamma>2) \<sigma> s"
-  shows  
-  "corres srel 
-  (Take (Var x) f e) 
-  (do _ \<leftarrow> guard (\<lambda>s. is_valid s x'); z \<leftarrow> gets f'; e' z od) 
+  shows
+  "corres srel
+  (Take (Var x) f e)
+  (do _ \<leftarrow> guard (\<lambda>s. is_valid s x'); z \<leftarrow> gets f'; e' z od)
   \<xi> \<gamma> \<Xi> \<Gamma> \<sigma> s"
 proof -
   have HELP: "\<And>tag t b. typ ! f = (tag, t, b) \<Longrightarrow> map (type_repr \<circ> fst \<circ> snd) typ = map (type_repr \<circ> fst \<circ> snd) (typ[f := (tag, t, Present)])"
@@ -740,7 +740,7 @@ proof -
      apply (erule_tac r=rr' in u_t_p_recE, simp)
      apply (cases taken)
       apply (frule_tac r=rr' in uval_typing_record_take, ((simp add: kinding_def)+)[3])
-      apply (erule exE conjE)+ 
+      apply (erule exE conjE)+
       apply (rename_tac rrr' ww' rr' w')
       apply (rule_tac x= "rrr' \<union> (rr'\<union> r'')" in exI, rule_tac x= "ww' \<union> ((insert p w')\<union> w'')" in exI)
       apply (rule matches_ptrs_some, simp)
@@ -780,8 +780,8 @@ proof -
     apply (fastforce intro!: u_sem_take u_sem_var elim:subst)
     done
 qed
- 
-lemma corres_take_boxed:  
+
+lemma corres_take_boxed:
   assumes sigil_wr: "sgl = Boxed Writable l"
   assumes x_sigil: "\<Gamma>!x = Some (TRecord typ sgl)"
   assumes \<gamma>_x: "\<gamma>!x = UPtr p repr"
@@ -793,17 +793,17 @@ lemma corres_take_boxed:
   assumes has_kind: "[] \<turnstile> fst (snd (typ!f)) :\<kappa> k"
   assumes shareable_or_taken: "S \<in> k \<or> taken = Taken"
   assumes x_boxed:
-  "\<And> fs r w. \<lbrakk>(\<sigma>, s)\<in> srel; \<sigma> p = Some (URecord fs); \<Xi>, \<sigma> \<turnstile> UPtr p repr :u TRecord typ sgl \<langle>r, w\<rangle>\<rbrakk> \<Longrightarrow> 
+  "\<And> fs r w. \<lbrakk>(\<sigma>, s)\<in> srel; \<sigma> p = Some (URecord fs); \<Xi>, \<sigma> \<turnstile> UPtr p repr :u TRecord typ sgl \<langle>r, w\<rangle>\<rbrakk> \<Longrightarrow>
    is_valid s x' \<and> val_rel (fst(fs!f)) ((f' s)::'bb::cogent_C_val)"
-  assumes corres_cont: 
+  assumes corres_cont:
   "\<And>fsf f's. val_rel fsf (f's::'bb)  \<Longrightarrow>
      corres srel e (e' f's) \<xi> (fsf# (\<gamma>!x)# \<gamma>) \<Xi> (Some (fst (snd (typ!f)))# Some (TRecord (typ [f := (fst (typ!f), fst (snd (typ!f)),taken)]) sgl)# \<Gamma>2) \<sigma> s"
-  shows  
-  "corres srel 
-  (Take (Var x) f e) 
-  (do _ \<leftarrow> guard (\<lambda>s. is_valid s x'); z \<leftarrow> gets f'; e' z od) 
+  shows
+  "corres srel
+  (Take (Var x) f e)
+  (do _ \<leftarrow> guard (\<lambda>s. is_valid s x'); z \<leftarrow> gets f'; e' z od)
   \<xi> \<gamma> \<Xi> \<Gamma> \<sigma> s"
-  apply (rule corres_take_boxed'[OF assms(1-10)]) 
+  apply (rule corres_take_boxed'[OF assms(1-10)])
   using assms(11-) by fastforce
 
 lemma corres_let_put_unboxed:
@@ -811,11 +811,11 @@ lemma corres_let_put_unboxed:
   assumes x_len: "x < length \<Gamma>'"
   assumes split\<Gamma>: "[] \<turnstile> \<Gamma>' \<leadsto> \<Gamma>1 | \<Gamma>2"
   assumes typing_put:  "\<Xi>', [], \<Gamma>1 \<turnstile> Put (Var x) f (Var e) : TRecord (typ[f := (fst (typ!f), fst (snd (typ!f)), Present)]) Unboxed" (* needed? *)
-  assumes corres_cont: 
+  assumes corres_cont:
    "\<And>fs. \<gamma>!x = URecord fs \<Longrightarrow> corres srel y (y' (nx' x')) \<xi> ((URecord (fs[f:= ((\<gamma>!e),  snd (fs ! f))])) # \<gamma>) \<Xi>' (Some (TRecord (typ[f := (fst (typ!f), fst (snd (typ!f)), Present)]) Unboxed) # \<Gamma>2) \<sigma> s"
-  shows "corres srel 
-  (Let (Put (Var x) f (Var e)) y) 
-  ( (do 
+  shows "corres srel
+  (Let (Put (Var x) f (Var e)) y)
+  ( (do
      rec \<leftarrow> gets (\<lambda>_. x');
      rec \<leftarrow> gets (\<lambda>_. nx' rec);
      rec' \<leftarrow> gets (\<lambda>_. rec);
@@ -881,8 +881,8 @@ lemma corres_let_put_boxed:
     ; \<Xi>, \<sigma> \<turnstile> UPtr p repr :u TRecord typ sgl \<langle>r, w\<rangle>
     ; \<Xi>, \<sigma>(p := Some (URecord (fs [f := (\<gamma>!e,  snd (fs ! f))]))) \<turnstile> UPtr p repr :u TRecord typ sgl \<langle>r', w'\<rangle>
     \<rbrakk> \<Longrightarrow> is_valid s x' \<and> (\<sigma>(p := Some (URecord (fs [f := (\<gamma>!e,  snd (fs ! f))]))), h s) \<in> srel"
-  shows "corres srel 
-           (Let (Put (Var x) f (Var e)) y) 
+  shows "corres srel
+           (Let (Put (Var x) f (Var e)) y)
            (do _ \<leftarrow> guard (\<lambda>s. is_valid s x'); _ \<leftarrow> modify h; y' od) \<xi> \<gamma> \<Xi> \<Gamma> \<sigma> s"
 proof (clarsimp simp: corres_def in_monad snd_bind snd_modify snd_state_assert, auto)
   fix r w
@@ -1105,7 +1105,7 @@ lemma corres_put_boxed:
     \<Xi>, \<sigma> \<turnstile> UPtr p repr :u TRecord typ sgl \<langle>r, w\<rangle>;
     \<Xi>, \<sigma>(p := Some (URecord (fs [f := (\<gamma>!e, snd (fs ! f))]))) \<turnstile> UPtr p repr :u TRecord typ sgl \<langle>r', w'\<rangle>\<rbrakk> \<Longrightarrow>
    is_valid s x' \<and> val_rel (UPtr p repr) x' \<and> (\<sigma>(p := Some (URecord (fs [f := (\<gamma>!e, snd (fs ! f))]))), h s) \<in> srel"
-  shows "corres srel 
+  shows "corres srel
            (Put (Var x) f (Var e))
            (do _ \<leftarrow> guard (\<lambda>s. is_valid s x'); _ \<leftarrow> modify h; gets (\<lambda>_. x') od) \<xi> \<gamma> \<Xi> \<Gamma> \<sigma> s"
   apply (clarsimp simp: corres_def in_monad snd_bind snd_modify snd_state_assert)
@@ -1164,13 +1164,13 @@ lemma corres_let_put_unboxed':
   assumes split\<Gamma>: "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
   assumes typing_put:  "\<Xi>, [], \<Gamma>1 \<turnstile> Put (Var x) f (Var e) : TRecord (typ[f := (fst (typ ! f), fst (snd (typ ! f)), Present)]) Unboxed" (* needed? *)
   assumes val_rel_upd_x : "\<And>fs. \<gamma>!x = URecord fs \<Longrightarrow> val_rel (URecord (fs[f:= ((\<gamma>!e),  snd (fs ! f))])) (nx' x')"
-  assumes corres_cont: 
+  assumes corres_cont:
    "\<And>v. val_rel v (nx' x') \<Longrightarrow>
-   corres srel y (y' (nx' x')) \<xi> (v # \<gamma>) \<Xi> 
+   corres srel y (y' (nx' x')) \<xi> (v # \<gamma>) \<Xi>
    (Some (TRecord (typ[f := (fst (typ ! f), fst (snd (typ ! f)), Present)]) Unboxed) # \<Gamma>2) \<sigma> s"
-  shows "corres srel 
-  (Let (Put (Var x) f (Var e)) y) 
-  (do 
+  shows "corres srel
+  (Let (Put (Var x) f (Var e)) y)
+  (do
      rec \<leftarrow> gets (\<lambda>_. x');
      rec \<leftarrow> gets (\<lambda>_. nx' rec);
      rec' \<leftarrow> gets (\<lambda>_. rec);
@@ -1322,7 +1322,7 @@ lemma corres_prim1:
   done
 
 lemma corres_prim2:
-  assumes 
+  assumes
    "val_rel (eval_prim_u p [\<gamma>!v1, \<gamma>!v2]) c"
   shows "corres srel (Prim p [Var v1, Var v2]) (gets (\<lambda>_. c)) \<xi> \<gamma> \<Xi> \<Gamma>' \<sigma> s"
   apply (clarsimp simp: corres_def snd_return in_return)
@@ -1372,7 +1372,7 @@ lemma lookup_distinct_list:
    apply simp
   apply force
   done
-  
+
 lemma list_all2_map_filter_helper[rule_format]:
   "map P1 xs = map P2 ys \<Longrightarrow>
    list_all2 P (map f xs) (map g ys) \<longrightarrow>
@@ -1467,7 +1467,7 @@ lemma corres_member_unboxed':
   "\<lbrakk>\<gamma>!x = URecord fs;
    (\<sigma>,s)\<in>srel \<Longrightarrow> val_rel (fst (fs! f)) (f')
    \<rbrakk> \<Longrightarrow>
-   corres srel (Member (Var x) f) 
+   corres srel (Member (Var x) f)
     (gets (\<lambda>s. f' ))
     \<xi>' \<gamma> \<Xi>' \<Gamma>' \<sigma> s"
   by (monad_eq simp: corres_def) (fastforce intro: u_sem_member u_sem_var elim: subst)
@@ -1486,15 +1486,15 @@ lemma corres_member_boxed:
     "\<Gamma>'!x = Some (TRecord typ sigil)"
     "\<gamma> ! x = UPtr (ptr_val x') repr"
     "\<Xi>', [], \<Gamma>' \<turnstile> Member (Var x) f : te'"
-    "\<And>fs r w. \<lbrakk>(\<sigma>, s)\<in> srel; \<sigma> (ptr_val x') = Some (URecord fs); 
-               \<Xi>', \<sigma> \<turnstile> UPtr (ptr_val x') repr :u TRecord typ sigil \<langle>r, w\<rangle>\<rbrakk> \<Longrightarrow> 
+    "\<And>fs r w. \<lbrakk>(\<sigma>, s)\<in> srel; \<sigma> (ptr_val x') = Some (URecord fs);
+               \<Xi>', \<sigma> \<turnstile> UPtr (ptr_val x') repr :u TRecord typ sigil \<langle>r, w\<rangle>\<rbrakk> \<Longrightarrow>
               is_valid' s x' \<and> val_rel (fst(fs!f)) ((f' s)::'bb::cogent_C_val)"
-  shows "corres srel (Member (Var x) f) 
+  shows "corres srel (Member (Var x) f)
           (do _ \<leftarrow> guard (\<lambda>s. is_valid' s x');
              gets (\<lambda>s. f' s )
           od) \<xi>' \<gamma> \<Xi>' \<Gamma>' \<sigma> s"
   using assms
-  apply (monad_eq simp: corres_def val_rel_ptr_def) 
+  apply (monad_eq simp: corres_def val_rel_ptr_def)
   apply (rename_tac r w)
   apply atomize
   apply (erule typing_memberE)
@@ -1570,7 +1570,7 @@ lemma corres_if_base:
    apply (rename_tac \<sigma>' v)
    apply (rule_tac x=\<sigma>' in exI)
    apply (rule_tac x=v in exI)
-   apply (fastforce intro!: u_sem_if u_sem_var elim: subst split: uval.splits lit.splits) 
+   apply (fastforce intro!: u_sem_if u_sem_var elim: subst split: uval.splits lit.splits)
   apply (insert corres_true[unfolded corres_def])[1]
   apply simp
   apply (erule impE, fast)

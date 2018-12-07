@@ -14,7 +14,7 @@ begin
 
 text{* Instantiation of cogent_C_heap. is_valid_def and heap_def. *}
 
-ML{* fun is_valid_def uval ctxt = 
+ML{* fun is_valid_def uval ctxt =
  let
   val ty_name_C    = get_ty_nm_C uval;
   val lhs          = Syntax.read_term ctxt "is_valid";
@@ -29,7 +29,7 @@ ML{* fun is_valid_def uval ctxt =
  in lthy' end;
 *}
 
-ML{* fun heap_def uval ctxt = 
+ML{* fun heap_def uval ctxt =
  let
   val ty_name_C = get_ty_nm_C uval;
   val lhs       = Syntax.read_term ctxt "heap";
@@ -44,18 +44,18 @@ ML{* fun heap_def uval ctxt =
  in lthy' end;
 *}
 
-ML{* fun local_setup_instantiate_cogent_C_heaps_store_them_in_buckets file_nm lthy = 
+ML{* fun local_setup_instantiate_cogent_C_heaps_store_them_in_buckets file_nm lthy =
  let
   fun define_cogent_C_heap uval ctxt = ctxt |> is_valid_def uval |> heap_def uval;
 
   fun local_setup' _ [] lthy = lthy
-   |  local_setup' file_nm (uval::uvals) lthy = 
-       local_setup_instantiation_definition_instance ([get_ty_nm_C uval],[],"cogent_C_heap") 
+   |  local_setup' file_nm (uval::uvals) lthy =
+       local_setup_instantiation_definition_instance ([get_ty_nm_C uval],[],"cogent_C_heap")
        (define_cogent_C_heap  uval) (local_setup' file_nm uvals lthy);
 
   val thy = Proof_Context.theory_of lthy;
-  
-  val uvals  = read_table file_nm thy |>  
+
+  val uvals  = read_table file_nm thy |>
                map (unify_usum_tys o unify_sigils) |> rm_redundancy |>
                get_uvals_for_which_ac_mk_heap_getters file_nm thy
  in

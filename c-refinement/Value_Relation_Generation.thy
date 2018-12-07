@@ -9,7 +9,7 @@
  *)
 
 theory Value_Relation_Generation
-imports 
+imports
   "Cogent_Corres"
   "Specialised_Lemma_Utils"
 begin
@@ -17,17 +17,17 @@ begin
 ML{* (* val_rel_def *)
 local
 
-fun mk_rhs_pro _ (field_info:HeapLiftBase.field_info list) = 
+fun mk_rhs_pro _ (field_info:HeapLiftBase.field_info list) =
 (* val_rel generation for UProduct *)
  let
   val getters = map #getter field_info;
   val p1 = nth getters 0;
   val p2 = nth getters 1;
  in
- @{term "\<lambda> p1_C p2_C . (\<exists> p1 p2 . 
+ @{term "\<lambda> p1_C p2_C . (\<exists> p1 p2 .
    (uv = UProduct p1 p2) \<and>
-    val_rel p1 (p1_C x) \<and> 
-    val_rel p2 (p2_C x))"} $ p1 $ p2 
+    val_rel p1 (p1_C x) \<and>
+    val_rel p2 (p2_C x))"} $ p1 $ p2
  end;
 
 fun mk_rhs_rec _ (field_info:HeapLiftBase.field_info list) =
@@ -47,25 +47,25 @@ fun mk_rhs_rec _ (field_info:HeapLiftBase.field_info list) =
    (Const ("UpdateSemantics.uval.URecord", dummyT) $ mk_Bound_list n);
  in
   mk_exists (get_field_names field_info)
-  (HOLogic.mk_conj 
+  (HOLogic.mk_conj
    (field_info |> List.length |> mk_fst_conjct, field_info |> get_getters |> mk_conjcts))
  end;
- 
-fun mk_rhs_sum ctxt (field_info:HeapLiftBase.field_info list) = 
+
+fun mk_rhs_sum ctxt (field_info:HeapLiftBase.field_info list) =
  (* val_rel generation for USum *)
  let
   val getters = map #getter field_info;
-  fun mk_one_disjunct ctxt tag_C getter = 
-   @{term "\<lambda> spec_tag_C spec_tag_isa_string spec_tag_const gen_tag_C tag uval . 
-    (tag = spec_tag_isa_string \<and> 
-     gen_tag_C x = spec_tag_const \<and> 
+  fun mk_one_disjunct ctxt tag_C getter =
+   @{term "\<lambda> spec_tag_C spec_tag_isa_string spec_tag_const gen_tag_C tag uval .
+    (tag = spec_tag_isa_string \<and>
+     gen_tag_C x = spec_tag_const \<and>
      val_rel uval (spec_tag_C x))"}
-    $ getter 
-    $(getter |> get_name |> Long_Name.base_name |> cut_C |> Utils.encode_isa_string) 
-    $(getter |> get_name |> Long_Name.base_name |> cut_C |> (fn tag_nm => "TAG_ENUM_" ^ tag_nm) 
+    $ getter
+    $(getter |> get_name |> Long_Name.base_name |> cut_C |> Utils.encode_isa_string)
+    $(getter |> get_name |> Long_Name.base_name |> cut_C |> (fn tag_nm => "TAG_ENUM_" ^ tag_nm)
       |> Syntax.read_term ctxt)
     $(tag_C |> get_name |> Syntax.read_term ctxt);
-  fun mk_list_of_disjuncts ctxt getters = 
+  fun mk_list_of_disjuncts ctxt getters =
    map (strip_abs_body o clean_check_typ_of ctxt o mk_one_disjunct ctxt (hd getters)) (tl getters);
  in
   (* FIXME: construct correct repr *)
@@ -81,8 +81,8 @@ fun gen_mk_rhs ctxt file_name uval =
  let
   val thy = Proof_Context.theory_of ctxt;
   fun field_info ty = get_field_info (get_struct_info thy file_name) ty;
- in 
-  case uval of 
+ in
+  case uval of
     USum (ty_name  , _) => mk_rhs_sum ctxt (field_info ty_name)
   | UProduct ty_name    => mk_rhs_pro ctxt (field_info ty_name)
   | URecord (ty_name,_) => mk_rhs_rec ctxt (field_info ty_name)
@@ -91,7 +91,7 @@ fun gen_mk_rhs ctxt file_name uval =
 
 in
 
-fun val_rel_def file_name uval ctxt = 
+fun val_rel_def file_name uval ctxt =
  let
   val ty_name = get_uval_name uval;
   val c_type  = Syntax.read_typ ctxt (ty_name ^ "_C");

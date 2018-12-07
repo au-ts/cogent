@@ -10,9 +10,9 @@
 
 theory Deep_Embedding_Auto
 imports
-  Specialised_Lemma 
-  Cogent_C_Val_Auto 
-  Cogent_C_Heap_Auto 
+  Specialised_Lemma
+  Cogent_C_Val_Auto
+  Cogent_C_Heap_Auto
   Heap_Relation_Generation
 begin
 
