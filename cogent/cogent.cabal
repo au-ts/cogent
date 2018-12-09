@@ -19,7 +19,7 @@ bug-reports:         https://github.com/NICTA/cogent/issues
 build-type:          Custom
 cabal-version:       >=2.0
 tested-with:         GHC==8.2.1, GHC==8.2.2, GHC==8.4.1, GHC==8.4.2, GHC==8.4.3,
-                     GHC==8.4.4
+                     GHC==8.4.4, GHC==8.6.1, GHC==8.6.2
 
 
 data-files:
