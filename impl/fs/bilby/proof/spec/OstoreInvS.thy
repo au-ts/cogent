@@ -894,4 +894,61 @@ lemma inv_ostore_valid_pad_objD:
  "inv_ostore mount_st ostore_st \<Longrightarrow> valid_pad_obj (opad\<^sub>f ostore_st)"
  by (drule inv_opadD)  (clarsimp simp: inv_ostore_def valid_pad_obj_def is_valid_Obj_def)
 
+lemma inv_ostoreI:
+  assumes
+    "sync_offs\<^sub>f ostore_st \<le> used\<^sub>f ostore_st"
+    "io_size\<^sub>f (super\<^sub>f mount_st) udvd sync_offs\<^sub>f ostore_st"
+    "used\<^sub>f ostore_st \<le> eb_size\<^sub>f (super\<^sub>f mount_st)"
+    "used\<^sub>f ostore_st < used\<^sub>f ostore_st + io_size\<^sub>f (super\<^sub>f mount_st)"
+    "buf_length (rbuf\<^sub>f ostore_st) = eb_size\<^sub>f (super\<^sub>f mount_st)"
+    "buf_length (wbuf\<^sub>f ostore_st) = eb_size\<^sub>f (super\<^sub>f mount_st)"
+    "buf_bound (wbuf\<^sub>f ostore_st) = eb_size\<^sub>f (super\<^sub>f mount_st)"
+    "wbuf_eb\<^sub>f ostore_st \<ge> bilbyFsFirstLogEbNum"
+    "wbuf_eb\<^sub>f ostore_st < nb_eb\<^sub>f (super\<^sub>f mount_st)"
+    "inv_opad (opad\<^sub>f ostore_st)"
+    "\<alpha>_ostore_runtime ostore_st = \<alpha>_ostore_uptodate ostore_st"
+    "inv_ostore_summary mount_st ostore_st"
+    "inv_ostore_index mount_st ostore_st"
+    "inv_ostore_index_gim_disjoint ostore_st"
+    "inv_bufs mount_st ostore_st"
+    "inv_fsm_st mount_st (fsm_st\<^sub>f ostore_st)"
+    "inv_ostore_fsm mount_st ostore_st"
+    "inv_flash (list_eb_log_wbuf ostore_st)"
+    "inv_log (list_eb_log (\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st)))
+    (prod.snd $ list_trans_no_pad (buf_slice (wbuf\<^sub>f ostore_st) (sync_offs\<^sub>f ostore_st) (used\<^sub>f ostore_st)))"
+  shows
+    "inv_ostore mount_st ostore_st"
+  using assms
+  unfolding inv_ostore_def
+  by fastforce
+
+lemma inv_ostoreE:
+  assumes
+    "inv_ostore mount_st ostore_st"
+    "sync_offs\<^sub>f ostore_st \<le> used\<^sub>f ostore_st \<Longrightarrow>
+     io_size\<^sub>f (super\<^sub>f mount_st) udvd sync_offs\<^sub>f ostore_st \<Longrightarrow>
+     used\<^sub>f ostore_st \<le> eb_size\<^sub>f (super\<^sub>f mount_st)\<Longrightarrow>
+     used\<^sub>f ostore_st < used\<^sub>f ostore_st + io_size\<^sub>f (super\<^sub>f mount_st) \<Longrightarrow>
+     buf_length (rbuf\<^sub>f ostore_st) = eb_size\<^sub>f (super\<^sub>f mount_st) \<Longrightarrow>
+     buf_length (wbuf\<^sub>f ostore_st) = eb_size\<^sub>f (super\<^sub>f mount_st) \<Longrightarrow>
+     buf_bound (wbuf\<^sub>f ostore_st) = eb_size\<^sub>f (super\<^sub>f mount_st) \<Longrightarrow>
+     wbuf_eb\<^sub>f ostore_st \<ge> bilbyFsFirstLogEbNum \<Longrightarrow>
+     wbuf_eb\<^sub>f ostore_st < nb_eb\<^sub>f (super\<^sub>f mount_st) \<Longrightarrow>
+     inv_opad (opad\<^sub>f ostore_st) \<Longrightarrow>
+     \<alpha>_ostore_runtime ostore_st = \<alpha>_ostore_uptodate ostore_st \<Longrightarrow>
+     inv_ostore_summary mount_st ostore_st \<Longrightarrow>
+     inv_ostore_index mount_st ostore_st \<Longrightarrow>
+     inv_ostore_index_gim_disjoint ostore_st \<Longrightarrow>
+     inv_bufs mount_st ostore_st \<Longrightarrow>
+     inv_fsm_st mount_st (fsm_st\<^sub>f ostore_st) \<Longrightarrow>
+     inv_ostore_fsm mount_st ostore_st \<Longrightarrow>
+     inv_flash (list_eb_log_wbuf ostore_st) \<Longrightarrow>
+     inv_log (list_eb_log (\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st)))
+       (prod.snd $ list_trans_no_pad (buf_slice (wbuf\<^sub>f ostore_st) (sync_offs\<^sub>f ostore_st) (used\<^sub>f ostore_st))) \<Longrightarrow>
+     thesis"
+  shows "thesis"
+  using assms
+  unfolding inv_ostore_def
+  by fastforce
+
 end
