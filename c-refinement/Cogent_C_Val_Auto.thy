@@ -1,31 +1,33 @@
 (*
- * Copyright 2016, NICTA
+ * Copyright 2018, Data61
+ * Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+ * ABN 41 687 119 230.
  *
  * This software may be distributed and modified according to the terms of
- * the GNU General Public License version 2. Note that NO WARRANTY is provided.
- * See "LICENSE_GPLv2.txt" for details.
+ * the BSD 2-Clause license. Note that NO WARRANTY is provided.
+ * See "LICENSE_BSD2.txt" for details.
  *
- * @TAG(NICTA_GPL)
+ * @TAG(DATA61_BSD)
  *)
 
 theory Cogent_C_Val_Auto
-imports 
+imports
  Value_Relation_Generation
  Type_Relation_Generation
 begin
 
-ML{* fun local_setup_val_rel_type_rel_put_them_in_buckets file_nm ctxt = 
+ML{* fun local_setup_val_rel_type_rel_put_them_in_buckets file_nm ctxt =
 (* local_setup_val_rel_type_rel defines and registers all the necessary val_rels and type_rels.*)
  let
   fun val_rel_type_rel_def uval lthy = lthy |> type_rel_def file_nm uval |> val_rel_def file_nm uval;
 
   (* FIXME: This recursion is pretty bad, I think.*)
   fun local_setup_val_rel_type_rel' [] lthy = lthy
-   |  local_setup_val_rel_type_rel' (uval::uvals) lthy = 
-       local_setup_instantiation_definition_instance ([get_ty_nm_C uval],[],"cogent_C_val") 
+   |  local_setup_val_rel_type_rel' (uval::uvals) lthy =
+       local_setup_instantiation_definition_instance ([get_ty_nm_C uval],[],"cogent_C_val")
        (val_rel_type_rel_def uval) (local_setup_val_rel_type_rel' uvals lthy);
 
-  val thy = Proof_Context.theory_of ctxt;  
+  val thy = Proof_Context.theory_of ctxt;
 
   val uvals' = read_table file_nm (Proof_Context.theory_of ctxt);
   val uvals = uvals' |> map (unify_usum_tys o unify_sigils) |> rm_redundancy |> rev |>

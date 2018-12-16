@@ -1,21 +1,23 @@
 (*
- * Copyright 2016, NICTA
+ * Copyright 2018, Data61
+ * Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+ * ABN 41 687 119 230.
  *
  * This software may be distributed and modified according to the terms of
- * the GNU General Public License version 2. Note that NO WARRANTY is provided.
- * See "LICENSE_GPLv2.txt" for details.
+ * the BSD 2-Clause license. Note that NO WARRANTY is provided.
+ * See "LICENSE_BSD2.txt" for details.
  *
- * @TAG(NICTA_GPL)
+ * @TAG(DATA61_BSD)
  *)
 
 theory Corres_Tac
-imports 
+imports
   "Cogent_Corres"
   "../cogent/isa/ProofTrace"
   "../cogent/isa/CogentHelper"
   Value_Relation_Generation
   "../cogent/isa/ML_Old"
-begin    
+begin
 
 (*
  * Fix Cogent/C mismatch caused by unused return values of C blocks.
@@ -456,7 +458,7 @@ let
     ucast_up_down_shiftr ucast_id
     ucast_up_div ucast_up_mod ucast_up_eq_0 checked_div_def
     ucast_up_sle_disgusting ucast_up_sless_disgusting
-    is_up_def is_down_def source_size_def 
+    is_up_def is_down_def source_size_def
     target_size_def word_size ucast_down_ucast_id
     };
   val eval_prim_ineq_guard_simps = @{thms word_less_nat_alt word_le_nat_alt}
@@ -509,7 +511,7 @@ let
   val val_rel_simp_ctxt = ctxt addsimps val_rel_simps
   val type_rel_simp_ctxt = ctxt addsimps type_rel_simps
   fun subgoal_val_rel_simp_add thms = TRY' (val_rel_thin_tac
-      THEN' SOLVES' (asm_full_simp_tac (val_rel_simp_ctxt addsimps thms))) 
+      THEN' SOLVES' (asm_full_simp_tac (val_rel_simp_ctxt addsimps thms)))
   fun subgoal_type_rel_simp_add thms = TRY' (SOLVES' (asm_full_simp_tac (type_rel_simp_ctxt addsimps thms)))
   fun subgoal_val_rel_clarsimp_add thms = TRY' (val_rel_thin_tac
       THEN' SOLVES' (Clasimp.clarsimp_tac (val_rel_simp_ctxt addsimps thms)))

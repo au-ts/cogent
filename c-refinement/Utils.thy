@@ -1,11 +1,13 @@
 (*
- * Copyright 2016, NICTA
+ * Copyright 2018, Data61
+ * Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+ * ABN 41 687 119 230.
  *
  * This software may be distributed and modified according to the terms of
- * the GNU General Public License version 2. Note that NO WARRANTY is provided.
- * See "LICENSE_GPLv2.txt" for details.
+ * the BSD 2-Clause license. Note that NO WARRANTY is provided.
+ * See "LICENSE_BSD2.txt" for details.
  *
- * @TAG(NICTA_GPL)
+ * @TAG(DATA61_BSD)
  *)
 
 theory Utils
@@ -14,7 +16,7 @@ imports
 keywords "foobar_prove" :: thy_goal (* from Cookbook.*)
 begin
 
-text{* This theory file contains utility functions that are not specific to the trustworthy file 
+text{* This theory file contains utility functions that are not specific to the trustworthy file
  system project. *}
 
 text{* basics *}
@@ -30,8 +32,8 @@ fun rm_redundancy [] = []
   | rm_redundancy (x::xs) = x::(rm_redundancy (List.filter (fn y => y <> x) xs));
 *}
 
-ML{* fun get_somes xs = xs 
-     |> filter (fn x => case x of NONE => false | _ => true) 
+ML{* fun get_somes xs = xs
+     |> filter (fn x => case x of NONE => false | _ => true)
      |> map (Utils.the' "get_somes failed");*}
 
 ML{* fun remove_nth n xs =
@@ -49,7 +51,7 @@ end;
 remove_nth 3 [0,1,2,3,4,5] = [0,1,2,4,5];
 *}
 
-ML{* fun nth_is_missing nth froms tos = 
+ML{* fun nth_is_missing nth froms tos =
  let
   val nth_elem = List.nth (froms, nth);
   val test = List.find (fn to => nth_elem = to) tos |> is_none
@@ -58,15 +60,15 @@ ML{* fun nth_is_missing nth froms tos =
 
 ML{* fun which_is_missing froms tos =
 (* counts from 0*)
-(* TODO: this does not work well if multiple elements are missing. 
+(* TODO: this does not work well if multiple elements are missing.
   But for our purpose, this is fine. Future work.*)
 let
  fun which_is_missing' 0 _     _   = error "which_is_missing' failed. Nothing is missing"
-   | which_is_missing' n froms tos = 
-      if   nth_is_missing n froms tos 
+   | which_is_missing' n froms tos =
+      if   nth_is_missing n froms tos
       then n
       else which_is_missing' (n - 1) froms tos;
-in 
+in
  which_is_missing' (List.length froms - 1) froms tos
 end;
 (* TODO: more exceptions. for negative n.*)
@@ -83,7 +85,7 @@ fun (x is_in ys) = List.find (fn y => x = y) ys |> is_some;
 (9 is_in [1,2,3,4,5]) = false;
 *}
 
-ML{* infix is_subset_of 
+ML{* infix is_subset_of
 fun (xs is_subset_of ys) = List.all (fn x => x is_in ys) xs;
 (* test *)
 ([4,3] is_subset_of [1,2,3,4,5]) = true;
@@ -91,7 +93,7 @@ fun (xs is_subset_of ys) = List.all (fn x => x is_in ys) xs;
 ([1,2,3,4,5] is_subset_of [4,6,1,2,5,4,3]) = true;
 *}
 
-ML{* infix is_superset_of 
+ML{* infix is_superset_of
 fun (xs is_superset_of ys) = List.all (fn y => y is_in xs) ys;
 (* test *)
 ([4,3] is_superset_of [1,2,3,4,5]) = false;
@@ -100,13 +102,13 @@ fun (xs is_superset_of ys) = List.all (fn y => y is_in xs) ys;
 *}
 
 ML{* infix is_smaller_than_by_one
-fun (xs is_smaller_than_by_one ys) = 
+fun (xs is_smaller_than_by_one ys) =
  let
 (* why should I remove redundancy?
   val xs' = rm_redundancy xs;
   val ys' = rm_redundancy ys;
 *)
- in  
+ in
 (*  List.length xs' + 1 = List.length ys' *)
   List.length xs + 1 = List.length ys
  end;
@@ -123,12 +125,12 @@ ML{* val strip_atype = Term.map_types (map_atyps (K dummyT)) *}
 
 ML{* fun mk_Some thg = strip_atype @{term "\<lambda> thg . Some thg"} $ thg *}
 
-ML{* fun clean_check_typ_of ctxt tm = tm 
- |> strip_atype 
+ML{* fun clean_check_typ_of ctxt tm = tm
+ |> strip_atype
  |> Syntax.check_term ctxt;
 *}
 
-ML{* fun clean_check_mkprop ctxt tm = 
+ML{* fun clean_check_mkprop ctxt tm =
  clean_check_typ_of ctxt tm |> HOLogic.mk_Trueprop;
 *}
 
@@ -139,7 +141,7 @@ fun mk_HOL_disjs tms = case tms of
 |tms => HOLogic.mk_disj (hd tms, tms |> tl |> mk_HOL_disjs);
 
 (* Test *)
-mk_HOL_disjs [@{term "False"}, @{term "True"}, @{term "True"}] = @{term "False \<or> True \<or> True"} 
+mk_HOL_disjs [@{term "False"}, @{term "True"}, @{term "True"}] = @{term "False \<or> True \<or> True"}
 *}
 
 ML{* (* mk_HOL_conjs make nested conjunctions from a list of conjuncts*)
@@ -148,13 +150,13 @@ fun mk_HOL_conjs [] = error "error! The list of terms is empty."
  |  mk_HOL_conjs (tm::tms)= HOLogic.mk_conj (tm, mk_HOL_conjs tms);
 
 (* Test *)
- mk_HOL_conjs [@{term "False"}, @{term "True"}, @{term "True"}] = @{term "False \<and> True \<and> True"} 
+ mk_HOL_conjs [@{term "False"}, @{term "True"}, @{term "True"}] = @{term "False \<and> True \<and> True"}
 *}
 
 ML{* fun encode_isa_pair (fst,snd) = Const ("Product_Type.Pair", dummyT) $ fst $ snd; *}
 
-ML{* 
-fun encode_isa_int (ctxt:Proof.context) int = 
+ML{*
+fun encode_isa_int (ctxt:Proof.context) int =
  Int.toString int |> Syntax.read_term ctxt |> strip_type;
 *}
 
@@ -196,7 +198,7 @@ local
   fun n_abs_dummy' 0 body = body
    |  n_abs_dummy' n body = abs_dummy (n_abs_dummy' (n - 1) body)
 in
- fun n_abs_dummy n body = 
+ fun n_abs_dummy n body =
   if n < 0 then error "n_abs_dummy failed. n is smaller than 0." else n_abs_dummy' n body;
 end; *}
 
@@ -207,8 +209,8 @@ let
  fun apply_n_times 1 = f $ x
    | apply_n_times n = (apply_n_times (n - 1)) $ x
 in
- if n < 1 
- then error "apply_x_n_times_to_f faild. It no longer wants to apply x to f." 
+ if n < 1
+ then error "apply_x_n_times_to_f faild. It no longer wants to apply x to f."
  else apply_n_times n |> strip_atype |> Syntax.check_term ctxt
 end;
 
@@ -219,7 +221,7 @@ apply_x_n_times_to_f @{term "0"} 3 @{term "y"} @{context} = @{term "y 0 0 0"};
 
 ML{* (* update the type of a quantified variable.*)
 (* Warning: this function is a little bit unreliable: it strips all the types in the body. *)
-fun up_ty_of_qnt var_nm new_abs_qnt_ty ctxt trm = 
+fun up_ty_of_qnt var_nm new_abs_qnt_ty ctxt trm =
  let
   fun up_ty_of_qnt' (Const (const_qnt_nm, const_qnt_ty) $ Abs (abs_qnt_nm, abs_qnt_ty, trm)) =
     if var_nm = abs_qnt_nm
@@ -242,13 +244,13 @@ fun get_name (Const (name, _)) = name
 
 ML{* (* generate n-nested abstraction.*)
 fun mk_exists [] body = body
- |  mk_exists (var_nm::var_nms) body = 
+ |  mk_exists (var_nm::var_nms) body =
      Const ("HOL.Ex", dummyT) $ Abs (var_nm, dummyT, mk_exists var_nms body);
 *}
 
 ML{* (* mk_meta_conjncts [thm1, thm2, thm3] = thm1 &&& thm2 &&& thm3. *)
 fun mk_meta_conjncts [] = error "cannot make meta conjunctions."
- |  mk_meta_conjncts (thm::[]) = thm 
+ |  mk_meta_conjncts (thm::[]) = thm
  |  mk_meta_conjncts (thm::thms) = Conjunction.intr thm (mk_meta_conjncts thms)*}
 
 ML{* (* add_simps adds simplification-rules into a given context. *)
@@ -261,7 +263,7 @@ text{* Option.*}
 ML{* infix 1 ?> ??> +>;
 (* ?> is just >>= for option, I use the different symbol. *)
 fun ((x:'a option) ?>  (f:'a -> 'b option)) = case x of NONE => NONE | SOME sth => f sth;
-fun ((x:'a option, y:'b option ) ??> (f:'a -> 'b -> 'c option)) = 
+fun ((x:'a option, y:'b option ) ??> (f:'a -> 'b -> 'c option)) =
   case (x, y) of (SOME x, SOME y) => f x y | _ => NONE
 (* (x +> f) lifts a normal function to the option level.*)
 fun (x +> f) = Option.map f x;
@@ -280,20 +282,20 @@ ML{* fun get_struct_name_from_c_parser c_file thy ctxt =
  |> map (Proof_Context.read_typ ctxt)
 *}
 
-ML{* fun get_struct_info thy file_name = 
- Symtab.lookup (HeapInfo.get thy) file_name 
+ML{* fun get_struct_info thy file_name =
+ Symtab.lookup (HeapInfo.get thy) file_name
 |> Utils.the' "get_struct_info failed."
 |> #heap_info
 |> #structs
 *}
 
-ML{* fun get_field_info (struct_info:HeapLiftBase.struct_info Symtab.table) ty_name = 
- Symtab.lookup struct_info (ty_name ^ "_C") 
+ML{* fun get_field_info (struct_info:HeapLiftBase.struct_info Symtab.table) ty_name =
+ Symtab.lookup struct_info (ty_name ^ "_C")
 |> Utils.the' "get_field_info failed."
 |> #field_info ;
 *}
 
-ML{* fun get_field_names (field_info:HeapLiftBase.field_info list) = 
+ML{* fun get_field_names (field_info:HeapLiftBase.field_info list) =
  field_info |> (map (cut_C o Long_Name.base_name o get_name o #getter));
 *}
 
@@ -319,7 +321,7 @@ ML{* fun get_c_file_name_from_path path =
 *}
 
 (* Japheth recommended to use mk_term developed by David.G. *)
-ML{* val example_of_dynamic_antiquotation = 
+ML{* val example_of_dynamic_antiquotation =
  @{mk_term "a ?b \<Longrightarrow> ?c" (b, c )} (@{term "id"}, @{term "Suc 0"});
 (*
 (* The mk_term anti-quotation does not check the types.*)
@@ -329,15 +331,15 @@ Syntax.check_term @{context} example_of_dynamic_antiquotation;
 
 text{* tacticals *}
 
-ML{* fun SOLVE_ONE (tac:tactic) (thm:thm) = 
+ML{* fun SOLVE_ONE (tac:tactic) (thm:thm) =
 (* SOLVE_ONE is a specialization of SOLVE. *)
 let
  val result = tac thm |> Seq.pull;
  fun solved_one new_thm = ((Thm.nprems_of thm) = (Thm.nprems_of new_thm + 1));
 in
- case result of 
+ case result of
    NONE => Seq.empty (* tac thm failed *)
- | SOME (thm_changed, _) => (if solved_one thm_changed 
+ | SOME (thm_changed, _) => (if solved_one thm_changed
     then Seq.cons thm_changed Seq.empty
     else Seq.empty (* tac did not discharge a subgoal. *))
 end;
@@ -353,7 +355,7 @@ local
  (* DETERM_TIMEOUT was written by Jasmin Blanchette in nitpick_util.ML.
   * This version has exception handling on top of his version.*)
  fun DETERM_TIMEOUT delay tac st =
-   Seq.of_list (the_list (Timeout.apply delay (fn () => SINGLE tac st) () 
+   Seq.of_list (the_list (Timeout.apply delay (fn () => SINGLE tac st) ()
     handle Timeout.TIMEOUT _ => NONE));
 in
  (* (TIMEOUT tac) returns a tactic that fail, if tac cannot return in 3.14 seconds.*)
@@ -400,10 +402,10 @@ functor Named_Thms_Ext(val name: binding val description: string): NAMED_THMS_EX
 struct
   structure Named_Thms = Named_Thms(val name = name val description = description)
   open Named_Thms
-  
+
   fun add_local thm = Local_Theory.notes [((Binding.empty,[Attrib.internal (K add)]),[([thm],[])])] #> snd
   fun del_local thm = Local_Theory.notes [((Binding.empty,[Attrib.internal (K del)]),[([thm],[])])] #> snd
-  
+
 end
 *}
 
@@ -412,7 +414,7 @@ text{* Instantiation of type class.*}
 ML{* fun local_setup_instantion arities lthy=
  Class.instantiation_cmd arities (Local_Theory.exit_global lthy);*}
 
-ML{* fun local_setup_instance lthy = 
+ML{* fun local_setup_instance lthy =
  Class.prove_instantiation_instance (fn ctxt => Class.intro_classes_tac ctxt []) lthy;*}
 
 ML{* fun local_setup_instantiation_definition_instance arities local_setup_definition lthy = lthy |>
@@ -438,7 +440,7 @@ ML{* fun scrape_C_types_term t = let
 
 ML{* val scrape_C_types = scrape_C_types_term o Thm.concl_of; *}
 
-ML{* fun make_thm_index guess thms = 
+ML{* fun make_thm_index guess thms =
  let
   val nmths = map swap (maps (fn t => map (pair t) (guess t)) thms)
  in Symtab.make_list nmths end;

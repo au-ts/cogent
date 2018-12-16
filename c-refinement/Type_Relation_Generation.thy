@@ -1,16 +1,18 @@
 (*
- * Copyright 2016, NICTA
+ * Copyright 2018, Data61
+ * Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+ * ABN 41 687 119 230.
  *
  * This software may be distributed and modified according to the terms of
- * the GNU General Public License version 2. Note that NO WARRANTY is provided.
- * See "LICENSE_GPLv2.txt" for details.
+ * the BSD 2-Clause license. Note that NO WARRANTY is provided.
+ * See "LICENSE_BSD2.txt" for details.
  *
- * @TAG(NICTA_GPL)
+ * @TAG(DATA61_BSD)
  *)
 
 theory Type_Relation_Generation
-imports 
- Cogent_Corres 
+imports
+ Cogent_Corres
  Read_Table
 begin
 
@@ -95,8 +97,8 @@ fun gen_mk_rhs_of_type_rel ctxt file_name uval =
  let
   val thy           = Proof_Context.theory_of ctxt;
   fun field_info ty = get_field_info (get_struct_info thy file_name) ty;
- in 
-  case uval of 
+ in
+  case uval of
     (USum (ty_name, _))   => mk_rhs_of_type_rel_sum ctxt (field_info ty_name)
   | (UProduct ty_name)    => mk_rhs_of_type_rel_prod ctxt (field_info ty_name)
   | (URecord (ty_name,_)) => mk_rhs_of_type_rel_rec ctxt (field_info ty_name)
@@ -107,7 +109,7 @@ in
 
 (* TODO review this *)
 
-fun type_rel_def file_name uval ctxt = 
+fun type_rel_def file_name uval ctxt =
  let
   val ty_name = get_uval_name uval;
   val ty      = Syntax.read_typ ctxt (ty_name ^ "_C itself") ;

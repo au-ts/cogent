@@ -1,11 +1,13 @@
 (*
- * Copyright 2016, NICTA
+ * Copyright 2018, Data61
+ * Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+ * ABN 41 687 119 230.
  *
  * This software may be distributed and modified according to the terms of
- * the GNU General Public License version 2. Note that NO WARRANTY is provided.
- * See "LICENSE_GPLv2.txt" for details.
+ * the BSD 2-Clause license. Note that NO WARRANTY is provided.
+ * See "LICENSE_BSD2.txt" for details.
  *
- * @TAG(NICTA_GPL)
+ * @TAG(DATA61_BSD)
  *)
 
 theory Heap_Relation_Generation
@@ -17,13 +19,13 @@ local
 
 fun mk_heap_rel ctxt (uvals:uval list) =
 
-(* mk_heap_rel makes the equation that defines heap relation for a given type. 
+(* mk_heap_rel makes the equation that defines heap relation for a given type.
  * For example, "heap_rel \<sigma> h \<equiv> (\<forall>(p :: t2_C ptr). heap_rel_ptr \<sigma> h p)". *)
 
  let
   fun mk_pointed_ty ty_nm_C = Syntax.read_typ ctxt ty_nm_C;
   fun mk_pointer_ty ty_nm_C = Type ("CTypesBase.ptr", [mk_pointed_ty ty_nm_C]);
-  fun mk_a_conjct ty_nm_C =  
+  fun mk_a_conjct ty_nm_C =
    Const ("HOL.All", dummyT) $
     Abs ("p", mk_pointer_ty ty_nm_C,
      (Syntax.read_term ctxt "heap_rel_ptr" $
@@ -38,18 +40,18 @@ fun mk_heap_rel ctxt (uvals:uval list) =
   val lhs = strip_atype @{term "\<lambda> heap_rel . heap_rel \<sigma> h"} $ heap_rel |> strip_atype;
  in
   mk_eq_tm lhs rhs ctxt
- end : term; 
+ end : term;
 
 in
 
-fun local_setup_heap_rel file_nm lthy = 
-(* local_setup_heap_rels defines and register a number of heap_rels 
+fun local_setup_heap_rel file_nm lthy =
+(* local_setup_heap_rels defines and register a number of heap_rels
  * when called inside local_setup quotation.*)
  let
   val thy   = Proof_Context.theory_of lthy;
-  val uvals = read_table file_nm thy 
-             |> map (unify_usum_tys o unify_sigils) 
-             |> rm_redundancy 
+  val uvals = read_table file_nm thy
+             |> map (unify_usum_tys o unify_sigils)
+             |> rm_redundancy
              |> get_uvals_for_which_ac_mk_heap_getters file_nm thy;
   val heap_rel = mk_heap_rel lthy uvals;
   val lthy' = Specification.definition NONE [] [] ((Binding.name ("heap_rel_def"), []), heap_rel) lthy |> snd;

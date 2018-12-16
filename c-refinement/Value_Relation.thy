@@ -1,11 +1,13 @@
 (*
- * Copyright 2016, NICTA
+ * Copyright 2018, Data61
+ * Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+ * ABN 41 687 119 230.
  *
  * This software may be distributed and modified according to the terms of
- * the GNU General Public License version 2. Note that NO WARRANTY is provided.
- * See "LICENSE_GPLv2.txt" for details.
+ * the BSD 2-Clause license. Note that NO WARRANTY is provided.
+ * See "LICENSE_BSD2.txt" for details.
  *
- * @TAG(NICTA_GPL)
+ * @TAG(DATA61_BSD)
  *)
 
 (*
@@ -54,7 +56,7 @@ consts cogent_function_type_rel :: "repr \<Rightarrow> 'a word itself \<Rightarr
 
 instantiation word :: ("{len8, knows_sign}") cogent_C_val
 begin
-  definition type_rel_word_def: 
+  definition type_rel_word_def:
     "type_rel a (t :: 'a word itself) \<equiv>
        if is_signed TYPE ('a) then cogent_function_type_rel a t
        else (
@@ -81,7 +83,7 @@ lemmas val_rel_word64 = val_rel_word_def [where 'a=64, simplified word_size ucas
 lemmas val_rel_word32 = val_rel_word_def [where 'a=32, simplified word_size ucast_id is_signed_simps, simplified]
 lemmas val_rel_word16 = val_rel_word_def [where 'a=16, simplified word_size ucast_id is_signed_simps, simplified]
 lemmas val_rel_word8  = val_rel_word_def [where 'a= 8, simplified word_size ucast_id is_signed_simps, simplified]
-lemmas val_rel_word = val_rel_word64 val_rel_word32 val_rel_word16 val_rel_word8 
+lemmas val_rel_word = val_rel_word64 val_rel_word32 val_rel_word16 val_rel_word8
 
 lemmas val_rel_fun_tag = val_rel_word_def [where 'a="32 signed", simplified is_signed_simps, simplified]
 
@@ -89,7 +91,7 @@ lemmas type_rel_word64 = type_rel_word_def [where 'a=64, simplified is_signed_si
 lemmas type_rel_word32 = type_rel_word_def [where 'a=32, simplified is_signed_simps, simplified]
 lemmas type_rel_word16 = type_rel_word_def [where 'a=16, simplified is_signed_simps, simplified]
 lemmas type_rel_word8  = type_rel_word_def [where 'a= 8, simplified is_signed_simps, simplified]
-lemmas type_rel_word = type_rel_word64 type_rel_word32 type_rel_word16 type_rel_word8 
+lemmas type_rel_word = type_rel_word64 type_rel_word32 type_rel_word16 type_rel_word8
 
 lemmas type_rel_fun_tag = type_rel_word_def [where 'a="32 signed", simplified is_signed_simps, simplified]
 

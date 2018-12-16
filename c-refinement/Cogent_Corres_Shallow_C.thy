@@ -1,11 +1,13 @@
 (*
- * Copyright 2016, NICTA
+ * Copyright 2018, Data61
+ * Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+ * ABN 41 687 119 230.
  *
  * This software may be distributed and modified according to the terms of
- * the GNU General Public License version 2. Note that NO WARRANTY is provided.
- * See "LICENSE_GPLv2.txt" for details.
+ * the BSD 2-Clause license. Note that NO WARRANTY is provided.
+ * See "LICENSE_BSD2.txt" for details.
  *
- * @TAG(NICTA_GPL)
+ * @TAG(DATA61_BSD)
  *)
 
 (* Refinement chain from C to shallow-embedded Cogent. *)
@@ -25,17 +27,17 @@ imports
 begin
 
 
-locale correspondence_init = 
+locale correspondence_init =
   correspondence +
   constrains upd_abs_typing :: "abstyp \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> sigil \<Rightarrow> ptrtyp set \<Rightarrow> ptrtyp set \<Rightarrow> bool"
        and abs_repr :: "abstyp \<Rightarrow> name \<times> repr list"
-       and abs_upd_val :: "abstyp \<Rightarrow> 'b \<Rightarrow> char list \<Rightarrow> Cogent.type list \<Rightarrow> sigil \<Rightarrow> ptrtyp set \<Rightarrow> ptrtyp set \<Rightarrow> bool" 
+       and abs_upd_val :: "abstyp \<Rightarrow> 'b \<Rightarrow> char list \<Rightarrow> Cogent.type list \<Rightarrow> sigil \<Rightarrow> ptrtyp set \<Rightarrow> ptrtyp set \<Rightarrow> bool"
 
 sublocale correspondence_init \<subseteq> update_sem_init upd_abs_typing abs_repr
   by (unfold_locales)
 
 
-sublocale correspondence_init \<subseteq> correspondence 
+sublocale correspondence_init \<subseteq> correspondence
   by (unfold_locales)
 
 context correspondence_init
@@ -160,12 +162,12 @@ lemma corres_shallow_C_intro:
   apply clarsimp
   apply (rename_tac vv')
   apply (cut_tac v'="vv'" in val.rename_monoexpr_correct(1)
-   [OF _ mono_proc_env_matches mono_proc_env, 
+   [OF _ mono_proc_env_matches mono_proc_env,
     where \<gamma>="[vv\<^sub>p]" and \<Gamma>="[Some \<tau>i]" and e="prog\<^sub>p"])
       apply simp
      apply (simp add: mono_env[symmetric] mono_env_matches)
     apply (simp add: mono_prog mono_env[symmetric])
-   using mono_prog typingP apply fast 
+   using mono_prog typingP apply fast
    apply (cut_tac scorresP[unfolded val.scorres_def])
   apply (frule(4) mono_correspondence(1))
    apply (rule typingP)
