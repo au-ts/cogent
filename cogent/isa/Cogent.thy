@@ -1282,6 +1282,86 @@ next
     done
 qed (auto intro!: subtyping.intros)
 
+
+lemma subtyping_wellformed_preservation:
+  assumes
+    "K \<turnstile> t1 \<sqsubseteq> t2"
+  shows
+    "K \<turnstile> t1 wellformed \<Longrightarrow> K \<turnstile> t2 wellformed"
+    "K \<turnstile> t2 wellformed \<Longrightarrow> K \<turnstile> t1 wellformed"
+  using assms
+proof (induct rule: subtyping.inducts)
+  case (subty_tcon n1 n2 s1 s2 K ts1 ts2)
+  then show
+    "K \<turnstile> TCon n1 ts1 s1 wellformed \<Longrightarrow> K \<turnstile> TCon n2 ts2 s2 wellformed"
+    "K \<turnstile> TCon n2 ts2 s2 wellformed \<Longrightarrow> K \<turnstile> TCon n1 ts1 s1 wellformed"
+    by (fastforce simp add: list_all2_conv_all_nth Ball_def in_set_conv_nth)+
+next
+  case (subty_trecord ts1 ts2 K s1 s2)
+  moreover have fst_set_same: "\<And>n. n \<in> fst ` set ts1 \<longleftrightarrow> n \<in> fst ` set ts2"
+    by (simp add: subty_trecord.hyps)
+  ultimately show
+    "K \<turnstile> TRecord ts1 s1 wellformed \<Longrightarrow> K \<turnstile> TRecord ts2 s2 wellformed"
+    "K \<turnstile> TRecord ts2 s2 wellformed \<Longrightarrow> K \<turnstile> TRecord ts1 s1 wellformed"
+  proof auto
+    {
+      fix n t2 b2
+      presume
+        "\<And>n t1 b1. (n,t1,b1) \<in> set ts1 \<longrightarrow> type_wellformed (length K) t1"
+        "(n, t2, b2) \<in> set ts2"
+      moreover then obtain t1 b1 where
+        "(n, t1, b1) \<in> set ts1"
+        using fst_set_same prod_in_set by fastforce
+      ultimately show "type_wellformed (length K) t2"
+        using subty_trecord.hyps type_wellformed_pretty_def
+        by blast
+    }
+    {
+      fix n t1 b1
+      presume
+        "\<And>n t2 b2. (n,t2,b2) \<in> set ts2 \<longrightarrow> type_wellformed (length K) t2"
+        "(n, t1, b1) \<in> set ts1"
+      moreover then obtain t2 b2 where
+        "(n, t2, b2) \<in> set ts2"
+        using fst_set_same prod_in_set by fastforce
+      ultimately show "type_wellformed (length K) t1"
+        using subty_trecord.hyps type_wellformed_pretty_def by blast
+    }
+  qed auto
+next
+  case (subty_tsum ts1 ts2 K)
+  moreover have fst_set_same: "\<And>n. n \<in> fst ` set ts1 \<longleftrightarrow> n \<in> fst ` set ts2"
+    by (simp add: subty_tsum.hyps)
+  ultimately show
+    "K \<turnstile> TSum ts1 wellformed \<Longrightarrow> K \<turnstile> TSum ts2 wellformed"
+    "K \<turnstile> TSum ts2 wellformed \<Longrightarrow> K \<turnstile> TSum ts1 wellformed"
+  proof auto
+    {
+      fix n t2 b2
+      presume
+        "\<And>n t1 b1. (n,t1,b1) \<in> set ts1 \<longrightarrow> type_wellformed (length K) t1"
+        "(n, t2, b2) \<in> set ts2"
+      moreover then obtain t1 b1 where
+        "(n, t1, b1) \<in> set ts1"
+        using fst_set_same prod_in_set by fastforce
+      ultimately show "type_wellformed (length K) t2"
+        using subty_tsum.hyps type_wellformed_pretty_def
+        by blast
+    }
+    {
+      fix n t1 b1
+      presume
+        "\<And>n t2 b2. (n,t2,b2) \<in> set ts2 \<longrightarrow> type_wellformed (length K) t2"
+        "(n, t1, b1) \<in> set ts1"
+      moreover then obtain t2 b2 where
+        "(n, t2, b2) \<in> set ts2"
+        using fst_set_same prod_in_set by fastforce
+      ultimately show "type_wellformed (length K) t1"
+        using subty_tsum.hyps type_wellformed_pretty_def by blast
+    }
+  qed auto
+qed simp+
+
 section {* Typing lemmas *}
 
 lemma variant_elem_preservation:
