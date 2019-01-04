@@ -467,7 +467,8 @@ inductive subtyping :: "kind env \<Rightarrow> type \<Rightarrow> type \<Rightar
                   \<rbrakk> \<Longrightarrow> K \<turnstile> TFun t1 u1 \<sqsubseteq> TFun t2 u2"
 | subty_tprim  : "\<lbrakk> p1 = p2
                   \<rbrakk> \<Longrightarrow> K \<turnstile> TPrim p1 \<sqsubseteq> TPrim p2"
-| subty_trecord: "\<lbrakk> \<And>n t1 t2 b1 b2. \<lbrakk> (n,t1,b1) \<in> set ts1; (n,t2,b2) \<in> set ts2 \<rbrakk> \<Longrightarrow> (K \<turnstile> t1 \<sqsubseteq> t2) \<and> (b1 \<le> b2)
+| subty_trecord: "\<lbrakk> \<And>n t1 t2 b1 b2. \<lbrakk> (n,t1,b1) \<in> set ts1; (n,t2,b2) \<in> set ts2 \<rbrakk>
+                      \<Longrightarrow> (K \<turnstile> t1 \<sqsubseteq> t2) \<and> (b1 \<le> b2) (* (if K \<turnstile> t1 :\<kappa> {D} then b1 \<le> b2 else b1 = b2) *)
                   ; distinct (map fst ts1)
                   ; distinct (map fst ts2)
                   ; fst ` set ts1 = fst ` set ts2

@@ -385,8 +385,8 @@ lemma type_lub_type_glb_order_correct: "a \<leftarrow> a \<squnion> b \<longleft
 
 lemma glb_lub_subtyping_order_correct:
   shows
-    "c \<leftarrow> a \<squnion> b \<Longrightarrow> (c \<sqsubseteq> a) \<and> (c \<sqsubseteq> b)"
-    "c \<leftarrow> a \<sqinter> b \<Longrightarrow> (a \<sqsubseteq> c) \<and> (b \<sqsubseteq> c)"
+    "c \<leftarrow> a \<squnion> b \<Longrightarrow> (K \<turnstile> c \<sqsubseteq> a) \<and> (K \<turnstile> c \<sqsubseteq> b)"
+    "c \<leftarrow> a \<sqinter> b \<Longrightarrow> (K \<turnstile> a \<sqsubseteq> c) \<and> (K \<turnstile> b \<sqsubseteq> c)"
 proof (induct rule: type_lub_type_glb.inducts)
   case (lub_tcon n n1 n2 s s1 s2 ts ts1 ts2)
   then show ?case
@@ -400,7 +400,7 @@ next
     moreover then obtain t2 b2 where "(n, t2, b2) \<in> set ts2"
       using lub_trecord.hyps
       by (metis (no_types, hide_lams) eq_fst_iff image_iff)
-    ultimately have "t \<sqsubseteq> t1 \<and> b \<le> b1"
+    ultimately have "K \<turnstile> t \<sqsubseteq> t1 \<and> b \<le> b1"
       using lub_trecord.hyps by fastforce
   }
   moreover { fix n t b t2 b2
@@ -410,7 +410,7 @@ next
     moreover then obtain t1 b1 where "(n, t1, b1) \<in> set ts1"
       using lub_trecord.hyps
       by (metis (no_types, hide_lams) eq_fst_iff image_iff)
-    ultimately have "t \<sqsubseteq> t2 \<and> b \<le> b2"
+    ultimately have "K \<turnstile> t \<sqsubseteq> t2 \<and> b \<le> b2"
       using lub_trecord.hyps by fastforce
   }
   moreover have
@@ -429,7 +429,7 @@ next
     moreover then obtain t2 b2 where "(n, t2, b2) \<in> set ts2"
       using lub_tsum.hyps
       by (metis (no_types, hide_lams) eq_fst_iff image_iff)
-    ultimately have "t \<sqsubseteq> t1 \<and> b \<le> b1"
+    ultimately have "K \<turnstile> t \<sqsubseteq> t1 \<and> b \<le> b1"
       using lub_tsum.hyps by fastforce
   }
   moreover { fix n t b t2 b2
@@ -439,7 +439,7 @@ next
     moreover then obtain t1 b1 where "(n, t1, b1) \<in> set ts1"
       using lub_tsum.hyps
       by (metis (no_types, hide_lams) eq_fst_iff image_iff)
-    ultimately have "t \<sqsubseteq> t2 \<and> b \<le> b2"
+    ultimately have "K \<turnstile> t \<sqsubseteq> t2 \<and> b \<le> b2"
       using lub_tsum.hyps by fastforce
   }
   moreover have
@@ -462,7 +462,7 @@ next
     moreover then obtain t2 b2 where "(n, t2, b2) \<in> set ts2"
       using glb_trecord.hyps
       by (metis (no_types, hide_lams) eq_fst_iff image_iff)
-    ultimately have "t1 \<sqsubseteq> t \<and> b1 \<le> b"
+    ultimately have "K \<turnstile> t1 \<sqsubseteq> t \<and> b1 \<le> b"
       using glb_trecord.hyps by fastforce
   }
   moreover { fix n t b t2 b2
@@ -472,7 +472,7 @@ next
     moreover then obtain t1 b1 where "(n, t1, b1) \<in> set ts1"
       using glb_trecord.hyps
       by (metis (no_types, hide_lams) eq_fst_iff image_iff)
-    ultimately have "t2 \<sqsubseteq> t \<and> b2 \<le> b"
+    ultimately have "K \<turnstile> t2 \<sqsubseteq> t \<and> b2 \<le> b"
       using glb_trecord.hyps by fastforce
   }
   moreover have
@@ -491,7 +491,7 @@ next
     moreover then obtain t2 b2 where "(n, t2, b2) \<in> set ts2"
       using glb_tsum.hyps
       by (metis (no_types, hide_lams) eq_fst_iff image_iff)
-    ultimately have "t1 \<sqsubseteq> t \<and> b1 \<le> b"
+    ultimately have "K \<turnstile> t1 \<sqsubseteq> t \<and> b1 \<le> b"
       using glb_tsum.hyps by fastforce
   }
   moreover { fix n t b t2 b2
@@ -501,7 +501,7 @@ next
     moreover then obtain t1 b1 where "(n, t1, b1) \<in> set ts1"
       using glb_tsum.hyps
       by (metis (no_types, hide_lams) eq_fst_iff image_iff)
-    ultimately have "t2 \<sqsubseteq> t \<and> b2 \<le> b"
+    ultimately have "K \<turnstile> t2 \<sqsubseteq> t \<and> b2 \<le> b"
       using glb_tsum.hyps by fastforce
   }
   moreover have
@@ -516,8 +516,8 @@ qed (auto intro!: subtyping.intros)
 
 lemma type_lub_type_glb_to_subtyping:
   shows
-    "a \<leftarrow> a \<squnion> b \<Longrightarrow> a \<sqsubseteq> b"
-    "b \<leftarrow> a \<sqinter> b \<Longrightarrow> a \<sqsubseteq> b"
+    "a \<leftarrow> a \<squnion> b \<Longrightarrow> K \<turnstile> a \<sqsubseteq> b"
+    "b \<leftarrow> a \<sqinter> b \<Longrightarrow> K \<turnstile> a \<sqsubseteq> b"
   using glb_lub_subtyping_order_correct
   by fast+
 
