@@ -170,32 +170,32 @@ fun uminus_record_state :: "record_state \<Rightarrow> record_state" where
 | "uminus_record_state Present = Taken"
 
 definition top_record_state :: record_state where
-  "top_record_state \<equiv> Present"
+  "top_record_state \<equiv> Taken"
 declare top_record_state_def[simp]
 
 definition bot_record_state :: record_state where
-  "bot_record_state \<equiv> Taken"
+  "bot_record_state \<equiv> Present"
 declare bot_record_state_def[simp]
 
 fun inf_record_state :: "record_state \<Rightarrow> record_state \<Rightarrow> record_state" where
-  "inf_record_state Taken   _       = Taken"
-| "inf_record_state Present Taken   = Taken"
-| "inf_record_state Present Present = Present"
+  "inf_record_state Present _       = Present"
+| "inf_record_state Taken   Present = Present"
+| "inf_record_state Taken   Taken   = Taken"
 
 fun sup_record_state :: "record_state \<Rightarrow> record_state \<Rightarrow> record_state" where
-  "sup_record_state Present _       = Present"
-| "sup_record_state Taken   Present = Present"
-| "sup_record_state Taken   Taken   = Taken"
+  "sup_record_state Taken   _       = Taken"
+| "sup_record_state Present Taken   = Taken"
+| "sup_record_state Present Present = Present"
 
 fun less_eq_record_state :: "record_state \<Rightarrow> record_state \<Rightarrow> bool" where
-  "less_eq_record_state _       Present = True"
-| "less_eq_record_state Taken   Taken   = True"
-| "less_eq_record_state Present Taken   = False"
+  "less_eq_record_state _       Taken   = True"
+| "less_eq_record_state Present Present = True"
+| "less_eq_record_state Taken   Present = False"
 
 fun less_record_state :: "record_state \<Rightarrow> record_state \<Rightarrow> bool" where
-  "less_record_state _       Taken   = False"
-| "less_record_state Present Present = False"
-| "less_record_state Taken   Present = True"
+  "less_record_state _       Present = False"
+| "less_record_state Taken   Taken   = False"
+| "less_record_state Present Taken   = True"
 
 definition minus_record_state :: "record_state \<Rightarrow> record_state \<Rightarrow> record_state" where
   "minus_record_state x y \<equiv> inf x (- y)"
