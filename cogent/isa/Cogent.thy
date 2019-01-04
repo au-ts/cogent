@@ -689,7 +689,8 @@ typing_var    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto>w singleton (length
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> App a b : y"
 
 | typing_con    : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : t
-                   ; (tag, t, Unchecked) \<in> set ts
+                   ; (tag, t', Unchecked) \<in> set ts
+                   ; K \<turnstile> t \<sqsubseteq> t'
                    ; K \<turnstile> TSum ts' wellformed
                    ; distinct (map fst ts)
                    ; map fst ts = map fst ts'
@@ -815,6 +816,7 @@ inductive_cases typing_letbE   [elim]: "\<Xi>, K, \<Gamma> \<turnstile> LetBang 
 inductive_cases typing_takeE   [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Take x f e : \<tau>"
 inductive_cases typing_putE    [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Put x f e : \<tau>"
 inductive_cases typing_splitE  [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Split x e : \<tau>"
+inductive_cases ttyping_promoteE[elim]: "\<Xi>, K, \<Gamma> \<turnstile> Promote \<tau>' x : \<tau>"
 inductive_cases typing_all_emptyE [elim]: "\<Xi>, K, \<Gamma> \<turnstile>* []       : \<tau>s"
 inductive_cases typing_all_consE  [elim]: "\<Xi>, K, \<Gamma> \<turnstile>* (x # xs) : \<tau>s"
 
@@ -1906,17 +1908,20 @@ next case (typing_fun \<Xi> K t f u \<Gamma> ks ts)
         typing_typing_all.typing_fun [simplified]
         instantiate_ctx_consumed)
 next
-  case (typing_con \<Xi> K \<Gamma> x t tag ts ts')
+  case (typing_con \<Xi> K \<Gamma> x t tag t' ts ts')
   then show ?case
   proof (clarsimp, intro typing_typing_all.intros)
        show "map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts) = map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts')"
       using map_fst3_app2 map_map typing_con.hyps by metis
   next show "list_all2 (\<lambda>x y. snd (snd x) \<le> snd (snd y)) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts')"
-      by (simp add: list_all2_map1 list_all2_map2 case_prod_beta' typing_con.hyps(8))
+      by (simp add: list_all2_map1 list_all2_map2 case_prod_beta' typing_con.hyps)
   next show "K' \<turnstile> TSum (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts') wellformed"
       using typing_con
       by (fastforce intro: substitutivity instantiate_wellformed dest: list_all2_kinding_wellformedD list_all2_lengthD)
-  qed (force intro: substitutivity)+
+  next show "K' \<turnstile> instantiate \<delta> t \<sqsubseteq> instantiate \<delta> t'"
+      using typing_con specialisation_subtyping subtyping_wellformed_preservation typing_to_wellformed
+      by blast
+  qed (force intro: specialisation_subtyping substitutivity)+
 next case typing_esac then show ?case
     by (force intro!: typing_typing_all.typing_esac
               simp: filter_map_map_filter_thd3_app2
