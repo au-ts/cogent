@@ -22,6 +22,7 @@
 {- LANGUAGE InstanceSigs -}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE Rank2Types #-}
@@ -220,7 +221,7 @@ runTC (TC a) readers st = case runState (runReaderT (runExceptT a) readers) st o
 -- XXX |     tc_debug' :: [Definition UntypedExpr a] -> Map FunName FunctionType -> IO ()
 -- XXX |     tc_debug' [] _ = putStrLn "tc2... OK!"
 -- XXX |     tc_debug' ((FunDef _ fn ts t rt e):ds) reader =
--- XXX |       case runTC (typecheck e) (fmap snd ts, reader) (Cons (Just t) Nil) of
+-- XXX |       case runTC (infer e) (fmap snd ts, reader) (Cons (Just t) Nil) of
 -- XXX |         Left x -> putStrLn $ "tc2... failed! Due to: " ++ x
 -- XXX |         Right _ -> tc_debug' ds (M.insert fn (FT (fmap snd ts) t rt) reader)
 -- XXX |     tc_debug' ((AbsDecl _ fn ts t rt):ds) reader = tc_debug' ds (M.insert fn (FT (fmap snd ts) t rt) reader)
@@ -235,7 +236,7 @@ tc = flip tc' M.empty
     tc' :: [Definition UntypedExpr a] -> Map FunName FunctionType -> Either String ([Definition TypedExpr a], Map FunName FunctionType)
     tc' [] reader = return ([], reader)
     tc' ((FunDef attr fn ts t rt e):ds) reader =
-      case runTC (typecheck e) (fmap snd ts, reader) (Cons (Just t) Nil) of
+      case runTC (infer e >>= flip typecheck rt) (fmap snd ts, reader) (Cons (Just t) Nil) of
         Left x -> Left x
         Right (_, e') -> (first (FunDef attr fn ts t rt e':)) <$> tc' ds (M.insert fn (FT (fmap snd ts) t rt) reader)
     tc' (d@(AbsDecl _ fn ts t rt):ds) reader = (first (Unsafe.unsafeCoerce d:)) <$> tc' ds (M.insert fn (FT (fmap snd ts) t rt) reader)
@@ -249,7 +250,7 @@ tcConsts :: [CoreConst UntypedExpr]
          -> Either String ([CoreConst TypedExpr], Map FunName FunctionType)
 tcConsts [] reader = return ([], reader)
 tcConsts ((v,e):ds) reader =
-  case runTC (typecheck e) (Nil, reader) Nil of
+  case runTC (infer e) (Nil, reader) Nil of
     Left x -> Left x
     Right (_,e') -> (first ((v,e'):)) <$> tcConsts ds reader
 
@@ -297,17 +298,26 @@ kindcheck_ f (TArray t l)     = kindcheck_ f t
 
 kindcheck = kindcheck_ lookupKind
 
-typecheck :: UntypedExpr t v a -> TC t v (TypedExpr t v a)
-typecheck (E (Op o es))
-   = do es' <- mapM typecheck es
+
+typecheck :: TypedExpr t v a -> Type t -> TC t v (TypedExpr t v a)
+typecheck e t = do
+  let t' = exprType e
+  isSub <- isSubtype t' t
+  if | t == t' -> return e
+     | isSub -> return (TE t (Promote t e))
+     | otherwise -> __impossible "Inferred type doesn't agree with the given type signature"
+
+infer :: UntypedExpr t v a -> TC t v (TypedExpr t v a)
+infer (E (Op o es))
+   = do es' <- mapM infer es
         let Just t = opType o (map exprType es')
         return (TE t (Op o es'))
-typecheck (E (ILit i t)) = return (TE (TPrim t) (ILit i t))
-typecheck (E (SLit s)) = return (TE TString (SLit s))
+infer (E (ILit i t)) = return (TE (TPrim t) (ILit i t))
+infer (E (SLit s)) = return (TE TString (SLit s))
 #ifdef BUILTIN_ARRAYS
-typecheck (E (ALit [])) = __impossible "We don't allow 0-size array literals"
-typecheck (E (ALit es))
-   = do es' <- mapM typecheck es
+infer (E (ALit [])) = __impossible "We don't allow 0-size array literals"
+infer (E (ALit es))
+   = do es' <- mapM infer es
         let ts = map exprType es'
             n = fromIntegral $ length es
         t <- lubAll ts
@@ -319,30 +329,30 @@ typecheck (E (ALit es))
     lubAll [t] = return t
     lubAll (t1:t2:ts) = do Just t <- runMaybeT $ lub t1 t2
                            lubAll (t:ts)
-typecheck (E (ArrayIndex arr idx))
-   = do arr'@(TE ta _) <- typecheck arr
+infer (E (ArrayIndex arr idx))
+   = do arr'@(TE ta _) <- infer arr
         let TArray te l = ta
         guardShow ("arr-idx out of bound") $ idx >= 0 && idx < l
         guardShow ("arr-idx on non-linear") . canShare =<< kindcheck ta
         return (TE te (ArrayIndex arr' idx))
-typecheck (E (Pop a e1 e2))
-   = do e1'@(TE t1 _) <- typecheck e1
+infer (E (Pop a e1 e2))
+   = do e1'@(TE t1 _) <- infer e1
         let TArray te l = t1
             thd = te
             ttl = TArray te (l - 1)
         guardShow "arr-pop on a singleton array" $ l > 1
-        e2'@(TE t2 _) <- withBindings (Cons thd (Cons ttl Nil)) $ typecheck e2
+        e2'@(TE t2 _) <- withBindings (Cons thd (Cons ttl Nil)) $ infer e2
         return (TE t2 (Pop a e1' e2'))
-typecheck (E (Singleton e))
-   = do e'@(TE t _) <- typecheck e
+infer (E (Singleton e))
+   = do e'@(TE t _) <- infer e
         let TArray te l = t
         guardShow "singleton on a non-singleton array" $ l == 1
         return (TE te (Singleton e'))
 #endif
-typecheck (E (Variable v))
+infer (E (Variable v))
    = do Just t <- useVariable (fst v)
         return (TE t (Variable v))
-typecheck (E (Fun f ts note))
+infer (E (Fun f ts note))
    | ExI (Flip ts') <- Vec.fromList ts
    = do xxx <- view _2
         Just (FT ks ti to) <- funType f
@@ -354,35 +364,35 @@ typecheck (E (Fun f ts note))
                                    when ((k <> k') /= k) $ __impossible "kind not matched in type instantiation"
                                  return $ TE (TFun ti' to') (Fun f ts note)
              Nothing -> __impossible "lengths don't match"
-typecheck (E (App e1 e2))
-   = do e1'@(TE (TFun ti to) _) <- typecheck e1
-        e2'@(TE ti' _) <- typecheck e2
+infer (E (App e1 e2))
+   = do e1'@(TE (TFun ti to) _) <- infer e1
+        e2'@(TE ti' _) <- infer e2
         isSub <- ti' `isSubtype` ti
         guardShow ("app (actual: " ++ show ti' ++ "; formal: " ++ show ti ++ ")") $ isSub
         if ti' /= ti then return $ TE to (App e1' (TE ti $ Promote ti e2'))
                      else return $ TE to (App e1' e2')
-typecheck (E (Let a e1 e2))
-   = do e1' <- typecheck e1
-        e2' <- withBinding (exprType e1') (typecheck e2)
+infer (E (Let a e1 e2))
+   = do e1' <- infer e1
+        e2' <- withBinding (exprType e1') (infer e2)
         return $ TE (exprType e2') (Let a e1' e2')
-typecheck (E (LetBang vs a e1 e2))
-   = do e1' <- withBang (map fst vs) (typecheck e1)
+infer (E (LetBang vs a e1 e2))
+   = do e1' <- withBang (map fst vs) (infer e1)
         k <- kindcheck (exprType e1')
         guardShow "let!" $ canEscape k
-        e2' <- withBinding (exprType e1') (typecheck e2)
+        e2' <- withBinding (exprType e1') (infer e2)
         return $ TE (exprType e2') (LetBang vs a e1' e2')
-typecheck (E Unit) = return $ TE TUnit Unit
-typecheck (E (Tuple e1 e2))
-   = do e1' <- typecheck e1
-        e2' <- typecheck e2
+infer (E Unit) = return $ TE TUnit Unit
+infer (E (Tuple e1 e2))
+   = do e1' <- infer e1
+        e2' <- infer e2
         return $ TE (TProduct (exprType e1') (exprType e2')) (Tuple e1' e2')
-typecheck (E (Con tag e t))
-   = do e' <- typecheck e
+infer (E (Con tag e t))
+   = do e' <- infer e
         return $ TE t (Con tag e' t)
-typecheck (E (If ec et ee))
-   = do ec' <- typecheck ec
+infer (E (If ec et ee))
+   = do ec' <- infer ec
         guardShow "if-1" $ exprType ec' == TPrim Boolean
-        (et', ee') <- (,) <$> typecheck et <||> typecheck ee  -- have to use applicative functor, as they share the same initial env
+        (et', ee') <- (,) <$> infer et <||> infer ee  -- have to use applicative functor, as they share the same initial env
         let tt = exprType et'
             te = exprType ee'
         Just tlub <- runMaybeT $ tt `lub` te
@@ -391,13 +401,13 @@ typecheck (E (If ec et ee))
         let et'' = if tt /= tlub then TE tlub (Promote tlub et') else et'
             ee'' = if te /= tlub then TE tlub (Promote tlub ee') else ee'
         return $ TE tlub (If ec' et'' ee'')
-typecheck (E (Case e tag (lt,at,et) (le,ae,ee)))
-   = do e' <- typecheck e
+infer (E (Case e tag (lt,at,et) (le,ae,ee)))
+   = do e' <- infer e
         let TSum ts = exprType e'
             Just (t, False) = lookup tag ts  -- must not have been taken
             restt = TSum $ adjust tag (second $ const True) ts  -- set the tag to taken
-        (et',ee') <- (,) <$>  withBinding t     (typecheck et)
-                         <||> withBinding restt (typecheck ee)
+        (et',ee') <- (,) <$>  withBinding t     (infer et)
+                         <||> withBinding restt (infer ee)
         let tt = exprType et'
             te = exprType ee'
         Just tlub <- runMaybeT $ tt `lub` te
@@ -406,57 +416,57 @@ typecheck (E (Case e tag (lt,at,et) (le,ae,ee)))
         let et'' = if tt /= tlub then TE tlub (Promote tlub et') else et'
             ee'' = if te /= tlub then TE tlub (Promote tlub ee') else ee'
         return $ TE tlub (Case e' tag (lt,at,et'') (le,ae,ee''))
-typecheck (E (Esac e))
-   = do e'@(TE (TSum ts) _) <- typecheck e
+infer (E (Esac e))
+   = do e'@(TE (TSum ts) _) <- infer e
         let t1 = filter (not . snd . snd) ts
         case t1 of
           [(_, (t, False))] -> return $ TE t (Esac e')
-          _ -> __impossible $ "typecheck: esac (t1 = " ++ show t1 ++ ", ts = " ++ show ts ++ ")"
-typecheck (E (Split a e1 e2))
-   = do e1' <- typecheck e1
+          _ -> __impossible $ "infer: esac (t1 = " ++ show t1 ++ ", ts = " ++ show ts ++ ")"
+infer (E (Split a e1 e2))
+   = do e1' <- infer e1
         let (TProduct t1 t2) = exprType e1'
-        e2' <- withBindings (Cons t1 (Cons t2 Nil)) (typecheck e2)
+        e2' <- withBindings (Cons t1 (Cons t2 Nil)) (infer e2)
         return $ TE (exprType e2') (Split a e1' e2')
-typecheck (E (Member e f))
-   = do e'@(TE t _) <- typecheck e  -- canShare
+infer (E (Member e f))
+   = do e'@(TE t _) <- infer e  -- canShare
         let TRecord fs _ = t
         guardShow "member-1" . canShare =<< kindcheck t
         guardShow "member-2" $ f < length fs
         let (_,(tau,c)) = fs !! f
         guardShow "member-3" $ not c  -- not taken
         return $ TE tau (Member e' f)
-typecheck (E (Struct fs))
+infer (E (Struct fs))
    = do let (ns,es) = unzip fs
-        es' <- mapM typecheck es
+        es' <- mapM infer es
         return $ TE (TRecord (zipWith (\n e' -> (n, (exprType e', False))) ns es') Unboxed) $ Struct $ zip ns es'
-typecheck (E (Take a e f e2))
-   = do e'@(TE t _) <- typecheck e
+infer (E (Take a e f e2))
+   = do e'@(TE t _) <- infer e
         let TRecord ts s = t
         guardShow "take: sigil not readonly" $ not (readonly s)
         guardShow "take-1" $ f < length ts
         let (init, (fn,(tau,False)):rest) = splitAt f ts
         k <- kindcheck tau
-        e2' <- withBindings (Cons tau (Cons (TRecord (init ++ (fn,(tau,True)):rest) s) Nil)) (typecheck e2)  -- take that field regardless of its shareability
+        e2' <- withBindings (Cons tau (Cons (TRecord (init ++ (fn,(tau,True)):rest) s) Nil)) (infer e2)  -- take that field regardless of its shareability
         return $ TE (exprType e2') (Take a e' f e2')
-typecheck (E (Put e1 f e2))
-   = do e1'@(TE t1 _) <- typecheck e1
+infer (E (Put e1 f e2))
+   = do e1'@(TE t1 _) <- infer e1
         let TRecord ts s = t1
         guardShow "put: sigil not readonly" $ not (readonly s)
         guardShow "put-1" $ f < length ts
         let (init, (fn,(tau,taken)):rest) = splitAt f ts
         k <- kindcheck tau
         unless taken $ guardShow "put-2" $ canDiscard k  -- if it's not taken, then it has to be discardable; if taken, then just put
-        e2'@(TE t2 _) <- typecheck e2
+        e2'@(TE t2 _) <- infer e2
         isSub <- t2 `isSubtype` tau
         guardShow "put-3" isSub
         let e2'' = if t2 /= tau then TE tau (Promote tau e2') else e2'
         return $ TE (TRecord (init ++ (fn,(tau,False)):rest) s) (Put e1' f e2'')  -- put it regardless
-typecheck (E (Cast ty e))
-   = do (TE t e') <- typecheck e
+infer (E (Cast ty e))
+   = do (TE t e') <- infer e
         guardShow ("cast: " ++ show t ++ " <<< " ++ show ty) =<< t `isUpcastable` ty
         return $ TE ty (Cast ty $ TE t e')
-typecheck (E (Promote ty e))
-   = do (TE t e') <- typecheck e
+infer (E (Promote ty e))
+   = do (TE t e') <- infer e
         guardShow ("promote: " ++ show t ++ " << " ++ show ty) =<< t `isSubtype` ty
         return $ if t /= ty then TE ty (Promote ty $ TE t e')
                             else TE t e'  -- see NOTE [How to handle type annotations?] in Desugar

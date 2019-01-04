@@ -371,7 +371,7 @@ desugarExp :: TC.TypedExpr -> GlDefn t (CC.UntypedExpr t 'Zero VarName)
 desugarExp = desugarAnti DS.desugarExpr
 
 coreTcExp :: CC.UntypedExpr t 'Zero VarName -> GlDefn t (CC.TypedExpr t 'Zero VarName)
-coreTcExp = coreTcAnti IN.typecheck
+coreTcExp = coreTcAnti IN.infer
 
 monoExp :: CC.TypedExpr t 'Zero VarName -> GlMono t (CC.TypedExpr 'Zero 'Zero VarName)
 monoExp = monoAnti MN.monoExpr
