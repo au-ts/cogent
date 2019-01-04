@@ -693,7 +693,7 @@ typing_var    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto>w singleton (length
 
 | typing_con    : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : t
                    ; (tag, t', Unchecked) \<in> set ts
-                   ; K \<turnstile> t \<sqsubseteq> t'
+                   ; K \<turnstile> t' \<sqsubseteq> t
                    ; K \<turnstile> TSum ts' wellformed
                    ; distinct (map fst ts)
                    ; map fst ts = map fst ts'
