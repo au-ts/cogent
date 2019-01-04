@@ -97,10 +97,14 @@ bound :: Bound -> Type t -> Type t -> MaybeT (TC t v) (Type t)
 bound _ t1 t2 | t1 == t2 = return t1
 bound b (TRecord fs1 s1) (TRecord fs2 s2) | map fst fs1 == map fst fs2, s1 == s2 = do
   let op = case b of LUB -> (||); GLB -> (&&)
-  fs <- flip3 zipWithM fs2 fs1 $ \(f1,(t1,b1)) (_, (t2,b2)) -> do
+  blob <- flip3 zipWithM fs2 fs1 $ \(f1,(t1,b1)) (_, (t2,b2)) -> do
     t <- bound b t1 t2
-    return (f1, (t, b1 `op` b2))
-  return $ TRecord fs s1
+    ok <- lift $ if b1 == b2 then return True
+                             else kindcheck t >>= \k -> return (canDiscard k)
+    return ((f1, (t, b1 `op` b2)), ok)
+  let (fs, oks) = unzip blob
+  if and oks then return $ TRecord fs s1
+             else MaybeT (return Nothing)
 bound b (TSum s1) (TSum s2) | s1' <- M.fromList s1, s2' <- M.fromList s2, M.keys s1' == M.keys s2' = do
   let op = case b of LUB -> (&&); GLB -> (||)
   s <- flip3 unionWithKeyM s2' s1' $ \k (t1,b1) (t2,b2) -> (,) <$> bound b t1 t2 <*> pure (b1 `op` b2)
