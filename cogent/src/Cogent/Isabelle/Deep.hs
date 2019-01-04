@@ -142,7 +142,8 @@ deepExpr mod ta defs (TE (TSum alts) (Con cn e _))
   where t' = map (\(c,(t,b)) -> mkPair (mkString c) (mkPair (deepType mod ta t) (deepVariantState b))) alts
 deepExpr _ _ _ (TE _ (Con _ _ _)) = __impossible "deepExpr: Con"
 deepExpr mod ta defs (TE _ (Promote ty e))
-  = deepExpr mod ta defs e
+  = mkApp (mkId "Promote") [deepType mod ta ty, deepExpr mod ta defs e]
+  -- = deepExpr mod ta defs e
 --   | TE (TPrim pt) _ <- e, TPrim pt' <- ty, pt /= Boolean
 --   = mkApp (mkId "Cast") [deepNumType pt', deepExpr mod ta defs e]  -- primInt cast
 --   | TE (TSum _) (Con cn v _) <- e, TSum as <- ty
