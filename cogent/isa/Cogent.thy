@@ -1285,6 +1285,7 @@ next
     done
 qed (auto intro!: subtyping.intros)
 
+
 lemma subtyping_wellformed_preservation:
   assumes
     "K \<turnstile> t1 \<sqsubseteq> t2"
