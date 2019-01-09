@@ -538,11 +538,21 @@ inductive split_bang :: "kind env \<Rightarrow> index set \<Rightarrow> ctx \<Ri
 
 inductive weakening_comp :: "kind env \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> bool" where
   none : "weakening_comp K None None"
-| keep : "\<lbrakk> K \<turnstile> t :\<kappa> k \<rbrakk>         \<Longrightarrow> weakening_comp K (Some t) (Some t)"
-| drop : "\<lbrakk> K \<turnstile> t :\<kappa> k ; D \<in> k \<rbrakk> \<Longrightarrow> weakening_comp K (Some t) None"
+| keep : "\<lbrakk> K \<turnstile> t wellformed \<rbrakk> \<Longrightarrow> weakening_comp K (Some t) (Some t)"
+| drop : "\<lbrakk> K \<turnstile> t :\<kappa> {D} \<rbrakk> \<Longrightarrow> weakening_comp K (Some t) None"
 
 definition weakening :: "kind env \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool" ("_ \<turnstile> _ \<leadsto>w _" [30,0,20] 60) where
   "weakening K \<equiv> list_all2 (weakening_comp K)"
+
+lemmas weakening_induct[consumes 1, case_names weakening_empty weakening_cons, induct set: list_all2]
+ = list_all2_induct[where P="weakening_comp K" for K, simplified weakening_def[symmetric]]
+
+lemmas weakening_nil = List.list.rel_intros(1)[where R="weakening_comp K" for K, simplified weakening_def[symmetric]]
+lemmas weakening_cons =  List.list.rel_intros(2)[where R="weakening_comp K" for K, simplified weakening_def[symmetric]]
+
+lemmas weakening_Cons = list_all2_Cons[where P="weakening_comp K" for K, simplified weakening_def[symmetric]]
+
+lemmas weakening_conv_all_nth = list_all2_conv_all_nth[where P="weakening_comp K" for K, simplified weakening_def[symmetric]]
 
 
 definition is_consumed :: "kind env \<Rightarrow> ctx \<Rightarrow> bool" ("_ \<turnstile> _ consumed" [30,20] 60 ) where
@@ -1475,11 +1485,10 @@ and     "list_all2 (kinding K') \<delta> K"
 shows   "K' \<turnstile> instantiate_ctx \<delta> \<Gamma> \<leadsto>w instantiate_ctx \<delta> \<Gamma>'"
 using assms(1) [simplified weakening_def] and assms(2) proof (induct rule: list_all2_induct)
      case Nil  then show ?case by (simp add: instantiate_ctx_def weakening_def)
-next case Cons then show ?case by (fastforce intro: weakening_comp.intros
-                                             elim:  weakening_comp.cases
-                                             simp:  instantiate_ctx_def
-                                                    weakening_def
-                                             dest:  substitutivity)
+next case Cons then show ?case
+    using instantiate_wellformed list_all2_kinding_wellformedD
+    by (auto simp add: weakening_comp.simps instantiate_ctx_def weakening_Cons
+        dest: substitutivity)
 qed
 
 
