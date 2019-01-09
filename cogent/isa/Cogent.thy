@@ -785,7 +785,7 @@ typing_var    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto>w singleton (length
 
 | typing_promote: "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : t' ; K \<turnstile> t' \<sqsubseteq> t \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Promote t x : t"
 
-| typing_all_empty : "\<Xi>, K, empty n \<turnstile>* [] : []"
+| typing_all_empty : "list_all (\<lambda>x. x = None) \<Gamma> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile>* [] : []"
 
 | typing_all_cons  : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
                       ; \<Xi>, K, \<Gamma>1 \<turnstile>  e  : t
@@ -1910,7 +1910,7 @@ next
   then show ?case
   proof (clarsimp, intro typing_typing_all.intros)
        show "map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts) = map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts')"
-         using map_fst3_app2 map_map typing_con.hyps by metis
+      using map_fst3_app2 map_map typing_con.hyps by metis
   next show "list_all2 (\<lambda>x y. snd (snd x) \<le> snd (snd y)) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts')"
       by (simp add: list_all2_map1 list_all2_map2 case_prod_beta' typing_con.hyps(8))
   next show "K' \<turnstile> TSum (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts') wellformed"
@@ -1923,6 +1923,10 @@ next case typing_esac then show ?case
                     typing_esac.hyps(3)[symmetric])+
 next case typing_promote then show ?case
     by (simp, metis specialisation_subtyping typing_to_wellformed(1) typing_typing_all.typing_promote)
+next
+  case (typing_all_empty \<Gamma> \<Xi> K)
+  then show ?case
+    by (force intro!: typing_typing_all.intros simp add: instantiate_ctx_def list_all_length)
 qed (force intro!: typing_struct_instantiate
                    typing_typing_all.intros
            dest:   substitutivity
@@ -1933,6 +1937,7 @@ qed (force intro!: typing_struct_instantiate
            simp:   instantiate_ctx_def [where \<Gamma> = "[]", simplified]
                    map_update
            split:  prod.splits)+
+
 
 
 fun expr_size :: "'f expr \<Rightarrow> nat" where
