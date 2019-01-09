@@ -783,6 +783,8 @@ typing_var    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto>w singleton (length
                    ; \<Xi>, K, \<Gamma>2 \<turnstile> e' : t
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Put e f e' : TRecord (ts [f := (n,t,Present)]) s"
 
+| typing_promote: "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : t' ; K \<turnstile> t' \<sqsubseteq> t \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Promote t x : t"
+
 | typing_all_empty : "\<Xi>, K, empty n \<turnstile>* [] : []"
 
 | typing_all_cons  : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
@@ -1281,7 +1283,6 @@ next
     apply (metis (no_types, hide_lams) eq_fst_iff image_iff)
     done
 qed (auto intro!: subtyping.intros)
-
 
 lemma subtyping_wellformed_preservation:
   assumes
@@ -1828,6 +1829,8 @@ next case typing_member then show ?case
     by (fastforce simp add: kinding_defs INT_subset_iff dest: nth_mem split: prod.splits record_state.splits)
 next case typing_put then show ?case
     by (clarsimp, auto intro: distinct_list_update simp add: map_update in_set_conv_nth Ball_def nth_list_update)
+next case typing_promote then show ?case
+    using subtyping_wellformed_preservation by blast
 qed (auto intro: supersumption simp add: kinding_defs)
 
 lemma upcast_valid_cast_to :
@@ -1876,7 +1879,6 @@ and   "\<Xi> , K , \<Gamma> \<turnstile>* es : \<tau>s \<Longrightarrow> \<Xi> ,
 proof (induct rule: typing_typing_all.inducts)
   have f1: "(\<lambda>(c, p). (c, case p of (t, b) \<Rightarrow> (instantiate \<delta> t, b))) = (\<lambda>(c, t, b). (c, instantiate \<delta> t, b))"
     by force
-
   case (typing_case K \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> x ts tag t a u b)
   then have "\<Xi>, K', instantiate_ctx \<delta> \<Gamma> \<turnstile> Case (specialise \<delta> x) tag (specialise \<delta> a) (specialise \<delta> b) : instantiate \<delta> u"
   proof (intro typing_typing_all.typing_case)
@@ -1908,19 +1910,19 @@ next
   then show ?case
   proof (clarsimp, intro typing_typing_all.intros)
        show "map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts) = map (fst \<circ> snd) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts')"
-      using map_fst3_app2 map_map typing_con.hyps by metis
+         using map_fst3_app2 map_map typing_con.hyps by metis
   next show "list_all2 (\<lambda>x y. snd (snd x) \<le> snd (snd y)) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts')"
       by (simp add: list_all2_map1 list_all2_map2 case_prod_beta' typing_con.hyps(8))
   next show "K' \<turnstile> TSum (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts') wellformed"
       using typing_con
       by (fastforce intro: substitutivity instantiate_wellformed dest: list_all2_kinding_wellformedD list_all2_lengthD)
   qed (force intro: substitutivity)+
-next
-  case (typing_esac \<Xi> K \<Gamma> x ts uu t)
-  then show ?case
+next case typing_esac then show ?case
     by (force intro!: typing_typing_all.typing_esac
-                simp: filter_map_map_filter_thd3_app2
-                      typing_esac.hyps(3)[symmetric])+
+              simp: filter_map_map_filter_thd3_app2
+                    typing_esac.hyps(3)[symmetric])+
+next case typing_promote then show ?case
+    by (simp, metis specialisation_subtyping typing_to_wellformed(1) typing_typing_all.typing_promote)
 qed (force intro!: typing_struct_instantiate
                    typing_typing_all.intros
            dest:   substitutivity
