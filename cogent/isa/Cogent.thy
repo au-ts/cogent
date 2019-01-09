@@ -329,6 +329,7 @@ datatype 'f expr = Var index
                  | If "'f expr" "'f expr" "'f expr"
                  | Take "'f expr" field "'f expr"
                  | Split "'f expr" "'f expr"
+                 | Promote type "'f expr"
 
 section {* Kinds *}
 
@@ -450,7 +451,37 @@ fun specialise :: "type substitution \<Rightarrow> 'f expr \<Rightarrow> 'f expr
 | "specialise \<delta> (If c t e)        = If (specialise \<delta> c) (specialise \<delta> t) (specialise \<delta> e)"
 | "specialise \<delta> (Take e f e')     = Take (specialise \<delta> e) f (specialise \<delta> e')"
 | "specialise \<delta> (Split v va)      = Split (specialise \<delta> v) (specialise \<delta> va)"
+| "specialise \<delta> (Promote t x)     = Promote (instantiate \<delta> t) (specialise \<delta> x)"
 
+section {* Subtyping *}
+
+
+inductive subtyping :: "kind env \<Rightarrow> type \<Rightarrow> type \<Rightarrow> bool" ("_ \<turnstile> _ \<sqsubseteq> _" [40,0,40] 60) where
+  subty_tvar   : "n1 = n2 \<Longrightarrow> K \<turnstile> TVar n1 \<sqsubseteq> TVar n2"
+| subty_tvarb  : "n1 = n2 \<Longrightarrow> K \<turnstile> TVarBang n1 \<sqsubseteq> TVarBang n2"
+| subty_tcon   : "\<lbrakk> n1 = n2 ; s1 = s2
+                  ; list_all2 (subtyping K) ts1 ts2
+                  \<rbrakk> \<Longrightarrow> K \<turnstile> TCon n1 ts1 s1 \<sqsubseteq> TCon n2 ts2 s2"
+| subty_tfun   : "\<lbrakk> K \<turnstile> t2 \<sqsubseteq> t1
+                  ; K \<turnstile> u1 \<sqsubseteq> u2
+                  \<rbrakk> \<Longrightarrow> K \<turnstile> TFun t1 u1 \<sqsubseteq> TFun t2 u2"
+| subty_tprim  : "\<lbrakk> p1 = p2
+                  \<rbrakk> \<Longrightarrow> K \<turnstile> TPrim p1 \<sqsubseteq> TPrim p2"
+| subty_trecord: "\<lbrakk> \<And>n t1 t2 b1 b2. \<lbrakk> (n,t1,b1) \<in> set ts1; (n,t2,b2) \<in> set ts2 \<rbrakk> \<Longrightarrow> (K \<turnstile> t1 \<sqsubseteq> t2) \<and> (b1 \<le> b2)
+                  ; distinct (map fst ts1)
+                  ; distinct (map fst ts2)
+                  ; fst ` set ts1 = fst ` set ts2
+                  ; s1 = s2
+                  \<rbrakk> \<Longrightarrow> K \<turnstile> TRecord ts1 s1 \<sqsubseteq> TRecord ts2 s2"
+| subty_tprod  : "\<lbrakk> K \<turnstile> t1 \<sqsubseteq> t2
+                  ; K \<turnstile> u1 \<sqsubseteq> u2
+                  \<rbrakk> \<Longrightarrow> K \<turnstile> TProduct t1 u1 \<sqsubseteq> TProduct t2 u2"
+| subty_tsum   : "\<lbrakk> \<And>n t1 t2 b1 b2. \<lbrakk> (n,t1,b1) \<in> set ts1; (n,t2,b2) \<in> set ts2 \<rbrakk> \<Longrightarrow> (K \<turnstile> t1 \<sqsubseteq> t2) \<and> (b1 \<le> b2)
+                  ; distinct (map fst ts1)
+                  ; distinct (map fst ts2)
+                  ; fst ` set ts1 = fst ` set ts2
+                  \<rbrakk> \<Longrightarrow> K \<turnstile> TSum ts1 \<sqsubseteq> TSum ts2"
+| subty_tunit  : "K \<turnstile> TUnit \<sqsubseteq> TUnit"
 
 section {* Contexts *}
 
@@ -512,6 +543,7 @@ inductive weakening_comp :: "kind env \<Rightarrow> type option \<Rightarrow> ty
 
 definition weakening :: "kind env \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool" ("_ \<turnstile> _ \<leadsto>w _" [30,0,20] 60) where
   "weakening K \<equiv> list_all2 (weakening_comp K)"
+
 
 definition is_consumed :: "kind env \<Rightarrow> ctx \<Rightarrow> bool" ("_ \<turnstile> _ consumed" [30,20] 60 ) where
   "K \<turnstile> \<Gamma> consumed \<equiv> K \<turnstile> \<Gamma> \<leadsto>w empty (length \<Gamma>)"
@@ -619,33 +651,6 @@ lemma eval_prim_op_lit_type:
   by (cases pop, auto split: lit.split)
 
 section {* Typing rules *}
-
-inductive subtyping :: "type \<Rightarrow> type \<Rightarrow> bool" ("_ \<sqsubseteq> _" [40,40] 60) where
-  subty_tvar   : "n1 = n2 \<Longrightarrow> TVar n1 \<sqsubseteq> TVar n2"
-| subty_tvarb  : "n1 = n2 \<Longrightarrow> TVarBang n1 \<sqsubseteq> TVarBang n2"
-| subty_tcon   : "\<lbrakk> n1 = n2 ; s1 = s2
-                  ; list_all2 subtyping ts1 ts2
-                  \<rbrakk> \<Longrightarrow> TCon n1 ts1 s1 \<sqsubseteq> TCon n2 ts2 s2"
-| subty_tfun   : "\<lbrakk> t2 \<sqsubseteq> t1
-                  ; u1 \<sqsubseteq> u2
-                  \<rbrakk> \<Longrightarrow> TFun t1 u1 \<sqsubseteq> TFun t2 u2"
-| subty_tprim  : "\<lbrakk> p1 = p2
-                  \<rbrakk> \<Longrightarrow> TPrim p1 \<sqsubseteq> TPrim p2"
-| subty_trecord: "\<lbrakk> \<And>n t1 t2 b1 b2. \<lbrakk> (n,t1,b1) \<in> set ts1; (n,t2,b2) \<in> set ts2 \<rbrakk> \<Longrightarrow> (t1 \<sqsubseteq> t2) \<and> (b1 \<le> b2)
-                  ; distinct (map fst ts1)
-                  ; distinct (map fst ts2)
-                  ; fst ` set ts1 = fst ` set ts2
-                  ; s1 = s2
-                  \<rbrakk> \<Longrightarrow> TRecord ts1 s1 \<sqsubseteq> TRecord ts2 s2"
-| subty_tprod  : "\<lbrakk> t1 \<sqsubseteq> t2
-                  ; u1 \<sqsubseteq> u2
-                  \<rbrakk> \<Longrightarrow> TProduct t1 u1 \<sqsubseteq> TProduct t2 u2"
-| subty_tsum   : "\<lbrakk> \<And>n t1 t2 b1 b2. \<lbrakk> (n,t1,b1) \<in> set ts1; (n,t2,b2) \<in> set ts2 \<rbrakk> \<Longrightarrow> (t1 \<sqsubseteq> t2) \<and> (b1 \<le> b2)
-                  ; distinct (map fst ts1)
-                  ; distinct (map fst ts2)
-                  ; fst ` set ts1 = fst ` set ts2
-                  \<rbrakk> \<Longrightarrow> TSum ts1 \<sqsubseteq> TSum ts2"
-| subty_tunit  : "TUnit \<sqsubseteq> TUnit"
 
 inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Rightarrow> ctx \<Rightarrow> 'f expr \<Rightarrow> type \<Rightarrow> bool"
           ("_, _, _ \<turnstile> _ : _" [30,0,0,0,20] 60)
@@ -1187,29 +1192,29 @@ section {* Subtyping lemmas *}
 
 lemma subtyping_simps:
   shows
-  "\<And>n1 n2. TVar n1 \<sqsubseteq> TVar n2 \<longleftrightarrow> n1 = n2"
-  "\<And>n1 n2. TVarBang n1 \<sqsubseteq> TVarBang n2 \<longleftrightarrow> n1 = n2"
-  "\<And>n1 ts1 s1 n2 ts2 s2. TCon n1 ts1 s1 \<sqsubseteq> TCon n2 ts2 s2 \<longleftrightarrow> n1 = n2 \<and> s1 = s2 \<and> list_all2 subtyping ts1 ts2"
-  "\<And>t1 u1 t2 u2. TFun t1 u1 \<sqsubseteq> TFun t2 u2 \<longleftrightarrow> t2 \<sqsubseteq> t1 \<and> u1 \<sqsubseteq> u2"
-  "\<And>p1 p2. TPrim p1 \<sqsubseteq> TPrim p2 \<longleftrightarrow> p1 = p2"
-  "\<And>ts1 s1 ts2 s2. TRecord ts1 s1 \<sqsubseteq> TRecord ts2 s2
-                    \<longleftrightarrow> (\<forall>n t1 t2 b1 b2. (n,t1,b1) \<in> set ts1 \<longrightarrow> (n,t2,b2) \<in> set ts2 \<longrightarrow> (t1 \<sqsubseteq> t2) \<and> (b1 \<le> b2))
+  "\<And>n1 n2. K \<turnstile> TVar n1 \<sqsubseteq> TVar n2 \<longleftrightarrow> n1 = n2"
+  "\<And>n1 n2. K \<turnstile> TVarBang n1 \<sqsubseteq> TVarBang n2 \<longleftrightarrow> n1 = n2"
+  "\<And>n1 ts1 s1 n2 ts2 s2. K \<turnstile> TCon n1 ts1 s1 \<sqsubseteq> TCon n2 ts2 s2 \<longleftrightarrow> n1 = n2 \<and> s1 = s2 \<and> list_all2 (subtyping K) ts1 ts2"
+  "\<And>t1 u1 t2 u2. K \<turnstile> TFun t1 u1 \<sqsubseteq> TFun t2 u2 \<longleftrightarrow> K \<turnstile> t2 \<sqsubseteq> t1 \<and> K \<turnstile> u1 \<sqsubseteq> u2"
+  "\<And>p1 p2. K \<turnstile> TPrim p1 \<sqsubseteq> TPrim p2 \<longleftrightarrow> p1 = p2"
+  "\<And>ts1 s1 ts2 s2. K \<turnstile> TRecord ts1 s1 \<sqsubseteq> TRecord ts2 s2
+                    \<longleftrightarrow> (\<forall>n t1 t2 b1 b2. (n,t1,b1) \<in> set ts1 \<longrightarrow> (n,t2,b2) \<in> set ts2 \<longrightarrow> (K \<turnstile> t1 \<sqsubseteq> t2) \<and> (b1 \<le> b2))
                     \<and> distinct (map fst ts1)
                     \<and> distinct (map fst ts2)
                     \<and> fst ` set ts1 = fst ` set ts2
                     \<and> s1 = s2"
-  "\<And>t1 u1 t2 u2. TProduct t1 u1 \<sqsubseteq> TProduct t2 u2 \<longleftrightarrow> t1 \<sqsubseteq> t2 \<and> u1 \<sqsubseteq> u2"
-  "\<And>ts1 ts2. TSum ts1 \<sqsubseteq> TSum ts2
-                    \<longleftrightarrow> (\<forall>n t1 t2 b1 b2. (n,t1,b1) \<in> set ts1 \<longrightarrow> (n,t2,b2) \<in> set ts2 \<longrightarrow> (t1 \<sqsubseteq> t2) \<and> (b1 \<le> b2))
+  "\<And>t1 u1 t2 u2. K \<turnstile> TProduct t1 u1 \<sqsubseteq> TProduct t2 u2 \<longleftrightarrow> K \<turnstile> t1 \<sqsubseteq> t2 \<and> K \<turnstile> u1 \<sqsubseteq> u2"
+  "\<And>ts1 ts2. K \<turnstile> TSum ts1 \<sqsubseteq> TSum ts2
+                    \<longleftrightarrow> (\<forall>n t1 t2 b1 b2. (n,t1,b1) \<in> set ts1 \<longrightarrow> (n,t2,b2) \<in> set ts2 \<longrightarrow> (K \<turnstile> t1 \<sqsubseteq> t2) \<and> (b1 \<le> b2))
                     \<and> distinct (map fst ts1)
                     \<and> distinct (map fst ts2)
                     \<and> fst ` set ts1 = fst ` set ts2"
-  "TUnit \<sqsubseteq> TUnit"
+  "K \<turnstile> TUnit \<sqsubseteq> TUnit"
   by (auto intro!: subtyping.intros elim!: subtyping.cases)
 
 lemma subtyping_refl:
   assumes "K \<turnstile> t wellformed"
-  shows "t \<sqsubseteq> t"
+  shows "K \<turnstile> t \<sqsubseteq> t"
   using assms
 proof (induct t)
   case (TSum x)
@@ -1225,18 +1230,18 @@ qed (auto intro!: subtyping.intros simp add: list.rel_refl_strong)
 
 lemma specialisation_subtyping:
   assumes
-    "t \<sqsubseteq> t'"
+    "K \<turnstile> t \<sqsubseteq> t'"
     "K \<turnstile> t wellformed"
     "K \<turnstile> t' wellformed"
     "list_all2 (kinding K') \<delta> K"
-  shows "instantiate \<delta> t \<sqsubseteq> instantiate \<delta>  t'"
+  shows "K' \<turnstile> instantiate \<delta> t \<sqsubseteq> instantiate \<delta>  t'"
   using assms
 proof (induct rule: subtyping.inducts)
-  case (subty_tvar i' i)
+  case (subty_tvar i' i K)
   then show ?case
     by (auto intro!: subtyping.intros subtyping_refl simp add: kinding_def list_all2_conv_all_nth)
 next
-  case (subty_tvarb i' i)
+  case (subty_tvarb i' i K)
   moreover then have "type_wellformed (length K') (bang (\<delta> ! i))"
     by (auto dest: bang_wellformed simp add: kinding_def list_all2_conv_all_nth)
   ultimately show ?case
@@ -1860,6 +1865,7 @@ fun expr_size :: "'f expr \<Rightarrow> nat" where
 | "expr_size (Split x y) = Suc ((expr_size x) + (expr_size y))"
 | "expr_size (Case x v a b) = Suc ((expr_size x) + (expr_size a) + (expr_size b))"
 | "expr_size (Take x f y) = Suc ((expr_size x) + (expr_size y))"
+| "expr_size (Promote t x) = Suc (expr_size x)"
 
 lemma specialise_size [simp]:
   shows "expr_size (specialise \<tau>s x) = expr_size x"
