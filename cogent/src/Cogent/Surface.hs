@@ -101,6 +101,8 @@ data Expr t p ip e = PrimOp OpName [e]
                    | LamC ip (Maybe t) e [VarName]  -- closure lambda
                    | AppC e e             -- closure application
                    | If e [VarName] e e
+                   | MultiWayIf [(e, [VarName], Likelihood, e)]
+                     -- ^ (condition, !-ed vars, likelihood, body)
                    | Member e FieldName
                    | Unitel
                    | IntLit Integer
@@ -239,6 +241,7 @@ instance Traversable (Flip (Expr t p) e) where  -- ip
   traverse _ (Flip (Comp f g))          = pure $ Flip (Comp f g)
   traverse _ (Flip (AppC e e'))         = pure $ Flip (AppC e e')
   traverse _ (Flip (If c vs e e'))      = pure $ Flip (If c vs e e')
+  traverse _ (Flip (MultiWayIf es))     = pure $ Flip (MultiWayIf es)
   traverse _ (Flip (Member e f))        = pure $ Flip (Member e f)
   traverse _ (Flip Unitel)              = pure $ Flip Unitel
   traverse _ (Flip (IntLit l))          = pure $ Flip (IntLit l)
@@ -268,6 +271,7 @@ instance Traversable (Flip2 (Expr t) e ip) where  -- p
   traverse _ (Flip2 (Comp f g))         = pure $ Flip2 (Comp f g)
   traverse _ (Flip2 (AppC e e'))        = pure $ Flip2 (AppC e e')
   traverse _ (Flip2 (If c vs e e'))     = pure $ Flip2 (If c vs e e')
+  traverse _ (Flip2 (MultiWayIf es))    = pure $ Flip2 (MultiWayIf es)
   traverse _ (Flip2 (Member e f))       = pure $ Flip2 (Member e f)
   traverse _ (Flip2 Unitel)             = pure $ Flip2 Unitel
   traverse _ (Flip2 (IntLit l))         = pure $ Flip2 (IntLit l)
@@ -297,6 +301,7 @@ instance Traversable (Flip3 Expr e ip p) where  -- t
   traverse _ (Flip3 (Comp f g))          = pure $ Flip3 (Comp f g)
   traverse _ (Flip3 (AppC e e'))         = pure $ Flip3 (AppC e e')
   traverse _ (Flip3 (If c vs e e'))      = pure $ Flip3 (If c vs e e')
+  traverse _ (Flip3 (MultiWayIf es))     = pure $ Flip3 (MultiWayIf es)
   traverse _ (Flip3 (Member e f))        = pure $ Flip3 (Member e f)
   traverse _ (Flip3 Unitel)              = pure $ Flip3 Unitel
   traverse _ (Flip3 (IntLit l))          = pure $ Flip3 (IntLit l)

@@ -66,8 +66,8 @@ language = haskellStyle
 T.TokenParser {..} = T.makeTokenParser language
 
 sepByAligned1 p s c = (:) <$> p <*> many (getPosition >>= \o -> guard (sourceColumn o == c) >> s >> p)
-manyAligned1 p = do whiteSpace; c <- sourceColumn <$> getPosition
-                    (:) <$> p <*> many (whiteSpace >> getPosition >>= \o -> guard (sourceColumn o == c) >> p)
+-- manyAligned1 p = do whiteSpace; c <- sourceColumn <$> getPosition
+--                     (:) <$> p <*> many (whiteSpace >> getPosition >>= \o -> guard (sourceColumn o == c) >> p)
 
 variableName = try (do (x:xs) <- identifier
                        (if isLower x then return else unexpected) $ x:xs)
@@ -140,8 +140,14 @@ boolean = True <$ reserved "True"
 expr m = do avoidInitial
             LocExpr <$> getPosition <*>
                  (Let <$ reserved "let" <*> bindings <* reserved "in" <*> expr m
-              <|> If  <$ reserved "if" <*> basicExpr m <*> many (reservedOp "!" >> variableName)
-                      <* reserved "then" <*> expr m <* reserved "else" <*> expr m
+              <|> do reserved "if"
+                     (do c <- sourceColumn <$> getPosition
+                         guard (c > m)
+                         reservedOp "|"
+                         MultiWayIf <$> sepByAligned1 (multiWayIf c) (reservedOp "|") c
+                      <|>
+                      (If <$> basicExpr m <*> many (reservedOp "!" >> variableName)
+                          <*  reserved "then" <*> expr m <* reserved "else" <*> expr m))
               <|> Lam <$ string "\\" <*> irrefutablePattern <*> optionMaybe (reservedOp ":" *> monotype)
                       <* reservedOp "=>" <*> expr m)
           <|> matchExpr m
@@ -179,10 +185,16 @@ matchExpr' m = do
   <?> "basic expression or case distinction"
 
 alternative m = (Alt <$> pattern <*> matchArrow <*> expr m) <?> "alternative"
-  where matchArrow =  Likely   <$ reservedOp "=>"
-                  <|> Unlikely <$ reservedOp "~>"
-                  <|> Regular  <$ reservedOp "->"
 
+multiWayIf  m = do c <- basicExpr m
+                   bs <- many (reservedOp "!" >> variableName)
+                   l <- matchArrow
+                   e <- expr m
+                   return (c, bs, l, e)
+
+matchArrow =  Likely   <$ reservedOp "=>"
+          <|> Unlikely <$ reservedOp "~>"
+          <|> Regular  <$ reservedOp "->"
 
 basicExpr m = do e <- basicExpr'
                  LocExpr (posOfE e) . Seq e <$ semi <*> expr m
