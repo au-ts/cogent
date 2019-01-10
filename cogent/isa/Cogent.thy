@@ -319,6 +319,7 @@ datatype 'f expr = Var index
                  | Member "'f expr" field
                  | Unit
                  | Lit lit
+                 | SLit string
                  | Cast num_type "'f expr"
                  | Tuple "'f expr" "'f expr"
                  | Put "'f expr" field "'f expr"
@@ -442,6 +443,7 @@ fun specialise :: "type substitution \<Rightarrow> 'f expr \<Rightarrow> 'f expr
 | "specialise \<delta> (Unit)            = Unit"
 | "specialise \<delta> (Cast t e)        = Cast t (specialise \<delta> e)"
 | "specialise \<delta> (Lit v)           = Lit v"
+| "specialise \<delta> (SLit s)          = SLit s"
 | "specialise \<delta> (Tuple a b)       = Tuple (specialise \<delta> a) (specialise \<delta> b)"
 | "specialise \<delta> (Put e f e')      = Put (specialise \<delta> e) f (specialise \<delta> e')"
 | "specialise \<delta> (Let e e')        = Let (specialise \<delta> e) (specialise \<delta> e')"
@@ -751,6 +753,9 @@ typing_var    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto>w singleton (length
 | typing_lit    : "\<lbrakk> K \<turnstile> \<Gamma> consumed
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Lit l : TPrim (lit_type l)"
 
+| typing_slit   : "\<lbrakk> K \<turnstile> \<Gamma> consumed
+                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> SLit s : TPrim String"
+
 | typing_unit   : "\<lbrakk> K \<turnstile> \<Gamma> consumed
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Unit : TUnit"
 
@@ -838,6 +843,7 @@ inductive atom ::"'f expr \<Rightarrow> bool" where
 | "atom (Member (Var x) f)"
 | "atom Unit"
 | "atom (Lit l)"
+| "atom (SLit l)"
 | "atom (Tuple (Var x) (Var y))"
 | "atom (Esac (Var x))"
 | "atom (App (Var a) (Var b))"
@@ -1967,6 +1973,7 @@ fun expr_size :: "'f expr \<Rightarrow> nat" where
 | "expr_size (AFun v va) = 0"
 | "expr_size (Struct v va) = Suc (sum_list (map expr_size va))"
 | "expr_size (Lit v) = 0"
+| "expr_size (SLit s) = 0"
 | "expr_size (Tuple v va) = Suc ((expr_size v) + (expr_size va))"
 | "expr_size (Put v va vb) = Suc ((expr_size v) + (expr_size vb))"
 | "expr_size (Esac x) = Suc (expr_size x)"
