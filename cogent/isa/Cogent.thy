@@ -1374,6 +1374,32 @@ next
   qed auto
 qed simp+
 
+
+lemma subtyping_bang_preservation:
+  assumes "K \<turnstile> t1 \<sqsubseteq> t2"
+  shows "K \<turnstile> bang t1 \<sqsubseteq> bang t2"
+  using assms
+proof (induct rule: subtyping.induct)
+  case subty_tcon then show ?case
+    by (force simp add: list_all2_conv_all_nth intro: subtyping.intros)
+next
+  case (subty_trecord ts1 ts2 K s1 s2)
+  then show ?case
+  proof (simp, intro subtyping.intros)
+    assume "fst ` set ts1 = fst ` set ts2"
+    then show "fst ` set (map (\<lambda>(n, t, b). (n, bang t, b)) ts1) = fst ` set (map (\<lambda>(n, t, b). (n, bang t, b)) ts2)"
+      by (auto simp add: image_image case_prod_unfold)
+  qed auto
+next
+  case (subty_tsum ts1 ts2 K)
+  then show ?case
+  proof (simp, intro subtyping.intros)
+    assume "fst ` set ts1 = fst ` set ts2"
+    then show "fst ` set (map (\<lambda>(n, t, b). (n, bang t, b)) ts1) = fst ` set (map (\<lambda>(n, t, b). (n, bang t, b)) ts2)"
+      by (auto simp add: image_image case_prod_unfold)
+  qed auto
+qed (simp add: subtyping_simps)+
+
 section {* Typing lemmas *}
 
 lemma typing_all_Cons1I:
