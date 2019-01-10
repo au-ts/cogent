@@ -23,6 +23,7 @@ datatype ('f, 'a) vval = VPrim lit
                        | VFunction "'f expr" "type list"
                        | VAFunction "'f" "type list"
                        | VUnit
+                       | VPromote type "('f, 'a) vval"
 
 (* All polymorphic instantiations must have the _same_ value semantics. This means even if the C
 implementations differ they must all refine the same specification *)
@@ -121,6 +122,9 @@ where
                    ; \<xi> , (a # b # \<gamma>) \<turnstile> e \<Down> e'
                    \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> Split x e \<Down> e'"
 
+| v_sem_promote : "\<lbrakk> \<xi> , \<gamma> \<turnstile> e \<Down> e'
+                   \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> Promote t e \<Down> e'"
+
 
 | v_sem_all_empty : "\<xi> , \<gamma> \<turnstile>* [] \<Down> []"
 
@@ -178,6 +182,10 @@ and vval_typing_record :: "('f \<Rightarrow> poly_type) \<Rightarrow> ('f, 'a) v
                   \<rbrakk> \<Longrightarrow> \<Xi> \<turnstile> VFunction f ts :v TFun (instantiate ts t) (instantiate ts u)"
 
 | v_t_unit     : "\<Xi> \<turnstile> VUnit :v TUnit"
+
+| v_t_promote  : "\<lbrakk> \<Xi> \<turnstile> e :v t'
+                  ; [] \<turnstile> t \<sqsubseteq> t'
+                  \<rbrakk> \<Longrightarrow> \<Xi> \<turnstile> VPromote _ e :v t"
 
 | v_t_v_empty  : "\<Xi> \<turnstile>* [] :vr []"
 | v_t_v_cons1  : "\<lbrakk> \<Xi> \<turnstile> x :v t
@@ -247,6 +255,9 @@ proof (induct rule: vval_typing_vval_typing_variant_vval_typing_record.inducts)
 next case v_t_afun  then show ?case
     by (auto intro!: instantiate_wellformed dest!: typing_to_wellformed
         dest: list_all2_kinding_wellformedD list_all2_lengthD)
+next case v_t_promote then show ?case
+    using subtyping_wellformed_preservation
+    by blast
 qed (auto intro: supersumption simp add: kinding_simps dest: kinding_all_record'[simplified o_def])
 
 lemma vval_typing_bang:
@@ -262,6 +273,11 @@ next case v_t_r_cons2  then show ?case by (force intro: vval_typing_vval_typing_
                                                         bang_wellformed)
 next case v_t_v_cons2  then show ?case by (force intro: vval_typing_vval_typing_variant_vval_typing_record.intros
                                                         bang_wellformed)
+next
+  case (v_t_promote \<Xi> e t' K t)
+  then show ?case
+    by (force dest: subtyping_bang_preservation
+        intro: vval_typing_vval_typing_variant_vval_typing_record.intros)
 qed (force intro: vval_typing_vval_typing_variant_vval_typing_record.intros)+
 
 subsection {* vval_typing_record *}
@@ -323,6 +339,8 @@ qed
 
 subsection {* Sums and subtyping *}
 
+(*
+  (* With the changes to the typing system now, I don't think this holds anymore? ~ v.jackson / 2019.01.10 *)
 lemma width_subtyping:
 assumes "set ts \<subseteq> set us"
 and     "\<Xi> \<turnstile> v :v TSum ts"
@@ -330,7 +348,7 @@ and     "[] \<turnstile> TSum us wellformed"
 shows   "\<Xi> \<turnstile> v :v TSum us"
 using assms
 by (force simp add: kinding_simps intro: vval_typing_vval_typing_variant_vval_typing_record.intros)
-
+*)
 lemma sum_downcast:
   assumes vval_tsum_ts: "\<Xi> \<turnstile> VSum tag v :v TSum ts"
     and   tag_neq_tag': "tag \<noteq> tag'"
@@ -619,12 +637,11 @@ next case (v_sem_con \<xi> \<gamma> x_spec x' ts_inst tag)
       "x_spec = specialise \<tau>s x"
       using v_sem_con.hyps Con
       by clarsimp+
-    moreover then obtain t t' ts'
+    moreover then obtain t ts'
       where con_elims:
         "\<tau> = TSum ts'"
         "\<Xi>, K, \<Gamma> \<turnstile> x : t"
-        "K \<turnstile> t \<sqsubseteq> t'"
-        "(tag, t', Unchecked) \<in> set ts"
+        "(tag, t, Unchecked) \<in> set ts"
         "distinct (map fst ts')"
         "map fst ts = map fst ts'"
         "map (fst \<circ> snd) ts = map (fst \<circ> snd) ts'"
@@ -635,30 +652,27 @@ next case (v_sem_con \<xi> \<gamma> x_spec x' ts_inst tag)
       using v_sem_con.hyps(2) v_sem_con.prems con_elims typing_simps
     proof (intro v_t_sum)
       obtain i where tagelem_at:
-        "ts ! i = (tag, t', Unchecked)"
+        "ts ! i = (tag, t, Unchecked)"
         "i < length ts"
         by (meson con_elims in_set_conv_nth)
       then have
         "fst (ts' ! i) = tag"
-        "fst (snd (ts' ! i)) = t'"
+        "fst (snd (ts' ! i)) = t"
         "snd (snd (ts' ! i)) = Unchecked"
         using con_elims
         by (fastforce simp add: list_all2_eq list_all2_conv_all_nth order.antisym)+
       then have
-        "ts' ! i = (tag, t', Unchecked)"
+        "ts' ! i = (tag, t, Unchecked)"
         "i < length ts'"
         using tagelem_at con_elims
         by (metis length_map prod.collapse)+
-      then show "(tag, instantiate \<tau>s t', Unchecked) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts')"
+      then show "(tag, instantiate \<tau>s t, Unchecked) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts')"
         by (fastforce simp add: in_set_conv_nth simp del: set_map)
     next
       show "[] \<turnstile> TSum (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts') wellformed"
         using con_elims v_sem_con.prems
         by (fastforce dest: list_all2_kinding_wellformedD intro: instantiate_wellformed
             split: prod.splits variant_state.splits)
-    next
-      show "\<Xi> \<turnstile> x' :v instantiate \<tau>s t'"
-        sorry
     qed auto
     then show ?thesis
       using con_elims by auto
@@ -883,6 +897,19 @@ next case v_sem_all_empty then show ?case by ( case_tac es, simp_all
 next case v_sem_all_cons  then show ?case by ( case_tac es, simp_all
                                              , fastforce simp: vval_typing_all_def
                                                          dest: matches_split)
+next
+  case (v_sem_promote \<xi> \<gamma> ea ea' t)
+  then show ?case
+    apply clarsimp
+    apply (drule meta_spec)+
+    apply (drule meta_mp)
+    defer
+     apply (drule meta_mp, force)
+     apply (drule meta_mp, force)
+     apply (drule meta_mp, force)
+     apply force
+
+    sorry
 qed
 
 (* TODO:
