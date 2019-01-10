@@ -619,11 +619,12 @@ next case (v_sem_con \<xi> \<gamma> x_spec x' ts_inst tag)
       "x_spec = specialise \<tau>s x"
       using v_sem_con.hyps Con
       by clarsimp+
-    moreover then obtain t k ts'
+    moreover then obtain t t' ts'
       where con_elims:
         "\<tau> = TSum ts'"
         "\<Xi>, K, \<Gamma> \<turnstile> x : t"
-        "(tag, t, Unchecked) \<in> set ts"
+        "K \<turnstile> t \<sqsubseteq> t'"
+        "(tag, t', Unchecked) \<in> set ts"
         "distinct (map fst ts')"
         "map fst ts = map fst ts'"
         "map (fst \<circ> snd) ts = map (fst \<circ> snd) ts'"
@@ -634,28 +635,31 @@ next case (v_sem_con \<xi> \<gamma> x_spec x' ts_inst tag)
       using v_sem_con.hyps(2) v_sem_con.prems con_elims typing_simps
     proof (intro v_t_sum)
       obtain i where tagelem_at:
-        "ts ! i = (tag, t, Unchecked)"
+        "ts ! i = (tag, t', Unchecked)"
         "i < length ts"
         by (meson con_elims in_set_conv_nth)
       then have
         "fst (ts' ! i) = tag"
-        "fst (snd (ts' ! i)) = t"
+        "fst (snd (ts' ! i)) = t'"
         "snd (snd (ts' ! i)) = Unchecked"
         using con_elims
         by (fastforce simp add: list_all2_eq list_all2_conv_all_nth order.antisym)+
       then have
-        "ts' ! i = (tag, t, Unchecked)"
+        "ts' ! i = (tag, t', Unchecked)"
         "i < length ts'"
         using tagelem_at con_elims
         by (metis length_map prod.collapse)+
-      then show "(tag, instantiate \<tau>s t, Unchecked) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts')"
+      then show "(tag, instantiate \<tau>s t', Unchecked) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts')"
         by (fastforce simp add: in_set_conv_nth simp del: set_map)
     next
       show "[] \<turnstile> TSum (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts') wellformed"
         using con_elims v_sem_con.prems
         by (fastforce dest: list_all2_kinding_wellformedD intro: instantiate_wellformed
             split: prod.splits variant_state.splits)
-    qed fastforce+
+    next
+      show "\<Xi> \<turnstile> x' :v instantiate \<tau>s t'"
+        sorry
+    qed auto
     then show ?thesis
       using con_elims by auto
   qed simp+
@@ -909,6 +913,7 @@ function monoexpr :: "'f expr \<Rightarrow> ('f \<times> type list) expr" where
 | "monoexpr (If c t e)        = If (monoexpr c) (monoexpr t) (monoexpr e)"
 | "monoexpr (Take e f e')     = Take (monoexpr e) f (monoexpr e')"
 | "monoexpr (Split v va)      = Split (monoexpr v) (monoexpr va)"
+| "monoexpr (Promote t x)     = Promote t (monoexpr x)"
              by (case_tac x, auto)
 termination by (relation "measure expr_size", (simp add: order_sum_list)+)
 
