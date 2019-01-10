@@ -423,6 +423,17 @@ cg' (If e1 bs e2 e3) t = do
   traceTc "gen" (text "cg for if:" <+> prettyE e)
   return (c1 <> c <> c2' <> c3' <> cc2 <> cc3, e)
 
+cg' (MultiWayIf es) t = do
+  blob <- forM es $ \(e1,bs,l,e2) -> do
+    (c1,e1') <- letBang bs (cg e1) (T (TCon "Bool" [] Unboxed))
+    -- TODO: add context here
+    (c2,e2') <- cg e2 t
+    return (c1 <> c2, (e1',bs,l,e2'))
+  let (cs,es') = unzip blob
+  traceTc "gen" (text "cg for multiway-if:" -- TODO: <+> pretty es'
+           L.<$> text "generate constraints:" <+> prettyList cs)
+  return (mconcat cs, MultiWayIf es')
+
 cg' (Put e ls) t | not (any isNothing ls) = do
   alpha <- freshTVar
   let (fs, es) = unzip (catMaybes ls)
