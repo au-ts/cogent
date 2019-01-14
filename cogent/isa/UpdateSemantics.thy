@@ -149,6 +149,10 @@ where
                    ; \<xi> , (a # b # \<gamma>) \<turnstile> (\<sigma>', e) \<Down>! st
                    \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Split x e) \<Down>! st"
 
+
+| u_sem_promote : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, e) \<Down>! e'
+                   \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Promote t' e) \<Down>! e'"
+
 | u_sem_all_empty : "\<xi> , \<gamma> \<turnstile>* (\<sigma>, []) \<Down>! (\<sigma>, [])"
 
 | u_sem_all_cons  : "\<lbrakk> \<xi> , \<gamma> \<turnstile>  (\<sigma> , x ) \<Down>! (\<sigma>' , v )
@@ -236,12 +240,14 @@ and uval_typing_record :: "('f \<Rightarrow> poly_type)
 | u_t_afun     : "\<lbrakk> \<Xi> f = (ks, a, b)
                   ; list_all2 (kinding []) ts ks
                   ; ks \<turnstile> TFun a b wellformed
-                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UAFunction f ts :u TFun (instantiate ts a) (instantiate ts b) \<langle>{}, {}\<rangle>"
+                  ; [] \<turnstile> TFun (instantiate ts a) (instantiate ts b) \<sqsubseteq> TFun a' b'
+                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UAFunction f ts :u TFun a' b' \<langle>{}, {}\<rangle>"
 
 | u_t_function : "\<lbrakk> \<Xi> , K , [ Some t ] \<turnstile> f : u
                   ; K \<turnstile> t wellformed
                   ; list_all2 (kinding []) ts K
-                  \<rbrakk> \<Longrightarrow> \<Xi> , \<sigma> \<turnstile> UFunction f ts :u TFun (instantiate ts t) (instantiate ts u) \<langle>{}, {}\<rangle>"
+                  ; [] \<turnstile> TFun (instantiate ts t) (instantiate ts u) \<sqsubseteq> TFun t' u'
+                  \<rbrakk> \<Longrightarrow> \<Xi> , \<sigma> \<turnstile> UFunction f ts :u TFun t' u' \<langle>{}, {}\<rangle>"
 
 | u_t_unit     : "\<Xi>, \<sigma> \<turnstile> UUnit :u TUnit \<langle>{}, {}\<rangle>"
 
@@ -357,10 +363,15 @@ lemma uval_typing_to_wellformed:
   shows "\<Xi>, \<sigma> \<turnstile> v :u t \<langle>r, w\<rangle> \<Longrightarrow> [] \<turnstile> t wellformed"
     and "\<Xi>, \<sigma> \<turnstile>* fs :ur ts \<langle>r, w\<rangle> \<Longrightarrow> [] \<turnstile>* (map (fst \<circ> snd) ts) wellformed"
 proof (induct rule: uval_typing_uval_typing_record.inducts)
-next case u_t_function then show ?case
-    by (fastforce intro: instantiate_wellformed dest: typing_to_wellformed list_all2_kinding_wellformedD)
+  case (u_t_function \<Xi> K t f u ts t' u' \<sigma>)
+  then show ?case
+    apply -
+    apply (rule subtyping_wellformed_preservation)
+     apply assumption
+    apply (fastforce intro: instantiate_wellformed dest: typing_to_wellformed list_all2_kinding_wellformedD)
+    done
 next case u_t_afun     then show ?case
-    by (fastforce intro: instantiate_wellformed dest: list_all2_kinding_wellformedD)
+    by (fastforce intro: subtyping_wellformed_preservation instantiate_wellformed dest: list_all2_kinding_wellformedD)
 qed auto
 
 
@@ -588,12 +599,20 @@ and     "\<Xi> f = (K, t, u)"
 shows   "\<Xi> , \<sigma> \<turnstile> UAFunction f (map (instantiate \<delta>) ts) :u TFun (instantiate \<delta> (instantiate ts t))
                                                                (instantiate \<delta> (instantiate ts u)) \<langle>{}, {}\<rangle>"
 proof -
-from assms have "TFun (instantiate \<delta> (instantiate ts t))
-                      (instantiate \<delta> (instantiate ts u))
-               = TFun (instantiate (map (instantiate \<delta>) ts) t)
-                      (instantiate (map (instantiate \<delta>) ts) u)"
-           by (force intro: instantiate_instantiate dest: list_all2_lengthD)
-with assms show ?thesis by (force intro: uval_typing_uval_typing_record.intros
+  from assms have tfun_eq:
+    "TFun (instantiate \<delta> (instantiate ts t))
+          (instantiate \<delta> (instantiate ts u))
+   = TFun (instantiate (map (instantiate \<delta>) ts) t)
+          (instantiate (map (instantiate \<delta>) ts) u)"
+  by (force intro: instantiate_instantiate dest: list_all2_lengthD)
+
+  have tfun_sub:
+    "[] \<turnstile> TFun (instantiate (map (instantiate \<delta>) ts) t) (instantiate (map (instantiate \<delta>) ts) u)
+        \<sqsubseteq> TFun (instantiate       \<delta> (instantiate ts t)) (instantiate       \<delta> (instantiate ts u))"
+    using assms tfun_eq
+    by (metis (mono_tags, lifting) list_all2_substitutivity specialisation_subtyping subty_tfun subtyping_refl)
+
+with assms show ?thesis by (force intro:  uval_typing_uval_typing_record.intros
                                          list_all2_substitutivity
                                   simp add: kinding_simps)
 qed
@@ -606,14 +625,23 @@ lemma u_t_function_instantiate:
   shows   "\<Xi> , \<sigma> \<turnstile> UFunction f (map (instantiate \<delta>) ts) :u TFun (instantiate \<delta> (instantiate ts t))
                                                                 (instantiate \<delta> (instantiate ts u)) \<langle>{}, {}\<rangle>"
 proof -
-from assms have "TFun (instantiate \<delta> (instantiate ts t))
-                      (instantiate \<delta> (instantiate ts u))
-               = TFun (instantiate (map (instantiate \<delta>) ts) t)
-                      (instantiate (map (instantiate \<delta>) ts) u)"
+  from assms have tfun_eq:
+    "TFun (instantiate \<delta> (instantiate ts t))
+          (instantiate \<delta> (instantiate ts u))
+   = TFun (instantiate (map (instantiate \<delta>) ts) t)
+          (instantiate (map (instantiate \<delta>) ts) u)"
            by (force intro: instantiate_instantiate dest: list_all2_lengthD dest!: typing_to_wellformed)
-with assms show ?thesis by (force intro: uval_typing_uval_typing_record.intros
-                                         list_all2_substitutivity
-                                  simp add: kinding_simps)
+
+         
+  have tfun_sub:
+    "[] \<turnstile> TFun (instantiate (map (instantiate \<delta>) ts) t) (instantiate (map (instantiate \<delta>) ts) u)
+        \<sqsubseteq> TFun (instantiate       \<delta> (instantiate ts t)) (instantiate       \<delta> (instantiate ts u))"
+    using assms tfun_eq
+    by (metis (mono_tags, lifting) list_all2_substitutivity specialisation_subtyping subty_tfun subtyping_refl typing_to_wellformed(1))
+
+ with assms show ?thesis by (force intro: uval_typing_uval_typing_record.intros
+                                 list_all2_substitutivity
+                          simp add: kinding_simps)
 qed
 
 lemma matches_ptrs_noalias:
@@ -872,9 +900,11 @@ next case Cons then show ?case
     apply (rule_tac x = "r \<union> r'a" in exI)
     apply (force intro!: matches_ptrs.intros)
   done
-  next case drop with Cons show ?thesis
-    apply (safe elim!: matches_ptrs_consE weakening_comp.cases dest!: Cons(3))
-    apply (frule(2) discardable_not_writable)
+next case drop
+  with Cons show ?thesis
+      apply (safe elim!: matches_ptrs_consE weakening_comp.cases dest!: Cons(3))
+    apply (rule_tac V="w = {}" in revcut_rl)
+     apply (rule discardable_not_writable; auto)
     apply (clarsimp)
     apply (rule_tac x = "r'a" in exI)
     apply (force)
