@@ -176,6 +176,10 @@ snd3 (a,b,c) = b
 thd3 :: (a,b,c) -> c
 thd3 (a,b,c) = c
 
+fst4 :: (a,b,c,d) -> a
+fst4 (a,b,c,d) = a
+
+
 infixr 3 ***^^
 
 (***^^) :: Applicative f => (a -> f a') -> (b -> f b') -> (a, b) -> f (a', b')

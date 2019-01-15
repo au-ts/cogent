@@ -1,0 +1,8 @@
+type A
+
+getA : A! -> U8
+
+f : A -> A
+f a = if | 1 > 0          => a
+         | getA a == 0 !a -> a
+         | else           -> a

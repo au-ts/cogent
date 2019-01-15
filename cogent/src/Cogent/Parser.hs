@@ -66,6 +66,16 @@ language = haskellStyle
 T.TokenParser {..} = T.makeTokenParser language
 
 sepByAligned1 p s c = (:) <$> p <*> many (getPosition >>= \o -> guard (sourceColumn o == c) >> s >> p)
+
+manyAligned1Until p end c = do
+  l0 <- getPosition
+  guard (sourceColumn l0 == c)
+  (:) <$> p <*> scan
+  where
+    scan  = do { _ <- try end; return [] }
+          <|>
+            do { l <- getPosition; guard (sourceColumn l == c); (:) <$> p <*> scan }
+
 -- manyAligned1 p = do whiteSpace; c <- sourceColumn <$> getPosition
 --                     (:) <$> p <*> many (whiteSpace >> getPosition >>= \o -> guard (sourceColumn o == c) >> p)
 
@@ -143,8 +153,12 @@ expr m = do avoidInitial
               <|> do reserved "if"
                      (do c <- sourceColumn <$> getPosition
                          guard (c > m)
-                         reservedOp "|"
-                         MultiWayIf <$> sepByAligned1 (multiWayIf c) (reservedOp "|") c
+                         es <- manyAligned1Until (reservedOp "|" >> multiWayIf c)
+                                                 (reservedOp "|" >> reserved "else")
+                                                 c
+                         reservedOp "->"
+                         el <- expr c
+                         return $ MultiWayIf es el 
                       <|>
                       (If <$> basicExpr m <*> many (reservedOp "!" >> variableName)
                           <*  reserved "then" <*> expr m <* reserved "else" <*> expr m))

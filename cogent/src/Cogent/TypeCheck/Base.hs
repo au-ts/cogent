@@ -105,6 +105,7 @@ data ErrorContext = InExpression LocExpr TCType
                   | InPattern LocPatn
                   | InIrrefutablePattern LocIrrefPatn
                   | ThenBranch | ElseBranch
+                  | NthBranch Int  -- MultiWayIf
                   | SolvingConstraint Constraint
                   | NthAlternative Int LocPatn
                   | InDefinition SourcePos (TopLevel LocType LocPatn LocExpr)

@@ -1,0 +1,14 @@
+type A
+
+getA : A! -> U8
+mkA  : () -> A
+
+f : A -> A
+f a = if | 1 > 0          => a
+         | getA a == 0 !a -> mkA ()
+         | else           -> a
+
+-- g : A -> A
+-- g a = if | 1 > 0       => a
+--          | getA a == 0 -> mkA ()
+--          | else        -> a

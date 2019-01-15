@@ -159,6 +159,7 @@ instance Prec (Expr t p ip e) where
   prec (Seq {}) = 100
   prec (Match {}) = 100
   prec (If {}) = 100
+  prec (MultiWayIf {}) = 100
   prec (Let {}) = 100
 
 instance Prec RawExpr where
@@ -431,6 +432,12 @@ instance (ExprType e, Prec e, Pretty t, PatnType p, Pretty p, PatnType ip, Prett
                                                    <$> indent (keyword "else" </> pretty e))
     where handleBangedIf []  = id
           handleBangedIf vs  = (<+> hsep (map (letbangvar . ('!':)) vs))
+  pretty (MultiWayIf es el)  = keyword "if" <+> mconcat (map ((hardline <>) . indent . (symbol "|" <+>) . prettyBranch) es)
+                                            <> hardline <> indent (symbol "|" <+> keyword "else" <+> symbol "->" <+> pretty el)
+    where handleBangedIf []  = id
+          handleBangedIf vs  = (<+> hsep (map (letbangvar . ('!':)) vs))
+
+          prettyBranch (c,bs,l,e) = handleBangedIf bs (prettyPrec 100 c) <+> pretty l <+> pretty e
   pretty (Match e [] alts)   = prettyPrec 100 e
                                <> mconcat (map ((hardline <>) . indent . prettyA False) alts)
   -- vvv It's a hack here. See the notes in <tests/pass_letbang-cond-type-annot.cogent>
@@ -807,11 +814,19 @@ instance Pretty R.Representation where
 -- helper functions
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~
 
+nth :: Int -> Doc
+nth 1 = context "1st"
+nth 2 = context "2nd"
+nth 3 = context "3rd"
+nth n = context (show n ++ "th")
+
+
 -- ctx -> indent -> doc
 prettyCtx :: ErrorContext -> Bool -> Doc
 prettyCtx (SolvingConstraint c) _ = context "from constraint" <+> indent (pretty c)
 prettyCtx (ThenBranch) _ = context "in the" <+> keyword "then" <+> context "branch"
 prettyCtx (ElseBranch) _ = context "in the" <+> keyword "else" <+> context "branch"
+prettyCtx (NthBranch n) _ = context "in the" <+> nth n <+> context "branch of a multiway-if"
 prettyCtx (InExpression e t) True = context "when checking that the expression at ("
                                       <> pretty (posOfE e) <> context ")"
                                       <$> (indent' (pretty (stripLocE e)))
@@ -830,10 +845,6 @@ prettyCtx (InIrrefutablePattern ip) True = context "when checking the pattern at
 prettyCtx (InIrrefutablePattern ip) False = context "when checking the pattern at ("
                                               <> pretty (posOfIP ip) <> context ")"
 prettyCtx (NthAlternative n p) _ = context "in the" <+> nth n <+> context "alternative" <+> pretty p
-  where  nth 1 = context "1st"
-         nth 2 = context "2nd"
-         nth 3 = context "3rd"
-         nth n = context (show n ++ "th")
 prettyCtx (InDefinition p tl) _ = context "in the definition at (" <> pretty p <> context ")"
                                <$> context "for the" <+> helper tl
   where helper (TypeDec n _ _) = context "type synonym" <+> typename n

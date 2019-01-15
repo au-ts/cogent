@@ -423,16 +423,17 @@ cg' (If e1 bs e2 e3) t = do
   traceTc "gen" (text "cg for if:" <+> prettyE e)
   return (c1 <> c <> c2' <> c3' <> cc2 <> cc3, e)
 
-cg' (MultiWayIf es) t = do
-  blob <- forM es $ \(e1,bs,l,e2) -> do
-    (c1,e1') <- letBang bs (cg e1) (T (TCon "Bool" [] Unboxed))
-    -- TODO: add context here
-    (c2,e2') <- cg e2 t
-    return (c1 <> c2, (e1',bs,l,e2'))
-  let (cs,es') = unzip blob
-  traceTc "gen" (text "cg for multiway-if:" -- TODO: <+> pretty es'
-           L.<$> text "generate constraints:" <+> prettyList cs)
-  return (mconcat cs, MultiWayIf es')
+cg' (MultiWayIf es el) t = do
+  conditions <- forM es $ \(c,bs,_,_) -> letBang bs (cg c) (T (TCon "Bool" [] Unboxed))
+  let (cconds, conds') = unzip conditions
+      ctxs = map NthBranch [1..length es] ++ [ElseBranch]
+  (c,bodies) <- parallel' $ zip ctxs (map (\(_,_,_,e) -> cg e t) es ++ [cg el t])
+  let ((ces,es'),(cel,el')) = (unzip $ init bodies, last bodies)
+      e' = MultiWayIf (zipWith3 (\(_,bs,l,_) cond' e' -> (cond',bs,l,e')) es conds' es') el'
+      c' = c <> mconcat cconds <> mconcat ces <> cel
+  traceTc "gen" (text "cg for multiway-if:" <+> prettyE e'
+           L.<$> text "generate constraints:" <+> prettyC c')
+  return (c',e')
 
 cg' (Put e ls) t | not (any isNothing ls) = do
   alpha <- freshTVar

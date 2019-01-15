@@ -581,6 +581,11 @@ desugarExpr (B.TE _ (S.If c vs th el) _) = do
   el' <- withBinding v $ desugarExpr el
   let e' = E $ If (E $ Variable (f0, v)) th' el'
   E <$> (LetBang vs' v <$> desugarExpr c <*> pure e')
+desugarExpr (B.TE _ (S.MultiWayIf [] el) _) = __impossible "desugarExpr: MultiWayIf with only one branch"
+desugarExpr (B.TE t (S.MultiWayIf es el) pos) =  -- FIXME: likelihood is ignored here
+  desugarExpr $ B.TE t (go es el) pos
+  where go [(c,bs,_,e)] el = S.If c bs e el
+        go ((c,bs,_,e):es) el = S.If c bs e (B.TE t (go es el) pos)
 desugarExpr (B.TE _ (S.Member e fld) _) = do
   t <- desugarType $ B.getTypeTE e
   let TRecord fs _ = t
