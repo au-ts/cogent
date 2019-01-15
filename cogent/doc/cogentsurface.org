@@ -308,6 +308,28 @@ f (x,y) = foo(x,y) !x !y
           | Blorp z -> baz z
 #+END_SRC 
 
+** If
+
+Conditionals can be expressed in the form of if-expressions. They are in the form of
+~if c !v1 !v2 ... then e1 else e2~. The ~!v~'s are similar to the ~!~ syntax introduced
+above, allowing for temporary access to linear objects in the conditions.
+
+Apart from the normal if-then-else sytnax, Cogent offers a multi-way if syntax, inspired
+by GHC/Haskell. For example,
+
+#+BEGIN_SRC
+if | cond_1 -> expr_1
+   | cond_2 -> expr_2
+   | ...
+   | else   -> expr_n
+#+END_SRC
+
+In the code snippet above, the conditions are *expressions*, instead of patterns as one might
+think. The final ~else~ is part of the syntax. The pipes have to be aligned. The arrows, as usual,
+can be any of ~=>~, ~->~ or ~\~>~, which have the same semantics as used in alternatives. Postfix ~!~'s
+can be added after each condition (but not after the ~else~ keyword), like ~| cond_1 !v1 !v2 => e~.
+
+
 ** Sequencing
 
 Occasionally, it is useful to free a bunch of things, and using let for this
