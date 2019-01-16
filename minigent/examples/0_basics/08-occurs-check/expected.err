@@ -1,0 +1,10 @@
+Typecheck failed in function ambiguous
+ •  𝛇 :< 𝛇
+ •  𝛇 :< 𝛇
+ •  𝛇 :< 𝛇
+ •  𝛇 :< 𝛇
+ •  𝛇 :< 𝛇
+ •  𝛇 :< 𝛇
+Typecheck failed in function bad
+ •  𝛍 -> 𝛍 :=: a
+ •  Drop a

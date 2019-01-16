@@ -1,0 +1,8 @@
+drop : [x] Drop x. x -> Unit;
+drop x = Unit;
+
+test : Bool -> Unit;
+test x = drop x;
+
+badTest : [x]. x -> Unit;
+badTest x = drop x;

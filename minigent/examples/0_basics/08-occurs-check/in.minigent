@@ -1,0 +1,10 @@
+func : [x]. x -> x;
+func x = x;
+
+bad : [a]. a -> a;
+bad x = func func;
+
+ambiguous : [a]. a -> a;
+ambiguous x = let b = func func
+               in x 
+              end;

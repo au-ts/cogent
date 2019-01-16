@@ -1,0 +1,3 @@
+Typecheck failed in function foo
+ •  {x : Foo take}# :< {x : Foo,𝛈...}#
+ •  Drop {x : Foo take,𝛈...}#

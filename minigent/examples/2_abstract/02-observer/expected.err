@@ -1,0 +1,7 @@
+Typecheck failed in function noDrop
+ •  Drop Buf
+ •  Drop Buf
+Typecheck failed in function noEscape
+ •  Escape Buf!
+Typecheck failed in function noShare
+ •  Buf :=: Buf!
