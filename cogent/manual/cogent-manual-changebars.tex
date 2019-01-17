@@ -1,0 +1,2999 @@
+\documentclass[a4paper]{report}
+%\usepackage[margin=2cm]{geometry}
+\usepackage[bookmarks]{hyperref}
+%\usepackage[australian]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc} % needed for italic curly braces
+\usepackage{xspace}
+\usepackage{changebar}
+
+\newcommand{\code}[1]{\textnormal{\texttt{#1}}}
+
+\newcommand{\cogent}{Cogent\xspace}
+\newcommand{\Cogent}{\cogent\xspace}
+
+\newcommand{\TODO}[1]{\textbf{\textsl{TODO: #1}}}
+\newcommand{\todo}[1]{\TODO{#1}}
+
+\newlength{\prodindlen}
+\setlength{\prodindlen}{\textwidth}
+\addtolength{\prodindlen}{-2em}
+
+\newcommand{\gramprod}[2]{
+  \parbox{\textwidth}{
+  \setlength{\parindent}{2em}
+  \it\noindent #1:
+  
+  #2
+  \vskip 2ex
+  }}
+
+\newcommand{\indprod}[2]{
+  \parbox{\prodindlen}{
+  \setlength{\parindent}{2em}
+  \it\noindent #1:
+  
+  #2
+  \vskip 2ex
+  }}
+
+\newcommand{\gramselprod}[2]{
+  \parbox{\textwidth}{
+  \setlength{\parindent}{2em}
+  \it\noindent #1: one of
+  
+  #2
+  \vskip 2ex
+  }}
+
+\newcommand{\indselprod}[2]{
+  \parbox{\prodindlen}{
+  \setlength{\parindent}{2em}
+  \it\noindent #1: one of
+  
+  #2
+  \vskip 2ex
+  }}
+
+\newcommand{\graminfprod}[2]{
+  \parbox{\textwidth}{
+  \setlength{\parindent}{2em}
+  {\it\noindent #1: informal}
+  
+  #2
+  \vskip 2ex
+  }}
+
+\newcommand{\indinfprod}[2]{
+  \parbox{\prodindlen}{
+  \setlength{\parindent}{2em}
+  {\it\noindent #1: informal}
+  
+  #2
+  \vskip 2ex
+  }}
+
+
+\begin{document}
+
+\title{A \cogent Manual}
+\author{Gunnar Teege\\ gunnar.teege{@}unibw.de}
+\date{Version 0.9}
+
+\maketitle
+
+\cbstart
+I wrote this manual when I had my first contact with \cogent and wanted to get a clear view of its syntax and its concepts.
+For me the best way to do so is by writing it down in an organized way. Since I found that there was no similar documentation,
+I decided to do so in a form that it may be usable (and hopefully useful) for others as well.
+
+Zilin Chen has read the manual very carefully and has pointed me to many issues, so I was able to correct and improve it 
+extensively. Many thanks to him for his commitment.
+
+This manual is not intended as a tutorial for programming in \cogent or to prove properties of \cogent programs. The examples
+are not chosen to be realistic, they are only used for illustrating the syntax. The manual only describes the \cogent
+``surface syntax'' which is the interface for the programmer. Note that most publications about \cogent refer to the more
+concise ``core syntax'' which is created from the surface syntax by applying the ``desugaring rules''.
+\cbend
+
+\chapter{Lexical Syntax}
+
+\cbstart
+The basic lexical items in \cogent are comments (including document blocks and pragmas), identifiers (including reserved words), symbols and literals.
+Additionally in a \cogent program the usual Haskell preprocessor directives can be used, which are similar to the C preprocessor directives.
+\cbend
+
+\section{Comments}
+
+Comments have the same form as in Haskell. A comment may either be a line comment
+starting with the symbol \code{-}\code{-} and ending at the end of the line, or it may
+be a block comment enclosed in \code{\{-} and \code{-\}}.
+
+Examples of comments are:
+\begin{verbatim}
+  f: U8 -> U8 -- this is a line comment after a function signature
+  f x {- x is the function argument -} = x+1
+    -- function f returns its incremented argument
+\end{verbatim}
+
+Block comments may occur in a \cogent source between all other lexical entities. \cbstart Block comments can be nested,
+the closing brace of the inner comment does not end the outer comment:
+\begin{verbatim}
+  {- This is a comment with a nested {- inner comment. -} 
+     After it the outer comment continues. -} 
+\end{verbatim}
+\cbend
+
+\cbstart
+A special form of comments are document blocks. They have a similar form like line comments but start 
+with the symbol \code{@}. Document blocks can be used to generate an HTML documentation from a Cogent source:
+\begin{verbatim}
+  @@ # Heading
+  @@ This is a standalone documentation block
+
+  @ Documentation for the following function
+  f: U8 -> U8
+  f x = x+1
+\end{verbatim}
+
+Another special form of comments are pragmas, they have the form
+\begin{verbatim}
+  {-# ... #-}
+\end{verbatim}
+Pragmas are used to optimise Cogent programs and to interface external C components. The details
+of pragmas are not (yet?) covered by this manual.
+\cbend
+
+\section{Identifiers}
+
+Identifiers are used to name items in a program. As usual in programming languages, they consist of
+a sequence of letters and digits beginning with a letter.
+
+\cogent syntactically distinguishes between lowercase identifiers and capitalized identifiers. 
+
+\vspace{2ex}
+\indinfprod{LowercaseID}{
+  \cbstart A sequence of letters, digits, underscore symbols, and single quotes\cbend
+  
+  starting with a lowercase letter
+}
+
+\indinfprod{CapitalizedID}{
+  \cbstart A sequence of letters, digits, underscore symbols, and single quotes\cbend
+  
+  starting with an uppercase letter
+}
+
+\cbstart
+The underscore symbol \code{\_} and the single quote \verb|'| may appear in identifiers but not at the beginning. Examples for valid 
+identifiers are \code{v1}, \code{very\_long\_identifier}, \code{CamelCase}, \code{T}, \code{W\_}, and \code{v}\verb|'|.
+\cbend
+
+Lowercase identifiers are used for record field names and for term variables and type variables. Capitalized identifiers are
+used for type constructors and data constructors.
+
+There are some \textit{reserved words} in \cogent wich syntactically are identifiers but cannot be used as identifiers.
+The reserved words are in alphabetical order:
+\begin{verbatim}
+  all and complement else False if in include let not put
+  take then True type
+\end{verbatim}
+
+\section{Literals}
+
+There are four kinds of literals in \cogent.
+
+\subsection{Boolean Literals}
+
+The boolean literals are the reserved words \code{True} and \code{False}.
+
+\vspace{2ex}
+\indselprod{BooleanLiteral}{
+  \code{True} \code{False}
+}
+
+\subsection{Integer Literals}
+
+Integer literals are digit sequences. \cbstart They can be written in decimal, hexadecimal. or octal form.
+
+\vspace{2ex}
+\indprod{IntegerLiteral}{
+  DecDigits
+  
+  \code{0x} HexDigits
+  
+  \code{0X} HexDigits
+
+  \code{0o} OctDigits
+
+  \code{0O} OctDigits
+}
+
+\indinfprod{DecDigits}{
+  A sequence of decimal digits 0-9.
+}
+
+\indinfprod{HexDigits}{
+  A sequence of hexadecimal digits 0-9, A-F.
+}
+
+\indinfprod{OctDigits}{
+  A sequence of octal digits 0-7.
+}
+\cbend
+
+\subsection{Character Literals}
+
+A character literal consists of a quoted character.
+
+\vspace{2ex}
+\indinfprod{CharacterLiteral}{
+  \cbstart A character enclosed in single quotes.\cbend
+}
+
+\cbstart
+The type of a character literal is \code{U8} (see below), which corresponds to a single byte.
+Syntactically, a character literal can be specified as in Haskell (see the Haskell Report), i.e.,
+full Unicode and several escape sequences (such as \code{\\n}) are supported. However, a valid
+character literal in \cogent must always correspond to a code value in the range 0..255.
+
+Examples for valid character literals are \code{'h'}, \code{'8'}, and \code{'/'}. The quoted character
+\code{'}\verb|\|\code{300'} is not a legal character literal since it is mapped to code 300.
+\cbend
+
+\subsection{String Literals}
+
+A string literal consists of a quoted character sequence.
+
+\vspace{2ex}
+\indinfprod{StringLiteral}{
+  \cbstart A sequence of characters enclosed in double quotes.\cbend
+}
+
+\cbstart
+Syntactically a string literal can be specified as in Haskell (see the Haskell Report). The same
+escape sequences as for character literals are supported for specifying every character.
+For a valid \cogent string literal every character must be mapped to a code in the range 0..255.
+
+An example for a valid string literal is the string \code{"This is a string literal}\verb|\|\code{n"}. Again,
+the string \code{"String containing a} \verb|\|\code{300 glyph"} is not legal, since it contains a character
+mapped to code 300.
+\cbend
+
+\chapter{Types}
+
+The \cogent language is a strongly typed language, where every term and variable in a program has a 
+specific type. Like some other strongly typed languages, such as Scala and several functional languages
+types are often automatically inferred and need not be specified explicitly. \cbstart Although possible
+in many cases, \cogent never infers types for toplevel definitions (see Section~\ref{toplevel-def}), they
+must always be specified explicitly.\cbend
+
+In most typed programming languages a type only determines a set of values and the operations which 
+can be applied to these values. As a main feature of \cogent, types are extended to also represent 
+the way how values can be used in a program.
+
+\section{Type Basics}
+
+We will first look at the basic features of the \cogent type system, which are similar to those of types
+in most other programming languages. There are some predefined \textit{primitive} types and there
+are ways to construct \textit{composite} types from existing types.
+
+Note that in \cogent types can always be specified (e.g.~for variables or function arguments) by 
+arbitrarily complex \textit{type expressions}. It is possible to use a \textit{type definition} 
+to give a type a name, but it is not necessary to do so. In particular, types are matched by structural 
+equality, hence if the same type expression is specified in different places it means the same type.
+
+The general syntactical levels of type expressions are as follows:
+
+\vspace{2ex}
+\indprod{MonoType}{
+  TypeA1
+  
+  \ldots
+}
+
+\indprod{TypeA1}{
+  TypeA2
+  
+  \ldots
+}
+
+\indprod{TypeA2}{
+  AtomType
+
+  \ldots
+}
+
+\indprod{AtomType}{
+  \code{(} MonoType \code{)}
+  
+  \ldots
+}
+
+By putting an arbitrary \textit{MonoType} expression in parentheses it can be used wherever an \textit{AtomType} is 
+allowed in a type expression.
+
+\subsection{Primitive Types}
+
+Since \cogent is intended as a system programming language, the predefined primitive types are mainly bitstring types.
+Additionally, there is a type for boolean values and an auxiliary string type.
+
+Syntactically, a primitive type is specified as a nullary type constructor:
+
+\vspace{2ex}
+\indprod{AtomType}{
+  \code{(} MonoType \code{)}
+  
+  TypeConstructor
+  
+  \ldots
+}
+
+\indprod{TypeConstructor}{
+  CapitalizedId
+}
+
+\subsubsection{Bitstring Types}
+
+The bitstring types are named \code{U8}, \code{U16}, \code{U32}, and \code{U64}.
+%, and \code{Char}.
+They denote strings of 8, 16, 32, or 64 bits, respectively.
+%, the type \code{Char} is a synonym for \code{U8}.
+
+The usual bitstring operations can be applied to values of the bitstring types, such as bitwise boolean 
+operations and shifting. Alternatively, bitstring values can be interpreted as unsigned binary represented
+numbers and the corresponding numerical operations can be applied. All numerical operations are done modulo the
+first value that is no more included in the corresponding type. E.g., numerical operations for values of
+type \code{U8} are done modulo $2^8 = 256$.
+
+\todo{application of \&\& and ||?}
+
+\subsubsection{Other Primitive Types}
+
+The other primitive types are \code{Bool} and \code{String}. Type \code{Bool} has the two values \code{True}
+and \code{False} with the boolean operations. Type \code{String} can only be used for specifying string literals,
+it supports no operations.
+
+\cbdelete
+
+\subsection{Composite Types}
+
+There are the following possibilities to construct composite types: records, tuples, variants, and functions. 
+
+\subsubsection{Tuple Types}
+
+A tuple type represents mathematical tuples, i.e., values with a fixed number of fields specified in a certain order. Every field may have a different type.
+A tuple type expression has the syntax:
+
+\vspace{2ex}
+\indprod{AtomType}{
+  \code{(} MonoType \code{)}
+  
+  TypeConstructor
+  
+  TupleType
+
+  \ldots
+}
+
+\indprod{TupleType}{
+  \code{()}
+
+  \code{(} MonoType \code{,} MonoType \{\code{,} MonoType\} \code{)}
+}
+
+The empty tuple type \code{()} is also called the \textit{unit} type. It has the empty tuple as its only value.
+
+Note that there is no 1-tuple type, a tuple type must either be the unit type or have at least two fields. Conceptually,
+a 1-tuple is equivalent to its single field. Syntactically the form \code{(} \textit{MonoType} \code{)} is used for
+grouping. 
+
+The type expression \code{(U8, U16, U16)} is an example for a tuple type with three fields.
+
+%Tuple types in \cogent are right associative: If the rightmost field in a tuple type T again has a tuple type, the type T is equivalent 
+%to the flattened type where the rightmost field is replaced by the fields according to its type. As an example, all the following types are equivalent:
+%\begin{verbatim}
+%  (U8, (U16, U16), (U8, Bool, U32))
+%  (U8, (U16, U16), U8, (Bool, U32))
+%  (U8, (U16, U16), U8, Bool, U32)
+%  (U8, (U16, U16), (U8, (Bool, U32)))
+%  (U8, ((U16, U16), U8, Bool, U32))
+%\end{verbatim}
+
+\subsubsection{Record Types}
+
+A record type is similar to a C struct, or a Haskell data type in record syntax. It consist of
+arbitrary many \textit{fields}, where each field has a name and a type. Accordingly, a record type expression
+has the following syntax:
+
+\vspace{2ex}
+\indprod{AtomType}{
+  \code{(} MonoType \code{)}
+  
+  TypeConstructor
+  
+  TupleType
+
+  RecordType
+  
+  \ldots
+}
+
+\indprod{RecordType}{
+  \code{\{} FieldName \code{:} MonoType \{\code{,} FieldName \code{:} MonoType\} \code{\}}
+}
+
+\indprod{FieldName}{
+  LowercaseId
+}
+
+The fields in a record type are order-sensitive. Therefore, the type expressions \code{\{a: U8, b: U16\}} and
+\code{\{b: U16, a: U8\}} denote different types. \cbstart A record type must always have atleast one field.\cbend 
+Other than for tuples, a record type may have a single field.
+Therefore, the type expressions \code{\{a: U8\}} and \code{U8} denote different types.
+
+\subsubsection{Variant Types}
+
+A variant type is similar to a union in C, or an algebraic data type in Haskell. As in Haskell, and
+unlike in C, a variant type is a \textit{discriminated} union: \cbstart each alternative value set is tagged with 
+the variant it belongs to. \cbend
+
+A variant type specifies for every variant the tag and the \cbstart types of the values, \cbend hence it has the syntax:
+
+\vspace{2ex}
+\indprod{AtomType}{
+  \code{(} MonoType \code{)}
+  
+  TypeConstructor
+  
+  TupleType
+
+  RecordType
+  
+  VariantType
+
+  \ldots
+}
+
+\indprod{VariantType}{
+  \cbstart \code{<} DataConstructor \{TypeA2\} \{\code{|} DataConstructor \{TypeA2\}\} \code{>}\cbend
+}
+
+\indprod{DataConstructor}{
+  CapitalizedId
+}
+
+The tags are given by the \textit{DataConstructor} elements. \cbstart Each variant has a sequence of values, hence the 
+ordering of the \textit{TypeA2} matters. \cbend
+
+The type expression \code{<Small U8 | Large U32>} is an example for a variant type with two variants. Typical applications
+of variant types are for modelling error cases, such as in 
+\cbstart
+\begin{verbatim}
+  <Ok U16 U32 U8 | Error U8>
+\end{verbatim}
+\cbend
+or for modelling optional values, such as in
+\cbstart
+\begin{verbatim}
+  <Some U16 | None>
+\end{verbatim}
+\cbend
+ 
+Although \textit{DataConstructor}s and \textit{TypeConstructor}s have the same syntax, they constitute different namespaces.
+A \textit{CapitalizedId} can be used to denote a \textit{DataConstructor} and a \textit{TypeConstructor} in the same
+context. In the example
+\begin{verbatim}
+  <Int U32 | Bool U8>
+\end{verbatim}
+the name of the predefined primitive type \code{Bool} is also used as a tag in a variant type.
+
+\subsubsection{Function Types}
+
+A function type corresponds to the the usual concept of function types in functional programming languages, as it is even 
+available in C. A function type has the syntax:
+
+\vspace{2ex}
+\indprod{MonoType}{
+  TypeA1
+  
+  FunctionType
+}
+
+\indprod{FunctionType}{
+  \cbstart TypeA1 \code{->} TypeA1 \cbend
+}
+
+A function with type \code{U8 -> U16} maps values of type \code{U8} to values of type \code{U16}.
+
+Note, that a \textit{TypeA1} \cbdelete cannot be a function type. Hence, to specify a higher order function type in \cogent, which 
+takes a function as argument or returns a functions as result, the argument or result type must be put in parentheses.
+
+In particular, the type expression \code{U8 -> U8 -> U16}, which is the usual way of specifying the type of a binary function in Haskell through
+currying, is illegal in \cogent. Strictly speaking, function types always describe unary functions. To specify the corresponding type 
+in \cogent use \code{U8 -> (U8 -> U16)}. Alternatively, a type expression for a binary function can
+be specified as \code{(U8,U8) -> U16} in \cogent, which is a different type.
+
+\subsection{Type Definitions}
+\label{def-type}
+
+Although all types in \cogent could be denoted by type expressions, types can be named by specifying a 
+\textit{type definition}. In the simplest case, a type definition introduces a name for a type expression,
+such as in the following example:
+
+\begin{verbatim}
+  type Fract = { num: U32, denom: U32 }
+\end{verbatim}
+
+Syntactically a type name is a \textit{TypeConstructor} in the same way as the primitive types. Hence, the 
+primitive types can be considered to be specific ``predefined'' type names.
+
+A type name defined in a type definition may be used in type expressions after the definition but also in type
+expressions occurring \textit{before} the type definition. In this way type definitions are ``global'', the 
+defined type names can be used everywhere in the \cogent program, \cbstart also in and from included files.\cbend
+
+An important restriction of \cogent is that type definitions may not be recursive, i.e., the type name may
+not occur in the type expression on the right-hand side. Thus the following type definition is illegal
+\begin{verbatim}
+  type Numbers = <Single U32 | Sequ (U32, Numbers)>
+\end{verbatim}
+because the defined type name \code{Numbers} occurs in the type expression. Also there may not be an indirect
+recursion, where type definitions refer to each other cyclically.
+
+\subsubsection{Generic Types}
+
+In a type definition it is also possible to define a \textit{TypeConstructor} which takes one or more
+\textit{type parameters}. Such a \textit{TypeConstructor} is called a \textit{generic} type. 
+An example would be
+
+\begin{verbatim}
+  type Pair a = (a,a)
+\end{verbatim}
+
+Here, the \textit{TypeConstructor} \code{Pair} is generic, it has the single type parameter \code{a}.
+
+In fact, a generic type like \code{Pair} is not really a type, it is a type \textit{constructor}. Only when it
+is applied to type \textit{arguments}, such as in \texttt{Pair U32}, it yields a type. Such a type is called
+a \textit{parameterized type}. Every generic type has a fixed \textit{arity}, which is its number of type
+parameters and specifies the number of arguments required in parameterized types constructed from it.
+
+A \textit{TypeConstructor} is non-generic, if it has arity 0. In this special case, the \textit{TypeConstructor}
+itself already denotes a type.
+
+Generic types in \cogent are known in Haskell as ``polymorphic types'' and similar concepts can be found in 
+several other programming languages. In Java, a generic class definition has the form \texttt{class Pair<A> \{\ldots\}}, 
+it defines the generic class \code{Pair} with its type parameter \code{A}. In C++ a similar concept is
+supported by ``templates''.
+
+The syntax for a type definition in \cogent supports both generic and non-generic types:
+
+\vspace{2ex}
+\indprod{TypeDefinition}{
+  \code{type} TypeConstructor \{TypeVariable\} \code{=} MonoType
+  
+  \ldots
+}
+
+\indprod{TypeVariable}{
+  LowercaseId
+}
+
+A \textit{TypeConstructor} defined this way is also called a \textit{type synonym}, since as a type expression
+it is strictly equivalent to the expression on the right-hand side in the definition. A type synonym with
+arity 0 is called a \textit{type name}.
+
+In the definition of a generic type, the type parameters may occur in the \textit{MonoType} on the right-hand side.
+There they are called \textit{type variables} and a type expression containing type variables is 
+called a \textit{polymorphic type}. To support polymorphic type expressions, the syntax allows type variables as
+\textit{AtomType}:
+
+\vspace{2ex}
+\indprod{AtomType}{
+  TypeConstructor
+  
+  TupleType
+
+  RecordType
+  
+  VariantType
+
+  TypeVariable
+}
+
+\cbstart
+As in Haskell there is no syntactic difference between type variables and normal (term) variables. \cbend
+However, type variables are syntactically different from type constructors, since the latter are capitalized identifiers,
+whereas variables begin with a lowercase letter.
+
+Since type variables are allowed as \textit{AtomType}, they can occur in a polymorphic type expression in all places
+where a type is allowed. 
+
+Note that in the definition of a generic type, all type variables occurring in the type expression on the right-hand
+side must be type parameters, declared on the left-hand side, i.e., they must all be bound in the type definition. 
+\cbstart The other way round, a type parameter need not occur as type variable in the type expression. In Haskell, this
+is called a ``phantom type''. Other than in Haskell in Cogent these types are not checked by the type checker, hence for
+
+\begin{verbatim}
+  type A a = U8
+\end{verbatim}
+the types \code{A U16} and \code{A Bool} are equivalent.
+\cbend
+
+Parameterized types are simply denoted by the generic type constructor followed by the required number of
+type expressions as arguments, such as in
+
+\begin{verbatim}
+  Pair U32
+\end{verbatim}
+
+They can be used in type expressions as \textit{TypeA1}:
+
+\vspace{2ex}
+\indprod{TypeA1}{
+  TypeA2
+  
+  ParameterizedType
+  
+  \ldots
+}
+
+\indprod{ParameterizedType}{
+  TypeConstructor \{TypeA2\}
+}
+
+Note that parameterized types must be put in parentheses if they are nested (used as argument of another parameterized type). \cbdelete
+
+\subsubsection{Expanding Type Expressions}
+
+We call a parameterized type with a type synonym as \textit{TypeConstructor} a \textit{parameterized type synonym}.
+
+Since type definitions may not be recursive, type synonyms can always be eliminated from type expressions 
+by substituting the defining type expression for them, putting it in parentheses if necessary. 
+
+In the case of a parameterized type synonym also the type variables are 
+substituted by the actual type arguments. We call the result of eliminating (transitively) all type synonyms
+from a type expression the \textit{expansion} of the type expression.
+
+\subsubsection{Abstract Types}
+
+An \textit{abstract} type is similar to a type synonym without a definition. The idea of abstract types in \cogent is
+to provide the actual definition externally in accompanying C code. Hence abstract types are the \cogent way of
+interfacing C type definitions. However, since abstract types are used in \cogent in an opaque way, it is not necessary
+to know the external C definition for working with an abstract type in \cogent. \cbstart Note that abstract types are not
+meant to be used as interfaces to or abstractions of other \cogent types.\cbend
+
+Abstract types can be generic, i.e., they may have type parameters. The names of these type parameters are irrelevant,
+since there is no definition where they could occur as type variables. They are only used to specify the arity of
+the generic abstract type.
+
+The syntax for defining abstract types is the same as for normal type definitions, with the defining type expression 
+omitted:
+
+\vspace{2ex}
+\indprod{TypeDefinition}{
+  \code{type} TypeConstructor \{TypeVariable\} \code{=} MonoType
+  
+  AbstractTypeDefinition
+}
+
+\indprod{AbstractTypeDefinition}{
+  \code{type} TypeConstructor \{TypeVariable\}
+}
+
+The following examples define two abstract types. Type \code{Buffer} is non-generic, type \code{Array} is generic
+with arity 1:
+
+\begin{verbatim}
+  type Buffer
+  type Array a
+\end{verbatim}
+
+Like generic type synonyms, generic abstract types can be used to construct parameterized types:
+
+\begin{verbatim}
+  Array U16
+\end{verbatim}
+
+We call a parameterized type with an abstract type as its \textit{TypeConstructor} a \textit{parameterized abstract type}.
+Note that abstract types cannot be eliminated by expanding a type expression, since they have no definition.
+
+\section{Restricted Types}
+
+A type semantically determines a set of values as its extension. In most other typed programming languages the main
+consequence is that the type of a value restricts the functions which can be applied to it. 
+
+A specific feature of \cogent is that the type may impose additional restrictions on the ways a value can be used 
+in the program, in particular, how \textit{often} it may be used. This concept is known as \textit{linear types},
+it is also present in some other special programming languages, e.g., in Rust.
+
+Many types in \cogent do not impose additional restrictions, they behave like types in other programming languages,
+we call them \textit{regular types}. Types with additional restrictions are called \textit{restricted types}.
+
+\subsection{Linear Types}
+
+One kind of restricted types are \textit{linear types}. A linear type has the specific property, that its values must 
+be used \textit{exactly once} in the program. What this means is explained in Section~\ref{expr-usage}. Here it is 
+only relevant that a type may be linear or not.
+
+Linearity is an inherent property of type expressions. Type expressions as they have been described until now can either
+be linear or regular. To determine whether a type expression is linear or regular 
+its expansion is inspected using the following rules:
+\begin{itemize}
+\item Primitive types are regular.
+\item Record types are linear.
+\item Tuple types are linear if they contain at least one field with a linear type.
+\item Variant types are linear if they contain at least one variant with a linear type.
+\item Function types are regular.
+\item Parameterized and non-generic abstract types are linear.
+\end{itemize}
+
+Together, a type is linear when, after expanding all type synonyms, it has a component of a record or abstract type
+which does not appear as part of a function type.
+
+\subsection{Boxed and Unboxed Types}
+
+In order to decouple the property of linearity somewhat from the way how types are composed, the concept of 
+\textit{unboxed types} is used. Record types and abstract types, which may cause a type to be linear, are
+called \textit{boxed types}, the other types (primitive, tuple, variant, and function) are called \textit{unboxed types}.
+
+The type system is expanded by introducing the unbox type operator \code{\#}. For boxed types it produces
+an unboxed version. By applying the unbox type operator to all record types and abstract types
+in a type expression, the type expression becomes regular. 
+
+The operator \code{\#} is applied to a type expression as a prefix. To simplify the syntax it is allowed to
+be applied to arbitrary \textit{AtomType} expressions:
+
+\vspace{2ex}
+\indprod{TypeA2}{
+  AtomType
+
+  \code{\#} AtomType
+  
+  \ldots
+}
+
+By putting an arbitrary \textit{MonoType} in parentheses, the unbox operator can be applied to it, as in \code{\#(Array U8)}.
+
+If the unbox operator is applied to an \textit{AtomType} which is already unboxed, it has no effect. Hence, the type
+expressions \code{(U8,U16)} and \code{\#(U8,U16)} denote the same type, whereas \code{\{fld1:U8,fld2:U16\}} and
+\code{\#\{fld1:U8,fld2:U16\}} denote different types. 
+
+When applied to a record, the unbox operator affects only the record itself, not its fields. Hence, an unboxed
+record is still linear, if it has linear fields. The additional linearity rules for types resulting from 
+applying the unbox operator are
+\begin{itemize}
+\item Unboxed record types are linear if they contain at least one field with a linear type.
+\item Unboxed non-generic or parameterized abstract types are regular.
+\item For all other cases, an unboxed type is linear or regular according to the linearity of the type expression to which
+the unbox operator is applied.
+\end{itemize}
+
+As an example, if \code{A} is a non-generic abstract type, the type expression \code{\#(U8,A)} is linear, since
+the linear second field makes the type expression \code{(U8,A)} linear.
+
+\subsection{Partial Record Types}
+
+Since record types are linear, their values must be used exactly once, which also uses all their linear fields. 
+To support more flexibility, \cogent allows
+using linear record fields independently from the record itself, although each of them must still be used exactly once.
+This is done by separating the linear field's value from the rest of the record. The fact that the field value is no more present
+in the remaining record is reflected by the remaining record having a different type. These types are called 
+\textit{partial record types}. A record field for which the value is not present is called a \textit{taken} field.
+
+A partial record type is denoted by specifying a record type together with the names of the taken fields using the 
+following syntax:
+
+\vspace{2ex}
+\indprod{TypeA1}{
+  TypeA2
+  
+  TypeConstructor \{TypeA2\}
+  
+  PartialRecordType
+}
+
+\indprod{PartialRecordType}{
+  TypeA2 TakePut TakePutFields
+}
+
+\indselprod{TakePut}{
+  \code{take} \code{put}
+}
+
+\indprod{TakePutFields}{
+  FieldName
+
+  \cbstart\code{(} [FieldName \{\code{,} FieldName\}] \code{)}\cbend
+  
+  \code{( .. )}
+}
+
+Thus \code{take} and \code{put} together with field names constitute type operators. The result of applying these
+type operators is usually a partial record type.
+
+When applied to a type R the operator \code{take (v,w)} produces the record type where at least fields
+\code{v} and \code{w} are taken, in addition to the fields that have already been taken in R.
+If the fields \code{v} and \code{w} are already taken in R, the compiler produces a warning. If R has no such fields
+\cbstart then applying the take operator is illegal. \cbend
+
+The operator \code{put (v,w)} is dual to the take operator, it produces the record type where at least the fields 
+\code{v} and \code{w} are \textit{not} taken, in addition to the fields that have not been taken in R.
+If the fields \code{v} and \code{w} are not taken in R, the compiler produces a warning. If R has no such fields
+\cbstart then applying the put operator is illegal.\cbend
+
+The operator \code{take ( .. )} produces a record type where all fields are taken, the operator \code{put ( .. )} 
+produces the record type where no field is taken. Applying it to a type which is not a (boxed or unboxed) record type
+is illegal.
+
+If a take or put operator is applied to a boxed record type the result is again boxed, if applied to an unboxed record type
+the result is unboxed.
+
+Consider the following examples:
+\begin{verbatim}
+  type A
+  type B
+  type C
+  type R1 = {fld1: A, fld2: U8, fld3: B, fld4: C}
+  type R2 = R1 take fld1
+  type R3 = R1 take ( .. )
+\end{verbatim}
+
+Types \code{R1, R2, R3} are all boxed and thus linear. The type expressions 
+\begin{verbatim}
+  R1 take (fld1, fld2)
+  R2 take (fld1, fld2)
+  R2 take fld2
+  R3 put (fld3, fld4)
+\end{verbatim}
+are all equivalent. The type expressions \code{R3 put ( .. )} and \code{R2 put ( .. )} are both equivalent to
+type \code{R1}.
+
+An unboxed record type without linear fields is regular. The same holds for unboxed partial record types if all
+linear fields are taken. Thus the additional linearity rules for partial record types are
+\begin{itemize}
+\item Partial boxed record types are linear.
+\item Partial unboxed record types are linear if they contain at least one nontaken field with a linear type.
+\end{itemize}
+
+\subsection{Readonly Types}
+
+Since the restrictions for using values of a linear type are rather strong, \cogent supports an additional kind
+of types, the \textit{readonly types}. The use of values of a readonly type is also restricted, however, in a
+different way: they can be used any number of times but they may not be modified. Again,
+the meaning of this is explained in Section~\ref{expr-usage}.
+
+\subsubsection{The bang Operator}
+
+All type expressions defined until now are not readonly. The only way to construct a readonly type is by applying
+the type operator \code{!}, which is pronounced ``bang''. This operator may be applied to an \textit{AtomType} 
+in postfix notation:
+
+\vspace{2ex}
+\indprod{TypeA2}{
+  AtomType
+
+  \code{\#} AtomType
+
+  AtomType \code{!}
+}
+
+By putting an arbitrary \textit{MonoType} in parentheses the bang operator can be applied to it.
+
+Readonly types are considered as an alternative to linear types, hence regular types are never readonly: If the 
+bang operator is applied to a regular type A the resulting type is equivalent to A. Only if the bang operator
+is applied to a linear type a readonly type may result.
+
+Unlike the unbox operator the bang operator also affects subexpressions such as record fields and abstract types. If in
+type A a field has type F then in type A! the same field has type F!. An exception are function types: if a bang
+operator is applied to a function type it is not applied to argument and result types. 
+As a result of this recursive application of the bang operator, it turns every linear type into a non-linear type. 
+
+\subsubsection{Escape-restricted Types}
+
+A concept related to readonly types are \textit{escape-restricted types}. A type is escape-restricted if it is readonly
+or if it has an escape-restricted component. This definition implies, that readonly types are always escape-restricted. The opposite
+is not true, there are escape-restricted types which are not readonly. An example is the type
+\begin{verbatim}
+  #{fld1: U8, fld2: {f1: U16}! }
+\end{verbatim}
+It is not readonly since the bang operator is not applied to it. However, it has the field \code{fld2}
+with a readonly type, therefore it is escape-restricted.
+
+We call a type which is not escape-restricted an ``escapable'' type.
+
+A linear type always is a boxed record or abstract type or it contains a component of such a type. When the bang
+operator is applied to the linear type, it will recursively be applied to that component, turning it into a 
+component of readonly type. Therefore, the result of applying the bang operator to a linear type will always
+be an escape-restricted type which is not linear.
+
+There are even types which are linear and escape-restricted, such as the boxed record type
+\begin{verbatim}
+  {fld1: U8, fld2: {f1: U16}! }
+\end{verbatim}
+or the unboxed record with a field of linear type and a field of readonly type:
+\begin{verbatim}
+  #{fld1: {f1: U16}, fld2: {f1: U16}! }
+\end{verbatim}
+
+If all escape-restricted fields are taken from a record, the resulting partial record type is escapable.
+An example is the type
+\begin{verbatim}
+  {fld1: U8, fld2: {f1: U16}! } take (fld2)
+\end{verbatim}
+
+As the other restricted types, escape-restricted types impose additional restrictions on the use of their values: they 
+may not ``escape'' from certain context. Again, the meaning of this is explained in Section~\ref{expr-usage}.
+
+Together we have the following properties for type expressions: A type expression can be regular or restricted. If it is restricted 
+it can be linear, escape-restricted, or both. A readonly type is always escape-restricted but never linear.
+
+\chapter{Working with Values}
+
+The main part of a \cogent program is usually about specifying values, typically the result values of functions, depending on argument values. 
+
+\section{Patterns}
+
+Functional programming languages typically use the concept of \textit{pattern matching}, which covers several concepts from imperative or 
+object oriented languages, such as binding values to variables, accessing components of a value, or testing for alternatives. In \cogent 
+patterns are the most important language construct for working with composite values.
+
+A pattern is a syntactical language construct which can be \textit{matched} against values. A pattern may contain \textit{variables}, 
+then matching it with a value has the effect of \textit{binding} the contained variables to components of the matched value. In \cogent, 
+\cbstart as \cbend in languages like Haskell or Scala, a variable may occur atmost once in a pattern. Hence it is not possible to construct patterns 
+which restrict matching values to have some parts which are equal to each other.
+
+A pattern \textit{conforms} to a type, if it matches at least one value of the type. A pattern can conform to several different types. 
+A pattern is \textit{irrefutable}, if it matches all values of all its conforming types. Irrefutable patterns cannot be used to discriminate 
+between different sets of values, they can only be used to bind contained variables. \cbstart If a pattern is matched
+against a value, the match must always be exhaustive, i.e. alternative patterns must be specified which together cover
+the value's type. \cbend
+
+The conforming types of a pattern can always be inferred from the syntactical structure of the pattern. Therefore type expressions are not
+needed as part of patterns.
+
+Syntactically, patterns may be put in parentheses for grouping:
+
+\vspace{2ex}
+\indprod{Pattern}{
+  \code{(} Pattern \code{)}
+  
+  \ldots
+}
+
+A pattern in parentheses is equivalent to the pattern itself.
+
+\subsection{Simple Patterns}
+
+The simplest patterns consist of only one part. They may be irrefutable or not.
+
+\subsubsection{Irrefutable Simple Patterns}
+
+A simple pattern can be a single variable or the special symbol \code{\_}, which is called the \textit{wildcard} pattern:
+
+\vspace{2ex}
+\indprod{Pattern}{
+  \code{(} Pattern \code{)}
+  
+  IrrefutablePattern
+
+  \ldots
+}
+
+\indprod{IrrefutablePattern}{
+  Variable 
+  
+  WildcardPattern
+  
+  \ldots
+}
+
+\indprod{Variable}{
+  LowercaseId
+}
+
+\indprod{WildcardPattern}{
+  \code{\_}
+}
+
+Both patterns conform to all types and are irrefutable, hence they match every possible value which may occur in \cogent. If a variable \code{x} 
+is matched with a value, the value is bound to \code{x}. This means that in a certain \textit{scope}, the value can be referenced by denoting 
+the variable \code{x}.
+
+The \textit{WildcardPattern} \code{\_} contains no variable, therefore no variable can be bound when the pattern is matched with a value. 
+The \textit{WildcardPattern} is used when, for some reason, a value must be matched with a pattern but need not be referenced afterwards.
+
+As for type and data constructors, the syntactically equal \textit{Variable}s, \textit{FieldName}s, and \textit{TypeVariables}
+constitute three different namespaces. The same lowercase identifier can be used to denote a term variable, a type variable, and
+a record field in the same context without imposing any relation among them.
+
+\subsubsection{Refutable Simple Patterns}
+
+Refutable simple patterns consist of a single literal:
+
+\vspace{2ex}
+\indprod{Pattern}{
+  \code{(} Pattern \code{)}
+  
+  IrrefutablePattern
+
+  LiteralPattern
+  
+  \ldots
+}
+
+\indprod{LiteralPattern}{
+  BooleanLiteral
+  
+  IntegerLiteral
+  
+  CharacterLiteral
+}
+
+A \textit{LiteralPattern} matches exactly one value, the value which is denoted by the literal. A \textit{BooleanLiteral}  conforms only to type
+\code{Bool}, a \textit{CharacterLiteral} conforms \cbstart only to type \code{U8}.\cbend
+
+An \textit{IntegerLiteral} conforms to every bitstring type which includes the value denoted by the literal. For example, the literal 100000 
+conforms to types \code{U32} and \code{U64} but not to \code{U16} or \code{U8}.
+
+Since a \textit{LiteralPattern} contains no variables, no variable can be bound when it is matched with a value. \textit{LiteralPattern}s are used 
+for discriminating the value from other values, not for binding variables.
+
+\cbstart
+Note that you cannot use a value bound to a variable like a literal in a pattern to match just that value. If a variable
+occurs in a pattern it is always used for a new binding which shadows any value already bound to it. In particular,
+this applies to variables bound in a topevel value definition (see Section~\ref{value-def}).
+\cbend
+
+\subsection{Composite Patterns}
+
+Composite patterns conform to composite types. However, there are no patterns which conform to function types.
+
+\subsubsection{Tuple Patterns}
+
+A tuple pattern is syntactically denoted by a tuple of patterns:
+
+\vspace{2ex}
+\indprod{IrrefutablePattern}{
+  Variable 
+  
+  WildcardPattern
+  
+  TuplePattern
+  
+  \ldots
+}
+
+\indprod{TuplePattern}{
+  \code{()}
+
+  \code{(} IrrefutablePattern \code{,} IrrefutablePattern \{\code{,} IrrefutablePattern\} \code{)}
+}
+
+The subpatterns in a tuple pattern must all be irrefutable. As a consequence, tuple patterns are also irrefutable.
+Even the tupel pattern \code{()} is irrefutable, although it matches only a single value. Since it conforms only to the
+unit type which has only this single value, it satisfies the requirements for an irrefutable pattern.
+
+Note that, as for tuple types, there is no tuple pattern with only one subpattern, the corresponding syntactical 
+construct like \code{(v)} is a pattern in parentheses and conforms to all types the inner pattern conforms to, not
+only to tuple types.
+
+A tuple pattern \code{(}$p_1$, \ldots, $p_n$\code{)} with $n \neq 1$ conforms to every tuple type with $n$ fields where each subpattern
+$p_i$ conforms to the type of the $i$th field. 
+
+%Since tuple types are right associative, the pattern also conforms to all
+%tuple types with more than $n$ fields, if the rightmost pattern $p_n$ conforms to the tuple type built from the remaining fields
+%starting with the $n$th field.
+
+If a tuple pattern is matched with a value, the subpatterns are matched with the corresponding fields of the value. 
+
+%If the value 
+%has more fields, subpattern $p_n$ is matched with the tuple of all remaining fields. 
+
+A useful case is a tuple pattern where all 
+subpatterns are (distinct) variables. Such a pattern can be used to bind all fields of a tuple value to variables for subsequent access.
+
+Here are some examples for tuple patterns:
+\begin{verbatim}
+  (v1, v2, v3)
+  (v1, (v21, v22), _)
+  ()
+\end{verbatim}
+The first pattern conforms to all tupel types with three fields. The second pattern conforms to all tuple types with
+three fields where the second field has a tuple type with two fields. The third pattern only conforms to the unit type.
+
+\subsubsection{Record Patterns}
+\label{pat-rec}
+
+Patterns for record values exist in two syntactical variants, depending on whether the record is boxed or unboxed:
+
+\vspace{2ex}
+\indprod{IrrefutablePattern}{
+  Variable 
+  
+  WildcardPattern
+
+  TuplePattern
+  
+  RecordPattern
+}
+
+\indprod{RecordPattern}{
+  Variable \code{\{} RecordMatchings \code{\}}
+  
+  \code{\#} \code{\{} RecordMatchings \code{\}}
+}
+
+The main part \textit{RecordMatchings} of a record pattern is used to match the fields and has the following syntax:
+
+\vspace{2ex}
+\indprod{RecordMatchings}{
+  \cbstart RecordMatching \{\code{,} RecordMatching\} \cbend
+
+  \cbdelete
+}
+
+\indprod{RecordMatching}{
+  FieldName [= IrrefutablePattern]
+}  
+
+The basic case is a sequence of field names with associated subpatterns, such as in 
+\begin{verbatim}
+  fld1 = v1, fld2 = (v21, v22), fld3 = _
+\end{verbatim}
+A record pattern with these \textit{RecordMatchings} conforms to all record types which have atleast three fields named
+\code{fld1}, \code{fld2}, and \code{fld3}, and where \code{fld2} has a tuple type with two fields. More general, a record pattern 
+where the \textit{RecordMatchings} consist of pairs of field names and subpatterns conforms to all record types which have atleast the named 
+(untaken) fields and every subpattern conforms to the corresponding field type. Since all subpatterns must be irrefutable, the record pattern 
+is irrefutable as well.
+
+A special application of a record pattern is to bind field values to local variables which have the same name as the field itself. The effect 
+is to make the fields of a record value locally accessible using their field names. This can be accomplished for a specific field by matching 
+a record pattern with a \textit{RecordMatching} of the form \code{fldi = fldi}. Such a \textit{RecordMatching} can be abbreviated by simply 
+specifying the field name alone: \code{fldi}, for example in the \textit{RecordMatchings}
+\begin{verbatim}
+  fld1, fld2 = (v21, v22), fld3, fld4
+\end{verbatim}
+Note that since the field name as a variable conforms to all types, the corresponding record patterns conform to all record types which have a 
+(untaken) field named \code{fldi}, irrespective of the field type.
+
+\cbdelete
+
+A record pattern starting with \code{\#} conforms only to unboxed record types. When matched with a value, \cbstart for every 
+field according to the value's type a subpattern must be present in the 
+\textit{RecordMatchings} and is matched to the corresponding field value. \cbend
+
+A record pattern starting with a \textit{Variable} conforms \cbstart to boxed and unboxed record types.\cbend 
+When matched with a value this variable is bound to the 
+remaining record after matching the subpatterns in the \textit{RecordMatchings}. 
+This ``remaining'' record has as its type the type of the 
+matched value with all fields taken which are matched in the \textit{RecordMatchings}. \cbstart Matching
+a pattern of this kind with a value is called a ``take operation''. \cbend
+
+The rationale for this is that boxed record types are 
+linear and their values must be used exactly once. Matching only some fields would only use these 
+fields and not the rest, which is not allowed. 
+Hence the remaining record must also be matched so that it can be used as well. 
+Even when all linear fields are matched the remaining 
+record itself is still linear and must be preserved.
+
+\cbstart
+If value \code{val} has type 
+\begin{verbatim}
+  {fld1: U8, fld2: U16, fld3: U32}
+\end{verbatim}
+an example take operation would be to match the pattern 
+\begin{verbatim}
+  v {fld1 = v1, fld3 = v3}
+\end{verbatim}
+with \code{val}. This will bind \code{v1} to the value of the first field, \code{v3} to the value of the
+third field, and \code{v} to the remaining record of type
+\begin{verbatim}
+  {fld1: U8, fld2: U16, fld3: U32} take (fld1,fld3)
+\end{verbatim}
+where only the second field is still present.
+\cbend
+
+Although the ordering of fields is relevant in a record type expressionm, it is irrelevant in a record pattern. 
+Therefore the record pattern
+\code{\#\{fld1 = v1, fld2 = v2\}} conforms to the types
+\cbstart
+\begin{verbatim}
+  #{fld1: U8, fld2: U16}
+  #{fld2: U32, fld1: U32}
+\end{verbatim}
+and all other unboxed record types which have two fields named \code{fld1} and \code{fld2}.\cbend
+
+\cbstart
+When a field of non-linear type is taken from a (boxed or unboxed) record value, a copy of it could remain
+in the record and could be taken again. \cogent does not allow this, non-linear fields can also be taken
+only once. This way it is possible to represent uninitialized fields in a record by specifying the record 
+type with the corresponding fields being taken.
+\cbend
+
+\subsubsection{Variant Patterns}
+
+A variant pattern consists of a data constructor and a subpattern for every value in the corresponding variant:
+
+\vspace{2ex}
+\indprod{Pattern}{
+  \code{(} Pattern \code{)}
+  
+  IrrefutablePattern
+
+  LiteralPattern
+  
+  VariantPattern
+}
+
+\indprod{VariantPattern}{
+  \cbstart DataConstructor \{IrrefutablePattern\}\cbend
+}
+
+A variant pattern conforms to every variant type which has atleast a variant with the \textit{DataConstructor} as its tag. Although a variant 
+pattern matches all values of the type having only that variant, this is not true for all other conforming types. For those types the pattern 
+only matches the subset of value sequences which have been constructed with the \textit{DataConstructor} as its discriminating tag. Therefore variant 
+patterns are always refutable. \cbstart As usual, when matched with a value, the match must be exhaustive, specifying
+a pattern for every variant. \cbend
+
+\cbstart
+When a variant pattern is (successfully) matched with a value, the subpatterns are matched with the remaining values after removing the discriminating tag.
+\cbend
+
+The following is an exmple for a variant pattern:
+\cbstart
+\begin{verbatim}
+  TwoDim x, y
+\end{verbatim}
+\cbend
+It conforms, e.g., to the variant type 
+\cbstart
+\begin{verbatim}
+  <TwoDim U32 U32 | ThreeDim U32 U32 U32>
+\end{verbatim}
+and generally to every type with a variant tagged with \code{TwoDim} and having two values. When it is matched 
+with a value tagged with \code{TwoDim} the first value is bound to \code{x} and the second value is bound to \code{y}.
+\cbend
+
+\section{Expressions}
+
+As usual in programming languages, an \textit{expression} denotes a way how to calculate a value. The actual calculation of a value according 
+to an expression is called an \textit{evaluation} of the expression. Since an expression may contain variables which are not bound in the expression 
+itself (``free variables''), the value obtained by evaluating an expression may depend on the context in which the free variables are bound.
+
+Usually, when an expression occurs in a \cogent program, a type may be \textit{inferred} for it. There are several ways to infer an expression's type.
+The most basic way is to infer its type from its syntactical structure, although there are cases where that is not possible.
+\cbdelete If an expression has an
+inferred type, the value resulting from evaluating the expression always belongs to this type.
+
+The general syntactical levels of expressions are as follows:
+
+\vspace{2ex}
+\indprod{Expression}{
+  BasicExpression
+
+  \ldots
+}
+
+\indprod{BasicExpression}{
+  BasExpr
+  
+  \ldots
+}
+
+\indprod{BasExpr}{
+  Term
+  
+  \ldots
+}
+
+\indprod{Term}{
+  \code{(} Expression \code{)}
+  
+  \ldots
+}
+
+Every \textit{Expression} can be used wherever a \textit{Term} is allowed by putting it in parentheses.
+
+\subsection{Terms}
+
+The simplest expressions are called \textit{terms}. A term specifies a value directly or, for a composite value, by specifying its parts. 
+
+A term can be a single variable, denoting the value which has been bound to the variable in the context. 
+
+\vspace{2ex}
+\indprod{Term}{
+  \code{(} Expression \code{)}
+  
+  Variable
+
+  \ldots
+}
+
+From the variable alone no type can be inferred. However, a type may be inferred when the variable is bound. Then this type is 
+also inferred for every occurence of the variable as a term in its scope.
+
+\subsubsection{Literal Terms}
+
+Terms for values of primitive types are simply the literals:
+
+\vspace{2ex}
+\indprod{Term}{
+  \code{(} Expression \code{)}
+  
+  Variable
+
+  LiteralTerm
+  
+  \ldots
+}
+
+\indprod{LiteralTerm}{
+  BooleanLiteral
+  
+  IntegerLiteral
+  
+  CharacterLiteral
+  
+  StringLiteral
+}
+
+The inferred type for a \textit{BooleanLiteral}, a \textit{CharacterLiteral}, or a \textit{StringLiteral} is \code{Bool},
+\code{U8}, or \code{String}, respectively.
+The inferred type for a \textit{IntegerLiteral} is the smallest bitstring type covering the value, thus the literal 
+\code{200} has inferred type \code{U8}, whereas the literal \code{300} has inferred type \code{U16} and \code{100000} has 
+inferred type \code{U32}.
+
+\subsubsection{Terms for Tuple Values}
+
+Terms for tuple values are written as in most other programming languages supporting tuples:
+
+\vspace{2ex}
+\indprod{Term}{
+  \code{(} Expression \code{)}
+  
+  Variable
+
+  LiteralTerm
+  
+  TupleTerm
+  
+  \ldots
+}
+
+\indprod{TupleTerm}{
+  \code{()}
+  
+  \code{(} Expression \code{,} Expression \{\code{,} Expression\} \code{)}
+}
+
+Again, as for tuple types and patterns, a single \textit{Expression} in parentheses is not a tuple term but
+is only syntactically grouped.
+
+An example tuple term is
+\begin{verbatim}
+  (15, 'x', 42, ("hello", 1024))
+\end{verbatim}
+which specifies 4 subexpressions for the fields, separated by commas.
+
+The type inferred from the structure of a tuple term is the tuple type with the same number of fields as are present in the term, where
+the field types are the types inferred for the subexpressions. If one of the subexpressions does not have an
+inferred type then no type can be inferred from the tuple term's structure.
+
+%Since tuple types are right associative, the same holds for the tuple terms. Hence, the example term is equivalent
+%to the terms
+%\begin{verbatim}
+%  (15, 'x', 42, "hello", 1024)
+%  (15, ('x', (42, ("hello", (1024)))))
+%\end{verbatim}
+%but not to the term
+%\begin{verbatim}
+%  (15, ('x', 42), "hello", 1024)
+%\end{verbatim}
+
+\subsubsection{Terms for Record Values}
+
+\cogent only suppoprts terms for unboxed record values. Boxed record values cannot be specified directly, they must
+always be created externally in a C program part and passed to \cogent as (part of) a function argument or result.
+
+The syntax for terms for unboxed values specifies all field values together with the field names:
+
+\vspace{2ex}
+\indprod{Term}{
+  \code{(} Expression \code{)}
+  
+  Variable
+
+  LiteralTerm
+  
+  TupleTerm
+  
+  RecordTerm
+  
+  \ldots
+}
+
+\indprod{RecordTerm}{
+  \code{\#} \code{\{} RecordAssignments \code{\}}
+}
+
+\indprod{RecordAssignments}{
+  RecordAssignment \{\code{,} RecordAssignment\}
+}
+
+\indprod{RecordAssignment}{
+  FieldName [\code{=} Expression]
+}
+
+An example is the record term
+\begin{verbatim}
+  #{fld1 = 15, fld2 = 'x', fld3 = 42, fld4 = ("hello", 1024)}
+\end{verbatim}
+which specifies 4 subexpressions for the fields, separated by commas. The field names must be pairwise different.
+As for record types, but other than for record patterns, the order of the field specifications is significant. Hence
+the term 
+\begin{verbatim}
+  #{fld2 = 'x', fld3 = 42, fld1 = 15, fld4 = ("hello", 1024)}
+\end{verbatim}
+evaluates to a different value than the first example term.
+
+The type inferred from a record type's structure is the unboxed record type with the same number of fields in the same order 
+as are present in the expression, named according to the names given in the term. The field types are the types inferred
+for the subexpressions. If a subexpression has no inferred type, no type can be inferred from the record term's structure.
+
+\subsubsection{Terms for Values of Variant Types}
+
+A term for a value of a variant type specifies the discriminating tag and the actual \cbstart values:\cbend
+
+\vspace{2ex}
+\indprod{Term}{
+  \code{(} Expression \code{)}
+  
+  Variable
+
+  LiteralTerm
+  
+  TupleTerm
+  
+  RecordTerm
+
+  VariantTerm
+  
+  \ldots
+}
+
+\indprod{VariantTerm}{
+  \cbstart DataConstructor \{Term\}\cbend
+}
+
+Examples for such terms are
+\cbstart
+\begin{verbatim}
+  Small 42
+  TwoDim 3 15
+\end{verbatim}
+\cbend
+
+For a \textit{VariantTerm} it is not possible to infer a type from its structure, since there may be several 
+variant types using the same \textit{DataConstructor}. The \cogent compiler even does not infer the type if there
+is only one variant type using the \textit{DataConstructor} as tag.
+
+\subsubsection{Terms for Values of Function Types}
+\label{term-lambda}
+
+A term for a value of a function type is, as usual, called a \textit{lambda expression}. Often in other programming languages, a lambda
+expression consists of a body expression and a variable for every argument. In \cogent all functions take only one
+argument, therefore only one variable is needed. However, more general than a variable, an irrefutable pattern may be 
+used. Every application of such a function is evaluated by first matching the pattern against the argument value,
+thus binding all variables contained in the pattern. Then the body expression is evaluated in the context of
+the bound variables to yield the result.
+
+The syntax for lambda expressions is:
+
+\vspace{2ex}
+\indprod{Term}{
+  \code{(} Expression \code{)}
+  
+  Variable
+
+  LiteralTerm
+  
+  TupleTerm
+  
+  RecordTerm
+
+  VariantTerm
+  
+  LambdaTerm
+  
+  \ldots
+}
+
+\indprod{LambdaTerm}{
+  \code{$\backslash$} IrrefutablePattern [\code{:} MonoType] \code{=>} Expression
+}
+
+Optionally, the argument type may be specified explicitly after the pattern. If no unique conforming type can be inferred for
+the pattern, the argument type is mandatory.
+
+Examples for lambda terms are
+\cbstart
+\begin{verbatim}
+  \x => (x,x)
+  \(x,y,z) (U8, U8, Bool) => #{fld1 = y, fld2 = (x,z)}
+  \(x,y) : (U32,U32) => TwoDim y x
+\end{verbatim}
+\cbend
+In the first case the argument type must be known from the context by knowing an inferred type for the lambda term,
+for example the type \code{U8 -> (U8,U8)}. In the third case the result type must be known from the context by knowing
+an inferred type for the lambda term, for example the type 
+\cbstart
+\begin{verbatim}
+  (U32,U32) -> <TwoDim U32 U32 | Error U8>
+\end{verbatim}
+\cbend
+
+The body expression in a lambda term is restricted to not contain any free non-global variables. Non-global variables
+are variables bound by pattern matching in contrast to \textit{global} variables which are bound by a toplevel definition
+(see Section~\ref{toplevel-def}).
+
+If the body expression of a lambda term has inferred type T2 and the argument type is explicitly specified as T1 then
+the type inferred from the structure of the \textit{LambdaTerm} is T1 \code{->} T2.
+
+\subsection{Basic Expressions}
+
+Basic expressions are constructed from terms in several ways, which all correspond semantically to a function application.
+
+\subsubsection{Plain Function Application}
+
+As is typical for functional programming languages, a value in \cogent can be a function and it can be applied to arguments.
+
+As we have seen with function types, in \cogent all functions have only one argument. Hence, an expression for a function application 
+consists of a term for the function and a second term for the argument:
+
+\vspace{2ex}
+\indprod{BasExpr}{
+  Term
+  
+  FunctionApplication
+  
+  \ldots
+}
+
+\indprod{FunctionApplication}{
+  BasExpr BasExpr
+}
+
+The argument Expression is simply put after the Expression for the function. This is common in functional programming languages, whereas in
+imperative and object oriented languages (and in mathematics) the argument is usually put in parantheses like in $f(x)$. In Cogent
+this is allowed, since a \textit{BasExpr} may be an expression in parentheses, but it is not necessary.
+
+The syntax here is ambiguous. Several \textit{BasExpr} in a row are interpreted as left associative. Therefore the following
+two \textit{BasExpr} are equivalent:
+\begin{verbatim}
+  f 42 17 4
+  ((f 42) 17) 4
+\end{verbatim}
+
+If the first \textit{BasExpr} in a \textit{FunctionApplication} has an inferred type it must be a function type T1 \code{->} T2.
+If the second \textit{BasExpr} has an inferred type it must be equal to T1. The type inferred from the \textit{FunctionApplication}'s
+structure is type T2.
+
+As an example, if the variable \code{f} is bound to a function of type \code{U8 -> U16} then the basic expression
+\begin{verbatim}
+  f 42
+\end{verbatim}
+is a \textit{FunctionApplication} with a result of type \code{U16}.
+
+\subsubsection{Operator Application}
+
+In \cogent there is a fixed set of predefined functions. These functions are denoted by \textit{operator symbols} which are syntactically
+different from variables. In contrast to normal functions, predefined functions may be binary, i.e. take two arguments. Binary 
+operator applications are written in infix notation:
+
+\vspace{2ex}
+\indprod{BasExpr}{
+  Term
+  
+  FunctionApplication
+
+  OperatorApplication
+  
+  \ldots
+}
+
+\indprod{OperatorApplication}{
+  UnaryOP BasExpr
+  
+  BasExpr BinaryOp BasExpr
+}
+
+\indselprod{UnaryOp}{
+  \code{upcast complement not}
+}
+
+\indselprod{BinaryOp}{
+  \cbstart \code{o * / \% + - >= > == /= < <= .\&. .\^{}. .|. >{}> <{}< \&\& || \$} \cbend
+}
+
+As usual in most programming languages, the syntax here is ambiguous and operator precedence rules are used
+for disambiguation. The precedence levels ordered from stronger to weaker binding are:
+\cbstart
+\begin{verbatim}
+  upcast complement not <plain function application>
+  o
+  * / %
+  + -
+  < > <= >= == /=
+  .&.
+  .^.
+  .|.
+  << >>
+  &&
+  ||
+  $
+\end{verbatim}
+\cbend
+Note that plain function application is treated like a binary invisible operator, where the first argument is the 
+applied function and the second argument is the argument to which the function is applied. 
+
+When binary operators on the same level are combined they are usually left associative, with the exception of 
+\cbstart \code{o}, \code{\&\&}, \code{||} and \code{\$} \cbend which are right associative and \code{<, >, <=, >=, ==, /=} which 
+cannot be combined.
+
+\todo{describe all operation semantics and inferred types}
+
+\subsubsection{Put Expressions}
+\label{expr-put}
+
+A common function used in functional programming languages is the record update function. It takes a record
+value and returns a new record value where one or more field values differ. In \cogent the 
+application of this function is restricted: if a field has a linear type, it cannot be replaced, since then
+its old value would be discarded without being used. In this case the field can only be replaced, when
+it has been taken in the old value. For this reason the record update function is called the ``put function''
+in \cogent. For non-linear fields the put function may either put a value into a taken field or replace
+the value of an untaken field.
+
+\cogent supports a \textit{PutExpression} as specific syntax for applying the put function. It specifies the old record value and 
+a sequence of new field values together with the corresponding field names:
+
+\vspace{2ex}
+\indprod{BasExpr}{
+  Term
+  
+  FunctionApplication
+
+  OperatorApplication
+  
+  PutExpression
+  
+  \ldots
+}
+
+\indprod{PutExpression}{
+  BasExpr \{ RecordAssignments \}
+}
+
+As an operator the \textit{RecordAssignments} have the same precedence as plain function application and the unary operators.
+
+If a type T is inferred for the leading \textit{BasExpr} in a \textit{PutExpression}, T must satisfy the following conditions: it must
+be a (boxed or unboxed) record type having all fields occuring in the \textit{RecordAssignments}. If such a field has
+a linear type it must be taken in T. The type inferred from the structure of the \textit{PutExpression} then is\\
+\hspace*{1cm} T \code{put} \code{(}fld1\code{,}\ldots\code{,}fldn\code{)}\\
+where fld1,\ldots,fldn are all fields occurring in the \textit{RecordAssignments}.
+
+Unlike in a record term, the field order in a \textit{PutExpression} is not significant.
+
+If the variable \code{r} is bound to a value of type \code{R} where
+\begin{verbatim}
+  typedef A
+  typedef R = {fld1: A, fld2: U32, fld3: (Bool,U8), fld4: A} 
+              take (fld3,fld4)
+\end{verbatim}
+and variable \code{a} is bound to a value of type \code{A}, then the following are valid put expressions:
+\begin{verbatim}
+  r {fld2 = 55, fld3 = (True, 17)}
+  r {fld4 = a, fld2 = 10000}
+\end{verbatim}
+The first expression has inferred type \code{R put (fld2,fld3)} which is equal to the type
+\begin{verbatim}
+  {fld1: A, fld2: U32, fld3: (Bool,U8), fld4: A} take (fld4)
+\end{verbatim}
+The expression \code{r \{fld1 = a\}} is invalid since field \code{fld1} is untaken and has linear type.
+
+\subsubsection{Member Access}
+
+A second function commonly provided for records is \textit{member access} or projection, often denoted by a separating dot
+in programming languages. \cogent provides the same syntax for member access:
+
+\vspace{2ex}
+\indprod{BasExpr}{
+  Term
+  
+  FunctionApplication
+
+  OperatorApplication
+  
+  PutExpression
+  
+  MemberAccess
+}
+
+\indprod{MemberAccess}{
+  BasExpr \code{.} FieldName
+}
+
+Here, the \textit{BasExpr} specifies the record value and the \textit{FieldName} specifies the name of the field to be accessed.
+As an operator, the dot in a \textit{MemberAccess} has the highest precedence, higher than the unary operators.
+
+Again, in \cogent the use of member access is restricted. The type inferred for the leading \textit{BasExpr} in a \textit{MemberAccess}
+must be either an unboxed record type or a readonly boxed record type. Then it is possible to use the value of only one field
+without caring about the other fields. Moreover, also the type of the accessed field must be non-linear, since
+in addition to being accessed, its value also remains in the record, hence it could be used twice.
+
+The type inferred from the \textit{MemberAccess} expression structure is the type of the field named by the \textit{FieldName}.
+
+If types \code{A} and \code{R} are defined as in Section~\ref{expr-put} and \code{r} is bound to a value of type \code{R!}
+then the basic expression \code{r.fld2} is a valid \textit{MemberAccess}. The basic expression
+\code{r.fld3} is invalid since field \code{fld3} is taken in \code{R!}, the basic expression 
+\code{r.fld1} is valid since field \code{fld1} has type \code{A!} in \code{R!} (due to recursive application of the bang operator).
+If \code{r} is bound to a value
+of type \code{R} then also the basic expression \code{r.fld2} is invalid since type \code{R} is linear.
+
+\subsection{General Expressions}
+
+In \cogent the most general concept for specifying a calculation as an expression is \textit{matching}. All other
+forms of general expressions can be understood as specific variants of matching.
+
+\subsubsection{Matching Expressions}
+
+A \textit{MatchingExpression} matches a value against one (irrefutable) pattern or several (refutable) patterns.
+For every pattern a subexpression is specified for the result:
+
+\vspace{2ex}
+\indprod{Expression}{
+  BasicExpression
+
+  MatchingExpression
+  
+  \ldots
+}
+
+\indprod{MatchingExpression}{
+  ObservableBasicExpression Alternative \{Alternative\}
+}
+
+\indprod{ObservableBasicExpression}{
+  BasicExpression
+  
+  \ldots
+}
+
+\indprod{Alternative}{
+  \code{|} Pattern PArr Expression
+}
+
+\indselprod{PArr}{
+  \code{->} \code{=>} \code{\~{}>}
+}
+
+All \textit{Expression}s in the \textit{Alternative}s must have equal inferred types, this is also the
+type inferred from the \textit{MatchingExpression}'s structure.
+
+For every \textit{Alternative} the \textit{Expression} is called the \textit{scope} of the variables occurring in 
+the \textit{Pattern}.
+
+All \textit{Pattern}s in the \textit{Alternative}s must conform to the type T inferred for the leading expression.
+The \textit{Pattern}s together must be exhaustive for T, that means, every value of type T must match one of them. This
+may be accomplished by using an exhaustive set of refutable patterns, such as one for every variant in a variant type,
+or by optionally specifying some refutable patterns followed by a final alternative with an irrefutable pattern.
+
+\cbstart
+The order in which alternatives are specified is irrelevant. The pattern syntax in \cogent 
+guarantees that different refutable patterns cannot partially overlap, i.e. the sets of matching values
+are disjunct or equal. Moreover, a refutable pattern may be specified in at most one alternative. Together,
+every value matches at most one of the refutable patterns, there is no need to resolve conflicts.
+An irrefutable pattern is only used when no refutable pattern matches.
+\cbend
+
+If the variable \code{x} is bound to a value of type \code{U8} an example for a \textit{MatchingExpression} is
+\begin{verbatim}
+  x + 7 | 20 -> "too much"
+        | 10 -> "too few"
+        | _  -> "unknown"
+\end{verbatim}
+It has the inferred type \code{String}.
+
+If the variable \code{v} is bound to a value of the variant type
+\cbstart
+\begin{verbatim}
+  < TwoDim U32 U32 | ThreeDim U32 U32 U32 | Error U8 >
+\end{verbatim}
+\cbend
+then the following is a valid \textit{MatchingExpression} with inferred type \code{U32}:
+\cbstart
+\begin{verbatim}
+  v | TwoDim x y -> x+y
+    | ThreeDim x y z -> x+y+z
+    | Error code -> 0
+\end{verbatim}
+\cbend
+whereas
+\cbstart
+\begin{verbatim}
+  v | TwoDim x y -> x+y
+    | ThreeDim x y z -> x+y+z
+\end{verbatim}
+\cbend
+is invalid since it is not exhaustive for the type of \code{v}.
+
+\todo{Using layout for Alternative grouping}
+
+\cbstart
+Alternatively to the separator \code{->} the separators \code{=>} and \code{\~{}>} can be used in an \textit{Alternative}.
+Semantically they have the same meaning, however they may allow for some code optimization when the first is used for 
+``likely'' alternatives and the second for ``unlikely'' alternatives.
+\cbend
+
+\subsubsection{Binding Variables}
+\label{expr-let}
+
+If the only intention for using a \textit{MatchingExpression} is binding variables, the simpler \textit{LetExpression}
+syntax can be used:
+
+\vspace{2ex}
+\indprod{Expression}{
+  BasicExpression
+
+  MatchingExpression
+  
+  LetExpression
+  
+  \ldots
+}
+
+\indprod{LetExpression}{
+  \code{let} Binding \{\code{and} Binding\} \code{in} Expression
+}
+
+\indprod{Binding}{
+  IrrefutablePattern [\code{:} MonoType] = ObservableExpression
+}
+
+\indprod{ObservableExpression}{
+  Expression
+  
+  \ldots
+}
+
+A simple \textit{LetExpression} is equivalent to a \textit{MatchingExpression} with one \textit{Alternative}:\\
+\hspace*{1cm} \code{let} IP \code{=} E \code{in} F\\
+is semantically equivalent with\\
+\hspace*{1cm} E \code{|} IP \code{->} F
+
+From this it follows that pattern IP must conform to the type inferred for E and the type inferred
+from the \textit{LetExpression}'s structure is that inferred for F. The expression F is also called the ``body'' of the
+\textit{LetExpression}, it is the scope of the variables in IP.
+
+The \textit{LetExpression}
+\begin{verbatim}
+  let x = y + 5 in (True, x)
+\end{verbatim}
+binds the variable \code{x} to the result of evaluating the expression \code{y + 5} and evaluates to a tuple
+where the bound value is used as the second field value. The tuple expression is the scope of variable \code{x}.
+
+If types \code{A} and \code{R} are defined as in Section~\ref{expr-put} and \code{r} is bound to a value of type \code{R}
+then the \textit{LetExpression}
+\begin{verbatim}
+  let s {fld1 = x, fld2} = r in (x, fld2 + 5, s)
+\end{verbatim}
+binds the variables \code{s}, \code{x}, and \code{fld2} by matching the pattern against the value bound to \code{r}
+as described in Section~\ref{pat-rec}. Then it uses them in their scope which is a tuple term. 
+The type inferred for the \textit{LetExpression} is
+\begin{verbatim}
+  (A, U32, R take (fld1, fld2))
+\end{verbatim}
+
+In a \textit{Binding} optionally a \textit{MonoType} may be specified:\\
+\hspace*{1cm} IP \code{:} T \code{=} E\\
+If neither for E nor the pattern IP a type can be inferred the type specification is mandatory.
+
+\cbstart If E is an \textit{IntegerLiteral} of type U \cbend and T is a bitstring type which is a superset of U then 
+the value of E is automatically widened to type T before matching it against IP. Therefore the \textit{LetExpression}
+\begin{verbatim}
+  let x: U32 = 5 in (True, x)
+\end{verbatim}
+has inferred type \code{(Bool, U32)}, although the literal \code{5} has type \code{U8}.
+
+A \textit{LetExpression} of the form\\
+  \hspace*{1cm} \code{let} B1 \code{and} B2 \code{in} F\\
+is simply an abbreviation for the nested \textit{LetExpression}\\
+  \hspace*{1cm} \code{let} B1 \code{in} \code{let} B2 \code{in} F
+
+A \textit{LetExpression} which uses the wildcard pattern\\
+  \hspace*{1cm} \code{let} \code{\_} \code{=} E \code{in} F\\
+can be abbreviated to\\
+  \hspace*{1cm} E \code{;} F\\
+using the following syntax:
+
+\vspace{2ex}
+\indprod{BasicExpression}{
+  BasExpr
+  
+  BasExpr \code{;} Expression
+}
+
+Since a \textit{LetExpression} is only used to bind variables occurring in the pattern and there
+is no variable in the wildcard pattern this case seems to be useless. Its only use is when
+expression E has side effects. Note that functions which are completely defined in \cogent do
+not have side effects, however, functions defined externally can have side effects.
+
+An example usage whould be an externally defined function of type \code{String -> ()} which is
+bound to the variable \code{print} and prints its \textit{String} argument to a display. Then 
+the expression 
+\cbstart
+\begin{verbatim}
+  v | TwoDim x y -> print "flat"; x+y
+    | ThreeDim x y z -> print "space"; x+y+z
+    | Error code -> print "crash"; 0
+\end{verbatim}
+\cbend
+would print one of the strings to the display whenever it is evaluated.
+
+\subsubsection{Conditional Expressions}
+
+If the only intention for using a \textit{MatchingExpression} is discrimination between two cases
+the \textit{ConditionalExpression} can be used which is nearly omnipresent in programming languages.
+It has the usual syntax:
+
+\vspace{2ex}
+\indprod{Expression}{
+  BasicExpression
+
+  MatchingExpression
+  
+  LetExpression
+  
+  ConditionalExpression
+}
+
+\indprod{ConditionalExpression}{
+  \code{if} ObservableExpression \code{then} Expression \code{else} Expression
+}
+
+The \textit{ConditionalExpression}\\
+  \hspace*{1cm} \code{if} C \code{then} E \code{else} F\\
+is equivalent to the \textit{MatchingExpression} \cbstart
+\begin{tabbing}
+  \hspace*{1cm} C \= \code{|} \code{True} \code{->} E \\
+                  \> \code{|} \code{False} \code{->} F
+\end{tabbing} 
+\cbend From this it follows that C must have the inferred type \code{Bool} and E and F must have the same inferred type 
+which is the type inferred from the \textit{ConditionalExpression}'s structure.
+
+If a \textit{MatchingExpression} discriminates among more than two cases, as usual
+a nested \textit{ConditionalExpression} can be used instead. 
+
+\todo{Using layout to disambiguate nested ConditionalExpressions}
+
+An example for a \textit{ConditionalExpression} is
+\begin{verbatim}
+  if x > 5 then (True, "sufficient") else (False, "insufficient)
+\end{verbatim}
+It has the inferred type \code{(Bool, String)}.
+
+\subsubsection{Observing Variables}
+
+At some places variables can be ``observed'' in an expression. Observing a variable means replacing its bound
+value with a copy of readonly type. Observing variables is the only way how values of readonly types can be
+produced in \cogent.
+
+When a variable should be observed, an expression must be specified as scope of the observation. The readonly
+value may be freely used in this scope, but it may not escape from it. Syntactically, an expression which may 
+be the scope of a variable observation is called an \textit{observable expression}.
+The syntax for variable observation is as follows:
+
+\vspace{2ex}
+\indprod{ObservableBasicExpression}{
+  BasicExpression
+  
+  BasicExpression \{\code{!} Variable\}
+}
+
+\indprod{ObservableExpression}{
+  Expression
+  
+  Expression \{\code{!} Variable\}
+}
+
+In both cases one or more observed variables are specified at the \textit{end} of the observation scope
+using the ``bang'' operator as a prefix. Examples for \textit{ObservableExpression}s are
+\begin{verbatim}
+  if isok #{fld1=x, fld2=x, fld3=z} then 5 else 0 !x !y
+  let v1 = x and v2 = x and v3 = z in (1, 2, 3) !x !z
+\end{verbatim}
+
+If there is at least one banged variable in an observable expression, then the inferred type of the scope
+may not be an escape-restricted type. 
+
+The \textit{ObservableExpression}\\
+\hspace*{1cm} E \code{!}V\\
+is conceptually equivalent to a \textit{LetExpression} of the form\\
+\hspace*{1cm} \code{let} V \code{=} \code{readonly} V \code{in} E\\
+where \code{readonly} would be an operator which produces a readonly copy from a value. An important effect of
+this form is that the variable used for the readonly copy has the same name as the variable containing the original
+value. Therefore the former variable shadows the latter in its scope, making the original value unaccessible there.
+
+The operator \code{readonly} does not actually exist in \cogent, hence expressions of the second form cannot be used
+to bind readonly copies. This guarantees that the variable for the readonly copy \textit{always} shadows the
+original value in its scope.
+
+Observable expressions may only occur in three places: As the leading expression in a \textit{MatchingExpression} and 
+in the corresponding position in the more specific forms, which is the right-hand side of a \textit{Binding} in a 
+\textit{LetExpression} and the condition in a \textit{ConditionalExpression}. 
+
+\section{Expression Usage Rules}
+\label{expr-usage}
+
+\cogent's linear type system implies additional restrictions on expression usage over the usual restriction that
+the type of a function argument must be compatible to the parameter type. The additional rules are described in 
+this section.
+
+\subsection{Using Values of Linear Types}
+
+The basic rule for linear types is that their values must be used exactly once. For observing this rule it must 
+be specified in more detail, what it means to use a value.
+
+\subsubsection{Sharing a Value}
+
+In a \cogent program, values are always denoted by expressions. If an expression is a \textit{Term} for a tuple, a record,
+or a variant type, or if it is a \textit{BasExpr} representing the application of a function or operator, or if it is
+a \textit{MatchingExpression} or one of its specific variants, the value is created by evaluating the expression. Then
+it can only be used atmost once: at the position where the expression syntactically occurs in the program. In the remaining
+cases the expression is either a single variable or a \textit{MemberAccess} (values of literals are never linear). 
+A value 
+bound to a variable can be used more than once: it is used at all places where it is referenced by
+the variable name in its scope. The value of a record field can be used more than once by accessing the field
+several times. In both cases we say the value may be ``shared''.
+
+When a record field is accessed its value is not taken from the record, hence it is already shared between the record
+and the access result upon a single member access. As a consequence, record fields of linear type may not be accessed
+using a \textit{MemberAccess} expression.
+
+Hence the rule for using values of linear types not more than once is only relevant for variables: 
+if a variable has a 
+bound value of a linear type, the value must be used atmost once by referencing it, it may not be shared. However, 
+as can be seen for the variable \code{v} in the example
+\begin{verbatim}
+  if x == 5 then f v else g v
+\end{verbatim}
+the number of uses of the value is not simply the number of occurrences of the variable name in its scope. \cbstart Instead,
+the rule is that a variable of linear type must occur atmost once in all possible paths of an execution. Thus,
+for a \textit{ConditionalExpression} it must either occur once in the condition, or in each branch. For
+a \textit{MatchingExpression} it must either occur once in the leading 
+\textit{ObservableBasicExpression}, or in each \textit{Alternative}.
+
+Note that the field names in a \textit{RecordTerm}, a \textit{PutExpression}, a \textit{RecordPattern} or a
+\textit{MemberAccess} are irrelevant, even if a field is present with the same name as the variable. Moreover,
+only free occurrences count. If a variable of the same name is bound in the scope, the binding and its usages
+are irrelevant for the original variable. Variables are bound by \textit{LetExpression}s, 
+\textit{ObservableExpression}s, \textit{ObservableBasicExpression}s, and \textit{LambdaTerm}s.
+\cbend
+
+\subsubsection{Discarding a Value}
+
+\cbstart
+If a variable is never used in its scope its value is ``discarded''. Values of linear type
+may not be discarded. This is guaranteed for values bound to a variable, if it is used in every possible path of 
+execution. 
+\cbend
+
+Although the value of an expression other than a variable or member access cannot be used more than once, it can be discarded
+by matching the expression with a pattern other than a variable or a boxed record pattern. In the case of the wildcard pattern 
+as in
+\begin{verbatim}
+  let _ = someExpression
+\end{verbatim}
+the expression \code{someExpression} may have a linear type, then this matching would be illegal. In the case of a 
+\textit{LiteralPattern} the expression must always have a primitive type which is never linear. The same holds for an expression
+which occurs as condition in a \textit{ConditionalExpression}. 
+
+In the case of a 
+\textit{TuplePattern}, a \textit{VariantPattern} or an unboxed \textit{RecordPattern} the expression only has a linear
+type if it has components of a linear type. Then it is no problem to discard the value as long as no component of a 
+linear type is discarded, as in 
+\cbstart
+\begin{verbatim}
+  let (a, #{fld1= _, fld2=b}, c) = someExpression
+\end{verbatim}
+\cbend
+In this case the \code{fld1} of the second field of the value is discarded which would be illegal if it has linear type.
+\cbdelete
+
+A record field is also discarded if it is replaced in a \textit{PutExpression}. Therefore in a \textit{PutExpression}
+the leading \textit{BasExpr} must not have linear fields which are put, if there are linear fields they must have been taken.
+
+The value of an expression is discarded when the expression is used as the \textit{BasExpr} in a \textit{MemberAccess}.
+
+Together, linear values could be discarded by binding them to a variable which is never used in its scope, by matching them 
+with the wildcard pattern, by replacing them in a \textit{PutExpression}, or by using them as the record in a \textit{MemberAccess}.
+All these cases are not allowed for values of linear type in \cogent.
+
+However, there are two other cases which specifically apply to values of a boxed record type. If such an expression is used 
+as the leading expression in a \textit{PutExpression} or if it is matched against a \textit{RecordPattern}, it is discarded
+as well. These two cases are allowed in \cogent. Note that in both cases a new value of the same type is created, in the
+first case it becomes the result of the \textit{PutExpression}, in the second case it is bound to the leading variable of the
+\textit{RecordPattern}.
+
+\subsubsection{The Result of Using a Value}
+
+What happens to a value after it has been used? ``Using'' here only means a \textit{syntactical} usage, it does not mean
+that the value is dismissed afterwards. Depending on the context of usage there are three possibilities: the value may immediately
+be used in the context, it may become a part of another value (its ``container'' value), or it may be bound to a variable.
+
+If the value results from evaluating an expression E in an \textit{Alternative}, in a branch of a \textit{ConditionalExpression}, or 
+in the body of a \textit{LetExpression}, then the value becomes the evaluation result of the expression containing E and is immediately
+used in the context.
+
+If expression E occurs as subexpression in a tuple term, a record term, or a variant term, or in a \textit{RecordAssignment} of
+a \textit{PutExpression}, its evaluation result becomes a part of its container value created by the term or \textit{PutExpression}, 
+respectively. Since a value of linear type may be used only once, it is always the part of atmost one container value. The container
+value, since it has a part of linear type is also of linear type and behaves in the same way. 
+
+Whenever a container value is used, it is used with all its parts. A linear part can be separated from its container by matching the
+container value with a complex pattern which binds the part to a variable and dismisses the container. If the container is a boxed
+record, a new container will be created where the part is taken. Thus, after binding the part to a variable 
+it is not a part of its container anymore.
+
+If expression E is the leading expression in a \textit{MatchingExpression}, or occurs in a \textit{Binding} of a \textit{LetExpression}, 
+or is the argument in a \textit{FunctionApplication},
+then it is matched against a pattern. If the pattern is a variable, the evaluation result is bound to the variable. It remains bound to
+it until the evaluation of its scope ends. However, if the value is of linear type, it cannot be referenced by the variable after
+its first use, hence thereafter the binding is irrelevant.
+
+Note that the body expression in a \textit{LambdaTerm} is not evaluated when evaluating the \textit{LambdaTerm} to yield a function.
+The body will only be evaluated when the function is applied to an argument.
+
+Taking it all together, the usage rules imply that a linear value in a pure \cogent program is always either bound to exactly one variable 
+which has not yet been used or it is a part of exactly one container value which also is linear. In a \cogent program linear values are 
+only dismissed and created in \textit{PutExpression}s and by matching boxed \textit{RecordPatterns}. In both cases a boxed record value is 
+dismissed and a value of the same type is created.
+
+These properties are exploited by \cogent in the following way. Whenever a boxed record is dismissed it is ``reused'' to create the 
+new value. Since the new value only differs from the old value by some fields having a different value, the old value is \textit{modified}
+by replacing these field values. As a consequence, linear values are \textit{never} created or destroyed in a \cogent program, 
+they are only passed around as a single copy, possibly being modified on their way. Creating or destroying linear values must be accomplished 
+externally implemented in C.
+
+\subsection{Using Values of Readonly Types}
+
+The basic rule for readonly types is that their values may not be modified. Of course, since \cogent is a functional language,
+values are conceptually never modified. However we have seen that value modification occurs in \cogent as an optimization for
+linear values, although semantically this modification can never be observed. 
+
+\subsubsection{Modifying a Value}
+
+The only way to modify a value in \cogent is by changing the value of a field in a boxed record. This can be achieved
+with the help of a \textit{PutExpression} where a new value is specified for a field. It can also be achieved with the
+help of a \cbstart take operation by matching a \textit{RecordPattern} with a boxed record value. \cbend
+
+Therefore the following rules apply to values of readonly types:
+\begin{itemize}
+\item a value of readonly type may not be used as the leading \textit{BasExpr} in a \textit{PutExpression},
+\item a value of readonly type may not be matched against a \cbdelete record pattern.
+\end{itemize}
+
+\cbstart
+When taking a field from a readonly record it is irrelevant whether the field has linear type or not. In both cases
+the record would be modified which is not allowed. If the field has non-linear type, the taken value could
+remain in the record. However, \cogent implements taking fields always by removing the field value from the record, 
+thus modifying the record.
+\cbend
+
+\subsubsection{Creating readonly Values}
+
+The only way to create a value of readonly type is to apply the bang operator to a variable in an
+\textit{ObservableExpression} or \textit{ObservableBasicExpression}. This creates a readonly copy of the bound value
+and binds it to the same variable, using the subexpression \cbstart before the first banged variable \cbend as scope for this binding. We call this subexpression a
+banged scope. If the previosly bound value had the linear type T, the readonly copy has type T! which is readonly or contains
+readonly parts.
+
+Note that the original binding is shadowed in the banged scope, hence the linear value cannot be referenced there, 
+in particular, it cannot be modified. This is exploited by \cogent in the following way. The original value is 
+actually not copied at all, it remains bound to its variable. Only its type as seen through the variable is changed to T!
+in the banged scope. 
+
+In the banged scope the readonly copies can be freely duplicated, bound to any number of variables and inserted
+as parts in any number of container values.
+
+\subsubsection{Preventing Values from Escaping}
+
+When execution leaves the banged context the shadowing ends and original value of linear type may be accessed again
+and may be modified. Although all copies are still of readonly type, they would be modified as well, since actually
+they have not been copied. This problem is solved by \cogent by preventing the copies to ``escape'' from the banged 
+scope. Then they cannot be referenced and observed outside the scope and modifications to the original value
+are no problem.
+
+If a readonly copy is bound to a variable, the scope of this binding must be syntactically enclosed in the banged
+scope and cannot be referenced outside. The only way a value can escape from the banged scope is if it is the result
+value the banged scope evaluates to or a part of it. This must be prevented by \cogent.
+
+It seems that to achieve this \cogent has to ``track'' all readonly copies and prevent them to become a part of 
+the result value. However, it is impossible to do this statically, since a copy can be passed to an externally
+defined function which may return it as part of its result without \cogent knowing this. Therefore a simpler
+but much more radical approach is used, by preventing \textit{all} values with an escape-restricted type from
+escaping from \textit{any} banged scope, irrespective whether it is related to the value or type of the 
+banged variable. This safely also prevents the readonly copies from escaping. 
+
+This approach can be implemented with the help of type checking. The rule to apply is that the type inferred 
+for a banged scope in an \textit{ObservableExpression} or \textit{ObservableBasicExpression} must not be
+escape-restricted.
+
+This rule implies that even readonly values which existed outside of the banged scope cannot be used as part
+of its result. Normally this is not a problem since they are available outside the banged scope anyways.
+However, if the value's type is both escape-restricted and linear, the situation is different. Due to
+the linearity, the value must not be discarded in the banged scope, it must leave it, which is not allowed
+either. The solution here is to separate all escape-restricted parts from the rest, discard them in the 
+banged scope and let the rest escape.
+
+\chapter{Programs}
+
+A \cogent program is a sequence of toplevel definitions and include statements.
+There is no main program, it must always be implemented externally in C.
+
+\vspace{2ex}
+\indprod{Program}{
+  TopLevelUnit \{TopLevelUnit\}
+}
+
+\section{Including Files}
+
+For modularization purpose a \cogent program may be distributed among several files
+using include statements. Like in many other programming languages, an include statement 
+is replaced by the content of the included file.
+
+The syntax for an include statement is:
+
+\vspace{2ex}
+\indprod{TopLevelUnit}{
+  Include
+  
+  \ldots
+}
+
+\indprod{Include}{
+  \code{include} StringLiteral
+  
+  \code{include} SystemFile
+}
+
+\indinfprod{Systemfile}{
+  A file pathname enclosed in \code{<} and \code{>}.
+}
+
+The \textit{StringLiteral} specifies the pathname of the file to be included, either as 
+an absolute path or as a path relative to the directory where the file containing the include statement
+resides. \cbstart A \textit{SystemFile}, like in C, specifies a file which is searched at standard places by the
+\cogent compiler.\cbend
+
+Include statements are transitive, if an included file contains include statements they are executed as well.
+
+However, every file is included only once. If several include statements specify the same file, it is
+only include by the first statement seen when processing the \cogent source file, all other inclusions
+of the file are ignored. This is also true for transitive includes, in particular, circular includes do no harm.
+The effect is the same that is usually achieved in C by \#DEFINEing a flag in an include file and including 
+the file body only if the flag is not yet set.
+
+\section{Toplevel Definitions}
+\label{toplevel-def}
+
+The only syntactical constructs which may occur as toplevel units in a \cogent source program are \textit{definitions}.
+
+\vspace{2ex}
+\indprod{TopLevelUnit}{
+  Include
+  
+  Definition
+}
+
+\indprod{Definition}{
+  TypeDefinition
+
+  \ldots
+}
+
+A definition may be a type definition, as described in Section~\ref{def-type}.
+
+\subsection{Value Definitions}
+\label{value-def}
+
+A definition may also be a \textit{value definition}. It has the following syntax:
+
+\vspace{2ex}
+\indprod{Definition}{
+  TypeDefinition
+
+  ValueDefinition
+  
+  \ldots
+}
+
+\indprod{ValueDefinition}{
+  Signature Variable \code{=} Expression
+}
+
+\indprod{Signature}{
+  Variable \code{:} PolyType
+}
+
+\indprod{PolyType}{
+  MonoType
+  
+  \ldots
+}
+
+A value definition is conceptually mainly a syntactical variant for a \textit{LetExpression} which binds a single variable.
+However, there are the following differences:
+\begin{itemize}
+\item the variable bound by a definition is a \textit{global} variable which can be referenced in 
+\textit{LambdaExpression}s (see Section~\ref{term-lambda}),
+\item the scope of the variable consists of the whole \cogent program after \textit{and before} the definition,
+\item the type specification is mandatory and \cbstart in the case of a function type, \cbend instead of a 
+\textit{MonoType} it may be a more general \textit{PolyType} (see Section~\ref{def-poly}).
+\end{itemize}
+
+A \textit{ValueDefinition} of the form\\
+\hspace*{1cm} V \code{:} T V \code{=} E\\
+is conceptually equivalent with\\
+\hspace*{1cm} \code{let} V \code{:} T = E \code{in} F\\
+where F is the whole \cogent program around the definition. This equivalence is only conceptual, syntactically 
+it is not correct, since F is not an \textit{Expression} and cannot be expressed as one.
+
+Note that the variable V has to be specified twice. It is an error if two different variables are used in 
+a value definition.
+
+Like type definitions, value definitions in \cogent are restricted to be not recursive: the variable V may not
+occur freely in the expression E and there may be no cyclic references between different value definitions.
+
+The \textit{Expression} E may only contain free occurrences of global variables which have been bound in 
+other value definitions. The \textit{Expression} E and in the \textit{PolyType} T may contain all
+type synonyms which are defined in a type definition before or after the value definition.
+
+An example for a value definition is
+\begin{verbatim}
+  maxSize: U16
+  maxSize = 42
+\end{verbatim}
+
+\todo{layout rules for value definitions}
+
+\subsection{Function Definitions}
+\label{fun-def}
+
+A function definition is a special case of a value definition, where the value has a function type.
+This could be achieved with a normal value definition using a lambda expression to specify the
+value to be bound. However, for function definitions additional syntactical forms are supported in \cogent:
+
+\vspace{2ex}
+\indprod{Definition}{
+  TypeDefinition
+
+  ValueDefinition
+  
+  FunctionDefinition
+  
+  \ldots
+}
+
+\indprod{FunctionDefinition}{
+  Signature Variable IrrefutablePattern \code{=} Expression
+  
+  Signature Variable Alternative \{Alternative\}
+}
+
+A \textit{FunctionDefinition} of the form \cbstart
+\begin{tabbing}
+\hspace*{1cm} \= V \code{:} T \\
+              \> V IP \code{=} E
+\end{tabbing}
+is semantically equivalent with
+\begin{tabbing}
+\hspace*{1cm} \= V \code{:} T \\
+              \> V \verb|= \| IP \code{=>} E
+\end{tabbing}\cbend
+
+In a function definition the type T must of course be a function type.
+
+An example for this kind of function definition is
+\begin{verbatim}
+  f: (U32, U32) -> #{sum: U32, dif: U32}
+  f v = let (x,y) = v in #{sum=x+y, dif=x-y}
+\end{verbatim}
+where the variable \code{v} is used to reference the function argument. Note that by using a pattern
+instead of a single variable, it is possible to directly access the argument components according to the
+argument type:
+\begin{verbatim}
+  f: (U32, U32) -> #{sum: U32, dif: U32}
+  f (x,y) = #{sum=x+y, dif=x-y}
+\end{verbatim}
+
+The second form of a function definition is intended for the case that the argument is not matched against
+a single irrefutable pattern but instead against several exhaustive refutable patterns.
+Then the \textit{FunctionDefinition} of the form \cbstart
+\begin{tabbing}
+\hspace*{1cm} \= V \code{:} T\\
+              \> V A1 \ldots An
+\end{tabbing}
+is semantically equivalent with
+\begin{tabbing}
+\hspace*{1cm} \= V \code{:} T\\
+              \> V \code{arg = arg} A1 \ldots An
+\end{tabbing}\cbend
+where \code{arg} is a new variable not occurring elsewhere.
+
+Examples are the function definitions
+\cbstart
+\begin{verbatim}
+  f: <TwoDim U32 U32 | ThreeDim U32 U32 U32 | Error U8> -> (U32, U32)
+  f | TwoDim x y -> (y,x) 
+    | ThreeDim x y z -> (y,z) 
+    | Error _ -> (0,0)
+
+  g: U8 -> U8
+  g | 0 -> 'a' 
+    | 1 -> 'b' 
+    | 2 -> 'c' 
+    | _ -> 'd'
+\end{verbatim}
+\cbend
+
+\todo{layout rules}
+
+\subsection{Abstract Definitions}
+
+An \textit{abstract} definition only specifies the type of a value bound to a variable but not the value itself.
+Abstract definitions are only allowed if the bound value has a function type. 
+The syntax is a normal value definition reduced to its signature:
+
+\vspace{2ex}
+\indprod{Definition}{
+  TypeDefinition
+
+  ValueDefinition
+  
+  FunctionDefinition
+  
+  AbstractDefinition
+  
+  \ldots
+}
+
+\indprod{AbstractDefinition}{
+  Signature
+}
+
+The purpose of abstract definitions is to define functions which are implemented externally as C functions.
+
+A collection of abstract definitions together with corresponding type definitions is often called an ``abstract data type'' 
+(``ADT''). Typically an abstract data type consists of one or more abstract type definitions and abstract definitions for
+functions working with values of these types, where both types and functions are externally defined in C.
+
+\subsection{Polymorphic Definitions}
+\label{def-poly}
+
+\cbstart Function \cbend values bound by toplevel definitions may be \textit{polymorphic} which means that their
+type is not specified uniquely.
+This is achieved by allowing free type variables in the value's type as specified in the definition. A type expression which 
+may contain free type variables is called a \textit{PolyType} in \cogent. Syntactically \textit{PolyType}s must be closed
+by binding the free type variables by an ``all-quantification''. The syntax is as follows:
+
+\vspace{2ex}
+\indprod{PolyType}{
+  MonoType
+  
+  \cbstart \code{all} PermSignatures \code{.} MonoType \cbend
+}
+
+\cbstart
+\indprod{PermSignatures}{
+  PermSignature
+  
+  \code{(} PermSignature \{\code{,} PermSignature\} \code{)}
+}
+
+\indprod{PermSignature}{\cbend
+  TypeVariable
+
+  \ldots
+}
+
+Here all type variables which occur free in the \textit{MonoType} must be listed in the \cbstart\textit{PermSignatures}.\cbend
+An example for a polymorphic value definition is
+\cbstart
+\begin{verbatim}
+  f: all (t, u). (t, u) -> (U32, u, U16, t)
+  f (x,y) = (200, y, 100, x)
+\end{verbatim}
+\cbend
+Since the types \cbstart \code{t} and \code{u} \cbend are unknown, no expressions can be specified for their values other than 
+variables to which the values have been bound. As a consequence, polymorphic values are \cbstart always \cbend polymorphic functions
+which take the values of the unknown types as (part of) their argument and only pass them around, perhaps placing them
+in the function result.
+
+A typical example for a \cbstart polymorphic function \cbend works with lists of arbitrary elements.
+Therefore no specific type shall be specified for the list elements, which is achieved by using a free type variable
+for it. The corresponding list type can be defined as a generic abstract type:
+\begin{verbatim}
+  type List e
+\end{verbatim}
+Then the usual functions working on lists can be defined by the following abstract polymorphic function definitions:
+\cbstart
+\begin{verbatim}
+  first: all e. List e -> Option e
+  rest: all e. List e -> List e
+  cons: all e. (e, List e) -> List e
+\end{verbatim}
+\cbend
+Together these definitions constitute an abstract data type for lists. Note, that neither the list type nor the list 
+functions can be defined in \cogent since they would require recursion. 
+
+Even when a value of an unknown type is only carried around, additional information about the type is needed for doing
+this correctly: If the type is linear, the value may still be used only once, whereas the value may be freely copied, if
+the type is non-linear. Therefore it is possible to specify \cbstart ``permissions'' for a type variable in the
+\textit{PermSignatures} \cbend using the following syntax:
+
+\vspace{2ex}\cbstart
+\indprod{PermSignature}{
+  TypeVariable
+
+  TypeVariable :< Permissions
+}
+
+\indprod{Permissions}{\cbend
+  Permission \{Permission\}
+}
+
+\indselprod{Permission}{
+  \code{D S E}
+}
+
+The permissions associated with a type variable specify what must be possible for values of that type. Permission \code{D} means
+the values can be \textit{discarded}, permission \code{S} means the values can be \textit{shared}, and permission \code{E}
+means that values may \textit{escape} from a banged context. If a type variable has kind \code{DSE} the actual type must be regular.
+If a type variable has kind \code{DS} the actual type must not be linear, it may be regular or escape-restricted. If it has kind 
+\code{E} the actual type must not be escape-restricted, it may be regular or linear. 
+
+If no \cbstart \textit{Permissions} are specified for a type variable the default permissions \code{E} apply.\cbend
+
+In the example
+\cbstart
+\begin{verbatim}
+  f: all (t, u :< DSE) . (t, u) -> (U32, u, U16, t, u)
+  f (x,y) = (200, y, 100, x, y)
+\end{verbatim}
+\cbend
+the type \code{t} has default \cbstart permissions \cbend \code{E} and is thus required to be escapable. 
+Type \code{u} is required to be regular and it is correct to use parameter \code{y} more than once in the body expression.
+
+Whenever a global variable bound by a polymorphic value definition is referenced, actual types must be substituted for 
+the free type variables. These types \cbstart can \cbend be explicitly specified using the following syntax:
+
+\vspace{2ex}
+\indprod{Term}{
+  \code{(} Expression \code{)}
+  
+  Variable
+
+  LiteralTerm
+  
+  TupleTerm
+  
+  RecordTerm
+
+  VariantTerm
+  
+  LambdaTerm
+  
+  PolyVariable
+}
+
+\indprod{PolyVariable}{
+  \cbstart Variable \code{[} OptMonoType \{\code{,} OptMonoType\} \code{]}
+}
+
+\indprod{OptMonoType}{
+  MonoType
+  
+  \code{\_}
+}
+
+If the types are not specified or if some types are specified by \code{\_}, the compiler tries to infer them.
+If the compiler is unable to infer the types, then they must be explicitly specified. For example,
+if the compiler has difficulty with the last type argument, instead of
+\code{f \[U8, Char, <A U8\|B U16>\]}, we can write \code{f \[\_, \_, <A U8 \| B U16>\]}.
+\cbend
+
+If \code{f} has been bound by the polymorphic definition above, example references are
+\begin{verbatim}
+  f[{fld1: U8, fld2: U8},U32]
+  f[U16,{fld1: U8, fld2: U8}]
+\end{verbatim}
+where the second reference is illegal since the second type variable \code{t} is substituted by type 
+\cbstart\code{\{fld1: U8, fld2: U8\}} \cbend which
+is not regular.
+
+\chapter{Grammar}
+
+Here we use a grammar notation which is similar to that used in the Java language specifications.
+The meta constructs have the following meaning:
+\begin{itemize}
+\item The italic brackets \textit{[]} make their content optional.
+\item The italic braces \textit{\{\}} make their content repeatable (and optional).
+\end{itemize}
+Nonterminals are denoted in \textit{italics}, literal code is denoted in \code{typewriter} font.
+
+Productions are structured by indenting the right-hand side, every single line is one alternative.
+There are special forms of productions for selecting among a set of terminals and for specifying
+the syntax od a nonterminal informally.
+
+\vspace{2ex}
+\noindent\gramprod{Program}{
+  TopLevelUnit \{TopLevelUnit\}
+}
+\gramprod{TopLevelUnit}{
+  Include
+  
+  Definition
+}
+\gramprod{Include}{
+  \code{include} StringLiteral
+  
+  \code{include} SystemFile
+}
+\graminfprod{Systemfile}{
+  A file pathname enclosed in \code{<} and \code{>}.
+}
+\gramprod{Definition}{
+  TypeDefinition
+
+  ValueDefinition
+  
+  FunctionDefinition
+  
+  AbstractDefinition
+}
+\gramprod{TypeDefinition}{
+  \code{type} TypeConstructor \{TypeVariable\} \code{=} MonoType
+
+  AbstractTypeDefinition
+}
+\gramprod{TypeConstructor}{
+  CapitalizedId
+}
+\gramprod{TypeVariable}{
+  LowercaseId
+}
+\gramprod{AbstractTypeDefinition}{
+  \code{type} TypeConstructor \{TypeVariable\}
+}
+\gramprod{MonoType}{
+  TypeA1
+  
+  FunctionType
+}
+\gramprod{FunctionType}{
+  \cbstart TypeA1 \code{->} TypeA1 \cbend
+}
+\gramprod{TypeA1}{
+  TypeA2
+  
+  ParameterizedType
+  
+  PartialRecordType
+}
+\gramprod{ParameterizedType}{
+  TypeConstructor \{TypeA2\}
+}
+\gramprod{PartialRecordType}{
+  TypeA2 TakePut TakePutFields
+}
+\gramselprod{TakePut}{
+  \code{take} \code{put}
+}
+\gramprod{TakePutFields}{
+  FieldName
+
+  \cbstart\code{(} [FieldName \{\code{,} FieldName\}] \code{)}\cbend
+  
+  \code{( .. )}
+}
+\gramprod{FieldName}{
+  LowercaseId
+}
+\gramprod{TypeA2}{
+  AtomType
+
+  \code{\#} AtomType
+  
+  AtomType \code{!}
+}
+\gramprod{AtomType}{
+  \code{(} MonoType \code{)}
+  
+  TypeConstructor
+  
+  TupleType
+
+  RecordType
+  
+  VariantType
+
+  TypeVariable
+}
+\gramprod{TupleType}{
+  \code{()}
+
+  \code{(} MonoType \code{,} MonoType \{\code{,} MonoType\} \code{)}
+}
+\gramprod{RecordType}{
+  \code{\{} FieldName \code{:} MonoType \{\code{,} FieldName \code{:} MonoType\} \code{\}}
+}
+\gramprod{VariantType}{
+  \cbstart \code{<} DataConstructor \{TypeA2\} \{\code{|} DataConstructor \{TypeA2\}\} \code{>}\cbend
+}
+\gramprod{DataConstructor}{
+  CapitalizedId
+}
+\gramprod{ValueDefinition}{
+  Signature Variable \code{=} Expression
+}
+\gramprod{Variable}{
+  LowercaseId
+}
+\gramprod{Signature}{
+  Variable \code{:} PolyType
+}
+\gramprod{PolyType}{
+  MonoType
+  
+  \cbstart\code{all} PermSignatures \code{.} MonoType
+}
+\gramprod{PermSignatures}{
+  PermSignature
+  
+  \code{(} PermSignature \{\code{,} PermSignature\} \code{)}
+}
+\gramprod{PermSignature}{
+  TypeVariable
+
+  TypeVariable :< Permissions
+}
+\gramprod{Permissions}{\cbend
+  Permission \{Permission\}
+}
+\gramselprod{Permission}{
+  \code{D S E}
+}
+\gramprod{FunctionDefinition}{
+  Signature Variable IrrefutablePattern \code{=} Expression
+  
+  Signature Variable Alternative \{Alternative\}
+}
+\gramprod{AbstractDefinition}{
+  Signature
+}
+\gramprod{Pattern}{
+  \code{(} Pattern \code{)}
+  
+  IrrefutablePattern
+
+  LiteralPattern
+  
+  VariantPattern
+}
+\gramprod{LiteralPattern}{
+  BooleanLiteral
+  
+  IntegerLiteral
+  
+  CharacterLiteral
+}
+\gramprod{IrrefutablePattern}{
+  Variable 
+  
+  WildcardPattern
+
+  TuplePattern
+  
+  RecordPattern
+}
+\gramprod{WildcardPattern}{
+  \code{\_}
+}
+\gramprod{TuplePattern}{
+  \code{()}
+  
+  \code{(} IrrefutablePattern \code{,} IrrefutablePattern \{\code{,} IrrefutablePattern\} \code{)}
+}
+\gramprod{RecordPattern}{
+  Variable \code{\{} RecordMatchings \code{\}}
+  
+  \code{\#} \code{\{} RecordMatchings \code{\}}
+}
+\gramprod{RecordMatchings}{
+  \cbstart RecordMatching \{\code{,} RecordMatching\} \cbend
+
+  \cbdelete
+}
+\gramprod{RecordMatching}{
+  FieldName [= IrrefutablePattern]
+}  
+\gramprod{VariantPattern}{
+  \cbstart DataConstructor \{IrrefutablePattern\}\cbend
+}
+\gramprod{Expression}{
+  BasicExpression
+
+  MatchingExpression
+
+  LetExpression
+  
+  ConditionalExpression
+}
+\gramprod{BasicExpression}{
+  BasExpr
+  
+  BasExpr \code{;} Expression
+}
+\gramprod{MatchingExpression}{
+  ObservableBasicExpression Alternative \{Alternative\}
+}
+\gramprod{ObservableBasicExpression}{
+  BasicExpression
+  
+  BasicExpression \{\code{!} Variable\}
+}
+\gramprod{Alternative}{
+  \code{|} Pattern PArr Expression
+}
+\gramselprod{PArr}{
+  \code{->} \code{=>} \code{\~{}>}
+}
+\gramprod{LetExpression}{
+  \code{let} Binding \{\code{and} Binding\} \code{in} Expression
+}
+\gramprod{Binding}{
+  IrrefutablePattern [\code{:} MonoType] = ObservableExpression
+}
+\gramprod{ObservableExpression}{
+  Expression
+  
+  Expression \{\code{!} Variable\}
+}
+\gramprod{ConditionalExpression}{
+  \code{if} ObservableExpression \code{then} Expression \code{else} Expression
+}
+\gramprod{BasExpr}{
+  Term
+  
+  FunctionApplication
+  
+  OperatorApplication
+  
+  PutExpression
+ 
+  MemberAccess
+}
+\gramprod{FunctionApplication}{
+  BasExpr BasExpr
+}
+\gramprod{OperatorApplication}{
+  UnaryOP BasExpr
+  
+  BasExpr BinaryOp BasExpr
+}
+\gramselprod{UnaryOp}{
+  complement not
+}
+\gramselprod{BinaryOp}{
+  \cbstart \code{o * / \% + - >= > == /= < <= .\&. .\^{}. .|. >{}> <{}< \&\& || \$}\cbend
+}
+\gramprod{PutExpression}{
+  BasExpr \{ Record Assignments \}
+}
+\gramprod{RecordAssignments}{
+  RecordAssignment \{\code{,} RecordAssignment\}
+}
+\gramprod{RecordAssignment}{
+  FieldName [\code{=} Expression]
+}
+\gramprod{MemberAccess}{
+  BasExpr \code{.} FieldName
+}
+\gramprod{Term}{
+  \code{(} Expression \code{)}
+  
+  Variable
+
+  LiteralTerm
+  
+  TupleTerm
+  
+  RecordTerm
+
+  VariantTerm
+  
+  LambdaTerm
+  
+  PolyVariable
+}
+\gramprod{LiteralTerm}{
+  BooleanLiteral
+  
+  IntegerLiteral
+  
+  CharacterLiteral
+  
+  StringLiteral
+}
+\gramselprod{BooleanLiteral}{
+  \code{True} \code{False}
+}
+\cbstart\gramprod{IntegerLiteral}{
+  DecDigits
+  
+  \code{0x} HexDigits
+  
+  \code{0X} HexDigits
+
+  \code{0o} OctDigits
+
+  \code{0O} OctDigits
+}
+\graminfprod{DecDigits}{
+  A sequence of decimal digits 0-9.
+}
+\graminfprod{HexDigits}{
+  A sequence of hexadecimal digits 0-9, A-F.
+}
+\graminfprod{OctDigits}{
+  A sequence of octal digits 0-7.\cbend
+}
+\graminfprod{CharacterLiteral}{
+  An ASCII character enclosed in single quotes.
+}
+\graminfprod{StringLiteral}{
+  A sequence of ASCII characters enclosed in double quotes.
+}
+\gramprod{TupleTerm}{
+  \code{()}
+  
+  \code{(} Expression \code{,} Expression \{\code{,} Expression\} \code{)}
+}
+\gramprod{RecordTerm}{
+  \code{\#} \code{\{} RecordAssignments \code{\}}
+}
+\gramprod{VariantTerm}{
+  \cbstart DataConstructor \{Term\}\cbend
+}
+\gramprod{LambdaTerm}{
+  \code{$\backslash$} IrrefutablePattern [\code{:} MonoType] \code{=>} Expression
+}
+\gramprod{PolyVariable}{\cbstart
+  Variable \code{[} OptMonoType \{\code{,} OptMonoType\} \code{]}
+}
+\gramprod{OptMonoType}{
+  MonoType
+  
+  \code{\_}\cbend
+}
+\graminfprod{LowercaseID}{
+  A sequence of letters, digits and underscore symbols
+  
+  starting with a lowercase letter
+}
+\graminfprod{CapitalizedID}{
+  A sequence of letters, digits and underscore symbols
+  
+  starting with an uppercase letter
+}
+\end{document}
