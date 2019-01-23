@@ -1,0 +1,86 @@
+%
+% Copyright 2016, NICTA
+%
+% This software may be distributed and modified according to the terms of
+% the GNU General Public License version 2. Note that NO WARRANTY is provided.
+% See "LICENSE_GPLv2.txt" for details.
+%
+% @TAG(NICTA_GPL)
+%
+
+\newlength{\tpheight}\setlength{\tpheight}{0.9\textheight}
+\newlength{\txtheight}\setlength{\txtheight}{0.9\tpheight}
+\newlength{\tpwidth}\setlength{\tpwidth}{0.9\textwidth}
+\newlength{\txtwidth}\setlength{\txtwidth}{0.9\tpwidth}
+\newlength{\drop}                     
+%\setlength{\parindent}{0cm}
+%\setlength{\parskip}{9pt plus 1pt minus 1pt}
+
+
+% Grammars
+\newenvironment{grammar}{
+  \begin{longtable}{>{$}l<{$} >{$}l<{$} >{$}c<{$} >{$}l<{$}}
+    }{
+  \end{longtable}
+}
+\newenvironment{grammar2}{
+  \begin{longtable}{>{$}l<{$} >{$}l<{$} >{$}c<{$} >{$}l<{$} >{$}r<{$}}
+    }{
+  \end{longtable}
+}
+
+
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\cmt}[1]{\hspace{2em}\color{gray}{#1}}
+\newcommand{\col}[1]{{\color{blue} (#1)}}
+\newcommand{\codeit}[1]{\code{\textit{#1}}}
+
+\newcommand{\sSEQ}{\texttt{;}}
+\newcommand{\sIF}{\texttt{if}}
+\newcommand{\sTHEN}{\texttt{then}}
+\newcommand{\sELSE}{\texttt{else}}
+\newcommand{\sCASE}{\texttt{case}}
+\newcommand{\sOF}{\texttt{of}}
+\newcommand{\sBANG}{\texttt{!}}
+\newcommand{\sUNBOX}{\texttt{\#}}
+\newcommand{\sWILDCARD}{\texttt{\_}}
+\newcommand{\sMEMBER}{\texttt{.}}
+\newcommand{\sALLFIELDS}{\texttt{..}}
+\newcommand{\sTAKE}{\texttt{take}}
+\newcommand{\sPUT}{\texttt{put}}
+\newcommand{\sLET}{\texttt{let}}
+\newcommand{\sIN}{\texttt{in}}
+\newcommand{\sINCLUDE}{\texttt{include}}
+
+\newcommand{\stuple}[1]{\texttt{(}#1\texttt{)}}
+\newcommand{\srecord}[1]{\texttt{\{}#1\texttt{\}}}
+\newcommand{\surecord}[1]{\sUNBOX\srecord{#1}}
+\newcommand{\svariant}[1]{\langle #1 \rangle}
+\newcommand{\sseq}[2]{#1 \sSEQ\ #2}
+\newcommand{\sunit}{\texttt{()}}
+\newcommand{\scaseof}[2]{\sCASE\ #1\ \sOF\ #2}
+\newcommand{\styapp}[2]{#1\ [#2]}
+\newcommand{\sapp}[2]{#1\ #2}
+\newcommand{\smember}[2]{#1\sMEMBER#2}
+\newcommand{\scon}[2]{#1\ #2}
+\newcommand{\sifthel}[3]{\sIF\ #1\ \sTHEN\ #2\ \sELSE\ #3}
+\newcommand{\stytake}[2]{#1\ \sTAKE\ #2}
+\newcommand{\styput}[2]{#1\ \sPUT\ #2}
+\newcommand{\stycon}[3]{#1\ #2\ #3}
+\newcommand{\styfun}[2]{#1 \rightarrow #2}
+\newcommand{\salt}[2]{#1 \Rightarrow #2}
+\newcommand{\sletin}[2]{\sLET\ #1\ \sIN\ #2}
+\newcommand{\stynf}[1]{{#1}_{NF}}
+\newcommand{\sput}[2]{#1\ \srecord{#2}}
+
+\definecolor{core-gray}{gray}{0.25}
+
+\newcommand{\HiCore}[1]{\text{\colorbox{light-gray}{$\textcolor{black}{#1}$}}}
+
+\newcommand{\desugar}[3]{#1 \vdash #2 \stackrel{\text{}}{\leadsto} \HiCore{#3}}
+\newcommand{\desugarlit}[3]{#1 \vdash #2 \stackrel{\text{}}{\leadsto_{\ell}} \HiCore{#3}}
+\newcommand{\desugaralt}[3]{#1 \vdash #2 \stackrel{\text{}}{\leadsto_{a}} \HiCore{#3}}
+\newcommand{\desugaralts}[3]{#1 \vdash #2 \stackrel{\text{}}{\leadsto_{a^*}} \HiCore{#3}}
+
+\newcommand{\permission}[1]{\mathsf{#1}}
+
