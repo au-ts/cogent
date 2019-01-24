@@ -62,7 +62,7 @@
   sensitive=true,
   morecomment=[l]{--},
   morecomment=[s]{\{-}{-\}},
-  morekeywords={type, let, in, and, if, then, else},
+  morekeywords={type, let, in, and, if, then, else, take, put, inline, \#, !},
   emph={[1]U8,U16,U32,U64,Bool,String},
   emphstyle={[1]\color{typecol}},
 }
@@ -76,6 +76,7 @@
 
 \newcommand{\inlinecogent}[1]{\lstinline[language=Cogent,basicstyle=\ttfamily\normalsize]{#1}\xspace}
 \newcommand{\inlinec}[1]{\lstinline[language=antiC,basicstyle=\ttfamily\normalsize]{#1}\xspace}
+\newcommand{\inlinehs}[1]{\lstinline[language=haskell,basicstyle=\ttfamily\normalsize]{#1}\xspace}
 
 \allowdisplaybreaks
 
@@ -107,7 +108,7 @@ Note: The syntax of \cogent is not restricted to regular expression, thus the fo
 not strictly formal. In particular, indentation rules are specified in a semi-formal manner. Superscript \col{c} means
 the associated construct starts at column $c$.
 
-\todo{needs update}
+\todo{update me!}
 
 {
 \small
@@ -195,7 +196,7 @@ The layout rule does \emph{not} apply in pragmas.
 
 \section{Abstract Syntax}
 
-\todo{updates needed}
+\todo{update me!}
 
 {
 \small
@@ -265,7 +266,7 @@ The layout rule does \emph{not} apply in pragmas.
 
 \section{Desugaring}
 
-\todo{To update.}
+\todo{update me!}
 
 Note: $::$ is meta-lang.
 {
@@ -445,9 +446,18 @@ type in \cogent has only two values, \inlinecogent{True} and \inlinecogent{False
 for debugging (e.g. \inlinecogent{printf}),
 as there are no \inlinecogent{String}-specific operations that allows users to work on them.
 
+\paragraph{Function types} They are of the form $\tau_1 \rightarrow \tau_2$. It can only have one argument, and one return type.
+If multiple inputs are desired, they should be grouped in a composite type by \emph{uncurrying}. If the argument or the return type
+is a function type itself, it also needs to be enclosed in a composite type. E.g.\ \inlinecogent{(A -> A) -> (A -> A)}.
+
 \paragraph{Abstract types} Apart from these primitive types, users can declare their own types, as building blocks, in \cogent.
 They are abstract in the language and their definitions are implemented in C (or antiquoted C, see below \todo{where?}) directly.
 For example, one can do \inlinecogent{type T} and a brand new type \inlinecogent{T} is created in the program.
+
+\paragraph{Polymorphic types} \cogent is parametrically polymorphic. To define a poly-type, one can write \inlinecogent{all a. a -> a}
+for example. Universal quantifiers are always explicit.
+
+\paragraph{Unit type} Unit type (\inlinecogent{()}) has only one inhabitant, which is unit (also spelt as \inlinecogent{()}).
 
 \subsection{Uniqueness type system}
 One major feature of \cogent is its uniqueness type system. For detailed explanations, see \cite{Wadler_90} and our publications.
@@ -501,10 +511,14 @@ without any of $\permission{\{DSE\}}$ is usually useless as a whole, so we don't
 To summarise, we have 3 kinds of permission combinations in \cogent, namely linear read-only ($\permission{\{DS\}}$),
 linear read-write ($\permission{\{E\}}$), and non-linear ($\permission{\{DSE\}}$).
 
+In order to restrain the permissions type variables possess, constraints can be given when explicit quantifiers
+are given. For example, \inlinecogent{all (a :< DSE, b). a -> b} means that type variable \inlinecogent{a} has to
+be a type which is non-linear, whereas no constraints are posed on what permissions \inlinecogent{b} can have.
+
 
 \subsection{Composite types}
 
-Using the aforementioned base types, with the help of type constructors and modifiers, we can build up
+Using the aforementioned base types, with the help of type constructors and type-level operators, we can build up
 composite types. We generally have three different kinds of composite types --- record types, variant types
 and tuples.
 
@@ -520,23 +534,34 @@ a box with one linear reference, which is capable of encapsulating all (if any) 
 a boxed record, we have no access to its linear fields. We will introduce term level operations for field access in later sections.
 
 \paragraph{Unboxed records} In contrast to boxed records, we also have unboxed records. The major difference is that
-the record itself is allocated on the stack, implicitly by the program. That said, the linearity of an unboxed record
+the record itself is allocated on the stack, implicitly by the program. It implies that the linearity of an unboxed record
 solely depends on its fields. If any field is linear, then the whole is linear. In \cogent we can construct or destruct an
 unboxed records cheaply, supplying or obtaining all it fields (especially linear ones) respectively. An unboxed record
-is written as \code{\#\{f1:T1, f2:T2\}}, for example, with a leading \code{\#}. It's worth mentioning, though, the linear
+is written as \inlinecogent{\#\{f1:T1, f2:T2\}}, for example, with a leading \inlinecogent{\#}. It's worth mentioning, though, the linear
 fields of an unboxed record are still allocated on the heap.
 
-\paragraph{Tuples} Tuples, written as \code{(T1,T2)} can be deemed as unnamed unboxed records. It is also order-sensitive.
-In the core calculus of \cogent, tuples are nested pairs, grouping from the right. For example, \code{(a,b,c,d)} is equal to
-\code{(a,(b,(c,d)))}. Other than that, it is pretty much the same as an unboxed record.
+
+\paragraph{Tuples} Tuples can be considered as unnamed unboxed records. It is also order-sensitive.
+In the core calculus of \cogent, tuples are nested pairs, grouping from the right. For example, \inlinecogent{(a,b,c,d)} is equal to
+\inlinecogent{(a,(b,(c,d)))}. Other than that, it is pretty much the same as an unboxed record. Notice that there is
+no 1-tuple in \cogent (i.e.\ $(a) \equiv a$).
+
+
+\paragraph{Variant types} Variants are similar to datatypes in ML or Haskell. For example,
+\inlinecogent{<A U8 | B Bool U8 | C>} is roughly the same as \inlinehs{data X = A U8 | B Bool U8 | C}.
+In terms of the low-level representation, variants at the moment are always allocated on the stack.
+The payload can be either linear of non-linear, and if any alternative has a linear payload, the entire
+variant is also linear. Every tag can take arbitrarily many arguments, but the compiler will desugar them
+to a unit (e.g.\ \inlinecogent{()} for \inlinecogent{C}) or a tuple (e.g. \inlinecogent{(Bool, U8)} for \inlinecogent{B}) accordingly.
+
 
 \subsection{Type Operators}
-\cogent provides several type operators. \code{take} and \code{put} operators can be applied to
-record types (be it boxed or not). They will be introduced in detail in Section~\ref{ssec:records}.
-Here, we focus on the other two operators: \code{\#} and \code{!}.
+\cogent provides several type operators. \inlinecogent{take} and \inlinecogent{put} operators can be applied to
+record types (be it boxed or not) and variant types. They will be introduced in detail in Section~\ref{ssec:records}.
+Here, we focus on the other two operators: \inlinecogent{\#} and \inlinecogent{!}.
 
-\paragraph{Unbox} \code{\#} is the sigil for unboxed data types. It works for
-abstract types and records. For an abstract type \code{A}, \code{\#A}
+\paragraph{Unbox} \inlinecogent{\#} is the sigil for unboxed data types. It works for
+abstract types and records. For an abstract type \inlinecogent{A}, \inlinecogent{\#A}
 is the unboxed version of it. \code{\#} has to be put at its use site.
 For example, if we have code:
 \begin{lstlisting}[language=Cogent]
