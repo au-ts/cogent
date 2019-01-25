@@ -189,6 +189,16 @@ lemma distinct_fst_tags_update:
    apply (simp split: nat.split add: image_set map_update[symmetric] del: image_set[symmetric])+
   done
 
+
+lemma list_all_nil: "list_all P []" by simp
+lemma list_all_cons: "P x \<Longrightarrow> list_all P xs \<Longrightarrow> list_all P (x # xs)" by simp
+
+
+
+lemma list_all2_eq_iff_map_eq: "list_all2 (\<lambda>x y. f x = g y) xs ys = (map f xs = map g ys)"
+  by (induct xs arbitrary: ys; simp add: Cons_eq_map_conv list_all2_Cons1)
+
+
 subsection {* list_all3 *}
 
 inductive list_all3 :: "('a \<Rightarrow> 'b \<Rightarrow> 'c \<Rightarrow> bool) \<Rightarrow> 'a list \<Rightarrow> 'b list \<Rightarrow> 'c list \<Rightarrow> bool" where
