@@ -19,6 +19,9 @@ module Minigent.Syntax.Utils.Rewrite
   , -- * Composition
     andThen
   , untilFixedPoint
+  , -- * Pre and Postprocessing
+    pre
+  , post
   , -- * Making Rewrites
     -- ** Pure Rewrites
     rewrite
@@ -27,10 +30,13 @@ module Minigent.Syntax.Utils.Rewrite
   , rewrite'
   , pickOne'
   , withTransform
+  , -- * Debugging
+    debug
   ) where
 import Control.Monad.Identity
 import Control.Monad.Trans.Maybe
 import Control.Applicative
+import Debug.Trace
 
 -- | Intuitively a @Rewrite a@ is a partial function from @a@ to @a@.
 --   It can be composed disjuctively using the 'Semigroup' instance, or
@@ -50,6 +56,15 @@ instance Monad m => Semigroup (Rewrite' m a) where
 -- | The 'mempty' is the rewrite that never successfully rewrites any term.
 instance Monad m => Monoid (Rewrite' m a) where
   mempty = Rewrite (const empty)
+
+
+-- | Run a function to post-process a rewrite's output.
+post :: (Functor m) => (a -> a) -> Rewrite' m a -> Rewrite' m a
+post op (Rewrite f) = Rewrite (fmap op . f)
+
+-- | Run a function to pre-process a rewrite's input.
+pre :: (Functor m) => (a -> a) -> Rewrite' m a -> Rewrite' m a
+pre op (Rewrite f) = Rewrite (f . op)
 
 -- | Sequential composition, that is: @r `andThen` s@ will first rewrite with @r@ and, if that
 --   succeeds, rewrite the result with @s@. If either @r@ or @s@ fails to rewrite, the whole thing
@@ -116,3 +131,8 @@ pickOne' f = Rewrite each
 -- | Given a pure 'Rewrite', produce an effectful rewrite in any monad.
 lift :: Applicative m => Rewrite a -> Rewrite' m a
 lift (Rewrite f) = rewrite (runIdentity . runMaybeT . f)
+
+-- | For debugging, prints the contents of the rewrite to the console, with a string prefix.
+debug :: (Monad m) => String -> (a -> String) -> Rewrite' m a
+debug pfx show = Rewrite (\cs -> case () of () | trace (pfx ++ ": " ++ show cs) False -> undefined
+                                               | otherwise                            -> empty )

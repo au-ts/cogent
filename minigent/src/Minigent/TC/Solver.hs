@@ -19,8 +19,9 @@ module Minigent.TC.Solver
 
 import Minigent.TC.Normalise
 import Minigent.TC.Simplify
+import Minigent.TC.Unify
+import Minigent.TC.Equate
 import Minigent.TC.JoinMeet
-import Minigent.TC.Assign
 import Minigent.Fresh
 import Minigent.Syntax
 import Minigent.Syntax.Utils
@@ -52,15 +53,18 @@ newtype Solver a = Solver (WriterT [Assign] (Fresh VarName) a)
 --   means that the solver successfully solved everything.
 solve :: [Constraint] -> [Constraint] -> Solver [Constraint]
 solve axs cs = do
-  let cs' = normaliseConstraints cs
-  cs'' <- fromMaybe cs' <$> runMaybeT (Rewrite.run' solverRewrites cs')
-  case assign cs'' of
-    Nothing -> pure cs''
-    Just a  -> do
-      tell [a]
-      solve axs (map (constraintTypes (traverseType (substAssign a))) cs'')
+  cs'' <- runMaybeT (Rewrite.run' solverRewrites cs)
+  case cs'' of
+    Nothing -> pure (normaliseConstraints cs)
+    Just a  -> pure a
   where
-    solverRewrites = Rewrite.untilFixedPoint (Rewrite.lift (simplify axs) <> joinMeet)
+    solverRewrites :: Rewrite.Rewrite' Solver [Constraint]
+    solverRewrites = Rewrite.untilFixedPoint $
+      -- Rewrite.debug "SOLV" debugPrettyConstraints <>
+      Rewrite.pre normaliseConstraints (Rewrite.lift (simplify axs)
+                                     <> unify
+                                     <> joinMeet
+                                     <> Rewrite.lift equate)
 
 -- | Run a solver computation.
 runSolver :: Solver a -> Fresh VarName (a,[Assign])

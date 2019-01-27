@@ -62,6 +62,7 @@ simplify axs = Rewrite.pickOne $ \c -> case c of
   i :<=: PrimType t                   -> guard (fits i t) >> Just []
 
   Function t1 t2 :< Function r1 r2    -> Just [r1 :< t1, t2 :< r2]
+  Function t1 t2 :=: Function r1 r2   -> Just [r1 :=: t1, t2 :=: r2]
 
   Variant r1     :< Variant r2        ->
     if Row.null r1 && Row.null r2 then Just []
@@ -91,6 +92,30 @@ simplify axs = Rewrite.pickOne $ \c -> case c of
   t :< t'  -> guard (unorderedType t || unorderedType t') >> Just [t :=: t']
 
   AbsType n s ts :=: AbsType n' s' ts' -> guard (n == n' && s == s') >> Just (zipWith (:=:) ts ts')
+
+  Variant r1     :=: Variant r2        ->
+    if Row.null r1 && Row.null r2 then Just []
+    else do
+    let commons  = Row.common r1 r2
+        (ls, rs) = unzip commons
+    guard (not (null commons))
+    guard (untakenLabels ls == untakenLabels rs)
+    let (r1',r2') = Row.withoutCommon r1 r2
+        cs = map (\(Entry _ t _, Entry _ t' _) -> t :=: t') commons
+        c   = Variant r1' :=: Variant r2'
+    Just (c:cs)
+
+  Record r1 s1   :=: Record r2 s2 ->
+    if Row.null r1 && Row.null r2 && s1 == s2 then Just []
+    else do
+    let commons  = Row.common r1 r2
+        (ls, rs) = unzip commons
+    guard (not (null commons))
+    guard (untakenLabels rs == untakenLabels ls)
+    let (r1',r2') = Row.withoutCommon r1 r2
+        cs = map (\(Entry _ t _, Entry _ t' _) -> t :=: t') commons
+        c   = Record r1' s1 :=: Record r2' s2
+    Just (c:cs)
 
   t :=: t' -> guard (rigid t && rigid t' && t == t') >> Just []
 

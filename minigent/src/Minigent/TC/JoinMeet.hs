@@ -34,10 +34,6 @@ data Candidate = Meet Type Type Type
 --   constraint graph.
 joinMeet :: (Monad m, MonadFresh VarName m) => Rewrite.Rewrite' m [Constraint]
 joinMeet = Rewrite.withTransform find $ \c -> case c of
-  Meet v (PrimType t)     (PrimType t')    -> guard (t == t') >> pure [v :< PrimType    t]
-  Meet v (TypeVar t)      (TypeVar t')     -> guard (t == t') >> pure [v :< TypeVar     t]
-  Meet v (TypeVarBang t)  (TypeVarBang t') -> guard (t == t') >> pure [v :< TypeVarBang t]
-  Meet v (AbsType n s ts) t                -> guard (t == AbsType n s ts) >> pure [v :< t]
 
   Meet v (Function t1 t2) (Function r1 r2) -> do
     b1 <- UnifVar <$> fresh
@@ -82,10 +78,6 @@ joinMeet = Rewrite.withTransform find $ \c -> case c of
 
   Join v (Record r1 s1) (Record r2 s2) | r1 == r2 && s1 == s2 -> do
     pure [Record r1 s1 :< v ]
-  Join v (PrimType t)     (PrimType t')    -> guard (t == t') >> pure [v :> PrimType    t]
-  Join v (TypeVar t)      (TypeVar t')     -> guard (t == t') >> pure [v :> TypeVar     t]
-  Join v (TypeVarBang t)  (TypeVarBang t') -> guard (t == t') >> pure [v :> TypeVarBang t]
-  Join v (AbsType n s ts) t                -> guard (t == AbsType n s ts) >> pure [v :> t]
 
   Join v (Function t1 t2) (Function r1 r2) -> do
     b1 <- UnifVar <$> fresh
