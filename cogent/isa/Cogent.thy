@@ -713,7 +713,7 @@ typing_var    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto>w singleton (length
                    ; \<Xi>, K, (Some t # \<Gamma>2) \<turnstile> y : u
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Let x y : u"
 
-| typing_letb   : "\<lbrakk> split_bang K is \<Gamma> \<Gamma>1 \<Gamma>2
+| typing_letb   : "\<lbrakk> K, is \<turnstile> \<Gamma> \<leadsto>b \<Gamma>1 | \<Gamma>2
                    ; \<Xi>, K, \<Gamma>1 \<turnstile> x : t
                    ; \<Xi>, K, (Some t # \<Gamma>2) \<turnstile> y : u
                    ; K \<turnstile> t :\<kappa> k
