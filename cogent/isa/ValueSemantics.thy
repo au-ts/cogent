@@ -387,12 +387,10 @@ proof -
   assume subty_rec: "K \<turnstile> TRecord ((n,t1,b1) # ts1) s \<sqsubseteq> TRecord ts2 s"
   obtain xts1 where xts1_def: "xts1 = ((n,t1,b1) # ts1)" by auto
   have elims:
-    "list_all2 (\<lambda>p1 p2.
-        fst p1 = fst p2 \<and>
-        K \<turnstile> fst (snd p1) \<sqsubseteq> fst (snd p2) \<and> (if K \<turnstile> fst (snd p1) :\<kappa> {D} then snd (snd p1) \<le> snd (snd p2) else snd (snd p1) = snd (snd p2)))
-        xts1 ts2"
+    "map fst xts1 = map fst ts2"
+    "list_all2 (\<lambda>p1 p2. K \<turnstile> fst (snd p1) \<sqsubseteq> fst (snd p2))  xts1 ts2"
+    "list_all2 (record_kind_subty K) xts1 ts2"
     "distinct (map fst xts1)"
-    "distinct (map fst ts2)"
     using subty_rec subtyping.cases xts1_def
     by fast+
 
@@ -410,13 +408,12 @@ proof -
   obtain xts1 where xts1_def: "xts1 = (t1 # ts1)" by auto
   obtain xts2 where xts2_def: "xts2 = (t2 # ts2)" by auto
   have elims:
-    "list_all2 (\<lambda>p1 p2.
-        fst p1 = fst p2 \<and>
-        K \<turnstile> fst (snd p1) \<sqsubseteq> fst (snd p2) \<and> (if K \<turnstile> fst (snd p1) :\<kappa> {D} then snd (snd p1) \<le> snd (snd p2) else snd (snd p1) = snd (snd p2)))
-        xts1 xts2"
+    "map fst xts1 = map fst xts2"
+    "list_all2 (\<lambda>p1 p2. K \<turnstile> fst (snd p1) \<sqsubseteq> fst (snd p2)) xts1 xts2"
+    "list_all2 (record_kind_subty K) xts1 xts2"
     "distinct (map fst xts1)"
-    "distinct (map fst xts2)"
-    using subty_rec subtyping.cases xts1_def xts2_def by fast+
+    using subty_rec subtyping.cases xts1_def xts2_def
+    by fast+
   show "K \<turnstile> TRecord ts1 s \<sqsubseteq> TRecord ts2 s"
     using xts1_def xts2_def subty_trecord elims by force
 qed
@@ -435,13 +432,13 @@ proof (induct arbitrary: t' and ts' rule: vval_typing_vval_typing_record.inducts
     using v_t_product elims by (simp add: vval_typing_vval_typing_record.intros)
 next
   case (v_t_sum \<Xi> a ta n ts1)
-  let ?P = "(\<lambda>p1 p2. fst p1 = fst p2 \<and> [] \<turnstile> fst (snd p1) \<sqsubseteq> fst (snd p2) \<and> snd (snd p1) \<le> snd (snd p2))"
   obtain ts2 where elims:
     "t' = TSum ts2"
-    "list_all2 ?P ts1 ts2"
+    "list_all2 (\<lambda>p1 p2. [] \<turnstile> fst (snd p1) \<sqsubseteq> fst (snd p2)) ts1 ts2"
+    "map fst ts1 = map fst ts2"
+    "list_all2 variant_kind_subty ts1 ts2"
     "distinct (map fst ts1)"
-    "distinct (map fst ts2)"
-    using v_t_sum
+    using v_t_sum(6)
     by (auto elim: subtyping.cases intro: vval_typing_vval_typing_record.intros)
 
   obtain i where n_in_ts_ix:
@@ -453,19 +450,27 @@ next
   obtain n' ta' ba' where n'_in_ts2: "(n', ta', ba') = ts2 ! i"
     by (metis prod_cases3)
 
-  have sat_ts1_ts2: "?P (ts1 ! i) (ts2 ! i)"
+  have sat_ts1_ts2: "variant_kind_subty (ts1 ! i) (ts2 ! i)"
     using elims n_in_ts_ix n'_in_ts2 list_all2_nthD
     by blast
 
-  have sat_unroll:
+  have
     "n = n'"
+    using n_in_ts_ix n'_in_ts2
+    by (metis elims(3) fst_conv length_map nth_map)
+
+  moreover have
     "[] \<turnstile> ta \<sqsubseteq> ta'"
+    using n_in_ts_ix n'_in_ts2 elims
+    by (metis fst_conv list_all2_conv_all_nth snd_conv)
+
+  moreover have
     "ba' = Unchecked"
     using n_in_ts_ix n'_in_ts2 sat_ts1_ts2
-    by (metis fst_conv snd_conv less_eq_variant_state.elims(2))+
+    by (metis less_eq_variant_state.elims(2) snd_conv)
 
-  show ?case
-    using v_t_sum elims sat_unroll n'_in_ts2 n_in_ts_ix subtyping_wellformed_preservation value_sem.v_t_sum value_sem_axioms
+  ultimately show ?case
+    using v_t_sum elims n'_in_ts2 n_in_ts_ix subtyping_wellformed_preservation value_sem.v_t_sum value_sem_axioms
     by (metis (no_types, lifting) in_set_conv_nth list_all2_lengthD)
 next
   case (v_t_record \<Xi> fs ts s)

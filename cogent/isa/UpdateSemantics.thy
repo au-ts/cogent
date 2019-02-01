@@ -372,7 +372,7 @@ proof (induct rule: uval_typing_uval_typing_record.inducts)
     done
 next case u_t_afun     then show ?case
     by (fastforce intro: subtyping_wellformed_preservation instantiate_wellformed dest: list_all2_kinding_wellformedD)
-qed auto
+qed  (auto simp add: list_all_iff)
 
 
 lemma uval_typing_all_record:
@@ -384,7 +384,6 @@ lemma uval_typing_all_record:
   using assms
 proof (induct arbitrary: ns rule: uval_typing_all.induct)
 qed (auto intro!: uval_typing_uval_typing_record.intros simp add: length_Suc_conv)
-
 
 lemma uval_typing_pointers_noalias:
   shows "\<lbrakk> \<Xi>, \<sigma> \<turnstile>  v  :u  \<tau>  \<langle> r , w \<rangle> \<rbrakk> \<Longrightarrow> r \<inter> w = {}"
@@ -522,6 +521,8 @@ and     "w' = u'"
 shows   "frame \<sigma> u \<sigma>' u'"
 using assms by auto
 
+
+
 lemma bang_idempotent':
 shows "((\<lambda>(c, t). (c, bang t)) \<circ> (\<lambda>(a, b). (a, bang b))) = (\<lambda>(c,t).(c,bang t))"
 by (rule ext, clarsimp simp: bang_idempotent)
@@ -547,7 +548,7 @@ next
   case (u_t_sum \<Xi> \<sigma> a t r w g ts rs)
   then show ?case
     using bang_wellformed
-    by (force intro!: uval_typing_uval_typing_record.intros)
+    by (force intro!: uval_typing_uval_typing_record.intros simp: list_all_iff)
 next
   case u_t_abstract then show ?case
     by (force intro: uval_typing_uval_typing_record.intros bang_wellformed abs_typing_bang[where s = Unboxed, simplified])
@@ -1034,6 +1035,16 @@ assumes "\<Xi>, \<sigma> \<turnstile> \<gamma> matches \<Gamma> \<langle>r, w\<r
 and     "[] \<turnstile> \<Gamma> consumed"
 shows   "w = {}"
 using assms proof(induction rule: matches_ptrs.induct)
+  case (matches_ptrs_some \<Xi> \<sigma> x t r w xs ts r' w')
+  then have "[] \<turnstile> t :\<kappa> {D}"
+    by (auto simp: weakening_def empty_def 
+            elim: weakening_comp.cases)
+  then have "w = {}"
+    using matches_ptrs_some(1,7) discardable_not_writable
+    by blast
+  then show ?case
+    using matches_ptrs_some
+    by (auto simp: weakening_def empty_def)
 qed (auto simp: weakening_def empty_def
           elim: weakening_comp.cases
           dest: discardable_not_writable)
@@ -1309,7 +1320,7 @@ proof -
   next
     show "[] \<turnstile> TSum (tagged_list_update tag' (\<tau>, Checked) ts) wellformed"
       using uval_elim_lemmas tag'_in_ts prod_in_set(1)
-      by (fastforce intro!: variant_tagged_list_update_wellformedI)
+      by (fastforce intro!: variant_tagged_list_update_wellformedI simp add: list_all_iff)
   qed simp+
 qed
 
@@ -1474,6 +1485,279 @@ using assms proof (cases taken)
 next case Taken  with assms show ?thesis by (fastforce intro!: uval_typing_record_put_taken)
 qed
 
+
+
+
+lemma value_subtyping:
+  shows "\<Xi>, \<sigma> \<turnstile> v :u t \<langle>r, w\<rangle> \<Longrightarrow> [] \<turnstile> t \<sqsubseteq> t'
+           \<Longrightarrow> \<exists>r'. r' \<subseteq> r \<and> \<Xi>, \<sigma> \<turnstile> v :u t' \<langle>r', w\<rangle>"
+    and "\<Xi>, \<sigma> \<turnstile>* vs :ur ts \<langle>r, w\<rangle> \<Longrightarrow> [] \<turnstile> TRecord ts s \<sqsubseteq> TRecord ts' s
+           \<Longrightarrow> \<exists>r'. r' \<subseteq> r \<and> \<Xi>, \<sigma> \<turnstile>* vs :ur ts' \<langle>r', w\<rangle>"
+(* Casting to a supertype can make the read set smaller, because record fields will be dropped.
+   The write set will be equal though, because fields with write sets cannot be dropped *)
+proof (induct arbitrary: t' and ts' rule: uval_typing_uval_typing_record.inducts)
+  case (u_t_product \<Xi> \<sigma> a ta ra wa b tb rb wb)
+  obtain ta' tb' where elims:
+    "t' = TProduct ta' tb'"
+    "[] \<turnstile> ta \<sqsubseteq> ta'"
+    "[] \<turnstile> tb \<sqsubseteq> tb'"
+    using u_t_product by (auto elim: subtyping.cases)
+
+  obtain ra' rb' where r_elims:
+    "ra' \<subseteq> ra"
+    "\<Xi>, \<sigma> \<turnstile> a :u ta' \<langle>ra', wa\<rangle>"
+    "rb' \<subseteq> rb"
+    "\<Xi>, \<sigma> \<turnstile> b :u tb' \<langle>rb', wb\<rangle>"
+    using u_t_product elims by meson
+
+  have "\<Xi>, \<sigma> \<turnstile> UProduct a b :u t' \<langle>ra' \<union> rb', wa \<union> wb\<rangle>"
+    using u_t_product elims r_elims
+    by (auto intro!: uval_typing_uval_typing_record.intros)
+  moreover have "ra' \<union> rb' \<subseteq> ra \<union> rb"
+    using r_elims by blast
+  ultimately show ?case
+    by blast
+
+next
+  case (u_t_sum \<Xi> \<sigma> a ta r w n ts1 rs)
+  obtain ts2 where elims:
+    "t' = TSum ts2"
+    "map fst ts1 = map fst ts2"
+    "list_all2 (\<lambda>p1 p2. [] \<turnstile> fst (snd p1) \<sqsubseteq> fst (snd p2)) ts1 ts2"
+    "list_all2 variant_kind_subty ts1 ts2"
+    "distinct (map fst ts1)"
+    using u_t_sum
+    by (auto elim: subtyping.cases intro: uval_typing_uval_typing_record.intros)
+
+  obtain i where n_in_ts_ix:
+    "(n, ta, Unchecked) = ts1 ! i"
+    "i < length ts1"
+    using u_t_sum
+    by (metis in_set_conv_nth)
+
+  obtain n' ta' ba' where n'_in_ts2: "(n', ta', ba') = ts2 ! i"
+    by (metis prod_cases3)
+
+  have sat_ts1_ts2: "variant_kind_subty (ts1 ! i) (ts2 ! i)"
+    using elims n_in_ts_ix n'_in_ts2 list_all2_nthD
+    by blast
+
+  have sat_unroll:
+    "n = n'"
+    "[] \<turnstile> ta \<sqsubseteq> ta'"
+    "ba' = Unchecked"
+    using n_in_ts_ix n'_in_ts2 sat_ts1_ts2
+      apply (metis elims(2) fst_conv length_map nth_map)
+    apply (metis elims(3) eq_snd_iff fst_conv list_all2_conv_all_nth n'_in_ts2 n_in_ts_ix(1) n_in_ts_ix(2))
+    by (metis eq_snd_iff less_eq_variant_state.elims(2) n'_in_ts2 n_in_ts_ix(1) sat_ts1_ts2)
+  obtain r' where sup_a: "\<Xi>, \<sigma> \<turnstile> a :u ta' \<langle>r', w\<rangle>"
+      "r' \<subseteq> r"
+    using u_t_sum sat_unroll
+    by auto
+  have n_in_ts2:
+      "(n, ta', Unchecked) \<in> set ts2"
+    using n_in_ts_ix n'_in_ts2 sat_unroll elims
+    by (auto simp add: list_all2_lengthD)
+
+  have ts2_wf: "[] \<turnstile> TSum ts2 wellformed"
+    using u_t_sum elims
+    by (auto dest: subtyping_wellformed_preservation)
+
+  have repr_same: "map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) ts1 = map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) ts2"
+    using elims(3) elims(2)
+    by (induct rule: list_all2_induct; auto simp add: subtyping_preserves_type_repr)
+
+  show ?case
+    using elims sup_a n_in_ts2 ts2_wf repr_same u_t_sum
+    by (metis uval_typing_uval_typing_record.u_t_sum)
+next
+  case (u_t_struct \<Xi> \<sigma> fs ts r w)
+  obtain ts' where elims:
+    "t' = TRecord ts' Unboxed"
+    "distinct (map fst ts')"
+    using u_t_struct by (auto elim: subtyping.cases intro: uval_typing_uval_typing_record.intros)
+
+  obtain r' where "\<Xi>, \<sigma> \<turnstile>* fs :ur ts' \<langle>r', w\<rangle>"
+      "r' \<subseteq> r"
+    using elims subty_trecord subtyping_simps(6) u_t_struct by meson
+
+  then show ?case
+    using elims
+    by (blast intro: uval_typing_uval_typing_record.intros)
+next
+  case (u_t_abstract a n ts r w \<Xi> \<sigma>)
+  then show ?case
+    by (fastforce elim!: subtyping.cases intro: uval_typing_uval_typing_record.intros)
+next
+  case (u_t_afun \<Xi> f ks a b ts a' b' \<sigma>)
+  show ?case
+    using u_t_afun.prems
+    apply (cases rule: subtyping.cases)
+    using u_t_afun by (fastforce simp add: subtyping_trans uval_typing_uval_typing_record.intros)
+next
+  case (u_t_function \<Xi> K t f u ts t' u' \<sigma>)
+  show ?case
+    using u_t_function.prems apply (cases rule: subtyping.cases)
+    using u_t_function by (fastforce simp add: subtyping_trans uval_typing_uval_typing_record.intros)
+next
+  case (u_t_p_rec_ro \<Xi> \<sigma> fs ts r l ptrl)
+  obtain ts' where elims:
+    "t' = TRecord ts' (Boxed ReadOnly ptrl)"
+    "map fst ts = map fst ts'"
+    "list_all2 (\<lambda>p1 p2. [] \<turnstile> fst (snd p1) \<sqsubseteq> fst (snd p2)) ts ts'"
+    "list_all2 (record_kind_subty []) ts ts'"
+    "distinct (map fst ts')"
+    using u_t_p_rec_ro
+    by (auto elim: subtyping.cases intro: uval_typing_uval_typing_record.intros)
+
+  obtain r' where fields: "\<Xi>, \<sigma> \<turnstile>* fs :ur ts' \<langle>r', {}\<rangle>"
+      "r' \<subseteq> r"
+    using elims subty_trecord subtyping_simps(6) u_t_p_rec_ro by meson
+  have repr_same: "map (type_repr \<circ> fst \<circ> snd) ts = map (type_repr \<circ> fst \<circ> snd) ts'"
+    using elims(3)
+    by (induct rule: list_all2_induct; auto simp add: subtyping_preserves_type_repr)
+
+  show ?case
+    using u_t_p_rec_ro elims fields repr_same uval_typing_uval_typing_record.u_t_p_rec_ro
+    by (metis (no_types, lifting) insert_mono)
+next
+  case (u_t_p_rec_w \<Xi> \<sigma> fs ts r w l ptrl)
+  obtain ts' where elims:
+    "t' = TRecord ts' (Boxed Writable ptrl)"
+    "map fst ts = map fst ts'"
+    "list_all2 (\<lambda>p1 p2. [] \<turnstile> fst (snd p1) \<sqsubseteq> fst (snd p2)) ts ts'"
+    "list_all2 (record_kind_subty []) ts ts'"
+    "distinct (map fst ts')"
+    using u_t_p_rec_w
+    by (auto elim: subtyping.cases intro: uval_typing_uval_typing_record.intros)
+
+  obtain r' where fields: "\<Xi>, \<sigma> \<turnstile>* fs :ur ts' \<langle>r', w\<rangle>"
+      "r' \<subseteq> r"
+    using elims subty_trecord subtyping_simps(6) u_t_p_rec_w by meson
+  have repr_same: "map (type_repr \<circ> fst \<circ> snd) ts = map (type_repr \<circ> fst \<circ> snd) ts'"
+    using elims(3)
+    by (induct rule: list_all2_induct; auto simp add: subtyping_preserves_type_repr)
+
+  show ?case
+    using u_t_p_rec_w elims fields repr_same uval_typing_uval_typing_record.u_t_p_rec_w
+    by (metis (no_types, lifting) UnI1 Un_assoc subset_Un_eq)
+next
+  case (u_t_r_cons1 \<Xi> \<sigma> x t1 r w xs ts r' w' rp n)
+
+  obtain t2 b2 ts2' where field_is: "ts' = (n,t2,b2) # ts2'"
+    using u_t_r_cons1 subtyping_simps by auto
+
+  have field_is':
+    "([] \<turnstile> t1 \<sqsubseteq> t2)"
+    "(if [] \<turnstile> t1 :\<kappa> {D} then Present \<le> b2 else Present = b2)"
+    using field_is subtyping_simps(6) u_t_r_cons1.prems by auto
+
+  have trec_subty: "[] \<turnstile> TRecord ts s \<sqsubseteq> TRecord ts2' s"
+    using u_t_r_cons1(9) field_is
+    apply (cases rule: subtyping.cases)
+    by (auto intro: subtyping.intros)
+
+  obtain ra' where field_reads:
+      "ra'\<subseteq>r"
+      "\<Xi>, \<sigma> \<turnstile> x :u t2 \<langle>ra', w\<rangle>"
+    using u_t_r_cons1 field_is' by meson
+
+  obtain rts2' where field_rest:
+    "\<Xi>, \<sigma> \<turnstile>* xs :ur ts2' \<langle>rts2', w'\<rangle>"
+    "rts2' \<subseteq> r'"
+    using u_t_r_cons1 trec_subty by blast
+
+  have t2_wf: "type_wellformed 0 t2"
+    using field_is' local.u_t_r_cons1(1) subtyping_wellformed_preservation(1) uval_typing_to_wellformed(1) by fastforce
+
+  have repr_same:
+    "type_repr t2 = rp"
+    "uval_repr x = type_repr t2"
+    "uval_repr_deep x = type_repr t2"
+    using u_t_r_cons1 field_is'
+    using subtyping_preserves_type_repr type_repr_uval_repr type_repr_uval_repr_deep
+    by (metis)+
+
+  then show ?case
+  proof (cases b2)
+    case Taken
+    moreover have w_empty: "w = {}"
+      using discardable_not_writable field_is' u_t_r_cons1
+      by (metis calculation record_state.distinct(1) singletonI)
+    moreover have "\<Xi>, \<sigma> \<turnstile>* (x, rp) # xs :ur (n, t2, Taken) # ts2' \<langle>rts2', w'\<rangle>"
+      using field_rest repr_same t2_wf
+      by (auto intro: uval_typing_uval_typing_record.u_t_r_cons2)
+    ultimately show ?thesis
+      apply clarsimp
+      apply (rule exI[where x="rts2'"])
+      apply rule
+      using field_rest apply blast
+      using field_is Taken by auto
+  next case Present
+    then show ?thesis
+      apply -
+      apply (rule exI[where x="ra' \<union> rts2'"])
+      apply rule
+      using field_rest field_reads apply blast
+      using repr_same field_reads field_rest field_is u_t_r_cons1
+      by (auto intro!: uval_typing_uval_typing_record.u_t_r_cons1)
+  qed
+next
+  case (u_t_r_cons2 \<Xi> \<sigma> xs ts r w t1 rp x n)
+
+  obtain t2 b2 ts2' where field_is: "ts' = (n,t2,b2) # ts2'"
+    using u_t_r_cons2 subtyping_simps by auto
+
+  have field_is':
+    "([] \<turnstile> t1 \<sqsubseteq> t2)"
+    "(if [] \<turnstile> t1 :\<kappa> {D} then Taken \<le> b2 else Taken = b2)"
+    using field_is subtyping_simps(6) u_t_r_cons2.prems by auto
+
+  have trec_subty: "[] \<turnstile> TRecord ts s \<sqsubseteq> TRecord ts2' s"
+    using u_t_r_cons2(7) field_is
+    apply (cases rule: subtyping.cases)
+    by (auto intro: subtyping.intros)
+
+  obtain rts2' where field_rest:
+    "\<Xi>, \<sigma> \<turnstile>* xs :ur ts2' \<langle>rts2', w\<rangle>"
+    "rts2' \<subseteq> r"
+    using u_t_r_cons2 trec_subty by blast
+
+  have t2_wf: "type_wellformed 0 t2"
+    using field_is' local.u_t_r_cons2 subtyping_wellformed_preservation(1) uval_typing_to_wellformed(1) by fastforce
+
+  have repr_same:
+    "type_repr t2 = rp"
+    "uval_repr x = type_repr t2"
+    "uval_repr_deep x = type_repr t2"
+    using u_t_r_cons2 field_is'
+    using subtyping_preserves_type_repr type_repr_uval_repr type_repr_uval_repr_deep
+    by (metis)+
+
+  have field_taken: "b2 = Taken"
+    by (metis field_is' less_eq_record_state.elims(2))
+
+  show ?case
+    apply (rule exI[where x="rts2'"])
+    apply rule
+    using field_rest apply blast
+    using field_is field_rest u_t_r_cons2 field_taken t2_wf repr_same
+    by (auto intro: uval_typing_uval_typing_record.u_t_r_cons2)
+next
+  case (u_t_p_abs_ro s ptrl a n ts r \<sigma> l \<Xi>)
+  then show ?case
+    apply -
+    apply (rule exI[where x = "insert l r"], rule, blast)
+    by (auto elim!: subtyping.cases intro: uval_typing_uval_typing_record.intros)
+next
+  case (u_t_p_abs_w s ptrl a n ts r w \<sigma> l \<Xi>)
+  then show ?case
+    apply -
+    apply (rule exI[where x = "r"], rule, blast)
+    by (auto elim!: subtyping.cases intro: uval_typing_uval_typing_record.intros)
+qed (auto elim: subtyping.cases intro: uval_typing_uval_typing_record.intros)
+
+
 lemma list_helper:
 assumes "ls ! x = y"
 shows   "ls[x := y] = ls"
@@ -1565,44 +1849,165 @@ next
       using frame_id
       by (auto simp add: ts_inst_is \<tau>_is f'_is)
   qed simp+
-next case u_sem_app
-  note IH1  = this(2)
-  and  IH2  = this(4)
-  and  IH3  = this(6)
-  and  rest = this(1,3,5,7-)
-  from rest show ?case
-    apply (cases e, simp_all)
-    apply (clarsimp elim!: typing_appE)
-    apply (frule matches_ptrs_noalias)
-    apply (frule(2) matches_ptrs_split, clarsimp)
-    apply (frule(5) IH1, clarsimp)
+next case (u_sem_app \<xi> \<gamma> \<sigma> x \<sigma>' f ts y \<sigma>'' a e \<tau>s v \<sigma>''' K \<tau> \<Gamma> r w)
+  note IH1  = u_sem_app(2)
+  and  IH2  = u_sem_app(4)
+  and  IH3  = u_sem_app(6)
+  and  rest = u_sem_app(1,3,5,7-)
+
+  obtain efun earg where e_def: "e = App efun earg"
+      "x = specialise \<tau>s efun"
+      "y = specialise \<tau>s earg"
+    using u_sem_app by (cases e, auto)
+
+  obtain \<Gamma>1 \<Gamma>2 targ where app_elims:
+    "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+    "\<Xi>, K, \<Gamma>1 \<turnstile> efun : TFun targ \<tau>"
+    "\<Xi>, K, \<Gamma>2 \<turnstile> earg : targ"
+    using u_sem_app e_def by auto
+
+  obtain r' w' r'' w'' where match_elims:
+   "r = r' \<union> r''" 
+   "w = w' \<union> w''"
+   "w' \<inter> w'' = {}"
+   "\<Xi>, \<sigma> \<turnstile> \<gamma> matches instantiate_ctx \<tau>s \<Gamma>1 \<langle>r', w'\<rangle>"
+   "\<Xi>, \<sigma> \<turnstile> \<gamma> matches instantiate_ctx \<tau>s \<Gamma>2 \<langle>r'', w''\<rangle>"
+    using rest e_def app_elims
+    by (auto elim!: typing_appE dest: matches_ptrs_noalias matches_ptrs_split)
+
+  obtain r'f w'f where vfun_ty:
+    "\<Xi>, \<sigma>' \<turnstile> UFunction f ts :u instantiate \<tau>s (TFun targ \<tau>) \<langle>r'f,w'f\<rangle>"
+    "r'f \<subseteq> r'"
+    "frame \<sigma> w' \<sigma>' w'f"
+    using app_elims e_def rest match_elims
+    by (auto dest: IH1)
+
+  obtain r'a w'a where varg_ty:
+    "\<Xi>, \<sigma>'' \<turnstile> a :u instantiate \<tau>s targ \<langle>r'a, w'a\<rangle>"
+    "r'a \<subseteq> r''"
+    "frame \<sigma>' w'' \<sigma>'' w'a"
+    using rest match_elims vfun_ty  app_elims e_def
+    apply (clarsimp)
     apply (frule(7) IH2 [OF _ _ _ _ matches_ptrs_frame, rotated -1])
-     apply (fastforce intro!: subset_helper dest: subset_helper2 subset_helper2')
-    apply (clarsimp elim!: u_t_functionE)
-    apply (frule(3) IH3 [OF refl, rotated -1])
-     apply (force intro!: matches_ptrs.intros simp: instantiate_ctx_def)
-    apply (clarsimp, auto intro!: exI
-                          intro:  frame_trans subset_helper2'
-                          dest:   frame_app [where w' = "{}", simplified])
-  done
-next case u_sem_abs_app
+     apply (metis matches_ptrs_noalias subset_helper subset_helper2 subset_helper2')
+    by auto
+
+  obtain Kfun t u where vfun_ty_elims:
+      "w'f = {}"
+      "r'f = {}"
+      "\<Xi>, Kfun, [Some t] \<turnstile> f : u"
+      "type_wellformed (length Kfun) t"
+      "list_all2 (kinding []) ts Kfun"
+      "[] \<turnstile> TFun (instantiate ts t) (instantiate ts u) \<sqsubseteq> TFun (instantiate \<tau>s targ) (instantiate \<tau>s \<tau>)"
+    using vfun_ty by (auto elim!: u_t_functionE)
+
+  obtain r'a' where varg_subty:
+    "r'a' \<subseteq> r'a"
+    "\<Xi>, \<sigma>'' \<turnstile> a :u instantiate ts t \<langle>r'a', w'a\<rangle>"
+    using varg_ty vfun_ty_elims
+    by (auto elim: subtyping.cases dest: value_subtyping)
+
+  obtain r'r w'r where vres_subty:
+    "\<Xi>, \<sigma>''' \<turnstile> v :u instantiate ts u \<langle>r'r, w'r\<rangle>"
+    "r'r \<subseteq> r'a'"
+    "frame \<sigma>'' w'a \<sigma>''' w'r"
+    using rest vfun_ty_elims varg_subty
+    apply -
+    apply (frule IH3 [OF refl, rotated -1])
+    by (auto intro!:  matches_ptrs.intros simp: instantiate_ctx_def)
+
+  obtain r'r' where
+    "\<Xi>, \<sigma>''' \<turnstile> v :u instantiate \<tau>s \<tau> \<langle>r'r', w'r\<rangle>"
+    "r'r' \<subseteq> r'r"
+    using varg_subty vfun_ty_elims varg_ty vfun_ty vres_subty
+    by (auto elim: subtyping.cases dest: value_subtyping)
+
+  moreover have "r'r' \<subseteq> r"
+    using calculation varg_subty varg_ty vres_subty match_elims by fastforce
+
+  moreover have "frame \<sigma> w \<sigma>''' w'r"
+    by (metis frame_let frame_trans match_elims(2) sup_bot.right_neutral varg_ty(3) vfun_ty(3) vfun_ty_elims(1) vres_subty(3))
+
+  ultimately show ?case
+    by auto
+
+next case (u_sem_abs_app \<xi> \<gamma> \<sigma> efun \<sigma>' fun_name ts earg \<sigma>'' varg  \<sigma>''' vres efull \<tau>s K \<tau> \<Gamma> r w)
   note IH1  = this(2)
   and  IH2  = this(4)
   and  rest = this(1,3,5-)
-  from rest show ?case
-    apply (cases e, simp_all)
-    apply (clarsimp elim!: typing_appE)
-    apply (frule matches_ptrs_noalias)
-    apply (frule(2) matches_ptrs_split, clarsimp)
-    apply (frule(5) IH1, clarsimp)
+
+  obtain efun' earg' where e_def: "efull = App efun' earg'"
+      "efun = specialise \<tau>s efun'"
+      "earg = specialise \<tau>s earg'"
+    using rest by (cases efull, auto)
+
+  obtain \<Gamma>1 \<Gamma>2 targ where app_elims:
+    "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+    "\<Xi>, K, \<Gamma>1 \<turnstile> efun' : TFun targ \<tau>"
+    "\<Xi>, K, \<Gamma>2 \<turnstile> earg' : targ"
+    using rest e_def by auto
+
+  obtain r' w' r'' w'' where match_elims:
+   "r = r' \<union> r''" 
+   "w = w' \<union> w''"
+   "w' \<inter> w'' = {}"
+   "\<Xi>, \<sigma> \<turnstile> \<gamma> matches instantiate_ctx \<tau>s \<Gamma>1 \<langle>r', w'\<rangle>"
+   "\<Xi>, \<sigma> \<turnstile> \<gamma> matches instantiate_ctx \<tau>s \<Gamma>2 \<langle>r'', w''\<rangle>"
+    using rest e_def app_elims
+    by (auto elim!: typing_appE dest: matches_ptrs_noalias matches_ptrs_split)
+
+  obtain r'f w'f where vfun_ty:
+    "\<Xi>, \<sigma>' \<turnstile> UAFunction fun_name ts :u instantiate \<tau>s (TFun targ \<tau>) \<langle>r'f,w'f\<rangle>"
+    "r'f \<subseteq> r'"
+    "frame \<sigma> w' \<sigma>' w'f"
+    using app_elims e_def rest match_elims
+    by (auto dest: IH1)
+
+  obtain r'a w'a where varg_ty:
+    "\<Xi>, \<sigma>'' \<turnstile> varg :u instantiate \<tau>s targ \<langle>r'a, w'a\<rangle>"
+    "r'a \<subseteq> r''"
+    "frame \<sigma>' w'' \<sigma>'' w'a"
+    using rest match_elims vfun_ty  app_elims e_def
+    apply (clarsimp)
     apply (frule(7) IH2 [OF _ _ _ _ matches_ptrs_frame, rotated -1])
-     apply (fastforce intro!: subset_helper dest: subset_helper2 subset_helper2')
-    apply (clarsimp elim!: u_t_afunE)
-    apply (frule(4) proc_env_matches_ptrs_abstract)
-    apply (clarsimp, auto intro!: exI
-                          intro:  frame_trans subset_helper2'
-                          dest:   frame_app [where w' = "{}", simplified])
-    done
+     apply (metis matches_ptrs_noalias subset_helper subset_helper2 subset_helper2')
+    by auto
+
+  obtain Kfun t u where vfun_ty_elims:
+      "w'f = {}"
+      "r'f = {}"
+      "\<Xi> fun_name = (Kfun, t, u)"
+      "type_wellformed (length Kfun) t"
+      "type_wellformed (length Kfun) u"
+      "list_all2 (kinding []) ts Kfun"
+      "[] \<turnstile> TFun (instantiate ts t) (instantiate ts u) \<sqsubseteq> TFun (instantiate \<tau>s targ) (instantiate \<tau>s \<tau>)"
+    using vfun_ty by (auto elim!: u_t_afunE)
+
+  obtain r'a' where varg_subty:
+    "r'a' \<subseteq> r'a"
+    "\<Xi>, \<sigma>'' \<turnstile> varg :u instantiate ts t \<langle>r'a', w'a\<rangle>"
+    using varg_ty vfun_ty_elims
+    by (auto elim: subtyping.cases dest: value_subtyping)
+
+  obtain r'r w'r where vres_subty:
+    "\<Xi>, \<sigma>''' \<turnstile> vres :u instantiate ts u \<langle>r'r, w'r\<rangle>"
+    "r'r \<subseteq> r'a'"
+    "frame \<sigma>'' w'a \<sigma>''' w'r"
+    using rest vfun_ty_elims varg_subty
+    apply -
+    by (frule(4) proc_env_matches_ptrs_abstract, clarsimp)
+
+  obtain r'r' where
+    "\<Xi>, \<sigma>''' \<turnstile> vres :u instantiate \<tau>s \<tau> \<langle>r'r', w'r\<rangle>"
+    "r'r' \<subseteq> r'r"
+    using varg_subty vfun_ty_elims varg_ty vfun_ty vres_subty
+    by (auto elim: subtyping.cases dest: value_subtyping)
+  moreover have "r'r' \<subseteq> r"
+    using calculation varg_subty varg_ty vres_subty match_elims by fastforce
+  moreover have "frame \<sigma> w \<sigma>''' w'r"
+    by (metis frame_let frame_trans match_elims(2) sup_bot.right_neutral varg_ty(3) vfun_ty(3) vfun_ty_elims(1) vres_subty(3))
+  ultimately show ?case
+    by auto
 next case (u_sem_con \<xi> \<gamma> \<sigma> x_spec \<sigma>' x' ts_inst tag)
   then show ?case
   proof (cases e)
@@ -1615,17 +2020,13 @@ next case (u_sem_con \<xi> \<gamma> \<sigma> x_spec \<sigma>' x' ts_inst tag)
       "tag' = tag"
       "x_spec = specialise \<tau>s x"
       using u_sem_con.hyps by simp+
-    then obtain t k ts'
+    then obtain t k
       where typing_elims:
-        "\<tau> = TSum ts'"
+        "\<tau> = TSum ts"
         "\<Xi>, K, \<Gamma> \<turnstile> x : t"
         "(tag, t, Unchecked) \<in> set ts"
-        "map fst ts = map fst ts'"
-        "distinct (map fst ts')"
-        "map fst ts = map fst ts'"
-        "map (fst \<circ> snd) ts = map (fst \<circ> snd) ts'"
-        "list_all2 (\<lambda>x y. snd (snd x) \<le> snd (snd y)) ts ts'"
-        "K \<turnstile> TSum ts' wellformed"
+        "distinct (map fst ts)"
+        "K \<turnstile> TSum ts wellformed"
       using Con u_sem_con.prems
       by fastforce
 
@@ -1635,31 +2036,19 @@ next case (u_sem_con \<xi> \<gamma> \<sigma> x_spec \<sigma>' x' ts_inst tag)
         and frame_w_w': "frame \<sigma> w \<sigma>' w'"
       using u_sem_con.prems spec_simps typing_elims u_sem_con.hyps(2)
       by blast
-    then have "\<Xi>, \<sigma>' \<turnstile> USum tag x' (map (\<lambda>(n,t,_). (n, type_repr t)) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts)) :u TSum (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) ts') \<langle>r', w'\<rangle>"
+    then have "\<Xi>, \<sigma>' \<turnstile> USum tag x' (map (\<lambda>(n,t,_). (n, type_repr t)) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts)) :u TSum (map ((\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) ts) \<langle>r', w'\<rangle>"
       using u_sem_con.hyps(2) u_sem_con.prems typing_elims spec_simps
     proof (intro u_t_sum)
-      have "(tag, t, Unchecked) \<in> set ts'"
+      have "(tag, t, Unchecked) \<in> set ts"
         using variant_elem_preservation typing_elims
         by (metis dual_order.antisym less_eq_variant_state.simps(1))
-      then show "(tag, instantiate \<tau>s t, Unchecked) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts')"
+      then show "(tag, instantiate \<tau>s t, Unchecked) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts)"
         by force
     next
-      have f2: "(\<lambda>(n, t, b). n) = fst"
-        by (simp add: cond_case_prod_eta)
-      have f3: "(\<lambda>(n, t, b). type_repr (instantiate \<tau>s t)) = type_repr \<circ> instantiate \<tau>s \<circ> fst \<circ> snd"
-        by fastforce
-
-      have "map (\<lambda>(n, t, b). (n, type_repr (instantiate \<tau>s t))) ts = map (\<lambda>(n, t, b). (n, type_repr (instantiate \<tau>s t))) ts'"
-        apply (auto intro!: pair_list_eqI simp add: comp_tuple_in3_out2_fst comp_tuple_in3_out2_snd)
-        using typing_elims(6,7) map_map f2 f3
-         apply metis+
-        done
-      then show "map (\<lambda>(n, t, _). (n, type_repr t)) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts) = map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts')"
-        by (clarsimp simp add: f1)
-    next
-      show "[] \<turnstile> TSum (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts') wellformed"
+      show "[] \<turnstile> TSum (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts) wellformed"
         using typing_elims u_sem_con.prems Con
-        by (fastforce intro: instantiate_wellformed dest: list_all2_kinding_wellformedD)
+        using instantiate_wellformed list_all2_kinding_wellformedD
+        by (metis expr.inject(6) instantiate.simps(6) spec_simps(1) specialise.simps(6) type_wellformed_pretty_def u_sem_con.hyps(3))
     qed simp+
     then show ?thesis
       using r'_sub_r frame_w_w' spec_simps typing_elims
@@ -2326,11 +2715,17 @@ next case u_sem_split
      apply blast
     apply (clarsimp, auto intro!: exI intro: frame_let pointerset_helper_frame)
     done
+next
+  case (u_sem_promote \<xi> \<gamma> \<sigma> e t')
+  then show ?case
+    using value_subtyping
+(* TODO AMOS REWRITE WITHOUT SMT *)
+    by (smt Int_subset_iff inf.absorb_iff2 instantiate_ctx_nothing instantiate_nothing list.ctr_transfer(1) specialisation(1) specialise_nothing typing_promoteE)
 
-next case u_sem_all_empty then show ?case by ( cases es, simp_all
-                                             , fastforce intro!: frame_id
-                                                                 uval_typing_all.intros
-                                                         dest: matches_ptrs_empty_env(2))
+next case u_sem_all_empty then show ?case
+    by ( cases es, simp_all, fastforce intro!: frame_id
+                                               uval_typing_all.intros
+                                       dest: matches_ptrs_empty_env(2))
 next case u_sem_all_cons
   note IH1  = this(2)
   and  IH2  = this(4)

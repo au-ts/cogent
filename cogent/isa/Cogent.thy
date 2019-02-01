@@ -504,7 +504,7 @@ inductive subtyping :: "kind env \<Rightarrow> type \<Rightarrow> type \<Rightar
                   \<rbrakk> \<Longrightarrow> K \<turnstile> TFun t1 u1 \<sqsubseteq> TFun t2 u2"
 | subty_tprim  : "\<lbrakk> p1 = p2
                   \<rbrakk> \<Longrightarrow> K \<turnstile> TPrim p1 \<sqsubseteq> TPrim p2"
-| subty_trecord: "\<lbrakk> list_all2 (subtyping K) (map (fst \<circ> snd) ts1) (map (fst \<circ> snd) ts2)
+| subty_trecord: "\<lbrakk> list_all2 (\<lambda>p1 p2. subtyping K (fst (snd p1)) (fst (snd p2))) ts1 ts2
                   ; map fst ts1 = map fst ts2
                   ; list_all2 (record_kind_subty K) ts1 ts2
                   ; distinct (map fst ts1)
@@ -513,12 +513,13 @@ inductive subtyping :: "kind env \<Rightarrow> type \<Rightarrow> type \<Rightar
 | subty_tprod  : "\<lbrakk> K \<turnstile> t1 \<sqsubseteq> t2
                   ; K \<turnstile> u1 \<sqsubseteq> u2
                   \<rbrakk> \<Longrightarrow> K \<turnstile> TProduct t1 u1 \<sqsubseteq> TProduct t2 u2"
-| subty_tsum   : "\<lbrakk> list_all2 (subtyping K) (map (fst \<circ> snd) ts1) (map (fst \<circ> snd) ts2)
+| subty_tsum   : "\<lbrakk> list_all2 (\<lambda>p1 p2. subtyping K (fst (snd p1)) (fst (snd p2))) ts1 ts2
                   ; map fst ts1 = map fst ts2
                   ; list_all2 variant_kind_subty ts1 ts2
                   ; distinct (map fst ts1)
                   \<rbrakk> \<Longrightarrow> K \<turnstile> TSum ts1 \<sqsubseteq> TSum ts2"
 | subty_tunit  : "K \<turnstile> TUnit \<sqsubseteq> TUnit"
+
 
 section {* Contexts *}
 
@@ -825,7 +826,7 @@ typing_var    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto>w singleton (length
 
 | typing_promote: "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : t' ; K \<turnstile> t' \<sqsubseteq> t \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Promote t x : t"
 
-| typing_all_empty : "list_all (\<lambda>x. x = None) \<Gamma> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile>* [] : []"
+| typing_all_empty : "\<Gamma> = empty n \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile>* [] : []"
 
 | typing_all_cons  : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
                       ; \<Xi>, K, \<Gamma>1 \<turnstile>  e  : t
@@ -1252,7 +1253,7 @@ lemma subtyping_simps:
   "\<And>t1 u1 t2 u2. K \<turnstile> TFun t1 u1 \<sqsubseteq> TFun t2 u2 \<longleftrightarrow> K \<turnstile> t2 \<sqsubseteq> t1 \<and> K \<turnstile> u1 \<sqsubseteq> u2"
   "\<And>p1 p2. K \<turnstile> TPrim p1 \<sqsubseteq> TPrim p2 \<longleftrightarrow> p1 = p2"
   "\<And>ts1 s1 ts2 s2. K \<turnstile> TRecord ts1 s1 \<sqsubseteq> TRecord ts2 s2
-                    \<longleftrightarrow> list_all2 (subtyping K) (map (fst \<circ> snd) ts1) (map (fst \<circ> snd) ts2)
+                    \<longleftrightarrow> list_all2 (\<lambda>p1 p2. subtyping K (fst (snd p1)) (fst (snd p2))) ts1 ts2
                     \<and> list_all2 (\<lambda>p1 p2. if K \<turnstile> fst (snd p1) :\<kappa> {D} then snd (snd p1) \<le> snd (snd p2) else snd (snd p1) = snd (snd p2)) ts1 ts2
                     \<and> map fst ts1 = map fst ts2
                     \<and> distinct (map fst ts1)
@@ -1260,7 +1261,7 @@ lemma subtyping_simps:
                     \<and> s1 = s2"
   "\<And>t1 u1 t2 u2. K \<turnstile> TProduct t1 u1 \<sqsubseteq> TProduct t2 u2 \<longleftrightarrow> K \<turnstile> t1 \<sqsubseteq> t2 \<and> K \<turnstile> u1 \<sqsubseteq> u2"
   "\<And>ts1 ts2. K \<turnstile> TSum ts1 \<sqsubseteq> TSum ts2
-                    \<longleftrightarrow> list_all2 (subtyping K) (map (fst \<circ> snd) ts1) (map (fst \<circ> snd) ts2)
+                    \<longleftrightarrow> list_all2 (\<lambda>p1 p2. subtyping K (fst (snd p1)) (fst (snd p2))) ts1 ts2
                     \<and> list_all2 (\<lambda>p1 p2. snd (snd p1) \<le> snd (snd p2)) ts1 ts2
                     \<and> map fst ts1 = map fst ts2
                     \<and> distinct (map fst ts1)
@@ -1438,7 +1439,7 @@ next
   moreover obtain pts where p_elims:
     "p = TSum pts"
     "map fst pts = map fst qts"
-    "list_all2 (subtyping K) (map (fst \<circ> snd) pts) (map (fst \<circ> snd) qts)"
+    "list_all2 (\<lambda>p1 p2. subtyping K (fst (snd p1)) (fst (snd p2))) pts qts"
     "list_all2 variant_kind_subty pts qts"
     "distinct (map fst pts)"
     "distinct (map fst qts)"
@@ -1446,7 +1447,7 @@ next
   moreover obtain rts where r_elims:
     "r = TSum rts"
     "map fst qts = map fst rts"
-    "list_all2 (subtyping K) (map (fst \<circ> snd) qts) (map (fst \<circ> snd) rts)"
+    "list_all2 (\<lambda>p1 p2. subtyping K (fst (snd p1)) (fst (snd p2))) qts rts"
     "list_all2 (\<lambda>p1 p2. snd (snd p1) \<le> snd (snd p2)) qts rts"
     "distinct (map fst rts)"
     using TSum.prems by (auto elim: subtyping.cases)
@@ -1456,9 +1457,9 @@ next
       K \<turnstile> fst (snd (qts ! i)) \<sqsubseteq> fst (snd (rts ! i)) \<Longrightarrow>
       K \<turnstile> fst (snd (pts ! i)) \<sqsubseteq> fst (snd (rts ! i)))"
     using TSum.hyps fsts.intros nth_mem snds.intros by blast
-  moreover have "list_all2 (subtyping K) (map (fst \<circ> snd) pts) (map (fst \<circ> snd) rts)"
+  moreover have "list_all2 (\<lambda>p1 p2. subtyping K (fst (snd p1)) (fst (snd p2))) pts rts"
     using p_elims(3) r_elims(3) IH
-    by (clarsimp simp add: list_all2_map1 list_all2_map2 list_all2_conv_all_nth)
+    by (clarsimp simp add: list_all2_conv_all_nth)
   moreover have "list_all2 (\<lambda>p1 p2. snd (snd p1) \<le> snd (snd p2)) pts rts"
     using list_all2_trans[OF _ p_elims(4) r_elims(4)]
     by simp
@@ -1480,7 +1481,7 @@ next
   obtain pts where p_elims:
     "p = TRecord pts s"
     "map fst pts = map fst qts"
-    "list_all2 (subtyping K) (map (fst \<circ> snd) pts) (map (fst \<circ> snd) qts)"
+    "list_all2 (\<lambda>p1 p2. subtyping K (fst (snd p1)) (fst (snd p2))) pts qts"
     "list_all2 (record_kind_subty K) pts qts"
     "distinct (map fst pts)"
     "distinct (map fst qts)"
@@ -1488,7 +1489,7 @@ next
   moreover obtain rts where r_elims:
     "r = TRecord rts s"
     "map fst qts = map fst rts"
-    "list_all2 (subtyping K) (map (fst \<circ> snd) qts) (map (fst \<circ> snd) rts)"
+    "list_all2 (\<lambda>p1 p2. subtyping K (fst (snd p1)) (fst (snd p2))) qts rts"
     "list_all2 (record_kind_subty K) qts rts"
     "distinct (map fst rts)"
     using TRecord.prems by (auto elim: subtyping.cases)
@@ -1498,9 +1499,9 @@ next
       K \<turnstile> fst (snd (qts ! i)) \<sqsubseteq> fst (snd (rts ! i)) \<Longrightarrow>
       K \<turnstile> fst (snd (pts ! i)) \<sqsubseteq> fst (snd (rts ! i)))"
     using TRecord.hyps fsts.intros nth_mem snds.intros by blast
-  moreover have "list_all2 (subtyping K) (map (fst \<circ> snd) pts) (map (fst \<circ> snd) rts)"
+  moreover have "list_all2 (\<lambda>p1 p2. subtyping K (fst (snd p1)) (fst (snd p2))) pts rts"
     using p_elims(3) r_elims(3) IH
-    by (clarsimp simp add: list_all2_map1 list_all2_map2 list_all2_conv_all_nth)
+    by (clarsimp simp add: list_all2_conv_all_nth)
   moreover have sat_p_r: "\<And>i. i < length pts \<Longrightarrow> record_kind_subty K (pts ! i) (rts ! i)"
   proof -
     fix i
@@ -1521,6 +1522,26 @@ next
     using p_elims r_elims
     by (simp add: sat_p_r list_all2_conv_all_nth subty_trecord)
 qed (fast elim: subtyping.cases)+
+
+
+lemma subtyping_preserves_type_repr:
+  "K \<turnstile> t \<sqsubseteq> t' \<Longrightarrow> type_repr t = type_repr t'"
+proof (induct rule: subtyping.induct)
+  case (subty_trecord K ts1 ts2 s1 s2)
+  then show ?case
+  (* I don't understand Isabelle:
+     > apply (cases s1, induct rule: list_all2_induct)
+     works, but separate apply calls don't work:
+     > apply (cases s1)
+     > apply (induct rule: list_all2_induct) -- fails
+     what's up with that
+  *)
+    by (cases s1; induct rule: list_all2_induct; auto)
+next
+  case (subty_tsum K ts1 ts2)
+  then show ?case
+    by (induct rule: list_all2_induct; auto)
+qed auto
 
 
 section {* Typing lemmas *}
@@ -2146,7 +2167,7 @@ next case typing_promote then show ?case
 next
   case (typing_all_empty \<Gamma> \<Xi> K)
   then show ?case
-    by (force intro!: typing_typing_all.intros simp add: instantiate_ctx_def list_all_length)
+    by (force intro!: typing_typing_all.intros simp add: instantiate_ctx_def empty_def)
 qed (force intro!: typing_struct_instantiate
                    typing_typing_all.intros
            dest:   substitutivity
