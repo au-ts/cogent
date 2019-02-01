@@ -1277,44 +1277,6 @@ next
     by (intro subtyping.intros, auto simp add: list_all2_conv_all_nth list_all_iff)
 qed (auto intro!: subtyping.intros simp add: list.rel_refl_strong list_all_iff)
 
-lemma specialisation_subtyping:
-  assumes
-    "K \<turnstile> t \<sqsubseteq> t'"
-    "K \<turnstile> t wellformed"
-    "K \<turnstile> t' wellformed"
-    "list_all2 (kinding K') \<delta> K"
-  shows "K' \<turnstile> instantiate \<delta> t \<sqsubseteq> instantiate \<delta>  t'"
-  using assms
-proof (induct rule: subtyping.inducts)
-  case (subty_tvar i' i K)
-  then show ?case
-    by (auto intro!: subtyping.intros subtyping_refl simp add: kinding_def list_all2_conv_all_nth)
-next
-  case (subty_tvarb i' i K)
-  moreover then have "type_wellformed (length K') (bang (\<delta> ! i))"
-    by (auto dest: bang_wellformed simp add: kinding_def list_all2_conv_all_nth)
-  ultimately show ?case
-    by (auto intro!: subtyping.intros subtyping_refl simp add: kinding_def list_all2_conv_all_nth)
-next
-  case subty_tcon then show ?case
-    by (auto intro!: subtyping.intros subtyping_refl simp add: list_all_iff kinding_def list_all2_conv_all_nth)
-next
-  case (subty_trecord K ts1 ts2 s1 s2)
-  moreover then have "\<And>i. i < length ts1 \<Longrightarrow>
-    K' \<turnstile> instantiate \<delta> (fst (snd (ts1 ! i))) \<sqsubseteq> instantiate \<delta> (fst (snd (ts2 ! i)))"
-    by (auto simp add: list_all2_conv_all_nth list_all_length)
-  ultimately show ?case
-    by (fastforce intro!: subtyping.intros simp add: list_all2_conv_all_nth split: prod.splits)
-next
-  case (subty_tsum K ts1 ts2)
-  moreover then have "\<And>i. i < length ts1 \<Longrightarrow>
-    K' \<turnstile> instantiate \<delta> (fst (snd (ts1 ! i))) \<sqsubseteq> instantiate \<delta> (fst (snd (ts2 ! i)))"
-    by (auto simp add: list_all2_conv_all_nth list_all_length)
-  ultimately show ?case
-    by (fastforce intro!: subtyping.intros simp add: list_all2_conv_all_nth split: prod.splits)
-qed (auto intro!: subtyping.intros)
-
-
 lemma subtyping_wellformed_preservation:
   assumes
     "K \<turnstile> t1 \<sqsubseteq> t2"
