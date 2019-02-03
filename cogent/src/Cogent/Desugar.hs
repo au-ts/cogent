@@ -495,7 +495,6 @@ desugarType = \case
   S.RT (S.TCon "U32"    [] Unboxed) -> return $ TPrim U32
   S.RT (S.TCon "U64"    [] Unboxed) -> return $ TPrim U64
   S.RT (S.TCon "Bool"   [] Unboxed) -> return $ TPrim Boolean
-  S.RT (S.TCon "Char"   [] Unboxed) -> return $ TPrim U8
   S.RT (S.TCon "String" [] Unboxed) -> return $ TString
   S.RT (S.TCon tn tvs s) -> TCon tn <$> mapM desugarType tvs <*> pure (desugarSigil s)
   S.RT (S.TVar vn b)     -> (findIx vn <$> use typCtx) >>= \(Just v) -> return $ if b then TVarBang v else TVar v
