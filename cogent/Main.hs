@@ -285,12 +285,12 @@ setActions c = [c]  -- -h, -v
 type Flags = [IO ()]
 
 stgMsg :: Stage -> String
-stgMsg STGParse     = "surface language"
-stgMsg STGTypeCheck = "type-checked"
-stgMsg STGDesugar   = "desugared"
-stgMsg STGNormal    = "normalised"
-stgMsg STGSimplify  = "simplified"
-stgMsg STGMono      = "monomorphised"
+stgMsg STGParse     = "surface"
+stgMsg STGTypeCheck = "type-checked surface"
+stgMsg STGDesugar   = "desugared core"
+stgMsg STGNormal    = "normalised core"
+stgMsg STGSimplify  = "simplified core"
+stgMsg STGMono      = "monomorphised core"
 stgMsg STGCodeGen   = "code generation"
 
 stgCmd :: Stage -> String
@@ -299,8 +299,8 @@ stgCmd STGNormal  = "normal"
 stgCmd STGMono    = "mono"
 stgCmd _          = __impossible "stgCmd"
 
-astMsg s       = "display core langauge AST (" ++ stgMsg s ++ ")"
-prettyMsg s    = "pretty-print core language (" ++ stgMsg s ++ ")"
+astMsg s       = "display " ++ stgMsg s ++ " language AST"
+prettyMsg s    = "pretty-print " ++ stgMsg s ++ " language"
 #ifdef WITH_HASKELL
 hsShallowMsg s tup = "generate Haskell shallow embedding (" ++ stgMsg s ++
                      (if tup then ", with Haskell Tuples" else "") ++ ")"
