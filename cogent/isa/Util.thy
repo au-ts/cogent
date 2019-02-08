@@ -116,6 +116,9 @@ lemma prod_eq:
 
 section {* list related lemmas *}
 
+lemma map_eq_iff_nth_eq: "(map f xs = map g ys) = (length xs = length ys \<and> (\<forall>i < length xs. f (xs ! i) = g (ys ! i)))"
+  by (force simp add: list_eq_iff_nth_eq)
+
 lemma map2_mapL: "List.map2 h (map f xs) xs = map (\<lambda>x. h (f x) x) xs"
   by (induction xs) (auto)
 
@@ -193,10 +196,27 @@ lemma distinct_fst_tags_update:
 lemma list_all_nil: "list_all P []" by simp
 lemma list_all_cons: "P x \<Longrightarrow> list_all P xs \<Longrightarrow> list_all P (x # xs)" by simp
 
+subsection {* list_all2 *}
 
+lemmas list_all2_nil = List.list.rel_intros(1)
+lemmas list_all2_cons = List.list.rel_intros(2)
 
 lemma list_all2_eq_iff_map_eq: "list_all2 (\<lambda>x y. f x = g y) xs ys = (map f xs = map g ys)"
   by (induct xs arbitrary: ys; simp add: Cons_eq_map_conv list_all2_Cons1)
+
+lemma list_all2_split_conj:
+  shows "list_all2 (\<lambda>x y. P x y \<and> Q x y) xs ys \<longleftrightarrow> list_all2 P xs ys \<and> list_all2 Q xs ys"
+  apply (rule iffI)
+   apply (induct rule: list_all2_induct, simp+)
+  apply (clarsimp, induct rule: list_all2_induct, simp+)
+  done
+
+lemma list_all2_split_all:
+  shows "list_all2 (\<lambda>x y. \<forall>a. P x y a) xs ys \<longleftrightarrow> (\<forall>a. list_all2 (\<lambda>x y. P x y a) xs ys)"
+  apply (rule iffI)
+   apply (induct rule: list_all2_induct, simp+)
+  apply (induct xs arbitrary: ys; case_tac ys; clarsimp)
+  done
 
 
 subsection {* list_all3 *}

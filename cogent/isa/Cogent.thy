@@ -488,6 +488,11 @@ fun specialise :: "type substitution \<Rightarrow> 'f expr \<Rightarrow> 'f expr
 
 section {* Subtyping *}
 
+abbreviation record_kind_subty :: "kind_comp set list \<Rightarrow> name \<times> Cogent.type \<times> record_state \<Rightarrow> name \<times> Cogent.type \<times> record_state \<Rightarrow> bool" where
+  "record_kind_subty K p1 p2 \<equiv> if K \<turnstile> fst (snd p1) :\<kappa> {D} then snd (snd p1) \<le> snd (snd p2) else snd (snd p1) = snd (snd p2)"
+
+abbreviation variant_kind_subty :: "name \<times> Cogent.type \<times> variant_state \<Rightarrow> name \<times> Cogent.type \<times> variant_state \<Rightarrow> bool" where
+  "variant_kind_subty p1 p2 \<equiv> snd (snd p1) \<le> snd (snd p2)"
 
 inductive subtyping :: "kind env \<Rightarrow> type \<Rightarrow> type \<Rightarrow> bool" ("_ \<turnstile> _ \<sqsubseteq> _" [40,0,40] 60) where
   subty_tvar   : "n1 = n2 \<Longrightarrow> K \<turnstile> TVar n1 \<sqsubseteq> TVar n2"
@@ -499,17 +504,19 @@ inductive subtyping :: "kind env \<Rightarrow> type \<Rightarrow> type \<Rightar
                   \<rbrakk> \<Longrightarrow> K \<turnstile> TFun t1 u1 \<sqsubseteq> TFun t2 u2"
 | subty_tprim  : "\<lbrakk> p1 = p2
                   \<rbrakk> \<Longrightarrow> K \<turnstile> TPrim p1 \<sqsubseteq> TPrim p2"
-| subty_trecord: "\<lbrakk> list_all2 (\<lambda>p1 p2. fst p1 = fst p2 \<and> K \<turnstile> fst (snd p1) \<sqsubseteq> fst (snd p2) \<and> (if K \<turnstile> fst (snd p1) :\<kappa> {D} then snd (snd p1) \<le> snd (snd p2) else snd (snd p1) = snd (snd p2))) ts1 ts2
+| subty_trecord: "\<lbrakk> list_all2 (subtyping K) (map (fst \<circ> snd) ts1) (map (fst \<circ> snd) ts2)
+                  ; map fst ts1 = map fst ts2
+                  ; list_all2 (record_kind_subty K) ts1 ts2
                   ; distinct (map fst ts1)
-                  ; distinct (map fst ts2)
                   ; s1 = s2
                   \<rbrakk> \<Longrightarrow> K \<turnstile> TRecord ts1 s1 \<sqsubseteq> TRecord ts2 s2"
 | subty_tprod  : "\<lbrakk> K \<turnstile> t1 \<sqsubseteq> t2
                   ; K \<turnstile> u1 \<sqsubseteq> u2
                   \<rbrakk> \<Longrightarrow> K \<turnstile> TProduct t1 u1 \<sqsubseteq> TProduct t2 u2"
-| subty_tsum   : "\<lbrakk> list_all2 (\<lambda>p1 p2. fst p1 = fst p2 \<and> K \<turnstile> fst (snd p1) \<sqsubseteq> fst (snd p2) \<and> snd (snd p1) \<le> snd (snd p2)) ts1 ts2
+| subty_tsum   : "\<lbrakk> list_all2 (subtyping K) (map (fst \<circ> snd) ts1) (map (fst \<circ> snd) ts2)
+                  ; map fst ts1 = map fst ts2
+                  ; list_all2 variant_kind_subty ts1 ts2
                   ; distinct (map fst ts1)
-                  ; distinct (map fst ts2)
                   \<rbrakk> \<Longrightarrow> K \<turnstile> TSum ts1 \<sqsubseteq> TSum ts2"
 | subty_tunit  : "K \<turnstile> TUnit \<sqsubseteq> TUnit"
 
@@ -1227,10 +1234,10 @@ next
 qed auto
 
 lemma bang_kind:
-shows "K \<turnstile>  t  wellformed \<Longrightarrow> K \<turnstile> bang t :\<kappa> {D, S}"
-and   "K \<turnstile>* ts wellformed \<Longrightarrow> K \<turnstile>* map bang ts :\<kappa> {D, S}"
-and   "K \<turnstile>* map (fst \<circ> snd) xs wellformed \<Longrightarrow> K \<turnstile>* map (\<lambda>(n,t,b). (n, bang t, b)) xs :\<kappa>v {D, S}"
-and   "K \<turnstile>* map (fst \<circ> snd) fs wellformed \<Longrightarrow> K \<turnstile>* map (\<lambda>(n,t,b). (n, bang t, b)) fs :\<kappa>r {D, S}"
+shows "K \<turnstile>  t  wellformed \<Longrightarrow> k \<subseteq> {D, S} \<Longrightarrow> K \<turnstile> bang t :\<kappa> k"
+and   "K \<turnstile>* ts wellformed \<Longrightarrow> k \<subseteq> {D, S} \<Longrightarrow> K \<turnstile>* map bang ts :\<kappa> k"
+and   "K \<turnstile>* map (fst \<circ> snd) xs wellformed \<Longrightarrow> k \<subseteq> {D, S} \<Longrightarrow> K \<turnstile>* map (\<lambda>(n,t,b). (n, bang t, b)) xs :\<kappa>v k"
+and   "K \<turnstile>* map (fst \<circ> snd) fs wellformed \<Longrightarrow> k \<subseteq> {D, S} \<Longrightarrow> K \<turnstile>* map (\<lambda>(n,t,b). (n, bang t, b)) fs :\<kappa>r k"
   using bang_wellformed bang_kinding_fn
   by (fastforce simp add: kinding_defs INT_subset_iff simp del: insert_subset
       split: variant_state.split record_state.split)+
@@ -1245,13 +1252,17 @@ lemma subtyping_simps:
   "\<And>t1 u1 t2 u2. K \<turnstile> TFun t1 u1 \<sqsubseteq> TFun t2 u2 \<longleftrightarrow> K \<turnstile> t2 \<sqsubseteq> t1 \<and> K \<turnstile> u1 \<sqsubseteq> u2"
   "\<And>p1 p2. K \<turnstile> TPrim p1 \<sqsubseteq> TPrim p2 \<longleftrightarrow> p1 = p2"
   "\<And>ts1 s1 ts2 s2. K \<turnstile> TRecord ts1 s1 \<sqsubseteq> TRecord ts2 s2
-                    \<longleftrightarrow> list_all2 (\<lambda>p1 p2. fst p1 = fst p2 \<and> K \<turnstile> fst (snd p1) \<sqsubseteq> fst (snd p2) \<and> (if K \<turnstile> fst (snd p1) :\<kappa> {D} then snd (snd p1) \<le> snd (snd p2) else snd (snd p1) = snd (snd p2))) ts1 ts2
+                    \<longleftrightarrow> list_all2 (subtyping K) (map (fst \<circ> snd) ts1) (map (fst \<circ> snd) ts2)
+                    \<and> list_all2 (\<lambda>p1 p2. if K \<turnstile> fst (snd p1) :\<kappa> {D} then snd (snd p1) \<le> snd (snd p2) else snd (snd p1) = snd (snd p2)) ts1 ts2
+                    \<and> map fst ts1 = map fst ts2
                     \<and> distinct (map fst ts1)
                     \<and> distinct (map fst ts2)
                     \<and> s1 = s2"
   "\<And>t1 u1 t2 u2. K \<turnstile> TProduct t1 u1 \<sqsubseteq> TProduct t2 u2 \<longleftrightarrow> K \<turnstile> t1 \<sqsubseteq> t2 \<and> K \<turnstile> u1 \<sqsubseteq> u2"
   "\<And>ts1 ts2. K \<turnstile> TSum ts1 \<sqsubseteq> TSum ts2
-                    \<longleftrightarrow> list_all2 (\<lambda>p1 p2. fst p1 = fst p2 \<and> K \<turnstile> fst (snd p1) \<sqsubseteq> fst (snd p2) \<and> snd (snd p1) \<le> snd (snd p2)) ts1 ts2
+                    \<longleftrightarrow> list_all2 (subtyping K) (map (fst \<circ> snd) ts1) (map (fst \<circ> snd) ts2)
+                    \<and> list_all2 (\<lambda>p1 p2. snd (snd p1) \<le> snd (snd p2)) ts1 ts2
+                    \<and> map fst ts1 = map fst ts2
                     \<and> distinct (map fst ts1)
                     \<and> distinct (map fst ts2)"
   "K \<turnstile> TUnit \<sqsubseteq> TUnit"
@@ -1263,18 +1274,16 @@ lemma subtyping_refl:
   using assms
 proof (induct t)
   case (TSum ts)
-  then have "\<And>p1 p2. p1 \<in> set ts \<Longrightarrow> K \<turnstile> fst (snd p1) wellformed \<Longrightarrow> K \<turnstile> fst (snd p1) \<sqsubseteq> fst (snd p1)"
-    using fsts.intros snds.intros by blast
-  then show ?case
-    using TSum.prems
-    by (intro subtyping.intros, auto simp add: list_all2_conv_all_nth list_all_iff)
+  moreover then have "\<And>i. i < length ts \<Longrightarrow> K \<turnstile> fst (snd (ts ! i)) wellformed \<Longrightarrow> K \<turnstile> fst (snd (ts ! i)) \<sqsubseteq> fst (snd (ts ! i))"
+    using fsts.intros snds.intros nth_mem by blast
+  ultimately show ?case
+    by (fastforce intro!: subtyping.intros simp add: list_all2_conv_all_nth list_all_length)
 next
   case (TRecord ts s)
-  then have "\<And>p1 p2. p1 \<in> set ts \<Longrightarrow> K \<turnstile> fst (snd p1) wellformed \<Longrightarrow> K \<turnstile> fst (snd p1) \<sqsubseteq> fst (snd p1)"
-    using fsts.intros snds.intros by blast
-  then show ?case
-    using TRecord.prems
-    by (intro subtyping.intros, auto simp add: list_all2_conv_all_nth list_all_iff)
+  moreover then have "\<And>i. i < length ts \<Longrightarrow> K \<turnstile> fst (snd (ts ! i)) wellformed \<Longrightarrow> K \<turnstile> fst (snd (ts ! i)) \<sqsubseteq> fst (snd (ts ! i))"
+    using fsts.intros snds.intros nth_mem by blast
+  ultimately show ?case
+    by (fastforce intro!: subtyping.intros simp add: list_all2_conv_all_nth list_all_length)
 qed (auto intro!: subtyping.intros simp add: list.rel_refl_strong list_all_iff)
 
 lemma subtyping_wellformed_preservation:
@@ -1295,7 +1304,7 @@ next
   case (subty_trecord K ts1 ts2 s1 s2)
   moreover then have
     "list_all (\<lambda>p1. K \<turnstile> fst (snd p1) wellformed) ts1 \<longleftrightarrow> list_all (\<lambda>p2. K \<turnstile> fst (snd p2) wellformed) ts2"
-    by (simp add: list_all2_mono iff_conv_conj_imp list_all2_conv_all_nth list_all_length)
+    by (clarsimp simp add: list_all2_mono iff_conv_conj_imp list_all2_conv_all_nth list_all_length)
   ultimately show
     "K \<turnstile> TRecord ts1 s1 wellformed \<Longrightarrow> K \<turnstile> TRecord ts2 s2 wellformed"
     "K \<turnstile> TRecord ts2 s2 wellformed \<Longrightarrow> K \<turnstile> TRecord ts1 s1 wellformed"
@@ -1304,13 +1313,12 @@ next
   case (subty_tsum K ts1 ts2)
   moreover then have
     "list_all (\<lambda>p1. K \<turnstile> fst (snd p1) wellformed) ts1 \<longleftrightarrow> list_all (\<lambda>p2. K \<turnstile> fst (snd p2) wellformed) ts2"
-    by (simp add: list_all2_mono iff_conv_conj_imp list_all2_conv_all_nth list_all_length)
+    by (clarsimp simp add: list_all2_mono iff_conv_conj_imp list_all2_conv_all_nth list_all_length)
   ultimately show
     "K \<turnstile> TSum ts1 wellformed \<Longrightarrow> K \<turnstile> TSum ts2 wellformed"
     "K \<turnstile> TSum ts2 wellformed \<Longrightarrow> K \<turnstile> TSum ts1 wellformed"
     by simp+
 qed simp+
-
 
 lemma subtyping_bang_preservation:
   assumes "K \<turnstile> t1 \<sqsubseteq> t2"
@@ -1321,17 +1329,16 @@ proof (induct rule: subtyping.induct)
     by (force simp add: list_all2_conv_all_nth intro: subtyping.intros)
 next
   case (subty_trecord K ts1 ts2 s1 s2)
-
-  moreover have
-    "\<And>i n1 n2 t1 b1 t2 b2. ts1 ! i = (n1, t1, b1) \<Longrightarrow> ts2 ! i = (n2, t2, b2) \<Longrightarrow>   K \<turnstile> bang t1 :\<kappa> {D}  \<Longrightarrow> i < length ts2 \<Longrightarrow> b1 \<le> b2"
-    "\<And>i n1 n2 t1 b1 t2 b2. ts1 ! i = (n1, t1, b1) \<Longrightarrow> ts2 ! i = (n2, t2, b2) \<Longrightarrow> \<not>(K \<turnstile> bang t1 :\<kappa> {D}) \<Longrightarrow> i < length ts2 \<Longrightarrow> b1 = b2"
-    using list_all2_nthD2[OF subty_trecord(1)]
-    by (metis eq_refl bang_kind(1) fst_conv insert_subset kinding_def snd_conv)+
-
+  moreover have "\<And>i k. i < length ts2 \<Longrightarrow> K \<turnstile> (fst (snd (ts1 ! i))) :\<kappa> k \<Longrightarrow> K \<turnstile> bang (fst (snd (ts1 ! i))) :\<kappa> {D}"
+    using bang_kind kinding_def by auto
+  moreover have "\<And>i. i < length ts2 \<Longrightarrow> snd (snd (ts1 ! i)) \<le> snd (snd (ts2 ! i))"
+    using subty_trecord.hyps
+    by (force simp add: list_all2_conv_all_nth if_bool_eq_conj)
   ultimately show ?case
-    apply simp
-    apply (intro subtyping.intros)
-    by (auto simp add: list_all2_conv_all_nth split: prod.splits)
+    by (fastforce
+        intro!: subtyping.intros
+        simp add: list_all2_map1 list_all2_map2 list_all2_conv_all_nth
+        split: prod.splits)
 next
   case subty_tsum then show ?case
     by (simp, intro subtyping.intros, auto simp add: list_all2_conv_all_nth split: prod.splits)
@@ -1341,72 +1348,66 @@ lemma subtyping_kinding_fn_drop_super_impl_drop_sub:
   assumes "K \<turnstile> p \<sqsubseteq> q"
   and "D \<in> kinding_fn K q"
   shows "D \<in> kinding_fn K p"
-using assms proof (induct)
+  using assms
+proof (induct rule: subtyping.inducts)
   case (subty_trecord K pts qts ps qs)
-
-  moreover have kind_pts: "\<And>ntb1. ntb1 \<in> set pts \<Longrightarrow> D \<in> (case snd (snd ntb1) of Taken \<Rightarrow> UNIV | Present \<Rightarrow> kinding_fn K (fst (snd ntb1)))"
+  moreover have kind_qts:
+    "\<And>i n tq bq. i < length qts \<Longrightarrow> qts ! i = (n, tq, bq) \<Longrightarrow> bq = Present \<Longrightarrow> D \<in> kinding_fn K tq"
+    using subty_trecord.prems
+    by (fastforce simp add: all_set_conv_all_nth split: prod.splits)
+  moreover have kind_pts:
+    "\<And>n pt pb. (n, pt, pb) \<in> set pts \<Longrightarrow> D \<in> (case pb of Taken \<Rightarrow> UNIV | Present \<Rightarrow> kinding_fn K pt)"
   proof -
-    fix ntb1
-    assume in_pts: "ntb1 \<in> set pts"
-
-    obtain ntb2 where in_qts: "(ntb1, ntb2) \<in> set (zip pts qts)"
-      by (meson in_pts in_set_impl_in_set_zip1 list_all2_iff subty_trecord)
+    fix n tp bp
+    assume elem_pts: "(n, tp, bp) \<in> set pts"
+    then obtain i tq bq
+      where elems_at_i:
+        "i < length qts"
+        "pts ! i = (n, tp, bp)"
+        "qts ! i = (n, tq, bq)"
+      using \<open>map fst pts = map fst qts\<close>
+      by (simp add: in_set_conv_nth map_eq_iff_nth_eq, metis fst_conv surj_pair)
 
     have ih_elim:
-       "fst ntb1 = fst ntb2"
-       "K \<turnstile> fst (snd ntb1) \<sqsubseteq> fst (snd ntb2)"
-       "D \<in> kinding_fn K (fst (snd ntb2)) \<longrightarrow> D \<in> kinding_fn K (fst (snd ntb1))"
-       "(if K \<turnstile> fst (snd ntb1) :\<kappa> {D} then snd (snd ntb1) \<le> snd (snd ntb2) else snd (snd ntb1) = snd (snd ntb2))"
-      using in_qts subty_trecord.hyps(1)
-      by (auto simp: list_all2_iff)
-
-    have "\<forall>x\<in>set qts. D \<in> (case x of (uu_, t, Taken) \<Rightarrow> UNIV | (uu_, t, Present) \<Rightarrow> kinding_fn K t)"
-      using subty_trecord by auto
-    then have kind_qt: "D \<in> (case snd (snd ntb2) of Taken \<Rightarrow> UNIV | Present \<Rightarrow> kinding_fn K (fst (snd ntb2)))"
-      using in_qts ih_elim 
-      by (metis (no_types, lifting) old.prod.case prod.collapse set_zip_rightD)
-
-    moreover have
-      "D \<in> kinding_fn K (fst (snd ntb2)) \<Longrightarrow> D \<in> kinding_fn K (fst (snd ntb1))"
-      "if K \<turnstile> (fst (snd ntb1)) :\<kappa> {D} then snd (snd ntb1) \<le> snd (snd ntb2) else snd (snd ntb1) = snd (snd ntb2)"
-      using ih_elim by blast+
-    then show "D \<in> (case snd (snd ntb1) of Taken \<Rightarrow> UNIV | Present \<Rightarrow> kinding_fn K (fst (snd ntb1)))"
-      using kind_qt
-      by (metis (mono_tags, hide_lams) UNIV_I insert_subset kinding_def record_state.exhaust record_state.simps(3) record_state.simps(4))
+      "D \<in> kinding_fn K tq \<longrightarrow> D \<in> kinding_fn K tp"
+      "if K \<turnstile> tp :\<kappa> {D} then bp \<le> bq else bp = bq"
+      using subty_trecord.hyps elems_at_i
+      by (auto simp add: list_all2_conv_all_nth map_eq_iff_nth_eq)
+    then have "bp = Present \<longrightarrow> D \<in> kinding_fn K tp"
+      using elems_at_i ih_elim
+      by (metis kind_qts kinding_def singletonI subsetCE)
+    then show "D \<in> (case bp of Taken \<Rightarrow> UNIV | Present \<Rightarrow> kinding_fn K tp)"
+      by (clarsimp split: record_state.splits)
   qed
   ultimately show ?case
-    by (clarsimp, metis fst_conv snd_conv)
-
+    by clarsimp
 next
   case (subty_tsum K pts qts)
-
-  have kind_pts: "\<And>n pt pb. (n, pt, pb) \<in> set pts \<Longrightarrow> D \<in> (case pb of Checked \<Rightarrow> UNIV | Unchecked \<Rightarrow> kinding_fn K pt)"
+  moreover have kind_pts: "\<And>n pt pb. (n, pt, pb) \<in> set pts \<Longrightarrow> D \<in> (case pb of Checked \<Rightarrow> UNIV | Unchecked \<Rightarrow> kinding_fn K pt)"
   proof -
-    fix n pt pb
-    assume in_pts: "(n, pt, pb) \<in> set pts"
+    fix n tp bp
+    assume elem_pts: "(n, tp, bp) \<in> set pts"
+    then obtain i tq bq
+      where elems_at_i:
+        "i < length qts"
+        "pts ! i = (n, tp, bp)"
+        "qts ! i = (n, tq, bq)"
+      using \<open>map fst pts = map fst qts\<close>
+      by (simp add: in_set_conv_nth map_eq_iff_nth_eq, metis fst_conv surj_pair)
 
-    then obtain n' qt qb where in_qts: "((n,pt,pb),(n', qt, qb)) \<in> set (zip pts qts)"
-      by (metis (no_types, lifting) in_set_impl_in_set_zip1 list_all2_iff local.subty_tsum(1) surjective_pairing)
-
-    have ih_elim:
-        "n = n'"
-        "K \<turnstile> pt \<sqsubseteq> qt"
-        "D \<in> kinding_fn K qt \<longrightarrow> D \<in> kinding_fn K pt"
-        "pb \<le> qb"
-      using in_qts subty_tsum.hyps(1)
-      by (auto simp: list_all2_iff)
-
-    have "\<forall>x\<in>set qts. D \<in> (case x of (uu_, t, Checked) \<Rightarrow> UNIV | (uu_, t, Unchecked) \<Rightarrow> kinding_fn K t)"
-      using subty_tsum by auto
-    then have kind_qt: "D \<in> (case qb of Checked \<Rightarrow> UNIV | Unchecked \<Rightarrow> kinding_fn K qt)"
-      using in_qts set_zip_rightD by force
-
-    show "D \<in> (case pb of Checked \<Rightarrow> UNIV | Unchecked \<Rightarrow> kinding_fn K pt)"
-      using kind_qt ih_elim subty_tsum.hyps(1)
-      by (metis (mono_tags, lifting) UNIV_I less_eq_variant_state.elims(2) variant_state.exhaust variant_state.simps(3) variant_state.simps(4))
+    have
+      "D \<in> kinding_fn K tq \<longrightarrow> D \<in> kinding_fn K tp"
+      "bp \<le> bq"
+      using subty_tsum.hyps elems_at_i
+      by (auto simp add: list_all2_conv_all_nth map_eq_iff_nth_eq)
+    moreover have "bq = Unchecked \<longrightarrow> D \<in> kinding_fn K tq"
+      using subty_tsum.prems elems_at_i
+      by (fastforce simp add: all_set_conv_all_nth split: prod.splits)
+    ultimately show "D \<in> (case bp of Checked \<Rightarrow> UNIV | Unchecked \<Rightarrow> kinding_fn K tp)"
+      using less_eq_variant_state.elims
+      by (auto split: variant_state.splits)
   qed
-
-  from  kind_pts show ?case by auto
+  ultimately show ?case by auto
 qed auto
 
 
@@ -1420,7 +1421,8 @@ lemma subtyping_trans:
   assumes "K \<turnstile> p \<sqsubseteq> q"
   and     "K \<turnstile> q \<sqsubseteq> r"
   shows   "K \<turnstile> p \<sqsubseteq> r"
-  using assms proof (induct q arbitrary: p r rule: type.induct)
+  using assms
+proof (induct q arbitrary: p r rule: type.induct)
 next
   case (TFun qt ut)
   show ?case
@@ -1432,51 +1434,37 @@ next
     done
 next
   case (TSum qts)
-  let ?P = "(\<lambda>p1 p2. fst p1 = fst p2 \<and> K \<turnstile> fst (snd p1) \<sqsubseteq> fst (snd p2) \<and> snd (snd p1) \<le> snd (snd p2))"
-
-  obtain pts where p_elims:
+  thm subtyping.cases[OF TSum.prems(1), simplified]
+  moreover obtain pts where p_elims:
     "p = TSum pts"
-    "list_all2 ?P pts qts"
+    "map fst pts = map fst qts"
+    "list_all2 (subtyping K) (map (fst \<circ> snd) pts) (map (fst \<circ> snd) qts)"
+    "list_all2 variant_kind_subty pts qts"
     "distinct (map fst pts)"
     "distinct (map fst qts)"
-    using TSum.prems
-    by (auto elim: subtyping.cases)
+    using TSum.prems by (auto elim: subtyping.cases)
   moreover obtain rts where r_elims:
     "r = TSum rts"
-    "list_all2 ?P qts rts"
+    "map fst qts = map fst rts"
+    "list_all2 (subtyping K) (map (fst \<circ> snd) qts) (map (fst \<circ> snd) rts)"
+    "list_all2 (\<lambda>p1 p2. snd (snd p1) \<le> snd (snd p2)) qts rts"
     "distinct (map fst rts)"
-    "distinct (map fst qts)"
     using TSum.prems by (auto elim: subtyping.cases)
-
-  moreover have "\<And>i. i < length pts \<Longrightarrow> ?P (pts ! i) (rts ! i)"
-  proof -
-    fix i
-    assume i_len: "i < length pts"
-
-    have lens:
-      "length pts = length qts"
-      "length qts = length rts"
-      using p_elims(2) r_elims(2) list_all2_lengthD
-      by fastforce+
-
-    have sat_p_q: "?P (pts ! i) (qts ! i)"
-      using list_all2_nthD2[OF p_elims(2)] i_len lens
-      by auto
-
-    have sat_q_r: "?P (qts ! i) (rts ! i)"
-      using list_all2_nthD2[OF r_elims(2)] i_len lens
-      by auto
-
-    have fst_eq: "fst (pts ! i) = fst (rts ! i)"
-      by (simp add: sat_p_q sat_q_r)
-    have i_len_q: "i < length qts"
-      using i_len lens(1) by force
-    show "?P (pts ! i) (rts ! i)"
-      using i_len_q fst_eq by (meson TSum.hyps fsts.intros nth_mem order_trans sat_p_q sat_q_r snds.intros)
-  qed
+  moreover have IH:
+    "(\<And>i tp tq tr. i < length qts \<Longrightarrow>
+      K \<turnstile> fst (snd (pts ! i)) \<sqsubseteq> fst (snd (qts ! i)) \<Longrightarrow>
+      K \<turnstile> fst (snd (qts ! i)) \<sqsubseteq> fst (snd (rts ! i)) \<Longrightarrow>
+      K \<turnstile> fst (snd (pts ! i)) \<sqsubseteq> fst (snd (rts ! i)))"
+    using TSum.hyps fsts.intros nth_mem snds.intros by blast
+  moreover have "list_all2 (subtyping K) (map (fst \<circ> snd) pts) (map (fst \<circ> snd) rts)"
+    using p_elims(3) r_elims(3) IH
+    by (clarsimp simp add: list_all2_map1 list_all2_map2 list_all2_conv_all_nth)
+  moreover have "list_all2 (\<lambda>p1 p2. snd (snd p1) \<le> snd (snd p2)) pts rts"
+    using list_all2_trans[OF _ p_elims(4) r_elims(4)]
+    by simp
   ultimately show ?case
-    by (metis (mono_tags, lifting) list_all2_all_nthI list_all2_lengthD subty_tsum)
-
+    using subty_tsum
+    by presburger
 next
   case (TProduct x1a x2a)
   show ?case
@@ -1487,63 +1475,51 @@ next
     apply (fast dest: TProduct.hyps intro: subtyping.intros)
     done
 next
-  case (TRecord qfs qs)
+  case (TRecord qts s)
 
-  let ?P = "(\<lambda>p1 p2. fst p1 = fst p2 \<and> K \<turnstile> fst (snd p1) \<sqsubseteq> fst (snd p2) \<and> (if K \<turnstile> fst (snd p1) :\<kappa> {D} then snd (snd p1) \<le> snd (snd p2) else snd (snd p1) = snd (snd p2)))"
-
-  obtain pfs where p_elims:
-    "p = TRecord pfs qs"
-    "list_all2 ?P pfs qfs"
-    "distinct (map fst pfs)"
+  obtain pts where p_elims:
+    "p = TRecord pts s"
+    "map fst pts = map fst qts"
+    "list_all2 (subtyping K) (map (fst \<circ> snd) pts) (map (fst \<circ> snd) qts)"
+    "list_all2 (record_kind_subty K) pts qts"
+    "distinct (map fst pts)"
+    "distinct (map fst qts)"
     using TRecord.prems by (auto elim: subtyping.cases)
-  moreover obtain rfs where r_elims:
-    "r = TRecord rfs qs"
-    "list_all2 ?P qfs rfs"
-    "distinct (map fst qfs)"
-    "distinct (map fst rfs)"
+  moreover obtain rts where r_elims:
+    "r = TRecord rts s"
+    "map fst qts = map fst rts"
+    "list_all2 (subtyping K) (map (fst \<circ> snd) qts) (map (fst \<circ> snd) rts)"
+    "list_all2 (record_kind_subty K) qts rts"
+    "distinct (map fst rts)"
     using TRecord.prems by (auto elim: subtyping.cases)
-  moreover have lens:
-      "length pfs = length qfs"
-      "length qfs = length rfs"
-      using p_elims(2) r_elims(2) list_all2_lengthD
-      by fastforce+
-  moreover have sat_p_r: "\<And>i. i < length pfs \<Longrightarrow> ?P (pfs ! i) (rfs ! i)"
+  moreover have IH:
+    "(\<And>i tp tq tr. i < length qts \<Longrightarrow>
+      K \<turnstile> fst (snd (pts ! i)) \<sqsubseteq> fst (snd (qts ! i)) \<Longrightarrow>
+      K \<turnstile> fst (snd (qts ! i)) \<sqsubseteq> fst (snd (rts ! i)) \<Longrightarrow>
+      K \<turnstile> fst (snd (pts ! i)) \<sqsubseteq> fst (snd (rts ! i)))"
+    using TRecord.hyps fsts.intros nth_mem snds.intros by blast
+  moreover have "list_all2 (subtyping K) (map (fst \<circ> snd) pts) (map (fst \<circ> snd) rts)"
+    using p_elims(3) r_elims(3) IH
+    by (clarsimp simp add: list_all2_map1 list_all2_map2 list_all2_conv_all_nth)
+  moreover have sat_p_r: "\<And>i. i < length pts \<Longrightarrow> record_kind_subty K (pts ! i) (rts ! i)"
   proof -
     fix i
-    assume i_len: "i < length pfs"
-
-    have sat_p_q: "?P (pfs ! i) (qfs ! i)"
-      using list_all2_nthD2[OF p_elims(2)] i_len lens
-      by auto
-
-    have sat_q_r: "?P (qfs ! i) (rfs ! i)"
-      using list_all2_nthD2[OF r_elims(2)] i_len lens
-      by auto
-
-    have fst_eq: "fst (pfs ! i) = fst (rfs ! i)"
-      by (simp add: sat_p_q sat_q_r)
-    have i_len_q: "i < length qfs"
-      using i_len lens(1) by force
-
-    have subty_p_q: "K \<turnstile> fst (snd (pfs ! i)) \<sqsubseteq> fst (snd (rfs ! i))"
-      using TRecord.hyps fsts.intros i_len_q nth_mem sat_p_q sat_q_r snds.intros by blast
-
-    have drop_impl_le: "K \<turnstile> fst (snd (pfs ! i)) :\<kappa> {D} \<Longrightarrow> snd (snd (pfs ! i)) \<le> snd (snd (rfs ! i))"
-      by (metis (no_types, hide_lams) dual_order.trans sat_p_q sat_q_r)
-    have nodrop_impl_eq: "\<not> (K \<turnstile> fst (snd (pfs ! i)) :\<kappa> {D}) \<Longrightarrow> snd (snd (pfs ! i)) = snd (snd (rfs ! i))"
-      using sat_p_q sat_q_r subtyping_drop_super_impl_drop_sub by force
-
-    show "?P (pfs ! i) (rfs ! i)"
-      using sat_p_q sat_q_r subty_p_q drop_impl_le nodrop_impl_eq
-      by auto
+    assume i_len: "i < length pts"
+    moreover have "K \<turnstile> (fst \<circ> snd) (pts ! i) \<sqsubseteq> (fst \<circ> snd) (qts ! i)"
+      using i_len list_all2_lengthD list_all2_nthD2 p_elims by fastforce
+    moreover have
+      "record_kind_subty K (pts ! i) (qts ! i)"
+      "record_kind_subty K (qts ! i) (rts ! i)"
+      using p_elims r_elims i_len
+      by (simp add: list_all2_conv_all_nth)+
+    ultimately show "record_kind_subty K (pts ! i) (rts ! i)"
+      by (fastforce
+          simp add: if_bool_eq_conj kinding_defs
+          dest: subtyping_wellformed_preservation subtyping_kinding_fn_drop_super_impl_drop_sub)
   qed
-
-  moreover have all_p_r: "list_all2 ?P pfs rfs"
-    using lens sat_p_r by (auto intro: list_all2_all_nthI)
-
-  then show ?case
+  ultimately show ?case
     using p_elims r_elims
-    by (auto intro: subtyping.intros)
+    by (simp add: sat_p_r list_all2_conv_all_nth subty_trecord)
 qed (fast elim: subtyping.cases)+
 
 
@@ -1861,22 +1837,20 @@ next
            (n,t2,b2) = ts2 ! i \<Longrightarrow>
            (if K \<turnstile> t1 :\<kappa> {D} then b1 \<le> b2 else b1 = b2) \<Longrightarrow>
            (if K' \<turnstile> instantiate \<delta> t1 :\<kappa> {D} then b1 \<le> b2 else b1 = b2))"
-    using assms order_refl substitutivity_single subty_trecord
+    using order_refl substitutivity_single subty_trecord
     by metis
   moreover have kind_drop_pre: "(\<And>i p1 p2. i < length ts1 \<Longrightarrow>
            p1 = ts1 ! i \<Longrightarrow>
            p2 = ts2 ! i \<Longrightarrow>
            (if K \<turnstile> fst (snd p1) :\<kappa> {D} then snd (snd p1) \<le> snd (snd p2) else snd (snd p1) = snd (snd p2)))"
-    using assms order_refl substitutivity_single subty_trecord
+    using subty_trecord
     by (simp add: list_all2_conv_all_nth)
-  moreover have "(\<And>i n t1 t2 b1 b2. i < length ts1 \<Longrightarrow>
-           (n,t1,b1) = ts1 ! i \<Longrightarrow>
-           (n,t2,b2) = ts2 ! i \<Longrightarrow>
-           (if K' \<turnstile> instantiate \<delta> t1 :\<kappa> {D} then b1 \<le> b2 else b1 = b2))"
-    using assms order_refl substitutivity_single subty_trecord kind_drop kind_drop_pre
-    by (metis (no_types, lifting) fst_conv snd_conv)
+  moreover have list_all2_subty_drop: "list_all2 (record_kind_subty K') (map (\<lambda>(n, t, b). (n, instantiate \<delta> t, b)) ts1) (map (\<lambda>(n, t, b). (n, instantiate \<delta> t, b)) ts2)"
+    using substitutivity_single subty_trecord
+    apply (clarsimp simp add: list_all2_conv_all_nth split: prod.splits)
+    by (metis order_refl fst_conv snd_conv)
   ultimately show ?case
-    by (fastforce intro!:  subtyping.intros simp add: list_all2_conv_all_nth split: prod.splits)
+    by (simp, fastforce intro!: subtyping.intros simp add: list_all2_conv_all_nth split: prod.splits)
 next
   case (subty_tsum K ts1 ts2)
   moreover then have "\<And>i. i < length ts1 \<Longrightarrow>
