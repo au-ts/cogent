@@ -159,6 +159,20 @@ lemma map_update_eq_if_indistinguishable:
   using assms
   by (metis list_update_id map_update)
 
+lemma map_proj_eq_set_zip_impl_proj_eq:
+  "map P as = map Q bs \<Longrightarrow>
+  (a,b) \<in> set (zip as bs) \<Longrightarrow>
+  P a = Q b"
+proof -
+  assume A:
+    "map P as = map Q bs"
+    "(a,b) \<in> set (zip as bs)"
+  have L: "length as = length bs"
+    using A map_eq_imp_length_eq by auto
+  from L A show "P a = Q b"
+    by (induct as bs rule: list_induct2; auto)
+qed
+
 lemma list_all2_update_second:
   assumes "list_all2 f xs (ys[i := a])"
     and "f (xs ! i) a \<Longrightarrow> f (xs ! i) b"
@@ -217,6 +231,24 @@ lemma list_all2_split_all:
    apply (induct rule: list_all2_induct, simp+)
   apply (induct xs arbitrary: ys; case_tac ys; clarsimp)
   done
+
+lemma list_all2_in_set1_impl_in_set_zip12_sat:
+  assumes
+    "list_all2 P xs ys"
+    "x \<in> set xs"
+  obtains y where
+    "(x,y) \<in> set (zip xs ys)"
+    "P x y"
+  using assms by (metis fst_conv in_set_impl_in_set_zip1 in_set_zip list_all2_conv_all_nth snd_conv)
+
+lemma list_all2_in_set_impl_sat:
+  assumes
+    "list_all2 P xs ys"
+    "(x,y) \<in> set (zip xs ys)"
+  shows
+    "P x y"
+  using assms
+  by (metis fst_conv in_set_zip list_all2_nthD snd_conv)
 
 
 subsection {* list_all3 *}

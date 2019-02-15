@@ -703,6 +703,7 @@ next case (split_cons x xs a as b bs)
     done
     next case share with 3 show ?thesis
       apply (clarsimp dest!: split_cons(3))
+      apply (rule_tac V="S \<in> {S}" in revcut_rl, blast)
       apply (drule(2) shareable_not_writable)
       apply (clarsimp)
       apply (rule_tac x = "rx \<union> r'"  in exI)
@@ -852,7 +853,7 @@ next
       next
         case (share k)
         moreover then have w1_empty: "w1 = {}"
-          using shareable_not_writable split\<gamma> by fast
+          using shareable_not_writable split\<gamma> by blast
         moreover have "\<Xi>, \<sigma> \<turnstile> g # \<gamma>' matches Some t # as \<langle>r1 \<union> (r21 \<union> p), {} \<union> w21\<rangle>"
           using split\<gamma> split\<gamma>'
           by (intro matches_ptrs_some, auto simp add: w1_empty)

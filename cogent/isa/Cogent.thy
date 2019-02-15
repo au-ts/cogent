@@ -1529,19 +1529,17 @@ lemma subtyping_preserves_type_repr:
 proof (induct rule: subtyping.induct)
   case (subty_trecord K ts1 ts2 s1 s2)
   then show ?case
-  (* I don't understand Isabelle:
-     > apply (cases s1, induct rule: list_all2_induct)
-     works, but separate apply calls don't work:
-     > apply (cases s1)
-     > apply (induct rule: list_all2_induct) -- fails
-     what's up with that
-  *)
     by (cases s1; induct rule: list_all2_induct; auto)
 next
   case (subty_tsum K ts1 ts2)
   then show ?case
     by (induct rule: list_all2_induct; auto)
 qed auto
+
+lemma subtyping_preserves_type_repr_map:
+  "list_all2 (\<lambda>p1 p2. [] \<turnstile> fst (snd p1) \<sqsubseteq> fst (snd p2)) as bs
+  \<Longrightarrow> map (type_repr \<circ> fst \<circ> snd) as = map (type_repr \<circ> fst \<circ> snd) bs"
+  by (induct rule: list_all2_induct, auto simp add: subtyping_preserves_type_repr)
 
 
 section {* Typing lemmas *}
