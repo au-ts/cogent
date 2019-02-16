@@ -100,6 +100,18 @@ $ty:(U64) get_endpoint_ac ($ty:((Superblock!, U64)) arg){
 	return ($ty:(U64)) endp;
 }
 
+$escstm:(#if LINUX_VERSION_CODE > KERNEL_VERSION(4,19,0))
+$ty:((SysState, Time)) get_current_time ($ty:(SysState) ex){
+  struct timespec64 ts;
+  $ty:((SysState, Time)) ret;
+	ret.p1 = ex;
+
+  ktime_get_coarse_real_ts64(&ts)
+  ret.p2.seconds = ts.tv_sec;
+  ret.p2.nanoseconds = ts.tv_nsec;
+  return ret;
+}
+$escstm:(#else)
 $ty:((SysState, Time)) get_current_time ($ty:(SysState) ex){
   struct timespec ts = current_kernel_time();
   $ty:((SysState, Time)) ret;
@@ -108,6 +120,7 @@ $ty:((SysState, Time)) get_current_time ($ty:(SysState) ex){
   ret.p2.nanoseconds = ts.tv_nsec;
   return ret;
 }
+$escstm:(#endif)
 
 $ty:((VfsInode, U32)) get_logstart ($ty:(VfsInode) arg){
 	struct inode * inode = (struct inode *) arg;
