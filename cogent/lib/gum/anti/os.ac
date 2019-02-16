@@ -8,6 +8,23 @@
  * @TAG(NICTA_GPL)
  */
 
+$escstm:(#if LINUX_VERSION_CODE > KERNEL_VERSION(4,19,0))
+$ty:((SysState, OSTimeSpec)) os_get_current_time($ty:(SysState) args)
+{
+    $ty:((SysState, OSTimeSpec)) ret;
+
+    struct timespec64 now;
+
+    ktime_get_coarse_real_ts64(&now);
+
+    ret.p2.tv_sec = now.tv_sec;
+    ret.p2.tv_nsec = now.tv_nsec;
+
+    ret.p1 = args;
+
+    return ret;
+}
+$escstm:(#else)
 $ty:((SysState, OSTimeSpec)) os_get_current_time($ty:(SysState) args)
 {
     $ty:((SysState, OSTimeSpec)) ret;
@@ -20,6 +37,7 @@ $ty:((SysState, OSTimeSpec)) os_get_current_time($ty:(SysState) args)
 
     return ret;
 }
+$escstm:(#endif)
 
 u32 os_get_current_fsgid($ty:(SysState!) args)
 {
