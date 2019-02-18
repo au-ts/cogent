@@ -12,7 +12,14 @@ $ty:((SysState, OSTimeSpec)) os_get_current_time($ty:(SysState) args)
 {
     $ty:((SysState, OSTimeSpec)) ret;
 
+$escstm:(#if LINUX_VERSION_CODE > KERNEL_VERSION(4,19,0))
+    struct timespec64 now;
+
+    ktime_get_coarse_real_ts64(&now);
+$escstm:(#else)
     struct timespec now = current_kernel_time();
+$escstm:(#endif)
+
     ret.p2.tv_sec = now.tv_sec;
     ret.p2.tv_nsec = now.tv_nsec;
 

@@ -354,15 +354,32 @@ $escstm:(#endif)
          * page cache */
         if (attr->ia_valid & ATTR_SIZE)
                 truncate_setsize(inode, inode->i_size);
-        if (attr->ia_valid & ATTR_ATIME)
+        if (attr->ia_valid & ATTR_ATIME) {
+$escstm:(#if LINUX_VERSION_CODE > KERNEL_VERSION(4,19,0))
+                inode->i_atime = timespec64_trunc(inode->i_atime,
+                                                  inode->i_sb->s_time_gran);
+$escstm:(#else)
                 inode->i_atime = timespec_trunc(inode->i_atime,
                                                 inode->i_sb->s_time_gran);
+$escstm:(#endif)
+        }
+
         if (attr->ia_valid & ATTR_MTIME)
+$escstm:(#if LINUX_VERSION_CODE > KERNEL_VERSION(4,19,0))
+                inode->i_mtime = timespec64_trunc(inode->i_mtime,
+                                                  inode->i_sb->s_time_gran);
+$escstm:(#else)
                 inode->i_mtime = timespec_trunc(inode->i_mtime,
                                                 inode->i_sb->s_time_gran);
+$escstm:(#endif)
         if (attr->ia_valid & ATTR_CTIME)
+$escstm:(#if LINUX_VERSION_CODE > KERNEL_VERSION(4,19,0))
+                inode->i_ctime = timespec64_trunc(inode->i_ctime,
+                                                  inode->i_sb->s_time_gran);
+$escstm:(#else)
                 inode->i_ctime = timespec_trunc(inode->i_ctime,
                                                 inode->i_sb->s_time_gran);
+$escstm:(#endif)
         return 0;
 }
 
@@ -868,7 +885,7 @@ type FsopFollowLinkP = #{ex:SysState, fs_st: FsState, vnode: VfsInode, path: Buf
 type FsopFollowLinkE = #{err:ErrCode, ex:SysState, fs_st: FsState, vnode: VfsInode, path: Buffer}
 fsop_follow_link: FsopFollowLinkP -> RR FsopFollowLinkP () ErrCode
 */
-$esc:(#if LINUX_VERSION_CODE > KERNEL_VERSION(4,10,0))
+$esc:(#if LINUX_VERSION_CODE > KERNEL_VERSION(4,5,0))
 const char *bilbyfs_get_link(struct dentry *dentry, struct inode *inode,
                              struct delayed_call *done)
 {
@@ -1642,7 +1659,7 @@ const struct inode_operations bilby_file_inode_operations =
         .setattr =      bilbyfs_setattr,
 };
 
-$esc:(#if LINUX_VERSION_CODE < KERNEL_VERSION(4,10,0))
+$esc:(#if LINUX_VERSION_CODE < KERNEL_VERSION(4,5,0))
 const struct inode_operations bilbyfs_symlink_inode_operations = {
         .readlink    = generic_readlink,
         .follow_link = bilbyfs_follow_link,

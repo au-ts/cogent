@@ -1,0 +1,18 @@
+-- Test that the compiler is inserting promote terms inside variant constructors.
+-- These two functions should result in the same output core.
+-- Compile with something like:
+-- > cogent tests/pass_subtyping-con-promote.cogent --pretty-desugar
+
+-- The given value is a subtype of the variant's payload. The payload should be promoted.
+implicit_promote : () -> ()
+implicit_promote _
+  = let x = #{f1=1, f2=2}
+    and y : <A (#{f1 : U8, f2 : U8} take (f1,f2))> = A x
+    in ()
+
+-- The given value is a subtype of the variant's payload. We explicitly promote the payload.
+explicit_promote : () -> ()
+explicit_promote _
+  = let x = #{f1=1, f2=2}
+    and y : <A (#{f1 : U8, f2 : U8} take (f1,f2))> = A (x : (#{f1 : U8, f2 : U8} take (f1,f2)))
+    in ()

@@ -101,9 +101,17 @@ $ty:(U64) get_endpoint_ac ($ty:((Superblock!, U64)) arg){
 }
 
 $ty:((SysState, Time)) get_current_time ($ty:(SysState) ex){
-  struct timespec ts = current_kernel_time();
   $ty:((SysState, Time)) ret;
-	ret.p1 = ex;
+
+$escstm:(#if LINUX_VERSION_CODE > KERNEL_VERSION(4,19,0))
+  struct timespec64 ts;
+  ktime_get_coarse_real_ts64(&ts)
+$escstm:(#else)
+  struct timespec ts;
+  ts = current_kernel_time();
+$escstm:(#endif)
+
+  ret.p1 = ex;
   ret.p2.seconds = ts.tv_sec;
   ret.p2.nanoseconds = ts.tv_nsec;
   return ret;
