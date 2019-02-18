@@ -28,9 +28,19 @@ datatype ('f, 'a) vval = VPrim lit
 implementations differ they must all refine the same specification *)
 type_synonym ('f, 'a) vabsfuns = "'f \<Rightarrow> ('f, 'a) vval \<Rightarrow> ('f,'a) vval \<Rightarrow> bool"
 
+
 definition eval_prim :: "prim_op \<Rightarrow> ('f, 'a) vval list \<Rightarrow> ('f, 'a) vval"
 where
   "eval_prim pop xs = VPrim (eval_prim_op pop (map (\<lambda>vv. case vv of VPrim v \<Rightarrow> v | _ \<Rightarrow> LBool False) xs))"
+
+lemma eval_prim_type_change:
+assumes "(eval_prim :: prim_op \<Rightarrow> ('f1, 'a1) vval list \<Rightarrow> ('f1, 'a1) vval) p (map VPrim lits) = VPrim l"
+shows "(eval_prim :: prim_op \<Rightarrow> ('f2, 'a2) vval list \<Rightarrow> ('f2, 'a2) vval) p (map VPrim  lits) = VPrim l"
+proof -
+have helper: "(\<lambda>vv. case vv of VPrim v \<Rightarrow> v | _ \<Rightarrow> LBool False) \<circ> VPrim = id" by (rule ext, simp)
+then show ?thesis using assms by (simp add: eval_prim_def helper)
+qed
+section {* Semantics *}
 
 (* NOTE: Termination is currently not provable with this approach. It's possible to show
    it for v_sem assuming all called functions are terminating, but proving
@@ -121,12 +131,15 @@ where
                    ; \<xi> , (a # b # \<gamma>) \<turnstile> e \<Down> e'
                    \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> Split x e \<Down> e'"
 
+| v_sem_promote : "\<lbrakk> \<xi> , \<gamma> \<turnstile> e \<Down> e'
+                   \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> Promote t' e \<Down> e'"
+
 
 | v_sem_all_empty : "\<xi> , \<gamma> \<turnstile>* [] \<Down> []"
 
 | v_sem_all_cons  : "\<lbrakk> \<xi> , \<gamma> \<turnstile> x \<Down> v
                      ; \<xi> , \<gamma> \<turnstile>* xs \<Down> vs
-                     \<rbrakk> \<Longrightarrow>  \<xi> , \<gamma> \<turnstile>* (x # xs) \<Down> (v # vs)"
+                     \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile>* (x # xs) \<Down> (v # vs)"
 
 inductive_cases v_sem_varE  [elim] : "\<xi> , \<gamma> \<turnstile> Var i \<Down> v"
 inductive_cases v_sem_funE  [elim] : "\<xi> , \<gamma> \<turnstile> Fun f ts \<Down> v"
@@ -142,8 +155,6 @@ context value_sem begin
 
 inductive vval_typing  :: "('f \<Rightarrow> poly_type) \<Rightarrow> ('f, 'a) vval \<Rightarrow> type \<Rightarrow> bool"
           ("_ \<turnstile> _ :v _" [30,0,20] 80)
-and vval_typing_variant :: "('f \<Rightarrow> poly_type) \<Rightarrow> ('f, 'a) vval list \<Rightarrow> (name \<times> type \<times> variant_state) list \<Rightarrow> bool"
-          ("_ \<turnstile>* _ :vv _" [30,0,20] 80)
 and vval_typing_record :: "('f \<Rightarrow> poly_type) \<Rightarrow> ('f, 'a) vval list \<Rightarrow> (name \<times> type \<times> record_state) list \<Rightarrow> bool"
           ("_ \<turnstile>* _ :vr _" [30,0,20] 80) where
 
@@ -167,25 +178,29 @@ and vval_typing_record :: "('f \<Rightarrow> poly_type) \<Rightarrow> ('f, 'a) v
                   ; [] \<turnstile>* ts wellformed
                   \<rbrakk> \<Longrightarrow> \<Xi> \<turnstile> VAbstract a :v TCon n ts s"
 
+(*
+  The term language type system uses an explicit subtyping rule (Promote), but we want a subtyping-implies-subset relation for values
+  so that we can upcast values without having to change their representation. This means we want implicit subsumption for values.
+  However, if we introduce a separate subsumption rule for values such as
+  | v_t_subsumption: " \<lbrakk> \<Xi> \<turnstile> v :v t ; [] \<turnstile> t \<sqsubseteq> t' \<rbrakk> \<Longrightarrow> \<Xi> \<turnstile> v :v t' "
+  the canonical forms of values are less obvious.
+  Because our definition of subtyping is quite simple, we only really need subsumption for function values.
+  So for these two rules, we condense the v_t_subsumption and v_t_afun/v_t_function rules into one.
+  These rules still associate values with a concrete type constructor (TFun), which makes reasoning about canonical forms trivial.
+*)
 | v_t_afun     : "\<lbrakk> \<Xi> f = (ks, a, b)
                   ; list_all2 (kinding []) ts ks
                   ; ks \<turnstile> TFun a b wellformed
-                  \<rbrakk> \<Longrightarrow> \<Xi> \<turnstile> VAFunction f ts :v TFun (instantiate ts a) (instantiate ts b)"
+                  ; [] \<turnstile> TFun (instantiate ts a) (instantiate ts b) \<sqsubseteq> TFun t' u'
+                  \<rbrakk> \<Longrightarrow> \<Xi> \<turnstile> VAFunction f ts :v TFun t' u'"
 
 | v_t_function : "\<lbrakk> \<Xi> , K , [ Some t ] \<turnstile> f : u
                   ; K \<turnstile> t wellformed
                   ; list_all2 (kinding []) ts K
-                  \<rbrakk> \<Longrightarrow> \<Xi> \<turnstile> VFunction f ts :v TFun (instantiate ts t) (instantiate ts u)"
+                  ; [] \<turnstile> TFun (instantiate ts t) (instantiate ts u) \<sqsubseteq> TFun t' u'
+                  \<rbrakk> \<Longrightarrow> \<Xi> \<turnstile> VFunction f ts :v TFun t' u'"
 
 | v_t_unit     : "\<Xi> \<turnstile> VUnit :v TUnit"
-
-| v_t_v_empty  : "\<Xi> \<turnstile>* [] :vr []"
-| v_t_v_cons1  : "\<lbrakk> \<Xi> \<turnstile> x :v t
-                  ; \<Xi> \<turnstile>* xs :vv ts
-                  \<rbrakk> \<Longrightarrow> \<Xi> \<turnstile>* (x # xs) :vv ((n, t, Unchecked) # ts)"
-| v_t_v_cons2  : "\<lbrakk> [] \<turnstile> t wellformed
-                  ; \<Xi> \<turnstile>* xs :vv ts
-                  \<rbrakk> \<Longrightarrow> \<Xi> \<turnstile>* (x # xs) :vv ((n, t, Checked) # ts)"
 
 | v_t_r_empty  : "\<Xi> \<turnstile>* [] :vr []"
 | v_t_r_cons1  : "\<lbrakk> \<Xi> \<turnstile> x :v t
@@ -207,9 +222,6 @@ inductive_cases v_t_recordE   [elim]: "\<Xi> \<turnstile> VRecord fs :v \<tau>"
 inductive_cases v_t_productE  [elim]: "\<Xi> \<turnstile> VProduct a b :v \<tau>"
 inductive_cases v_t_sumE'     [elim]: "\<Xi> \<turnstile> e :v TSum ts"
 inductive_cases v_t_primE     [elim]: "\<Xi> \<turnstile> VPrim l :v TPrim (Num \<tau>)"
-
-inductive_cases v_t_v_emptyE  [elim]: "\<Xi> \<turnstile>* [] :vv \<tau>s"
-inductive_cases v_t_v_consE   [elim]: "\<Xi> \<turnstile>* (x # xs) :vv \<tau>s"
 
 inductive_cases v_t_r_emptyE  [elim]: "\<Xi> \<turnstile>* [] :vr \<tau>s"
 inductive_cases v_t_r_consE   [elim]: "\<Xi> \<turnstile>* (x # xs) :vr \<tau>s"
@@ -238,31 +250,32 @@ section {* vval_typing lemmas *}
 
 lemma vval_typing_to_wellformed:
   shows "\<Xi> \<turnstile> v :v \<tau>     \<Longrightarrow> [] \<turnstile> \<tau> wellformed"
-    and "\<Xi> \<turnstile>* vs :vv cs \<Longrightarrow> [] \<turnstile>* map (fst \<circ> snd) cs wellformed"
     and "\<Xi> \<turnstile>* vs :vr fs \<Longrightarrow> [] \<turnstile>* map (fst \<circ> snd) fs wellformed"
-proof (induct rule: vval_typing_vval_typing_variant_vval_typing_record.inducts)
+proof (induct rule: vval_typing_vval_typing_record.inducts)
   case v_t_function then show ?case
-    by (auto intro!: instantiate_wellformed dest!: typing_to_wellformed
-        dest: list_all2_kinding_wellformedD list_all2_lengthD)
+    by (metis instantiate_wellformed list_all2_kinding_wellformedD subtyping_wellformed_preservation(1) type_wellformed.simps(4) type_wellformed_pretty_def typing_to_wellformed(1))
 next case v_t_afun  then show ?case
-    by (auto intro!: instantiate_wellformed dest!: typing_to_wellformed
-        dest: list_all2_kinding_wellformedD list_all2_lengthD)
-qed (auto intro: supersumption simp add: kinding_simps dest: kinding_all_record'[simplified o_def])
+    by (metis instantiate_wellformed list_all2_kinding_wellformedD subtyping_wellformed_preservation(1) type_wellformed.simps(4) type_wellformed_pretty_def)
+qed (auto intro: supersumption simp add: list_all_iff kinding_simps dest: kinding_all_record'[simplified o_def])
 
 lemma vval_typing_bang:
   shows "\<Xi> \<turnstile> x :v \<tau> \<Longrightarrow> \<Xi> \<turnstile> x :v bang \<tau>"
-    and "\<Xi> \<turnstile>* cs :vv \<tau>vs \<Longrightarrow> \<Xi> \<turnstile>* cs :vv map (\<lambda>(n, x, y). (n, bang x, y)) \<tau>vs"
     and "\<Xi> \<turnstile>* fs :vr \<tau>rs \<Longrightarrow> \<Xi> \<turnstile>* fs :vr map (\<lambda>(n, x, y). (n, bang x, y)) \<tau>rs"
-proof (induct rule: vval_typing_vval_typing_variant_vval_typing_record.inducts)
-     case v_t_sum      then show ?case by (force intro: vval_typing_vval_typing_variant_vval_typing_record.intros
+proof (induct rule: vval_typing_vval_typing_record.inducts)
+  case v_t_sum      then show ?case
+    by (force simp add: list_all_iff intro: vval_typing_vval_typing_record.intros
                                                         bang_wellformed rev_image_eqI)
-next case v_t_abstract then show ?case by (force intro: vval_typing_vval_typing_variant_vval_typing_record.intros
+next case v_t_abstract then show ?case by (force intro: vval_typing_vval_typing_record.intros
                                                         abs_typing_bang bang_wellformed)
-next case v_t_r_cons2  then show ?case by (force intro: vval_typing_vval_typing_variant_vval_typing_record.intros
+next case v_t_r_cons2  then show ?case by (force intro: vval_typing_vval_typing_record.intros
                                                         bang_wellformed)
-next case v_t_v_cons2  then show ?case by (force intro: vval_typing_vval_typing_variant_vval_typing_record.intros
-                                                        bang_wellformed)
-qed (force intro: vval_typing_vval_typing_variant_vval_typing_record.intros)+
+next case v_t_afun
+  show ?case
+    using subtyping_bang_preservation v_t_afun vval_typing_vval_typing_record.v_t_afun by fastforce
+next case v_t_function
+  show ?case
+    using subtyping_bang_preservation v_t_function.hyps vval_typing_vval_typing_record.v_t_function by fastforce
+qed (force intro: vval_typing_vval_typing_record.intros)+
 
 subsection {* vval_typing_record *}
 
@@ -289,7 +302,7 @@ lemma vval_typing_all_record:
 shows "\<Xi> \<turnstile>* vs :vr zip ns (zip ts (replicate (length ts) Present))"
   using assms[simplified vval_typing_all_def]
   by (induct arbitrary: ns rule: list_all2_induct)
-    (auto simp add: length_Suc_conv intro!: vval_typing_vval_typing_variant_vval_typing_record.intros)
+    (auto simp add: length_Suc_conv intro!: vval_typing_vval_typing_record.intros)
 
 lemma vval_typing_record_take:
   assumes "\<Xi> \<turnstile>* ts :vr \<tau>s"
@@ -304,8 +317,8 @@ proof (induct ts arbitrary: \<tau>s n f)
     using Cons.prems by blast
   ultimately show ?case
     by (cases taken, auto dest: kinding_to_wellformedD split: nat.splits
-        intro!: vval_typing_vval_typing_variant_vval_typing_record.intros)
-qed (force intro: vval_typing_vval_typing_variant_vval_typing_record.intros)
+        intro!: vval_typing_vval_typing_record.intros)
+qed (force intro: vval_typing_vval_typing_record.intros)
 
 lemma vval_typing_record_put:
 assumes "\<Xi> \<turnstile>* ts :vr \<tau>s"
@@ -315,14 +328,17 @@ and     "D \<in> k \<or> taken = Taken"
 and     "\<Xi> \<turnstile> v :v t"
 shows   "\<Xi> \<turnstile>* ts[ f := v ] :vr \<tau>s[ f := (n, t, Present) ]"
 using assms proof (induct ts arbitrary: \<tau>s f)
-     case Nil  then show ?case by ( force intro: vval_typing_vval_typing_variant_vval_typing_record.intros)
+     case Nil  then show ?case by ( force intro: vval_typing_vval_typing_record.intros)
 next case Cons then show ?case by ( cases taken
                                   , (force split: nat.split
-                                           intro!: vval_typing_vval_typing_variant_vval_typing_record.intros)+ )
+                                           intro!: vval_typing_vval_typing_record.intros)+ )
 qed
+
 
 subsection {* Sums and subtyping *}
 
+(*
+  (* With the changes to the typing system now, I don't think this holds anymore? ~ v.jackson / 2019.01.10 *)
 lemma width_subtyping:
 assumes "set ts \<subseteq> set us"
 and     "\<Xi> \<turnstile> v :v TSum ts"
@@ -330,7 +346,7 @@ and     "[] \<turnstile> TSum us wellformed"
 shows   "\<Xi> \<turnstile> v :v TSum us"
 using assms
 by (force simp add: kinding_simps intro: vval_typing_vval_typing_variant_vval_typing_record.intros)
-
+*)
 lemma sum_downcast:
   assumes vval_tsum_ts: "\<Xi> \<turnstile> VSum tag v :v TSum ts"
     and   tag_neq_tag': "tag \<noteq> tag'"
@@ -354,9 +370,187 @@ proof -
   next
     show "[] \<turnstile> TSum (tagged_list_update tag' (\<tau>, Checked) ts) wellformed"
       using vval_elim_lemmas tag'_in_ts prod_in_set(1)
-      by (fastforce intro!: variant_tagged_list_update_wellformedI)
+      by (fastforce intro!: variant_tagged_list_update_wellformedI simp add: list_all_iff)
   qed simp+
 qed
+
+
+lemma value_subtyping_to_wellformed:
+  "K \<turnstile> t \<sqsubseteq> t'
+  \<Longrightarrow> \<Xi> \<turnstile> v :v t
+  \<Longrightarrow> K \<turnstile> t' wellformed"
+  by (metis instantiate_nothing kinding_iff_wellformed(1) list_all2_Nil substitutivity_single subtyping_wellformed_preservation(1) vval_typing_to_wellformed(1))
+
+lemma subtyping_record_cons_split:
+  "K \<turnstile> TRecord ((n,t1,b1) # ts1) s \<sqsubseteq> TRecord ts2 s \<Longrightarrow> \<exists>t2 b2 ts2'. ts2 = (n,t2,b2) # ts2' \<and>  (K \<turnstile> t1 \<sqsubseteq> t2) \<and> (if K \<turnstile> t1 :\<kappa> {D} then b1 \<le> b2 else b1 = b2)"
+proof -
+  assume subty_rec: "K \<turnstile> TRecord ((n,t1,b1) # ts1) s \<sqsubseteq> TRecord ts2 s"
+  obtain xts1 where xts1_def: "xts1 = ((n,t1,b1) # ts1)" by auto
+  have elims:
+    "map fst xts1 = map fst ts2"
+    "list_all2 (\<lambda>p1 p2. K \<turnstile> fst (snd p1) \<sqsubseteq> fst (snd p2))  xts1 ts2"
+    "list_all2 (record_kind_subty K) xts1 ts2"
+    "distinct (map fst xts1)"
+    using subty_rec subtyping.cases xts1_def
+    by fast+
+
+  obtain t2 b2 ts2' where ts2_def: "ts2 = (n,t2,b2) # ts2'"
+    using elims xts1_def
+    by (cases ts2, auto)
+
+  then show ?thesis
+    using elims xts1_def by force
+qed
+
+lemma subtyping_record_uncons: "K \<turnstile> TRecord (t1 # ts1) s \<sqsubseteq> TRecord (t2 # ts2) s \<Longrightarrow> K \<turnstile> TRecord ts1 s \<sqsubseteq> TRecord ts2 s"
+proof -
+  assume subty_rec: "K \<turnstile> TRecord (t1 # ts1) s \<sqsubseteq> TRecord (t2 # ts2) s"
+  obtain xts1 where xts1_def: "xts1 = (t1 # ts1)" by auto
+  obtain xts2 where xts2_def: "xts2 = (t2 # ts2)" by auto
+  have elims:
+    "map fst xts1 = map fst xts2"
+    "list_all2 (\<lambda>p1 p2. K \<turnstile> fst (snd p1) \<sqsubseteq> fst (snd p2)) xts1 xts2"
+    "list_all2 (record_kind_subty K) xts1 xts2"
+    "distinct (map fst xts1)"
+    using subty_rec subtyping.cases xts1_def xts2_def
+    by fast+
+  show "K \<turnstile> TRecord ts1 s \<sqsubseteq> TRecord ts2 s"
+    using xts1_def xts2_def subty_trecord elims by force
+qed
+
+lemma value_subtyping:
+  shows "\<Xi> \<turnstile> v :v t \<Longrightarrow>[] \<turnstile> t \<sqsubseteq> t' \<Longrightarrow> \<Xi> \<turnstile> v :v t'"
+    and "\<Xi> \<turnstile>* vs :vr ts \<Longrightarrow> [] \<turnstile> TRecord ts s \<sqsubseteq> TRecord ts' s \<Longrightarrow>  \<Xi> \<turnstile>* vs :vr ts'"
+proof (induct arbitrary: t' and ts' rule: vval_typing_vval_typing_record.inducts)
+  case (v_t_product \<Xi> va ta vb tb)
+  obtain ta' tb' where elims:
+    "t' = TProduct ta' tb'"
+    "[] \<turnstile> ta \<sqsubseteq> ta'"
+    "[] \<turnstile> tb \<sqsubseteq> tb'"
+    using v_t_product by (auto elim: subtyping.cases intro: vval_typing_vval_typing_record.intros)
+  show ?case
+    using v_t_product elims by (simp add: vval_typing_vval_typing_record.intros)
+next
+  case (v_t_sum \<Xi> a ta n ts1)
+  obtain ts2 where elims:
+    "t' = TSum ts2"
+    "list_all2 (\<lambda>p1 p2. [] \<turnstile> fst (snd p1) \<sqsubseteq> fst (snd p2)) ts1 ts2"
+    "map fst ts1 = map fst ts2"
+    "list_all2 variant_kind_subty ts1 ts2"
+    "distinct (map fst ts1)"
+    using v_t_sum(6)
+    by (auto elim: subtyping.cases intro: vval_typing_vval_typing_record.intros)
+
+  obtain i where n_in_ts_ix:
+    "(n, ta, Unchecked) = ts1 ! i"
+    "i < length ts1"
+    using v_t_sum
+    by (metis in_set_conv_nth)
+
+  obtain n' ta' ba' where n'_in_ts2: "(n', ta', ba') = ts2 ! i"
+    by (metis prod_cases3)
+
+  have sat_ts1_ts2: "variant_kind_subty (ts1 ! i) (ts2 ! i)"
+    using elims n_in_ts_ix n'_in_ts2 list_all2_nthD
+    by blast
+
+  have
+    "n = n'"
+    using n_in_ts_ix n'_in_ts2
+    by (metis elims(3) fst_conv length_map nth_map)
+
+  moreover have
+    "[] \<turnstile> ta \<sqsubseteq> ta'"
+    using n_in_ts_ix n'_in_ts2 elims
+    by (metis fst_conv list_all2_conv_all_nth snd_conv)
+
+  moreover have
+    "ba' = Unchecked"
+    using n_in_ts_ix n'_in_ts2 sat_ts1_ts2
+    by (metis less_eq_variant_state.elims(2) snd_conv)
+
+  ultimately show ?case
+    using v_t_sum elims n'_in_ts2 n_in_ts_ix subtyping_wellformed_preservation value_sem.v_t_sum value_sem_axioms
+    by (metis (no_types, lifting) in_set_conv_nth list_all2_lengthD)
+next
+  case (v_t_record \<Xi> fs ts s)
+  obtain ts' where elims:
+    "t' = TRecord ts' s"
+    "distinct (map fst ts')"
+    using v_t_record by (auto elim: subtyping.cases intro: vval_typing_vval_typing_record.intros)
+
+  have "\<Xi> \<turnstile>* fs :vr ts'"
+    using elims subty_trecord subtyping_simps(6) v_t_record by presburger
+
+  then show ?case
+    using v_t_record elims  vval_typing_vval_typing_record.intros
+    by blast
+next
+  case (v_t_abstract a n ts \<Xi> s)
+  have "t' = TCon n ts s"
+    using subtyping.cases v_t_abstract by fastforce
+  then show ?case
+    using v_t_abstract vval_typing_vval_typing_record.v_t_abstract by blast
+next
+  case (v_t_afun \<Xi> f ks ta tb ts tfun')
+  then obtain tx ux where "t' = TFun tx ux"
+    by (auto elim: subtyping.cases)
+  then show ?case
+    using v_t_afun by (meson subtyping_trans vval_typing_vval_typing_record.intros)
+next
+  case (v_t_function \<Xi> K t f u ts t')
+  then obtain tx ux where "t' = TFun tx ux"
+    by (auto elim: subtyping.cases)
+  then show ?case
+    using v_t_function by (meson subtyping_trans vval_typing_vval_typing_record.intros)
+next
+  case (v_t_r_empty \<Xi>)
+  have "ts' = []"
+    using v_t_r_empty by (auto elim: subtyping.cases)
+  then show ?case
+    by (auto elim: subtyping.cases intro: vval_typing_vval_typing_record.intros)
+next
+  case (v_t_r_cons1 \<Xi> x t1 xs ts n)
+
+  obtain t2 b2 ts2' where field_is: "ts' = (n,t2,b2) # ts2'"
+    "([] \<turnstile> t1 \<sqsubseteq> t2)"
+    "(if [] \<turnstile> t1 :\<kappa> {D} then Present \<le> b2 else Present = b2)"
+    using subtyping_record_cons_split v_t_r_cons1 by blast
+
+  have field_rest: "\<Xi> \<turnstile>* xs :vr ts2'"
+    using v_t_r_cons1 field_is subtyping_record_uncons
+    by meson
+
+  then show ?case
+  proof (cases b2)
+    case Taken
+    then show ?thesis
+      using field_rest field_is v_t_r_cons1 vval_typing_vval_typing_record.v_t_r_cons2 value_subtyping_to_wellformed by metis
+  next case Present
+    then show ?thesis
+    using field_rest field_is v_t_r_cons1 vval_typing_vval_typing_record.v_t_r_cons1 by metis
+  qed
+next
+  case (v_t_r_cons2 t1 \<Xi> xs ts x n)
+
+  obtain t2 b2 ts2' where field_is: "ts' = (n,t2,b2) # ts2'"
+    "([] \<turnstile> t1 \<sqsubseteq> t2)"
+    "(if [] \<turnstile> t1 :\<kappa> {D} then Taken \<le> b2 else Taken = b2)"
+    using subtyping_record_cons_split v_t_r_cons2 by blast
+
+  have field_rest: "\<Xi> \<turnstile>* xs :vr ts2'"
+    using v_t_r_cons2 field_is subtyping_record_uncons
+    by meson
+
+  have b2_is: "b2 = Taken"
+    using field_is less_eq_record_state.elims
+    by metis
+
+  then show ?case
+    using field_rest field_is b2_is v_t_r_cons2 vval_typing_vval_typing_record.v_t_r_cons2
+    by (metis subtyping_wellformed_preservation(1))
+qed (auto elim: subtyping.cases intro: vval_typing_vval_typing_record.intros)
+
 
 subsection {* Introductions under instantiations *}
 
@@ -372,14 +566,22 @@ shows   "\<Xi> \<turnstile> VAFunction f (map (instantiate \<delta>) ts) :v TFun
                                                            (instantiate \<delta> (instantiate ts u))"
 proof -
   from assms
-  have "TFun (instantiate \<delta> (instantiate ts t))
+  have tfun_eq:
+      "TFun (instantiate \<delta> (instantiate ts t))
              (instantiate \<delta> (instantiate ts u))
       = TFun (instantiate (map (instantiate \<delta>) ts) t)
              (instantiate (map (instantiate \<delta>) ts) u)"
     by (force intro: instantiate_instantiate dest: list_all2_lengthD)
-  with assms show ?thesis
-    by (force simp add: kinding_simps
-        intro: vval_typing_vval_typing_variant_vval_typing_record.intros list_all2_substitutivity)
+
+  have tfun_sub:
+    "[] \<turnstile> TFun (instantiate (map (instantiate \<delta>) ts) t) (instantiate (map (instantiate \<delta>) ts) u)
+        \<sqsubseteq> TFun (instantiate       \<delta> (instantiate ts t)) (instantiate       \<delta> (instantiate ts u))"
+    using assms tfun_eq
+    by (metis (mono_tags, lifting) list_all2_substitutivity specialisation_subtyping subty_tfun subtyping_refl)
+
+  show ?thesis
+    using assms tfun_sub
+    by (meson list_all2_substitutivity type_wellformed.simps(4) type_wellformed_pretty_def v_t_afun)
 qed
 
 lemma v_t_function_instantiate:
@@ -394,10 +596,18 @@ from assms have "TFun (instantiate \<delta> (instantiate ts t))
                       (instantiate \<delta> (instantiate ts u))
                = TFun (instantiate (map (instantiate \<delta>) ts) t)
                       (instantiate (map (instantiate \<delta>) ts) u)"
-           by (force intro: instantiate_instantiate dest: list_all2_lengthD dest!: typing_to_wellformed)
-with assms show ?thesis by (force intro: vval_typing_vval_typing_variant_vval_typing_record.intros
-                                         list_all2_substitutivity
-                                  simp add: kinding_simps)
+  by (force intro: instantiate_instantiate dest: list_all2_lengthD dest!: typing_to_wellformed)
+
+
+  then have tfun_sub:
+    "[] \<turnstile> TFun (instantiate (map (instantiate \<delta>) ts) t) (instantiate (map (instantiate \<delta>) ts) u)
+        \<sqsubseteq> TFun (instantiate       \<delta> (instantiate ts t)) (instantiate       \<delta> (instantiate ts u))"
+    using assms
+    by (metis (mono_tags, lifting) list_all2_substitutivity specialisation_subtyping subty_tfun subtyping_refl typing_to_wellformed(1))
+
+  then show ?thesis
+    using assms
+    by (meson list_all2_substitutivity type_wellformed.simps(4) type_wellformed_pretty_def v_t_function)
 qed
 
 section {* matches lemmas *}
@@ -531,7 +741,7 @@ and     "\<Gamma> ! i = Some \<tau>"
 shows   "\<Xi> \<turnstile> (\<gamma> ! i) :v \<tau>"
 using assms by (auto dest: list_all2_nthD2
                      simp: matches_def
-                     intro: vval_typing_vval_typing_variant_vval_typing_record.intros)
+                     intro: vval_typing_vval_typing_record.intros)
 
 lemma matches_proj:
 assumes "list_all2 (kinding []) \<tau>s K"
@@ -569,11 +779,19 @@ lemma v_t_map_TPrimD:
   "\<Xi> \<turnstile>* vs :v map TPrim \<tau>s
     \<Longrightarrow> \<exists>lits. vs = map VPrim lits \<and> map lit_type lits = \<tau>s"
   unfolding vval_typing_all_def list_all2_map2
-  apply (induct rule: list_all2_induct, simp_all)
-  apply clarsimp
-  apply (erule vval_typing.cases, simp_all)
-  apply (rule exI[where x="x # xs" for x xs], simp)
-  done
+proof (induct rule: list_all2_induct)
+  case (Cons x xs y ys)
+  obtain l where l_def: "x = VPrim l"
+    using Cons by (auto elim: vval_typing.cases subtyping.cases)
+
+  obtain lits where lits_def: "xs = map VPrim lits \<and> map lit_type lits = ys"
+    using Cons by presburger
+
+  have "x # xs = map VPrim (l # lits) \<and> map lit_type (l # lits) = y # ys"
+    using Cons l_def lits_def by (auto elim: vval_typing.cases)
+
+  then show ?case by meson
+qed auto
 
 lemma eval_prim_preservation:
 assumes "prim_op_type p = (\<tau>s, \<tau>)"
@@ -587,7 +805,7 @@ assumes "list_all2 (kinding []) \<tau>s K"
 and     "proc_ctx_wellformed \<Xi>"
 and     "\<Xi> \<turnstile> \<gamma> matches (instantiate_ctx \<tau>s \<Gamma>)"
 and     "\<xi> matches \<Xi>"
-shows   "\<lbrakk> \<xi>, \<gamma> \<turnstile>  specialise \<tau>s e \<Down> v  ; \<Xi>, K, \<Gamma> \<turnstile>  e  : \<tau>  \<rbrakk> \<Longrightarrow> \<Xi> \<turnstile>  v  :v instantiate \<tau>s \<tau>"
+shows   "\<lbrakk> \<xi>, \<gamma> \<turnstile>  specialise \<tau>s e \<Down> v  ; \<Xi>, K, \<Gamma> \<turnstile>  e  : \<tau> \<rbrakk> \<Longrightarrow>  \<Xi> \<turnstile>  v  :v instantiate \<tau>s \<tau>"
 and     "\<lbrakk> \<xi>, \<gamma> \<turnstile>* map (specialise \<tau>s) es \<Down> vs ; \<Xi>, K, \<Gamma> \<turnstile>* es : \<tau>s' \<rbrakk> \<Longrightarrow> \<Xi> \<turnstile>* vs :v map (instantiate \<tau>s) \<tau>s'"
 using assms proof (induct "specialise \<tau>s e"        v
                       and "map (specialise \<tau>s) es" vs
@@ -599,7 +817,7 @@ using assms proof (induct "specialise \<tau>s e"        v
                                                        intro: matches_proj
                                                        simp:  empty_length empty_def)
 next case v_sem_lit     then show ?case by ( case_tac e, simp_all
-                                           , fastforce intro: vval_typing_vval_typing_variant_vval_typing_record.intros)
+                                           , fastforce intro: vval_typing_vval_typing_record.intros)
 next case v_sem_prim    then show ?case by ( case_tac e, simp_all
                                            , fastforce intro: eval_prim_preservation)
 next case v_sem_cast    then show ?case by ( case_tac e, simp_all
@@ -619,53 +837,36 @@ next case (v_sem_con \<xi> \<gamma> x_spec x' ts_inst tag)
       "x_spec = specialise \<tau>s x"
       using v_sem_con.hyps Con
       by clarsimp+
-    moreover then obtain t k ts'
+
+    moreover then obtain t
       where con_elims:
-        "\<tau> = TSum ts'"
+        "\<tau> = TSum ts"
         "\<Xi>, K, \<Gamma> \<turnstile> x : t"
+        "distinct (map fst ts)"
+        "K \<turnstile> TSum ts wellformed"
         "(tag, t, Unchecked) \<in> set ts"
-        "distinct (map fst ts')"
-        "map fst ts = map fst ts'"
-        "map (fst \<circ> snd) ts = map (fst \<circ> snd) ts'"
-        "list_all2 (\<lambda>x y. snd (snd x) \<le> snd (snd y)) ts ts'"
-        "K \<turnstile> TSum ts' wellformed"
-      using Con v_sem_con.prems by auto
-    ultimately have "\<Xi> \<turnstile> VSum tag x' :v TSum (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts')"
+      using Con v_sem_con.prems
+      by auto
+    ultimately have "\<Xi> \<turnstile> VSum tag x' :v TSum (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts)"
       using v_sem_con.hyps(2) v_sem_con.prems con_elims typing_simps
     proof (intro v_t_sum)
-      obtain i where tagelem_at:
-        "ts ! i = (tag, t, Unchecked)"
-        "i < length ts"
-        by (meson con_elims in_set_conv_nth)
-      then have
-        "fst (ts' ! i) = tag"
-        "fst (snd (ts' ! i)) = t"
-        "snd (snd (ts' ! i)) = Unchecked"
-        using con_elims
-        by (fastforce simp add: list_all2_eq list_all2_conv_all_nth order.antisym)+
-      then have
-        "ts' ! i = (tag, t, Unchecked)"
-        "i < length ts'"
-        using tagelem_at con_elims
-        by (metis length_map prod.collapse)+
-      then show "(tag, instantiate \<tau>s t, Unchecked) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts')"
-        by (fastforce simp add: in_set_conv_nth simp del: set_map)
+      show "(tag, instantiate \<tau>s t, Unchecked) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts)"
+        using con_elims image_iff by fastforce
     next
-      show "[] \<turnstile> TSum (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts') wellformed"
+      show "[] \<turnstile> TSum (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts) wellformed"
         using con_elims v_sem_con.prems
-        by (fastforce dest: list_all2_kinding_wellformedD intro: instantiate_wellformed
-            split: prod.splits variant_state.splits)
-    qed fastforce+
+        by (metis instantiate.simps(6) kinding_iff_wellformed(1) substitutivity_single)
+    qed auto
     then show ?thesis
       using con_elims by auto
   qed simp+
 next case v_sem_member  then show ?case by ( case_tac e, simp_all
                                            , fastforce intro: vval_typing_record_nth)
 next case v_sem_unit    then show ?case by ( case_tac e, simp_all
-                                           , fastforce intro: vval_typing_vval_typing_variant_vval_typing_record.intros)
+                                           , fastforce intro: vval_typing_vval_typing_record.intros)
 next case v_sem_tuple   then show ?case by ( case_tac e, simp_all
                                            , fastforce intro: matches_split
-                                                              vval_typing_vval_typing_variant_vval_typing_record.intros)
+                                                              vval_typing_vval_typing_record.intros)
 next case v_sem_case_m  then show ?case by ( case_tac e, simp_all
                                            , fastforce intro: matches_split
                                                               matches_cons [simplified]
@@ -728,7 +929,7 @@ next
     have "\<Xi> \<turnstile> VSum tag v :v instantiate \<tau>s (TSum ts')"
       using v_sem_esac.hyps(2) v_sem_esac.prems esac_simps esac_elims
       by blast
-    then obtain \<tau>' k
+    then obtain \<tau>'
       where ih_elims:
         "\<Xi> \<turnstile> v :v instantiate \<tau>s \<tau>'"
         "(tag, instantiate \<tau>s \<tau>', Unchecked) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts')"
@@ -750,7 +951,7 @@ next case v_sem_if      then show ?case by ( case_tac e, simp_all
                                            , fastforce intro:  matches_split
                                                        split:  if_splits)
 next case v_sem_struct  then show ?case by ( case_tac e, simp_all
-                                           , fastforce intro: vval_typing_vval_typing_variant_vval_typing_record.intros
+                                           , fastforce intro: vval_typing_vval_typing_record.intros
                                                               vval_typing_all_record [ where ts = "map f ts" for f ts
                                                                                      , simplified])
 next
@@ -788,12 +989,12 @@ next
     moreover then have all_inst_ts:
       "\<Xi> \<turnstile>* fs :vr map (\<lambda>(n, t, b). (n, instantiate \<tau>s t, b)) ts"
       "distinct (map fst ts)"
-      by (fastforce elim!: v_t_recordE)+
+      by (fastforce)+
     moreover then have "\<And>t' b'. distinct (map fst (ts[f := (n, t', b')]))"
       by (simp add: map_fst_update typing_elims)
     ultimately have "\<Xi> \<turnstile> VRecord fs :v TRecord (map (\<lambda>(n, t, b). (n, instantiate \<tau>s t, b)) (ts[f := (n, t, taken)])) s"
       using typing_elims v_sem_take.prems
-      by (fastforce simp add: map_update intro: substitutivity vval_typing_vval_typing_variant_vval_typing_record.intros vval_typing_record_take)
+      by (fastforce simp add: map_update intro: substitutivity vval_typing_vval_typing_record.intros vval_typing_record_take)
     then show ?thesis
       using v_sem_take.prems matchsplit_lemmas typing_elims spec_simps all_inst_ts
       by (fastforce intro!: v_sem_take.hyps(4) simp add: matches_Cons vval_typing_record_nth)
@@ -835,7 +1036,7 @@ next
 
     show "\<Xi> \<turnstile> VRecord (fs[f := ea']) :v instantiate \<tau>s \<tau>"
       using v_sem_put assms1 typingelims IHresults instvrecordelims
-    proof (simp add: map_update, intro vval_typing_vval_typing_variant_vval_typing_record.intros vval_typing_record_put)
+    proof (simp add: map_update, intro vval_typing_vval_typing_record.intros vval_typing_record_put)
       show "[] \<turnstile> instantiate \<tau>s t :\<kappa> k"
         using v_sem_put.prems typingelims
         by (blast intro: substitutivity)
@@ -851,34 +1052,86 @@ next case v_sem_split   then show ?case by ( case_tac e, simp_all
                                            , fastforce intro!: matches_cons
                                                        intro:  matches_split)
 next case (v_sem_app \<xi> \<gamma> x ea ts y a r e \<tau>s K \<tau> \<Gamma>)
-note IH1  = this(2)
-and  IH2  = this(4)
-and  IH3  = this(6)
-and  rest = this(1,3,5,7-)
-from rest show ?case
-  apply (case_tac e, simp_all)
-  apply (clarsimp)
-  apply (fastforce elim!: typing_appE
-                   dest!: IH1 [OF _ _ _ _ matches_split(1)]
-                          IH2 [OF _ _ _ _ matches_split(2)]
-                   intro: IH3
-                   simp:  matches_def
-                          instantiate_ctx_def).
-next case v_sem_abs_app
-note IH1  = this(2)
-and  IH2  = this(4)
-and  rest = this(1,3,5-)
-from rest show ?case
-  apply (case_tac e, simp_all)
-  apply (clarsimp elim!: typing_appE)
-  apply (frule(7) IH1 [OF _ _ _ _ matches_split(1)])
-  apply (frule(7) IH2 [OF _ _ _ _ matches_split(2)])
-  apply (fastforce intro: proc_env_matches_abstract).
+  obtain efun earg where e_def: "e = App efun earg"
+      "x = specialise \<tau>s efun"
+      "y = specialise \<tau>s earg"
+    using v_sem_app by (cases e, auto)
+
+  obtain \<Gamma>1 \<Gamma>2 targ where app_elims:
+    "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+    "\<Xi>, K, \<Gamma>1 \<turnstile> efun : TFun targ \<tau>"
+    "\<Xi>, K, \<Gamma>2 \<turnstile> earg : targ"
+    using v_sem_app e_def by blast
+
+  have vfun_ty: "\<Xi> \<turnstile> VFunction ea ts :v instantiate \<tau>s (TFun targ \<tau>)"
+    using app_elims e_def v_sem_app matches_split
+    by fast
+
+  have varg_ty: "\<Xi> \<turnstile> a :v instantiate \<tau>s targ"
+    using app_elims e_def v_sem_app matches_split
+    by fast
+
+  obtain Kfun t u where vfun_ty_elims: "\<Xi>, Kfun, [Some t] \<turnstile> ea : u"
+       "type_wellformed (length Kfun) t"
+       "list_all2 (kinding []) ts Kfun"
+       "[] \<turnstile> TFun (instantiate ts t) (instantiate ts u) \<sqsubseteq> TFun (instantiate \<tau>s targ) (instantiate \<tau>s \<tau>)"
+    using vfun_ty by (auto elim: vval_typing.cases)
+
+  have vres_ty_sub: "\<Xi> \<turnstile> r :v instantiate ts u"
+    using vfun_ty_elims v_sem_app(6)
+    using matches_cons' matches_empty subtyping_simps(4) v_sem_app.prems(3) v_sem_app.prems(5) value_subtyping(1) varg_ty by fastforce
+
+  show ?case
+    using app_elims e_def v_sem_app vfun_ty_elims vres_ty_sub
+    by (metis subtyping_simps(4) value_subtyping(1))
+
+next case (v_sem_abs_app \<xi> \<gamma> x f ts y a r)
+  obtain efun earg where e_def: "e = App efun earg"
+      "x = specialise \<tau>s efun"
+      "y = specialise \<tau>s earg"
+    using v_sem_abs_app by (cases e, auto)
+
+  obtain \<Gamma>1 \<Gamma>2 targ where app_elims:
+    "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+    "\<Xi>, K, \<Gamma>1 \<turnstile> efun : TFun targ \<tau>"
+    "\<Xi>, K, \<Gamma>2 \<turnstile> earg : targ"
+    using v_sem_abs_app e_def by blast
+
+  have vafun_ty: "\<Xi> \<turnstile> VAFunction f ts :v instantiate \<tau>s (TFun targ \<tau>)"
+    using app_elims e_def v_sem_abs_app matches_split
+    by fast
+
+  have varg_ty: "\<Xi> \<turnstile> a :v instantiate \<tau>s targ"
+    using app_elims e_def v_sem_abs_app matches_split
+    by fast
+
+  obtain ks t u t' u' where vafun_ty_elims:
+      "instantiate \<tau>s (TFun targ \<tau>) = TFun t' u'"
+      "\<Xi> f = (ks, t, u)"
+      "list_all2 (kinding []) ts ks"
+      "ks \<turnstile> TFun t u wellformed"
+      "[] \<turnstile> TFun (instantiate ts t) (instantiate ts u) \<sqsubseteq> TFun t' u'"
+    using vafun_ty by (auto elim: vval_typing.cases)
+
+  have vres_ty_sub: "\<Xi> \<turnstile> r :v instantiate ts u"
+    using vafun_ty_elims varg_ty v_sem_abs_app
+    using subtyping_simps(4) value_subtyping(1)  instantiate.simps(4) proc_env_matches_abstract
+    by metis
+
+  show ?case
+    using app_elims e_def v_sem_abs_app vafun_ty_elims vres_ty_sub
+    by (metis instantiate.simps(4) subtyping_simps(4) value_subtyping(1))
+
 next case v_sem_all_empty then show ?case by ( case_tac es, simp_all
                                              , fastforce simp: vval_typing_all_def)
 next case v_sem_all_cons  then show ?case by ( case_tac es, simp_all
                                              , fastforce simp: vval_typing_all_def
                                                          dest: matches_split)
+next
+  case (v_sem_promote \<Xi> \<xi> \<gamma> ea ea' t)
+  then show ?case
+    using value_subtyping(1) specialisation(1) typing_promoteE instantiate_ctx_nothing instantiate_nothing list.ctr_transfer(1) specialise_nothing
+    by (metis)
 qed
 
 (* TODO:
@@ -900,6 +1153,7 @@ function monoexpr :: "'f expr \<Rightarrow> ('f \<times> type list) expr" where
 | "monoexpr (Unit)            = Unit"
 | "monoexpr (Cast t e)        = Cast t (monoexpr e)"
 | "monoexpr (Lit v)           = Lit v"
+| "monoexpr (SLit v)          = SLit v"
 | "monoexpr (Tuple a b)       = Tuple (monoexpr a) (monoexpr b)"
 | "monoexpr (Put e f e')      = Put (monoexpr e) f (monoexpr e')"
 | "monoexpr (Let e e')        = Let (monoexpr e) (monoexpr e')"
@@ -909,6 +1163,8 @@ function monoexpr :: "'f expr \<Rightarrow> ('f \<times> type list) expr" where
 | "monoexpr (If c t e)        = If (monoexpr c) (monoexpr t) (monoexpr e)"
 | "monoexpr (Take e f e')     = Take (monoexpr e) f (monoexpr e')"
 | "monoexpr (Split v va)      = Split (monoexpr v) (monoexpr va)"
+| "monoexpr (Promote t x)     = Promote t (monoexpr x)"
+
              by (case_tac x, auto)
 termination by (relation "measure expr_size", (simp add: order_sum_list)+)
 
@@ -926,7 +1182,6 @@ where "monoval (VPrim lit) = VPrim lit"
 definition monoprog :: "('f, 'a) vabsfuns \<Rightarrow> (('f \<times> type list), 'a) vabsfuns \<Rightarrow> bool"
 where "monoprog \<xi> \<xi>' \<equiv> \<forall>f \<tau>s. (\<forall>v v'. \<xi> f v v' \<longleftrightarrow> \<xi>' (f, \<tau>s) (monoval v) (monoval v'))"
 
-
 lemma member_nth_map: "f < length fs \<Longrightarrow> \<xi>', map monoval \<gamma> \<turnstile> Member (monoexpr e) f \<Down> monoval (fs ! f) =  \<xi>' , map monoval \<gamma> \<turnstile> Member (monoexpr e) f \<Down> (map monoval fs) ! f"
 by (subst nth_map, simp_all)
 thm v_sem_prim
@@ -936,40 +1191,39 @@ by (force dest: sym intro: v_sem_prim)
 
 lemma monoval_vprim [simp]: "monoval \<circ> VPrim = VPrim" by (rule ext, simp)
 
-lemma eval_prim_type_change:
-assumes "(eval_prim :: prim_op \<Rightarrow> ('f1, 'a1) vval list \<Rightarrow> ('f1, 'a1) vval) p (map VPrim lits) = VPrim l"
-shows "(eval_prim :: prim_op \<Rightarrow> ('f2, 'a2) vval list \<Rightarrow> ('f2, 'a2) vval) p (map VPrim lits) = VPrim l"
-proof -
-have helper: "(\<lambda>vv. case vv of VPrim v \<Rightarrow> v | _ \<Rightarrow> LBool False) \<circ> VPrim = id" by (rule ext, simp)
-then show ?thesis using assms by (simp add: eval_prim_def helper)
-qed
-
 lemma mono_correct:
 assumes "\<xi> matches \<Xi>"
 and     "proc_ctx_wellformed \<Xi>"
 and     "\<Xi> \<turnstile> \<gamma> matches \<Gamma>"
 and     "monoprog \<xi> \<xi>'"
 shows   "\<xi>, \<gamma> \<turnstile> e \<Down> e' \<Longrightarrow>  \<Xi>, [], \<Gamma> \<turnstile> e : \<tau>    \<Longrightarrow> \<xi>', map monoval \<gamma> \<turnstile> monoexpr e \<Down> monoval e'"
-and     "\<xi>, \<gamma> \<turnstile>* es \<Down> es' \<Longrightarrow> \<Xi>, [], \<Gamma> \<turnstile>* es : \<tau>s \<Longrightarrow> \<xi>', map monoval \<gamma> \<turnstile>* map monoexpr es \<Down> map monoval es'"
+ and     "\<xi>, \<gamma> \<turnstile>* es \<Down> es' \<Longrightarrow> \<Xi>, [], \<Gamma> \<turnstile>* es : \<tau>s \<Longrightarrow> \<xi>', map monoval \<gamma> \<turnstile>* map monoexpr es \<Down> map monoval es'"
 using assms proof (induct \<xi> \<gamma> e e'
                       and \<xi> \<gamma> es es'
                arbitrary: \<tau> \<Gamma>
                       and \<tau>s \<Gamma>
                     rule: v_sem_v_sem_all.inducts)
-case v_sem_app
+  case (v_sem_app \<xi> \<gamma> x e ts y a r)
 note IH1 = this(2)
 and  IH2 = this(4)
 and  IH3 = this(6)
 and  rest = this(1,3,5,7-)
-then show ?case
+  then show ?case
   apply (clarsimp)
   apply (erule typing_appE)
   apply (rule, erule(5) IH1 [OF _ _ _ matches_split'(1), simplified], erule(5) IH2 [OF _ _ _ matches_split'(2), simplified])
   apply (simp)
   apply (frule(5) preservation(1) [where \<tau>s = "[]" and K = "[]", OF _ _ matches_split'(1), simplified])
-  apply (frule(5) preservation(1) [where \<tau>s = "[]" and K = "[]", OF _ _ matches_split'(2), simplified])
-  apply (auto elim!: v_t_funE
-              intro: IH3 [simplified] specialisation
+    apply (frule(5) preservation(1) [where \<tau>s = "[]" and K = "[]", OF _ _ matches_split'(2), simplified])
+
+
+    apply (erule v_t_funE)
+    apply (rule_tac V="\<Xi> \<turnstile> a :v instantiate ts t" in revcut_rl)
+      apply (rule value_subtyping)
+       apply assumption
+      apply (auto elim: subtyping.cases)
+    apply (rule IH3[simplified])
+    apply (auto intro: specialisation
               simp:  matches_def instantiate_ctx_def)
 done
 next case v_sem_abs_app
@@ -1019,7 +1273,7 @@ next case (v_sem_take \<xi> \<gamma> x fs f e e')
 
   have "\<Xi> \<turnstile> VRecord fs :v TRecord (ts[f := (n, t, taken)]) s"
     using takeelims ts_v_sem_lemmas
-    by (fastforce intro: vval_typing_vval_typing_variant_vval_typing_record.intros vval_typing_record_take simp add: map_fst_update)
+    by (fastforce intro: vval_typing_vval_typing_record.intros vval_typing_record_take simp add: map_fst_update)
   moreover have "\<Xi> \<turnstile> fs ! f :v t"
     using takeelims ts_v_sem_lemmas vval_typing_record_nth by blast
   ultimately have "\<xi>' , map monoval fs ! f # VRecord (map monoval fs) # map monoval \<gamma> \<turnstile> monoexpr e \<Down> monoval e'"
@@ -1065,7 +1319,7 @@ from rest show ?case
   apply (rule v_sem_prim')
   apply (clarsimp)
   apply (erule(4) IH)
-  apply (force intro: eval_prim_type_change)
+    apply (force intro: eval_prim_type_change)
 done
 next case v_sem_struct then show ?case by (fastforce intro!: v_sem_v_sem_all.v_sem_struct)
 next case v_sem_case_m then show ?case
@@ -1122,7 +1376,14 @@ next case v_sem_put then show ?case
   apply (frule(1) matches_split'(1))
   apply (frule(1) matches_split'(2))
   apply (fastforce simp: map_update intro: v_sem_v_sem_all.v_sem_put)
-done
+    done
+next case (v_sem_promote \<xi> \<gamma> e e' t e'' t')
+  have eval_orig: "\<xi>' , map monoval \<gamma> \<turnstile> monoexpr e \<Down> monoval e'"
+    using v_sem_promote.hyps(2) v_sem_promote.prems(1) v_sem_promote.prems(2) v_sem_promote.prems(3) v_sem_promote.prems(4) v_sem_promote.prems(5) by auto
+  then show ?case
+    apply (clarsimp)
+    apply (rule v_sem_v_sem_all.v_sem_promote[where e' = "monoval _"])
+    using eval_orig by assumption
 qed
 
 end
