@@ -1,4 +1,4 @@
-.PHONY: build configure install doc
+.PHONY: build configure install
 
 ## Silent by default
 V =
@@ -62,12 +62,7 @@ endif
 	$(E) "Installing.."
 	$(CABAL) install $(INSTALL_FLAGS)
 
-doc:
-	$(E) "Building Cogent docs..."
-	$(Q) make -C doc
-
 clean:
-	$(Q) make -C doc clean
 	$(Q) rm -rf out/
 	$(Q) rm -rf tests/include
 	$(Q) find . -name "*_flymake.hs" -delete
@@ -277,9 +272,6 @@ help:
 	$(E) ""
 	$(E) "* make examples-clean"
 	$(E) "  Clean up earlier build of examples."
-	$(E) ""
-	$(E) "* make doc"
-	$(E) "  Build Cogent docs."
 	$(E) ""
 	$(E) "* make help"
 	$(E) "  Print this help."
