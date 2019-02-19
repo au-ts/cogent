@@ -41,11 +41,8 @@ lemma typing_prim' : "\<lbrakk> prim_op_type oper = (ts,t)
 
 lemma typing_con' : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : t
                      ; (tag, t, Unchecked) \<in> set ts
-                     ; K \<turnstile> TSum ts' wellformed
-                     ; distinct (map fst ts)
-                     ; map fst ts = map fst ts'
-                     ; map (fst \<circ> snd) ts = map (fst \<circ> snd) ts'
-                     ; list_all2 (\<lambda>x y. snd (snd x) \<le> snd (snd y)) ts ts'
+                     ; K \<turnstile> TSum ts wellformed
+                     ; ts = ts'
                      \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Con ts tag x : TSum ts'"
   by (simp add: typing_con)
 
@@ -58,18 +55,20 @@ lemma typing_struct': "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile>* es : ts
 
 lemma typing_afun': "\<lbrakk> \<Xi> f = (ks, t, u)
                      ; list_all2 (kinding K) ts ks
-                     ; t' = instantiate ts (TFun t u)
+                     ; t' = instantiate ts t
+                     ; u' = instantiate ts u
                      ; ks \<turnstile> TFun t u wellformed
                      ; K \<turnstile> \<Gamma> consumed
-                     \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> AFun f ts : t'"
+                     \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> AFun f ts : TFun t' u'"
   by (simp only: typing_afun)
 
-lemma typing_fun': "\<lbrakk> \<Xi>, ks, (typtree, [Some t]) T\<turnstile> f : u
-                    ; list_all2 (kinding K) ts ks
-                    ; t' = instantiate ts (TFun t u)
-                    ; ks \<turnstile> t wellformed
-                    ; K \<turnstile> \<Gamma> consumed
-                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Fun f ts : t'"
+lemma typing_fun': "\<lbrakk> \<Xi>, K', [Some t] \<turnstile> f : u
+                   ; t' = instantiate ts t
+                   ; u' = instantiate ts u
+                   ; K \<turnstile> \<Gamma> consumed
+                   ; K' \<turnstile> t wellformed
+                   ; list_all2 (kinding K) ts K'
+                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Fun f ts : TFun t' u'"
   by (auto simp only: typing_fun snd_conv dest: ttyping_imp_typing)
 
 lemma typing_var_weak: "\<lbrakk> K \<turnstile> t :\<kappa> k
