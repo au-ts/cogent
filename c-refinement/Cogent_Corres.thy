@@ -1538,6 +1538,13 @@ lemma corres_afun:
   apply simp
   done
 
+lemma corres_promote:
+  "corres srel x x' \<xi>' \<gamma> \<Xi>' \<Gamma>' \<sigma> s \<Longrightarrow>
+   corres srel (Promote t x) x' \<xi>' \<gamma> \<Xi>' \<Gamma>' \<sigma> s"
+  apply (monad_eq simp: corres_def)
+  using u_sem_promote by blast
+
+
 lemma corres_if_base:
   assumes split\<Gamma>: "[] \<turnstile> \<Gamma>' \<leadsto> \<Gamma>1 | \<Gamma>2"
   assumes typing_cond: "\<Xi>', [], \<Gamma>1 \<turnstile> Var c : TPrim Bool"
