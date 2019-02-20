@@ -50,7 +50,7 @@ fun read_table (file_name:string) thy =
     val ctxt = Proof_Context.init_global thy
     val tymap = tymap
                 |> map (fn (pos, cogentT, cT) => let
-                    fun err () = error (report pos ^ "failed to parse Cogent type")
+                    fun err () = error (report pos ^ "failed to parse Cogent type:" ^ cogentT)
                     val cogentT = Syntax.read_term ctxt cogentT
                                 handle ERROR _ => err ()
                     val _ = if type_of cogentT = @{typ Cogent.type} then () else err ()

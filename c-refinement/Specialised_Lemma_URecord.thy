@@ -23,6 +23,13 @@ text{* lemma-generation for URecord (Member, Take, and Put).*}
 
 (* TODO: mk_specialised_corres_take and mk_specialised_corres_put have code-duplication
  *       Refactor it.*)
+(* TODO[amos] mk_specialised_corres_take looks a lot like it should be equivalent to something like
+  >   match ml_sigil with
+  >      Writable \<Rightarrow> Thm.instantiate [...] @{thm corres_take_boxed}
+  >      Unboxed  \<Rightarrow> Thm.instantiate [...] @{thm corres_take_unboxed}
+  except specialised includes some type relations, but corres_take_* don't.
+  I don't really understand what this is doing, and why this has different assumptions to corres_take_*.
+ *)
 ML{* fun mk_specialised_corres_take (field_num:int) uval file_nm ctxt =
 (* Generate specialised Take lemmas for the Writables and Unboxeds.*)
  let
@@ -68,8 +75,8 @@ ML{* fun mk_specialised_corres_take (field_num:int) uval file_nm ctxt =
               Some (TRecord (typ[field_num := (fst (typ ! field_num), fst (snd (typ ! field_num)), taken)]) isa_sigil) # \<Gamma>e \<turnstile> e : te)"}
             $ isa_sigil $ isa_field_num;
   (* For some reason, I cannot use the mk-term antiquotation for ass9.*)
-  val ass9 = strip_atype @{term "\<lambda> field_num . [] \<turnstile> fst (typ ! field_num) :\<kappa> k"} $ isa_field_num;
-  val ass10= @{term "(S \<in> k \<or> taken)"};
+  val ass9 = strip_atype @{term "\<lambda> field_num . [] \<turnstile> fst (snd (typ ! field_num)) :\<kappa> k"} $ isa_field_num;
+  val ass10= @{term "(S \<in> k \<or> taken = Taken)"};
   (* ass11 involves a bit ugly hacks. Maybe I can use \<lambda> for field_num instead of \<And>.*)
   val ass11 = let
                fun rep_Bound_n_with n new = strip_1qnt o
@@ -86,7 +93,6 @@ ML{* fun mk_specialised_corres_take (field_num:int) uval file_nm ctxt =
               end;
   val prms = map (HOLogic.mk_Trueprop o strip_atype)
    [ass1, ass2, ass3, ass4, ass5, ass6, ass7, ass8, ass9, ass10] @ [ass11];
-
   (* define the conclusion of the lemma.*)
   (* Unboxed-Take and Boxed-Take have different conclusions.*)
   val cncl =
