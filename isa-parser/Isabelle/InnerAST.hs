@@ -326,18 +326,15 @@ prettyType p ty =
      pa = 1
      pt = 2
 
--- the numbers are annotated with a type when passed to `char_of` because
--- char_of only expects a member of the `semiring_parity` typeclass, and if we
--- don't specify which, Isabelle can't resolve the type variables.
 instance Pretty Const where
   pretty c = case c of
     TrueC  -> string "True"
     FalseC -> string "False"
     IntLiteral    i -> integer i
-    CharLiteral   c -> string $ printf "char_of (%d :: nat)" $ ord c
+    CharLiteral   c -> string $ printf "CHR ''%#02x" $ ord c
     StringLiteral s | '\'' `elem` s -> string $ "[" ++ intercalate "," (map repr s) ++ "]"
                     | otherwise     -> string $ "''" ++ s ++ "''"
-                        where repr = printf "char_of (%d :: nat)" . ord
+                        where repr = printf "CHR ''%#02x''" . ord
     Top    -> string "\\<top>"
     Bottom -> string "\\<bottom>"
 
