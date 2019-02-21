@@ -331,10 +331,10 @@ instance Pretty Const where
     TrueC  -> string "True"
     FalseC -> string "False"
     IntLiteral    i -> integer i
-    CharLiteral   c -> string $ printf "CHR ''%#02x" $ ord c
+    CharLiteral   c -> string $ printf "CHR %#02x" $ ord c
     StringLiteral s | '\'' `elem` s -> string $ "[" ++ intercalate "," (map repr s) ++ "]"
                     | otherwise     -> string $ "''" ++ s ++ "''"
-                        where repr = printf "CHR ''%#02x''" . ord
+                        where repr = printf "CHR %#02x" . ord
     Top    -> string "\\<top>"
     Bottom -> string "\\<bottom>"
 
