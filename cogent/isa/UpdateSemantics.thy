@@ -2717,12 +2717,37 @@ next case u_sem_split
     apply (clarsimp, auto intro!: exI intro: frame_let pointerset_helper_frame)
     done
 next
-  case (u_sem_promote \<xi> \<gamma> \<sigma> e t')
+  case (u_sem_promote \<xi> \<gamma> \<sigma> specx)
   then show ?case
-    using value_subtyping
-(* TODO AMOS REWRITE WITHOUT SMT *)
-    by (smt Int_subset_iff inf.absorb_iff2 instantiate_ctx_nothing instantiate_nothing list.ctr_transfer(1) specialisation(1) specialise_nothing typing_promoteE)
-
+  proof (cases e)
+  next
+    case (Promote \<tau>a xa)
+    moreover then obtain x \<tau>'
+      where typing_elims:
+        "\<tau>a = \<tau>"
+        "xa = x"
+        "e = Promote \<tau> x"
+        "\<Xi>, K, \<Gamma> \<turnstile> x : \<tau>'"
+        "K \<turnstile> \<tau>' \<sqsubseteq> \<tau>"
+      using u_sem_promote.prems by blast
+    moreover have specx_is: "specx = specialise \<tau>s x"
+      using typing_elims u_sem_promote.hyps
+      by simp
+    moreover have "[] \<turnstile> instantiate \<tau>s \<tau>' \<sqsubseteq> instantiate \<tau>s \<tau>"
+      using
+        u_sem_promote.prems specialisation_subtyping subtyping_wellformed_preservation
+        typing_elims typing_to_wellformed
+      by blast
+    moreover obtain r' w'
+      where
+        "\<Xi>, \<sigma>' \<turnstile> v :u instantiate \<tau>s \<tau>' \<langle>r', w'\<rangle>"
+        "r' \<subseteq> r"
+        "frame \<sigma> w \<sigma>' w'"
+      using u_sem_promote specx_is typing_elims
+      by blast
+    ultimately show ?thesis
+      by (meson order.trans value_subtyping)
+  qed force+
 next case u_sem_all_empty then show ?case
     by ( cases es, simp_all, fastforce intro!: frame_id
                                                uval_typing_all.intros
