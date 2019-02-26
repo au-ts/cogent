@@ -174,5 +174,5 @@ script:
 notifications:
   slack:
     rooms:
-      - cogent-club:dUKOfdIU3BGsvalWStE0BCGG#travis
+      - cogent-club:dUKOfdIU3BGsvalWStE0BCGG#ci
 # EOF
