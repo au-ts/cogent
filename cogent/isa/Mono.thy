@@ -35,6 +35,7 @@ where
 | "rename_expr rename (Unit)            = Unit"
 | "rename_expr rename (Cast t e)        = Cast t (rename_expr rename e)"
 | "rename_expr rename (Lit v)           = Lit v"
+| "rename_expr rename (SLit s)          = SLit s"
 | "rename_expr rename (Tuple a b)       = Tuple (rename_expr rename a) (rename_expr rename b)"
 | "rename_expr rename (Put e f e')      = Put (rename_expr rename e) f (rename_expr rename e')"
 | "rename_expr rename (Let e e')        = Let (rename_expr rename e) (rename_expr rename e')"
@@ -44,6 +45,7 @@ where
 | "rename_expr rename (If c t e)        = If (rename_expr rename c) (rename_expr rename t) (rename_expr rename e)"
 | "rename_expr rename (Take e f e')     = Take (rename_expr rename e) f (rename_expr rename e')"
 | "rename_expr rename (Split v va)      = Split (rename_expr rename v) (rename_expr rename va)"
+| "rename_expr rename (Promote t e)     = (Promote t (rename_expr rename e))"
 
 fun
   rename_val :: "('b \<Rightarrow> 'c) \<Rightarrow> ('b, 'a) vval \<Rightarrow> ('c, 'a) vval"
@@ -103,9 +105,7 @@ lemma rename_monoexpr_correct:
          rule: v_sem_v_sem_all.inducts)
   case (v_sem_var \<xi> i \<gamma> e \<tau> \<Gamma>)
   then show ?case
-  apply (cases e, simp_all)
-  apply (rule_tac x="\<gamma>!i" in exI)
-  by (fastforce intro: v_sem_v_sem_all.v_sem_var dest: matches_length)
+    by (cases e) (force intro: v_sem_v_sem_all.v_sem_var dest: matches_length)+
   next
   case (v_sem_lit \<xi> l \<gamma> e  \<tau> \<Gamma>) then show ?case
   by (cases e) (auto intro: v_sem_v_sem_all.v_sem_lit)
