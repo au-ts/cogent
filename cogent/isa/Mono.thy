@@ -106,183 +106,180 @@ lemma rename_monoexpr_correct:
   case (v_sem_var \<xi> i \<gamma> e \<tau> \<Gamma>)
   then show ?case
     by (cases e) (force intro: v_sem_v_sem_all.v_sem_var dest: matches_length)+
-  next
+next
   case (v_sem_lit \<xi> l \<gamma> e  \<tau> \<Gamma>) then show ?case
-  by (cases e) (auto intro: v_sem_v_sem_all.v_sem_lit)
-  next
+    by (cases e) (auto intro: v_sem_v_sem_all.v_sem_lit)
+next
   case (v_sem_fun \<xi> f ts \<gamma> e \<tau> \<Gamma>) then show ?case
-  by (cases e) (auto intro: v_sem_v_sem_all.v_sem_fun)
-  next
+    by (cases e) (auto intro: v_sem_v_sem_all.v_sem_fun)
+next
   case (v_sem_afun \<xi> f ts \<gamma> e \<tau> \<Gamma>) then show ?case
-  by (cases e) (auto intro: v_sem_v_sem_all.v_sem_afun)
-  next
+    by (cases e) (auto intro: v_sem_v_sem_all.v_sem_afun)
+next
   case (v_sem_cast \<xi> re l \<tau> l'  \<gamma> e \<tau>' \<Gamma>)
   note IH1=this(2) and rest= this(1,3-) then show ?case
-  apply (cases e, simp_all)
-  apply (rule exI)
-  apply (rule conjI)
-   apply (erule typing_castE)
-   apply (rule v_sem_v_sem_all.v_sem_cast)
-    apply (rule IH1[THEN exE], simp_all)
-  apply (rename_tac v)
-  apply clarsimp
-  by (case_tac v, simp_all)
-  next
-  case (v_sem_con \<xi> re rv as t \<gamma> e \<tau> \<Gamma>) then show ?case
-  apply (cases e, simp_all)
-  by (fastforce intro!: v_sem_v_sem_all.v_sem_con)
-  next
-  case (v_sem_unit \<xi> \<gamma> e \<tau> \<Gamma>) then show ?case
-  apply (cases e, simp_all)
-  by (fastforce intro!:  v_sem_v_sem_all.v_sem_unit)
-  next
-  case (v_sem_tuple \<xi> re1 rv1 re2 rv2 \<gamma> e \<tau> \<Gamma>) then show ?case
-  apply (cases e, simp_all)
-  by (fastforce intro: matches_split' v_sem_v_sem_all.v_sem_tuple)
-  next
+    apply (cases e, simp_all)
+    apply (rule exI)
+    apply (rule conjI)
+     apply (erule typing_castE)
+     apply (rule v_sem_v_sem_all.v_sem_cast)
+      apply (rule IH1[THEN exE], simp_all)
+    apply (rename_tac v)
+    apply clarsimp
+    by (case_tac v, simp_all)
+next
+  case v_sem_con then show ?case
+    by (cases e) (fastforce intro: v_sem_v_sem_all.v_sem_con)+
+next
+  case v_sem_unit then show ?case
+    by (cases e) (fastforce intro!:  v_sem_v_sem_all.v_sem_unit)+
+next
+  case v_sem_tuple then show ?case
+    by (cases e) (fastforce intro: matches_split' v_sem_v_sem_all.v_sem_tuple)+
+next
   case (v_sem_esac \<xi> t ts v \<gamma> e \<tau> \<Gamma>)
   note IH1=this(2) and rest= this(1,3-) from rest show ?case
-  apply (cases e, simp_all)
-  apply (erule typing_esacE)
-  apply (cut_tac IH1, simp_all)
-  apply (erule exE)
-  apply (rename_tac vval)
-  apply (case_tac vval, simp_all)
-  by (fastforce intro!: v_sem_v_sem_all.v_sem_esac)
-  next
+    apply (cases e, simp_all)
+    apply (erule typing_esacE)
+    apply (cut_tac IH1, simp_all)
+    apply (erule exE)
+    apply (rename_tac vval)
+    apply (case_tac vval, simp_all)
+    by (fastforce intro!: v_sem_v_sem_all.v_sem_esac)
+next
   case (v_sem_struct \<xi> xs vs ts \<gamma> e \<tau> \<Gamma>) then show ?case
-  by (cases e, simp_all) (fastforce intro: v_sem_v_sem_all.v_sem_struct)
-  next
+    by (cases e) (fastforce intro: v_sem_v_sem_all.v_sem_struct)+
+next
   case (v_sem_if \<xi> rb b e1 e2 v \<gamma> e \<tau> \<Gamma>)
   note IH1=this(2) and IH2=this(4) and rest=this(1,3, 5-) from rest show ?case
-  apply (cases e, simp_all)
-  apply (rename_tac exp1 exp2 exp3)
-  apply (erule typing_ifE)
-  apply (cut_tac IH1[OF _ _ _ _ _ _ matches_split'(1)], simp_all)
-  apply (clarsimp)
-  apply (rename_tac vval)
-  apply (case_tac vval, simp_all)
-  apply (subgoal_tac "\<exists>va. (\<xi>\<^sub>p , \<gamma> \<turnstile> if b then exp2 else exp3 \<Down> va) \<and> v = rename_val rename (monoval va)")
-   apply (fastforce intro: v_sem_v_sem_all.v_sem_if)
-  apply (rule IH2[OF _ _ _ _ _ _ matches_split'(2)], simp_all)
-  apply (fastforce split: if_splits)
-  done
-  next
+    apply (cases e, simp_all)
+    apply (rename_tac exp1 exp2 exp3)
+    apply (erule typing_ifE)
+    apply (cut_tac IH1[OF _ _ _ _ _ _ matches_split'(1)], simp_all)
+    apply (clarsimp)
+    apply (rename_tac vval)
+    apply (case_tac vval, simp_all)
+    apply (subgoal_tac "\<exists>va. (\<xi>\<^sub>p , \<gamma> \<turnstile> if b then exp2 else exp3 \<Down> va) \<and> v = rename_val rename (monoval va)")
+     apply (fastforce intro: v_sem_v_sem_all.v_sem_if)
+    apply (rule IH2[OF _ _ _ _ _ _ matches_split'(2)], simp_all)
+    apply (fastforce split: if_splits)
+    done
+next
   case v_sem_all_empty then show ?case
-  by (simp add: v_sem_v_sem_all.v_sem_all_empty)
-  next
+    by (simp add: v_sem_v_sem_all.v_sem_all_empty)
+next
   case (v_sem_all_cons \<xi> e v es' vs' \<gamma> es \<tau>s \<Gamma>) then show ?case
-  by (cases es, simp) (fastforce dest: matches_split' intro!: v_sem_v_sem_all.intros)
-  next
+    by (cases es) (fastforce dest: matches_split' intro!: v_sem_v_sem_all.intros)+
+next
   case (v_sem_prim \<xi> es vs p \<gamma> e \<tau> \<Gamma>)
   note IH = this(2)
-  and rest = this(1,3-)
+    and rest = this(1,3-)
   from rest show ?case
-  apply (cases e, simp_all)
-  apply (clarsimp elim!: typing_primE)
+    apply (cases e, simp_all)
+    apply (clarsimp elim!: typing_primE)
 
-  apply (cut_tac IH, simp_all)
-  apply clarsimp
-  apply (frule(4) preservation(2) [where \<tau>s = "[]" and K = "[]", simplified])
-  apply (frule v_t_map_TPrimD)
-  apply clarsimp
-  apply (frule eval_prim_preservation)
-   apply (simp)
-  apply (erule vval_typing.cases, simp_all)
-  apply (rule exI)
-  apply (rule conjI)
-  apply (rule v_sem_prim', simp_all)
-  by (force dest: map_rename_monoval_prim_prim)
-  next
+    apply (cut_tac IH, simp_all)
+    apply clarsimp
+    apply (frule(4) preservation(2) [where \<tau>s = "[]" and K = "[]", simplified])
+    apply (frule v_t_map_TPrimD)
+    apply clarsimp
+    apply (frule eval_prim_preservation)
+     apply (simp)
+    apply (erule vval_typing.cases, simp_all)
+    apply (rule exI)
+    apply (rule conjI)
+     apply (rule v_sem_prim', simp_all)
+    by (force dest: map_rename_monoval_prim_prim)
+next
   case (v_sem_put \<xi> r fs re rv f \<gamma> e \<tau> \<Gamma>)
   note IH1=this(2)
-  and IH2=this(4)
-  and rest= this(1,3, 5-)
+    and IH2=this(4)
+    and rest= this(1,3, 5-)
   from rest show ?case
-  apply (cases e, simp_all)
-  apply (rename_tac rec f' expr)
-  apply (erule typing_putE)
-  apply (cut_tac IH1[OF _ _ _ _ _ _ matches_split'(1)], simp_all)
-  apply (clarsimp)
-  apply (rename_tac rv')
-  apply (case_tac rv', simp_all)
-  apply (cut_tac IH2[OF _ _ _ _ _ _ matches_split'(2)], simp_all)
-  by (fastforce simp: map_update intro: v_sem_v_sem_all.v_sem_put)
-  next case (v_sem_let \<xi> e1 rv1 e2 rv2 \<gamma> e \<tau> \<Gamma>)
+    apply (cases e, simp_all)
+    apply (rename_tac rec f' expr)
+    apply (erule typing_putE)
+    apply (cut_tac IH1[OF _ _ _ _ _ _ matches_split'(1)], simp_all)
+    apply (clarsimp)
+    apply (rename_tac rv')
+    apply (case_tac rv', simp_all)
+    apply (cut_tac IH2[OF _ _ _ _ _ _ matches_split'(2)], simp_all)
+    by (fastforce simp: map_update intro: v_sem_v_sem_all.v_sem_put)
+next case (v_sem_let \<xi> e1 rv1 e2 rv2 \<gamma> e \<tau> \<Gamma>)
   note IH1 = this(2)
-  and  IH2 = this(4)
-  and rest = this(1,3,5-)
+    and  IH2 = this(4)
+    and rest = this(1,3,5-)
   from rest show ?case
-  apply (case_tac e, simp_all)
-  apply (rename_tac exp1 exp2)
-  apply (clarsimp elim!: typing_letE)
-  apply (frule(1) matches_split'(1))
-  apply (frule(1) matches_split'(2))
-  apply (cut_tac IH1[OF _ _ _ _ _ _ matches_split'(1)], simp_all)
-  apply clarsimp
-  apply (rename_tac v1)
-  apply (frule(4) preservation [where \<tau>s = "[]" and K = "[]", simplified])
-  apply (drule(2) matches_cons'[OF matches_split'(2)])
-  apply (subgoal_tac "\<exists>v. \<xi>\<^sub>p , v1 # \<gamma> \<turnstile> exp2 \<Down> v \<and> rv2 = rename_val rename (monoval v)")
-   apply (force intro!: v_sem_v_sem_all.v_sem_let)
-  apply (force intro!: IH2)
-  done
-  next
+    apply (case_tac e, simp_all)
+    apply (rename_tac exp1 exp2)
+    apply (clarsimp elim!: typing_letE)
+    apply (frule(1) matches_split'(1))
+    apply (frule(1) matches_split'(2))
+    apply (cut_tac IH1[OF _ _ _ _ _ _ matches_split'(1)], simp_all)
+    apply clarsimp
+    apply (rename_tac v1)
+    apply (frule(4) preservation [where \<tau>s = "[]" and K = "[]", simplified])
+    apply (drule(2) matches_cons'[OF matches_split'(2)])
+    apply (subgoal_tac "\<exists>v. \<xi>\<^sub>p , v1 # \<gamma> \<turnstile> exp2 \<Down> v \<and> rv2 = rename_val rename (monoval v)")
+     apply (force intro!: v_sem_v_sem_all.v_sem_let)
+    apply (force intro!: IH2)
+    done
+next
   case (v_sem_letbang \<xi> e1 rv1 e2 rv2 vs \<gamma> e \<tau> \<Gamma>)
   note IH1 = this(2)
-  and IH2 = this(4)
-  and rest = this(1,3,5-)
+    and IH2 = this(4)
+    and rest = this(1,3,5-)
   from rest show ?case
-  apply (cases e, simp_all)
-  apply (rename_tac vs exp1 exp2)
-  apply (clarsimp elim!: typing_letbE)
-  apply (frule(1) matches_split_bang'(1))
-  apply (frule(1) matches_split_bang'(2))
-  apply (cut_tac IH1[OF _ _ _ _ _ _ matches_split_bang'(1)], simp_all)
-  apply clarsimp
-  apply (rename_tac v1)
-  apply (frule(4) preservation [where \<tau>s = "[]" and K = "[]", simplified])
-  apply (drule(2) matches_cons'[OF matches_split_bang'(2)])
-  (* cut_tac, but we want to select \<gamma> *)
-  apply (subgoal_tac "\<exists>v. \<xi>\<^sub>p , v1 # \<gamma> \<turnstile> exp2 \<Down> v \<and> rv2 = rename_val rename (monoval v)")
-   apply (force intro!: v_sem_v_sem_all.v_sem_letbang)
-  apply (force intro!: IH2)
-  done
-  next
+    apply (cases e, simp_all)
+    apply (rename_tac vs exp1 exp2)
+    apply (clarsimp elim!: typing_letbE)
+    apply (frule(1) matches_split_bang'(1))
+    apply (frule(1) matches_split_bang'(2))
+    apply (cut_tac IH1[OF _ _ _ _ _ _ matches_split_bang'(1)], simp_all)
+    apply clarsimp
+    apply (rename_tac v1)
+    apply (frule(4) preservation [where \<tau>s = "[]" and K = "[]", simplified])
+    apply (drule(2) matches_cons'[OF matches_split_bang'(2)])
+      (* cut_tac, but we want to select \<gamma> *)
+    apply (subgoal_tac "\<exists>v. \<xi>\<^sub>p , v1 # \<gamma> \<turnstile> exp2 \<Down> v \<and> rv2 = rename_val rename (monoval v)")
+     apply (force intro!: v_sem_v_sem_all.v_sem_letbang)
+    apply (force intro!: IH2)
+    done
+next
   case (v_sem_case_m \<xi> re f rv mre mrv nre \<gamma> e \<tau> \<Gamma>)
   note IH1=this(2)
-  and IH2 = this(4)
-  and rest = this(1,3,5-)
+    and IH2 = this(4)
+    and rest = this(1,3,5-)
   from rest show ?case
-  apply (cases e, simp_all)
-  apply (rename_tac exp1 tag exp2 exp3)
-  apply (clarsimp elim!: typing_caseE)
-  apply (rename_tac  \<Gamma>1 \<Gamma>2 ts tf)
-  apply (frule(1) matches_split'(1))
-  apply (frule(1) matches_split'(2))
-  apply (cut_tac IH1[OF _ _ _ _ _ _ matches_split'(1)], simp_all)
-  apply clarsimp
-  apply (rename_tac v1)
-  apply (case_tac v1, simp_all)
-  apply (rename_tac t' v1')
-  apply (frule(4) preservation [where \<tau>s = "[]" and K = "[]", simplified, rotated -3])
-  apply (erule v_t_sumE')
-  apply (drule(2) matches_cons'[OF matches_split'(2)])
-  apply (subgoal_tac "\<exists>v. \<xi>\<^sub>p , v1' # \<gamma> \<turnstile> exp2 \<Down> v \<and> mrv = rename_val rename (monoval v)")
-   apply (fastforce intro!: v_sem_v_sem_all.v_sem_case_m)
-  apply (fastforce intro!: IH2 dest: distinct_fst)
-  done
-  next
-    case (v_sem_case_nm \<xi> rea f rv f' rne rnv rme \<gamma> e \<tau> \<Gamma>)
-    then show ?case
-    proof (cases e)
-      case (Case ea f'' me ne)
-      have rea_is: "rea = rename_expr rename (monoexpr ea)"
-        and f''_is: "f'' = f'"
-        and rme_is: "rme = rename_expr rename (monoexpr me)"
-        and rne_is: "rne = rename_expr rename (monoexpr ne)"
-        using v_sem_case_nm.hyps(6) Case
-        by simp+
+    apply (cases e, simp_all)
+    apply (rename_tac exp1 tag exp2 exp3)
+    apply (clarsimp elim!: typing_caseE)
+    apply (rename_tac  \<Gamma>1 \<Gamma>2 ts tf)
+    apply (frule(1) matches_split'(1))
+    apply (frule(1) matches_split'(2))
+    apply (cut_tac IH1[OF _ _ _ _ _ _ matches_split'(1)], simp_all)
+    apply clarsimp
+    apply (rename_tac v1)
+    apply (case_tac v1, simp_all)
+    apply (rename_tac t' v1')
+    apply (frule(4) preservation [where \<tau>s = "[]" and K = "[]", simplified, rotated -3])
+    apply (erule v_t_sumE')
+    apply (drule(2) matches_cons'[OF matches_split'(2)])
+    apply (subgoal_tac "\<exists>v. \<xi>\<^sub>p , v1' # \<gamma> \<turnstile> exp2 \<Down> v \<and> mrv = rename_val rename (monoval v)")
+     apply (fastforce intro!: v_sem_v_sem_all.v_sem_case_m)
+    apply (fastforce intro!: IH2 dest: distinct_fst)
+    done
+next
+  case (v_sem_case_nm \<xi> rea f rv f' rne rnv rme \<gamma> e \<tau> \<Gamma>)
+  then show ?case
+  proof (cases e)
+    case (Case ea f'' me ne)
+    have rea_is: "rea = rename_expr rename (monoexpr ea)"
+      and f''_is: "f'' = f'"
+      and rme_is: "rme = rename_expr rename (monoexpr me)"
+      and rne_is: "rne = rename_expr rename (monoexpr ne)"
+      using v_sem_case_nm.hyps(6) Case
+      by simp+
 
       obtain \<Gamma>1 \<Gamma>2 ts t
         where split\<Gamma>: "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
@@ -348,42 +345,42 @@ lemma rename_monoexpr_correct:
   and  IH2 = this(4)
   and rest = this(1,3,5-)
   from rest show ?case
-  apply (case_tac e, simp_all)
-  apply (rename_tac exp1 exp2)
-  apply (clarsimp elim!: typing_splitE)
-  apply (cut_tac IH1[OF _ _ _ _ _ _ matches_split'(1)], simp_all)
-  apply clarsimp
-  apply (rename_tac v)
-  apply (case_tac v, simp_all)
-  apply (frule(5) preservation [where \<tau>s = "[]" and K = "[]", OF _ _ matches_split'(1), simplified])
-  apply (rename_tac va vb)
-  apply (erule v_t_productE)
-  apply (drule(1) matches_split'(2)[rotated])
-  apply (drule_tac x="rename_val rename (monoval vb)" in matches_cons', simp)
-  apply (drule_tac x="rename_val rename (monoval va)" in matches_cons', simp)
-  apply (subgoal_tac "\<exists>v. \<xi>\<^sub>p , va # vb # \<gamma> \<turnstile> exp2 \<Down> v \<and> rv = rename_val rename (monoval v)")
-   apply (fastforce intro: v_sem_v_sem_all.v_sem_split)
-  apply (force intro!: IH2)
-  done
-  next
+    apply (case_tac e, simp_all)
+    apply (rename_tac exp1 exp2)
+    apply (clarsimp elim!: typing_splitE)
+    apply (cut_tac IH1[OF _ _ _ _ _ _ matches_split'(1)], simp_all)
+    apply clarsimp
+    apply (rename_tac v)
+    apply (case_tac v, simp_all)
+    apply (frule(5) preservation [where \<tau>s = "[]" and K = "[]", OF _ _ matches_split'(1), simplified])
+    apply (rename_tac va vb)
+    apply (erule v_t_productE)
+    apply (drule(1) matches_split'(2)[rotated])
+    apply (drule_tac x="rename_val rename (monoval vb)" in matches_cons', simp)
+    apply (drule_tac x="rename_val rename (monoval va)" in matches_cons', simp)
+    apply (subgoal_tac "\<exists>v. \<xi>\<^sub>p , va # vb # \<gamma> \<turnstile> exp2 \<Down> v \<and> rv = rename_val rename (monoval v)")
+     apply (fastforce intro: v_sem_v_sem_all.v_sem_split)
+    apply (force intro!: IH2)
+    done
+next
   case (v_sem_take \<xi> re fs f es rv \<gamma> e \<tau> \<Gamma>)
   note IH1 = this(2)
   and  IH2 = this(4)
   and rest = this(1,3,5-)
   from rest show ?case
-  apply (case_tac e, simp_all)
-  apply (rename_tac exp1 field exp2)
-  apply (clarsimp elim!: typing_takeE)
-  apply (rename_tac \<Gamma>1 \<Gamma>2 ts s n t k taken)
-  apply (cut_tac IH1[OF _ _ _ _ _ _ matches_split'(1)], simp_all)
-  apply clarsimp
-  apply (rename_tac v)
-  apply (case_tac v, simp_all)
-  apply (rename_tac fs')
-  apply (frule(5) preservation [where \<tau>s = "[]" and K = "[]", OF _ _ matches_split'(1), simplified])
-  apply (drule(1) matches_split'(2)[rotated])
-  apply (drule_tac x="VRecord (map (rename_val rename \<circ> monoval) fs')" and \<tau>="TRecord (ts[f := (n, t, taken)]) s" and \<Gamma>=\<Gamma>2
-         in matches_cons')
+    apply (case_tac e, simp_all)
+    apply (rename_tac exp1 field exp2)
+    apply (clarsimp elim!: typing_takeE)
+    apply (rename_tac \<Gamma>1 \<Gamma>2 ts s n t k taken)
+    apply (cut_tac IH1[OF _ _ _ _ _ _ matches_split'(1)], simp_all)
+    apply clarsimp
+    apply (rename_tac v)
+    apply (case_tac v, simp_all)
+    apply (rename_tac fs')
+    apply (frule(5) preservation [where \<tau>s = "[]" and K = "[]", OF _ _ matches_split'(1), simplified])
+    apply (drule(1) matches_split'(2)[rotated])
+    apply (drule_tac x="VRecord (map (rename_val rename \<circ> monoval) fs')" and \<tau>="TRecord (ts[f := (n, t, taken)]) s" and \<Gamma>=\<Gamma>2
+        in matches_cons')
      apply (clarsimp simp add: map_update)
      apply (erule v_t_recordE)
      apply (fastforce intro: v_t_record dest: vval_typing_record_take simp add: map_fst_update)
@@ -428,18 +425,18 @@ next
   and  IH2  = this(4)
   and  rest = this(1,3,5-)
   from rest show ?case
-  apply (case_tac e, simp_all)
-  apply (clarsimp)
-  apply (erule typing_appE)
-  apply (rename_tac \<Gamma>1 \<Gamma>2 t)
-  apply (cut_tac IH1[OF _ _ _ _ _ _ matches_split'(1)], simp_all)
-  apply clarsimp
-  apply (rename_tac fv)
-  apply (subgoal_tac "\<xi> f rv rv'")
-   apply (case_tac fv, simp_all)
-  apply (rename_tac f' ts')
-  apply (cut_tac IH2[OF _ _ _ _ _ _ matches_split'(2)], simp_all)
-  by (fastforce intro: v_sem_v_sem_all.v_sem_abs_app simp: rename_mono_prog_def)
+    apply (case_tac e, simp_all)
+    apply (clarsimp)
+    apply (erule typing_appE)
+    apply (rename_tac \<Gamma>1 \<Gamma>2 t)
+    apply (cut_tac IH1[OF _ _ _ _ _ _ matches_split'(1)], simp_all)
+    apply clarsimp
+    apply (rename_tac fv)
+    apply (subgoal_tac "\<xi> f rv rv'")
+     apply (case_tac fv, simp_all)
+    apply (rename_tac f' ts')
+    apply (cut_tac IH2[OF _ _ _ _ _ _ matches_split'(2)], simp_all)
+    by (fastforce intro: v_sem_v_sem_all.v_sem_abs_app simp: rename_mono_prog_def)
 next
   case (v_sem_promote \<xi> ea ea' t')
   then show ?case
