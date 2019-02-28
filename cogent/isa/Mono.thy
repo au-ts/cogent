@@ -420,9 +420,9 @@ lemma rename_monoexpr_correct:
   apply (erule v_t_funE)
   apply (subgoal_tac "\<exists>r. \<xi>\<^sub>p , [v] \<turnstile> specialise ts' expr \<Down> r \<and> rsv = rename_val rename (monoval r)")
    apply (fastforce intro: v_sem_v_sem_all.v_sem_app)
-  apply (force intro!: IH3 simp: matches_def)
+  apply (force intro!: IH3 dest: value_subtyping simp: subtyping_simps matches_def)
   done
-  next
+next
   case (v_sem_abs_app \<xi> re f ts e' rv rv' \<gamma> e \<tau> \<Gamma>)
   note IH1  = this(2)
   and  IH2  = this(4)
@@ -440,7 +440,11 @@ lemma rename_monoexpr_correct:
   apply (rename_tac f' ts')
   apply (cut_tac IH2[OF _ _ _ _ _ _ matches_split'(2)], simp_all)
   by (fastforce intro: v_sem_v_sem_all.v_sem_abs_app simp: rename_mono_prog_def)
- qed
+next
+  case (v_sem_promote \<xi> ea ea' t')
+  then show ?case
+    by (cases e) (fastforce intro: v_sem_v_sem_all.v_sem_promote)+
+qed
 
 end
 
