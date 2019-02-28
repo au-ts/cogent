@@ -32,7 +32,7 @@ import Cogent.Surface
 import Cogent.TypeCheck.Assignment
 import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Subst
-
+import qualified Cogent.TypeCheck.Row as Row
 import Control.Arrow (second)
 import qualified Data.Foldable as F
 import Data.Function ((&))
@@ -521,7 +521,10 @@ instance Pretty RawType where
 
 instance Pretty TCType where
   pretty (T t) = pretty t
+  pretty t@(V v) = warn ('V':show t)
+  pretty t@(R v s) = warn ('R':show t)
   pretty (U v) = warn ('?':show v)
+  pretty (Synonym n ts) = warn ('S':show n)
 --  pretty (RemoveCase a b) = pretty a <+> string "(without pattern" <+> pretty b <+> string ")"
 
 instance Pretty LocType where
@@ -699,6 +702,7 @@ instance Pretty VarOrigin where
   pretty (BoundOf a b d) = warn ("taking the " ++ show d ++ " of") <$> pretty a <$> warn "and" <$> pretty b
 
 analyseLeftover :: Constraint -> I.IntMap VarOrigin -> Doc
+{-
 analyseLeftover c@(F t :< F u) os
     | Just t' <- flexOf t
     , Just u' <- flexOf u
@@ -716,7 +720,7 @@ analyseLeftover c@(F t :< F u) os
         U _ -> err "Constraint" <+> pretty c <+> err "can't be solved as another constraint blocks it."
         _   -> err "A subtyping constraint" <+>  pretty c
            <+> err "can't be solved because the RHS is unknown and uses non-injective operators (like !).")
-             : map (\i -> warn "• The unknown" <+> pretty (U i) <+> warn "originates from" <+> pretty (I.lookup i os)) ([u'])
+             : map (\i -> warn "• The unknown" <+> pretty (U i) <+> warn "originates from" <+> pretty (I.lookup i os)) ([u']) -}
 analyseLeftover c os = case c of
     Share x m  | Just x' <- flexOf x -> msg x' m
     Drop x m   | Just x' <- flexOf x -> msg x' m
@@ -725,7 +729,7 @@ analyseLeftover c os = case c of
   where msg i m = err "Constraint" <+> pretty c <+> err "can't be solved as it constrains an unknown."
                 <$$> indent' (vcat [ warn "• The unknown" <+> pretty (U i) <+> warn "originates from" <+> pretty (I.lookup i os)
                                    , err "The constraint was emitted as" <+> pretty m])
-
+{-
 instance (Pretty t, TypeType t) => Pretty (TypeFragment t) where
   pretty (F t) = pretty t & (if __cogent_fdisambiguate_pp then (<+> comment "{- F -}") else id)
   pretty (FVariant ts) = typesymbol "?" <> pretty (TVariant ts :: Type SExpr t)
@@ -735,9 +739,10 @@ instance (Pretty t, TypeType t) => Pretty (TypeFragment t) where
     | otherwise = pretty (FRecord (map (second . second $ const False) ts))
               <+> typesymbol "take" <+> tupled1 (map fieldname tk)
         where tk = map fst $ filter (snd .snd) ts
-
+-}
 instance Pretty Constraint where
   pretty (a :< b)         = pretty a </> warn ":<" </> pretty b
+  pretty (a :=: b)         = pretty a </> warn ":=:" </> pretty b
   pretty (a :& b)         = prettyPrec 3 a </> warn ":&" </> prettyPrec 2 b
   pretty (Upcastable a b) = pretty a </> warn "~>" </> pretty b
   pretty (Share  t m)     = warn "Share" <+> pretty t
@@ -778,6 +783,17 @@ instance Pretty ReorganizeError where
 instance Pretty Subst where
   pretty (Subst m) = pretty m
 
+instance Pretty AssignResult where 
+  pretty (Type t) = pretty t 
+  pretty (Sigil s) = pretty s 
+  pretty (Row r) = pretty r
+
+instance Pretty (Sigil r) where
+  pretty (Boxed False _) = keyword "[W]"
+  pretty (Boxed True  _) = keyword "[R]"
+  pretty Unboxed  = keyword "[U]"
+instance (Pretty t) => Pretty (Row.Row t) where 
+  pretty (Row.Row m t) = pretty (M.toList m) <+> text "|" <+> pretty t
 instance Pretty Assignment where
   pretty (Assignment m) = pretty m
 

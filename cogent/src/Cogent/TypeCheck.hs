@@ -34,6 +34,7 @@ import Cogent.TypeCheck.Generator hiding (validateType)
 import qualified Cogent.TypeCheck.Generator as B (validateType)
 import Cogent.TypeCheck.Post (postT, postE, postA)
 import Cogent.TypeCheck.Solver
+import Cogent.TypeCheck.Errors
 import Cogent.TypeCheck.Subst (apply, applyE, applyAlts)
 import Cogent.TypeCheck.Util
 import Cogent.Util (firstM)
@@ -122,13 +123,16 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     base <- lift . lift $ use knownConsts
     let ctx = C.addScope (fmap (\(t,_,p) -> (t,p, Seq.singleton p)) base) C.empty  -- for consts, the definition is the first use.
     (((ct,t'),(c,e')), flx, os) <- runCG ctx [] 
-                                         ((,) <$> B.validateType t
-                                              <*> cg e (toTCType t))
+             (do x@(ct,t') <- B.validateType t 
+                 y <- cg e t'
+                 pure (x,y))
     let c' = ct <> c <> Share t' (Constant n)
     traceTc "tc" (text "constraint for const definition" <+> pretty n <+> text "is"
                   L.<$> prettyC c')
-    (logs, subst, assn, _) <- runSolver (solve c') [] flx os
-    exitOnErr $ mapM_ logTc =<< mapM (\(c,l) -> lift (use errCtx >>= \c' -> return (c++c',l))) logs
+    (cs, subst) <- runSolver (solve [] c') flx 
+    exitOnErr $ toErrors os cs
+    let assn = mempty
+    -- mapM_ logTc =<< mapM (\(c,l) -> lift (use errCtx >>= \c' -> return (c++c',l))) logs
     traceTc "tc" (text "substs for const definition" <+> pretty n <+> text "is"
                   L.<$> pretty subst
                   L.<$> text "assigns for const definition" <+> pretty n <+> text "is"
@@ -152,12 +156,16 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     let ctx = C.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) C.empty
     let ?loc = loc
     (((ct,t'),(c,alts')), flx, os) <- runCG ctx (map fst vs)
-                                            ((,) <$> B.validateType t
-                                                 <*> cgFunDef alts (toTCType t))
+             (do x@(ct,t') <- B.validateType t 
+                 y <- cgFunDef alts t'
+                 pure (x,y))
     traceTc "tc" (text "constraint for fun definition" <+> pretty f <+> text "is"
                   L.<$> prettyC c)
-    (logs, subst, assn, _) <- runSolver (solve $ ct <> c) vs flx os
-    exitOnErr $ mapM_ logTc =<< mapM (\(c,l) -> lift (use errCtx) >>= \c' -> return (c++c',l)) logs
+    (cs, subst) <- runSolver (solve vs $ ct <> c) flx 
+    let assn = mempty
+    liftIO $ print $ pretty subst -- (show)
+    exitOnErr $ toErrors os cs
+    --exitOnErr $ mapM_ logTc =<< mapM (\(c,l) -> lift (use errCtx) >>= \c' -> return (c++c',l)) logs
     traceTc "tc" (text "substs for fun definition" <+> pretty f <+> text "is"
                   L.<$> pretty subst
                   L.<$> text "assigns for fun definition" <+> pretty f <+> text "is"

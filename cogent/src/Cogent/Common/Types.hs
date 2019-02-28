@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 --
 -- Copyright 2019, Data61
 -- Commonwealth Scientific and Industrial Research Organisation (CSIRO)
@@ -11,6 +12,8 @@
 --
 
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE DeriveFunctor #-}
 
 module Cogent.Common.Types where
 
@@ -25,7 +28,7 @@ type ReadOnly = Bool  -- True for r/o
 
 data Sigil r = Boxed ReadOnly r  -- 0- or 1-kinded
              | Unboxed  -- 2-kinded
-             deriving (Show, Data, Eq, Ord)
+             deriving (Show, Data, Eq, Ord, Functor)
 
 bangSigil :: Sigil r -> Sigil r
 bangSigil (Boxed _ r)  = Boxed True r

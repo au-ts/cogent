@@ -28,13 +28,18 @@ import           Cogent.Common.Types
 import           Cogent.Compiler
 import           Cogent.PrettyPrint (prettyC)
 import           Cogent.Surface
-import qualified Cogent.TypeCheck.Assignment as Ass
 import           Cogent.TypeCheck.Base
+import qualified Cogent.TypeCheck.Solver.Rewrite as Rewrite
+import           Cogent.TypeCheck.Solver.Monad
+import           Cogent.TypeCheck.Solver.Normalise
+import           Cogent.TypeCheck.Solver.Simplify
+import           Cogent.TypeCheck.Solver.Unify
+import           Cogent.TypeCheck.Solver.JoinMeet
+import           Cogent.TypeCheck.Solver.Equate
 import qualified Cogent.TypeCheck.Subst as Subst
 import           Cogent.TypeCheck.Subst (Subst(..))
 import           Cogent.TypeCheck.Util
-import           Cogent.TypeCheck.GoalSet (Goal(..), goal, goalContext, GoalSet)
-import qualified Cogent.TypeCheck.GoalSet as GS
+import           Cogent.TypeCheck.Solver.Goal
 import           Cogent.Util (fst3, u32MAX, Bound(..))
 
 import           Control.Applicative
@@ -66,7 +71,16 @@ import           Lens.Micro
 import           Lens.Micro.TH
 import           Lens.Micro.Mtl
 import Debug.Trace
-
+import Control.Monad.Trans.Maybe
+import Data.Maybe
+solve :: [(TyVarName, Kind)] -> Constraint -> TcSolvM [Goal]
+solve ks c = let gs = makeGoals [] c 
+                 rw = Rewrite.untilFixedPoint (Rewrite.pre normaliseTypes (Rewrite.debug "SOLV" (show . pretty . map _goal) <> Rewrite.lift (simplify ks) <> unify <> joinMeet <> Rewrite.lift equate))
+              in fmap (fromMaybe gs) (runMaybeT (Rewrite.run' rw gs))
+{-
+runSolver :: Solver a -> [(TyVarName, Kind)] -> Int -> IM.IntMap VarOrigin
+          -> TcM (a, Subst, Ass.Assignment, IM.IntMap VarOrigin)
+runSolver mx ks f os = undefined 
 data SolverState = SolverState { _axioms      :: [(TyVarName, Kind)]
                                , _substs      :: Subst
                                , _assigns     :: Ass.Assignment
@@ -78,10 +92,7 @@ makeLenses ''SolverState
 
 type Solver a = TcConsM SolverState a
 
-
-runSolver :: Solver a -> [(TyVarName, Kind)] -> Int -> IM.IntMap VarOrigin
-          -> TcM (a, Subst, Ass.Assignment, IM.IntMap VarOrigin)
-runSolver mx ks f os = do
+do
   (x, SolverState _ s a _ o) <- withTcConsM (SolverState ks mempty mempty f os) ((,) <$> mx <*> get)
   return (x,s,a,o)
 
@@ -1031,7 +1042,8 @@ data GoalClass = UpClass | DownClass | UpcastClass | DowncastClass
 --   3.2. If there are any upward goals,
 --          pull type information up from the LHS to the RHS of :< constraints and go to 1
 --   4. If there are any remaining constraints, report unsolved error, otherwise return empty list.
-solve :: Constraint -> Solver [ContextualisedTcLog]
+-}
+{-
 solve = lift . crunch >=> explode >=> go
   where
     go :: GoalClasses -> Solver [ContextualisedTcLog]
@@ -1109,3 +1121,4 @@ solve = lift . crunch >=> explode >=> go
     toWarn (Goal ctx (SemiSat w)) = (ctx, Right w)
     toWarn _ = __impossible "solve: toWarn"
 
+-}

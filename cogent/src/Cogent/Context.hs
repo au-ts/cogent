@@ -10,7 +10,7 @@
 
 module Cogent.Context
   ( Context
-  , Row
+  , Assumption
   , addScope
   , contains
   , dropScope
@@ -32,9 +32,9 @@ import qualified Data.Map.Strict as M
 import Prelude hiding (lookup)
 import Text.Parsec.Pos
 
-type Row t = (t, SourcePos, Seq.Seq SourcePos)
---                            ^------ the locations where it's used; serves as an use count
-newtype Context t = Context [M.Map VarName (Row t)] deriving (Eq)
+type Assumption t = (t, SourcePos, Seq.Seq SourcePos)
+--                                 ^------ the locations where it's used; serves as an use count
+newtype Context t = Context [M.Map VarName (Assumption t)] deriving (Eq)
 
 empty :: Context t
 empty = Context []
@@ -53,10 +53,10 @@ use v loc (Context ms) = Context (go ms)
                   | otherwise    = x:go xs
         go [] = []
 
-addScope :: M.Map VarName (Row t) -> Context t -> Context t
+addScope :: M.Map VarName (Assumption t) -> Context t -> Context t
 addScope m (Context ms) = Context (m:ms)
 
-dropScope :: Context t -> (M.Map VarName (Row t), Context t)
+dropScope :: Context t -> (M.Map VarName (Assumption t), Context t)
 dropScope (Context (m:ms)) = (m, Context ms)
 dropScope (Context [])     = error "dropScope of empty context!"
 
@@ -100,9 +100,9 @@ isSecond :: UnionHelper x -> Bool
 isSecond (Second _) = True
 isSecond _ = False
 
-merge' :: M.Map VarName (Row x)
-       -> M.Map VarName (Row x)
-       -> (M.Map VarName (Row x), [(VarName, Row x)], [(VarName, Row x)])
+merge' :: M.Map VarName (Assumption x)
+       -> M.Map VarName (Assumption x)
+       -> (M.Map VarName (Assumption x), [(VarName, Assumption x)], [(VarName, Assumption x)])
 merge' a b = let a' = fmap First a
                  b' = fmap Second b
                  m  = M.unionWith f a' b'
@@ -116,7 +116,7 @@ merge' a b = let a' = fmap First a
                  rs = M.toList $ unhelp <$> M.filter isSecond m
               in (newM, ls, rs)
 
-merge :: Context t -> Context t -> (Context t, [(VarName, Row t)], [(VarName, Row t)])
+merge :: Context t -> Context t -> (Context t, [(VarName, Assumption t)], [(VarName, Assumption t)])
 merge (Context m) (Context n) = let (c, l, r) = go m n in (Context c, l, r)
   where
     go [] [] = ([], [], [])
@@ -143,9 +143,9 @@ isOne _ = False
 isTwo (Two _) = True
 isTwo _ = False
 
-join' :: M.Map VarName (Row x)
-      -> M.Map VarName (Row x)
-      -> (M.Map VarName (Row x), [(VarName, Row x)], [(VarName, Row x)])
+join' :: M.Map VarName (Assumption x)
+      -> M.Map VarName (Assumption x)
+      -> (M.Map VarName (Assumption x), [(VarName, Assumption x)], [(VarName, Assumption x)])
 join' a b = let a' = fmap One a
                 b' = fmap One b
                 m  = M.unionWith f a' b'
@@ -159,7 +159,7 @@ join' a b = let a' = fmap One a
                 ts = M.toList $ unhelp' <$> M.filter isTwo  m
              in (newM, ns, ts)
 
-join :: Context t -> Context t -> (Context t, [(VarName, Row t)], [(VarName, Row t)])
+join :: Context t -> Context t -> (Context t, [(VarName, Assumption t)], [(VarName, Assumption t)])
 join (Context m) (Context n) = let (c, l, r) = go m n in (Context c, l, r)
   where
     go [] [] = ([], [], [])

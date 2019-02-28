@@ -13,20 +13,29 @@ module Cogent.TypeCheck.Subst where
 import Cogent.Surface
 import Cogent.TypeCheck.Base
 -- import Cogent.TypeCheck.Util
+import Cogent.Common.Types
 import Cogent.Util
 
 import qualified Data.IntMap as M
+import qualified Data.Map as DM
 import Data.Maybe
 import Data.Monoid hiding (Alt)
 import Prelude hiding (lookup)
+import qualified Cogent.TypeCheck.Row as Row 
 
-newtype Subst = Subst (M.IntMap TCType)
+data AssignResult = Type TCType | Sigil (Sigil ()) | Row (Row.Row TCType)
+newtype Subst = Subst (M.IntMap AssignResult)
 
-lookup :: Subst -> Int -> TCType
-lookup s@(Subst m) i = maybe (U i) (apply s) (M.lookup i m)
 
-singleton :: Int -> TCType -> Subst
-singleton i t = Subst (M.fromList [(i, t)])
+ofType :: Int -> TCType -> Subst
+ofType i t = Subst (M.fromList [(i, Type t)])
+
+ofRow :: Int -> Row.Row TCType -> Subst 
+ofRow i t = Subst (M.fromList [(i, Row t)])
+
+ofSigil :: Int -> Sigil () -> Subst 
+ofSigil i t = Subst (M.fromList [(i, Sigil t)])
+
 
 null :: Subst -> Bool
 null (Subst x) = M.null x
@@ -42,12 +51,20 @@ instance Monoid Subst where
   mempty = Subst M.empty
 #endif
 
-forFlexes :: (Int -> TCType) -> TCType -> TCType
-forFlexes f (U x) = f x
-forFlexes f (T x) = T (fmap (forFlexes f) x)
+
 
 apply :: Subst -> TCType -> TCType
-apply = forFlexes . lookup
+apply (Subst f) (U x) | Just (Type t) <- M.lookup x f = apply (Subst f) t
+apply (Subst f) t@(V (Row.Row m' (Just x))) 
+  | Just (Row (Row.Row m q)) <- M.lookup x f = apply (Subst f) (V (Row.Row (DM.union m m') q))
+apply (Subst f) t@(R (Row.Row m' (Just x)) s) 
+  | Just (Row (Row.Row m q)) <- M.lookup x f = apply (Subst f) (R (Row.Row (DM.union m m') q) s)
+apply (Subst f) t@(R r (Right x))
+  | Just (Sigil s) <- M.lookup x f = apply (Subst f) (R r (Left s))
+apply f (V x) = V (fmap (apply f) x) 
+apply f (R x s) = R (fmap (apply f) x) s
+apply f (T x) = T (fmap (apply f) x)
+apply f t = t
 
 applyAlts :: Subst -> [Alt TCPatn TCExpr] -> [Alt TCPatn TCExpr]
 applyAlts = map . applyAlt
@@ -61,7 +78,7 @@ applyCtx s (InExpression e t) = InExpression e (apply s t)
 applyCtx s c = c
 
 applyErr :: Subst -> TypeError -> TypeError
-applyErr s (TypeMismatch t1 t2)     = TypeMismatch (fmap (apply s) t1) (fmap (apply s) t2)
+applyErr s (TypeMismatch t1 t2)     = TypeMismatch (apply s t1) (apply s t2)
 applyErr s (RequiredTakenField f t) = RequiredTakenField f (apply s t)
 applyErr s (TypeNotShareable t m)   = TypeNotShareable (apply s t) m
 applyErr s (TypeNotEscapable t m)   = TypeNotEscapable (apply s t) m
@@ -76,7 +93,8 @@ applyWarn s (UnusedLocalBind v) = UnusedLocalBind v
 applyWarn _ w = w
 
 applyC :: Subst -> Constraint -> Constraint
-applyC s (a :< b) = fmap (apply s) a :< fmap (apply s) b
+applyC s (a :< b) = apply s a :< apply s b
+applyC s (a :=: b) = apply s a :=: apply s b
 applyC s (a :& b) = applyC s a :& applyC s b
 applyC s (a :@ c) = applyC s a :@ applyCtx s c
 applyC s (Upcastable a b) = apply s a `Upcastable` apply s b
@@ -90,7 +108,7 @@ applyC s (Unsat e) = Unsat (applyErr s e)
 applyC s (SemiSat w) = SemiSat (applyWarn s w)
 applyC s Sat = Sat
 applyC s (Exhaustive t ps) = Exhaustive (apply s t) ps
-
+applyC s x = error (show x)
 applyE :: Subst -> TCExpr -> TCExpr
 applyE s (TE t e l) = TE (apply s t)
                          ( fmap (fmap (apply s))

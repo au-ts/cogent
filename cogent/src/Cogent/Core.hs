@@ -444,10 +444,6 @@ prettyTaken :: Bool -> Doc
 prettyTaken True  = symbol "*"
 prettyTaken False = empty
 
-instance Pretty (Sigil r) where
-  pretty (Boxed False _) = keyword "[W]"
-  pretty (Boxed True  _) = keyword "[R]"
-  pretty Unboxed  = keyword "[U]"
 
 #if __GLASGOW_HASKELL__ < 709
 instance Pretty (TyVarName, Kind) where

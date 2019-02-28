@@ -14,7 +14,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Cogent.TypeCheck.GoalSet where
+module Cogent.TypeCheck.Solver.Goal where
 
 import qualified Data.Map as M
 import           Cogent.TypeCheck.Base
@@ -38,25 +38,13 @@ instance Show Goal where
 
 makeLenses ''Goal
 
-newtype GoalSet = GS (M.Map Constraint Goal) deriving (Show)
+makeGoals :: [ErrorContext] -> Constraint -> [Goal]
+makeGoals ctx (constraint :@ c) = makeGoals (c:ctx) constraint
+makeGoals ctx (c1 :& c2) = makeGoals ctx c1 ++ makeGoals ctx c2
+makeGoals ctx g = pure $ Goal ctx g
 
-insert :: GoalSet -> Goal -> GoalSet
-insert (GS x) g = (GS (M.insert (g ^. goal) g x))
-
-toList :: GoalSet -> [Goal]
-toList (GS x) = F.toList x
-
-#if __GLASGOW_HASKELL__ < 803
-instance Monoid GoalSet where
-  mempty = GS mempty
-  mappend (GS a) (GS b) = GS (mappend a b)
-#else
-instance Semigroup GoalSet where
-  GS a <> GS b = GS (a <> b)
-instance Monoid GoalSet where
-  mempty = GS mempty
-#endif
-
-
-singleton :: Goal -> GoalSet
-singleton = insert mempty
+makeGoal :: [ErrorContext] -> Constraint -> Goal 
+makeGoal ctx (constraint :@ c) = makeGoal (c:ctx) constraint
+makeGoal ctx g = Goal ctx g 
+derivedGoal :: Goal -> Constraint -> Goal
+derivedGoal (Goal c g) g' = makeGoal (SolvingConstraint g:c) g'

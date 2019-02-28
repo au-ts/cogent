@@ -35,6 +35,7 @@ import Cogent.Surface
 import Cogent.TypeCheck.Base hiding (validateType)
 import Cogent.TypeCheck.Util
 import Cogent.Util hiding (Warning)
+import qualified Cogent.TypeCheck.Row as Row
 
 import Control.Arrow (first, second)
 import Control.Monad.State
@@ -87,11 +88,19 @@ validateType rt@(RT t) = do
                 , required <- length vs
                 , provided /= required
                -> return (Unsat $ TypeArgumentMismatch t provided required, toTCType rt)
-    TRecord fs _ | fields  <- map fst fs
+                |  Just (vs, Just x) <- lookup t ts
+               -> second (Synonym t) <$> fmapFoldM validateType as  
+    TRecord fs s | fields  <- map fst fs
                  , fields' <- nub fields
-                -> if fields' == fields
-                   then second (T . ffmap toSExpr) <$> fmapFoldM validateType t
+                -> let toRow (T (TRecord fs s)) = R (Row.fromList fs) (Left (fmap (const ()) s)) 
+                   in if fields' == fields
+                   then second (toRow . T . ffmap toSExpr) <$> fmapFoldM validateType t
                    else return (Unsat $ DuplicateRecordFields (fields \\ fields'), toTCType rt)
+    TVariant fs  -> do let tuplize [] = T TUnit
+                           tuplize [x] = x 
+                           tuplize xs  = T (TTuple xs)
+                       (c, TVariant fs') <- second (ffmap toSExpr) <$> fmapFoldM validateType t 
+                       pure (c, V (Row.fromMap (fmap (first tuplize) fs')))
 #ifdef BUILTIN_ARRAYS
     TArray te l -> do let l' = toSExpr l
                           cl = Arith (SE $ PrimOp ">" [l', SE $ IntLit 0])
@@ -112,7 +121,7 @@ cgFunDef alts t = do
   alpha1 <- freshTVar
   alpha2 <- freshTVar
   (c, alts') <- cgAlts alts alpha2 alpha1
-  return (c <> (F $ T (TFun alpha1 alpha2)) :< F t, alts')
+  return (c <> (T (TFun alpha1 alpha2)) :< t, alts')
 
 -- cgAlts alts out_type in_type
 -- NOTE the order of arguments!
@@ -152,6 +161,7 @@ cgMany es = do
   (ts, c', es') <- foldM each ([], Sat, []) es  -- foldM is the same as foldlM
   return (reverse ts, c', reverse es')
 
+
 cg :: LocExpr -> TCType -> CG (Constraint, TCExpr)
 cg x@(LocExpr l e) t = do
   let ?loc = l
@@ -167,12 +177,12 @@ cg' (PrimOp o [e1, e2]) t
   | o `elem` words "&& ||"
   = do (c1, e1') <- cg e1 t
        (c2, e2') <- cg e2 t
-       return (F (T (TCon "Bool" [] Unboxed)) :< F t <> c1 <> c2, PrimOp o [e1', e2'] )
+       return (T (TCon "Bool" [] Unboxed) :=: t <> c1 <> c2, PrimOp o [e1', e2'] )
   | o `elem` words "== /= >= <= > <"
   = do alpha <- freshTVar
        (c1, e1') <- cg e1 alpha
        (c2, e2') <- cg e2 alpha
-       let c  = F (T (TCon "Bool" [] Unboxed)) :< F t
+       let c  = T (TCon "Bool" [] Unboxed) :=: t
            c' = integral alpha
        return (c <> c' <> c1 <> c2, PrimOp o [e1', e2'] )
 cg' (PrimOp o [e]) t
@@ -181,7 +191,7 @@ cg' (PrimOp o [e]) t
       return (integral t :& c, PrimOp o [e'])
   | o == "not"         = do
       (c, e') <- cg e t
-      return (F (T (TCon "Bool" [] Unboxed)) :< F t :& c, PrimOp o [e'])
+      return (T (TCon "Bool" [] Unboxed) :=: t :& c, PrimOp o [e'])
 cg' (PrimOp _ _) _ = __impossible "cg': unimplemented primops"
 cg' (Var n) t = do
   let e = Var n  -- it has a different type than the above `Var n' pattern
@@ -197,7 +207,7 @@ cg' (Var n) t = do
     -- Variable used for the first time, mark the use, and continue
     Just (t', _, Seq.Empty) -> do
       context %= C.use n ?loc
-      let c = F t' :< F t
+      let c = t' :< t
       traceTc "gen" (text "variable" <+> pretty n <+> text "used for the first time" <> semi
                L.<$> text "generate constraint" <+> prettyC c)
       return (c, e)
@@ -206,8 +216,8 @@ cg' (Var n) t = do
     Just (t', p, us)  -> do
       context %= C.use n ?loc
       traceTc "gen" (text "variable" <+> pretty n <+> text "used before" <> semi
-               L.<$> text "generate constraint" <+> prettyC (F t' :< F t) <+> text "and share constraint")
-      return (Share t' (Reused n p us) <> F t' :< F t, e)
+               L.<$> text "generate constraint" <+> prettyC (t' :< t) <+> text "and share constraint")
+      return (Share t' (Reused n p us) <> t' :< t, e)
 
 cg' (Upcast e) t = do
   alpha <- freshTVar
@@ -216,22 +226,22 @@ cg' (Upcast e) t = do
   return (c, Upcast e1')
 
 cg' (BoolLit b) t = do
-  let c = F (T (TCon "Bool" [] Unboxed)) :< F t
+  let c = T (TCon "Bool" [] Unboxed) :=: t
       e = BoolLit b
   return (c,e)
 
 cg' (CharLit l) t = do
-  let c = F (T (TCon "U8" [] Unboxed)) :< F t
+  let c = T (TCon "U8" [] Unboxed) :=: t
       e = CharLit l
   return (c,e)
 
 cg' (StringLit l) t = do
-  let c = F (T (TCon "String" [] Unboxed)) :< F t
+  let c = T (TCon "String" [] Unboxed) :=: t
       e = StringLit l
   return (c,e)
 
 cg' Unitel t = do
-  let c = F (T TUnit) :< F t
+  let c = T TUnit :=: t
       e = Unitel
   return (c,e)
 
@@ -278,7 +288,7 @@ cg' exp@(Lam pat mt e) t = do
       tvs <- use knownTypeVars
       lift (runExceptT $ validateType' tvs (stripLocT t')) >>= \case
         Left  e   -> return (Unsat e, alpha)
-        Right t'' -> return (F alpha :< F t'', t'')
+        Right t'' -> return (alpha :< t'', t'')
   (s, cp, pat') <- match pat alpha'
   let fvs = fvE $ stripLocE (LocExpr noPos $ Lam pat mt e)
   ctx <- use context
@@ -290,7 +300,7 @@ cg' exp@(Lam pat mt e) t = do
         case us of
           Seq.Empty -> warnToConstraint __cogent_wunused_local_binds (UnusedLocalBind v)
           _ -> Sat
-      c = ct <> cp <> ce <> F (T $ TFun alpha beta) :< F t
+      c = ct <> cp <> ce <> (T $ TFun alpha beta) :< t
              <> dropConstraintFor rs <> unused
       lam = Lam  pat' (fmap (const alpha) mt) e'
   unless (null fvs') $ __todo "closures not implemented"
@@ -317,25 +327,27 @@ cg' (Comp f g) t = do
   (c1, f') <- cg f (T (TFun alpha2 alpha3))
   (c2, g') <- cg g (T (TFun alpha1 alpha2))
   let e = Comp f' g'
-      c = c1 <> c2 <> F (T $ TFun alpha1 alpha3) :< F t
+      c = c1 <> c2 <> (T $ TFun alpha1 alpha3) :< t
   traceTc "gen" (text "cg for comp:" <+> prettyE e)
   return (c,e)
 
-cg' (Con k es) t = do
-  (ts, c', es') <- cgMany es
-
-  let e = Con k es'
-      c = FVariant (M.fromList [(k, (ts, False))]) :< F t
+cg' (Con k [e]) t =  do
+  alpha <- freshTVar 
+  (c', e') <- cg e alpha
+  U x <- freshTVar
+  let e = Con k [e']
+      c = V (Row.incomplete [(k,(alpha,False))] x) :< t
   traceTc "gen" (text "cg for constructor:" <+> prettyE e
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint" <+> prettyC c)
   return (c' <> c, e)
-
+cg' (Con k []) t = cg' (Con k [LocExpr noPos $ Unitel]) t
+cg' (Con k es) t = cg' (Con k [LocExpr noPos $ Tuple es]) t
 cg' (Tuple es) t = do
   (ts, c', es') <- cgMany es
 
   let e = Tuple es'
-      c = F (T (TTuple ts)) :< F t
+      c = T (TTuple ts) :< t
   traceTc "gen" (text "cg for tuple:" <+> prettyE e
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint" <+> prettyC c)
@@ -346,13 +358,12 @@ cg' (UnboxedRecord fes) t = do
   (ts, c', es') <- cgMany es
 
   let e = UnboxedRecord (zip fs es')
-      r = T (TRecord (zip fs (map (, False) ts)) Unboxed)
-      c = F r :< F t
+      r = R (Row.fromList (zip fs (map (, False) ts))) (Left Unboxed)
+      c = r :< t
   traceTc "gen" (text "cg for unboxed record:" <+> prettyE e
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint" <+> prettyC c)
   return (c' <> c, e)
-
 cg' (Seq e1 e2) t = do
   alpha <- freshTVar
   (c1, e1') <- cg e1 alpha
@@ -378,7 +389,7 @@ cg' (TypeApp f as i) t = do
       in do
         (ts,c') <- match vs as'
 
-        let c = F (substType ts tau) :< F t
+        let c = substType ts tau :< t
             e = TypeApp f (map (Just . snd) ts) i
         traceTc "gen" (text "cg for typeapp:" <+> prettyE e
                  L.<$> text "of type" <+> pretty t <> semi
@@ -391,18 +402,19 @@ cg' (TypeApp f as i) t = do
           c = Unsat (FunctionNotFound f)
       return (ct <> c, e)
 
-cg' (Member e f) t = do
+cg' (Member e f) t =  do
   alpha <- freshTVar
   (c', e') <- cg e alpha
-
+  U rest <- freshTVar
+  U sigil <- freshTVar
   let f' = Member e' f
-      x = FRecord [(f, (t, False))]
-      c = F alpha :< x <> Share alpha (UsedInMember f)
+      row = Row.incomplete [(f, (t, False))] rest
+      x = R row (Right sigil)
+      c = alpha :< x <> Drop (R (Row.take f row) (Right sigil)) (UsedInMember f)
   traceTc "gen" (text "cg for member:" <+> prettyE f'
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint" <+> prettyC c)
   return (c' <> c, f')
-
 -- FIXME: This is very hacky. But since we don't yet have implications in our
 -- constraint system, ... / zilinc
 cg' (If e1 bs e2 e3) t = do
@@ -440,9 +452,12 @@ cg' (Put e ls) t | not (any isNothing ls) = do
   let (fs, es) = unzip (catMaybes ls)
   (c', e') <- cg e alpha
   (ts, cs, es') <- cgMany es
-
-  let c1 = F (T (TPut (Just fs) alpha)) :< F t
-      c2 = F alpha :< FRecord (zip fs (map (,True) ts))
+  U rest <- freshTVar
+  U sigil <- freshTVar
+  let row  = R (Row.incomplete (zip fs (map (,True ) ts)) rest) (Right sigil)
+      row' = R (Row.incomplete (zip fs (map (,False) ts)) rest) (Right sigil) 
+      c1 = row' :< t
+      c2 = alpha :< row
       r = Put e' (map Just (zip fs es'))
   traceTc "gen" (text "cg for put:" <+> prettyE r
            L.<$> text "of type" <+> pretty t <> semi
@@ -450,7 +465,6 @@ cg' (Put e ls) t | not (any isNothing ls) = do
   return (c1 <> c' <> cs <> c2, r)
 
   | otherwise = first (<> Unsat RecordWildcardsNotSupported) <$> cg' (Put e (filter isJust ls)) t
-
 cg' (Let bs e) t = do
   (c, bs', e') <- withBindings bs e t
   return (c, Let bs' e')
@@ -469,7 +483,7 @@ cg' (Annot e tau) t = do
   let t' = stripLocT tau
   (c, t'') <- lift (runExceptT $ validateType' tvs t') >>= \case
     Left  e'' -> return (Unsat e'', t)
-    Right t'' -> return (F t :< F t'', t'')
+    Right t'' -> return (t :< t'', t'')
   (c', e') <- cg e t''
   return (c <> c', Annot e' t'')
 
@@ -478,7 +492,7 @@ cg' (Annot e tau) t = do
 -- Pattern constraints
 -- -----------------------------------------------------------------------------
 
-matchA :: LocPatn -> TCType -> CG (M.Map VarName (C.Row TCType), Constraint, TCPatn)
+matchA :: LocPatn -> TCType -> CG (M.Map VarName (C.Assumption TCType), Constraint, TCPatn)
 matchA x@(LocPatn l p) t = do
   let ?loc = l
   (s,c,p') <- matchA' p t
@@ -486,25 +500,24 @@ matchA x@(LocPatn l p) t = do
 
 matchA' :: (?loc :: SourcePos)
        => Pattern LocIrrefPatn -> TCType
-       -> CG (M.Map VarName (C.Row TCType), Constraint, Pattern TCIrrefPatn)
+       -> CG (M.Map VarName (C.Assumption TCType), Constraint, Pattern TCIrrefPatn)
 
 matchA' (PIrrefutable i) t = do
   (s, c, i') <- match i t
   return (s, c, PIrrefutable i')
 
-matchA' (PCon k is) t = do
-  (vs, blob) <- unzip <$> forM is (\i -> do alpha <- freshTVar; (alpha,) <$> match i alpha)
-  let (ss, cs, is') = (map fst3 blob, map snd3 blob, map thd3 blob)
-      p' = PCon k is'
-      co = case overlapping ss of
-             Left (v:_) -> Unsat $ DuplicateVariableInPattern v  -- p'
-             _          -> Sat
-      c = F t :< FVariant (M.fromList [(k, (vs, False))]) 
-  traceTc "gen" (text "match constructor pattern:" <+> pretty p'
+matchA' (PCon k [i]) t = do
+  beta <- freshTVar
+  (s, c, i') <- match i beta  
+  U rest <- freshTVar
+  let row = Row.incomplete [(k,(beta,False))] rest
+      c' = t :< V row
+  traceTc "gen" (text "match constructor pattern:" <+> pretty (PCon k [i'])
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint" <+> prettyC c)
-  return (M.unions ss, co <> mconcat cs <> c, p')
-
+  return (s, c <> c', PCon k [i'])
+matchA' (PCon k []) t = matchA' (PCon k [LocIrrefPatn ?loc PUnitel]) t
+matchA' (PCon k is) t = matchA' (PCon k [LocIrrefPatn ?loc (PTuple is)]) t
 matchA' (PIntLit i) t = do
   let minimumBitwidth | i < u8MAX      = "U8"
                       | i < u16MAX     = "U16"
@@ -515,12 +528,12 @@ matchA' (PIntLit i) t = do
   return (M.empty, c, PIntLit i)
 
 matchA' (PBoolLit b) t =
-  return (M.empty, F t :< F (T (TCon "Bool" [] Unboxed)), PBoolLit b)
+  return (M.empty, t :=: T (TCon "Bool" [] Unboxed), PBoolLit b)
 
 matchA' (PCharLit c) t =
-  return (M.empty, F t :< F (T (TCon "U8" [] Unboxed)), PCharLit c)
+  return (M.empty, t :=: T (TCon "U8" [] Unboxed), PCharLit c)
 
-match :: LocIrrefPatn -> TCType -> CG (M.Map VarName (C.Row TCType), Constraint, TCIrrefPatn)
+match :: LocIrrefPatn -> TCType -> CG (M.Map VarName (C.Assumption TCType), Constraint, TCIrrefPatn)
 match x@(LocIrrefPatn l ip) t = do
   let ?loc = l
   (s,c,ip') <- match' ip t
@@ -528,7 +541,7 @@ match x@(LocIrrefPatn l ip) t = do
 
 match' :: (?loc :: SourcePos)
       => IrrefutablePattern VarName LocIrrefPatn -> TCType
-      -> CG (M.Map VarName (C.Row TCType), Constraint, IrrefutablePattern TCName TCIrrefPatn)
+      -> CG (M.Map VarName (C.Assumption TCType), Constraint, IrrefutablePattern TCName TCIrrefPatn)
 
 match' (PVar x) t = do
   let p = PVar (x,t)
@@ -540,7 +553,7 @@ match' (PUnderscore) t =
   let c = dropConstraintFor (M.singleton "_" (t, ?loc, Seq.empty))
    in return (M.empty, c, PUnderscore)
 
-match' (PUnitel) t = return (M.empty, F t :< F (T TUnit), PUnitel)
+match' (PUnitel) t = return (M.empty, t :< T TUnit, PUnitel)
 
 match' (PTuple ps) t = do
   (vs, blob) <- unzip <$> mapM (\p -> do v <- freshTVar; (v,) <$> match p v) ps
@@ -549,7 +562,7 @@ match' (PTuple ps) t = do
       co = case overlapping ss of
              Left (v:_) -> Unsat $ DuplicateVariableInPattern v  -- p'
              _          -> Sat
-      c = F t :< F (T (TTuple vs))
+      c = t :< T (TTuple vs)
   traceTc "gen" (text "match tuple pattern:" <+> prettyIP p'
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint" <+> prettyC c)
@@ -558,11 +571,14 @@ match' (PTuple ps) t = do
 match' (PUnboxedRecord fs) t | not (any isNothing fs) = do
   let (ns, ps) = unzip (catMaybes fs)
   (vs, blob) <- unzip <$> mapM (\p -> do v <- freshTVar; (v,) <$> match p v) ps
+  U rest <- freshTVar
   let (ss, cs, ps') = (map fst3 blob, map snd3 blob, map thd3 blob)
-      t' = FRecord (zip ns (map (,False) vs))
-      d  = Drop (T (TTake (Just ns) t)) Suppressed
+      row = Row.incomplete (zip ns (map (,False) vs)) rest
+      row' = Row.incomplete (zip ns (map (,True) vs)) rest
+      t' = R row (Left Unboxed)
+      d  = Drop (R row' (Left Unboxed)) Suppressed
       p' = PUnboxedRecord (map Just (zip ns ps'))
-      c = F t :< t'
+      c = t :< t'
       co = case overlapping ss of
              Left (v:_) -> Unsat $ DuplicateVariableInPattern v  -- p'
              _          -> Sat
@@ -571,26 +587,28 @@ match' (PUnboxedRecord fs) t | not (any isNothing fs) = do
            L.<$> text "generate constraint" <+> prettyC c
            L.<$> text "non-overlapping, and linearity constraints")
   return (M.unions ss, co <> mconcat cs <> c <> d, p')
-
   | otherwise = second3 (:& Unsat RecordWildcardsNotSupported) <$> match' (PUnboxedRecord (filter isJust fs)) t
 
 match' (PTake r fs) t | not (any isNothing fs) = do
   let (ns, ps) = unzip (catMaybes fs)
   (vs, blob) <- unzip <$> mapM (\p -> do v <- freshTVar; (v,) <$> match p v) ps
+  U rest <- freshTVar
+  U sigil <- freshTVar
   let (ss, cs, ps') = (map fst3 blob, map snd3 blob, map thd3 blob)
-      s  = M.fromList [(r, (u, ?loc, Seq.empty))]
-      u  = T (TTake (Just ns) t)
-      c  = F t :< FRecord (zip ns (map (,False) vs))
-      p' = PTake (r,u) (map Just (zip ns ps'))
-      co = case overlapping (s:ss) of
+      s  = M.fromList [(r, (R row' (Right sigil), ?loc, Seq.empty))]
+      row = Row.incomplete (zip ns (map (,False) vs)) rest
+      row' = Row.incomplete (zip ns (map (,True) vs)) rest
+      t' = R row (Right sigil)
+      p' = PTake (r, R row' (Right sigil)) (map Just (zip ns ps'))
+      c = t :< t'
+      co = case overlapping ss of
              Left (v:_) -> Unsat $ DuplicateVariableInPattern v  -- p'
              _          -> Sat
-  traceTc "gen" (text "match take pattern:" <+> pretty p'
+  traceTc "gen" (text "match unboxed record:" <+> prettyIP p'
            L.<$> text "of type" <+> pretty t <> semi
-           L.<$> text "generate constraint:" <+> prettyC c
-           L.<$> text "and non-overlapping constraints")
+           L.<$> text "generate constraint" <+> prettyC c
+           L.<$> text "non-overlapping, and linearity constraints")
   return (M.unions (s:ss), co <> mconcat cs <> c, p')
-
   | otherwise = second3 (:& Unsat RecordWildcardsNotSupported) <$> match' (PTake r (filter isJust fs)) t
 
 #ifdef BUILTIN_ARRAYS
@@ -628,7 +646,7 @@ freshEVar = fresh (ExpressionAt ?loc)
 integral :: TCType -> Constraint
 integral = Upcastable (T (TCon "U8" [] Unboxed))
 
-dropConstraintFor :: M.Map VarName (C.Row TCType) -> Constraint
+dropConstraintFor :: M.Map VarName (C.Assumption TCType) -> Constraint
 dropConstraintFor = foldMap (\(i, (t,x,us)) -> if null us then Drop t (Unused i x) else Sat) . M.toList
 
 parallel' :: [(ErrorContext, CG (Constraint, a))] -> CG (Constraint, [(Constraint, a)])
@@ -671,7 +689,7 @@ withBindings (Binding pat tau e0 bs : xs) e top = do
       tvs <- use knownTypeVars
       lift (runExceptT $ validateType' tvs (stripLocT tau')) >>= \case
         Left  e -> return (Unsat e, alpha)
-        Right t -> return (F alpha :< F t, t)
+        Right t -> return (alpha :< t, t)
   (s, cp, pat') <- match pat alpha'
   context %= C.addScope s
   (c', xs', e') <- withBindings xs e top
@@ -697,7 +715,7 @@ withBindings (BindingAlts pat tau e0 bs alts : xs) e top = do
       tvs <- use knownTypeVars
       lift (runExceptT $ validateType' tvs (stripLocT tau')) >>= \case
         Left  e -> return (Unsat e, alpha)
-        Right t -> return (F alpha :< F t, t)
+        Right t -> return (alpha :< t, t)
   (calts, alts') <- cgAlts (Alt pat Regular (LocExpr (posOfE e) (Let xs e)) : alts) top alpha'
   let c = c0 <> ct <> calts
       (Alt pat' _ (TE _ (Let xs' e') _)) : altss' = alts'

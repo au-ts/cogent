@@ -56,10 +56,14 @@ assignE a (TE t e l) = TE (assignT a t)
 
 assignT :: Assignment -> TCType -> TCType
 assignT a (T t) = T $ ffmap (assign a) $ fmap (assignT a) t
+assignT a (V x) = V $ fmap (assignT a) x
+assignT a (R x s) = flip R s $ fmap (assignT a) x
 assignT a (U n) = U n
+assignT a (Synonym n ts) = Synonym n $ fmap (assignT a) ts
 
 assignC :: Assignment -> Constraint -> Constraint
-assignC a (t1 :< t2) = fmap (assignT a) t1 :< fmap (assignT a) t2
+assignC a (t1 :< t2) = assignT a t1 :< assignT a t2
+assignC a (t1 :=: t2) = assignT a t1 :=: assignT a t2
 assignC a (c1 :& c2) = assignC a c1 :& assignC a c2
 assignC a (Upcastable t1 t2) = Upcastable (assignT a t1) (assignT a t2)
 assignC a (Share t m) = Share (assignT a t) m
