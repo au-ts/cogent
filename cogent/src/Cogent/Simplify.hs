@@ -196,12 +196,20 @@ getVOccs v' ma = do (fenv,venv) <- get
                     return (a,(fenv',venv1))
 
 getVOcc1 :: Occ ('Suc v) a -> Occ v (a, OccInfo)
-getVOcc1 ma = do (a,(_,Cons occ Nil)) <- getVOccs s1 ma
-                 return (a,occ)
+getVOcc1 ma = do
+                (a,(_,x)) <- getVOccs s1 ma
+                let occ = case x of 
+                            Cons occ Nil -> occ
+                            _ -> __impossible "dependent types broke"
+                return (a,occ)
 
 getVOcc2 :: Occ ('Suc ('Suc v)) a -> Occ v (a, OccInfo, OccInfo)
-getVOcc2 ma = do (a,(_,Cons occ1 (Cons occ2 Nil))) <- getVOccs s2 ma
-                 return (a,occ1,occ2)
+getVOcc2 ma = do
+                (a,(_,x)) <- getVOccs s2 ma
+                let (occ1, occ2) = case x of 
+                                      Cons occ1 (Cons occ2 Nil) -> (occ1, occ2)
+                                      _ -> __impossible "dependent types broke"
+                return (a,occ1,occ2)
 
 -- ////////////////////////////////////////////////////////////////////////////
 -- Top level

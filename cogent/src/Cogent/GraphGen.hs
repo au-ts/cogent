@@ -262,7 +262,10 @@ graph g (TE _ (Split _ e1@(TE _ (Variable v)) e2)) n ret vs = do
     let v1 = namePrefix prevNm' ++ "_fst@" ++ show n
     let v2 = namePrefix prevNm' ++ "_snd@" ++ show n
     (gexprs, exUpds) <- atom e1 vs
-    (GEGTuple ty1 ty2) <- graphType (exprType e1)
+    e1GT <- graphType (exprType e1)
+    (ty1, ty2) <- case e1GT of
+        (GEGTuple ty1 ty2) -> return (ty1, ty2)
+        _ -> abort "graph: split: didn't get a tuple"
     gnode <- mkBasicVs "Split" (NextNode (n + 1)) [(v1, ty1), (v2, ty2)] gexprs exUpds
     let g' = addGraphNode g n gnode
     g'' <- graph g' e2 (n+1) ret ((v1, ty1): (v2, ty2): vs)
