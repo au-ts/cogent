@@ -15,6 +15,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE Rank2Types #-}
@@ -66,22 +67,22 @@ data TypingTree t = TyTrLeaf
                   | TyTrSplit [Maybe TypeSplitKind] (TreeCtx t) (TreeCtx t)
 type TreeCtx t = ([Maybe (Type t)], TypingTree t)
 
-deepTypeProof :: (Pretty a) => NameMod -> Bool -> Bool -> String -> [Definition TypedExpr a] -> String -> Doc
-deepTypeProof mod withDecls withBodies thy decls log =
+deepTypeProof :: (Pretty a, ?namemod :: NameMod) => Bool -> Bool -> String -> [Definition TypedExpr a] -> String -> Doc
+deepTypeProof withDecls withBodies thy decls log =
   let header = (string ("(*\n" ++ log ++ "\n*)\n") <$>)
-      ta = getTypeAbbrevs mod decls
+      ta = getTypeAbbrevs decls
       imports = if __cogent_fml_typing_tree then [__cogent_root_dir </> "c-refinement/TypeProofGen"]
                                             else [__cogent_root_dir </> "cogent/isa/CogentHelper"]
-      proofDecls | withDecls  = deepTypeAbbrevs mod ta ++ deepDefinitions mod ta decls
-                                ++ funTypeEnv mod decls ++ funDefEnv decls
-                                ++ concatMap (funTypeTree mod ta) decls
+      proofDecls | withDecls  = deepTypeAbbrevs ta ++ deepDefinitions ta decls
+                                ++ funTypeEnv decls ++ funDefEnv decls
+                                ++ concatMap (funTypeTree ta) decls
                  | otherwise = []
       proofBodies | withBodies = [TheoryString "ML {* open TTyping_Tactics *}"] ++
                                  concatMap (\(proofId, prop, script) ->
                                               formatSubproof ta (typingSubproofPrefix ++ show proofId) prop script) subproofs ++
                                  proofScript
                   | otherwise = []
-        where (proofScript, st) = runState (proofs decls) (typingSubproofsInit mod ta)
+        where (proofScript, st) = runState (proofs decls) (typingSubproofsInit ta)
               subproofs = sortOn ((\(proofId, _, _) -> proofId)) $
                             M.elems (st ^. subproofKinding) ++
                             M.elems (st ^. subproofAllKindCorrect) ++
@@ -159,6 +160,7 @@ prove :: (Pretty a) => [Definition TypedExpr a] -> Definition TypedExpr a
       -> State TypingSubproofs ([TheoryDecl I.Type I.Term], [TheoryDecl I.Type I.Term])
 prove decls (FunDef _ fn k ti to e) = do
   mod <- use nameMod
+  let ?namemod = mod
   let eexpr = pushDown (Cons (Just ti) Nil) (splitEnv (Cons (Just ti) Nil) e)
   proofSteps' <- proofSteps decls (fmap snd k) ti eexpr
   ta <- use tsTypeAbbrevs
@@ -173,15 +175,15 @@ proofs decls = do
     bodies <- mapM (prove decls) decls
     return $ concat $ map fst bodies ++ map snd bodies
 
-funTypeTree :: (Pretty a) => NameMod -> TypeAbbrevs -> Definition TypedExpr a -> [TheoryDecl I.Type I.Term]
-funTypeTree mod ta (FunDef _ fn _ ti _ e) = [deepTyTreeDef mod ta fn (typeTree eexpr)]
+funTypeTree :: (Pretty a, ?namemod :: NameMod) => TypeAbbrevs -> Definition TypedExpr a -> [TheoryDecl I.Type I.Term]
+funTypeTree ta (FunDef _ fn _ ti _ e) = [deepTyTreeDef ta fn (typeTree eexpr)]
   where eexpr = pushDown (Cons (Just ti) Nil) (splitEnv (Cons (Just ti) Nil) e)
-funTypeTree _ _ _ = []
+funTypeTree _ _ = []
 
-deepTyTreeDef :: NameMod -> TypeAbbrevs -> FunName -> TypingTree t -> TheoryDecl I.Type I.Term
-deepTyTreeDef mod ta fn e = let ttfn = mkId $ mod fn ++ "_typetree"
-                                tt = deepCtxTree mod ta e
-                             in [isaDecl| definition "$ttfn \<equiv> $tt" |]
+deepTyTreeDef :: (?namemod :: NameMod) => TypeAbbrevs -> FunName -> TypingTree t -> TheoryDecl I.Type I.Term
+deepTyTreeDef ta fn e = let ttfn = mkId $ ?namemod fn ++ "_typetree"
+                            tt = deepCtxTree ta e
+                         in [isaDecl| definition "$ttfn \<equiv> $tt" |]
 
 deepTypeSplitKind :: TypeSplitKind -> Term
 deepTypeSplitKind TSK_R  = mkId "TSK_R"
@@ -199,13 +201,13 @@ deepTreeSplits (tsk : tsks) = mkApp (mkId "Cons")
     [deepMaybe (fmap deepTypeSplitKind tsk), deepTreeSplits tsks]
 deepTreeSplits [] = mkList []
 
-deepCtx :: NameMod -> TypeAbbrevs -> [Maybe (Type t)] -> Term
-deepCtx mod ta = mkList . map (deepMaybeTy mod ta)
+deepCtx :: (?namemod :: NameMod) => TypeAbbrevs -> [Maybe (Type t)] -> Term
+deepCtx ta = mkList . map (deepMaybeTy ta)
 
-deepCtxTree :: NameMod -> TypeAbbrevs -> TypingTree t -> Term
-deepCtxTree mod ta TyTrLeaf = mkId "TyTrLeaf"
-deepCtxTree mod ta (TyTrSplit f (lctx, l) (rctx, r)) =
-  mkApp (mkId "TyTrSplit") [deepTreeSplits f, deepCtx mod ta lctx, deepCtxTree mod ta l, deepCtx mod ta rctx, deepCtxTree mod ta r]
+deepCtxTree :: (?namemod :: NameMod) => TypeAbbrevs -> TypingTree t -> Term
+deepCtxTree ta TyTrLeaf = mkId "TyTrLeaf"
+deepCtxTree ta (TyTrSplit f (lctx, l) (rctx, r)) =
+  mkApp (mkId "TyTrSplit") [deepTreeSplits f, deepCtx ta lctx, deepCtxTree ta l, deepCtx ta rctx, deepCtxTree ta r]
 
 -- dodgy fix
 escapedFunName :: FunName -> String
@@ -217,13 +219,13 @@ escapedFunName fn | '\'' `elem` fn = "[" ++ intercalate "," (repr fn) ++ "]"
                                     then map (printf "CHR %#02x" . ord) x
                                     else error "Function name contained a non-ascii char! Isabelle doesn't support this."
 
-funTypeCase :: NameMod -> Definition TypedExpr a -> [String] -> [String]
-funTypeCase mod (FunDef  _ fn _ _ _ _) ds = (escapedFunName fn ++ " := " ++ mod fn ++ "_type"):ds
-funTypeCase mod (AbsDecl _ fn _ _ _  ) ds = (escapedFunName fn ++ " := " ++ mod fn ++ "_type"):ds
-funTypeCase _ _ ds = ds
+funTypeCase :: (?namemod :: NameMod) => Definition TypedExpr a -> [String] -> [String]
+funTypeCase (FunDef  _ fn _ _ _ _) ds = (escapedFunName fn ++ " := " ++ ?namemod fn ++ "_type"):ds
+funTypeCase (AbsDecl _ fn _ _ _  ) ds = (escapedFunName fn ++ " := " ++ ?namemod fn ++ "_type"):ds
+funTypeCase _ ds = ds
 
-funTypeEnv :: NameMod -> [Definition TypedExpr a] -> [TheoryDecl I.Type I.Term]
-funTypeEnv mod fs = funTypeEnv' $ foldr (funTypeCase mod) [] fs
+funTypeEnv :: (?namemod :: NameMod) => [Definition TypedExpr a] -> [TheoryDecl I.Type I.Term]
+funTypeEnv fs = funTypeEnv' $ foldr funTypeCase [] fs
 
 funTypeEnv' upds = let unit = "\\<lambda>_.([], TUnit, TUnit)"
                        updates = mkId $ foldl' (\acc upd -> "(" ++ acc ++ ")(" ++ upd ++ ")") unit upds

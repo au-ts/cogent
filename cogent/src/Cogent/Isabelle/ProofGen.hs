@@ -13,6 +13,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeOperators #-}
 
@@ -163,8 +164,8 @@ thmTypeAbbrev thm = do
 -}
 thmTypeAbbrev thm = return (Thm thm)
 
-typingSubproofsInit :: NameMod -> TypeAbbrevs -> TypingSubproofs
-typingSubproofsInit mod ta = TypingSubproofs 0 M.empty M.empty M.empty M.empty ta mod
+typingSubproofsInit :: (?namemod :: NameMod) =>  TypeAbbrevs -> TypingSubproofs
+typingSubproofsInit ta = TypingSubproofs 0 M.empty M.empty M.empty M.empty ta ?namemod
 
 newSubproofId = do
   i <- use genId
@@ -460,7 +461,8 @@ kindingRaw k t = do
   kmap <- use subproofKinding
   case M.lookup (k', t', gk) kmap of
     Nothing -> do mod <- use nameMod
-                  let prop = mkApp (mkId "kinding") [mkList (map deepKind k'), deepType mod ta t, deepKind gk]
+                  let ?namemod = mod
+                  let prop = mkApp (mkId "kinding") [mkList (map deepKind k'), deepType ta t, deepKind gk]
                   tac <- tacSequence
                     [return [simp_add ["kinding_def", "kinding_all_def", "kinding_variant_def", "kinding_record_def"]]]
                   proofId <- newSubproofId
@@ -476,7 +478,8 @@ kinding' ks t k = do
   kmap <- use subproofKinding
   case M.lookup (ks', t', k) kmap of
     Nothing -> do mod <- use nameMod
-                  let prop = mkApp (mkId "kinding") [mkList (map deepKind ks'), deepType mod ta t, deepKind k]
+                  let ?namemod = mod
+                  let prop = mkApp (mkId "kinding") [mkList (map deepKind ks'), deepType ta t, deepKind k]
                   tac <- tacSequence
                     [return [simp_add ["kinding_def", "kinding_all_def", "kinding_variant_def", "kinding_record_def"]]]
                   proofId <- newSubproofId
@@ -516,8 +519,9 @@ allKindCorrect k ts ks = do
   akmap <- use subproofAllKindCorrect
   case M.lookup (k', ts', ks') akmap of
     Nothing -> do mod <- use nameMod
+                  let ?namemod = mod
                   let prop = mkApp (mkId "list_all2")
-                               [mkApp (mkId "kinding") [mkList (map deepKind k')], mkList (map (deepType mod ta) ts), mkList (map deepKind ks')]
+                               [mkApp (mkId "kinding") [mkList (map deepKind k')], mkList (map (deepType ta) ts), mkList (map deepKind ks')]
                   tac <- tacSequence [return [Simplifier [] [NthThm "HOL.simp_thms" 25, NthThm "HOL.simp_thms" 26]],
                                       allKindCorrect' k ts ks]
                   proofId <- newSubproofId
@@ -611,10 +615,11 @@ weakens k g g' = do
     wmap <- use subproofWeakens
     case M.lookup (k', glt, glt') wmap of
       Nothing -> do mod <- use nameMod
+                    let ?namemod = mod
                     let prop = mkApp (mkId "weakening")
                                  [mkList (map deepKind k'),
-                                  mkList (map (deepMaybeTy mod ta) gl),
-                                  mkList (map (deepMaybeTy mod ta) gl')]
+                                  mkList (map (deepMaybeTy ta) gl),
+                                  mkList (map (deepMaybeTy ta) gl')]
                     proofIds <- kindingAssms (zip gl gl')
                     thms <- mapM (thmTypeAbbrev . (typingSubproofPrefix ++) . show) (nub proofIds)
                     proofId <- newSubproofId
@@ -698,7 +703,7 @@ deepMaybe :: Maybe Term -> Term
 deepMaybe Nothing = mkId "None"
 deepMaybe (Just x) = mkApp (mkId "Some") [x]
 
-deepMaybeTy :: NameMod -> TypeAbbrevs -> Maybe (Type t) -> Term
-deepMaybeTy mod ta = deepMaybe . fmap (deepType mod ta)
+deepMaybeTy :: (?namemod :: NameMod) =>  TypeAbbrevs -> Maybe (Type t) -> Term
+deepMaybeTy ta = deepMaybe . fmap (deepType ta)
 
 
