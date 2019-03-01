@@ -61,7 +61,6 @@ import Data.Generics
 import Data.Loc
 import Data.List as L
 import Data.Map as M
-import Data.Semigroup.Applicative
 import Data.Set as S
 import "language-c" Language.C               as LC
 import "language-c-quote" Language.C.Parser  as CP hiding (parseExp, parseType)
@@ -251,8 +250,11 @@ genType = genAnti CG.genType
 
 transDeclSpec :: CS.DeclSpec -> GlMono t CS.DeclSpec
 transDeclSpec (CS.AntiTypeDeclSpec strg qual s l) = do
-  CS.DeclSpec [] [] tysp loc <- (fst . CG.splitCType) <$> (lift . lift . lift . genType =<<
+  dSpec <- (fst . CG.splitCType) <$> (lift . lift . lift . genType =<<
     monoType =<< lift . desugarType =<< lift . tcType =<< (lift . lift) (parseType s l))
+  let (tysp, loc) = case dSpec of
+            CS.DeclSpec [] [] tysp loc -> (tysp, loc)
+            _ -> __impossible "transDeclSpec: failed pattern"
   return $ CS.DeclSpec strg qual tysp loc
 transDeclSpec x = return x
 
@@ -582,8 +584,11 @@ collectFnCall _ = return []
 
 analyseFuncId :: [(String, SrcLoc)] -> GlDefn t [(FunName, MN.Instance)]
 analyseFuncId ss = forM ss $ \(fn, loc) -> flip runReaderT (MonoState ([], Nothing)) $ do
-  (SF.TE _ (SF.Fun fn' ts _)) <- monoExp =<< lift . icExp =<< lift . desugarExp =<<
+  fnTe <- monoExp =<< lift . icExp =<< lift . desugarExp =<<
                                  lift . tcFnCall =<< (lift . lift) (parseFnCall fn loc)
+  let (fn', ts) = case fnTe of
+            SF.TE _ (SF.Fun fn' ts _) -> (fn', ts)
+            _ -> __impossible "analyseFuncId: func pattern match failed"
   return (fn', ts)
 
 collectOneFunc :: CS.Definition -> Gl ()
