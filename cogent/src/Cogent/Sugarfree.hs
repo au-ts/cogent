@@ -465,22 +465,32 @@ typecheck (E (Op o es))
 typecheck (E (ILit i t)) = return (TE (TPrim t) (ILit i t))
 typecheck (E (SLit s)) = return (TE TString (SLit s))
 typecheck (E (Variable v))
-   = do Just t <- useVariable (fst v)
+   = do varuse <- useVariable (fst v)
+        t <- case varuse of
+                  Just t -> return t
+                  Nothing -> fail "variable use didn't exist"
         return (TE t (Variable v))
 typecheck (E (Fun f ts note))
    | ExI (Flip ts') <- Vec.fromList ts
-   = do Just (FT ks ti to) <- funType f
-        case Vec.length ts' =? Vec.length ks
-          of Just Refl -> let ti' = substitute ts' ti
-                              to' = substitute ts' to
-                           in do forM_ (Vec.zip ts' ks) $ \(t, k) -> do
-                                   k' <- kindcheck t
-                                   when ((k <> k') /= k) $ fail "kind not matched in type instantiation"
-                                 return $ TE (TFun ti' to') (Fun f ts note)
-             Nothing -> fail "lengths don't match"
+   = do fnTy <- funType f
+        case fnTy of
+          Just (FT ks ti to) ->
+            (case Vec.length ts' =? Vec.length ks
+               of Just Refl -> let ti' = substitute ts' ti
+                                   to' = substitute ts' to
+                                in do forM_ (Vec.zip ts' ks) $ \(t, k) -> do
+                                        k' <- kindcheck t
+                                        when ((k <> k') /= k) $ fail "kind not matched in type instantiation"
+                                      return $ TE (TFun ti' to') (Fun f ts note)
+                  Nothing -> fail "lengths don't match")
+          _ -> fail "failed to get function type"
 typecheck (E (App e1 e2))
-   = do e1'@(TE (TFun ti to) _) <- typecheck e1
-        e2'@(TE ti' _) <- typecheck e2
+   = do e1' <- typecheck e1
+        (ti, to) <- case e1' of
+                      (TE (TFun ti to) _) -> return (ti, to)
+                      _ -> fail "app operator not a function"
+        e2' <- typecheck e2
+        let (TE ti' _) = e1'
         guardShow "app" $ ti' == ti
         return $ TE to (App e1' e2')
 typecheck (E (Let a e1 e2))
@@ -519,7 +529,10 @@ typecheck (E (Case e tag (lt,at,et) (le,ae,ee)))
         guardShow "case" $ exprType et' == exprType ee'  -- promoted
         return $ TE (exprType et') (Case e' tag (lt,at,et') (le,ae,ee'))
 typecheck (E (Esac e))
-   = do e'@(TE (TSum [(_,(t,False))]) _) <- typecheck e
+   = do e' <- typecheck e
+        t <- case e' of
+                TE (TSum [(_,(t,False))]) _ -> return t
+                _ -> fail "esac did not get a variant with a single case"    
         return $ TE t (Esac e')
 typecheck (E (Split a e1 e2))
    = do e1' <- typecheck e1
@@ -527,7 +540,10 @@ typecheck (E (Split a e1 e2))
         e2' <- withBindings (Cons t1 (Cons t2 Nil)) (typecheck e2)
         return $ TE (exprType e2') (Split a e1' e2')
 typecheck (E (Member e f))
-   = do e'@(TE t@(TRecord ts s) _) <- typecheck e  -- canShare
+   = do e' <- typecheck e  -- canShare
+        (t, ts, s) <- case e' of
+                        (TE t@(TRecord ts s) _) -> return (t, ts, s)
+                        _ -> fail "member got bad TRecord"
         guardShow "member-1" . canShare =<< kindcheck t
         guardShow "member-2" $ f < length ts
         let (_,(tau,c)) = ts !! f
@@ -547,7 +563,10 @@ typecheck (E (Take a e f e2))
         e2' <- withBindings (Cons tau (Cons (TRecord (init ++ (fn,(tau,True )):rest) s) Nil)) (typecheck e2)  -- take that field regardless of its shareability
         return $ TE (exprType e2') (Take a e' f e2')
 typecheck (E (Put e1 f e2))
-   = do e1'@(TE (TRecord ts s) _) <- typecheck e1
+   = do e1' <- typecheck e1
+        (ts, s) <- case e1' of
+                    TE (TRecord ts s) _ -> return (ts, s)
+                    _ -> fail "put didn't get a TRecord"
         guardShow "put-1" $ f < length ts
         let (init, (fn,(tau,taken)):rest) = splitAt f ts
         k <- kindcheck tau

@@ -757,7 +757,10 @@ infer' _ (App (LocExpr p (TypeApp fn@('_':_) ts note)) e2) | not __cogent_debug 
   Value x -> typeError (NotAPolymorphicFunction fn x)
   Function q -> do ts' <- mapM validateType ts
                    tau <- applyTypes q ts'
-                   RT (TFun t1 t2) <- typeDNF tau
+                   rtval <- typeDNF tau
+                   let (t1, t2) = case rtval of
+                                  RT (TFun t1 t2) -> (t1, t2)
+                                  _ -> __impossible "Constructed function wasn't a function"
                    -- CASE: tests/fail_ticket-93.cogent
                    canDiscard <$> kindcheck t1 >>= flip unless (typeError $ DebugFunctionCannotTakeLinear fn t1)
                    when (t2 /= RT TUnit) $ typeError (DebugFunctionReturnNoUnit fn)
@@ -893,7 +896,8 @@ infer' _ (PrimOp "not" [e1]) = do
   e1' <- check e1 (RT boolType)
   return (TE (RT boolType) (PrimOp "not" [e1']))
 infer' _ (PrimOp "complement" [e1]) = do
-  e1'@(TE tau _) <- infer e1
+  e1' <- infer e1
+  let (TE tau _) = e1'
   unless (unRT tau `elem` numericTypes)
      $ typeError (NonNumericType tau)
   return (TE tau (PrimOp "complement" [e1']))
