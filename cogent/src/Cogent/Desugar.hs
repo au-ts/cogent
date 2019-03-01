@@ -154,15 +154,24 @@ desugarTopLevel (S.AbsDec ('_':_) _) _ | not __cogent_debug = return Nothing
 desugarTopLevel (S.AbsDec fn sigma) pragmas | S.PT vs t <- sigma
                                             , ExI (Flip vs') <- Vec.fromList vs
                                             , Refl <- zeroPlusNEqualsN $ Vec.length vs'
-  = do TFun ti' to' <- withTypeBindings (fmap fst vs') $ desugarType t
+  = do tTy <- withTypeBindings (fmap fst vs') $ desugarType t
+       let (ti', to') = case tTy of 
+                          TFun ti' to' -> (ti', to')
+                          _ -> __impossible "AbsDec was not a function type"
        return . Just $ AbsDecl (pragmaToAttr pragmas fn mempty) fn vs' ti' to'
 desugarTopLevel (S.FunDef ('_':_) _ _) _ | not __cogent_debug = return Nothing
 desugarTopLevel (S.FunDef fn sigma alts) pragmas | S.PT vs t <- sigma
                                                  , ExI (Flip vs') <- Vec.fromList vs
                                                  , Refl <- zeroPlusNEqualsN $ Vec.length vs'
   = withTypeBindings (fmap fst vs') $ do
-      TFun ti' to' <- desugarType t
-      S.RT (S.TFun ti _) <- typeWHNF t
+      tTy <- desugarType t
+      let (ti', to') = case tTy of
+                          TFun ti' to' -> (ti', to')
+                          _ -> __impossible "FunDef was not a function type"
+      tTyWHNF <- typeWHNF t
+      let ti = case tTyWHNF of
+                  S.RT (S.TFun ti _) -> ti
+                  _ -> __impossible "constructed function was not a function type"
       v <- freshVar
       let e0 = T.TE ti $ S.Var v
       e <- if not __cogent_debug && P.head fn == '_'
@@ -186,14 +195,20 @@ desugarAlts e0@(T.TE t v@(S.Var _)) ((S.Alt p1 l1 e1):alts) =  -- More than one 
   case p1 of
     S.PCon cn1 [S.PVar v1] -> do  -- this is A) for PCon
       e0' <- freshVar
-      S.RT (S.TVariant talts) <- typeWHNF t
+      tTyWHNF <- typeWHNF t
+      let talts = case tTyWHNF of
+                    S.RT (S.TVariant talts) -> talts
+                    _ -> __impossible "desugaring alts but isn't a variant"
       let t0' = S.RT $ S.TVariant (M.delete cn1 talts)  -- type of e0 without alternative cn
       e1' <- withBinding (fst v1) $ desugarExpr e1
       e2' <- withBinding e0' $ desugarAlts (T.TE t0' $ S.Var e0') alts
       E <$> (Case <$> desugarExpr e0 <*> pure cn1 <*> pure (l1,fst v1,e1') <*> pure (mempty,e0',e2'))
     S.PCon cn1 [p1'] -> do  -- This is B) for PCon
       v1 <- freshVar
-      S.RT (S.TVariant talts) <- typeWHNF t
+      tTyWHNF <- typeWHNF t
+      let talts = case tTyWHNF of
+                    S.RT (S.TVariant talts) -> talts
+                    _ -> __impossible "desugaring alts but isn't a variant"
       let p1'' = S.PVar (v1,t1)
           Just [t1]  = M.lookup cn1 talts  -- type of v1
           b   = S.Binding p1' Nothing (T.TE t1 $ S.Var v1) []
@@ -228,7 +243,10 @@ desugarAlt e0 (S.PCon tag [S.PVar tn]) e =
   --              B) e0 | PCon vn ps  in e ==> e0 | PCon vn [PTuple ps] in e
 desugarAlt e0 (S.PCon tag [p]) e = do  -- Ind. step A)
   v <- freshVar
-  S.RT (S.TVariant alts) <- typeWHNF $ T.typeOfTE e0
+  e0TyWHNF <- typeWHNF $ T.typeOfTE e0
+  let alts = case e0TyWHNF of
+                S.RT (S.TVariant alts) -> alts
+                _ -> __impossible "desugaring alts but isn't a variant"
   let Just [t] = M.lookup tag alts
       -- b0 = S.Binding (S.PVar (v,t)) Nothing (T.TE t $ Esac e0) []
       b1 = S.Binding p Nothing (T.TE t (S.Var v)) []
@@ -270,7 +288,10 @@ desugarAlt e0 (S.PIrrefutable (S.PTuple [S.PVar tn1, S.PVar tn2])) e | not __cog
 desugarAlt e0 (S.PIrrefutable (S.PTuple [p1,p2])) e | not __cogent_ftuples_as_sugar = do
   v1 <- freshVar
   v2 <- freshVar
-  S.RT (S.TTuple [t1,t2]) <- typeWHNF $ T.typeOfTE e0
+  e0TyWHNF <- typeWHNF $ T.typeOfTE e0
+  let (t1, t2) = case e0TyWHNF of
+                    S.RT (S.TTuple [t1,t2]) -> (t1, t2)
+                    _ -> __impossible "irrefutable tuple pattern not a tuple"
   let b0 = S.Binding (S.PTuple [S.PVar (v1,t1), S.PVar (v2,t2)]) Nothing e0 []
       b1 = S.Binding p1 Nothing (T.TE t1 $ S.Var v1) []
       b2 = S.Binding p2 Nothing (T.TE t2 $ S.Var v2) []
@@ -303,7 +324,10 @@ desugarAlt e0 (S.PIrrefutable (S.PTuple ps)) e | __cogent_ftuples_as_sugar, and 
           e0' <- freshVar
           E . Take (v,e0') e0 idx <$> withBindings (Cons v (Cons e0' Nil)) (mkTake (E $ Variable (f1, e0')) vs e (idx + 1))
 desugarAlt e0 (S.PIrrefutable (S.PTuple ps)) e | __cogent_ftuples_as_sugar = do
-  S.RT (S.TTuple ts) <- typeWHNF $ T.typeOfTE e0
+  e0TyWHNF <- typeWHNF $ T.typeOfTE e0
+  let ts = case e0TyWHNF of
+                    S.RT (S.TTuple ts) -> ts
+                    _ -> __impossible "irrefutable tuple pattern not a tuple"
   __assert (P.length ps == P.length ts) $ "desugarAlt: |ps| /= |ts|\nps = " ++ show ps ++ "\nts = " ++ show ts
   let pts = P.zip ps ts
   vpts <- forM pts $ \(p,t) -> case p of S.PVar (v,_) -> return (v,p,t); _ -> (,p,t) <$> freshVar
@@ -331,14 +355,20 @@ desugarAlt e0 (S.PIrrefutable (S.PTake rec [Just (f, S.PVar v)])) e =
   E <$> (Take (fst v, fst rec) <$> desugarExpr e0 <*> pure fldIdx <*> (withBindings (Cons (fst v) (Cons (fst rec) Nil)) $ desugarExpr e))
 desugarAlt e0 (S.PIrrefutable (S.PTake rec [Just (f,p)])) e = do
   v <- freshVar
-  S.RT (S.TRecord fts s) <- typeWHNF $ snd rec
+  recTyWHNF <- typeWHNF $ snd rec
+  let (fts, s) = case recTyWHNF of
+                    S.RT (S.TRecord fts s) -> (fts, s)
+                    _ -> __impossible "irrefutable record pattern not a record"
   let Just (ft,_) = P.lookup f fts  -- the type of the taken field
       b1 = S.Binding (S.PTake rec [Just (f,S.PVar (v,ft))]) Nothing e0 []
       b2 = S.Binding p Nothing (T.TE ft $ S.Var v) [] -- wrong!
   desugarExpr $ T.TE (T.typeOfTE e) $ S.Let [b1,b2] e
 desugarAlt e0 (S.PIrrefutable (S.PTake rec (fp:fps))) e = do
   e1 <- freshVar
-  S.RT (S.TRecord fts s) <- typeWHNF $ snd rec
+  recTyWHNF <- typeWHNF $ snd rec
+  let (fts, s) = case recTyWHNF of
+                    S.RT (S.TRecord fts s) -> (fts, s)
+                    _ -> __impossible "irrefutable record pattern not a record"
   let t1 = S.RT $ S.TRecord (P.map (\ft@(f,(t,x)) -> if f == fst (fromJust fp) then (f,(t,True)) else ft) fts) s  -- type of e1
       b0 = S.Binding (S.PTake (e1, t1) [fp]) Nothing e0 []
       bs = S.Binding (S.PTake rec fps) Nothing (T.TE t1 $ S.Var e1) []
@@ -439,7 +469,10 @@ desugarExpr (T.TE _ (S.TypeApp v ts note)) = do
 desugarExpr (T.TE _ (S.Con c [] )) = return . E $ Con c (E Unit)
 desugarExpr (T.TE _ (S.Con c [e])) = E . Con c <$> desugarExpr e
 desugarExpr (T.TE t (S.Con c es )) = do
-  S.RT (S.TVariant ts) <- typeWHNF t
+  tTyWHNF <- typeWHNF t
+  let ts = case tTyWHNF of
+              S.RT (S.TVariant ts) -> ts
+              _ -> __impossible "desugarExpr: variant constructor not a variant"
   let Just [tes] = M.lookup c ts
   E . Con c <$> desugarExpr (T.TE tes $ S.Tuple es)
 desugarExpr (T.TE _ (S.Seq e1 e2)) = do
@@ -457,7 +490,10 @@ desugarExpr (T.TE _ (S.If c vs th el)) = do
   let e' = E $ If (E $ Variable (f0, v)) th' el'
   E <$> (LetBang vs' v <$> desugarExpr c <*> pure e')
 desugarExpr (T.TE _ (S.Member e fld)) = do
-  TRecord fs _ <- desugarType $ T.typeOfTE e
+  tTy <- desugarType $ T.typeOfTE e
+  let fs = case tTy of
+              TRecord fs _ -> fs
+              _ -> __impossible "desugarExpr: record in member not a record"
   let Just f' = elemIndex fld (P.map fst fs)
   E <$> (Member <$> desugarExpr e <*> pure f')
 desugarExpr (T.TE _ (S.Unitel)) = return $ E Unit
@@ -497,7 +533,10 @@ desugarExpr (T.TE t (S.Let (b:bs) e)) = desugarExpr $ T.TE t (S.Let [b] e')
 desugarExpr (T.TE _ (S.Put e [])) = desugarExpr e
 desugarExpr (T.TE t (S.Put e [Nothing])) = __impossible "desugarExpr (Put)"
 desugarExpr (T.TE t (S.Put e [Just (f,a)])) = do
-  TRecord fs _ <- desugarType t
+  tTy <- desugarType t
+  let fs = case tTy of
+              TRecord fs _ -> fs
+              _ -> __impossible "desugarExpr: record in put not a record"
   let Just f' = elemIndex f (P.map fst fs)
   E <$> (Put <$> desugarExpr e <*> pure f' <*> desugarExpr a)
 desugarExpr (T.TE t (S.Put e (fa:fas))) = do
