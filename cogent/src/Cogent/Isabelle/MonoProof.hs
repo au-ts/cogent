@@ -9,7 +9,6 @@
 --
 
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -Wwarn #-}
@@ -109,4 +108,4 @@ rename funMono = [isaDecl| definition $alist_name :: "$sig" where "$(mkId alist_
                           else map (\(tys,num) -> ([isaTerm| $(mkString fn) |], mkTyList tys, [isaTerm| $(mkString (subscript fn num)) |])) insts
 
     mkTyList :: [CC.Type 'Zero] -> Term
-    mkTyList = let ?namemod = id in I.mkList . map (deepType (empty, 0))
+    mkTyList = I.mkList . map (deepType id (empty, 0))

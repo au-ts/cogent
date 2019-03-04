@@ -18,7 +18,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 --{-# LANGUAGE ImpredicativeTypes #-}
-{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
@@ -1176,9 +1175,7 @@ instance PP.Pretty (CId, CC.Type 'Zero) where
 #else
 instance {-# OVERLAPPING #-} PP.Pretty (CId, CC.Type 'Zero) where
 #endif
-  pretty (n,t) =
-     let ?namemod = id
-      in PP.pretty (deepType (M.empty, 0) t) PP.<+> PP.string ":=:" PP.<+> PP.pretty n
+  pretty (n,t) = PP.pretty (deepType id (M.empty, 0) t) PP.<+> PP.string ":=:" PP.<+> PP.pretty n
 
 
 -- ////////////////////////////////////////////////////////////////////////////
