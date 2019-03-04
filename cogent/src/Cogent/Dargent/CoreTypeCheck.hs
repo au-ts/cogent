@@ -1,5 +1,5 @@
 {-# LANGUAGE NamedFieldPuns #-}
-module Cogent.DataLayout.CoreTypeCheck where
+module Cogent.Dargent.CoreTypeCheck where
 
 import Data.Map (Map)
 import Data.Map as M
@@ -13,7 +13,7 @@ import Cogent.Common.Syntax         ( DataLayoutName
                                     , FieldName
                                     )
 import Cogent.Common.Types          ( Sigil (..))
-import Cogent.DataLayout.Core
+import Cogent.Dargent.Core
 import Cogent.Core                  ( Type (..)
                                     )
 

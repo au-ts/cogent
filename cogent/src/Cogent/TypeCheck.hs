@@ -22,9 +22,9 @@ module Cogent.TypeCheck (
 , typecheck
 ) where
 
-import Cogent.DataLayout.TypeCheck
 import Cogent.Compiler
 import qualified Cogent.Context as C
+import Cogent.Dargent.TypeCheck
 import Cogent.PrettyPrint (prettyC)
 import Cogent.Surface
 import Cogent.TypeCheck.Assignment (assignT, assignE, assignAlts)
