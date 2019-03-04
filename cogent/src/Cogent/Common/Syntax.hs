@@ -1,11 +1,12 @@
 -- @LICENSE(NICTA_CORE)
 
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 
 module Cogent.Common.Syntax where
 
 import Cogent.Compiler
 
+import Data.Data hiding (Prefix)
 #if __GLASGOW_HASKELL__ < 709
 import Data.Monoid
 #endif
@@ -31,13 +32,13 @@ data Op
   | Not | And | Or
   | Gt | Lt | Le | Ge | Eq | NEq
   | BitAnd | BitOr | BitXor | LShift | RShift | Complement
-  deriving (Eq, Ord, Show)
+  deriving (Data, Eq, Ord, Show)
 
 data Pragma = InlinePragma FunName
             | CInlinePragma FunName
             | FnMacroPragma FunName
             | UnrecPragma String
-            deriving (Eq, Show)
+            deriving (Data, Eq, Show)
 
 data Associativity = LeftAssoc Int
                    | RightAssoc Int
@@ -105,7 +106,7 @@ opSymbol Complement = "complement"
 instance Pretty Op where
   pretty = string . opSymbol
 
-data Likelihood = Unlikely | Regular | Likely deriving (Show, Eq, Ord)
+data Likelihood = Unlikely | Regular | Likely deriving (Show, Data, Eq, Ord)
 
 #if __GLASGOW_HASKELL__ < 803
 instance Monoid Likelihood where

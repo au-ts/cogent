@@ -10,6 +10,7 @@
 -- @TAG(DATA61_GPL)
 --
 
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveFunctor, FlexibleInstances, TupleSections, DeriveFoldable, DeriveTraversable #-}
 
 module Cogent.Surface where
@@ -20,6 +21,7 @@ import Cogent.Common.Types
 import Cogent.Util
 
 import Control.Applicative
+import Data.Data
 import Data.Functor.Compose
 import Data.Functor.Identity
 #if __GLASGOW_HASKELL__ < 709
@@ -43,27 +45,27 @@ data IrrefutablePattern pv ip = PVar pv
 #ifdef BUILTIN_ARRAYS
                               | PArray [ip]
 #endif
-                              deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
+                              deriving (Data, Eq, Ord, Show, Functor, Foldable, Traversable)
 
 data Pattern ip = PCon TagName [ip]
                 | PIntLit Integer
                 | PBoolLit Bool
                 | PCharLit Char
                 | PIrrefutable ip
-                deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
+                deriving (Data, Eq, Ord, Show, Functor, Foldable, Traversable)
 
-data Alt p e = Alt p Likelihood e deriving (Eq, Ord, Show, Functor, Foldable,Traversable)
+data Alt p e = Alt p Likelihood e deriving (Data, Eq, Ord, Show, Functor, Foldable,Traversable)
 
 data Binding t p ip e = Binding ip (Maybe t) e [VarName]
                       | BindingAlts p (Maybe t) e [VarName] [Alt p e]
-                      deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
+                      deriving (Data, Eq, Ord, Show, Functor, Foldable, Traversable)
 
 data Inline = Inline
             | NoInline
-            deriving (Eq, Ord, Show)
+            deriving (Data, Eq, Ord, Show)
 
 data RepSize = Bytes Int | Bits Int | Add RepSize RepSize -- Future options, sizeof, offsetof, "after"
-             deriving (Show, Eq, Ord)
+  deriving (Show, Data, Eq, Ord)
 
 
 data RepExpr = Prim    RepSize
@@ -71,7 +73,7 @@ data RepExpr = Prim    RepSize
              | Variant RepExpr [(TagName, SourcePos, Integer, RepExpr)]
              | Offset RepExpr RepSize
              | RepRef RepName
-            deriving (Show, Eq, Ord)
+            deriving (Show, Data, Eq, Ord)
 
 noRepE = RepRef "_|_"  -- TODO
 
@@ -81,7 +83,7 @@ allRepRefs (Variant _ cs) = concatMap (\(_,_,_,e) -> allRepRefs e) cs
 allRepRefs (RepRef n) = [n]
 allRepRefs _ = []
 
-data RepDecl = RepDecl SourcePos RepName RepExpr deriving (Show, Eq, Ord)
+data RepDecl = RepDecl SourcePos RepName RepExpr deriving (Show, Data, Eq, Ord)
 
 data RepData = Rep
                { originalDecl :: RepDecl
@@ -119,7 +121,7 @@ data Expr t p ip e = PrimOp OpName [e]
                    | Put e [Maybe (FieldName, e)]  -- Note: `Nothing' will be desugared to `Just' in TypeCheck / zilinc
                    | Upcast e
                    | Annot e t
-                   deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
+                   deriving (Data, Eq, Ord, Show, Functor, Foldable, Traversable)
 
 type Banged = Bool
 type Taken  = Bool
@@ -142,9 +144,9 @@ data Type e t =
               -- Used for both field names in records and tag names in variants
               | TTake (Maybe [FieldName]) t
               | TPut  (Maybe [FieldName]) t
-              deriving (Show, Functor, Eq, Foldable, Traversable, Ord)
+              deriving (Show, Functor, Data, Eq, Foldable, Traversable, Ord)
 
-data Polytype t = PT [(TyVarName, Kind)] t deriving (Eq, Show, Functor, Foldable, Traversable, Ord)
+data Polytype t = PT [(TyVarName, Kind)] t deriving (Data, Eq, Show, Functor, Foldable, Traversable, Ord)
 
 numOfArgs (PT x _) = length x
 
@@ -157,7 +159,7 @@ data TopLevel t p e = Include    String
                     | FunDef VarName (Polytype t) [Alt p e]
                     | ConstDef VarName t e
                     | RepDef RepDecl
-                    deriving (Eq, Show, Functor, Foldable, Traversable)
+                    deriving (Data, Eq, Show, Functor, Foldable, Traversable)
 
 absFnDeclId :: String -> TopLevel t p e -> Bool
 absFnDeclId x (AbsDec fn _) = x == fn
@@ -168,11 +170,11 @@ absTyDeclId x (AbsTypeDec tn _ _) = x == tn
 absTyDeclId _ _ = False
 
 
-data LocExpr = LocExpr { posOfE :: SourcePos, exprOfLE :: Expr LocType LocPatn LocIrrefPatn LocExpr } deriving (Eq, Show)
-data LocPatn = LocPatn { posOfP :: SourcePos, patnOfLP :: Pattern LocIrrefPatn } deriving (Eq, Show)
-data LocIrrefPatn = LocIrrefPatn { posOfIP :: SourcePos, irpatnOfLIP :: IrrefutablePattern VarName LocIrrefPatn } deriving (Eq, Show)
+data LocExpr = LocExpr { posOfE :: SourcePos, exprOfLE :: Expr LocType LocPatn LocIrrefPatn LocExpr } deriving (Data, Eq, Show)
+data LocPatn = LocPatn { posOfP :: SourcePos, patnOfLP :: Pattern LocIrrefPatn } deriving (Data, Eq, Show)
+data LocIrrefPatn = LocIrrefPatn { posOfIP :: SourcePos, irpatnOfLIP :: IrrefutablePattern VarName LocIrrefPatn } deriving (Data, Eq, Show)
 data LocType = LocType { posOfT :: SourcePos, typeOfLT' :: Type LocExpr LocType }
-             | Documentation String LocType deriving (Eq, Show)
+             | Documentation String LocType deriving (Data, Eq, Show)
 
 typeOfLT (LocType _ t) = t
 typeOfLT (Documentation s t) = typeOfLT t
@@ -180,10 +182,10 @@ typeOfLT (Documentation s t) = typeOfLT t
 posOfLT (LocType p _) = p
 posOfLT (Documentation _ t) = posOfLT t
 
-data RawType = RT { unRT :: Type RawExpr RawType } deriving (Eq, Ord, Show)
-data RawExpr = RE { unRE :: Expr RawType RawPatn RawIrrefPatn RawExpr } deriving (Eq, Ord, Show)
-data RawPatn = RP { unRP :: Pattern RawIrrefPatn } deriving (Eq, Ord, Show)
-data RawIrrefPatn = RIP { unRIP :: IrrefutablePattern VarName RawIrrefPatn } deriving (Eq, Ord, Show)
+data RawType = RT { unRT :: Type RawExpr RawType } deriving (Data, Eq, Ord, Show)
+data RawExpr = RE { unRE :: Expr RawType RawPatn RawIrrefPatn RawExpr } deriving (Data, Eq, Ord, Show)
+data RawPatn = RP { unRP :: Pattern RawIrrefPatn } deriving (Data, Eq, Ord, Show)
+data RawIrrefPatn = RIP { unRIP :: IrrefutablePattern VarName RawIrrefPatn } deriving (Data, Eq, Ord, Show)
 
 -- -----------------------------------------------------------------------------
 
