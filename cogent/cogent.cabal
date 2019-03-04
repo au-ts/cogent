@@ -148,11 +148,11 @@ library
               , Cogent.Context
               , Cogent.Core
               , Cogent.Dargent.Allocation
+              , Cogent.Dargent.CodeGen
               , Cogent.Dargent.Core
+              , Cogent.Dargent.Desugar
               , Cogent.Dargent.Surface
               , Cogent.Dargent.TypeCheck
-              , Cogent.Dargent.Desugar
-              , Cogent.Dargent.CodeGen
               , Cogent.Dargent.Util
               , Cogent.Desugar
               , Cogent.GetOpt
