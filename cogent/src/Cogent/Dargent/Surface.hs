@@ -1,4 +1,4 @@
-module Cogent.DataLayout.Surface where
+module Cogent.Dargent.Surface where
 import Cogent.Common.Syntax (FieldName, TagName, RepName, Size)
 import Text.Parsec.Pos (SourcePos)
 import Cogent.Compiler (__fixme)
