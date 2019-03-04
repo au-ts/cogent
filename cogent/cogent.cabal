@@ -10,6 +10,7 @@ version:             2.9.0.0
 
 author:              Liam O'Connor
                      Zilin Chen
+                     Matthew Di Meglio
 maintainer:          Liam O'Connor <liamoc@cse.unsw.edu.au>
                      Zilin Chen <zilin.chen@data61.csiro.au>
 homepage:            https://ts.data61.csiro.au/projects/TS/cogent.pml

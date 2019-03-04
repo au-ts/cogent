@@ -199,7 +199,9 @@ strlCogentTypeEq (TPrim p1)       (TPrim p2)       = p1 == p2
 strlCogentTypeEq (TSum alts1)     (TSum alts2)     = all (\((n1, (t1, _)), (n2, (t2, _))) -> n1 == n2 && strlCogentTypeEq t1 t2) $ zip alts1 alts2
 strlCogentTypeEq (TRecord fs1 s1) (TRecord fs2 s2) = strlSigilEq s1 s2 && all (\((n1, (t1, _)), (n2, (t2, _))) -> n1 == n2 && strlCogentTypeEq t1 t2) (zip fs1 fs2)
 strlCogentTypeEq TUnit            TUnit            = True
+#if BUILTIN_ARRAYS
 strlCogentTypeEq a1@(TArray _ _)  (TArray _ _)     = __impossible $ "Cogent.C.Syntax: StrlCogentType instance Eq: Type " ++ show a1 ++ " cannot be embedded in a boxed record."
+#endif
 strlCogentTypeEq a1@(TProduct _ _)(TProduct _ _)   = __impossible $ "Cogent.C.Syntax: StrlCogentType instance Eq: Type " ++ show a1 ++ " cannot be embedded in a boxed record."
 strlCogentTypeEq a1@(TString)     (TString)        = __impossible $ "Cogent.C.Syntax: StrlCogentType instance Eq: Type " ++ show a1 ++ " cannot be embedded in a boxed record."
 strlCogentTypeEq a1@(TFun _ _)    (TFun _ _)       = __impossible $ "Cogent.C.Syntax: StrlCogentType instance Eq: Type " ++ show a1 ++ " cannot be embedded in a boxed record."

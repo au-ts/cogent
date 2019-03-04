@@ -6,21 +6,6 @@ import Cogent.C.Syntax
 import Cogent.Common.Syntax (FieldName)
 import Cogent.Common.Types (Sigil (..))
 import Cogent.Compiler (__fixme)
-import Data.Nat
-import Data.List (foldl', scanl')
-import Data.Map
-  ( (!)
-  , fromList
-  , insert
-  )
-import Control.Lens
-  ( (%=)
-  , (^.)
-  , at
-  , (&)
-  , (?=)
-  , use
-  )
 import Cogent.C.GenState
   ( Gen
   , genType
@@ -48,6 +33,25 @@ import Cogent.DataLayout.Core
   , wordSizeBits
   , Architecture (..)
   , architecture
+  )
+import Data.Nat
+
+import Data.List (foldl', scanl')
+import Data.Map
+  ( (!)
+  , fromList
+  , insert
+  )
+import Lens.Micro
+  ( (^.)
+  , at
+  , (&)
+  )
+import Lens.Micro.GHC  -- orphan instances for 'Micro.Lens.at'
+import Lens.Micro.Mtl
+  ( (%=)
+  , (?=)
+  , use
   )
 import Debug.Trace (trace)
 
