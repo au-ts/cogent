@@ -3,7 +3,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE TupleSections #-}
-module Cogent.DataLayout.TypeCheck where
+module Cogent.Dargent.TypeCheck where
 
 import Data.Map (Map)
 import qualified Data.Map as M
@@ -12,8 +12,8 @@ import Control.Monad (guard, foldM)
 
 import Cogent.Common.Syntax (FieldName, TagName, DataLayoutName, Size)
 import Cogent.Common.Types (Sigil)
-import Cogent.DataLayout.Core
-import Cogent.DataLayout.Surface
+import Cogent.Dargent.Core
+import Cogent.Dargent.Surface
 import Cogent.Compiler (__fixme, __impossible)
 -- import Cogent.TypeCheck.Base (TypeDict)  -- TODO: needed to implement `typeCheckDataLayoutTypeMatch`
 

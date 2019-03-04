@@ -39,13 +39,13 @@
 
 module Cogent.Core
   ( module Cogent.Core
-  , module Cogent.DataLayout.Core
+  , module Cogent.Dargent.Core
   ) where
 
-import Cogent.DataLayout.Core
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler
+import Cogent.Dargent.Core
 import Cogent.PrettyPrint hiding (associativity, primop)
 import Cogent.Util
 import Data.Nat (Nat(Zero, Suc))

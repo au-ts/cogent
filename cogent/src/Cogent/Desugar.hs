@@ -30,12 +30,12 @@
 {-# LANGUAGE ViewPatterns #-}
 
 module Cogent.Desugar where
-import Cogent.DataLayout.Desugar
 
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Core
+import Cogent.Dargent.Desugar
 import Cogent.PrettyPrint ()
 import qualified Cogent.Surface as S
 import Cogent.TypeCheck.Base as B

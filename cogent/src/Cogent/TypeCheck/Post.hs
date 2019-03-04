@@ -26,7 +26,7 @@ import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Util
 import Cogent.Util
 
-import Cogent.DataLayout.TypeCheck (normaliseSigil)
+import Cogent.Dargent.TypeCheck (normaliseSigil)
 
 -- import Control.Arrow (first)
 import Control.Monad

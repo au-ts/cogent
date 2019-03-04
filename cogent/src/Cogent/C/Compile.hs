@@ -46,7 +46,7 @@ import           Cogent.Compiler
 import           Cogent.Common.Syntax  as Syn
 import           Cogent.Common.Types   as Typ
 import           Cogent.Core           as CC
-import           Cogent.DataLayout.CodeGen    (genBoxedGetSetField, GetOrSet(..))
+import           Cogent.Dargent.CodeGen       (genBoxedGetSetField, GetOrSet(..))
 import           Cogent.Inference             (kindcheck_)
 import           Cogent.Isabelle.Deep
 import           Cogent.Mono                  (Instance)

@@ -31,8 +31,8 @@ import Cogent.TypeCheck.Assignment
 import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Subst
 
-import Cogent.DataLayout.Core
-import Cogent.DataLayout.TypeCheck
+import Cogent.Dargent.Core
+import Cogent.Dargent.TypeCheck
 
 import Control.Arrow (second)
 import qualified Data.Foldable as F
