@@ -10,11 +10,15 @@
 -- @TAG(DATA61_GPL)
 --
 
+{-# LANGUAGE DeriveDataTypeable #-}
+
 module Cogent.Dargent.Surface where
 
 import Cogent.Common.Syntax (FieldName, TagName, RepName, Size)
-import Text.Parsec.Pos (SourcePos)
 import Cogent.Compiler (__fixme)
+
+import Data.Data
+import Text.Parsec.Pos (SourcePos)
 
 -- | For gradual transition to eliminate Rep from the language.
 type DataLayoutSize = RepSize
@@ -27,12 +31,12 @@ data RepSize
   | Bits  Size
   | Add   RepSize RepSize
   -- Future options, sizeof, offsetof, "after"
-  deriving (Show, Eq, Ord)
+  deriving (Show, Data, Eq, Ord)
 
 -- | TODO: Rename to DataLayoutDecl
 data RepDecl
   = RepDecl SourcePos RepName RepExpr
-  deriving (Show, Eq, Ord)
+  deriving (Show, Data, Eq, Ord)
 
 -- | TODO: Rename to DataLayoutExpr
 data RepExpr
@@ -41,4 +45,4 @@ data RepExpr
   | Variant RepExpr [(TagName, SourcePos, Size, RepExpr)]
   | Offset  RepExpr RepSize
   | RepRef  RepName
-  deriving (Show, Eq, Ord)
+  deriving (Show, Data, Eq, Ord)
