@@ -10,7 +10,6 @@
 -- @TAG(DATA61_GPL)
 --
 
-{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# OPTIONS_GHC -Wwarn #-}
 
@@ -56,33 +55,33 @@ deepRecordState :: Bool -> Term
 deepRecordState False = mkId "Present"
 deepRecordState True  = mkId "Taken"
 
-deepTypeInner :: (?namemod :: NameMod) =>  TypeAbbrevs -> CC.Type t -> Term
-deepTypeInner ta (TVar v) = mkApp (mkId "TVar") [deepIndex v]
-deepTypeInner ta (TVarBang v) = mkApp (mkId "TVarBang") [deepIndex v]
-deepTypeInner ta (TCon tn ts s) = mkApp (mkId "TCon") [mkString tn, mkList (map (deepType ta) ts), deepSigil s]
-deepTypeInner ta (TFun ti to) = mkApp (mkId "TFun") [deepType ta ti, deepType ta to]
-deepTypeInner ta (TPrim pt) = mkApp (mkId "TPrim") [deepPrimType pt]
-deepTypeInner ta (TString) = mkApp (mkId "TPrim") [mkId "String"]
-deepTypeInner ta (TSum alts)
+deepTypeInner :: NameMod -> TypeAbbrevs -> CC.Type t -> Term
+deepTypeInner mod ta (TVar v) = mkApp (mkId "TVar") [deepIndex v]
+deepTypeInner mod ta (TVarBang v) = mkApp (mkId "TVarBang") [deepIndex v]
+deepTypeInner mod ta (TCon tn ts s) = mkApp (mkId "TCon") [mkString tn, mkList (map (deepType mod ta) ts), deepSigil s]
+deepTypeInner mod ta (TFun ti to) = mkApp (mkId "TFun") [deepType mod ta ti, deepType mod ta to]
+deepTypeInner mod ta (TPrim pt) = mkApp (mkId "TPrim") [deepPrimType pt]
+deepTypeInner mod ta (TString) = mkApp (mkId "TPrim") [mkId "String"]
+deepTypeInner mod ta (TSum alts)
   = mkApp (mkId "TSum")
-          [mkList $ map (\(n,(t,b)) -> mkPair (mkString n) (mkPair (deepType ta t) (deepVariantState b))) $ sort alts]
-deepTypeInner ta (TProduct t1 t2) = mkApp (mkId "TProduct") [deepType ta t1, deepType ta t2]
-deepTypeInner ta (TRecord fs s) = mkApp (mkId "TRecord") [mkList $ map (\(fn,(t,b)) -> mkPair (mkString fn) (mkPair (deepType ta t) (deepRecordState b))) fs, deepSigil s]
-deepTypeInner ta (TUnit) = mkId "TUnit"
-deepTypeInner _ t = __impossible $ "deepTypeInner: " ++ show (pretty t) ++ " is not yet implemented"
+          [mkList $ map (\(n,(t,b)) -> mkPair (mkString n) (mkPair (deepType mod ta t) (deepVariantState b))) $ sort alts]
+deepTypeInner mod ta (TProduct t1 t2) = mkApp (mkId "TProduct") [deepType mod ta t1, deepType mod ta t2]
+deepTypeInner mod ta (TRecord fs s) = mkApp (mkId "TRecord") [mkList $ map (\(fn,(t,b)) -> mkPair (mkString fn) (mkPair (deepType mod ta t) (deepRecordState b))) fs, deepSigil s]
+deepTypeInner mod ta (TUnit) = mkId "TUnit"
+deepTypeInner _ _ t = __impossible $ "deepTypeInner: " ++ show (pretty t) ++ " is not yet implemented"
 
-mkAbbrevNm :: (?namemod :: NameMod) =>  Int -> String
-mkAbbrevNm n = ?namemod $ "abbreviatedType" ++ show n
+mkAbbrevNm :: NameMod -> Int -> String
+mkAbbrevNm mod n = mod $ "abbreviatedType" ++ show n
 
-mkAbbrevId :: (?namemod :: NameMod) =>  Int -> Term
-mkAbbrevId = mkId . mkAbbrevNm
+mkAbbrevId :: NameMod -> Int -> Term
+mkAbbrevId = (mkId .) . mkAbbrevNm
 
-deepType :: (?namemod :: NameMod) =>  TypeAbbrevs -> CC.Type t -> Term
-deepType ta t = case Map.lookup term (fst ta) of
-    Just n -> mkAbbrevId n
+deepType :: NameMod -> TypeAbbrevs -> CC.Type t -> Term
+deepType mod ta t = case Map.lookup term (fst ta) of
+    Just n -> mkAbbrevId mod n
     Nothing -> term
   where
-    term = deepTypeInner ta t
+    term = deepTypeInner mod ta t
 
 deepPrimType :: PrimInt -> Term
 deepPrimType U8  = mkApp (mkId "Num") [mkId "U8" ]
@@ -127,23 +126,23 @@ deepPrimOp CS.LShift t = mkApp (mkId "LShift") [deepNumType t]
 deepPrimOp CS.RShift t = mkApp (mkId "RShift") [deepNumType t]
 deepPrimOp CS.Complement t = mkApp (mkId "Complement") [deepNumType t]
 
-deepExpr :: (Pretty a, (?namemod :: NameMod)) =>  TypeAbbrevs -> [Definition TypedExpr a] -> TypedExpr t v a -> Term
-deepExpr ta defs (TE _ (Variable v)) = mkApp (mkId "Var") [deepIndex (fst v)]
-deepExpr ta defs (TE _ (Fun fn ts _))
-  | concreteFun fn = mkApp (mkId "Fun")  [mkId (?namemod fn), mkList (map (deepType ta) ts)]
-  | otherwise      = mkApp (mkId "AFun") [mkString fn, mkList (map (deepType ta) ts)]
+deepExpr :: (Pretty a) => NameMod -> TypeAbbrevs -> [Definition TypedExpr a] -> TypedExpr t v a -> Term
+deepExpr mod ta defs (TE _ (Variable v)) = mkApp (mkId "Var") [deepIndex (fst v)]
+deepExpr mod ta defs (TE _ (Fun fn ts _))
+  | concreteFun fn = mkApp (mkId "Fun")  [mkId (mod fn), mkList (map (deepType mod ta) ts)]
+  | otherwise      = mkApp (mkId "AFun") [mkString fn, mkList (map (deepType mod ta) ts)]
   where concreteFun f = any (\def -> isFuncId f def && case def of FunDef{} -> True; _ -> False) defs
-deepExpr ta defs (TE _ (Op opr es))
+deepExpr mod ta defs (TE _ (Op opr es))
   = mkApp (mkId "Prim") [deepPrimOp opr (let TPrim pt = exprType $ head es in pt),
-                         mkList (map (deepExpr ta defs) es)]
-deepExpr ta defs (TE _ (App f arg))
-  = mkApp (mkId "App") [deepExpr ta defs f, deepExpr ta defs arg]
-deepExpr ta defs (TE (TSum alts) (Con cn e _))
-  = mkApp (mkId "Con") [mkList t', mkString cn, deepExpr ta defs e]
-  where t' = map (\(c,(t,b)) -> mkPair (mkString c) (mkPair (deepType ta t) (deepVariantState b))) alts
-deepExpr _ _ (TE _ (Con _ _ _)) = __impossible "deepExpr: Con"
-deepExpr ta defs (TE _ (Promote ty e))
-  = mkApp (mkId "Promote") [deepType ta ty, deepExpr ta defs e]
+                         mkList (map (deepExpr mod ta defs) es)]
+deepExpr mod ta defs (TE _ (App f arg))
+  = mkApp (mkId "App") [deepExpr mod ta defs f, deepExpr mod ta defs arg]
+deepExpr mod ta defs (TE (TSum alts) (Con cn e _))
+  = mkApp (mkId "Con") [mkList t', mkString cn, deepExpr mod ta defs e]
+  where t' = map (\(c,(t,b)) -> mkPair (mkString c) (mkPair (deepType mod ta t) (deepVariantState b))) alts
+deepExpr _ _ _ (TE _ (Con _ _ _)) = __impossible "deepExpr: Con"
+deepExpr mod ta defs (TE _ (Promote ty e))
+  = mkApp (mkId "Promote") [deepType mod ta ty, deepExpr mod ta defs e]
   -- = deepExpr mod ta defs e
 --   | TE (TPrim pt) _ <- e, TPrim pt' <- ty, pt /= Boolean
 --   = mkApp (mkId "Cast") [deepNumType pt', deepExpr mod ta defs e]  -- primInt cast
@@ -151,71 +150,71 @@ deepExpr ta defs (TE _ (Promote ty e))
 --   = mkApp (mkId "Con") [mkList $ map (\(an,(at,_)) -> mkPair (mkString an) (deepType mod ta at)) as, mkString cn, deepExpr mod ta defs v]  -- inlined Con
 --   | TSum as <- ty = mkApp (mkId "Promote") [mkList $ map (\(an,(at,_)) -> mkPair (mkString an) (deepType mod ta at)) as, deepExpr mod ta defs e]  -- FIMXE: cogent.1
 --   | otherwise = __impossible "deepExpr"
-deepExpr ta defs (TE _ (Struct fs))
-  = mkApp (mkId "Struct") [mkList (map (deepType ta . exprType . snd) fs),
-                           mkList (map (deepExpr ta defs . snd) fs)]
-deepExpr ta defs (TE _ (Member e fld))
-  = mkApp (mkId "Member") [deepExpr ta defs e, mkInt (fromIntegral fld)]
-deepExpr ta defs (TE _ (Unit)) = mkId "Unit"
-deepExpr ta defs (TE _ (ILit n pt)) = mkApp (mkId "Lit") [deepILit n pt]
-deepExpr ta defs (TE _ (SLit s)) = __fixme $ mkApp (mkId "SLit") [mkString s]  -- FIXME: there's no @SLit@ in the Isabelle definition at the moment / zilinc
-deepExpr ta defs (TE _ (Tuple e1 e2))
-  = mkApp (mkId "Tuple") [deepExpr ta defs e1, deepExpr ta defs e2]
-deepExpr ta defs (TE _ (Put rec fld e))
-  = mkApp (mkId "Put") [deepExpr ta defs rec, mkInt (fromIntegral fld), deepExpr ta defs e]
-deepExpr ta defs (TE _ (Let _ e1 e2))
-  = mkApp (mkId "Let") [deepExpr ta defs e1, deepExpr ta defs e2]
-deepExpr ta defs (TE _ (LetBang vs _ e1 e2))
+deepExpr mod ta defs (TE _ (Struct fs))
+  = mkApp (mkId "Struct") [mkList (map (deepType mod ta . exprType . snd) fs),
+                           mkList (map (deepExpr mod ta defs . snd) fs)]
+deepExpr mod ta defs (TE _ (Member e fld))
+  = mkApp (mkId "Member") [deepExpr mod ta defs e, mkInt (fromIntegral fld)]
+deepExpr mod ta defs (TE _ (Unit)) = mkId "Unit"
+deepExpr mod ta defs (TE _ (ILit n pt)) = mkApp (mkId "Lit") [deepILit n pt]
+deepExpr mod ta defs (TE _ (SLit s)) = __fixme $ mkApp (mkId "SLit") [mkString s]  -- FIXME: there's no @SLit@ in the Isabelle definition at the moment / zilinc
+deepExpr mod ta defs (TE _ (Tuple e1 e2))
+  = mkApp (mkId "Tuple") [deepExpr mod ta defs e1, deepExpr mod ta defs e2]
+deepExpr mod ta defs (TE _ (Put rec fld e))
+  = mkApp (mkId "Put") [deepExpr mod ta defs rec, mkInt (fromIntegral fld), deepExpr mod ta defs e]
+deepExpr mod ta defs (TE _ (Let _ e1 e2))
+  = mkApp (mkId "Let") [deepExpr mod ta defs e1, deepExpr mod ta defs e2]
+deepExpr mod ta defs (TE _ (LetBang vs _ e1 e2))
   = let vs' = mkApp (mkId "set") [mkList $ map (deepIndex . fst) vs]
-     in mkApp (mkId "LetBang") [vs', deepExpr ta defs e1, deepExpr ta defs e2]
-deepExpr ta defs (TE _ (Case e tag (l1,_,e1) (l2,_,e2)))
-  = mkApp (mkId "Case") [deepExpr ta defs e,
+     in mkApp (mkId "LetBang") [vs', deepExpr mod ta defs e1, deepExpr mod ta defs e2]
+deepExpr mod ta defs (TE _ (Case e tag (l1,_,e1) (l2,_,e2)))
+  = mkApp (mkId "Case") [deepExpr mod ta defs e,
                          mkString tag,
-                         deepExpr ta defs e1,
-                         deepExpr ta defs e2]
-deepExpr ta defs (TE _ (Esac e)) = mkApp (mkId "Esac") [deepExpr ta defs e]
-deepExpr ta defs (TE _ (If c th el)) = mkApp (mkId "If") $ map (deepExpr ta defs) [c, th, el]
-deepExpr ta defs (TE _ (Take _ rec fld e))
-  = mkApp (mkId "Take") [deepExpr ta defs rec, mkInt (fromIntegral fld), deepExpr ta defs e]
-deepExpr ta defs (TE _ (Split _ e1 e2))
-  = mkApp (mkId "Split") [deepExpr ta defs e1, deepExpr ta defs e2]
-deepExpr ta defs (TE _ (Cast t e))
+                         deepExpr mod ta defs e1,
+                         deepExpr mod ta defs e2]
+deepExpr mod ta defs (TE _ (Esac e)) = mkApp (mkId "Esac") [deepExpr mod ta defs e]
+deepExpr mod ta defs (TE _ (If c th el)) = mkApp (mkId "If") $ map (deepExpr mod ta defs) [c, th, el]
+deepExpr mod ta defs (TE _ (Take _ rec fld e))
+  = mkApp (mkId "Take") [deepExpr mod ta defs rec, mkInt (fromIntegral fld), deepExpr mod ta defs e]
+deepExpr mod ta defs (TE _ (Split _ e1 e2))
+  = mkApp (mkId "Split") [deepExpr mod ta defs e1, deepExpr mod ta defs e2]
+deepExpr mod ta defs (TE _ (Cast t e))
   | TE (TPrim pt) _ <- e, TPrim pt' <- t, pt /= Boolean
-  = mkApp (mkId "Cast") [deepNumType pt', deepExpr ta defs e]
-deepExpr ta defs (TE _ e) = __todo $ "deepExpr: " ++ show (pretty e)
+  = mkApp (mkId "Cast") [deepNumType pt', deepExpr mod ta defs e]
+deepExpr mod ta defs (TE _ e) = __todo $ "deepExpr: " ++ show (pretty e)
 
 deepKind :: Kind -> Term
 deepKind (K e s d) = ListTerm "{" [ mkId str | (sig, str) <- [(e, "E"), (s, "S"), (d, "D")], sig ] "}"
 
-deepPolyType :: (?namemod :: NameMod) =>  TypeAbbrevs -> FunctionType -> Term
-deepPolyType ta (FT ks ti to) = mkPair (mkList $ map deepKind $ cvtToList ks)
-                                           (mkPair (deepType ta ti) (deepType ta to))
+deepPolyType :: NameMod -> TypeAbbrevs -> FunctionType -> Term
+deepPolyType mod ta (FT ks ti to) = mkPair (mkList $ map deepKind $ cvtToList ks)
+                                           (mkPair (deepType mod ta ti) (deepType mod ta to))
 
 imports :: TheoryImports
 imports = TheoryImports $ [__cogent_root_dir </> "cogent/isa/Cogent"]
 
-deepDefinition :: (?namemod :: NameMod) =>  TypeAbbrevs -> [Definition TypedExpr a] -> Definition TypedExpr a ->
+deepDefinition :: NameMod -> TypeAbbrevs -> [Definition TypedExpr a] -> Definition TypedExpr a ->
                     [TheoryDecl I.Type I.Term] -> [TheoryDecl I.Type I.Term]
-deepDefinition ta defs (FunDef _ fn ks ti to e) decls =
-    let ty = deepPolyType ta $ FT (fmap snd ks) ti to
-        tn = ?namemod fn ++ "_type"
+deepDefinition mod ta defs (FunDef _ fn ks ti to e) decls =
+    let ty = deepPolyType mod ta $ FT (fmap snd ks) ti to
+        tn = mod fn ++ "_type"
         tysig = [isaType| Cogent.kind list \<times> Cogent.type \<times> Cogent.type |]
         tydecl = [isaDecl| definition $tn :: "$tysig" where "$(mkId tn) \<equiv> $ty" |]
-        e' = deepExpr ta defs e
+        e' = deepExpr mod ta defs e
         fntysig = AntiType "string Cogent.expr"
-        fn' = ?namemod fn
+        fn' = mod fn
         decl = [isaDecl| definition $fn' :: "$fntysig" where "$(mkId fn') \<equiv> $e'" |]
      in tydecl:decl:decls
-deepDefinition ta _ (AbsDecl _ fn ks ti to) decls =
-    let ty = deepPolyType ta $ FT (fmap snd ks) ti to
-        tn = ?namemod fn ++ "_type"
+deepDefinition mod ta _ (AbsDecl _ fn ks ti to) decls =
+    let ty = deepPolyType mod ta $ FT (fmap snd ks) ti to
+        tn = mod fn ++ "_type"
         tysig = [isaType| Cogent.kind list \<times> Cogent.type \<times> Cogent.type |]
         tydecl = [isaDecl| definition $tn :: "$tysig" where "$(mkId tn) \<equiv> $ty" |]
      in tydecl:decls
-deepDefinition _ _ _ decls = decls
+deepDefinition _ _ _ _ decls = decls
 
-deepDefinitions :: (?namemod :: NameMod) =>  TypeAbbrevs -> [Definition TypedExpr a] -> [TheoryDecl I.Type I.Term]
-deepDefinitions ta defs = foldr (deepDefinition ta defs) [] defs ++
+deepDefinitions :: NameMod -> TypeAbbrevs -> [Definition TypedExpr a] -> [TheoryDecl I.Type I.Term]
+deepDefinitions mod ta defs = foldr (deepDefinition mod ta defs) [] defs ++
                               [TheoryString $
                                "ML {*\n" ++
                                "val Cogent_functions = " ++ show (cogentFuns defs) ++ "\n" ++
@@ -237,49 +236,49 @@ scanAggregates (TProduct t1 t2) = scanAggregates t1 ++ scanAggregates t2
 scanAggregates (TRecord fs s) = concatMap (scanAggregates . fst . snd) fs ++ [TRecord fs s]
 scanAggregates _ = []
 
-addTypeAbbrev :: (?namemod :: NameMod) =>  CC.Type t -> TypeAbbrevs -> TypeAbbrevs
-addTypeAbbrev t ta = case Map.lookup term (fst ta) of
+addTypeAbbrev :: NameMod -> CC.Type t -> TypeAbbrevs -> TypeAbbrevs
+addTypeAbbrev mod t ta = case Map.lookup term (fst ta) of
     Just s -> ta
     Nothing -> (Map.insert term (snd ta) (fst ta), snd ta + 1)
   where
-    term = deepTypeInner ta t
+    term = deepTypeInner mod ta t
 
-getDefTypeAbbrevs :: (?namemod :: NameMod) =>  Definition TypedExpr a -> TypeAbbrevs -> TypeAbbrevs
-getDefTypeAbbrevs (FunDef _ _ _ ti to e) ta = foldr addTypeAbbrev ta
+getDefTypeAbbrevs :: NameMod -> Definition TypedExpr a -> TypeAbbrevs -> TypeAbbrevs
+getDefTypeAbbrevs mod (FunDef _ _ _ ti to e) ta = foldr (addTypeAbbrev mod) ta
     (scanAggregates ti ++ scanAggregates to)
-getDefTypeAbbrevs _ ta = ta
+getDefTypeAbbrevs _ _ ta = ta
 
-getTypeAbbrevs :: (?namemod :: NameMod) => [Definition TypedExpr a] -> TypeAbbrevs
-getTypeAbbrevs defs = foldr getDefTypeAbbrevs (Map.empty, 1) defs
+getTypeAbbrevs :: NameMod -> [Definition TypedExpr a] -> TypeAbbrevs
+getTypeAbbrevs mod defs = foldr (getDefTypeAbbrevs mod) (Map.empty, 1) defs
 
-deepTypeAbbrev :: (?namemod :: NameMod) =>  (Int, Term) -> TheoryDecl I.Type I.Term
-deepTypeAbbrev (n, tm) = let
-    nm = mkAbbrevNm n
+deepTypeAbbrev :: NameMod -> (Int, Term) -> TheoryDecl I.Type I.Term
+deepTypeAbbrev mod (n, tm) = let
+    nm = mkAbbrevNm mod n
     tysig = [isaType| Cogent.type |]
   in [isaDecl| definition $nm :: "$tysig" where "$(mkId nm) \<equiv> $tm" |]
 
 typeAbbrevBucketName = "abbreviated_type_defs"
 
-typeAbbrevDefsLemma :: (?namemod :: NameMod) =>  TypeAbbrevs -> TheoryDecl I.Type I.Term
-typeAbbrevDefsLemma ta = let
+typeAbbrevDefsLemma :: NameMod -> TypeAbbrevs -> TheoryDecl I.Type I.Term
+typeAbbrevDefsLemma mod ta = let
     defTD = \n -> O.TheoremDecl { thmName = Just n, thmAttributes = [] }
-    nms = [mkAbbrevNm n ++ "_def" | (_, n) <- Map.toList (fst ta)]
+    nms = [mkAbbrevNm mod n ++ "_def" | (_, n) <- Map.toList (fst ta)]
   in O.LemmasDecl (O.Lemmas { lemmasName = defTD typeAbbrevBucketName,
                               lemmasThms = map defTD (if null nms then ["TrueI"] else nms) })
 
-deepTypeAbbrevs :: (?namemod :: NameMod) =>  TypeAbbrevs -> [TheoryDecl I.Type I.Term]
-deepTypeAbbrevs ta = map deepTypeAbbrev defs ++ [typeAbbrevDefsLemma ta]
+deepTypeAbbrevs :: NameMod -> TypeAbbrevs -> [TheoryDecl I.Type I.Term]
+deepTypeAbbrevs mod ta = map (deepTypeAbbrev mod) defs ++ [typeAbbrevDefsLemma mod ta]
   where
     defs = sort $ map (\(x, y) -> (y, x)) $ Map.toList (fst ta)
 
-deepDefinitionsAbb :: (?namemod :: NameMod) =>  [Definition TypedExpr a] -> (TypeAbbrevs, [TheoryDecl I.Type I.Term])
-deepDefinitionsAbb defs = (ta, deepTypeAbbrevs ta ++ deepDefinitions ta defs)
-  where ta = getTypeAbbrevs defs
+deepDefinitionsAbb :: NameMod -> [Definition TypedExpr a] -> (TypeAbbrevs, [TheoryDecl I.Type I.Term])
+deepDefinitionsAbb mod defs = (ta, deepTypeAbbrevs mod ta ++ deepDefinitions mod ta defs)
+  where ta = getTypeAbbrevs mod defs
 
-deepFile :: (?namemod :: NameMod) =>  String -> [Definition TypedExpr a] -> Theory I.Type I.Term
-deepFile thy defs = Theory thy imports (snd (deepDefinitionsAbb defs))
+deepFile :: NameMod -> String -> [Definition TypedExpr a] -> Theory I.Type I.Term
+deepFile mod thy defs = Theory thy imports (snd (deepDefinitionsAbb mod defs))
 
 deep :: String -> Stage -> [Definition TypedExpr a] -> String -> Doc
 deep thy stg defs log = string ("(*\n" ++ log ++ "\n*)\n") <$>
-                        let ?namemod = id in pretty (deepFile thy defs)
+                        pretty (deepFile id thy defs)
 

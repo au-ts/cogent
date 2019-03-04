@@ -16,7 +16,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {- LANGUAGE QuasiQuotes -}
@@ -691,9 +690,8 @@ parseArgs args = case getOpt' Permute options args of
             tpfile = mkThyFileName source suf
             tpthy  = thy ++ suf
         writeFileMsg tpfile
-        let ?namemod = id
         output tpfile $ flip LJ.hPutDoc $
-          deepTypeProof __cogent_ftp_with_decls __cogent_ftp_with_bodies tpthy nfed' log
+          deepTypeProof id __cogent_ftp_with_decls __cogent_ftp_with_bodies tpthy nfed' log
       shallowTypeNames <-
         genShallow cmds source stg nfed' typedefs fts log (Shallow stg `elem` cmds,
                                                            SCorres stg `elem` cmds,
@@ -757,8 +755,7 @@ parseArgs args = case getOpt' Permute options args of
             let tpfile = mkThyFileName source __cogent_suffix_of_type_proof
                 tpthy  = mkProofName source (Just __cogent_suffix_of_type_proof)
             writeFileMsg tpfile
-            let ?namemod = ("isa_" ++)
-            output tpfile $ flip LJ.hPutDoc $ deepTypeProof __cogent_ftp_with_decls __cogent_ftp_with_bodies tpthy monoed' log
+            output tpfile $ flip LJ.hPutDoc $ deepTypeProof ("isa_" ++) __cogent_ftp_with_decls __cogent_ftp_with_bodies tpthy monoed' log
           when (AllRefine `elem` cmds) $ do
             let arfile = mkThyFileName source __cogent_suffix_of_all_refine
             writeFileMsg arfile
