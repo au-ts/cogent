@@ -31,7 +31,9 @@ checkType (TSum alts)          = all checkType $ fmap (fst . snd) alts
 checkType (TCon _ ts _)        = all checkType ts
 checkType (TFun t1 t2)         = all checkType [t1, t2]
 checkType (TProduct t1 t2)     = all checkType [t1, t2]
+#if BUILTIN_ARRAYS
 checkType (TArray t _)         = checkType t
+#endif
 checkType _                    = True
 
 

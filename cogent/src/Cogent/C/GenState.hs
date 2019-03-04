@@ -50,32 +50,33 @@ import           Cogent.Inference             (kindcheck_)
 import           Cogent.Isabelle.Deep
 import           Cogent.Mono                  (Instance)
 import           Cogent.Normal                (isAtom)
-import           Cogent.Util           (decap, extTup2l, extTup3r, first3, secondM, toCName, whenM)
+import           Cogent.Util           (decap, extTup2l, extTup3r, first3, flip3, secondM, toCName, whenM)
 import qualified Data.DList          as DList
 import           Data.Nat            as Nat
 import           Data.Vec            as Vec hiding (repeat, zipWith)
 
 import           Control.Applicative          hiding (empty)
 import           Control.Arrow                       ((***), (&&&), second)
-import           Control.Lens                 hiding (at, assign)
 import           Control.Monad.RWS.Strict     hiding (mapM, mapM_, Dual, (<>), Product, Sum)
 import           Data.Char                    (isAlphaNum, toUpper)
 #if __GLASGOW_HASKELL__ < 709
 import           Data.Foldable                (mapM_)
 #endif
 import           Data.Functor.Compose
-import           Data.Function.Flippers       (flip3)
 import qualified Data.List           as L
 import           Data.Loc                     (noLoc)  -- FIXME: remove
 import qualified Data.Map            as M
 import           Data.Maybe                   (catMaybes, fromJust)
 import           Data.Monoid                  ((<>))
-import           Data.Semigroup.Monad
+-- import           Data.Semigroup.Monad
 -- import           Data.Semigroup.Reducer       (foldReduce)
 import qualified Data.Set            as S
 import           Data.String
 import           Data.Traversable             (mapM)
 import           Data.Tuple                   (swap)
+import           Lens.Micro                  hiding (at)
+import           Lens.Micro.Mtl              hiding (assign)
+import           Lens.Micro.TH
 #if __GLASGOW_HASKELL__ < 709
 import           Prelude             as P    hiding (mapM, mapM_)
 #else
@@ -218,7 +219,9 @@ lookupTypeCId (TSum fs) = getCompose (Compose . lookupStrlTypeCId =<< Variant . 
 lookupTypeCId (TFun t1 t2) = getCompose (Compose . lookupStrlTypeCId =<< Function <$> (Compose . lookupType) t1 <*> (Compose . lookupType) t2)  -- Use the enum type for function dispatching
 lookupTypeCId (TRecord fs Unboxed) = getCompose (Compose . lookupStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> (Compose . lookupType) b) fs))
 lookupTypeCId cogentType@(TRecord _ (Boxed _ _)) = lookupStrlTypeCId (BoxedRecord (StrlCogentType cogentType))
+#if BUILTIN_ARRAYS
 lookupTypeCId (TArray t l) = getCompose (Compose . lookupStrlTypeCId =<< Array <$> (Compose . lookupType) t <*> pure (Just $ fromIntegral l))
+#endif
 lookupTypeCId t = Just <$> typeCId t
 
 -- XXX | -- NOTE: (Monad (Gen v), Reducer (Maybe a) (First a)) => Reducer (Gen v (Maybe a)) (Mon (Gen v) (First a)) / zilinc
@@ -271,7 +274,9 @@ typeCId t = use custTypeGen >>= \ctg ->
     typeCId' (TRecord fs Unboxed) = getStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs)
     typeCId' cogentType@(TRecord _ (Boxed _ _)) = getStrlTypeCId (BoxedRecord (StrlCogentType cogentType))
     typeCId' (TUnit) = return unitT
+#if BUILTIN_ARRAYS
     typeCId' (TArray t l) = getStrlTypeCId =<< Array <$> genType t <*> pure (Just $ fromIntegral l)
+#endif
 
     typeCIdFlat :: CC.Type 'Zero -> Gen v CId
     typeCIdFlat (TProduct t1 t2) = do
@@ -301,7 +306,9 @@ typeCId t = use custTypeGen >>= \ctg ->
     isUnstable (TProduct {}) = True
     isUnstable (TSum _) = True
     isUnstable (TRecord {}) = True
+#if BUILTIN_ARRAYS
     isUnstable (TArray {}) = True
+#endif
     isUnstable _ = False
 
 -- Made for Glue
@@ -316,7 +323,9 @@ absTypeCId _ = __impossible "absTypeCId"
 genType :: CC.Type 'Zero -> Gen v CType
 genType t@(TString)                    = CPtr . CIdent <$> typeCId t
 genType t@(TCon _ _ s)  | s /= Unboxed = CPtr . CIdent <$> typeCId t
+#if BUILTIN_ARRAYS
 genType   (TArray t l)                 = CArray <$> genType t <*> pure (CArraySize (mkConst U32 l))  -- c.f. genTypeP
+#endif
 genType t                              = CIdent <$> typeCId t
 
 -- The following two functions have different behaviours than the `genType' function
@@ -329,18 +338,24 @@ genTypeA t = genType t
 
 -- It will generate a pointer type for an array, instead of the static-sized array type
 genTypeP :: CC.Type 'Zero -> Gen v CType
+#if BUILTIN_ARRAYS
 genTypeP (TArray telm l) = CPtr <$> genTypeP telm
+#endif
 genTypeP t = genType t
 
 genTypeALit :: CC.Type 'Zero -> Gen v CType
+#if BUILTIN_ARRAYS
 genTypeALit (TArray t l) = CArray <$> (genType t) <*> pure (CArraySize (mkConst U32 l))
+#endif
 genTypeALit t = genType t
 
 lookupType :: CC.Type 'Zero -> Gen v (Maybe CType)
 lookupType t@(TRecord _ s) | s /= Unboxed = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
 lookupType t@(TString)                    = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
 lookupType t@(TCon _ _ s)  | s /= Unboxed = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
+#if BUILTIN_ARRAYS
 lookupType t@(TArray _ _)                 = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
+#endif
 lookupType t                              = getCompose (       CIdent <$> Compose (lookupTypeCId t))
 
 -- *****************************************************************************
