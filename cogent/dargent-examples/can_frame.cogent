@@ -1,0 +1,21 @@
+
+type SArr
+type CanId = { id : U32, eff : U32, rtr : U32, err : U32 }
+type CanFrame = { ident : CanId, prio : U8, dlc : U8, data : SArr }
+
+can_EID_BITS : U32
+can_EID_BITS = 18
+
+can_EID_MASK : U32
+can_EID_MASK = 0x3FFFF
+
+get_sid_eid : CanFrame! -> (U32, U32)
+get_sid_eid cframe =
+  let eff = cframe.ident.eff
+  and id = cframe.ident.id
+   in if | eff /= 0 -> let sid = id >>  can_EID_BITS
+                       and eid = id .&. can_EID_MASK
+                        in (sid, eid)
+         | else -> (id, 0)
+
+

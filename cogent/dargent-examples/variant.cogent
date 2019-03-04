@@ -1,0 +1,8 @@
+type T = <A U8 | B (S!)>
+type S = { f1 : U32, f2 : U64 }
+
+foo : T -> U64
+foo | A x -> upcast x
+    | B x -> upcast (x.f1) + x.f2
+
+
