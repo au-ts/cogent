@@ -2,7 +2,7 @@
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE NamedFieldPuns #-}
-module Cogent.DataLayout.Core where
+module Cogent.Dargent.Core where
   
 import Data.Map (Map)
 

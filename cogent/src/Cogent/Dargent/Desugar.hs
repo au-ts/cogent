@@ -1,4 +1,4 @@
-module Cogent.DataLayout.Desugar
+module Cogent.Dargent.Desugar
  ( desugarAbstractTypeSigil
  , desugarSigil
  -- Remaining exports for testing only
@@ -21,13 +21,13 @@ import Cogent.Common.Syntax         ( DataLayoutName
                                     , FieldName
                                     )
 import Cogent.Common.Types          ( Sigil(Unboxed, Boxed))
-import Cogent.DataLayout.Surface    ( DataLayoutExpr
+import Cogent.Dargent.Surface       ( DataLayoutExpr
                                     , DataLayoutSize
                                     , RepSize(Bytes, Bits, Add)
                                     , RepExpr(RepRef, Prim, Offset, Record, Variant)
                                     )
-import Cogent.DataLayout.TypeCheck  (desugarSize)
-import Cogent.DataLayout.Core
+import Cogent.Dargent.TypeCheck     (desugarSize)
+import Cogent.Dargent.Core
 import Cogent.Core                  ( Type (..)
                                     )
 
