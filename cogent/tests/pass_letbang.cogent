@@ -8,7 +8,7 @@
 -- @TAG(NICTA_GPL)
 --
 
-test5_body : ({ x : U32, y : U16 } take ()) 
-           -> < Fail (U32) 
-              | Success ({ x : U32, y : U16 } take (), U32) >
-test5_body (v) = Success (let (x') = (v.x) !v in (v, x'))
+test5_body : { x : U32, y : U16 } take ()
+          -> < Fail (U32) | Success ({ x : U32, y : U16 } take (), U32) >
+test5_body v = Success (let x' = (v.x) !v 
+                         in (v, x'))
