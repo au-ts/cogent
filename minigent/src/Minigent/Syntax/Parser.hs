@@ -12,7 +12,7 @@
 -- even though the Earley algorithm can handle ambiguous grammars, so that the parser can have
 -- good errors and fast performance.
 --
--- It can be imported unqualified or qualiifed, as there are very few exports.
+-- It can be imported unqualified or qualified, as there are very few exports.
 {-# LANGUAGE RecursiveDo #-}
 module Minigent.Syntax.Parser where
 
