@@ -92,6 +92,7 @@ library
               , Cogent.Parser
               , Cogent.PrettyPrint
               , Cogent.Preprocess
+              , Cogent.Quote
               , Cogent.Reorganizer
               , Cogent.ReprCheck
               , Cogent.Simplify
@@ -142,6 +143,7 @@ library
               , pretty-show-ansi-wl >= 1.5
               , srcloc >= 0.4
               , syb >= 0.4
+              , template-haskell
               , transformers >= 0.4.2
   if flag(haskell-backend)
     exposed-modules: Cogent.Haskell.FFIGen
