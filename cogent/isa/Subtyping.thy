@@ -118,36 +118,20 @@ proof (induct t)
     by (fastforce simp add: list_all3_same list_all_iff intro!: type_lub_type_glb.intros)+
 next
   case (TRecord ts s)
-(*
-  assume ts_wellformed: "K \<turnstile> TRecord ts s wellformed"
-  {
-    fix n t t1 t2 b b1 b2
-    assume assms1:
-      "(n, t, b) \<in> set ts"
-      "(n, t1, b1) \<in> set ts"
-      "(n, t2, b2) \<in> set ts"
-    moreover have "t1 = t" "t2 = t" "b1 = b" "b2 = b"
-      using assms1 ts_wellformed
-        distinct_fst[where xs=ts and b="(p, q)" and b'="(p', q')" for p q p' q']
-      by fastforce+
-    ultimately have
-      "b1 = b" "b2 = b"
-      "K \<turnstile> t \<leftarrow> t1 \<squnion> t2 \<and> (b = inf b1 b2)"
-      "K \<turnstile> t \<leftarrow> t1 \<sqinter> t2 \<and> (b = sup b1 b2)"
-      using TRecord ts_wellformed
-      by auto
-  }
-  then show
-    "K \<turnstile> TRecord ts s \<leftarrow> TRecord ts s \<squnion> TRecord ts s"
-    "K \<turnstile> TRecord ts s \<leftarrow> TRecord ts s \<sqinter> TRecord ts s"
-    using ts_wellformed
-    by (auto intro!: type_lub_type_glb.intros)
-*)
-  then show
-    "K \<turnstile> TRecord ts s \<leftarrow> TRecord ts s \<squnion> TRecord ts s"
-    "K \<turnstile> TRecord ts s \<leftarrow> TRecord ts s \<sqinter> TRecord ts s"
-    sorry
-qed (force intro: type_lub_type_glb.intros)+
+  moreover assume ts_wellformed: "K \<turnstile> TRecord ts s wellformed"
+  ultimately show
+  "K \<turnstile> TRecord ts s \<leftarrow> TRecord ts s \<squnion> TRecord ts s"
+  "K \<turnstile> TRecord ts s \<leftarrow> TRecord ts s \<sqinter> TRecord ts s"
+     apply -
+     apply (rule_tac lub_trecord)
+           apply (metis (no_types, lifting) fsts.intros wellformed_record_wellformed_elem list_all3_same snds.intros surjective_pairing)
+          apply (simp add: list_all3_same)
+         apply (simp+)[5]
+    apply (rule_tac glb_trecord)
+          apply (metis (no_types, lifting) fsts.intros wellformed_record_wellformed_elem list_all3_same snds.intros surjective_pairing)
+         apply (simp add: list_all3_same)
+    by (simp+)[5]
+qed (fastforce intro!: type_lub_type_glb.intros)+
 
 lemma type_lub_type_glb_commut:
   shows
