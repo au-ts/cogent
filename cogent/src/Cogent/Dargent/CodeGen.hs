@@ -1,6 +1,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE DataKinds #-}
-module Cogent.DataLayout.CodeGen where
+module Cogent.Dargent.CodeGen where
 
 import Cogent.C.Syntax
 import Cogent.Common.Syntax (FieldName)
@@ -26,7 +26,7 @@ import Cogent.Compiler
   ( __impossible
   , __todo
   )
-import Cogent.DataLayout.Core
+import Cogent.Dargent.Core
   ( AlignedBitRange (..)
   , DataLayout (..)
   , alignLayout
@@ -174,7 +174,7 @@ genBoxedGetterSetter boxType (TUnit) (UnitLayout) path getOrSet = do
   return (CVar functionName Nothing)
 
 genBoxedGetterSetter boxCType _ _ _ _ = __impossible $
-  "Cogent.DataLayout.CodeGen: genBoxedGetterSetter: Type checking should restrict the types which can be embedded in boxed records," ++
+  "Cogent.Dargent.CodeGen: genBoxedGetterSetter: Type checking should restrict the types which can be embedded in boxed records," ++
   "and ensure that the data layouts match the types."
 
 
@@ -657,7 +657,7 @@ getterSetterDecl boxType embeddedType functionName Set _ setStatements =
 sizeToMask :: Integer -> Integer
 sizeToMask n
   | 0 <= n && n <= wordSizeBits = 2^n - 1
-  | otherwise = __impossible $ "DataLayout.CodeGen: sizeToMask " ++ show n ++ ": n not in range [0, " ++ show wordSizeBits ++ "] after alignment"
+  | otherwise = __impossible $ "Dargent.CodeGen: sizeToMask " ++ show n ++ ": n not in range [0, " ++ show wordSizeBits ++ "] after alignment"
 
 {-|
 Saves the given setter or getter function

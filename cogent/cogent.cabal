@@ -71,12 +71,12 @@ library
               , Cogent.Compiler
               , Cogent.Context
               , Cogent.Core
-              , Cogent.DataLayout.Core
-              , Cogent.DataLayout.Surface
-              , Cogent.DataLayout.TypeCheck
-              , Cogent.DataLayout.Desugar
-              , Cogent.DataLayout.CoreTypeCheck
-              , Cogent.DataLayout.CodeGen
+              , Cogent.Dargent.Core
+              , Cogent.Dargent.Surface
+              , Cogent.Dargent.TypeCheck
+              , Cogent.Dargent.Desugar
+              , Cogent.Dargent.CoreTypeCheck
+              , Cogent.Dargent.CodeGen
               , Cogent.Desugar
               , Cogent.GetOpt
               , Cogent.Glue
