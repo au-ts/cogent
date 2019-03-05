@@ -1,11 +1,13 @@
 --
--- Copyright 2016, NICTA
+-- Copyright 2019, Data61
+-- Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+-- ABN 41 687 119 230.
 --
 -- This software may be distributed and modified according to the terms of
 -- the GNU General Public License version 2. Note that NO WARRANTY is provided.
 -- See "LICENSE_GPLv2.txt" for details.
 --
--- @TAG(NICTA_GPL)
+-- @TAG(DATA61_GPL)
 --
 
 maxChainSize: U32
@@ -45,7 +47,7 @@ chain_put_indirect: (SysState, Chain, Indirect, Depth) -> (SysState, Chain)
 chain_put_indirect (ex, chain, indirect, depth) =
   let chain_t { indirects } = chain
   and ic = chain_t.indirect_count !chain_t
-  and _ = cogent_assert2 ("chain_put_indirect: depth < ic", True)
+  and _ = cogent_assert (depth < ic)
   and ((ex, indirects), _) = array_replace[Indirect] #{ arr = indirects, idx = depth, elem = indirect, f = indirect_destroy2, ex }
   and chain = chain_t { indirects }
   in if depth >= ic
@@ -74,9 +76,9 @@ chain_get_indirect_blockptr (chain, depth) =
 
 chain_set_indirect_blockptr: (SysState, Chain, Depth, BlockPtr) -> (SysState, Chain)
 chain_set_indirect_blockptr (ex, chain, depth, ptr) =
-  let _ = cogent_assert2 ("chain_set_indirect_blockptr (1): depth < chain.indirect_count", True) !chain
+  let _ = cogent_assert (depth < chain.indirect_count) !chain
   and (chain, maybe_indirect) = chain_take_indirect (chain, depth)  -- we have checked depth is in bound in this func call
-  and _ = cogent_assert2 ("chain_set_indirect_blockptr (2): depth < chain.indirect_count", True) !chain
+  and _ = cogent_assert (depth < chain.indirect_count) !chain
   in maybe_indirect
   | Some indirect =>
       let indirect = indirect { blockptr = ptr }
@@ -303,9 +305,7 @@ chain_count_contiguous (ex, chain, inode, max_mappable, boundary) =
 
     and (ex, chain) = chain_put_indirect (ex, chain, last_indirect, last_idx) -- put indirect back
     in (ex, chain, contiguous)
-  | None ->
-    let _ = cogent_assert2 ("chain_count_contiguous: no indirects", True)
-    in (ex, chain, 0)
+  | None -> (ex, chain, 0)
 
 chain_count_contiguous2: Seq32_body U32 CheckContiguousObsv ()
 chain_count_contiguous2 #{ acc = contiguous, obsv = (chain, inode, maybe_buffer, last_ptr, last_offset), idx } =

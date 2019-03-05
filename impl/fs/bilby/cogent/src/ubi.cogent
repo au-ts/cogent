@@ -9,6 +9,7 @@
 --
 
 include <gum/common/common.cogent>
+include <gum/common/log.cogent>
 include <gum/common/buffer.cogent>
 include "bilbyfs.cogent"
 

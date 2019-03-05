@@ -12,6 +12,7 @@ include "bilbyfs.cogent"
 include <gum/common/allocpool.cogent>
 include <gum/common/list.cogent>
 include <gum/common/common.cogent>
+include <gum/common/log.cogent>
 include "ubi.cogent"
 include "index.cogent"
 include "fsm.cogent"

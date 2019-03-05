@@ -43,6 +43,7 @@ LINUX_ACFILES=$(addprefix $(STDGUM)/gum/anti/, \
 	ospage.ac \
 	osbuffer.ac \
 	iterator.ac \
+	log.ac \
 	dls.ac) \
 	plat/linux/wrapper.ac
 

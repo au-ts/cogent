@@ -1,11 +1,13 @@
 --
--- Copyright 2016, NICTA
+-- Copyright 2019, Data61
+-- Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+-- ABN 41 687 119 230.
 --
 -- This software may be distributed and modified according to the terms of
 -- the GNU General Public License version 2. Note that NO WARRANTY is provided.
 -- See "LICENSE_GPLv2.txt" for details.
 --
--- @TAG(NICTA_GPL)
+-- @TAG(DATA61_GPL)
 --
 
 type BlockPtr = U32
@@ -90,15 +92,14 @@ indirect_dereference: (Option OSBuffer!, VfsInode!, OSBufferOffset) -> BlockPtr
 indirect_dereference (maybe_buf, inode, offset) =
   maybe_buf
   | Some buf ->
-    --let _ = cogent_log "indirect_dereference: had buf\n"
     osbuffer_deserialise_Ple32 (buf, offset * 4)
     | Success (ptr, _) => ptr
-    | Error () -> let _ = cogent_assert2 ("indirect_read_blockptr_at: OOB on buffer", True) in 0
+    | Error () -> let _ = cogent_debug ("indirect_read_blockptr_at: OOB on buffer") in 0
   | None ->
     if offset < const_numBlockPointers then
       wordarray_get [BlockPtr] (inode.fs.block_pointers, offset)
     else
-      let _ = cogent_assert2 ("indirect_read_blockptr_at: OOB on block_pointers", True) in 0
+      let _ = cogent_debug ("indirect_read_blockptr_at: OOB on block_pointers") in 0
 
 indirect_set_blockptr: (Indirect, VfsInode, BlockPtr) -> (Indirect, VfsInode)
 indirect_set_blockptr (indirect, inode, ptr) =
@@ -119,7 +120,7 @@ indirect_set_reference (maybe_buf, inode, offset, ptr) =
     osbuffer_serialise_Ple32 (buf, offset * 4, ptr)
     | Success (buf, _) => (Some buf, inode)
     | Error buf ->
-      let _ = cogent_assert2 ("indirect_set_blockptr_at: OOB on buffer", True)
+      let _ = cogent_debug ("indirect_set_blockptr_at: OOB on buffer")
       in (Some buf, inode)
   | None ->
     if offset < const_numBlockPointers then
@@ -132,7 +133,7 @@ indirect_set_reference (maybe_buf, inode, offset, ptr) =
 
       in (None, inode)
     else
-      let _ = cogent_assert2 ("indirect_set_blockptr_at: OOB on block_pointers", True)
+      let _ = cogent_debug ("indirect_set_blockptr_at: OOB on block_pointers")
       in (None, inode)
 
 indirect_destroy2: (SysState, Indirect) -> SysState
@@ -155,7 +156,7 @@ splice_put_direct_blocks_buf r { idx, acc = (buf, ptr, offset) } =
   osbuffer_serialise_Ple32 (buf, offset, ptr)
   | Success (buf, _) => ((buf, ptr + 1, offset + 4), Iterate ())
   | Error buf ->
-    let _ = cogent_assert2 ("splice_put_direct_blocks_buf: OOB on buf", True)
+    let _ = cogent_debug ("splice_put_direct_blocks_buf: OOB on buf")
     in ((buf, ptr, offset), Iterate ())
 
 -- connects an allocated branch onto an inode
@@ -185,7 +186,7 @@ indirect_splice (ex, indirect, inode, iblock, num_direct, num_indirect) =
       and indirect = indirect_t { buf = Some buf }
       in indirect_splice_finish (ex, indirect, inode)
     | Error buf ->
-      let _ = cogent_assert2 ("indirect_splice: OOB on indirect buf", True)
+      let _ = cogent_debug ("indirect_splice: OOB on indirect buf")
       and indirect = indirect_t { buf = Some buf }
       in ((ex, indirect, inode), Error eIO) -- failed to serialise buffer
   | None ->

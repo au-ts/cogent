@@ -44,10 +44,6 @@ dbg_EXT2_INODE_WRITE = 1024
 dbg_EXT2_MOUNT: U32
 dbg_EXT2_MOUNT = 2048
 
-cogent_LOG_LEVEL: U32
-cogent_LOG_LEVEL = 0x0
-
-
 dispose_existing_dirent: (SysState, Option Ext2DirEnt) -> (SysState)
 dispose_existing_dirent (ex, maybe_de) =
     maybe_de

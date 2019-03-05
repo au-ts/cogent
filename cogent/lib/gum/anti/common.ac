@@ -1,5 +1,5 @@
 /*
- * Copyright 2018, Data61
+ * Copyright 2019, Data61
  * Commonwealth Scientific and Industrial Research Organisation (CSIRO)
  * ABN 41 687 119 230.
  *
@@ -78,40 +78,4 @@ u8 u64_to_u8(u64 x)
 u16 u64_to_u16(u64 x)
 {
         return (u16)x;
-}
-
-unit_t cogent_assert ($ty:(Bool) arg) {
-       unit_t ret;
-       BUG_ON(!arg.boolean);
-       return ret;
-}
-
-unit_t cogent_debug (char* str) {
-        unit_t ret;
-        printk("%s", str);
-        return ret;
-}
-
-unit_t cogent_debug_u32 (u32 arg) {
-        unit_t ret;
-        printk("%u", arg);
-        return ret;
-}
-
-unit_t cogent_debug_u64 (u64 arg) {
-        unit_t ret;
-        printk("%llu", arg);
-        return ret;
-}
-
-unit_t cogent_debug_u32_hex (u32 arg) {
-        unit_t ret;
-        printk("%x", arg);
-        return ret;
-}
-
-unit_t cogent_debug_u64_hex (u64 arg) {
-        unit_t ret;
-        printk("%llx", arg);
-        return ret;
 }
