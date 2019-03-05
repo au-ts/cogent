@@ -143,9 +143,9 @@ data Metadata = Reused { varName :: VarName, boundAt :: SourcePos, usedAt :: Seq
               | UsedInArrayIndexing
 #endif
               | UsedInLetBang
-              | TypeParam { functionName :: VarName, typeVarName :: VarName }
+              | TypeParam { functionName :: FunName, typeVarName :: TyVarName }
               | ImplicitlyTaken
-              | Constant { varName :: VarName }
+              | Constant { constName :: ConstName }
               deriving (Eq, Show, Ord)
 
 data Constraint = (:<) (TypeFragment TCType) (TypeFragment TCType)

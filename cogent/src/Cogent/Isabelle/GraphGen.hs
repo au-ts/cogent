@@ -48,7 +48,7 @@ data NextNode
 data GraphNode
     = GBasic NextNode [(String, GTyp, GExpr)]
     | GCond NextNode NextNode GExpr
-    | GCall NextNode CS.FunName [GExpr] [(String, GTyp)]
+    | GCall NextNode CS.CoreFunName [GExpr] [(String, GTyp)]
     deriving (Show)
 
 data FunctionGraph = FunctionGraph CS.FunName [(String, GTyp)] [(String, GTyp)] Graph
@@ -595,7 +595,7 @@ prettyGraph (Graph []) = ""
 prettyNode :: GraphNode -> String
 prettyNode (GBasic nn es) = "Basic " ++ prettyNN nn ++ " " ++ show(Prelude.length es) ++ " " ++ prettyBindings es
 prettyNode (GCond n1 n2 e) = "Cond " ++ prettyNN n1 ++ " " ++ prettyNN n2 ++ " " ++ prettyE e
-prettyNode (GCall nn s gs vs) = "Call " ++ prettyNN nn ++ " " ++ prettyFName s ++ " " ++ prettyList prettyE gs ++ "  " ++ prettyVars vs
+prettyNode (GCall nn s gs vs) = "Call " ++ prettyNN nn ++ " " ++ prettyFName (CS.coreFunName s) ++ " " ++ prettyList prettyE gs ++ "  " ++ prettyVars vs
 
 prettyFName :: CS.FunName -> String
 prettyFName s = "Cogent." ++ s

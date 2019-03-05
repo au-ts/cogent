@@ -16,9 +16,26 @@ type RepName     = String
 type FieldName   = String
 type TagName     = String
 type FunName     = String
+type ConstName   = String
 type VarName     = String
 type TyVarName   = String
 type TypeName    = String
+-- one of these was used incorrectly somewhere, find and fix
+
+newtype CoreFunName = CoreFunName { coreFunName :: String }
+  deriving (Eq, Show, Ord, Data)
+
+coreFunNameToIsabelleName :: CoreFunName -> String
+coreFunNameToIsabelleName (CoreFunName s) = s
+
+funNameToCoreFunName :: FunName -> CoreFunName
+funNameToCoreFunName = CoreFunName
+
+unsafeNameToCoreFunName :: String -> CoreFunName
+unsafeNameToCoreFunName = CoreFunName
+
+unsafeIsabelleNameToCoreFunName :: String -> CoreFunName
+unsafeIsabelleNameToCoreFunName = CoreFunName
 
 type FieldIndex = Int
 type ArrayIndex = Word32

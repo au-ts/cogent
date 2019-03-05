@@ -319,7 +319,7 @@ tcFnCall e = do
 
 genFn :: CC.TypedExpr 'Zero 'Zero VarName -> Gl CS.Exp
 genFn = genAnti $ \case
-  CC.TE t (CC.Fun fn _ _) -> return (CS.Var (CS.Id (CG.funEnum fn) noLoc) noLoc)
+  CC.TE t (CC.Fun fn _ _) -> return (CS.Var (CS.Id (CG.funEnum (coreFunName fn)) noLoc) noLoc)
   _ -> __impossible "genFn"
 
 genFnCall :: CC.Type 'Zero -> Gl CS.Exp
@@ -395,7 +395,7 @@ transFuncId :: CS.Definition -> GlMono t CS.Definition
 transFuncId (CS.FuncDef (CS.Func dcsp (CS.AntiId fn loc2) decl ps body loc1) loc0) =
   view (inst._2) >>= \idx -> do
     (fnName, _) <- lift . lift $ genFuncId fn loc2
-    return $ CS.FuncDef (CS.Func dcsp (CS.Id (toCName $ MN.monoName fnName idx) loc2) decl ps body loc1) loc0
+    return $ CS.FuncDef (CS.Func dcsp (CS.Id (toCName $ MN.monoName (unsafeNameToCoreFunName fn) idx) loc2) decl ps body loc1) loc0
 transFuncId d = return d
 
 genFuncId :: String -> SrcLoc -> GlFile (FunName, [Maybe SF.LocType])
@@ -682,7 +682,7 @@ analyseFuncId :: [(String, SrcLoc)] -> GlDefn t [(FunName, MN.Instance)]
 analyseFuncId ss = forM ss $ \(fn, loc) -> flip runReaderT (MonoState ([], Nothing)) $ do
   (CC.TE _ (CC.Fun fn' ts _)) <- monoExp =<< lift . coreTcExp =<< lift . desugarExp =<<
                                  lift . tcFnCall =<< (lift . lift) (parseFnCall fn loc)
-  return (fn', ts)
+  return (coreFunName fn', ts)
 
 collectOneFunc :: CS.Definition -> Gl ()
 collectOneFunc d = do

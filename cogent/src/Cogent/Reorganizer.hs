@@ -16,7 +16,7 @@
 
 module Cogent.Reorganizer where
 
-import Cogent.Common.Syntax
+import qualified Cogent.Common.Syntax as Syn
 import Cogent.Compiler (__impossible)
 import Cogent.Surface
 import Cogent.Util
@@ -35,9 +35,9 @@ data ReorganizeError = CyclicDependency
                      | DuplicateValueDefinition
                      | DuplicateRepDefinition
 
-data SourceObject = TypeName TypeName
-                  | ValName  VarName
-                  | RepName RepName
+data SourceObject = TypeName  Syn.TypeName
+                  | ValName   Syn.VarName
+                  | RepName   Syn.RepName
                   | DocBlock' String
                   deriving (Eq, Ord)
 

@@ -10,7 +10,7 @@
 
 module Cogent.Isabelle.CorresProof where
 
-import Cogent.Common.Syntax (FunName)
+import Cogent.Common.Syntax (CoreFunName, coreFunName)
 import Cogent.Compiler
 import Cogent.Util (toCName)
 
@@ -21,9 +21,9 @@ import Isabelle.OuterAST as O
 import System.FilePath ((</>))
 import qualified Text.PrettyPrint.ANSI.Leijen as L
 
-corresProof :: String -> String -> [FunName] -> Maybe [FunName] -> String -> L.Doc
+corresProof :: String -> String -> [CoreFunName] -> Maybe [CoreFunName] -> String -> L.Doc
 corresProof thy cfile fns ent log =
-  let fns' = map toCName fns
+  let fns' = map (toCName . coreFunName) fns
       header = (L.string ("(*\n" ++ log ++ "\n*)\n") L.<$>)
       theory = O.Theory { thyName = thy ++ __cogent_suffix_of_corres_proof
                         , thyImports = imports thy
@@ -85,7 +85,7 @@ setupFunctionValRel thy =
   , "*}"
   ]
 
-context :: String -> String -> [FunName] -> Maybe [FunName] -> [String]
+context :: String -> String -> [String] -> Maybe [CoreFunName] -> [String]
 context thy cfile fns ent =
   [ "context " ++ thy ++ " begin"
   , ""
@@ -128,7 +128,7 @@ context thy cfile fns ent =
   , "end (* of context *)"
   ]
 
-ttMap :: [FunName] -> [String]
+ttMap :: [String] -> [String]
 ttMap fns =
   [ "ML {*" ] ++
   (let eqns = [ "typing_tree_of \"" ++ fn ++ "\" = " ++ fn ++ "_typing_tree" | fn <- fns ] ++
@@ -201,7 +201,7 @@ checkHofHints =
   , "*}"
   ]
 
-cogentMainTree :: String -> Maybe [FunName] -> [String]
+cogentMainTree :: String -> Maybe [CoreFunName] -> [String]
 cogentMainTree thy ent =
   [ "ML {*"
   , "(* Abstract function names in the AST don't have theory prefixes *)"
@@ -216,7 +216,7 @@ cogentMainTree thy ent =
   ] ++ (case ent of
          Nothing ->   [ "val entry_func_names = Cogent_functions (* all functions *)" ]
          Just tlfs -> [ "val entry_func_names = [" ] ++
-                      lines (intercalate ",\n" (map (\tlf -> "      \"" ++ tlf ++ "\"") tlfs)) ++
+                      lines (intercalate ",\n" (map (\tlf -> "      \"" ++ tlf ++ "\"") (map coreFunName tlfs))) ++
                       [ "]" ]
        ) ++
   [ "val entry_funcs = Symtab.dest Cogent_main_tree"

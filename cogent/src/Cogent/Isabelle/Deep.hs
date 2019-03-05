@@ -129,9 +129,11 @@ deepPrimOp CS.Complement t = mkApp (mkId "Complement") [deepNumType t]
 deepExpr :: (Pretty a) => NameMod -> TypeAbbrevs -> [Definition TypedExpr a] -> TypedExpr t v a -> Term
 deepExpr mod ta defs (TE _ (Variable v)) = mkApp (mkId "Var") [deepIndex (fst v)]
 deepExpr mod ta defs (TE _ (Fun fn ts _))
-  | concreteFun fn = mkApp (mkId "Fun")  [mkId (mod fn), mkList (map (deepType mod ta) ts)]
-  | otherwise      = mkApp (mkId "AFun") [mkString fn, mkList (map (deepType mod ta) ts)]
-  where concreteFun f = any (\def -> isFuncId f def && case def of FunDef{} -> True; _ -> False) defs
+  | concreteFun fn = mkApp (mkId "Fun")  [mkId (mod (coreFunNameToIsabelleName fn)), mkList (map (deepType mod ta) ts)]
+  | otherwise      = mkApp (mkId "AFun") [mkString (coreFunNameToIsabelleName fn), mkList (map (deepType mod ta) ts)]
+  where
+    concreteFun :: CoreFunName -> Bool
+    concreteFun f = any (\def -> isFuncId f def && case def of FunDef{} -> True; _ -> False) defs
 deepExpr mod ta defs (TE _ (Op opr es))
   = mkApp (mkId "Prim") [deepPrimOp opr (let TPrim pt = exprType $ head es in pt),
                          mkList (map (deepExpr mod ta defs) es)]
