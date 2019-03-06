@@ -20,7 +20,6 @@ type ConstName   = String
 type VarName     = String
 type TyVarName   = String
 type TypeName    = String
--- one of these was used incorrectly somewhere, find and fix
 
 newtype CoreFunName = CoreFunName { coreFunName :: String }
   deriving (Eq, Show, Ord, Data)

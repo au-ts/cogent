@@ -395,7 +395,7 @@ transFuncId :: CS.Definition -> GlMono t CS.Definition
 transFuncId (CS.FuncDef (CS.Func dcsp (CS.AntiId fn loc2) decl ps body loc1) loc0) =
   view (inst._2) >>= \idx -> do
     (fnName, _) <- lift . lift $ genFuncId fn loc2
-    return $ CS.FuncDef (CS.Func dcsp (CS.Id (toCName $ MN.monoName (unsafeNameToCoreFunName fn) idx) loc2) decl ps body loc1) loc0
+    return $ CS.FuncDef (CS.Func dcsp (CS.Id (toCName $ MN.monoName (unsafeNameToCoreFunName fnName) idx) loc2) decl ps body loc1) loc0
 transFuncId d = return d
 
 genFuncId :: String -> SrcLoc -> GlFile (FunName, [Maybe SF.LocType])

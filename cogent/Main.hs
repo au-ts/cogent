@@ -827,7 +827,7 @@ parseArgs args = case getOpt' Permute options args of
       when cp $ do
         putProgressLn "Generating C-refinement proofs..."
         ent <- T.forM __cogent_entry_funcs $ (liftA parseEntryFuncs) . readFile  -- a simple parser
-        let corresProofThy = corresProof thy inputc (map SY.CoreFunName confns) (map CoreFunName <$> ent) log
+        let corresProofThy = corresProof thy inputc (map SY.CoreFunName confns) (map SY.CoreFunName <$> ent) log
         writeFileMsg cpfile
         output cpfile $ flip LJ.hPutDoc corresProofThy
 
