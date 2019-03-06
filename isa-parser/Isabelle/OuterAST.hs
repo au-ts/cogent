@@ -47,7 +47,7 @@ newtype TheoryImports = TheoryImports [TheoryImport] deriving (Data, Typeable, S
 type TheoryImport = String
 
 data TheoryDecl types terms = Definition    (Def types terms)
-                            | OverloadedDef (Def types terms)
+                            | OverloadedDef (Def types terms) (Sig types) -- def for specific fun name, and overloaded fun sig
                             | Abbreviation (Abbrev types terms)
                             | ContextDecl  (Context types terms)
                             | LemmaDecl    (Lemma types terms)
@@ -200,7 +200,7 @@ prettyThyDecls thyDecls = (vsepPad . map pretty $ thyDecls) <$$> empty
 instance (Pretty terms, Pretty types) => Pretty (TheoryDecl types terms) where
   pretty d = case d of
     Definition def      -> pretty def
-    OverloadedDef def   -> prettyOv def
+    OverloadedDef def sig -> prettyOv def sig
     Abbreviation abbrev -> pretty abbrev
     ContextDecl c       -> pretty c
     LemmaDecl d'        -> pretty d'
@@ -340,10 +340,22 @@ instance (Pretty terms, Pretty types) => Pretty (Def types terms) where
                     Just sig -> empty <$$> indent 2 (pretty sig) <$$> string "where" 
                     Nothing  -> empty
 
-prettyOv def =  string "defs (overloaded)" <> mbSig <$$> indent 2 (quote (pretty (defTerm def)))
-    where mbSig = case defSig def of 
-                    Just sig -> empty <$$> indent 2 (pretty sig) <$$> string ":" 
-                    Nothing  -> empty
+prettyOv specDef sig = string "overloading" <> mbSig
+                  <$$> string "begin"
+                  <$$> indent 2 mbDefn
+                  <$$> string "end"
+    where mbSig = case defSig specDef of 
+                    Just specSig ->
+                      empty
+                        <$$> indent 2 (pretty specSig)
+                          <> string " \\<equiv> "
+                          <> pretty sig
+                    _ -> empty
+          mbDefn =
+            case defSig specDef of 
+              Just specSig ->
+                string "definition " <> pretty specSig <> string ": " <> quote (pretty (defTerm specDef))
+              _ -> empty
 
 instance Pretty types => Pretty (Sig types) where
   pretty d = string (sigName d) <> mbTyp

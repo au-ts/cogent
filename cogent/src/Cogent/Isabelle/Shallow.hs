@@ -434,8 +434,10 @@ shallowTT (tidx, t) = do
           evarIsaList = I.mkList $ map I.mkId evarNames
           conjs = fieldConjValRel (P.zip (map I.mkId evarNames) (map (I.mkId . (prefix ++) . (++ subSymStr "f")) fs))
           valRelBody = I.QuantifiedTerm Exists (map I.Id evarNames) [isaTerm| v = VRecord $evarIsaList \<and> $conjs |]
-          valRelDef = OverloadedDef $ Def (Just (Sig ("valRel_" ++ nm) Nothing))
-                                       [isaTerm| valRel \<xi> (x :: $ity) v \<equiv> $valRelBody |]
+          valRelSpecName = "valRel_" ++ nm
+          valRelDef = OverloadedDef
+                        (Def (Just (Sig valRelSpecName Nothing)) [isaTerm| $(mkId valRelSpecName) \<xi> (x :: $ity) v \<equiv> $valRelBody |])
+                        (Sig "valRel" Nothing)
           valRel = if tuples && isRecTuple fs then [] else [(RecordT, valRelDef)]
       return (recdecls, valRel, [], defnames, newmap)
     VariantStr fs ->
@@ -448,8 +450,10 @@ shallowTT (tidx, t) = do
           valRelBody' (x:xs) = let tagName = I.ConstTerm $ I.StringLiteral x
                                 in I.TermApp (valRelBody' xs) [isaTerm|(\<lambda>x. \<exists>x'. v' = VSum $tagName x' \<and> valRel \<xi> x x') |]
           valRelBody = I.TermApp (valRelBody' $ reverse fs) [isaTerm| v |]
-          valRelDef = OverloadedDef $ Def (Just (Sig ("valRel_" ++ nm) Nothing))
-                                       [isaTerm| valRel \<xi> (v :: $ity) v' \<equiv> $valRelBody |]
+          valRelSpecName = "valRel_" ++ nm
+          valRelDef = OverloadedDef
+                        (Def (Just (Sig valRelSpecName Nothing)) [isaTerm| $(mkId valRelSpecName) \<xi> (v :: $ity) v' \<equiv> $valRelBody |])
+                        (Sig "valRel" Nothing)
           simpLemmas = map (simpLemma nm) fs
       in pure $ ([O.DataTypeDecl (Datatype nm cons tvars)], [(VariantT, valRelDef)], simpLemmas, [], newmap)
 
@@ -487,11 +491,11 @@ lemmaBuckets :: [(DeclT, TheoryDecl I.Type I.Term)] -> [TheoryDecl I.Type I.Term
 lemmaBuckets is =
   let (recs,variants) = P.unzip $ map lemmaBucket' is
    in lemmas "valRel_records" (concat recs) ++ lemmas "valRel_variants" (concat variants)
-  where lemmaBucket' ((RecordT, O.OverloadedDef d))
+  where lemmaBucket' ((RecordT, O.OverloadedDef d s))
            | Just (Sig n _) <- defSig d
            , n' <- drop (P.length "valRel_") n
            = ([ O.TheoremDecl (Just n) [], O.TheoremDecl (Just ( n' ++ ".defs")) []], [])
-        lemmaBucket' ((VariantT, O.OverloadedDef d))
+        lemmaBucket' ((VariantT, O.OverloadedDef d s))
            | Just (Sig n _) <- defSig d
            = ([], [ O.TheoremDecl (Just n) [] ])
         lemmaBucket' _ = ([],[])
