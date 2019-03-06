@@ -138,74 +138,32 @@ lemma type_lub_type_glb_commut:
   "K \<turnstile> c \<leftarrow> a \<squnion> b \<Longrightarrow> K \<turnstile> c \<leftarrow> b \<squnion> a"
   "K \<turnstile> c \<leftarrow> a \<sqinter> b \<Longrightarrow> K \<turnstile> c \<leftarrow> b \<sqinter> a"
 proof (induct rule: type_lub_type_glb.inducts)
-  case (lub_trecord ts ts1 ts2 s s2 s1)
-(*
+  case (lub_trecord K ts ts1 ts2 s s1 s2)
   then show ?case
-  proof (intro type_lub_type_glb.intros)
-    fix n t t1 t2 b b1 b2
-    assume
-      "(n, t, b) \<in> set ts"
-      "(n, t1, b1) \<in> set ts1"
-      "(n, t2, b2) \<in> set ts2"
-    then show "t \<leftarrow> t2 \<squnion> t1 \<and> b = inf b2 b1"
-      using lub_trecord
-      by (auto simp add: inf_commute)
-  qed simp+
+    apply (intro type_lub_type_glb.intros)
+    using list_all3_comm2 list_all3_mono apply fastforce
+         apply (induct rule: list_all3_induct)
+          apply simp
+    using sup_commute apply fastforce
+    by (simp+)[5]
 next
-  case (lub_tsum ts ts1 ts2)
+  case (lub_tsum K ts ts1 ts2)
   then show ?case
-  proof (intro type_lub_type_glb.intros)
-    fix n t t1 t2 b b1 b2
-    assume
-      "(n, t, b) \<in> set ts"
-      "(n, t1, b1) \<in> set ts1"
-      "(n, t2, b2) \<in> set ts2"
-    then show "t \<leftarrow> t2 \<squnion> t1 \<and> b = inf b2 b1"
-      using lub_tsum
-      by (auto simp add: inf_commute)
-  qed simp+
-*)
-  show ?case
-    sorry
+    by (simp add: list_all3_conv_all_nth sup_commute type_lub_type_glb.lub_tsum)
 next
-  case (lub_tsum ts ts1 ts2)
-  show ?case
-    sorry
-next
-  case (glb_trecord ts ts1 ts2 s s2 s1)
-(*
+  case (glb_trecord K ts ts1 ts2 s s1 s2)
   then show ?case
-  proof (intro type_lub_type_glb.intros)
-    fix n t t1 t2 b b1 b2
-    assume
-      "(n, t, b) \<in> set ts"
-      "(n, t1, b1) \<in> set ts1"
-      "(n, t2, b2) \<in> set ts2"
-    then show "t \<leftarrow> t2 \<sqinter> t1 \<and> b = sup b2 b1"
-      using glb_trecord
-      by (auto simp add: sup_commute)
-  qed simp+
+    apply (intro type_lub_type_glb.intros)
+    using list_all3_comm2 list_all3_mono apply fastforce
+         apply (induct rule: list_all3_induct)
+          apply simp
+    using inf_commute apply fastforce
+    by (simp+)[5]
 next
-  case (glb_tsum ts ts1 ts2)
+  case (glb_tsum K ts ts1 ts2)
   then show ?case
-  proof (intro type_lub_type_glb.intros)
-    fix n t t1 t2 b b1 b2
-    assume
-      "(n, t, b) \<in> set ts"
-      "(n, t1, b1) \<in> set ts1"
-      "(n, t2, b2) \<in> set ts2"
-    then show "t \<leftarrow> t2 \<sqinter> t1 \<and> b = sup b2 b1"
-      using glb_tsum
-      by (auto simp add: sup_commute)
-  qed simp+
-*)
-  show ?case
-    sorry
-next
-  case (glb_tsum ts ts1 ts2)
-  show ?case
-    sorry
-qed (force intro: type_lub_type_glb.intros)+
+    by (simp add: inf_sup_aci(1) list_all3_conv_all_nth type_lub_type_glb.glb_tsum)
+qed (fastforce intro!: type_lub_type_glb.intros)+
 
 lemma type_lub_type_glb_absorb:
   shows
