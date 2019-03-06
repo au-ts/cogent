@@ -22,7 +22,7 @@ type TyVarName   = String
 type TypeName    = String
 
 newtype CoreFunName = CoreFunName { coreFunName :: String }
-  deriving (Eq, Show, Ord, Data)
+  deriving (Eq, Show, Ord)
 
 coreFunNameToIsabelleName :: CoreFunName -> String
 coreFunNameToIsabelleName (CoreFunName s) = s
