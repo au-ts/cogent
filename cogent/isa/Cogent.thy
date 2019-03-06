@@ -1187,6 +1187,17 @@ proof (induct ts arbitrary: n)
     by (force intro!: Cons.hyps simp add: nth_Cons kinding_defs split: nat.splits)
 qed (force simp add: kinding_defs)
 
+lemma wellformed_record_wellformed_elem:
+  assumes "K \<turnstile> TRecord ts s wellformed"
+    and "(name, t, taken) \<in> set ts"
+  shows "K \<turnstile> t wellformed"
+  using assms kinding_iff_wellformed(1) kinding_record_wellformed_elem kinding_simps(8) by blast
+
+lemma wellformed_sum_wellformed_elem:
+  assumes "K \<turnstile> TSum ts wellformed"
+    and "(name, t, taken) \<in> set ts"
+  shows "K \<turnstile> t wellformed"
+  using assms kinding_iff_wellformed(1) kinding_simps(6) kinding_variant_wellformed_elem by blast
 
 lemma sigil_kind_writable:
   assumes "sigil_perm s = Some Writable"

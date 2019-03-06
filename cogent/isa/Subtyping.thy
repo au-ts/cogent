@@ -122,17 +122,15 @@ next
   ultimately show
   "K \<turnstile> TRecord ts s \<leftarrow> TRecord ts s \<squnion> TRecord ts s"
   "K \<turnstile> TRecord ts s \<leftarrow> TRecord ts s \<sqinter> TRecord ts s"
+     apply -
      apply (rule_tac lub_trecord)
-           apply (metis (no_types, lifting) fsts.intros kinding_iff_wellformed(1) kinding_record_wellformed_elem kinding_simps(8) list_all3_same prod.collapse snds.intros)
-          apply (simp add: list_all3_same)+
+           apply (metis (no_types, lifting) fsts.intros wellformed_record_wellformed_elem list_all3_same snds.intros surjective_pairing)
+          apply (simp add: list_all3_same)
+         apply (simp+)[5]
     apply (rule_tac glb_trecord)
-          apply (metis (no_types, lifting) TRecord.hyps(2) fsts.intros kinding_iff_wellformed(1) kinding_record_wellformed_elem kinding_simps(8) list_all3_same snds.intros surjective_pairing ts_wellformed)
+          apply (metis (no_types, lifting) fsts.intros wellformed_record_wellformed_elem list_all3_same snds.intros surjective_pairing)
          apply (simp add: list_all3_same)
-        apply simp
-       apply simp
-    using kinding_iff_wellformed(1) kinding_simps(8) ts_wellformed apply blast
-     apply simp
-    by simp
+    by (simp+)[5]
 qed (fastforce intro!: type_lub_type_glb.intros)+
 
 lemma type_lub_type_glb_commut:
@@ -141,6 +139,11 @@ lemma type_lub_type_glb_commut:
   "K \<turnstile> c \<leftarrow> a \<sqinter> b \<Longrightarrow> K \<turnstile> c \<leftarrow> b \<sqinter> a"
 proof (induct rule: type_lub_type_glb.inducts)
   case (lub_trecord ts ts1 ts2 s s2 s1)
+  then show ?case
+  proof (intro type_lub_type_glb.intros, simp)
+    fix t t1 t2 b b1 b2
+    assume
+      "(t, b) \<in> set ts"
 (*
   then show ?case
   proof (intro type_lub_type_glb.intros)
