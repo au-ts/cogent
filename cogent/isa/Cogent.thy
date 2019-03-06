@@ -924,6 +924,21 @@ fun type_repr :: "type \<Rightarrow> repr" where
 | "type_repr (TUnit)              = RUnit"
 
 
+section {* Wellformed lemmas *}
+
+lemma wellformed_record_wellformed_elem:
+  assumes "K \<turnstile> TRecord ts s wellformed"
+    and "(name, t, taken) \<in> set ts"
+  shows "K \<turnstile> t wellformed"
+  by (metis assms fst_conv in_set_conv_nth list_all_length snd_conv type_wellformed.simps(8) type_wellformed_pretty_def)
+
+lemma wellformed_sum_wellformed_elem:
+  assumes "K \<turnstile> TSum ts wellformed"
+    and "(name, t, taken) \<in> set ts"
+  shows "K \<turnstile> t wellformed"
+  by (metis assms fst_conv in_set_conv_nth list_all_length snd_conv type_wellformed.simps(6) type_wellformed_pretty_def)
+
+
 section {* Kinding lemmas *}
 
 (* kinding in terms of the higher level kinding judgements *)
@@ -1186,18 +1201,6 @@ proof (induct ts arbitrary: n)
   then show ?case
     by (force intro!: Cons.hyps simp add: nth_Cons kinding_defs split: nat.splits)
 qed (force simp add: kinding_defs)
-
-lemma wellformed_record_wellformed_elem:
-  assumes "K \<turnstile> TRecord ts s wellformed"
-    and "(name, t, taken) \<in> set ts"
-  shows "K \<turnstile> t wellformed"
-  using assms kinding_iff_wellformed(1) kinding_record_wellformed_elem kinding_simps(8) by blast
-
-lemma wellformed_sum_wellformed_elem:
-  assumes "K \<turnstile> TSum ts wellformed"
-    and "(name, t, taken) \<in> set ts"
-  shows "K \<turnstile> t wellformed"
-  using assms kinding_iff_wellformed(1) kinding_simps(6) kinding_variant_wellformed_elem by blast
 
 lemma sigil_kind_writable:
   assumes "sigil_perm s = Some Writable"
