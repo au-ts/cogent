@@ -139,11 +139,6 @@ lemma type_lub_type_glb_commut:
   "K \<turnstile> c \<leftarrow> a \<sqinter> b \<Longrightarrow> K \<turnstile> c \<leftarrow> b \<sqinter> a"
 proof (induct rule: type_lub_type_glb.inducts)
   case (lub_trecord ts ts1 ts2 s s2 s1)
-  then show ?case
-  proof (intro type_lub_type_glb.intros, simp)
-    fix t t1 t2 b b1 b2
-    assume
-      "(t, b) \<in> set ts"
 (*
   then show ?case
   proof (intro type_lub_type_glb.intros)
