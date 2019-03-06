@@ -206,8 +206,8 @@ useVariable v = TC $ do ret <- (`at` v) <$> get
                             unless ok $ modify (\s -> update s v Nothing)
                             return ret
 
-funType :: FunName -> TC t v (Maybe FunctionType)
-funType v = TC $ (M.lookup v . snd) <$> ask
+funType :: CoreFunName -> TC t v (Maybe FunctionType)
+funType v = TC $ (M.lookup (coreFunName v) . snd) <$> ask
 
 runTC :: TC t v a -> (Vec t Kind, Map FunName FunctionType) -> Vec v (Maybe (Type t))
       -> Either String (Vec v (Maybe (Type t)), a)

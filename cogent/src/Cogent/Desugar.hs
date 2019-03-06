@@ -542,7 +542,7 @@ desugarExpr (B.TE _ (S.Match e vs alts) l) = do
   E <$> (LetBang vs' v <$> desugarExpr e <*> pure e')
 desugarExpr (B.TE _ (S.TypeApp v ts note) _) = do
   pragmas <- view _3
-  E <$> (Fun v <$> mapM desugarType (map fromJust ts) <*> pure (pragmaToNote pragmas v $ desugarNote note))  -- FIXME: fromJust
+  E <$> (Fun (funNameToCoreFunName v) <$> mapM desugarType (map fromJust ts) <*> pure (pragmaToNote pragmas v $ desugarNote note))  -- FIXME: fromJust
 desugarExpr (B.TE t (S.Con c [e]) _) = do
   t'@(TSum ts) <- desugarType t
   e' <- desugarExpr e

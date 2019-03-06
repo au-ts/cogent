@@ -585,7 +585,7 @@ instance Pretty RepExpr where
 
 
 instance Pretty Metadata where
-  pretty (Constant {varName})                = err "the binding" <+> funname varName <$> err "is a global constant"
+  pretty (Constant {constName})              = err "the binding" <+> funname constName <$> err "is a global constant"
   pretty (Reused {varName, boundAt, usedAt}) = err "the variable" <+> varname varName
                                                <+> err "bound at" <+> pretty boundAt <> err ""
                                                <$> err "was already used at"

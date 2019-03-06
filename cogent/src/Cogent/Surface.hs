@@ -155,9 +155,9 @@ data TopLevel t p e = Include    String
                     | DocBlock   String
                     | AbsTypeDec TypeName [TyVarName] [t]
                     | TypeDec    TypeName [TyVarName] t
-                    | AbsDec VarName (Polytype t)
-                    | FunDef VarName (Polytype t) [Alt p e]
-                    | ConstDef VarName t e
+                    | AbsDec     FunName (Polytype t)
+                    | FunDef     FunName (Polytype t) [Alt p e]
+                    | ConstDef   ConstName t e
                     | RepDef RepDecl
                     deriving (Data, Eq, Show, Functor, Foldable, Traversable)
 

@@ -95,7 +95,7 @@ data FunNote = NoInline | InlineMe | MacroCall | InlinePlease  -- order is impor
 
 data Expr t v a e
   = Variable (Fin v, a)
-  | Fun FunName [Type t] FunNote  -- here do we want to keep partial application and infer again? / zilinc
+  | Fun CoreFunName [Type t] FunNote  -- here do we want to keep partial application and infer again? / zilinc
   | Op Op [e t v a]
   | App (e t v a) (e t v a)
   | Con TagName (e t v a) (Type t)
@@ -176,9 +176,9 @@ getTypeVarNum (TypeDef _ tvs _    ) = Nat.toInt $ Vec.length tvs
 isDefinitionId :: String -> Definition e a -> Bool
 isDefinitionId n d = n == getDefinitionId d
 
-isFuncId :: String -> Definition e a -> Bool
-isFuncId n (FunDef  _ fn _ _ _ _) = n == fn
-isFuncId n (AbsDecl _ fn _ _ _  ) = n == fn
+isFuncId :: CoreFunName -> Definition e a -> Bool
+isFuncId n (FunDef  _ fn _ _ _ _) = coreFunName n == fn
+isFuncId n (AbsDecl _ fn _ _ _  ) = coreFunName n == fn
 isFuncId _ _ = False
 
 isAbsFun :: Definition e a -> Bool
@@ -388,7 +388,7 @@ instance (Pretty a, Prec (e t v a), Pretty (e t v a), Pretty (e t ('Suc v) a), P
   pretty (Singleton e) = keyword "singleton" <+> parens (pretty e)
 #endif
   pretty (Variable x) = pretty (snd x) L.<> angles (prettyV $ fst x)
-  pretty (Fun fn ins nt) = pretty nt L.<> funname fn <+> pretty ins
+  pretty (Fun fn ins nt) = pretty nt L.<> funname (coreFunName fn) <+> pretty ins
   pretty (App a b) = prettyPrec 2 a <+> prettyPrec 1 b
   pretty (Let a e1 e2) = align (keyword "let" <+> pretty a <+> symbol "=" <+> pretty e1 L.<$>
                                 keyword "in" <+> pretty e2)

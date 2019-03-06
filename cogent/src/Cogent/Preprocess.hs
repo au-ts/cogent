@@ -42,8 +42,15 @@ data LocPragma = LP { locOfLP    :: SourcePos
 
 T.TokenParser {..} = T.makeTokenParser language
 
-variableName = try (do (x:xs) <- identifier
-                       (if isLower x || (x == '_' && not (null xs)) then return else unexpected) $ x:xs)
+genericName :: Parsec String u String
+genericName = try (do (x:xs) <- identifier
+                      (if isLower x || (x == '_' && not (null xs)) then return else unexpected) $ x:xs)
+
+variableName :: Parsec String u VarName
+variableName = genericName
+
+functionName :: Parsec String u FunName
+functionName = genericName
 
 pragma :: Parsec String u [LocPragma]  -- We don't allow nested comments for pragmas
 pragma = (try (reservedOp "{-#") >> inPragmaSingle)
@@ -53,7 +60,7 @@ inPragmaSingle :: Parsec String u [LocPragma]
 inPragmaSingle = do
   l <- getPosition
   p <- identifier -- pragma name
-  fs <- sepBy1 variableName comma
+  fs <- sepBy1 functionName comma
   reservedOp "#-}"
   mkPragmas p l fs
   <?> "end of pragma"

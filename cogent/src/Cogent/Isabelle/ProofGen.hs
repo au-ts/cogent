@@ -254,7 +254,7 @@ typing xi k (EE t (Variable i) env) = tacSequence [
   return [simp]                           -- i < length Γ
   ]
 
-typing xi k (EE t' (Fun f ts _) env) = case findfun f xi of
+typing xi k (EE t' (Fun f ts _) env) = case findfun (coreFunNameToIsabelleName f) xi of
     AbsDecl _ _ ks' t u ->
       let ks = fmap snd ks' in tacSequence [
         return [rule "typing_afun'"],  -- Ξ, K, Γ ⊢ AFun f ts : t' if
@@ -262,7 +262,7 @@ typing xi k (EE t' (Fun f ts _) env) = case findfun f xi of
            mod <- use nameMod
            let unabbrev | M.null (fst ta) = ""
                         | otherwise = "[unfolded " ++ typeAbbrevBucketName ++ "]"
-           return [simp_add ["\\<Xi>_def", mod f ++ "_type_def" ++ unabbrev]],  -- Ξ f = (K', t, u)
+           return [simp_add ["\\<Xi>_def", mod (coreFunNameToIsabelleName f) ++ "_type_def" ++ unabbrev]],  -- Ξ f = (K', t, u)
         allKindCorrect k ts ks,    -- list_all2 (kinding K) ts K'
         return [simp],             -- instantiate ts (TFun t u)
         wellformed ks (TFun t u),  -- K' ⊢ TFun t u wellformed
@@ -275,7 +275,7 @@ typing xi k (EE t' (Fun f ts _) env) = case findfun f xi of
         do ta <- use tsTypeAbbrevs
            mod <- use nameMod
            let unabbrev | M.null (fst ta) = "" | otherwise = " " ++ typeAbbrevBucketName
-           return [rule (fn_proof (mod f) unabbrev)],  -- Ξ, K', [Some t] ⊢ f : u
+           return [rule (fn_proof (mod (coreFunNameToIsabelleName f)) unabbrev)],  -- Ξ, K', [Some t] ⊢ f : u
         allKindCorrect k ts ks,  -- list_all2 (kinding K) ts K'
         return [simp],           -- t' = instantiate ts (TFun t u)
         wellformed ks t,         -- K' ⊢ t wellformed

@@ -29,6 +29,7 @@ module Main where
 
 import Cogent.C.Compile                as CG (printCTable, printATM)
 import Cogent.CodeGen                  as CG (cgen)
+import Cogent.Common.Syntax            as SY (CoreFunName(..))
 import Cogent.Compiler
 import Cogent.Core                     as CC (isConFun, getDefinitionId, untypeD)  -- FIXME: zilinc
 import Cogent.Desugar                  as DS (desugar)
@@ -826,7 +827,7 @@ parseArgs args = case getOpt' Permute options args of
       when cp $ do
         putProgressLn "Generating C-refinement proofs..."
         ent <- T.forM __cogent_entry_funcs $ (liftA parseEntryFuncs) . readFile  -- a simple parser
-        let corresProofThy = corresProof thy inputc confns ent log
+        let corresProofThy = corresProof thy inputc (map SY.CoreFunName confns) (map SY.CoreFunName <$> ent) log
         writeFileMsg cpfile
         output cpfile $ flip LJ.hPutDoc corresProofThy
 
