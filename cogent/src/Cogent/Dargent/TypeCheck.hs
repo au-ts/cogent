@@ -138,7 +138,7 @@ normaliseDataLayoutExpr env (Record fields) =
 normaliseDataLayoutExpr env (Variant tag alts) =
   Variant tag (fmap (\(tn, pos, size, expr) -> (tn, pos, size, normaliseDataLayoutExpr env expr)) alts)
 normaliseDataLayoutExpr env (Offset expr size) = Offset (normaliseDataLayoutExpr env expr) size
-
+normaliseDataLayoutExpr _ r = r
 
 {- * Types -}
 type NamedDataLayouts = Map DataLayoutName (DataLayoutExpr, Allocation)
