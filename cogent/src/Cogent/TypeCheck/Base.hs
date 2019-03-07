@@ -502,7 +502,7 @@ validateType' vs (RT t) = do
         
     -- TArray te l -> check l >= 0  -- TODO!!!
 
-    _ -> __fixme(T <$> (mmapM (return . toSExpr) <=< mapM (validateType' vs)) t)
+    _ -> __fixme (T <$> (mmapM (return . toSExpr) <=< mapM (validateType' vs)) t)
     -- With (TCon _ _ l), and (TRecord _ l), must check l == Nothing iff it is contained in a TUnbox.
     -- This can't be done in the current setup because validateType' has no context for the type it is validating.
     -- Not implementing this now, because a new syntax for types is needed anyway, which may make this issue redundant.
