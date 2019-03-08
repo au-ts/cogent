@@ -141,11 +141,14 @@ proof (induct rule: type_lub_type_glb.inducts)
   case (lub_trecord K ts ts1 ts2 s s1 s2)
   then show ?case
     apply (intro type_lub_type_glb.intros)
-    using list_all3_comm2 list_all3_mono apply fastforce
-         apply (induct rule: list_all3_induct)
-          apply simp
-    using sup_commute apply fastforce
-    by (simp+)[5]
+          apply (clarsimp simp add: list_all3_conv_all_nth)
+         apply (clarsimp simp add: list_all3_conv_all_nth, metis sup_commute)
+        apply simp
+       apply simp
+      apply simp
+     apply simp
+    apply simp
+    done
 next
   case (lub_tsum K ts ts1 ts2)
   then show ?case
@@ -154,11 +157,14 @@ next
   case (glb_trecord K ts ts1 ts2 s s1 s2)
   then show ?case
     apply (intro type_lub_type_glb.intros)
-    using list_all3_comm2 list_all3_mono apply fastforce
-         apply (induct rule: list_all3_induct)
-          apply simp
-    using inf_commute apply fastforce
-    by (simp+)[5]
+          apply (clarsimp simp add: list_all3_conv_all_nth)
+         apply (clarsimp simp add: list_all3_conv_all_nth, metis inf_commute)
+        apply simp
+       apply simp
+      apply simp
+     apply simp
+    apply simp
+    done
 next
   case (glb_tsum K ts ts1 ts2)
   then show ?case
