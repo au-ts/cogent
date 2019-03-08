@@ -32,9 +32,12 @@ inductive type_lub :: "kind env \<Rightarrow> type \<Rightarrow> type \<Rightarr
                                          ; b1 = snd (snd p1)
                                          ; b2 = snd (snd p2)
                                         in
-                                          if (K \<turnstile> fst (snd p1) :\<kappa> {D}) \<and> (K \<turnstile> fst (snd p2) :\<kappa> {D})
-                                          then b = sup b1 b2
-                                          else b = b1 \<and> b1 = b2) ts ts1 ts2
+                                          (if (K \<turnstile> fst (snd p1) :\<kappa> {D})
+                                          then b1 \<le> b
+                                          else b1 = b) \<and>
+                                          (if (K \<turnstile> fst (snd p2) :\<kappa> {D})
+                                          then b2 \<le> b
+                                          else b2 = b)) ts ts1 ts2
                 ; map fst ts = map fst ts1
                 ; map fst ts1 = map fst ts2
                 ; distinct (map fst ts)
@@ -72,9 +75,9 @@ inductive type_lub :: "kind env \<Rightarrow> type \<Rightarrow> type \<Rightarr
                                          ; b1 = snd (snd p1)
                                          ; b2 = snd (snd p2)
                                         in
-                                          if (K \<turnstile> fst (snd p1) :\<kappa> {D}) \<and> (K \<turnstile> fst (snd p2) :\<kappa> {D})
-                                          then b = inf b1 b2
-                                          else b = b1 \<and> b1 = b2) ts ts1 ts2
+                                          (if (K \<turnstile> fst (snd p) :\<kappa> {D})
+                                          then b \<le> b1 \<and> b \<le> b2
+                                          else b = b2 \<and> b1 = b2)) ts ts1 ts2
                 ; map fst ts = map fst ts1
                 ; map fst ts1 = map fst ts2
                 ; distinct (map fst ts)
@@ -91,18 +94,41 @@ inductive type_lub :: "kind env \<Rightarrow> type \<Rightarrow> type \<Rightarr
                 \<rbrakk> \<Longrightarrow> K \<turnstile> TSum ts \<leftarrow> TSum ts1 \<sqinter> TSum ts2"
 | glb_tunit  : "K \<turnstile> TUnit \<leftarrow> TUnit \<sqinter> TUnit"
 
+(*
+(* This should not be true *)
+lemma test5:
+"\<And>i. i < length ts \<Longrightarrow> {D} \<subseteq> kinding_fn K (TSum ts) \<Longrightarrow> {D} \<subseteq> kinding_fn K (fst (snd (ts ! i)))"
+  apply (drule_tac xs=ts and P="\<lambda>x. D \<in> (case x of (uu_, t, Checked) \<Rightarrow> UNIV | (uu_, t, Unchecked) \<Rightarrow> kinding_fn K t)" in  List.list_ball_nth)
+   apply simp
+  apply simp
+  apply (subgoal_tac "\<exists>a b c. ts ! i = (a, b, c)")
+   apply (erule exE)+
+   apply simp
+   apply (case_tac "c = Unchecked")
+    apply simp
+   apply (subgoal_tac "c = Checked")
+    apply simp
 
-lemma type_lub_type_glb_wellformed:
-  assumes
-    "K \<turnstile> t1 wellformed"
-    "K \<turnstile> t2 wellformed"
-  shows
-    "K \<turnstile> t \<leftarrow> t1 \<squnion> t2 \<Longrightarrow> K \<turnstile> t wellformed"
-    "K \<turnstile> t \<leftarrow> t1 \<sqinter> t2 \<Longrightarrow> K \<turnstile> t wellformed"
-  using assms
-proof (induct rule: type_lub_type_glb.inducts)
-qed (auto simp add: list_all_length list_all3_conv_all_nth)
+  sorry
 
+(* This should not be true *)
+lemma test:
+"K \<turnstile> TSum ts :\<kappa> {D} \<Longrightarrow> \<forall>i < length ts. K \<turnstile> fst (snd (ts ! i)) :\<kappa> {D}"
+  apply (rule allI)
+  apply (rule impI)
+  apply (unfold kinding_def)
+  apply (rule conjI)
+  using test2 apply auto[1]
+  apply (erule conjE) 
+  apply simp thm List.list_ball_nth
+  apply (drule_tac xs=ts and P="\<lambda>x. D \<in> (case x of (uu_, t, Checked) \<Rightarrow> UNIV | (uu_, t, Unchecked) \<Rightarrow> kinding_fn K t)" in  List.list_ball_nth)
+   apply simp
+  
+  sorry
+*)
+
+value "sup Taken Present"
+value "sup Checked Unchecked"
 lemma type_lub_type_glb_idem:
   assumes "K \<turnstile> t wellformed"
   shows
@@ -130,7 +156,8 @@ next
     apply (rule_tac glb_trecord)
           apply (metis (no_types, lifting) fsts.intros wellformed_record_wellformed_elem list_all3_same snds.intros surjective_pairing)
          apply (simp add: list_all3_same)
-    by (simp+)[5]
+        apply (simp+)[5]
+    done
 qed (fastforce intro!: type_lub_type_glb.intros)+
 
 lemma type_lub_type_glb_commut:
@@ -138,175 +165,115 @@ lemma type_lub_type_glb_commut:
   "K \<turnstile> c \<leftarrow> a \<squnion> b \<Longrightarrow> K \<turnstile> c \<leftarrow> b \<squnion> a"
   "K \<turnstile> c \<leftarrow> a \<sqinter> b \<Longrightarrow> K \<turnstile> c \<leftarrow> b \<sqinter> a"
 proof (induct rule: type_lub_type_glb.inducts)
-  case (lub_trecord ts ts1 ts2 s s2 s1)
+  case (lub_trecord K ts ts1 ts2 s s1 s2)
+  then show ?case
+    apply (intro type_lub_type_glb.intros)
+          apply (clarsimp simp add: list_all3_conv_all_nth)
+         apply (clarsimp simp add: list_all3_conv_all_nth, metis)
+        apply (simp+)[5]
+    done
+next
+  case (lub_tsum K ts ts1 ts2)
+  then show ?case
+    by (simp add: list_all3_conv_all_nth sup_commute type_lub_type_glb.lub_tsum)
+next
+  case (glb_trecord K ts ts1 ts2 s s1 s2)
+  then show ?case
+    apply (intro type_lub_type_glb.intros)
+          apply (clarsimp simp add: list_all3_conv_all_nth)
+         apply (clarsimp simp add: list_all3_conv_all_nth, metis)
+        apply (simp+)[5]
+    done
+next
+  case (glb_tsum K ts ts1 ts2)
+  then show ?case
+    by (simp add: inf_sup_aci(1) list_all3_conv_all_nth type_lub_type_glb.glb_tsum)
+qed (fastforce intro!: type_lub_type_glb.intros)+
+
+lemma type_lub_type_glb_wellformed:
+  assumes
+    "K \<turnstile> t1 wellformed"
+    "K \<turnstile> t2 wellformed"
+  shows
+    "K \<turnstile> t \<leftarrow> t1 \<squnion> t2 \<Longrightarrow> K \<turnstile> t wellformed"
+    "K \<turnstile> t \<leftarrow> t1 \<sqinter> t2 \<Longrightarrow> K \<turnstile> t wellformed"
+  using assms
+proof (induct rule: type_lub_type_glb.inducts)
+qed (auto simp add: list_all_length list_all3_conv_all_nth)
+
 (*
-  then show ?case
-  proof (intro type_lub_type_glb.intros)
-    fix n t t1 t2 b b1 b2
-    assume
-      "(n, t, b) \<in> set ts"
-      "(n, t1, b1) \<in> set ts1"
-      "(n, t2, b2) \<in> set ts2"
-    then show "t \<leftarrow> t2 \<squnion> t1 \<and> b = inf b2 b1"
-      using lub_trecord
-      by (auto simp add: inf_commute)
-  qed simp+
+TODO: not used atm, but might be useful
+
+lemma type_glb_drop_produce_drop:
+  shows
+  "K \<turnstile> c \<leftarrow> a \<squnion> b \<Longrightarrow> K \<turnstile> c :\<kappa> {D} \<Longrightarrow> K \<turnstile> a :\<kappa> {D} \<and> K \<turnstile> b :\<kappa> {D}"
+  "K \<turnstile> c \<leftarrow> a \<sqinter> b \<Longrightarrow> K \<turnstile> a :\<kappa> {D} \<Longrightarrow> K \<turnstile> b :\<kappa> {D} \<Longrightarrow> K \<turnstile> c :\<kappa> {D}"
+proof (induct rule: type_lub_type_glb.inducts)
+  case (lub_tvar n n1 n2 K)
+  then show ?case sorry
 next
-  case (lub_tsum ts ts1 ts2)
+  case (lub_tvarb n n1 n2 K)
+  then show ?case sorry
+next
+  case (lub_tcon n n1 n2 s s1 s2 ts ts1 ts2 K)
+  then show ?case sorry
+next
+  case (lub_tfun K t t1 t2 u u1 u2)
+  then show ?case sorry
+next
+  case (lub_tprim p p1 p2 K)
+  then show ?case sorry
+next
+  case (lub_trecord K ts ts1 ts2 s s1 s2)
+  then show ?case sorry
+next
+  case (lub_tprod K t t1 t2 u u1 u2)
+  then show ?case sorry
+next
+  case (lub_tsum K ts ts1 ts2)
+  then show ?case sorry
+next
+  case (lub_tunit K)
+  then show ?case sorry
+next
+  case (glb_tcon n n1 n2 s s1 s2 ts ts1 ts2 K)
   then show ?case
-  proof (intro type_lub_type_glb.intros)
-    fix n t t1 t2 b b1 b2
-    assume
-      "(n, t, b) \<in> set ts"
-      "(n, t1, b1) \<in> set ts1"
-      "(n, t2, b2) \<in> set ts2"
-    then show "t \<leftarrow> t2 \<squnion> t1 \<and> b = inf b2 b1"
-      using lub_tsum
-      by (auto simp add: inf_commute)
-  qed simp+
+    by (clarsimp simp add: list_all3_conv_all_nth kinding_simps)
+next
+  case (glb_tfun K t t1 t2 u u1 u2)
+  then show ?case
+    by (meson kinding_simps type_lub_type_glb_wellformed)
+next
+  case (glb_trecord K ts ts1 ts2 s s1 s2)
+  then show ?case
+    apply (clarsimp simp add: list_all3_conv_all_nth kinding_simps kinding_record_conv_all_nth)
+    apply (drule_tac x=i in spec, clarsimp)+
+    apply (case_tac "snd (snd (ts ! i))"; case_tac "snd (snd (ts1 ! i))"; case_tac "snd (snd (ts2 ! i))"; clarsimp)
+    using type_lub_type_glb_wellformed(2) type_wellformed_pretty_def apply blast
+        apply (meson less_eq_record_state.simps(3) record_state.distinct(1))
+       apply (meson less_eq_record_state.simps(3) record_state.simps(2))
+      apply (meson record_state.simps(2))
+     apply (meson record_state.distinct(1))
+    by (meson record_state.simps(2))
+next
+  case (glb_tsum K ts ts1 ts2)
+  then show ?case
+    apply (clarsimp simp add: list_all3_conv_all_nth kinding_simps kinding_variant_conv_all_nth)
+    apply (case_tac "inf (snd (snd (ts1 ! i))) (snd (snd (ts2 ! i)))")
+     apply clarsimp
+     apply (metis glb_tsum.prems(1) glb_tsum.prems(2) kinding_simps(6) kinding_variant_wellformed_elem nth_mem prod.collapse type_lub_type_glb_wellformed(2) type_wellformed_pretty_def)
+    apply clarsimp
+    by (smt inf.orderE inf_bot_right less_eq_variant_state.elims(3) variant_state.simps(4))
+qed (auto simp add: kinding_simps)
 *)
-  show ?case
-    sorry
-next
-  case (lub_tsum ts ts1 ts2)
-  show ?case
-    sorry
-next
-  case (glb_trecord ts ts1 ts2 s s2 s1)
-(*
-  then show ?case
-  proof (intro type_lub_type_glb.intros)
-    fix n t t1 t2 b b1 b2
-    assume
-      "(n, t, b) \<in> set ts"
-      "(n, t1, b1) \<in> set ts1"
-      "(n, t2, b2) \<in> set ts2"
-    then show "t \<leftarrow> t2 \<sqinter> t1 \<and> b = sup b2 b1"
-      using glb_trecord
-      by (auto simp add: sup_commute)
-  qed simp+
-next
-  case (glb_tsum ts ts1 ts2)
-  then show ?case
-  proof (intro type_lub_type_glb.intros)
-    fix n t t1 t2 b b1 b2
-    assume
-      "(n, t, b) \<in> set ts"
-      "(n, t1, b1) \<in> set ts1"
-      "(n, t2, b2) \<in> set ts2"
-    then show "t \<leftarrow> t2 \<sqinter> t1 \<and> b = sup b2 b1"
-      using glb_tsum
-      by (auto simp add: sup_commute)
-  qed simp+
-*)
-  show ?case
-    sorry
-next
-  case (glb_tsum ts ts1 ts2)
-  show ?case
-    sorry
-qed (force intro: type_lub_type_glb.intros)+
+
 
 lemma type_lub_type_glb_absorb:
   shows
     "K \<turnstile> c \<leftarrow> a \<squnion> b \<Longrightarrow> K \<turnstile> a \<leftarrow> a \<sqinter> c"
     "K \<turnstile> c \<leftarrow> a \<sqinter> b \<Longrightarrow> K \<turnstile> a \<leftarrow> a \<squnion> c"
 proof (induct rule: type_lub_type_glb.inducts)
-  case (lub_tcon n n1 n2 s s1 s2 ts ts1 ts2)
-  then show ?case by (force intro!: type_lub_type_glb.intros simp add: list_all3_conv_all_nth)
-next
-  case (lub_trecord ts ts1 ts2 s s1 s2)
-(*
-  then show ?case
-  proof (intro type_lub_type_glb.intros)
-    fix n t1' b1' t1 b1 t b
-    assume assms1:
-      "(n, t1, b1) \<in> set ts1"
-      "(n, t1', b1') \<in> set ts1"
-      "(n, t, b) \<in> set ts"
-    moreover obtain t2 b2 where "(n, t2, b2) \<in> set ts2"
-      using lub_trecord.hyps assms1
-      by (metis (mono_tags, hide_lams) fst_conv image_iff surjective_pairing)
-    ultimately have
-      "(t \<leftarrow> t1 \<squnion> t2 \<and> t1 \<leftarrow> t1 \<sqinter> t) \<and> b = inf b1 b2"
-      using lub_trecord.hyps by blast+
-    then show "t1' \<leftarrow> t1 \<sqinter> t \<and> b1' = sup b1 b"
-      using lub_trecord.hyps assms1 distinct_fst[where xs=ts1] by fastforce
-  qed auto
-*)
-  show ?case
-    sorry
-next
-  case (lub_tsum ts ts1 ts2)
-(*
-  then show ?case
-  proof (intro type_lub_type_glb.intros)
-    fix n t1' b1' t1 b1 t b
-    assume assms1:
-      "(n, t1, b1) \<in> set ts1"
-      "(n, t1', b1') \<in> set ts1"
-      "(n, t, b) \<in> set ts"
-    moreover obtain t2 b2 where "(n, t2, b2) \<in> set ts2"
-      using lub_tsum.hyps assms1
-      by (metis (mono_tags, hide_lams) fst_conv image_iff surjective_pairing)
-    ultimately have
-      "(t \<leftarrow> t1 \<squnion> t2 \<and> t1 \<leftarrow> t1 \<sqinter> t) \<and> b = inf b1 b2"
-      using lub_tsum.hyps by blast+
-    then show "t1' \<leftarrow> t1 \<sqinter> t \<and> b1' = sup b1 b"
-      using lub_tsum.hyps assms1 distinct_fst[where xs=ts1] by fastforce
-  qed auto
-next
-  case (glb_tcon n n1 n2 s s1 s2 ts ts1 ts2)
-  then show ?case by (force intro!: type_lub_type_glb.intros simp add: list_all3_conv_all_nth)
-*)
-  show ?case
-    sorry
-next
-  case (glb_trecord ts ts1 ts2 s s1 s2)
-(*
-  then show ?case
-  proof (intro type_lub_type_glb.intros)
-    fix n t1' b1' t1 b1 t b
-    assume assms1:
-      "(n, t1, b1) \<in> set ts1"
-      "(n, t1', b1') \<in> set ts1"
-      "(n, t, b) \<in> set ts"
-    moreover obtain t2 b2 where "(n, t2, b2) \<in> set ts2"
-      using glb_trecord.hyps assms1
-      by (metis (mono_tags, hide_lams) fst_conv image_iff surjective_pairing)
-    ultimately have
-      "(t \<leftarrow> t1 \<sqinter> t2 \<and> t1 \<leftarrow> t1 \<squnion> t) \<and> b = sup b1 b2"
-      using glb_trecord.hyps by blast+
-    then show "t1' \<leftarrow> t1 \<squnion> t \<and> b1' = inf b1 b"
-      using glb_trecord.hyps assms1 distinct_fst[where xs=ts1] by fastforce
-  qed auto
-*)
-  show ?case
-    sorry
-next
-  case (glb_tsum ts ts1 ts2)
-(*
-  then show ?case
-  proof (intro type_lub_type_glb.intros)
-    fix n t1' b1' t1 b1 t b
-    assume assms1:
-      "(n, t1, b1) \<in> set ts1"
-      "(n, t1', b1') \<in> set ts1"
-      "(n, t, b) \<in> set ts"
-    moreover obtain t2 b2 where "(n, t2, b2) \<in> set ts2"
-      using glb_tsum.hyps assms1 
-      by (metis (mono_tags, hide_lams) fst_conv image_iff surjective_pairing)
-    ultimately have
-      "(t \<leftarrow> t1 \<sqinter> t2 \<and> t1 \<leftarrow> t1 \<squnion> t) \<and> b = sup b1 b2"
-      using glb_tsum.hyps by blast+
-    then show "t1' \<leftarrow> t1 \<squnion> t \<and> b1' = inf b1 b"
-      using glb_tsum.hyps assms1 distinct_fst[where xs=ts1] by fastforce
-  qed auto
-*)
-  show ?case
-    sorry
-qed (force intro: type_lub_type_glb.intros)+
-
+qed (force intro!: type_lub_type_glb.intros simp add: list_all3_conv_all_nth Let_def)+
 
 lemma type_lub_type_glb_order_correct: "K \<turnstile> a \<leftarrow> a \<squnion> b \<longleftrightarrow> K \<turnstile> b \<leftarrow> a \<sqinter> b"
   by (auto intro: type_lub_type_glb_absorb type_lub_type_glb_commut)

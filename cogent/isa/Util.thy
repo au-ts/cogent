@@ -372,6 +372,18 @@ lemma list_all3_impD:
   using assms
   by (induct rule: list_all3_induct, simp+)
 
+lemma list_all3_comm1:
+"list_all3 (\<lambda> x y z. P x y z) xs ys zs \<longleftrightarrow> list_all3 (\<lambda> x y z. P y x z) ys xs zs"
+  by (metis (mono_tags, lifting) list_all3_conv_all_nth)
+
+lemma list_all3_comm2:
+"list_all3 (\<lambda> x y z. P x y z) xs ys zs \<longleftrightarrow> list_all3 (\<lambda> x y z. P x z y) xs zs ys"
+  by (metis (mono_tags, lifting) list_all3_conv_all_nth)
+
+lemma list_all3_comm3:
+"list_all3 (\<lambda> x y z. P x y z) xs ys zs \<longleftrightarrow> list_all3 (\<lambda> x y z. P z y x) zs ys xs"
+  by (metis (mono_tags, lifting) list_all3_conv_all_nth)
+
 
 (* n.b. the conditions are essentially functor laws *)
 lemma list_all3_map_over:
