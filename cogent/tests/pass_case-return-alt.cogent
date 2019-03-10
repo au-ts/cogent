@@ -8,8 +8,8 @@
 -- @TAG(NICTA_GPL)
 --
 
-foo : (< TAG_a U8 | TAG_b U8 >) -> < Success (U8, U8) >
-foo (x) =
+foo : < TAG_a U8 | TAG_b U8 > -> < Success (U8, U8) >
+foo x =
    let (x', v) = 
      x | TAG_a va -> (va, 1)
        | TAG_b vb -> (vb, 2)
