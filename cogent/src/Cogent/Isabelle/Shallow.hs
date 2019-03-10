@@ -65,7 +65,7 @@ import qualified Text.PrettyPrint.ANSI.Leijen as L ((<$$>))
 import Lens.Micro
 import Lens.Micro.TH
 import Lens.Micro.Mtl
--- import Debug.Trace
+import Debug.Trace
 
 isaReservedNames = ["o", "value", "from"]
 
@@ -175,6 +175,7 @@ shallowILit n v = TermWithType (mkId $ show n) (shallowPrimType v)
 findType :: CC.Type t -> SG (CC.Type t)
 findType t = getStrlType <$> asks typeNameMap <*> asks typeStrs <*> pure t
 
+-- | Reverse engineer the type synonym of a algebraic data type
 findShortType :: CC.Type t -> SG (CC.Type t)
 findShortType t = do
   map <- use concTypeSyns
@@ -276,6 +277,8 @@ mkPrettyPair n1 n2 = "(" ++ snm n1 ++ "," ++ snm n2 ++ ")"
 mkLambdaE :: [VarName] -> TypedExpr t v VarName -> SG Term
 mkLambdaE vs e = mkLambda vs <$> shallowExpr e
 
+-- | Reverse engineer whether a record type was a tuple by looking at the field names.
+--   This is __hacky__.
 isRecTuple :: [FieldName] -> Bool
 isRecTuple fs =
   P.length fs > 1 &&
@@ -310,7 +313,7 @@ getRecordFieldName _ _ = __impossible "getRecordFieldName"
 
 typarUpd typar v = v {typeVars = typar}
 
--- Clear out all taken annotations and mark all sigil as Writable
+-- Clear out all taken annotations and mark all sigil as Writable.
 sanitizeType :: CC.Type t -> CC.Type t
 sanitizeType (TSum ts) = TSum (map (\(tn,(t,b)) -> (tn,(sanitizeType t,b))) ts)
 sanitizeType (TRecord ts s) = TRecord (map (\(tn, (t,_)) -> (tn, (sanitizeType t, False))) ts) s
@@ -319,21 +322,26 @@ sanitizeType (TFun ti to) = TFun (sanitizeType ti) (sanitizeType to)
 sanitizeType (TProduct t t') = TProduct (sanitizeType t) (sanitizeType t')
 sanitizeType t = t
 
+-- | Produce a hash for a record or variant type. Only the structure of the type matters;
+--   taken entries or sigils do not.
 hashType :: CC.Type t -> String
 hashType (TSum ts)      = show (sanitizeType $ TSum ts)
 hashType (TRecord ts s) = show (sanitizeType $ TRecord ts s)
-hashType _              = error "Should only pass Variant and Record types"
+hashType _              = error "hashType: should only pass Variant and Record types"
 
--- | if the type synonym is parameterised, a subscript @\"T\"@ will be added to the Isabelle name
+-- | A subscript @T@ will be added when generating type synonyms. 
+--   Also adds an entry to the type synonyms table if it's not parameterised so that
+--   a shorter (and hence more readable) name can be retrieved when a type is used.
 shallowTypeDefSaveSyn:: TypeName -> [TyVarName] -> CC.Type t -> SG [TheoryDecl I.Type I.Term]
 shallowTypeDefSaveSyn tn ps r = do
   st <- shallowType r
   let syname = tn ++ subSymStr "T"
       hash = hashType r
   -- FIXME: We might want to support type parameters but I can't be bothered.
-  unless (not $ null ps) (concTypeSyns %= M.insert hash syname)
+  when (null ps) (concTypeSyns %= M.insert hash syname)
   pure [TypeSynonym (TypeSyn syname st ps)]
 
+-- | Generates @type_synonym@ definitions for types.
 shallowTypeDef :: TypeName -> [TyVarName] -> CC.Type t -> SG [TheoryDecl I.Type I.Term]
 shallowTypeDef tn ps (TPrim p)      = pure [TypeSynonym (TypeSyn tn (shallowPrimType p) ps)]
 shallowTypeDef tn ps (TRecord fs s) = shallowTypeDefSaveSyn tn ps (TRecord fs s)
@@ -366,7 +374,7 @@ recTupleAccessors fs fn =
       rhs = mkLambda [mkPrettyTuple fs] (mkId fn)
       term = [isaTerm| $lhs \<equiv> $rhs |]
       getter = Definition (Def (Just (Sig dfnm Nothing)) term)
-      f = "f"++subSymStr "fun"
+      f = "f" ++ subSymStr "fun"
       udfnm = dfnm ++ "_update"
       lhs2 = mkId udfnm
       tupelms = map (\nm -> if nm == fn then mkApp (mkId f) [mkId nm] else mkId fn) fs
@@ -396,7 +404,13 @@ fieldConjValRel ((var,fld):r) = let rest = fieldConjValRel r in [isaTerm| valRel
 
 data DeclT = RecordT | VariantT
 
-shallowTT :: (Int, TypeStr) -> SG ([TheoryDecl I.Type I.Term],[(DeclT,TheoryDecl I.Type I.Term)],[TheoryDecl I.Type I.Term], [Name], MapTypeName)
+shallowTT :: (Int, TypeStr)
+          -> SG ( [TheoryDecl I.Type I.Term]
+                , [(DeclT,TheoryDecl I.Type I.Term)]
+                , [TheoryDecl I.Type I.Term]
+                , [Name]
+                , MapTypeName
+                )
 shallowTT (tidx, t) = do
   tnmap <- asks typeNameMap
   let mbsyn = M.lookup t tnmap
@@ -418,7 +432,7 @@ shallowTT (tidx, t) = do
                  , ([O.RecordDecl (Record nm fields tvars)], [])
                  , nm ++ ".")
           evarIsaList = I.mkList $ map I.mkId evarNames
-          conjs = fieldConjValRel (P.zip (map I.mkId evarNames) (map (I.mkId . (prefix++) . (++ subSymStr "f")) fs))
+          conjs = fieldConjValRel (P.zip (map I.mkId evarNames) (map (I.mkId . (prefix ++) . (++ subSymStr "f")) fs))
           valRelBody = I.QuantifiedTerm Exists (map I.Id evarNames) [isaTerm| v = VRecord $evarIsaList \<and> $conjs |]
           valRelDef = OverloadedDef $ Def (Just (Sig ("valRel_" ++ nm) Nothing))
                                        [isaTerm| valRel \<xi> (x :: $ity) v \<equiv> $valRelBody |]
@@ -439,8 +453,9 @@ shallowTT (tidx, t) = do
           simpLemmas = map (simpLemma nm) fs
       in pure $ ([O.DataTypeDecl (Datatype nm cons tvars)], [(VariantT, valRelDef)], simpLemmas, [], newmap)
 
+-- | If several types share the same structure, we only keep the shortest synonym for it.
 filterDuplicates :: [(TypeStr,TypeName)] -> [(TypeStr,TypeName)]
-filterDuplicates xs =  -- only keep the shortest typeName
+filterDuplicates xs =
   let sorted = sortBy (compare `on` fst) xs
       grouped = groupBy ((==) `on` fst) sorted
       grpdsrtd = map (sortBy (compare `on` snd)) grouped
@@ -449,23 +464,9 @@ filterDuplicates xs =  -- only keep the shortest typeName
 stsyn :: [Definition TypedExpr VarName] -> MapTypeName
 stsyn decls = M.fromList . filterDuplicates . concat $ P.map synAllTypeStr decls
 
-filterTags :: String -> [TagName] -> [TagName]
-filterTags mask tags = foldl (\xs (bit,tag) -> if bit == '1' then xs ++ [tag] else xs) [] $ P.zip mask tags
-
-genVariantStr :: TypeName -> [TagName] -> String -> (TypeStr,TypeName)
-genVariantStr tn tags mask = (VariantStr (filterTags mask tags), tn ++ subSymStr mask)
-
-pad0 :: Int -> String -> String
-pad0 n s = replicate (max 0 $ n - P.length s) '0' ++ s
-
 synAllTypeStr :: Definition TypedExpr VarName -> [(TypeStr, TypeName)]
 synAllTypeStr (TypeDef tn _ (Just (TRecord fs _))) = [(RecordStr $ P.map fst fs, tn)]
-synAllTypeStr (TypeDef tn _ (Just (TSum tgty))) =
-  let tags = P.map fst tgty
-      genmask n = pad0 (P.length tags) $ showIntAtBase 2 intToDigit n ""
-      -- we use the binary rep of these number to cover all possible combinations
-      combs = map genmask [1 :: Integer .. 2 ^ P.length tags - 1]
-  in map (genVariantStr tn tags) combs
+synAllTypeStr (TypeDef tn _ (Just (TSum alts))) = [(VariantStr $ P.map fst alts, tn)]
 synAllTypeStr _ = []
 
 shallowTypeFromTable :: SG ([TheoryDecl I.Type I.Term], [TheoryDecl I.Type I.Term], MapTypeName)

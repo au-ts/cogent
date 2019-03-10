@@ -52,7 +52,7 @@ import Cogent.Isabelle.Deep            as DP (deep)
 import Cogent.Isabelle.MonoProof       as MP  -- FIXME: zilinc
 import Cogent.Isabelle.NormalProof     as NP (normalProof)
 import Cogent.Isabelle.Root            as RT (root)
-import Cogent.Isabelle.Shallow         as SH (shallowConsts, shallow, shallowTuplesProof)
+import Cogent.Isabelle.Shallow         as IS (shallowConsts, shallow, shallowTuplesProof)
 import Cogent.Isabelle.ShallowTable    as ST (st, printTable)  -- for debugging only
 import Cogent.Isabelle.TypeProofs      as TP (deepTypeProof)
 import Cogent.Isabelle.GraphGen        as GG
@@ -902,9 +902,9 @@ parseArgs args = case getOpt' Permute options args of
 
           thy = mkProofName source Nothing
           -- Run the generators
-          (shal    ,shrd    ,scorr,shallowTypeNames) = SH.shallow False thy stg        defns log
-          (shal_tup,shrd_tup,_    ,_               ) = SH.shallow True  thy STGDesugar defns log
-          constsTypeCheck = IN.tcConsts ( (\(a,b,c) -> c) $ fromJust $ getLast typedefs) fts
+          (shal    ,shrd    ,scorr,shallowTypeNames) = IS.shallow False thy stg        defns log
+          (shal_tup,shrd_tup,_    ,_               ) = IS.shallow True  thy STGDesugar defns log
+          constsTypeCheck = IN.tcConsts ((\(a,b,c) -> c) $ fromJust $ getLast typedefs) fts
 #ifdef WITH_HASKELL
           -- Haskell shallow embedding
           hsShalName    = mkOutputName' toHsModName source (Just $ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage stg)

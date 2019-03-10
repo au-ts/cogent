@@ -44,7 +44,7 @@ instance Show TypeStr where
   show (RecordStr  fs) = "{" ++ intercalate ", " fs ++ "}"
   show (VariantStr as) = "<" ++ intercalate "| " as ++ ">"
 
--- | collect type structures from a Cogent type
+-- | Collects type structures from a Cogent type.
 toTypeStr :: Type t -> [TypeStr]
 toTypeStr (TVar v)         = []
 toTypeStr (TVarBang v)     = []
@@ -58,6 +58,11 @@ toTypeStr (TPrim i)        = []
 toTypeStr (TString)        = []
 toTypeStr (TCon n ts _)    = nub $ concatMap toTypeStr ts
 
+-- | Given a map for type synonyms, the table, and a type @t@, returns
+--   a type in the form of a 'TCon', which means that if there's a type
+--   synonym, it will be used; otherwise we will create a unique name
+--   for the type according to the position of that type in the table.
+--   This will make the generated Isabelle files more readable by humans.
 getStrlType :: M.Map TypeStr TypeName -> [TypeStr] -> Type t -> Type t
 getStrlType tsmap table (TSum ts) =
   let tstr = VariantStr (P.map fst ts)
@@ -81,13 +86,14 @@ getStrlType _ _ t = t
 
 type ST = State [TypeStr]
 
--- since desugaring, the RHSes have been unfolded already
+-- | Collects all the types used in a Cogent program.
 st :: [Definition TypedExpr VarName] -> [TypeStr]
 st ds = execState (stDefinitions ds) []
 
 stDefinitions :: [Definition TypedExpr VarName] -> ST ()
 stDefinitions = mapM_ stDefinition
 
+-- Since desugaring, the RHSes have been unfolded already
 stDefinition :: Definition TypedExpr VarName -> ST ()
 stDefinition (FunDef  _ fn ts ti to e) = stExpr e  -- NOTE: `ti' and `to' will be included in `e', so no need to scan them / zilinc
 stDefinition (AbsDecl _ fn ts ti to) = stType ti >> stType to
@@ -119,7 +125,7 @@ stExpr (TE t e) = stExpr' e >> stType t
     stExpr' (Promote ty e)   = stExpr e
     stExpr' (Cast    ty e)   = stExpr e
 
--- Add types to the table if not exists
+-- | Add types to the table if not existing.
 stType :: Type t -> ST ()
 stType (toTypeStr -> ts) = forM_ ts $ \t -> do
   table <- get
@@ -136,5 +142,4 @@ lookupTypeStr = find . (==)
 -- For debugging
 printTable :: [TypeStr] -> String
 printTable table = unlines $ P.zipWith (\i t -> 'T':show i ++ " :-> " ++ show t) [1::Int ..] table
-
 
