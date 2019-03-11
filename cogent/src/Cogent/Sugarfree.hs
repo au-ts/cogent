@@ -490,7 +490,7 @@ typecheck (E (App e1 e2))
                       (TE (TFun ti to) _) -> return (ti, to)
                       _ -> fail "app operator not a function"
         e2' <- typecheck e2
-        let (TE ti' _) = e1'
+        let (TE ti' _) = e2'
         guardShow "app" $ ti' == ti
         return $ TE to (App e1' e2')
 typecheck (E (Let a e1 e2))
