@@ -34,3 +34,8 @@ session Deep_C_Static = Shallow_Deep_Static +
     "../../c-refinement/Tidy"
     "../../c-refinement/Corres_Tac"
     "../../c-refinement/Cogent_Corres_Shallow_C"
+
+session Type_Proof = "HOL-Word" +
+  theories
+    "../../c-refinement/TypeProofGen"
+    "AssocLookup"
