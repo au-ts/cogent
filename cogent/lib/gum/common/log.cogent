@@ -10,7 +10,8 @@
 -- @TAG(DATA61_GPL)
 --
 
-include "common.cogent"
+cogent_LOG_LEVEL: U32
+cogent_LOG_LEVEL = 0x0
 
 -- -----------------------------------------------------------------------------
 -- debug log functions

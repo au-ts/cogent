@@ -825,7 +825,7 @@ test_libgum()
     # ensure set
     shopt -s globstar
     # since some libgum stuff depends on this type
-    echo $'type FsInode\ntype FsState\ntype VfsSuperBlock\ncogent_LOG_LEVEL: U32\ncogent_LOG_LEVEL = 0' > "$TEST_FILE"
+    echo $'type FsInode\ntype FsState\ntype VfsSuperBlock\n' > "$TEST_FILE"
 
     flist=`find gum -name "*.cogent"`
     echo $flist

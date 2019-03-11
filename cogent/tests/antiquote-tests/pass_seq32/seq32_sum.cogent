@@ -8,6 +8,7 @@
 -- @TAG(NICTA_GPL)
 --
 
+include <gum/common/common.cogent>
 include <gum/common/log.cogent>
 
 sum_body: #{acc: U32, obsv: (), idx: U32} -> LRR U32 ()
