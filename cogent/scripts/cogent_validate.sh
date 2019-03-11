@@ -230,6 +230,7 @@ if [[ -z "$GHC" ]]; then GHC=ghc; fi
 if [[ -z "$HSC2HS" ]]; then HSC2HS=hsc2hs; fi
 if [[ -z "$HC_PKG" ]]; then HC_PKG=ghc-pkg; fi
 if [[ -z "$DIST" ]]; then DIST=dist; fi
+if [[ -z "$CABAL_SANDBOX" ]]; then CABAL_SANDBOX=../.cabal-sandbox; fi
 if [[ -z "$PACKAGE_DB" ]]; then
   PACKAGE_DB="${CABAL_SANDBOX}/`arch`-`uname | tr [A-Z] [a-z]`-ghc-`${GHC} --version | sed -e 's/^.*version //'`-packages.conf.d"
 fi
