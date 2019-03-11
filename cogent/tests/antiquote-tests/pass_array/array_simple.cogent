@@ -9,6 +9,7 @@
 --
 
 include <gum/common/array.cogent>
+include <gum/common/log.cogent>
 include <gum/test/test.cogent>
 
 const_arraySize: U32

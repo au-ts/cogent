@@ -160,6 +160,7 @@ script:
  - make test-an
  - make test-mn
  - make test-cg
+ - make test-gcc
  - make test-aq
  - make test-flags
  # - echo 'Typechecking libgum'

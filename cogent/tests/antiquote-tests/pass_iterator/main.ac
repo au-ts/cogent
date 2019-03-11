@@ -11,6 +11,7 @@
 $esc:(#include "../plat/console/adt.h")
 #include <cogent-defns.h>
 #include "../plat/console/anti/common.ac"
+#include "../plat/console/anti/log.ac"
 #include <generated.c>
 #include <gum/anti/iterator.ac>
 

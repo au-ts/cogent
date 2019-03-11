@@ -1,4 +1,0 @@
-include <gum/common/common.cogent>
-include <gum/common/array.cogent>
-
-type A
