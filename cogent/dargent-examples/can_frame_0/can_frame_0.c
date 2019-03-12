@@ -4,7 +4,7 @@
 // proofs, as it will end up with an inconsistent collection of output files (i.e.
 // Isabelle input files).
 
-#include "can_frame.h"
+#include "can_frame_0.h"
 
 static inline unsigned int d4_get_ident_part0(t1 b)
 {
