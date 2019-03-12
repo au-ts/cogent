@@ -251,8 +251,8 @@ Executable cogent
   -- if impl(ghc >= 7.10.1)
   --  ghc-options: -fno-warn-unticked-promoted-constructors
 
-Executable dargent-examples
-  main-is: dargent-examples/Ex1.hs
+Executable can-frame-1
+  main-is: dargent-examples/can_frame_1/can_frame_1.hs
 
   build-depends:
     cogent,
