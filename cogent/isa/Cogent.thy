@@ -541,7 +541,7 @@ inductive split_comp :: "kind env \<Rightarrow> type option \<Rightarrow> type o
   none  : "K \<turnstile> None \<leadsto> None \<parallel> None"
 | left  : "\<lbrakk> K \<turnstile> t wellformed \<rbrakk> \<Longrightarrow> K \<turnstile> Some t \<leadsto> Some t \<parallel> None"
 | right : "\<lbrakk> K \<turnstile> t wellformed \<rbrakk> \<Longrightarrow> K \<turnstile> Some t \<leadsto> None   \<parallel> Some t"
-| share : "\<lbrakk> K \<turnstile> t :\<kappa> {S} ; S \<in> k \<rbrakk> \<Longrightarrow> K \<turnstile> Some t \<leadsto> Some t \<parallel> Some t"
+| share : "\<lbrakk> K \<turnstile> t :\<kappa> {S} \<rbrakk> \<Longrightarrow> K \<turnstile> Some t \<leadsto> Some t \<parallel> Some t"
 
 definition split :: "kind env \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool" ("_ \<turnstile> _ \<leadsto> _ | _" [30,0,0,20] 60) where
   "split K \<equiv> list_all3 (split_comp K)"

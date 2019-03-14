@@ -553,7 +553,7 @@ split :: Vec t Kind -> Maybe (Type t) -> Maybe (Type t) -> Maybe (Type t) -> Sta
 split k Nothing  Nothing  Nothing  = return [rule "split_comp.none"]
 split k (Just t) (Just _) Nothing  = tacSequence [return [rule "split_comp.left"], wellformed k t]
 split k (Just t) Nothing  (Just _) = tacSequence [return [rule "split_comp.right"], wellformed k t]
-split k (Just t) (Just _) (Just _) = tacSequence [return [rule "split_comp.share"], kinding k t, return [simp]]
+split k (Just t) (Just _) (Just _) = tacSequence [return [rule "split_comp.share"], kinding k t]
 split k g x y = error $ "bad split: " ++ show (g, x, y)
 
 splitsHint :: Int -> Vec t Kind -> Vec v (Maybe (Type t)) -> Vec v (Maybe (Type t)) -> Vec v (Maybe (Type t)) -> State TypingSubproofs [(Int, [Tactic])]
