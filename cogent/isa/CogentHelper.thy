@@ -201,17 +201,10 @@ fun REPEAT_SUBGOAL tac s0 =
                              | SOME (s', ss) => Seq.maps (repeat tac) (Seq.cons s' ss)
   in repeat tac s0 end
 
-fun weakening_tac ctxt kinding_thms =
-  let val kinding_tac = FIRST (map (fn t => rtac t 1) kinding_thms)
-      val weakening_comp_tac =
-        DETERM (rtac @{thm none} 1 ORELSE
-                (rtac @{thm drop} 1 THEN kinding_tac THEN asm_full_simp_tac ctxt 1) ORELSE
-                (rtac @{thm keep} 1 THEN kinding_tac))
-  in
-    asm_full_simp_tac (ctxt addsimps @{thms weakening_def}
-                            delsimps @{thms HOL.simp_thms(25) HOL.simp_thms(26)}) 1
-    THEN REPEAT_SUBGOAL (CHANGED (rtac @{thm conjI} 1 ORELSE weakening_comp_tac))
-  end
+fun weakening_tac ctxt _ =
+   ((rtac @{thm weakening_cons} 1 THEN asm_full_simp_tac (ctxt addsimps @{thms weakening_comp.simps}) 1) ORELSE rtac @{thm weakening_nil} 1)
+  |> CHANGED
+  |> REPEAT_SUBGOAL
 
 fun cogent_splits_tac ctxt kinding_thms =
   let val kinding_tac = FIRST (map (fn t => rtac t 1) kinding_thms)
