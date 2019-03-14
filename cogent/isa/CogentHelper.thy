@@ -256,6 +256,7 @@ fun typing_hint (Leaf (TypingTacs tacs)) = tacs
 
 fun apply_split @{term "Some TSK_L"} hints t = ((t, NONE), hints)
   | apply_split @{term "Some TSK_S"} hints t = ((t, t), hints)
+  | apply_split @{term "Some TSK_R"} hints t = ((NONE, t), hints)
   | apply_split @{term "Some TSK_NS"} hints t = let
     val (kindhint, hints) = (case hints of
                       kindhint :: hints => (kindhint, hints)
