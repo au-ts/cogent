@@ -359,7 +359,7 @@ fun ttsplit_inner (@{term "Some TSK_S"} :: tsks) (SOME p :: Gamma) = let
 
 fun ttsplit (Const (@{const_name TyTrSplit}, _) $ sps $ _ $ _ $ _ $ _, Gamma) = let
     val inner = ttsplit_inner (HOLogic.dest_list sps) Gamma
-  in [RTac @{thm ttsplitI}] @ inner @ [simp, simp] end
+  in [RTac @{thm ttsplitI}] @ inner @ [simp, simp, simp] end
   | ttsplit (t, _) = raise TERM ("ttsplit", [t])
 
 fun ttsplit_bang_inner (@{term "Some TSK_S"} :: tsks) (SOME p :: Gamma) = let
