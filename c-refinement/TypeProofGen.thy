@@ -50,9 +50,6 @@ fun is_typing t = head_of t |>
            is_const "Cogent.split" h orelse
            is_const "Cogent.kinding" h);
 
-(* NB: flattening the proof tree is unsafe in general, but this program is a small example *)
-fun flatten_Tree (Tree { value, branches }) = value :: List.concat (map flatten_Tree branches);
-
 (* remove consecutive duplicates *)
 fun uniq cmp (x::y::xs) = (case cmp (x,y) of EQUAL => uniq cmp (x::xs)
                                            | _ => x::uniq cmp (y::xs))
@@ -101,13 +98,13 @@ fun get_final_typing_tree ctxt f proof =
 
 (* covert a typing tree to a list of typing theorems *)
 val typing_tree_to_bucket =
-  map flatten_Tree
+  map flatten_tree
     #> List.concat
     #> sort_distinct Thm.thm_ord
 
 fun get_typing_bucket ctxt f proof =
   get_typing_tree ctxt f proof
-    |> map flatten_Tree
+    |> map flatten_tree
     |> List.concat
     |> map (cleanup_typing_tree_thm ctxt)
     |> sort Thm.thm_ord
