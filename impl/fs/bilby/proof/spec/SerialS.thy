@@ -1568,11 +1568,11 @@ lemma deserialise_ObjDentry_ret:
   assumes wellformed_buf: "wellformed_buf buf"
   assumes no_buf_overflow: "length (\<alpha>wa $ data\<^sub>f buf) \<le> unat bilbyFsMaxEbSize"
   assumes bound: "end_offs \<le> bound\<^sub>f buf"
-  assumes off_less_end_offs: "offs  \<le> end_offs"
+  assumes off_less_end_offs: "offs \<le> end_offs"
   assumes err:
-     "\<And>ex e. e \<in> {eInval, eNoMem} \<Longrightarrow> P (Error (e, ex))"
+    "\<And>ex e. e \<in> {eInval, eNoMem} \<Longrightarrow> P (Error (e, ex))"
   assumes suc:
-   "\<And>ex dentry offs'. \<lbrakk>
+    "\<And>ex dentry offs'. \<lbrakk>
       unat offs + 8 + unat (wordarray_length (name\<^sub>f dentry)) \<le> unat (bound\<^sub>f buf);
       wordarray_length (name\<^sub>f dentry) \<le> bilbyFsMaxNameLen + 1;
       offs + 8 + wordarray_length (name\<^sub>f dentry) \<le> end_offs ;
@@ -1586,143 +1586,142 @@ proof -
   {
     fix ex' dentry offs'
     assume des_suc: "unat offs + 8 \<le> unat (bound\<^sub>f buf)"
-    
+
     then have offs_ok:"\<forall>n\<in>{0..7}. unat (offs + n)  < length (\<alpha>wa $ data\<^sub>f buf)"
     proof -
       from wellformed_buf[unfolded wellformed_buf_def] des_suc
       have "unat offs + 8 \<le> length (\<alpha>wa $ data\<^sub>f buf)"
-      by unat_arith
-      
+        by unat_arith
+
       thus ?thesis
-      by unat_arith
+        by unat_arith
     qed
-    
+
     from des_suc have deserialises:
       "deserialise_le32 (buf, offs)     = (ple32 (\<alpha>wa $ data\<^sub>f buf) offs)"
       "deserialise_u8   (buf, offs + 4) = (pu8 (\<alpha>wa $ data\<^sub>f buf) (offs + 4))"
       "deserialise_le16 (buf, offs + 6) = (ple16 (\<alpha>wa $ data\<^sub>f buf) (offs + 6))"
-      apply clarsimp
+        apply clarsimp
         apply(rule deserialise_le32_ret[simplified])
-         using assms[simplified bilbyFsMaxEbSize_def wellformed_buf_def]
+      using assms[simplified bilbyFsMaxEbSize_def wellformed_buf_def]
          apply unat_arith 
-        using assms[simplified bilbyFsMaxEbSize_def ]
+      using assms[simplified bilbyFsMaxEbSize_def ]
         apply unat_arith
-        apply (subst deserialise_pu8_ret)
-          using offs_ok des_suc wellformed_buf
-          apply (simp add: wellformed_buf_def, unat_arith)
-         using des_suc
-         apply unat_arith
-        apply simp+
+       apply (subst deserialise_pu8_ret)
+      using offs_ok des_suc wellformed_buf
+         apply (simp add: wellformed_buf_def, unat_arith)
+      using des_suc
+        apply unat_arith
+       apply simp+
       apply(rule deserialise_le16_ret[simplified])
-       using offs_ok des_suc wellformed_buf apply (simp add: wellformed_buf_def, unat_arith)
+      using offs_ok des_suc wellformed_buf apply (simp add: wellformed_buf_def, unat_arith)
       using des_suc
       apply unat_arith
-     done
+      done
   }
   note deserialises = this
 
   have offs_le_bound: "offs  \<le> bound\<^sub>f buf"
-   using off_less_end_offs bound by simp
+    using off_less_end_offs bound by simp
 
   have const_offs_no_of: "\<And>n. n < bilbyFsMaxEbSize \<Longrightarrow> 0 < n \<Longrightarrow> offs < offs + n"
-   apply (rule conc_offs_no_of[OF wellformed_buf no_buf_overflow, unfolded bilbyFsMaxEbSize_def, simplified])
-   using offs_le_bound by (simp add:bilbyFsMaxEbSize_def)+
+    apply (rule conc_offs_no_of[OF wellformed_buf no_buf_overflow, unfolded bilbyFsMaxEbSize_def, simplified])
+    using offs_le_bound by (simp add:bilbyFsMaxEbSize_def)+
   note no_of_8 = no_offs_overflow[OF wellformed_buf no_buf_overflow offs_le_bound, where m=8 and n=0, unfolded bilbyFsMaxEbSize_def, simplified, simplified unat_plus_simple]
   show ?thesis
-  unfolding deserialise_ObjDentry_def[simplified tuple_simps sanitizers]
-  apply (clarsimp simp: Let_def err[unfolded eNoMem_def eInval_def])
-  apply (subst (asm) not_less)+
-  apply (rule deserialise_wordarray_U8_ret)
-  apply (clarsimp simp add: err)
-  apply(clarsimp simp add: err eNoMem_def Let_def prod.case_eq_if split: R\<^sub>1\<^sub>1.splits)
-  apply (erule impE)
-   apply (rule no_offs_overflow[OF wellformed_buf no_buf_overflow])
-     using off_less_end_offs bound apply fastforce
-    apply (simp add: bilbyFsMaxEbSize_def)+
-   apply unat_arith
-  apply (subgoal_tac "unat offs + unat (8::32word) + unat (ucast (deserialise_le16 (buf, offs + 6))) \<le> unat end_offs")
-   prefer 2
-   apply (subst add.assoc)
-   apply (subst unat_plus_simple[THEN iffD1, symmetric])
-    apply (simp add: unat_arith_simps)
-   apply (subst unat_plus_simple[THEN iffD1, symmetric])
-    apply (rule no_offs_overflow[OF wellformed_buf no_buf_overflow, where n=0, simplified])
-      using off_less_end_offs bound apply fastforce
-     apply (simp add: bilbyFsMaxEbSize_def)+
-    apply (simp add: unat_arith_simps)
-   apply (simp add: word_le_nat_alt[symmetric] add.assoc)
-  apply (erule impE)
-   using bound wellformed_buf[unfolded wellformed_buf_def] 
-   apply (simp add: unat_arith_simps)
-   apply unat_arith
-  apply (subgoal_tac "unat offs + 8 \<le> unat (bound\<^sub>f buf)")
-   prefer 2 
-   apply (subst unat_plus_simple[THEN iffD1, symmetric, 
-                 where y="8::32word", simplified])
-    apply (rule no_offs_overflow[OF wellformed_buf no_buf_overflow, 
-                 where n=0, simplified])
-      using off_less_end_offs bound apply fastforce
-     apply (simp add: bilbyFsMaxEbSize_def)+ 
-   apply (subst word_le_nat_alt[symmetric])
-   apply (cut_tac no_offs_overflow[OF wellformed_buf no_buf_overflow, 
-       where offs=offs and n=8 and m="ucast (deserialise_le16 (buf, offs + 6))"])
-      using off_less_end_offs bound apply (simp_all add: bilbyFsMaxEbSize_def)
-   apply unat_arith
-  apply (simp add: deserialises) 
-  apply (subgoal_tac "wordarray_length (WordArrayT.make
+    unfolding deserialise_ObjDentry_def[simplified tuple_simps sanitizers]
+    apply (clarsimp simp: Let_def err[unfolded eNoMem_def eInval_def])
+    apply (subst (asm) not_less)+
+    apply (rule deserialise_wordarray_U8_ret)
+     apply (clarsimp simp add: err)
+    apply(clarsimp simp add: err eNoMem_def Let_def prod.case_eq_if split: R\<^sub>1\<^sub>1.splits)
+    apply (erule impE)
+     apply (rule no_offs_overflow[OF wellformed_buf no_buf_overflow])
+    using off_less_end_offs bound apply fastforce
+      apply (simp add: bilbyFsMaxEbSize_def)+
+     apply unat_arith
+    apply (subgoal_tac "unat offs + unat (8::32word) + unat (ucast (deserialise_le16 (buf, offs + 6))) \<le> unat end_offs")
+     prefer 2
+     apply (subst add.assoc)
+     apply (subst unat_plus_simple[THEN iffD1, symmetric])
+      apply (simp add: unat_arith_simps)
+     apply (subst unat_plus_simple[THEN iffD1, symmetric])
+      apply (rule no_offs_overflow[OF wellformed_buf no_buf_overflow, where n=0, simplified])
+    using off_less_end_offs bound apply fastforce
+       apply (simp add: bilbyFsMaxEbSize_def)+
+      apply (simp add: unat_arith_simps)
+     apply (simp add: word_le_nat_alt[symmetric] add.assoc)
+    apply (erule impE)
+    using bound wellformed_buf[unfolded wellformed_buf_def] 
+     apply (simp add: unat_arith_simps)
+     apply unat_arith
+    apply (subgoal_tac "unat offs + 8 \<le> unat (bound\<^sub>f buf)")
+     prefer 2 
+     apply (subst unat_plus_simple[THEN iffD1, symmetric, 
+          where y="8::32word", simplified])
+      apply (rule no_offs_overflow[OF wellformed_buf no_buf_overflow, 
+          where n=0, simplified])
+    using off_less_end_offs bound apply fastforce
+       apply (simp add: bilbyFsMaxEbSize_def)+ 
+     apply (subst word_le_nat_alt[symmetric])
+     apply (cut_tac no_offs_overflow[OF wellformed_buf no_buf_overflow, 
+          where offs=offs and n=8 and m="ucast (deserialise_le16 (buf, offs + 6))"])
+    using off_less_end_offs bound apply (simp_all add: bilbyFsMaxEbSize_def)
+     apply unat_arith
+    apply (simp add: deserialises) 
+    apply (subgoal_tac "wordarray_length (WordArrayT.make
          (FunBucket.slice (unat (offs + 8)) 
-          (unat (offs + 8) + unat (ucast (ple16 (\<alpha>wa (data\<^sub>f buf)) (offs + 6))))
+          (unat (offs + 8) + unat (ucast (ple16 (\<alpha>wa (data\<^sub>f buf)) (offs + 6)) :: 32 word))
           (\<alpha>wa (data\<^sub>f buf)))) \<le> ucast (ple16 (\<alpha>wa (data\<^sub>f buf)) (offs + 6))")
-   prefer 2
-   apply (subst wordarray_length_ofnat)
-    apply (simp add: wordarray_length_ret)
-   apply (subst wordarray_make)
-       apply (simp add: slice_length)
-       apply (subst min_absorb1)
-      sorry
-(*
+     prefer 2
+     apply (subst wordarray_length_ofnat)
+      apply (simp add: wordarray_length_ret)
+     apply (subst wordarray_make)
+     apply (simp add: slice_length)
+     apply (subst min_absorb1)  
+      prefer 3
     using wellformed_buf[unfolded wellformed_buf_def]  no_buf_overflow[unfolded bilbyFsMaxEbSize_def]
-    apply (simp add: unat_arith_simps)
-  apply (subgoal_tac 
-        "unat (ucast (ple16 (\<alpha>wa (data\<^sub>f buf)) (offs + 6))) = 
+      apply (simp add: unat_arith_simps)
+      apply (subgoal_tac 
+        "unat (ucast (ple16 (\<alpha>wa (data\<^sub>f buf)) (offs + 6)) :: 32 word) = 
               unat (ple16 (\<alpha>wa (data\<^sub>f buf)) (offs + 6))")
-   prefer 2 
-   apply (fastforce intro: uint_up_ucast simp: eq_nat_nat_iff unat_def is_up)
-  apply (rule suc)  
-       apply (simp_all add: Let_def pObjDentry_def ObjDentry.make_def bilbyFsMaxNameLen_def)
-     using bound apply unat_arith
+       prefer 2 
+       apply (fastforce intro: uint_up_ucast simp: eq_nat_nat_iff unat_def is_up) 
+      apply (rule suc)  
+           apply (simp_all add: Let_def pObjDentry_def ObjDentry.make_def bilbyFsMaxNameLen_def)
+    using bound apply unat_arith
+    using wellformed_buf[unfolded wellformed_buf_def]  no_buf_overflow[unfolded bilbyFsMaxEbSize_def]
+        apply (simp add: unat_arith_simps)
+       apply (simp add: ple16_take ple32_take const_offs_no_of bilbyFsMaxEbSize_def plus_no_overflow_unat_lift[OF const_offs_no_of[unfolded bilbyFsMaxEbSize_def, simplified]])
+       apply (subst ple16_take)
+         apply (rule no_offs_overflow_le[OF wellformed_buf no_buf_overflow offs_le_bound])
+           apply (simp add: bilbyFsMaxEbSize_def)+
+    using no_of_8
+        apply (simp add: add.commute)
+       apply (subst ple16_take)
+         apply (rule no_offs_overflow_le[OF wellformed_buf no_buf_overflow offs_le_bound])
+           apply (simp add: bilbyFsMaxEbSize_def)+
+    using no_of_8
+        apply (simp add: add.commute)
+       apply (subst pu8_take)
+    using no_offs_overflow[OF wellformed_buf no_buf_overflow offs_le_bound, where m=5 and n=0, unfolded bilbyFsMaxEbSize_def, simplified]
+      no_offs_overflow[OF wellformed_buf no_buf_overflow offs_le_bound, where m=4 and n=0, unfolded bilbyFsMaxEbSize_def, simplified]
+         apply (simp add: add.commute unat_plus_simple)
+         apply unat_arith
+    using no_of_8
+      no_offs_overflow[OF wellformed_buf no_buf_overflow offs_le_bound, where m=5 and n=0, unfolded bilbyFsMaxEbSize_def, simplified]
+        apply (fastforce simp add: unat_plus_simple add.commute)
+       apply (subst ObjDentry.surjective, simp)
+       apply (rule arg_cong[where f=WordArrayT.make])
+       apply (rule slice_take[symmetric], simp)
+      apply (rule word_unat.Rep_eqD)
+      apply (simp add: wordarray_length_ret wordarray_make length_slice)
+    using no_of_8 wellformed_buf
+     apply (simp add: wellformed_buf_def)
+     apply unat_arith
     using wellformed_buf[unfolded wellformed_buf_def]  no_buf_overflow[unfolded bilbyFsMaxEbSize_def]
     apply (simp add: unat_arith_simps)
-   apply (simp add: ple16_take ple32_take const_offs_no_of bilbyFsMaxEbSize_def plus_no_overflow_unat_lift[OF const_offs_no_of[unfolded bilbyFsMaxEbSize_def, simplified]])
-   apply (subst ple16_take)
-     apply (rule no_offs_overflow_le[OF wellformed_buf no_buf_overflow offs_le_bound])
-       apply (simp add: bilbyFsMaxEbSize_def)+
-    using no_of_8
-    apply (simp add: add.commute)
-
-   apply (subst ple16_take)
-     apply (rule no_offs_overflow_le[OF wellformed_buf no_buf_overflow offs_le_bound])
-       apply (simp add: bilbyFsMaxEbSize_def)+
-    using no_of_8
-    apply (simp add: add.commute)
-   apply (subst pu8_take)
-   using no_offs_overflow[OF wellformed_buf no_buf_overflow offs_le_bound, where m=5 and n=0, unfolded bilbyFsMaxEbSize_def, simplified]
-     no_offs_overflow[OF wellformed_buf no_buf_overflow offs_le_bound, where m=4 and n=0, unfolded bilbyFsMaxEbSize_def, simplified]
-   apply (simp add: add.commute unat_plus_simple)
-   apply unat_arith
-    using no_of_8
-     no_offs_overflow[OF wellformed_buf no_buf_overflow offs_le_bound, where m=5 and n=0, unfolded bilbyFsMaxEbSize_def, simplified]
-    apply (fastforce simp add: unat_plus_simple add.commute)
-   apply (subst ObjDentry.surjective, simp)
-   apply (rule arg_cong[where f=WordArrayT.make])
-   apply (rule slice_take[symmetric], simp)
-  apply (rule word_unat.Rep_eqD)
-  apply (simp add: wordarray_length_ret wordarray_make length_slice)
-  using no_of_8 wellformed_buf
-  apply (simp add: wellformed_buf_def)
-  apply unat_arith
-  done
-*)
+    done
 qed
 
 lemma loop_deserialise_ObjDentry_ret:
