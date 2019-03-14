@@ -202,7 +202,7 @@ fun REPEAT_SUBGOAL tac s0 =
   in repeat tac s0 end
 
 fun weakening_tac ctxt _ =
-   ((rtac @{thm weakening_cons} 1 THEN asm_full_simp_tac (ctxt addsimps @{thms weakening_comp.simps}) 1) ORELSE rtac @{thm weakening_nil} 1)
+   ((rtac @{thm weakening_cons} 1 THEN asm_full_simp_tac (ctxt addsimps @{thms weakening_comp.simps kinding_def}) 1) ORELSE rtac @{thm weakening_nil} 1)
   |> CHANGED
   |> REPEAT_SUBGOAL
 
