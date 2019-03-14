@@ -195,20 +195,16 @@ lemma ttsplitI:
   using assms
   by (simp add: ttsplit_def)
 
-(* TODO
-  the \<open>K \<turnstile> t :\<kappa> {E, S, D}\<close> shoud be rewritten to wellformed, but this requires non-trivial changes
-  to the type-proof tactic
-*)
 lemma ttsplit_innerI:
   "ttsplit_inner K sps \<Gamma>a \<Gamma>1a \<Gamma>2a
     \<Longrightarrow> ttsplit_inner K (None # sps) (None # \<Gamma>a) (None # \<Gamma>1a) (None # \<Gamma>2a)"
-  "\<lbrakk> K \<turnstile> t :\<kappa> {E, S, D} ; ttsplit_inner K sps \<Gamma>a \<Gamma>1a \<Gamma>2a \<rbrakk>
+  "\<lbrakk> K \<turnstile> t wellformed ; ttsplit_inner K sps \<Gamma>a \<Gamma>1a \<Gamma>2a \<rbrakk>
     \<Longrightarrow> ttsplit_inner K (Some TSK_R # sps) (Some t # \<Gamma>a) (None # \<Gamma>1a) (Some t # \<Gamma>2a)"
-  "\<lbrakk> K \<turnstile> t :\<kappa> {E, S, D} ; ttsplit_inner K sps \<Gamma>a \<Gamma>1a \<Gamma>2a \<rbrakk>
+  "\<lbrakk> K \<turnstile> t wellformed ; ttsplit_inner K sps \<Gamma>a \<Gamma>1a \<Gamma>2a \<rbrakk>
     \<Longrightarrow> ttsplit_inner K (Some TSK_L # sps) (Some t # \<Gamma>a) (Some t # \<Gamma>1a) (None # \<Gamma>2a)"
   "\<lbrakk> K \<turnstile> t :\<kappa> {S} ; ttsplit_inner K sps \<Gamma>a \<Gamma>1a \<Gamma>2a \<rbrakk>
     \<Longrightarrow> ttsplit_inner K (Some TSK_S # sps) (Some t # \<Gamma>a) (Some t # \<Gamma>1a) (Some t # \<Gamma>2a)"
-  "\<lbrakk> K \<turnstile> t :\<kappa> {E, S, D} ; ttsplit_inner K sps \<Gamma>a \<Gamma>1a \<Gamma>2a \<rbrakk>
+  "\<lbrakk> K \<turnstile> t wellformed ; ttsplit_inner K sps \<Gamma>a \<Gamma>1a \<Gamma>2a \<rbrakk>
     \<Longrightarrow> ttsplit_inner K (Some TSK_NS # sps) (Some t # \<Gamma>a) (Some (bang t) # \<Gamma>1a) (Some t # \<Gamma>2a)"
   "ttsplit_inner K [] [] [] []"
   by (clarsimp simp add: kinding_def ttsplit_inner_def All_less_Suc2)+
