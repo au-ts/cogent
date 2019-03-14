@@ -281,7 +281,8 @@ typing xi k (EE t' (Fun f ts _) env) = case findfun (coreFunNameToIsabelleName f
            let unabbrev | M.null (fst ta) = "" | otherwise = " " ++ typeAbbrevBucketName
            return [rule (fn_proof (mod (coreFunNameToIsabelleName f)) unabbrev)],  -- Ξ, K', [Some t] ⊢ f : u
         allKindCorrect k ts ks,  -- list_all2 (kinding K) ts K'
-        return [simp],           -- t' = instantiate ts (TFun t u)
+        return [simp],           -- t' = instantiate ts t
+        return [simp],           -- u' = instantiate ts u
         wellformed ks t,         -- K' ⊢ t wellformed
         consumed k env           -- K ⊢ Γ consumed
         ]
