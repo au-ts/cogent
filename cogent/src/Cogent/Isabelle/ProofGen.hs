@@ -181,6 +181,9 @@ hintListSequence sths = Branch <$> sequence sths
 kindingHint :: Vec t Kind -> Type t -> State TypingSubproofs (LeafTree Hints)
 kindingHint k t = (pure . KindingTacs) `fmap` kinding k t
 
+wellformedHint :: Vec t Kind -> Type t -> State TypingSubproofs (LeafTree Hints)
+wellformedHint k t = (pure . KindingTacs) `fmap` wellformed k t
+
 follow_tt :: Vec t Kind -> Vec v (Maybe (Type t)) -> Vec vx (Maybe (Type t))
           -> Vec vy (Maybe (Type t)) -> State TypingSubproofs (LeafTree Hints)
 follow_tt k env env_x env_y = hintListSequence $ map (kindingHint k) new
@@ -534,19 +537,22 @@ allKindCorrect' _ _ _ = error "kind mismatch"
 splits :: Vec t Kind -> Vec v (Maybe (Type t)) -> Vec v (Maybe (Type t)) -> Vec v (Maybe (Type t)) -> State TypingSubproofs [Tactic]
 splits k g g1 g2 = ((:[]) . SplitsTac (length (cvtToList g))) `fmap` splitsHint 0 k g g1 g2
 
-ttsplit_innerHint :: Vec t Kind
-                  -> Maybe (Type t)
-                  -> Maybe (Type t)
-                  -> Maybe (Type t)
-                  -> State TypingSubproofs (LeafTree Hints)
-ttsplit_innerHint k Nothing Nothing Nothing = return $ Branch []
-ttsplit_innerHint k (Just t) _ _            = kindingHint k t
-ttsplit_innerHint _ g x y = error $ "bad ttsplit: " ++ show (g, x, y)
+-- Not used??
+-- ttsplit_innerHint :: Vec t Kind
+--                   -> Maybe (Type t)
+--                   -> Maybe (Type t)
+--                   -> Maybe (Type t)
+--                   -> State TypingSubproofs (LeafTree Hints)
+-- ttsplit_innerHint k Nothing Nothing Nothing = return $ Branch []
+-- ttsplit_innerHint k (Just t) (Just _) Nothing  = wellformedHint k t
+-- ttsplit_innerHint k (Just t) Nothing (Just _)  = wellformedHint k t
+-- ttsplit_innerHint k (Just t) (Just _) (Just _) = kindingHint k t
+-- ttsplit_innerHint _ g x y = error $ "bad ttsplit: " ++ show (g, x, y)
 
 split :: Vec t Kind -> Maybe (Type t) -> Maybe (Type t) -> Maybe (Type t) -> State TypingSubproofs [Tactic]
 split k Nothing  Nothing  Nothing  = return [rule "split_comp.none"]
-split k (Just t) (Just _) Nothing  = tacSequence [return [rule "split_comp.left"], kinding k t]
-split k (Just t) Nothing  (Just _) = tacSequence [return [rule "split_comp.right"], kinding k t]
+split k (Just t) (Just _) Nothing  = tacSequence [return [rule "split_comp.left"], wellformed k t]
+split k (Just t) Nothing  (Just _) = tacSequence [return [rule "split_comp.right"], wellformed k t]
 split k (Just t) (Just _) (Just _) = tacSequence [return [rule "split_comp.share"], kinding k t, return [simp]]
 split k g x y = error $ "bad split: " ++ show (g, x, y)
 
@@ -583,13 +589,11 @@ distinct _ = [simp]
 
 -- K ⊢ τ wellformed ≡ ∃k. K ⊢ τ :κ k
 wellformed :: Vec t Kind -> Type t -> State TypingSubproofs [Tactic]
-wellformed ks t = tacSequence [return [simp, rule_tac "exI" [("x", deepKindStr $ mostGeneralKind ks t)]],
-                               kinding ks t]
+wellformed ks t = tacSequence [return [simp]]
 
 -- K ⊢* τs wellformed ≡ ∃k. K ⊢* τs :κ k
 wellformedAll :: Vec t Kind -> [Type t] -> State TypingSubproofs [Tactic]
-wellformedAll ks ts = tacSequence [return [simp, rule_tac "exI" [("x", deepKindStr k)]],
-                                   kindingAll ks ts k]
+wellformedAll ks ts = tacSequence [return [simp]]
   where k = foldr (<>) mempty (map (mostGeneralKind ks) ts)
 
 -- K ⊢ Γ consumed ≡ K ⊢ Γ ↝w empty (length Γ)
