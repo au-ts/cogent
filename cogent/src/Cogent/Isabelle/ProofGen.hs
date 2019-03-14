@@ -260,15 +260,16 @@ typing xi k (EE t (Variable i) env) = tacSequence [
 typing xi k (EE t' (Fun f ts _) env) = case findfun (coreFunNameToIsabelleName f) xi of
     AbsDecl _ _ ks' t u ->
       let ks = fmap snd ks' in tacSequence [
-        return [rule "typing_afun'"],  -- Ξ, K, Γ ⊢ AFun f ts : t' if
+        return [rule "typing_afun'"],  -- Ξ, K, Γ ⊢ AFun f ts : TFun t' u'
         do ta <- use tsTypeAbbrevs
            mod <- use nameMod
            let unabbrev | M.null (fst ta) = ""
                         | otherwise = "[unfolded " ++ typeAbbrevBucketName ++ "]"
            return [simp_add ["\\<Xi>_def", mod (coreFunNameToIsabelleName f) ++ "_type_def" ++ unabbrev]],  -- Ξ f = (K', t, u)
-        allKindCorrect k ts ks,    -- list_all2 (kinding K) ts K'
-        return [simp],             -- instantiate ts (TFun t u)
-        wellformed ks (TFun t u),  -- K' ⊢ TFun t u wellformed
+        allKindCorrect k ts ks,    -- list_all2 (kinding K) ts ks
+        return [simp],             -- t' = instantiate ts t
+        return [simp],             -- u' = instantiate ts u
+        wellformed ks (TFun t u),  -- ks ⊢ TFun t u wellformed
         consumed k env             -- K ⊢ Γ consumed
         ]
 
@@ -565,8 +566,8 @@ splitsHint _ _ _ _ _ = __ghc_t4139 "ProofGen.splitsHint"
 
 splitHint :: Int -> Vec t Kind -> Maybe (Type t) -> Maybe (Type t) -> Maybe (Type t) -> State TypingSubproofs [(Int, [Tactic])]
 splitHint _ k Nothing  Nothing  Nothing  = return []
-splitHint n k (Just t) (Just _) Nothing  = (\t -> [(n, [rule "split_comp.left"] ++ t)]) `fmap` kinding k t
-splitHint n k (Just t) Nothing  (Just _) = (\t -> [(n, [rule "split_comp.right"] ++ t)]) `fmap` kinding k t
+splitHint n k (Just t) (Just _) Nothing  = (\t -> [(n, [rule "split_comp.left"] ++ t)]) `fmap` wellformed k t
+splitHint n k (Just t) Nothing  (Just _) = (\t -> [(n, [rule "split_comp.right"] ++ t)]) `fmap` wellformed k t
 splitHint n k (Just t) (Just _) (Just _) = (\t -> [(n, [rule "split_comp.share"] ++ t ++ [simp])]) `fmap` kinding k t
 splitHint _ k g x y = error $ "bad split: " ++ show (g, x, y)
 
