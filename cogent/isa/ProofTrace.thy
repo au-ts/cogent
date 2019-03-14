@@ -273,6 +273,14 @@ fun filter_trace PSuccess PSubgoal (TraceSuccess tr) =
 and filter_TraceSubgoal PSuccess PSubgoal (TraceSubgoal tr) =
       if not (PSubgoal tr) then [] else filter_trace PSuccess PSubgoal (#subproof tr);
 
+
+fun get_failing_goal (TraceFailure {failed, ...}) =
+  get_failing_subgoal failed
+and get_failing_subgoal (FailedProof {subgoal, fail_steps = [{trace, ...}], ...})
+  = subgoal :: get_failing_goal trace
+| get_failing_subgoal (FailedProof {subgoal, fail_steps = []})
+  = [subgoal]
+
 fun is_const n (Const (name, _)) = n = name
   | is_const _ _ = false;
 

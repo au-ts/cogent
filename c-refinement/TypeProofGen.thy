@@ -74,7 +74,7 @@ fun get_typing_tree ctxt f proof : thm tree list =
        is_typing ctxt
      |> (fn r => case r of
             Right tr => tr
-          | Left err => (@{print} err; error ("get_typing_tree failed for function " ^ f)))
+          | Left err => ( @{print} (get_failing_goal err); @{print} err; error ("get_typing_tree failed for function " ^ f)))
   end
 
 fun simplify_thm ctxt thm =
