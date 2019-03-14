@@ -278,17 +278,25 @@ fun interpret_tac (RTac r) _ = rtac r
   | interpret_tac (SimpTac (a, d)) ctxt = asm_full_simp_tac (ctxt addsimps a delsimps d)
   | interpret_tac (ForceTac a) ctxt = force_tac (ctxt addsimps a)
   | interpret_tac (WeakeningTac thms) ctxt = K (weakening_tac ctxt thms)
-  | interpret_tac (SplitsTac (n, tacs)) ctxt = K (cogent_guided_splits_tac ctxt n tacs)
+  | interpret_tac (SplitsTac (sz, tacs)) ctxt = K (cogent_guided_splits_tac ctxt sz tacs)
+(* takes the size of the typing-env, and a list of (idx, rule) pairs for splitting the context *)
 and cogent_guided_splits_tac ctxt sz script =
   let fun mktac i [] =
-            if i = sz then rtac @{thm split_empty} 1 else
-            rtac @{thm split_cons} 1 THEN rtac @{thm split_comp.none} 1 THEN mktac (i+1) []
+            if i = sz
+            then (* at the end of the list *)
+              rtac @{thm split_empty} 1
+            else (* more to go *)
+              rtac @{thm split_cons} 1 THEN rtac @{thm split_comp.none} 1 THEN mktac (i+1) []
         | mktac i ((n, tacs)::script') =
             if i = n
-            then rtac @{thm split_cons} 1 THEN EVERY (map (fn t => interpret_tac t ctxt 1) tacs) THEN
-                 mktac (i+1) script'
-            else rtac @{thm split_cons} 1 THEN rtac @{thm split_comp.none} 1 THEN
-                 mktac (i+1) ((n, tacs)::script')
+            then (* at a place where we have a hint *)
+              rtac @{thm split_cons} 1
+                THEN EVERY (map (fn t => interpret_tac t ctxt 1) tacs)
+                THEN mktac (i+1) script'
+            else (* no hint, thus boring *)
+              rtac @{thm split_cons} 1
+                THEN rtac @{thm split_comp.none} 1
+                THEN mktac (i+1) ((n, tacs)::script')
   in mktac 0 script end
 
 fun kind_proof_single (@{term SomeT} $ t) k ctxt hint = let
@@ -383,15 +391,17 @@ fun typing_all_vars _ _ [] = let
   | typing_all_vars ctxt G (ix :: ixs) = let
     fun null (NONE : thm option) = true
       | null _ = false
+    (* TODO this is broken, similar to guided_split *)
     fun step (i, p) = RTac @{thm split_cons} :: (if member (op =) ixs i
       then (if i = ix then [RTac @{thm split_comp.share}, RTac (the_G G p), simp]
-          else [RTac @{thm split_comp.right}, RTac (the_G G p)])
+          else [RTac @{thm split_comp.right}, simp])
       else (if null p then [RTac @{thm split_comp.none}]
-          else [RTac @{thm split_comp.left}, RTac (the_G G p)]))
-    val steps = maps step (0 upto (length G - 1) ~~ G)
+          else [RTac @{thm split_comp.left}, simp]))
+    val enumG = (0 upto (length G - 1) ~~ G)
+    val steps = maps step enumG
     val thms = map_filter I G
     fun thm_r (i, p) = (if member (op =) ixs i then p else NONE)
-    val G' = map thm_r (0 upto (length G - 1) ~~ G)
+    val G' = map thm_r enumG
     val rest = typing_all_vars ctxt G' ixs
   in [RTac @{thm typing_all_cons}] @ steps @ [RTac @{thm split_empty},
     RTac @{thm typing_var_weak[unfolded singleton_def Cogent.empty_def]},

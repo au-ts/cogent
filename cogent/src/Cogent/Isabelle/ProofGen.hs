@@ -446,7 +446,10 @@ typingAll xi k g [] = return [rule_tac "typing_all_empty'" [("n", show . Nat.toI
 -- Ξ, K, Γ ⊢* (e # es) : (t # ts)
 typingAll xi k g (e:es) =
   let envs = foldl (<|>) (cleared g) (map envOf es) in tacSequence [
-    return [rule "typing_all_cons"], splits k g (envOf e) envs, typing xi k e, typingAll xi k envs es
+    return [rule "typing_all_cons"],
+    splits k g (envOf e) envs,  -- K ⊢ Γ ↝ Γ1 | Γ2
+    typing xi k e,              -- Ξ, K, Γ1 ⊢  e  : t
+    typingAll xi k envs es      -- Ξ, K, Γ2 ⊢* es : ts
     ]
 
 kinding :: Vec t Kind -> Type t -> State TypingSubproofs [Tactic]
@@ -590,11 +593,11 @@ distinct _ = [simp]
 
 -- K ⊢ τ wellformed ≡ ∃k. K ⊢ τ :κ k
 wellformed :: Vec t Kind -> Type t -> State TypingSubproofs [Tactic]
-wellformed ks t = tacSequence [return [simp]]
+wellformed ks t = tacSequence [return [simp_add ["type_wellformed_pretty_def"]]] -- "type_wellformed.simps"
 
 -- K ⊢* τs wellformed ≡ ∃k. K ⊢* τs :κ k
 wellformedAll :: Vec t Kind -> [Type t] -> State TypingSubproofs [Tactic]
-wellformedAll ks ts = tacSequence [return [simp]]
+wellformedAll ks ts = tacSequence [return [simp_add ["type_wellformed_all_pretty_def"]]]
   where k = foldr (<>) mempty (map (mostGeneralKind ks) ts)
 
 -- K ⊢ Γ consumed ≡ K ⊢ Γ ↝w empty (length Γ)
