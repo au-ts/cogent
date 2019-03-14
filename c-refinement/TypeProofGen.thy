@@ -25,7 +25,7 @@ lemma ttsplit_imp_split':
 lemma ttsplit_inner_imp_split:
   assumes
     "ttsplit_inner K splits \<Gamma>b \<Gamma>1 \<Gamma>2"
-    "\<forall>i < length splits. splits ! i \<noteq> Some TSK_NS"
+    "list_all ((\<noteq>) (Some TSK_NS)) splits"
   shows
     "K \<turnstile> snd (TyTrSplit splits xs T1 ys T2, \<Gamma>b) \<leadsto>
       drop (length xs) (snd (T1, xs @ \<Gamma>1)) | drop (length ys) (snd (T2, ys @ \<Gamma>2))"

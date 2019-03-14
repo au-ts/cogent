@@ -190,10 +190,10 @@ lemma ttsplitI:
     "ttsplit_inner K sps \<Gamma>a \<Gamma>1a \<Gamma>2a"
     "xs' = xs @ \<Gamma>1a"
     "ys' = ys @ \<Gamma>2a"
-    "\<forall>i < length sps. sps ! i \<noteq> Some TSK_NS"
+    "list_all ((\<noteq>) (Some TSK_NS)) sps"
   shows "ttsplit K (TyTrSplit sps xs T1 ys T2, \<Gamma>a) sps xs (T1, xs') ys (T2, ys')"
   using assms
-  by (simp add: ttsplit_def)
+  by (force simp add: ttsplit_def list_all_length)
 
 lemma ttsplit_innerI:
   "ttsplit_inner K sps \<Gamma>a \<Gamma>1a \<Gamma>2a
@@ -1032,6 +1032,9 @@ next
     apply (frule u_tt_sem_pres_preservation, (simp+)[3])
     apply (force dest: u_tt_sem_pres_length intro: matches_ptrs_some matches_ptrs_replicate_None)
     done
+next
+  show "list_all ((\<noteq>) (Some TSK_NS)) (map (map_option (\<lambda>_. TSK_L)) (snd \<Gamma>))"
+    by (simp add: list_all_length, metis map_option_eq_Some type_split_op.distinct(9))
 qed auto
 
 end
