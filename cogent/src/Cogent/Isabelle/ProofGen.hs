@@ -315,12 +315,11 @@ typing xi k (EE (TSum ts) (Con tag e t) env) = tacSequence [
   return [simp]                          -- list_all2 (λx y. snd (snd y) ⟶ snd (snd x)) ts ts'
   ]
 
-typing xi k (EE u (Cast t e) env) = __todo "typing: Cast"
-  -- \ | EE (TPrim pt) _ _ <- e, TPrim pt' <- ty, pt /= Boolean = tacSequence [
-  -- \   return [rule "typing_cast"],   -- Ξ, K, Γ ⊢ Cast τ' e : TPrim (Num τ') if
-  -- \   typing xi k e,                 -- Ξ, K, Γ ⊢ e : TPrim (Num τ)
-  -- \   return [simp]                  -- upcast_valid τ τ'
-  -- \   ]
+typing xi k (EE u (Cast t e) env) = tacSequence [
+  return [rule "typing_cast"],   -- Ξ, K, Γ ⊢ Cast τ' e : TPrim (Num τ')
+  typing xi k e,                 -- Ξ, K, Γ ⊢ e : TPrim (Num τ)
+  return [simp]                  -- upcast_valid τ τ'
+  ]
 
 typing xi k (EE _ (Tuple t u) env) = tacSequence [
   return [rule "typing_tuple"],      -- Ξ, K, Γ ⊢ Tuple t u : TProduct T U if
