@@ -420,6 +420,8 @@ fun typing (Const (@{const_name Var}, _) $ i) G _ hints = let
              | _ => raise HINTS ("too many tacs", hints))
   in ([RTac @{thm typing_prim'}, simp, simp] @ typing_all_vars ctxt G ixs) end
     | NONE => typing_hint hints)
+  | typing (Const (@{const_name Promote}, _) $ _ $ e) G ctxt hints =
+    ([RTac @{thm typing_promote}] @ typing e G ctxt hints @ [ForceTac []])
   | typing _ _ _ hints = let
     in typing_hint hints end
 
