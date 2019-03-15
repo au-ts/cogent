@@ -25,12 +25,12 @@ lemma typing_put':  "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<
                      ; sigil_perm s \<noteq> Some ReadOnly
                      ; f < length ts
                      ; ts ! f = (n,t, taken)
-                     ; K \<turnstile> t :\<kappa> k
-                     ; D \<in> k \<or> taken = Taken
+                     ; K \<turnstile> t wellformed
+                     ; D \<in> kinding_fn K t \<or> taken = Taken
                      ; \<Xi>, K, \<Gamma>2 \<turnstile> e' : t
                      ; ts' = (ts [f := (n,t,Present)])
                      \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Put e f e' : TRecord ts' s"
-  by (simp add: typing_put)
+  by (fastforce intro!: typing_put simp add: kinding_defs)
 
 lemma typing_prim' : "\<lbrakk> prim_op_type oper = (ts,t)
                       ; ts' = map TPrim ts
@@ -433,7 +433,7 @@ fun typing (Const (@{const_name Var}, _) $ i) G _ hints = let
   in ([RTac @{thm typing_prim'}, simp, simp] @ typing_all_vars ctxt G ixs) end
     | NONE => typing_hint hints)
   | typing (Const (@{const_name Promote}, _) $ _ $ e) G ctxt hints =
-    ([RTac @{thm typing_promote}] @ typing e G ctxt hints @ [ForceTac @{thms subtyping_simps}])
+    ([RTac @{thm typing_promote}] @ typing e G ctxt hints @ [ForceTac @{thms subtyping_simps kinding_defs}])
   | typing _ _ _ hints = let
     in typing_hint hints end
 
