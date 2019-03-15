@@ -191,6 +191,7 @@ lemma list_update_eq_id:
   "length xs = n \<Longrightarrow> (i < n \<Longrightarrow> xs ! i = x) \<Longrightarrow> xs [i := x] = xs"
   by (induct xs arbitrary: i n, auto split: nat.split)
 
+
 ML {*
 
 structure TTyping_Tactics = struct
@@ -237,6 +238,7 @@ fun cogent_guided_ttsplits_tac ctxt sz script =
 
 
 datatype tac = RTac of thm
+             | RTacs of thm list
              | SimpTac of thm list * thm list
              | ForceTac of thm list
              | WeakeningTac of thm list
@@ -348,7 +350,7 @@ fun follow_tt (Const (@{const_name TyTrSplit}, _) $ sps $ x $ T1 $ y $ T2, ts) k
 
 fun ttsplit_inner (@{term "Some TSK_S"} :: tsks) (SOME p :: Gamma) = let
     val rest = ttsplit_inner tsks Gamma
-  in [RTac @{thm ttsplit_innerI(4)}, RTac @{thm supersumption(1)[rotated 1]}, RTac p, simp] @ rest end
+  in [RTac @{thm ttsplit_innerI(4)}, ForceTac @{thms kinding_defs}] @ rest end
   | ttsplit_inner (@{term "Some TSK_L"} :: tsks) (SOME p :: Gamma) = let
     val rest = ttsplit_inner tsks Gamma
   in [RTac @{thm ttsplit_innerI(3)}, simp] @ rest end
@@ -395,7 +397,7 @@ fun typing_all_vars _ _ [] = let
       | null _ = false
     (* TODO this is broken, similar to guided_split *)
     fun step (i, p) = RTac @{thm split_cons} :: (if member (op =) ixs i
-      then (if i = ix then [RTac @{thm split_comp.share}, RTac @{thm supersumption(1)[rotated 1]}, RTac (the_G G p), simp]
+      then (if i = ix then [RTac @{thm split_comp.share}, ForceTac @{thms kinding_defs}]
           else [RTac @{thm split_comp.right}, simp])
       else (if null p then [RTac @{thm split_comp.none}]
           else [RTac @{thm split_comp.left}, simp]))
