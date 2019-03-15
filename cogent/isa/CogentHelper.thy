@@ -238,7 +238,6 @@ fun cogent_guided_ttsplits_tac ctxt sz script =
 
 
 datatype tac = RTac of thm
-             | RTacs of thm list
              | SimpTac of thm list * thm list
              | ForceTac of thm list
              | WeakeningTac of thm list
