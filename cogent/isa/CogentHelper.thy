@@ -203,7 +203,8 @@ fun REPEAT_SUBGOAL tac s0 =
   in repeat tac s0 end
 
 fun weakening_tac ctxt _ =
-   ((rtac @{thm weakening_cons} 1 THEN asm_full_simp_tac (ctxt addsimps @{thms weakening_comp.simps kinding_def}) 1) ORELSE rtac @{thm weakening_nil} 1)
+   ((rtac @{thm weakening_cons} 1 THEN asm_full_simp_tac (ctxt addsimps @{thms weakening_comp.simps kinding_def}) 1)
+    ORELSE rtac @{thm weakening_nil} 1)
   |> CHANGED
   |> REPEAT_SUBGOAL
 
@@ -347,7 +348,7 @@ fun follow_tt (Const (@{const_name TyTrSplit}, _) $ sps $ x $ T1 $ y $ T2, ts) k
 
 fun ttsplit_inner (@{term "Some TSK_S"} :: tsks) (SOME p :: Gamma) = let
     val rest = ttsplit_inner tsks Gamma
-  in [RTac @{thm ttsplit_innerI(4)}, RTac p] @ rest end
+  in [RTac @{thm ttsplit_innerI(4)}, RTac @{thm supersumption(1)[rotated 1]}, RTac p, simp] @ rest end
   | ttsplit_inner (@{term "Some TSK_L"} :: tsks) (SOME p :: Gamma) = let
     val rest = ttsplit_inner tsks Gamma
   in [RTac @{thm ttsplit_innerI(3)}, simp] @ rest end
