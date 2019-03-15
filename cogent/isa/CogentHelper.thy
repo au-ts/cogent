@@ -395,7 +395,7 @@ fun typing_all_vars _ _ [] = let
       | null _ = false
     (* TODO this is broken, similar to guided_split *)
     fun step (i, p) = RTac @{thm split_cons} :: (if member (op =) ixs i
-      then (if i = ix then [RTac @{thm split_comp.share}, RTac (the_G G p), simp]
+      then (if i = ix then [RTac @{thm split_comp.share}, RTac @{thm supersumption(1)[rotated 1]}, RTac (the_G G p), simp]
           else [RTac @{thm split_comp.right}, simp])
       else (if null p then [RTac @{thm split_comp.none}]
           else [RTac @{thm split_comp.left}, simp]))
