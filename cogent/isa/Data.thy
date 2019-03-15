@@ -43,6 +43,9 @@ datatype 'a tree = Tree of 'a * 'a tree list;
 fun tree_value (Tree (v, _)) = v
 fun tree_branches (Tree (_, b)) = b
 
+val tree_hd = tree_value
+val tree_rest = tree_branches
+
 fun tree_map f (Tree (v, b)) = Tree (f v, map (tree_map f) b)
 
 fun tree_foldl f (Tree (v, b)) init = fold (tree_foldl f) b (f init v)

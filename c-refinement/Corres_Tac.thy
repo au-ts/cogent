@@ -417,7 +417,7 @@ val val_rel_thin_tac = SUBGOAL (fn (goal, n) => let
   in EVERY (map thin drops) end)
 
 fun corres_tac ctxt
-               (typing_tree : thm Tree)
+               (typing_tree : thm tree)
                (fun_defs : thm list)
                (absfun_corres : thm list)
                (fun_corres : thm list)
