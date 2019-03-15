@@ -15,6 +15,7 @@ theory ProofTrace
     Main
     "ML_Old"
     Data
+    CogentHelper
 begin
 
 (* begin: tactic trace code *)
@@ -179,12 +180,14 @@ fun my_unify_fact_tac ctxt subproof n state =
 *}
 
 ML {*
+type ttag = TTyping_Tactics.tac option
+
 fun trace_solve_tac (ctxt : Proof.context)
                     (backtrack : bool)
-                    (get_tacs : 'data -> term -> ('data * 'tag * tactic) list)
+                    (get_tacs : 'data -> term -> ('data * ttag * tactic) list)
                     (data0 : 'data) (goal0 : thm)
                     (depth_limit : int option)
-                    : 'data * ('tag TraceFailure, 'tag TraceSuccess) Either =
+                    : 'data * (ttag TraceFailure, ttag TraceSuccess) Either =
   let val cterm_of' = Thm.cterm_of ctxt
       val subgoals0 = Thm.prems_of goal0
   in

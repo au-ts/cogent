@@ -794,7 +794,7 @@ typing_var    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto>w singleton (length
 | typing_struct : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile>* es : ts
                    ; distinct ns
                    ; length ns = length ts
-                   ; ts' = (zip ns (zip ts (replicate (length ts) Present)))
+                   ; ts' = zip ns (zip ts (replicate (length ts) Present))
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Struct ts es : TRecord ts' Unboxed"
 
 | typing_member : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> e : TRecord ts s

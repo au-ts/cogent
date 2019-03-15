@@ -142,6 +142,23 @@ lemma map_zip3 [simp]:
   shows "map (\<lambda> (a,b,c). (f a, g b, h c)) (zip as (zip bs cs)) = zip (map f as) (zip (map g bs) (map h cs))"
   by (induct as arbitrary: bs cs; case_tac bs; case_tac cs; simp)
 
+lemma zip_eq_conv_sym: "length xs = length ys \<Longrightarrow> (zs = zip xs ys) = (map fst zs = xs \<and> map snd zs = ys)"
+  using zip_eq_conv
+  by metis
+
+
+lemma replicate_eq_map_conv_nth: "length xs = n \<Longrightarrow> map f xs = replicate n x \<longleftrightarrow> (\<forall>i<length xs. f (xs ! i) = x)" 
+proof (induct xs arbitrary: n)
+  case (Cons a as)
+  moreover obtain n' where "n = Suc n'"
+    using Cons.prems by auto
+  moreover then have "(map f as = replicate n' x) = (length as = n' \<and> (\<forall>i<length as. f (as ! i) = x))"
+    using Cons by simp
+  ultimately show ?case
+    by (force simp add: All_less_Suc2)
+qed simp
+
+
 lemma eq_updated_same_pace_imp_eq:
   assumes "length xs = length ys"
     and "i < length xs"
