@@ -63,12 +63,12 @@ lemma typing_afun': "\<lbrakk> \<Xi> f = (ks, t, u)
                      \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> AFun f ts : TFun t' u'"
   by (simp only: typing_afun)
 
-lemma typing_fun': "\<lbrakk> \<Xi>, K', [Some t] \<turnstile> f : u
-                   ; t' = instantiate ts t
-                   ; u' = instantiate ts u
-                   ; K \<turnstile> \<Gamma> consumed
-                   ; K' \<turnstile> t wellformed
-                   ; list_all2 (kinding K) ts K'
+lemma typing_fun': "\<lbrakk> \<Xi>, K', (TT, [Some t]) T\<turnstile> f : u
+                    ; list_all2 (kinding K) ts K'
+                    ; t' = instantiate ts t
+                    ; u' = instantiate ts u
+                    ; K' \<turnstile> t wellformed
+                    ; K \<turnstile> \<Gamma> consumed
                     \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Fun f ts : TFun t' u'"
   by (auto simp only: typing_fun snd_conv dest: ttyping_imp_typing)
 
