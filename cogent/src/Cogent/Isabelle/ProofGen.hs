@@ -596,11 +596,11 @@ distinct _ = [simp]
 
 -- K ⊢ τ wellformed ≡ ∃k. K ⊢ τ :κ k
 wellformed :: Vec t Kind -> Type t -> State TypingSubproofs [Tactic]
-wellformed ks t = tacSequence [return [simp_add ["type_wellformed_pretty_def"]]] -- "type_wellformed.simps"
+wellformed ks t = tacSequence [return [simp]]
 
 -- K ⊢* τs wellformed ≡ ∃k. K ⊢* τs :κ k
 wellformedAll :: Vec t Kind -> [Type t] -> State TypingSubproofs [Tactic]
-wellformedAll ks ts = tacSequence [return [simp_add ["type_wellformed_all_pretty_def"]]]
+wellformedAll ks ts = tacSequence [return [simp]]
   where k = foldr (<>) mempty (map (mostGeneralKind ks) ts)
 
 -- K ⊢ Γ consumed ≡ K ⊢ Γ ↝w empty (length Γ)
