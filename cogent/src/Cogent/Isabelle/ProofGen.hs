@@ -181,6 +181,9 @@ hintListSequence sths = Branch <$> sequence sths
 kindingHint :: Vec t Kind -> Type t -> State TypingSubproofs (LeafTree Hints)
 kindingHint k t = (pure . KindingTacs) `fmap` kinding k t
 
+wellformedHint :: Vec t Kind -> Type t -> State TypingSubproofs (LeafTree Hints)
+wellformedHint k t = (pure . KindingTacs) `fmap` wellformed k t
+
 follow_tt :: Vec t Kind -> Vec v (Maybe (Type t)) -> Vec vx (Maybe (Type t))
           -> Vec vy (Maybe (Type t)) -> State TypingSubproofs (LeafTree Hints)
 follow_tt k env env_x env_y = hintListSequence $ map (kindingHint k) new
@@ -257,15 +260,16 @@ typing xi k (EE t (Variable i) env) = tacSequence [
 typing xi k (EE t' (Fun f ts _) env) = case findfun (coreFunNameToIsabelleName f) xi of
     AbsDecl _ _ ks' t u ->
       let ks = fmap snd ks' in tacSequence [
-        return [rule "typing_afun'"],  -- Ξ, K, Γ ⊢ AFun f ts : t' if
+        return [rule "typing_afun'"],  -- Ξ, K, Γ ⊢ AFun f ts : TFun t' u'
         do ta <- use tsTypeAbbrevs
            mod <- use nameMod
            let unabbrev | M.null (fst ta) = ""
                         | otherwise = "[unfolded " ++ typeAbbrevBucketName ++ "]"
            return [simp_add ["\\<Xi>_def", mod (coreFunNameToIsabelleName f) ++ "_type_def" ++ unabbrev]],  -- Ξ f = (K', t, u)
-        allKindCorrect k ts ks,    -- list_all2 (kinding K) ts K'
-        return [simp],             -- instantiate ts (TFun t u)
-        wellformed ks (TFun t u),  -- K' ⊢ TFun t u wellformed
+        allKindCorrect k ts ks,    -- list_all2 (kinding K) ts ks
+        return [simp],             -- t' = instantiate ts t
+        return [simp],             -- u' = instantiate ts u
+        wellformed ks (TFun t u),  -- ks ⊢ TFun t u wellformed
         consumed k env             -- K ⊢ Γ consumed
         ]
 
@@ -275,9 +279,10 @@ typing xi k (EE t' (Fun f ts _) env) = case findfun (coreFunNameToIsabelleName f
         do ta <- use tsTypeAbbrevs
            mod <- use nameMod
            let unabbrev | M.null (fst ta) = "" | otherwise = " " ++ typeAbbrevBucketName
-           return [rule (fn_proof (mod (coreFunNameToIsabelleName f)) unabbrev)],  -- Ξ, K', [Some t] ⊢ f : u
+           return [rule (fn_proof (mod (coreFunNameToIsabelleName f)) unabbrev)],  -- Ξ, K', (TT, [Some t]) ⊢T f : u
         allKindCorrect k ts ks,  -- list_all2 (kinding K) ts K'
-        return [simp],           -- t' = instantiate ts (TFun t u)
+        return [simp],           -- t' = instantiate ts t
+        return [simp],           -- u' = instantiate ts u
         wellformed ks t,         -- K' ⊢ t wellformed
         consumed k env           -- K ⊢ Γ consumed
         ]
@@ -312,7 +317,7 @@ typing xi k (EE (TSum ts) (Con tag e t) env) = tacSequence [
   ]
 
 typing xi k (EE u (Cast t e) env) | EE (TPrim pt) _ _ <- e, TPrim pt' <- t, pt /= Boolean = tacSequence [
-  return [rule "typing_cast"],   -- Ξ, K, Γ ⊢ Cast τ' e : TPrim (Num τ') if
+  return [rule "typing_cast"],   -- Ξ, K, Γ ⊢ Cast τ' e : TPrim (Num τ')
   typing xi k e,                 -- Ξ, K, Γ ⊢ e : TPrim (Num τ)
   return [simp]                  -- upcast_valid τ τ'
   ]
@@ -397,7 +402,10 @@ typing xi k (EE _ Unit env) = tacSequence [
 typing xi k (EE t (Struct fs) env) = tacSequence [
   return [rule "typing_struct'"],    -- Ξ, K, Γ ⊢ Struct ts es : TRecord ts' Unboxed
   typingAll xi k env (map snd fs),   -- Ξ, K, Γ ⊢* es : ts
-  return [simp]                      -- ts' = zip ts (replicate (length ts) False)
+  return [simp],                     -- ns = map fst ts'
+  return [simp],                     -- distinct ns
+  return [simp],                     -- map (fst ∘ snd) ts' = ts
+  return [simp]                      -- list_all (λp. snd (snd p) = Present) ts'
   ]
 
 typing xi k (EE t (Member e f) env) = tacSequence [
@@ -441,7 +449,10 @@ typingAll xi k g [] = return [rule_tac "typing_all_empty'" [("n", show . Nat.toI
 -- Ξ, K, Γ ⊢* (e # es) : (t # ts)
 typingAll xi k g (e:es) =
   let envs = foldl (<|>) (cleared g) (map envOf es) in tacSequence [
-    return [rule "typing_all_cons"], splits k g (envOf e) envs, typing xi k e, typingAll xi k envs es
+    return [rule "typing_all_cons"],
+    splits k g (envOf e) envs,  -- K ⊢ Γ ↝ Γ1 | Γ2
+    typing xi k e,              -- Ξ, K, Γ1 ⊢  e  : t
+    typingAll xi k envs es      -- Ξ, K, Γ2 ⊢* es : ts
     ]
 
 kinding :: Vec t Kind -> Type t -> State TypingSubproofs [Tactic]
@@ -533,20 +544,23 @@ allKindCorrect' _ _ _ = error "kind mismatch"
 splits :: Vec t Kind -> Vec v (Maybe (Type t)) -> Vec v (Maybe (Type t)) -> Vec v (Maybe (Type t)) -> State TypingSubproofs [Tactic]
 splits k g g1 g2 = ((:[]) . SplitsTac (length (cvtToList g))) `fmap` splitsHint 0 k g g1 g2
 
-ttsplit_innerHint :: Vec t Kind
-                  -> Maybe (Type t)
-                  -> Maybe (Type t)
-                  -> Maybe (Type t)
-                  -> State TypingSubproofs (LeafTree Hints)
-ttsplit_innerHint k Nothing Nothing Nothing = return $ Branch []
-ttsplit_innerHint k (Just t) _ _            = kindingHint k t
-ttsplit_innerHint _ g x y = error $ "bad ttsplit: " ++ show (g, x, y)
+-- Not used??
+-- ttsplit_innerHint :: Vec t Kind
+--                   -> Maybe (Type t)
+--                   -> Maybe (Type t)
+--                   -> Maybe (Type t)
+--                   -> State TypingSubproofs (LeafTree Hints)
+-- ttsplit_innerHint k Nothing Nothing Nothing = return $ Branch []
+-- ttsplit_innerHint k (Just t) (Just _) Nothing  = wellformedHint k t
+-- ttsplit_innerHint k (Just t) Nothing (Just _)  = wellformedHint k t
+-- ttsplit_innerHint k (Just t) (Just _) (Just _) = kindingHint k t
+-- ttsplit_innerHint _ g x y = error $ "bad ttsplit: " ++ show (g, x, y)
 
 split :: Vec t Kind -> Maybe (Type t) -> Maybe (Type t) -> Maybe (Type t) -> State TypingSubproofs [Tactic]
 split k Nothing  Nothing  Nothing  = return [rule "split_comp.none"]
-split k (Just t) (Just _) Nothing  = tacSequence [return [rule "split_comp.left"], kinding k t]
-split k (Just t) Nothing  (Just _) = tacSequence [return [rule "split_comp.right"], kinding k t]
-split k (Just t) (Just _) (Just _) = tacSequence [return [rule "split_comp.share"], kinding k t, return [simp]]
+split k (Just t) (Just _) Nothing  = tacSequence [return [rule "split_comp.left"], wellformed k t]
+split k (Just t) Nothing  (Just _) = tacSequence [return [rule "split_comp.right"], wellformed k t]
+split k (Just t) (Just _) (Just _) = tacSequence [return [rule "split_comp.share"], kinding k t]
 split k g x y = error $ "bad split: " ++ show (g, x, y)
 
 splitsHint :: Int -> Vec t Kind -> Vec v (Maybe (Type t)) -> Vec v (Maybe (Type t)) -> Vec v (Maybe (Type t)) -> State TypingSubproofs [(Int, [Tactic])]
@@ -558,8 +572,8 @@ splitsHint _ _ _ _ _ = __ghc_t4139 "ProofGen.splitsHint"
 
 splitHint :: Int -> Vec t Kind -> Maybe (Type t) -> Maybe (Type t) -> Maybe (Type t) -> State TypingSubproofs [(Int, [Tactic])]
 splitHint _ k Nothing  Nothing  Nothing  = return []
-splitHint n k (Just t) (Just _) Nothing  = (\t -> [(n, [rule "split_comp.left"] ++ t)]) `fmap` kinding k t
-splitHint n k (Just t) Nothing  (Just _) = (\t -> [(n, [rule "split_comp.right"] ++ t)]) `fmap` kinding k t
+splitHint n k (Just t) (Just _) Nothing  = (\t -> [(n, [rule "split_comp.left"] ++ t)]) `fmap` wellformed k t
+splitHint n k (Just t) Nothing  (Just _) = (\t -> [(n, [rule "split_comp.right"] ++ t)]) `fmap` wellformed k t
 splitHint n k (Just t) (Just _) (Just _) = (\t -> [(n, [rule "split_comp.share"] ++ t ++ [simp])]) `fmap` kinding k t
 splitHint _ k g x y = error $ "bad split: " ++ show (g, x, y)
 
@@ -582,13 +596,11 @@ distinct _ = [simp]
 
 -- K ⊢ τ wellformed ≡ ∃k. K ⊢ τ :κ k
 wellformed :: Vec t Kind -> Type t -> State TypingSubproofs [Tactic]
-wellformed ks t = tacSequence [return [simp, rule_tac "exI" [("x", deepKindStr $ mostGeneralKind ks t)]],
-                               kinding ks t]
+wellformed ks t = tacSequence [return [simp]]
 
 -- K ⊢* τs wellformed ≡ ∃k. K ⊢* τs :κ k
 wellformedAll :: Vec t Kind -> [Type t] -> State TypingSubproofs [Tactic]
-wellformedAll ks ts = tacSequence [return [simp, rule_tac "exI" [("x", deepKindStr k)]],
-                                   kindingAll ks ts k]
+wellformedAll ks ts = tacSequence [return [simp]]
   where k = foldr (<>) mempty (map (mostGeneralKind ks) ts)
 
 -- K ⊢ Γ consumed ≡ K ⊢ Γ ↝w empty (length Γ)

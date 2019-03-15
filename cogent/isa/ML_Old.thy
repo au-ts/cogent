@@ -20,8 +20,10 @@
 theory ML_Old
   imports Pure
 begin
-  ML {*
 
+declare [[ML_debugger=true]]
+
+ML {*
   val schematic_term_setup =
   let
     val name_inner_syntax = Args.name_token >> Token.inner_syntax_of

@@ -25,7 +25,7 @@ lemma ttsplit_imp_split':
 lemma ttsplit_inner_imp_split:
   assumes
     "ttsplit_inner K splits \<Gamma>b \<Gamma>1 \<Gamma>2"
-    "\<forall>i < length splits. splits ! i \<noteq> Some TSK_NS"
+    "list_all ((\<noteq>) (Some TSK_NS)) splits"
   shows
     "K \<turnstile> snd (TyTrSplit splits xs T1 ys T2, \<Gamma>b) \<leadsto>
       drop (length xs) (snd (T1, xs @ \<Gamma>1)) | drop (length ys) (snd (T2, ys @ \<Gamma>2))"
@@ -42,16 +42,13 @@ ML {*
 
 (* identify judgements related to typing *)
 fun is_typing t = head_of t |>
-  (fn h => is_const "TypeTrackingSemantics.ttyping" h orelse
-           is_const "TypeTrackingSemantics.ttsplit" h orelse
-           is_const "TypeTrackingSemantics.ttsplit_bang" h orelse
-           is_const "TypeTrackingSemantics.ttsplit_inner" h orelse
+  (fn h => is_const "TypeTrackingTyping.ttyping" h orelse
+           is_const "TypeTrackingTyping.ttsplit" h orelse
+           is_const "TypeTrackingTyping.ttsplit_bang" h orelse
+           is_const "TypeTrackingTyping.ttsplit_inner" h orelse
            is_const "Cogent.typing" h orelse
            is_const "Cogent.split" h orelse
            is_const "Cogent.kinding" h);
-
-(* NB: flattening the proof tree is unsafe in general, but this program is a small example *)
-fun flatten_Tree (Tree { value, branches }) = value :: List.concat (map flatten_Tree branches);
 
 (* remove consecutive duplicates *)
 fun uniq cmp (x::y::xs) = (case cmp (x,y) of EQUAL => uniq cmp (x::xs)
@@ -77,7 +74,7 @@ fun get_typing_tree ctxt f proof : thm tree list =
        is_typing ctxt
      |> (fn r => case r of
             Right tr => tr
-          | Left err => (@{print} err; error ("get_typing_tree failed for function " ^ f)))
+          | Left err => ( @{print} (get_failing_goal err); @{print} err; error ("get_typing_tree failed for function " ^ f)))
   end
 
 fun simplify_thm ctxt thm =
@@ -101,13 +98,13 @@ fun get_final_typing_tree ctxt f proof =
 
 (* covert a typing tree to a list of typing theorems *)
 val typing_tree_to_bucket =
-  map flatten_Tree
+  map flatten_tree
     #> List.concat
     #> sort_distinct Thm.thm_ord
 
 fun get_typing_bucket ctxt f proof =
   get_typing_tree ctxt f proof
-    |> map flatten_Tree
+    |> map flatten_tree
     |> List.concat
     |> map (cleanup_typing_tree_thm ctxt)
     |> sort Thm.thm_ord

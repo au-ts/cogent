@@ -756,7 +756,7 @@ parseArgs args = case getOpt' Permute options args of
             let tpfile = mkThyFileName source __cogent_suffix_of_type_proof
                 tpthy  = mkProofName source (Just __cogent_suffix_of_type_proof)
             writeFileMsg tpfile
-            output tpfile $ flip LJ.hPutDoc $ deepTypeProof ("isa_" ++) __cogent_ftp_with_decls __cogent_ftp_with_bodies tpthy monoed' log
+            output tpfile $ flip LJ.hPutDoc $ deepTypeProof id __cogent_ftp_with_decls __cogent_ftp_with_bodies tpthy monoed' log
           when (AllRefine `elem` cmds) $ do
             let arfile = mkThyFileName source __cogent_suffix_of_all_refine
             writeFileMsg arfile

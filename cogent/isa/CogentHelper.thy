@@ -11,7 +11,7 @@
  *)
 
 theory CogentHelper
-imports "TypeTrackingSemantics" "ML_Old" Data
+  imports TypeTrackingTyping  Data  "ML_Old"
 keywords "ML_quiet" :: thy_decl % "ML"
 begin
 
@@ -47,11 +47,12 @@ lemma typing_con' : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : t
   by (simp add: typing_con)
 
 lemma typing_struct': "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile>* es : ts
-                       ; length ns = length ts
+                       ; ns = map fst ts'
                        ; distinct ns
-                       ; ts' = (zip ns (zip ts (replicate (length ts) Present)))
+                       ; map (fst \<circ> snd) ts' = ts
+                       ; list_all (\<lambda>p. snd (snd p) = Present) ts'
                        \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Struct ts es : TRecord ts' Unboxed"
-  by (simp only: typing_struct)
+  by (force intro: typing_struct simp add: zip_eq_conv_sym replicate_eq_map_conv_nth list_all_length)
 
 lemma typing_afun': "\<lbrakk> \<Xi> f = (ks, t, u)
                      ; list_all2 (kinding K) ts ks
@@ -62,12 +63,12 @@ lemma typing_afun': "\<lbrakk> \<Xi> f = (ks, t, u)
                      \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> AFun f ts : TFun t' u'"
   by (simp only: typing_afun)
 
-lemma typing_fun': "\<lbrakk> \<Xi>, K', [Some t] \<turnstile> f : u
-                   ; t' = instantiate ts t
-                   ; u' = instantiate ts u
-                   ; K \<turnstile> \<Gamma> consumed
-                   ; K' \<turnstile> t wellformed
-                   ; list_all2 (kinding K) ts K'
+lemma typing_fun': "\<lbrakk> \<Xi>, K', (TT, [Some t]) T\<turnstile> f : u
+                    ; list_all2 (kinding K) ts K'
+                    ; t' = instantiate ts t
+                    ; u' = instantiate ts u
+                    ; K' \<turnstile> t wellformed
+                    ; K \<turnstile> \<Gamma> consumed
                     \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Fun f ts : TFun t' u'"
   by (auto simp only: typing_fun snd_conv dest: ttyping_imp_typing)
 
@@ -201,17 +202,11 @@ fun REPEAT_SUBGOAL tac s0 =
                              | SOME (s', ss) => Seq.maps (repeat tac) (Seq.cons s' ss)
   in repeat tac s0 end
 
-fun weakening_tac ctxt kinding_thms =
-  let val kinding_tac = FIRST (map (fn t => rtac t 1) kinding_thms)
-      val weakening_comp_tac =
-        DETERM (rtac @{thm none} 1 ORELSE
-                (rtac @{thm drop} 1 THEN kinding_tac THEN asm_full_simp_tac ctxt 1) ORELSE
-                (rtac @{thm keep} 1 THEN kinding_tac))
-  in
-    asm_full_simp_tac (ctxt addsimps @{thms weakening_def}
-                            delsimps @{thms HOL.simp_thms(25) HOL.simp_thms(26)}) 1
-    THEN REPEAT_SUBGOAL (CHANGED (rtac @{thm conjI} 1 ORELSE weakening_comp_tac))
-  end
+fun weakening_tac ctxt _ =
+   ((rtac @{thm weakening_cons} 1 THEN asm_full_simp_tac (ctxt addsimps @{thms weakening_comp.simps kinding_def}) 1)
+    ORELSE rtac @{thm weakening_nil} 1)
+  |> CHANGED
+  |> REPEAT_SUBGOAL
 
 fun cogent_splits_tac ctxt kinding_thms =
   let val kinding_tac = FIRST (map (fn t => rtac t 1) kinding_thms)
@@ -263,6 +258,7 @@ fun typing_hint (Leaf (TypingTacs tacs)) = tacs
 
 fun apply_split @{term "Some TSK_L"} hints t = ((t, NONE), hints)
   | apply_split @{term "Some TSK_S"} hints t = ((t, t), hints)
+  | apply_split @{term "Some TSK_R"} hints t = ((NONE, t), hints)
   | apply_split @{term "Some TSK_NS"} hints t = let
     val (kindhint, hints) = (case hints of
                       kindhint :: hints => (kindhint, hints)
@@ -284,17 +280,25 @@ fun interpret_tac (RTac r) _ = rtac r
   | interpret_tac (SimpTac (a, d)) ctxt = asm_full_simp_tac (ctxt addsimps a delsimps d)
   | interpret_tac (ForceTac a) ctxt = force_tac (ctxt addsimps a)
   | interpret_tac (WeakeningTac thms) ctxt = K (weakening_tac ctxt thms)
-  | interpret_tac (SplitsTac (n, tacs)) ctxt = K (cogent_guided_splits_tac ctxt n tacs)
+  | interpret_tac (SplitsTac (sz, tacs)) ctxt = K (cogent_guided_splits_tac ctxt sz tacs)
+(* takes the size of the typing-env, and a list of (idx, rule) pairs for splitting the context *)
 and cogent_guided_splits_tac ctxt sz script =
   let fun mktac i [] =
-            if i = sz then rtac @{thm split_empty} 1 else
-            rtac @{thm split_cons} 1 THEN rtac @{thm split_comp.none} 1 THEN mktac (i+1) []
+            if i = sz
+            then (* at the end of the list *)
+              rtac @{thm split_empty} 1
+            else (* more to go *)
+              rtac @{thm split_cons} 1 THEN rtac @{thm split_comp.none} 1 THEN mktac (i+1) []
         | mktac i ((n, tacs)::script') =
             if i = n
-            then rtac @{thm split_cons} 1 THEN EVERY (map (fn t => interpret_tac t ctxt 1) tacs) THEN
-                 mktac (i+1) script'
-            else rtac @{thm split_cons} 1 THEN rtac @{thm split_comp.none} 1 THEN
-                 mktac (i+1) ((n, tacs)::script')
+            then (* at a place where we have a hint *)
+              rtac @{thm split_cons} 1
+                THEN EVERY (map (fn t => interpret_tac t ctxt 1) tacs)
+                THEN mktac (i+1) script'
+            else (* no hint, thus boring *)
+              rtac @{thm split_cons} 1
+                THEN rtac @{thm split_comp.none} 1
+                THEN mktac (i+1) ((n, tacs)::script')
   in mktac 0 script end
 
 fun kind_proof_single (@{term SomeT} $ t) k ctxt hint = let
@@ -344,13 +348,16 @@ fun follow_tt (Const (@{const_name TyTrSplit}, _) $ sps $ x $ T1 $ y $ T2, ts) k
 
 fun ttsplit_inner (@{term "Some TSK_S"} :: tsks) (SOME p :: Gamma) = let
     val rest = ttsplit_inner tsks Gamma
-  in [RTac @{thm ttsplit_innerI(4)}, RTac p] @ [simp] @ rest end
+  in [RTac @{thm ttsplit_innerI(4)}, RTac @{thm supersumption(1)[rotated 1]}, RTac p, simp] @ rest end
   | ttsplit_inner (@{term "Some TSK_L"} :: tsks) (SOME p :: Gamma) = let
     val rest = ttsplit_inner tsks Gamma
-  in [RTac @{thm ttsplit_innerI(3)}, RTac p] @ rest end
+  in [RTac @{thm ttsplit_innerI(3)}, simp] @ rest end
   | ttsplit_inner (@{term "Some TSK_R :: type_split_op option"} :: tsks) (SOME p :: Gamma) = let
     val rest = ttsplit_inner tsks Gamma
-  in [RTac @{thm ttsplit_innerI(2)}, RTac p] @ rest end
+  in [RTac @{thm ttsplit_innerI(2)}, simp] @ rest end
+  | ttsplit_inner (@{term "Some TSK_NS :: type_split_op option"} :: tsks) (SOME p :: Gamma) = let
+    val rest = ttsplit_inner tsks Gamma
+  in [RTac @{thm ttsplit_innerI(5)}, simp] @ rest end
   | ttsplit_inner (@{term "None :: type_split_op option"} :: tsks) (NONE :: Gamma) = let
     val rest = ttsplit_inner tsks Gamma
   in [RTac @{thm ttsplit_innerI(1)}] @ rest end
@@ -359,29 +366,11 @@ fun ttsplit_inner (@{term "Some TSK_S"} :: tsks) (SOME p :: Gamma) = let
 
 fun ttsplit (Const (@{const_name TyTrSplit}, _) $ sps $ _ $ _ $ _ $ _, Gamma) = let
     val inner = ttsplit_inner (HOLogic.dest_list sps) Gamma
-  in [RTac @{thm ttsplitI}] @ inner @ [simp, simp] end
+  in [RTac @{thm ttsplitI}] @ inner @ [simp, simp, simp] end
   | ttsplit (t, _) = raise TERM ("ttsplit", [t])
 
-fun ttsplit_bang_inner (@{term "Some TSK_S"} :: tsks) (SOME p :: Gamma) = let
-    val rest = ttsplit_bang_inner tsks Gamma
-  in [RTac @{thm ttsplit_innerI(4)}, RTac p, simp] @ rest end
-  | ttsplit_bang_inner (@{term "Some TSK_L"} :: tsks) (SOME p :: Gamma) = let
-    val rest = ttsplit_bang_inner tsks Gamma
-  in [RTac @{thm ttsplit_innerI(3)}, RTac p] @ rest end
-  | ttsplit_bang_inner (@{term "Some TSK_R :: type_split_op option"} :: tsks) (SOME p :: Gamma) = let
-    val rest = ttsplit_bang_inner tsks Gamma
-  in [RTac @{thm ttsplit_innerI(2)}, RTac p] @ rest end
-  | ttsplit_bang_inner (@{term "None :: type_split_op option"} :: tsks) (NONE :: Gamma) = let
-    val rest = ttsplit_bang_inner tsks Gamma
-  in [RTac @{thm ttsplit_innerI(1)}] @ rest end
-  | ttsplit_bang_inner (@{term "Some TSK_NS"} :: tsks) (SOME p :: Gamma) = let
-    val rest = ttsplit_bang_inner tsks Gamma
-  in [RTac @{thm ttsplit_innerI(5)}, RTac p, simp] @ rest end
-  | ttsplit_bang_inner [] [] = [RTac @{thm ttsplit_innerI(6)}]
-  | ttsplit_bang_inner tsks _ = raise TERM ("ttsplit_bang_inner", tsks)
-
 fun ttsplit_bang (Const (@{const_name TyTrSplit}, _) $ sps $ _ $ _ $ _ $ _, Gamma) = let
-    val inner = ttsplit_bang_inner (HOLogic.dest_list sps) Gamma
+    val inner = ttsplit_inner (HOLogic.dest_list sps) Gamma
   in [RTac @{thm ttsplit_bangI}, simp, simp, SimpTac (@{thms set_eq_subset}, [])] @ inner end
   | ttsplit_bang (t, _) = raise TERM ("ttsplit", [t])
 
@@ -404,15 +393,17 @@ fun typing_all_vars _ _ [] = let
   | typing_all_vars ctxt G (ix :: ixs) = let
     fun null (NONE : thm option) = true
       | null _ = false
+    (* TODO this is broken, similar to guided_split *)
     fun step (i, p) = RTac @{thm split_cons} :: (if member (op =) ixs i
       then (if i = ix then [RTac @{thm split_comp.share}, RTac (the_G G p), simp]
-          else [RTac @{thm split_comp.right}, RTac (the_G G p)])
+          else [RTac @{thm split_comp.right}, simp])
       else (if null p then [RTac @{thm split_comp.none}]
-          else [RTac @{thm split_comp.left}, RTac (the_G G p)]))
-    val steps = maps step (0 upto (length G - 1) ~~ G)
+          else [RTac @{thm split_comp.left}, simp]))
+    val enumG = (0 upto (length G - 1) ~~ G)
+    val steps = maps step enumG
     val thms = map_filter I G
     fun thm_r (i, p) = (if member (op =) ixs i then p else NONE)
-    val G' = map thm_r (0 upto (length G - 1) ~~ G)
+    val G' = map thm_r enumG
     val rest = typing_all_vars ctxt G' ixs
   in [RTac @{thm typing_all_cons}] @ steps @ [RTac @{thm split_empty},
     RTac @{thm typing_var_weak[unfolded singleton_def Cogent.empty_def]},
@@ -432,7 +423,7 @@ fun typing (Const (@{const_name Var}, _) $ i) G _ hints = let
       val _ = (case typing_hint hints of
                  [] => ()
                | _ => raise HINTS ("too many tacs", hints))
-  in ([RTac @{thm typing_struct'}] @ typing_all_vars ctxt G ixs @ [simp]) end
+  in ([RTac @{thm typing_struct'}] @ typing_all_vars ctxt G ixs @ [simp, simp, simp, simp]) end
     | NONE => typing_hint hints)
   | typing (Const (@{const_name Prim}, _) $ _ $ xs) G ctxt hints
   = (case dest_all_vars xs of SOME ixs => let
@@ -441,6 +432,8 @@ fun typing (Const (@{const_name Var}, _) $ i) G _ hints = let
              | _ => raise HINTS ("too many tacs", hints))
   in ([RTac @{thm typing_prim'}, simp, simp] @ typing_all_vars ctxt G ixs) end
     | NONE => typing_hint hints)
+  | typing (Const (@{const_name Promote}, _) $ _ $ e) G ctxt hints =
+    ([RTac @{thm typing_promote}] @ typing e G ctxt hints @ [ForceTac @{thms subtyping_simps}])
   | typing _ _ _ hints = let
     in typing_hint hints end
 

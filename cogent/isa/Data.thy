@@ -38,18 +38,19 @@ fun mapEitherR f e = mapEither (fn x => x) f e
 
 (* rose trees *)
 
-datatype 'a tree = Tree of { value : 'a, branches : 'a tree list };
+datatype 'a tree = Tree of 'a * 'a tree list;
 
-fun tree_value (Tree s) = #value s
-fun tree_branches (Tree s) = #branches s
+fun tree_value (Tree (v, _)) = v
+fun tree_branches (Tree (_, b)) = b
 
-fun tree_map f (Tree { value, branches }) = Tree { value = f value, branches = map (tree_map f) branches }
+fun tree_map f (Tree (v, b)) = Tree (f v, map (tree_map f) b)
 
-fun tree_foldl f (Tree { value, branches }) init = fold (tree_foldl f) branches (f init value)
+fun tree_foldl f (Tree (v, b)) init = fold (tree_foldl f) b (f init v)
 
-fun tree_foldr f (Tree { value, branches }) init = f (fold_rev (tree_foldr f) branches init) value
+fun tree_foldr f (Tree (v, b)) init = f (fold_rev (tree_foldr f) b init) v
 
-
+(* NB: flattening the proof tree is unsafe in general, but this program is a small example *)
+fun flatten_tree (Tree (v, b)) = v :: List.concat (map flatten_tree b);
 
 (* leaf trees
 

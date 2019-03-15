@@ -851,7 +851,7 @@ next
           using split\<gamma> split\<gamma>'
           by (auto simp add: Un_ac)
       next
-        case (share k)
+        case share
         moreover then have w1_empty: "w1 = {}"
           using shareable_not_writable split\<gamma> by blast
         moreover have "\<Xi>, \<sigma> \<turnstile> g # \<gamma>' matches Some t # as \<langle>r1 \<union> (r21 \<union> p), {} \<union> w21\<rangle>"
