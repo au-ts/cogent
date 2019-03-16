@@ -50,12 +50,13 @@ _B = Bytes
 
 canMaxDlc = 8
 
-lCanId = Record [ ("id" , noPos, Prim (_b 29)) 
-                , ("eff", noPos, Offset (Prim (_b 1)) (_b 30))
-                , ("rtr", noPos, Offset (Prim (_b 1)) (_b 31))
-                , ("err", noPos, Offset (Prim (_b 1)) (_b 32))
-                ]
+lCanId = [dexpr| record { id  : 29b
+                        , eff : 1b at 30b
+                        , rtr : 1b at 31b
+                        , err : 1b at 32b
+                        } |]
 
+-- Dargent cannot mention constant definitions in Cogent / zilinc
 lCanFrame = Record [ ("ident", noPos, Prim (_B 8))
                    , ("prio" , noPos, Offset (Prim (_b 2)) (_B 8))
                    , ("dlc"  , noPos, Offset (Prim (_b 4)) (_B 8 `Add` _b 2))
