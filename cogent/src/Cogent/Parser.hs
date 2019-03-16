@@ -10,7 +10,7 @@
 -- @TAG(DATA61_GPL)
 --
 
-{-# LANGUAGE LambdaCase, RecordWildCards, TupleSections #-}
+{-# LANGUAGE LambdaCase, RecordWildCards, TupleSections, FlexibleContexts #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
 
 module Cogent.Parser where
@@ -63,7 +63,7 @@ language = haskellStyle
            , T.identStart = letter
            }
 
-T.TokenParser {..} = T.makeTokenParser language
+T.TokenParser {..} = cppLineTokenParser $ T.makeTokenParser language
 
 sepByAligned1 p s c = (:) <$> p <*> many (getPosition >>= \o -> guard (sourceColumn o == c) >> s >> p)
 
@@ -499,3 +499,52 @@ parseFromFile p fname = do
   input <- readFile fname
   return $ runP p () (if __cogent_ffull_src_path then fname else takeFileName fname) input
 
+-- -------
+-- cpp line directives
+-- process cpp line directives in whitespace and after every token.
+
+cppLineTokenParser :: Stream s m Char => T.GenTokenParser s u m -> T.GenTokenParser s u m
+cppLineTokenParser tp
+    = T.TokenParser{ identifier = cppLineAfter $ T.identifier tp
+                 , reserved = cppLineAfter . T.reserved tp
+                 , operator = cppLineAfter $ T.operator tp
+                 , reservedOp = cppLineAfter . T.reservedOp tp
+
+                 , charLiteral = cppLineAfter $ T.charLiteral tp
+                 , stringLiteral = cppLineAfter $ T.stringLiteral tp
+                 , natural = cppLineAfter $ T.natural tp
+                 , integer = cppLineAfter $ T.integer tp
+                 , float = cppLineAfter $ T.float tp
+                 , naturalOrFloat = cppLineAfter $ T.naturalOrFloat tp
+                 , decimal = cppLineAfter $ T.decimal tp
+                 , hexadecimal = cppLineAfter $ T.hexadecimal tp
+                 , octal = cppLineAfter $ T.octal tp
+
+                 , symbol = cppLineAfter . T.symbol tp
+                 , lexeme = cppLineAfter . T.lexeme tp
+                 , whiteSpace = cppLineAfter $ T.whiteSpace tp
+
+                 , parens = cppLineAfter . T.parens tp
+                 , braces = cppLineAfter . T.braces tp
+                 , angles = cppLineAfter . T.angles tp
+                 , brackets = cppLineAfter . T.brackets tp
+                 , squares = cppLineAfter . T.brackets tp
+                 , semi = cppLineAfter $ T.semi tp
+                 , comma = cppLineAfter $ T.comma tp
+                 , colon = cppLineAfter $ T.colon tp
+                 , dot = cppLineAfter $ T.dot tp
+                 , semiSep = cppLineAfter . T.semiSep tp
+                 , semiSep1 = cppLineAfter . T.semiSep1 tp
+                 , commaSep = cppLineAfter . T.commaSep tp
+                 , commaSep1 = cppLineAfter . T.commaSep1 tp
+                 }
+    where 
+        cppLineAfter p = do{ x <- p; skipMany cppLine; return x  }
+        cppLine = do
+            pos <- getPosition
+            guard (sourceColumn pos == 1)
+            (T.symbol tp) "#line"
+            ln <- T.integer tp
+            fn <- T.stringLiteral tp
+            pos2 <- getPosition
+            setPosition $ setSourceLine (setSourceName pos2 fn)  (sourceLine pos2 - sourceLine pos - 1 + fromInteger ln)
