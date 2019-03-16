@@ -97,4 +97,4 @@ preprocess filename = do
       return . (show +++ (input',)) $ parse program filename input'
   where 
     myCpphsOptions = defaultCpphsOptions {boolopts = myBoolOptions}
-    myBoolOptions = defaultBoolOptions {macros = True, locations = False}
+    myBoolOptions = defaultBoolOptions {macros = True}
