@@ -472,7 +472,7 @@ kindingRaw k t = do
     Nothing -> do mod <- use nameMod
                   let prop = mkApp (mkId "kinding") [mkList (map deepKind k'), deepType mod ta t, deepKind gk]
                   tac <- tacSequence
-                    [return [simp_add ["kinding_def", "kinding_all_def", "kinding_variant_def", "kinding_record_def"]]]
+                    [return [force_simp ["kinding_def", "kinding_all_def", "kinding_variant_def", "kinding_record_def"]]]
                   proofId <- newSubproofId
                   subproofKinding %= M.insert (k', t', gk) (proofId, (False, prop), tac)
                   return proofId

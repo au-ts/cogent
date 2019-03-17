@@ -403,12 +403,12 @@ definition proc_ctx_wellformed :: "('f \<Rightarrow> poly_type) \<Rightarrow> bo
 fun kinding_fn :: "kind env \<Rightarrow> type \<Rightarrow> kind" where
   "kinding_fn K (TVar i)         = (if i < length K then K ! i else undefined)"
 | "kinding_fn K (TVarBang i)     = (if i < length K then {D,S} else undefined)"
-| "kinding_fn K (TCon n ts s)    = (\<Inter>t\<in>set ts. kinding_fn K t) \<inter> (sigil_kind s)"
+| "kinding_fn K (TCon n ts s)    = Inter (set (map (kinding_fn K) ts)) \<inter> (sigil_kind s)"
 | "kinding_fn K (TFun ta tb)     = UNIV"
 | "kinding_fn K (TPrim p)        = UNIV"
-| "kinding_fn K (TSum ts)        = (\<Inter>(_,t,b)\<in>set ts. case b of Unchecked \<Rightarrow> kinding_fn K t | Checked \<Rightarrow> UNIV)"
+| "kinding_fn K (TSum ts)        = Inter (set (map (\<lambda>(_,t,b). case b of Unchecked \<Rightarrow> kinding_fn K t | Checked \<Rightarrow> UNIV) ts))"
 | "kinding_fn K (TProduct ta tb) = kinding_fn K ta \<inter> kinding_fn K tb"
-| "kinding_fn K (TRecord ts s)   = (\<Inter>(_,t,b)\<in>set ts. case b of Present \<Rightarrow> kinding_fn K t | Taken \<Rightarrow> UNIV) \<inter> (sigil_kind s)"
+| "kinding_fn K (TRecord ts s)   = Inter (set (map (\<lambda>(_,t,b). case b of Present \<Rightarrow> kinding_fn K t | Taken \<Rightarrow> UNIV) ts)) \<inter> (sigil_kind s)"
 | "kinding_fn K TUnit            = UNIV"
 
 lemmas kinding_fn_induct = kinding_fn.induct[case_names kind_tvar kind_tvarb kind_tcon kind_tfun kind_tprim kind_tsum kind_tprod kind_trec kind_tunit]
