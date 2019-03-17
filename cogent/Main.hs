@@ -526,6 +526,7 @@ flags =
   , Option ['q']      ["quiet"]            1 (NoArg set_flag_quiet)                        "do not display compilation progress"
   , Option ['x']      ["fdump-to-stdout"]  1 (NoArg set_flag_fdumpToStdout)                "dump all output to stdout"
   , Option ['i']      ["interactive"]      3 (NoArg set_flag_interactive)                  "interactive compiler mode"
+  , Option []         ["type-proof-sorry-before"]  1 (ReqArg set_flag_type_proof_sorry_before "FUN_NAME")            "bad hack: sorry all type proofs for functions that precede given function name"
   ]
 
 parseArgs :: [String] -> IO ()

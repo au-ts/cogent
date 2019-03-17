@@ -74,7 +74,7 @@ deepTypeProof mod withDecls withBodies thy decls log =
                                             else [__cogent_root_dir </> "cogent/isa/CogentHelper"]
       proofDecls | withDecls  = deepTypeAbbrevs mod ta ++ deepDefinitions mod ta decls
                                 ++ funTypeEnv mod decls ++ funDefEnv decls
-                                ++ concatMap (funTypeTree mod ta) decls
+                                ++ funTypeTrees mod ta decls
                  | otherwise = []
       proofBodies | withBodies = [TheoryString "ML {* open TTyping_Tactics *}"] ++
                                  concatMap (\(proofId, prop, script) ->
@@ -155,6 +155,16 @@ flattenHintTree :: LeafTree Hints -> [TreeSteps Hints]
 flattenHintTree (Branch ths) = StepDown : concatMap flattenHintTree ths ++ [StepUp]
 flattenHintTree (Leaf h) = [Val h]
 
+proveSorry :: (Pretty a) => Definition TypedExpr a -> State TypingSubproofs [TheoryDecl I.Type I.Term]
+proveSorry (FunDef _ fn k ti to e) = do
+  mod <- use nameMod
+  let prf = [ LemmaDecl (Lemma False (Just $ TheoremDecl (Just (mod fn ++ "_typecorrect")) [])
+          [mkId $ "\\<Xi>, fst " ++ fn ++ "_type, (" ++ fn ++ "_typetree, [Some (fst (snd " ++ fn ++ "_type))]) T\\<turnstile> " ++
+                  fn ++ " : snd (snd " ++ fn ++ "_type)"]
+              (Proof [] ProofSorry)) ]
+  return prf
+proveSorry _ = return []
+
 prove :: (Pretty a) => [Definition TypedExpr a] -> Definition TypedExpr a
       -> State TypingSubproofs ([TheoryDecl I.Type I.Term], [TheoryDecl I.Type I.Term])
 prove decls (FunDef _ fn k ti to e) = do
@@ -170,13 +180,29 @@ prove _ _ = return ([], [])
 proofs :: (Pretty a) => [Definition TypedExpr a]
        -> State TypingSubproofs [TheoryDecl I.Type I.Term]
 proofs decls = do
-    bodies <- mapM (prove decls) decls
-    return $ concat $ map fst bodies ++ map snd bodies
+    let (predecls,postdecls) = badHackSplitOnSorryBefore decls
+    bsorry <- mapM proveSorry predecls
+    bodies <- mapM (prove decls) postdecls
+    return $ concat $ bsorry ++ map fst bodies ++ map snd bodies
 
 funTypeTree :: (Pretty a) => NameMod -> TypeAbbrevs -> Definition TypedExpr a -> [TheoryDecl I.Type I.Term]
 funTypeTree mod ta (FunDef _ fn _ ti _ e) = [deepTyTreeDef mod ta fn (typeTree eexpr)]
   where eexpr = pushDown (Cons (Just ti) Nil) (splitEnv (Cons (Just ti) Nil) e)
 funTypeTree _ _ _ = []
+
+funTypeTrees :: (Pretty a) => NameMod -> TypeAbbrevs -> [Definition TypedExpr a] -> [TheoryDecl I.Type I.Term]
+funTypeTrees mod ta decls =
+  let (_, decls') = badHackSplitOnSorryBefore decls
+  in concatMap (funTypeTree mod ta) decls
+
+badHackSplitOnSorryBefore :: [Definition TypedExpr a] -> ([Definition TypedExpr a], [Definition TypedExpr a])
+badHackSplitOnSorryBefore decls =
+  if __cogent_type_proof_sorry_before == Nothing
+  then ([], decls)
+  else break should_sorry decls
+ where
+  should_sorry (FunDef _ fn _ ti _ e) = Just fn == __cogent_type_proof_sorry_before 
+  should_sorry _ = False
 
 deepTyTreeDef :: NameMod -> TypeAbbrevs -> FunName -> TypingTree t -> TheoryDecl I.Type I.Term
 deepTyTreeDef mod ta fn e = let ttfn = mkId $ mod fn ++ "_typetree"

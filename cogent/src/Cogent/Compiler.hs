@@ -224,6 +224,8 @@ set_flag_WnoMono = writeIORef __cogent_wmono_ref False
 set_flag_WnoUnusedLocalBinds = writeIORef __cogent_wunused_local_binds_ref False
 set_flag_WunusedLocalBinds = writeIORef __cogent_wunused_local_binds_ref True
 set_flag_Wwarn  = writeIORef __cogent_warning_switch_ref Flag_Wwarn
+-- Bad hack
+set_flag_type_proof_sorry_before = writeIORef __cogent_type_proof_sorry_before_ref . Just
 
 __cogent_abs_type_dir :: FilePath
 __cogent_abs_type_dir = unsafePerformIO $ readIORef __cogent_abs_type_dir_ref
@@ -835,6 +837,15 @@ __cogent_simpl_cg = (__cogent_fsimplifier && __cogent_fsimplifier_iterations > 0
 __cogent_dump_handle :: IORef Handle
 {-# NOINLINE __cogent_dump_handle #-}
 __cogent_dump_handle = unsafePerformIO $ newIORef stderr
+
+
+-- Bad hacks
+__cogent_type_proof_sorry_before :: Maybe String
+__cogent_type_proof_sorry_before = unsafePerformIO $ readIORef __cogent_type_proof_sorry_before_ref
+
+__cogent_type_proof_sorry_before_ref :: IORef (Maybe String)
+{-# NOINLINE __cogent_type_proof_sorry_before_ref #-}
+__cogent_type_proof_sorry_before_ref = unsafePerformIO $ newIORef Nothing
 
 
 --Dump
