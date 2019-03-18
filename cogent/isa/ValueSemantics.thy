@@ -93,7 +93,7 @@ where
                    \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (Tuple x y) \<Down> VProduct x' y'"
 
 | v_sem_esac    : "\<lbrakk> \<xi> , \<gamma> \<turnstile> t \<Down> VSum ts v
-                   \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> Esac t \<Down> v"
+                   \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> Esac t ts \<Down> v"
 
 | v_sem_let     : "\<lbrakk> \<xi> , \<gamma> \<turnstile> a \<Down> a'
                    ; \<xi> , (a' # \<gamma>) \<turnstile> b \<Down> b'
@@ -1159,7 +1159,7 @@ function monoexpr :: "'f expr \<Rightarrow> ('f \<times> type list) expr" where
 | "monoexpr (Let e e')        = Let (monoexpr e) (monoexpr e')"
 | "monoexpr (LetBang vs e e') = LetBang vs (monoexpr e) (monoexpr e')"
 | "monoexpr (Case e t a b)    = Case (monoexpr e) t (monoexpr a) (monoexpr b)"
-| "monoexpr (Esac e)          = Esac (monoexpr e)"
+| "monoexpr (Esac e t)        = Esac (monoexpr e) t"
 | "monoexpr (If c t e)        = If (monoexpr c) (monoexpr t) (monoexpr e)"
 | "monoexpr (Take e f e')     = Take (monoexpr e) f (monoexpr e')"
 | "monoexpr (Split v va)      = Split (monoexpr v) (monoexpr va)"

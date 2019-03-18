@@ -41,7 +41,7 @@ where
 | "rename_expr rename (Let e e')        = Let (rename_expr rename e) (rename_expr rename e')"
 | "rename_expr rename (LetBang vs e e') = LetBang vs (rename_expr rename e) (rename_expr rename e')"
 | "rename_expr rename (Case e t a b)    = Case (rename_expr rename e) t (rename_expr rename a) (rename_expr rename b)"
-| "rename_expr rename (Esac e)          = Esac (rename_expr rename e)"
+| "rename_expr rename (Esac e t)        = Esac (rename_expr rename e) t"
 | "rename_expr rename (If c t e)        = If (rename_expr rename c) (rename_expr rename t) (rename_expr rename e)"
 | "rename_expr rename (Take e f e')     = Take (rename_expr rename e) f (rename_expr rename e')"
 | "rename_expr rename (Split v va)      = Split (rename_expr rename v) (rename_expr rename va)"

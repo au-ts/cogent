@@ -174,7 +174,9 @@ deepExpr mod ta defs (TE _ (Case e tag (l1,_,e1) (l2,_,e2)))
                          mkString tag,
                          deepExpr mod ta defs e1,
                          deepExpr mod ta defs e2]
-deepExpr mod ta defs (TE _ (Esac e)) = mkApp (mkId "Esac") [deepExpr mod ta defs e]
+deepExpr mod ta defs (TE _ (Esac e@(TE (TSum alts) _)))
+  | tag <- fst (head (filter (not . snd . snd) alts))
+  = mkApp (mkId "Esac") [deepExpr mod ta defs e, mkString tag]
 deepExpr mod ta defs (TE _ (If c th el)) = mkApp (mkId "If") $ map (deepExpr mod ta defs) [c, th, el]
 deepExpr mod ta defs (TE _ (Take _ rec fld e))
   = mkApp (mkId "Take") [deepExpr mod ta defs rec, mkInt (fromIntegral fld), deepExpr mod ta defs e]

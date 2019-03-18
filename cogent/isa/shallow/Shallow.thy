@@ -26,7 +26,7 @@ inductive_cases v_sem_memberE: "\<xi> , \<gamma> \<turnstile> Member x f \<Down>
 inductive_cases v_sem_tupleE: "\<xi> , \<gamma> \<turnstile> Tuple a b \<Down> r"
 inductive_cases v_sem_if: " \<xi> , \<gamma> \<turnstile> If x t e \<Down> r"
 inductive_cases v_sem_conE: "\<xi> , \<gamma> \<turnstile> Con i t x \<Down> r"
-inductive_cases v_sem_esacE: "\<xi>, \<gamma> \<turnstile> Esac v \<Down> r"
+inductive_cases v_sem_esacE: "\<xi>, \<gamma> \<turnstile> Esac v  n \<Down> r"
 inductive_cases v_sem_caseE:  "\<xi> , \<gamma> \<turnstile> Case x c m n \<Down> r"
 inductive_cases v_sem_splitE: "\<xi> , \<gamma> \<turnstile> Split x e \<Down> e'"
 inductive_cases v_sem_takeE: "\<xi> , \<gamma> \<turnstile> Take x f e \<Down> e'"

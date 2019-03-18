@@ -326,7 +326,7 @@ datatype 'f expr = Var index
                  | Let "'f expr" "'f expr"
                  | LetBang "index set" "'f expr" "'f expr"
                  | Case "'f expr" name "'f expr" "'f expr"
-                 | Esac "'f expr"
+                 | Esac "'f expr" name
                  | If "'f expr" "'f expr" "'f expr"
                  | Take "'f expr" field "'f expr"
                  | Split "'f expr" "'f expr"
@@ -480,7 +480,7 @@ fun specialise :: "type substitution \<Rightarrow> 'f expr \<Rightarrow> 'f expr
 | "specialise \<delta> (Let e e')        = Let (specialise \<delta> e) (specialise \<delta> e')"
 | "specialise \<delta> (LetBang vs e e') = LetBang vs (specialise \<delta> e) (specialise \<delta> e')"
 | "specialise \<delta> (Case e t a b)    = Case (specialise \<delta> e) t (specialise \<delta> a) (specialise \<delta> b)"
-| "specialise \<delta> (Esac e)          = Esac (specialise \<delta> e)"
+| "specialise \<delta> (Esac e t)        = Esac (specialise \<delta> e) t"
 | "specialise \<delta> (If c t e)        = If (specialise \<delta> c) (specialise \<delta> t) (specialise \<delta> e)"
 | "specialise \<delta> (Take e f e')     = Take (specialise \<delta> e) f (specialise \<delta> e')"
 | "specialise \<delta> (Split v va)      = Split (specialise \<delta> v) (specialise \<delta> va)"
@@ -769,8 +769,8 @@ typing_var    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto>w singleton (length
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Case x tag a b : u"
 
 | typing_esac   : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : TSum ts
-                   ; [(_, t, Unchecked)] = filter ((=) Unchecked \<circ> snd \<circ> snd) ts
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Esac x : t"
+                   ; [(n, t, Unchecked)] = filter ((=) Unchecked \<circ> snd \<circ> snd) ts
+                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Esac x n : t"
 
 | typing_if     : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
                    ; \<Xi>, K, \<Gamma>1 \<turnstile> x : TPrim Bool
@@ -848,7 +848,7 @@ inductive_cases typing_primE   [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Prim p e
 inductive_cases typing_memberE [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Member e f : \<tau>"
 inductive_cases typing_tupleE  [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Tuple a b : \<tau>"
 inductive_cases typing_caseE   [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Case x t m n : \<tau>"
-inductive_cases typing_esacE   [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Esac e : \<tau>"
+inductive_cases typing_esacE   [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Esac e t : \<tau>"
 inductive_cases typing_castE   [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Cast t e : \<tau>"
 inductive_cases typing_letE    [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Let a b : \<tau>"
 inductive_cases typing_structE [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Struct ts es : \<tau>"
@@ -877,7 +877,7 @@ inductive atom ::"'f expr \<Rightarrow> bool" where
 | "atom (Lit l)"
 | "atom (SLit l)"
 | "atom (Tuple (Var x) (Var y))"
-| "atom (Esac (Var x))"
+| "atom (Esac (Var x) t)"
 | "atom (App (Var a) (Var b))"
 | "atom (App (Fun f ts) (Var b))"
 | "atom (App (AFun f ts) (Var b))"
@@ -2196,7 +2196,7 @@ fun expr_size :: "'f expr \<Rightarrow> nat" where
 | "expr_size (SLit s) = 0"
 | "expr_size (Tuple v va) = Suc ((expr_size v) + (expr_size va))"
 | "expr_size (Put v va vb) = Suc ((expr_size v) + (expr_size vb))"
-| "expr_size (Esac x) = Suc (expr_size x)"
+| "expr_size (Esac x t) = Suc (expr_size x)"
 | "expr_size (If x a b) = Suc ((expr_size x) + (expr_size a) + (expr_size b))"
 | "expr_size (Split x y) = Suc ((expr_size x) + (expr_size y))"
 | "expr_size (Case x v a b) = Suc ((expr_size x) + (expr_size a) + (expr_size b))"

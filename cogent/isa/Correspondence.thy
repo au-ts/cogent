@@ -1407,7 +1407,7 @@ inductive_cases v_sem_litE    [elim!] : " \<xi> , \<gamma> \<turnstile> Lit l \<
 inductive_cases v_sem_funE    [elim!] : " \<xi> , \<gamma> \<turnstile> Fun e ts \<Down> v"
 inductive_cases v_sem_unitE   [elim!] : " \<xi> , \<gamma> \<turnstile> Unit \<Down> v"
 inductive_cases v_sem_castE   [elim!] : " \<xi> , \<gamma> \<turnstile> Cast a b \<Down> v"
-inductive_cases v_sem_esacE   [elim!] : " \<xi> , \<gamma> \<turnstile> Esac e \<Down> v"
+inductive_cases v_sem_esacE   [elim!] : " \<xi> , \<gamma> \<turnstile> Esac e n \<Down> v"
 inductive_cases v_sem_splitE  [elim!] : " \<xi> , \<gamma> \<turnstile> Split e e' \<Down> v"
 inductive_cases v_sem_letE    [elim!] : " \<xi> , \<gamma> \<turnstile> Let e1 e2 \<Down> v"
 inductive_cases v_sem_letbE   [elim!] : " \<xi> , \<gamma> \<turnstile> LetBang is e1 e2 \<Down> v"
