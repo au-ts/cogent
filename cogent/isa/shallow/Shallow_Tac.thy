@@ -126,7 +126,7 @@ let
   val step_net =
         Tactic.build_net (@{thms scorres_simple_step} @
                           read_buckets ["scorres_cases", "scorres_esacs", "scorres_cons",
-                                        "scorres_promotes", "scorres_structs"])
+                                        "scorres_structs"])
   val step_simp_net = Tactic.build_net @{thms scorres_var scorres_app[OF scorres_var] scorres_lit}
   val struct_op_net = Tactic.build_net @{thms scorres_take scorres_put scorres_member}
   val struct_field_net = Tactic.build_net (read_buckets ["scorres_rec_fields"])

@@ -38,6 +38,7 @@ inductive_cases v_sem_allE: "\<xi> , \<gamma> \<turnstile>* es \<Down> es'"
 inductive_cases v_sem_all_NilE: "\<xi> , \<gamma> \<turnstile>* [] \<Down> es'"
 inductive_cases v_sem_all_ConsE: "\<xi> , \<gamma> \<turnstile>* (e#es) \<Down> es'"
 inductive_cases v_sem_unitE: "\<xi> , \<gamma> \<turnstile> Unit \<Down> r"
+inductive_cases v_sem_promoteE: "\<xi>, \<gamma> \<turnstile> Promote \<tau> e \<Down> r"
 
 lemmas v_sem_elims =
   v_sem_letE
@@ -60,6 +61,7 @@ lemmas v_sem_elims =
   v_sem_all_NilE
   v_sem_all_ConsE
   v_sem_unitE
+  v_sem_promoteE
 
 (* Should we use type class here, instead of using "defs (overloaded)"?
  * Christine's approach with type class looks more systematic.*)
@@ -129,6 +131,12 @@ lemma scorres_var:
 lemma scorres_unit:
   "scorres (u::unit) Unit \<gamma> \<xi>"
   by (clarsimp simp: scorres_def elim!: v_sem_elims)
+
+lemma scorres_promote:
+assumes "scorres x x' \<gamma> \<xi>"
+shows "scorres x(Promote ts x') \<gamma> \<xi>"
+  using assms
+by (clarsimp simp:scorres_def elim!:v_sem_elims)
 
 lemma scorres_let_desugar:
 assumes
@@ -477,6 +485,7 @@ lemmas scorres_simple_step =
   scorres_prim_bitxor
   scorres_prim_lshift
   scorres_prim_rshift
+  scorres_promote
 
 
 text {* NB: compiler expected to supply rules for: Struct, Promote, Con, Case, Esac *}

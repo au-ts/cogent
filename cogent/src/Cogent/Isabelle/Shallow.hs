@@ -523,7 +523,7 @@ defineLemmaBucket name lems =
   [ O.LemmasDecl (O.Lemmas (O.TheoremDecl (Just name) []) $ map (\l -> O.TheoremDecl (Just l) []) lems) ]
 
 {-
- - Generate rules for Case, Esac, Con, and Promote (for the TSum case).
+ - Generate rules for Case, Esac, Con 
  -}
 data SCorresCaseData = SCCD { bigType :: String
                             , typeStr :: [String]
@@ -535,10 +535,10 @@ data SCorresCaseData = SCCD { bigType :: String
                             }
                      | SCCN { tag :: String
                             , bigType :: String }
-                     | SCPromote { bigType   :: String
-                                 , smallType :: String
-                                 , typeStr   :: [String]
-                                 }
+               --      | SCPromote { bigType   :: String
+               --                  , smallType :: String
+               --                  , typeStr   :: [String]
+               --                  }
                      deriving (Show, Eq, Ord)
 
 scorresCaseExpr :: MapTypeName -> TypedExpr t v VarName -> S.Set SCorresCaseData
@@ -553,12 +553,12 @@ scorresCaseExpr m = CC.foldEPre unwrap scorresCaseExpr'
       | (tstr@(VariantStr [v]):_) <- toTypeStr bt
       , Just bt' <- M.lookup tstr m
       = S.singleton $ SCED v bt'
-    scorresCaseExpr' (TE bt@TSum{} e@(Promote _ (TE st e')))
-      | (btstr@(VariantStr _):_)  <- toTypeStr bt
-      , (ststr@(VariantStr vs):_) <- toTypeStr st
-      , Just bt' <- M.lookup btstr m
-      , Just st' <- M.lookup ststr m
-      = S.singleton $ SCPromote bt' st' vs
+--    scorresCaseExpr' (TE bt@TSum{} e@(Promote _ (TE st e')))
+--      | (btstr@(VariantStr _):_)  <- toTypeStr bt
+--      , (ststr@(VariantStr vs):_) <- toTypeStr st
+--      , Just bt' <- M.lookup btstr m
+--      , Just st' <- M.lookup ststr m
+--      = S.singleton $ SCPromote bt' st' vs
     scorresCaseExpr' (TE bt e'@(Con tag e _))
       | (tstr@(VariantStr vs):_) <- toTypeStr bt
       , Just bt' <- M.lookup tstr m
@@ -566,26 +566,26 @@ scorresCaseExpr m = CC.foldEPre unwrap scorresCaseExpr'
     scorresCaseExpr' (TE t e) = S.empty
     unwrap (TE t e) = e
 
-data CaseLemmaBuckets = CaseLemmaBuckets [String] [String] [String] [String]
+data CaseLemmaBuckets = CaseLemmaBuckets [String] [String] [String]
 
 #if __GLASGOW_HASKELL__ < 803
 instance Monoid CaseLemmaBuckets where
-  mempty = CaseLemmaBuckets [] [] [] []
-  mappend (CaseLemmaBuckets as bs cs ds) (CaseLemmaBuckets as' bs' cs' ds') =
-    CaseLemmaBuckets (as ++ as') (bs ++ bs') (cs ++ cs') (ds ++ ds')
+  mempty = CaseLemmaBuckets [] [] []
+  mappend (CaseLemmaBuckets as bs cs) (CaseLemmaBuckets as' bs' cs') =
+    CaseLemmaBuckets (as ++ as') (bs ++ bs') (cs ++ cs')
 #else
 instance Semigroup CaseLemmaBuckets where
-  CaseLemmaBuckets as bs cs ds <> CaseLemmaBuckets as' bs' cs' ds' =
-    CaseLemmaBuckets (as ++ as') (bs ++ bs') (cs ++ cs') (ds ++ ds')
+  CaseLemmaBuckets as bs cs <> CaseLemmaBuckets as' bs' cs' =
+    CaseLemmaBuckets (as ++ as') (bs ++ bs') (cs ++ cs')
 instance Monoid CaseLemmaBuckets where
-  mempty = CaseLemmaBuckets [] [] [] []
+  mempty = CaseLemmaBuckets [] [] []
 #endif
 
 caseLemmaBuckets :: CaseLemmaBuckets -> [TheoryDecl I.Type I.Term]
-caseLemmaBuckets (CaseLemmaBuckets cases esacs cons promotes) =
+caseLemmaBuckets (CaseLemmaBuckets cases esacs cons) =
   concat $ P.zipWith defineLemmaBucket
-    ["scorres_cases", "scorres_esacs", "scorres_cons", "scorres_promotes" ]
-    [cases, esacs, cons, promotes]
+    ["scorres_cases", "scorres_esacs", "scorres_cons" ]
+    [cases, esacs, cons]
 
 toCaseLemma :: SCorresCaseData -> Writer CaseLemmaBuckets (TheoryDecl I.Type I.Term)
 toCaseLemma (SCCD {..}) = let
@@ -608,7 +608,7 @@ toCaseLemma (SCCD {..}) = let
                  , Method "cases" ["x"] ] ++
                  replicate (P.length typeStr)
                    (Method "force" ["simp:", "valRel_" ++ smallType]))
-  in do tell (CaseLemmaBuckets [thmName] [] [] [])
+  in do tell (CaseLemmaBuckets [thmName] [] [])
         return $ O.LemmaDecl (O.Lemma False (Just (TheoremDecl (Just thmName) [])) [mkId propStr] $ Proof methods ProofDone)
 toCaseLemma (SCED {..}) = let
   thmName = "scorres_esac_" ++ bigType
@@ -616,7 +616,7 @@ toCaseLemma (SCED {..}) = let
             "scorres (case_" ++ bigType ++ " Fun.id x) (Esac x') \\<gamma> \\<xi>"
   methods = [ Method "cases" ["x"],
               Method "fastforce" ["simp: scorres_def valRel_" ++ bigType ++ " elim!: v_sem_esacE"] ]
- in do tell (CaseLemmaBuckets [] [thmName] [] [])
+ in do tell (CaseLemmaBuckets [] [thmName] [])
        return $ O.LemmaDecl (O.Lemma False (Just (TheoremDecl (Just thmName) [])) [mkId propStr] $ Proof methods ProofDone)
 toCaseLemma (SCCN {..}) = let
   thmName = "scorres_con_" ++ mangleNames [bigType, tag]
@@ -625,18 +625,18 @@ toCaseLemma (SCCN {..}) = let
   thmProp = [isaTerm| scorres x x' \<gamma> \<xi> |]
       `imp` [isaTerm| scorres ($btTag x) (Con ts $tagString x') \<gamma> \<xi> |]
   methods = [Method "erule" ["scorres_con"], Method "simp" []]
- in do tell (CaseLemmaBuckets [] [] [thmName] [])
+ in do tell (CaseLemmaBuckets [] [] [thmName])
        return $ O.LemmaDecl (O.Lemma False (Just (TheoremDecl (Just thmName) [])) [thmProp] $ Proof methods ProofDone)
-toCaseLemma (SCPromote {..}) = let
-  thmName = "scorres_promote_" ++ mangleNames [smallType, bigType]
-  propStr = "scorres x x' \\<gamma> \\<xi> \\<Longrightarrow> " ++
-            "scorres (case_" ++ smallType ++ " " ++
-              unwords (map ((bigType ++ ".") ++) typeStr) ++ " x) " ++
-            "(Promote ts x') \\<gamma> \\<xi>"
-  methods = [Method "fastforce" ["simp:", "scorres_def", "valRel_" ++ bigType, "valRel_" ++ smallType,
-                                 "split:", smallType ++ ".splits", "elim!:", "v_sem_elims"]]
-  in do tell (CaseLemmaBuckets [] [] [] [thmName])
-        return $ O.LemmaDecl (O.Lemma False (Just (TheoremDecl (Just thmName) [])) [mkId propStr] $ Proof methods ProofDone)
+--toCaseLemma (SCPromote {..}) = let
+--  thmName = "scorres_promote_" ++ mangleNames [smallType, bigType]
+--  propStr = "scorres x x' \\<gamma> \\<xi> \\<Longrightarrow> " ++
+--            "scorres x"++
+-- -- "(case_" ++ smallType ++ " " ++
+--       --       unwords (map ((bigType ++ ".") ++) typeStr) ++ " x) " ++
+--            "(Promote ts x') \\<gamma> \\<xi>"
+--  methods = [Method "clarsimp" ["simp:", "scorres_def", "elim!:", "v_sem_elims"]]
+--  in do tell (CaseLemmaBuckets [] [] [] [thmName])
+--        return $ O.LemmaDecl (O.Lemma False (Just (TheoremDecl (Just thmName) [])) [mkId propStr] $ Proof methods ProofDone)
 
 scorresCaseDef :: MapTypeName -> Definition TypedExpr VarName -> S.Set SCorresCaseData
 scorresCaseDef m (FunDef _ fn ps ti to e) = scorresCaseExpr m e
