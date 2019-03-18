@@ -60,7 +60,7 @@ fun get_typing_tree ctxt f proof : thm tree list =
                         handle ERROR _ => [];
       (* generate a simpset of all the definitions of the `f` function, type, and typetree *)
       val defs = maps (Proof_Context.get_thms ctxt)
-                   (map (prefix f) ["_def", "_type_def", "_typetree_def"] @ ["replicate_unfold"])
+                   (map (prefix f) ["_def", "_type_def", "_typetree_def"])
                  @ abbrev_defs;
   in extract_subproofs
        (* The typing goal for `f` *)
@@ -124,6 +124,7 @@ fun get_all_typing_details ctxt name script : details = let
       |> map (simplify ctxt #> Thm.varifyT_global)
     val typing_tree = map (tree_map (cleanup_typing_tree_thm ctxt)) orig_typing_tree
     val bucket = typing_tree_to_bucket typing_tree
+    val _ = @{print warning} ("Solved: " ^ name)
   in (typecorrect_thms, typing_tree, bucket) end
 
 fun get_all_typing_details_future ctxt name script
