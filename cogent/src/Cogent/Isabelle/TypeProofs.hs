@@ -44,6 +44,7 @@ import Data.Char
 import Data.Foldable
 import Data.List
 import qualified Data.Map as M
+import Data.Maybe (mapMaybe)
 import Data.Ord (comparing)
 import Isabelle.ExprTH
 import qualified Isabelle.InnerAST as I
@@ -70,8 +71,11 @@ deepTypeProof :: (Pretty a) => NameMod -> Bool -> Bool -> String -> [Definition 
 deepTypeProof mod withDecls withBodies thy decls log =
   let header = (string ("(*\n" ++ log ++ "\n*)\n") <$>)
       ta = getTypeAbbrevs mod decls
-      imports = if __cogent_fml_typing_tree then [__cogent_root_dir </> "c-refinement/TypeProofGen"]
-                                            else [__cogent_root_dir </> "cogent/isa/CogentHelper"]
+      imports = if __cogent_fml_typing_tree
+                then
+                  [__cogent_root_dir </> "c-refinement/TypeProofGen",
+                   __cogent_root_dir </> "cogent/isa/AssocLookup"]
+                else [__cogent_root_dir </> "cogent/isa/CogentHelper"]
       proofDecls | withDecls  = deepTypeAbbrevs mod ta ++ deepDefinitions mod ta decls
                                 ++ funTypeEnv mod decls ++ funDefEnv decls
                                 ++ funTypeTrees mod ta decls
@@ -243,32 +247,33 @@ escapedFunName fn | '\'' `elem` fn = "[" ++ intercalate "," (repr fn) ++ "]"
                                     then map (printf "CHR %#02x" . ord) x
                                     else error "Function name contained a non-ascii char! Isabelle doesn't support this."
 
-funTypeCase :: NameMod -> Definition TypedExpr a -> [String] -> [String]
-funTypeCase mod (FunDef  _ fn _ _ _ _) ds = (escapedFunName fn ++ " := " ++ mod fn ++ "_type"):ds
-funTypeCase mod (AbsDecl _ fn _ _ _  ) ds = (escapedFunName fn ++ " := " ++ mod fn ++ "_type"):ds
-funTypeCase _ _ ds = ds
+funTypeCase :: NameMod -> Definition TypedExpr a -> Maybe Term
+funTypeCase mod (FunDef  _ fn _ _ _ _) =
+  Just $ mkPair (mkId (escapedFunName fn)) (mkId (mod fn ++ "_type"))
+funTypeCase mod (AbsDecl _ fn _ _ _  ) =
+  Just $ mkPair (mkId (escapedFunName fn)) (mkId (mod fn ++ "_type"))
+funTypeCase _ _ = Nothing
 
 funTypeEnv :: NameMod -> [Definition TypedExpr a] -> [TheoryDecl I.Type I.Term]
-funTypeEnv mod fs = funTypeEnv' $ foldr (funTypeCase mod) [] fs
+funTypeEnv mod fs = funTypeEnv' $ mkList $ mapMaybe (funTypeCase mod) fs
 
-funTypeEnv' upds = let unit = "\\<lambda>_.([], TUnit, TUnit)"
-                       updates = mkId $ foldl' (\acc upd -> "(" ++ acc ++ ")(" ++ upd ++ ")") unit upds
+funTypeEnv' upds = let unit = mkId "([], TUnit, TUnit)"
                        -- NOTE: as the isa-parser's antiQ doesn't handle terms well and it doesn't
                        -- keep parens, we have to fall back on strings / zilinc
                        tysig = [isaType| string \<Rightarrow> Cogent.kind list \<times> Cogent.type \<times> Cogent.type |]
                     in [[isaDecl| definition \<Xi> :: "$tysig"
-                                  where "\<Xi> \<equiv> $updates" |]]
+                                  where "\<Xi> \<equiv> assoc_lookup $upds $unit" |]]
 
-funDefCase :: Definition TypedExpr a -> [String] -> [String]
-funDefCase (AbsDecl _ fn _ _ _  ) ds = (escapedFunName fn ++ " := (\\<lambda>_ _. False)"):ds
-funDefCase _ ds = ds
+funDefCase :: Definition TypedExpr a -> Maybe Term
+funDefCase (AbsDecl _ fn _ _ _  ) =
+    Just $ mkPair (mkId $ escapedFunName fn) (mkId "(\\<lambda>_ _. False)")
+funDefCase _ = Nothing
 
 funDefEnv :: [Definition TypedExpr a] -> [TheoryDecl I.Type I.Term]
-funDefEnv fs = funDefEnv' $ foldr funDefCase [] fs
+funDefEnv fs = funDefEnv' $ mkList $ mapMaybe funDefCase fs
 
-funDefEnv' upds = let unit = "\\<lambda>_. (\\<lambda>_ _. False)"
-                      updates = mkId $ foldl' (\acc upd -> "(" ++ acc ++ ")(" ++ upd ++ ")") unit upds
-                   in [[isaDecl| definition "\<xi> \<equiv> $updates" |]]
+funDefEnv' upds = let unit = mkId "(\\<lambda>_ _. False)"
+                   in [[isaDecl| definition "\<xi> \<equiv> assoc_lookup $upds" $unit |]]
 
 (<\>) :: Vec v (Maybe t) -> Vec v (Maybe t) -> Vec v (Maybe t)
 (<\>) (Cons x xs) (Cons Nothing ys)  = Cons x       $ xs <\> ys
