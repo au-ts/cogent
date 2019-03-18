@@ -74,7 +74,7 @@ fun get_typing_tree ctxt f proof : thm tree list =
        is_typing ctxt
      |> (fn r => case r of
             Right tr => tr
-          | Left err => ( @{print} (get_failing_goal err); @{print} err; error ("get_typing_tree failed for function " ^ f)))
+          | Left err => (log_error (@{make_string} (get_failing_goal err)); @{print} (get_failing_goal err); @{print} err; error ("get_typing_tree failed for function " ^ f)))
   end
 
 fun simplify_thm ctxt thm =
@@ -112,6 +112,7 @@ fun get_typing_bucket ctxt f proof =
 
 type details = (thm list * thm tree list * thm list)
 
+
 fun get_all_typing_details ctxt name script : details = let
     val script_tree = (case parse_treesteps script of
         SOME tree => tree
@@ -120,11 +121,12 @@ fun get_all_typing_details ctxt name script : details = let
         @{term "[] :: kind env"} ctxt script_tree
     val tacs' = map (fn (tac, f) => (tac, fn ctxt => f ctxt 1)) tacs
     val orig_typing_tree = get_typing_tree ctxt name tacs'
+    val _ = @{print warning} ("Solved: " ^ name)
+    val _ = (log_info ("[get_all_typing_details: " ^ name ^ "]"))
     val typecorrect_thms = map (Goal.finish ctxt) (map tree_value orig_typing_tree)
       |> map (simplify ctxt #> Thm.varifyT_global)
     val typing_tree = map (tree_map (cleanup_typing_tree_thm ctxt)) orig_typing_tree
     val bucket = typing_tree_to_bucket typing_tree
-    val _ = @{print warning} ("Solved: " ^ name)
   in (typecorrect_thms, typing_tree, bucket) end
 
 fun get_all_typing_details_future ctxt name script

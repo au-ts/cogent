@@ -253,13 +253,25 @@ fun trace_solve_tac (ctxt : Proof.context)
                           let val subtheorem = #subtheorem subproof' in
                           case my_unify_fact_tac ctxt (Goal.finish ctxt subtheorem) 1 goal
                                |> Seq.pull of
-                              NONE => raise THM ("trace_solve_tac: could not apply subgoal proof",
+                              NONE =>
+                                let
+                                  val errval = ("trace_solve_tac: could not apply subgoal proof",
                                                  0, [goal, subtheorem])
+                                  val _ = log_error (@{make_string} errval)
+                                in
+                                  raise THM errval
+                                end
                             | SOME (goal', _) =>
                                   if Thm.nprems_of goal' + 1 = Thm.nprems_of goal then
                                      solve data goal' (subproof :: subproofs_rev)
-                                  else raise THM ("trace_solve_tac: could not apply subgoal proof",
+                                  else
+                                    let
+                                      val errval = ("trace_solve_tac: could not apply subgoal proof",
                                                   0, [goal, subtheorem])
+                                      val _ = log_error (@{make_string} errval)
+                                    in
+                                      raise THM errval
+                                    end
                           end
                end
     in solve data0 goal0 [] end
