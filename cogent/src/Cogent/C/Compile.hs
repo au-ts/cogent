@@ -896,7 +896,7 @@ genExpr mv (TE t (Con tag e tau)) = do  -- `tau' and `t' should be compatible
   te' <- genType (exprType e)
   t'  <- genType t
   (v,vdecl,vstm) <- maybeDecl mv t'
-  (a1decl,a1stm) <- assign (CIdent tagsT) (strDot' v fieldTag) (variable $ tagEnum tag)
+  (a1decl,a1stm) <- assign t' (variable v) (CCompLit t' [([CDesignFld fieldTag], CInitE $ variable $ tagEnum tag)])
   (a2decl,a2stm) <- assign te' (strDot' v tag) e'
   return (variable v, edecl ++ vdecl ++ a1decl ++ a2decl, estm ++ vstm ++ a1stm ++ a2stm, ep)
 
