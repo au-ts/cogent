@@ -465,6 +465,7 @@ let
   val corres_unit = get_thm "corres_unit";
   val corres_fun = get_thm "corres_fun";
   val corres_afun = get_thm "corres_afun";
+  val corres_promote = get_thm "corres_promote";
   val corres_cast = get_thms "corres_cast";
   val corres_struct = get_thm "corres_struct";
   val corres_let_put_unboxed = get_thm "corres_let_put_unboxed'";
@@ -680,6 +681,11 @@ let
         ORELSE
         (rule corres_afun 1
          THEN print "corres_afun"
+         THEN subgoal_val_rel_simp_add [] 1)
+
+        ORELSE
+        (rule corres_promote 1
+         THEN print "corres_promote"
          THEN subgoal_val_rel_simp_add [] 1)
 
         ORELSE

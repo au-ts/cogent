@@ -1600,10 +1600,10 @@ lemma corres_afun:
 
 (* CHANGE: corres promote is not the same as the old corres promote *)
 lemma corres_promote:
-  "corres srel x x' \<xi>' \<gamma> \<Xi>' \<Gamma>' \<sigma> s \<Longrightarrow>
-   corres srel (Promote t x) x' \<xi>' \<gamma> \<Xi>' \<Gamma>' \<sigma> s"
+  assumes "val_rel (\<gamma>!x) x'"
+  shows "corres srel (Promote t (Var x)) (gets (\<lambda>_. x')) \<xi>' \<gamma> \<Xi>' \<Gamma>' \<sigma> s"
   apply (monad_eq simp: corres_def)
-  using u_sem_promote by blast
+  using assms u_sem_promote u_sem_var by blast
 
 
 lemma corres_if_base:

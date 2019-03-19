@@ -896,6 +896,10 @@ genExpr mv (TE t (Con tag e tau)) = do  -- `tau' and `t' should be compatible
   te' <- genType (exprType e)
   t'  <- genType t
   (v,vdecl,vstm) <- maybeDecl mv t'
+  -- The C correspondence tactic requires the C to be generated in a very specific way.
+  -- For Cons, this means we need to use a compound initialiser, because it sets all unspecified fields to 0.
+  -- However, the compound initialisers apparently conflict with code generation for arrays in some way.
+  -- Arrays aren't verified at the moment, so we can use compound initialisers without arrays, and just field sets with arrays
 #ifdef BUILTIN_ARRAYS
   (a1decl,a1stm) <- assign (CIdent tagsT) (strDot' v fieldTag) (variable $ tagEnum tag)
   (a2decl,a2stm) <- assign te' (strDot' v tag) e'

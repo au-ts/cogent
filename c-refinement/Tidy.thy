@@ -43,6 +43,31 @@ lemma simp_unit_return:
   "\<And>A. (do (x::unit) \<leftarrow> A; gets (\<lambda>_. ()) od) = A"
   by simp
 
+(* Compose variant constructor with the gets immediately after it *)
+(* TODO: this should be more specific, and only instantiated when variant_init is an actual variant constructor *)
+lemma compose_gets_variant_con:
+  "do a \<leftarrow> select UNIV;
+      b \<leftarrow> gets (\<lambda>_. payload_update (\<lambda>_. payload) (tag_update (\<lambda>_. tag) variant_init));
+      c \<leftarrow> gets (\<lambda>_. b);
+      A c
+   od =
+   do
+      a \<leftarrow> select UNIV;
+      b \<leftarrow> gets (\<lambda>_. payload_update (\<lambda>_. payload) (tag_update (\<lambda>_. tag) variant_init));
+      A b
+  od"
+  by monad_eq
+lemma compose_gets_variant_con_2:
+  "do a \<leftarrow> select UNIV;
+      b \<leftarrow> gets (\<lambda>_. payload_update (\<lambda>_. payload) (tag_update (\<lambda>_. tag) variant_init));
+      gets (\<lambda>_. b)
+   od =
+   do
+      a \<leftarrow> select UNIV;
+      gets (\<lambda>_. payload_update (\<lambda>_. payload) (tag_update (\<lambda>_. tag) variant_init))
+  od"
+  by monad_eq
+
 (* Cogent compiler adds one assignment at the end of every block; remove it *)
 definition "simp_last_bind = id"
 
@@ -110,6 +135,8 @@ fun tidy_C_fun_def f ctxt = let
              THEN subst' @{thms simp_last_bind(1-2) simp_unit_return}
              (* Cleanup any remaining @{term simp_last_bind}s *)
              THEN subst' @{thms simp_last_bind(3)}
+             (* Compose variant constructor with the gets immediately after it *)
+             THEN subst @{thms compose_gets_variant_con compose_gets_variant_con_2}
              (* Simplify uninitialised variables *)
              THEN subst' (@{thms unknown_bind_ignore unknown_bind_if_True} @ unknown_bind_more_thms)
              THEN rtac @{thm refl} 1 (* final definition *)
