@@ -1323,11 +1323,16 @@ lemma corres_esac:
      \<Gamma>' ! x = Some (TSum typs);
      \<And>tag val rtyps. \<gamma> ! x = USum tag val rtyps \<Longrightarrow> val_rel val (get_val' x')
    \<rbrakk> \<Longrightarrow>
-   corres srel (Esac (Var x)) (gets (\<lambda>_. get_val' x')) \<xi>' \<gamma> \<Xi>' \<Gamma>' \<sigma> s"
+   corres srel (Esac (Var x) n) (gets (\<lambda>_. get_val' x')) \<xi>' \<gamma> \<Xi>' \<Gamma>' \<sigma> s"
   apply (monad_eq simp: corres_def)
   apply (frule(2) matches_ptrs_proj_single')
   apply clarsimp
   apply (erule u_t_sumE)
+(* I think this might need a typing assumption now:
+     \<Xi>', [], \<Gamma>' \<turnstile> Esac (Var x) n : ret;
+  apply (erule typing_esacE)
+  apply (erule typing_varE)
+ *)
   apply atomize
   apply clarsimp
   apply (rule_tac x=\<sigma> in exI)
@@ -1336,7 +1341,8 @@ lemma corres_esac:
   apply (rule u_sem_esac)
   apply (erule_tac s = "\<gamma> ! x" in subst)
   apply (rule u_sem_var)
-  done
+  sorry
+
 
 lemma corres_prim1:
   assumes "val_rel (eval_prim_u p [\<gamma>!x]) c"

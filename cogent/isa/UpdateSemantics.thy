@@ -98,8 +98,8 @@ where
                    ; \<xi> , \<gamma> \<turnstile> (\<sigma>', y) \<Down>! (\<sigma>'', y')
                    \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Tuple x y) \<Down>! (\<sigma>'', UProduct x' y')"
 
-| u_sem_esac    : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, t) \<Down>! (\<sigma>', USum ts v ts')
-                   \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Esac t ts) \<Down>! (\<sigma>', v)"
+| u_sem_esac    : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, t) \<Down>! (\<sigma>', USum tag v ts')
+                   \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Esac t tag) \<Down>! (\<sigma>', v)"
 
 | u_sem_let     : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, a) \<Down>! (\<sigma>', a')
                    ; \<xi> , (a' # \<gamma>) \<turnstile> (\<sigma>', b) \<Down>! st
