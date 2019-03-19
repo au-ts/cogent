@@ -1317,22 +1317,46 @@ lemma corres_app_concrete:
   apply simp
   done
 
-lemma corres_esac:
+lemma sum_tag_is_same:
+ "\<lbrakk> \<Xi>', \<sigma> \<turnstile> \<gamma> ! x :u t \<langle>r', w'\<rangle>;
+     \<Xi>', [], \<Gamma>' \<turnstile> Esac (Var x) n : ret;  
+    \<gamma> ! x = USum tag val ts;
+    t = TSum typs;
+     x < length \<Gamma>';
+     \<Gamma>' ! x = Some t
+  \<rbrakk> \<Longrightarrow> n = tag"
+  apply clarsimp
+  apply (erule u_t_sumE)
+  apply (erule typing_esacE)
+  apply (erule typing_varE)
+  apply clarsimp
+  apply (subgoal_tac "typs = tsa")
+   apply clarsimp 
+   apply (simp only: Util.filter_eq_singleton_iff2)
+   apply clarsimp
+  apply auto[1]
+  by (simp add: same_type_as_weakened)
+
+lemma corres_esac:(* CHANGED: fourth assumption added *)
   "\<lbrakk> val_rel (\<gamma> ! x) x';
      x < length \<Gamma>';
      \<Gamma>' ! x = Some (TSum typs);
-     \<And>tag val rtyps. \<gamma> ! x = USum tag val rtyps \<Longrightarrow> val_rel val (get_val' x')
+    \<Xi>', [], \<Gamma>' \<turnstile> Esac (Var x) n : ret;  
+     \<And> tag val rtyps. \<gamma> ! x = USum tag val rtyps \<Longrightarrow> val_rel val (get_val' x')
    \<rbrakk> \<Longrightarrow>
    corres srel (Esac (Var x) n) (gets (\<lambda>_. get_val' x')) \<xi>' \<gamma> \<Xi>' \<Gamma>' \<sigma> s"
   apply (monad_eq simp: corres_def)
   apply (frule(2) matches_ptrs_proj_single')
   apply clarsimp
   apply (erule u_t_sumE)
-(* I think this might need a typing assumption now:
-     \<Xi>', [], \<Gamma>' \<turnstile> Esac (Var x) n : ret;
-  apply (erule typing_esacE)
-  apply (erule typing_varE)
- *)
+  apply (subst sum_tag_is_same[where \<gamma>="\<gamma>" and n="n" and \<Xi>'="\<Xi>'" and x="x" and \<sigma>="\<sigma>"])
+        apply clarsimp
+        apply (rule u_t_sum; simp)
+       apply assumption
+      apply assumption
+     apply simp
+    apply assumption
+   apply assumption
   apply atomize
   apply clarsimp
   apply (rule_tac x=\<sigma> in exI)
@@ -1341,7 +1365,7 @@ lemma corres_esac:
   apply (rule u_sem_esac)
   apply (erule_tac s = "\<gamma> ! x" in subst)
   apply (rule u_sem_var)
-  sorry
+  done
 
 
 lemma corres_prim1:
