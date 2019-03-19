@@ -84,10 +84,8 @@ running `cabal configure` and `cabal install`.
 
 [Stack](https://github.com/commercialhaskell/stack) is a new cross-platform
 program for developing Haskell projects, that enhances the functionality
-provided by Cabal. Unfortunately, several packages on which Cogent
-depends are not supported by stack. For these reason, we don't officially
-maintain a Stack build scheme.
-
+provided by Cabal. To build Cogent with stack, just run `stack build`
+and `stack install`.
 
 ## Test Cogent
 

@@ -118,7 +118,7 @@ fun funcall_sem :: "'f InValue env \<Rightarrow> 'f expr \<Rightarrow> ('f FunCa
           (ycalls, yptrs) = funcall_sem (map tl (filter (\<lambda>ptr. case ptr of InSum c' # _ \<Rightarrow> c = c' | _ \<Rightarrow> BadType) ptrs) # \<gamma>) y;
           (zcalls, zptrs) = funcall_sem (map tl (filter (\<lambda>ptr. case ptr of InSum c' # _ \<Rightarrow> c \<noteq> c' | _ \<Rightarrow> BadType) ptrs) # \<gamma>) z
       in (calls @ ycalls @ zcalls, []))" (* cannot determine ptrs statically *) (* TODO: warn if [yz]ptrs nonempty *)
-| "funcall_sem \<gamma> (Esac x) =
+| "funcall_sem \<gamma> (Esac x tag) =
      (let (calls, ptrs) = funcall_sem \<gamma> x
       in (calls, map tl (filter (\<lambda>ptr. case ptr of InSum _ # _ \<Rightarrow> True | _ \<Rightarrow> BadType) ptrs)))"
 | "funcall_sem \<gamma> (If x y z) =

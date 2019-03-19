@@ -526,6 +526,7 @@ flags =
   , Option ['q']      ["quiet"]            1 (NoArg set_flag_quiet)                        "do not display compilation progress"
   , Option ['x']      ["fdump-to-stdout"]  1 (NoArg set_flag_fdumpToStdout)                "dump all output to stdout"
   , Option ['i']      ["interactive"]      3 (NoArg set_flag_interactive)                  "interactive compiler mode"
+  , Option []         ["type-proof-sorry-before"]  1 (ReqArg set_flag_type_proof_sorry_before "FUN_NAME")            "bad hack: sorry all type proofs for functions that precede given function name"
   ]
 
 parseArgs :: [String] -> IO ()
@@ -756,7 +757,7 @@ parseArgs args = case getOpt' Permute options args of
             let tpfile = mkThyFileName source __cogent_suffix_of_type_proof
                 tpthy  = mkProofName source (Just __cogent_suffix_of_type_proof)
             writeFileMsg tpfile
-            output tpfile $ flip LJ.hPutDoc $ deepTypeProof ("isa_" ++) __cogent_ftp_with_decls __cogent_ftp_with_bodies tpthy monoed' log
+            output tpfile $ flip LJ.hPutDoc $ deepTypeProof id __cogent_ftp_with_decls __cogent_ftp_with_bodies tpthy monoed' log
           when (AllRefine `elem` cmds) $ do
             let arfile = mkThyFileName source __cogent_suffix_of_all_refine
             writeFileMsg arfile

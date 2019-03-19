@@ -23,13 +23,6 @@ text{* lemma-generation for URecord (Member, Take, and Put).*}
 
 (* TODO: mk_specialised_corres_take and mk_specialised_corres_put have code-duplication
  *       Refactor it.*)
-(* TODO[amos] mk_specialised_corres_take looks a lot like it should be equivalent to something like
-  >   match ml_sigil with
-  >      Writable \<Rightarrow> Thm.instantiate [...] @{thm corres_take_boxed}
-  >      Unboxed  \<Rightarrow> Thm.instantiate [...] @{thm corres_take_unboxed}
-  except specialised includes some type relations, but corres_take_* don't.
-  I don't really understand what this is doing, and why this has different assumptions to corres_take_*.
- *)
 ML{* fun mk_specialised_corres_take (field_num:int) uval file_nm ctxt =
 (* Generate specialised Take lemmas for the Writables and Unboxeds.*)
  let
@@ -51,8 +44,8 @@ ML{* fun mk_specialised_corres_take (field_num:int) uval file_nm ctxt =
   val field_getter    = #getter nth_field;
   val ml_sigil        = get_uval_sigil uval;
   val isa_sigil = case ml_sigil of
-                ReadOnly => @{term "ReadOnly"}
-              | Writable => @{term "Writable"}
+                ReadOnly => @{term "Boxed ReadOnly undefined"}
+              | Writable => @{term "Boxed Writable undefined"}
               | Unboxed  => @{term "Unboxed"}
   (* Unboxed-Take and Boxed-Take use different types.*)
   val ty = case ml_sigil of

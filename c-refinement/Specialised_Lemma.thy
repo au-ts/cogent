@@ -79,11 +79,6 @@ fun local_setup_tag_enum_defs lthy =
 (* Warning! The author of this function has no clue as to how tag_t_defs are created
  * by C-Parser. If C-Parser changes its naming scheme, this code stops working properly.*)
  let
-(* TODO[amos]: this Proof_Context.get_thms isn't working for me, but I think the tag_t_defs name
-     is right because it works if I try in a the generated P_CorresSetup.thy file.
-    perhaps this get_thms isn't looking in the global scope?
-    maybe it would also be reasonable to just pass this as a function parameter from the generated code.
- *)
   val thms = Proof_Context.get_thms @{context} "tag_t_defs"
             handle ERROR msg  => (tracing msg; @{thms TrueI})
   val lthy' = Local_Theory.note ((Binding.name "tag_enum_defs",[]), thms) lthy |> snd

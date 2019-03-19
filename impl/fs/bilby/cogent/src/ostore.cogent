@@ -718,7 +718,7 @@ proc_obj_sum(ex, mount_st, ostore_st, obj) =
       and sum_entry:ObjSumEntry = #{id, sqnum, len, del_flags_and_offs, count = count+1}
       and ostore_st {summary = summary {entries}} = ostore_st
       and #{arr=entries, acc=()} = wordarray_modify[ObjSumEntry, (), ObjSumEntry!]
-                                     #{arr=entries, idx=idx_entry, f= \#{elem,acc,obsv} => #{elem=obsv,acc=()}, acc=(), obsv=sum_entry}  -- the space after `f=' is essential
+                                     #{arr=entries, idx=idx_entry, f=proc_obj_sum_f, acc=(), obsv=sum_entry} 
 
       -- increment if we created a new entry
       and nb_sum_entry = summary.nb_sum_entry !summary
@@ -726,6 +726,10 @@ proc_obj_sum(ex, mount_st, ostore_st, obj) =
 
       and summary = summary {nb_sum_entry, entries}
       in (ex, ostore_st {summary})
+
+{-# inline proc_obj_sum_f #-}
+proc_obj_sum_f: #{elem:ObjSumEntry, acc:(), obsv:ObjSumEntry} -> #{elem:ObjSumEntry, acc:()}
+proc_obj_sum_f #{elem=_, acc=_, obsv=sum_entry} = #{elem=sum_entry, acc=()}
 
 proc_sum_entry: (SysState, MountState!, OstoreState take (summary), ObjSumEntry, U32) -> (SysState, OstoreState take (summary))
 proc_sum_entry(ex, mount_st, ostore_st, entry, ebnum) =

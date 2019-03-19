@@ -417,7 +417,7 @@ val val_rel_thin_tac = SUBGOAL (fn (goal, n) => let
   in EVERY (map thin drops) end)
 
 fun corres_tac ctxt
-               (typing_tree : thm Tree)
+               (typing_tree : thm tree)
                (fun_defs : thm list)
                (absfun_corres : thm list)
                (fun_corres : thm list)
@@ -465,6 +465,7 @@ let
   val corres_unit = get_thm "corres_unit";
   val corres_fun = get_thm "corres_fun";
   val corres_afun = get_thm "corres_afun";
+  val corres_promote = get_thm "corres_promote";
   val corres_cast = get_thms "corres_cast";
   val corres_struct = get_thm "corres_struct";
   val corres_let_put_unboxed = get_thm "corres_let_put_unboxed'";
@@ -680,6 +681,11 @@ let
         ORELSE
         (rule corres_afun 1
          THEN print "corres_afun"
+         THEN subgoal_val_rel_simp_add [] 1)
+
+        ORELSE
+        (rule corres_promote 1
+         THEN print "corres_promote"
          THEN subgoal_val_rel_simp_add [] 1)
 
         ORELSE
@@ -1198,8 +1204,10 @@ fun finalise (tab : obligations) ctxt thm_tab = let
 fun all_corres_goals corres_tac typing_tree_of time_limit ctxt (tab : obligations) =
   let
     val tl = Time.fromSeconds time_limit
+    fun run_tac nm = corres_tac_driver corres_tac typing_tree_of ctxt tab nm
+                   handle ERROR x => (tracing ("Failed: " ^ nm ^ " with error:\n" ^ x); raise ERROR x)
     fun driver nm = Timing.timing (try (Timeout.apply tl
-            (corres_tac_driver corres_tac typing_tree_of ctxt tab))) nm
+            run_tac)) nm
         |> (fn (dur, res) => (tracing ("Time for " ^ nm ^ ": " ^ Timing.message dur); res))
         |> (fn NONE => (tracing ("Failed: " ^ nm); (nm, NONE))
              | SOME thm => (tracing ("Succeeded: " ^ nm); (nm, SOME thm)))

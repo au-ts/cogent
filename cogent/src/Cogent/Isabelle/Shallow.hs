@@ -434,8 +434,10 @@ shallowTT (tidx, t) = do
           evarIsaList = I.mkList $ map I.mkId evarNames
           conjs = fieldConjValRel (P.zip (map I.mkId evarNames) (map (I.mkId . (prefix ++) . (++ subSymStr "f")) fs))
           valRelBody = I.QuantifiedTerm Exists (map I.Id evarNames) [isaTerm| v = VRecord $evarIsaList \<and> $conjs |]
-          valRelDef = OverloadedDef $ Def (Just (Sig ("valRel_" ++ nm) Nothing))
-                                       [isaTerm| valRel \<xi> (x :: $ity) v \<equiv> $valRelBody |]
+          valRelSpecName = "valRel_" ++ nm
+          valRelDef = OverloadedDef
+                        (Def (Just (Sig valRelSpecName Nothing)) [isaTerm| $(mkId valRelSpecName) \<xi> (x :: $ity) v \<equiv> $valRelBody |])
+                        (Sig "valRel" Nothing)
           valRel = if tuples && isRecTuple fs then [] else [(RecordT, valRelDef)]
       return (recdecls, valRel, [], defnames, newmap)
     VariantStr fs ->
@@ -448,8 +450,10 @@ shallowTT (tidx, t) = do
           valRelBody' (x:xs) = let tagName = I.ConstTerm $ I.StringLiteral x
                                 in I.TermApp (valRelBody' xs) [isaTerm|(\<lambda>x. \<exists>x'. v' = VSum $tagName x' \<and> valRel \<xi> x x') |]
           valRelBody = I.TermApp (valRelBody' $ reverse fs) [isaTerm| v |]
-          valRelDef = OverloadedDef $ Def (Just (Sig ("valRel_" ++ nm) Nothing))
-                                       [isaTerm| valRel \<xi> (v :: $ity) v' \<equiv> $valRelBody |]
+          valRelSpecName = "valRel_" ++ nm
+          valRelDef = OverloadedDef
+                        (Def (Just (Sig valRelSpecName Nothing)) [isaTerm| $(mkId valRelSpecName) \<xi> (v :: $ity) v' \<equiv> $valRelBody |])
+                        (Sig "valRel" Nothing)
           simpLemmas = map (simpLemma nm) fs
       in pure $ ([O.DataTypeDecl (Datatype nm cons tvars)], [(VariantT, valRelDef)], simpLemmas, [], newmap)
 
@@ -487,11 +491,11 @@ lemmaBuckets :: [(DeclT, TheoryDecl I.Type I.Term)] -> [TheoryDecl I.Type I.Term
 lemmaBuckets is =
   let (recs,variants) = P.unzip $ map lemmaBucket' is
    in lemmas "valRel_records" (concat recs) ++ lemmas "valRel_variants" (concat variants)
-  where lemmaBucket' ((RecordT, O.OverloadedDef d))
+  where lemmaBucket' ((RecordT, O.OverloadedDef d s))
            | Just (Sig n _) <- defSig d
            , n' <- drop (P.length "valRel_") n
            = ([ O.TheoremDecl (Just n) [], O.TheoremDecl (Just ( n' ++ ".defs")) []], [])
-        lemmaBucket' ((VariantT, O.OverloadedDef d))
+        lemmaBucket' ((VariantT, O.OverloadedDef d s))
            | Just (Sig n _) <- defSig d
            = ([], [ O.TheoremDecl (Just n) [] ])
         lemmaBucket' _ = ([],[])
@@ -519,22 +523,18 @@ defineLemmaBucket name lems =
   [ O.LemmasDecl (O.Lemmas (O.TheoremDecl (Just name) []) $ map (\l -> O.TheoremDecl (Just l) []) lems) ]
 
 {-
- - Generate rules for Case, Esac, Con, and Promote (for the TSum case).
+ - Generate rules for Case, Esac, Con 
  -}
 data SCorresCaseData = SCCD { bigType :: String
                             , typeStr :: [String]
-                            , smallType :: String
                             , tag :: String
                             }
-                     | SCED { tag :: String
-                            , bigType :: String
+                     | SCED { bigType :: String
+                            , typeStr :: [String]
+                            , tag :: String
                             }
                      | SCCN { tag :: String
                             , bigType :: String }
-                     | SCPromote { bigType   :: String
-                                 , smallType :: String
-                                 , typeStr   :: [String]
-                                 }
                      deriving (Show, Eq, Ord)
 
 scorresCaseExpr :: MapTypeName -> TypedExpr t v VarName -> S.Set SCorresCaseData
@@ -543,18 +543,12 @@ scorresCaseExpr m = CC.foldEPre unwrap scorresCaseExpr'
     scorresCaseExpr' (TE t e@(Case (TE bt _) tag (_,_,e1) (_,_,e2)))
       | (tstr@(VariantStr vs):_) <- toTypeStr bt
       , Just bt' <- M.lookup tstr m
-      , Just st' <- M.lookup (VariantStr (filter (/= tag) vs)) m
-      = S.singleton $ SCCD bt' vs st' tag
-    scorresCaseExpr' (TE t e@(Esac (TE bt@(TSum [(tag,_)]) _)))
-      | (tstr@(VariantStr [v]):_) <- toTypeStr bt
+      = S.singleton $ SCCD bt' vs tag
+    scorresCaseExpr' (TE t e@(Esac (TE bt@(TSum alts) _)))
+      | tag <- fst (P.head (filter (not . snd . snd) alts))
+      , (tstr@(VariantStr vs):_) <- toTypeStr bt
       , Just bt' <- M.lookup tstr m
-      = S.singleton $ SCED v bt'
-    scorresCaseExpr' (TE bt@TSum{} e@(Promote _ (TE st e')))
-      | (btstr@(VariantStr _):_)  <- toTypeStr bt
-      , (ststr@(VariantStr vs):_) <- toTypeStr st
-      , Just bt' <- M.lookup btstr m
-      , Just st' <- M.lookup ststr m
-      = S.singleton $ SCPromote bt' st' vs
+      = S.singleton $ SCED bt' vs tag
     scorresCaseExpr' (TE bt e'@(Con tag e _))
       | (tstr@(VariantStr vs):_) <- toTypeStr bt
       , Just bt' <- M.lookup tstr m
@@ -562,26 +556,26 @@ scorresCaseExpr m = CC.foldEPre unwrap scorresCaseExpr'
     scorresCaseExpr' (TE t e) = S.empty
     unwrap (TE t e) = e
 
-data CaseLemmaBuckets = CaseLemmaBuckets [String] [String] [String] [String]
+data CaseLemmaBuckets = CaseLemmaBuckets [String] [String] [String]
 
 #if __GLASGOW_HASKELL__ < 803
 instance Monoid CaseLemmaBuckets where
-  mempty = CaseLemmaBuckets [] [] [] []
-  mappend (CaseLemmaBuckets as bs cs ds) (CaseLemmaBuckets as' bs' cs' ds') =
-    CaseLemmaBuckets (as ++ as') (bs ++ bs') (cs ++ cs') (ds ++ ds')
+  mempty = CaseLemmaBuckets [] [] []
+  mappend (CaseLemmaBuckets as bs cs) (CaseLemmaBuckets as' bs' cs') =
+    CaseLemmaBuckets (as ++ as') (bs ++ bs') (cs ++ cs')
 #else
 instance Semigroup CaseLemmaBuckets where
-  CaseLemmaBuckets as bs cs ds <> CaseLemmaBuckets as' bs' cs' ds' =
-    CaseLemmaBuckets (as ++ as') (bs ++ bs') (cs ++ cs') (ds ++ ds')
+  CaseLemmaBuckets as bs cs <> CaseLemmaBuckets as' bs' cs' =
+    CaseLemmaBuckets (as ++ as') (bs ++ bs') (cs ++ cs')
 instance Monoid CaseLemmaBuckets where
-  mempty = CaseLemmaBuckets [] [] [] []
+  mempty = CaseLemmaBuckets [] [] []
 #endif
 
 caseLemmaBuckets :: CaseLemmaBuckets -> [TheoryDecl I.Type I.Term]
-caseLemmaBuckets (CaseLemmaBuckets cases esacs cons promotes) =
+caseLemmaBuckets (CaseLemmaBuckets cases esacs cons) =
   concat $ P.zipWith defineLemmaBucket
-    ["scorres_cases", "scorres_esacs", "scorres_cons", "scorres_promotes" ]
-    [cases, esacs, cons, promotes]
+    ["scorres_cases", "scorres_esacs", "scorres_cons" ]
+    [cases, esacs, cons]
 
 toCaseLemma :: SCorresCaseData -> Writer CaseLemmaBuckets (TheoryDecl I.Type I.Term)
 toCaseLemma (SCCD {..}) = let
@@ -594,7 +588,7 @@ toCaseLemma (SCCD {..}) = let
               "scorres (case_" ++ bigType ++ " " ++ unwords (map shallowCase typeStr) ++
                 " x) (Case x' " ++ tagString ++ " match' rest') \\<gamma> \\<xi>"
     shallowCase tag' | tag == tag' = "match"
-                     | otherwise   = "(\\<lambda>x. rest (" ++ smallType ++ "." ++ tag' ++ " x))"
+                     | otherwise   = "(\\<lambda>x. rest (" ++ bigType ++ "." ++ tag' ++ " x))"
     tagString = show $ pretty $ mkString tag
     methods = [ Method "clarsimp" ["simp:", "scorres_def", "shallow_tac__var_def", "valRel_" ++ bigType]
               , Method "erule" ["v_sem_caseE"] ] ++
@@ -603,16 +597,20 @@ toCaseLemma (SCCD {..}) = let
                      [Method "erule" ["allE"], Method "erule" ["impE"], Method "assumption" []]
                  , Method "cases" ["x"] ] ++
                  replicate (P.length typeStr)
-                   (Method "force" ["simp:", "valRel_" ++ smallType]))
-  in do tell (CaseLemmaBuckets [thmName] [] [] [])
+                   (Method "force" ["simp:", "valRel_" ++ bigType]))
+  in do tell (CaseLemmaBuckets [thmName] [] [])
         return $ O.LemmaDecl (O.Lemma False (Just (TheoremDecl (Just thmName) [])) [mkId propStr] $ Proof methods ProofDone)
 toCaseLemma (SCED {..}) = let
-  thmName = "scorres_esac_" ++ bigType
+  thmName = "scorres_esac_"  ++ mangleNames [bigType, tag]
+  shallowEsac tag' | tag == tag' = "Fun.id"
+                   | otherwise   = "undefined"
+  tagString = show $ pretty $ mkString tag
   propStr = "scorres x x' \\<gamma> \\<xi> \\<Longrightarrow> "++
-            "scorres (case_" ++ bigType ++ " Fun.id x) (Esac x') \\<gamma> \\<xi>"
+            "scorres (case_" ++ bigType ++ " " ++ unwords (map shallowEsac typeStr) ++
+            " x) (Esac x' " ++ tagString ++ ") \\<gamma> \\<xi>"
   methods = [ Method "cases" ["x"],
-              Method "fastforce" ["simp: scorres_def valRel_" ++ bigType ++ " elim!: v_sem_esacE"] ]
- in do tell (CaseLemmaBuckets [] [thmName] [] [])
+              Method "auto" ["simp: scorres_def valRel_" ++ bigType ++ " elim!: v_sem_esacE"] ]
+ in do tell (CaseLemmaBuckets [] [thmName] [])
        return $ O.LemmaDecl (O.Lemma False (Just (TheoremDecl (Just thmName) [])) [mkId propStr] $ Proof methods ProofDone)
 toCaseLemma (SCCN {..}) = let
   thmName = "scorres_con_" ++ mangleNames [bigType, tag]
@@ -621,18 +619,8 @@ toCaseLemma (SCCN {..}) = let
   thmProp = [isaTerm| scorres x x' \<gamma> \<xi> |]
       `imp` [isaTerm| scorres ($btTag x) (Con ts $tagString x') \<gamma> \<xi> |]
   methods = [Method "erule" ["scorres_con"], Method "simp" []]
- in do tell (CaseLemmaBuckets [] [] [thmName] [])
+ in do tell (CaseLemmaBuckets [] [] [thmName])
        return $ O.LemmaDecl (O.Lemma False (Just (TheoremDecl (Just thmName) [])) [thmProp] $ Proof methods ProofDone)
-toCaseLemma (SCPromote {..}) = let
-  thmName = "scorres_promote_" ++ mangleNames [smallType, bigType]
-  propStr = "scorres x x' \\<gamma> \\<xi> \\<Longrightarrow> " ++
-            "scorres (case_" ++ smallType ++ " " ++
-              unwords (map ((bigType ++ ".") ++) typeStr) ++ " x) " ++
-            "(Promote ts x') \\<gamma> \\<xi>"
-  methods = [Method "fastforce" ["simp:", "scorres_def", "valRel_" ++ bigType, "valRel_" ++ smallType,
-                                 "split:", smallType ++ ".splits", "elim!:", "v_sem_elims"]]
-  in do tell (CaseLemmaBuckets [] [] [] [thmName])
-        return $ O.LemmaDecl (O.Lemma False (Just (TheoremDecl (Just thmName) [])) [mkId propStr] $ Proof methods ProofDone)
 
 scorresCaseDef :: MapTypeName -> Definition TypedExpr VarName -> S.Set SCorresCaseData
 scorresCaseDef m (FunDef _ fn ps ti to e) = scorresCaseExpr m e

@@ -44,6 +44,7 @@ import Data.Char
 import Data.Foldable
 import Data.List
 import qualified Data.Map as M
+import Data.Maybe (mapMaybe)
 import Data.Ord (comparing)
 import Isabelle.ExprTH
 import qualified Isabelle.InnerAST as I
@@ -70,11 +71,14 @@ deepTypeProof :: (Pretty a) => NameMod -> Bool -> Bool -> String -> [Definition 
 deepTypeProof mod withDecls withBodies thy decls log =
   let header = (string ("(*\n" ++ log ++ "\n*)\n") <$>)
       ta = getTypeAbbrevs mod decls
-      imports = if __cogent_fml_typing_tree then [__cogent_root_dir </> "c-refinement/TypeProofGen"]
-                                            else [__cogent_root_dir </> "cogent/isa/CogentHelper"]
+      imports = if __cogent_fml_typing_tree
+                then
+                  [__cogent_root_dir </> "c-refinement/TypeProofGen",
+                   __cogent_root_dir </> "cogent/isa/AssocLookup"]
+                else [__cogent_root_dir </> "cogent/isa/CogentHelper"]
       proofDecls | withDecls  = deepTypeAbbrevs mod ta ++ deepDefinitions mod ta decls
                                 ++ funTypeEnv mod decls ++ funDefEnv decls
-                                ++ concatMap (funTypeTree mod ta) decls
+                                ++ funTypeTrees mod ta decls
                  | otherwise = []
       proofBodies | withBodies = [TheoryString "ML {* open TTyping_Tactics *}"] ++
                                  concatMap (\(proofId, prop, script) ->
@@ -155,6 +159,16 @@ flattenHintTree :: LeafTree Hints -> [TreeSteps Hints]
 flattenHintTree (Branch ths) = StepDown : concatMap flattenHintTree ths ++ [StepUp]
 flattenHintTree (Leaf h) = [Val h]
 
+proveSorry :: (Pretty a) => Definition TypedExpr a -> State TypingSubproofs [TheoryDecl I.Type I.Term]
+proveSorry (FunDef _ fn k ti to e) = do
+  mod <- use nameMod
+  let prf = [ LemmaDecl (Lemma False (Just $ TheoremDecl (Just (mod fn ++ "_typecorrect")) [])
+          [mkId $ "\\<Xi>, fst " ++ fn ++ "_type, (" ++ fn ++ "_typetree, [Some (fst (snd " ++ fn ++ "_type))]) T\\<turnstile> " ++
+                  fn ++ " : snd (snd " ++ fn ++ "_type)"]
+              (Proof [] ProofSorry)) ]
+  return prf
+proveSorry _ = return []
+
 prove :: (Pretty a) => [Definition TypedExpr a] -> Definition TypedExpr a
       -> State TypingSubproofs ([TheoryDecl I.Type I.Term], [TheoryDecl I.Type I.Term])
 prove decls (FunDef _ fn k ti to e) = do
@@ -170,13 +184,29 @@ prove _ _ = return ([], [])
 proofs :: (Pretty a) => [Definition TypedExpr a]
        -> State TypingSubproofs [TheoryDecl I.Type I.Term]
 proofs decls = do
-    bodies <- mapM (prove decls) decls
-    return $ concat $ map fst bodies ++ map snd bodies
+    let (predecls,postdecls) = badHackSplitOnSorryBefore decls
+    bsorry <- mapM proveSorry predecls
+    bodies <- mapM (prove decls) postdecls
+    return $ concat $ bsorry ++ map fst bodies ++ map snd bodies
 
 funTypeTree :: (Pretty a) => NameMod -> TypeAbbrevs -> Definition TypedExpr a -> [TheoryDecl I.Type I.Term]
 funTypeTree mod ta (FunDef _ fn _ ti _ e) = [deepTyTreeDef mod ta fn (typeTree eexpr)]
   where eexpr = pushDown (Cons (Just ti) Nil) (splitEnv (Cons (Just ti) Nil) e)
 funTypeTree _ _ _ = []
+
+funTypeTrees :: (Pretty a) => NameMod -> TypeAbbrevs -> [Definition TypedExpr a] -> [TheoryDecl I.Type I.Term]
+funTypeTrees mod ta decls =
+  let (_, decls') = badHackSplitOnSorryBefore decls
+  in concatMap (funTypeTree mod ta) decls
+
+badHackSplitOnSorryBefore :: [Definition TypedExpr a] -> ([Definition TypedExpr a], [Definition TypedExpr a])
+badHackSplitOnSorryBefore decls =
+  if __cogent_type_proof_sorry_before == Nothing
+  then ([], decls)
+  else break should_sorry decls
+ where
+  should_sorry (FunDef _ fn _ ti _ e) = Just fn == __cogent_type_proof_sorry_before 
+  should_sorry _ = False
 
 deepTyTreeDef :: NameMod -> TypeAbbrevs -> FunName -> TypingTree t -> TheoryDecl I.Type I.Term
 deepTyTreeDef mod ta fn e = let ttfn = mkId $ mod fn ++ "_typetree"
@@ -217,32 +247,33 @@ escapedFunName fn | '\'' `elem` fn = "[" ++ intercalate "," (repr fn) ++ "]"
                                     then map (printf "CHR %#02x" . ord) x
                                     else error "Function name contained a non-ascii char! Isabelle doesn't support this."
 
-funTypeCase :: NameMod -> Definition TypedExpr a -> [String] -> [String]
-funTypeCase mod (FunDef  _ fn _ _ _ _) ds = (escapedFunName fn ++ " := " ++ mod fn ++ "_type"):ds
-funTypeCase mod (AbsDecl _ fn _ _ _  ) ds = (escapedFunName fn ++ " := " ++ mod fn ++ "_type"):ds
-funTypeCase _ _ ds = ds
+funTypeCase :: NameMod -> Definition TypedExpr a -> Maybe Term
+funTypeCase mod (FunDef  _ fn _ _ _ _) =
+  Just $ mkPair (mkId (escapedFunName fn)) (mkId (mod fn ++ "_type"))
+funTypeCase mod (AbsDecl _ fn _ _ _  ) =
+  Just $ mkPair (mkId (escapedFunName fn)) (mkId (mod fn ++ "_type"))
+funTypeCase _ _ = Nothing
 
 funTypeEnv :: NameMod -> [Definition TypedExpr a] -> [TheoryDecl I.Type I.Term]
-funTypeEnv mod fs = funTypeEnv' $ foldr (funTypeCase mod) [] fs
+funTypeEnv mod fs = funTypeEnv' $ mkList $ mapMaybe (funTypeCase mod) fs
 
-funTypeEnv' upds = let unit = "\\<lambda>_.([], TUnit, TUnit)"
-                       updates = mkId $ foldl' (\acc upd -> "(" ++ acc ++ ")(" ++ upd ++ ")") unit upds
+funTypeEnv' upds = let unit = mkId "([], TUnit, TUnit)"
                        -- NOTE: as the isa-parser's antiQ doesn't handle terms well and it doesn't
                        -- keep parens, we have to fall back on strings / zilinc
                        tysig = [isaType| string \<Rightarrow> Cogent.kind list \<times> Cogent.type \<times> Cogent.type |]
                     in [[isaDecl| definition \<Xi> :: "$tysig"
-                                  where "\<Xi> \<equiv> $updates" |]]
+                                  where "\<Xi> \<equiv> assoc_lookup $upds $unit" |]]
 
-funDefCase :: Definition TypedExpr a -> [String] -> [String]
-funDefCase (AbsDecl _ fn _ _ _  ) ds = (escapedFunName fn ++ " := (\\<lambda>_ _. False)"):ds
-funDefCase _ ds = ds
+funDefCase :: Definition TypedExpr a -> Maybe Term
+funDefCase (AbsDecl _ fn _ _ _  ) =
+    Just $ mkPair (mkId $ escapedFunName fn) (mkId "(\\<lambda>_ _. False)")
+funDefCase _ = Nothing
 
 funDefEnv :: [Definition TypedExpr a] -> [TheoryDecl I.Type I.Term]
-funDefEnv fs = funDefEnv' $ foldr funDefCase [] fs
+funDefEnv fs = funDefEnv' $ mkList $ mapMaybe funDefCase fs
 
-funDefEnv' upds = let unit = "\\<lambda>_. (\\<lambda>_ _. False)"
-                      updates = mkId $ foldl' (\acc upd -> "(" ++ acc ++ ")(" ++ upd ++ ")") unit upds
-                   in [[isaDecl| definition "\<xi> \<equiv> $updates" |]]
+funDefEnv' upds = let unit = mkId "(\\<lambda>_ _. False)"
+                   in [[isaDecl| definition "\<xi> \<equiv> assoc_lookup $upds" $unit |]]
 
 (<\>) :: Vec v (Maybe t) -> Vec v (Maybe t) -> Vec v (Maybe t)
 (<\>) (Cons x xs) (Cons Nothing ys)  = Cons x       $ xs <\> ys

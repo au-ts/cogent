@@ -20,8 +20,10 @@
 theory ML_Old
   imports Pure
 begin
-  ML {*
 
+declare [[ML_debugger=true]]
+
+ML {*
   val schematic_term_setup =
   let
     val name_inner_syntax = Args.name_token >> Token.inner_syntax_of
@@ -62,6 +64,18 @@ ML {*
 
 ML {*
 fun debug_print_to_file pathstr s = File.write (Path.explode pathstr) s
+
+val LOG_FILE = Path.basic "TypeProofTactic.log"
+fun log_to_file strs = File.append LOG_FILE (strs ^"\n")
+fun log_error str = log_to_file ("*** " ^ str)
+fun log_info str  = log_to_file ("    " ^ str)
+fun raise_error err =
+  let
+    val _   = log_error err
+  in
+     raise ERROR err
+  end
+
 *}
 
 end

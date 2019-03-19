@@ -98,8 +98,8 @@ where
                    ; \<xi> , \<gamma> \<turnstile> (\<sigma>', y) \<Down>! (\<sigma>'', y')
                    \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Tuple x y) \<Down>! (\<sigma>'', UProduct x' y')"
 
-| u_sem_esac    : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, t) \<Down>! (\<sigma>', USum ts v ts')
-                   \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Esac t) \<Down>! (\<sigma>', v)"
+| u_sem_esac    : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, t) \<Down>! (\<sigma>', USum tag v ts')
+                   \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Esac t tag) \<Down>! (\<sigma>', v)"
 
 | u_sem_let     : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, a) \<Down>! (\<sigma>', a')
                    ; \<xi> , (a' # \<gamma>) \<turnstile> (\<sigma>', b) \<Down>! st
@@ -851,7 +851,7 @@ next
           using split\<gamma> split\<gamma>'
           by (auto simp add: Un_ac)
       next
-        case (share k)
+        case share
         moreover then have w1_empty: "w1 = {}"
           using shareable_not_writable split\<gamma> by blast
         moreover have "\<Xi>, \<sigma> \<turnstile> g # \<gamma>' matches Some t # as \<langle>r1 \<union> (r21 \<union> p), {} \<union> w21\<rangle>"

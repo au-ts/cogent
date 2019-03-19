@@ -24,7 +24,7 @@ To install the Cogent compiler, consult file [cogent/README.md](./cogent/README.
 are submodules that the Cogent framework depends on. To get them: `git submodule update --init --recursive`.
 
 If you already have them on your machine, you can use your local copies, by checking out the compatible revisions:
-* `l4v`: `ecc84ffc6ead5a4d80aac7dabacf4b010c05dfca`
+* `l4v`: `5e51fa05d7bdf1a664559dbdabf3ec13339da76d"
 * `isabelle`: any Isabelle2018 revision
 * `z3`: see [cogent/INSTALL.md](./cogent/INSTALL.md) for more information
 
@@ -55,6 +55,14 @@ their size, follow instructions in [Proofs](#proofs) section.
 
 
 ## Proofs
+
+Firstly, to build the dependencies:
+```
+cd l4v/tools/c-parser
+make c-parser-deps  # requires mlton
+L4V_ARCH="ARM" isabelle build -d ../../ -b AutoCorres  # the `l4v` directory should be given to the `-d`
+```
+This should build the image for AutoCorres.
 
 To build the proofs, it is recommended that your machine (or virtual machine)
 provides 32G of memory and 4–8 CPU threads.

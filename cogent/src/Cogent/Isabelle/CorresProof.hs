@@ -93,7 +93,7 @@ context thy cfile fns ent =
   , ""
   , "ML {*"
   , "  fun corres_tac_local verbose ctxt"
-  , "         (typing_tree : thm Tree)"
+  , "         (typing_tree : thm tree)"
   , "         (fun_defs : thm list)"
   , "         (absfun_corres : thm list)"
   , "         (fun_corres : thm list) ="

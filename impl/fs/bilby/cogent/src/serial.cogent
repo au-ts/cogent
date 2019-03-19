@@ -111,8 +111,11 @@ obj_id_hash_map #{elem, acc=a, obsv} =
 
 obj_id_hash_name: (WordArray U8)! -> U32
 obj_id_hash_name nm =
-  let a = wordarray_fold' (nm, \(acc,_,x) => ((acc + upcast x << 4) + upcast x >> 4) * 11, upcast 0, ())
-   in a .&. (u64_to_u32 bilbyFsXinfoMask)
+  let a:U32 = 0
+  and len = wordarray_length[U8] nm
+  in wordarray_fold[U8, U32, (), U32] #{arr=nm, frm=0, to=len, f=obj_id_hash_map, acc=a, obsv=()}
+  | Break a -> cogent_assert False ; a .&. (u64_to_u32 bilbyFsXinfoMask)
+  | Iterate a -> a .&. (u64_to_u32 bilbyFsXinfoMask)
 
 {-# cinline obj_id_end_mk #-}
 obj_id_end_mk: VfsIno -> ObjId
@@ -804,9 +807,8 @@ serialise_wordarray_ObjSumEntry(buf, offs, entries, nb_sum_entry) =
   and _ = cogent_debug " to "
   and _ = cogent_debug_u32 end
   and _ = cogent_debug "\n"
-   in wordarray_fold' (wordarray_take[ObjSumEntry] (entries, nb_sum_entry),
-                       \((buf,offs),obsv,x) => serialise_ObjSumEntry (buf,offs,x),
-                       (buf, offs), ())
+   in wordarray_fold_no_break[ObjSumEntry, (Buffer, BufOffs), ()]
+        #{arr=entries, frm=0, to=nb_sum_entry, f=serialise_ObjSumEntry_f, acc=(buf, offs), obsv=()}
 
 {-# cinline serialise_size_ObjSummary #-}
 serialise_size_ObjSummary: U32 -> U32
@@ -830,14 +832,20 @@ deserialise_ObjSumEntry(buf, offs) =
   and entry = #{id,sqnum,len,del_flags_and_offs,count}
   in (entry, offs+26)
 
+{-# cinline deserialise_ObjSumEntry_map #-}
+deserialise_ObjSumEntry_map: #{elem:ObjSumEntry,acc:BufOffs, obsv:Buffer!} -> (ObjSumEntry, BufOffs)
+deserialise_ObjSumEntry_map #{elem=entry, acc=offs, obsv=buf} =
+  let (entry, offs) = deserialise_ObjSumEntry(buf, offs)
+  in (entry, offs)
+
 -- FIXME: this function looks largely strange -- the wordarray is not used in 
 -- the computation at all! / zilinc
-{-# cinline deserialise_ObjSumEntry_map #-}
 deserialise_wordarray_ObjSumEntry: (WordArray ObjSumEntry, Buffer!, BufOffs, U32) -> RR (WordArray ObjSumEntry) BufOffs ErrCode
 deserialise_wordarray_ObjSumEntry (entries, buf, offs, nb_sum_entry) =
-  second (success, wordarray_map_no_break[ObjSumEntry, BufOffs, Buffer!]
-                         #{arr=entries, frm=0, to=nb_sum_entry, f= \#{elem,acc,obsv} => deserialise_ObjSumEntry(obsv,acc), acc=offs, obsv=buf})
-  
+  let (entries,offs) = wordarray_map_no_break[ObjSumEntry, BufOffs, Buffer!]
+                         #{arr=entries, frm=0, to=nb_sum_entry, f=deserialise_ObjSumEntry_map, acc=offs, obsv=buf}
+   in (entries, Success offs) 
+
 deserialise_ObjSummary_crc: (SysState, Buffer!, BufOffs, Obj, ObjSummary) -> RR (SysState, Obj, ObjSummary) BufOffs ErrCode
 deserialise_ObjSummary_crc (ex, buf, offs, obj, summary) =
   let obj {offs=_, magic, crc, sqnum, len, trans, otype, ounion} = obj

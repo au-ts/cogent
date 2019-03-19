@@ -126,6 +126,7 @@ fi
 
 TESTS=$COGENTDIR/tests
 COUT=$COGENTDIR/out
+ISADIR=$COGENTDIR/isa
 ABS=$COGENTDIR/out/abstract
 : ${CC:=cc}
 
@@ -492,11 +493,10 @@ test_isabelle_type_proof()
     else
         COGENTHEAPNAME="CogentTyping"
         echo -n '* Preparing Cogent theory heap... '
-        COGENTHEAPSPEC="session \"$COGENTHEAPNAME\" = \"HOL-Word\" + \
-options [timeout=$ISABELLE_TIMEOUT] theories [quick_and_dirty] \
-\"../isa/CogentHelper\""
+        COGENTHEAPSPEC="session \"$COGENTHEAPNAME\" = \"Type_Proof\" + \
+options [timeout=$ISABELLE_TIMEOUT]"
         echo "$COGENTHEAPSPEC" > "$COUT/ROOT"
-        if ! check_output $ISABELLE build -d "$COUT" -b "$COGENTHEAPNAME"
+        if ! check_output $ISABELLE build -d "$L4V_DIR"  -d "$ISADIR" -d "$COUT" -b "$COGENTHEAPNAME"
         then
             echo "${bldred}failed to build Cogent theory!${txtrst}"
         else
@@ -513,7 +513,9 @@ options [timeout=$ISABELLE_TIMEOUT] theories [quick_and_dirty] \
                if check_output $COGENT --type-proof --fml-typing-tree "$source" --root-dir="../../"  --dist-dir="$COUT"
                then
                    sed -i -e 's,"ProofTrace","../isa/ProofTrace",' "$COUT/$THYNAME.thy"
-                   if check_output $ISABELLE build -d "$COUT" "$ISABELLE_SESSION_NAME"
+                   sed -i -e 's,"../../c-refinement/TypeProofGen","Type_Proof.TypeProofGen",' "$COUT/$THYNAME.thy"
+                   sed -i -e 's,"../../cogent/isa/AssocLookup","Type_Proof.AssocLookup",' "$COUT/$THYNAME.thy"
+                   if check_output $ISABELLE build -d "$L4V_DIR" -d "$ISADIR" -d "$COUT" "$ISABELLE_SESSION_NAME"
                    then passed+=1; echo "$pass_msg"
                    else echo "$fail_msg"
                    fi

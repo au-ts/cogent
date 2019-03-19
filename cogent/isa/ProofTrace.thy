@@ -15,6 +15,7 @@ theory ProofTrace
     Main
     "ML_Old"
     Data
+    CogentHelper
 begin
 
 (* begin: tactic trace code *)
@@ -179,12 +180,14 @@ fun my_unify_fact_tac ctxt subproof n state =
 *}
 
 ML {*
+type ttag = TTyping_Tactics.tac option
+
 fun trace_solve_tac (ctxt : Proof.context)
                     (backtrack : bool)
-                    (get_tacs : 'data -> term -> ('data * 'tag * tactic) list)
+                    (get_tacs : 'data -> term -> ('data * ttag * tactic) list)
                     (data0 : 'data) (goal0 : thm)
                     (depth_limit : int option)
-                    : 'data * ('tag TraceFailure, 'tag TraceSuccess) Either =
+                    : 'data * (ttag TraceFailure, ttag TraceSuccess) Either =
   let val cterm_of' = Thm.cterm_of ctxt
       val subgoals0 = Thm.prems_of goal0
   in
@@ -250,13 +253,25 @@ fun trace_solve_tac (ctxt : Proof.context)
                           let val subtheorem = #subtheorem subproof' in
                           case my_unify_fact_tac ctxt (Goal.finish ctxt subtheorem) 1 goal
                                |> Seq.pull of
-                              NONE => raise THM ("trace_solve_tac: could not apply subgoal proof",
+                              NONE =>
+                                let
+                                  val errval = ("trace_solve_tac: could not apply subgoal proof",
                                                  0, [goal, subtheorem])
+                                  val _ = log_error (@{make_string} errval)
+                                in
+                                  raise THM errval
+                                end
                             | SOME (goal', _) =>
                                   if Thm.nprems_of goal' + 1 = Thm.nprems_of goal then
                                      solve data goal' (subproof :: subproofs_rev)
-                                  else raise THM ("trace_solve_tac: could not apply subgoal proof",
+                                  else
+                                    let
+                                      val errval = ("trace_solve_tac: could not apply subgoal proof",
                                                   0, [goal, subtheorem])
+                                      val _ = log_error (@{make_string} errval)
+                                    in
+                                      raise THM errval
+                                    end
                           end
                end
     in solve data0 goal0 [] end
@@ -268,10 +283,18 @@ fun trace_solve_tac (ctxt : Proof.context)
 ML {*
 fun filter_trace PSuccess PSubgoal (TraceSuccess tr) =
       if not (PSuccess tr) then [] else
-        [ Tree { value = #theorem tr,
-                branches = List.concat (map (filter_TraceSubgoal PSuccess PSubgoal) (#succeeded tr)) } ]
+        [ Tree (#theorem tr,
+                List.concat (map (filter_TraceSubgoal PSuccess PSubgoal) (#succeeded tr))) ]
 and filter_TraceSubgoal PSuccess PSubgoal (TraceSubgoal tr) =
       if not (PSubgoal tr) then [] else filter_trace PSuccess PSubgoal (#subproof tr);
+
+
+fun get_failing_goal (TraceFailure {failed, ...}) =
+  get_failing_subgoal failed
+and get_failing_subgoal (FailedProof {subgoal, fail_steps = [{trace, ...}], ...})
+  = subgoal :: get_failing_goal trace
+| get_failing_subgoal (FailedProof {subgoal, fail_steps = []})
+  = [subgoal]
 
 fun is_const n (Const (name, _)) = n = name
   | is_const _ _ = false;

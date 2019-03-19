@@ -326,7 +326,7 @@ datatype 'f expr = Var index
                  | Let "'f expr" "'f expr"
                  | LetBang "index set" "'f expr" "'f expr"
                  | Case "'f expr" name "'f expr" "'f expr"
-                 | Esac "'f expr"
+                 | Esac "'f expr" name
                  | If "'f expr" "'f expr" "'f expr"
                  | Take "'f expr" field "'f expr"
                  | Split "'f expr" "'f expr"
@@ -403,12 +403,12 @@ definition proc_ctx_wellformed :: "('f \<Rightarrow> poly_type) \<Rightarrow> bo
 fun kinding_fn :: "kind env \<Rightarrow> type \<Rightarrow> kind" where
   "kinding_fn K (TVar i)         = (if i < length K then K ! i else undefined)"
 | "kinding_fn K (TVarBang i)     = (if i < length K then {D,S} else undefined)"
-| "kinding_fn K (TCon n ts s)    = (\<Inter>t\<in>set ts. kinding_fn K t) \<inter> (sigil_kind s)"
+| "kinding_fn K (TCon n ts s)    = Inter (set (map (kinding_fn K) ts)) \<inter> (sigil_kind s)"
 | "kinding_fn K (TFun ta tb)     = UNIV"
 | "kinding_fn K (TPrim p)        = UNIV"
-| "kinding_fn K (TSum ts)        = (\<Inter>(_,t,b)\<in>set ts. case b of Unchecked \<Rightarrow> kinding_fn K t | Checked \<Rightarrow> UNIV)"
+| "kinding_fn K (TSum ts)        = Inter (set (map (\<lambda>(_,t,b). case b of Unchecked \<Rightarrow> kinding_fn K t | Checked \<Rightarrow> UNIV) ts))"
 | "kinding_fn K (TProduct ta tb) = kinding_fn K ta \<inter> kinding_fn K tb"
-| "kinding_fn K (TRecord ts s)   = (\<Inter>(_,t,b)\<in>set ts. case b of Present \<Rightarrow> kinding_fn K t | Taken \<Rightarrow> UNIV) \<inter> (sigil_kind s)"
+| "kinding_fn K (TRecord ts s)   = Inter (set (map (\<lambda>(_,t,b). case b of Present \<Rightarrow> kinding_fn K t | Taken \<Rightarrow> UNIV) ts)) \<inter> (sigil_kind s)"
 | "kinding_fn K TUnit            = UNIV"
 
 lemmas kinding_fn_induct = kinding_fn.induct[case_names kind_tvar kind_tvarb kind_tcon kind_tfun kind_tprim kind_tsum kind_tprod kind_trec kind_tunit]
@@ -480,7 +480,7 @@ fun specialise :: "type substitution \<Rightarrow> 'f expr \<Rightarrow> 'f expr
 | "specialise \<delta> (Let e e')        = Let (specialise \<delta> e) (specialise \<delta> e')"
 | "specialise \<delta> (LetBang vs e e') = LetBang vs (specialise \<delta> e) (specialise \<delta> e')"
 | "specialise \<delta> (Case e t a b)    = Case (specialise \<delta> e) t (specialise \<delta> a) (specialise \<delta> b)"
-| "specialise \<delta> (Esac e)          = Esac (specialise \<delta> e)"
+| "specialise \<delta> (Esac e t)        = Esac (specialise \<delta> e) t"
 | "specialise \<delta> (If c t e)        = If (specialise \<delta> c) (specialise \<delta> t) (specialise \<delta> e)"
 | "specialise \<delta> (Take e f e')     = Take (specialise \<delta> e) f (specialise \<delta> e')"
 | "specialise \<delta> (Split v va)      = Split (specialise \<delta> v) (specialise \<delta> va)"
@@ -541,7 +541,7 @@ inductive split_comp :: "kind env \<Rightarrow> type option \<Rightarrow> type o
   none  : "K \<turnstile> None \<leadsto> None \<parallel> None"
 | left  : "\<lbrakk> K \<turnstile> t wellformed \<rbrakk> \<Longrightarrow> K \<turnstile> Some t \<leadsto> Some t \<parallel> None"
 | right : "\<lbrakk> K \<turnstile> t wellformed \<rbrakk> \<Longrightarrow> K \<turnstile> Some t \<leadsto> None   \<parallel> Some t"
-| share : "\<lbrakk> K \<turnstile> t :\<kappa> {S} ; S \<in> k \<rbrakk> \<Longrightarrow> K \<turnstile> Some t \<leadsto> Some t \<parallel> Some t"
+| share : "\<lbrakk> K \<turnstile> t :\<kappa> {S} \<rbrakk> \<Longrightarrow> K \<turnstile> Some t \<leadsto> Some t \<parallel> Some t"
 
 definition split :: "kind env \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool" ("_ \<turnstile> _ \<leadsto> _ | _" [30,0,0,20] 60) where
   "split K \<equiv> list_all3 (split_comp K)"
@@ -769,8 +769,8 @@ typing_var    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto>w singleton (length
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Case x tag a b : u"
 
 | typing_esac   : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : TSum ts
-                   ; [(_, t, Unchecked)] = filter ((=) Unchecked \<circ> snd \<circ> snd) ts
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Esac x : t"
+                   ; [(n, t, Unchecked)] = filter ((=) Unchecked \<circ> snd \<circ> snd) ts
+                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Esac x n : t"
 
 | typing_if     : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
                    ; \<Xi>, K, \<Gamma>1 \<turnstile> x : TPrim Bool
@@ -794,7 +794,7 @@ typing_var    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto>w singleton (length
 | typing_struct : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile>* es : ts
                    ; distinct ns
                    ; length ns = length ts
-                   ; ts' = (zip ns (zip ts (replicate (length ts) Present)))
+                   ; ts' = zip ns (zip ts (replicate (length ts) Present))
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Struct ts es : TRecord ts' Unboxed"
 
 | typing_member : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> e : TRecord ts s
@@ -848,7 +848,7 @@ inductive_cases typing_primE   [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Prim p e
 inductive_cases typing_memberE [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Member e f : \<tau>"
 inductive_cases typing_tupleE  [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Tuple a b : \<tau>"
 inductive_cases typing_caseE   [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Case x t m n : \<tau>"
-inductive_cases typing_esacE   [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Esac e : \<tau>"
+inductive_cases typing_esacE   [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Esac e t : \<tau>"
 inductive_cases typing_castE   [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Cast t e : \<tau>"
 inductive_cases typing_letE    [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Let a b : \<tau>"
 inductive_cases typing_structE [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Struct ts es : \<tau>"
@@ -877,7 +877,7 @@ inductive atom ::"'f expr \<Rightarrow> bool" where
 | "atom (Lit l)"
 | "atom (SLit l)"
 | "atom (Tuple (Var x) (Var y))"
-| "atom (Esac (Var x))"
+| "atom (Esac (Var x) t)"
 | "atom (App (Var a) (Var b))"
 | "atom (App (Fun f ts) (Var b))"
 | "atom (App (AFun f ts) (Var b))"
@@ -2196,7 +2196,7 @@ fun expr_size :: "'f expr \<Rightarrow> nat" where
 | "expr_size (SLit s) = 0"
 | "expr_size (Tuple v va) = Suc ((expr_size v) + (expr_size va))"
 | "expr_size (Put v va vb) = Suc ((expr_size v) + (expr_size vb))"
-| "expr_size (Esac x) = Suc (expr_size x)"
+| "expr_size (Esac x t) = Suc (expr_size x)"
 | "expr_size (If x a b) = Suc ((expr_size x) + (expr_size a) + (expr_size b))"
 | "expr_size (Split x y) = Suc ((expr_size x) + (expr_size y))"
 | "expr_size (Case x v a b) = Suc ((expr_size x) + (expr_size a) + (expr_size b))"

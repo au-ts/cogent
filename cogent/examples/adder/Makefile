@@ -51,6 +51,12 @@ gen-anti:
 		--ext-types=types.cfg \
 		--entry-funcs=entrypoints.cfg
 
+gen-type-proof:
+	cogent $(SRC) --type-proof --root-dir=../../..
+
+gen-c-proof:
+	cogent $(SRC) --all -g --type-proof --c-refinement --root-dir=../../..
+
 clean:
 	rm -f $(COUTPUT) $(HOUTPUT) $(PP) $(PPINFER) $(OBJ)
 	@# rm -f *-gen.*

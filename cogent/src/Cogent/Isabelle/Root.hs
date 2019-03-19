@@ -64,7 +64,8 @@ root source log =
      , ""
      , "session " ++ ac_install ++ " = " ++ scor_norm ++ " +"
      , "  theories \"" ++ ac_install ++ "\""
-     , "  files \"" ++ inputc ++ "\"" ++ maybe "" (\f -> " \"" ++ f ++ "\"") inputh
+     -- Isabelle session file no longer supports this "files" keyword.
+     -- , "  files \"" ++ inputc ++ "\"" ++ maybe "" (\f -> " \"" ++ f ++ "\"") inputh
      , ""
      , "session " ++ type_proof ++ " = " ++ ac_install ++ " +"
      , "  theories [condition = \"SKIP_TYPE_PROOF\", skip_proofs] \"" ++ type_proof ++ "\""
