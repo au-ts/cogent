@@ -1198,8 +1198,10 @@ fun finalise (tab : obligations) ctxt thm_tab = let
 fun all_corres_goals corres_tac typing_tree_of time_limit ctxt (tab : obligations) =
   let
     val tl = Time.fromSeconds time_limit
+    fun run_tac nm = corres_tac_driver corres_tac typing_tree_of ctxt tab nm
+                   handle ERROR x => (tracing ("Failed: " ^ nm ^ " with error:\n" ^ x); raise ERROR x)
     fun driver nm = Timing.timing (try (Timeout.apply tl
-            (corres_tac_driver corres_tac typing_tree_of ctxt tab))) nm
+            run_tac)) nm
         |> (fn (dur, res) => (tracing ("Time for " ^ nm ^ ": " ^ Timing.message dur); res))
         |> (fn NONE => (tracing ("Failed: " ^ nm); (nm, NONE))
              | SOME thm => (tracing ("Succeeded: " ^ nm); (nm, SOME thm)))
