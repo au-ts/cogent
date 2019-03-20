@@ -316,6 +316,7 @@ fun atom_stmts @{const_name Var}     = SOME 1
   | atom_stmts @{const_name Esac}    = SOME 1
   | atom_stmts @{const_name Fun}     = SOME 1
   | atom_stmts @{const_name AFun}    = SOME 1
+  | atom_stmts @{const_name Promote} = SOME 1
   (* Let (Put...) is handled outside of corres_let_tac. *)
   | atom_stmts _ = NONE
 fun sigil_atom_stmts @{const_name Member} Unboxed = SOME 1

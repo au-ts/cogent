@@ -19,48 +19,56 @@ begin
 context update_sem_init
 begin
 
+ML {*
+
+fun bool_of_variant_state @{term Checked} = true
+| bool_of_variant_state @{term Unchecked} = false
+| bool_of_variant_state x = raise ERROR ("bool_of_variant_state: not a variant_state: " ^ @{make_string} x)
+
+fun variant_state_of_bool true = @{term Checked}
+| variant_state_of_bool false = @{term Unchecked}
+
+fun get_checkeds_of_usum_uval ctxt uval =
+    usum_list_of_types ctxt uval |>
+    map (fn x => x |> HOLogic.dest_prod |> snd |> HOLogic.dest_prod |> snd |> bool_of_variant_state)
+
+*}
+
 ML{* (* get_castable_uvals_from *)
 local
 
 infix can_be_casted_to
 fun (uval1 can_be_casted_to uval2) ctxt heap_info =
+(* Check if a pattern matching failure in case with a scrutinee of type uval1 will result in an expression of type uval2 *)
 (* Returns NONE if uval1 cannot be casted to uval2.*)
 (* Returns (SOME int) if uval1 can be casted to uval2 and we lose the int-th field in the c-struct for
  uval1 by copying uval1 to uval2.*)
-(* TODO: improve! *)
  let
-  infix might_be_casted_to;
-
-  fun (xs might_be_casted_to ys) = (ys is_smaller_than_by_one xs) andalso (ys is_subset_of xs);
   fun uval_to_field_names uval = heap_info_uval_to_field_names heap_info uval;
   fun uval_to_field_types uval = heap_info_uval_to_field_types heap_info uval;
   val field_names1 = uval_to_field_names uval1;
   val field_names2 = uval_to_field_names uval2;
   val field_types1 = uval_to_field_types uval1;
   val field_types2 = uval_to_field_types uval2;
-  val test1 = (field_names1 might_be_casted_to field_names2);
-  val test2 = (field_types1 might_be_casted_to field_types2);
-  val test3 = (usum_list_of_types ctxt uval1 might_be_casted_to usum_list_of_types ctxt uval2);
-  fun are_same_pairs xs ys = ListPair.all (fn (x,y) => x = y) (xs, ys);
-  val test = if (test1 andalso test2 andalso test3)
-             then
-              let val nth_is_missing = which_is_missing field_names1 field_names2
-              in are_same_pairs (remove_nth nth_is_missing field_names1) field_names2 andalso
-                 are_same_pairs (remove_nth nth_is_missing field_types1) field_types2
-              end
-             else false;
-
-  val some_missing_field_num =
-      if test then which_is_missing field_names1 field_names2 |> SOME else NONE;
+  fun check_diff c1 c2 =
+    (c1 ~~ c2) |>
+    map_index I |>
+    filter (fn (_,(a,b)) => a <> b)
  in
-  (some_missing_field_num : int option)
+  if (field_names1 = field_names2) andalso (field_types1 = field_types2)
+  then case check_diff (get_checkeds_of_usum_uval ctxt uval1) (get_checkeds_of_usum_uval ctxt uval2) of
+        [(ix,_)] => SOME ix
+       (* If multiple differences, or no differences, we don't need to worry about case *)
+       | _ => NONE
+  else NONE
  end;
 
 fun get_castable_uvals_from' _ _ (_:uval) []        = []
   | get_castable_uvals_from' ctxt heap (from:uval) (to::tos) =
    let val some_rmved_field_num  = (from can_be_casted_to to) ctxt heap;
-       val some_pair = if is_some some_rmved_field_num
-                       then SOME (the some_rmved_field_num, to) else NONE
+       val some_pair = case some_rmved_field_num of
+                        SOME ix => SOME (ix, to)
+                      | NONE => NONE
    in some_pair :: get_castable_uvals_from' ctxt heap from tos
    end;
 
@@ -95,18 +103,23 @@ ML{* fun mk_case_prop from_uval to_uval field_num file_nm ctxt =
   val get_tag_names = fn uval => heap_info_uval_to_field_names heap uval |> tl |> map (unsuffix "_C");
   val from_tag_nms  = get_tag_names from_uval;
   val to_tag_nms    = get_tag_names to_uval;
+  val from_tag_checks = get_checkeds_of_usum_uval ctxt from_uval
+  val to_tag_checks   = get_checkeds_of_usum_uval ctxt to_uval
 
   val alternative_tys = map (fn n => Free ("alt_ty" ^ string_of_int n, @{typ "Cogent.type"}))
     (1 upto length from_tag_nms)
-  val tag_ty_bits    = from_tag_nms ~~ alternative_tys
-  val to_tag_ty_bits = to_tag_nms ~~ map (the o AList.lookup (op =) tag_ty_bits) to_tag_nms
-  val from_sumT      = @{term TSum} $ HOLogic.mk_list @{typ "(string \<times> Cogent.type)"}
-                       (map HOLogic.mk_prod (map (apfst HOLogic.mk_string) tag_ty_bits))
-  val to_sumT        = @{term TSum} $ HOLogic.mk_list @{typ "(string \<times> Cogent.type)"}
-                       (map HOLogic.mk_prod (map (apfst HOLogic.mk_string) to_tag_ty_bits))
+  val tag_ty_bits    = from_tag_nms ~~ alternative_tys ~~ from_tag_checks
+  val to_tag_ty_bits    = from_tag_nms ~~ alternative_tys ~~ from_tag_checks
+  fun mk_triple_tag ((a,b),c) = HOLogic.mk_prod (HOLogic.mk_string a, HOLogic.mk_prod (b, variant_state_of_bool c))
+  val from_sumT      = @{term TSum} $ HOLogic.mk_list @{typ "(string \<times> Cogent.type \<times> variant_state)"}
+                       (map mk_triple_tag tag_ty_bits)
+  val to_sumT        = @{term TSum} $ HOLogic.mk_list @{typ "(string \<times> Cogent.type \<times> variant_state)"}
+                       (map mk_triple_tag to_tag_ty_bits)
+(*
   val dropped_bits   = filter (fn (s, _) => AList.lookup (op =) to_tag_ty_bits s = NONE) tag_ty_bits
   val taken_typ = case dropped_bits of [v] => snd v
     | _ => raise TERM ("dropped_bits: " ^ (@{make_string} (dropped_bits, tag_ty_bits, to_tag_ty_bits)), [])
+*)
 
   val from_tag_C = from_field_info |> hd |> #getter; (* tag_C is always the first element of struct.*)
   val corres     = Syntax.read_term ctxt "corres";
@@ -139,7 +152,7 @@ ML{* fun mk_case_prop from_uval to_uval field_num file_nm ctxt =
   fun mk_ass10 other_tags =
    @{mk_term "\<And>r r'. val_rel r r' \<Longrightarrow> ?corres srel not_match (not_match' r') \<xi>' (r # \<gamma>) \<Xi>'
     (Some (?other_tags) # \<Gamma>2) \<sigma> s" (corres, other_tags)} (corres, other_tags);
-
+(*
   val ass1 = @{term "x < length \<Gamma>'"};
   val ass2 = mk_ass2 from_sumT;
   val ass3 = @{term "[] \<turnstile> \<Gamma>' \<leadsto> \<Gamma>1 | \<Gamma>2"};
@@ -161,6 +174,9 @@ ML{* fun mk_case_prop from_uval to_uval field_num file_nm ctxt =
 
 in
   mk_meta_imps prms cncl ctxt |> Syntax.check_term ctxt
+*)
+
+  in @{term True}
 end
 *}
 
@@ -184,7 +200,8 @@ fun mk_case_lems_for_uval file_nm ctxt uvals from =
                  |> Utils.the' "the' in mk_specialised_case_lemmas_for_uval failed."
                  |> #heap_info;
   val num_tos   = get_castable_uvals_from ctxt heap_info from uvals;
-  val lems      = mk_case_lems_from_tos from num_tos file_nm ctxt;
+(* TODO: I started updating the specialised corres_case rules, but are they necessary? The C code is pretty simple now. *)
+  val lems      = [] (* mk_case_lems_from_tos from num_tos file_nm ctxt; *)
  in
   lems
  end;
