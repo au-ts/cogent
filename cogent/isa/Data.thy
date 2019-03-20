@@ -46,6 +46,9 @@ fun tree_branches (Tree (_, b)) = b
 val tree_hd = tree_value
 val tree_rest = tree_branches
 
+fun tree_lookup [] (Tree v) = v
+| tree_lookup (i :: is) (Tree (_, bs)) = tree_lookup is (nth bs i)
+
 fun tree_map f (Tree (v, b)) = Tree (f v, map (tree_map f) b)
 
 fun tree_foldl f (Tree (v, b)) init = fold (tree_foldl f) b (f init v)
