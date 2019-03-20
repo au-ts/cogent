@@ -11,6 +11,6 @@
 
 <testsuite depends="cogent_compiler" timeout="3600">
     <test name="bilbyfs_linux" >make linux</test>
-    <test name="bilbyfs_verif" depends="isabelle">make verification</test>
+    <test name="bilbyfs_verif" depends="isabelle autocorres">make verification</test>
 </testsuite>
 
