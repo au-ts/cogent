@@ -1,0 +1,38 @@
+-- id : U8 -> U8
+-- id x = x
+-- 
+-- cast_u8_16 : U8 -> U16
+-- cast_u8_16 x = upcast x
+-- 
+-- 
+-- cast_u8_16_id : U8 -> U16
+-- cast_u8_16_id x = upcast (id x)
+-- 
+-- 
+-- con_record : {field : U8} -> {field : U8}
+-- con_record x = x
+-- 
+-- 
+-- con_variant : U8 -> < Success (U8) >
+-- con_variant x = Success x
+-- 
+-- 
+-- con_variant_2opt : U8 -> < Success (U8) | Error () >
+-- con_variant_2opt x = Success x
+-- 
+
+con_variant_nested : U8 -> < Colour < Red U8 | Green U8 | Blue U8 > >
+con_variant_nested x = Colour (Red x)
+
+-- 
+-- con_case : U8 -> U8
+-- con_case x =
+--   con_variant_2opt x
+--   | Success _ -> x
+--   | _ -> x
+-- 
+-- con_esac : U8 -> U8
+-- con_esac x =
+--   con_variant x
+--   | Success _ -> x
+-- 
