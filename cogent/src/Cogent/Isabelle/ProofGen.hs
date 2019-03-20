@@ -543,25 +543,6 @@ allKindCorrect' _ _ _ = error "kind mismatch"
 splits :: Vec t Kind -> Vec v (Maybe (Type t)) -> Vec v (Maybe (Type t)) -> Vec v (Maybe (Type t)) -> State TypingSubproofs [Tactic]
 splits k g g1 g2 = ((:[]) . SplitsTac (length (cvtToList g))) `fmap` splitsHint 0 k g g1 g2
 
--- Not used??
--- ttsplit_innerHint :: Vec t Kind
---                   -> Maybe (Type t)
---                   -> Maybe (Type t)
---                   -> Maybe (Type t)
---                   -> State TypingSubproofs (LeafTree Hints)
--- ttsplit_innerHint k Nothing Nothing Nothing = return $ Branch []
--- ttsplit_innerHint k (Just t) (Just _) Nothing  = wellformedHint k t
--- ttsplit_innerHint k (Just t) Nothing (Just _)  = wellformedHint k t
--- ttsplit_innerHint k (Just t) (Just _) (Just _) = kindingHint k t
--- ttsplit_innerHint _ g x y = error $ "bad ttsplit: " ++ show (g, x, y)
-
-split :: Vec t Kind -> Maybe (Type t) -> Maybe (Type t) -> Maybe (Type t) -> State TypingSubproofs [Tactic]
-split k Nothing  Nothing  Nothing  = return [rule "split_comp.none"]
-split k (Just t) (Just _) Nothing  = tacSequence [return [rule "split_comp.left"], wellformed k t]
-split k (Just t) Nothing  (Just _) = tacSequence [return [rule "split_comp.right"], wellformed k t]
-split k (Just t) (Just _) (Just _) = tacSequence [return [rule "split_comp.share"], kinding k t]
-split k g x y = error $ "bad split: " ++ show (g, x, y)
-
 splitsHint :: Int -> Vec t Kind -> Vec v (Maybe (Type t)) -> Vec v (Maybe (Type t)) -> Vec v (Maybe (Type t)) -> State TypingSubproofs [(Int, [Tactic])]
 splitsHint n k (Cons g gs) (Cons x xs) (Cons y ys) = liftM2 (++) (splitHint n k g x y) (splitsHint (n+1) k gs xs ys)
 splitsHint _ k Nil         Nil         Nil         = return []
