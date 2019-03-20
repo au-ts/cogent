@@ -21,6 +21,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Cogent.Isabelle.Shallow
 --   ( shallow
@@ -37,7 +38,7 @@ import Cogent.Core as CC
 import Cogent.Desugar as D (freshVarPrefix)
 import Cogent.Isabelle.ShallowTable (TypeStr(..), st, getStrlType, toTypeStr)
 import Cogent.Normal as N (freshVarPrefix)
-import Cogent.Util (Stage(..), Warning)
+import Cogent.Util (NameMod, Stage(..), Warning)
 import Data.Nat (Nat(Zero,Suc))
 import Data.Vec as Vec
 
@@ -53,7 +54,7 @@ import Control.Monad.Writer (Writer, runWriter)
 import Data.Char (ord, chr, intToDigit, isDigit)
 import Data.Either (lefts, rights)
 import Data.Function (on)
-import Data.List (isPrefixOf, stripPrefix, partition, sortBy, minimumBy, groupBy, unzip5, intercalate)
+import Data.List (isPrefixOf, isSuffixOf, stripPrefix, partition, sortBy, minimumBy, groupBy, unzip5, intercalate)
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Set as S
@@ -154,7 +155,7 @@ shallowPrimOp CS.Complement [e] = mkApp (mkId "NOT") [e]
 shallowPrimOp CS.Complement _ = __impossible "shallowPrimOp"
 
 -- | Strip names and format them for Isabelle
-snm :: String -> String
+snm :: NameMod
 snm nm = case nm `elem` isaReservedNames of
   True -> nm ++ I.subSym ++ "r"
   _ -> case stripPrefix D.freshVarPrefix nm of
@@ -163,8 +164,10 @@ snm nm = case nm `elem` isaReservedNames of
       Just nb -> "an" ++ subSymStr nb
       -- Add debug note
       Nothing -> case "_" `isPrefixOf` nm of
-        True  -> dropWhile (== '_') nm ++ I.subSym ++ "d"
-        False -> nm
+        True  -> dropWhile (== '_') nm ++ subSymStr "d"
+        False -> case "_" `isSuffixOf` nm of
+          True  -> nm ++ subSymStr "x"
+          False -> nm
 
 list2 a b = [a,b]
 
@@ -976,9 +979,9 @@ shallowTuplesProof baseName sharedDefThy defThy tupSharedDefThy tupDefThy typeMa
     indent k = map (replicate k ' ' ++)
 
     proofs = concatMap makeProof defs
-      where makeProof (FunDef _ funName _ _ _ _) = let
+      where makeProof (FunDef _ (snm -> funName) _ _ _ _) = let
               fullName = defThy ++ "." ++ funName
-              funDef = fullName ++ "_def"
+              funDef = snm fullName ++ "_def"
               tupleFullName = tupDefThy ++ "." ++ funName
               tupleFunDef = tupleFullName ++ "_def"
               in return $ TheoryString $ unlines $
@@ -992,7 +995,7 @@ shallowTuplesProof baseName sharedDefThy defThy tupSharedDefThy tupDefThy typeMa
                  , "           " ++ proofBucket ++ " " ++ proofBucket ++ "[THEN shallow_tuples_rel_funD])+"
                  ]
 
-            makeProof (AbsDecl _ funName _ _ _) = let
+            makeProof (AbsDecl _ (snm -> funName) _ _ _) = let
               fullName = sharedDefThy ++ "." ++ funName
               tupleFullName = tupSharedDefThy ++ "." ++ funName
               in return $ TheoryString $ unlines $
