@@ -209,17 +209,6 @@ fun weakening_tac ctxt _ =
   |> CHANGED
   |> REPEAT_SUBGOAL
 
-fun cogent_splits_tac ctxt kinding_thms =
-  let val kinding_tac = FIRST (map (fn t => rtac t 1) kinding_thms)
-      val split_tac =
-        DETERM (rtac @{thm split_comp.none} 1 ORELSE
-                (rtac @{thm split_comp.share} 1 THEN kinding_tac THEN asm_full_simp_tac ctxt 1) ORELSE
-                (rtac @{thm split_comp.left} 1 THEN kinding_tac) ORELSE
-                (rtac @{thm split_comp.right} 1 THEN kinding_tac))
-  in
-    REPEAT_SUBGOAL (CHANGED (rtac @{thm split_cons} 1 ORELSE rtac @{thm split_empty} 1 ORELSE split_tac))
-  end
-
 fun cogent_guided_ttsplits_tac ctxt sz script =
   let fun mktac i [] =
             if i = sz then rtac @{thm ttsplit_innerI(5)} 1 else
@@ -241,7 +230,7 @@ datatype tac = RTac of thm
              | SimpTac of thm list * thm list
              | ForceTac of thm list
              | WeakeningTac of thm list
-             | SplitsTac of int * (int * tac list) list
+             | SplitsTac of tac list option list
 
 val simp = SimpTac ([], [])
 
@@ -281,26 +270,18 @@ fun interpret_tac (RTac r) _ = rtac r
   | interpret_tac (SimpTac (a, d)) ctxt = asm_full_simp_tac (ctxt addsimps a delsimps d)
   | interpret_tac (ForceTac a) ctxt = force_tac (ctxt addsimps a)
   | interpret_tac (WeakeningTac thms) ctxt = K (weakening_tac ctxt thms)
-  | interpret_tac (SplitsTac (sz, tacs)) ctxt = K (cogent_guided_splits_tac ctxt sz tacs)
-(* takes the size of the typing-env, and a list of (idx, rule) pairs for splitting the context *)
-and cogent_guided_splits_tac ctxt sz script =
-  let fun mktac i [] =
-            if i = sz
-            then (* at the end of the list *)
-              rtac @{thm split_empty} 1
-            else (* more to go *)
-              rtac @{thm split_cons} 1 THEN rtac @{thm split_comp.none} 1 THEN mktac (i+1) []
-        | mktac i ((n, tacs)::script') =
-            if i = n
-            then (* at a place where we have a hint *)
-              rtac @{thm split_cons} 1
-                THEN EVERY (map (fn t => interpret_tac t ctxt 1) tacs)
-                THEN mktac (i+1) script'
-            else (* no hint, thus boring *)
-              rtac @{thm split_cons} 1
-                THEN rtac @{thm split_comp.none} 1
-                THEN mktac (i+1) ((n, tacs)::script')
-  in mktac 0 script end
+  | interpret_tac (SplitsTac tacs) ctxt = K (guided_splits_tac ctxt tacs)
+and guided_splits_tac ctxt (SOME splt :: script) =
+  rtac @{thm split_cons} 1
+    THEN EVERY' (map (fn t => interpret_tac t ctxt) splt) 1
+    THEN guided_splits_tac ctxt script
+| guided_splits_tac ctxt (NONE :: []) =
+  REPEAT_DETERM ((rtac @{thm split_cons} THEN' rtac @{thm split_comp.none}) 1) THEN rtac @{thm split_empty} 1
+| guided_splits_tac ctxt (NONE :: script) =
+  REPEAT_DETERM ((rtac @{thm split_cons} THEN' rtac @{thm split_comp.none}) 1)
+    THEN guided_splits_tac ctxt script
+| guided_splits_tac ctxt [] = rtac @{thm split_empty} 1
+
 
 fun kind_proof_single (@{term SomeT} $ t) k ctxt hint = let
     val tac = (case hint of

@@ -57,6 +57,10 @@ instance Prec (EnvExpr t v a) where
 instance (Pretty a) => Pretty (EnvExpr t v a) where
   pretty (EE t e env) = pretty e
 
+data MLOption a = SOME a
+                | NONE
+  deriving (Show, Eq)
+
 data Thm = Thm String
          | NthThm String Int
          | ThmInst String [(String, String)]
@@ -65,7 +69,7 @@ data Tactic = RuleTac Thm
             | Simplifier [Thm] [Thm]
             | Force [Thm]
             | WeakeningTac [Thm]
-            | SplitsTac Int [(Int, [Tactic])]
+            | SplitsTac [MLOption [Tactic]]
 
 instance Show Thm where
   show (Thm thm) = "@{thm " ++ thm ++ "}"
@@ -78,7 +82,7 @@ instance Show Tactic where
   show (Simplifier adds dels) = "(SimpTac " ++ show (adds, dels) ++ ")"
   show (Force adds) = "(ForceTac " ++ show adds ++ ")"
   show (WeakeningTac kindThms) = "(WeakeningTac " ++ show kindThms ++")"
-  show (SplitsTac n tacs) = "(SplitsTac " ++ show (n, tacs) ++ ")"
+  show (SplitsTac tacs) = "(SplitsTac " ++ show tacs ++ ")"
 
 rule thm = RuleTac (Thm thm)
 rule_tac thm insts = RuleTac (ThmInst thm insts)
@@ -541,21 +545,23 @@ allKindCorrect' _ [] Nil = return []
 allKindCorrect' _ _ _ = error "kind mismatch"
 
 splits :: Vec t Kind -> Vec v (Maybe (Type t)) -> Vec v (Maybe (Type t)) -> Vec v (Maybe (Type t)) -> State TypingSubproofs [Tactic]
-splits k g g1 g2 = ((:[]) . SplitsTac (length (cvtToList g))) `fmap` splitsHint 0 k g g1 g2
+splits k g g1 g2 = (:[]) . SplitsTac <$> splitsHint False k g g1 g2
 
-splitsHint :: Int -> Vec t Kind -> Vec v (Maybe (Type t)) -> Vec v (Maybe (Type t)) -> Vec v (Maybe (Type t)) -> State TypingSubproofs [(Int, [Tactic])]
-splitsHint n k (Cons g gs) (Cons x xs) (Cons y ys) = liftM2 (++) (splitHint n k g x y) (splitsHint (n+1) k gs xs ys)
+splitsHint :: Bool -> Vec t Kind -> Vec v (Maybe (Type t)) -> Vec v (Maybe (Type t)) -> Vec v (Maybe (Type t)) -> State TypingSubproofs [MLOption [Tactic]]
+splitsHint b k (Cons Nothing gs) (Cons Nothing xs) (Cons Nothing ys) =
+  if b then splitsHint b k gs xs ys else (NONE :) <$> splitsHint True k gs xs ys
+splitsHint b k (Cons g gs) (Cons x xs) (Cons y ys) = liftM2 (:) (splitHint k g x y) (splitsHint False k gs xs ys)
 splitsHint _ k Nil         Nil         Nil         = return []
 #if __GLASGOW_HASKELL__ < 711
 splitsHint _ _ _ _ _ = __ghc_t4139 "ProofGen.splitsHint"
 #endif
 
-splitHint :: Int -> Vec t Kind -> Maybe (Type t) -> Maybe (Type t) -> Maybe (Type t) -> State TypingSubproofs [(Int, [Tactic])]
-splitHint _ k Nothing  Nothing  Nothing  = return []
-splitHint n k (Just t) (Just _) Nothing  = (\t -> [(n, [rule "split_comp.left"] ++ t)]) `fmap` wellformed k t
-splitHint n k (Just t) Nothing  (Just _) = (\t -> [(n, [rule "split_comp.right"] ++ t)]) `fmap` wellformed k t
-splitHint n k (Just t) (Just _) (Just _) = (\t -> [(n, [rule "split_comp.share"] ++ t ++ [simp])]) `fmap` kinding k t
-splitHint _ k g x y = error $ "bad split: " ++ show (g, x, y)
+splitHint :: Vec t Kind -> Maybe (Type t) -> Maybe (Type t) -> Maybe (Type t) -> State TypingSubproofs (MLOption [Tactic])
+splitHint k Nothing  Nothing  Nothing  = __impossible "splitHint got case none"
+splitHint k (Just t) (Just _) Nothing  = (\wf -> SOME $ rule "split_comp.left" : wf) <$> wellformed k t
+splitHint k (Just t) Nothing  (Just _) = (\wf -> SOME $ rule "split_comp.right" : wf) <$> wellformed k t
+splitHint k (Just t) (Just _) (Just _) = (\wf -> SOME $ rule "split_comp.share" : wf) <$> kinding k t
+splitHint k g x y = error $ "bad split: " ++ show (g, x, y)
 
 ttsplit_bang :: Vec t Kind -> Int -> [Int] -> Vec v (Maybe (Type t))
              -> Vec v (Maybe (Type t)) -> State TypingSubproofs [LeafTree Hints]
