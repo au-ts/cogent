@@ -45,5 +45,4 @@
 
     <!-- Build Isabelle. -->
     <test name="isabelle" cwd="../">source build-env.sh &amp;&amp; $ISABELLE components -a &amp;&amp; $ISABELLE build -b -v HOL-Word</test>
-    <test name="autocorres" cwd="../">wget http://ts.data61.csiro.au/projects/TS/autocorres/autocorres-1.5.tar.gz &amp;&amp; tar -xf autocorres-1.5.tar.gz &amp;&amp; mv autocorres-1.5 autocorres</test>
 </testsuite>

@@ -11,6 +11,6 @@
 
 <testsuite depends="cogent_compiler" timeout="3600">
     <test name="ext2_linux">make linux</test>
-    <test name="ext2_verif" depends="isabelle autocorres">make verification</test>
+    <test name="ext2_verif" depends="isabelle">make verification</test>
 </testsuite>
 
