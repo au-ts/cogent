@@ -435,8 +435,8 @@ typing xi k (EE ty (Put e1@(EE (TRecord ts _) _ _) f e2@(EE t _ _)) env) = tacSe
   typing xi k e1,                                     -- Ξ, K, Γ1 ⊢ e : TRecord ts s
   return [simp, simp],                                -- s ≠ ReadOnly; f < length ts;
   return [simp_del ["Product_Type.prod.inject"]],     -- ts ! f = (t, taken)
-  wellformed k t,                                     -- K ⊢ t wellformed
-  return [simp],                                      -- D ∈ kinding_fn K t ∨ taken = Taken
+  kinding k (fst $ snd $ ts !! f)                     -- K ⊢ t :κ k
+  return [simp],                                      -- D ∈ k ∨ taken = Taken
   typing xi k e2,                                     -- Ξ, K, Γ2 ⊢ e' : t
   return [simp]                                       -- ts' = (ts [f := (t,False)])
   ]
@@ -578,6 +578,7 @@ ttsplit_bang k ix ixs Nil Nil = return []
 #if __GLASGOW_HASKELL__ < 711
 ttsplit_bang _ _ _ _ _ = error "bad split_bang end"
 #endif
+
 distinct _ = [simp]
 
 -- K ⊢ τ wellformed ≡ ∃k. K ⊢ τ :κ k

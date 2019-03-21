@@ -25,8 +25,8 @@ lemma typing_put':  "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<
                      ; sigil_perm s \<noteq> Some ReadOnly
                      ; f < length ts
                      ; ts ! f = (n,t, taken)
-                     ; K \<turnstile> t wellformed
-                     ; D \<in> kinding_fn K t \<or> taken = Taken
+                     ; K \<turnstile> t :\<kappa> k
+                     ; D \<in> k \<or> taken = Taken
                      ; \<Xi>, K, \<Gamma>2 \<turnstile> e' : t
                      ; ts' = (ts [f := (n,t,Present)])
                      \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Put e f e' : TRecord ts' s"
