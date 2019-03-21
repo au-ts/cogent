@@ -286,7 +286,7 @@ and guided_splits_tac ctxt (SOME splt :: script) =
 fun kind_proof_single (@{term SomeT} $ t) k ctxt hint = let
     val tac = (case hint of
             (KindingTacs tac) => tac
-            | _ => raise ERROR ("kind_proof_single: not a kinding tac")) (* TODO should work out a more principled way of error detection with state here *)
+            | _ => raise ERROR ("kind_proof_single: not a kinding tac"))
     val t = betapplys (@{term "kinding"}, [k, t, (@{schematic_term "?k :: kind"})])
     val ct = Thm.cterm_of ctxt (@{term Trueprop} $ t)
     val rs = EVERY (map (fn t => interpret_tac t ctxt 1) tac) (Thm.trivial ct)
@@ -375,7 +375,6 @@ fun typing_all_vars _ _ [] = let
   | typing_all_vars ctxt G (ix :: ixs) = let
     fun null (NONE : thm option) = true
       | null _ = false
-    (* TODO this is broken, similar to guided_split *)
     fun step (i, p) = RTac @{thm split_cons} :: (if member (op =) ixs i
       then (if i = ix then [RTac @{thm split_comp.share}, ForceTac @{thms kinding_defs}]
           else [RTac @{thm split_comp.right}, simp])
