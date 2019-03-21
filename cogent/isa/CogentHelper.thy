@@ -73,9 +73,9 @@ lemma typing_fun': "\<lbrakk> \<Xi>, K', (TT, [Some t]) T\<turnstile> f : u
   by (auto simp only: typing_fun snd_conv dest: ttyping_imp_typing)
 
 lemma typing_var_weak: "\<lbrakk> K \<turnstile> t :\<kappa> k
-                   ; K \<turnstile> \<Gamma> \<leadsto>w singleton (length \<Gamma>) i t
-                   ; i < length \<Gamma>
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Var i : t"
+                        ; K \<turnstile> \<Gamma> \<leadsto>w singleton (length \<Gamma>) i t
+                        ; i < length \<Gamma>
+                        \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Var i : t"
   (* weaker than typing_var - the kinding assumption lets
      us easily instantiate t *)
   by (simp only: typing_var)
@@ -121,20 +121,20 @@ lemma ttsplit_weak_lemma:
     \<Longrightarrow> type_ctx_wellformed K (snd \<Gamma>1)
     \<Longrightarrow> type_ctx_wellformed K (snd \<Gamma>2)
     \<Longrightarrow> ttsplit K \<Gamma> sps xs \<Gamma>1 ys \<Gamma>2"
-  apply (clarsimp simp: ttsplit_def ttsplit_weak_def type_ctx_wellformed_def)
-  apply (clarsimp simp add: ttsplit_inner_def)
-  apply (clarsimp simp: ttsplit_inner_def in_set_conv_nth all_conj_distrib)
-  apply (clarsimp simp: image_def Product_Type.split_def set_zip)
+  apply (clarsimp_solve simp: ttsplit_def ttsplit_weak_def type_ctx_wellformed_def)
+  apply (clarsimp_solve simp_solve add: ttsplit_inner_def)
+  apply (clarsimp_solve simp: ttsplit_inner_def in_set_conv_nth all_conj_distrib)
+  apply (clarsimp_solve simp: image_def Product_Type.split_def set_zip)
   apply (drule_tac x=y in spec)+
   apply clarsimp
   apply (drule_tac x=i in spec)+
-  apply (clarsimp split: if_splits)
+  apply (clarsimp_solve split: if_splits)
   done
 
 lemma ttsplit_weakI:
   "ttsplit_inner K sps False \<Gamma>b \<Gamma>1 \<Gamma>2 \<Longrightarrow> xs' = xs @ \<Gamma>1 \<Longrightarrow> ys' = ys @ \<Gamma>2
     \<Longrightarrow> ttsplit_weak K (TyTrSplit sps xs T1 ys T2, \<Gamma>b) sps xs (T1, xs') ys (T2, ys')"
-  by (simp add: ttsplit_weak_def)
+  by (simp_solve add: ttsplit_weak_def)
 *)
 
 lemmas ttyping_type_ctx_wellformed = ttyping_type_wellformed[folded type_ctx_wellformed_def]
@@ -227,10 +227,13 @@ fun cogent_guided_ttsplits_tac ctxt sz script =
 
 
 datatype tac = RTac of thm
+             | SimpSolveTac of thm list * thm list
              | SimpTac of thm list * thm list
              | ForceTac of thm list
              | WeakeningTac of thm list
              | SplitsTac of tac list option list
+
+val simp_solve = SimpSolveTac ([], [])
 
 val simp = SimpTac ([], [])
 
@@ -268,6 +271,7 @@ fun apply_splits ((sp, t) :: sp_ts) hints = let
 
 fun interpret_tac (RTac r) _ = rtac r
   | interpret_tac (SimpTac (a, d)) ctxt = asm_full_simp_tac (ctxt addsimps a delsimps d)
+  | interpret_tac (SimpSolveTac (a, d)) ctxt = SOLVED' (asm_full_simp_tac (ctxt addsimps a delsimps d))
   | interpret_tac (ForceTac a) ctxt = force_tac (ctxt addsimps a)
   | interpret_tac (WeakeningTac thms) ctxt = K (weakening_tac ctxt thms)
   | interpret_tac (SplitsTac tacs) ctxt = K (guided_splits_tac ctxt tacs)
