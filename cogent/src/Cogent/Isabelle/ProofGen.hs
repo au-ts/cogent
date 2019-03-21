@@ -435,7 +435,7 @@ typing xi k (EE ty (Put e1@(EE (TRecord ts _) _ _) f e2@(EE t _ _)) env) = tacSe
   typing xi k e1,                                     -- Ξ, K, Γ1 ⊢ e : TRecord ts s
   return [simp, simp],                                -- s ≠ ReadOnly; f < length ts;
   return [simp_del ["Product_Type.prod.inject"]],     -- ts ! f = (t, taken)
-  kinding k (fst $ snd $ ts !! f)                     -- K ⊢ t :κ k
+  kinding k t,                                        -- K ⊢ t :κ k
   return [simp],                                      -- D ∈ k ∨ taken = Taken
   typing xi k e2,                                     -- Ξ, K, Γ2 ⊢ e' : t
   return [simp]                                       -- ts' = (ts [f := (t,False)])
