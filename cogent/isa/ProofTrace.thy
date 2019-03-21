@@ -184,7 +184,7 @@ type ttag = TTyping_Tactics.tac option
 
 fun trace_solve_tac (ctxt : Proof.context)
                     (backtrack : bool)
-                    (get_tacs : 'data -> term -> ('data * ttag * tactic) list)
+                    (get_tacs : 'data -> ('data * ttag * tactic) list)
                     (data0 : 'data) (goal0 : thm)
                     (depth_limit : int option)
                     : 'data * (ttag TraceFailure, ttag TraceSuccess) Either =
@@ -240,7 +240,7 @@ fun trace_solve_tac (ctxt : Proof.context)
                         end
 
                     in try_results 0 (tactic subgoal) fails end
-               in case try_tacs (get_tacs data subgoal_term) [] of
+               in case try_tacs (get_tacs data) [] of
                       (_, Left fails) => (data, TraceFailure
                                                 { goal = goal0
                                                 , succeeded = rev subproofs_rev
@@ -311,7 +311,7 @@ fun extract_subproofs goal tactics is_interesting ctxt =
   trace_solve_tac ctxt true
     (fn n => (if n >= length tactics
               then raise (ERROR ("bad subscript for tactics list, len: " ^ (@{make_string} (length tactics)) ^ ", idx: " ^ (@{make_string} n)))
-              else K [nth tactics n |> (fn (tag, tac) => (n+1, tag, tac))]))
+              else [nth tactics n |> (fn (tag, tac) => (n+1, tag, tac))]))
     0
     (Goal.init goal)
     NONE
