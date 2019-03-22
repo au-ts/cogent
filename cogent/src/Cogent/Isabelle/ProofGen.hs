@@ -317,15 +317,12 @@ typing xi k (EE y (App a b) env) = tacSequence [
   typing xi k b                      -- Ξ, K, Γ2 ⊢ b : x
   ]
 
-typing xi k (EE (TSum ts) (Con tag e t) env) = tacSequence [
+typing xi k (EE tc@(TSum ts) (Con tag e t) env) = tacSequence [
   return [rule "typing_con"],            -- Ξ, K, Γ ⊢ Con ts tag x : TSum ts if
   typing xi k e,                         -- Ξ, K, Γ ⊢ x : t
-  return [simp_solve],                   -- (tag,t,False) ∈ set ts
-  wellformedAll k (map (fst . snd) ts),  -- K ⊢* (map (fst ∘ snd) ts) wellformed
-  return (distinct (map fst ts)),        -- distinct (map fst ts)
-  return [simp_solve,                    -- map fst ts = map fst ts'
-          simp_solve,                    -- map (fst ∘ snd) ts = map (fst ∘ snd) ts'
-          simp_solve]                    -- list_all2 (λx y. snd (snd y) ⟶ snd (snd x)) ts ts'
+  return [simp_solve],                   -- (tag, t, Unchecked) ∈ set ts
+  wellformed k tc,                       -- K ⊢ TSum ts wellformed
+  return [simp_solve]                    -- ts = ts'
   ]
 
 typing xi k (EE u (Cast t e) env) | EE (TPrim pt) _ _ <- e, TPrim pt' <- t, pt /= Boolean = tacSequence [
