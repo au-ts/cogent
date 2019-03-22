@@ -67,6 +67,7 @@ data Thm = Thm String
 
 data Tactic = RuleTac Thm
             | Simplifier [Thm] [Thm]
+            | SimpSolve [Thm] [Thm]
             | Force [Thm]
             | WeakeningTac [Thm]
             | SplitsTac [MLOption [Tactic]]
@@ -80,6 +81,7 @@ instance Show Thm where
 instance Show Tactic where
   show (RuleTac thm) = "(RTac " ++ show thm ++ ")"
   show (Simplifier adds dels) = "(SimpTac " ++ show (adds, dels) ++ ")"
+  show (SimpSolve adds dels) = "(SimpSolveTac " ++ show (adds, dels) ++ ")"
   show (Force adds) = "(ForceTac " ++ show adds ++ ")"
   show (WeakeningTac kindThms) = "(WeakeningTac " ++ show kindThms ++")"
   show (SplitsTac tacs) = "(SplitsTac " ++ show tacs ++ ")"
@@ -91,6 +93,12 @@ simp                 = simp_add_del [] []
 simp_add thms        = simp_add_del thms []
 simp_del thms        = simp_add_del [] thms
 simp_add_del add del = Simplifier (map Thm add) (map Thm del)
+
+simp_solve                 = simp_solve_add_del [] []
+simp_solve_add thms        = simp_solve_add_del thms []
+simp_solve_del thms        = simp_solve_add_del [] thms
+simp_solve_add_del add del = SimpSolve (map Thm add) (map Thm del)
+
 force_simp add       = Force (map Thm add)
 
 data Hints = KindingTacs [Tactic]
@@ -258,7 +266,7 @@ typing :: Xi a -> Vec t Kind -> EnvExpr t v a -> State TypingSubproofs [Tactic]
 typing xi k (EE t (Variable i) env) = tacSequence [
   return $ [rule "typing_var"],           -- Ξ, K, Γ ⊢ Var i : t if
   weakens k env (singleton (fst i) env),  -- K ⊢ Γ ↝w singleton (length Γ) i t
-  return [simp]                           -- i < length Γ
+  return [simp_solve]                     -- i < length Γ
   ]
 
 typing xi k (EE t' (Fun f ts _) env) = case findfun (coreFunNameToIsabelleName f) xi of
@@ -271,8 +279,8 @@ typing xi k (EE t' (Fun f ts _) env) = case findfun (coreFunNameToIsabelleName f
                         | otherwise = "[unfolded " ++ typeAbbrevBucketName ++ "]"
            return [simp_add ["\\<Xi>_def", mod (coreFunNameToIsabelleName f) ++ "_type_def" ++ unabbrev]],  -- Ξ f = (K', t, u)
         allKindCorrect k ts ks,    -- list_all2 (kinding K) ts ks
-        return [simp],             -- t' = instantiate ts t
-        return [simp],             -- u' = instantiate ts u
+        return [simp_solve,        -- t' = instantiate ts t
+                simp_solve],       -- u' = instantiate ts u
         wellformed ks (TFun t u),  -- ks ⊢ TFun t u wellformed
         consumed k env             -- K ⊢ Γ consumed
         ]
@@ -285,8 +293,8 @@ typing xi k (EE t' (Fun f ts _) env) = case findfun (coreFunNameToIsabelleName f
            let unabbrev | M.null (fst ta) = "" | otherwise = " " ++ typeAbbrevBucketName
            return [rule (fn_proof (mod (coreFunNameToIsabelleName f)) unabbrev)],  -- Ξ, K', (TT, [Some t]) ⊢T f : u
         allKindCorrect k ts ks,  -- list_all2 (kinding K) ts K'
-        return [simp],           -- t' = instantiate ts t
-        return [simp],           -- u' = instantiate ts u
+        return [simp_solve,      -- t' = instantiate ts t
+                simp_solve],     -- u' = instantiate ts u
         wellformed ks t,         -- K' ⊢ t wellformed
         consumed k env           -- K ⊢ Γ consumed
         ]
@@ -312,18 +320,18 @@ typing xi k (EE y (App a b) env) = tacSequence [
 typing xi k (EE (TSum ts) (Con tag e t) env) = tacSequence [
   return [rule "typing_con"],            -- Ξ, K, Γ ⊢ Con ts tag x : TSum ts if
   typing xi k e,                         -- Ξ, K, Γ ⊢ x : t
-  return [simp],                         -- (tag,t,False) ∈ set ts
+  return [simp_solve],                   -- (tag,t,False) ∈ set ts
   wellformedAll k (map (fst . snd) ts),  -- K ⊢* (map (fst ∘ snd) ts) wellformed
   return (distinct (map fst ts)),        -- distinct (map fst ts)
-  return [simp],                         -- map fst ts = map fst ts'
-  return [simp],                         -- map (fst ∘ snd) ts = map (fst ∘ snd) ts'
-  return [simp]                          -- list_all2 (λx y. snd (snd y) ⟶ snd (snd x)) ts ts'
+  return [simp_solve,                    -- map fst ts = map fst ts'
+          simp_solve,                    -- map (fst ∘ snd) ts = map (fst ∘ snd) ts'
+          simp_solve]                    -- list_all2 (λx y. snd (snd y) ⟶ snd (snd x)) ts ts'
   ]
 
 typing xi k (EE u (Cast t e) env) | EE (TPrim pt) _ _ <- e, TPrim pt' <- t, pt /= Boolean = tacSequence [
   return [rule "typing_cast"],   -- Ξ, K, Γ ⊢ Cast τ' e : TPrim (Num τ')
   typing xi k e,                 -- Ξ, K, Γ ⊢ e : TPrim (Num τ)
-  return [simp]                  -- upcast_valid τ τ'
+  return [simp_solve]            -- upcast_valid τ τ'
   ]
 
 typing xi k (EE _ (Tuple t u) env) = tacSequence [
@@ -353,14 +361,14 @@ typing xi k (EE u (LetBang is a x y) env) = tacSequence [
   typing xi k x,                                  -- Ξ, K, Γ1 ⊢ x : t
   typing xi k y,                                  -- Ξ, K, (Some t # Γ2) ⊢ y : u
   kinding k (typeOf x),                           -- K ⊢ t :κ k
-  return [simp]                                   -- E ∈ k
+  return [simp_solve]                             -- E ∈ k
   ]
 
 typing xi k (EE u (Case x _ (_,_,a) (_,_,b)) env) = tacSequence [
   return [rule "typing_case"],  -- Ξ, K, Γ ⊢ Case x tag a b : u if
   splits k env (envOf x) (peel $ envOf b <|> envOf a),  -- K ⊢ Γ ↝ Γ1 | Γ2
   typing xi k x,                -- Ξ, K, Γ1 ⊢ x : TSum ts
-  return [simp],                -- (tag, (t,False)) ∈ set ts
+  return [simp_solve],          -- (tag, (t,False)) ∈ set ts
   typing xi k a,                -- Ξ, K, (Some t # Γ2) ⊢ a : u
   typing xi k b                 -- Ξ, K, (Some (TSum (tagged_list_update tag (t, True) ts)) # Γ2) ⊢ b : u
   ]
@@ -368,7 +376,7 @@ typing xi k (EE u (Case x _ (_,_,a) (_,_,b)) env) = tacSequence [
 typing xi k (EE _ (Esac x) _) = tacSequence [
   return [rule "typing_esac"],  -- Ξ, K, Γ ⊢ Esac x : t if
   typing xi k x,                -- Ξ, K, Γ ⊢ x : TSum ts
-  return [simp]                 -- [(_, (t,False))] = filter (HOL.Not ∘ snd ∘ snd) ts
+  return [simp_solve]           -- [(_, (t,False))] = filter (HOL.Not ∘ snd ∘ snd) ts
   ]
 
 typing xi k (EE t (If x a b) env) = tacSequence [
@@ -381,15 +389,15 @@ typing xi k (EE t (If x a b) env) = tacSequence [
 
 typing xi k (EE (TPrim t) (Op o es) env) = tacSequence [
   return [rule "typing_prim'"],  -- Ξ, K, Γ ⊢ Prim oper args : TPrim t if
-  return [simp],                 -- prim_op_type oper = (ts,t)
-  return [simp],                 -- ts' = map TPrim ts;
+  return [simp_solve,            -- prim_op_type oper = (ts,t)
+          simp_solve],           -- ts' = map TPrim ts;
   typingAll xi k env es          -- Ξ, K, Γ ⊢* args : ts'
   ]
 
 typing xi k (EE _ (ILit _ t) env) = tacSequence [
   return [rule "typing_lit'"],  -- Ξ, K, Γ ⊢ Lit l : TPrim t if
   consumed k env,               -- K ⊢ Γ consumed
-  return [simp]                 -- t = lit_type l
+  return [simp_solve]           -- t = lit_type l
   ]
 
 typing xi k (EE _ (SLit t) env) = tacSequence [
@@ -405,40 +413,45 @@ typing xi k (EE _ Unit env) = tacSequence [
 typing xi k (EE t (Struct fs) env) = tacSequence [
   return [rule "typing_struct'"],    -- Ξ, K, Γ ⊢ Struct ts es : TRecord ts' Unboxed
   typingAll xi k env (map snd fs),   -- Ξ, K, Γ ⊢* es : ts
-  return [simp],                     -- ns = map fst ts'
-  return [simp],                     -- distinct ns
-  return [simp],                     -- map (fst ∘ snd) ts' = ts
-  return [simp]                      -- list_all (λp. snd (snd p) = Present) ts'
+  return [simp_solve],               -- ns = map fst ts'
+  return (distinct (map fst fs)),    -- distinct ns
+  return [simp_solve,                -- map (fst ∘ snd) ts' = ts
+          simp_solve]                -- list_all (λp. snd (snd p) = Present) ts'
   ]
 
 typing xi k (EE t (Member e f) env) = tacSequence [
   return [rule "typing_member"],   -- Ξ, K, Γ ⊢ Member e f : t if
   typing xi k e,                   -- Ξ, K, Γ ⊢ e : TRecord ts s
   kinding k (eexprType e),         -- K ⊢ TRecord ts s :κ k (* k introduced *)
-  return [simp, simp, simp]        -- S ∈ k;  f < length ts; ts ! f = (t, False)
+  return [simp_solve,              -- S ∈ k
+          simp_solve,              -- f < length ts
+          simp_solve]              -- ts ! f = (t, False)
   ]
 
 typing xi k (EE u (Take a e@(EE (TRecord ts _) _ _) f e') env) = tacSequence [
   return [rule "typing_take"],                -- Ξ, K, Γ ⊢ Take e f e' : u if
   splits k env (envOf e) (peel2 $ envOf e'),  -- K ⊢ Γ ↝ Γ1 | Γ2
   typing xi k e,                              -- Ξ, K, Γ1 ⊢ e : TRecord ts s
-  return [simp, simp, simp],                  -- s ≠ ReadOnly; f < length ts; ts ! f = (t, False) (* instantiates t *)
+  return [simp_solve,                         -- s ≠ ReadOnly
+          simp_solve,                         -- f < length ts
+          simp_solve],                        -- ts ! f = (t, False) (* instantiates t *)
   kinding k (fst $ snd $ ts !! f),            -- K ⊢ t :κ k
-  return (sharableOrTaken f (envOf e')),      -- S ∈ k ∨ taken (* instantiates taken *)
+  return [simp_solve],                        -- S ∈ k ∨ taken (* instantiates taken *)
   return [simp],
   typing xi k e'                              -- Ξ, K, (Some t # Some (TRecord (ts [f := (t,taken)]) s) # Γ2) ⊢ e' : u
   ]
 
 typing xi k (EE ty (Put e1@(EE (TRecord ts _) _ _) f e2@(EE t _ _)) env) = tacSequence [
-  return [rule "typing_put'"],                        -- Ξ, K, Γ ⊢ Put e f e' : TRecord ts' s if
-  splits k env (envOf e1) (envOf e2),                 -- K ⊢ Γ ↝ Γ1 | Γ2
-  typing xi k e1,                                     -- Ξ, K, Γ1 ⊢ e : TRecord ts s
-  return [simp, simp],                                -- s ≠ ReadOnly; f < length ts;
-  return [simp_del ["Product_Type.prod.inject"]],     -- ts ! f = (t, taken)
-  kinding k t,                                        -- K ⊢ t :κ k
-  return [simp],                                      -- D ∈ k ∨ taken = Taken
-  typing xi k e2,                                     -- Ξ, K, Γ2 ⊢ e' : t
-  return [simp]                                       -- ts' = (ts [f := (t,False)])
+  return [rule "typing_put'"],                          -- Ξ, K, Γ ⊢ Put e f e' : TRecord ts' s if
+  splits k env (envOf e1) (envOf e2),                   -- K ⊢ Γ ↝ Γ1 | Γ2
+  typing xi k e1,                                       -- Ξ, K, Γ1 ⊢ e : TRecord ts s
+  return [simp_solve,                                   -- s ≠ ReadOnly
+          simp_solve],                                  -- f < length ts
+  return [simp_solve_del ["Product_Type.prod.inject"]], -- ts ! f = (t, taken)
+  kinding k t,                                          -- K ⊢ t :κ k
+  return [simp_solve],                                  -- D ∈ k ∨ taken = Taken
+  typing xi k e2,                                       -- Ξ, K, Γ2 ⊢ e' : t
+  return [simp_solve]                                   -- ts' = (ts [f := (t,False)])
   ]
 
 typing xi k (EE _ (Promote ty e) env) = typing xi k e  -- FIXME: also requires a proof for subtyping / zilinc
@@ -579,16 +592,16 @@ ttsplit_bang k ix ixs Nil Nil = return []
 ttsplit_bang _ _ _ _ _ = error "bad split_bang end"
 #endif
 
-distinct _ = [simp]
+distinct _ = [simp_solve]
 
 -- K ⊢ τ wellformed ≡ ∃k. K ⊢ τ :κ k
 wellformed :: Vec t Kind -> Type t -> State TypingSubproofs [Tactic]
-wellformed ks t = tacSequence [return [simp]]
+wellformed ks t = tacSequence [return [simp_solve]]
 
 -- K ⊢* τs wellformed ≡ ∃k. K ⊢* τs :κ k
 wellformedAll :: Vec t Kind -> [Type t] -> State TypingSubproofs [Tactic]
-wellformedAll ks ts = tacSequence [return [simp]]
-  where k = foldr (<>) mempty (map (mostGeneralKind ks) ts)
+wellformedAll ks ts = tacSequence [return [simp_solve]]
+  -- where k = foldr (<>) mempty (map (mostGeneralKind ks) ts)
 
 -- K ⊢ Γ consumed ≡ K ⊢ Γ ↝w empty (length Γ)
 consumed :: Vec t Kind -> Vec v (Maybe (Type t)) -> State TypingSubproofs [Tactic]
@@ -632,13 +645,6 @@ breakConj []     = []
 takeTaken :: FieldIndex -> Vec v (Maybe (Type t)) -> Bool
 takeTaken f (Cons x (Cons (Just (TRecord ts _)) _)) = snd $ snd (ts!!f)
 takeTaken _ _ = error "invalid call to takeTaken"
-
-sharableOrTaken :: FieldIndex -> Vec v (Maybe (Type t)) -> [Tactic]
-sharableOrTaken f e | takeTaken f e = [rule_tac "disjI2" [("Q", "True")], simp]
-                    | otherwise     = [rule "disjI1", simp]
-
-destroyableOrTaken True  = [rule_tac "disjI2" [("Q", "True")], simp]
-destroyableOrTaken False = [rule "disjI1", simp]
 
 singleton :: Fin v -> Vec v (Maybe a) -> Vec v (Maybe a)
 singleton v env = update (cleared env) v (env `at` v)
