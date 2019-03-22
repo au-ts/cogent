@@ -35,6 +35,12 @@ env:
 
 matrix:
   include:
+    - env: CABALVER=2.4 GHCVER=8.6.4
+      compiler: "ghc-8.6.4"
+      addons: {apt: {packages: [cabal-install-2.4,ghc-8.6.4,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
+    - env: CABALVER=2.4 GHCVER=8.6.3
+      compiler: "ghc-8.6.3"
+      addons: {apt: {packages: [cabal-install-2.4,ghc-8.6.3,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
     - env: CABALVER=2.2 GHCVER=8.6.2
       compiler: "ghc-8.6.2"
       addons: {apt: {packages: [cabal-install-2.2,ghc-8.6.2,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
@@ -71,6 +77,11 @@ before_install:
  - export PATH=~/.cabal/bin:/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:/opt/happy/$HAPPYVER/bin:/opt/alex/$ALEXVER/bin:$REPO/cogent/$SANDBOX/bin:$PATH
 
 install:
+ # Get AutoCorres
+ - wget http://ts.data61.csiro.au/projects/TS/autocorres/autocorres-1.5.tar.gz
+ - tar -xf autocorres-1.5.tar.gz
+ - mv autocorres-1.5 autocorres 
+ # setup Cabal
  - cabal --version
  - echo "$(ghc --version) [$(ghc --print-project-git-commit-id 2> /dev/null || echo '?')]"
  - if [ -f "$HOME/.cabal/packages/hackage.haskell.org/00-index.tar.gz" ];

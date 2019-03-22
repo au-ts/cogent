@@ -496,7 +496,7 @@ test_isabelle_type_proof()
         COGENTHEAPSPEC="session \"$COGENTHEAPNAME\" = \"Type_Proof\" + \
 options [timeout=$ISABELLE_TIMEOUT]"
         echo "$COGENTHEAPSPEC" > "$COUT/ROOT"
-        if ! check_output $ISABELLE build -d "$L4V_DIR"  -d "$ISADIR" -d "$COUT" -b "$COGENTHEAPNAME"
+        if ! check_output $ISABELLE build -d "$AC_DIR" -d "$ISADIR" -d "$COUT" -b "$COGENTHEAPNAME"
         then
             echo "${bldred}failed to build Cogent theory!${txtrst}"
         else
@@ -515,7 +515,7 @@ options [timeout=$ISABELLE_TIMEOUT]"
                    sed -i -e 's,"ProofTrace","../isa/ProofTrace",' "$COUT/$THYNAME.thy"
                    sed -i -e 's,"../../c-refinement/TypeProofGen","Type_Proof.TypeProofGen",' "$COUT/$THYNAME.thy"
                    sed -i -e 's,"../../cogent/isa/AssocLookup","Type_Proof.AssocLookup",' "$COUT/$THYNAME.thy"
-                   if check_output $ISABELLE build -d "$L4V_DIR" -d "$ISADIR" -d "$COUT" "$ISABELLE_SESSION_NAME"
+                   if check_output $ISABELLE build -d "$AC_DIR" -d "$ISADIR" -d "$COUT" "$ISABELLE_SESSION_NAME"
                    then passed+=1; echo "$pass_msg"
                    else echo "$fail_msg"
                    fi
@@ -550,7 +550,7 @@ test_autocorres()
                    --dist-dir="$COUT" --root-dir=../../ --proof-name="$ISABELLE_SESSION_NAME" "$source"
            sed -i -e "s/^session ${ISABELLE_SESSION_NAME}_ACInstall = ${ISABELLE_SESSION_NAME}_SCorres_Normal +$/session ${ISABELLE_SESSION_NAME}_ACInstall = AutoCorres +/" "$COUT/ROOT"
 
-           if check_output $ISABELLE_BUILD -d "$L4V_DIR" -d "../isa" -d "$COUT" ${ISABELLE_SESSION_NAME}_ACInstall
+           if check_output $ISABELLE_BUILD -d "$AC_DIR" -d "../isa" -d "$COUT" ${ISABELLE_SESSION_NAME}_ACInstall
            then passed+=1; echo "$pass_msg"
            else echo "$fail_msg"
            fi
@@ -599,7 +599,7 @@ test_end_to_end()
                 mv "$hfile.tmp" "$hfile"
            fi
 
-           if check_output $ISABELLE_BUILD -d "$L4V_DIR" -d "$COUT" -d "../isa" ${ISABELLE_SESSION_NAME}_AllRefine
+           if check_output $ISABELLE_BUILD -d "$AC_DIR" -d "$COUT" -d "../isa" ${ISABELLE_SESSION_NAME}_AllRefine
            then passed+=1; echo "$pass_msg"
            else echo "$fail_msg"
            fi

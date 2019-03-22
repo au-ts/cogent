@@ -13,12 +13,12 @@
 # All build scripts should “source” this file. For makefiles, use “build-env.mk” instead.
 #
 # Variables:
-#   L4V_DIR: location of l4.verified directory (https://github.com/NICTA/l4v).
-#            l4.v is a dependency of proof builds.
+#   AC_DIR: location of AutoCorres (http://ts.data61.csiro.au/projects/TS/autocorres/) directory.
+#            AutoCorres is a dependency of proof builds.
 #
 # Extra PATH variables:
 #   ISABELLE_TOOLDIR: location of “isabelle” theorem prover.
-#                     Defaults to L4V_DIR/isabelle/bin.
+#                     Defaults to isabelle/bin.
 #
 #   COGENT_TOOLDIR: location of “cogent” compiler.
 #
@@ -40,16 +40,16 @@ set_build_env()
 {
   
   local SCRIPT_DIR=`find_script_dir`
-  # L4.Verified repository (sub-module)
-  : ${L4V_DIR:="$SCRIPT_DIR/l4v"}
+  # Extract of the AutoCorres release
+  : ${AC_DIR:="$SCRIPT_DIR/autocorres"}
 
   # Location of Isabelle (sub-module)
   : ${ISABELLE_TOOLDIR:="$SCRIPT_DIR/isabelle/bin"}
   : ${ISABELLE:="$ISABELLE_TOOLDIR/isabelle"}
   : ${ISABELLE_BUILD:="$ISABELLE build -v"}
 
-  [ -d "$L4V_DIR"  ] || {
-	echo >&2 "Cannot find \$L4V_DIR"
+  [ -d "$AC_DIR"  ] || {
+	echo >&2 "Cannot find \$AC_DIR"
 	exit 1
   }
 
@@ -61,6 +61,9 @@ set_build_env()
 
   # Location of Cogent shared library
   : ${COGENT_STD_GUM_DIR:="$SCRIPT_DIR/cogent/lib"}
+
+  # Environment variable for running AutoCorres
+  : ${L4V_ARCH:="ARM"}
 }
 
 set_build_env

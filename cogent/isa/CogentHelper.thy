@@ -25,8 +25,8 @@ lemma typing_put':  "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<
                      ; sigil_perm s \<noteq> Some ReadOnly
                      ; f < length ts
                      ; ts ! f = (n,t, taken)
-                     ; K \<turnstile> t wellformed
-                     ; D \<in> kinding_fn K t \<or> taken = Taken
+                     ; K \<turnstile> t :\<kappa> k
+                     ; D \<in> k \<or> taken = Taken
                      ; \<Xi>, K, \<Gamma>2 \<turnstile> e' : t
                      ; ts' = (ts [f := (n,t,Present)])
                      \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Put e f e' : TRecord ts' s"
@@ -73,9 +73,9 @@ lemma typing_fun': "\<lbrakk> \<Xi>, K', (TT, [Some t]) T\<turnstile> f : u
   by (auto simp only: typing_fun snd_conv dest: ttyping_imp_typing)
 
 lemma typing_var_weak: "\<lbrakk> K \<turnstile> t :\<kappa> k
-                   ; K \<turnstile> \<Gamma> \<leadsto>w singleton (length \<Gamma>) i t
-                   ; i < length \<Gamma>
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Var i : t"
+                        ; K \<turnstile> \<Gamma> \<leadsto>w singleton (length \<Gamma>) i t
+                        ; i < length \<Gamma>
+                        \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Var i : t"
   (* weaker than typing_var - the kinding assumption lets
      us easily instantiate t *)
   by (simp only: typing_var)
@@ -209,17 +209,6 @@ fun weakening_tac ctxt _ =
   |> CHANGED
   |> REPEAT_SUBGOAL
 
-fun cogent_splits_tac ctxt kinding_thms =
-  let val kinding_tac = FIRST (map (fn t => rtac t 1) kinding_thms)
-      val split_tac =
-        DETERM (rtac @{thm split_comp.none} 1 ORELSE
-                (rtac @{thm split_comp.share} 1 THEN kinding_tac THEN asm_full_simp_tac ctxt 1) ORELSE
-                (rtac @{thm split_comp.left} 1 THEN kinding_tac) ORELSE
-                (rtac @{thm split_comp.right} 1 THEN kinding_tac))
-  in
-    REPEAT_SUBGOAL (CHANGED (rtac @{thm split_cons} 1 ORELSE rtac @{thm split_empty} 1 ORELSE split_tac))
-  end
-
 fun cogent_guided_ttsplits_tac ctxt sz script =
   let fun mktac i [] =
             if i = sz then rtac @{thm ttsplit_innerI(5)} 1 else
@@ -238,10 +227,13 @@ fun cogent_guided_ttsplits_tac ctxt sz script =
 
 
 datatype tac = RTac of thm
+             | SimpSolveTac of thm list * thm list
              | SimpTac of thm list * thm list
              | ForceTac of thm list
              | WeakeningTac of thm list
-             | SplitsTac of int * (int * tac list) list
+             | SplitsTac of tac list option list
+
+val simp_solve = SimpSolveTac ([], [])
 
 val simp = SimpTac ([], [])
 
@@ -279,33 +271,26 @@ fun apply_splits ((sp, t) :: sp_ts) hints = let
 
 fun interpret_tac (RTac r) _ = rtac r
   | interpret_tac (SimpTac (a, d)) ctxt = asm_full_simp_tac (ctxt addsimps a delsimps d)
+  | interpret_tac (SimpSolveTac (a, d)) ctxt = SOLVED' (asm_full_simp_tac (ctxt addsimps a delsimps d))
   | interpret_tac (ForceTac a) ctxt = force_tac (ctxt addsimps a)
   | interpret_tac (WeakeningTac thms) ctxt = K (weakening_tac ctxt thms)
-  | interpret_tac (SplitsTac (sz, tacs)) ctxt = K (cogent_guided_splits_tac ctxt sz tacs)
-(* takes the size of the typing-env, and a list of (idx, rule) pairs for splitting the context *)
-and cogent_guided_splits_tac ctxt sz script =
-  let fun mktac i [] =
-            if i = sz
-            then (* at the end of the list *)
-              rtac @{thm split_empty} 1
-            else (* more to go *)
-              rtac @{thm split_cons} 1 THEN rtac @{thm split_comp.none} 1 THEN mktac (i+1) []
-        | mktac i ((n, tacs)::script') =
-            if i = n
-            then (* at a place where we have a hint *)
-              rtac @{thm split_cons} 1
-                THEN EVERY (map (fn t => interpret_tac t ctxt 1) tacs)
-                THEN mktac (i+1) script'
-            else (* no hint, thus boring *)
-              rtac @{thm split_cons} 1
-                THEN rtac @{thm split_comp.none} 1
-                THEN mktac (i+1) ((n, tacs)::script')
-  in mktac 0 script end
+  | interpret_tac (SplitsTac tacs) ctxt = K (guided_splits_tac ctxt tacs)
+and guided_splits_tac ctxt (SOME splt :: script) =
+  rtac @{thm split_cons} 1
+    THEN EVERY' (map (fn t => interpret_tac t ctxt) splt) 1
+    THEN guided_splits_tac ctxt script
+| guided_splits_tac ctxt (NONE :: []) =
+  REPEAT_DETERM ((rtac @{thm split_cons} THEN' rtac @{thm split_comp.none}) 1) THEN rtac @{thm split_empty} 1
+| guided_splits_tac ctxt (NONE :: script) =
+  REPEAT_DETERM ((rtac @{thm split_cons} THEN' rtac @{thm split_comp.none}) 1)
+    THEN guided_splits_tac ctxt script
+| guided_splits_tac ctxt [] = rtac @{thm split_empty} 1
+
 
 fun kind_proof_single (@{term SomeT} $ t) k ctxt hint = let
     val tac = (case hint of
             (KindingTacs tac) => tac
-            | _ => raise ERROR ("kind_proof_single: not a kinding tac")) (* TODO should work out a more principled way of error detection with state here *)
+            | _ => raise ERROR ("kind_proof_single: not a kinding tac"))
     val t = betapplys (@{term "kinding"}, [k, t, (@{schematic_term "?k :: kind"})])
     val ct = Thm.cterm_of ctxt (@{term Trueprop} $ t)
     val rs = EVERY (map (fn t => interpret_tac t ctxt 1) tac) (Thm.trivial ct)
@@ -352,13 +337,13 @@ fun ttsplit_inner (@{term "Some TSK_S"} :: tsks) (SOME p :: Gamma) = let
   in [RTac @{thm ttsplit_innerI(4)}, ForceTac @{thms kinding_defs}] @ rest end
   | ttsplit_inner (@{term "Some TSK_L"} :: tsks) (SOME p :: Gamma) = let
     val rest = ttsplit_inner tsks Gamma
-  in [RTac @{thm ttsplit_innerI(3)}, simp] @ rest end
+  in [RTac @{thm ttsplit_innerI(3)}, simp_solve] @ rest end
   | ttsplit_inner (@{term "Some TSK_R :: type_split_op option"} :: tsks) (SOME p :: Gamma) = let
     val rest = ttsplit_inner tsks Gamma
-  in [RTac @{thm ttsplit_innerI(2)}, simp] @ rest end
+  in [RTac @{thm ttsplit_innerI(2)}, simp_solve] @ rest end
   | ttsplit_inner (@{term "Some TSK_NS :: type_split_op option"} :: tsks) (SOME p :: Gamma) = let
     val rest = ttsplit_inner tsks Gamma
-  in [RTac @{thm ttsplit_innerI(5)}, simp] @ rest end
+  in [RTac @{thm ttsplit_innerI(5)}, simp_solve] @ rest end
   | ttsplit_inner (@{term "None :: type_split_op option"} :: tsks) (NONE :: Gamma) = let
     val rest = ttsplit_inner tsks Gamma
   in [RTac @{thm ttsplit_innerI(1)}] @ rest end
@@ -367,12 +352,12 @@ fun ttsplit_inner (@{term "Some TSK_S"} :: tsks) (SOME p :: Gamma) = let
 
 fun ttsplit (Const (@{const_name TyTrSplit}, _) $ sps $ _ $ _ $ _ $ _, Gamma) = let
     val inner = ttsplit_inner (HOLogic.dest_list sps) Gamma
-  in [RTac @{thm ttsplitI}] @ inner @ [simp, simp, simp] end
+  in [RTac @{thm ttsplitI}] @ inner @ [simp_solve, simp_solve, simp_solve] end
   | ttsplit (t, _) = raise TERM ("ttsplit", [t])
 
 fun ttsplit_bang (Const (@{const_name TyTrSplit}, _) $ sps $ _ $ _ $ _ $ _, Gamma) = let
     val inner = ttsplit_inner (HOLogic.dest_list sps) Gamma
-  in [RTac @{thm ttsplit_bangI}, simp, simp, SimpTac (@{thms set_eq_subset}, [])] @ inner end
+  in [RTac @{thm ttsplit_bangI}, simp_solve, simp_solve, SimpTac (@{thms set_eq_subset}, [])] @ inner end
   | ttsplit_bang (t, _) = raise TERM ("ttsplit", [t])
 
 fun dest_nat (@{term Suc} $ n) = dest_nat n + 1
@@ -390,16 +375,15 @@ fun the_G _ (SOME p) = p
   | the_G G NONE = raise THM ("the_G", 1, (map (fn NONE => @{thm TrueI} | SOME t => t) G))
 
 fun typing_all_vars _ _ [] = let
-  in [RTac @{thm typing_all_empty''}, simp] end
+  in [RTac @{thm typing_all_empty''}, simp_solve] end
   | typing_all_vars ctxt G (ix :: ixs) = let
     fun null (NONE : thm option) = true
       | null _ = false
-    (* TODO this is broken, similar to guided_split *)
     fun step (i, p) = RTac @{thm split_cons} :: (if member (op =) ixs i
       then (if i = ix then [RTac @{thm split_comp.share}, ForceTac @{thms kinding_defs}]
-          else [RTac @{thm split_comp.right}, simp])
+          else [RTac @{thm split_comp.right}, simp_solve])
       else (if null p then [RTac @{thm split_comp.none}]
-          else [RTac @{thm split_comp.left}, simp]))
+          else [RTac @{thm split_comp.left}, simp_solve]))
     val enumG = (0 upto (length G - 1) ~~ G)
     val steps = maps step enumG
     val thms = map_filter I G
@@ -408,7 +392,7 @@ fun typing_all_vars _ _ [] = let
     val rest = typing_all_vars ctxt G' ixs
   in [RTac @{thm typing_all_cons}] @ steps @ [RTac @{thm split_empty},
     RTac @{thm typing_var_weak[unfolded singleton_def Cogent.empty_def]},
-      RTac (the_G G (nth G ix)), simp, WeakeningTac thms, simp] @ rest end
+      RTac (the_G G (nth G ix)), simp, WeakeningTac thms, simp_solve] @ rest end
 
 fun typing (Const (@{const_name Var}, _) $ i) G _ hints = let
     val i = dest_nat i
@@ -418,20 +402,20 @@ fun typing (Const (@{const_name Var}, _) $ i) G _ hints = let
                [] => ()
              | _ => raise HINTS ("too many tacs", hints))
   in ([RTac @{thm typing_var_weak[unfolded singleton_def Cogent.empty_def]},
-                RTac thm, simp, WeakeningTac thms, simp]) end
+                RTac thm, simp, WeakeningTac thms, simp_solve]) end
   | typing (Const (@{const_name Struct}, _) $ _ $ xs) G ctxt hints
   = (case dest_all_vars xs of SOME ixs => let
       val _ = (case typing_hint hints of
                  [] => ()
                | _ => raise HINTS ("too many tacs", hints))
-  in ([RTac @{thm typing_struct'}] @ typing_all_vars ctxt G ixs @ [simp, simp, simp, simp]) end
+  in ([RTac @{thm typing_struct'}] @ typing_all_vars ctxt G ixs @ [simp_solve, simp_solve, simp_solve, simp_solve]) end
     | NONE => typing_hint hints)
   | typing (Const (@{const_name Prim}, _) $ _ $ xs) G ctxt hints
   = (case dest_all_vars xs of SOME ixs => let
     val _ = (case typing_hint hints of
                [] => ()
              | _ => raise HINTS ("too many tacs", hints))
-  in ([RTac @{thm typing_prim'}, simp, simp] @ typing_all_vars ctxt G ixs) end
+  in ([RTac @{thm typing_prim'}, simp_solve, simp_solve] @ typing_all_vars ctxt G ixs) end
     | NONE => typing_hint hints)
   | typing (Const (@{const_name Promote}, _) $ _ $ e) G ctxt hints =
     ([RTac @{thm typing_promote}] @ typing e G ctxt hints @ [ForceTac @{thms subtyping_simps kinding_defs}])
@@ -472,7 +456,7 @@ fun ttyping (Const (@{const_name Split}, _) $ x $ y) tt k ctxt hint_tree = let
     val x_tac = ttyping x ltt k ctxt typxhint
     val y_tac = ttyping y rtt k ctxt typyhint
     val k_tac = kinding kindhint
-  in ([RTac @{thm ttyping_letb}] @ tsb_tac @ x_tac @ y_tac @ k_tac @ [simp]) end
+  in ([RTac @{thm ttyping_letb}] @ tsb_tac @ x_tac @ y_tac @ k_tac @ [simp_solve]) end
   | ttyping (Const (@{const_name Cogent.If}, _) $ c $ x $ y) tt k ctxt hint_tree = let
     val (typxhint, splithints, typahint, typbhint) = (case hint_tree of
         Branch [typxhint, Branch splithints, typahint, typbhint] =>
@@ -489,7 +473,7 @@ fun ttyping (Const (@{const_name Split}, _) $ x $ y) tt k ctxt hint_tree = let
     val x_tac = ttyping x x_tt k ctxt typahint
     val y_tac = ttyping y y_tt k ctxt typbhint
   in ([RTac @{thm ttyping_if}] @ split_tac
-    @ [simp, RTac @{thm ttsplit_trivI}, simp, simp] @ c_tac @ x_tac @ y_tac) end
+    @ [simp, RTac @{thm ttsplit_trivI}, simp_solve, simp_solve] @ c_tac @ x_tac @ y_tac) end
   | ttyping (Const (@{const_name Case}, _) $ x $ _ $ m $ nm) tt k ctxt hint_tree = let
     val (typxhint, splithints, typahint, typbhint) = (case hint_tree of
         Branch [typxhint, Branch splithints, typahint, typbhint] =>
@@ -503,8 +487,8 @@ fun ttyping (Const (@{const_name Split}, _) $ x $ y) tt k ctxt hint_tree = let
     val split_tac = ttsplit tt
     val m_tac = ttyping m m_tt k ctxt typahint
     val nm_tac = ttyping nm nm_tt k ctxt typbhint
-  in ([RTac @{thm ttyping_case'}] @ split_tac @ x_tac @ [simp]
-    @ [simp, RTac @{thm ttsplit_trivI}, simp, simp] @ m_tac @ nm_tac) end
+  in ([RTac @{thm ttyping_case'}] @ split_tac @ x_tac @ [simp_solve]
+    @ [simp, RTac @{thm ttsplit_trivI}, simp_solve, simp_solve] @ m_tac @ nm_tac) end
   | ttyping (Const (@{const_name Take}, _) $ x $ _ $ y) tt k ctxt hint_tree = let
     val (splithints, typehint, kindhint, type'hint) = (case hint_tree of
         Branch [Branch splithints, typehint, kindhint, type'hint] =>
@@ -518,7 +502,7 @@ fun ttyping (Const (@{const_name Split}, _) $ x $ y) tt k ctxt hint_tree = let
     val k_tac = kinding kindhint
     val y_tac = ttyping y rtt k ctxt type'hint
   in ([RTac @{thm ttyping_take'}] @ split_tac @ x_tac
-    @ [simp, simp, simp] @ k_tac @ [simp] @ y_tac) end
+    @ [simp_solve, simp_solve, simp_solve] @ k_tac @ [simp_solve] @ y_tac) end
   | ttyping x (@{term TyTrLeaf}, G) _ ctxt hint_tree = let
     val ty_tac = typing x G ctxt hint_tree
   in ([RTac @{thm ttyping_default}, SimpTac (@{thms composite_anormal_expr_def}, [])] @ ty_tac) end

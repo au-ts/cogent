@@ -10,7 +10,7 @@ our [project homepage](http://ts.data61.csiro.au/projects/TS/cogent.pml).
 
 ## Installation
 
-Instructions tested on Debian GNU/Linux 8.2 ("jessie") and Ubuntu 16.04 ("xenial"). May need to be adapted for other systems.
+Instructions tested on Debian GNU/Linux 9.8 ("stretch") and Ubuntu 18.04 ("bionic"). Similar distributions may also work.
 
 Install dependencies from the Debian repository.
 ```
@@ -20,11 +20,10 @@ sudo apt-get install python-lxml python-psutil python-pycparser # regression tes
 
 To install the Cogent compiler, consult file [cogent/README.md](./cogent/README.md) for details. 
 
-[`l4v`](https://github.com/seL4/l4v), [`isabelle`](https://github.com/seL4/isabelle) and [`z3`](https://github.com/Z3Prover/z3)
+[`isabelle`](https://github.com/seL4/isabelle) and [`z3`](https://github.com/Z3Prover/z3)
 are submodules that the Cogent framework depends on. To get them: `git submodule update --init --recursive`.
 
 If you already have them on your machine, you can use your local copies, by checking out the compatible revisions:
-* `l4v`: `5e51fa05d7bdf1a664559dbdabf3ec13339da76d"
 * `isabelle`: any Isabelle2018 revision
 * `z3`: see [cogent/INSTALL.md](./cogent/INSTALL.md) for more information
 
@@ -43,26 +42,20 @@ For more customised settings to run proofs and regression tests, modify [`build-
 Note: also see [Proofs](#proofs) and [Regression tests](#regression-tests) below.
 
 
-## Regression tests
+## Compiler
 
-Run build system and regression tests. (ETA: 2–3 CPU hours)
-This also builds the Cogent compiler and Isabelle theories.
-If this works, your install is probably ok.
-Run `./run_tests`.
+See [cogent/README.md](./cogent/README.md) for more information.
 
-For C-refinement proofs, which are excluded from the regression tests because of
-their size, follow instructions in [Proofs](#proofs) section.
+
+## File systems
+
+See [impl/fs/ext2/README](./impl/fs/ext2/README) and [impl/fs/bilby/README](./impl/fs/bilby/README) for more information on how to build the kernel modules.
 
 
 ## Proofs
 
-Firstly, to build the dependencies:
-```
-cd l4v/tools/c-parser
-make c-parser-deps  # requires mlton
-L4V_ARCH="ARM" isabelle build -d ../../ -b AutoCorres  # the `l4v` directory should be given to the `-d`
-```
-This should build the image for AutoCorres.
+Firstly, download the AutoCorres release from [http://ts.data61.csiro.au/projects/TS/autocorres/](http://ts.data61.csiro.au/projects/TS/autocorres/autocorres-1.5.tar.gz),
+move the extracted folder to this directory, and rename the folder to `autocorres`.
 
 To build the proofs, it is recommended that your machine (or virtual machine)
 provides 32G of memory and 4–8 CPU threads.
@@ -71,19 +64,21 @@ provides 32G of memory and 4–8 CPU threads.
 # Build compilation correctness proof for ext2. (ETA: 120 CPU hours)
 (cd impl/fs/ext2/cogent;
  make verification;
- isabelle build -d plat/verification -d ../../../../cogent/isa -d ../../../../l4v -b Ext2_AllRefine)
+ export L4V_ARCH="ARM";
+ isabelle build -d plat/verification -d ../../../../cogent/isa -d ../../../../autocorres -b Ext2_AllRefine)
 
 # Build compilation correctness proof for BilbyFs. (ETA: 120 CPU hours)
 (cd impl/fs/bilby/cogent;
  make verification;
  patch -d plat/verification < ../../../../BilbyFs_CorresProof.patch;
- isabelle build -d . -d ../../../../cogent/isa -d ../../../../l4v -b -o process_output_limit=999 BilbyFs_AllRefine)
+ export L4V_ARCH="ARM";
+ isabelle build -d . -d ../../../../cogent/isa -d ../../../../autocorres -b -o process_output_limit=999 BilbyFs_AllRefine)
 
 # View end-to-end theorems. Each theory has a "print_theorems" command for this.
 # For ext2:
-isabelle jedit -d impl/ext2/cogent/plat/verification -d cogent/isa -d l4v -l Ext2_CorresProof impl/fs/ext2/cogent/plat/verification/Ext2_AllRefine.thy
+L4V_ARCH="ARM" isabelle jedit -d impl/ext2/cogent/plat/verification -d cogent/isa -d autocorres -l Ext2_CorresProof impl/fs/ext2/cogent/plat/verification/Ext2_AllRefine.thy
 # For BilbyFs:
-isabelle jedit -d impl/fs/bilby/cogent/plat/verification -d cogent/isa -d l4v -l BilbyFs_CorresProof impl/fs/bilby/cogent/plat/verification/BilbyFs_AllRefine.thy
+L4V_ARCH="ARM" isabelle jedit -d impl/fs/bilby/cogent/plat/verification -d cogent/isa -d autocorres -l BilbyFs_CorresProof impl/fs/bilby/cogent/plat/verification/BilbyFs_AllRefine.thy
 ```
 
 The functional correctness proofs for BilbyFs's `sync` and `iget` operations are in
@@ -91,13 +86,18 @@ The functional correctness proofs for BilbyFs's `sync` and `iget` operations are
 They are built as part of the [regression tests](#regression-tests), and can be rebuilt with
 
 ```
-regression/run_tests.py -x l4v -x isabelle -v sync iget
+regression/run_tests.py -x autocorres -x isabelle -v sync iget
 ```
 
 
-## File systems
+## Regression tests (for developers; ETA: 2–3 CPU hours)
 
-See [impl/fs/ext2/README](./impl/fs/ext2/README) and [impl/fs/bilby/README](./impl/fs/bilby/README) for more information on how to build the kernel modules
+For testing the compiler, refer to [travis.yml](./travis.yml) for commands.
+
+Run `./run_tests` to test systems implementations and parts of their Isabelle proofs.
+
+For C-refinement proofs, which are excluded from the regression tests because of
+their size, follow instructions in [Proofs](#proofs) section.
 
 
 ## Directory

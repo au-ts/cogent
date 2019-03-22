@@ -52,7 +52,6 @@ lemma compose_gets_variant_con:
       A c
    od =
    do
-      a \<leftarrow> select UNIV;
       b \<leftarrow> gets (\<lambda>_. payload_update (\<lambda>_. payload) (tag_update (\<lambda>_. tag) variant_init));
       A b
   od"
@@ -62,10 +61,7 @@ lemma compose_gets_variant_con_2:
       b \<leftarrow> gets (\<lambda>_. payload_update (\<lambda>_. payload) (tag_update (\<lambda>_. tag) variant_init));
       gets (\<lambda>_. b)
    od =
-   do
-      a \<leftarrow> select UNIV;
-      gets (\<lambda>_. payload_update (\<lambda>_. payload) (tag_update (\<lambda>_. tag) variant_init))
-  od"
+      gets (\<lambda>_. payload_update (\<lambda>_. payload) (tag_update (\<lambda>_. tag) variant_init))"
   by monad_eq
 
 (* Cogent compiler adds one assignment at the end of every block; remove it *)
@@ -136,7 +132,7 @@ fun tidy_C_fun_def f ctxt = let
              (* Cleanup any remaining @{term simp_last_bind}s *)
              THEN subst' @{thms simp_last_bind(3)}
              (* Compose variant constructor with the gets immediately after it *)
-             THEN subst @{thms compose_gets_variant_con compose_gets_variant_con_2}
+             THEN subst' @{thms compose_gets_variant_con compose_gets_variant_con_2}
              (* Simplify uninitialised variables *)
              THEN subst' (@{thms unknown_bind_ignore unknown_bind_if_True} @ unknown_bind_more_thms)
              THEN rtac @{thm refl} 1 (* final definition *)

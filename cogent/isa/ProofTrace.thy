@@ -184,7 +184,7 @@ type ttag = TTyping_Tactics.tac option
 
 fun trace_solve_tac (ctxt : Proof.context)
                     (backtrack : bool)
-                    (get_tacs : 'data -> term -> ('data * ttag * tactic) list)
+                    (get_tacs : 'data -> ('data * ttag * tactic))
                     (data0 : 'data) (goal0 : thm)
                     (depth_limit : int option)
                     : 'data * (ttag TraceFailure, ttag TraceSuccess) Either =
@@ -211,36 +211,32 @@ fun trace_solve_tac (ctxt : Proof.context)
                    * NB: tactics should return finite results! *)
                 val subgoal = Goal.init (cterm_of' subgoal_term)
                 (* try all the tactics in the list to solve subgoal *)
-                fun try_tacs [] fails = (data, Left fails)
-                  | try_tacs ((data, tag, tactic) :: rest) fails =
-                    let
-                      (* try to find a result from the tactic which solves the subgoal  *)
-                      fun try_results n tactic_results fails =
-                          case Seq.pull tactic_results of
-                              NONE => try_tacs rest fails (* exhausted the tactic, try the next one *)
-                            | SOME (subgoal', tactic_results') => solve_subgoal n subgoal' tactic_results'
-                      (* recursively solve subgoal' *)
-                      and solve_subgoal n subgoal' tactic_results =
-                        let val tagged_step = Step (tag, tactic, n)
-                        in case trace_solve_tac ctxt backtrack get_tacs data subgoal'
-                          (option_decr depth_limit)
-                          of
-                            (_, Left fail) => if backtrack then
-                                                try_results (n+1) tactic_results
-                                                ({ step = tagged_step
-                                                 , trace = fail } :: fails)
-                                              else (data, Left [{ step = tagged_step, trace = fail }])
-                          | (data, Right (trace as TraceSuccess trace')) =>
-                              (data, TraceSubgoal { subgoal = subgoal
-                                                  , subtheorem = #theorem trace'
-                                                  , fail_steps = fails
-                                                  , step = tagged_step
-                                                  , subproof = trace
-                                                  } |> Right)
-                        end
-
-                    in try_results 0 (tactic subgoal) fails end
-               in case try_tacs (get_tacs data subgoal_term) [] of
+                val (data', tag, tactic) = get_tacs data
+                (* try to find a result from the tactic which solves the subgoal  *)
+                fun try_results n tactic_results fails =
+                    case Seq.pull tactic_results of
+                        NONE => (data', Left fails) (* the tactic failed *)
+                      | SOME (subgoal', tactic_results') => solve_subgoal n subgoal' tactic_results' fails
+                (* recursively solve subgoal' *)
+                and solve_subgoal n subgoal' tactic_results fails =
+                  let val tagged_step = Step (tag, tactic, n)
+                  in case trace_solve_tac ctxt backtrack get_tacs data' subgoal'
+                    (option_decr depth_limit)
+                    of
+                      (_, Left fail) => if backtrack then
+                                          try_results (n+1) tactic_results
+                                          ({ step = tagged_step
+                                           , trace = fail } :: fails)
+                                        else (data', Left [{ step = tagged_step, trace = fail }])
+                    | (data, Right (trace as TraceSuccess trace')) =>
+                        (data, TraceSubgoal { subgoal = subgoal
+                                            , subtheorem = #theorem trace'
+                                            , fail_steps = fails
+                                            , step = tagged_step
+                                            , subproof = trace
+                                            } |> Right)
+                  end
+               in case try_results 0 (tactic subgoal) [] of
                       (_, Left fails) => (data, TraceFailure
                                                 { goal = goal0
                                                 , succeeded = rev subproofs_rev
@@ -311,7 +307,7 @@ fun extract_subproofs goal tactics is_interesting ctxt =
   trace_solve_tac ctxt true
     (fn n => (if n >= length tactics
               then raise (ERROR ("bad subscript for tactics list, len: " ^ (@{make_string} (length tactics)) ^ ", idx: " ^ (@{make_string} n)))
-              else K [nth tactics n |> (fn (tag, tac) => (n+1, tag, tac))]))
+              else nth tactics n |> (fn (tag, tac) => (n+1, tag, tac))))
     0
     (Goal.init goal)
     NONE

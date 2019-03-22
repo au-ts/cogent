@@ -114,19 +114,41 @@ type details = (thm list * thm tree list * thm list)
 
 
 fun get_all_typing_details ctxt name script : details = let
+    val time = Timing.start ()
     val script_tree = (case parse_treesteps script of
         SOME tree => tree
       | NONE => raise ERROR ("failed to parse script tree"))
+    val time_res = Timing.result time
+    val _ = (@{print tracing} "phase: parse script"; @{print tracing} time_res)
+    val _ = (log_info "phase: parse script"; log_info (@{make_string} time_res))
+
+    val time = Timing.start ()
     val tacs = TTyping_Tactics.mk_ttsplit_tacs_final name
         @{term "[] :: kind env"} ctxt script_tree
     val tacs' = map (fn (tac, f) => (tac, fn ctxt => f ctxt 1)) tacs
+    val time_res = Timing.result time
+    val _ = (@{print tracing} "phase: tac gen"; @{print tracing} time_res)
+    val _ = (log_info "phase: tac gen"; log_info (@{make_string} time_res))
+
+    val time = Timing.start ()
     val orig_typing_tree = get_typing_tree ctxt name tacs'
-    val _ = @{print warning} ("Solved: " ^ name)
-    val _ = (log_info ("[get_all_typing_details: " ^ name ^ "]"))
+    val time_res = Timing.result time
+    val _ = (@{print tracing} "phase: type-tree solve " ^ name; @{print tracing} time_res)
+    val _ = (log_info ("phase: type-tree solve " ^ name); log_info (@{make_string} time_res))
+
+    val time = Timing.start ()
     val typecorrect_thms = map (Goal.finish ctxt) (map tree_value orig_typing_tree)
       |> map (simplify ctxt #> Thm.varifyT_global)
     val typing_tree = map (tree_map (cleanup_typing_tree_thm ctxt)) orig_typing_tree
+    val time_res = Timing.result time
+    val _ = (@{print tracing} "phase: cleanup thm tree"; @{print tracing} time_res)
+    val _ = (log_info "phase: cleanup thm tree"; log_info (@{make_string} time_res))
+
+    val time = Timing.start ()
     val bucket = typing_tree_to_bucket typing_tree
+    val time_res = Timing.result time
+    val _ = (@{print tracing} "phase: make thm bucket"; @{print tracing} time_res)
+    val _ = (log_info "phase: make thm bucket"; log_info (@{make_string} time_res))
   in (typecorrect_thms, typing_tree, bucket) end
 
 fun get_all_typing_details_future ctxt name script

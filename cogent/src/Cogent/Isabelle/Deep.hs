@@ -19,8 +19,9 @@ import Cogent.Common.Syntax as CS
 import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Core as CC
+import Cogent.Isabelle.Shallow (snm)
 import Cogent.Util (NameMod, Stage(..))
-import Data.List (sort)
+import Data.List (intercalate, sort)
 import qualified Data.Map.Strict as Map
 import Data.Vec (cvtToList, Fin, finInt)
 import Isabelle.ExprTH
@@ -221,8 +222,8 @@ deepDefinitions :: NameMod -> TypeAbbrevs -> [Definition TypedExpr a] -> [Theory
 deepDefinitions mod ta defs = foldr (deepDefinition mod ta defs) [] defs ++
                               [TheoryString $
                                "ML {*\n" ++
-                               "val Cogent_functions = " ++ show (cogentFuns defs) ++ "\n" ++
-                               "val Cogent_abstract_functions = " ++ show (absFuns defs) ++ "\n" ++
+                               "val Cogent_functions = [" ++ showStrings (map mod $ cogentFuns defs) ++ "]\n" ++
+                               "val Cogent_abstract_functions = [" ++ showStrings (map mod $ absFuns defs) ++ "]\n" ++
                                "*}"
                               ]
   where absFuns [] = []
@@ -231,6 +232,11 @@ deepDefinitions mod ta defs = foldr (deepDefinition mod ta defs) [] defs ++
         cogentFuns [] = []
         cogentFuns (FunDef _ fn _ _ _ _ : fns) = fn : cogentFuns fns
         cogentFuns (_ : fns) = cogentFuns fns
+        
+        showStrings :: [String] -> String
+        showStrings [] = ""
+        showStrings [x] = "\"" ++ x ++ "\""
+        showStrings (x:xs) = "\"" ++ x ++ "\", " ++ showStrings xs
 
 scanAggregates :: CC.Type t -> [CC.Type t]
 scanAggregates (TCon tn ts _) = concatMap scanAggregates ts
@@ -284,5 +290,4 @@ deepFile mod thy defs = Theory thy imports (snd (deepDefinitionsAbb mod defs))
 
 deep :: String -> Stage -> [Definition TypedExpr a] -> String -> Doc
 deep thy stg defs log = string ("(*\n" ++ log ++ "\n*)\n") <$>
-                        pretty (deepFile id thy defs)
-
+                        pretty (deepFile snm thy defs)

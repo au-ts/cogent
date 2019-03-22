@@ -14,5 +14,8 @@ dummy : CString -> CString
 
 map : WordArray U32 -> WordArray U32
 map arr = let view = wordarray_view (arr, 3, 6, 1)
-          and view' = wordarray_map_view (view, \x => x + 1)
+          and view' = wordarray_map_view (view, inc)
            in wordarray_unview view'
+
+inc : U32 -> U32
+inc x = x + 1
