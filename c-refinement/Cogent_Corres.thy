@@ -1440,7 +1440,17 @@ lemma list_all2_map_filter_helper[rule_format]:
    list_all2 P (map f (filter P1 xs)) (map g (filter P2 ys))"
   by (induct xs ys rule: list_induct2') auto
 
+lemma type_rep_tagged_update:
+  "\<lbrakk>(tag, tag_t, Unchecked) \<in> set \<tau>s \<or> tag \<notin> fst ` set \<tau>s;
+    distinct (map fst \<tau>s)\<rbrakk> \<Longrightarrow>
+   map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) \<tau>s =
+   map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) (tagged_list_update tag (tag_t, Checked) \<tau>s)"
+  apply (induction \<tau>s)
+   apply simp
+  using image_iff by fastforce
+
 (* CHANGE: changed from apply style to Isar style assumption list, not sure if any of the assumptions changed *)
+(* Added assumption 7: tag is present and unchecked in the input type *)
 lemma corres_case:
   fixes \<tau>s :: "(char list \<times> Cogent.type \<times> variant_state) list"
   assumes
@@ -1453,10 +1463,11 @@ lemma corres_case:
          then tag = vtag \<and> val_rel vval (get_A' x')
          else tag \<noteq> vtag \<and> val_rel (USum vtag vval vtyps) (wrap_rest' x')"
     "\<Xi>', [], \<Gamma>1 \<turnstile> Var x : TSum \<tau>s"
-    "\<Xi>', [], Some (fst (snd (the (find (\<lambda>x. fst x = tag) \<tau>s)))) # \<Gamma>2 \<turnstile> match : t"
-    "\<Xi>', [], Some (TSum \<tau>s) # \<Gamma>2 \<turnstile> not_match : t"
-    "\<And>a a'. val_rel a a' \<Longrightarrow> corres srel match (match' a') \<xi>' (a # \<gamma>) \<Xi>' (Some (fst (snd (the (find (\<lambda>x. fst x = tag) \<tau>s)))) # \<Gamma>2) \<sigma> s"
-    "\<And>r r'. val_rel r r' \<Longrightarrow> corres srel not_match (not_match' r') \<xi>' (r # \<gamma>) \<Xi>' (Some (TSum \<tau>s) # \<Gamma>2) \<sigma> s"
+    "(tag, tag_t, Unchecked) \<in> set \<tau>s"
+    "\<Xi>', [], Some tag_t # \<Gamma>2 \<turnstile> match : t"
+    "\<Xi>', [], Some (TSum (tagged_list_update tag (tag_t,Checked) \<tau>s)) # \<Gamma>2 \<turnstile> not_match : t"
+    "\<And>a a'. val_rel a a' \<Longrightarrow> corres srel match (match' a') \<xi>' (a # \<gamma>) \<Xi>' (Some tag_t # \<Gamma>2) \<sigma> s"
+    "\<And>r r'. val_rel r r' \<Longrightarrow> corres srel not_match (not_match' r') \<xi>' (r # \<gamma>) \<Xi>' (Some (TSum (tagged_list_update tag (tag_t, Checked) \<tau>s)) # \<Gamma>2) \<sigma> s"
   shows "corres srel (Case (Var x) tag match not_match)
             (condition (\<lambda>_. get_tag' x' = tag')
               (match' (get_A' x'))
@@ -1484,7 +1495,7 @@ lemma corres_case:
    apply (erule impE)
     apply (rule_tac x="rx \<union> r2" in exI, rule_tac x="wx \<union> w2" in exI)
     apply (rule matches_ptrs_some)
-        apply (fastforce simp: lookup_distinct_list)
+        apply (metis distinct_fst fst_conv)
        apply assumption
       apply (drule (2) frame_noalias_matches_ptrs(1)[where \<Gamma>=\<Gamma>2])
       apply assumption
@@ -1501,10 +1512,18 @@ lemma corres_case:
    apply (rule matches_ptrs_some)
        apply (rule u_t_sum)
            apply simp
-          apply force
+          apply (rule_tac V="(vtag, vtyp, Unchecked) \<in> set \<tau>s" in revcut_rl)
+           apply force
+  using tagged_list_update_different_tag_preserves_values2
+          apply metis
          apply force
-        apply (force simp: kinding_all_set) (* slow *)
-       apply (simp add: map_update)
+        apply (rule variant_tagged_list_update_wellformedI)
+           apply (metis (no_types, lifting) fst_conv image_iff)
+          apply blast
+         apply (meson kinding_iff_wellformed(1) kinding_simps(6) kinding_variant_wellformed_elem typing_to_wellformed(1))
+  using kinding_iff_wellformed(1) kinding_simps(6) kinding_to_wellformedD(3) typing_to_wellformed(1)
+        apply blast
+       apply (rule type_rep_tagged_update; simp)
       apply simp
      apply (drule (2) frame_noalias_matches_ptrs(1)[where \<Gamma>=\<Gamma>2])
      apply blast
