@@ -438,6 +438,7 @@ flags =
   , Option []         ["infer-c-funcs"]  1 (ReqArg (set_flag_inferCFunc . words) "FILE..") "infer Cogent abstract function definitions"
   , Option []         ["infer-c-types"]  1 (ReqArg (set_flag_inferCType . words) "FILE..") "infer Cogent abstract type definitions"
   , Option []         ["proof-input-c"]  1 (ReqArg set_flag_proofInputC "FILE")            "specify input C file to generate proofs (default to the same base name as input Cogent file)"
+  , Option []         ["prune-ast"]      2 (ReqArg set_flag_pruneAst "FILE")               "specify Cogent entry-point definitions"
   -- external programs
   , Option []         ["cogent-pp-args"] 2 (ReqArg (set_flag_cogentPpArgs) "ARG..")        "arguments given to Cogent preprocessor (same as cpphs)"
   , Option []         ["cpp"]            2 (ReqArg (set_flag_cpp) "PROG")                  "set which C-preprocessor to use (default to cpp)"
@@ -614,7 +615,9 @@ parseArgs args = case getOpt' Permute options args of
       parseWithIncludes source [] >>= \case
         Left err -> hPutStrLn stderr err >> exitFailure
         Right (parsed,pragmas) -> do
-          putProgressLn "Resolving dependencies..." >> case reorganize parsed of
+          prune <- T.forM __cogent_prune_ast $ return . parseEntryFuncs <=< readFile
+          putProgressLn "Resolving dependencies..."
+          case reorganize prune parsed of
             Left err -> printError prettyRE [err] >> exitFailure
             Right reorged -> do when (Ast stg `elem` cmds) $ genAst stg (map (stripAllLoc . thd3) reorged)
                                 when (Pretty stg `elem` cmds) $ genPretty stg (map (stripAllLoc . thd3) reorged)
@@ -725,8 +728,6 @@ parseArgs args = case getOpt' Permute options args of
     mono cmds simpled ctygen source tced tcst typedefs fts buildinfo log = do
       let stg = STGMono
       putProgressLn "Monomorphising..."
-      -- entryFuncs <- T.forM __cogent_entry_funcs $
-      --                liftA ((,empty) . fromList . flip zip (repeat empty) . parseEntryFuncs) . readFile
       entryFuncs <- T.forM __cogent_entry_funcs $
                       return . (,empty) <=< (readEntryFuncs tced tcst typedefs fts) <=< return . parseEntryFuncs <=< readFile
       let (insts,(warnings,monoed,ctygen')) = MN.mono simpled ctygen entryFuncs

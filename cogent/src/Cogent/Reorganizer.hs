@@ -22,13 +22,18 @@ import Cogent.Surface
 import Cogent.Util
 
 import Control.Arrow
-import Control.Monad (forM)
+import Control.Monad (forM, forM_)
+import Control.Monad.Trans.State
+import Data.Char (isUpper)
 -- import Data.Foldable hiding (notElem)
 import Data.Functor.Compose
 import qualified Data.Graph.Wrapper as G
+import Data.List as L
 import qualified Data.Map as M
 import qualified Data.Maybe as Maybe
 import Text.Parsec.Pos
+
+import Debug.Trace
 
 data ReorganizeError = CyclicDependency
                      | DuplicateTypeDefinition
@@ -40,6 +45,12 @@ data SourceObject = TypeName  Syn.TypeName
                   | RepName   Syn.RepName
                   | DocBlock' String
                   deriving (Eq, Ord)
+
+instance Show SourceObject where
+  show (TypeName  n) = n
+  show (ValName   n) = n
+  show (RepName   n) = n
+  show (DocBlock' s) = s
 
 dependencies :: TopLevel LocType LocPatn LocExpr -> [SourceObject]
 dependencies (Include _) = __impossible "dependencies"
@@ -62,22 +73,55 @@ dependencies (ConstDef _ t e) = map TypeName (fcT (stripLocT t) ++ fcE (stripLoc
 classify :: [(SourcePos, DocString, TopLevel LocType LocPatn LocExpr)]
          -> [(SourceObject, (SourcePos, DocString, TopLevel LocType LocPatn LocExpr))]
 classify = map (\px -> (sourceObject (thd3 px), px))
-  where sourceObject (Include _)        = __impossible "sourceObject (in classify)"
-        sourceObject (IncludeStd _)     = __impossible "sourceObject (in classify)"
-        sourceObject (DocBlock s)       = DocBlock' s
-        sourceObject (TypeDec n _ _)    = TypeName n
-        sourceObject (RepDef (RepDecl _ n _))    = RepName n
-        sourceObject (AbsTypeDec n _ _) = TypeName n
-        sourceObject (AbsDec n _)       = ValName n
-        sourceObject (FunDef v _ _)     = ValName v
-        sourceObject (ConstDef v _ _)   = ValName v
+
+sourceObject :: TopLevel LocType LocPatn LocExpr -> SourceObject 
+sourceObject (Include _)        = __impossible "sourceObject (in classify)"
+sourceObject (IncludeStd _)     = __impossible "sourceObject (in classify)"
+sourceObject (DocBlock s)       = DocBlock' s
+sourceObject (TypeDec n _ _)    = TypeName n
+sourceObject (AbsTypeDec n _ _) = TypeName n
+sourceObject (AbsDec n _)       = ValName n
+sourceObject (FunDef v _ _)     = ValName v
+sourceObject (ConstDef v _ _)   = ValName v
+sourceObject (RepDef (RepDecl _ n _))    = RepName n
+
+prune :: (Ord k, Show k)
+      => [k]  -- a list of entry-points
+      -> [(k, v, [k])]
+      -> [k]  -- a list of 'k's that will be included
+prune es m = map fst $ filter (\(_,v) -> case v of Just True -> True; _ -> False)
+                     $ flip execState (map (\(k,_,_) -> (k, Nothing)) m)
+                     $ forM_ es
+                     $ flip go
+                     $ map (\(k,_,ks) -> (k,ks)) m 
+  where
+    go :: (Ord k, Show k) => k -> [(k, [k])] -> State [(k, Maybe Bool)] ()
+    go k m = do s <- get
+                case L.lookup k s of
+                  Just _  -> return ()  -- visited
+                  Nothing -> case L.lookup k m of
+                    Nothing -> error $ show k ++ " is not defined"
+                    Just ds -> do let s' = M.toList $ M.adjust (const $ Just True) k $ M.fromList s
+                                  put s'
+                                  forM_ ds $ flip go m
 
 graphOf :: Ord a => (b -> [a]) -> [(a, b)] -> G.Graph a b
 graphOf f = G.fromListLenient . map (\(k,v) -> (k, v, f v))
 
-dependencyGraph :: [(SourceObject, (SourcePos, DocString, TopLevel LocType LocPatn LocExpr))]
+
+dependencyGraph_ :: [(SourceObject, (SourcePos, DocString, TopLevel LocType LocPatn LocExpr))]
+                 -> G.Graph SourceObject (SourcePos, DocString, TopLevel LocType LocPatn LocExpr)
+dependencyGraph_ = graphOf (dependencies . thd3)
+
+-- With prune
+dependencyGraph :: [SourceObject]
+                -> [(SourceObject, (SourcePos, DocString, TopLevel LocType LocPatn LocExpr))]
                 -> G.Graph SourceObject (SourcePos, DocString, TopLevel LocType LocPatn LocExpr)
-dependencyGraph = graphOf (dependencies . thd3)
+dependencyGraph es m =
+  let edges = map (\(k,v) -> (k, v, dependencies $ thd3 v)) m
+      included = prune es edges
+      trimmed = filter (\(k,_,_) -> k `elem` included) edges
+   in G.fromListLenient trimmed
 
 checkNoNameClashes :: [(SourceObject, SourcePos)]
                    -> M.Map SourceObject SourcePos
@@ -94,16 +138,25 @@ checkNoNameClashes ((s,d):xs) bindings
 
 -- Note: it doesn't make much sense to check for unused definitions as they may be used
 -- by the FFI. / zilinc
-reorganize :: [(SourcePos, DocString, TopLevel LocType LocPatn LocExpr)]
+reorganize :: Maybe [String]
+           -> [(SourcePos, DocString, TopLevel LocType LocPatn LocExpr)]
            -> Either (ReorganizeError, [(SourceObject, SourcePos)]) [(SourcePos, DocString, TopLevel LocType LocPatn LocExpr)]
-reorganize bs = do let m = classify bs
-                       cs = G.stronglyConnectedComponents (dependencyGraph m)
-                   checkNoNameClashes (map (second fst3) m) M.empty
-                   -- FIXME: it might be good to preserve the original order as much as possible
-                   -- see file `tests/pass_wf-take-put-tc-2.cogent` as a bad-ish example / zilinc
-                   forM cs $ \case
-                     G.AcyclicSCC i -> Right $ Maybe.fromJust $ lookup i m
-                     G.CyclicSCC is -> Left  $ (CyclicDependency, map (id &&& getSourcePos m) is)
+reorganize mes bs = do let m = classify bs
+                           cs = G.stronglyConnectedComponents $ case mes of
+                                   Nothing -> dependencyGraph_ m
+                                   Just es -> dependencyGraph (map parseSourceObject es) m
+                       checkNoNameClashes (map (second fst3) m) M.empty
+                       -- FIXME: it might be good to preserve the original order as much as possible
+                       -- see file `tests/pass_wf-take-put-tc-2.cogent` as a bad-ish example / zilinc
+                       forM cs $ \case
+                         G.AcyclicSCC i -> Right $ case lookup i m of
+                                                     Nothing -> __impossible $ "reorganize: " ++ show i
+                                                     Just x  -> x
+                         G.CyclicSCC is -> Left  $ (CyclicDependency, map (id &&& getSourcePos m) is)
   where getSourcePos m i | Just (p,_,_) <- lookup i m = p
                          | otherwise = __impossible "getSourcePos (in reorganize)"
+        -- FIXME: proper parsing / zilinc
+        parseSourceObject :: String -> SourceObject
+        parseSourceObject (c:cs) | isUpper c = TypeName (c:cs)
+                                 | otherwise = ValName  (c:cs)
 

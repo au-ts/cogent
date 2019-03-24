@@ -55,6 +55,9 @@ newtype Flip  f (a :: a') (b :: b') = Flip { unflip :: f b a }
 newtype Flip2 f (a :: a') (b :: b') (c :: c') = Flip2 { unflip2 :: f c b a }
 newtype Flip3 f (a :: a') (b :: b') (c :: c') (d :: d') = Flip3 { unflip3 :: f d c b a }
 
+flip3 :: (a -> b -> c -> d) -> c -> b -> a -> d
+flip3 f c b a = f a b c
+
 ffmap :: (Functor (Flip f a)) => (b -> b') -> f b a -> f b' a
 ffmap f = unflip . fmap f . Flip
 
@@ -178,6 +181,8 @@ thd3 (a,b,c) = c
 
 fst4 :: (a,b,c,d) -> a
 fst4 (a,b,c,d) = a
+
+for = flip map
 
 
 infixr 3 ***^^
@@ -333,9 +338,6 @@ instance Show Bound where
 theOtherB GLB = LUB
 theOtherB LUB = GLB
 
-flip3 :: (a -> b -> c -> d) -> c -> b -> a -> d
-flip3 f c b a = f a b c
-
 
 -- the following are taken from MissingH, BSD3 clause
 -- http://hackage.haskell.org/package/MissingH-1.4.1.0
@@ -359,8 +361,6 @@ split delim str =
           x -> if x == delim
                  then [] : []
                  else split delim (drop (length delim) x)
-
-
 
 replace :: Eq a => [a] -> [a] -> [a] -> [a]
 replace old new l = joinWith new . split old $ l

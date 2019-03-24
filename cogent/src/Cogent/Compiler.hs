@@ -205,6 +205,7 @@ set_flag_O (Just n :: Maybe String)
 set_flag_outputName = writeIORef __cogent_output_name_ref . Just . takeBaseName
 set_flag_proofInputC = writeIORef __cogent_proof_input_c_ref . Just
 set_flag_proofName = writeIORef __cogent_proof_name_ref . Just . takeBaseName
+set_flag_pruneAst = writeIORef __cogent_prune_ast_ref . Just
 set_flag_quiet = writeIORef __cogent_quiet_ref True
 set_flag_rootDir dir = writeIORef __cogent_root_dir_ref (cogentRelDir dir __cogent_dist_dir)
 set_flag_w      = writeIORef __cogent_warning_switch_ref Flag_w
@@ -673,6 +674,13 @@ __cogent_proof_name = unsafePerformIO $ readIORef __cogent_proof_name_ref
 __cogent_proof_name_ref :: IORef (Maybe String)
 {-# NOINLINE __cogent_proof_name_ref #-}
 __cogent_proof_name_ref = unsafePerformIO $ newIORef Nothing
+
+__cogent_prune_ast :: Maybe FilePath
+__cogent_prune_ast = unsafePerformIO $ readIORef __cogent_prune_ast_ref
+
+__cogent_prune_ast_ref :: IORef (Maybe FilePath)
+{-# NOINLINE __cogent_prune_ast_ref #-}
+__cogent_prune_ast_ref = unsafePerformIO $ newIORef Nothing
 
 __cogent_quiet :: Bool
 __cogent_quiet = unsafePerformIO $ readIORef __cogent_quiet_ref
