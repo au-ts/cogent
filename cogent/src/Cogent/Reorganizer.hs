@@ -85,24 +85,27 @@ sourceObject (FunDef v _ _)     = ValName v
 sourceObject (ConstDef v _ _)   = ValName v
 sourceObject (RepDef (RepDecl _ n _))    = RepName n
 
-prune :: (Ord k, Show k)
-      => [k]  -- a list of entry-points
-      -> [(k, v, [k])]
-      -> [k]  -- a list of 'k's that will be included
-prune es m = map fst $ filter (\(_,v) -> case v of Just True -> True; _ -> False)
-                     $ flip execState (map (\(k,_,_) -> (k, Nothing)) m)
-                     $ forM_ es
-                     $ flip go
-                     $ map (\(k,_,ks) -> (k,ks)) m 
+prune :: [SourceObject]  -- a list of entry-points
+      -> [(SourceObject, v, [SourceObject])]
+      -> [SourceObject]  -- a list of 'k's that will be included
+prune es m = flip execState builtins $ forM_ es
+                                     $ flip go
+                                     $ map (\(k,_,ks) -> (k,ks)) m 
   where
-    go :: (Ord k, Show k) => k -> [(k, [k])] -> State [(k, Maybe Bool)] ()
+    builtins = [ TypeName "U8"
+               , TypeName "U16"
+               , TypeName "U32"
+               , TypeName "U64"
+               , TypeName "Bool"
+               , TypeName "String" 
+               ]
+    go :: SourceObject -> [(SourceObject, [SourceObject])] -> State [SourceObject] ()
     go k m = do s <- get
-                case L.lookup k s of
-                  Just _  -> return ()  -- visited
-                  Nothing -> case L.lookup k m of
+                case k `elem` s of
+                  True  -> return ()  -- visited
+                  False -> case L.lookup k m of
                     Nothing -> error $ show k ++ " is not defined"
-                    Just ds -> do let s' = M.toList $ M.adjust (const $ Just True) k $ M.fromList s
-                                  put s'
+                    Just ds -> do put $ k:s
                                   forM_ ds $ flip go m
 
 graphOf :: Ord a => (b -> [a]) -> [(a, b)] -> G.Graph a b
