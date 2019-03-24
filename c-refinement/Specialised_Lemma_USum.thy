@@ -57,7 +57,8 @@ fun (uval1 can_be_casted_to uval2) ctxt heap_info =
  in
   if (field_names1 = field_names2) andalso (field_types1 = field_types2)
   then case check_diff (get_checkeds_of_usum_uval ctxt uval1) (get_checkeds_of_usum_uval ctxt uval2) of
-        [(ix,_)] => SOME ix
+       (* Only if going from unchecked to checked *)
+        [(ix,(false,true))] => SOME ix
        (* If multiple differences, or no differences, we don't need to worry about case *)
        | _ => NONE
   else NONE
@@ -81,10 +82,11 @@ end;
 *}
 
 
-ML{* fun mk_case_prop from_uval to_uval field_num file_nm ctxt =
+ML{* fun mk_case_prop from_uval to_uval variant_ctor_num file_nm ctxt =
 (* field_num is the number of the field that is being tested for matching.*)
  let
-  val _ = tracing ("  started mk_case_prop for field_num " ^ string_of_int field_num)
+  val struct_field_num = variant_ctor_num + 1
+  val _ = tracing ("  started mk_case_prop for variant_ctor_num " ^ string_of_int variant_ctor_num)
   val from_struct_C_nm = get_ty_nm_C from_uval;
   val to_struct_C_nm   = get_ty_nm_C to_uval;
   val _ = tracing ("  casting from " ^ from_struct_C_nm ^ " to " ^ to_struct_C_nm)
@@ -96,76 +98,63 @@ ML{* fun mk_case_prop from_uval to_uval field_num file_nm ctxt =
   val from_struct_info = get_struct_info from_struct_C_nm;
   val to_struct_info   = get_struct_info to_struct_C_nm;
   val from_field_info  = #field_info from_struct_info;
-  val to_field_info    = #field_info to_struct_info;
-  val nth_field_ml_tag_name = from_field_info |> (fn list => List.nth (list, field_num)) |> #name
+  val nth_field_ml_tag_name = from_field_info |> (fn list => List.nth (list, struct_field_num)) |> #name
                               |> cut_C;
   val nth_field_tag_name = nth_field_ml_tag_name |> Utils.encode_isa_string;
   val get_tag_names = fn uval => heap_info_uval_to_field_names heap uval |> tl |> map (unsuffix "_C");
   val from_tag_nms  = get_tag_names from_uval;
-  val to_tag_nms    = get_tag_names to_uval;
   val from_tag_checks = get_checkeds_of_usum_uval ctxt from_uval
   val to_tag_checks   = get_checkeds_of_usum_uval ctxt to_uval
 
   val alternative_tys = map (fn n => Free ("alt_ty" ^ string_of_int n, @{typ "Cogent.type"}))
     (1 upto length from_tag_nms)
   val tag_ty_bits    = from_tag_nms ~~ alternative_tys ~~ from_tag_checks
-  val to_tag_ty_bits    = from_tag_nms ~~ alternative_tys ~~ from_tag_checks
+  val to_tag_ty_bits    = from_tag_nms ~~ alternative_tys ~~ to_tag_checks
   fun mk_triple_tag ((a,b),c) = HOLogic.mk_prod (HOLogic.mk_string a, HOLogic.mk_prod (b, variant_state_of_bool c))
   val from_sumT      = @{term TSum} $ HOLogic.mk_list @{typ "(string \<times> Cogent.type \<times> variant_state)"}
                        (map mk_triple_tag tag_ty_bits)
   val to_sumT        = @{term TSum} $ HOLogic.mk_list @{typ "(string \<times> Cogent.type \<times> variant_state)"}
                        (map mk_triple_tag to_tag_ty_bits)
-(*
-  val dropped_bits   = filter (fn (s, _) => AList.lookup (op =) to_tag_ty_bits s = NONE) tag_ty_bits
-  val taken_typ = case dropped_bits of [v] => snd v
-    | _ => raise TERM ("dropped_bits: " ^ (@{make_string} (dropped_bits, tag_ty_bits, to_tag_ty_bits)), [])
-*)
+  val taken_typ      = List.nth (alternative_tys, variant_ctor_num)
 
   val from_tag_C = from_field_info |> hd |> #getter; (* tag_C is always the first element of struct.*)
   val corres     = Syntax.read_term ctxt "corres";
-  val setters    = to_field_info |> map #setter;
-  val getters    = from_field_info |> map #getter |> remove_nth field_num;
 
   (* Monadic C code in the conclusion.*)
   val monadic_c =
    let
-    fun mk_set_get setter getter body =
-     let
-      val x'      = strip_type @{term "x'"};
-      val getter' = Term.absdummy dummyT (getter $ x');
-     in setter $ getter' $ body end;
-    val copy = ListPair.foldl (uncurry_triple mk_set_get) (strip_type @{term "dummy"}) (setters, getters)
-              |> Syntax.check_term ctxt;
     val TAG_ENUM = Syntax.read_term ctxt ("TAG_ENUM_" ^ nth_field_ml_tag_name);
-    val match_tag_getter = List.nth (from_field_info, field_num) |> #getter;
+    val match_tag_getter = List.nth (from_field_info, struct_field_num) |> #getter;
    in
-    @{term "\<lambda> copy from_tag_C TAG_ENUM match_tag_getter.
+    @{term "\<lambda> from_tag_C TAG_ENUM match_tag_getter.
          (condition (\<lambda>_. from_tag_C x' = TAG_ENUM)
            (match' (match_tag_getter x'))
-           (do x \<leftarrow> gets (\<lambda>_. copy); not_match' x od))"}
-     $ copy $ from_tag_C $ TAG_ENUM $ match_tag_getter
+           (do x \<leftarrow> gets (\<lambda>_. x'); not_match' x od))"}
+     $ from_tag_C $ TAG_ENUM $ match_tag_getter
    end;
 
   fun mk_ass2 tag_list    = @{mk_term "\<Gamma>' ! x = Some ?tag_list" tag_list} tag_list;
   fun mk_ass6 tag_list    = @{mk_term "\<Xi>', [], \<Gamma>1 \<turnstile> Var x : ?tag_list" tag_list} tag_list;
-  fun mk_ass8 other_tags  = @{mk_term "\<Xi>', [], Some ?other_tags # \<Gamma>2 \<turnstile> not_match : t" other_tags} other_tags;
-  fun mk_ass10 other_tags =
+  fun mk_ass9 other_tags  = @{mk_term "\<Xi>', [], Some ?other_tags # \<Gamma>2 \<turnstile> not_match : t" other_tags} other_tags;
+  fun mk_ass11 other_tags =
    @{mk_term "\<And>r r'. val_rel r r' \<Longrightarrow> ?corres srel not_match (not_match' r') \<xi>' (r # \<gamma>) \<Xi>'
     (Some (?other_tags) # \<Gamma>2) \<sigma> s" (corres, other_tags)} (corres, other_tags);
-(*
+
   val ass1 = @{term "x < length \<Gamma>'"};
   val ass2 = mk_ass2 from_sumT;
   val ass3 = @{term "[] \<turnstile> \<Gamma>' \<leadsto> \<Gamma>1 | \<Gamma>2"};
   val ass4 = @{term "val_rel (\<gamma> ! x) x'"};
+  (* Ass 5 discharged by instantiating at concrete type *)
   val ass6 = mk_ass6 from_sumT
-  val ass7 = @{term "\<lambda>taken_typ. \<Xi>', [], Some taken_typ # \<Gamma>2 \<turnstile> match : t"} $ taken_typ;
-  val ass8 = mk_ass8 to_sumT;
-  val ass9 = @{mk_term "\<And>a a'. val_rel a a' \<Longrightarrow>
+  (* Ass 7 discharged by instantiating at concrete type *)
+  val ass8 = @{term "\<lambda>taken_typ. \<Xi>', [], Some taken_typ # \<Gamma>2 \<turnstile> match : t"} $ taken_typ;
+  val ass9 = mk_ass9 to_sumT;
+  val ass10 = @{mk_term "\<And>a a'. val_rel a a' \<Longrightarrow>
    ?corres srel match (match' a') \<xi>' (a # \<gamma>) \<Xi>' (Some ?match_typ # \<Gamma>2) \<sigma> s"(corres, match_typ)}
     (corres, taken_typ);
-  val ass10= mk_ass10 to_sumT;
+  val ass11= mk_ass11 to_sumT;
   val prms = map (HOLogic.mk_Trueprop o strip_atype)
-     [ass1, ass2, ass3, ass4, ass6, ass7, ass8] @ [ass9, ass10];
+     [ass1, ass2, ass3, ass4, ass6, ass8, ass9] @ [ass10, ass11];
 
   val cncl = @{mk_term
           "?corres srel (Case (Var x) ?nth_field_tag_name match not_match) ?monadic_c \<xi>' \<gamma> \<Xi>' \<Gamma>' \<sigma> s"
@@ -174,17 +163,22 @@ ML{* fun mk_case_prop from_uval to_uval field_num file_nm ctxt =
 
 in
   mk_meta_imps prms cncl ctxt |> Syntax.check_term ctxt
-*)
-
-  in @{term True}
 end
 *}
 
 ML{* (* mk_case_lem_for_uval *)
 local
 
+fun mk_case_lem_name (from:uval) field_num ctxt =
+ let
+  val cs = get_checkeds_of_usum_uval ctxt from
+  val cs_str = cs |> map (fn b => if b then "C" else "U") |> String.concat
+ in
+  "corres_case_" ^ get_uval_name from ^ "_" ^ Int.toString field_num ^ "th_field_" ^ cs_str
+ end
+
 fun mk_case_lem_from_to (from:uval) field_num (to:uval) file_nm ctxt  =
-{ name = "corres_case_" ^ get_uval_name from ^ "_" ^ Int.toString field_num ^ "th_field",
+{ name = mk_case_lem_name from field_num ctxt,
   bucket = Case,
   prop = mk_case_prop from to field_num file_nm ctxt,
   mk_tactic = if true then (fn ctxt => corres_case_tac ctxt 1) else K (Skip_Proof.cheat_tac ctxt 1) };
@@ -200,8 +194,7 @@ fun mk_case_lems_for_uval file_nm ctxt uvals from =
                  |> Utils.the' "the' in mk_specialised_case_lemmas_for_uval failed."
                  |> #heap_info;
   val num_tos   = get_castable_uvals_from ctxt heap_info from uvals;
-(* TODO: I started updating the specialised corres_case rules, but are they necessary? The C code is pretty simple now. *)
-  val lems      = [] (* mk_case_lems_from_tos from num_tos file_nm ctxt; *)
+  val lems      = mk_case_lems_from_tos from num_tos file_nm ctxt;
  in
   lems
  end;

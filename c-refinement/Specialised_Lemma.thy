@@ -79,7 +79,7 @@ fun local_setup_tag_enum_defs lthy =
 (* Warning! The author of this function has no clue as to how tag_t_defs are created
  * by C-Parser. If C-Parser changes its naming scheme, this code stops working properly.*)
  let
-  val thms = Proof_Context.get_thms @{context} "tag_t_defs"
+  val thms = Proof_Context.get_thms lthy "tag_t_defs"
             handle ERROR msg  => (tracing msg; @{thms TrueI})
   val lthy' = Local_Theory.note ((Binding.name "tag_enum_defs",[]), thms) lthy |> snd
  in
