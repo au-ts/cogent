@@ -65,11 +65,14 @@ data Thm = Thm String
          | NthThm String Int
          | ThmInst String [(String, String)]
 
+data Thms = Thms String
+          | ThmList [Thm]
+
 data Tactic = RuleTac Thm
-            | Simplifier [Thm] [Thm]
-            | SimpSolve [Thm] [Thm]
-            | Force [Thm]
-            | WeakeningTac [Thm]
+            | Simplifier Thms Thms
+            | SimpSolve Thms Thms
+            | Force Thms
+            | WeakeningTac Thms
             | SplitsTac [MLOption [Tactic]]
 
 instance Show Thm where
@@ -77,6 +80,10 @@ instance Show Thm where
   show (NthThm thm n) = "(nth @{thms " ++ thm ++ "} (" ++ show n ++ "-1))"
   show (ThmInst thm insts) = "@{thm " ++ thm ++ "[where " ++
                                 intercalate " and " [ var ++ " = \"" ++ term ++ "\"" | (var, term) <- insts ] ++ "]}"
+
+instance Show Thms where
+  show (Thms thms) = "@{thms " ++ thms ++ "}"
+  show (ThmList thms) = show thms
 
 instance Show Tactic where
   show (RuleTac thm) = "(RTac " ++ show thm ++ ")"
@@ -92,14 +99,14 @@ rule_tac thm insts = RuleTac (ThmInst thm insts)
 simp                 = simp_add_del [] []
 simp_add thms        = simp_add_del thms []
 simp_del thms        = simp_add_del [] thms
-simp_add_del add del = Simplifier (map Thm add) (map Thm del)
+simp_add_del add del = Simplifier (ThmList $ map Thm add) (ThmList $ map Thm del)
 
 simp_solve                 = simp_solve_add_del [] []
 simp_solve_add thms        = simp_solve_add_del thms []
 simp_solve_del thms        = simp_solve_add_del [] thms
-simp_solve_add_del add del = SimpSolve (map Thm add) (map Thm del)
+simp_solve_add_del add del = SimpSolve (ThmList $ map Thm add) (ThmList $ map Thm del)
 
-force_simp add       = Force (map Thm add)
+force_simp add       = Force (ThmList $ map Thm add)
 
 data Hints = KindingTacs [Tactic]
            | TTSplitBangTacs [Tactic]
@@ -245,7 +252,6 @@ ttyping xi k (EE u (Take a e@(EE (TRecord ts _) _ _) f e') env) = hintListSequen
   kindingHint k (fst $ snd $ ts !! f),        -- K ⊢ t :κ k
   ttyping xi k e'                             -- Ξ, K, Γ2 T⊢ e' : u
   ]
-ttyping xi k (EE _ (Promote ty e) env) = ttyping xi k e  -- FIXME: also requires a proof for subtyping / zilinc
 ttyping xi k e = pure . TypingTacs <$> typingWrapper xi k e
 
 typingWrapper :: Xi a -> Vec t Kind -> EnvExpr t v a
@@ -255,6 +261,7 @@ typingWrapper xi k (EE t (Struct fs) env)
     | allVars (map (eexprExpr . snd) fs) = tacSequence [ ]
 typingWrapper xi k (EE (TPrim t) (Op o es) env)
     | allVars (map eexprExpr es) = tacSequence [ ]
+typingWrapper _ _ (EE _ (Promote _ (EE _ (Variable _) _)) _) = tacSequence [ ]
 typingWrapper xi k e = typing xi k e
 
 allVars :: [Expr a b c d] -> Bool
@@ -451,7 +458,11 @@ typing xi k (EE ty (Put e1@(EE (TRecord ts _) _ _) f e2@(EE t _ _)) env) = tacSe
   return [simp_solve]                                   -- ts' = (ts [f := (t,False)])
   ]
 
-typing xi k (EE _ (Promote ty e) env) = typing xi k e  -- FIXME: also requires a proof for subtyping / zilinc
+typing xi k (EE _ (Promote ty e) env) = tacSequence [
+  return [rule "typing_promote"],                         -- Ξ, K, Γ ⊢ Promote t x : t
+  typing xi k e,                                          -- Ξ, K, Γ ⊢ x : t'
+  return [Force $ Thms "subtyping_simps kinding_defs"] -- K ⊢ t' ⊑ t
+  ]
 
 typing xi k _ = error "attempted to generate proof of ill-typed program"
 
@@ -541,7 +552,7 @@ allKindCorrect k ts ks = do
     Nothing -> do mod <- use nameMod
                   let prop = mkApp (mkId "list_all2")
                                [mkApp (mkId "kinding") [mkList (map deepKind k')], mkList (map (deepType mod ta) ts), mkList (map deepKind ks')]
-                  tac <- tacSequence [return [Simplifier [] [NthThm "HOL.simp_thms" 25, NthThm "HOL.simp_thms" 26]],
+                  tac <- tacSequence [return [Simplifier (ThmList []) (ThmList [NthThm "HOL.simp_thms" 25, NthThm "HOL.simp_thms" 26])],
                                       allKindCorrect' k ts ks]
                   proofId <- newSubproofId
                   subproofAllKindCorrect %= M.insert (k', ts', ks') (proofId, (False, prop), tac)
@@ -614,7 +625,7 @@ weakens k g g' = do
   if not cacheWeakeningProofs
     then do proofIds <- kindingAssms (zip gl gl')
             thms <- mapM (thmTypeAbbrev . (typingSubproofPrefix ++) . show) (nub proofIds)
-            return [simp_add ["empty_def"], WeakeningTac thms]
+            return [simp_add ["empty_def"], WeakeningTac (ThmList thms)]
     else do
     wmap <- use subproofWeakens
     case M.lookup (k', glt, glt') wmap of
@@ -626,7 +637,7 @@ weakens k g g' = do
                     proofIds <- kindingAssms (zip gl gl')
                     thms <- mapM (thmTypeAbbrev . (typingSubproofPrefix ++) . show) (nub proofIds)
                     proofId <- newSubproofId
-                    subproofWeakens %= M.insert (k', glt, glt') (proofId, (False, prop), [WeakeningTac thms])
+                    subproofWeakens %= M.insert (k', glt, glt') (proofId, (False, prop), [WeakeningTac (ThmList thms)])
                     thm <- thmTypeAbbrev $ typingSubproofPrefix ++ show proofId
                     return [simp_add ["empty_def"], RuleTac thm]
       Just (proofId, _, _) -> do thm <- thmTypeAbbrev $ typingSubproofPrefix ++ show proofId
