@@ -75,9 +75,8 @@ fun prove_put_in_bucket_non_esac_especialised_lemma ((lem:lem), lthy:local_theor
   lthy
  end;
 
+(* Is this necessary? Maybe remove. *)
 fun local_setup_tag_enum_defs lthy =
-(* Warning! The author of this function has no clue as to how tag_t_defs are created
- * by C-Parser. If C-Parser changes its naming scheme, this code stops working properly.*)
  let
   val thms = Proof_Context.get_thms lthy "tag_t_defs"
             handle ERROR msg  => (tracing msg; @{thms TrueI})

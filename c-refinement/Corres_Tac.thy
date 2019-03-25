@@ -715,9 +715,10 @@ let
         ORELSE
         (rules corres_esac 1
          THEN print "corres_esac"
+             THEN subgoal_simp 1
             THEN subgoal_simp 1
            THEN subgoal_simp 1
-          THEN subgoal_simp 1
+          THEN rule_tree 0 1
          THEN subgoal_val_rel_simp_add [] 1
 
         ORELSE check_Cogent_head @{const_name Member}
