@@ -334,7 +334,7 @@ fun follow_tt (Const (@{const_name TyTrSplit}, _) $ sps $ x $ T1 $ y $ T2, ts) k
 
 fun ttsplit_inner (@{term "Some TSK_S"} :: tsks) (SOME p :: Gamma) = let
     val rest = ttsplit_inner tsks Gamma
-  in [RTac @{thm ttsplit_innerI(4)}, RTac @{thm supersumption(1)[rotated 1]}, RTac p, simp] @ rest end
+  in [RTac @{thm ttsplit_innerI(4)}, simp, RTac p, simp_solve] @ rest end
   | ttsplit_inner (@{term "Some TSK_L"} :: tsks) (SOME p :: Gamma) = let
     val rest = ttsplit_inner tsks Gamma
   in [RTac @{thm ttsplit_innerI(3)}, simp_solve] @ rest end
@@ -380,7 +380,7 @@ fun typing_all_vars _ _ [] = let
     fun null (NONE : thm option) = true
       | null _ = false
     fun step (i, p) = RTac @{thm split_cons} :: (if member (op =) ixs i
-      then (if i = ix then [RTac @{thm split_comp.share}, RTac @{thm supersumption(1)[rotated 1]}, RTac (the_G G p), simp_solve]
+      then (if i = ix then [RTac @{thm split_comp.share}, simp, RTac (the_G G p), simp_solve]
           else [RTac @{thm split_comp.right}, simp_solve])
       else (if null p then [RTac @{thm split_comp.none}]
           else [RTac @{thm split_comp.left}, simp_solve]))
