@@ -20,7 +20,7 @@ cogent:
 				--dist-dir="impl" --root-dir="$(BUILD_ENV_MK_DIR)" $(COGENT_FLAGS) \
 				../cogent/src/fsop.cogent
 sync: cogent
-	$(ISABELLE) build -v -d . -b BilbyFsSync
+	L4V_ARCH=$(L4V_ARCH) $(ISABELLE) build -v -d . -d $(AC_DIR) -b BilbyFsSync
 
 iget: cogent
-	$(ISABELLE) build -v -d . -b BilbyFsIget
+	L4V_ARCH=$(L4V_ARCH) $(ISABELLE) build -v -d . -d $(AC_DIR) -b BilbyFsIget
