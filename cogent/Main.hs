@@ -438,7 +438,7 @@ flags =
   , Option []         ["infer-c-funcs"]  1 (ReqArg (set_flag_inferCFunc . words) "FILE..") "infer Cogent abstract function definitions"
   , Option []         ["infer-c-types"]  1 (ReqArg (set_flag_inferCType . words) "FILE..") "infer Cogent abstract type definitions"
   , Option []         ["proof-input-c"]  1 (ReqArg set_flag_proofInputC "FILE")            "specify input C file to generate proofs (default to the same base name as input Cogent file)"
-  , Option []         ["prune-ast"]      2 (ReqArg set_flag_pruneAst "FILE")               "specify Cogent entry-point definitions"
+  , Option []         ["prune-call-graph"] 2 (ReqArg set_flag_pruneCallGraph "FILE")       "specify Cogent entry-point definitions"
   -- external programs
   , Option []         ["cogent-pp-args"] 2 (ReqArg (set_flag_cogentPpArgs) "ARG..")        "arguments given to Cogent preprocessor (same as cpphs)"
   , Option []         ["cpp"]            2 (ReqArg (set_flag_cpp) "PROG")                  "set which C-preprocessor to use (default to cpp)"
@@ -615,7 +615,7 @@ parseArgs args = case getOpt' Permute options args of
       parseWithIncludes source [] >>= \case
         Left err -> hPutStrLn stderr err >> exitFailure
         Right (parsed,pragmas) -> do
-          prune <- T.forM __cogent_prune_ast $ return . parseEntryFuncs <=< readFile
+          prune <- T.forM __cogent_prune_call_graph $ return . parseEntryFuncs <=< readFile
           putProgressLn "Resolving dependencies..."
           case reorganize prune parsed of
             Left err -> printError prettyRE [err] >> exitFailure

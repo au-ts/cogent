@@ -42,9 +42,20 @@ test: gen-anti $(OBJ)
 %c:
 	$(CC) -c $< -o $@
 
+gen-anti-prune:
+	mkdir -p $(ABSDIR)
+	cogent -g $(SRC) --infer-c-types="$(AHFILES)" --infer-c-funcs="$(ACFILES)" \
+				--cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
+				--entry-funcs=entrypoints.cfg --prune-call-graph=entrypoints.cfg \
+				-ogenerated
+
 gen-anti:
 	mkdir -p $(ABSDIR)
-	cogent -g $(SRC) --infer-c-types="$(AHFILES)" --infer-c-funcs="$(ACFILES)" --cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" --entry-funcs=entrypoints.cfg -ogenerated
+	cogent -g $(SRC) --infer-c-types="$(AHFILES)" --infer-c-funcs="$(ACFILES)" \
+				--cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
+				--entry-funcs=entrypoints.cfg --prune-call-graph=entrypoints.cfg \
+				-ogenerated
+
 
 clean:
 	rm -f $(COUTPUT) $(HOUTPUT) $(PP) $(PPINFER) $(OBJ)
