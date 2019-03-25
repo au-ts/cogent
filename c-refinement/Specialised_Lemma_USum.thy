@@ -129,7 +129,7 @@ ML{* fun mk_case_prop from_uval to_uval variant_ctor_num file_nm ctxt =
     @{term "\<lambda> from_tag_C TAG_ENUM match_tag_getter.
          (condition (\<lambda>_. from_tag_C x' = TAG_ENUM)
            (match' (match_tag_getter x'))
-           (do x \<leftarrow> gets (\<lambda>_. x'); not_match' x od))"}
+           (not_match' x'))"}
      $ from_tag_C $ TAG_ENUM $ match_tag_getter
    end;
 

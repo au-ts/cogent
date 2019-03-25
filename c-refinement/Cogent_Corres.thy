@@ -1461,7 +1461,7 @@ lemma corres_case:
     "case (\<gamma>!x) of USum vtag vval vtyps \<Rightarrow>
        if get_tag' x' = tag'
          then tag = vtag \<and> val_rel vval (get_A' x')
-         else tag \<noteq> vtag \<and> val_rel (USum vtag vval vtyps) (wrap_rest' x')"
+         else tag \<noteq> vtag \<and> val_rel (USum vtag vval vtyps) x'"
     "\<Xi>', [], \<Gamma>1 \<turnstile> Var x : TSum \<tau>s"
     "(tag, tag_t, Unchecked) \<in> set \<tau>s"
     "\<Xi>', [], Some tag_t # \<Gamma>2 \<turnstile> match : t"
@@ -1471,8 +1471,7 @@ lemma corres_case:
   shows "corres srel (Case (Var x) tag match not_match)
             (condition (\<lambda>_. get_tag' x' = tag')
               (match' (get_A' x'))
-              (do v \<leftarrow> gets (\<lambda>_. wrap_rest' x');
-                  not_match' v od))
+              (not_match' x'))
             \<xi>' \<gamma> \<Xi>' \<Gamma>' \<sigma> s"
   using assms
   apply (clarsimp simp: corres_def)
@@ -1488,7 +1487,7 @@ lemma corres_case:
   apply (drule_tac x=vval in meta_spec)
   apply (drule_tac x="get_A' x'" in meta_spec)
   apply (drule_tac x="USum vtag vval (map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) \<tau>s)" in meta_spec,
-      drule_tac x="wrap_rest' x'" in meta_spec)
+      drule_tac x="x'" in meta_spec)
   apply (case_tac "get_tag' x' = tag'")
 
    apply clarsimp
