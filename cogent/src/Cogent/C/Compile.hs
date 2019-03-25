@@ -948,8 +948,7 @@ genExpr mv (TE t (Case e tag (l1,_,e1) (_,_,e2))) = do  -- NOTE: likelihood `l2'
   (e',edecl,estm,ep) <- genExpr_ e
   let et@(TSum altys) = exprType e
   (e'',edecl',estm',ep') <- flip3 aNewVar ep e' =<< genType et
-  let tags = filter (/= tag) $ map fst altys
-      cnd = CBinOp C.Eq (strDot e'' fieldTag) (variable $ tagEnum tag)
+  let cnd = CBinOp C.Eq (strDot e'' fieldTag) (variable $ tagEnum tag)
       (alty1,False) = fromJust $ L.lookup tag altys
   pool0 <- use varPool
   (v1,v1decl,v1stm,v1p) <- flip3 aNewVar M.empty (strDot e'' tag) =<< genType alty1
