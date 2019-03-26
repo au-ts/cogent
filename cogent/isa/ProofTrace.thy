@@ -72,112 +72,6 @@ and TraceSubgoal_erase_backtracking (TraceSubgoal { subgoal, subtheorem, fail_st
                    }
 *}
 
-ML {*
-(* generalised Term.lambda *)
-fun my_lambda args =
-  let val n = length args
-      fun lambda' depth args t =
-        (case findIndex (fn (a, _) => a = t) args of
-            NONE =>
-              (case t of
-                  f $ x => lambda' depth args f $ lambda' depth args x
-                | Abs (v, typ, t) => Abs (v, typ, lambda' (depth + 1) (map (apfst (incr_boundvars 1)) args) t)
-                | Bound k => if k >= depth then Bound (k + n) else Bound k
-                | _ => t)
-          | SOME (_, k) => Bound (k + depth))
-  in lambda' 0 (rev args)
-     #> fold (fn (_, (name, typ)) => fn t => Abs (name, typ, t)) (rev args)
-  end
-
-fun subterm_type absvars t = let
-  fun subst absvars (Bound k) = Free (nth absvars k)
-    | subst absvars (f $ x) = subst absvars f $ subst absvars x
-    | subst absvars (Abs (v, typ, t)) = Abs (v, typ, subst ((v, typ) :: absvars) t)
-    | subst _ t = t
-  in fastype_of (subst absvars t) end
-fun my_typ_insts (Type (_, args)) (Type (_, args')) =
-    if length args <> length args' then NONE else
-    let val instss = zipWith my_typ_insts args args'
-    in if exists (not o isSome) instss then NONE else
-         SOME (List.mapPartial I instss |> List.concat) end
-  | my_typ_insts (TFree _) (TFree _) = SOME []
-  | my_typ_insts (TVar tv) typ = SOME [(tv, typ)]
-  | my_typ_insts _ _ = NONE
-
-fun my_typ_match' absvars (t as f $ x) t' =
-      (case strip_comb t of
-          (Var _, _) => my_typ_insts (subterm_type absvars t) (subterm_type absvars t')
-        | _ => (case t' of
-                   f' $ x' => (case (my_typ_match' absvars f f', my_typ_match' absvars x x') of
-                                  (SOME fmatch, SOME xmatch) => SOME (fmatch @ xmatch)
-                                | _ => NONE)
-                 | _ => NONE))
-  | my_typ_match' absvars (Abs (_, typ, t)) (Abs (v', typ', t')) =
-      (case (my_typ_insts typ typ', my_typ_match' ((v', typ') :: absvars) t t') of
-          (SOME absmatch, SOME tmatch) => SOME (absmatch @ tmatch)
-        | _ => NONE)
-  | my_typ_match' absvars t t' = case my_typ_insts (subterm_type absvars t) (subterm_type absvars t') of
-       SOME x => SOME x
-     | NONE => raise TYPE ("my_typ_insts fail", [subterm_type absvars t, subterm_type absvars t'], [t, t'])
-
-fun my_typ_match t t' = my_typ_match' [] (Envir.beta_norm t) t'
-                        handle TYPE (msg, typs, terms) => raise TYPE (msg, typs, terms @ [t, t'])
-
-fun annotate_boundvar _ absvars (Bound n) =
-      if n < length absvars then (Bound n, nth absvars n)
-        else raise TYPE ("annotate_boundvar", map snd absvars, [Bound n])
-  | annotate_boundvar _ _ (t as Free (name, typ)) = (t, (name, typ))
-  | annotate_boundvar i absvars t = (t, ("var" ^ Int.toString i, subterm_type absvars t))
-
-fun my_match' _ (Var v) t' = SOME [(v, [], t')]
-  | my_match' absvars (t as f $ x) t' =
-      (case strip_comb t of
-          (Var v, args) => SOME [(v, map (fn (i, arg) => annotate_boundvar i absvars arg)
-                                             (enumerate args), t')]
-        | _ => (case t' of
-                   f' $ x' => (case (my_match' absvars f f', my_match' absvars x x') of
-                                  (SOME uf, SOME ux) => SOME (uf @ ux)
-                                | _ => NONE)
-                 | _ => NONE))
-  | my_match' absvars (Abs (name, typ, t)) (Abs (_, typ', t')) =
-      if typ = typ' then my_match' ((name, typ)::absvars) t t' else NONE
-  | my_match' absvars t t' = if t = t' then SOME [] else NONE
-
-fun my_match t t' = my_match' [] (Envir.beta_norm t) t'
-
-fun my_unify_fact_tac ctxt subproof n state =
-  let val cterm_of' = Thm.cterm_of ctxt
-      val ctyp_of' = Thm.ctyp_of ctxt
-  in
-  if length (Thm.prems_of state) < n then no_tac state else
-  let val stateterm = nth (Thm.prems_of state) (n-1)
-      val proofterm = Thm.prop_of subproof
-  in
-  case my_typ_match stateterm proofterm of
-     NONE => Seq.empty
-   | SOME typinsts =>
-     (case Thm.instantiate (map (fn (v, t) => (v, ctyp_of' t)) (nubBy fst typinsts), []) state of
-       state' =>
-        let val stateterm' = nth (Thm.prems_of state') (n-1) in
-        case my_match stateterm' proofterm of
-           NONE => Seq.empty
-         | SOME substs =>
-             let val substs' = nubBy #1 substs
-                               |> map (fn (var, args, t') => (var, my_lambda args t'))
-                               |> map (fn (v, t) => (v, cterm_of' t))
-             in
-             case Thm.instantiate ([], substs') state of state' =>
-               (case Proof_Context.fact_tac ctxt [gen_all 1 subproof] 1 state' |> Seq.pull of
-                   NONE => Seq.empty
-                 | r => Seq.make (fn () => r))
-             handle _ => Seq.empty
-             end
-       handle _ => Seq.empty
-      end)
-      handle _ => Seq.empty
-  end
-  end
-*}
 
 ML {*
 
@@ -247,8 +141,11 @@ fun trace_solve_tac (ctxt : Proof.context)
                                                 } |> Left)
                     | (data, Right (subproof as TraceSubgoal subproof')) =>
                           let val subtheorem = #subtheorem subproof' in
+(*
                           case my_unify_fact_tac ctxt (Goal.finish ctxt subtheorem) 1 goal
                                |> Seq.pull of
+*)
+                          case resolve_tac ctxt [Goal.finish ctxt subtheorem] 1 goal |> Seq.pull of
                               NONE =>
                                 let
                                   val errval = ("trace_solve_tac: could not apply subgoal proof",
