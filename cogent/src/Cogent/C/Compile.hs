@@ -885,17 +885,31 @@ genExpr mv (TE t (Struct fs)) = do
   (es',decls,stms,eps) <- L.unzip4 <$> mapM genExpr_ es
   t' <- genType t
   ts' <- mapM (genType . exprType) es
+  -- See note: compound initialisers below
+#ifdef BUILTIN_ARRAYS
   (v,vdecl,vstm) <- maybeDecl mv t'
   blob <- forM (zip3 ns ts' es') $ \(n,t',e') -> assign t' (strDot' v n) e'
   let (adecls, astms) = P.unzip blob
   return (variable v, concat decls ++ vdecl ++ concat adecls,
           concat stms ++ vstm ++ concat astms, mergePools eps)
+#else
+  let cinit = CCompLit t' $ zipWith (\n e -> ([CDesignFld n], CInitE e)) ns es'
+
+  let p = mergePools eps
+  (v,vdecl,vstm,p') <- case mv of
+    Nothing -> return (cinit, [], [], p)
+    Just v -> maybeAssign t' (Just v) cinit p
+  return (v, concat decls ++ vdecl,
+          concat stms ++ vstm, p')
+#endif
 
 genExpr mv (TE t (Con tag e tau)) = do  -- `tau' and `t' should be compatible
   (e',edecl,estm,ep) <- genExpr_ e
   te' <- genType (exprType e)
   t'  <- genType t
   (v,vdecl,vstm) <- maybeDecl mv t'
+  -- Note: compound initialisers
+  -- ~~~~~~~~~~~~~~~~~~~~~~~~~~~
   -- The C correspondence tactic requires the C to be generated in a very specific way.
   -- For Cons, this means we need to use a compound initialiser, because it sets all unspecified fields to 0.
   -- However, the compound initialisers apparently conflict with code generation for arrays in some way.
