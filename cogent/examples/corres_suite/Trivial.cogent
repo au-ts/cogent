@@ -1,3 +1,11 @@
+-- Core expressions:
+-- Tested (somewhat):
+--    Var, Fun, App, Cast, Let, Con, Case, Esac, Promote
+--
+-- Not tested:
+--    Tuple, Split, Letbang, If, Prim, Lit, SLit, Unit
+--    Struct, Member, Take, Put
+
 id : U8 -> U8
 id x = x
 
@@ -36,3 +44,11 @@ con_esac x =
   con_variant x
   | Success _ -> x
 
+
+-- this is actually a 'Struct'
+con_struct_tuple : U8 -> (U8, U8)
+con_struct_tuple x = (x,x)
+
+-- this is 'Take'
+con_take_tup : (U8,U8) -> U8
+con_take_tup (x,y) = x + y
