@@ -49,7 +49,7 @@ set_build_env()
   : ${ISABELLE_BUILD:="$ISABELLE build -v"}
 
   [ -d "$AC_DIR"  ] || {
-	echo >&2 "Cannot find \$AC_DIR"
+  echo >&2 "Cannot find \$AC_DIR ($AC_DIR)"
 	exit 1
   }
 
