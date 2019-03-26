@@ -74,7 +74,8 @@ deepTypeProof mod withDecls withBodies thy decls log =
       imports = if __cogent_fml_typing_tree
                 then
                   [__cogent_root_dir </> "c-refinement/TypeProofGen",
-                   __cogent_root_dir </> "cogent/isa/AssocLookup"]
+                   __cogent_root_dir </> "cogent/isa/AssocLookup",
+                   __cogent_root_dir </> "../isa-value-parser/ValueDefinition"]
                 else [__cogent_root_dir </> "cogent/isa/CogentHelper"]
       proofDecls | withDecls  = deepTypeAbbrevs mod ta ++ deepDefinitions mod ta decls
                                 ++ funTypeEnv mod decls ++ funDefEnv decls
@@ -210,9 +211,9 @@ badHackSplitOnSorryBefore decls =
   should_sorry _ = False
 
 deepTyTreeDef :: NameMod -> TypeAbbrevs -> FunName -> TypingTree t -> TheoryDecl I.Type I.Term
-deepTyTreeDef mod ta fn e = let ttfn = mkId $ mod fn ++ "_typetree"
+deepTyTreeDef mod ta fn e = let ttfn = mod fn ++ "_typetree"
                                 tt = deepCtxTree mod ta e
-                             in [isaDecl| definition "$ttfn \<equiv> $tt" |]
+                             in [isaDecl| value_definition $ttfn :: "typing_tree" where "$tt" |]
 
 deepTypeSplitKind :: TypeSplitKind -> Term
 deepTypeSplitKind TSK_R  = mkId "TSK_R"

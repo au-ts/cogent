@@ -47,6 +47,7 @@ newtype TheoryImports = TheoryImports [TheoryImport] deriving (Data, Typeable, S
 type TheoryImport = String
 
 data TheoryDecl types terms = Definition    (Def types terms)
+                            | ValueDefinition (Def types terms)
                             | OverloadedDef (Def types terms) (Sig types) -- def for specific fun name, and overloaded fun sig
                             | Abbreviation (Abbrev types terms)
                             | ContextDecl  (Context types terms)
@@ -200,6 +201,11 @@ prettyThyDecls thyDecls = (vsepPad . map pretty $ thyDecls) <$$> empty
 instance (Pretty terms, Pretty types) => Pretty (TheoryDecl types terms) where
   pretty d = case d of
     Definition def      -> pretty def
+    ValueDefinition def      ->
+      let mbSig = case defSig def of 
+                    Just sig -> empty <$$> indent 2 (pretty sig) <$$> string "where" 
+                    Nothing  -> string ":: \"_\" where"
+      in string "value_definition" <> mbSig <$$> indent 2 (quote (pretty (defTerm def)))
     OverloadedDef def sig -> prettyOv def sig
     Abbreviation abbrev -> pretty abbrev
     ContextDecl c       -> pretty c

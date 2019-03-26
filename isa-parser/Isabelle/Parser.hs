@@ -69,7 +69,7 @@ type ParserM a = Parsec String () a
 --
 -- FIXME: Don't duplicate the names here and elsewhere. Define as one constant in one place.
 --
-reservedWords = [ "theory", "imports", "keywords", "uses", "definition", "defs", "begin", "end",
+reservedWords = [ "theory", "imports", "keywords", "uses", "definition", "value_definition", "defs", "begin", "end",
                   "and", "is", "by", "sorry", "datatype", "primrec", "class", "where", "fun",
                   "function", "termination", "sequential", "domintros", "fixes", "assumes",
                   "instance", "instantiation", "lemmas", "lemma", "theorems", "for", "consts",
@@ -306,6 +306,7 @@ topLevelL = do
 
 theoryDeclL :: ParserM (TheoryDecl Type Term)
 theoryDeclL = (Definition <$> definitionL) <||>
+              (ValueDefinition <$> valueDefinitionL) <||>
               (Abbreviation <$> abbreviationL) <||>
               (LemmaDecl <$> lemmaL) <||> 
               (LemmasDecl <$> lemmasL) <||> 
@@ -331,6 +332,14 @@ definitionL = do
       reserved "where"
       t     <- quotedTermL
       return $ Def (Just sig) t
+
+valueDefinitionL :: ParserM (L Def)
+valueDefinitionL = do
+  reserved "value_definition"
+  sig <- sigL
+  reserved "where"
+  t <- quotedTermL
+  return $ Def (Just sig) t
 
 sigL :: ParserM (Sig Type)
 sigL = do

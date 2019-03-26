@@ -204,17 +204,17 @@ deepDefinition mod ta defs (FunDef _ fn ks ti to e) decls =
     let ty = deepPolyType mod ta $ FT (fmap snd ks) ti to
         tn = mod fn ++ "_type"
         tysig = [isaType| Cogent.kind list \<times> Cogent.type \<times> Cogent.type |]
-        tydecl = [isaDecl| definition $tn :: "$tysig" where "$(mkId tn) \<equiv> $ty" |]
+        tydecl = [isaDecl| value_definition $tn :: "$tysig" where "$ty" |]
         e' = deepExpr mod ta defs e
         fntysig = AntiType "string Cogent.expr"
         fn' = mod fn
-        decl = [isaDecl| definition $fn' :: "$fntysig" where "$(mkId fn') \<equiv> $e'" |]
+        decl = [isaDecl| value_definition $fn' :: "$fntysig" where "$e'" |]
      in tydecl:decl:decls
 deepDefinition mod ta _ (AbsDecl _ fn ks ti to) decls =
     let ty = deepPolyType mod ta $ FT (fmap snd ks) ti to
         tn = mod fn ++ "_type"
         tysig = [isaType| Cogent.kind list \<times> Cogent.type \<times> Cogent.type |]
-        tydecl = [isaDecl| definition $tn :: "$tysig" where "$(mkId tn) \<equiv> $ty" |]
+        tydecl = [isaDecl| value_definition $tn :: "$tysig" where "$ty" |]
      in tydecl:decls
 deepDefinition _ _ _ _ decls = decls
 
@@ -265,7 +265,7 @@ deepTypeAbbrev :: NameMod -> (Int, Term) -> TheoryDecl I.Type I.Term
 deepTypeAbbrev mod (n, tm) = let
     nm = mkAbbrevNm mod n
     tysig = [isaType| Cogent.type |]
-  in [isaDecl| definition $nm :: "$tysig" where "$(mkId nm) \<equiv> $tm" |]
+  in [isaDecl| value_definition $nm :: "$tysig" where "$tm" |]
 
 typeAbbrevBucketName = "abbreviated_type_defs"
 
