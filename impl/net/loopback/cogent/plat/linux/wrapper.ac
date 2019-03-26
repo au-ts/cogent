@@ -20,12 +20,6 @@ static void cg_loopback_setup_ac(struct net_device *dev);
 
 #include <plat/linux/linux_api.ac>
 
-struct pcpu_lstats {
-        u64                     packets;
-        u64                     bytes;
-        struct u64_stats_sync   syncp;
-};
-
 /* The higher levels take care of making this non-reentrant (it's
  * called with bh's disabled).
  */
