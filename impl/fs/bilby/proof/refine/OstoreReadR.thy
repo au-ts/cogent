@@ -36,16 +36,16 @@ lemma inv_ostore_bound_upd:
   by (simp add: inv_ostore_bound_eq)
 
 lemma index_get_addr_ret:
-  assumes err: " oid \<notin> dom (\<alpha>rbt $ addrs\<^sub>f $ index_st\<^sub>f ostore_st) \<Longrightarrow> P (R\<^sub>1\<^sub>1.Error eNoEnt)"
+  assumes err: " oid \<notin> dom (\<alpha>rbt $ addrs\<^sub>f $ index_st\<^sub>f ostore_st) \<Longrightarrow> P (R.Error eNoEnt)"
   and     suc: "\<And>oaddr. oid \<in> dom (\<alpha>rbt $ addrs\<^sub>f $ index_st\<^sub>f ostore_st) \<Longrightarrow>
             oaddr = the ((\<alpha>rbt $ addrs\<^sub>f $ index_st\<^sub>f ostore_st) oid) \<Longrightarrow>
-      P (R\<^sub>1\<^sub>1.Success oaddr)"
+      P (R.Success oaddr)"
 
   shows
   "P (index_get_addr (index_st\<^sub>f ostore_st, oid))"
  unfolding index_get_addr_def[unfolded tuple_simps sanitizers, folded eNoEnt_def]
   apply (simp add: Let_def)
-  apply (clarsimp simp add: rbt_get_value_ret option.case_eq_if R\<^sub>1\<^sub>1.splits)
+  apply (clarsimp simp add: rbt_get_value_ret option.case_eq_if R.splits)
   apply (auto intro: err suc)
  done
 
@@ -365,7 +365,7 @@ lemma read_obj_pages_in_buf_ret:
   (\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st) ! unat (ObjAddr.ebnum\<^sub>f oaddr)) \<Longrightarrow>
   wellformed_buf buf \<Longrightarrow>
 length (\<alpha>wa (data\<^sub>f buf)) = length (\<alpha>wa (data\<^sub>f (rbuf\<^sub>f ostore_st))) \<Longrightarrow>
-    P ((ex, buf), R\<^sub>1\<^sub>1.Success ())"
+    P ((ex, buf), R.Success ())"
   shows 
  "P (read_obj_pages_in_buf (ex, mount_st, OstoreState.ubi_vol\<^sub>f ostore_st, rbuf\<^sub>f ostore_st, oaddr))"
   unfolding read_obj_pages_in_buf_def[unfolded tuple_simps sanitizers]
@@ -873,20 +873,20 @@ lemma pArrObjDentry_slice_eq_induct:
   (fold (\<lambda>_ (xsa, doffs, offslist).
                   let dentry = pObjDentry (take (unat offs + unat (Obj.len\<^sub>f obj)) xs) doffs;
                       newoffs = doffs + 8 + wordarray_length (ObjDentry.name\<^sub>f dentry)
-                  in (xsa @ [Option\<^sub>1\<^sub>1.Some dentry], newoffs, offslist @ [newoffs]))
+                  in (xsa @ [Option.Some dentry], newoffs, offslist @ [newoffs]))
           entriesno
           (accxs, ost, [])) =
      (fold (\<lambda>_ (xs, doffs, offslist).
                   let dentry = pObjDentry (take (unat offs + unat (Obj.len\<^sub>f obj)) ys) doffs;
                       newoffs = doffs + 8 + wordarray_length (ObjDentry.name\<^sub>f dentry)
-                  in (xs @ [Option\<^sub>1\<^sub>1.Some dentry], newoffs, offslist @ [newoffs]))
+                  in (xs @ [Option.Some dentry], newoffs, offslist @ [newoffs]))
           entriesno
           (accxs, ost, [])) "
   apply (induct "entriesno" arbitrary:ost accxs)
    apply simp
   apply (simp)
   apply (drule_tac x="ost + 8 + wordarray_length (ObjDentry.name\<^sub>f (pObjDentry (take (unat offs + unat (Obj.len\<^sub>f obj)) xs) ost))" in meta_spec)
-  apply (drule_tac x="accxs @ [Option\<^sub>1\<^sub>1.Some (pObjDentry (take (unat offs + unat (Obj.len\<^sub>f obj)) xs) ost)]" in meta_spec)
+  apply (drule_tac x="accxs @ [Option.Some (pObjDentry (take (unat offs + unat (Obj.len\<^sub>f obj)) xs) ost)]" in meta_spec)
   apply (erule meta_impE)
    apply (simp add: Let_def dentarr_end_offs_simps)
    apply (subst (asm) snd_fold_append_simp)
@@ -1415,7 +1415,7 @@ lemma ostore_read_ret:
       apply (simp add: inv_\<alpha>_ostore_wbuf_bound_eq_eb_size[OF inv_ostore inv_\<alpha>_ostore])
      apply (simp add: \<alpha>_ostore_medium_def)
     apply (simp add: \<alpha>_updates_def buf_simps)
-   apply (clarsimp split: R\<^sub>1\<^sub>1.splits)
+   apply (clarsimp split: R.splits)
    apply(rule conjI)
     prefer 2
     apply clarsimp

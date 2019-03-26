@@ -14,7 +14,6 @@ imports
   "../refine/AfsFsopR"
   "../adt/InodeT"
   OstoreReadR
-  "~~/src/HOL/Word/WordBitwise"
 begin
 
 lemmas vfs_inode_simps = vfs_inode_set_flags_ret vfs_inode_set_mode_ret vfs_inode_set_gid_ret vfs_inode_set_uid_ret
@@ -22,7 +21,7 @@ vfs_inode_set_ctime_ret vfs_inode_set_mtime_ret vfs_inode_set_nlink_ret vfs_inod
 
 text{* iget_res is the value-relation for the spec-SS correspondence for the function iget*}
 definition
- iget_res :: "afs_state \<Rightarrow> ((VfsT.VfsInode) \<times> (unit,ErrCode) R\<^sub>T) \<Rightarrow> FsopIgetRR\<^sub>T \<times> (32 word, unit) R\<^sub>1\<^sub>1 \<Rightarrow> bool"
+ iget_res :: "afs_state \<Rightarrow> ((VfsT.VfsInode) \<times> (unit,ErrCode) R\<^sub>T) \<Rightarrow> FsopIgetRR\<^sub>T \<times> (32 word, unit) R \<Rightarrow> bool"
 where
  "iget_res afs_data \<equiv> (\<lambda>((avnode), ra) (fsr, rc). 
      ra = rc \<and> afs_fsop_rel afs_data (FsopIgetRR.fs_st\<^sub>f fsr)
@@ -30,7 +29,7 @@ where
           avnode = vnode))"
      
 lemmas iget_simps = FsopIgetP.defs  FsopIgetRR.defs
-lemmas ObjUnion_simps =  ObjUnion\<^sub>1\<^sub>1\<^sub>1\<^sub>1\<^sub>1\<^sub>1\<^sub>1.simps
+lemmas ObjUnion_simps =  ObjUnion.simps
  
 lemma rel_afs_fsop_matchD:
  "afs_fsop_rel afs_data fs_st \<Longrightarrow> afs_fsop_match (updated_afs afs_data) (\<alpha>_ostore_uptodate $ ostore_st\<^sub>f fs_st)"
@@ -54,7 +53,7 @@ shows
 lemma afs_inode_eq_obj_inode_to_afs_inode:
 assumes rel: " afs_fsop_match (updated_afs afs_data) (\<alpha>_ostore_uptodate ostore_st')"
 assumes obj: "\<alpha>_ostore_uptodate ostore_st' (obj_id_inode_mk inum) = option.Some obj"
-assumes inode: "\<exists>b. ounion\<^sub>f obj = ObjUnion\<^sub>1\<^sub>1\<^sub>1\<^sub>1\<^sub>1\<^sub>1\<^sub>1.TObjInode b"
+assumes inode: "\<exists>b. ounion\<^sub>f obj = ObjUnion.TObjInode b"
 assumes inv: "afs_inv (updated_afs afs_data)"
 shows
  "(the (updated_afs afs_data inum)) = obj_inode_to_afs_inode obj (the (updated_afs afs_data inum))"
@@ -100,12 +99,12 @@ using [[goals_limit=1]]
       apply (simp add: iget_simps  afs_fsop_rel_inv_ostoreD[OF rel])
      using rel apply (simp add: iget_simps afs_fsop_rel_simps)
     apply (simp add: iget_simps  afs_fsop_rel_inv_\<alpha>_ostoreD[OF rel])
-   apply (simp only: prod.case_eq_if prod.sel R\<^sub>1\<^sub>1.simps iget_simps FsopIgetP.simps )
+   apply (simp only: prod.case_eq_if prod.sel R.simps iget_simps FsopIgetP.simps )
    apply (frule (2) ostore_obj_means_inum_valid[OF rel])
    apply (simp)
    apply(rule cogent_corres_conc_let_exec)
    apply(rule cogent_corres_conc_let_exec)
-   apply(rule cogent_corres_R\<^sub>1\<^sub>1)
+   apply(rule cogent_corres_R)
     using rel 
     apply (clarsimp simp: iget_simps read_afs_inode_def o_def prod.case_eq_if
            eInval_def monadic_simps nondet_error_def afs_fsop_rel_simps cogent_corres_def iget_res_def)
@@ -114,7 +113,7 @@ using [[goals_limit=1]]
    apply (clarsimp simp:  iget_simps read_afs_inode_def o_def prod.case_eq_if
           eInval_def monadic_simps nondet_error_def afs_fsop_rel_simps cogent_corres_def iget_res_def)
    apply(simp add: extract_inode_from_union_def[unfolded tuple_simps sanitizers, simplified ObjUnion_simps Let_def])
-   apply(simp split: ObjUnion\<^sub>1\<^sub>1\<^sub>1\<^sub>1\<^sub>1\<^sub>1\<^sub>1.splits)
+   apply(simp split: ObjUnion.splits)
    apply (cut_tac ostore_st'=ostore_st' and obj=obj in afs_inode_eq_obj_inode_to_afs_inode[where inum=inum and afs_data=afs_data])
        apply (erule_tac x="length (a_medium_updates afs_data)" in allE)
        apply (clarsimp simp: updated_afs_def a_afs_updated_def \<alpha>_ostore_uptodate_def)

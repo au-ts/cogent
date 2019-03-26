@@ -17,7 +17,7 @@ imports
   "../adt/BufferT"
   "../spec/SerialS"
   "~~/src/HOL/Library/Sublist"
-  "~~/src/HOL/Word/WordBitwise"
+  (* "~~/src/HOL/Word/WordBitwise" *)
   "~~/src/HOL/Library/Multiset"
 begin
 
@@ -1235,7 +1235,7 @@ lemma \<alpha>_updates_padding_objeq:
     done
 
 lemmas Obj_ext_eq_expand = trans[OF _ Obj.ext_inject,
-    OF arg_cong2[where f="op ="], OF refl Obj.surjective]
+    OF arg_cong2[where f="(=)"], OF refl Obj.surjective]
 
 lemma inv_ostore_preserved_padding_obj:
   assumes inv_ostore: "inv_ostore mount_st ostore_st"
@@ -1660,7 +1660,7 @@ lemma ostore_sync_summary_if_eb_new_ret:
   "inv_ostore mount_st ostore_st \<Longrightarrow>
    inv_mount_st mount_st \<Longrightarrow>
    inv_\<alpha>_ostore (\<alpha>_ostore_uptodate ostore_st) \<Longrightarrow>
-   (\<And>ex'. P ((ex', ostore_st), R\<^sub>1\<^sub>1.Success ())) \<Longrightarrow>
+   (\<And>ex'. P ((ex', ostore_st), R.Success ())) \<Longrightarrow>
   P (ostore_sync_summary_if_eb_new (ex, mount_st, ostore_st, ostoreWriteNone))"
  by (simp add: ostore_sync_summary_if_eb_new_def[unfolded tuple_simps sanitizers])
 
@@ -1875,7 +1875,7 @@ by(induct xs)(simp_all add: insort_key_append1)
 (* end of AFP containers *)
 
 lemma inj_on_filter_key_eq:
-  "inj_on s (insert k (set xs)) \<Longrightarrow> [x\<leftarrow>xs . s k = s x] = filter (op = k) xs"
+  "inj_on s (insert k (set xs)) \<Longrightarrow> [x\<leftarrow>xs . s k = s x] = filter ((=) k) xs"
   apply (induct xs)
    apply simp
   apply (drule meta_mp, erule subset_inj_on)
@@ -1884,7 +1884,7 @@ lemma inj_on_filter_key_eq:
   done
 
 lemma filter_eq_replicate_count_multiset:
-  "filter (op = k) xs = replicate (count (mset xs) k) k"
+  "filter ((=) k) xs = replicate (count (mset xs) k) k"
   by (induct xs, auto)
 
 lemma sort_key_multiset_eq:
@@ -2359,7 +2359,7 @@ proof -
 qed
 
 lemmas OstoreState_ext_eq_expand = trans[OF _ OstoreState.ext_inject,
-    OF arg_cong2[where f="op ="], OF refl OstoreState.surjective]
+    OF arg_cong2[where f="(=)"], OF refl OstoreState.surjective]
  
 lemma ostore_sync_ret:
  assumes inv_ostore: "inv_ostore mount_st ostore_st"

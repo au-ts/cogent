@@ -16,7 +16,7 @@ imports
 begin
 
 definition
- rsync_res :: "(afs_state \<times> (unit,ErrCode) R\<^sub>T) \<Rightarrow> FsopFsP\<^sub>T \<times> (32 word, unit) R\<^sub>1\<^sub>1 \<Rightarrow> bool"
+ rsync_res :: "(afs_state \<times> (unit,ErrCode) R\<^sub>T) \<Rightarrow> FsopFsP\<^sub>T \<times> (32 word, unit) R \<Rightarrow> bool"
 where
  "rsync_res \<equiv> (\<lambda>(afs, ra) (fsr, rc). ra = rc \<and> afs_fsop_rel afs (FsopFsP.fs_st\<^sub>f fsr))"
 
@@ -29,7 +29,7 @@ lemma fold_comp[rule_format]:
 
 lemma corres_sync_err:
 "afs_fsop_rel afs fs_st \<Longrightarrow>
- cogent_corres rsync_res (return (afs, R\<^sub>1\<^sub>1.Error e)) (\<lparr>FsopFsP.ex\<^sub>f = ex, fs_st\<^sub>f = fs_st\<rparr>, R\<^sub>1\<^sub>1.Error e)"
+ cogent_corres rsync_res (return (afs, R.Error e)) (\<lparr>FsopFsP.ex\<^sub>f = ex, fs_st\<^sub>f = fs_st\<rparr>, R.Error e)"
   by (simp add: rsync_res_def cogent_corres_def  return_def)
 
 lemma length_updates_eqD:
@@ -58,7 +58,6 @@ shows
          (afs_sync afs) (fsop_sync_fs (FsopFsP.make ex fs_st))"
   unfolding afs_sync_def fsop_sync_fs_def[simplified tuple_simps sanitizers, folded eIO_def]
 using [[goals_limit=5]]
-  apply (rule cogent_corres_conc_let_exec, simp only: prod.case_eq_if)
   apply (rule cogent_corres_conc_let_exec, simp only: prod.case_eq_if)
   apply (rule cogent_corres_conc_let_exec, simp only: prod.case_eq_if)
   apply (rule cogent_corres_if)

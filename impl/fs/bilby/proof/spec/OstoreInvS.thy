@@ -697,7 +697,7 @@ where
    otype\<^sub>f opad = bilbyFsObjTypePad \<and> 
    trans\<^sub>f opad = bilbyFsTransCommit \<and>
    bilbyFsObjHeaderSize \<le> Obj.len\<^sub>f opad \<and>
-   ounion\<^sub>f (opad) = ObjUnion\<^sub>1\<^sub>1\<^sub>1\<^sub>1\<^sub>1\<^sub>1\<^sub>1.TObjPad () \<and>
+   ounion\<^sub>f (opad) = ObjUnion.TObjPad () \<and>
    Obj.offs\<^sub>f opad = 0"
 
 

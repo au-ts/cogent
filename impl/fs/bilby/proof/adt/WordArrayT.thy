@@ -80,8 +80,8 @@ where
   wordarray_make': "\<And>wa. WordArrayT.make (\<alpha>wa wa) = wa"
  and
   wordarray_create_ret:
-   "\<And>P.\<lbrakk>  \<And>ex'. (ex', Option\<^sub>1\<^sub>1.None ()) = malloc ex \<Longrightarrow> P (Error ex');
-           \<And>ex' v. \<lbrakk> sz > 0 ; (ex', Option\<^sub>1\<^sub>1.Some v) = malloc ex; length (\<alpha>wa v) = unat sz \<rbrakk> \<Longrightarrow>
+   "\<And>P.\<lbrakk>  \<And>ex'. (ex', Option.None ()) = malloc ex \<Longrightarrow> P (Error ex');
+           \<And>ex' v. \<lbrakk> sz > 0 ; (ex', Option.Some v) = malloc ex; length (\<alpha>wa v) = unat sz \<rbrakk> \<Longrightarrow>
                  P (Success (ex', v))
         \<rbrakk> \<Longrightarrow>
       P (wordarray_create (ex, sz))"

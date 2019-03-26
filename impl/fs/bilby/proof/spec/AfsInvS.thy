@@ -31,7 +31,7 @@ definition
   inv_afs_no_cyclic :: "(ino \<rightharpoonup> afs_inode) \<Rightarrow> bool"
 where
   "inv_afs_no_cyclic afs \<equiv>
-    (\<forall>ino \<in> dom afs. case i_type (the (afs ino)) of IDir d \<Rightarrow> (\<forall>name. d name \<noteq> Option.Some ino \<and> d name \<noteq> Option.Some ROOT_INO) | _ \<Rightarrow> True)"
+    (\<forall>ino \<in> dom afs. case i_type (the (afs ino)) of IDir d \<Rightarrow> (\<forall>name. d name \<noteq> option.Some ino \<and> d name \<noteq> option.Some ROOT_INO) | _ \<Rightarrow> True)"
 
 definition
   inv_afs_files_nlink :: "(ino \<rightharpoonup> afs_inode) \<Rightarrow> bool"
@@ -40,7 +40,7 @@ where
   (\<forall>ino \<in> afs_files_ino afs \<union> afs_links_ino afs. 
      card {(dir_ino,name).
              dir_ino \<in> afs_dirs_ino afs \<and>
-             (i_dir $ the $ afs dir_ino) name = Option.Some ino} =
+             (i_dir $ the $ afs dir_ino) name = option.Some ino} =
      unat (i_nlink $ the $ afs ino))"
 
 definition
@@ -84,11 +84,11 @@ lemma inv_no_cyclic: "afs_inv afs \<Longrightarrow> inv_afs_no_cyclic afs" by (c
 lemma inv_valid_ino: "afs_inv afs \<Longrightarrow> inv_afs_valid_ino afs" by (clarsimp simp: afs_inv_def)
 lemma inv_root_ino: "afs_inv afs \<Longrightarrow> inv_root_ino afs" by (clarsimp simp: afs_inv_def)
 lemma inv_root_ino_no_cyclic:
- "afs_inv afs \<Longrightarrow> (\<forall>ino\<in>afs_dirs_ino afs. \<forall>name. i_dir (the (afs ino)) name \<noteq> Option.Some ROOT_INO)"
+ "afs_inv afs \<Longrightarrow> (\<forall>ino\<in>afs_dirs_ino afs. \<forall>name. i_dir (the (afs ino)) name \<noteq> option.Some ROOT_INO)"
    by (fastforce simp: afs_inv_def afs_dirs_ino_def inv_afs_no_cyclic_def inv_root_ino_def i_type_def  dom_def)+
 
 lemma inv_afs_ino_from_valid_inode:
- "afs_inv afs \<Longrightarrow> afs any_ino = Option.Some any_inode \<Longrightarrow> i_ino any_inode = any_ino"
+ "afs_inv afs \<Longrightarrow> afs any_ino = option.Some any_inode \<Longrightarrow> i_ino any_inode = any_ino"
   apply (drule inv_valid_ino[simplified inv_afs_valid_ino_def])
   apply (erule_tac x="any_ino" in ballE)
    apply clarsimp+

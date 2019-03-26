@@ -55,10 +55,10 @@ shows
   unfolding return_def cogent_corres_def CogentMonad.select_def
   by (fastforce simp: ex_in_conv[symmetric] bind_def)
 
-lemma cogent_corres_R\<^sub>1\<^sub>1:
-assumes b: "\<And>rc. r = R\<^sub>1\<^sub>1.Error rc \<Longrightarrow> cogent_corres R a (c rc)"
-assumes c: "\<And>rc. r = R\<^sub>1\<^sub>1.Success rc \<Longrightarrow> cogent_corres R a (d rc)"
-shows "cogent_corres R a (case r of R\<^sub>1\<^sub>1.Error rc \<Rightarrow> c rc | R\<^sub>1\<^sub>1.Success rd \<Rightarrow> d rd)"
+lemma cogent_corres_R:
+assumes b: "\<And>rc. r = R.Error rc \<Longrightarrow> cogent_corres R a (c rc)"
+assumes c: "\<And>rc. r = R.Success rc \<Longrightarrow> cogent_corres R a (d rc)"
+shows "cogent_corres R a (case r of R.Error rc \<Rightarrow> c rc | R.Success rd \<Rightarrow> d rd)"
 proof (cases r)
   case (Error rc)
   thus ?thesis
@@ -69,12 +69,12 @@ next
     using c[OF Success] by simp
 qed
 
-(* Sometimes, we need more specialised lemmas than cogent_corres_R\<^sub>1\<^sub>1 *)
-lemma cogent_corres_R\<^sub>1\<^sub>1_pair:
-assumes b: "\<And>rc1 rc2. r = (rc1, R\<^sub>1\<^sub>1.Error rc2) \<Longrightarrow> cogent_corres R a (c rc1 rc2)"
-assumes c: "\<And>rd1 rd2. r = (rd1, R\<^sub>1\<^sub>1.Success rd2) \<Longrightarrow> cogent_corres R a (d rd1 rd2)"
+(* Sometimes, we need more specialised lemmas than cogent_corres_R *)
+lemma cogent_corres_R_pair:
+assumes b: "\<And>rc1 rc2. r = (rc1, R.Error rc2) \<Longrightarrow> cogent_corres R a (c rc1 rc2)"
+assumes c: "\<And>rd1 rd2. r = (rd1, R.Success rd2) \<Longrightarrow> cogent_corres R a (d rd1 rd2)"
 shows 
-  "cogent_corres R a (case r of (rc1, R\<^sub>1\<^sub>1.Error rc2) \<Rightarrow> c rc1 rc2 | (rd1, R\<^sub>1\<^sub>1.Success rd2) \<Rightarrow> d rd1 rd2)"
+  "cogent_corres R a (case r of (rc1, R.Error rc2) \<Rightarrow> c rc1 rc2 | (rd1, R.Success rd2) \<Rightarrow> d rd1 rd2)"
 proof (cases r)
   case (Pair r1 r2)
     thus ?thesis
@@ -84,15 +84,15 @@ proof (cases r)
     done
 qed
 
-(* Sometimes, we need more specialised lemmas than cogent_corres_R\<^sub>1\<^sub>1 *)
-lemma cogent_corres_R\<^sub>1\<^sub>1_pair2:
-assumes b: "\<And>rc11 rc12 rc2. r = ((rc11, rc12), R\<^sub>1\<^sub>1.Error rc2) \<Longrightarrow> cogent_corres R a (c rc11 rc12 rc2)"
-assumes c: "\<And>rd11 rd12 rd2. r = ((rd11, rd12), R\<^sub>1\<^sub>1.Success rd2) \<Longrightarrow> cogent_corres R a (d rd11 rd12 rd2)"
+(* Sometimes, we need more specialised lemmas than cogent_corres_R *)
+lemma cogent_corres_R_pair2:
+assumes b: "\<And>rc11 rc12 rc2. r = ((rc11, rc12), R.Error rc2) \<Longrightarrow> cogent_corres R a (c rc11 rc12 rc2)"
+assumes c: "\<And>rd11 rd12 rd2. r = ((rd11, rd12), R.Success rd2) \<Longrightarrow> cogent_corres R a (d rd11 rd12 rd2)"
 shows 
   "cogent_corres R a 
    (case r of 
-    ((rc11, rc12), R\<^sub>1\<^sub>1.Error rc2)   \<Rightarrow> c rc11 rc12 rc2 
-  | ((rd11, rd12), R\<^sub>1\<^sub>1.Success rd2) \<Rightarrow> d rd11 rd12 rd2)"
+    ((rc11, rc12), R.Error rc2)   \<Rightarrow> c rc11 rc12 rc2 
+  | ((rd11, rd12), R.Success rd2) \<Rightarrow> d rd11 rd12 rd2)"
 proof (cases r)
   case (Pair r1 r2)
     thus ?thesis

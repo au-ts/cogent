@@ -133,7 +133,7 @@ where
 primrec stripNone :: "'a Option\<^sub>T list \<Rightarrow> 'a list"
 where
   "stripNone [] = []" |
-  "stripNone (x#xs) = (case x of Option\<^sub>1\<^sub>1.None () \<Rightarrow> stripNone xs | Option\<^sub>1\<^sub>1.Some v \<Rightarrow> v#stripNone xs)"
+  "stripNone (x#xs) = (case x of Option.None () \<Rightarrow> stripNone xs | Option.Some v \<Rightarrow> v#stripNone xs)"
 
 definition obj_is_valid :: "Obj\<^sub>T \<Rightarrow> bool"
 where

@@ -22,42 +22,42 @@ consts make :: "'a Option\<^sub>T list \<Rightarrow> 'a Array"
 fun trimNone :: "'a Option\<^sub>T list \<Rightarrow> 'a list"
 where
   "trimNone [] = []" |
-  "trimNone (Option\<^sub>1\<^sub>1.None ()#xs) = trimNone xs" |
-  "trimNone (Option\<^sub>1\<^sub>1.Some v#xs) = v#(trimNone xs)"
+  "trimNone (Option.None ()#xs) = trimNone xs" |
+  "trimNone (Option.Some v#xs) = v#(trimNone xs)"
 
 definition
- map_acc_obs_existing :: "('a \<times> 'acc \<times> 'obsv \<Rightarrow> ('a \<times> 'b, 'a \<times> 'acc) LoopResult\<^sub>1\<^sub>1)
+ map_acc_obs_existing :: "('a \<times> 'acc \<times> 'obsv \<Rightarrow> ('a \<times> 'b, 'a \<times> 'acc) LoopResult)
    \<Rightarrow> 'a Option\<^sub>T list
     \<Rightarrow> 'acc \<Rightarrow> 'obsv \<Rightarrow> 'a Option\<^sub>T list \<times>
-                     ('b, 'acc) LoopResult\<^sub>1\<^sub>1"
+                     ('b, 'acc) LoopResult"
 where
   "map_acc_obs_existing fx xs xacc obs =
      fold (\<lambda>val (ys,lr).
-      (case val of Option\<^sub>1\<^sub>1.None _ \<Rightarrow>
-        (ys@[Option\<^sub>1\<^sub>1.None ()], lr)
-       | Option\<^sub>1\<^sub>1.Some tval \<Rightarrow>
-       (case lr of Break xrbrk \<Rightarrow> (ys@[Option\<^sub>1\<^sub>1.Some tval],Break xrbrk)
+      (case val of Option.None _ \<Rightarrow>
+        (ys@[Option.None ()], lr)
+       | Option.Some tval \<Rightarrow>
+       (case lr of Break xrbrk \<Rightarrow> (ys@[Option.Some tval],Break xrbrk)
          | Iterate accx \<Rightarrow> 
           (case fx (tval,accx,obs) of (* This is wrong break returns a truncated array *)
-           Break (tval,xrbrk) \<Rightarrow> (ys@[Option\<^sub>1\<^sub>1.Some tval], Break xrbrk)
-           | Iterate (tval,accx) \<Rightarrow> (ys@[Option\<^sub>1\<^sub>1.Some tval], Iterate accx)))))
+           Break (tval,xrbrk) \<Rightarrow> (ys@[Option.Some tval], Break xrbrk)
+           | Iterate (tval,accx) \<Rightarrow> (ys@[Option.Some tval], Iterate accx)))))
        xs ([],Iterate xacc)"
 
 definition 
-arr_iterate_ex_no_break_body :: "(('a, 'acc, 'obsv) ElemAO \<Rightarrow> ('acc \<times> ('a, unit) R\<^sub>1\<^sub>1))
+arr_iterate_ex_no_break_body :: "(('a, 'acc, 'obsv) ElemAO \<Rightarrow> ('acc \<times> ('a, unit) R))
    \<Rightarrow> 'a Option\<^sub>T \<Rightarrow> 'a Option\<^sub>T list \<times> 'acc \<Rightarrow> 'obsv \<Rightarrow> 'a Option\<^sub>T list \<times> 'acc"
 where
 "arr_iterate_ex_no_break_body body \<equiv>
   (\<lambda>el (ys,acc) obs. 
      (case el of
-       Option\<^sub>1\<^sub>1.None _ \<Rightarrow> (ys@[Option\<^sub>1\<^sub>1.None ()], acc)
-      | Option\<^sub>1\<^sub>1.Some tval \<Rightarrow>
+       Option.None _ \<Rightarrow> (ys@[Option.None ()], acc)
+      | Option.Some tval \<Rightarrow>
       (let (acc, r) = body(ElemAO.make  tval acc obs)
        in
          (case r of
-        Success _ \<Rightarrow> (ys@[Option\<^sub>1\<^sub>1.None ()],acc)
+        Success _ \<Rightarrow> (ys@[Option.None ()],acc)
        | Error a \<Rightarrow> 
-         (ys @[Option\<^sub>1\<^sub>1.Some a],acc)))))"
+         (ys @[Option.Some a],acc)))))"
 
 definition
  "array_iterate_ex_no_break body xs accx obs \<equiv>
@@ -67,8 +67,8 @@ definition
 definition
   mapAccumObsOpt :: "nat \<Rightarrow> nat \<Rightarrow> 
     (('a Option\<^sub>T, 'acc, 'obsv) OptElemAO
-      \<Rightarrow> ('a Option\<^sub>T \<times> 'd, 'a Option\<^sub>T \<times> 'acc) LoopResult\<^sub>1\<^sub>1)
-   \<Rightarrow> 'a Option\<^sub>T list \<Rightarrow> 'acc \<Rightarrow> 'obsv \<Rightarrow> ('a Option\<^sub>T list \<times> 'd, 'a Option\<^sub>T list \<times> 'acc) LoopResult\<^sub>1\<^sub>1"
+      \<Rightarrow> ('a Option\<^sub>T \<times> 'd, 'a Option\<^sub>T \<times> 'acc) LoopResult)
+   \<Rightarrow> 'a Option\<^sub>T list \<Rightarrow> 'acc \<Rightarrow> 'obsv \<Rightarrow> ('a Option\<^sub>T list \<times> 'd, 'a Option\<^sub>T list \<times> 'acc) LoopResult"
 where
   "mapAccumObsOpt frm to fn xs vacc obs =
    (case (fold (\<lambda>elem iter.
@@ -88,9 +88,9 @@ axiomatization where
   array_make': "ArrayT.make (\<alpha>a a) = a"
   and
   array_create_ret:
-   "\<lbrakk>  \<And>ex'. (ex',Option\<^sub>1\<^sub>1.None ()) = malloc ex \<Longrightarrow> P (Error ex');
-       \<And>ex' arr a. \<lbrakk> sz > 0 ; (ex', Option\<^sub>1\<^sub>1.Some arr) = malloc ex; 
-             \<alpha>a a = replicate (unat sz) (Option\<^sub>1\<^sub>1.None ()) \<rbrakk> \<Longrightarrow>
+   "\<lbrakk>  \<And>ex'. (ex',Option.None ()) = malloc ex \<Longrightarrow> P (Error ex');
+       \<And>ex' arr a. \<lbrakk> sz > 0 ; (ex', Option.Some arr) = malloc ex; 
+             \<alpha>a a = replicate (unat sz) (Option.None ()) \<rbrakk> \<Longrightarrow>
            P (Success (ex', a))
      \<rbrakk> \<Longrightarrow>
       P (array_create (ex, sz))"

@@ -55,8 +55,8 @@ lemmas ple64_word_rcat_eq = ple64_word_rcat_eq1 ple64_word_rcat_eq2
 
 definition pObjDel :: "U8 list \<Rightarrow> U32 \<Rightarrow> U64 ObjDel"
 where
-  "pObjDel data' offs' \<equiv> ObjDel.make (ple64 data' offs') (* id *)
-  (* End 4 bytes *)"
+  "pObjDel data' offs' \<equiv> ObjDel.make (ple64 data' offs')  \<comment> \<open>id\<close>
+   \<comment> \<open>End 4 bytes\<close>"
        
 definition sObjDel :: "ObjDel\<^sub>T \<Rightarrow> U8 list"
 where
@@ -123,8 +123,8 @@ where
     (\<lambda>_ (xs,doffs,offslist).
       let dentry = pObjDentry data doffs ;
           newoffs = doffs +  8 + wordarray_length (ObjDentry.name\<^sub>f dentry)
-      in (xs@[Option\<^sub>1\<^sub>1.Some dentry], newoffs, offslist@ [newoffs])) [0..<unat nb_dentry] ([], offs, []))
-   of (xs, doffs, offslist) \<Rightarrow> (ArrayT.make (xs@ [Option\<^sub>1\<^sub>1.None ()]), doffs, offslist))"
+      in (xs@[Option.Some dentry], newoffs, offslist@ [newoffs])) [0..<unat nb_dentry] ([], offs, []))
+   of (xs, doffs, offslist) \<Rightarrow> (ArrayT.make (xs@ [Option.None ()]), doffs, offslist))"
 
 definition pObjDentarr :: "U8 list \<Rightarrow> U32 \<Rightarrow> U32 \<Rightarrow> ObjDentarr\<^sub>T"
 where
@@ -1040,7 +1040,7 @@ lemma serialise_ObjHeader_ret:
      )+
 qed
   
-lemmas ObjUnion_splits = ObjUnion\<^sub>1\<^sub>1\<^sub>1\<^sub>1\<^sub>1\<^sub>1\<^sub>1.splits
+lemmas ObjUnion_splits = ObjUnion.splits
 
 lemma take_drop_decomp:"x \<ge> a \<Longrightarrow> take (x - a) (drop a xs) @ drop x xs = drop a xs"
   by (metis drop_take drop_take_drop)
@@ -1243,7 +1243,7 @@ proof -
   unfolding deserialise_ObjInode_def[unfolded tuple_simps sanitizers] 
   by (fastforce 
      intro: suc err
-     split: R\<^sub>1\<^sub>1.split
+     split: R.split
      simp: eInval_def eNoMem_def binNot_NOT Let_def bilbyFsOidMaskAll_def des_le32
       bilbyFsOidMaskInode_def word32Max_def pObjInode_def ObjInode.make_def des_le64)
 qed
@@ -1281,7 +1281,7 @@ proof -
   unfolding deserialise_ObjSuper_def[unfolded tuple_simps sanitizers] 
   by (fastforce 
      intro: suc err[unfolded eNoMem_def] 
-     split: R\<^sub>1\<^sub>1.split 
+     split: R.split 
      simp: pObjSuper_def ObjSuper.make_def des_le32 des_le64)
 qed
 
@@ -1491,7 +1491,7 @@ lemma deserialise_ObjPad_ret:
     P (Success (ex, out, offs'))"
   shows "P (deserialise_ObjPad (ex, buf, offs, olen))"
   unfolding deserialise_ObjPad_def[unfolded tuple_simps sanitizers]
-  by (auto simp: Let_def err[unfolded eInval_def] suc[unfolded bilbyFsObjHeaderSize_def] split: R\<^sub>1\<^sub>1.split)
+  by (auto simp: Let_def err[unfolded eInval_def] suc[unfolded bilbyFsObjHeaderSize_def] split: R.split)
 
 lemma no_offs_overflow:
   assumes wellformed_buf: "wellformed_buf buf"
@@ -1634,7 +1634,7 @@ proof -
     apply (subst (asm) not_less)+
     apply (rule deserialise_wordarray_U8_ret)
      apply (clarsimp simp add: err)
-    apply(clarsimp simp add: err eNoMem_def Let_def prod.case_eq_if split: R\<^sub>1\<^sub>1.splits)
+    apply(clarsimp simp add: err eNoMem_def Let_def prod.case_eq_if split: R.splits)
     apply (erule impE)
      apply (rule no_offs_overflow[OF wellformed_buf no_buf_overflow])
     using off_less_end_offs bound apply fastforce
@@ -1731,9 +1731,9 @@ lemma loop_deserialise_ObjDentry_ret:
   assumes off_less_end_offs: "offs  \<le> end_offs"
   assumes st_offs: "st_offs \<le> offs"
   shows "case loop_deserialise_ObjDentry (OptElemAO.make dentry (ex, offs) (buf, end_offs)) of
-            Break (none, e, ex) \<Rightarrow> none= Option\<^sub>1\<^sub>1.None () \<and> e = eInval 
+            Break (none, e, ex) \<Rightarrow> none= Option.None () \<and> e = eInval 
           | Iterate (optdentry, ex, offs') \<Rightarrow>
-             \<exists>dentry. optdentry = Option\<^sub>1\<^sub>1.Some dentry \<and>
+             \<exists>dentry. optdentry = Option.Some dentry \<and>
                 unat offs + 8 + unat (wordarray_length (name\<^sub>f dentry)) \<le> unat (bound\<^sub>f buf)  \<and>
                 wordarray_length (name\<^sub>f dentry) \<le> bilbyFsMaxNameLen + 1  \<and>
                 offs + 8 + wordarray_length (name\<^sub>f dentry) \<le> end_offs  \<and>
@@ -1768,7 +1768,7 @@ lemma mapAccumObsOpt_step:
              mapAccumObsOpt (Suc frm) to fn (xs [frm := oelem]) acc obs
          | Break (oelem, d) \<Rightarrow> Break (xs [frm := oelem], d))"
 proof -
-  let ?folder = "(\<lambda>elem. case_LoopResult\<^sub>1\<^sub>1 (\<lambda>(ys, d). Break (ys @ [elem], d))
+  let ?folder = "(\<lambda>elem. case_LoopResult (\<lambda>(ys, d). Break (ys @ [elem], d))
                                (\<lambda>(ys, acc).
                                    case fn (OptElemAO.make elem acc obs) of
                                   Break (oelem, d) \<Rightarrow> Break (ys @ [oelem], d)
@@ -1811,7 +1811,7 @@ proof -
      apply simp
     apply (clarsimp simp: mapAccumObsOpt_def slice_list_update take_list_update)
     apply (simp add: fold_iterate_Cons)
-    apply (simp split: LoopResult\<^sub>1\<^sub>1.split)
+    apply (simp split: LoopResult.split)
     apply (clarsimp simp: slice_def upd_conv_take_nth_drop min_absorb2 max_absorb2
                           drop_helper)
     done
@@ -2098,7 +2098,7 @@ lemma mapAccumObsOpt_loop_deserialise_ObjDentry_ret:
       case (fold (\<lambda>_ (xs, doffs, offslist).
              let dentry = pObjDentry (take (unat end_offs) (\<alpha>wa (data\<^sub>f buf))) doffs ;
                  newoffs = doffs +  8 + wordarray_length (ObjDentry.name\<^sub>f dentry)
-             in (xs@[Option\<^sub>1\<^sub>1.Some dentry], 
+             in (xs@[Option.Some dentry], 
                 newoffs, offslist @ [newoffs])) 
            [frm..<unat to] ([], offs, [])) 
          of (xs, offs) \<Rightarrow> ((take frm ys) @ xs @ (drop (unat to) ys), offs);
@@ -2141,7 +2141,7 @@ next
   
   from rest show ?case
   apply (subst mapAccumObsOpt_step, simp, simp)
-  apply (clarsimp simp: Let_def split: LoopResult\<^sub>1\<^sub>1.split)
+  apply (clarsimp simp: Let_def split: LoopResult.split)
   apply (rule conjI)
    using loop_deserialise_ObjDentry_ret[OF wellformed_buf no_buf_overflow bound , 
     where dentry="ys ! frm" and  ex = ex and offs=offs]
@@ -2206,7 +2206,7 @@ next
 qed 
 
 lemma replicate_simp:
-  "replicate (unat to + 1 - unat to) (Option\<^sub>1\<^sub>1.None ()) = [Option\<^sub>1\<^sub>1.None ()]"
+  "replicate (unat to + 1 - unat to) (Option.None ()) = [Option.None ()]"
   by (simp add: unat_arith_simps)
 
 lemma mapAccumObsOpt_loop_deserialise_ObjDentry_array_ret:
@@ -2219,21 +2219,21 @@ lemma mapAccumObsOpt_loop_deserialise_ObjDentry_array_ret:
   "let data = take (unat end_offs) (\<alpha>wa (data\<^sub>f buf));
        arr_spec = pArrObjDentry data offs to in 
    (case mapAccumObsOpt 0 (unat to) loop_deserialise_ObjDentry 
-      (replicate (unat to + 1) (Option\<^sub>1\<^sub>1.None ())) (ex, offs) (buf, end_offs) of
-        LoopResult\<^sub>1\<^sub>1.Break (ys, d, ex) \<Rightarrow> 
+      (replicate (unat to + 1) (Option.None ())) (ex, offs) (buf, end_offs) of
+        LoopResult.Break (ys, d, ex) \<Rightarrow> 
          d \<in> {eInval, eNoMem}
-      | LoopResult\<^sub>1\<^sub>1.Iterate (ys, ex, offs') \<Rightarrow> 
+      | LoopResult.Iterate (ys, ex, offs') \<Rightarrow> 
          (ys, ex, offs') = (\<alpha>a (prod.fst arr_spec), ex, prod.fst (prod.snd arr_spec)) \<and> 
          offs' \<le> end_offs \<and>
         dentarr_offs_list_end_offs_pred data offs [0..<unat to] end_offs \<and>
         dentarr_offs_list_drop_end_offs_pred data offs [0..<unat to] st_offs end_offs)"
   unfolding pArrObjDentry_def Let_def
-  apply (clarsimp simp: array_make split: LoopResult\<^sub>1\<^sub>1.splits prod.splits)
+  apply (clarsimp simp: array_make split: LoopResult.splits prod.splits)
   using mapAccumObsOpt_loop_deserialise_ObjDentry_ret[OF assms(1-4), simplified Let_def, 
        where frm=0 and to=to and ex=ex  and st_offs=st_offs and
-       ys="replicate (unat to + 1)(Option\<^sub>1\<^sub>1.None ())", simplified take_0 drop_replicate replicate_simp]
+       ys="replicate (unat to + 1)(Option.None ())", simplified take_0 drop_replicate replicate_simp]
    st_offs
-  apply (clarsimp split: LoopResult\<^sub>1\<^sub>1.splits) 
+  apply (clarsimp split: LoopResult.splits) 
   done
 
 lemma array_map_loop_deserialise_ObjDentry_ret:
@@ -2242,10 +2242,10 @@ lemma array_map_loop_deserialise_ObjDentry_ret:
   assumes bound: "end_offs \<le> bound\<^sub>f buf"
   assumes off_less_end_offs: "offs  \<le> end_offs"
   assumes st_offs: "st_offs \<le> offs"
-  shows "case array_map (ArrayMapP.make (ArrayT.make (replicate (unat to + 1) (Option\<^sub>1\<^sub>1.None ())))
+  shows "case array_map (ArrayMapP.make (ArrayT.make (replicate (unat to + 1) (Option.None ())))
                    0 to loop_deserialise_ObjDentry (ex, offs) (buf, end_offs)) of
-         LoopResult\<^sub>1\<^sub>1.Break (arr, err, ex) \<Rightarrow> err \<in> {eInval, eNoMem}
-       | LoopResult\<^sub>1\<^sub>1.Iterate (arr, ex', offs') \<Rightarrow>
+         LoopResult.Break (arr, err, ex) \<Rightarrow> err \<in> {eInval, eNoMem}
+       | LoopResult.Iterate (arr, ex', offs') \<Rightarrow>
                   let data = take (unat end_offs) (\<alpha>wa (data\<^sub>f buf));
                       (parr, poffs, poffslist) = pArrObjDentry data offs to;
                       ostlist = pArrObjDentry data offs to
@@ -2257,7 +2257,7 @@ lemma array_map_loop_deserialise_ObjDentry_ret:
   apply (clarsimp simp: ArrayMapP.make_def array_make array_map_ret)
   using assms mapAccumObsOpt_loop_deserialise_ObjDentry_array_ret
   [unfolded Let_def, where to=to and buf=buf and ex=ex and offs=offs and end_offs=end_offs and st_offs=st_offs]
-  by (clarsimp simp: array_make' Let_def split: LoopResult\<^sub>1\<^sub>1.splits)
+  by (clarsimp simp: array_make' Let_def split: LoopResult.splits)
 
 lemma deserialise_Array_ObjDentry_ret:
   assumes wellformed_buf: "wellformed_buf buf"
@@ -2283,10 +2283,10 @@ lemma deserialise_Array_ObjDentry_ret:
    apply (simp add: err[unfolded eNoMem_def])
   apply (rename_tac ex' arr a)
   apply (subgoal_tac "unat nb_dentry + 1 = unat (nb_dentry+1) ")
-   apply (clarsimp simp: prod.case_eq_if id_def Let_def split: LoopResult\<^sub>1\<^sub>1.splits)
-   apply (subgoal_tac "a = ArrayT.make (replicate (unat (nb_dentry + 1)) (Option\<^sub>1\<^sub>1.None ()))", simp)
+   apply (clarsimp simp: prod.case_eq_if id_def Let_def split: LoopResult.splits)
+   apply (subgoal_tac "a = ArrayT.make (replicate (unat (nb_dentry + 1)) (Option.None ()))", simp)
     apply (cut_tac ex=ex' in array_map_loop_deserialise_ObjDentry_ret[OF assms(1-5), where to = nb_dentry])
-    apply (clarsimp simp: Let_def err split: LoopResult\<^sub>1\<^sub>1.splits)
+    apply (clarsimp simp: Let_def err split: LoopResult.splits)
     apply (rename_tac offslist a ex'' offs')
     apply (rule suc)
      apply simp+
@@ -2376,8 +2376,8 @@ lemma deserialise_ObjDentarr_ret:
                          (rule word_plus_mono_right; simp)
     subgoal for v _ e by (fastforce intro: err)
    subgoal for v ex arr offs' offslist
-    apply (case_tac "R\<^sub>1\<^sub>1.Success (ex, arr, offs')", simp_all)
-    apply (clarsimp simp: Let_def err[unfolded eNoMem_def] split: R\<^sub>1\<^sub>1.split)
+    apply (case_tac "R.Success (ex, arr, offs')", simp_all)
+    apply (clarsimp simp: Let_def err[unfolded eNoMem_def] split: R.split)
     apply (rule suc)
         subgoal
         apply (simp add: pObjDentarr_def Let_def)
@@ -2692,7 +2692,7 @@ lemma deserialise_Obj_ret:
   notes bilbyFsObjHeaderSize_def[simp]
   shows "P (deserialise_Obj (ex, buf, offs))"
   unfolding deserialise_Obj_def[unfolded tuple_simps sanitizers]
-  apply (clarsimp simp: err eNoMem_def split: R\<^sub>1\<^sub>1.split)
+  apply (clarsimp simp: err eNoMem_def split: R.split)
   apply (rule deserialise_ObjHeader_ret[OF wf bound no_of])
    apply (simp add: err)
   apply simp
