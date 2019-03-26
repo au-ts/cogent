@@ -16,6 +16,7 @@ imports
   "../cogent/isa/UpdateSemantics"
   "../cogent/isa/TypeTrackingSemantics"
   "../cogent/isa/Util"
+  "../cogent/isa/AssocLookup"
 begin
 
 locale update_sem_init = update_sem +
@@ -1782,15 +1783,31 @@ lemma afun_corres:
 
 end
 
-(* TODO: revise this ML code! *)
 ML {*
+local
+  fun make_simp_xi_simpset ctxt xi_simp =
+    put_simpset HOL_basic_ss ctxt
+        addsimps [xi_simp]
+        addsimps @{thms fst_conv snd_conv list.case char.case assoc_lookup_simps}
+    (* Don't substitute under list.case - I think this is not relevant any more, since we've changed to assoc_lookup instead of case.
+       But I'm not game to remove it yet. [amos] *)
+    |> Simplifier.add_cong @{thm list.case_cong_weak}
+
+in
+
+(* Simplify all occurrences of Xi, and compute the lookup results as far as possible *)
 fun simp_xi ctxt = let
     val xi_def = Proof_Context.get_thm ctxt "\<Xi>_def"
   in
-    full_simplify (put_simpset HOL_basic_ss ctxt
-        addsimps [xi_def]
-        addsimps @{thms fst_conv snd_conv list.case} (* TODO these were used here, but no longer exist in Isabelle2017 char.case nibble.case} *)
-        |> Simplifier.add_cong @{thm list.case_cong_weak})
+    full_simplify (make_simp_xi_simpset ctxt xi_def)
+  end
+
+(* As above, but only simplify saturated calls to Xi - these are the cases where we will learn something *)
+fun simp_xi_fully_applied ctxt = let
+    val xi_def = Proof_Context.get_thm ctxt "\<Xi>_def"
+    val xi_def_fully_applied = @{thm fun_cong} OF [@{thm meta_eq_to_obj_eq} OF [xi_def]]
+  in
+    full_simplify (make_simp_xi_simpset ctxt xi_def_fully_applied)
   end
 
 val simp_xi_att = Attrib.thms >> (fn thms => Thm.rule_attribute thms (fn cg => let
@@ -1801,6 +1818,7 @@ val simp_xi_att = Attrib.thms >> (fn thms => Thm.rule_attribute thms (fn cg => l
     full_simplify (put_simpset HOL_basic_ss ctxt
                    addsimps thms addsimps abb_tys)
   end))
+end
 *}
 
 setup {* Attrib.setup @{binding simp_\<Xi>} simp_xi_att "cleans up thms about \<Xi>" *}

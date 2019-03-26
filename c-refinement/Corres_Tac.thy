@@ -1169,10 +1169,11 @@ fun corres_tac_driver corres_tac typing_tree_of ctxt (tab : obligations) thm_nam
         val callee_thms = take (length callee_thm_props) (#prems args) ~~ callee_names
                           |> map (fn (assum, name) => unfold_Cogent_types ctxt type_unfold_simps name assum)
         val callee_abs_thms = drop (length callee_thm_props) (#prems args) ~~ callee_abs_names
-                          |> map (fn (assum, name) => simp_xi ctxt assum |> unfold_Cogent_types ctxt type_unfold_simps name)
+                          |> map (fn (assum, name) => assum |> simp_xi_fully_applied ctxt |> unfold_Cogent_types ctxt type_unfold_simps name)
         val _ = @{trace} ("Assumptions for " ^ thm_name, callee_thms, callee_abs_thms)
       in corres_tac (#context args) (peel_two (typing_tree_of fname))
-          fun_defs callee_abs_thms callee_thms end)
+         fun_defs callee_abs_thms callee_thms
+      end)
   end
   | SOME (_, AbsFun, [], _) => @{thm TrueI}
   | v => error ("corres_tac_driver: tab contents: " ^ thm_name ^ ": " ^ @{make_string} v)
