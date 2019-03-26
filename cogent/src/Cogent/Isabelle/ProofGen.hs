@@ -168,6 +168,7 @@ data TypingSubproofs = TypingSubproofs
                        , _subproofAllKindCorrect :: ProofCache ([Kind], [Type'], [Kind])
                        , _subproofSplits         :: ProofCache (String, [Kind], [Maybe Type'], [Maybe Type'], [Maybe Type'])
                        , _subproofWeakens        :: ProofCache ([Kind], [Maybe Type'], [Maybe Type'])
+                       , _subproofWellformed     :: ProofCache (Integer, Type')
                        , _tsTypeAbbrevs          :: TypeAbbrevs -- actually just a Reader
                        , _nameMod                :: NameMod
                        }
@@ -183,7 +184,7 @@ thmTypeAbbrev thm = do
 thmTypeAbbrev thm = return (Thm thm)
 
 typingSubproofsInit :: NameMod -> TypeAbbrevs -> TypingSubproofs
-typingSubproofsInit mod ta = TypingSubproofs 0 M.empty M.empty M.empty M.empty ta mod
+typingSubproofsInit mod ta = TypingSubproofs 0 M.empty M.empty M.empty M.empty M.empty ta mod
 
 newSubproofId = do
   i <- use genId
@@ -602,11 +603,30 @@ ttsplit_bang _ _ _ _ _ = error "bad split_bang end"
 
 distinct _ = [simp_solve]
 
--- K ⊢ τ wellformed ≡ ∃k. K ⊢ τ :κ k
+-- K ⊢ τ wellformed
 wellformed :: Vec t Kind -> Type t -> State TypingSubproofs [Tactic]
-wellformed ks t = tacSequence [return [simp_solve]]
+wellformed k t = do
+  proofId <- wellformedRaw k t
+  thm <- thmTypeAbbrev $ typingSubproofPrefix ++ show proofId
+  return [rule "type_wellformed_prettyI", Simplifier (ThmList []) (Thms "type_wellformed.simps"), RuleTac thm]
 
--- K ⊢* τs wellformed ≡ ∃k. K ⊢* τs :κ k
+wellformedRaw :: Vec t Kind -> Type t -> State TypingSubproofs SubproofId
+wellformedRaw k t = do
+  let n' = toInteger $ Nat.toInt $ Vec.length k
+      t' = stripType t
+  ta <- use tsTypeAbbrevs
+  wlmap <- use subproofWellformed
+  case M.lookup (n', t') wlmap of
+    Nothing -> do mod <- use nameMod
+                  let prop = mkApp (mkId "type_wellformed") [mkInt n', deepType mod ta t]
+                  tac <- tacSequence [return $ [force_simp []]]
+                  proofId <- newSubproofId
+                  subproofWellformed %= M.insert (n', t') (proofId, (False, prop), tac)
+                  return proofId
+    Just (proofId, _, _) -> return proofId
+
+-- TODO use cached proofs here
+-- K ⊢* τs wellformed
 wellformedAll :: Vec t Kind -> [Type t] -> State TypingSubproofs [Tactic]
 wellformedAll ks ts = tacSequence [return [simp_solve]]
   -- where k = foldr (<>) mempty (map (mostGeneralKind ks) ts)

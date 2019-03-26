@@ -100,6 +100,9 @@ lemma split_bang_bang' :"\<lbrakk> 0 \<in> is
                       \<rbrakk>  \<Longrightarrow> split_bang K is (Some x # xs) (Some x' # as) (Some x # bs)"
   by (clarsimp intro!: split_bang_cons simp add: split_bang_comp.simps)
 
+lemma type_wellformed_prettyI: "type_wellformed (length K) t \<Longrightarrow> K \<turnstile> t wellformed"
+  by simp
+
 definition
   type_ctx_wellformed :: "kind env \<Rightarrow> ctx \<Rightarrow> bool"
 where

@@ -90,7 +90,8 @@ deepTypeProof mod withDecls withBodies thy decls log =
                             M.elems (st ^. subproofKinding) ++
                             M.elems (st ^. subproofAllKindCorrect) ++
                             M.elems (st ^. subproofSplits) ++
-                            M.elems (st ^. subproofWeakens)
+                            M.elems (st ^. subproofWeakens) ++
+                            M.elems (st ^. subproofWellformed)
   in header . pretty $ Theory thy (TheoryImports imports) $ proofDecls ++ proofBodies
 
 splitEvery :: Int -> [a] -> [[a]]
