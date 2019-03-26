@@ -180,6 +180,7 @@ fun my_unify_fact_tac ctxt subproof n state =
 *}
 
 ML {*
+
 type ttag = TTyping_Tactics.tac option
 
 fun trace_solve_tac (ctxt : Proof.context)
@@ -188,8 +189,7 @@ fun trace_solve_tac (ctxt : Proof.context)
                     (data0 : 'data) (goal0 : thm)
                     (depth_limit : int option)
                     : 'data * (ttag TraceFailure, ttag TraceSuccess) Either =
-  let val cterm_of' = Thm.cterm_of ctxt
-      val subgoals0 = Thm.prems_of goal0
+  let val subgoals0 = Thm.prems_of goal0
   in
   (* special case, technically would be covered by solve. Copied because we want depth failure *after* this *)
   if null subgoals0 then (data0, TraceSuccess { goal = goal0, theorem = goal0, succeeded = [] } |> Right) else
@@ -201,15 +201,15 @@ fun trace_solve_tac (ctxt : Proof.context)
                            } |> Left)
   else let
     fun solve data goal subproofs_rev =
-        case Thm.prems_of goal of
-            [] => (data, TraceSuccess { goal = goal0
-                                      , theorem = goal
-                                      , succeeded = rev subproofs_rev
-                                      } |> Right)
-          | (subgoal_term :: remaining_subgoals) =>
+        case 1 upto (Thm.nprems_of goal) |> map (fn i => Thm.cprem_of goal i) of
+          [] => (data, TraceSuccess { goal = goal0
+                                    , theorem = goal
+                                    , succeeded = rev subproofs_rev
+                                    } |> Right)
+        | (subgoal_term :: remaining_subgoals) =>
               let (* Try all results from all tactics until we obtain a successful proof.
                    * NB: tactics should return finite results! *)
-                val subgoal = Goal.init (cterm_of' subgoal_term)
+                val subgoal = Goal.init subgoal_term
                 (* try all the tactics in the list to solve subgoal *)
                 val (data', tag, tactic) = get_tacs data
                 (* try to find a result from the tactic which solves the subgoal  *)
@@ -243,7 +243,7 @@ fun trace_solve_tac (ctxt : Proof.context)
                                                 , failed = FailedProof { subgoal = subgoal
                                                                        , fail_steps = fails
                                                                        }
-                                                , remaining_goals = remaining_subgoals
+                                                , remaining_goals = map Thm.term_of remaining_subgoals
                                                 } |> Left)
                     | (data, Right (subproof as TraceSubgoal subproof')) =>
                           let val subtheorem = #subtheorem subproof' in
