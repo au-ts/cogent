@@ -64,7 +64,7 @@ fun prove_put_in_bucket_non_esac_especialised_lemma ((lem:lem), lthy:local_theor
                      then Skip_Proof.cheat_tac ctxt 1
                      else mk_tac ctxt;
   val some_thm = (SOME (Goal.prove lthy names [] prop (fn {context, prems} => (get_tac context))))
-                 handle ERROR _ => NONE;
+                 handle ERROR err => (warning lem_name; warning err; NONE);
   (* If proof goes well, register the proved lemma and putting it in the corresponding bucket.
    * If not, add the name of the thm in Unborn_Thms. *)
   val lthy = if   is_some some_thm

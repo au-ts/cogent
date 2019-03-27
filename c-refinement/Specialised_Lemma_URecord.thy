@@ -249,7 +249,7 @@ ML{* fun mk_specialised_corres_let_put (field_num:int) uval file_nm ctxt =
   (* We can omit this explicit application of state_rel from this function by defining it before this line in ML.*)
   state_rel $ isa_int $ is_valid_struct $ heap_struct_update $ field_setter |> HOLogic.mk_Trueprop;
   val put_term = mk_meta_imps prms cncl ctxt |> Syntax.check_term ctxt;
-  val _ = tracing ("    finished mk_spec_corres_put for struct " ^ (get_uval_name uval) ^ " " ^
+  val _ = tracing ("    finished mk_spec_corres_let_put for struct " ^ (get_uval_name uval) ^ " " ^
           Int.toString field_num);
  in  put_term
  end;

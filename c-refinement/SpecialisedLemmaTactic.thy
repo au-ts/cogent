@@ -34,7 +34,7 @@ ML{* fun corres_take_boxed_tac ctxt = let
   in EVERY' [
     asm_full_simp_tac ((put_simpset HOL_basic_ss ctxt) addsimps [get "val_rel_ptr_def"]),
     REPEAT_ALL_NEW (etac @{thm exE}),
-    ((etac (get "corres_take_boxed") ORELSE' rtac (get "corres_member_boxed"))
+    ((rtac (get "corres_take_boxed") ORELSE' rtac (get "corres_member_boxed"))
         THEN_ALL_NEW (TRY o atac)
         THEN_ALL_NEW asm_full_simp_tac ctxt
         THEN_ALL_NEW clarsimp_tac (ctxt addsimps facts)
@@ -56,11 +56,13 @@ ML{* fun corres_put_boxed_tac ctxt = let
     val facts2 = maps gets
         ["state_rel_def", "heap_rel_def", "val_rel_ptr_def", "type_rel_ptr_def", "heap_rel_ptr_meta"]
     val facts3 = facts2 @ is_valids @ heap_simps
+    fun trace str i t = (@{print tracing} str; @{print tracing} t; Seq.succeed t)
   in
     EVERY' [
     asm_full_simp_tac ((put_simpset HOL_basic_ss ctxt) addsimps facts1),
     REPEAT_ALL_NEW (etac @{thm exE}),
-    ((etac (get "corres_put_boxed" |> Simplifier.rewrite_rule ctxt @{thms gets_to_return[THEN eq_reflection]})
+    ((rtac (get "corres_put_boxed" |> Simplifier.rewrite_rule ctxt @{thms gets_to_return[THEN eq_reflection]})
+        THEN' simp_tac ctxt
         THEN' atac THEN' atac THEN' atac)
         THEN_ALL_NEW asm_full_simp_tac ctxt),
     clarsimp_tac (ctxt addsimps facts3),
@@ -83,7 +85,8 @@ ML{* fun corres_put_boxed_tac ctxt = let
     EVERY' [
     asm_full_simp_tac ((put_simpset HOL_basic_ss ctxt) addsimps facts1),
     REPEAT_ALL_NEW (etac @{thm exE}),
-    ((etac (get "corres_put_boxed" |> Simplifier.rewrite_rule ctxt @{thms gets_to_return[THEN eq_reflection]})
+    ((rtac (get "corres_put_boxed" |> Simplifier.rewrite_rule ctxt @{thms gets_to_return[THEN eq_reflection]})
+        THEN' simp_tac ctxt
         THEN' atac THEN' atac THEN' atac)
         THEN_ALL_NEW asm_full_simp_tac ctxt),
     clarsimp_tac (ctxt addsimps facts3),
@@ -118,7 +121,7 @@ ML{* fun corres_let_put_boxed_tac ctxt = let
     EVERY' [
     asm_full_simp_tac ((put_simpset HOL_basic_ss ctxt) addsimps facts1),
     REPEAT_ALL_NEW (etac @{thm exE}),
-    ((etac (get "corres_let_put_boxed") THEN' atac THEN' atac THEN' atac)
+    ((rtac (get "corres_let_put_boxed") THEN' simp_tac ctxt THEN' atac THEN' atac THEN' atac)
         THEN_ALL_NEW asm_full_simp_tac ctxt),
     clarsimp_tac (ctxt addsimps facts3),
     (rtac (get "u_t_p_recE") THEN' atac) THEN_ALL_NEW asm_full_simp_tac ctxt,
