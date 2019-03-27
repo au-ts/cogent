@@ -143,7 +143,7 @@ ML{* fun corres_let_put_boxed_tac ctxt = let
         EVERY' [
     asm_full_simp_tac ((put_simpset HOL_basic_ss ctxt) addsimps facts1),
     REPEAT_ALL_NEW (etac @{thm exE}),
-    ((etac (get "corres_let_put_boxed") THEN' atac THEN' atac THEN' atac)
+    ((rtac (get "corres_let_put_boxed") THEN' simp_tac ctxt THEN' atac THEN' atac THEN' atac)
         THEN_ALL_NEW asm_full_simp_tac ctxt),
     clarsimp_tac (ctxt addsimps facts3),
     (rtac (get "u_t_p_recE") THEN' atac) THEN_ALL_NEW asm_full_simp_tac ctxt,
