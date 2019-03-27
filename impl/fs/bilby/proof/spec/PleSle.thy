@@ -14,7 +14,7 @@ imports
   "../adt/WordArrayT"
   "../adt/ArrayT"
   "../adt/BufferT"
-  "~~/src/HOL/Eisbach/Eisbach"
+  "HOL-Eisbach.Eisbach"
 begin
 
 text{* axioms and lemmas that are *not* specific to 32 word. -> should be refactored.*}
