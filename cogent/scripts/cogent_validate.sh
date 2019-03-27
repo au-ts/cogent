@@ -157,31 +157,31 @@ if [ ! -d "$ABS" ]
   then HAVE_DONE_GCC=0
 fi
 
-# FIXME: refactor
-if [[ "$TESTSPEC" =~ '--ac--' && ! ( "$TESTSPEC" =~ '--gcc--' ) && $HAVE_DONE_GCC = 0 ]]
+# FIXME: fix the criteria for HAVE_DONE_* and add the conditions here / zilinc
+if [[ "$TESTSPEC" =~ '--ac--' && ! ( "$TESTSPEC" =~ '--gcc--' ) ]]
   then echo 'Note: adding --gcc because --ac depends on it' >&2
        TESTSPEC="${TESTSPEC}gcc--"
 fi
-if [[ "$TESTSPEC" =~ '--hsc-gen--' && ! ( "$TESTSPEC" =~ '--gcc--' ) && $HAVE_DONE_GCC = 0 ]]
+if [[ "$TESTSPEC" =~ '--hsc-gen--' && ! ( "$TESTSPEC" =~ '--gcc--' ) ]]
   then echo 'Note: adding --gcc because --hsc-gen depends on it' >&2
   # -gcc helps to tweak the .h files to include the right things
        TESTSPEC="${TESTSPEC}gcc--"
 fi
-if [[ "$TESTSPEC" =~ '--goanna--' && ! ( "$TESTSPEC" =~ '--gcc--' ) && $HAVE_DONE_GCC = 0 ]]
+if [[ "$TESTSPEC" =~ '--goanna--' && ! ( "$TESTSPEC" =~ '--gcc--' ) ]]
   then echo 'Note: adding --gcc because --goanna depends on it' >&2
        TESTSPEC="${TESTSPEC}gcc--"
 fi
-if [[ "$TESTSPEC" =~ '--ac--' && ! ( "$TESTSPEC" =~ '--cg--' ) && $HAVE_DONE_CG = 0 ]]
+if [[ "$TESTSPEC" =~ '--ac--' && ! ( "$TESTSPEC" =~ '--cg--' ) ]]
   then echo 'Note: adding --cg because --ac depends on it' >&2
        TESTSPEC="${TESTSPEC}cg--"
 fi
 
-if [[ "$TESTSPEC" =~ '--goanna--' && ! ( "$TESTSPEC" =~ '--cg--' ) && $HAVE_DONE_CG = 0 ]]
+if [[ "$TESTSPEC" =~ '--goanna--' && ! ( "$TESTSPEC" =~ '--cg--' ) ]]
   then echo 'Note: adding --cg because --goanna depends on it' >&2
        TESTSPEC="${TESTSPEC}cg--"
 fi
 # This must come after all tests that -gcc needs be added.
-if [[ "$TESTSPEC" =~ '--gcc--' && ! ( "$TESTSPEC" =~ '--cg--' ) && $HAVE_DONE_CG = 0 ]]
+if [[ "$TESTSPEC" =~ '--gcc--' && ! ( "$TESTSPEC" =~ '--cg--' ) ]]
   then echo 'Note: adding --cg because --gcc depends on it' >&2
        TESTSPEC="${TESTSPEC}cg--"
 fi
@@ -550,7 +550,7 @@ test_autocorres()
                    --dist-dir="$COUT" --root-dir=../../ --proof-name="$ISABELLE_SESSION_NAME" "$source"
            sed -i -e "s/^session ${ISABELLE_SESSION_NAME}_ACInstall = ${ISABELLE_SESSION_NAME}_SCorres_Normal +$/session ${ISABELLE_SESSION_NAME}_ACInstall = AutoCorres +/" "$COUT/ROOT"
 
-           if check_output $ISABELLE_BUILD -d "$AC_DIR" -d "../isa" -d "$COUT" ${ISABELLE_SESSION_NAME}_ACInstall
+           if check_output env L4V_ARCH=$L4V_ARCH $ISABELLE_BUILD -d "$AC_DIR" -d "../isa" -d "$COUT" ${ISABELLE_SESSION_NAME}_ACInstall
            then passed+=1; echo "$pass_msg"
            else echo "$fail_msg"
            fi
@@ -598,8 +598,7 @@ test_end_to_end()
            then (echo "#include \"../tests/include/${outfile}_dummy.h\"" && cat "$hfile") > "$hfile.tmp"
                 mv "$hfile.tmp" "$hfile"
            fi
-
-           if check_output $ISABELLE_BUILD -d "$AC_DIR" -d "$COUT" -d "../isa" ${ISABELLE_SESSION_NAME}_AllRefine
+           if check_output env L4V_ARCH=$L4V_ARCH $ISABELLE_BUILD -d "$AC_DIR" -d "$COUT" -d "../isa" ${ISABELLE_SESSION_NAME}_AllRefine
            then passed+=1; echo "$pass_msg"
            else echo "$fail_msg"
            fi
