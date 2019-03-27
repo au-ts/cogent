@@ -1,14 +1,16 @@
 -- Core expressions:
 -- Tested (somewhat):
 --    Var, Fun, App, Cast, Let, Con, Case, Esac, Promote
---    Struct, Take unboxed,
+--    Struct, Take unboxed, Member unboxed, Put unboxed
 --    Unit
 --    AFun
 --    Lit (U8)
+--    Prim
+--    If
+--    Member boxed, Put boxed, Take boxed,
 --
 -- Not tested:
---    Letbang, If, Prim
---    Member, Put boxed, Put unboxed, Take boxed,
+--    Letbang,
 --
 -- Not applicable, as not used by compiler?
 --    Tuple, Split
@@ -19,8 +21,8 @@
 id : U8 -> U8
 id x = x
 
-con_fun_call : U8 -> U8
-con_fun_call x = id x
+fun_call : U8 -> U8
+fun_call x = id x
 
 
 cast_u8_16 : U8 -> U16
@@ -31,8 +33,8 @@ cast_u8_16_id : U8 -> U16
 cast_u8_16_id x = upcast (id x)
 
 
-con_record : {field : U8} -> {field : U8}
-con_record x = x
+mk_record : {field : U8} -> {field : U8}
+mk_record x = x
 
 
 con_variant : U8 -> < Success (U8) >
@@ -60,24 +62,71 @@ con_esac x =
 
 
 -- this is actually a 'Struct'
-con_struct_tuple : U8 -> (U8, U8)
-con_struct_tuple x = (x,x)
+struct_tuple : U8 -> (U8, U8)
+struct_tuple x = (x,x)
+
+struct_record : U8 -> #{b : U8, a : (), d : U8}
+struct_record x = #{b = x, a = (), d = x}
 
 -- this is 'Take'
-con_take_tup : (U8,U8) -> U8
-con_take_tup (x,y) = x + y
+take_tup : (U8,U8) -> U8
+take_tup (x,y) = x + y
 
 
-con_unit : () -> ()
-con_unit () = ()
+unit : () -> ()
+unit () = ()
 
 
-con_afun_ffi : U8 -> U8
+afun_ffi : U8 -> U8
 
-con_afun_call : U8 -> U8
-con_afun_call x = con_afun_ffi x
+afun_call : U8 -> U8
+afun_call x = afun_ffi x
 
 
-con_lit_u8 : () -> U8
-con_lit_u8 _ = 10
+lit_u8 : () -> U8
+lit_u8 _ = 10
 
+
+prim_u8 : U8 -> U8
+prim_u8 x = x * 2
+
+prim_u8_many : U8 -> U8
+prim_u8_many x = x + (x * 2) - 100
+
+
+if_bool : U8 -> U8
+if_bool u = if u > 10 then 100 else 0
+
+
+member_unboxed : #{b : U8, a : (), d : U8} -> U8
+member_unboxed r = r.b
+
+put_unboxed : #{b : U8, a : (), d : U8} -> #{b : U8, a : (), d : U8}
+put_unboxed r = r { d = 10 }
+
+take_and_put_suc_unboxed : #{b : U8, a : (), d : U8} -> #{b : U8, a : (), d : U8}
+take_and_put_suc_unboxed r =
+  let r' {b = b} = r {d = 10}
+  in r' {b = b + 1}
+ 
+put_boxed : {b : U8, a : (), d : U8} -> {b : U8, a : (), d : U8}
+put_boxed r = r { b = 10 }
+
+take_and_put_suc_boxed : {b : U8, a : (), d : U8} -> {b : U8, a : (), d : U8}
+take_and_put_suc_boxed r =
+  let r' { b = b } = r
+  in r' { b = b + 1 }
+
+
+
+-- type X = U32
+-- type Y = U32
+-- type B = U32
+-- type A = { a : { x : X, y : Y } take (), b : B } take ()
+-- 
+-- foo : (X!) ->  ()
+-- foo _ = ()
+-- 
+-- bar : (A) -> < Success (A) >
+-- bar (val) = let () = foo (val.a.x) !val in Success (val)
+-- 
