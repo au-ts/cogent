@@ -1,13 +1,27 @@
 -- Core expressions:
 -- Tested (somewhat):
 --    Var, Fun, App, Cast, Let, Con, Case, Esac, Promote
+--    Struct, Take unboxed,
+--    Unit
+--    AFun
+--    Lit (U8)
 --
 -- Not tested:
---    Tuple, Split, Letbang, If, Prim, Lit, SLit, Unit
---    Struct, Member, Take, Put
+--    Letbang, If, Prim
+--    Member, Put boxed, Put unboxed, Take boxed,
+--
+-- Not applicable, as not used by compiler?
+--    Tuple, Split
+--
+-- Not applicable, as not supported by C parser:
+--    SLit (string literal)
 
 id : U8 -> U8
 id x = x
+
+con_fun_call : U8 -> U8
+con_fun_call x = id x
+
 
 cast_u8_16 : U8 -> U16
 cast_u8_16 x = upcast x
@@ -52,3 +66,18 @@ con_struct_tuple x = (x,x)
 -- this is 'Take'
 con_take_tup : (U8,U8) -> U8
 con_take_tup (x,y) = x + y
+
+
+con_unit : () -> ()
+con_unit () = ()
+
+
+con_afun_ffi : U8 -> U8
+
+con_afun_call : U8 -> U8
+con_afun_call x = con_afun_ffi x
+
+
+con_lit_u8 : () -> U8
+con_lit_u8 _ = 10
+
