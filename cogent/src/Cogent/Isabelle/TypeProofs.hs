@@ -107,7 +107,7 @@ splitEveryW w n xs = let (as, bs) = span ((<= n) . snd) .
 formatMLProof :: String -> String -> [String] -> [TheoryDecl I.Type I.Term]
 formatMLProof name typ lines =
   -- Isabelle has trouble with large numbers of @{thm} antiquotations; split into small blocks
-  [ TheoryString $ stepsML $ splitEveryW (length . filter (=='@')) 500 lines ]
+  [ TheoryString $ stepsML $ splitEveryW (length . filter (=='@')) 300 lines ]
   where stepsML (steps:stepss) =
           (if null stepss then "" else stepsML stepss) ++
           "ML_quiet {*\nval " ++ name ++ " : " ++ typ ++ " list = [\n" ++
