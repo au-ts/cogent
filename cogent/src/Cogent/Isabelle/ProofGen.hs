@@ -74,6 +74,7 @@ data Tactic = RuleTac Thm
             | Force Thms
             | WeakeningTac Thms
             | SplitsTac [MLOption [Tactic]]
+            | SubtypingTac [Tactic]
 
 instance Show Thm where
   show (Thm thm) = "@{thm " ++ thm ++ "}"
@@ -92,6 +93,7 @@ instance Show Tactic where
   show (Force adds) = "(ForceTac " ++ show adds ++ ")"
   show (WeakeningTac kindThms) = "(WeakeningTac " ++ show kindThms ++")"
   show (SplitsTac tacs) = "(SplitsTac " ++ show tacs ++ ")"
+  show (SubtypingTac tacs) = "(SubtypingTac " ++ show tacs ++ ")"
 
 rule thm = RuleTac (Thm thm)
 rule_tac thm insts = RuleTac (ThmInst thm insts)
@@ -262,7 +264,6 @@ typingWrapper xi k (EE t (Struct fs) env)
     | allVars (map (eexprExpr . snd) fs) = tacSequence [ ]
 typingWrapper xi k (EE (TPrim t) (Op o es) env)
     | allVars (map eexprExpr es) = tacSequence [ ]
-typingWrapper _ _ (EE _ (Promote _ (EE _ (Variable _) _)) _) = tacSequence [ ]
 typingWrapper xi k e = typing xi k e
 
 allVars :: [Expr a b c d] -> Bool
@@ -459,10 +460,10 @@ typing xi k (EE ty (Put e1@(EE (TRecord ts _) _ _) f e2@(EE t _ _)) env) = tacSe
   return [simp_solve]                                   -- ts' = (ts [f := (t,False)])
   ]
 
-typing xi k (EE _ (Promote ty e) env) = tacSequence [
-  return [rule "typing_promote"],                         -- Ξ, K, Γ ⊢ Promote t x : t
-  typing xi k e,                                          -- Ξ, K, Γ ⊢ x : t'
-  return [Force $ Thms "subtyping_simps kinding_defs"] -- K ⊢ t' ⊑ t
+typing xi k (EE _ (Promote t e@(EE t' _ _)) env) = tacSequence [
+  return [rule "typing_promote"], -- Ξ, K, Γ ⊢ Promote t x : t
+  typing xi k e,                  -- Ξ, K, Γ ⊢ x : t'
+  pure <$> subtyping k t' t       -- K ⊢ t' ⊑ t
   ]
 
 typing xi k _ = error "attempted to generate proof of ill-typed program"
@@ -479,6 +480,50 @@ typingAll xi k g (e:es) =
     typing xi k e,              -- Ξ, K, Γ1 ⊢  e  : t
     typingAll xi k envs es      -- Ξ, K, Γ2 ⊢* es : ts
     ]
+
+
+subtyping :: Vec t Kind -> Type t -> Type t -> State TypingSubproofs Tactic
+subtyping k t1 t2 = SubtypingTac <$> subtyping' k t1 t2
+
+subtyping' :: Vec t Kind -> Type t -> Type t -> State TypingSubproofs [Tactic]
+subtyping'' :: Vec t Kind -> Type t -> Type t -> State TypingSubproofs [Tactic]
+
+subtyping' k t1 t2 =
+  if t1 == t2
+  then
+    tacSequence [
+      return [rule "subtyping_refl"],
+      wellformed k t1
+      ]
+  else subtyping'' k t1 t2
+
+subtyping'' k TVar{}           TVar{}           = return [rule "subty_tvar", simp_solve]
+subtyping'' k TVarBang{}       TVarBang{}       = return [rule "subty_tvarb", simp_solve]
+subtyping'' k TCon{}           TCon{}           = return [rule "subty_tcon", simp_solve, simp_solve, simp_solve]
+subtyping'' k (TFun t1 u1)     (TFun t2 u2)     =
+  (rule "subty_tfun" :) <$> liftM2 (++) (subtyping' k t2 t1) (subtyping' k u1 u2)
+subtyping'' k TPrim{}          TPrim{}          = return [rule "subty_tprim", simp_solve]
+subtyping'' k (TRecord f1s _)  (TRecord f2s _)  =
+  let t1s = fst . snd <$> f1s
+   in tacSequence [
+    return [rule "subty_trecord"],
+    (++ [rule "list_all2_nil"]) . join . (([rule "list_all2_cons", simp] ++) <$>)
+      <$> zipWithM (subtyping' k) t1s (fst . snd <$> f2s),
+    return [simp_solve],
+    join <$> traverse (kinding k) t1s,
+    return [simp_solve]
+    ]
+subtyping'' k (TProduct t1 u1) (TProduct t2 u2) =
+  (rule "subty_tprod" :) <$> liftM2 (++) (subtyping' k t1 t2) (subtyping' k u1 u2)
+subtyping'' k (TSum v1s)       (TSum v2s)  =
+  tacSequence [
+    return [rule "subty_tsum"],
+    (++ [rule "list_all2_nil"]) . join . (([rule "list_all2_cons", simp] ++) <$>)
+      <$> zipWithM (subtyping' k) (fst . snd <$> v1s) (fst . snd <$> v2s),
+    return [simp_solve],
+    return [force_simp []]
+    ]
+
 
 kinding :: Vec t Kind -> Type t -> State TypingSubproofs [Tactic]
 kinding k t = do

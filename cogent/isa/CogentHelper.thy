@@ -235,6 +235,7 @@ datatype tac = RTac of thm
              | ForceTac of thm list
              | WeakeningTac of thm list
              | SplitsTac of tac list option list
+             | SubtypingTac of tac list
 
 val simp_solve = SimpSolveTac ([], [])
 
@@ -278,6 +279,7 @@ fun interpret_tac (RTac r) _ = rtac r
   | interpret_tac (ForceTac a) ctxt = force_tac (ctxt addsimps a)
   | interpret_tac (WeakeningTac thms) ctxt = K (weakening_tac ctxt thms)
   | interpret_tac (SplitsTac tacs) ctxt = K (guided_splits_tac ctxt tacs)
+  | interpret_tac (SubtypingTac tacs) ctxt = EVERY' (map (fn hint => interpret_tac hint ctxt) tacs)
 and guided_splits_tac ctxt (SOME splt :: script) =
   rtac @{thm split_cons} 1
     THEN EVERY' (map (fn t => interpret_tac t ctxt) splt) 1
@@ -288,7 +290,6 @@ and guided_splits_tac ctxt (SOME splt :: script) =
   REPEAT_DETERM ((rtac @{thm split_cons} THEN' rtac @{thm split_comp.none}) 1)
     THEN guided_splits_tac ctxt script
 | guided_splits_tac ctxt [] = rtac @{thm split_empty} 1
-
 
 fun kind_proof_single (@{term SomeT} $ t) k ctxt hint = let
     val tac = (case hint of
@@ -420,8 +421,6 @@ fun typing (Const (@{const_name Var}, _) $ i) G _ hints = let
              | _ => raise HINTS ("too many tacs", hints))
   in ([RTac @{thm typing_prim'}, simp_solve, simp_solve] @ typing_all_vars ctxt G ixs) end
     | NONE => typing_hint hints)
-  | typing (Const (@{const_name Promote}, _) $ _ $ e) G ctxt hints
-  = ([RTac @{thm typing_promote}] @ typing e G ctxt hints @ [ForceTac @{thms subtyping_simps kinding_defs}])
   | typing _ _ _ hints = let
     in typing_hint hints end
 
