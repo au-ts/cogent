@@ -10,7 +10,7 @@
 
 theory Util
 imports Main
-        "~~/src/HOL/Word/Word"
+        "HOL-Word.Word"
 begin
 
 definition
