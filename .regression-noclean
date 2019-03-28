@@ -3,3 +3,5 @@
 # Don't rebuild lens every time
 cogent/.cabal-sandbox
 cogent/cabal.sandbox.config
+cogent/dist
+autocorres
