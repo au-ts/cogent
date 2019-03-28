@@ -72,7 +72,7 @@ provides 32G of memory and 4–8 CPU threads.
  make verification;
  patch -d plat/verification < ../../../../BilbyFs_CorresProof.patch;
  export L4V_ARCH="ARM";
- isabelle build -d . -d ../../../../cogent/isa -d ../../../../autocorres -b -o process_output_limit=999 BilbyFs_AllRefine)
+ isabelle build -d plat/verification -d ../../../../cogent/isa -d ../../../../autocorres -b -o process_output_limit=999 BilbyFs_AllRefine)
 
 # View end-to-end theorems. Each theory has a "print_theorems" command for this.
 # For ext2:
