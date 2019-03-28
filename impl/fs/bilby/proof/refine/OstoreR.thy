@@ -16,8 +16,8 @@ imports
   "../impl/BilbyFs_Shallow_Desugar_Tuples"
   "../adt/BufferT"
   "../spec/SerialS"
-  "~~/src/HOL/Library/Sublist"
-  "~~/src/HOL/Library/Multiset"
+  "HOL-Library.Sublist"
+  "HOL-Library.Multiset"
 begin
 
 lemma take_list_update:
