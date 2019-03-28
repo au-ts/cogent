@@ -9,7 +9,7 @@
      @TAG(NICTA_GPL)
   -->
 
-<testsuite timeout="4800">
+<testsuite timeout="7200">
     <!-- artificial dependency on isabelle to fail fast if isabelle setup doesn't work -->
     <test name="cogent_compiler">make dev</test>
     <test name="cogent_typeproof" depends="isabelle">make test-tc-proof; make clean</test>
