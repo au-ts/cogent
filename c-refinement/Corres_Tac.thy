@@ -323,8 +323,8 @@ fun sigil_atom_stmts @{const_name Member} Unboxed = SOME 1
   | sigil_atom_stmts @{const_name Member} _       = SOME 2
   | sigil_atom_stmts _ _ = NONE
 fun rec_sigil (Const (@{const_name TRecord}, _) $ _ $ @{term Unboxed}) = SOME Unboxed
-  | rec_sigil (Const (@{const_name TRecord}, _) $ _ $ @{term ReadOnly}) = SOME ReadOnly
-  | rec_sigil (Const (@{const_name TRecord}, _) $ _ $ @{term Writable}) = SOME Writable
+  | rec_sigil (Const (@{const_name TRecord}, _) $ _ $ (@{const Boxed} $ @{const ReadOnly} $ _)) = SOME ReadOnly
+  | rec_sigil (Const (@{const_name TRecord}, _) $ _ $ (@{const Boxed} $ @{const Writable} $ _)) = SOME Writable
   | rec_sigil _ = NONE
 
 (* Guess the number of statements for this atom.
@@ -335,7 +335,7 @@ fun atom_stmts' (head : string) (args : term list) (env : term) =
     of (@{const_name Member}, Const (@{const_name Var}, _) $ n :: _) => let
     val ty = case nth (HOLogic.dest_list env) (decode_isa_nat n) of
       (Const (@{const_name Some}, _) $ ty) => ty | t => raise TERM ("atom_stmts': Gamma none", [t])
-    val sg = case rec_sigil ty of SOME s => s | _ => raise TERM ("atom_stmts': no sig", [ty])
+    val sg = case rec_sigil ty of SOME s => s | _ => raise ERROR ("atom_stmts': cannot parse sigil for record: " ^ @{make_string} ty)
   in sigil_atom_stmts head sg end
     | (@{const_name Prim}, primop :: _) => let
     val is_guarded = case head_of primop of @{const "LShift"} => true
