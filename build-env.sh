@@ -41,6 +41,7 @@ set_build_env()
   
   local SCRIPT_DIR=`find_script_dir`
   : ${AC_DIR:="$SCRIPT_DIR/autocorres"}
+  : ${L4V_ARCH:="ARM"}
 
   # Location of Isabelle (sub-module)
   : ${ISABELLE_TOOLDIR:="$SCRIPT_DIR/isabelle/bin"}
