@@ -629,6 +629,12 @@ proof -
     done
 qed
 
+lemma all_imp_conj_distrib: "(\<forall>x. P x \<longrightarrow> Q x \<and> R x) = ((\<forall>x. P x \<longrightarrow> Q x) \<and> (\<forall>x. P x \<longrightarrow> R x))"
+  by blast
+
+lemma imp2_conj_pull_out_common: "(A \<longrightarrow> B \<longrightarrow> C) \<and> (A' \<longrightarrow> B \<longrightarrow> C') \<longleftrightarrow> (B \<longrightarrow> (A \<longrightarrow> C) \<and> (A' \<longrightarrow> C'))"
+  by blast
+
 section {* TSum as map lemmas *}
 
 abbreviation map_pairs :: "('a \<rightharpoonup> 'b) \<Rightarrow> ('a \<times> 'b) set" where
