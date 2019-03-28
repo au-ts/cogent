@@ -310,6 +310,7 @@ test_type_checking()
     shouldpass=0
     shouldfail=0
 
+    shopt -s nullglob
     for source in "$TESTS"/shouldpass_*.cogent
     do
         should+=1
@@ -329,17 +330,19 @@ test_type_checking()
         wip+=1
     done
 
+    shopt -u nullglob
+
     echo "Passed $passed out of $total."
     if [[ $passed = $total ]]
     then all_passed+=1
     fi
     echo "$should problems we are aware of:"
     echo "* $shouldpass should pass but don't:"
-    find "$TESTS" -name "shouldpass_*.cogent" -printf "  %f\n"
+    find "$TESTS" -maxdepth 1 -name "shouldpass_*.cogent" -printf "  %f\n"
     echo "* $shouldfail should fail but don't:"
-    find "$TESTS" -name "shouldfail_*.cogent" -printf "  %f\n"
+    find "$TESTS" -maxdepth 1 -name "shouldfail_*.cogent" -printf "  %f\n"
     echo "* $wip are still under development and don't work ATM"
-    find "$TESTS" -name "wip_*.cogent" -printf "  %f\n"
+    find "$TESTS" -maxdepth 1 -name "wip_*.cogent" -printf "  %f\n"
 }
 
 test_desugaring()
