@@ -38,9 +38,17 @@ lemma length_mapAccum_slice_helper:
   "length (let (xs', _) = fold (\<lambda>x (ys,a'). let  (elem, acc) = loopbody x a'
                                   in  (ys@[elem],acc)) (slice frm to xs) (ys,a)
            in xs') = length ys + length (slice frm to xs)"
-  apply (simp only: Let_def  prod.case_eq_if)
-   using length_mapAccum_helper[unfolded fun_app_def prod.case_eq_if Let_def]
-   by fastforce
+proof -
+  have f1: "(\<lambda>x (ys, a'). (ys @ [TypBucket.fst (loopbody x a')], TypBucket.snd (loopbody x a'))) =
+            (\<lambda>x prod. (TypBucket.fst prod @ [TypBucket.fst (loopbody x (TypBucket.snd prod))], TypBucket.snd (loopbody x (TypBucket.snd prod))))"
+    using split_beta by blast
+  show ?thesis
+    apply simp
+    apply (simp only: Let_def prod.case_eq_if)
+    using length_mapAccum_helper[unfolded fun_app_def prod.case_eq_if Let_def]
+    apply (force simp add: f1)
+    done
+qed
 
 lemma slice_length:
  "length (slice frm to xs) = min (to - frm) (length xs - frm)"

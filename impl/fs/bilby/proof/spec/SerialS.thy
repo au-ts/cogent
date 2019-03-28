@@ -1041,7 +1041,7 @@ qed
 lemmas ObjUnion_splits = ObjUnion\<^sub>1\<^sub>1\<^sub>1\<^sub>1\<^sub>1\<^sub>1\<^sub>1.splits ObjUnion\<^sub>1\<^sub>1\<^sub>0\<^sub>1\<^sub>1\<^sub>1\<^sub>1.splits ObjUnion\<^sub>1\<^sub>1\<^sub>0\<^sub>0\<^sub>1\<^sub>1\<^sub>1.splits
 
 lemma take_drop_decomp:"x \<ge> a \<Longrightarrow> take (x - a) (drop a xs) @ drop x xs = drop a xs"
-  by (subst take_drop_append[where b="x-a" and xs=xs], simp)
+  by (metis drop_take drop_take_drop)
 
 lemma serialise_ObjPad_ret:
   assumes no_overflow: "offs \<le> offs + (olen - bilbyFsObjHeaderSize)"
@@ -2663,7 +2663,7 @@ lemma pObjUnion_take:
  done
 
 lemmas Obj_ext_eq_expand = trans[OF _ Obj.ext_inject,
-    OF arg_cong2[where f="op ="], OF refl Obj.surjective]
+    OF arg_cong2[where f="(=)"], OF refl Obj.surjective]
 
 lemma deserialise_Obj_ret:
   assumes wf: "wellformed_buf buf"

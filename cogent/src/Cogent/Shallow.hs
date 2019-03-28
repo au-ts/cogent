@@ -118,27 +118,24 @@ shallowPrimType Boolean = I.TyPrim I.BoolT
 mkShallowOp :: String -> Term
 mkShallowOp s = mkApp (mkId "op") [mkId s]
 
-mkShallowOpApp :: String -> [Term] -> Term
-mkShallowOpApp s es = mkApp (mkShallowOp s) es
-
 shallowPrimOp :: Op -> [Term] -> Term
-shallowPrimOp CS.Plus   es = mkShallowOpApp "+" es
-shallowPrimOp CS.Minus  es = mkShallowOpApp "-" es
-shallowPrimOp CS.Times  es = mkShallowOpApp "*" es
+shallowPrimOp CS.Plus   es = mkApp (mkId "(+)") es
+shallowPrimOp CS.Minus  es = mkApp (mkId "(-)") es
+shallowPrimOp CS.Times  es = mkApp (mkId "( * )") es
 shallowPrimOp CS.Divide es = mkApp (mkId "checked_div") es
 shallowPrimOp CS.Mod    es = mkApp (mkId "checked_mod") es
 shallowPrimOp CS.Not    es = mkApp (mkId "HOL.Not") es
 shallowPrimOp CS.And    es = TermBinOp Conj (es!!0) (es!!1)
 shallowPrimOp CS.Or     es = TermBinOp Disj (es!!0) (es!!1)
-shallowPrimOp CS.Gt     es = mkShallowOpApp ">" es
-shallowPrimOp CS.Lt     es = mkShallowOpApp "<" es
-shallowPrimOp CS.Le     es = mkShallowOpApp "<=" es
-shallowPrimOp CS.Ge     es = mkShallowOpApp ">=" es
-shallowPrimOp CS.Eq     es = mkShallowOpApp "=" es
-shallowPrimOp CS.NEq    es = mkShallowOpApp "~=" es
-shallowPrimOp CS.BitAnd es = mkShallowOpApp "AND" es
-shallowPrimOp CS.BitOr  es = mkShallowOpApp "OR" es
-shallowPrimOp CS.BitXor es = mkShallowOpApp "XOR" es
+shallowPrimOp CS.Gt     es = mkApp (mkId "(>)") es
+shallowPrimOp CS.Lt     es = mkApp (mkId "(<)") es
+shallowPrimOp CS.Le     es = mkApp (mkId "(<=)") es
+shallowPrimOp CS.Ge     es = mkApp (mkId "(>=)") es
+shallowPrimOp CS.Eq     es = mkApp (mkId "(=)") es
+shallowPrimOp CS.NEq    es = mkApp (mkId "(~=)") es
+shallowPrimOp CS.BitAnd es = mkApp (mkId "(AND)") es
+shallowPrimOp CS.BitOr  es = mkApp (mkId "(OR)") es
+shallowPrimOp CS.BitXor es = mkApp (mkId "(XOR)") es
 shallowPrimOp CS.LShift [e1,e2] = mkApp (mkId "checked_shift") [mkId "shiftl", e1, e2]
 shallowPrimOp CS.RShift [e1,e2] = mkApp (mkId "checked_shift") [mkId "shiftr", e1, e2]
 shallowPrimOp CS.LShift _ = __impossible "shallowPrimOp"

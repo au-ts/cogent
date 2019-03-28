@@ -17,7 +17,6 @@ imports
   "../adt/BufferT"
   "../spec/SerialS"
   "~~/src/HOL/Library/Sublist"
-  "~~/src/HOL/Word/WordBitwise"
   "~~/src/HOL/Library/Multiset"
 begin
 
@@ -1237,7 +1236,7 @@ lemma \<alpha>_updates_padding_objeq:
    done
 
 lemmas Obj_ext_eq_expand = trans[OF _ Obj.ext_inject,
-    OF arg_cong2[where f="op ="], OF refl Obj.surjective]
+    OF arg_cong2[where f="(=)"], OF refl Obj.surjective]
 
 lemma inv_ostore_preserved_padding_obj:
   assumes inv_ostore: "inv_ostore mount_st ostore_st"
@@ -1875,26 +1874,26 @@ by(induct xs)(simp_all add: insort_key_append1)
 (* end of AFP containers *)
 
 lemma inj_on_filter_key_eq:
-  "inj_on s (insert k (set xs)) \<Longrightarrow> [x\<leftarrow>xs . s k = s x] = filter (op = k) xs"
+  "inj_on s (insert k (set xs)) \<Longrightarrow> [x\<leftarrow>xs . s k = s x] = filter ((=) k) xs"
   apply (induct xs)
    apply simp
   apply (drule meta_mp, erule subset_inj_on)
    apply auto[1]
-  apply (drule_tac x=k and y=a in inj_on_iff, auto)
+  apply (drule_tac x=k and y=a in inj_on_eq_iff, auto)
   done
 
 lemma filter_eq_replicate_count_multiset:
-  "filter (op = k) xs = replicate (count (multiset_of xs) k) k"
+  "filter ((=) k) xs = replicate (count (mset xs) k) k"
   by (induct xs, auto)
 
 lemma sort_key_multiset_eq:
-  assumes multiset: "multiset_of xs = multiset_of ys"
+  assumes multiset: "mset xs = mset ys"
         and inj_on: "inj_on f (set xs)"
   shows "sort_key f xs = sort_key f ys"
 proof -
   from multiset have set:
     "set xs = set ys"
-    by (metis set_of_multiset_of)
+    by (rule mset_eq_setD)
   note filter = inj_on_filter_key_eq[OF subset_inj_on, OF inj_on]
   show ?thesis
   apply (rule properties_for_sort_key)
@@ -1902,7 +1901,7 @@ proof -
    apply (simp add: filter set)
    apply (simp add: filter_eq_replicate_count_multiset multiset)
   apply simp
-  done
+    done
 qed
 
 lemma sort_key_concat_map:
@@ -1922,16 +1921,14 @@ proof -
     apply (cut_tac n=i and xs=xs in append_take_drop_id, simp)
     done
 
-  from i have multiset: "multiset_of (concat (map f (drop n xs))) + multiset_of (f ys) =
-        multiset_of (concat (map f (drop n (xs[i := xs ! i @ ys]))))"
+  from i have multiset: "mset (concat (map f (drop n xs))) + mset (f ys) =
+        mset (concat (map f (drop n (xs[i := xs ! i @ ys]))))"
 
     apply (simp add: xs_split drop_list_update)
     apply (simp add: list_update_append nth_append f[simplified xi])
-    apply (simp add: add.assoc)
-    apply (simp add: add.commute)
     done
 
-  note set = arg_cong[where f=set_of, OF multiset[symmetric], simplified]
+  note set = arg_cong[where f=set_mset, OF multiset[symmetric], simplified]
 
   show ?thesis
     apply (rule sort_key_multiset_eq)
@@ -2361,7 +2358,7 @@ proof -
 qed
 
 lemmas OstoreState_ext_eq_expand = trans[OF _ OstoreState.ext_inject,
-    OF arg_cong2[where f="op ="], OF refl OstoreState.surjective]
+    OF arg_cong2[where f="(=)"], OF refl OstoreState.surjective]
  
 lemma ostore_sync_ret:
  assumes inv_ostore: "inv_ostore mount_st ostore_st"

@@ -48,27 +48,25 @@ lemma sub_mod_mask:
   "\<lbrakk>k < 32 \<rbrakk> \<Longrightarrow> (x::32 word) - x mod 2^k = x && ~~ mask k"
   apply (simp add: word_mod_2p_is_mask p2_gt_0 mask_out_sub_mask)
   done
-  
+
 lemma alignUp_not_aligned_eq2:
-  " \<not> is_aligned a n \<Longrightarrow> WordSetup.alignUp a n = ((a >> n) + 1) << n"
+  " \<not> is_aligned a n \<Longrightarrow> Word_Lib.alignUp a n = ((a >> n) + 1) << n"
   apply (cases "n < size a")
    apply (subst alignUp_not_aligned_eq, assumption)
     apply (simp add: word_size)
    apply (simp add: shiftr_div_2n_w shiftl_t2n)
-  apply (simp add: WordSetup.alignUp_def power_overflow
+  apply (simp add: Word_Lib.alignUp_def power_overflow
         word_size complement_def shiftl_zero_size)
  done
 
 lemma alignUp_not_aligned_eq3:
-  "\<not> is_aligned a n \<Longrightarrow> WordSetup.alignUp a n = (a && ~~ mask n) + (1 << n)"
+  "\<not> is_aligned a n \<Longrightarrow> Word_Lib.alignUp a n = (a && ~~ mask n) + (1 << n)"
   by (simp add: alignUp_not_aligned_eq2 word_shiftl_add_distrib and_not_mask) 
   
 lemma alignUp_def2:
   "alignUp a sz = a + 2 ^ sz - 1 && ~~ mask sz"
-   unfolding alignUp_def[unfolded complement_def]
-   apply (subst word_log_esimps)
-   apply (simp add:mask_def[symmetric,unfolded shiftl_t2n,simplified])
-   done
+  unfolding alignUp_def[unfolded complement_def]
+  by (simp add: mask_def[symmetric,unfolded shiftl_t2n,simplified])
 
 lemma align32_alignUp:
   "\<lbrakk>y = 1 << k; k < 32\<rbrakk> \<Longrightarrow> align32(x,y) = alignUp x k"
@@ -278,8 +276,9 @@ lemma align32_upper_bound:
                       in aligned_neq_into_ineq, assumption+)
   apply (simp add: mask_def)
   apply safe
-   apply (metis alignUp_le_greater_al word_bits_conv word_bits_def)
-  by (metis alignUp_le_greater_al word_bits_conv word_bits_def)
+   apply (simp add: L4vBucket.alignUp_le_greater_al)
+  apply (simp add: L4vBucket.alignUp_le_greater_al)
+  done
 
 
 lemma align32_idempotence:

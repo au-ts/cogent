@@ -27,12 +27,12 @@ where
   "checked_shift shifter x y = (if y < of_nat (len_of TYPE('a)) then shifter x (unat y) else 0)"
 
 definition
-  checked_div :: "'a \<Rightarrow> 'a \<Rightarrow> ('a :: {zero, Divides.div})"
+  checked_div :: "'a \<Rightarrow> 'a \<Rightarrow> ('a :: {zero, Rings.divide})"
 where
   "checked_div x y = (if y = 0 then 0 else x div y)"
 
 definition
-  checked_mod :: "'a \<Rightarrow> 'a \<Rightarrow> ('a :: {zero, Divides.div})"
+  checked_mod :: "'a \<Rightarrow> 'a \<Rightarrow> ('a :: {zero, Rings.modulo})"
 where
   checked_mod_def[simp]:
   "checked_mod x y = (if y = 0 then 0 else x mod y)"

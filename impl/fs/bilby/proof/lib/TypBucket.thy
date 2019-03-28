@@ -20,6 +20,9 @@ text {* Override Cogent defined constructors so that
 abbreviation Some :: "'a \<Rightarrow> 'a option" where "Some \<equiv> option.Some"
 abbreviation None :: "'a option" where "None \<equiv> option.None"
 
+abbreviation fst :: "'a \<times> 'b \<Rightarrow> 'a" where "fst \<equiv> Product_Type.fst"
+abbreviation snd :: "'a \<times> 'b \<Rightarrow> 'b" where "snd \<equiv> Product_Type.snd"
+
 (* Should this be in a locale so it can be instantiated? *)
 axiomatization
   select :: "('h \<times> 'a set) \<Rightarrow> ('h \<times> 'a)"

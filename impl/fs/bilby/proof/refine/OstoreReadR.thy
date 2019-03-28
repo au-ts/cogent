@@ -65,14 +65,9 @@ lemma dom_uptodate_eq_dom_index:
   assumes inv_ostore: "inv_ostore mount_st ostore_st"
  shows
  "dom (\<alpha>_ostore_uptodate ostore_st) = dom (\<alpha>rbt $ addrs\<^sub>f $ index_st\<^sub>f ostore_st)"
-  apply (simp add: inv_ostore_runtimeD[OF inv_ostore, symmetric])
-  using inv_ostore_indexD[OF inv_ostore]
-  apply (simp add: inv_ostore_index_def Let_def )
-  apply (rule dom_eqI)
-   apply (simp add: \<alpha>_ostore_runtime_def \<alpha>_index_def)
-   apply (clarsimp split: option.splits)
-  apply (simp add: \<alpha>_ostore_runtime_def \<alpha>_index_def)
- done
+  by (force intro!: Collect_eqI split: option.splits dest: inv_ostore_indexD
+       simp add: \<alpha>_ostore_runtime_def \<alpha>_index_def dom_def inv_ostore_index_def Let_def
+       inv_ostore_runtimeD[OF inv_ostore, symmetric])
 
 lemma inv_mount_st_io_size_not_0D:
  "inv_mount_st mount_st \<Longrightarrow> io_size\<^sub>f (super\<^sub>f mount_st) \<noteq> 0"
@@ -452,7 +447,7 @@ lemma inv_ostore_rbuf_agnostic:
    buf'\<lparr>data\<^sub>f := v,bound\<^sub>f:= b\<rparr> = rbuf\<^sub>f ostore_st \<Longrightarrow>
    wordarray_length (data\<^sub>f buf') = eb_size\<^sub>f (super\<^sub>f mount_st) \<Longrightarrow>
   inv_ostore mount_st (ostore_st\<lparr>rbuf\<^sub>f := buf'\<rparr>)"
-  apply (clarsimp simp add: inv_ostore_simps Let_def buf_simps split del: split_if )
+  apply (clarsimp simp add: inv_ostore_simps Let_def buf_simps split split: if_splits )
   apply (rule conjI)
    apply (erule ostore_maps_eq_rbuf_agnostic)
   apply (clarsimp simp add: is_valid_addr_def ostore_get_obj_def list_eb_log_wbuf_def)
@@ -485,14 +480,14 @@ by (metis drop_drop le_add_diff_inverse2)
 
 lemma take_eq_decrease:
  "take n xs = take n ys \<Longrightarrow> m \<le> n \<Longrightarrow> take m xs = take m ys"
-by (metis min_simps(2) take_take)
+by (metis min_absorb1 take_take)
 
 lemma slice_sub_slice:
   "slice a b xs = slice a b ys \<Longrightarrow>
    a \<le> n \<Longrightarrow> m \<le> b \<Longrightarrow>
    a \<le> b \<Longrightarrow> n \<le> m \<Longrightarrow> 
    slice n m xs  = slice n m ys"
-by (simp add: slice_def) (metis  drop_eq_increase drop_take min_simps(2) take_take)
+  by (simp add: slice_def) (metis  drop_eq_increase drop_take min_absorb1 take_take)
 
 lemma ple32_slice_eq_no_add:
  " bilbyFsObjHeaderSize \<le> Obj.len\<^sub>f obj \<Longrightarrow>
@@ -569,10 +564,9 @@ unat offs + unat (Obj.len\<^sub>f obj) \<le> length xs \<Longrightarrow>
   apply (subst take_add_nth_eq_drop, ((simp add: unat_arith_simps)[2])+)
   apply (subst take_add_nth_eq_drop, ((simp add: unat_arith_simps)[2])+)
   apply (simp add: drop_take)
-  apply (subst nth_take[symmetric,where xs="drop (unat offs) xs"], simp add: word_less_nat_alt)
-  apply (subst nth_take[symmetric,where xs="drop (unat offs) ys"], simp add: word_less_nat_alt)
-  apply simp
- done
+  apply (drule arg_cong[where f="(\<lambda>xs. xs ! (unat n))"])
+  apply (simp add: word_less_nat_alt)
+  done
 
 lemma pObjHeader_slice_eq:
   "bilbyFsObjHeaderSize \<le> Obj.len\<^sub>f obj \<Longrightarrow>
@@ -1348,6 +1342,9 @@ lemma unat_lift_plus_simpleE:
   unat a + unat b \<le> unat c"
   by unat_arith
 
+lemma handy_lemma: "a = Some b \<Longrightarrow> the a = b"
+  by simp
+
 lemma ostore_read_ret:
   assumes inv_ostore: "inv_ostore mount_st ostore_st"
   assumes inv_mount_st: "inv_mount_st mount_st"
@@ -1428,7 +1425,7 @@ lemma ostore_read_ret:
     apply (simp add: \<alpha>_updates_def buf_simps)
    apply clarsimp
    apply (rule err)
-        apply (simp add: inv_ostore_bound_upd[OF inv_ostore])
+              apply (simp add: inv_ostore_bound_upd[OF inv_ostore])
        apply (erule notE)
        using inv_ostore_indexD[OF inv_ostore]
        apply (simp add: inv_ostore_index_def)

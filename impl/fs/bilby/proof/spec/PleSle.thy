@@ -14,6 +14,7 @@ imports
   "../adt/WordArrayT"
   "../adt/ArrayT"
   "../adt/BufferT"
+  "HOL-Eisbach.Eisbach"
 begin
 
 text{* axioms and lemmas that are *not* specific to 32 word. -> should be refactored.*}
@@ -51,9 +52,7 @@ lemma test_bit_out_of_bounds:
   
 lemma mod_range_eq:
   "\<lbrakk>n \<ge> (a::nat)*8; (n::nat) < (a+1)*8\<rbrakk> \<Longrightarrow> n mod 8 = n - (a*8)"
-  apply (simp add: mod_div_equality')
-  apply (subst split_div_lemma[where q=a, THEN iffD1, symmetric], simp_all)
-  done
+  by (simp add: div_nat_eqI modulo_nat_def mult.commute)
   
 lemma range_le:
   "\<lbrakk>(n :: nat) \<ge> (a::nat)*8; n < (a+1)*8\<rbrakk> \<Longrightarrow>

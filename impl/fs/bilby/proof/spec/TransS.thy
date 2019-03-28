@@ -34,11 +34,11 @@ lemma list_trans_not_Nil_Nil:
   list_trans xs \<noteq> ([],[])"
  by (simp split: list.splits prod.splits)
 
-lemma prefixeq_n_takeD:
- "prefixeq xs ys \<Longrightarrow>
+lemma prefix_n_takeD:
+ "prefix xs ys \<Longrightarrow>
   n \<le> length xs \<Longrightarrow>
   take n ys = take n xs"
-by (auto simp: prefixeq_def)
+by (auto simp: prefix_def)
 
 lemma take_n_eq_simp:
  "take len ys = take len xs \<Longrightarrow>
@@ -108,23 +108,23 @@ lemma length_bilbyFsObjHeaderSize_le_trans:
 by unat_arith
 
 lemma is_valid_ObjHeader_prefixeq_eq:
- "prefixeq xs ys \<Longrightarrow>
+ "prefix xs ys \<Longrightarrow>
   unat (Obj.len\<^sub>f (pObj xs 0)) \<le> length xs \<Longrightarrow>
   unat bilbyFsObjHeaderSize \<le> unat (Obj.len\<^sub>f (pObj xs 0)) \<Longrightarrow>
   is_valid_ObjHeader (pObj ys 0) ys = is_valid_ObjHeader (pObj xs 0) xs"
-  apply (frule (1) prefixeq_n_takeD[where n="unat (Obj.len\<^sub>f (pObj xs 0))"])
+  apply (frule (1) prefix_n_takeD[where n="unat (Obj.len\<^sub>f (pObj xs 0))"])
   apply (drule (1) pObjD)
-  apply (frule prefixeq_n_takeD[where n="length xs" and xs=xs and ys=ys], fastforce)
+  apply (frule prefix_n_takeD[where n="length xs" and xs=xs and ys=ys], fastforce)
   apply (subgoal_tac "take (unat $ Obj.len\<^sub>f $ pObj xs 0) xs = take (unat $ Obj.len\<^sub>f $ pObj xs 0) ys")
    prefer 2
-   apply (drule (1) prefixeq_n_takeD, fastforce)
-  apply (frule prefixeq_length_le)
+   apply (drule (1) prefix_n_takeD, fastforce)
+  apply (frule prefix_length_le)
   apply (auto simp: is_valid_ObjHeader_def length_bilbyFsObjHeaderSize_le_trans)
- done
+  done
 
 lemma is_valid_ObjHeader_prefixeq:
  "is_valid_ObjHeader (pObj xs 0) xs \<Longrightarrow>
-  prefixeq xs ys \<Longrightarrow>
+  prefix xs ys \<Longrightarrow>
   is_valid_ObjHeader (pObj ys 0) ys"
   apply (frule is_valid_ObjHeader_buf_len)
   apply (frule is_valid_ObjHeader_len)
@@ -134,7 +134,7 @@ lemma is_valid_ObjHeader_prefixeq:
 
 lemma is_valid_ObjHeader_prefixeq_rev:
  "is_valid_ObjHeader (pObj ys 0) ys \<Longrightarrow>
-  prefixeq xs ys \<Longrightarrow>
+  prefix xs ys \<Longrightarrow>
   unat (Obj.len\<^sub>f (pObj xs 0)) \<le> length xs \<Longrightarrow>
   unat bilbyFsObjHeaderSize \<le> unat (Obj.len\<^sub>f (pObj xs 0)) \<Longrightarrow>
   is_valid_ObjHeader (pObj xs 0) xs"
@@ -219,7 +219,7 @@ lemma valid_log_buf_fun_imp_valid_ObjHeader:
   apply (rename_tac v va)
   apply (subgoal_tac "is_valid_ObjHeader (pObj (v#va) 0) (v#va)")
    apply (erule is_valid_ObjHeader_prefixeq)
-   apply (drule_tac t="v # va" in sym, fastforce simp: take_is_prefixeq)
+   apply (drule_tac t="v # va" in sym, fastforce simp: take_is_prefix)
   apply (fastforce simp: is_valid_ObjTrans split: if_splits dest: is_valid_ObjHeader_buf_len)+
  done
 
@@ -459,8 +459,8 @@ shows
   Obj.trans\<^sub>f (pObj (y#ys) 0) = tr \<and>
   unat (Obj.len\<^sub>f (pObj (y#ys) 0)) = unat (Obj.len\<^sub>f (pObj (v#vs) 0))"
 proof -
-  have prefix: "prefixeq (y#ys) (v # vs)"
-    using yys_eq by (metis take_is_prefixeq)
+  have prefix: "prefix (y#ys) (v # vs)"
+    using yys_eq by (metis take_is_prefix)
   have len_eq: "unat (Obj.len\<^sub>f (pObj (y#ys) 0)) = unat (Obj.len\<^sub>f (pObj (v#vs) 0))"
     using hdr_sz_le_trans_len[where xs="v#vs"] 
     by (simp only: yys_eq[symmetric] bilbyFsObjHeaderSize_def
@@ -647,9 +647,9 @@ lemma valid_trans_eq_valid_trans_take_trans_len:
 
 lemma valid_trans_prefixeqD:
  "valid_trans xs \<Longrightarrow>
-  prefixeq xs ys \<Longrightarrow>
+  prefix xs ys \<Longrightarrow>
   trans_len ys = trans_len xs"
-  apply (clarsimp simp: prefixeq_def)
+  apply (clarsimp simp: prefix_def)
   apply (rename_tac zs)
   apply (thin_tac "ys = xs @ zs")
   apply (induct xs rule: trans_len_induct)
@@ -697,7 +697,7 @@ done
 
 lemma valid_trans_prefixeq_imp:
  "valid_trans xs \<Longrightarrow>
-  prefixeq xs ys \<Longrightarrow>
+  prefix xs ys \<Longrightarrow>
   valid_trans ys"
   apply (frule valid_trans_imp_valid_trans_take_trans_len)
   apply (frule valid_trans_imp_valid_trans_trans_len)
@@ -707,18 +707,18 @@ lemma valid_trans_prefixeq_imp:
    apply (drule (1) valid_trans_prefixeqD[THEN sym])
    apply simp
    apply (drule (1) valid_trans_take_trans_len_imp_valid_trans)
-  apply (fastforce simp: prefixeq_def)
+  apply (fastforce simp: prefix_def)
  done
 
 lemma drop_prefixeqI:
- "prefixeq xs ys \<Longrightarrow>
-  prefixeq (drop n xs) (drop n ys)"
-by (auto simp: prefixeq_def)
+ "prefix xs ys \<Longrightarrow>
+  prefix (drop n xs) (drop n ys)"
+by (auto simp: prefix_def)
 
 lemma drop_Nil_prefixeqD:
- "prefixeq xs ys \<Longrightarrow>
+ "prefix xs ys \<Longrightarrow>
  drop n xs \<noteq> [] \<Longrightarrow> (drop n ys) \<noteq> []"
-by (auto simp: prefixeq_def)
+by (auto simp: prefix_def)
 
 lemma drop_length_append:
  "drop (length xs) (xs@ys) = ys"
@@ -808,7 +808,7 @@ lemma snd_pTrans_append:
   apply (erule valid_trans.elims)
   apply (clarsimp split:if_splits simp: is_valid_ObjTrans simp: Let_def)
   apply (frule is_valid_ObjHeader_pObj_eq[rotated, where xs="ys"])
-    apply (clarsimp simp: prefixeq_def is_valid_ObjHeader_prefixeq)
+    apply (clarsimp simp: prefix_def is_valid_ObjHeader_prefixeq)
     apply (rename_tac v vs)
    apply (frule_tac  ys="(v # vs @ ys)" in is_valid_ObjHeader_prefixeq)
     apply simp
@@ -818,7 +818,7 @@ lemma snd_pTrans_append:
    apply (drule is_valid_ObjHeader_trans_len_le_buf_len)
    apply (simp add: drop_append' prod.case_eq_if)
   apply (frule is_valid_ObjHeader_pObj_eq[rotated, where xs="ys"])
-    apply (clarsimp simp: prefixeq_def is_valid_ObjHeader_prefixeq)
+    apply (clarsimp simp: prefix_def is_valid_ObjHeader_prefixeq)
   apply (frule_tac ys="(vb # vaa @ ys)" in is_valid_ObjHeader_prefixeq, simp)
    apply (drule is_valid_ObjHeader_trans_len_le_buf_len)
    apply (simp)
