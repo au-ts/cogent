@@ -40,17 +40,16 @@ set_build_env()
 {
   
   local SCRIPT_DIR=`find_script_dir`
-  # L4.Verified repository (sub-module)
-  : ${L4V_DIR:="$SCRIPT_DIR/l4v"}
+  : ${AC_DIR:="$SCRIPT_DIR/autocorres"}
 
   # Location of Isabelle (sub-module)
   : ${ISABELLE_TOOLDIR:="$SCRIPT_DIR/isabelle/bin"}
   : ${ISABELLE:="$ISABELLE_TOOLDIR/isabelle"}
   : ${ISABELLE_BUILD:="$ISABELLE build -v"}
 
-  [ -d "$L4V_DIR"  ] || {
-	echo >&2 "Cannot find \$L4V_DIR"
-	exit 1
+  [ -d "$AC_DIR"  ] || {
+    echo >&2 "Cannot find \$AC_DIR ($AC_DIR)"
+	  exit 1
   }
 
   # Location of Cogent compiler (if not already defined)

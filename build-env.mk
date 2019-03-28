@@ -19,7 +19,7 @@ SHELL:=bash
 BUILD_ENV_MK_DIR:=$(dir $(lastword $(MAKEFILE_LIST)))
 
 # TODO: more efficient way to do this?
-L4V_DIR:=$(shell source "$(BUILD_ENV_MK_DIR)"/build-env.sh; echo "$$L4V_DIR")
+AC_DIR:=$(shell source "$(BUILD_ENV_MK_DIR)"/build-env.sh; echo "$$AC_DIR")
 ISABELLE:=$(shell source "$(BUILD_ENV_MK_DIR)"/build-env.sh; echo "$$ISABELLE")
 ISABELLE_BUILD:=$(shell source "$(BUILD_ENV_MK_DIR)"/build-env.sh; echo "$$ISABELLE_BUILD")
 
