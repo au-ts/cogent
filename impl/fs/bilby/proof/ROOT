@@ -8,7 +8,8 @@
  * @TAG(NICTA_GPL)
  *)
 
-session CogentUtil = "HOL-Word" +
+session CogentUtil = "Word_Lib" +
+  sessions "Eisbach"
   theories "../../../../cogent/isa/Util"
 
 session "BilbyFsCode" (main) = "CogentUtil" +
