@@ -507,7 +507,6 @@ inductive subtyping :: "kind env \<Rightarrow> type \<Rightarrow> type \<Rightar
 | subty_trecord: "\<lbrakk> list_all2 (\<lambda>p1 p2. subtyping K (fst (snd p1)) (fst (snd p2))) ts1 ts2
                   ; map fst ts1 = map fst ts2
                   ; list_all2 (record_kind_subty K) ts1 ts2
-                  ; distinct (map fst ts1)
                   ; s1 = s2
                   \<rbrakk> \<Longrightarrow> K \<turnstile> TRecord ts1 s1 \<sqsubseteq> TRecord ts2 s2"
 | subty_tprod  : "\<lbrakk> K \<turnstile> t1 \<sqsubseteq> t2
@@ -516,7 +515,6 @@ inductive subtyping :: "kind env \<Rightarrow> type \<Rightarrow> type \<Rightar
 | subty_tsum   : "\<lbrakk> list_all2 (\<lambda>p1 p2. subtyping K (fst (snd p1)) (fst (snd p2))) ts1 ts2
                   ; map fst ts1 = map fst ts2
                   ; list_all2 variant_kind_subty ts1 ts2
-                  ; distinct (map fst ts1)
                   \<rbrakk> \<Longrightarrow> K \<turnstile> TSum ts1 \<sqsubseteq> TSum ts2"
 | subty_tunit  : "K \<turnstile> TUnit \<sqsubseteq> TUnit"
 
@@ -1256,16 +1254,12 @@ lemma subtyping_simps:
                     \<longleftrightarrow> list_all2 (\<lambda>p1 p2. subtyping K (fst (snd p1)) (fst (snd p2))) ts1 ts2
                     \<and> list_all2 (\<lambda>p1 p2. if K \<turnstile> fst (snd p1) :\<kappa> {D} then snd (snd p1) \<le> snd (snd p2) else snd (snd p1) = snd (snd p2)) ts1 ts2
                     \<and> map fst ts1 = map fst ts2
-                    \<and> distinct (map fst ts1)
-                    \<and> distinct (map fst ts2)
                     \<and> s1 = s2"
   "\<And>t1 u1 t2 u2. K \<turnstile> TProduct t1 u1 \<sqsubseteq> TProduct t2 u2 \<longleftrightarrow> K \<turnstile> t1 \<sqsubseteq> t2 \<and> K \<turnstile> u1 \<sqsubseteq> u2"
   "\<And>ts1 ts2. K \<turnstile> TSum ts1 \<sqsubseteq> TSum ts2
                     \<longleftrightarrow> list_all2 (\<lambda>p1 p2. subtyping K (fst (snd p1)) (fst (snd p2))) ts1 ts2
                     \<and> list_all2 (\<lambda>p1 p2. snd (snd p1) \<le> snd (snd p2)) ts1 ts2
-                    \<and> map fst ts1 = map fst ts2
-                    \<and> distinct (map fst ts1)
-                    \<and> distinct (map fst ts2)"
+                    \<and> map fst ts1 = map fst ts2"
   "K \<turnstile> TUnit \<sqsubseteq> TUnit"
   by (auto simp: subtyping.intros intro!: subtyping.intros elim!: subtyping.cases, presburger)
 
@@ -1441,15 +1435,12 @@ next
     "map fst pts = map fst qts"
     "list_all2 (\<lambda>p1 p2. subtyping K (fst (snd p1)) (fst (snd p2))) pts qts"
     "list_all2 variant_kind_subty pts qts"
-    "distinct (map fst pts)"
-    "distinct (map fst qts)"
     using TSum.prems by (auto elim: subtyping.cases)
   moreover obtain rts where r_elims:
     "r = TSum rts"
     "map fst qts = map fst rts"
     "list_all2 (\<lambda>p1 p2. subtyping K (fst (snd p1)) (fst (snd p2))) qts rts"
     "list_all2 (\<lambda>p1 p2. snd (snd p1) \<le> snd (snd p2)) qts rts"
-    "distinct (map fst rts)"
     using TSum.prems by (auto elim: subtyping.cases)
   moreover have IH:
     "(\<And>i tp tq tr. i < length qts \<Longrightarrow>
@@ -1483,15 +1474,12 @@ next
     "map fst pts = map fst qts"
     "list_all2 (\<lambda>p1 p2. subtyping K (fst (snd p1)) (fst (snd p2))) pts qts"
     "list_all2 (record_kind_subty K) pts qts"
-    "distinct (map fst pts)"
-    "distinct (map fst qts)"
     using TRecord.prems by (auto elim: subtyping.cases)
   moreover obtain rts where r_elims:
     "r = TRecord rts s"
     "map fst qts = map fst rts"
     "list_all2 (\<lambda>p1 p2. subtyping K (fst (snd p1)) (fst (snd p2))) qts rts"
     "list_all2 (record_kind_subty K) qts rts"
-    "distinct (map fst rts)"
     using TRecord.prems by (auto elim: subtyping.cases)
   moreover have IH:
     "(\<And>i tp tq tr. i < length qts \<Longrightarrow>
