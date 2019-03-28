@@ -148,7 +148,7 @@ fun trace_solve_tac (ctxt : Proof.context)
                           case resolve_tac ctxt [Goal.finish ctxt subtheorem] 1 goal |> Seq.pull of
                               NONE =>
                                 let
-                                  val errval = ("trace_solve_tac: could not apply subgoal proof",
+                                  val errval = ("trace_solve_tac: could not apply subgoal proof, no resolve",
                                                  0, [goal, subtheorem])
                                   val _ = log_error (@{make_string} errval)
                                 in
@@ -159,7 +159,7 @@ fun trace_solve_tac (ctxt : Proof.context)
                                      solve data goal' (subproof :: subproofs_rev)
                                   else
                                     let
-                                      val errval = ("trace_solve_tac: could not apply subgoal proof",
+                                      val errval = ("trace_solve_tac: could not apply subgoal proof, resolve didn't solve",
                                                   0, [goal, subtheorem])
                                       val _ = log_error (@{make_string} errval)
                                     in
