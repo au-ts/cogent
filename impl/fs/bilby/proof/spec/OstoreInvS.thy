@@ -17,7 +17,7 @@ imports
   "../spec/UbiS"
   "../adt/BufferT"
   "../adt/RbtT"
-  "~~/src/HOL/Library/Sublist"
+  "HOL-Library.Sublist"
 begin
 
 definition

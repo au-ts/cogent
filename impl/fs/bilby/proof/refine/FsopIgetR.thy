@@ -14,7 +14,6 @@ imports
   "../refine/AfsFsopR"
   "../adt/InodeT"
   OstoreReadR
-  "~~/src/HOL/Word/WordBitwise"
 begin
 
 lemmas vfs_inode_simps = vfs_inode_set_flags_ret vfs_inode_set_mode_ret vfs_inode_set_gid_ret vfs_inode_set_uid_ret
