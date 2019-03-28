@@ -118,15 +118,24 @@ take_and_put_suc_boxed r =
   in r' { b = b + 1 }
 
 
+let_bang : { a : U8, b : U8 } -> {a : U8, b : U8 }
+let_bang r
+ = let i = r.a !r
+   in r { a = i }
 
--- type X = U32
--- type Y = U32
--- type B = U32
--- type A = { a : { x : X, y : Y } take (), b : B } take ()
--- 
--- foo : (X!) ->  ()
--- foo _ = ()
--- 
--- bar : (A) -> < Success (A) >
--- bar (val) = let () = foo (val.a.x) !val in Success (val)
--- 
+let_bang_2 : { a : U8, b : U8 } -> {a : U8, b : U8 }
+let_bang_2 r
+ = let i = r.a + r.b !r
+   in r { a = i }
+
+type X = U32
+type Y = U32
+type B = U32
+type A = { a : { x : X, y : Y } take (), b : B } take ()
+
+foo : (X!) ->  ()
+foo _ = ()
+
+bar : (A) -> < Success (A) >
+bar (val) = let () = foo (val.a.x) !val in Success (val)
+
