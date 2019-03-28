@@ -310,27 +310,30 @@ test_type_checking()
     shouldpass=0
     shouldfail=0
 
-    shopt -s nullglob
     for source in "$TESTS"/shouldpass_*.cogent
     do
-        should+=1
-        shouldpass+=1
+        if [ -f $source ]; then
+            should+=1
+            shouldpass+=1
+        fi
     done
 
     for source in "$TESTS"/shouldfail_*.cogent
     do
-        should+=1
-        shouldfail+=1
+        if [ -f $source ]; then
+            should+=1
+            shouldfail+=1
+        fi
     done
 
     wip=0
 
     for source in "$TESTS"/wip_*.cogent
     do
-        wip+=1
+        if [ -f $source ]; then
+            wip+=1
+        fi
     done
-
-    shopt -u nullglob
 
     echo "Passed $passed out of $total."
     if [[ $passed = $total ]]
@@ -826,8 +829,6 @@ test_libgum()
     TEST_FILE=_regression.cogent
     pushd "$COGENTDIR"/lib
 
-    # ensure set
-    shopt -s globstar
     # since some libgum stuff depends on this type
     echo $'type FsInode\ntype FsState\ntype VfsSuperBlock\n' > "$TEST_FILE"
 
