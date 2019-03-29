@@ -11,7 +11,7 @@
  *)
 
 theory Correspondence
-imports UpdateSemantics
+imports ValueSemantics UpdateSemantics
 begin
 
 locale correspondence =

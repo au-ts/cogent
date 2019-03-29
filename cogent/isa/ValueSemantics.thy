@@ -390,7 +390,6 @@ proof -
     "map fst xts1 = map fst ts2"
     "list_all2 (\<lambda>p1 p2. K \<turnstile> fst (snd p1) \<sqsubseteq> fst (snd p2))  xts1 ts2"
     "list_all2 (record_kind_subty K) xts1 ts2"
-    "distinct (map fst xts1)"
     using subty_rec subtyping.cases xts1_def
     by fast+
 
@@ -411,7 +410,6 @@ proof -
     "map fst xts1 = map fst xts2"
     "list_all2 (\<lambda>p1 p2. K \<turnstile> fst (snd p1) \<sqsubseteq> fst (snd p2)) xts1 xts2"
     "list_all2 (record_kind_subty K) xts1 xts2"
-    "distinct (map fst xts1)"
     using subty_rec subtyping.cases xts1_def xts2_def
     by fast+
   show "K \<turnstile> TRecord ts1 s \<sqsubseteq> TRecord ts2 s"
@@ -437,7 +435,6 @@ next
     "list_all2 (\<lambda>p1 p2. [] \<turnstile> fst (snd p1) \<sqsubseteq> fst (snd p2)) ts1 ts2"
     "map fst ts1 = map fst ts2"
     "list_all2 variant_kind_subty ts1 ts2"
-    "distinct (map fst ts1)"
     using v_t_sum(6)
     by (auto elim: subtyping.cases intro: vval_typing_vval_typing_record.intros)
 

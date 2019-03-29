@@ -11,10 +11,8 @@
  *)
 
 theory UpdateSemantics
-  imports ValueSemantics Cogent
+  imports Cogent
 begin
-
-
 
 datatype ('f, 'a, 'l) uval = UPrim lit
                            | UProduct "('f,'a,'l) uval" "('f,'a,'l) uval"
