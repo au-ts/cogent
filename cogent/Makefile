@@ -149,6 +149,10 @@ test-ac: .gen-types
 	$(E) "=== Isabelle (AutoCorres) test ==="
 	$(SCRIPTS_DIR)/cogent_validate.sh -ac
 
+test-c-refine: .gen-types
+	$(E) "=== C-refinement proof test ==="
+	$(SCRIPTS_DIR)/cogent_validate.sh -c-refine
+
 test-flags:
 	$(E) "=== FFI-generator Tests ==="
 	$(SCRIPTS_DIR)/cogent_validate.sh -flags
@@ -239,6 +243,9 @@ help:
 	$(E) ""
 	$(E) "* make test-ac"
 	$(E) "  Run AutoCorres test."
+	$(E) ""
+	$(E) "* make test-c-refine"
+	$(E) "  Run C-refinement proof test."
 	$(E) ""
 	$(E) "* make test-flags"
 	$(E) "  Run Compiler Flags Tests."

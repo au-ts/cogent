@@ -31,7 +31,7 @@ fi
 # Usage
 long_usage()
 {
-    echo "Usage: $0 -[pp|tc|ds|an|mn|cg|gcc|tc-proof|ac|flags|hsc-gen|aq|shallow-proof|hs-shallow|examples|goanna|libgum|all|clean] [-q|-i|]"
+    echo "Usage: $0 -[pp|tc|ds|an|mn|cg|gcc|tc-proof|ac|c-refine|flags|hsc-gen|aq|shallow-proof|hs-shallow|examples|goanna|libgum|all|clean] [-q|-i|]"
     echo 'Run (one or more) tests for the Cogent compilation tools.'
     echo '  -pp      Test the parser and the pretty-printer are roughly inverse of each other'
     echo '  -tc      Test type checking'
@@ -42,6 +42,7 @@ long_usage()
     echo '  -gcc     Compile generated code using GCC'
     echo '  -tc-proof  Test proof generation for type checking'
     echo '  -ac      Read generated code using Isabelle'
+    echo '  -c-refine  Test C-refinement proofs'
     echo '  -flags   Test compiler features enabled by flags'
     echo '  -aq      Test antiquotation'
     echo '  -shallow-proof Test shallow-emdedding proofs'
@@ -59,12 +60,12 @@ long_usage()
 
 short_usage()
 {
-    echo "Usage: $0 -[pp|tc|ds|an|mn|cg|gcc|tc-proof|ac|flags|hsc-gen|aq|shallow-proof|hs-shallow|examples|goanna|libgum|all|clean] [-q|-i|]"
+    echo "Usage: $0 -[pp|tc|ds|an|mn|cg|gcc|tc-proof|ac|c-refine|flags|hsc-gen|aq|shallow-proof|hs-shallow|examples|goanna|libgum|all|clean] [-q|-i|]"
     echo 'Run with -h for detailed explanation of all the options.'
 }
 
 # Parse options
-OPTS=$(getopt -o h --alternative --long pp,tc,ds,an,mn,cg,gcc,tc-proof,ac,flags,hsc-gen,aq,shallow-proof,hs-shallow,examples,goanna,ee,libgum,all,help,clean,q,i -n "$0" -- "$@")
+OPTS=$(getopt -o h --alternative --long pp,tc,ds,an,mn,cg,gcc,tc-proof,ac,c-refine,flags,hsc-gen,aq,shallow-proof,hs-shallow,examples,goanna,ee,libgum,all,help,clean,q,i -n "$0" -- "$@")
 if [ $? != 0 ]
 then
     short_usage
@@ -158,6 +159,10 @@ if [ ! -d "$ABS" ]
 fi
 
 # FIXME: fix the criteria for HAVE_DONE_* and add the conditions here / zilinc
+if [[ "$TESTSPEC" =~ '--c-refine--' && ! ( "$TESTSPEC" =~ '--gcc--' ) ]]
+  then echo 'Note: adding --gcc because --c-refine depends on it' >&2
+       TESTSPEC="${TESTSPEC}gcc--"
+fi
 if [[ "$TESTSPEC" =~ '--ac--' && ! ( "$TESTSPEC" =~ '--gcc--' ) ]]
   then echo 'Note: adding --gcc because --ac depends on it' >&2
        TESTSPEC="${TESTSPEC}gcc--"
@@ -170,15 +175,6 @@ fi
 if [[ "$TESTSPEC" =~ '--goanna--' && ! ( "$TESTSPEC" =~ '--gcc--' ) ]]
   then echo 'Note: adding --gcc because --goanna depends on it' >&2
        TESTSPEC="${TESTSPEC}gcc--"
-fi
-if [[ "$TESTSPEC" =~ '--ac--' && ! ( "$TESTSPEC" =~ '--cg--' ) ]]
-  then echo 'Note: adding --cg because --ac depends on it' >&2
-       TESTSPEC="${TESTSPEC}cg--"
-fi
-
-if [[ "$TESTSPEC" =~ '--goanna--' && ! ( "$TESTSPEC" =~ '--cg--' ) ]]
-  then echo 'Note: adding --cg because --goanna depends on it' >&2
-       TESTSPEC="${TESTSPEC}cg--"
 fi
 # This must come after all tests that -gcc needs be added.
 if [[ "$TESTSPEC" =~ '--gcc--' && ! ( "$TESTSPEC" =~ '--cg--' ) ]]
@@ -569,6 +565,39 @@ test_autocorres()
     fi
 }
 
+test_c_refinement()
+{
+    echo "=== C-refinement test ==="
+    all_total+=1
+    passed=0
+    total=0
+
+    if ! type $ISABELLE >/dev/null 2>&1
+    then echo "${bldred}Error:${txtrst} could not find Isabelle program (check \"$ISABELLE_TOOLDIR\")."
+    else
+        for source in "$TESTS"/pass_*.cogent
+        do echo "${source}: "
+           cfile=$(basename $source .cogent).c
+           total+=1
+           $COGENT --c-refinement --proof-input-c="$cfile" --root \
+                   --table-c-types --type-proof \
+                   --dist-dir="$COUT" --root-dir=../../ --proof-name="$ISABELLE_SESSION_NAME" "$source"
+           sed -i -e "s/^session ${ISABELLE_SESSION_NAME}_ACInstall = ${ISABELLE_SESSION_NAME}_SCorres_Normal +$/session ${ISABELLE_SESSION_NAME}_ACInstall = AutoCorres +/" "$COUT/ROOT"
+
+           if check_output env L4V_ARCH=$L4V_ARCH $ISABELLE_BUILD -d "$AC_DIR" -d "../isa" -d "$COUT" ${ISABELLE_SESSION_NAME}_CorresProof
+           then passed+=1; echo "$pass_msg"
+           else echo "$fail_msg"
+           fi
+        done
+
+        echo "Passed $passed out of $total."
+        if [[ $passed = $total ]]
+        then all_passed+=1
+        fi
+    fi
+
+}
+
 test_end_to_end()
 {
     echo '=== End-to-end test ==='
@@ -897,12 +926,15 @@ then
     test_isabelle_type_proof
 fi
 
-
 if [[ "$TESTSPEC" =~ '--ac--' ]];
 then
     test_autocorres
 fi
 
+if [[ "$TESTSPEC" =~ '--c-refine--' ]];
+then
+    test_c_refinement
+fi
 
 if [[ "$TESTSPEC" =~ '--ee--' ]];
 then

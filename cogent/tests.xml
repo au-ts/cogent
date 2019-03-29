@@ -14,6 +14,7 @@
     <test name="cogent_compiler">make dev</test>
     <test name="cogent_typeproof" depends="isabelle">make test-tc-proof; make clean</test>
     <test name="cogent_autocorres" depends="cogent_compiler isabelle">make test-ac; make clean</test>
+    <test name="cogent_autocorres" depends="cogent_compiler isabelle">make test-c-refine; make clean</test>
     <test name="cogent_shallowproof" depends="cogent_compiler isabelle">make test-shallow-proof; make clean</test>
     <!-- takes too long, and doesn't test much. disabled for now -->
     <!-- test name="cogent_all" depends="cogent_compiler">make test-ee; make clean</test -->
