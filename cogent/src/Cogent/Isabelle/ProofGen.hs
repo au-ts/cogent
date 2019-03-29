@@ -510,7 +510,15 @@ subtyping'' k (TRecord f1s _)  (TRecord f2s _)  =
     (++ [rule "list_all2_nil"]) . join . (([rule "list_all2_cons", simp] ++) <$>)
       <$> zipWithM (subtyping' k) t1s (fst . snd <$> f2s),
     return [simp_solve],
-    return [force_simp []],
+    (++ [rule "list_all2_nil"]) . join <$>
+      traverse
+        (\t -> tacSequence [
+          return [rule "list_all2_record_kind_subty_cons"],
+          return [simp],
+          kinding k t,
+          return [simp_solve]
+          ])
+        t1s,
     return [simp_solve]
     ]
 subtyping'' k (TProduct t1 u1) (TProduct t2 u2) =
