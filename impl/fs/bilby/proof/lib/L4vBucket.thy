@@ -11,7 +11,7 @@
 theory L4vBucket
 imports
   "Word_Lib.Word_Lemmas"
-  "CogentUtil.Util"
+  "../../../../../cogent/isa/Util"
 begin
 
 no_notation fun_app (infixr "$" 10)
