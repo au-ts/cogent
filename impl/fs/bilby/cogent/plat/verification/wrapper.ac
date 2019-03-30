@@ -37,6 +37,9 @@ typedef struct OSBuffer {
 typedef struct SysState {
   int dummy;
 } SysState;
+typedef struct SpinLock {
+  int dummy;
+} SpinLock;
 typedef struct WrapperState {
   int dummy;
 } WrapperState;
