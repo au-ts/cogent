@@ -62,7 +62,7 @@ root source log =
      , "  theories [condition = \"SKIP_SCORRES_PROOF\", skip_proofs, quick_and_dirty] \"" ++ scor_norm ++ "\""
      , "  theories [quick_and_dirty] \"" ++ scor_norm ++ "\""
      , ""
-     , "session " ++ ac_install ++ " = " ++ scor_norm ++ " +"
+     , "session " ++ ac_install ++ " = Deep_C_Static +"
      , "  theories \"" ++ ac_install ++ "\""
      -- Isabelle session file no longer supports this "files" keyword.
      -- , "  files \"" ++ inputc ++ "\"" ++ maybe "" (\f -> " \"" ++ f ++ "\"") inputh
