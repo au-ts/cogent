@@ -1468,7 +1468,7 @@ lemma corres_case:
     "\<Xi>', [], Some tag_t # \<Gamma>2 \<turnstile> match : t"
     "\<Xi>', [], Some (TSum (tagged_list_update tag (tag_t,Checked) \<tau>s)) # \<Gamma>2 \<turnstile> not_match : t"
     "\<And>a a'. val_rel a a' \<Longrightarrow> corres srel match (match' a') \<xi>' (a # \<gamma>) \<Xi>' (Some tag_t # \<Gamma>2) \<sigma> s"
-    "\<And>r r'. val_rel r r' \<Longrightarrow> corres srel not_match (not_match' r') \<xi>' (r # \<gamma>) \<Xi>' (Some (TSum (tagged_list_update tag (tag_t, Checked) \<tau>s)) # \<Gamma>2) \<sigma> s"
+    "\<And>r. r = (\<gamma>!x) \<Longrightarrow> val_rel r x' \<Longrightarrow> corres srel not_match (not_match' x') \<xi>' (r # \<gamma>) \<Xi>' (Some (TSum (tagged_list_update tag (tag_t, Checked) \<tau>s)) # \<Gamma>2) \<sigma> s"
   shows "corres srel (Case (Var x) tag match not_match)
             (condition (\<lambda>_. get_tag' x' = tag')
               (match' (get_A' x'))
@@ -1487,8 +1487,8 @@ lemma corres_case:
   apply (rename_tac vval vtyp vtag)
   apply (drule_tac x=vval in meta_spec)
   apply (drule_tac x="get_A' x'" in meta_spec)
-  apply (drule_tac x="USum vtag vval (map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) \<tau>s)" in meta_spec,
-      drule_tac x="x'" in meta_spec)
+  apply (drule_tac x="USum vtag vval (map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) \<tau>s)" in meta_spec)
+ 
   apply (case_tac "get_tag' x' = tag'")
 
    apply clarsimp
