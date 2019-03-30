@@ -451,7 +451,7 @@ test_gcc()
         # The test-gcc fails on some cases without this.
         for abstract_h in `egrep "^#include \"$abs\/([^\.]*).h\"" "$hfile" | \
                        sed -r "s|#include \"$abs/([^\.]*).h\"|\1|"`; do
-            echo "struct $abstract_h { int dummy; }; typedef struct $abstract_h $abstract_h;" > "$abs/${abstract_h}.h"
+            echo "typedef struct $abstract_h { int dummy; } $abstract_h;" > "$abs/${abstract_h}.h"
         done
         if ! fgrep -q "#include \"../tests/include/${outfile}_dummy.h\"" "$hfile"
         then (echo "#include \"../tests/include/${outfile}_dummy.h\"" && cat "$hfile") > "$hfile.tmp"
@@ -540,7 +540,7 @@ test_autocorres()
                    --dist-dir="$COUT" --root-dir=../../ --proof-name="$ISABELLE_SESSION_NAME" "$source"
            sed -i -e "s/^session ${ISABELLE_SESSION_NAME}_ACInstall = ${ISABELLE_SESSION_NAME}_SCorres_Normal +$/session ${ISABELLE_SESSION_NAME}_ACInstall = AutoCorres +/" "$COUT/ROOT"
 
-           if check_output env L4V_ARCH=$L4V_ARCH $ISABELLE_BUILD -d "$AC_DIR" -d "../isa" -d "$COUT" ${ISABELLE_SESSION_NAME}_ACInstall
+           if check_output env L4V_ARCH=$L4V_ARCH $ISABELLE_BUILD -d "$AC_DIR" -d "../isa" -d "$COUT" -v -b ${ISABELLE_SESSION_NAME}_ACInstall
            then passed+=1; echo "$pass_msg"
            else echo "$fail_msg"
            fi
@@ -572,7 +572,7 @@ test_c_refinement()
                    --dist-dir="$COUT" --root-dir=../../ --proof-name="$ISABELLE_SESSION_NAME" "$source"
            sed -i -e "s/^session ${ISABELLE_SESSION_NAME}_ACInstall = ${ISABELLE_SESSION_NAME}_SCorres_Normal +$/session ${ISABELLE_SESSION_NAME}_ACInstall = AutoCorres +/" "$COUT/ROOT"
 
-           if check_output env L4V_ARCH=$L4V_ARCH $ISABELLE_BUILD -d "$AC_DIR" -d "../isa" -d "$COUT" ${ISABELLE_SESSION_NAME}_CorresProof
+           if check_output env L4V_ARCH=$L4V_ARCH $ISABELLE_BUILD -d "$AC_DIR" -d "../isa" -d "$COUT" -v -b ${ISABELLE_SESSION_NAME}_CorresProof
            then passed+=1; echo "$pass_msg"
            else echo "$fail_msg"
            fi
