@@ -202,20 +202,6 @@ check_output() {
   return $ret
 }
 
-gen_test_hdrs() {
-    mkdir -p $COGENTDIR/tests/include
-    pushd tests 2>&1 > /dev/null
-
-    for fname in *.cogent;
-    do
-        dfname="${fname%.*}_dummy.h"
-        #echo "Generating include/$dfname from $fname"
-        egrep "^type +([A-Z][a-zA-Z0-9_']*)( [a-z][a-zA-Z0-9_']*)* *(--.*)?$" $fname | sed -e "s/type \([A-Z][a-zA-Z0-9_']*\).*$/typedef void* \1;/" > include/$dfname
-    done
-
-    popd 2>&1 > /dev/null
-}
-
 pass_msg="${bldgrn}pass${txtrst}"
 goodfail_msg="${bldgrn}fail (as expected)${txtrst}"
 fail_msg="${bldred}FAIL${txtrst}"
@@ -461,9 +447,11 @@ test_gcc()
         total+=1
         sed -i -r 's/^#include <cogent-defns.h>/#include \"..\/lib\/cogent-defns.h\"/' "$hfile"
         sed -i -r "s|^#include <abstract/([^\.]*).h>|#include \"$abs/\1.h\"|g" "$hfile"
+        # This does much the same thing as the .gen-types target in the makefile, but for some reason they're both required.
+        # The test-gcc fails on some cases without this.
         for abstract_h in `egrep "^#include \"$abs\/([^\.]*).h\"" "$hfile" | \
                        sed -r "s|#include \"$abs/([^\.]*).h\"|\1|"`; do
-            echo "typedef void* $abstract_h;" > "$abs/${abstract_h}.h"
+            echo "struct $abstract_h { int dummy; }; typedef struct $abstract_h $abstract_h;" > "$abs/${abstract_h}.h"
         done
         if ! fgrep -q "#include \"../tests/include/${outfile}_dummy.h\"" "$hfile"
         then (echo "#include \"../tests/include/${outfile}_dummy.h\"" && cat "$hfile") > "$hfile.tmp"

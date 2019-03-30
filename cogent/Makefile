@@ -90,8 +90,9 @@ dev: .sandbox .cabal-update .install-deps .configure .build
 .cabal-update:
 	$(CABAL) update
 
+# There's a sed script that does a very similar thing in scripts/cogent_validate.sh, and for some reason they're both necessary.
 tests/include/%_dummy.h: tests/%.cogent
-	$(Q) egrep "^type +([A-Z][a-zA-Z0-9_']*)( [a-z][a-zA-Z0-9_']*)* *(--.*)?$$" $^ | sed -e "s/type \([A-Z][a-zA-Z0-9_']*\).*$$/typedef void* \1;/" > $@
+	$(Q) egrep "^type +([A-Z][a-zA-Z0-9_']*)( [a-z][a-zA-Z0-9_']*)* *(--.*)?$$" $^ | sed -e "s/type \([A-Z][a-zA-Z0-9_']*\).*$$/struct \1 {int dummy; }; typedef struct \1 \1;/" > $@
 
 .gen-types: .test-setup $(DUMMY_HEADER_FILES)
 	$(E) "Generated C headers."
