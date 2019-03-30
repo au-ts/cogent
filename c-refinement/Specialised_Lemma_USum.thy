@@ -221,23 +221,28 @@ fun mk_specialised_esac_lemma file_nm ctxt from_usum =
   val _               = tracing ("  mk_specialised_esac_lemma for " ^ from_C_nm)
   val thy             = Proof_Context.theory_of ctxt;
   val is_usum         = get_usums [from_usum] |> null |> not;
-  fun get_struct_info (hinfo : HeapLiftBase.heap_info)
-                      = Symtab.lookup (#structs hinfo) from_C_nm;
-  fun has_2elems list = List.length list = 2;
-  val some_hinfo      = (Symtab.lookup (HeapInfo.get thy) file_nm) +> #heap_info;
-  val some_sinfo      = some_hinfo ?> get_struct_info;
-  val some_finfo      = some_sinfo +> #field_info;
-  val has_2fields     = some_finfo +> has_2elems |> is_some_true;
-  val is_esac         = is_usum andalso has_2fields;
-  fun get_1st_elem list = List.nth (list, 1); (* counting from 0th.*)
-  val some_fst_getter = some_finfo +> get_1st_elem +> #getter;
-  val _               = if is_esac
-                        then tracing ("  " ^ from_C_nm ^ " is for esac.")
-                        else tracing ("  " ^ from_C_nm ^ " is not for esac.");
-  val some_thm        = if is_esac
-                        then some_fst_getter +> specialise_esac_thm ctxt
-                        else NONE
- in some_thm end;
+  val with_checks     = map_index I (get_checkeds_of_usum_uval ctxt from_usum)
+  val uncheckeds      = List.filter (fn (_,x) => not x) with_checks
+ in
+    case uncheckeds of
+     [(ix,_)] =>
+      let
+        fun get_struct_info (hinfo : HeapLiftBase.heap_info)
+                            = Symtab.lookup (#structs hinfo) from_C_nm;
+        val some_hinfo      = (Symtab.lookup (HeapInfo.get thy) file_nm) +> #heap_info;
+        val some_sinfo      = some_hinfo ?> get_struct_info;
+        val some_finfo      = some_sinfo +> #field_info;
+        fun get_ix_field list = List.nth (list, ix + 1);
+        val some_fst_getter = some_finfo +> get_ix_field +> #getter;
+        val _               = if is_usum
+                              then tracing ("  " ^ from_C_nm ^ " is for esac.")
+                              else tracing ("  " ^ from_C_nm ^ " is not for esac.");
+        val some_thm        = if is_usum
+                              then some_fst_getter +> specialise_esac_thm ctxt
+                              else NONE
+     in some_thm end
+    | _ => (tracing ("  " ^ from_C_nm ^ " is not for esac."); NONE)
+  end
 
 in
 
