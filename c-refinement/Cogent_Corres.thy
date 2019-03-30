@@ -1343,7 +1343,7 @@ lemma corres_esac:(* CHANGED: fourth assumption added *)
      x < length \<Gamma>';
      \<Gamma>' ! x = Some (TSum typs);
     \<Xi>', [], \<Gamma>' \<turnstile> Esac (Var x) n : ret;  
-     \<And> tag val rtyps. \<gamma> ! x = USum tag val rtyps \<Longrightarrow> val_rel val (get_val' x')
+     \<And> val rtyps. \<gamma> ! x = USum  n val rtyps \<Longrightarrow> val_rel val (get_val' x')
    \<rbrakk> \<Longrightarrow>
    corres srel (Esac (Var x) n) (gets (\<lambda>_. get_val' x')) \<xi>' \<gamma> \<Xi>' \<Gamma>' \<sigma> s"
   apply (monad_eq simp: corres_def)
@@ -1363,11 +1363,11 @@ lemma corres_esac:(* CHANGED: fourth assumption added *)
   apply (rule_tac x=\<sigma> in exI)
   apply (rule_tac x=a in exI)
   apply simp
-  apply (rule u_sem_esac)
-  apply (erule_tac s = "\<gamma> ! x" in subst)
-  apply (rule u_sem_var)
-  done
-
+  apply (intro conjI)
+   apply (rule u_sem_esac)
+   apply (erule_tac s = "\<gamma> ! x" in subst)
+   apply (rule u_sem_var)
+  by (metis matches_ptrs_proj_single' sum_tag_is_same)
 
 lemma corres_prim1:
   assumes "val_rel (eval_prim_u p [\<gamma>!x]) c"
