@@ -61,7 +61,7 @@ fun Cogent_function_order (Const (@{const_name TFun}, _) $ argT $ retT) =
   | Cogent_function_order (Const (@{const_name TPrim}, _) $ primT) =
       0
   | Cogent_function_order (Const (@{const_name TSum}, _) $ variants) =
-      HOLogic.dest_list variants |> map (HOLogic.dest_prod #> snd #> Cogent_function_order) |> maximum
+      HOLogic.dest_list variants |> map (HOLogic.dest_prod #> snd #> HOLogic.dest_prod #> fst #> Cogent_function_order) |> maximum
   | Cogent_function_order (Const (@{const_name TProduct}, _) $ T1 $ T2) =
       max (Cogent_function_order T1) (Cogent_function_order T2)
   | Cogent_function_order (Const (@{const_name TRecord}, _) $ fields $ sigil) =
