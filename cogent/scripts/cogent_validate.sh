@@ -615,7 +615,7 @@ test_end_to_end()
            sed -i -r "s|^#include <abstract/([^\.]*).h>|#include \"$abs/\1.h\"|g" "$hfile"
            for abstract_h in `egrep "^#include \"$abs\/([^\.]*).h\"" "$hfile" | \
                           sed -r "s|#include \"$abs/([^\.]*).h\"|\1|"`; do
-               echo "typedef void* $abstract_h;" > "$abs/${abstract_h}.h"
+               echo "typedef struct $abstract_h { int dummy; } $abstract_h;" > "$abs/${abstract_h}.h"
            done
            if ! fgrep -q "#include \"../tests/include/${outfile}_dummy.h\"" "$hfile"
            then (echo "#include \"../tests/include/${outfile}_dummy.h\"" && cat "$hfile") > "$hfile.tmp"
