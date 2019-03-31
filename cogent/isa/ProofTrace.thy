@@ -33,28 +33,10 @@ datatype 'tag TraceSuccess = TraceSuccess of { goal : thm
                                              } (* nested TraceFailure gives reason *)
      and 'tag TraceSubgoal = TraceSubgoal of { subgoal : thm
                                              , subtheorem : thm (* same as `#theorem subproof` *) 
-                                             , fail_steps :'tag TraceFailure list
                                              , subproof : 'tag TraceSuccess
                                              }
 
-fun TraceSuccess_erase_backtracking (TraceSuccess { goal, theorem, succeeded }) =
-      TraceSuccess { goal = goal, theorem = theorem, succeeded = map TraceSubgoal_erase_backtracking succeeded }
-and TraceFailure_erase_backtracking (TraceFailure {goal, failed }) =
-      TraceFailure { goal = goal
-                   , failed = FailedSubgoal_erase_backtracking failed
-                   }
-and FailedSubgoal_erase_backtracking (FailedProof { subgoal, fail_steps }) =
-  FailedProof { subgoal = subgoal
-              , fail_steps = fail_steps |> take 1 (* get rid of everything but the one that succeeded *)
-                                        |> map (fn fs => fs |> TraceFailure_erase_backtracking)
-              }
-| FailedSubgoal_erase_backtracking FailedDepth = FailedDepth
-and TraceSubgoal_erase_backtracking (TraceSubgoal { subgoal, subtheorem, fail_steps = _, subproof }) =
-      TraceSubgoal { subgoal = subgoal
-                   , subtheorem = subtheorem
-                   , fail_steps = []
-                   , subproof = TraceSuccess_erase_backtracking subproof
-                   }
+fun TraceSuccess_erase_backtracking x = x
 *}
 
 
@@ -90,14 +72,13 @@ fun trace_solve_tac (ctxt : Proof.context)
                         NONE => (data', Left fails) (* the tactic failed *)
                       | SOME (subgoal', _) => solve_subgoal subgoal' fails
                 (* recursively solve subgoal' *)
-                and solve_subgoal subgoal' fails =
+                and solve_subgoal subgoal' _ =
                   case trace_solve_tac ctxt get_tacs data' subgoal'
                   of
                     (_, Left fail) => (data', Left [ fail ])
                   | (data, Right (trace as TraceSuccess trace')) =>
                       (data, TraceSubgoal { subgoal = subgoal
                                           , subtheorem = #theorem trace'
-                                          , fail_steps = fails
                                           , subproof = trace
                                           } |> Right)
                in case try_results (tactic subgoal) [] of
