@@ -67,7 +67,7 @@ fun debug_print_to_file pathstr s = File.write (Path.explode pathstr) s
 
 val LOG_FILE = Path.basic "TypeProofTactic.log"
 fun log_to_file strs = File.append LOG_FILE (strs ^"\n")
-fun log_error str = log_to_file ("*** " ^ str)
+fun log_error str = log_to_file ("!!! " ^ str)
 fun log_info str  = log_to_file ("    " ^ str)
 fun raise_error err =
   let
