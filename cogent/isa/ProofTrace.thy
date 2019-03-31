@@ -26,9 +26,7 @@ datatype 'tag TraceSuccess = TraceSuccess of { goal : thm
                                              , theorem : thm
                                              }
      and 'tag TraceFailure = TraceFailure of { goal : thm
-                                             , succeeded : 'tag TraceSubgoal list
                                              , failed : 'tag FailedSubgoal
-                                             , remaining_goals : term list
                                              }
      and 'tag FailedSubgoal = FailedProof of { subgoal : thm
                                              , fail_steps : 'tag TraceFailure list
@@ -41,11 +39,9 @@ datatype 'tag TraceSuccess = TraceSuccess of { goal : thm
 
 fun TraceSuccess_erase_backtracking (TraceSuccess { goal, theorem, succeeded }) =
       TraceSuccess { goal = goal, theorem = theorem, succeeded = map TraceSubgoal_erase_backtracking succeeded }
-and TraceFailure_erase_backtracking (TraceFailure {goal, succeeded, failed, remaining_goals }) =
+and TraceFailure_erase_backtracking (TraceFailure {goal, failed }) =
       TraceFailure { goal = goal
-                   , succeeded = succeeded |> map TraceSubgoal_erase_backtracking
                    , failed = FailedSubgoal_erase_backtracking failed
-                   , remaining_goals = remaining_goals
                    }
 and FailedSubgoal_erase_backtracking (FailedProof { subgoal, fail_steps }) =
   FailedProof { subgoal = subgoal
@@ -82,7 +78,7 @@ fun trace_solve_tac (ctxt : Proof.context)
                                     , theorem = goal
                                     , succeeded = rev subproofs_rev
                                     } |> Right)
-        | (subgoal_term :: remaining_subgoals) =>
+        | (subgoal_term :: _) =>
               let (* Try all results from all tactics until we obtain a successful proof.
                    * NB: tactics should return finite results! *)
                 val subgoal = Goal.init subgoal_term
@@ -107,11 +103,9 @@ fun trace_solve_tac (ctxt : Proof.context)
                in case try_results (tactic subgoal) [] of
                       (_, Left fails) => (data, TraceFailure
                                                 { goal = goal0
-                                                , succeeded = rev subproofs_rev
                                                 , failed = FailedProof { subgoal = subgoal
                                                                        , fail_steps = fails
                                                                        }
-                                                , remaining_goals = map Thm.term_of remaining_subgoals
                                                 } |> Left)
                     | (data, Right (subproof as TraceSubgoal subproof')) =>
                           let val subtheorem = #subtheorem subproof' in
