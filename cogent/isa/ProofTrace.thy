@@ -26,11 +26,9 @@ datatype 'tag TraceSuccess = TraceSuccess of { goal : thm
                                              , theorem : thm
                                              }
      and 'tag TraceFailure = TraceFailure of { goal : thm
-                                             , failed : 'tag FailedSubgoal
-                                             }
-     and 'tag FailedSubgoal = FailedProof of { subgoal : thm
+                                             , failed_subgoal : thm
                                              , fail_steps : 'tag TraceFailure list
-                                             } (* nested TraceFailure gives reason *)
+                                             }
      and 'tag TraceSubgoal = TraceSubgoal of { subgoal : thm
                                              , subtheorem : thm (* same as `#theorem subproof` *) 
                                              , subproof : 'tag TraceSuccess
@@ -84,9 +82,8 @@ fun trace_solve_tac (ctxt : Proof.context)
                in case try_results (tactic subgoal) [] of
                       (_, Left fails) => (data, TraceFailure
                                                 { goal = goal0
-                                                , failed = FailedProof { subgoal = subgoal
-                                                                       , fail_steps = fails
-                                                                       }
+                                                , failed_subgoal = subgoal
+                                                , fail_steps = fails
                                                 } |> Left)
                     | (data, Right (subproof as TraceSubgoal subproof')) =>
                           let val subtheorem = #subtheorem subproof' in
@@ -127,12 +124,10 @@ and filter_TraceSubgoal PSuccess PSubgoal (TraceSubgoal tr) =
       if not (PSubgoal tr) then [] else filter_trace PSuccess PSubgoal (#subproof tr);
 
 
-fun get_failing_goal (TraceFailure {failed, ...}) =
-  get_failing_subgoal failed
-and get_failing_subgoal (FailedProof {subgoal, fail_steps = [trace], ...})
-  = subgoal :: get_failing_goal trace
-| get_failing_subgoal (FailedProof {subgoal, fail_steps = []})
-  = [subgoal]
+fun get_failing_goal (TraceFailure {failed_subgoal, fail_steps = (trace :: _), ...}) =
+  failed_subgoal :: get_failing_goal trace
+| get_failing_goal (TraceFailure {failed_subgoal, fail_steps = [], ...}) =
+  failed_subgoal :: []
 
 fun is_const n (Const (name, _)) = n = name
   | is_const _ _ = false;
