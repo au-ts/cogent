@@ -439,7 +439,7 @@ shallowTT (tidx, t) = do
           valRelBody = I.QuantifiedTerm Exists (map I.Id evarNames) [isaTerm| v = VRecord $evarIsaList \<and> $conjs |]
           valRelSpecName = "valRel_" ++ nm
           valRelDef = OverloadedDef
-                        (Def (Just (Sig valRelSpecName Nothing)) [isaTerm| $(mkId valRelSpecName) \<xi> (x :: $ity) v \<equiv> $valRelBody |])
+                        (Def (Just (Sig valRelSpecName Nothing)) [isaTerm| \<And> \<xi> x v. $(mkId valRelSpecName) \<xi> (x :: $ity) v \<equiv> $valRelBody |])
                         (Sig "valRel" Nothing)
           valRel = if tuples && isRecTuple fs then [] else [(RecordT, valRelDef)]
       return (recdecls, valRel, [], defnames, newmap)
@@ -639,11 +639,12 @@ scorresStructLemma :: TypeName -> [FieldName] -> (String, TheoryDecl I.Type I.Te
 scorresStructLemma name fields = let
   thmName = "scorres_struct_" ++ name
   varNames prefix = [ prefix ++ "_" ++ field | field <- fields ]
+  all_names = ["\\<gamma>", "\\<xi>"] ++ (varNames "s") ++ (varNames "d")
   assums = [ "scorres " ++ x ++ " " ++ y ++ " \\<gamma> \\<xi>"
            | (x, y) <- P.zip (varNames "s") (varNames "d") ]
   concl = "scorres (" ++ name ++ ".make " ++ unwords (varNames "s") ++ ") " ++
           "(Struct ts [" ++ intercalate ", " (varNames "d") ++ "]) \\<gamma> \\<xi>"
-  prop = intercalate " \\<Longrightarrow>\n" (assums ++ [concl])
+  prop = "\\<And>" ++ intercalate " " all_names ++ ".\n" ++ intercalate " \\<Longrightarrow>\n" (assums ++ [concl])
   method = Method "clarsimp" ["simp:", "scorres_def", "valRel_" ++ name, name ++ ".defs",
                               "elim!:", "v_sem_elims"]
   in (thmName, O.LemmaDecl (O.Lemma False (Just (TheoremDecl (Just thmName) [])) [mkId prop] $ Proof [method] ProofDone))
