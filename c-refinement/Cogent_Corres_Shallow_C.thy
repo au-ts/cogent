@@ -58,7 +58,6 @@ begin
 definition val_rel_shallow_C where
 "val_rel_shallow_C
      (rename :: funtyp \<times> type list \<Rightarrow> funtyp)
-     (v\<^sub>t :: 'tv)
      (v\<^sub>s :: 'sv)
      (v\<^sub>C :: 'cv :: cogent_C_val)
      (v\<^sub>p :: (funtyp, 'b) vval)
@@ -67,23 +66,20 @@ definition val_rel_shallow_C where
      (\<sigma> :: (funtyp, abstyp, ptrtyp) store)
      (\<Xi>\<^sub>m :: funtyp \<Rightarrow> poly_type) \<equiv>
   \<exists>\<tau> r w.
-    shallow_tuples_rel v\<^sub>s v\<^sub>t \<and>
     valRel \<xi>\<^sub>p v\<^sub>s v\<^sub>p \<and>
     \<Xi>\<^sub>m, \<sigma> \<turnstile> v\<^sub>u\<^sub>m \<sim> val.rename_val rename (val.monoval v\<^sub>p) : \<tau> \<langle>r, w\<rangle> \<and>
     val_rel v\<^sub>u\<^sub>m v\<^sub>C"
 
 lemma val_rel_shallow_C_elim:
-  "\<And>\<xi>. val_rel_shallow_C rename tv sv m vv uv \<xi> \<sigma> \<Xi>' \<Longrightarrow> shallow_tuples_rel sv tv"
-  "\<And>\<xi>. val_rel_shallow_C rename tv sv m vv uv \<xi> \<sigma> \<Xi>' \<Longrightarrow> valRel \<xi> sv vv"
-  "\<And>\<xi>. val_rel_shallow_C rename tv sv m vv uv \<xi> \<sigma> \<Xi>' \<Longrightarrow> \<exists>\<tau> r w. \<Xi>', \<sigma> \<turnstile> uv \<sim> val.rename_val rename (val.monoval vv) : \<tau> \<langle>r, w\<rangle>"
-  "\<And>\<xi>. val_rel_shallow_C rename tv sv m vv uv \<xi> \<sigma> \<Xi>' \<Longrightarrow> val_rel uv m"
+  "\<And>\<xi>. val_rel_shallow_C rename sv m vv uv \<xi> \<sigma> \<Xi>' \<Longrightarrow> valRel \<xi> sv vv"
+  "\<And>\<xi>. val_rel_shallow_C rename sv m vv uv \<xi> \<sigma> \<Xi>' \<Longrightarrow> \<exists>\<tau> r w. \<Xi>', \<sigma> \<turnstile> uv \<sim> val.rename_val rename (val.monoval vv) : \<tau> \<langle>r, w\<rangle>"
+  "\<And>\<xi>. val_rel_shallow_C rename sv m vv uv \<xi> \<sigma> \<Xi>' \<Longrightarrow> val_rel uv m"
   by (simp_all add: val_rel_shallow_C_def)
 
 definition corres_shallow_C where
   "corres_shallow_C
      (rename :: funtyp \<times> type list \<Rightarrow> funtyp)
      (srel :: ((funtyp, abstyp, ptrtyp) store \<times> 's) set)
-     (v\<^sub>t :: 'tv)
      (v\<^sub>s :: 'sv)
      (prog\<^sub>m :: funtyp expr)
      (prog\<^sub>C :: ('s, 'cv :: cogent_C_val) nondet_monad)
@@ -107,7 +103,7 @@ definition corres_shallow_C where
       (\<xi>\<^sub>u\<^sub>m, \<gamma>\<^sub>u\<^sub>m \<turnstile> (\<sigma>, prog\<^sub>m) \<Down>! (\<sigma>', v\<^sub>u\<^sub>m)) \<and>
        (\<xi>\<^sub>v\<^sub>m, \<gamma>\<^sub>v\<^sub>m \<turnstile> prog\<^sub>m \<Down> val.rename_val rename (val.monoval v\<^sub>p)) \<and>
        (\<sigma>', s') \<in> srel \<and>
-       val_rel_shallow_C rename v\<^sub>t v\<^sub>s r' v\<^sub>p v\<^sub>u\<^sub>m \<xi>\<^sub>v\<^sub>p \<sigma>' \<Xi>\<^sub>m)))"
+       val_rel_shallow_C rename v\<^sub>s r' v\<^sub>p v\<^sub>u\<^sub>m \<xi>\<^sub>v\<^sub>p \<sigma>' \<Xi>\<^sub>m)))"
 
 lemma corres_shallow_C_intro:
     (* Procedure monomorphisation *)
@@ -131,19 +127,13 @@ lemma corres_shallow_C_intro:
     (* Shallow-deep refinement *)
       assumes scorresP:
        "val.scorres (prog\<^sub>s vv\<^sub>s) prog\<^sub>p [vv\<^sub>p] \<xi>\<^sub>p"
-    (* Shallow-tuples refinement *)
-      assumes shallow_tuplesP:
-       "shallow_tuples_rel prog\<^sub>s prog\<^sub>t"
     (* Dynamic environment *)
       assumes mono_env_matches:
        "val.matches \<Xi> [vv\<^sub>m] [Some \<tau>i]"
-    (* Dynamic environment *)
-      assumes shallow_tuples_args:
-       "shallow_tuples_rel vv\<^sub>s vv\<^sub>t"
   (* Goal *)
   shows
-    "val_rel_shallow_C rename vv\<^sub>t vv\<^sub>s uv\<^sub>C vv\<^sub>p uv\<^sub>m \<xi>\<^sub>p \<sigma> \<Xi> \<Longrightarrow>
-     corres_shallow_C rename srel (prog\<^sub>t vv\<^sub>t) (prog\<^sub>s vv\<^sub>s) prog\<^sub>m (prog\<^sub>C uv\<^sub>C) \<xi>\<^sub>u\<^sub>m \<xi>\<^sub>m \<xi>\<^sub>p [uv\<^sub>m] [vv\<^sub>m] \<Xi> [Some \<tau>i] \<sigma> s"
+    "val_rel_shallow_C rename vv\<^sub>s uv\<^sub>C vv\<^sub>p uv\<^sub>m \<xi>\<^sub>p \<sigma> \<Xi> \<Longrightarrow>
+     corres_shallow_C rename srel (prog\<^sub>s vv\<^sub>s) prog\<^sub>m (prog\<^sub>C uv\<^sub>C) \<xi>\<^sub>u\<^sub>m \<xi>\<^sub>m \<xi>\<^sub>p [uv\<^sub>m] [vv\<^sub>m] \<Xi> [Some \<tau>i] \<sigma> s"
   apply (clarsimp simp: corres_shallow_C_def val_rel_shallow_C_def)
   apply (cut_tac corresP[unfolded corres_def])
   apply (clarsimp)
@@ -171,7 +161,7 @@ lemma corres_shallow_C_intro:
    apply (cut_tac scorresP[unfolded val.scorres_def])
   apply (frule(4) mono_correspondence(1))
    apply (rule typingP)
-  apply (blast intro: shallow_tuplesP[THEN shallow_tuples_rel_funD])
+  apply (blast)
   done
 
 
@@ -188,7 +178,7 @@ fun get_concl (Const (@{const_name Trueprop}, _) $ t) = get_concl t
   | get_concl (Const ("Pure.all", _) $ Abs (_, _, t)) = get_concl t
   | get_concl t = t
 
-fun make_corres_shallow_C desugar_tup_thy desugar_thy deep_thy ctxt f = let
+fun make_corres_shallow_C desugar_thy deep_thy ctxt f = let
   (* Global program constants *)
   val poly_mono_rename = Syntax.read_term ctxt "rename"
   val proc_ctx = Syntax.read_term ctxt "\<Xi>"
@@ -205,28 +195,26 @@ fun make_corres_shallow_C desugar_tup_thy desugar_thy deep_thy ctxt f = let
    *)
   val basic_prop =
       @{mk_term
-          "\<lbrakk> rename_mono_prog ?rename ?\<Xi> \<xi>\<^sub>m \<xi>\<^sub>p;
+          "\<lbrakk> value_sem.rename_mono_prog val_abs_typing ?rename ?\<Xi> \<xi>\<^sub>m \<xi>\<^sub>p;
              vv\<^sub>m = val.rename_val ?rename (val.monoval vv\<^sub>p);
 
-             val_rel_shallow_C ?rename vv\<^sub>t vv\<^sub>s uv\<^sub>C vv\<^sub>p uv\<^sub>m \<xi>\<^sub>p \<sigma> ?\<Xi>;
+             val_rel_shallow_C ?rename vv\<^sub>s uv\<^sub>C vv\<^sub>p uv\<^sub>m \<xi>\<^sub>p \<sigma> ?\<Xi>;
              proc_ctx_wellformed ?\<Xi>;
              value_sem.proc_env_matches val_abs_typing \<xi>\<^sub>m ?\<Xi>;
              value_sem.matches val_abs_typing ?\<Xi> [vv\<^sub>m] [option.Some (fst (snd ?f_deep_type))]
            \<rbrakk> \<Longrightarrow>
            corres_shallow_C ?rename ?state_rel
-              (?f_desugar_tup vv\<^sub>t) (?f_desugar vv\<^sub>s) ?f_deep (?f_C uv\<^sub>C)
+              (?f_desugar vv\<^sub>s) ?f_deep (?f_C uv\<^sub>C)
               (* \<xi> is schematic; instantiated by resolving corres_thm *)
               ?\<xi> \<xi>\<^sub>m \<xi>\<^sub>p [uv\<^sub>m] [vv\<^sub>m] ?\<Xi> [option.Some (fst (snd ?f_deep_type))] \<sigma> s"
-      (f_desugar_tuples,
-         f_desugar,
+      (f_desugar,
            f_deep,
              f_deep_type,
                f_C,
                  \<Xi>,
                    rename,
                      state_rel)}
-      (Syntax.read_term ctxt (desugar_tup_thy ^ "." ^ f),
-         Syntax.read_term ctxt (desugar_thy ^ "." ^ f),
+      (Syntax.read_term ctxt (desugar_thy ^ "." ^ f),
            Syntax.read_term ctxt (deep_thy ^ "." ^ f),
              Syntax.read_term ctxt (deep_thy ^ "." ^ f ^ "_type"),
                Syntax.read_term ctxt (Cogent_to_C_name f),
@@ -240,11 +228,11 @@ fun make_corres_shallow_C desugar_tup_thy desugar_thy deep_thy ctxt f = let
    *        If entry_func_names gets polymorphic functions, then this assumption breaks
    *        and we'd need to lookup the correct source name. *)
   val norm_thm = Proof_Context.get_thm ctxt (f ^ "_normalised")
-  val mono_thm = Proof_Context.get_thm ctxt (f ^ "_monomorphic")
+  val mono_thm = Proof_Context.get_thm ctxt ("value_sem." ^ f ^ "_monomorphic")
   val typing_thm = Proof_Context.get_thm ctxt (f ^ "_typecorrect'")
   val scorres_thm = Proof_Context.get_thm ctxt ("scorres_" ^ f)
-  val shallow_tuples_thm = Proof_Context.get_thm ctxt ("shallow_tuples__" ^ f)
   val corres_thm = Proof_Context.get_thm ctxt ("corres_" ^ f)
+  val proc_ctx_def_thm = Proof_Context.get_thm ctxt ("\<Xi>_def")
 
   (* Also instantiate scorres_thm to monomorphic type *)
   val scorres_thm = Drule.infer_instantiate ctxt [(("ts", 0), @{cterm "[] :: type list"})] scorres_thm
@@ -261,10 +249,6 @@ fun make_corres_shallow_C desugar_tup_thy desugar_thy deep_thy ctxt f = let
   (* FIXME: abstract function assumptions for SCorres_Normal.
    *        SCorres_Normal currently does not generate them correctly *)
   val scorres_assms = []
-
-  (* FIXME: abstract function assumptions for ShallowTuplesProof.
-   *        ShallowTuplesProof currently does not generate them correctly *)
-  val shallow_tuples_assms = []
 
   (* Our proof involves two locale assumptions:
    * one for correspondence_init (this locale) and one for
@@ -283,8 +267,9 @@ fun make_corres_shallow_C desugar_tup_thy desugar_thy deep_thy ctxt f = let
   val thm_with_assm =
     Goal.prove ctxt
       ["\<xi>\<^sub>m", "\<xi>\<^sub>p", "vv\<^sub>t", "vv\<^sub>s", "uv\<^sub>C", "vv\<^sub>p", "vv\<^sub>m", "uv\<^sub>m", "\<sigma>", "s"]
-      (locale_assm :: corres_assms @ scorres_assms @ shallow_tuples_assms)
-      basic_prop
+      (locale_assm :: corres_assms @ scorres_assms)
+      (* XXX: locale_assm shows up twice, fix... *)
+      (Logic.mk_implies (locale_assm, basic_prop))
       (fn {context, prems} =>
          (* Get premises of corres_shallow_C.
           * Instantiate vv\<^sub>s to avoid wrong unification in "prog\<^sub>s vv\<^sub>s". *)
@@ -295,16 +280,18 @@ fun make_corres_shallow_C desugar_tup_thy desugar_thy deep_thy ctxt f = let
            (* Derived value relations from val_rel_shallow_C *)
            SOLVES (eresolve_tac ctxt @{thms val_rel_shallow_C_elim} 1),
            (* Monomorphisation; reverse it to match corres_shallow_C_intro *)
-           rtac (mono_thm RS @{thm sym}) 1,
+           (rtac (mono_thm RS @{thm sym}) 1 THEN
+               asm_full_simp_tac (context addsimps @{thms correspondence_init_def correspondence_def}) 1 THEN
+               etac @{thm conjE} 1 THEN
+               asm_full_simp_tac context 1),
            (* Deep embedding type-correctness *)
            rtac typing_thm 1,
            (* SCorres + normalisation equation *)
-           EqSubst.eqsubst_tac context [0] [norm_thm] 1
-           THEN rtac scorres_thm 1,
-           (* ShallowTuples *)
-           rtac shallow_tuples_thm 1,
+           (unfold_tac context [norm_thm]
+              THEN rtac scorres_thm 1),
            (* C corres *)
-           rtac corres_thm 1,
+           (unfold_tac context [proc_ctx_def_thm]
+              THEN rtac corres_thm 1),
            (* Extra premises, which should all be trivial *)
            SOLVES ((resolve_tac ctxt prems THEN_ALL_NEW atac) 1)
          ]))

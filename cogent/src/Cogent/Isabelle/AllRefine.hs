@@ -25,7 +25,6 @@ allRefine source log =
   in header $ L.pretty (Theory arthy imports body :: O.Theory I.Type I.Term)
   where
     imports = TheoryImports [ thy ++ __cogent_suffix_of_normal_proof
-                            , thy ++ __cogent_suffix_of_shallow_tuples_proof
                             , thy ++ __cogent_suffix_of_scorres ++ __cogent_suffix_of_stage STGNormal
                             , thy ++ __cogent_suffix_of_corres_proof
                             , thy ++ __cogent_suffix_of_mono_proof
@@ -74,7 +73,7 @@ exportThms thy = TheoryString $ unlines
   , "  Symtab.dest prop_tab"
   , "  |> filter (member (op=) entry_func_names o #1 o snd)"
   , "  |> filter (member (op=) Cogent_functions o #1 o snd)"
-  , "  |> sort_wrt (#1 o snd)"
+  , "  |> sort_by (#1 o snd)"
   , "  |> partition_eq (fn (p1,p2) => #1 (snd p1) = #1 (snd p2))"
   , "  |> map (sort (option_ord int_ord o"
   , "                both (fn p => unprefix (#1 (snd p) ^ \"_corres_\") (fst p)"
@@ -139,11 +138,10 @@ genFinalLemmas thy = TheoryString $ unlines
   , "local_setup {*"
   , "filter (member op= Cogent_functions) entry_func_names"
   , "|> fold (fn f => fn lthy => let"
-  , "     val thm = make_corres_shallow_C \"" ++ desugar_tuples_thy ++ "\" \"" ++ desugar_thy ++ "\" \"" ++ typeproof_thy ++ "\" lthy f"
+  , "     val thm = make_corres_shallow_C \"" ++ desugar_thy ++ "\" \"" ++ typeproof_thy ++ "\" lthy f"
   , "     val (_, lthy) = Local_Theory.notes [((Binding.name (\"corres_shallow_C_\" ^ f), []), [([thm], [])])] lthy"
   , "     in lthy end)"
   , "*}"
   ]
-  where desugar_tuples_thy = thy ++ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage STGDesugar ++ __cogent_suffix_of_recover_tuples
-        desugar_thy = thy ++ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage STGDesugar
+  where desugar_thy = thy ++ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage STGDesugar
         typeproof_thy = thy ++ __cogent_suffix_of_type_proof
