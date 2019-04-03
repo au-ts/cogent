@@ -89,7 +89,7 @@ datatype record_state = Taken | Present
 (* variant and record states are boolean algebras.
    This should match up with the subtyping lattice ops. *)
 
-instantiation variant_state :: boolean_algebra
+instantiation variant_state :: "{boolean_algebra, linorder}"
 begin
 
 fun uminus_variant_state :: "variant_state \<Rightarrow> variant_state" where
@@ -159,10 +159,12 @@ instance proof
     by (cases x; simp)+
   show "x - y = inf x (- y)"
     by simp
+  show "x \<le> y \<or> y \<le> x"
+    by (cases x; cases y; simp)
 qed
 end
 
-instantiation record_state :: boolean_algebra
+instantiation record_state :: "{boolean_algebra, linorder}"
 begin
 
 fun uminus_record_state :: "record_state \<Rightarrow> record_state" where
@@ -232,6 +234,8 @@ instance proof
     by (cases x; simp)+
   show "x - y = inf x (- y)"
     by simp
+  show "x \<le> y \<or> y \<le> x"
+    by (cases x; cases y; simp)
 qed
 end
 
@@ -489,7 +493,7 @@ fun specialise :: "type substitution \<Rightarrow> 'f expr \<Rightarrow> 'f expr
 section {* Subtyping *}
 
 abbreviation record_kind_subty :: "kind_comp set list \<Rightarrow> name \<times> Cogent.type \<times> record_state \<Rightarrow> name \<times> Cogent.type \<times> record_state \<Rightarrow> bool" where
-  "record_kind_subty K p1 p2 \<equiv> if K \<turnstile> (fst (snd p1)) :\<kappa> {D} then snd (snd p1) \<le> snd (snd p2) else snd (snd p1) = snd (snd p2)"
+  "record_kind_subty K p1 p2 \<equiv> snd (snd p1) = snd (snd p2) \<or> ((K \<turnstile> (fst (snd p1)) :\<kappa> {D}) \<and> snd (snd p1) < snd (snd p2))"
 
 abbreviation variant_kind_subty :: "name \<times> Cogent.type \<times> variant_state \<Rightarrow> name \<times> Cogent.type \<times> variant_state \<Rightarrow> bool" where
   "variant_kind_subty p1 p2 \<equiv> snd (snd p1) \<le> snd (snd p2)"
@@ -1259,7 +1263,7 @@ lemma subtyping_simps:
                     \<and> list_all2 (variant_kind_subty) ts1 ts2
                     \<and> map fst ts1 = map fst ts2"
   "K \<turnstile> TUnit \<sqsubseteq> TUnit"
-  by (auto simp: subtyping.intros intro!: subtyping.intros elim!: subtyping.cases, presburger)
+  by (auto simp: subtyping.intros intro!: subtyping.intros elim!: subtyping.cases)
 
 lemma subtyping_refl:
   assumes "K \<turnstile> t wellformed"
@@ -1328,9 +1332,9 @@ next
     by (auto simp add: list_all_length intro!: bang_kind, metis length_map)
   moreover have "\<And>i. i < length ts2 \<Longrightarrow> snd (snd (ts1 ! i)) \<le> snd (snd (ts2 ! i))"
     using subty_trecord.hyps
-    by (force simp add: list_all2_conv_all_nth if_bool_eq_conj)
+    by (force simp add: list_all2_conv_all_nth if_bool_eq_conj le_less)
   ultimately show ?case
-    by (slowsimp simp add: subtyping_simps list_all2_conv_all_nth list_all_length split: prod.splits)
+    by (slowsimp simp add: subtyping_simps list_all2_conv_all_nth list_all_length le_less split: prod.splits)
 next
   case subty_tsum then show ?case
     by (slowsimp intro!: subtyping.intros simp add: list_all2_conv_all_nth list_all_length split: prod.splits)
@@ -1344,10 +1348,6 @@ lemma subtyping_kinding_fn_drop_super_impl_drop_sub:
   using assms
 proof (induct rule: subtyping.inducts)
   case (subty_trecord K pts qts ps qs)
-  moreover have kind_qts:
-    "\<And>i n tq bq. i < length qts \<Longrightarrow> qts ! i = (n, tq, bq) \<Longrightarrow> bq = Present \<Longrightarrow> D \<in> kinding_fn K tq"
-    using subty_trecord.prems
-    by (fastforce simp add: all_set_conv_all_nth split: prod.splits)
   moreover have kind_pts:
     "\<And>n pt pb. (n, pt, pb) \<in> set pts \<Longrightarrow> D \<in> (case pb of Taken \<Rightarrow> UNIV | Present \<Rightarrow> kinding_fn K pt)"
   proof -
@@ -1360,17 +1360,14 @@ proof (induct rule: subtyping.inducts)
         "qts ! i = (n, tq, bq)"
       using \<open>map fst pts = map fst qts\<close>
       by (simp add: in_set_conv_nth map_eq_iff_nth_eq, metis fst_conv surj_pair)
-
-    have ih_elim:
+    moreover have ih_elim:
       "D \<in> kinding_fn K tq \<longrightarrow> D \<in> kinding_fn K tp"
-      "if K \<turnstile> tp :\<kappa> {D} then bp \<le> bq else bp = bq"
+      "bp = bq \<or> ((K \<turnstile> tp :\<kappa> {D}) \<and> bp < bq)"
       using subty_trecord.hyps elems_at_i
-      by (auto simp add: list_all2_conv_all_nth map_eq_iff_nth_eq)
-    then have "bp = Present \<longrightarrow> D \<in> kinding_fn K tp"
-      using elems_at_i ih_elim
-      by (metis kind_qts kinding_def singletonI subsetCE)
-    then show "D \<in> (case bp of Taken \<Rightarrow> UNIV | Present \<Rightarrow> kinding_fn K tp)"
-      by (clarsimp split: record_state.splits)
+      by (auto simp add: list_all2_conv_all_nth map_eq_iff_nth_eq le_less)
+    ultimately show "D \<in> (case bp of Taken \<Rightarrow> UNIV | Present \<Rightarrow> kinding_fn K tp)"
+      using subty_trecord.prems
+      by (force simp add: kinding_def all_set_conv_all_nth split: record_state.splits)
   qed
   ultimately show ?case
     by clarsimp
@@ -1500,8 +1497,8 @@ next
       using p_elims r_elims i_len
       by (simp add: list_all2_conv_all_nth)+
     ultimately show "record_kind_subty K (pts ! i) (rts ! i)"
-      by (fastforce
-          simp add: if_bool_eq_conj kinding_defs
+      by (auto
+          simp add: if_bool_eq_conj kinding_defs not_less_iff_gr_or_eq
           dest: subtyping_wellformed_preservation subtyping_kinding_fn_drop_super_impl_drop_sub)
   qed
   ultimately show ?case
@@ -1846,26 +1843,25 @@ next
       using subty_trecord.prems subty_trecord.hyps(1)
       by (fastforce simp add: list_all2_conv_all_nth list_all_length split: prod.splits)
   next
-    show "list_all2 (record_kind_subty K') (map (\<lambda>(n, t, b). (n, instantiate \<delta> t, b)) ts1) (map (\<lambda>(n, t, b). (n, instantiate \<delta> t, b)) ts2)"
-      using subty_trecord.hyps(1)
-    proof (clarsimp simp add: list_all2_conv_all_nth list_all_length imp2_conj_pull_out_common split: prod.splits)
+    have "length ts1 = length ts2"
+      using list_all2_conv_all_nth subty_trecord.hyps by blast
+    then show "list_all2 (record_kind_subty K') (map (\<lambda>(n, t, b). (n, instantiate \<delta> t, b)) ts1) (map (\<lambda>(n, t, b). (n, instantiate \<delta> t, b)) ts2)"
+    proof (clarsimp simp add: list_all2_conv_all_nth split: prod.splits)
       fix i n1 t1 b1 n2 t2 b2
       presume localassms:
         "ts1 ! i = (n1, t1, b1)"
         "ts2 ! i = (n2, t2, b2)"
         "i < length ts2"
         "i < length ts1"
-      moreover then have "if K \<turnstile> t1 :\<kappa> {D} then b1 \<le> b2 else b1 = b2"
+        "K' \<turnstile> instantiate \<delta> t1 :\<kappa> {D} \<longrightarrow> \<not> b1 < b2"
+      moreover then have "b1 = b2 \<or> ((K \<turnstile> t1 :\<kappa> {D}) \<and> b1 < b2)"
         using subty_trecord.hyps(3)
         by (force simp add: list_all2_conv_all_nth split: prod.splits)
-      moreover have "type_wellformed (length K) t1"
-        using subty_trecord.prems(1) localassms
-        by (force simp add: list_all_length)
       moreover then have "K \<turnstile> t1 :\<kappa> {D} \<Longrightarrow> K' \<turnstile> (instantiate \<delta> t1) :\<kappa> {D}"
         using subty_trecord.prems substitutivity_single
         by blast
-      ultimately show "(K' \<turnstile> (instantiate \<delta> t1) :\<kappa> {D} \<longrightarrow> b1 \<le> b2) \<and> (\<not>(K' \<turnstile> (instantiate \<delta> t1) :\<kappa> {D}) \<longrightarrow> b1 = b2)"
-        by (metis order_refl)
+      ultimately show "b1 = b2"
+        by clarsimp
     qed force+
   qed force+
 next

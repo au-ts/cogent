@@ -114,6 +114,10 @@ lemma prod_eq:
   by simp
 
 
+lemma if_args_cong_weak[cong]: "ab = bb \<Longrightarrow> at = bt \<Longrightarrow> af = bf \<Longrightarrow> (if ab then at else af) = (if bb then bt else bf)"
+  by blast
+
+
 section {* list related lemmas *}
 
 lemma map_eq_iff_nth_eq: "(map f xs = map g ys) = (length xs = length ys \<and> (\<forall>i < length xs. f (xs ! i) = g (ys ! i)))"

@@ -1392,13 +1392,15 @@ next
     apply -
     apply (erule subtyping.cases; clarsimp)
     apply (rule_tac V="\<exists>r'\<subseteq>r. \<Xi>, \<sigma> \<turnstile>* xs \<sim> xs' :r zs \<langle>r', w\<rangle>" in revcut_rl, simp add: subtyping.intros)
-    apply (rule_tac s="Taken" and t=b in subst, metis less_eq_record_state.simps(3) record_state.exhaust snd_conv)
     apply (elim exE)
     apply (elim conjE)
     apply (rule_tac x="r'" in exI)
     apply (intro conjI, blast)
-    apply (intro upd_val_rel_upd_val_rel_record.intros; (simp add: subtyping_preserves_type_repr)?)
-    using subtyping_wellformed_preservation(1) apply fastforce
+    apply (case_tac b; clarsimp)
+    using subtyping_wellformed_preservation(1)
+    apply (fastforce
+        intro!: upd_val_rel_upd_val_rel_record.intros
+        simp add: subtyping_preserves_type_repr)
     done
 qed (auto elim: subtyping.cases intro: upd_val_rel_upd_val_rel_record.intros)
 

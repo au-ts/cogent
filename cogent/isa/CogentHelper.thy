@@ -203,8 +203,7 @@ lemma list_all2_record_kind_subty_cons:
 proof (cases "K \<turnstile> (fst (snd p1)) :\<kappa> {D}")
   case True
   then show ?thesis
-    using assms
-    by (metis (no_types, lifting) list_all2_cons order_refl)
+    using assms list_all2_cons by auto
 next
   case False
   then show ?thesis
