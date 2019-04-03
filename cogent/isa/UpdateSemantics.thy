@@ -510,8 +510,8 @@ shows "((\<lambda>(c, t). (c, bang t)) \<circ> (\<lambda>(a, b). (a, bang b))) =
 by (rule ext, clarsimp simp: bang_idempotent)
 
 lemma list_all2_bang_type_helper:
- "\<lbrakk> list_all2 (\<lambda>t. op = (type_repr t)) ts rs ; [] \<turnstile>* ts :\<kappa>  k\<rbrakk>
-        \<Longrightarrow> list_all2 (\<lambda>t. op = (type_repr t)) (map (bang) ts) rs"
+ "\<lbrakk> list_all2 (\<lambda>t. (=) (type_repr t)) ts rs ; [] \<turnstile>* ts :\<kappa>  k\<rbrakk>
+        \<Longrightarrow> list_all2 (\<lambda>t. (=) (type_repr t)) (map (bang) ts) rs"
 by (induct rule: list_all2_induct, auto dest: bang_type_repr)
 
 
@@ -524,7 +524,7 @@ using assms by (force dest: kinding_record_wellformed intro: bang_type_repr)
 lemma uval_typing_bang:
 shows   "\<Xi>, \<sigma> \<turnstile> v :u \<tau> \<langle>r, w\<rangle> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> v :u bang \<tau> \<langle>r \<union> w, {}\<rangle>"
 and     "\<Xi>, \<sigma> \<turnstile>* vs :ur \<tau>s \<langle>r, w\<rangle> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile>* vs :ur  (map (\<lambda> (t, b). (bang t, b)) \<tau>s) \<langle>r \<union> w, {}\<rangle>"
-using assms proof (induct rule: uval_typing_uval_typing_record.inducts)
+proof (induct rule: uval_typing_uval_typing_record.inducts)
 next case u_t_product  then show ?case by (auto  dest:  uval_typing_uval_typing_record.u_t_product 
                                                  intro: pointerset_helper)
 next case u_t_sum      then show ?case by (auto  intro!: uval_typing_uval_typing_record.intros exI
@@ -1171,9 +1171,9 @@ proof -
 have 1: "(\<lambda> x. x \<noteq> t') \<circ> fst = (\<lambda> x. fst x \<noteq> t')" by (auto)
 have 2: "map fst [ x \<leftarrow> ts. fst x \<noteq> t' ] = [ x \<leftarrow> map fst ts. x \<noteq> t' ]"by (simp add: 1 filter_map)
 have 3: "[x\<leftarrow>map fst xs . x \<noteq> t'] = map fst [x\<leftarrow>xs . fst x \<noteq> t']" by (induct xs,simp,simp)
-have 4: "\<lbrakk> list_all2 (\<lambda>t. op = (type_repr t)) (map snd ts) (map snd xs)
+have 4: "\<lbrakk> list_all2 (\<lambda>t. (=) (type_repr t)) (map snd ts) (map snd xs)
          ; map fst ts = map fst xs
-         \<rbrakk> \<Longrightarrow> list_all2 (\<lambda>t. op = (type_repr t)) 
+         \<rbrakk> \<Longrightarrow> list_all2 (\<lambda>t. (=) (type_repr t)) 
                  (map snd [x\<leftarrow>ts . fst x \<noteq> t']) 
                  (map snd [x\<leftarrow>xs . fst x \<noteq> t'])"
 by ( induct "map snd ts" "map snd xs"
@@ -1194,7 +1194,7 @@ qed
 
 lemma list_all2_helper2:
 assumes "map fst tsa = map fst rs"
-and     "list_all2 (\<lambda>t. op = (type_repr t)) (map snd tsa) (map snd rs)"
+and     "list_all2 (\<lambda>t. (=) (type_repr t)) (map snd tsa) (map snd rs)"
 shows   "map (\<lambda>(a,b). (a,type_repr b)) tsa = rs"
 using assms(2,1) by ( induct "map snd tsa" "map snd rs"
                       arbitrary: tsa rs
@@ -1284,7 +1284,7 @@ and     "w'a \<inter> w'b = {}"
 and     "f < length ts"
 shows   "\<exists>r''a\<subseteq> r'a. \<Xi>, \<sigma> \<turnstile>* fs[f := (e', snd (fs ! f))] :ur (ts[f := (t, False)]) \<langle>r''a \<union> r'b, w'a \<union> w'b\<rangle>"
 using assms proof (induct fs arbitrary: f r'a w'a ts)
-case Nil then show ?case by auto
+  case Nil then show ?case by fastforce
 next case Cons then show ?case
   proof (cases f)
        case 0   with Cons(2-) show ?thesis
@@ -1333,7 +1333,7 @@ using assms by auto
 
 
 lemma list_all2_helper:
-shows "list_all2 (\<lambda>t. op = (type_repr t)) 
+shows "list_all2 (\<lambda>t. (=) (type_repr t)) 
                  (map (instantiate \<tau>s \<circ> snd) list)
                  (map (snd \<circ> ((\<lambda>(n, t). (n, type_repr t)) \<circ> (\<lambda>(c, t). (c, instantiate \<tau>s t)))) list)"
 by (induct list, (simp+, (case_tac a)?)+)
