@@ -423,9 +423,9 @@ where
   | "eval_prim_op Or xs = LBool (prim_lbool (hd xs) \<or> prim_lbool (xs ! 1))"
   | "eval_prim_op (Eq _) xs = LBool (hd xs = xs ! 1)"
   | "eval_prim_op (NEq _) xs = LBool (hd xs \<noteq> xs ! 1)"
-  | "eval_prim_op (Plus _) xs = prim_word_op (op +) (op +) (op +) (op +) xs"
-  | "eval_prim_op (Minus _) xs = prim_word_op (op -) (op -) (op -) (op -) xs"
-  | "eval_prim_op (Times _) xs = prim_word_op (op *) (op *) (op *) (op *) xs"
+  | "eval_prim_op (Plus _) xs = prim_word_op (+) (+) (+) (+) xs"
+  | "eval_prim_op (Minus _) xs = prim_word_op (-) (-) (-) (-) xs"
+  | "eval_prim_op (Times _) xs = prim_word_op ( * ) ( * ) ( * ) ( * ) xs"
   | "eval_prim_op (Divide _) xs = prim_word_op checked_div checked_div checked_div checked_div  xs"
   | "eval_prim_op (Mod _) xs = prim_word_op checked_mod checked_mod checked_mod checked_mod xs"
   | "eval_prim_op (Gt _) xs = prim_word_comp greater greater greater greater xs"
@@ -856,7 +856,7 @@ by (rule ext, simp add: specialise_nothing)
 
 
 
-lemmas typing_struct_instantiate = typing_struct [where ts = "map (instantiate \<delta>) ts" for ts, simplified]
+lemmas typing_struct_instantiate = typing_struct[where ts = "map (instantiate \<delta>) ts" for ts \<delta>, simplified]
 
 subsection {* substitutivity *}
 
@@ -1088,11 +1088,11 @@ fun expr_size :: "'f expr \<Rightarrow> nat" where
 | "expr_size (Cast t x) = Suc (expr_size x)"
 | "expr_size (Con c x ts) = Suc (expr_size ts)"
 | "expr_size (App a b) = Suc ((expr_size a) + (expr_size b))"
-| "expr_size (Prim p as) = Suc (listsum (map expr_size as))"
+| "expr_size (Prim p as) = Suc (sum_list (map expr_size as))"
 | "expr_size (Var v) = 0"
 | "expr_size (AFun v va) = 0"
 | "expr_size (Promote v va) = Suc (expr_size va)"
-| "expr_size (Struct v va) = Suc (listsum ( map expr_size va))"
+| "expr_size (Struct v va) = Suc (sum_list ( map expr_size va))"
 | "expr_size (Lit v) = 0"
 | "expr_size (Tuple v va) = Suc ((expr_size v) + (expr_size va))"
 | "expr_size (Put v va vb) = Suc ((expr_size v) + (expr_size vb))"
@@ -1106,7 +1106,7 @@ lemma specialise_size [simp]:
   shows "expr_size (specialise \<tau>s x) = expr_size x"
 proof -
 have "\<forall> as . (\<forall> x. x \<in> set as \<longrightarrow> expr_size (specialise \<tau>s x) = expr_size x) \<longrightarrow>
-  listsum (map (expr_size \<circ> specialise \<tau>s) as) = listsum (map expr_size as)"
+  sum_list (map (expr_size \<circ> specialise \<tau>s) as) = sum_list (map expr_size as)"
 by (rule allI, induct_tac as, simp+)
 then show ?thesis by (induct x rule: expr_size.induct, auto)
 qed
