@@ -324,7 +324,7 @@ static int bilbyfs_setattr(struct dentry *dentry, struct iattr *attr)
         bilbyfs_debug("bilbyfs_setattr(ino %lu, mode %#x, ia_valid %#x)\n",
                 inode->i_ino, inode->i_mode, attr->ia_valid);
 $escstm:(#if LINUX_VERSION_CODE > KERNEL_VERSION(4,9,0))
-    error = setattr_prepare(dentry, iattr);
+        err = setattr_prepare(dentry, attr);
 $escstm:(#else)
         err = inode_change_ok(inode, attr);
 $escstm:(#endif)
@@ -1610,7 +1610,7 @@ void bilbyfs_kill_super(struct super_block *sb)
         wrapper_clean(wd);
 }
 
-$ty:(()) $id:_bilbyfs_error(char *str)
+$ty:(()) $id:bilbyfs_error(char *str)
 {
     $ty:(()) unit;
 
@@ -1618,7 +1618,7 @@ $ty:(()) $id:_bilbyfs_error(char *str)
     return unit;
 }
 
-$ty:(()) $id:_bilbyfs_error_u32(u32 a)
+$ty:(()) $id:bilbyfs_error_u32(u32 a)
 {
     $ty:(()) unit;
 
