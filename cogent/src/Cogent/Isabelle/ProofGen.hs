@@ -504,21 +504,34 @@ subtyping'' k (TFun t1 u1)     (TFun t2 u2)     =
   (rule "subty_tfun" :) <$> liftM2 (++) (subtyping' k t2 t1) (subtyping' k u1 u2)
 subtyping'' k TPrim{}          TPrim{}          = return [rule "subty_tprim", simp_solve]
 subtyping'' k (TRecord f1s _)  (TRecord f2s _)  =
-  let t1s = fst . snd <$> f1s
-   in tacSequence [
+  tacSequence [
     return [rule "subty_trecord"],
-    (++ [rule "list_all2_nil"]) . join . (([rule "list_all2_cons", simp] ++) <$>)
-      <$> zipWithM (subtyping' k) t1s (fst . snd <$> f2s),
+    (++ [rule "list_all2_nil"]) . join <$>
+      zipWithM
+        (\t1 t2 -> tacSequence [return [rule "list_all2_cons", simp], subtyping' k t1 t2])
+        (fst . snd <$> f1s)
+        (fst . snd <$> f2s),
     return [simp_solve],
     (++ [rule "list_all2_nil"]) . join <$>
-      traverse
-        (\t -> tacSequence [
-          return [rule "list_all2_record_kind_subty_cons"],
-          return [simp],
-          kinding k t,
-          return [simp_solve]
-          ])
-        t1s,
+      zipWithM
+        (\(_,(t1,b1)) (_,(t2,b2)) ->
+          if b1 == b2
+          then
+            tacSequence [
+              return [rule "list_all2_record_kind_subty_cons_nodrop"],
+              return [simp_solve]
+              ]
+          else
+            tacSequence [
+              return [rule "list_all2_record_kind_subty_cons_drop"],
+              return [simp],
+              kinding k t1,
+              return
+                [simp_solve,
+                 simp_solve]
+              ])
+        f1s
+        f2s,
     return [simp_solve]
     ]
 subtyping'' k (TProduct t1 u1) (TProduct t2 u2) =

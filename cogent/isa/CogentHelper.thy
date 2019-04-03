@@ -194,26 +194,24 @@ lemma list_update_eq_id:
   "length xs = n \<Longrightarrow> (i < n \<Longrightarrow> xs ! i = x) \<Longrightarrow> xs [i := x] = xs"
   by (induct xs arbitrary: i n, auto split: nat.split)
 
-lemma list_all2_record_kind_subty_cons:
+
+lemma list_all2_record_kind_subty_cons_nodrop:
   assumes
-    "K \<turnstile> (fst (snd p1)) :\<kappa> k"
-    "if D \<in> k then snd (snd p1) \<le> snd (snd p2) else snd (snd p1) = snd (snd p2)"
+    "snd (snd p1) = snd (snd p2)"
     "list_all2 (record_kind_subty K) fs1 fs2"
   shows "list_all2 (record_kind_subty K) (p1 # fs1) (p2 # fs2)"
-proof (cases "K \<turnstile> (fst (snd p1)) :\<kappa> {D}")
-  case True
-  then show ?thesis
-    using assms list_all2_cons by auto
-next
-  case False
-  then show ?thesis
-  proof -
-    have "D \<notin> k"
-      using False assms supersumption by force
-    then show ?thesis
-      by (simp add: assms)
-  qed
-qed
+  using assms
+  by clarsimp
+
+lemma list_all2_record_kind_subty_cons_drop:
+  assumes
+    "K \<turnstile> (fst (snd p1)) :\<kappa> k"
+    "D \<in> k"
+    "snd (snd p1) < snd (snd p2)"
+    "list_all2 (record_kind_subty K) fs1 fs2"
+  shows "list_all2 (record_kind_subty K) (p1 # fs1) (p2 # fs2)"
+  using assms
+  by (simp add: list_all2_cons supersumption(1))
 
 ML {*
 
