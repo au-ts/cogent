@@ -196,13 +196,9 @@ deepCtxTree mod ta TyTrLeaf = mkId "TyTrLeaf"
 deepCtxTree mod ta (TyTrSplit f (lctx, l) (rctx, r)) =
   mkApp (mkId "TyTrSplit") [deepTreeSplits f, deepCtx mod ta lctx, deepCtxTree mod ta l, deepCtx mod ta rctx, deepCtxTree mod ta r]
 
--- dodgy fix
+-- make sure the inner strings are compatible with Isabelle
 escapedFunName :: FunName -> String
-escapedFunName fn | '\'' `elem` fn = "[" ++ intercalate "," (map repr fn) ++ "]"
-                  | otherwise = "''" ++ fn ++ "''"
-                  where binstr = printf "%08s" . flip (showIntAtBase 2 intToDigit . ord) []
-                        strint x = fst $ head $ readInt 2 (`elem` "10") digitToInt x
-                        repr x = printf "Char Nibble%X Nibble%X" (strint $ take 4 $ binstr x :: Int) (strint $ drop 4 $ binstr x :: Int)
+escapedFunName = show . pretty . StringLiteral
 
 funTypeCase :: NameMod -> Definition TypedExpr a -> [String] -> [String]
 funTypeCase mod (FunDef  _ fn _ _ _ _) ds = (escapedFunName fn ++ " \\<Rightarrow> " ++ mod fn ++ "_type"):ds
