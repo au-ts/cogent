@@ -613,7 +613,7 @@ next case v_sem_letbang then show ?case by ( case_tac e, simp_all
                                                        intro!: matches_cons [simplified])
 next case v_sem_if      then show ?case by ( case_tac e, simp_all
                                            , fastforce intro:  matches_split
-                                                       split:  split_if_asm) 
+                                                       split:  if_splits) 
 next case v_sem_struct  then show ?case by ( case_tac e, simp_all
                                            , fastforce intro: vval_typing_vval_typing_record.intros  
                                                               vval_typing_all_record [ where ts = "map f ts" for f ts
@@ -672,7 +672,7 @@ qed
     - A-normal.
 *)
 
-lemma order_listsum: "x \<in> set es \<Longrightarrow> x < Suc (listsum es)"
+lemma order_listsum: "x \<in> set es \<Longrightarrow> x < Suc (sum_list es)"
   apply (simp add: set_conv_nth)
   apply (induct es)
   apply (clarsimp)

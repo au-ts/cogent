@@ -65,30 +65,47 @@ lemmas v_sem_elims =
 (* Should we use type class here, instead of using "defs (overloaded)"?
  * Christine's approach with type class looks more systematic.*)
 consts valRel :: "(funtyp,'b) vabsfuns \<Rightarrow> 'a \<Rightarrow> (funtyp,'b) vval \<Rightarrow> bool"
-defs (overloaded)
- valRel_bool: "valRel \<xi> (b::bool) v \<equiv> (v = vval.VPrim (LBool b))"
-defs (overloaded)
-  valRel_u8: "valRel \<xi> (w::8 word) v \<equiv> (v = vval.VPrim (LU8 w))"
-defs (overloaded)
-  valRel_u16: "valRel \<xi> (w::16 word) v \<equiv> (v = vval.VPrim (LU16 w))"
-defs (overloaded)
-  valRel_u32: "valRel \<xi> (w::32 word) v \<equiv> (v = vval.VPrim (LU32 w))"
-defs (overloaded)
-  valRel_u64: "valRel \<xi> (w::64 word) v \<equiv> (v = vval.VPrim (LU64 w))"
-defs (overloaded)
-  valRel_unit: "valRel \<xi> (u::unit) v \<equiv> (v = VUnit)"
-defs (overloaded)
-  valRel_pair: "valRel \<xi>  (p::('a \<times> 'b)) v \<equiv> 
-  \<exists> va vb. v = (vval.VProduct va vb) \<and> valRel \<xi> (fst p) va \<and> valRel \<xi> (snd p) vb"
+overloading
+ valRel_bool  \<equiv> "valRel :: (funtyp,'b) vabsfuns \<Rightarrow> bool \<Rightarrow> (funtyp,'b) vval \<Rightarrow> bool"
+ valRel_u8    \<equiv> "valRel :: (funtyp,'b) vabsfuns \<Rightarrow> 8 word \<Rightarrow> (funtyp,'b) vval \<Rightarrow> bool"
+ valRel_u16   \<equiv> "valRel :: (funtyp,'b) vabsfuns \<Rightarrow> 16 word \<Rightarrow> (funtyp,'b) vval \<Rightarrow> bool"
+ valRel_u32   \<equiv> "valRel :: (funtyp,'b) vabsfuns \<Rightarrow> 32 word \<Rightarrow> (funtyp,'b) vval \<Rightarrow> bool"
+ valRel_u64   \<equiv> "valRel :: (funtyp,'b) vabsfuns \<Rightarrow> 64 word \<Rightarrow> (funtyp,'b) vval \<Rightarrow> bool"
+ valRel_unit  \<equiv> "valRel :: (funtyp,'b) vabsfuns \<Rightarrow> unit \<Rightarrow> (funtyp,'b) vval \<Rightarrow> bool"
+ valRel_pair  \<equiv> "valRel :: (funtyp,'b) vabsfuns \<Rightarrow> 'x \<times> 'y \<Rightarrow> (funtyp,'b) vval \<Rightarrow> bool"
+ valRel_fun   \<equiv> "valRel :: (funtyp,'b) vabsfuns \<Rightarrow> ('x \<Rightarrow> 'y) \<Rightarrow> (funtyp,'b) vval \<Rightarrow> bool"
+begin
 
-lemmas valRel_simps = valRel_bool valRel_u8 valRel_u16 valRel_u32 valRel_u64 valRel_pair valRel_unit
+fun valRel_bool :: "(funtyp,'b) vabsfuns \<Rightarrow> bool \<Rightarrow> (funtyp,'b) vval \<Rightarrow> bool" where
+  "valRel_bool \<xi> b v = (v = (vval.VPrim (LBool b)))"
 
-defs (overloaded)
-  valRel_fun:
-  "valRel \<xi> (f :: 'a \<Rightarrow> 'b) f' \<equiv> 
-  (\<exists>e ts. f' = VFunction e ts \<and> 
+fun valRel_u8 :: "(funtyp,'b) vabsfuns \<Rightarrow> 8 word \<Rightarrow> (funtyp,'b) vval \<Rightarrow> bool" where
+  "valRel_u8 \<xi> w v = (v = vval.VPrim (LU8 w))"
+
+fun valRel_u16 :: "(funtyp,'b) vabsfuns \<Rightarrow> 16 word \<Rightarrow> (funtyp,'b) vval \<Rightarrow> bool" where
+  "valRel_u16 \<xi> w v = (v = vval.VPrim (LU16 w))"
+
+fun valRel_u32 :: "(funtyp,'b) vabsfuns \<Rightarrow> 32 word \<Rightarrow> (funtyp,'b) vval \<Rightarrow> bool" where
+  "valRel_u32 \<xi> w v = (v = vval.VPrim (LU32 w))"
+
+fun valRel_u64 :: "(funtyp,'b) vabsfuns \<Rightarrow> 64 word \<Rightarrow> (funtyp,'b) vval \<Rightarrow> bool" where
+  "valRel_u64 \<xi> w v = (v = vval.VPrim (LU64 w))"
+
+fun valRel_unit :: "(funtyp,'b) vabsfuns \<Rightarrow> unit \<Rightarrow> (funtyp,'b) vval \<Rightarrow> bool" where
+  "valRel_unit \<xi> w v = (v = vval.VUnit)"
+
+fun valRel_pair :: "(funtyp,'b) vabsfuns \<Rightarrow> 'x \<times> 'y \<Rightarrow> (funtyp,'b) vval \<Rightarrow> bool" where
+  "valRel_pair \<xi> p v = (\<exists> va vb. v = (vval.VProduct va vb) \<and> valRel \<xi> (fst p) va \<and> valRel \<xi> (snd p) vb)"
+
+fun valRel_fun :: "(funtyp,'b) vabsfuns \<Rightarrow> ('x \<Rightarrow> 'y) \<Rightarrow> (funtyp,'b) vval \<Rightarrow> bool" where
+  "valRel_fun \<xi> f f' =
+((\<exists>e ts. f' = VFunction e ts \<and>
           (\<forall>x x' v'. valRel \<xi> x x' \<longrightarrow> (\<xi>, [x'] \<turnstile> specialise ts e \<Down> v') \<longrightarrow> valRel \<xi> (f x) v')) \<or>
-  (\<exists>afun ts. f' = VAFunction afun ts \<and> (\<forall>x x' v'. valRel \<xi> x x' \<longrightarrow> \<xi> afun x' v' \<longrightarrow> valRel \<xi> (f x) v'))"
+  (\<exists>afun ts. f' = VAFunction afun ts \<and> (\<forall>x x' v'. valRel \<xi> x x' \<longrightarrow> \<xi> afun x' v' \<longrightarrow> valRel \<xi> (f x) v')))"
+
+end
+
+lemmas valRel_simps = valRel_bool.simps valRel_u8.simps valRel_u16.simps valRel_u32.simps valRel_u64.simps valRel_pair.simps valRel_unit.simps
 
 
 context value_sem
@@ -115,7 +132,7 @@ lemma scorres_var:
 
 lemma scorres_unit:
   "scorres (u::unit) Unit \<gamma> \<xi>"
-  by (clarsimp simp: scorres_def valRel_unit elim!: v_sem_elims)
+  by (clarsimp simp: scorres_def elim!: v_sem_elims)
 
 lemma scorres_let_desugar:
 assumes
@@ -154,13 +171,12 @@ shows
   by (auto simp: scorres_def shallow_tac__var_def elim!: v_sem_elims)
 
 lemma scorres_if:
-  notes split_if[split del]
   assumes a: "scorres a a' \<gamma> \<xi>"
   assumes b: "scorres b b' \<gamma> \<xi>"
   assumes c: "scorres c c' \<gamma> \<xi>"
   shows "scorres (if a then b else c) (If a' b' c') \<gamma> \<xi>"
   using a b c
-  by (fastforce simp: scorres_def valRel_simps elim!: v_sem_if split: if_splits)
+  by (fastforce simp: scorres_def elim!: v_sem_if split: if_splits)
 
 lemma scorres_fun:
   (* Must match format for callee theorems. *)
@@ -168,7 +184,7 @@ lemma scorres_fun:
 
   shows "scorres f (Fun f' ts) \<gamma> \<xi>"
   using assms
-  by (auto simp: scorres_def valRel_fun elim!: v_sem_elims)
+  by (auto simp: scorres_def elim!: v_sem_elims)
 
 
 text {* Cumbersome rules for numbers and bools. *}
@@ -179,28 +195,28 @@ lemma scorres_lit:
   "\<And>w w'. w = w' \<Longrightarrow> scorres w (Lit (LU16 w')) \<gamma> \<xi>"
   "\<And>w w'. w = w' \<Longrightarrow> scorres w (Lit (LU32 w')) \<gamma> \<xi>"
   "\<And>w w'. w = w' \<Longrightarrow> scorres w (Lit (LU64 w')) \<gamma> \<xi>"
-  by (auto simp: scorres_def valRel_simps elim: v_sem_litE)
+  by (auto simp: scorres_def elim: v_sem_litE)
 
 lemma scorres_prim_add:
   "\<And>x x' y y'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow> scorres (x + y :: 8  word) (Prim (Plus U8 ) [x', y']) \<gamma> \<xi>"
   "\<And>x x' y y'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow> scorres (x + y :: 16 word) (Prim (Plus U16) [x', y']) \<gamma> \<xi>"
   "\<And>x x' y y'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow> scorres (x + y :: 32 word) (Prim (Plus U32) [x', y']) \<gamma> \<xi>"
   "\<And>x x' y y'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow> scorres (x + y :: 64 word) (Prim (Plus U64) [x', y']) \<gamma> \<xi>"
-  by (fastforce elim!: v_sem_elims simp: scorres_def valRel_simps eval_prim_def)+
+  by (fastforce elim!: v_sem_elims simp: scorres_def eval_prim_def)+
 
 lemma scorres_prim_sub:
   "\<And>x x' y y'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow> scorres (x - y :: 8  word) (Prim (Minus U8 ) [x', y']) \<gamma> \<xi>"
   "\<And>x x' y y'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow> scorres (x - y :: 16 word) (Prim (Minus U16) [x', y']) \<gamma> \<xi>"
   "\<And>x x' y y'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow> scorres (x - y :: 32 word) (Prim (Minus U32) [x', y']) \<gamma> \<xi>"
   "\<And>x x' y y'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow> scorres (x - y :: 64 word) (Prim (Minus U64) [x', y']) \<gamma> \<xi>"
-  by (fastforce elim!: v_sem_elims simp: scorres_def valRel_simps eval_prim_def)+
+  by (fastforce elim!: v_sem_elims simp: scorres_def eval_prim_def)+
 
 lemma scorres_prim_times:
   "\<And>x x' y y'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow> scorres (x * y :: 8  word) (Prim (Times U8 ) [x', y']) \<gamma> \<xi>"
   "\<And>x x' y y'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow> scorres (x * y :: 16 word) (Prim (Times U16) [x', y']) \<gamma> \<xi>"
   "\<And>x x' y y'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow> scorres (x * y :: 32 word) (Prim (Times U32) [x', y']) \<gamma> \<xi>"
   "\<And>x x' y y'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow> scorres (x * y :: 64 word) (Prim (Times U64) [x', y']) \<gamma> \<xi>"
-  by (fastforce elim!: v_sem_elims simp: scorres_def valRel_simps eval_prim_def)+
+  by (fastforce elim!: v_sem_elims simp: scorres_def eval_prim_def)+
 
 lemma scorres_prim_divide:
   "\<And>x x' y y'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow>
@@ -211,7 +227,7 @@ lemma scorres_prim_divide:
     scorres (checked_div x y :: 32 word) (Prim (Divide U32) [x', y']) \<gamma> \<xi>"
   "\<And>x x' y y'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow>
     scorres (checked_div x y :: 64 word) (Prim (Divide U64) [x', y']) \<gamma> \<xi>"
-  by (fastforce elim!: v_sem_elims simp: scorres_def valRel_simps eval_prim_def)+
+  by (fastforce elim!: v_sem_elims simp: scorres_def eval_prim_def)+
 
 lemma scorres_prim_mod:
   "\<And>x x' y y'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow>
@@ -222,19 +238,19 @@ lemma scorres_prim_mod:
     scorres (checked_mod x y :: 32 word) (Prim (Mod U32) [x', y']) \<gamma> \<xi>"
   "\<And>x x' y y'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow>
     scorres (checked_mod x y :: 64 word) (Prim (Mod U64) [x', y']) \<gamma> \<xi>"
-  by (fastforce elim!: v_sem_elims simp: scorres_def valRel_simps eval_prim_def)+
+  by (fastforce elim!: v_sem_elims simp: scorres_def eval_prim_def)+
 
 lemma scorres_prim_not:
   "scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres (\<not> x) (Prim Not [x']) \<gamma> \<xi>"
-  by (fastforce elim!: v_sem_elims simp: scorres_def valRel_simps eval_prim_def)
+  by (fastforce elim!: v_sem_elims simp: scorres_def eval_prim_def)
 
 lemma scorres_prim_and:
   "scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow> scorres (x \<and> y) (Prim And [x', y']) \<gamma> \<xi>"
-  by (fastforce elim!: v_sem_elims simp: scorres_def valRel_simps eval_prim_def)
+  by (fastforce elim!: v_sem_elims simp: scorres_def eval_prim_def)
 
 lemma scorres_prim_or:
   "scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow> scorres (x \<or> y) (Prim Or [x', y']) \<gamma> \<xi>"
-  by (fastforce elim!: v_sem_elims simp: scorres_def valRel_simps eval_prim_def)
+  by (fastforce elim!: v_sem_elims simp: scorres_def eval_prim_def)
 
 lemma scorres_prim_gt:
   "\<And>x x' y y'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow>
@@ -245,7 +261,7 @@ lemma scorres_prim_gt:
     scorres ((x :: 32 word) > y) (Prim (Gt U32) [x', y']) \<gamma> \<xi>"
   "\<And>x x' y y'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow>
     scorres ((x :: 64 word) > y) (Prim (Gt U64) [x', y']) \<gamma> \<xi>"
-  by (fastforce elim!: v_sem_elims simp: scorres_def valRel_simps eval_prim_def)+
+  by (fastforce elim!: v_sem_elims simp: scorres_def eval_prim_def)+
 
 lemma scorres_prim_ge:
   "\<And>x x' y y'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow>
@@ -256,7 +272,7 @@ lemma scorres_prim_ge:
     scorres ((x :: 32 word) \<ge> y) (Prim (Ge U32) [x', y']) \<gamma> \<xi>"
   "\<And>x x' y y'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow>
     scorres ((x :: 64 word) \<ge> y) (Prim (Ge U64) [x', y']) \<gamma> \<xi>"
-  by (fastforce elim!: v_sem_elims simp: scorres_def valRel_simps eval_prim_def)+
+  by (fastforce elim!: v_sem_elims simp: scorres_def eval_prim_def)+
 
 lemma scorres_prim_lt:
   "\<And>x x' y y'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow>
@@ -267,7 +283,7 @@ lemma scorres_prim_lt:
     scorres ((x :: 32 word) < y) (Prim (Lt U32) [x', y']) \<gamma> \<xi>"
   "\<And>x x' y y'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow>
     scorres ((x :: 64 word) < y) (Prim (Lt U64) [x', y']) \<gamma> \<xi>"
-  by (fastforce elim!: v_sem_elims simp: scorres_def valRel_simps eval_prim_def)+
+  by (fastforce elim!: v_sem_elims simp: scorres_def eval_prim_def)+
 
 lemma scorres_prim_le:
   "\<And>x x' y y'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow>
@@ -278,7 +294,7 @@ lemma scorres_prim_le:
     scorres ((x :: 32 word) \<le> y) (Prim (Le U32) [x', y']) \<gamma> \<xi>"
   "\<And>x x' y y'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow>
     scorres ((x :: 64 word) \<le> y) (Prim (Le U64) [x', y']) \<gamma> \<xi>"
-  by (fastforce elim!: v_sem_elims simp: scorres_def valRel_simps eval_prim_def)+
+  by (fastforce elim!: v_sem_elims simp: scorres_def eval_prim_def)+
 
 lemma scorres_prim_eq:
   "\<And>x x' y y'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow>
@@ -291,7 +307,7 @@ lemma scorres_prim_eq:
     scorres ((x :: 64 word) = y) (Prim (Eq (Num U64)) [x', y']) \<gamma> \<xi>"
   "\<And>x x' y y'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow>
     scorres ((x :: bool   ) = y) (Prim (Eq Bool     ) [x', y']) \<gamma> \<xi>"
-  by (fastforce elim!: v_sem_elims simp: scorres_def valRel_simps eval_prim_def)+
+  by (fastforce elim!: v_sem_elims simp: scorres_def eval_prim_def)+
 
 lemma scorres_prim_neq:
   "\<And>x x' y y'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow>
@@ -304,7 +320,7 @@ lemma scorres_prim_neq:
     scorres ((x :: 64 word) \<noteq> y) (Prim (NEq (Num U64)) [x', y']) \<gamma> \<xi>"
   "\<And>x x' y y'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow>
     scorres ((x :: bool   ) \<noteq> y) (Prim (NEq Bool     ) [x', y']) \<gamma> \<xi>"
-  by (fastforce elim!: v_sem_elims simp: scorres_def valRel_simps eval_prim_def)+
+  by (fastforce elim!: v_sem_elims simp: scorres_def eval_prim_def)+
 
 lemma scorres_prim_bitand:
   "\<And>x x' y y'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow>
@@ -315,7 +331,7 @@ lemma scorres_prim_bitand:
     scorres ((x :: 32 word) AND y) (Prim (BitAnd U32) [x', y']) \<gamma> \<xi>"
   "\<And>x x' y y'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow>
     scorres ((x :: 64 word) AND y) (Prim (BitAnd U64) [x', y']) \<gamma> \<xi>"
-  by (fastforce elim!: v_sem_elims simp: scorres_def valRel_simps eval_prim_def)+
+  by (fastforce elim!: v_sem_elims simp: scorres_def eval_prim_def)+
 
 lemma scorres_prim_bitor:
   "\<And>x x' y y'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow>
@@ -326,7 +342,7 @@ lemma scorres_prim_bitor:
     scorres ((x :: 32 word) OR y) (Prim (BitOr U32) [x', y']) \<gamma> \<xi>"
   "\<And>x x' y y'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow>
     scorres ((x :: 64 word) OR y) (Prim (BitOr U64) [x', y']) \<gamma> \<xi>"
-  by (fastforce elim!: v_sem_elims simp: scorres_def valRel_simps eval_prim_def)+
+  by (fastforce elim!: v_sem_elims simp: scorres_def eval_prim_def)+
 
 lemma scorres_prim_bitxor:
   "\<And>x x' y y'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow>
@@ -337,7 +353,7 @@ lemma scorres_prim_bitxor:
     scorres ((x :: 32 word) XOR y) (Prim (BitXor U32) [x', y']) \<gamma> \<xi>"
   "\<And>x x' y y'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow>
     scorres ((x :: 64 word) XOR y) (Prim (BitXor U64) [x', y']) \<gamma> \<xi>"
-  by (fastforce elim!: v_sem_elims simp: scorres_def valRel_simps eval_prim_def)+
+  by (fastforce elim!: v_sem_elims simp: scorres_def eval_prim_def)+
 
 lemma scorres_prim_lshift:
   "\<And>x x' y y'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow>
@@ -348,7 +364,7 @@ lemma scorres_prim_lshift:
     scorres (checked_shift shiftl (x :: 32 word) y) (Prim (LShift U32) [x', y']) \<gamma> \<xi>"
   "\<And>x x' y y'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow>
     scorres (checked_shift shiftl (x :: 64 word) y) (Prim (LShift U64) [x', y']) \<gamma> \<xi>"
-  by (fastforce elim!: v_sem_elims simp: scorres_def valRel_simps eval_prim_def)+
+  by (fastforce elim!: v_sem_elims simp: scorres_def eval_prim_def)+
 
 lemma scorres_prim_rshift:
   "\<And>x x' y y'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow>
@@ -359,14 +375,14 @@ lemma scorres_prim_rshift:
     scorres (checked_shift shiftr (x :: 32 word) y) (Prim (RShift U32) [x', y']) \<gamma> \<xi>"
   "\<And>x x' y y'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres y y' \<gamma> \<xi> \<Longrightarrow>
     scorres (checked_shift shiftr (x :: 64 word) y) (Prim (RShift U64) [x', y']) \<gamma> \<xi>"
-  by (fastforce elim!: v_sem_elims simp: scorres_def valRel_simps eval_prim_def)+
+  by (fastforce elim!: v_sem_elims simp: scorres_def eval_prim_def)+
 
 lemma scorres_prim_complement:
   "\<And>x x'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres (NOT (x::8  word)) (Prim (Complement U8 ) [x']) \<gamma> \<xi>"
   "\<And>x x'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres (NOT (x::16 word)) (Prim (Complement U16) [x']) \<gamma> \<xi>"
   "\<And>x x'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres (NOT (x::32 word)) (Prim (Complement U32) [x']) \<gamma> \<xi>"
   "\<And>x x'. scorres x x' \<gamma> \<xi> \<Longrightarrow> scorres (NOT (x::64 word)) (Prim (Complement U64) [x']) \<gamma> \<xi>"
-  by (auto elim!: v_sem_elims simp: scorres_def valRel_simps eval_prim_def)
+  by (auto elim!: v_sem_elims simp: scorres_def eval_prim_def)
 
 lemma scorres_cast:
   "\<And>x x'. scorres (x :: 8  word) x' \<gamma> \<xi> \<Longrightarrow> scorres (ucast x :: 8  word) (Cast U8  x') \<gamma> \<xi>"
@@ -379,7 +395,7 @@ lemma scorres_cast:
   "\<And>x x'. scorres (x :: 32 word) x' \<gamma> \<xi> \<Longrightarrow> scorres (ucast x :: 32 word) (Cast U32 x') \<gamma> \<xi>"
   "\<And>x x'. scorres (x :: 32 word) x' \<gamma> \<xi> \<Longrightarrow> scorres (ucast x :: 64 word) (Cast U64 x') \<gamma> \<xi>"
   "\<And>x x'. scorres (x :: 64 word) x' \<gamma> \<xi> \<Longrightarrow> scorres (ucast x :: 64 word) (Cast U64 x') \<gamma> \<xi>"
-  by (auto simp: scorres_def valRel_simps ucast_id elim!: v_sem_elims)
+  by (auto simp: scorres_def ucast_id elim!: v_sem_elims)
 
 
 text {* Rules for records and sums. *}
@@ -485,7 +501,7 @@ lemma scorres_app:
   assumes "scorres v v' \<gamma> \<xi>"
   shows "scorres (f v) (App f' v') \<gamma> \<xi>"
   using assms
-  by (auto elim!: v_sem_elims simp: scorres_def valRel_fun shallow_tac__var_def)
+  by (auto elim!: v_sem_elims simp: scorres_def shallow_tac__var_def)
 
 
 (* these rules are currently unused *)
@@ -495,14 +511,14 @@ lemma scorres_split:
                  scorres (s (shallow_tac__var a) (shallow_tac__var b)) e (a'#b'#\<gamma>) \<xi>) \<Longrightarrow>
    scorres (case v of (a, b) \<Rightarrow> s a b) (Split x e) \<gamma> \<xi>"
   unfolding scorres_def shallow_tac__var_def
-  by (cases v) (auto simp: scorres_def valRel_simps elim!: v_sem_elims)
+  by (cases v) (auto simp: scorres_def elim!: v_sem_elims)
 
 lemma scorres_tuple:
   assumes "scorres a a' \<gamma> \<xi>"
   assumes "scorres b b' \<gamma> \<xi>"
   shows "scorres (a, b) (Tuple a' b') \<gamma> \<xi>"
   using assms
-  by (auto simp: scorres_def valRel_pair elim!: v_sem_tupleE)
+  by (auto simp: scorres_def elim!: v_sem_tupleE)
 
 end
 

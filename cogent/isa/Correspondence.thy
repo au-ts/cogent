@@ -9,7 +9,9 @@
  *)
 
 theory Correspondence
-imports UpdateSemantics
+  imports
+    ValueSemantics
+    UpdateSemantics
 begin
 
 locale correspondence =
@@ -123,7 +125,7 @@ and upd_val_rel_record :: "('f \<Rightarrow> poly_type)
 lemma upd_val_rel_to_vval_typing:
 shows "\<Xi>, \<sigma> \<turnstile>  u  \<sim> v  :  \<tau>  \<langle>r, w\<rangle> \<Longrightarrow> vval_typing \<Xi> v \<tau>"
 and   "\<Xi>, \<sigma> \<turnstile>* us \<sim> vs :r \<tau>s \<langle>r, w\<rangle> \<Longrightarrow> vval_typing_record \<Xi> vs \<tau>s"
-using assms proof (induct rule: upd_val_rel_upd_val_rel_record.inducts )
+proof (induct rule: upd_val_rel_upd_val_rel_record.inducts )
      case u_v_prim     then show ?case by (auto intro!: vval_typing_vval_typing_record.intros)
 next case u_v_product  then show ?case by (auto intro!: vval_typing_vval_typing_record.intros)
 next case u_v_sum      then show ?case by (auto intro!: vval_typing_vval_typing_record.intros)

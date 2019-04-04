@@ -167,7 +167,7 @@ lemma rename_monoexpr_correct:
   apply (subgoal_tac "\<exists>va. (\<xi>\<^sub>p , \<gamma> \<turnstile> if b then exp2 else exp3 \<Down> va) \<and> v = rename_val rename (monoval va)")
    apply (fastforce intro: v_sem_v_sem_all.v_sem_if)
   apply (rule IH2[OF _ _ _ _ _ _ matches_split'(2)], simp_all)
-  apply (fastforce split: split_if_asm)
+  apply (fastforce split: if_splits)
   done
   next 
   case v_sem_all_empty then show ?case 

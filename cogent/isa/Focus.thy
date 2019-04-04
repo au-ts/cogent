@@ -10,9 +10,8 @@
 
 theory Focus
 imports Main
-keywords "legacy_subgoal" :: prf_goal
 begin
-
+(*
 ML {* 
 
 fun push_asms_to_concl ctxt nasms thm =
@@ -53,10 +52,10 @@ fun focus use_asms state =
     val {goal = goal, context = ctxt} = Proof.simple_goal state
     val cert = Thm.cterm_of ctxt
     
-    val (focus,focused_goal) = Subgoal.focus ctxt 1 goal
+    val (focus,focused_goal) = Subgoal.focus ctxt 1 NONE goal
     
     val focused_goal' = if use_asms then focused_goal
-    |> Method.insert_tac (#prems focus) 1
+    |> Method.insert_tac ctxt (#prems focus) 1
     |> Seq.hd
     else focused_goal
     
@@ -91,11 +90,11 @@ fun focus use_asms state =
         val concl = (Logic.unprotect (Thm.concl_of focused_goal'))
       in
         the_default concl (try HOLogic.dest_Trueprop concl) end
-  in
+  in           
     Proof.begin_notepad (#context focus)
     |> Proof.local_goal (K (K ())) (K I) (pair o rpair I)
-      "subgoal" before_qed after_qed [(Thm.empty_binding, [Logic.mk_term goal, goal])]
-    |> Proof.put_thms false (Auto_Bind.assmsN,SOME (Assumption.all_prems_of (#context focus)))
+      "subgoal" before_qed after_qed [(Binding.empty_atts, [Logic.mk_term goal, goal])]
+    |> Proof_Context.put_thms false (Auto_Bind.assmsN,SOME (Assumption.all_prems_of (#context focus)))
     |> Proof.bind_terms [(("concl",0),SOME concl)]
     |> Proof.refine (Method.primitive_text (K (K focused_goal'))) |> Seq.hd
   end;
@@ -106,7 +105,8 @@ val _ =
       (fn mode => Toplevel.proofs (Seq.make_results o Seq.single o focus mode)));
   
   *}  
-  
+*)
+(*
 schematic_lemma test: "\<And>x. Q x \<and> ?P x\<Longrightarrow> ?P x \<and> Q x"
   legacy_subgoal
     thm assms
@@ -121,5 +121,6 @@ schematic_lemma test: "\<And>x. Q x \<and> ?P x\<Longrightarrow> ?P x \<and> Q x
     apply (rule assms)
   done
 done
+*)
 
 end
