@@ -98,7 +98,7 @@ lemma
   apply (rule_tac Q=True in disjI2)
   apply simp
   apply simp
-  apply (rule typing_put_better)
+  apply (rule typing_put')
   apply (rule split_cons)
   apply (rule split_comp.right)
   apply (rule_tac k="{E}" in kind_tcon)
@@ -247,7 +247,7 @@ fun tacs ctxt =
 ("rtac @{thm \"disjI2\"[where Q = \"True\"]}", rtac @{thm "disjI2"[where Q = "True"]} 1),
 ("asm_full_simp_tac ctxt", asm_full_simp_tac ctxt 1),
 ("asm_full_simp_tac ctxt", asm_full_simp_tac ctxt 1),
-("rtac @{thm \"typing_put_better\"}", rtac @{thm "typing_put_better"} 1),
+("rtac @{thm \"typing_put'\"}", rtac @{thm "typing_put'"} 1),
 ("rtac @{thm \"split_cons\"}", rtac @{thm "split_cons"} 1),
 ("rtac @{thm \"split_comp.right\"}", rtac @{thm "split_comp.right"} 1),
 ("rtac @{thm \"kind_tcon\"[where k = \"{E}\"]}", rtac @{thm "kind_tcon"[where k = "{E}"]} 1),
