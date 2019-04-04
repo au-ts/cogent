@@ -9,7 +9,7 @@
  *)
 
 theory TypeProofTest
-imports "CogentHelper" "ProofTrace"
+imports "CogentHelper" "ProofTrace" "ML_Old"
 begin
 
 definition

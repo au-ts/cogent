@@ -9,7 +9,7 @@
  *)
 
 theory CogentHelper
-imports "TypeTrackingTyping"
+imports "TypeTrackingTyping" "ML_Old"
 keywords "ML_quiet" :: thy_decl % "ML"
 begin
 
@@ -117,7 +117,7 @@ lemma ttsplit_weak_lemma:
   apply (drule_tac x=y in spec)+
   apply clarsimp
   apply (drule_tac x=i in spec)+
-  apply (clarsimp split: split_if_asm)
+  apply (clarsimp split: if_split_asm)
   done
 
 lemma ttsplit_weakI:
@@ -292,7 +292,7 @@ fun kind_proofs ((@{term SomeT} $ t) :: ts) k ctxt hints = let
         [RTac thm] => Display.pretty_thm ctxt thm |> Pretty.writeln
       | _ => warning "unexpected kinding tacs"
 *)
-    val t = betapplys (@{term "kinding"}, [k, t, Thm.term_of @{cpat "?k :: kind"}])
+    val t = betapplys (@{term "kinding"}, [k, t, @{schematic_term "?k :: kind"}])
     val ct = Thm.cterm_of ctxt (@{term Trueprop} $ t)
     val rs = EVERY (map (fn t => interpret_tac t ctxt 1) tacs) (Thm.trivial ct)
     val t = (case Seq.pull rs of NONE => raise TERM ("kind_proofs: failed", [k, t])

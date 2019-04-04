@@ -10,6 +10,10 @@
 
 theory ProofTrace imports Main begin
 
+ML {*
+  fun rtac ctxt thm = resolve_tac ctxt [thm]
+*}
+
 (* begin: tactic trace code *)
 (* Proof of concept implementation. DO NOT USE THIS CODE *)
 ML {*
