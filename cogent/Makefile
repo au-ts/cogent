@@ -13,6 +13,7 @@ export E Q
 
 PWD:=$(shell pwd)
 SCRIPTS_DIR:=$(PWD)/scripts/
+AC_DIR:=$(PWD)/../autocorres/
 include $(PWD)/../config.mk
 
 # These file lists are for generating dummy headers for c compilation
