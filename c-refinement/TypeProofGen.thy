@@ -35,10 +35,10 @@ lemma ttsplit_bang_imp_split_bang':
 (* Generate type system lemma buckets *)
 ML {*
 fun is_typing t = head_of t |>
-  (fn h => is_const "TypeTrackingSemantics.ttyping" h orelse
-           is_const "TypeTrackingSemantics.ttsplit" h orelse
-           is_const "TypeTrackingSemantics.ttsplit_bang" h orelse
-           is_const "TypeTrackingSemantics.ttsplit_inner" h orelse
+  (fn h => is_const "TypeTrackingTyping.ttyping" h orelse
+           is_const "TypeTrackingTyping.ttsplit" h orelse
+           is_const "TypeTrackingTyping.ttsplit_bang" h orelse
+           is_const "TypeTrackingTyping.ttsplit_inner" h orelse
            is_const "Cogent.typing" h orelse
            is_const "Cogent.split" h orelse
            is_const "Cogent.kinding" h);
