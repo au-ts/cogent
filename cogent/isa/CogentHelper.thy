@@ -9,7 +9,7 @@
  *)
 
 theory CogentHelper
-imports "TypeTrackingSemantics"
+imports "TypeTrackingTyping"
 keywords "ML_quiet" :: thy_decl % "ML"
 begin
 
