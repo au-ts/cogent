@@ -8,11 +8,34 @@
  * @TAG(NICTA_GPL)
  *)
 
-theory ProofTrace imports Main begin
+theory ProofTrace
+  imports
+    Main
+    ML_Old
+begin
 
 ML {*
-  fun rtac ctxt thm = resolve_tac ctxt [thm]
+datatype ('l, 'r) Either = Left of 'l | Right of 'r
+fun mapEither fl _ (Left l) = Left (fl l)
+  | mapEither _ fr (Right r) = Right (fr r)
+
+fun findIndex p =
+  let fun find _ [] = NONE
+        | find n (x::xs) = if p x then SOME (x, n) else find (n+1) xs
+  in find 0 end
+fun zipWith _ [] _ = []
+  | zipWith _ _ [] = []
+  | zipWith f (x::xs) (y::ys) = f x y :: zipWith f xs ys
+fun isSome (SOME _) = true
+  | isSome _ = false
+fun enumerate xs = let
+  fun enum _ [] = []
+    | enum n (x::xs) = (n, x) :: enum (n+1) xs
+  in enum 0 xs end
+fun nubBy _ [] = []
+  | nubBy f (x::xs) = x :: filter (fn y => f x <> f y) (nubBy f xs)
 *}
+
 
 (* begin: tactic trace code *)
 (* Proof of concept implementation. DO NOT USE THIS CODE *)
@@ -66,29 +89,16 @@ and TraceSubgoal_erase_backtracking (TraceSubgoal trace) =
                    , step = #step trace
                    , subproof = #subproof trace |> TraceSuccess_erase_backtracking
                    }
-
-datatype ('l, 'r) Either = Left of 'l | Right of 'r
-fun mapEither fl _ (Left l) = Left (fl l)
-  | mapEither _ fr (Right r) = Right (fr r)
 *}
 
 ML {*
-
-fun findIndex p =
-  let fun find _ [] = NONE
-        | find n (x::xs) = if p x then SOME (x, n) else find (n+1) xs
-  in find 0 end
-fun zipWith _ [] _ = []
-  | zipWith _ _ [] = []
-  | zipWith f (x::xs) (y::ys) = f x y :: zipWith f xs ys
-fun isSome (SOME _) = true
-  | isSome _ = false
-fun enumerate xs = let
-  fun enum _ [] = []
-    | enum n (x::xs) = (n, x) :: enum (n+1) xs
-  in enum 0 xs end
-fun nubBy _ [] = []
-  | nubBy f (x::xs) = x :: filter (fn y => f x <> f y) (nubBy f xs)
+fun first_order_unify_tac thm i st =
+  Thm.first_order_match (Thm.cprem_of st i, Thm.cprop_of thm)
+  |> (fn bnd => Thm.instantiate bnd st)
+  |> (fn st => Thm.implies_elim st thm)
+  |> Seq.single
+  handle THM _ =>
+    Seq.empty
 *}
 
 ML {*
@@ -155,7 +165,7 @@ fun trace_solve_tac (ctxt : Proof.context)
                                                 } |> Left)
                     | (data, Right (subproof as TraceSubgoal subproof')) =>
                           let val subtheorem = #subtheorem subproof' in
-                          case resolve_tac ctxt [(Goal.finish ctxt subtheorem)] 1 goal
+                          case resolve_tac ctxt [Goal.finish ctxt subtheorem] 1 goal
                                |> Seq.pull of
                               NONE => raise THM ("trace_solve_tac: could not apply subgoal proof",
                                                  0, [goal, subtheorem])
