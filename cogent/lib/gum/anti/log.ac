@@ -64,6 +64,15 @@ unit_t cogent_debug_u64_hex (u64 arg) {
         pr_debug("%llx", arg);
         return ret;
 }
+unit_t cogent_debug_bool ($ty:(Bool) arg) {
+        unit_t ret;
+        if (arg.boolean)
+          pr_debug("true");
+        else
+          pr_debug("false");
+        return ret;
+}
+
 $esc:(#else)
 unit_t cogent_assert ($ty:(Bool) arg) {
        unit_t ret;
@@ -116,6 +125,14 @@ unit_t cogent_debug_u32_hex (u32 arg) {
 unit_t cogent_debug_u64_hex (u64 arg) {
         unit_t ret;
         printf("%llx", arg);
+        return ret;
+}
+unit_t cogent_debug_bool ($ty:(Bool) arg) {
+        unit_t ret;
+        if (arg.boolean)
+          printf("true");
+        else
+          printf("false");
         return ret;
 }
 $esc:(#endif)

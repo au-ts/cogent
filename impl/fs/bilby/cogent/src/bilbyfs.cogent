@@ -219,16 +219,16 @@ print_field_u64 (_, _) = ()
 
 print_obj_super: ObjSuper! -> ()
 #if DEBUG
-print_obj_super o =
+print_obj_super obj =
   cogent_debug "ObjSuper\n" ;
-  print_field_u32 ("eb_size", o.eb_size) ;
-  print_field_u32 ("io_size", o.io_size) ;
-  print_field_u32 ("cur_eb", o.cur_eb) ;
-  print_field_u32 ("cur_offs", o.cur_offs) ;
-  print_field_u64 ("next_sqnum", o.next_sqnum) ;
-  print_field_u32 ("last_inum", o.last_inum) ;
-  print_field_u32 ("nb_reserved_gc", o.nb_reserved_gc) ;
-  print_field_u32 ("nb_reserved_del", o.nb_reserved_del) ;
+  print_field_u32 ("eb_size", obj.eb_size) ;
+  print_field_u32 ("io_size", obj.io_size) ;
+  print_field_u32 ("cur_eb", obj.cur_eb) ;
+  print_field_u32 ("cur_offs", obj.cur_offs) ;
+  print_field_u64 ("next_sqnum", obj.next_sqnum) ;
+  print_field_u32 ("last_inum", obj.last_inum) ;
+  print_field_u32 ("nb_reserved_gc", obj.nb_reserved_gc) ;
+  print_field_u32 ("nb_reserved_del", obj.nb_reserved_del) ;
   cogent_debug "end\n"
 #else
 print_obj_super _ = ()

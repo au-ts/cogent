@@ -48,7 +48,7 @@ PWD:= $(shell pwd)
 endif
 ifneq ($(DEBUG),)
 EXTRA_CFLAGS+= -DBILBYFS_DEBUG
-COGENT_FLAGS+= --debug
+COGENT_FLAGS+= --cogent-pp-args=-DDEBUG=1
 endif
 
 # flags to ignores COGENT's compiler messy C code gen

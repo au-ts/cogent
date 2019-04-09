@@ -20,6 +20,7 @@ include <gum/common/buffer.cogent>
 include <gum/common/crc32.cogent>
 include <gum/kernel/linux/errno.cogent>
 include "../src/ubi.cogent"
+#include "../src/debug.cogent.h"
 
 bilbyFsMagic : U32
 bilbyFsMagic = 0x0b17b9f5
@@ -311,21 +312,22 @@ deserialise_ObjHeader (buf, offs, obj) =
         (trans /= bilbyFsTransIn && trans /= bilbyFsTransCommit) ||
         not (is_len_and_type_ok(otype, len))
   then
-    cogent_debug "Invalid otype in object at " ;
-    cogent_debug_u32 offs;
-    cogent_debug ", len = " ;
-    cogent_debug_u32 len;
-    cogent_debug ", endoff = " ;
-    cogent_debug_u32 end_offs;
-    cogent_debug ", buf.bound = " ;
-    cogent_debug_u32 buf.bound;
-    cogent_debug ", magic = " ;
-    cogent_debug_u32_hex magic ;
-    cogent_debug ", otype = " ;
-    cogent_debug_u8 otype ;
-    cogent_debug ", trans = " ;
-    cogent_debug_u8 trans ;
-    cogent_debug "\n" ;
+    WHEN_DEBUGGING(
+      cogent_debug "Invalid otype in object at " ;
+      cogent_debug_u32 offs;
+      cogent_debug ", len = " ;
+      cogent_debug_u32 len;
+      cogent_debug ", endoff = " ;
+      cogent_debug_u32 end_offs;
+      cogent_debug ", buf.bound = " ;
+      cogent_debug_u32 buf.bound;
+      cogent_debug ", magic = " ;
+      cogent_debug_u32_hex magic ;
+      cogent_debug ", otype = " ;
+      cogent_debug_u8 otype ;
+      cogent_debug ", trans = " ;
+      cogent_debug_u8 trans ;
+      cogent_debug "\n") ;
     (obj, Error eInval)
   else
     (obj, Success (offs + bilbyFsObjHeaderSize))
@@ -337,16 +339,17 @@ deserialise_Obj(ex, buf, offs) =
   and Success offs <= r |> Error e -> let ex = freeObj (ex, obj) in Error (e, ex)
    in deserialise_ObjUnion(ex, buf, offs, (obj.otype,obj.len)) !obj
       | Error (e, ex) ->
-        cogent_debug "Could not deserialise Obj_union at " ;
-        cogent_debug_u32 (offs+bilbyFsObjHeaderSize);
-        cogent_debug "\n" ;
+        WHEN_DEBUGGING(
+          cogent_debug "Could not deserialise Obj_union at " ;
+          cogent_debug_u32 (offs+bilbyFsObjHeaderSize);
+          cogent_debug "\n") ;
         let ex = freeObj (ex, obj)
         in Error (e, ex)
       | Success (ex, ounion, offs') ->
-        cogent_debug "deserialise_Obj: otype =" ; 
+        WHEN_DEBUGGING(cogent_debug "deserialise_Obj: otype =") ; 
         let obj = obj {ounion}
-        and _ = cogent_debug_u8 obj.otype !obj
-        and _ = cogent_debug "\n"
+        and _ = WHEN_DEBUGGING(cogent_debug_u8 obj.otype !obj)
+        and _ = WHEN_DEBUGGING(cogent_debug "\n")
         in Success (ex, obj, offs')
 
 newObj: SysState -> R (SysState, Obj take(..)) SysState
@@ -545,15 +548,16 @@ deserialise_ObjDentry(ex, buf, offs, end_offs) =
  -- is read from the buffer (as opposed to bound checks
  -- encoded in the preconditions
   and nlen32 = upcast nlen 
-  and _ = cogent_debug "deserialise_ObjDentry: nlen=" 
-  and _ = cogent_debug_u16 nlen 
-  and _ = cogent_debug " -- nlen32 "
-  and _ = cogent_debug_u32 nlen32 
+  and _ = WHEN_DEBUGGING(cogent_debug "deserialise_ObjDentry: nlen=")
+  and _ = WHEN_DEBUGGING(cogent_debug_u16 nlen)
+  and _ = WHEN_DEBUGGING(cogent_debug " -- nlen32 ")
+  and _ = WHEN_DEBUGGING(cogent_debug_u32 nlen32)
   in if offs + bilbyFsObjDentryHeaderSize + nlen32 > buf.bound ||
         nlen32 > bilbyFsMaxNameLen + 1 ||
         nlen32 == 0 ||
         offs + bilbyFsObjDentryHeaderSize + nlen32 > end_offs
          then
+    WHEN_DEBUGGING(
     cogent_debug "offs+8+nlen32 (";
     cogent_debug_u32 (offs + bilbyFsObjDentryHeaderSize + nlen32) ;
     cogent_debug  ") > buf_bound (" ;
@@ -562,12 +566,12 @@ deserialise_ObjDentry(ex, buf, offs, end_offs) =
     cogent_debug_u32 nlen32 ;
     cogent_debug " > " ;
     cogent_debug_u32 (bilbyFsMaxNameLen + 1) ;
-    cogent_debug ")\n" ;
+    cogent_debug ")\n") ;
     Error (eInval, ex)
   else
     -- deserialise_wordarray_U8 guarantees that: length name = nlen
     let Success (ex, name) <= deserialise_wordarray_U8(ex, buf, offs + bilbyFsObjDentryHeaderSize, nlen32)
-          |> Error (e, ex) -> cogent_debug "Error deserialise_wordarray_U8 \n";
+          |> Error (e, ex) -> WHEN_DEBUGGING(cogent_debug "Error deserialise_wordarray_U8 \n");
                               Error (e, ex)
     and Success (ex, dentry) <= newObjDentry ex
           |> Error ex -> let ex = wordarray_free[U8](ex, name)
@@ -602,11 +606,12 @@ bilbyFsObjDentarrHeaderSize = 12
 
 serialise_ObjDentarr:(Buffer, BufOffs, ObjDentarr!) -> (Buffer, BufOffs)
 serialise_ObjDentarr(buf, offs, dentarr) =
+  WHEN_DEBUGGING(
   cogent_debug "serialise_ObjDentarr {id=" ;
   cogent_debug_u64_hex dentarr.id ;
   cogent_debug ",nb_dentry=" ;
   cogent_debug_u32 dentarr.nb_dentry ;
-  cogent_debug "\n" ;
+  cogent_debug "\n") ;
   let buf = serialise_le64(buf, offs, dentarr.id)
   and buf = serialise_le32(buf, offs+8, dentarr.nb_dentry)
   in serialise_Array_ObjDentry(buf, offs+bilbyFsObjDentarrHeaderSize, dentarr.entries)
@@ -637,9 +642,10 @@ loop_deserialise_ObjDentry #{oelem, acc=(ex,offs), obsv=(buf,end_offs)} =
   let ex = deep_freeOptionObjDentry(ex, oelem) 
   in deserialise_ObjDentry(ex, buf, offs, end_offs)
   | Error (err, ex) ->
+    WHEN_DEBUGGING(
     cogent_debug "could not deserialise deserialise_ObjDentry at " ;
     cogent_debug_u32 offs ;
-    cogent_debug "\n" ;
+    cogent_debug "\n") ;
     Break (None, (eInval, ex))
   | Success (ex, dent, offs) ->
     Iterate (Some dent, (ex, offs))
@@ -649,9 +655,10 @@ deserialise_Array_ObjDentry(ex, buf, offs, nb_dentry, end_offs) =
   -- we always allocate an extra slot for potentially adding an entry
   array_create[ObjDentry] (ex, nb_dentry + 1)
   | Error ex ->
+    WHEN_DEBUGGING(
     cogent_debug "Error of array_create in deserialise_Array_ObjDentry (length=" ;
     cogent_debug_u32 nb_dentry ;
-    cogent_debug ")\n" ;
+    cogent_debug ")\n") ;
     Error (eNoMem, ex)
   | Success (ex, arr) ->
     array_map[ObjDentry, (SysState, U32), (Buffer!,U32), (ErrCode, SysState)]
@@ -668,8 +675,9 @@ deserialise_ObjDentarr(ex, buf, offs, olen) =
   and nb_dentry = deserialise_le32(buf, offs+8)
   in deserialise_Array_ObjDentry(ex, buf, offs+bilbyFsObjDentarrHeaderSize, nb_dentry, offs+olen-bilbyFsObjHeaderSize)
   | Error (e,ex) ->
+    WHEN_DEBUGGING(
     cogent_debug "deserialise_Array_Objdentry, offs+16" ;
-    cogent_debug "\n" ;
+    cogent_debug "\n") ;
     Error (e, ex)
   | Success (ex, entries, offs) ->
     newObjDentarr ex
@@ -744,21 +752,22 @@ summary_clean(ex, sum {entries}) =
 
 serialise_ObjSummary:(Buffer, BufOffs, ObjSummary!) -> (Buffer, BufOffs)
 serialise_ObjSummary(buf, offs, sum) =
+  WHEN_DEBUGGING(
   cogent_debug "serialise_ObjSummary {nb_sym_entry=" ;
   cogent_debug_u32 sum.nb_sum_entry ;
   cogent_debug ",offs = " ;
   cogent_debug_u32 offs ;
   cogent_debug ",sum_offs = " ;
   cogent_debug_u32 sum.sum_offs ;
-  cogent_debug "}\n" ;
+  cogent_debug "}\n") ;
   -- cogent_assert(offs == sum.sum_offs) ;
   let buf = serialise_le32(buf, offs, sum.nb_sum_entry)
   and (buf, offs) = serialise_wordarray_ObjSumEntry(buf, offs+4, sum.entries, sum.nb_sum_entry)
-  and _ = cogent_debug "serialise_ObjSummary: offs = "
-  and _ = cogent_debug_u32 offs
-  and _ = cogent_debug ",sum_offs = "
-  and _ = cogent_debug_u32 sum.sum_offs
-  and _ = cogent_debug "\n"
+  and _ = WHEN_DEBUGGING(cogent_debug "serialise_ObjSummary: offs = ")
+  and _ = WHEN_DEBUGGING(cogent_debug_u32 offs)
+  and _ = WHEN_DEBUGGING(cogent_debug ",sum_offs = ")
+  and _ = WHEN_DEBUGGING(cogent_debug_u32 sum.sum_offs)
+  and _ = WHEN_DEBUGGING(cogent_debug "\n")
   and buf = serialise_le32(buf, offs, sum.sum_offs)
   in (buf, offs + 4)
 
@@ -779,6 +788,7 @@ serialise_ObjSumEntry_f #{elem=sumentry, acc=(buf,offs) , obsv} =
 
 serialise_ObjSumEntry:(Buffer, BufOffs, ObjSumEntry!) -> (Buffer, BufOffs)
 serialise_ObjSumEntry(buf, offs, sumentry) =
+  WHEN_DEBUGGING(
   cogent_debug "serialise_ObjSumEntry {id=" ;
   cogent_debug_u64_hex sumentry.id ;
   cogent_debug ",sqnum=" ;
@@ -789,7 +799,7 @@ serialise_ObjSumEntry(buf, offs, sumentry) =
   cogent_debug_u32 (obj_sum_entry_offs sumentry) ;
   cogent_debug ",count=" ;
   cogent_debug_u32 (upcast sumentry.count) ;
-  cogent_debug "}\n" ;
+  cogent_debug "}\n") ;
   let buf = serialise_le64(buf, offs, sumentry.id)
   and buf = serialise_le64(buf, offs+8, sumentry.sqnum)
   and buf = serialise_le32(buf, offs+16, sumentry.len)
@@ -802,11 +812,11 @@ serialise_wordarray_ObjSumEntry(buf, offs, entries, nb_sum_entry) =
   let arrsz = bilbyFsObjSumEntrySize * nb_sum_entry 
   and end = if offs + arrsz > buf.bound then buf.bound else offs + arrsz !buf
   -- return partially serialised array if the bound is too small.
-  and _ = cogent_debug "serialise_wordarray_ObjSumEntry "
-  and _ = cogent_debug_u32 offs
-  and _ = cogent_debug " to "
-  and _ = cogent_debug_u32 end
-  and _ = cogent_debug "\n"
+  and _ = WHEN_DEBUGGING(cogent_debug "serialise_wordarray_ObjSumEntry ")
+  and _ = WHEN_DEBUGGING(cogent_debug_u32 offs)
+  and _ = WHEN_DEBUGGING(cogent_debug " to ")
+  and _ = WHEN_DEBUGGING(cogent_debug_u32 end)
+  and _ = WHEN_DEBUGGING(cogent_debug "\n")
    in wordarray_fold_no_break[ObjSumEntry, (Buffer, BufOffs), ()]
         #{arr=entries, frm=0, to=nb_sum_entry, f=serialise_ObjSumEntry_f, acc=(buf, offs), obsv=()}
 
@@ -859,17 +869,18 @@ deserialise_ObjSummary_crc (ex, buf, offs, obj, summary) =
   and crc = obj.crc !obj
   and obj {offs=_} = obj
   and obj = obj {offs}
-  and _ = cogent_debug "deserialise_ObjSummary_crc: crc check end_offs=" 
-  and _ = cogent_debug_u32 offs'
-  and _ = cogent_debug "\n" 
-  and _ = print_ObjHeader obj !obj
+  and _ = WHEN_DEBUGGING(cogent_debug "deserialise_ObjSummary_crc: crc check end_offs=" )
+  and _ = WHEN_DEBUGGING(cogent_debug_u32 offs')
+  and _ = WHEN_DEBUGGING(cogent_debug "\n" )
+  and _ = WHEN_DEBUGGING(print_ObjHeader obj !obj)
   and obj = obj {ounion = TObjPad ()} 
   in if crc == crcsum then
     ((ex, obj, summary), Success offs')
   else
+    WHEN_DEBUGGING(
     cogent_debug "Invalid CRC Obj at offs=" ;
     cogent_debug_u32 offs ;
-    cogent_debug "\n" ;
+    cogent_debug "\n") ;
     ((ex, obj, summary), Error eInval)
 
 deserialise_ObjSummary: (Buffer!, BufOffs, ObjSummary) -> RR ObjSummary BufOffs ErrCode
@@ -892,11 +903,11 @@ serialise_wordarray_U8(buf {data}, offs, wa) =
   and end = if offs + len > buf.bound then buf.bound else offs + len !buf
 
   -- return partially serialised array if the bound is too small.
-  and _ = cogent_debug "serialise_wordarray_U8 "
-  and _ = cogent_debug_u32 offs
-  and _ = cogent_debug " to "
-  and _ = cogent_debug_u32 end
-  and _ = cogent_debug "\n"
+  and _ = WHEN_DEBUGGING(cogent_debug "serialise_wordarray_U8 ")
+  and _ = WHEN_DEBUGGING(cogent_debug_u32 offs)
+  and _ = WHEN_DEBUGGING(cogent_debug " to ")
+  and _ = WHEN_DEBUGGING(cogent_debug_u32 end)
+  and _ = WHEN_DEBUGGING(cogent_debug "\n")
 
   and data = wordarray_copy[U8] (data, wa, offs, 0, end)
   in buf {data}
@@ -1069,9 +1080,9 @@ serialise_ObjInode(buf, offs, oi) =
   and buf = serialise_le64(buf, offs+24, oi.ctime_sec)
   and buf = serialise_le64(buf, offs+32, oi.mtime_sec)
   and buf = serialise_le32(buf, offs+40, oi.nlink)
-  and _ = cogent_debug "serialiseObjInode uid "
-  and _ = cogent_debug_u32 oi.uid
-  and _ = cogent_debug "\n"
+  and _ = WHEN_DEBUGGING(cogent_debug "serialiseObjInode uid ")
+  and _ = WHEN_DEBUGGING(cogent_debug_u32 oi.uid)
+  and _ = WHEN_DEBUGGING(cogent_debug "\n")
   and buf = serialise_le32(buf, offs+44, oi.uid)
   and buf = serialise_le32(buf, offs+48, oi.gid)
   and buf = serialise_le32(buf, offs+52, oi.mode)
@@ -1112,9 +1123,9 @@ deserialise_ObjInode(ex, buf, offs) =
     and mtime_sec = deserialise_le64(buf, offs + 32)
     and nlink = deserialise_le32(buf, offs + 40)
     and uid = deserialise_le32(buf, offs + 44)
-    and _ = cogent_debug "deserialiseObjInode uid "
-    and _ = cogent_debug_u32 uid
-    and _ = cogent_debug "\n"
+    and _ = WHEN_DEBUGGING(cogent_debug "deserialiseObjInode uid ")
+    and _ = WHEN_DEBUGGING(cogent_debug_u32 uid)
+    and _ = WHEN_DEBUGGING(cogent_debug "\n")
     and gid = deserialise_le32(buf, offs + 48)
     and mode = deserialise_le32(buf, offs + 52)
     and flags = deserialise_le32(buf, offs + 56)
@@ -1185,14 +1196,16 @@ deserialise_le64(buf, offs) =
 
 deserialise_Obj_crc: (SysState, Buffer!, BufOffs) -> R (SysState, Obj, BufOffs) (ErrCode, SysState)
 deserialise_Obj_crc(ex, buf, offs) =
+  WHEN_DEBUGGING(
   cogent_debug "deserialise_Obj_crc offs=" ;
   cogent_debug_u32 offs ;
-  cogent_debug "\n" ;
+  cogent_debug "\n") ;
   deserialise_Obj(ex, buf, offs)
   | Error (err, ex) ->
+    WHEN_DEBUGGING(
     cogent_debug "Could not deserialise Obj at " ;
     cogent_debug_u32 offs ;
-    cogent_debug "\n" ;
+    cogent_debug "\n") ;
     Error (err, ex)
   | Success (ex, obj, end_offs) ->
     -- assert (end_offs == offs + obj.len) !obj ;
@@ -1200,18 +1213,19 @@ deserialise_Obj_crc(ex, buf, offs) =
     and crc = obj.crc !obj
     and obj {offs=_} = obj
     and obj = obj {offs}
-    and _ = cogent_debug "deserialise_Obj_crc: crc check end_offs=" 
-    and _ = cogent_debug_u32 end_offs
-    and _ = cogent_debug "\n" 
+    and _ = WHEN_DEBUGGING(cogent_debug "deserialise_Obj_crc: crc check end_offs=") 
+    and _ = WHEN_DEBUGGING(cogent_debug_u32 end_offs)
+    and _ = WHEN_DEBUGGING(cogent_debug "\n") 
     and obj {ounion} = obj
     and _ = print_ObjHeader obj !obj
     and obj = obj {ounion} 
     in if crc == crcsum then
       Success (ex, obj, end_offs)
     else
+      WHEN_DEBUGGING(
       cogent_debug "Invalid CRC Obj at offs=" ;
       cogent_debug_u32 offs ;
-      cogent_debug "\n" ;
+      cogent_debug "\n") ;
       let ex = deep_freeObj(ex, obj)
       in Error (eInval, ex)
 
