@@ -280,149 +280,37 @@ lemma type_lub_type_glb_order_correct: "K \<turnstile> a \<leftarrow> a \<squnio
 
 lemma glb_lub_subtyping_order_correct:
   shows
-    "K \<turnstile> c \<leftarrow> a \<squnion> b \<Longrightarrow> (K \<turnstile> c \<sqsubseteq> a) \<and> (K \<turnstile> c \<sqsubseteq> b)"
-    "K \<turnstile> c \<leftarrow> a \<sqinter> b \<Longrightarrow> (K \<turnstile> a \<sqsubseteq> c) \<and> (K \<turnstile> b \<sqsubseteq> c)"
+    "K \<turnstile> c \<leftarrow> a \<squnion> b \<Longrightarrow> (K \<turnstile> a \<sqsubseteq> c) \<and> (K \<turnstile> b \<sqsubseteq> c)"
+    "K \<turnstile> c \<leftarrow> a \<sqinter> b \<Longrightarrow> (K \<turnstile> c \<sqsubseteq> a) \<and> (K \<turnstile> c \<sqsubseteq> b)"
 proof (induct rule: type_lub_type_glb.inducts)
-  case (lub_tcon n n1 n2 s s1 s2 ts ts1 ts2)
+  case (lub_trecord K ts ts1 ts2 s s1 s2)
+  then show ?case 
+  proof -
+    have "K \<turnstile> TRecord ts1 s1 \<sqsubseteq> TRecord ts s"
+      using lub_trecord.hyps list_all3_conv_all_nth list_all2_conv_all_nth
+      by (metis (mono_tags, lifting) subtyping_simps(6))
+    moreover have "K \<turnstile> TRecord ts2 s2 \<sqsubseteq> TRecord ts s"
+      using lub_trecord.hyps list_all3_conv_all_nth list_all2_conv_all_nth
+      by (metis (mono_tags, lifting) subtyping_simps(6))
+    ultimately show ?thesis
+      by simp
+  qed 
+next
+  case (glb_trecord K ts ts1 ts2 s s1 s2)
   then show ?case
-    by (auto intro!: subtyping.intros simp add: list_all3_conv_all_nth list_all2_conv_all_nth)
-next
-  case (lub_trecord ts ts1 ts2 s s1 s2)
-(*
-  moreover { fix n t b t1 b1
-    assume
-      "(n, t, b) \<in> set ts"
-      "(n, t1, b1) \<in> set ts1"
-    moreover then obtain t2 b2 where "(n, t2, b2) \<in> set ts2"
-      using lub_trecord.hyps
-      by (metis (no_types, hide_lams) eq_fst_iff image_iff)
-    ultimately have "K \<turnstile> t \<sqsubseteq> t1 \<and> b \<le> b1"
-      using lub_trecord.hyps by fastforce
-  }
-  moreover { fix n t b t2 b2
-    assume
-      "(n, t, b) \<in> set ts"
-      "(n, t2, b2) \<in> set ts2"
-    moreover then obtain t1 b1 where "(n, t1, b1) \<in> set ts1"
-      using lub_trecord.hyps
-      by (metis (no_types, hide_lams) eq_fst_iff image_iff)
-    ultimately have "K \<turnstile> t \<sqsubseteq> t2 \<and> b \<le> b2"
-      using lub_trecord.hyps by fastforce
-  }
-  moreover have
-    "\<And>n t b. (n, t, b) \<in> set ts \<Longrightarrow> \<exists>t1 b1. (n, t1, b1) \<in> set ts1"
-    "\<And>n t2 b2. (n, t2, b2) \<in> set ts2 \<Longrightarrow> \<exists>t1 b1. (n, t1, b1) \<in> set ts1"
-    using lub_trecord.hyps
-    by (metis (no_types, hide_lams) eq_fst_iff image_iff)+
-  ultimately show ?case
-    by (auto intro!: subtyping.intros simp add: image_iff Bex_def)
-*)
-  show ?case
-    sorry
-next
-  case (lub_tsum ts ts1 ts2)
-(*
-  moreover { fix n t b t1 b1
-    assume
-      "(n, t, b) \<in> set ts"
-      "(n, t1, b1) \<in> set ts1"
-    moreover then obtain t2 b2 where "(n, t2, b2) \<in> set ts2"
-      using lub_tsum.hyps
-      by (metis (no_types, hide_lams) eq_fst_iff image_iff)
-    ultimately have "K \<turnstile> t \<sqsubseteq> t1 \<and> b \<le> b1"
-      using lub_tsum.hyps by fastforce
-  }
-  moreover { fix n t b t2 b2
-    assume
-      "(n, t, b) \<in> set ts"
-      "(n, t2, b2) \<in> set ts2"
-    moreover then obtain t1 b1 where "(n, t1, b1) \<in> set ts1"
-      using lub_tsum.hyps
-      by (metis (no_types, hide_lams) eq_fst_iff image_iff)
-    ultimately have "K \<turnstile> t \<sqsubseteq> t2 \<and> b \<le> b2"
-      using lub_tsum.hyps by fastforce
-  }
-  moreover have
-    "\<And>n t b. (n, t, b) \<in> set ts \<Longrightarrow> \<exists>t1 b1. (n, t1, b1) \<in> set ts1"
-    "\<And>n t2 b2. (n, t2, b2) \<in> set ts2 \<Longrightarrow> \<exists>t1 b1. (n, t1, b1) \<in> set ts1"
-    using lub_tsum.hyps
-    by (metis (no_types, hide_lams) eq_fst_iff image_iff)+
-  ultimately show ?case
-    by (auto intro!: subtyping.intros simp add: image_iff Bex_def)
-*)
-  show ?case
-    sorry
-next
-  case (glb_tcon n n1 n2 s s1 s2 ts ts1 ts2)
-  then show ?case
-    by (auto intro!: subtyping.intros simp add: list_all3_conv_all_nth list_all2_conv_all_nth)
-next
-  case (glb_trecord ts ts1 ts2 s s1 s2)
-(*
-  moreover { fix n t b t1 b1
-    assume
-      "(n, t, b) \<in> set ts"
-      "(n, t1, b1) \<in> set ts1"
-    moreover then obtain t2 b2 where "(n, t2, b2) \<in> set ts2"
-      using glb_trecord.hyps
-      by (metis (no_types, hide_lams) eq_fst_iff image_iff)
-    ultimately have "K \<turnstile> t1 \<sqsubseteq> t \<and> b1 \<le> b"
-      using glb_trecord.hyps by fastforce
-  }
-  moreover { fix n t b t2 b2
-    assume
-      "(n, t, b) \<in> set ts"
-      "(n, t2, b2) \<in> set ts2"
-    moreover then obtain t1 b1 where "(n, t1, b1) \<in> set ts1"
-      using glb_trecord.hyps
-      by (metis (no_types, hide_lams) eq_fst_iff image_iff)
-    ultimately have "K \<turnstile> t2 \<sqsubseteq> t \<and> b2 \<le> b"
-      using glb_trecord.hyps by fastforce
-  }
-  moreover have
-    "\<And>n t b. (n, t, b) \<in> set ts \<Longrightarrow> \<exists>t1 b1. (n, t1, b1) \<in> set ts1"
-    "\<And>n t2 b2. (n, t2, b2) \<in> set ts2 \<Longrightarrow> \<exists>t1 b1. (n, t1, b1) \<in> set ts1"
-    using glb_trecord.hyps
-    by (metis (no_types, hide_lams) eq_fst_iff image_iff)+
-  ultimately show ?case
-    by (auto intro!: subtyping.intros simp add: image_iff Bex_def)
-*)
-  show ?case
-    sorry
-next
-  case (glb_tsum ts ts1 ts2)
-(*
-  moreover { fix n t b t1 b1
-    assume
-      "(n, t, b) \<in> set ts"
-      "(n, t1, b1) \<in> set ts1"
-    moreover then obtain t2 b2 where "(n, t2, b2) \<in> set ts2"
-      using glb_tsum.hyps
-      by (metis (no_types, hide_lams) eq_fst_iff image_iff)
-    ultimately have "K \<turnstile> t1 \<sqsubseteq> t \<and> b1 \<le> b"
-      using glb_tsum.hyps by fastforce
-  }
-  moreover { fix n t b t2 b2
-    assume
-      "(n, t, b) \<in> set ts"
-      "(n, t2, b2) \<in> set ts2"
-    moreover then obtain t1 b1 where "(n, t1, b1) \<in> set ts1"
-      using glb_tsum.hyps
-      by (metis (no_types, hide_lams) eq_fst_iff image_iff)
-    ultimately have "K \<turnstile> t2 \<sqsubseteq> t \<and> b2 \<le> b"
-      using glb_tsum.hyps by fastforce
-  }
-  moreover have
-    "\<And>n t b. (n, t, b) \<in> set ts \<Longrightarrow> \<exists>t1 b1. (n, t1, b1) \<in> set ts1"
-    "\<And>n t2 b2. (n, t2, b2) \<in> set ts2 \<Longrightarrow> \<exists>t1 b1. (n, t1, b1) \<in> set ts1"
-    using glb_tsum.hyps
-    by (metis (no_types, hide_lams) eq_fst_iff image_iff)+
-  ultimately show ?case
-    by (auto intro!: subtyping.intros simp add: image_iff Bex_def)
-*)
-  show ?case
-    sorry
-qed (auto intro!: subtyping.intros)
+  proof -
+    have "K \<turnstile> TRecord ts s \<sqsubseteq> TRecord ts1 s1"
+      using glb_trecord.hyps subtyping_simps(6)
+      apply (clarsimp simp add: list_all3_conv_all_nth list_all2_conv_all_nth)
+      by metis
+    moreover have "K \<turnstile> TRecord ts s \<sqsubseteq> TRecord ts2 s2"
+      using glb_trecord.hyps subtyping_simps(6)
+      apply (clarsimp simp add: list_all3_conv_all_nth list_all2_conv_all_nth)
+      by metis
+    ultimately show ?thesis
+      by simp
+  qed
+qed (auto simp add: subtyping_simps list_all3_conv_all_nth list_all2_conv_all_nth)
 
 
 lemma type_lub_type_glb_to_subtyping:
