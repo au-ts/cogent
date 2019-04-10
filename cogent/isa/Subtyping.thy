@@ -312,11 +312,10 @@ next
   qed
 qed (auto simp add: subtyping_simps list_all3_conv_all_nth list_all2_conv_all_nth)
 
-
 lemma type_lub_type_glb_to_subtyping:
   shows
-    "K \<turnstile> a \<leftarrow> a \<squnion> b \<Longrightarrow> K \<turnstile> a \<sqsubseteq> b"
-    "K \<turnstile> b \<leftarrow> a \<sqinter> b \<Longrightarrow> K \<turnstile> a \<sqsubseteq> b"
+    "K \<turnstile> a \<leftarrow> a \<squnion> b \<Longrightarrow> K \<turnstile> b \<sqsubseteq> a"
+    "K \<turnstile> b \<leftarrow> a \<sqinter> b \<Longrightarrow> K \<turnstile> b \<sqsubseteq> a"
   using glb_lub_subtyping_order_correct
   by fast+
 
