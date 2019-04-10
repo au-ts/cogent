@@ -167,40 +167,126 @@ lemma type_lub_type_glb_wellformed:
 proof (induct rule: type_lub_type_glb.inducts)
 qed (auto simp add: list_all_length list_all3_conv_all_nth)
 
-(*
-TODO: not used atm, but might be useful
+lemma type_lub_type_glb_wellformed_produce_wellformed:
+  "K \<turnstile> c \<leftarrow> a \<squnion> b \<Longrightarrow> K \<turnstile> c wellformed \<Longrightarrow> (K \<turnstile> a wellformed) \<and> (K \<turnstile> b wellformed)"
+  "K \<turnstile> c \<leftarrow> a \<sqinter> b \<Longrightarrow> K \<turnstile> c wellformed \<Longrightarrow> (K \<turnstile> a wellformed) \<and> (K \<turnstile> b wellformed)"
+proof (induct rule: type_lub_type_glb.inducts)                
+qed (auto simp add: list_all3_conv_all_nth list_all_length)
 
 lemma type_glb_drop_produce_drop:
   shows
   "K \<turnstile> c \<leftarrow> a \<squnion> b \<Longrightarrow> K \<turnstile> c :\<kappa> {D} \<Longrightarrow> K \<turnstile> a :\<kappa> {D} \<and> K \<turnstile> b :\<kappa> {D}"
   "K \<turnstile> c \<leftarrow> a \<sqinter> b \<Longrightarrow> K \<turnstile> a :\<kappa> {D} \<Longrightarrow> K \<turnstile> b :\<kappa> {D} \<Longrightarrow> K \<turnstile> c :\<kappa> {D}"
 proof (induct rule: type_lub_type_glb.inducts)
-  case (lub_tvar n n1 n2 K)
-  then show ?case sorry
-next
-  case (lub_tvarb n n1 n2 K)
-  then show ?case sorry
-next
-  case (lub_tcon n n1 n2 s s1 s2 ts ts1 ts2 K)
-  then show ?case sorry
-next
   case (lub_tfun K t t1 t2 u u1 u2)
-  then show ?case sorry
-next
-  case (lub_tprim p p1 p2 K)
-  then show ?case sorry
+  then show ?case
+    using kinding_simps(4) type_lub_type_glb_wellformed_produce_wellformed by auto
 next
   case (lub_trecord K ts ts1 ts2 s s1 s2)
-  then show ?case sorry
-next
-  case (lub_tprod K t t1 t2 u u1 u2)
-  then show ?case sorry
+  then show ?case
+  proof -
+    have "K \<turnstile> TRecord ts s wellformed"
+      using kinding_def lub_trecord.prems by blast
+    moreover have "K \<turnstile> TRecord ts s \<leftarrow> TRecord ts1 s1 \<squnion> TRecord ts2 s2"
+      by (metis (no_types, lifting) list_all3_mono lub_trecord.hyps type_lub_type_glb.lub_trecord)
+    moreover have ts1Wellformed: "K \<turnstile> TRecord ts1 s wellformed"
+      using calculation(1) calculation(2) lub_trecord.hyps(6) type_lub_type_glb_wellformed_produce_wellformed(1) by blast
+    moreover have ts2Wellformed: "K \<turnstile> TRecord ts2 s wellformed"
+      using calculation(1) calculation(2) lub_trecord.hyps(6) lub_trecord.hyps(7) type_lub_type_glb_wellformed_produce_wellformed(1) by blast
+    {
+      fix i :: nat
+      assume tsLength: "i < length ts"
+      moreover obtain c t1 b1 where dummy:		
+      "(c, t1, b1) = (ts1 ! i)"
+        by (metis prod_cases3)
+      have "b1 = Present \<Longrightarrow> K \<turnstile> t1 :\<kappa> {D}"
+        using lub_trecord.hyps(1) lub_trecord.hyps(2) 
+        apply (clarsimp simp add: list_all3_conv_all_nth)
+        by (metis dummy fst_conv kinding_record_conv_all_nth kinding_simps(8) lub_trecord.prems record_state.simps(4) snd_conv tsLength)
+      moreover have "b1 = Taken \<Longrightarrow> K \<turnstile> t1 wellformed"
+        by (metis dummy length_map lub_trecord.hyps(3) nth_mem ts1Wellformed tsLength wellformed_record_wellformed_elem)
+      moreover have "case b1 of Taken \<Rightarrow> K \<turnstile> t1 wellformed | Present \<Rightarrow> K \<turnstile> t1 :\<kappa> {D}"
+        by (metis calculation(2) calculation(3) record_state.exhaust record_state.simps(3) record_state.simps(4))
+      ultimately have "case snd (snd (ts1 ! i)) of Taken \<Rightarrow> K \<turnstile> fst (snd (ts1 ! i)) wellformed | Present \<Rightarrow> K \<turnstile> fst (snd (ts1 ! i)) :\<kappa> {D}"
+        by (metis dummy fst_conv snd_conv)
+    }
+    moreover have "K \<turnstile> TRecord ts1 s1 :\<kappa> {D}"
+      by (metis calculation(4) kinding_record_conv_all_nth kinding_simps(8) length_map lub_trecord.hyps(3) lub_trecord.hyps(6) lub_trecord.prems)
+    {
+      fix i :: nat
+      assume tsLength: "i < length ts"
+      moreover obtain c t2 b2 where dummy:		
+      "(c, t2, b2) = (ts2 ! i)"
+        by (metis prod_cases3)
+      have "b2 = Present \<Longrightarrow> K \<turnstile> t2 :\<kappa> {D}"
+        using lub_trecord.hyps(1) lub_trecord.hyps(2) 
+        apply (clarsimp simp add: list_all3_conv_all_nth)
+        by (metis dummy fst_conv kinding_record_conv_all_nth kinding_simps(8) lub_trecord.prems record_state.simps(4) snd_conv tsLength)
+      moreover have "b2 = Taken \<Longrightarrow> K \<turnstile> t2 wellformed"
+        by (metis dummy length_map lub_trecord.hyps(3) lub_trecord.hyps(4) nth_mem ts2Wellformed tsLength wellformed_record_wellformed_elem)
+      moreover have "case b2 of Taken \<Rightarrow> K \<turnstile> t2 wellformed | Present \<Rightarrow> K \<turnstile> t2 :\<kappa> {D}"
+        by (metis calculation(2) calculation(3) record_state.exhaust record_state.simps(3) record_state.simps(4))
+      ultimately have "case snd (snd (ts2 ! i)) of Taken \<Rightarrow> K \<turnstile> fst (snd (ts2 ! i)) wellformed | Present \<Rightarrow> K \<turnstile> fst (snd (ts2 ! i)) :\<kappa> {D}"
+        by (metis dummy fst_conv snd_conv)
+    }
+    moreover have "K \<turnstile> TRecord ts2 s2 :\<kappa> {D}"
+      by (metis calculation(5) kinding_record_conv_all_nth kinding_simps(8) length_map lub_trecord.hyps(3) lub_trecord.hyps(4) lub_trecord.hyps(6) lub_trecord.hyps(7) lub_trecord.prems)
+    show ?thesis
+      by (simp add: \<open>K \<turnstile> TRecord ts1 s1 :\<kappa> {D}\<close> \<open>K \<turnstile> TRecord ts2 s2 :\<kappa> {D}\<close>)
+  qed
 next
   case (lub_tsum K ts ts1 ts2)
-  then show ?case sorry
-next
-  case (lub_tunit K)
-  then show ?case sorry
+  then show ?case
+  proof -
+    have "K \<turnstile> TSum ts wellformed"
+      using kinding_defs(1) lub_tsum.prems by blast
+    moreover have "K \<turnstile> TSum ts \<leftarrow> TSum ts1 \<squnion> TSum ts2"
+      by (metis (no_types, lifting) list_all3_mono lub_tsum.hyps type_lub_type_glb.lub_tsum)
+    moreover have ts1Wellformed: "K \<turnstile> TSum ts1 wellformed"
+      using calculation(1) calculation(2) lub_tsum.hyps(5) type_lub_type_glb_wellformed_produce_wellformed(1) by blast
+    moreover have ts2Wellformed: "K \<turnstile> TSum ts2 wellformed"
+      using calculation(1) calculation(2) lub_tsum.hyps(4) lub_tsum.hyps(5) type_lub_type_glb_wellformed_produce_wellformed(1) by blast
+    {
+      fix i :: nat
+      assume tsLength: "i < length ts"
+      moreover obtain c t1 b1 where dummy:		
+      "(c, t1, b1) = (ts1 ! i)"
+        by (metis prod_cases3)
+      have "b1 = Unchecked \<Longrightarrow> K \<turnstile> t1 :\<kappa> {D}"
+        using lub_tsum.hyps(1) lub_tsum.hyps(2) 
+        apply (clarsimp simp add: list_all3_conv_all_nth)
+        by (metis dummy fst_conv kinding_simps(6) kinding_variant_conv_all_nth lub_tsum.prems snd_conv sup_variant_state.simps(1) tsLength variant_state.simps(4))
+      moreover have "b1 = Checked \<Longrightarrow> K \<turnstile> t1 wellformed"
+        by (metis dummy length_map lub_tsum.hyps(3) nth_mem ts1Wellformed tsLength wellformed_sum_wellformed_elem)
+      moreover have "case b1 of Checked \<Rightarrow> K \<turnstile> t1 wellformed | Unchecked \<Rightarrow> K \<turnstile> t1 :\<kappa> {D}"
+        by (metis calculation(2) calculation(3) variant_state.exhaust variant_state.simps(3) variant_state.simps(4))
+      ultimately have "case snd (snd (ts1 ! i)) of Checked \<Rightarrow> K \<turnstile> fst (snd (ts1 ! i)) wellformed | Unchecked \<Rightarrow> K \<turnstile> fst (snd (ts1 ! i)) :\<kappa> {D}"
+        by (metis dummy fst_conv snd_conv)
+    }
+    moreover have "K \<turnstile> TSum ts1 :\<kappa> {D}"
+      by (metis calculation(4) kinding_simps(6) kinding_variant_conv_all_nth length_map lub_tsum.hyps(3) lub_tsum.hyps(5))
+    {
+      fix i :: nat
+      assume tsLength: "i < length ts"
+      moreover obtain c t2 b2 where dummy:		
+      "(c, t2, b2) = (ts2 ! i)"
+        by (metis prod_cases3)
+      have "b2 = Unchecked \<Longrightarrow> K \<turnstile> t2 :\<kappa> {D}"
+        using lub_tsum.hyps(1) lub_tsum.hyps(2) 
+        apply (clarsimp simp add: list_all3_conv_all_nth)
+        by (metis dummy fst_conv inf_sup_aci(5) kinding_simps(6) kinding_variant_conv_all_nth lub_tsum.prems snd_conv sup_variant_state.simps(1) tsLength variant_state.simps(4))
+      moreover have "b2 = Checked \<Longrightarrow> K \<turnstile> t2 wellformed"
+        by (metis dummy length_map lub_tsum.hyps(3) lub_tsum.hyps(4) nth_mem ts2Wellformed tsLength wellformed_sum_wellformed_elem)
+      moreover have "case b2 of Checked \<Rightarrow> K \<turnstile> t2 wellformed | Unchecked \<Rightarrow> K \<turnstile> t2 :\<kappa> {D}"
+        by (metis calculation(2) calculation(3) variant_state.exhaust variant_state.simps(3) variant_state.simps(4))
+      ultimately have "case snd (snd (ts2 ! i)) of Checked \<Rightarrow> K \<turnstile> fst (snd (ts2 ! i)) wellformed | Unchecked \<Rightarrow> K \<turnstile> fst (snd (ts2 ! i)) :\<kappa> {D}"
+        by (metis dummy fst_conv snd_conv)
+    }
+    moreover have "K \<turnstile> TSum ts2 :\<kappa> {D}"
+      by (metis calculation(5) kinding_simps(6) kinding_variant_conv_all_nth length_map lub_tsum.hyps(3) lub_tsum.hyps(4) lub_tsum.hyps(5))
+    show ?thesis
+      by (simp add: \<open>K \<turnstile> TSum ts1 :\<kappa> {D}\<close> \<open>K \<turnstile> TSum ts2 :\<kappa> {D}\<close>)
+  qed
 next
   case (glb_tcon n n1 n2 s s1 s2 ts ts1 ts2 K)
   then show ?case
@@ -212,27 +298,60 @@ next
 next
   case (glb_trecord K ts ts1 ts2 s s1 s2)
   then show ?case
-    apply (clarsimp simp add: list_all3_conv_all_nth kinding_simps kinding_record_conv_all_nth)
-    apply (drule_tac x=i in spec, clarsimp)+
-    apply (case_tac "snd (snd (ts ! i))"; case_tac "snd (snd (ts1 ! i))"; case_tac "snd (snd (ts2 ! i))"; clarsimp)
-    using type_lub_type_glb_wellformed(2) type_wellformed_pretty_def apply blast
-        apply (meson less_eq_record_state.simps(3) record_state.distinct(1))
-       apply (meson less_eq_record_state.simps(3) record_state.simps(2))
-      apply (meson record_state.simps(2))
-     apply (meson record_state.distinct(1))
-    by (meson record_state.simps(2))
+  proof -
+    have assms1: "(K \<turnstile> TRecord ts1 s1 wellformed) \<and> (K \<turnstile> TRecord ts2 s2 wellformed)"
+      using glb_trecord.prems kinding_to_wellformedD(1) by blast
+    have assms2: "K \<turnstile> TRecord ts s \<leftarrow> TRecord ts1 s1 \<sqinter> TRecord ts2 s2"
+      by (metis (mono_tags, lifting) glb_trecord.hyps list_all3_mono type_lub_type_glb.glb_trecord)
+    have tsWellformed: "K \<turnstile> TRecord ts s wellformed"
+      using assms1 assms2 type_lub_type_glb_wellformed(2) by blast
+    {
+      fix i :: nat
+      assume tsLength: "i < length ts"
+      moreover obtain c t b where dummy:		
+      "(c, t, b) = (ts ! i)"
+        by (metis prod_cases3)
+      have tWellformed: "K \<turnstile> t wellformed"
+        by (metis dummy nth_mem tsLength tsWellformed wellformed_record_wellformed_elem)
+      moreover have "b = Present \<Longrightarrow> K \<turnstile> t :\<kappa> {D}"
+        using glb_trecord.hyps(1) glb_trecord.hyps(2) 
+        apply (clarsimp simp add: list_all3_conv_all_nth)
+        by (metis dummy fst_conv glb_trecord.prems kinding_record_conv_all_nth kinding_simps(8) record_state.simps(4) snd_conv tsLength)
+      ultimately have "case snd (snd (ts ! i)) of Taken \<Rightarrow> K \<turnstile> fst (snd (ts ! i)) wellformed | Present \<Rightarrow> K \<turnstile> fst (snd (ts ! i)) :\<kappa> {D}" 
+        by (metis (mono_tags, lifting) tWellformed dummy fst_conv record_state.exhaust record_state.simps(3) record_state.simps(4) snd_conv)
+    }
+    then show ?thesis
+      using glb_trecord.hyps(5) glb_trecord.hyps(6) glb_trecord.prems(1) kinding_record_conv_all_nth kinding_simps(8) by auto
+  qed
 next
   case (glb_tsum K ts ts1 ts2)
   then show ?case
-    apply (clarsimp simp add: list_all3_conv_all_nth kinding_simps kinding_variant_conv_all_nth)
-    apply (case_tac "inf (snd (snd (ts1 ! i))) (snd (snd (ts2 ! i)))")
-     apply clarsimp
-     apply (metis glb_tsum.prems(1) glb_tsum.prems(2) kinding_simps(6) kinding_variant_wellformed_elem nth_mem prod.collapse type_lub_type_glb_wellformed(2) type_wellformed_pretty_def)
-    apply clarsimp
-    by (smt inf.orderE inf_bot_right less_eq_variant_state.elims(3) variant_state.simps(4))
+  proof -
+    have assms1: "(K \<turnstile> TSum ts1 wellformed) \<and> (K \<turnstile> TSum ts2 wellformed)"
+      using glb_tsum.prems kinding_to_wellformedD(1) by blast
+    have assms2: "K \<turnstile> TSum ts \<leftarrow> TSum ts1 \<sqinter> TSum ts2"
+      by (metis (mono_tags, lifting) glb_tsum.hyps list_all3_mono type_lub_type_glb.glb_tsum)
+    have tsWellformed: "K \<turnstile> TSum ts wellformed"
+      using assms1 assms2 type_lub_type_glb_wellformed(2) by blast
+    {
+      fix i :: nat
+      assume tsLength: "i < length ts"
+      moreover obtain c t b where dummy:		
+      "(c, t, b) = (ts ! i)"
+        by (metis prod_cases3)
+      have tWellformed: "K \<turnstile> t wellformed"
+        by (metis dummy nth_mem tsLength tsWellformed wellformed_sum_wellformed_elem)
+      moreover have "b = Unchecked \<Longrightarrow> K \<turnstile> t :\<kappa> {D}"
+        using glb_tsum.hyps(1) glb_tsum.hyps(2) 
+        apply (clarsimp simp add: list_all3_conv_all_nth)
+        by (metis dummy fst_conv glb_tsum.prems inf_sup_aci(1) kinding_simps(6) kinding_variant_conv_all_nth snd_conv sup_commute sup_inf_absorb sup_variant_state.simps(1) tsLength variant_state.simps(4))
+      ultimately have "case snd (snd (ts ! i)) of Checked \<Rightarrow> K \<turnstile> fst (snd (ts ! i)) wellformed | Unchecked \<Rightarrow> K \<turnstile> fst (snd (ts ! i)) :\<kappa> {D}" 
+        by (metis (mono_tags, hide_lams) dummy fst_conv snd_conv variant_state.exhaust variant_state.simps(3) variant_state.simps(4))
+    }
+    then show ?thesis
+      by (simp add: glb_tsum.hyps(5) kinding_simps(6) kinding_variant_conv_all_nth)
+  qed
 qed (auto simp add: kinding_simps)
-*)
-
 
 lemma type_lub_type_glb_absorb:
   shows
