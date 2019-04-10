@@ -94,41 +94,7 @@ inductive type_lub :: "kind env \<Rightarrow> type \<Rightarrow> type \<Rightarr
                 \<rbrakk> \<Longrightarrow> K \<turnstile> TSum ts \<leftarrow> TSum ts1 \<sqinter> TSum ts2"
 | glb_tunit  : "K \<turnstile> TUnit \<leftarrow> TUnit \<sqinter> TUnit"
 
-(*
-(* This should not be true *)
-lemma test5:
-"\<And>i. i < length ts \<Longrightarrow> {D} \<subseteq> kinding_fn K (TSum ts) \<Longrightarrow> {D} \<subseteq> kinding_fn K (fst (snd (ts ! i)))"
-  apply (drule_tac xs=ts and P="\<lambda>x. D \<in> (case x of (uu_, t, Checked) \<Rightarrow> UNIV | (uu_, t, Unchecked) \<Rightarrow> kinding_fn K t)" in  List.list_ball_nth)
-   apply simp
-  apply simp
-  apply (subgoal_tac "\<exists>a b c. ts ! i = (a, b, c)")
-   apply (erule exE)+
-   apply simp
-   apply (case_tac "c = Unchecked")
-    apply simp
-   apply (subgoal_tac "c = Checked")
-    apply simp
 
-  sorry
-
-(* This should not be true *)
-lemma test:
-"K \<turnstile> TSum ts :\<kappa> {D} \<Longrightarrow> \<forall>i < length ts. K \<turnstile> fst (snd (ts ! i)) :\<kappa> {D}"
-  apply (rule allI)
-  apply (rule impI)
-  apply (unfold kinding_def)
-  apply (rule conjI)
-  using test2 apply auto[1]
-  apply (erule conjE) 
-  apply simp thm List.list_ball_nth
-  apply (drule_tac xs=ts and P="\<lambda>x. D \<in> (case x of (uu_, t, Checked) \<Rightarrow> UNIV | (uu_, t, Unchecked) \<Rightarrow> kinding_fn K t)" in  List.list_ball_nth)
-   apply simp
-  
-  sorry
-*)
-
-value "sup Taken Present"
-value "sup Checked Unchecked"
 lemma type_lub_type_glb_idem:
   assumes "K \<turnstile> t wellformed"
   shows
