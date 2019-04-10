@@ -463,12 +463,44 @@ lemma type_lub_type_glb_to_subtyping:
   using glb_lub_subtyping_order_correct
   by fast+
 
-(* this would be nice:
+lemma subtyping_to_type_lub:
+  shows
+    "K \<turnstile> b \<sqsubseteq> a \<Longrightarrow> K \<turnstile> a \<leftarrow> a \<squnion> b"
+proof (induct rule: subtyping.inducts)
+  case (subty_tfun K t2 t1 u1 u2)
+  then show ?case
+    by (simp add: glb_tfun type_lub_type_glb_commut(1) type_lub_type_glb_order_correct)
+next
+  case (subty_trecord K ts1 ts2 s1 s2)
+  then show ?case
+    by (simp add: list_all2_conv_all_nth list_all3_conv_all_nth lub_trecord)
+next
+  case (subty_tsum K ts1 ts2)
+  then show ?case
+    by (simp add: list_all2_conv_all_nth list_all3_conv_all_nth lub_tsum sup.absorb_iff1)
+qed (auto intro: type_lub_type_glb.intros)
+
+lemma subtyping_to_type_glb:
+  shows
+    "K \<turnstile> b \<sqsubseteq> a \<Longrightarrow> K \<turnstile> b \<leftarrow> a \<sqinter> b"
+proof (induct rule: subtyping.induct)
+case (subty_tfun K t2 t1 u1 u2)
+  then show ?case 
+    by (simp add: subty_tfun.hyps(2) glb_tfun subtyping_to_type_lub type_lub_type_glb_commut(2))
+next
+  case (subty_trecord K ts1 ts2 s1 s2)
+  then show ?case 
+    by (simp add: list_all2_conv_all_nth list_all3_conv_all_nth glb_trecord)
+next
+  case (subty_tsum K ts1 ts2)
+  then show ?case
+    by (simp add: glb_tsum inf.absorb2 list_all2_conv_all_nth list_all3_conv_all_nth)
+qed (auto intro: type_lub_type_glb.intros)
+
 theorem type_glb_type_lub_subtyping_equivalent:
   shows
-    "a \<leftarrow> a \<squnion> b \<longleftrightarrow> a \<sqsubseteq> b"
-    "b \<leftarrow> a \<sqinter> b \<longleftrightarrow> a \<sqsubseteq> b"
-  sorry
-*)
+    "K \<turnstile> a \<leftarrow> a \<squnion> b \<longleftrightarrow> K \<turnstile> b \<sqsubseteq> a"
+    "K \<turnstile> b \<leftarrow> a \<sqinter> b \<longleftrightarrow> K \<turnstile> b \<sqsubseteq> a"
+  using subtyping_to_type_lub type_lub_type_glb_to_subtyping subtyping_to_type_glb by blast+
 
 end
