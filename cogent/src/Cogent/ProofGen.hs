@@ -41,6 +41,7 @@ instance Functor (EnvExpr t v) where
   fmap f (EE t e env) = EE t (ffmap f e) env
 
 data Thm = Thm String
+         | ThmAq String
          | NthThm String Int
          | ThmInst String [(String, String)]
 
@@ -51,7 +52,8 @@ data Tactic = RuleTac Thm
             | SplitsTac Int [(Int, [Tactic])]
 
 instance Show Thm where
-  show (Thm thm) = "@{thm " ++ thm ++ "}"
+  show (Thm thm) = "(Proof_Context.get_thm @{context} \"" ++ thm ++ "\")" -- "@{thm " ++ thm ++ "}"
+  show (ThmAq thm) = "@{thm " ++ thm ++ "}"
   show (NthThm thm n) = "(nth @{thms " ++ thm ++ "} (" ++ show n ++ "-1))"
   show (ThmInst thm insts) = "@{thm " ++ thm ++ "[where " ++
                                 intercalate " and " [ var ++ " = \"" ++ term ++ "\"" | (var, term) <- insts ] ++ "]}"
@@ -371,7 +373,7 @@ typing xi k (EE t' (Fun f ts _) env) = case findfun f xi of
         do ta <- use tsTypeAbbrevs
            mod <- use nameMod
            let unabbrev | M.null (fst ta) = "" | otherwise = " " ++ typeAbbrevBucketName
-           return [rule (fn_proof (mod f) unabbrev)], -- Ξ, ks, (tt, [Some t]) T⊢ f : u
+           return [(RuleTac (ThmAq (fn_proof (mod f) unabbrev)))], -- Ξ, ks, (tt, [Some t]) T⊢ f : u
         allKindCorrect k ts ks, -- list_all2 (kinding K) ts ks
         return [simp],          -- t' = instantiate ts (TFun t u)
         wellformed ks t,        -- ks ⊢ t wellformed
@@ -384,7 +386,7 @@ typing xi k (EE t' (Fun f ts _) env) = case findfun f xi of
            mod <- use nameMod
            let unabbrev | M.null (fst ta) = ""
                         | otherwise = "[unfolded " ++ typeAbbrevBucketName ++ "]"
-           return [simp_add ["\\<Xi>_def", mod f ++ "_type_def" ++ unabbrev]], -- Ξ f = (ks, t, u)
+           return [Simplifier [Thm "\\<Xi>_def", ThmAq $ mod f ++ "_type_def" ++ unabbrev] []], -- Ξ f = (ks, t, u)
         allKindCorrect k ts ks,   -- list_all2 (kinding K) ts ks
         return [simp],            -- t' = instantiate ts (TFun t u)
         wellformed ks (TFun t u), -- ks ⊢ TFun t u wellformed

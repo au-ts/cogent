@@ -421,7 +421,7 @@ options [timeout=$ISABELLE_TIMEOUT] theories [quick_and_dirty] \
          if check_output cogent --type-proof --fml-typing-tree "$source" --root-dir="../../"  --dist-dir="$COUT"
          then
            sed -i -e 's,"ProofTrace","../isa/ProofTrace",' "$COUT/$THYNAME.thy"
-           if check_output $ISABELLE build -d "$COUT" "$ISABELLE_SESSION_NAME"
+           if time check_output $ISABELLE build -c -d "$COUT" "$ISABELLE_SESSION_NAME"
            then passed+=1; echo "$pass_msg"
            else echo "$fail_msg"
            fi
