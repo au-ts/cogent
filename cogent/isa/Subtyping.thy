@@ -40,7 +40,6 @@ inductive type_lub :: "kind env \<Rightarrow> type \<Rightarrow> type \<Rightarr
                                           else b2 = b)) ts ts1 ts2
                 ; map fst ts = map fst ts1
                 ; map fst ts1 = map fst ts2
-                ; distinct (map fst ts)
                 ; s = s1 ; s1 = s2
                 \<rbrakk> \<Longrightarrow> K \<turnstile> TRecord ts s \<leftarrow> TRecord ts1 s1 \<squnion> TRecord ts2 s2"
 | lub_tprod  : "\<lbrakk> K \<turnstile> t \<leftarrow> t1 \<squnion> t2
@@ -50,7 +49,6 @@ inductive type_lub :: "kind env \<Rightarrow> type \<Rightarrow> type \<Rightarr
                 ; list_all3 (\<lambda>p p1 p2. snd (snd p) = sup (snd (snd p1)) (snd (snd p2))) ts ts1 ts2
                 ; map fst ts = map fst ts1
                 ; map fst ts1 = map fst ts2
-                ; distinct (map fst ts)
                 \<rbrakk> \<Longrightarrow> K \<turnstile> TSum ts \<leftarrow> TSum ts1 \<squnion> TSum ts2"
 | lub_tunit  : "K \<turnstile> TUnit \<leftarrow> TUnit \<squnion> TUnit"
 
@@ -80,7 +78,6 @@ inductive type_lub :: "kind env \<Rightarrow> type \<Rightarrow> type \<Rightarr
                                           else b = b2 \<and> b1 = b2)) ts ts1 ts2
                 ; map fst ts = map fst ts1
                 ; map fst ts1 = map fst ts2
-                ; distinct (map fst ts)
                 ; s = s1 ; s1 = s2
                 \<rbrakk> \<Longrightarrow> K \<turnstile> TRecord ts s \<leftarrow> TRecord ts1 s1 \<sqinter> TRecord ts2 s2"
 | glb_tprod  : "\<lbrakk> K \<turnstile> t \<leftarrow> t1 \<sqinter> t2
@@ -90,7 +87,6 @@ inductive type_lub :: "kind env \<Rightarrow> type \<Rightarrow> type \<Rightarr
                 ; list_all3 (\<lambda>p p1 p2. snd (snd p) = inf (snd (snd p1)) (snd (snd p2))) ts ts1 ts2
                 ; map fst ts = map fst ts1
                 ; map fst ts1 = map fst ts2
-                ; distinct (map fst ts)
                 \<rbrakk> \<Longrightarrow> K \<turnstile> TSum ts \<leftarrow> TSum ts1 \<sqinter> TSum ts2"
 | glb_tunit  : "K \<turnstile> TUnit \<leftarrow> TUnit \<sqinter> TUnit"
 
@@ -114,16 +110,22 @@ next
   ultimately show
   "K \<turnstile> TRecord ts s \<leftarrow> TRecord ts s \<squnion> TRecord ts s"
   "K \<turnstile> TRecord ts s \<leftarrow> TRecord ts s \<sqinter> TRecord ts s"
-     apply -
-     apply (rule_tac lub_trecord)
-           apply (metis (no_types, lifting) fsts.intros wellformed_record_wellformed_elem list_all3_same snds.intros surjective_pairing)
-          apply (simp add: list_all3_same)
-         apply (simp+)[5]
-    apply (rule_tac glb_trecord)
-          apply (metis (no_types, lifting) fsts.intros wellformed_record_wellformed_elem list_all3_same snds.intros surjective_pairing)
-         apply (simp add: list_all3_same)
-        apply (simp+)[5]
-    done
+  proof -
+    have tWellformed: "\<And>i. i < length ts \<Longrightarrow> K \<turnstile> fst (snd (ts ! i)) wellformed"
+      by (metis nth_mem prod.collapse ts_wellformed wellformed_record_wellformed_elem)
+    show "K \<turnstile> TRecord ts s \<leftarrow> TRecord ts s \<squnion> TRecord ts s"
+    proof (rule_tac lub_trecord)
+      show "list_all3 (\<lambda>p p1 p2. K \<turnstile> fst (snd p) \<leftarrow> fst (snd p1) \<squnion> fst (snd p2)) ts ts ts"
+        using TRecord.hyps
+        by (metis (no_types, lifting) fsts.intros in_set_conv_nth list_all3_same snds.intros tWellformed)
+    qed (simp add: list_all3_same)+
+    show "K \<turnstile> TRecord ts s \<leftarrow> TRecord ts s \<sqinter> TRecord ts s"
+    proof (rule_tac glb_trecord)
+      show "list_all3 (\<lambda>p p1 p2. K \<turnstile> fst (snd p) \<leftarrow> fst (snd p1) \<sqinter> fst (snd p2)) ts ts ts"
+        using TRecord.hyps
+        by (metis (no_types, lifting) fsts.intros in_set_conv_nth list_all3_same snds.intros tWellformed)
+    qed (simp add: list_all3_same)+
+  qed
 qed (fastforce intro!: type_lub_type_glb.intros)+
 
 lemma type_lub_type_glb_commut:
@@ -133,11 +135,15 @@ lemma type_lub_type_glb_commut:
 proof (induct rule: type_lub_type_glb.inducts)
   case (lub_trecord K ts ts1 ts2 s s1 s2)
   then show ?case
-    apply (intro type_lub_type_glb.intros)
-          apply (clarsimp simp add: list_all3_conv_all_nth)
-         apply (clarsimp simp add: list_all3_conv_all_nth, metis)
-        apply (simp+)[5]
-    done
+  proof (rule_tac type_lub_type_glb.lub_trecord)
+    show "list_all3 (\<lambda>p p1 p2. K \<turnstile> fst (snd p) \<leftarrow> fst (snd p1) \<squnion> fst (snd p2)) ts ts2 ts1"
+      using list_all3_comm2 list_all3_mono lub_trecord.hyps by fastforce
+    show "list_all3 (\<lambda>p p1 p2. let b = snd (snd p); b1 = snd (snd p1); b2 = snd (snd p2) in 
+          (if K \<turnstile> fst (snd p1) :\<kappa> {D} then b1 \<le> b else b1 = b) \<and> 
+          (if K \<turnstile> fst (snd p2) :\<kappa> {D} then b2 \<le> b else b2 = b)) ts ts2 ts1"
+      using lub_trecord.hyps
+      by (clarsimp simp add: list_all3_conv_all_nth, meson)
+  qed (simp)+
 next
   case (lub_tsum K ts ts1 ts2)
   then show ?case
@@ -145,11 +151,16 @@ next
 next
   case (glb_trecord K ts ts1 ts2 s s1 s2)
   then show ?case
-    apply (intro type_lub_type_glb.intros)
-          apply (clarsimp simp add: list_all3_conv_all_nth)
-         apply (clarsimp simp add: list_all3_conv_all_nth, metis)
-        apply (simp+)[5]
-    done
+  proof (rule_tac type_lub_type_glb.glb_trecord)
+    show "list_all3 (\<lambda>p p1 p2. K \<turnstile> fst (snd p) \<leftarrow> fst (snd p1) \<sqinter> fst (snd p2)) ts ts2 ts1"
+      using glb_trecord.hyps list_all3_comm2 list_all3_mono by fastforce
+    show "list_all3 (\<lambda>p p1 p2.  let b = snd (snd p); b1 = snd (snd p1); b2 = snd (snd p2) in 
+          if K \<turnstile> fst (snd p) :\<kappa> {D} then b \<le> b1 \<and> b \<le> b2 
+          else b = b2 \<and> b1 = b2) ts ts2 ts1"
+      using glb_trecord.hyps
+      apply (clarsimp simp add: list_all3_conv_all_nth)
+      by metis
+  qed (simp)+
 next
   case (glb_tsum K ts ts1 ts2)
   then show ?case
