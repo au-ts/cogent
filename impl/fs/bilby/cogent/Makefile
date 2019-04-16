@@ -162,6 +162,19 @@ linux: .c-gen
 verification: .verif-gen
 	$(Q)mv $(DIST_DIR)/$(OUTPUT).table $(DIST_DIR)/wrapper_pp_inferred.table
 
+corresproof:
+	sed -i -e 's/^session BilbyFs_CorresProof = BilbyFs_CorresSetup +$$/session BilbyFs_CorresProof = AutoCorres +/' plat/verification/ROOT
+	$(Q)isabelle build -d $(AC_DIR) -d ../../../../cogent/isa -d plat/verification -v BilbyFs_CorresProof
+
+allrefine:
+	sed -i -e 's/^session BilbyFs_AllRefine = BilbyFs_CorresProof +$$/session BilbyFs_AllRefine = AutoCorres +/' plat/verification/ROOT
+	$(Q)isabelle build -d $(AC_DIR) -d ../../../../cogent/isa -d plat/verification -v BilbyFs_AllRefine
+
+shallownormal:
+	echo 'session BilbyFs_Shallow_Normal = AutoCorres +' >> plat/verification/ROOT
+	echo '   theories [quick_and_dirty] "BilbyFs_Shallow_Normal"' >> plat/verification/ROOT
+	$(Q)isabelle build -d $(AC_DIR) -d ../../../../cogent/isa -d plat/verification -v BilbyFs_Shallow_Normal
+
 clean:
 	$(E) "Cleaning up.."
 	$(Q)rm -f $(HOUTPUT)
