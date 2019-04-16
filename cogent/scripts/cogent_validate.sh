@@ -402,7 +402,8 @@ if [[ "$TESTSPEC" =~ '--tc-proof--' ]]; then
     echo -n '* Preparing Cogent theory heap... '
     COGENTHEAPSPEC="session \"$COGENTHEAPNAME\" = \"HOL-Word\" + \
 options [timeout=$ISABELLE_TIMEOUT] theories [quick_and_dirty] \
-\"../isa/CogentHelper\""
+\"../isa/CogentHelper\" \
+\"../../c-refinement/TypeProofGen\""
     echo "$COGENTHEAPSPEC" > "$COUT/ROOT"
     if ! check_output $ISABELLE build -d "$COUT" -b "$COGENTHEAPNAME"
     then
@@ -420,7 +421,8 @@ options [timeout=$ISABELLE_TIMEOUT] theories [quick_and_dirty] \
 
          if check_output cogent --type-proof --fml-typing-tree "$source" --root-dir="../../"  --dist-dir="$COUT"
          then
-           sed -i -e 's,"ProofTrace","../isa/ProofTrace",' "$COUT/$THYNAME.thy"
+           sed -i -e "s,\"ProofTrace\",\"$COGENTHEAPNAME.ProofTrace\"," "$COUT/$THYNAME.thy"
+           sed -i -e "s,\".*/c-refinement/TypeProofGen\",\"$COGENTHEAPNAME.TypeProofGen\"," "$COUT/$THYNAME.thy"
            if time check_output $ISABELLE build -c -d "$COUT" "$ISABELLE_SESSION_NAME"
            then passed+=1; echo "$pass_msg"
            else echo "$fail_msg"
