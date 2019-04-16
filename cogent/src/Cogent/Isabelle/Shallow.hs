@@ -224,7 +224,7 @@ shallowExpr (TE t (Case e tag (_,n1,e1) (_,n2,e2))) = do
                         typedCons = TermWithType cons te'
                      in mkLambda [vgn] $ mkApp (mkId vgn2) [typedCons]
       rcase = mkApp (mkStr ["case_",tn]) $ es ++ [e']
-  pure $ mkL vgn2 e2' rcase
+  pure $ mkLet vgn2 e2' rcase
 -- \ ^^^ NOTE: We can't use the @case _ of@ syntax as our @case@s are binary (and nested).
 -- It seems that Isabelle spends exponential time on processing the @case _ of@ syntax depending
 -- on the level of nestings. / zilinc
@@ -587,10 +587,10 @@ toCaseLemma (SCCD {..}) = let
                 "scorres (match (shallow_tac__var v)) match' (v'#\\<gamma>) \\<xi>) \\<Longrightarrow> \n"++
               "(\\<And>v v'. valRel \\<xi> v v' \\<Longrightarrow> "++
                 "scorres (rest (shallow_tac__var v)) rest' (v'#\\<gamma>) \\<xi>) \\<Longrightarrow> \n"++
-              "scorres (case_" ++ bigType ++ " " ++ unwords (map shallowCase typeStr) ++
-                " x) (Case x' " ++ tagString ++ " match' rest') \\<gamma> \\<xi>"
+              "scorres (HOL.Let rest (\\<lambda>co. case_" ++ bigType ++ " " ++ unwords (map shallowCase typeStr) ++
+                " x)) (Case x' " ++ tagString ++ " match' rest') \\<gamma> \\<xi>"
     shallowCase tag' | tag == tag' = "match"
-                     | otherwise   = "(\\<lambda>x. rest (" ++ bigType ++ "." ++ tag' ++ " x))"
+                     | otherwise   = "(\\<lambda>x. co (" ++ bigType ++ "." ++ tag' ++ " x))"
     tagString = show $ pretty $ mkString tag
     methods = [ Method "clarsimp" ["simp:", "scorres_def", "shallow_tac__var_def", "valRel_" ++ bigType]
               , Method "erule" ["v_sem_caseE"] ] ++
