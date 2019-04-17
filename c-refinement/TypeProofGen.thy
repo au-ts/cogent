@@ -99,6 +99,7 @@ fun get_typing_bucket ctxt f proof =
 type details = (thm list * thm Tree list * thm list)
 
 fun get_all_typing_details ctxt name script : details = let
+    val _ = (log_info ("solving " ^ name))
     val timer_total = Timing.start ()
     val timer = Timing.start ()
     val tacs = TTyping_Tactics.mk_ttsplit_tacs_final name
@@ -106,25 +107,31 @@ fun get_all_typing_details ctxt name script : details = let
     val tacs' = map (fn f => fn ctxt => f ctxt 1) tacs
     val res = Timing.result timer
     val _ = (@{print} "phase: make tacs"; @{print} res)
+    val _ = (log_info "phase: make tacs"; log_info (@{make_string} res))
     val timer = Timing.start ()
     val orig_typing_tree = get_typing_tree ctxt name tacs'
     val res = Timing.result timer
     val _ = (@{print} "phase: solve typing tree"; @{print} res)
+    val _ = (log_info "phase: solve typing tree"; log_info (@{make_string} res))
     val timer = Timing.start ()
     val typecorrect_thms = map (Goal.finish ctxt) (map tree_hd orig_typing_tree)
       |> map (simplify ctxt #> Thm.varifyT_global)
     val res = Timing.result timer
     val _ = (@{print} "phase: simplify tree"; @{print} res)
+    val _ = (log_info "phase: simplify tree"; log_info (@{make_string} res))
     val timer = Timing.start ()
     val typing_tree = map (tree_map (cleanup_typing_tree_thm ctxt)) orig_typing_tree
     val res = Timing.result timer
     val _ = (@{print} "phase: clean tree"; @{print} res)
+    val _ = (log_info "phase: clean tree"; log_info (@{make_string} res))
     val timer = Timing.start ()
     val bucket = typing_tree_to_bucket typing_tree
     val res = Timing.result timer
     val _ = (@{print} "phase: make bucket"; @{print} res)
+    val _ = (log_info "phase: make bucket"; log_info (@{make_string} res))
     val res = Timing.result timer_total
     val _ = (@{print} "solve time total"; @{print} res)
+    val _ = (log_info "solve time total"; log_info (@{make_string} res))
 
   in (typecorrect_thms, typing_tree, bucket) end
 
