@@ -66,8 +66,23 @@ fun anormal_let_conv ctxt thm =
   Conv.bottom_conv (fn _ => fn ct => case Thm.term_of ct of
             Const ("HOL.Let", _) $ _ $ Abs (v, _, _) =>
               if String.isPrefix "an\<^sub>" v then Conv.rewr_conv @{thm Let_def} ct else Conv.all_conv ct
+          (* XXX: I think this constant name is wrong. Let_{ds} isn't defined in HOL, it's defined in ShallowUtil *)
+          (* If this tactic worked before, does that mean this case is not necessary? *)
           | Const ("HOL.Let\<^sub>d\<^sub>s", _) $ _ $ Abs (v, _, _) =>
               if String.isPrefix "an\<^sub>" v then Conv.rewr_conv @{thm Let\<^sub>d\<^sub>s_def} ct else Conv.all_conv ct
+          | _ => Conv.all_conv ct)
+    ctxt
+  |> (fn conv => Conv.fconv_rule conv thm)
+*}
+
+ML {*
+(* Like above, but only inline lets introduced as case expression continuations *)
+(* This is a separate function because we need to do it on both levels *)
+(* TODO: might need to change compiler to generate a fresher name than v_g prefix *)
+fun inline_case_continuation_conv ctxt thm =
+  Conv.bottom_conv (fn _ => fn ct => case Thm.term_of ct of
+            Const ("HOL.Let", _) $ _ $ Abs (v, _, _) =>
+              if String.isPrefix "v\<^sub>G" v then Conv.rewr_conv @{thm Let_def} ct else Conv.all_conv ct
           | _ => Conv.all_conv ct)
     ctxt
   |> (fn conv => Conv.fconv_rule conv thm)
@@ -264,8 +279,8 @@ fun normalisation_tac ctxt
         (* add function arguments *)
         REPEAT (rtac @{thm ext} 1)
         (* unfold functions *)
-        THEN EqSubst.eqsubst_tac ctxt [0] [anormal_conv src_def] 1
-        THEN EqSubst.eqsubst_tac ctxt [0] [anormal_conv (anormal_let_conv ctxt norm_def)] 1
+        THEN EqSubst.eqsubst_tac ctxt [0] [anormal_conv (inline_case_continuation_conv ctxt src_def)] 1
+        THEN EqSubst.eqsubst_tac ctxt [0] [anormal_conv (inline_case_continuation_conv ctxt (anormal_let_conv ctxt norm_def))] 1
         (* add callee proofs -- should get trivial equality at this point *)
         THEN simp_tac (put_simpset HOL_basic_ss ctxt addsimps callees) 1)
   val thm = Goal.prove_future ctxt [] [] (@{term Trueprop} $ prop)

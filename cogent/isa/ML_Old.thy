@@ -18,7 +18,7 @@
  *)
 
 theory ML_Old
-  imports Pure
+  imports Main
 begin
 
 declare [[ML_debugger=true]]
