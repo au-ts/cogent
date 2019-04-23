@@ -96,7 +96,10 @@ fun cleanup_typing_tree_thm ctxt thm = Goal.finish ctxt thm
         (t RS @{thm ttyping_imp_typing}) handle THM _ =>
         t
        )
-    |> simplify_thm ctxt)
+    |> Simplifier.simplify
+      ((put_simpset HOL_basic_ss ctxt)
+        addsimps @{thms Product_Type.fst_conv[THEN HOL.eq_reflection] Product_Type.snd_conv[THEN HOL.eq_reflection]})
+    |> Simplifier.simplify ctxt)
   |> Thm.varifyT_global
 
 fun get_final_typing_tree ctxt f proof =
