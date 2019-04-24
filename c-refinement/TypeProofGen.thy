@@ -87,6 +87,18 @@ fun get_typing_tree ctxt f proof =
 fun simplify_thm ctxt thm =
   Conv.fconv_rule (Simplifier.rewrite ctxt) thm
 
+val cleanup_ss : simpset =
+  put_simpset HOL_basic_ss @{context}
+    addsimps @{thms
+      Product_Type.fst_conv
+      Product_Type.snd_conv
+      List.list.simps
+      List.append.simps
+    }
+  |> simpset_of
+*}
+
+ML {*
 fun cleanup_typing_tree_thm ctxt thm = Goal.finish ctxt thm
   |> (fn t =>
        (
@@ -96,9 +108,7 @@ fun cleanup_typing_tree_thm ctxt thm = Goal.finish ctxt thm
         (t RS @{thm ttyping_imp_typing}) handle THM _ =>
         t
        )
-    |> Simplifier.simplify
-      ((put_simpset HOL_basic_ss ctxt)
-        addsimps @{thms Product_Type.fst_conv[THEN HOL.eq_reflection] Product_Type.snd_conv[THEN HOL.eq_reflection]})
+    |> Simplifier.simplify (put_simpset cleanup_ss ctxt)
     |> Simplifier.simplify ctxt)
   |> Thm.varifyT_global
 
