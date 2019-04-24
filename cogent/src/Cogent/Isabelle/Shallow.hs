@@ -36,6 +36,7 @@ import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Core as CC
 import Cogent.Desugar as D (freshVarPrefix)
+import Cogent.Isabelle.Compound (takeFlatCase)
 import Cogent.Isabelle.ShallowTable (TypeStr(..), st, getStrlType, toTypeStr)
 import Cogent.Normal as N (freshVarPrefix)
 import Cogent.Util (NameMod, Stage(..), Warning)
@@ -206,6 +207,20 @@ shallowExpr (TE _ (LetBang vs nm e1 e2)) = shallowLet nm e1 e2
 shallowExpr (TE _ (Tuple e1 e2)) = mkApp <$> (pure $ mkId "Pair") <*> (mapM shallowExpr [e1, e2])
 shallowExpr (TE t (Struct fs)) = shallowMaker t fs
 shallowExpr (TE _ (If c th el)) = mkApp <$> (pure $ mkId "HOL.If") <*> mapM shallowExpr [c, th, el]
+
+shallowExpr e
+ | Just (escrut,ealts) <- takeFlatCase e = do
+  escrut' <- shallowExpr escrut
+  let te@(TSum talts) = exprType escrut
+  tn  <- findTypeSyn te
+  te' <- shallowType te
+  ealts' <- traverse (\(n,e) -> mkLambdaE [snm n] e) ealts
+  let es = flip map alts $ \(tag',(t',b')) ->
+             case M.lookup tag' ealts' of
+              Just e' -> e'
+              Nothing -> error ("shallowExpr: takeFlatCase succeeded but returned map missing tag " ++ show tag')
+  pure $ mkApp (mkStr ["case_",tn]) $ es ++ [escrut']
+
 shallowExpr (TE t (Case e tag (_,n1,e1) (_,n2,e2))) = do
   e' <- shallowExpr e
   let te@(TSum alts) = exprType e

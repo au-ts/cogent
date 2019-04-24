@@ -76,6 +76,7 @@ library
               , Cogent.Inference
               , Cogent.Isabelle.ACInstall
               , Cogent.Isabelle.AllRefine
+              , Cogent.Isabelle.Compound
               , Cogent.Isabelle.CorresProof
               , Cogent.Isabelle.CorresSetup
               , Cogent.Isabelle.Deep

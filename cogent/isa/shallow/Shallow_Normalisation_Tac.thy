@@ -82,7 +82,7 @@ ML {*
 fun inline_case_continuation_conv ctxt thm =
   Conv.bottom_conv (fn _ => fn ct => case Thm.term_of ct of
             Const ("HOL.Let", _) $ _ $ Abs (v, _, _) =>
-              if String.isPrefix "v\<^sub>G" v then Conv.rewr_conv @{thm Let_def} ct else Conv.all_conv ct
+              if String.isPrefix "ccase\<^sub>G" v then Conv.rewr_conv @{thm Let_def} ct else Conv.all_conv ct
           | _ => Conv.all_conv ct)
     ctxt
   |> (fn conv => Conv.fconv_rule conv thm)
