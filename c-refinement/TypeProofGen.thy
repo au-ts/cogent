@@ -14,6 +14,7 @@ theory TypeProofGen imports
 begin
 
 ML {*
+
 fun debug_print_to_file pathstr s = File.write (Path.explode pathstr) s
 
 val LOG_FILE = Path.basic "TypeProofTactic.log"
@@ -48,6 +49,20 @@ lemma ttsplit_bang_imp_split_bang':
   "ttsplit_bang is splits k \<Gamma> xs \<Gamma>1 ys \<Gamma>2 \<Longrightarrow>
     split_bang k is (snd \<Gamma>) (drop (length xs) (snd \<Gamma>1)) (drop (length ys) (snd \<Gamma>2))"
   by (fastforce dest: ttsplit_bang_imp_split_bang)
+
+
+lemma drop_appended_list: "drop (length xs) (xs @ ys) = ys"
+  by simp
+
+lemma drop_eval_simps:
+  "drop 0 xs = xs"
+  "drop (Suc n) (x # xs) = drop n xs"
+  by simp+
+
+lemma length_eval_simps:
+  "length [] = 0"
+  "length (x # xs) = Suc (length xs)"
+  by simp+
 
 (* Generate type system lemma buckets *)
 ML {*
@@ -92,15 +107,15 @@ val cleanup_ss : simpset =
     addsimps @{thms
       Product_Type.fst_conv
       Product_Type.snd_conv
-      List.list.simps
-      List.append.simps
+      drop_appended_list
+      drop_eval_simps
+      length_eval_simps
     }
   |> simpset_of
-*}
 
-ML {*
-fun cleanup_typing_tree_thm ctxt thm = Goal.finish ctxt thm
-  |> (fn t =>
+fun cleanup_typing_tree_thm ctxt thm =
+  Goal.finish ctxt thm
+    |> (fn t =>
        (
         (t RS @{thm ttsplit_imp_split'}) handle THM _ =>
         (t RS @{thm ttsplit_inner_imp_split}) handle THM _ =>
@@ -109,7 +124,12 @@ fun cleanup_typing_tree_thm ctxt thm = Goal.finish ctxt thm
         t
        )
     |> Simplifier.simplify (put_simpset cleanup_ss ctxt)
-    |> Simplifier.simplify ctxt)
+    |> (fn t => let
+        val t' = Simplifier.simplify ctxt t
+        val _ = if (Thm.prop_of t = Thm.prop_of t')
+          then ()
+          else (log_info (@{make_string} t); log_info (@{make_string} t'); ())
+      in t' end))
   |> Thm.varifyT_global
 
 fun get_final_typing_tree ctxt f proof =
