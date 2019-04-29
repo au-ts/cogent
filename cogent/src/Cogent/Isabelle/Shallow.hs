@@ -646,24 +646,35 @@ toCaseLemma (SCFD {..}) = let
 
     bound            = ["x", "x'", "\\<gamma>", "\\<xi>"] ++ map shallow_cont typeStr ++ map tag_at all_ixs ++ map deep_cont all_ixs
 
-    shallow_of_ix  ix v      = "((" ++ shallow_of_ix' ix all_tags ++ ")" ++ " (shallow_tac__var " ++ v ++ "))"
-    shallow_of_ix' ix []     = ""
-    shallow_of_ix' ix [t]    = shallow_cont t
-    shallow_of_ix' ix (t:ts) = unwords ["if", tag_at ix, "=", show $ pretty $ mkString t, "then", shallow_cont t, "else", shallow_of_ix' ix ts]
+    deep_cont_of_tag  tag        = deep_cont_of_tag' tag all_ixs
+    deep_cont_of_tag' tag []     = "undefined"
+    deep_cont_of_tag' tag (i:is) = unwords ["if", tag_at i, "=", show $ pretty $ mkString tag
+                                           , "then", deep_cont i
+                                           , "else", deep_cont_of_tag' tag is]
 
-    gamma_of_ix    ix v'     = "(" ++ v' ++ " # " ++ concat (replicate (ix - 1) ("VSum " ++ tag_at ix ++ " " ++ v' ++ " # ")) ++ "\\<gamma>)"
+    gamma_of_ix    ix v'         = "(" ++ v' ++ " # " ++ concat (replicate (ix - 1) ("VSum " ++ tag_at ix ++ " " ++ v' ++ " # ")) ++ "\\<gamma>)"
 
-    scorres_assumption ix    = "(\\<And>v v'. valRel \\<xi> v v' \\<Longrightarrow> scorres " ++
-                               unwords [shallow_of_ix ix "v", deep_cont ix, gamma_of_ix ix "v'", "\\<xi>"] ++
-                               ") \\<Longrightarrow>"
+    gamma_of_tag  tag v'         = gamma_of_tag' tag v' all_ixs
+    gamma_of_tag' tag v' []      = "undefined"
+    gamma_of_tag' tag v' (i:is)  = unwords ["if", tag_at i, "=", show $ pretty $ mkString tag
+                                           , "then", gamma_of_ix i v'
+                                           , "else", gamma_of_tag' tag v' is]
 
-    deep_case scrut []       = ""
-    deep_case scrut [ix]     = "(Let (Esac " ++ scrut ++ " " ++ tag_at ix ++ ") " ++ deep_cont ix ++ ")"
-    deep_case scrut (ix:ixs) = "(Case " ++ scrut ++ " " ++ tag_at ix ++ " " ++ deep_cont ix ++ " (" ++ deep_case "(Var 0)" ixs ++ "))"
+    scorres_assumption tag       = "(\\<And>v v'. valRel \\<xi> v v' \\<Longrightarrow> scorres " ++
+                                   unwords ["(" ++ shallow_cont tag
+                                           , "(shallow_tac__var v))"
+                                           , "(" ++ deep_cont_of_tag tag ++ ")"
+                                           , "(" ++ gamma_of_tag tag "v'" ++ ")"
+                                           , "\\<xi>"] ++
+                                   ") \\<Longrightarrow>"
+
+    deep_case scrut []           = ""
+    deep_case scrut [ix]         = "(Let (Esac " ++ scrut ++ " " ++ tag_at ix ++ ") " ++ deep_cont ix ++ ")"
+    deep_case scrut (ix:ixs)     = "(Case " ++ scrut ++ " " ++ tag_at ix ++ " " ++ deep_cont ix ++ " (" ++ deep_case "(Var 0)" ixs ++ "))"
 
     propStr = "\\<And> " ++ unwords bound ++ ".\n" ++
               "scorres x x' \\<gamma> \\<xi> \\<Longrightarrow> \n"++
-              unlines (map scorres_assumption all_ixs) ++
+              unlines (map scorres_assumption all_tags) ++
               "scorres (case_" ++ bigType ++ " " ++ unwords (map shallow_cont all_tags) ++ " x)" ++
                         deep_case "x'" all_ixs ++ " \\<gamma> \\<xi>"
 
