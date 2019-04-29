@@ -597,7 +597,7 @@ caseLemmaBuckets :: CaseLemmaBuckets -> [TheoryDecl I.Type I.Term]
 caseLemmaBuckets (CaseLemmaBuckets cases esacs flats cons) =
   concat $ P.zipWith defineLemmaBucket
     ["scorres_cases", "scorres_esacs", "scorres_flat_cases", "scorres_cons" ]
-    [cases, esacs, cons]
+    [cases, esacs, flats, cons]
 
 toCaseLemma :: SCorresCaseData -> Writer CaseLemmaBuckets (TheoryDecl I.Type I.Term)
 toCaseLemma (SCCD {..}) = let
@@ -666,14 +666,20 @@ toCaseLemma (SCFD {..}) = let
               unlines (map scorres_assumption all_ixs) ++
               "scorres (case_" ++ bigType ++ " " ++ unwords (map shallow_cont all_tags) ++ " x)" ++
                         deep_case "x'" all_ixs ++ " \\<gamma> \\<xi>"
-    methods = [ Method "clarsimp" ["simp:", "scorres_def", "shallow_tac__var_def", "valRel_" ++ bigType]
-              , Method "erule" ["v_sem_caseE"] ] ++
-              (concat $ replicate 2 $
-                 [ foldr1 (MethodCompound MethodSeq)
-                     [Method "erule" ["allE"], Method "erule" ["impE"], Method "assumption" []]
-                 , Method "cases" ["x"] ] ++
-                 replicate (P.length typeStr)
-                   (Method "force" ["simp:", "valRel_" ++ bigType]))
+
+    m_erule e           = Method "erule" [e]
+
+    m_pre               = Method "clarsimp" ["simp:", "scorres_def", "shallow_tac__var_def", "valRel_" ++ bigType]
+    m_elim_arg_relation = foldr1 (MethodCompound MethodSeq) [m_erule "allE", m_erule "impE", Method "assumption" []]
+    m_case_shallow_arg  = Method "case_tac" ["x"]
+    m_force_simps       = replicate (P.length all_tags)
+                        $ Method "force" ["simp:", "valRel_" ++ bigType]
+
+    -- TODO: it might be possible to lift out m_elim_arg_relation, m_case_shallow_arg and m_force_simps to a separate lemma statement.
+    m_solve_case        = [ m_erule "v_sem_caseE", m_elim_arg_relation, m_case_shallow_arg ] ++ m_force_simps
+    m_solve_esac        = [ m_erule "v_sem_letE", m_erule "v_sem_esacE", m_erule "v_sem_varE", m_elim_arg_relation, m_case_shallow_arg ] ++ m_force_simps
+
+    methods = [m_pre] ++ concat (replicate (P.length all_tags - 1) m_solve_case) ++ m_solve_esac
   in do tell (CaseLemmaBuckets [] [] [thmName] [])
         return $ O.LemmaDecl (O.Lemma False (Just (TheoremDecl (Just thmName) [])) [mkId propStr] $ Proof methods ProofDone)
 toCaseLemma (SCCN {..}) = let
