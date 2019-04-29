@@ -232,7 +232,7 @@ shallowExpr (TE t (Case e tag (_,n1,e1) (_,n2,e2))) = do
   vn <- varNameGen <<%= (+1)
   vn2 <- varNameGen <<%= (+1)
   let vgn = "v" ++ (subSymStr $ "G" ++ show vn)
-      vgn2 = "v" ++ (subSymStr $ "G" ++ show vn2)  -- This is the continuation @e2@
+      vgn2 = "ccase" ++ (subSymStr $ "G" ++ show vn2)  -- This is the continuation @e2@
       es = flip map alts $ \(tag',(t',b')) ->
              if | tag == tag' -> e1'
                 | otherwise -> 
