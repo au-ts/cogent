@@ -123,6 +123,24 @@ let
   val abs_fun_app = abs_thms RL @{thms scorres_app}
 
   val read_buckets = maps (fn n => Proof_Context.get_thms lthy n handle ERROR _ => [])
+
+  (* Prioritise flattened cases over everything else, as the unflattened case rule might work locally
+     even if the shallow representation is flattened *)
+  val flat_case_net =
+        Tactic.build_net (read_buckets ["scorres_flat_cases"])
+  (* flat_case lemmas have some cruft like "if tag_1 = ''Tag1''" in their assumptions,
+     and applying the rule should instantiate tag_1 to a constant string,
+     so we want to do just enough simplification to check whether two strings are equal
+     and commit to one branch of the if. *)
+  (* Need to mess a bit with the simpset, can't just use the lthy context in full_simp_tac:
+     apparently it's not a super context? *)
+  val flat_case_simp_ss =
+        simpset_of ((clear_simpset @{context})
+        addsimps  @{thms char.inject list.inject if_True if_False HOL.simp_thms})
+  fun flat_case_tac ctxt =
+        resolve_from_net_tac ctxt flat_case_net
+        THEN_ALL_NEW (full_simp_tac (put_simpset flat_case_simp_ss ctxt))
+
   val step_net =
         Tactic.build_net (@{thms scorres_simple_step} @
                           read_buckets ["scorres_cases", "scorres_esacs", "scorres_cons",
@@ -131,7 +149,8 @@ let
   val struct_op_net = Tactic.build_net @{thms scorres_take scorres_put scorres_member}
   val struct_field_net = Tactic.build_net (read_buckets ["scorres_rec_fields"])
   fun generic_step ctxt n =
-        resolve_from_net_tac ctxt step_net n
+        flat_case_tac ctxt n
+        ORELSE (resolve_from_net_tac ctxt step_net n)
         ORELSE (resolve_from_net_tac ctxt step_simp_net n THEN SOLVE_GOAL (full_simp_tac ctxt n))
         ORELSE (resolve_from_net_tac ctxt struct_op_net n THEN resolve_from_net_tac ctxt struct_field_net n)
   val lthy = gen_scorres_lemmas skip (abs_thms @ abs_fun_app) Aname Dname generic_step fn_dnames lthy;
