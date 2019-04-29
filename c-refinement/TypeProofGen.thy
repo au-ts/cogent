@@ -37,6 +37,21 @@ lemma ttsplit_bang_imp_split_bang':
     split_bang k is (snd \<Gamma>) (drop (length xs) (snd \<Gamma>1)) (drop (length ys) (snd \<Gamma>2))"
   by (fastforce dest: ttsplit_bang_imp_split_bang)
 
+(* simplification rules for type-tree cleanup *)
+lemma drop_appended_list: "drop (length xs) (xs @ ys) = ys"
+  by simp
+
+lemma drop_eval_simps:
+  "drop 0 xs = xs"
+  "drop (Suc n) (x # xs) = drop n xs"
+  by simp+
+
+lemma length_eval_simps:
+  "length [] = 0"
+  "length (x # xs) = Suc (length xs)"
+  by simp+
+
+
 (* Generate type system lemma buckets *)
 ML {*
 
@@ -80,8 +95,20 @@ fun get_typing_tree ctxt f proof : thm tree list =
 fun simplify_thm ctxt thm =
   Conv.fconv_rule (Simplifier.rewrite ctxt) thm
 
-fun cleanup_typing_tree_thm ctxt thm = Goal.finish ctxt thm
-  |> (fn t =>
+val cleanup_ss : simpset =
+  put_simpset HOL_basic_ss @{context}
+    addsimps @{thms
+      Product_Type.fst_conv
+      Product_Type.snd_conv
+      drop_appended_list
+      drop_eval_simps
+      length_eval_simps
+    }
+  |> simpset_of
+
+fun cleanup_typing_tree_thm ctxt thm =
+  Goal.finish ctxt thm
+    |> (fn t =>
        (
         (t RS @{thm ttsplit_imp_split'}) handle THM _ =>
         (t RS @{thm ttsplit_inner_imp_split}) handle THM _ =>
@@ -89,7 +116,9 @@ fun cleanup_typing_tree_thm ctxt thm = Goal.finish ctxt thm
         (t RS @{thm ttyping_imp_typing}) handle THM _ =>
         t
        )
-    |> simplify_thm ctxt)
+    |> Simplifier.simplify (put_simpset cleanup_ss ctxt)
+    (* |> Simplifier.simplify ctxt *) (* Hopefully superflous. Didn't cause any changes when run on Bilby *)
+    )
   |> Thm.varifyT_global
 
 fun get_final_typing_tree ctxt f proof =
