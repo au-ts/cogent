@@ -124,12 +124,8 @@ fun cleanup_typing_tree_thm ctxt thm =
         t
        )
     |> Simplifier.simplify (put_simpset cleanup_ss ctxt)
-    |> (fn t => let
-        val t' = Simplifier.simplify ctxt t
-        val _ = if (Thm.prop_of t = Thm.prop_of t')
-          then ()
-          else (log_info (@{make_string} t); log_info (@{make_string} t'); ())
-      in t' end))
+    (* |> Simplifier.simplify ctxt *) (* Hopefully superflous. Didn't not cause any changes when run on Bilby *)
+    )
   |> Thm.varifyT_global
 
 fun get_final_typing_tree ctxt f proof =
