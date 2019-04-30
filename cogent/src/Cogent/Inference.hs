@@ -304,7 +304,7 @@ typecheck e t = do
   let t' = exprType e
   isSub <- isSubtype t' t
   if | t == t' -> return e
-     | isSub -> return (TE t (Promote t e))
+     | isSub -> return (promote t e)
      | otherwise -> __impossible "Inferred type doesn't agree with the given type signature"
 
 infer :: UntypedExpr t v a -> TC t v (TypedExpr t v a)
@@ -369,7 +369,7 @@ infer (E (App e1 e2))
         e2'@(TE ti' _) <- infer e2
         isSub <- ti' `isSubtype` ti
         guardShow ("app (actual: " ++ show ti' ++ "; formal: " ++ show ti ++ ")") $ isSub
-        if ti' /= ti then return $ TE to (App e1' (TE ti $ Promote ti e2'))
+        if ti' /= ti then return $ TE to (App e1' (promote ti e2'))
                      else return $ TE to (App e1' e2')
 infer (E (Let a e1 e2))
    = do e1' <- infer e1
@@ -403,8 +403,8 @@ infer (E (If ec et ee))
         Just tlub <- runMaybeT $ tt `lub` te
         isSub <- (&&) <$> tt `isSubtype` tlub <*> te `isSubtype` tlub
         guardShow' "if-2" ["Then type:", show (pretty tt) ++ ";", "else type:", show (pretty te)] isSub
-        let et'' = if tt /= tlub then TE tlub (Promote tlub et') else et'
-            ee'' = if te /= tlub then TE tlub (Promote tlub ee') else ee'
+        let et'' = if tt /= tlub then promote tlub et' else et'
+            ee'' = if te /= tlub then promote tlub ee' else ee'
         return $ TE tlub (If ec' et'' ee'')
 infer (E (Case e tag (lt,at,et) (le,ae,ee)))
    = do e' <- infer e
@@ -418,8 +418,8 @@ infer (E (Case e tag (lt,at,et) (le,ae,ee)))
         Just tlub <- runMaybeT $ tt `lub` te
         isSub <- (&&) <$> tt `isSubtype` tlub <*> te `isSubtype` tlub
         guardShow' "case" ["Match type:", show (pretty tt) ++ ";", "rest type:", show (pretty te)] isSub
-        let et'' = if tt /= tlub then TE tlub (Promote tlub et') else et'
-            ee'' = if te /= tlub then TE tlub (Promote tlub ee') else ee'
+        let et'' = if tt /= tlub then promote tlub et' else et'
+            ee'' = if te /= tlub then promote tlub ee' else ee'
         return $ TE tlub (Case e' tag (lt,at,et'') (le,ae,ee''))
 infer (E (Esac e))
    = do e'@(TE (TSum ts) _) <- infer e
@@ -464,7 +464,7 @@ infer (E (Put e1 f e2))
         e2'@(TE t2 _) <- infer e2
         isSub <- t2 `isSubtype` tau
         guardShow "put-3" isSub
-        let e2'' = if t2 /= tau then TE tau (Promote tau e2') else e2'
+        let e2'' = if t2 /= tau then promote tau e2' else e2'
         return $ TE (TRecord (init ++ (fn,(tau,False)):rest) s) (Put e1' f e2'')  -- put it regardless
 infer (E (Cast ty e))
    = do (TE t e') <- infer e
@@ -473,6 +473,51 @@ infer (E (Cast ty e))
 infer (E (Promote ty e))
    = do (TE t e') <- infer e
         guardShow ("promote: " ++ show t ++ " << " ++ show ty) =<< t `isSubtype` ty
-        return $ if t /= ty then TE ty (Promote ty $ TE t e')
+        return $ if t /= ty then promote ty $ TE t e'
                             else TE t e'  -- see NOTE [How to handle type annotations?] in Desugar
+
+
+-- | Promote an expression to a given type, pushing down the promote as far as possible.
+-- This structure is useful when destructing runs of case expressions, for example in Cogent.Isabelle.Compound.
+--
+-- Consider this example of a ternary case:
+-- > Case scrutinee tag1
+-- >  when_tag1
+-- >  (Promote ty
+-- >    (Case (Var 0) tag2
+-- >      when_tag2
+-- >      (Promote ty
+-- >        (Let
+-- >          (Esac (Var 0))
+-- >          when_tag3))))))
+--
+-- Here, the promote expressions obscure the nested pattern-matching structure of the program.
+-- We would like instead to push down the promotes to the following:
+-- > Case scrutinee tag1
+-- >  when_tag1
+-- >  (Case (Var 0) tag2
+-- >    (Promote ty when_tag2)
+-- >    (Let
+-- >      (Esac (Var 0))
+-- >      (Promote ty when_tag3)))
+--
+-- In this pushed version, the promotion and the pattern matching are separate.
+--
+-- A-normalisation results in a similar structure, but when squashing case expressions for the
+-- shallow embedding, we want this to apply to desugared as well as normalised.
+--
+promote :: Type t -> TypedExpr t v a -> TypedExpr t v a
+promote t (TE t' e) = case e of
+  -- For continuation forms, push the promote into the continuations
+  Let a e1 e2         -> TE t $ Let a e1 $ promote t e2
+  LetBang vs a e1 e2  -> TE t $ LetBang vs a e1 $ promote t e2
+  If ec et ee         -> TE t $ If ec (promote t et) (promote t ee)
+  Case e tag (l1,a1,e1) (l2,a2,e2)
+                      -> TE t $ Case e tag
+                                  (l1, a1, promote t e1)
+                                  (l2, a2, promote t e2)
+  -- Collapse consecutive promotes
+  Promote _ e'        -> promote t e' 
+  -- Otherwise, no simplification is necessary; construct a Promote expression as usual.
+  _                   -> TE t $ Promote t (TE t' e)
 

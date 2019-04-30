@@ -36,6 +36,7 @@ import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Core as CC
 import Cogent.Desugar as D (freshVarPrefix)
+import Cogent.Isabelle.Compound (takeFlatCase)
 import Cogent.Isabelle.ShallowTable (TypeStr(..), st, getStrlType, toTypeStr)
 import Cogent.Normal as N (freshVarPrefix)
 import Cogent.Util (NameMod, Stage(..), Warning)
@@ -206,6 +207,21 @@ shallowExpr (TE _ (LetBang vs nm e1 e2)) = shallowLet nm e1 e2
 shallowExpr (TE _ (Tuple e1 e2)) = mkApp <$> (pure $ mkId "Pair") <*> (mapM shallowExpr [e1, e2])
 shallowExpr (TE t (Struct fs)) = shallowMaker t fs
 shallowExpr (TE _ (If c th el)) = mkApp <$> (pure $ mkId "HOL.If") <*> mapM shallowExpr [c, th, el]
+
+shallowExpr e
+ | Just (escrut,ealts) <- takeFlatCase e
+ , tscrut              <- exprType escrut
+ , TSum talts          <- tscrut
+ = do
+  escrut' <- shallowExpr escrut
+  tn      <- findTypeSyn tscrut
+  ealts'  <- traverse (\(n,e) -> mkLambdaE [snm n] e) ealts
+  let es   = flip map talts $ \(tag',(t',b')) ->
+              case M.lookup tag' ealts' of
+               Just e' -> e'
+               Nothing -> __impossible ("shallowExpr: takeFlatCase succeeded but returned map missing tag " ++ show tag')
+  pure $ mkApp (mkStr ["case_",tn]) $ es ++ [escrut']
+
 shallowExpr (TE t (Case e tag (_,n1,e1) (_,n2,e2))) = do
   e' <- shallowExpr e
   let te@(TSum alts) = exprType e
@@ -216,7 +232,7 @@ shallowExpr (TE t (Case e tag (_,n1,e1) (_,n2,e2))) = do
   vn <- varNameGen <<%= (+1)
   vn2 <- varNameGen <<%= (+1)
   let vgn = "v" ++ (subSymStr $ "G" ++ show vn)
-      vgn2 = "v" ++ (subSymStr $ "G" ++ show vn2)  -- This is the continuation @e2@
+      vgn2 = "ccase" ++ (subSymStr $ "G" ++ show vn2)  -- This is the continuation @e2@
       es = flip map alts $ \(tag',(t',b')) ->
              if | tag == tag' -> e1'
                 | otherwise -> 
@@ -525,7 +541,7 @@ defineLemmaBucket name lems =
   [ O.LemmasDecl (O.Lemmas (O.TheoremDecl (Just name) []) $ map (\l -> O.TheoremDecl (Just l) []) lems) ]
 
 {-
- - Generate rules for Case, Esac, Con 
+ - Generate rules for Case, Esac, Con, and Flattened case
  -}
 data SCorresCaseData = SCCD { bigType :: String
                             , typeStr :: [String]
@@ -535,8 +551,12 @@ data SCorresCaseData = SCCD { bigType :: String
                             , typeStr :: [String]
                             , tag :: String
                             }
+                     | SCFD { bigType :: String
+                            , typeStr :: [String]
+                            }
                      | SCCN { tag :: String
-                            , bigType :: String }
+                            , bigType :: String
+                            }
                      deriving (Show, Eq, Ord)
 
 scorresCaseExpr :: MapTypeName -> TypedExpr t v VarName -> S.Set SCorresCaseData
@@ -545,7 +565,7 @@ scorresCaseExpr m = CC.foldEPre unwrap scorresCaseExpr'
     scorresCaseExpr' (TE t e@(Case (TE bt _) tag (_,_,e1) (_,_,e2)))
       | (tstr@(VariantStr vs):_) <- toTypeStr bt
       , Just bt' <- M.lookup tstr m
-      = S.singleton $ SCCD bt' vs tag
+      = S.fromList [SCCD bt' vs tag, SCFD bt' vs]
     scorresCaseExpr' (TE t e@(Esac (TE bt@(TSum alts) _)))
       | tag <- fst (P.head (filter (not . snd . snd) alts))
       , (tstr@(VariantStr vs):_) <- toTypeStr bt
@@ -558,26 +578,26 @@ scorresCaseExpr m = CC.foldEPre unwrap scorresCaseExpr'
     scorresCaseExpr' (TE t e) = S.empty
     unwrap (TE t e) = e
 
-data CaseLemmaBuckets = CaseLemmaBuckets [String] [String] [String]
+data CaseLemmaBuckets = CaseLemmaBuckets [String] [String] [String] [String]
 
 #if __GLASGOW_HASKELL__ < 803
 instance Monoid CaseLemmaBuckets where
-  mempty = CaseLemmaBuckets [] [] []
-  mappend (CaseLemmaBuckets as bs cs) (CaseLemmaBuckets as' bs' cs') =
-    CaseLemmaBuckets (as ++ as') (bs ++ bs') (cs ++ cs')
+  mempty = CaseLemmaBuckets [] [] [] []
+  mappend (CaseLemmaBuckets as bs cs ds) (CaseLemmaBuckets as' bs' cs' ds') =
+    CaseLemmaBuckets (as ++ as') (bs ++ bs') (cs ++ cs') (ds ++ ds')
 #else
 instance Semigroup CaseLemmaBuckets where
-  CaseLemmaBuckets as bs cs <> CaseLemmaBuckets as' bs' cs' =
-    CaseLemmaBuckets (as ++ as') (bs ++ bs') (cs ++ cs')
+  CaseLemmaBuckets as bs cs ds <> CaseLemmaBuckets as' bs' cs' ds' =
+    CaseLemmaBuckets (as ++ as') (bs ++ bs') (cs ++ cs') (ds ++ ds')
 instance Monoid CaseLemmaBuckets where
-  mempty = CaseLemmaBuckets [] [] []
+  mempty = CaseLemmaBuckets [] [] [] []
 #endif
 
 caseLemmaBuckets :: CaseLemmaBuckets -> [TheoryDecl I.Type I.Term]
-caseLemmaBuckets (CaseLemmaBuckets cases esacs cons) =
+caseLemmaBuckets (CaseLemmaBuckets cases esacs flats cons) =
   concat $ P.zipWith defineLemmaBucket
-    ["scorres_cases", "scorres_esacs", "scorres_cons" ]
-    [cases, esacs, cons]
+    ["scorres_cases", "scorres_esacs", "scorres_flat_cases", "scorres_cons" ]
+    [cases, esacs, flats, cons]
 
 toCaseLemma :: SCorresCaseData -> Writer CaseLemmaBuckets (TheoryDecl I.Type I.Term)
 toCaseLemma (SCCD {..}) = let
@@ -600,7 +620,7 @@ toCaseLemma (SCCD {..}) = let
                  , Method "cases" ["x"] ] ++
                  replicate (P.length typeStr)
                    (Method "force" ["simp:", "valRel_" ++ bigType]))
-  in do tell (CaseLemmaBuckets [thmName] [] [])
+  in do tell (CaseLemmaBuckets [thmName] [] [] [])
         return $ O.LemmaDecl (O.Lemma False (Just (TheoremDecl (Just thmName) [])) [mkId propStr] $ Proof methods ProofDone)
 toCaseLemma (SCED {..}) = let
   thmName = "scorres_esac_"  ++ mangleNames [bigType, tag]
@@ -612,8 +632,67 @@ toCaseLemma (SCED {..}) = let
             " x) (Esac x' " ++ tagString ++ ") \\<gamma> \\<xi>"
   methods = [ Method "cases" ["x"],
               Method "auto" ["simp: scorres_def valRel_" ++ bigType ++ " elim!: v_sem_esacE"] ]
- in do tell (CaseLemmaBuckets [] [thmName] [])
+ in do tell (CaseLemmaBuckets [] [thmName] [] [])
        return $ O.LemmaDecl (O.Lemma False (Just (TheoremDecl (Just thmName) [])) [mkId propStr] $ Proof methods ProofDone)
+toCaseLemma (SCFD {..}) = let
+    thmName          = "scorres_flat_case_" ++ bigType
+
+    shallow_cont tag = "shallow_" ++ tag
+    tag_at       ix  = "tag_" ++ show ix
+    deep_cont    ix  = "deep_" ++ show ix
+
+    all_tags         = typeStr
+    all_ixs          = [1 .. P.length all_tags]
+
+    bound            = ["x", "x'", "\\<gamma>", "\\<xi>"] ++ map shallow_cont typeStr ++ map tag_at all_ixs ++ map deep_cont all_ixs
+
+    deep_cont_of_tag  tag        = deep_cont_of_tag' tag all_ixs
+    deep_cont_of_tag' tag []     = "undefined"
+    deep_cont_of_tag' tag (i:is) = unwords ["if", tag_at i, "=", show $ pretty $ mkString tag
+                                           , "then", deep_cont i
+                                           , "else", deep_cont_of_tag' tag is]
+
+    gamma_of_ix    ix v'         = "(" ++ v' ++ " # " ++ concat (replicate (ix - 1) ("VSum " ++ tag_at ix ++ " " ++ v' ++ " # ")) ++ "\\<gamma>)"
+
+    gamma_of_tag  tag v'         = gamma_of_tag' tag v' all_ixs
+    gamma_of_tag' tag v' []      = "undefined"
+    gamma_of_tag' tag v' (i:is)  = unwords ["if", tag_at i, "=", show $ pretty $ mkString tag
+                                           , "then", gamma_of_ix i v'
+                                           , "else", gamma_of_tag' tag v' is]
+
+    scorres_assumption tag       = "(\\<And>v v'. valRel \\<xi> v v' \\<Longrightarrow> scorres " ++
+                                   unwords ["(" ++ shallow_cont tag
+                                           , "(shallow_tac__var v))"
+                                           , "(" ++ deep_cont_of_tag tag ++ ")"
+                                           , "(" ++ gamma_of_tag tag "v'" ++ ")"
+                                           , "\\<xi>"] ++
+                                   ") \\<Longrightarrow>"
+
+    deep_case scrut []           = ""
+    deep_case scrut [ix]         = "(Let (Esac " ++ scrut ++ " " ++ tag_at ix ++ ") " ++ deep_cont ix ++ ")"
+    deep_case scrut (ix:ixs)     = "(Case " ++ scrut ++ " " ++ tag_at ix ++ " " ++ deep_cont ix ++ " (" ++ deep_case "(Var 0)" ixs ++ "))"
+
+    propStr = "\\<And> " ++ unwords bound ++ ".\n" ++
+              "scorres x x' \\<gamma> \\<xi> \\<Longrightarrow> \n"++
+              unlines (map scorres_assumption all_tags) ++
+              "scorres (case_" ++ bigType ++ " " ++ unwords (map shallow_cont all_tags) ++ " x)" ++
+                        deep_case "x'" all_ixs ++ " \\<gamma> \\<xi>"
+
+    m_erule e           = Method "erule" [e]
+
+    m_pre               = Method "clarsimp" ["simp:", "scorres_def", "shallow_tac__var_def", "valRel_" ++ bigType]
+    m_elim_arg_relation = foldr1 (MethodCompound MethodSeq) [m_erule "allE", m_erule "impE", Method "assumption" []]
+    m_case_shallow_arg  = Method "case_tac" ["x"]
+    m_force_simps       = replicate (P.length all_tags)
+                        $ Method "force" ["simp:", "valRel_" ++ bigType]
+
+    -- TODO: it might be possible to lift out m_elim_arg_relation, m_case_shallow_arg and m_force_simps to a separate lemma statement.
+    m_solve_case        = [ m_erule "v_sem_caseE", m_elim_arg_relation, m_case_shallow_arg ] ++ m_force_simps
+    m_solve_esac        = [ m_erule "v_sem_letE", m_erule "v_sem_esacE", m_erule "v_sem_varE", m_elim_arg_relation, m_case_shallow_arg ] ++ m_force_simps
+
+    methods = [m_pre] ++ concat (replicate (P.length all_tags - 1) m_solve_case) ++ m_solve_esac
+  in do tell (CaseLemmaBuckets [] [] [thmName] [])
+        return $ O.LemmaDecl (O.Lemma False (Just (TheoremDecl (Just thmName) [])) [mkId propStr] $ Proof methods ProofDone)
 toCaseLemma (SCCN {..}) = let
   thmName = "scorres_con_" ++ mangleNames [bigType, tag]
   btTag = mkId $ bigType ++ "." ++ tag
@@ -621,7 +700,7 @@ toCaseLemma (SCCN {..}) = let
   thmProp = [isaTerm| scorres x x' \<gamma> \<xi> |]
       `imp` [isaTerm| scorres ($btTag x) (Con ts $tagString x') \<gamma> \<xi> |]
   methods = [Method "erule" ["scorres_con"], Method "simp" []]
- in do tell (CaseLemmaBuckets [] [] [thmName])
+ in do tell (CaseLemmaBuckets [] [] [] [thmName])
        return $ O.LemmaDecl (O.Lemma False (Just (TheoremDecl (Just thmName) [])) [thmProp] $ Proof methods ProofDone)
 
 scorresCaseDef :: MapTypeName -> Definition TypedExpr VarName -> S.Set SCorresCaseData
