@@ -104,6 +104,10 @@ shows "filter (\<lambda> x. P (fst x)) (map (\<lambda>(a,b). (a, f b)) ls)
      = map (\<lambda>(a,b). (a, f b)) (filter (\<lambda> x. P (fst x)) ls)"
 by (induct_tac ls, auto)
 
+subsection {* list_all2 *}
+
+lemmas list_all2_nil = List.list.rel_intros(1)
+lemmas list_all2_cons = List.list.rel_intros(2)
 
 subsection {* list_all3 *}
 

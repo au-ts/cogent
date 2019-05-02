@@ -371,7 +371,7 @@ assumes "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
 and     "\<Xi> \<turnstile> \<gamma> matches \<Gamma>"
 shows   "\<Xi> \<turnstile> \<gamma> matches \<Gamma>1"
 and     "\<Xi> \<turnstile> \<gamma> matches \<Gamma>2"
-using assms proof (induct arbitrary: \<gamma> rule: split.induct)
+using assms proof (induct arbitrary: \<gamma> rule: split_inducts)
      case split_empty
        case 1 then show ?case by simp
        case 2 then show ?case by simp
@@ -419,20 +419,19 @@ using assms proof (induct arbitrary: \<gamma> rule: split_bang.induct)
      case split_bang_empty
        case 1 then show ?case by simp
        case 2 then show ?case by simp
-next case split_bang_cons note prems = this
-       case 1 with prems show ?case by (force simp:  matches_def 
-                                              iff:   list_all2_Cons2 
-                                              elim!: split_comp.cases)
-       case 2 with prems show ?case by (force simp:  matches_def 
-                                              iff:   list_all2_Cons2 
-                                              elim!: split_comp.cases)
-next case split_bang_bang note prems = this
-       case 1 with prems show ?case by (force simp: matches_def
-                                              iff:  list_all2_Cons2
-                                              dest: vval_typing_bang) 
-       case 2 with prems show ?case by (force simp: matches_def
-                                              iff:  list_all2_Cons2
-                                              dest: vval_typing_bang)
+     next case split_bang_cons
+       case 1 then show ?case
+         using split_bang_cons.hyps
+         by (auto
+             simp add: matches_def list_all2_Cons2
+             elim!: split_bang_comp.cases split_comp.cases
+             intro: vval_typing_bang)
+       case 2 then show ?case
+         using split_bang_cons.hyps
+         by (auto
+             simp add: matches_def list_all2_Cons2
+             elim!: split_bang_comp.cases split_comp.cases
+             intro: vval_typing_bang)
 qed
 
 

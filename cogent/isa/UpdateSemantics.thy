@@ -641,10 +641,10 @@ shows   "\<exists>r' w' r'' w''. r = r' \<union> r''
                        \<and> w' \<inter> w'' = {} 
                        \<and> (\<Xi>, \<sigma> \<turnstile> \<gamma> matches \<Gamma>1 \<langle>r' , w' \<rangle>) 
                        \<and> (\<Xi>, \<sigma> \<turnstile> \<gamma> matches \<Gamma>2 \<langle>r'', w''\<rangle>)" 
-using assms proof (induct arbitrary: \<gamma> r w rule: split.induct)
+using assms proof (induct arbitrary: \<gamma> r w rule: split_inducts)
      case split_empty then show ?case by (fastforce elim:  matches_ptrs.cases
                                                     intro: matches_ptrs.intros)
-next case (split_cons K x a b xs as bs \<gamma> r w) 
+next case (split_cons x xs a as b bs \<gamma> r w) 
   then show ?case 
   proof (cases \<Xi> \<sigma> \<gamma> x xs r w rule: matches_ptrs_consE)
        case 1 with split_cons show ?case   by simp
@@ -697,7 +697,6 @@ using assms by (auto dest:  instantiate_ctx_split
 
 
 
-
 lemma matches_ptrs_split_bang':
 assumes "split_bang [] vs \<Gamma> \<Gamma>1 \<Gamma>2" 
 and     "\<Xi>, \<sigma> \<turnstile> \<gamma> matches \<Gamma> \<langle>r, w\<rangle>" 
@@ -710,63 +709,72 @@ shows   "\<exists>r' w' r'' w'' b. r = r' \<union> r''
 using assms proof (induct arbitrary: \<gamma> r w rule: split_bang.induct)
      case split_bang_empty then show ?case by (fastforce elim:  matches_ptrs.cases
                                                          intro: matches_ptrs.intros)
-next case (split_bang_cons iss K x a b xs as bs \<gamma> r w) 
-  then show ?case 
-  proof (cases \<Xi> \<sigma> \<gamma> x xs r w rule: matches_ptrs_consE)
+   next case (split_bang_cons iss K x xa xb xs as bs \<gamma> r w)
+     note IH = split_bang_cons(3)
+
+     show ?case
+     proof (cases \<Xi> \<sigma> \<gamma> x xs r w rule: matches_ptrs_consE)
        case 1 with split_bang_cons show ?case   by simp
-  next case 2 with split_bang_cons show ?thesis by (auto elim: split_comp.cases)
-  next case (3 _ _ rx wx _ rs ws)
-    with split_bang_cons(2,1,3-) show ?thesis
-    proof (cases rule: split_comp.cases)
-         case none  with 3 show ?thesis by simp
-    next case left  with 3 show ?thesis
-      apply (clarsimp dest!: split_bang_cons(4))
-      apply (rule_tac x = "rx \<union> r'" in exI)
-      apply (rule_tac x = "wx \<union> w'" in exI)
-      apply (rule_tac x = "r''"     in exI, rule, blast)
-      apply (rule_tac x = "w''"     in exI, rule, blast)
-      apply (rule_tac x = "ba"      in exI)
-      apply (auto simp: Un_assoc intro!: matches_ptrs.intros)
-    done
-    next case right with 3 show ?thesis
-      apply (clarsimp dest!: split_bang_cons(4))
-      apply (rule_tac x = "r'"       in exI)
-      apply (rule_tac x = "w'"       in exI)
-      apply (rule_tac x = "rx \<union> r''" in exI, rule, blast)
-      apply (rule_tac x = "wx \<union> w''" in exI, rule, blast)
-      apply (rule_tac x = "ba"       in exI)
-      apply (auto simp: Un_assoc intro!: matches_ptrs.intros)
-    done
-    next case share with 3 show ?thesis
-      apply (clarsimp dest!: split_bang_cons(4))
-      apply (drule(2) shareable_not_writable)
-      apply (clarsimp)
-      apply (rule_tac x = "rx \<union> r'"  in exI)
-      apply (rule_tac x = "w'"       in exI)
-      apply (rule_tac x = "rx \<union> r''" in exI, rule, blast)
-      apply (rule_tac x = "w''"      in exI, rule, blast)
-      apply (rule_tac x = "ba"       in exI)
-      apply (auto simp: Un_assoc intro: matches_ptrs_some [where w = "{}", simplified])
-    done
+     next case 2 with split_bang_cons show ?thesis
+         by (auto simp add: split_bang_comp.simps split_comp.simps)
+     next case (3 g ta rx wx gs rs ws)
+       with split_bang_cons(1) show ?thesis
+       proof (cases rule: split_bang_comp.cases)
+         case nobang
+         from nobang(2) show ?thesis
+         proof (cases rule: split_comp.cases)
+           case none with 3 show ?thesis by simp
+         next
+           case (left t k)
+           with 3 show ?thesis
+             apply -
+             apply (clarsimp dest!: IH)
+             apply (rule_tac x = "rx \<union> r'" in exI)
+             apply (rule_tac x = "wx \<union> w'" in exI)
+             apply (rule_tac x = "r''"     in exI, rule, blast)
+             apply (rule_tac x = "w''"     in exI, rule, blast)
+             apply (rule_tac x = "b"      in exI)
+             apply (auto simp: Un_assoc intro!: matches_ptrs.intros)
+             done
+         next
+           case right with 3 show ?thesis
+             apply (clarsimp dest!: IH)
+             apply (rule_tac x = "r'"       in exI)
+             apply (rule_tac x = "w'"       in exI)
+             apply (rule_tac x = "rx \<union> r''" in exI, rule, blast)
+             apply (rule_tac x = "wx \<union> w''" in exI, rule, blast)
+             apply (rule_tac x = "b"       in exI)
+             apply (auto simp: Un_assoc intro!: matches_ptrs.intros)
+             done
+         next
+           case share with 3 show ?thesis
+             apply (clarsimp dest!: IH)
+             apply (drule(2) shareable_not_writable)
+             apply (clarsimp)
+             apply (rule_tac x = "rx \<union> r'"  in exI)
+             apply (rule_tac x = "w'"       in exI)
+             apply (rule_tac x = "rx \<union> r''" in exI, rule, blast)
+             apply (rule_tac x = "w''"      in exI, rule, blast)
+             apply (rule_tac x = "b"       in exI)
+             apply (auto simp: Un_assoc intro: matches_ptrs_some [where w = "{}", simplified])
+             done
+         qed
+    next
+      case (dobang t k t')
+      with 3 show ?thesis
+        apply (clarsimp dest!: IH)
+        apply (rule_tac x = "rx \<union> r'"  in exI)
+        apply (rule_tac x = "w'"       in exI)
+        apply (rule_tac x = "rx \<union> r''" in exI, rule conjI, blast)
+        apply (rule_tac x = "w''"      in exI, rule conjI, blast)
+        apply (rule_tac x = "b \<union> wx"   in exI, rule conjI, blast)
+        apply (auto
+            simp:   Un_assoc
+            dest:   matches_ptrs_some
+            intro!: matches_ptrs_some_bang
+            intro:  pointerset_helper_matches_ptrs)
+        done
     qed
-  qed 
-next case (split_bang_bang iss iss' K xs as bs x \<gamma> r w)
-  then show ?case
-  proof (cases \<Xi> \<sigma> \<gamma> "Some x" xs r w rule: matches_ptrs_consE)
-       case 1 with split_bang_bang show ?case by simp
-  next case 2 with split_bang_bang show ?thesis by simp
-  next case (3 _ _ rx wx _ rs ws) with split_bang_bang show ?thesis 
-    apply (clarsimp dest!: split_bang_bang(4))
-    apply (rule_tac x = "rx \<union> r'"  in exI)
-    apply (rule_tac x = "w'"       in exI)
-    apply (rule_tac x = "rx \<union> r''" in exI, rule, blast)
-    apply (rule_tac x = "w''"      in exI, rule, blast)
-    apply (rule_tac x = "b \<union> wx"   in exI)
-    apply (auto simp:   Un_assoc
-                dest:   matches_ptrs_some
-                intro!: matches_ptrs_some_bang
-                intro:  pointerset_helper_matches_ptrs)
-  done
   qed
 qed
 
@@ -1989,7 +1997,7 @@ qed
 
 lemma split_length_same:
   "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2 \<Longrightarrow> length \<Gamma>1 = length \<Gamma> \<and> length \<Gamma>2 = length \<Gamma>"
-  proof(induction rule: split.induct)
+  proof(induction rule: split_inducts)
    case split_empty then show ?case by auto
   next 
    case split_cons then show ?case by auto
@@ -2004,44 +2012,38 @@ lemma same_type_as_weakened:
   done
 
 lemma same_type_as_left_split:
- "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2  \<Longrightarrow>  x < length \<Gamma>1 \<Longrightarrow> \<Gamma>1!x = Some t \<Longrightarrow> \<Gamma>!x = Some t" 
-  proof(induction arbitrary: x t rule: split.induct)
-   case (split_cons K \<Gamma>hd \<Gamma>1hd b \<Gamma>tl \<Gamma>1tl bs ) then 
-   show ?case 
-   proof(induct x) 
-    case 0  show ?case by (insert 0) (erule split_comp.cases, simp_all)
-   qed simp
-  qed auto
+  "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2  \<Longrightarrow>  x < length \<Gamma>1 \<Longrightarrow> \<Gamma>1!x = Some t \<Longrightarrow> \<Gamma>!x = Some t" 
+proof (induction arbitrary: x t rule: split_inducts)
+  case split_cons then show ?case 
+    by (induct x) (force elim: split_comp.cases)+
+qed auto
 
 lemma same_type_as_right_split:
- "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2  \<Longrightarrow>  x < length \<Gamma>2 \<Longrightarrow> \<Gamma>2!x = Some t \<Longrightarrow> \<Gamma>!x = Some t" 
-  proof(induction arbitrary: x t rule: split.induct)
-   case (split_cons K \<Gamma>hd \<Gamma>1hd b \<Gamma>tl \<Gamma>1tl bs ) then 
-   show ?case 
-   proof(induct x) 
-    case 0  show ?case by (insert 0) (erule split_comp.cases, simp_all)
-   qed simp
-  qed auto
+  "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2  \<Longrightarrow>  x < length \<Gamma>2 \<Longrightarrow> \<Gamma>2!x = Some t \<Longrightarrow> \<Gamma>!x = Some t" 
+proof(induction arbitrary: x t rule: split_inducts)
+  case split_cons then show ?case 
+    by (induct x) (force elim: split_comp.cases)+
+qed auto
 
 lemma same_type_as_split_weakened:
   "\<lbrakk>[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2; [] \<turnstile> \<Gamma>1 \<leadsto>w \<Gamma>'[x := Some t]; x < length \<Gamma>1\<rbrakk> \<Longrightarrow> \<Gamma>!x = Some t"
   apply (drule(1) same_type_as_weakened)
-  proof(induction arbitrary: x t rule: split.induct)
-   case (split_cons K \<Gamma>hd \<Gamma>1hd b \<Gamma>tl \<Gamma>1tl bs ) then 
-   show ?case 
-   proof(induct x) 
-    case 0  show ?case by (insert 0) (erule split_comp.cases, simp_all)
-   qed simp
-  qed auto
+proof(induction arbitrary: x t rule: split_inducts)
+  case split_cons then show ?case 
+    by (induct x) (force elim: split_comp.cases)+
+qed auto
 
-lemma split_Some_typ_ex_kind: 
-  "\<lbrakk> [] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2; \<Gamma> ! x = Some t; x < length \<Gamma>\<rbrakk> \<Longrightarrow> \<exists>k. [] \<turnstile> t :\<kappa>  k"
-  apply (induct \<Gamma> arbitrary: \<Gamma>1 \<Gamma>2 x t, simp)
-  apply (erule split.cases, simp+)
-  apply (case_tac x)
-   apply (force elim!: split_comp.cases)
-  apply simp 
-  done
+lemma split_Some_typ_ex_kind:
+  assumes
+    "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+    "\<Gamma> ! x = Some t"
+    "x < length \<Gamma>"
+  shows "\<exists>k. [] \<turnstile> t :\<kappa> k"
+  using assms
+proof (induct arbitrary: t x rule: split_inducts)
+  case split_cons then show ?case 
+    by (induct x) (auto elim: split_comp.cases)
+qed simp
 
 end
 
