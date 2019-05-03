@@ -118,9 +118,9 @@ primrec sigil_kind :: "sigil \<Rightarrow> kind" where
 
 
 
-inductive kinding        :: "kind env \<Rightarrow> type               \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile> _ :\<kappa> _" [30,0,20] 60) 
-      and kinding_all    :: "kind env \<Rightarrow> type list          \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa> _" [30,0,20] 60) 
-      and kinding_record :: "kind env \<Rightarrow> (type \<times> bool) list \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa>r _" [30,0,20] 60) where
+inductive kinding        :: "kind env \<Rightarrow> type               \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile> _ :\<kappa> _" [55,0,55] 60) 
+      and kinding_all    :: "kind env \<Rightarrow> type list          \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa> _" [55,0,55] 60) 
+      and kinding_record :: "kind env \<Rightarrow> (type \<times> bool) list \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa>r _" [55,0,55] 60) where
 
    kind_tvar    : "\<lbrakk> k \<subseteq> (K ! i) ; i < length K \<rbrakk> \<Longrightarrow> K \<turnstile> TVar i :\<kappa> k"
 |  kind_tvarb   : "\<lbrakk> k \<subseteq> {D, S} ; i < length K \<rbrakk> \<Longrightarrow> K \<turnstile> TVarBang i :\<kappa> k"
@@ -250,26 +250,49 @@ lemmas split_inducts = list_all3_induct
   [where P=\<open>split_comp K\<close> for K, simplified split_def[symmetric],
     consumes 1, case_names split_empty split_cons, induct set: list_all3]
 
+lemmas split_cases = list_all3_cases
+  [where P=\<open>split_comp K\<close> for K, simplified split_def[symmetric], case_names split_empty split_cons]
+
 lemmas split_empty = all3Nil[where P=\<open>split_comp K\<close> for K, simplified split_def[symmetric]]
 lemmas split_cons = all3Cons[where P=\<open>split_comp K\<close> for K, simplified split_def[symmetric]]
 
 lemmas split_intros = split_empty split_cons
+
+lemmas split_Cons = list_all3_Cons[where P=\<open>split_comp K\<close> for K, simplified split_def[symmetric]]
+lemmas split_Cons1 = list_all3_Cons1[where P=\<open>split_comp K\<close> for K, simplified split_def[symmetric]]
+lemmas split_Cons2 = list_all3_Cons2[where P=\<open>split_comp K\<close> for K, simplified split_def[symmetric]]
+lemmas split_Cons3 = list_all3_Cons3[where P=\<open>split_comp K\<close> for K, simplified split_def[symmetric]]
 
 definition pred :: "nat \<Rightarrow> nat" where
   "pred n \<equiv> (case n of Suc n' \<Rightarrow> n')"
 
 
 inductive split_bang_comp :: "kind env \<Rightarrow> bool \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> bool"
-          ("_ , _ \<turnstile> _ \<leadsto>b _ \<parallel> _" [30,0,0,0,20] 60) where
+          ("_ , _ \<turnstile> _ \<leadsto>b _ \<parallel> _" [55,0,0,0,55] 60) where
   nobang : "\<lbrakk> K \<turnstile> t \<leadsto> t1 \<parallel> t2 \<rbrakk> \<Longrightarrow> K, False \<turnstile> t \<leadsto>b t1 \<parallel> t2"
-| dobang : "\<lbrakk> K \<turnstile> t :\<kappa> k ; t' = bang t \<rbrakk> \<Longrightarrow> K, True \<turnstile> Some t \<leadsto>b Some t' \<parallel> Some t"
+| dobang : "\<lbrakk> t = Some ta; t1 = Some (bang ta); t2 = Some ta \<comment> \<open>; K \<turnstile> ta :\<kappa> k\<close> \<rbrakk> \<Longrightarrow> K, True \<turnstile> t \<leadsto>b t1 \<parallel> t2"
 
 inductive split_bang :: "kind env \<Rightarrow> index set \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool"
-  ("_ \<turnstile> _ \<leadsto>b _ | _" [30,0,0,20] 60) where 
-  split_bang_empty : "split_bang K is [] [] []"
+  ("_ , _ \<turnstile> _ \<leadsto>b _ | _" [55,0,0,0,55] 60) where 
+  split_bang_nil : "split_bang K is [] [] []"
 | split_bang_cons  : "\<lbrakk> K , 0 \<in> is \<turnstile> x \<leadsto>b a \<parallel> b 
-                      ; split_bang K (pred ` is) xs as bs
+                      ; split_bang K (pred ` Set.remove (0 :: index) is) xs as bs
                       \<rbrakk>  \<Longrightarrow> split_bang K is (x # xs) (a # as) (b # bs) "
+
+lemma split_bang_Cons1:
+  "K , I \<turnstile> x # xs' \<leadsto>b ys | zs =
+    (\<exists>y ys' z zs'. ys = y # ys' \<and> zs = z # zs' \<and> K , 0\<in>I \<turnstile> x \<leadsto>b y \<parallel> z \<and> K , pred ` Set.remove (0 :: index) I \<turnstile> xs' \<leadsto>b ys' | zs')"
+  by (force elim: split_bang.cases intro: split_bang.intros)
+
+lemma split_bang_Cons2:
+  "K , I \<turnstile> xs \<leadsto>b y # ys' | zs =
+    (\<exists>x xs' z zs'. xs = x # xs' \<and> zs = z # zs' \<and> K , 0\<in>I \<turnstile> x \<leadsto>b y \<parallel> z \<and> K , pred ` Set.remove (0 :: index) I \<turnstile> xs' \<leadsto>b ys' | zs')"
+  by (force elim: split_bang.cases intro: split_bang.intros)
+
+lemma split_bang_Cons3:
+  "K , I \<turnstile> xs \<leadsto>b ys | z # zs' =
+    (\<exists>x xs' y ys'. xs = x # xs' \<and> ys = y # ys' \<and> K , 0\<in>I \<turnstile> x \<leadsto>b y \<parallel> z \<and> K , pred ` Set.remove (0 :: index) I \<turnstile> xs' \<leadsto>b ys' | zs')"
+  by (force elim: split_bang.cases intro: split_bang.intros)
 
 
 inductive weakening_comp :: "kind env \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> bool" where
@@ -281,9 +304,9 @@ definition weakening :: "kind env \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarr
   "weakening K \<equiv> list_all2 (weakening_comp K)"
 
 lemmas weakening_inducts = list_all2_induct[where P=\<open>weakening_comp K\<close> for K, simplified split_def[symmetric],
-    consumes 1, case_names weakening_empty weakening_cons, induct set: list_all2]
+    consumes 1, case_names weakening_nil weakening_cons, induct set: list_all2]
 
-lemmas weakening_empty = list_all2_nil[where R=\<open>weakening_comp K\<close> for K, simplified weakening_def[symmetric]]
+lemmas weakening_nil = list_all2_nil[where R=\<open>weakening_comp K\<close> for K, simplified weakening_def[symmetric]]
 lemmas weakening_cons = list_all2_cons[where R=\<open>weakening_comp K\<close> for K, simplified weakening_def[symmetric]]
 
 definition is_consumed :: "kind env \<Rightarrow> ctx \<Rightarrow> bool" ("_ \<turnstile> _ consumed" [30,20] 60 ) where  
@@ -902,7 +925,7 @@ and     "list_all2 (kinding K') \<delta> K"
 shows   "split_bang K' is (instantiate_ctx \<delta> \<Gamma>) (instantiate_ctx \<delta> \<Gamma>1) (instantiate_ctx \<delta> \<Gamma>2)"
   using assms
 proof (induct rule: split_bang.induct)
-  case split_bang_empty then show ?case
+  case split_bang_nil then show ?case
     by (auto simp add: instantiate_ctx_def intro: split_bang.intros)
   case split_bang_cons then show ?case
     by (auto intro!: substitutivity split_bang.intros

@@ -140,6 +140,14 @@ lemma list_induct3':
   apply (rename_tac x xs ys zs, case_tac ys; case_tac zs; force)
   done
 
+lemma list_all3_cases:
+  assumes P: "list_all3 P xs ys zs"
+  assumes Nil: "\<lbrakk> xs = [] ; ys = [] ; zs = [] \<rbrakk> \<Longrightarrow> R"
+  assumes Cons: "\<And>x xsa y ysa z zsa.
+    \<lbrakk> xs = x # xsa ; ys = y # ysa ; zs = z # zsa \<rbrakk> \<Longrightarrow> R"
+  shows "R"
+  using P by (auto elim: list_all3.cases simp add: Nil Cons)
+
 lemma list_all3_iff:
   "list_all3 P xs ys zs \<longleftrightarrow> length xs = length ys \<and> length ys = length zs \<and> (\<forall>(x, y, z) \<in> set (zip xs (zip ys zs)). P x y z)"
   apply (rule iffI)
@@ -242,8 +250,7 @@ inductive list_all4 :: "('a \<Rightarrow> 'b \<Rightarrow> 'c \<Rightarrow> 'd \
   all4Nil : "list_all4 P [] [] [] []"
 | all4Cons : "P x y z w \<Longrightarrow> list_all4 P xs ys zs ws \<Longrightarrow> list_all4 P (x # xs) (y # ys) (z # zs) (w # ws)"
 
-lemma list_all4_induct
-  [consumes 1, case_names Nil Cons, induct set: list_all4]:
+lemma list_all4_induct[case_names Nil Cons]:
   assumes P: "list_all4 P xs ys zs ws"
   assumes Nil: "R [] [] [] []"
   assumes Cons: "\<And>x xs y ys z zs  w ws.
@@ -254,6 +261,7 @@ lemma list_all4_induct
 
 lemma list_induct4':
   "\<lbrakk> P [] [] [] [];
+   \<And>x xs y ys z zs w ws. P xs ys zs ws \<Longrightarrow> P (x#xs) (y#ys) (z#zs) (w#ws);
    \<And>x xs               . P (x#xs) []     []     [];
    \<And>     y ys          . P []     (y#ys) []     [];
    \<And>x xs y ys          . P (x#xs) (y#ys) []     [];
@@ -267,10 +275,11 @@ lemma list_induct4':
    \<And>x xs y ys      w ws. P (x#xs) (y#ys) []     (w#ws);
    \<And>          z zs w ws. P []     []     (z#zs) (w#ws);
    \<And>x xs      z zs w ws. P (x#xs) []     (z#zs) (w#ws);
-   \<And>     y ys z zs w ws. P []     (y#ys) (z#zs) (w#ws);
-   \<And>x xs y ys z zs w ws. P xs ys zs ws \<Longrightarrow> P (x#xs) (y#ys) (z#zs) (w#ws) \<rbrakk>
+   \<And>     y ys z zs w ws. P []     (y#ys) (z#zs) (w#ws) \<rbrakk>
  \<Longrightarrow> P xs ys zs ws"
   by (induct xs arbitrary: ys zs ws; rename_tac ys zs ws, case_tac ys; case_tac zs; case_tac ws; simp)
+
+lemmas list_induct4_simple = list_induct4'[case_names Nil Cons]
 
 lemma list_all4_iff:
   "list_all4 P xs ys zs ws \<longleftrightarrow>
