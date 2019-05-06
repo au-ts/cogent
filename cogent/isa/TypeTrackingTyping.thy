@@ -81,9 +81,18 @@ where
     | _ \<Rightarrow> False"
 
 
+inductive ttsplit_inner_comp  :: "kind env \<Rightarrow> bool \<Rightarrow> type_split_kind option \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> bool" where
+  "\<lbrakk> t1 = t; t2 = None; \<forall>ta. t = Some ta \<longrightarrow> kndng \<longrightarrow> Ex (kinding K ta) \<rbrakk> \<Longrightarrow> ttsplit_inner_comp K kndng (Some TSK_L) t t1 t2"
+| "\<lbrakk> t1 = t; t2 = t; \<exists>ta k. t = Some ta \<and> K \<turnstile> ta :\<kappa> k \<and> S \<in> k \<rbrakk> \<Longrightarrow> ttsplit_inner_comp K kndng (Some TSK_S) t t1 t2"
+| "\<lbrakk> t1 = None; t2 = t; \<forall>y. t = Some y \<longrightarrow> kndng \<longrightarrow> Ex (kinding K y) \<rbrakk> \<Longrightarrow> ttsplit_inner_comp K kndng None t t1 t2"
+
 definition ttsplit_inner :: "kind env \<Rightarrow> type_split_kind option list \<Rightarrow> bool \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool"
 where
-  "ttsplit_inner K sps kndng \<Gamma>b \<Gamma>1 \<Gamma>2 = (
+  "ttsplit_inner K sps kndng \<Gamma> \<Gamma>1 \<Gamma>2 = list_all4 (ttsplit_inner_comp K kndng) sps \<Gamma> \<Gamma>1 \<Gamma>2"
+
+definition ttsplit_inner' :: "kind env \<Rightarrow> type_split_kind option list \<Rightarrow> bool \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool"
+where
+  "ttsplit_inner' K sps kndng \<Gamma>b \<Gamma>1 \<Gamma>2 = (
           length sps = length \<Gamma>b
         \<and> \<Gamma>1 = map (\<lambda> (sp, v). if sp \<in> {Some TSK_L, Some TSK_S} then v else None)
                         (zip sps \<Gamma>b)
@@ -93,6 +102,54 @@ where
         \<and> list_all (\<lambda>t. t \<noteq> None \<longrightarrow> kndng \<longrightarrow> (K \<turnstile> the t wellformed)) \<Gamma>b
         \<and> (\<forall>i < length \<Gamma>b. nth sps i = Some TSK_S
             \<longrightarrow> (\<exists>t. \<Gamma>b ! i = Some t \<and> (\<exists>k. K \<turnstile> t :\<kappa> k \<and> S \<in> k))))"
+
+
+lemmas ttsplit_inner_induct =
+  list_all4_induct[where P=\<open>ttsplit_inner_comp K kndng\<close> for K kndng,
+    simplified ttsplit_inner_def[symmetric],
+    consumes 1,
+    case_names Nil Cons]
+
+lemmas ttsplit_inner_nil =
+  all4Nil[where P=\<open>ttsplit_inner_comp K kndng\<close> for K kndng , simplified ttsplit_inner_def[symmetric]]
+lemmas ttsplit_inner_cons =
+  all4Cons[where P=\<open>ttsplit_inner_comp K kndng\<close> for K kndng, simplified ttsplit_inner_def[symmetric]]
+lemmas ttsplit_inner_intros = ttsplit_inner_nil ttsplit_inner_cons
+
+lemmas ttsplit_inner_conv_all_nth =
+  list_all4_conv_all_nth[where P=\<open>ttsplit_inner_comp K kndng\<close> for K kndng, simplified ttsplit_inner_def[symmetric]]
+
+lemmas ttsplit_inner_Cons =
+  list_all4_Cons[where P=\<open>ttsplit_inner_comp K kndng\<close> for K kndng, simplified ttsplit_inner_def[symmetric]]
+
+lemmas ttsplit_inner_ConsD = ttsplit_inner_Cons[THEN iffD2, OF conjI]
+
+lemmas ttsplit_inner_Cons1 =
+  list_all4_Cons1[where P=\<open>ttsplit_inner_comp K kndng\<close> for K kndng, simplified ttsplit_inner_def[symmetric]]
+lemmas ttsplit_inner_Cons2 =
+  list_all4_Cons2[where P=\<open>ttsplit_inner_comp K kndng\<close> for K kndng, simplified ttsplit_inner_def[symmetric]]
+
+
+lemma ttsplit_inner_iff_ttsplit_inner':
+  "ttsplit_inner K sps kndng \<Gamma>b \<Gamma>1 \<Gamma>2 \<longleftrightarrow> ttsplit_inner' K sps kndng \<Gamma>b \<Gamma>1 \<Gamma>2"
+proof (rule iffI)
+  assume "ttsplit_inner K sps kndng \<Gamma>b \<Gamma>1 \<Gamma>2"
+  then  show "ttsplit_inner' K sps kndng \<Gamma>b \<Gamma>1 \<Gamma>2"
+  proof (induct rule: ttsplit_inner_induct)
+    case Cons then show ?case
+      apply (clarsimp simp add: ttsplit_inner'_def)
+      apply (erule ttsplit_inner_comp.cases)
+        apply (force simp add: list_all_length All_less_Suc2)+
+      done
+  qed (clarsimp simp add: ttsplit_inner'_def)
+next
+  assume "ttsplit_inner' K sps kndng \<Gamma>b \<Gamma>1 \<Gamma>2"
+  then show "ttsplit_inner K sps kndng \<Gamma>b \<Gamma>1 \<Gamma>2"
+    apply (clarsimp simp add: ttsplit_inner'_def ttsplit_inner_conv_all_nth)
+    apply (case_tac "sps ! i" rule: type_split_kind_option_exhaust)
+       apply (fastforce simp add: list_all_length ttsplit_inner_comp.simps)+
+    done
+qed
 
 definition ttsplit :: "kind env \<Rightarrow> tree_ctx \<Rightarrow> type_split_kind option list
         \<Rightarrow> ctx \<Rightarrow> tree_ctx \<Rightarrow> ctx \<Rightarrow> tree_ctx \<Rightarrow> bool"
@@ -122,7 +179,7 @@ lemma ttsplit_innerI:
   "K \<turnstile> \<gamma> :\<kappa>  k \<Longrightarrow> S \<in> k \<Longrightarrow> ttsplit_inner K sps kndng \<Gamma>b \<Gamma>1 \<Gamma>2
     \<Longrightarrow> ttsplit_inner K (Some TSK_S # sps) kndng (Some \<gamma> # \<Gamma>b) (Some \<gamma> # \<Gamma>1) (Some \<gamma> # \<Gamma>2)"
   "ttsplit_inner K [] kndng [] [] []"  
-  by (auto simp add: ttsplit_inner_def forall_less_Suc_eq)
+  by (force intro!: ttsplit_inner_intros simp add: ttsplit_inner_comp.simps)+
 
 lemma split_list_zip:
   "split K \<Gamma> \<Gamma>1 \<Gamma>2 = (length \<Gamma>1 = length \<Gamma> \<and> length \<Gamma>2 = length \<Gamma>
@@ -137,8 +194,9 @@ lemma split_list_zip:
 lemma ttsplit_imp_split:
   "ttsplit K \<Gamma> ijs xs \<Gamma>1 ys \<Gamma>2 \<Longrightarrow> (\<exists>\<Gamma>1a \<Gamma>2a. split K (snd \<Gamma>) \<Gamma>1a \<Gamma>2a
     \<and> snd \<Gamma>1 = xs @ \<Gamma>1a \<and> snd \<Gamma>2 = ys @ \<Gamma>2a)"
-  apply (clarsimp simp add: ttsplit_def ttsplit_inner_def split_comp.simps split_conv_all_nth list_all_length)
-  apply (meson option.exhaust_sel)
+  apply (clarsimp simp add: ttsplit_def split_comp.simps split_conv_all_nth ttsplit_inner_conv_all_nth list_all_length)
+  apply (drule_tac x=i in spec)
+  apply (auto elim!: ttsplit_inner_comp.cases)
   done
 
 lemma split_imp_ttsplit:
@@ -150,10 +208,10 @@ lemma split_imp_ttsplit:
     \<Longrightarrow> ttsplit K (TyTrSplit sps xs tt ys tt2, \<Gamma>) sps xs
         (tt, \<Gamma>1') ys (tt2, \<Gamma>2')"
   apply (clarsimp
-      simp: ttsplit_def ttsplit_inner_def split_conv_all_nth list_all_length
+      simp: ttsplit_def ttsplit_inner_conv_all_nth split_conv_all_nth list_all_length
       cong: if_cong)
-  apply (safe intro!: nth_equalityI)
-       apply (force simp add: nth_enumerate_eq elim!: split_comp.cases)+
+  apply (case_tac "\<Gamma>2 ! i"; case_tac "\<Gamma>1 ! i")
+     apply (fastforce simp add: split_comp.simps ttsplit_inner_comp.simps)+
   done
 
 definition ttsplit_triv :: "tree_ctx \<Rightarrow> ctx \<Rightarrow> tree_ctx \<Rightarrow> ctx \<Rightarrow> tree_ctx \<Rightarrow> bool"
@@ -165,7 +223,7 @@ lemma ttsplit_trivI:
   "\<Gamma>1b = (\<Gamma>1a, xs @ \<Gamma>b) \<Longrightarrow> \<Gamma>2b = (\<Gamma>2a, ys @ \<Gamma>b) \<Longrightarrow> ttsplit_triv (TyTrSplit ijs xs \<Gamma>1a ys \<Gamma>2a, \<Gamma>b) xs \<Gamma>1b ys \<Gamma>2b"
   by (simp add: ttsplit_triv_def)
 
-subsection {* ttsplit_bang alternate *}
+subsection {* ttsplit_bang *}
 
 inductive ttsplit_bang_inner_comp :: "kind env \<Rightarrow> type_split_kind option \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> bool" where
   "\<lbrakk> t1 = t; t2 = None; \<forall>ta. t = Some ta \<longrightarrow> Ex (kinding K ta) \<rbrakk> \<Longrightarrow> ttsplit_bang_inner_comp K (Some TSK_L) t t1 t2"
@@ -202,7 +260,7 @@ lemmas ttsplit_bang_inner_Cons1 =
 lemmas ttsplit_bang_inner_Cons2 =
   list_all4_Cons2[where P=\<open>ttsplit_bang_inner_comp K\<close> for K, simplified ttsplit_bang_inner_def[symmetric]]
 
-subsection {* ttsplit_bang *}
+subsubsection {* ttsplit_bang alt *}
 
 definition ttsplit_bang_inner' :: "kind env \<Rightarrow> type_split_kind option list \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool"
 where
@@ -376,10 +434,10 @@ lemma split_follow_typing_tree:
   "ttsplit K \<Gamma> sps' xs' \<Gamma>1 ys' \<Gamma>2 \<Longrightarrow> (\<Gamma>1, \<Gamma>2) = follow_typing_tree \<Gamma> \<and> new_tt_types \<Gamma> = ys'"
   "ttsplit_triv \<Gamma> xs' \<Gamma>1 ys' \<Gamma>2 \<Longrightarrow> (\<Gamma>1, \<Gamma>2) = follow_typing_tree_triv \<Gamma> \<and> new_tt_types \<Gamma> = ys'"
   "ttsplit_bang is sps' K \<Gamma> xs' \<Gamma>1 ys' \<Gamma>2 \<Longrightarrow> (\<Gamma>1, \<Gamma>2) = follow_typing_tree \<Gamma> \<and> new_tt_types \<Gamma> = ys'"
-    apply (clarsimp simp: ttsplit_def ttsplit_inner_def ball_conj_distrib[symmetric])
-    apply (case_tac a, simp_all)
-    apply (case_tac aa, simp_all)
-    apply (clarsimp elim!: in_set_zipE)
+    apply (clarsimp simp: ttsplit_def ttsplit_inner_conv_all_nth)
+    apply (fastforce
+      simp add: list_eq_iff_nth_eq ttsplit_inner_comp.simps
+      elim: type_split_kind_option_exhaust)
    apply (cases \<Gamma>, clarsimp simp: ttsplit_triv_def)
   apply (clarsimp simp add: ttsplit_bang_def ball_conj_distrib[symmetric] ttsplit_bang_inner_conv_all_nth)
   apply (fastforce

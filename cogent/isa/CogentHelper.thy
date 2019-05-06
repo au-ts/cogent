@@ -89,12 +89,27 @@ lemma split_bang_bang' :"\<lbrakk> 0 \<in> is
                       ; is' = pred ` (Set.remove 0 is)
                       ; split_bang K is' xs as bs
                       \<rbrakk>  \<Longrightarrow> split_bang K is (Some x # xs) (Some x' # as) (Some x # bs)"
-                      by (simp only: split_bang_bang)
+  by (force intro!: split_bang.intros simp add: split_bang_comp.simps)
 
 definition
   type_ctx_wellformed :: "kind env \<Rightarrow> ctx \<Rightarrow> bool"
 where
   "type_ctx_wellformed K \<Gamma> = (\<forall>t. Some t \<in> set \<Gamma> \<longrightarrow> K \<turnstile> t wellformed)"
+
+definition type_ctx_wellformed' :: "kind env \<Rightarrow> ctx \<Rightarrow> bool" where
+  "type_ctx_wellformed' K \<Gamma> = list_all (\<lambda>t. \<forall>t'. t = Some t' \<longrightarrow> K \<turnstile> t' wellformed) \<Gamma>"
+
+lemma type_ctx_wellformed_iff_type_ctx_wellformed':
+  "type_ctx_wellformed K \<Gamma> = type_ctx_wellformed' K \<Gamma>"
+proof -
+  have "(\<forall>t. Some t \<in> set \<Gamma> \<longrightarrow> K \<turnstile> t wellformed) = (\<forall>t\<in>set \<Gamma>. \<forall>t'. t = Some t' \<longrightarrow> K \<turnstile> t' wellformed)"
+    by blast
+  also have "... = list_all (\<lambda>t. \<forall>t'. t = Some t' \<longrightarrow> K \<turnstile> t' wellformed) \<Gamma>"
+    by (clarsimp simp add: list_all_iff)
+  finally show ?thesis
+    unfolding type_ctx_wellformed_def type_ctx_wellformed'_def
+    by blast
+qed
 
 definition ttsplit_weak :: "kind env \<Rightarrow> tree_ctx \<Rightarrow> type_split_kind option list
         \<Rightarrow> ctx \<Rightarrow> tree_ctx \<Rightarrow> ctx \<Rightarrow> tree_ctx \<Rightarrow> bool"
@@ -110,14 +125,13 @@ lemma ttsplit_weak_lemma:
     \<Longrightarrow> type_ctx_wellformed K (snd \<Gamma>1)
     \<Longrightarrow> type_ctx_wellformed K (snd \<Gamma>2)
     \<Longrightarrow> ttsplit K \<Gamma> sps xs \<Gamma>1 ys \<Gamma>2"
-  apply (clarsimp simp: ttsplit_def ttsplit_weak_def type_ctx_wellformed_def)
-  apply (subst ttsplit_inner_def, clarsimp)
-  apply (clarsimp simp: ttsplit_inner_def in_set_conv_nth all_conj_distrib)
-  apply (clarsimp simp: image_def Product_Type.split_def set_zip)
-  apply (drule_tac x=y in spec)+
-  apply clarsimp
+  apply (clarsimp simp add: type_ctx_wellformed_iff_type_ctx_wellformed' type_ctx_wellformed'_def
+      ttsplit_def ttsplit_weak_def ttsplit_inner_conv_all_nth)
+  apply (clarsimp simp add: list_all_length)
   apply (drule_tac x=i in spec)+
-  apply (clarsimp split: if_split_asm)
+  apply clarsimp
+  apply (erule ttsplit_inner_comp.cases)
+    apply (clarsimp simp add: ttsplit_inner_comp.simps, blast)+
   done
 
 lemma ttsplit_weakI:
@@ -215,6 +229,7 @@ fun cogent_splits_tac ctxt kinding_thms =
     REPEAT_SUBGOAL (CHANGED (rtac @{thm split_cons} 1 ORELSE rtac @{thm split_empty} 1 ORELSE split_tac))
   end
 
+(*
 fun cogent_guided_ttsplits_tac ctxt sz script =
   let fun mktac i [] =
             if i = sz then rtac @{thm ttsplit_innerI(5)} 1 else
@@ -230,13 +245,14 @@ fun cogent_guided_ttsplits_tac ctxt sz script =
        asm_full_simp_tac ctxt 1 THEN
        asm_full_simp_tac ctxt 1
   end
-
+*)
 
 datatype tac = RTac of thm
              | SimpTac of thm list * thm list
              | ForceTac of thm list
              | WeakeningTac of thm list
              | SplitsTac of int * (int * tac list) list
+             | BlackBoxTac of (Proof.context -> int -> tactic)
 
 val simp = SimpTac ([], [])
 
@@ -273,6 +289,7 @@ fun interpret_tac (RTac r) _ = rtac r
   | interpret_tac (ForceTac a) ctxt = force_tac (ctxt addsimps a)
   | interpret_tac (WeakeningTac thms) ctxt = K (weakening_tac ctxt thms)
   | interpret_tac (SplitsTac (n, tacs)) ctxt = K (cogent_guided_splits_tac ctxt n tacs)
+  | interpret_tac (BlackBoxTac tac) ctxt = tac ctxt
 and cogent_guided_splits_tac ctxt sz script =
   let fun mktac i [] =
             if i = sz then rtac @{thm split_empty} 1 else
@@ -312,24 +329,40 @@ fun follow_tt (Const (@{const_name TyTrSplit}, _) $ sps $ x $ T1 $ y $ T2, ts) k
   in ((T1, x_proofs @ ts1), (T2, y_proofs @ ts2), hints) end
   | follow_tt (tt, _) _ _ _ = raise TERM ("follow_tt", [tt])
 
-fun ttsplit_inner (@{term "Some TSK_S"} :: tsks) (SOME p :: Gamma) = let
-    val rest = ttsplit_inner tsks Gamma
-  in [RTac @{thm ttsplit_innerI_True(4)}, RTac p] @ [simp] @ rest end
-  | ttsplit_inner (@{term "Some TSK_L"} :: tsks) (SOME p :: Gamma) = let
-    val rest = ttsplit_inner tsks Gamma
-  in [RTac @{thm ttsplit_innerI_True(3)}, RTac p] @ rest end
-  | ttsplit_inner (@{term "None :: type_split_kind option"} :: tsks) (SOME p :: Gamma) = let
-    val rest = ttsplit_inner tsks Gamma
-  in [RTac @{thm ttsplit_innerI_True(2)}, RTac p] @ rest end
-  | ttsplit_inner (@{term "None :: type_split_kind option"} :: tsks) (NONE :: Gamma) = let
-    val rest = ttsplit_inner tsks Gamma
-  in [RTac @{thm ttsplit_innerI_True(1)}] @ rest end
-  | ttsplit_inner [] [] = [RTac @{thm ttsplit_innerI(5)}]
-  | ttsplit_inner tsks _ = raise TERM ("ttsplit_inner", tsks)
+fun ttsplit_inner (@{term "Some TSK_S"} :: tsks) (SOME p :: Gamma) ctxt =
+    let
+      val rest = ttsplit_inner tsks Gamma
+    in resolve_tac ctxt @{thms ttsplit_innerI_True(4)}
+      THEN' (resolve_tac ctxt [p])
+      THEN' simp_tac ctxt
+      THEN' rest ctxt
+    end
+  | ttsplit_inner (@{term "Some TSK_L"} :: tsks) (SOME p :: Gamma) ctxt =
+    let
+      val rest = ttsplit_inner tsks Gamma
+    in resolve_tac ctxt @{thms ttsplit_innerI_True(3)}
+      THEN' (resolve_tac ctxt [p])
+      THEN' rest ctxt
+    end
+  | ttsplit_inner (@{term "None :: type_split_kind option"} :: tsks) (SOME p :: Gamma) ctxt =
+    let
+      val rest = ttsplit_inner tsks Gamma
+    in resolve_tac ctxt @{thms ttsplit_innerI_True(2)}
+      THEN' (resolve_tac ctxt [p])
+      THEN' rest ctxt
+    end
+  | ttsplit_inner (@{term "None :: type_split_kind option"} :: tsks) (NONE :: Gamma) ctxt =
+    let
+      val rest = ttsplit_inner tsks Gamma
+    in resolve_tac ctxt @{thms ttsplit_innerI_True(1)}
+      THEN' rest ctxt
+    end
+  | ttsplit_inner [] [] ctxt = resolve_tac ctxt @{thms ttsplit_innerI_True(5)}
+  | ttsplit_inner tsks _ _ = raise TERM ("ttsplit_inner", tsks)
 
 fun ttsplit (Const (@{const_name TyTrSplit}, _) $ sps $ _ $ _ $ _ $ _, Gamma) = let
-    val inner = ttsplit_inner (HOLogic.dest_list sps) Gamma
-  in [RTac @{thm ttsplitI}] @ inner @ [simp, simp] end
+    val inner = BlackBoxTac (ttsplit_inner (HOLogic.dest_list sps) Gamma)
+  in [RTac @{thm ttsplitI}, inner, simp, simp] end
   | ttsplit (t, _) = raise TERM ("ttsplit", [t])
 
 fun ttsplit_bang_inner (@{term "Some TSK_S"} :: tsks) (SOME p :: Gamma) = let
@@ -366,10 +399,10 @@ fun dest_all_vars' (Const (@{const_name Var}, _) $ i :: vs)
 
 val dest_all_vars = try (dest_all_vars' o HOLogic.dest_list)
 
-fun the_G G (SOME p) = p
+fun the_G _ (SOME p) = p
   | the_G G NONE = raise THM ("the_G", 1, (map (fn NONE => @{thm TrueI} | SOME t => t) G))
 
-fun typing_all_vars ctxt G [] = let
+fun typing_all_vars _ _ [] = let
   in [RTac @{thm typing_all_empty''}, simp] end
   | typing_all_vars ctxt G (ix :: ixs) = let
     fun null (NONE : thm option) = true
@@ -392,17 +425,23 @@ fun typing (Const (@{const_name Var}, _) $ i) G _ hints = let
     val i = dest_nat i
     val thm = the_G G (nth G i)
     val thms = map_filter I G
-    val ([], hints) = typing_hint hints
+    val hints = case typing_hint hints of
+                  ([], hints) => hints
+                | _ => raise ERROR "typing hints were incorrectly generated"
   in ([RTac @{thm typing_var_weak[unfolded singleton_def Cogent.empty_def]},
       RTac thm, simp, WeakeningTac thms, simp], hints) end
   | typing (Const (@{const_name Struct}, _) $ _ $ xs) G ctxt hints
   = (case dest_all_vars xs of SOME ixs => let
-    val ([], hints) = typing_hint hints
+    val hints =  case typing_hint hints of
+                   ([], hints) => hints
+                 | _ => raise ERROR "typing hints were incorrectly generated"
   in ([RTac @{thm typing_struct'}] @ typing_all_vars ctxt G ixs @ [simp], hints) end
     | NONE => typing_hint hints)
   | typing (Const (@{const_name Prim}, _) $ _ $ xs) G ctxt hints
   = (case dest_all_vars xs of SOME ixs => let
-    val ([], hints) = typing_hint hints
+    val hints = case typing_hint hints of
+                  ([], hints) => hints
+                | _ => raise ERROR "typing hints were incorrectly generated"
   in ([RTac @{thm typing_prim'}, simp, simp] @ typing_all_vars ctxt G ixs, hints) end
     | NONE => typing_hint hints)
   | typing _ _ _ hints = typing_hint hints
