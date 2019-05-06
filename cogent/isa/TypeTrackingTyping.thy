@@ -80,6 +80,7 @@ where
     | Take _ _ _ \<Rightarrow> True
     | _ \<Rightarrow> False"
 
+
 definition ttsplit_inner :: "kind env \<Rightarrow> type_split_kind option list \<Rightarrow> bool \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool"
 where
   "ttsplit_inner K sps kndng \<Gamma>b \<Gamma>1 \<Gamma>2 = (
@@ -88,10 +89,10 @@ where
                         (zip sps \<Gamma>b)
         \<and> \<Gamma>2 = map (\<lambda> (sp, v). if sp = Some TSK_L then None else v)
                         (zip sps \<Gamma>b)
-        \<and> Some TSK_NS \<notin> set sps
-        \<and> (\<forall>t \<in> set \<Gamma>b. t \<noteq> None \<longrightarrow> kndng \<longrightarrow> (K \<turnstile> the t wellformed))
+        \<and> list_all ((\<noteq>) (Some TSK_NS)) sps
+        \<and> list_all (\<lambda>t. t \<noteq> None \<longrightarrow> kndng \<longrightarrow> (K \<turnstile> the t wellformed)) \<Gamma>b
         \<and> (\<forall>i < length \<Gamma>b. nth sps i = Some TSK_S
-            \<longrightarrow> nth \<Gamma>b i \<noteq> None \<and> (\<exists>k. K \<turnstile> (the (nth \<Gamma>b i)) :\<kappa> k \<and> S \<in> k)))"
+            \<longrightarrow> (\<exists>t. \<Gamma>b ! i = Some t \<and> (\<exists>k. K \<turnstile> t :\<kappa> k \<and> S \<in> k))))"
 
 definition ttsplit :: "kind env \<Rightarrow> tree_ctx \<Rightarrow> type_split_kind option list
         \<Rightarrow> ctx \<Rightarrow> tree_ctx \<Rightarrow> ctx \<Rightarrow> tree_ctx \<Rightarrow> bool"
@@ -135,26 +136,24 @@ lemma split_list_zip:
 
 lemma ttsplit_imp_split:
   "ttsplit K \<Gamma> ijs xs \<Gamma>1 ys \<Gamma>2 \<Longrightarrow> (\<exists>\<Gamma>1a \<Gamma>2a. split K (snd \<Gamma>) \<Gamma>1a \<Gamma>2a
-    \<and> snd \<Gamma>1 = xs @ \<Gamma>1a & snd \<Gamma>2 = ys @ \<Gamma>2a)"
-  apply (clarsimp simp: ttsplit_def ttsplit_inner_def split_list_zip set_zip nth_enumerate_eq)
-  apply (case_tac "\<Gamma>b ! i")
-   apply (simp add: split_comp.none)
-  apply (drule bspec, erule nth_mem)
-  apply (drule spec, drule(1) mp)
-  apply (auto intro: split_comp.intros)
+    \<and> snd \<Gamma>1 = xs @ \<Gamma>1a \<and> snd \<Gamma>2 = ys @ \<Gamma>2a)"
+  apply (clarsimp simp add: ttsplit_def ttsplit_inner_def split_comp.simps split_conv_all_nth list_all_length)
+  apply (meson option.exhaust_sel)
   done
 
 lemma split_imp_ttsplit:
-  "split K \<Gamma> \<Gamma>1 \<Gamma>2 \<Longrightarrow> sps = map (\<lambda>i. if \<Gamma>1 ! i = None then None
-            else if \<Gamma>2 ! i = None then Some TSK_L else Some TSK_S) [0 ..< length \<Gamma>]
-    \<Longrightarrow> \<Gamma>1' = xs @ \<Gamma>1 \<Longrightarrow> \<Gamma>2' = ys @ \<Gamma>2
+  "split K \<Gamma> \<Gamma>1 \<Gamma>2
+    \<Longrightarrow> sps = map (\<lambda>i. if \<Gamma>1 ! i = None then None
+                       else if \<Gamma>2 ! i = None then Some TSK_L else Some TSK_S) [0 ..< length \<Gamma>]
+    \<Longrightarrow> \<Gamma>1' = xs @ \<Gamma>1
+    \<Longrightarrow> \<Gamma>2' = ys @ \<Gamma>2
     \<Longrightarrow> ttsplit K (TyTrSplit sps xs tt ys tt2, \<Gamma>) sps xs
         (tt, \<Gamma>1') ys (tt2, \<Gamma>2')"
-  apply (clarsimp simp: ttsplit_def ttsplit_inner_def split_list_zip nth_enumerate_eq
-                        all_set_conv_all_nth o_def image_def
-                  cong: if_cong)
-  apply (intro conjI nth_equalityI allI impI, simp_all add: nth_enumerate_eq)
-      apply (force elim!: split_comp.cases)+
+  apply (clarsimp
+      simp: ttsplit_def ttsplit_inner_def split_conv_all_nth list_all_length
+      cong: if_cong)
+  apply (safe intro!: nth_equalityI)
+       apply (force simp add: nth_enumerate_eq elim!: split_comp.cases)+
   done
 
 definition ttsplit_triv :: "tree_ctx \<Rightarrow> ctx \<Rightarrow> tree_ctx \<Rightarrow> ctx \<Rightarrow> tree_ctx \<Rightarrow> bool"

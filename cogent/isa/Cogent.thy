@@ -258,6 +258,8 @@ lemmas split_cons = all3Cons[where P=\<open>split_comp K\<close> for K, simplifi
 
 lemmas split_intros = split_empty split_cons
 
+lemmas split_conv_all_nth = list_all3_conv_all_nth[where P=\<open>split_comp K\<close> for K, simplified split_def[symmetric]]
+
 lemmas split_Cons = list_all3_Cons[where P=\<open>split_comp K\<close> for K, simplified split_def[symmetric]]
 lemmas split_Cons1 = list_all3_Cons1[where P=\<open>split_comp K\<close> for K, simplified split_def[symmetric]]
 lemmas split_Cons2 = list_all3_Cons2[where P=\<open>split_comp K\<close> for K, simplified split_def[symmetric]]
