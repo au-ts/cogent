@@ -14,35 +14,16 @@ import Data.Maybe
 import Data.List (elemIndex)
 import Control.Applicative
 import Control.Monad.Trans.Maybe
+import Control.Monad.Trans.Class (lift)
 import qualified Data.Set as S
+
 onGoal :: (Constraint -> Maybe [Constraint]) -> Goal -> Maybe [Goal]
 onGoal f g = fmap (map (derivedGoal g)) (f (g ^. goal))
-onGoal' :: (Constraint -> MaybeT m [Constraint]) -> Goal -> MaybeT m [Goal]
-onGoal' f g = fmap (map (derivedGoal g)) (f (g ^. goal))
 
 unsat :: TypeError -> Maybe [Constraint]
 unsat x = Just [Unsat x]
 elseDie :: Bool -> TypeError -> Maybe [Constraint]
 elseDie b e = (guard b >> Just []) <|> unsat e 
-
-deBang :: Rewrite.Rewrite' TcSolvM [Goal]
-deBang = Rewrite.pickOne' $ onGoal' $ \c -> case c of 
-  T (TBang (U x)) :< tau
-    | rigid tau -> do
-        tau' <- lift $ unBang tau
-        pure [U x :< tau', T (TBang tau') :=: tau]  
-  tau :< T (TBang (U x))
-    | rigid tau -> do
-        tau' <- lift $ unBang tau
-        pure [tau' :< U x, T (TBang tau') :=: tau]  
-  tau :=: T (TBang (U x))
-    | rigid tau -> do
-        tau' <- lift $ unBang tau
-        pure [tau' :=: U x, T (TBang tau') :=: tau]  
-  T (TBang (U x)) :=: tau
-    | rigid tau -> do
-        tau' <- lift $ unBang tau
-        pure [tau' :=: U x, T (TBang tau') :=: tau]  
 
 simplify :: [(TyVarName, Kind)] -> Rewrite.Rewrite [Goal]
 simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of 
