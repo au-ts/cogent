@@ -10,6 +10,6 @@
 
 type A = { x : U8, y : U32, z : Bool }
 
-foo : A take (x) -> A take (x)
+foo : A take x -> A take x
 foo a = let a' {x=v} = a {x=3}
         in a'

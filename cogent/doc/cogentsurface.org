@@ -11,8 +11,7 @@
 
 #+TITLE: Cogent Surface Syntax
 
-* Types 
-Types no longer have attached sigils (~.~, ~#~, or ~*~). (More details shortly on unboxed types)
+* Types
 
 All type names must begin with an uppercase letter. Tuple, Function, Record and Variant types have special syntax.
 
@@ -44,7 +43,8 @@ Sugar: Taking multiple fields:
 
 This ~(..)~ sugar means to take all currently untaken fields (if any).
 
-Similarly, we can write ~put~ instead of ~take~ with the same syntax. The behaviour is exactly symmetrical to ~take~. One common usage would be
+Similarly, we can write ~put~ instead of ~take~ with the same syntax. ~put~
+is dual to ~take~. One common usage would be
 
 #+BEGIN_SRC
 ({x : A, y : B, z : C, u : D, w : E} take (..)) put x
@@ -69,32 +69,31 @@ E.g.,
 #{x = e1, y = e2}  -- expression or pattern
 a.x  -- member
 a {x = f}  -- take and put, same as regular records
-
--- Wildcard: like regular records, but only available in patterns, so that we can write code like:
-foo :: #{a : A, b : B, c : C} -> T
-foo #{..} = ...  -- a, b, c are in scope, just like c-style arguments
 #+END_SRC
 
-About its kinding rules: the wrapper per se has non-linear kind (K2). If any linear fields exists inside (untaken), then the unboxed record
-becomes linear (K1). Member operation in only freely used if there're no linear fields inside, or let-banged. 
+About its kinding rules: the wrapper per se has non-linear kind (K2). If any linear fields are present (untaken), then the unboxed record
+becomes linear (K1). Member operation can only be used if there're no linear fields inside, or the unboxed record is banged (~!~). 
 
 ** Unboxed abstract types
-The ~#~ sigil is not put when being declared, but at use sites. E.g.,
+The ~#~ sigil is not used in the declaration of an unboxed abstract type.
+Instead, we attach the ~#~ sigil when the type is used. E.g.:
+
 #+BEGIN_SRC
 type A
 type T = {a : #A, b : A}
 #+END_SRC
 In the above case, field ~a~ is unboxed, whereas ~b~ is not. When generating C code, boxed abstract types will be pointers, unboxed are not. 
-Its users' responsibility to keep the C code consistent, as these types are abstract.
+It's the users' responsibility to keep the C code consistent, as these types are abstract.
 
 N.B. It's the current design, we can fix it if problems pop up.
 
 ** Bang
 
-Record types, abstract types and arrays internally have sigils, but outwardly, a Write Sigil is just a plain record type/array and an Observe sigil would be indicated with a postfix bang, for example:
+Record types and abstract types have sigils, but outwardly, a Write Sigil is just a plain record type / abstract type, and an Observe sigil would be indicated with a postfix bang, for example:
 
 #+BEGIN_SRC 
 {x : A, y : B}!
+C!
 #+END_SRC
 
 The postfix bang operator can be applied to any type, which converts all write sigils to observer sigils internally (and any type variables to observer type variables). 
@@ -115,17 +114,22 @@ Variant types look like this now.
 
 They can be constructed using ~Ok (obj,h)~, or ~Fail e~.
 
-We can determine from context if ~Identifier~ is a type or a data constructor, much like Haskell. We will have to do a little bit of inference to determine which variant type the thing actually belongs to.
+We can determine from context if ~Identifier~ (~Ok~ and ~Fail~ in the
+example above) is a type or a data constructor, much like Haskell. We will have to do a little bit of inference to determine which variant type the thing actually belongs to.
 
 They can have as many alternatives as you like, and there is no restriction on
-what goes inside a variant type (you can even have a unit in one side to give a
-~Maybe~ type, or mutliple types of error returns).
+what goes inside a variant type. Each alternative can take any number
+of arguments (0 or more). They will be desugared to tuples of all the
+arguments. E.g.:
+#+BEGIN_SRC
+<Ok Obj U8 | Fail >  -- equiv to <Ok (Obj, U8) | Fail ()>
+#+END_SRC
 
 ** Polymorphic types:
-Types can now contain variables. Functions may be declared as having polymorphic type, and the signature must now be provided separately to the function implementation:
+Types can contain variables. Functions may be declared as having polymorphic type.
 
 #+BEGIN_SRC
-length : all (a). Array a -> Int 
+size : all (k, v). Map k v -> Int 
 #+END_SRC
 
 _Monomorphic_ functions are first class, but to get a monomorphic function
@@ -134,26 +138,28 @@ Since Cogent-2.0.9, explicit type applications are not mandatory, although in so
 be supplied to guide the type inference engine. Type applications can be partial, or with type holes.
 For example, ~foo [_, A, B]~. See ~cogent/tests/pass_partial-typeapp.cogent~.
 
-A type variable under observation (i.e ~let!~ -ed) is annotated with a postfix bang (e.g ~a!~)
+A type variable under observation (i.e ~let!~-ed) is annotated with a postfix bang (e.g ~a!~)
 
-*** Kinds
-Kinds are provided for polymorphic signatures as follows:
+*** Permissions
+Permissions (they used to be called "kinds")  are provided for polymorphic signatures as follows:
 
 #+BEGIN_SRC
 length : all (a :< k). Array a -> Int 
 #+END_SRC
 
-Kinds are internally a set of three booleans: whether or not the type can be:
+Permissions are internally a set of three booleans: whether or not the type can be:
 - ~D~ for Discarded (i.e by weakening) 
 - ~S~ for Shared (i.e by contraction)
 - ~E~ for Escaped (i.e returned from ~let!~)
 
-The kind signature on a type variable is more like a constraint. They are some combination of those three letters. Any type \tau of kind \kappa satisfies a kind constraint \kappa' if \kappa' \land \kappa = \kappa'. If no kind constraint is provided, it is assumed that none of those permissions are required, and the value will be linear and cannot escape a ~let!~.
-
+The permission signature on a type variable is more like a constraint. 
+They are some combination of those three letters. If no kind constraint
+is provided, it is assumed that none of those permissions are required,
+and the value will be linear and cannot escape a ~let!~.
 
 * Typedefs 
 
-Type synonyms may be provided using the new ~type~ keyword as follows:
+Type synonyms may be provided using the ~type~ keyword as follows:
 
 #+BEGIN_SRC
 type X a b = { foo : a, bar : b, baz : Int }
@@ -161,7 +167,7 @@ type X a b = { foo : a, bar : b, baz : Int }
 
 The type synonym ~X~ must always be fully saturated with its two arguments wherever it is used, however.
 
-Abstract types (defined in C) may also be defined, and they also may take
+Abstract types (defined in C) may also be declared, and they also may take
 parameters. This corresponds to a family of types in C.
 
 #+BEGIN_SRC
@@ -169,11 +175,9 @@ type Buffer
 type Array a
 #+END_SRC
 
-Note that this is unlike Cogent1, where such types are just left unspoken.
-
 * Constants and toplevel definitions
 
-Constants are more or less unchanged, except that they are now typed.
+Constants are mono-typed.
 
 #+BEGIN_SRC 
 abc : U8
@@ -186,17 +190,15 @@ To make the syntax easier to parse, a function or constant's body must be indent
 
 * Effects
 
-Most effects are currently (successfully) modelled via linear types. Not so for allocation, because it is so ubiquitous. However, now we have to eliminate exactly allocation from the things you're allowed to do in a constant's RHS. Moreover, allocation is also the source of nondeterminism in Cogent1, and a cumbersome property that really screws us up.
-
-I propose modelling the heap as an explicit linear value, just as with any other state.
+Most effects are currently (successfully) modelled via linear types.
+For allocation, Cogent does not anything about it. Memory management
+involves the heap. I propose modelling the heap as an explicit linear value, just as with any other state.
 
 Allocation functions must now take and return a linear heap, as they modify it:
 
 #+BEGIN_SRC 
 allocateobj : Heap -> <Ok (Obj, Heap) | Fail Heap >
 #+END_SRC
-
-As the heap can be modelled as some abstract structure, we have eliminated the nondetermism from the language but not forced the user to specify anything more about the semantics.
 
 Special syntax for allocation functions and automating heap-threading are nice to have, so I welcome proposals.
 
@@ -329,7 +331,6 @@ think. The final ~else~ is part of the syntax. The pipes have to be aligned. The
 can be any of ~=>~, ~->~ or ~\~>~, which have the same semantics as used in alternatives. Postfix ~!~'s
 can be added after each condition (but not after the ~else~ keyword), like ~| cond_1 !v1 !v2 => e~.
 
-
 ** Sequencing
 
 Occasionally, it is useful to free a bunch of things, and using let for this
@@ -374,22 +375,11 @@ f (r {a, b}) = r {a, b}
 
 (where just ~a~ is equivalent to ~a=a~)
 
-More sugar:
-
-The above example can be equivalently written as:
-
-#+BEGIN_SRC
-f : {a : Foo, b : Bar} -> {a : Foo, b : Bar}
-f (r {..}) = r {..}
-#+END_SRC
-
-The ~{..}~ syntax, similar to its counterpart on type level, just take or put all the untaken or taken fields. ~{..}~ for ~take~ implicitly introduces binders into scope (same names as the fields), and ~{..}~ for ~put~ implicitly requires those variables in scope.
-
 ** Arithmetic and comparison operators
 
 Currently Cogent will use the smallest type possible for integer literals and generate upcasts (but not downcasts) automatically when used in a context where they are required.
 
-** Lambda expressions
+** Lambda expressions (alpha)
 
 We only allow for a very limited form of lambda expressions. An lambda expression has the syntax ~\irref => exp~, where ~irref~ is an irrefutable pattern, and ~exp~ is
 an expression which does not refer to any variables outside the lambda binding (no free variables). The bound variables have to be non-linear.

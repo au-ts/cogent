@@ -11,5 +11,6 @@
 type A
 type B
 
-foo : ({ x : A, y : B } take ()) -> ({ x : A, y : B } take ())
-foo (rec) = let rec' { x = xval } = rec in rec' { x = xval }
+foo : { x : A, y : B } -> { x : A, y : B }
+foo rec = let rec' { x = xval } = rec 
+           in rec' { x = xval }

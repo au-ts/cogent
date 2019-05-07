@@ -8,5 +8,5 @@
 -- @TAG(NICTA_GPL)
 --
 
-foo : (U8) -> < Fail (U32) | Success (Bool) >
-foo (v) = Success (v > 2)
+foo : U8 -> < Fail U32 | Success Bool >
+foo v = Success (v > 2)
