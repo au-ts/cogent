@@ -250,7 +250,7 @@ inductive list_all4 :: "('a \<Rightarrow> 'b \<Rightarrow> 'c \<Rightarrow> 'd \
   all4Nil : "list_all4 P [] [] [] []"
 | all4Cons : "P x y z w \<Longrightarrow> list_all4 P xs ys zs ws \<Longrightarrow> list_all4 P (x # xs) (y # ys) (z # zs) (w # ws)"
 
-lemma list_all4_induct[case_names Nil Cons]:
+lemma list_all4_induct[consumes 1, case_names Nil Cons]:
   assumes P: "list_all4 P xs ys zs ws"
   assumes Nil: "R [] [] [] []"
   assumes Cons: "\<And>x xs y ys z zs  w ws.
