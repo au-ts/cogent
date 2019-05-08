@@ -187,36 +187,36 @@ To make the syntax easier to parse, a function or constant's body must be indent
 
 Most effects are currently (successfully) modelled via linear types.
 For allocation, Cogent does not anything about it. Memory management
-involves the heap. I propose modelling the heap as an explicit linear value, just as with any other state.
+involves the heap. I propose modelling the heap as an explicit linear
+value, just as with any other state.
 
 Allocation functions must now take and return a linear heap, as they modify it:
 
 #+BEGIN_SRC 
-allocateobj : Heap -> <Ok (Obj, Heap) | Fail Heap >
+allocateobj : Heap -> <Ok Obj Heap | Fail Heap >
 #+END_SRC
 
-Special syntax for allocation functions and automating heap-threading are nice to have, so I welcome proposals.
+Special syntax for allocation functions and automating heap-threading
+are nice to have, so I welcome proposals.
 
 * Expression Language:
 
 ** Matching and Error Handling
 
-Errors are gone, replaced by the now much more expressive variant types.
-
 Matching may be accomplished by the following syntax:
 
 #+BEGIN_SRC 
-f : Heap -> < Ok (Obj, Heap) | Fail Heap >
+f : Heap -> < Ok Obj Heap | Fail Heap >
 f h = allocateobj h 
-    | Ok (obj, h) => allocateobj h
-        | Ok (obj', h) => Ok (mergeObj (obj, obj'), h)
-        | Fail h -> let () = free(obj) in Fail h 
+    | Ok obj h => allocateobj h
+        | Ok obj' h => Ok (mergeObj (obj, obj')) h
+        | Fail h -> let () = free obj in Fail h 
     | Fail h -> Fail h
 #+END_SRC
 
 
-This is an alignment-based syntax, grouping determined based on the alignment of
-the bars. 
+This is an alignment-based syntax, grouping determined based on
+the alignment of the bars. 
 
 The rightward arrows for each case can either be ~=>~ or ~->~. ~=>~ indicates that
 that branch is likely, to enable compiler optimisations. ~> can also be used to
@@ -231,10 +231,10 @@ up with cascading matches which indent a lot. To solve this problem, we
 allow a syntax for early exit, which is inspired by Idris. The syntax looks like:
 
 #+BEGIN_SRC
-f : Heap -> <Ok (Obj, Heap) | Fail Heap>
-f h = let Ok (obj,  h) <= allocateobj h |> Fail h -> Fail h
-      and Ok (obj', h) <= allocateobj h |> Fail h -> let _ = free obj in Fail h
-       in Ok (mergeObj (obj, obj'), h)
+f : Heap -> <Ok Obj Heap | Fail Heap>
+f h = let Ok obj  h <= allocateobj h |> Fail h -> Fail h
+      and Ok obj' h <= allocateobj h |> Fail h -> let _ = free obj in Fail h
+       in Ok (mergeObj (obj, obj')) h
 #+END_SRC
 
 This piece of code is semantically identical to the one above. ~<=~ matches the
@@ -321,7 +321,7 @@ if | cond_1 -> expr_1
    | else   -> expr_n
 #+END_SRC
 
-In the code snippet above, the conditions are *expressions*, instead of patterns as one might
+In the code snippet above, the conditions are Boolean *expressions*, instead of patterns as one might
 think. The final ~else~ is part of the syntax. The pipes have to be aligned. The arrows, as usual,
 can be any of ~=>~, ~->~ or ~\~>~, which have the same semantics as used in alternatives. Postfix ~!~'s
 can be added after each condition (but not after the ~else~ keyword), like ~| cond_1 !v1 !v2 => e~.
@@ -352,16 +352,16 @@ above, but it can't hurt to have this as some additional syntax.
 
 ** Take/put
 
-There is pattern syntax for ~take~, and a similar syntax for ~put~:
+There is pattern syntax for ~take~, and a similar expression syntax for ~put~:
 
 #+BEGIN_SRC
 f : {a : Foo, b : Bar} -> {a : Foo, b : Bar}
 f (r {a = ra, b = rb}) = r {a = ra, b = rb}
 #+END_SRC
 
-Note: ~take~ is always in pattern (i.e. LHS of ~=~), whereas ~put~ is always in expressions (i.e. RHS of ~=~).
+Note: ~take~ is always in patterns (i.e. LHS of ~=~), whereas ~put~ is always in expressions (i.e. RHS of ~=~).
 
-Punning is also allowed
+Punning is also allowed:
 
 #+BEGIN_SRC
 f : {a : Foo, b : Bar} -> {a : Foo, b : Bar}
@@ -373,6 +373,18 @@ f (r {a, b}) = r {a, b}
 ** Arithmetic and comparison operators
 
 Currently Cogent will use the smallest type possible for integer literals and generate upcasts (but not downcasts) automatically when used in a context where they are required.
+
+** Type annotations
+
+To guide the type inference engine, the user can give type annotations
+to any expressions. The syntax is ~e : t~.
+
+** Static arrays (alpha)
+
+Array literals can be introduced using square brackets, like ~[a, b, c]~.
+This syntax can also be used as patterns. Array types can be defined like
+~U8[3]~, similar to C. Indexing can be made with the ~@~ operator. E.g.:
+~arr @ 3~.
 
 ** Lambda expressions (alpha)
 
