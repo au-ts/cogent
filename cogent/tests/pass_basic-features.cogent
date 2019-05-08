@@ -1,0 +1,55 @@
+@@# Records
+
+-- Abstract linear types
+type Apple
+type Banana
+type Citrus
+
+-- Record type: a bag of fruits
+type Bag = { a : Apple, b : Banana, c : Citrus }
+
+-- Eat something
+eat : all a. a -> ()
+
+-- The consumer can only eat the same piece of fruit at most once.
+
+eat1 : Bag -> Bag take a
+eat1 (rest {a = x}) = let _ = eat x
+                       in rest
+
+eat2 : Bag -> Bag take (a, b)
+eat2 bag = let rest {a = x, b = y} = bag 
+           and _    = eat x
+           and _    = eat y
+            in rest
+
+eat3 : Bag -> Bag take (..)
+eat3 (rest {a, b, c})
+  = eat a ; eat b ; eat c ; rest
+
+-- Add more stuff to am empty bag
+addApple : (Apple, Bag take (..)) -> Bag take (b,c)
+addApple (apple, bag) = bag {a = apple}
+
+
+-- ^^^ The bag is not eaten, and should be returned empty!
+
+@@# Variants
+
+-- Schrödinger's cat
+type Cat
+
+-- A sealed box
+type Box = < Alive Cat | Dead Cat >
+
+open : Box -> Cat
+open | Alive c -> c
+     | Dead  c -> c
+
+openAndHandle : Box -> < Keep Cat | Nothing >
+openAndHandle b = b | Alive c -> Keep c
+                    | Dead  c -> bury c ; Nothing
+
+-- Bury something linear
+bury : all (c :< E). c -> ()
+
