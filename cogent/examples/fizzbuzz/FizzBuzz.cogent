@@ -1,8 +1,10 @@
+--
 -- This is a Cogent implementation of fizzbuzz. For a brief introduction to Cogent's syntax, first see:
 --  cogent/tests/pass_basic-features.cogent
 -- [ https://github.com/NICTA/cogent/blob/master/cogent/tests/pass_basic-features.cogent ]
 --
---
+
+
 --
 -- Copyright 2017, NICTA
 --
@@ -15,11 +17,13 @@
 
 include <gum/common/iterator.cogent>
 
--- ac functions
+-- Foreign C functions for printing ints (U32) and strings.
+-- The 'SysState' is the global state of the world, which must be passed to print.
+-- As the print function changes the world, it returns the new, updated world.
 print_u32: (U32, SysState) -> SysState
 print_string: (String, SysState) -> SysState
 
--- cogent
+-- Printing functions
 print_fizz: SysState -> SysState
 print_fizz ex =
   print_string ("Fizz", ex)
@@ -32,15 +36,26 @@ print_fizzbuzz: SysState -> SysState
 print_fizzbuzz ex =
   print_string ("FizzBuzz", ex)
 
--- generator
+
+-- The main body of fizzbuzz is a loop from 1 to 100.
+-- This function defines the loop termination check.
+-- The loop accumulator (acc) is the current loop index (U32) and the state of the world (SysState).
+-- The state of the world is part of the loop state, because we change the world on every iteration by printing.
+-- The obsv is the upper bound of the loop.
 fizzbuzz_gen: #{acc: (U32, SysState), obsv: U32} -> GeneratorResult () () () (U32, SysState)
 fizzbuzz_gen #{acc = (curr_num, ex), obsv = max_num} =
+  -- If the current iteration is above the upper bound, Stop the loop
   if | curr_num > max_num -> ((curr_num, ex), Stop ())
+  -- Otherwise, continue (Yield)
      | else -> ((curr_num, ex), Yield ())
 
--- consumer
+-- This function defines the loop body.
+-- We check if the loop iteration (curr_num) is divisible by some numbers, and decide what to print.
 fizzbuzz_cons: #{obj: (), acc: (U32, SysState), obsv: U32} -> ConsumerResult () () (U32, SysState)
 fizzbuzz_cons #{obj = _, acc = (curr_num, ex), obsv = max_num} =
+  -- Check if loop iteration is divisible by 15; if so, print fizzbuzz.
+  -- When we print, we need to pass the 'ex' (SysState, or state of the world) to the printing function, and get back the new world.
+  -- Then, we return the incremented loop counter along with the new world, and proceed to the next iteration.
   if | curr_num%15 == 0 ->  let ex = print_fizzbuzz ex
                             in ((curr_num + 1, ex), Next)
      | curr_num%5 == 0  ->  let ex = print_fizz ex
@@ -55,11 +70,16 @@ fizzbuzz_cons #{obj = _, acc = (curr_num, ex), obsv = max_num} =
 -- Multiples of both 3 and 5 replaced by FizzBuzz
 fizzbuzz: SysState -> SysState
 fizzbuzz ex =
+  -- The iterate function, which performs the loop, is written in C.
   let iter = iterate [(), (), (), (U32, SysState), U32] -- yield, return, stop, acc, obsv
   and ((_, ex), _) = iter #{
+    -- Loop termination check
     gen = fizzbuzz_gen,
+    -- Loop body
     cons = fizzbuzz_cons,
+    -- Initial state
     acc = (1, ex),
+    -- Upper bound
     obsv = 100
   }
   in ex
