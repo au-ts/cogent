@@ -33,7 +33,9 @@ import Cogent.CorresProof   as CP (corresProof)
 import Cogent.CorresSetup   as CS (corresSetup)
 import Cogent.Deep          as DP (deep)
 import Cogent.Desugar       as DS (desugar)
-import Cogent.DocGent       as DG (docGent)
+#ifdef WITH_DOCGENT
+import Cogent.DocGent                  as DG (docGent)
+#endif
 import Cogent.GetOpt
 import Cogent.Glue          as GL (defaultExts, defaultTypnames, GlState, glue, GlueMode(..), mkGlState, parseFile, parseFile')
 import Cogent.Mono          as MN (mono, printAFM)
@@ -313,7 +315,11 @@ options = [
   , Option []         ["ast-simpl"]       2 (NoArg $ Ast STGSimplify)       (astMsg STGSimplify)
   , Option []         ["ast-mono"]        2 (NoArg $ Ast STGMono)           (astMsg STGMono)
   -- documentation
+#ifdef WITH_DOCGENT
   , Option []         ["docgent"]         2 (NoArg $ Documentation)         "generate HTML documentation"
+#else
+  , Option []         ["docgent"]         2 (NoArg $ Documentation)         "generate HTML documentation [disabled in this build]"
+#endif
   -- pretty
   , Option ['p']      ["pretty-parse"]    2 (NoArg $ Pretty STGParse)       (prettyMsg STGParse)
   , Option ['c']      ["pretty-desugar"]  2 (NoArg $ Pretty STGDesugar)     (prettyMsg STGDesugar)
@@ -471,6 +477,11 @@ parseArgs args = case getOpt' Permute options args of
     (_,_,us,errs)   -> exitErr (concat errs)
   where
     withCommands :: ([Command], [String], [String], [String]) -> IO ()
+#ifndef WITH_DOCGENT
+    withCommands (cs,_,_,_) | Documentation `elem` cs
+      = exitErr $ unlines [ "Cogent documentation generation is disabled in this build."
+                          , "Try building the Cogent compiler with the flag `docgent' on."]
+#endif
     withCommands (cs,xs,us,args) = case getOpt Permute flags (filter (`elem` us ++ xs) args) of  -- Note: this is to keep the order of arguments / zilinc
       (flags,xs',[]) -> noFlagError (cs,flags,xs',args)
       (_,_,errs)     -> exitErr (concat errs)
@@ -550,7 +561,9 @@ parseArgs args = case getOpt' Permute options args of
             Left err -> printError prettyRE [err] >> exitFailure
             Right reorged -> do when (Ast stg `elem` cmds) $ genAst stg (map (stripAllLoc . thd3) reorged)
                                 when (Pretty stg `elem` cmds) $ genPretty stg (map (stripAllLoc . thd3) reorged)
+#ifdef WITH_DOCGENT
                                 when (Documentation `elem` cmds) $ DG.docGent reorged
+#endif
                                 let noDocs (a,_,c) = (a,c)
                                 when (Compile (succ stg) `elem` cmds) $ do
                                   ctygen <- mapM parseCustTyGen __cogent_cust_ty_gen
