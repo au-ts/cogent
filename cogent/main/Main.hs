@@ -36,7 +36,6 @@ import Cogent.Desugar       as DS (desugar)
 import Cogent.DocGent       as DG (docGent)
 import Cogent.GetOpt
 import Cogent.Glue          as GL (defaultExts, defaultTypnames, GlState, glue, GlueMode(..), mkGlState, parseFile, parseFile')
-import Cogent.Hangman             (hangman)
 import Cogent.Mono          as MN (mono, printAFM)
 import Cogent.MonoProof     as MP  -- FIXME: zilinc
 import Cogent.Normal        as NF (normal, verifyNormal)
@@ -466,7 +465,6 @@ flags =
 
 parseArgs :: [String] -> IO ()
 parseArgs args = case getOpt' Permute options args of
-    (cmds,xs,us,[]) | "hangman" `elem` xs -> hangman
     (cmds,xs,us,[]) -> case addCommands cmds of
                          Left  err -> exitErr (err ++ "\n")
                          Right (_,cmds') -> withCommands (cmds',xs,us,args)  -- XXX | noCommandError (cmds',xs,us,args)
