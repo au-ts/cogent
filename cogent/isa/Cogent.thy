@@ -915,9 +915,8 @@ shows   "K' \<turnstile> instantiate_ctx \<delta> \<Gamma> \<leadsto> instantiat
 using assms proof (induct rule: split_inducts)
 case split_empty then show ?case by (auto simp: instantiate_ctx_def
                                           intro: split_intros)
-case split_cons  then show ?case apply (auto simp: instantiate_ctx_def
+case split_cons  then show ?case by (auto simp: instantiate_ctx_def
                                           intro: split_intros map_option_instantiate_split_comp)
-  sorry
 qed
 
 
