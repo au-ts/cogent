@@ -12,7 +12,7 @@ All type names must begin with an uppercase letter. Tuple, Function, Record and 
 
 ** Record Types
 
-Now indicated by a simple series of typing judgements inside braces, e.g
+Now indicated by a series of typing declarations inside braces, e.g
 
 #+BEGIN_SRC 
 {x : A, y : B}
