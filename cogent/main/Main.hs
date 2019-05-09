@@ -71,7 +71,6 @@ import Data.Char (isSpace)
 import Data.Either (lefts)
 import Data.Foldable (fold, foldrM)
 import Data.List as L (find, isPrefixOf, nub)
-import Data.List.Utils (replace)
 import Data.Map (empty, fromList)
 import Data.Maybe (fromJust, isJust)
 import Data.Monoid (getLast)
@@ -771,7 +770,7 @@ parseArgs args = case getOpt' Permute options args of
           funcfiles <- forM acfiles $ \funcfile -> do
             let outfile = __cogent_dist_dir `combine` takeFileName (replaceBaseName funcfile (takeBaseName funcfile ++ __cogent_suffix_of_pp))
             putProgressLn $ "Preprocessing C files..."
-            let cppargs = map (replace "$CPPIN" funcfile . replace "$CPPOUT" outfile) __cogent_cpp_args
+            let cppargs = map (UT.replace "$CPPIN" funcfile . UT.replace "$CPPOUT" outfile) __cogent_cpp_args
             (cppcode, cppout, cpperr) <- readProcessWithExitCode __cogent_cpp cppargs []
             when (not $ null cpperr) $ hPutStrLn stderr cpperr
             when (cppcode /= ExitSuccess) $ exitFailure

@@ -18,6 +18,7 @@ import Control.Applicative ((<$>))
 import Data.Monoid
 #endif
 import Data.Char
+import Data.List
 import Data.Version (showVersion)
 import System.Environment
 import System.FilePath.Posix
@@ -173,3 +174,32 @@ getStdGumDir = addTrailingPathSeparator <$> overrideStdGumDirWith "COGENT_STD_GU
 
 getStdIncFullPath fp = do sdir <- getStdGumDir
                           return (sdir </> fp)
+
+-- the following are taken from MissingH, BSD3 clause
+-- http://hackage.haskell.org/package/MissingH-1.4.1.0
+spanList :: ([a] -> Bool) -> [a] -> ([a], [a])
+spanList _ [] = ([],[])
+spanList func list@(x:xs) =
+    if func list
+       then (x:ys,zs)
+       else ([],list)
+    where (ys,zs) = spanList func xs
+
+breakList :: ([a] -> Bool) -> [a] -> ([a], [a])
+breakList func = spanList (not . func)
+
+split :: Eq a => [a] -> [a] -> [[a]]
+split _ [] = []
+split delim str =
+    let (firstline, remainder) = breakList (isPrefixOf delim) str
+     in firstline : case remainder of
+          [] -> []
+          x -> if x == delim
+                 then [] : []
+                 else split delim (drop (length delim) x)
+
+replace :: Eq a => [a] -> [a] -> [a] -> [a]
+replace old new l = joinWith new . split old $ l
+
+joinWith :: [a] -> [[a]] -> [a]
+joinWith delim l = concat (intersperse delim l)
