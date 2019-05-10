@@ -68,7 +68,7 @@ fun make_assoc_fun
             end)
   (* store the equations by eqn_names *)
   val grouped_eqns = eqns
-        |> sort_wrt fst
+        |> sort_by fst
         |> partition_eq (fn (e1, e2) => fst e1 = fst e2)
   val (_, ctxt) = Local_Theory.notes (map (fn eqns =>
         ((Binding.name (fst (hd eqns)), []), [(map snd eqns, [])])) grouped_eqns) ctxt
