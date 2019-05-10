@@ -114,7 +114,7 @@ the associated construct starts at column $c$.
 \small
 \begin{grammar}
   \text{variable / field}           & v            & ::= & [\code{a-z}][\code{A-Za-z0-9'\_}]^*\ |\ \code{\_}[\code{A-Za-z0-9'\_}]^+ \\
-  \text{type construtor / tag}      & T            & ::= & [\code{A-Z}][\code{A-Za-z0-9'\_}]^* \\
+  \text{type constructor / tag}      & T            & ::= & [\code{A-Z}][\code{A-Za-z0-9'\_}]^* \\
   \text{binding}                    & b            & ::= & p_i\ (\code{:}\ \tau)^?\ \code{=}\ e\ (\code{!} v)^* \\
   \text{record matching}            & r_m              & ::= & v\ (\code{=}\ p_i)^? \\
   \text{strict record matchings}    & \overline{r_m}^! & ::= & r_m (\code{,}\ r_m)^* \\
@@ -152,7 +152,7 @@ the associated construct starts at column $c$.
                                     &              & |   & \varepsilon\ (\code{>}\code{>} | \code{<}\code{<})\ \varepsilon \\
                                     &              & |   & \varepsilon\ \code{\&\&}\ \varepsilon \\
                                     &              & |   & \varepsilon\ \code{||}\ \varepsilon \\
-  \text{exression matching}         & m^{\col{c}}  & ::= & {e_b}^{\col{c}}\ ((\code{!} v)^*\ {a^{\col{>c}}}^+)^? \cmt{a^+\ \textit{are aligned}}\\
+  \text{expression matching}         & m^{\col{c}}  & ::= & {e_b}^{\col{c}}\ ((\code{!} v)^*\ {a^{\col{>c}}}^+)^? \cmt{a^+\ \textit{are aligned}}\\
   \text{expression}                 & e^{\col{c}}  & ::= & \code{let}\ b\ (\code{and}\ b)^*\ \code{in}\ e^{\col{c}}\\
                                     &              & |   & \code{if}\ e^{\col{c}}\ (\code{!} v)^*\ \code{then}\ e^{\col{c}}\ \code{else}\ e^{\col{c}} \\
                                     &              & |   & m^{\col{c}} \\
@@ -464,7 +464,7 @@ One major feature of \cogent is its uniqueness type system. For detailed explana
 Generally speaking, \emph{linear} objects are dynamically and explicitly allocated on the heap. By contrast, anything else are
 statically and implicitly allocated on the stack. For heap-allocated objects, we need to manage the references to them, which is
 where uniqueness types help, to ensure that each object on the heap is pointed by \textbf{exactly} one reference at any
-given point in the program.~\footnote{There are expections to this, which will be discussed shortly.}
+given point in the program.~\footnote{There are exceptions to this, which will be discussed shortly.}
 
 \paragraph{Permissions} In order to classify uniqueness properties of each type of objects, we introduce permissions.
 In \cogent, permissions are denoted by a combination of three letters -- $\permission{D}$ (discardable), $\permission{S}$ (shareable)
@@ -798,7 +798,7 @@ and ((ex, maybe_dirent, kaddr, _), res) =
 \end{lstlisting}
 The list in square brackets are types which instantiate the type variables respectively.
 
-\TODO{How C code is generated? how to use the compiler and its intermediate outputs? what're the must-knows in the compiler?}
+\TODO{How C code is generated? how to use the compiler and its intermediate outputs? What are the must-knows in the compiler?}
 
 \section{Flags in \cogent Compiler}
 
