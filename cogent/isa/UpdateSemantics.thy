@@ -707,7 +707,7 @@ shows   "\<exists>r' w' r'' w'' b. r = r' \<union> r''
                          \<and> (\<Xi>, \<sigma> \<turnstile> \<gamma> matches \<Gamma>1 \<langle>r' \<union> b, w'     \<rangle>) 
                          \<and> (\<Xi>, \<sigma> \<turnstile> \<gamma> matches \<Gamma>2 \<langle>r''   , w'' \<union> b\<rangle>)" 
 using assms proof (induct arbitrary: \<gamma> r w rule: split_bang.induct)
-     case split_bang_empty then show ?case by (fastforce elim:  matches_ptrs.cases
+     case split_bang_nil then show ?case by (fastforce elim:  matches_ptrs.cases
                                                          intro: matches_ptrs.intros)
    next case (split_bang_cons iss K x xa xb xs as bs \<gamma> r w)
      note IH = split_bang_cons(3)

@@ -513,10 +513,11 @@ shows   "\<exists>r' w' r'' w''. r = r' \<union> r''
                        \<and> w' \<inter> w'' = {} 
                        \<and> (\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches \<Gamma>1 \<langle>r' , w' \<rangle>) 
                        \<and> (\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches \<Gamma>2 \<langle>r'', w''\<rangle>)" 
-using assms proof (induct arbitrary: \<gamma> \<gamma>' r w rule: split.induct)
-     case split_empty then show ?case by (fastforce elim:  u_v_matches.cases
-                                                    intro: u_v_matches.intros)
-next case (split_cons K x a b xs as bs \<gamma> \<gamma>' r w) 
+  using assms
+proof (induct arbitrary: \<gamma> \<gamma>' r w rule: split_inducts)
+  case split_empty then show ?case
+    by (fastforce elim:  u_v_matches.cases intro: u_v_matches.intros)
+next case (split_cons x xs a as b bs \<gamma> \<gamma>' r w) 
   then show ?case 
   proof (cases \<Xi> \<sigma> \<gamma> \<gamma>' x xs r w rule: u_v_matches_consE)
        case 1 with split_cons show ?case   by simp
@@ -526,33 +527,34 @@ next case (split_cons K x a b xs as bs \<gamma> \<gamma>' r w)
     proof (cases rule: split_comp.cases)
          case none  with 3 show ?thesis by simp
     next case left  with 3 show ?thesis
-      apply (clarsimp dest!: split_cons(3))
-      apply (rule_tac x = "rx \<union> r'" in exI)
-      apply (rule_tac x = "wx \<union> w'" in exI)
-      apply (rule_tac x = "r''"     in exI, rule,blast)
-      apply (rule_tac x = "w''"     in exI)
-      apply (force intro!: u_v_matches.intros)
-    done
+        apply -
+        apply (clarsimp dest!: split_cons(3))
+        apply (rule_tac x = "rx \<union> r'" in exI)
+        apply (rule_tac x = "wx \<union> w'" in exI)
+        apply (rule_tac x = "r''"     in exI, rule,blast)
+        apply (rule_tac x = "w''"     in exI)
+        apply (force intro!: u_v_matches.intros)
+        done
     next case right with 3 show ?thesis
-      apply (clarsimp dest!: split_cons(3))
-      apply (rule_tac x = "r'"       in exI)
-      apply (rule_tac x = "w'"       in exI)
-      apply (rule_tac x = "rx \<union> r''" in exI, rule, blast)
-      apply (rule_tac x = "wx \<union> w''" in exI)
-      apply (force intro!: u_v_matches.intros)
-    done
+        apply (clarsimp dest!: split_cons(3))
+        apply (rule_tac x = "r'"       in exI)
+        apply (rule_tac x = "w'"       in exI)
+        apply (rule_tac x = "rx \<union> r''" in exI, rule, blast)
+        apply (rule_tac x = "wx \<union> w''" in exI)
+        apply (force intro!: u_v_matches.intros)
+        done
     next case share with 3 show ?thesis
-      apply (clarsimp dest!: split_cons(3))
-      apply (drule(2) u_v_shareable_not_writable)
-      apply (clarsimp)
-      apply (rule_tac x = "rx \<union> r'"  in exI)
-      apply (rule_tac x = "w'"       in exI)
-      apply (rule_tac x = "rx \<union> r''" in exI, rule, blast)
-      apply (rule_tac x = "w''"      in exI)
-      apply (force intro: u_v_matches_some [where w = "{}", simplified])
-    done
+        apply (clarsimp dest!: split_cons(3))
+        apply (drule(2) u_v_shareable_not_writable)
+        apply (clarsimp)
+        apply (rule_tac x = "rx \<union> r'"  in exI)
+        apply (rule_tac x = "w'"       in exI)
+        apply (rule_tac x = "rx \<union> r''" in exI, rule, blast)
+        apply (rule_tac x = "w''"      in exI)
+        apply (force intro: u_v_matches_some [where w = "{}", simplified])
+        done
     qed
-  qed 
+  qed
 qed
 
 lemma u_v_matches_split:
@@ -577,66 +579,73 @@ shows   "\<exists>r' w' r'' w'' b. r = r' \<union> r''
                          \<and> b \<inter> (w' \<union> w'') = {}
                          \<and> (\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches \<Gamma>1 \<langle>r' \<union> b, w'     \<rangle>) 
                          \<and> (\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches \<Gamma>2 \<langle>r''   , w'' \<union> b\<rangle>)" 
-using assms proof (induct arbitrary: \<gamma> \<gamma>' r w rule: split_bang.induct)
-     case split_bang_empty then show ?case by (fastforce elim:  u_v_matches.cases
-                                                         intro: u_v_matches.intros)
-next case (split_bang_cons iss K x a b xs as bs \<gamma> \<gamma>' r w) 
-  then show ?case 
+  using assms
+proof (induct arbitrary: \<gamma> \<gamma>' r w rule: split_bang.induct)
+  case split_bang_nil then show ?case
+    by (fastforce elim:  u_v_matches.cases intro: u_v_matches.intros)
+next case (split_bang_cons K iss x a b xs as bs \<gamma> \<gamma>' r w) 
+  note IH = split_bang_cons(3)
+
+  show ?case 
   proof (cases \<Xi> \<sigma> \<gamma> \<gamma>' x xs r w rule: u_v_matches_consE)
        case 1 with split_bang_cons show ?case   by simp
-  next case 2 with split_bang_cons show ?thesis by (auto elim: split_comp.cases)
+  next case 2 with split_bang_cons show ?thesis by (auto simp add: split_bang_comp.simps elim: split_comp.cases)
   next case (3 _ _ _ rx wx _ _ rs ws)
-    with split_bang_cons(2,1,3-) show ?thesis
-    proof (cases rule: split_comp.cases)
-         case none  with 3 show ?thesis by simp
-    next case left  with 3 show ?thesis
-      apply (clarsimp dest!: split_bang_cons(4))
-      apply (rule_tac x = "rx \<union> r'" in exI)
-      apply (rule_tac x = "wx \<union> w'" in exI)
-      apply (rule_tac x = "r''"     in exI, rule, blast)
-      apply (rule_tac x = "w''"     in exI, rule, blast)
-      apply (rule_tac x = "ba"      in exI)
-      apply (auto simp: Un_assoc intro!: u_v_matches.intros)
-    done
-    next case right with 3 show ?thesis
-      apply (clarsimp dest!: split_bang_cons(4))
-      apply (rule_tac x = "r'"       in exI)
-      apply (rule_tac x = "w'"       in exI)
-      apply (rule_tac x = "rx \<union> r''" in exI, rule, blast)
-      apply (rule_tac x = "wx \<union> w''" in exI, rule, blast)
-      apply (rule_tac x = "ba"       in exI)
-      apply (auto simp: Un_assoc intro!: u_v_matches.intros)
-    done
-    next case share with 3 show ?thesis
-      apply (clarsimp dest!: split_bang_cons(4))
-      apply (drule(2) u_v_shareable_not_writable)
-      apply (clarsimp)
-      apply (rule_tac x = "rx \<union> r'"  in exI)
-      apply (rule_tac x = "w'"       in exI)
-      apply (rule_tac x = "rx \<union> r''" in exI, rule, blast)
-      apply (rule_tac x = "w''"      in exI, rule, blast)
-      apply (rule_tac x = "ba"       in exI)
-      apply (auto simp: Un_assoc intro: u_v_matches_some [where w = "{}", simplified])
-    done
+    with split_bang_cons(1) show ?thesis
+    proof (cases rule: split_bang_comp.cases)
+      case nobang
+      show ?thesis
+        using nobang(2) split_bang_cons
+      proof (cases rule: split_comp.cases)
+           case none with 3 show ?thesis by simp
+      next case left  with 3 show ?thesis
+          apply -
+          apply (clarsimp dest!: IH)
+          apply (rule_tac x = "rx \<union> r'" in exI)
+          apply (rule_tac x = "wx \<union> w'" in exI)
+          apply (rule_tac x = "r''"     in exI, rule, blast)
+          apply (rule_tac x = "w''"     in exI, rule, blast)
+          apply (rule_tac x = "ba"      in exI)
+          apply (auto simp: Un_assoc intro!: u_v_matches.intros)
+          done
+      next case right with 3 show ?thesis
+          apply -
+          apply (clarsimp dest!: IH)
+          apply (rule_tac x = "r'"       in exI)
+          apply (rule_tac x = "w'"       in exI)
+          apply (rule_tac x = "rx \<union> r''" in exI, rule, blast)
+          apply (rule_tac x = "wx \<union> w''" in exI, rule, blast)
+          apply (rule_tac x = "ba"       in exI)
+          apply (auto simp: Un_assoc intro!: u_v_matches.intros)
+          done
+      next case share with 3 show ?thesis
+          apply -
+          apply (clarsimp dest!: IH)
+          apply (drule(2) u_v_shareable_not_writable)
+          apply (clarsimp)
+          apply (rule_tac x = "rx \<union> r'"  in exI)
+          apply (rule_tac x = "w'"       in exI)
+          apply (rule_tac x = "rx \<union> r''" in exI, rule, blast)
+          apply (rule_tac x = "w''"      in exI, rule, blast)
+          apply (rule_tac x = "ba"       in exI)
+          apply (auto simp: Un_assoc intro: u_v_matches_some [where w = "{}", simplified])
+          done
+      qed
+    next
+      case dobang with 3 show ?thesis
+        apply -
+        apply (clarsimp dest!: IH)
+        apply (rule_tac x = "rx \<union> r'"  in exI)
+        apply (rule_tac x = "w'"       in exI)
+        apply (rule_tac x = "rx \<union> r''" in exI, rule, blast)
+        apply (rule_tac x = "w''"      in exI, rule, blast)
+        apply (rule_tac x = "ba \<union> wx"   in exI)
+        apply (auto simp:   Un_assoc
+            dest:   u_v_matches_some
+            intro!: u_v_matches_some_bang
+            intro:  u_v_pointerset_helper_matches)
+        done
     qed
-  qed 
-next case (split_bang_bang iss iss' K xs as bs x \<gamma> \<gamma>' r w)
-  then show ?case
-  proof (cases \<Xi> \<sigma> \<gamma> \<gamma>' "Some x" xs r w rule: u_v_matches_consE)
-       case 1 with split_bang_bang show ?case by simp
-  next case 2 with split_bang_bang show ?thesis by simp
-  next case (3 _ _ _ rx wx _ _ rs ws) with split_bang_bang show ?thesis 
-    apply (clarsimp dest!: split_bang_bang(4))
-    apply (rule_tac x = "rx \<union> r'"  in exI)
-    apply (rule_tac x = "w'"       in exI)
-    apply (rule_tac x = "rx \<union> r''" in exI, rule, blast)
-    apply (rule_tac x = "w''"      in exI, rule, blast)
-    apply (rule_tac x = "b \<union> wx"   in exI)
-    apply (auto simp:   Un_assoc
-                dest:   u_v_matches_some
-                intro!: u_v_matches_some_bang
-                intro:  u_v_pointerset_helper_matches)
-  done
   qed
 qed
 
