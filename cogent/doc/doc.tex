@@ -113,8 +113,8 @@ the associated construct starts at column $c$.
 {
 \small
 \begin{grammar}
-  \text{variable / field}           & v            & ::= & [\code{a-z}][\code{A-Za-z1-9'\_}]^*\ |\ \code{\_}[\code{A-Za-z1-9'\_}]^+ \\
-  \text{type construtor / tag}      & T            & ::= & [\code{A-Z}][\code{A-Za-z1-9'\_}]^* \\
+  \text{variable / field}           & v            & ::= & [\code{a-z}][\code{A-Za-z0-9'\_}]^*\ |\ \code{\_}[\code{A-Za-z0-9'\_}]^+ \\
+  \text{type construtor / tag}      & T            & ::= & [\code{A-Z}][\code{A-Za-z0-9'\_}]^* \\
   \text{binding}                    & b            & ::= & p_i\ (\code{:}\ \tau)^?\ \code{=}\ e\ (\code{!} v)^* \\
   \text{record matching}            & r_m              & ::= & v\ (\code{=}\ p_i)^? \\
   \text{strict record matchings}    & \overline{r_m}^! & ::= & r_m (\code{,}\ r_m)^* \\
