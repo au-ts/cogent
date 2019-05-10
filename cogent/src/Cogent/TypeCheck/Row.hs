@@ -17,8 +17,7 @@ module Cogent.TypeCheck.Row
   , fromMap
   , incomplete
   , -- * Queries
-    entries
-  , takenIn
+    takenIn
   , toEntryList
   , compatible
   , null

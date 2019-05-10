@@ -37,6 +37,7 @@ normaliseRW = rewrite' $ \t -> case t of
     T (TBang (V row)) 
       | isNothing (Row.var row) -> pure (V (fmap (T . TBang) row))
     T (TBang (T (TTuple ts))) -> pure (T (TTuple (map (T . TBang) ts)))
+    T (TBang (T TUnit)) -> pure (T TUnit)
 
     T (TUnbox (T (TCon t ts s))) -> pure (T (TCon t ts Unboxed))
     T (TUnbox (R row _)) -> pure (R row (Left Unboxed))
