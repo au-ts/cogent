@@ -10,7 +10,7 @@
 
 (* Preprocess AutoCorres translation of Cogent compiler's output code. *)
 theory Tidy
-imports "../l4v/tools/autocorres/AutoCorres"
+imports "AutoCorres.AutoCorres"
 begin
 
 (* Each Cogent_Corres rule expects (at most) one guard *)

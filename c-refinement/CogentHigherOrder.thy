@@ -10,7 +10,7 @@
 
 theory CogentHigherOrder imports
   "TypeProofGen"
-  "../l4v/tools/autocorres/AutoCorres"
+  "AutoCorres.AutoCorres"
 begin
 
 (*

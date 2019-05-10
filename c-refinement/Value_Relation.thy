@@ -16,7 +16,7 @@
 theory Value_Relation
 imports
   "../cogent/isa/UpdateSemantics" 
-  "../l4v/tools/autocorres/AutoCorres"
+  "AutoCorres.AutoCorres"
   "Type_Args"
 begin
 
