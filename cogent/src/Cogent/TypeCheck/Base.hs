@@ -28,7 +28,7 @@ import Cogent.Surface
 -- import Cogent.TypeCheck.Util
 import Cogent.Util
 
-import Control.Arrow (second)
+import Control.Arrow (first, second)
 import Control.Monad.State
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
@@ -363,6 +363,20 @@ instance Semigroup TcLogState where
 instance Monoid TcLogState where
   mempty = TcLogState mempty mempty
 #endif
+
+
+runTc :: TcM a -> IO ((Maybe a, TcLogState), TcState)
+runTc ma = flip runStateT (TcState M.empty knownTypes M.empty M.empty)
+           . fmap (second $ over errLog adjustErrors)
+           . flip runStateT (TcLogState [] [])
+           . runMaybeT
+           $ ma
+  where
+    knownTypes = map (, ([], Nothing)) $ words "U8 U16 U32 U64 String Bool"
+    adjustErrors = (if __cogent_freverse_tc_errors then reverse else id) . adjustContexts
+    adjustContexts = map (first noConstraints)
+    noConstraints = if __cogent_ftc_ctx_constraints then id else filter (not . isCtxConstraint)
+
 
 type TcM a = MaybeT (StateT TcLogState (StateT TcState IO)) a    
 type TcConsM lcl a = StateT  lcl (StateT TcState IO) a

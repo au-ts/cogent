@@ -112,7 +112,9 @@ desugar tls ctygen pragmas =
       typedecs   = filter isTypeDec    tls where isTypeDec    S.TypeDec    {} = True; isTypeDec    _ = False
       abstydecs  = filter isAbsTypeDec tls where isAbsTypeDec S.AbsTypeDec {} = True; isAbsTypeDec _ = False
       constdefs  = filter isConstDef   tls where isConstDef   S.ConstDef   {} = True; isConstDef   _ = False
-      initialReader = (M.fromList $ P.map fromTypeDec typedecs, M.fromList $ P.map fromConstDef constdefs, pragmas)
+      initialReader = ( M.fromList $ P.map fromTypeDec typedecs
+                      , M.fromList $ P.map fromConstDef constdefs
+                      , pragmas )
   in flip3 evalRWS initialState initialReader $ runDS $ do
        defs' <- concat <$> mapM go (abstydecs ++ typedecs ++ absdecs ++ fundefs)
        write <- ask
@@ -120,6 +122,7 @@ desugar tls ctygen pragmas =
        ctygen' <- desugarCustTyGen ctygen
        tell $ Last (Just (write^._1, write^._2, consts'))
        return (defs',ctygen')
+
   where
     initialState  = DsState Nil Nil 0 0 []
 

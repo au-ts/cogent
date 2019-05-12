@@ -195,13 +195,13 @@ type GlErr    = ExceptT (String     ) (IO      )
 
 -- NOTE: The 4th argument @offset'@ is used to produce more accurate source positions.
 -- It also helps work around the @avoidInitial@ when parsing things. / zilinc
-parseAnti :: String -> PP.Parsec String () a -> SrcLoc -> Int -> GlFile a
+parseAnti :: String -> PP.Parsec String PS.S a -> SrcLoc -> Int -> GlFile a
 parseAnti s parsec loc offset' = do
   filename <- view file
   let pos = case loc of
               SrcLoc (Loc (Pos _ line col offset) _) -> newPos filename line (col + offset + offset')
               SrcLoc NoLoc -> newPos filename 0 0
-  case PP.parse (PP.setPosition pos >> parsec) filename s of
+  case PP.runParser (PP.setPosition pos >> parsec) (PS.ParserState False) filename s of
     Left err -> throwError $ "Error: Cannot parse antiquote: \n" ++ show err
     Right t  -> return t
 
