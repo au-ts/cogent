@@ -12,7 +12,7 @@
 
 module Cogent.Quote where
 
-import Cogent.Parser (toplevel')
+import Cogent.Parser (toplevel', S(..))
 import Cogent.Surface ()
 
 import Data.Data
@@ -28,6 +28,6 @@ cogent = QuasiQuoter { quoteExp  = parseCogentTl
                      }
 
 parseCogentTl :: String -> Q Exp
-parseCogentTl s = case runParser toplevel' "" "" s of
+parseCogentTl s = case runParser toplevel' (ParserState False) "" s of
                     Left  e -> error $ "Parsing failed with errors: " ++ show e
                     Right (_,_,x) -> liftData x

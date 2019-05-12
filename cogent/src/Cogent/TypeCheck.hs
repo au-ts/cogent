@@ -58,17 +58,7 @@ import Lens.Micro.Mtl
 tc :: [(SourcePos, TopLevel LocType LocPatn LocExpr)]
    -> [(LocType, String)]
    -> IO ((Maybe ([TopLevel RawType TypedPatn TypedExpr], [(RawType, String)]), TcLogState), TcState)
-tc ds cts = flip runStateT (TcState M.empty knownTypes M.empty M.empty)
-          . fmap (second $ over errLog adjustErrors)
-          . flip runStateT (TcLogState [] [])
-          . runMaybeT
-          $ (,) <$> typecheck ds <*> typecheckCustTyGen cts
-  where
-    knownTypes = map (, ([], Nothing)) $ words "U8 U16 U32 U64 String Bool"
-    adjustErrors = (if __cogent_freverse_tc_errors then reverse else id) . adjustContexts
-    adjustContexts = map (first noConstraints)
-    noConstraints = if __cogent_ftc_ctx_constraints then id else filter (not . isCtxConstraint)
-
+tc ds cts = runTc ((,) <$> typecheck ds <*> typecheckCustTyGen cts)
 
 typecheck :: [(SourcePos, TopLevel LocType LocPatn LocExpr)]
           -> TcM [TopLevel RawType TypedPatn TypedExpr]

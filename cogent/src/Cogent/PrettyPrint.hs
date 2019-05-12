@@ -118,6 +118,9 @@ associativity = S.associativity . symbolOp
 class Prec a where  -- precedence
   prec :: a -> Int  -- smaller the number stronger the associativity
 
+instance Prec () where
+  prec _ = 0
+
 instance Prec Associativity where
   prec (LeftAssoc  i) = i
   prec (RightAssoc i) = i

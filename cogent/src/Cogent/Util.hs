@@ -382,6 +382,9 @@ allM p (x:xs) = do v <- p x; if v then allM p xs else return False
 andM :: Monad m => [m Bool] -> m Bool
 andM = allM id
 
+ifThenElse :: Bool -> t -> t -> t
+ifThenElse c e1 e2 = if c then e1 else e2
+
 ifM :: Monad m => m Bool -> m a -> m a -> m a
 ifM b t f = do b <- b; if b then t else f
 

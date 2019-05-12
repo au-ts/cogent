@@ -49,13 +49,16 @@ import System.FilePath
 -- import Debug.Trace
 
 
-type Parser a t = ParsecT String t Identity a
+type Parser a = ParsecT String S Identity a
+
+newtype S = ParserState { avoidInit :: Bool }
+
 
 language :: LanguageDef st
 language = haskellStyle
            { T.reservedOpNames = ["+","*","/","%","&&","||",">=","<=",">","<","==","/=",
                                   ".&.",".|.",".^.",">>","<<",
-                                  ":","=","!",":<",".","_","..","#","$",
+                                  ":","=","!",":<",".","_","..","#","$","::",
                                   "@","@@","->","=>","~>","<=","|","|>"]
            , T.reservedNames   = ["let","in","type","include","all","take","put","inline","upcast",
                                   "repr","variant","record","at",
@@ -86,18 +89,20 @@ typeConName = try (do (x:xs) <- identifier
                       (if isUpper x then return else unexpected) $ x:xs)
 
 -- @p <= 0@ means unknown position
-avoidInitial = do whiteSpace; p <- sourceColumn <$> getPosition; guard (p > 1 || p <= 0)
+avoidInitial = do ParserState a <- getState
+                  if not a then return ()
+                  else do whiteSpace; p <- sourceColumn <$> getPosition; guard (p > 1 || p <= 0)
 
 
-repDecl :: Parser RepDecl t
+repDecl :: Parser RepDecl
 repDecl = RepDecl <$> getPosition <*> typeConName <* reservedOp "=" <*> repExpr
 
-repSize :: Parser RepSize t
+repSize :: Parser RepSize
 repSize = avoidInitial >> buildExpressionParser [[Infix (reservedOp "+" *> pure Add) AssocLeft]] (do 
                x <- fromIntegral <$> natural
                (Bits <$ reserved "b" <*> pure x <|> Bytes <$ reserved "B" <*> pure x))
 
-repExpr :: Parser RepExpr t
+repExpr :: Parser RepExpr
 repExpr = avoidInitial >> buildExpressionParser [[Postfix (flip Offset <$ reserved "at" <*> repSize)]] 
            (Record <$ reserved "record" <*> braces (commaSep recordRepr)
         <|> Variant <$ reserved "variant" <*> parens (repExpr) <*> braces (commaSep variantRepr)
@@ -109,7 +114,7 @@ repExpr = avoidInitial >> buildExpressionParser [[Postfix (flip Offset <$ reserv
 
 
 -- TODO: add support for patterns like `_ {f1, f2}', where the record name is anonymous / zilinc
-irrefutablePattern :: Parser LocIrrefPatn t
+irrefutablePattern :: Parser LocIrrefPatn
 irrefutablePattern = avoidInitial >> LocIrrefPatn <$> getPosition <*>
              (variableOrRecord <$> variableName <*> optionMaybe (braces recAssignsAndOrWildcard)
          <|> tuple <$> parens (commaSep irrefutablePattern)
@@ -145,6 +150,8 @@ pattern = avoidInitial >> LocPatn <$> getPosition <*>
 boolean = True <$ reserved "True"
       <|> False <$ reserved "False"
       <?> "boolean literal"
+
+
 
 
 expr m = do avoidInitial
@@ -246,7 +253,7 @@ basicExpr' = avoidInitial >> buildExpressionParser
                                   LocExpr p (Con n es) -> LocExpr p (Con n (es ++ [b]))
                                   _ -> LocExpr (posOfE a) (App a b False)))
 
-        postfix :: Parser (LocExpr -> LocExpr) t -> Operator String t Identity LocExpr
+        postfix :: Parser (LocExpr -> LocExpr) -> Operator String S Identity LocExpr
         postfix p = Postfix . chainl1 p $ return (flip (.))
 
 term = avoidInitial >> (LocExpr <$> getPosition <*>
@@ -414,7 +421,7 @@ toplevel' = do
     functionSingle = Alt <$> (LocPatn <$> getPosition <*> (PIrrefutable <$> irrefutablePattern))
                          <*> pure Regular <* reservedOp "=" <*> expr 1
 
-program :: Parser [(SourcePos, DocString, TopLevel LocType LocPatn LocExpr)] t
+program :: Parser [(SourcePos, DocString, TopLevel LocType LocPatn LocExpr)]
 program = whiteSpace *> many1 toplevel <* eof
 
 -- NOTE: It will search for the path provided in the files. If it cannot find anything, it will
@@ -459,7 +466,7 @@ loadTransitive' r fp paths ro = do
                   PP.preprocess fp' >>= \case
                     Left err -> return $ Left $ "Preprocessor failed: " ++ err
                     Right (cpped,pragmas) -> do
-                      case parse program fp' cpped of
+                      case runIdentity $ runParserT program (ParserState True) fp' cpped of
                         Left err -> return $ Left $ "Parser failed: " ++ show err
                         Right defs -> do
                            defs' <- mapM (flip transitive fpdir) defs
@@ -494,10 +501,10 @@ tygen = do
   ty <- monotype  -- NOTE: this syntax is because of the `avoidInitial`s in `monotype` function / zilinc
   return (ty,cty)
 
-parseFromFile :: Parser a () -> FilePath -> IO (Either ParseError a)
+parseFromFile :: Parser a -> FilePath -> IO (Either ParseError a)
 parseFromFile p fname = do
   input <- readFile fname
-  return $ runP p () (if __cogent_ffull_src_path then fname else takeFileName fname) input
+  return $ runP p (ParserState True) (if __cogent_ffull_src_path then fname else takeFileName fname) input
 
 -- -------
 -- cpp line directives

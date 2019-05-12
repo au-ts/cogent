@@ -74,6 +74,7 @@ library
               , Cogent.GetOpt
               , Cogent.Glue
               , Cogent.Inference
+              , Cogent.Interpreter
               , Cogent.Isabelle.ACInstall
               , Cogent.Isabelle.AllRefine
               , Cogent.Isabelle.Compound
