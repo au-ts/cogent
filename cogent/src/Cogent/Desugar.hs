@@ -105,28 +105,47 @@ newtype DS (t :: Nat) (v :: Nat) a = DS { runDS :: RWS (Typedefs, Constants, [Pr
 desugar :: [S.TopLevel S.RawType B.TypedPatn B.TypedExpr]
         -> [(S.RawType, String)]
         -> [Pragma]
-        -> (([Definition UntypedExpr VarName], [(SupposedlyMonoType, String)]), Last (Typedefs, Constants, [CoreConst UntypedExpr]))
+        -> ( ([Definition UntypedExpr VarName], [(SupposedlyMonoType, String)])
+           , Last (Typedefs, Constants, [CoreConst UntypedExpr]) )
 desugar tls ctygen pragmas =
   let fundefs    = filter isFunDef     tls where isFunDef     S.FunDef     {} = True; isFunDef     _ = False
       absdecs    = filter isAbsDec     tls where isAbsDec     S.AbsDec     {} = True; isAbsDec     _ = False
       typedecs   = filter isTypeDec    tls where isTypeDec    S.TypeDec    {} = True; isTypeDec    _ = False
       abstydecs  = filter isAbsTypeDec tls where isAbsTypeDec S.AbsTypeDec {} = True; isAbsTypeDec _ = False
       constdefs  = filter isConstDef   tls where isConstDef   S.ConstDef   {} = True; isConstDef   _ = False
-      initialReader = ( M.fromList $ P.map fromTypeDec typedecs
+  
+      initialReader = ( M.fromList $ P.map fromTypeDec  typedecs
                       , M.fromList $ P.map fromConstDef constdefs
                       , pragmas )
-  in flip3 evalRWS initialState initialReader $ runDS $ do
-       defs' <- concat <$> mapM go (abstydecs ++ typedecs ++ absdecs ++ fundefs)
-       write <- ask
-       consts' <- desugarConsts constdefs
-       ctygen' <- desugarCustTyGen ctygen
-       tell $ Last (Just (write^._1, write^._2, consts'))
-       return (defs',ctygen')
+      initialState = DsState Nil Nil 0 0 []
+   in flip3 evalRWS initialState initialReader . runDS $ 
+        desugar' (abstydecs ++ typedecs ++ absdecs ++ fundefs) constdefs ctygen pragmas
+  where
+    fromTypeDec  (S.TypeDec tn vs t) = (tn,(vs,t))
+    fromTypeDec  _ = __impossible "fromTypeDec (in desugarProgram)"
+
+    fromConstDef (S.ConstDef vn t e) = (vn,e)
+    fromConstDef _ = __impossible "fromConstDef (in desguarProgram)"
+
+
+desugar' :: [S.TopLevel S.RawType B.TypedPatn B.TypedExpr]
+         -> [S.TopLevel S.RawType B.TypedPatn B.TypedExpr]  -- constants
+         -> [(S.RawType, String)]
+         -> [Pragma]
+         -> DS 'Zero 'Zero ([Definition UntypedExpr VarName], [(SupposedlyMonoType, String)])
+desugar' tls constdefs ctygen pragmas = do
+  defs' <- concat <$> mapM go tls
+  write <- ask
+  consts' <- desugarConsts constdefs
+  ctygen' <- desugarCustTyGen ctygen
+  tell $ Last (Just (write^._1, write^._2, consts'))
+  return (defs',ctygen')
 
   where
     initialState  = DsState Nil Nil 0 0 []
 
-    go :: S.TopLevel S.RawType B.TypedPatn B.TypedExpr -> DS 'Zero 'Zero [Definition UntypedExpr VarName]
+    go :: S.TopLevel S.RawType B.TypedPatn B.TypedExpr
+       -> DS 'Zero 'Zero [Definition UntypedExpr VarName]
     go x = do gbl <- use oracleGbl
               put initialState
               oracleGbl .= gbl
@@ -140,13 +159,6 @@ desugar tls ctygen pragmas =
               lfdefs <- reverse <$> use lftFun
               lfdefs' <- concat <$> mapM go lfdefs
               return $ lfdefs' ++ [def']
-
-    fromTypeDec  (S.TypeDec tn vs t) = (tn,(vs,t))
-    fromTypeDec  _ = __impossible "fromTypeDec (in desugarProgram)"
-
-    fromConstDef (S.ConstDef vn t e) = (vn,e)
-    fromConstDef _ = __impossible "fromConstDef (in desguarProgram)"
-
 
 
 -- -----------------------------------------------------------------------------

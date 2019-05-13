@@ -31,7 +31,7 @@ import           Cogent.Common.Syntax
 import           Cogent.Common.Types
 import           Cogent.Compiler
 import qualified Cogent.Context     as Ctx
-import           Cogent.Core
+import           Cogent.Core        as Core
 import qualified Cogent.Desugar     as Ds
 import qualified Cogent.Inference   as Core
 import           Cogent.Mono
@@ -52,7 +52,7 @@ import qualified Data.Vec as V
 import Control.Monad.RWS.Strict
 import Control.Monad.State
 import Data.Bits
-import Data.Either (fromLeft, isLeft)
+import Data.Either (fromLeft, fromRight, isLeft)
 import Data.Function ((&))
 import Data.IORef
 import Data.List (isPrefixOf, isSuffixOf, partition)
@@ -127,7 +127,7 @@ newtype ReplM (v :: Nat) a f x = ReplM { unReplM :: StateT (ReplState v a f) IO 
                                deriving (Functor, Applicative, Monad, MonadIO, MonadState (ReplState v a f))
 
 data ReplState v a f = ReplState { _gamma   :: V.Vec v (Value a f)
-                                 , _absfuns :: M.Map (CoreFunName, Value a f) (Value a f)
+                                 , _absfuns :: M.Map CoreFunName (Value a f -> Value a f)
                                  , _fundefs :: M.Map CoreFunName (Definition TypedExpr VarName)
                                  }
 
@@ -152,6 +152,9 @@ data PreloadS = PreloadS { surface :: [S.TopLevel S.RawType Tc.TypedPatn Tc.Type
                          , tcState :: Tc.TcState
                          }
 
+instance Semigroup PreloadS where
+  PreloadS s1 t1 <> PreloadS s2 t2 = PreloadS (s1 <> s2) (t1 <> t2)
+
 replWithState :: IO ()
 replWithState = newIORef (PreloadS [] (Tc.TcState M.empty [] M.empty M.empty)) >>= repl
 
@@ -164,10 +167,10 @@ repl r = do putStr "cogenti> "
               Left err -> putStrLn err
               Right (EvalExpr s) -> interpExpr r s
               Right (GetType  s) -> putStrLn ":t not implemented yet"
-              Right (LoadFile f) -> loadProgram r f
-              Right (LoadCode c) -> undefined  -- loadProgram r c
+              Right (LoadFile f) -> loadFile r f
+              Right (LoadCode c) -> loadCode r c
               Right (Clear     ) -> writeIORef r (PreloadS [] Tc.emptyTcState)
-              Right (Display   ) -> putStrLn ":d not implemented yet"
+              Right (Display   ) -> readIORef r >>= \st -> putDoc (vcat $ fmap pretty (surface st) ++ [empty])
               Right (Help) -> putStr $ unlines [ "Cogent REPL:"
                                                , "  :e <EXPR> ;  -- evaluate an expression"
                                                , "  :t <EXPR> ;  -- query the type of an expression"
@@ -213,25 +216,41 @@ parseCmdline = do
  <|> (eof >> return Skip)
 
 
-loadProgram :: IORef PreloadS -> String -> IO ()
-loadProgram r preload =
+loadCode :: IORef PreloadS -> String -> IO ()
+loadCode r preload = 
+  case runParser Parser.program (Parser.ParserState True) "<REPL>" preload of
+    Left  err    -> putStrLn $ show err
+    Right parsed -> checkPreload r (fmap (\(a,_,s) -> (a,s)) parsed) FromStdin
+
+loadFile :: IORef PreloadS -> FilePath -> IO ()
+loadFile r preload =
   Parser.parseWithIncludes preload [] >>= \case
     Left err -> putStrLn $ show err
     Right (parsed, _) -> case Reorg.reorganize Nothing parsed of
       Left err -> putDoc (Pretty.prettyRE err)
-      Right reorged -> do
-        ((mtced,tclog),tcst) <- Tc.tc (fmap (\(a,_,s) -> (a,s)) reorged) []
-        let (errs,warns) = partition (isLeft . snd) $ tclog^.Tc.errLog
-        unless (null $ warns) $ putDoc (vcat $ fmap (Pretty.prettyTWE __cogent_ftc_ctx_len) warns ++ [empty])
-        if not $ null errs then
-          do putDoc (vcat $ fmap (Pretty.prettyTWE __cogent_ftc_ctx_len) errs ++ [empty])
-             when (and $ map (Tc.isWarnAsError . fromLeft undefined . snd) errs) $ hPutStrLn stderr "Failing due to --Werror."
-        else 
-          case mtced of
-            Nothing -> __impossible "loadProgram: no errors found"
-            Just (tced,_) -> do
-              __assert (null errs) "no errors, only warnings"
-              writeIORef r (PreloadS tced tcst)
+      Right reorged -> checkPreload r (fmap (\(a,_,s) -> (a,s)) reorged) FromFile
+
+data InputSource = FromFile | FromStdin
+
+checkPreload :: IORef PreloadS
+             -> [(SourcePos, S.TopLevel S.LocType S.LocPatn S.LocExpr)]
+             -> InputSource
+             -> IO ()
+checkPreload r prog src = do
+  ((mtced,tclog),tcst) <- Tc.tc prog []
+  let (errs,warns) = partition (isLeft . snd) $ tclog^.Tc.errLog
+  unless (null $ warns) $ putDoc (vcat $ fmap (Pretty.prettyTWE __cogent_ftc_ctx_len) warns ++ [empty])
+  if not $ null errs then
+    do putDoc (vcat $ fmap (Pretty.prettyTWE __cogent_ftc_ctx_len) errs ++ [empty])
+       when (and $ map (Tc.isWarnAsError . fromLeft undefined . snd) errs) $ hPutStrLn stderr "Failing due to --Werror."
+  else 
+    case mtced of
+      Nothing -> __impossible "loadProgram: no errors found"
+      Just (tced,_) -> do
+        __assert (null errs) "no errors, only warnings"
+        case src of
+          FromFile  -> writeIORef r (PreloadS tced tcst)
+          FromStdin -> modifyIORef r (<> PreloadS tced tcst)
 
 
 interpExpr :: IORef PreloadS -> String -> IO ()
@@ -239,7 +258,7 @@ interpExpr r input =
   case runParser parseExpr (Parser.ParserState False) "<REPL>" input of
     Left  err  -> putStrLn $ show err
     Right locE -> do
-      ((mbTypedE, tclog), _) <- tcExpr locE
+      ((mbTypedE, tclog), _) <- tcExpr r locE
       let (errs,warns) = partition (isLeft . snd) $ tclog^.Tc.errLog
       unless (null $ warns) $ putDoc (vcat $ fmap (Pretty.prettyTWE __cogent_ftc_ctx_len) warns ++ [empty])
       if not $ null errs
@@ -248,18 +267,26 @@ interpExpr r input =
           when (and $ map (Tc.isWarnAsError . fromLeft undefined . snd) errs) $ putStrLn "Failing due to --Werror."
         else case mbTypedE of
           Nothing     -> __impossible "intrepExpr: no errors found"
-          Just typedE -> case coreTcExpr $ dsExpr typedE of
-            Left err      -> putStrLn err
-            Right typedCE -> do
-              v <- runReplM (eval typedCE) (ReplState V.Nil M.empty M.empty)
-              putDoc $ pretty (v :: Value () ()) <> line
+          Just typedE -> do
+            (desugared, desugaredE) <- dsExpr r typedE
+            case coreTcExpr desugaredE of
+              Left err      -> putStrLn err
+              Right typedCE -> do
+                preldS <- readIORef r
+                let coreTced = fromRight [] $ Core.tc_ desugared  -- there shouldn't be any errors
+                    absFuns = filter Core.isAbsFun coreTced
+                    conFuns = filter Core.isConFun coreTced
+                    absFunMap = M.fromList $ fmap (\d -> (CoreFunName . fromJust $ getFuncId d, id)) absFuns
+                    conFunMap = M.fromList $ fmap (\d -> (CoreFunName . fromJust $ getFuncId d, d )) conFuns
+                v <- runReplM (eval typedCE) (ReplState V.Nil absFunMap conFunMap)
+                putDoc $ pretty (v :: Value () ()) <> line
 
 
 parseExpr :: Parser.Parser S.LocExpr
 parseExpr = Parser.expr 0 <* eof
 
-tcExpr :: S.LocExpr -> IO ((Maybe Tc.TypedExpr, Tc.TcLogState), Tc.TcState)
-tcExpr e = Tc.runTc Tc.emptyTcState $ do
+tcExpr :: IORef PreloadS -> S.LocExpr -> IO ((Maybe Tc.TypedExpr, Tc.TcLogState), Tc.TcState)
+tcExpr r e = readIORef r >>= \st -> Tc.runTc (tcState st) $ do
     ((c,e'),flx,os) <- runCG Ctx.empty [] $ do
       let ?loc = S.posOfE e
       t <- freshTVar
@@ -271,17 +298,21 @@ tcExpr e = Tc.runTc Tc.emptyTcState $ do
     knownTypes = map (, ([], Nothing)) $ words "U8 U16 U32 U64 String Bool"
 
 
-dsExpr :: Tc.TypedExpr -> UntypedExpr 'Zero 'Zero VarName
-dsExpr e = fst
-           . flip3 evalRWS (Ds.DsState V.Nil V.Nil 0 0 [])
-                           (M.empty, M.empty, [])
-           . Ds.runDS
-           $ Ds.desugarExpr e
-
 coreTcExpr :: UntypedExpr 'Zero 'Zero VarName -> Either String (TypedExpr 'Zero 'Zero VarName)
 coreTcExpr e = fmap snd $ Core.runTC (Core.infer e) (V.Nil, M.empty) V.Nil
 
-
+dsExpr :: IORef PreloadS -> Tc.TypedExpr
+       -> IO ([Definition UntypedExpr VarName], UntypedExpr 'Zero 'Zero VarName)
+dsExpr r e = do
+  preldS <- readIORef r
+  let (tls, constdefs) = partition (not . isConstDef) tls
+  return . fst
+         . flip3 evalRWS (Ds.DsState V.Nil V.Nil 0 0 [])
+                         (M.empty, M.empty, [])
+         . Ds.runDS
+         $ (,) <$> (fmap fst $ Ds.desugar' tls constdefs [] []) <*> Ds.desugarExpr e
+  where isConstDef S.ConstDef {} = True
+        isConstDef _ = False
 
 withBinding :: Value a f -> ReplM (Suc v) a f x -> ReplM v a f x
 withBinding v m = ReplM . StateT $ \s -> do
@@ -373,11 +404,12 @@ eval :: TypedExpr 'Zero v VarName -> ReplM v a () (Value a ())
 eval (TE _ (Variable (v,_))) = use gamma >>= return . (`V.at` v)
 eval (TE _ (Fun fn ts _)) = do
   funmap <- use fundefs
+  absfunmap <- use absfuns
   case M.lookup fn funmap of
-    Nothing  -> __impossible "eval: Function is not defined"
     Just (FunDef  _ _ _ ti to e) -> return $ VFunction  (coreFunName fn) (specialise ts e) ts
-    Just (AbsDecl _ _ _ ti to  ) -> return $ VAFunction (coreFunName fn) () ts
-    _ -> __impossible "eval: A function is expected but I got a type"
+    Nothing  -> case M.lookup fn absfunmap of
+      Just af -> return $ VAFunction (coreFunName fn) () ts
+      Nothing -> __impossible "eval: A function is expected but I got a type"
 eval (TE _ (Op op [e])) = evalUnOp op <$> eval e
 eval (TE _ (Op op [e1,e2])) = evalBinOp op <$> eval e1 <*> eval e2
 eval (TE _ (App f e)) = do

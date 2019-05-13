@@ -20,11 +20,8 @@ TLD=../../
 
 source $TLD/build-env.sh || exit
 
-
-GETOPT="/usr/local/Cellar/gnu-getopt/2.33.2/bin/getopt"
-
 # Check for getopt
-$GETOPT -T >/dev/null
+getopt -T >/dev/null
 if [[ $? != 4 ]]
 then
   echo "$0: error: GNU getopt not available"
@@ -68,7 +65,7 @@ short_usage()
 }
 
 # Parse options
-OPTS=$($getopt -o h --alternative --long pp,tc,ds,an,mn,cg,gcc,tc-proof,ac,c-refine,flags,hsc-gen,aq,shallow-proof,hs-shallow,examples,goanna,ee,libgum,all,help,clean,q,i -n "$0" -- "$@")
+OPTS=$(getopt -o h --alternative --long pp,tc,ds,an,mn,cg,gcc,tc-proof,ac,c-refine,flags,hsc-gen,aq,shallow-proof,hs-shallow,examples,goanna,ee,libgum,all,help,clean,q,i -n "$0" -- "$@")
 if [ $? != 0 ]
 then
     short_usage
