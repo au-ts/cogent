@@ -725,8 +725,7 @@ using assms proof (induct arbitrary: \<gamma> r w rule: split_bang.induct)
          proof (cases rule: split_comp.cases)
            case none with 3 show ?thesis by simp
          next
-           case (left t k)
-           with 3 show ?thesis
+           case left with 3 show ?thesis
              apply -
              apply (clarsimp dest!: IH)
              apply (rule_tac x = "rx \<union> r'" in exI)
@@ -760,8 +759,7 @@ using assms proof (induct arbitrary: \<gamma> r w rule: split_bang.induct)
              done
          qed
     next
-      case (dobang t k t')
-      with 3 show ?thesis
+      case dobang with 3 show ?thesis
         apply (clarsimp dest!: IH)
         apply (rule_tac x = "rx \<union> r'"  in exI)
         apply (rule_tac x = "w'"       in exI)

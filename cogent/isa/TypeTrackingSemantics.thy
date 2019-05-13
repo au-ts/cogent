@@ -509,33 +509,40 @@ lemma u_tt_sem_pres_length:
   "\<Xi>, \<xi>, \<gamma>, [], \<Gamma>, \<tau> T\<turnstile> (\<sigma>, a) \<Down>! (\<sigma>', x)
     \<Longrightarrow> length \<gamma> = length (snd \<Gamma>)"
   by (induct rule: u_tt_sem_pres.induct,
-    auto simp: ttsplit_def ttsplit_inner_def
-               ttsplit_bang_def ttsplit_bang_inner_def
+      auto simp: ttsplit_def ttsplit_bang_def
+               ttsplit_inner_conv_all_nth
+               ttsplit_bang_inner_conv_all_nth
          dest: matches_ptrs_length)
 
+
 lemma let_elaborate_u_tt_sem_pres:
-  "\<lbrakk> \<Xi>, \<xi> , \<gamma>, K, \<Gamma>, \<tau> T\<turnstile> (\<sigma>, a) \<Down>! (\<sigma>', x); K = [];
-        proc_ctx_wellformed \<Xi>; \<xi> matches-u \<Xi> \<rbrakk>
-    \<Longrightarrow> \<Xi>, \<xi> , \<gamma>, K, (TyTrSplit (map (\<lambda>_. Some TSK_L) (snd \<Gamma>)) [] (fst \<Gamma>)
+  assumes
+    "\<Xi>, \<xi> , \<gamma>, K, \<Gamma>, \<tau> T\<turnstile> (\<sigma>, a) \<Down>! (\<sigma>', x)"
+    "K = []"
+    "proc_ctx_wellformed \<Xi>"
+    "\<xi> matches-u \<Xi>"
+  shows "\<Xi>, \<xi> , \<gamma>, K, (TyTrSplit (map (map_option (\<lambda>_. TSK_L)) (snd \<Gamma>)) [] (fst \<Gamma>)
     [Some \<tau>] TyTrLeaf, snd \<Gamma>), \<tau> T\<turnstile> (\<sigma>, Let a (Var 0)) \<Down>! (\<sigma>', x)"
-  apply (rule u_tt_sem_pres_let)
-    apply (rule ttsplitI[OF _ refl refl])
-    apply (simp only: ttsplit_inner_def zip_map1 map_map o_def Product_Type.split_def, simp)
-    apply (fastforce dest: u_tt_sem_pres_type_wellformed)
-   apply simp
-  apply (rule u_tt_sem_pres_default)
-     apply (simp add: composite_anormal_expr_def)
-    apply (rule u_sem_var[where \<gamma>="x # xs" and i=0 for x xs, simplified])
-   apply simp
-   apply (rule typing_var, simp_all add: weakening_def Cogent.empty_def
-             zip_same_conv_map o_def map_replicate_const list_all2_same)
-   apply (frule u_tt_sem_pres_type_wellformed2)
-   apply (clarsimp simp add: weakening_comp.intros)
-  apply (frule u_tt_sem_pres_preservation, simp+)
-  apply clarsimp
-  apply (fastforce elim: matches_ptrs_some[OF _ matches_ptrs_replicate_None]
-              dest: u_tt_sem_pres_length)
-  done
+  using assms
+proof (intro u_tt_sem_pres_let[OF ttsplitI])
+  have "\<forall>i < length (snd \<Gamma>). \<forall>t. (snd \<Gamma>) ! i = Some t \<longrightarrow> K \<turnstile> t wellformed"
+    using assms
+    by (fastforce dest: nth_mem u_tt_sem_pres_type_wellformed)
+  then show "ttsplit_inner K (map (map_option (\<lambda>_. TSK_L)) (snd \<Gamma>)) True (snd \<Gamma>) (snd \<Gamma>) (replicate (length (snd \<Gamma>)) None)"
+    by (force simp add: ttsplit_inner_conv_all_nth ttsplit_inner_comp.simps)
+next
+  show "\<Xi>, \<xi>, x # \<gamma>, K, (TyTrLeaf, Some \<tau> # replicate (length (snd \<Gamma>)) None), \<tau> T\<turnstile> (\<sigma>', Var 0) \<Down>! (\<sigma>', x)"
+    using assms
+    apply (auto
+        intro!: u_tt_sem_pres_default typing_var
+        intro: u_sem_var[where \<gamma>="x # xs" and i=0 for x xs, simplified]
+        dest: u_tt_sem_pres_type_wellformed2
+        simp add: composite_anormal_expr_def empty_def weakening_def weakening_comp.simps
+        list_all2_same)
+    apply (frule u_tt_sem_pres_preservation, (simp+)[3])
+    apply (force dest: u_tt_sem_pres_length intro: matches_ptrs_some matches_ptrs_replicate_None)
+    done
+qed auto
 
 end
 

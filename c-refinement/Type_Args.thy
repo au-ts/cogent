@@ -10,7 +10,7 @@
 
 theory Type_Args
 imports Main
-        "~~/src/HOL/Word/Word"
+        "HOL-Word.Word"
 begin
 type_synonym funtyp = "char list"
 

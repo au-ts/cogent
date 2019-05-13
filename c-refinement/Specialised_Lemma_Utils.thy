@@ -267,7 +267,8 @@ ML{* fun ac_mk_struct_info_for file_nm thy uval =
  let
   val st_C_nm   = get_ty_nm_C uval;
   val heap_info = Symtab.lookup (HeapInfo.get thy) file_nm 
-                 |> Utils.the' "heap_info in ac_mk_struct_info_for failed.";
+                 |> Utils.the' "heap_info in ac_mk_struct_info_for failed."
+                 |> #heap_info;
   val flag      = Symtab.lookup (#structs heap_info) st_C_nm |> is_some;
  in flag end;
 *}

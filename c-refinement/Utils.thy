@@ -280,9 +280,10 @@ ML{* fun get_struct_name_from_c_parser c_file thy ctxt =
  |> map (Proof_Context.read_typ ctxt)
 *}
 
-ML{* fun get_struct_info thy file_name = 
- Symtab.lookup (HeapInfo.get thy) file_name 
+ML{* fun get_struct_info thy file_name =
+ Symtab.lookup (HeapInfo.get thy) file_name
 |> Utils.the' "get_struct_info failed."
+|> #heap_info
 |> #structs
 *}
 
@@ -301,8 +302,7 @@ ML{* fun get_getters (field_info:HeapLiftBase.field_info list) = field_info |> m
 ML{* fun ac_mk_heap_getters_for file_nm thy (st_C_nm : string) =
 (* checks if autocorres generates heap_getters for a given uval. Returns a boolean value.*)
  let
-  fun get_heap_info thy            = Symtab.lookup (HeapInfo.get thy) file_nm;
-  val opt_hinfo                    = get_heap_info thy;
+  val opt_hinfo                    = Option.map #heap_info (Symtab.lookup (HeapInfo.get thy) file_nm);
   fun get_struct_info heap_info    = Symtab.lookup (#structs heap_info) st_C_nm;
   val opt_sinfo                    = opt_hinfo ?> get_struct_info;
   fun get_heap_getters hinfo sinfo = Typtab.lookup (#heap_getters hinfo) (#struct_type sinfo);
@@ -348,8 +348,8 @@ local
  (* DETERM_TIMEOUT was written by Jasmin Blanchette in nitpick_util.ML.
   * This version has exception handling on top of his version.*)
  fun DETERM_TIMEOUT delay tac st =
-   Seq.of_list (the_list (TimeLimit.timeLimit delay (fn () => SINGLE tac st) () 
-    handle TimeLimit.TimeOut => NONE));
+   Seq.of_list (the_list (Timeout.apply delay (fn () => SINGLE tac st) () 
+    handle Timeout.TIMEOUT _ => NONE));
 in
  (* (TIMEOUT tac) returns a tactic that fail, if tac cannot return in 3.14 seconds.*)
  (* TODO: This is a quick hack! Double-check the code.*)

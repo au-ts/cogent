@@ -479,7 +479,7 @@ lemma list_to_map_singleton: "[f x] = (map f [x])"  by auto
 lemma list_to_map_more: "(f x) # (map f xs) = (map f (x#xs))" by auto 
 
 lemma u_sem_all_var:
-  "\<xi>, \<gamma> \<turnstile>* (\<sigma>, map Var xs) \<Down>! (\<sigma>, map (op ! \<gamma>) xs)"
+  "\<xi>, \<gamma> \<turnstile>* (\<sigma>, map Var xs) \<Down>! (\<sigma>, map ((!) \<gamma>) xs)"
 proof (induct xs)
    case Cons thus ?case by (fastforce intro: u_sem_all_cons u_sem_var)
 qed (simp add: u_sem_all_empty)
@@ -1615,11 +1615,11 @@ fun simp_xi ctxt = let
   in
     full_simplify (put_simpset HOL_basic_ss ctxt
         addsimps [xi_def]
-        addsimps @{thms fst_conv snd_conv list.case char.case nibble.case}
+        addsimps @{thms fst_conv snd_conv list.case char.case}
         |> Simplifier.add_cong @{thm list.case_cong_weak})
   end
 
-val simp_xi_att = Attrib.thms >> (fn thms => Thm.rule_attribute (fn cg => let
+val simp_xi_att = Attrib.thms >> (fn thms => Thm.rule_attribute thms (fn cg => let
     val ctxt = Context.proof_of cg
     val abb_tys = Proof_Context.get_thms ctxt "abbreviated_type_defs"
   in
