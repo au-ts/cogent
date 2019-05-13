@@ -240,6 +240,15 @@ nubByM f (x:xs) = liftM (x:) $ filterM (return . not <=< f x) xs >>= nubByM f
 (<*=) :: Monad m => m a -> (a -> m b) -> m a
 a <*= f = a >>= ((>>) <$> f <*> return)
 
+-- largely borrowed from https://stackoverflow.com/questions/12119420/haskell-ghci-using-eof-character-on-stdin-with-getcontents
+-- NOTE: this is slightly different---it stops after taking the pivoting element
+takeWhileM' :: Monad m => (a -> Bool) -> [m a] -> m [a]
+takeWhileM' _ [] = return []
+takeWhileM' p (ma : mas) = do
+    a <- ma
+    if p a then liftM (a :) $ takeWhileM' p mas
+           else return [a]
+
 
 fmapFold :: (Monoid m, Traversable t) => (a -> (m, b)) -> t a -> (m, t b)
 fmapFold f = foldMap (fst . f) &&& fmap (snd . f)

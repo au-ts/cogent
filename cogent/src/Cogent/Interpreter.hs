@@ -41,6 +41,7 @@ import qualified Cogent.TypeCheck.Base      as Tc
 import           Cogent.TypeCheck.Generator as Tc hiding (validateType)
 import qualified Cogent.TypeCheck.Post      as Tc
 import           Cogent.TypeCheck.Solver    as Tc
+import qualified Cogent.TypeCheck.Subst     as Subst
 import           Cogent.Util
 import           Data.Nat hiding (toInt)
 import qualified Data.Vec as V
@@ -50,16 +51,18 @@ import Control.Monad.State
 import Data.Bits
 import Data.Either (fromLeft, isLeft)
 import Data.Function ((&))
-import Data.List (partition)
+import Data.List (isPrefixOf, isSuffixOf, partition)
 import qualified Data.Map as M
 import Data.Maybe (fromJust)
 import Data.Word
 import Lens.Micro
 import Lens.Micro.Mtl
 import Lens.Micro.TH
+import System.Exit (exitSuccess)
 import System.IO
 import Text.Parsec hiding (string)
-import Text.PrettyPrint.ANSI.Leijen as Leijen hiding ((<$>))
+import Text.Parsec.String
+import Text.PrettyPrint.ANSI.Leijen as Leijen hiding ((<$>), char)
 
 data ILit = LU8  Word8
           | LU16 Word16
@@ -129,76 +132,103 @@ makeLenses ''ReplState
 runReplM :: ReplM v a f x -> ReplState v a f -> IO x
 runReplM ma s = evalStateT (unReplM ma) s
 
+getLines c = liftM unlines $ takeWhileM' c (repeat getLine)
 
+continueGetLines :: String -> Bool
+continueGetLines l
+  | null l = False
+  | ":f" `isPrefixOf` l = False
+  | ":h" `isPrefixOf` l = False
+  | ":q" `isPrefixOf` l = False
+  | ";"  `isSuffixOf` l = False
+continueGetLines l = True
 
 repl :: IO ()
 repl = do putStr "cogenti> "
           hFlush stdout
-          ss <- readInput
-          interpExpr (unlines ss)
+          s <- getLines continueGetLines
+          let result = readInput s
+          case result of
+            Left err -> putStrLn err
+            Right (EvalExpr s) -> interpExpr s
+            Right (GetType  s) -> putStrLn ":t not implemented yet"
+            Right (LoadFile f) -> putStrLn ":l not implemented yet"
+            Right (LoadCode c) -> putStrLn ":l not implemented yet"
+            Right (Help) -> putStr $ unlines [ "Cogent REPL:"
+                                             , "  :e <EXPR> ;  -- evaluate an expression"
+                                             , "  :t <EXPR> ;  -- query the type of an expression"
+                                             , "  :f <FILE>    -- load a Cogent file"
+                                             , "  :l <CODE> ;  -- load Cogent definitions"
+                                             , "  :h           -- show this help"
+                                             , "  :q           -- quit the REPL"
+                                             ]
+            Right (Quit) -> exitSuccess
           repl
   where
-    readInput :: IO [String]
-    readInput = do
-      l <- getLine
-      if l == "|" then
-        readBlock
-      else return [l]
-    
-    readBlock = do undefined
-      
+    readInput :: String -> Either String ReplOption
+    readInput s = do
+      case runParser parseCmdline () "<REPL>" s of
+        Left  err -> Left $ show err
+        Right opt -> Right opt
 
+type Cmdline a = Parser a
+
+data ReplOption = EvalExpr String
+                | GetType  String
+                | LoadFile String
+                | LoadCode String
+                | Help
+                | Quit
+                | Skip
+                deriving (Show)
+
+parseCmdline :: Cmdline ReplOption
+parseCmdline = do
+     (Parser.reservedOp ":e" >> Parser.whiteSpace >> EvalExpr <$> manyTill anyChar (char ';'))
+ <|> (Parser.reservedOp ":t" >> Parser.whiteSpace >> GetType  <$> manyTill anyChar (char ';'))
+ <|> (Parser.reservedOp ":f" >> Parser.whiteSpace >> LoadFile <$> manyTill anyChar endOfLine)
+ <|> (Parser.reservedOp ":l" >> Parser.whiteSpace >> LoadCode <$> manyTill anyChar (char ';'))
+ <|> (Parser.reservedOp ":h" >> return Help)
+ <|> (Parser.reservedOp ":q" >> return Quit)
+ <|> (eof >> return Skip)
 
 loadProg :: FilePath -> ReplM v a f ()
 loadProg input = do
   undefined
 
-query :: Parser.Parser (S.LocExpr, S.RawType)
-query = do e <- Parser.expr 0
-           Parser.reservedOp "::"
-           t <- Parser.monotype
-           eof
-           return (e, S.stripLocT t)
-
 interpExpr :: String -> IO ()
 interpExpr input =
-  case runParser query (Parser.ParserState False) "<REPL>" input of
+  case runParser parseExpr (Parser.ParserState False) "<REPL>" input of
     Left  errs -> putStrLn $ show errs
-    Right et -> do
-      ((mbExprType, tclog), _) <- tcExpr et
+    Right locE -> do
+      ((mbTypedE, tclog), _) <- tcExpr locE
       let (errs,warns) = partition (isLeft . snd) $ tclog^.Tc.errLog
-      unless (null $ warns) $ putDoc (vcat $ fmap (Pretty.prettyTWE __cogent_ftc_ctx_len) warns)
+      unless (null $ warns) $ putDoc (vcat $ fmap (Pretty.prettyTWE __cogent_ftc_ctx_len) warns ++ [empty])
       if not $ null errs
         then do
-          putDoc (vcat $ fmap (Pretty.prettyTWE __cogent_ftc_ctx_len) errs)
+          putDoc (vcat $ fmap (Pretty.prettyTWE __cogent_ftc_ctx_len) errs ++ [empty])
           when (and $ map (Tc.isWarnAsError . fromLeft undefined . snd) errs) $ putStrLn "Failing due to --Werror."
-        else case mbExprType of
-          Nothing -> __impossible "intrepExpr: no errors found"
-          Just (typedE, rawType) -> case coreTcExpr $ dsExpr typedE of
-            Left err -> putStrLn err
+        else case mbTypedE of
+          Nothing     -> __impossible "intrepExpr: no errors found"
+          Just typedE -> case coreTcExpr $ dsExpr typedE of
+            Left err      -> putStrLn err
             Right typedCE -> do
               v <- runReplM (eval typedCE) (ReplState V.Nil M.empty M.empty)
               putDoc $ pretty (v :: Value () ()) <> line
 
 
-tcExpr :: (S.LocExpr, S.RawType)
-       -> IO ((Maybe (Tc.TypedExpr, S.RawType), Tc.TcLogState), Tc.TcState)
-tcExpr (e,t) = Tc.runTc $ do
-  t' <- Tc.validateType [] t
+parseExpr :: Parser.Parser S.LocExpr
+parseExpr = Parser.expr 0 <* eof
+
+tcExpr :: S.LocExpr -> IO ((Maybe Tc.TypedExpr, Tc.TcLogState), Tc.TcState)
+tcExpr e = Tc.runTc $ do
   ((c,e'),flx,os) <- runCG Ctx.empty [] $ do
     let ?loc = S.posOfE e
-    cg e t'
+    t <- freshTVar
+    cg e t
   (logs, subst, assn, _) <- runSolver (solve c) [] flx os
   Tc.exitOnErr $ mapM_ Tc.logTc logs
-  t'' <- postT t'
-  e'' <- postE e'
-  return (e'',t'')
-
-postT :: Tc.TCType -> Tc.TcM S.RawType
-postT = undefined
-
-postE :: Tc.TCExpr -> Tc.TcM Tc.TypedExpr
-postE = undefined
+  Tc.postE $ Subst.applyE subst e'
 
 
 dsExpr :: Tc.TypedExpr -> UntypedExpr 'Zero 'Zero VarName
