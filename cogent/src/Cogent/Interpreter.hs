@@ -20,6 +20,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -221,14 +222,16 @@ parseExpr :: Parser.Parser S.LocExpr
 parseExpr = Parser.expr 0 <* eof
 
 tcExpr :: S.LocExpr -> IO ((Maybe Tc.TypedExpr, Tc.TcLogState), Tc.TcState)
-tcExpr e = Tc.runTc $ do
-  ((c,e'),flx,os) <- runCG Ctx.empty [] $ do
-    let ?loc = S.posOfE e
-    t <- freshTVar
-    cg e t
-  (logs, subst, assn, _) <- runSolver (solve c) [] flx os
-  Tc.exitOnErr $ mapM_ Tc.logTc logs
-  Tc.postE $ Subst.applyE subst e'
+tcExpr e = Tc.runTc (Tc.TcState M.empty knownTypes M.empty M.empty) $ do
+    ((c,e'),flx,os) <- runCG Ctx.empty [] $ do
+      let ?loc = S.posOfE e
+      t <- freshTVar
+      cg e t
+    (logs, subst, assn, _) <- runSolver (solve c) [] flx os
+    Tc.exitOnErr $ mapM_ Tc.logTc logs
+    Tc.postE $ Subst.applyE subst e'
+  where 
+    knownTypes = map (, ([], Nothing)) $ words "U8 U16 U32 U64 String Bool"
 
 
 dsExpr :: Tc.TypedExpr -> UntypedExpr 'Zero 'Zero VarName
@@ -345,7 +348,7 @@ eval (TE _ (App f e)) = do
   ve <- eval e
   case vf of
     VAFunction fn f' ts -> return $ VBad $ "I don't know how to evaluate abstract functions " ++ fn
-    VFunction  _ f' ts -> withNewBindings (V.Cons ve V.Nil) (eval f')
+    VFunction  _  f' ts -> withNewBindings (V.Cons ve V.Nil) (eval f')
 eval (TE _ (Con tn e t)) = VVariant tn <$> eval e
 eval (TE _ (Unit)) = return VUnit
 eval (TE _ (ILit n t)) 

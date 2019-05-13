@@ -58,7 +58,9 @@ import Lens.Micro.Mtl
 tc :: [(SourcePos, TopLevel LocType LocPatn LocExpr)]
    -> [(LocType, String)]
    -> IO ((Maybe ([TopLevel RawType TypedPatn TypedExpr], [(RawType, String)]), TcLogState), TcState)
-tc ds cts = runTc ((,) <$> typecheck ds <*> typecheckCustTyGen cts)
+tc ds cts = runTc (TcState M.empty knownTypes M.empty M.empty) ((,) <$> typecheck ds <*> typecheckCustTyGen cts)
+  where 
+    knownTypes = map (, ([], Nothing)) $ words "U8 U16 U32 U64 String Bool"
 
 typecheck :: [(SourcePos, TopLevel LocType LocPatn LocExpr)]
           -> TcM [TopLevel RawType TypedPatn TypedExpr]

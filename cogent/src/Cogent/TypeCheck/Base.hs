@@ -365,14 +365,13 @@ instance Monoid TcLogState where
 #endif
 
 
-runTc :: TcM a -> IO ((Maybe a, TcLogState), TcState)
-runTc ma = flip runStateT (TcState M.empty knownTypes M.empty M.empty)
-           . fmap (second $ over errLog adjustErrors)
-           . flip runStateT (TcLogState [] [])
-           . runMaybeT
-           $ ma
+runTc :: TcState -> TcM a -> IO ((Maybe a, TcLogState), TcState)
+runTc s ma = flip runStateT s
+             . fmap (second $ over errLog adjustErrors)
+             . flip runStateT (TcLogState [] [])
+             . runMaybeT
+             $ ma
   where
-    knownTypes = map (, ([], Nothing)) $ words "U8 U16 U32 U64 String Bool"
     adjustErrors = (if __cogent_freverse_tc_errors then reverse else id) . adjustContexts
     adjustContexts = map (first noConstraints)
     noConstraints = if __cogent_ftc_ctx_constraints then id else filter (not . isCtxConstraint)
