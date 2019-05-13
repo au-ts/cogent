@@ -20,6 +20,7 @@
 
 
 {-# LANGUAGE DataKinds, FlexibleContexts, LambdaCase, PolyKinds, TupleSections, ViewPatterns #-}
+{-# LANGUAGE MultiWayIf #-}
 
 module Cogent.Util where
 
@@ -242,12 +243,15 @@ a <*= f = a >>= ((>>) <$> f <*> return)
 
 -- largely borrowed from https://stackoverflow.com/questions/12119420/haskell-ghci-using-eof-character-on-stdin-with-getcontents
 -- NOTE: this is slightly different---it stops after taking the pivoting element
-takeWhileM' :: Monad m => (a -> Bool) -> [m a] -> m [a]
-takeWhileM' _ [] = return []
-takeWhileM' p (ma : mas) = do
-    a <- ma
-    if p a then liftM (a :) $ takeWhileM' p mas
-           else return [a]
+-- @takeWhileM' c1 c2 ls@: the first condition is the terminating condition for the first line
+--                         the second condition is the continuing condition for all lines
+takeWhileM' :: Monad m => (a -> Bool) -> (a -> Bool) -> [m a] -> m [a]
+takeWhileM' _ _ [] = return []
+takeWhileM' c1 c2 (ma : mas) = do
+  a <- ma
+  if | c1 a -> return [a]
+     | c2 a -> liftM (a :) $ takeWhileM' (const False) c2 mas
+     | otherwise -> return [a]
 
 
 fmapFold :: (Monoid m, Traversable t) => (a -> (m, b)) -> t a -> (m, t b)

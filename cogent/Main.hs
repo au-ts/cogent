@@ -44,7 +44,7 @@ import Cogent.Glue                     as GL (defaultExts, defaultTypnames,
 import Cogent.Haskell.Shallow          as HS
 #endif
 import Cogent.Inference                as IN (tc, tc_, tcConsts, retype)
-import Cogent.Interpreter              as Repl (repl)
+import Cogent.Interpreter              as Repl (replWithState)
 import Cogent.Isabelle.ACInstall       as AC (acInstallDefault)
 import Cogent.Isabelle.AllRefine       as AR (allRefine)
 import Cogent.Isabelle.CorresProof     as CP (corresProof)
@@ -563,7 +563,7 @@ parseArgs args = case getOpt' Permute options args of
     noFlagError ([StdGumDir],_,_,_) = getStdGumDir >>= putStrLn >> exitSuccess_
     noFlagError ([Help v],_,_,_) = putStr (usage v) >> exitSuccess_
     noFlagError ([Version],_,_,_) = putStrLn versionInfo >> exitSuccess_
-    noFlagError ([Interpret],fs,_,_) = repl
+    noFlagError ([Interpret],fs,_,_) = replWithState
     noFlagError (_,_,[],_) = exitErr ("no Cogent file specified\n")
     noFlagError (cs,fs,x:[],args) = oneFile (cs,fs,x,args)
     noFlagError (_,_,xs,_) = exitErr ("only one Cogent file can be given\n")
