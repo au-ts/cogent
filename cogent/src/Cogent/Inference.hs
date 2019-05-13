@@ -232,15 +232,17 @@ retype ds = fmap fst $ tc $ map untypeD ds
 
 tc :: [Definition UntypedExpr a] -> Either String ([Definition TypedExpr a], Map FunName FunctionType)
 tc = flip tc' M.empty
-  where
-    tc' :: [Definition UntypedExpr a] -> Map FunName FunctionType -> Either String ([Definition TypedExpr a], Map FunName FunctionType)
-    tc' [] reader = return ([], reader)
-    tc' ((FunDef attr fn ts t rt e):ds) reader =
-      case runTC (infer e >>= flip typecheck rt) (fmap snd ts, reader) (Cons (Just t) Nil) of
-        Left x -> Left x
-        Right (_, e') -> (first (FunDef attr fn ts t rt e':)) <$> tc' ds (M.insert fn (FT (fmap snd ts) t rt) reader)
-    tc' (d@(AbsDecl _ fn ts t rt):ds) reader = (first (Unsafe.unsafeCoerce d:)) <$> tc' ds (M.insert fn (FT (fmap snd ts) t rt) reader)
-    tc' (d:ds) reader = (first (Unsafe.unsafeCoerce d:)) <$> tc' ds reader
+
+tc' :: [Definition UntypedExpr a]
+    -> Map FunName FunctionType    -- Reader
+    -> Either String ([Definition TypedExpr a], Map FunName FunctionType)
+tc' [] reader = return ([], reader)
+tc' ((FunDef attr fn ts t rt e):ds) reader =
+  case runTC (infer e >>= flip typecheck rt) (fmap snd ts, reader) (Cons (Just t) Nil) of
+    Left x -> Left x
+    Right (_, e') -> (first (FunDef attr fn ts t rt e':)) <$> tc' ds (M.insert fn (FT (fmap snd ts) t rt) reader)
+tc' (d@(AbsDecl _ fn ts t rt):ds) reader = (first (Unsafe.unsafeCoerce d:)) <$> tc' ds (M.insert fn (FT (fmap snd ts) t rt) reader)
+tc' (d:ds) reader = (first (Unsafe.unsafeCoerce d:)) <$> tc' ds reader
 
 tc_ :: [Definition UntypedExpr a] -> Either String [Definition TypedExpr a]
 tc_ = fmap fst . tc
@@ -354,8 +356,7 @@ infer (E (Variable v))
         return (TE t (Variable v))
 infer (E (Fun f ts note))
    | ExI (Flip ts') <- Vec.fromList ts
-   = do xxx <- view _2
-        Just (FT ks ti to) <- funType f
+   = do Just (FT ks ti to) <- funType f
         case Vec.length ts' =? Vec.length ks
           of Just Refl -> let ti' = substitute ts' ti
                               to' = substitute ts' to

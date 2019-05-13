@@ -269,7 +269,7 @@ interpExpr r input =
           Nothing     -> __impossible "intrepExpr: no errors found"
           Just typedE -> do
             (desugared, desugaredE) <- dsExpr r typedE
-            case coreTcExpr desugaredE of
+            case coreTcExpr r desugaredE of
               Left err      -> putStrLn err
               Right typedCE -> do
                 preldS <- readIORef r
@@ -297,15 +297,17 @@ tcExpr r e = readIORef r >>= \st -> Tc.runTc (tcState st) $ do
   where 
     knownTypes = map (, ([], Nothing)) $ words "U8 U16 U32 U64 String Bool"
 
+-- FIXME: use `tc'` instead to pass in the reader / zilinc
+coreTcExpr :: IORef PreloadS
+           -> UntypedExpr 'Zero 'Zero VarName -> Either String (TypedExpr 'Zero 'Zero VarName)
+coreTcExpr r e = fmap snd $ Core.runTC (Core.infer e) (V.Nil, M.empty) V.Nil
 
-coreTcExpr :: UntypedExpr 'Zero 'Zero VarName -> Either String (TypedExpr 'Zero 'Zero VarName)
-coreTcExpr e = fmap snd $ Core.runTC (Core.infer e) (V.Nil, M.empty) V.Nil
-
-dsExpr :: IORef PreloadS -> Tc.TypedExpr
+dsExpr :: IORef PreloadS
+       -> Tc.TypedExpr
        -> IO ([Definition UntypedExpr VarName], UntypedExpr 'Zero 'Zero VarName)
 dsExpr r e = do
   preldS <- readIORef r
-  let (tls, constdefs) = partition (not . isConstDef) tls
+  let (tls, constdefs) = partition (not . isConstDef) (surface preldS)
   return . fst
          . flip3 evalRWS (Ds.DsState V.Nil V.Nil 0 0 [])
                          (M.empty, M.empty, [])
