@@ -416,7 +416,7 @@ and     "\<Xi> \<turnstile> \<gamma> matches \<Gamma>"
 shows   "\<Xi> \<turnstile> \<gamma> matches \<Gamma>1"
 and     "\<Xi> \<turnstile> \<gamma> matches \<Gamma>2"
 using assms proof (induct arbitrary: \<gamma> rule: split_bang.induct)
-     case split_bang_empty
+     case split_bang_nil
        case 1 then show ?case by simp
        case 2 then show ?case by simp
      next case split_bang_cons
