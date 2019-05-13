@@ -68,7 +68,7 @@ short_usage()
 }
 
 # Parse options
-OPTS=$($getopt -o h --alternative --long pp,tc,ds,an,mn,cg,gcc,tc-proof,ac,c-refine,flags,hsc-gen,aq,shallow-proof,hs-shallow,examples,goanna,ee,libgum,all,help,clean,q,i -n "$0" -- "$@")
+OPTS=$($GETOPT -o h --alternative --long pp,tc,ds,an,mn,cg,gcc,tc-proof,ac,c-refine,flags,hsc-gen,aq,shallow-proof,hs-shallow,examples,goanna,ee,libgum,all,help,clean,q,i -n "$0" -- "$@")
 if [ $? != 0 ]
 then
     short_usage

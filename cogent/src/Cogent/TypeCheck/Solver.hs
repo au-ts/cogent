@@ -368,7 +368,6 @@ rule (Upcastable (T (TCon n [] Unboxed)) (T (TCon m [] Unboxed)))
   , Just m' <- elemIndex m primTypeCons
   , n' <= m'
   , m /= "String"
-  , m /= "Bool"
   = return $ Just Sat
 rule ct@(FVariant n :< F (T (TVariant m)))
   | ns <- M.keysSet n
