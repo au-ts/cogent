@@ -431,26 +431,52 @@ proof (induct rule: type_lub_type_glb.inducts)
   then show ?case 
   proof -
     have "K \<turnstile> TRecord ts1 s1 \<sqsubseteq> TRecord ts s"
-      using lub_trecord.hyps list_all3_conv_all_nth list_all2_conv_all_nth
-      by (metis (mono_tags, lifting) subtyping_simps(6))
+    proof (rule subty_trecord)
+      show "list_all2 (\<lambda>p1 p2. K \<turnstile> fst (snd p1) \<sqsubseteq> fst (snd p2)) ts1 ts"
+        using lub_trecord.hyps 
+        by (clarsimp simp add: list_all2_conv_all_nth list_all3_conv_all_nth)
+      show "list_all2 (record_kind_subty K) ts1 ts"
+        using lub_trecord.hyps le_neq_trans
+        apply (clarsimp simp add: list_all2_conv_all_nth list_all3_conv_all_nth)
+        by fastforce
+    qed (simp add: lub_trecord.hyps)+
     moreover have "K \<turnstile> TRecord ts2 s2 \<sqsubseteq> TRecord ts s"
-      using lub_trecord.hyps list_all3_conv_all_nth list_all2_conv_all_nth
-      by (metis (mono_tags, lifting) subtyping_simps(6))
+    proof (rule subty_trecord)
+      show "list_all2 (\<lambda>p1 p2. K \<turnstile> fst (snd p1) \<sqsubseteq> fst (snd p2)) ts2 ts"
+        using lub_trecord.hyps
+        by (clarsimp simp add: list_all2_conv_all_nth list_all3_conv_all_nth)
+      show "list_all2 (record_kind_subty K) ts2 ts"
+        using lub_trecord.hyps le_neq_trans
+        apply (clarsimp simp add: list_all2_conv_all_nth list_all3_conv_all_nth)
+        by fastforce
+    qed (simp add: lub_trecord.hyps)+
     ultimately show ?thesis
       by simp
-  qed 
+  qed
 next
   case (glb_trecord K ts ts1 ts2 s s1 s2)
   then show ?case
   proof -
     have "K \<turnstile> TRecord ts s \<sqsubseteq> TRecord ts1 s1"
-      using glb_trecord.hyps subtyping_simps(6)
-      apply (clarsimp simp add: list_all3_conv_all_nth list_all2_conv_all_nth)
-      by metis
+    proof (rule subty_trecord)
+      show "list_all2 (\<lambda>p1 p2. K \<turnstile> fst (snd p1) \<sqsubseteq> fst (snd p2)) ts ts1"
+        using glb_trecord.hyps
+        by (clarsimp simp add: list_all2_conv_all_nth list_all3_conv_all_nth)
+      show "list_all2 (record_kind_subty K) ts ts1"
+        using glb_trecord.hyps
+        apply (clarsimp simp add: list_all2_conv_all_nth list_all3_conv_all_nth)
+        by (metis (no_types) le_less)
+    qed (simp add: glb_trecord.hyps)+
     moreover have "K \<turnstile> TRecord ts s \<sqsubseteq> TRecord ts2 s2"
-      using glb_trecord.hyps subtyping_simps(6)
-      apply (clarsimp simp add: list_all3_conv_all_nth list_all2_conv_all_nth)
-      by metis
+    proof (rule subty_trecord)
+      show "list_all2 (\<lambda>p1 p2. K \<turnstile> fst (snd p1) \<sqsubseteq> fst (snd p2)) ts ts2"
+        using glb_trecord.hyps
+        by (clarsimp simp add: list_all2_conv_all_nth list_all3_conv_all_nth)
+      show "list_all2 (record_kind_subty K) ts ts2"
+        using glb_trecord.hyps
+        apply (clarsimp simp add: list_all2_conv_all_nth list_all3_conv_all_nth)
+        by (meson le_less)
+    qed (simp add: glb_trecord.hyps)+
     ultimately show ?thesis
       by simp
   qed
@@ -473,7 +499,8 @@ proof (induct rule: subtyping.inducts)
 next
   case (subty_trecord K ts1 ts2 s1 s2)
   then show ?case
-    by (simp add: list_all2_conv_all_nth list_all3_conv_all_nth lub_trecord)
+  proof (rule_tac type_lub_type_glb.lub_trecord)  
+  qed (clarsimp simp add: list_all2_conv_all_nth list_all3_conv_all_nth, auto)+
 next
   case (subty_tsum K ts1 ts2)
   then show ?case
@@ -489,8 +516,9 @@ case (subty_tfun K t2 t1 u1 u2)
     by (simp add: subty_tfun.hyps(2) glb_tfun subtyping_to_type_lub type_lub_type_glb_commut(2))
 next
   case (subty_trecord K ts1 ts2 s1 s2)
-  then show ?case 
-    by (simp add: list_all2_conv_all_nth list_all3_conv_all_nth glb_trecord)
+  then show ?case
+  proof (rule_tac type_lub_type_glb.glb_trecord)
+  qed (clarsimp simp add: list_all2_conv_all_nth list_all3_conv_all_nth, auto)+
 next
   case (subty_tsum K ts1 ts2)
   then show ?case
