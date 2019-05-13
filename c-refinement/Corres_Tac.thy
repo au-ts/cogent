@@ -9,12 +9,12 @@
  *)
 
 theory Corres_Tac
-imports 
-  "Cogent_Corres"
-  "../cogent/isa/ProofTrace"
-  "../cogent/isa/CogentHelper"
-  Value_Relation_Generation
-
+  imports 
+    "Cogent_Corres"
+    "../cogent/isa/ProofTrace"
+    "../cogent/isa/CogentHelper"
+    Value_Relation_Generation
+    "../cogent/isa/ML_Old"
 begin    
 
 (*
@@ -75,41 +75,6 @@ lemma cogent_C_unused_return__internal:
   "\<And>A A'. A = A' \<Longrightarrow> cogent_C_unused_return__internal A A'"
   by (monad_eq simp: cogent_C_unused_return__internal_def | blast)+
 
-(* Test: *)
-schematic_lemma
-  (* input *)
-  "(do stuff1;
-       stuff2;
-       _ \<leftarrow>
-         condition C1
-           (do _ \<leftarrow>
-                 condition C2
-                   (do _ \<leftarrow> gets (\<lambda>_. r1);
-                       gets (\<lambda>_. ()) od) (* <-- *)
-                   bla1;
-               gets (\<lambda>_. ()) od)         (* <-- *)
-           bla2;
-       _ \<leftarrow>
-         condition C3 stuff3 stuff4;     (* no change *)
-       stuff5 od)
-    = ?A"
-  (* expected output *)
-  "?A =
-   (do stuff1;
-       stuff2;
-       _ \<leftarrow>
-         condition C1
-           (condition C2
-              (gets (\<lambda>_. r1))
-              (do bla1; return undefined od))
-           (do bla2; return undefined od);
-       _ \<leftarrow>
-         condition C3 stuff3 stuff4;
-       stuff5 od)"
-  (* do it *)
-  apply ((rule cogent_C_unused_return_L cogent_C_unused_return_step cogent_C_unused_return__internal refl)+)[1]
-  (* check *)
-  by (rule refl)
 
 (* Apply the rewrite to a corres proof state.
  * In corres_tac, we apply this tactic blindly and it rewrites all unit-returning blocks
@@ -152,7 +117,7 @@ fun make_contextual_eq_thms (context : term) (eq_thms : thm list) ctxt : thm lis
         let val ((_, [thm]), _) = Variable.import true [thm0] (Variable.set_body false ctxt);
             val (lhs, rhs) = dest_eq (Thm.prop_of thm)
                              handle TERM _ => raise THM ("make_contextual_eq_thms: not an equation", 0, [thm0])
-            val prop = @{term Trueprop} $ (@{term "op ="} $ (context $ lhs) $ (context $ rhs))
+            val prop = @{term Trueprop} $ (@{term "(=)"} $ (context $ lhs) $ (context $ rhs))
             val prop' = map_types (K dummyT) prop |> Syntax.check_term ctxt
                         handle ERROR _ => raise TERM ("make_contextual_eq_thms: equality term is invalid", [prop])
             fun free_var v = case Syntax.check_term ctxt (Free (v, dummyT)) of
@@ -1000,9 +965,9 @@ fun define_uabsfuns (defs : string list list) ctxt : ((term * (string * thm)) li
         val name = "\<xi>_" ^ string_of_int n
         val typ = @{typ "(funtyp, abstyp, ptrtyp) uabsfuns"}
         val rhs = Const (@{const_name undefined}, typ) (* FIXME *)
-        val (thm, ctxt) = Specification.definition
-              (NONE, ((Binding.name (name ^ "_def"), []),
-                      @{mk_term "?name \<equiv> ?def" (name, def)} (Free (name, typ), rhs))) ctxt
+        val (thm, ctxt) = Specification.definition NONE [] []
+              ((Binding.name (name ^ "_def"), []),
+                      @{mk_term "?name \<equiv> ?def" (name, def)} (Free (name, typ), rhs)) ctxt
         val (thms, ctxt) = define (n+1) defs' ctxt
         in (thm::thms, ctxt) end
   in define 0 defs ctxt end
@@ -1176,7 +1141,7 @@ fun corres_tac_driver corres_tac typing_tree_of ctxt (tab : obligations) thm_nam
   | v => error ("corres_tac_driver: tab contents: " ^ thm_name ^ ": " ^ @{make_string} v)
 
 fun finalise (tab : obligations) ctxt thm_tab = let
-    fun to_rsn NONE = Thm.trivial @{cpat "?P :: prop"}
+    fun to_rsn NONE = Thm.cterm_of ctxt @{schematic_term "?P :: prop"} |> Thm.trivial
       | to_rsn (SOME thm) = thm
 
     fun cleanup thm = thm
@@ -1204,7 +1169,7 @@ fun finalise (tab : obligations) ctxt thm_tab = let
 fun all_corres_goals corres_tac typing_tree_of time_limit ctxt (tab : obligations) =
   let
     val tl = Time.fromSeconds time_limit
-    fun driver nm = Timing.timing (try (TimeLimit.timeLimit tl
+    fun driver nm = Timing.timing (try (Timeout.apply tl
             (corres_tac_driver corres_tac typing_tree_of ctxt tab))) nm
         |> (fn (dur, res) => (tracing ("Time for " ^ nm ^ ": " ^ Timing.message dur); res))
         |> (fn NONE => (tracing ("Failed: " ^ nm); (nm, NONE))
@@ -1303,7 +1268,7 @@ fun corres_tree tr typing_tree_of corres_tac run_proofs skip_initial time_limit 
                                     failed_proofs := thm_name :: !failed_proofs;
                                     Goal.prove ctxt [] [] prop (K (Skip_Proof.cheat_tac ctxt 1)))
             val (time, thms) = (fn f => Timing.timing f ()) (fn () =>
-                 [(TimeLimit.timeLimit (Time.fromSeconds time_limit) (fn () =>
+                 [(Timeout.apply (Time.fromSeconds time_limit) (fn () =>
                    (((((Goal.prove ctxt [] [] prop (fn {context, prems} =>
                      if not run_proofs then Skip_Proof.cheat_tac ctxt 1 else
                         (corres_tac context (peel_two (typing_tree_of name)) fun_defs
@@ -1314,7 +1279,7 @@ fun corres_tree tr typing_tree_of corres_tac run_proofs skip_initial time_limit 
                  handle THM t => fallback_thm (@{make_string} (THM t)))
                  handle TERM t => fallback_thm (@{make_string} (TERM t)))
                  handle ERROR e => fallback_thm (@{make_string} (ERROR e))) ()
-                handle TimeLimit.TimeOut => fallback_thm (@{make_string} TimeLimit.TimeOut))
+                handle Timeout.TIMEOUT _ => fallback_thm (@{make_string} Timeout.TIMEOUT))
                 |> unfold_Cogent_types ctxt type_unfold_simps name])
             val _ = tracing ("Time for " ^ thm_name ^ ": " ^ Timing.message time)
           in thms end)

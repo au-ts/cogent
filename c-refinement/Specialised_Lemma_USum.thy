@@ -78,8 +78,9 @@ ML{* fun mk_case_prop from_uval to_uval field_num file_nm ctxt =
   val from_struct_C_nm = get_ty_nm_C from_uval;
   val to_struct_C_nm   = get_ty_nm_C to_uval;
   val _ = tracing ("  casting from " ^ from_struct_C_nm ^ " to " ^ to_struct_C_nm)
-  val heap = Symtab.lookup (HeapInfo.get (Proof_Context.theory_of ctxt)) file_nm 
-      |> Utils.the' "heap in mk_case_prop failed.";
+  val heap = Symtab.lookup (HeapInfo.get (Proof_Context.theory_of ctxt)) file_nm
+      |> Utils.the' "heap in mk_case_prop failed."
+      |> #heap_info;
   val get_struct_info  = fn struct_C_nm => Symtab.lookup (heap |> #structs) struct_C_nm 
       |> Utils.the' "get_struct_info in mk_prop in Specialised_Lemma_USum.thy failed.";
   val from_struct_info = get_struct_info from_struct_C_nm;
@@ -178,7 +179,8 @@ in
 fun mk_case_lems_for_uval file_nm ctxt uvals from =
  let
   val heap_info = Symtab.lookup (HeapInfo.get (Proof_Context.theory_of ctxt)) file_nm 
-                 |> Utils.the' "the' in mk_specialised_case_lemmas_for_uval failed.";
+      |> Utils.the' "heap in mk_case_prop failed."
+      |> #heap_info;
   val num_tos   = get_castable_uvals_from ctxt heap_info from uvals;
   val lems      = mk_case_lems_from_tos from num_tos file_nm ctxt;
  in
@@ -198,7 +200,7 @@ fun specialise_esac_thm ctxt trm =
   val vars        = Term.add_vars (Thm.prop_of corres_esac) [];
   (* get_val' is the 5th variable counting from 0.*)
   val get_val'    = List.nth (vars, 5);
-  val my_esac     = Drule.cterm_instantiate [(cterm_of (Var get_val'), cterm_of trm)] corres_esac
+  val my_esac     = Drule.infer_instantiate ctxt [(("get_val'", 0), cterm_of trm)] corres_esac (* TODO make sure 0 means what I think it means *)
  in my_esac end;
 
 fun mk_specialised_esac_lemma file_nm ctxt from_usum =
@@ -209,7 +211,7 @@ fun mk_specialised_esac_lemma file_nm ctxt from_usum =
   val is_usum         = get_usums [from_usum] |> null |> not;
   val get_struct_info = fn hinfo:HeapLiftBase.heap_info => Symtab.lookup (#structs hinfo) from_C_nm;
   fun has_2elems list = List.length list = 2;
-  val some_hinfo      = Symtab.lookup (HeapInfo.get thy) file_nm;
+  val some_hinfo      = (Symtab.lookup (HeapInfo.get thy) file_nm) +> #heap_info;
   val some_sinfo      = some_hinfo ?> get_struct_info;
   val some_finfo      = some_sinfo +> #field_info;
   val has_2fields     = some_finfo +> has_2elems |> is_some_true;

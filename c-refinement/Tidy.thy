@@ -10,7 +10,9 @@
 
 (* Preprocess AutoCorres translation of Cogent compiler's output code. *)
 theory Tidy
-imports "AutoCorres.AutoCorres"
+  imports
+    "AutoCorres.AutoCorres"
+    "../cogent/isa/ML_Old"
 begin
 
 (* Each Cogent_Corres rule expects (at most) one guard *)
