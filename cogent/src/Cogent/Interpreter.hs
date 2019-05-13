@@ -17,6 +17,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -36,6 +37,7 @@ import qualified Cogent.Inference   as Core
 import           Cogent.Mono
 import qualified Cogent.Parser      as Parser
 import           Cogent.PrettyPrint as Pretty
+import qualified Cogent.Reorganizer as Reorg
 import qualified Cogent.Surface             as S
 import           Cogent.TypeCheck           as Tc
 import qualified Cogent.TypeCheck.Base      as Tc
@@ -52,6 +54,7 @@ import Control.Monad.State
 import Data.Bits
 import Data.Either (fromLeft, isLeft)
 import Data.Function ((&))
+import Data.IORef
 import Data.List (isPrefixOf, isSuffixOf, partition)
 import qualified Data.Map as M
 import Data.Maybe (fromJust)
@@ -133,38 +136,50 @@ makeLenses ''ReplState
 runReplM :: ReplM v a f x -> ReplState v a f -> IO x
 runReplM ma s = evalStateT (unReplM ma) s
 
-getLines c = liftM unlines $ takeWhileM' c (repeat getLine)
+getLines c1 c2 = liftM unlines $ takeWhileM' c1 c2 (repeat getLine)
 
 continueGetLines :: String -> Bool
 continueGetLines l
-  | null l = False
   | ":f" `isPrefixOf` l = False
+  | ":c" `isPrefixOf` l = False
+  | ":d" `isPrefixOf` l = False
   | ":h" `isPrefixOf` l = False
   | ":q" `isPrefixOf` l = False
   | ";"  `isSuffixOf` l = False
 continueGetLines l = True
 
-repl :: IO ()
-repl = do putStr "cogenti> "
-          hFlush stdout
-          s <- getLines continueGetLines
-          let result = readInput s
-          case result of
-            Left err -> putStrLn err
-            Right (EvalExpr s) -> interpExpr s
-            Right (GetType  s) -> putStrLn ":t not implemented yet"
-            Right (LoadFile f) -> putStrLn ":l not implemented yet"
-            Right (LoadCode c) -> putStrLn ":l not implemented yet"
-            Right (Help) -> putStr $ unlines [ "Cogent REPL:"
-                                             , "  :e <EXPR> ;  -- evaluate an expression"
-                                             , "  :t <EXPR> ;  -- query the type of an expression"
-                                             , "  :f <FILE>    -- load a Cogent file"
-                                             , "  :l <CODE> ;  -- load Cogent definitions"
-                                             , "  :h           -- show this help"
-                                             , "  :q           -- quit the REPL"
-                                             ]
-            Right (Quit) -> exitSuccess
-          repl
+data PreloadS = PreloadS { surface :: [S.TopLevel S.RawType Tc.TypedPatn Tc.TypedExpr]
+                         , tcState :: Tc.TcState
+                         }
+
+replWithState :: IO ()
+replWithState = newIORef (PreloadS [] (Tc.TcState M.empty [] M.empty M.empty)) >>= repl
+
+repl :: IORef PreloadS -> IO ()
+repl r = do putStr "cogenti> "
+            hFlush stdout
+            s <- getLines null continueGetLines
+            let result = readInput s
+            case result of
+              Left err -> putStrLn err
+              Right (EvalExpr s) -> interpExpr r s
+              Right (GetType  s) -> putStrLn ":t not implemented yet"
+              Right (LoadFile f) -> loadProgram r f
+              Right (LoadCode c) -> undefined  -- loadProgram r c
+              Right (Clear     ) -> writeIORef r (PreloadS [] Tc.emptyTcState)
+              Right (Display   ) -> putStrLn ":d not implemented yet"
+              Right (Help) -> putStr $ unlines [ "Cogent REPL:"
+                                               , "  :e <EXPR> ;  -- evaluate an expression"
+                                               , "  :t <EXPR> ;  -- query the type of an expression"
+                                               , "  :f <FILE>    -- load a Cogent file"
+                                               , "  :l <CODE> ;  -- load Cogent definitions"
+                                               , "  :c           -- clear loaded code"
+                                               , "  :d           -- display loaded code"
+                                               , "  :h           -- show this help"
+                                               , "  :q           -- quit the REPL"
+                                               ]
+              Right (Quit) -> exitSuccess
+            repl r
   where
     readInput :: String -> Either String ReplOption
     readInput s = do
@@ -178,6 +193,8 @@ data ReplOption = EvalExpr String
                 | GetType  String
                 | LoadFile String
                 | LoadCode String
+                | Clear  -- clear all loaded code
+                | Display
                 | Help
                 | Quit
                 | Skip
@@ -189,18 +206,38 @@ parseCmdline = do
  <|> (Parser.reservedOp ":t" >> Parser.whiteSpace >> GetType  <$> manyTill anyChar (char ';'))
  <|> (Parser.reservedOp ":f" >> Parser.whiteSpace >> LoadFile <$> manyTill anyChar endOfLine)
  <|> (Parser.reservedOp ":l" >> Parser.whiteSpace >> LoadCode <$> manyTill anyChar (char ';'))
+ <|> (Parser.reservedOp ":c" >> return Clear)
+ <|> (Parser.reservedOp ":d" >> return Display)
  <|> (Parser.reservedOp ":h" >> return Help)
  <|> (Parser.reservedOp ":q" >> return Quit)
  <|> (eof >> return Skip)
 
-loadProg :: FilePath -> ReplM v a f ()
-loadProg input = do
-  undefined
 
-interpExpr :: String -> IO ()
-interpExpr input =
+loadProgram :: IORef PreloadS -> String -> IO ()
+loadProgram r preload =
+  Parser.parseWithIncludes preload [] >>= \case
+    Left err -> putStrLn $ show err
+    Right (parsed, _) -> case Reorg.reorganize Nothing parsed of
+      Left err -> putDoc (Pretty.prettyRE err)
+      Right reorged -> do
+        ((mtced,tclog),tcst) <- Tc.tc (fmap (\(a,_,s) -> (a,s)) reorged) []
+        let (errs,warns) = partition (isLeft . snd) $ tclog^.Tc.errLog
+        unless (null $ warns) $ putDoc (vcat $ fmap (Pretty.prettyTWE __cogent_ftc_ctx_len) warns ++ [empty])
+        if not $ null errs then
+          do putDoc (vcat $ fmap (Pretty.prettyTWE __cogent_ftc_ctx_len) errs ++ [empty])
+             when (and $ map (Tc.isWarnAsError . fromLeft undefined . snd) errs) $ hPutStrLn stderr "Failing due to --Werror."
+        else 
+          case mtced of
+            Nothing -> __impossible "loadProgram: no errors found"
+            Just (tced,_) -> do
+              __assert (null errs) "no errors, only warnings"
+              writeIORef r (PreloadS tced tcst)
+
+
+interpExpr :: IORef PreloadS -> String -> IO ()
+interpExpr r input =
   case runParser parseExpr (Parser.ParserState False) "<REPL>" input of
-    Left  errs -> putStrLn $ show errs
+    Left  err  -> putStrLn $ show err
     Right locE -> do
       ((mbTypedE, tclog), _) <- tcExpr locE
       let (errs,warns) = partition (isLeft . snd) $ tclog^.Tc.errLog
@@ -222,7 +259,7 @@ parseExpr :: Parser.Parser S.LocExpr
 parseExpr = Parser.expr 0 <* eof
 
 tcExpr :: S.LocExpr -> IO ((Maybe Tc.TypedExpr, Tc.TcLogState), Tc.TcState)
-tcExpr e = Tc.runTc (Tc.TcState M.empty knownTypes M.empty M.empty) $ do
+tcExpr e = Tc.runTc Tc.emptyTcState $ do
     ((c,e'),flx,os) <- runCG Ctx.empty [] $ do
       let ?loc = S.posOfE e
       t <- freshTVar

@@ -348,6 +348,9 @@ data TcState = TcState { _knownFuns    :: M.Map FunName (Polytype TCType)
 
 makeLenses ''TcState
 
+emptyTcState = TcState M.empty [] M.empty M.empty
+
+
 data TcLogState = TcLogState { _errLog :: [ContextualisedTcLog]
                              , _errCtx :: [ErrorContext]
                              }
