@@ -725,7 +725,7 @@ shallowFile thy stg defs = do
       ssthy = thy ++ __cogent_suffix_of_shallow_shared ++ (if tuples then __cogent_suffix_of_recover_tuples else "")
       scthy = thy ++ __cogent_suffix_of_scorres ++ __cogent_suffix_of_stage stg
       shalImports = TheoryImports [ssthy]
-      shrdImports = TheoryImports [__cogent_root_dir </> "cogent/isa/Util"]
+      shrdImports = TheoryImports [__cogent_root_dir </> "cogent/isa/shallow/ShallowUtil"]
       scorImports = TheoryImports [shthy, dpthy, __cogent_root_dir </> "cogent/isa/shallow/Shallow_Tac"]
       strippedTypeMap = M.filterWithKey (\ts _ -> ts `S.member` S.fromList fullTypes) fullTypeMap
   return $ ( Theory shthy shalImports $ lefts isadefs
