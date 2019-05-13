@@ -9,7 +9,9 @@
  *)
 
 theory ShallowUtil
-  imports "HOL-Word.Word"
+  imports
+    "../Util"
+    "HOL-Word.Word"
 begin
 
 definition

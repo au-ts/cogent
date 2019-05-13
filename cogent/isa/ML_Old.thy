@@ -37,7 +37,7 @@ ML {*
   in
     ML_Antiquotation.inline @{binding "schematic_term"} (parser >> schematic_term)
   end
-  *}
+*}
 
 setup {* schematic_term_setup *}
 
