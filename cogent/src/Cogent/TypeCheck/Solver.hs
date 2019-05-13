@@ -36,6 +36,7 @@ import           Cogent.TypeCheck.Solver.Simplify
 import           Cogent.TypeCheck.Solver.Unify
 import           Cogent.TypeCheck.Solver.JoinMeet
 import           Cogent.TypeCheck.Solver.Equate
+import           Cogent.TypeCheck.Solver.Default
 import qualified Cogent.TypeCheck.Subst as Subst
 import           Cogent.TypeCheck.Subst (Subst(..))
 import           Cogent.TypeCheck.Util
@@ -75,7 +76,7 @@ import Control.Monad.Trans.Maybe
 import Data.Maybe
 solve :: [(TyVarName, Kind)] -> Constraint -> TcSolvM [Goal]
 solve ks c = let gs = makeGoals [] c 
-                 rw = Rewrite.untilFixedPoint (Rewrite.pre normaliseTypes (Rewrite.debug "SOLV" (show . pretty . map _goal) <> Rewrite.lift (simplify ks) <> unify <> joinMeet <> Rewrite.lift equate))
+                 rw = Rewrite.untilFixedPoint (Rewrite.pre normaliseTypes (Rewrite.debug "SOLV" (show . pretty . map _goal) <> Rewrite.lift (simplify ks) <> unify <> joinMeet <> Rewrite.lift equate <> Rewrite.lift defaults))
               in fmap (fromMaybe gs) (runMaybeT (Rewrite.run' rw gs))
 {-
 runSolver :: Solver a -> [(TyVarName, Kind)] -> Int -> IM.IntMap VarOrigin

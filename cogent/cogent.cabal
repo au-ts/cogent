@@ -116,6 +116,7 @@ library
               , Cogent.TypeCheck.Solver.Goal
               , Cogent.TypeCheck.Solver.Monad
               , Cogent.TypeCheck.Solver.Rewrite
+              , Cogent.TypeCheck.Solver.Default
               , Cogent.TypeCheck.Subst
               , Cogent.TypeCheck.Util
               , Cogent.Util
