@@ -165,7 +165,13 @@ unorderedType (TRecord {}) = False
 unorderedType (TVariant {}) = False
 unorderedType (TTuple {}) = False
 unorderedType (TFun {}) = False
+unorderedType (TUnbox {}) = False
 unorderedType (TBang {}) = False
+unorderedType (TTake {}) = False
+unorderedType (TPut {}) = False
+#ifdef BUILTIN_ARRAYS
+unorderedType (TArray {}) = False
+#endif
 unorderedType _ = True 
 
 
