@@ -16,6 +16,7 @@ import Control.Applicative
 import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.Class (lift)
 import qualified Data.Set as S
+import qualified Data.Map as M
 
 onGoal :: (Constraint -> Maybe [Constraint]) -> Goal -> Maybe [Goal]
 onGoal f g = fmap (map (derivedGoal g)) (f (g ^. goal))
@@ -104,6 +105,7 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
   T (TTuple ts) :=: T (TTuple us) | length ts == length us -> Just (zipWith (:=:) ts us)
 
   V r1 :< V r2 | Row.null r1 && Row.null r2 -> Just []
+               | Just (r1',r2') <- extractVariableEquality r1 r2 -> Just [V r1' :=: V r2']
                | otherwise -> do 
     let commons  = Row.common r1 r2
         (ls, rs) = unzip commons
@@ -126,6 +128,7 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
     Just (c:cs)
 
   R r1 s1 :< R r2 s2 | Row.null r1 && Row.null r2 && s1 == s2 -> Just []
+                     | Just (r1',r2') <- extractVariableEquality r1 r2 -> Just [R r1' s1 :=: R r2' s2]
                      | otherwise -> do
     let commons  = Row.common r1 r2
         (ls, rs) = unzip commons
@@ -181,3 +184,14 @@ untakenLabelsSet = S.fromList . mapMaybe (\(l, (_,t)) -> guard (not t) >> pure l
 isIrrefutable :: RawPatn -> Bool
 isIrrefutable (RP (PIrrefutable _)) = True
 isIrrefutable _ = False
+
+-- | Check if the variable parts must be equal.
+-- Returns true iff the two rows have the same keys, but one of the variables is Nothing and the other is a Just
+extractVariableEquality :: Row.Row t -> Row.Row t -> Maybe (Row.Row t, Row.Row t)
+extractVariableEquality (Row.Row m1 v1) (Row.Row m2 v2)
+ | (isJust v1 && isNothing v2) || (isNothing v1 && isJust v2)
+ , M.null m1
+ , M.null m2
+ = Just (Row.Row M.empty v1, Row.Row M.empty v2)
+ | otherwise
+ = Nothing
