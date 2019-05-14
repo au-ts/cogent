@@ -74,10 +74,24 @@ import           Lens.Micro.Mtl
 import Debug.Trace
 import Control.Monad.Trans.Maybe
 import Data.Maybe
+
 solve :: [(TyVarName, Kind)] -> Constraint -> TcSolvM [Goal]
-solve ks c = let gs = makeGoals [] c 
-                 rw = Rewrite.untilFixedPoint (Rewrite.pre normaliseTypes (Rewrite.debug "SOLV" (show . pretty . map _goal) <> Rewrite.lift (simplify ks) <> unify <> joinMeet <> Rewrite.lift equate <> Rewrite.lift defaults))
+solve ks c = let gs     = makeGoals [] c
+                 stages = debugL "Simplify" (simplify ks) <>
+                          debug  "Unify"    unify <>
+                          debug  "JoinMeet" joinMeet <>
+                          debugL "Equate" equate <>
+                          debugL "Defaults" defaults
+                 rw     = Rewrite.untilFixedPoint (Rewrite.pre normaliseTypes stages)
               in fmap (fromMaybe gs) (runMaybeT (Rewrite.run' rw gs))
+ where
+  debug  nm rw = rw `Rewrite.andThen` Rewrite.debugPass ("\n===Rewrite " ++ nm ++ "===") printC
+  debugL nm rw = debug nm (Rewrite.lift rw)
+
+  printC gs =
+   let gs' = map (P.nest 2 . pretty . _goal) gs
+   in show (P.line <> P.indent 2 (P.list gs'))
+
 {-
 runSolver :: Solver a -> [(TyVarName, Kind)] -> Int -> IM.IntMap VarOrigin
           -> TcM (a, Subst, Ass.Assignment, IM.IntMap VarOrigin)
