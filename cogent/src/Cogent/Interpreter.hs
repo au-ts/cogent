@@ -165,8 +165,8 @@ repl r = do putStr "cogenti> "
             let result = readInput s
             case result of
               Left err -> putStrLn err
-              Right (EvalExpr s) -> interpExpr r s
-              Right (GetType  s) -> putStrLn ":t not implemented yet"
+              Right (EvalExpr s) -> interpExpr QValue r s
+              Right (GetType  s) -> interpExpr QType  r s
               Right (LoadFile f) -> loadFile r f
               Right (LoadCode c) -> loadCode r c
               Right (Clear     ) -> writeIORef r (PreloadS [] Tc.emptyTcState)
@@ -252,9 +252,10 @@ checkPreload r prog src = do
           FromFile  -> writeIORef r (PreloadS tced tcst)
           FromStdin -> modifyIORef r (<> PreloadS tced tcst)
 
+data Query = QValue | QType
 
-interpExpr :: IORef PreloadS -> String -> IO ()
-interpExpr r input =
+interpExpr :: Query -> IORef PreloadS -> String -> IO ()
+interpExpr q r input =
   case runParser parseExpr (Parser.ParserState False) "<REPL>" input of
     Left  err  -> putStrLn $ show err
     Right locE -> do
@@ -268,13 +269,13 @@ interpExpr r input =
         else case mbTypedE of
           Nothing     -> __impossible "intrepExpr: no errors found"
           Just typedE -> do
-            (desugared, desugaredE) <- dsExpr r typedE
-            case coreTcExpr r desugaredE of
-              Left err      -> putStrLn err
-              Right typedCE -> do
-                preldS <- readIORef r
+            case q of
+              QType  -> putDoc $ pretty (Tc.getTypeTE typedE) <> line
+              QValue -> do
+                (desugared, desugaredE) <- dsExpr r typedE
                 let coreTced = fromRight [] $ Core.tc_ desugared  -- there shouldn't be any errors
-                    absFuns = filter Core.isAbsFun coreTced
+                typedCE <- coreTcExpr coreTced desugaredE  -- the state required will be extracted from @coreTced@
+                let absFuns = filter Core.isAbsFun coreTced
                     conFuns = filter Core.isConFun coreTced
                     absFunMap = M.fromList $ fmap (\d -> (CoreFunName . fromJust $ getFuncId d, id)) absFuns
                     conFunMap = M.fromList $ fmap (\d -> (CoreFunName . fromJust $ getFuncId d, d )) conFuns
@@ -297,10 +298,17 @@ tcExpr r e = readIORef r >>= \st -> Tc.runTc (tcState st) $ do
   where 
     knownTypes = map (, ([], Nothing)) $ words "U8 U16 U32 U64 String Bool"
 
--- FIXME: use `tc'` instead to pass in the reader / zilinc
-coreTcExpr :: IORef PreloadS
-           -> UntypedExpr 'Zero 'Zero VarName -> Either String (TypedExpr 'Zero 'Zero VarName)
-coreTcExpr r e = fmap snd $ Core.runTC (Core.infer e) (V.Nil, M.empty) V.Nil
+coreTcExpr :: [Definition TypedExpr VarName]
+           -> UntypedExpr 'Zero 'Zero VarName
+           -> IO (TypedExpr 'Zero 'Zero VarName)
+coreTcExpr ds e = do
+  let mkFunMap (FunDef  _ fn ps ti to _) = (fn, FT (fmap snd ps) ti to)
+      mkFunMap (AbsDecl _ fn ps ti to  ) = (fn, FT (fmap snd ps) ti to)
+      mkFunMap _ = __impossible "coreTcExpr: mkFunMap: not a function definition"
+  let funmap = M.fromList $ fmap mkFunMap $ filter (not . isTypeDef) ds
+  case fmap snd $ Core.runTC (Core.infer e) (V.Nil, funmap) V.Nil of
+    Left err -> __impossible "coreTcExpr: there shouldn't be any error here"
+    Right e  -> return e
 
 dsExpr :: IORef PreloadS
        -> Tc.TypedExpr
