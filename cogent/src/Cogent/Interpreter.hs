@@ -108,6 +108,9 @@ data HNF a f
   | VEsac (Value a f)
   | VMember (Value a f) FieldName
   | VPut (Value a f) FieldName (Value a f)
+  | VTake (VarName, VarName) (Value a f) FieldName (Value a f)
+  | VLet VarName (Value a f) (Value a f)
+  | VSplit (VarName, VarName) (Value a f) (Value a f)
   | VAbstract a
   | VAFunction FunName f [Type 'Zero]
   deriving (Show)
@@ -125,6 +128,9 @@ instance (Prec a, Prec f) => Prec (HNF a f) where
   prec (VEsac {}) = 9
   prec (VMember {}) = 9
   prec (VPut {}) = 1
+  prec (VTake {}) = 100
+  prec (VLet {}) = 100
+  prec (VSplit {}) = 100
   prec (VAbstract {}) = 0
   prec (VAFunction {}) = 0
 
@@ -161,6 +167,12 @@ instance (Pretty a, Pretty f, Prec a, Prec f, Pretty (Value a f), Prec (HNF a f)
   pretty (VEsac v) = keyword "esac" <+> prettyPrec 9 v
   pretty (VMember r f) = prettyPrec 9 r <> symbol "." <> fieldname f
   pretty (VPut r f v) = prettyPrec 10 r <+> record [fieldname f <+> symbol "=" <+> pretty v]
+  pretty (VTake (r',f') r f e) = keyword "let" <+> indent (varname r' <+> record [fieldname f <+> symbol "=" <+> varname f'] <+> symbol "=" <+> pretty r)
+                      Leijen.<$> keyword "in" <+> indent (pretty e)
+  pretty (VLet x v1 v2) = keyword "let" <+> indent (varname x <+> symbol "=" <+> pretty v1)
+               Leijen.<$> keyword "in" <+> indent (pretty v2)
+  pretty (VSplit (a,b) v1 v2) = keyword "let" <+> indent (Pretty.tupled [varname a, varname b] <+> symbol "=" <+> pretty v1)
+                     Leijen.<$> keyword "in" <+> indent (pretty v2) 
   pretty (VAbstract _) = dullred $ keyword "\x2753"
   pretty (VAFunction fn f ts) = dullred (keyword "\x300A") <> funname fn <> typeargs (fmap pretty ts) <> dullred (keyword "\x300B")
 
@@ -522,12 +534,18 @@ eval (TE _ (ArrayIndex arr idx)) = undefined
 eval (TE _ (Pop (a1, a2) e e')) = undefined
 eval (TE _ (Singleton e)) = undefined
 #endif
-eval (TE _ (Let _ e e')) = do
-  v <- eval e
-  withBinding v (eval e')
-eval (TE _ (LetBang _ _ e e')) = do
-  v <- eval e
-  withBinding v (eval e')
+eval (TE _ (Let a e e')) = do
+  v  <- eval e
+  v' <- withBinding v (eval e')
+  case v' of
+    VThunk _ -> return $ VThunk $ VLet a v v'
+    _ -> return v'
+eval (TE _ (LetBang _ a e e')) = do
+  v  <- eval e
+  v' <- withBinding v (eval e')
+  case v' of
+    VThunk _ -> return $ VThunk $ VLet a v v'
+    _ -> return v'
 eval (TE _ (Tuple e1 e2)) = VProduct <$> eval e1 <*> eval e2
 eval (TE t (Struct fs)) = do
   let TRecord fts _ = t
@@ -560,9 +578,10 @@ eval (TE _ (Split (a1,a2) e e')) = do
   pair <- eval e
   case pair of
     VProduct v1 v2 -> withBindings (V.Cons v1 (V.Cons v2 V.Nil)) (eval e')
-    VThunk _ -> let abs1 = VThunk $ VAbstract ()
-                    abs2 = VThunk $ VAbstract ()
-                 in withBindings (V.Cons abs1 (V.Cons abs2 V.Nil)) (eval e')
+    VThunk _ -> do let abs1 = VThunk $ VAbstract ()
+                       abs2 = VThunk $ VAbstract ()
+                   v' <- withBindings (V.Cons abs1 (V.Cons abs2 V.Nil)) (eval e')
+                   return $ VThunk $ VSplit (a1,a2) pair v'
 eval (TE _ (Member e f)) = do
   let TRecord fs _ = exprType e
       fn = fst $ fs !! f
@@ -570,7 +589,7 @@ eval (TE _ (Member e f)) = do
   case rec of
     VRecord fvs -> return . fromJust . snd $ fvs !! f
     VThunk _ -> return $ VThunk $ VMember rec fn
-eval (TE t (Take _ rec f e)) = do
+eval (TE t (Take bs rec f e)) = do
   let TRecord fs _ = exprType rec
       fn = fst $ fs !! f
   vrec <- eval rec
@@ -580,10 +599,11 @@ eval (TE t (Take _ rec f e)) = do
           v = fromJust . snd $ fvs !! f
           vr = VRecord $ fvs1 ++ (fn, Nothing) : tail fvs2
        in withBindings (V.Cons v (V.Cons vr V.Nil)) $ eval e
-    VThunk _ -> 
+    VThunk _ -> do
       let vrec' = VThunk $ VAbstract ()
           vfld  = VThunk $ VAbstract ()
-       in withBindings (V.Cons vfld (V.Cons vrec' V.Nil)) $ eval e
+      v <- withBindings (V.Cons vfld (V.Cons vrec' V.Nil)) $ eval e
+      return $ VThunk $ VTake bs vrec fn v
 eval (TE _ (Put rec f e)) = do
   let TRecord fs _ = exprType rec
       fn = fst $ fs !! f
