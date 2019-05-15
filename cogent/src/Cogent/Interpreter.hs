@@ -108,9 +108,6 @@ data HNF a f
   | VEsac (Value a f)
   | VMember (Value a f) FieldName
   | VPut (Value a f) FieldName (Value a f)
-  | VTake (VarName, VarName) (Value a f) FieldName (Value a f)
-  | VLet VarName (Value a f) (Value a f)
-  | VSplit (VarName, VarName) (Value a f) (Value a f)
   | VAbstract a
   | VAFunction FunName f [Type 'Zero]
   deriving (Show)
@@ -128,9 +125,6 @@ instance (Prec a, Prec f) => Prec (HNF a f) where
   prec (VEsac {}) = 9
   prec (VMember {}) = 9
   prec (VPut {}) = 1
-  prec (VTake {}) = 100
-  prec (VLet {}) = 100
-  prec (VSplit {}) = 100
   prec (VAbstract {}) = 0
   prec (VAFunction {}) = 0
 
@@ -167,12 +161,6 @@ instance (Pretty a, Pretty f, Prec a, Prec f, Pretty (Value a f), Prec (HNF a f)
   pretty (VEsac v) = keyword "esac" <+> prettyPrec 9 v
   pretty (VMember r f) = prettyPrec 9 r <> symbol "." <> fieldname f
   pretty (VPut r f v) = prettyPrec 10 r <+> record [fieldname f <+> symbol "=" <+> pretty v]
-  pretty (VTake (r',f') r f e) = keyword "let" <+> indent (varname r' <+> record [fieldname f <+> symbol "=" <+> varname f'] <+> symbol "=" <+> pretty r)
-                      Leijen.<$> keyword "in" <+> indent (pretty e)
-  pretty (VLet x v1 v2) = keyword "let" <+> indent (varname x <+> symbol "=" <+> pretty v1)
-               Leijen.<$> keyword "in" <+> indent (pretty v2)
-  pretty (VSplit (a,b) v1 v2) = keyword "let" <+> indent (Pretty.tupled [varname a, varname b] <+> symbol "=" <+> pretty v1)
-                     Leijen.<$> keyword "in" <+> indent (pretty v2) 
   pretty (VAbstract _) = dullred $ keyword "\x2753"
   pretty (VAFunction fn f ts) = dullred (keyword "\x300A") <> funname fn <> typeargs (fmap pretty ts) <> dullred (keyword "\x300B")
 
