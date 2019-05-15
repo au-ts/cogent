@@ -194,8 +194,16 @@ data PreloadS = PreloadS { surface :: [S.TopLevel S.RawType Tc.TypedPatn Tc.Type
                          , tcState :: Tc.TcState
                          }
 
+#if __GLASGOW_HASKELL__ < 803
+instance Monoid PreloadS where
+  mempty = PreloadS mempty mempty
+  PreloadS s1 t1 <> PreloadS s2 t2 = PreloadS (s1 <> s2) (t1 <> t2)
+#else
 instance Semigroup PreloadS where
   PreloadS s1 t1 <> PreloadS s2 t2 = PreloadS (s1 <> s2) (t1 <> t2)
+instance Monoid PreloadS where
+  mempty = PreloadS mempty mempty
+#endif
 
 replWithState :: IO ()
 replWithState = do
@@ -217,7 +225,7 @@ repl r = do putStr "cogenti> "
               Right (GetType  s) -> interpExpr QType  r s
               Right (LoadFile f) -> loadFile r f
               Right (LoadCode c) -> loadCode r c
-              Right (Clear     ) -> writeIORef r (PreloadS [] Tc.emptyTcState)
+              Right (Clear     ) -> writeIORef r mempty
               Right (Display   ) -> readIORef r >>= \st -> putDoc (vcat $ fmap pretty (surface st) ++ [empty])
               Right (Help) -> putStr $ unlines [ "Cogent REPL:"
                                                , "  :e <EXPR> ;  -- evaluate an expression"
