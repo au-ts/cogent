@@ -210,7 +210,10 @@ instance Semigroup PreloadS where
   PreloadS s1 t1 <> PreloadS s2 t2 = PreloadS (s1 <> s2) (t1 <> t2)
 
 replWithState :: IO ()
-replWithState = newIORef (PreloadS [] (Tc.TcState M.empty [] M.empty M.empty)) >>= repl
+replWithState = do
+  putStrLn "Welcome to the Cogent REPL. Type :h for help."
+  r <- newIORef (PreloadS [] (Tc.TcState M.empty [] M.empty M.empty))
+  repl r
 
 repl :: IORef PreloadS -> IO ()
 repl r = do putStr "cogenti> "
@@ -218,7 +221,7 @@ repl r = do putStr "cogenti> "
             s <- getLines null continueGetLines
             let result = readInput s
             case result of
-              Left err -> putStrLn err
+              Left err -> putStrLn $ err ++ "\n(:h for help)"
               Right (EvalExpr s) -> interpExpr QValue r s
               Right (GetType  s) -> interpExpr QType  r s
               Right (LoadFile f) -> loadFile r f
