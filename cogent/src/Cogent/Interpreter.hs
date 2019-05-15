@@ -212,8 +212,11 @@ instance Semigroup PreloadS where
 replWithState :: IO ()
 replWithState = do
   putStrLn "Welcome to the Cogent REPL. Type :h for help."
-  r <- newIORef (PreloadS [] (Tc.TcState M.empty [] M.empty M.empty))
+  r <- newIORef (PreloadS [] (Tc.TcState M.empty builtinTypes M.empty M.empty))
   repl r
+  where
+    builtinTypes = map (, ([], Nothing)) $ words "U8 U16 U32 U64 String Bool"
+
 
 repl :: IORef PreloadS -> IO ()
 repl r = do putStr "cogenti> "
