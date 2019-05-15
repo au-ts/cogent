@@ -19,6 +19,7 @@
 
 module Cogent.TypeCheck (
   tc
+, typecheck
 ) where
 
 import qualified Cogent.Common.Repr as R
