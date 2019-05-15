@@ -539,16 +539,10 @@ eval (TE _ (Singleton e)) = undefined
 #endif
 eval (TE _ (Let a e e')) = do
   v  <- eval e
-  v' <- withBinding v (eval e')
-  case v' of
-    VThunk _ -> return $ VThunk $ VLet a v v'
-    _ -> return v'
+  withBinding v (eval e')
 eval (TE _ (LetBang _ a e e')) = do
   v  <- eval e
-  v' <- withBinding v (eval e')
-  case v' of
-    VThunk _ -> return $ VThunk $ VLet a v v'
-    _ -> return v'
+  withBinding v (eval e')
 eval (TE _ (Tuple e1 e2)) = VProduct <$> eval e1 <*> eval e2
 eval (TE t (Struct fs)) = do
   let TRecord fts _ = t
@@ -581,10 +575,9 @@ eval (TE _ (Split (a1,a2) e e')) = do
   pair <- eval e
   case pair of
     VProduct v1 v2 -> withBindings (V.Cons v1 (V.Cons v2 V.Nil)) (eval e')
-    VThunk _ -> do let abs1 = VThunk $ VAbstract ()
-                       abs2 = VThunk $ VAbstract ()
-                   v' <- withBindings (V.Cons abs1 (V.Cons abs2 V.Nil)) (eval e')
-                   return $ VThunk $ VSplit (a1,a2) pair v'
+    VThunk _ -> let abs1 = VThunk $ VAbstract ()
+                    abs2 = VThunk $ VAbstract ()
+                 in withBindings (V.Cons abs1 (V.Cons abs2 V.Nil)) (eval e')
 eval (TE _ (Member e f)) = do
   let TRecord fs _ = exprType e
       fn = fst $ fs !! f
@@ -602,11 +595,10 @@ eval (TE t (Take bs rec f e)) = do
           v = fromJust . snd $ fvs !! f
           vr = VRecord $ fvs1 ++ (fn, Nothing) : tail fvs2
        in withBindings (V.Cons v (V.Cons vr V.Nil)) $ eval e
-    VThunk _ -> do
+    VThunk _ ->
       let vrec' = VThunk $ VAbstract ()
           vfld  = VThunk $ VAbstract ()
-      v <- withBindings (V.Cons vfld (V.Cons vrec' V.Nil)) $ eval e
-      return $ VThunk $ VTake bs vrec fn v
+       in withBindings (V.Cons vfld (V.Cons vrec' V.Nil)) $ eval e
 eval (TE _ (Put rec f e)) = do
   let TRecord fs _ = exprType rec
       fn = fst $ fs !! f
