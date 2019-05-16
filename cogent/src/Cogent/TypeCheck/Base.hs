@@ -351,7 +351,7 @@ makeLenses ''TcState
 #if __GLASGOW_HASKELL__ < 803
 instance Monoid TcState where
   mempty = TcState mempty mempty mempty mempty
-  TcState x1 x2 x3 x4 <> TcState y1 y2 y3 y4 = TcState (x1 <> y1) (x2 <> y2) (x3 <> y3) (x4 <> y4)
+  TcState x1 x2 x3 x4 `mappend` TcState y1 y2 y3 y4 = TcState (x1 <> y1) (x2 <> y2) (x3 <> y3) (x4 <> y4)
 #else
 instance Semigroup TcState where
   TcState x1 x2 x3 x4 <> TcState y1 y2 y3 y4 = TcState (x1 <> y1) (x2 <> y2) (x3 <> y3) (x4 <> y4)

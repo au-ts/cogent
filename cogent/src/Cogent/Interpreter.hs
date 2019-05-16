@@ -58,6 +58,9 @@ import Data.IORef
 import Data.List (isPrefixOf, isSuffixOf, partition)
 import qualified Data.Map as M
 import Data.Maybe (fromJust)
+#if __GLASGOW_HASKELL__ < 803
+import Data.Monoid ((<>))
+#endif
 import Data.Word
 import Lens.Micro
 import Lens.Micro.Mtl
@@ -197,7 +200,7 @@ data PreloadS = PreloadS { surface :: [S.TopLevel S.RawType Tc.TypedPatn Tc.Type
 #if __GLASGOW_HASKELL__ < 803
 instance Monoid PreloadS where
   mempty = PreloadS mempty mempty
-  PreloadS s1 t1 <> PreloadS s2 t2 = PreloadS (s1 <> s2) (t1 <> t2)
+  PreloadS s1 t1 `mappend` PreloadS s2 t2 = PreloadS (s1 <> s2) (t1 <> t2)
 #else
 instance Semigroup PreloadS where
   PreloadS s1 t1 <> PreloadS s2 t2 = PreloadS (s1 <> s2) (t1 <> t2)
