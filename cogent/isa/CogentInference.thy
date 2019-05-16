@@ -81,18 +81,32 @@ inductive alg_ctx_jn :: "cg_ctx \<Rightarrow> nat \<Rightarrow> cg_ctx \<Rightar
 
 inductive constraint_gen :: "cg_ctx \<Rightarrow> nat \<Rightarrow> 'f expr \<Rightarrow> type \<Rightarrow> cg_ctx \<Rightarrow> nat \<Rightarrow> constraint \<Rightarrow> bool"
             ("_,_ \<turnstile> _ : _ \<leadsto> _,_ | _" [30,0,0,0,0,0,30] 60) where
-  cg_var1: "G!i = (\<rho>,0) \<Longrightarrow> G' = G[i := (\<rho>,1)] \<Longrightarrow> G,n \<turnstile> Var i : \<tau> \<leadsto> G',n | CtSub \<rho> \<tau>"
-| cg_var2: "G!i = (\<rho>,n) \<Longrightarrow> n > 0 \<Longrightarrow> G' = G[i := (\<rho>,Suc n)] \<Longrightarrow> C = CtConj (CtSub \<rho> \<tau>) (CtShare \<rho>) \<Longrightarrow> G,n \<turnstile> Var i : \<tau> \<leadsto> G',n | C"
-| cg_sig: "G1,n1 \<turnstile> e : \<tau>' \<leadsto> G2,n2 | C \<Longrightarrow> C' = CtConj C (CtSub \<tau>' \<tau>) \<Longrightarrow> G1,n1 \<turnstile> (Sig e \<tau>') : \<tau> \<leadsto> G2,n2 | C'"
+  cg_var1: 
+  "\<lbrakk> G!i = (\<rho>,0) 
+   ; G' = G[i := (\<rho>,1)] 
+   ; C = CtSub \<rho> \<tau>
+   \<rbrakk> \<Longrightarrow> G,n \<turnstile> Var i : \<tau> \<leadsto> G',n | C"
+| cg_var2: 
+  "\<lbrakk> G!i = (\<rho>,n) 
+   ; n > 0 
+   ; G' = G[i := (\<rho>,Suc n)] 
+   ; C = CtConj (CtSub \<rho> \<tau>) (CtShare \<rho>) 
+   \<rbrakk> \<Longrightarrow> G,n \<turnstile> Var i : \<tau> \<leadsto> G',n | C"
+| cg_sig: 
+  "\<lbrakk> G1,n1 \<turnstile> e : \<tau>' \<leadsto> G2,n2 | C 
+   ; C' = CtConj C (CtSub \<tau>' \<tau>)
+   \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> (Sig e \<tau>') : \<tau> \<leadsto> G2,n2 | C'"
 | cg_app:
-  "\<lbrakk> G1,(Suc n1) \<turnstile> e1 : TFun (TUnknown (Suc n1)) \<tau> \<leadsto> G2,n2 | C1
-   ; G2,n2' \<turnstile> e2 : TUnknown (Suc n1) \<leadsto> G3,n3 | C2
+  "\<lbrakk> \<alpha> = TUnknown (Suc n1)
+   ; G1,(Suc n1) \<turnstile> e1 : TFun \<alpha> \<tau> \<leadsto> G2,n2 | C1
+   ; G2,n2' \<turnstile> e2 : \<alpha> \<leadsto> G3,n3 | C2
    ; C3 = CtConj C1 C2
    \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> App e1 e2 : \<tau> \<leadsto> G3,n3 | C3"
 | cg_let:
-  "\<lbrakk> G1,(Suc n1) \<turnstile> e1 : TUnknown (Suc n1) \<leadsto> G2,n2 | C1
-   ; ((TUnknown (Suc n1), 0) # G2),n2' \<turnstile> e2 : \<tau> \<leadsto> ((TUnknown (Suc n1), m) # G3),n3 | C2 
-   ; if m = 0 then C3 = CtDrop (TUnknown (Suc n)) else C3 = CtTop
+  "\<lbrakk> \<alpha> = TUnknown (Suc n1)
+   ; G1,(Suc n1) \<turnstile> e1 : \<alpha> \<leadsto> G2,n2 | C1
+   ; ((\<alpha>, 0) # G2),n2' \<turnstile> e2 : \<tau> \<leadsto> ((\<alpha>, m) # G3),n3 | C2 
+   ; if m = 0 then C3 = CtDrop \<alpha> else C3 = CtTop
    ; C4 = CtConj (CtConj C1 C2) C3
    \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> Let e1 e2 : \<tau> \<leadsto> G3,n3 | C4"
 | cg_blit:
