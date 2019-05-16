@@ -77,39 +77,39 @@ inductive alg_ctx_jn :: "cg_ctx \<Rightarrow> nat \<Rightarrow> cg_ctx \<Rightar
    ; G2!i = (fst (G!i), (m!i))
    ; if (snd (G!i)) = (snd (G'!i)) then (C!i) = CtTop else (C!i) = CtDrop (fst (G!i))
    ; C2 = foldr CtConj C CtTop
-   \<rbrakk> \<Longrightarrow> G,n \<Join> G',n \<leadsto> G2,n | C2"
+   \<rbrakk> \<Longrightarrow> G,n \<Join> G',n' \<leadsto> G2,n2 | C2"
 
 inductive constraint_gen :: "cg_ctx \<Rightarrow> nat \<Rightarrow> 'f expr \<Rightarrow> type \<Rightarrow> cg_ctx \<Rightarrow> nat \<Rightarrow> constraint \<Rightarrow> bool"
             ("_,_ \<turnstile> _ : _ \<leadsto> _,_ | _" [30,0,0,0,0,0,30] 60) where
   cg_var1: "G!i = (\<rho>,0) \<Longrightarrow> G' = G[i := (\<rho>,1)] \<Longrightarrow> G,n \<turnstile> Var i : \<tau> \<leadsto> G',n | CtSub \<rho> \<tau>"
 | cg_var2: "G!i = (\<rho>,n) \<Longrightarrow> n > 0 \<Longrightarrow> G' = G[i := (\<rho>,Suc n)] \<Longrightarrow> C = CtConj (CtSub \<rho> \<tau>) (CtShare \<rho>) \<Longrightarrow> G,n \<turnstile> Var i : \<tau> \<leadsto> G',n | C"
-| cg_sig: "G1,n \<turnstile> e : \<tau>' \<leadsto> G2,n | C \<Longrightarrow> C' = CtConj C (CtSub \<tau>' \<tau>) \<Longrightarrow> G1,n \<turnstile> (Sig e \<tau>') : \<tau> \<leadsto> G2,n | C'"
+| cg_sig: "G1,n1 \<turnstile> e : \<tau>' \<leadsto> G2,n2 | C \<Longrightarrow> C' = CtConj C (CtSub \<tau>' \<tau>) \<Longrightarrow> G1,n1 \<turnstile> (Sig e \<tau>') : \<tau> \<leadsto> G2,n2 | C'"
 | cg_app:
-  "\<lbrakk> G1,Suc n \<turnstile> e1 : TFun (TUnknown (Suc n)) \<tau> \<leadsto> G2,n1 | C1
-   ; G2,n2 \<turnstile> e2 : TUnknown (Suc n) \<leadsto> G3,n3 | C2
+  "\<lbrakk> G1,(Suc n1) \<turnstile> e1 : TFun (TUnknown (Suc n1)) \<tau> \<leadsto> G2,n2 | C1
+   ; G2,n2' \<turnstile> e2 : TUnknown (Suc n1) \<leadsto> G3,n3 | C2
    ; C3 = CtConj C1 C2
-   \<rbrakk> \<Longrightarrow> G1,n \<turnstile> App e1 e2 : \<tau> \<leadsto> G3,n3 | C3"
+   \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> App e1 e2 : \<tau> \<leadsto> G3,n3 | C3"
 | cg_let:
-  "\<lbrakk> G1,Suc n \<turnstile> e1 : TUnknown (Suc n) \<leadsto> G2,n1 | C1
-   ; (TUnknown (Suc n), 0) # G2,n1 \<turnstile> e2 : \<tau> \<leadsto> (TUnknown (Suc n), m) # G3 , n2 | C2 
+  "\<lbrakk> G1,(Suc n1) \<turnstile> e1 : TUnknown (Suc n1) \<leadsto> G2,n2 | C1
+   ; ((TUnknown (Suc n1), 0) # G2),n2' \<turnstile> e2 : \<tau> \<leadsto> ((TUnknown (Suc n1), m) # G3),n3 | C2 
    ; if m = 0 then C3 = CtDrop (TUnknown (Suc n)) else C3 = CtTop
    ; C4 = CtConj (CtConj C1 C2) C3
-   \<rbrakk> \<Longrightarrow> G1, n \<turnstile> Let e1 e2 : \<tau> \<leadsto> G3, n2 | C4"
+   \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> Let e1 e2 : \<tau> \<leadsto> G3,n3 | C4"
 | cg_blit:
   "C = CtEq \<tau> (TPrim Bool) \<Longrightarrow> G,n \<turnstile> Lit (LBool l) : \<tau> \<leadsto> G,n | C"
 | cg_ilit:
   "C = CtIBound (LNat m) \<tau> \<Longrightarrow> G,n \<turnstile> Lit (LNat m) : \<tau> \<leadsto> G,n | C"
 | cg_if:
-  "\<lbrakk> G1,n \<turnstile> e1 : (TPrim Bool) \<leadsto> G2,n | C1
-   ; G2,n \<turnstile> e2 : \<tau> \<leadsto> G3,n | C2
-   ; G2,n \<turnstile> e3 : \<tau> \<leadsto> G'3,n | C3
-   ; G3,n \<Join> G'3,n \<leadsto> G4,n | C4 
+  "\<lbrakk> G1,n1 \<turnstile> e1 : (TPrim Bool) \<leadsto> G2,2 | C1
+   ; G2,n2' \<turnstile> e2 : \<tau> \<leadsto> G3,n3 | C2
+   ; G2,n2'' \<turnstile> e3 : \<tau> \<leadsto> G3',n3' | C3
+   ; G3,n3'' \<Join> G3',n3''' \<leadsto> G4,n4 | C4 
    ; C5 = CtConj (CtConj (CtConj C1 C2) C3) C4
-   \<rbrakk> \<Longrightarrow> G1,n \<turnstile> If e1 e2 e3 : \<tau> \<leadsto> G4,n | C5"
+   \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> If e1 e2 e3 : \<tau> \<leadsto> G4,n4 | C5"
 | cg_iop:
   "\<lbrakk> e \<in> {Prim (Plus nt), Prim (Minus nt), Prim (Times nt), Prim (Divides nt)}
-   ; G1,n \<turnstile> e1 : \<tau> \<leadsto> G2,n | C1
-   ; G2,n \<turnstile> e2 : \<tau> \<leadsto> G3,n | C2
+   ; G1,n1 \<turnstile> e1 : \<tau> \<leadsto> G2,n2 | C1
+   ; G2,n2' \<turnstile> e2 : \<tau> \<leadsto> G3,n3 | C2
    ; C5 = CtConj (CtConj (CtIBound (LNat 0) \<tau>) C1) C2
-   \<rbrakk> \<Longrightarrow> G1,n \<turnstile> e [e1, e2] : \<tau> \<leadsto> G4,n | C5"
+   \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> e [e1, e2] : \<tau> \<leadsto> G3,n3 | C5"
 end
