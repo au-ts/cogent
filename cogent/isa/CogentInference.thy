@@ -102,8 +102,14 @@ inductive constraint_gen :: "cg_ctx \<Rightarrow> nat \<Rightarrow> 'f expr \<Ri
 | cg_if:
   "\<lbrakk> G1,n \<turnstile> e1 : (TPrim Bool) \<leadsto> G2,n | C1
    ; G2,n \<turnstile> e2 : \<tau> \<leadsto> G3,n | C2
-   ; G2,n \<turnstile> e3 : \<tau>  \<leadsto> G'3,n | C3
+   ; G2,n \<turnstile> e3 : \<tau> \<leadsto> G'3,n | C3
    ; G3,n \<Join> G'3,n \<leadsto> G4,n | C4 
    ; C5 = CtConj (CtConj (CtConj C1 C2) C3) C4
    \<rbrakk> \<Longrightarrow> G1,n \<turnstile> If e1 e2 e3 : \<tau> \<leadsto> G4,n | C5"
+| cg_iop:
+  "\<lbrakk> e \<in> {Prim (Plus nt), Prim (Minus nt), Prim (Times nt), Prim (Divides nt)}
+   ; G1,n \<turnstile> e1 : \<tau> \<leadsto> G2,n | C1
+   ; G2,n \<turnstile> e2 : \<tau> \<leadsto> G3,n | C2
+   ; C5 = CtConj (CtConj (CtIBound (LNat 0) \<tau>) C1) C2
+   \<rbrakk> \<Longrightarrow> G1,n \<turnstile> e [e1, e2] : \<tau> \<leadsto> G4,n | C5"
 end
