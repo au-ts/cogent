@@ -126,4 +126,11 @@ inductive constraint_gen :: "cg_ctx \<Rightarrow> nat \<Rightarrow> 'f expr \<Ri
    ; G2,n2' \<turnstile> e2 : \<tau> \<leadsto> G3,n3 | C2
    ; C5 = CtConj (CtConj (CtIBound (LNat 0) \<tau>) C1) C2
    \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> e [e1, e2] : \<tau> \<leadsto> G3,n3 | C5"
+| cg_cop:
+  "\<lbrakk> \<alpha> = TUnknown (Suc n1)
+   ; e \<in> {Prim (Eq (Num nt)), Prim (NEq (Num nt)), Prim (Lt nt), Prim (Gt nt), Prim (Le nt), Prim (Ge nt)}
+   ; G1,(Suc n1) \<turnstile> e1 : \<alpha> \<leadsto> G2,n2 | C1
+   ; G2,n2' \<turnstile> e2 : \<alpha> \<leadsto> G3,n3 | C2
+   ; C3 = CtConj (CtConj (CtConj (CtIBound (LNat 0) \<alpha>) (CtEq \<tau> (TPrim Bool))) C1) C2 
+   \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> e [e1, e2] : \<tau> \<leadsto> G3,n3 | C3"
 end
