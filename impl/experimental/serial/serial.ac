@@ -81,7 +81,7 @@ inline imx_uart_regs_t *uart_regs_from_cg(ps_chardevice_t *dev, $ty:(#IMXUartReg
         regs->onems = cgregs->onems;
         regs->ts = cgregs->ts;
 
-        return cgregs;
+        return regs;
 }
 
 inline $ty:(#IMXUartRegs) uart_regs_to_cg(ps_chardevice_t *dev)
@@ -118,16 +118,17 @@ static void uart_handle_irq(ps_chardevice_t* d)
 
 int uart_getchar(ps_chardevice_t* d)
 {
-        imx_uart_regs_t* regs = imx_uart_get_priv(d);
+        $ty:(#IMXUartRegs) regscg;
         uint32_t reg = 0;
         int c = -1;
+        $ty:((#IMXUartRegs, U32)) ret;
 
-        if (regs->sr2 & UART_SR2_RXFIFO_RDR) {
-                reg = regs->rxd;
-                if (reg & UART_URXD_READY_MASK) {
-                        c = reg & UART_BYTE_MASK;
-                }
-        }
+        regscg = uart_regs_to_cg(d);
+
+        ret = uart_getchar_cg(regscg);
+
+        c = ret.p1;
+
         return c;
 }
 

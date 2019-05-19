@@ -101,8 +101,8 @@ flag_UART_SR2_TXFIFO_EMPTY : U32
 flag_UART_SR2_TXFIFO_EMPTY = 1 << 14
 
 -- RXD
-flag_UART_URXD_READY_MAS : U32
-flag_UART_URXD_READY_MAS = 1 << 15
+flag_UART_URXD_READY_MASK : U32
+flag_UART_URXD_READY_MASK = 1 << 15
 
 flag_UART_BYTE_MASK : U32
 flag_UART_BYTE_MASK = 0xFF
@@ -126,9 +126,15 @@ type IMXUartRegs = #{
   , ts    : U32  -- 0x0B4 Test Register
 }
 
-uart_read_cg : (SysState, IMXUartRegs) -> (SysState, IMXUartRegs)
+uart_getchar_cg : #IMXUartRegs -> (#IMXUartRegs, U32)
+uart_getchar_cg regs =
+   let regs { sr2, rxd } = regs
+   and c = if ( sr2 .&. flag_UART_SR2_RXFIFO_RDR ) /= 0 then rxd else 0
+   and c = if ( c .&. flag_UART_URXD_READY_MASK ) /= 0 then c else 0
+   and c = c .&. flag_UART_BYTE_MASK
+   and regs = regs { sr2, rxd }
+   in (regs, c)
 
-uart_write_cg : () -> ()
 
 imx_uart_set_baud_cg : (#IMXUartRegs, U64) -> #IMXUartRegs
 imx_uart_set_baud_cg (regs, bps) =
