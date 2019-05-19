@@ -1,0 +1,193 @@
+/*
+ * Copyright 2019, Data61
+ * Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+ * ABN 41 687 119 230.
+ *
+ * This software may be distributed and modified according to the terms of
+ * the BSD 2-Clause license. Note that NO WARRANTY is provided.
+ * See "LICENSE_BSD2.txt" for details.
+ *
+ * @TAG(DATA61_BSD)
+ */
+
+/* $esc:(#include <autoconf.h>) */
+
+$esc:(#ifndef CONFIG_PLAT_KZM)
+
+$esc:(#include <stdint.h>)
+$esc:(#include <stdlib.h>)
+$esc:(#include <string.h>)
+$esc:(#include "platsupport/serial.h")
+$esc:(#include "platsupport/plat/serial.h")
+
+$esc:(#include "chardev.h")
+
+$esc:(#ifndef UART_REF_CLK)
+$esc:(#error "UART_REF_CLK undefined")
+$esc:(#endif)
+
+
+/* Cogent types */
+typedef void *SysState;
+
+#include "generated.c"
+
+struct imx_uart_regs {
+    uint32_t rxd;      /* 0x000 Receiver Register */
+    uint32_t res0[15];
+    uint32_t txd;      /* 0x040 Transmitter Register */
+    uint32_t res1[15];
+    uint32_t cr1;      /* 0x080 Control Register 1 */
+    uint32_t cr2;      /* 0x084 Control Register 2 */
+    uint32_t cr3;      /* 0x088 Control Register 3 */
+    uint32_t cr4;      /* 0x08C Control Register 4 */
+    uint32_t fcr;      /* 0x090 FIFO Control Register */
+    uint32_t sr1;      /* 0x094 Status Register 1 */
+    uint32_t sr2;      /* 0x098 Status Register 2 */
+    uint32_t esc;      /* 0x09c Escape Character Register */
+    uint32_t tim;      /* 0x0a0 Escape Timer Register */
+    uint32_t bir;      /* 0x0a4 BRM Incremental Register */
+    uint32_t bmr;      /* 0x0a8 BRM Modulator Register */
+    uint32_t brc;      /* 0x0ac Baud Rate Counter Register */
+    uint32_t onems;    /* 0x0b0 One Millisecond Register */
+    uint32_t ts;       /* 0x0b4 Test Register */
+};
+typedef volatile struct imx_uart_regs imx_uart_regs_t;
+
+static inline imx_uart_regs_t *imx_uart_get_priv(ps_chardevice_t *d)
+{
+        return (imx_uart_regs_t *)d->vaddr;
+}
+
+inline imx_uart_regs_t *uart_regs_from_cg(ps_chardevice_t *dev, $ty:(#IMXUartRegs) cgregs)
+{
+        imx_uart_regs_t *regs;
+        regs = imx_uart_get_priv(dev);
+
+        regs->rxd = cgregs.rxd;
+        regs->txd = cgregs.txd;
+        regs->cr1 = cgregs.cr1;
+        regs->cr2 = cgregs.cr2;
+        regs->cr3 = cgregs.cr3;
+        regs->cr4 = cgregs.cr4;
+        regs->fcr = cgregs.fcr;
+        regs->sr1 = cgregs.sr1;
+        regs->sr2 = cgregs.sr2;
+        regs->esc = cgregs.esc;
+        regs->tim = cgregs.tim;
+        regs->bir = cgregs.bir;
+        regs->bmr = cgregs.bmr;
+        regs->brc = cgregs.brc;
+        regs->onems = cgregs->onems;
+        regs->ts = cgregs->ts;
+
+        return cgregs;
+}
+
+inline $ty:(#IMXUartRegs) uart_regs_to_cg(ps_chardevice_t *dev)
+{
+        imx_uart_regs_t *regs;
+        $ty:(#IMXUartRegs) cgres;
+
+        regs = imx_uart_get_priv(dev);
+
+        cgregs.rxd = regs->rxd;
+        cgregs.txd = regs->txd;
+        cgregs.cr1 = regs->cr1;
+        cgregs.cr2 = regs->cr2;
+        cgregs.cr3 = regs->cr3;
+        cgregs.cr4 = regs->cr4;
+        cgregs.fcr = regs->fcr;
+        cgregs.sr1 = regs->sr1;
+        cgregs.sr2 = regs->sr2;
+        cgregs.esc = regs->esc;
+        cgregs.tim = regs->tim;
+        cgregs.bir = regs->bir;
+        cgregs.bmr = regs->bmr;
+        cgregs.brc = regs->brc;
+        cgregs.onems = regs->onems;
+        cgregs.ts = regs->ts;
+
+        return cgregs;
+}
+
+static void uart_handle_irq(ps_chardevice_t* d)
+{
+        /* TODO */
+}
+
+int uart_getchar(ps_chardevice_t* d)
+{
+        imx_uart_regs_t* regs = imx_uart_get_priv(d);
+        uint32_t reg = 0;
+        int c = -1;
+
+        if (regs->sr2 & UART_SR2_RXFIFO_RDR) {
+                reg = regs->rxd;
+                if (reg & UART_URXD_READY_MASK) {
+                        c = reg & UART_BYTE_MASK;
+                }
+        }
+        return c;
+}
+
+int uart_putchar(ps_chardevice_t* d, int c)
+{
+        imx_uart_regs_t* regs = imx_uart_get_priv(d);
+        if (regs->sr2 & UART_SR2_TXFIFO_EMPTY) {
+                if (c == '\n' && (d->flags & SERIAL_AUTO_CR)) {
+                        uart_putchar(d, '\r');
+                }
+                regs->txd = c;
+                return c;
+        } else {
+                return -1;
+        }
+}
+
+int uart_init(const struct dev_defn *defn,
+              const ps_io_ops_t *ops,
+              ps_chardevice_t *dev)
+{
+        imx_uart_regs_t* regs;
+        $ty:(#IMXUartRegs) regscg;
+
+        /* Attempt to map the virtual address, assure this works */
+        void* vaddr = chardev_map(defn, ops);
+        if (vaddr == NULL) {
+                return -1;
+        }
+
+        memset(dev, 0, sizeof(*dev));
+
+        /* Set up all the  device properties. */
+        dev->id         = defn->id;
+        dev->vaddr      = (void*)vaddr;
+        dev->read       = &uart_read;
+        dev->write      = &uart_write;
+        dev->handle_irq = &uart_handle_irq;
+        dev->irqs       = defn->irqs;
+        dev->ioops      = *ops;
+        dev->flags      = SERIAL_AUTO_CR;
+
+        regscg = uart_regs_to_cg(dev);
+
+        regscg = uart_init_cg(regscg);
+
+        regs = uart_regs_from_cg(dev, regscg);
+
+$escstm:(#ifdef CONFIG_PLAT_IMX6)
+        /* The UART1 on the IMX6 has the problem that the MUX is not correctly set,
+         * and the RX PIN is not routed correctly.
+         */
+        if ((defn->id == IMX_UART1) && mux_sys_valid(&ops->mux_sys)) {
+                if (mux_feature_enable(&ops->mux_sys, MUX_UART1, 0)) {
+                        // Failed to configure the mux
+                        return -1;
+                }
+        }
+$escstm:(#endif)
+        return 0;
+}
+
+$esc:(#endif) /* end of !CONFIG_PLAT_KZM */
