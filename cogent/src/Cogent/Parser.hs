@@ -459,7 +459,7 @@ loadTransitive' r fp paths ro = do
   let fps = map (flip combine fp) (ro:paths)  -- all file paths need to search
       fpdir = takeDirectory (combine ro fp)
   findPath fps >>= \case
-    Nothing  -> return $ Left $ "File not found " ++ fp
+    Nothing  -> return $ Left $ "File " ++ fp ++ " cannot be found"
     Just fp' -> canonicalizePath fp' >>= \fpc -> (S.member fpc <$> readIORef r) >>= \case
       True  -> return $ Right ([],[])
       False -> do modifyIORef r (S.insert fpc)

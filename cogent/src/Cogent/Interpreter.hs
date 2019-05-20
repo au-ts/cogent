@@ -187,31 +187,33 @@ continueGetLines :: String -> Bool
 continueGetLines l
   | ":f" `isPrefixOf` l = False
   | ":c" `isPrefixOf` l = False
+  | ":r" `isPrefixOf` l = False
   | ":d" `isPrefixOf` l = False
   | ":h" `isPrefixOf` l = False
   | ":q" `isPrefixOf` l = False
   | ";"  `isSuffixOf` l = False
 continueGetLines l = True
 
-data PreloadS = PreloadS { surface :: [S.TopLevel S.RawType Tc.TypedPatn Tc.TypedExpr]
-                         , tcState :: Tc.TcState
+data PreloadS = PreloadS { surface  :: [S.TopLevel S.RawType Tc.TypedPatn Tc.TypedExpr]
+                         , tcState  :: Tc.TcState
+                         , lastFile :: Maybe FilePath
                          }
 
 #if __GLASGOW_HASKELL__ < 803
 instance Monoid PreloadS where
   mempty = PreloadS mempty mempty
-  PreloadS s1 t1 `mappend` PreloadS s2 t2 = PreloadS (s1 <> s2) (t1 <> t2)
+  PreloadS s1 t1 l1 `mappend` PreloadS s2 t2 l2 = PreloadS (s1 <> s2) (t1 <> t2) (l1 <> l2)
 #else
 instance Semigroup PreloadS where
-  PreloadS s1 t1 <> PreloadS s2 t2 = PreloadS (s1 <> s2) (t1 <> t2)
+  PreloadS s1 t1 l1 <> PreloadS s2 t2 l2 = PreloadS (s1 <> s2) (t1 <> t2) (l1 <> l2)
 instance Monoid PreloadS where
-  mempty = PreloadS mempty mempty
+  mempty = PreloadS mempty mempty mempty
 #endif
 
 replWithState :: IO ()
 replWithState = do
   putStrLn "Welcome to the Cogent REPL. Type :h for help."
-  r <- newIORef (PreloadS [] (Tc.TcState M.empty builtinTypes M.empty M.empty))
+  r <- newIORef (PreloadS [] (Tc.TcState M.empty builtinTypes M.empty M.empty) Nothing)
   repl r
   where
     builtinTypes = map (, ([], Nothing)) $ words "U8 U16 U32 U64 String Bool"
@@ -228,6 +230,7 @@ repl r = do putStr "cogenti> "
               Right (GetType  s) -> interpExpr QType  r s
               Right (LoadFile f) -> loadFile r f
               Right (LoadCode c) -> loadCode r c
+              Right (Reload    ) -> reloadFile r
               Right (Clear     ) -> writeIORef r mempty
               Right (Display   ) -> readIORef r >>= \st -> putDoc (vcat $ fmap pretty (surface st) ++ [empty])
               Right (Help) -> putStr $ unlines [ "Cogent REPL:"
@@ -236,6 +239,7 @@ repl r = do putStr "cogenti> "
                                                , "  :f <FILE>    -- load a Cogent file"
                                                , "  :l <CODE> ;  -- load Cogent definitions"
                                                , "  :c           -- clear loaded code"
+                                               , "  :r           -- reload last file"
                                                , "  :d           -- display loaded code"
                                                , "  :h           -- show this help"
                                                , "  :q           -- quit the REPL"
@@ -256,6 +260,7 @@ data ReplOption = EvalExpr String
                 | LoadFile String
                 | LoadCode String
                 | Clear  -- clear all loaded code
+                | Reload
                 | Display
                 | Help
                 | Quit
@@ -269,6 +274,7 @@ parseCmdline = do
  <|> (Parser.reservedOp ":f" >> Parser.whiteSpace >> LoadFile <$> manyTill anyChar endOfLine)
  <|> (Parser.reservedOp ":l" >> Parser.whiteSpace >> LoadCode <$> manyTill anyChar (char ';'))
  <|> (Parser.reservedOp ":c" >> return Clear)
+ <|> (Parser.reservedOp ":r" >> return Reload)
  <|> (Parser.reservedOp ":d" >> return Display)
  <|> (Parser.reservedOp ":h" >> return Help)
  <|> (Parser.reservedOp ":q" >> return Quit)
@@ -276,20 +282,28 @@ parseCmdline = do
 
 
 loadCode :: IORef PreloadS -> String -> IO ()
-loadCode r preload = 
-  case runParser Parser.program (Parser.ParserState True) "<REPL>" preload of
+loadCode r code = 
+  case runParser Parser.program (Parser.ParserState True) "<REPL>" code of
     Left  err    -> putStrLn $ show err
     Right parsed -> checkPreload r (fmap (\(a,_,s) -> (a,s)) parsed) FromStdin
 
 loadFile :: IORef PreloadS -> FilePath -> IO ()
-loadFile r preload =
-  Parser.parseWithIncludes preload [] >>= \case
-    Left err -> putStrLn $ show err
+loadFile r file = do
+  modifyIORef r (\(PreloadS s t f) -> PreloadS s t (Just file)) 
+  Parser.parseWithIncludes file [] >>= \case
+    Left err -> putStrLn err
     Right (parsed, _) -> case Reorg.reorganize Nothing parsed of
       Left err -> putDoc (Pretty.prettyRE err)
-      Right reorged -> checkPreload r (fmap (\(a,_,s) -> (a,s)) reorged) FromFile
+      Right reorged -> checkPreload r (fmap (\(a,_,s) -> (a,s)) reorged) (FromFile file)
 
-data InputSource = FromFile | FromStdin
+reloadFile :: IORef PreloadS -> IO ()
+reloadFile r = do
+  preldS <- readIORef r
+  case lastFile preldS of
+    Nothing -> putStrLn "No file loaded."
+    Just f  -> loadFile r f
+
+data InputSource = FromFile FilePath | FromStdin
 
 checkPreload :: IORef PreloadS
              -> [(SourcePos, S.TopLevel S.LocType S.LocPatn S.LocExpr)]
@@ -310,8 +324,9 @@ checkPreload r prog src = do
       Just tced -> do
         __assert (null errs) "no errors, only warnings"
         case src of
-          FromFile  -> writeIORef r (PreloadS tced tcst)
-          FromStdin -> modifyIORef r (<> PreloadS tced tcst)
+          FromFile f -> putStrLn ("File " ++ f ++ " is loaded.") >> 
+                        writeIORef r (PreloadS tced tcst (Just f))
+          FromStdin  -> modifyIORef r (<> PreloadS tced tcst Nothing)
 
 data Query = QValue | QType
 
