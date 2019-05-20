@@ -3,4 +3,4 @@ struct $id:(List a) {
   $ty:a data;
 };
 
-typedef $id:(List a) $id:(List a);
+typedef struct $id:(List a) $id:(List a);

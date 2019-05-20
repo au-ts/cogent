@@ -1,5 +1,6 @@
 // In this example, we intentially avoid using the standard Cogent library.
-// Everything is defined locally.
+// Everything is defined locally (apart from the built-in types in Cogent).
+
 
 typedef void* $id:(Heap);
 
@@ -51,6 +52,7 @@ $ty:b $id:reduce ($ty:(((List a)!, (a!, b) -> b, b)) args)
 
   return acc;
 }
+
 
 $esc:(#include <stdlib.h>)
 $esc:(#include <stdio.h>)

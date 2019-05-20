@@ -10,7 +10,7 @@ addToBag : (U32, Bag) -> Bag
 addToBag (x, b { count = c, sum = s }) = b { count = c + 1, sum = s + x }
 
 averageBag : Bag! -> < EmptyBag | Success U32 >
-averageBag b { count, sum } = if count == 0 then EmptyBag else Success (sum / count)
+averageBag b = if b.count == 0 then EmptyBag else Success (b.sum / b.count)
 
 type List a
 
