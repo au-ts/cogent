@@ -13,13 +13,14 @@ $ty:(< Failure Heap | Success (Bag, Heap) >) newBag ($ty:(Heap) heap)
   $ty:(< Failure Heap | Success (Bag, Heap) >) ret;
   $ty:(Bag) bag = malloc (sizeof (*bag));
   
-  bag->count = 0;
-  bag->sum = 0; 
   if (!bag) {
     ret.tag = TAG_ENUM_Failure;
     ret.Failure = heap;
     return ret;
   }
+
+  bag->count = 0;
+  bag->sum = 0; 
 
   ret.tag = TAG_ENUM_Success;
   ret.Success.p1 = bag;
@@ -64,7 +65,7 @@ int main ()
 
   $ty:(U32) x = 0;
   while (1) {
-    printf("Enter a number:");
+    printf("Enter a number: ");
     if (scanf("%d",&x) < 0) {
       break;
     }
