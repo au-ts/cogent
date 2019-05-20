@@ -1,0 +1,6 @@
+struct $id:(List a) {
+  struct $id:(List a) *next;
+  $ty:a data;
+};
+
+typedef $id:(List a) $id:(List a);

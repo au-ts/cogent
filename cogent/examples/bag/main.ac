@@ -1,0 +1,107 @@
+// In this example, we intentially avoid using the standard Cogent library.
+// Everything is defined locally.
+
+typedef void* $id:(Heap);
+
+$ty:(< Failure Heap | Success (Bag, Heap) >) newBag ($ty:(Heap) heap)
+{
+  newBag_ret ret;  // We always generate type synonyms for the argument and return types.
+                   // They are named to `xxx_arg' and `xxx_ret' respectively, where `xxx'
+                   // is the name of the function. Note that it only works for mono-functions
+                   // though, as poly-functions will get different names when they are
+                   // monomorphised. We tend to at least write on the Cogent type for the argument
+                   // and the return value at least once, so that we can see what algebraic types
+                   // they are without going back and forth between the Cogent code and the antiquoted
+                   // C code.
+
+  $ty:(Bag) bag = malloc (sizeof (*bag));
+  
+  if (!bag) {
+    ret.tag = TAG_ENUM_Failure;
+    ret.Failure = args;
+    return ret;
+  }
+
+  ret.tag = TAG_ENUM_Success;
+  ret.Success.p1 = bag;
+  ret.Success.p2 = heap;
+  return ret;
+}
+
+$ty:(Heap) free_Bag ($ty:((Heap, Bag)) args)
+{
+  free (args.p2);  // free the Bag
+  return args.p1;  // return the "new" Heap
+}
+
+
+$ty:b $id:reduce ($ty:(((List a)!, (a!, b) -> b, b)) args)
+{
+  $ty:((List a)) list = args.p1;
+  $ty:b acc = args.p3;  // Initial accummulator
+
+  $ty:((a!, b)) fargs;
+
+  while (list) {
+    fargs.p1 = list->data;
+    fargs.p2 = acc;
+    acc = ($spec:((a!, b) -> b)) args.p2 (fargs);
+    list = list->next;
+  }
+
+  return acc;
+}
+
+$esc:(#include <stdlib.h>)
+$esc:(#include <stdio.h>)
+#include "generated.c"
+
+int main ()
+{
+  // Create a list of a few U32 integers.
+  // As we don't have a function for initialising a list in Cogent,
+  // we cannot define a poly-function in antiquoted C. That's why here
+  // we only implement an instance of it, hackily.
+
+  $ty:(U32) arr[5] = {4, 7, 2, 3, 9};
+
+  $ty:(List U32) list = NULL;
+  $ty:(List U32) last = list;
+
+  $ty:(List U32) cell = malloc (sizeof (*cell));
+  list = cell;  // Set the list head
+  last = cell;
+  cell->data = arr[0];
+  cell->next = NULL;
+
+  for (int i = 1; i < 5; i++) {
+    $ty:(List U32) cell = malloc (sizeof (*cell));
+    cell->data = arr[i];
+    cell->next = NULL;
+
+    last->next = cell;
+    last = cell;
+  }
+
+  // Print the list
+
+  $ty:(List U32) curr;
+  curr = list;
+
+  printf ("The list is: ");
+  for (int i = 0; i < 5; i++) {
+    printf ("%d -> ", curr->data);
+    curr = curr->next;
+  }
+  printf ("NULL");  
+
+  // Now call `average'
+  $ty:((Heap, (List U32)!)) avg_args;
+  avg_args.p1 = NULL;
+  avg_args.p2 = list;
+  $ty:((Heap, U32)) avg_ret = $exp:(average) (avg_args);
+  printf("The average is: %d\n", avg_ret.p2);
+
+  return 0;
+}
+
