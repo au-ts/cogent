@@ -29,7 +29,7 @@ OBJ=$(PPINFER:.c=.o)
 
 CFLAGS+=-I. -I$(STDGUM) -std=gnu99
 
-.PHONY: default cogent clean gen-anti test
+.PHONY: default mk-c clean
 .SECONDARY:
 
 default: all
@@ -44,7 +44,6 @@ mk-c:
 	cogent $(SRC) -g -Od -ogenerated --fno-fncall-as-macro --ffunc-purity-attr \
 		--infer-c-types="$(AHFILES)" \
 		--Wno-warn --infer-c-funcs="$(ACFILES)" \
-		--cpp=$(CPP) \
 		--cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
 		--ext-types=types.cfg \
 		--entry-funcs=entrypoints.cfg

@@ -1,25 +1,21 @@
 // In this example, we intentially avoid using the standard Cogent library.
 // Everything is defined locally (apart from the built-in types in Cogent).
 
+$esc:(#include <stdlib.h>)
+$esc:(#include <stdio.h>)
 
-typedef void* $id:(Heap);
+typedef void* Heap;
+
+#include "generated.c"
 
 $ty:(< Failure Heap | Success (Bag, Heap) >) newBag ($ty:(Heap) heap)
 {
-  newBag_ret ret;  // We always generate type synonyms for the argument and return types.
-                   // They are named to `xxx_arg' and `xxx_ret' respectively, where `xxx'
-                   // is the name of the function. Note that it only works for mono-functions
-                   // though, as poly-functions will get different names when they are
-                   // monomorphised. We tend to at least write on the Cogent type for the argument
-                   // and the return value at least once, so that we can see what algebraic types
-                   // they are without going back and forth between the Cogent code and the antiquoted
-                   // C code.
-
+  $ty:(< Failure Heap | Success (Bag, Heap) >) ret;
   $ty:(Bag) bag = malloc (sizeof (*bag));
   
   if (!bag) {
     ret.tag = TAG_ENUM_Failure;
-    ret.Failure = args;
+    ret.Failure = heap;
     return ret;
   }
 
@@ -29,7 +25,7 @@ $ty:(< Failure Heap | Success (Bag, Heap) >) newBag ($ty:(Heap) heap)
   return ret;
 }
 
-$ty:(Heap) free_Bag ($ty:((Heap, Bag)) args)
+$ty:(Heap) freeBag ($ty:((Heap, Bag)) args)
 {
   free (args.p2);  // free the Bag
   return args.p1;  // return the "new" Heap
@@ -46,7 +42,7 @@ $ty:b $id:reduce ($ty:(((List a)!, (a!, b) -> b, b)) args)
   while (list) {
     fargs.p1 = list->data;
     fargs.p2 = acc;
-    acc = ($spec:((a!, b) -> b)) args.p2 (fargs);
+    acc = (($spec:((a!, b) -> b)) args.p2) (fargs);
     list = list->next;
   }
 
@@ -54,9 +50,6 @@ $ty:b $id:reduce ($ty:(((List a)!, (a!, b) -> b, b)) args)
 }
 
 
-$esc:(#include <stdlib.h>)
-$esc:(#include <stdio.h>)
-#include "generated.c"
 
 int main ()
 {
@@ -95,7 +88,7 @@ int main ()
     printf ("%d -> ", curr->data);
     curr = curr->next;
   }
-  printf ("NULL");  
+  printf ("NULL\n");  
 
   // Now call `average'
   $ty:((Heap, (List U32)!)) avg_args;
