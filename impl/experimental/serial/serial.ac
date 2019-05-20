@@ -177,6 +177,9 @@ int uart_init(const struct dev_defn *defn,
 
         regs = uart_regs_from_cg(dev, regscg);
 
+        /* Software reset */
+        while (!(regs->cr2 & UART_CR2_SRST));
+
 $escstm:(#ifdef CONFIG_PLAT_IMX6)
         /* The UART1 on the IMX6 has the problem that the MUX is not correctly set,
          * and the RX PIN is not routed correctly.
