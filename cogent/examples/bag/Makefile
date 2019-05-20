@@ -16,7 +16,7 @@ COUTPUT=$(addsuffix .c, $(OUTPUT))
 HOUTPUT=$(addsuffix .h, $(OUTPUT))
 
 STDGUM=$(shell cogent --stdgum-dir)
-
+CPP=cpp-8
 AHFILES=List.ah
 ACFILES=main.ac
 
@@ -45,6 +45,7 @@ mk-c:
 		--infer-c-types="$(AHFILES)" \
 		--Wno-warn --infer-c-funcs="$(ACFILES)" \
 		--cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
+	        --cpp="$(CPP)" \
 		--ext-types=types.cfg \
 		--entry-funcs=entrypoints.cfg
 

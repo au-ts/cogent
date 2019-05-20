@@ -13,6 +13,8 @@ $ty:(< Failure Heap | Success (Bag, Heap) >) newBag ($ty:(Heap) heap)
   $ty:(< Failure Heap | Success (Bag, Heap) >) ret;
   $ty:(Bag) bag = malloc (sizeof (*bag));
   
+  bag->count = 0;
+  bag->sum = 0; 
   if (!bag) {
     ret.tag = TAG_ENUM_Failure;
     ret.Failure = heap;
@@ -58,24 +60,18 @@ int main ()
   // we cannot define a poly-function in antiquoted C. That's why here
   // we only implement an instance of it, hackily.
 
-  $ty:(U32) arr[5] = {4, 7, 2, 3, 9};
-
   $ty:(List U32) list = NULL;
-  $ty:(List U32) last = list;
 
-  $ty:(List U32) cell = malloc (sizeof (*cell));
-  list = cell;  // Set the list head
-  last = cell;
-  cell->data = arr[0];
-  cell->next = NULL;
-
-  for (int i = 1; i < 5; i++) {
+  $ty:(U32) x = 0;
+  while (1) {
+    printf("Enter a number:");
+    if (scanf("%d",&x) < 0) {
+      break;
+    }
     $ty:(List U32) cell = malloc (sizeof (*cell));
-    cell->data = arr[i];
-    cell->next = NULL;
-
-    last->next = cell;
-    last = cell;
+    cell->data = x;
+    cell->next = list;
+    list = cell;
   }
 
   // Print the list
@@ -83,8 +79,8 @@ int main ()
   $ty:(List U32) curr;
   curr = list;
 
-  printf ("The list is: ");
-  for (int i = 0; i < 5; i++) {
+  printf ("\nThe list is: ");
+  while (curr != NULL) {
     printf ("%d -> ", curr->data);
     curr = curr->next;
   }
