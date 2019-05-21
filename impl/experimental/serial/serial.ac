@@ -146,12 +146,85 @@ int uart_putchar(ps_chardevice_t* d, int c)
         }
 }
 
+$ty:((#IMXUartRegs, SysState)) uart_setup_phase1_ac($ty:((#IMXUartRegs, SysState)) args)
+{
+        $ty:((#IMXUartRegs, SysState)) ret;
+        ps_chardevice_t* dev = args.p2;
+        imx_uart_regs_t* regs = imx_uart_get_priv(dev);
+
+        /* Software reset */
+        regs->cr2 = args.p1.cr2;
+        while (!(regs->cr2 & UART_CR2_SRST));
+        args.p1.cr2 = regs->cr2;
+
+        /* XXX: Should we copy the fields from reg back to the Cogent record? */
+        ret.p1 = args.p1;
+        ret.p2 = dev;
+
+        return ret;
+}
+
+$ty:((#IMXUartRegs, SysState)) uart_setup_phase2_ac($ty:((#IMXUartRegs, SysState)) args)
+{
+        $ty:((#IMXUartRegs, SysState)) ret;
+        ps_chardevice_t* dev = args.p2;
+        imx_uart_regs_t* regs = imx_uart_get_priv(dev);
+
+        /* Line configuration */
+        regs->cr2 = args.p2.cr2;
+        /* Baud Rate */
+        regs->bir = args.p2.bir;
+        regs->bmr = args.p2.bmr;
+        regs->fcr = args.p2.fcr;
+
+        /* XXX: Should we copy the fields from reg back to the Cogent record? */
+        ret.p1 = args.p1;
+        ret.p2 = dev;
+
+        return ret;
+}
+
+$ty:((#IMXUartRegs, SysState)) uart_setup_phase3_ac($ty:((#IMXUartRegs, SysState)) args)
+{
+        $ty:((#IMXUartRegs, SysState)) ret;
+        ps_chardevice_t* dev = args.p2;
+        imx_uart_regs_t* regs = imx_uart_get_priv(dev);
+
+        /* Initialise the receiver interrupt : Phase 1 */
+        regs->cr1 = args.p1.cr1;            /* Disable recv interrupt.           */
+        regs->fcr = args.p1.fcr;            /* Clear the rx trigger level value. */
+
+        /* XXX: Should we copy the fields from reg back to the Cogent record? */
+        ret.p1 = args.p1;
+        ret.p2 = dev;
+
+        return ret;
+}
+
+$ty:((#IMXUartRegs, SysState)) uart_setup_phase4_ac($ty:((#IMXUartRegs, SysState)) args)
+{
+        $ty:((#IMXUartRegs, SysState)) ret;
+        ps_chardevice_t* dev = args.p2;
+        imx_uart_regs_t* regs = imx_uart_get_priv(dev);
+
+        /* Initialise the receiver interrupt : Phase 2 */
+        regs->cr1 = args.p1.cr1;            /* Set the rx tigger level to 1.     */
+        regs->fcr = args.p1.fcr;            /* Enable recv interrupt.            */
+
+        /* XXX: Should we copy the fields from reg back to the Cogent record? */
+        ret.p1 = args.p1;
+        ret.p2 = dev;
+
+        return ret;
+}
+
 int uart_init(const struct dev_defn *defn,
               const ps_io_ops_t *ops,
               ps_chardevice_t *dev)
 {
         imx_uart_regs_t* regs;
         $ty:(#IMXUartRegs) regscg;
+        SysState *st;
 
         /* Attempt to map the virtual address, assure this works */
         void* vaddr = chardev_map(defn, ops);
@@ -175,10 +248,8 @@ int uart_init(const struct dev_defn *defn,
 
         regscg = uart_init_cg(regscg);
 
-        regs = uart_regs_from_cg(dev, regscg);
-
-        /* Software reset */
-        while (!(regs->cr2 & UART_CR2_SRST));
+        st = dev;
+        st = uart_setup(0, regscg, st);
 
 $escstm:(#ifdef CONFIG_PLAT_IMX6)
         /* The UART1 on the IMX6 has the problem that the MUX is not correctly set,
