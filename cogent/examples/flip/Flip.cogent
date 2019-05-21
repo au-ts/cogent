@@ -1,0 +1,23 @@
+
+type F = { f : U32 }
+
+flip : F -> F
+-- flip (r {f}) = if f == 0 then r {f = 1} else r {f = 0}
+
+flip r = let r' {f} = r
+          in if f == 0 then r' {f = 1}
+                       else r' {f = 0}
+
+{-
+@ Pattern matching
+flip r {f} = f | 0 -> r {f = 1}
+               | 1 -> r {f = 0}
+               | _ -> r {f = 0}
+-}
+
+-- @ Multiway-If
+-- flip r {f} = if | f == 0 -> r {f = 1}
+--                 | f == 1 -> r {f = 0}
+--                 | else -> r {f = 1}
+-- 
+

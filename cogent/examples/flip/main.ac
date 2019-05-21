@@ -1,0 +1,19 @@
+$esc:(#include <stdio.h>)
+$esc:(#include <stdlib.h>)
+
+$esc:(#include "generated.c")
+
+int main(void)
+{
+        $ty:(F) rec = malloc(sizeof(*rec));
+
+        rec->f = 1;
+        rec = $exp:flip(rec);
+        printf("%d\n", rec->f);
+
+        free (rec);
+
+        return 0;
+}
+
+
