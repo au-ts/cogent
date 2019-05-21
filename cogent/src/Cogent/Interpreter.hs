@@ -244,6 +244,7 @@ repl r = do putStr "cogenti> "
                                                , "  :h           -- show this help"
                                                , "  :q           -- quit the REPL"
                                                ]
+              Right (Skip) -> return ()
               Right (Quit) -> exitSuccess
             repl r
   where
@@ -278,7 +279,7 @@ parseCmdline = do
  <|> (Parser.reservedOp ":d" >> return Display)
  <|> (Parser.reservedOp ":h" >> return Help)
  <|> (Parser.reservedOp ":q" >> return Quit)
- <|> (eof >> return Skip)
+ <|> (endOfLine >> return Skip)
 
 
 loadCode :: IORef PreloadS -> String -> IO ()
