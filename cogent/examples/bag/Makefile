@@ -44,9 +44,10 @@ mk-c:
 		--infer-c-types="$(AHFILES)" \
 		--Wno-warn --infer-c-funcs="$(ACFILES)" \
 		--cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
-		--cpp="$(CPP)" \
+		--cpp="$(CC)" \
 		--ext-types=types.cfg \
 		--entry-funcs=entrypoints.cfg
+	# Not using --cpp=$(CPP) as it's default is `$(CC) -E'
 
 clean:
 	rm -f $(COUTPUT) $(HOUTPUT) $(PP) $(PPINFER) $(OBJ)
