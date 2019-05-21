@@ -1,0 +1,20 @@
+$esc:(#include <stdio.h>)
+
+/*
+ * `SysState` is the 'world', everything outside the Cogent program
+ * that is encapsulated into this variable. Essentially the state of
+ * the external world.
+ */
+typedef void *SysState;
+
+#include "generated.c"
+
+int main(void)
+{
+        $ty:(SysState) st;
+
+        st = $exp:helloworld(st);
+        $t = $exp:fn(st);
+
+        return 0;
+}
