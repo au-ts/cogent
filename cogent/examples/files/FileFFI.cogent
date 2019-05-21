@@ -1,0 +1,59 @@
+type World
+
+type R e a = < Error e | Ok a >
+type ErrorT = <ErrorEOF | ErrorFull | ErrorEtc U32>
+
+type SOpen
+type SError
+
+type FileRead s
+
+fr_open : (World, String) -> R (World, ErrorT) (World, FileRead SOpen)
+fr_getc : FileRead SOpen -> R (ErrorT, FileRead SError) (U8, FileRead SOpen)
+-- fr_reset : all s. FileRead s -> R (FileRead SError) (FileRead SOpen)
+fr_close : all s. FileRead s -> ()
+
+type FileWrite s
+
+fw_open : (World, String) -> R (World, ErrorT) (World, FileWrite SOpen)
+fw_putc : (U8, FileWrite SOpen) -> R (ErrorT, FileWrite SError) (FileWrite SOpen)
+-- fw_reset : all s. FileWrite s -> R (FileWrite SError) (FileWrite SOpen)
+fw_close : all s. FileWrite s -> ()
+
+type DoWhile e a = < Continue e | Done a >
+dowhile : all (e,a). (e -> DoWhile e a, e) -> a
+
+
+copy_byte : (U32, FileRead SOpen, FileWrite SOpen) -> DoWhile (U32, FileRead SOpen, FileWrite SOpen) (R ErrorT U32)
+copy_byte (bytes, fr,fw) =
+ fr_getc fr
+  | Ok (c,fr) ->
+   fw_putc (c,fw)
+    | Ok fw ->
+      Continue (bytes + 1, fr, fw)
+    | Error (err,fw) ->
+      fr_close fr;
+      fw_close fw;
+      Done (Error err)
+  | Error (err,fr) ->
+    fr_close fr;
+    fw_close fw;
+    err
+     | ErrorEOF -> Done (Ok bytes)
+     | _ -> Done (Error err)
+
+copy_file : (World,String,String) -> R (World,ErrorT) (World,U32)
+copy_file (w,file_in,file_out) =
+ fr_open (w,file_in)
+  | Ok (w, fr) ->
+   fw_open (w,file_out)
+    | Ok (w, fw) ->
+     dowhile (copy_byte, (0,fr,fw))
+      | Ok i -> Ok (w,i)
+      | Error e -> Error (w, e)
+    | Error we ->
+     fr_close fr;
+     Error we
+  | Error we ->
+   Error we
+

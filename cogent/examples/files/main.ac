@@ -1,0 +1,176 @@
+/*
+ * Copyright 2019, Data61
+ * Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+ * ABN 41 687 119 230.
+ *
+ * This software may be distributed and modified according to the terms of
+ * the GNU General Public License version 2. Note that NO WARRANTY is provided.
+ * See "LICENSE_GPLv2.txt" for details.
+ *
+ * @TAG(DATA61_GPL)
+ */
+
+/*
+ * The standard C headers need to be `escaped`, since Cogent's C parser
+ * can not parse all of the C standard.
+ */
+$esc:(#include <stdio.h>)
+
+/*
+ * `SysState` is the 'world', everything outside the Cogent program
+ * that is encapsulated into this variable. Essentially the state of
+ * the external world.
+ */
+typedef void *World;
+typedef FILE FileRead_SOpen;
+typedef FILE FileRead_SError;
+typedef FILE FileWrite_SOpen;
+typedef FILE FileWrite_SError;
+
+/*
+ * `generated.c` is the C file that Cogent generates after parsing
+ * the `HelloWorld.cogent` file (and any other cogent files that
+ * is included in `HelloWorld.cogent`.
+ */
+#include "generated.c"
+
+$ty:(R (World, ErrorT) (World, FileRead SOpen)) $id:fr_open($ty:((World, String)) args)
+{
+  $ty:(R (World, ErrorT) (World, FileRead SOpen)) ret;
+
+  FILE* fh = fopen(args.p2, "r");
+  if (fh) {
+    ret.tag = TAG_ENUM_Ok;
+    ret.Ok.p1 = args.p1;
+    ret.Ok.p2 = fh;
+  } else {
+    ret.tag = TAG_ENUM_Error;
+    ret.Error.p1 = args.p1;
+    ret.Error.p2.tag = TAG_ENUM_ErrorEtc;
+    ret.Error.p2.ErrorEtc = 0; // errno();
+  }
+
+  return ret;
+}
+
+$ty:(R (ErrorT, FileRead SError) (U8, FileRead SOpen)) $id:fr_getc($ty:(FileRead SOpen) args)
+{
+  $ty:(R (ErrorT, FileRead SError) (U8, FileRead SOpen)) ret;
+
+  int c = fgetc(args);
+  if (c == EOF) {
+    ret.tag = TAG_ENUM_Error;
+    ret.Error.p1.tag = TAG_ENUM_ErrorEOF;
+    ret.Error.p2 = args;
+  } else {
+    ret.tag = TAG_ENUM_Ok;
+    ret.Ok.p1 = c;
+    ret.Ok.p2 = args;
+  }
+
+  return ret;
+}
+
+$ty:(()) $id:fr_close($ty:(FileRead s) args)
+{
+  $ty:(()) ret;
+  fclose(args);
+  return ret;
+}
+
+$ty:(R (World, ErrorT) (World, FileWrite SOpen)) $id:fw_open($ty:((World, String)) args)
+{
+  $ty:(R (World, ErrorT) (World, FileWrite SOpen)) ret;
+
+  FILE* fh = fopen(args.p2, "w");
+  if (fh) {
+    ret.tag = TAG_ENUM_Ok;
+    ret.Ok.p1 = args.p1;
+    ret.Ok.p2 = fh;
+  } else {
+    ret.tag = TAG_ENUM_Error;
+    ret.Error.p1 = args.p1;
+    ret.Error.p2.tag = TAG_ENUM_ErrorEtc;
+    ret.Error.p2.ErrorEtc = 0; // errno();
+  }
+
+  return ret;
+}
+
+$ty:(R (ErrorT, FileWrite SError) (FileWrite SOpen)) $id:fw_putc($ty:((U8, FileWrite SOpen)) args)
+{
+  $ty:(R (ErrorT, FileWrite SError) (FileWrite SOpen)) ret;
+
+  int r = fputc(args.p1, args.p2);
+  if (r == EOF) {
+    ret.tag = TAG_ENUM_Error;
+    ret.Error.p1.tag = TAG_ENUM_ErrorEtc;
+    ret.Error.p1.ErrorEtc = 0; // errno();
+    ret.Error.p2 = args.p2;
+  } else {
+    ret.tag = TAG_ENUM_Ok;
+    ret.Ok = args.p2;
+  }
+
+  return ret;
+}
+
+$ty:(()) $id:fw_close($ty:(FileWrite s) args)
+{
+  $ty:(()) ret;
+  fclose(args);
+  return ret;
+}
+
+
+$ty:(a) $id:dowhile($ty:(((e -> DoWhile e a), e)) args)
+{
+  $ty:(e -> DoWhile e a) fn = args.p1;
+  $ty:(e) it = args.p2;
+
+  $ty:(DoWhile e a) res;
+
+  while (1) {
+    res = (($spec:(e -> DoWhile e a)) fn) (it);
+    if (res.tag == TAG_ENUM_Continue) {
+      it = res.Continue;
+    } else if (res.tag == TAG_ENUM_Done) {
+      return res.Done;
+    } else {
+      printf("bad tag\n"); // oops - bad tag
+    }
+  }
+}
+
+int main(void)
+{
+  $ty:((World,String,String)) inp;
+  $ty:(R (World,ErrorT) (World,U32)) ret;
+
+  inp.p2 = "in.txt";
+  inp.p3 = "out.txt";
+
+  ret = $exp:copy_file(inp);
+  if (ret.tag == TAG_ENUM_Ok) {
+    printf("Ok! Copied bytes: %lld\n", ret.Ok.p2);
+  } else if (ret.tag == TAG_ENUM_Error) {
+    printf("Error!\n");
+    switch (ret.Error.p2.tag) {
+      case TAG_ENUM_ErrorEOF:
+        printf("EOF (not an error?)\n");
+        break;
+      case TAG_ENUM_ErrorFull:
+        printf("File full\n");
+        break;
+      case TAG_ENUM_ErrorEtc:
+        printf("Miscellaneous: %lld\n", ret.Error.p2.ErrorEtc);
+        printf("(Maybe 'in.txt' doesn't exist)\n");
+        break;
+      default:
+        printf("Unknown error: bad tag %lld\n", ret.Error.p2.tag);
+        break;
+    }
+  }
+
+  return 0;
+}

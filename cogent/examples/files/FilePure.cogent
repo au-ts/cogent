@@ -1,0 +1,90 @@
+-- Session types for file open/close example...
+
+-- State: file handles can be open or in some error state
+type SOpen
+type SError
+
+-- Mode: can read or write
+type MRead = <MReadV>
+type MWrite = <MWriteV>
+
+-- File representation:
+-- files are parameterised by the mode, state, and type of contents
+-- Represent normal values as full (Have), Empty.
+-- There's also a special 'XXX' constructor which is to enforce linearity and nominal typing...
+type File m s a = < FileHave a | FileEmpty | XXX HANDLE m s a >
+--
+-- Maybe this would be cleaner as a record plus an abstract type, something like
+--
+-- > type AbstractHandle m s a
+-- > type File m s a = { rep : <FileHave a | FileEmpty>, handle : AbstractHandle m s a }
+--
+-- and unsafe operations to allocate/free AbstractHandles...
+
+type R e a = < Error e | Success a >
+type Error = <ErrorNumber U32>
+
+-- Abstract file handle -- is linear
+type HANDLE
+unsafe_UNDEFINED : all (a,b). a -> b
+
+
+fopen : all (m :< D, a). (String, m) -> R Error (File m SOpen a)
+fopen (str,m) = Success FileEmpty
+
+fget : all a. File MRead SOpen a -> R (Error, File MRead SError a) (a, File MRead SOpen a)
+fget fh =
+ fh
+  | FileHave a -> Success (a, FileEmpty)
+  | FileEmpty    -> Error (ErrorNumber 1, FileEmpty)
+  | XXX h m s a -> unsafe_UNDEFINED (h,m,s,a)
+
+fput : all a. (a, File MWrite SOpen a) -> R (Error, a, File MWrite SError a) (File MWrite SOpen a)
+fput (a,fh) =
+ fh
+  | FileHave x -> Error (ErrorNumber 2, a, FileHave x)
+  | FileEmpty  -> Success (FileHave a)
+  | XXX h m s ax -> unsafe_UNDEFINED (h,m,s,a,ax)
+
+-- | Close file in any mode and state by setting its new state to Closed
+fclose : all (m,s,a :< D). File m s a -> R Error ()
+fclose fh =
+ fh
+  | FileHave a -> Success ()
+  | FileEmpty  -> Success ()
+  | XXX h m s a -> unsafe_UNDEFINED (h,m,s,a)
+
+freset : all (m :< D, m' :< D, s, a). (File m s a, m') -> R (Error, File m SError a) (File m' s a)
+freset (fh,m') =
+ fh
+  | FileHave a -> Success (FileHave a)
+  | FileEmpty  -> Success FileEmpty
+  | XXX h m s a -> unsafe_UNDEFINED (h,m,s,a)
+
+example : (String, U32) -> R Error U32
+example (filepath, v) =
+ -- Open file
+ fopen (filepath, MWriteV)
+  | Error err -> Error err
+  | Success fh ->
+   -- Write to it
+   fput (v, fh)
+    | Error (err,_,fh) ->
+     -- Error - we now have a handle in error state. We can only close it or try to reset it
+     -- Get is compile error:
+     -- fget fh
+     --  | Error err -> unsafe_UNDEFINED err
+     --  | Success s -> unsafe_UNDEFINED s
+     fclose fh
+      | Error err -> Error err
+      | Success _ -> Error (ErrorNumber 1)
+    | Success fh ->
+     -- Success - we have a handle we could write more to, but we can't read from it
+     fclose fh
+      | Error err -> Error err
+      | Success _ -> Error (ErrorNumber 1)
+        -- -- Double-close is compile error:
+        -- fclose fh
+        --  | Error err -> Error err
+        --  | Success _ -> Error (ErrorNumber 1)
+
