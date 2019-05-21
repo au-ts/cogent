@@ -104,10 +104,40 @@ shows "filter (\<lambda> x. P (fst x)) (map (\<lambda>(a,b). (a, f b)) ls)
      = map (\<lambda>(a,b). (a, f b)) (filter (\<lambda> x. P (fst x)) ls)"
 by (induct_tac ls, auto)
 
+subsection {* list_all *}
+
+lemma list_all_antitone_lists:
+  assumes
+    "set xs \<subseteq> set ys"
+    "list_all P ys"
+  shows "list_all P xs"
+  using assms
+  by (metis list_all_iff subset_iff)
+
+lemma list_all_nil: "list_all P []"
+  by simp
+lemma list_all_cons: "P x \<Longrightarrow> list_all P xs \<Longrightarrow> list_all P (x # xs)"
+  by simp
+
+lemma list_all_imp_list_all_filtered: "list_all P xs \<Longrightarrow> list_all P (filter Q xs)"
+  by (induct xs) simp+
+
+lemma list_all_update_weak:
+  "\<lbrakk> i < length xs; P x'; list_all P xs \<rbrakk> \<Longrightarrow> list_all P (xs[i := x'])"
+  by (clarsimp simp add: list_all_length, case_tac "n = i"; simp)
+
+
 subsection {* list_all2 *}
 
 lemmas list_all2_nil = List.list.rel_intros(1)
 lemmas list_all2_cons = List.list.rel_intros(2)
+
+lemma list_all_zip_iff_list_all2:
+  assumes "length xs = length ys"
+  shows "list_all P (zip xs ys) \<longleftrightarrow> list_all2 (curry P) xs ys"
+  using assms
+  by (induct xs ys rule: list_induct2) simp+
+
 
 subsection {* list_all3 *}
 
@@ -367,5 +397,16 @@ lemma list_all4_impD:
   using assms
   by (induct rule: list_all4_induct, simp+)
 
+
+fun unzip_go where
+  "unzip_go ((x,y) # zs) xs ys = unzip_go zs (x # xs) (y # ys)"
+| "unzip_go [] xs ys = (xs, ys)"
+
+fun rev'_go where
+  "rev'_go [] ys = ys"
+| "rev'_go (x # xs) ys = rev'_go xs (x # ys)"
+
+definition "unzip xs = unzip_go (rev'_go xs []) [] []"
+declare unzip_def[simp]
 
 end

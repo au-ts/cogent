@@ -429,15 +429,19 @@ inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Right
 
 | typing_afun   : "\<lbrakk> \<Xi> f = (K', t, u)
                    ; list_all2 (kinding K) ts K' 
+                   ; t' = instantiate ts t
+                   ; u' = instantiate ts u
                    ; K' \<turnstile> TFun t u wellformed
                    ; K \<turnstile> \<Gamma> consumed
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> AFun f ts : instantiate ts (TFun t u)"
+                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> AFun f ts : TFun t' u'"
 
-| typing_fun    : "\<lbrakk> \<Xi>, K', [Some t] \<turnstile> f : u 
+| typing_fun    : "\<lbrakk> \<Xi>, K', [Some t] \<turnstile> f : u
+                   ; t' = instantiate ts t
+                   ; u' = instantiate ts u
                    ; K \<turnstile> \<Gamma> consumed
                    ; K' \<turnstile> t wellformed
                    ; list_all2 (kinding K) ts K'
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Fun f ts : instantiate ts (TFun t u)"
+                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Fun f ts : TFun t' u'"
 
 | typing_app    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
                    ; \<Xi>, K, \<Gamma>1 \<turnstile> a : TFun x y
@@ -644,10 +648,14 @@ and   "K \<turnstile>* fs :\<kappa>r k \<Longrightarrow> K \<turnstile>* fs :\<k
 using k_is_superset proof (induct rule: kinding_kinding_all_kinding_record.inducts)
 qed (auto intro: subset_trans kinding_kinding_all_kinding_record.intros)
 
-
 lemma kind_top:
 shows "k \<subseteq> {D, S, E}"
 by (force intro: kind_comp.exhaust)
+
+
+lemma kinding_all_list_all_kinding:
+  "K \<turnstile>* ts :\<kappa> k \<longleftrightarrow> list_all (\<lambda>t. K \<turnstile> t :\<kappa> k) ts"
+  by (induct ts) (force intro: kind_all_empty kind_all_cons)+
 
 lemma kinding_all_nth:
 fixes n :: nat
@@ -665,10 +673,25 @@ proof (rule iffI)
      assume "K \<turnstile>* ts :\<kappa> k"
 then show   "\<forall> t \<in> set ts. K \<turnstile> t :\<kappa> k"
      by (rule kinding_kinding_all_kinding_record.inducts, simp+)
-
 next assume "\<forall> t \<in> set ts. K \<turnstile> t :\<kappa> k"
 then show   "K \<turnstile>* ts :\<kappa> k" 
      by (induct ts, auto intro: kinding_kinding_all_kinding_record.intros)
+ qed
+
+lemma kinding_record_set:
+  shows "(K \<turnstile>* tsr :\<kappa>r k) = (\<forall>(t,b)\<in>set tsr. if b then (\<exists>k. K \<turnstile> t :\<kappa> k) else (K \<turnstile> t :\<kappa> k))"
+proof (rule iffI)
+  assume "K \<turnstile>* tsr :\<kappa>r k"
+  then show "(\<forall>(t,b)\<in>set tsr. if b then (\<exists>k. K \<turnstile> t :\<kappa> k) else (K \<turnstile> t :\<kappa> k))"
+    by (rule kinding_kinding_all_kinding_record.inducts[where ?P1.0=\<open>\<lambda>_ _ _. True\<close>]; force)
+next
+  assume "(\<forall>(t,b)\<in>set tsr. if b then (\<exists>k. K \<turnstile> t :\<kappa> k) else (K \<turnstile> t :\<kappa> k))"
+  then show "K \<turnstile>* tsr :\<kappa>r k" 
+    apply (induct tsr)
+     apply (force intro: kinding_kinding_all_kinding_record.intros)
+    apply (auto intro: kinding_kinding_all_kinding_record.intros)
+    apply (case_tac b; clarsimp simp add: kind_record_cons1 kind_record_cons2)
+    done
 qed
 
 lemma kinding_all_subset:
@@ -742,6 +765,20 @@ and     "k \<subseteq> sigil_kind Writable"
 shows   "k \<subseteq> sigil_kind s"
 proof (cases s)
 qed (simp_all add: assms(1) assms(2)[simplified] kind_top)
+
+section {* Wellformed lemmas *}
+
+lemma type_wellformed_all_subkind_weaken: "type_wellformed_all K ts = list_all (\<lambda>t. type_wellformed K t) ts"
+proof (rule iffI)
+  assume assms1: "list_all (type_wellformed K) ts"
+  then obtain k' where "\<forall>t\<in>set ts. K \<turnstile> t :\<kappa> k'"
+    by (meson empty_subsetI list.pred_set supersumption(1) type_wellformed_def)
+  then show "K \<turnstile>* ts wellformed"
+    by (force simp add: list_all_iff kinding_all_list_all_kinding)
+qed (force simp add: list_all_length kinding_all_list_all_kinding)
+
+lemma type_wellformed_all_cons: "type_wellformed_all K (t # ts) \<longleftrightarrow> type_wellformed K t \<and> type_wellformed_all K ts"
+  by (simp del: type_wellformed_all_def add: type_wellformed_all_subkind_weaken)
 
 section {* Bang lemmas *}
 
@@ -1027,7 +1064,7 @@ then also have "instantiate \<delta> (instantiate ts t) = instantiate (map (inst
 ultimately show ?case by (auto intro!: list_all2_substitutivity
                                        typing_typing_all.typing_afun [simplified] 
                                        instantiate_ctx_consumed)
-next case (typing_fun \<Xi> K t f u \<Gamma> ks ts)
+next case (typing_fun \<Xi> K t f u t' ts u' ks \<Gamma>)
 then also have "instantiate \<delta> (instantiate ts t) = instantiate (map (instantiate \<delta>) ts) t"
           and  "instantiate \<delta> (instantiate ts u) = instantiate (map (instantiate \<delta>) ts) u"
           by (force dest: list_all2_lengthD intro: instantiate_instantiate dest!: typing_to_kinding)+
