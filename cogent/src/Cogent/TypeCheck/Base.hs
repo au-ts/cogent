@@ -165,6 +165,7 @@ data Constraint' t = (:<) t t
                    | SemiSat TypeWarning
                    | Sat
                    | Exhaustive t [RawPatn]
+                   | Solved t
 #ifdef BUILTIN_ARRAYS
                    | Arith SExpr
 #endif

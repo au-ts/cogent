@@ -24,7 +24,9 @@ import Prelude hiding (lookup)
 import qualified Cogent.TypeCheck.Row as Row 
 
 data AssignResult = Type TCType | Sigil (Sigil ()) | Row (Row.Row TCType)
+ deriving Show
 newtype Subst = Subst (M.IntMap AssignResult)
+ deriving Show
 
 
 ofType :: Int -> TCType -> Subst
@@ -54,7 +56,11 @@ instance Monoid Subst where
 
 
 apply :: Subst -> TCType -> TCType
-apply (Subst f) (U x) | Just (Type t) <- M.lookup x f = apply (Subst f) t
+apply (Subst f) (U x)
+  | Just (Type t) <- M.lookup x f
+  = apply (Subst f) t
+  | otherwise
+  = U x
 apply (Subst f) t@(V (Row.Row m' (Just x))) 
   | Just (Row (Row.Row m q)) <- M.lookup x f = apply (Subst f) (V (Row.Row (DM.union m m') q))
 apply (Subst f) t@(R (Row.Row m' (Just x)) s) 
@@ -64,7 +70,7 @@ apply (Subst f) t@(R r (Right x))
 apply f (V x) = V (fmap (apply f) x) 
 apply f (R x s) = R (fmap (apply f) x) s
 apply f (T x) = T (fmap (apply f) x)
-apply f t = t
+apply f (Synonym n ts) = Synonym n (fmap (apply f) ts)
 
 applyAlts :: Subst -> [Alt TCPatn TCExpr] -> [Alt TCPatn TCExpr]
 applyAlts = map . applyAlt
@@ -108,6 +114,7 @@ applyC s (Unsat e) = Unsat (applyErr s e)
 applyC s (SemiSat w) = SemiSat (applyWarn s w)
 applyC s Sat = Sat
 applyC s (Exhaustive t ps) = Exhaustive (apply s t) ps
+applyC s (Solved t) = Solved (apply s t)
 applyC s x = error (show x)
 applyE :: Subst -> TCExpr -> TCExpr
 applyE s (TE t e l) = TE (apply s t)

@@ -74,6 +74,7 @@ assignC a (Unsat e) = Unsat $ assignErr a e
 assignC a (SemiSat w) = SemiSat $ assignWarn a w
 assignC a (Sat) = Sat
 assignC a (Exhaustive t ps) = Exhaustive (assignT a t) ps
+assignC a (Solved t) = Solved (assignT a t)
 #ifdef BUILTIN_ARRAYS
 assignC a (Arith e) = Arith (assign a e)
 #endif

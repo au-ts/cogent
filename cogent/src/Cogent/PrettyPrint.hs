@@ -524,7 +524,7 @@ instance Pretty TCType where
   pretty t@(V v) = warn ('V':show t)
   pretty t@(R v s) = warn ('R':show t)
   pretty (U v) = warn ('?':show v)
-  pretty (Synonym n ts) = warn ('S':show n)
+  pretty (Synonym n ts) = warn ('S':show n) <+> spaceList (map pretty ts)
 --  pretty (RemoveCase a b) = pretty a <+> string "(without pattern" <+> pretty b <+> string ")"
 
 instance Pretty LocType where
@@ -752,6 +752,7 @@ instance Pretty Constraint where
   pretty (SemiSat w)      = warn "SemiSat"
   pretty (Sat)            = warn "Sat"
   pretty (Exhaustive t p) = warn "Exhaustive" <+> pretty t <+> pretty p
+  pretty (Solved t)       = warn "Solved" <+> pretty t
   pretty (x :@ _)         = pretty x
 #ifdef BUILTIN_ARRAYS
   pretty (Arith e)        = pretty e

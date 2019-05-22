@@ -97,7 +97,15 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
     | Just n' <- elemIndex n primTypeCons
     , Just m' <- elemIndex m primTypeCons
     , n' <= m' , m /= "String" -> Just []
-  
+
+  -- If both sides of an equality constraint are equal, we can't completely discharge it; we need to make sure all unification variables in the type are instantiated at some point
+  t :=: u | t == u ->
+    if isSolved t
+    then Just []
+    else Just [Solved t]
+
+  Solved t | isSolved t -> Just []
+
   T (TFun t1 t2) :=: T (TFun r1 r2) -> Just [r1 :=: t1, t2 :=: r2]
   T (TFun t1 t2) :<  T (TFun r1 r2) -> Just [r1 :<  t1, t2 :<  r2]
 
@@ -195,3 +203,6 @@ extractVariableEquality (Row.Row m1 v1) (Row.Row m2 v2)
  = Just (Row.Row M.empty v1, Row.Row M.empty v2)
  | otherwise
  = Nothing
+
+isSolved :: TCType -> Bool
+isSolved t = unifVars t == []
