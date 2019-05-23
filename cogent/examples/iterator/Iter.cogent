@@ -1,0 +1,108 @@
+-- This is a standalone example that doesn't make use of the gum
+-- library. As such it needs to define its own opaque environment type.
+type Env
+
+-- The environment is also required to print to the standard output.
+show_u32 : (Env, U32) -> Env
+show_string : (Env, String) -> Env
+
+-- Newline is defined internally.
+newline : Env -> Env
+newline env = show_string(env, "\n")
+
+-- This is a relatively simple definition of an iterator.
+--
+-- As Cogent does not support any form of iteration or recursion
+-- internally we need to rely on the ability for C to perform the loop.
+--
+-- For an iterator to terminate starting with a given loop value, the
+-- IterStep must, after some number of repeated applications of itself
+-- to its own result, eventually return a value for which the
+-- IterCondition will produce a Stop.
+
+-- A step determines the action that turns one loop value into another.
+-- It is effectively the 'loop body'
+type IterStep a = a -> a
+
+-- A condition determines whether a given loop value must be passed
+-- though the step or the loop should complete.
+type IterCondition a = a! -> <Continue | Stop>
+
+type Iterator a = #
+  { curr : a
+  , step : IterStep a
+  , condition : IterCondition a
+  }
+
+-- A simple constructor for a stack-allocated iterator
+iterator : all (a) . (a, IterStep a, IterCondition a) -> Iterator a
+iterator (curr, step, condition) = #{ curr, step, condition }
+
+-- Execute the iterator to completion and produce the value for which
+-- the IterCondition returned Stop
+iterate : all (a) . Iterator a -> a
+
+-- A FizzBuzz iterator
+fizzbuzz : (Env, U32) -> Iterator (Env, U32, U32)
+fizzbuzz (env, last) =
+  -- We track the environment, current number, and the last number to
+  -- show.
+  let curr : (Env, U32, U32)
+    = (env, 1, last)
+  -- Each step we show the appropriate text folloed by a newline and
+  -- then increment the value.
+  and step : IterStep (Env, U32, U32)
+    = \(env, n, last) =>
+      let env = if
+        | (n % 3 == 0) && (n % 5 == 0) -> show_string (env, "FizzBuzz")
+        | (n % 3 == 0)                 -> show_string (env, "Fizz")
+        | (n % 5 == 0)                 -> show_string (env, "Buzz")
+        | else                         -> show_u32    (env, n)
+	  and env = newline env
+       in (env, n + 1, last)
+  -- We continue while we have a value less that the final value.
+  and condition : IterCondition (Env, U32, U32)
+    = \(env, n, last) =>
+      if n <= last then Continue else Stop
+  -- Build and return the iterator
+   in iterator (curr, step, condition)
+
+-- An iterator over the fibbonaci sequence
+type Fib = #{ p1 : U32, p2 : U32 }
+
+fib : Env -> Iterator (Env, Fib)
+fib env =
+  -- We track the current environment and the last two values in the
+  -- sequence. The -1st value is 0 and the 0th value is 1.
+  let curr : (Env, Fib)
+    = (env, #{ p1 = 1, p2 = 0 })
+  -- Each step we show the current value.
+  -- The n-1th value becomes the current value and then the current
+  -- value becomes the sum of the previous two.
+  and step : IterStep (Env, Fib)
+    = \(env, #{ p1, p2 }) =>
+      let env = show_u32 (env, p1)
+	  and env = newline env
+      and n = p1 + p2
+       in (env, #{ p1 = n, p2 = p1 })
+  -- We stop when the current value would be greater than 1000.
+  and complete : IterCondition (Env, Fib)
+    = \(_, fib) =>
+      if fib.p1 < 1000 then Continue else Stop
+   in iterator (curr, step, complete)
+
+-- This is the main program.
+prog : Env -> Env
+prog env =
+  -- First we perform fizzbuzz for all values up to 30.
+  let env = newline (show_string (env, "FizzBuzz:"))
+  and (env, _, _) = iterate (fizzbuzz (env, 30))
+  and env = newline env
+
+  -- The we run the fibonacci iterator.
+  and env = newline (show_string (env, "Fibonacci sequence:"))
+  and (env, _) = iterate (fib env)
+  and env = newline env
+
+  -- And now we are done.
+   in show_string (env, "Done!\n")
