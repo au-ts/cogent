@@ -131,13 +131,13 @@ cgAlts alts top alpha = do
     altPattern (Alt p _ _) = p
 
     f (Alt p l e) t = do
-      (s, c, p') <- matchA p t
+      (s, c, p',t') <- matchA p t
       context %= C.addScope s
       (c', e') <- cg e top
       rs <- context %%= C.dropScope
       let unused = flip foldMap (M.toList rs) $ \(v,(_,_,us)) ->
             case us of Seq.Empty -> warnToConstraint __cogent_wunused_local_binds (UnusedLocalBind v); _ -> Sat
-      return (removeCase p t, (c <> c' <> dropConstraintFor rs <> unused, Alt p' l e'))
+      return (t', (c <> c' <> dropConstraintFor rs <> unused, Alt p' l e'))
 
     jobs = map (\(n, alt) -> (NthAlternative n (altPattern alt), f alt)) (zip [1..] alts)
 
@@ -492,19 +492,19 @@ cg' (Annot e tau) t = do
 -- Pattern constraints
 -- -----------------------------------------------------------------------------
 
-matchA :: LocPatn -> TCType -> CG (M.Map VarName (C.Assumption TCType), Constraint, TCPatn)
+matchA :: LocPatn -> TCType -> CG (M.Map VarName (C.Assumption TCType), Constraint, TCPatn, TCType)
 matchA x@(LocPatn l p) t = do
   let ?loc = l
-  (s,c,p') <- matchA' p t
-  return (s, c :@ InPattern x, TP p' l)
+  (s,c,p',t') <- matchA' p t
+  return (s, c :@ InPattern x, TP p' l, t')
 
 matchA' :: (?loc :: SourcePos)
        => Pattern LocIrrefPatn -> TCType
-       -> CG (M.Map VarName (C.Assumption TCType), Constraint, Pattern TCIrrefPatn)
+       -> CG (M.Map VarName (C.Assumption TCType), Constraint, Pattern TCIrrefPatn, TCType)
 
 matchA' (PIrrefutable i) t = do
   (s, c, i') <- match i t
-  return (s, c, PIrrefutable i')
+  return (s, c, PIrrefutable i', t)
 
 matchA' (PCon k [i]) t = do
   beta <- freshTVar
@@ -512,10 +512,12 @@ matchA' (PCon k [i]) t = do
   U rest <- freshTVar
   let row = Row.incomplete [(k,(beta,False))] rest
       c' = t :< V row
+      row' = Row.incomplete [(k,(beta,True))] rest
+
   traceTc "gen" (text "match constructor pattern:" <+> pretty (PCon k [i'])
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint" <+> prettyC c)
-  return (s, c <> c', PCon k [i'])
+  return (s, c <> c', PCon k [i'], V row')
 matchA' (PCon k []) t = matchA' (PCon k [LocIrrefPatn ?loc PUnitel]) t
 matchA' (PCon k is) t = matchA' (PCon k [LocIrrefPatn ?loc (PTuple is)]) t
 matchA' (PIntLit i) t = do
@@ -525,13 +527,13 @@ matchA' (PIntLit i) t = do
                       | otherwise      = "U64"
       c = Upcastable (T (TCon minimumBitwidth [] Unboxed)) t
       -- ^^^ FIXME: I think if we restrict this constraint, then we can possibly get rid of `Upcast' / zilinc
-  return (M.empty, c, PIntLit i)
+  return (M.empty, c, PIntLit i, t)
 
 matchA' (PBoolLit b) t =
-  return (M.empty, t :=: T (TCon "Bool" [] Unboxed), PBoolLit b)
+  return (M.empty, t :=: T (TCon "Bool" [] Unboxed), PBoolLit b, t)
 
 matchA' (PCharLit c) t =
-  return (M.empty, t :=: T (TCon "U8" [] Unboxed), PCharLit c)
+  return (M.empty, t :=: T (TCon "U8" [] Unboxed), PCharLit c, t)
 
 match :: LocIrrefPatn -> TCType -> CG (M.Map VarName (C.Assumption TCType), Constraint, TCIrrefPatn)
 match x@(LocIrrefPatn l ip) t = do

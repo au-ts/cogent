@@ -491,14 +491,6 @@ validateTypes' :: (Traversable t) => [VarName] -> t RawType -> TcErrM TypeError 
 validateTypes' vs = mapM (validateType' vs)
 
 
--- Remove a pattern from a type, for case expressions.
-removeCase :: LocPatn -> TCType -> TCType
-removeCase (LocPatn _ (PIrrefutable _)) _ = (T (TVariant M.empty))
-removeCase (LocPatn _ (PIntLit  _))     x = x
-removeCase (LocPatn _ (PCharLit _))     x = x
-removeCase (LocPatn _ (PBoolLit _))     x = x
-removeCase (LocPatn _ (PCon t _))       x = (T (TTake (Just [t]) x))
-
 flexOf (U x) = Just x
 flexOf (T (TTake _ t))  = flexOf t
 flexOf (T (TPut  _ t))  = flexOf t
