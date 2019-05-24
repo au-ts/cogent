@@ -940,6 +940,9 @@ lemma wellformed_sum_wellformed_elem:
   shows "K \<turnstile> t wellformed"
   by (metis assms fst_conv in_set_conv_nth list_all_length snd_conv type_wellformed.simps(6) type_wellformed_pretty_def)
 
+lemma bang_preserves_wellformed:
+  "type_wellformed n t \<Longrightarrow> type_wellformed n (bang t)"
+  by (induct t rule: type_wellformed.induct) (clarsimp simp add: list.pred_map list_all_iff)+
 
 section {* Kinding lemmas *}
 
@@ -972,6 +975,10 @@ lemma kinding_record_simps:
   "\<And>K n t ts k. K \<turnstile>* ((n,t,Present) # ts) :\<kappa>r k \<longleftrightarrow> (K \<turnstile> t :\<kappa> k) \<and> (K \<turnstile>* ts :\<kappa>r k)"
   "\<And>K n t ts k. K \<turnstile>* ((n,t,Taken) # ts) :\<kappa>r k   \<longleftrightarrow> (K \<turnstile> t wellformed) \<and> (K \<turnstile>* ts :\<kappa>r k)"
   by (auto simp add: kinding_defs list_all_iff)
+
+lemma kinding_imp_wellformed:
+  "K \<turnstile> t :\<kappa> k \<Longrightarrow> K \<turnstile> t wellformed"
+  by (simp add: kinding_def)
 
 lemma kinding_iff_wellformed:
   shows

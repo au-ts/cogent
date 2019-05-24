@@ -271,6 +271,12 @@ lemma list_all2_in_set_impl_sat:
   using assms
   by (metis fst_conv in_set_zip list_all2_nthD snd_conv)
 
+lemma list_all_zip_iff_list_all2:
+  assumes "length xs = length ys"
+  shows "list_all P (zip xs ys) \<longleftrightarrow> list_all2 (curry P) xs ys"
+  using assms
+  by (induct xs ys rule: list_induct2) simp+
+
 
 subsection {* list_all3 *}
 

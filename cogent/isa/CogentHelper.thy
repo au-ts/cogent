@@ -254,6 +254,8 @@ datatype tac = RTac of thm
              | WeakeningTac of thm list
              | SplitsTac of tac list option list
              | SubtypingTac of tac list
+             | BlackBoxTac of (Proof.context -> int -> tactic)
+
 
 val simp_solve = SimpSolveTac ([], [])
 
@@ -282,7 +284,7 @@ fun apply_split @{term "Some TSK_L"} hints t = ((t, NONE), hints)
     val thm = case tacs of [RTac thm] => thm
       | _ => raise HINTS ("apply_split: kindhint failed to create an RTac", kindhint)
   in ((SOME thm, t), hints) end
-  | apply_split @{term "None :: type_split_op option"} hints t = ((NONE, t), hints)
+  | apply_split @{term "None :: type_split_op option"} hints NONE = ((NONE, NONE), hints)
   | apply_split t _ _ = raise TERM ("apply_split", [t])
 
 fun apply_splits ((sp, t) :: sp_ts) hints = let
@@ -298,6 +300,7 @@ fun interpret_tac (RTac r) _ = rtac r
   | interpret_tac (WeakeningTac thms) ctxt = K (weakening_tac ctxt thms)
   | interpret_tac (SplitsTac tacs) ctxt = K (guided_splits_tac ctxt tacs)
   | interpret_tac (SubtypingTac tacs) ctxt = EVERY' (map (fn hint => interpret_tac hint ctxt) tacs)
+  | interpret_tac (BlackBoxTac tac) ctxt = tac ctxt
 and guided_splits_tac ctxt (SOME splt :: script) =
   rtac @{thm split_cons} 1
     THEN EVERY' (map (fn t => interpret_tac t ctxt) splt) 1
@@ -354,32 +357,52 @@ fun follow_tt (Const (@{const_name TyTrSplit}, _) $ sps $ x $ T1 $ y $ T2, ts) k
   in (((T1, x_proofs @ ts1), (T2, y_proofs @ ts2)), hints) end
   | follow_tt (tt, _) _ _ _ = raise TERM ("follow_tt", [tt])
 
-fun ttsplit_inner (@{term "Some TSK_S"} :: tsks) (SOME p :: Gamma) = let
-    val rest = ttsplit_inner tsks Gamma
-  in [RTac @{thm ttsplit_innerI(4)}, simp, RTac p, simp_solve] @ rest end
-  | ttsplit_inner (@{term "Some TSK_L"} :: tsks) (SOME p :: Gamma) = let
-    val rest = ttsplit_inner tsks Gamma
-  in [RTac @{thm ttsplit_innerI(3)}, simp_solve] @ rest end
-  | ttsplit_inner (@{term "Some TSK_R :: type_split_op option"} :: tsks) (SOME p :: Gamma) = let
-    val rest = ttsplit_inner tsks Gamma
-  in [RTac @{thm ttsplit_innerI(2)}, simp_solve] @ rest end
-  | ttsplit_inner (@{term "Some TSK_NS :: type_split_op option"} :: tsks) (SOME p :: Gamma) = let
-    val rest = ttsplit_inner tsks Gamma
-  in [RTac @{thm ttsplit_innerI(5)}, simp_solve] @ rest end
-  | ttsplit_inner (@{term "None :: type_split_op option"} :: tsks) (NONE :: Gamma) = let
-    val rest = ttsplit_inner tsks Gamma
-  in [RTac @{thm ttsplit_innerI(1)}] @ rest end
-  | ttsplit_inner [] [] = [RTac @{thm ttsplit_innerI(6)}]
-  | ttsplit_inner tsks _ = raise TERM ("ttsplit_inner", tsks)
+fun ttsplit_inner (@{term "Some TSK_S"} :: tsks) (SOME p :: Gamma) ctxt =
+    let
+      val rest = ttsplit_inner tsks Gamma
+    in resolve_tac ctxt @{thms ttsplit_innerI(4)}
+      THEN' (resolve_tac ctxt [p])
+      THEN' (SOLVED' (simp_tac ctxt))
+      THEN' rest ctxt
+    end
+  | ttsplit_inner (@{term "Some TSK_L"} :: tsks) (SOME p :: Gamma) ctxt =
+    let
+      val rest = ttsplit_inner tsks Gamma
+    in resolve_tac ctxt @{thms ttsplit_innerI(3)}
+      THEN' (resolve_tac ctxt [p RS @{thm kinding_imp_wellformed}])
+      THEN' rest ctxt
+    end
+  | ttsplit_inner (@{term "Some TSK_R"} :: tsks) (SOME p :: Gamma) ctxt =
+    let
+      val rest = ttsplit_inner tsks Gamma
+    in resolve_tac ctxt @{thms ttsplit_innerI(2)}
+      THEN' (resolve_tac ctxt [p RS @{thm kinding_imp_wellformed}])
+      THEN' rest ctxt
+    end
+  | ttsplit_inner (@{term "Some TSK_NS"} :: tsks) (SOME p :: Gamma) ctxt =
+    let
+      val rest = ttsplit_inner tsks Gamma
+    in resolve_tac ctxt @{thms ttsplit_innerI(5)}
+      THEN' (resolve_tac ctxt [p RS @{thm kinding_imp_wellformed}])
+      THEN' rest ctxt
+    end
+  | ttsplit_inner (@{term "None :: type_split_op option"} :: tsks) (NONE :: Gamma) ctxt =
+    let
+      val rest = ttsplit_inner tsks Gamma
+    in resolve_tac ctxt @{thms ttsplit_innerI(1)}
+      THEN' rest ctxt
+    end
+  | ttsplit_inner [] [] ctxt = resolve_tac ctxt @{thms ttsplit_innerI(6)}
+  | ttsplit_inner tsks _ _ = raise TERM ("ttsplit_inner", tsks)
 
 fun ttsplit (Const (@{const_name TyTrSplit}, _) $ sps $ _ $ _ $ _ $ _, Gamma) = let
     val inner = ttsplit_inner (HOLogic.dest_list sps) Gamma
-  in [RTac @{thm ttsplitI}] @ inner @ [simp_solve, simp_solve, simp_solve] end
+  in [RTac @{thm ttsplitI}, BlackBoxTac inner, simp_solve, simp_solve, simp_solve] end
   | ttsplit (t, _) = raise TERM ("ttsplit", [t])
 
 fun ttsplit_bang (Const (@{const_name TyTrSplit}, _) $ sps $ _ $ _ $ _ $ _, Gamma) = let
     val inner = ttsplit_inner (HOLogic.dest_list sps) Gamma
-  in [RTac @{thm ttsplit_bangI}, simp_solve, simp_solve, SimpTac (@{thms set_eq_subset}, [])] @ inner end
+  in [RTac @{thm ttsplit_bangI}, simp_solve, simp_solve, SimpTac (@{thms set_eq_subset}, []), BlackBoxTac inner] end
   | ttsplit_bang (t, _) = raise TERM ("ttsplit", [t])
 
 fun dest_nat (@{term Suc} $ n) = dest_nat n + 1
