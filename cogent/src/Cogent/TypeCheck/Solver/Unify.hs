@@ -37,6 +37,7 @@ assignOf (R _ (Left s) :< R _ (Right v))
 -- N.B. we know from the previous phase that common alternatives have been factored out.
 assignOf (V r1 :=: V r2)
   | Row.var r1 /= Row.var r2
+  , [] <- Row.common r1 r2
   = case (Row.var r1, Row.var r2) of
     (Just x, Nothing) -> pure [Subst.ofRow x r2]
     (Nothing, Just x) -> pure [Subst.ofRow x r1]
@@ -48,6 +49,7 @@ assignOf (V r1 :=: V r2)
 -- N.B. we know from the previous phase that common fields have been factored out.
 assignOf (R r1 s1 :=: R r2 s2)
   | Row.var r1 /= Row.var r2, s1 == s2
+  , [] <- Row.common r1 r2
   = case (Row.var r1, Row.var r2) of
     (Just x, Nothing) -> pure [Subst.ofRow x r2]
     (Nothing, Just x) -> pure [Subst.ofRow x r1]
