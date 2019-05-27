@@ -68,13 +68,21 @@ findEquateCandidates (c:cs) = let
        b :< U a
          | rigid b && notOccurs a b -> (sups, M.insertWith combine a (Right [c]) subs, others)
        V r1 :< t
-         | rigid t, Just a <- Row.var r1 -> (M.insertWith combine a (Right [c]) sups, subs, others)
+         | rigid t
+         , Row.justVar r1
+         , Just a <- Row.var r1 -> (M.insertWith combine a (Right [c]) sups, subs, others)
        R r1 s :< t
-         | rigid t, Just a <- Row.var r1 -> (M.insertWith combine a (Right [c]) sups, subs, others)
+         | rigid t
+         , Row.justVar r1
+         , Just a <- Row.var r1 -> (M.insertWith combine a (Right [c]) sups, subs, others)
        t :< V r1
-         | rigid t, Just a <- Row.var r1 -> (sups, M.insertWith combine a (Right [c]) subs, others)
+         | rigid t
+         , Row.justVar r1
+         , Just a <- Row.var r1 -> (sups, M.insertWith combine a (Right [c]) subs, others)
        t :< R r1 s
-         | rigid t, Just a <- Row.var r1 -> (sups, M.insertWith combine a (Right [c]) subs, others)
+         | rigid t
+         , Row.justVar r1
+         , Just a <- Row.var r1 -> (sups, M.insertWith combine a (Right [c]) subs, others)
        _ -> (sups,subs, c:others)
 
 

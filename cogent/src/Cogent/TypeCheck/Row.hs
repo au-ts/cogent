@@ -21,6 +21,7 @@ module Cogent.TypeCheck.Row
   , toEntryList
   , compatible
   , null
+  , justVar
   , untakenTypes
   , untakenLabels
   , untakenLabelsSet
@@ -95,6 +96,11 @@ typesFor fs (Row m _) = map (\(_, (t, _) ) -> t) (M.elems (M.restrictKeys m fs))
 null :: Row t -> Bool
 null (Row m Nothing) = M.null m
 null _ = False
+
+-- | A row with no concrete entries and a unification variable, which is effectively an unconstrained unification variable
+justVar :: Row t -> Bool
+justVar (Row es (Just _)) = M.null es
+justVar _ = False
 
 -- | Returns true iff the two rows could be considered equal after unification.
 compatible :: Row t -> Row t -> Bool

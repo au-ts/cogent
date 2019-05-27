@@ -252,6 +252,8 @@ rigid (T (TTake {})) = False
 rigid (T (TPut {})) = False
 rigid (U {}) = False
 rigid (Synonym {}) = False
+rigid (R r _) = not $ Row.justVar r
+rigid (V r) = not $ Row.justVar r
 rigid _ = True
 data FuncOrVar = MustFunc | MustVar | FuncOrVar deriving (Eq, Ord, Show)
 
