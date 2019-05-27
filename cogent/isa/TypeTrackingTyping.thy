@@ -525,7 +525,7 @@ by (auto dest: ttyping_imp_typing typing_imp_ttyping_induct)
 lemma split_type_wellformed:
   "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2 \<Longrightarrow> Some t \<in> set \<Gamma>
     \<Longrightarrow> K \<turnstile>  t wellformed"
-  by (induct rule: split_inducts, auto elim!: split_comp.cases)
+  by (induct rule: split_induct, auto elim!: split_comp.cases)
 
 lemma split_bang_type_wellformed:
   "split_bang K is \<Gamma> \<Gamma>1 \<Gamma>2 \<Longrightarrow> Some t \<in> set \<Gamma>

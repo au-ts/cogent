@@ -246,7 +246,7 @@ inductive split_comp :: "kind env \<Rightarrow> type option \<Rightarrow> type o
 definition split :: "kind env \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool" ("_ \<turnstile> _ \<leadsto> _ | _" [30,0,0,20] 60) where
   "split K = list_all3 (split_comp K)"
 
-lemmas split_inducts = list_all3_induct
+lemmas split_induct = list_all3_induct
   [where P=\<open>split_comp K\<close> for K, simplified split_def[symmetric],
     consumes 1, case_names split_empty split_cons, induct set: list_all3]
 
@@ -268,6 +268,26 @@ lemmas split_Cons3 = list_all3_Cons3[where P=\<open>split_comp K\<close> for K, 
 definition pred :: "nat \<Rightarrow> nat" where
   "pred n \<equiv> (case n of Suc n' \<Rightarrow> n')"
 
+lemma pred_inj_on_nonzero:
+  "inj_on pred (Set.remove 0 UNIV)"
+  unfolding inj_on_def pred_def
+  by (clarsimp, case_tac x; case_tac y; clarsimp)
+
+lemma pred_image_distrib_inter:
+  assumes
+    "0 \<notin> A"
+    "0 \<notin> B"
+  shows "pred ` (A \<inter> B) = (pred ` A) \<inter> (pred ` B)"
+proof -
+  have
+    "\<forall>x\<in>A. x>0"
+    "\<forall>y\<in>B. y>0"
+    using assms neq0_conv by blast+
+  then show ?thesis
+    using pred_inj_on_nonzero
+    unfolding inj_on_def Ball_def
+    by (clarsimp, blast)
+qed
 
 inductive split_bang_comp :: "kind env \<Rightarrow> bool \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> bool"
           ("_ , _ \<turnstile> _ \<leadsto>b _ \<parallel> _" [55,0,0,0,55] 60) where
@@ -280,6 +300,10 @@ inductive split_bang :: "kind env \<Rightarrow> index set \<Rightarrow> ctx \<Ri
 | split_bang_cons  : "\<lbrakk> K , 0 \<in> is \<turnstile> x \<leadsto>b a \<parallel> b 
                       ; split_bang K (pred ` Set.remove (0 :: index) is) xs as bs
                       \<rbrakk>  \<Longrightarrow> split_bang K is (x # xs) (a # as) (b # bs) "
+
+lemma split_bang_Cons:
+  "K , is \<turnstile> x # xs \<leadsto>b a # as | b # bs \<longleftrightarrow> (K, (0 \<in> is) \<turnstile> x \<leadsto>b a \<parallel> b \<and> K , (pred ` Set.remove (0 :: index) is) \<turnstile> xs \<leadsto>b as | bs)"
+  by (auto elim: split_bang.cases intro: split_bang.intros)
 
 lemma split_bang_Cons1:
   "K , I \<turnstile> x # xs' \<leadsto>b ys | zs =
@@ -949,7 +973,7 @@ lemma instantiate_ctx_split:
 assumes "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
 and     "list_all2 (kinding K') \<delta> K"
 shows   "K' \<turnstile> instantiate_ctx \<delta> \<Gamma> \<leadsto> instantiate_ctx \<delta> \<Gamma>1 | instantiate_ctx \<delta> \<Gamma>2"
-using assms proof (induct rule: split_inducts)
+using assms proof (induct rule: split_induct)
 case split_empty then show ?case by (auto simp: instantiate_ctx_def
                                           intro: split_intros)
 case split_cons  then show ?case by (auto simp: instantiate_ctx_def
@@ -968,6 +992,45 @@ proof (induct rule: split_bang.induct)
   case split_bang_cons then show ?case
     by (auto intro!: substitutivity split_bang.intros
         simp add: split_bang_comp.simps split_comp.simps instantiate_ctx_def)
+qed
+
+lemma split_bang_comp_intersect:
+  assumes
+    "K , 0 \<in> is1 \<turnstile> t \<leadsto>b t1 \<parallel> t2"
+    "K , 0 \<in> is2 \<turnstile> t \<leadsto>b t1 \<parallel> t2"
+  shows
+    "K , 0 \<in> is1 \<and> 0 \<in> is2 \<turnstile> t \<leadsto>b t1 \<parallel> t2"
+  using assms
+  by (force simp add: split_bang_comp.simps split_comp.simps)+
+
+lemma split_bang_intersect:
+  assumes
+    "K , is1 \<turnstile> \<Gamma> \<leadsto>b \<Gamma>1 | \<Gamma>2"
+    "K , is2 \<turnstile> \<Gamma> \<leadsto>b \<Gamma>1 | \<Gamma>2"
+  shows
+    "K , is1 \<inter> is2 \<turnstile> \<Gamma> \<leadsto>b \<Gamma>1 | \<Gamma>2"
+  using assms
+proof (induct \<Gamma> arbitrary: \<Gamma>1 \<Gamma>2 is1 is2)
+  case Nil
+  then show ?case
+    by (fastforce elim: split_bang.cases simp add: split_bang.intros)
+next
+  case (Cons t \<Gamma>)
+  moreover obtain t1 \<Gamma>1' where \<Gamma>1cons: "\<Gamma>1 = t1 # \<Gamma>1'"
+    using Cons by (blast elim: split_bang.cases)
+  moreover obtain t2 \<Gamma>2' where \<Gamma>2cons: "\<Gamma>2 = t2 # \<Gamma>2'"
+    using Cons by (blast elim: split_bang.cases)
+  moreover have "K , (pred ` Set.remove 0 is1) \<inter> (pred ` Set.remove 0 is2) \<turnstile> \<Gamma> \<leadsto>b \<Gamma>1' | \<Gamma>2'"
+    using Cons \<Gamma>1cons \<Gamma>2cons split_bang_Cons by blast
+  moreover then have "(pred ` Set.remove 0 is1) \<inter> (pred ` Set.remove 0 is2) = pred ` Set.remove 0 (is1 \<inter> is2)"
+  proof -
+    have "pred ` Set.remove 0 (is1 \<inter> is2) = pred ` ((Set.remove 0 is1) \<inter> (Set.remove 0 is2))"
+      by force
+    then show ?thesis
+      by (simp add: pred_image_distrib_inter)
+  qed
+  ultimately show ?case
+    by (auto simp add: split_bang_Cons intro: split_bang_comp_intersect)
 qed
 
 

@@ -54,7 +54,7 @@ lemma typing_afun': "\<lbrakk> \<Xi> f = (ks, t, u)
                      ; ks \<turnstile> TFun t u wellformed
                      ; K \<turnstile> \<Gamma> consumed
                      \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> AFun f ts : t'" 
-  by (simp only: typing_afun)
+  by (simp only: instantiate.simps typing_afun)
 
 lemma typing_fun': "\<lbrakk> \<Xi>, ks, (typtree, [Some t]) T\<turnstile> f : u
                     ; list_all2 (kinding K) ts ks
@@ -62,7 +62,7 @@ lemma typing_fun': "\<lbrakk> \<Xi>, ks, (typtree, [Some t]) T\<turnstile> f : u
                     ; ks \<turnstile> t wellformed
                     ; K \<turnstile> \<Gamma> consumed
                     \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Fun f ts : t'"
-  by (auto simp only: typing_fun snd_conv dest: ttyping_imp_typing)
+  by (auto simp only: typing_fun snd_conv instantiate.simps dest: ttyping_imp_typing)
 
 lemma typing_var_weak: "\<lbrakk> K \<turnstile> t :\<kappa> k
                    ; K \<turnstile> \<Gamma> \<leadsto>w singleton (length \<Gamma>) i t 

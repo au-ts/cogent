@@ -398,15 +398,63 @@ lemma list_all4_impD:
   by (induct rule: list_all4_induct, simp+)
 
 
-fun unzip_go where
-  "unzip_go ((x,y) # zs) xs ys = unzip_go zs (x # xs) (y # ys)"
-| "unzip_go [] xs ys = (xs, ys)"
+section {* Unzip *}
 
-fun rev'_go where
-  "rev'_go [] ys = ys"
-| "rev'_go (x # xs) ys = rev'_go xs (x # ys)"
+(* slow *)
+fun unzip where
+  "unzip [] = ([], [])"
+| "unzip (xy # xys) = (let (x,y) = xy ; (xs,ys) = unzip xys in (x # xs, y # ys))"
 
-definition "unzip xs = unzip_go (rev'_go xs []) [] []"
-declare unzip_def[simp]
+fun revunzip_fast_go where
+  "revunzip_fast_go ((x,y) # zs) xs ys = revunzip_fast_go zs (x # xs) (y # ys)"
+| "revunzip_fast_go [] xs ys = (xs, ys)"
+
+fun rev_fast_go where
+  "rev_fast_go [] ys = ys"
+| "rev_fast_go (x # xs) ys = rev_fast_go xs (x # ys)"
+
+definition "unzip_fast xs = revunzip_fast_go (rev_fast_go xs []) [] []"
+
+subsection {* rev and fast rev *}
+
+lemma rev_fast_sndarg_append_end: "rev_fast_go xs ys @ zs = rev_fast_go xs (ys @ zs)"
+  by (induct xs ys arbitrary: zs rule: rev_fast_go.induct) simp+
+
+lemma rev_fast_sndarg_nil_append_end: "rev_fast_go xs [] @ ys = rev_fast_go xs ys"
+  by (metis append_Nil rev_fast_sndarg_append_end)
+
+lemma rev_eq_rev_fast': "rev_fast_go xs ys = rev xs @ ys"
+  by (induct xs arbitrary: ys) (simp add: rev_fast_sndarg_nil_append_end)+
+
+lemma rev_eq_rev_fast: "rev_fast_go xs [] = rev xs"
+  by (metis fold_Cons_rev rev_conv_fold rev_eq_rev_fast')
+
+subsection {* unzip and fast unzip *}
+
+lemma unzip_as_foldr: "unzip xys = foldr (\<lambda>(x,y) (xs,ys). (x # xs, y # ys)) xys ([],[])"
+  by (induct xys) clarsimp+
+
+lemma revunzip_fast_as_fold: "revunzip_fast_go xys xsi ysi = fold (\<lambda>(x,y) (xs,ys). (x # xs, y # ys)) xys (xsi,ysi)"
+  by (induct xys arbitrary: xsi ysi) clarsimp+
+
+lemma unzip_eq_revunziprev_fast: "revunzip_fast_go xys [] [] = unzip (rev xys)"
+proof -
+  have "revunzip_fast_go xys [] [] = fold (\<lambda>(x,y) (xs,ys). (x # xs, y # ys)) xys ([],[])"
+    by (simp add: revunzip_fast_as_fold)
+  also have "... = foldr (\<lambda>(x,y) (xs,ys). (x # xs, y # ys)) (rev xys) ([],[])"
+    by (simp add: foldr_conv_fold)
+  also have "... = unzip (rev xys)"
+    by (metis unzip_as_foldr)
+  finally show ?thesis
+    by blast
+qed
+
+lemma unzip_eq_unzip_fast: "unzip xys = unzip_fast xys"
+  by (simp add: rev_eq_rev_fast unzip_eq_revunziprev_fast unzip_fast_def)
+
+lemma unzip_preserves_length:
+  "length (fst (unzip xys)) = length xys"
+  "length (snd (unzip xys)) = length xys"
+  by (induct xys) (clarsimp split: prod.splits)+
 
 end
