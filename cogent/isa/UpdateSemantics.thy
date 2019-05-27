@@ -399,22 +399,26 @@ assumes "S \<in> k"
 shows "\<lbrakk> \<Xi>, \<sigma> \<turnstile>  v  :u  \<tau>  \<langle> r , w \<rangle>; K \<turnstile>  \<tau>  :\<kappa>  k \<rbrakk> \<Longrightarrow> w = {}"
 and   "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* fs :ur \<tau>s \<langle> r , w \<rangle>; K \<turnstile>* \<tau>s :\<kappa>r k \<rbrakk> \<Longrightarrow> w = {}"
   using assms
-proof (induct rule: uval_typing_uval_typing_record.inducts)
-qed (force simp add: kinding_simps kinding_all_set kinding_variant_set abs_typing_readonly[where s = Unboxed])+
+  by (induct rule: uval_typing_uval_typing_record.inducts)
+    (fastforce
+      simp add: kinding_simps kinding_record_simps kinding_variant_set
+      dest: abs_typing_readonly[where s = Unboxed,simplified])+
 
 lemma discardable_not_writable:
 assumes "D \<in> k"
 shows "\<lbrakk> \<Xi>, \<sigma> \<turnstile>  v  :u  \<tau>  \<langle> r , w \<rangle>; K \<turnstile>  \<tau>  :\<kappa>  k \<rbrakk> \<Longrightarrow> w = {}"
 and   "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* fs :ur \<tau>s \<langle> r , w \<rangle>; K \<turnstile>* \<tau>s :\<kappa>r k \<rbrakk> \<Longrightarrow> w = {}"
-using assms proof (induct rule: uval_typing_uval_typing_record.inducts)
-qed (force simp add: kinding_simps kinding_all_set kinding_variant_set abs_typing_readonly [where s = Unboxed])+
+  using assms
+  by (induct rule: uval_typing_uval_typing_record.inducts)
+    (force simp add: kinding_simps kinding_record_simps kinding_variant_set
+      dest: abs_typing_readonly[where s = Unboxed,simplified])+
 
 
 lemma discardable_not_writable_all:
 assumes "D \<in> k"
 shows   "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* fs :u \<tau>s \<langle> r , w \<rangle>; K \<turnstile>* \<tau>s :\<kappa> k \<rbrakk> \<Longrightarrow> w = {}"
 proof (induct rule: uval_typing_all.induct)
-qed (auto simp add: kinding_simps dest: discardable_not_writable [OF assms])
+qed (auto simp add: kinding_simps kinding_all_simps dest: discardable_not_writable [OF assms])
 
 lemma escapable_no_readers:
 shows   "\<lbrakk> \<Xi> , \<sigma> \<turnstile>  x  :u  \<tau>  \<langle>r, w\<rangle> ; E \<in> k; [] \<turnstile>  \<tau>  :\<kappa>  k \<rbrakk> \<Longrightarrow> r = {}"
@@ -425,12 +429,12 @@ next
   then show ?case using abs_typing_escape[where s=s]
     by (fastforce simp add: kinding_simps)
 qed (fastforce dest!: abs_typing_escape [where s = Unboxed , simplified, rotated -1]
-               simp add: kinding_simps kinding_all_set kinding_variant_set)+
+               simp add: kinding_simps kinding_record_simps kinding_all_set kinding_variant_set)+
 
 
 lemma map_tprim_kinding:
 shows "[] \<turnstile>* map (TPrim) \<tau>s :\<kappa> {D,S,E}"
-proof (induct \<tau>s) qed (auto simp add: kinding_simps)
+  by (induct \<tau>s) (auto simp add: kinding_simps kinding_all_simps)
 
 lemma tprim_no_pointers:
 assumes "\<Xi> , \<sigma> \<turnstile> v :u TPrim \<tau> \<langle>r, w\<rangle>"
@@ -528,7 +532,7 @@ by (rule ext, clarsimp simp: bang_idempotent)
 lemma list_all2_bang_type_helper:
  "\<lbrakk> list_all2 (\<lambda>t. (=) (type_repr t)) ts rs ; [] \<turnstile>* ts :\<kappa>  k\<rbrakk>
         \<Longrightarrow> list_all2 (\<lambda>t. (=) (type_repr t)) (map (bang) ts) rs"
-  by (induct rule: list_all2_induct; auto simp add: kinding_simps intro!: bang_type_repr)
+  by (induct rule: list_all2_induct; auto simp add: kinding_simps kinding_all_simps intro!: bang_type_repr)
 
 lemma bang_type_repr':
 assumes "[] \<turnstile>* ts :\<kappa>r k"
