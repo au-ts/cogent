@@ -483,7 +483,7 @@ cg' (Annot e tau) t = do
   let t' = stripLocT tau
   (c, t'') <- lift (runExceptT $ validateType' tvs t') >>= \case
     Left  e'' -> return (Unsat e'', t)
-    Right t'' -> return (t :< t'', t'')
+    Right t'' -> return (t'' :< t, t'')
   (c', e') <- cg e t''
   return (c <> c', Annot e' t'')
 
