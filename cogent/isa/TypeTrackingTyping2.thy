@@ -600,6 +600,7 @@ inductive ttyping :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Righ
                    ; \<Xi>, K, \<Gamma>1, T1 \<turnstile>2 x : t
                    ; \<Xi>, K, (Some t # \<Gamma>2), T2 \<turnstile>2 y : u
                    ; E \<in> kinding_fn K t
+                   ; is = {i. sps ! i = TSK_NS}
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, CtxSplit sps T1 T2 \<turnstile>2 LetBang is x y : u"
 
 | ttyping_case   : "\<lbrakk> verify_tsks_nobang K sps \<Gamma>
@@ -779,13 +780,9 @@ next
   case (ttyping_letb K sps \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> T1 x t T2 y u "is")
   then show ?case
   proof (intro typing_typing_all.intros)
-    have split_gamma_scripted: "K , {i. sps ! i = TSK_NS} \<turnstile> \<Gamma> \<leadsto>b \<Gamma>1 | \<Gamma>2"
+    show split_gamma: "K , is \<turnstile> \<Gamma> \<leadsto>b \<Gamma>1 | \<Gamma>2"
       using ttyping_letb
       by (simp add: apply_tsks_imp_split_bang)
-    then show split_gamma: "K , is \<turnstile> \<Gamma> \<leadsto>b \<Gamma>1 | \<Gamma>2"
-      using ttyping_letb apply_tsks_imp_split_bang
-      sorry
-
     show "\<Xi>, K, \<Gamma>1 \<turnstile> x : t"
       using ttyping_letb split_gamma
       by (blast dest: split_bang_preserves_wellformed)
@@ -800,7 +797,26 @@ next
   qed auto
 next
   case (ttyping_case K sps \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> T1 x ts tag t T21 a u T22 b)
-  then show ?case sorry
+  moreover have "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+    using ttyping_case
+    by (force simp add: verify_tsks_nobang_def intro!: apply_tsks_imp_split)
+  moreover then have
+    "ctx_wellformed_fn (length K) \<Gamma>1"
+    "ctx_wellformed_fn (length K) \<Gamma>2"
+    using ttyping_case
+    by (blast dest: split_preserves_wellformed)+
+  moreover then have wellformed_tsum: "wellformed_fn (length K) (TSum ts)"
+    using ttyping_case
+    by (auto dest: ttyping_and_ctx_wellformed_impl_wellformed)
+  moreover then have
+    "list_all (\<lambda>x. wellformed_fn (length K) (snd x)) (filter (\<lambda>x. fst x \<noteq> tag) ts)"
+    "distinct (map fst (filter (\<lambda>x. fst x \<noteq> tag) ts))"
+    by (auto dest: list_all_imp_list_all_filtered simp add: distinct_map_filter)
+  moreover then have "wellformed_fn (length K) t"
+    using ttyping_case.hyps wellformed_tsum
+    by (auto simp add: in_set_conv_nth list_all_length)
+  ultimately show ?case
+    by (force intro: typing_typing_all.intros simp add: ctx_wellformed_fn_Cons)
 next
   case (ttyping_if K sps \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> T x T21 a t T22 b T1)
   moreover have "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
