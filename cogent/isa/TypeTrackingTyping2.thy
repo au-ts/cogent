@@ -743,24 +743,41 @@ lemma ttyping2_imp_typing:
     "\<Xi>, K, \<Gamma>, T \<turnstile>2* es : ts \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile>* es : ts"
   using assms
 proof (induct rule: ttyping_ttyping_all.inducts)
-  case (ttyping_afun \<Xi> f K' t u K ts \<Gamma>)
-  then show ?case sorry
+  case ttyping_afun then show ?case
+    by (auto intro!: typing_typing_all.intros simp add: kinding_iff_wellformedfn_and_kindingfn)
 next
-  case (ttyping_fun \<Xi> K' t T f u K \<Gamma> ts n)
-  then show ?case sorry
+  case ttyping_fun then show ?case
+    by (auto intro!: typing_typing_all.intros
+        simp add: ctx_wellformed_fn_Cons ctx_wellformed_fn_nil kinding_iff_wellformedfn_and_kindingfn)
 next
-  case (ttyping_con \<Xi> K \<Gamma> T x t tag ts)
-  then show ?case sorry
+  case ttyping_con then show ?case
+    by (fastforce simp del: type_wellformed_all_def
+        simp add: type_wellformed_all_subkind_weaken list_all_length
+        intro!: typing_typing_all.intros
+        intro: wellformed_kindingfn_always_kinding)
 next
-  case (ttyping_prom \<Xi> K \<Gamma> T x ts ts')
-  then  show ?case
+  case ttyping_prom then  show ?case
     by (fastforce simp del: type_wellformed_all_def
         simp add: type_wellformed_all_subkind_weaken list_all_length
         intro!: typing_typing_all.intros
         intro: wellformed_kindingfn_always_kinding)
 next
   case (ttyping_split K sps \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> T1 x t u T2 y t')
-  then show ?case sorry
+  moreover have "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+    using ttyping_split
+    by (force simp add: verify_tsks_nobang_def intro!: apply_tsks_imp_split)
+  moreover then have
+    "ctx_wellformed_fn (length K) \<Gamma>1"
+    "ctx_wellformed_fn (length K) \<Gamma>2"
+    using ttyping_split
+    by (blast dest: split_preserves_wellformed)+
+  moreover then have
+    "wellformed_fn (length K) t"
+    "wellformed_fn (length K) u"
+    using ttyping_split
+    by (force dest: ttyping_and_ctx_wellformed_impl_wellformed)+
+  ultimately show ?case
+    by (force simp add: ctx_wellformed_fn_Cons intro!: typing_typing_all.intros)
 next
   case (ttyping_let K sps \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> T1 x t T2 y u)
   then show ?case
