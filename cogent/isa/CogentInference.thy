@@ -5,7 +5,7 @@ begin
 
 datatype num_type = U8 | U16 | U32 | U64
 
-datatype prim_type = Num num_type | Bool | String
+datatype prim_type = Num num_type | Bool (* | String *)
                                   
 datatype prim_op
   = Plus num_type
@@ -41,6 +41,13 @@ datatype type = TVar index
 datatype lit = LBool bool
              | LNat nat
 
+fun abs :: "prim_type \<Rightarrow> nat" where
+  "abs Bool = 2"
+| "abs (Num U8) = 256"
+| "abs (Num U16) = 512"
+| "abs (Num U32) = 1024"
+| "abs (Num U64) = 2048"
+
 fun subst_ty :: "type list \<Rightarrow> type \<Rightarrow> type" where
   "subst_ty \<delta> (TVar i)       = \<delta> ! i"
 | "subst_ty \<delta> (TFun a b)     = TFun (subst_ty \<delta> a) (subst_ty \<delta> b)"
@@ -48,7 +55,6 @@ fun subst_ty :: "type list \<Rightarrow> type \<Rightarrow> type" where
 | "subst_ty \<delta> (TProduct t u) = TProduct (subst_ty \<delta> t) (subst_ty \<delta> u)"
 | "subst_ty \<delta> (TUnit)        = TUnit"
 | "subst_ty \<delta> (TUnknown i)   = TUnknown i"
-
 
 
 fun max_type_var :: "type \<Rightarrow> nat" where
@@ -105,14 +111,44 @@ type_synonym axm_set = "constraint list"
 
 section {* Algorithmic Context Join (Fig 3.5) *}
 inductive alg_ctx_jn :: "cg_ctx \<Rightarrow> cg_ctx \<Rightarrow> cg_ctx \<Rightarrow> constraint \<Rightarrow> bool"
-            ("_ \<Join> _ \<leadsto> _ | _" [30,0,0,30] 60) where
-  alg_ctx_jn: 
+          ("_ \<Join> _ \<leadsto> _ | _" [30,0,0,30] 60) where
+alg_ctx_jn: 
   "\<lbrakk> map fst G = map fst G'
    ; list_all3 (\<lambda>m g g'. m = max (snd g) (snd g')) m G G'
    ; list_all3 (\<lambda>g2 g m. g2 = (fst g, m)) G2 G M
    ; C = List.map2 (\<lambda>g g'. if (snd g) = (snd g') then CtTop else CtDrop (fst g)) G G'
    ; C2 = foldr CtConj C CtTop
    \<rbrakk> \<Longrightarrow> G \<Join> G' \<leadsto> G2 | C2"
+
+section {* Constraint Semantics (Fig 3.6) *}
+inductive constraint_sem :: "axm_set \<Rightarrow> constraint \<Rightarrow> bool"
+          ("_ \<turnstile> _" [30, 30] 60) where
+ct_sem_asm:
+  "C \<in> set A \<Longrightarrow> A \<turnstile> C"
+| ct_sem_conj:
+  "\<lbrakk> A \<turnstile> C1
+   ; A \<turnstile> C2
+   \<rbrakk> \<Longrightarrow> A \<turnstile> CtConj C1 C2"
+| ct_sem_int:
+  "m < abs pt \<Longrightarrow> A \<turnstile> CtIBound (LNat m) (TPrim pt)"
+| ct_sem_top:
+  "A \<turnstile> CtTop"
+| ct_sem_refl:
+  "A \<turnstile> CtEq \<tau> \<tau>"
+| ct_sem_equal:
+  "A \<turnstile> CtEq \<tau> \<rho> \<Longrightarrow> A \<turnstile> CtSub \<tau> \<rho>"
+| ct_sem_fun:
+  "\<lbrakk> A \<turnstile> CtSub \<rho>1 \<tau>1 
+   ; A \<turnstile> CtSub \<tau>2 \<rho>2
+   \<rbrakk> \<Longrightarrow> A \<turnstile> CtSub (TFun \<tau>1 \<tau>2) (TFun \<rho>1 \<rho>2)"
+| ct_sem_funS:
+  "A \<turnstile> CtShare (TFun \<tau>1 \<tau>2)"
+| ct_sem_funD:
+  "A \<turnstile> CtDrop (TFun \<tau>1 \<tau>2)"
+| ct_sem_primS:
+  "A \<turnstile> CtShare (TPrim pt)"
+| ct_sem_primD:
+  "A \<turnstile> CtDrop (TPrim pt)"
 
 (*
 section {* Typing Rules (Fig 3.3) *}
