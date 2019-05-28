@@ -94,7 +94,6 @@ datatype 'f expr = Var index
                  | App "'f expr" "'f expr"
                  | Unit
                  | Lit lit
-                 | SLit string
                  | Cast num_type "'f expr"
                  | Let "'f expr" "'f expr"
                  | If "'f expr" "'f expr" "'f expr"
@@ -113,66 +112,66 @@ inductive alg_ctx_jn :: "cg_ctx \<Rightarrow> cg_ctx \<Rightarrow> cg_ctx \<Righ
    \<rbrakk> \<Longrightarrow> G \<Join> G' \<leadsto> G2 | C2"
 
 
-inductive constraint_gen :: "cg_ctx \<Rightarrow> nat \<Rightarrow> 'fnname expr \<Rightarrow> type \<Rightarrow> cg_ctx \<Rightarrow> nat \<Rightarrow> constraint \<Rightarrow> bool"
-            ("_,_ \<turnstile> _ : _ \<leadsto> _,_ | _" [30,0,0,0,0,0,30] 60) where
+inductive constraint_gen_elab :: "cg_ctx \<Rightarrow> nat \<Rightarrow> 'fnname expr \<Rightarrow> type \<Rightarrow> cg_ctx \<Rightarrow> nat \<Rightarrow> constraint \<Rightarrow> 'fnname expr \<Rightarrow> bool"
+            ("_,_ \<turnstile> _ : _ \<leadsto> _,_ | _ | _" [30,0,0,0,0,0,0,30] 60) where
   cg_var1: 
   "\<lbrakk> G!i = (\<rho>,0) 
    ; G' = G[i := (\<rho>,1)] 
    ; C = CtSub \<rho> \<tau>
-   \<rbrakk> \<Longrightarrow> G,n \<turnstile> Var i : \<tau> \<leadsto> G',n | C"
+   \<rbrakk> \<Longrightarrow> G,n \<turnstile> Var i : \<tau> \<leadsto> G',n | C | Sig (Var i) \<tau>"
 | cg_var2: 
   "\<lbrakk> G!i = (\<rho>,n) 
    ; n > 0 
    ; G' = G[i := (\<rho>,Suc n)] 
    ; C = CtConj (CtSub \<rho> \<tau>) (CtShare \<rho>) 
-   \<rbrakk> \<Longrightarrow> G,n \<turnstile> Var i : \<tau> \<leadsto> G',n | C"
+   \<rbrakk> \<Longrightarrow> G,n \<turnstile> Var i : \<tau> \<leadsto> G',n | C | Sig (Var i) \<tau>"
 | cg_sig: 
-  "\<lbrakk> G1,n1 \<turnstile> e : \<tau>' \<leadsto> G2,n2 | C 
+  "\<lbrakk> G1,n1 \<turnstile> e : \<tau>' \<leadsto> G2,n2 | C | e'
    ; C' = CtConj C (CtSub \<tau>' \<tau>)
-   \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> (Sig e \<tau>') : \<tau> \<leadsto> G2,n2 | C'"
+   \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> (Sig e \<tau>') : \<tau> \<leadsto> G2,n2 | C' | Sig (Sig e' \<tau>') \<tau>"
 | cg_app:
   "\<lbrakk> \<alpha> = TUnknown (Suc n1)
-   ; G1,(Suc n1) \<turnstile> e1 : TFun \<alpha> \<tau> \<leadsto> G2,n2 | C1
-   ; G2,n2 \<turnstile> e2 : \<alpha> \<leadsto> G3,n3 | C2
+   ; G1,(Suc n1) \<turnstile> e1 : TFun \<alpha> \<tau> \<leadsto> G2,n2 | C1 | e1'
+   ; G2,n2 \<turnstile> e2 : \<alpha> \<leadsto> G3,n3 | C2 | e2'
    ; C3 = CtConj C1 C2
-   \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> App e1 e2 : \<tau> \<leadsto> G3,n3 | C3"
+   \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> App e1 e2 : \<tau> \<leadsto> G3,n3 | C3 | Sig (App e1' e2') \<tau>"
 | cg_let:
   "\<lbrakk> \<alpha> = TUnknown (Suc n1)
-   ; G1,(Suc n1) \<turnstile> e1 : \<alpha> \<leadsto> G2,n2 | C1
-   ; ((\<alpha>, 0) # G2),n2 \<turnstile> e2 : \<tau> \<leadsto> ((\<alpha>, m) # G3),n3 | C2 
+   ; G1,(Suc n1) \<turnstile> e1 : \<alpha> \<leadsto> G2,n2 | C1 | e1'
+   ; ((\<alpha>, 0) # G2),n2 \<turnstile> e2 : \<tau> \<leadsto> ((\<alpha>, m) # G3),n3 | C2 | e2' 
    ; if m = 0 then C3 = CtDrop \<alpha> else C3 = CtTop
    ; C4 = CtConj (CtConj C1 C2) C3
-   \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> Let e1 e2 : \<tau> \<leadsto> G3,n3 | C4"
+   \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> Let e1 e2 : \<tau> \<leadsto> G3,n3 | C4 | Sig (Let e1' e2') \<tau>"
 | cg_blit:
-  "C = CtEq \<tau> (TPrim Bool) \<Longrightarrow> G,n \<turnstile> Lit (LBool l) : \<tau> \<leadsto> G,n | C"
+  "C = CtEq \<tau> (TPrim Bool) \<Longrightarrow> G,n \<turnstile> Lit (LBool l) : \<tau> \<leadsto> G,n | C | Sig (Lit (Lbool l)) \<tau>"
 | cg_ilit:
-  "C = CtIBound (LNat m) \<tau> \<Longrightarrow> G,n \<turnstile> Lit (LNat m) : \<tau> \<leadsto> G,n | C"
+  "C = CtIBound (LNat m) \<tau> \<Longrightarrow> G,n \<turnstile> Lit (LNat m) : \<tau> \<leadsto> G,n | C | Sig (Lit (LNat m)) \<tau>"
 | cg_if:
-  "\<lbrakk> G1,n1 \<turnstile> e1 : (TPrim Bool) \<leadsto> G2,n2 | C1
-   ; G2,n2 \<turnstile> e2 : \<tau> \<leadsto> G3,n3 | C2
-   ; G2,n3 \<turnstile> e3 : \<tau> \<leadsto> G3',n4 | C3
+  "\<lbrakk> G1,n1 \<turnstile> e1 : (TPrim Bool) \<leadsto> G2,n2 | C1 | e1'
+   ; G2,n2 \<turnstile> e2 : \<tau> \<leadsto> G3,n3 | C2 | e2'
+   ; G2,n3 \<turnstile> e3 : \<tau> \<leadsto> G3',n4 | C3 | e3'
    ; G3 \<Join> G3' \<leadsto> G4 | C4 
    ; C5 = CtConj (CtConj (CtConj C1 C2) C3) C4
-   \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> If e1 e2 e3 : \<tau> \<leadsto> G4,n4 | C5"
+   \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> If e1 e2 e3 : \<tau> \<leadsto> G4,n4 | C5 | Sig (If e1' e2' e3') \<tau>"
 | cg_iop:
-  "\<lbrakk> e \<in> {Prim (Plus nt), Prim (Minus nt), Prim (Times nt), Prim (Divides nt)}
-   ; G1,n1 \<turnstile> e1 : \<tau> \<leadsto> G2,n2 | C1
-   ; G2,n2 \<turnstile> e2 : \<tau> \<leadsto> G3,n3 | C2
+  "\<lbrakk> x \<in> {Plus nt, Minus nt, Times nt, Divide nt}
+   ; G1,n1 \<turnstile> e1 : \<tau> \<leadsto> G2,n2 | C1 | e1'
+   ; G2,n2 \<turnstile> e2 : \<tau> \<leadsto> G3,n3 | C2 | e2'
    ; C5 = CtConj (CtConj (CtIBound (LNat 0) \<tau>) C1) C2
-   \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> e [e1, e2] : \<tau> \<leadsto> G3,n3 | C5"
+   \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> Prim x [e1, e2] : \<tau> \<leadsto> G3,n3 | C5 | Sig (Prim x [e1', e2']) \<tau>"
 | cg_cop:
   "\<lbrakk> \<alpha> = TUnknown (Suc n1)
-   ; e \<in> {Prim (Eq (Num nt)), Prim (NEq (Num nt)), Prim (Lt nt), Prim (Gt nt), Prim (Le nt), Prim (Ge nt)}
-   ; G1,(Suc n1) \<turnstile> e1 : \<alpha> \<leadsto> G2,n2 | C1
-   ; G2,n2 \<turnstile> e2 : \<alpha> \<leadsto> G3,n3 | C2
+   ; x \<in> {Eq (Num nt), NEq (Num nt), Lt nt, Gt nt, Le nt, Ge nt}
+   ; G1,(Suc n1) \<turnstile> e1 : \<alpha> \<leadsto> G2,n2 | C1 | e1'
+   ; G2,n2 \<turnstile> e2 : \<alpha> \<leadsto> G3,n3 | C2 | e2'
    ; C3 = CtConj (CtConj (CtConj (CtIBound (LNat 0) \<alpha>) (CtEq \<tau> (TPrim Bool))) C1) C2 
-   \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> e [e1, e2] : \<tau> \<leadsto> G3,n3 | C3"
+   \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> Prim x [e1, e2] : \<tau> \<leadsto> G3,n3 | C3 | Sig (Prim x [e1', e2']) \<tau>"
 | cg_bop:
-  "\<lbrakk> e \<in> {Prim (BitAnd nt), Prim (BitOr nt)}
-   ; G1,n1 \<turnstile> e1 : \<tau> \<leadsto> G2,n2 | C1
-   ; G2,n2 \<turnstile> e2 : \<tau> \<leadsto> G3,n3 | C2 
+  "\<lbrakk> x \<in> {BitAnd nt, BitOr nt}
+   ; G1,n1 \<turnstile> e1 : \<tau> \<leadsto> G2,n2 | C1 | e1'
+   ; G2,n2 \<turnstile> e2 : \<tau> \<leadsto> G3,n3 | C2 | e2'
    ; C3 = CtConj (CtConj (CtEq \<tau> (TPrim Bool)) C1) C2
-  \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> e [e1, e2] : \<tau> \<leadsto> G3,n3 | C3"
+  \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> Prim x [e1, e2] : \<tau> \<leadsto> G3,n3 | C3 | Sig (Prim x [e1', e2']) \<tau>"
 | cg_tapp:
   "\<lbrakk> (C, \<rho>) = type_of name
    (* make fresh unknown \<beta>s for each variable past those we are substituting into the type *)
@@ -182,14 +181,13 @@ inductive constraint_gen :: "cg_ctx \<Rightarrow> nat \<Rightarrow> 'fnname expr
    ; C' = subst_ct (ts @ \<beta>s) C
    ; C2 = CtConj (CtSub \<rho>' \<tau>) C'
    ; n' = n + m
-   \<rbrakk> \<Longrightarrow> G,n \<turnstile> TypeApp name ts : \<tau> \<leadsto> G,n' | C2"
+   \<rbrakk> \<Longrightarrow> G,n \<turnstile> TypeApp name ts : \<tau> \<leadsto> G,n' | C2 | Sig (TypeApp name (ts @ \<beta>s)) \<tau>"
 
 lemma cg_num_fresh_nondec:
-  assumes "G,n \<turnstile> e : \<tau> \<leadsto> G',n' | C"
+  assumes "G,n \<turnstile> e : \<tau> \<leadsto> G',n' | C | e'"
   shows "n \<le> n'"
   using assms
-proof (induct rule: constraint_gen.inducts)
-qed (force)+
+  by (induct rule: constraint_gen_elab.inducts) force+
 
 end
 end                            
