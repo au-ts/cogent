@@ -361,6 +361,9 @@ fun ttsplit_inner (@{term "Some TSK_S"} :: tsks) (SOME p :: Gamma) ctxt =
     let
       val rest = ttsplit_inner tsks Gamma
     in resolve_tac ctxt @{thms ttsplit_innerI(4)}
+      THEN' (simp_tac
+        ((put_simpset HOL_basic_ss ctxt)
+          addsimps @{thms list.map prod.case bang.simps bang_sigil.simps})) (* need to reduce the bangs *)
       THEN' (resolve_tac ctxt [p])
       THEN' (SOLVED' (simp_tac ctxt))
       THEN' rest ctxt
@@ -369,6 +372,9 @@ fun ttsplit_inner (@{term "Some TSK_S"} :: tsks) (SOME p :: Gamma) ctxt =
     let
       val rest = ttsplit_inner tsks Gamma
     in resolve_tac ctxt @{thms ttsplit_innerI(3)}
+      THEN' (simp_tac
+        ((put_simpset HOL_basic_ss ctxt)
+          addsimps @{thms list.map prod.case bang.simps bang_sigil.simps})) (* need to reduce the bangs *)
       THEN' (resolve_tac ctxt [p RS @{thm kinding_imp_wellformed}])
       THEN' rest ctxt
     end
@@ -376,6 +382,9 @@ fun ttsplit_inner (@{term "Some TSK_S"} :: tsks) (SOME p :: Gamma) ctxt =
     let
       val rest = ttsplit_inner tsks Gamma
     in resolve_tac ctxt @{thms ttsplit_innerI(2)}
+      THEN' (simp_tac
+        ((put_simpset HOL_basic_ss ctxt)
+          addsimps @{thms list.map prod.case bang.simps bang_sigil.simps})) (* need to reduce the bangs *)
       THEN' (resolve_tac ctxt [p RS @{thm kinding_imp_wellformed}])
       THEN' rest ctxt
     end
@@ -383,6 +392,9 @@ fun ttsplit_inner (@{term "Some TSK_S"} :: tsks) (SOME p :: Gamma) ctxt =
     let
       val rest = ttsplit_inner tsks Gamma
     in resolve_tac ctxt @{thms ttsplit_innerI(5)}
+      THEN' (simp_tac
+        ((put_simpset HOL_basic_ss ctxt)
+          addsimps @{thms list.map prod.case bang.simps bang_sigil.simps})) (* need to reduce the bangs *)
       THEN' (resolve_tac ctxt [p RS @{thm kinding_imp_wellformed}])
       THEN' rest ctxt
     end
