@@ -100,6 +100,8 @@ datatype 'f expr = Var index
                  | Sig "'f expr" type
 
 type_synonym cg_ctx = "(type \<times> nat) list"
+type_synonym ctx = "type list"
+type_synonym axm_set = "constraint list"
 
 section {* Algorithmic Context Join (Fig 3.5) *}
 inductive alg_ctx_jn :: "cg_ctx \<Rightarrow> cg_ctx \<Rightarrow> cg_ctx \<Rightarrow> constraint \<Rightarrow> bool"
@@ -112,10 +114,20 @@ inductive alg_ctx_jn :: "cg_ctx \<Rightarrow> cg_ctx \<Rightarrow> cg_ctx \<Righ
    ; C2 = foldr CtConj C CtTop
    \<rbrakk> \<Longrightarrow> G \<Join> G' \<leadsto> G2 | C2"
 
+(*
+section {* Typing Rules (Fig 3.3) *}
+inductive typing :: "axm_set \<Rightarrow> ctx \<Rightarrow> 'fnname expr \<Rightarrow> type \<Rightarrow> bool"
+  ("_ ; _ \<turnstile> _ : _" [30,0,0,30] 60) where
+typing_var:
+  "A ; \<Gamma> \<turnstile> (Var i) : \<tau>" (* TO DO *)
+| typing_sig:
+  "A ; \<Gamma> \<turnstile> e : \<tau> \<Longrightarrow> A ; \<Gamma> \<turnstile> Sig e \<tau> : \<tau>"
+*) 
+
 section {* Elementary Constraint Generation Rules (Fig 3.4) *}
 inductive constraint_gen_elab :: "cg_ctx \<Rightarrow> nat \<Rightarrow> 'fnname expr \<Rightarrow> type \<Rightarrow> cg_ctx \<Rightarrow> nat \<Rightarrow> constraint \<Rightarrow> 'fnname expr \<Rightarrow> bool"
-            ("_,_ \<turnstile> _ : _ \<leadsto> _,_ | _ | _" [30,0,0,0,0,0,0,30] 60) where
-  cg_var1: 
+  ("_,_ \<turnstile> _ : _ \<leadsto> _,_ | _ | _" [30,0,0,0,0,0,0,30] 60) where
+cg_var1: 
   "\<lbrakk> G!i = (\<rho>,0) 
    ; G' = G[i := (\<rho>,1)] 
    ; C = CtSub \<rho> \<tau>
@@ -189,6 +201,5 @@ lemma cg_num_fresh_nondec:
   shows "n \<le> n'"
   using assms
   by (induct rule: constraint_gen_elab.inducts) force+
-
 end
 end                            
