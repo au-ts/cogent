@@ -84,7 +84,7 @@ solve ks c = let gs     = makeGoals [] c
                           debugL "Equate" equate <>
                           debugL "Defaults" defaults
                  rw     = debugF "Initial constraints" <>
-                          Rewrite.untilFixedPoint (Rewrite.pre normaliseTypes stages)
+                          Rewrite.untilFixedPoint (Rewrite.pre normaliseTypes $ Rewrite.pre cnub $ stages)
               in fmap (fromMaybe gs) (runMaybeT (Rewrite.run' rw gs))
  where
   debug  nm rw = rw `Rewrite.andThen` Rewrite.debugPass ("\n===Rewrite " ++ nm ++ "===") printC
@@ -94,6 +94,18 @@ solve ks c = let gs     = makeGoals [] c
   printC gs =
    let gs' = map (P.nest 2 . pretty . _goal) gs
    in show (P.line <> P.indent 2 (P.list gs'))
+
+  -- | Nub constraints, making sure to unfold type synonyms before comparing
+  cnub :: [Goal] -> TcSolvM [Goal]
+  cnub gs = cnub'go gs S.empty
+
+  cnub'go :: [Goal] -> S.Set Constraint -> TcSolvM [Goal]
+  cnub'go [] _ = return []
+  cnub'go (g:gs) s = do
+    c <- traverse fullnormal (_goal g)
+    case S.member c s of
+     True -> cnub'go gs s
+     False -> (g:) <$> cnub'go gs (S.insert c s)
 
 {-
 runSolver :: Solver a -> [(TyVarName, Kind)] -> Int -> IM.IntMap VarOrigin
