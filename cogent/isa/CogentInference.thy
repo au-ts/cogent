@@ -184,47 +184,12 @@ inductive constraint_gen :: "cg_ctx \<Rightarrow> nat \<Rightarrow> 'fnname expr
    ; n' = n + m
    \<rbrakk> \<Longrightarrow> G,n \<turnstile> TypeApp name ts : \<tau> \<leadsto> G,n' | C2"
 
-lemma
+lemma cg_num_fresh_nondec:
   assumes "G,n \<turnstile> e : \<tau> \<leadsto> G',n' | C"
-  shows "n \<ge> n'"
+  shows "n \<le> n'"
   using assms
 proof (induct rule: constraint_gen.inducts)
-case (cg_var1 G i \<rho> G' C \<tau> n)
-  then show ?case sorry
-next
-  case (cg_var2 G i \<rho> n G' C \<tau>)
-  then show ?case sorry
-next
-  case (cg_sig G1 n1 e \<tau>' G2 n2 C C' \<tau>)
-  then show ?case sorry
-next
-  case (cg_app \<alpha> n1 G1 e1 \<tau> G2 n2 C1 e2 G3 n3 C2 C3)
-  then show ?case sorry
-next
-  case (cg_let \<alpha> n1 G1 e1 G2 n2 C1 e2 \<tau> m G3 n3 C2 C3 C4)
-  then show ?case sorry
-next
-  case (cg_blit C \<tau> G n l)
-  then show ?case sorry
-next
-  case (cg_ilit C m \<tau> G n)
-  then show ?case sorry
-next
-  case (cg_if G1 n1 e1 G2 n2 C1 e2 \<tau> G3 n3 C2 e3 G3' n4 C3 G4 C4 C5)
-  then show ?case sorry
-next
-  case (cg_iop e nt Divides G1 n1 e1 \<tau> G2 n2 C1 e2 G3 n3 C2 C5)
-  then show ?case sorry
-next
-  case (cg_cop \<alpha> n1 e nt G1 e1 G2 n2 C1 e2 G3 n3 C2 C3 \<tau>)
-  then show ?case sorry
-next
-  case (cg_bop e nt G1 n1 e1 \<tau> G2 n2 C1 e2 G3 n3 C2 C3)
-  then show ?case sorry
-next
-case (cg_tapp C \<rho> name m ts \<beta>s n1 \<rho>' C' C2 \<tau> n' n G)
-  then show ?case sorry
-qed
+qed (force)+
 
 end
 end                            
