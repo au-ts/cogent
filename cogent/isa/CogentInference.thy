@@ -101,6 +101,7 @@ datatype 'f expr = Var index
 
 type_synonym cg_ctx = "(type \<times> nat) list"
 
+section {* Algorithmic Context Join (Fig 3.5) *}
 inductive alg_ctx_jn :: "cg_ctx \<Rightarrow> cg_ctx \<Rightarrow> cg_ctx \<Rightarrow> constraint \<Rightarrow> bool"
             ("_ \<Join> _ \<leadsto> _ | _" [30,0,0,30] 60) where
   alg_ctx_jn: 
@@ -111,7 +112,7 @@ inductive alg_ctx_jn :: "cg_ctx \<Rightarrow> cg_ctx \<Rightarrow> cg_ctx \<Righ
    ; C2 = foldr CtConj C CtTop
    \<rbrakk> \<Longrightarrow> G \<Join> G' \<leadsto> G2 | C2"
 
-
+section {* Elementary Constraint Generation Rules (Fig 3.4) *}
 inductive constraint_gen_elab :: "cg_ctx \<Rightarrow> nat \<Rightarrow> 'fnname expr \<Rightarrow> type \<Rightarrow> cg_ctx \<Rightarrow> nat \<Rightarrow> constraint \<Rightarrow> 'fnname expr \<Rightarrow> bool"
             ("_,_ \<turnstile> _ : _ \<leadsto> _,_ | _ | _" [30,0,0,0,0,0,0,30] 60) where
   cg_var1: 
