@@ -22,9 +22,8 @@ equate :: Rewrite.Rewrite [Goal]
 equate = Rewrite.withTransform findEquatable (pure . map toEquality)
   where
     findEquatable cs = let
-         (sups, subs, others) = findEquateCandidates cs
-         (eqs , others' )     = getUnambiguous (M.toList sups)
-         (eqs', others'')     = getUnambiguous (M.toList subs)
+         mentions             = getMentions cs
+         (sups, subs, others) = findEquateCandidates mentions cs
          -- If we find candidates in both the LHS and RHS of the same variable, we cannot convert them both.
          -- Proof: Suppose T :< U but T /= U.
          -- If we have constraint system (T :< a :&: a :< U), either subtyping constraint are convertible
@@ -32,58 +31,67 @@ equate = Rewrite.withTransform findEquatable (pure . map toEquality)
          -- both makes the constraint system unsatisfiable.
          -- Thus, we convert LHS constraints if possible first, and only convert RHS if there are no available
          -- LHSes.
-         allEqs = if null eqs then eqs' else eqs
-         allOthers = (if not (null eqs) then eqs' else []) ++ others ++ others' ++ others''
+         allEqs = if null sups then subs else sups
+         allOthers = (if not (null sups) then subs else []) ++ others
       in guard (not (null allEqs)) >> pure (allEqs, allOthers)
 
     toEquality :: Goal -> Goal 
     toEquality (Goal c (a :< b)) = Goal c $ a :=: b
     toEquality c = c
 
+getMentions :: [Goal] -> M.Map Int (Int,Int)
+getMentions gs =
+    foldl (M.unionWith adds) M.empty
+  $ fmap mentionsOfGoal gs
+ where
+  adds (a,b) (c,d) = (a + c, b + d)
 
-getUnambiguous :: [(Int, Either [Goal] [Goal])] -> ([Goal], [Goal])
-getUnambiguous [] = ([],[])
-getUnambiguous ((v,cs):vs) = let (unambs, ambs) = getUnambiguous vs
-                              in case cs of
-                                        Right [c] -> (c:unambs, ambs)
-                                        _   -> (unambs, fromEither cs ++ ambs)
+  mentionsOfGoal g = case g ^. goal of
+   r :< s -> M.fromListWith adds (mentionL r ++ mentionR s)
+   _      -> M.empty
 
-fromEither :: Either a a -> a
-fromEither (Left a) = a
-fromEither (Right a) = a
+  mentionL = fmap (\v -> (v, (1,0))) . unifVars
+  mentionR = fmap (\v -> (v, (0,1))) . unifVars
 
-combine :: Either [Goal] [Goal] -> Either [Goal] [Goal] -> Either [Goal] [Goal]
-combine (Right x) (Right y) = Right (x <> y)
-combine (Left x)  (Right y) = Left (x <> y)
-combine (Right x) (Left y)  = Left (x <> y)
-combine (Left x)  (Left y)  = Left (x <> y)
 
-findEquateCandidates :: [Goal] -> (M.Map Int (Either [Goal] [Goal]), M.Map Int (Either [Goal] [Goal]), [Goal])
-findEquateCandidates [] = (M.empty, M.empty, [])
-findEquateCandidates (c:cs) = let
-    (sups, subs, others) = findEquateCandidates cs
+findEquateCandidates :: M.Map Int (Int,Int) -> [Goal] -> ([Goal], [Goal], [Goal])
+findEquateCandidates _ [] = ([], [], [])
+findEquateCandidates mentions (c:cs) =
+  let
+    (sups, subs, others) = findEquateCandidates mentions cs
+    canEquate f v t
+     | Just m <- M.lookup v mentions
+     = f m <= 1 && rigid t && notOccurs v t
+     | otherwise
+     = False
   in case c ^. goal of
        U a :< b
-         | rigid b && notOccurs a b -> (M.insertWith combine a (Right [c]) sups, subs, others)
-       b :< U a
-         | rigid b && notOccurs a b -> (sups, M.insertWith combine a (Right [c]) subs, others)
+         | canEquate fst a b
+         -> (c : sups, subs, others)
+       a :< U b
+         | canEquate snd b a
+         -> (sups, c : subs, others)
        V r1 :< t
-         | rigid t
+         | Just a <- Row.var r1
          , Row.justVar r1
-         , Just a <- Row.var r1 -> (M.insertWith combine a (Right [c]) sups, subs, others)
+         , canEquate fst a t
+         -> (c : sups, subs, others)
        R r1 s :< t
-         | rigid t
+         | Just a <- Row.var r1
          , Row.justVar r1
-         , Just a <- Row.var r1 -> (M.insertWith combine a (Right [c]) sups, subs, others)
+         , canEquate fst a t
+         -> (c : sups, subs, others)
        t :< V r1
-         | rigid t
+         | Just a <- Row.var r1
          , Row.justVar r1
-         , Just a <- Row.var r1 -> (sups, M.insertWith combine a (Right [c]) subs, others)
+         , canEquate snd a t
+         -> (sups, c : subs, others)
        t :< R r1 s
-         | rigid t
+         | Just a <- Row.var r1
          , Row.justVar r1
-         , Just a <- Row.var r1 -> (sups, M.insertWith combine a (Right [c]) subs, others)
-       _ -> (sups,subs, c:others)
+         , canEquate snd a t
+         -> (sups, c : subs, others)
+       _ -> (sups, subs, c : others)
 
 
 
