@@ -18,6 +18,13 @@
 -- track source locations
 
 import Data.Char(isSpace, isAlpha, isDigit)
+import qualified Data.Map as M
+
+data SourcePos
+    = Pos { col :: Int
+          , line :: Int
+          , file :: FilePath
+          }
 
 data Token
     = Kwd Keyword
@@ -35,44 +42,64 @@ data Token
 data Keyword 
     = Let | In | Type | Include | All | Take | Put
     | Inline | Upcast | Repr | Variant | Record | At
-    | If | Then | Else | Not | Complement | And | True | False | O  -- what is "o"?
+    | If | Then | Else | Not | Complement | And | True | False
 
-lexer :: String -> [Token]
+symTokens :: M.Map String Token
+symTokens = M.fromList 
+            [ (".&.", Band)
+            , (".|.", Bor)
+            , (".^.", Bxor)
+            , ("&&", Land)
+            , ("||", Lor)
+            , (">=", Geq)
+            , ("<=", Leq)
+            , ("==", Eq)
+            , ("/=", Neq)
+            , ("<<", Lshift)
+            , (">>", Rshift)
+            , ("..", Ddot)
+            , ("->", Likely)
+            , ("=>", MLikely)
+            , ("~>", Llikely)
+            , ("+", Plus)
+            , ("-", Minus)
+            , ("*", Times)
+            , ("/", Divide)
+            , ("%", Modulo)
+            , (":", Col)
+            , ("=", Define)
+            , ("!", Bang)
+            , ("|", Bar)
+            , (".", Dot)
+            , ("_", Underscore)
+            , ("#", Hash)
+            , ("@", Typeapp)
+            , ("<", Langle)
+            , (">", Rangle)
+            , ("(", Lparen)
+            , (")", Rparen)
+            , ("[", Lbracket)
+            , ("]", Rbracket)
+            ]
+
+preprocess :: SourcePos -> String -> [(Char, SourcePos)]
+preprocess p [] = []
+preprocess p ('\n':cs) = ('\n',p):preprocess (p {col = 0, line = line p + 1}) cs
+preprocess p (c:cs) = (c,p):preprocess (p {col = col p + 1}) cs
+    
+lexer :: [(Char, SourcePos)] -> [(Token, SourcePos)]
 lexer [] = []
-lexer (' ':cs) = lexer cs
-lexer ('\n':cs) = lexer cs
-lexer (c:cs) | isSpace c = lexer cs
-lexer ('.':'&':'.':cs) = Band : lexer cs
-lexer ('.':'|':'.':cs) = Bor : lexer cs
-lexer ('.':'^':'.':cs) = Bxor : lexer cs
-lexer ('&':'&':cs) = Land : lexer cs
-lexer ('|':'|':cs) = Lor : lexer cs
-lexer ('>':'=':cs) = Gt : lexer cs
-lexer ('<':'=':cs) = Lt : lexer cs
-lexer ('=':'=':cs) = Eq : lexer cs
-lexer ('/':'=':cs) = Neq : lexer cs
-lexer ('<':'<':cs) = Lshift : lexer cs
-lexer ('>':'>':cs) = Rshift : lexer cs
-lexer ('.':'.':cs) = Ddot : lexer cs
-lexer ('-':'>':cs) = Likely : lexer cs
-lexer ('=':'>':cs) = MLikely : lexer cs
-lexer ('~':'>':cs) = LLikely : lexer cs
-lexer ('+':cs) = Plus : lexer cs
-lexer ('-':cs) = Minus : lexer cs
-lexer ('*':cs) = Times : lexer cs
-lexer ('/':cs) = Divide : lexer cs
-lexer ('%':cs) = Modulo : lexer cs
-lexer (':':cs) = Col : lexer cs
-lexer ('=':cs) = Assgn : lexer cs
-lexer ('!':cs) = Bang : lexer cs
-lexer ('|':cs) = Bar : lexer cs
-lexer ('.':cs) = Dot : lexer cs
-lexer ('_':cs) = Underscore : lexer cs
-lexer ('#':cs) = Unbox : lexer cs
-lexer ('@':cs) = Typeapp : lexer cs
-lexer (c:cs) | isAlpha c = let
-    (word, rest) = span isAlpha (c:cs)
-    in toToken word : lexer rest
+lexer (c:cs) | isSpace (fst c) = lexer cs
+lexer cs     | Just t <- M.lookup symTokens (take 3 (map fst c))
+                = (t, snd(head cs)):lexer (drop 3 cs)
+lexer cs     | Just t <- M.lookup symTokens (take 2 (map fst c))
+                = (t, snd(head cs)):lexer (drop 2 cs)
+lexer cs     | Just t <- M.lookup symTokens (take 1 (map fst c))
+                = (t, snd(head cs)):lexer (drop 1 cs)
+
+lexer (c:cs) | isAlpha (fst c) = let
+    (word, rest) = span (isAlpha . fst) (c:cs)
+    in (toToken (map fst word), snd c) : lexer rest
     where
         toToken :: String -> Token
         toToken "let" = Kwd Let
@@ -96,10 +123,9 @@ lexer (c:cs) | isAlpha c = let
         toToken "and" = Kwd And
         toToken "true" = Kwd True
         toToken "false" = Kwd False
-        toToken "o" = Kwd O  -- what is "o"?
 
-lexer (c:cs) | isDigit c = let
-    (numStr, rest) = span isDigit(c:cs)
-    in Number (read numStr): lexer rest
+lexer (c:cs) | isDigit (fst c) = let
+    (numStr, rest) = span (isDigit . fst) (c:cs)
+    in (Number (read (map fst numStr)), snd c): lexer rest
 
 lexer _ = []
