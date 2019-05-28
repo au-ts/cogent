@@ -106,7 +106,11 @@ datatype 'f expr = Var index
                  | Sig "'f expr" type
 
 type_synonym cg_ctx = "(type \<times> nat) list"
-type_synonym ctx = "type list"
+
+type_synonym ctx = "(type option) list"
+definition empty :: "nat \<Rightarrow> ctx" where
+  "empty \<equiv> (\<lambda> x. replicate x None)"
+
 type_synonym axm_set = "constraint list"
 
 section {* Algorithmic Context Join (Fig 3.5) *}
@@ -150,10 +154,30 @@ ct_sem_asm:
 | ct_sem_primD:
   "A \<turnstile> CtDrop (TPrim pt)"
 
+section {* Context relations (Fig 3.2) *}
+inductive ctx_split_comp :: "axm_set \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> bool" where
+  none  : "ctx_split_comp K None None None"
+| left  : "ctx_split_comp K (Some \<tau>) (Some \<tau>) None"
+| right : "ctx_split_comp K (Some \<tau>) None (Some \<tau>)"
+| share : "\<lbrakk> A \<turnstile> CtShare \<tau> \<rbrakk> \<Longrightarrow> ctx_split_comp K (Some \<tau>) (Some \<tau>) (Some \<tau>)"
+
+definition context_splitting :: "axm_set \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool"
+           ("_ \<turnstile> _ \<leadsto> _ \<box> _" [30,0,0,30] 60) where
+  "context_splitting K \<equiv> list_all3 (ctx_split_comp K)"
+
+inductive weakening_comp :: "axm_set \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> bool" where
+  none : "weakening_comp K None None"
+| keep : "weakening_comp K (Some \<tau>) (Some \<tau>)"
+| drop : "\<lbrakk> A \<turnstile> CtDrop \<tau> \<rbrakk> \<Longrightarrow> weakening_comp K (Some \<tau>) None"
+
+definition weakening :: "axm_set \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool" 
+           ("_ \<turnstile> _ \<leadsto>w _" [30,0,30] 60) where
+  "weakening K \<equiv> list_all2 (weakening_comp K)"
+
 (*
 section {* Typing Rules (Fig 3.3) *}
 inductive typing :: "axm_set \<Rightarrow> ctx \<Rightarrow> 'fnname expr \<Rightarrow> type \<Rightarrow> bool"
-  ("_ ; _ \<turnstile> _ : _" [30,0,0,30] 60) where
+          ("_ ; _ \<turnstile> _ : _" [30,0,0,30] 60) where
 typing_var:
   "A ; \<Gamma> \<turnstile> (Var i) : \<tau>" (* TO DO *)
 | typing_sig:
