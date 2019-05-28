@@ -468,12 +468,12 @@ validateType' vs (RT t) = do
   case t of
     TVar v _    | v `notElem` vs         -> throwE (UnknownTypeVariable v)
     TCon t as _ | Nothing <- lookup t ts -> throwE (UnknownTypeConstructor t)
-                | Just (vs, _) <- lookup t ts
+                | Just (vs', _) <- lookup t ts
                 , provided <- length as
-                , required <- length vs
+                , required <- length vs'
                 , provided /= required
                -> throwE (TypeArgumentMismatch t provided required)
-                |  Just (vs, Just x) <- lookup t ts
+                |  Just (_, Just x) <- lookup t ts
                -> Synonym t <$> mapM (validateType' vs) as  
     TRecord fs s | fields  <- map fst fs
                  , fields' <- nub fields
