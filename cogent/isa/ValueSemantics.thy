@@ -371,7 +371,7 @@ assumes "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
 and     "\<Xi> \<turnstile> \<gamma> matches \<Gamma>"
 shows   "\<Xi> \<turnstile> \<gamma> matches \<Gamma>1"
 and     "\<Xi> \<turnstile> \<gamma> matches \<Gamma>2"
-using assms proof (induct arbitrary: \<gamma> rule: split_inducts)
+using assms proof (induct arbitrary: \<gamma> rule: split_induct)
      case split_empty
        case 1 then show ?case by simp
        case 2 then show ?case by simp

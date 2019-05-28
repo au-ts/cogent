@@ -641,7 +641,7 @@ shows   "\<exists>r' w' r'' w''. r = r' \<union> r''
                        \<and> w' \<inter> w'' = {} 
                        \<and> (\<Xi>, \<sigma> \<turnstile> \<gamma> matches \<Gamma>1 \<langle>r' , w' \<rangle>) 
                        \<and> (\<Xi>, \<sigma> \<turnstile> \<gamma> matches \<Gamma>2 \<langle>r'', w''\<rangle>)" 
-using assms proof (induct arbitrary: \<gamma> r w rule: split_inducts)
+using assms proof (induct arbitrary: \<gamma> r w rule: split_induct)
      case split_empty then show ?case by (fastforce elim:  matches_ptrs.cases
                                                     intro: matches_ptrs.intros)
 next case (split_cons x xs a as b bs \<gamma> r w) 
@@ -1992,56 +1992,6 @@ next case Cons then show ?case
     by (drule Cons(1), auto) 
   qed
 qed
-
-lemma split_length_same:
-  "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2 \<Longrightarrow> length \<Gamma>1 = length \<Gamma> \<and> length \<Gamma>2 = length \<Gamma>"
-  proof(induction rule: split_inducts)
-   case split_empty then show ?case by auto
-  next 
-   case split_cons then show ?case by auto
-  qed
-
-lemma same_type_as_weakened:
- "[] \<turnstile> \<Gamma>1 \<leadsto>w \<Gamma>'[x := Some t] \<Longrightarrow>  x < length \<Gamma>1 \<Longrightarrow> \<Gamma>1!x = Some t" 
-  apply(rule weakening_preservation)
-   apply simp
-  apply(drule weakening_length)
-   apply simp
-  done
-
-lemma same_type_as_left_split:
-  "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2  \<Longrightarrow>  x < length \<Gamma>1 \<Longrightarrow> \<Gamma>1!x = Some t \<Longrightarrow> \<Gamma>!x = Some t" 
-proof (induction arbitrary: x t rule: split_inducts)
-  case split_cons then show ?case 
-    by (induct x) (force elim: split_comp.cases)+
-qed auto
-
-lemma same_type_as_right_split:
-  "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2  \<Longrightarrow>  x < length \<Gamma>2 \<Longrightarrow> \<Gamma>2!x = Some t \<Longrightarrow> \<Gamma>!x = Some t" 
-proof(induction arbitrary: x t rule: split_inducts)
-  case split_cons then show ?case 
-    by (induct x) (force elim: split_comp.cases)+
-qed auto
-
-lemma same_type_as_split_weakened:
-  "\<lbrakk>[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2; [] \<turnstile> \<Gamma>1 \<leadsto>w \<Gamma>'[x := Some t]; x < length \<Gamma>1\<rbrakk> \<Longrightarrow> \<Gamma>!x = Some t"
-  apply (drule(1) same_type_as_weakened)
-proof(induction arbitrary: x t rule: split_inducts)
-  case split_cons then show ?case 
-    by (induct x) (force elim: split_comp.cases)+
-qed auto
-
-lemma split_Some_typ_ex_kind:
-  assumes
-    "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
-    "\<Gamma> ! x = Some t"
-    "x < length \<Gamma>"
-  shows "\<exists>k. [] \<turnstile> t :\<kappa> k"
-  using assms
-proof (induct arbitrary: t x rule: split_inducts)
-  case split_cons then show ?case 
-    by (induct x) (auto elim: split_comp.cases)
-qed simp
 
 end
 

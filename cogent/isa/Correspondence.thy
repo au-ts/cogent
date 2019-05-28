@@ -514,7 +514,7 @@ shows   "\<exists>r' w' r'' w''. r = r' \<union> r''
                        \<and> (\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches \<Gamma>1 \<langle>r' , w' \<rangle>) 
                        \<and> (\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches \<Gamma>2 \<langle>r'', w''\<rangle>)" 
   using assms
-proof (induct arbitrary: \<gamma> \<gamma>' r w rule: split_inducts)
+proof (induct arbitrary: \<gamma> \<gamma>' r w rule: split_induct)
   case split_empty then show ?case
     by (fastforce elim:  u_v_matches.cases intro: u_v_matches.intros)
 next case (split_cons x xs a as b bs \<gamma> \<gamma>' r w) 

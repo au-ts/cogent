@@ -335,6 +335,8 @@ lemmas weakening_inducts = list_all2_induct[where P=\<open>weakening_comp K\<clo
 lemmas weakening_nil = list_all2_nil[where R=\<open>weakening_comp K\<close> for K, simplified weakening_def[symmetric]]
 lemmas weakening_cons = list_all2_cons[where R=\<open>weakening_comp K\<close> for K, simplified weakening_def[symmetric]]
 
+lemmas weakening_conv_all_nth = list_all2_conv_all_nth[where P=\<open>weakening_comp K\<close> for K, simplified weakening_def[symmetric]]
+
 definition is_consumed :: "kind env \<Rightarrow> ctx \<Rightarrow> bool" ("_ \<turnstile> _ consumed" [30,20] 60 ) where  
   "K \<turnstile> \<Gamma> consumed \<equiv> K \<turnstile> \<Gamma> \<leadsto>w empty (length \<Gamma>)" 
 
@@ -980,7 +982,6 @@ case split_cons  then show ?case by (auto simp: instantiate_ctx_def
                                           intro: split_intros map_option_instantiate_split_comp)
 qed
 
-
 lemma instantiate_ctx_split_bang:
 assumes "split_bang K is \<Gamma> \<Gamma>1 \<Gamma>2"
 and     "list_all2 (kinding K') \<delta> K"
@@ -993,6 +994,36 @@ proof (induct rule: split_bang.induct)
     by (auto intro!: substitutivity split_bang.intros
         simp add: split_bang_comp.simps split_comp.simps instantiate_ctx_def)
 qed
+
+lemma instantiate_ctx_cons [simp]:
+shows   "instantiate_ctx \<delta> (Some x # \<Gamma>) = Some (instantiate \<delta> x) # instantiate_ctx \<delta> \<Gamma>"
+by (simp add: instantiate_ctx_def)
+
+
+
+section {* Lemmas about contexts, splitting and weakening *}
+
+
+lemma split_length_same:
+  "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2 \<Longrightarrow> length \<Gamma>1 = length \<Gamma> \<and> length \<Gamma>2 = length \<Gamma>"
+  by (clarsimp simp add: split_conv_all_nth)
+
+lemma same_type_as_left_split:
+  "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2  \<Longrightarrow>  x < length \<Gamma>1 \<Longrightarrow> \<Gamma>1!x = Some t \<Longrightarrow> \<Gamma>!x = Some t"
+  by (force simp add: split_conv_all_nth split_comp.simps)
+
+lemma same_type_as_right_split:
+  "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2  \<Longrightarrow>  x < length \<Gamma>2 \<Longrightarrow> \<Gamma>2!x = Some t \<Longrightarrow> \<Gamma>!x = Some t" 
+  by (force simp add: split_conv_all_nth split_comp.simps)
+
+lemma split_Some_typ_ex_kind:
+  assumes
+    "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+    "\<Gamma> ! x = Some t"
+    "x < length \<Gamma>"
+  shows "\<exists>k. K \<turnstile> t :\<kappa> k"
+  using assms
+  by (fastforce simp add: split_conv_all_nth split_comp.simps)
 
 lemma split_bang_comp_intersect:
   assumes
@@ -1034,14 +1065,6 @@ next
 qed
 
 
-lemma instantiate_ctx_cons [simp]:
-shows   "instantiate_ctx \<delta> (Some x # \<Gamma>) = Some (instantiate \<delta> x) # instantiate_ctx \<delta> \<Gamma>"
-by (simp add: instantiate_ctx_def)
-
-
-
-section {* Lemmas about contexts, splitting and weakening *}
-
 lemma empty_length: 
 shows "length (empty n) = n"
 by (induct n, simp_all add: empty_def)
@@ -1068,6 +1091,22 @@ and           "i < length \<Gamma>"
 shows         "weakening_comp K (\<Gamma>!i) (\<Gamma>'!i)"
 using assms by (auto simp add: weakening_def dest: list_all2_nthD)
 
+
+lemma same_type_as_weakened:
+ "K \<turnstile> \<Gamma>1 \<leadsto>w \<Gamma>'[x := Some t] \<Longrightarrow>  x < length \<Gamma>1 \<Longrightarrow> \<Gamma>1!x = Some t" 
+  by (force simp add: weakening_conv_all_nth weakening_comp.simps)
+
+lemma same_type_as_split_weakened:
+  assumes
+    "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+    "K \<turnstile> \<Gamma>1 \<leadsto>w \<Gamma>'[x := Some t]"
+    "x < length \<Gamma>1"
+  shows "\<Gamma>!x = Some t"
+  using assms
+  by (force simp add: weakening_conv_all_nth split_conv_all_nth split_comp.simps weakening_comp.simps)
+
+
+section {* Lemmas about wellformedness and kinding *}
 
 lemma typing_to_kinding :
 shows "\<Xi>, K, \<Gamma> \<turnstile>  e  : t  \<Longrightarrow> K \<turnstile>  t  wellformed" 
