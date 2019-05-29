@@ -335,7 +335,11 @@ lemmas weakening_inducts = list_all2_induct[where P=\<open>weakening_comp K\<clo
 lemmas weakening_nil = list_all2_nil[where R=\<open>weakening_comp K\<close> for K, simplified weakening_def[symmetric]]
 lemmas weakening_cons = list_all2_cons[where R=\<open>weakening_comp K\<close> for K, simplified weakening_def[symmetric]]
 
+lemmas weakening_intros = weakening_nil weakening_cons
+
 lemmas weakening_conv_all_nth = list_all2_conv_all_nth[where P=\<open>weakening_comp K\<close> for K, simplified weakening_def[symmetric]]
+
+lemmas weakening_Cons = list_all2_Cons[where P=\<open>weakening_comp K\<close> for K, simplified weakening_def[symmetric]]
 
 definition is_consumed :: "kind env \<Rightarrow> ctx \<Rightarrow> bool" ("_ \<turnstile> _ consumed" [30,20] 60 ) where  
   "K \<turnstile> \<Gamma> consumed \<equiv> K \<turnstile> \<Gamma> \<leadsto>w empty (length \<Gamma>)" 
@@ -567,7 +571,7 @@ inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Right
                    ; \<Xi>, K, \<Gamma>2 \<turnstile> e' : t
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Put e f e' : TRecord (ts [f := (t,False)]) s"
 
-| typing_all_empty : "\<Xi>, K, empty n \<turnstile>* [] : []"
+| typing_all_empty : "\<Gamma> = empty n \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile>* [] : []"
 
 | typing_all_cons  : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
                       ; \<Xi>, K, \<Gamma>1 \<turnstile>  e  : t

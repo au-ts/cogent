@@ -12,223 +12,6 @@ theory TypeTrackingTyping2 imports
   Cogent
 begin
 
-datatype type_split_kind = TSK_L | TSK_R | TSK_S | TSK_NS | TSK_NONE
-
-datatype ttctx =
-  CtxSplit "type_split_kind list" ttctx ttctx
-  | CtxSplitTriv ttctx ttctx
-  | CtxLeaf
-  | CtxFun string
-
-fun apply_tsk :: "type_split_kind \<Rightarrow> type option \<Rightarrow> type option \<times> type option"
-where
-    "apply_tsk TSK_NONE None     = (None, None)"
-  | "apply_tsk TSK_L    (Some t) = (Some t, None)"
-  | "apply_tsk TSK_R    (Some t) = (None, Some t)"
-  | "apply_tsk TSK_S    (Some t) = (Some t, Some t)"
-  | "apply_tsk TSK_NS   (Some t) = (Some (bang t), Some t)"
-  | "apply_tsk TSK_NONE (Some _) = undefined"
-  | "apply_tsk _        None     = undefined"
-
-definition apply_tsks :: "type_split_kind list \<Rightarrow> ctx \<Rightarrow> ctx \<times> ctx" where
-  "apply_tsks sps \<Gamma> = unzip_fast (List.map2 apply_tsk sps \<Gamma>)"
-
-lemma apply_tsks_Nil: "apply_tsks [] [] = ([], [])"
-  by (simp add: apply_tsks_def unzip_fast_def)
-
-lemma apply_tsks_Cons: "apply_tsks (sp # sps) (t # \<Gamma>) = (let (t1, t2) = apply_tsk sp t
-                                                           ; (\<Gamma>1, \<Gamma>2) = apply_tsks sps \<Gamma>
-                                                          in (t1 # \<Gamma>1, t2 # \<Gamma>2))"
-  by (simp add: apply_tsks_def unzip_eq_unzip_fast[symmetric] split: prod.split)
-
-lemma apply_tsks_preserves_length:
-  assumes
-    "length sps = length \<Gamma>"
-    "apply_tsks sps \<Gamma> = (\<Gamma>1, \<Gamma>2)"
-  shows
-    "length \<Gamma>2 = length \<Gamma>1"
-    "length \<Gamma>1 = length \<Gamma>"
-proof -
-  have
-    "length (fst (unzip (List.map2 apply_tsk sps \<Gamma>))) = length (List.map2 apply_tsk sps \<Gamma>)"
-    "length (snd (unzip (List.map2 apply_tsk sps \<Gamma>))) = length (List.map2 apply_tsk sps \<Gamma>)"
-    using unzip_preserves_length
-    by blast+
-  then show
-    "length \<Gamma>2 = length \<Gamma>1"
-    "length \<Gamma>1 = length \<Gamma>"
-    using assms
-    by (simp add: apply_tsks_def unzip_eq_unzip_fast)+
-qed
-
-
-lemma apply_tsks_conv_all_nth_lemma1:
-  assumes
-    "length sps = length \<Gamma>"
-    "apply_tsks sps \<Gamma> = (\<Gamma>1, \<Gamma>2)"
-  shows
-    "length \<Gamma>1 = length \<Gamma>2"
-    "length \<Gamma>2 = length \<Gamma>"
-    "\<forall>i<length sps. apply_tsk (sps ! i) (\<Gamma> ! i) = (\<Gamma>1 ! i, \<Gamma>2 ! i)"
-  using assms
-proof (induct sps \<Gamma> arbitrary: \<Gamma>1 \<Gamma>2 rule: list_induct2)
-  case (Cons sp sps t \<Gamma>)
-  case 1 then show ?case
-    using Cons
-    by (metis apply_tsks_preserves_length length_Cons)
-  case 2 then show ?case
-    using Cons
-    by (metis apply_tsks_preserves_length length_Cons)
-  case 3 then show ?case
-    using Cons
-    by (clarsimp simp add: apply_tsks_Cons less_Suc_eq_0_disj split: prod.splits)
-qed (force simp add: apply_tsks_Nil)+
-
-lemma apply_tsks_conv_all_nth_lemma2:
-  assumes
-    "length sps = length \<Gamma>"
-    "length \<Gamma>1 = length \<Gamma>2"
-    "length \<Gamma>2 = length \<Gamma>"
-    "\<forall>i<length sps. apply_tsk (sps ! i) (\<Gamma> ! i) = (\<Gamma>1 ! i, \<Gamma>2 ! i)"
-  shows
-    "apply_tsks sps \<Gamma> = (\<Gamma>1, \<Gamma>2)"
-  using assms
-proof (induct sps \<Gamma> arbitrary: \<Gamma>1 \<Gamma>2 rule: list_induct2)
-  case (Cons sp sps t \<Gamma>)
-  then show ?case
-    using Cons
-    by (clarsimp simp add: All_less_Suc2 apply_tsks_Cons length_Suc_conv split: prod.splits)
-qed (force simp add: apply_tsks_Nil)+
-
-lemma apply_tsks_conv_all_nth:
-  assumes
-    "length sps = length \<Gamma>"
-  shows
-    "apply_tsks sps \<Gamma> = (\<Gamma>1, \<Gamma>2) \<longleftrightarrow>
-      length \<Gamma>1 = length \<Gamma>2 \<and> length \<Gamma>2 = length \<Gamma> \<and> (\<forall>i<length sps. apply_tsk (sps ! i) (\<Gamma> ! i) = (\<Gamma>1 ! i, \<Gamma>2 ! i))"
-  using assms apply_tsks_conv_all_nth_lemma1 apply_tsks_conv_all_nth_lemma2
-  by blast
-
-
-fun verify_tsk :: "kind env \<Rightarrow> type_split_kind \<Rightarrow> type option \<Rightarrow> bool"
-where
-    "verify_tsk K TSK_NONE None     = True"
-  | "verify_tsk K TSK_L    (Some t) = (\<exists>k. K \<turnstile> t :\<kappa> k)"
-  | "verify_tsk K TSK_R    (Some t) = (\<exists>k. K \<turnstile> t :\<kappa> k)"
-  | "verify_tsk K TSK_S    (Some t) = (\<exists>k. K \<turnstile> t :\<kappa> k \<and> S \<in> k)"
-  | "verify_tsk K TSK_NS   (Some t) = (\<exists>k. K \<turnstile> t :\<kappa> k)"
-  | "verify_tsk _ TSK_NONE (Some _) = False"
-  | "verify_tsk _ _        None     = False"
-
-definition verify_tsks :: "kind env \<Rightarrow> type_split_kind list \<Rightarrow> ctx \<Rightarrow> bool" where
-  "verify_tsks K = list_all2 (verify_tsk K)"
-
-lemmas verify_tsks_nil = list_all2_nil[where R=\<open>verify_tsk K\<close> for K, simplified verify_tsks_def[symmetric]]
-lemmas verify_tsks_cons = list_all2_cons[where R=\<open>verify_tsk K\<close> for K, simplified verify_tsks_def[symmetric]]
-
-lemmas verify_tsks_conv_all_nth = list_all2_conv_all_nth[where P=\<open>verify_tsk K\<close> for K, simplified verify_tsks_def[symmetric]]
-
-lemmas verify_tsks_induct[consumes 1, case_names verify_tsks_nil verify_tsks_cons]
-  = list_all2_induct[where P=\<open>verify_tsk K\<close> for K, simplified verify_tsks_def[symmetric]]
-
-lemmas verify_tsks_Nil1 = list_all2_Nil[where P=\<open>verify_tsk K\<close> for K, simplified verify_tsks_def[symmetric]]
-lemmas verify_tsks_Nil2 = list_all2_Nil2[where P=\<open>verify_tsk K\<close> for K, simplified verify_tsks_def[symmetric]]
-
-lemmas verify_tsks_Cons = list_all2_Cons[where P=\<open>verify_tsk K\<close> for K, simplified verify_tsks_def[symmetric]]
-
-definition verify_tsks_nobang :: "kind env \<Rightarrow> type_split_kind list \<Rightarrow> ctx \<Rightarrow> bool" where
-  "verify_tsks_nobang K sps \<Gamma> \<equiv> verify_tsks K sps \<Gamma> \<and> list_all ((\<noteq>) TSK_NS) sps"
-
-inductive syntactic_subtype :: "type \<Rightarrow> type \<Rightarrow> bool" where
-  syn_subty_refl: "syntactic_subtype \<tau> \<tau>"
-| syn_subty_tfun_in: "syntactic_subtype \<tau> \<tau>1 \<Longrightarrow> syntactic_subtype \<tau> (TFun \<tau>1 \<tau>2)"
-| syn_subty_tfun_out: "syntactic_subtype \<tau> \<tau>2 \<Longrightarrow> syntactic_subtype \<tau> (TFun \<tau>1 \<tau>2)"
-| syn_subty_tcon: "\<lbrakk> t \<in> set \<tau>s ; syntactic_subtype \<tau> t \<rbrakk> \<Longrightarrow> syntactic_subtype \<tau> (TCon n \<tau>s s)"
-| syn_subty_tsum: "\<lbrakk> t \<in> set \<tau>s ; syntactic_subtype \<tau> (snd t) \<rbrakk> \<Longrightarrow> syntactic_subtype \<tau> (TSum \<tau>s)"
-| syn_subty_tprod_l: "syntactic_subtype \<tau> \<tau>1 \<Longrightarrow> syntactic_subtype \<tau> (TProduct \<tau>1 \<tau>2)"
-| syn_subty_tprod_r: "syntactic_subtype \<tau> \<tau>2 \<Longrightarrow> syntactic_subtype \<tau> (TProduct \<tau>1 \<tau>2)"
-| syn_subty_trec: "\<lbrakk> t \<in> set \<tau>s ; syntactic_subtype \<tau> (fst t) \<rbrakk> \<Longrightarrow> syntactic_subtype \<tau> (TRecord \<tau>s s)"
-
-fun syntactic_subtypes :: "type \<Rightarrow> type set" where
-  "syntactic_subtypes (TVar i)       = {TVar i}"
-| "syntactic_subtypes (TVarBang i)   = {TVarBang i}"
-| "syntactic_subtypes (TCon n ts s)  = {TCon n ts s} \<union> (\<Union>(syntactic_subtypes ` set ts))"
-| "syntactic_subtypes (TFun a b)     = {TFun a b} \<union> syntactic_subtypes a \<union> syntactic_subtypes b"
-| "syntactic_subtypes (TPrim p)      = {TPrim p}"
-| "syntactic_subtypes (TSum ts)      = {TSum ts} \<union> (\<Union>((syntactic_subtypes \<circ> snd) ` set ts))"
-| "syntactic_subtypes (TProduct a b) = {TProduct a b} \<union> syntactic_subtypes a \<union> syntactic_subtypes b"
-| "syntactic_subtypes (TRecord ts s) = {TRecord ts s} \<union> (\<Union>((syntactic_subtypes \<circ> fst) ` set ts))"
-| "syntactic_subtypes (TUnit)        = {TUnit}"
-
-lemma "t \<in> syntactic_subtypes \<tau> \<Longrightarrow> syntactic_subtype t \<tau>"
-  by (induct \<tau> arbitrary: t rule: syntactic_subtypes.induct)
-    (force intro: syntactic_subtype.intros)+
-
-lemma syntactic_subtypes_refl: "\<tau> \<in> syntactic_subtypes \<tau>"
-  by (induct \<tau>) simp+
-
-lemma "syntactic_subtype t \<tau> \<Longrightarrow> t \<in> syntactic_subtypes \<tau>"
-  by (induct rule: syntactic_subtype.inducts)
-    (fastforce simp add: syntactic_subtypes_refl)+
-
-
-section {* Fast Kinding *}
-
-(* droppable+sharable, escapable *)
-type_synonym kind' = "bool \<times> bool"
-
-definition kind_isD :: "kind' \<Rightarrow> bool" where
-  "kind_isD \<equiv> fst"
-
-definition kind_isS :: "kind' \<Rightarrow> bool" where
-  "kind_isS \<equiv> fst"
-
-definition kind_isE :: "kind' \<Rightarrow> bool" where
-  "kind_isE \<equiv> snd"
-
-fun kind'_inter :: "kind' \<Rightarrow> kind' \<Rightarrow> kind'" where
-  "kind'_inter (ds1, e1) (ds2, e2) = (ds1 \<and> ds2, e1 \<and> e2)"
-
-fun sigil_kind' :: "sigil \<Rightarrow> kind'" where
-  "sigil_kind' ReadOnly = (True, False)"
-| "sigil_kind' Writable = (False, True)"
-| "sigil_kind' Unboxed  = (True, True)"
-
-fun wellformed' :: "nat \<Rightarrow> type \<Rightarrow> bool" where
-  "wellformed' n (TVar i)       = (i < n)"
-| "wellformed' n (TVarBang i)   = (i < n)"
-| "wellformed' n (TCon _ ts s)  = foldl (\<and>) True (map (wellformed' n) ts)"
-| "wellformed' n (TFun t u)     = (wellformed' n t \<and> wellformed' n u)"
-| "wellformed' n (TPrim p)      = True"
-| "wellformed' n (TSum ts)      = foldl (\<and>) True (map (wellformed' n \<circ> snd) ts)"
-| "wellformed' n (TProduct t u) = (wellformed' n t \<and> wellformed' n u)"
-| "wellformed' n (TRecord ts s) = foldl (\<and>) True (map (wellformed' n \<circ> fst) ts)"
-| "wellformed' n (TUnit)        = True"
-
-fun kinding' :: "kind' env \<Rightarrow> type \<Rightarrow> kind'" where
-  "kinding' K (TVar i)       = (K ! i)"
-| "kinding' K (TVarBang i)   = (True, snd (K ! i))"
-| "kinding' K (TCon _ ts s)  = kind'_inter (foldl kind'_inter (True, True) (map (kinding' K) ts)) (sigil_kind' s)"
-| "kinding' K (TFun t u)     = kind'_inter (kinding' K t) (kinding' K u)"
-| "kinding' K (TPrim p)      = (True, True)"
-| "kinding' K (TSum ts)      = foldl kind'_inter (True, True) (map (kinding' K \<circ> snd) ts)"
-| "kinding' K (TProduct t u) = kind'_inter (kinding' K t) (kinding' K u)"
-| "kinding' K (TRecord ts s) = foldl kind'_inter (True, True) (map (\<lambda>(t,b). if b then (True,True) else (kinding' K t)) ts)"
-| "kinding' K (TUnit)        = (True, True)"
-
-
-lemma foldl_kind'_inter_short_circuit:
-  "foldl kind'_inter (False, False) ts = (False, False)"
-  by (induct ts) (clarsimp+)
-
-lemma foldl_map_evalsimps:
-  "foldl f init (map g []) = init"
-  "foldl f init (map g (x # xs)) = foldl f (f init (g x)) (map g xs)"
-  by clarsimp+
-
-lemmas kinding'_simps =
-  kinding'.simps kind'_inter.simps foldl_map_evalsimps sigil_kind'.simps HOL.simp_thms(21-25)
-  fst_conv snd_conv Product_Type.split if_True if_False
 
 section {* Wellformed/Kinding as a function *}
 
@@ -350,6 +133,334 @@ using assms
     (force intro: wellformedfn_preserves_bang simp: split_comp.simps split_bang_comp.simps ctx_wellformed_fn_def)+
 
 
+section {* hinted split *}
+
+datatype type_split_kind = TSK_L | TSK_R | TSK_S | TSK_NS | TSK_NONE
+
+datatype ttctx =
+  CtxSplit "type_split_kind list" ttctx ttctx
+  | CtxSplitTriv ttctx ttctx
+  | CtxLeaf
+  | CtxFun string
+
+fun apply_tsk :: "type_split_kind \<Rightarrow> type option \<Rightarrow> type option \<times> type option"
+where
+    "apply_tsk TSK_NONE None     = (None, None)"
+  | "apply_tsk TSK_L    (Some t) = (Some t, None)"
+  | "apply_tsk TSK_R    (Some t) = (None, Some t)"
+  | "apply_tsk TSK_S    (Some t) = (Some t, Some t)"
+  | "apply_tsk TSK_NS   (Some t) = (Some (bang t), Some t)"
+  | "apply_tsk TSK_NONE (Some _) = undefined"
+  | "apply_tsk _        None     = undefined"
+
+definition apply_tsks :: "type_split_kind list \<Rightarrow> ctx \<Rightarrow> ctx \<times> ctx" where
+  "apply_tsks sps \<Gamma> = unzip_fast (List.map2 apply_tsk sps \<Gamma>)"
+
+lemma apply_tsks_Nil: "apply_tsks [] [] = ([], [])"
+  by (simp add: apply_tsks_def unzip_fast_def)
+
+lemma apply_tsks_Cons: "apply_tsks (sp # sps) (t # \<Gamma>) = (let (t1, t2) = apply_tsk sp t
+                                                           ; (\<Gamma>1, \<Gamma>2) = apply_tsks sps \<Gamma>
+                                                          in (t1 # \<Gamma>1, t2 # \<Gamma>2))"
+  by (simp add: apply_tsks_def unzip_eq_unzip_fast[symmetric] split: prod.split)
+
+lemma apply_tsks_preserves_length:
+  assumes
+    "length sps = length \<Gamma>"
+    "apply_tsks sps \<Gamma> = (\<Gamma>1, \<Gamma>2)"
+  shows
+    "length \<Gamma>2 = length \<Gamma>1"
+    "length \<Gamma>1 = length \<Gamma>"
+proof -
+  have
+    "length (fst (unzip (List.map2 apply_tsk sps \<Gamma>))) = length (List.map2 apply_tsk sps \<Gamma>)"
+    "length (snd (unzip (List.map2 apply_tsk sps \<Gamma>))) = length (List.map2 apply_tsk sps \<Gamma>)"
+    using unzip_preserves_length
+    by blast+
+  then show
+    "length \<Gamma>2 = length \<Gamma>1"
+    "length \<Gamma>1 = length \<Gamma>"
+    using assms
+    by (simp add: apply_tsks_def unzip_eq_unzip_fast)+
+qed
+
+
+lemma apply_tsks_conv_all_nth_lemma1:
+  assumes
+    "length sps = length \<Gamma>"
+    "apply_tsks sps \<Gamma> = (\<Gamma>1, \<Gamma>2)"
+  shows
+    "length \<Gamma>1 = length \<Gamma>2"
+    "length \<Gamma>2 = length \<Gamma>"
+    "\<forall>i<length sps. apply_tsk (sps ! i) (\<Gamma> ! i) = (\<Gamma>1 ! i, \<Gamma>2 ! i)"
+  using assms
+proof (induct sps \<Gamma> arbitrary: \<Gamma>1 \<Gamma>2 rule: list_induct2)
+  case (Cons sp sps t \<Gamma>)
+  case 1 then show ?case
+    using Cons
+    by (metis apply_tsks_preserves_length length_Cons)
+  case 2 then show ?case
+    using Cons
+    by (metis apply_tsks_preserves_length length_Cons)
+  case 3 then show ?case
+    using Cons
+    by (clarsimp simp add: apply_tsks_Cons less_Suc_eq_0_disj split: prod.splits)
+qed (force simp add: apply_tsks_Nil)+
+
+lemma apply_tsks_conv_all_nth_lemma2:
+  assumes
+    "length sps = length \<Gamma>"
+    "length \<Gamma>1 = length \<Gamma>2"
+    "length \<Gamma>2 = length \<Gamma>"
+    "\<forall>i<length sps. apply_tsk (sps ! i) (\<Gamma> ! i) = (\<Gamma>1 ! i, \<Gamma>2 ! i)"
+  shows
+    "apply_tsks sps \<Gamma> = (\<Gamma>1, \<Gamma>2)"
+  using assms
+proof (induct sps \<Gamma> arbitrary: \<Gamma>1 \<Gamma>2 rule: list_induct2)
+  case (Cons sp sps t \<Gamma>)
+  then show ?case
+    using Cons
+    by (clarsimp simp add: All_less_Suc2 apply_tsks_Cons length_Suc_conv split: prod.splits)
+qed (force simp add: apply_tsks_Nil)+
+
+lemma apply_tsks_conv_all_nth:
+  assumes
+    "length sps = length \<Gamma>"
+  shows
+    "apply_tsks sps \<Gamma> = (\<Gamma>1, \<Gamma>2) \<longleftrightarrow>
+      length \<Gamma>1 = length \<Gamma>2 \<and> length \<Gamma>2 = length \<Gamma> \<and> (\<forall>i<length sps. apply_tsk (sps ! i) (\<Gamma> ! i) = (\<Gamma>1 ! i, \<Gamma>2 ! i))"
+  using assms apply_tsks_conv_all_nth_lemma1 apply_tsks_conv_all_nth_lemma2
+  by blast
+
+
+fun verify_tsk :: "kind env \<Rightarrow> type_split_kind \<Rightarrow> type option \<Rightarrow> bool"
+where
+    "verify_tsk _ TSK_NONE None     = True"
+  | "verify_tsk _ _        None     = False"
+  | "verify_tsk _ TSK_NONE (Some _) = False"
+  | "verify_tsk K TSK_S    (Some t) = (S \<in> kinding_fn K t)"
+  | "verify_tsk _ _        (Some t) = True"
+
+definition verify_tsks :: "kind env \<Rightarrow> type_split_kind list \<Rightarrow> ctx \<Rightarrow> bool" where
+  "verify_tsks K = list_all2 (verify_tsk K)"
+
+lemmas verify_tsks_nil = list_all2_nil[where R=\<open>verify_tsk K\<close> for K, simplified verify_tsks_def[symmetric]]
+lemmas verify_tsks_cons = list_all2_cons[where R=\<open>verify_tsk K\<close> for K, simplified verify_tsks_def[symmetric]]
+
+lemmas verify_tsks_conv_all_nth = list_all2_conv_all_nth[where P=\<open>verify_tsk K\<close> for K, simplified verify_tsks_def[symmetric]]
+
+lemmas verify_tsks_induct[consumes 1, case_names verify_tsks_nil verify_tsks_cons]
+  = list_all2_induct[where P=\<open>verify_tsk K\<close> for K, simplified verify_tsks_def[symmetric]]
+
+lemmas verify_tsks_Nil1 = list_all2_Nil[where P=\<open>verify_tsk K\<close> for K, simplified verify_tsks_def[symmetric]]
+lemmas verify_tsks_Nil2 = list_all2_Nil2[where P=\<open>verify_tsk K\<close> for K, simplified verify_tsks_def[symmetric]]
+
+lemmas verify_tsks_Cons = list_all2_Cons[where P=\<open>verify_tsk K\<close> for K, simplified verify_tsks_def[symmetric]]
+
+definition verify_tsks_nobang :: "kind env \<Rightarrow> type_split_kind list \<Rightarrow> ctx \<Rightarrow> bool" where
+  "verify_tsks_nobang K sps \<Gamma> \<equiv> verify_tsks K sps \<Gamma> \<and> list_all ((\<noteq>) TSK_NS) sps"
+
+section {* weakening computations *}
+
+subsection {* weakening to empty ctx *}
+
+definition verify_weakens_to_empty :: "kind env \<Rightarrow> ctx \<Rightarrow> bool" where
+  "verify_weakens_to_empty K = list_all (\<lambda>u. \<forall>u'. u = Some u' \<longrightarrow> D \<in> kinding_fn K u')"
+
+lemmas verify_weakens_to_empty_Cons = list.pred_inject(2)[where P=\<open>\<lambda>u. \<forall>u'. u = Some u' \<longrightarrow> D \<in> kinding_fn K u'\<close> for K, simplified verify_weakens_to_empty_def[symmetric]]
+
+lemmas verify_weakens_to_empty_conv_all_nth = list_all_length[where P=\<open>\<lambda>u. \<forall>u'. u = Some u' \<longrightarrow> D \<in> kinding_fn K u'\<close> for K, simplified verify_weakens_to_empty_def[symmetric]]
+
+
+lemma verify_weakens_to_empty_imp_weakening_to_empty:
+  assumes
+    "verify_weakens_to_empty K \<Gamma>"
+    "ctx_wellformed_fn (length K) \<Gamma>"
+  shows "K \<turnstile> \<Gamma> \<leadsto>w replicate (length \<Gamma>) None"
+  using assms
+proof (induct \<Gamma>)
+  case (Cons a \<Gamma>)
+  then show ?case
+    apply (auto simp add: verify_weakens_to_empty_Cons Cogent.empty_def weakening_Cons
+      ctx_wellformed_fn_Cons weakening_comp.simps kinding_iff_wellformedfn_and_kindingfn)
+    apply (meson option.exhaust order_refl)
+    done
+qed (simp add: empty_length weakening_conv_all_nth)
+
+lemma weakening_to_empty_imp_verify_weakens_to_empty:
+  assumes
+    "K \<turnstile> \<Gamma> \<leadsto>w replicate (length \<Gamma>) None"
+  shows "verify_weakens_to_empty K \<Gamma> \<and> ctx_wellformed_fn (length K) \<Gamma>"
+  using assms
+proof (induct \<Gamma>)
+  case (Cons a \<Gamma>)
+  then show ?case
+    by(auto simp add: verify_weakens_to_empty_Cons Cogent.empty_def weakening_Cons
+      ctx_wellformed_fn_Cons weakening_comp.simps kinding_iff_wellformedfn_and_kindingfn)
+qed (simp add: Cogent.empty_def weakening_nil verify_weakens_to_empty_def ctx_wellformed_fn_nil)
+
+lemma weakening_to_empty_iff_verify_weakens_to_empty:
+  "(K \<turnstile> \<Gamma> \<leadsto>w replicate (length \<Gamma>) None) \<longleftrightarrow> verify_weakens_to_empty K \<Gamma> \<and> ctx_wellformed_fn (length K) \<Gamma>"
+  by (auto dest: verify_weakens_to_empty_imp_weakening_to_empty weakening_to_empty_imp_verify_weakens_to_empty)
+
+
+subsection {* weakening to var *}
+
+definition verify_weakens_to_var :: "kind env \<Rightarrow> nat \<Rightarrow> type \<Rightarrow> ctx \<Rightarrow> bool" where
+  "verify_weakens_to_var K i t \<Gamma> =
+    (\<forall>j < length \<Gamma>.
+      if j = i
+      then \<Gamma>!i = Some t
+      else \<forall>u'. \<Gamma>!j = Some u' \<longrightarrow> D \<in> kinding_fn K u')"
+
+lemma verify_weakens_to_var_Cons:
+  "verify_weakens_to_var K i t (u # \<Gamma>) \<longleftrightarrow>
+    (case i of
+      0 \<Rightarrow> u = Some t \<and> verify_weakens_to_empty K \<Gamma>
+    | (Suc i') \<Rightarrow> (\<forall>u'. u = Some u' \<longrightarrow> D \<in> kinding_fn K u') \<and> verify_weakens_to_var K i' t \<Gamma>)"
+  unfolding verify_weakens_to_var_def
+  proof (induct \<Gamma> arbitrary: u i t)
+    case Nil then show ?case
+      by (case_tac i; force simp add: verify_weakens_to_empty_def)
+  next
+    case (Cons a \<Gamma>)
+    then show ?case
+    proof (cases i)
+      case 0
+      then show ?thesis
+        by (clarsimp simp add:  nth.nth_Cons All_less_Suc2 verify_weakens_to_empty_conv_all_nth)
+    next
+      case (Suc nat)
+      then show ?thesis
+        by (clarsimp simp add: All_less_Suc2 verify_weakens_to_empty_conv_all_nth split: nat.split)
+    qed
+  qed
+
+lemma verify_weakens_to_var_imp_weakening_to_var:
+  assumes
+    "verify_weakens_to_var K i t \<Gamma>"
+    "ctx_wellformed_fn (length K) \<Gamma>"
+  shows "K \<turnstile> \<Gamma> \<leadsto>w singleton (length \<Gamma>) i t"
+  using assms
+proof (induct \<Gamma> arbitrary: i t)
+  case (Cons a \<Gamma>)
+  then show ?case
+  proof (cases i)
+    case 0
+    then show ?thesis
+      using Cons
+      by (force dest: wellformed_kindingfn_always_kinding
+          simp add: ctx_wellformed_fn_Cons weakening_Cons Cogent.empty_def weakening_comp.simps
+          verify_weakens_to_var_Cons weakening_to_empty_iff_verify_weakens_to_empty)
+  next
+    case (Suc nat)
+    then show ?thesis
+      using Cons
+      by (auto
+          simp add: ctx_wellformed_fn_Cons weakening_Cons Cogent.empty_def weakening_comp.simps
+          verify_weakens_to_var_Cons weakening_to_empty_iff_verify_weakens_to_empty
+          wellformed_kindingfn_always_kinding)
+  qed
+qed (simp add: empty_length weakening_conv_all_nth)
+
+
+
+
+section {* syntactic subtypes *}
+
+inductive syntactic_subtype :: "type \<Rightarrow> type \<Rightarrow> bool" where
+  syn_subty_refl: "syntactic_subtype \<tau> \<tau>"
+| syn_subty_tfun_in: "syntactic_subtype \<tau> \<tau>1 \<Longrightarrow> syntactic_subtype \<tau> (TFun \<tau>1 \<tau>2)"
+| syn_subty_tfun_out: "syntactic_subtype \<tau> \<tau>2 \<Longrightarrow> syntactic_subtype \<tau> (TFun \<tau>1 \<tau>2)"
+| syn_subty_tcon: "\<lbrakk> t \<in> set \<tau>s ; syntactic_subtype \<tau> t \<rbrakk> \<Longrightarrow> syntactic_subtype \<tau> (TCon n \<tau>s s)"
+| syn_subty_tsum: "\<lbrakk> t \<in> set \<tau>s ; syntactic_subtype \<tau> (snd t) \<rbrakk> \<Longrightarrow> syntactic_subtype \<tau> (TSum \<tau>s)"
+| syn_subty_tprod_l: "syntactic_subtype \<tau> \<tau>1 \<Longrightarrow> syntactic_subtype \<tau> (TProduct \<tau>1 \<tau>2)"
+| syn_subty_tprod_r: "syntactic_subtype \<tau> \<tau>2 \<Longrightarrow> syntactic_subtype \<tau> (TProduct \<tau>1 \<tau>2)"
+| syn_subty_trec: "\<lbrakk> t \<in> set \<tau>s ; syntactic_subtype \<tau> (fst t) \<rbrakk> \<Longrightarrow> syntactic_subtype \<tau> (TRecord \<tau>s s)"
+
+fun syntactic_subtypes :: "type \<Rightarrow> type set" where
+  "syntactic_subtypes (TVar i)       = {TVar i}"
+| "syntactic_subtypes (TVarBang i)   = {TVarBang i}"
+| "syntactic_subtypes (TCon n ts s)  = {TCon n ts s} \<union> (\<Union>(syntactic_subtypes ` set ts))"
+| "syntactic_subtypes (TFun a b)     = {TFun a b} \<union> syntactic_subtypes a \<union> syntactic_subtypes b"
+| "syntactic_subtypes (TPrim p)      = {TPrim p}"
+| "syntactic_subtypes (TSum ts)      = {TSum ts} \<union> (\<Union>((syntactic_subtypes \<circ> snd) ` set ts))"
+| "syntactic_subtypes (TProduct a b) = {TProduct a b} \<union> syntactic_subtypes a \<union> syntactic_subtypes b"
+| "syntactic_subtypes (TRecord ts s) = {TRecord ts s} \<union> (\<Union>((syntactic_subtypes \<circ> fst) ` set ts))"
+| "syntactic_subtypes (TUnit)        = {TUnit}"
+
+lemma "t \<in> syntactic_subtypes \<tau> \<Longrightarrow> syntactic_subtype t \<tau>"
+  by (induct \<tau> arbitrary: t rule: syntactic_subtypes.induct)
+    (force intro: syntactic_subtype.intros)+
+
+lemma syntactic_subtypes_refl: "\<tau> \<in> syntactic_subtypes \<tau>"
+  by (induct \<tau>) simp+
+
+lemma "syntactic_subtype t \<tau> \<Longrightarrow> t \<in> syntactic_subtypes \<tau>"
+  by (induct rule: syntactic_subtype.inducts)
+    (fastforce simp add: syntactic_subtypes_refl)+
+
+
+section {* Fast Kinding *}
+
+(* droppable+sharable, escapable *)
+type_synonym kind' = "bool \<times> bool"
+
+definition kind_isD :: "kind' \<Rightarrow> bool" where
+  "kind_isD \<equiv> fst"
+
+definition kind_isS :: "kind' \<Rightarrow> bool" where
+  "kind_isS \<equiv> fst"
+
+definition kind_isE :: "kind' \<Rightarrow> bool" where
+  "kind_isE \<equiv> snd"
+
+fun kind'_inter :: "kind' \<Rightarrow> kind' \<Rightarrow> kind'" where
+  "kind'_inter (ds1, e1) (ds2, e2) = (ds1 \<and> ds2, e1 \<and> e2)"
+
+fun sigil_kind' :: "sigil \<Rightarrow> kind'" where
+  "sigil_kind' ReadOnly = (True, False)"
+| "sigil_kind' Writable = (False, True)"
+| "sigil_kind' Unboxed  = (True, True)"
+
+fun wellformed' :: "nat \<Rightarrow> type \<Rightarrow> bool" where
+  "wellformed' n (TVar i)       = (i < n)"
+| "wellformed' n (TVarBang i)   = (i < n)"
+| "wellformed' n (TCon _ ts s)  = foldl (\<and>) True (map (wellformed' n) ts)"
+| "wellformed' n (TFun t u)     = (wellformed' n t \<and> wellformed' n u)"
+| "wellformed' n (TPrim p)      = True"
+| "wellformed' n (TSum ts)      = foldl (\<and>) True (map (wellformed' n \<circ> snd) ts)"
+| "wellformed' n (TProduct t u) = (wellformed' n t \<and> wellformed' n u)"
+| "wellformed' n (TRecord ts s) = foldl (\<and>) True (map (wellformed' n \<circ> fst) ts)"
+| "wellformed' n (TUnit)        = True"
+
+fun kinding' :: "kind' env \<Rightarrow> type \<Rightarrow> kind'" where
+  "kinding' K (TVar i)       = (K ! i)"
+| "kinding' K (TVarBang i)   = (True, snd (K ! i))"
+| "kinding' K (TCon _ ts s)  = kind'_inter (foldl kind'_inter (True, True) (map (kinding' K) ts)) (sigil_kind' s)"
+| "kinding' K (TFun t u)     = kind'_inter (kinding' K t) (kinding' K u)"
+| "kinding' K (TPrim p)      = (True, True)"
+| "kinding' K (TSum ts)      = foldl kind'_inter (True, True) (map (kinding' K \<circ> snd) ts)"
+| "kinding' K (TProduct t u) = kind'_inter (kinding' K t) (kinding' K u)"
+| "kinding' K (TRecord ts s) = foldl kind'_inter (True, True) (map (\<lambda>(t,b). if b then (True,True) else (kinding' K t)) ts)"
+| "kinding' K (TUnit)        = (True, True)"
+
+
+lemma foldl_kind'_inter_short_circuit:
+  "foldl kind'_inter (False, False) ts = (False, False)"
+  by (induct ts) (clarsimp+)
+
+lemma foldl_map_evalsimps:
+  "foldl f init (map g []) = init"
+  "foldl f init (map g (x # xs)) = foldl f (f init (g x)) (map g xs)"
+  by clarsimp+
+
+lemmas kinding'_simps =
+  kinding'.simps kind'_inter.simps foldl_map_evalsimps sigil_kind'.simps HOL.simp_thms(21-25)
+  fst_conv snd_conv Product_Type.split if_True if_False
+
+section {* Apply tsk *}
+
 
 lemma apply_tsk_some_preservation_left_nobang:
   assumes
@@ -412,36 +523,41 @@ lemma apply_tsks_preserves_ctx_wellformedfn:
 lemma apply_tsk_imp_split_comp:
   assumes
     "verify_tsk K sp t"
-    "TSK_NS \<noteq> sp"
     "apply_tsk sp t = (t1, t2)"
+    "TSK_NS \<noteq> sp"
+    "\<forall>t'. t = Some t' \<longrightarrow> wellformed_fn (length K) t'"
   shows "K \<turnstile> t \<leadsto> t1 \<parallel> t2"
   using assms
-  by (cases sp; cases t; clarsimp simp add: split_comp.simps)
+  by (cases sp; cases t; force simp add: split_comp.simps kinding_iff_wellformedfn_and_kindingfn)
 
 lemma apply_tsks_imp_split:
   assumes
     "verify_tsks K sps \<Gamma>"
     "apply_tsks sps \<Gamma> = (\<Gamma>1, \<Gamma>2)"
+    "ctx_wellformed_fn (length K) \<Gamma>"
     "list_all ((\<noteq>) TSK_NS) sps"
   shows
     "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
   using assms
   by (force intro!: apply_tsk_imp_split_comp
-      simp add: verify_tsks_conv_all_nth split_conv_all_nth list_all_length apply_tsks_conv_all_nth)
-
+      simp add: verify_tsks_conv_all_nth split_conv_all_nth apply_tsks_conv_all_nth
+      ctx_wellformed_fn_def list_all_length)
 
 lemma apply_tsk_imp_split_bang_comp:
   assumes
     "verify_tsk K sp t"
     "apply_tsk sp t = (t1, t2)"
+    "\<forall>t'. t = Some t' \<longrightarrow> wellformed_fn (length K) t'"
   shows "K, (sp = TSK_NS) \<turnstile> t \<leadsto>b t1 \<parallel> t2"
   using assms
-  by (cases sp; cases t; clarsimp simp add: split_bang_comp.simps split_comp.simps)
+  by (cases sp; cases t; force simp add: split_bang_comp.simps split_comp.simps
+      kinding_iff_wellformedfn_and_kindingfn)
 
 lemma apply_tsks_imp_split_bang:
   assumes
     "verify_tsks K sps \<Gamma>"
     "apply_tsks sps \<Gamma> = (\<Gamma>1, \<Gamma>2)"
+    "ctx_wellformed_fn (length K) \<Gamma>"
   shows
     "K , {i. sps ! i = TSK_NS} \<turnstile> \<Gamma> \<leadsto>b \<Gamma>1 | \<Gamma>2"
   using assms
@@ -461,7 +577,8 @@ proof (induct arbitrary: \<Gamma>1 \<Gamma>2 rule: verify_tsks_induct)
   qed
   ultimately show ?case
     by (auto elim: apply_tsk.elims intro!: split_bang.intros split: prod.splits
-        simp add: apply_tsks_Cons split_bang_comp.simps split_comp.simps)
+        simp add: apply_tsks_Cons ctx_wellformed_fn_Cons
+        apply_tsk_imp_split_bang_comp)
 qed (clarsimp intro!: split_bang.intros simp add: apply_tsks_Nil)
 
 fun split_comp_to_sps_comp where
@@ -482,17 +599,30 @@ lemma split_imp_apply_tsks:
   assumes
     "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
   shows
-    "verify_tsks K (split_to_sps \<Gamma> \<Gamma>1 \<Gamma>2) \<Gamma> \<and> apply_tsks (split_to_sps \<Gamma> \<Gamma>1 \<Gamma>2) \<Gamma> = (\<Gamma>1, \<Gamma>2)"
+    "ctx_wellformed_fn (length K) \<Gamma> \<and>
+     verify_tsks K (split_to_sps \<Gamma> \<Gamma>1 \<Gamma>2) \<Gamma> \<and>
+     apply_tsks (split_to_sps \<Gamma> \<Gamma>1 \<Gamma>2) \<Gamma> = (\<Gamma>1, \<Gamma>2) \<and>
+     list_all ((\<noteq>) TSK_NS) (split_to_sps \<Gamma> \<Gamma>1 \<Gamma>2)"
   using assms
 proof (induct rule: split_induct)
   case split_empty then show ?case
-    by (clarsimp simp add: verify_tsks_Nil2 apply_tsks_Nil split: prod.splits)
+    by (clarsimp simp add: verify_tsks_Nil2 apply_tsks_Nil ctx_wellformed_fn_nil split: prod.splits)
 next
   case (split_cons x xs y ys z zs)
   then show ?case
-    by (cases x; cases y; cases z; clarsimp split: prod.splits
-        simp add: verify_tsks_Cons apply_tsks_Cons list_all_cons split_comp.simps)
+    by (cases x; cases y; cases z; force split: prod.splits
+        simp add: verify_tsks_Cons apply_tsks_Cons list_all_cons split_comp.simps
+        kinding_iff_wellformedfn_and_kindingfn ctx_wellformed_fn_Cons)
 qed
+
+lemma split_iff_computational_split:
+  "(K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2) \<longleftrightarrow> (
+    let sps = split_to_sps \<Gamma> \<Gamma>1 \<Gamma>2
+     in (ctx_wellformed_fn (length K) \<Gamma> \<and>
+        verify_tsks K sps \<Gamma> \<and>
+        apply_tsks sps \<Gamma> = (\<Gamma>1, \<Gamma>2) \<and>
+        list_all ((\<noteq>) TSK_NS) sps))"
+  by (auto dest: split_imp_apply_tsks apply_tsks_imp_split simp add: Let_def)
 
 
 fun split_bang_comp_to_sps_comp where
@@ -513,20 +643,21 @@ fun split_bang_to_sps where
 lemma split_bang_imp_apply_tsks:
   assumes
     "K , is \<turnstile> \<Gamma> \<leadsto>b \<Gamma>1 | \<Gamma>2"
-    "list_all (\<lambda>t. t = None \<or> type_wellformed K (the t)) \<Gamma>"
+    "ctx_wellformed_fn (length K) \<Gamma>"
   shows
-    "verify_tsks K (split_bang_to_sps is \<Gamma> \<Gamma>1 \<Gamma>2) \<Gamma> \<and> apply_tsks (split_bang_to_sps is \<Gamma> \<Gamma>1 \<Gamma>2) \<Gamma> = (\<Gamma>1, \<Gamma>2)"
+    "verify_tsks K (split_bang_to_sps is \<Gamma> \<Gamma>1 \<Gamma>2) \<Gamma> \<and>
+      apply_tsks (split_bang_to_sps is \<Gamma> \<Gamma>1 \<Gamma>2) \<Gamma> = (\<Gamma>1, \<Gamma>2)"
   using assms
 proof (induct rule: split_bang.induct)
   case split_bang_nil then show ?case
-    by (clarsimp simp add: verify_tsks_Nil2 apply_tsks_Nil split: prod.splits)
+    by (clarsimp simp add: verify_tsks_Nil2 apply_tsks_Nil ctx_wellformed_fn_nil split: prod.splits)
 next
   case (split_bang_cons K "is" x y z xs ys zs)
   then show ?case
     by (cases x; cases y; cases z; clarsimp split: prod.splits
         simp add: verify_tsks_Cons apply_tsks_Cons list_all_cons
-        split_comp.simps split_bang_comp.simps;
-        cases "0 \<in> is"; force)
+        split_comp.simps split_bang_comp.simps ctx_wellformed_fn_Cons;
+        cases "0 \<in> is"; force simp add: kinding_iff_wellformedfn_and_kindingfn)
 qed
 
 
@@ -537,7 +668,7 @@ inductive ttyping :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Righ
       and ttyping_all :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Rightarrow> ctx \<Rightarrow> ttctx \<Rightarrow> 'f expr list \<Rightarrow> type list \<Rightarrow> bool"
           ("_, _, _, _ \<turnstile>2* _ : _" [55,0,0,0,0,55] 60) where
 
-  ttyping_var    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto>w singleton (length \<Gamma>) i t 
+  ttyping_var    : "\<lbrakk> verify_weakens_to_var K i t \<Gamma>
                    ; i < length \<Gamma>
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, CtxLeaf \<turnstile>2 Var i : t"
 
@@ -545,11 +676,11 @@ inductive ttyping :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Righ
                    ; list_all2 (kinding K) ts K' 
                    ; wellformed_fn (length K') t
                    ; wellformed_fn (length K') u
-                   ; K \<turnstile> \<Gamma> consumed
+                   ; verify_weakens_to_empty K \<Gamma>
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, CtxLeaf \<turnstile>2 AFun f ts : instantiate ts (TFun t u)"
 
 | ttyping_fun    : "\<lbrakk> \<Xi>, K', [Some t], T \<turnstile>2 f : u 
-                   ; K \<turnstile> \<Gamma> consumed
+                   ; verify_weakens_to_empty K \<Gamma>
                    ; wellformed_fn (length K') t
                    ; wellformed_fn (length K') u
                    ; list_all2 (kinding K) ts K'
@@ -625,10 +756,10 @@ inductive ttyping :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Righ
                    ; prim_op_type oper = (ts,t)
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, T \<turnstile>2 Prim oper args : TPrim t"
 
-| ttyping_lit    : "\<lbrakk> K \<turnstile> \<Gamma> consumed
+| ttyping_lit    : "\<lbrakk> verify_weakens_to_empty K \<Gamma>
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, CtxLeaf \<turnstile>2 Lit l : TPrim (lit_type l)" 
 
-| ttyping_unit   : "\<lbrakk> K \<turnstile> \<Gamma> consumed
+| ttyping_unit   : "\<lbrakk> verify_weakens_to_empty K \<Gamma>
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, CtxLeaf \<turnstile>2 Unit : TUnit"
 
 | ttyping_struct : "\<lbrakk> \<Xi>, K, \<Gamma>, T \<turnstile>2* es : ts
@@ -679,7 +810,8 @@ lemma ttyping_and_ctx_wellformed_impl_wellformed:
   using assms
 proof (induct rule: ttyping_ttyping_all.inducts)
   case ttyping_var then show ?case
-    by (force dest: weakening_preservation simp add: Cogent.empty_def list_all_length ctx_wellformed_fn_def)
+    by (force dest: weakening_preservation
+        simp add: verify_weakens_to_var_def Cogent.empty_def list_all_length ctx_wellformed_fn_def)
 next
   case ttyping_afun then show ?case
     by (auto intro!: wellformedfn_preserves_instantiate
@@ -743,12 +875,19 @@ lemma ttyping2_imp_typing:
     "\<Xi>, K, \<Gamma>, T \<turnstile>2* es : ts \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile>* es : ts"
   using assms
 proof (induct rule: ttyping_ttyping_all.inducts)
+  case (ttyping_var K i t \<Gamma> \<Xi>)
+  then show ?case
+    by (auto intro!: typing_typing_all.intros simp add: empty_def dest: verify_weakens_to_var_imp_weakening_to_var)
+next
   case ttyping_afun then show ?case
-    by (auto intro!: typing_typing_all.intros simp add: kinding_iff_wellformedfn_and_kindingfn)
+    by (auto intro!: typing_typing_all.intros
+        simp add: kinding_iff_wellformedfn_and_kindingfn Cogent.empty_def
+        weakening_to_empty_iff_verify_weakens_to_empty)
 next
   case ttyping_fun then show ?case
     by (auto intro!: typing_typing_all.intros
-        simp add: ctx_wellformed_fn_Cons ctx_wellformed_fn_nil kinding_iff_wellformedfn_and_kindingfn)
+        simp add: ctx_wellformed_fn_Cons ctx_wellformed_fn_nil Cogent.empty_def
+        kinding_iff_wellformedfn_and_kindingfn weakening_to_empty_iff_verify_weakens_to_empty)
 next
   case ttyping_con then show ?case
     by (fastforce simp del: type_wellformed_all_def
@@ -877,7 +1016,9 @@ next
   ultimately show ?case
     by (auto simp add: kinding_iff_wellformedfn_and_kindingfn ctx_wellformed_fn_Cons
         intro!: typing_typing_all.intros)
-qed (auto simp add: verify_tsks_nobang_def intro!: typing_typing_all.intros
-        dest: apply_tsks_preserves_ctx_wellformedfn apply_tsks_imp_split)
+qed (auto intro!: typing_typing_all.intros
+      simp add: verify_tsks_nobang_def weakening_to_empty_iff_verify_weakens_to_empty
+      Cogent.empty_def
+      dest: apply_tsks_preserves_ctx_wellformedfn apply_tsks_imp_split)
 
 end
