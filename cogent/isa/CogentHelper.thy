@@ -195,6 +195,9 @@ lemma list_update_eq_id:
 
 lemmas ttsplit_innerI_True = ttsplit_innerI[where kndng=True, simplified]
 
+
+section {* Tactic Interpretation ML code *}
+
 ML {*
 
 structure TTyping_Tactics = struct
@@ -269,13 +272,14 @@ fun typing_hint (TypingTacs tac :: hints) = (tac, hints)
   | typing_hint hints = raise HINTS ("typing", hints)
 
 fun apply_split @{term "Some TSK_L"} hints t = ((t, NONE), hints)
+  | apply_split @{term "Some TSK_R"} hints t = ((NONE, t), hints)
   | apply_split @{term "Some TSK_S"} hints t = ((t, t), hints)
   | apply_split @{term "Some TSK_NS"} hints t = let
     val (tacs, hints) = kinding hints
     val thm = case tacs of [RTac thm] => thm 
       | _ => raise HINTS ("apply_split: TSK_NS", [KindingTacs tacs])
   in ((SOME thm, t), hints) end
-  | apply_split @{term "None :: type_split_kind option"} hints t = ((NONE, t), hints)
+  | apply_split @{term "None :: type_split_kind option"} hints _ = ((NONE, NONE), hints)
   | apply_split t _ _ = raise TERM ("apply_split", [t])
 
 fun apply_splits ((sp, t) :: sp_ts) hints = let
@@ -344,7 +348,7 @@ fun ttsplit_inner (@{term "Some TSK_S"} :: tsks) (SOME p :: Gamma) ctxt =
       THEN' (resolve_tac ctxt [p])
       THEN' rest ctxt
     end
-  | ttsplit_inner (@{term "None :: type_split_kind option"} :: tsks) (SOME p :: Gamma) ctxt =
+  | ttsplit_inner (@{term "Some TSK_R :: type_split_kind option"} :: tsks) (SOME p :: Gamma) ctxt =
     let
       val rest = ttsplit_inner tsks Gamma
     in resolve_tac ctxt @{thms ttsplit_innerI_True(2)}
@@ -371,7 +375,7 @@ fun ttsplit_bang_inner (@{term "Some TSK_S"} :: tsks) (SOME p :: Gamma) = let
   | ttsplit_bang_inner (@{term "Some TSK_L"} :: tsks) (SOME p :: Gamma) = let
     val rest = ttsplit_bang_inner tsks Gamma
   in [RTac @{thm ttsplit_bang_innerI(3)}, RTac p] @ rest end
-  | ttsplit_bang_inner (@{term "None :: type_split_kind option"} :: tsks) (SOME p :: Gamma) = let
+  | ttsplit_bang_inner (@{term "Some TSK_R :: type_split_kind option"} :: tsks) (SOME p :: Gamma) = let
     val rest = ttsplit_bang_inner tsks Gamma
   in [RTac @{thm ttsplit_bang_innerI(2)}, RTac p] @ rest end
   | ttsplit_bang_inner (@{term "None :: type_split_kind option"} :: tsks) (NONE :: Gamma) = let
