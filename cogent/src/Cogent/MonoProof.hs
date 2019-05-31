@@ -60,7 +60,7 @@ monoExprThms src = ContextDecl $ Context "value_sem" $ ctxBody
                      , "  (* Get mono-to-poly mapping from the assoc-list for @{term rename} *)"
                      , "  val rename_inverse ="
                      , "    Thm.prop_of @{thm rename__assocs_def}"
-                     , "    |> Logic.dest_equals |> snd"
+                     , "    |> Logic.dest_equals |> prod.snd"
                      , "    |> HOLogic.dest_list"
                      , "    |> map (HOLogic.dest_prod #> apfst HOLogic.dest_prod)"
                      , "    |> map (fn ((poly_f, typs), mono_f) => (HOLogic.dest_string mono_f, (HOLogic.dest_string poly_f, typs)))"
