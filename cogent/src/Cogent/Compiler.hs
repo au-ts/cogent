@@ -111,6 +111,7 @@ set_flag_cppArgs = writeIORef __cogent_cpp_args_ref
 set_flag_custTyGen = writeIORef __cogent_cust_ty_gen_ref . Just
 set_flag_ddumpSmt = writeIORef __cogent_ddump_smt_ref True
 set_flag_ddumpTc = writeIORef __cogent_ddump_tc_ref True
+set_flag_ddumpTokens = writeIORef __cogent_ddump_tokens_ref True
 set_flag_ddumpTcCtx = writeIORef __cogent_ddump_tc_ctx_ref True
 set_flag_ddumpTcFilter = writeIORef __cogent_ddump_tc_filter_ref . Just . words
 set_flag_ddumpToFile = writeIORef __cogent_ddump_to_file_ref . Just
@@ -266,6 +267,13 @@ __cogent_ddump_smt = unsafePerformIO $ readIORef __cogent_ddump_smt_ref
 __cogent_ddump_smt_ref :: IORef Bool
 {-# NOINLINE __cogent_ddump_smt_ref #-}
 __cogent_ddump_smt_ref = unsafePerformIO $ newIORef False
+
+__cogent_ddump_tokens :: Bool
+__cogent_ddump_tokens = unsafePerformIO $ readIORef __cogent_ddump_tokens_ref
+
+__cogent_ddump_tokens_ref :: IORef Bool
+{-# NOINLINE __cogent_ddump_tokens_ref #-}
+__cogent_ddump_tokens_ref = unsafePerformIO $ newIORef False
 
 __cogent_ddump_tc :: Bool
 __cogent_ddump_tc = unsafePerformIO $ readIORef __cogent_ddump_tc_ref

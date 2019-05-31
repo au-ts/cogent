@@ -61,6 +61,7 @@ import Cogent.Normal                   as NF (normal, verifyNormal)
 import Cogent.Parser                   as PA (parseWithIncludes, parseCustTyGen)
 import Cogent.Preprocess               as PR
 import Cogent.PrettyPrint              as PP (prettyPrint, prettyRE, prettyTWE)
+import Cogent.PrettifyLexer            as PL (lexFile)
 import Cogent.Reorganizer              as RO (reorganize)
 import Cogent.Simplify                 as SM
 import Cogent.SuParser                 as SU (parse)
@@ -131,6 +132,7 @@ data Command = AstC
              | CorresSetup
              | CorresProof
              | Documentation
+             | DumpTokens 
              | CRefinement  -- !
              | Ast       Stage
              | Pretty    Stage
@@ -448,6 +450,7 @@ flags =
   , Option []         ["ddump-tc-ctx"]     3 (NoArg set_flag_ddumpTcCtx)                   "dump surface typechecking with context"
   , Option []         ["ddump-tc-filter"]  3 (ReqArg set_flag_ddumpTcFilter "KEYWORDS")    "a space-separated list of keywords to indicate which groups of info to display (gen, sol, post, tc)"
   , Option []         ["ddump-to-file"]    3 (ReqArg set_flag_ddumpToFile "FILE")          "dump debugging output to specific file instead of terminal"
+  , Option []         ["ddump-tokens"]     3 (NoArg set_flag_ddumpTokens)                  "dump token stream to stdout from prettify lexer"
   -- behaviour
   , Option []         ["fcheck-undefined"]    2 (NoArg set_flag_fcheckUndefined)           "(default) check for undefined behaviours in C"
   , Option ['B']      ["fdisambiguate-pp"]    3 (NoArg set_flag_fdisambiguatePp)           "when pretty-printing, also display internal representation as comments"
@@ -591,6 +594,7 @@ parseArgs args = case getOpt' Permute options args of
          | Just (StackUsage p) <- find isStackUsage cmds -> stack_usage cmds p source
          | otherwise -> exitSuccess
 
+
     c_parse cmds source = do
       putProgressLn "Parsing C file..."
       let hl, hr :: forall a b. Show a => a -> IO b
@@ -608,6 +612,10 @@ parseArgs args = case getOpt' Permute options args of
         Right sus -> writeFileMsg outf >> output outf (flip hPutStrLn (show sus)) >> exitSuccess
 
     parse cmds source buildinfo log = do
+      tokens <- PL.lexFile source
+      if __cogent_ddump_tokens then 
+         putStrLn $ unlines $ map show tokens
+      else return ()
       let stg = STGParse
       putProgressLn "Parsing..."
       parseWithIncludes source [] >>= \case

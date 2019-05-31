@@ -1,3 +1,4 @@
+module Cogent.PrettifyLexer where
 -- currently not in lexer:
 --  :<
 --  the < == thing
@@ -25,6 +26,7 @@ data SourcePos
           , line :: Int
           , file :: FilePath
           }
+        deriving (Show)
 
 data Token
     = Kwd Keyword
@@ -32,9 +34,10 @@ data Token
     | Land | Lor
     | Geq | Leq | Gt | Lt | Eq | Neq
     | Band | Bor | Bxor | Lshift | Rshift
-    | Col | Assgn | Bar | Bang
-    | Dot | Ddot | Underscore | 
-    | Unbox | Typeapp | 
+    | Col | Define | Bar | Bang
+    | Dot | Ddot | Underscore | Hash 
+    | Unbox | Typeapp
+    | Langle | Rangle | Lparen | Rparen | Lbracket | Rbracket
     | Llikely | Likely | MLikely
     | Number Int
     deriving(Show)
@@ -42,7 +45,8 @@ data Token
 data Keyword 
     = Let | In | Type | Include | All | Take | Put
     | Inline | Upcast | Repr | Variant | Record | At
-    | If | Then | Else | Not | Complement | And | True | False
+    | If | Then | Else | Not | Complement | And 
+    deriving(Show)
 
 symTokens :: M.Map String Token
 symTokens = M.fromList 
@@ -90,11 +94,11 @@ preprocess p (c:cs) = (c,p):preprocess (p {col = col p + 1}) cs
 lexer :: [(Char, SourcePos)] -> [(Token, SourcePos)]
 lexer [] = []
 lexer (c:cs) | isSpace (fst c) = lexer cs
-lexer cs     | Just t <- M.lookup symTokens (take 3 (map fst c))
+lexer cs     | Just t <- M.lookup (take 3 (map fst cs)) symTokens 
                 = (t, snd(head cs)):lexer (drop 3 cs)
-lexer cs     | Just t <- M.lookup symTokens (take 2 (map fst c))
+lexer cs     | Just t <- M.lookup (take 2 (map fst cs)) symTokens 
                 = (t, snd(head cs)):lexer (drop 2 cs)
-lexer cs     | Just t <- M.lookup symTokens (take 1 (map fst c))
+lexer cs     | Just t <- M.lookup (take 1 (map fst cs)) symTokens 
                 = (t, snd(head cs)):lexer (drop 1 cs)
 
 lexer (c:cs) | isAlpha (fst c) = let
@@ -121,11 +125,16 @@ lexer (c:cs) | isAlpha (fst c) = let
         toToken "not" = Kwd Not
         toToken "complement" = Kwd Complement
         toToken "and" = Kwd And
-        toToken "true" = Kwd True
-        toToken "false" = Kwd False
 
 lexer (c:cs) | isDigit (fst c) = let
     (numStr, rest) = span (isDigit . fst) (c:cs)
     in (Number (read (map fst numStr)), snd c): lexer rest
 
 lexer _ = []
+
+lexFile :: FilePath -> IO [(Token, SourcePos)]
+lexFile fp = do 
+    contents <- readFile fp
+    pure (lexer (preprocess initialSourcePos contents))
+  where
+    initialSourcePos = Pos 0 0 fp
