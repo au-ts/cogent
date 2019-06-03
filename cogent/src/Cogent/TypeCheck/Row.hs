@@ -105,8 +105,8 @@ justVar _ = False
 -- | Returns true iff the two rows could be considered equal after unification.
 compatible :: Row t -> Row t -> Bool
 compatible (Row m1 Nothing) (Row m2 Nothing) = M.keysSet m1 == M.keysSet m2
-compatible (Row m1 Nothing) (Row m2 (Just _)) = M.keysSet m1 `S.isSubsetOf` M.keysSet m2
-compatible (Row m1 (Just _)) (Row m2 Nothing) = M.keysSet m2 `S.isSubsetOf` M.keysSet m1
+compatible (Row m1 Nothing) (Row m2 (Just _)) = M.keysSet m2 `S.isSubsetOf` M.keysSet m1
+compatible (Row m1 (Just _)) (Row m2 Nothing) = M.keysSet m1 `S.isSubsetOf` M.keysSet m2
 compatible (Row m1 (Just x)) (Row m2 (Just y)) = x /= y || M.keysSet m1 == M.keysSet m2
 
 -- | Returns all types not marked as 'Taken' in the row.

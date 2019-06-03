@@ -84,7 +84,7 @@ solve ks c = let gs     = makeGoals [] c
                           debugL "Equate" equate <>
                           debugL "Defaults" defaults
                  rw     = debugF "Initial constraints" <>
-                          Rewrite.untilFixedPoint (Rewrite.pre normaliseTypes $ Rewrite.pre cnub $ stages)
+                          Rewrite.untilFixedPoint (Rewrite.pre normaliseTypes $ stages)
               in fmap (fromMaybe gs) (runMaybeT (Rewrite.run' rw gs))
  where
   debug  nm rw = rw `Rewrite.andThen` Rewrite.debugPass ("\n===Rewrite " ++ nm ++ "===") printC
