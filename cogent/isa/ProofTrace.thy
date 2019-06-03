@@ -21,55 +21,20 @@ begin
 (* begin: tactic trace code *)
 (* Proof of concept implementation. DO NOT USE THIS CODE *)
 ML {*
-datatype 'tag Step = Step of ('tag * tactic * int)
-
 datatype 'tag TraceSuccess = TraceSuccess of { goal : thm
                                              , succeeded : 'tag TraceSubgoal list
                                              , theorem : thm
                                              }
      and 'tag TraceFailure = TraceFailure of { goal : thm
-                                             , succeeded : 'tag TraceSubgoal list
-                                             , failed : 'tag FailedSubgoal
-                                             , remaining_goals : term list
+                                             , failed_subgoal : thm
+                                             , fail_steps : 'tag TraceFailure list
                                              }
-     and 'tag FailedSubgoal = FailedProof of { subgoal : thm
-                                             , fail_steps : { step : 'tag Step
-                                                            , trace : 'tag TraceFailure
-                                                            } list
-                                             } (* nested TraceFailure gives reason *)
-                            | FailedDepth      (* depth_limit reached 0 *)
      and 'tag TraceSubgoal = TraceSubgoal of { subgoal : thm
                                              , subtheorem : thm (* same as `#theorem subproof` *) 
-                                             , fail_steps : { step : 'tag Step
-                                                            , trace : 'tag TraceFailure
-                                                            } list
-                                             , step : 'tag Step
                                              , subproof : 'tag TraceSuccess
                                              }
 
-fun TraceSuccess_erase_backtracking (TraceSuccess { goal, theorem, succeeded }) =
-      TraceSuccess { goal = goal, theorem = theorem, succeeded = map TraceSubgoal_erase_backtracking succeeded }
-and TraceFailure_erase_backtracking (TraceFailure {goal, succeeded, failed, remaining_goals }) =
-      TraceFailure { goal = goal
-                   , succeeded = succeeded |> map TraceSubgoal_erase_backtracking
-                   , failed = FailedSubgoal_erase_backtracking failed
-                   , remaining_goals = remaining_goals
-                   }
-and FailedSubgoal_erase_backtracking (FailedProof { subgoal, fail_steps }) =
-  FailedProof { subgoal = subgoal
-              , fail_steps = fail_steps |> take 1 (* get rid of everything but the one that succeeded *)
-                                        |> map (fn fs => { step = #step fs
-                                                         , trace = #trace fs |> TraceFailure_erase_backtracking
-                                                         })
-              }
-| FailedSubgoal_erase_backtracking FailedDepth = FailedDepth
-and TraceSubgoal_erase_backtracking (TraceSubgoal { subgoal, subtheorem, fail_steps = _, step, subproof }) =
-      TraceSubgoal { subgoal = subgoal
-                   , subtheorem = subtheorem
-                   , fail_steps = []
-                   , step = step
-                   , subproof = TraceSuccess_erase_backtracking subproof
-                   }
+fun TraceSuccess_erase_backtracking x = x
 *}
 
 
@@ -78,73 +43,50 @@ ML {*
 type ttag = TTyping_Tactics.tac option
 
 fun trace_solve_tac (ctxt : Proof.context)
-                    (backtrack : bool)
                     (get_tacs : 'data -> ('data * ttag * tactic))
-                    (data0 : 'data) (goal0 : thm)
-                    (depth_limit : int option)
+                    (data0 : 'data)
+                    (goal0 : thm)
                     : 'data * (ttag TraceFailure, ttag TraceSuccess) Either =
   let val subgoals0 = Thm.prems_of goal0
   in
-  (* special case, technically would be covered by solve. Copied because we want depth failure *after* this *)
+  (* special case, technically would be covered by solve *)
   if null subgoals0 then (data0, TraceSuccess { goal = goal0, theorem = goal0, succeeded = [] } |> Right) else
-  if depth_limit = SOME 0 then
-      (data0, TraceFailure { goal = goal0
-                           , succeeded = []
-                           , failed = FailedDepth
-                           , remaining_goals = subgoals0
-                           } |> Left)
-  else let
+  let
     fun solve data goal subproofs_rev =
         case 1 upto (Thm.nprems_of goal) |> map (fn i => Thm.cprem_of goal i) of
           [] => (data, TraceSuccess { goal = goal0
                                     , theorem = goal
                                     , succeeded = rev subproofs_rev
                                     } |> Right)
-        | (subgoal_term :: remaining_subgoals) =>
+        | (subgoal_term :: _) =>
               let (* Try all results from all tactics until we obtain a successful proof.
                    * NB: tactics should return finite results! *)
                 val subgoal = Goal.init subgoal_term
                 (* try all the tactics in the list to solve subgoal *)
                 val (data', tag, tactic) = get_tacs data
                 (* try to find a result from the tactic which solves the subgoal  *)
-                fun try_results n tactic_results fails =
+                fun try_results tactic_results fails =
                     case Seq.pull tactic_results of
                         NONE => (data', Left fails) (* the tactic failed *)
-                      | SOME (subgoal', tactic_results') => solve_subgoal n subgoal' tactic_results' fails
+                      | SOME (subgoal', _) => solve_subgoal subgoal' fails
                 (* recursively solve subgoal' *)
-                and solve_subgoal n subgoal' tactic_results fails =
-                  let val tagged_step = Step (tag, tactic, n)
-                  in case trace_solve_tac ctxt backtrack get_tacs data' subgoal'
-                    (option_decr depth_limit)
-                    of
-                      (_, Left fail) => if backtrack then
-                                          try_results (n+1) tactic_results
-                                          ({ step = tagged_step
-                                           , trace = fail } :: fails)
-                                        else (data', Left [{ step = tagged_step, trace = fail }])
-                    | (data, Right (trace as TraceSuccess trace')) =>
-                        (data, TraceSubgoal { subgoal = subgoal
-                                            , subtheorem = #theorem trace'
-                                            , fail_steps = fails
-                                            , step = tagged_step
-                                            , subproof = trace
-                                            } |> Right)
-                  end
-               in case try_results 0 (tactic subgoal) [] of
+                and solve_subgoal subgoal' _ =
+                  case trace_solve_tac ctxt get_tacs data' subgoal'
+                  of
+                    (_, Left fail) => (data', Left [ fail ])
+                  | (data, Right (trace as TraceSuccess trace')) =>
+                      (data, TraceSubgoal { subgoal = subgoal
+                                          , subtheorem = #theorem trace'
+                                          , subproof = trace
+                                          } |> Right)
+               in case try_results (tactic subgoal) [] of
                       (_, Left fails) => (data, TraceFailure
                                                 { goal = goal0
-                                                , succeeded = rev subproofs_rev
-                                                , failed = FailedProof { subgoal = subgoal
-                                                                       , fail_steps = fails
-                                                                       }
-                                                , remaining_goals = map Thm.term_of remaining_subgoals
+                                                , failed_subgoal = subgoal
+                                                , fail_steps = fails
                                                 } |> Left)
                     | (data, Right (subproof as TraceSubgoal subproof')) =>
                           let val subtheorem = #subtheorem subproof' in
-(*
-                          case my_unify_fact_tac ctxt (Goal.finish ctxt subtheorem) 1 goal
-                               |> Seq.pull of
-*)
                           case resolve_tac ctxt [Goal.finish ctxt subtheorem] 1 goal |> Seq.pull of
                               NONE =>
                                 let
@@ -182,12 +124,10 @@ and filter_TraceSubgoal PSuccess PSubgoal (TraceSubgoal tr) =
       if not (PSubgoal tr) then [] else filter_trace PSuccess PSubgoal (#subproof tr);
 
 
-fun get_failing_goal (TraceFailure {failed, ...}) =
-  get_failing_subgoal failed
-and get_failing_subgoal (FailedProof {subgoal, fail_steps = [{trace, ...}], ...})
-  = subgoal :: get_failing_goal trace
-| get_failing_subgoal (FailedProof {subgoal, fail_steps = []})
-  = [subgoal]
+fun get_failing_goal (TraceFailure {failed_subgoal, fail_steps = (trace :: _), ...}) =
+  failed_subgoal :: get_failing_goal trace
+| get_failing_goal (TraceFailure {failed_subgoal, fail_steps = [], ...}) =
+  failed_subgoal :: []
 
 fun is_const n (Const (name, _)) = n = name
   | is_const _ _ = false;
@@ -201,13 +141,12 @@ fun unprop (Const (@{const_name Pure.prop}, _) $ t) = unprop t
 
 ML {*
 fun extract_subproofs goal tactics is_interesting ctxt =
-  trace_solve_tac ctxt true
+  trace_solve_tac ctxt
     (fn n => (if n >= length tactics
               then raise (ERROR ("bad subscript for tactics list, len: " ^ (@{make_string} (length tactics)) ^ ", idx: " ^ (@{make_string} n)))
               else nth tactics n |> (fn (tag, tac) => (n+1, tag, tac))))
     0
     (Goal.init goal)
-    NONE
   |> (fn (_, result) =>
         mapEitherR
           (fn tr => filter_trace (is_interesting o unprop o Thm.prop_of o #theorem) (K true) tr)
