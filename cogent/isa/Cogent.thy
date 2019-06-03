@@ -564,16 +564,19 @@ lemmas split_conv_all_nth = list_all3_conv_all_nth[where P="split_comp K" for K,
 definition pred :: "nat \<Rightarrow> nat" where
   "pred n \<equiv> (case n of Suc n' \<Rightarrow> n')"
 
-inductive split_bang_comp :: "kind env \<Rightarrow> bool \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> bool" ("_ , _ \<turnstile> _ \<leadsto>b _ \<parallel> _") where
+inductive split_bang_comp :: "kind env \<Rightarrow> bool \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> bool" ("_ , _ \<turnstile> _ \<leadsto>b _ \<parallel> _" [55,0,0,0,55] 60) where
   none   : "K \<turnstile> x \<leadsto> a \<parallel> b \<Longrightarrow> K , False \<turnstile> x \<leadsto>b a \<parallel> b"
 | dobang : "K \<turnstile> x wellformed \<Longrightarrow> K , True \<turnstile> Some x \<leadsto>b Some (bang x) \<parallel> Some x"
 
-inductive split_bang :: "kind env \<Rightarrow> index set \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool"  ("_ , _ \<turnstile> _ \<leadsto>b _ | _" [30,0,0,20] 60) where
+inductive split_bang :: "kind env \<Rightarrow> index set \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool"  ("_ , _ \<turnstile> _ \<leadsto>b _ | _" [55,0,0,0,55] 60) where
   split_bang_empty : "K , is \<turnstile> [] \<leadsto>b [] | []"
 | split_bang_cons  : "\<lbrakk> K , (pred ` Set.remove (0 :: index) is) \<turnstile> xs \<leadsto>b as | bs
                       ; K, (0 \<in> is) \<turnstile> x \<leadsto>b a \<parallel> b
                       \<rbrakk> \<Longrightarrow> K , is \<turnstile> x # xs \<leadsto>b a # as | b # bs"
 
+lemma split_bang_Cons:
+  "K , is \<turnstile> x # xs \<leadsto>b a # as | b # bs \<longleftrightarrow> (K, (0 \<in> is) \<turnstile> x \<leadsto>b a \<parallel> b \<and> K , (pred ` Set.remove (0 :: index) is) \<turnstile> xs \<leadsto>b as | bs)"
+  by (auto elim: split_bang.cases intro: split_bang.intros)
 
 inductive weakening_comp :: "kind env \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> bool" where
   none : "weakening_comp K None None"
