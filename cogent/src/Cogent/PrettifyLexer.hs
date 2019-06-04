@@ -42,6 +42,7 @@ data Token
     | Number Int
     | UpperIdent String
     | LowerIdent String
+    | StringLit String
     | Unknown Char
     deriving(Show)
 
@@ -100,6 +101,10 @@ lexer [] = []
 lexer cs     | take 2 (map fst cs) == "--"
                 = let (comment, rest) = span ((/= '\n') . fst) cs
                 in lexer rest
+lexer (c:cs) | fst c == '"'
+                = let (string, rest) = span ((/= '"') . fst) cs
+                in (StringLit (map fst string), snd c): lexer (drop 1 rest)
+                
 lexer (c:cs) | isSpace (fst c) = lexer cs
 lexer cs     | Just t <- M.lookup (take 3 (map fst cs)) symTokens 
                 = (t, snd(head cs)):lexer (drop 3 cs)
