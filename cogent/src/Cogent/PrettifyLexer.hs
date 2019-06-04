@@ -18,7 +18,7 @@ module Cogent.PrettifyLexer where
 -- something with error handling (replacing the original |>)
 -- track source locations
 
-import Data.Char(isSpace, isAlpha, isDigit)
+import Data.Char(isSpace, isAlpha, isDigit, isUpper, isAlphaNum)
 import qualified Data.Map as M
 
 data SourcePos
@@ -31,15 +31,18 @@ data SourcePos
 data Token
     = Kwd Keyword
     | Plus | Minus | Times | Divide | Modulo
-    | Land | Lor
-    | Geq | Leq | Gt | Lt | Eq | Neq
-    | Band | Bor | Bxor | Lshift | Rshift
+    | LAnd | LOr
+    | GEq | LEq | Gt | Lt | Eq | NEq
+    | BAnd | BOr | BXor | LShift | RShift
     | Col | Define | Bar | Bang
-    | Dot | Ddot | Underscore | Hash 
-    | Unbox | Typeapp
-    | Langle | Rangle | Lparen | Rparen | Lbracket | Rbracket
-    | Llikely | Likely | MLikely
+    | Dot | DDot | Underscore | Hash | Comma
+    | Unbox | TypeApp
+    | LAngle | RAngle | LParen | RParen | LBracket | RBracket
+    | TildeArrow | Arrow | ThickArrow
     | Number Int
+    | UpperIdent String
+    | LowerIdent String
+    | Unknown Char
     deriving(Show)
 
 data Keyword 
@@ -50,21 +53,21 @@ data Keyword
 
 symTokens :: M.Map String Token
 symTokens = M.fromList 
-            [ (".&.", Band)
-            , (".|.", Bor)
-            , (".^.", Bxor)
-            , ("&&", Land)
-            , ("||", Lor)
-            , (">=", Geq)
-            , ("<=", Leq)
+            [ (".&.", BAnd)
+            , (".|.", BOr)
+            , (".^.", BXor)
+            , ("&&", LAnd)
+            , ("||", LOr)
+            , (">=", GEq)
+            , ("<=", LEq)
             , ("==", Eq)
-            , ("/=", Neq)
-            , ("<<", Lshift)
-            , (">>", Rshift)
-            , ("..", Ddot)
-            , ("->", Likely)
-            , ("=>", MLikely)
-            , ("~>", Llikely)
+            , ("/=", NEq)
+            , ("<<", LShift)
+            , (">>", RShift)
+            , ("..", DDot)
+            , ("->", Arrow)
+            , ("=>", ThickArrow)
+            , ("~>", TildeArrow)
             , ("+", Plus)
             , ("-", Minus)
             , ("*", Times)
@@ -77,13 +80,14 @@ symTokens = M.fromList
             , (".", Dot)
             , ("_", Underscore)
             , ("#", Hash)
-            , ("@", Typeapp)
-            , ("<", Langle)
-            , (">", Rangle)
-            , ("(", Lparen)
-            , (")", Rparen)
-            , ("[", Lbracket)
-            , ("]", Rbracket)
+            , ("@", TypeApp)
+            , ("<", LAngle)
+            , (">", RAngle)
+            , ("(", LParen)
+            , (")", RParen)
+            , ("[", LBracket)
+            , ("]", RBracket)
+            , (",", Comma)
             ]
 
 preprocess :: SourcePos -> String -> [(Char, SourcePos)]
@@ -93,6 +97,9 @@ preprocess p (c:cs) = (c,p):preprocess (p {col = col p + 1}) cs
     
 lexer :: [(Char, SourcePos)] -> [(Token, SourcePos)]
 lexer [] = []
+lexer cs     | take 2 (map fst cs) == "--"
+                = let (comment, rest) = span ((/= '\n') . fst) cs
+                in lexer rest
 lexer (c:cs) | isSpace (fst c) = lexer cs
 lexer cs     | Just t <- M.lookup (take 3 (map fst cs)) symTokens 
                 = (t, snd(head cs)):lexer (drop 3 cs)
@@ -102,7 +109,7 @@ lexer cs     | Just t <- M.lookup (take 1 (map fst cs)) symTokens
                 = (t, snd(head cs)):lexer (drop 1 cs)
 
 lexer (c:cs) | isAlpha (fst c) = let
-    (word, rest) = span (isAlpha . fst) (c:cs)
+    (word, rest) = span (\(x,_) -> isAlphaNum x || x `elem` "_'") (c:cs)
     in (toToken (map fst word), snd c) : lexer rest
     where
         toToken :: String -> Token
@@ -125,11 +132,15 @@ lexer (c:cs) | isAlpha (fst c) = let
         toToken "not" = Kwd Not
         toToken "complement" = Kwd Complement
         toToken "and" = Kwd And
+        toToken str@(x:xs) = 
+            if isUpper x then UpperIdent str else LowerIdent str
+
 
 lexer (c:cs) | isDigit (fst c) = let
     (numStr, rest) = span (isDigit . fst) (c:cs)
     in (Number (read (map fst numStr)), snd c): lexer rest
 
+lexer (c:cs) = (Unknown (fst c), snd c) : lexer cs
 lexer _ = []
 
 lexFile :: FilePath -> IO [(Token, SourcePos)]
