@@ -42,3 +42,4 @@ impl/fs/vfat/vfat_test/
 impl/fs/vfat_orig/
 impl/fs/vfat/cogent/misc/
 .cache.mk
+autocorres/
