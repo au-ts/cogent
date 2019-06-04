@@ -37,7 +37,7 @@ data Token
     | Col | Define | Bar | Bang
     | Dot | DDot | Underscore | Hash | Comma
     | Unbox | TypeApp
-    | LAngle | RAngle | LParen | RParen | LBracket | RBracket
+    | LAngle | RAngle | LParen | RParen | LBracket | RBracket | LBrace | RBrace
     | TildeArrow | Arrow | ThickArrow
     | Number Int
     | UpperIdent String
@@ -88,6 +88,8 @@ symTokens = M.fromList
             , (")", RParen)
             , ("[", LBracket)
             , ("]", RBracket)
+            , ("{", LBrace)
+            , ("}", RBrace)
             , (",", Comma)
             ]
 
