@@ -449,7 +449,7 @@ flags =
   -- external programs
   , Option []         ["cogent-pp-args"] 2 (ReqArg (set_flag_cogentPpArgs) "ARG..")        "arguments given to Cogent preprocessor (same as cpphs)"
   , Option []         ["cpp"]            2 (ReqArg (set_flag_cpp) "PROG")                  "set which C-preprocessor to use (default to cpp)"
-  , Option []         ["cpp-args"]       2 (ReqArg (set_flag_cppArgs . words) "ARG..")     "arguments given to C-preprocessor (default to $CPPIN -E -P -o $CPPOUT)"
+  , Option []         ["cpp-args"]       2 (ReqArg (set_flag_cppArgs . words) "ARG..")     "arguments given to C-preprocessor (default to $CPPIN -P -o $CPPOUT)"
   -- debugging options
   , Option []         ["ddump-smt"]        3 (NoArg set_flag_ddumpSmt)                     "dump verbose SMT-solving information"
   , Option []         ["ddump-tc"]         3 (NoArg set_flag_ddumpTc)                      "dump (massive) surface typechecking internals"
@@ -868,8 +868,11 @@ parseArgs args = case getOpt' Permute options args of
           funcfiles <- forM acfiles $ \funcfile -> do
             let outfile = __cogent_dist_dir `combine` takeFileName (replaceBaseName funcfile (takeBaseName funcfile ++ __cogent_suffix_of_pp))
             putProgressLn $ "Preprocessing C files..."
-            let cppargs = map (replace "$CPPIN" funcfile . replace "$CPPOUT" outfile) __cogent_cpp_args
-            (cppcode, cppout, cpperr) <- readProcessWithExitCode __cogent_cpp cppargs []
+            -- vvv This is needed because e.g. $(CPP) is defined to be `cc -E'.
+            -- The functions in the `process' module normally want the command and the arguments separated.
+            let cppcmd:cpparg = words __cogent_cpp
+                cppargs = cpparg ++ map (replace "$CPPIN" funcfile . replace "$CPPOUT" outfile) __cogent_cpp_args
+            (cppcode, cppout, cpperr) <- readProcessWithExitCode cppcmd cppargs []
             when (not $ null cpperr) $ hPutStrLn stderr cpperr
             when (cppcode /= ExitSuccess) $ exitFailure
             writeFileMsg (Just outfile)
