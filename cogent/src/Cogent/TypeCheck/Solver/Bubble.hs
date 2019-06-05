@@ -32,11 +32,11 @@ bubble = Rewrite.pickOne' go
     V r :< v
      | fs <- discard_common v $ get_present r
      , not $ M.null fs
-     -> make_constraints V (flip (:<)) fs g v
+     -> make_constraints V (:<) fs g v
     v :< V r
      | fs <- discard_common v $ get_taken r
      , not $ M.null fs
-     -> make_constraints V (:<) fs g v
+     -> make_constraints V (flip (:<)) fs g v
 
     _ -> MaybeT $ pure Nothing
 
