@@ -1,0 +1,3 @@
+
+typedef FILE $id:(FileRead s);
+typedef FILE $id:(FileWrite s);
