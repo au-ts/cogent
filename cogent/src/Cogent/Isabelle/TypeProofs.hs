@@ -143,8 +143,8 @@ formatMLTreeFinalise name =
 formatTypecorrectProof :: String -> [TheoryDecl I.Type I.Term]
 formatTypecorrectProof fn =
   [ LemmaDecl (Lemma False (Just $ TheoremDecl (Just (fn ++ "_typecorrect")) [])
-          [mkId $ "\\<Xi>, fst " ++ fn ++ "_type, (" ++ fn ++ "_typetree, [Some (fst (snd " ++ fn ++ "_type))]) T\\<turnstile> " ++
-                  fn ++ " : snd (snd " ++ fn ++ "_type)"]
+          [mkId $ "\\<Xi>, prod.fst " ++ fn ++ "_type, (" ++ fn ++ "_typetree, [Some (prod.fst (prod.snd " ++ fn ++ "_type))]) T\\<turnstile> " ++
+                  fn ++ " : prod.snd (prod.snd " ++ fn ++ "_type)"]
     (Proof (if __cogent_fml_typing_tree then [Method "tactic" ["{* resolve_future_typecorrect @{context} " ++ fn ++ "_ttyping_details_future *}"]]
       else [Method "simp" ["add: " ++ fn ++ "_type_def " ++ fn ++ "_def " ++
                            fn ++ "_typetree_def replicate_unfold"
@@ -164,8 +164,8 @@ proveSorry :: (Pretty a) => Definition TypedExpr a -> State TypingSubproofs [The
 proveSorry (FunDef _ fn k ti to e) = do
   mod <- use nameMod
   let prf = [ LemmaDecl (Lemma False (Just $ TheoremDecl (Just (mod fn ++ "_typecorrect")) [])
-          [mkId $ "\\<Xi>, fst " ++ fn ++ "_type, (" ++ fn ++ "_typetree, [Some (fst (snd " ++ fn ++ "_type))]) T\\<turnstile> " ++
-                  fn ++ " : snd (snd " ++ fn ++ "_type)"]
+          [mkId $ "\\<Xi>, prod.fst " ++ fn ++ "_type, (" ++ fn ++ "_typetree, [Some (prod.fst (prod.snd " ++ fn ++ "_type))]) T\\<turnstile> " ++
+                  fn ++ " : prod.snd (prod.snd " ++ fn ++ "_type)"]
               (Proof [] ProofSorry)) ]
   return prf
 proveSorry _ = return []
