@@ -22,10 +22,6 @@ $esc:(#include <stdio.h>)
  * the external world.
  */
 typedef void *World;
-typedef FILE FileRead_SOpen;
-typedef FILE FileRead_SError;
-typedef FILE FileWrite_SOpen;
-typedef FILE FileWrite_SError;
 
 /*
  * `generated.c` is the C file that Cogent generates after parsing

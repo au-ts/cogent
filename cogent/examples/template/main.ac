@@ -14,7 +14,7 @@ int main(void)
         $ty:(SysState) st;
 
         st = $exp:helloworld(st);
-        $t = $exp:fn(st);
+        st = $exp:fn(st);
 
         return 0;
 }
