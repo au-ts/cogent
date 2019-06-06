@@ -335,5 +335,34 @@ known_tvar:
 | known_tunit:
   "is_known_type TUnit"
 
+fun assign_app_ty :: "(nat \<Rightarrow> type) \<Rightarrow> type \<Rightarrow> type" where
+  "assign_app_ty S (TVar n)          = TVar n"
+| "assign_app_ty S (TFun t1 t2)      = TFun (assign_app_ty S t1) (assign_app_ty S t2)"
+| "assign_app_ty S (TPrim pt)        = TPrim pt"
+| "assign_app_ty S (TProduct t1 t2)  = TProduct (assign_app_ty S t1) (assign_app_ty S t2)"
+| "assign_app_ty S TUnit             = TUnit"
+| "assign_app_ty S (TUnknown n)      = S n"
+
+fun assign_app_expr :: "(nat \<Rightarrow> type) \<Rightarrow> 'f expr \<Rightarrow> 'f expr" where
+  "assign_app_expr S (Var n)            = Var n" 
+| "assign_app_expr S (TypeApp e ts)     = TypeApp e (map (assign_app_ty S) ts)"
+| "assign_app_expr S (Prim prim_op ts)  = Prim prim_op (map (assign_app_expr S) ts)"
+| "assign_app_expr S (App e1 e2)        = App (assign_app_expr S e1) (assign_app_expr S e2)"
+| "assign_app_expr S Unit               = Unit"
+| "assign_app_expr S (Lit l)            = Lit l"
+| "assign_app_expr S (Cast nt e)        = Cast nt (assign_app_expr S e)"
+| "assign_app_expr S (Let e1 e2)        = Let (assign_app_expr S e1) (assign_app_expr S e2)"
+| "assign_app_expr S (If e1 e2 e3)      = If (assign_app_expr S e1) (assign_app_expr S e2) (assign_app_expr S e3)"
+| "assign_app_expr S (Sig e t)          = Sig (assign_app_expr S e) (assign_app_ty S t)"
+
+fun "assign_app_constr" :: "(nat \<Rightarrow> type) \<Rightarrow> constraint \<Rightarrow> constraint" where
+  "assign_app_constr S (CtConj c1 c2) = CtConj (assign_app_constr S c1) (assign_app_constr S c2)"
+| "assign_app_constr S (CtIBound l t) = CtIBound l (assign_app_ty S t)"
+| "assign_app_constr S (CtEq t1 t2) = CtEq (assign_app_ty S t1) (assign_app_ty S t2)"
+| "assign_app_constr S (CtSub t1 t2) = CtSub (assign_app_ty S t1) (assign_app_ty S t2)"
+| "assign_app_constr S CtTop = CtTop"
+| "assign_app_constr S CtBot = CtBot"
+| "assign_app_constr S (CtShare t) = CtShare (assign_app_ty S t)"
+| "assign_app_constr S (CtDrop t) = CtDrop (assign_app_ty S t)"
 end
 end                            
