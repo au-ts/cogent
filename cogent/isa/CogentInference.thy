@@ -364,5 +364,17 @@ fun "assign_app_constr" :: "(nat \<Rightarrow> type) \<Rightarrow> constraint \<
 | "assign_app_constr S CtBot = CtBot"
 | "assign_app_constr S (CtShare t) = CtShare (assign_app_ty S t)"
 | "assign_app_constr S (CtDrop t) = CtDrop (assign_app_ty S t)"
+
+section {* Soundness of Generation (Thm 3.2) *}
+lemma cg_sound:
+  assumes "G,0 \<turnstile> e : \<tau> \<leadsto> G',n | C | e'"
+    and "A \<turnstile> assign_app_constr S C" 
+    and "\<forall>i. is_known_type (S i)" 
+    and "\<Gamma> = map (\<lambda> (\<rho>, n). if n = 0 then None else Some \<rho>) G"
+  shows "A \<ddagger> \<Gamma> \<turnstile> (assign_app_expr S e') : (assign_app_ty S \<tau>)"
+  using assms
+proof -
+  sorry
+
 end
 end                            
