@@ -201,7 +201,7 @@ data PreloadS = PreloadS { surface  :: [S.TopLevel S.RawType Tc.TypedPatn Tc.Typ
 
 #if __GLASGOW_HASKELL__ < 803
 instance Monoid PreloadS where
-  mempty = PreloadS mempty mempty
+  mempty = PreloadS mempty mempty mempty
   PreloadS s1 t1 l1 `mappend` PreloadS s2 t2 l2 = PreloadS (s1 <> s2) (t1 <> t2) (l1 <> l2)
 #else
 instance Semigroup PreloadS where
