@@ -315,5 +315,25 @@ lemma cg_num_fresh_nondec:
   shows "n \<le> n'"
   using assms
   by (induct rule: constraint_gen_elab.inducts) force+
+
+section {* Assignment Definition *}
+(* when we are assigning an unknown type a type, the assigned type should not contain any
+   unknown types itself *)
+inductive is_known_type :: "type \<Rightarrow> bool" where
+known_tvar:
+  "is_known_type (TVar n)"
+| known_tfun:
+  "\<lbrakk> is_known_type t1
+   ; is_known_type t2
+   \<rbrakk> \<Longrightarrow> is_known_type (TFun t1 t2)"
+| known_tprim:
+  "is_known_type (TPrim pt)"
+| known_tproduct:
+  "\<lbrakk> is_known_type t1
+   ; is_known_type t2
+   \<rbrakk> \<Longrightarrow> is_known_type (TProduct t1 t2)"
+| known_tunit:
+  "is_known_type TUnit"
+
 end
 end                            
