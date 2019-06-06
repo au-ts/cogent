@@ -110,6 +110,8 @@ type_synonym cg_ctx = "(type \<times> nat) list"
 type_synonym ctx = "(type option) list"
 definition empty :: "nat \<Rightarrow> ctx" where
   "empty \<equiv> (\<lambda> x. replicate x None)"
+definition singleton :: "nat \<Rightarrow> index \<Rightarrow> type \<Rightarrow> ctx" where
+  "singleton n i t \<equiv> (empty n)[i := Some t]"
 
 type_synonym axm_set = "constraint list"
 
@@ -174,15 +176,67 @@ definition weakening :: "axm_set \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarro
            ("_ \<turnstile> _ \<leadsto>w _" [30,0,30] 60) where
   "weakening K \<equiv> list_all2 (weakening_comp K)"
 
-(*
 section {* Typing Rules (Fig 3.3) *}
 inductive typing :: "axm_set \<Rightarrow> ctx \<Rightarrow> 'fnname expr \<Rightarrow> type \<Rightarrow> bool"
-          ("_ ; _ \<turnstile> _ : _" [30,0,0,30] 60) where
+          ("_ \<ddagger> _ \<turnstile> _ : _" [30,0,0,30] 60) where
 typing_var:
-  "A ; \<Gamma> \<turnstile> (Var i) : \<tau>" (* TO DO *)
+  "\<lbrakk> A \<turnstile> \<Gamma> \<leadsto>w singleton (length \<Gamma>) i t
+   ; i < length \<Gamma>
+   \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> (Var i) : \<tau>"
 | typing_sig:
-  "A ; \<Gamma> \<turnstile> e : \<tau> \<Longrightarrow> A ; \<Gamma> \<turnstile> Sig e \<tau> : \<tau>"
-*) 
+  "A \<ddagger> \<Gamma> \<turnstile> e : \<tau> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Sig e \<tau> : \<tau>" 
+| typing_app:
+  "\<lbrakk> A \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 \<box> \<Gamma>2
+   ; A \<ddagger> \<Gamma>1 \<turnstile> e1 : (TFun \<tau>1 \<tau>2)
+   ; A \<ddagger> \<Gamma>2 \<turnstile> e2 : \<tau>1  
+   \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> App e1 e2 : \<tau>2"
+| typing_tapp:
+  "\<lbrakk> A \<turnstile> \<Gamma> \<leadsto>w []
+   ; (C, \<tau>) = type_of name
+   ; A \<turnstile> subst_ct ts C
+   ; \<tau>' = subst_ty ts \<tau>
+   \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> TypeApp name ts : \<tau>'"
+| typing_let:
+  "\<lbrakk> A \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 \<box> \<Gamma>2
+   ; A \<ddagger> \<Gamma>1 \<turnstile> e1 : \<tau>1
+   ; A \<ddagger> ((Some \<tau>2) # \<Gamma>2) \<turnstile> e2 : \<tau>2
+  \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Let e1 e2 : \<tau>2"
+| typing_if:
+  "\<lbrakk> A \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 \<box> \<Gamma>2
+   ; A \<ddagger> \<Gamma>1 \<turnstile> e1 : TPrim Bool
+   ; A \<ddagger> \<Gamma>2 \<turnstile> e2 : \<tau>
+   ; A \<ddagger> \<Gamma>2 \<turnstile> e3 : \<tau>
+   \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> If e1 e2 e3 : \<tau>"
+| typing_iop:
+  "\<lbrakk> A \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 \<box> \<Gamma>2
+   ; T \<noteq> TPrim Bool
+   ; x \<in> {Plus nt, Minus nt, Times nt, Divide nt}
+   ; A \<ddagger> \<Gamma>1 \<turnstile> e1 : T
+   ; A \<ddagger> \<Gamma>2 \<turnstile> e2 : T
+   \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Prim x [e1, e2] : T"
+| typing_cop:
+  "\<lbrakk> T \<noteq> TPrim Bool
+   ; x \<in> {Eq (Num nt), NEq (Num nt), Lt nt, Gt nt, Le nt, Ge nt}
+   ; A \<ddagger> \<Gamma>1 \<turnstile> e1 : T 
+   ; A \<ddagger> \<Gamma>2 \<turnstile> e2 : T
+   ; \<tau> = TPrim Bool
+   \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Prim x [e1, e2]: \<tau>"
+| typing_bop:
+  "\<lbrakk> A \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 \<box> \<Gamma>2
+   ; x \<in> {BitAnd nt, BitOr nt}
+   ; A \<ddagger> \<Gamma>1 \<turnstile> e1 : TPrim Bool
+   ; A \<ddagger> \<Gamma>2 \<turnstile> e2 : TPrim Bool
+   ; \<tau> = TPrim Bool
+   \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Prim x [e1, e2] : \<tau>"
+| typing_ilit:
+  "\<lbrakk> A \<turnstile> \<Gamma> \<leadsto>w []
+   ; l < abs T
+   ; \<tau> = TPrim T
+   \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Lit (LNat l) : \<tau>"
+| typing_blit:
+  "\<lbrakk> A \<turnstile> \<Gamma> \<leadsto>w []
+   ; \<tau> = TPrim Bool
+   \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Lit (LBool l) : \<tau>"
 
 section {* Elementary Constraint Generation Rules (Fig 3.4) *}
 inductive constraint_gen_elab :: "cg_ctx \<Rightarrow> nat \<Rightarrow> 'fnname expr \<Rightarrow> type \<Rightarrow> cg_ctx \<Rightarrow> nat \<Rightarrow> constraint \<Rightarrow> 'fnname expr \<Rightarrow> bool"
