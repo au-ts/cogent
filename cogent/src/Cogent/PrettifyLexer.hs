@@ -7,16 +7,16 @@ module Cogent.PrettifyLexer where
 -- changes:
 -- doc, // and /// instead of @ and @@
 -- type app, @ instead of []
--- got rid of $
 -- composition, |> and <| instead of "o"
 
 -- TODO:
 -- indexing, []
--- new syntax for lambda
+-- 
 -- let success error branch
 -- Quantifier
 -- something with error handling (replacing the original |>)
--- track source locations
+-- indentation
+-- ignore indentation when \ followed by \n
 
 import Data.Char(isSpace, isAlpha, isDigit, isUpper, isAlphaNum)
 import qualified Data.Map as M
@@ -43,13 +43,16 @@ data Token
     | UpperIdent String
     | LowerIdent String
     | StringLit String
+    | Comment String
+    | Doc String
     | Unknown Char
     deriving(Show)
 
 data Keyword 
-    = Let | In | Type | Include | All | Take | Put
+    = Let | In | Except | Type | Include | All | Take | Put
     | Inline | Upcast | Repr | Variant | Record | At
-    | If | Then | Else | Not | Complement | And 
+    | If | Then | Else | Not | Complement | And | Fn
+    | Drop | Share | Escape
     deriving(Show)
 
 symTokens :: M.Map String Token
@@ -102,7 +105,10 @@ lexer :: [(Char, SourcePos)] -> [(Token, SourcePos)]
 lexer [] = []
 lexer cs     | take 2 (map fst cs) == "--"
                 = let (comment, rest) = span ((/= '\n') . fst) cs
-                in lexer rest
+                in (Comment (map fst comment), snd (head comment)): lexer rest
+lexer cs     | take 2 (map fst cs) == "//"
+                = let (docStr, rest) = span ((/= '\n') . fst) cs
+                in (Doc (map fst docStr), snd (head docStr)): lexer rest
 lexer (c:cs) | fst c == '"'
                 = let (string, rest) = span ((/= '"') . fst) cs
                 in (StringLit (map fst string), snd c): lexer (drop 1 rest)
