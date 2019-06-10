@@ -37,7 +37,7 @@ import           Cogent.TypeCheck.Solver.Unify
 import           Cogent.TypeCheck.Solver.JoinMeet
 import           Cogent.TypeCheck.Solver.Equate
 import           Cogent.TypeCheck.Solver.Default
-import           Cogent.TypeCheck.Solver.Bubble
+import           Cogent.TypeCheck.Solver.SinkFloat
 import qualified Cogent.TypeCheck.Subst as Subst
 import           Cogent.TypeCheck.Subst (Subst(..))
 import           Cogent.TypeCheck.Util
@@ -81,7 +81,7 @@ solve ks c = let gs     = makeGoals [] c
                           -- Simplify does a lot of very small steps so it's slightly nicer for tracing to run it in a nested fixpoint
                  stages = debugL "Simplify" (Rewrite.untilFixedPoint $ simplify ks) <>
                           debug  "Unify"    unify <>
-                          debug  "Bubble"   bubble <>
+                          debug  "Sink/float" sinkfloat <>
                           debug  "JoinMeet" joinMeet <>
                           debugL "Equate" equate <>
                           debugL "Defaults" defaults
