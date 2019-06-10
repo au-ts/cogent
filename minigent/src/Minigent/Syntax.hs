@@ -97,6 +97,7 @@ data Type
   | TypeVar VarName -- ^ Refers to a rigid type variable bound with a forall.
   | TypeVarBang VarName -- ^ A 'TypeVar' with 'Bang' applied.
   | Function Type Type
+  | Rec VarName -- TODO: Recursive parameter
   -- used in type inference:
   | UnifVar VarName -- ^ Stands for an unknown type
   | Bang Type -- ^ Eliminated by type normalisation.
@@ -141,6 +142,8 @@ data Expr
   | Esac Expr ConName VarName Expr
     -- ^ An irrefutable pattern match expression. Here, the scrutinee must provably
     --   match the provided constructor.
+  | Roll Expr   -- Recursive type rolling
+  | Unroll Expr -- Recursive type unravelling
   deriving (Show, Eq)
 
 infixr 0 :&:
