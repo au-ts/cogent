@@ -68,6 +68,9 @@ import Data.Monoid
 import Text.PrettyPrint.ANSI.Leijen (pretty)
 import qualified Unsafe.Coerce as Unsafe (unsafeCoerce)  -- NOTE: used safely to coerce phantom types only
 
+import Data.List (sortBy)
+import Data.Function (on)
+
 import Debug.Trace
 
 guardShow :: String -> Bool -> TC t v ()
@@ -444,7 +447,7 @@ infer (E (Member e f))
 infer (E (Struct fs))
    = do let (ns,es) = unzip fs
         es' <- mapM infer es
-        return $ TE (TRecord (zipWith (\n e' -> (n, (exprType e', False))) ns es') Unboxed) $ Struct $ zip ns es'
+        return $ TE (TRecord (sortBy (compare `on` fst) $ zipWith (\n e' -> (n, (exprType e', False))) ns es') Unboxed) $ Struct $ zip ns es'
 infer (E (Take a e f e2))
    = do e'@(TE t _) <- infer e
         let TRecord ts s = t
