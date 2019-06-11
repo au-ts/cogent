@@ -81,9 +81,9 @@ solve ks c = let gs     = makeGoals [] c
                           -- Simplify does a lot of very small steps so it's slightly nicer for tracing to run it in a nested fixpoint
                  stages = debugL "Simplify" (Rewrite.untilFixedPoint $ simplify ks) <>
                           debug  "Unify"    unify <>
+                          debugL "Equate" equate <>
                           debug  "Sink/float" sinkfloat <>
                           debug  "JoinMeet" joinMeet <>
-                          debugL "Equate" equate <>
                           debugL "Defaults" defaults
                  rw     = debugF "Initial constraints" <>
                           Rewrite.untilFixedPoint (Rewrite.pre normaliseTypes $ stages)
