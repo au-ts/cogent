@@ -113,7 +113,7 @@ find (c:cs) = case c ^. goal of
            ([], rs ) -> fmap (c:) <$> find cs
            (Goal ctx (_ :< rho) :rs, rs')
              -> pure (Meet (c ^. goalContext) ctx (V (Row.Row m (Just v))) tau rho , rs ++ rs')
-  (V (Row.Row m' Nothing)) :< tau@(V (Row.Row m (Just v)))
+  tau@(V (Row.Row m' Nothing)) :< (V (Row.Row m (Just v)))
     | M.null m -> case partition (flexRowSup v) cs of
            ([], rs ) -> fmap (c:) <$> find cs
            (Goal ctx  (rho :< _):rs, rs')
@@ -124,7 +124,7 @@ find (c:cs) = case c ^. goal of
            ([], rs ) -> fmap (c:) <$> find cs
            (Goal ctx (_ :< rho):rs, rs')
              -> pure (Meet (c ^. goalContext) ctx (R (Row.Row m (Just v)) s) tau rho , rs ++ rs')
-  (R (Row.Row m' Nothing) s') :< tau@(R (Row.Row m (Just v)) s)
+  tau@(R (Row.Row m' Nothing) s') :< (R (Row.Row m (Just v)) s)
     | M.null m -> case partition (flexRowSup v) cs of
            ([], rs ) -> fmap (c:) <$> find cs
            (Goal ctx (rho :< _):rs, rs')
