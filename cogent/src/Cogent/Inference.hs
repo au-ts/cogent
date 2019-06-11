@@ -116,7 +116,7 @@ bound b (TFun t1 s1) (TFun t2 s2) = TFun <$> bound (theOtherB b) t1 t2 <*> bound
 #ifdef BUILTIN_ARRAYS
 bound b (TArray t1 l1) (TArray t2 l2) | l1 == l2 = TArray <$> bound b t1 t2 <*> pure l1
 #endif
-bound _ _ _ = __impossible "bound: not comparable"
+bound _ t1 t2 = __impossible ("bound: not comparable: " ++ show (t1,t2))
 
 lub :: Type t -> Type t -> MaybeT (TC t v) (Type t)
 lub = bound LUB
