@@ -493,7 +493,10 @@ fun typing (Const (@{const_name Var}, _) $ i) G _ hints = let
   | typing _ _ _ hints = let
     in typing_hint hints end
 
-fun ttyping (Const (@{const_name Split}, _) $ x $ y) tt k ctxt hint_tree = let
+
+(* TODO: List of tactics, change to list of pairs of (tactic, location) *)
+
+fun ttyping (Const (@{const_name Split}, a) $ x $ y) tt k ctxt hint_tree : (tac*term) list = let
     val (splithints, typxhint, typyhint) = (case hint_tree of
         Branch [Branch splithints, typxhint, typyhint] => (splithints, typxhint, typyhint)
       | Leaf (TypingTacs _) => raise HINTS ("ttyping(Const): expected ttyping rule, got typing rule", hint_tree)
@@ -503,8 +506,11 @@ fun ttyping (Const (@{const_name Split}, _) $ x $ y) tt k ctxt hint_tree = let
     val split_tac = ttsplit tt
     val l_tac = ttyping x ltt k ctxt typxhint
     val r_tac = ttyping y rtt k ctxt typyhint
-  in ([RTac @{thm ttyping_split}] @ split_tac @ l_tac @ r_tac) end
-  | ttyping (Const (@{const_name Let}, _) $ x $ y) tt k ctxt hint_tree = let
+    val term  = (Const (@{const_name Split}, a) $ x $ y)
+  in
+    ([(RTac @{thm ttyping_split}, term)] @ (map (fn a => (a,term)) split_tac) @ l_tac @ r_tac)
+  end
+  | ttyping (Const (@{const_name Let}, a) $ x $ y) tt k ctxt hint_tree = let
     val (splithints, typxhint, typyhint) = (case hint_tree of
         Branch [Branch splithints, typxhint, typyhint] => (splithints, typxhint, typyhint)
       | Leaf (TypingTacs _) => raise HINTS ("ttyping(Let): expected ttyping rule, got typing rule", hint_tree)
@@ -514,8 +520,11 @@ fun ttyping (Const (@{const_name Split}, _) $ x $ y) tt k ctxt hint_tree = let
     val split_tac = ttsplit tt
     val (l_tac) = ttyping x ltt k ctxt typxhint
     val (r_tac) = ttyping y rtt k ctxt typyhint
-  in ([RTac @{thm ttyping_let}] @ split_tac @ l_tac @ r_tac) end
-  | ttyping (Const (@{const_name LetBang}, _) $ _ $ x $ y) tt k ctxt hint_tree = let
+    val term  = (Const (@{const_name Let}, a) $ x $ y)
+  in
+    ([(RTac @{thm ttyping_let},term)] @ (map (fn a => (a,term)) split_tac) @ l_tac @ r_tac)
+  end
+  | ttyping (Const (@{const_name LetBang}, a) $ b $ x $ y) tt k ctxt hint_tree = let
     val (splitbanghints, splithints, typxhint, typyhint, kindhint) = (case hint_tree of
         Branch [Branch splitbanghints, Branch splithints, typxhint, typyhint, kindhint] =>
                (splitbanghints, splithints, typxhint, typyhint, kindhint)
@@ -527,8 +536,12 @@ fun ttyping (Const (@{const_name Split}, _) $ x $ y) tt k ctxt hint_tree = let
     val x_tac = ttyping x ltt k ctxt typxhint
     val y_tac = ttyping y rtt k ctxt typyhint
     val k_tac = kinding kindhint
-  in ([RTac @{thm ttyping_letb}] @ tsb_tac @ x_tac @ y_tac @ k_tac @ [simp_solve]) end
-  | ttyping (Const (@{const_name Cogent.If}, _) $ c $ x $ y) tt k ctxt hint_tree = let
+    val term  = (Const (@{const_name LetBang}, a) $ b $ x $ y)
+  in
+    ([(RTac @{thm ttyping_letb}, term)] @ (map (fn a => (a,term)) tsb_tac) @ x_tac @ y_tac
+    @ (map (fn a => (a,term)) k_tac) @ [(simp_solve, term)])
+  end
+  | ttyping (Const (@{const_name Cogent.If}, a) $ c $ x $ y) tt k ctxt hint_tree = let
     val (typxhint, splithints, typahint, typbhint) = (case hint_tree of
         Branch [typxhint, Branch splithints, typahint, typbhint] =>
                (typxhint, splithints, typahint, typbhint)
@@ -543,9 +556,13 @@ fun ttyping (Const (@{const_name Split}, _) $ x $ y) tt k ctxt hint_tree = let
     val c_tac = ttyping c condtt k ctxt typxhint
     val x_tac = ttyping x x_tt k ctxt typahint
     val y_tac = ttyping y y_tt k ctxt typbhint
-  in ([RTac @{thm ttyping_if}] @ split_tac
-    @ [simp, RTac @{thm ttsplit_trivI}, simp_solve, simp_solve] @ c_tac @ x_tac @ y_tac) end
-  | ttyping (Const (@{const_name Case}, _) $ x $ _ $ m $ nm) tt k ctxt hint_tree = let
+    val term  = (Const (@{const_name Cogent.If}, a) $ c $ x $ y)
+  in
+    ([(RTac @{thm ttyping_if}, term)] @ (map (fn a => (a,term)) split_tac)
+    @ [(simp,term), (RTac @{thm ttsplit_trivI}, term), (simp_solve, term), (simp_solve,term)]
+    @ c_tac @ x_tac @ y_tac)
+  end
+  | ttyping (Const (@{const_name Case}, a) $ x $ b $ m $ nm) tt k ctxt hint_tree = let
     val (typxhint, splithints, typahint, typbhint) = (case hint_tree of
         Branch [typxhint, Branch splithints, typahint, typbhint] =>
                (typxhint, splithints, typahint, typbhint)
@@ -558,9 +575,12 @@ fun ttyping (Const (@{const_name Split}, _) $ x $ y) tt k ctxt hint_tree = let
     val split_tac = ttsplit tt
     val m_tac = ttyping m m_tt k ctxt typahint
     val nm_tac = ttyping nm nm_tt k ctxt typbhint
-  in ([RTac @{thm ttyping_case'}] @ split_tac @ x_tac @ [simp_solve]
-    @ [simp, RTac @{thm ttsplit_trivI}, simp_solve, simp_solve] @ m_tac @ nm_tac) end
-  | ttyping (Const (@{const_name Take}, _) $ x $ _ $ y) tt k ctxt hint_tree = let
+    val term   = (Const (@{const_name Case}, a) $ x $ b $ m $ nm)
+  in
+    ([(RTac @{thm ttyping_case'}, term)] @ (map (fn a => (a,term)) split_tac) @ x_tac @ [(simp_solve, term)]
+    @ [(simp,term), (RTac @{thm ttsplit_trivI},term), (simp_solve,term), (simp_solve,term)] @ m_tac @ nm_tac)
+  end
+  | ttyping (Const (@{const_name Take}, a) $ x $ b $ y) tt k ctxt hint_tree = let
     val (splithints, typehint, kindhint, type'hint) = (case hint_tree of
         Branch [Branch splithints, typehint, kindhint, type'hint] =>
                (splithints, typehint, kindhint, type'hint)
@@ -572,11 +592,18 @@ fun ttyping (Const (@{const_name Split}, _) $ x $ y) tt k ctxt hint_tree = let
     val x_tac = ttyping x ltt k ctxt typehint
     val k_tac = kinding kindhint
     val y_tac = ttyping y rtt k ctxt type'hint
-  in ([RTac @{thm ttyping_take'}] @ split_tac @ x_tac
-    @ [simp_solve, simp_solve, simp_solve] @ k_tac @ [simp_solve] @ y_tac) end
+    val term  = (Const (@{const_name Take}, a) $ x $ b $ y)
+  in
+    ([(RTac @{thm ttyping_take'}, term)] @ (map (fn a => (a,term)) split_tac) @ x_tac
+    @ [(simp_solve,term), (simp_solve,term), (simp_solve,term)] @ (map (fn a => (a,term)) k_tac)
+    @ [(simp_solve,term)] @ y_tac)
+  end
   | ttyping x (@{term TyTrLeaf}, G) _ ctxt hint_tree = let
     val ty_tac = typing x G ctxt hint_tree
-  in ([RTac @{thm ttyping_default}, SimpTac (@{thms composite_anormal_expr_def}, [])] @ ty_tac) end
+  in
+    ([(RTac @{thm ttyping_default},x), (SimpTac (@{thms composite_anormal_expr_def}, []),x)]
+      @ (map (fn a => (a,x)) ty_tac))
+  end
   | ttyping t _ _ _ _ = raise TERM ("ttyping", [t])
 
 fun mk_ttsplit_tacs nm k ctxt hint_tree = let
@@ -600,11 +627,31 @@ fun mk_ttsplit_tacs nm k ctxt hint_tree = let
                                               | _ => raise HINTS ("mk_ttsplit_tac: hints don't start with a kinding", hint_tree))
     val ps = kind_proof_single (@{term SomeT} $ ity) k ctxt kinding_hint
     (* generate the tactics *)
-    val tacs = ttyping body (tt, [ps]) k ctxt hint_tree
+    val tacs = (ttyping body (tt, [ps]) k ctxt hint_tree)
   in tacs end
 
+
+(*
+ RTac of thm
+             | SimpSolveTac of thm list * thm list
+             | SimpTac of thm list * thm list
+             | ForceTac of thm list
+             | WeakeningTac of thm list
+             | SplitsTac of tac list option list
+             | SubtypingTac of tac list
+             | BlackBoxTac of (Proof.context -> int -> tactic)
+ *)
+
+(* fun tacName (SimpSolveTac _) = "" *)
+
 fun mk_ttsplit_tacs_final nm k ctxt hint_tree
-    = map (fn tac => (tac, interpret_tac tac)) (mk_ttsplit_tacs nm k ctxt hint_tree)
+    = let
+        val logTacticOnUse = fn tac => fn a => fn b => fn c =>
+                              runTac (tac |> @{make_string} |> YXML.content_of)
+                                     (fn () => (interpret_tac tac) a b c)
+      in
+        map (fn (tac,term) => (tac, logTacticOnUse tac)) (mk_ttsplit_tacs nm k ctxt hint_tree)
+      end
 
 fun apply_ttsplit_tacs_simple nm ctxt hints
     = mk_ttsplit_tacs_final nm @{term "[] :: kind env"} ctxt hints
