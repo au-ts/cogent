@@ -630,27 +630,22 @@ fun mk_ttsplit_tacs nm k ctxt hint_tree = let
     val tacs = (ttyping body (tt, [ps]) k ctxt hint_tree)
   in tacs end
 
-
-(*
- RTac of thm
-             | SimpSolveTac of thm list * thm list
-             | SimpTac of thm list * thm list
-             | ForceTac of thm list
-             | WeakeningTac of thm list
-             | SplitsTac of tac list option list
-             | SubtypingTac of tac list
-             | BlackBoxTac of (Proof.context -> int -> tactic)
- *)
-
-(* fun tacName (SimpSolveTac _) = "" *)
+fun tacName (RTac _) = "RTac"
+  | tacName (SimpSolveTac _) = "SimpSolveTac"
+  | tacName (SimpTac _)      = "SimpTac"
+  | tacName (ForceTac _)     = "ForceTac"
+  | tacName (WeakeningTac _) = "WeakeningTac"
+  | tacName (SplitsTac _) = "SplitsTac"
+  | tacName (SubtypingTac _) = "SubtypingTac"
+  | tacName (BlackBoxTac _) = "BlackBoxTac"
 
 fun mk_ttsplit_tacs_final nm k ctxt hint_tree
     = let
-        val logTacticOnUse = fn tac => fn a => fn b => fn c =>
-                              runTac (tac |> @{make_string} |> YXML.content_of)
+        val runTac = fn tac => fn a => fn b => fn c =>
+                              logTacticOnUse (tac |> tacName) 
                                      (fn () => (interpret_tac tac) a b c)
       in
-        map (fn (tac,term) => (tac, logTacticOnUse tac)) (mk_ttsplit_tacs nm k ctxt hint_tree)
+        map (fn (tac,term) => (tac, runTac tac)) (mk_ttsplit_tacs nm k ctxt hint_tree)
       end
 
 fun apply_ttsplit_tacs_simple nm ctxt hints
