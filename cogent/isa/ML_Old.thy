@@ -76,6 +76,35 @@ fun raise_error err =
      raise ERROR err
   end
 
+(* 
+ * Logs a Timing.timing in LOG_FILE in JSON format:
+ * {
+ *   tacticName: "string"
+ *   time: { elapsed: float, cpu: float, gc: float }
+ * }
+ *)
+fun logTime tacName ({elapsed, cpu, gc} : Timing.timing) = 
+  File.append LOG_FILE (
+    "{ tacticName: \"" ^ tacName ^ "\"," ^
+    " time: { " 
+      ^ "elapsed: " ^ (Real.toString (Time.toReal elapsed)) ^ ", "
+      ^ "cpu: "     ^ (Real.toString (Time.toReal cpu)) ^ ", "
+      ^ "gc: "      ^ (Real.toString (Time.toReal gc))
+      ^ "}"
+  ^ "}\n"
+  )
+
+(* 
+ * Runs a tactic, logging it's total time in LOG_FILE
+ *)
+fun runTac (tacName : string) (tac : unit -> 'a) = 
+  let 
+    val s = Timing.start ();
+    val res = tac ();
+    val _ = logTime tacName (Timing.result s)
+  in
+     res
+  end
 *}
 
 end
