@@ -65,7 +65,7 @@ ML {*
 ML {*
 fun debug_print_to_file pathstr s = File.write (Path.explode pathstr) s
 
-val LOG_FILE = Path.basic "TypeProofTactic.log"
+val LOG_FILE = Path.basic "TypeProofTactic.json"
 fun log_to_file strs = File.append LOG_FILE (YXML.content_of (strs^"\n"))
 fun log_error str = log_to_file ("!!! " ^ str)
 fun log_info str  = log_to_file ("    " ^ str)
@@ -83,13 +83,13 @@ fun raise_error err =
  *   time: { elapsed: float, cpu: float, gc: float }
  * }
  *)
-fun logTime tacName ({elapsed, cpu, gc} : Timing.timing) = 
+fun logTime tacName ({elapsed, cpu, gc} : Timing.timing) =
   File.append LOG_FILE (
-    "{ tacticName: \"" ^ tacName ^ "\"," ^
-    " time: { " 
-      ^ "elapsed: " ^ (Real.toString (Time.toReal elapsed)) ^ ", "
-      ^ "cpu: "     ^ (Real.toString (Time.toReal cpu)) ^ ", "
-      ^ "gc: "      ^ (Real.toString (Time.toReal gc))
+    "{ \"tacticName\": \"" ^ tacName ^ "\"," ^
+    " \"time\": { "
+      ^ "\"elapsed\": " ^ (Real.toString (Time.toReal elapsed)) ^ ", "
+      ^ "\"cpu\": "     ^ (Real.toString (Time.toReal cpu)) ^ ", "
+      ^ "\"gc\": "      ^ (Real.toString (Time.toReal gc))
       ^ "}"
   ^ "}\n"
   )
@@ -97,7 +97,7 @@ fun logTime tacName ({elapsed, cpu, gc} : Timing.timing) =
 (* 
  * Runs a tactic, logging it's total time in LOG_FILE
  *)
-fun runTac (tacName : string) (tac : unit -> 'a) = 
+fun logTacticOnUse (tacName : string) (tac : unit -> 'a) =
   let 
     val s = Timing.start ();
     val res = tac ();

@@ -152,7 +152,6 @@ type details = (thm list * thm tree list * thm list)
 
 fun get_all_typing_details ctxt name script : details = let
     val _ = (@{print tracing} ("solving " ^ name))
-    val _ = (log_info ("solving " ^ name))
     val time_total = Timing.start ()
 
     val time = Timing.start ()
@@ -161,7 +160,6 @@ fun get_all_typing_details ctxt name script : details = let
       | NONE => raise ERROR ("failed to parse script tree"))
     val time_res = Timing.result time
     val _ = (@{print tracing} (name ^ "|phase: parse script"); @{print tracing} time_res)
-    val _ = (log_info (name ^ "|phase: parse script"); log_info (@{make_string} time_res))
 
     val time = Timing.start ()
     val tacs = TTyping_Tactics.mk_ttsplit_tacs_final name
@@ -169,13 +167,11 @@ fun get_all_typing_details ctxt name script : details = let
     val tacs' = map (fn (tac, f) => (tac, fn ctxt => f ctxt 1)) tacs
     val time_res = Timing.result time
     val _ = (@{print tracing} (name ^ "|phase: make tacs"); @{print tracing} time_res)
-    val _ = (log_info (name ^ "|phase: make tacs"); log_info (@{make_string} time_res))
 
     val time = Timing.start ()
     val orig_typing_tree = get_typing_tree ctxt name tacs'
     val time_res = Timing.result time
     val _ = (@{print tracing} (name ^ "|phase: solve typing tree"); @{print tracing} time_res)
-    val _ = (log_info (name ^ "|phase: solve typing tree"); log_info (@{make_string} time_res))
 
     val time = Timing.start ()
     val typecorrect_thms = map (Goal.finish ctxt) (map tree_value orig_typing_tree)
@@ -183,17 +179,14 @@ fun get_all_typing_details ctxt name script : details = let
     val typing_tree = map (tree_map (cleanup_typing_tree_thm ctxt)) orig_typing_tree
     val time_res = Timing.result time
     val _ = (@{print tracing} (name ^ "|phase: clean tree"); @{print tracing} time_res)
-    val _ = (log_info (name ^ "|phase: clean tree"); log_info (@{make_string} time_res))
 
     val time = Timing.start ()
     val bucket = typing_tree_to_bucket typing_tree
     val time_res = Timing.result time
     val _ = (@{print tracing} (name ^ "|phase: make bucket"); @{print tracing} time_res)
-    val _ = (log_info (name ^ "|phase: make bucket"); log_info (@{make_string} time_res))
 
     val time_res = Timing.result time_total
     val _ = (@{print tracing} (name ^ "|phase: solve time total"); @{print tracing} time_res)
-    val _ = (log_info (name ^ "|phase: solve time total"); log_info (@{make_string} time_res))
   in (typecorrect_thms, typing_tree, bucket) end
 
 fun get_all_typing_details_future ctxt name script
