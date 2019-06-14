@@ -98,6 +98,7 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
     , Just m' <- elemIndex m primTypeCons
     , n' <= m' , m /= "String" -> Just []
 
+  -- [amos] New simplify rule:
   -- If both sides of an equality constraint are equal, we can't completely discharge it; we need to make sure all unification variables in the type are instantiated at some point
   t :=: u | t == u ->
     if isSolved t

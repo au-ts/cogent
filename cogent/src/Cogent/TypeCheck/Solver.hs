@@ -85,10 +85,20 @@ solve ks c = let gs     = makeGoals [] c
                           debug  "Sink/float" sinkfloat <>
                           debug  "JoinMeet" joinMeet <>
                           debugL "Defaults" defaults
+  -- [amos] Type-solver changes I made:
+  -- * Simplify rule for `t :=: t` to `Solved t` (see Solver/Simplify.hs)
+  --    A constraint like "?a :=: ?a" is almost trivial, except that you need the `Solved` constraint to make sure ?a is given a concrete assignment eventually
+  -- * Add Sink/float stage (see Solver/SinkFloat.hs)
+  --    When the upper bound of a record subtyping constraint has some field as present, we know the lower bound must also have that field present.
+  -- * Add Defaults stage (see Solver/Defaults.hs)
+  --    Choosing the smallest size for integer literals, when there are multiple upcast constraints on same unification variable
+  -- * Reorder Equate stage before JoinMeet:
+  --    The new Sink/float stage can apply when Equate does, but Sink/float introduces potentially many new constraints, while Equate is simpler and just replaces a subtyping constraint with equality.
                  rw     = debugF "Initial constraints" <>
                           Rewrite.untilFixedPoint (Rewrite.pre normaliseTypes $ stages)
               in fmap (fromMaybe gs) (runMaybeT (Rewrite.run' rw gs))
  where
+  -- TODO: probably want a compiler flag here
   debug  nm rw = rw -- `Rewrite.andThen` Rewrite.debugPass ("\n===Rewrite " ++ nm ++ "===") printC
   debugL nm rw = debug nm (Rewrite.lift rw)
   debugF nm = Rewrite.debugFail ("\n===Rewrite " ++ nm ++ "===") printC
