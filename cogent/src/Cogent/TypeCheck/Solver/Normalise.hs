@@ -89,17 +89,3 @@ normaliseTypes = mapM $ \g -> do
    c' <- traverse whnf (g ^. goal)
    pure $ set goal c' g
 
-
--- | Fully unfold and deeply normalise a type (as opposed to previous functions, which normalise to whnf)
-fullnormal :: TCType -> TcSolvM TCType
-fullnormal t0 = case t0 of
-  T t -> do
-    t' <- traverse fullnormal t
-    whnf $ T t'
-  U i   -> pure $ U i
-  R r s -> R <$> traverse fullnormal r <*> pure s
-  V r   -> V <$> traverse fullnormal r
-  Synonym{} -> do
-    s' <- whnf t0
-    fullnormal s'
-
