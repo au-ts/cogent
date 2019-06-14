@@ -478,7 +478,6 @@ fun typing (Const (@{const_name Var}, _) $ i) G _ hints = let
     in typing_hint hints end
 
 
-(* TODO: List of tactics, change to list of pairs of (tactic, location) *)
 
 fun ttyping (Const (@{const_name Split}, a) $ x $ y) tt k ctxt hint_tree : (tac*term) list = let
     val (splithints, typxhint, typyhint) = (case hint_tree of

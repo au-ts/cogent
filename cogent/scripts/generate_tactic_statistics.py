@@ -31,6 +31,8 @@ def make_stats_obj(num_list):
     obj['min']     = min(num_list)
     obj['max']     = max(num_list)
     obj['median']  = median(num_list)
+    obj['total']   = sum(num_list)
+    obj['amount']   = len(num_list)
 
     return obj
 
@@ -51,13 +53,10 @@ try:
         else:
             tactic_times[data['tacticName']].append(data['time'])
 
-    min_avg = None
-    max_avg = None
-
     final_stats = {}
 
     # print stats
-    for key in tactic_times.keys():
+    for key in sorted(tactic_times.keys()):
         cpu     = [d['cpu']     for d in tactic_times[key]]
         elapsed = [d['elapsed'] for d in tactic_times[key]]
         gc      = [d['gc']      for d in tactic_times[key]]
@@ -69,11 +68,11 @@ try:
             }
 
         print("tactic '{}':".format(key))
-        row_format ="{:>15}" * 5
-        print(row_format.format("Type","Min","Average","Median","Max"))
+        row_format ="{:>15}" * 7
+        print(row_format.format("Type", *sorted(["Min","Average","Median","Max", "Total", "Amount"])))
         for t in ["Elapsed", "CPU", "GC"]:
             stat_obj = final_stats[key][t.lower()]
-            nums = [str(round(x,6)) for x in [stat_obj['min'], stat_obj['average'], stat_obj['median'], stat_obj['max']] ]
+            nums = [str(round(x,6)) for x in [stat_obj[key] for key in sorted(stat_obj.keys())]]
             print(row_format.format(t, *nums))
 
     # Log stats if outfile present
