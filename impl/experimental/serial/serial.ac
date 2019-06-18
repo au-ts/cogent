@@ -67,6 +67,50 @@ static inline imx_uart_regs_t *imx_uart_get_priv(ps_chardevice_t *d)
 }
 
 
+/**
+ * Register readers and writers.
+ */
+#define REG_RW_FN(REG)                                                  \
+$ty:((U32, SysState)) $id:(imx_uart_regs_read_##REG)($ty:(SysState) st) \
+{                                                                       \
+    imx_uart_regs_t *regs;                                              \
+    $ty:((U32, SysState)) ret;                                          \
+                                                                        \
+    regs = imx_uart_get_priv(st->dev);                                  \
+    ret.p1 = regs->REG;                                                 \
+    ret.p2 = st;                                                        \
+                                                                        \
+    return ret;                                                         \
+}                                                                       \
+ \
+$ty:((SysState)) imx_uart_regs_write_##REG($ty:((U32, SysState)) args)  \
+{                                                                       \
+    $ty:(SysState) st = args.p2;                                        \
+    imx_uart_regs_t *regs;                                              \
+                                                                        \
+    regs = imx_uart_get_priv(st->dev);                                  \
+    regs->REG = args.p1;                                                \
+                                                                        \
+    return st;                                                          \
+}
+
+REG_RW_FN(rxd)
+REG_RW_FN(txd)
+REG_RW_FN(cr1)
+REG_RW_FN(cr2)
+REG_RW_FN(cr3)
+REG_RW_FN(cr4)
+REG_RW_FN(fcr)
+REG_RW_FN(sr1)
+REG_RW_FN(sr2)
+REG_RW_FN(esc)
+REG_RW_FN(tim)
+REG_RW_FN(bir)
+REG_RW_FN(bmr)
+REG_RW_FN(brc)
+REG_RW_FN(onems)
+REG_RW_FN(ts)
+
 inline imx_uart_regs_t *uart_regs_from_cg(ps_chardevice_t *dev, $ty:(#IMXUartRegs) cgregs)
 {
     imx_uart_regs_t *regs;
