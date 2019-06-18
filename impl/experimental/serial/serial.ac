@@ -170,16 +170,16 @@ static void uart_handle_irq(ps_chardevice_t* d)
 
 int uart_getchar(ps_chardevice_t* d)
 {
-     $ty:(#IMXUartRegs) regscg;
+    $ty:(#IMXUartRegs) regscg;
+    $ty:((SysState, U32)) ret;
+    SysState st;
     uint32_t reg = 0;
     int c = -1;
-    $ty:((#IMXUartRegs, U32)) ret;
 
-    regscg = uart_regs_to_cg(d);
+    st.dev = d;
+    ret = uart_getchar_cg(&st);
 
-    ret = uart_getchar_cg(regscg);
-
-    c = ret.p1;
+    c = ret.p2;
 
     return c;
 }
