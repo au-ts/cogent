@@ -106,55 +106,6 @@ flag_UART_URXD_READY_MASK = 1 << 15
 flag_UART_BYTE_MASK : U32
 flag_UART_BYTE_MASK = 0xFF
 
-type IMXUartRegs = #{
-    rxd   : U32  -- 0x000 Receiver Register
-  , pad1  : U32  -- padding
-  , pad2  : U32
-  , pad3  : U32
-  , pad4  : U32
-  , pad5  : U32
-  , pad6  : U32
-  , pad7  : U32
-  , pad8  : U32
-  , pad9  : U32
-  , pad10 : U32
-  , pad11 : U32
-  , pad12 : U32
-  , pad13 : U32
-  , pad14 : U32
-  , pad15 : U32
-  , txd   : U32  -- 0x040 Transmitter Register
-  , pad16 : U32  -- padding
-  , pad17 : U32
-  , pad18 : U32
-  , pad19 : U32
-  , pad20 : U32
-  , pad21 : U32
-  , pad22 : U32
-  , pad23 : U32
-  , pad24 : U32
-  , pad25 : U32
-  , pad26 : U32
-  , pad27 : U32
-  , pad28 : U32
-  , pad29 : U32
-  , pad30 : U32
-  , cr1   : U32  -- 0x080 Control Register 1
-  , cr2   : U32  -- 0x084 Control Register 2
-  , cr3   : U32  -- 0x088 Control Register 3
-  , cr4   : U32  -- 0x08C Control Register 4
-  , fcr   : U32  -- 0x090 FIFO Control Register
-  , sr1   : U32  -- 0x094 Status Register 1
-  , sr2   : U32  -- 0x098 Status Register 2
-  , esc   : U32  -- 0x09C Escape Character Register
-  , tim   : U32  -- 0x0A0 Escape Timer Register
-  , bir   : U32  -- 0x0A4 BRM Incremental Register
-  , bmr   : U32  -- 0x0A8 BRM Modulator Register
-  , brc   : U32  -- 0x0AC Baud Rate Counter Register
-  , onems : U32  -- 0x0B0 One Millisecond Register
-  , ts    : U32  -- 0x0B4 Test Register
-}
-
 -- External function - implemented in antiquoted C
 uart_setup_phase1_ac : SysState -> SysState
 
