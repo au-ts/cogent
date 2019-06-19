@@ -160,7 +160,6 @@ int uart_init(const struct dev_defn *defn,
 {
     imx_uart_regs_t* regs;
     SysState st;
-    $ty:((U8, SysState)) args;
     $ty:((SysState)) ret;
 
     /* Attempt to map the virtual address, assure this works */
@@ -182,9 +181,7 @@ int uart_init(const struct dev_defn *defn,
     dev->flags      = SERIAL_AUTO_CR;
 
     st.dev = dev;
-    args.p1 = 0;
-    args.p2 = &st;
-    ret = $exp:uart_setup(args);
+    ret = $exp:uart_setup(&st);
 
     $escstm:(#ifdef CONFIG_PLAT_IMX6)
         /* The UART1 on the IMX6 has the problem that the MUX is not correctly set,

@@ -205,47 +205,25 @@ uart_sw_reset_cg world =
    and world = imx_uart_regs_write_cr2 (cr2, world)
    in world
 
-type S1 = { s1 : SysState }
-type S2 = { s2 : SysState }
-type S3 = { s3 : SysState }
-type S4 = { s4 : SysState }
-
-type Funcs = < Uart_Setup1 (S1 -> S2) | Uart_Setup2 (S2 -> S3) | Uart_Setup3 (S3 -> S4) >
-
-uart_setup_phase1 : SysState -> SysState
-uart_setup_phase1 world =
+uart_setup : SysState -> SysState
+uart_setup world =
+   -- Perform a software reset
    let world = uart_sw_reset_cg world
    and world = uart_setup_phase1_ac world
-   in uart_setup_phase2 world
-
-uart_setup_phase2 : SysState -> SysState
-uart_setup_phase2 world =
-   let world = serial_configure_cg (11520, 8, PARITY_NONE, 1, world)
-   in uart_setup_phase3 world
-
-uart_setup_phase3 : SysState -> SysState
-uart_setup_phase3 world =
-   let (cr1, world) = imx_uart_regs_read_cr1 world
+   -- Serial line configuration
+   and world = serial_configure_cg (11520, 8, PARITY_NONE, 1, world)
+   -- Enable the UART
+   and (cr1, world) = imx_uart_regs_read_cr1 world
    and (fcr, world) = imx_uart_regs_read_fcr world
    and cr1 = cr1 .&. complement flag_UART_CR1_RRDYEN
    and fcr = fcr .&. complement (uart_FCR_RXTL_MASK ())
    and world = imx_uart_regs_write_cr1 (cr1, world)
    and world = imx_uart_regs_write_fcr (fcr, world)
-   in uart_setup_phase4 world
-
-uart_setup_phase4 : SysState -> SysState
-uart_setup_phase4 world =
-   let (cr1, world) = imx_uart_regs_read_cr1 world
+   -- Initialise the receiver interrupt
+   and (cr1, world) = imx_uart_regs_read_cr1 world
    and (fcr, world) = imx_uart_regs_read_fcr world
    and fcr = fcr .|. uart_FCR_RXTL 1
    and cr1 = cr1 .|. flag_UART_CR1_RRDYEN
    and world = imx_uart_regs_write_fcr (fcr, world)
    and world = imx_uart_regs_write_cr1 (cr1, world)
    in world
-
-uart_setup : (U8, SysState) -> SysState
-uart_setup (state, world) = state
-   | 0 -> uart_setup_phase1 world
-   | 1 -> uart_setup_phase2 world
-   | 2 -> uart_setup_phase3 world
-   | _ -> uart_setup_phase4 world
