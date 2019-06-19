@@ -111,58 +111,6 @@ REG_RW_FN(brc)
 REG_RW_FN(onems)
 REG_RW_FN(ts)
 
-inline imx_uart_regs_t *uart_regs_from_cg(ps_chardevice_t *dev, $ty:(#IMXUartRegs) cgregs)
-{
-    imx_uart_regs_t *regs;
-    regs = imx_uart_get_priv(dev);
-
-    regs->rxd = cgregs.rxd;
-    regs->txd = cgregs.txd;
-    regs->cr1 = cgregs.cr1;
-    regs->cr2 = cgregs.cr2;
-    regs->cr3 = cgregs.cr3;
-    regs->cr4 = cgregs.cr4;
-    regs->fcr = cgregs.fcr;
-    regs->sr1 = cgregs.sr1;
-    regs->sr2 = cgregs.sr2;
-    regs->esc = cgregs.esc;
-    regs->tim = cgregs.tim;
-    regs->bir = cgregs.bir;
-    regs->bmr = cgregs.bmr;
-    regs->brc = cgregs.brc;
-    regs->onems = cgregs->onems;
-    regs->ts = cgregs->ts;
-
-    return regs;
-}
-
-inline $ty:(#IMXUartRegs) uart_regs_to_cg(ps_chardevice_t *dev)
-{
-    imx_uart_regs_t *regs;
-    $ty:(#IMXUartRegs) cgres;
-
-    regs = imx_uart_get_priv(dev);
-
-    cgregs.rxd = regs->rxd;
-    cgregs.txd = regs->txd;
-    cgregs.cr1 = regs->cr1;
-    cgregs.cr2 = regs->cr2;
-    cgregs.cr3 = regs->cr3;
-    cgregs.cr4 = regs->cr4;
-    cgregs.fcr = regs->fcr;
-    cgregs.sr1 = regs->sr1;
-    cgregs.sr2 = regs->sr2;
-    cgregs.esc = regs->esc;
-    cgregs.tim = regs->tim;
-    cgregs.bir = regs->bir;
-    cgregs.bmr = regs->bmr;
-    cgregs.brc = regs->brc;
-    cgregs.onems = regs->onems;
-    cgregs.ts = regs->ts;
-
-    return cgregs;
-}
-
 static void uart_handle_irq(ps_chardevice_t* d)
 {
         /* TODO */
@@ -170,7 +118,6 @@ static void uart_handle_irq(ps_chardevice_t* d)
 
 int uart_getchar(ps_chardevice_t* d)
 {
-    $ty:(#IMXUartRegs) regscg;
     $ty:((SysState, U32)) ret;
     SysState st;
     uint32_t reg = 0;
@@ -212,10 +159,9 @@ int uart_init(const struct dev_defn *defn,
               ps_chardevice_t *dev)
 {
     imx_uart_regs_t* regs;
-    $ty:(#IMXUartRegs) regscg;
     SysState st;
     $ty:((U8, SysState)) args;
-     $ty:((SysState)) ret;
+    $ty:((SysState)) ret;
 
     /* Attempt to map the virtual address, assure this works */
     void* vaddr = chardev_map(defn, ops);
@@ -234,10 +180,6 @@ int uart_init(const struct dev_defn *defn,
     dev->irqs       = defn->irqs;
     dev->ioops      = *ops;
     dev->flags      = SERIAL_AUTO_CR;
-
-    regscg = uart_regs_to_cg(dev);
-
-    regscg = uart_init_cg(regscg);
 
     st.dev = dev;
     args.p1 = 0;
