@@ -214,16 +214,35 @@ uart_setup world =
    and world = serial_configure_cg (11520, 8, PARITY_NONE, 1, world)
    -- Enable the UART
    and (cr1, world) = imx_uart_regs_read_cr1 world
-   and (fcr, world) = imx_uart_regs_read_fcr world
-   and cr1 = cr1 .&. complement flag_UART_CR1_RRDYEN
-   and fcr = fcr .&. complement (uart_FCR_RXTL_MASK ())
+   and cr1 = cr1 .|. flag_UART_CR1_UARTEN
    and world = imx_uart_regs_write_cr1 (cr1, world)
-   and world = imx_uart_regs_write_fcr (fcr, world)
+   -- RX/TX Enable
+   and (cr2, world) = imx_uart_regs_read_cr2 world
+   and cr2 = cr2 .|. flag_UART_CR2_RXEN .|. flag_UART_CR2_TXEN
+   and world = imx_uart_regs_write_cr2 (cr2, world)
+   -- Ignore RTS
+   and (cr2, world) = imx_uart_regs_read_cr2 world
+   and cr2 = cr2 .|. flag_UART_CR2_IRTS
+   and world = imx_uart_regs_write_cr2 (cr2, world)
+   -- Configure the RX MUX
+   and (cr3, world) = imx_uart_regs_read_cr3 world
+   and cr3 = cr3 .|. flag_UART_CR3_RXDMUXDEL
+   and world = imx_uart_regs_write_cr3 (cr3, world)
    -- Initialise the receiver interrupt
+   -- Disable recv interrupt
    and (cr1, world) = imx_uart_regs_read_cr1 world
    and (fcr, world) = imx_uart_regs_read_fcr world
-   and fcr = fcr .|. uart_FCR_RXTL 1
-   and cr1 = cr1 .|. flag_UART_CR1_RRDYEN
+   and cr1 = cr1 .&. complement flag_UART_CR1_RRDYEN
+   and world = imx_uart_regs_write_cr1 (cr1, world)
+   -- Clear the trigger value
+   and fcr = fcr .&. complement (uart_FCR_RXTL_MASK ())
    and world = imx_uart_regs_write_fcr (fcr, world)
+   and (cr1, world) = imx_uart_regs_read_cr1 world
+   and (fcr, world) = imx_uart_regs_read_fcr world
+   -- Set the rx tigger level to 1
+   and fcr = fcr .|. uart_FCR_RXTL 1
+   and world = imx_uart_regs_write_fcr (fcr, world)
+   -- Enable recv interrupt
+   and cr1 = cr1 .|. flag_UART_CR1_RRDYEN
    and world = imx_uart_regs_write_cr1 (cr1, world)
    in world
