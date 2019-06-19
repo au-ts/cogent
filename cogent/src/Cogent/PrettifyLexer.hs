@@ -45,6 +45,7 @@ data Token
     | StringLit String
     | Comment String
     | Doc String
+    | Indent Int | Dedent | Shimdent
     | Unknown Char
     deriving(Show)
 
@@ -97,33 +98,55 @@ symTokens = M.fromList
             ]
 
 preprocess :: SourcePos -> String -> [(Char, SourcePos)]
-preprocess p [] = []
+preprocess p [] = [('\0',p)]
 preprocess p ('\n':cs) = ('\n',p):preprocess (p {col = 0, line = line p + 1}) cs
 preprocess p (c:cs) = (c,p):preprocess (p {col = col p + 1}) cs
     
-lexer :: [(Char, SourcePos)] -> [(Token, SourcePos)]
-lexer [] = []
-lexer cs     | take 2 (map fst cs) == "--"
-                = let (comment, rest) = span ((/= '\n') . fst) cs
-                in (Comment (map fst comment), snd (head comment)): lexer rest
-lexer cs     | take 2 (map fst cs) == "//"
-                = let (docStr, rest) = span ((/= '\n') . fst) cs
-                in (Doc (map fst docStr), snd (head docStr)): lexer rest
-lexer (c:cs) | fst c == '"'
-                = let (string, rest) = span ((/= '"') . fst) cs
-                in (StringLit (map fst string), snd c): lexer (drop 1 rest)
-                
-lexer (c:cs) | isSpace (fst c) = lexer cs
-lexer cs     | Just t <- M.lookup (take 3 (map fst cs)) symTokens 
-                = (t, snd(head cs)):lexer (drop 3 cs)
-lexer cs     | Just t <- M.lookup (take 2 (map fst cs)) symTokens 
-                = (t, snd(head cs)):lexer (drop 2 cs)
-lexer cs     | Just t <- M.lookup (take 1 (map fst cs)) symTokens 
-                = (t, snd(head cs)):lexer (drop 1 cs)
+lexer :: [(Char, SourcePos)] -> [Int] -> [(Token, SourcePos)]
+lexer [('\0',p)] stack = map (const (Dedent, p)) stack
 
-lexer (c:cs) | isAlpha (fst c) = let
+lexer cs stack      | take 2 (map fst cs) == "--"
+                   = let (comment, rest) = span ((/= '\n') . fst) cs
+                     in (Comment (map fst comment), snd (head comment)): lexer rest stack
+lexer cs stack       | take 2 (map fst cs) == "//"
+                   = let (docStr, rest) = span ((/= '\n') . fst) cs
+                     in (Doc (map fst docStr), snd (head docStr)): lexer rest stack
+lexer (c:cs) stack   | fst c == '"'
+                   = let (string, rest) = span ((/= '"') . fst) cs
+                     in (StringLit (map fst string), snd c): lexer (drop 1 rest) stack
+                   
+lexer cs stack      | Just t <- M.lookup (take 3 (map fst cs)) symTokens 
+                   = (t, snd(head cs)):lexer (drop 3 cs) stack
+lexer cs stack       | Just t <- M.lookup (take 2 (map fst cs)) symTokens 
+                   = (t, snd(head cs)):lexer (drop 2 cs) stack
+lexer cs stack       | take 2 (map fst cs) == "\\\n"
+                   = let cs' = dropWhile (isSpace . fst) (drop 1 cs)
+                     in lexer cs' stack
+lexer (c:cs) stack | fst c == '\n'
+                = let (indentation, rest) = span ((== ' ') . fst) cs
+                      indent = length indentation
+                      (as, bs) = span (> indent) stack 
+                      top = case bs of
+                            [] -> 0
+                            (x:_) -> x
+                      stack' = if indent > top then (indent:bs) else bs
+                      (pipe, rest') = case rest of
+                              (('|', p):rest') -> ([(Bar, p)], rest')
+                              _                -> ([], rest)
+                  in map (const (Dedent, snd c)) as 
+                  ++ (if indent > top then [(Indent indent, snd c)] else []) 
+                  ++ lexer rest' stack'
+lexer (c:cs) stack | fst c == '|'
+                   = let stack' = (col (snd c)):stack
+                     in [(Shimdent, snd c), (Bar, snd c)]++lexer cs stack'
+
+lexer cs stack       | Just t <- M.lookup (take 1 (map fst cs)) symTokens 
+                   = (t, snd(head cs)):lexer (drop 1 cs) stack
+lexer (c:cs) stack   | isSpace (fst c) = lexer cs stack
+
+lexer (c:cs) stack | isAlpha (fst c) = let
     (word, rest) = span (\(x,_) -> isAlphaNum x || x `elem` "_'") (c:cs)
-    in (toToken (map fst word), snd c) : lexer rest
+    in (toToken (map fst word), snd c) : lexer rest stack
     where
         toToken :: String -> Token
         toToken "let" = Kwd Let
@@ -149,16 +172,16 @@ lexer (c:cs) | isAlpha (fst c) = let
             if isUpper x then UpperIdent str else LowerIdent str
 
 
-lexer (c:cs) | isDigit (fst c) = let
+lexer (c:cs) stack | isDigit (fst c) = let
     (numStr, rest) = span (isDigit . fst) (c:cs)
-    in (Number (read (map fst numStr)), snd c): lexer rest
+    in (Number (read (map fst numStr)), snd c): lexer rest stack
 
-lexer (c:cs) = (Unknown (fst c), snd c) : lexer cs
-lexer _ = []
+lexer (c:cs) stack = (Unknown (fst c), snd c) : lexer cs stack
+lexer _ stack = []
 
 lexFile :: FilePath -> IO [(Token, SourcePos)]
 lexFile fp = do 
     contents <- readFile fp
-    pure (lexer (preprocess initialSourcePos contents))
+    pure (lexer (preprocess initialSourcePos contents) [])
   where
     initialSourcePos = Pos 0 0 fp
