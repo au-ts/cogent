@@ -156,10 +156,7 @@ type IMXUartRegs = #{
 }
 
 -- External function - implemented in antiquoted C
-uart_setup_phase1_ac : (#IMXUartRegs, SysState) -> (#IMXUartRegs, SysState)
-uart_setup_phase2_ac : (#IMXUartRegs, SysState) -> (#IMXUartRegs, SysState)
-uart_setup_phase3_ac : (#IMXUartRegs, SysState) -> (#IMXUartRegs, SysState)
-uart_setup_phase4_ac : (#IMXUartRegs, SysState) -> (#IMXUartRegs, SysState)
+uart_setup_phase1_ac : SysState -> SysState
 
 -- Register readers
 imx_uart_regs_read_rxd   : SysState -> (U32, SysState)
@@ -207,15 +204,17 @@ uart_getchar_cg world =
    and c = c .&. flag_UART_BYTE_MASK
    in (world, c)
 
-imx_uart_set_baud_cg : (#IMXUartRegs, U64) -> #IMXUartRegs
-imx_uart_set_baud_cg (regs, bps) =
-   let regs { fcr, bir, bmr } = regs
+imx_uart_set_baud_cg : (U64, SysState) -> SysState
+imx_uart_set_baud_cg (bps, world) =
+   let (fcr, world) = imx_uart_regs_read_fcr world
    and fcr = fcr .&. complement (uart_FCR_RFDIV_MASK ())
    and fcr = fcr .|. uart_FCR_RFDIV 4
    and bir = 0xF
    and bmr = const_UART_REF_CLK / (u64_to_u32 bps - 1)
-   and regs = regs { fcr, bir, bmr }
-   in regs
+   and world = imx_uart_regs_write_fcr (fcr, world)
+   and world = imx_uart_regs_write_bir (bir, world)
+   and world = imx_uart_regs_write_bmr (bmr, world)
+   in world
 
 type Parity = < PARITY_NONE | PARITY_EVEN  | PARITY_ODD >
 
@@ -230,9 +229,9 @@ compute_cr2_by_parity (p, cr2) = p
                      and cr2 = cr2 .&. complement flag_UART_CR2_PROE
                      in cr2
 
-serial_configure_cg : (#IMXUartRegs, U64, U32, Parity, U32 ) -> #IMXUartRegs
-serial_configure_cg (regs, bps, char_size, parity, stop_bits) =
-   let regs { cr2 } = regs
+serial_configure_cg : (U64, U32, Parity, U32, SysState) -> SysState
+serial_configure_cg (bps, char_size, parity, stop_bits, world) =
+   let (cr2, world) = imx_uart_regs_read_cr2 world
    and cr2 =
      -- character size
      if | char_size == 8 -> cr2 .|. flag_UART_CR2_WS
@@ -244,57 +243,58 @@ serial_configure_cg (regs, bps, char_size, parity, stop_bits) =
         | stop_bits == 1 -> cr2 .&. complement flag_UART_CR2_STPB
         | else           -> 0 -- Need to fail here
    and cr2 = compute_cr2_by_parity (parity, cr2)
-   and regs = regs { cr2 }
-   and regs = imx_uart_set_baud_cg (regs, bps)
-   in regs
+   and world = imx_uart_regs_write_cr2 (cr2, world)
+   and world = imx_uart_set_baud_cg (bps, world)
+   in world
 
-uart_sw_reset_cg : #IMXUartRegs -> #IMXUartRegs
-uart_sw_reset_cg regs =
-   let regs { cr2 } = regs
+uart_sw_reset_cg : SysState -> SysState
+uart_sw_reset_cg world =
+   let (cr2, world) = imx_uart_regs_read_cr2 world
    and cr2 = cr2 .&. complement flag_UART_CR2_SRST
-   and regs = regs { cr2 }
-   in regs
+   and world = imx_uart_regs_write_cr2 (cr2, world)
+   in world
 
-
-type S1 = { s1 : #IMXUartRegs }
-type S2 = { s2 : #IMXUartRegs }
-type S3 = { s3 : #IMXUartRegs }
-type S4 = { s4 : #IMXUartRegs }
+type S1 = { s1 : SysState }
+type S2 = { s2 : SysState }
+type S3 = { s3 : SysState }
+type S4 = { s4 : SysState }
 
 type Funcs = < Uart_Setup1 (S1 -> S2) | Uart_Setup2 (S2 -> S3) | Uart_Setup3 (S3 -> S4) >
 
-uart_setup_phase1 : (#IMXUartRegs, SysState) -> (#IMXUartRegs, SysState)
-uart_setup_phase1 (regs, world) =
-   let regs = uart_sw_reset_cg regs
-   and (regs, world) = uart_setup_phase1_ac (regs, world)
-   in uart_setup_phase2 (regs, world)
+uart_setup_phase1 : SysState -> SysState
+uart_setup_phase1 world =
+   let world = uart_sw_reset_cg world
+   and world = uart_setup_phase1_ac world
+   in uart_setup_phase2 world
 
-uart_setup_phase2 : (#IMXUartRegs, SysState) -> (#IMXUartRegs, SysState)
-uart_setup_phase2 (regs, world) =
-   let regs = serial_configure_cg (regs, 115200, 8, PARITY_NONE, 1)
-   and (regs, world) = uart_setup_phase2_ac (regs, world)
-   in uart_setup_phase3 (regs, world)
+uart_setup_phase2 : SysState -> SysState
+uart_setup_phase2 world =
+   let world = serial_configure_cg (11520, 8, PARITY_NONE, 1, world)
+   in uart_setup_phase3 world
 
-uart_setup_phase3 : (#IMXUartRegs, SysState) -> (#IMXUartRegs, SysState)
-uart_setup_phase3 (regs, world) =
-   let regs { cr1, fcr } = regs
+uart_setup_phase3 : SysState -> SysState
+uart_setup_phase3 world =
+   let (cr1, world) = imx_uart_regs_read_cr1 world
+   and (fcr, world) = imx_uart_regs_read_fcr world
    and cr1 = cr1 .&. complement flag_UART_CR1_RRDYEN
    and fcr = fcr .&. complement (uart_FCR_RXTL_MASK ())
-   and regs = regs { cr1, fcr }
-   in uart_setup_phase3_ac (regs, world)
+   and world = imx_uart_regs_write_cr1 (cr1, world)
+   and world = imx_uart_regs_write_fcr (fcr, world)
+   in uart_setup_phase4 world
 
-uart_setup_phase4 : (#IMXUartRegs, SysState) -> (#IMXUartRegs, SysState)
-uart_setup_phase4 (regs, world) =
-   let regs { cr1, fcr } = regs
+uart_setup_phase4 : SysState -> SysState
+uart_setup_phase4 world =
+   let (cr1, world) = imx_uart_regs_read_cr1 world
+   and (fcr, world) = imx_uart_regs_read_fcr world
    and fcr = fcr .|. uart_FCR_RXTL 1
    and cr1 = cr1 .|. flag_UART_CR1_RRDYEN
-   and regs = regs { cr1, fcr }
-   in uart_setup_phase4_ac (regs, world)
+   and world = imx_uart_regs_write_fcr (fcr, world)
+   and world = imx_uart_regs_write_cr1 (cr1, world)
+   in world
 
-
-uart_setup : (U8, #IMXUartRegs, SysState) -> (#IMXUartRegs, SysState)
-uart_setup (state, regs, world) = state
-   | 0 -> uart_setup_phase1 (regs, world)
-   | 1 -> uart_setup_phase2 (regs, world)
-   | 2 -> uart_setup_phase3 (regs, world)
-   | _ -> uart_setup_phase4 (regs, world)
+uart_setup : (U8, SysState) -> SysState
+uart_setup (state, world) = state
+   | 0 -> uart_setup_phase1 world
+   | 1 -> uart_setup_phase2 world
+   | 2 -> uart_setup_phase3 world
+   | _ -> uart_setup_phase4 world
