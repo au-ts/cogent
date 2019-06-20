@@ -100,8 +100,8 @@ solve ks c = let gs     = makeGoals [] c
  where
   -- TODO: probably want a compiler flag here
   debug  nm rw = rw -- `Rewrite.andThen` Rewrite.debugPass ("\n===Rewrite " ++ nm ++ "===") printC
-  debugL nm rw = debug nm (Rewrite.lift rw)
-  debugF nm = Rewrite.debugFail ("\n===Rewrite " ++ nm ++ "===") printC
+  debugL nm rw = Rewrite.lift rw -- debug nm (Rewrite.lift rw)
+  debugF nm = mempty -- Rewrite.debugFail ("\n===Rewrite " ++ nm ++ "===") printC
 
   printC gs =
    let gs' = map (P.nest 2 . pretty . _goal) gs

@@ -163,7 +163,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
                   L.<$> prettyC c)
     (cs, subst) <- runSolver (solve vs $ ct <> c) flx 
     let assn = mempty
-    liftIO $ print $ pretty subst -- (show)
+    -- liftIO $ print $ pretty subst -- (show)
     exitOnErr $ toErrors os cs
     --exitOnErr $ mapM_ logTc =<< mapM (\(c,l) -> lift (use errCtx) >>= \c' -> return (c++c',l)) logs
     traceTc "tc" (text "substs for fun definition" <+> pretty f <+> text "is"
