@@ -76,7 +76,7 @@ unorderedType t = rigid t
 -- | Return all of the unification type variables inside a type.
 typeUVs :: Type -> [VarName]
 typeUVs (UnifVar v) = [v]
-typeUVs (Record r _) = concatMap (\(Entry _ t _) -> typeUVs t) (Row.entries r)
+typeUVs (Record _ r _) = concatMap (\(Entry _ t _) -> typeUVs t) (Row.entries r)
 typeUVs (Variant r)  = concatMap (\(Entry _ t _) -> typeUVs t) (Row.entries r)
 typeUVs (AbsType _ _ ts) = concatMap typeUVs ts
 typeUVs (Function t1 t2) = typeUVs t1 ++ typeUVs t2
@@ -87,7 +87,7 @@ typeUVs _ = []
 typeVariables :: Type -> [VarName]
 typeVariables (TypeVar v) = [v]
 typeVariables (TypeVarBang v) = [v]
-typeVariables (Record r _) = concatMap (\(Entry _ t _) -> typeVariables t) (Row.entries r)
+typeVariables (Record _ r _) = concatMap (\(Entry _ t _) -> typeVariables t) (Row.entries r)
 typeVariables (Variant r)  = concatMap (\(Entry _ t _) -> typeVariables t) (Row.entries r)
 typeVariables (AbsType _ _ ts) = concatMap typeVariables ts
 typeVariables (Function t1 t2) = typeVariables t1 ++ typeVariables t2
@@ -107,7 +107,7 @@ rootUnifVar :: Type -> Maybe VarName
 rootUnifVar (UnifVar n)  = Just n
 rootUnifVar (Bang n)     = rootUnifVar n
 rootUnifVar (Variant r)  = rowVar r
-rootUnifVar (Record r s) = rowVar r
+rootUnifVar (Record _ r s) = rowVar r
 rootUnifVar _            = Nothing
 
 -- | A table of all operators, mapping string representations
@@ -200,7 +200,7 @@ traverseType :: (RW.Rewrite Type) -> Type -> Type
 traverseType func ty = case RW.run func ty of
   Just  t' -> t'
   Nothing  -> case ty of
-    Record es s    -> Record (Row.mapEntries (entryTypes (traverseType func)) es) s
+    Record _ es s  -> Record (MuType []) (Row.mapEntries (entryTypes (traverseType func)) es) s
     AbsType n s ts -> AbsType n s (map (traverseType func) ts)
     Variant es     -> Variant (Row.mapEntries (entryTypes (traverseType func)) es)
     Function t1 t2 -> Function (traverseType func t1) (traverseType func t2)
@@ -219,7 +219,7 @@ normaliseType :: (RW.Rewrite Type) -> Type -> Type
 normaliseType func ty =
   let t' = fromMaybe ty (RW.run func ty)
    in case t' of
-    Record es s    -> Record (Row.mapEntries (entryTypes (normaliseType func)) es) s
+    Record _ es s -> Record (MuType []) (Row.mapEntries (entryTypes (normaliseType func)) es) s
     AbsType n s ts -> AbsType n s (map (normaliseType func) ts)
     Variant es     -> Variant (Row.mapEntries (entryTypes (normaliseType func)) es)
     Function t1 t2 -> Function (normaliseType func t1) (normaliseType func t2)
@@ -235,14 +235,14 @@ substUV (x, t) = RW.rewrite $ \ t' -> case t' of
 -- | A rewrite that substitutes a given unification row variable for a row in a type.
 substRowV :: (VarName, Row) -> RW.Rewrite Type
 substRowV (x, (Row m' q)) = RW.rewrite $ \ t' -> case t' of
-  Variant (Row m (Just v))   | x == v -> Just (Variant (Row (M.union m m') q))
-  Record  (Row m (Just v)) s | x == v -> Just (Record  (Row (M.union m m') q) s)
+  Variant   (Row m (Just v))   | x == v -> Just (Variant (Row (M.union m m') q))
+  Record _ (Row m (Just v)) s | x == v -> Just (Record (MuType []) (Row (M.union m m') q) s)
   _                                   -> Nothing
 
 -- | A rewrite that substitutes a given unification sigil variable for a sigil in a type.
 substSigilV :: (VarName, Sigil) -> RW.Rewrite Type
 substSigilV (x, s) = RW.rewrite $ \ t' -> case t' of
-  Record r (UnknownSigil v) | x == v -> Just (Record r s)
+  Record _ r (UnknownSigil v) | x == v -> Just (Record (MuType []) r s)
   _                                  -> Nothing
 
 -- | A rewrite that substitutes a rigid type variable for a type term in a type.

@@ -19,7 +19,8 @@ module Minigent.Syntax
   , AbsTypeName
   , FieldName
   , -- * Types
-    Type (..)
+    MuType (..)
+  , Type (..)
   , Sigil (..)
   , PrimType (..)
   , -- ** Entries and Rows
@@ -88,16 +89,17 @@ data Row
     , rowVar :: Maybe VarName -- ^ Used only in type inference.
     } deriving (Show, Eq)
 
+data MuType = MuType [VarName] deriving (Show, Eq)
+
 -- | A type, which may contain unification variables or type operators.
 data Type
   = PrimType PrimType
-  | Record Row Sigil
+  | Record MuType Row Sigil -- A list of recursive parameters, field entries and sigil
   | AbsType AbsTypeName Sigil [Type]
   | Variant Row
   | TypeVar VarName -- ^ Refers to a rigid type variable bound with a forall.
   | TypeVarBang VarName -- ^ A 'TypeVar' with 'Bang' applied.
   | Function Type Type
-  | Rec VarName -- TODO: Recursive parameter
   -- used in type inference:
   | UnifVar VarName -- ^ Stands for an unknown type
   | Bang Type -- ^ Eliminated by type normalisation.
@@ -167,7 +169,7 @@ pattern (:>) t1 t2 = t2 :< t1
 
 -- | A polymorphic type, used for top-level bindings only.
 --   Given a list of type variable names, constraints on those type variables (right now,
---   only 'Share', 'Drop' and 'Escape' constraints are supported).
+--   only 'Share', 'Drop' and 'Escape' constraints are supported), and a list of recursive (mu) parameters.
 data PolyType = Forall [VarName] [Constraint] Type
      deriving (Show, Eq)
 

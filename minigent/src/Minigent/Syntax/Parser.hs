@@ -95,7 +95,8 @@ toplevel = mdo
     atomicTy <- rule $  PrimType    <$> primTy
                     <|> TypeVar     <$> typeVar
                     <|> TypeVarBang <$> typeVar <* token (L.Bang)
-                    <|> Record      <$  token (L.Open L.Brace)
+                    <|> Record      <$> recTy
+                                    <*  token (L.Open L.Brace)
                                     <*> (Row.fromList <$> fieldEntries)
                                     <*  token (L.Close L.Brace)
                                     <*> sigil 
@@ -248,6 +249,12 @@ toplevel = mdo
     typeVars <- rule $  (:)   <$> typeVar <* token (L.Comma) <*> typeVars
                     <|> (:[]) <$> typeVar
                     <|> pure []
+    
+                -- mu a,b,c
+    recTy <- rule $ MuType <$ token (L.Keyword L.Mu) <*> typeVars
+                -- recursive parameter ommitted
+                 <|> pure (MuType []) 
+                 <?> "recursive type"
 
     constraint <- rule $  Share  . TypeVar <$ token (L.UpperIdent "Share")  <*> typeVar
                       <|> Drop   . TypeVar <$ token (L.UpperIdent "Drop")   <*> typeVar
