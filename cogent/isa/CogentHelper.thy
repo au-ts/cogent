@@ -638,13 +638,38 @@ fun tacName (RTac _) = "RTac"
   | tacName (SubtypingTac _) = "SubtypingTac"
   | tacName (BlackBoxTac _) = "BlackBoxTac"
 
+
+(* Match the patterns that ttyping finds *)
+fun termName (Const (@{const_name AFun}, _) $ _ $ _)          = "AFun"
+  | termName (Const (@{const_name Fun}, _) $ _ $ _)           = "Fun"
+  | termName (Const (@{const_name Prim}, _) $ _ $ _)          = "Prim"
+  | termName (Const (@{const_name App}, _) $ _ $ _)           = "App"
+  | termName (Const (@{const_name Con}, _) $ _ $ _ $ _)       = "Con"
+  | termName (Const (@{const_name Struct}, _) $ _ $ _)        = "Struct"
+  | termName (Const (@{const_name Member}, _) $ _ $ _)        = "Member"
+  | termName (Const (@{const_name Unit}, _))                  = "App"
+  | termName (Const (@{const_name Lit}, _) $ _)               = "Lit"
+  | termName (Const (@{const_name SLit}, _) $ _)              = "SLit"
+  | termName (Const (@{const_name Cast}, _) $ _ $ _)          = "Cast"
+  | termName (Const (@{const_name Tuple}, _) $ _ $ _)         = "Tuple"
+  | termName (Const (@{const_name Put}, _) $ _ $ _ $ _)       = "Put"
+  | termName (Const (@{const_name Let}, _) $ _ $ _)           = "Let"
+  | termName (Const (@{const_name LetBang}, _) $ _ $ _ $ _)   = "LetBang"
+  | termName (Const (@{const_name Case}, _) $ _ $ _ $ _ $ _)  = "Case"
+  | termName (Const (@{const_name Esac}, _) $ _ $ _)          = "Esac"
+  | termName (Const (@{const_name If}, _) $ _ $ _ $ _)        = "If"
+  | termName (Const (@{const_name Take}, _) $ _ $ _ $ _)      = "Take"
+  | termName (Const (@{const_name Split}, _) $ _ $ _)         = "Split"
+  | termName (Const (@{const_name Promote}, _) $ _ $ _)       = "Promote"
+  | termName _ = "Unkown"
+
 fun mk_ttsplit_tacs_final nm k ctxt hint_tree
     = let
-        val runTac = fn tac => fn a => fn b => fn c =>
-                              logTacticOnUse (tac |> tacName) 
+        val runTac = fn term => fn tac => fn a => fn b => fn c =>
+                              logTacticOnUse (tacName tac ^ " : " ^ termName term) 
                                      (fn () => (interpret_tac tac) a b c)
       in
-        map (fn (tac,term) => (tac, runTac tac)) (mk_ttsplit_tacs nm k ctxt hint_tree)
+        map (fn (tac,term) => (tac, runTac term tac)) (mk_ttsplit_tacs nm k ctxt hint_tree)
       end
 
 fun apply_ttsplit_tacs_simple nm ctxt hints
