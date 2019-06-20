@@ -410,7 +410,7 @@ cg' (Member e f) t =  do
   let f' = Member e' f
       row = Row.incomplete [(f, (t, False))] rest
       x = R row (Right sigil)
-      c = alpha :< x <> Drop (R (Row.take f row) (Right sigil)) (UsedInMember f)
+      c = alpha :< x <> Drop x (UsedInMember f)
   traceTc "gen" (text "cg for member:" <+> prettyE f'
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint" <+> prettyC c)
@@ -603,9 +603,9 @@ match' (PTake r fs) t | not (any isNothing fs) = do
       t' = R row (Right sigil)
       p' = PTake (r, R row' (Right sigil)) (map Just (zip ns ps'))
       c = t :< t'
-      co = case overlapping ss of
-             Left (v:_) -> Unsat $ DuplicateVariableInPattern v  -- p'
-             _          -> Sat
+      co = case overlapping (s:ss) of
+        Left (v:_) -> Unsat $ DuplicateVariableInPattern v  -- p'
+        _          -> Sat
   traceTc "gen" (text "match unboxed record:" <+> prettyIP p'
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint" <+> prettyC c
