@@ -50,16 +50,16 @@ assignOf :: (MonadFresh VarName m, MonadWriter [Assign] m) => Constraint -> Mayb
 assignOf (UnifVar a :=: tau) | rigid tau && (a `notOccurs` tau) = pure [TyAssign a tau]
 assignOf (tau :=: UnifVar a) | rigid tau && (a `notOccurs` tau) = pure [TyAssign a tau]
 
-assignOf (Record _ (UnknownSigil v) :=: Record _ s)
+assignOf (Record _ _ (UnknownSigil v) :=: Record _ _ s)
   | s `elem` [ReadOnly, Unboxed, Writable]
   = pure [ SigilAssign v s ]
-assignOf (Record _ s :=: Record _ (UnknownSigil v))
+assignOf (Record _ _ s :=: Record _ _ (UnknownSigil v))
   | s `elem` [ReadOnly, Unboxed, Writable]
   = pure [ SigilAssign v s ]
-assignOf (Record _ (UnknownSigil v) :< Record _ s)
+assignOf (Record _ _ (UnknownSigil v) :< Record _ _ s)
   | s `elem` [ReadOnly, Unboxed, Writable]
   = pure [ SigilAssign v s ]
-assignOf (Record _ s :< Record _ (UnknownSigil v))
+assignOf (Record _ _ s :< Record _ _ (UnknownSigil v))
   | s `elem` [ReadOnly, Unboxed, Writable]
   = pure [ SigilAssign v s ]
 -- N.B. we know from the previous phase that common alternatives have been factored out.
@@ -74,7 +74,7 @@ assignOf (Variant r1 :=: Variant r2)
                                  ]
 
 -- N.B. we know from the previous phase that common fields have been factored out.
-assignOf (Record r1 s1 :=: Record r2 s2)
+assignOf (Record _ r1 s1 :=: Record _ r2 s2)
   | rowVar r1 /= rowVar r2, s1 == s2
   = case (rowVar r1, rowVar r2) of
     (Just x, Nothing) -> pure [RowAssign x r2]

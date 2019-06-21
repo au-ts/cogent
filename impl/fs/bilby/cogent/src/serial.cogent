@@ -397,8 +397,8 @@ serialise_ObjUnion(buf, offs, ou, olen) =
   | TObjSummary obj -> serialise_ObjSummary(buf, offs, obj)
   | TObjPad _ -> serialise_ObjPad(buf, offs, olen)
 
-{-# cinline deep_freeObjDentry #-}
 deep_freeObjDentry: (SysState, ObjDentry) -> SysState
+{-# cinline deep_freeObjDentry #-}
 deep_freeObjDentry(ex, obj {name}) =
   let ex = freeObjDentry(ex, obj)
   in wordarray_free[U8](ex, name)

@@ -24,8 +24,8 @@ bangRW = rewrite $ \t -> case t of
     Bang (PrimType t)      -> Just (PrimType t)
     Bang (Variant r)  | rowVar r == Nothing
       -> Just (Variant (Row.mapEntries (entryTypes Bang) r))
-    Bang (Record r s) | rowVar r == Nothing, s == ReadOnly || s == Writable || s == Unboxed
-      -> Just (Record (Row.mapEntries (entryTypes Bang) r) (bangSigil s))
+    Bang (Record _ r s) | rowVar r == Nothing, s == ReadOnly || s == Writable || s == Unboxed
+      -> Just (Record undefined (Row.mapEntries (entryTypes Bang) r) (bangSigil s))
     _                      -> Nothing
   where
     bangSigil Writable = ReadOnly

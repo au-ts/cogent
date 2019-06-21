@@ -66,11 +66,11 @@ findEquateCandidates (c:cs) = let
          | rigid b && notOccurs a b -> (sups, M.insertWith (<>) a [c] subs, others)
        Variant r1 :< t
          | rigid t, Just a <- rowVar r1 -> (M.insertWith (<>) a [c] sups, subs, others)
-       Record r1 s :< t
+       Record _ r1 s :< t
          | rigid t, Just a <- rowVar r1 -> (M.insertWith (<>) a [c] sups, subs, others)
        t :< Variant r1
          | rigid t, Just a <- rowVar r1 -> (sups, M.insertWith (<>) a [c] subs, others)
-       t :< Record r1 s
+       t :< Record _ r1 s
          | rigid t, Just a <- rowVar r1 -> (sups, M.insertWith (<>) a [c] subs, others)
        _ -> (sups,subs, c:others)
 

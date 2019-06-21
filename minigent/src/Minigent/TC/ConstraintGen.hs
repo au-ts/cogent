@@ -178,23 +178,23 @@ cg e tau = case e of
   (Member e f) -> do
     row <- Row.incomplete [Entry f tau False]
     sigil <- fresh
-    let alpha = Record row (UnknownSigil sigil)
+    let alpha = Record undefined row (UnknownSigil sigil)
     (e', c1) <- cg e alpha
-    let c2 = Drop (Record (Row.take f row) (UnknownSigil sigil))
+    let c2 = Drop (Record undefined (Row.take f row) (UnknownSigil sigil))
     withSig (Member e' f, c1 :&: c2)
 
   (Take x f y e1 e2) -> do
     beta <- UnifVar <$> fresh
     row <- Row.incomplete [Entry f beta False]
     sigil <- fresh
-    let alpha = Record row (UnknownSigil sigil)
+    let alpha = Record undefined row (UnknownSigil sigil)
 
     (e1', c1) <- cg e1 alpha
     modify (push (y, beta))
-    modify (push (x, Record (Row.take f row) (UnknownSigil sigil)))
+    modify (push (x, Record undefined (Row.take f row) (UnknownSigil sigil)))
     (e2', c2) <- cg e2 tau
     xUsed <- topUsed <$> get
-    let c3 = if xUsed then Sat else Drop (Record (Row.take f row) (UnknownSigil sigil))
+    let c3 = if xUsed then Sat else Drop (Record undefined (Row.take f row) (UnknownSigil sigil))
     modify pop
     yUsed <- topUsed <$> get
     let c4 = if yUsed then Sat else Drop beta
@@ -205,15 +205,15 @@ cg e tau = case e of
     beta <- UnifVar <$> fresh
     row  <- Row.incomplete [Entry f beta True]
     sigil <- fresh
-    let alpha = Record row (UnknownSigil sigil)
+    let alpha = Record undefined row (UnknownSigil sigil)
     (e1', c1) <- cg e1 alpha
     (e2', c2) <- cg e2 beta
-    let c3 = Record (Row.put f row) (UnknownSigil sigil) :< tau
+    let c3 = Record undefined (Row.put f row) (UnknownSigil sigil) :< tau
     withSig (Put e1' f e2', c1 :&: c2 :&: c3)
 
   (Struct fs) -> do
     (fs', ts, cs) <- cgStruct fs
-    withSig (Struct fs', conjunction cs :&: Record (Row.fromList ts) Unboxed :< tau )
+    withSig (Struct fs', conjunction cs :&: Record undefined (Row.fromList ts) Unboxed :< tau )
 
   where
 

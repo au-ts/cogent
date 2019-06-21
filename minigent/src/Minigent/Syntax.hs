@@ -89,7 +89,7 @@ data Row
     , rowVar :: Maybe VarName -- ^ Used only in type inference.
     } deriving (Show, Eq)
 
-data MuType = MuType [VarName] deriving (Show, Eq)
+data MuType = MuType VarName deriving (Show, Eq)
 
 -- | A type, which may contain unification variables or type operators.
 data Type

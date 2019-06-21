@@ -59,25 +59,25 @@ joinMeet = Rewrite.withTransform find $ \c -> case c of
   Join v (Variant r1) (Variant r2) | r1 == r2 -> do
     pure [Variant r1 :< v ]
 
-  Meet v (Record r1 s1) (Record r2 s2) | r1 /= r2 -> do
+  Meet v (Record _ r1 s1) (Record _ r2 s2) | r1 /= r2 -> do
     guard (Row.compatible r1 r2)
     guard (sigilsCompatible s1 s2)
     r <- Row.union Row.leastTaken r1 r2
     s <- UnknownSigil <$> fresh
-    pure [v :< Record r s, Record r s :< Record r1 s1, Record r s :< Record r2 s2 ]
+    pure [v :< Record undefined r s, Record undefined r s :< Record undefined r1 s1, Record undefined r s :< Record undefined r2 s2 ]
 
-  Meet v (Record r1 s1) (Record r2 s2) | r1 == r2 && s1 == s2 -> do
-    pure [v :< Record r1 s1]
+  Meet v (Record _ r1 s1) (Record _ r2 s2) | r1 == r2 && s1 == s2 -> do
+    pure [v :< Record undefined r1 s1]
 
-  Join v (Record r1 s1) (Record r2 s2) | r1 /= r2 -> do
+  Join v (Record _ r1 s1) (Record _ r2 s2) | r1 /= r2 -> do
     guard (Row.compatible r1 r2)
     guard (sigilsCompatible s1 s2)
     r <- Row.union Row.mostTaken r1 r2
     s <- UnknownSigil <$> fresh
-    pure [Record r s :< v, Record r1 s1 :< Record r s, Record r2 s2 :< Record r s]
+    pure [Record undefined r s :< v, Record undefined r1 s1 :< Record undefined r s, Record undefined r2 s2 :< Record undefined r s]
 
-  Join v (Record r1 s1) (Record r2 s2) | r1 == r2 && s1 == s2 -> do
-    pure [Record r1 s1 :< v ]
+  Join v (Record _ r1 s1) (Record _ r2 s2) | r1 == r2 && s1 == s2 -> do
+    pure [Record undefined r1 s1 :< v ]
 
   Join v (Function t1 t2) (Function r1 r2) -> do
     b1 <- UnifVar <$> fresh
@@ -109,14 +109,14 @@ find (c:cs) = case c of
            ([]          , rs ) -> fmap (c:) <$> find cs
            (_ :< rho:rs, rs') -> pure (Join (Variant (Row m (Just v))) tau rho , rs ++ rs')
 
-  (Record (Row m (Just v)) s) :< tau@(Record (Row m' Nothing) s')
+  (Record _ (Row m (Just v)) s) :< tau@(Record _ (Row m' Nothing) s')
     | M.null m -> case partition (flexRowSub v) cs of
            ([]          , rs ) -> fmap (c:) <$> find cs
-           (_ :< rho :rs, rs') -> pure (Meet (Record (Row m (Just v)) s) tau rho , rs ++ rs')
-  (Record (Row m' Nothing) s') :< tau@(Record (Row m (Just v)) s)
+           (_ :< rho :rs, rs') -> pure (Meet (Record undefined (Row m (Just v)) s) tau rho , rs ++ rs')
+  (Record _ (Row m' Nothing) s') :< tau@(Record _ (Row m (Just v)) s)
     | M.null m -> case partition (flexRowSup v) cs of
            ([]          , rs ) -> fmap (c:) <$> find cs
-           (_ :< rho:rs, rs') -> pure (Join (Record (Row m (Just v)) s) tau rho , rs ++ rs')
+           (_ :< rho:rs, rs') -> pure (Join (Record undefined (Row m (Just v)) s) tau rho , rs ++ rs')
 
 
   _ -> fmap (c:) <$> find cs
@@ -125,12 +125,12 @@ find (c:cs) = case c of
     flexRigidSub v _                   = False
 
     flexRowSub v (Variant (Row m (Just v')) :< Variant (Row m' Nothing)) = M.null m && v == v'
-    flexRowSub v (Record (Row m (Just v')) s :< Record (Row m' Nothing) s') = M.null m && v == v'
+    flexRowSub v (Record _ (Row m (Just v')) s :< Record _ (Row m' Nothing) s') = M.null m && v == v'
     flexRowSub v _                                                       = False
 
     flexRigidSup v (rho :< UnifVar v') = rigid rho && v == v'
     flexRigidSup v _                   = False
 
     flexRowSup v (Variant (Row m Nothing) :< Variant (Row m' (Just v'))) = M.null m' && v == v'
-    flexRowSup v (Record (Row m Nothing) s :< Record (Row m' (Just v')) s') = M.null m' && v == v'
+    flexRowSup v (Record _ (Row m Nothing) s :< Record _ (Row m' (Just v')) s') = M.null m' && v == v'
     flexRowSup v _                                                       = False
