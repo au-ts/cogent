@@ -273,7 +273,7 @@ toplevel = mdo
                     <|> Forall [] [] <$> ty
     topLevel <- rule $  TypeSig  <$> var
                                  <*  token (L.Colon) 
-                                 <*> polyType 
+                                 <*> polyType
                                  <*  token (L.Semi)
                     <|> Equation <$> var
                                  <*> var

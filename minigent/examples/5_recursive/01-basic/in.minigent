@@ -1,2 +1,2 @@
-listop : U8 ->  mu t { f : < End Unit | Cons { d : U8, r : t } >}; -- List of U8
+listop : U8 ->  mu t { f : < End Unit | Cons { d : U8, r : t } > };
 listop a = { f = End Unit };
