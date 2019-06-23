@@ -666,7 +666,7 @@ fun termName (Const (@{const_name AFun}, _) $ _ $ _)          = "AFun"
 fun mk_ttsplit_tacs_final nm k ctxt hint_tree
     = let
         val runTac = fn term => fn tac => fn a => fn b => fn c =>
-                              logTacticOnUse (tacName tac ^ " : " ^ termName term) 
+                              logTacticOnUse (tacName tac ^ ":" ^ termName term) 
                                      (fn () => (interpret_tac tac) a b c)
       in
         map (fn (tac,term) => (tac, runTac term tac)) (mk_ttsplit_tacs nm k ctxt hint_tree)

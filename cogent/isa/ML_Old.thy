@@ -107,9 +107,9 @@ fun logTime tacName ({elapsed, cpu, gc} : Timing.timing) =
   File.append LOG_FILE (
     "{ \"tacticName\": \"" ^ tacName ^ "\"," ^
     " \"time\": { "
-      ^ "\"elapsed\": " ^ (Real.toString (Time.toReal elapsed)) ^ ", "
-      ^ "\"cpu\": "     ^ (Real.toString (Time.toReal cpu)) ^ ", "
-      ^ "\"gc\": "      ^ (Real.toString (Time.toReal gc))
+      ^ "\"elapsed\": " ^ (Int.toString (Time.toMicroseconds elapsed)) ^ ", "
+      ^ "\"cpu\": "     ^ (Int.toString (Time.toMicroseconds cpu)) ^ ", "
+      ^ "\"gc\": "      ^ (Int.toString (Time.toMicroseconds gc))
       ^ "}"
   ^ "}\n" 
   )
