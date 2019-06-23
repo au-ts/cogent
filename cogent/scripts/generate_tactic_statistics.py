@@ -32,7 +32,7 @@ def make_stats_obj(num_list):
     obj['max']     = max(num_list)
     obj['median']  = median(num_list)
     obj['total']   = sum(num_list)
-    obj['amount']   = len(num_list)
+    obj['amount']  = len(num_list)
 
     return obj
 
@@ -48,32 +48,41 @@ try:
 
     for line in content:
         data = json.loads(line)
-        if not data['tacticName'] in tactic_times:
-            tactic_times[data['tacticName']] = [data['time']]
-        else:
-            tactic_times[data['tacticName']].append(data['time'])
+        [tactic_name, type_name] = data['tacticName'].split(':')
+        if not tactic_name in tactic_times:
+            tactic_times[tactic_name] = {}
+        if not type_name in tactic_times[tactic_name]:
+            tactic_times[tactic_name][type_name] = []
+
+        tactic_times[tactic_name][type_name].append(data['time'])
 
     final_stats = {}
 
     # print stats
-    for key in sorted(tactic_times.keys()):
-        cpu     = [d['cpu']     for d in tactic_times[key]]
-        elapsed = [d['elapsed'] for d in tactic_times[key]]
-        gc      = [d['gc']      for d in tactic_times[key]]
-
-        final_stats[key] = {
-                "cpu":      make_stats_obj(cpu),
-                "elapsed":  make_stats_obj(elapsed),
-                "gc":       make_stats_obj(gc),
-            }
-
+    for key in tactic_times.keys():
+        final_stats[key] = {}
         print("tactic '{}':".format(key))
         row_format ="{:>15}" * 7
-        print(row_format.format("Type", *sorted(["Min","Average","Median","Max", "Total", "Amount"])))
-        for t in ["Elapsed", "CPU", "GC"]:
-            stat_obj = final_stats[key][t.lower()]
-            nums = [str(round(x,6)) for x in [stat_obj[key] for key in sorted(stat_obj.keys())]]
-            print(row_format.format(t, *nums))
+        print(row_format.format("Type", 
+                                *( map(lambda x: x + " (μs)",sorted(["Min","Average","Median","Max", "Total", "Amount"]))) )
+                                )
+
+        for expr in sorted(tactic_times[key].keys()):
+            cpu     = [d['cpu']     for d in tactic_times[key][expr]]
+            #elapsed = [d['elapsed'] for d in tactic_times[key]]
+            #gc      = [d['gc']      for d in tactic_times[key]]
+
+            final_stats[key][expr] = {
+                    "cpu":      make_stats_obj(cpu)
+                    #"elapsed":  make_stats_obj(elapsed),
+                    #"gc":       make_stats_obj(gc),
+                }
+
+            for t in ["cpu"]:
+                stat_obj = final_stats[key][expr][t.lower()]
+                nums = [str(int(x)) for x in [stat_obj[key] for key in sorted(stat_obj.keys())]]
+                print(row_format.format(expr, *nums))
+        print()
 
     # Log stats if outfile present
     if (len(sys.argv) > 2):
