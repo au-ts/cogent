@@ -8,8 +8,8 @@ baz : U32 -> Maybe  U32
 
 foo : U32 -> U32
 foo a = bar a | Some a -> a
-              | None _ -> a
+              | None   -> a
 
 quux : U32 -> U32
 quux a = baz a | Some a -> a
-               | None   -> a
+               | None _ -> a

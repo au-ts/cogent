@@ -60,7 +60,7 @@ solve axs cs = do
   where
     solverRewrites :: Rewrite.Rewrite' Solver [Constraint]
     solverRewrites = Rewrite.untilFixedPoint $
-      -- Rewrite.debug "SOLV" debugPrettyConstraints <>
+      Rewrite.debug "SOLV" debugPrettyConstraints <>
       Rewrite.pre normaliseConstraints (Rewrite.lift (simplify axs)
                                      <> unify
                                      <> joinMeet

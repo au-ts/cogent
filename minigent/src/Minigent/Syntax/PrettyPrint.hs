@@ -43,7 +43,8 @@ prettyVEntry (Entry v x tk)
 
 prettySigil ReadOnly = annotate S.sigil "!"
 prettySigil Unboxed  = annotate S.sigil "#"
-prettySigil _        = mempty
+prettySigil (UnknownSigil s)  = annotate S.sigil (pretty s)
+prettySigil _ = mempty
 
 
 prettyVRow r@(Row _ Nothing)  = encloseSep langle rangle pipe (map prettyVEntry (Row.entries r))
