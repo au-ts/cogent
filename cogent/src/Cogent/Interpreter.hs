@@ -44,6 +44,7 @@ import qualified Cogent.TypeCheck.Base      as Tc
 import           Cogent.TypeCheck.Generator as Tc hiding (validateType)
 import qualified Cogent.TypeCheck.Post      as Tc
 import           Cogent.TypeCheck.Solver    as Tc
+import           Cogent.TypeCheck.Errors    as Tc
 import qualified Cogent.TypeCheck.Subst     as Subst
 import           Cogent.Util
 import           Data.Nat hiding (toInt)
@@ -364,14 +365,18 @@ parseExpr :: Parser.Parser S.LocExpr
 parseExpr = Parser.expr 0 <* eof
 
 tcExpr :: IORef PreloadS -> S.LocExpr -> IO ((Maybe Tc.TypedExpr, Tc.TcLogState), Tc.TcState)
-tcExpr r e = readIORef r >>= \st -> Tc.runTc (tcState st) $ do
-    ((c,e'),flx,os) <- runCG Ctx.empty [] $ do
-      let ?loc = S.posOfE e
-      t <- freshTVar
-      cg e t
-    (logs, subst, assn, _) <- runSolver (solve c) [] flx os
-    Tc.exitOnErr $ mapM_ Tc.logTc logs
-    Tc.postE $ Subst.applyE subst e'
+tcExpr r e = do
+  st <- readIORef r
+  Tc.runTc (tcState st) $
+    do
+      ((c,e'), flx, os) <- (Tc.runCG Ctx.empty [] (do
+        let ?loc = S.posOfE e
+        t <- freshTVar
+        y <- Tc.cg e t
+        pure y))
+      (cs, subst) <- runSolver (solve [] c) flx
+      Tc.exitOnErr $ Tc.toErrors os cs
+      Tc.postE $ Subst.applyE subst e'
   where 
     knownTypes = map (, ([], Nothing)) $ words "U8 U16 U32 U64 String Bool"
 
