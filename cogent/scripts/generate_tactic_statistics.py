@@ -64,7 +64,7 @@ try:
         print("tactic '{}':".format(key))
         row_format ="{:>15}" * 7
         print(row_format.format("Type", 
-                                *( map(lambda x: x + " (μs)",sorted(["Min","Average","Median","Max", "Total", "Amount"]))) )
+                                *sorted(["Amount"] + list(map(lambda x: x + " (μs)",["Min","Average","Median","Max", "Total"]))) )
                                 )
 
         for expr in sorted(tactic_times[key].keys()):

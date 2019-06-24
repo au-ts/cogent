@@ -111,7 +111,7 @@ fun logTime tacName ({elapsed, cpu, gc} : Timing.timing) =
       ^ "\"cpu\": "     ^ (Int.toString (Time.toMicroseconds cpu)) ^ ", "
       ^ "\"gc\": "      ^ (Int.toString (Time.toMicroseconds gc))
       ^ "}"
-  ^ "}\n" 
+  ^ "}\n"
   )
 
 (* 

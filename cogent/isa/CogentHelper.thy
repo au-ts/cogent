@@ -661,7 +661,7 @@ fun termName (Const (@{const_name AFun}, _) $ _ $ _)          = "AFun"
   | termName (Const (@{const_name Take}, _) $ _ $ _ $ _)      = "Take"
   | termName (Const (@{const_name Split}, _) $ _ $ _)         = "Split"
   | termName (Const (@{const_name Promote}, _) $ _ $ _)       = "Promote"
-  | termName _ = "Unkown"
+  | termName _ = "Unknown"
 
 fun mk_ttsplit_tacs_final nm k ctxt hint_tree
     = let
