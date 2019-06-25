@@ -37,11 +37,31 @@ def make_stats_obj(num_list):
     return obj
 
 if len(sys.argv) < 2:
-    print("Usage: " + sys.argv[0] + " filename [outfile_name]")
+    print("Usage: " + sys.argv[0] + " [OPTIONS] filename [outfile]")
+    print("Where options are any of: ")
+    print("\t--plot - Create GNUPlot plotting data in outfile")
+    print("\t--json - Create JSON transformed data in outfile")
     exit(1)
 
+PLOT = False
+JSON = False
+OUTFILE = ""
+INFILE = sys.argv[1]
+if len(sys.argv) == 4:
+    option  = sys.argv[1]
+    INFILE  = sys.argv[2]
+    OUTFILE = sys.argv[3]
+
+    if option == "--plot":
+        PLOT = True
+    elif option == "--json":
+        JSON = True
+    else:
+        print("Error: '" + option + "' is not a valid option")
+        exit(1)
+
 try:
-    f = open(sys.argv[1], 'r')
+    f = open(INFILE, 'r')
     content = f.readlines()
 
     tactic_times = {}
@@ -57,6 +77,7 @@ try:
         tactic_times[tactic_name][type_name].append(data['time'])
 
     final_stats = {}
+    all_exprs = {} # Keep track of all existing expressions
 
     # print stats
     for key in tactic_times.keys():
@@ -67,10 +88,10 @@ try:
                                 *sorted(["Amount"] + list(map(lambda x: x + " (μs)",["Min","Average","Median","Max", "Total"]))) )
                                 )
 
+        total = {}
         for expr in sorted(tactic_times[key].keys()):
-            cpu     = [d['cpu']     for d in tactic_times[key][expr]]
-            #elapsed = [d['elapsed'] for d in tactic_times[key]]
-            #gc      = [d['gc']      for d in tactic_times[key]]
+            all_exprs[expr] = True
+            cpu = [d['cpu'] for d in tactic_times[key][expr]]
 
             final_stats[key][expr] = {
                     "cpu":      make_stats_obj(cpu)
@@ -78,17 +99,39 @@ try:
                     #"gc":       make_stats_obj(gc),
                 }
 
+            for k in final_stats[key][expr]["cpu"]:
+                if not k in total:
+                    total[k] = 0
+                total[k] += final_stats[key][expr]["cpu"][k]
+
             for t in ["cpu"]:
                 stat_obj = final_stats[key][expr][t.lower()]
                 nums = [str(int(x)) for x in [stat_obj[key] for key in sorted(stat_obj.keys())]]
                 print(row_format.format(expr, *nums))
-        print()
+        print(row_format.format("Total", *[str(int(total[x])) for x in sorted(total.keys())]), '\n')
 
     # Log stats if outfile present
-    if (len(sys.argv) > 2):
-        with open(sys.argv[2], 'w') as out:
+    if JSON:
+        with open(OUTFILE, 'w') as out:
             stat_str = json.dumps(final_stats)
             out.write(stat_str)
+    # make gnuplot data
+    if PLOT:
+        with open(OUTFILE, 'w') as out:
+            out.write("Tactic")
+            for key in sorted(final_stats.keys()):
+                out.write("\t\t" + key)
+            out.write('\n')
+
+            for expr in sorted(all_exprs.keys()):
+                out.write(expr)
+                for key in sorted(final_stats.keys()):
+                    if expr not in final_stats[key]:
+                        out.write("\t\t0")
+                    else:
+                        out.write("\t\t" + str(final_stats[key][expr]['cpu']['total']))
+                out.write('\n')
+
 
 except FileNotFoundError:
     print("File '" + sys.argv[1] + "' not found.")
