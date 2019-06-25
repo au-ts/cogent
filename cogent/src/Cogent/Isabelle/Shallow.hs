@@ -67,7 +67,10 @@ import qualified Text.PrettyPrint.ANSI.Leijen as L ((<$$>))
 import Lens.Micro
 import Lens.Micro.TH
 import Lens.Micro.Mtl
-import Debug.Trace
+-- import Debug.Trace
+
+_fixSyntaxHighlighting = u where u = ()
+
 
 isaReservedNames = ["o", "value", "from"]
 
