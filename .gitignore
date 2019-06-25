@@ -54,3 +54,6 @@ docs/assets/
 docs/doctrees/
 docs/html/
 docs/pseudoxml/
+
+cogent/scripts/*.dat
+cogent/scripts/*.png
