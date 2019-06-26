@@ -73,8 +73,12 @@ typeCheckDataLayoutExpr env (Record fields) = foldM typeCheckField [] fields
 
 typeCheckDataLayoutExpr env (Variant tagExpr alternatives) = do
   case primitiveBitRange tagExpr of
-    Just tagBits  -> do altsAlloc <- fst <$> foldM (typeCheckAlternative tagBits) ([], M.empty) alternatives
-                        [(tagBits, InTag PathEnd)] /\ altsAlloc
+    Just tagBits ->
+      if isZeroSizedBR tagBits
+      then returnError $ ZeroSizedBitRange (InTag PathEnd)
+      else do
+        altsAlloc <- fst <$> foldM (typeCheckAlternative tagBits) ([], M.empty) alternatives
+        [(tagBits, InTag PathEnd)] /\ altsAlloc
     Nothing       -> returnError $ TagNotSingleBlock (InTag PathEnd)
   where
     typeCheckAlternative
@@ -176,7 +180,11 @@ data DataLayoutTypeCheckErrorP p
   | OversizedTagValue       p BitRange TagName Size
     -- ^ Used a tag value which is too large to fit in the variant's tag bit range
     -- Path to the variant, bits for its bit range, name of the alternative, it's tag value
-    
+
+  | ZeroSizedBitRange       p
+  -- ^ The layout contains a bit range of size zero.
+  -- This could generate an array of length 0, which is disallowed by C
+
   deriving (Eq, Show, Ord, Functor)
 
 {- TODO: needed to implement `typeCheckDataLayoutTypeMatch`
