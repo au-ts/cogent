@@ -66,7 +66,11 @@ deriving instance Ord bits => Ord (DataLayout bits)
 data BitRange
   = BitRange { bitSizeBR :: Size, bitOffsetBR :: Size }
   deriving (Eq, Show, Ord)
-  
+
+-- | A predicate to determine if the bit-range is zero sized.
+isZeroSizedBR :: BitRange -> Bool
+isZeroSizedBR BitRange { bitSizeBR, bitOffsetBR } = (bitSizeBR == 0)
+
 -- | A range of bit indices into a data type.
 --
 --   Should satisfy the following properties:
