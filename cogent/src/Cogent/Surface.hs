@@ -113,7 +113,7 @@ type Entry t = (FieldName, (t, Taken))
 
 data Type e t =
               -- They are in WHNF
-                TCon TypeName [t] (Sigil (Maybe RepExpr))  -- FIXME: can polymophise the `Representation`
+                TCon TypeName [t] (Sigil (Maybe RepExpr))  -- FIXME: can polymorphise the `Representation`
               | TVar VarName Banged
               | TFun t t
               | TRecord [(FieldName, (t, Taken))] (Sigil (Maybe RepExpr))
@@ -123,7 +123,7 @@ data Type e t =
 #ifdef BUILTIN_ARRAYS
               | TArray t e
 #endif
-              -- In TypeCheck.Post, the TUnbox and TBang typeoperators
+              -- In TypeCheck.Post, the TUnbox and TBang type-operators
               -- are normalised out of the syntax tree by altering the Sigil
               -- of the type they act on / zilinc, mdimeglio
               | TUnbox   t
