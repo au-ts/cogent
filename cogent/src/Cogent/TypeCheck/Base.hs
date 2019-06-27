@@ -72,7 +72,7 @@ data TypeError = FunctionNotFound VarName
                | UnknownTypeVariable VarName
                | UnknownTypeConstructor TypeName
                | TypeArgumentMismatch TypeName Int Int
-               | TypeMismatch (TypeFragment TCType) (TypeFragment TCType)
+               | TypeMismatch TCType TCType
                | RequiredTakenField FieldName TCType
                | TypeNotShareable TCType Metadata
                | TypeNotEscapable TCType Metadata
@@ -134,7 +134,7 @@ isCtxConstraint (SolvingConstraint _) = True
 isCtxConstraint _ = False
 
 data VarOrigin = ExpressionAt SourcePos
-               | BoundOf (TypeFragment TCType) (TypeFragment TCType) Bound
+               | BoundOf TCType TCType Bound
                | EqualIn SExpr SExpr TCType TCType
                deriving (Eq, Show, Ord)
 
@@ -242,11 +242,6 @@ warnToConstraint f w | f = SemiSat w
 -- -----------------------------------------------------------------------------
 -- Types for constraint generation and solving
 -- -----------------------------------------------------------------------------
-
-data TypeFragment t = F t
-                    | FRecord (Row TCType)
-                    | FVariant (Row TCType)
-                    deriving (Eq, Show, Functor, Foldable, Traversable, Ord)
 
 data TCType         = T (Type SExpr TCType)
                     | U Int  -- unifier
