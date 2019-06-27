@@ -174,10 +174,13 @@ normaliseT d (Synonym n ts) =
     _ -> __impossible ("normaliseT: unresolved synonym " ++ show n)
 
 normaliseT d (V x) = T . TVariant . M.fromList . Row.toEntryList . fmap (:[]) <$> traverse (normaliseT d) x
-normaliseT d (R x (Left s)) = T . flip TRecord (fmap (const noRepE) s) . Row.toEntryList <$> traverse (normaliseT d) x
+normaliseT d (R x (Left s)) =
+  T . flip TRecord (__todo "Check this is correct" $ fmap (const Nothing) s) . Row.toEntryList <$>
+    traverse (normaliseT d) x
 normaliseT d (R x (Right s)) =  __impossible ("normaliseT: invalid sigil (?" ++ show s ++ ")")
 normaliseT d (U x) = __impossible ("normaliseT: invalid type (?" ++ show x ++ ")")
 normaliseT d (T x) = T <$> traverse (normaliseT d) x
+
 
 -- Normalises the layouts in sigils to remove `DataLayoutRefs`
 normaliseS :: Sigil (Maybe DataLayoutExpr) -> Post (Sigil (Maybe DataLayoutExpr))
