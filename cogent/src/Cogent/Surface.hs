@@ -13,9 +13,11 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveFunctor, FlexibleInstances, TupleSections, DeriveFoldable, DeriveTraversable #-}
 
-module Cogent.Surface where
+module Cogent.Surface
+  ( module Cogent.Surface
+  , module Cogent.Dargent.Surface
+  ) where
 
-import Cogent.Common.Repr (Representation)
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Util
@@ -30,6 +32,8 @@ import Data.Traversable
 #endif
 import qualified Data.Map as M
 import Text.Parsec.Pos
+
+import Cogent.Dargent.Surface
 
 type DocString = String
 
@@ -64,32 +68,11 @@ data Inline = Inline
             | NoInline
             deriving (Data, Eq, Ord, Show)
 
-data RepSize = Bytes Int | Bits Int | Add RepSize RepSize -- Future options, sizeof, offsetof, "after"
-  deriving (Show, Data, Eq, Ord)
-
-
-data RepExpr = Prim    RepSize
-             | Record  [(FieldName, SourcePos, RepExpr)] 
-             | Variant RepExpr [(TagName, SourcePos, Integer, RepExpr)]
-             | Offset RepExpr RepSize
-             | RepRef RepName
-            deriving (Show, Data, Eq, Ord)
-
-noRepE = RepRef "_|_"  -- TODO
-
 allRepRefs :: RepExpr -> [RepName]
 allRepRefs (Record fs) = concatMap (allRepRefs . thd3) fs
 allRepRefs (Variant _ cs) = concatMap (\(_,_,_,e) -> allRepRefs e) cs
 allRepRefs (RepRef n) = [n]
 allRepRefs _ = []
-
-data RepDecl = RepDecl SourcePos RepName RepExpr deriving (Show, Data, Eq, Ord)
-
-data RepData = Rep
-               { originalDecl :: RepDecl
-               , name :: RepName
-               , representation :: Representation
-               }
 
 data Expr t p ip e = PrimOp OpName [e]
                    | Var VarName
@@ -130,10 +113,10 @@ type Entry t = (FieldName, (t, Taken))
 
 data Type e t =
               -- They are in WHNF
-                TCon TypeName [t] (Sigil RepExpr)  -- FIXME: can polymorphise the `Representation`
+                TCon TypeName [t] (Sigil (Maybe RepExpr))  -- FIXME: can polymorphise the `Representation`
               | TVar VarName Banged
               | TFun t t
-              | TRecord [(FieldName, (t, Taken))] (Sigil RepExpr)
+              | TRecord [(FieldName, (t, Taken))] (Sigil (Maybe RepExpr))
               | TVariant (M.Map TagName ([t], Taken))
               | TTuple [t]
               | TUnit
@@ -141,6 +124,9 @@ data Type e t =
               | TArray t e
 #endif
               -- They will be eliminated at some point / zilinc
+              -- In TypeCheck.Post, the TUnbox and TBang type-operators
+              -- are normalised out of the syntax tree by altering the Sigil
+              -- of the type they act on / zilinc, mdimeglio
               | TUnbox   t
               | TBang    t
               -- Used for both field names in records and tag names in variants
