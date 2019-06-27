@@ -71,7 +71,7 @@ data TypeError = FunctionNotFound VarName
                | UnknownTypeVariable VarName
                | UnknownTypeConstructor TypeName
                | TypeArgumentMismatch TypeName Int Int
-               | TypeMismatch TCType TCType
+               | TypeMismatch (TypeFragment TCType) (TypeFragment TCType)
                | RequiredTakenField FieldName TCType
                | TypeNotShareable TCType Metadata
                | TypeNotEscapable TCType Metadata
@@ -133,7 +133,7 @@ isCtxConstraint (SolvingConstraint _) = True
 isCtxConstraint _ = False
 
 data VarOrigin = ExpressionAt SourcePos
-               | BoundOf TCType TCType Bound
+               | BoundOf (TypeFragment TCType) (TypeFragment TCType) Bound
                | EqualIn SExpr SExpr TCType TCType
                deriving (Eq, Show, Ord)
 
@@ -241,11 +241,15 @@ warnToConstraint f w | f = SemiSat w
 -- Types for constraint generation and solving
 -- -----------------------------------------------------------------------------
 
+data TypeFragment t = F t
+                    | FRecord (Row TCType)
+                    | FVariant (Row TCType)
+                    deriving (Eq, Show, Functor, Foldable, Traversable, Ord)
 
 data TCType         = T (Type SExpr TCType)
                     | U Int  -- unifier
                     | R (Row TCType) (Either (Sigil ()) Int)
-                    | V (Row TCType) 
+                    | V (Row TCType)
                     | Synonym TypeName [TCType]
                     deriving (Show, Eq, Ord)
 
@@ -412,7 +416,7 @@ runTc s ma = flip runStateT s
 
 
 type TcM a = MaybeT (StateT TcLogState (StateT TcState IO)) a    
-type TcConsM lcl a  = StateT lcl (StateT TcState IO) a
+type TcConsM lcl a = StateT  lcl (StateT TcState IO) a
 type TcErrM  err a = ExceptT err (StateT TcState IO) a
 type TcBaseM     a =              StateT TcState IO  a
 
@@ -483,14 +487,21 @@ validateType' vs (RT t) = do
                -> throwE (TypeArgumentMismatch t provided required)
                 |  Just (_, Just x) <- lookup t ts
                -> Synonym t <$> mapM (validateType' vs) as  
-    TRecord fs s
-      | fields  <- map fst fs
-      , fields' <- nub fields
-      , fields' /= fields
-        -> throwE (DuplicateRecordFields (fields \\ fields')) 
-      | Boxed _ (Just dlexpr) <- s
-      , (anError : _) <- fst $ typeCheckDataLayoutExpr layouts dlexpr
-        -> throwE $ DataLayoutError anError
+
+    TRecord fs s | fields  <- map fst fs
+                 , fields' <- nub fields
+                -> let toRow (T (TRecord fs s)) = R (Row.fromList fs) (Left (fmap (const ()) s)) 
+                   in
+                    if fields' == fields
+                    then
+                      case s of
+                        Boxed _ (Just dlexpr)
+                          | (anError : _) <- fst $ typeCheckDataLayoutExpr layouts dlexpr
+                          -> throwE $ DataLayoutError anError
+                        otherwise ->
+                          (toRow . T . ffmap toSExpr) <$> mapM (validateType' vs) t
+                    else throwE (DuplicateRecordFields (fields \\ fields'))
+
     TVariant fs  -> do let tuplize [] = T TUnit
                            tuplize [x] = x 
                            tuplize xs  = T (TTuple xs)
@@ -499,7 +510,7 @@ validateType' vs (RT t) = do
         
     -- TArray te l -> check l >= 0  -- TODO!!!
 
-    _ -> __fixme (T <$> (mmapM (return . toSExpr) <=< mapM (validateType' vs)) t)
+    _ -> __fixme $ T <$> (mmapM (return . toSExpr) <=< mapM (validateType' vs)) t
     -- With (TCon _ _ l), and (TRecord _ l), must check l == Nothing iff it is contained in a TUnbox.
     -- This can't be done in the current setup because validateType' has no context for the type it is validating.
     -- Not implementing this now, because a new syntax for types is needed anyway, which may make this issue redundant.
