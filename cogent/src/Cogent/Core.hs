@@ -70,7 +70,8 @@ data Type t
   | TString
   | TSum [(TagName, (Type t, Bool))]  -- True means taken (since 2.0.4)
   | TProduct (Type t) (Type t)
-  | TRecord [(FieldName, (Type t, Bool))] (Sigil (DataLayout BitRange))  -- True means taken, Layout will be nothing for abstract types
+  | TRecord [(FieldName, (Type t, Bool))] (Sigil (DataLayout BitRange))
+    -- True means taken, Layout will be nothing for abstract types
   | TUnit
 #ifdef BUILTIN_ARRAYS
   | TArray (Type t) ArraySize  -- use Int for now
