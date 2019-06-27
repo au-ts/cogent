@@ -26,7 +26,7 @@ import Data.Monoid hiding (Alt)
 import Prelude hiding (lookup)
 import qualified Cogent.TypeCheck.Row as Row 
 
-data AssignResult = Type TCType | Sigil (Sigil ()) | Row (Row.Row TCType) | Taken Taken
+data AssignResult = Type TCType | Sigil (Sigil (Maybe DataLayoutExpr)) | Row (Row.Row TCType) | Taken Taken
  deriving Show
 
 newtype Subst = Subst (M.IntMap AssignResult)
@@ -38,7 +38,7 @@ ofType i t = Subst (M.fromList [(i, Type t)])
 ofRow :: Int -> Row.Row TCType -> Subst 
 ofRow i t = Subst (M.fromList [(i, Row t)])
 
-ofSigil :: Int -> Sigil () -> Subst 
+ofSigil :: Int -> Sigil (Maybe DataLayoutExpr) -> Subst 
 ofSigil i t = Subst (M.fromList [(i, Sigil t)])
 
 ofTaken :: Int -> Taken -> Subst 
