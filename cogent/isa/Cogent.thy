@@ -581,7 +581,7 @@ lemma split_bang_Cons:
 inductive weakening_comp :: "kind env \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> bool" where
   none : "weakening_comp K None None"
 | keep : "\<lbrakk> K \<turnstile> t wellformed \<rbrakk> \<Longrightarrow> weakening_comp K (Some t) (Some t)"
-| drop : "\<lbrakk> K \<turnstile> t :\<kappa> {D} \<rbrakk> \<Longrightarrow> weakening_comp K (Some t) None"
+| drop : "\<lbrakk> K \<turnstile> t :\<kappa> k; D \<in> k \<rbrakk> \<Longrightarrow> weakening_comp K (Some t) None"
 
 definition weakening :: "kind env \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool" ("_ \<turnstile> _ \<leadsto>w _" [30,0,20] 60) where
   "weakening K \<equiv> list_all2 (weakening_comp K)"
