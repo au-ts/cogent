@@ -91,7 +91,7 @@ joinMeet = Rewrite.withTransform find $ \c -> case c of
 
   _ -> empty
 
-sigilsCompatible :: Either (Sigil ()) Int -> Either (Sigil ()) Int -> Bool
+sigilsCompatible :: Eq l => Either (Sigil l) Int -> Either (Sigil l) Int -> Bool
 sigilsCompatible (Left s) (Left s') = s == s'
 sigilsCompatible _ _ = True
 
