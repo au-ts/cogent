@@ -23,16 +23,18 @@ module Cogent.PrettyPrint where
 import qualified Cogent.Common.Syntax as S (associativity)
 import Cogent.Common.Syntax hiding (associativity)
 import Cogent.Common.Types
-import qualified Cogent.Common.Repr as R
 import Cogent.Compiler
 import Cogent.Reorganizer (ReorganizeError(..), SourceObject(..))
-import Cogent.ReprCheck
 import Cogent.Surface
 -- import Cogent.TypeCheck --hiding (context)
 import Cogent.TypeCheck.Assignment
 import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Subst
 import qualified Cogent.TypeCheck.Row as Row
+
+import Cogent.Dargent.Core
+import Cogent.Dargent.TypeCheck
+
 import Control.Arrow (second)
 import qualified Data.Foldable as F
 import Data.Function ((&))
@@ -688,7 +690,7 @@ instance Pretty TypeError where
 #endif
   pretty (CustTyGenIsSynonym t)     = err "Type synonyms have to be fully expanded in --cust-ty-gen file:" <$> indent' (pretty t)
   pretty (CustTyGenIsPolymorphic t) = err "Polymorphic types are not allowed in --cust-ty-gen file:" <$> indent' (pretty t)
-  pretty (RepError e) = pretty e
+  pretty (DataLayoutError e) = pretty e
   pretty (TypeWarningAsError w)          = pretty w
 
 instance Pretty TypeWarning where
@@ -733,17 +735,7 @@ analyseLeftover c os = case c of
   where msg i m = err "Constraint" <+> pretty c <+> err "can't be solved as it constrains an unknown."
                 <$$> indent' (vcat [ warn "• The unknown" <+> pretty (U i) <+> warn "originates from" <+> pretty (I.lookup i os)
                                    , err "The constraint was emitted as" <+> pretty m])
-{-
-instance (Pretty t, TypeType t) => Pretty (TypeFragment t) where
-  pretty (F t) = pretty t & (if __cogent_fdisambiguate_pp then (<+> comment "{- F -}") else id)
-  pretty (FVariant ts) = typesymbol "?" <> pretty (TVariant ts :: Type SExpr t)
-  pretty (FRecord ts)
-    | not . or $ map (snd . snd) ts = typesymbol "?" <>
-        record (map (\(a,(b,c)) -> fieldname a <+> symbol ":" <+> pretty b) ts)  -- all untaken
-    | otherwise = pretty (FRecord (map (second . second $ const False) ts))
-              <+> typesymbol "take" <+> tupled1 (map fieldname tk)
-        where tk = map fst $ filter (snd .snd) ts
--}
+
 instance Pretty Constraint where
   pretty (a :< b)         = pretty a </> warn ":<" </> pretty b
   pretty (a :=: b)        = pretty a </> warn ":=:" </> pretty b
@@ -813,34 +805,49 @@ instance Pretty a => Pretty (I.IntMap a) where
   pretty = vcat . map (\(k,v) -> pretty k <+> text "|->" <+> pretty v) . I.toList
 
 
-instance Pretty RepError where 
-  pretty (UnknownRepr r ctx) 
-     = indent (err "Unknown representation" <+> reprname r <$$> pretty ctx)
-  pretty (TagMustBeSingleBlock ctx) 
-     = indent (err "Variant tag must be a single block of bits" <$$> pretty ctx)
-  pretty (OverlappingBlocks (Block s1 o1 c1) (Block s2 o2 c2)) 
-     = err "Two memory blocks are overlapping." <$$> 
-       indent (err "The first block is of size" <+> literal (string $ show s1) <+> err "bits at offset" <+> literal (string $ show o1) <+> err "bits." <$$>
-       -- TODO make the bits show up as bytes/bits.
-       pretty c1) <$$>
-       indent (err "The second block is of size" <+> literal (string $ show s2) <+> err "bits at offset" <+> literal (string $ show o2) <+> err "bits" <$$> 
-       pretty c2)
+instance Pretty DataLayoutTypeCheckError where 
+  pretty (UnknownDataLayout r ctx) 
+     =  err "Undeclared data layout" <+> reprname r <$$> pretty ctx
+  pretty (TagNotSingleBlock ctx) 
+     = err "Variant tag must be a single block of bits" <$$> pretty ctx
+  pretty (OverlappingBlocks (range1, c1) (range2, c2)) 
+     = err "Declared data blocks" <+> parens (pretty range1) <+> err "and" <+> parens (pretty range2) <+> err " which cannot overlap" <$$> 
+       indent (pretty c1) <$$>
+       indent (pretty c2)
+  pretty (SameTagValues context name1 name2 value) =
+    err "Alternatives" <+> tagname name1 <+> err "and" <+> tagname name2 <+> err "of same variant cannot have the same tag value" <+> literal (pretty value) <$$>
+    indent (pretty context)
+  pretty (OversizedTagValue context range altName value) =
+    err "Oversized tag value" <+> literal (pretty value) <+> err "for tag data block" <+> pretty range <+> err "in variant alternative" <+> tagname altName <$$>
+    indent (pretty context)
 
-instance Pretty RepContext where 
+instance Pretty DataLayoutPath where 
   pretty (InField n po ctx) = context' "for field" <+> fieldname n <+> context' "(" <> pretty po <> context' ")" </> pretty ctx 
-  pretty (InTag ctx) = context' "for the variant tag block" </> pretty ctx
-  pretty (InAlt t po ctx) = context' "for the constructor" <+> tagname t <+> context' "(" <> pretty po <> context' ")" </> pretty ctx 
-  pretty (InDecl (RepDecl p n _)) = context' "in the representation" <+> reprname n <+> context' "(" <> pretty p <> context' ")" 
+  pretty (InTag ctx)        = context' "for the variant tag block" </> pretty ctx
+  pretty (InAlt t po ctx)   = context' "for the constructor" <+> tagname t <+> context' "(" <> pretty po <> context' ")" </> pretty ctx 
+  pretty (InDecl n p)       = context' "in the representation" <+> reprname n <+> context' "(" <> pretty p <> context' ")" 
+  pretty (PathEnd)          = mempty
 
-instance Pretty R.Representation where
-  pretty (R.Bits s o) = keyword "repr" <> parens (pretty s <> symbol "+" <> pretty o)
-  pretty (R.Variant ts to alts) = keyword "repr" <> parens (pretty ts <> symbol "+" <> pretty to)
-                               <> variant (map prettyAlt $ M.toList alts)
-    where prettyAlt (n,(v,r)) = tagname n <> parens (integer v) <> colon <> pretty r 
-  pretty (R.Record fs) = keyword "repr" <> record (map prettyField $ M.toList fs)
-    where prettyField (f,r) = fieldname f <> colon <> pretty r
+instance Pretty a => Pretty (DataLayout a) where
+  pretty UnitLayout =
+    keyword "repr" <> parens (literal (pretty (0::Int)))
+
+  pretty PrimLayout {bitsDL} =
+    keyword "repr" <> parens (pretty bitsDL)
+
+  pretty SumLayout {tagDL, alternativesDL} = 
+    keyword "repr" <> parens (pretty tagDL) <> variant (map prettyAlt $ M.toList alternativesDL)
+    where prettyAlt (n,(v,l,_)) = tagname n <> parens (integer $ fromIntegral v) <> colon <> pretty l
+
+  pretty RecordLayout {fieldsDL} =
+    keyword "repr" <> record (map prettyField $ M.toList fieldsDL)
+    where prettyField (f,(l,_)) = fieldname f <> colon <> pretty l
 
 
+instance Pretty BitRange where
+  pretty BitRange {bitSizeBR, bitOffsetBR} = literal (pretty bitSizeBR) <> symbol "b" <+> symbol "at" <+> literal (pretty bitOffsetBR) <> symbol "b"
+     
+    
 
 -- helper functions
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~
