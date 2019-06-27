@@ -37,8 +37,8 @@ def make_stats_obj(num_list):
     return obj
 
 if len(sys.argv) < 2:
-    print("Usage: " + sys.argv[0] + " [OPTIONS] filename [outfile]")
-    print("Where options are any of: ")
+    print("Usage: " + sys.argv[0] + " filename [OPTIONS] [outfile]")
+    print("Where OPTIONS is one of: ")
     print("\t--plot - Create GNUPlot plotting data in outfile")
     print("\t--json - Create JSON transformed data in outfile")
     exit(1)
@@ -48,8 +48,7 @@ JSON = False
 OUTFILE = ""
 INFILE = sys.argv[1]
 if len(sys.argv) == 4:
-    option  = sys.argv[1]
-    INFILE  = sys.argv[2]
+    option  = sys.argv[2]
     OUTFILE = sys.argv[3]
 
     if option == "--plot":
@@ -79,6 +78,7 @@ try:
     final_stats = {}
     all_exprs = {} # Keep track of all existing expressions
 
+    total_per_tactic = {}
     # print stats
     for key in tactic_times.keys():
         final_stats[key] = {}
@@ -109,6 +109,15 @@ try:
                 nums = [str(int(x)) for x in [stat_obj[key] for key in sorted(stat_obj.keys())]]
                 print(row_format.format(expr, *nums))
         print(row_format.format("Total", *[str(int(total[x])) for x in sorted(total.keys())]), '\n')
+        total_per_tactic[key] = total['total']
+
+    total_of_all = sum([total_per_tactic[k] for k in total_per_tactic])
+
+    print("Overall totals (μs): ")
+    print("\tTotal Time: " + str(total_of_all))
+    for k in total_per_tactic:
+        print("\t" + k + ": " + str(total_per_tactic[k]) + ", " + str(round(float(total_per_tactic[k])/total_of_all, 2)*100) + "%")
+
 
     # Log stats if outfile present
     if JSON:
