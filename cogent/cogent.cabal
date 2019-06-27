@@ -10,6 +10,7 @@ version:             2.9.0.0
 
 author:              Liam O'Connor
                      Zilin Chen
+                     Matthew Di Meglio
 maintainer:          Liam O'Connor <liamoc@cse.unsw.edu.au>
                      Zilin Chen <zilin.chen@data61.csiro.au>
 homepage:            https://ts.data61.csiro.au/projects/TS/cogent.pml
@@ -61,6 +62,7 @@ library
   hs-source-dirs: src
   exposed-modules:
                 Cogent.C.Compile
+              , Cogent.C.GenState
               , Cogent.C.Render
               , Cogent.C.Syntax
               , Cogent.CodeGen
@@ -70,6 +72,12 @@ library
               , Cogent.Compiler
               , Cogent.Context
               , Cogent.Core
+              , Cogent.Dargent.Core
+              , Cogent.Dargent.Surface
+              , Cogent.Dargent.TypeCheck
+              , Cogent.Dargent.Desugar
+              , Cogent.Dargent.CoreTypeCheck
+              , Cogent.Dargent.CodeGen
               , Cogent.Desugar
               , Cogent.GetOpt
               , Cogent.Glue

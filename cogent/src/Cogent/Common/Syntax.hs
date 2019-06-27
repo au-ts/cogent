@@ -14,6 +14,7 @@ import Data.Word
 import Text.PrettyPrint.ANSI.Leijen
 
 type RepName     = String
+type DataLayoutName = RepName -- For gradual transition to eliminate Rep from the compiler
 type FieldName   = String
 type TagName     = String
 type FunName     = String
@@ -41,6 +42,8 @@ unsafeIsabelleNameToCoreFunName = CoreFunName
 type FieldIndex = Int
 type ArrayIndex = Word32
 type ArraySize  = Word32
+
+type Size = Integer -- Not sure why quickcheck tests infinite loop if Size = Word32.
 
 type OpName = String
 
