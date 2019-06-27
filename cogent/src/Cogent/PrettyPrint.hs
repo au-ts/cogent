@@ -786,10 +786,12 @@ instance Pretty AssignResult where
   pretty (Sigil s) = pretty s 
   pretty (Row r) = pretty r
 
+-- TODO(dargent): pretty printing for layouts
 instance Pretty (Sigil r) where
   pretty (Boxed False _) = keyword "[W]"
   pretty (Boxed True  _) = keyword "[R]"
   pretty Unboxed  = keyword "[U]"
+
 instance (Pretty t) => Pretty (Row.Row t) where 
   pretty (Row.Row m t) =
     let rowFieldToDoc (_, (n, (ty, tk))) =
