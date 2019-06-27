@@ -27,6 +27,8 @@ import Cogent.TypeCheck.Util
 import qualified Cogent.TypeCheck.Row as Row
 import Cogent.Util
 
+import Cogent.Dargent.TypeCheck (normaliseSigil)
+
 -- import Control.Arrow (first)
 import Control.Monad
 import Lens.Micro
@@ -152,8 +154,16 @@ normaliseT d (T (TPut fs t)) = do
 
 normaliseT d (T (TCon n ts b)) =
   case lookup n d of
+    -- In the first case, the sigil `s` should be `Nothing`
+    -- because
     Just (ts', Just b) -> normaliseT d (substType (zip ts' ts) b)
-    _ -> mapM (normaliseT d) ts >>= \ts' -> return (T (TCon n ts' b))
+    _ -> do
+      ts' <- mapM (normaliseT d) ts
+      return $ T (TCon n ts' b)
+normaliseT d (T (TRecord l s)) = do
+  s' <- normaliseS s
+  l' <- mapM ((secondM . firstM) (normaliseT d)) l
+  return (T (TRecord l' s'))
 normaliseT d (Synonym n ts) = 
   case lookup n d of
     Just (ts', Just b) -> normaliseT d (substType (zip ts' ts) b)
@@ -165,8 +175,16 @@ normaliseT d (Synonym n ts) =
 --     Just t'' -> normaliseT d t''
 --     Nothing  -> Left (RemoveCaseFromNonVariant p t)
 normaliseT d (V x) = T . TVariant . M.fromList . Row.toEntryList . fmap (:[]) <$> traverse (normaliseT d) x
-normaliseT d (R x (Left s)) = T . flip TRecord (fmap (const noRepE) s) . Row.toEntryList  <$> traverse (normaliseT d) x
+normaliseT d (R x (Left s)) =
+  T . flip TRecord (__todo "Check this is correct" $ fmap (const Nothing) s) . Row.toEntryList <$>
+    traverse (normaliseT d) x
 normaliseT d (R x (Right s)) =  __impossible ("normaliseT: invalid sigil (?" ++ show s ++ ")")
 normaliseT d (U x) = __impossible ("normaliseT: invalid type (?" ++ show x ++ ")")
 normaliseT d (T x) = T <$> traverse (normaliseT d) x
-normaliseT d what = error (show what)
+
+
+-- Normalises the layouts in sigils to remove `DataLayoutRefs`
+normaliseS :: Sigil (Maybe DataLayoutExpr) -> Post (Sigil (Maybe DataLayoutExpr))
+normaliseS sigil = do
+  layouts <- lift . lift $ use knownDataLayouts
+  return $ normaliseSigil layouts sigil
