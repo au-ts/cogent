@@ -101,7 +101,7 @@ applyCtx s (InExpression e t) = InExpression e (apply s t)
 applyCtx s c = c
 
 applyErr :: Subst -> TypeError -> TypeError
-applyErr s (TypeMismatch t1 t2)     = TypeMismatch (apply s t1) (apply s t2)
+applyErr s (TypeMismatch t1 t2)     = TypeMismatch (apply s <$> t1) (apply s <$> t2)
 applyErr s (RequiredTakenField f t) = RequiredTakenField f (apply s t)
 applyErr s (TypeNotShareable t m)   = TypeNotShareable (apply s t) m
 applyErr s (TypeNotEscapable t m)   = TypeNotEscapable (apply s t) m
