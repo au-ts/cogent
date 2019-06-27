@@ -787,6 +787,7 @@ instance Pretty AssignResult where
   pretty (Row (Left r)) = pretty r
   pretty (Row (Right sh)) = pretty sh
 
+-- TODO(dargent): pretty printing for layouts
 instance Pretty (Sigil r) where
   pretty (Boxed False _) = keyword "[W]"
   pretty (Boxed True  _) = keyword "[R]"
