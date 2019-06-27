@@ -19,7 +19,7 @@
 #
 
 
-set terminal pngcairo  transparent enhanced font "arial,10" fontscale 2.0 size 2400, 1600
+set terminal pngcairo enhanced font "arial,10" fontscale 2.0 size 2400, 1600
 set output 'histograms.2.png'
 set boxwidth 0.9 absolute
 set style fill   solid 1.00 border lt -1
@@ -40,7 +40,8 @@ set zrange [ * : * ] noreverse writeback
 set cbrange [ * : * ] noreverse writeback
 set rrange [ * : * ] noreverse writeback
 
-set ylabel "time (μs)"
+set ylabel "Time (μs)"
+set xlabel "Expression Name"
 set logscale y 10
 
 # file must be called 'tacticTiming.dat'
