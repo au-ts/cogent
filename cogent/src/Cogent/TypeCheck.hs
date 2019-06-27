@@ -29,11 +29,11 @@ import Cogent.PrettyPrint (prettyC)
 import Cogent.Surface
 import Cogent.TypeCheck.Assignment (assignT, assignE, assignAlts)
 import Cogent.TypeCheck.Base
+import Cogent.TypeCheck.Errors
 import Cogent.TypeCheck.Generator hiding (validateType)
 import qualified Cogent.TypeCheck.Generator as B (validateType)
 import Cogent.TypeCheck.Post (postT, postE, postA)
 import Cogent.TypeCheck.Solver
-import Cogent.TypeCheck.Errors
 import Cogent.TypeCheck.Subst (apply, applyE, applyAlts)
 import Cogent.TypeCheck.Util
 import Cogent.Util (firstM)
@@ -109,7 +109,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     lift . lift $ knownFuns %= M.insert n (PT ps t')
     t'' <- postT t'
     return $ AbsDec n (PT ps t'')
-  
+
   (RepDef decl@(RepDecl pos name expr)) -> do 
     traceTc "tc" (text "typecheck rep decl" <+> pretty name)
     namedLayouts            <- lift . lift $ use knownDataLayouts
@@ -127,15 +127,15 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     traceTc "tc" $ bold (text $ replicate 80 '=')
     traceTc "tc" (text "typecheck const definition" <+> pretty n)
     base <- lift . lift $ use knownConsts
-    let ctx = C.addScope (fmap (\(t,_,p) -> (t,p, Seq.singleton p)) base) C.empty  -- for consts, the definition is the first use.
-    (((ct,t'),(c,e')), flx, os) <- runCG ctx [] 
-             (do x@(ct,t') <- B.validateType t 
-                 y <- cg e t'
-                 pure (x,y))
+    let ctx = C.addScope (fmap (\(t,_,p) -> (t,p, Seq.singleton p)) base) C.empty  -- for consts, the definition is the first use
+    (((ct,t'),(c,e')), flx, os) <- runCG ctx []
+                                      (do x@(ct,t') <- B.validateType t 
+                                          y <- cg e t'
+                                          pure (x,y))
     let c' = ct <> c <> Share t' (Constant n)
     traceTc "tc" (text "constraint for const definition" <+> pretty n <+> text "is"
                   L.<$> prettyC c')
-    (cs, subst) <- runSolver (solve [] c') flx 
+    (cs, subst) <- runSolver (solve [] c') flx
     exitOnErr $ toErrors os cs
     let assn = mempty
     -- mapM_ logTc =<< mapM (\(c,l) -> lift (use errCtx >>= \c' -> return (c++c',l))) logs
