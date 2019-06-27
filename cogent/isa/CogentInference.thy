@@ -110,8 +110,21 @@ type_synonym cg_ctx = "(type \<times> nat) list"
 type_synonym ctx = "(type option) list"
 definition empty :: "nat \<Rightarrow> ctx" where
   "empty \<equiv> (\<lambda> x. replicate x None)"
+
 definition singleton :: "nat \<Rightarrow> index \<Rightarrow> type \<Rightarrow> ctx" where
   "singleton n i t \<equiv> (empty n)[i := Some t]"
+
+lemma singleton_len:
+  "length (singleton n i t) = n"
+  by (simp add: local.empty_def type_infer.singleton_def)
+
+lemma singleton_some:
+  "i < n \<Longrightarrow> (singleton n i t) ! i = Some t"
+  by (simp add: type_infer.empty_def type_infer.singleton_def)
+
+lemma singleton_none:
+  "j < n \<Longrightarrow> j \<noteq> i \<Longrightarrow> (singleton n i t) ! j = None"
+  by (simp add: type_infer.empty_def type_infer.singleton_def)
 
 type_synonym axm_set = "constraint list"
 
