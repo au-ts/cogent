@@ -235,7 +235,7 @@ fun weakening_tac ctxt (th :: thms) =
         (rtac @{thm weakening_comp.keep} THEN' rtac @{thm kinding_imp_wellformed} THEN' rtac th))
       ) 1))
     THEN
-      weakening_tac ctxt thms
+      TRY (weakening_tac ctxt thms)
 | weakening_tac _ [] =
   (REPEAT_DETERM ((rtac @{thm weakening_cons} THEN' rtac @{thm weakening_comp.none}) 1))
   THEN rtac @{thm weakening_nil} 1
@@ -451,12 +451,18 @@ fun typing_all_vars _ _ [] = let
           else [RTac @{thm split_comp.right}, simp_solve])
       else (if null p then [RTac @{thm split_comp.none}]
           else [RTac @{thm split_comp.left}, simp_solve]))
+    fun split_lr (i, p) =
+      (if member (op =) ixs i
+      then
+        (if i = ix
+        then (p,p)  (* share *)
+        else (NONE,p)) (* right *)
+      else (p,NONE) (* both none and left case *))
     val enumG = (0 upto (length G - 1) ~~ G)
     val steps = maps step enumG
-    val thms = map_filter I G
-    fun thm_r (i, p) = (if member (op =) ixs i then p else NONE)
-    val G' = map thm_r enumG
-    val rest = typing_all_vars ctxt G' ixs
+    val (Gl, Gr) = map split_lr enumG |> split_list
+    val thms = map_filter I Gl
+    val rest = typing_all_vars ctxt Gr ixs
   in [RTac @{thm typing_all_cons}] @ steps @ [RTac @{thm split_empty},
     RTac @{thm typing_var_weak[unfolded singleton_def Cogent.empty_def]},
       RTac (the_G G (nth G ix)), simp, WeakeningTac thms, simp_solve] @ rest end
