@@ -124,7 +124,7 @@ data Type e t =
 #ifdef BUILTIN_ARRAYS
               | TArray t e
 #endif
-              -- In TypeCheck.Post, the TUnbox and TBang typeoperators
+              -- In TypeCheck.Post, the TUnbox and TBang type-operators
               -- are normalised out of the syntax tree by altering the Sigil
               -- of the type they act on / zilinc, mdimeglio
               | TUnbox   t
