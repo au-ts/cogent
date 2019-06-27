@@ -245,7 +245,7 @@ warnToConstraint f w | f = SemiSat w
 
 data TCType         = T (Type SExpr TCType)
                     | U Int  -- unifier
-                    | R (Row TCType) (Either (Sigil ()) Int)
+                    | R (Row TCType) (Either (Sigil (Maybe DataLayoutExpr)) Int)
                     | V (Row TCType)
                     | Synonym TypeName [TCType]
                     deriving (Show, Eq, Ord)
