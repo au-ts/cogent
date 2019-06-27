@@ -128,7 +128,7 @@ alg_ctx_jn:
 
 section {* Constraint Semantics (Fig 3.6) *}
 inductive constraint_sem :: "axm_set \<Rightarrow> constraint \<Rightarrow> bool"
-          ("_ \<turnstile> _" [30, 30] 60) where
+          ("_ \<turnstile> _" [40, 40] 60) where
 ct_sem_asm:
   "C \<in> set A \<Longrightarrow> A \<turnstile> C"
 | ct_sem_conj:
@@ -173,18 +173,18 @@ inductive weakening_comp :: "axm_set \<Rightarrow> type option \<Rightarrow> typ
 | drop : "\<lbrakk> A \<turnstile> CtDrop \<tau> \<rbrakk> \<Longrightarrow> weakening_comp K (Some \<tau>) None"
 
 definition weakening :: "axm_set \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool" 
-           ("_ \<turnstile> _ \<leadsto>w _" [30,0,30] 60) where
+           ("_ \<turnstile> _ \<leadsto>w _" [40,0,40] 60) where
   "weakening K \<equiv> list_all2 (weakening_comp K)"
 
 section {* Typing Rules (Fig 3.3) *}
 inductive typing :: "axm_set \<Rightarrow> ctx \<Rightarrow> 'fnname expr \<Rightarrow> type \<Rightarrow> bool"
-          ("_ \<ddagger> _ \<turnstile> _ : _" [30,0,0,30] 60) where
+          ("_ \<ddagger> _ \<turnstile> _ : _" [40,0,0,40] 60) where
 typing_var:
-  "\<lbrakk> A \<turnstile> \<Gamma> \<leadsto>w singleton (length \<Gamma>) i t
+  "\<lbrakk> A \<turnstile> \<Gamma> \<leadsto>w singleton (length \<Gamma>) i \<tau>
    ; i < length \<Gamma>
    \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> (Var i) : \<tau>"
 | typing_sig:
-  "A \<ddagger> \<Gamma> \<turnstile> e : \<tau> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Sig e \<tau> : \<tau>" 
+  "A \<turnstile> CtSub \<tau>' \<tau> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> e : \<tau>' \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Sig e \<tau> : \<tau>" 
 | typing_app:
   "\<lbrakk> A \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 \<box> \<Gamma>2
    ; A \<ddagger> \<Gamma>1 \<turnstile> e1 : (TFun \<tau>1 \<tau>2)
@@ -242,12 +242,14 @@ section {* Elementary Constraint Generation Rules (Fig 3.4) *}
 inductive constraint_gen_elab :: "cg_ctx \<Rightarrow> nat \<Rightarrow> 'fnname expr \<Rightarrow> type \<Rightarrow> cg_ctx \<Rightarrow> nat \<Rightarrow> constraint \<Rightarrow> 'fnname expr \<Rightarrow> bool"
   ("_,_ \<turnstile> _ : _ \<leadsto> _,_ | _ | _" [30,0,0,0,0,0,0,30] 60) where
 cg_var1: 
-  "\<lbrakk> G!i = (\<rho>,0) 
+  "\<lbrakk> G!i = (\<rho>,0)
+   ; i < length G 
    ; G' = G[i := (\<rho>,1)] 
    ; C = CtSub \<rho> \<tau>
    \<rbrakk> \<Longrightarrow> G,n \<turnstile> Var i : \<tau> \<leadsto> G',n | C | Sig (Var i) \<tau>"
 | cg_var2: 
   "\<lbrakk> G!i = (\<rho>,n) 
+   ; i < length G
    ; n > 0 
    ; G' = G[i := (\<rho>,Suc n)] 
    ; C = CtConj (CtSub \<rho> \<tau>) (CtShare \<rho>) 
