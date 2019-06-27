@@ -735,17 +735,7 @@ analyseLeftover c os = case c of
   where msg i m = err "Constraint" <+> pretty c <+> err "can't be solved as it constrains an unknown."
                 <$$> indent' (vcat [ warn "• The unknown" <+> pretty (U i) <+> warn "originates from" <+> pretty (I.lookup i os)
                                    , err "The constraint was emitted as" <+> pretty m])
-{-
-instance (Pretty t, TypeType t) => Pretty (TypeFragment t) where
-  pretty (F t) = pretty t & (if __cogent_fdisambiguate_pp then (<+> comment "{- F -}") else id)
-  pretty (FVariant ts) = typesymbol "?" <> pretty (TVariant ts :: Type SExpr t)
-  pretty (FRecord ts)
-    | not . or $ map (snd . snd) ts = typesymbol "?" <>
-        record (map (\(a,(b,c)) -> fieldname a <+> symbol ":" <+> pretty b) ts)  -- all untaken
-    | otherwise = pretty (FRecord (map (second . second $ const False) ts))
-              <+> typesymbol "take" <+> tupled1 (map fieldname tk)
-        where tk = map fst $ filter (snd .snd) ts
--}
+
 instance Pretty Constraint where
   pretty (a :< b)         = pretty a </> warn ":<" </> pretty b
   pretty (a :=: b)        = pretty a </> warn ":=:" </> pretty b
@@ -837,7 +827,7 @@ instance Pretty DataLayoutPath where
   pretty (InAlt t po ctx)   = context' "for the constructor" <+> tagname t <+> context' "(" <> pretty po <> context' ")" </> pretty ctx 
   pretty (InDecl n p)       = context' "in the representation" <+> reprname n <+> context' "(" <> pretty p <> context' ")" 
   pretty (PathEnd)          = mempty
-  
+
 instance Pretty a => Pretty (DataLayout a) where
   pretty UnitLayout =
     keyword "repr" <> parens (literal (pretty (0::Int)))
@@ -856,6 +846,7 @@ instance Pretty a => Pretty (DataLayout a) where
 
 instance Pretty BitRange where
   pretty BitRange {bitSizeBR, bitOffsetBR} = literal (pretty bitSizeBR) <> symbol "b" <+> symbol "at" <+> literal (pretty bitOffsetBR) <> symbol "b"
+
 
 -- helper functions
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~
