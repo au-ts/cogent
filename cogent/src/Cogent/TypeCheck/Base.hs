@@ -19,11 +19,17 @@
 
 module Cogent.TypeCheck.Base where
 
-import qualified Cogent.Common.Repr as R
+import Cogent.Dargent.TypeCheck ( DataLayoutTypeCheckError
+                                , Allocation
+                                , NamedDataLayouts
+                                , typeCheckDataLayoutExpr
+                                )
+import Cogent.Dargent.Core      ( DataLayout
+                                , BitRange
+                                )
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler
-import Cogent.ReprCheck as R
 import Cogent.Surface
 import Cogent.TypeCheck.Row (Row)
 import qualified Cogent.TypeCheck.Row as Row
@@ -64,7 +70,7 @@ data TypeError = FunctionNotFound VarName
                | UnknownTypeVariable VarName
                | UnknownTypeConstructor TypeName
                | TypeArgumentMismatch TypeName Int Int
-               | TypeMismatch TCType TCType
+               | TypeMismatch (TypeFragment TCType) (TypeFragment TCType)
                | RequiredTakenField FieldName TCType
                | TypeNotShareable TCType Metadata
                | TypeNotEscapable TCType Metadata
@@ -88,7 +94,7 @@ data TypeError = FunctionNotFound VarName
                | CustTyGenIsPolymorphic TCType
                | CustTyGenIsSynonym TCType
                | TypeWarningAsError TypeWarning
-               | RepError R.RepError
+               | DataLayoutError DataLayoutTypeCheckError
                deriving (Eq, Show, Ord)
 
 isWarnAsError :: TypeError -> Bool
@@ -126,7 +132,7 @@ isCtxConstraint (SolvingConstraint _) = True
 isCtxConstraint _ = False
 
 data VarOrigin = ExpressionAt SourcePos
-               | BoundOf TCType TCType Bound
+               | BoundOf (TypeFragment TCType) (TypeFragment TCType) Bound
                | EqualIn SExpr SExpr TCType TCType
                deriving (Eq, Show, Ord)
 
@@ -234,11 +240,15 @@ warnToConstraint f w | f = SemiSat w
 -- Types for constraint generation and solving
 -- -----------------------------------------------------------------------------
 
+data TypeFragment t = F t
+                    | FRecord (Row TCType)
+                    | FVariant (Row TCType)
+                    deriving (Eq, Show, Functor, Foldable, Traversable, Ord)
 
 data TCType         = T (Type SExpr TCType)
                     | U Int  -- unifier
                     | R (Row TCType) (Either (Sigil ()) Int)
-                    | V (Row TCType) 
+                    | V (Row TCType)
                     | Synonym TypeName [TCType]
                     deriving (Show, Eq, Ord)
 
@@ -358,7 +368,7 @@ type TypeDict = [(TypeName, ([VarName], Maybe TCType))]  -- `Nothing' for abstra
 data TcState = TcState { _knownFuns    :: M.Map FunName (Polytype TCType)
                        , _knownTypes   :: TypeDict
                        , _knownConsts  :: M.Map VarName (TCType, TCExpr, SourcePos)
-                       , _knownReps    :: M.Map RepName (R.Allocation, RepData)
+                       , _knownDataLayouts :: NamedDataLayouts
                        }
 
 makeLenses ''TcState
@@ -405,7 +415,7 @@ runTc s ma = flip runStateT s
 
 
 type TcM a = MaybeT (StateT TcLogState (StateT TcState IO)) a    
-type TcConsM lcl a  = StateT lcl (StateT TcState IO) a
+type TcConsM lcl a = StateT  lcl (StateT TcState IO) a
 type TcErrM  err a = ExceptT err (StateT TcState IO) a
 type TcBaseM     a =              StateT TcState IO  a
 
@@ -464,7 +474,8 @@ validateType vs t = either (\e -> logErr e >> exitErr) return =<< lift (lift $ r
 -- don't log erros, but instead return them
 validateType' :: [VarName] -> RawType -> TcErrM TypeError TCType
 validateType' vs (RT t) = do
-  ts <- use knownTypes
+  ts      <- use knownTypes
+  layouts <- use knownDataLayouts
   case t of
     TVar v _    | v `notElem` vs         -> throwE (UnknownTypeVariable v)
     TCon t as _ | Nothing <- lookup t ts -> throwE (UnknownTypeConstructor t)
@@ -478,17 +489,30 @@ validateType' vs (RT t) = do
     TRecord fs s | fields  <- map fst fs
                  , fields' <- nub fields
                 -> let toRow (T (TRecord fs s)) = R (Row.fromList fs) (Left (fmap (const ()) s)) 
-                   in if fields' == fields
-                   then (toRow . T . ffmap toSExpr) <$> mapM (validateType' vs) t
-                   else throwE (DuplicateRecordFields (fields \\ fields'))
+                   in
+                    if fields' == fields
+                    then
+                      case s of
+                        Boxed _ (Just dlexpr)
+                          | (anError : _) <- fst $ typeCheckDataLayoutExpr layouts dlexpr
+                          -> throwE $ DataLayoutError anError
+                        otherwise ->
+                          (toRow . T . ffmap toSExpr) <$> mapM (validateType' vs) t
+                    else throwE (DuplicateRecordFields (fields \\ fields'))
     TVariant fs  -> do let tuplize [] = T TUnit
                            tuplize [x] = x 
                            tuplize xs  = T (TTuple xs)
                        TVariant fs' <- ffmap toSExpr <$> mapM (validateType' vs) t 
                        pure (V (Row.fromMap (fmap (first tuplize) fs')))
     -- TArray te l -> check l >= 0  -- TODO!!!
-    _ -> T <$> (mmapM (return . toSExpr) <=< mapM (validateType' vs)) t
+    _ -> __fixme $
+      T <$> (mmapM (return . toSExpr) <=< mapM (validateType' vs)) t
+    -- With (TCon _ _ l), and (TRecord _ l), must check l == Nothing iff it is contained in a TUnbox.
+    -- This can't be done in the current setup because validateType' has no context for the type it is validating.
+    -- Not implementing this now, because a new syntax for types is needed anyway, which may make this issue redundant.
+    -- /mdimeglio
 
+    
 validateTypes' :: (Traversable t) => [VarName] -> t RawType -> TcErrM TypeError (t TCType)
 validateTypes' vs = mapM (validateType' vs)
 

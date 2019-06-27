@@ -103,7 +103,6 @@ library
               , Cogent.Preprocess
               , Cogent.Quote
               , Cogent.Reorganizer
-              , Cogent.ReprCheck
               , Cogent.Simplify
               , Cogent.SuParser
               , Cogent.Surface
