@@ -343,8 +343,7 @@ monotype = do avoidInitial
                          } )
 #endif
            <|>  (atomtype >>= \t -> optionMaybe bang >>= \op -> case op of Nothing -> return t; Just f -> return (f t)))
-    
-    
+
     paramtype = avoidInitial >> LocType <$> getPosition <*>
       -- If the type `typeConName` refers to an abstract type, its sigil should be `Boxed`
       -- and should have no associated layout. 
@@ -357,7 +356,7 @@ monotype = do avoidInitial
     takeput = avoidInitial >>
              ((reservedOp "take" >> fList >>= \fs -> return (\x -> LocType (posOfT x) (TTake fs x)))
           <|> (reservedOp "put"  >> fList >>= \fs -> return (\x -> LocType (posOfT x) (TPut  fs x))))
-    
+
     atomtype = avoidInitial >> LocType <$> getPosition <*> (
           TVar <$> variableName <*> pure False <*> pure False
       <|> (do tn <- typeConName
@@ -373,9 +372,10 @@ monotype = do avoidInitial
       <|> tuple <$> parens (commaSep monotype)
       <|> TRecord
           <$> braces (commaSep1 ((\a b c -> (a,(b,c))) <$> variableName <* reservedOp ":" <*> monotype <*> pure False))
-          <*> pure (Boxed False (__fixme Nothing)) -- Should actually parse the layout
+          <*> pure (Boxed False (__todo "Should actually parse the layout" Nothing))
+            -- TODO(dargent): Should actually parse the layout
       <|> TVariant . M.fromList <$> angles (((,) <$> typeConName <*> fmap ((,False)) (many typeA2)) `sepBy` reservedOp "|"))
-    
+
     tuple [] = TUnit
     tuple [e] = typeOfLT e
     tuple es  = TTuple es
