@@ -522,9 +522,9 @@ desugarType = \case
   S.RT (S.TFun ti to)    -> TFun <$> desugarType ti <*> desugarType to
   S.RT (S.TRecord fs Unboxed) -> TRecord <$> mapM (\(f,(t,x)) -> (f,) . (,x) <$> desugarType t) fs <*> pure Unboxed
   S.RT (S.TRecord fs sigil)  -> do
+    -- TODO(dargent): this looks strange ~ v.jackson / 2019.06.27
     unboxedDesugared@(TRecord fs' Unboxed) <- desugarType $ S.RT (S.TRecord fs Unboxed)
     TRecord <$> pure fs' <*> pure (desugarSigil unboxedDesugared sigil)
-  
   S.RT (S.TVariant alts) -> TSum <$> mapM (\(c,(ts,x)) -> (c,) . (,x) <$> desugarType (group ts)) (M.toList alts)
     where group [] = S.RT S.TUnit
           group (t:[]) = t
@@ -546,7 +546,6 @@ desugarType = \case
   S.RT (S.TArray t l) -> TArray <$> desugarType t <*> evalAExpr l  -- desugarExpr' l
 #endif
   notInWHNF -> __impossible $ "desugarType (type " ++ show (pretty notInWHNF) ++ " is not in WHNF)"
-
 
 desugarNote :: S.Inline -> FunNote
 desugarNote S.NoInline = NoInline
