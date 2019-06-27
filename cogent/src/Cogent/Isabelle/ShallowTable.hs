@@ -19,7 +19,7 @@ module Cogent.Isabelle.ShallowTable where
 
 import Cogent.Common.Syntax
 import Cogent.Common.Types
--- import Cogent.Compiler
+import Cogent.Compiler (__fixme)
 -- import Cogent.Desugar
 import Cogent.Core
 -- import Cogent.Surface
@@ -80,9 +80,9 @@ getStrlType tsmap table (TRecord fs s) =
   in case M.lookup tstr tsmap of
     Nothing ->
       let idx = findIndex tstr table
-      in TCon ('T':show idx) tps (fmap (\ _ -> ()) s) -- The DataLayout is not included in shallow embeddings /mdimeglio zilinc
+      in TCon ('T':show idx) tps (__fixme (const () <$> s))
     Just tn ->
-      TCon tn tps  (fmap (\ _ -> ()) s) -- The DataLayout is not included in shallow embeddings /mdimeglio zilinc
+      TCon tn tps (__fixme (const () <$> s))
 getStrlType _ _ t = t
 
 type ST = State [TypeStr]

@@ -243,7 +243,7 @@ warnToConstraint f w | f = SemiSat w
 
 data TCType         = T (Type SExpr TCType)
                     | U Int  -- unifier
-                    | R (Row TCType) (Either (Sigil ()) Int)
+                    | R (Row TCType) (Either (Sigil (Maybe DataLayoutExpr)) Int)
                     | V (Row TCType)
                     | Synonym TypeName [TCType]
                     deriving (Show, Eq, Ord)
@@ -485,7 +485,7 @@ validateType' vs (RT t) = do
 
     TRecord fs s | fields  <- map fst fs
                  , fields' <- nub fields
-                -> let toRow (T (TRecord fs s)) = R (Row.fromList fs) (Left (fmap (const ()) s)) 
+                -> let toRow (T (TRecord fs s)) = R (Row.fromList fs) (Left s)
                    in
                     if fields' == fields
                     then
