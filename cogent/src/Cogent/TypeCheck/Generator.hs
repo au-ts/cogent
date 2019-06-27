@@ -92,7 +92,7 @@ validateType rt@(RT t) = do
                -> second (Synonym t) <$> fmapFoldM validateType as  
     TRecord fs s | fields  <- map fst fs
                  , fields' <- nub fields
-                -> let toRow (T (TRecord fs s)) = R (Row.fromList fs) (Left (fmap (const ()) s)) 
+                -> let toRow (T (TRecord fs s)) = R (Row.fromList fs) (Left s) 
                    in if fields' == fields
                    then second (toRow . T . ffmap toSExpr) <$> fmapFoldM validateType t
                    else return (Unsat $ DuplicateRecordFields (fields \\ fields'), toTCType rt)
