@@ -31,11 +31,11 @@
 
 module Cogent.Desugar where
 
-import Cogent.Common.Repr
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Core
+import Cogent.Dargent.Desugar
 import Cogent.PrettyPrint ()
 import qualified Cogent.Surface as S
 import Cogent.TypeCheck.Base as B
@@ -515,10 +515,14 @@ desugarType = \case
   S.RT (S.TCon "U64"    [] Unboxed) -> return $ TPrim U64
   S.RT (S.TCon "Bool"   [] Unboxed) -> return $ TPrim Boolean
   S.RT (S.TCon "String" [] Unboxed) -> return $ TString
-  S.RT (S.TCon tn tvs s) -> TCon tn <$> mapM desugarType tvs <*> pure (desugarSigil s)
+  S.RT (S.TCon tn tvs s) -> TCon tn <$> mapM desugarType tvs <*> pure (desugarAbstractTypeSigil s)
   S.RT (S.TVar vn b)     -> (findIx vn <$> use typCtx) >>= \(Just v) -> return $ if b then TVarBang v else TVar v
   S.RT (S.TFun ti to)    -> TFun <$> desugarType ti <*> desugarType to
-  S.RT (S.TRecord fs s)  -> TRecord <$> mapM (\(f,(t,x)) -> (f,) . (,x) <$> desugarType t) fs <*> pure (desugarSigil s)
+  S.RT (S.TRecord fs Unboxed) -> TRecord <$> mapM (\(f,(t,x)) -> (f,) . (,x) <$> desugarType t) fs <*> pure Unboxed
+  S.RT (S.TRecord fs sigil)  -> do
+    -- TODO(dargent): this looks strange ~ v.jackson / 2019.06.27
+    unboxedDesugared@(TRecord fs' Unboxed) <- desugarType $ S.RT (S.TRecord fs Unboxed)
+    TRecord <$> pure fs' <*> pure (desugarSigil unboxedDesugared sigil)
   S.RT (S.TVariant alts) -> TSum <$> mapM (\(c,(ts,x)) -> (c,) . (,x) <$> desugarType (group ts)) (M.toList alts)
     where group [] = S.RT S.TUnit
           group (t:[]) = t
@@ -532,11 +536,7 @@ desugarType = \case
 #ifdef BUILTIN_ARRAYS
   S.RT (S.TArray t l) -> TArray <$> desugarType t <*> evalAExpr l  -- desugarExpr' l
 #endif
-  notInWHNF -> __impossible $ "desugarType (type" ++ show (pretty notInWHNF) ++ "is not in WHNF)"
-
-desugarSigil :: Sigil S.RepExpr -> Sigil Representation
-desugarSigil Unboxed = Unboxed
-desugarSigil (Boxed ro r) = Boxed ro dummyRepr
+  notInWHNF -> __impossible $ "desugarType (type " ++ show (pretty notInWHNF) ++ " is not in WHNF)"
 
 desugarNote :: S.Inline -> FunNote
 desugarNote S.NoInline = NoInline
