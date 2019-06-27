@@ -37,12 +37,15 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-orphans -fno-warn-missing-signatures #-}
 
-module Cogent.Core where
+module Cogent.Core
+  ( module Cogent.Core
+  , module Cogent.Dargent.Core
+  ) where
 
-import Cogent.Common.Repr
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler
+import Cogent.Dargent.Core
 import Cogent.PrettyPrint hiding (associativity, primop)
 import Cogent.Util
 import Data.Nat (Nat(Zero, Suc))
@@ -61,13 +64,13 @@ import qualified Text.PrettyPrint.ANSI.Leijen as L ((<$>))
 data Type t
   = TVar (Fin t)
   | TVarBang (Fin t)
-  | TCon TypeName [Type t] (Sigil Representation)
+  | TCon TypeName [Type t] (Sigil ()) -- Layout will be nothing for abstract types
   | TFun (Type t) (Type t)
   | TPrim PrimInt
   | TString
   | TSum [(TagName, (Type t, Bool))]  -- True means taken (since 2.0.4)
   | TProduct (Type t) (Type t)
-  | TRecord [(FieldName, (Type t, Bool))] (Sigil Representation)  -- True means taken
+  | TRecord [(FieldName, (Type t, Bool))] (Sigil ()) -- True means taken, Layout will be nothing for abstract types
   | TUnit
 #ifdef BUILTIN_ARRAYS
   | TArray (Type t) ArraySize  -- use Int for now
