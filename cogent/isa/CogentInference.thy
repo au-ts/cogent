@@ -380,6 +380,24 @@ fun "assign_app_constr" :: "(nat \<Rightarrow> type) \<Rightarrow> constraint \<
 | "assign_app_constr S (CtShare t) = CtShare (assign_app_ty S t)"
 | "assign_app_constr S (CtDrop t) = CtDrop (assign_app_ty S t)"
 
+section {* split_used (Lemma 3.1) *}
+(* Free Variables *)
+fun fv' :: "nat \<Rightarrow> 'f expr \<Rightarrow> index set" where
+  "fv' n (Var i) = (if i \<ge> n then {i} else {})"
+| "fv' n (TypeApp f ts) = {}"
+| "fv' n (Prim prim_op es) = fold (\<lambda>x y. (fv' n x) \<union> y) es {}"
+| "fv' n (App e1 e2) = (fv' n e1) \<union> (fv' n e2)"
+| "fv' n Unit = {}"
+| "fv' n (Lit l) = {}"
+| "fv' n (Cast nt e) = fv' n e"
+| "fv' n (Let e1 e2) = (fv' n e1) \<union> (fv' (Suc n) e2)"
+| "fv' n (If e1 e2 e3) = (fv' n e1) \<union> (fv' n e2) \<union> (fv' n e3)"
+| "fv' n (Sig e t) = fv' n e"
+
+abbreviation fv :: "'s expr \<Rightarrow> index set" where
+  "fv t \<equiv> fv' 0 t" 
+
+
 section {* Soundness of Generation (Thm 3.2) *}
 lemma cg_sound:
   assumes "G,0 \<turnstile> e : \<tau> \<leadsto> G',n | C | e'"
