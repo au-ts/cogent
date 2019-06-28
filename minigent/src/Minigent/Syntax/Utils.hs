@@ -35,6 +35,7 @@ module Minigent.Syntax.Utils
   , unorderedType
   , typeUVs
   , typeVariables
+  , muTypeVariables
   , rigid
   , rootUnifVar
   , -- * Entries
@@ -93,6 +94,15 @@ typeVariables (AbsType _ _ ts) = concatMap typeVariables ts
 typeVariables (Function t1 t2) = typeVariables t1 ++ typeVariables t2
 typeVariables (Bang t) = typeVariables t
 typeVariables _ = []
+
+muTypeVariables :: Type -> [VarName]
+muTypeVariables (Record (MuType tv) r _) = tv : concatMap (\(Entry _ t _) -> muTypeVariables t) (Row.entries r)
+muTypeVariables (Variant r)  = concatMap (\(Entry _ t _) -> muTypeVariables t) (Row.entries r)
+muTypeVariables (AbsType _ _ ts) = concatMap muTypeVariables ts
+muTypeVariables (Function t1 t2) = muTypeVariables t1 ++ muTypeVariables t2
+muTypeVariables (Bang t) = muTypeVariables t
+muTypeVariables _ = []
+
 
 -- | Returns @True@ unless the given type is a unification variable or a type operator
 --   applied to a unification variable.
