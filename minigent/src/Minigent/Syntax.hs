@@ -19,8 +19,7 @@ module Minigent.Syntax
   , AbsTypeName
   , FieldName
   , -- * Types
-    MuType (..)
-  , Type (..)
+    Type (..)
   , Sigil (..)
   , PrimType (..)
   , -- ** Entries and Rows
@@ -89,12 +88,10 @@ data Row
     , rowVar :: Maybe VarName -- ^ Used only in type inference.
     } deriving (Show, Eq)
 
-data MuType = MuType VarName deriving (Show, Eq)
-
 -- | A type, which may contain unification variables or type operators.
 data Type
   = PrimType PrimType
-  | Record MuType Row Sigil -- ^ A recursive parameter, field entry list and sigil
+  | Record (Maybe VarName) Row Sigil -- ^ A recursive parameter, field entry list and sigil
   | AbsType AbsTypeName Sigil [Type]
   | Variant Row
   | TypeVar VarName -- ^ Refers to a rigid type variable bound with a forall.

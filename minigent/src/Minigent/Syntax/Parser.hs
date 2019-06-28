@@ -251,9 +251,9 @@ toplevel = mdo
                     <|> pure []
     
                 -- mu a
-    recTy <- rule $ MuType <$> (token (L.Keyword L.Mu) *> typeVar)
+    recTy <- rule $ Just <$> (token (L.Keyword L.Mu) *> typeVar)
                 -- recursive parameter ommitted
-                 <|> pure (MuType []) 
+                 <|> pure Nothing
                  <?> "recursive type"
 
     constraint <- rule $  Share  . TypeVar <$ token (L.UpperIdent "Share")  <*> typeVar

@@ -58,7 +58,7 @@ import qualified Minigent.Syntax.Utils.Row as Row
 
 import Control.Applicative
 import Control.Monad(guard)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, maybeToList)
 
 import qualified Data.Stream as S
 import qualified Data.Map as M
@@ -88,7 +88,7 @@ typeUVs _ = []
 typeVariables :: Type -> [VarName]
 typeVariables (TypeVar v) = [v]
 typeVariables (TypeVarBang v) = [v]
-typeVariables (Record _ r _) = concatMap (\(Entry _ t _) -> typeVariables t) (Row.entries r)
+typeVariables (Record mt r _) = maybeToList mt ++ concatMap (\(Entry _ t _) -> typeVariables t) (Row.entries r)
 typeVariables (Variant r)  = concatMap (\(Entry _ t _) -> typeVariables t) (Row.entries r)
 typeVariables (AbsType _ _ ts) = concatMap typeVariables ts
 typeVariables (Function t1 t2) = typeVariables t1 ++ typeVariables t2
@@ -96,8 +96,8 @@ typeVariables (Bang t) = typeVariables t
 typeVariables _ = []
 
 muTypeVariables :: Type -> [VarName]
-muTypeVariables (Record (MuType tv) r _) = tv : concatMap (\(Entry _ t _) -> muTypeVariables t) (Row.entries r)
-muTypeVariables (Variant r)  = concatMap (\(Entry _ t _) -> muTypeVariables t) (Row.entries r)
+muTypeVariables (Record mt r _)  = maybeToList mt ++ concatMap (\(Entry _ t _) -> muTypeVariables t) (Row.entries r)
+muTypeVariables (Variant r)      = concatMap (\(Entry _ t _) -> muTypeVariables t) (Row.entries r)
 muTypeVariables (AbsType _ _ ts) = concatMap muTypeVariables ts
 muTypeVariables (Function t1 t2) = muTypeVariables t1 ++ muTypeVariables t2
 muTypeVariables (Bang t) = muTypeVariables t
@@ -210,7 +210,7 @@ traverseType :: (RW.Rewrite Type) -> Type -> Type
 traverseType func ty = case RW.run func ty of
   Just  t' -> t'
   Nothing  -> case ty of
-    Record _ es s  -> Record (MuType []) (Row.mapEntries (entryTypes (traverseType func)) es) s
+    Record _ es s  -> Record Nothing (Row.mapEntries (entryTypes (traverseType func)) es) s
     AbsType n s ts -> AbsType n s (map (traverseType func) ts)
     Variant es     -> Variant (Row.mapEntries (entryTypes (traverseType func)) es)
     Function t1 t2 -> Function (traverseType func t1) (traverseType func t2)
@@ -229,7 +229,7 @@ normaliseType :: (RW.Rewrite Type) -> Type -> Type
 normaliseType func ty =
   let t' = fromMaybe ty (RW.run func ty)
    in case t' of
-    Record _ es s -> Record (MuType []) (Row.mapEntries (entryTypes (normaliseType func)) es) s
+    Record _ es s -> Record Nothing (Row.mapEntries (entryTypes (normaliseType func)) es) s
     AbsType n s ts -> AbsType n s (map (normaliseType func) ts)
     Variant es     -> Variant (Row.mapEntries (entryTypes (normaliseType func)) es)
     Function t1 t2 -> Function (normaliseType func t1) (normaliseType func t2)
@@ -246,13 +246,13 @@ substUV (x, t) = RW.rewrite $ \ t' -> case t' of
 substRowV :: (VarName, Row) -> RW.Rewrite Type
 substRowV (x, (Row m' q)) = RW.rewrite $ \ t' -> case t' of
   Variant   (Row m (Just v))   | x == v -> Just (Variant (Row (M.union m m') q))
-  Record _ (Row m (Just v)) s | x == v -> Just (Record (MuType []) (Row (M.union m m') q) s)
+  Record _ (Row m (Just v)) s | x == v -> Just (Record Nothing (Row (M.union m m') q) s)
   _                                   -> Nothing
 
 -- | A rewrite that substitutes a given unification sigil variable for a sigil in a type.
 substSigilV :: (VarName, Sigil) -> RW.Rewrite Type
 substSigilV (x, s) = RW.rewrite $ \ t' -> case t' of
-  Record _ r (UnknownSigil v) | x == v -> Just (Record (MuType []) r s)
+  Record _ r (UnknownSigil v) | x == v -> Just (Record Nothing r s)
   _                                  -> Nothing
 
 -- | A rewrite that substitutes a rigid type variable for a type term in a type.

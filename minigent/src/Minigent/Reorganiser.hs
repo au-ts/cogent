@@ -36,13 +36,12 @@ type Error = String
 
 sanityCheckType :: [VarName] -> Type -> Writer [Error] ()
 sanityCheckType tvs t = do 
-   let leftovers = nub (typeVariables t) \\ tvs
-   if all (\x -> elem x (muTypeVariables t)) leftovers
-      then
-        return ()
-        -- if strictlyPositive t then return ()
-        -- else tell ["Non strict"]
-      else tell ["Type variables used unquantified:" ++ concat (intersperse ", " leftovers)]
+  let leftovers = nub (typeVariables t) \\ tvs
+  let nsp = nonStrictlyPositiveVars t
+  if leftovers == [] then
+    if nsp == [] then return ()
+    else tell ["Variables occuring non-strictly positive: " ++ concat(intersperse ", " nsp)]
+  else tell ["Type variables used unquantified:" ++ concat (intersperse ", " leftovers)]
 
 sanityCheckExpr :: GlobalEnvironments -> [VarName] -> [VarName] -> Expr -> Writer [Error] Expr
 sanityCheckExpr envs tvs vs exp = check vs exp
@@ -129,20 +128,26 @@ reorganiseTopLevel (Equation f x e) envs = do
 nonStrictlyPositiveVars :: Type -> [VarName] 
 nonStrictlyPositiveVars t = sp t M.empty
   where
+    -- Map if variables in scope are in argument position
     sp ::  Type -> M.Map VarName Bool -> [VarName]
     sp (PrimType _) vs = []
         -- TODO: What's an AbsType?
     sp (AbsType _ _ ts) vs = concatMap (\t -> sp t vs) ts
     sp (Variant r) vs = 
       concatMap (\(Entry _ t _) -> sp t vs) (Row.entries r)
-    sp (TypeVar v)     vs = concat $ M.elems $ M.mapWithKey (\t p -> if p && v == t then [v] else []) vs
-    sp (TypeVarBang v) vs = concat $ M.elems $ M.mapWithKey (\t p -> if p && v == t then [v] else []) vs
     sp (Bang t) vs = sp t vs
 
+    -- If we encounter a type variable, check if it occurs non-strictly positive
+    sp (TypeVar v)     vs = concat $ M.elems $ M.mapWithKey (\t p -> if p && v == t then [v] else []) vs
+    sp (TypeVarBang v) vs = concat $ M.elems $ M.mapWithKey (\t p -> if p && v == t then [v] else []) vs
+
     -- Records are special - only here can we pick up recursive parameters
-    sp (Record (MuType m) r _) vs = 
+    sp (Record m r _) vs =
+      let vs' = case m of
+                  (Just mt) -> M.insert mt False vs
+                  _         -> vs
       -- Shadow old recursive variables if they exist too
-      concatMap (\(Entry _ t _) -> sp t (M.insert m False vs)) (Row.entries r)
+      in concatMap (\(Entry _ t _) -> sp t vs') (Row.entries r)
 
     -- Only in functions can the sp check be violated
     sp (Function a b) vs = 
