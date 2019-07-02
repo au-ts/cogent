@@ -95,6 +95,7 @@ isCTypeSigned (CInt s _) = s
 isCTypeSigned (CogentPrim _) = False
 isCTypeSigned _ = True  -- FIXME
 
+-- We don't generate bytes or shorts for performance reasons
 cLitConst :: CLitConst -> C.Exp
 cLitConst (CNumConst n (isCTypeSigned -> False) DEC) | n < 2^32 = [cexp| $uint:n |]
                                                      | n < 2^64 = [cexp| $ulint:n |]
