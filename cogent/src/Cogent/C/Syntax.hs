@@ -241,9 +241,3 @@ strlSigilEq (Boxed _ l1) (Boxed _ l2) = l1 == l2
 strlSigilEq Unboxed      Unboxed      = True
 strlSigilEq _            _            = False
 
-
-
-  
-
-
-
