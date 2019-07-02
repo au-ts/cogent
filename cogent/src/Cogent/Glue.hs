@@ -36,6 +36,7 @@ module Cogent.Glue where
 import qualified Cogent.C.Compile as CG
 import qualified Cogent.C.Render  as CG
 import qualified Cogent.C.Syntax  as CG
+import qualified Cogent.C.GenState as CG
 import           Cogent.Common.Syntax
 import           Cogent.Common.Types
 import           Cogent.Compiler
@@ -211,7 +212,7 @@ tcAnti f a = lift . lift $
   StateT $ \s -> let state = TC.TcState { TC._knownFuns    = view (tcState.tfuncs) s
                                         , TC._knownTypes   = view (tcState.ttypes) s
                                         , TC._knownConsts  = view (tcState.consts) s
-                                        , TC._knownReps    = M.empty -- FIXME: Not sure what I'm doing here /liamoc
+                                        , TC._knownDataLayouts   = (__fixme M.empty) -- FIXME: Not sure what I'm doing here /liamoc
                                         }
                      turn :: s -> (Maybe b, TC.TcLogState) -> Either String (b,s)
                      turn s (Just x, TC.TcLogState l _) = Right (x,s)  -- FIXME: ignore warnings atm / zilinc
@@ -255,6 +256,9 @@ genAnti m a =
                                           , CG._globalOracle = view (cgState.globalOracle) s
                                           , CG._varPool      = M.empty
                                           , CG._ffiFuncs     = M.empty
+                                          , CG._boxedRecordSetters     = M.empty
+                                          , CG._boxedRecordGetters     = M.empty
+                                          , CG._boxedSettersAndGetters = []
                                           }
                   in return (fst $ evalRWS (CG.runGen $ m a) reader state, s)
 
