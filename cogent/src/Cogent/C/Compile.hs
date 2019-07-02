@@ -106,7 +106,6 @@ intersectPools = M.intersectionWith L.intersect
 -- *****************************************************************************
 -- * CodeGen front-end: from Core to the intermediate rep.
 
-
 -- Generates `enum tag_t' and `tag_t'
 genEnum :: Gen v [CExtDecl]
 genEnum = do
@@ -181,7 +180,6 @@ genFunDispatch tn (ti, to) (S.toList -> fs) = do
         else CAssignFnCall (Just $ variable r) (variable f) [variable x]
     genBreakWithFnCall :: Bool -> CStmt -> CStmt
     genBreakWithFnCall fm s = if fm then CBlock [CBIStmt s, CBIStmt CBreak] else s
-
 
 -- Add a type synonym
 addSynonym :: (CC.Type 'Zero -> Gen v CType) -> CC.Type 'Zero -> TypeName -> Gen v CType
@@ -329,7 +327,7 @@ genOp _ _ _ = __impossible "genOp"
 
 genExpr_ :: TypedExpr 'Zero v VarName -> Gen v (CExpr, [CBlockItem], [CBlockItem], VarPool)
 genExpr_ = genExpr Nothing
-
+ 
 
 -- The first argument is the return value on one level up
 -- Returns: (expr, decls, stmts, reusable_var_pool)
@@ -366,8 +364,6 @@ genExpr
      --
      -- [@[CBlockItem\]@]
      --   All the generated statements
-
-      
 genExpr _ (TE t (Op opr [])) = __impossible "genExpr"
 
 genExpr mv (TE t (Op opr es@(e1:_))) = do
@@ -484,12 +480,10 @@ genExpr mv (TE t (App e1 e2)) = do   -- change `e1' to its dispatch function, wi
 genExpr mv (TE t (Take _ rec fld e)) = do
   -- NOTE: New `rec' and old `rec' CAN be the same at this point, as long as they get copied while being
   --       updated. Similarly, the field can be `rec.f' instead of a new one / zilinc
-  
+
   -- 1. Generate the C expression `rec'` corresponding to the cogent expression for the record
   --    and the C declarations `recdecl` and statements `recstm` this C expression depends on
   (rec',recdecl,recstm,recp) <- genExpr_ rec
-
-
   -- 2. Declare a new C local variable `rec''` with the C type `rect` of the record,
   --    initialsed to the C expression `rec'`
   let rect = exprType rec
@@ -497,7 +491,7 @@ genExpr mv (TE t (Take _ rec fld e)) = do
 
   cachedTypes <- use cTypeDefs
   (rec'',recdecl',recstm',recp') <- flip3 aNewVar recp rec' =<< genType rect
-  
+
   -- 3. * If __cogent_fintermediate_vars is True, then
   --       1. Declares a new local variable and assigns it the value of the field being taken
   --       2. @f'@ is a C expression which evaluates to the value of the new local variable
@@ -549,7 +543,7 @@ genExpr mv (TE t (Put rec fld val)) = do
       let recordType = exprType rec
       fieldSetter <- genBoxedGetSetField recordType fieldName Set
       return $ ([], [CBIStmt $ CAssignFnCall Nothing fieldSetter [variable rec'', val']])
-  
+
   recycleVars valp
   (v,adecl,astm,vp) <- maybeAssign t' mv (variable rec'') M.empty
   return (v, recdecl ++ recdecl' ++ valdecl ++ fdecl ++ adecl,
