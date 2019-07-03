@@ -590,7 +590,7 @@ tcExp e mt = do
        ((c,e'),flx,os) <- TC.runCG ctx (L.map fst vs) (TC.cg e =<< maybe TC.freshTVar return mt)
        (cs, subst) <- TC.runSolver (TC.solve vs c) flx
        TC.exitOnErr $ TC.toErrors os cs
-       let assign = mempty 
+       let assign = mempty
        -- TC.exitOnErr $ mapM_ TC.logTc logs
        TC.postE $ TC.applyE subst $ TC.assignE assign e'
 

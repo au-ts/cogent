@@ -781,9 +781,9 @@ instance Pretty ReorganizeError where
 instance Pretty Subst where
   pretty (Subst m) = pretty m
 
-instance Pretty AssignResult where 
-  pretty (Type t) = pretty t 
-  pretty (Sigil s) = pretty s 
+instance Pretty AssignResult where
+  pretty (Type t) = pretty t
+  pretty (Sigil s) = pretty s
   pretty (Row r) = pretty r
 
 -- TODO(dargent): pretty printing for layouts
