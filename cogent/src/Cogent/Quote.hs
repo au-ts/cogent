@@ -12,9 +12,7 @@
 
 module Cogent.Quote where
 
-import Cogent.Dargent.Surface ()
 import Cogent.Parser
-import Cogent.Surface ()
 import Cogent.Util (thd3)
 
 import Data.Data
@@ -28,7 +26,7 @@ parseCogentTl s = case runParser toplevel' (ParserState False) "" s of
                     Right (_,_,x) -> liftData x
 
 quasiquote :: (Data b) => Parser a -> (a -> b) -> QuasiQuoter
-quasiquote p f = QuasiQuoter 
+quasiquote p f = QuasiQuoter
                    { quoteExp  = parse p f
                    , quotePat  = notSupported "patterns"
                    , quoteType = notSupported "types"
