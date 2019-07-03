@@ -120,7 +120,6 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     lift . lift $ knownDataLayouts %= M.insert name (expr, allocation)
     let decl' = normaliseDataLayoutDecl namedLayouts decl
     return $ RepDef decl'
-      
 
   (ConstDef n (stripLocT -> t) e) -> do
     traceTc "tc" $ bold (text $ replicate 80 '=')

@@ -100,13 +100,15 @@ tests/include/%_dummy.h: tests/%.cogent
 .test-setup:
 	$(Q)mkdir -p tests/include
 
-test-compiler: test-clean .test-cogent \
-	test-tc test-ds test-an test-mn test-cg test-gcc \
-	test-pp test-aq \
-	test-hs
-
 tests: test-compiler \
-	test-tc-proof test-shallow-proof test-ee 
+       test-tc-proof test-shallow-proof test-ee test-hs
+
+test-compiler: test-clean .test-cogent \
+       test-tc test-ds test-an test-mn test-cg test-gcc \
+       test-pp test-aq
+
+test-quickcheck:
+       cabal test test-quickcheck
 
 test-clean:
 	$(E) "Cleaning up artefacts from earlier test runs."

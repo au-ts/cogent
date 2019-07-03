@@ -780,9 +780,9 @@ instance Pretty ReorganizeError where
 instance Pretty Subst where
   pretty (Subst m) = pretty m
 
-instance Pretty AssignResult where 
-  pretty (Type t) = pretty t 
-  pretty (Sigil s) = pretty s 
+instance Pretty AssignResult where
+  pretty (Type t) = pretty t
+  pretty (Sigil s) = pretty s
   pretty (Row r) = pretty r
 
 -- TODO(dargent): pretty printing for layouts
@@ -848,8 +848,7 @@ instance Pretty a => Pretty (DataLayout a) where
 
 instance Pretty BitRange where
   pretty BitRange {bitSizeBR, bitOffsetBR} = literal (pretty bitSizeBR) <> symbol "b" <+> symbol "at" <+> literal (pretty bitOffsetBR) <> symbol "b"
-     
-    
+
 
 -- helper functions
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~

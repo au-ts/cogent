@@ -181,6 +181,7 @@ genFunDispatch tn (ti, to) (S.toList -> fs) = do
     genBreakWithFnCall :: Bool -> CStmt -> CStmt
     genBreakWithFnCall fm s = if fm then CBlock [CBIStmt s, CBIStmt CBreak] else s
 
+
 -- Add a type synonym
 addSynonym :: (CC.Type 'Zero -> Gen v CType) -> CC.Type 'Zero -> TypeName -> Gen v CType
 addSynonym f t n = do t' <- f t
@@ -327,7 +328,7 @@ genOp _ _ _ = __impossible "genOp"
 
 genExpr_ :: TypedExpr 'Zero v VarName -> Gen v (CExpr, [CBlockItem], [CBlockItem], VarPool)
 genExpr_ = genExpr Nothing
- 
+
 
 -- The first argument is the return value on one level up
 -- Returns: (expr, decls, stmts, reusable_var_pool)
@@ -364,6 +365,8 @@ genExpr
      --
      -- [@[CBlockItem\]@]
      --   All the generated statements
+
+
 genExpr _ (TE t (Op opr [])) = __impossible "genExpr"
 
 genExpr mv (TE t (Op opr es@(e1:_))) = do
@@ -484,6 +487,7 @@ genExpr mv (TE t (Take _ rec fld e)) = do
   -- 1. Generate the C expression `rec'` corresponding to the cogent expression for the record
   --    and the C declarations `recdecl` and statements `recstm` this C expression depends on
   (rec',recdecl,recstm,recp) <- genExpr_ rec
+
   -- 2. Declare a new C local variable `rec''` with the C type `rect` of the record,
   --    initialsed to the C expression `rec'`
   let rect = exprType rec
