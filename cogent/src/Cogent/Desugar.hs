@@ -522,7 +522,8 @@ desugarType = \case
   S.RT (S.TFun ti to)    -> TFun <$> desugarType ti <*> desugarType to
   S.RT (S.TRecord fs Unboxed) -> TRecord <$> mapM (\(f,(t,x)) -> (f,) . (,x) <$> desugarType t) fs <*> pure Unboxed
   S.RT (S.TRecord fs sigil)  -> do
-    -- TODO(dargent): this looks strange ~ v.jackson / 2019.06.27
+    -- Making an unboxed record is necessary here because of how `desugarSigil`
+    -- is defined.
     unboxedDesugared@(TRecord fs' Unboxed) <- desugarType $ S.RT (S.TRecord fs Unboxed)
     TRecord <$> pure fs' <*> pure (desugarSigil unboxedDesugared sigil)
   S.RT (S.TVariant alts) -> TSum <$> mapM (\(c,(ts,x)) -> (c,) . (,x) <$> desugarType (group ts)) (M.toList alts)
