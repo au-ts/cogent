@@ -111,7 +111,7 @@ test-compiler: test-clean .test-cogent
 	# test-quickcheck
 
 test-quickcheck:
-	cabal test test-quickcheck
+	$(Q) cabal test test-quickcheck
 
 test-clean:
 	$(E) "Cleaning up artefacts from earlier test runs."
