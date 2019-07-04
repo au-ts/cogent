@@ -1,5 +1,5 @@
 #
-# Copyright 2017, NICTA
+# Copyright 2016, NICTA
 #
 # This software may be distributed and modified according to the terms of
 # the GNU General Public License version 2. Note that NO WARRANTY is provided.
@@ -8,9 +8,12 @@
 # @TAG(NICTA_GPL)
 #
 
-NAME=static-array
+NAME=code
 
-SRC=StaticArray.cogent
+SRC=code.cogent
+OUTPUT=generated # $(SRC:.cogent=-gen)
+COUTPUT=$(addsuffix .c, $(OUTPUT))
+HOUTPUT=$(addsuffix .h, $(OUTPUT))
 
 STDGUM=$(shell cogent --stdgum-dir)
 
@@ -23,9 +26,9 @@ ABSDIR=./abstract
 
 OBJ=$(PPINFER:.c=.o)
 
-CFLAGS+=-I. -I$(STDGUM) -std=gnu99
+CFLAGS+=-I. -I$(STDGUM) -std=gnu99 -g
 
-.PHONY: default clean gen-anti test
+.PHONY: default cogent clean gen-anti test
 .SECONDARY:
 
 default: all
@@ -40,14 +43,15 @@ $(OBJ): $(PPINFER)
 gen-anti:
 	mkdir -p $(ABSDIR)
 	cogent $(SRC) -g -Od -ogenerated --fno-fncall-as-macro --ffunc-purity-attr \
-                --infer-c-types="$(AHFILES)" \
-                --Wno-warn --infer-c-funcs="$(ACFILES)" \
-                --cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
-                --ext-types=types.cfg \
-                --entry-funcs=entrypoints.cfg \
+		--Wno-warn --infer-c-funcs="$(ACFILES)" \
+		--cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
+		--ext-types=types.cfg \
+		--entry-funcs=entrypoints.cfg \
+		--cogent-pp-args="--noline"
 
 clean:
 	rm -f $(COUTPUT) $(HOUTPUT) $(PP) $(PPINFER) $(OBJ)
-	rm -rf generated.h generated.c
+	@# rm -f *-gen.*
 	rm -rf $(ABSDIR)
 	rm -f $(NAME)
+
