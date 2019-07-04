@@ -466,7 +466,7 @@ fun typing_all_vars _ _ [] = let
     val enumG = (0 upto (length G - 1) ~~ G)
     val steps = maps step enumG
     val (Gl, Gr) = map split_lr enumG |> split_list
-    val thms = map_filter I Gl |> nubBy Thm.prop_of
+    val thms = map_filter I Gl |> removedups Thm.prop_of
     val rest = typing_all_vars ctxt Gr ixs
   in [RTac @{thm typing_all_cons}] @ steps @ [RTac @{thm split_empty},
     RTac @{thm typing_var_weak[unfolded singleton_def Cogent.empty_def]},
@@ -475,7 +475,7 @@ fun typing_all_vars _ _ [] = let
 fun typing (Const (@{const_name Var}, _) $ i) G _ hints = let
     val i = dest_nat i
     val thm = the_G G (nth G i)
-    val thms = map_filter I G |> nubBy Thm.prop_of
+    val thms = map_filter I G |> removedups Thm.prop_of
     val _ = (case typing_hint hints of
                [] => ()
              | _ => raise HINTS ("too many tacs", hints))
