@@ -89,9 +89,11 @@ typeConName = try (do (x:xs) <- identifier
                       (if isUpper x then return else unexpected) $ x:xs)
 
 -- @p <= 0@ means unknown position
-avoidInitial = do ParserState a <- getState
-                  if not a then return ()
-                  else do whiteSpace; p <- sourceColumn <$> getPosition; guard (p > 1 || p <= 0)
+avoidInitial = do
+  ParserState a <- getState
+  if not a
+    then return ()
+    else do whiteSpace; p <- sourceColumn <$> getPosition; guard (p > 1 || p <= 0)
 
 
 repDecl :: Parser RepDecl
@@ -371,8 +373,7 @@ monotype = do avoidInitial
       <|> tuple <$> parens (commaSep monotype)
       <|> TRecord
           <$> braces (commaSep1 ((\a b c -> (a,(b,c))) <$> variableName <* reservedOp ":" <*> monotype <*> pure False))
-          <*> pure (Boxed False (__todo "Should actually parse the layout" Nothing))
-            -- TODO(dargent): Should actually parse the layout
+          <*> (Boxed False <$> ((Just <$> repExpr) <|> pure Nothing))
       <|> TVariant . M.fromList <$> angles (((,) <$> typeConName <*> fmap ((,False)) (many typeA2)) `sepBy` reservedOp "|"))
 
     tuple [] = TUnit

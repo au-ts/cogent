@@ -35,7 +35,7 @@ quasiquote p f = QuasiQuoter
   where notSupported s = error $ "Quasiquoting " ++ s ++ " is not supported."
 
 parse :: (Data b) => Parser a -> (a -> b) -> String -> Q Exp
-parse p f s = case runParser p (ParserState False) "" s of
+parse p f s = case runParser p (ParserState True) "" s of
                 Left  e -> error $ "Parsing failed: " ++ show e
                 Right x -> liftData $ f x
 
