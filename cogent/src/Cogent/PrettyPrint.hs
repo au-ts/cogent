@@ -516,6 +516,9 @@ instance (Pretty t, TypeType t, Pretty e) => Pretty (Type e t) where
                                    <+> case fs of Nothing -> tupled (fieldname ".." : [])
                                                   Just fs' -> tupled1 (map fieldname fs'))
                        & (if __cogent_fdisambiguate_pp then (<+> comment "{- put -}") else id)
+  pretty (TLayout l t) = __fixme (prettyT' t <+> typesymbol "layout" <+> pretty l)
+           & (if __cogent_fdisambiguate_pp then (<+> comment "{- layout -}") else id)
+           -- TODO(dargent): rewrite when we get an actual syntax
 
 instance Pretty RawType where
   pretty (RT t) = pretty t

@@ -61,7 +61,7 @@ language = haskellStyle
                                   ":","=","!",":<",".","_","..","#","$","::",
                                   "@","@@","->","=>","~>","<=","|","|>"]
            , T.reservedNames   = ["let","in","type","include","all","take","put","inline","upcast",
-                                  "repr","variant","record","at",
+                                  "repr","variant","record","at","layout",
                                   "if","then","else","not","complement","and","True","False","o"]
            , T.identStart = letter
            }
@@ -334,7 +334,14 @@ monotype = do avoidInitial
                  try paramtype
                  <|> (do t <- typeA2'
                          op <- optionMaybe takeput
-                         case op of Nothing -> return t; Just f -> return (f t)
+                         let t' = (case op of
+                                      Nothing -> t
+                                      Just f -> f t)
+                         l <- optionMaybe layout
+                         let t'' = (case l of
+                                      Nothing -> t'
+                                      Just fl -> fl t')
+                         return t''
                      )
     typeA2' = avoidInitial >>
                ((unbox >>= \op -> atomtype >>= \at -> return (op at))
@@ -358,6 +365,9 @@ monotype = do avoidInitial
     takeput = avoidInitial >>
              ((reservedOp "take" >> fList >>= \fs -> return (\x -> LocType (posOfT x) (TTake fs x)))
           <|> (reservedOp "put"  >> fList >>= \fs -> return (\x -> LocType (posOfT x) (TPut  fs x))))
+    -- either we have an actual layout, or the name of a layout synonym
+    layout = avoidInitial >> reservedOp "layout" >> repExpr   -- TODO(dargent) record synonyms
+      >>= \l -> return (\x -> LocType (posOfT x) (TLayout l x))
 
     atomtype = avoidInitial >> LocType <$> getPosition <*> (
           TVar <$> variableName <*> pure False <*> pure False
@@ -372,9 +382,8 @@ monotype = do avoidInitial
               return $ TCon tn [] s)
       -- <|> TCon <$> typeConName <*> pure [] <*> pure Writable
       <|> tuple <$> parens (commaSep monotype)
-      <|> TRecord
+      <|> (\fs -> TRecord fs (Boxed False Nothing))
           <$> braces (commaSep1 ((\a b c -> (a,(b,c))) <$> variableName <* reservedOp ":" <*> monotype <*> pure False))
-          <*> (Boxed False <$> ((Just <$> repExpr) <|> pure Nothing))
       <|> TVariant . M.fromList <$> angles (((,) <$> typeConName <*> fmap ((,False)) (many typeA2)) `sepBy` reservedOp "|"))
 
     tuple [] = TUnit

@@ -183,6 +183,7 @@ unorderedType (TUnbox {}) = False
 unorderedType (TBang {}) = False
 unorderedType (TTake {}) = False
 unorderedType (TPut {}) = False
+unorderedType (TLayout {}) = False
 #ifdef BUILTIN_ARRAYS
 unorderedType (TArray {}) = False
 #endif
