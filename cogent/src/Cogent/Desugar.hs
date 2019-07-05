@@ -268,8 +268,12 @@ desugarTlv (S.AbsTypeDec tn vs _) _ | ExI (Flip vs') <- Vec.fromList vs = return
 desugarTlv (S.AbsDec fn sigma) pragmas | S.PT vs t <- sigma
                                        , ExI (Flip vs') <- Vec.fromList vs
                                        , Refl <- zeroPlusNEqualsN $ Vec.length vs'
-  = do TFun ti' to' <- withTypeBindings (fmap fst vs') $ desugarType t
-       return $ AbsDecl (pragmaToAttr pragmas fn mempty) fn vs' ti' to'
+  = do
+      t <- withTypeBindings (fmap fst vs') $ desugarType t
+      case t of
+        TFun ti' to' ->
+          return $ AbsDecl (pragmaToAttr pragmas fn mempty) fn vs' ti' to'
+        _ -> error "Cogent does not allow FFI constants"
 desugarTlv (S.FunDef fn sigma alts) pragmas | S.PT vs t <- sigma
                                             , ExI (Flip vs') <- Vec.fromList vs
                                             , Refl <- zeroPlusNEqualsN $ Vec.length vs'
