@@ -76,10 +76,11 @@ normaliseRW = rewrite' $ \t -> case t of
 whnf :: TCType -> TcSolvM TCType
 whnf input = do 
     step <- case input of 
-        T (TTake fs t') -> T . TTake fs <$> whnf t' 
-        T (TPut  fs t') -> T . TPut  fs <$> whnf t' 
-        T (TBang    t') -> T . TBang    <$> whnf t' 
-        T (TUnbox   t') -> T . TUnbox   <$> whnf t' 
+        T (TTake fs t') -> T . TTake fs <$> whnf t'
+        T (TPut  fs t') -> T . TPut  fs <$> whnf t'
+        T (TBang    t') -> T . TBang    <$> whnf t'
+        T (TUnbox   t') -> T . TUnbox   <$> whnf t'
+        T (TLayout l t') -> T . TLayout l <$> whnf t'
         _               -> pure input
     fromMaybe step <$> runMaybeT (run' (untilFixedPoint normaliseRW) step)
 
