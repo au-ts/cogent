@@ -154,7 +154,9 @@ normaliseT d (T (TPut fs t)) = do
      forM fs' $ \(f,(t,b)) -> do when (f `elem` fs && not b && __cogent_wdodgy_take_put) $ logWarn (PutUntakenField f t')
                                  return (f, (t,  (f `notElem` fs) && b))
 
-normaliseT d (T (TCon n ts s)) = do
+normaliseT d (T (TLayout l t)) = __todo "normaliseT for TLayout" -- TODO(dargent)
+
+normaliseT d (T (TCon n ts b)) =
   case lookup n d of
     -- In the first case, the sigil `s` should be `Nothing`
     -- because 
@@ -177,7 +179,7 @@ normaliseT d (V x) =
   T . TVariant . M.map (second tkNorm . snd) . Row.entries . fmap (:[]) <$>
     traverse (normaliseT d) x
 normaliseT d (R x (Left s)) =
-  T . flip TRecord (fmap (const noRepE) s) . map (second (second tkNorm)). Row.toEntryList <$>
+  T . flip TRecord (__fixme $ fmap (const Nothing) s) . map (second (second tkNorm)). Row.toEntryList <$>  -- TODO(dargent): check this is correct
     traverse (normaliseT d) x
 normaliseT d (R x (Right s)) =  __impossible ("normaliseT: invalid sigil (?" ++ show s ++ ")")
 normaliseT d (U x) = __impossible ("normaliseT: invalid type (?" ++ show x ++ ")")
