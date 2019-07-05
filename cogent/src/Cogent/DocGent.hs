@@ -147,6 +147,7 @@ prettyType (LocType _ (TPut fs t)) x = let rest = foldMap id x
 prettyType (LocType _ (TTake fs t)) x = let rest = foldMap id x
                                             fs' = prettyFieldNames fs
                                         in prettyType t (Just [shamlet|<span> <span class='fg-Vivid-Cyan'>take</span> #{fs'} #{rest}|] )
+prettyType (LocType _ (TLayout l t)) x = __todo "TLayout in docgent" -- TODO(dargent)
 prettyType (LocType _ (TBang t)) x = let rest = foldMap id x in prettyType t (Just [shamlet|<span> <span class='fg-Vivid-Cyan'>!</span> #{rest}|] )
 prettyType (LocType _ (TUnbox t)) x = let rest = prettyType t x in [shamlet|<table><tr><td class='fg-Vivid-Cyan'>#</td><td>#{rest}</td></tr>|]
 prettyType (Documentation d t) (Just x) = let it = prettyType (Documentation d t) Nothing
@@ -194,6 +195,7 @@ prettyType (LocType p (TRecord ts (Boxed False (Just l)))) x
                     row (g,(t,_)) s = let t' = prettyType t Nothing in [shamlet|<tr><td>#{s}</td><td class='spaced fg-Vivid-Magenta'>#{g}</td><td class='spaced'>:</td><td class='spaced'>#{t'}</td>|]
                     rows = zipWith row ts $ '{' : repeat ','
                  in [shamlet|<table>#{rows}<tr><td>}</td><td class='spaced' colspan=3>#{rest}</td><td></td></tr>|]
+  -- TODO(dargent): records with layouts here
 prettyType x (Just y) = fst (runState (displayHTML (prettyPrint id [pretty x])) defaultState) `mappend` y
 prettyType x Nothing = fst (runState (displayHTML (prettyPrint id [pretty x])) defaultState)
 
