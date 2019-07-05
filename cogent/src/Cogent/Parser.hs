@@ -440,7 +440,6 @@ typeA1' = do avoidInitial
     -- either we have an actual layout, or the name of a layout synonym
     layout = avoidInitial >> reservedOp "layout" >> repExpr
       >>= \l -> return (\x -> LocType (posOfT x) (TLayout l x))
-
     fList = (Just . (:[])) <$> identifier
         <|> parens ((reservedOp ".." >> return Nothing) <|> (commaSep identifier >>= return . Just))
 
