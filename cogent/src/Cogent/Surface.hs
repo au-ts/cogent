@@ -131,6 +131,7 @@ data Type e t =
               -- Used for both field names in records and tag names in variants
               | TTake (Maybe [FieldName]) t
               | TPut  (Maybe [FieldName]) t
+              | TLayout RepExpr t
               deriving (Show, Functor, Data, Eq, Foldable, Traversable, Ord)
 
 data Polytype t = PT [(TyVarName, Kind)] t deriving (Data, Eq, Show, Functor, Foldable, Traversable, Ord)
@@ -334,6 +335,7 @@ instance Traversable (Flip Type t) where  -- e
   traverse _ (Flip (TBang t))            = pure $ Flip (TBang t)
   traverse _ (Flip (TTake fs t))         = pure $ Flip (TTake fs t)
   traverse _ (Flip (TPut  fs t))         = pure $ Flip (TPut  fs t)
+  traverse _ (Flip (TLayout l t))        = pure $ Flip (TLayout l t)
 
 instance Traversable (Flip (TopLevel t) e) where  -- p
   traverse _ (Flip (Include s))           = pure $ Flip (Include s)
@@ -440,6 +442,7 @@ fvT (RT (TUnbox   t)) = fvT t
 fvT (RT (TBang    t)) = fvT t
 fvT (RT (TTake  _ t)) = fvT t
 fvT (RT (TPut   _ t)) = fvT t
+fvT (RT (TLayout _ t)) = fvT t
 
 fcA :: Alt v RawExpr -> [TagName]
 fcA (Alt _ _ e) = fcE e
@@ -476,6 +479,7 @@ tvT (RT (TUnbox   t)) = tvT t
 tvT (RT (TBang    t)) = tvT t
 tvT (RT (TTake  _ t)) = tvT t
 tvT (RT (TPut   _ t)) = tvT t
+tvT (RT (TLayout _ t)) = tvT t
 
 -- -----------------------------------------------------------------------------
 

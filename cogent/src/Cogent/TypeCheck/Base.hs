@@ -256,6 +256,7 @@ rigid :: TCType -> Bool
 rigid (T (TBang {})) = False
 rigid (T (TTake {})) = False
 rigid (T (TPut {})) = False
+rigid (T (TLayout {})) = False
 rigid (U {}) = False
 rigid (Synonym {}) = False
 rigid (R r _) = not $ Row.justVar r
@@ -516,10 +517,11 @@ validateTypes' vs = mapM (validateType' vs)
 
 
 flexOf (U x) = Just x
-flexOf (T (TTake _ t))  = flexOf t
-flexOf (T (TPut  _ t))  = flexOf t
-flexOf (T (TBang  t))   = flexOf t
-flexOf (T (TUnbox t))   = flexOf t
+flexOf (T (TTake _ t))   = flexOf t
+flexOf (T (TPut  _ t))   = flexOf t
+flexOf (T (TLayout _ t)) = flexOf t
+flexOf (T (TBang  t))    = flexOf t
+flexOf (T (TUnbox t))    = flexOf t
 flexOf _ = Nothing
 
 isSynonym :: RawType -> TcBaseM Bool
