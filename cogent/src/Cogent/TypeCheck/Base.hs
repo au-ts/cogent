@@ -97,6 +97,7 @@ data TypeError = FunctionNotFound VarName
                | CustTyGenIsSynonym TCType
                | TypeWarningAsError TypeWarning
                | DataLayoutError DataLayoutTypeCheckError
+               | LayoutOnNonRecordOrCon TCType
                deriving (Eq, Show, Ord)
 
 isWarnAsError :: TypeError -> Bool

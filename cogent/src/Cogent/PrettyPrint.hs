@@ -693,7 +693,8 @@ instance Pretty TypeError where
 #endif
   pretty (CustTyGenIsSynonym t)     = err "Type synonyms have to be fully expanded in --cust-ty-gen file:" <$> indent' (pretty t)
   pretty (CustTyGenIsPolymorphic t) = err "Polymorphic types are not allowed in --cust-ty-gen file:" <$> indent' (pretty t)
-  pretty (DataLayoutError e) = pretty e
+  pretty (DataLayoutError e)        = err "Data Layout Error:" <$> indent' (pretty e)
+  pretty (LayoutOnNonRecordOrCon t) = err "Tried to put a layout onto something that isn't a record or abstract type:" <$> indent' (pretty t)
   pretty (TypeWarningAsError w)          = pretty w
 
 instance Pretty TypeWarning where
@@ -791,9 +792,9 @@ instance Pretty AssignResult where
   pretty (Row (Right sh)) = pretty sh
 
 -- TODO(dargent): pretty printing for layouts
-instance Pretty (Sigil r) where
-  pretty (Boxed False _) = keyword "[W]"
-  pretty (Boxed True  _) = keyword "[R]"
+instance Pretty r => Pretty (Sigil r) where
+  pretty (Boxed False l) = keyword "[W]" <+> parens (pretty l)
+  pretty (Boxed True  l) = keyword "[R]" <+> parens (pretty l)
   pretty Unboxed  = keyword "[U]"
 
 instance (Pretty t) => Pretty (Row.Row t) where 
