@@ -1,0 +1,2 @@
+listop : Unit -> mu t { f : (t -> U8) };
+listop a = { f = End Unit };

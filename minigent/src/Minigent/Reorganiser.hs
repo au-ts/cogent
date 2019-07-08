@@ -38,10 +38,11 @@ sanityCheckType :: [VarName] -> Type -> Writer [Error] ()
 sanityCheckType tvs t = do 
   let leftovers = nub (typeVariables t) \\ tvs
   let nsp = nonStrictlyPositiveVars t
-  if leftovers == [] then
-    if nsp == [] then return ()
-    else tell ["Variables occuring non-strictly positive: " ++ concat(intersperse ", " nsp)]
-  else tell ["Type variables used unquantified:" ++ concat (intersperse ", " leftovers)]
+  if leftovers /= [] then
+    tell ["Type variables used unquantified:" ++ concat (intersperse ", " leftovers)]
+  else if nsp /= [] then
+    tell ["Variables occuring non-strictly positive: " ++ concat (intersperse ", " nsp)]
+  else return ()
 
 sanityCheckExpr :: GlobalEnvironments -> [VarName] -> [VarName] -> Expr -> Writer [Error] Expr
 sanityCheckExpr envs tvs vs exp = check vs exp

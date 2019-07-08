@@ -1,0 +1,2 @@
+id : mu t { l : < End Unit | Rest { a : U8, b : t } > } -> mu t { l : < End Unit | Rest { a : U8, b : t } > };
+id a = a;
