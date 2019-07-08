@@ -153,7 +153,12 @@ normaliseT d (T (TPut fs t)) = do
      forM fs' $ \(f,(t,b)) -> do when (f `elem` fs && not b && __cogent_wdodgy_take_put) $ logWarn (PutUntakenField f t')
                                  return (f, (t,  (f `notElem` fs) && b))
 
-normaliseT d (T (TLayout l t)) = __todo "normaliseT for TLayout" -- TODO(dargent)
+normaliseT d (T (TLayout l t)) = do
+  t' <- normaliseT d t
+  case t' of
+    (T (TRecord fs (Boxed p _))) -> normaliseT d (T . TRecord fs . Boxed p $ Just l)
+    (T (TCon n ts (Boxed p _)))  -> normaliseT d (T . TCon n ts . Boxed p $ Just l)
+    _                            -> logErrExit (LayoutOnNonRecordOrCon t)
 
 normaliseT d (T (TCon n ts b)) =
   case lookup n d of
