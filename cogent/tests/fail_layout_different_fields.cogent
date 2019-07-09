@@ -1,0 +1,3 @@
+
+foo : () -> { a : U32 } layout record { b : 4B }
+

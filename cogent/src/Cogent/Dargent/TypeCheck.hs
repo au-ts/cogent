@@ -28,6 +28,7 @@ import Cogent.Common.Types (Sigil)
 import Cogent.Dargent.Core
 import Cogent.Dargent.Surface
 import Cogent.Compiler (__fixme, __impossible)
+import Cogent.Surface (Type(..))
 -- import Cogent.TypeCheck.Base (TypeDict)  -- TODO: needed to implement `typeCheckDataLayoutTypeMatch`
 
 import Text.Parsec.Pos (SourcePos)
@@ -289,6 +290,3 @@ mapPaths f (errors, alloc) = (fmap (fmap f) errors, mapOntoPaths f alloc)
 
 instance Offsettable Allocation where
   offset n = fmap $ \(range, path) -> (offset n range, path)
-
-
-

@@ -695,6 +695,8 @@ instance Pretty TypeError where
   pretty (CustTyGenIsPolymorphic t) = err "Polymorphic types are not allowed in --cust-ty-gen file:" <$> indent' (pretty t)
   pretty (DataLayoutError e)        = err "Data Layout Error:" <$> indent' (pretty e)
   pretty (LayoutOnNonRecordOrCon t) = err "Tried to put a layout onto something that isn't a record or abstract type:" <$> indent' (pretty t)
+  pretty (LayoutDoesNotMatchType l t) = err "Layout " <$$> indent' (pretty l)
+                                          <$$> err " does not match type " <$$> indent' (pretty t)
   pretty (TypeWarningAsError w)          = pretty w
 
 instance Pretty TypeWarning where
