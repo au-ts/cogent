@@ -67,6 +67,7 @@ normaliseRW = rewrite' $ \t -> case t of
         Nothing -> pure $ V (Row.putAll row)
         Just fs -> pure $ V (Row.putMany fs row)
     T (TPut fs t) | __cogent_flax_take_put -> return t
+    T (TLayout l t) -> pure $ t
     _ -> empty 
 
 #ifdef BUILTIN_ARRAYS
