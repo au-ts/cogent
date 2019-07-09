@@ -834,11 +834,21 @@ instance Pretty R.Representation where
 -- helper functions
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~
 
+-- assumes positive `n`
 nth :: Int -> Doc
-nth 1 = context "1st"
-nth 2 = context "2nd"
-nth 3 = context "3rd"
-nth n = context (show n ++ "th")
+nth n = context $ show n ++ ordinalOf n
+
+ordinalOf :: Int -> String
+ordinalOf n =
+  let (d,m) = divMod n 10
+   in if d == 1
+      then "th"
+      else
+        case m of
+          1 -> "st"
+          2 -> "nd"
+          3 -> "rd"
+          _ -> "th"
 
 
 -- ctx -> indent -> doc
