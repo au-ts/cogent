@@ -70,7 +70,7 @@ typeCheckDataLayoutExpr env (Record fields) = foldM typeCheckField [] fields
     typeCheckField accumAlloc (fieldName, pos, dataLayoutExpr) = do
       fieldsAlloc <- mapPaths (InField fieldName pos) (typeCheckDataLayoutExpr env dataLayoutExpr)
       accumAlloc /\ fieldsAlloc
-          
+
 typeCheckDataLayoutExpr env (Variant tagExpr alternatives) = do
   case primitiveBitRange tagExpr of
     Just tagBits  -> do altsAlloc <- fst <$> foldM (typeCheckAlternative tagBits) ([], M.empty) alternatives

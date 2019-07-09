@@ -64,6 +64,8 @@ normaliseRW = rewrite' $ \t -> case t of
       | isNothing (Row.var row) -> case fs of 
         Nothing -> pure $ V (Row.putAll row)
         Just fs -> pure $ V (Row.putMany fs row)
+
+    T (TLayout l t) -> pure $ t
     _ -> empty 
 
 #ifdef BUILTIN_ARRAYS

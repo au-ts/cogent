@@ -51,6 +51,7 @@ import qualified Data.Map as M
 #if __GLASGOW_HASKELL__ < 803
 import Data.Monoid ((<>))
 #endif
+import Data.List (sortOn)
 import qualified Data.Sequence as Seq
 -- import qualified Data.Set as S
 import Text.Parsec.Pos
@@ -470,7 +471,7 @@ substType vs (T t) = T (fmap (substType vs) t)
 validateType :: [VarName] -> RawType -> TcM TCType
 validateType vs t = either (\e -> logErr e >> exitErr) return =<< lift (lift $ runExceptT $ validateType' vs t)
 
--- don't log erros, but instead return them
+-- don't log errors, but instead return them
 validateType' :: [VarName] -> RawType -> TcErrM TypeError TCType
 validateType' vs (RT t) = do
   ts      <- use knownTypes
@@ -505,7 +506,16 @@ validateType' vs (RT t) = do
                            tuplize xs  = T (TTuple xs)
                        TVariant fs' <- ffmap toSExpr <$> mapM (validateType' vs) t 
                        pure (V (Row.fromMap (fmap (first tuplize) fs')))
-        
+
+    TLayout l t  -> do
+      layouts <- use knownDataLayouts
+      let (errs, alloc) = typeCheckDataLayoutExpr layouts l
+      () <- (case errs of
+              (err : _) -> throwE (DataLayoutError err)
+              _         -> pure ())
+      t' <- validateType' vs t
+      pure (T $ TLayout l t')
+
     -- TArray te l -> check l >= 0  -- TODO!!!
 
     _ -> __fixme $ T <$> (mmapM (return . toSExpr) <=< mapM (validateType' vs)) t
@@ -574,7 +584,7 @@ isTypeLayoutExprCompatible t@(T (TCon n [] Unboxed)) (Prim rs) =
             "U32" -> 32
             "U64" -> 64
             "Bool" -> 1)
-   in s' <= s -- TODO(dargent): we may want this to be equality
+   in s' <= s -- TODO(dargent): do we want this to be equality?
 isTypeLayoutExprCompatible (T (TRecord fs1 (Boxed _ ml1))) l2@(Record fs2) =
   (case ml1 of
     Just l1 -> l1 == l2
@@ -582,13 +592,13 @@ isTypeLayoutExprCompatible (T (TRecord fs1 (Boxed _ ml1))) l2@(Record fs2) =
   ) &&
     all (\((n1,(t,_)),(n2,_,l)) ->
       n1 == n2 &&
-        isTypeLayoutExprCompatible t l) (zip fs1 fs2)
+        isTypeLayoutExprCompatible t l) (zip (sortOn fst fs1) (sortOn fst3 fs2))
 isTypeLayoutExprCompatible (T (TTuple fs1)) (Record fs2) =
   all (\(t,(_,_,l)) -> isTypeLayoutExprCompatible t l) (zip fs1 fs2)
 isTypeLayoutExprCompatible (T (TVariant ts1)) (Variant _ ts2) =
   all (\((n1,(ts,_)),(n2,_,_,l)) ->
     n1 == n2 &&
-      isTypeLayoutExprCompatible (tuplise ts) l) (zip (M.assocs ts1) ts2)
+      isTypeLayoutExprCompatible (tuplise ts) l) (zip (M.assocs ts1) (sortOn fst4 ts2))
   where
     tuplise [] = T TUnit
     tuplise [t] = t
