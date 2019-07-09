@@ -157,8 +157,16 @@ normaliseT d (T (TPut fs t)) = do
 normaliseT d (T (TLayout l t)) = do
   t' <- normaliseT d t
   case t' of
-    (T (TRecord fs (Boxed p _))) -> normaliseT d (T . TRecord fs . Boxed p $ Just l)
-    (T (TCon n ts (Boxed p _)))  -> normaliseT d (T . TCon n ts . Boxed p $ Just l)
+    (T (TRecord fs (Boxed p Nothing))) -> do
+      let t'' = T . TRecord fs . Boxed p $ Just l
+      if isTypeLayoutExprCompatible  t'' l
+        then normaliseT d t''
+        else logErrExit (LayoutDoesNotMatchType l t)
+    (T (TCon n ts (Boxed p Nothing)))  -> do
+      let t'' = T . TCon n ts  . Boxed p $ Just l
+      if isTypeLayoutExprCompatible t'' l
+        then normaliseT d t''
+        else logErrExit (LayoutDoesNotMatchType l t)
     _                            -> logErrExit (LayoutOnNonRecordOrCon t)
 
 normaliseT d (T (TCon n ts b)) =

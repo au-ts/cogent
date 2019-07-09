@@ -23,6 +23,7 @@ import Cogent.Dargent.TypeCheck ( DataLayoutTypeCheckError
                                 , Allocation
                                 , NamedDataLayouts
                                 , typeCheckDataLayoutExpr
+                                , evalSize
                                 )
 import Cogent.Dargent.Core      ( DataLayout
                                 , BitRange
@@ -98,6 +99,7 @@ data TypeError = FunctionNotFound VarName
                | TypeWarningAsError TypeWarning
                | DataLayoutError DataLayoutTypeCheckError
                | LayoutOnNonRecordOrCon TCType
+               | LayoutDoesNotMatchType DataLayoutExpr TCType
                deriving (Eq, Show, Ord)
 
 isWarnAsError :: TypeError -> Bool
@@ -182,7 +184,6 @@ data Constraint' t = (:<) t t
                    deriving (Eq, Show, Ord, Functor, Foldable, Traversable)
 type Constraint = Constraint' TCType
 
-#ifdef BUILTIN_ARRAYS
 arithTCType :: TCType -> Bool
 arithTCType (T (TCon n [] Unboxed)) | n `elem` ["U8", "U16", "U32", "U64", "Bool"] = True
 arithTCType (U _) = False
@@ -197,7 +198,7 @@ arithTCExpr (TE _ (Upcast e   ) _) = arithTCExpr e
 arithTCExpr (TE _ (Annot e _  ) _) = arithTCExpr e
 arithTCExpr _ = False
 
-
+#ifdef BUILTIN_ARRAYS
 splitArithConstraints :: Constraint -> ([SExpr], Constraint)
 splitArithConstraints (c1 :& c2)
   = let (e1,c1') = splitArithConstraints c1
@@ -559,3 +560,40 @@ unifVars (R r s) =
   case s of Left s -> [] 
             Right y -> [y] 
 unifVars (T x) = foldMap unifVars x
+
+--
+-- Dargent
+--
+
+-- TODO(dargent): this check is sound but not complete at the moment
+isTypeLayoutExprCompatible :: TCType -> DataLayoutExpr -> Bool
+isTypeLayoutExprCompatible t@(T (TCon n [] Unboxed)) (Prim rs) =
+  let s  = evalSize rs
+      s' = (case n of
+            "U8"  -> 8
+            "U16" -> 16
+            "U32" -> 32
+            "U64" -> 64
+            "Bool" -> 1)
+   in s' <= s -- TODO(dargent): we may want this to be equality
+isTypeLayoutExprCompatible (T (TRecord fs1 (Boxed _ ml1))) l2@(Record fs2) =
+  (case ml1 of
+    Just l1 -> l1 == l2
+    Nothing -> False
+  ) &&
+    all (\((n1,(t,_)),(n2,_,l)) ->
+      n1 == n2 &&
+        isTypeLayoutExprCompatible t l) (zip fs1 fs2)
+isTypeLayoutExprCompatible (T (TTuple fs1)) (Record fs2) =
+  all (\(t,(_,_,l)) -> isTypeLayoutExprCompatible t l) (zip fs1 fs2)
+isTypeLayoutExprCompatible (T (TVariant ts1)) (Variant _ ts2) =
+  all (\((n1,(ts,_)),(n2,_,_,l)) ->
+    n1 == n2 &&
+      isTypeLayoutExprCompatible (tuplise ts) l) (zip (M.assocs ts1) ts2)
+  where
+    tuplise [] = T TUnit
+    tuplise [t] = t
+    tuplise ts = T (TTuple ts)
+isTypeLayoutExprCompatible t (Offset l _) = isTypeLayoutExprCompatible t l
+isTypeLayoutExprCompatible t (RepRef n) = __todo "lookup layout"
+isTypeLayoutExprCompatible _ _ = False
