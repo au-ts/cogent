@@ -132,7 +132,7 @@ data Type e t =
               -- Used for both field names in records and tag names in variants
               | TTake (Maybe [FieldName]) t
               | TPut  (Maybe [FieldName]) t
-              | TLayout RepExpr t
+              | TLayout DataLayoutExpr t
               deriving (Show, Functor, Data, Eq, Foldable, Traversable, Ord)
 
 data Polytype t = PT [(TyVarName, Kind)] t deriving (Data, Eq, Show, Functor, Foldable, Traversable, Ord)

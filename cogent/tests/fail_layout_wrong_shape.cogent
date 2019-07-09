@@ -1,0 +1,3 @@
+
+foo : () -> { a : U8 } layout variant (1B at 0B) { A(0) : 4B at 1B }
+
