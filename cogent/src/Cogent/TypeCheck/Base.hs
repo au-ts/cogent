@@ -580,7 +580,7 @@ isTypeLayoutExprCompatible t@(T (TCon n [] Unboxed)) (Prim rs) =
             "U16" -> 16
             "U32" -> 32
             "U64" -> 64
-            "Bool" -> 1)
+            "Bool" -> 1)  -- TODO(dargent): check that booleans are allowed only a bit
    in s' <= s -- TODO(dargent): do we want this to be equality?
 isTypeLayoutExprCompatible (T (TRecord fs1 (Boxed _ ml1))) l2@(Record fs2) =
   (case ml1 of
