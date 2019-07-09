@@ -848,7 +848,7 @@ instance Pretty DataLayoutPath where
 
 instance Pretty a => Pretty (DataLayout a) where
   pretty UnitLayout =
-    keyword "repr" <> parens (literal (pretty (0::Int)))
+    keyword "repr" <> parens (literal (symbol "unit"))
 
   pretty PrimLayout {bitsDL} =
     keyword "repr" <> parens (pretty bitsDL)
