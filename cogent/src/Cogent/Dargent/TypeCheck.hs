@@ -51,7 +51,7 @@ typeCheckDataLayoutExpr env (RepRef n) =
         
 typeCheckDataLayoutExpr _ (Prim size) =
   if bitSize == 0
-    then return []
+    then returnError $ ZeroSizedBitRange (InTag PathEnd)
     else return [(bitRange, PathEnd)]
   where
     bitSize = desugarSize size
@@ -60,7 +60,11 @@ typeCheckDataLayoutExpr _ (Prim size) =
 typeCheckDataLayoutExpr env (Offset dataLayoutExpr offsetSize) =
   offset (evalSize offsetSize) <$> typeCheckDataLayoutExpr env dataLayoutExpr
     
-typeCheckDataLayoutExpr env (Record fields) = foldM typeCheckField [] fields
+typeCheckDataLayoutExpr env (Record fields) =
+  let (errs, alloc) = foldM typeCheckField [] fields
+   in if isZeroSizedAllocation alloc
+        then returnError $ ZeroSizedBitRange (InTag PathEnd)
+        else (errs, alloc)
   where
     typeCheckField
       :: Allocation -- The accumulated allocation from previous alternatives
@@ -258,6 +262,9 @@ desugarSize (Add a b) = desugarSize a + desugarSize b
 --
 -- Represents the set which is the union of the sets represented by the 'BitRange's in the list.
 type Allocation = [(BitRange, DataLayoutPath)]
+
+isZeroSizedAllocation :: Allocation -> Bool
+isZeroSizedAllocation = all (isZeroSizedBR . fst)
 
 -- | Conjunction of allocations
 --
