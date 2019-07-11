@@ -55,7 +55,7 @@ import Control.Monad.Writer (Writer, runWriter)
 import Data.Char (ord, chr, intToDigit, isDigit)
 import Data.Either (lefts, rights)
 import Data.Function (on)
-import Data.List (isPrefixOf, isSuffixOf, stripPrefix, partition, sortBy, minimumBy, groupBy, unzip5, intercalate)
+import Data.List (isPrefixOf, isSuffixOf, stripPrefix, partition, sortBy, sortOn, minimumBy, groupBy, unzip5, intercalate)
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Set as S
@@ -68,6 +68,8 @@ import Lens.Micro
 import Lens.Micro.TH
 import Lens.Micro.Mtl
 import Debug.Trace
+
+_fixHighlighting = x where x = ()
 
 isaReservedNames = ["o", "value", "from"]
 
@@ -304,12 +306,13 @@ isRecTuple fs =
 
 shallowMaker :: CC.Type t -> [(FieldName, TypedExpr t v VarName)] -> SG Term
 shallowMaker t fs = do
+  let fs' = sortOn fst fs
   tn <- findTypeSyn t
-  let fnms = map fst fs
+  let fnms = map fst fs'
   tuples <- asks recoverTuples
   if tuples && isRecTuple fnms
-  then mkTuple <$> mapM (shallowExpr . snd) fs
-  else mkApp <$> pure (mkStr [tn ++ ".", "make"]) <*> (mapM (shallowExpr . snd) fs)
+  then mkTuple <$> mapM (shallowExpr . snd) fs'
+  else mkApp <$> pure (mkStr [tn, ".make"]) <*> (mapM (shallowExpr . snd) fs')
 
 shallowSetter :: TypedExpr t v VarName -> Int -> TypedExpr t v VarName -> SG Term
 shallowSetter rec idx e = do
