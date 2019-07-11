@@ -88,7 +88,7 @@ try:
                                 *sorted(["Amount"] + list(map(lambda x: x + " (μs)",["Min","Average","Median","Max", "Total"]))) )
                                 )
 
-        total = {}
+        total = []
         for expr in sorted(tactic_times[key].keys()):
             all_exprs[expr] = True
             cpu = [d['cpu'] for d in tactic_times[key][expr]]
@@ -99,24 +99,22 @@ try:
                     #"gc":       make_stats_obj(gc),
                 }
 
-            for k in final_stats[key][expr]["cpu"]:
-                if not k in total:
-                    total[k] = 0
-                total[k] += final_stats[key][expr]["cpu"][k]
+            total += cpu
 
             for t in ["cpu"]:
                 stat_obj = final_stats[key][expr][t.lower()]
                 nums = [str(int(x)) for x in [stat_obj[key] for key in sorted(stat_obj.keys())]]
                 print(row_format.format(expr, *nums))
-        print(row_format.format("Total", *[str(int(total[x])) for x in sorted(total.keys())]), '\n')
-        total_per_tactic[key] = total['total']
+        total_stat = make_stats_obj(total)
+        print(row_format.format("Total", *[str(int(total_stat[x])) for x in sorted(total_stat.keys())]), '\n')
+        total_per_tactic[key] = sum(total)
 
     total_of_all = sum([total_per_tactic[k] for k in total_per_tactic])
 
     print("Overall totals (μs): ")
     print("\tTotal Time: " + str(total_of_all))
     for k in total_per_tactic:
-        print("\t" + k + ": " + str(total_per_tactic[k]) + ", " + str(round(float(total_per_tactic[k])/total_of_all, 2)*100) + "%")
+        print("\t" + k + ": " + str(round(float(total_per_tactic[k])/total_of_all, 3)*100) + "%" + ", " + str(total_per_tactic[k]))
 
 
     # Log stats if outfile present
