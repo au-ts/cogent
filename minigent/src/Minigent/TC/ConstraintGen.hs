@@ -248,11 +248,13 @@ cgFunction f x e = do
   let proposedType = Function alpha beta
   modify (push (x,alpha))
   (e', c) <- cg e beta
+  -- TODO: Check this is the argument to the function we are checking
   used <- topUsed <$> get
   let c' = if used then Sat else Drop alpha
+  -- TODO: Why pop here? remove top level (alpha -> beta) function? 
   modify pop
   envs <- ask
   let (c'',axs) = case M.lookup f (types envs) of
-                       Nothing -> (Sat, [])
+                       Nothing -> (Sat, []) -- TODO: Why sat if not in env?
                        Just (Forall vs cs tau) -> (proposedType :< tau, cs)
   pure (axs, e', c :&: c' :&: c'')
