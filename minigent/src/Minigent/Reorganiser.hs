@@ -27,7 +27,6 @@ import Minigent.Syntax.Utils
 import Minigent.Environment
 import qualified Minigent.Syntax.Utils.Row as Row
 
-
 import Control.Monad.Trans.Writer.Strict
 import qualified Data.Map as M
 import Data.List (nub, (\\), intersperse )
@@ -104,7 +103,6 @@ sanityCheckExpr envs tvs vs exp = check vs exp
 
       e           -> pure e
 
--- TODO: Find mu quantified recursive variables and check for scoping
 reorganiseTopLevel :: RawTopLevel -> GlobalEnvironments -> Writer [Error] GlobalEnvironments
 reorganiseTopLevel (TypeSig f pt@(Forall tvs c t)) envs = do 
    case M.lookup f (types envs) of 

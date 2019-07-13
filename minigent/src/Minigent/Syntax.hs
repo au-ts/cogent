@@ -91,7 +91,7 @@ data Row
 -- | A type, which may contain unification variables or type operators.
 data Type
   = PrimType PrimType
-  | Record (Maybe VarName) Row Sigil -- ^ A recursive parameter, field entry list and sigil
+  | Record (Maybe VarName) Row Sigil -- ^ A recursive parameter, field entry row and sigil
   | AbsType AbsTypeName Sigil [Type]
   | Variant Row
   | TypeVar VarName -- ^ Refers to a rigid type variable bound with a forall.
@@ -141,8 +141,6 @@ data Expr
   | Esac Expr ConName VarName Expr
     -- ^ An irrefutable pattern match expression. Here, the scrutinee must provably
     --   match the provided constructor.
-  | Roll Expr   -- Recursive type rolling
-  | Unroll Expr -- Recursive type unravelling
   deriving (Show, Eq)
 
 infixr 0 :&:
@@ -166,7 +164,7 @@ pattern (:>) t1 t2 = t2 :< t1
 
 -- | A polymorphic type, used for top-level bindings only.
 --   Given a list of type variable names, constraints on those type variables (right now,
---   only 'Share', 'Drop' and 'Escape' constraints are supported), and a list of recursive (mu) parameters.
+--   only 'Share', 'Drop' and 'Escape' constraints are supported).
 data PolyType = Forall [VarName] [Constraint] Type
      deriving (Show, Eq)
 
