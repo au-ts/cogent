@@ -83,7 +83,7 @@ parsePhase "lexer" = pure Lex
 parsePhase "parse" = pure Parse
 parsePhase "reorg" = pure Reorg
 parsePhase "tc"    = pure TC
-parsePhase _       = throwError "invalid phase"
+parsePhase input   = throwError ("invalid phase " ++ input) 
 
 parseExtantFilePath :: (MonadError String m, MonadIO m) => String -> m FilePath
 parseExtantFilePath s = do

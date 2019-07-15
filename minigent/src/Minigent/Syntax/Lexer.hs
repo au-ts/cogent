@@ -25,7 +25,7 @@ data Bracket = Paren | Brace | Square
      deriving (Show, Eq)
 
 
-data Keyword = Case | Of | If | Then | Else | Take | Put | Let | In | End
+data Keyword = Case | Of | If | Then | Else | Take | Put | Let | In | End | Unlock | Join
      deriving (Show, Eq)
 
 data Token
@@ -41,6 +41,7 @@ data Token
   | Comma             -- ^ @,@
   | Bar               -- ^ @|@
   | Arrow             -- ^ @->@
+  | LeftArrow         -- ^ @<-@
   | Hash              -- ^ @#@
   | Equals            -- ^ @=@
   | Dot               -- ^ @.@
@@ -51,16 +52,18 @@ data Token
 
 
 
-toToken "case" = Keyword Case
-toToken "of"   = Keyword Of
-toToken "if"   = Keyword If
-toToken "then" = Keyword Then
-toToken "end"  = Keyword End
-toToken "else" = Keyword Else
-toToken "take" = Keyword Take 
-toToken "put"  = Keyword Put 
-toToken "let"  = Keyword Let
-toToken "in"   = Keyword In 
+toToken "case"   = Keyword Case
+toToken "of"     = Keyword Of
+toToken "if"     = Keyword If
+toToken "then"   = Keyword Then
+toToken "end"    = Keyword End
+toToken "else"   = Keyword Else
+toToken "take"   = Keyword Take 
+toToken "put"    = Keyword Put 
+toToken "let"    = Keyword Let
+toToken "in"     = Keyword In 
+toToken "unlock" = Keyword Unlock
+toToken "join"   = Keyword Join
 toToken (x:xs) | isLower x = LowerIdent (x:xs)
                | otherwise = UpperIdent (x:xs)  
 
@@ -77,6 +80,7 @@ lexer (x:xs) | isDigit x = let
 lexer (x:y:xs) | Just o <- lookup [x,y] operators
                = Operator o : lexer xs
 lexer ('-':'>':xs) = Arrow : lexer xs
+lexer ('<':'-':xs) = LeftArrow : lexer xs
 lexer (x:xs) | Just o <- lookup [x] operators
              = Operator o : lexer xs
 lexer ('(':xs) = Open Paren : lexer xs

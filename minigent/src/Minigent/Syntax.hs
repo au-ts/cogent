@@ -97,6 +97,11 @@ data Type
   | TypeVar VarName -- ^ Refers to a rigid type variable bound with a forall.
   | TypeVarBang VarName -- ^ A 'TypeVar' with 'Bang' applied.
   | Function Type Type
+  -- Security types stuff:
+  | World Type
+  | Locked Type Type
+  | Low
+  | High
   -- used in type inference:
   | UnifVar VarName -- ^ Stands for an unknown type
   | Bang Type -- ^ Eliminated by type normalisation.
@@ -141,6 +146,11 @@ data Expr
   | Esac Expr ConName VarName Expr
     -- ^ An irrefutable pattern match expression. Here, the scrutinee must provably
     --   match the provided constructor.
+  | Unlock Expr Expr
+    -- ^ Unlock expression for security types
+  | Join VarName Expr Expr 
+    -- ^ Join expression for security types. The first Expr parameter is the input World,
+    --   bound in the second Expr as the given VarName
   deriving (Show, Eq)
 
 infixr 0 :&:
@@ -152,6 +162,7 @@ data Constraint
   | Type :=: Type -- ^ Type equality.
   | Integer :<=: Type -- ^ The 'fits in' relation, that says a given literal fits in the given
                       --   type. Only satisfiable if the type is a numeric type.
+  | Type `Leq` Type
   | Share Type     -- ^ The given type can be duplicated or shared freely
   | Drop Type      -- ^ The given type can go out of scope without being used
   | Escape Type    -- ^ The given type can be safely bound in a 'LetBang' expression

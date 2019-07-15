@@ -1,0 +1,9 @@
+lock : [t]. {world: World L, input: t}# -> {world: World L, output: Locked H t}#;
+lock r = take r1 {world=w} = r 
+         in take r2 {input=i} = r1
+            in join w1 <- w 
+               in {world = w1, output = i} 
+               end
+            end 
+         end; 
+         

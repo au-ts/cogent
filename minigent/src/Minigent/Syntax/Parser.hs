@@ -42,7 +42,7 @@ toplevel = mdo
         fromNumeric    (L.Numeric n)    = Just n
         fromNumeric    _                = Nothing
 
-        reservedTypeNames = ["U8","U16","U32", "U64", "Bool","Unit"]
+        reservedTypeNames = ["U8","U16","U32", "U64", "Bool","Unit", "World", "Locked", "L", "H"]
 
         reservedValueNames = ["Unit","True","False"]
 
@@ -105,6 +105,8 @@ toplevel = mdo
                     <|> AbsType     <$> absTypeName
                                     <*> sigil
                                     <*> pure []
+                    <|> Low         <$  token (L.UpperIdent "L")              
+                    <|> High        <$  token (L.UpperIdent "H") 
                     <|> id          <$  token (L.Open L.Paren)
                                     <*> ty
                                     <*  token (L.Close L.Paren)
@@ -112,6 +114,11 @@ toplevel = mdo
     ty' <- rule $ AbsType <$> absTypeName
                           <*> sigil
                           <*> some atomicTy
+               <|> World  <$  token (L.UpperIdent "World") 
+                          <*> atomicTy 
+               <|> Locked <$  token (L.UpperIdent "Locked") 
+                          <*> atomicTy 
+                          <*> atomicTy
                <|> atomicTy
 
     ty <- rule $  Function <$> ty' <* token (L.Arrow) <*> ty
@@ -213,6 +220,13 @@ toplevel = mdo
                                <*> exp
                                <*  token (L.Keyword L.End)
                    <|> Member  <$> atomExp <* token (L.Dot) <*> fieldName
+                   <|> Join    <$  token (L.Keyword L.Join) 
+                               <*> var 
+                               <*  token (L.LeftArrow) 
+                               <*> exp
+                               <*  token (L.Keyword L.In)
+                               <*> exp
+                               <*  token (L.Keyword L.End)
                    <|> id      <$  token (L.Open L.Paren)
                                <*> exp 
                                <*  token (L.Close L.Paren)
@@ -220,6 +234,7 @@ toplevel = mdo
 
     appExp <- rule $  Apply <$> appExp <*> atomExp
                   <|> Con   <$> conName <*> atomExp
+                  <|> Unlock  <$ token (L.Keyword L.Unlock) <*> atomExp <*> atomExp
                   <|> PrimOp Not . pure <$ token (L.Operator Not) <*> atomExp 
                   <|> atomExp
                   <?> "expression (appExp)"

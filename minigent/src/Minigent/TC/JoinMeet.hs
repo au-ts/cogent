@@ -13,7 +13,7 @@
 module Minigent.TC.JoinMeet (joinMeet) where
 
 import Minigent.Syntax.Utils
-import Minigent.Syntax
+import Minigent.Syntax hiding (Join)
 import Minigent.Fresh
 import qualified Minigent.Syntax.Utils.Row as Row
 import qualified Minigent.Syntax.Utils.Rewrite as Rewrite

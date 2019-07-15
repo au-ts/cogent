@@ -66,12 +66,16 @@ prettyType ty = case ty of
     prettyA (PrimType t) = prettyPrimType t
     prettyA (Record r s) = align (prettyRRow r)  <> prettySigil s
     prettyA (Variant r)  = align (prettyVRow r)
+    prettyA (Low) = annotate S.absType ("L")
+    prettyA (High) = annotate S.absType ("H")
     prettyA (AbsType n s []) = annotate S.absType (pretty n) <> prettySigil s
     prettyA ty = parens (prettyType ty)
 
     pretty' ty = case ty of
       AbsType n s ts | not (null ts) -> annotate S.absType (pretty n) <> prettySigil s
                                     <+> align (sep (map prettyA ts))
+      World l -> annotate S.absType "World" <+> prettyA l
+      Locked l t -> annotate S.absType "Locked" <+> prettyA l <+> prettyA t
       _ -> prettyA ty
 
 prettyOp o | Just v <- lookup o (map (\(a,b) -> (b,a)) operators)
@@ -100,6 +104,7 @@ prettyProd e = prettyApp e
 prettyApp (Apply e1 e2) = prettyApp e1 <+> prettyAtom e2
 prettyApp (Con c e) = annotate S.con (pretty c) <+> prettyAtom e
 prettyApp (PrimOp Not [e]) = annotate S.op "~" <+> prettyAtom e
+prettyApp (Unlock e1 e2) = annotate S.keyword "unlock" <+> prettyAtom e1 <+> prettyAtom e2
 prettyApp e = prettyAtom e
 
 prettyAtom (Literal l) = prettyLiteral l
@@ -164,6 +169,12 @@ prettyAtom (Put e1 f e2 )
                                           <+> prettyExp e2
                , annotate S.keyword "end" ])  
 prettyAtom (Member e f) = prettyAtom e <> annotate S.sym "." <> annotate S.field (pretty f)
+prettyAtom (Join v e1 e2) 
+  = align (sep [ annotate S.keyword "join" <+> annotate S.var (pretty v)
+                                           <+> annotate S.sym "<-"   
+                                           <+> prettyExp e1
+               , annotate S.keyword "in" <+> prettyExp e2
+               , annotate S.keyword "end" ])  
 prettyAtom e = parens (prettyExp e)
 
 prettyLiteral (BoolV b) = annotate S.literal (viaShow b)
