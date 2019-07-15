@@ -21,6 +21,7 @@ module Minigent.Environment
   , topUsed
   , unused
   , factor
+  , alter
   , reconcile
   ) where
 
@@ -74,22 +75,28 @@ unused :: Context a -> [a]
 unused (Ctx ls) = mapMaybe (\(v,u,a) -> if u == 0 then Just a else Nothing) ls
 
 -- | Extract specific variables from a context. Given a list of variable names
---   and an input context, the left output will contain only those variables in
---   the input context mentioned in the list. The right output will contain
---   all other variables.
+--   and an input context, the output will contain only those variables in
+--   the input context mentioned in the list. 
 --
 --   This is used in let! expressions to extract observer variables from the
 --   rest of the context.
-factor :: [VarName] -> Context a -> (Context a, Context a)
-factor vs (Ctx xs) = let (as, bs) = go vs xs in (Ctx as, Ctx bs)
+factor :: [VarName] -> Context a -> Context a
+factor vs (Ctx xs) = let as = go vs xs in Ctx as
   where
-    go vs [] = ([],[])
+    go vs [] = []
     go vs ((v,u,a):xs)
-      | v `elem` vs = let (as, bs) = go (L.delete v vs) xs
-                       in ((v,u,a):as, bs)
-      | otherwise   = let (as, bs) = go vs xs
-                       in (as, (v,u,a):bs)
+      | v `elem` vs = (v,u,a): go (L.delete v vs) xs
+      | otherwise   = go vs xs
 
+-- | Alter specific bindings using the provided function.
+--   
+--   This is used in let! expressions to modify observer variable bindings.
+alter :: [VarName] -> ((a, Int) -> (a, Int)) -> Context a -> Context a 
+alter vs f (Ctx xs) = Ctx (map go xs)
+  where 
+    go (v,u,a)
+      | v `elem` vs = let (a',u') = f (a,u) in (v,u',a')
+      | otherwise   = (v,u,a)
 
 -- | Given two contexts that are assumed to have the same variables
 --   and elements, but may

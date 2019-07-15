@@ -104,19 +104,19 @@ find (c:cs) = case c of
     | M.null m -> case partition (flexRowSub v) cs of
            ([]          , rs ) -> fmap (c:) <$> find cs
            (_ :< rho :rs, rs') -> pure (Meet (Variant (Row m (Just v))) tau rho , rs ++ rs')
-  (Variant (Row m' Nothing)) :< tau@(Variant (Row m (Just v)))
+  tau@(Variant (Row m' Nothing)) :< (Variant (Row m (Just v)))
     | M.null m -> case partition (flexRowSup v) cs of
-           ([]          , rs ) -> fmap (c:) <$> find cs
-           (_ :< rho:rs, rs') -> pure (Join (Variant (Row m (Just v))) tau rho , rs ++ rs')
+           ([]         , rs ) -> fmap (c:) <$> find cs
+           (rho :< _:rs, rs') -> pure (Join (Variant (Row m (Just v))) tau rho , rs ++ rs')
 
   (Record (Row m (Just v)) s) :< tau@(Record (Row m' Nothing) s')
     | M.null m -> case partition (flexRowSub v) cs of
            ([]          , rs ) -> fmap (c:) <$> find cs
            (_ :< rho :rs, rs') -> pure (Meet (Record (Row m (Just v)) s) tau rho , rs ++ rs')
-  (Record (Row m' Nothing) s') :< tau@(Record (Row m (Just v)) s)
+  tau@(Record (Row m' Nothing) s') :< (Record (Row m (Just v)) s)
     | M.null m -> case partition (flexRowSup v) cs of
            ([]          , rs ) -> fmap (c:) <$> find cs
-           (_ :< rho:rs, rs') -> pure (Join (Record (Row m (Just v)) s) tau rho , rs ++ rs')
+           (rho :< _:rs, rs') -> pure (Join (Record (Row m (Just v)) s) tau rho , rs ++ rs')
 
 
   _ -> fmap (c:) <$> find cs
