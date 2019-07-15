@@ -207,6 +207,8 @@ prettySimpleConstraint c = case c of
   (i :<=:   t)  -> annotate S.literal (viaShow i) 
                      <+> annotate S.constraintKeyword ":<=:" 
                      <+> prettyType t
+  
+  (t1 `Leq` t2)  -> prettyType t1 <+> annotate S.constraintKeyword "`Leq`" <+> prettyType t2
   (t1 :=:   t2)  -> prettyType t1 <+> annotate S.constraintKeyword ":=:" <+> prettyType t2
   (Sat)         -> annotate S.constraintKeyword "Sat"
   (Unsat)       -> annotate S.constraintKeyword "Unsat"

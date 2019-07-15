@@ -81,6 +81,8 @@ typeUVs (Variant r)  = concatMap (\(Entry _ t _) -> typeUVs t) (Row.entries r)
 typeUVs (AbsType _ _ ts) = concatMap typeUVs ts
 typeUVs (Function t1 t2) = typeUVs t1 ++ typeUVs t2
 typeUVs (Bang t) = typeUVs t
+typeUVs (World l) = typeUVs l
+typeUVs (Locked l t) = typeUVs l ++ typeUVs t
 typeUVs _ = []
 
 -- | Return all of the (rigid, non-unification) type variables in a type.
@@ -92,6 +94,8 @@ typeVariables (Variant r)  = concatMap (\(Entry _ t _) -> typeVariables t) (Row.
 typeVariables (AbsType _ _ ts) = concatMap typeVariables ts
 typeVariables (Function t1 t2) = typeVariables t1 ++ typeVariables t2
 typeVariables (Bang t) = typeVariables t
+typeVariables (World l) = typeVariables l
+typeVariables (Locked l t) = typeVariables l ++ typeVariables t
 typeVariables _ = []
 
 -- | Returns @True@ unless the given type is a unification variable or a type operator
@@ -164,6 +168,7 @@ constraintTypes func constraint = go constraint
     go (Exhausted t)  = Exhausted (func t)
     go (t1  :<  t2 )  = func t1 :< func t2
     go (t1  :=: t2 )  = func t1 :=: func t2
+    go (t1 `Leq` t2)  = func t1 `Leq` func t2
     go Sat            = Sat
     go Unsat          = Unsat
 
@@ -186,6 +191,8 @@ exprTypes func expr = go expr
     go (Member e f)         = Member (go e) f
     go (Case e k x e1 y e2) = Case (go e) k x (go e1) y (go e2)
     go (Esac e k x e1)      = Esac (go e) k x (go e1)
+    go (Unlock e1 e2)       = Unlock (go e1) (go e2)
+    go (Join w e1 e2)       = Join w (go e1) (go e2)
     go e                    = e
 
 -- | Given a 'RW.Rewrite' on types, apply it over every subterm in a type, i.e. recursively applying
@@ -204,6 +211,8 @@ traverseType func ty = case RW.run func ty of
     AbsType n s ts -> AbsType n s (map (traverseType func) ts)
     Variant es     -> Variant (Row.mapEntries (entryTypes (traverseType func)) es)
     Function t1 t2 -> Function (traverseType func t1) (traverseType func t2)
+    Locked l t     -> Locked (traverseType func l) (traverseType func t)
+    World l        -> World (traverseType func l)
     Bang t         -> Bang (traverseType func t)
     _ -> ty
 
@@ -223,6 +232,8 @@ normaliseType func ty =
     AbsType n s ts -> AbsType n s (map (normaliseType func) ts)
     Variant es     -> Variant (Row.mapEntries (entryTypes (normaliseType func)) es)
     Function t1 t2 -> Function (normaliseType func t1) (normaliseType func t2)
+    Locked l t     -> Locked (normaliseType func l) (normaliseType func t)
+    World l        -> World (normaliseType func l)
     Bang t         -> Bang (normaliseType func t)
     _ -> t'
 

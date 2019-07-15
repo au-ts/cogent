@@ -1,6 +1,6 @@
 lock : [t]. {world: World L, input: t}# -> {world: World L, output: Locked H t}#;
-lock r = take r1 {world=w} = r 
-         in take r2 {input=i} = r1
+lock r = take r1 {world=w} = (r :  {world: World L, input: t}#)
+         in take r2 {input=i} = (r1 : {world: World L take, input: t}#) 
             in join w1 <- w 
                in {world = w1, output = i} 
                end

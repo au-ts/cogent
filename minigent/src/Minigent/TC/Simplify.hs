@@ -36,6 +36,12 @@ simplify axs = Rewrite.pickOne $ \c -> case c of
   Escape (Function _ _)               -> Just []
   Drop   (TypeVarBang _)              -> Just []
   Share  (TypeVarBang _)              -> Just []
+  Drop   (Locked l t)                 -> Just [Drop t]
+  Share  (Locked l t)                 -> Just [Share t]
+  Escape (Locked l t)                 -> Just [Escape t]
+  Escape (World l)                    -> Just []
+
+  
   Share  (Variant es)                 -> guard (rowVar es == Nothing)
                                       >> Just (map Share  (Row.untakenTypes es))
   Drop   (Variant es)                 -> guard (rowVar es == Nothing)
@@ -92,7 +98,8 @@ simplify axs = Rewrite.pickOne $ \c -> case c of
   t :< t'  -> guard (unorderedType t || unorderedType t') >> Just [t :=: t']
 
   AbsType n s ts :=: AbsType n' s' ts' -> guard (n == n' && s == s') >> Just (zipWith (:=:) ts ts')
-
+  World l1 :=: World l2 -> Just [l1 :=: l2]
+  Locked l1 t1 :=: Locked l2 t2 -> Just [l1 :=:l2, t1 :=: t2]
   Variant r1     :=: Variant r2        ->
     if Row.null r1 && Row.null r2 then Just []
     else do
@@ -116,9 +123,11 @@ simplify axs = Rewrite.pickOne $ \c -> case c of
         cs = map (\(Entry _ t _, Entry _ t' _) -> t :=: t') commons
         c   = Record r1' s1 :=: Record r2' s2
     Just (c:cs)
-
+  
   t :=: t' -> guard (rigid t && rigid t' && t == t') >> Just []
-
+  Low `Leq` Low -> Just []
+  High `Leq` High -> Just []
+  Low `Leq` High -> Just []
   _ -> Nothing
 
   where

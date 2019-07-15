@@ -22,6 +22,8 @@ bangRW = rewrite $ \t -> case t of
     Bang (TypeVar a)       -> Just (TypeVarBang a)
     Bang (TypeVarBang a)   -> Just (TypeVarBang a)
     Bang (PrimType t)      -> Just (PrimType t)
+    Bang (Locked l t)      -> Just (Locked l (Bang t))
+    Bang (World l)         -> Just (World l)
     Bang (Variant r)  | rowVar r == Nothing
       -> Just (Variant (Row.mapEntries (entryTypes Bang) r))
     Bang (Record r s) | rowVar r == Nothing, s == ReadOnly || s == Writable || s == Unboxed

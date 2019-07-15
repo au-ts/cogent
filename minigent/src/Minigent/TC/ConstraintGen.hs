@@ -76,6 +76,22 @@ cg e tau = case e of
     let c3 = l2 `Leq` l1
         c4 = Record (Row.fromList [Entry "world" (World l1) False, Entry "output" rho False]) Unboxed :< tau
     withSig (Unlock e1' e2', c1 :&: c2 :&: c3 :&: c4)
+  
+  (Join w e1 e2) -> do
+    l1 <- UnifVar <$> fresh
+    l2 <- UnifVar <$> fresh
+    rho <- UnifVar <$> fresh
+    (e1', c1) <- cg e1 (World l1)
+    modify (push (w, World l2))
+    (e2', c2) <- cg e2 (Record (Row.fromList [Entry "world" (World l2) False, Entry "output" rho False]) Unboxed)
+    used <- topUsed <$> get
+    let c3 = if not used then Drop (World l2) else Sat 
+        c4 = l1 `Leq` l2
+        c5 = (Record (Row.fromList [Entry "world" (World l1) False, Entry "output" (Locked l2 rho) False]) Unboxed) :< tau
+    withSig (Join w e1' e2', c1 :&: c2 :&: c3 :&: c4 :&: c5)
+
+
+
 
   (Literal l) -> do
     let c = case l of

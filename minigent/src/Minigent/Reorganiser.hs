@@ -96,7 +96,8 @@ sanityCheckExpr envs tvs vs exp = check vs exp
                              <*> pure c <*> pure v1 <*> check (v1:vs) e1
 
       Member e f     -> Member <$> check vs e <*> pure f
-
+      Join w e1 e2 -> Join w <$> check vs e1 <*> check (w:vs) e2
+      Unlock e1 e2 -> Unlock <$> check vs e1 <*> check vs e2
       e           -> pure e
 
 reorganiseTopLevel :: RawTopLevel -> GlobalEnvironments -> Writer [Error] GlobalEnvironments
