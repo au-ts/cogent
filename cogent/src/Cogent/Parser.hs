@@ -366,7 +366,7 @@ monotype = do avoidInitial
              ((reservedOp "take" >> fList >>= \fs -> return (\x -> LocType (posOfT x) (TTake fs x)))
           <|> (reservedOp "put"  >> fList >>= \fs -> return (\x -> LocType (posOfT x) (TPut  fs x))))
     -- either we have an actual layout, or the name of a layout synonym
-    layout = avoidInitial >> reservedOp "layout" >> repExpr   -- TODO(dargent) record synonyms
+    layout = avoidInitial >> reservedOp "layout" >> repExpr
       >>= \l -> return (\x -> LocType (posOfT x) (TLayout l x))
 
     atomtype = avoidInitial >> LocType <$> getPosition <*> (
