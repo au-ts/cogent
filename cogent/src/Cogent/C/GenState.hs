@@ -160,8 +160,7 @@ genTyDecl :: (StrlType, CId) -> [TypeName] -> [CExtDecl]
 genTyDecl (Record x, n) _ = [CDecl $ CStructDecl n (map (second Just . swap) x), genTySynDecl (n, CStruct n)]
 genTyDecl (BoxedRecord (StrlCogentType (TRecord _ (Boxed _ layout))), n) _ =
   let size      = max (dataLayoutSizeBytes layout) 1 -- max with 1 here to stop C complaining
-      size = (size 1)
-      arrayType = CArray (CInt False CIntT) (CArraySize $ CConst $ CNumConst  (CInt False CIntT) DEC)
+      arrayType = CArray (CInt False CIntT) (CArraySize $ CConst $ CNumConst size (CInt False CIntT) DEC)
   in [CDecl $ CStructDecl n [(arrayType, Just "data")], genTySynDecl (n, CPtr $ CStruct n)]
 
 genTyDecl (Product t1 t2, n) _ = [CDecl $ CStructDecl n [(t1, Just p1), (t2, Just p2)]]
