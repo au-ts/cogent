@@ -156,15 +156,16 @@ normaliseT d (T (TPut fs t)) = do
 
 normaliseT d (T (TLayout l t)) = do
   t' <- normaliseT d t
+  env <- lift . lift $ use knownDataLayouts
   case t' of
     (T (TRecord fs (Boxed p Nothing))) -> do
       let t'' = T . TRecord fs . Boxed p $ Just l
-      if isTypeLayoutExprCompatible  t'' l
+      if isTypeLayoutExprCompatible env t'' l
         then normaliseT d t''
         else logErrExit (LayoutDoesNotMatchType l t)
     (T (TCon n ts (Boxed p Nothing)))  -> do
       let t'' = T . TCon n ts  . Boxed p $ Just l
-      if isTypeLayoutExprCompatible t'' l
+      if isTypeLayoutExprCompatible env t'' l
         then normaliseT d t''
         else logErrExit (LayoutDoesNotMatchType l t)
     _                            -> logErrExit (LayoutOnNonRecordOrCon t)
