@@ -578,7 +578,6 @@ unifVars (T x) = foldMap unifVars x
 -- Dargent
 --
 
--- TODO(dargent): this check is sound but not complete at the moment
 isTypeLayoutExprCompatible :: NamedDataLayouts -> TCType -> DataLayoutExpr -> Bool
 isTypeLayoutExprCompatible env t@(T (TCon n [] Unboxed)) (Prim rs) =
   let s  = evalSize rs
