@@ -517,9 +517,8 @@ instance (Pretty t, TypeType t, Pretty e) => Pretty (Type e t) where
                                    <+> case fs of Nothing -> tupled (fieldname ".." : [])
                                                   Just fs' -> tupled1 (map fieldname fs'))
                        & (if __cogent_fdisambiguate_pp then (<+> comment "{- put -}") else id)
-  pretty (TLayout l t) = __fixme (prettyT' t <+> typesymbol "layout" <+> pretty l)
+  pretty (TLayout l t) = (prettyT' t <+> typesymbol "layout" <+> pretty l)
            & (if __cogent_fdisambiguate_pp then (<+> comment "{- layout -}") else id)
-           -- TODO(dargent): rewrite when we get an actual syntax
 
 instance Pretty RawType where
   pretty (RT t) = pretty t
@@ -791,7 +790,6 @@ instance Pretty AssignResult where
   pretty (Sigil s) = pretty s
   pretty (Row r) = pretty r
 
--- TODO(dargent): pretty printing for layouts
 instance Pretty r => Pretty (Sigil r) where
   pretty (Boxed False l) = keyword "[W]" <+> parens (pretty l)
   pretty (Boxed True  l) = keyword "[R]" <+> parens (pretty l)
