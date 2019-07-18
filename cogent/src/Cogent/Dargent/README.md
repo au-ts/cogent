@@ -1,9 +1,40 @@
+# Dargent Grammar
+
+This is the dargent layout grammar (as it currently is)
+
+```
+; General categories of tokens, not specified in this grammar
+<nat>
+<var-name>
+<layout-name>
+<variant-case-name>
+
+; Dargent grammar
+
+<layout-size> ::= <nat> ("b" / "B")
+
+<layout-size-expr> ::= *[ <layout-size> "+" ] <layout-size>
+
+<layout-expr> ::= <layout-expr-types> [ "at" <layout-size-expr> ]
+
+<layout-expr-types> ::= "record"  "{" [ *[ <record-expr>  "," ] <record-expr>  ] "}"
+                      | "variant" "{" [ *[ <variant-expr> "," ] <variant-expr> ] "}"
+                      | <layout-name>
+                      | <layout-size-expr>
+
+<record-expr> ::= <var-name> ":" <layout-expr>
+
+<variant-expr> ::= <variant-case-name> "(" <nat> ")" ":" <layout-expr>
+```
+
+# In Progress
+* Add support for attaching layouts to types to the surface syntax, and then add lots of tests to the compiler to test custom layouts
+
 # Todo
 
 ## Important
 * Change the Eq instance of DataLayout to ignore SourcePos information
   * Maybe should use the trees that grow approach to add this information?
-* Add support for attaching layouts to types to the surface syntax, and then add lots of tests to the compiler to test custom layouts
 
 ## Other
 * Fix antiquoted-C test pass_static_array -
@@ -78,5 +109,5 @@ The only way we get boxed records into cogent is through the C FFI, and so we sh
 # Nested pattern matching:
 * How does put/take work - eg. record in record. take a field of the record in the record. Can I take the record itself?
 * Extend syntax
-* improves performance
+* Improves performance
 
