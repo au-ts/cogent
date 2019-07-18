@@ -34,7 +34,7 @@ import Cogent.Common.Syntax         ( DataLayoutName
                                     , TagName
                                     , FieldName
                                     )
-import Cogent.Common.Types          ( Sigil(Unboxed, Boxed))
+import Cogent.Common.Types          ( Sigil(Unboxed, Boxed), PrimInt(..))
 import Cogent.Dargent.Surface       ( DataLayoutExpr
                                     , DataLayoutSize
                                     , RepSize(Bytes, Bits, Add)
@@ -44,7 +44,6 @@ import Cogent.Dargent.TypeCheck     (desugarSize)
 import Cogent.Dargent.Core
 import Cogent.Core                  ( Type (..)
                                     )
-
 {- * Desugaring 'Sigil's -}
 
 -- | After WH-normalisation, @TCon _ _ _@ values only represent primitive and abstract types.
@@ -119,12 +118,12 @@ desugarDataLayout (Variant tagExpr alts) =
 
 {- * CONSTRUCTING 'DataLayout's -}
 
+-- constructs a default layout? ~ v.jackson
 constructDataLayout :: Type t -> DataLayout BitRange
 
 -- Equations for unboxed embedded types
 constructDataLayout (TUnit        ) = UnitLayout
 constructDataLayout (TPrim primInt) = PrimLayout $ primBitRange primInt
-
 constructDataLayout (TSum alternatives)
   | length alternatives > 2 ^ wordSizeBits = __impossible $ "constructDataLayout (Type check should prevent more alternatives than can fit in a word for sum types embedded in a boxed type with default layout)"
   | otherwise                              = SumLayout tagLayout alternativesLayout
@@ -155,7 +154,7 @@ constructDataLayout (TRecord fields (Boxed _ _)) = PrimLayout $ pointerBitRange
 constructDataLayout (TCon    _ _    (Boxed _ _)) = PrimLayout $ pointerBitRange
 
 -- Equations for as yet unsupported embedded types
-constructDataLayout (TCon _ _ Unboxed) = __impossible $ "constructDataLayout (Type check should fail on boxed types containing embedded unboxed abstract types)"
+constructDataLayout (TCon n _ Unboxed) = __impossible $ "constructDataLayout (Type check should fail on boxed types containing embedded unboxed abstract types)\n Failed on TCon type: " ++ n
 constructDataLayout (TVar         _  ) = __impossible $ "constructDataLayout (Type check should fail on boxed types containing type variables)"
 constructDataLayout (TVarBang     _  ) = __impossible $ "constructDataLayout (Type check should fail on boxed types containing type variables)"
 constructDataLayout (TFun         _ _) = __impossible $ "constructDataLayout (Type check should fail on boxed types containing functions)"
@@ -164,10 +163,11 @@ constructDataLayout (TString         ) = __impossible $ "constructDataLayout (Ty
 constructDataLayout (TArray       _ _) = __impossible $ "constructDataLayout (Type check should fail on boxed types containing arrays)"
 #endif
 constructDataLayout (TProduct     _ _) = __impossible $ "constructDataLayout (Type check should fail on boxed types containing pairs)"
-  -- TODO: implement matching data layouts with types so that the above mentioned type check fails actually occur /mdimeglio
-  -- TODO: implement layout polymorphism to handle boxed types containing type variables /mdimeglio
-  -- TODO: implement layouts for TProduct and TArray types /mdimeglio
-  -- TODO: maybe implement layouts for function types like other boxed (pointer) layouts /mdimeglio
+  -- TODO(dargent): implement matching data layouts with types so that the above mentioned type check fails actually occur /mdimeglio
+  -- TODO(dargent): implement layout polymorphism to handle boxed types containing type variables /mdimeglio
+  -- TODO(dargent): implement layouts for TProduct and TArray types /mdimeglio
+  -- TODO(dargent): maybe implement layouts for function types like other boxed (pointer) layouts /mdimeglio
+constructDataLayout t = __impossible $ "constructDataLayout: type not handled " ++ show t
 
 dummyPos = __fixme $ newPos "Dummy Pos" 0 0 -- FIXME: Not sure what SourcePos to give for layouts generated automatically.
 
