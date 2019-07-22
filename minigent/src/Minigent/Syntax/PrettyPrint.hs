@@ -203,6 +203,7 @@ prettySimpleConstraint c = case c of
   (Drop      p) -> annotate S.constraintKeyword "Drop"      <+> prettyType p
   (Escape    p) -> annotate S.constraintKeyword "Escape"    <+> prettyType p
   (Exhausted p) -> annotate S.constraintKeyword "Exhausted" <+> prettyType p
+  (Solved    p) -> annotate S.constraintKeyword "Solved"    <+> prettyType p
   (t1 :<    t2) -> prettyType t1 <+> annotate S.constraintKeyword ":<" <+> prettyType t2
   (i :<=:   t)  -> annotate S.literal (viaShow i) 
                      <+> annotate S.constraintKeyword ":<=:" 

@@ -162,6 +162,10 @@ linux: .c-gen
 verification: .verif-gen
 	$(Q)mv $(DIST_DIR)/$(OUTPUT).table $(DIST_DIR)/wrapper_pp_inferred.table
 
+typeproof:
+	sed -i -e 's/^session BilbyFs_TypeProof = BilbyFs_ACInstall +$$/session BilbyFs_TypeProof = "HOL-Word" +/' plat/verification/ROOT
+	$(Q)isabelle build -d $(AC_DIR) -d ../../../../cogent/isa -d plat/verification -c -v BilbyFs_TypeProof
+
 corresproof:
 	sed -i -e 's/^session BilbyFs_CorresProof = BilbyFs_CorresSetup +$$/session BilbyFs_CorresProof = AutoCorres +/' plat/verification/ROOT
 	$(Q)isabelle build -d $(AC_DIR) -d ../../../../cogent/isa -d plat/verification -v BilbyFs_CorresProof

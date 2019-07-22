@@ -1048,6 +1048,14 @@ lemma kinding_typelist_wellformed_elem:
   shows "K \<turnstile> t wellformed"
   using assms kinding_all_set kinding_def by auto
 
+lemma kinding_in_kind_helper:
+  assumes
+    "x \<in> k"
+    "K \<turnstile> t :\<kappa> k"
+  shows "K \<turnstile> t :\<kappa> {x}"
+  using assms
+  unfolding kinding_def
+  by blast
 
 lemma kinding_variant_cons:
   shows "(K \<turnstile>* t # ts :\<kappa>v k) \<longleftrightarrow> (case snd (snd t) of Checked \<Rightarrow> K \<turnstile> fst (snd t) wellformed | Unchecked \<Rightarrow> K \<turnstile> fst (snd t) :\<kappa> k) \<and> (K \<turnstile>* ts :\<kappa>v k)"
