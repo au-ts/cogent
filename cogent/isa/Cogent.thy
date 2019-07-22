@@ -1304,19 +1304,16 @@ lemma subtyping_simps:
   "K \<turnstile> TUnit \<sqsubseteq> TUnit"
   by (auto simp: subtyping.intros intro!: subtyping.intros elim!: subtyping.cases)
 
-lemma subtyping_refl:
-  assumes "K \<turnstile> t wellformed"
-  shows "K \<turnstile> t \<sqsubseteq> t"
-  using assms
+lemma subtyping_refl: "K \<turnstile> t \<sqsubseteq> t"
 proof (induct t)
   case (TSum ts)
-  moreover then have "\<And>i. i < length ts \<Longrightarrow> K \<turnstile> fst (snd (ts ! i)) wellformed \<Longrightarrow> K \<turnstile> fst (snd (ts ! i)) \<sqsubseteq> fst (snd (ts ! i))"
+  moreover then have "\<And>i. i < length ts \<Longrightarrow> K \<turnstile> fst (snd (ts ! i)) \<sqsubseteq> fst (snd (ts ! i))"
     using fsts.intros snds.intros nth_mem by blast
   ultimately show ?case
     by (fastforce intro!: subtyping.intros simp add: list_all2_conv_all_nth list_all_length)
 next
   case (TRecord ts s)
-  moreover then have "\<And>i. i < length ts \<Longrightarrow> K \<turnstile> fst (snd (ts ! i)) wellformed \<Longrightarrow> K \<turnstile> fst (snd (ts ! i)) \<sqsubseteq> fst (snd (ts ! i))"
+  moreover then have "\<And>i. i < length ts \<Longrightarrow> K \<turnstile> fst (snd (ts ! i)) \<sqsubseteq> fst (snd (ts ! i))"
     using fsts.intros snds.intros nth_mem by blast
   ultimately show ?case
     by (fastforce intro!: subtyping.intros simp add: list_all2_conv_all_nth list_all_length)

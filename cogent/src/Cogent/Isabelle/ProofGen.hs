@@ -492,8 +492,7 @@ subtyping' k t1 t2 =
   if t1 == t2
   then
     tacSequence [
-      return [rule "subtyping_refl"],
-      wellformed k t1
+      return [rule "subtyping_refl"]
       ]
   else subtyping'' k t1 t2
 
