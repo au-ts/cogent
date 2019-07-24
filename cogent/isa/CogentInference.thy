@@ -414,6 +414,39 @@ fun fv' :: "nat \<Rightarrow> 'f expr \<Rightarrow> index set" where
 abbreviation fv :: "'s expr \<Rightarrow> index set" where
   "fv t \<equiv> fv' 0 t" 
 
+fun range :: "nat \<Rightarrow> nat \<Rightarrow> nat list" where
+  "range m 0 = []"
+| "range m (Suc n) = (if m \<ge> (Suc n) then [] else (range m n) @ [n])"
+
+lemma range_length:
+  "length (range m n) = (if m \<ge> n then 0 else (n - m))"
+proof (induct n arbitrary: m)
+  case (Suc n)
+  then show ?case
+    by (case_tac "m \<ge> (Suc n)"; simp add: Suc_diff_le)
+qed (simp)
+
+lemma range_elem:
+  assumes "n > m"
+    and "i < n - m"
+  shows "(range m n) ! i = m + i"
+  using assms
+proof (induct n arbitrary: i m)
+  case (Suc n)
+  then show ?case
+  proof (case_tac "i = n - m")
+    show "i = n - m \<Longrightarrow> local.range m (Suc n) ! i = m + i"
+      using type_infer.range.simps type_infer.range_length
+      by (metis Suc.prems(1) diff_is_0_eq' le_add_diff_inverse less_Suc_eq_le not_less nth_append_length)
+    have "i < Suc n - m \<Longrightarrow> i \<noteq> n - m \<Longrightarrow> i < n -m "
+      using range_length
+      by (simp add: less_diff_conv nth_append)
+    then show "i < Suc n - m \<Longrightarrow> i \<noteq> n - m \<Longrightarrow> range m (Suc n) ! i = m + i"
+      using assms
+      using range.simps range_length
+      by (metis Suc.hyps Suc.prems(1) add.commute le_less_Suc_eq less_diff_conv not_add_less1 not_less nth_append)
+  qed
+qed (simp)
 
 section {* Soundness of Generation (Thm 3.2) *}
 lemma cg_sound:
