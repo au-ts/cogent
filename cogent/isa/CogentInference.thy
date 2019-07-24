@@ -139,6 +139,13 @@ alg_ctx_jn:
    ; C2 = foldr CtConj C CtTop
    \<rbrakk> \<Longrightarrow> G \<Join> G' \<leadsto> G2 | C2"
 
+lemma alg_ctx_jn_length:
+  assumes "G1 \<Join> G1' \<leadsto> G2 | C"
+  shows "length G1 = length G1'"
+   and  "length G1 = length G2"
+  using assms
+  by (metis (no_types, lifting) alg_ctx_jn.simps list_all3_conv_all_nth)+
+
 section {* Constraint Semantics (Fig 3.6) *}
 inductive constraint_sem :: "axm_set \<Rightarrow> constraint \<Rightarrow> bool"
           ("_ \<turnstile> _" [40, 40] 60) where
@@ -330,6 +337,16 @@ lemma cg_num_fresh_nondec:
   shows "n \<le> n'"
   using assms
   by (induct rule: constraint_gen_elab.inducts) force+
+
+lemma cg_ctx_length:
+  assumes "G,n \<turnstile> e : \<tau> \<leadsto> G',n' | C | e'"
+  shows "length G = length G'"
+  using assms
+proof (induct rule: constraint_gen_elab.inducts)
+  case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
+  then show ?case
+    using type_infer.alg_ctx_jn_length(2) by auto
+qed (simp+)
 
 section {* Assignment Definition *}
 (* when we are assigning an unknown type a type, the assigned type should not contain any
