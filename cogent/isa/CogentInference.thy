@@ -459,6 +459,52 @@ proof -
   then show ?thesis
     using range_length by auto
 qed
+
+lemma ctx_restrict_nth_none:
+  assumes "i \<notin> ns"
+    and "i < length G"
+  shows "(G\<bar>ns)!i = None"
+  using assms
+proof -
+  let ?P="\<lambda>g i. (if i \<in> ns then Some (fst g) else None)"
+  let ?r="range 0 (length G)"
+  have "G\<bar>ns = map2 ?P G ?r"
+    by simp
+  moreover have "\<forall>i < length (G\<bar>ns). ?P (G ! i) (?r ! i) = ((G\<bar>ns) ! i)"
+    by (rule_tac xs="G" in map2_imp_proj_nth; simp)
+  then show ?thesis
+    using assms
+    using range_elem ctx_restrict_len
+    by (metis add.left_neutral diff_zero gr_implies_not_zero neq0_conv)
+qed
+     
+lemma ctx_restrict_nth_some:
+  assumes "i \<in> ns"
+    and "i < length G"
+  shows "(G\<bar>ns)!i = Some (fst (G ! i))"
+  using assms
+proof -
+  let ?P="\<lambda>g i. (if i \<in> ns then Some (fst g) else None)"
+  let ?r="range 0 (length G)"
+  have "G\<bar>ns = map2 ?P G ?r"
+    by simp
+  moreover have "\<forall>i < length (G\<bar>ns). ?P (G ! i) (?r ! i) = ((G\<bar>ns) ! i)"
+    by (rule_tac xs="G" in map2_imp_proj_nth; simp)
+  then show ?thesis
+    using assms
+    using range_elem ctx_restrict_len
+    by (metis add.left_neutral diff_zero gr_implies_not_zero neq0_conv)
+qed
+
+lemma ctx_restrict_empty:
+  "(G\<bar>{}) = empty (length G)"
+proof -
+  have "\<And>i. i < length G \<Longrightarrow> (G\<bar>{})!i = None"
+    using ctx_restrict_nth_none by blast
+  then show ?thesis
+    using ctx_restrict_len empty_def
+    by (metis length_replicate list_eq_iff_nth_eq nth_replicate)
+qed
 section {* Soundness of Generation (Thm 3.2) *}
 lemma cg_sound:
   assumes "G,0 \<turnstile> e : \<tau> \<leadsto> G',n | C | e'"
