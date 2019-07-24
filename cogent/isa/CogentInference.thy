@@ -448,6 +448,17 @@ proof (induct n arbitrary: i m)
   qed
 qed (simp)
 
+fun ctx_restrict :: "cg_ctx \<Rightarrow> index set \<Rightarrow> ctx" (infixr "\<bar>" 60) where
+"(G\<bar>ns) = map2 (\<lambda>g i. (if i \<in> ns then Some (fst g) else None)) G (range 0 (length G))"
+
+lemma ctx_restrict_len:
+  "length (G\<bar>ns) = length G"
+proof -
+  have "length (G\<bar>ns) = min (length G) (length (range 0 (length G)))"
+    using map2_conv_all_nth by auto
+  then show ?thesis
+    using range_length by auto
+qed
 section {* Soundness of Generation (Thm 3.2) *}
 lemma cg_sound:
   assumes "G,0 \<turnstile> e : \<tau> \<leadsto> G',n | C | e'"
