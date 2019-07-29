@@ -37,7 +37,7 @@ import Control.Arrow (second)
 import qualified Data.Foldable as F
 import Data.Function ((&))
 import Data.IntMap as I (IntMap, toList, lookup)
-import Data.List(nub)
+import Data.List(intercalate,nub)
 import qualified Data.Map as M hiding (foldr)
 #if __GLASGOW_HASKELL__ < 709
 import Data.Monoid (mconcat)
@@ -521,8 +521,12 @@ instance Pretty RawType where
 
 instance Pretty TCType where
   pretty (T t) = pretty t
-  pretty t@(V v) = warn ('V':show t)
-  pretty t@(R v s) = warn ('R':show t)
+  pretty t@(V v) = symbol "V <" <+> pretty v <+> symbol ">"
+  pretty t@(R v s) =
+    let sigilPretty = case s of
+                        Left s -> pretty s
+                        Right n -> symbol $ "(?" ++ show n ++ ")"
+     in symbol "R {" <+> pretty v <+> symbol "}" <+> sigilPretty
   pretty (U v) = warn ('?':show v)
   pretty (Synonym n ts) = warn ('S':show n) <+> spaceList (map pretty ts)
 --  pretty (RemoveCase a b) = pretty a <+> string "(without pattern" <+> pretty b <+> string ")"
@@ -742,7 +746,7 @@ instance (Pretty t, TypeType t) => Pretty (TypeFragment t) where
 -}
 instance Pretty Constraint where
   pretty (a :< b)         = pretty a </> warn ":<" </> pretty b
-  pretty (a :=: b)         = pretty a </> warn ":=:" </> pretty b
+  pretty (a :=: b)        = pretty a </> warn ":=:" </> pretty b
   pretty (a :& b)         = prettyPrec 3 a </> warn ":&" </> prettyPrec 2 b
   pretty (Upcastable a b) = pretty a </> warn "~>" </> pretty b
   pretty (Share  t m)     = warn "Share" <+> pretty t
@@ -794,7 +798,14 @@ instance Pretty (Sigil r) where
   pretty (Boxed True  _) = keyword "[R]"
   pretty Unboxed  = keyword "[U]"
 instance (Pretty t) => Pretty (Row.Row t) where 
-  pretty (Row.Row m t) = pretty (M.toList m) <+> text "|" <+> pretty t
+  pretty (Row.Row m t) =
+    let rowFieldToDoc (_, (n, (ty, tk))) =
+          let tkStr = case tk of
+                        True -> "taken"
+                        False -> "present"
+          in text n <+> text ":" <+> pretty ty <+> text "(" <> text tkStr <> text ")"
+        rowFieldsDoc = hsep $ punctuate (text ",") $ map rowFieldToDoc (M.toList m)
+     in rowFieldsDoc <+> symbol "|" <+> pretty t
 instance Pretty Assignment where
   pretty (Assignment m) = pretty m
 
