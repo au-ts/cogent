@@ -451,6 +451,7 @@ infer (E (Struct fs))
 infer (E (Take a e f e2))
    = do e'@(TE t _) <- infer e
         let TRecord ts s = t
+        -- a common cause of this error is taking a field when you could have used member
         guardShow "take: sigil not readonly" $ not (readonly s)
         guardShow "take-1" $ f < length ts
         let (init, (fn,(tau,False)):rest) = splitAt f ts
