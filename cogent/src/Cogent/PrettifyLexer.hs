@@ -47,14 +47,14 @@ data Token
     | Doc String
     | Indent Int | Dedent | Shimdent
     | Unknown Char
-    deriving(Show)
+    deriving(Show, Eq)
 
 data Keyword 
     = Let | In | Except | Type | Include | All | Take | Put
     | Inline | Upcast | Repr | Variant | Record | At
     | If | Then | Else | Not | Complement | And | Fn
     | Drop | Share | Escape
-    deriving(Show)
+    deriving(Show, Eq)
 
 symTokens :: M.Map String Token
 symTokens = M.fromList 
@@ -178,6 +178,9 @@ lexer (c:cs) stack | isDigit (fst c) = let
 
 lexer (c:cs) stack = (Unknown (fst c), snd c) : lexer cs stack
 lexer _ stack = []
+
+lexDebug :: String -> [(Token, SourcePos)]
+lexDebug input = lexer (preprocess (Pos 0 0 "debug") input) []
 
 lexFile :: FilePath -> IO [(Token, SourcePos)]
 lexFile fp = do 

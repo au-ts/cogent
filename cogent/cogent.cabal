@@ -126,6 +126,7 @@ library
   build-depends:
                 ansi-wl-pprint >= 0.6
               , base >= 4.10
+              , Earley >= 0.12
               , bytestring >= 0.10 
               , containers >= 0.5.8
               , cpphs >= 1.19
