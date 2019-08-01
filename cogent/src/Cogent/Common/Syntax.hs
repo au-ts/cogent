@@ -12,6 +12,7 @@ import Data.Monoid
 #endif
 import Data.Word
 import Text.PrettyPrint.ANSI.Leijen
+import Isabelle.Parser (reservedWords)
 
 type RepName     = String
 type FieldName   = String
@@ -26,8 +27,22 @@ type TypeName    = String
 newtype CoreFunName = CoreFunName { coreFunName :: String }
   deriving (Eq, Show, Ord)
 
-coreFunNameToIsabelleName :: CoreFunName -> String
-coreFunNameToIsabelleName (CoreFunName s) = s
+newtype IsabelleName = IsabelleName { unIsabelleName :: String }
+  deriving (Eq, Show, Ord)
+
+checkIsabelleName :: IsabelleName -> Bool
+checkIsabelleName (IsabelleName n) = s `elem` reservedWords
+
+mkIsabelleName :: CoreFunName -> IsabelleName
+mkIsabelleName (CoreFunName s) = 
+  if (checkIsabelleName s) then IsabelleName s else IsabelleName (s ++ "'")
+
+editIsabelleName :: IsabelleName -> (String -> String) Maybe IsabelleName
+editIsabelleName (IsabelleName n f) = 
+  if (checkIsabelleName (f n)) then
+    Just $ IsabelleName (f n)
+  else 
+    Nothing
 
 funNameToCoreFunName :: FunName -> CoreFunName
 funNameToCoreFunName = CoreFunName

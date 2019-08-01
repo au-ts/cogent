@@ -69,13 +69,14 @@ type ParserM a = Parsec String () a
 --
 -- FIXME: Don't duplicate the names here and elsewhere. Define as one constant in one place.
 --
-reservedWords = [ "theory", "imports", "keywords", "uses", "definition", "defs", "begin", "end",
-                  "and", "is", "by", "sorry", "datatype", "primrec", "class", "where", "fun",
-                  "function", "termination", "sequential", "domintros", "fixes", "assumes",
-                  "instance", "instantiation", "lemmas", "lemma", "theorems", "for", "consts",
-                  "apply", "apply_end", "done", "type_synonym", "typedecl", "translations",
-                  "no_translations", "chapter", "section", "subsection", "subsubsection", "text",
-                  "unchecked", "overloaded", "record" ]
+reservedWords :: [String]
+reservedWords = [
+  "and", "apply", "apply_end", "assumes", "begin", "by", "chapter", "class", "consts",
+  "datatype", "definition", "defs", "domintros", "done", "end", "fixes", "for", "fun",
+  "function", "imports", "instance", "instantiation", "is", "keywords", "lemma", "lemmas",
+  "no_translations", "overloaded", "primrec", "record ", "section", "sequential", "sorry",
+  "subsection", "subsubsection", "termination", "text", "theorems", "theory", "translations",
+  "type_synonym", "typedecl", "unchecked", "uses", "where" ]
 
 ---------------------------------------------------------------
 -- Utility functions and combinators

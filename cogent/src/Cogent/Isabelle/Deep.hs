@@ -203,8 +203,10 @@ imports = TheoryImports $ [__cogent_root_dir </> "cogent/isa/Cogent"]
 deepDefinition :: NameMod -> TypeAbbrevs -> [Definition TypedExpr a] -> Definition TypedExpr a ->
                     [TheoryDecl I.Type I.Term] -> [TheoryDecl I.Type I.Term]
 deepDefinition mod ta defs (FunDef _ fn ks ti to e) decls =
-    let ty = deepPolyType mod ta $ FT (fmap snd ks) ti to
-        tn = mod fn ++ "_type"
+  let ty = deepPolyType mod ta $ FT (fmap snd ks) ti to
+        tn = case editIsabelleName (++ "_type") (mkIsabelleName fn) of
+              Just n  -> unIsabelleName n
+              Nothing -> error "Error - unable to generate name for isabelle function " ++ fn
         tysig = [isaType| Cogent.kind list \<times> Cogent.type \<times> Cogent.type |]
         tydecl = [isaDecl| definition $tn :: "$tysig" where "$(mkId tn) \<equiv> $ty" |]
         e' = deepExpr mod ta defs e
