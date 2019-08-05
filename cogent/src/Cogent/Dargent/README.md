@@ -26,6 +26,15 @@ This is the dargent layout grammar (as it currently is)
 
 <variant-expr> ::= <variant-case-name> "(" <nat> ")" ":" <layout-expr>
 ```
+Note that `b` specifies location in bits, and `B` in bytes.
+
+Layouts are attached to types (currently, they can only be attached to records) by declaring the type, then writing the keyword `layout` and then a description of the layout in the above grammar.
+
+For example, a record which stores its fields in reverse order is specified as follows.
+```
+type Foo = { a : U32 , b : U64 } layout record { a : 4B at 8B , b : 8B at 0B }
+```
+
 
 # In Progress
 * Add support for attaching layouts to types to the surface syntax, and then add lots of tests to the compiler to test custom layouts
