@@ -11,8 +11,8 @@
  *)
 
 theory CogentHigherOrder imports
-  "TypeProofGen"
   "AutoCorres.AutoCorres"
+  "Cogent.TypeProofGen"
 begin
 
 (*

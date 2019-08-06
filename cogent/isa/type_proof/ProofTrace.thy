@@ -12,10 +12,9 @@
 
 theory ProofTrace
   imports
-    Main
-    "ML_Old"
-    Data
     CogentHelper
+    "../ML_Old"
+    "../Data"
 begin
 
 (* begin: tactic trace code *)

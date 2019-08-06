@@ -11,8 +11,8 @@
  *)
 
 theory TypeProofGen imports
-  "../cogent/isa/CogentHelper"
-  "../cogent/isa/ProofTrace"
+  "CogentHelper"
+  "ProofTrace"
 begin
 
 (* Convert ttyping subproofs to standard typing subproofs. *)

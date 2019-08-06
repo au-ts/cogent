@@ -16,14 +16,14 @@ imports
   "Deep_Embedding_Auto"
   "Cogent_Corres"
   "Corres_Tac"
-  "TypeProofGen"
   "Tidy"
-  "../cogent/isa/Cogent"
-  "../cogent/isa/shallow/ShallowTuples"
-  "../cogent/isa/shallow/Shallow_Tac"
-  "../cogent/isa/Util"
-  "../cogent/isa/Correspondence"
-  "../cogent/isa/Mono"
+  "Cogent.TypeProofGen"
+  "Cogent.Cogent"
+  "Cogent.ShallowTuples"
+  "Cogent.Shallow_Tac"
+  "Cogent.Util"
+  "Cogent.Correspondence"
+  "Cogent.Mono"
 begin
 
 

@@ -11,7 +11,10 @@
  *)
 
 theory CogentHelper
-  imports TypeTrackingTyping  Data  "ML_Old"
+  imports
+    "TypeTrackingTyping"
+    "../Data"
+    "../ML_Old"
 keywords "ML_quiet" :: thy_decl % "ML"
 begin
 

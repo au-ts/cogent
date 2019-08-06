@@ -20,7 +20,7 @@ theory Value_Relation
   "AutoCorres.AutoCorres"
   "HOL-Word.Word"
   "Type_Args"
-  "../cogent/isa/UpdateSemantics"
+  "Cogent.UpdateSemantics"
 begin
 
 (* Mechanism to get different instances of cogent_C_val for signed and unsigned words. *)

@@ -11,7 +11,7 @@
  *)
 
 theory TypeTrackingTyping
-  imports Cogent
+  imports "../Cogent"
 begin
 
 text \<open>TypeTrackingTyping are a rewrite of some Cogent typing rules to handle splitting

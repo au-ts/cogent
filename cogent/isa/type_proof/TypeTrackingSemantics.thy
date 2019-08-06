@@ -12,7 +12,7 @@
 
 theory TypeTrackingSemantics
   imports
-    UpdateSemantics
+    "../UpdateSemantics"
     TypeTrackingTyping
 begin
 
