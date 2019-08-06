@@ -111,7 +111,9 @@ shallowType (TVarBang v) = shallowType (TVar v)
 shallowType (TCon tn ts _) = I.TyDatatype tn <$> mapM shallowType ts
 shallowType (TFun t1 t2) = I.TyArrow <$> shallowType t1 <*> shallowType t2
 shallowType (TPrim pt) = pure $ shallowPrimType pt
-shallowType (TString) = pure $ I.AntiType "string"
+-- As AutoCorres can't handle strings, we treat then as unit in the isabelle proofs
+shallowType (TString) = pure $ I.AntiType "unit"
+-- shallowType (TString) = pure $ I.AntiType "string"
 shallowType (TSum alts) = shallowTypeWithName (TSum alts)
 shallowType (TProduct t1 t2) = I.TyTuple <$> shallowType t1 <*> shallowType t2
 shallowType (TRecord fs s) = do

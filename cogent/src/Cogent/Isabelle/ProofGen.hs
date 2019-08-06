@@ -135,7 +135,9 @@ deepType' (TVarBang' v) = mkApp (mkId "TVarBang") [mkInt $ toInteger v]
 deepType' (TCon' tn ts s) = mkApp (mkId "TCon") [mkString tn, mkList (map deepType' ts), deepSigil s]
 deepType' (TFun' ti to) = mkApp (mkId "TFun") [deepType' ti, deepType' to]
 deepType' (TPrim' pt) = mkApp (mkId "TPrim") [deepPrimType pt]
-deepType' (TString') = mkApp (mkId "TPrim") [mkId "String"]
+-- As AutoCorres can't handle strings, we treat then as unit in the isabelle proofs
+deepType' (TString') = mkId "TUnit"
+-- deepType' (TString') = mkApp (mkId "TPrim") [mkId "String"]
 deepType' (TSum' alts) = mkApp (mkId "TSum") [mkList $ map (\(n,(t,b)) -> mkPair (mkString n) (mkPair (deepType' t) (mkBool b))) alts]
 deepType' (TProduct' t1 t2) = mkApp (mkId "TProduct") [deepType' t1, deepType' t2]
 deepType' (TRecord' fs s) = mkApp (mkId "TRecord") [mkList $ map (\(fn,(t,b)) -> mkPair (deepType' t) (mkBool b)) fs, deepSigil s]
