@@ -406,10 +406,17 @@ typing xi k (EE _ (ILit _ t) env) = tacSequence [
   return [simp_solve]           -- t = lit_type l
   ]
 
+-- As AutoCorres can't handle strings, we treat then as unit in the isabelle proofs
 typing xi k (EE _ (SLit t) env) = tacSequence [
+  return [rule "typing_unit"],  -- Ξ, K, Γ ⊢ Unit : TUnit if
+  consumed k env                -- K ⊢ Γ consumed
+  ]
+{-
+  tacSequence [
   return [rule "typing_slit"],  -- Ξ, K, Γ ⊢ SLit s : TPrim String
   consumed k env                -- K ⊢ Γ consumed
   ]
+-}
 
 typing xi k (EE _ Unit env) = tacSequence [
   return [rule "typing_unit"],  -- Ξ, K, Γ ⊢ Unit : TUnit if

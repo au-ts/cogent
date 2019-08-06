@@ -28,7 +28,7 @@ allRefine source log =
                             , thy ++ __cogent_suffix_of_scorres ++ __cogent_suffix_of_stage STGNormal
                             , thy ++ __cogent_suffix_of_corres_proof
                             , thy ++ __cogent_suffix_of_mono_proof
-                            , __cogent_root_dir </> "c-refinement/Cogent_Corres_Shallow_C"]
+                            , "CogentCRefinement.Cogent_Corres_Shallow_C"]
     body   = typeProof thy : exportThms thy :
              initFinalLocale thy output : sublocales thy : contextFinal thy : []
     thy    = mkProofName source Nothing

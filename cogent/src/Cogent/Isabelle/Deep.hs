@@ -162,7 +162,9 @@ deepExpr mod ta defs (TE _ (Member e fld))
   = mkApp (mkId "Member") [deepExpr mod ta defs e, mkInt (fromIntegral fld)]
 deepExpr mod ta defs (TE _ (Unit)) = mkId "Unit"
 deepExpr mod ta defs (TE _ (ILit n pt)) = mkApp (mkId "Lit") [deepILit n pt]
-deepExpr mod ta defs (TE _ (SLit s)) = __fixme $ mkApp (mkId "SLit") [mkString s]  -- FIXME: there's no @SLit@ in the Isabelle definition at the moment / zilinc
+-- As AutoCorres can't handle strings, we treat then as unit in the isabelle proofs
+deepExpr mod ta defs (TE _ (SLit s)) = mkId "Unit"
+  -- mkApp (mkId "SLit") [mkString s]
 deepExpr mod ta defs (TE _ (Tuple e1 e2))
   = mkApp (mkId "Tuple") [deepExpr mod ta defs e1, deepExpr mod ta defs e2]
 deepExpr mod ta defs (TE _ (Put rec fld e))
@@ -198,7 +200,7 @@ deepPolyType mod ta (FT ks ti to) = mkPair (mkList $ map deepKind $ cvtToList ks
                                            (mkPair (deepType mod ta ti) (deepType mod ta to))
 
 imports :: TheoryImports
-imports = TheoryImports $ [__cogent_root_dir </> "cogent/isa/Cogent"]
+imports = TheoryImports $ ["Cogent.Cogent"]
 
 deepDefinition :: NameMod -> TypeAbbrevs -> [Definition TypedExpr a] -> Definition TypedExpr a ->
                     [TheoryDecl I.Type I.Term] -> [TheoryDecl I.Type I.Term]

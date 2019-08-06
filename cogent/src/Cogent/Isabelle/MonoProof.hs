@@ -38,7 +38,7 @@ monoProof source funMono log =
   let header = (L.string ("(*\n" ++ log ++ "\n*)\n") L.<$>)
       thy = mkProofName source (Just __cogent_suffix_of_mono_proof)
       imports = TheoryImports
-                  [ __cogent_root_dir </> "cogent/isa/Mono_Tac"
+                  [ "Cogent.Mono_Tac"
                     -- type_proof must be imported before deep_normal
                   , mkProofName source (Just __cogent_suffix_of_type_proof)
                   , mkProofName source (Just $ __cogent_suffix_of_deep ++ __cogent_suffix_of_stage STGNormal)

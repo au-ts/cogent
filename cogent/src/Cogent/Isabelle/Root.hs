@@ -38,7 +38,7 @@ root source log =
       all_refine = thy ++ __cogent_suffix_of_all_refine
   in ["(*"] ++ lines log ++ ["*)"] ++
      [ ""
-     , "session " ++ shal_tuples ++ " = Deep_C_Static +"
+     , "session " ++ shal_tuples ++ " = CogentCRefinement +"
      , "  theories"
      , "    \"" ++ shal_shrd ++ "\""
      , "    \"" ++ shal_shrd_tup ++ "\""
