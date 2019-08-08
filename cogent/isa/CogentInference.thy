@@ -496,16 +496,17 @@ lemma assign_app_ctx_nth:
 section {* split_used (Lemma 3.1) *}
 (* Free Variables *)
 fun fv' :: "nat \<Rightarrow> 'f expr \<Rightarrow> index set" where
-  "fv' n (Var i) = (if i \<ge> n then {i} else {})"
-| "fv' n (TypeApp f ts) = {}"
-| "fv' n (Prim prim_op es) = fold (\<lambda>x y. (fv' n x) \<union> y) es {}"
-| "fv' n (App e1 e2) = (fv' n e1) \<union> (fv' n e2)"
-| "fv' n Unit = {}"
-| "fv' n (Lit l) = {}"
-| "fv' n (Cast nt e) = fv' n e"
-| "fv' n (Let e1 e2) = (fv' n e1) \<union> (fv' (Suc n) e2)"
-| "fv' n (If e1 e2 e3) = (fv' n e1) \<union> (fv' n e2) \<union> (fv' n e3)"
-| "fv' n (Sig e t) = fv' n e"
+  fv'_var:      "fv' n (Var i) = (if i \<ge> n then {i - n} else {})"
+| fv'_typeapp:  "fv' n (TypeApp f ts) = {}"
+| fv'_prim:     "fv' n (Prim prim_op es) = (\<Union>x\<in>set es. fv' n x)"
+| fv'_app:      "fv' n (App e1 e2) = (fv' n e1) \<union> (fv' n e2)"
+| fv'_unit:     "fv' n Unit = {}"
+| fv'_lit:      "fv' n (Lit l) = {}"
+| fv'_cast:     "fv' n (Cast nt e) = fv' n e"
+| fv'_let:      "fv' n (Let e1 e2) = (fv' n e1) \<union> (fv' (Suc n) e2)"
+| fv'_if:       "fv' n (If e1 e2 e3) = (fv' n e1) \<union> (fv' n e2) \<union> (fv' n e3)"
+| fv'_sig:      "fv' n (Sig e t) = fv' n e"
+
 
 abbreviation fv :: "'s expr \<Rightarrow> index set" where
   "fv t \<equiv> fv' 0 t" 
