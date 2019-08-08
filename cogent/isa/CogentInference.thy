@@ -133,7 +133,7 @@ inductive alg_ctx_jn :: "cg_ctx \<Rightarrow> cg_ctx \<Rightarrow> cg_ctx \<Righ
           ("_ \<Join> _ \<leadsto> _ | _" [30,0,0,30] 60) where
 alg_ctx_jn: 
   "\<lbrakk> map fst G = map fst G'
-   ; list_all3 (\<lambda>m g g'. m = max (snd g) (snd g')) m G G'
+   ; list_all3 (\<lambda>m g g'. m = max (snd g) (snd g')) M G G'
    ; list_all3 (\<lambda>g2 g m. g2 = (fst g, m)) G2 G M
    ; C = List.map2 (\<lambda>g g'. if (snd g) = (snd g') then CtTop else CtDrop (fst g)) G G'
    ; C2 = foldr CtConj C CtTop
