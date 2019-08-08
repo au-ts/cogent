@@ -130,7 +130,6 @@ nonStrictlyPositiveVars t = sp t M.empty
     -- Map if variables in scope are in argument position
     sp ::  Type -> M.Map VarName Bool -> [VarName]
     sp (PrimType _) vs = []
-        -- TODO: What's an AbsType?
     sp (AbsType _ _ ts) vs = concatMap (\t -> sp t vs) ts
     sp (Variant r) vs = 
       concatMap (\(Entry _ t _) -> sp t vs) (Row.entries r)
