@@ -76,6 +76,9 @@ datatype constraint =
   | CtShare type
   | CtDrop type
 
+type_synonym axm_set = "constraint set"
+
+
 fun map_types_ct :: "(type \<Rightarrow> type) \<Rightarrow> constraint \<Rightarrow> constraint" where
   "map_types_ct f (CtConj a b)    = CtConj (map_types_ct f a) (map_types_ct f b)"
 | "map_types_ct f (CtIBound l t)  = CtIBound l (f t)"
@@ -126,8 +129,6 @@ lemma singleton_none:
   "j < n \<Longrightarrow> j \<noteq> i \<Longrightarrow> (singleton n i t) ! j = None"
   by (simp add: type_infer.empty_def type_infer.singleton_def)
 
-type_synonym axm_set = "constraint list"
-
 section {* Algorithmic Context Join (Fig 3.5) *}
 inductive alg_ctx_jn :: "cg_ctx \<Rightarrow> cg_ctx \<Rightarrow> cg_ctx \<Rightarrow> constraint \<Rightarrow> bool"
           ("_ \<Join> _ \<leadsto> _ | _" [30,0,0,30] 60) where
@@ -167,8 +168,10 @@ lemma alg_ctx_jn_type_used_nondec_2:
 section {* Constraint Semantics (Fig 3.6) *}
 inductive constraint_sem :: "axm_set \<Rightarrow> constraint \<Rightarrow> bool"
           ("_ \<turnstile> _" [40, 40] 60) where
-ct_sem_asm:
-  "C \<in> set A \<Longrightarrow> A \<turnstile> C"
+ct_sem_share:
+  "CtShare \<rho> \<in> A \<Longrightarrow> A \<turnstile> CtShare \<rho>"
+| ct_sem_drop:
+  "CtDrop \<rho> \<in> A \<Longrightarrow> A \<turnstile> CtDrop \<rho>"
 | ct_sem_conj:
   "\<lbrakk> A \<turnstile> C1
    ; A \<turnstile> C2
@@ -193,6 +196,11 @@ ct_sem_asm:
   "A \<turnstile> CtShare (TPrim pt)"
 | ct_sem_primD:
   "A \<turnstile> CtDrop (TPrim pt)"
+
+inductive_cases ct_sem_conjE: "A \<turnstile> CtConj C1 C2"
+
+lemma ct_sem_conj_iff: "A \<turnstile> CtConj C1 C2 \<longleftrightarrow> A \<turnstile> C1 \<and> A \<turnstile> C2"
+  using ct_sem_conj ct_sem_conjE by blast
 
 section {* Context relations (Fig 3.2) *}
 inductive ctx_split_comp :: "axm_set \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> bool" where
