@@ -603,15 +603,25 @@ proof -
     by (metis add.left_neutral diff_zero gr_implies_not_zero neq0_conv)
 qed
 
-lemma ctx_restrict_empty:
-  "(G\<bar>{}) = empty (length G)"
+lemma cg_gen_fv_elem_size:
+  assumes
+    "G1,n1 \<turnstile> e : \<tau> \<leadsto> G2,n2 | C1 | e1'"
+    "i \<in> fv' m e"
+  shows "i < length G1"
 proof -
-  have "\<And>i. i < length G \<Longrightarrow> (G\<bar>{})!i = None"
-    using ctx_restrict_nth_none by blast
-  then show ?thesis
-    using ctx_restrict_len empty_def
-    by (metis length_replicate list_eq_iff_nth_eq nth_replicate)
+  have "\<And>x e1 e2. fv (Prim x [e1, e2]) = fv e1 \<union> fv e2"
+    by (simp add: Un_commute)
+  moreover have fv_prim_disj: "\<And>e1 e2 x. i \<in> fv (Prim x [e1, e2]) \<Longrightarrow> i \<in> fv e1 \<or> i \<in> fv e2"
+    by auto          
+  show ?thesis
+    using assms
+  proof (induct arbitrary: i m rule: constraint_gen_elab.induct)
+    case (cg_let \<alpha> n1 G1 e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4)
+    then show ?case
+      by (force simp add: i_fv'_suc_eq_suc_i_fv' cg_ctx_length)
+  qed (auto simp add: cg_ctx_length split: if_splits)
 qed
+
 section {* Soundness of Generation (Thm 3.2) *}
 lemma cg_sound:
   assumes "G,0 \<turnstile> e : \<tau> \<leadsto> G',n | C | e'"
