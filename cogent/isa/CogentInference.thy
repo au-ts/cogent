@@ -389,6 +389,53 @@ next
 next
 qed (auto simp add: cg_ctx_length)+
 
+lemma cg_ctx_type_used_nondec:
+  assumes "G,n \<turnstile> e : \<tau> \<leadsto> G',n' | C | e'"
+    and "i < length G"
+  shows "snd (G ! i) \<le> snd (G' ! i)"
+  using assms
+proof (induct arbitrary: i rule: constraint_gen_elab.induct)
+case (cg_var1 G i \<rho> G' C \<tau> n)
+  then show ?case
+    by (metis le0 nth_list_update_neq order_refl snd_conv) 
+next
+  case (cg_var2 G i \<rho> n G' C \<tau>)
+  then show ?case
+    by (metis Suc_n_not_le_n nat_le_linear nth_list_update_eq nth_list_update_neq snd_conv)
+next
+  case (cg_app \<alpha> n1 G1 e1 \<tau> G2 n2 C1 e1' e2 G3 n3 C2 e2' C3)
+  then show ?case
+    using cg_ctx_length by fastforce
+next
+  case (cg_let \<alpha> n1 G1 e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4)
+  then show ?case
+  proof -
+    have "(\<And>i. i < length ((\<alpha>, 0) # G2) \<Longrightarrow> snd (((\<alpha>, 0) # G2) ! i) \<le> snd (((\<alpha>, m) # G3) ! i))
+                 \<Longrightarrow> (\<And>i. i < length G2 \<Longrightarrow> snd (G2 ! i) \<le> snd (G3 ! i))"
+      using nth_Cons_Suc by force
+    then show ?thesis
+      using cg_let.prems cg_let.hyps cg_ctx_length le_trans
+      by fastforce
+  qed
+next
+  case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
+  then show ?case
+    using cg_ctx_length alg_ctx_jn_type_used_nondec_1 le_trans
+    by fastforce
+next
+  case (cg_iop x nt G1 n1 e1 \<tau> G2 n2 C1 e1' e2 G3 n3 C2 e2' C5)
+  then show ?case
+    using cg_ctx_length by (metis dec_induct le_SucI)
+next
+case (cg_cop \<alpha> n1 x nt G1 e1 G2 n2 C1 e1' e2 G3 n3 C2 e2' C3 \<tau>)
+  then show ?case
+    using cg_ctx_length le_trans by fastforce
+next
+  case (cg_bop x nt G1 n1 e1 \<tau> G2 n2 C1 e1' e2 G3 n3 C2 e2' C3)
+  then show ?case
+    using cg_ctx_length by fastforce
+qed (blast)+
+
 section {* Assignment Definition *}
 (* when we are assigning an unknown type a type, the assigned type should not contain any
    unknown types itself *)
