@@ -1,0 +1,2 @@
+infinite : U8 -> U8;
+infinite i = (infinite[] : U8 -> U8) ((i : U8) + (1 : U8) : U8) : U8;

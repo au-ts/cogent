@@ -1,0 +1,2 @@
+infinite : U8 -> U8;
+infinite i = infinite (i + 1);
