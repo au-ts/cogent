@@ -146,6 +146,24 @@ lemma alg_ctx_jn_length:
   using assms
   by (metis (no_types, lifting) alg_ctx_jn.simps list_all3_conv_all_nth)+
 
+lemma alg_ctx_jn_type_same:
+  assumes "G1 \<Join> G1' \<leadsto> G2 | C"
+  shows "\<And>i. i < length G1 \<Longrightarrow> fst (G1 ! i) = fst (G2 ! i)"
+  using assms
+  by (clarsimp simp add: alg_ctx_jn.simps list_all3_conv_all_nth)
+
+lemma alg_ctx_jn_type_used_nondec_1:
+  assumes "G1 \<Join> G1' \<leadsto> G2 | C"
+  shows "\<And>i. i < length G1 \<Longrightarrow> snd (G1 ! i) \<le> snd (G2 ! i)"
+  using assms
+  by (clarsimp simp add: alg_ctx_jn.simps list_all3_conv_all_nth)
+
+lemma alg_ctx_jn_type_used_nondec_2:
+  assumes "G1 \<Join> G1' \<leadsto> G2 | C"
+  shows "\<And>i. i < length G1' \<Longrightarrow> snd (G1' ! i) \<le> snd (G2 ! i)"
+  using assms
+  by (clarsimp simp add: alg_ctx_jn.simps list_all3_conv_all_nth)
+
 section {* Constraint Semantics (Fig 3.6) *}
 inductive constraint_sem :: "axm_set \<Rightarrow> constraint \<Rightarrow> bool"
           ("_ \<turnstile> _" [40, 40] 60) where
