@@ -622,6 +622,88 @@ proof -
   qed (auto simp add: cg_ctx_length split: if_splits)
 qed
 
+lemma cg_gen_output_type_used_nonzero:
+  assumes "G1,n1 \<turnstile> e : \<tau> \<leadsto> G2,n2 | C1 | e1'"
+      and "i \<in> fv(e)"
+  shows "snd (G2 ! i) > 0"
+  using assms
+proof (induct arbitrary: i rule: constraint_gen_elab.induct)
+  case (cg_app \<alpha> n1 G1 e1 \<tau> G2 n2 C1 e1' e2 G3 n3 C2 e2' C3)
+  then show ?case
+    using cg_ctx_length cg_ctx_type_used_nondec gt_or_eq_0 not_le cg_gen_fv_elem_size fv'_app
+    by (metis Un_iff)
+next
+  case (cg_let \<alpha> n1 G1 e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4)
+  then show ?case
+  proof -
+    have "i \<in> fv' 0 e1 \<or> i \<in> fv' (Suc 0) e2"
+      using fv'_let cg_let.prems by blast
+    moreover have "i \<in> fv' 0 e1 \<Longrightarrow> ?thesis"
+      using cg_ctx_type_used_nondec cg_ctx_length cg_gen_fv_elem_size cg_let cg_let.hyps
+      by (metis Suc_mono gt_or_eq_0 length_Cons not_le nth_Cons_Suc)
+    moreover have "i \<in> fv' (Suc 0) e2 \<Longrightarrow> ?thesis"
+      using cg_let.hyps i_fv'_suc_eq_suc_i_fv' by fastforce
+    ultimately show ?thesis
+      by blast
+  qed
+next
+  case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
+  then show ?case
+  proof -
+    have "i \<in> fv e1 \<or> i \<in> fv e2 \<or> i \<in> fv e3"
+      using cg_if.prems by auto
+    moreover have "i \<in> fv e1 \<Longrightarrow> ?thesis"
+      using cg_if.hyps alg_ctx_jn_type_used_nondec_2 cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size
+      by (metis le_less not_le not_less0)
+    moreover have "i \<in> fv e2 \<Longrightarrow> ?thesis"
+      using cg_if.hyps not_less0 alg_ctx_jn_type_used_nondec_1 cg_ctx_length cg_gen_fv_elem_size
+      by (metis le_less not_le not_less0)
+    moreover have "i \<in> fv e3 \<Longrightarrow> ?thesis"
+      using cg_if.hyps not_less0 alg_ctx_jn_type_used_nondec_2 cg_ctx_length cg_gen_fv_elem_size
+      by (metis (full_types) neq0_conv not_le)
+    ultimately show ?thesis
+      by blast
+  qed
+next
+  case (cg_iop x nt G1 n1 e1 \<tau> G2 n2 C1 e1' e2 G3 n3 C2 e2' C5)
+  then show ?case
+  proof -
+    have "i \<in> fv e1 \<or> i \<in> fv e2"
+      using cg_iop.prems by auto
+    moreover have "i \<in> fv e1 \<Longrightarrow> ?thesis"
+      using cg_iop.hyps cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size
+      by (metis cg_iop.hyps(4) gt_or_eq_0 not_le)
+    moreover have "i \<in> fv e2 \<Longrightarrow> ?thesis"
+      using cg_iop.hyps cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size by simp
+    ultimately show ?thesis
+      by blast
+  qed
+next
+  case (cg_cop \<alpha> n1 x nt G1 e1 G2 n2 C1 e1' e2 G3 n3 C2 e2' C3 \<tau>)
+  then show ?case
+  proof -
+    have "i \<in> fv e1 \<or> i \<in> fv e2"
+      using cg_cop.prems by auto
+    moreover have "i \<in> fv e1 \<Longrightarrow> ?thesis"
+      using cg_cop.hyps cg_ctx_type_used_nondec cg_gen_fv_elem_size cg_ctx_length
+      by (metis gr_zeroI not_le)
+    ultimately show ?thesis
+      using cg_cop.hyps by blast
+  qed
+next
+  case (cg_bop x nt G1 n1 e1 \<tau> G2 n2 C1 e1' e2 G3 n3 C2 e2' C3)
+  then show ?case 
+     proof -
+    have "i \<in> fv e1 \<or> i \<in> fv e2"
+      using cg_bop.prems by auto
+    moreover have "i \<in> fv e1 \<Longrightarrow> ?thesis"
+      using cg_bop.hyps cg_ctx_type_used_nondec cg_gen_fv_elem_size cg_ctx_length
+      by (metis gr_zeroI not_le)
+    ultimately show ?thesis
+      using cg_bop.hyps by blast
+  qed 
+qed (simp)+
+ 
 section {* Soundness of Generation (Thm 3.2) *}
 lemma cg_sound:
   assumes "G,0 \<turnstile> e : \<tau> \<leadsto> G',n | C | e'"
