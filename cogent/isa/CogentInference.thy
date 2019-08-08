@@ -366,6 +366,29 @@ proof (induct rule: constraint_gen_elab.inducts)
     using type_infer.alg_ctx_jn_length(2) by auto
 qed (simp+)
 
+lemma cg_ctx_type_same:
+  assumes "G,n \<turnstile> e : \<tau> \<leadsto> G',n' | C | e'"
+  shows "\<And>i. i < length G \<Longrightarrow> fst (G ! i) = fst (G' ! i)"
+  using assms
+proof (induct rule: constraint_gen_elab.inducts)
+  case (cg_var1 G i \<rho> G' C \<tau> n)
+  then show ?case
+    by (metis fst_conv nth_list_update_eq nth_list_update_neq)
+next
+  case (cg_var2 G i \<rho> n G' C \<tau>)
+  then show ?case
+    by (metis length_list_update map_fst_update nth_map)
+next
+  case (cg_let \<alpha> n1 G1 e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4)
+  then show ?case
+    by (metis Suc_mono cg_ctx_length length_Cons nth_Cons_Suc)
+next
+  case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
+  then show ?case
+    using cg_ctx_length type_infer.alg_ctx_jn_type_same by auto
+next
+qed (auto simp add: cg_ctx_length)+
+
 section {* Assignment Definition *}
 (* when we are assigning an unknown type a type, the assigned type should not contain any
    unknown types itself *)
