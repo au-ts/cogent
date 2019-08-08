@@ -711,7 +711,112 @@ next
       using cg_bop.hyps by blast
   qed 
 qed (simp)+
- 
+
+lemma cg_gen_type_used_nonzero_imp_share:
+  assumes "G1,n1 \<turnstile> e : \<tau> \<leadsto> G2,n2 | C1 | e1'"
+      and "i \<in> fv(e)"
+      and "snd (G1 ! i) > 0"
+      and "\<rho> = fst (G1 ! i)"
+      and "A \<turnstile> C1"
+    shows "A \<turnstile> CtShare \<rho>"
+  using assms
+proof (induct arbitrary: i rule: constraint_gen_elab.induct)
+  case (cg_var2 G i \<rho> n G' C \<tau>)
+  then show ?case
+    using ct_sem_conj_iff by simp
+next
+  case (cg_sig G1 n1 e \<tau>' G2 n2 C e' C' \<tau>)
+  then show ?case
+    using ct_sem_conjE by force
+next
+  case (cg_app \<alpha> n1 G1 e1 \<tau> G2 n2 C1 e1' e2 G3 n3 C2 e2' C3)
+  then show ?case
+  proof -
+    have "i \<in> fv e1 \<Longrightarrow> ?thesis"
+      using cg_app.hyps cg_app.prems ct_sem_conjE by blast
+    moreover have "i \<in> fv e2 \<Longrightarrow> ?thesis"
+      using cg_ctx_type_same cg_ctx_type_used_nondec cg_ctx_length cg_gen_fv_elem_size
+      using cg_app.hyps cg_app.prems
+      by (metis neq0_conv not_le ct_sem_conjE)
+    ultimately show ?thesis
+      using fv'_app cg_app.prems by blast
+  qed
+next
+  case (cg_let \<alpha> n1 G1 e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4)
+  then show ?case
+  proof -
+    have " i \<in> fv e1 \<Longrightarrow> ?thesis"
+      using cg_let.hyps cg_let.prems ct_sem_conj_iff by metis
+    moreover have "i \<in> fv' (Suc 0) e2 \<Longrightarrow> ?thesis"
+      using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+      using ct_sem_conjE i_fv'_suc_eq_suc_i_fv'
+      using cg_let.prems cg_let.hyps
+      by (metis Suc_less_eq gt_or_eq_0 leD length_Cons cg_let nth_Cons_Suc)
+    ultimately show ?thesis
+      using fv'_let cg_let.prems by blast
+  qed
+next
+  case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
+  then show ?case
+  proof -
+    have "i \<in> fv e1 \<Longrightarrow> ?thesis"
+      using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+      using cg_if.prems cg_if.hyps ct_sem_conjE by metis
+    moreover have "i \<in> fv e2 \<Longrightarrow> ?thesis"
+      using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+      using cg_if.prems cg_if.hyps ct_sem_conjE 
+      by (metis (no_types, lifting) gt_or_eq_0 leD)
+    moreover have "i \<in> fv e3 \<Longrightarrow> ?thesis"
+      using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+      using cg_if.prems cg_if.hyps ct_sem_conjE 
+      by (metis (no_types, lifting) gt_or_eq_0 leD)
+    ultimately show ?thesis
+      using fv'_if cg_if.prems by blast
+  qed
+next
+  case (cg_iop x nt G1 n1 e1 \<tau> G2 n2 C1 e1' e2 G3 n3 C2 e2' C5)
+  then show ?case
+  proof -
+    have "i \<in> fv e1 \<Longrightarrow> ?thesis"
+      using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+      using cg_iop.prems cg_iop.hyps ct_sem_conjE by metis
+    moreover have "i \<in> fv e2 \<Longrightarrow> ?thesis"
+      using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+      using cg_iop.prems cg_iop.hyps ct_sem_conjE 
+      by (metis (mono_tags, lifting) gt_or_eq_0 leD)
+    ultimately show ?thesis
+      using cg_iop.prems fv'_prim by auto
+  qed
+next
+  case (cg_cop \<alpha> n1 x nt G1 e1 G2 n2 C1 e1' e2 G3 n3 C2 e2' C3 \<tau>)
+  then show ?case
+  proof -
+    have "i \<in> fv e1 \<Longrightarrow> ?thesis"
+      using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+      using cg_cop.prems cg_cop.hyps ct_sem_conjE by metis
+    moreover have "i \<in> fv e2 \<Longrightarrow> ?thesis"
+      using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+      using cg_cop.prems cg_cop.hyps ct_sem_conjE 
+      by (metis (mono_tags, lifting) gt_or_eq_0 leD)
+    ultimately show ?thesis
+      using cg_cop.prems fv'_prim by auto
+  qed
+next
+  case (cg_bop x nt G1 n1 e1 \<tau> G2 n2 C1 e1' e2 G3 n3 C2 e2' C3)
+  then show ?case
+  proof -
+    have "i \<in> fv e1 \<Longrightarrow> ?thesis"
+      using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+      using cg_bop.prems cg_bop.hyps ct_sem_conjE by metis
+    moreover have "i \<in> fv e2 \<Longrightarrow> ?thesis"
+      using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+      using cg_bop.prems cg_bop.hyps ct_sem_conjE 
+      by (metis (mono_tags, lifting) gt_or_eq_0 leD)
+    ultimately show ?thesis
+      using cg_bop.prems fv'_prim by auto
+  qed
+qed (simp)+
+  
 section {* Soundness of Generation (Thm 3.2) *}
 lemma cg_sound:
   assumes "G,0 \<turnstile> e : \<tau> \<leadsto> G',n | C | e'"
