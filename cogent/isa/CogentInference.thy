@@ -485,6 +485,14 @@ fun "assign_app_constr" :: "(nat \<Rightarrow> type) \<Rightarrow> constraint \<
 | "assign_app_constr S (CtShare t) = CtShare (assign_app_ty S t)"
 | "assign_app_constr S (CtDrop t) = CtDrop (assign_app_ty S t)"
 
+fun "assign_app_ctx" :: "(nat \<Rightarrow> type) \<Rightarrow> ctx \<Rightarrow> ctx" where
+  "assign_app_ctx S G = map (\<lambda>x. if x = None then None else Some (assign_app_ty S (the x))) G"
+
+lemma assign_app_ctx_nth:
+  "\<And>i. i < length G \<Longrightarrow> 
+   (assign_app_ctx S G) ! i = (\<lambda>x. if x = None then None else Some (assign_app_ty S (the x))) (G ! i)"
+  by simp
+
 section {* split_used (Lemma 3.1) *}
 (* Free Variables *)
 fun fv' :: "nat \<Rightarrow> 'f expr \<Rightarrow> index set" where
