@@ -18,7 +18,7 @@ This is the dargent layout grammar (as it currently is)
 <layout-expr> ::= <layout-expr-types> [ "at" <layout-size-expr> ]
 
 <layout-expr-types> ::= "record"  "{" [ *[ <record-expr>  "," ] <record-expr>  ] "}"
-                      | "variant" "{" [ *[ <variant-expr> "," ] <variant-expr> ] "}"
+                      | "variant" "(" <layout-expr> ")" "{" [ *[ <variant-expr> "," ] <variant-expr> ] "}"
                       | <layout-name>
                       | <layout-size-expr>
 
