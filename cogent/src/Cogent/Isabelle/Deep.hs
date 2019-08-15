@@ -211,7 +211,7 @@ deepDefinition mod ta defs (FunDef _ fn ks ti to e) decls =
       tydecl = [isaDecl| definition $tn :: "$tysig" where "$(mkId tn) \<equiv> $ty" |]
       e' = deepExpr mod ta defs e
       fntysig = AntiType "string Cogent.expr"
-      fn' = mod fn
+      fn' = unIsabelleName (mkIsabelleName $ unsafeNameToCoreFunName fn)
       decl = [isaDecl| definition $fn' :: "$fntysig" where "$(mkId fn') \<equiv> $e'" |]
      in tydecl:decl:decls
 deepDefinition mod ta _ (AbsDecl _ fn ks ti to) decls =
@@ -278,9 +278,14 @@ typeAbbrevBucketName = "abbreviated_type_defs"
 typeAbbrevDefsLemma :: NameMod -> TypeAbbrevs -> TheoryDecl I.Type I.Term
 typeAbbrevDefsLemma mod ta = let
     defTD = \n -> O.TheoremDecl { thmName = Just n, thmAttributes = [] }
-    nms = [mkAbbrevNm mod n ++ "_def" | (_, n) <- Map.toList (fst ta)]
+    isaDefName name = unIsabelleName $ 
+                          case editIsabelleName (mkIsabelleName $ name) (++ "_def") of
+                            Nothing -> error ("Failed to generate Isabelle name for " ++ unCoreFunName name)
+                            Just n' -> n'
+    nms = [ isaDefName $ unsafeNameToCoreFunName (mkAbbrevNm mod n) | (_, n) <- Map.toList (fst ta)]
   in O.LemmasDecl (O.Lemmas { lemmasName = defTD typeAbbrevBucketName,
                               lemmasThms = map defTD (if null nms then ["TrueI"] else nms) })
+
 
 deepTypeAbbrevs :: NameMod -> TypeAbbrevs -> [TheoryDecl I.Type I.Term]
 deepTypeAbbrevs mod ta = map (deepTypeAbbrev mod) defs ++ [typeAbbrevDefsLemma mod ta]

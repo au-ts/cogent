@@ -167,8 +167,8 @@ desugar' tls constdefs ctygen pragmas = do
 
 noPos = __fixme S.noPos  -- FIXME! / zilinc
 
-freshVarPrefix = "__ds_var_"
-freshFunPrefix = "__lft_f_"
+freshVarPrefix = "x__ds_var_"
+freshFunPrefix = "x__lft_f_"
 
 
 freshVar :: DS t v VarName

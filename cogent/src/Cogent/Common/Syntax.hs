@@ -11,6 +11,7 @@ import Data.Data hiding (Prefix)
 import Data.Monoid
 #endif
 import Data.Word
+import Data.Char (isDigit)
 import Text.PrettyPrint.ANSI.Leijen
 import Isabelle.Parser (reservedWords)
 
@@ -24,25 +25,43 @@ type TyVarName   = String
 type TypeName    = String
 
 -- FIXME: `coreFunName` should be named to `unCoreFunName` / zilinc
-newtype CoreFunName = CoreFunName { coreFunName :: String }
+newtype CoreFunName = CoreFunName { unCoreFunName :: String }
   deriving (Eq, Show, Ord)
 
 newtype IsabelleName = IsabelleName { unIsabelleName :: String }
   deriving (Eq, Show, Ord)
 
-checkIsabelleName :: IsabelleName -> Bool
-checkIsabelleName (IsabelleName n) = not $ n `elem` reservedWords
+isReserved :: IsabelleName -> Bool
+isReserved (IsabelleName n) = n `elem` reservedWords
+
+isInvalid :: IsabelleName -> Bool
+isInvalid (IsabelleName n) =
+  isDigit (head n) && head n == '_' 
+
+unsafeMakeIsabelleName :: String -> IsabelleName
+unsafeMakeIsabelleName = mkIsabelleName . CoreFunName
 
 -- TODO: Check name generated not already taken
 mkIsabelleName :: CoreFunName -> IsabelleName
-mkIsabelleName (CoreFunName s) = 
-  if (checkIsabelleName (IsabelleName s))
-    then IsabelleName s 
-    else IsabelleName (s ++ "'")
+mkIsabelleName (CoreFunName s) = IsabelleName goodName
+  where
+    nonReserved = 
+      if (isReserved $ IsabelleName s)
+        then s ++ "'"
+        else s
+    goodName    =
+      if (isInvalid $ IsabelleName nonReserved) 
+        then 
+          (++ nonReserved) (
+            case head nonReserved of
+              '_' -> "x"
+              _   -> "x_"
+          )
+        else nonReserved
 
 editIsabelleName :: IsabelleName -> (String -> String) -> Maybe IsabelleName
 editIsabelleName (IsabelleName n) f  = 
-  if (checkIsabelleName (IsabelleName $ f n)) then
+  if (not (isReserved (IsabelleName $ f n) || isInvalid (IsabelleName $ f n))) then
     Just $ IsabelleName (f n)
   else 
     Nothing
@@ -53,8 +72,8 @@ funNameToCoreFunName = CoreFunName
 unsafeNameToCoreFunName :: String -> CoreFunName
 unsafeNameToCoreFunName = CoreFunName
 
-unsafeIsabelleNameToCoreFunName :: String -> CoreFunName
-unsafeIsabelleNameToCoreFunName = CoreFunName
+unsafeCoreFunName :: String -> CoreFunName
+unsafeCoreFunName = CoreFunName
 
 type FieldIndex = Int
 type ArrayIndex = Word32

@@ -85,7 +85,7 @@ isNormal _ = False
 newtype AN a = AN { runAN :: State Int a }
              deriving (Functor, Applicative, Monad, MonadState Int)
 
-freshVarPrefix = "__an_var_"
+freshVarPrefix = "x__an_var_"
 
 freshVar :: AN VarName
 freshVar = do x <- get
