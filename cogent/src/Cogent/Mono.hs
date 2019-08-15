@@ -135,8 +135,10 @@ monoDefinitionInsts d [] =
 monoDefinitionInsts d is = flip mapM_ is $ monoDefinitionInst d
 
 monoName :: CoreFunName -> Maybe Int -> String
-monoName n Nothing  = coreFunNameToIsabelleName n
-monoName n (Just i) = coreFunNameToIsabelleName n ++ "_" ++ show i
+monoName n Nothing  = unIsabelleName $ mkIsabelleName n
+monoName n (Just i) = case editIsabelleName (mkIsabelleName n) (\s -> s ++ "_" ++ show i) of
+                        Nothing -> error "Fatal - Unable to generate correct Isabelle name"
+                        Just n' -> unIsabelleName n'
 
 -- given one instance
 monoDefinitionInst :: Definition TypedExpr VarName -> Instance -> Mono ()
@@ -158,11 +160,11 @@ monoExpr :: TypedExpr t v VarName -> Mono (TypedExpr 'Zero v VarName)
 monoExpr (TE t e) = TE <$> monoType t <*> monoExpr' e
   where
     monoExpr' (Variable var       ) = pure $ Variable var
-    monoExpr' (Fun      fn []  nt ) = modify (first $ M.insert (coreFunNameToIsabelleName fn) M.empty) >> return (Fun fn [] nt)
+    monoExpr' (Fun      fn []  nt ) = modify (first $ M.insert (unIsabelleName $ mkIsabelleName fn) M.empty) >> return (Fun fn [] nt)
     monoExpr' (Fun      fn tys nt ) = do
       tys' <- mapM monoType tys
-      modify (first $ M.insertWith (\_ m -> insertWith (flip const) tys' (M.size m) m) (coreFunNameToIsabelleName fn) (M.singleton tys' 0))  -- add one more instance to the env
-      idx <- M.lookup tys' . fromJust . M.lookup (coreFunNameToIsabelleName fn) . fst <$> get
+      modify (first $ M.insertWith (\_ m -> insertWith (flip const) tys' (M.size m) m) (unIsabelleName $ mkIsabelleName fn) (M.singleton tys' 0))  -- add one more instance to the env
+      idx <- M.lookup tys' . fromJust . M.lookup (unIsabelleName $ mkIsabelleName fn) . fst <$> get
       return $ Fun (unsafeIsabelleNameToCoreFunName $ monoName fn idx) [] nt  -- used to be tys'
     monoExpr' (Op      opr es     ) = Op opr <$> mapM monoExpr es
     monoExpr' (App     e1 e2      ) = App <$> monoExpr e1 <*> monoExpr e2

@@ -74,7 +74,7 @@ reservedWords = [
   "and", "apply", "apply_end", "assumes", "begin", "by", "chapter", "class", "consts",
   "datatype", "definition", "defs", "domintros", "done", "end", "fixes", "for", "fun",
   "function", "imports", "instance", "instantiation", "is", "keywords", "lemma", "lemmas",
-  "no_translations", "overloaded", "primrec", "record ", "section", "sequential", "sorry",
+  "no_translations", "open", "overloaded", "primrec", "record ", "section", "sequential", "sorry",
   "subsection", "subsubsection", "termination", "text", "theorems", "theory", "translations",
   "type_synonym", "typedecl", "unchecked", "uses", "where" ]
 
