@@ -120,7 +120,7 @@ markOcc sv (TE tau (Variable (v, n))) = do
   modify $ second $ modifyAt v (OnceSafe <>)
   return . TE tau $ Variable (v, (n, OnceSafe))
 markOcc sv (TE tau (Fun fn ts note)) = do
-  modify (first $ M.adjust (second $ (OnceSafe <>)) (coreFunNameToIsabelleName fn))
+  modify (first $ M.adjust (second $ (OnceSafe <>)) (unIsabelleName $ mkIsabelleName fn))
   return . TE tau $ Fun fn ts note
 markOcc sv (TE tau (Op opr es)) = TE tau . Op opr <$> mapM (markOcc sv) es
 markOcc sv (TE tau (App f e)) = TE tau <$> (App <$> markOcc sv f <*> markOcc sv e)
@@ -305,7 +305,7 @@ simplExpr sv subst ins (TE tau (Op opr es)) cont = TE tau . Op opr <$> mapM (fli
 simplExpr sv subst ins (TE tau (App (TE tau1 (Fun fn tys note)) e2)) cont
   | note `elem` [InlineMe, InlinePlease], ExI (Flip tys') <- V.fromList tys = do
   e2' <- simplExpr sv subst ins e2 cont
-  def <- fst . fromJust . M.lookup (coreFunNameToIsabelleName fn) <$> use funcEnv
+  def <- fst . fromJust . M.lookup (unIsabelleName $ mkIsabelleName fn) <$> use funcEnv
   case def of
     FunDef attr fn ts ti to fb -> do
       env <- get

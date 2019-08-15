@@ -31,15 +31,18 @@ newtype IsabelleName = IsabelleName { unIsabelleName :: String }
   deriving (Eq, Show, Ord)
 
 checkIsabelleName :: IsabelleName -> Bool
-checkIsabelleName (IsabelleName n) = s `elem` reservedWords
+checkIsabelleName (IsabelleName n) = not $ n `elem` reservedWords
 
+-- TODO: Check name generated not already taken
 mkIsabelleName :: CoreFunName -> IsabelleName
 mkIsabelleName (CoreFunName s) = 
-  if (checkIsabelleName s) then IsabelleName s else IsabelleName (s ++ "'")
+  if (checkIsabelleName (IsabelleName s))
+    then IsabelleName s 
+    else IsabelleName (s ++ "'")
 
-editIsabelleName :: IsabelleName -> (String -> String) Maybe IsabelleName
-editIsabelleName (IsabelleName n f) = 
-  if (checkIsabelleName (f n)) then
+editIsabelleName :: IsabelleName -> (String -> String) -> Maybe IsabelleName
+editIsabelleName (IsabelleName n) f  = 
+  if (checkIsabelleName (IsabelleName $ f n)) then
     Just $ IsabelleName (f n)
   else 
     Nothing
