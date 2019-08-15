@@ -312,7 +312,7 @@ simplExpr sv subst ins (TE tau (App (TE tau1 (Fun fn tys note)) e2)) cont
       fb' <- return $ evalSimp (SimpEnv (env^.funcEnv) (fmap snd ts) (env^.varCount)) $
                simplExpr s1 (emptySubst s1) (emptyInScopeSet s1) (evalOcc (env^.funcEnv, emptyOccVec s1) $ markOcc s1 fb) Stop
       betaR fb' s0 sv e2' (unsafeCoerce tys')  -- FIXME
-    AbsDecl attr fn ts ti to    -> return $ TE tau $ App (TE tau1 (Fun (unsafeIsabelleNameToCoreFunName fn) tys note)) e2'
+    AbsDecl attr fn ts ti to    -> return $ TE tau $ App (TE tau1 (Fun (unsafeCoreFunName fn) tys note)) e2'
     _ -> __impossible "simplExpr"
 simplExpr sv subst ins (TE tau (App e1 e2))  cont = TE tau <$> (App <$> simplExpr sv subst ins e1 cont <*> simplExpr sv subst ins e2 cont)
 simplExpr sv subst ins (TE tau (Con cn e t)) cont = TE tau <$> (Con cn <$> simplExpr sv subst ins e cont <*> pure t)
