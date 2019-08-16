@@ -102,10 +102,10 @@ validateType rt@(RT t) = do
                        (c, TVariant fs') <- second (ffmap toSExpr) <$> fmapFoldM validateType t 
                        pure (c, V (Row.fromMap (fmap (first tuplize) fs')))
 #ifdef BUILTIN_ARRAYS
-    TArray te l -> do let l' = toSExpr l
-                          cl = Arith (SE $ PrimOp ">" [l', SE $ IntLit 0])
-                      (c,te') <- validateType te
-                      return (c <> cl, T $ TArray te' l')
+    TArray te l s -> do let l' = toSExpr l
+                            cl = Arith (SE $ PrimOp ">" [l', SE $ IntLit 0])
+                        (c,te') <- validateType te
+                        return (c <> cl, T $ TArray te' l' s)
 #endif
     _ -> second (T . ffmap toSExpr) <$> fmapFoldM validateType t 
 
@@ -261,15 +261,15 @@ cg' (ArrayLit es) t = do
   let (cs,es') = unzip blob
       n = SE . IntLit . fromIntegral $ length es
       cz = Arith (SE $ PrimOp ">" [n, SE (IntLit 0)])
-  return (mconcat cs <> cz <> F (T $ TArray alpha n) :< F t, ArrayLit es')
+  return (mconcat cs <> cz <> (T $ TArray alpha n Unboxed) :< t, ArrayLit es')
 
 cg' (ArrayIndex e i) t = do
   alpha <- freshTVar
   n <- freshEVar
-  let ta = T $ TArray alpha n
+  let ta = T $ TArray alpha n (__fixme Unboxed)  -- FIXME: we need to create a new TCType for arrays / zilinc
   (ce, e') <- cg e ta
   (ci, i') <- cg (dummyLocE i) (T $ TCon "U32" [] Unboxed)
-  let c = F alpha :< F t <> Share ta UsedInArrayIndexing
+  let c = alpha :< t <> Share ta UsedInArrayIndexing
         <> Arith (SE (PrimOp "<" [toSExpr i, n]))
         -- <> Arith (SE (PrimOp ">=" [toSExpr i, SE (IntLit 0)]))  -- as we don't have negative values
   traceTc "gen" (text "array indexing" <> colon
@@ -619,7 +619,7 @@ match' (PArray ps) t = do
   blob <- mapM (`match` alpha) ps
   let (ss,cs,ps') = unzip3 blob
       l = SE . IntLit . fromIntegral $ length ps
-      c = F t :< F (T $ TArray alpha l)
+      c = t :< (T $ TArray alpha l (__fixme Unboxed))  -- FIXME: can be boxed as well / zilinc
   return (M.unions ss, mconcat cs <> c, PArray ps')
 #endif
 

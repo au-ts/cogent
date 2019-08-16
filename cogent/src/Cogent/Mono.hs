@@ -214,7 +214,7 @@ monoType (TProduct t1 t2) = TProduct <$> monoType t1 <*> monoType t2
 monoType (TRecord fs s) = TRecord <$> mapM (\(f,(t,b)) -> (f,) <$> (,b) <$> monoType t) fs <*> pure s
 monoType (TUnit) = pure TUnit
 #ifdef BUILTIN_ARRAYS
-monoType (TArray t l) = TArray <$> monoType t <*> pure l
+monoType (TArray t l s) = TArray <$> monoType t <*> pure l <*> pure s
 #endif
 
 -- ----------------------------------------------------------------------------

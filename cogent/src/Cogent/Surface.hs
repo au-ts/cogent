@@ -123,7 +123,7 @@ data Type e t =
               | TTuple [t]
               | TUnit
 #ifdef BUILTIN_ARRAYS
-              | TArray t e
+              | TArray t e (Sigil (Maybe RepExpr))
 #endif
               -- In TypeCheck.Post, the TUnbox and TBang type-operators
               -- are normalised out of the syntax tree by altering the Sigil
@@ -331,7 +331,7 @@ instance Traversable (Flip Type t) where  -- e
   traverse _ (Flip (TTuple ts))          = pure $ Flip (TTuple ts)
   traverse _ (Flip (TUnit))              = pure $ Flip (TUnit)
 #ifdef BUILTIN_ARRAYS
-  traverse f (Flip (TArray t e))         = Flip <$> (TArray t <$> f e)
+  traverse f (Flip (TArray t e s))       = Flip <$> (TArray t <$> f e <*> pure s)
 #endif
   traverse _ (Flip (TUnbox t))           = pure $ Flip (TUnbox t)
   traverse _ (Flip (TBang t))            = pure $ Flip (TBang t)
@@ -438,7 +438,7 @@ fvT (RT (TVariant alts)) = foldMap (foldMap fvT . fst) alts
 fvT (RT (TTuple ts)) = foldMap fvT ts
 fvT (RT (TUnit)) = []
 #ifdef BUILTIN_ARRAYS
-fvT (RT (TArray t e)) = fvT t ++ fvE e
+fvT (RT (TArray t e _)) = fvT t ++ fvE e
 #endif
 fvT (RT (TUnbox   t)) = fvT t
 fvT (RT (TBang    t)) = fvT t
@@ -462,7 +462,7 @@ fcE (RE e) = foldMap fcE e
 fcT :: RawType -> [TagName]
 fcT (RT (TCon n ts _)) = n : foldMap fcT ts
 #ifdef BUILTIN_ARRAYS
-fcT (RT (TArray t e)) = fcT t ++ fcE e
+fcT (RT (TArray t e _)) = fcT t ++ fcE e
 #endif
 fcT (RT t) = foldMap fcT t
 
@@ -475,7 +475,7 @@ tvT (RT (TVariant alts)) = foldMap (foldMap tvT . fst) alts
 tvT (RT (TTuple ts)) = foldMap tvT ts
 tvT (RT (TUnit)) = []
 #ifdef BUILTIN_ARRAYS
-tvT (RT (TArray t e)) = tvT t  -- TODO: tvE
+tvT (RT (TArray t e _)) = tvT t  -- TODO: tvE
 #endif
 tvT (RT (TUnbox   t)) = tvT t
 tvT (RT (TBang    t)) = tvT t
