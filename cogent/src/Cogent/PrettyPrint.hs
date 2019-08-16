@@ -859,6 +859,10 @@ instance Pretty a => Pretty (DataLayout a) where
     keyword "repr" <> record (map prettyField $ M.toList fieldsDL)
     where prettyField (f,(l,_)) = fieldname f <> colon <> pretty l
 
+  pretty CStructLayout {fieldsDL} =
+    keyword "repr" <> keyword "struct" <> record (map prettyField $ M.toList fieldsDL)
+    where prettyField (f,(l,_)) = fieldname f <> colon <> pretty l
+
 
 instance Pretty BitRange where
   pretty BitRange {bitSizeBR, bitOffsetBR} = literal (pretty bitSizeBR) <> symbol "b" <+> symbol "at" <+> literal (pretty bitOffsetBR) <> symbol "b"
