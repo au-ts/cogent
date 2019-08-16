@@ -117,7 +117,7 @@ bound b (TProduct t11 t12) (TProduct t21 t22) = TProduct <$> bound b t11 t21 <*>
 bound b (TCon c1 t1 s1) (TCon c2 t2 s2) | c1 == c2, s1 == s2 = TCon c1 <$> zipWithM (bound b) t1 t2 <*> pure s1
 bound b (TFun t1 s1) (TFun t2 s2) = TFun <$> bound (theOtherB b) t1 t2 <*> bound b s1 s2
 #ifdef BUILTIN_ARRAYS
-bound b (TArray t1 l1) (TArray t2 l2) | l1 == l2 = TArray <$> bound b t1 t2 <*> pure l1
+bound b (TArray t1 l1 s1) (TArray t2 l2 s2) | l1 == l2, s1 == s2 = TArray <$> bound b t1 t2 <*> pure l1 <*> pure s1
 #endif
 bound _ t1 t2 = __impossible ("bound: not comparable: " ++ show (t1,t2))
 
@@ -145,7 +145,7 @@ bang (TProduct t1 t2) = TProduct (bang t1) (bang t2)
 bang (TRecord ts s)   = TRecord (map (second $ first bang) ts) (bangSigil s)
 bang (TUnit)          = TUnit
 #ifdef BUILTIN_ARRAYS
-bang (TArray t l)     = TArray (bang t) l
+bang (TArray t l s)   = TArray (bang t) l (bangSigil s)
 #endif
 
 substitute :: Vec t (Type u) -> Type t -> Type u
@@ -160,7 +160,7 @@ substitute vs (TRecord ts s)   = TRecord (map (second (first $ substitute vs)) t
 substitute vs (TSum ts)        = TSum (map (second (first $ substitute vs)) ts)
 substitute _  (TUnit)          = TUnit
 #ifdef BUILTIN_ARRAYS
-substitute vs (TArray t l)     = TArray (substitute vs t) l
+substitute vs (TArray t l s)   = TArray (substitute vs t) l s
 #endif
 
 remove :: (Eq a) => a -> [(a,b)] -> [(a,b)]
@@ -312,7 +312,7 @@ kindcheck_ f (TSum ts)        = mconcat <$> mapM (kindcheck_ f . fst . snd) (fil
 kindcheck_ f (TUnit)          = return mempty
 
 #ifdef BUILTIN_ARRAYS
-kindcheck_ f (TArray t l)     = kindcheck_ f t
+kindcheck_ f (TArray t l s)   = mappend <$> kindcheck_ f t <*> pure (sigilKind s)
 #endif
 
 kindcheck = kindcheck_ lookupKind
@@ -341,7 +341,7 @@ infer (E (ALit es))
             n = fromIntegral $ length es
         t <- lubAll ts
         isSub <- allM (`isSubtype` t) ts
-        return (TE (TArray t n) (ALit es'))
+        return (TE (TArray t n Unboxed) (ALit es'))
   where
     lubAll :: [Type t] -> TC t v (Type t)
     lubAll [] = __impossible "lubAll: empty list"
@@ -350,21 +350,21 @@ infer (E (ALit es))
                            lubAll (t:ts)
 infer (E (ArrayIndex arr idx))
    = do arr'@(TE ta _) <- infer arr
-        let TArray te l = ta
+        let TArray te l _ = ta
         guardShow ("arr-idx out of bound") $ idx >= 0 && idx < l
         guardShow ("arr-idx on non-linear") . canShare =<< kindcheck ta
         return (TE te (ArrayIndex arr' idx))
 infer (E (Pop a e1 e2))
    = do e1'@(TE t1 _) <- infer e1
-        let TArray te l = t1
+        let TArray te l s = t1
             thd = te
-            ttl = TArray te (l - 1)
+            ttl = TArray te (l - 1) s
         guardShow "arr-pop on a singleton array" $ l > 1
         e2'@(TE t2 _) <- withBindings (Cons thd (Cons ttl Nil)) $ infer e2
         return (TE t2 (Pop a e1' e2'))
 infer (E (Singleton e))
    = do e'@(TE t _) <- infer e
-        let TArray te l = t
+        let TArray te l _ = t
         guardShow "singleton on a non-singleton array" $ l == 1
         return (TE te (Singleton e'))
 #endif

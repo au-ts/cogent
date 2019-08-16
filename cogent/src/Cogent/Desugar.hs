@@ -476,7 +476,7 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArray [p]) pos)) e = do
   --    e0 | [p] in e ~~> let [v] = e0; p = v in e
   v <- freshVar
   let B.TE te0 _ _ = e0
-      S.RT (S.TArray telt l) = te0
+      S.RT (S.TArray telt l _) = te0
       b1 = S.Binding (B.TIP (S.PVar (v,telt)) pos) Nothing e0 []
       b2 = S.Binding p Nothing (B.TE telt (S.Var v) pos) []
   desugarExpr $ B.TE (B.getTypeTE e) (S.Let [b1,b2] e) pos
@@ -486,15 +486,15 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArray (B.TIP (S.PVar (v,_)) _ : ps)) p
   --   Ind. case: e0 | p:@ps in e ==> let v:@ps = e0; p = v in e
   vs <- freshVar
   e0' <- desugarExpr e0
-  let S.RT (S.TArray te le) = B.getTypeTE e0
-      tvs = S.RT (S.TArray te (S.RE (S.PrimOp "-" [le, S.RE (S.IntLit 1)])))
+  let S.RT (S.TArray te le s) = B.getTypeTE e0
+      tvs = S.RT (S.TArray te (S.RE (S.PrimOp "-" [le, S.RE (S.IntLit 1)])) s)
       e10 = B.TE tvs (S.Var vs) pos
       p1 = S.PIrrefutable $ B.TIP (S.PArray ps) pos
   e1' <- withBindings (Cons v (Cons vs Nil)) $ desugarAlt' e10 p1 e
   return $ E (Pop (v,vs) e0' e1')
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArray (p:ps)) pos)) e = do
   v <- freshVar
-  let S.RT (S.TArray te l) = B.getTypeTE e0
+  let S.RT (S.TArray te l _) = B.getTypeTE e0
       b1 = S.Binding (B.TIP (S.PArray ((B.TIP (S.PVar (v,te)) pos):ps)) pos) Nothing e0 []
       b2 = S.Binding p Nothing (B.TE te (S.Var v) pos) []
   desugarExpr $ B.TE (B.getTypeTE e) (S.Let [b1,b2] e) pos
@@ -544,7 +544,10 @@ desugarType = \case
     return $ TRecord fs Unboxed
   S.RT (S.TUnit)   -> return TUnit
 #ifdef BUILTIN_ARRAYS
-  S.RT (S.TArray t l) -> TArray <$> desugarType t <*> evalAExpr l  -- desugarExpr' l
+  S.RT (S.TArray t l Unboxed) -> TArray <$> desugarType t <*> evalAExpr l <*> pure Unboxed -- desugarExpr' l
+  S.RT (S.TArray t l sigil  ) -> do
+    unboxedDesugared@(TArray t' l' Unboxed) <- desugarType $ S.RT (S.TArray t l Unboxed)
+    TArray <$> pure t' <*> pure l' <*> pure (desugarSigil unboxedDesugared sigil)
 #endif
   notInWHNF -> __impossible $ "desugarType (type " ++ show (pretty notInWHNF) ++ " is not in WHNF)"
 

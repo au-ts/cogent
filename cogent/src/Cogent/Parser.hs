@@ -348,7 +348,7 @@ monotype = do avoidInitial
 #ifdef BUILTIN_ARRAYS
            <|>  try ( do { t <- atomtype
                          ; l <- brackets $ expr 1
-                         ; return (LocType (posOfT t) $ TArray t l)
+                         ; return (LocType (posOfT t) $ TArray t l Unboxed)  -- TODO: add syntax for sigil / zilinc
                          } )
 #endif
            <|>  (atomtype >>= \t -> optionMaybe bang >>= \op -> case op of Nothing -> return t; Just f -> return (f t)))
