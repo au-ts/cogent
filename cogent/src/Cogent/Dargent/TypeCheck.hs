@@ -49,10 +49,7 @@ typeCheckDataLayoutExpr env (RepRef n) =
     Just (_, allocation) -> mapPaths (InDecl n) $ return allocation
     Nothing              -> returnError $ UnknownDataLayout n PathEnd
         
-typeCheckDataLayoutExpr _ (Prim size) =
-  if bitSize == 0
-    then returnError $ ZeroSizedBitRange (InTag PathEnd)
-    else return [(bitRange, PathEnd)]
+typeCheckDataLayoutExpr _ (Prim size) = return [(bitRange, PathEnd)]
   where
     bitSize = desugarSize size
     bitRange = BitRange bitSize 0
@@ -78,9 +75,7 @@ typeCheckDataLayoutExpr env (Record fields) =
 typeCheckDataLayoutExpr env (Variant tagExpr alternatives) = do
   case primitiveBitRange tagExpr of
     Just tagBits ->
-      if isZeroSizedBR tagBits
-      then returnError $ ZeroSizedBitRange (InTag PathEnd)
-      else do
+      do
         altsAlloc <- fst <$> foldM (typeCheckAlternative tagBits) ([], M.empty) alternatives
         [(tagBits, InTag PathEnd)] /\ altsAlloc
     Nothing       -> returnError $ TagNotSingleBlock (InTag PathEnd)

@@ -38,7 +38,7 @@ import Cogent.Common.Types          ( Sigil(Unboxed, Boxed), PrimInt(..))
 import Cogent.Dargent.Surface       ( DataLayoutExpr
                                     , DataLayoutSize
                                     , RepSize(Bytes, Bits, Add)
-                                    , RepExpr(RepRef, Prim, Offset, Record, Variant)
+                                    , RepExpr(RepRef, Prim, Offset, Record, Variant, CStructDL)
                                     )
 import Cogent.Dargent.TypeCheck     (desugarSize)
 import Cogent.Dargent.Core
@@ -114,11 +114,13 @@ desugarDataLayout (Variant tagExpr alts) =
 
     alts' = fmap (\(aname, pos, size, layout) -> (aname, (size, desugarDataLayout layout, pos))) alts
 
-
+desugarDataLayout (CStructDL fields) =
+  CStructLayout $ M.fromList fields'
+  where fields' = fmap (\(fname, pos, layout) -> (fname, (desugarDataLayout layout, pos))) fields
 
 {- * CONSTRUCTING 'DataLayout's -}
 
--- constructs a default layout? ~ v.jackson
+-- constructs a default layout
 constructDataLayout :: Type t -> DataLayout BitRange
 
 -- Equations for unboxed embedded types
@@ -142,7 +144,7 @@ constructDataLayout (TSum alternatives)
           in  ((endAllocatedBits layout, tagValue + 1), (name, (tagValue, layout, dummyPos)))
 
 
-constructDataLayout (TRecord fields Unboxed) = RecordLayout . fromList . snd $ mapAccumL constructFieldLayout 0 fields
+constructDataLayout (TRecord fields Unboxed) = CStructLayout . fromList . snd $ mapAccumL constructFieldLayout 0 fields
   where
     constructFieldLayout :: Size -> (FieldName, (Type t, Bool)) -> (Size, (FieldName, (DataLayout BitRange, SourcePos)))
     constructFieldLayout minBitOffset (name, (coreType, _)) =

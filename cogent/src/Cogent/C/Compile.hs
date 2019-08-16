@@ -503,12 +503,14 @@ genExpr mv (TE t (Take _ rec fld e)) = do
   --       @f'@ directly evaluates to the value of the field being taken
   let fieldName = fst $ fs !! fld
   fieldExpr <-
-    if s == Unboxed
-    then
-      return $ strDot rec'' fieldName
-    else do
-      fieldGetter <- genBoxedGetSetField rect fieldName Get
-      return $ CEFnCall fieldGetter [rec'']
+    (case s of 
+      Unboxed -> return $ strDot rec'' fieldName
+      Boxed _ CStructLayout{} ->
+        return $ strArrow rec'' fieldName
+      Boxed _ _ ->
+        do
+          fieldGetter <- genBoxedGetSetField rect fieldName Get
+          return $ CEFnCall fieldGetter [rec''])
 
   ft <- genType . fst . snd $ fs !! fld
   (f', fdecl, fstm, fp) <-

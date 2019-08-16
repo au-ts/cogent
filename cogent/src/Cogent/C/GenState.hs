@@ -153,12 +153,16 @@ newtype Gen v a = Gen { runGen :: RWS (GenRead v) () GenState a }
 
 
 genTyDecl :: (StrlType, CId) -> [TypeName] -> [CExtDecl]
-genTyDecl (Record x, n) _ = [CDecl $ CStructDecl n (map (second Just . swap) x), genTySynDecl (n, CStruct n)]
+genTyDecl (Record x p, n) _ =
+  let ty = (if p then CPtr else id) $ CStruct n
+   in [CDecl $ CStructDecl n (map (second Just . swap) x), genTySynDecl (n, ty)]
 genTyDecl (BoxedRecord (StrlCogentType (TRecord _ (Boxed _ layout))), n) _ =
-  let size      = max (dataLayoutSizeBytes layout) 1 -- max with 1 here to stop C complaining
+  let size      = dataLayoutSizeBytes layout
       arrayType = CArray (CInt False CIntT) (CArraySize $ CConst $ CNumConst size (CInt False CIntT) DEC)
-  in [CDecl $ CStructDecl n [(arrayType, Just "data")], genTySynDecl (n, CPtr $ CStruct n)]
-
+  in
+    if size == 0
+      then []
+      else [CDecl $ CStructDecl n [(arrayType, Just "data")], genTySynDecl (n, CPtr $ CStruct n)]
 genTyDecl (Product t1 t2, n) _ = [CDecl $ CStructDecl n [(t1, Just p1), (t2, Just p2)]]
 genTyDecl (Variant x, n) _ = case __cogent_funion_for_variants of
   False -> [CDecl $ CStructDecl n ((CIdent tagsT, Just fieldTag) : map (second Just . swap) (M.toList x)),
@@ -214,11 +218,19 @@ lookupTypeCId (TCon tn ts _) = getCompose (forM ts (\t -> (if isUnboxed t then (
                                            Compose $ return (if ts' `S.member` tss
                                                                then return $ tn ++ "_" ++ L.intercalate "_" ts'
                                                                else Nothing))
-lookupTypeCId (TProduct t1 t2) = getCompose (Compose . lookupStrlTypeCId =<< Record <$> (P.zip [p1,p2] <$> mapM (Compose . lookupType) [t1,t2]))
+lookupTypeCId (TProduct t1 t2) =
+  getCompose (Compose . lookupStrlTypeCId =<<
+    flip Record False <$> (P.zip [p1,p2] <$> mapM (Compose . lookupType) [t1,t2]))
 lookupTypeCId (TSum fs) = getCompose (Compose . lookupStrlTypeCId =<< Variant . M.fromList <$> mapM (secondM (Compose . lookupType) . second fst) fs)
 lookupTypeCId (TFun t1 t2) = getCompose (Compose . lookupStrlTypeCId =<< Function <$> (Compose . lookupType) t1 <*> (Compose . lookupType) t2)  -- Use the enum type for function dispatching
-lookupTypeCId (TRecord fs Unboxed) = getCompose (Compose . lookupStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> (Compose . lookupType) b) fs))
-lookupTypeCId cogentType@(TRecord _ (Boxed _ _)) = lookupStrlTypeCId (BoxedRecord (StrlCogentType cogentType))
+lookupTypeCId (TRecord fs Unboxed) =
+  getCompose (Compose . lookupStrlTypeCId =<<
+    flip Record False <$> (mapM (\(a,(b,_)) -> (a,) <$> (Compose . lookupType) b) fs))
+lookupTypeCId cogentType@(TRecord _ (Boxed _ RecordLayout{})) = lookupStrlTypeCId (BoxedRecord (StrlCogentType cogentType))
+lookupTypeCId cogentType@(TRecord fs (Boxed _ CStructLayout{})) =
+  getCompose (Compose . lookupStrlTypeCId =<<
+    flip Record True <$> (mapM (\(a,(b,_)) -> (a,) <$> (Compose . lookupType) b) fs))
+lookupTypeCId cogentType@(TRecord _ (Boxed _ _)) = __impossible "lookupTypeCId: record with non-record layout"
 #if BUILTIN_ARRAYS
 lookupTypeCId (TArray t l) = getCompose (Compose . lookupStrlTypeCId =<< Array <$> (Compose . lookupType) t <*> pure (Just $ fromIntegral l))
 #endif
@@ -268,11 +280,15 @@ typeCId t = use custTypeGen >>= \ctg ->
                       cTypeDefMap %= M.insert (AbsType tn') tn'
         Just _  -> return ()
       return tn'
-    typeCId' (TProduct t1 t2) = getStrlTypeCId =<< Record <$> (P.zip [p1,p2] <$> mapM genType [t1,t2])
+    typeCId' (TProduct t1 t2) = getStrlTypeCId =<< flip Record False <$> (P.zip [p1,p2] <$> mapM genType [t1,t2]) 
     typeCId' (TSum fs) = getStrlTypeCId =<< Variant . M.fromList <$> mapM (secondM genType . second fst) fs
     typeCId' (TFun t1 t2) = getStrlTypeCId =<< Function <$> genType t1 <*> genType t2  -- Use the enum type for function dispatching
-    typeCId' (TRecord fs Unboxed) = getStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs)
-    typeCId' cogentType@(TRecord _ (Boxed _ _)) = getStrlTypeCId (BoxedRecord (StrlCogentType cogentType))
+    typeCId' (TRecord fs Unboxed) = getStrlTypeCId =<< flip Record False <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs)
+    typeCId' cogentType@(TRecord fs (Boxed _ l)) =
+      case l of
+        RecordLayout{}  -> getStrlTypeCId (BoxedRecord (StrlCogentType cogentType))
+        CStructLayout{} -> getStrlTypeCId =<< flip Record True <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs)
+        _ -> __impossible "Tried to get the c-type of a record with a non-record layout"
     typeCId' (TUnit) = return unitT
 #if BUILTIN_ARRAYS
     typeCId' (TArray t l) = getStrlTypeCId =<< Array <$> genType t <*> pure (Just $ fromIntegral l)
@@ -284,7 +300,7 @@ typeCId t = use custTypeGen >>= \ctg ->
       fss <- forM (P.zip3 [p1,p2] [t1,t2] ts') $ \(f,t,t') -> case t' of
         CPtr _ -> return [(f,t')]
         _      -> collFields f t
-      getStrlTypeCId $ Record (concat fss)
+      getStrlTypeCId $ Record (concat fss) False
     -- typeCIdFlat (TSum fs) = __todo  -- Don't flatten variants for now. It's not clear how to incorporate with --funion-for-variants
     typeCIdFlat (TRecord fs Unboxed) = do
       let (fns,ts) = P.unzip $ P.map (second fst) fs
@@ -292,7 +308,7 @@ typeCId t = use custTypeGen >>= \ctg ->
       fss <- forM (P.zip3 fns ts ts') $ \(f,t,t') -> case t' of
         CPtr _ -> return [(f,t')]
         _      -> collFields f t
-      getStrlTypeCId $ Record (concat fss)
+      getStrlTypeCId $ Record (concat fss) False
     typeCIdFlat t = typeCId' t
 
     collFields :: FieldName -> CC.Type 'Zero -> Gen v [(CId, CType)]
