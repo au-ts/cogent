@@ -47,6 +47,10 @@ data DataLayout bits
   | RecordLayout
     { fieldsDL        :: Map FieldName (DataLayout bits, SourcePos)
     }
+  -- Let C decide; n.b. we can't get the size of this
+  | CStructLayout
+    { fieldsDL        :: Map FieldName (DataLayout bits, SourcePos)
+    }
   deriving (Show, Eq, Functor, Foldable)
 
 deriving instance Ord bits => Ord (DataLayout bits)

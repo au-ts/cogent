@@ -97,16 +97,26 @@ genBoxedGetSetField cogentType fieldName getOrSet = do
   boxedRecordGetterSetter    <- use ((case getOrSet of Get -> boxedRecordGetters; Set -> boxedRecordSetters) . at (cogentType, fieldName))
   case boxedRecordGetterSetter of
     Just getSetFieldFunction -> return getSetFieldFunction
-    Nothing                  -> do
-      let TRecord fieldTypes (Boxed _ (RecordLayout fieldLayouts))
-                              = cogentType
-          fieldType           = fst $ (fromList fieldTypes) ! fieldName
-          fieldLayout         = alignLayout $ fst $ fieldLayouts ! fieldName
-      boxCType               <- genType cogentType
-      getSetFieldFunction    <- genBoxedGetterSetter boxCType fieldType fieldLayout [fieldName] getOrSet
-      ((case getOrSet of Get -> boxedRecordGetters; Set -> boxedRecordSetters) . at (cogentType, fieldName))
-                             ?= getSetFieldFunction
-      return getSetFieldFunction
+    Nothing                  ->
+      case cogentType of
+        TRecord fieldTypes (Boxed _ (RecordLayout fieldLayouts)) ->
+          do
+            let fieldType       = fst $ (fromList fieldTypes) ! fieldName
+                fieldLayout     = alignLayout $ fst $ fieldLayouts ! fieldName
+            boxCType            <- genType cogentType
+            getSetFieldFunction <- genBoxedGetterSetter boxCType fieldType fieldLayout [fieldName] getOrSet
+            ((case getOrSet of Get -> boxedRecordGetters; Set -> boxedRecordSetters) . at (cogentType, fieldName))
+                                ?= getSetFieldFunction
+            return getSetFieldFunction
+        TRecord fieldTypes (Boxed _ (CStructLayout fieldLayouts)) ->
+          do
+            let fieldType       = fst $ (fromList fieldTypes) ! fieldName
+                fieldLayout     = alignLayout $ fst $ fieldLayouts ! fieldName
+            boxCType            <- genType cogentType
+            getSetFieldFunction <- genBoxedGetterSetter boxCType fieldType fieldLayout [fieldName] getOrSet
+            ((case getOrSet of Get -> boxedRecordGetters; Set -> boxedRecordSetters) . at (cogentType, fieldName))
+                                ?= getSetFieldFunction
+            return getSetFieldFunction
 
 
 {-|
@@ -170,7 +180,7 @@ genBoxedGetterSetter boxType embeddedTypeCogent@(TRecord fields Unboxed) (Record
   embeddedTypeC         <- genType embeddedTypeCogent
   functionName          <- genGetterSetterName path getOrSet
   fieldGettersSetters   <-
-      mapM
+    mapM
       (\(fieldName, (fieldType, _)) -> do
           let fieldLayout = fst $ fieldsDL ! fieldName
           getterSetter <- genBoxedGetterSetter boxType fieldType fieldLayout (path ++ [fieldName]) getOrSet
@@ -178,6 +188,20 @@ genBoxedGetterSetter boxType embeddedTypeCogent@(TRecord fields Unboxed) (Record
       )
       fields
   declareSetterOrGetter $ recordGetterSetter fieldGettersSetters boxType embeddedTypeC functionName getOrSet
+  return (CVar functionName Nothing)
+
+genBoxedGetterSetter boxType embeddedTypeCogent@(TRecord fields (Boxed _ _)) (CStructLayout { fieldsDL }) path getOrSet = do
+  embeddedTypeC         <- genType embeddedTypeCogent
+  functionName          <- genGetterSetterName path getOrSet
+  fieldGettersSetters   <-
+    mapM
+      (\(fieldName, (fieldType, _)) -> do
+          let fieldLayout = fst $ fieldsDL ! fieldName
+          getterSetter <- genBoxedGetterSetter boxType fieldType fieldLayout (path ++ [fieldName]) getOrSet
+          return (fieldName, getterSetter)
+      )
+      fields
+  declareSetterOrGetter $ ptrStructGetterSetter fieldGettersSetters boxType embeddedTypeC functionName getOrSet
   return (CVar functionName Nothing)
 
 genBoxedGetterSetter boxType (TUnit) (UnitLayout) path getOrSet = do
@@ -409,6 +433,22 @@ recordGetterSetter fields boxType embeddedType functionName getOrSet =
       fields
     )
 
+ptrStructGetterSetter fields boxType embeddedType functionName getOrSet =
+  getterSetterDecl boxType embeddedType functionName getOrSet
+    -- Get statements
+    [ CBIStmt $ CReturn $ Just $ CCompLit embeddedType $
+        fmap
+        (\(fieldName, fieldGetter) -> ([CDesignFld fieldName], CInitE $ CEFnCall fieldGetter [boxVariable]))
+        fields
+    ]
+
+    -- Set statements
+    ( fmap
+      (\(fieldName, fieldSetter) ->
+        CBIStmt $ CAssignFnCall Nothing fieldSetter [boxVariable, CStructDot (CDeref valueVariable) fieldName])
+      fields
+    )
+    
     
 unitGetterSetter
   :: CType
