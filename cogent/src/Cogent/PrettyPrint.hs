@@ -488,13 +488,13 @@ instance (Pretty t, TypeType t, Pretty e) => Pretty (Type e t) where
   pretty (TArray t l) = prettyT' t <> brackets (pretty l)
 #endif
   pretty (TRecord ts s)
-    | not . or $ map (snd . snd) ts = (if | s == Unboxed -> (typesymbol "#" <>)
-                                          | readonly s -> (<> typesymbol "!")
-                                          | otherwise -> id) $
+    | not . or $ map (snd . snd) ts = prettySigil s $
         record (map (\(a,(b,c)) -> fieldname a <+> symbol ":" <+> pretty b) ts)  -- all untaken
     | otherwise = pretty (TRecord (map (second . second $ const False) ts) s :: Type e t)
               <+> typesymbol "take" <+> tupled1 (map fieldname tk)
         where tk = map fst $ filter (snd . snd) ts
+              prettySigil (Unboxed) = (typesymbol "#" <>)
+              prettySigil (Boxed rw l) = ((<+> pretty l) . (if rw then (<> typesymbol "!") else id))
   pretty (TVariant ts) | any snd ts = let
      names = map fst $ filter (snd . snd) $ M.toList ts
    in pretty (TVariant $ fmap (second (const False)) ts :: Type e t)
