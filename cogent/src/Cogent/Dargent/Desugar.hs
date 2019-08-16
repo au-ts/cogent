@@ -158,7 +158,7 @@ constructDataLayout (TVarBang     _  ) = __impossible $ "constructDataLayout (Ty
 constructDataLayout (TFun         _ _) = __impossible $ "constructDataLayout (Type check should fail on boxed types containing functions)"
 constructDataLayout (TString         ) = __impossible $ "constructDataLayout (Type check should fail on boxed types containing strings)"
 #if BUILTIN_ARRAYS
-constructDataLayout (TArray       _ _) = __impossible $ "constructDataLayout (Type check should fail on boxed types containing arrays)"
+constructDataLayout (TArray     _ _ _) = __impossible $ "constructDataLayout (Type check should fail on boxed types containing arrays)"
 #endif
 constructDataLayout (TProduct     _ _) = __impossible $ "constructDataLayout (Type check should fail on boxed types containing pairs)"
   -- TODO(dargent): implement matching data layouts with types so that the above mentioned type check fails actually occur /mdimeglio

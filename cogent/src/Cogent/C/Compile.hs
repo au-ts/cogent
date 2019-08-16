@@ -386,7 +386,7 @@ genExpr mv (TE t (SLit s)) = do
 #ifdef BUILTIN_ARRAYS
 genExpr mv (TE t (ALit es)) = do
   blob <- mapM genExpr_ es
-  let TArray telt _ = t
+  let TArray telt _ _ = t
   t' <- genTypeALit t
   telt' <- genType telt
   (v,vdecl,vstm) <- maybeDecl mv t'
@@ -406,9 +406,9 @@ genExpr mv (TE t (Pop _ e1 e2)) = do  -- FIXME: varpool - as above
   -- Idea:
   --   v :@ vs = e1 in e2 ~~> v1 = e1[0]; t v2[l-1]; v2 = e1[1]; e2
   (e1',e1decl,e1stm,e1p) <- genExpr_ e1
-  let t1@(TArray telt l) = exprType e1
+  let t1@(TArray telt l s) = exprType e1
   (v1,v1decl,v1stm,v1p) <- flip3 aNewVar e1p (mkArrIdx e1' 0) =<< genType telt
-  let trest = TArray telt (l-1)
+  let trest = TArray telt (l-1) s
   trest' <- genTypeP trest
   (v2,v2decl,v2stm) <- declare trest'
   -- recycleVars v1p

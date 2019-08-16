@@ -40,6 +40,9 @@ normaliseRW = rewrite' $ \t -> case t of
       | isNothing (Row.var row) -> pure (V (fmap (T . TBang) row))
     T (TBang (T (TTuple ts))) -> pure (T (TTuple (map (T . TBang) ts)))
     T (TBang (T TUnit)) -> pure (T TUnit)
+#ifdef BUILTIN_ARRAYS
+    T (TBang (T (TArray t e s))) -> pure (T (TArray (T (TBang t)) e (bangSigil s)))
+#endif
 
     T (TUnbox (T (TCon t ts s))) -> pure (T (TCon t ts Unboxed))
     T (TUnbox (R row _)) -> pure (R row (Left Unboxed))
@@ -74,9 +77,6 @@ normaliseRW = rewrite' $ \t -> case t of
       empty
     _ -> empty 
 
-#ifdef BUILTIN_ARRAYS
-    T (TBang (T (TArray t e))) -> pure (T (TArray (T (TBang t)) e))
-#endif
   where
     bangSigil (Boxed _ r) = Boxed True r
     bangSigil x           = x

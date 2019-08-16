@@ -486,7 +486,7 @@ instance (Pretty t, TypeType t, Pretty e) => Pretty (Type e t) where
   pretty (TTuple ts) = tupled (map pretty ts)
   pretty (TUnit)     = typesymbol "()" & (if __cogent_fdisambiguate_pp then (<+> comment "{- unit -}") else id)
 #ifdef BUILTIN_ARRAYS
-  pretty (TArray t l) = prettyT' t <> brackets (pretty l)
+  pretty (TArray t l s) = prettyT' t <> brackets (pretty l) <+> pretty s  -- TODO: use real syntax for sigil / zilinc
 #endif
   pretty (TRecord ts s) =
       let recordPretty = record (map (\(a,(b,c)) -> fieldname a <+> symbol ":" <+> pretty b) ts) -- all untaken
