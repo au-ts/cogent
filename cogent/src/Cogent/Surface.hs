@@ -98,6 +98,7 @@ data Expr t p ip e = PrimOp OpName [e]
 #ifdef BUILTIN_ARRAYS
                    | ArrayLit [e]
                    | ArrayIndex e AExpr
+                   | ArrayMap2 ((ip, ip), e) (e, e)
 #endif
                    | Tuple [e]  -- When desugared into tuples, it's right associative.
                    | UnboxedRecord [(FieldName, e)]
