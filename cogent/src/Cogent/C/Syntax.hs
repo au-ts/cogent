@@ -45,7 +45,7 @@ data CArraySize = CArraySize CExpr
                 | CPtrToArray
                 deriving (Eq, Ord, Show)
 
--- The type parameter has been striped off
+-- The type parameter has been stripped off
 data CType = CInt Bool CIntType      -- ^ 'True' is signed
            | CogentPrim  PrimInt     -- ^ add Cogent primitive types
            | CBool  -- ^ __NOTE:__ this should be the same as Cogent boolean (could be used interchangeably)
@@ -163,7 +163,7 @@ data CExtDecl = CFnDefn (CType, CId) [(CType, CId)] [CBlockItem] FnSpec
 
 -- | 'StrlType' tried to unify some of the types we have in Core.
 --   It can be deemed as the C representation for Cogent types.
-data StrlType = Record  [(CId, CType)]       -- ^ @(fieldname &#x21A6; fieldtype)@
+data StrlType = Record  [(CId, CType)] Bool -- ^ @(fieldname &#x21A6; fieldtype)@ and if it's behind a pointer
               | BoxedRecord StrlCogentType
                 -- ^ Depends on the Cogent type of the record, so that different boxed cogent records
                 --   get given different StrlTypes and thus different CTypes.
