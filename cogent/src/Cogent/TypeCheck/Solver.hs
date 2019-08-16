@@ -99,7 +99,7 @@ solve ks c = let gs     = makeGoals [] c
               in fmap (fromMaybe gs) (runMaybeT (Rewrite.run' rw gs))
  where
   -- TODO: probably want a compiler flag here
-  debug  nm rw = rw -- `Rewrite.andThen` Rewrite.debugPass ("\n===Rewrite " ++ nm ++ "===") printC
+  debug  nm rw = rw -- rw `Rewrite.andThen` Rewrite.debugPass ("\n===Rewrite " ++ nm ++ "===") printC
   debugL nm rw = Rewrite.lift rw -- debug nm (Rewrite.lift rw)
   debugF nm = mempty -- Rewrite.debugFail ("\n===Rewrite " ++ nm ++ "===") printC
 

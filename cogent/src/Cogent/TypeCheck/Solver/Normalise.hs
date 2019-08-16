@@ -64,8 +64,12 @@ normaliseRW = rewrite' $ \t -> case t of
       | isNothing (Row.var row) -> case fs of 
         Nothing -> pure $ V (Row.putAll row)
         Just fs -> pure $ V (Row.putMany fs row)
-
-    T (TLayout l t) -> pure $ t
+    T (TLayout l (R row (Left (Boxed p _)))) ->
+      pure $ R row $ Left $ Boxed p (Just l)
+    T (TLayout l (R row (Right i))) ->
+      __impossible "normaliseRW: TLayout over a sigil variable"
+    T (TLayout l _) -> -- TODO(dargent): maybe handle this later
+      empty
     _ -> empty 
 
 #ifdef BUILTIN_ARRAYS

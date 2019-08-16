@@ -191,9 +191,7 @@ normaliseT d (Synonym n ts) =
 --     Just t'' -> normaliseT d t''
 --     Nothing  -> Left (RemoveCaseFromNonVariant p t)
 normaliseT d (V x) = T . TVariant . M.fromList . Row.toEntryList . fmap (:[]) <$> traverse (normaliseT d) x
-normaliseT d (R x (Left s)) =
-  T . flip TRecord (__fixme $ fmap (const Nothing) s) . Row.toEntryList <$> -- TODO(dargent): check this is correct
-    traverse (normaliseT d) x
+normaliseT d (R x (Left s)) = T . flip TRecord s . Row.toEntryList <$> traverse (normaliseT d) x
 normaliseT d (R x (Right s)) =  __impossible ("normaliseT: invalid sigil (?" ++ show s ++ ")")
 normaliseT d (U x) = __impossible ("normaliseT: invalid type (?" ++ show x ++ ")")
 normaliseT d (T x) = T <$> traverse (normaliseT d) x
