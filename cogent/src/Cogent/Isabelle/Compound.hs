@@ -12,7 +12,7 @@
   Compound: taking apart compound expressions, and putting them back together
 -}
 
-{-# OPTIONS_GHC -Werror -Wall #-}
+{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE GADTs #-}
