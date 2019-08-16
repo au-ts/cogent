@@ -79,8 +79,10 @@ data Type t
     -- True means taken, Layout will be nothing for abstract types
   | TUnit
 #ifdef BUILTIN_ARRAYS
-  | TArray (Type t) ArraySize  -- use Int for now
-                               -- XXX | ^^^ (UntypedExpr t 'Zero VarName)  -- stick to UntypedExpr to be simple / zilinc
+  | TArray (Type t) ArraySize (Sigil (DataLayout BitRange))
+    -- ^^ use Int for now
+    -- XXX | ^^^ (UntypedExpr t 'Zero VarName)  -- stick to UntypedExpr to be simple / zilinc
+    -- The sigil specifies the layout of the element
 #endif
   deriving (Show, Eq, Ord)
 
@@ -102,6 +104,9 @@ isTFun _ = False
 isUnboxed :: Type t -> Bool
 isUnboxed (TCon _ _ Unboxed) = True
 isUnboxed (TRecord _ Unboxed) =  True
+#ifdef BUILTIN_ARRAYS
+isUnboxed (TArray _ _ Unboxed) = True
+#endif
 isUnboxed _ = False
 
 data FunNote = NoInline | InlineMe | MacroCall | InlinePlease  -- order is important, larger value has stronger precedence
@@ -120,7 +125,8 @@ data Expr t v a e
   | ALit [e t v a]
   | ArrayIndex (e t v a) ArrayIndex
   | Pop (a, a) (e t v a) (e t ('Suc ('Suc v)) a)
-  | Singleton (e t v a)
+  | Singleton (e t v a)  -- extracting the element out of a singleton array
+  | MapArray2 (a, a) ((a, a), e t v a) (e t ('Suc ('Suc v)) a) 
 #endif
   | Let a (e t v a) (e t ('Suc v) a)
   | LetBang [(Fin v, a)] a (e t v a) (e t ('Suc v) a)
@@ -454,7 +460,7 @@ instance Pretty (Type t) where
   pretty (TCon tn [] s) = typename tn <> pretty s
   pretty (TCon tn ts s) = typename tn <> pretty s <+> typeargs (map pretty ts)
 #ifdef BUILTIN_ARRAYS
-  pretty (TArray t l) = pretty t <> brackets (pretty l)
+  pretty (TArray t l s) = pretty t <> brackets (pretty l) <+> pretty s
 #endif
 
 prettyTaken :: Bool -> Doc
