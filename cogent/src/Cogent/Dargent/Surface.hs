@@ -41,8 +41,9 @@ data RepDecl
 -- | TODO: Rename to DataLayoutExpr
 data RepExpr
   = Prim    RepSize
-  | Record  [(FieldName, SourcePos, RepExpr)] 
+  | Record  [(FieldName, SourcePos, RepExpr)]
   | Variant RepExpr [(TagName, SourcePos, Size, RepExpr)]
   | Offset  RepExpr RepSize
   | RepRef  RepName
+  | CStructDL  [(FieldName, SourcePos, RepExpr)]
   deriving (Show, Data, Eq, Ord)
