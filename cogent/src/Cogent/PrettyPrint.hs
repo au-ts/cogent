@@ -142,6 +142,7 @@ instance Prec (Expr t p ip e) where
   prec (Tuple {}) = 0
 #ifdef BUILTIN_ARRAYS
   prec (ArrayLit {}) = 0
+  prec (ArrayMap2 {}) = 9
 #endif
   prec (UnboxedRecord {}) = 0
   -- vvv parsed by the expression builder
@@ -308,6 +309,8 @@ instance TypeType TCType where
   isTakePut (T t) = isTakePut t
   isTakePut _     = False
   isAtomic  (T t) = isAtomic t
+  isAtomic  (U _) = True
+  isAtomic  (Synonym _ []) = True
   isAtomic  _     = False
 
 -- ------------------------------------
@@ -411,6 +414,7 @@ instance (ExprType e, Prec e, Pretty t, PatnType p, Pretty p, PatnType ip, Prett
 #ifdef BUILTIN_ARRAYS
   pretty (ArrayLit es)       = array $ map pretty es
   pretty (ArrayIndex e i)    = prettyPrec 11 e <+> symbol "@" <+> prettyPrec 10 i
+  pretty (ArrayMap2 ((p1,p2),f) (e1,e2)) = keyword "map2" <+> parens (string "\\" <> pretty p1 <+> pretty p2) <+> prettyPrec 1 e1 <+> prettyPrec 1 e2
 #endif
   pretty (Unitel)            = string "()"
   pretty (PrimOp n [a,b])
@@ -534,9 +538,13 @@ instance Pretty TCType where
                         Left s -> pretty s
                         Right n -> symbol $ "(?" ++ show n ++ ")"
      in symbol "R {" <+> pretty v <+> symbol "}" <+> sigilPretty
+  pretty (A t l s) =
+    let sigilPretty = case s of 
+                        Left s -> pretty s
+                        Right n -> symbol $ "(?" ++ show n ++ ")"
+     in symbol "A" <+> pretty t <+> symbol "[" <> pretty l <> symbol "]" <+> sigilPretty
   pretty (U v) = warn ('?':show v)
-  pretty (Synonym n ts) = warn ('S':show n) <+> spaceList (map pretty ts)
---  pretty (RemoveCase a b) = pretty a <+> string "(without pattern" <+> pretty b <+> string ")"
+  pretty (Synonym n ts) = warn ("syn:" ++ n) <+> spaceList (map pretty ts)
 
 instance Pretty LocType where
   pretty t = pretty (stripLocT t)
