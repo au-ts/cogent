@@ -340,6 +340,14 @@ infer (E (ArrayIndex arr idx))
         guardShow ("arr-idx out of bound") $ idx >= 0 && idx < l
         guardShow ("arr-idx on non-linear") . canShare =<< kindcheck ta
         return (TE te (ArrayIndex arr' idx))
+infer (E (ArrayMap2 (as,f) (e1,e2)))
+   = do e1'@(TE t1 _) <- infer e1
+        e2'@(TE t2 _) <- infer e2
+        let TArray te1 l1 _ = t1
+            TArray te2 l2 _ = t2
+        f' <- withBindings (Cons te2 (Cons te1 Nil)) $ infer f
+        let t = TProduct t1 t2
+        return $ TE t $ ArrayMap2 (as,f') (e1',e2')
 infer (E (Pop a e1 e2))
    = do e1'@(TE t1 _) <- infer e1
         let TArray te l s = t1

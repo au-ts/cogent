@@ -74,6 +74,7 @@ isNormal (E (Case e tn (l1,_,e1) (l2,_,e2))) | isVar e && isNormal e1 && isNorma
   -- \| KNF <- __cogent_fnormalisation, isAtom e && isNormal e1 && isNormal e2 = True
 isNormal (E (If  c th el)) | isVar c  && isNormal th && isNormal el = True
 #ifdef BUILTIN_ARRAYS
+isNormal (E (ArrayMap2 (_,f) (e1,e2))) | isNormal f && isNormal e1 && isNormal e2 = True
 isNormal (E (Pop _ e1 e2)) | isVar e1 && isNormal e2 = True
 #endif
 isNormal (E (Split _ p e)) | isVar p  && isNormal e  = True
@@ -115,7 +116,8 @@ upshiftExpr SZero _ _ e = e
 upshiftExpr (SSuc n) sv v e | Refl <- addSucLeft sv n
   = let a = upshiftExpr n sv v e in insertIdxAt (widenN v n) a
 
-normalise :: SNat v -> UntypedExpr t v VarName
+normalise :: SNat v
+          -> UntypedExpr t v VarName
           -> (forall n. SNat n -> UntypedExpr t (v :+: n) VarName -> AN (UntypedExpr t (v :+: n) VarName))
           -> AN (UntypedExpr t v VarName)
 normalise v e@(E (Variable var)) k = k s0 (E (Variable var))
@@ -136,6 +138,11 @@ normalise v e@(E (SLit {})) k = k s0 e
 #ifdef BUILTIN_ARRAYS
 normalise v   (E (ALit es)) k = normaliseNames v es $ \n es' -> k n (E $ ALit es')
 normalise v   (E (ArrayIndex e i)) k = normaliseName v e $ \n e' -> k n (E $ ArrayIndex e' i)
+normalise v   (E (ArrayMap2 ((a1,a2),f) (e1,e2))) k
+  = do f'  <- normaliseExpr (SSuc $ SSuc v) f
+       e1' <- normaliseExpr v e1
+       e2' <- normaliseExpr v e2
+       k SZero $ E $ ArrayMap2 ((a1,a2),f') (e1',e2')
 normalise v   (E (Pop a e1 e2)) k
   = normaliseName v e1 $ \n e1' -> case addSucLeft v n of
       Refl -> case addSucLeft (SSuc v) n of

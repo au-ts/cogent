@@ -55,9 +55,11 @@ import Cogent.Surface
 import Cogent.Common.Syntax
 import Control.Monad (guard)
 import qualified Data.Foldable as F
+
 data Row t = Row { entries :: M.Map FieldName (Entry t)
                  , var :: Maybe Int
-                 }  deriving (Show, Eq, Ord, Functor, Foldable,Traversable)
+                 }  deriving (Show, Eq, Ord, Functor, Foldable, Traversable)
+
 -- | Given a list of entries, produce a complete row without a unification row variable.
 fromList :: [Entry t] -> Row t
 fromList es = Row (M.fromList (map (\e@(f, _ )-> (f,e)) es)) Nothing
@@ -65,9 +67,11 @@ fromList es = Row (M.fromList (map (\e@(f, _ )-> (f,e)) es)) Nothing
 -- | Every entry in the row in list form.
 toEntryList :: Row t -> [Entry t]
 toEntryList r = F.toList (entries r)
+
 -- | Given a map of entries, produce a complete row without a unification row variable.
 fromMap :: M.Map FieldName (t, Bool) -> Row t
 fromMap es = Row (M.mapWithKey (,) es) Nothing
+
 -- | Given a list of entries, produce an incomplete row with a fresh unification row variable.
 incomplete :: [Entry t] -> Int -> Row t
 incomplete es u = (fromList es) { var = Just u }

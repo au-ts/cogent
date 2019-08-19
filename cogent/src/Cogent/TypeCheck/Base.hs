@@ -249,6 +249,7 @@ data TCType         = T (Type SExpr TCType)
                     | U Int  -- unifier
                     | R (Row TCType) (Either (Sigil (Maybe (DargentLayout DataLayoutExpr))) Int)
                     | V (Row TCType)
+                    | A TCType SExpr (Either (Sigil (Maybe DataLayoutExpr)) Int)
                     | Synonym TypeName [TCType]
                     deriving (Show, Eq, Ord)
 
@@ -265,7 +266,9 @@ rigid (U {}) = False
 rigid (Synonym {}) = False
 rigid (R r _) = not $ Row.justVar r
 rigid (V r) = not $ Row.justVar r
+rigid (A t _ _) = rigid t  -- FIXME
 rigid _ = True
+
 data FuncOrVar = MustFunc | MustVar | FuncOrVar deriving (Eq, Ord, Show)
 
 funcOrVar :: TCType -> FuncOrVar
@@ -567,6 +570,7 @@ unifVars (R r s)
   | otherwise = concatMap unifVars (Row.allTypes r)
                        ++ case s of Left s -> [] 
                                     Right y -> [y] 
+unifVars (A t l s) = unifVars t ++ (case s of Left s -> []; Right y -> [y])
 unifVars (T x) = foldMap unifVars x
 
 --

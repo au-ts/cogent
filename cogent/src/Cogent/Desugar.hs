@@ -636,7 +636,8 @@ desugarExpr (B.TE _ (S.ArrayMap2 ((p1,p2), fbody) (e1,e2)) _) = do
   v2 <- freshVar
   let b1 = S.Binding p1 Nothing (B.TE telt1 (S.Var v1) (B.getLocTIP p1)) []
       b2 = S.Binding p2 Nothing (B.TE telt2 (S.Var v2) (B.getLocTIP p2)) [] 
-  fbody' <- desugarExpr $ B.TE (S.RT $ S.TTuple [telt1, telt2]) (S.Let [b1,b2] fbody) (B.getLocTE fbody)
+  fbody' <- withBindings (Cons v2 $ Cons v1 Nil) $
+              desugarExpr $ B.TE (S.RT $ S.TTuple [telt1, telt2]) (S.Let [b1,b2] fbody) (B.getLocTE fbody)
   return $ E (ArrayMap2 ((v1,v2), fbody') (e1',e2'))
 #endif
 desugarExpr (B.TE _ (S.Tuple []) _) = return $ E Unit
