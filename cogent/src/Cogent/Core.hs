@@ -126,7 +126,7 @@ data Expr t v a e
   | ArrayIndex (e t v a) ArrayIndex
   | Pop (a, a) (e t v a) (e t ('Suc ('Suc v)) a)
   | Singleton (e t v a)  -- extracting the element out of a singleton array
-  | ArrayMap2 ((a, a), e t v a) (e t v a, e t v a) 
+  | ArrayMap2 ((a, a), e t ('Suc ('Suc v)) a) (e t v a, e t v a) 
 #endif
   | Let a (e t v a) (e t ('Suc v) a)
   | LetBang [(Fin v, a)] a (e t v a) (e t ('Suc v) a)
