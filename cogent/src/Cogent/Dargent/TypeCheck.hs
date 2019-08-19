@@ -60,7 +60,7 @@ typeCheckDataLayoutExpr env (Offset dataLayoutExpr offsetSize) =
 typeCheckDataLayoutExpr env (Record fields) =
   let (errs, alloc) = foldM typeCheckField [] fields
    in if isZeroSizedAllocation alloc
-        then returnError $ ZeroSizedBitRange (InTag PathEnd)
+        then returnError $ ZeroSizedBitRange PathEnd
         else (errs, alloc)
   where
     typeCheckField
