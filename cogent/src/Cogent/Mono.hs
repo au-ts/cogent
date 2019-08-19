@@ -173,6 +173,11 @@ monoExpr (TE t e) = TE <$> monoType t <*> monoExpr' e
 #ifdef BUILTIN_ARRAYS
     monoExpr' (ALit    es         ) = ALit <$> mapM monoExpr es
     monoExpr' (ArrayIndex e i     ) = ArrayIndex <$> monoExpr e <*> pure i
+    monoExpr' (ArrayMap2 (as,f) (e1,e2)) = do
+      f'  <- monoExpr f
+      e1' <- monoExpr e1
+      e2' <- monoExpr e2
+      return $ ArrayMap2 (as,f') (e1',e2')
     monoExpr' (Pop     a e1 e2    ) = Pop a <$> monoExpr e1 <*> monoExpr e2
     monoExpr' (Singleton e        ) = Singleton <$> monoExpr e
 #endif

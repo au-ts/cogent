@@ -278,6 +278,29 @@ cg' (ArrayIndex e i) t = do
                  L.<$> text "bound is" <+> pretty n <> semi
                  L.<$> text "generate constraint" <+> prettyC c)
   return (ce <> ci <> c, ArrayIndex e' i)
+
+cg' (ArrayMap2 ((p1,p2), fbody) (arr1,arr2)) t = __fixme $ do  -- FIXME: more accurate constraints / zilinc
+  alpha1 <- freshTVar
+  alpha2 <- freshTVar
+  beta <- freshTVar
+  U x1 <- freshTVar
+  U x2 <- freshTVar
+  len1 <- freshEVar
+  len2 <- freshEVar
+  (s1,cp1,p1') <- match p1 alpha1
+  (s2,cp2,p2') <- match p2 alpha2
+  context %= C.addScope (s1 `M.union` s2)  -- domains of s1 and s2 don't overlap
+  (cbody, fbody') <- cg fbody beta
+  rs <- context %%= C.dropScope
+  let tarr1 = A alpha1 len1 $ Right x1
+      tarr2 = A alpha2 len2 $ Right x2
+  (carr1, arr1') <- cg arr1 tarr1
+  (carr2, arr2') <- cg arr2 tarr2
+  let unused = flip foldMap (M.toList rs) $ \(v,(_,_,us)) ->
+        case us of Seq.Empty -> warnToConstraint __cogent_wunused_local_binds (UnusedLocalBind v); _ -> Sat
+      t' = T $ TTuple [tarr1,tarr2]
+      e' = ArrayMap2 ((p1',p2'), fbody') (arr1',arr2')
+  return (t' :< t <> cp1 <> cp2 <> cbody <> carr1 <> carr2 <> dropConstraintFor rs <> unused, e')
 #endif 
 
 cg' exp@(Lam pat mt e) t = do

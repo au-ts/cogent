@@ -51,18 +51,23 @@ module Cogent.TypeCheck.Row
   , taken
   ) where
 
+import           Cogent.Common.Syntax
+import           Cogent.Compiler
+import           Cogent.Surface
 
+import           Control.Monad (guard)
+import           Data.Either (isRight)
 import qualified Data.Foldable as F
-import Data.List hiding (take)
+import           Data.List hiding (take)
 import qualified Data.Map.Strict as M
-import Prelude hiding (take, null)
-import Data.Either (isRight)
-import Data.Maybe
-import Control.Monad (guard)
+import           Data.Maybe
+import           Prelude hiding (take, null)
 
-import Cogent.Common.Syntax
-import Cogent.Compiler
-import Cogent.Surface
+type Entry t = (FieldName, (t, Either Taken Int))
+
+data Row t = Row { entries :: M.Map FieldName (Entry t)
+                 , var :: Maybe Int
+                 }  deriving (Show, Eq, Ord, Functor, Foldable,Traversable)
 
 type Decl t = (t, Taken)
 
