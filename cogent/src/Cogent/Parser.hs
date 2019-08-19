@@ -62,7 +62,8 @@ language = haskellStyle
                                   "@","@@","->","=>","~>","<=","|","|>"]
            , T.reservedNames   = ["let","in","type","include","all","take","put","inline","upcast",
                                   "repr","variant","record","at","layout",
-                                  "if","then","else","not","complement","and","True","False","o"]
+                                  "if","then","else","not","complement","and","True","False","o",
+                                  "map2"]
            , T.identStart = letter
            }
 
@@ -153,9 +154,6 @@ boolean = True <$ reserved "True"
       <|> False <$ reserved "False"
       <?> "boolean literal"
 
-
-
-
 expr m = do avoidInitial
             LocExpr <$> getPosition <*>
                  (Let <$ reserved "let" <*> bindings <* reserved "in" <*> expr m
@@ -172,9 +170,23 @@ expr m = do avoidInitial
                       (If <$> basicExpr m <*> many (reservedOp "!" >> variableName)
                           <*  reserved "then" <*> expr m <* reserved "else" <*> expr m))
               <|> Lam <$ string "\\" <*> irrefutablePattern <*> optionMaybe (reservedOp ":" *> monotype)
-                      <* reservedOp "=>" <*> expr m)
-          <|> matchExpr m
-          <?> "expression"
+                      <* reservedOp "=>" <*> expr m
+#ifdef BUILTIN_ARRAYS
+              <|> do { reserved "map2"
+                     ; f <- parens $ do { string "\\"
+                                        ; p1 <- irrefutablePattern
+                                        ; p2 <- irrefutablePattern
+                                        ; reservedOp "=>"
+                                        ; f <- expr m
+                                        ; return ((p1,p2),f)
+                                        }
+                     ; e1 <- term
+                     ; e2 <- term
+                     ; return $ ArrayMap2 f (e1,e2)
+                     })
+#endif
+     <|> matchExpr m
+     <?> "expression"
   where binding = (Binding <$> irrefutablePattern <*> optionMaybe (reservedOp ":" *> monotype)
                            <*  reservedOp "=" <*> expr 1 <*> many (reservedOp "!" >> variableName))
               <|> do p <- pattern 
@@ -535,39 +547,39 @@ parseFromFile p fname = do
 
 cppLineTokenParser :: Stream s m Char => T.GenTokenParser s u m -> T.GenTokenParser s u m
 cppLineTokenParser tp
-    = T.TokenParser{ identifier = cppLineAfter $ T.identifier tp
-                 , reserved = cppLineAfter . T.reserved tp
-                 , operator = cppLineAfter $ T.operator tp
-                 , reservedOp = cppLineAfter . T.reservedOp tp
+    = T.TokenParser { identifier = cppLineAfter $ T.identifier tp
+                    , reserved = cppLineAfter . T.reserved tp
+                    , operator = cppLineAfter $ T.operator tp
+                    , reservedOp = cppLineAfter . T.reservedOp tp
 
-                 , charLiteral = cppLineAfter $ T.charLiteral tp
-                 , stringLiteral = cppLineAfter $ T.stringLiteral tp
-                 , natural = cppLineAfter $ T.natural tp
-                 , integer = cppLineAfter $ T.integer tp
-                 , float = cppLineAfter $ T.float tp
-                 , naturalOrFloat = cppLineAfter $ T.naturalOrFloat tp
-                 , decimal = cppLineAfter $ T.decimal tp
-                 , hexadecimal = cppLineAfter $ T.hexadecimal tp
-                 , octal = cppLineAfter $ T.octal tp
+                    , charLiteral = cppLineAfter $ T.charLiteral tp
+                    , stringLiteral = cppLineAfter $ T.stringLiteral tp
+                    , natural = cppLineAfter $ T.natural tp
+                    , integer = cppLineAfter $ T.integer tp
+                    , float = cppLineAfter $ T.float tp
+                    , naturalOrFloat = cppLineAfter $ T.naturalOrFloat tp
+                    , decimal = cppLineAfter $ T.decimal tp
+                    , hexadecimal = cppLineAfter $ T.hexadecimal tp
+                    , octal = cppLineAfter $ T.octal tp
 
-                 , symbol = cppLineAfter . T.symbol tp
-                 , lexeme = cppLineAfter . T.lexeme tp
-                 , whiteSpace = cppLineAfter $ T.whiteSpace tp
+                    , symbol = cppLineAfter . T.symbol tp
+                    , lexeme = cppLineAfter . T.lexeme tp
+                    , whiteSpace = cppLineAfter $ T.whiteSpace tp
 
-                 , parens = cppLineAfter . T.parens tp
-                 , braces = cppLineAfter . T.braces tp
-                 , angles = cppLineAfter . T.angles tp
-                 , brackets = cppLineAfter . T.brackets tp
-                 , squares = cppLineAfter . T.brackets tp
-                 , semi = cppLineAfter $ T.semi tp
-                 , comma = cppLineAfter $ T.comma tp
-                 , colon = cppLineAfter $ T.colon tp
-                 , dot = cppLineAfter $ T.dot tp
-                 , semiSep = cppLineAfter . T.semiSep tp
-                 , semiSep1 = cppLineAfter . T.semiSep1 tp
-                 , commaSep = cppLineAfter . T.commaSep tp
-                 , commaSep1 = cppLineAfter . T.commaSep1 tp
-                 }
+                    , parens = cppLineAfter . T.parens tp
+                    , braces = cppLineAfter . T.braces tp
+                    , angles = cppLineAfter . T.angles tp
+                    , brackets = cppLineAfter . T.brackets tp
+                    , squares = cppLineAfter . T.brackets tp
+                    , semi = cppLineAfter $ T.semi tp
+                    , comma = cppLineAfter $ T.comma tp
+                    , colon = cppLineAfter $ T.colon tp
+                    , dot = cppLineAfter $ T.dot tp
+                    , semiSep = cppLineAfter . T.semiSep tp
+                    , semiSep1 = cppLineAfter . T.semiSep1 tp
+                    , commaSep = cppLineAfter . T.commaSep tp
+                    , commaSep1 = cppLineAfter . T.commaSep1 tp
+                    }
     where 
         cppLineAfter p = do{ x <- p; skipMany cppLine; return x  }
         cppLine = do
