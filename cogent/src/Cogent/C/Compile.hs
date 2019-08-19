@@ -817,7 +817,7 @@ genDefinition (AbsDecl attr fn Nil t rt)
        funClasses %= M.alter (insertSetMap (fn,attr)) (Function t' rt')
        ffifunc <- if __cogent_fffi_c_functions then genFfiFunc rt' fn [t'] else return []
        return $ ffifunc ++ [CDecl $ CExtFnDecl rt' fn [(t',Nothing)] (fnSpecAttr attr noFnSpec)]
--- NOTE: An ad hoc treatment to concreate non-parametric type synonyms / zilinc
+-- NOTE: An ad hoc treatment to concrete non-parametric type synonyms / zilinc
 genDefinition (TypeDef tn ins (Just (unsafeCoerce -> ty :: CC.Type 'Zero)))
   -- NOTE: We need to make sure that ty doesn't consist of any function type with no function members / zilinc
   -- NOTE: If the RHS of this (the structural definition) is used at all, we generate the synonym / zilinc (26/08/15)
