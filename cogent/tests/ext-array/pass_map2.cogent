@@ -1,0 +1,10 @@
+type R  = { f1 : U8 , f2 : Bool }
+
+type A1 = R[4]
+type A2 = U8[3]
+
+foo : ((A1, A2), Bool) -> (A2, A1)
+foo ((a1,a2), b) = let (a1', a2') = map2 (\v1 v2 => if b && v1.f2 !v1 
+                                                      then (v1 {f1 = 3}, v2)
+                                                      else (v1, False)) a1 a2
+                    in (a2', a1')

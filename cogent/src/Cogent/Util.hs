@@ -187,9 +187,11 @@ for = flip map
 
 
 infixr 3 ***^^
-
 (***^^) :: Applicative f => (a -> f a') -> (b -> f b') -> (a, b) -> f (a', b')
 (***^^) fa fb (x,y) = (,) <$> fa x <*> fb y
+
+bothM :: Applicative f => (a -> f a') -> (a, a) -> f (a', a')
+bothM f (a, b) = (,) <$> f a <*> f b
 
 first3 :: (a -> a') -> (a, b, c) -> (a', b, c)
 first3 =  (_1 %~)
