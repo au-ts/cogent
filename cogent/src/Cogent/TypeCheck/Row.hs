@@ -59,6 +59,7 @@ import qualified Data.Set as S
 import Prelude hiding (take, null)
 import Data.Bifunctor (second)
 import Data.Either (isRight)
+import qualified Data.Foldable as F
 import Data.Maybe (mapMaybe)
 import Cogent.Surface
 import Cogent.Common.Syntax
@@ -69,7 +70,6 @@ type Entry t = (FieldName, (t, Either Taken Int))
 data Row t = Row { entries :: M.Map FieldName (Entry t)
                  , var :: Maybe Int
                  }  deriving (Show, Eq, Ord, Functor, Foldable,Traversable)
-
 
 -- | Given a list of entries, produce a complete row without a unification row variable.
 fromList :: [(FieldName, (t, Taken))] -> Row t
