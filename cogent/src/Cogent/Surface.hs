@@ -425,6 +425,7 @@ fvE (RE (Let (b:bs) e)) = let (locals, fvs) = fvB b
 #ifdef BUILTIN_ARRAYS
 fvE (RE (ArrayLit es)) = foldMap fvE es
 fvE (RE (ArrayIndex e i)) = fvE e ++ fvE i
+fvE (RE (ArrayMap2 ((p1,p2),f) (e1,e2))) = filter (`notElem` fvIP p1 ++ fvIP p2) $ fvE f ++ fvE e1 ++ fvE e2
 #endif
 fvE (RE (Annot e t)) = fvE e ++ fvT t
 fvE (RE e) = foldMap fvE e
