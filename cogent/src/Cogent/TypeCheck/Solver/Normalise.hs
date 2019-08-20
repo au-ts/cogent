@@ -9,7 +9,7 @@
 --
 -- @TAG(DATA61_GPL)
 --
-{-# LANGUAGE CPP #-}
+
 module Cogent.TypeCheck.Solver.Normalise where
 
 import Cogent.Common.Types
@@ -29,7 +29,7 @@ import Control.Monad.Trans.Maybe
 import Lens.Micro.Mtl
 import Lens.Micro
 
-normaliseRW :: Rewrite' TcSolvM TCType
+normaliseRW :: RewriteT TcSolvM TCType
 normaliseRW = rewrite' $ \t -> case t of
     T (TBang (T (TCon t ts s))) -> pure (T (TCon t ts (bangSigil s)))
     T (TBang (T (TVar v b))) -> pure (T (TVar v True))
@@ -43,7 +43,6 @@ normaliseRW = rewrite' $ \t -> case t of
 #ifdef BUILTIN_ARRAYS
     T (TBang (T (TArray t e s))) -> pure (T (TArray (T (TBang t)) e (bangSigil s)))
 #endif
-
     T (TUnbox (T (TCon t ts s))) -> pure (T (TCon t ts Unboxed))
     T (TUnbox (R row _)) -> pure (R row (Left Unboxed))
 

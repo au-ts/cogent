@@ -1,3 +1,15 @@
+--
+-- Copyright 2018, Data61
+-- Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+-- ABN 41 687 119 230.
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(DATA61_GPL)
+--
+
 {-# OPTIONS_GHC -Werror -Wall #-}
 module Cogent.TypeCheck.Solver.SinkFloat ( sinkfloat ) where 
 
@@ -12,12 +24,10 @@ import Control.Applicative
 import Control.Arrow (first)
 import Control.Monad.Writer
 import Control.Monad.Trans.Maybe
-
 import qualified Data.Map as M
-
 import Lens.Micro
 
-sinkfloat :: Rewrite.Rewrite' TcSolvM [Goal]
+sinkfloat :: Rewrite.RewriteT TcSolvM [Goal]
 sinkfloat = Rewrite.rewrite' $ \cs -> do
   (cs',as) <- try_each cs
   tell as
@@ -74,7 +84,7 @@ sinkfloat = Rewrite.rewrite' $ \cs -> do
   get_present  = get_fields False
   get_fields t = M.filter (\(_,(_,t')) -> t == t') . Row.entries
 
-  discard_common (U _) fs   = fs
+  discard_common (U _)   fs = fs
   discard_common (R r _) fs = M.difference fs $ Row.entries r
   discard_common (V r)   fs = M.difference fs $ Row.entries r
   discard_common _ _        = M.empty

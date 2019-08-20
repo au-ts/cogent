@@ -14,7 +14,7 @@ module Cogent.TypeCheck.Solver.Rewrite
   ( -- * Types
     Rewrite
   , run
-  , Rewrite' (..)
+  , RewriteT (..)
   , lift
   , -- * Composition
     andThen
@@ -45,40 +45,40 @@ import Cogent.TypeCheck.Util
 -- | Intuitively a @Rewrite a@ is a partial function from @a@ to @a@.
 --   It can be composed disjuctively using the 'Semigroup' instance, or
 --   sequentially using the 'andThen' function.
-type Rewrite a = Rewrite' Identity a
+type Rewrite a = RewriteT Identity a
 
--- | A @Rewrite' m a@ may in full generality access the effects of a monad @m@ while
+-- | A @RewriteT m a@ may in full generality access the effects of a monad @m@ while
 --   attempting to rewrite values of type @a@.
-newtype Rewrite' m a = Rewrite { run' :: a -> MaybeT m a }
+newtype RewriteT m a = Rewrite { run' :: a -> MaybeT m a }
 
 -- | Disjunctive composition, that is: @r <> s@ will first attempt to rewrite with @r@.
 --   If @r@ successfully rewrites, then the result of @r@ is returned. If @r@ does not
 --   rewrite (i.e. it returns @Nothing@), then the second rewrite @s@ is attempted instead.
-instance Monad m => Semigroup (Rewrite' m a) where
+instance Monad m => Semigroup (RewriteT m a) where
   Rewrite f <> Rewrite g = Rewrite (\a -> f a <|> g a)
 
 -- | The 'mempty' is the rewrite that never successfully rewrites any term.
-instance Monad m => Monoid (Rewrite' m a) where
+instance Monad m => Monoid (RewriteT m a) where
   mempty = Rewrite (const empty)
 
 
 -- | Run a function to pre-process a rewrite's input.
-pre :: (Monad m) => (a -> m a) -> Rewrite' m a -> Rewrite' m a
+pre :: (Monad m) => (a -> m a) -> RewriteT m a -> RewriteT m a
 pre op (Rewrite f) = Rewrite (\a -> T.lift (op a) >>= f)
 
 -- | Sequential composition, that is: @r `andThen` s@ will first rewrite with @r@ and, if that
 --   succeeds, rewrite the result with @s@. If either @r@ or @s@ fails to rewrite, the whole thing
 --   fails to rewrite.
-andThen :: Monad m => Rewrite' m a -> Rewrite' m a -> Rewrite' m a
+andThen :: Monad m => RewriteT m a -> RewriteT m a -> RewriteT m a
 andThen (Rewrite f) (Rewrite g) = Rewrite $ \x -> f x >>= g
 
--- | Given a partial function from @a@ to @a@, produce a @Rewrite'@ value.
-rewrite :: Applicative m => (a -> Maybe a) -> Rewrite' m a
+-- | Given a partial function from @a@ to @a@, produce a @RewriteT@ value.
+rewrite :: Applicative m => (a -> Maybe a) -> RewriteT m a
 rewrite f = Rewrite (MaybeT . pure . f)
 
 -- | Given a partial, effectful function from @a@ to @a@ in some monad @m@,
---   produce a @Rewrite'@ value.
-rewrite' :: Applicative m => (a -> MaybeT m a) -> Rewrite' m a
+--   produce a @RewriteT@ value.
+rewrite' :: Applicative m => (a -> MaybeT m a) -> RewriteT m a
 rewrite' = Rewrite
 
 -- | Given a non-effectful rewrite, returns a partial function.
@@ -87,7 +87,7 @@ run :: Rewrite a -> a -> Maybe a
 run rw = runIdentity . runMaybeT . run' rw
 
 -- | A rewrite that exhausts itself only when it cannot rewrite anymore
-untilFixedPoint :: Monad m => Rewrite' m a -> Rewrite' m a
+untilFixedPoint :: Monad m => RewriteT m a -> RewriteT m a
 untilFixedPoint rw = (rw `andThen` untilFixedPoint rw) <> rw
 
 -- | A somewhat niche function. Given a /selector function/
@@ -102,7 +102,7 @@ untilFixedPoint rw = (rw `andThen` untilFixedPoint rw) <> rw
 --   After identifying the subproblem, we can reduce it into a smaller set of constraints
 --   which are then merged with the leftover constraints from the selector function to
 --   form the new constraint set.
-withTransform :: Monad m => ([x] -> Maybe (a, [x])) -> (a -> MaybeT m [x]) -> Rewrite' m [x]
+withTransform :: Monad m => ([x] -> Maybe (a, [x])) -> (a -> MaybeT m [x]) -> RewriteT m [x]
 withTransform transform f = Rewrite $ \cs -> do
                               (c, cs1) <- MaybeT (pure (transform cs))
                               cs2 <- f c
@@ -118,7 +118,7 @@ pickOne :: (x -> Maybe [x]) -> Rewrite [x]
 pickOne f = pickOne' (MaybeT . pure . f)
 
 -- | Just as 'pickOne', but with monadic effects like fresh names.
-pickOne' :: Monad m => (x -> MaybeT m [x]) -> Rewrite' m [x]
+pickOne' :: Monad m => (x -> MaybeT m [x]) -> RewriteT m [x]
 pickOne' f = Rewrite each
   where
     each [] = empty
@@ -129,15 +129,15 @@ pickOne' f = Rewrite each
         Just cs' -> pure (Just (cs' ++ cs))
 
 -- | Given a pure 'Rewrite', produce an effectful rewrite in any monad.
-lift :: Applicative m => Rewrite a -> Rewrite' m a
+lift :: Applicative m => Rewrite a -> RewriteT m a
 lift (Rewrite f) = rewrite (runIdentity . runMaybeT . f)
 
 -- | For debugging, prints the contents of the rewrite to the console, with a string prefix.
 --   Returns empty result and counts as no progress.
-debugFail :: (Monad m, T.MonadIO m) => String -> (a -> String) -> Rewrite' m a
+debugFail :: (Monad m, T.MonadIO m) => String -> (a -> String) -> RewriteT m a
 debugFail pfx show = Rewrite (\cs -> traceTc "rewrite" (text pfx <$$> text (show cs)) >> empty)
 
 -- | Print debugging information as above, but counts as a successful rewrite.
 --   Useful for putting debugging after another rewrite, if you only want to print on success.
-debugPass :: (Monad m, T.MonadIO m) => String -> (a -> String) -> Rewrite' m a
+debugPass :: (Monad m, T.MonadIO m) => String -> (a -> String) -> RewriteT m a
 debugPass pfx show = Rewrite (\cs -> traceTc "rewrite" (text pfx <$$> text (show cs)) >> return cs)

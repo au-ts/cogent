@@ -1,22 +1,36 @@
+--
+-- Copyright 2019, Data61
+-- Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+-- ABN 41 687 119 230.
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(DATA61_GPL)
+--
+
 module Cogent.TypeCheck.Solver.Unify where 
 
+import           Cogent.Common.Syntax
+import           Cogent.Common.Types
+import           Cogent.Surface
+import           Cogent.TypeCheck.Base 
+import qualified Cogent.TypeCheck.Row            as Row
+import           Cogent.TypeCheck.Solver.Goal 
+import           Cogent.TypeCheck.Solver.Monad
 import qualified Cogent.TypeCheck.Solver.Rewrite as Rewrite
-import Cogent.TypeCheck.Solver.Goal 
-import Cogent.TypeCheck.Solver.Monad
-import qualified Cogent.TypeCheck.Row as Row
-import qualified Cogent.TypeCheck.Subst as Subst
-import Cogent.Surface
-import Cogent.TypeCheck.Base 
-import Cogent.Common.Types
-import Cogent.Common.Syntax
-import Control.Monad.Writer
-import Control.Monad.Trans.Maybe
+import qualified Cogent.TypeCheck.Subst          as Subst
+
 import Control.Applicative
+import Control.Monad.Trans.Maybe
+import Control.Monad.Writer
 import Data.Foldable (asum)
 import Lens.Micro
 import Lens.Micro.Mtl
+
 -- | The unify phase, which seeks out equality constraints to solve via substitution.
-unify ::  Rewrite.Rewrite' TcSolvM [Goal]
+unify ::  Rewrite.RewriteT TcSolvM [Goal]
 unify = Rewrite.rewrite' $ \cs -> do
            as <- asum (map (assignOf . view goal) cs)
            tell as
