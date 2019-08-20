@@ -147,6 +147,7 @@ library
               , Cogent.Dargent.Desugar
               , Cogent.Dargent.CoreTypeCheck
               , Cogent.Dargent.CodeGen
+              , Cogent.Dargent.Common
               , Cogent.Desugar
               , Cogent.GetOpt
               , Cogent.Glue

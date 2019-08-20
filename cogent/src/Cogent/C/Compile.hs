@@ -504,15 +504,12 @@ genExpr mv (TE t (Take _ rec fld e)) = do
   --    * If __cogent_fintermediate_vars is False, then
   --       @f'@ directly evaluates to the value of the field being taken
   let fieldName = fst $ fs !! fld
-  fieldExpr <-
-    (case s of 
-      Unboxed -> return $ strDot rec'' fieldName
-      Boxed _ CStructLayout{} ->
-        return $ strArrow rec'' fieldName
-      Boxed _ _ ->
-        do
-          fieldGetter <- genBoxedGetSetField rect fieldName Get
-          return $ CEFnCall fieldGetter [rec''])
+  fieldExpr <- case s of 
+    Unboxed -> return $ strDot rec'' fieldName
+    Boxed _ CLayout -> return $ strArrow rec'' fieldName
+    Boxed _ _ -> do
+      fieldGetter <- genBoxedGetSetField rect fieldName Get
+      return $ CEFnCall fieldGetter [rec'']
 
   ft <- genType . fst . snd $ fs !! fld
   (f', fdecl, fstm, fp) <-
@@ -543,11 +540,10 @@ genExpr mv (TE t (Put rec fld val)) = do
   (val',valdecl,valstm,valp) <- genExpr_ val
   
   let fieldName = fst $ fs!!fld
-  (fdecl,fstm) <-
-    if s == Unboxed
-    then
-      assign fldt (strDot (variable rec'') fieldName) val'
-    else do
+  (fdecl,fstm) <- case s of
+    Unboxed -> assign fldt (strDot (variable rec'') fieldName) val'
+    Boxed _ CLayout -> assign fldt (strArrow (variable rec'') fieldName) val'
+    Boxed _ (Layout l) -> do
       let recordType = exprType rec
       fieldSetter <- genBoxedGetSetField recordType fieldName Set
       return $ ([], [CBIStmt $ CAssignFnCall Nothing fieldSetter [variable rec'', val']])
@@ -645,11 +641,10 @@ genExpr mv (TE t (Member rec fld)) = do
   (rec',recdecl,recstm,recp) <- genExpr_ rec
 
   let fieldName = fst $ fs !! fld
-  e' <-
-    if s == Unboxed
-    then
-      return $ strDot rec' fieldName
-    else do
+  e' <- case s of
+    Unboxed -> return $ strDot rec' fieldName
+    Boxed _ CLayout -> return $ strArrow rec' fieldName
+    Boxed _ (Layout l) -> do
       fieldGetter <- genBoxedGetSetField (exprType rec) fieldName Get
       return $ CEFnCall fieldGetter [rec']
 

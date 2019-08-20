@@ -25,10 +25,9 @@ import Cogent.Common.Syntax         ( DataLayoutName
                                     , TagName
                                     , FieldName
                                     )
-import Cogent.Common.Types          ( Sigil (..))
+import Cogent.Common.Types          ( Sigil (..) )
 import Cogent.Dargent.Core
-import Cogent.Core                  ( Type (..)
-                                    )
+import Cogent.Core                  ( Type (..) )
 
 
 -- Checks that all boxed records in the type at any depth
@@ -37,7 +36,7 @@ checkType :: Type t -> Bool
 
 checkType (TRecord fields (Boxed _ layout)) =
   let unboxed = TRecord fields Unboxed
-  in  checkType unboxed && checkDataLayout layout && unboxed `matchesDataLayout` layout
+   in checkType unboxed && checkDataLayout layout && unboxed `matchesDargentLayout` layout
 
 checkType (TRecord fields _)   = all checkType $ fmap (fst . snd) fields
 checkType (TSum alts)          = all checkType $ fmap (fst . snd) alts
@@ -50,8 +49,12 @@ checkType (TArray t _)         = checkType t
 checkType _                    = True
 
 
-checkDataLayout :: DataLayout BitRange -> Bool
-checkDataLayout _ = __fixme (True)
+checkDataLayout :: DargentLayout (DataLayout BitRange) -> Bool
+checkDataLayout CLayout = True -- TODO(dargent)
+checkDataLayout (Layout l) = checkDataLayout' l
+  where
+    checkDataLayout' :: DataLayout BitRange -> Bool
+    checkDataLayout' l = __fixme (True) -- TODO(dargent)
   -- FIXME:
   -- Need to check
   --   1. Blocks for different fields of a record don't overlap
@@ -59,6 +62,10 @@ checkDataLayout _ = __fixme (True)
   --      any of the alternatives.
   --   3. Tag values for an alternative are positive and would fit in its tag block
   --   4. All blocks have size at least 1 and offset at least 0
+
+matchesDargentLayout :: Type t -> DargentLayout (DataLayout BitRange) -> Bool
+matchesDargentLayout _ CLayout = True
+matchesDargentLayout t (Layout l) = matchesDataLayout t l
 
 matchesDataLayout :: Type t -> DataLayout BitRange -> Bool
 matchesDataLayout (TCon _ _       (Boxed _ _))  (PrimLayout (BitRange { bitSizeBR })) = bitSizeBR == pointerSizeBits
