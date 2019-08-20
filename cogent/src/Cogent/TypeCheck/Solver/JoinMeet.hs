@@ -1,21 +1,37 @@
+--
+-- Copyright 2019, Data61
+-- Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+-- ABN 41 687 119 230.
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(DATA61_GPL)
+--
+
+  
 {-# LANGUAGE FlexibleContexts #-}
+
 module Cogent.TypeCheck.Solver.JoinMeet (joinMeet) where
 
+import Cogent.Common.Syntax
+import Cogent.Common.Types
 import Cogent.Surface
 import Cogent.TypeCheck.Base
-import Cogent.Common.Types
-import Cogent.Common.Syntax
-import Cogent.TypeCheck.Solver.Goal
-import Cogent.TypeCheck.Solver.Monad
 import qualified Cogent.TypeCheck.Row as Row
 import qualified Cogent.TypeCheck.Solver.Rewrite as Rewrite
-import Control.Monad.Trans
-import Control.Monad
+import Cogent.TypeCheck.Solver.Goal
+import Cogent.TypeCheck.Solver.Monad
+
 import Control.Applicative
-import qualified Data.Set as S
-import qualified Data.Map as M
+import Control.Monad
+import Control.Monad.Trans
 import Data.List (partition)
+import qualified Data.Map as M
+import qualified Data.Set as S
 import Lens.Micro
+
 import Debug.Trace
 
 data Candidate = Meet [ErrorContext] [ErrorContext] TCType TCType TCType
@@ -25,7 +41,7 @@ data Candidate = Meet [ErrorContext] [ErrorContext] TCType TCType TCType
 -- | Find pairs of subtyping constraints that involve the same unification variable
 --   on the right or left hand side, and compute the join/meet to simplify the
 --   constraint graph.
-joinMeet :: Rewrite.Rewrite' TcSolvM [Goal]
+joinMeet :: Rewrite.RewriteT TcSolvM [Goal]
 joinMeet = Rewrite.withTransform find $ \c -> case c of
   Meet c1 c2 v (T (TFun t1 t2)) (T (TFun r1 r2)) -> do
     b1 <- U <$> lift solvFresh
@@ -142,6 +158,7 @@ find (c:cs) = case c ^. goal of
 
     flexRigidSup v (Goal _ (rho :< U v')) = rigid rho && v == v'
     flexRigidSup v _= False
+
     flexRowSup v (Goal _ (V (Row.Row m Nothing) :< V (Row.Row m' (Just v'))))
          = M.null m' && v == v'
     flexRowSup v (Goal _ (R (Row.Row m Nothing) s :< R (Row.Row m' (Just v')) s'))
@@ -149,6 +166,7 @@ find (c:cs) = case c ^. goal of
     flexRowSup v _ = False
 
 type UnionMethod = (FieldName -> Row.Row TCType -> Row.Row TCType -> Bool)
+
 union :: UnionMethod -> Row.Row TCType -> Row.Row TCType -> TcSolvM (Row.Row TCType)
 union method r1@(Row.Row m1 _) r2@(Row.Row m2 _)= do
   let keys = S.toList (M.keysSet m1 `S.union` M.keysSet m2)
@@ -173,3 +191,4 @@ mostTaken x r1@(Row.Row m1 v1) r2@(Row.Row m2 v2)
   | x `S.member` M.keysSet m1 = x `Row.takenIn` r1
   | x `S.member` M.keysSet m2 = x `Row.takenIn` r2
   | otherwise                 = True
+

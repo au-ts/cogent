@@ -1,17 +1,29 @@
+--
+-- Copyright 2018, Data61
+-- Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+-- ABN 41 687 119 230.
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(DATA61_GPL)
+--
+
 module Cogent.TypeCheck.Solver.Equate (equate) where
     
-
+import Cogent.Common.Syntax
+import Cogent.Common.Types
 import Cogent.Surface
 import Cogent.TypeCheck.Base 
-import Cogent.Common.Types
-import Cogent.Common.Syntax
+import qualified Cogent.TypeCheck.Row as Row
 import Cogent.TypeCheck.Solver.Goal 
 import Cogent.TypeCheck.Solver.Monad
-import qualified Cogent.TypeCheck.Row as Row
 import qualified Cogent.TypeCheck.Solver.Rewrite as Rewrite
-import Control.Monad.Writer
-import Control.Monad.Trans.Maybe
+
 import Control.Applicative
+import Control.Monad.Trans.Maybe
+import Control.Monad.Writer
 import Data.Foldable (asum)
 import qualified Data.Map as M
 import Data.Maybe
@@ -92,8 +104,6 @@ findEquateCandidates mentions (c:cs) =
          , canEquate snd a t
          -> (sups, c : subs, others)
        _ -> (sups, subs, c : others)
-
-
 
 notOccurs :: Int -> TCType -> Bool
 notOccurs a tau = a `notElem` unifVars tau
