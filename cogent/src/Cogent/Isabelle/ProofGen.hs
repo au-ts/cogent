@@ -134,7 +134,7 @@ data Type'
   | TString'
   | TSum' [(TagName, (Type', Bool))]
   | TProduct' Type' Type'
-  | TRecord' [(FieldName, (Type', Bool))] (Sigil (DataLayout BitRange))
+  | TRecord' [(FieldName, (Type', Bool))] (Sigil (DargentLayout (DataLayout BitRange)))
   | TUnit'
   deriving (Eq, Ord)
 
