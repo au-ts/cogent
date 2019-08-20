@@ -60,7 +60,7 @@ dependencies (TypeDec _ _ t) = map TypeName (fcT (stripLocT t))
 dependencies (AbsTypeDec _ _ ts) = map TypeName (foldMap (fcT . stripLocT) ts)
                                 ++ map ValName  (foldMap (fvT . stripLocT) ts)
 dependencies (DocBlock _) = []
-dependencies (RepDef (RepDecl _ _ e)) = map RepName (allRepRefs e) 
+dependencies (RepDef (DataLayoutDecl _ _ e)) = map RepName (allRepRefs e) 
 dependencies (AbsDec _ pt) = map TypeName (foldMap (fcT . stripLocT) pt)
                           ++ map ValName  (foldMap (fvT . stripLocT) pt)
 dependencies (FunDef _ pt as) = map TypeName (foldMap (fcT . stripLocT) pt
@@ -83,7 +83,7 @@ sourceObject (AbsTypeDec n _ _) = TypeName n
 sourceObject (AbsDec n _)       = ValName n
 sourceObject (FunDef v _ _)     = ValName v
 sourceObject (ConstDef v _ _)   = ValName v
-sourceObject (RepDef (RepDecl _ n _))    = RepName n
+sourceObject (RepDef (DataLayoutDecl _ n _))    = RepName n
 
 prune :: [SourceObject]  -- a list of entry-points
       -> [(SourceObject, v, [SourceObject])]
