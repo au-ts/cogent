@@ -580,15 +580,15 @@ instance Pretty SourcePos where
   pretty p | __cogent_ffull_src_path = position (show p)
            | otherwise = position $ show $ setSourceName p (takeFileName $ sourceName p)
 
-instance Pretty RepDecl where
-  pretty (RepDecl _ n e) = keyword "repr" <+> reprname n <+> indent (symbol "=" </> pretty e)
+instance Pretty DataLayoutDecl where
+  pretty (DataLayoutDecl _ n e) = keyword "repr" <+> reprname n <+> indent (symbol "=" </> pretty e)
 
-instance Pretty RepSize where
+instance Pretty DataLayoutSize where
   pretty (Bits b) = literal (string (show b ++ "b"))
   pretty (Bytes b) = literal (string (show b ++ "B"))
   pretty (Add a b) = pretty a <+> symbol "+" <+> pretty b
 
-instance Pretty RepExpr where 
+instance Pretty DataLayoutExpr where 
   pretty (RepRef n) = reprname n
   pretty (Prim sz) = pretty sz
   pretty (Offset e s) = pretty e <+> keyword "at" <+> pretty s
@@ -919,7 +919,7 @@ prettyCtx (InDefinition p tl) _ = context "in the definition at (" <> pretty p <
         helper (AbsDec n _) = context "abstract function" <+> varname n
         helper (ConstDef v _ _) = context "constant" <+> varname v
         helper (FunDef v _ _) = context "function" <+> varname v
-        helper (RepDef (RepDecl _ n _)) = context "representation" <+> reprname n
+        helper (RepDef (DataLayoutDecl _ n _)) = context "representation" <+> reprname n
         helper _  = __impossible "helper"
 prettyCtx (AntiquotedType t) i = (if i then (<$> indent' (pretty (stripLocT t))) else id)
                                (context "in the antiquoted type at (" <> pretty (posOfT t) <> context ")" )
