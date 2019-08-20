@@ -37,8 +37,8 @@ import Cogent.Common.Syntax         ( DataLayoutName
 import Cogent.Common.Types          ( Sigil(Unboxed, Boxed), PrimInt(..))
 import Cogent.Dargent.Surface       ( DataLayoutExpr
                                     , DataLayoutSize
-                                    , RepSize(Bytes, Bits, Add)
-                                    , RepExpr(RepRef, Prim, Offset, Record, Variant, CStructDL)
+                                    , DataLayoutSize(Bytes, Bits, Add)
+                                    , DataLayoutExpr(RepRef, Prim, Offset, Record, Variant, CStructDL)
                                     )
 import Cogent.Dargent.TypeCheck     (desugarSize)
 import Cogent.Dargent.Core

@@ -96,15 +96,15 @@ avoidInitial = do
     else do whiteSpace; p <- sourceColumn <$> getPosition; guard (p > 1 || p <= 0)
 
 
-repDecl :: Parser RepDecl
-repDecl = RepDecl <$> getPosition <*> typeConName <* reservedOp "=" <*> repExpr
+repDecl :: Parser DataLayoutDecl
+repDecl = DataLayoutDecl <$> getPosition <*> typeConName <* reservedOp "=" <*> repExpr
 
-repSize :: Parser RepSize
+repSize :: Parser DataLayoutSize
 repSize = avoidInitial >> buildExpressionParser [[Infix (reservedOp "+" *> pure Add) AssocLeft]] (do 
                x <- fromIntegral <$> natural
                (Bits <$ reserved "b" <*> pure x <|> Bytes <$ reserved "B" <*> pure x))
 
-repExpr :: Parser RepExpr
+repExpr :: Parser DataLayoutExpr
 repExpr = avoidInitial >> buildExpressionParser [[Postfix (flip Offset <$ reserved "at" <*> repSize)]] 
            (Record <$ reserved "record" <*> braces (commaSep recordRepr)
         <|> Variant <$ reserved "variant" <*> parens (repExpr) <*> braces (commaSep variantRepr)
