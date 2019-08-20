@@ -12,10 +12,15 @@
 
 {-# LANGUAGE DeriveDataTypeable #-}
 
-module Cogent.Dargent.Surface where
+module Cogent.Dargent.Surface
+  ( module Cogent.Dargent.Surface
+  , module Cogent.Dargent.Common
+  )
+where
 
 import Cogent.Common.Syntax (FieldName, TagName, RepName, Size)
 import Cogent.Compiler (__fixme)
+import Cogent.Dargent.Common
 
 import Data.Data
 import Text.Parsec.Pos (SourcePos)
@@ -37,5 +42,4 @@ data DataLayoutExpr
   | Variant DataLayoutExpr [(TagName, SourcePos, Size, DataLayoutExpr)]
   | Offset  DataLayoutExpr DataLayoutSize
   | RepRef  RepName
-  | CStructDL  [(FieldName, SourcePos, DataLayoutExpr)]
   deriving (Show, Data, Eq, Ord)
