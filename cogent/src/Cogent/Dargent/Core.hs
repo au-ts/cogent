@@ -2,7 +2,11 @@
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE NamedFieldPuns #-}
-module Cogent.Dargent.Core where
+module Cogent.Dargent.Core
+ ( module Cogent.Dargent.Core
+ , module Cogent.Dargent.Common
+ )
+where
   
 import Data.Map (Map)
 
@@ -11,6 +15,8 @@ import Text.Parsec.Pos (SourcePos)
 import Cogent.Common.Syntax (TagName, FieldName, Size)
 
 import Cogent.Common.Types (PrimInt (..))
+
+import Cogent.Dargent.Common
 
 {- * Core datalayout types -}
 
