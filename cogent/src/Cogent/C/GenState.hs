@@ -154,7 +154,7 @@ newtype Gen v a = Gen { runGen :: RWS (GenRead v) () GenState a }
 
 genTyDecl :: (StrlType, CId) -> [TypeName] -> [CExtDecl]
 genTyDecl (Record x, n) _ = [CDecl $ CStructDecl n (map (second Just . swap) x), genTySynDecl (n, CStruct n)]
-genTyDecl (BoxedRecord (StrlCogentType (TRecord _ (Boxed _ layout))), n) _ =
+genTyDecl (BoxedRecord (StrlCogentType (TRecord _ (Boxed _ (Layout layout)))), n) _ =
   let size      = dataLayoutSizeBytes layout
       arrayType = CArray (CInt False CIntT) (CArraySize $ CConst $ CNumConst size (CInt False CIntT) DEC)
   in
@@ -224,8 +224,8 @@ lookupTypeCId (TFun t1 t2) = getCompose (Compose . lookupStrlTypeCId =<< Functio
 lookupTypeCId (TRecord fs Unboxed) =
   getCompose (Compose . lookupStrlTypeCId =<<
     Record <$> (mapM (\(a,(b,_)) -> (a,) <$> (Compose . lookupType) b) fs))
-lookupTypeCId cogentType@(TRecord _ (Boxed _ RecordLayout{})) = lookupStrlTypeCId (BoxedRecord (StrlCogentType cogentType))
-lookupTypeCId cogentType@(TRecord fs (Boxed _ CStructLayout{})) =
+lookupTypeCId cogentType@(TRecord _ (Boxed _ (Layout RecordLayout{}))) = lookupStrlTypeCId (BoxedRecord (StrlCogentType cogentType))
+lookupTypeCId cogentType@(TRecord fs (Boxed _ CLayout)) =
   getCompose (Compose . lookupStrlTypeCId =<<
     Record <$> (mapM (\(a,(b,_)) -> (a,) <$> (Compose . lookupType) b) fs))
 lookupTypeCId cogentType@(TRecord _ (Boxed _ _)) = __impossible "lookupTypeCId: record with non-record layout"
@@ -284,8 +284,8 @@ typeCId t = use custTypeGen >>= \ctg ->
     typeCId' (TRecord fs Unboxed) = getStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs)
     typeCId' cogentType@(TRecord fs (Boxed _ l)) =
       case l of
-        RecordLayout{}  -> getStrlTypeCId (BoxedRecord (StrlCogentType cogentType))
-        CStructLayout{} -> getStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs)
+        (Layout RecordLayout{}) -> getStrlTypeCId (BoxedRecord (StrlCogentType cogentType))
+        CLayout -> getStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs)
         _ -> __impossible "Tried to get the c-type of a record with a non-record layout"
     typeCId' (TUnit) = return unitT
 #if BUILTIN_ARRAYS

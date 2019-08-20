@@ -31,6 +31,8 @@ import Cogent.Compiler (__fixme, __impossible)
 import Cogent.Surface (Type(..))
 -- import Cogent.TypeCheck.Base (TypeDict)  -- TODO: needed to implement `typeCheckDataLayoutTypeMatch`
 
+import Data.Bifunctor (second)
+
 import Text.Parsec.Pos (SourcePos)
 
 {- * Important exported functions -}
@@ -39,11 +41,14 @@ import Text.Parsec.Pos (SourcePos)
 --
 -- This includes that relevant blocks of bits don't overlap
 -- And tag values are in the right ranges
-typeCheckDataLayoutExpr
+typeCheckDargentLayoutExpr
   :: NamedDataLayouts
-  -> DataLayoutExpr
-  -> ([DataLayoutTypeCheckError], Allocation)
+  -> DargentLayout DataLayoutExpr
+  -> ([DataLayoutTypeCheckError], DargentLayout Allocation)
+typeCheckDargentLayoutExpr n CLayout = ([], CLayout)
+typeCheckDargentLayoutExpr n (Layout l) = second Layout $ typeCheckDataLayoutExpr n l
 
+typeCheckDataLayoutExpr :: NamedDataLayouts -> DataLayoutExpr -> ([DataLayoutTypeCheckError], Allocation)
 typeCheckDataLayoutExpr env (RepRef n) =
   case M.lookup n env of 
     Just (_, allocation) -> mapPaths (InDecl n) $ return allocation
@@ -59,7 +64,7 @@ typeCheckDataLayoutExpr env (Offset dataLayoutExpr offsetSize) =
     
 typeCheckDataLayoutExpr env (Record fields) =
   let (errs, alloc) = foldM typeCheckField [] fields
-   in if isZeroSizedAllocation alloc
+  in if isZeroSizedAllocation alloc
         then returnError $ ZeroSizedBitRange PathEnd
         else (errs, alloc)
   where
@@ -232,9 +237,9 @@ normaliseDataLayoutDecl env (DataLayoutDecl pos name expr) =
 -- Normalises the layout in the sigil to remove references to named layouts
 normaliseSigil
   :: NamedDataLayouts
-  -> Sigil (Maybe DataLayoutExpr)
-  -> Sigil (Maybe DataLayoutExpr)
-normaliseSigil env = fmap (fmap (normaliseDataLayoutExpr env))
+  -> Sigil (Maybe (DargentLayout DataLayoutExpr))
+  -> Sigil (Maybe (DargentLayout DataLayoutExpr))
+normaliseSigil env = fmap (fmap (fmap (normaliseDataLayoutExpr env)))
 
 returnError :: Monoid a => DataLayoutTypeCheckError -> ([DataLayoutTypeCheckError], a)
 returnError e = ([e], mempty)

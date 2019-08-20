@@ -11,10 +11,12 @@
 --
 {-# LANGUAGE CPP #-}
 module Cogent.TypeCheck.Solver.Normalise where
+
 import Cogent.Common.Types
+import Cogent.Compiler
+import Cogent.Dargent.Common (DargentLayout(..))
 import Cogent.Surface
 import Cogent.TypeCheck.Base
-import Cogent.Compiler
 import Cogent.TypeCheck.Solver.Goal
 import Cogent.TypeCheck.Solver.Monad
 import Cogent.TypeCheck.Solver.Rewrite
@@ -65,7 +67,7 @@ normaliseRW = rewrite' $ \t -> case t of
         Nothing -> pure $ V (Row.putAll row)
         Just fs -> pure $ V (Row.putMany fs row)
     T (TLayout l (R row (Left (Boxed p _)))) ->
-      pure $ R row $ Left $ Boxed p (Just l)
+      pure $ R row $ Left $ Boxed p (Just (Layout l))
     T (TLayout l (R row (Right i))) ->
       __impossible "normaliseRW: TLayout over a sigil variable"
     T (TLayout l _) -> -- TODO(dargent): maybe handle this later
