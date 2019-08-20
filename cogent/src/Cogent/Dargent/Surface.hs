@@ -20,30 +20,22 @@ import Cogent.Compiler (__fixme)
 import Data.Data
 import Text.Parsec.Pos (SourcePos)
 
--- | For gradual transition to eliminate Rep from the language.
-type DataLayoutSize = RepSize
-type DataLayoutDecl = RepDecl
-type DataLayoutExpr = RepExpr
-
--- | TODO: Rename to DataLayoutSize
-data RepSize 
+data DataLayoutSize 
   = Bytes Size
   | Bits  Size
-  | Add   RepSize RepSize
+  | Add   DataLayoutSize DataLayoutSize
   -- Future options, sizeof, offsetof, "after"
   deriving (Show, Data, Eq, Ord)
 
--- | TODO: Rename to DataLayoutDecl
-data RepDecl
-  = RepDecl SourcePos RepName RepExpr
+data DataLayoutDecl
+  = DataLayoutDecl SourcePos RepName DataLayoutExpr
   deriving (Show, Data, Eq, Ord)
 
--- | TODO: Rename to DataLayoutExpr
-data RepExpr
-  = Prim    RepSize
-  | Record  [(FieldName, SourcePos, RepExpr)]
-  | Variant RepExpr [(TagName, SourcePos, Size, RepExpr)]
-  | Offset  RepExpr RepSize
+data DataLayoutExpr
+  = Prim    DataLayoutSize
+  | Record  [(FieldName, SourcePos, DataLayoutExpr)]
+  | Variant DataLayoutExpr [(TagName, SourcePos, Size, DataLayoutExpr)]
+  | Offset  DataLayoutExpr DataLayoutSize
   | RepRef  RepName
-  | CStructDL  [(FieldName, SourcePos, RepExpr)]
+  | CStructDL  [(FieldName, SourcePos, DataLayoutExpr)]
   deriving (Show, Data, Eq, Ord)

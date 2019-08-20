@@ -169,7 +169,7 @@ data DataLayoutTypeCheckErrorP p
     
   | UnknownDataLayout       DataLayoutName p
     -- ^ Have referenced a data layout which hasn't been declared
-    -- The path is the path to the use of that Rep in the RepExpr being checked
+    -- The path is the path to the use of that Rep in the DataLayoutExpr being checked
     
   | TagNotSingleBlock       p
   
@@ -218,7 +218,7 @@ typeCheckDataLayoutDecl
   -> DataLayoutDecl
   -> ([DataLayoutTypeCheckError], Allocation)
 
-typeCheckDataLayoutDecl env (RepDecl pos name expr) =
+typeCheckDataLayoutDecl env (DataLayoutDecl pos name expr) =
   mapPaths (InDecl name) (typeCheckDataLayoutExpr env expr)
 
 normaliseDataLayoutDecl
@@ -226,8 +226,8 @@ normaliseDataLayoutDecl
   -> DataLayoutDecl
   -> DataLayoutDecl
 
-normaliseDataLayoutDecl env (RepDecl pos name expr) =
-  RepDecl pos name (normaliseDataLayoutExpr env expr)
+normaliseDataLayoutDecl env (DataLayoutDecl pos name expr) =
+  DataLayoutDecl pos name (normaliseDataLayoutExpr env expr)
 
 -- Normalises the layout in the sigil to remove references to named layouts
 normaliseSigil
@@ -241,7 +241,7 @@ returnError e = ([e], mempty)
 
 
 {- * Other functions -}
-evalSize :: RepSize -> Size
+evalSize :: DataLayoutSize -> Size
 evalSize (Bytes b) = b * 8
 evalSize (Bits b)  = b
 evalSize (Add a b) = evalSize a + evalSize b
