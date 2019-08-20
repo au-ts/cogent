@@ -110,7 +110,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     t'' <- postT t'
     return $ AbsDec n (PT ps t'')
 
-  (RepDef decl@(RepDecl pos name expr)) -> do 
+  (RepDef decl@(DataLayoutDecl pos name expr)) -> do 
     traceTc "tc" (text "typecheck rep decl" <+> pretty name)
     namedLayouts            <- lift . lift $ use knownDataLayouts
     let (errors, allocation) = typeCheckDataLayoutDecl namedLayouts decl

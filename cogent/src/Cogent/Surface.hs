@@ -68,7 +68,7 @@ data Inline = Inline
             | NoInline
             deriving (Data, Eq, Ord, Show)
 
-allRepRefs :: RepExpr -> [RepName]
+allRepRefs :: DataLayoutExpr -> [RepName]
 allRepRefs (Record fs) = concatMap (allRepRefs . thd3) fs
 allRepRefs (Variant _ cs) = concatMap (\(_,_,_,e) -> allRepRefs e) cs
 allRepRefs (RepRef n) = [n]
@@ -113,10 +113,10 @@ type Entry t = (FieldName, (t, Taken))
 
 data Type e t =
               -- They are in WHNF
-                TCon TypeName [t] (Sigil (Maybe RepExpr))  -- FIXME: can polymorphise the `Representation`
+                TCon TypeName [t] (Sigil (Maybe DataLayoutExpr))  -- FIXME: can polymorphise the `Representation`
               | TVar VarName Banged
               | TFun t t
-              | TRecord [(FieldName, (t, Taken))] (Sigil (Maybe RepExpr))
+              | TRecord [(FieldName, (t, Taken))] (Sigil (Maybe DataLayoutExpr))
               | TVariant (M.Map TagName ([t], Taken))
               | TTuple [t]
               | TUnit
@@ -146,7 +146,7 @@ data TopLevel t p e = Include    String
                     | AbsDec     FunName (Polytype t)
                     | FunDef     FunName (Polytype t) [Alt p e]
                     | ConstDef   ConstName t e
-                    | RepDef RepDecl
+                    | RepDef DataLayoutDecl
                     deriving (Data, Eq, Show, Functor, Foldable, Traversable)
 
 absFnDeclId :: String -> TopLevel t p e -> Bool
