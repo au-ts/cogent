@@ -46,6 +46,7 @@ makeGoals ctx g = pure $ Goal ctx g
 makeGoal :: [ErrorContext] -> Constraint -> Goal 
 makeGoal ctx (constraint :@ c) = makeGoal (c:ctx) constraint
 makeGoal ctx g = Goal ctx g 
+
 derivedGoal :: Goal -> Constraint -> Goal
 derivedGoal (Goal c g) g' = makeGoal (SolvingConstraint g:c) g'
 

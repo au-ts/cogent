@@ -1,23 +1,36 @@
+--
+-- Copyright 2019, Data61
+-- Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+-- ABN 41 687 119 230.
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(DATA61_GPL)
+--
+
 module Cogent.TypeCheck.Solver.Simplify where 
 
-import qualified Cogent.TypeCheck.Solver.Rewrite as Rewrite
-import Cogent.TypeCheck.Solver.Goal 
-import Cogent.TypeCheck.Solver.Monad
-import qualified Cogent.TypeCheck.Row as Row
-import Cogent.TypeCheck.Row (Entry, Row)
-import Cogent.Surface
-import Cogent.TypeCheck.Base 
-import Cogent.Common.Types
-import Cogent.Common.Syntax
-import Lens.Micro
-import Control.Monad
-import Data.Maybe
-import Data.List (elemIndex, isSubsequenceOf , (\\))
-import Control.Applicative
-import Control.Monad.Trans.Maybe
-import Control.Monad.Trans.Class (lift)
-import qualified Data.Set as S
+import           Control.Applicative
+import           Control.Monad
+import           Control.Monad.Trans.Maybe
+import           Control.Monad.Trans.Class (lift)
+import           Data.List (elemIndex, null)
 import qualified Data.Map as M
+import           Data.Maybe
+import qualified Data.Set as S
+import           Lens.Micro
+
+import           Cogent.Common.Syntax
+import           Cogent.Common.Types
+import           Cogent.TypeCheck.Base 
+import qualified Cogent.TypeCheck.Row as Row
+import           Cogent.TypeCheck.Row (Entry)
+import           Cogent.TypeCheck.Solver.Goal 
+import           Cogent.TypeCheck.Solver.Monad
+import qualified Cogent.TypeCheck.Solver.Rewrite as Rewrite
+import           Cogent.Surface
 
 onGoal :: (Constraint -> Maybe [Constraint]) -> Goal -> Maybe [Goal]
 onGoal f g = fmap (map (derivedGoal g)) (f (g ^. goal))
@@ -156,19 +169,10 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
   _ -> Nothing
 
 unorderedType :: Type e t -> Bool 
-unorderedType (TRecord {}) = False
-unorderedType (TVariant {}) = False
-unorderedType (TTuple {}) = False
-unorderedType (TFun {}) = False
-unorderedType (TUnbox {}) = False
-unorderedType (TBang {}) = False
-unorderedType (TTake {}) = False
-unorderedType (TPut {}) = False
-unorderedType (TLayout {}) = False
-#ifdef BUILTIN_ARRAYS
-unorderedType (TArray {}) = False
-#endif
-unorderedType _ = True 
+unorderedType (TCon {}) = True
+unorderedType (TVar {}) = True
+unorderedType (TUnit)   = True
+unorderedType _ = False
 
 psub :: Row t -> Row t -> Bool
 psub r1 r2 = isSubsequenceOf (Row.presentLabels r1) (Row.presentLabels r2)
@@ -184,4 +188,4 @@ isIrrefutable (RP (PIrrefutable _)) = True
 isIrrefutable _ = False
 
 isSolved :: TCType -> Bool
-isSolved t = unifVars t == []
+isSolved t = null $ unifVars t

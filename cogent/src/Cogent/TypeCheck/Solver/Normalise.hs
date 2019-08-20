@@ -9,7 +9,7 @@
 --
 -- @TAG(DATA61_GPL)
 --
-{-# LANGUAGE CPP #-}
+
 module Cogent.TypeCheck.Solver.Normalise where
 
 import Cogent.Common.Types
@@ -29,7 +29,7 @@ import Control.Monad.Trans.Maybe
 import Lens.Micro.Mtl
 import Lens.Micro
 
-normaliseRW :: Rewrite' TcSolvM TCType
+normaliseRW :: RewriteT TcSolvM TCType
 normaliseRW = rewrite' $ \t -> case t of
     T (TBang (T (TCon t ts s))) -> pure (T (TCon t (fmap (T . TBang) ts) (bangSigil s)))
     T (TBang (T (TVar v b u))) -> pure (T (TVar v True u))

@@ -1,15 +1,28 @@
+--
+-- Copyright 2018, Data61
+-- Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+-- ABN 41 687 119 230.
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(DATA61_GPL)
+--
+
 {-# OPTIONS_GHC -Werror -Wall #-}
+
 module Cogent.TypeCheck.Solver.Default ( defaults ) where 
 
-import Cogent.Surface
-import Cogent.Util
-import Cogent.TypeCheck.Base 
 import Cogent.Common.Types
+import Cogent.Surface
+import Cogent.TypeCheck.Base 
 import Cogent.TypeCheck.Solver.Goal 
 import qualified Cogent.TypeCheck.Solver.Rewrite as Rewrite
+import Cogent.Util
+
 import Control.Monad.Writer
 import Control.Monad.Trans.Maybe
-
 import Data.List (elemIndex)
 
 

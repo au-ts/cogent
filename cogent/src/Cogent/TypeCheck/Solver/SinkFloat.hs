@@ -1,3 +1,15 @@
+--
+-- Copyright 2018, Data61
+-- Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+-- ABN 41 687 119 230.
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(DATA61_GPL)
+--
+
 {-# OPTIONS_GHC -Werror -Wall #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -27,7 +39,6 @@ import Control.Applicative (empty)
 import Control.Monad.Writer
 import Control.Monad.Trans.Maybe
 import qualified Data.Map as M
-
 import Lens.Micro
 
 sinkfloat :: Rewrite.Rewrite' TcSolvM [Goal]
@@ -231,3 +242,4 @@ sinkfloat = Rewrite.rewrite' $ \gs ->
       tus <- traverse (const (U <$> lift solvFresh)) ts
       let t = T (TCon n tus s)  -- FIXME: A[R] :< (?0)! will break if ?0 ~> A[W] is needed somewhere else
       return $ Subst.ofType i t
+
