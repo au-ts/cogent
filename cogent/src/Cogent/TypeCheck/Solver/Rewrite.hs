@@ -9,6 +9,7 @@
 --
 -- @TAG(DATA61_GPL)
 --
+
 module Cogent.TypeCheck.Solver.Rewrite
   ( -- * Types
     Rewrite
@@ -32,11 +33,14 @@ module Cogent.TypeCheck.Solver.Rewrite
     debugFail
   , debugPass
   ) where
+
+import Control.Applicative
 import Control.Monad.Identity
 import Control.Monad.Trans.Maybe
 import qualified Control.Monad.Trans as T
-import Control.Applicative
-import Debug.Trace
+import Text.PrettyPrint.ANSI.Leijen (text, (<+>), (<$$>))
+
+import Cogent.TypeCheck.Util
 
 -- | Intuitively a @Rewrite a@ is a partial function from @a@ to @a@.
 --   It can be composed disjuctively using the 'Semigroup' instance, or
@@ -129,17 +133,11 @@ lift :: Applicative m => Rewrite a -> Rewrite' m a
 lift (Rewrite f) = rewrite (runIdentity . runMaybeT . f)
 
 -- | For debugging, prints the contents of the rewrite to the console, with a string prefix.
--- Returns empty result and counts as no progress.
-debugFail :: (Monad m) => String -> (a -> String) -> Rewrite' m a
-debugFail pfx show = Rewrite (\cs -> case () of
-  ()
-   | trace (pfx ++ ": " ++ show cs) False -> undefined
-   | otherwise                            -> empty)
+--   Returns empty result and counts as no progress.
+debugFail :: (Monad m, T.MonadIO m) => String -> (a -> String) -> Rewrite' m a
+debugFail pfx show = Rewrite (\cs -> traceTc "rewrite" (text pfx <$$> text (show cs)) >> empty)
 
 -- | Print debugging information as above, but counts as a successful rewrite.
--- Useful for putting debugging after another rewrite, if you only want to print on success
-debugPass :: (Monad m) => String -> (a -> String) -> Rewrite' m a
-debugPass pfx show = Rewrite (\cs -> case () of
-  ()
-   | trace (pfx ++ ": " ++ show cs) False -> undefined
-   | otherwise                            -> return cs)
+--   Useful for putting debugging after another rewrite, if you only want to print on success.
+debugPass :: (Monad m, T.MonadIO m) => String -> (a -> String) -> Rewrite' m a
+debugPass pfx show = Rewrite (\cs -> traceTc "rewrite" (text pfx <$$> text (show cs)) >> return cs)

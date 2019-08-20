@@ -48,6 +48,7 @@ import           Control.Applicative
 import           Control.Arrow (first, second)
 import           Control.Monad.State hiding (modify)
 import           Control.Monad.Trans.Except
+import           Control.Monad.Trans.Maybe
 import           Control.Monad.Trans.State (modify)
 import           Data.Either (either)
 import qualified Data.Foldable as F
@@ -72,19 +73,17 @@ import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
 import           Lens.Micro
 import           Lens.Micro.TH
 import           Lens.Micro.Mtl
-import Debug.Trace
-import Control.Monad.Trans.Maybe
-import Data.Maybe
+
 
 solve :: [(TyVarName, Kind)] -> Constraint -> TcSolvM [Goal]
 solve ks c = let gs     = makeGoals [] c
                           -- Simplify does a lot of very small steps so it's slightly nicer for tracing to run it in a nested fixpoint
-                 stages = debugL "Simplify" (Rewrite.untilFixedPoint $ simplify ks) <>
-                          debug  "Unify"    unify <>
-                          debugL "Equate" equate <>
+                 stages = debugL "Simplify"   (Rewrite.untilFixedPoint $ simplify ks) <>
+                          debug  "Unify"      unify <>
+                          debugL "Equate"     equate <>
                           debug  "Sink/float" sinkfloat <>
-                          debug  "JoinMeet" joinMeet <>
-                          debugL "Defaults" defaults
+                          debug  "JoinMeet"   joinMeet <>
+                          debugL "Defaults"   defaults
   -- [amos] Type-solver changes I made:
   -- * Simplify rule for `t :=: t` to `Solved t` (see Solver/Simplify.hs)
   --    A constraint like "?a :=: ?a" is almost trivial, except that you need the `Solved` constraint to make sure ?a is given a concrete assignment eventually
@@ -98,10 +97,9 @@ solve ks c = let gs     = makeGoals [] c
                           Rewrite.untilFixedPoint (Rewrite.pre normaliseTypes $ stages)
               in fmap (fromMaybe gs) (runMaybeT (Rewrite.run' rw gs))
  where
-  -- TODO: probably want a compiler flag here
-  debug  nm rw = rw -- rw `Rewrite.andThen` Rewrite.debugPass ("\n===Rewrite " ++ nm ++ "===") printC
-  debugL nm rw = Rewrite.lift rw -- debug nm (Rewrite.lift rw)
-  debugF nm = mempty -- Rewrite.debugFail ("\n===Rewrite " ++ nm ++ "===") printC
+  debug  nm rw = rw `Rewrite.andThen` Rewrite.debugPass ("=== " ++ nm ++ " ===") printC
+  debugL nm rw = debug nm (Rewrite.lift rw)
+  debugF nm = Rewrite.debugFail ("=== " ++ nm ++ " ===") printC
 
   printC gs =
    let gs' = map (P.nest 2 . pretty . _goal) gs
