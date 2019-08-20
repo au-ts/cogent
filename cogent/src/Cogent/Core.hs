@@ -46,6 +46,7 @@ module Cogent.Core
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler
+import Cogent.Dargent.Common
 import Cogent.Dargent.Core
 import Cogent.PrettyPrint hiding (associativity, primop)
 import Cogent.Util
@@ -74,7 +75,7 @@ data Type t
   | TString
   | TSum [(TagName, (Type t, Bool))]  -- True means taken (since 2.0.4)
   | TProduct (Type t) (Type t)
-  | TRecord [(FieldName, (Type t, Bool))] (Sigil (DataLayout BitRange))
+  | TRecord [(FieldName, (Type t, Bool))] (Sigil (DargentLayout (DataLayout BitRange)))
     -- True means taken, Layout will be nothing for abstract types
   | TUnit
 #ifdef BUILTIN_ARRAYS

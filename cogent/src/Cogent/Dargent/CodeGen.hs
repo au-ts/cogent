@@ -41,6 +41,7 @@ import Cogent.Compiler
 import Cogent.Dargent.Core
   ( AlignedBitRange (..)
   , DataLayout (..)
+  , DargentLayout (..)
   , alignLayout
   , wordSizeBits
   , Architecture (..)
@@ -99,7 +100,7 @@ genBoxedGetSetField cogentType fieldName getOrSet = do
     Just getSetFieldFunction -> return getSetFieldFunction
     Nothing                  ->
       case cogentType of
-        TRecord fieldTypes (Boxed _ (RecordLayout fieldLayouts)) ->
+        TRecord fieldTypes (Boxed _ (Layout (RecordLayout fieldLayouts))) ->
           do
             let fieldType       = fst $ (fromList fieldTypes) ! fieldName
                 fieldLayout     = alignLayout $ fst $ fieldLayouts ! fieldName
@@ -108,15 +109,9 @@ genBoxedGetSetField cogentType fieldName getOrSet = do
             ((case getOrSet of Get -> boxedRecordGetters; Set -> boxedRecordSetters) . at (cogentType, fieldName))
                                 ?= getSetFieldFunction
             return getSetFieldFunction
-        TRecord fieldTypes (Boxed _ (CStructLayout fieldLayouts)) ->
+        TRecord fieldTypes (Boxed _ CLayout) ->
           do
-            let fieldType       = fst $ (fromList fieldTypes) ! fieldName
-                fieldLayout     = alignLayout $ fst $ fieldLayouts ! fieldName
-            boxCType            <- genType cogentType
-            getSetFieldFunction <- genBoxedGetterSetter boxCType fieldType fieldLayout [fieldName] getOrSet
-            ((case getOrSet of Get -> boxedRecordGetters; Set -> boxedRecordSetters) . at (cogentType, fieldName))
-                                ?= getSetFieldFunction
-            return getSetFieldFunction
+            error "genBoxedGetSetField: tried to gen a getter/setter for a c-type"
 
 
 {-|
@@ -188,20 +183,6 @@ genBoxedGetterSetter boxType embeddedTypeCogent@(TRecord fields Unboxed) (Record
       )
       fields
   declareSetterOrGetter $ recordGetterSetter fieldGettersSetters boxType embeddedTypeC functionName getOrSet
-  return (CVar functionName Nothing)
-
-genBoxedGetterSetter boxType embeddedTypeCogent@(TRecord fields (Boxed _ _)) (CStructLayout { fieldsDL }) path getOrSet = do
-  embeddedTypeC         <- genType embeddedTypeCogent
-  functionName          <- genGetterSetterName path getOrSet
-  fieldGettersSetters   <-
-    mapM
-      (\(fieldName, (fieldType, _)) -> do
-          let fieldLayout = fst $ fieldsDL ! fieldName
-          getterSetter <- genBoxedGetterSetter boxType fieldType fieldLayout (path ++ [fieldName]) getOrSet
-          return (fieldName, getterSetter)
-      )
-      fields
-  declareSetterOrGetter $ ptrStructGetterSetter fieldGettersSetters boxType embeddedTypeC functionName getOrSet
   return (CVar functionName Nothing)
 
 genBoxedGetterSetter boxType (TUnit) (UnitLayout) path getOrSet = do

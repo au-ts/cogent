@@ -487,14 +487,17 @@ instance (Pretty t, TypeType t, Pretty e) => Pretty (Type e t) where
 #ifdef BUILTIN_ARRAYS
   pretty (TArray t l) = prettyT' t <> brackets (pretty l)
 #endif
-  pretty (TRecord ts s)
-    | not . or $ map (snd . snd) ts = prettySigil s $
-        record (map (\(a,(b,c)) -> fieldname a <+> symbol ":" <+> pretty b) ts)  -- all untaken
-    | otherwise = pretty (TRecord (map (second . second $ const False) ts) s :: Type e t)
-              <+> typesymbol "take" <+> tupled1 (map fieldname tk)
-        where tk = map fst $ filter (snd . snd) ts
-              prettySigil (Unboxed) = (typesymbol "#" <>)
-              prettySigil (Boxed rw l) = ((<+> pretty l) . (if rw then (<> typesymbol "!") else id))
+  pretty (TRecord ts s) =
+      let recordPretty = record (map (\(a,(b,c)) -> fieldname a <+> symbol ":" <+> pretty b) ts) -- all untaken
+          tk = map fst $ filter (snd . snd) ts
+          tkUntkPretty = (if or $ map (snd . snd) ts
+                          then (<+> typesymbol "take" <+> tupled1 (map fieldname tk))
+                          else id)
+          (sigilPretty, layoutPretty) =
+            (case s of 
+              Unboxed -> ((typesymbol "#" <>), id)
+              (Boxed rw l) -> (if rw then  (<> typesymbol "!") else id, (<+> pretty l)))
+       in layoutPretty . tkUntkPretty . sigilPretty $ recordPretty  
   pretty (TVariant ts) | any snd ts = let
      names = map fst $ filter (snd . snd) $ M.toList ts
    in pretty (TVariant $ fmap (second (const False)) ts :: Type e t)
@@ -840,23 +843,22 @@ instance Pretty DataLayoutPath where
 
 instance Pretty a => Pretty (DataLayout a) where
   pretty UnitLayout =
-    keyword "repr" <> parens (literal (symbol "unit"))
+    parens (literal (symbol "unit"))
 
   pretty PrimLayout {bitsDL} =
-    keyword "repr" <> parens (pretty bitsDL)
+    parens (pretty bitsDL)
 
   pretty SumLayout {tagDL, alternativesDL} = 
-    keyword "repr" <> parens (pretty tagDL) <> variant (map prettyAlt $ M.toList alternativesDL)
+    parens (pretty tagDL) <> variant (map prettyAlt $ M.toList alternativesDL)
     where prettyAlt (n,(v,l,_)) = tagname n <> parens (integer $ fromIntegral v) <> colon <> pretty l
 
   pretty RecordLayout {fieldsDL} =
-    keyword "repr" <> record (map prettyField $ M.toList fieldsDL)
+    record (map prettyField $ M.toList fieldsDL)
     where prettyField (f,(l,_)) = fieldname f <> colon <> pretty l
 
-  pretty CStructLayout {fieldsDL} =
-    keyword "repr" <> keyword "struct" <> record (map prettyField $ M.toList fieldsDL)
-    where prettyField (f,(l,_)) = fieldname f <> colon <> pretty l
-
+instance Pretty a => Pretty (DargentLayout a) where
+  pretty (Layout l) = keyword "repr" <> pretty l
+  pretty CLayout = keyword "c-repr"
 
 instance Pretty BitRange where
   pretty BitRange {bitSizeBR, bitOffsetBR} = literal (pretty bitSizeBR) <> symbol "b" <+> symbol "at" <+> literal (pretty bitOffsetBR) <> symbol "b"

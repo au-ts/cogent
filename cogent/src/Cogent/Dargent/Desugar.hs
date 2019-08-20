@@ -38,19 +38,19 @@ import Cogent.Common.Types          ( Sigil(Unboxed, Boxed), PrimInt(..))
 import Cogent.Dargent.Surface       ( DataLayoutExpr
                                     , DataLayoutSize
                                     , DataLayoutSize(Bytes, Bits, Add)
-                                    , DataLayoutExpr(RepRef, Prim, Offset, Record, Variant, CStructDL)
+                                    , DataLayoutExpr(..)
                                     )
-import Cogent.Dargent.TypeCheck     (desugarSize)
+import Cogent.Dargent.TypeCheck     ( desugarSize )
 import Cogent.Dargent.Core
-import Cogent.Core                  ( Type (..)
-                                    )
+import Cogent.Dargent.Common        ( DargentLayout(..) )
+import Cogent.Core                  ( Type (..) )
 {- * Desugaring 'Sigil's -}
 
 -- | After WH-normalisation, @TCon _ _ _@ values only represent primitive and abstract types.
 --   Primitive types have no sigil, and abstract types may be boxed or unboxed but have no layout.
 --   'desugarAbstractTypeSigil' should only be used when desugaring the sigils of abstract types, to eliminate the @Maybe DataLayoutExpr@.
 desugarAbstractTypeSigil
-  :: Sigil (Maybe DataLayoutExpr)
+  :: Sigil (Maybe (DargentLayout DataLayoutExpr))
   -> Sigil ()
 desugarAbstractTypeSigil = fmap desugarMaybeLayout
   where
@@ -76,16 +76,16 @@ desugarSigil
       --   but give boxed records a 'PrimLayout' of pointer size. However, we want to layout
       --   the internals of the top level record.
 
-  -> Sigil (Maybe DataLayoutExpr)
+  -> Sigil (Maybe (DargentLayout DataLayoutExpr))
       -- ^ Since desugarSigil is only called for normalising boxed records (and later, boxed variants),
       --   the @Maybe DataLayoutExpr@ should always be in the @Just layout@ alternative.
   
-  -> Sigil (DataLayout BitRange)
+  -> Sigil (DargentLayout (DataLayout BitRange))
 
 desugarSigil t = fmap desugarMaybeLayout
   where
-    desugarMaybeLayout Nothing  = constructDataLayout t
-    desugarMaybeLayout (Just l) = desugarDataLayout l
+    desugarMaybeLayout Nothing  = CLayout -- default to a CLayout
+    desugarMaybeLayout (Just l) = fmap desugarDataLayout l
 
 
 {- * Desugaring 'DataLayout's -}
@@ -114,10 +114,6 @@ desugarDataLayout (Variant tagExpr alts) =
 
     alts' = fmap (\(aname, pos, size, layout) -> (aname, (size, desugarDataLayout layout, pos))) alts
 
-desugarDataLayout (CStructDL fields) =
-  CStructLayout $ M.fromList fields'
-  where fields' = fmap (\(fname, pos, layout) -> (fname, (desugarDataLayout layout, pos))) fields
-
 {- * CONSTRUCTING 'DataLayout's -}
 
 -- constructs a default layout
@@ -144,7 +140,7 @@ constructDataLayout (TSum alternatives)
           in  ((endAllocatedBits layout, tagValue + 1), (name, (tagValue, layout, dummyPos)))
 
 
-constructDataLayout (TRecord fields Unboxed) = CStructLayout . fromList . snd $ mapAccumL constructFieldLayout 0 fields
+constructDataLayout (TRecord fields Unboxed) = RecordLayout . fromList . snd $ mapAccumL constructFieldLayout 0 fields
   where
     constructFieldLayout :: Size -> (FieldName, (Type t, Bool)) -> (Size, (FieldName, (DataLayout BitRange, SourcePos)))
     constructFieldLayout minBitOffset (name, (coreType, _)) =

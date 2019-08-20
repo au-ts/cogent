@@ -14,7 +14,11 @@
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE NamedFieldPuns #-}
-module Cogent.Dargent.Core where
+module Cogent.Dargent.Core
+ ( module Cogent.Dargent.Core
+ , module Cogent.Dargent.Common
+ )
+where
   
 import Data.Map (Map)
 
@@ -23,6 +27,8 @@ import Text.Parsec.Pos (SourcePos)
 import Cogent.Common.Syntax (TagName, FieldName, Size)
 
 import Cogent.Common.Types (PrimInt (..))
+
+import Cogent.Dargent.Common
 
 {- * Core datalayout types -}
 
@@ -45,10 +51,6 @@ data DataLayout bits
       -- ^ The 'Integer' is the tag's value
     }
   | RecordLayout
-    { fieldsDL        :: Map FieldName (DataLayout bits, SourcePos)
-    }
-  -- Let C decide; n.b. we can't get the size of this
-  | CStructLayout
     { fieldsDL        :: Map FieldName (DataLayout bits, SourcePos)
     }
   deriving (Show, Eq, Functor, Foldable)
