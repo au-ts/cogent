@@ -17,6 +17,7 @@ module Cogent.TypeCheck.Solver.JoinMeet (joinMeet) where
 
 import Cogent.Common.Syntax
 import Cogent.Common.Types
+import Cogent.Compiler (__todo)
 import Cogent.Surface
 import Cogent.TypeCheck.Base
 import qualified Cogent.TypeCheck.Row as Row
@@ -105,6 +106,11 @@ joinMeet = Rewrite.withTransform find $ \c -> case c of
   Join c1 c2 v (R r1 s1) (R r2 s2) | r1 == r2 && s1 == s2 -> do
     pure [Goal c1 (R r1 s1 :< v) ]
 
+#ifdef BUILTIN_ARRAYS
+  Meet c1 c2 v (A t1 l1 s1) (A t2 l2 s2) -> __todo "Meet: array"
+  Join c1 c2 v (A t1 l1 s1) (A t2 l2 s2) -> __todo "Join: array"
+#endif
+
   _ -> empty
 
 sigilsCompatible :: Eq l => Either (Sigil l) Int -> Either (Sigil l) Int -> Bool
@@ -116,33 +122,33 @@ find [] = Nothing
 find (c:cs) = case c ^. goal of
   U v :< tau
     | rigid tau -> case partition (flexRigidSub v) cs of
-           ([], rs ) -> fmap (c:) <$> find cs
+           ([], rs) -> fmap (c:) <$> find cs
            (Goal ctx (_ :< rho):rs, rs')
              -> pure (Meet (c ^. goalContext) ctx (U v) tau rho , rs ++ rs')
   tau :< U v
     | rigid tau -> case partition (flexRigidSup v) cs of
-           ([], rs ) -> fmap (c:) <$> find cs
+           ([], rs) -> fmap (c:) <$> find cs
            (Goal ctx (rho :< _):rs, rs')
              -> pure (Join (c ^. goalContext) ctx (U v) tau rho , rs ++ rs')
   (V (Row.Row m (Just v))) :< tau@(V (Row.Row m' Nothing))
     | M.null m -> case partition (flexRowSub v) cs of
-           ([], rs ) -> fmap (c:) <$> find cs
+           ([], rs) -> fmap (c:) <$> find cs
            (Goal ctx (_ :< rho) :rs, rs')
              -> pure (Meet (c ^. goalContext) ctx (V (Row.Row m (Just v))) tau rho , rs ++ rs')
   tau@(V (Row.Row m' Nothing)) :< (V (Row.Row m (Just v)))
     | M.null m -> case partition (flexRowSup v) cs of
-           ([], rs ) -> fmap (c:) <$> find cs
+           ([], rs) -> fmap (c:) <$> find cs
            (Goal ctx  (rho :< _):rs, rs')
              -> pure (Join (c ^. goalContext) ctx (V (Row.Row m (Just v))) tau rho , rs ++ rs')
 
   (R (Row.Row m (Just v)) s) :< tau@(R (Row.Row m' Nothing) s')
     | M.null m -> case partition (flexRowSub v) cs of
-           ([], rs ) -> fmap (c:) <$> find cs
+           ([], rs) -> fmap (c:) <$> find cs
            (Goal ctx (_ :< rho):rs, rs')
              -> pure (Meet (c ^. goalContext) ctx (R (Row.Row m (Just v)) s) tau rho , rs ++ rs')
   tau@(R (Row.Row m' Nothing) s') :< (R (Row.Row m (Just v)) s)
     | M.null m -> case partition (flexRowSup v) cs of
-           ([], rs ) -> fmap (c:) <$> find cs
+           ([], rs) -> fmap (c:) <$> find cs
            (Goal ctx (rho :< _):rs, rs')
              -> pure (Join (c ^. goalContext) ctx (R (Row.Row m (Just v)) s) tau rho , rs ++ rs')
   _ -> fmap (c:) <$> find cs

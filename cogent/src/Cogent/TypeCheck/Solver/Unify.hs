@@ -48,6 +48,16 @@ assignOf (R _ (Right v) :< R _ (Left s))
   = pure [ Subst.ofSigil v s ]
 assignOf (R _ (Left s) :< R _ (Right v))
   = pure [ Subst.ofSigil v s ]
+#ifdef BUILTIN_ARRAYS
+assignOf (A _ _ (Left s) :=: A _ _ (Right v))
+  = pure [ Subst.ofSigil v s ]
+assignOf (A _ _ (Right v) :=: A _ _ (Left s))
+  = pure [ Subst.ofSigil v s ]
+assignOf (A _ _ (Left s) :< A _ _ (Right v))
+  = pure [ Subst.ofSigil v s ]
+assignOf (A _ _ (Right v) :< A _ _ (Left s))
+  = pure [ Subst.ofSigil v s ]
+#endif
 -- N.B. we know from the previous phase that common alternatives have been factored out.
 assignOf (V r1 :=: V r2)
   | Row.var r1 /= Row.var r2
@@ -71,6 +81,7 @@ assignOf (R r1 s1 :=: R r2 s2)
                             pure [ Subst.ofRow x (r2 { Row.var = Just v })
                                  , Subst.ofRow y (r1 { Row.var = Just v })
                                  ]
+
 assignOf _ = empty
 
 
