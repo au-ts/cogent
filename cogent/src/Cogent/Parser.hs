@@ -173,7 +173,6 @@ expr m = do avoidInitial
                           <*  reserved "then" <*> expr m <* reserved "else" <*> expr m))
               <|> Lam <$ string "\\" <*> irrefutablePattern <*> optionMaybe (reservedOp ":" *> monotype)
                       <* reservedOp "=>" <*> expr m
-              <|>
 #ifdef BUILTIN_ARRAYS
               <|> do { reserved "map2"
                      ; f <- parens $ do { string "\\"

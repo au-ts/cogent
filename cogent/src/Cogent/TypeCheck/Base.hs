@@ -468,6 +468,9 @@ substType :: [(VarName, TCType)] -> TCType -> TCType
 substType vs (U x) = U x
 substType vs (V x) = V (fmap (substType vs) x)
 substType vs (R x s) = R (fmap (substType vs) x) s
+#ifdef BUILTIN_ARRAYS
+substType vs (A t l s) = A (substType vs t) l s
+#endif
 substType vs (Synonym n ts) = Synonym n (fmap (substType vs) ts)
 substType vs (T (TVar v b u)) | Just x <- lookup v vs
   = case (b,u) of
@@ -524,10 +527,12 @@ validateType' vs (RT t) = do
               _         -> pure ())
       t' <- validateType' vs t
       pure (T $ TLayout l t')
-
-    -- TArray te l -> check l >= 0  -- TODO!!!
-
-    _ -> __fixme $ T <$> (mmapM (return . toSExpr) <=< mapM (validateType' vs)) t
+#ifdef BUILTIN_ARRAYS
+    TArray te l s -> -- TODO: do the checks
+      pure $ A (toTCType te) (toSExpr l) (Left s)
+#endif
+    _ -> __fixme $
+      T <$> (mmapM (return . toSExpr) <=< mapM (validateType' vs)) t
     -- With (TCon _ _ l), and (TRecord _ l), must check l == Nothing iff it is contained in a TUnbox.
     -- This can't be done in the current setup because validateType' has no context for the type it is validating.
     -- Not implementing this now, because a new syntax for types is needed anyway, which may make this issue redundant.
@@ -577,8 +582,24 @@ unifVars (R r s)
   | otherwise = concatMap unifVars (Row.allTypes r)
                        ++ case s of Left s -> [] 
                                     Right y -> [y] 
+#ifdef BUILTIN_ARRAYS
 unifVars (A t l s) = unifVars t ++ (case s of Left s -> []; Right y -> [y])
+#endif
 unifVars (T x) = foldMap unifVars x
+
+#ifdef BUILTIN_ARRAYS
+unknowns :: TCType -> [Int]
+unknowns (U _) = []
+unknowns (Synonym n ts) = concatMap unknowns ts
+unknowns (V r) = concatMap unknowns (Row.allTypes r)
+unknowns (R r s) = concatMap unknowns (Row.allTypes r)
+unknowns (A t l s) = unknowns t ++ unknownsE l
+unknowns (T x) = foldMap unknowns x
+
+unknownsE :: SExpr -> [Int]
+unknownsE (SU x) = [x]
+unknownsE (SE e) = foldMap unknownsE e
+#endif
 
 --
 -- Dargent
