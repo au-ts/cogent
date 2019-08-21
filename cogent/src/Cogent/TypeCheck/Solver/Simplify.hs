@@ -179,13 +179,16 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
         c  = R r1' s1 :=: R r2' s2
     Just (c:cs ++ ds)
 
+#ifdef BUILTIN_ARRAYS
+  A t1 l1 s1 :<  A t2 l2 s2 -> Just [t1 :<  t2, Arith (SE $ PrimOp "==" [l1,l2])]
+  A t1 l1 s1 :=: A t2 l2 s2 -> Just [t1 :=: t2, Arith (SE $ PrimOp "==" [l1,l2])]
+#endif
+
   T t1 :< x | unorderedType t1 -> Just [T t1 :=: x]
   x :< T t2 | unorderedType t2 -> Just [x :=: T t2]
 
   (T (TCon n ts s)) :=: (T (TCon n' us s'))
     | s == s', n == n' -> Just (zipWith (:=:) ts us)
-
-  T t1 :=: T t2 | t1 == t2 -> Just []
 
   _ -> Nothing
 
