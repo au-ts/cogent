@@ -55,6 +55,16 @@ assignOf (R _ (Left s) :< R _ (Right v))
 -- N.B. Only rows with a unification variable and no known entries lead to
 -- equality constraints (see Equate phase). Hence, the collection of common
 -- fields is necessarily empty.
+#ifdef BUILTIN_ARRAYS
+assignOf (A _ _ (Left s) :=: A _ _ (Right v))
+  = pure [ Subst.ofSigil v s ]
+assignOf (A _ _ (Right v) :=: A _ _ (Left s))
+  = pure [ Subst.ofSigil v s ]
+assignOf (A _ _ (Left s) :< A _ _ (Right v))
+  = pure [ Subst.ofSigil v s ]
+assignOf (A _ _ (Right v) :< A _ _ (Left s))
+  = pure [ Subst.ofSigil v s ]
+#endif
 assignOf (V r1 :=: V r2)
   | Row.var r1 /= Row.var r2
   , [] <- Row.common r1 r2

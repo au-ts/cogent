@@ -46,6 +46,10 @@ normaliseRW = rewrite' $ \t -> case t of
     T (TUnbox (T (TVar v b u))) -> pure (T (TVar v b True))
     T (TUnbox (T (TCon t ts s))) -> pure (T (TCon t ts Unboxed))
     T (TUnbox (R r _)) -> pure (R r (Left Unboxed))
+#ifdef BUILTIN_ARRAYS
+    T (TUnbox (T (TArray t l _))) -> pure (T (TArray t l Unboxed))
+    T (TUnbox (A t l _)) -> pure (A t l (Left Unboxed))
+#endif
 
     Synonym n as -> do
         table <- view knownTypes
@@ -75,7 +79,13 @@ normaliseRW = rewrite' $ \t -> case t of
     T (TLayout l (R row (Left (Boxed p _)))) ->
       pure $ R row $ Left $ Boxed p (Just l)
     T (TLayout l (R row (Right i))) ->
-      __impossible "normaliseRW: TLayout over a sigil variable"
+      __impossible "normaliseRW: TLayout over a sigil variable (R)" 
+#ifdef BUILTIN_ARRAYS
+    T (TLayout l (A t n (Left (Boxed p _)))) ->
+      pure $ A t n $ Left $ Boxed p (Just (Layout l))
+    T (TLayout l (A t n (Right i))) -> 
+      __impossible "normaliseRW: TLayout over a sigil variable (A)"
+#endif
     T (TLayout l _) -> -- TODO(dargent): maybe handle this later
       empty
     _ -> empty 

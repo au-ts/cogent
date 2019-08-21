@@ -191,4 +191,7 @@ isIrrefutable (RP (PIrrefutable _)) = True
 isIrrefutable _ = False
 
 isSolved :: TCType -> Bool
-isSolved t = null $ unifVars t
+isSolved t = null (unifVars t)
+#ifdef BUILTIN_ARRAYS
+          && null (unknowns t)
+#endif
