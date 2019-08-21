@@ -288,11 +288,11 @@ test-suite test-quickcheck
   main-is: tests-quickcheck-run.hs
   hs-source-dirs: tests-quickcheck
   other-modules:
-                CogentTests.DataLayout.Core
-              , CogentTests.DataLayout.Surface
-              , CogentTests.DataLayout.TypeCheck
-              , CogentTests.DataLayout.Desugar
-              , CogentTests.DataLayout.CodeGen
+                CogentTests.Dargent.Core
+              , CogentTests.Dargent.Surface
+              , CogentTests.Dargent.TypeCheck
+              , CogentTests.Dargent.Desugar
+              , CogentTests.Dargent.CodeGen
               , CogentTests.Core
   build-depends:
                 cogent
