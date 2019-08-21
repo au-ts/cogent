@@ -26,6 +26,7 @@ import Cogent.Util (getStdIncFullPath)
 import Control.Applicative hiding (many, (<|>), optional)
 import Data.Monoid (mconcat)
 #endif
+import qualified Control.Applicative as App
 import Control.Arrow (left, second)
 import Control.Monad
 import Control.Monad.Identity
@@ -171,19 +172,22 @@ expr m = do avoidInitial
                           <*  reserved "then" <*> expr m <* reserved "else" <*> expr m))
               <|> Lam <$ string "\\" <*> irrefutablePattern <*> optionMaybe (reservedOp ":" *> monotype)
                       <* reservedOp "=>" <*> expr m
+              <|>
 #ifdef BUILTIN_ARRAYS
-              <|> do { reserved "map2"
-                     ; f <- parens $ do { string "\\"
-                                        ; p1 <- irrefutablePattern
-                                        ; p2 <- irrefutablePattern
-                                        ; reservedOp "=>"
-                                        ; f <- expr m
-                                        ; return ((p1,p2),f)
-                                        }
-                     ; e1 <- term
-                     ; e2 <- term
-                     ; return $ ArrayMap2 f (e1,e2)
-                     })
+                do { reserved "map2"
+                   ; f <- parens $ do { string "\\"
+                                     ; p1 <- irrefutablePattern
+                                     ; p2 <- irrefutablePattern
+                                     ; reservedOp "=>"
+                                     ; f <- expr m
+                                     ; return ((p1,p2),f)
+                                     }
+                   ; e1 <- term
+                   ; e2 <- term
+                   ; return $ ArrayMap2 f (e1,e2)
+                   })
+#else
+                App.empty)
 #endif
      <|> matchExpr m
      <?> "expression"
