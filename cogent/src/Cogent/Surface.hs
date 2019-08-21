@@ -122,7 +122,7 @@ data Type e t =
               | TTuple [t]
               | TUnit
 #ifdef BUILTIN_ARRAYS
-              | TArray t e (Sigil (Maybe RepExpr))
+              | TArray t e (Sigil (Maybe (DargentLayout DataLayoutExpr)))
 #endif
               -- They will be eliminated at some point / zilinc
               -- In TypeCheck.Post, the TUnbox and TBang type-operators
