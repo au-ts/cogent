@@ -1,6 +1,18 @@
+--
+-- Copyright 2018, Data61
+-- Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+-- ABN 41 687 119 230.
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(DATA61_GPL)
+--
+
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE TemplateHaskell #-}
-module CogentTests.DataLayout.Core where
+module CogentTests.Dargent.Core where
 
 import Data.Map (Map)
 import qualified Data.Map as M
@@ -8,8 +20,8 @@ import qualified Data.Map as M
 import Text.Parsec.Pos (SourcePos, newPos)
 import Test.QuickCheck
 
-import Cogent.DataLayout.Core
-import Cogent.DataLayout.TypeCheck
+import Cogent.Dargent.Core
+import Cogent.Dargent.TypeCheck
 import Cogent.Common.Syntax (FieldName, TagName, RepName, Size)
 
 {- PROPERTIES -}
