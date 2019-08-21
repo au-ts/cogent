@@ -165,7 +165,14 @@ normaliseT d (T (TLayout l t)) = do
       if isTypeLayoutExprCompatible env t'' l
         then normaliseT d t''
         else logErrExit (LayoutDoesNotMatchType l t)
-    _                            -> logErrExit (LayoutOnNonRecordOrCon t)
+#ifdef BUILTIN_ARRAYS
+    (T (TArray t n (Boxed p Nothing))) -> do
+      let t'' = T . TArray t n . Boxed p $ Just (Layout l)
+      if isTypeLayoutExprCompatible env t l  -- NOTE that the 'l' is for the element type / zilinc
+        then normaliseT d t''
+        else logErrExit (LayoutDoesNotMatchType l t)
+#endif
+    _ -> logErrExit (LayoutOnNonRecordOrCon t)
 
 normaliseT d (T (TCon n ts b)) =
   case lookup n d of
@@ -179,19 +186,22 @@ normaliseT d (T (TRecord l s)) = do
   s' <- normaliseS s
   l' <- mapM ((secondM . firstM) (normaliseT d)) l
   return (T (TRecord l' s'))
+#ifdef BUILTIN_ARRAYS
+normaliseT d (T (TArray t n s)) = do
+  t' <- normaliseT d t
+  s' <- normaliseS   s
+  -- n' <- normaliseE d n
+  return $ T $ TArray t' n s'
+#endif
 normaliseT d (Synonym n ts) = 
   case lookup n d of
     Just (ts', Just b) -> normaliseT d (substType (zip ts' ts) b)
     _ -> __impossible ("normaliseT: unresolved synonym " ++ show n)
--- normaliseT d (RemoveCase p t) = do
---   t' <- normaliseT d t
---   p' <- traverse (traverse (normaliseT d)) p
---   case removeCase p' t' of
---     Just t'' -> normaliseT d t''
---     Nothing  -> Left (RemoveCaseFromNonVariant p t)
 normaliseT d (V x) = T . TVariant . M.fromList . Row.toEntryList . fmap (:[]) <$> traverse (normaliseT d) x
 normaliseT d (R x (Left s)) = T . flip TRecord s . Row.toEntryList <$> traverse (normaliseT d) x
 normaliseT d (R x (Right s)) =  __impossible ("normaliseT: invalid sigil (?" ++ show s ++ ")")
+normaliseT d (A t n (Left s)) = T <$> (TArray <$> normaliseT d t <*> pure n <*> pure s)
+normaliseT d (A t n (Right s)) = __impossible ("normaliseT: invalid sigil (?" ++ show s ++ ")")
 normaliseT d (U x) = __impossible ("normaliseT: invalid type (?" ++ show x ++ ")")
 normaliseT d (T x) = T <$> traverse (normaliseT d) x
 
