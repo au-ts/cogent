@@ -229,7 +229,7 @@ lookupTypeCId cogentType@(TRecord fs (Boxed _ CLayout)) =
   getCompose (Compose . lookupStrlTypeCId =<<
     Record <$> (mapM (\(a,(b,_)) -> (a,) <$> (Compose . lookupType) b) fs))
 lookupTypeCId cogentType@(TRecord _ (Boxed _ _)) = __impossible "lookupTypeCId: record with non-record layout"
-#if BUILTIN_ARRAYS
+#ifdef BUILTIN_ARRAYS
 lookupTypeCId (TArray t l Unboxed) = getCompose (Compose . lookupStrlTypeCId =<< Array <$> (Compose . lookupType) t <*> pure (Just $ fromIntegral l))
 lookupTypeCId (TArray t l (Boxed _ _)) = __todo "lookupTypeCId: implement me"
 #endif
@@ -289,7 +289,7 @@ typeCId t = use custTypeGen >>= \ctg ->
         CLayout -> getStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs)
         _ -> __impossible "Tried to get the c-type of a record with a non-record layout"
     typeCId' (TUnit) = return unitT
-#if BUILTIN_ARRAYS
+#ifdef BUILTIN_ARRAYS
     typeCId' (TArray t l Unboxed) = getStrlTypeCId =<< Array <$> genType t <*> pure (Just $ fromIntegral l)
     typeCId' (TArray t l (Boxed _ _)) = __todo "typeCId'"
 #endif
@@ -322,7 +322,7 @@ typeCId t = use custTypeGen >>= \ctg ->
     isUnstable (TProduct {}) = True
     isUnstable (TSum _) = True
     isUnstable (TRecord {}) = True
-#if BUILTIN_ARRAYS
+#ifdef BUILTIN_ARRAYS
     isUnstable (TArray {}) = True
 #endif
     isUnstable _ = False
@@ -342,7 +342,7 @@ genType t@(TRecord _ s) | s /= Unboxed = CPtr . CIdent <$> typeCId t
   -- This puts the pointer around boxed cogent-types
 genType t@(TString)                    = CPtr . CIdent <$> typeCId t
 genType t@(TCon _ _ s)  | s /= Unboxed = CPtr . CIdent <$> typeCId t
-#if BUILTIN_ARRAYS
+#ifdef BUILTIN_ARRAYS
 genType (TArray t l s) | s /= Unboxed  = __todo "genType"
                        | otherwise     = CArray <$> genType t <*> pure (CArraySize (mkConst U32 l))  -- c.f. genTypeP
 #endif
@@ -358,13 +358,13 @@ genTypeA t = genType t
 
 -- It will generate a pointer type for an array, instead of the static-sized array type
 genTypeP :: CC.Type 'Zero -> Gen v CType
-#if BUILTIN_ARRAYS
+#ifdef BUILTIN_ARRAYS
 genTypeP (TArray telm l Unboxed) = CPtr <$> genTypeP telm  -- FIXME: what about boxed? / zilinc
 #endif
 genTypeP t = genType t
 
 genTypeALit :: CC.Type 'Zero -> Gen v CType
-#if BUILTIN_ARRAYS
+#ifdef BUILTIN_ARRAYS
 genTypeALit (TArray t l Unboxed) = CArray <$> (genType t) <*> pure (CArraySize (mkConst U32 l))  -- FIXME: what about boxed? / zilinc
 #endif
 genTypeALit t = genType t
@@ -375,7 +375,7 @@ lookupType :: CC.Type 'Zero -> Gen v (Maybe CType)
 lookupType t@(TRecord _ s) | s /= Unboxed = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
 lookupType t@(TString)                    = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
 lookupType t@(TCon _ _ s)  | s /= Unboxed = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
-#if BUILTIN_ARRAYS
+#ifdef BUILTIN_ARRAYS
 lookupType t@(TArray _ _ s) | s /= Unboxed = __todo "lookupType"
                             | otherwise    = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
 #endif
