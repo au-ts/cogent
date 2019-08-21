@@ -1,12 +1,24 @@
-module CogentTests.DataLayout.CodeGen where
-import Cogent.DataLayout.CodeGen
-import Cogent.DataLayout.Core
+--
+-- Copyright 2018, Data61
+-- Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+-- ABN 41 687 119 230.
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(DATA61_GPL)
+--
+
+module CogentTests.Dargent.CodeGen where
+
+import Cogent.Dargent.CodeGen
+import Cogent.Dargent.Core
 import Cogent.C.Render
 import Cogent.C.Compile
 import Cogent.C.Syntax
 import Control.Monad
 import Text.PrettyPrint.Mainland.Class as M (pprint)
-
 
 alignedBitRangeExamples :: [AlignedBitRange]
 alignedBitRangeExamples =
@@ -68,10 +80,6 @@ compileSanityCheck = do
   recordGetterSanityCheck
 
 
-
-
-
-
 recordFieldExamples =
   [ [ ("field1", CVar "getSetField1" Nothing)
     , ("field2", CVar "getSetField2" Nothing)]
@@ -80,7 +88,6 @@ recordFieldExamples =
   
   , []
   ]
-
 
 recordGetterSanityCheck :: IO ()
 recordGetterSanityCheck = do
