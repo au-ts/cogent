@@ -175,21 +175,20 @@ expr m = do avoidInitial
                       <* reservedOp "=>" <*> expr m
               <|>
 #ifdef BUILTIN_ARRAYS
-                do { reserved "map2"
-                   ; f <- parens $ do { string "\\"
-                                     ; p1 <- irrefutablePattern
-                                     ; p2 <- irrefutablePattern
-                                     ; reservedOp "=>"
-                                     ; f <- expr m
-                                     ; return ((p1,p2),f)
-                                     }
-                   ; e1 <- term
-                   ; e2 <- term
-                   ; return $ ArrayMap2 f (e1,e2)
-                   })
-#else
-                App.empty)
+              <|> do { reserved "map2"
+                     ; f <- parens $ do { string "\\"
+                                        ; p1 <- irrefutablePattern
+                                        ; p2 <- irrefutablePattern
+                                        ; reservedOp "=>"
+                                        ; f <- expr m
+                                        ; return ((p1,p2),f)
+                                        }
+                     ; e1 <- term
+                     ; e2 <- term
+                     ; return $ ArrayMap2 f (e1,e2)
+                     }
 #endif
+                 )
      <|> matchExpr m
      <?> "expression"
   where binding = (Binding <$> irrefutablePattern <*> optionMaybe (reservedOp ":" *> monotype)
