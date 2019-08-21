@@ -78,7 +78,7 @@ data Type t
     -- True means taken, Layout will be nothing for abstract types
   | TUnit
 #ifdef BUILTIN_ARRAYS
-  | TArray (Type t) ArraySize (Sigil (DataLayout BitRange))
+  | TArray (Type t) ArraySize (Sigil (DargentLayout (DataLayout BitRange)))
     -- ^^ use Int for now
     -- XXX | ^^^ (UntypedExpr t 'Zero VarName)  -- stick to UntypedExpr to be simple / zilinc
     -- The sigil specifies the layout of the element
