@@ -218,4 +218,7 @@ extractVariableEquality (Row.Row m1 v1) (Row.Row m2 v2)
  = Nothing
 
 isSolved :: TCType -> Bool
-isSolved t = null $ unifVars t
+isSolved t = null (unifVars t)
+#ifdef BUILTIN_ARRAYS
+          && null (unknowns t)
+#endif
