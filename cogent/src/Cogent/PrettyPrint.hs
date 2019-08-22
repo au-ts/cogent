@@ -802,6 +802,9 @@ instance Pretty AssignResult where
   pretty (Type t) = pretty t
   pretty (Sigil s) = pretty s
   pretty (Row r) = pretty r
+#ifdef BUILTIN_ARRAYS
+  pretty (Expr e) = pretty e
+#endif
 
 instance Pretty r => Pretty (Sigil r) where
   pretty (Boxed False l) = keyword "[W]" <+> parens (pretty l)
@@ -816,7 +819,7 @@ instance (Pretty t) => Pretty (Row.Row t) where
                         False -> "present"
           in text n <+> text ":" <+> pretty ty <+> text "(" <> text tkStr <> text ")"
         rowFieldsDoc = hsep $ punctuate (text ",") $ map rowFieldToDoc (M.toList m)
-     in rowFieldsDoc <+> symbol "|" <+> pretty t
+     in rowFieldsDoc <> (case t of Just x -> symbol " |" <+> text "?" <> pretty x; _ -> empty)
 instance Pretty Assignment where
   pretty (Assignment m) = pretty m
 
