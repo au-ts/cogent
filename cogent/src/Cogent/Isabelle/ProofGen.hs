@@ -278,7 +278,7 @@ typing xi k (EE t (Variable i) env) = tacSequence [
   return [simp_solve]                     -- i < length Γ
   ]
 
-typing xi k (EE t' (Fun f ts _) env) = case findfun (unIsabelleName $ mkIsabelleName f) xi of
+typing xi k (EE t' (Fun f ts _) env) = case findfun (unCoreFunName f) xi of
     AbsDecl _ _ ks' t u ->
       let ks = fmap snd ks' in tacSequence [
         return [rule "typing_afun'"],  -- Ξ, K, Γ ⊢ AFun f ts : TFun t' u'
