@@ -41,23 +41,14 @@ isInvalid (IsabelleName n) =
 unsafeMakeIsabelleName :: String -> IsabelleName
 unsafeMakeIsabelleName = mkIsabelleName . CoreFunName
 
--- TODO: Check name generated not already taken
+{-
+ - We change the name of the embedding as follows so:
+ - 1) We don't use a reserved word for a function name (e.g. 'function' or 'open')
+ - 2) We don't generate invalid names (like _free, free_, 1free, etc.)
+ - 3) We don't take a name in the Isabelle standard proof library (e.g. 'map')
+-}
 mkIsabelleName :: CoreFunName -> IsabelleName
-mkIsabelleName (CoreFunName s) = IsabelleName goodName
-  where
-    nonReserved = 
-      if (isReserved $ IsabelleName s)
-        then s ++ "'"
-        else s
-    goodName    =
-      if (isInvalid $ IsabelleName nonReserved) 
-        then 
-          (++ nonReserved) (
-            case head nonReserved of
-              '_' -> "x"
-              _   -> "x_"
-          )
-        else nonReserved
+mkIsabelleName (CoreFunName s) = IsabelleName ("cogent_" ++ s ++ "'")
 
 editIsabelleName :: IsabelleName -> (String -> String) -> Maybe IsabelleName
 editIsabelleName (IsabelleName n) f  = 
