@@ -278,11 +278,7 @@ typeAbbrevBucketName = "abbreviated_type_defs"
 typeAbbrevDefsLemma :: NameMod -> TypeAbbrevs -> TheoryDecl I.Type I.Term
 typeAbbrevDefsLemma mod ta = let
     defTD = \n -> O.TheoremDecl { thmName = Just n, thmAttributes = [] }
-    isaDefName name = unIsabelleName $ 
-                          case editIsabelleName (mkIsabelleName $ name) (++ "_def") of
-                            Nothing -> error ("Failed to generate Isabelle name for " ++ unCoreFunName name)
-                            Just n' -> n'
-    nms = [ isaDefName $ unsafeNameToCoreFunName (mkAbbrevNm mod n) | (_, n) <- Map.toList (fst ta)]
+    nms = [ (mkAbbrevNm mod n) ++ "_def" | (_, n) <- Map.toList (fst ta)]
   in O.LemmasDecl (O.Lemmas { lemmasName = defTD typeAbbrevBucketName,
                               lemmasThms = map defTD (if null nms then ["TrueI"] else nms) })
 
