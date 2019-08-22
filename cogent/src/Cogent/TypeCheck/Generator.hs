@@ -281,15 +281,14 @@ cg' (ArrayIndex e i) t = do
 cg' (ArrayMap2 ((p1,p2), fbody) (arr1,arr2)) t = __fixme $ do  -- FIXME: more accurate constraints / zilinc
   alpha1 <- freshTVar
   alpha2 <- freshTVar
-  beta <- freshTVar
-  U x1 <- freshTVar
-  U x2 <- freshTVar
+  x1 <- freshVar
+  x2 <- freshVar
   len1 <- freshEVar
   len2 <- freshEVar
   (s1,cp1,p1') <- match p1 alpha1
   (s2,cp2,p2') <- match p2 alpha2
   context %= C.addScope (s1 `M.union` s2)  -- domains of s1 and s2 don't overlap
-  (cbody, fbody') <- cg fbody beta
+  (cbody, fbody') <- cg fbody (T $ TTuple [alpha1, alpha2])
   rs <- context %%= C.dropScope
   let tarr1 = A alpha1 len1 $ Right x1
       tarr2 = A alpha2 len2 $ Right x2
@@ -650,23 +649,20 @@ match' (PArray ps) t = do
 -- Auxiliaries
 -- -----------------------------------------------------------------------------
 
-freshTVar :: (?loc :: SourcePos) => CG TCType
-freshTVar = fresh (ExpressionAt ?loc)
+freshVar :: (?loc :: SourcePos) => CG Int
+freshVar = fresh (ExpressionAt ?loc)
   where
-    fresh :: VarOrigin -> CG TCType
+    fresh :: VarOrigin -> CG Int
     fresh ctx = do
       i <- flexes <<%= succ
       flexOrigins %= IM.insert i ctx
-      return $ U i
+      return i
+
+freshTVar :: (?loc :: SourcePos) => CG TCType
+freshTVar = U  <$> freshVar
 
 freshEVar :: (?loc :: SourcePos) => CG SExpr
-freshEVar = fresh (ExpressionAt ?loc)
-  where
-    fresh :: VarOrigin -> CG SExpr
-    fresh ctx = do
-      i <- flexes <<%= succ  -- FIXME: do we need a different variable?
-      flexOrigins %= IM.insert i ctx
-      return $ SU i
+freshEVar = SU <$> freshVar 
       
 integral :: TCType -> Constraint
 integral = Upcastable (T (TCon "U8" [] Unboxed))
