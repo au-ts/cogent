@@ -40,6 +40,7 @@ import Control.Monad.Writer
 import Control.Monad.Trans.Maybe
 import qualified Data.Map as M
 import Lens.Micro
+import Text.PrettyPrint.ANSI.Leijen (text, pretty, (<+>))
 
 sinkfloat :: Rewrite.Rewrite' TcSolvM [Goal]
 sinkfloat = Rewrite.rewrite' $ \gs ->

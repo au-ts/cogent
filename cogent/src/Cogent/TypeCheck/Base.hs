@@ -260,18 +260,6 @@ data SExpr          = SE (Expr RawType RawPatn RawIrrefPatn SExpr)
                     | SU Int
                     deriving (Show, Eq, Ord)
 
-rigid :: TCType -> Bool 
-rigid (T (TBang {})) = False
-rigid (T (TTake {})) = False
-rigid (T (TPut {})) = False
-rigid (T (TLayout {})) = False
-rigid (U {}) = False
-rigid (Synonym {}) = False
-rigid (R r _) = not $ Row.justVar r
-rigid (V r) = not $ Row.justVar r
-rigid (A t _ _) = rigid t  -- FIXME
-rigid _ = True
-
 data FuncOrVar = MustFunc | MustVar | FuncOrVar deriving (Eq, Ord, Show)
 
 funcOrVar :: TCType -> FuncOrVar
@@ -597,6 +585,21 @@ unknownsE :: SExpr -> [Int]
 unknownsE (SU x) = [x]
 unknownsE (SE e) = foldMap unknownsE e
 #endif
+
+rigid :: TCType -> Bool 
+rigid (T (TBang {})) = False
+rigid (T (TTake {})) = False
+rigid (T (TPut {})) = False
+rigid (T (TLayout {})) = False
+rigid (U {}) = False
+rigid (Synonym {}) = False
+rigid (R r _) = not $ Row.justVar r
+rigid (V r) = not $ Row.justVar r
+#ifdef BUILTIN_ARRAYS
+rigid (A t l _) = rigid t && null (unknownsE l) -- FIXME: is it correct? / zilinc
+#endif
+rigid _ = True
+
 
 --
 -- Dargent

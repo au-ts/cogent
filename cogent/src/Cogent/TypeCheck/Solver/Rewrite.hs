@@ -51,7 +51,7 @@ type Rewrite a = RewriteT Identity a
 
 -- | A @RewriteT m a@ may in full generality access the effects of a monad @m@ while
 --   attempting to rewrite values of type @a@.
-newtype RewriteT m a = Rewrite { run' :: a -> MaybeT m a }
+newtype RewriteT m a = Rewrite { runRewrite :: a -> MaybeT m a }
 
 -- | Disjunctive composition, that is: @r <> s@ will first attempt to rewrite with @r@.
 --   If @r@ successfully rewrites, then the result of @r@ is returned. If @r@ does not
@@ -90,9 +90,9 @@ rewrite' :: Applicative m => (a -> MaybeT m a) -> RewriteT m a
 rewrite' = Rewrite
 
 -- | Given a non-effectful rewrite, returns a partial function.
---   For effectful rewrites, the 'run'' field can be used.
+--   For effectful rewrites, the 'runRewrite' field can be used.
 run :: Rewrite a -> a -> Maybe a
-run rw = runIdentity . runMaybeT . run' rw
+run rw = runIdentity . runMaybeT . runRewrite rw
 
 -- | A rewrite that exhausts itself only when it cannot rewrite anymore
 untilFixedPoint :: Monad m => RewriteT m a -> RewriteT m a

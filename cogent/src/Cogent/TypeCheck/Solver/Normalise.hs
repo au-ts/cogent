@@ -103,7 +103,7 @@ whnf input = do
         T (TUnbox   t') -> T . TUnbox   <$> whnf t'
         T (TLayout l t') -> T . TLayout l <$> whnf t'
         _               -> pure input
-    fromMaybe step <$> runMaybeT (run' (untilFixedPoint normaliseRW) step)
+    fromMaybe step <$> runMaybeT (runRewrite (untilFixedPoint normaliseRW) step)
 
 -- | Normalise all types within a set of constraints
 normaliseTypes :: [Goal] -> TcSolvM [Goal]

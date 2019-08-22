@@ -169,17 +169,13 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     traceTc "tc" (text "constraint for fun definition" <+> pretty f <+> text "is"
                   L.<$> prettyC c)
     (cs, subst) <- runSolver (solve vs $ ct <> c) flx 
-    let assn = mempty
-    -- liftIO $ print $ pretty subst -- (show)
-    exitOnErr $ toErrors os cs
     --exitOnErr $ mapM_ logTc =<< mapM (\(c,l) -> lift (use errCtx) >>= \c' -> return (c++c',l)) logs
     traceTc "tc" (text "substs for fun definition" <+> pretty f <+> text "is"
-                  L.<$> pretty subst
-                  L.<$> text "assigns for fun definition" <+> pretty f <+> text "is"
-                  L.<$> pretty assn)
-    let t'' = assignT assn $ apply subst t'
+                  L.<$> pretty subst)
+    exitOnErr $ toErrors os cs
+    let t'' = apply subst t'
     lift . lift $ knownFuns %= M.insert f (PT vs t'')
-    alts'' <- postA $ applyAlts subst $ assignAlts assn alts'
+    alts'' <- postA $ applyAlts subst alts'
     t'''    <- postT t''
     return (FunDef f (PT vs t''') alts'')
 

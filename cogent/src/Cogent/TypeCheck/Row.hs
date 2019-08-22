@@ -67,7 +67,7 @@ type Entry t = (FieldName, (t, Either Taken Int))
 
 data Row t = Row { entries :: M.Map FieldName (Entry t)
                  , var :: Maybe Int
-                 }  deriving (Show, Eq, Ord, Functor, Foldable,Traversable)
+                 } deriving (Show, Eq, Ord, Functor, Foldable, Traversable)
 
 type Decl t = (t, Taken)
 

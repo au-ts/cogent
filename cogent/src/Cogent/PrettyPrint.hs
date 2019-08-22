@@ -804,6 +804,9 @@ instance Pretty AssignResult where
   pretty (Sigil s) = pretty s 
   pretty (Row (Left r)) = pretty r
   pretty (Row (Right sh)) = pretty sh
+#ifdef BUILTIN_ARRAYS
+  pretty (Expr e) = pretty e
+#endif
 
 instance Pretty r => Pretty (Sigil r) where
   pretty (Boxed False l) = keyword "[W]" <+> parens (pretty l)
