@@ -115,7 +115,8 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
     , n' <= m' , not (m `elem` ["String","Bool"]) -> Just []
 
   -- [amos] New simplify rule:
-  -- If both sides of an equality constraint are equal, we can't completely discharge it; we need to make sure all unification variables in the type are instantiated at some point
+  -- If both sides of an equality constraint are equal, we can't completely discharge it;
+  -- we need to make sure all unification variables in the type are instantiated at some point
   t :=: u | t == u ->
     if isSolved t
     then Just []
@@ -182,6 +183,13 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
 #ifdef BUILTIN_ARRAYS
   A t1 l1 s1 :<  A t2 l2 s2 -> Just [t1 :<  t2, Arith (SE $ PrimOp "==" [l1,l2])]
   A t1 l1 s1 :=: A t2 l2 s2 -> Just [t1 :=: t2, Arith (SE $ PrimOp "==" [l1,l2])]
+
+  -- TODO: Here we will call a SMT procedure to simplify all the Arith constraints.
+  -- The only things left will be non-trivial predicates. / zilinc
+  Arith (SE (PrimOp "==" [e1, e2])) | e1 == e2 -> Just []
+  -- The following rules don't make any sense. They are just here to discharge the constraints.
+  Arith (SE (PrimOp op [e])) -> Just []
+  Arith (SE (PrimOp op [e1,e2])) | op /= "==" -> Just []
 #endif
 
   T t1 :< x | unorderedType t1 -> Just [T t1 :=: x]
