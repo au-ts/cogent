@@ -11,9 +11,10 @@
 module Cogent.TypeCheck.Subst where
 
 import Cogent.Common.Types
+import Cogent.Compiler (__impossible)
 import Cogent.Surface
+import Cogent.TypeCheck.Assignment
 import Cogent.TypeCheck.Base
--- import Cogent.TypeCheck.Util
 import qualified Cogent.TypeCheck.Row as Row 
 import Cogent.Util
 
@@ -23,11 +24,14 @@ import Data.Maybe
 import Data.Monoid hiding (Alt)
 import Prelude hiding (lookup)
 
-data AssignResult = Type TCType | Sigil (Sigil (Maybe DataLayoutExpr)) | Row (Row.Row TCType)
- deriving Show
-newtype Subst = Subst (M.IntMap AssignResult)
- deriving Show
+data AssignResult = Type TCType
+                  | Sigil (Sigil (Maybe DataLayoutExpr))
+                  | Row (Row.Row TCType)
+                  | Expr SExpr
+                  deriving Show
 
+newtype Subst = Subst (M.IntMap AssignResult)
+              deriving Show
 
 ofType :: Int -> TCType -> Subst
 ofType i t = Subst (M.fromList [(i, Type t)])
@@ -38,6 +42,13 @@ ofRow i t = Subst (M.fromList [(i, Row t)])
 ofSigil :: Int -> Sigil (Maybe DataLayoutExpr) -> Subst 
 ofSigil i t = Subst (M.fromList [(i, Sigil t)])
 
+ofExpr :: Int -> SExpr -> Subst
+ofExpr i e = Subst (M.fromList [(i, Expr e)])
+
+substToAssign :: Subst -> Assignment
+substToAssign (Subst m) = Assignment . M.map unExpr $ M.filter isAssign m
+  where isAssign (Expr _) = True; isAssign _ = False
+        unExpr   (Expr x) = x   ; unExpr   _ = __impossible "unExpr"
 
 null :: Subst -> Bool
 null (Subst x) = M.null x
@@ -53,8 +64,6 @@ instance Monoid Subst where
   mempty = Subst M.empty
 #endif
 
-
-
 apply :: Subst -> TCType -> TCType
 apply (Subst f) (U x)
   | Just (Type t) <- M.lookup x f
@@ -69,7 +78,7 @@ apply (Subst f) t@(R r (Right x))
   | Just (Sigil s) <- M.lookup x f = apply (Subst f) (R r (Left s))
 apply f (V x) = V (fmap (apply f) x) 
 apply f (R x s) = R (fmap (apply f) x) s
-apply f (A x l s) = A (apply f x) l s
+apply f (A x l s) = A (apply f x) (assign (substToAssign f) l) s
 apply f (T x) = T (fmap (apply f) x)
 apply f (Synonym n ts) = Synonym n (fmap (apply f) ts)
 
@@ -109,7 +118,7 @@ applyC s (Share t m) = Share (apply s t) m
 applyC s (Drop t m) = Drop (apply s t) m
 applyC s (Escape t m) = Escape (apply s t) m
 #ifdef BUILTIN_ARRAYS
-applyC s (Arith e) = Arith e
+applyC s (Arith e) = Arith $ assign (substToAssign s) e
 #endif
 applyC s (Unsat e) = Unsat (applyErr s e)
 applyC s (SemiSat w) = SemiSat (applyWarn s w)

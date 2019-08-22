@@ -19,6 +19,7 @@ import Cogent.TypeCheck.Solver.Monad
 import qualified Cogent.TypeCheck.Solver.Rewrite as Rewrite
 import qualified Cogent.TypeCheck.Row as Row
 import qualified Cogent.TypeCheck.Subst as Subst
+import Cogent.TypeCheck.Util
 
 import Control.Applicative
 import Control.Arrow (first)
@@ -26,11 +27,13 @@ import Control.Monad.Writer
 import Control.Monad.Trans.Maybe
 import qualified Data.Map as M
 import Lens.Micro
+import Text.PrettyPrint.ANSI.Leijen (text, pretty, (<+>))
 
 sinkfloat :: Rewrite.RewriteT TcSolvM [Goal]
 sinkfloat = Rewrite.rewrite' $ \cs -> do
   (cs',as) <- try_each cs
   tell as
+  traceTc "solver" (text "Sink/Float writes subst:" <+> pretty as)
   pure (foldr (\a -> map (goal %~ Subst.applyC a)) cs' as)
  where
   try_each [] = empty

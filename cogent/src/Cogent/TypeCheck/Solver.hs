@@ -62,10 +62,7 @@ import qualified Data.Map as M
 import           Data.Maybe (fromMaybe, mapMaybe)
 import           Data.Monoid
 #ifdef BUILTIN_ARRAYS
-import qualified Data.SBV as V
-import qualified Data.SBV.Control as VC
-import qualified Data.SBV.Dynamic as VD
-import qualified Data.SBV.Internals as VI
+-- import Z3 stuff...
 #endif
 import qualified Data.Set as S
 import qualified Text.PrettyPrint.ANSI.Leijen as P
@@ -95,7 +92,7 @@ solve ks c = let gs     = makeGoals [] c
   --    The new Sink/float stage can apply when Equate does, but Sink/float introduces potentially many new constraints, while Equate is simpler and just replaces a subtyping constraint with equality.
                  rw     = debugF "Initial constraints" <>
                           Rewrite.untilFixedPoint (Rewrite.pre normaliseTypes $ stages)
-              in fmap (fromMaybe gs) (runMaybeT (Rewrite.run' rw gs))
+              in fmap (fromMaybe gs) (runMaybeT (Rewrite.runRewrite rw gs))
  where
   debug  nm rw = rw `Rewrite.andThen` Rewrite.debugPass ("=== " ++ nm ++ " ===") printC
   debugL nm rw = debug nm (Rewrite.lift rw)

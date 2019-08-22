@@ -58,7 +58,7 @@ import qualified Data.Foldable as F
 
 data Row t = Row { entries :: M.Map FieldName (Entry t)
                  , var :: Maybe Int
-                 }  deriving (Show, Eq, Ord, Functor, Foldable, Traversable)
+                 } deriving (Show, Eq, Ord, Functor, Foldable, Traversable)
 
 -- | Given a list of entries, produce a complete row without a unification row variable.
 fromList :: [Entry t] -> Row t
