@@ -21,6 +21,7 @@ import           Cogent.TypeCheck.Solver.Goal
 import           Cogent.TypeCheck.Solver.Monad
 import qualified Cogent.TypeCheck.Solver.Rewrite as Rewrite
 import qualified Cogent.TypeCheck.Subst          as Subst
+import           Cogent.TypeCheck.Util
 
 import Control.Applicative
 import Control.Monad.Trans.Maybe
@@ -28,12 +29,14 @@ import Control.Monad.Writer
 import Data.Foldable (asum)
 import Lens.Micro
 import Lens.Micro.Mtl
+import Text.PrettyPrint.ANSI.Leijen (text, pretty, (<+>))
 
 -- | The unify phase, which seeks out equality constraints to solve via substitution.
-unify ::  Rewrite.RewriteT TcSolvM [Goal]
+unify :: Rewrite.RewriteT TcSolvM [Goal]
 unify = Rewrite.rewrite' $ \cs -> do
            as <- asum (map (assignOf . view goal) cs)
            tell as
+           traceTc "solver" (text "Unify writes subst:" <+> pretty as)
            pure (foldr (\a -> map (goal %~ Subst.applyC a)) cs as)
 
 assignOf :: Constraint -> MaybeT TcSolvM [Subst.Subst]
@@ -81,6 +84,14 @@ assignOf (R r1 s1 :=: R r2 s2)
                             pure [ Subst.ofRow x (r2 { Row.var = Just v })
                                  , Subst.ofRow y (r1 { Row.var = Just v })
                                  ]
+#ifdef BUILTIN_ARRAYS
+-- TODO: This will be moved to a separately module for SMT-solving. Eventually the results
+-- returned from the solver will be a Subst object. / zilinc
+assignOf (Arith (SE (PrimOp "==" [SU x, e]))) | null (unknownsE e)
+  = pure [ Subst.ofExpr x e ]
+assignOf (Arith (SE (PrimOp "==" [e, SU x]))) | null (unknownsE e)
+  = pure [ Subst.ofExpr x e ]
+#endif
 
 assignOf _ = empty
 
