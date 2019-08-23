@@ -40,9 +40,9 @@ import Cogent.Compiler
   )
 import Cogent.Dargent.Core
   ( AlignedBitRange (..)
+  , DataLayout' (..)
   , DataLayout (..)
-  , DargentLayout (..)
-  , alignLayout
+  , alignLayout'
   , wordSizeBits
   , Architecture (..)
   , architecture
@@ -103,7 +103,7 @@ genBoxedGetSetField cogentType fieldName getOrSet = do
         TRecord fieldTypes (Boxed _ (Layout (RecordLayout fieldLayouts))) ->
           do
             let fieldType       = fst $ (fromList fieldTypes) ! fieldName
-                fieldLayout     = alignLayout $ fst $ fieldLayouts ! fieldName
+                fieldLayout     = alignLayout' $ fst $ fieldLayouts ! fieldName
             boxCType            <- genType cogentType
             getSetFieldFunction <- genBoxedGetterSetter boxCType fieldType fieldLayout [fieldName] getOrSet
             ((case getOrSet of Get -> boxedRecordGetters; Set -> boxedRecordSetters) . at (cogentType, fieldName))
@@ -128,7 +128,7 @@ genBoxedGetterSetter
   -> CogentType
      -- ^ The Cogent type of the embedded value that we would like to extract
 
-  -> DataLayout [AlignedBitRange]
+  -> DataLayout' [AlignedBitRange]
      -- ^
      -- The part of the root boxed type's DataLayout corresponding to
      -- the embedded value that we would like to extract.

@@ -28,7 +28,6 @@ import Cogent.Dargent.TypeCheck ( DataLayoutTypeCheckError
                                 )
 import Cogent.Dargent.Core      ( DataLayout
                                 , BitRange
-                                , DargentLayout(..)
                                 )
 
 import Cogent.Common.Syntax
@@ -250,9 +249,9 @@ warnToConstraint f w | f = SemiSat w
 
 data TCType         = T (Type SExpr TCType)
                     | U Int  -- unifier
-                    | R (Row TCType) (Either (Sigil (Maybe (DargentLayout DataLayoutExpr))) Int)
+                    | R (Row TCType) (Either (Sigil (Maybe DataLayoutExpr)) Int)
                     | V (Row TCType)
-                    | A TCType SExpr (Either (Sigil (Maybe DataLayoutExpr)) Int)
+                    | A TCType SExpr (Either (Sigil DataLayoutExpr) Int)
                     | Synonym TypeName [TCType]
                     deriving (Show, Eq, Ord)
 
@@ -504,7 +503,7 @@ validateType' vs (RT t) = do
                     if fields' == fields
                     then
                       case s of
-                        Boxed _ (Just dlexpr)
+                        Boxed _ dlexpr
                           | (anError : _) <- fst $ typeCheckDargentLayoutExpr layouts dlexpr
                           -> throwE $ DataLayoutError anError
                         otherwise ->
@@ -595,7 +594,7 @@ isTypeLayoutExprCompatible env t@(T (TCon n [] Unboxed)) (Prim rs) =
    in s' <= s -- TODO(dargent): do we want this to be equality?
 isTypeLayoutExprCompatible env (T (TRecord fs1 (Boxed _ ml1))) l2@(Record fs2) =
   (case ml1 of
-    Just l1 -> l1 == Layout l2
+    Just l1 -> l1 == l2
     Nothing -> False
   ) &&
     all (\((n1,(t,_)),(n2,_,l)) ->

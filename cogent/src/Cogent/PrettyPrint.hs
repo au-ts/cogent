@@ -856,6 +856,10 @@ instance Pretty DataLayoutPath where
   pretty (PathEnd)          = mempty
 
 instance Pretty a => Pretty (DataLayout a) where
+  pretty (Layout l) = symbol "layout" <+> pretty l
+  pretty CLayout = symbol "c-layout"
+
+instance Pretty a => Pretty (DataLayout' a) where
   pretty UnitLayout =
     parens (literal (symbol "unit"))
 
@@ -869,10 +873,6 @@ instance Pretty a => Pretty (DataLayout a) where
   pretty RecordLayout {fieldsDL} =
     record (map prettyField $ M.toList fieldsDL)
     where prettyField (f,(l,_)) = fieldname f <> colon <> pretty l
-
-instance Pretty a => Pretty (DargentLayout a) where
-  pretty (Layout l) = keyword "repr" <> pretty l
-  pretty CLayout = keyword "c-repr"
 
 instance Pretty BitRange where
   pretty BitRange {bitSizeBR, bitOffsetBR} = literal (pretty bitSizeBR) <> symbol "b" <+> symbol "at" <+> literal (pretty bitOffsetBR) <> symbol "b"

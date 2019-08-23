@@ -36,7 +36,7 @@ checkType :: Type t -> Bool
 
 checkType (TRecord fields (Boxed _ layout)) =
   let unboxed = TRecord fields Unboxed
-   in checkType unboxed && checkDataLayout layout && unboxed `matchesDargentLayout` layout
+   in checkType unboxed && checkDataLayout layout && unboxed `matchesDataLayout` layout
 
 checkType (TRecord fields _)   = all checkType $ fmap (fst . snd) fields
 checkType (TSum alts)          = all checkType $ fmap (fst . snd) alts
@@ -49,36 +49,31 @@ checkType (TArray t _ _)   = checkType t
 checkType _                    = True
 
 
-checkDataLayout :: DargentLayout (DataLayout BitRange) -> Bool
-checkDataLayout CLayout = True -- TODO(dargent)
-checkDataLayout (Layout l) = checkDataLayout' l
-  where
-    checkDataLayout' :: DataLayout BitRange -> Bool
-    checkDataLayout' l = __fixme (True) -- TODO(dargent)
-  -- FIXME:
-  -- Need to check
-  --   1. Blocks for different fields of a record don't overlap
-  --   2. Block for tag of an alternative doesn't overlap with blocks for
-  --      any of the alternatives.
-  --   3. Tag values for an alternative are positive and would fit in its tag block
-  --   4. All blocks have size at least 1 and offset at least 0
+checkDataLayout :: DataLayout BitRange -> Bool
+checkDataLayout l = __fixme (True) -- TODO(dargent)
+-- FIXME:
+-- Need to check
+--   1. Blocks for different fields of a record don't overlap
+--   2. Block for tag of an alternative doesn't overlap with blocks for
+--      any of the alternatives.
+--   3. Tag values for an alternative are positive and would fit in its tag block
+--   4. All blocks have size at least 1 and offset at least 0
 
-matchesDargentLayout :: Type t -> DargentLayout (DataLayout BitRange) -> Bool
-matchesDargentLayout _ CLayout = True
-matchesDargentLayout t (Layout l) = matchesDataLayout t l
-
-matchesDataLayout :: Type t -> DataLayout BitRange -> Bool
-matchesDataLayout (TCon _ _       (Boxed _ _))  (PrimLayout (BitRange { bitSizeBR })) = bitSizeBR == pointerSizeBits
-matchesDataLayout (TRecord _      (Boxed _ _))  (PrimLayout (BitRange { bitSizeBR })) = bitSizeBR == pointerSizeBits
-matchesDataLayout (TPrim primInt)               (PrimLayout (BitRange { bitSizeBR })) = bitSizeBR == primIntSizeBits primInt 
-matchesDataLayout (TSum alts)                   (SumLayout tagLayout altLayouts)      = __fixme (True)
+matchesDataLayout' :: Type t -> DataLayout' BitRange -> Bool
+matchesDataLayout' (TCon _ _       (Boxed _ _))  (PrimLayout (BitRange { bitSizeBR })) = bitSizeBR == pointerSizeBits
+matchesDataLayout' (TRecord _      (Boxed _ _))  (PrimLayout (BitRange { bitSizeBR })) = bitSizeBR == pointerSizeBits
+matchesDataLayout' (TPrim primInt)               (PrimLayout (BitRange { bitSizeBR })) = bitSizeBR == primIntSizeBits primInt 
+matchesDataLayout' (TSum alts)                   (SumLayout tagLayout altLayouts)      = __fixme (True)
   -- FIXME:
   -- Need to check the alternative names match,
   -- and that each alternative's type matches the corresponding layout.
-matchesDataLayout (TRecord fields Unboxed)      (RecordLayout fieldLayouts)           = __fixme (True)
+matchesDataLayout' (TRecord fields Unboxed)      (RecordLayout fieldLayouts)           = __fixme (True)
   -- FIXME:
   -- Need to check the field names match,
   -- and that each field's type matches the corresponding layout.
-matchesDataLayout (TUnit)                       (UnitLayout)                          = True
-matchesDataLayout _                             _                                     = False
+matchesDataLayout' (TUnit)                       (UnitLayout)                          = True
+matchesDataLayout' _                             _                                     = False
 
+matchesDataLayout :: Type t -> DataLayout BitRange -> Bool
+matchesDataLayout _ CLayout = True
+matchesDataLayout t (Layout l) = matchesDataLayout' t l
