@@ -413,7 +413,9 @@ instance (ExprType e, Prec e, Pretty t, PatnType p, Pretty p, PatnType ip, Prett
 #ifdef BUILTIN_ARRAYS
   pretty (ArrayLit es)       = array $ map pretty es
   pretty (ArrayIndex e i)    = prettyPrec 11 e <+> symbol "@" <+> prettyPrec 10 i
-  pretty (ArrayMap2 ((p1,p2),f) (e1,e2)) = keyword "map2" <+> parens (string "\\" <> pretty p1 <+> pretty p2) <+> prettyPrec 1 e1 <+> prettyPrec 1 e2
+  pretty (ArrayMap2 ((p1,p2),f) (e1,e2)) = keyword "map2" 
+                                       <+> parens (string "\\" <> pretty p1 <+> pretty p2 <+> symbol "=>" <+> pretty f)
+                                       <+> prettyPrec 1 e1 <+> prettyPrec 1 e2
 #endif
   pretty (Unitel)            = string "()"
   pretty (PrimOp n [a,b])
@@ -489,7 +491,11 @@ instance (Pretty t, TypeType t, Pretty e) => Pretty (Type e t) where
   pretty (TTuple ts) = tupled (map pretty ts)
   pretty (TUnit)     = typesymbol "()" & (if __cogent_fdisambiguate_pp then (<+> comment "{- unit -}") else id)
 #ifdef BUILTIN_ARRAYS
-  pretty (TArray t l s) = prettyT' t <> brackets (pretty l) <+> pretty s  -- TODO: use real syntax for sigil / zilinc
+  pretty (TArray t l s) = 
+    let (sigilPretty, layoutPretty) = case s of 
+          Unboxed     -> ((typesymbol "#" <>), id)
+          Boxed rw ml -> (if rw then  (<> typesymbol "!") else id, case ml of Just l -> (<+> pretty l); _ -> id)
+     in prettyT' t <> (layoutPretty . sigilPretty $ brackets (pretty l))
 #endif
   pretty (TRecord ts s) =
       let recordPretty = record (map (\(a,(b,c)) -> fieldname a <+> symbol ":" <+> pretty b) ts) -- all untaken
@@ -497,10 +503,9 @@ instance (Pretty t, TypeType t, Pretty e) => Pretty (Type e t) where
           tkUntkPretty = (if or $ map (snd . snd) ts
                           then (<+> typesymbol "take" <+> tupled1 (map fieldname tk))
                           else id)
-          (sigilPretty, layoutPretty) =
-            (case s of 
-              Unboxed -> ((typesymbol "#" <>), id)
-              (Boxed rw l) -> (if rw then  (<> typesymbol "!") else id, (<+> pretty l)))
+          (sigilPretty, layoutPretty) = case s of 
+            Unboxed     -> ((typesymbol "#" <>), id)
+            Boxed rw ml -> (if rw then (<> typesymbol "!") else id, case ml of Just l -> (<+> pretty l); _ -> id)
        in layoutPretty . tkUntkPretty . sigilPretty $ recordPretty  
   pretty (TVariant ts) | any snd ts = let
      names = map fst $ filter (snd . snd) $ M.toList ts
@@ -543,6 +548,7 @@ instance Pretty TCType where
                         Right n -> symbol $ "(?" ++ show n ++ ")"
      in symbol "A" <+> pretty t <+> symbol "[" <> pretty l <> symbol "]" <+> sigilPretty
   pretty (U v) = warn ('?':show v)
+  pretty (Synonym n []) = warn ("syn:" ++ n)
   pretty (Synonym n ts) = warn ("syn:" ++ n) <+> spaceList (map pretty ts)
 
 instance Pretty LocType where
