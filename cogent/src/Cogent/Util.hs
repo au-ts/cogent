@@ -49,6 +49,7 @@ import Lens.Micro.Mtl
 
 
 (<<+=) l n = l <<%= (+ n)
+
 --
 -- functors
 
