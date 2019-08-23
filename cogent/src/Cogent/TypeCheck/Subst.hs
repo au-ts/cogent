@@ -13,7 +13,6 @@
 module Cogent.TypeCheck.Subst where
 
 import Cogent.Common.Types
-import Cogent.Dargent.Common ( DargentLayout(..) )
 import Cogent.Surface
 import Cogent.TypeCheck.Base
 -- import Cogent.TypeCheck.Util
@@ -28,7 +27,7 @@ import Data.Monoid hiding (Alt)
 import Prelude hiding (lookup)
 
 data AssignResult = Type TCType
-                  | Sigil (Sigil (Maybe (DargentLayout DataLayoutExpr)))
+                  | Sigil (Sigil (Maybe DataLayoutExpr))
                   | Row (Row.Row TCType)
                   | Taken Taken
                   deriving Show
@@ -42,7 +41,7 @@ ofType i t = Subst (M.fromList [(i, Type t)])
 ofRow :: Int -> Row.Row TCType -> Subst 
 ofRow i t = Subst (M.fromList [(i, Row t)])
 
-ofSigil :: Int -> Sigil (Maybe (DargentLayout DataLayoutExpr)) -> Subst 
+ofSigil :: Int -> Sigil (Maybe DataLayoutExpr) -> Subst 
 ofSigil i t = Subst (M.fromList [(i, Sigil t)])
 
 ofTaken :: Int -> Taken -> Subst 
