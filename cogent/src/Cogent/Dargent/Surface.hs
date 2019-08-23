@@ -11,8 +11,13 @@
 --
 
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE PatternSynonyms #-}
 
-module Cogent.Dargent.Surface where
+module Cogent.Dargent.Surface
+  ( module Cogent.Dargent.Surface
+  , DataLayoutExpr(DLPrim, DLRecord, DLVariant, DLOffset, DLRepRef)
+  )
+where
 
 import Cogent.Common.Syntax (FieldName, TagName, RepName, Size)
 import Cogent.Compiler (__fixme)
@@ -31,10 +36,23 @@ data DataLayoutDecl
   = DataLayoutDecl SourcePos RepName DataLayoutExpr
   deriving (Show, Data, Eq, Ord)
 
-data DataLayoutExpr
+-- 'holes' are where subexpressions define the shape of the layout.
+-- This is to allow us, in future, to use () to defer to the contained layouts
+--  / v.jackson ~ 2019.08.23
+data DataLayoutExpr' e
   = Prim    DataLayoutSize
-  | Record  [(FieldName, SourcePos, DataLayoutExpr)]
-  | Variant DataLayoutExpr [(TagName, SourcePos, Size, DataLayoutExpr)]
-  | Offset  DataLayoutExpr DataLayoutSize
+  | Record  [(FieldName, SourcePos, e)]
+  | Variant (DataLayoutExpr' e) [(TagName, SourcePos, Size, e)]
+  | Offset  (DataLayoutExpr' e) DataLayoutSize
   | RepRef  RepName
   deriving (Show, Data, Eq, Ord)
+
+-- We use 'tying the knot' here so we can make single level layouts later
+newtype DataLayoutExpr = DL { unDataLayoutExpr :: DataLayoutExpr' DataLayoutExpr }
+  deriving (Show, Data, Eq, Ord)
+
+pattern DLPrim s       = DL (Prim s)
+pattern DLRecord ps    = DL (Record ps)
+pattern DLVariant t ps = DL (Variant t ps)
+pattern DLOffset e s   = DL (Offset e s)
+pattern DLRepRef n     = DL (RepRef n)

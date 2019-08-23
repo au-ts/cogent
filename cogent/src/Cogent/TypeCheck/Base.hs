@@ -26,7 +26,8 @@ import Cogent.Dargent.TypeCheck ( DataLayoutTypeCheckError
                                 , typeCheckDargentLayoutExpr
                                 , evalSize
                                 )
-import Cogent.Dargent.Core      ( DataLayout
+import Cogent.Dargent.Core      ( DataLayout(..)
+                                , DataLayout'(..)
                                 , BitRange
                                 )
 
@@ -583,7 +584,7 @@ unifVars (T x) = foldMap unifVars x
 --
 
 isTypeLayoutExprCompatible :: NamedDataLayouts -> TCType -> DataLayoutExpr -> Bool
-isTypeLayoutExprCompatible env t@(T (TCon n [] Unboxed)) (Prim rs) =
+isTypeLayoutExprCompatible env t@(T (TCon n [] Unboxed)) (DLPrim rs) =
   let s  = evalSize rs
       s' = (case n of
             "U8"  -> 8
@@ -592,26 +593,28 @@ isTypeLayoutExprCompatible env t@(T (TCon n [] Unboxed)) (Prim rs) =
             "U64" -> 64
             "Bool" -> 1)  -- TODO(dargent): check that booleans are allowed only a bit
    in s' <= s -- TODO(dargent): do we want this to be equality?
-isTypeLayoutExprCompatible env (T (TRecord fs1 (Boxed _ ml1))) l2@(Record fs2) =
+isTypeLayoutExprCompatible env (T (TRecord fs1 (Boxed _ ml1))) l2@(DLRecord fs2) =
   (case ml1 of
     Just l1 -> l1 == l2
     Nothing -> False
   ) &&
-    all (\((n1,(t,_)),(n2,_,l)) ->
-      n1 == n2 &&
-        isTypeLayoutExprCompatible env t l) (zip (sortOn fst fs1) (sortOn fst3 fs2))
-isTypeLayoutExprCompatible env (T (TTuple fs1)) (Record fs2) =
+    all
+      (\((n1,(t,_)),(n2,_,l)) -> n1 == n2 && isTypeLayoutExprCompatible env t l)
+      (zip (sortOn fst fs1) (sortOn fst3 fs2))
+isTypeLayoutExprCompatible env (T (TTuple fs1)) (DLRecord fs2) =
   all (\(t,(_,_,l)) -> isTypeLayoutExprCompatible env t l) (zip fs1 fs2)
-isTypeLayoutExprCompatible env (T (TVariant ts1)) (Variant _ ts2) =
-  all (\((n1,(ts,_)),(n2,_,_,l)) ->
-    n1 == n2 &&
-      isTypeLayoutExprCompatible env (tuplise ts) l) (zip (M.assocs ts1) (sortOn fst4 ts2))
+isTypeLayoutExprCompatible env (T (TVariant ts1)) (DLVariant _ ts2) =
+  all
+    (\((n1,(ts,_)),(n2,_,_,l)) ->
+      n1 == n2 && isTypeLayoutExprCompatible env (tuplise ts) l)
+    (zip (M.assocs ts1) (sortOn fst4 ts2))
   where
     tuplise [] = T TUnit
     tuplise [t] = t
     tuplise ts = T (TTuple ts)
-isTypeLayoutExprCompatible env t (Offset l _) = isTypeLayoutExprCompatible env t l
-isTypeLayoutExprCompatible env t (RepRef n)   =
+isTypeLayoutExprCompatible env t (DLOffset l _) =
+  isTypeLayoutExprCompatible env t (DL l)
+isTypeLayoutExprCompatible env t (DLRepRef n)   =
   case M.lookup n env of
     Just (l, _) -> isTypeLayoutExprCompatible env t l
     Nothing     -> False -- TODO(dargent): this really shoud be an exceptional state

@@ -57,11 +57,11 @@ lCanId = [dexpr| record { id  : 29b
                         } |]
 
 -- Dargent cannot mention constant definitions in Cogent / zilinc
-lCanFrame = Record [ ("ident", noPos, Prim (_B 8))
-                   , ("prio" , noPos, Offset (Prim (_b 2)) (_B 8))
-                   , ("dlc"  , noPos, Offset (Prim (_b 4)) (_B 8 `Add` _b 2))
-                   , ("data" , noPos, Offset (Prim (_B canMaxDlc)) (_B 9))
-                   ]
+lCanFrame = DLRecord [ ("ident", noPos, DLPrim (_B 8))
+                     , ("prio" , noPos, DLOffset (Prim (_b 2)) (_B 8))
+                     , ("dlc"  , noPos, DLOffset (Prim (_b 4)) (_B 8 `Add` _b 2))
+                     , ("data" , noPos, DLOffset (Prim (_B canMaxDlc)) (_B 9))
+                     ]
 
 prog' = [decls|
 can_EID_BITS : U32
