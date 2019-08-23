@@ -50,7 +50,8 @@ import           Cogent.Inference             (kindcheck_)
 import           Cogent.Isabelle.Deep
 import           Cogent.Mono                  (Instance)
 import           Cogent.Normal                (isAtom)
-import           Cogent.Util           (decap, extTup2l, extTup3r, first3, flip3, secondM, toCName, whenM)
+import           Cogent.Util           (decap, tupleFieldNames, toCName,
+                                        extTup2l, extTup3r, first3, flip3, secondM, whenM)
 import qualified Data.DList          as DList
 import           Data.Nat            as Nat
 import           Data.Vec            as Vec hiding (repeat, zipWith)
@@ -507,8 +508,8 @@ letbangTrue = "LETBANG_TRUE"
 letTrue = "LET_TRUE"
 
 p1, p2 :: CId
-p1 = "p1"
-p2 = "p2"
+p1 = tupleFieldNames !! 0
+p2 = tupleFieldNames !! 1
 
 -- NOTE: use actual names instead
 -- XXX | field n = 'f':show n

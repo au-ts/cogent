@@ -56,6 +56,8 @@ import Control.Monad.State hiding (fmap, forM_)
 import Control.Monad.Trans.Maybe
 -- import Data.Data hiding (Refl)
 import Data.Foldable (forM_)
+import Data.Function (on)
+import Data.List (sortBy)
 #if __GLASGOW_HASKELL__ < 709
 import Data.Traversable(traverse)
 #endif
@@ -67,9 +69,6 @@ import Data.Monoid
 -- import qualified Data.Set as S
 import Text.PrettyPrint.ANSI.Leijen (pretty)
 import qualified Unsafe.Coerce as Unsafe (unsafeCoerce)  -- NOTE: used safely to coerce phantom types only
-
-import Data.List (sortBy)
-import Data.Function (on)
 
 import Debug.Trace
 
@@ -360,7 +359,9 @@ infer (E (ArrayMap2 (as,f) (e1,e2)))
         let TArray te1 l1 _ = t1
             TArray te2 l2 _ = t2
         f' <- withBindings (Cons te2 (Cons te1 Nil)) $ infer f
-        let t = TProduct t1 t2
+        let t = case __cogent_ftuples_as_sugar of
+                  False -> TProduct t1 t2
+                  True  -> TRecord (zipWith (\f t -> (f,(t,False))) tupleFieldNames [t1,t2]) Unboxed
         return $ TE t $ ArrayMap2 (as,f') (e1',e2')
 infer (E (Pop a e1 e2))
    = do e1'@(TE t1 _) <- infer e1
@@ -477,7 +478,7 @@ infer (E (Struct fs))
         return $ TE (TRecord (sortBy (compare `on` fst) ts') Unboxed) $ Struct $ zip ns es'
 infer (E (Take a e f e2))
    = do e'@(TE t _) <- infer e
-        trace ("t is " ++ show t) $ return ()
+        -- trace ("@@@@t is " ++ show t) $ return ()
         let TRecord ts s = t
         -- a common cause of this error is taking a field when you could have used member
         guardShow "take: sigil not readonly" $ not (readonly s)

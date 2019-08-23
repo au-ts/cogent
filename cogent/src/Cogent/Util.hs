@@ -112,6 +112,8 @@ toCName = concatMap (\c -> if c == '\'' then "_prime" else [c])
 dehyphens :: String -> String
 dehyphens = map (\c -> if c == '-' then '_' else c)
 
+tupleFieldNames = map (('p':) . show) [1 :: Integer ..]
+
 --
 -- file path
 
