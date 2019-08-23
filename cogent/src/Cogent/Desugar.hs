@@ -641,9 +641,7 @@ desugarExpr (B.TE _ (S.ArrayIndex e i) _) = do
 desugarExpr (B.TE _ (S.ArrayMap2 ((p1,p2), fbody) (e1,e2)) _) = do
   e1' <- desugarExpr e1
   e2' <- desugarExpr e2
-  let S.RT (S.TTuple [tarr1, tarr2]) = B.getTypeTE fbody
-      S.RT (S.TArray telt1 _ _) = tarr1
-      S.RT (S.TArray telt2 _ _) = tarr2
+  let S.RT (S.TTuple [telt1, telt2]) = B.getTypeTE fbody
   -- Idea:
   --   \ p1 p2 -> fbody ~~> \ v1 v2 -> let p1 = v1; p2 = v2 in fbody
   v1 <- freshVar
