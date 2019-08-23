@@ -50,7 +50,6 @@ normaliseRW = rewrite' $ \t -> case t of
     T (TUnbox (T (TArray t l _))) -> pure (T (TArray t l Unboxed))
     T (TUnbox (A t l _)) -> pure (A t l (Left Unboxed))
 #endif
-
     Synonym n as -> do 
         table <- view knownTypes
         case lookup n table of 
@@ -96,12 +95,12 @@ normaliseRW = rewrite' $ \t -> case t of
 whnf :: TCType -> TcSolvM TCType
 whnf input = do 
     step <- case input of 
-        T (TTake fs t') -> T . TTake fs <$> whnf t'
-        T (TPut  fs t') -> T . TPut  fs <$> whnf t'
-        T (TBang    t') -> T . TBang    <$> whnf t'
-        T (TUnbox   t') -> T . TUnbox   <$> whnf t'
+        T (TTake  fs t') -> T . TTake fs  <$> whnf t'
+        T (TPut   fs t') -> T . TPut  fs  <$> whnf t'
+        T (TBang     t') -> T . TBang     <$> whnf t'
+        T (TUnbox    t') -> T . TUnbox    <$> whnf t'
         T (TLayout l t') -> T . TLayout l <$> whnf t'
-        _               -> pure input
+        _                -> pure input
     fromMaybe step <$> runMaybeT (runRewrite (untilFixedPoint normaliseRW) step)
 
 -- | Normalise all types within a set of constraints

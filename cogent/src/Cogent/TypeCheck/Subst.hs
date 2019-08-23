@@ -77,15 +77,19 @@ apply (Subst f) (U x)
   = apply (Subst f) t
   | otherwise
   = U x
-apply (Subst f) t@(V (Row.Row m' (Just x)))
+apply (Subst f) (V (Row.Row m' (Just x))) 
   | Just (Row (Row.Row m q)) <- M.lookup x f = apply (Subst f) (V (Row.Row (DM.union m m') q))
-apply (Subst f) t@(R (Row.Row m' (Just x)) s)
+apply (Subst f) (R (Row.Row m' (Just x)) s) 
   | Just (Row (Row.Row m q)) <- M.lookup x f = apply (Subst f) (R (Row.Row (DM.union m m') q) s)
-apply (Subst f) t@(R r (Right x))
+apply (Subst f) (R r (Right x))
   | Just (Sigil s) <- M.lookup x f = apply (Subst f) (R r (Left s))
 apply f (V x) = V (applyToRow f x)
 apply f (R x s) = R (applyToRow f x) s
+#ifdef BUILTIN_ARRAYS
+apply (Subst f) (A t l (Right x))
+  | Just (Sigil s) <- M.lookup x f = apply (Subst f) (A t l (Left s))
 apply f (A x l s) = A (apply f x) (assign (substToAssign f) l) s
+#endif
 apply f (T x) = T (fmap (apply f) x)
 apply f (Synonym n ts) = Synonym n (fmap (apply f) ts)
 
