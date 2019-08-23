@@ -662,6 +662,7 @@ parseArgs args = case getOpt' Permute options args of
       let stg = STGDesugar
       putProgressLn "Desugaring and typing..."
       let ((desugared,ctygen'),typedefs) = DS.desugar tced ctygen pragmas
+      -- pretty stdout desugared  -- for debugging
       case IN.tc desugared of
         Left err -> hPutStrLn stderr ("Internal TC failed: " ++ err) >> exitFailure
         Right (desugared',fts) -> do

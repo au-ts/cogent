@@ -532,7 +532,8 @@ desugarType = \case
   S.RT (S.TTuple (t:[])) -> __impossible "desugarType (TTuple 1)"
   S.RT (S.TTuple (t1:t2:[])) | not __cogent_ftuples_as_sugar -> TProduct <$> desugarType t1 <*> desugarType t2
   S.RT (S.TTuple (t1:t2:ts)) | not __cogent_ftuples_as_sugar -> __impossible "desugarType"  -- desugarType $ S.RT $ S.TTuple [t1, S.RT $ S.TTuple (t2:ts)]
-  S.RT (S.TTuple ts) | __cogent_ftuples_as_sugar -> TRecord <$> (P.zipWith (\t n -> (n,(t, False))) <$> forM ts desugarType <*> pure (P.map (('p':) . show) [1 :: Integer ..])) <*> pure Unboxed
+  S.RT (S.TTuple ts) | __cogent_ftuples_as_sugar ->
+    TRecord <$> (P.zipWith (\t n -> (n,(t, False))) <$> forM ts desugarType <*> pure tupleFieldNames) <*> pure Unboxed
   S.RT (S.TUnit)   -> return TUnit
 #ifdef BUILTIN_ARRAYS
   S.RT (S.TArray t l Unboxed) -> TArray <$> desugarType t <*> evalAExpr l <*> pure Unboxed -- desugarExpr' l
@@ -647,7 +648,7 @@ desugarExpr (B.TE t (S.Tuple (e1:e2:es)) _) | not __cogent_ftuples_as_sugar = __
   --     e2' = B.TE t2' $ S.Tuple (e2:es)
   -- desugarExpr $ B.TE (S.RT $ S.TTuple [t1,t2']) $ S.Tuple [e1,e2']
 -- desugarExpr (B.TE _ (S.Tuple (reverse -> (e:es)))) | B.TE _ (S.Tuple _) <- e = __impossible "desugarExpr"
-desugarExpr (B.TE _ (S.Tuple es) _) = E . Struct <$> (P.zip (P.map (('p':) . show) [1 :: Integer ..]) <$> mapM desugarExpr es)  -- \| __cogent_ftuples_as_sugar
+desugarExpr (B.TE _ (S.Tuple es) _) = E . Struct <$> (P.zip tupleFieldNames <$> mapM desugarExpr es)  -- \| __cogent_ftuples_as_sugar
 desugarExpr (B.TE _ (S.UnboxedRecord fs) _) = E . Struct <$> mapM (\(f,e) -> (f,) <$> desugarExpr e) fs
 desugarExpr (B.TE _ (S.Let [] e) _) = __impossible "desugarExpr (Let)"
 desugarExpr (B.TE _ (S.Let [S.Binding p mt e0 []] e) _) = desugarAlt' e0 (S.PIrrefutable p) e
