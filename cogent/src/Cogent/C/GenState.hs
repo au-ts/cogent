@@ -154,7 +154,7 @@ newtype Gen v a = Gen { runGen :: RWS (GenRead v) () GenState a }
 
 genTyDecl :: (StrlType, CId) -> [TypeName] -> [CExtDecl]
 genTyDecl (Record x, n) _ = [CDecl $ CStructDecl n (map (second Just . swap) x), genTySynDecl (n, CStruct n)]
-genTyDecl (BoxedRecord (StrlCogentType (TRecord _ (Boxed _ (Layout layout)))), n) _ =
+genTyDecl (BoxedRecord (StrlCogentType (TRecord _ (Boxed _ layout))), n) _ =
   let size      = dataLayoutSizeBytes layout
       arrayType = CArray (CInt False CIntT) (CArraySize $ CConst $ CNumConst size (CInt False CIntT) DEC)
   in
