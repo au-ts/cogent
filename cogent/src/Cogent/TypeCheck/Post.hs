@@ -210,8 +210,10 @@ normaliseT d (R x (Left s)) =
   T . flip TRecord (__fixme $ fmap (const Nothing) s) . map (second (second tkNorm)). Row.toEntryList <$>  -- TODO(dargent): check this is correct
     traverse (normaliseT d) x
 normaliseT d (R x (Right s)) =  __impossible ("normaliseT: invalid sigil (?" ++ show s ++ ")")
+#ifdef BUILTIN_ARRAYS
 normaliseT d (A t n (Left s)) = T <$> (TArray <$> normaliseT d t <*> pure n <*> pure s)
 normaliseT d (A t n (Right s)) = __impossible ("normaliseT: invalid sigil (?" ++ show s ++ ")")
+#endif
 normaliseT d (U x) = __impossible ("normaliseT: invalid type (?" ++ show x ++ ")")
 normaliseT d (T x) = T <$> traverse (normaliseT d) x
 

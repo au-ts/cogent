@@ -8,3 +8,4 @@ foo ((a1,a2), b) = let (a1', a2') = map2 (\v1 v2 => if b -- && v1.f2 !v1
                                                       then (v1 {f1 = 3}, v2)
                                                       else (v1, 0)) a1 a2
                     in (a2', a1')
+
