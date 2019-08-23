@@ -458,6 +458,7 @@ infer (E (Struct fs))
         return $ TE (TRecord (sortBy (compare `on` fst) $ zipWith (\n e' -> (n, (exprType e', False))) ns es') Unboxed) $ Struct $ zip ns es'
 infer (E (Take a e f e2))
    = do e'@(TE t _) <- infer e
+        trace ("t is " ++ show t) $ return ()
         let TRecord ts s = t
         guardShow "take: sigil not readonly" $ not (readonly s)
         guardShow "take-1" $ f < length ts
