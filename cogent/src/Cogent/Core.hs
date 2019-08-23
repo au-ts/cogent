@@ -284,6 +284,7 @@ fmapE f (SLit s)             = SLit s
 #ifdef BUILTIN_ARRAYS
 fmapE f (ALit es)            = ALit (map f es)
 fmapE f (ArrayIndex e i)     = ArrayIndex (f e) i
+fmapE f (ArrayMap2 (as,e) (e1,e2)) = ArrayMap2 (as, f e) (f e1, f e2)
 fmapE f (Pop a e1 e2)        = Pop a (f e1) (f e2)
 fmapE f (Singleton e)        = Singleton (f e)
 #endif
@@ -404,6 +405,9 @@ instance (Pretty a, Prec (e t v a), Pretty (e t v a), Pretty (e t ('Suc v) a), P
 #ifdef BUILTIN_ARRAYS
   pretty (ALit es) = array $ map pretty es
   pretty (ArrayIndex arr idx) = prettyPrec 2 arr <+> symbol "@" <+> pretty idx
+  pretty (ArrayMap2 ((v1,v2),f) (e1,e2)) = keyword "map2" <+> 
+                                           parens (symbol "\\" <> pretty v1 <+> pretty v2 <+> symbol "=>" <+> pretty f) <+> 
+                                           prettyPrec 1 e1 <+> prettyPrec 1 e2
   pretty (Pop (v1,v2) e1 e2) = align (keyword "pop" <+> pretty v1 <> symbol ":@" <> pretty v2 <+> symbol "=" <+> pretty e1 L.<$>
                                 keyword "in"  <+> pretty e2)
   pretty (Singleton e) = keyword "singleton" <+> parens (pretty e)
