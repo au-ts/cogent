@@ -600,7 +600,7 @@ instance Pretty DataLayoutSize where
   pretty (Bytes b) = literal (string (show b ++ "B"))
   pretty (Add a b) = pretty a <+> symbol "+" <+> pretty b
 
-instance Pretty DataLayoutExpr where 
+instance Pretty d => Pretty (DataLayoutExpr' d) where 
   pretty (RepRef n) = reprname n
   pretty (Prim sz) = pretty sz
   pretty (Offset e s) = pretty e <+> keyword "at" <+> pretty s
@@ -608,6 +608,8 @@ instance Pretty DataLayoutExpr where
   pretty (Variant e vs) = keyword "variant" <+> tupled [pretty e]
                                                  <+> record (map (\(f,_,i,e) -> tagname f <+> tupled [literal $ string $ show i] <> symbol ":" <+> pretty e) vs)
 
+instance Pretty DataLayoutExpr where 
+  pretty (DL l) = pretty l
 
 instance Pretty Metadata where
   pretty (Constant {constName})              = err "the binding" <+> funname constName <$> err "is a global constant"

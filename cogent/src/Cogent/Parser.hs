@@ -20,7 +20,7 @@ import Cogent.Common.Types
 import Cogent.Compiler
 import qualified Cogent.Preprocess as PP
 import Cogent.Surface
-import Cogent.Util (getStdIncFullPath)
+import Cogent.Util (getStdIncFullPath, (.*), (.**))
 
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative hiding (many, (<|>), optional)
@@ -107,14 +107,15 @@ repSize = avoidInitial >> buildExpressionParser [[Infix (reservedOp "+" *> pure 
                (Bits <$ reserved "b" <*> pure x <|> Bytes <$ reserved "B" <*> pure x))
 
 repExpr :: Parser DataLayoutExpr
-repExpr = avoidInitial >> buildExpressionParser [[Postfix (flip Offset <$ reserved "at" <*> repSize)]] 
-           (Record <$ reserved "record" <*> braces (commaSep recordRepr)
-        <|> Variant <$ reserved "variant" <*> parens (repExpr) <*> braces (commaSep variantRepr)
-        <|> RepRef <$> typeConName
-        <|> Prim <$> repSize)
-    where 
-      recordRepr = (,,) <$> variableName <*> getPosition <* reservedOp ":" <*> repExpr
-      variantRepr = (,,,) <$> typeConName <*> getPosition <*> parens (fromIntegral <$> natural) <* reservedOp ":" <*> repExpr
+repExpr = DL <$> repExpr'
+  where
+    repExpr' = avoidInitial >> buildExpressionParser [[Postfix (flip Offset <$ reserved "at" <*> repSize)]]
+          ((Record <$ reserved "record" <*> braces (commaSep recordRepr))
+      <|> (Variant <$ reserved "variant" <*> parens repExpr' <*> braces (commaSep variantRepr))
+      <|> (RepRef <$> typeConName)
+      <|> (Prim <$> repSize))
+    recordRepr = (,,) <$> variableName <*> getPosition <* reservedOp ":" <*> repExpr
+    variantRepr = (,,,) <$> typeConName <*> getPosition <*> parens (fromIntegral <$> natural) <* reservedOp ":" <*> repExpr
 
 
 -- TODO: add support for patterns like `_ {f1, f2}', where the record name is anonymous / zilinc

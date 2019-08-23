@@ -49,6 +49,7 @@ import Lens.Micro.Mtl
 
 
 (<<+=) l n = l <<%= (+ n)
+
 --
 -- functors
 
@@ -409,3 +410,15 @@ exceptT :: Monad m => (a -> m c) -> (b -> m c) -> ExceptT a m b -> m c
 exceptT f g (ExceptT m) = m >>= \z -> case z of
     Left  a -> f a
     Right b -> g b
+
+-- from composition
+-- https://hackage.haskell.org/package/composition
+
+infixr 8 .*
+infixr 8 .**
+
+(.*) :: (c -> d) -> (a -> b -> c) -> a -> b -> d
+(cd .* abc) a b = cd (abc a b)
+
+(.**) :: (d -> e) -> (a -> b -> c -> d) -> a -> b -> c -> e
+(de .** abcd) a b c = de (abcd a b c)
