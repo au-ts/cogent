@@ -94,7 +94,7 @@ solve ks c = let gs     = makeGoals [] c
                           Rewrite.untilFixedPoint (Rewrite.pre normaliseTypes $ stages)
               in fmap (fromMaybe gs) (runMaybeT (Rewrite.runRewrite rw gs))
  where
-  debug  nm rw = rw `Rewrite.andThen` Rewrite.debugPass ("=== " ++ nm ++ " ===") printC
+  debug  nm rw = rw `Rewrite.andThen` Rewrite.debugPass ("After " ++ nm ++ " the Rewrite is:") printC
   debugL nm rw = debug nm (Rewrite.lift rw)
   debugF nm = Rewrite.debugFail ("=== " ++ nm ++ " ===") printC
 
