@@ -69,9 +69,9 @@ data Inline = Inline
             deriving (Data, Eq, Ord, Show)
 
 allRepRefs :: DataLayoutExpr -> [RepName]
-allRepRefs (Record fs) = concatMap (allRepRefs . thd3) fs
-allRepRefs (Variant _ cs) = concatMap (\(_,_,_,e) -> allRepRefs e) cs
-allRepRefs (RepRef n) = [n]
+allRepRefs (DL (Record fs)) = concatMap (allRepRefs . thd3) fs
+allRepRefs (DL (Variant _ cs)) = concatMap (\(_,_,_,e) -> allRepRefs e) cs
+allRepRefs (DL (RepRef n)) = [n]
 allRepRefs _ = []
 
 data Expr t p ip e = PrimOp OpName [e]

@@ -36,10 +36,9 @@ import Cogent.Common.Syntax         ( DataLayoutName
                                     , FieldName
                                     )
 import Cogent.Common.Types          ( Sigil(Unboxed, Boxed), PrimInt(..))
-import Cogent.Dargent.Surface       ( DataLayoutExpr
-                                    , DataLayoutSize
-                                    , DataLayoutSize(Bytes, Bits, Add)
+import Cogent.Dargent.Surface       ( DataLayoutSize(Bytes, Bits, Add)
                                     , DataLayoutExpr(..)
+                                    , DataLayoutExpr'(..)
                                     )
 import Cogent.Dargent.TypeCheck     ( desugarSize )
 import Cogent.Dargent.Core
@@ -94,24 +93,24 @@ desugarDataLayout :: DataLayoutExpr -> DataLayout BitRange
 desugarDataLayout l = Layout $ desugarDataLayout' l
   where
     desugarDataLayout' :: DataLayoutExpr -> DataLayout' BitRange
-    desugarDataLayout' (RepRef _) = __impossible "desugarDataLayout (Called after normalisation)"
-    desugarDataLayout' (Prim size)
+    desugarDataLayout' (DLRepRef _) = __impossible "desugarDataLayout (Called after normalisation)"
+    desugarDataLayout' (DLPrim size)
       | bitSize <- desugarSize size
       , bitSize > 0
         = PrimLayout (BitRange bitSize 0)
       | otherwise = UnitLayout
     
-    desugarDataLayout' (Offset dataLayoutExpr offsetSize) =
-      offset (desugarSize offsetSize) (desugarDataLayout' dataLayoutExpr)
+    desugarDataLayout' (DLOffset dataLayoutExpr offsetSize) =
+      offset (desugarSize offsetSize) (desugarDataLayout' (DL dataLayoutExpr))
     
-    desugarDataLayout' (Record fields) =
+    desugarDataLayout' (DLRecord fields) =
       RecordLayout $ M.fromList fields'
       where fields' = fmap (\(fname, pos, layout) -> (fname, (desugarDataLayout' layout, pos))) fields
     
-    desugarDataLayout' (Variant tagExpr alts) =
+    desugarDataLayout' (DLVariant tagExpr alts) =
       SumLayout tagBitRange $ M.fromList alts'
       where
-        tagBitRange = case desugarDataLayout' tagExpr of
+        tagBitRange = case desugarDataLayout' (DL tagExpr) of
           PrimLayout range -> range
           _                -> __impossible $ "desugarDataLayout (Called after typecheck, tag layouts known to be single range)"
     

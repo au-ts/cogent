@@ -49,20 +49,20 @@ typeCheckDargentLayoutExpr n Nothing = ([], Nothing)
 typeCheckDargentLayoutExpr n (Just l) = second Just $ typeCheckDataLayoutExpr n l
 
 typeCheckDataLayoutExpr :: NamedDataLayouts -> DataLayoutExpr -> ([DataLayoutTypeCheckError], Allocation)
-typeCheckDataLayoutExpr env (RepRef n) =
+typeCheckDataLayoutExpr env (DLRepRef n) =
   case M.lookup n env of 
     Just (_, allocation) -> mapPaths (InDecl n) $ return allocation
     Nothing              -> returnError $ UnknownDataLayout n PathEnd
         
-typeCheckDataLayoutExpr _ (Prim size) = return [(bitRange, PathEnd)]
+typeCheckDataLayoutExpr _ (DLPrim size) = return [(bitRange, PathEnd)]
   where
     bitSize = desugarSize size
     bitRange = BitRange bitSize 0
   
-typeCheckDataLayoutExpr env (Offset dataLayoutExpr offsetSize) =
-  offset (evalSize offsetSize) <$> typeCheckDataLayoutExpr env dataLayoutExpr
+typeCheckDataLayoutExpr env (DLOffset dataLayoutExpr offsetSize) =
+  offset (evalSize offsetSize) <$> typeCheckDataLayoutExpr env (DL dataLayoutExpr)
     
-typeCheckDataLayoutExpr env (Record fields) =
+typeCheckDataLayoutExpr env (DLRecord fields) =
   let (errs, alloc) = foldM typeCheckField [] fields
   in if isZeroSizedAllocation alloc
         then returnError $ ZeroSizedBitRange PathEnd
@@ -77,8 +77,8 @@ typeCheckDataLayoutExpr env (Record fields) =
       fieldsAlloc <- mapPaths (InField fieldName pos) (typeCheckDataLayoutExpr env dataLayoutExpr)
       accumAlloc /\ fieldsAlloc
 
-typeCheckDataLayoutExpr env (Variant tagExpr alternatives) = do
-  case primitiveBitRange tagExpr of
+typeCheckDataLayoutExpr env (DLVariant tagExpr alternatives) = do
+  case primitiveBitRange (DL tagExpr) of
     Just tagBits ->
       do
         altsAlloc <- fst <$> foldM (typeCheckAlternative tagBits) ([], M.empty) alternatives
@@ -106,9 +106,9 @@ typeCheckDataLayoutExpr env (Variant tagExpr alternatives) = do
               return $ M.insert tagValue tagName accumTagValues
 
     primitiveBitRange :: DataLayoutExpr -> Maybe BitRange
-    primitiveBitRange (Prim size)        = Just $ BitRange (desugarSize size) 0
-    primitiveBitRange (Offset expr size) = offset (desugarSize size) <$> primitiveBitRange expr
-    primitiveBitRange _                  = Nothing
+    primitiveBitRange (DLPrim size)        = Just $ BitRange (desugarSize size) 0
+    primitiveBitRange (DLOffset expr size) = offset (desugarSize size) <$> primitiveBitRange (DL expr)
+    primitiveBitRange _                    = Nothing
 
 
 {-
@@ -138,15 +138,15 @@ normaliseDataLayoutExpr
   -> DataLayoutExpr
   -> DataLayoutExpr
 
-normaliseDataLayoutExpr env (RepRef n) =
+normaliseDataLayoutExpr env (DLRepRef n) =
   case M.lookup n env of 
     Just (expr, _) -> normaliseDataLayoutExpr env expr
     Nothing        -> __impossible $ "normaliseDataLayoutExpr (RepRef " ++ show n ++ " already known to exist)"
-normaliseDataLayoutExpr env (Record fields) =
-  Record (fmap (\(fn, pos, expr) -> (fn, pos, normaliseDataLayoutExpr env expr)) fields)
-normaliseDataLayoutExpr env (Variant tag alts) =
-  Variant tag (fmap (\(tn, pos, size, expr) -> (tn, pos, size, normaliseDataLayoutExpr env expr)) alts)
-normaliseDataLayoutExpr env (Offset expr size) = Offset (normaliseDataLayoutExpr env expr) size
+normaliseDataLayoutExpr env (DLRecord fields) =
+  DLRecord (fmap (\(fn, pos, expr) -> (fn, pos, normaliseDataLayoutExpr env expr)) fields)
+normaliseDataLayoutExpr env (DLVariant tag alts) =
+  DLVariant tag (fmap (\(tn, pos, size, expr) -> (tn, pos, size, normaliseDataLayoutExpr env expr)) alts)
+normaliseDataLayoutExpr env (DLOffset expr size) = DLOffset (unDataLayoutExpr $ normaliseDataLayoutExpr env (DL expr)) size
 normaliseDataLayoutExpr _ r = r
 
 {- * Types -}
