@@ -82,6 +82,11 @@ annoying' v n n1 | Refl <- assoc v n n1
                  , Refl <- addSucLeft (SSuc (sadd v n)) n1
                  = Refl
 
+annoying'' :: SNat v -> SNat n -> SNat n1 -> ('Suc ('Suc v) :+: (n :+: n1)) :=: 'Suc ('Suc ((v :+: n) :+: n1))
+annoying'' v n n1 | Refl <- sym (addSucLeft (SSuc v) (sadd n n1)) 
+                  , Refl <- sym (addSucLeft v (sadd n n1))
+                  , Refl <- assoc v n n1 = Refl
+
 withAssocSS :: SNat v -> SNat n -> SNat n1 -> (('Suc ('Suc (v :+: n)) :+: n1) :=: (v :+: 'Suc ('Suc (n :+: n1))) -> p) -> p
 withAssocSS a b c = ($ annoying' a b c)
 
@@ -90,3 +95,6 @@ withAssocS v n n1 = ($ annoying v n n1)
 
 withAssoc :: SNat v -> SNat n -> SNat n1 -> ((v :+: n) :+: n1 :=: (v :+: (n :+: n1)) -> p) -> p
 withAssoc v n n1 = ($ sym $ assoc v n n1)
+
+withSSAssoc :: SNat v -> SNat n -> SNat n1 -> (('Suc ('Suc v) :+: (n :+: n1)) :=: 'Suc ('Suc ((v :+: n) :+: n1)) -> p) -> p
+withSSAssoc v n n1 = ($ annoying'' v n n1)
