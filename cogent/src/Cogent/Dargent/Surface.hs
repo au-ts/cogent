@@ -12,15 +12,10 @@
 
 {-# LANGUAGE DeriveDataTypeable #-}
 
-module Cogent.Dargent.Surface
-  ( module Cogent.Dargent.Surface
-  , module Cogent.Dargent.Common
-  )
-where
+module Cogent.Dargent.Surface where
 
 import Cogent.Common.Syntax (FieldName, TagName, RepName, Size)
 import Cogent.Compiler (__fixme)
-import Cogent.Dargent.Common
 
 import Data.Data
 import Text.Parsec.Pos (SourcePos)

@@ -43,10 +43,10 @@ import Text.Parsec.Pos (SourcePos)
 -- And tag values are in the right ranges
 typeCheckDargentLayoutExpr
   :: NamedDataLayouts
-  -> DargentLayout DataLayoutExpr
-  -> ([DataLayoutTypeCheckError], DargentLayout Allocation)
-typeCheckDargentLayoutExpr n CLayout = ([], CLayout)
-typeCheckDargentLayoutExpr n (Layout l) = second Layout $ typeCheckDataLayoutExpr n l
+  -> Maybe DataLayoutExpr
+  -> ([DataLayoutTypeCheckError], Maybe Allocation)
+typeCheckDargentLayoutExpr n Nothing = ([], Nothing)
+typeCheckDargentLayoutExpr n (Just l) = second Just $ typeCheckDataLayoutExpr n l
 
 typeCheckDataLayoutExpr :: NamedDataLayouts -> DataLayoutExpr -> ([DataLayoutTypeCheckError], Allocation)
 typeCheckDataLayoutExpr env (RepRef n) =
@@ -237,9 +237,9 @@ normaliseDataLayoutDecl env (DataLayoutDecl pos name expr) =
 -- Normalises the layout in the sigil to remove references to named layouts
 normaliseSigil
   :: NamedDataLayouts
-  -> Sigil (Maybe (DargentLayout DataLayoutExpr))
-  -> Sigil (Maybe (DargentLayout DataLayoutExpr))
-normaliseSigil env = fmap (fmap (fmap (normaliseDataLayoutExpr env)))
+  -> Sigil (Maybe DataLayoutExpr)
+  -> Sigil (Maybe DataLayoutExpr)
+normaliseSigil env = fmap (fmap (normaliseDataLayoutExpr env))
 
 returnError :: Monoid a => DataLayoutTypeCheckError -> ([DataLayoutTypeCheckError], a)
 returnError e = ([e], mempty)
