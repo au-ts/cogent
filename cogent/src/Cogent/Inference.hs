@@ -491,6 +491,7 @@ infer (E (Struct fs))
         return $ TE (TRecord ts' Unboxed) $ Struct $ zip ns es'
 infer (E (Take a e f e2))
    = do e'@(TE t _) <- infer e
+        trace ("t is " ++ show t) $ return ()
         let TRecord ts s = t
         -- a common cause of this error is taking a field when you could have used member
         guardShow "take: sigil not readonly" $ not (readonly s)
