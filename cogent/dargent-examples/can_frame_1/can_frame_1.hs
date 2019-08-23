@@ -40,10 +40,10 @@ tyCanFrame = [decl|type CanFrame = { ident : CanId, prio : U8, dlc : U8, data : 
 
 tyCanId' = let TypeDec n vs t = tyCanId
                RT (TRecord fs _) = stripLocT t
-            in TypeDec n vs $ dummyLocT $ RT $ TRecord fs (Boxed False $ Just (Layout lCanId))
+            in TypeDec n vs $ dummyLocT $ RT $ TRecord fs (Boxed False $ Just lCanId)
 tyCanFrame' = let TypeDec n vs t = tyCanFrame
                   RT (TRecord fs _) = stripLocT t
-               in TypeDec n vs $ dummyLocT $ RT $ TRecord fs (Boxed False $ Just (Layout lCanFrame))
+               in TypeDec n vs $ dummyLocT $ RT $ TRecord fs (Boxed False $ Just lCanFrame)
 
 _b = Bits
 _B = Bytes

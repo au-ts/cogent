@@ -21,7 +21,6 @@ module Cogent.Surface
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Util
-import Cogent.Dargent.Common
 
 import Control.Applicative
 import Data.Data
@@ -115,10 +114,10 @@ type Entry t = (FieldName, (t, Taken))
 
 data Type e t =
               -- They are in WHNF
-                TCon TypeName [t] (Sigil (Maybe (DargentLayout DataLayoutExpr)))  -- FIXME: can polymorphise the `Representation`
+                TCon TypeName [t] (Sigil (Maybe DataLayoutExpr))  -- FIXME: can polymorphise the `Representation`
               | TVar VarName Banged
               | TFun t t
-              | TRecord [(FieldName, (t, Taken))] (Sigil (Maybe (DargentLayout DataLayoutExpr)))
+              | TRecord [(FieldName, (t, Taken))] (Sigil (Maybe DataLayoutExpr))
               | TVariant (M.Map TagName ([t], Taken))
               | TTuple [t]
               | TUnit

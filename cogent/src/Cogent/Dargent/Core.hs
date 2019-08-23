@@ -14,21 +14,14 @@
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE NamedFieldPuns #-}
-module Cogent.Dargent.Core
- ( module Cogent.Dargent.Core
- , module Cogent.Dargent.Common
- )
-where
+module Cogent.Dargent.Core where
   
 import Data.Map (Map)
 
 import Text.Parsec.Pos (SourcePos)
 
 import Cogent.Common.Syntax (TagName, FieldName, Size)
-
 import Cogent.Common.Types (PrimInt (..))
-
-import Cogent.Dargent.Common
 
 {- * Core datalayout types -}
 
@@ -40,19 +33,27 @@ import Cogent.Dargent.Common
 --
 --   NOTE: We may wish to retain more 'SourcePos' information to enable better error messages
 --   when matching @DataLayout BitRange@s with monomorphised cogent core types / mdimeglio
-data DataLayout bits
+data DataLayout' bits
   = UnitLayout
   | PrimLayout
     { bitsDL          :: bits
     }
   | SumLayout
     { tagDL           :: bits
-    , alternativesDL  :: Map TagName (Integer, DataLayout bits, SourcePos)
+    , alternativesDL  :: Map TagName (Integer, DataLayout' bits, SourcePos)
       -- ^ The 'Integer' is the tag's value
     }
   | RecordLayout
-    { fieldsDL        :: Map FieldName (DataLayout bits, SourcePos)
+    { fieldsDL        :: Map FieldName (DataLayout' bits, SourcePos)
     }
+  deriving (Show, Eq, Functor, Foldable)
+
+deriving instance Ord bits => Ord (DataLayout' bits)
+
+-- The DataLayout wrapper type
+data DataLayout bits
+  = Layout (DataLayout' bits) -- this type has this layout
+  | CLayout  -- defer the layout of this type to C
   deriving (Show, Eq, Functor, Foldable)
 
 deriving instance Ord bits => Ord (DataLayout bits)
@@ -126,6 +127,9 @@ data AlignedBitRange
   deriving (Eq, Show, Ord)
 
 {- * @DataLayout BitRange@ helpers -}
+
+endAllocatedBits' :: DataLayout' BitRange -> Size
+endAllocatedBits' = foldr (\range start -> max (bitOffsetBR range + bitSizeBR range) start) 0
 
 endAllocatedBits :: DataLayout BitRange -> Size
 endAllocatedBits = foldr (\range start -> max (bitOffsetBR range + bitSizeBR range) start) 0
@@ -209,9 +213,11 @@ rangeToAlignedRanges (BitRange size offset) =
         } :
         rangeToAlignedRanges' (offsetWords + 1) 0 (remainingSizeBits - currSizeBits)
 
+alignLayout' :: DataLayout' BitRange -> DataLayout' [AlignedBitRange]
+alignLayout' = fmap rangeToAlignedRanges
+
 alignLayout :: DataLayout BitRange -> DataLayout [AlignedBitRange]
 alignLayout = fmap rangeToAlignedRanges
-
 
 -- When transforming (Offset repExpr offsetSize),
 -- we want to add offset bits to all blocks inside the repExpr,
@@ -221,6 +227,9 @@ class Offsettable a where
   
 instance Offsettable BitRange where
   offset n range@(BitRange { bitOffsetBR }) = range { bitOffsetBR = bitOffsetBR + n}
-  
+
+instance Offsettable a => Offsettable (DataLayout' a) where
+  offset n = fmap (offset n)
+
 instance Offsettable a => Offsettable (DataLayout a) where
   offset n = fmap (offset n)

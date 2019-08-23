@@ -20,7 +20,6 @@ module Cogent.TypeCheck.Post (
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler
-import Cogent.Dargent.Common (DargentLayout(..))
 import Cogent.Dargent.TypeCheck (normaliseSigil)
 import Cogent.PrettyPrint ()
 import Cogent.Surface
@@ -157,12 +156,12 @@ normaliseT d (T (TLayout l t)) = do
   env <- lift . lift $ use knownDataLayouts
   case t' of
     (T (TRecord fs (Boxed p Nothing))) -> do
-      let t'' = T . TRecord fs . Boxed p $ Just (Layout l)
+      let t'' = T . TRecord fs . Boxed p $ Just l
       if isTypeLayoutExprCompatible env t'' l
         then normaliseT d t''
         else logErrExit (LayoutDoesNotMatchType l t)
     (T (TCon n ts (Boxed p Nothing)))  -> do
-      let t'' = T . TCon n ts  . Boxed p $ Just (Layout l)
+      let t'' = T . TCon n ts  . Boxed p $ Just l
       if isTypeLayoutExprCompatible env t'' l
         then normaliseT d t''
         else logErrExit (LayoutDoesNotMatchType l t)
@@ -198,7 +197,7 @@ normaliseT d (T x) = T <$> traverse (normaliseT d) x
 
 
 -- Normalises the layouts in sigils to remove `DataLayoutRefs`
-normaliseS :: Sigil (Maybe (DargentLayout DataLayoutExpr)) -> Post (Sigil (Maybe (DargentLayout DataLayoutExpr)))
+normaliseS :: Sigil (Maybe DataLayoutExpr) -> Post (Sigil (Maybe DataLayoutExpr))
 normaliseS sigil = do
   layouts <- lift . lift $ use knownDataLayouts
   return $ normaliseSigil layouts sigil
