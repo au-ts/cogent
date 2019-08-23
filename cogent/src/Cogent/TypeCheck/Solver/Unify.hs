@@ -59,6 +59,9 @@ assignOf (R _ (Left s) :< R _ (Right v))
 -- equality constraints (see Equate phase). Hence, the collection of common
 -- fields is necessarily empty.
 #ifdef BUILTIN_ARRAYS
+-- [NOTE: solving 'A' types]
+-- For 'A' types, we need to first solve the sigil, and later it can get
+-- simplified to constraints about the element types and lengths. / zilinc
 assignOf (A _ _ (Left s) :=: A _ _ (Right v))
   = pure [ Subst.ofSigil v s ]
 assignOf (A _ _ (Right v) :=: A _ _ (Left s))

@@ -160,8 +160,9 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
        Just (cs ++ ds)
 
 #ifdef BUILTIN_ARRAYS
-  A t1 l1 s1 :<  A t2 l2 s2 -> Just [t1 :<  t2, Arith (SE $ PrimOp "==" [l1,l2])]
-  A t1 l1 s1 :=: A t2 l2 s2 -> Just [t1 :=: t2, Arith (SE $ PrimOp "==" [l1,l2])]
+  -- See [NOTE: solving 'A' types] in Cogent.Solver.Unify
+  A t1 l1 s1 :<  A t2 l2 s2 | s1 == s2 -> Just [t1 :<  t2, Arith (SE $ PrimOp "==" [l1,l2])]
+  A t1 l1 s1 :=: A t2 l2 s2 | s1 == s2 -> Just [t1 :=: t2, Arith (SE $ PrimOp "==" [l1,l2])]
 
   -- TODO: Here we will call a SMT procedure to simplify all the Arith constraints.
   -- The only things left will be non-trivial predicates. / zilinc
@@ -179,6 +180,8 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
 
   _ -> Nothing
 
+-- | Returns 'True' iff the given argument type is not subject to subtyping. That is, if @a :\< b@
+--   (subtyping) is equivalent to @a :=: b@ (equality), then this function returns true.
 unorderedType :: Type e t -> Bool 
 unorderedType (TCon {}) = True
 unorderedType (TVar {}) = True
