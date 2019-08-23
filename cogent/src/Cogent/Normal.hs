@@ -74,7 +74,7 @@ isNormal (E (Case e tn (l1,_,e1) (l2,_,e2))) | isVar e && isNormal e1 && isNorma
   -- \| KNF <- __cogent_fnormalisation, isAtom e && isNormal e1 && isNormal e2 = True
 isNormal (E (If  c th el)) | isVar c  && isNormal th && isNormal el = True
 #ifdef BUILTIN_ARRAYS
-isNormal (E (ArrayMap2 (_,f) (e1,e2))) | isNormal f && isNormal e1 && isNormal e2 = True
+isNormal (E (ArrayMap2 (_,f) (e1,e2))) | isNormal f && isVar e1 && isVar e2 = True
 isNormal (E (Pop _ e1 e2)) | isVar e1 && isNormal e2 = True
 #endif
 isNormal (E (Split _ p e)) | isVar p  && isNormal e  = True
@@ -124,7 +124,7 @@ normalise v e@(E (Variable var)) k = k s0 (E (Variable var))
 normalise v e@(E (Fun fn ts _)) k = k s0 e
 normalise v   (E (Op opr es)) k = normaliseNames v es $ \n es' -> k n (E $ Op opr es')
 normalise v e@(E (App (E (Fun fn ts nt)) arg)) k
-  = normaliseName v arg$ \n' arg' ->
+  = normaliseName v arg $ \n' arg' ->
           k n' (E $ App (E (Fun fn ts nt)) arg')
 normalise v e@(E (App f arg)) k
   = normaliseName v f $ \n f' ->
@@ -139,10 +139,13 @@ normalise v e@(E (SLit {})) k = k s0 e
 normalise v   (E (ALit es)) k = normaliseNames v es $ \n es' -> k n (E $ ALit es')
 normalise v   (E (ArrayIndex e i)) k = normaliseName v e $ \n e' -> k n (E $ ArrayIndex e' i)
 normalise v   (E (ArrayMap2 ((a1,a2),f) (e1,e2))) k
-  = do f'  <- normaliseExpr (SSuc $ SSuc v) f
-       e1' <- normaliseExpr v e1
-       e2' <- normaliseExpr v e2
-       k SZero $ E $ ArrayMap2 ((a1,a2),f') (e1',e2')
+  = normaliseExpr (SSuc $ SSuc v) f >>= \f' ->
+      normaliseName v e1 $ \n e1' -> 
+      normaliseName (sadd v n) (upshiftExpr n v f0 e2) $ \n' e2' ->
+        withAssoc v n n' $ \Refl ->
+        withSSAssoc v n n' $ \Refl -> 
+        k (sadd n n') $ E $ ArrayMap2 ((a1,a2), upshiftExpr (sadd n n') (SSuc (SSuc v)) f2 f')
+                                      (upshiftExpr n' (sadd v n) f0 e1', e2')
 normalise v   (E (Pop a e1 e2)) k
   = normaliseName v e1 $ \n e1' -> case addSucLeft v n of
       Refl -> case addSucLeft (SSuc v) n of
@@ -227,6 +230,9 @@ normaliseAtom v e k = normalise v e $ \n e' -> if isAtom e' then k n e' else cas
      withAssocSS v n n' $ \Refl -> k (sadd n (SSuc (SSuc n')))))
   (E (Take a rec fld e)) -> E <$> (Take a rec fld <$> (normaliseAtom (SSuc (SSuc (sadd v n))) e $ \n' ->
      withAssocSS v n n' $ \Refl -> k (sadd n (SSuc (SSuc n')))))
+#ifdef BUILTIN_ARRAYS
+  (E (ArrayMap2 (as,f) (e1,e2))) -> k n e'  -- FIXME: how do we make it an atom? / zilinc
+#endif
   _ -> __impossible "normaliseAtom"
 
 wrapPut :: UntypedExpr t v VarName -> AN (UntypedExpr t v VarName)
