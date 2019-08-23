@@ -93,6 +93,9 @@ findEquateCandidates mentions (c:cs) =
          , Row.justVar r1
          , canEquate fst a t
          -> (c : sups, subs, others)
+#ifdef BUILTIN_ARRAYS
+       -- TODO
+#endif
        t :< V r1
          | Just a <- Row.var r1
          , Row.justVar r1
@@ -104,6 +107,7 @@ findEquateCandidates mentions (c:cs) =
          , canEquate snd a t
          -> (sups, c : subs, others)
 #ifdef BUILTIN_ARRAYS
+       -- TODO
 #endif
        _ -> (sups, subs, c : others)
 

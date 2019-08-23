@@ -582,17 +582,18 @@ unknownsE (SU x) = [x]
 unknownsE (SE e) = foldMap unknownsE e
 #endif
 
+-- What's the spec of this function? / zilinc
 rigid :: TCType -> Bool 
+rigid (U {}) = False
 rigid (T (TBang {})) = False
 rigid (T (TTake {})) = False
 rigid (T (TPut {})) = False
 rigid (T (TLayout {})) = False
-rigid (U {}) = False
-rigid (Synonym {}) = False
+rigid (Synonym {}) = False  -- why? / zilinc
 rigid (R r _) = not $ Row.justVar r
 rigid (V r) = not $ Row.justVar r
 #ifdef BUILTIN_ARRAYS
-rigid (A t l _) = rigid t && null (unknownsE l) -- FIXME: is it correct? / zilinc
+rigid (A t l _) = True -- rigid t && null (unknownsE l) -- FIXME: is it correct? / zilinc
 #endif
 rigid _ = True
 
