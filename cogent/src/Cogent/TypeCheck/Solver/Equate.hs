@@ -88,6 +88,8 @@ findEquateCandidates mentions (c:cs) =
          , Row.justVar r1
          , canEquate snd a t
          -> (sups, c : subs, others)
+#ifdef BUILTIN_ARRAYS
+#endif
        _ -> (sups, subs, c : others)
 
 notOccurs :: Int -> TCType -> Bool

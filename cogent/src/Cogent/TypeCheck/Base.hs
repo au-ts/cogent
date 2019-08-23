@@ -518,7 +518,7 @@ validateType' vs (RT t) = do
       pure (T $ TLayout l t')
 #ifdef BUILTIN_ARRAYS
     TArray te l s -> -- TODO: do the checks
-      pure $ A (toTCType te) (toSExpr l) (Left s)
+      A <$> validateType' vs te <*> pure (toSExpr l) <*> pure (Left s)
 #endif
     _ -> __fixme $
       T <$> (mmapM (return . toSExpr) <=< mapM (validateType' vs)) t

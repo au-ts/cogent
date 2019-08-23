@@ -96,7 +96,11 @@ apply (Subst f) t@(R r (Right x))
   | Just (Sigil s) <- M.lookup x f = apply (Subst f) (R r (Left s))
 apply f (V x) = V (fmap (apply f) x)
 apply f (R x s) = R (fmap (apply f) x) s
+#ifdef BUILTIN_ARRAYS
+apply (Subst f) (A t l (Right x))
+  | Just (Sigil s) <- M.lookup x f = apply (Subst f) (A t l (Left s))
 apply f (A x l s) = A (apply f x) (assign (substToAssign f) l) s
+#endif
 apply f (T x) = T (fmap (apply f) x)
 apply f (Synonym n ts) = Synonym n (fmap (apply f) ts)
 
