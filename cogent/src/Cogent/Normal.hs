@@ -52,6 +52,10 @@ isAtom (E (SLit _)) = True
 #ifdef BUILTIN_ARRAYS
 isAtom (E (ALit es)) | all isVar es = True
 isAtom (E (ArrayIndex e i)) | isVar e = True
+isAtom (E (ArrayMap2 (_,f) (e1,e2)))
+  | isNormal f && isVar e1 && isVar e2 = True  
+  -- ^^^ FIXME: does it make sense? @ArrayMap@ cannot be made an expression.
+  -- Does the atom-expression / normal-statement correspondence still hold?
 isAtom (E (Singleton e)) | isVar e = True
 #endif
 isAtom (E (Tuple e1 e2)) | isVar e1 && isVar e2 = True
@@ -63,7 +67,7 @@ isAtom (E (Promote t e)) | isVar e = True
 isAtom (E (Cast t e)) | isVar e = True
 isAtom _ = False
 
-isNormal :: Show a => UntypedExpr t v a -> Bool
+isNormal :: UntypedExpr t v a -> Bool
 isNormal te | isAtom te = True
 isNormal (E (Let _ e1 e2)) | __cogent_fnormalisation == ANF && isAtom e1 && isNormal e2 = True
                             -- XXX | ANF <- __cogent_fnormalisation, __cogent_fcondition_knf && isNormal e1 && isNormal e2 = True
@@ -74,7 +78,6 @@ isNormal (E (Case e tn (l1,_,e1) (l2,_,e2))) | isVar e && isNormal e1 && isNorma
   -- \| KNF <- __cogent_fnormalisation, isAtom e && isNormal e1 && isNormal e2 = True
 isNormal (E (If  c th el)) | isVar c  && isNormal th && isNormal el = True
 #ifdef BUILTIN_ARRAYS
-isNormal (E (ArrayMap2 (_,f) (e1,e2))) | isNormal f && isVar e1 && isVar e2 = True
 isNormal (E (Pop _ e1 e2)) | isVar e1 && isNormal e2 = True
 #endif
 isNormal (E (Split _ p e)) | isVar p  && isNormal e  = True
@@ -230,9 +233,6 @@ normaliseAtom v e k = normalise v e $ \n e' -> if isAtom e' then k n e' else cas
      withAssocSS v n n' $ \Refl -> k (sadd n (SSuc (SSuc n')))))
   (E (Take a rec fld e)) -> E <$> (Take a rec fld <$> (normaliseAtom (SSuc (SSuc (sadd v n))) e $ \n' ->
      withAssocSS v n n' $ \Refl -> k (sadd n (SSuc (SSuc n')))))
-#ifdef BUILTIN_ARRAYS
-  (E (ArrayMap2 (as,f) (e1,e2))) -> k n e'  -- FIXME: how do we make it an atom? / zilinc
-#endif
   _ -> __impossible "normaliseAtom"
 
 wrapPut :: UntypedExpr t v VarName -> AN (UntypedExpr t v VarName)
