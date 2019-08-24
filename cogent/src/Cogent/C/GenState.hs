@@ -236,7 +236,7 @@ lookupTypeCId cogentType@(TRecord fs (Boxed _ CLayout)) =
 lookupTypeCId cogentType@(TRecord _ (Boxed _ _)) = __impossible "lookupTypeCId: record with non-record layout"
 #ifdef BUILTIN_ARRAYS
 lookupTypeCId (TArray t l Unboxed) = getCompose (Compose . lookupStrlTypeCId =<< Array <$> (Compose . lookupType) t <*> pure (Just $ fromIntegral l))
-lookupTypeCId (TArray t l (Boxed _ _)) = __todo "lookupTypeCId: implement me"
+lookupTypeCId (TArray t l (Boxed _ _)) = getCompose (Compose . lookupStrlTypeCId =<< Array <$> (Compose . lookupType) t <*> pure (Just $ fromIntegral l))  -- FIXME: layout / zilinc
 #endif
 lookupTypeCId t = Just <$> typeCId t
 
@@ -348,7 +348,7 @@ genType t@(TRecord _ s) | s /= Unboxed = CPtr . CIdent <$> typeCId t
 genType t@(TString)                    = CPtr . CIdent <$> typeCId t
 genType t@(TCon _ _ s)  | s /= Unboxed = CPtr . CIdent <$> typeCId t
 #ifdef BUILTIN_ARRAYS
-genType (TArray t l s) | s /= Unboxed  = __todo "genType"
+genType (TArray t l s) | s /= Unboxed  = CPtr <$> (CArray <$> genType t <*> pure (CArraySize (mkConst U32 l)))  -- FIXME / zilinc
                        | otherwise     = CArray <$> genType t <*> pure (CArraySize (mkConst U32 l))  -- c.f. genTypeP
 #endif
 genType t                              = CIdent <$> typeCId t
