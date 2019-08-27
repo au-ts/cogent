@@ -389,7 +389,7 @@ genExpr mv (TE t (SLit s)) = do
 genExpr mv (TE t (ALit es)) = do
   blob <- mapM genExpr_ es
   let TArray telt _ _ = t
-  t' <- genTypeALit t
+  t' <- genType t
   telt' <- genType telt
   (v,vdecl,vstm) <- maybeDecl mv t'
   blob' <- flip3 zipWithM [0..] blob $ \(e,edecl,estm,ep) idx -> do
@@ -404,28 +404,35 @@ genExpr mv (TE t (ArrayIndex e i)) = do  -- FIXME: varpool - as above
   (v,adecl,astm,vp) <- maybeAssign t' mv (mkArrIdx e' i) ep
   return (v, decl++adecl, stm++astm, vp)
 
-genExpr mv (TE t (ArrayMap2 ((v1,v2),f) (e1,e2))) = do  -- FIXME: varpool - as above
+genExpr mv (TE t (ArrayMap2 (_,f) (e1,e2))) = do  -- FIXME: varpool - as above
   (e1',e1decl,e1stm,e1p) <- genExpr_ e1
   (e2',e2decl,e2stm,e2p) <- genExpr_ e2
+  t' <- genType t
+  (v,vdecl,vstm) <- maybeDecl mv t'
   (i,idecl,istm) <- declareInit u32 (mkConst U32 0) M.empty
   let tarr1@(TArray telt1 l1 s1) = exprType e1
       tarr2@(TArray telt2 l2 s2) = exprType e2
       l1' = mkConst U32 l1
       l2' = mkConst U32 l2
       min = CCondExpr (CBinOp C.Lt l1' l2') l1' l2'
-  ctelt1 <- genType telt1
-  ctelt2 <- genType telt2
-  (a1decl,a1stm) <- assign ctelt1 (variable v1) (CAddrOf $ CArrayDeref e1' (variable i))
-  (a2decl,a2stm) <- assign ctelt2 (variable v2) (CAddrOf $ CArrayDeref e2' (variable i))
-  (f',fdecl,fstm,fp) <- withBindings (Cons (variable v2) $ Cons (variable v1) Nil) $ genExpr_ f
+  tarr1' <- genType tarr1
+  tarr2' <- genType tarr2
+  telt1' <- genType telt1
+  telt2' <- genType telt2
+  (f',fdecl,fstm,fp) <- withBindings (Cons (CArrayDeref e2' (variable i))
+                                           (Cons (CArrayDeref e1' (variable i)) Nil)) $
+                                     genExpr_ f
+  (a1decl,a1stm) <- assign telt1' (CArrayDeref e1' (variable i)) (strDot f' p1)
+  (a2decl,a2stm) <- assign telt1' (CArrayDeref e2' (variable i)) (strDot f' p2)
   (incdecl,incstm) <- assign u32 (variable i) (CBinOp C.Add (variable i) (mkConst U32 1))  -- i++
-  let lbody = a1decl++a2decl++fdecl++incdecl++
-              a1stm++a2stm++fstm++incstm
+  let lbody = fdecl++a1decl++a2decl++incdecl++
+              fstm++a1stm++a2stm++incstm
       loop = CWhile (CBinOp C.Lt (variable i) min) $ CBlock lbody
-  t' <- genType t
-  (v,rdecl,rstm,rp) <- maybeAssign t' mv f' M.empty
-  return (v, e1decl++e2decl++idecl++rdecl,
-             e1stm++e2stm++istm++[CBIStmt loop]++rstm, M.empty)
+  (v1decl,v1stm) <- assign tarr1' (strDot' v p1) e1'
+  (v2decl,v2stm) <- assign tarr2' (strDot' v p2) e2'
+  -- vvv ASSUME: e1 and e2 are updated in-place.
+  return (variable v, vdecl++e1decl++e2decl++idecl++v1decl++v2decl,
+          vstm++e1stm++e2stm++istm++[CBIStmt loop]++v1stm++v2stm, M.empty)
 
 genExpr mv (TE t (Pop _ e1 e2)) = do  -- FIXME: varpool - as above
   -- Idea:
