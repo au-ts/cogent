@@ -173,7 +173,7 @@ normaliseT d (T (TLayout l t)) = do
     (T (TArray t n (Boxed p Nothing))) -> do
       let normPartT = normaliseT d . T . TArray t n
       t'' <- normPartT Unboxed
-      if isTypeLayoutExprCompatible env t'' l  -- NOTE that the 'l' is for the element type / zilinc
+      if isTypeLayoutExprCompatible env t'' l
         then normPartT . Boxed p $ Just l
         else logErrExit (LayoutDoesNotMatchType l t)
 #endif
