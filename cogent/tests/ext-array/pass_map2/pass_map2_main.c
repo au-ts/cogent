@@ -26,7 +26,7 @@ int main ()
   *arg_1 = (t2) {.p1 = arr1, .p2 = arr2};
   t3* arg = malloc (sizeof (t3));
   *arg = (t3) {.arrs = *arg_1, .b = 1};
-  arg = foo (arg);
+  foo (arg);
   printf ("-------------------------------\n");
   for (i = 0; i != 4; i++) {
     printf("arr1[%d] = {%d, %d};\n", i, arr1[i].f1, arr1[i].f2.boolean);
@@ -34,5 +34,13 @@ int main ()
   for (i = 0; i != 3; i++) {
     printf("arr2[%d] = %d;\n", i, arr2[i]);
   }
+
+  for (i = 0; i != 4; i++) {
+    printf("arg.arrs.p1[%d] = {%d,_};\n", i, arg->arrs.p1[i].f1);
+  }
+  for (i = 0; i != 3; i++) {
+    printf("arg.arrs.p2[%d] = %d;\n", i, arg->arrs.p2[i]);
+  }
+
   return 0;
 }
