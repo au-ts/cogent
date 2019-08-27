@@ -348,7 +348,7 @@ genType t@(TRecord _ s) | s /= Unboxed = CPtr . CIdent <$> typeCId t
 genType t@(TString)                    = CPtr . CIdent <$> typeCId t
 genType t@(TCon _ _ s)  | s /= Unboxed = CPtr . CIdent <$> typeCId t
 #ifdef BUILTIN_ARRAYS
-genType (TArray t l s) | s /= Unboxed  = CPtr <$> (CArray <$> genType t <*> pure (CArraySize (mkConst U32 l)))  -- FIXME / zilinc
+genType (TArray t l s) | s /= Unboxed  = CPtr <$> genType t  -- If it's heap-allocated, we don't care about the size / zilinc
                        | otherwise     = CArray <$> genType t <*> pure (CArraySize (mkConst U32 l))  -- c.f. genTypeP
 #endif
 genType t                              = CIdent <$> typeCId t
@@ -367,12 +367,6 @@ genTypeP :: CC.Type 'Zero -> Gen v CType
 genTypeP (TArray telm l Unboxed) = CPtr <$> genTypeP telm  -- FIXME: what about boxed? / zilinc
 #endif
 genTypeP t = genType t
-
-genTypeALit :: CC.Type 'Zero -> Gen v CType
-#ifdef BUILTIN_ARRAYS
-genTypeALit (TArray t l Unboxed) = CArray <$> (genType t) <*> pure (CArraySize (mkConst U32 l))  -- FIXME: what about boxed? / zilinc
-#endif
-genTypeALit t = genType t
 
 
 -- TODO(dagent): this seems wrong with respect to Dargent
