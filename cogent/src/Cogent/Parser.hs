@@ -377,7 +377,7 @@ monotype = do avoidInitial
       -- and should have no associated layout. 
       -- If the type `typeConName` is a type alias, the sigil we choose here is ignored
       -- because the actual sigil comes from the aliased type. /mdimeglio
-      (TCon <$> typeConName <*> many1 typeA2 <*> pure (Boxed False Nothing))
+      (TCon <$> typeConName <*> many1 typeA2 <*> pure (Boxed Wr, Nothing))
     unbox = avoidInitial >> reservedOp "#" >> return (\x -> LocType (posOfT x) (TUnbox x))
     bang  = avoidInitial >> reservedOp "!" >> return (\x -> LocType (posOfT x) (TBang x))
     takeput = avoidInitial >>
@@ -390,17 +390,17 @@ monotype = do avoidInitial
     atomtype = avoidInitial >> LocType <$> getPosition <*> (
           TVar <$> variableName <*> pure False
       <|> (do tn <- typeConName
-              let s = if tn `elem` primTypeCons  -- give correct sigil to primitive types
+              let p = if tn `elem` primTypeCons  -- give correct sigil to primitive types
                         then Unboxed
-                       -- If the type `typeConName` refers to an abstract type, its sigil should be `Boxed`
-                       -- and should have no associated layout. 
-                       -- If the type `typeConName` is a type alias, the sigil we choose here is ignored
-                       -- because the actual sigil comes from the aliased type. /mdimeglio
-                        else Boxed False Nothing
-              return $ TCon tn [] s)
+                        else Boxed Wr
+              -- If the type `typeConName` refers to an abstract type, its sigil should be `Boxed`
+              -- and should have no associated layout. 
+              -- If the type `typeConName` is a type alias, the sigil we choose here is ignored
+              -- because the actual sigil comes from the aliased type. /mdimeglio
+              return $ TCon tn [] (p, Nothing))
       -- <|> TCon <$> typeConName <*> pure [] <*> pure Writable
       <|> tuple <$> parens (commaSep monotype)
-      <|> (\fs -> TRecord fs (Boxed False Nothing))
+      <|> (\fs -> TRecord fs (Boxed Wr, Nothing))
           <$> braces (commaSep1 ((\a b c -> (a,(b,c))) <$> variableName <* reservedOp ":" <*> monotype <*> pure False))
       <|> TVariant . M.fromList <$> angles (((,) <$> typeConName <*> fmap ((,False)) (many typeA2)) `sepBy` reservedOp "|"))
 

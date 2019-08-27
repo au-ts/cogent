@@ -16,7 +16,7 @@ module Cogent.Dargent.CodeGen where
 
 import Cogent.C.Syntax
 import Cogent.Common.Syntax (FieldName)
-import Cogent.Common.Types (Sigil (..))
+import Cogent.Common.Types (PtrSigil(..), Sigil)
 import Cogent.Compiler (__fixme)
 import Cogent.C.GenState
   ( Gen
@@ -100,7 +100,7 @@ genBoxedGetSetField cogentType fieldName getOrSet = do
     Just getSetFieldFunction -> return getSetFieldFunction
     Nothing                  ->
       case cogentType of
-        TRecord fieldTypes (Boxed _ (Layout (RecordLayout fieldLayouts))) ->
+        TRecord fieldTypes (Boxed _, Layout (RecordLayout fieldLayouts)) ->
           do
             let fieldType       = fst $ (fromList fieldTypes) ! fieldName
                 fieldLayout     = alignLayout' $ fst $ fieldLayouts ! fieldName
@@ -109,9 +109,12 @@ genBoxedGetSetField cogentType fieldName getOrSet = do
             ((case getOrSet of Get -> boxedRecordGetters; Set -> boxedRecordSetters) . at (cogentType, fieldName))
                                 ?= getSetFieldFunction
             return getSetFieldFunction
-        TRecord fieldTypes (Boxed _ CLayout) ->
-          do
-            error "genBoxedGetSetField: tried to gen a getter/setter for a c-type"
+        TRecord fieldTypes (Unboxed, Layout (RecordLayout fieldLayouts)) ->
+          __todo "genBoxedGetSetField: TODO(dargent): unboxed getters and setters" -- TODO(dargent): do this
+        TRecord fieldTypes (_, CLayout) ->
+          error "genBoxedGetSetField: tried to gen a getter/setter for a c-type"
+        TRecord fieldTypes (_, _) ->
+          __impossible "genBoxedGetSetField: tried to gen a getter/setter for a record with a bad layout"
 
 
 {-|
@@ -153,8 +156,10 @@ genBoxedGetterSetter boxType embeddedType@(TCon _ _ _) (PrimLayout {bitsDL = bit
 genBoxedGetterSetter boxType embeddedType@(TPrim _) (PrimLayout {bitsDL = bitRanges}) path getOrSet =
   genComposedAlignedRangeGetterSetter bitRanges boxType embeddedType path getOrSet
 
-genBoxedGetterSetter boxType embeddedType@(TRecord fields (Boxed _ _)) (PrimLayout {bitsDL = bitRanges}) path getOrSet =
+genBoxedGetterSetter boxType embeddedType@(TRecord fields (Boxed _, _)) (PrimLayout {bitsDL = bitRanges}) path getOrSet =
   genComposedAlignedRangeGetterSetter bitRanges boxType embeddedType path getOrSet
+  -- TODO(dargent): this is a bit tricky, for a big layout, if you have a smaller layout, it should be laid out according
+  -- to where the bigger layout says it should go. This means we have to recursively generate getters and setters ~ v.jackson / 2019.08.28
 
 genBoxedGetterSetter boxType embeddedTypeCogent@(TSum alternatives) (SumLayout {tagDL, alternativesDL}) path getOrSet = do
   embeddedTypeC               <- genType embeddedTypeCogent
@@ -171,7 +176,8 @@ genBoxedGetterSetter boxType embeddedTypeCogent@(TSum alternatives) (SumLayout {
   declareSetterOrGetter $ variantGetterSetter tagGetterSetter alternativesGettersSetters boxType embeddedTypeC functionName getOrSet
   return (CVar functionName Nothing)
 
-genBoxedGetterSetter boxType embeddedTypeCogent@(TRecord fields Unboxed) (RecordLayout { fieldsDL }) path getOrSet = do
+-- TODO(dargent): check this
+genBoxedGetterSetter boxType embeddedTypeCogent@(TRecord fields (Unboxed, _)) (RecordLayout { fieldsDL }) path getOrSet = do
   embeddedTypeC         <- genType embeddedTypeCogent
   functionName          <- genGetterSetterName path getOrSet
   fieldGettersSetters   <-

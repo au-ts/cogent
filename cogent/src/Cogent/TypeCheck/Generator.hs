@@ -177,12 +177,12 @@ cg' (PrimOp o [e1, e2]) t
   | o `elem` words "&& ||"
   = do (c1, e1') <- cg e1 t
        (c2, e2') <- cg e2 t
-       return (T (TCon "Bool" [] Unboxed) :=: t <> c1 <> c2, PrimOp o [e1', e2'] )
+       return (T (TCon "Bool" [] (Unboxed, Nothing)) :=: t <> c1 <> c2, PrimOp o [e1', e2']) -- TODO(dargent): check this should be nothing
   | o `elem` words "== /= >= <= > <"
   = do alpha <- freshTVar
        (c1, e1') <- cg e1 alpha
        (c2, e2') <- cg e2 alpha
-       let c  = T (TCon "Bool" [] Unboxed) :=: t
+       let c  = T (TCon "Bool" [] (Unboxed, Nothing)) :=: t -- TODO(dargent): check this should be nothing
            c' = integral alpha
        return (c <> c' <> c1 <> c2, PrimOp o [e1', e2'] )
 cg' (PrimOp o [e]) t
@@ -191,7 +191,7 @@ cg' (PrimOp o [e]) t
       return (integral t :& c, PrimOp o [e'])
   | o == "not"         = do
       (c, e') <- cg e t
-      return (T (TCon "Bool" [] Unboxed) :=: t :& c, PrimOp o [e'])
+      return (T (TCon "Bool" [] (Unboxed, Nothing)) :=: t :& c, PrimOp o [e']) -- TODO(dargent): check this should be nothing
 cg' (PrimOp _ _) _ = __impossible "cg': unimplemented primops"
 cg' (Var n) t = do
   let e = Var n  -- it has a different type than the above `Var n' pattern
@@ -226,17 +226,17 @@ cg' (Upcast e) t = do
   return (c, Upcast e1')
 
 cg' (BoolLit b) t = do
-  let c = T (TCon "Bool" [] Unboxed) :=: t
+  let c = T (TCon "Bool" [] (Unboxed, Nothing)) :=: t -- TODO(dargent): check this should be nothing
       e = BoolLit b
   return (c,e)
 
 cg' (CharLit l) t = do
-  let c = T (TCon "U8" [] Unboxed) :=: t
+  let c = T (TCon "U8" [] (Unboxed, Nothing)) :=: t -- TODO(dargent): check this should be nothing
       e = CharLit l
   return (c,e)
 
 cg' (StringLit l) t = do
-  let c = T (TCon "String" [] Unboxed) :=: t
+  let c = T (TCon "String" [] (Unboxed, Nothing)) :=: t -- TODO(dargent): check this should be nothing
       e = StringLit l
   return (c,e)
 
@@ -250,7 +250,7 @@ cg' (IntLit i) t = do
                       | i < u16MAX     = "U16"
                       | i < u32MAX     = "U32"
                       | otherwise      = "U64"
-      c = Upcastable (T (TCon minimumBitwidth [] Unboxed)) t
+      c = Upcastable (T (TCon minimumBitwidth [] (Unboxed, Nothing))) t -- TODO(dargent): check this should be nothing
       e = IntLit i
   return (c,e)
 
@@ -261,14 +261,15 @@ cg' (ArrayLit es) t = do
   let (cs,es') = unzip blob
       n = SE . IntLit . fromIntegral $ length es
       cz = Arith (SE $ PrimOp ">" [n, SE (IntLit 0)])
-  return (mconcat cs <> cz <> (T $ TArray alpha n Unboxed) :< t, ArrayLit es')
+  return (mconcat cs <> cz <> (T $ TArray alpha n (Unboxed, Nothing)) :< t, ArrayLit es') -- TODO(dargent): check this should be nothing
 
 cg' (ArrayIndex e i) t = do
   alpha <- freshTVar
   n <- freshEVar
-  let ta = T $ TArray alpha n (__fixme Unboxed)  -- FIXME: we need to create a new TCType for arrays / zilinc
+  let ta = T $ TArray alpha n (__fixme (Unboxed, Nothing))  -- FIXME: we need to create a new TCType for arrays / zilinc
+                                                            -- TODO(dargent): check this should be nothing
   (ce, e') <- cg e ta
-  (ci, i') <- cg (dummyLocE i) (T $ TCon "U32" [] Unboxed)
+  (ci, i') <- cg (dummyLocE i) (T $ TCon "U32" [] (Unboxed, Nothing)) -- TODO(dargent): check this should be nothing
   let c = alpha :< t <> Share ta UsedInArrayIndexing
         <> Arith (SE (PrimOp "<" [toSExpr i, n]))
         -- <> Arith (SE (PrimOp ">=" [toSExpr i, SE (IntLit 0)]))  -- as we don't have negative values
@@ -381,7 +382,7 @@ cg' (UnboxedRecord fes) t = do
   (ts, c', es') <- cgMany es
 
   let e = UnboxedRecord (zip fs es')
-      r = R (Row.fromList (zip fs (map (, False) ts))) (Left Unboxed)
+      r = R (Row.fromList (zip fs (map (, False) ts))) (Left (Unboxed, Nothing)) -- TODO(dargent): check this should be nothing
       c = r :< t
   traceTc "gen" (text "cg for unboxed record:" <+> prettyE e
            L.<$> text "of type" <+> pretty t <> semi
@@ -442,7 +443,7 @@ cg' (Member e f) t =  do
 -- FIXME: This is very hacky. But since we don't yet have implications in our
 -- constraint system, ... / zilinc
 cg' (If e1 bs e2 e3) t = do
-  (c1, e1') <- letBang bs (cg e1) (T (TCon "Bool" [] Unboxed))
+  (c1, e1') <- letBang bs (cg e1) (T (TCon "Bool" [] (Unboxed, Nothing))) -- TODO(dargent): check this should be nothing
   (c, [(c2, e2'), (c3, e3')]) <- parallel' [(ThenBranch, cg e2 t), (ElseBranch, cg e3 t)]
   let e = If e1' bs e2' e3'
 #ifdef BUILTIN_ARRAYS 
@@ -460,7 +461,7 @@ cg' (If e1 bs e2 e3) t = do
   return (c1 <> c <> c2' <> c3' <> cc2 <> cc3, e)
 
 cg' (MultiWayIf es el) t = do
-  conditions <- forM es $ \(c,bs,_,_) -> letBang bs (cg c) (T (TCon "Bool" [] Unboxed))
+  conditions <- forM es $ \(c,bs,_,_) -> letBang bs (cg c) (T (TCon "Bool" [] (Unboxed, Nothing))) -- TODO(dargent): check this should be nothing
   let (cconds, conds') = unzip conditions
       ctxs = map NthBranch [1..length es] ++ [ElseBranch]
   (c,bodies) <- parallel' $ zip ctxs (map (\(_,_,_,e) -> cg e t) es ++ [cg el t])
@@ -549,15 +550,15 @@ matchA' (PIntLit i) t = do
                       | i < u16MAX     = "U16"
                       | i < u32MAX     = "U32"
                       | otherwise      = "U64"
-      c = Upcastable (T (TCon minimumBitwidth [] Unboxed)) t
+      c = Upcastable (T (TCon minimumBitwidth [] (Unboxed, Nothing))) t
       -- ^^^ FIXME: I think if we restrict this constraint, then we can possibly get rid of `Upcast' / zilinc
   return (M.empty, c, PIntLit i, t)
 
 matchA' (PBoolLit b) t =
-  return (M.empty, t :=: T (TCon "Bool" [] Unboxed), PBoolLit b, t)
+  return (M.empty, t :=: T (TCon "Bool" [] (Unboxed, Nothing)), PBoolLit b, t)
 
 matchA' (PCharLit c) t =
-  return (M.empty, t :=: T (TCon "U8" [] Unboxed), PCharLit c, t)
+  return (M.empty, t :=: T (TCon "U8" [] (Unboxed, Nothing)), PCharLit c, t)
 
 match :: LocIrrefPatn -> TCType -> CG (M.Map VarName (C.Assumption TCType), Constraint, TCIrrefPatn)
 match x@(LocIrrefPatn l ip) t = do
@@ -601,8 +602,8 @@ match' (PUnboxedRecord fs) t | not (any isNothing fs) = do
   let (ss, cs, ps') = (map fst3 blob, map snd3 blob, map thd3 blob)
       row = Row.incomplete (zip ns (map (,False) vs)) rest
       row' = Row.incomplete (zip ns (map (,True) vs)) rest
-      t' = R row (Left Unboxed)
-      d  = Drop (R row' (Left Unboxed)) Suppressed
+      t' = R row (Left (Unboxed, Nothing)) -- TODO(dargent): check this (& next line) should be nothing
+      d  = Drop (R row' (Left (Unboxed, Nothing))) Suppressed
       p' = PUnboxedRecord (map Just (zip ns ps'))
       c = t :< t'
       co = case overlapping ss of
@@ -643,7 +644,8 @@ match' (PArray ps) t = do
   blob <- mapM (`match` alpha) ps
   let (ss,cs,ps') = unzip3 blob
       l = SE . IntLit . fromIntegral $ length ps
-      c = t :< (T $ TArray alpha l (__fixme Unboxed))  -- FIXME: can be boxed as well / zilinc
+      c = t :< (T $ TArray alpha l (__fixme (Unboxed, Nothing)))    -- FIXME: can be boxed as well / zilinc
+                                                                    -- TODO(dargent): check this should be nothing
   return (M.unions ss, mconcat cs <> c, PArray ps')
 #endif
 
@@ -667,7 +669,7 @@ freshEVar :: (?loc :: SourcePos) => CG SExpr
 freshEVar = SU <$> freshVar 
       
 integral :: TCType -> Constraint
-integral = Upcastable (T (TCon "U8" [] Unboxed))
+integral = Upcastable (T (TCon "U8" [] (Unboxed, Nothing))) -- TODO(dargent): check this should be nothing
 
 dropConstraintFor :: M.Map VarName (C.Assumption TCType) -> Constraint
 dropConstraintFor = foldMap (\(i, (t,x,us)) -> if null us then Drop t (Unused i x) else Sat) . M.toList

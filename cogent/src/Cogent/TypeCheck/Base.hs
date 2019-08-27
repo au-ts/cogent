@@ -185,7 +185,7 @@ data Constraint' t = (:<) t t
 type Constraint = Constraint' TCType
 
 arithTCType :: TCType -> Bool
-arithTCType (T (TCon n [] Unboxed)) | n `elem` ["U8", "U16", "U32", "U64", "Bool"] = True
+arithTCType (T (TCon n [] (Unboxed, _))) | n `elem` ["U8", "U16", "U32", "U64", "Bool"] = True
 arithTCType (U _) = False
 arithTCType _ = False
 
@@ -487,12 +487,10 @@ validateType' vs (RT t) = do
                    in
                     if fields' == fields
                     then
-                      case s of
-                        Boxed _ dlexpr
-                          | (anError : _) <- fst $ typeCheckDargentLayoutExpr layouts dlexpr
-                          -> throwE $ DataLayoutError anError
-                        otherwise ->
-                          (toRow . T . ffmap toSExpr) <$> mapM (validateType' vs) t
+                      let dargentErrs = fst $ typeCheckDargentLayoutExpr layouts (snd s)
+                       in case dargentErrs of
+                            [] -> (toRow . T . ffmap toSExpr) <$> mapM (validateType' vs) t
+                            (anError : _) -> throwE $ DataLayoutError anError
                     else throwE (DuplicateRecordFields (fields \\ fields'))
     TVariant fs  -> do let tuplize [] = T TUnit
                            tuplize [x] = x 
@@ -539,7 +537,7 @@ isSynonym (RT (TCon c _ _)) = lookup c <$> use knownTypes >>= \case
 isSynonym (RT t) = foldM (\b a -> (b ||) <$> isSynonym a) False t
 
 isIntType :: RawType -> Bool
-isIntType (RT (TCon cn ts s)) | cn `elem` words "U8 U16 U32 U64", null ts, s == Unboxed = True
+isIntType (RT (TCon cn ts s)) | cn `elem` words "U8 U16 U32 U64", null ts, unboxed s = True
 isIntType _ = False
 
 isVariantType :: RawType -> Bool
@@ -603,7 +601,7 @@ rigid _ = True
 --
 
 isTypeLayoutExprCompatible :: NamedDataLayouts -> TCType -> DataLayoutExpr -> Bool
-isTypeLayoutExprCompatible env t@(T (TCon n [] Unboxed)) (DLPrim rs) =
+isTypeLayoutExprCompatible env t@(T (TCon n [] (Unboxed, ml1))) (DLPrim rs) =
   let s  = evalSize rs
       s' = (case n of
             "U8"  -> 8
@@ -612,7 +610,7 @@ isTypeLayoutExprCompatible env t@(T (TCon n [] Unboxed)) (DLPrim rs) =
             "U64" -> 64
             "Bool" -> 1)  -- TODO(dargent): check that booleans are allowed only a bit
    in s' <= s -- TODO(dargent): do we want this to be equality?
-isTypeLayoutExprCompatible env (T (TRecord fs1 (Boxed _ ml1))) l2@(DLRecord fs2) =
+isTypeLayoutExprCompatible env (T (TRecord fs1 (_,ml1))) l2@(DLRecord fs2) =
   (case ml1 of
     Just l1 -> l1 == l2
     Nothing -> False

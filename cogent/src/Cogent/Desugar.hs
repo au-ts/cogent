@@ -500,30 +500,27 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArray (p:ps)) pos)) e = do
 desugarAlt' _ _ _ = __impossible "desugarAlt' (_)"  -- literals
 
 desugarPrimInt :: S.RawType -> PrimInt
-desugarPrimInt (S.RT (S.TCon "U8"   [] Unboxed)) = U8
-desugarPrimInt (S.RT (S.TCon "U16"  [] Unboxed)) = U16
-desugarPrimInt (S.RT (S.TCon "U32"  [] Unboxed)) = U32
-desugarPrimInt (S.RT (S.TCon "U64"  [] Unboxed)) = U64
-desugarPrimInt (S.RT (S.TCon "Bool" [] Unboxed)) = Boolean
+desugarPrimInt (S.RT (S.TCon "U8"   [] (Unboxed, _))) = U8
+desugarPrimInt (S.RT (S.TCon "U16"  [] (Unboxed, _))) = U16
+desugarPrimInt (S.RT (S.TCon "U32"  [] (Unboxed, _))) = U32
+desugarPrimInt (S.RT (S.TCon "U64"  [] (Unboxed, _))) = U64
+desugarPrimInt (S.RT (S.TCon "Bool" [] (Unboxed, _))) = Boolean
 desugarPrimInt _ = __impossible "desugarPrimInt"
 
 desugarType :: S.RawType -> DS t v (Type t)
 desugarType = \case
-  S.RT (S.TCon "U8"     [] Unboxed) -> return $ TPrim U8
-  S.RT (S.TCon "U16"    [] Unboxed) -> return $ TPrim U16
-  S.RT (S.TCon "U32"    [] Unboxed) -> return $ TPrim U32
-  S.RT (S.TCon "U64"    [] Unboxed) -> return $ TPrim U64
-  S.RT (S.TCon "Bool"   [] Unboxed) -> return $ TPrim Boolean
-  S.RT (S.TCon "String" [] Unboxed) -> return $ TString
+  S.RT (S.TCon "U8"     [] (Unboxed, _)) -> return $ TPrim U8
+  S.RT (S.TCon "U16"    [] (Unboxed, _)) -> return $ TPrim U16
+  S.RT (S.TCon "U32"    [] (Unboxed, _)) -> return $ TPrim U32
+  S.RT (S.TCon "U64"    [] (Unboxed, _)) -> return $ TPrim U64
+  S.RT (S.TCon "Bool"   [] (Unboxed, _)) -> return $ TPrim Boolean
+  S.RT (S.TCon "String" [] (Unboxed, _)) -> return $ TString
   S.RT (S.TCon tn tvs s) -> TCon tn <$> mapM desugarType tvs <*> pure (desugarAbstractTypeSigil s)
   S.RT (S.TVar vn b)     -> (findIx vn <$> use typCtx) >>= \(Just v) -> return $ if b then TVarBang v else TVar v
   S.RT (S.TFun ti to)    -> TFun <$> desugarType ti <*> desugarType to
-  S.RT (S.TRecord fs Unboxed) -> TRecord <$> mapM (\(f,(t,x)) -> (f,) . (,x) <$> desugarType t) fs <*> pure Unboxed
-  S.RT (S.TRecord fs sigil)  -> do
-    -- Making an unboxed record is necessary here because of how `desugarSigil`
-    -- is defined.
-    unboxedDesugared@(TRecord fs' Unboxed) <- desugarType $ S.RT (S.TRecord fs Unboxed)
-    TRecord <$> pure fs' <*> pure (desugarSigil unboxedDesugared sigil)
+  S.RT (S.TRecord fs s) -> do
+    fs' <- mapM (\(f,(t,x)) -> (f,) . (,x) <$> desugarType t) fs
+    pure $ TRecord  fs' (desugarSigil s)
   S.RT (S.TVariant alts) -> TSum <$> mapM (\(c,(ts,x)) -> (c,) . (,x) <$> desugarType (group ts)) (M.toList alts)
     where group [] = S.RT S.TUnit
           group (t:[]) = t
@@ -533,12 +530,12 @@ desugarType = \case
   S.RT (S.TTuple (t1:t2:[])) | not __cogent_ftuples_as_sugar -> TProduct <$> desugarType t1 <*> desugarType t2
   S.RT (S.TTuple (t1:t2:ts)) | not __cogent_ftuples_as_sugar -> __impossible "desugarType"  -- desugarType $ S.RT $ S.TTuple [t1, S.RT $ S.TTuple (t2:ts)]
   S.RT (S.TTuple ts) | __cogent_ftuples_as_sugar ->
-    TRecord <$> (P.zipWith (\t n -> (n,(t, False))) <$> forM ts desugarType <*> pure tupleFieldNames) <*> pure Unboxed
+    TRecord <$> (P.zipWith (\t n -> (n,(t, False))) <$> forM ts desugarType <*> pure tupleFieldNames) <*> pure (Unboxed, CLayout)
   S.RT (S.TUnit)   -> return TUnit
 #ifdef BUILTIN_ARRAYS
-  S.RT (S.TArray t l Unboxed) -> TArray <$> desugarType t <*> evalAExpr l <*> pure Unboxed -- desugarExpr' l
+  S.RT (S.TArray t l Unboxed) -> TArray <$> desugarType t <*> evalAExpr l <*> pure (Unboxed, CLayout) -- desugarExpr' l
   S.RT (S.TArray t l sigil  ) -> do
-    unboxedDesugared@(TArray t' l' Unboxed) <- desugarType $ S.RT (S.TArray t l Unboxed)
+    unboxedDesugared@(TArray t' l' (Unboxed, CLayout)) <- desugarType $ S.RT (S.TArray t l (Unboxed, CLayout))
     TArray <$> pure t' <*> pure l' <*> pure (desugarSigil unboxedDesugared sigil)
 #endif
   notInWHNF -> __impossible $ "desugarType (type " ++ show (pretty notInWHNF) ++ " is not in WHNF)"

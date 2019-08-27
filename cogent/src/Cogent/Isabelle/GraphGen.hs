@@ -242,11 +242,11 @@ graph g (TE tp (Take _ (TE recTy (Variable v)) fld e)) n ret vs = do
         TRecord flds s -> graphType $ fst (snd (flds !! fld))
         otherwise -> failure ("graph: take: not a record")
     prevFlds <- case recTy of
-        TRecord _ Unboxed -> do
+        TRecord _ (Unboxed, _) -> do
             gfv <- getFieldVariable (prevNm, aggTy) fld
             res <- fmap (\z -> map (\(x,y) -> GVariable x y) z) (getFieldVariables gfv)
             return res
-        TRecord flds (Boxed _ _) -> do
+        TRecord flds (Boxed _, _) -> do
             mko <- mkFieldOffset (GVariable prevNm ptrGTyp, aggTy) fld
             res <- getFieldAccesses mko
             return res

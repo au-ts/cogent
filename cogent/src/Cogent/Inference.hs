@@ -456,7 +456,10 @@ infer (E (Member e f))
 infer (E (Struct fs))
    = do let (ns,es) = unzip fs
         es' <- mapM infer es
-        return $ TE (TRecord (sortBy (compare `on` fst) $ zipWith (\n e' -> (n, (exprType e', False))) ns es') Unboxed) $ Struct $ zip ns es'
+        return $ TE (TRecord
+                      (sortBy (compare `on` fst) $ zipWith (\n e' -> (n, (exprType e', False))) ns es')
+                      (Unboxed, CLayout)) -- TODO(dargent): add a layout to Struct? default to CLayout
+                    (Struct $ zip ns es')
 infer (E (Take a e f e2))
    = do e'@(TE t _) <- infer e
         -- trace ("@@@@t is " ++ show t) $ return ()

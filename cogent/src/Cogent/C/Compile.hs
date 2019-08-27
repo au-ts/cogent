@@ -533,11 +533,11 @@ genExpr mv (TE t (Take _ rec fld e)) = do
   --       @f'@ directly evaluates to the value of the field being taken
   let fieldName = fst $ fs !! fld
   fieldExpr <- case s of 
-    Unboxed -> return $ strDot rec'' fieldName
-    Boxed _ CLayout -> return $ strArrow rec'' fieldName
-    Boxed _ _ -> do
+    (_, Layout _) -> do
       fieldGetter <- genBoxedGetSetField rect fieldName Get
       return $ CEFnCall fieldGetter [rec'']
+    (Unboxed, CLayout) -> return $ strDot   rec'' fieldName
+    (Boxed _, CLayout) -> return $ strArrow rec'' fieldName
 
   ft <- genType . fst . snd $ fs !! fld
   (f', fdecl, fstm, fp) <-
@@ -569,12 +569,12 @@ genExpr mv (TE t (Put rec fld val)) = do
   
   let fieldName = fst $ fs!!fld
   (fdecl,fstm) <- case s of
-    Unboxed -> assign fldt (strDot (variable rec'') fieldName) val'
-    Boxed _ CLayout -> assign fldt (strArrow (variable rec'') fieldName) val'
-    Boxed _ (Layout l) -> do
+    (_, Layout l) -> do
       let recordType = exprType rec
       fieldSetter <- genBoxedGetSetField recordType fieldName Set
       return $ ([], [CBIStmt $ CAssignFnCall Nothing fieldSetter [variable rec'', val']])
+    (Unboxed, CLayout) -> assign fldt (strDot (variable rec'') fieldName) val'
+    (Boxed _, CLayout) -> assign fldt (strArrow (variable rec'') fieldName) val'
 
   recycleVars valp
   (v,adecl,astm,vp) <- maybeAssign t' mv (variable rec'') M.empty
@@ -670,11 +670,11 @@ genExpr mv (TE t (Member rec fld)) = do
 
   let fieldName = fst $ fs !! fld
   e' <- case s of
-    Unboxed -> return $ strDot rec' fieldName
-    Boxed _ CLayout -> return $ strArrow rec' fieldName
-    Boxed _ (Layout l) -> do
+    (_, Layout l) -> do
       fieldGetter <- genBoxedGetSetField (exprType rec) fieldName Get
       return $ CEFnCall fieldGetter [rec']
+    (Unboxed, CLayout) -> return $ strDot rec' fieldName
+    (Boxed _, CLayout) -> return $ strArrow rec' fieldName
 
   t' <- genType t
   (v',adecl,astm,vp) <- maybeAssign t' mv e' recp

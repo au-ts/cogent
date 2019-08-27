@@ -68,10 +68,11 @@ maybeT :: Monad m => Maybe a -> MaybeT m a
 maybeT = MaybeT . return
 
 primGuess :: Bound -> TCType -> TCType -> Maybe TCType
-primGuess d (T (TCon n [] Unboxed)) (T (TCon m [] Unboxed))
+primGuess d (T (TCon n [] (Unboxed, l1))) (T (TCon m [] (Unboxed, l2)))
   | Just n' <- elemIndex n primTypeCons
   , Just m' <- elemIndex m primTypeCons
+  , l1 == l2
   = let f = case d of GLB -> min; LUB -> max
-    in Just (T (TCon (primTypeCons !! f n' m') [] Unboxed))
+    in Just (T (TCon (primTypeCons !! f n' m') [] (Unboxed, l1)))
 primGuess _ _ _ = Nothing
 

@@ -104,8 +104,8 @@ normaliseT :: TypeDict -> TCType -> Post TCType
 normaliseT d (T (TUnbox t)) = do
    t' <- normaliseT d t
    case t' of
-     (T (TCon x ps _)) -> normaliseT d (T (TCon x ps Unboxed))
-     (T (TRecord l _)) -> normaliseT d (T (TRecord l Unboxed))
+     (T (TCon x ps (_, l))) -> normaliseT d (T (TCon x ps (Unboxed, l)))
+     (T (TRecord l (_, lyt))) -> normaliseT d (T (TRecord l (Unboxed, lyt)))
      (T o)             -> normaliseT d =<< normaliseT d (T $ fmap (T . TUnbox) o)
      _                 -> __impossible "normaliseT (TUnbox)"
 
@@ -155,13 +155,13 @@ normaliseT d (T (TLayout l t)) = do
   t' <- normaliseT d t
   env <- lift . lift $ use knownDataLayouts
   case t' of
-    (T (TRecord fs (Boxed p Nothing))) -> do
-      let t'' = T . TRecord fs . Boxed p $ Just l
+    (T (TRecord fs (p, Nothing))) -> do
+      let t'' = T . TRecord fs . (p,) $ Just l
       if isTypeLayoutExprCompatible env t'' l
         then normaliseT d t''
         else logErrExit (LayoutDoesNotMatchType l t)
-    (T (TCon n ts (Boxed p Nothing)))  -> do
-      let t'' = T . TCon n ts  . Boxed p $ Just l
+    (T (TCon n ts (p, Nothing)))  -> do
+      let t'' = T . TCon n ts  . (p,) $ Just l
       if isTypeLayoutExprCompatible env t'' l
         then normaliseT d t''
         else logErrExit (LayoutDoesNotMatchType l t)

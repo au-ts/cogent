@@ -482,11 +482,12 @@ prettyT' t | not $ isAtomic t = parens (pretty t)
 
 instance (Pretty t, TypeType t, Pretty e) => Pretty (Type e t) where
   pretty (TCon n [] s) = (if | readonly s -> (<> typesymbol "!")
-                             | s == Unboxed && n `notElem` primTypeCons -> (typesymbol "#" <>)
+                             | unboxed s && n `notElem` primTypeCons -> (typesymbol "#" <>)
                              | otherwise -> id) $ typename n
-  pretty (TCon n as s) = (if | readonly s -> (<> typesymbol "!") . parens
-                             | s == Unboxed -> ((typesymbol "#" <>) . parens)
-                             | otherwise -> id) $
+  pretty (TCon n as s) = (case fst s of
+                            Boxed Ro  -> (<> typesymbol "!") . parens
+                            Unboxed   -> ((typesymbol "#" <>) . parens)
+                            otherwise -> id) $
                          typename n <+> hsep (map prettyT' as)
   pretty (TVar n b)  = typevar n <> (if b then typesymbol "!" else empty)
   pretty (TTuple ts) = tupled (map pretty ts)
@@ -504,10 +505,11 @@ instance (Pretty t, TypeType t, Pretty e) => Pretty (Type e t) where
           tkUntkPretty = (if or $ map (snd . snd) ts
                           then (<+> typesymbol "take" <+> tupled1 (map fieldname tk))
                           else id)
-          (sigilPretty, layoutPretty) = case s of 
-            Unboxed     -> ((typesymbol "#" <>), id)
-            Boxed rw ml -> (if rw then (<> typesymbol "!") else id, case ml of Just l -> (<+> pretty l); _ -> id)
-       in layoutPretty . tkUntkPretty . sigilPretty $ recordPretty  
+          sigilPretty = (case fst s of
+                          Unboxed  -> (typesymbol "#" <>)
+                          Boxed Ro -> (<> typesymbol "!")
+                          Boxed Wr -> id)
+       in (<+> pretty (snd s)) . tkUntkPretty . sigilPretty $ recordPretty  
   pretty (TVariant ts) | any snd ts = let
      names = map fst $ filter (snd . snd) $ M.toList ts
    in pretty (TVariant $ fmap (second (const False)) ts :: Type e t)
@@ -812,9 +814,9 @@ instance Pretty AssignResult where
   pretty (Expr e) = pretty e
 #endif
 
-instance Pretty r => Pretty (Sigil r) where
-  pretty (Boxed False l) = keyword "[W]" <+> parens (pretty l)
-  pretty (Boxed True  l) = keyword "[R]" <+> parens (pretty l)
+instance Pretty PtrSigil where
+  pretty (Boxed Wr) = keyword "[W]"
+  pretty (Boxed Ro) = keyword "[R]"
   pretty Unboxed  = keyword "[U]"
 
 instance (Pretty t) => Pretty (Row.Row t) where 

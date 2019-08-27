@@ -92,10 +92,10 @@ isTFun (TFun {}) = True
 isTFun _ = False
 
 isUnboxed :: Type t -> Bool
-isUnboxed (TCon _ _ Unboxed) = True
-isUnboxed (TRecord _ Unboxed) =  True
+isUnboxed (TCon _ _  s) = unboxed s
+isUnboxed (TRecord _ s) = unboxed s
 #ifdef BUILTIN_ARRAYS
-isUnboxed (TArray _ _ Unboxed) = True
+isUnboxed (TArray _ _ s) = unboxed s
 #endif
 isUnboxed _ = False
 

@@ -17,29 +17,39 @@
 module Cogent.Common.Types where
 
 import Cogent.Common.Syntax
+import Data.Bifunctor (first)
 import Data.Data
 #if __GLASGOW_HASKELL__ < 709
 import Data.Monoid
 #endif
 import Text.PrettyPrint.ANSI.Leijen hiding (tupled,indent)
 
-type ReadOnly = Bool  -- True for r/o
+data ReadOnly = Ro -- 0-kinded
+              | Wr -- 1-kinded
+  deriving (Show, Eq, Data, Ord)
 
-data Sigil r = Boxed ReadOnly r  -- 0- or 1-kinded
-             | Unboxed  -- 2-kinded
-             deriving (Show, Data, Eq, Ord, Functor)
+data PtrSigil = Boxed ReadOnly -- 0/1-kinded
+              | Unboxed -- 2-kinded
+  deriving (Show, Eq, Data, Ord)
+
+type Sigil r = (PtrSigil, r)
+
+bangPtrSigil :: PtrSigil -> PtrSigil
+bangPtrSigil (Boxed _) = Boxed Ro
+bangPtrSigil Unboxed = Unboxed
 
 bangSigil :: Sigil r -> Sigil r
-bangSigil (Boxed _ r)  = Boxed True r
-bangSigil Unboxed      = Unboxed
+bangSigil = first bangPtrSigil
 
 writable :: Sigil r -> Bool
-writable (Boxed False _) = True
-writable _ = False
+writable = (== Boxed Wr) . fst
 
 readonly :: Sigil r -> Bool
-readonly (Boxed True _) = True
-readonly _ = False
+readonly = (== Boxed Ro) . fst
+
+unboxed :: Sigil r -> Bool
+unboxed = (== Unboxed) . fst
+
 
 data PrimInt = U8 | U16 | U32 | U64 | Boolean deriving (Show, Data, Eq, Ord)
 
@@ -63,9 +73,14 @@ instance Pretty PrimInt where
 data Kind = K { canEscape :: Bool, canShare :: Bool, canDiscard :: Bool }
   deriving (Show, Data, Eq, Ord)
 
+ptrSigilKind :: PtrSigil -> Kind
+ptrSigilKind (Boxed Ro) = k0
+ptrSigilKind (Boxed Wr) = k1
+ptrSigilKind Unboxed = k2
+
 sigilKind :: Sigil r -> Kind
-sigilKind (Boxed ro _) = if ro then k0 else k1
-sigilKind Unboxed      = k2
+sigilKind = ptrSigilKind . fst
+
 
 k0, k1, k2 :: Kind
 k0 = K False True  True

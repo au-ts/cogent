@@ -15,7 +15,7 @@
 module Main where
 
 import Cogent.CodeGen (cgen)
-import Cogent.Common.Types (Sigil(..))
+import Cogent.Common.Types (ReadOnly(..), PtrSigil(..))
 import Cogent.Core (untypeD)
 import Cogent.Dargent.Surface
 import Cogent.Desugar (desugar)
@@ -40,10 +40,10 @@ tyCanFrame = [decl|type CanFrame = { ident : CanId, prio : U8, dlc : U8, data : 
 
 tyCanId' = let TypeDec n vs t = tyCanId
                RT (TRecord fs _) = stripLocT t
-            in TypeDec n vs $ dummyLocT $ RT $ TRecord fs (Boxed False $ Just lCanId)
+            in TypeDec n vs $ dummyLocT $ RT $ TRecord fs (Boxed Wr, Just lCanId)
 tyCanFrame' = let TypeDec n vs t = tyCanFrame
                   RT (TRecord fs _) = stripLocT t
-               in TypeDec n vs $ dummyLocT $ RT $ TRecord fs (Boxed False $ Just lCanFrame)
+               in TypeDec n vs $ dummyLocT $ RT $ TRecord fs (Boxed Wr, Just lCanFrame)
 
 _b = Bits
 _B = Bytes

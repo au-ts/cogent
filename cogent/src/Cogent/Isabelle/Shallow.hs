@@ -334,11 +334,11 @@ getRecordFieldName _ _ = __impossible "getRecordFieldName"
 
 typarUpd typar v = v {typeVars = typar}
 
--- Clear out all taken annotations and mark all sigil as unboxed.
+-- Clear out all taken annotations and mark all sigils as unboxed.
 sanitizeType :: CC.Type t -> CC.Type t
 sanitizeType (TSum ts) = TSum (map (\(tn,(t,_)) -> (tn,(sanitizeType t,False))) ts)
-sanitizeType (TRecord ts _) = TRecord (map (\(tn, (t,_)) -> (tn, (sanitizeType t, False))) ts) Unboxed
-sanitizeType (TCon tn ts _) = TCon tn (map sanitizeType ts) Unboxed
+sanitizeType (TRecord ts _) = TRecord (map (\(tn, (t,_)) -> (tn, (sanitizeType t, False))) ts) (Unboxed, CLayout)
+sanitizeType (TCon tn ts _) = TCon tn (map sanitizeType ts) (Unboxed, ())
 sanitizeType (TFun ti to) = TFun (sanitizeType ti) (sanitizeType to)
 sanitizeType (TProduct t t') = TProduct (sanitizeType t) (sanitizeType t')
 sanitizeType t = t

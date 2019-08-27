@@ -42,11 +42,13 @@ normaliseRW = rewrite' $ \t -> case t of
 #ifdef BUILTIN_ARRAYS
     T (TBang (T (TArray t e s))) -> pure (T (TArray (T (TBang t)) e (bangSigil s)))
 #endif
-    T (TUnbox (T (TCon t ts s))) -> pure (T (TCon t ts Unboxed))
-    T (TUnbox (R row _)) -> pure (R row (Left Unboxed))
+    T (TUnbox (T (TCon t ts (_, l)))) -> pure (T (TCon t ts (Unboxed, l)))
+    T (TUnbox (R row (Left (_, l)))) -> pure (R row (Left (Unboxed, l)))
+    T (TUnbox (R row (Right i))) -> pure (R row (Left (Unboxed, __todo "normaliseRW: need layout variables in TUnbox R")))
+  -- TODO(dargent): need layout variables
 #ifdef BUILTIN_ARRAYS
-    T (TUnbox (T (TArray t l _))) -> pure (T (TArray t l Unboxed))
-    T (TUnbox (A t l _)) -> pure (A t l (Left Unboxed))
+    T (TUnbox (T (TArray t l (Unboxed, lyt)))) -> pure (T (TArray t l (Unboxed, lyt)))
+    T (TUnbox (A t l (Unboxed, lyt))) -> pure (A t l (Left (Unboxed, lyt)))
 #endif
     Synonym n as -> do 
         table <- view knownTypes
@@ -70,8 +72,8 @@ normaliseRW = rewrite' $ \t -> case t of
       | isNothing (Row.var row) -> case fs of 
         Nothing -> pure $ V (Row.putAll row)
         Just fs -> pure $ V (Row.putMany fs row)
-    T (TLayout l (R row (Left (Boxed p _)))) ->
-      pure $ R row $ Left $ Boxed p (Just l)
+    T (TLayout l (R row (Left (p, _)))) ->
+      pure . R row $ Left (p, Just l)
     T (TLayout l (R row (Right i))) ->
       __impossible "normaliseRW: TLayout over a sigil variable (R)" 
 #ifdef BUILTIN_ARRAYS
@@ -82,11 +84,7 @@ normaliseRW = rewrite' $ \t -> case t of
 #endif
     T (TLayout l _) -> -- TODO(dargent): maybe handle this later
       empty
-    _ -> empty 
-
-  where
-    bangSigil (Boxed _ r) = Boxed True r
-    bangSigil x           = x
+    _ -> empty
 
 whnf :: TCType -> TcSolvM TCType
 whnf input = do 

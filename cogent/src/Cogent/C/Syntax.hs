@@ -164,20 +164,20 @@ data CExtDecl = CFnDefn (CType, CId) [(CType, CId)] [CBlockItem] FnSpec
 -- | 'StrlType' tried to unify some of the types we have in Core.
 --   It can be deemed as the C representation for Cogent types.
 data StrlType = Record  [(CId, CType)] -- ^ @(fieldname &#x21A6; fieldtype)@
-              | BoxedRecord StrlCogentType
-                -- ^ Depends on the Cogent type of the record, so that different boxed cogent records
-                --   get given different StrlTypes and thus different CTypes.
-                --   The CType will always be a struct with a single field
-                --   named 'data' of type 'unsigned int *'.
               | Product CType CType          -- ^ pair
               | Variant (M.Map CId CType)    -- ^ one tag field, and fields for all possibilities
               | Function CType CType
               | AbsType CId
               | Array CType (Maybe Int)
+              | TypeLayout StrlCogentType
+              -- ^ Depends on the Cogent type of the record, so that different boxed cogent records
+              --   get given different StrlTypes and thus different CTypes.
+              --   The CType will always be a struct with a single field
+              --   named 'data' of type 'unsigned int *'.
               deriving (Eq, Ord, Show)
 
 
--- Custom equality for `BoxedRecord` case of `StrlType`
+-- Custom equality for `TypeLayout` case of `StrlType`
 -- Needed to allow us to ignore whether fields/alternatives are/aren't "taken"
 -- when deciding whether two cogent types should go to the same C type
 newtype StrlCogentType = StrlCogentType (CC.Type 'Zero)
@@ -210,6 +210,6 @@ strlCogentTypeEq a1@(TVarBang _)  (TVarBang _)     = __impossible $ "Cogent.C.Sy
 strlCogentTypeEq _                _                = False
 
 strlSigilEq :: Eq a => Sigil a -> Sigil a -> Bool
-strlSigilEq (Boxed _ l1) (Boxed _ l2) = l1 == l2
-strlSigilEq Unboxed      Unboxed      = True
-strlSigilEq _            _            = False
+strlSigilEq (Boxed _, l1) (Boxed _ ,l2) = l1 == l2
+strlSigilEq (Unboxed, l1) (Unboxed, l2) = l1 == l2
+strlSigilEq _             _             = False

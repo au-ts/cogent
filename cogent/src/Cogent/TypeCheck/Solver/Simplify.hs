@@ -105,13 +105,14 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
     | isNothing (Row.var r) -> 
       Just [Exhaustive (V (Row.take t r)) ps]
   
-  Exhaustive tau@(T (TCon "Bool" [] Unboxed)) [RP (PBoolLit t), RP (PBoolLit f)] 
+  Exhaustive tau@(T (TCon "Bool" [] (Unboxed, _))) [RP (PBoolLit t), RP (PBoolLit f)] 
     -> (not (t && f) && (t || f)) `elseDie` PatternsNotExhaustive tau []
 
-  Upcastable (T (TCon n [] Unboxed)) (T (TCon m [] Unboxed))
+  Upcastable (T (TCon n [] (Unboxed, l1))) (T (TCon m [] (Unboxed, l2)))
     | Just n' <- elemIndex n primTypeCons
     , Just m' <- elemIndex m primTypeCons
-    , n' <= m' , m /= "String" -> Just []
+    , n' <= m' , m /= "String"
+    , l1 == l2 -> Just []
 
   -- [amos] New simplify rule:
   -- If both sides of an equality constraint are equal, we can't completely discharge it;
