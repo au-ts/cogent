@@ -46,6 +46,7 @@ import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
 import Control.Monad.Writer hiding (Alt)
 import Control.Monad.Reader
+import Data.Maybe (fromJust, isJust)
 import Data.Either (either, isLeft)
 import qualified Data.IntMap as IM
 import Data.List (nub, (\\))
@@ -635,6 +636,10 @@ isTypeLayoutExprCompatible env (T (TVariant ts1)) (DLVariant _ ts2) =
     tuplise [] = T TUnit
     tuplise [t] = t
     tuplise ts = T (TTuple ts)
+#ifdef BUILTIN_ARRAYS
+isTypeLayoutExprCompatible env (T (TArray t _ (Boxed _ ml1))) l2 = 
+  isJust ml1 && fromJust ml1 == l2 -- the layout given is for the element type!
+#endif
 isTypeLayoutExprCompatible env t (DLOffset l _) =
   isTypeLayoutExprCompatible env t (DL l)
 isTypeLayoutExprCompatible env t (DLRepRef n)   =
@@ -642,3 +647,4 @@ isTypeLayoutExprCompatible env t (DLRepRef n)   =
     Just (l, _) -> isTypeLayoutExprCompatible env t l
     Nothing     -> False -- TODO(dargent): this really shoud be an exceptional state
 isTypeLayoutExprCompatible _ _ _ = False
+

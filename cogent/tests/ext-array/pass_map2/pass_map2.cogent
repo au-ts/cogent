@@ -1,6 +1,6 @@
 type R  = { f1 : U8 , f2 : Bool }
 
-type A1 = (#R)[4]
+type A1 = (#R)[4] layout record {f1 : 1B at 0B, f2 : 1B at 1B}
 type A2 = U8[3]
 
 foo : {arrs : (A1, A2), b : Bool} -> {arrs : (A1, A2), b : Bool}
