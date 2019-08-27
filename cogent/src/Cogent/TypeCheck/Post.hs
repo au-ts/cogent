@@ -167,7 +167,7 @@ normaliseT d (T (TLayout l t)) = do
         else logErrExit (LayoutDoesNotMatchType l t)
 #ifdef BUILTIN_ARRAYS
     (T (TArray t n (Boxed p Nothing))) -> do
-      let t'' = T . TArray t n . Boxed p $ Just (Layout l)
+      let t'' = T . TArray t n . Boxed p $ Just l
       if isTypeLayoutExprCompatible env t l  -- NOTE that the 'l' is for the element type / zilinc
         then normaliseT d t''
         else logErrExit (LayoutDoesNotMatchType l t)
