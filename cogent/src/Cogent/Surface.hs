@@ -123,7 +123,7 @@ data Type e t =
               | TTuple [t]
               | TUnit
 #ifdef BUILTIN_ARRAYS
-              | TArray t e (Sigil (Maybe (DargentLayout DataLayoutExpr)))
+              | TArray t e (Sigil (Maybe DataLayoutExpr))
 #endif
               -- In TypeCheck.Post, the TUnbox and TBang type-operators
               -- are normalised out of the syntax tree by altering the Sigil

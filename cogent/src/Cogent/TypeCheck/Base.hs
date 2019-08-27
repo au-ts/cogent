@@ -251,7 +251,7 @@ data TCType         = T (Type SExpr TCType)
                     | U Int  -- unifier
                     | R (Row TCType) (Either (Sigil (Maybe DataLayoutExpr)) Int)
                     | V (Row TCType)
-                    | A TCType SExpr (Either (Sigil DataLayoutExpr) Int)
+                    | A TCType SExpr (Either (Sigil (Maybe DataLayoutExpr)) Int)
                     | Synonym TypeName [TCType]
                     deriving (Show, Eq, Ord)
 
