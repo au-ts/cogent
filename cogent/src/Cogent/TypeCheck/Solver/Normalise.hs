@@ -82,7 +82,7 @@ normaliseRW = rewrite' $ \t -> case t of
       __impossible "normaliseRW: TLayout over a sigil variable (R)" 
 #ifdef BUILTIN_ARRAYS
     T (TLayout l (A t n (Left (Boxed p _)))) ->
-      pure $ A t n $ Left $ Boxed p (Just (Layout l))
+      pure $ A t n $ Left $ Boxed p (Just l)
     T (TLayout l (A t n (Right i))) -> 
       __impossible "normaliseRW: TLayout over a sigil variable (A)"
 #endif
