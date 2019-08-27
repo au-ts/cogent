@@ -290,6 +290,7 @@ cg' (ArrayMap2 ((p1,p2), fbody) (arr1,arr2)) t = __fixme $ do  -- FIXME: more ac
   (s2,cp2,p2') <- match p2 alpha2
   context %= C.addScope (s1 `M.union` s2)  -- domains of s1 and s2 don't overlap
   (cbody, fbody') <- cg fbody (T $ TTuple [alpha1, alpha2])
+  -- TODO: also need to check that all other variables `fbody` refers to must be non-linear / zilinc
   rs <- context %%= C.dropScope
   let tarr1 = A alpha1 len1 $ Right x1
       tarr2 = A alpha2 len2 $ Right x2
@@ -438,6 +439,7 @@ cg' (Member e f) t =  do
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint" <+> prettyC c)
   return (c' <> c, f')
+
 -- FIXME: This is very hacky. But since we don't yet have implications in our
 -- constraint system, ... / zilinc
 cg' (If e1 bs e2 e3) t = do
