@@ -174,6 +174,7 @@ data StrlType = Record  [(CId, CType)] -- ^ @(fieldname &#x21A6; fieldtype)@
               | Function CType CType
               | AbsType CId
               | Array CType (Maybe Int)
+              | BoxedArray StrlCogentType Int
               deriving (Eq, Ord, Show)
 
 
