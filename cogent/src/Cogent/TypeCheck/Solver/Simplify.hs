@@ -31,7 +31,6 @@ import           Cogent.TypeCheck.Solver.Monad
 import qualified Cogent.TypeCheck.Solver.Rewrite as Rewrite
 import           Cogent.Surface
 
-
 onGoal :: (Constraint -> Maybe [Constraint]) -> Goal -> Maybe [Goal]
 onGoal f g = fmap (map (derivedGoal g)) (f (g ^. goal))
 
@@ -95,6 +94,12 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
   Escape (R r (Left s)) m
     | isNothing (Row.var r)
     , not (readonly s) -> Just (map (flip Escape m) (Row.untakenTypes r))
+
+#ifdef BUILTIN_ARRAYS
+  Share  (A t _ (Left s)) m | not (writable s) -> Just [Share  t m]
+  Drop   (A t _ (Left s)) m | not (writable s) -> Just [Drop   t m]
+  Escape (A t _ (Left s)) m | not (readonly s) -> Just [Escape t m]
+#endif
 
   Exhaustive t ps | any isIrrefutable ps -> Just []
   Exhaustive (V r) []
@@ -196,7 +201,7 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
   (T (TCon n ts s)) :=: (T (TCon n' us s'))
     | s == s', n == n' -> Just (zipWith (:=:) ts us)
 
-  _ -> Nothing
+  t -> Nothing
 
 -- | Returns 'True' iff the given argument type is not subject to subtyping. That is, if @a :\< b@
 --   (subtyping) is equivalent to @a :=: b@ (equality), then this function returns true.

@@ -105,7 +105,7 @@ validateType rt@(RT t) = do
     TArray te l s -> do let l' = toSExpr l
                             cl = Arith (SE $ PrimOp ">" [l', SE $ IntLit 0])
                         (c,te') <- validateType te
-                        return (c <> cl, T $ TArray te' l' s)
+                        return (c <> cl, A te' l' $ Left s)
 #endif
     _ -> second (T . ffmap toSExpr) <$> fmapFoldM validateType t 
 
@@ -261,12 +261,12 @@ cg' (ArrayLit es) t = do
   let (cs,es') = unzip blob
       n = SE . IntLit . fromIntegral $ length es
       cz = Arith (SE $ PrimOp ">" [n, SE (IntLit 0)])
-  return (mconcat cs <> cz <> (T $ TArray alpha n Unboxed) :< t, ArrayLit es')
+  return (mconcat cs <> cz <> (A alpha n $ Left Unboxed) :< t, ArrayLit es')
 
 cg' (ArrayIndex e i) t = do
   alpha <- freshTVar
   n <- freshEVar
-  let ta = T $ TArray alpha n (__fixme Unboxed)  -- FIXME: we need to create a new TCType for arrays / zilinc
+  let ta = A alpha n (__fixme $ Left Unboxed)  -- FIXME: we need to create a new TCType for arrays / zilinc
   (ce, e') <- cg e ta
   (ci, i') <- cg (dummyLocE i) (T $ TCon "U32" [] Unboxed)
   let c = alpha :< t <> Share ta UsedInArrayIndexing
@@ -643,7 +643,7 @@ match' (PArray ps) t = do
   blob <- mapM (`match` alpha) ps
   let (ss,cs,ps') = unzip3 blob
       l = SE . IntLit . fromIntegral $ length ps
-      c = t :< (T $ TArray alpha l (__fixme Unboxed))  -- FIXME: can be boxed as well / zilinc
+      c = t :< (A alpha l (__fixme $ Left Unboxed))  -- FIXME: can be boxed as well / zilinc
   return (M.unions ss, mconcat cs <> c, PArray ps')
 #endif
 

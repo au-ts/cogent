@@ -370,7 +370,7 @@ lookupType t@(TRecord _ s) | s /= Unboxed = getCompose (CPtr . CIdent <$> Compos
 lookupType t@(TString)                    = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
 lookupType t@(TCon _ _ s)  | s /= Unboxed = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
 #ifdef BUILTIN_ARRAYS
-lookupType t@(TArray _ _ s) | s /= Unboxed = __todo "lookupType"
+lookupType t@(TArray _ _ s) | s /= Unboxed = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
                             | otherwise    = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
 #endif
 lookupType t                              = getCompose (       CIdent <$> Compose (lookupTypeCId t))

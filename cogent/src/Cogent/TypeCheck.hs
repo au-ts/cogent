@@ -56,6 +56,7 @@ import qualified Text.PrettyPrint.ANSI.Leijen as L
 import Text.PrettyPrint.ANSI.Leijen hiding ((<>), (<$>))
 import Lens.Micro
 import Lens.Micro.Mtl
+
 -- import Debug.Trace
 
 tc :: [(SourcePos, TopLevel LocType LocPatn LocExpr)]

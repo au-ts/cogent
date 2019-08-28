@@ -40,12 +40,11 @@ normaliseRW = rewrite' $ \t -> case t of
     T (TBang (T (TTuple ts))) -> pure (T (TTuple (map (T . TBang) ts)))
     T (TBang (T TUnit)) -> pure (T TUnit)
 #ifdef BUILTIN_ARRAYS
-    T (TBang (T (TArray t e s))) -> pure (T (TArray (T (TBang t)) e (bangSigil s)))
+    T (TBang (A t l (Left s))) -> pure (A (T . TBang $ t) l (Left (bangSigil s)))
 #endif
     T (TUnbox (T (TCon t ts s))) -> pure (T (TCon t ts Unboxed))
     T (TUnbox (R row _)) -> pure (R row (Left Unboxed))
 #ifdef BUILTIN_ARRAYS
-    T (TUnbox (T (TArray t l _))) -> pure (T (TArray t l Unboxed))
     T (TUnbox (A t l _)) -> pure (A t l (Left Unboxed))
 #endif
     Synonym n as -> do 
