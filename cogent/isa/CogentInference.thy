@@ -927,6 +927,94 @@ next
   qed
 qed (simp)+
 
+section {* Lemma 3.1 *}
+lemma split_used:
+  assumes "fv e = (fv e1) \<union> (fv e2)"
+    and "G1,n1 \<turnstile> e1 : \<tau> \<leadsto> G2,n2 | C1 | e1'"
+    and "G2,n2 \<turnstile> e2 : \<rho> \<leadsto> G3,n3 | C2 | e2'"
+    and "A \<turnstile> assign_app_constr S C2"
+    and "\<forall>i. is_known_type (S i)"
+  shows "A \<turnstile> assign_app_ctx S (G1\<bar>(fv e)) \<leadsto> assign_app_ctx S (G1\<bar>(fv e1)) \<box> assign_app_ctx S (G2\<bar>(fv e2))"
+  using assms   
+proof -
+  let ?SG1e = "assign_app_ctx S (G1\<bar>(fv e))"
+  let ?SG1e1 = "assign_app_ctx S (G1\<bar>(fv e1))"
+  let ?SG2e2 = "assign_app_ctx S (G2\<bar>(fv e2))"
+  have G1_G2_length: "length G1 = length G2"
+    using assms cg_ctx_length by blast
+  have no_i_in_e_SG1e_none: "\<And>i. i < length G1 \<Longrightarrow> i \<notin> fv e \<Longrightarrow> ?SG1e ! i = None"
+    using ctx_restrict_len ctx_restrict_nth_none by auto
+  have i_in_e_SG1e_some: "\<And>i. i < length G1 \<Longrightarrow> i \<in> fv e \<Longrightarrow> \<exists>a. ?SG1e ! i = Some (assign_app_ty S (fst (G1!i)))"
+    using ctx_restrict_len ctx_restrict_nth_some by auto
+  have no_i_in_e1_SG1e1_none: "\<And>i. i < length G1 \<Longrightarrow> i \<notin> fv e1 \<Longrightarrow> ?SG1e1 ! i = None"
+    using ctx_restrict_len ctx_restrict_nth_none by auto
+  have i_in_e1_SG1e1_some: "\<And>i. i < length G1 \<Longrightarrow> i \<in> fv e1 \<Longrightarrow> \<exists>a. ?SG1e1 ! i = Some (assign_app_ty S (fst (G1!i)))"
+    using ctx_restrict_len ctx_restrict_nth_some by auto
+  have no_i_in_e2_SG2e2_none: "\<And>i. i < length G1 \<Longrightarrow> i \<notin> fv e2 \<Longrightarrow> ?SG2e2 ! i = None"
+    using G1_G2_length ctx_restrict_len ctx_restrict_nth_none by auto
+  have i_in_e2_SG2e2_some: "\<And>i. i < length G1 \<Longrightarrow> i \<in> fv e2 \<Longrightarrow> \<exists>a. ?SG2e2 ! i = Some (assign_app_ty S (fst (G2!i)))"
+    using G1_G2_length ctx_restrict_len ctx_restrict_nth_some by auto
+  have "\<And>i. i < length G1 \<Longrightarrow> i \<notin> (fv e) \<Longrightarrow> ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
+  proof -
+    fix i :: nat 
+    assume i_size: "i < length G1"
+    assume i_not_in_e: "i \<notin> (fv e)"
+    have "(i \<notin> (fv e1)) \<and> (i \<notin> (fv e2))"
+      using assms i_not_in_e by simp
+    then show "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
+      using ctx_split_comp.none
+      using i_not_in_e i_size no_i_in_e1_SG1e1_none no_i_in_e2_SG2e2_none no_i_in_e_SG1e_none by auto
+  qed
+  moreover have "\<And>i. i < length G1 \<Longrightarrow> i \<in> (fv e) \<Longrightarrow> ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
+  proof -
+    fix i :: nat
+    assume i_size: "i < length G1"
+    assume i_in_e: "i \<in> (fv e)" 
+    have "i \<in> (fv e1) \<or> i \<in> (fv e2)"
+      using assms i_in_e by auto
+    moreover have "i \<in> (fv e1) \<and> i \<notin> (fv e2) \<Longrightarrow> ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
+    proof (erule conjE)
+      assume i_in_e1: "i \<in> (fv e1)"
+      assume i_not_in_e2: "i \<notin> (fv e2)"
+      then show "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
+        using ctx_split_comp.left
+        using i_in_e i_in_e1 i_size no_i_in_e2_SG2e2_none ctx_restrict_len ctx_restrict_nth_some by auto
+    qed
+    moreover have "i \<notin> (fv e1) \<and> i \<in> (fv e2) \<Longrightarrow> ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
+    proof (erule conjE)
+      assume i_not_in_e1: "i \<notin> (fv e1)"
+      assume i_in_e2: "i \<in> (fv e2)"
+      then show "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
+        using assms ctx_split_comp.right
+        using i_in_e i_size i_not_in_e1 no_i_in_e1_SG1e1_none ctx_restrict_len ctx_restrict_nth_some
+        by (metis (no_types, lifting) G1_G2_length cg_ctx_type_same assign_app_ctx_nth)
+    qed
+    moreover have "i \<in> (fv e1) \<and> i \<in> (fv e2) \<Longrightarrow> ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
+    proof (erule conjE)
+      assume i_in_e1: "i \<in> (fv e1)"
+      assume i_in_e2: "i \<in> (fv e2)"
+      have i_type_used: "snd (G2!i) > 0"
+        using cg_gen_output_type_used_nonzero assms i_in_e1 by auto
+      then have i_type_share: "A \<turnstile> CtShare (assign_app_ty S (fst (G2!i)))"
+        using assms i_in_e2 cg_assign_type_used_nonzero_imp_share by simp
+      moreover have "(?SG1e ! i) = (?SG1e1 ! i)"
+        using i_in_e i_in_e1 i_size ctx_restrict_len ctx_restrict_nth_some by auto
+      moreover have "(?SG1e1 ! i) = (?SG2e2 ! i)"
+        using assms assign_app_ctx.elims i_in_e1 i_in_e2 i_size G1_G2_length
+        using cg_ctx_type_same ctx_restrict_len ctx_restrict_nth_some
+        by (metis (no_types, lifting) nth_map)
+      ultimately show "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
+        using G1_G2_length i_in_e2 i_size ctx_restrict_len ctx_restrict_nth_some type_infer.share by auto
+    qed
+    ultimately show "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
+      by blast
+  qed
+  ultimately show ?thesis
+    using G1_G2_length context_splitting_def assign_app_ctx_len ctx_restrict_len
+    by (metis (full_types) list_all3_conv_all_nth)
+qed
+thm constraint_gen_elab.inducts
+
 section {* Soundness of Generation (Thm 3.2) *}
 lemma cg_sound:
   assumes "G,0 \<turnstile> e : \<tau> \<leadsto> G',n | C | e'"
