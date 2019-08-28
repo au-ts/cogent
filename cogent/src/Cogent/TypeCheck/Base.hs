@@ -508,7 +508,10 @@ validateType' vs (RT t) = do
                            tuplize xs  = T (TTuple xs)
                        TVariant fs' <- ffmap toSExpr <$> mapM (validateType' vs) t 
                        pure (V (Row.fromMap (fmap (first tuplize) fs')))
-
+#ifdef BUILTIN_ARRAYS
+    TArray te l s -> -- TODO: do the checks
+      A <$> validateType' vs te <*> pure (toSExpr l) <*> pure (Left s)
+#endif
     TLayout l t  -> do
       layouts <- use knownDataLayouts
       let (errs, alloc) = typeCheckDataLayoutExpr layouts l
@@ -517,10 +520,6 @@ validateType' vs (RT t) = do
               _         -> pure ())
       t' <- validateType' vs t
       pure (T $ TLayout l t')
-#ifdef BUILTIN_ARRAYS
-    TArray te l s -> -- TODO: do the checks
-      A <$> validateType' vs te <*> pure (toSExpr l) <*> pure (Left s)
-#endif
     _ -> __fixme $
       T <$> (mmapM (return . toSExpr) <=< mapM (validateType' vs)) t
     -- With (TCon _ _ l), and (TRecord _ l), must check l == Nothing iff it is contained in a TUnbox.
@@ -608,6 +607,7 @@ rigid _ = True
 --
 
 isTypeLayoutExprCompatible :: NamedDataLayouts -> TCType -> DataLayoutExpr -> Bool
+isTypeLayoutExprCompatible _ _ _ = True
 isTypeLayoutExprCompatible env t@(T (TCon n [] Unboxed)) (DLPrim rs) =
   let s  = evalSize rs
       s' = (case n of
