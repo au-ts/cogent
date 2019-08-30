@@ -164,19 +164,14 @@ data CExtDecl = CFnDefn (CType, CId) [(CType, CId)] [CBlockItem] FnSpec
 -- | 'StrlType' tried to unify some of the types we have in Core.
 --   It can be deemed as the C representation for Cogent types.
 data StrlType = Record  [(CId, CType)] -- ^ @(fieldname &#x21A6; fieldtype)@
-              | BoxedRecord StrlCogentType
-                -- ^ Depends on the Cogent type of the record, so that different boxed cogent records
-                --   get given different StrlTypes and thus different CTypes.
-                --   The CType will always be a struct with a single field
-                --   named 'data' of type 'unsigned int *'.
+              | RecordL (DataLayout BitRange)  -- to be laid out according to its Dargent description
               | Product CType CType          -- ^ pair
               | Variant (M.Map CId CType)    -- ^ one tag field, and fields for all possibilities
               | Function CType CType
               | AbsType CId
               | Array CType (Maybe Int)
-              | BoxedArray StrlCogentType Int
+              | ArrayL (DataLayout BitRange) (Maybe Int)
               deriving (Eq, Ord, Show)
-
 
 -- Custom equality for `BoxedRecord` case of `StrlType`
 -- Needed to allow us to ignore whether fields/alternatives are/aren't "taken"
