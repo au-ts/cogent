@@ -96,7 +96,7 @@ data Expr t p ip e = PrimOp OpName [e]
                    | StringLit String
 #ifdef BUILTIN_ARRAYS
                    | ArrayLit [e]
-                   | ArrayIndex e AExpr
+                   | ArrayIndex e e
                    | ArrayMap2 ((ip, ip), e) (e, e)
 #endif
                    | Tuple [e]  -- When desugared into tuples, it's right associative.

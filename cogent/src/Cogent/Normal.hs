@@ -51,7 +51,7 @@ isAtom (E (ILit {})) = True
 isAtom (E (SLit _)) = True
 #ifdef BUILTIN_ARRAYS
 isAtom (E (ALit es)) | all isVar es = True
-isAtom (E (ArrayIndex e i)) | isVar e = True
+isAtom (E (ArrayIndex e i)) | isVar e && isVar i = True
 isAtom (E (ArrayMap2 (_,f) (e1,e2)))
   | isNormal f && isVar e1 && isVar e2 = True  
   -- ^^^ FIXME: does it make sense? @ArrayMap@ cannot be made an expression.
@@ -140,7 +140,11 @@ normalise v e@(E (ILit {})) k = k s0 e
 normalise v e@(E (SLit {})) k = k s0 e
 #ifdef BUILTIN_ARRAYS
 normalise v   (E (ALit es)) k = normaliseNames v es $ \n es' -> k n (E $ ALit es')
-normalise v   (E (ArrayIndex e i)) k = normaliseName v e $ \n e' -> k n (E $ ArrayIndex e' i)
+normalise v   (E (ArrayIndex e i)) k
+  = normaliseName v e $ \n e' -> 
+      normaliseName (sadd v n) (upshiftExpr n v f0 i) $ \n' i' ->
+        withAssoc v n n' $ \Refl ->
+          k (sadd n n') (E $ ArrayIndex (upshiftExpr n' (sadd v n) f0 e') i')
 normalise v   (E (ArrayMap2 ((a1,a2),f) (e1,e2))) k
   = normaliseExpr (SSuc $ SSuc v) f >>= \f' ->
       normaliseName v e1 $ \n e1' -> 
@@ -274,7 +278,7 @@ insertIdxAt cut (E e) = E $ insertIdxAt' cut e
     insertIdxAt' cut (SLit s) = SLit s
 #ifdef BUILTIN_ARRAYS
     insertIdxAt' cut (ALit es) = ALit $ map (insertIdxAt cut) es
-    insertIdxAt' cut (ArrayIndex e l) = ArrayIndex (insertIdxAt cut e) l
+    insertIdxAt' cut (ArrayIndex e l) = ArrayIndex (insertIdxAt cut e) (insertIdxAt cut l)
     insertIdxAt' cut (Pop a e1 e2) = Pop a (insertIdxAt cut e1) (insertIdxAt (FSuc (FSuc cut)) e2)
     insertIdxAt' cut (Singleton e) = Singleton (insertIdxAt cut e)
 #endif
