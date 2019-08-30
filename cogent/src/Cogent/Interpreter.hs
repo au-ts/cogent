@@ -152,9 +152,9 @@ instance (Pretty a, Pretty f, Prec a, Prec f, Pretty (Value a f), Prec (HNF a f)
     | LeftAssoc  l <- associativity n = prettyPrec (l+1) a <+> primop n <+> prettyPrec l     b
     | RightAssoc l <- associativity n = prettyPrec l     a <+> primop n <+> prettyPrec (l+1) b
     | NoAssoc    l <- associativity n = prettyPrec l     a <+> primop n <+> prettyPrec l     b
-  pretty (VOp n [e]) 
-    | a  <- associativity n = primop n <+> prettyPrec (prec a) e 
-  
+  pretty (VOp n [e])
+    | a  <- associativity n = primop n <+> prettyPrec (prec a) e
+
   pretty (VApp v1 v2) = prettyPrec 10 v1 <+> prettyPrec 9 v2
   pretty (VIf c v1 v2) = keyword "if" <+> pretty c
               Leijen.<$> indent (keyword "then" <+> pretty v1)
@@ -284,14 +284,14 @@ parseCmdline = do
 
 
 loadCode :: IORef PreloadS -> String -> IO ()
-loadCode r code = 
+loadCode r code =
   case runParser Parser.program (Parser.ParserState True) "<REPL>" code of
     Left  err    -> putStrLn $ show err
     Right parsed -> checkPreload r (fmap (\(a,_,s) -> (a,s)) parsed) FromStdin
 
 loadFile :: IORef PreloadS -> FilePath -> IO ()
 loadFile r file = do
-  modifyIORef r (\(PreloadS s t f) -> PreloadS s t (Just file)) 
+  modifyIORef r (\(PreloadS s t f) -> PreloadS s t (Just file))
   Parser.parseWithIncludes file [] >>= \case
     Left err -> putStrLn err
     Right (parsed, _) -> case Reorg.reorganize Nothing parsed of
@@ -320,13 +320,13 @@ checkPreload r prog src = do
   if not $ null errs then
     do putDoc (vcat $ fmap (Pretty.prettyTWE __cogent_ftc_ctx_len) errs ++ [empty])
        when (and $ map (Tc.isWarnAsError . fromLeft undefined . snd) errs) $ hPutStrLn stderr "Failing due to --Werror."
-  else 
+  else
     case mtced of
       Nothing -> __impossible "loadProgram: no errors found"
       Just tced -> do
         __assert (null errs) "no errors, only warnings"
         case src of
-          FromFile f -> putStrLn ("File " ++ f ++ " is loaded.") >> 
+          FromFile f -> putStrLn ("File " ++ f ++ " is loaded.") >>
                         writeIORef r (PreloadS tced tcst (Just f))
           FromStdin  -> modifyIORef r (<> PreloadS tced tcst Nothing)
 
@@ -377,7 +377,7 @@ tcExpr r e = do
       (cs, subst) <- runSolver (solve [] c) flx
       Tc.exitOnErr $ Tc.toErrors os cs
       Tc.postE $ Subst.applyE subst e'
-  where 
+  where
     knownTypes = map (, ([], Nothing)) $ words "U8 U16 U32 U64 String Bool"
 
 coreTcExpr :: [Definition TypedExpr VarName]
@@ -458,23 +458,23 @@ evalUnOp Complement (VInt  l) = VInt $ primWordOp1 (ExistsOp1 complement) l
 evalUnOp op      v@(VThunk _) = VThunk $ VOp op [v]
 
 evalBinOp :: Op -> Value a f -> Value a f -> Value a f
-evalBinOp Plus   (VInt l1) (VInt l2) = VInt $ primWordOp2 (ExistsOp2 (+)) l1 l2 
-evalBinOp Minus  (VInt l1) (VInt l2) = VInt $ primWordOp2 (ExistsOp2 (-)) l1 l2 
-evalBinOp Times  (VInt l1) (VInt l2) = VInt $ primWordOp2 (ExistsOp2 (*)) l1 l2 
+evalBinOp Plus   (VInt l1) (VInt l2) = VInt $ primWordOp2 (ExistsOp2 (+)) l1 l2
+evalBinOp Minus  (VInt l1) (VInt l2) = VInt $ primWordOp2 (ExistsOp2 (-)) l1 l2
+evalBinOp Times  (VInt l1) (VInt l2) = VInt $ primWordOp2 (ExistsOp2 (*)) l1 l2
 evalBinOp Divide (VInt l1) (VInt l2)
   = VInt (primWordOp2 (ExistsOp2 div) l1 l2) &
       if __cogent_fcheck_undefined then (ifThenElse (toInt l2 == 0) (VInt l2)) else id
 evalBinOp Mod    (VInt l1) (VInt l2)
   = VInt (primWordOp2 (ExistsOp2 mod) l1 l2) &
       if __cogent_fcheck_undefined then (ifThenElse (toInt l2 == 0) (VInt l2)) else id
-evalBinOp And    (VBool b1) (VBool b2) = VBool $ b1 && b2 
-evalBinOp Or     (VBool b1) (VBool b2) = VBool $ b1 || b2 
+evalBinOp And    (VBool b1) (VBool b2) = VBool $ b1 && b2
+evalBinOp Or     (VBool b1) (VBool b2) = VBool $ b1 || b2
 evalBinOp Gt     (VInt  l1) (VInt  l2) = VBool $ primWordComp (ExistsComp (>) ) l1 l2
-evalBinOp Lt     (VInt  l1) (VInt  l2) = VBool $ primWordComp (ExistsComp (<) ) l1 l2 
-evalBinOp Ge     (VInt  l1) (VInt  l2) = VBool $ primWordComp (ExistsComp (>=)) l1 l2 
-evalBinOp Le     (VInt  l1) (VInt  l2) = VBool $ primWordComp (ExistsComp (<=)) l1 l2 
-evalBinOp Eq     (VInt  l1) (VInt  l2) = VBool $ primWordComp (ExistsComp (==)) l1 l2 
-evalBinOp NEq    (VInt  l1) (VInt  l2) = VBool $ primWordComp (ExistsComp (/=)) l1 l2 
+evalBinOp Lt     (VInt  l1) (VInt  l2) = VBool $ primWordComp (ExistsComp (<) ) l1 l2
+evalBinOp Ge     (VInt  l1) (VInt  l2) = VBool $ primWordComp (ExistsComp (>=)) l1 l2
+evalBinOp Le     (VInt  l1) (VInt  l2) = VBool $ primWordComp (ExistsComp (<=)) l1 l2
+evalBinOp Eq     (VInt  l1) (VInt  l2) = VBool $ primWordComp (ExistsComp (==)) l1 l2
+evalBinOp NEq    (VInt  l1) (VInt  l2) = VBool $ primWordComp (ExistsComp (/=)) l1 l2
 evalBinOp Eq     (VBool b1) (VBool b2) = VBool $ b1 == b2
 evalBinOp NEq    (VBool b1) (VBool b2) = VBool $ b1 /= b2
 evalBinOp BitAnd (VInt  l1) (VInt  l2) = VInt $ primWordOp2 (ExistsOp2 (.&.)) l1 l2
@@ -547,7 +547,7 @@ eval (TE _ (App f e)) = do
     VThunk _  -> return (VThunk $ VApp vf ve)
 eval (TE _ (Con tn e t)) = VVariant tn <$> eval e
 eval (TE _ (Unit)) = return VUnit
-eval (TE _ (ILit n t)) 
+eval (TE _ (ILit n t))
   | U8  <- t = return $ VInt (LU8  $ fromIntegral n)
   | U16 <- t = return $ VInt (LU16 $ fromIntegral n)
   | U32 <- t = return $ VInt (LU32 $ fromIntegral n)
@@ -583,7 +583,7 @@ eval (TE _ (Case e tag (_, a1, e1) (_, a2, e2))) = do
   vv <- eval e
   case vv of
     VVariant tag' v -> if tag == tag' then withBinding v (eval e1)
-                       else withBinding vv (eval e2) 
+                       else withBinding vv (eval e2)
     VThunk _ -> do
       let abs = VThunk $ VAbstract ()
       v1 <- withBinding abs (eval e1)
@@ -613,7 +613,7 @@ eval (TE t (Take bs rec f e)) = do
       fn = fst $ fs !! f
   vrec <- eval rec
   case vrec of
-    VRecord fvs -> 
+    VRecord fvs ->
       let (fvs1,fvs2) = splitAt f fvs
           v = fromJust . snd $ fvs !! f
           vr = VRecord $ fvs1 ++ (fn, Nothing) : tail fvs2
@@ -627,7 +627,7 @@ eval (TE _ (Put rec f e)) = do
       fn = fst $ fs !! f
   vrec <- eval rec
   v    <- eval e
-  case vrec of 
+  case vrec of
     VRecord fvs -> do
       let (fvs1,fvs2) = splitAt f fvs
       return $ VRecord $ fvs1 ++ (fn, Just v) : tail fvs2

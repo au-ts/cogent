@@ -10,14 +10,14 @@
 -- @TAG(DATA61_GPL)
 --
 
-module Cogent.TypeCheck.Solver.Unify where 
+module Cogent.TypeCheck.Solver.Unify where
 
 import           Cogent.Common.Syntax
 import           Cogent.Common.Types
 import           Cogent.Surface
-import           Cogent.TypeCheck.Base 
+import           Cogent.TypeCheck.Base
 import qualified Cogent.TypeCheck.Row            as Row
-import           Cogent.TypeCheck.Solver.Goal 
+import           Cogent.TypeCheck.Solver.Goal
 import           Cogent.TypeCheck.Solver.Monad
 import qualified Cogent.TypeCheck.Solver.Rewrite as Rewrite
 import qualified Cogent.TypeCheck.Subst          as Subst

@@ -12,12 +12,12 @@
 
 {-# OPTIONS_GHC -Werror -Wall #-}
 
-module Cogent.TypeCheck.Solver.Default ( defaults ) where 
+module Cogent.TypeCheck.Solver.Default ( defaults ) where
 
 import Cogent.Common.Types
 import Cogent.Surface
-import Cogent.TypeCheck.Base 
-import Cogent.TypeCheck.Solver.Goal 
+import Cogent.TypeCheck.Base
+import Cogent.TypeCheck.Solver.Goal
 import qualified Cogent.TypeCheck.Solver.Rewrite as Rewrite
 import Cogent.Util
 

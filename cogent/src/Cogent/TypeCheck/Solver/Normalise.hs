@@ -62,40 +62,40 @@ normaliseRW = rewrite' $ \t -> case t of
         Nothing -> pure $ R (Row.takeAll r) s
         Just fs -> pure $ R (Row.takeMany fs r) s
     T (TTake fs (V r)) | Row.isComplete r ->
-      case fs of 
+      case fs of
         Nothing -> pure $ V (Row.takeAll r)
         Just fs -> pure $ V (Row.takeMany fs r)
     T (TTake fs t) | __cogent_flax_take_put -> return t
     T (TPut fs (R r s)) | Row.isComplete r ->
-      case fs of 
+      case fs of
         Nothing -> pure $ R (Row.putAll r) s
-        Just fs -> pure $ R (Row.putMany fs r) s 
+        Just fs -> pure $ R (Row.putMany fs r) s
     T (TPut fs (V r)) | Row.isComplete r ->
-      case fs of 
+      case fs of
         Nothing -> pure $ V (Row.putAll r)
         Just fs -> pure $ V (Row.putMany fs r)
     T (TPut fs t) | __cogent_flax_take_put -> return t
     T (TLayout l (R row (Left (Boxed p _)))) ->
       pure $ R row $ Left $ Boxed p (Just l)
     T (TLayout l (R row (Right i))) ->
-      __impossible "normaliseRW: TLayout over a sigil variable (R)" 
+      __impossible "normaliseRW: TLayout over a sigil variable (R)"
 #ifdef BUILTIN_ARRAYS
     T (TLayout l (A t n (Left (Boxed p _)))) ->
       pure $ A t n $ Left $ Boxed p (Just l)
-    T (TLayout l (A t n (Right i))) -> 
+    T (TLayout l (A t n (Right i))) ->
       __impossible "normaliseRW: TLayout over a sigil variable (A)"
 #endif
     T (TLayout l _) -> -- TODO(dargent): maybe handle this later
       empty
-    _ -> empty 
+    _ -> empty
 
   where
     bangSigil (Boxed _ r) = Boxed True r
     bangSigil x           = x
 
 whnf :: TCType -> TcSolvM TCType
-whnf input = do 
-    step <- case input of 
+whnf input = do
+    step <- case input of
         T (TTake  fs t') -> T . TTake fs  <$> whnf t'
         T (TPut   fs t') -> T . TPut  fs  <$> whnf t'
         T (TBang     t') -> T . TBang     <$> whnf t'

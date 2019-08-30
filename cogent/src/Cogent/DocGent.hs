@@ -96,7 +96,7 @@ currentSpan s = do
   u <- show <$> use underline
   if (f == "fg-Vivid-Blue") then
       case lookup s ?knowns of
-        Nothing -> 
+        Nothing ->
           return $ H.span H.! HA.class_ (fromString $ unwords [i,f,b,t,u]) $ H.string s
         Just p ->
           return $ H.a H.! HA.class_ (fromString $ unwords [i,f,b,t,u])
@@ -138,7 +138,7 @@ prettyPT (PT vs t) = let top = fst $ runState (displayHTML (prettyPrint id [rend
                       in [shamlet| <table><tr><td>#{top}</td><td></td></tr><tr><td>#{bottom}</td></tr>|]
 
 prettyType :: (?knowns :: [(String, SourcePos)]) => LocType -> Maybe Html -> Html
-prettyType x y | not (containsDocumentation x)  =  case y of 
+prettyType x y | not (containsDocumentation x)  =  case y of
                       (Just y) -> fst (runState (displayHTML (prettyPrint id [pretty x])) defaultState) `mappend` y
                       Nothing -> fst (runState (displayHTML (prettyPrint id [pretty x])) defaultState)
 prettyType (LocType _ (TPut fs t)) x = let rest = foldMap id x
@@ -293,7 +293,7 @@ genDoc (p,s,x@(FunDef n pt as)) =
     let n' x = [shamlet|<table><td class='fg-Vivid-Green'><a name='#{n}'><b>#{n}</b></a></td><td class='spaced'>:</td><td class='spaced'>#{x}</td> |]
         pt' = prettyPT pt
         md  = markdown s
-        str = flip runState defaultState $ 
+        str = flip runState defaultState $
                 displayHTML (prettyPrint id $ return $ prettyFunDef False n pt $ map (resolveNamesA [] . fmap stripLocE . ffmap stripLocP) as)
         source = makeHtml $ fst str
      in

@@ -101,17 +101,17 @@ instance Pretty HscModule where
 instance Pretty ModulePragma where
   pretty (LanguagePragma s) = text "{-# LANGUAGE" <+> text s <+> text "#-}"
   prettyList ps = vcat $ map pretty ps
- 
+
 instance Pretty Declaration where
   pretty (HsDecl  d) = pretty d
   pretty (HscDecl d) = pretty d
   pretty (EmptyDecl) = line
-  
+
   prettyList ds = vsep $ map pretty ds
 
 instance Pretty HsDecl where
   pretty (ImportDecl mn q msn incs excs) = text "import" <+> qualif q (text mn) <> alias msn <> incs' <> excs'
-    where qualif True = (text "qualified" <+>); qualif False = id 
+    where qualif True = (text "qualified" <+>); qualif False = id
           alias Nothing = empty; alias (Just sn) = space <> text "as" <+> text sn
           incs' = case incs of [] -> empty; xs -> space <> tupled (map text incs)
           excs' = case incs of [] -> empty; xs -> space <> text "hiding" <+> tupled (map text excs)
@@ -119,14 +119,14 @@ instance Pretty HsDecl where
   pretty (DataDecl tn tvs datacons) = text "data" <+> pretty tn <+> hsep (map pretty tvs) <+> text "="
                                   <+> align (prettyList datacons)
   pretty (TypeDecl tn tvs ty) = text "type" <+> pretty tn <+> hsep (map pretty tvs) <+> text "=" <+> pretty ty
-  pretty (InstDecl cl ctxs ty bindings) = text "instance" <+> prettyList ctxs 
-                                       <> (if null ctxs then empty else text "=>" <> space) 
+  pretty (InstDecl cl ctxs ty bindings) = text "instance" <+> prettyList ctxs
+                                       <> (if null ctxs then empty else text "=>" <> space)
                                        <> text cl <+> pretty' 10 ty <+> text "where"
                                      <$$> indent 2 (prettyList bindings)
 
 instance Pretty Context where
   pretty (Context cl ty) = text cl <+> pretty' 10 ty
-  
+
   prettyList []  = empty
   prettyList [c] = pretty c
   prettyList cs  = tupled $ map pretty cs
@@ -154,7 +154,7 @@ instance Pretty Expression where
   pretty (EDo ds) = text "do" <$> indent 2 (prettyList ds)
   pretty (EApplicative f []) = __impossible "EApplicative must have at least one argument"
   pretty (EApplicative f (e:es)) = nest 2 (pretty' 15 f <+> text "<$>"
-                                       <+> pretty' 15 e 
+                                       <+> pretty' 15 e
                                        <+> sep (map ((text "<*>" <+>) . pretty' 15) es))
   pretty (EOp o es) = parens (text o) <+> prettyList es
   pretty (ECon cn []) = text cn

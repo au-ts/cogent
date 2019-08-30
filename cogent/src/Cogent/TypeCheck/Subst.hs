@@ -17,7 +17,7 @@ import Cogent.Compiler (__impossible)
 import Cogent.Surface
 import Cogent.TypeCheck.Assignment
 import Cogent.TypeCheck.Base
-import qualified Cogent.TypeCheck.Row as Row 
+import qualified Cogent.TypeCheck.Row as Row
 import Cogent.Util
 
 import qualified Data.IntMap as M
@@ -43,7 +43,7 @@ ofType i t = Subst (M.fromList [(i, Type t)])
 ofRow :: Int -> Row.Row TCType -> Subst 
 ofRow i t = Subst (M.fromList [(i, Row $ Left t)])
 
-ofSigil :: Int -> Sigil (Maybe DataLayoutExpr) -> Subst 
+ofSigil :: Int -> Sigil (Maybe DataLayoutExpr) -> Subst
 ofSigil i t = Subst (M.fromList [(i, Sigil t)])
 
 ofShape :: Int -> Row.Shape -> Subst

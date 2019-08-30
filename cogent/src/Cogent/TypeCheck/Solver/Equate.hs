@@ -11,13 +11,13 @@
 --
 
 module Cogent.TypeCheck.Solver.Equate (equate) where
-    
+
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Surface
-import Cogent.TypeCheck.Base 
+import Cogent.TypeCheck.Base
 import qualified Cogent.TypeCheck.Row as Row
-import Cogent.TypeCheck.Solver.Goal 
+import Cogent.TypeCheck.Solver.Goal
 import Cogent.TypeCheck.Solver.Monad
 import qualified Cogent.TypeCheck.Solver.Rewrite as Rewrite
 
@@ -47,7 +47,7 @@ equate = Rewrite.withTransform findEquatable (pure . map toEquality)
          allOthers = (if not (null sups) then subs else []) ++ others
       in guard (not (null allEqs)) >> pure (allEqs, allOthers)
 
-    toEquality :: Goal -> Goal 
+    toEquality :: Goal -> Goal
     toEquality (Goal c (a :< b)) = Goal c $ a :=: b
     toEquality c = c
 
