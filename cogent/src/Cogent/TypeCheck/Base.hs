@@ -607,7 +607,6 @@ rigid _ = True
 --
 
 isTypeLayoutExprCompatible :: NamedDataLayouts -> TCType -> DataLayoutExpr -> Bool
-isTypeLayoutExprCompatible _ _ _ = True
 isTypeLayoutExprCompatible env t@(T (TCon n [] Unboxed)) (DLPrim rs) =
   let s  = evalSize rs
       s' = (case n of
