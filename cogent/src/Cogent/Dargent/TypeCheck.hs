@@ -35,11 +35,6 @@ import Data.Bifunctor (second)
 
 import Text.Parsec.Pos (SourcePos)
 
--- TODO(dargent): parameterise this somehow
-dargentPointerSize :: DataLayoutSize
-dargentPointerSize = Bits 64
-
-
 {- * Important exported functions -}
 
 -- | Checks that the layout structure is valid
@@ -116,7 +111,7 @@ typeCheckDataLayoutExpr env (DLVariant tagExpr alternatives) = do
     primitiveBitRange _                    = Nothing
 
 
-typeCheckDataLayoutExpr env DLPtr = ([], [(BitRange (desugarSize dargentPointerSize) 0, PathEnd)])
+typeCheckDataLayoutExpr env DLPtr = ([], [(BitRange (desugarSize . Bits $ pointerSizeBits) 0, PathEnd)])
 
 {-
 -- TODO: this will be complicated code because it works on the Surface type syntax rather than the core
