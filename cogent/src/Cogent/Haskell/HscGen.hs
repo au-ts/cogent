@@ -48,7 +48,7 @@ ffiHsc :: String
        -> String
        -> Doc
 ffiHsc name cnames ctys cenums absts fclsts log =
-  text "{-" P.<$> text log P.<$> text "-}" P.<$> 
+  text "{-" P.<$> text log P.<$> text "-}" P.<$>
   pretty (hscModule name cnames ctys cenums absts fclsts)
 
 hscModule :: String
@@ -71,7 +71,7 @@ hscModule name cnames ctys cenums absts fclsts =
                                          , "DuplicateRecordFields"
                                          , "ForeignFunctionInterface"
                                          , "GeneralizedNewtypeDeriving" ]
-        imports = map Hsc.HsDecl 
+        imports = map Hsc.HsDecl
                     [ Hsc.ImportDecl "Foreign" False Nothing [] []
                     , Hsc.ImportDecl "Foreign.Ptr" False Nothing [] []
                     , Hsc.ImportDecl "Foreign.C.String" False Nothing [] []
@@ -143,7 +143,7 @@ hscTypeDefs (tn, insts) = flip L.map (S.toList insts) $ \ts ->
     let tn' = toHscName $ tn ++ "_" ++ L.intercalate "_" ts
         ty  = TyCon (toHscName tn) (map (flip TyCon [] . trim) ts)
      in HsDecl (TypeDecl tn' [] ty)
-  where 
+  where
         -- This function is very hacky! / zilinc
         trim [] = __impossible "trim: empty constructor name"
         trim n@('u':n':_) | isNumber n' = toHscName n  -- primitive types

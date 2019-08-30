@@ -1,4 +1,4 @@
-module Cogent.TypeCheck.Errors where 
+module Cogent.TypeCheck.Errors where
 
 import Cogent.TypeCheck.Solver.Goal
 import Cogent.TypeCheck.Base

@@ -60,7 +60,7 @@ dependencies (TypeDec _ _ t) = map TypeName (fcT (stripLocT t))
 dependencies (AbsTypeDec _ _ ts) = map TypeName (foldMap (fcT . stripLocT) ts)
                                 ++ map ValName  (foldMap (fvT . stripLocT) ts)
 dependencies (DocBlock _) = []
-dependencies (RepDef (DataLayoutDecl _ _ e)) = map RepName (allRepRefs e) 
+dependencies (RepDef (DataLayoutDecl _ _ e)) = map RepName (allRepRefs e)
 dependencies (AbsDec _ pt) = map TypeName (foldMap (fcT . stripLocT) pt)
                           ++ map ValName  (foldMap (fvT . stripLocT) pt)
 dependencies (FunDef _ pt as) = map TypeName (foldMap (fcT . stripLocT) pt
@@ -74,7 +74,7 @@ classify :: [(SourcePos, DocString, TopLevel LocType LocPatn LocExpr)]
          -> [(SourceObject, (SourcePos, DocString, TopLevel LocType LocPatn LocExpr))]
 classify = map (\px -> (sourceObject (thd3 px), px))
 
-sourceObject :: TopLevel LocType LocPatn LocExpr -> SourceObject 
+sourceObject :: TopLevel LocType LocPatn LocExpr -> SourceObject
 sourceObject (Include _)        = __impossible "sourceObject (in classify)"
 sourceObject (IncludeStd _)     = __impossible "sourceObject (in classify)"
 sourceObject (DocBlock s)       = DocBlock' s
@@ -90,14 +90,14 @@ prune :: [SourceObject]  -- a list of entry-points
       -> [SourceObject]  -- a list of 'k's that will be included
 prune es m = flip execState builtins $ forM_ es
                                      $ flip go
-                                     $ map (\(k,_,ks) -> (k,ks)) m 
+                                     $ map (\(k,_,ks) -> (k,ks)) m
   where
     builtins = [ TypeName "U8"
                , TypeName "U16"
                , TypeName "U32"
                , TypeName "U64"
                , TypeName "Bool"
-               , TypeName "String" 
+               , TypeName "String"
                ]
     go :: SourceObject -> [(SourceObject, [SourceObject])] -> State [SourceObject] ()
     go k m = do s <- get

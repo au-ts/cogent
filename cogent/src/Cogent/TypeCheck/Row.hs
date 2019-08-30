@@ -37,9 +37,9 @@ module Cogent.TypeCheck.Row
     mapEntries
   , take
   , put
-  , takeMany 
+  , takeMany
   , putMany
-  , takeAll 
+  , takeAll
   , putAll
   , -- * Row Union and Combination
     -- ** Row Union
@@ -187,7 +187,7 @@ mapEntries func (Row m e) = Row (fmap func m) e
 take :: FieldName -> Row t -> Row t
 take f (Row m e) = Row (M.adjust (\(f, (t, _)) -> (f, (t, Left True))) f m) e
 
-takeMany :: [FieldName] -> Row t -> Row t 
+takeMany :: [FieldName] -> Row t -> Row t
 takeMany fs r = foldr take r fs
 
 takeAll :: Row t -> Row t 
@@ -197,7 +197,7 @@ takeAll (Row m e) = Row (fmap (fmap (fmap (const $ Left True))) m) e
 put :: FieldName -> Row t -> Row t
 put f (Row m e) = Row (M.adjust (\(f, (t, _)) -> (f, (t, Left False))) f m) e
 
-putMany :: [FieldName] -> Row t -> Row t 
+putMany :: [FieldName] -> Row t -> Row t
 putMany fs r = foldr put r fs
 
 putAll :: Row t -> Row t 

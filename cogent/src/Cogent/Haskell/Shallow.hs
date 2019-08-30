@@ -437,7 +437,7 @@ decTypeStr (RecordStr fs) = do
 #if MIN_VERSION_haskell_src_exts(1,20,0)
               [Deriving () Nothing [irule]]
 #else
-              (Just (Deriving () [irule])) 
+              (Just (Deriving () [irule]))
 #endif
   tell $ WriterGen [dec]
   return tn
@@ -451,7 +451,7 @@ decTypeStr (VariantStr tags) = do
 #if MIN_VERSION_haskell_src_exts(1,20,0)
               [Deriving () Nothing [irule]]
 #else
-              (Just (Deriving () [irule])) 
+              (Just (Deriving () [irule]))
 #endif
   tell $ WriterGen [dec]
   return tn
@@ -773,7 +773,7 @@ mkLetE bs e =
 -- misc. helpers
 
 tyVars :: Type () -> [Name ()]
-tyVars = nub . everything (++) ([] `mkQ` go) 
+tyVars = nub . everything (++) ([] `mkQ` go)
   where
     go (TyVar () n) = [n]
     go t = []

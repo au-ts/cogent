@@ -239,7 +239,7 @@ deepDefinitions mod ta defs = foldr (deepDefinition mod ta defs) [] defs ++
         cogentFuns [] = []
         cogentFuns (FunDef _ fn _ _ _ _ : fns) = fn : cogentFuns fns
         cogentFuns (_ : fns) = cogentFuns fns
-        
+
         showStrings :: [String] -> String
         showStrings [] = ""
         showStrings [x] = "\"" ++ x ++ "\""

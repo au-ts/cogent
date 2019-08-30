@@ -239,7 +239,7 @@ whenM b ma = if b then ma else return mempty
 whenMM :: (Monad m, Monoid a) => m Bool -> m a -> m a
 whenMM mb ma = mb >>= flip whenM ma
 
--- modified version of `nubByM' stolen from 
+-- modified version of `nubByM' stolen from
 -- <http://hackage.haskell.org/package/monadlist-0.0.2/docs/src/Control-Monad-ListM.html#nubByM>
 nubByM :: (Monad m) => (a -> a -> m Bool) -> [a] -> m [a]
 nubByM f [] = return []
@@ -269,17 +269,17 @@ fmapFoldM :: (Monoid m, Traversable t, Monad f) => (a -> f (m, b)) -> t a -> f (
 fmapFoldM f = foldMapM ((fst <$>) . f) /|\ traverse ((snd <$>) . f)
   where
    (/|\) :: Monad m => (a -> m b) -> (a -> m c) -> a -> m (b,c)
-   (f /|\ g) a = (,) <$> f a <*> g a 
+   (f /|\ g) a = (,) <$> f a <*> g a
 
 foldMapM :: (Monoid m, Foldable t, Monad f) => (a -> f m) -> t a -> f m
 foldMapM f x = foldrM f' mempty x
   where f' a b = mappend <$> f a <*> return b
 
 mapAccumLM :: (Monad m) => (a -> b -> m (a,c)) -> a -> [b] -> m (a, [c])
-mapAccumLM f a (x:xs) = do 
+mapAccumLM f a (x:xs) = do
     (a',c) <- f a x
     fmap (c:) <$> mapAccumLM f a' xs
-mapAccumLM f a [] = pure (a, []) 
+mapAccumLM f a [] = pure (a, [])
 
 -- adapted from <http://hackage.haskell.org/package/hydrogen-0.3.0.0/docs/src/H-Util.html#unionWithM>
 unionWithKeyM :: (Ord k, Monad m) => (k -> a -> a -> m a) -> M.Map k a -> M.Map k a -> m (M.Map k a)

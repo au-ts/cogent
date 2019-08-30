@@ -135,7 +135,7 @@ instance Monoid Likelihood where
   mappend Likely   Unlikely = Regular
   mappend Likely   _        = Likely
   mappend Regular  l        = l
-#else 
+#else
 instance Semigroup Likelihood where
   (<>) Unlikely Likely   = Regular
   (<>) Unlikely _        = Unlikely
@@ -158,7 +158,7 @@ data CustTyGenInfo = CTGI  deriving (Show, Generic) -- TODO: info like field map
 instance Binary CustTyGenInfo
 
 -- ex1 :: M.Map (Type 'Zero) (String, CustTypeGenInfo)
--- ex1 = M.singleton (TRecord [("f1", (TCon "A" [] Unboxed, False)), 
+-- ex1 = M.singleton (TRecord [("f1", (TCon "A" [] Unboxed, False)),
 --                             ("f2", (TCon "B" [] Unboxed, False)),
 --                             ("f3", (TCon "C" [] Writable, False))] Writable) ("T_c_t", CTGI)
 
