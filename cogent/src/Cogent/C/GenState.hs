@@ -155,7 +155,7 @@ newtype Gen v a = Gen { runGen :: RWS (GenRead v) () GenState a }
 
 genTyDecl :: (StrlType, CId) -> [TypeName] -> [CExtDecl]
 genTyDecl (Record x, n) _ = [CDecl $ CStructDecl n (map (second Just . swap) x), genTySynDecl (n, CStruct n)]
-genTyDecl (BoxedRecord (StrlCogentType (TRecord _ (Boxed _ layout))), n) _ =
+genTyDecl (RecordL layout, n) _ =
   let size      = dataLayoutSizeBytes layout
       arrayType = CArray (CInt False CIntT) (CArraySize $ CConst $ CNumConst size (CInt False CIntT) DEC)
   in
@@ -174,7 +174,7 @@ genTyDecl (Function t1 t2, n) tns =
   where fty = if __cogent_funtyped_func_enum then untypedFuncEnum else unitT
 #ifdef BUILTIN_ARRAYS
 genTyDecl (Array t ms, n) _ = [CDecl $ CVarDecl t n True Nothing]
-genTyDecl (BoxedArray (StrlCogentType (TArray _ _ (Boxed _ layout))) _, n) _ = [genTySynDecl (n, CPtr (CInt False CCharT))]  -- always @uint8_t*@
+genTyDecl (ArrayL _ _, n) _ = [genTySynDecl (n, CPtr (CInt False CCharT))]  -- always @uint8_t*@
 #endif
 genTyDecl (AbsType x, n) _ = [CMacro $ "#include <abstract/" ++ x ++ ".h>"]
 
@@ -228,14 +228,14 @@ lookupTypeCId (TFun t1 t2) = getCompose (Compose . lookupStrlTypeCId =<< Functio
 lookupTypeCId (TRecord fs Unboxed) =
   getCompose (Compose . lookupStrlTypeCId =<<
     Record <$> (mapM (\(a,(b,_)) -> (a,) <$> (Compose . lookupType) b) fs))
-lookupTypeCId cogentType@(TRecord _ (Boxed _ (Layout RecordLayout{}))) = lookupStrlTypeCId (BoxedRecord (StrlCogentType cogentType))
-lookupTypeCId cogentType@(TRecord fs (Boxed _ CLayout)) =
+lookupTypeCId (TRecord _  (Boxed _ l@(Layout RecordLayout {}))) = lookupStrlTypeCId (RecordL l)
+lookupTypeCId (TRecord fs (Boxed _ CLayout)) =
   getCompose (Compose . lookupStrlTypeCId =<<
     Record <$> (mapM (\(a,(b,_)) -> (a,) <$> (Compose . lookupType) b) fs))
 lookupTypeCId cogentType@(TRecord _ (Boxed _ _)) = __impossible "lookupTypeCId: record with non-record layout"
 #ifdef BUILTIN_ARRAYS
-lookupTypeCId (TArray t l Unboxed) = getCompose (Compose . lookupStrlTypeCId =<< Array <$> (Compose . lookupType) t <*> pure (Just $ fromIntegral l))
-lookupTypeCId (TArray t l (Boxed _ _)) = lookupStrlTypeCId (BoxedArray (StrlCogentType t) (fromIntegral l))
+lookupTypeCId (TArray t n Unboxed) = getCompose (Compose . lookupStrlTypeCId =<< Array <$> (Compose . lookupType) t <*> pure (Just $ fromIntegral n))
+lookupTypeCId (TArray t n (Boxed _ l)) = lookupStrlTypeCId (ArrayL l (Just $ fromIntegral n))
 #endif
 lookupTypeCId t = Just <$> typeCId t
 
@@ -287,9 +287,9 @@ typeCId t = use custTypeGen >>= \ctg ->
     typeCId' (TSum fs) = getStrlTypeCId =<< Variant . M.fromList <$> mapM (secondM genType . second fst) fs
     typeCId' (TFun t1 t2) = getStrlTypeCId =<< Function <$> genType t1 <*> genType t2  -- Use the enum type for function dispatching
     typeCId' (TRecord fs Unboxed) = getStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs)
-    typeCId' cogentType@(TRecord fs (Boxed _ l)) =
+    typeCId' (TRecord fs (Boxed _ l)) =
       case l of
-        Layout RecordLayout{} -> getStrlTypeCId (BoxedRecord (StrlCogentType cogentType))
+        Layout RecordLayout {} -> getStrlTypeCId (RecordL l)
         CLayout -> getStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs)
         _ -> __impossible "Tried to get the c-type of a record with a non-record layout"
     typeCId' (TUnit) = return unitT
