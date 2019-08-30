@@ -350,9 +350,10 @@ infer (E (ALit es))
 infer (E (ArrayIndex arr idx))
    = do arr'@(TE ta _) <- infer arr
         let TArray te l _ = ta
-        guardShow ("arr-idx out of bound") $ idx >= 0 && idx < l
+        idx' <- infer idx
+        -- guardShow ("arr-idx out of bound") $ idx >= 0 && idx < l  -- no way to check it. need ref types. / zilinc
         guardShow ("arr-idx on non-linear") . canShare =<< kindcheck ta
-        return (TE te (ArrayIndex arr' idx))
+        return (TE te (ArrayIndex arr' idx'))
 infer (E (ArrayMap2 (as,f) (e1,e2)))
    = do e1'@(TE t1 _) <- infer e1
         e2'@(TE t2 _) <- infer e2

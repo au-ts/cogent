@@ -397,10 +397,11 @@ genExpr mv (TE t (ALit es)) = do
   return (variable v, vdecl ++ concat vdecls, vstm ++ concat vstms, M.empty)
 
 genExpr mv (TE t (ArrayIndex e i)) = do  -- FIXME: varpool - as above
-  (e',decl,stm,ep) <- genExpr_ e
+  (e',edecl,estm,ep) <- genExpr_ e
+  (i',idecl,istm,ep) <- genExpr_ i
   t' <- genType t
-  (v,adecl,astm,vp) <- maybeAssign t' mv (mkArrIdx e' i) ep
-  return (v, decl++adecl, stm++astm, vp)
+  (v,adecl,astm,vp) <- maybeAssign t' mv (CArrayDeref e' i') ep
+  return (v, edecl++idecl++adecl, estm++istm++astm, vp)
 
 genExpr mv (TE t (ArrayMap2 (_,f) (e1,e2))) = do  -- FIXME: varpool - as above
   (e1',e1decl,e1stm,e1p) <- genExpr_ e1
