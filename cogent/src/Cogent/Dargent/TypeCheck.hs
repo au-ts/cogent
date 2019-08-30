@@ -50,18 +50,18 @@ typeCheckDargentLayoutExpr n (Just l) = second Just $ typeCheckDataLayoutExpr n 
 
 typeCheckDataLayoutExpr :: NamedDataLayouts -> DataLayoutExpr -> ([DataLayoutTypeCheckError], Allocation)
 typeCheckDataLayoutExpr env (DLRepRef n) =
-  case M.lookup n env of 
+  case M.lookup n env of
     Just (_, allocation) -> mapPaths (InDecl n) $ return allocation
     Nothing              -> returnError $ UnknownDataLayout n PathEnd
-        
+
 typeCheckDataLayoutExpr _ (DLPrim size) = return [(bitRange, PathEnd)]
   where
     bitSize = desugarSize size
     bitRange = BitRange bitSize 0
-  
+
 typeCheckDataLayoutExpr env (DLOffset dataLayoutExpr offsetSize) =
   offset (evalSize offsetSize) <$> typeCheckDataLayoutExpr env (DL dataLayoutExpr)
-    
+
 typeCheckDataLayoutExpr env (DLRecord fields) =
   let (errs, alloc) = foldM typeCheckField [] fields
   in if isZeroSizedAllocation alloc
@@ -72,7 +72,7 @@ typeCheckDataLayoutExpr env (DLRecord fields) =
       :: Allocation -- The accumulated allocation from previous alternatives
       -> (FieldName, SourcePos, DataLayoutExpr)
       -> ([DataLayoutTypeCheckError], Allocation)
-        
+
     typeCheckField accumAlloc (fieldName, pos, dataLayoutExpr) = do
       fieldsAlloc <- mapPaths (InField fieldName pos) (typeCheckDataLayoutExpr env dataLayoutExpr)
       accumAlloc /\ fieldsAlloc
@@ -90,11 +90,11 @@ typeCheckDataLayoutExpr env (DLVariant tagExpr alternatives) = do
       -> (Allocation, Map Size TagName)  -- The accumulated (allocation, set of used tag values) from already evaluated alternatives
       -> (TagName, SourcePos, Size, DataLayoutExpr) -- The alternative to evaluate
       -> ([DataLayoutTypeCheckError], (Allocation, Map Size TagName))
-      
+
     typeCheckAlternative range (accumAlloc, accumTagValues) (tagName, pos, tagValue, dataLayoutExpr) = do
       alloc     <- (accumAlloc ++) <$> mapPaths (InAlt tagName pos) (typeCheckDataLayoutExpr env dataLayoutExpr)
       tagValues <- checkedTagValues
-      return $ (alloc, tagValues) 
+      return $ (alloc, tagValues)
       where
         checkedTagValues :: ([DataLayoutTypeCheckError], Map Size TagName)
         checkedTagValues
@@ -141,7 +141,7 @@ normaliseDataLayoutExpr
   -> DataLayoutExpr
 
 normaliseDataLayoutExpr env (DLRepRef n) =
-  case M.lookup n env of 
+  case M.lookup n env of
     Just (expr, _) -> normaliseDataLayoutExpr env expr
     Nothing        -> __impossible $ "normaliseDataLayoutExpr (RepRef " ++ show n ++ " already known to exist)"
 normaliseDataLayoutExpr env (DLRecord fields) =
@@ -173,16 +173,16 @@ data DataLayoutPath
 data DataLayoutTypeCheckErrorP p
   = OverlappingBlocks       (BitRange, p) (BitRange, p)
     -- ^ Have declared two overlapping bit ranges which shouldn't overlap
-    
+
   | UnknownDataLayout       DataLayoutName p
     -- ^ Have referenced a data layout which hasn't been declared
     -- The path is the path to the use of that Rep in the DataLayoutExpr being checked
-    
+
   | TagNotSingleBlock       p
-  
+
   | SameTagValues           p TagName TagName Size
     -- ^ Path to two tags in the same variant and their common value
-    
+
   | OversizedTagValue       p BitRange TagName Size
     -- ^ Used a tag value which is too large to fit in the variant's tag bit range
     -- Path to the variant, bits for its bit range, name of the alternative, it's tag value
@@ -285,12 +285,12 @@ a1 /\ a2 =
       pair2@(block2, _) <- b
       guard $ overlaps block1 block2
       return $ OverlappingBlocks pair1 pair2
-     
+
 overlaps :: BitRange -> BitRange -> Bool
 overlaps (BitRange s1 o1) (BitRange s2 o2) =
   s1 > 0 &&
   s2 > 0 &&
-  ((o1 >= o2 && o1 < (o2 + s2)) || 
+  ((o1 >= o2 && o1 < (o2 + s2)) ||
    (o2 >= o1 && o2 < (o1 + s1)))
 
 mapOntoPaths
@@ -307,3 +307,4 @@ mapPaths f (errors, alloc) = (fmap (fmap f) errors, mapOntoPaths f alloc)
 
 instance Offsettable Allocation where
   offset n = fmap $ \(range, path) -> (offset n range, path)
+

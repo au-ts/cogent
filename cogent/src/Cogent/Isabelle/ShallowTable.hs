@@ -80,7 +80,7 @@ getStrlType tsmap table (TRecord fs s) =
   in case M.lookup tstr tsmap of
     Nothing ->
       let idx = findIndex tstr table
-      in TCon ('T':show idx) tps (__fixme (const () <$> s)) 
+      in TCon ('T':show idx) tps (__fixme (const () <$> s))
         -- The DataLayout is not included in shallow embeddings /mdimeglio zilinc
     Just tn ->
       TCon tn tps (__fixme (const () <$> s))

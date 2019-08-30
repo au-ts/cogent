@@ -15,7 +15,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE NamedFieldPuns #-}
 module Cogent.Dargent.Core where
-  
+
 import Data.Map (Map)
 
 import Text.Parsec.Pos (SourcePos)
@@ -117,7 +117,7 @@ isZeroSizedBR BitRange { bitSizeBR, bitOffsetBR } = (bitSizeBR == 0)
 --
 --  @
 --  HI                                                             LO
---  64                      40                   19                 0 
+--  64                      40                   19                 0
 --  +-------+-------+-------+-------+-------+----+--+-------+-------+
 --  |HI      Range 2      LO|HI    Range 1     LO|HI    Range 0   LO|
 --  +-------+-------+-------+-------+-------+----+--+-------+-------+
@@ -166,7 +166,7 @@ primBitRange primInt = BitRange { bitSizeBR = primIntSizeBits primInt, bitOffset
 
 pointerBitRange :: BitRange
 pointerBitRange = BitRange { bitSizeBR = pointerSizeBits, bitOffsetBR = 0 }
-  
+
 {- * Word alignment transformations -}
 
 alignSize :: Size -> Size -> Size
@@ -176,7 +176,7 @@ alignSize toMultipleOf size =
 -- | Aligns an 'Offsettable' (assumed to initially have offset 0)
 --   so that its new offset is the smallest offset which is at least 'minBitOffset'
 --   and aligned to a multiple of 'alignBitSize'
---   
+--
 --   That is:
 --
 -- @
@@ -193,11 +193,11 @@ rangeToAlignedRanges
   :: BitRange
     -- Assumes 'bitSizeBR range >= 1'. If 'bitSizeBR range == 0', will return '[]'.
   -> [AlignedBitRange]
-rangeToAlignedRanges (BitRange size offset) = 
+rangeToAlignedRanges (BitRange size offset) =
   let
     offsetWords = offset `div` wordSizeBits
     offsetBits  = offset `mod` wordSizeBits
-  in 
+  in
     rangeToAlignedRanges' offsetWords offsetBits size
   where
     rangeToAlignedRanges' :: Size -> Size -> Size -> [AlignedBitRange]
@@ -224,7 +224,7 @@ alignLayout = fmap rangeToAlignedRanges
 -- as well as the allocation corresponding to that repExpr.
 class Offsettable a where
   offset :: Size -> a -> a
-  
+
 instance Offsettable BitRange where
   offset n range@(BitRange { bitOffsetBR }) = range { bitOffsetBR = bitOffsetBR + n}
 

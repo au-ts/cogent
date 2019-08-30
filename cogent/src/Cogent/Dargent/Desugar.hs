@@ -78,7 +78,7 @@ desugarSigil
   -> Sigil (Maybe DataLayoutExpr)
       -- ^ Since desugarSigil is only called for normalising boxed records (and later, boxed variants),
       --   the @Maybe DataLayoutExpr@ should always be in the @Just layout@ alternative.
-  
+
   -> Sigil (DataLayout BitRange)
 
 desugarSigil t = fmap desugarMaybeLayout
@@ -99,21 +99,21 @@ desugarDataLayout l = Layout $ desugarDataLayout' l
       , bitSize > 0
         = PrimLayout (BitRange bitSize 0)
       | otherwise = UnitLayout
-    
+
     desugarDataLayout' (DLOffset dataLayoutExpr offsetSize) =
       offset (desugarSize offsetSize) (desugarDataLayout' (DL dataLayoutExpr))
-    
+
     desugarDataLayout' (DLRecord fields) =
       RecordLayout $ M.fromList fields'
       where fields' = fmap (\(fname, pos, layout) -> (fname, (desugarDataLayout' layout, pos))) fields
-    
+
     desugarDataLayout' (DLVariant tagExpr alts) =
       SumLayout tagBitRange $ M.fromList alts'
       where
         tagBitRange = case desugarDataLayout' (DL tagExpr) of
           PrimLayout range -> range
           _                -> __impossible $ "desugarDataLayout (Called after typecheck, tag layouts known to be single range)"
-    
+
         alts' = fmap (\(aname, pos, size, layout) -> (aname, (size, desugarDataLayout' layout, pos))) alts
 
 {- * CONSTRUCTING 'DataLayout's -}

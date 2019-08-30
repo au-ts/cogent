@@ -10,7 +10,7 @@
 -- @TAG(DATA61_GPL)
 --
 
-module Cogent.TypeCheck.Solver.Simplify where 
+module Cogent.TypeCheck.Solver.Simplify where
 
 import           Control.Applicative
 import           Control.Monad
@@ -24,9 +24,9 @@ import           Lens.Micro
 
 import           Cogent.Common.Syntax
 import           Cogent.Common.Types
-import           Cogent.TypeCheck.Base 
+import           Cogent.TypeCheck.Base
 import qualified Cogent.TypeCheck.Row as Row
-import           Cogent.TypeCheck.Solver.Goal 
+import           Cogent.TypeCheck.Solver.Goal
 import           Cogent.TypeCheck.Solver.Monad
 import qualified Cogent.TypeCheck.Solver.Rewrite as Rewrite
 import           Cogent.Surface
@@ -38,21 +38,21 @@ unsat :: TypeError -> Maybe [Constraint]
 unsat x = Just [Unsat x]
 
 elseDie :: Bool -> TypeError -> Maybe [Constraint]
-elseDie b e = (guard b >> Just []) <|> unsat e 
+elseDie b e = (guard b >> Just []) <|> unsat e
 
 simplify :: [(TyVarName, Kind)] -> Rewrite.Rewrite [Goal]
-simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of 
+simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
   Sat      -> Just []
   c1 :& c2 -> Just [c1,c2]
 
-  Drop   t@(T (TVar v False False)) m
-    | Just k <- lookup v axs -> 
+  Drop   t@(T (TVar v False)) m
+    | Just k <- lookup v axs ->
         canDiscard k `elseDie` TypeNotDiscardable t m
-  Share  t@(T (TVar v False False)) m
-    | Just k <- lookup v axs -> 
+  Share  t@(T (TVar v False)) m
+    | Just k <- lookup v axs ->
         canShare k   `elseDie` TypeNotShareable t m
-  Escape t@(T (TVar v False False)) m
-    | Just k <- lookup v axs -> 
+  Escape t@(T (TVar v False)) m
+    | Just k <- lookup v axs ->
         canEscape k  `elseDie` TypeNotEscapable t m
 
   Drop     (T (TVar v b u)) m | b || u -> Just []
@@ -104,13 +104,13 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
   Exhaustive t ps | any isIrrefutable ps -> Just []
   Exhaustive (V r) []
     | isNothing (Row.var r) ->
-      null (Row.untakenTypes r) 
-        `elseDie` PatternsNotExhaustive (V r) (Row.untakenLabels r) 
-  Exhaustive (V r) (RP (PCon t _):ps) 
-    | isNothing (Row.var r) -> 
+      null (Row.untakenTypes r)
+        `elseDie` PatternsNotExhaustive (V r) (Row.untakenLabels r)
+  Exhaustive (V r) (RP (PCon t _):ps)
+    | isNothing (Row.var r) ->
       Just [Exhaustive (V (Row.take t r)) ps]
-  
-  Exhaustive tau@(T (TCon "Bool" [] Unboxed)) [RP (PBoolLit t), RP (PBoolLit f)] 
+
+  Exhaustive tau@(T (TCon "Bool" [] Unboxed)) [RP (PBoolLit t), RP (PBoolLit f)]
     -> (not (t && f) && (t || f)) `elseDie` PatternsNotExhaustive tau []
 
   Upcastable (T (TCon n [] Unboxed)) (T (TCon m [] Unboxed))
@@ -129,7 +129,7 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
   Solved t | isSolved t -> Just []
 
   IsPrimType (T (TCon x _ Unboxed)) | x `elem` primTypeCons -> Just []
-  
+
   T (TFun t1 t2) :=: T (TFun r1 r2) -> Just [r1 :=: t1, t2 :=: r2]
   T (TFun t1 t2) :<  T (TFun r1 r2) -> Just [r1 :<  t1, t2 :<  r2]
 
@@ -138,7 +138,7 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
 
   V r1 :< V r2 | Row.null r1 && Row.null r2 -> Just []
                | Just (r1',r2') <- extractVariableEquality r1 r2 -> Just [V r1' :=: V r2']
-               | otherwise -> do 
+               | otherwise -> do
     let commons  = Row.common r1 r2
         (ls, rs) = unzip commons
     guard (not (null commons))
@@ -147,9 +147,9 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
         cs = map (\ ((_, e),(_,e')) -> fst e :< fst e') commons
         c   = V r1' :< V r2'
     Just (c:cs)
-    
+
   V r1 :=: V r2 | Row.null r1 && Row.null r2 -> Just []
-                | otherwise -> do 
+                | otherwise -> do
     let commons  = Row.common r1 r2
         (ls, rs) = unzip commons
     guard (not (null commons))
@@ -207,7 +207,7 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
 
 -- | Returns 'True' iff the given argument type is not subject to subtyping. That is, if @a :\< b@
 --   (subtyping) is equivalent to @a :=: b@ (equality), then this function returns true.
-unorderedType :: Type e t -> Bool 
+unorderedType :: Type e t -> Bool
 unorderedType (TCon {}) = True
 unorderedType (TVar {}) = True
 unorderedType (TUnit)   = True

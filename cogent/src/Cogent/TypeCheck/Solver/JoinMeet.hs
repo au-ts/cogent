@@ -10,7 +10,7 @@
 -- @TAG(DATA61_GPL)
 --
 
-  
+
 {-# LANGUAGE FlexibleContexts #-}
 
 module Cogent.TypeCheck.Solver.JoinMeet (joinMeet) where

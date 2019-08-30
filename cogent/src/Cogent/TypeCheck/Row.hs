@@ -11,7 +11,7 @@
 --
 {-# LANGUAGE FlexibleContexts, DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
 module Cogent.TypeCheck.Row
-  ( Row (..) 
+  ( Row (..)
   , -- * Constructors
     fromList
   , fromMap
@@ -36,9 +36,9 @@ module Cogent.TypeCheck.Row
     mapEntries
   , take
   , put
-  , takeMany 
+  , takeMany
   , putMany
-  , takeAll 
+  , takeAll
   , putAll
   , -- * Row Union and Combination
     -- ** Row Union
@@ -163,20 +163,20 @@ mapEntries func (Row m e) = Row (fmap func m) e
 take :: FieldName -> Row t -> Row t
 take f (Row m e) = Row (M.adjust (\(f, (t, _)) -> (f, (t, True))) f m) e
 
-takeMany :: [FieldName] -> Row t -> Row t 
+takeMany :: [FieldName] -> Row t -> Row t
 takeMany fs r = foldr take r fs
 
-takeAll :: Row t -> Row t 
+takeAll :: Row t -> Row t
 takeAll (Row m e) = Row (fmap (fmap (fmap (const True))) m) e
 
 -- | Given a field name, unmark is as taken in the row (if it exists).
 put :: FieldName -> Row t -> Row t
 put f (Row m e) = Row (M.adjust (\(f, (t, _)) -> (f, (t, False))) f m) e
 
-putMany :: [FieldName] -> Row t -> Row t 
+putMany :: [FieldName] -> Row t -> Row t
 putMany fs r = foldr put r fs
 
-putAll :: Row t -> Row t 
+putAll :: Row t -> Row t
 putAll (Row m e) = Row (fmap (fmap (fmap (const False))) m) e
 -- | Returns true iff the field is taken in the given row.
 takenIn :: FieldName -> Row t -> Bool
