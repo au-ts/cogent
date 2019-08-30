@@ -193,11 +193,14 @@ infixr 3 ***^^
 (***^^) :: Applicative f => (a -> f a') -> (b -> f b') -> (a, b) -> f (a', b')
 (***^^) fa fb (x,y) = (,) <$> fa x <*> fb y
 
+both :: (a -> b) -> (a, a) -> (b, b)
+both = (Lens.Micro.both %~)
+
 bothM :: Applicative f => (a -> f a') -> (a, a) -> f (a', a')
 bothM f (a, b) = (,) <$> f a <*> f b
 
 first3 :: (a -> a') -> (a, b, c) -> (a', b, c)
-first3 =  (_1 %~)
+first3 = (_1 %~)
 
 second3 :: (b -> b') -> (a, b, c) -> (a, b', c)
 second3 = (_2 %~)
