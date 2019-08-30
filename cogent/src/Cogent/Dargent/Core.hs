@@ -16,6 +16,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 module Cogent.Dargent.Core where
 
+import Data.IntMap as IM hiding (foldr)
 import Data.Map (Map)
 
 import Text.Parsec.Pos (SourcePos)
@@ -46,6 +47,9 @@ data DataLayout' bits
   | RecordLayout
     { fieldsDL        :: Map FieldName (DataLayout' bits, SourcePos)
     }
+#ifdef BUILTIN_ARRAYS
+  | ArrayLayout (IntMap (DataLayout' bits)) SourcePos
+#endif
   deriving (Show, Eq, Functor, Foldable)
 
 deriving instance Ord bits => Ord (DataLayout' bits)
