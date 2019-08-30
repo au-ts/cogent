@@ -15,7 +15,7 @@
 
 module Cogent.Dargent.Surface
   ( module Cogent.Dargent.Surface
-  , DataLayoutExpr(DLPrim, DLRecord, DLVariant, DLOffset, DLRepRef)
+  , DataLayoutExpr(DLPrim, DLRecord, DLVariant, DLOffset, DLRepRef, DLPtr)
   )
 where
 
@@ -45,6 +45,7 @@ data DataLayoutExpr' e
   | Variant (DataLayoutExpr' e) [(TagName, SourcePos, Size, e)]
   | Offset  (DataLayoutExpr' e) DataLayoutSize
   | RepRef  RepName
+  | Ptr
   deriving (Show, Data, Eq, Ord)
 
 -- We use 'tying the knot' here so we can make single level layouts later
@@ -56,3 +57,4 @@ pattern DLRecord ps    = DL (Record ps)
 pattern DLVariant t ps = DL (Variant t ps)
 pattern DLOffset e s   = DL (Offset e s)
 pattern DLRepRef n     = DL (RepRef n)
+pattern DLPtr          = DL Ptr
