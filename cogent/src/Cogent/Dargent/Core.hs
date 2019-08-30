@@ -147,16 +147,17 @@ wordSizeBits :: Size
 wordSizeBits = 32
 
 
-data Architecture = X86_64 | X86_32
+data Architecture = X86_64 | X86_32 | ARM32
 
 architecture :: Architecture
-architecture = X86_64
+architecture = ARM32
 
 
 pointerSizeBits :: Size
 pointerSizeBits = case architecture of
   X86_32 -> 32
   X86_64 -> 64
+  ARM32  -> 32
 
 primIntSizeBits :: PrimInt -> Size
 primIntSizeBits U8      = 8
