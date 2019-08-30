@@ -636,7 +636,7 @@ desugarExpr (B.TE _ (S.StringLit s) _) = return $ E $ SLit s
 desugarExpr (B.TE _ (S.ArrayLit es) _) = E . ALit <$> mapM desugarExpr es
 desugarExpr (B.TE _ (S.ArrayIndex e i) _) = do
   e' <- desugarExpr e
-  i' <- evalAExpr i
+  i' <- desugarExpr i
   return $ E (ArrayIndex e' i')
 desugarExpr (B.TE _ (S.ArrayMap2 ((p1,p2), fbody) (e1,e2)) _) = do
   e1' <- desugarExpr e1
@@ -729,7 +729,7 @@ desugarExpr' (S.RE (S.StringLit s)) = return $ E $ SLit s
 desugarExpr' (S.RE (S.ArrayLit es)) = E . ALit <$> mapM desugarExpr' es
 desugarExpr' (S.RE (S.ArrayIndex e i)) = do
   e' <- desugarExpr' e
-  i' <- evalAExpr i
+  i' <- desugarExpr' i
   return $ E (ArrayIndex e' i')
 #endif
 desugarExpr' (S.RE (S.Upcast e)) = E <$> (Cast (TPrim U32) <$> desugarExpr' e)  -- FIXME: U32!!! / zilinc

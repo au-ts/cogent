@@ -269,15 +269,15 @@ cg' (ArrayIndex e i) t = do
   n <- freshEVar
   let ta = A alpha n (__fixme $ Left Unboxed)  -- FIXME: we need to create a new TCType for arrays / zilinc
   (ce, e') <- cg e ta
-  (ci, i') <- cg (dummyLocE i) (T $ TCon "U32" [] Unboxed)
+  (ci, i') <- cg i (T $ TCon "U32" [] Unboxed)
   let c = alpha :< t <> Share ta UsedInArrayIndexing
-        <> Arith (SE (PrimOp "<" [toSExpr i, n]))
+        <> Arith (SE (PrimOp "<" [toSExpr $ stripLocE i, n]))  -- FIXME!
         -- <> Arith (SE (PrimOp ">=" [toSExpr i, SE (IntLit 0)]))  -- as we don't have negative values
   traceTc "gen" (text "array indexing" <> colon
-                 L.<$> text "index is" <+> pretty i <> semi
+                 L.<$> text "index is" <+> pretty (stripLocE i) <> semi
                  L.<$> text "bound is" <+> pretty n <> semi
                  L.<$> text "generate constraint" <+> prettyC c)
-  return (ce <> ci <> c, ArrayIndex e' i)
+  return (ce <> ci <> c, ArrayIndex e' i')
 
 cg' (ArrayMap2 ((p1,p2), fbody) (arr1,arr2)) t = __fixme $ do  -- FIXME: more accurate constraints / zilinc
   alpha1 <- freshTVar
