@@ -111,7 +111,7 @@ typeCheckDataLayoutExpr env (DLVariant tagExpr alternatives) = do
     primitiveBitRange _                    = Nothing
 
 
-typeCheckDataLayoutExpr env DLPtr = ([], [(BitRange (desugarSize . Bits $ pointerSizeBits) 0, PathEnd)])
+typeCheckDataLayoutExpr env DLPtr = ([], [(pointerBitRange, PathEnd)])
 
 {-
 -- TODO: this will be complicated code because it works on the Surface type syntax rather than the core
