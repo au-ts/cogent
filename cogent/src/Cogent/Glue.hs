@@ -617,7 +617,7 @@ genFuncId fn loc = do
   case surfaceFn of
     SF.LocExpr _ (SF.TypeApp f ts _) -> return (f, ts)
     SF.LocExpr _ (SF.Var f)          -> return (f, [])
-    _ -> throwError $ "Error: `" ++ fn ++ 
+    _ -> throwError $ "Error: `" ++ fn ++
                       "' is not a valid function Id (with optional type arguments) in a $id antiquote"
 
 -- Type Id
@@ -661,7 +661,7 @@ traverseOneFunc fn d loc = do
       case L.find (SF.absFnDeclId fnName) defs of  -- function declared/defined in Cogent
         Nothing -> throwError $ "Error: Function `" ++ fn ++
                                 "' is not an abstract Cogent function and thus cannot be antiquoted"
-        Just tl -> do 
+        Just tl -> do
           let ts = tyVars tl
           -- Here we need to match the type argument given in the @.ac@ definition and the ones in the
           -- original Cogent definition, in order to decide which instantiations should be generated.
@@ -673,9 +673,9 @@ traverseOneFunc fn d loc = do
               -- NOTE: We now try to fill in missing type arguments, otherwise the typechecker might have
               -- difficulty in inferring the types. This is partially for backward compatibility reasons:
               -- For implicitly applied type arguments, if the typechecker cannot infer when you write
-              -- the same in a Cogent program, it won't infer in a @.ac@ file either. Unlike before, 
+              -- the same in a Cogent program, it won't infer in a @.ac@ file either. Unlike before,
               -- where we never typecheck them.
-              
+
               -- If the type arguments are omitted, we add them back
               let targs' = L.zipWith
                              (\tv mta -> Just $ fromMaybe (SF.dummyLocT . SF.RT $ SF.TVar tv False False) mta)
@@ -700,7 +700,7 @@ traverseOneFunc fn d loc = do
                     = __impossible "match (in traverseOneFunc): number of type arguments don't match"
                   -- We for now ignore 'TVarBang's, and treat them as not matching anything.
                   match (x:xs) (y:ys) = (unsafeCoerce x == y || CC.isTVar x) && match xs ys
-              let instantiations = if L.null ts then [([], Nothing)] 
+              let instantiations = if L.null ts then [([], Nothing)]
                                    else L.filter (\(ms,_) -> match coreTargs ms)
                                         $ L.map (second Just) (M.toList mp)
               traversals instantiations d

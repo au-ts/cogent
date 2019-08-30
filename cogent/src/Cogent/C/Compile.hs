@@ -535,7 +535,7 @@ genExpr mv (TE t (Take _ rec fld e)) = do
   --    * If __cogent_fintermediate_vars is False, then
   --       @f'@ directly evaluates to the value of the field being taken
   let fieldName = fst $ fs !! fld
-  fieldExpr <- case s of 
+  fieldExpr <- case s of
     Unboxed -> return $ strDot rec'' fieldName
     Boxed _ CLayout -> return $ strArrow rec'' fieldName
     Boxed _ _ -> do
@@ -569,7 +569,7 @@ genExpr mv (TE t (Put rec fld val)) = do
   (rec',recdecl,recstm,recp) <- genExpr_ rec
   (rec'',recdecl',recstm') <- declareInit t' rec' recp
   (val',valdecl,valstm,valp) <- genExpr_ val
-  
+
   let fieldName = fst $ fs!!fld
   (fdecl,fstm) <- case s of
     Unboxed -> assign fldt (strDot (variable rec'') fieldName) val'

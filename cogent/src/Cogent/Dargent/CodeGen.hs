@@ -429,8 +429,8 @@ ptrStructGetterSetter fields boxType embeddedType functionName getOrSet =
         CBIStmt $ CAssignFnCall Nothing fieldSetter [boxVariable, CStructDot (CDeref valueVariable) fieldName])
       fields
     )
-    
-    
+
+
 unitGetterSetter
   :: CType
      -- ^ The C type of the box.
@@ -523,7 +523,7 @@ composedAlignedRangeGetterSetter
   functionName
   getOrSet
   =
-  getterSetterDecl boxType embeddedType functionName getOrSet    
+  getterSetterDecl boxType embeddedType functionName getOrSet
     -- Get statements
     [ CBIStmt $ CReturn $ Just $ fromIntValue embeddedType $ snd $ foldl'
       (\ (accumulatedBitOffset, accumulatedExpr) (range, rangeGetterFunction) ->
@@ -588,7 +588,7 @@ composedAlignedRangeGetterSetter _ _ _ _ _ = __impossible $ "composedAlignedRang
 {-|
 Creates a C function to extract/set the contents of an
 AlignedBitRange from/in a Cogent boxed type.
-     
+
 @alignedRangeGetter boxType AlignedBitRange { bitSizeABR, bitOffsetABR, wordOffsetABR} functionNameIdentifier Get@
 should be the C function
 
@@ -607,8 +607,8 @@ static inline void set`functionNameIdentifier`(`boxType` p, unsigned int v) {
     = p->data[`wordOffsetABR`]
 
     // clear the bits
-    & ~(`sizeToMask bitSizeABR` << `bitOffsetABR`)) 
-    
+    & ~(`sizeToMask bitSizeABR` << `bitOffsetABR`))
+
     // set the bits
     | ((`sizeToMask bitSizeABR` & v) << `bitOffsetABR`);
 }
@@ -671,17 +671,17 @@ getterSetterDecl boxType embeddedType functionName Get getStatements _ =
 getterSetterDecl boxType embeddedType functionName Set _ setStatements =
   ( CFnDefn
     ( CVoid, functionName ) -- (return type, function name)
-    
+
     -- [(param type, param name)]
-    [ ( boxType, boxIdentifier ) 
+    [ ( boxType, boxIdentifier )
     , ( embeddedType, valueIdentifier )
     ]
-    
+
     setStatements
     staticInlineFnSpec
   )
 
- 
+
 -- * Auxilliary functions, definitions and constants
 
 

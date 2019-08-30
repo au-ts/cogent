@@ -34,7 +34,7 @@ import Text.PrettyPrint.ANSI.Leijen as L hiding (indent)
 import Lens.Micro
 import Lens.Micro.Mtl
 
-(%%=) :: MonadState s m => Lens s s a a -> (a -> (x, a)) -> m x  
+(%%=) :: MonadState s m => Lens s s a a -> (a -> (x, a)) -> m x
 (%%=) bit f = do
    st <- use bit
    let (x,b) = f st

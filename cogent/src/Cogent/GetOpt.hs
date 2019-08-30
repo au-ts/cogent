@@ -43,7 +43,7 @@ over 1100 lines, we need only 195 here, including a 46 line example!
 :-)
 -}
 
-{- 
+{-
 Copied from base, with minor modification made by Zilin Chen.
 The modification mainly adds support for verbosity levels to
 options, and differentiates commands and options.

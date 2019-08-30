@@ -62,7 +62,7 @@ checkDataLayout l = __fixme (True) -- TODO(dargent)
 matchesDataLayout' :: Type t -> DataLayout' BitRange -> Bool
 matchesDataLayout' (TCon _ _       (Boxed _ _))  (PrimLayout (BitRange { bitSizeBR })) = bitSizeBR == pointerSizeBits
 matchesDataLayout' (TRecord _      (Boxed _ _))  (PrimLayout (BitRange { bitSizeBR })) = bitSizeBR == pointerSizeBits
-matchesDataLayout' (TPrim primInt)               (PrimLayout (BitRange { bitSizeBR })) = bitSizeBR == primIntSizeBits primInt 
+matchesDataLayout' (TPrim primInt)               (PrimLayout (BitRange { bitSizeBR })) = bitSizeBR == primIntSizeBits primInt
 matchesDataLayout' (TSum alts)                   (SumLayout tagLayout altLayouts)      = __fixme (True)
   -- FIXME:
   -- Need to check the alternative names match,

@@ -33,9 +33,9 @@ normaliseRW = rewrite' $ \t -> case t of
     T (TBang (T (TCon t ts s))) -> pure (T (TCon t (fmap (T . TBang) ts) (bangSigil s)))
     T (TBang (T (TVar v b u))) -> pure (T (TVar v True u))
     T (TBang (T (TFun x y))) -> pure (T (TFun x y))
-    T (TBang (R row (Left s))) 
+    T (TBang (R row (Left s)))
       | isNothing (Row.var row) -> pure (R (fmap (T . TBang) row) (Left (bangSigil s)))
-    T (TBang (V row)) 
+    T (TBang (V row))
       | isNothing (Row.var row) -> pure (V (fmap (T . TBang) row))
     T (TBang (T (TTuple ts))) -> pure (T (TTuple (map (T . TBang) ts)))
     T (TBang (T TUnit)) -> pure (T TUnit)
@@ -49,51 +49,51 @@ normaliseRW = rewrite' $ \t -> case t of
 #ifdef BUILTIN_ARRAYS
     T (TUnbox (A t l _)) -> pure (A t l (Left Unboxed))
 #endif
-    Synonym n as -> do 
+    Synonym n as -> do
         table <- view knownTypes
-        case lookup n table of 
+        case lookup n table of
             Just (as', Just b) -> pure (substType (zip as' as) b)
             _ -> __impossible "normaliseRW: missing synonym"
 
-    T (TTake fs (R row s)) 
-      | isNothing (Row.var row) -> case fs of 
+    T (TTake fs (R row s))
+      | isNothing (Row.var row) -> case fs of
         Nothing -> pure $ R (Row.takeAll row) s
         Just fs -> pure $ R (Row.takeMany fs row) s
-    T (TTake fs (V row)) 
-      | isNothing (Row.var row) -> case fs of 
+    T (TTake fs (V row))
+      | isNothing (Row.var row) -> case fs of
         Nothing -> pure $ V (Row.takeAll row)
         Just fs -> pure $ V (Row.takeMany fs row)
     T (TTake fs t) | __cogent_flax_take_put -> return t
-    T (TPut fs (R row s)) 
-      | isNothing (Row.var row) -> case fs of 
+    T (TPut fs (R row s))
+      | isNothing (Row.var row) -> case fs of
         Nothing -> pure $ R (Row.putAll row) s
-        Just fs -> pure $ R (Row.putMany fs row) s 
-    T (TPut fs (V row)) 
-      | isNothing (Row.var row) -> case fs of 
+        Just fs -> pure $ R (Row.putMany fs row) s
+    T (TPut fs (V row))
+      | isNothing (Row.var row) -> case fs of
         Nothing -> pure $ V (Row.putAll row)
         Just fs -> pure $ V (Row.putMany fs row)
     T (TPut fs t) | __cogent_flax_take_put -> return t
     T (TLayout l (R row (Left (Boxed p _)))) ->
       pure $ R row $ Left $ Boxed p (Just l)
     T (TLayout l (R row (Right i))) ->
-      __impossible "normaliseRW: TLayout over a sigil variable (R)" 
+      __impossible "normaliseRW: TLayout over a sigil variable (R)"
 #ifdef BUILTIN_ARRAYS
     T (TLayout l (A t n (Left (Boxed p _)))) ->
       pure $ A t n $ Left $ Boxed p (Just l)
-    T (TLayout l (A t n (Right i))) -> 
+    T (TLayout l (A t n (Right i))) ->
       __impossible "normaliseRW: TLayout over a sigil variable (A)"
 #endif
     T (TLayout l _) -> -- TODO(dargent): maybe handle this later
       empty
-    _ -> empty 
+    _ -> empty
 
   where
     bangSigil (Boxed _ r) = Boxed True r
     bangSigil x           = x
 
 whnf :: TCType -> TcSolvM TCType
-whnf input = do 
-    step <- case input of 
+whnf input = do
+    step <- case input of
         T (TTake  fs t') -> T . TTake fs  <$> whnf t'
         T (TPut   fs t') -> T . TPut  fs  <$> whnf t'
         T (TBang     t') -> T . TBang     <$> whnf t'

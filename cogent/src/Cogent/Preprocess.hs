@@ -95,6 +95,6 @@ preprocess filename = do
       -- putStrLn $ show tab
       -- putStrLn "-----------------------------"
       return . (show +++ (input',)) $ parse program filename input'
-  where 
+  where
     myCpphsOptions = defaultCpphsOptions {boolopts = myBoolOptions}
     myBoolOptions = defaultBoolOptions {macros = True}

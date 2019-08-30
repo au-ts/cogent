@@ -17,7 +17,7 @@ import Cogent.Compiler (__impossible)
 import Cogent.Surface
 import Cogent.TypeCheck.Assignment
 import Cogent.TypeCheck.Base
-import qualified Cogent.TypeCheck.Row as Row 
+import qualified Cogent.TypeCheck.Row as Row
 import Cogent.Util
 
 import qualified Data.IntMap as M
@@ -40,10 +40,10 @@ newtype Subst = Subst (M.IntMap AssignResult)
 ofType :: Int -> TCType -> Subst
 ofType i t = Subst (M.fromList [(i, Type t)])
 
-ofRow :: Int -> Row.Row TCType -> Subst 
+ofRow :: Int -> Row.Row TCType -> Subst
 ofRow i t = Subst (M.fromList [(i, Row t)])
 
-ofSigil :: Int -> Sigil (Maybe DataLayoutExpr) -> Subst 
+ofSigil :: Int -> Sigil (Maybe DataLayoutExpr) -> Subst
 ofSigil i t = Subst (M.fromList [(i, Sigil t)])
 
 ofTaken :: Int -> Taken -> Subst 
@@ -77,9 +77,9 @@ apply (Subst f) (U x)
   = apply (Subst f) t
   | otherwise
   = U x
-apply (Subst f) (V (Row.Row m' (Just x))) 
+apply (Subst f) (V (Row.Row m' (Just x)))
   | Just (Row (Row.Row m q)) <- M.lookup x f = apply (Subst f) (V (Row.Row (DM.union m m') q))
-apply (Subst f) (R (Row.Row m' (Just x)) s) 
+apply (Subst f) (R (Row.Row m' (Just x)) s)
   | Just (Row (Row.Row m q)) <- M.lookup x f = apply (Subst f) (R (Row.Row (DM.union m m') q) s)
 apply (Subst f) (R r (Right x))
   | Just (Sigil s) <- M.lookup x f = apply (Subst f) (R r (Left s))
