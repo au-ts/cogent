@@ -102,7 +102,7 @@ repDecl :: Parser DataLayoutDecl
 repDecl = DataLayoutDecl <$> getPosition <*> typeConName <* reservedOp "=" <*> repExpr
 
 repSize :: Parser DataLayoutSize
-repSize = avoidInitial >> buildExpressionParser [[Infix (reservedOp "+" *> pure Add) AssocLeft]] (do 
+repSize = avoidInitial >> buildExpressionParser [[Infix (reservedOp "+" *> pure Add) AssocLeft]] (do
                x <- fromIntegral <$> natural
                (Bits <$ reserved "b" <*> pure x <|> Bytes <$ reserved "B" <*> pure x))
 
@@ -168,7 +168,7 @@ expr m = do avoidInitial
                                                  c
                          reservedOp "->"
                          el <- expr c
-                         return $ MultiWayIf es el 
+                         return $ MultiWayIf es el
                       <|>
                       (If <$> basicExpr m <*> many (reservedOp "!" >> variableName)
                           <*  reserved "then" <*> expr m <* reserved "else" <*> expr m))
@@ -193,7 +193,7 @@ expr m = do avoidInitial
      <?> "expression"
   where binding = (Binding <$> irrefutablePattern <*> optionMaybe (reservedOp ":" *> monotype)
                            <*  reservedOp "=" <*> expr 1 <*> many (reservedOp "!" >> variableName))
-              <|> do p <- pattern 
+              <|> do p <- pattern
                      mt <- optionMaybe (reservedOp ":" *> monotype)
                      reservedOp "<="
                      e <- expr 1
@@ -375,7 +375,7 @@ monotype = do avoidInitial
 
     paramtype = avoidInitial >> LocType <$> getPosition <*>
       -- If the type `typeConName` refers to an abstract type, its sigil should be `Boxed`
-      -- and should have no associated layout. 
+      -- and should have no associated layout.
       -- If the type `typeConName` is a type alias, the sigil we choose here is ignored
       -- because the actual sigil comes from the aliased type. /mdimeglio
       (TCon <$> typeConName <*> many1 typeA2 <*> pure (Boxed False Nothing))
@@ -395,7 +395,7 @@ monotype = do avoidInitial
               let s = if tn `elem` primTypeCons  -- give correct sigil to primitive types
                         then Unboxed
                        -- If the type `typeConName` refers to an abstract type, its sigil should be `Boxed`
-                       -- and should have no associated layout. 
+                       -- and should have no associated layout.
                        -- If the type `typeConName` is a type alias, the sigil we choose here is ignored
                        -- because the actual sigil comes from the aliased type. /mdimeglio
                         else Boxed False Nothing
@@ -588,7 +588,7 @@ cppLineTokenParser tp
                     , commaSep = cppLineAfter . T.commaSep tp
                     , commaSep1 = cppLineAfter . T.commaSep1 tp
                     }
-    where 
+    where
         cppLineAfter p = do{ x <- p; skipMany cppLine; return x  }
         cppLine = do
             pos <- getPosition

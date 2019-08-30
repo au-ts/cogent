@@ -552,7 +552,7 @@ promote t (TE t' e) = case e of
                                   (l1, a1, promote t e1)
                                   (l2, a2, promote t e2)
   -- Collapse consecutive promotes
-  Promote _ e'        -> promote t e' 
+  Promote _ e'        -> promote t e'
   -- Otherwise, no simplification is necessary; construct a Promote expression as usual.
   _                   -> TE t $ Promote t (TE t' e)
 

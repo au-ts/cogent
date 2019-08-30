@@ -97,5 +97,5 @@ mkTyCon :: Type () -> [Type ()] -> Type ()
 mkTyCon t xs = foldl (TyApp ()) t xs
 
 inIO :: Type () -> Type ()
-inIO t = mkTyCon (TyCon () (UnQual () (Ident () "IO"))) [t] 
+inIO t = mkTyCon (TyCon () (UnQual () (Ident () "IO"))) [t]
 

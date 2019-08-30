@@ -114,7 +114,7 @@ data GenState  = GenState
   , _typeSynonyms :: M.Map TypeName CType
   , _typeCorres   :: DList.DList (CId, CC.Type 'Zero)
     -- ^ C type names corresponding to Cogent types
-    
+
   , _absTypes     :: M.Map TypeName (S.Set [CId])
     -- ^ Maps TypeNames of abstract Cogent types to
     --   the Set of all monomorphised type argument lists
@@ -126,10 +126,10 @@ data GenState  = GenState
   , _globalOracle :: Integer
   , _varPool      :: VarPool
   , _ffiFuncs     :: M.Map FunName (CType, CType)
-    -- ^ A map containing functions that need to generate C FFI functions. 
+    -- ^ A map containing functions that need to generate C FFI functions.
     --   The map is from the original function names (before prefixing with @\"ffi_\"@ to a pair of @(marshallable_arg_type, marshallable_ret_type)@.
     --   This map is needed when we generate the Haskell side of the FFI.
-  
+
   , _boxedRecordSetters :: M.Map (CC.Type 'Zero, FieldName) CExpr
   , _boxedRecordGetters :: M.Map (CC.Type 'Zero, FieldName) CExpr
     -- ^ The expressions to call the generated setter and getter functions for the fields of boxed cogent records.
@@ -279,7 +279,7 @@ typeCId t = use custTypeGen >>= \ctg ->
                       cTypeDefMap %= M.insert (AbsType tn') tn'
         Just _  -> return ()
       return tn'
-    typeCId' (TProduct t1 t2) = getStrlTypeCId =<< Record <$> (P.zip [p1,p2] <$> mapM genType [t1,t2]) 
+    typeCId' (TProduct t1 t2) = getStrlTypeCId =<< Record <$> (P.zip [p1,p2] <$> mapM genType [t1,t2])
     typeCId' (TSum fs) = getStrlTypeCId =<< Variant . M.fromList <$> mapM (secondM genType . second fst) fs
     typeCId' (TFun t1 t2) = getStrlTypeCId =<< Function <$> genType t1 <*> genType t2  -- Use the enum type for function dispatching
     typeCId' (TRecord fs Unboxed) = getStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs)

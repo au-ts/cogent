@@ -89,17 +89,17 @@ validateType rt@(RT t) = do
                 , provided /= required
                -> return (Unsat $ TypeArgumentMismatch t provided required, toTCType rt)
                 |  Just (vs, Just x) <- lookup t ts
-               -> second (Synonym t) <$> fmapFoldM validateType as  
+               -> second (Synonym t) <$> fmapFoldM validateType as
     TRecord fs s | fields  <- map fst fs
                  , fields' <- nub fields
-                -> let toRow (T (TRecord fs s)) = R (Row.fromList fs) (Left s) 
+                -> let toRow (T (TRecord fs s)) = R (Row.fromList fs) (Left s)
                    in if fields' == fields
                    then second (toRow . T . ffmap toSExpr) <$> fmapFoldM validateType t
                    else return (Unsat $ DuplicateRecordFields (fields \\ fields'), toTCType rt)
     TVariant fs  -> do let tuplize [] = T TUnit
-                           tuplize [x] = x 
+                           tuplize [x] = x
                            tuplize xs  = T (TTuple xs)
-                       (c, TVariant fs') <- second (ffmap toSExpr) <$> fmapFoldM validateType t 
+                       (c, TVariant fs') <- second (ffmap toSExpr) <$> fmapFoldM validateType t
                        pure (c, V (Row.fromMap (fmap (first tuplize) fs')))
 #ifdef BUILTIN_ARRAYS
     TArray te l s -> do let l' = toSExpr l
@@ -107,7 +107,7 @@ validateType rt@(RT t) = do
                         (c,te') <- validateType te
                         return (c <> cl, A te' l' $ Left s)
 #endif
-    _ -> second (T . ffmap toSExpr) <$> fmapFoldM validateType t 
+    _ -> second (T . ffmap toSExpr) <$> fmapFoldM validateType t
 
 validateTypes :: (Traversable t) => t RawType -> CG (Constraint, t TCType)
 validateTypes = fmapFoldM validateType
@@ -300,7 +300,7 @@ cg' (ArrayMap2 ((p1,p2), fbody) (arr1,arr2)) t = __fixme $ do  -- FIXME: more ac
       t' = T $ TTuple [tarr1,tarr2]
       e' = ArrayMap2 ((p1',p2'), fbody') (arr1',arr2')
   return (t' :< t <> cp1 <> cp2 <> cbody <> carr1 <> carr2 <> dropConstraintFor rs <> unused, e')
-#endif 
+#endif
 
 cg' exp@(Lam pat mt e) t = do
   alpha <- freshTVar
@@ -319,7 +319,7 @@ cg' exp@(Lam pat mt e) t = do
   context %= C.addScope s
   (ce, e') <- cg e beta
   rs <- context %%= C.dropScope
-  let unused = flip foldMap (M.toList rs) $ \(v,(_,_,us)) -> 
+  let unused = flip foldMap (M.toList rs) $ \(v,(_,_,us)) ->
         case us of
           Seq.Empty -> warnToConstraint __cogent_wunused_local_binds (UnusedLocalBind v)
           _ -> Sat
@@ -346,7 +346,7 @@ cg' (Comp f g) t = do
   alpha1 <- freshTVar
   alpha2 <- freshTVar
   alpha3 <- freshTVar
-  
+
   (c1, f') <- cg f (T (TFun alpha2 alpha3))
   (c2, g') <- cg g (T (TFun alpha1 alpha2))
   let e = Comp f' g'
@@ -355,7 +355,7 @@ cg' (Comp f g) t = do
   return (c,e)
 
 cg' (Con k [e]) t =  do
-  alpha <- freshTVar 
+  alpha <- freshTVar
   (c', e') <- cg e alpha
   U x <- freshTVar
   let e = Con k [e']
@@ -398,7 +398,7 @@ cg' (Seq e1 e2) t = do
 
 cg' (TypeApp f as i) t = do
   tvs <- use knownTypeVars
-  (ct, getCompose -> as') <- validateTypes (stripLocT <$> Compose as) 
+  (ct, getCompose -> as') <- validateTypes (stripLocT <$> Compose as)
   lift (use $ knownFuns.at f) >>= \case
     Just (PT vs tau) -> let
         match :: [(TyVarName, Kind)] -> [Maybe TCType] -> CG ([(TyVarName, TCType)], Constraint)
@@ -445,7 +445,7 @@ cg' (If e1 bs e2 e3) t = do
   (c1, e1') <- letBang bs (cg e1) (T (TCon "Bool" [] Unboxed))
   (c, [(c2, e2'), (c3, e3')]) <- parallel' [(ThenBranch, cg e2 t), (ElseBranch, cg e3 t)]
   let e = If e1' bs e2' e3'
-#ifdef BUILTIN_ARRAYS 
+#ifdef BUILTIN_ARRAYS
       ((c2',cc2),(c3',cc3)) = if arithTCExpr e1' then
         let (ca2,cc2) = splitArithConstraints c2
             (ca3,cc3) = splitArithConstraints c3
@@ -479,7 +479,7 @@ cg' (Put e ls) t | not (any isNothing ls) = do
   U rest <- freshTVar
   U sigil <- freshTVar
   let row  = R (Row.incomplete (zip fs (map (,True ) ts)) rest) (Right sigil)
-      row' = R (Row.incomplete (zip fs (map (,False) ts)) rest) (Right sigil) 
+      row' = R (Row.incomplete (zip fs (map (,False) ts)) rest) (Right sigil)
       c1 = row' :< t
       c2 = alpha :< row
       r = Put e' (map Just (zip fs es'))
@@ -532,7 +532,7 @@ matchA' (PIrrefutable i) t = do
 
 matchA' (PCon k [i]) t = do
   beta <- freshTVar
-  (s, c, i') <- match i beta  
+  (s, c, i') <- match i beta
   U rest <- freshTVar
   let row = Row.incomplete [(k,(beta,False))] rest
       c' = t :< V row
@@ -575,7 +575,7 @@ match' (PVar x) t = do
            L.<$> text "of type" <+> pretty t)
   return (M.fromList [(x, (t,?loc,Seq.empty))], Sat, p)
 
-match' (PUnderscore) t = 
+match' (PUnderscore) t =
   let c = dropConstraintFor (M.singleton "_" (t, ?loc, Seq.empty))
    in return (M.empty, c, PUnderscore)
 
@@ -664,8 +664,8 @@ freshTVar :: (?loc :: SourcePos) => CG TCType
 freshTVar = U  <$> freshVar
 
 freshEVar :: (?loc :: SourcePos) => CG SExpr
-freshEVar = SU <$> freshVar 
-      
+freshEVar = SU <$> freshVar
+
 integral :: TCType -> Constraint
 integral = Upcastable (T (TCon "U8" [] Unboxed))
 
@@ -717,13 +717,13 @@ withBindings (Binding pat tau e0 bs : xs) e top = do
   context %= C.addScope s
   (c', xs', e') <- withBindings xs e top
   rs <- context %%= C.dropScope
-  let unused = flip foldMap (M.toList rs) $ \(v,(_,_,us)) -> 
+  let unused = flip foldMap (M.toList rs) $ \(v,(_,_,us)) ->
         case us of
           Seq.Empty -> warnToConstraint __cogent_wunused_local_binds (UnusedLocalBind v)
           _ -> Sat
       c = ct <> c0 <> c' <> cp <> dropConstraintFor rs <> unused
       b' = Binding pat' (fmap (const alpha) tau) e0' bs
-  traceTc "gen" (text "bound expression" <+> pretty e0' <+> 
+  traceTc "gen" (text "bound expression" <+> pretty e0' <+>
                  text "with banged" <+> pretty bs
            L.<$> text "of type" <+> pretty alpha <> semi
            L.<$> text "generate constraint" <+> prettyC c0 <> semi

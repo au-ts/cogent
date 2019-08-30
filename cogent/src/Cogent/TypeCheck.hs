@@ -63,7 +63,7 @@ tc :: [(SourcePos, TopLevel LocType LocPatn LocExpr)]
    -> [(LocType, String)]
    -> IO ((Maybe ([TopLevel RawType TypedPatn TypedExpr], [(RawType, String)]), TcLogState), TcState)
 tc ds cts = runTc (TcState M.empty knownTypes M.empty M.empty) ((,) <$> typecheck ds <*> typecheckCustTyGen cts)
-  where 
+  where
     knownTypes = map (, ([], Nothing)) $ words "U8 U16 U32 U64 String Bool"
 
 typecheck :: [(SourcePos, TopLevel LocType LocPatn LocExpr)]
@@ -111,7 +111,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     t'' <- postT t'
     return $ AbsDec n (PT ps t'')
 
-  (RepDef decl@(DataLayoutDecl pos name expr)) -> do 
+  (RepDef decl@(DataLayoutDecl pos name expr)) -> do
     traceTc "tc" (text "typecheck rep decl" <+> pretty name)
     namedLayouts            <- lift . lift $ use knownDataLayouts
     let (errors, allocation) = typeCheckDataLayoutDecl namedLayouts decl
@@ -130,7 +130,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     base <- lift . lift $ use knownConsts
     let ctx = C.addScope (fmap (\(t,_,p) -> (t,p, Seq.singleton p)) base) C.empty  -- for consts, the definition is the first use
     (((ct,t'),(c,e')), flx, os) <- runCG ctx []
-                                      (do x@(ct,t') <- B.validateType t 
+                                      (do x@(ct,t') <- B.validateType t
                                           y <- cg e t'
                                           pure (x,y))
     let c' = ct <> c <> Share t' (Constant n)
@@ -163,12 +163,12 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     let ctx = C.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) C.empty
     let ?loc = loc
     (((ct,t'),(c,alts')), flx, os) <- runCG ctx (map fst vs)
-             (do x@(ct,t') <- B.validateType t 
+             (do x@(ct,t') <- B.validateType t
                  y <- cgFunDef alts t'
                  pure (x,y))
     traceTc "tc" (text "constraint for fun definition" <+> pretty f <+> text "is"
                   L.<$> prettyC c)
-    (cs, subst) <- runSolver (solve vs $ ct <> c) flx 
+    (cs, subst) <- runSolver (solve vs $ ct <> c) flx
     --exitOnErr $ mapM_ logTc =<< mapM (\(c,l) -> lift (use errCtx) >>= \c' -> return (c++c',l)) logs
     traceTc "tc" (text "substs for fun definition" <+> pretty f <+> text "is"
                   L.<$> pretty subst)
@@ -184,7 +184,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
 
 typecheckCustTyGen :: [(LocType, String)] -> TcM [(RawType, String)]
 typecheckCustTyGen = mapM . firstM $ \t -> do
-  let t' = stripLocT t 
+  let t' = stripLocT t
   lift $ errCtx .= [CustomisedCodeGen t]
   if not (isMonoType t')
     then logErrExit (CustTyGenIsPolymorphic $ toTCType t')

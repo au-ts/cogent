@@ -53,7 +53,7 @@ isAtom (E (SLit _)) = True
 isAtom (E (ALit es)) | all isVar es = True
 isAtom (E (ArrayIndex e i)) | isVar e && isVar i = True
 isAtom (E (ArrayMap2 (_,f) (e1,e2)))
-  | isNormal f && isVar e1 && isVar e2 = True  
+  | isNormal f && isVar e1 && isVar e2 = True
   -- ^^^ FIXME: does it make sense? @ArrayMap@ cannot be made an expression.
   -- Does the atom-expression / normal-statement correspondence still hold?
 isAtom (E (Singleton e)) | isVar e = True
@@ -141,16 +141,16 @@ normalise v e@(E (SLit {})) k = k s0 e
 #ifdef BUILTIN_ARRAYS
 normalise v   (E (ALit es)) k = normaliseNames v es $ \n es' -> k n (E $ ALit es')
 normalise v   (E (ArrayIndex e i)) k
-  = normaliseName v e $ \n e' -> 
+  = normaliseName v e $ \n e' ->
       normaliseName (sadd v n) (upshiftExpr n v f0 i) $ \n' i' ->
         withAssoc v n n' $ \Refl ->
           k (sadd n n') (E $ ArrayIndex (upshiftExpr n' (sadd v n) f0 e') i')
 normalise v   (E (ArrayMap2 ((a1,a2),f) (e1,e2))) k
   = normaliseExpr (SSuc $ SSuc v) f >>= \f' ->
-      normaliseName v e1 $ \n e1' -> 
+      normaliseName v e1 $ \n e1' ->
       normaliseName (sadd v n) (upshiftExpr n v f0 e2) $ \n' e2' ->
         withAssoc v n n' $ \Refl ->
-        withSSAssoc v n n' $ \Refl -> 
+        withSSAssoc v n n' $ \Refl ->
         k (sadd n n') $ E $ ArrayMap2 ((a1,a2), upshiftExpr (sadd n n') (SSuc (SSuc v)) f2 f')
                                       (upshiftExpr n' (sadd v n) f0 e1', e2')
 normalise v   (E (Pop a e1 e2)) k

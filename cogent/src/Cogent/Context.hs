@@ -62,7 +62,7 @@ dropScope (Context [])     = error "dropScope of empty context!"
 
 mode' :: M.Map VarName x -> [VarName] -> (x -> x) -> (M.Map VarName x, M.Map VarName x -> M.Map VarName x)
 mode' c vs f =
-  let c' = M.mapWithKey (\v x -> if v `elem` vs then f x else x) c 
+  let c' = M.mapWithKey (\v x -> if v `elem` vs then f x else x) c
       undo d = foldl' (\x v -> x & at v .~ M.lookup v c) d vs  -- update each `k |-> _' in map `d' to `k |-> lookup v c'
   in (c', undo)
 

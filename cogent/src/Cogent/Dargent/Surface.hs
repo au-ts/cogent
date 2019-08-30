@@ -25,7 +25,7 @@ import Cogent.Compiler (__fixme)
 import Data.Data
 import Text.Parsec.Pos (SourcePos)
 
-data DataLayoutSize 
+data DataLayoutSize
   = Bytes Size
   | Bits  Size
   | Add   DataLayoutSize DataLayoutSize
@@ -58,3 +58,4 @@ pattern DLVariant t ps = DL (Variant t ps)
 pattern DLOffset e s   = DL (Offset e s)
 pattern DLRepRef n     = DL (RepRef n)
 pattern DLPtr          = DL Ptr
+

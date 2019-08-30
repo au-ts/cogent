@@ -131,7 +131,7 @@ normaliseT d (T (TTake fs t)) = do
  where
    takeFields :: Maybe [FieldName] -> [(FieldName, (a, Bool))] -> TCType -> Post [(FieldName, (a, Bool))]
    takeFields Nothing   fs' _  = return $ map (fmap (fmap (const True))) fs'
-   takeFields (Just fs) fs' t' = do 
+   takeFields (Just fs) fs' t' = do
      forM_ fs $ \f -> when (f `notElem` map fst fs') $ logErrExit (TakeNonExistingField f t')
      forM fs' $ \(f,(t,b)) -> do when (f `elem` fs && b && __cogent_wdodgy_take_put) $ logWarn (TakeTakenField f t')
                                  return (f, (t, f `elem` fs || b))

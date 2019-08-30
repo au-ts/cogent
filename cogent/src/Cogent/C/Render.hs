@@ -157,7 +157,7 @@ splitCType (CUnion {}) = __impossible "splitCType"
 splitCType (CEnum tid) = (mkDeclSpec $ C.Tenum (Just $ cId tid) [] [] noLoc, C.DeclRoot noLoc)
 splitCType (CPtr ty) = let (tysp, decl) = splitCType ty in (tysp, C.Ptr [] decl noLoc)
 splitCType (CArray t msize)
-  | CPtrToArray <- msize = 
+  | CPtrToArray <- msize =
       let (C.DeclSpec _ _ tsp _,dl) = splitCType t
        in (mkDeclSpec tsp, C.Ptr [] dl noLoc)
   | otherwise =

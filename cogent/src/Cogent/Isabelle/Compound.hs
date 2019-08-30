@@ -57,7 +57,7 @@ takeFlatCase (TE _ e) = case e of
  (Case escrut tag (_,n1,e1) (_,n2,e2))
   | TSum talts <- exprType escrut
   -> do let m0 = M.singleton tag (n1,e1)
-        -- Descend into failure case to match remaining alternatives 
+        -- Descend into failure case to match remaining alternatives
         malts <- goAlts n2 e2 m0
         -- Only succeed if we have alternatives for all variant constructors
         case M.size malts == P.length talts of

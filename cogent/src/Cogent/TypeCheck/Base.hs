@@ -133,7 +133,7 @@ data ErrorContext = InExpression LocExpr TCType
                   deriving (Eq, Show)
 
 instance Ord ErrorContext where
-  compare _ _ = EQ 
+  compare _ _ = EQ
 
 isCtxConstraint :: ErrorContext -> Bool
 isCtxConstraint (SolvingConstraint _) = True
@@ -168,7 +168,7 @@ data Metadata = Reused { varName :: VarName, boundAt :: SourcePos, usedAt :: Seq
 (>:) = flip (:<)
 
 data Constraint' t = (:<) t t
-                   | (:=:) t t 
+                   | (:=:) t t
                    | (:&) (Constraint' t) (Constraint' t)
                    | Upcastable t t
                    | Share t Metadata
@@ -408,7 +408,7 @@ runTc s ma = flip runStateT s
     noConstraints = if __cogent_ftc_ctx_constraints then id else filter (not . isCtxConstraint)
 
 
-type TcM a = MaybeT (StateT TcLogState (StateT TcState IO)) a    
+type TcM a = MaybeT (StateT TcLogState (StateT TcState IO)) a
 type TcConsM lcl a = StateT  lcl (StateT TcState IO) a
 type TcErrM  err a = ExceptT err (StateT TcState IO) a
 type TcBaseM     a =              StateT TcState IO  a
@@ -499,9 +499,9 @@ validateType' vs (RT t) = do
                     else throwE (DuplicateRecordFields (fields \\ fields'))
 
     TVariant fs  -> do let tuplize [] = T TUnit
-                           tuplize [x] = x 
+                           tuplize [x] = x
                            tuplize xs  = T (TTuple xs)
-                       TVariant fs' <- ffmap toSExpr <$> mapM (validateType' vs) t 
+                       TVariant fs' <- ffmap toSExpr <$> mapM (validateType' vs) t
                        pure (V (Row.fromMap (fmap (first tuplize) fs')))
 #ifdef BUILTIN_ARRAYS
     TArray te l s -> -- TODO: do the checks
@@ -521,6 +521,7 @@ validateType' vs (RT t) = do
     -- This can't be done in the current setup because validateType' has no context for the type it is validating.
     -- Not implementing this now, because a new syntax for types is needed anyway, which may make this issue redundant.
     -- /mdimeglio
+
 
 validateTypes' :: (Traversable t) => [VarName] -> t RawType -> TcErrM TypeError (t TCType)
 validateTypes' vs = mapM (validateType' vs)
@@ -556,16 +557,16 @@ isMonoType (RT t) = getAll $ foldMap (All . isMonoType) t
 unifVars :: TCType -> [Int]
 unifVars (U v) = [v]
 unifVars (Synonym n ts) = concatMap unifVars ts
-unifVars (V r)  
+unifVars (V r)
   | Just x <- Row.var r = [x] ++ concatMap unifVars (Row.allTypes r)
   | otherwise = concatMap unifVars (Row.allTypes r)
-unifVars (R r s) 
+unifVars (R r s)
   | Just x <- Row.var r = [x] ++ concatMap unifVars (Row.allTypes r)
-                       ++ case s of Left s -> [] 
-                                    Right y -> [y] 
+                       ++ case s of Left s -> []
+                                    Right y -> [y]
   | otherwise = concatMap unifVars (Row.allTypes r)
-                       ++ case s of Left s -> [] 
-                                    Right y -> [y] 
+                       ++ case s of Left s -> []
+                                    Right y -> [y]
 #ifdef BUILTIN_ARRAYS
 unifVars (A t l s) = unifVars t ++ (case s of Left s -> []; Right y -> [y])
 #endif
@@ -586,7 +587,7 @@ unknownsE (SE e) = foldMap unknownsE e
 #endif
 
 -- What's the spec of this function? / zilinc
-rigid :: TCType -> Bool 
+rigid :: TCType -> Bool
 rigid (U {}) = False
 rigid (T (TBang {})) = False
 rigid (T (TTake {})) = False
@@ -633,7 +634,7 @@ isTypeLayoutExprCompatible env (T (TVariant ts1)) (DLVariant _ ts2) =
     tuplise [t] = t
     tuplise ts = T (TTuple ts)
 #ifdef BUILTIN_ARRAYS
-isTypeLayoutExprCompatible env (T (TArray t _ (Boxed _ ml1))) l2 = 
+isTypeLayoutExprCompatible env (T (TArray t _ (Boxed _ ml1))) l2 =
   isJust ml1 && fromJust ml1 == l2 -- the layout given is for the element type!
 #endif
 isTypeLayoutExprCompatible env t (DLOffset l _) =

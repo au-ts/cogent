@@ -211,7 +211,7 @@ badHackSplitOnSorryBefore decls =
   then ([], decls)
   else break should_sorry decls
  where
-  should_sorry (FunDef _ fn _ ti _ e) = Just fn == __cogent_type_proof_sorry_before 
+  should_sorry (FunDef _ fn _ ti _ e) = Just fn == __cogent_type_proof_sorry_before
   should_sorry _ = False
 
 deepTyTreeDef :: NameMod -> TypeAbbrevs -> FunName -> TypingTree t -> TheoryDecl I.Type I.Term

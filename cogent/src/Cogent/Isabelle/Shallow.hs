@@ -224,7 +224,7 @@ shallowExpr (TE t (Case e tag (_,n1,e1) (_,n2,e2))) = do
       vgn2 = "ccase" ++ (subSymStr $ "G" ++ show vn2)  -- This is the continuation @e2@
       es = flip map alts $ \(tag',(t',b')) ->
              if | tag == tag' -> e1'
-                | otherwise -> 
+                | otherwise ->
                     let cons = mkApp (mkStr [tn,".",tag']) [mkId vgn]
                         typedCons = TermWithType cons te'
                      in mkLambda [vgn] $ mkApp (mkId vgn2) [typedCons]
@@ -237,10 +237,10 @@ shallowExpr (TE t (Esac e)) = do
   tn <- findTypeSyn $ exprType e
   e' <- shallowExpr e
   let TSum alts = exprType e
-      es = flip map alts $ \(tag',(t',b')) -> 
+      es = flip map alts $ \(tag',(t',b')) ->
              if | b' -> mkId "undefined"
                 | otherwise -> mkId "Fun.id"
-  pure $ mkApp (mkStr ["case_",tn]) $ es ++ [e'] 
+  pure $ mkApp (mkStr ["case_",tn]) $ es ++ [e']
 shallowExpr (TE _ (Split (n1,n2) e1 e2)) = mkApp <$> mkLambdaE [mkPrettyPair n1 n2] e2 <*> mapM shallowExpr [e1]
 shallowExpr (TE _ (Member rec fld)) = shallowExpr rec >>= \e -> shallowGetter rec fld e
 shallowExpr (TE _ (Take (n1,n2) rec fld e)) = do
@@ -255,7 +255,7 @@ shallowExpr (TE _ (Cast    (TPrim pt) (TE _ (ILit n _)))) = pure $ shallowILit n
 shallowExpr (TE _ (Cast    (TPrim pt) e)) =
   TermWithType <$> (mkApp (mkId "ucast") <$> ((:[]) <$> shallowExpr e)) <*> pure (shallowPrimType pt)
 
--- | @'mkL' nm t1 t2@: 
+-- | @'mkL' nm t1 t2@:
 --
 --   It generates term @(&#x03bb; nm. t2) t1@
 mkL :: VarName -> Term -> Term -> Term
@@ -337,7 +337,7 @@ hashType (TSum ts)      = show (sanitizeType $ TSum ts)
 hashType (TRecord ts s) = show (sanitizeType $ TRecord ts s)
 hashType _              = error "hashType: should only pass Variant and Record types"
 
--- | A subscript @T@ will be added when generating type synonyms. 
+-- | A subscript @T@ will be added when generating type synonyms.
 --   Also adds an entry to the type synonyms table if it's not parameterised so that
 --   a shorter (and hence more readable) name can be retrieved when a type is used.
 shallowTypeDefSaveSyn:: TypeName -> [TyVarName] -> CC.Type t -> SG [TheoryDecl I.Type I.Term]
