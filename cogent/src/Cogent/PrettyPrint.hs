@@ -612,6 +612,7 @@ instance Pretty d => Pretty (DataLayoutExpr' d) where
   pretty (Record fs) = keyword "record" <+> record (map (\(f,_,e) -> fieldname f <> symbol ":" <+> pretty e ) fs)
   pretty (Variant e vs) = keyword "variant" <+> tupled [pretty e]
                                                  <+> record (map (\(f,_,i,e) -> tagname f <+> tupled [literal $ string $ show i] <> symbol ":" <+> pretty e) vs)
+  pretty Ptr = keyword "pointer"
 
 instance Pretty DataLayoutExpr where 
   pretty (DL l) = pretty l

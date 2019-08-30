@@ -616,14 +616,11 @@ isTypeLayoutExprCompatible env t@(T (TCon n [] Unboxed)) (DLPrim rs) =
             "U64" -> 64
             "Bool" -> 1)  -- TODO(dargent): check that booleans are allowed only a bit
    in s' <= s -- TODO(dargent): do we want this to be equality?
-isTypeLayoutExprCompatible env (T (TRecord fs1 (Boxed _ ml1))) l2@(DLRecord fs2) =
-  (case ml1 of
-    Just l1 -> l1 == l2
-    Nothing -> False
-  ) &&
-    all
-      (\((n1,(t,_)),(n2,_,l)) -> n1 == n2 && isTypeLayoutExprCompatible env t l)
-      (zip (sortOn fst fs1) (sortOn fst3 fs2))
+isTypeLayoutExprCompatible env (T (TRecord fs1 (Boxed _ ml1))) DLPtr = True
+isTypeLayoutExprCompatible env (T (TRecord fs1 Unboxed)) l2@(DLRecord fs2) =
+  all
+    (\((n1,(t,_)),(n2,_,l)) -> n1 == n2 && isTypeLayoutExprCompatible env t l)
+    (zip (sortOn fst fs1) (sortOn fst3 fs2))
 isTypeLayoutExprCompatible env (T (TTuple fs1)) (DLRecord fs2) =
   all (\(t,(_,_,l)) -> isTypeLayoutExprCompatible env t l) (zip fs1 fs2)
 isTypeLayoutExprCompatible env (T (TVariant ts1)) (DLVariant _ ts2) =
