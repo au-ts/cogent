@@ -62,7 +62,7 @@ language = haskellStyle
                                   ":","=","!",":<",".","_","..","#","$","::",
                                   "@","@@","->","=>","~>","<=","|","|>"]
            , T.reservedNames   = ["let","in","type","include","all","take","put","inline","upcast",
-                                  "repr","variant","record","at","layout",
+                                  "repr","variant","record","at","layout","pointer",
                                   "if","then","else","not","complement","and","True","False","o",
                                   "map2"]
            , T.identStart = letter
@@ -113,7 +113,8 @@ repExpr = DL <$> repExpr'
           ((Record <$ reserved "record" <*> braces (commaSep recordRepr))
       <|> (Variant <$ reserved "variant" <*> parens repExpr' <*> braces (commaSep variantRepr))
       <|> (RepRef <$> typeConName)
-      <|> (Prim <$> repSize))
+      <|> (Prim <$> repSize)
+      <|> (Ptr <$ reserved "pointer"))
     recordRepr = (,,) <$> variableName <*> getPosition <* reservedOp ":" <*> repExpr
     variantRepr = (,,,) <$> typeConName <*> getPosition <*> parens (fromIntegral <$> natural) <* reservedOp ":" <*> repExpr
 
