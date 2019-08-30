@@ -150,10 +150,10 @@ genBoxedGetterSetter
 genBoxedGetterSetter boxType embeddedType@(TCon _ _ _) (PrimLayout {bitsDL = bitRanges}) path getOrSet =
   genComposedAlignedRangeGetterSetter bitRanges boxType embeddedType path getOrSet
 
-genBoxedGetterSetter boxType embeddedType@(TPrim _) (PrimLayout {bitsDL = bitRanges}) path getOrSet =
+genBoxedGetterSetter boxType embeddedType@(TPrim _) (PrimLayout bitRanges) path getOrSet =
   genComposedAlignedRangeGetterSetter bitRanges boxType embeddedType path getOrSet
 
-genBoxedGetterSetter boxType embeddedType@(TRecord fields (Boxed _ _)) (PrimLayout {bitsDL = bitRanges}) path getOrSet =
+genBoxedGetterSetter boxType embeddedType@(TRecord fields (Boxed {})) (PrimLayout bitRanges) path getOrSet =
   genComposedAlignedRangeGetterSetter bitRanges boxType embeddedType path getOrSet
 
 genBoxedGetterSetter boxType embeddedTypeCogent@(TSum alternatives) (SumLayout {tagDL, alternativesDL}) path getOrSet = do
@@ -190,7 +190,12 @@ genBoxedGetterSetter boxType (TUnit) (UnitLayout) path getOrSet = do
   declareSetterOrGetter $ unitGetterSetter boxType functionName getOrSet
   return (CVar functionName Nothing)
 
-genBoxedGetterSetter boxCType _ _ _ _ = __impossible $
+#ifdef BUILTIN_ARRAYS
+genBoxedGetterSetter box tau@(TArray t l (Boxed {})) (PrimLayout ranges) path getOrSet =
+  genComposedAlignedRangeGetterSetter ranges box tau path getOrSet
+#endif
+
+genBoxedGetterSetter boxType _ _ _ _ = __impossible $
   "Cogent.Dargent.CodeGen: genBoxedGetterSetter: Type checking should restrict the types which can be embedded in boxed records," ++
   "and ensure that the data layouts match the types."
 
@@ -770,5 +775,6 @@ type CogentType = Type 'Zero
 intTypeForPointer = case architecture of
   X86_64 -> unsignedLongType
   X86_32 -> unsignedIntType
+  ARM32  -> unsignedIntType
 
 data GetOrSet = Get | Set

@@ -12,6 +12,7 @@
 --
 
 {-# LANGUAGE ScopedTypeVariables #-}
+{- OPTIONS_GHC -Wall -Werror -}
 
 module Cogent.Dargent.Desugar
  ( desugarAbstractTypeSigil
@@ -29,6 +30,7 @@ import Text.Parsec.Pos (SourcePos, newPos)
 
 import Cogent.Compiler              ( __fixme
                                     , __impossible
+                                    , __todo
                                     )
 import Cogent.Common.Syntax         ( DataLayoutName
                                     , Size
@@ -115,6 +117,10 @@ desugarDataLayout l = Layout $ desugarDataLayout' l
           _                -> __impossible $ "desugarDataLayout (Called after typecheck, tag layouts known to be single range)"
 
         alts' = fmap (\(aname, pos, size, layout) -> (aname, (size, desugarDataLayout' layout, pos))) alts
+    desugarDataLayout' DLPtr = PrimLayout pointerBitRange
+#ifdef BUILTIN_ARRAYS
+    desugarDataLayout' (DLArray {}) = __todo "desugarDataLayout': DLArray"
+#endif
 
 {- * CONSTRUCTING 'DataLayout's -}
 
@@ -148,7 +154,7 @@ constructDataLayout' (TRecord fields Unboxed) = RecordLayout . fromList . snd $ 
       in (endAllocatedBits' layout, (name, (layout, dummyPos)))
 
     -- Equations for boxed embedded types
-    constructDataLayout' (TRecord fields (Boxed _ _)) = PrimLayout $ pointerBitRange
+    constructDataLayout' (TRecord _      (Boxed _ _)) = PrimLayout $ pointerBitRange
     constructDataLayout' (TCon    _ _    (Boxed _ _)) = PrimLayout $ pointerBitRange
 
     -- Equations for as yet unsupported embedded types

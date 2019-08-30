@@ -62,6 +62,8 @@ import Lens.Micro
 import Lens.Micro.TH
 import Lens.Micro.Mtl
 
+import Debug.Trace
+
 -- -----------------------------------------------------------------------------
 -- Typecheck errors, warnings and context
 -- -----------------------------------------------------------------------------
@@ -607,7 +609,8 @@ rigid _ = True
 --
 
 isTypeLayoutExprCompatible :: NamedDataLayouts -> TCType -> DataLayoutExpr -> Bool
-isTypeLayoutExprCompatible env t@(T (TCon n [] Unboxed)) (DLPrim rs) =
+isTypeLayoutExprCompatible env (T (TCon n [] (Boxed {}))) DLPtr = True
+isTypeLayoutExprCompatible env (T (TCon n [] Unboxed)) (DLPrim rs) =
   let s  = evalSize rs
       s' = (case n of
             "U8"  -> 8
@@ -616,8 +619,8 @@ isTypeLayoutExprCompatible env t@(T (TCon n [] Unboxed)) (DLPrim rs) =
             "U64" -> 64
             "Bool" -> 1)  -- TODO(dargent): check that booleans are allowed only a bit
    in s' <= s -- TODO(dargent): do we want this to be equality?
-isTypeLayoutExprCompatible env (T (TRecord fs1 (Boxed _ ml1))) DLPtr = True
-isTypeLayoutExprCompatible env (T (TRecord fs1 Unboxed)) l2@(DLRecord fs2) =
+isTypeLayoutExprCompatible env (T (TRecord fs1 (Boxed {}))) DLPtr = True
+isTypeLayoutExprCompatible env (T (TRecord fs1 Unboxed)) (DLRecord fs2) =
   all
     (\((n1,(t,_)),(n2,_,l)) -> n1 == n2 && isTypeLayoutExprCompatible env t l)
     (zip (sortOn fst fs1) (sortOn fst3 fs2))
@@ -633,8 +636,9 @@ isTypeLayoutExprCompatible env (T (TVariant ts1)) (DLVariant _ ts2) =
     tuplise [t] = t
     tuplise ts = T (TTuple ts)
 #ifdef BUILTIN_ARRAYS
-isTypeLayoutExprCompatible env (T (TArray t _ (Boxed _ ml1))) l2 =
-  isJust ml1 && fromJust ml1 == l2 -- the layout given is for the element type!
+isTypeLayoutExprCompatible env (T (TArray t _ (Boxed {}))) DLPtr = True
+isTypeLayoutExprCompatible env (T (TArray t _ Unboxed)) (DLArray l _) =
+  isTypeLayoutExprCompatible env t l
 #endif
 isTypeLayoutExprCompatible env t (DLOffset l _) =
   isTypeLayoutExprCompatible env t (DL l)
@@ -642,5 +646,5 @@ isTypeLayoutExprCompatible env t (DLRepRef n)   =
   case M.lookup n env of
     Just (l, _) -> isTypeLayoutExprCompatible env t l
     Nothing     -> False -- TODO(dargent): this really shoud be an exceptional state
-isTypeLayoutExprCompatible _ _ _ = False
+isTypeLayoutExprCompatible _ t l = False  -- trace ("t = " ++ show t ++ "; and l = " ++ show l) False
 

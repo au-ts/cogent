@@ -49,7 +49,7 @@ data DataLayoutExpr' e
   | Record  [(FieldName, SourcePos, e)]
   | Variant (DataLayoutExpr' e) [(TagName, SourcePos, Size, e)]
 #ifdef BUILTIN_ARRAYS
-  | Array   (DataLayoutExpr' e) SourcePos
+  | Array   e SourcePos
 #endif
   | Offset  (DataLayoutExpr' e) DataLayoutSize
   | RepRef  RepName
