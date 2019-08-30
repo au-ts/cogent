@@ -124,7 +124,7 @@ expDiscardVar rm0 (TE t0 e0) = TE t0 <$> case e0 of
   Cast t e1           -> Cast t <$> go e1
 #ifdef BUILTIN_ARRAYS
   ALit es             -> ALit <$> mapM go es
-  ArrayIndex e1 i     -> ArrayIndex <$> go e1 <*> pure i
+  ArrayIndex e1 e2    -> ArrayIndex <$> go e1 <*> go e2
   Pop (n,n') e1 e2    -> Pop (n,n') <$> go e1 <*> goSuc2 e2
   Singleton e1        -> Singleton <$> go e1
 #endif
