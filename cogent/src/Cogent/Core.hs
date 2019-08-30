@@ -126,6 +126,8 @@ data Expr t v a e
   | Pop (a, a) (e t v a) (e t ('Suc ('Suc v)) a)
   | Singleton (e t v a)  -- extracting the element out of a singleton array
   | ArrayMap2 ((a, a), e t ('Suc ('Suc v)) a) (e t v a, e t v a) 
+  | ArrayTake (a, a) (e t v a) (e t v a) (e t ('Suc ('Suc v)) a)
+  | ArrayPut (e t v a) (e t v a) (e t v a)
 #endif
   | Let a (e t v a) (e t ('Suc v) a)
   | LetBang [(Fin v, a)] a (e t v a) (e t ('Suc v) a)
@@ -229,6 +231,12 @@ traverseE f (ILit i pt)          = pure $ ILit i pt
 traverseE f (SLit s)             = pure $ SLit s
 #ifdef BUILTIN_ARRAYS
 traverseE f (ALit es)            = ALit <$> traverse f es
+traverseE f (ArrayIndex e i)     = ArrayIndex <$> f e <*> f i
+traverseE f (Pop as e1 e2)       = Pop as <$> f e1 <*> f e2
+traverseE f (Singleton e)        = Singleton <$> f e
+traverseE f (ArrayMap2 ae es)    = ArrayMap2 <$> secondM f ae <*> bothM f es
+traverseE f (ArrayTake as arr fld e) = ArrayTake as <$> f arr <*> f fld <*> f e
+traverseE f (ArrayPut arr fld e) = ArrayPut <$> f arr <*> f fld <*> f e
 #endif
 traverseE f (Let a e1 e2)        = Let a <$> f e1 <*> f e2
 traverseE f (LetBang vs a e1 e2) = LetBang vs a <$> f e1 <*> f e2
@@ -257,6 +265,12 @@ foldEPre unwrap f e = case unwrap e of
   SLit {}             -> f e
 #ifdef BUILTIN_ARRAYS
   ALit es             -> mconcat $ f e : map (foldEPre unwrap f) es
+  ArrayIndex e i      -> mconcat [f e, f i]
+  Pop as e1 e2        -> mconcat [f e1, f e2]
+  Singleton e         -> f e
+  ArrayMap2 (_,e) (e1,e2) -> mconcat [f e, f e1, f e2]
+  ArrayTake _ arr fld e   -> mconcat [f arr, f fld, f e]
+  ArrayPut    arr fld e   -> mconcat [f arr, f fld, f e]
 #endif
   (Let _ e1 e2)       -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
   (LetBang _ _ e1 e2) -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
@@ -287,6 +301,8 @@ fmapE f (ArrayIndex e i)     = ArrayIndex (f e) (f i)
 fmapE f (ArrayMap2 (as,e) (e1,e2)) = ArrayMap2 (as, f e) (f e1, f e2)
 fmapE f (Pop a e1 e2)        = Pop a (f e1) (f e2)
 fmapE f (Singleton e)        = Singleton (f e)
+fmapE f (ArrayTake as arr fld e) = ArrayTake as (f arr) (f fld) (f e)
+fmapE f (ArrayPut arr fld e) = ArrayPut (f arr) (f fld) (f e)
 #endif
 fmapE f (Let a e1 e2)        = Let a (f e1) (f e2)
 fmapE f (LetBang vs a e1 e2) = LetBang vs a (f e1) (f e2)
@@ -310,7 +326,8 @@ untypeD (FunDef  attr fn ts ti to e) = FunDef  attr fn ts ti to (untypeE e)
 untypeD (AbsDecl attr fn ts ti to  ) = AbsDecl attr fn ts ti to
 untypeD (TypeDef tn ts mt) = TypeDef tn ts mt
 
-instance (Functor (e t v), Functor (e t ('Suc v)), Functor (e t ('Suc ('Suc v)))) => Functor (Flip (Expr t v) e) where
+instance (Functor (e t v), Functor (e t ('Suc v)), Functor (e t ('Suc ('Suc v))))
+  => Functor (Flip (Expr t v) e) where  -- map over @a@
   fmap f (Flip (Variable v)         ) = Flip $ Variable (second f v)
   fmap f (Flip (Fun fn tys nt)      ) = Flip $ Fun fn tys nt
   fmap f (Flip (Op opr es)          ) = Flip $ Op opr (map (fmap f) es)
@@ -321,6 +338,12 @@ instance (Functor (e t v), Functor (e t ('Suc v)), Functor (e t ('Suc ('Suc v)))
   fmap f (Flip (SLit s)             ) = Flip $ SLit s
 #ifdef BUILTIN_ARRAYS
   fmap f (Flip (ALit es)            ) = Flip $ ALit (map (fmap f) es)
+  fmap f (Flip (ArrayIndex e i)     ) = Flip $ ArrayIndex (fmap f e) (fmap f i)
+  fmap f (Flip (ArrayMap2 (as,e) (e1,e2))) = Flip $ ArrayMap2 (both f as, fmap f e) (fmap f e1, fmap f e2)
+  fmap f (Flip (Pop as e1 e2)       ) = Flip $ Pop (both f as) (fmap f e1) (fmap f e2)
+  fmap f (Flip (Singleton e)        ) = Flip $ Singleton (fmap f e)
+  fmap f (Flip (ArrayTake as arr fld e)) = Flip $ ArrayTake (both f as) (fmap f arr) (fmap f fld) (fmap f e)
+  fmap f (Flip (ArrayPut     arr fld e)) = Flip $ ArrayPut (fmap f arr) (fmap f fld) (fmap f e)
 #endif
   fmap f (Flip (Let a e1 e2)        ) = Flip $ Let (f a) (fmap f e1) (fmap f e2)
   fmap f (Flip (LetBang vs a e1 e2) ) = Flip $ LetBang (map (second f) vs) (f a) (fmap f e1) (fmap f e2)
@@ -329,9 +352,9 @@ instance (Functor (e t v), Functor (e t ('Suc v)), Functor (e t ('Suc ('Suc v)))
   fmap f (Flip (If e1 e2 e3)        ) = Flip $ If (fmap f e1) (fmap f e2) (fmap f e3)
   fmap f (Flip (Case e tn (l1,a1,e1) (l2,a2,e2))) = Flip $ Case (fmap f e) tn (l1, f a1, fmap f e1) (l2, f a2, fmap f e2)
   fmap f (Flip (Esac e)             ) = Flip $ Esac (fmap f e)
-  fmap f (Flip (Split a e1 e2)      ) = Flip $ Split ((f *** f) a) (fmap f e1) (fmap f e2)
+  fmap f (Flip (Split a e1 e2)      ) = Flip $ Split (both f a) (fmap f e1) (fmap f e2)
   fmap f (Flip (Member rec fld)     ) = Flip $ Member (fmap f rec) fld
-  fmap f (Flip (Take a rec fld e)   ) = Flip $ Take ((f *** f) a) (fmap f rec) fld (fmap f e)
+  fmap f (Flip (Take a rec fld e)   ) = Flip $ Take (both f a) (fmap f rec) fld (fmap f e)
   fmap f (Flip (Put rec fld v)      ) = Flip $ Put (fmap f rec) fld (fmap f v)
   fmap f (Flip (Promote ty e)       ) = Flip $ Promote ty (fmap f e)
   fmap f (Flip (Cast ty e)          ) = Flip $ Cast ty (fmap f e)
