@@ -509,7 +509,7 @@ specialiseExpr (TE t e) = TE <$> monoType t <*> specialiseExpr' e
     specialiseExpr' (SLit    s          ) = pure $ SLit s
 #ifdef BUILTIN_ARRAYS
     specialiseExpr' (ALit    es         ) = ALit <$> mapM specialiseExpr es
-    specialiseExpr' (ArrayIndex e i     ) = ArrayIndex <$> specialiseExpr e <*> pure i
+    specialiseExpr' (ArrayIndex e i     ) = ArrayIndex <$> specialiseExpr e <*> specialiseExpr i
     specialiseExpr' (Pop     a e1 e2    ) = Pop a <$> specialiseExpr e1 <*> specialiseExpr e2
     specialiseExpr' (Singleton e        ) = Singleton <$> specialiseExpr e
 #endif
