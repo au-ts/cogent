@@ -157,20 +157,23 @@ normaliseT d (T (TLayout l t)) = do
   env <- lift . lift $ use knownDataLayouts
   case t' of
     (T (TRecord fs (Boxed p Nothing))) -> do
-      let t'' = T . TRecord fs . Boxed p $ Just l
+      let normPartT = normaliseT d . T . TRecord fs
+      t'' <- normPartT Unboxed
       if isTypeLayoutExprCompatible env t'' l
-        then normaliseT d t''
+        then normPartT . Boxed p $ Just l
         else logErrExit (LayoutDoesNotMatchType l t)
     (T (TCon n ts (Boxed p Nothing)))  -> do
-      let t'' = T . TCon n ts  . Boxed p $ Just l
+      let normPartT = normaliseT d . T . TCon n ts
+      t'' <- normPartT Unboxed
       if isTypeLayoutExprCompatible env t'' l
-        then normaliseT d t''
+        then normPartT . Boxed p $ Just l
         else logErrExit (LayoutDoesNotMatchType l t)
 #ifdef BUILTIN_ARRAYS
     (T (TArray t n (Boxed p Nothing))) -> do
-      let t'' = T . TArray t n . Boxed p $ Just l
-      if isTypeLayoutExprCompatible env t l  -- NOTE that the 'l' is for the element type / zilinc
-        then normaliseT d t''
+      let normPartT = normaliseT d . T . TArray t n
+      t'' <- normPartT Unboxed
+      if isTypeLayoutExprCompatible env t'' l  -- NOTE that the 'l' is for the element type / zilinc
+        then normPartT . Boxed p $ Just l
         else logErrExit (LayoutDoesNotMatchType l t)
 #endif
     _ -> logErrExit (LayoutOnNonRecordOrCon t)
