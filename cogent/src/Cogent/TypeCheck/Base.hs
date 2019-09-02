@@ -602,7 +602,6 @@ rigid (A t l _) = True -- rigid t && null (unknownsE l) -- FIXME: is it correct?
 #endif
 rigid _ = True
 
-
 --
 -- Dargent
 --
@@ -636,14 +635,12 @@ isTypeLayoutExprCompatible env (T (TVariant ts1)) (DLVariant _ ts2) =
     tuplise ts = T (TTuple ts)
 #ifdef BUILTIN_ARRAYS
 isTypeLayoutExprCompatible env (T (TArray t _ (Boxed {}))) DLPtr = True
-isTypeLayoutExprCompatible env (T (TArray t _ Unboxed)) (DLArray l _) =
-  isTypeLayoutExprCompatible env t l
+isTypeLayoutExprCompatible env (T (TArray t _ Unboxed)) (DLArray l _) = isTypeLayoutExprCompatible env t l
 #endif
-isTypeLayoutExprCompatible env t (DLOffset l _) =
-  isTypeLayoutExprCompatible env t (DL l)
+isTypeLayoutExprCompatible env t (DLOffset l _) = isTypeLayoutExprCompatible env t (DL l)
 isTypeLayoutExprCompatible env t (DLRepRef n)   =
   case M.lookup n env of
     Just (l, _) -> isTypeLayoutExprCompatible env t l
-    Nothing     -> False -- TODO(dargent): this really shoud be an exceptional state
-isTypeLayoutExprCompatible _ t l = False  -- trace ("t = " ++ show t ++ "; and l = " ++ show l) False
+    Nothing     -> False  -- TODO(dargent): this really shoud be an exceptional state
+isTypeLayoutExprCompatible _ t l = trace ("t = " ++ show t ++ "\nl = " ++ show l) False
 
