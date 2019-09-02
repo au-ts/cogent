@@ -22,6 +22,7 @@ import Cogent.Common.Types
 import Cogent.Common.Syntax
 import Cogent.Compiler
 import Cogent.Core hiding (kind)
+import Cogent.Dargent.Allocation
 import Cogent.Isabelle.Deep
 import Cogent.PrettyPrint
 import Cogent.Util
