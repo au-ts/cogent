@@ -16,6 +16,7 @@
 
 module Cogent.Dargent.Allocation where
 
+import Cogent.Common.Types
 import Cogent.Common.Syntax
 import Cogent.Dargent.Util
 
@@ -42,6 +43,12 @@ instance Offsettable BitRange where
 -- | A predicate to determine if the bit-range is zero sized.
 isZeroSizedBR :: BitRange -> Bool
 isZeroSizedBR BitRange { bitSizeBR, bitOffsetBR } = (bitSizeBR == 0)
+
+primBitRange :: PrimInt -> BitRange
+primBitRange primInt = BitRange { bitSizeBR = primIntSizeBits primInt, bitOffsetBR = 0 }
+
+pointerBitRange :: BitRange
+pointerBitRange = BitRange { bitSizeBR = pointerSizeBits, bitOffsetBR = 0 }
 
 
 {- * Allocations -}
