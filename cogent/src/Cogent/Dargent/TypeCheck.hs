@@ -102,7 +102,7 @@ tcDataLayoutExpr env (DLVariant tagExpr alternatives) = do
     primitiveBitRange _                    = Nothing
 
 #ifdef BUILTIN_ARRAYS
-tcDataLayoutExpr env (DLArray e p) = mapPaths (InElmt p) $ tcDataLayoutExpr env (DL e)
+tcDataLayoutExpr env (DLArray e p) = mapPaths (InElmt p) $ tcDataLayoutExpr env e
 #endif
 
 tcDataLayoutExpr env DLPtr = ([], [(pointerBitRange, PathEnd)])
