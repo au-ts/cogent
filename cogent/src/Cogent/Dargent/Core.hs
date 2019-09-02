@@ -131,12 +131,6 @@ dataLayoutSizeBytes :: DataLayout BitRange -> Size
 dataLayoutSizeBytes = (`div` wordSizeBits) . (alignSize wordSizeBits) . endAllocatedBits
 
 
-primBitRange :: PrimInt -> BitRange
-primBitRange primInt = BitRange { bitSizeBR = primIntSizeBits primInt, bitOffsetBR = 0 }
-
-pointerBitRange :: BitRange
-pointerBitRange = BitRange { bitSizeBR = pointerSizeBits, bitOffsetBR = 0 }
-
 {- * Word alignment transformations -}
 
 alignSize :: Size -> Size -> Size
