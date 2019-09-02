@@ -15,11 +15,11 @@
 
 module Cogent.Dargent.Surface
   ( module Cogent.Dargent.Surface
-  , DataLayoutExpr (DLPrim, DLRecord, DLVariant, DLOffset, DLRepRef, DLPtr,
+  , DataLayoutExpr ( DLPrim, DLRecord, DLVariant, DLOffset, DLRepRef, DLPtr
 #ifdef BUILTIN_ARRAYS
-     DLArray)
+                   , DLArray)
 #else
-     )
+                   )
 #endif
   )
 where
