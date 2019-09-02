@@ -836,7 +836,7 @@ instance Pretty a => Pretty (I.IntMap a) where
   pretty = vcat . map (\(k,v) -> pretty k <+> text "|->" <+> pretty v) . I.toList
 
 
-instance Pretty DataLayoutTypeCheckError where
+instance Pretty DataLayoutTcError where
   pretty (UnknownDataLayout r ctx)
      =  err "Undeclared data layout" <+> reprname r <$$> pretty ctx
   pretty (TagNotSingleBlock ctx)
