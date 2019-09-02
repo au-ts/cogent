@@ -71,12 +71,14 @@ library
               , Cogent.Compiler
               , Cogent.Context
               , Cogent.Core
+              , Cogent.Dargent.Allocation
               , Cogent.Dargent.Core
               , Cogent.Dargent.Surface
               , Cogent.Dargent.TypeCheck
               , Cogent.Dargent.Desugar
               , Cogent.Dargent.CoreTypeCheck
               , Cogent.Dargent.CodeGen
+              , Cogent.Dargent.Util
               , Cogent.Desugar
               , Cogent.GetOpt
               , Cogent.Glue

@@ -31,8 +31,11 @@ import Cogent.TypeCheck.Assignment
 import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Subst
 import qualified Cogent.TypeCheck.Row as Row
+
+import Cogent.Dargent.Allocation
 import Cogent.Dargent.Core
 import Cogent.Dargent.TypeCheck
+import Cogent.Dargent.Util
 
 import Control.Arrow (second)
 import qualified Data.Foldable as F
