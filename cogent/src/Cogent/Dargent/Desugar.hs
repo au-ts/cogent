@@ -38,13 +38,16 @@ import Cogent.Common.Syntax         ( DataLayoutName
                                     , FieldName
                                     )
 import Cogent.Common.Types          ( Sigil(Unboxed, Boxed), PrimInt(..))
+import Cogent.Dargent.Allocation
+import Cogent.Dargent.Core
 import Cogent.Dargent.Surface       ( DataLayoutSize(Bytes, Bits, Add)
                                     , DataLayoutExpr(..)
                                     , DataLayoutExpr'(..)
                                     )
-import Cogent.Dargent.TypeCheck     ( desugarSize )
-import Cogent.Dargent.Core
+import Cogent.Dargent.TypeCheck     ( evalSize )
+import Cogent.Dargent.Util
 import Cogent.Core                  ( Type (..) )
+
 {- * Desugaring 'Sigil's -}
 
 -- | After WH-normalisation, @TCon _ _ _@ values only represent primitive and abstract types.
@@ -91,6 +94,9 @@ desugarSigil t = fmap desugarMaybeLayout
 
 {- * Desugaring 'DataLayout's -}
 
+desugarSize :: DataLayoutSize -> Size
+desugarSize = evalSize
+
 desugarDataLayout :: DataLayoutExpr -> DataLayout BitRange
 desugarDataLayout l = Layout $ desugarDataLayout' l
   where
@@ -119,7 +125,7 @@ desugarDataLayout l = Layout $ desugarDataLayout' l
         alts' = fmap (\(aname, pos, size, layout) -> (aname, (size, desugarDataLayout' layout, pos))) alts
     desugarDataLayout' DLPtr = PrimLayout pointerBitRange
 #ifdef BUILTIN_ARRAYS
-    desugarDataLayout' (DLArray {}) = __todo "desugarDataLayout': DLArray"
+    desugarDataLayout' (DLArray e s) = ArrayLayout (desugarDataLayout' e) s
 #endif
 
 {- * CONSTRUCTING 'DataLayout's -}

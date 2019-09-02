@@ -43,10 +43,8 @@ import Cogent.Dargent.Core
   , DataLayout' (..)
   , DataLayout (..)
   , alignLayout'
-  , wordSizeBits
-  , Architecture (..)
-  , architecture
   )
+import Cogent.Dargent.Util
 import Data.Nat
 
 import Data.List (foldl', scanl')

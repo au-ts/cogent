@@ -11,7 +11,6 @@
 --
 
 {-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE TupleSections #-}
@@ -26,8 +25,9 @@ import Control.Monad (guard, foldM)
 import Cogent.Common.Syntax (FieldName, TagName, DataLayoutName, Size)
 import Cogent.Common.Types (Sigil)
 import Cogent.Compiler (__fixme, __impossible)
-import Cogent.Dargent.Core
+import Cogent.Dargent.Allocation
 import Cogent.Dargent.Surface
+import Cogent.Dargent.Util
 import Cogent.Surface (Type(..))
 
 import Data.Bifunctor (second)
@@ -47,7 +47,7 @@ tcDataLayoutExpr env (DLRepRef n) =
 
 tcDataLayoutExpr _ (DLPrim size) = return [(bitRange, PathEnd)]
   where
-    bitSize = desugarSize size
+    bitSize = evalSize size
     bitRange = BitRange bitSize 0
 
 tcDataLayoutExpr env (DLOffset dataLayoutExpr offsetSize) =
@@ -97,43 +97,20 @@ tcDataLayoutExpr env (DLVariant tagExpr alternatives) = do
               return $ M.insert tagValue tagName accumTagValues
 
     primitiveBitRange :: DataLayoutExpr -> Maybe BitRange
-    primitiveBitRange (DLPrim size)        = Just $ BitRange (desugarSize size) 0
-    primitiveBitRange (DLOffset expr size) = offset (desugarSize size) <$> primitiveBitRange (DL expr)
+    primitiveBitRange (DLPrim size)        = Just $ BitRange (evalSize size) 0
+    primitiveBitRange (DLOffset expr size) = offset (evalSize size) <$> primitiveBitRange (DL expr)
     primitiveBitRange _                    = Nothing
 
 #ifdef BUILTIN_ARRAYS
 tcDataLayoutExpr env (DLArray e p) = mapPaths (InElmt p) $ tcDataLayoutExpr env e
 #endif
-
 tcDataLayoutExpr env DLPtr = ([], [(pointerBitRange, PathEnd)])
 
-{-
--- TODO: this will be complicated code because it works on the Surface type syntax rather than the core
--- It also will change when the surface language is changed to support data layouts.
 
--- Checks that the type and layout match
--- If no layout is provided, only checks that the type can be layed out
-tcDataLayoutTypeMatch :: TypeDict -> NamedTypes -> RawType -> Maybe DataLayoutExpr -> [DataLayoutTypeMatchError]
-
--- Unboxed types
-tcDataLayoutTypeMatch typeEnv layoutEnv (TUnbox type) layout
-   | TRecord fields sigil <- type
-   | TVariant alternatives <- type
-   | TCon name typevars sigil <- type
-
-tcDataLayoutTypeMatch typeEnv layoutEnv ()
--- Boxed types must be a primitive layout of pointer size
-tcDataLayoutTypeMatch typeEnv layoutEnv (TRecord fields sigil) layout
-
--- Boxed Record/Variant
--}
+-- NOTE: the check for type-layout compatibility is in Cogent.TypeCheck.Base
 
 -- | Normalises the layout remove references to named layouts
-normaliseDataLayoutExpr
-  :: NamedDataLayouts
-  -> DataLayoutExpr
-  -> DataLayoutExpr
-
+normaliseDataLayoutExpr :: NamedDataLayouts -> DataLayoutExpr -> DataLayoutExpr
 normaliseDataLayoutExpr env (DLRepRef n) =
   case M.lookup n env of
     Just (expr, _) -> normaliseDataLayoutExpr env expr
@@ -149,18 +126,6 @@ normaliseDataLayoutExpr _ r = r
 type NamedDataLayouts = Map DataLayoutName (DataLayoutExpr, Allocation)
 type DataLayoutTcError = DataLayoutTcErrorP DataLayoutPath
 -- type DataLayoutTypeMatchError = DataLayoutTcErrorP DataLayoutPath -- TODO: needed to implement `tcDataLayoutTypeMatch`
-
--- | Allows errors messages to pinpoint the exact location where the error occurred in a DataLayoutExpr/Decl
-data DataLayoutPath
-  = InField FieldName SourcePos DataLayoutPath
-  | InTag   DataLayoutPath
-  | InAlt   TagName SourcePos DataLayoutPath
-#ifdef BUILTIN_ARRAYS
-  | InElmt  SourcePos DataLayoutPath
-#endif
-  | InDecl  DataLayoutName DataLayoutPath
-  | PathEnd
-  deriving (Eq, Show, Ord)
 
 
 -- | Errors when checking a DataLayout's structure
@@ -220,19 +185,12 @@ tcDataLayoutDecl :: NamedDataLayouts -> DataLayoutDecl -> ([DataLayoutTcError], 
 tcDataLayoutDecl env (DataLayoutDecl pos name expr) =
   mapPaths (InDecl name) (tcDataLayoutExpr env expr)
 
-normaliseDataLayoutDecl
-  :: NamedDataLayouts
-  -> DataLayoutDecl
-  -> DataLayoutDecl
-
+normaliseDataLayoutDecl :: NamedDataLayouts -> DataLayoutDecl -> DataLayoutDecl
 normaliseDataLayoutDecl env (DataLayoutDecl pos name expr) =
   DataLayoutDecl pos name (normaliseDataLayoutExpr env expr)
 
 -- Normalises the layout in the sigil to remove references to named layouts
-normaliseSigil
-  :: NamedDataLayouts
-  -> Sigil (Maybe DataLayoutExpr)
-  -> Sigil (Maybe DataLayoutExpr)
+normaliseSigil :: NamedDataLayouts -> Sigil (Maybe DataLayoutExpr) -> Sigil (Maybe DataLayoutExpr)
 normaliseSigil env = fmap (fmap (normaliseDataLayoutExpr env))
 
 returnError :: Monoid a => DataLayoutTcError -> ([DataLayoutTcError], a)
@@ -245,20 +203,6 @@ evalSize (Bytes b) = b * 8
 evalSize (Bits b)  = b
 evalSize (Add a b) = evalSize a + evalSize b
 
-desugarSize :: DataLayoutSize -> Size
-desugarSize (Bytes b) = b * 8
-desugarSize (Bits b)  = b
-desugarSize (Add a b) = desugarSize a + desugarSize b
-
-{- * Allocations -}
-
--- | A set of bit indices into a data type.
---
--- Represents the set which is the union of the sets represented by the 'BitRange's in the list.
-type Allocation = [(BitRange, DataLayoutPath)]
-
-isZeroSizedAllocation :: Allocation -> Bool
-isZeroSizedAllocation = all (isZeroSizedBR . fst)
 
 -- | Conjunction of allocations
 --
@@ -296,7 +240,4 @@ mapPaths
   -> ([DataLayoutTcError], Allocation)
   -> ([DataLayoutTcError], Allocation)
 mapPaths f (errors, alloc) = (fmap (fmap f) errors, mapOntoPaths f alloc)
-
-instance Offsettable Allocation where
-  offset n = fmap $ \(range, path) -> (offset n range, path)
 
