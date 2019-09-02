@@ -19,6 +19,7 @@
 
 module Cogent.TypeCheck.Base where
 
+import Cogent.Dargent.Allocation
 import Cogent.Dargent.TypeCheck ( NamedDataLayouts
                                 , DataLayoutTcError
                                 , tcDataLayoutExpr
@@ -26,7 +27,6 @@ import Cogent.Dargent.TypeCheck ( NamedDataLayouts
                                 )
 import Cogent.Dargent.Core      ( DataLayout (..)
                                 , DataLayout'(..)
-                                , BitRange
                                 )
 
 import Cogent.Common.Syntax

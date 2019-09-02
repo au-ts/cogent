@@ -26,8 +26,10 @@ import Cogent.Common.Syntax         ( DataLayoutName
                                     , FieldName
                                     )
 import Cogent.Common.Types          ( Sigil (..) )
-import Cogent.Dargent.Core
 import Cogent.Core                  ( Type (..) )
+import Cogent.Dargent.Core
+import Cogent.Dargent.Allocation
+import Cogent.Dargent.Util
 
 
 -- Checks that all boxed records in the type at any depth

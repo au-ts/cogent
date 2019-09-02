@@ -30,6 +30,7 @@ import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler (__impossible)
 import Cogent.Core           as CC
+import Cogent.Dargent.Allocation
 import Data.Nat              as Nat
 
 import Data.Map as M

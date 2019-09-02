@@ -45,6 +45,7 @@ module Cogent.Core
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler
+import Cogent.Dargent.Allocation (BitRange)
 import Cogent.Dargent.Core
 import Cogent.PrettyPrint hiding (associativity, primop)
 import Cogent.Util
