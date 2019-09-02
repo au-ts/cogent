@@ -57,14 +57,19 @@ newtype S = ParserState { avoidInit :: Bool }
 
 language :: LanguageDef st
 language = haskellStyle
-           { T.reservedOpNames = ["+","*","/","%","&&","||",">=","<=",">","<","==","/=",
-                                  ".&.",".|.",".^.",">>","<<",
-                                  ":","=","!",":<",".","_","..","#","$","::",
-                                  "@","@@","->","=>","~>","<=","|","|>"]
-           , T.reservedNames   = ["let","in","type","include","all","take","put","inline","upcast",
-                                  "repr","variant","record","at","layout","pointer",
-                                  "if","then","else","not","complement","and","True","False","o",
-                                  "map2"]
+           { T.reservedOpNames = ["+","*","/","%","&&","||",">=","<=",">","<","==","/="
+                                 ,".&.",".|.",".^.",">>","<<"
+                                 ,":","=","!",":<",".","_","..","#","$","::"
+                                 ,"@","@@"  -- DocGent
+                                 ,"->","=>","~>","<=","|","|>"]
+           , T.reservedNames   = ["let","in","type","include","all","take","put","inline","upcast"
+                                 ,"variant","record","at","layout","pointer"
+                                 ,"if","then","else","not","complement","and","True","False","o"
+#ifdef BUILTIN_ARRAYS
+                                 ,"array","map2"]
+#else
+                                  ]
+#endif
            , T.identStart = letter
            }
 
@@ -112,6 +117,9 @@ repExpr = DL <$> repExpr'
     repExpr' = avoidInitial >> buildExpressionParser [[Postfix (flip Offset <$ reserved "at" <*> repSize)]]
           ((Record <$ reserved "record" <*> braces (commaSep recordRepr))
       <|> (Variant <$ reserved "variant" <*> parens repExpr' <*> braces (commaSep variantRepr))
+#ifdef BUILTIN_ARRAYS
+      <|> (Array <$ reserved "array" <*> parens repExpr' <*> getPosition)
+#endif
       <|> (RepRef <$> typeConName)
       <|> (Prim <$> repSize)
       <|> (Ptr <$ reserved "pointer"))
@@ -440,7 +448,7 @@ toplevel' = do
   when (sourceColumn p > 1) $ fail "toplevel entries should start at column 1"
   (p,docs,) <$> (try (Include <$ reserved "include" <*> stringLiteral)
         <|> IncludeStd <$ reserved "include" <*> angles (many (noneOf "\r\n>"))
-        <|> RepDef <$ reserved "repr" <*> repDecl
+        <|> RepDef <$ reserved "layout" <*> repDecl
         <|> typeDec <$ reserved "type" <*> typeConName <*> many (avoidInitial >> variableName) <*>
               ((Left <$> (reservedOp "=" *> monotype)) <|> (Right <$> option [] (reservedOp "-:" *> commaSep monotype)))
         <|> do n <- variableName

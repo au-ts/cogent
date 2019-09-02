@@ -19,14 +19,12 @@
 
 module Cogent.TypeCheck.Base where
 
-import Cogent.Dargent.TypeCheck ( DataLayoutTypeCheckError
-                                , Allocation
-                                , NamedDataLayouts
-                                , typeCheckDataLayoutExpr
-                                , typeCheckDargentLayoutExpr
+import Cogent.Dargent.TypeCheck ( NamedDataLayouts
+                                , DataLayoutTcError
+                                , tcDataLayoutExpr
                                 , evalSize
                                 )
-import Cogent.Dargent.Core      ( DataLayout(..)
+import Cogent.Dargent.Core      ( DataLayout (..)
                                 , DataLayout'(..)
                                 , BitRange
                                 )
@@ -102,7 +100,7 @@ data TypeError = FunctionNotFound VarName
                | CustTyGenIsPolymorphic TCType
                | CustTyGenIsSynonym TCType
                | TypeWarningAsError TypeWarning
-               | DataLayoutError DataLayoutTypeCheckError
+               | DataLayoutError DataLayoutTcError
                | LayoutOnNonRecordOrCon TCType
                | LayoutDoesNotMatchType DataLayoutExpr TCType
                deriving (Eq, Show, Ord)
@@ -493,8 +491,8 @@ validateType' vs (RT t) = do
                     if fields' == fields
                     then
                       case s of
-                        Boxed _ dlexpr
-                          | (anError : _) <- fst $ typeCheckDargentLayoutExpr layouts dlexpr
+                        Boxed _ (Just dlexpr)
+                          | (anError : _) <- fst $ tcDataLayoutExpr layouts dlexpr
                           -> throwE $ DataLayoutError anError
                         otherwise ->
                           (toRow . T . ffmap toSExpr) <$> mapM (validateType' vs) t
@@ -511,7 +509,7 @@ validateType' vs (RT t) = do
 #endif
     TLayout l t  -> do
       layouts <- use knownDataLayouts
-      let (errs, alloc) = typeCheckDataLayoutExpr layouts l
+      let (errs, alloc) = tcDataLayoutExpr layouts l
       () <- (case errs of
               (err : _) -> throwE (DataLayoutError err)
               _         -> pure ())
