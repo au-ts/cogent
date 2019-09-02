@@ -23,6 +23,8 @@ import Text.Parsec.Pos (SourcePos)
 
 import Cogent.Common.Syntax (TagName, FieldName, Size)
 import Cogent.Common.Types (PrimInt (..))
+import Cogent.Dargent.Allocation
+import Cogent.Dargent.Util
 
 {- * Core datalayout types -}
 
@@ -48,11 +50,14 @@ data DataLayout' bits
     { fieldsDL        :: Map FieldName (DataLayout' bits, SourcePos)
     }
 #ifdef BUILTIN_ARRAYS
-  | ArrayLayout (IntMap (DataLayout' bits)) SourcePos
+  | ArrayLayout (DataLayout' bits) SourcePos
 #endif
   deriving (Show, Eq, Functor, Foldable)
 
 deriving instance Ord bits => Ord (DataLayout' bits)
+
+instance Offsettable a => Offsettable (DataLayout' a) where
+  offset n = fmap (offset n)
 
 -- The DataLayout wrapper type
 data DataLayout bits
@@ -62,25 +67,9 @@ data DataLayout bits
 
 deriving instance Ord bits => Ord (DataLayout bits)
 
--- | A range of bit indices into a data type.
---
---   Should satisfy
---
---  prop> bitSizeBR >= 1
---  prop> bitOffsetBR >= 0
---
---   Represents the set
---
---  @
---  {bitOffset, bitOffset + 1, ..., bitOffset + bitSize - 1}
---  @
-data BitRange
-  = BitRange { bitSizeBR :: Size, bitOffsetBR :: Size }
-  deriving (Eq, Show, Ord)
+instance Offsettable a => Offsettable (DataLayout a) where
+  offset n = fmap (offset n)
 
--- | A predicate to determine if the bit-range is zero sized.
-isZeroSizedBR :: BitRange -> Bool
-isZeroSizedBR BitRange { bitSizeBR, bitOffsetBR } = (bitSizeBR == 0)
 
 -- | A range of bit indices into a data type.
 --
@@ -141,30 +130,6 @@ endAllocatedBits = foldr (\range start -> max (bitOffsetBR range + bitSizeBR ran
 dataLayoutSizeBytes :: DataLayout BitRange -> Size
 dataLayoutSizeBytes = (`div` wordSizeBits) . (alignSize wordSizeBits) . endAllocatedBits
 
-{- * Default bit 'Sizes' and 'BitRanges' -}
-
-wordSizeBits :: Size
-wordSizeBits = 32
-
-
-data Architecture = X86_64 | X86_32 | ARM32
-
-architecture :: Architecture
-architecture = ARM32
-
-
-pointerSizeBits :: Size
-pointerSizeBits = case architecture of
-  X86_32 -> 32
-  X86_64 -> 64
-  ARM32  -> 32
-
-primIntSizeBits :: PrimInt -> Size
-primIntSizeBits U8      = 8
-primIntSizeBits U16     = 16
-primIntSizeBits U32     = 32
-primIntSizeBits U64     = 64
-primIntSizeBits Boolean = 8
 
 primBitRange :: PrimInt -> BitRange
 primBitRange primInt = BitRange { bitSizeBR = primIntSizeBits primInt, bitOffsetBR = 0 }
@@ -224,17 +189,4 @@ alignLayout' = fmap rangeToAlignedRanges
 alignLayout :: DataLayout BitRange -> DataLayout [AlignedBitRange]
 alignLayout = fmap rangeToAlignedRanges
 
--- When transforming (Offset repExpr offsetSize),
--- we want to add offset bits to all blocks inside the repExpr,
--- as well as the allocation corresponding to that repExpr.
-class Offsettable a where
-  offset :: Size -> a -> a
 
-instance Offsettable BitRange where
-  offset n range@(BitRange { bitOffsetBR }) = range { bitOffsetBR = bitOffsetBR + n}
-
-instance Offsettable a => Offsettable (DataLayout' a) where
-  offset n = fmap (offset n)
-
-instance Offsettable a => Offsettable (DataLayout a) where
-  offset n = fmap (offset n)
