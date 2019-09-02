@@ -610,8 +610,11 @@ instance Pretty d => Pretty (DataLayoutExpr' d) where
   pretty (Prim sz) = pretty sz
   pretty (Offset e s) = pretty e <+> keyword "at" <+> pretty s
   pretty (Record fs) = keyword "record" <+> record (map (\(f,_,e) -> fieldname f <> symbol ":" <+> pretty e ) fs)
-  pretty (Variant e vs) = keyword "variant" <+> tupled [pretty e]
+  pretty (Variant e vs) = keyword "variant" <+> parens (pretty e)
                                                  <+> record (map (\(f,_,i,e) -> tagname f <+> tupled [literal $ string $ show i] <> symbol ":" <+> pretty e) vs)
+#ifdef BUILTIN_ARRAYS
+  pretty (Array e s) = keyword "array" <+> parens (pretty e) <+> keyword "at" <+> pretty s
+#endif
   pretty Ptr = keyword "pointer"
 
 instance Pretty DataLayoutExpr where
@@ -858,6 +861,9 @@ instance Pretty DataLayoutPath where
   pretty (InField n po ctx) = context' "for field" <+> fieldname n <+> context' "(" <> pretty po <> context' ")" </> pretty ctx
   pretty (InTag ctx)        = context' "for the variant tag block" </> pretty ctx
   pretty (InAlt t po ctx)   = context' "for the constructor" <+> tagname t <+> context' "(" <> pretty po <> context' ")" </> pretty ctx
+#ifdef BUILTIN_ARRAYS
+  pretty (InElmt po ctx)    = context' "in the array element (" <> pretty po <> context' ")" </> pretty ctx
+#endif
   pretty (InDecl n p)       = context' "in the representation" <+> reprname n <+> context' "(" <> pretty p <> context' ")"
   pretty (PathEnd)          = mempty
 

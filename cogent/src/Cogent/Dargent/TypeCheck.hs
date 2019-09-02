@@ -25,14 +25,12 @@ import Control.Monad (guard, foldM)
 
 import Cogent.Common.Syntax (FieldName, TagName, DataLayoutName, Size)
 import Cogent.Common.Types (Sigil)
+import Cogent.Compiler (__fixme, __impossible)
 import Cogent.Dargent.Core
 import Cogent.Dargent.Surface
-import Cogent.Compiler (__fixme, __impossible)
 import Cogent.Surface (Type(..))
--- import Cogent.TypeCheck.Base (TypeDict)  -- TODO: needed to implement `tcDataLayoutTypeMatch`
 
 import Data.Bifunctor (second)
-
 import Text.Parsec.Pos (SourcePos)
 
 {- * Important exported functions -}
@@ -103,6 +101,9 @@ tcDataLayoutExpr env (DLVariant tagExpr alternatives) = do
     primitiveBitRange (DLOffset expr size) = offset (desugarSize size) <$> primitiveBitRange (DL expr)
     primitiveBitRange _                    = Nothing
 
+#ifdef BUILTIN_ARRAYS
+tcDataLayoutExpr env (DLArray e p) = mapPaths (InElmt p) $ tcDataLayoutExpr env (DL e)
+#endif
 
 tcDataLayoutExpr env DLPtr = ([], [(pointerBitRange, PathEnd)])
 
@@ -154,6 +155,9 @@ data DataLayoutPath
   = InField FieldName SourcePos DataLayoutPath
   | InTag   DataLayoutPath
   | InAlt   TagName SourcePos DataLayoutPath
+#ifdef BUILTIN_ARRAYS
+  | InElmt  SourcePos DataLayoutPath
+#endif
   | InDecl  DataLayoutName DataLayoutPath
   | PathEnd
   deriving (Eq, Show, Ord)
@@ -186,9 +190,8 @@ data DataLayoutTcErrorP p
 
   deriving (Eq, Show, Ord, Functor)
 
-{- TODO: needed to implement `tcDataLayoutTypeMatch`
--- Errors when checking a Type matches a DataLayout
---
+
+{-
 -- The type parameter p is the type of the path to the error (DataLayoutPath)
 -- We parameterise by p so we can use the functor instance to map changes to the path
 data DataLayoutTypeMatchErrorP p
