@@ -191,9 +191,9 @@ library
 
   default-language: Haskell2010
   default-extensions: CPP NoMonadFailDesugaring
-  build-tools:
-              alex
-            , happy
+  build-tool-depends:
+              alex:alex
+            , happy:happy
   ghc-options:
     -- -Wall
     -- -Werror
@@ -237,9 +237,9 @@ Executable cogent
 
   default-language: Haskell2010
   default-extensions: CPP
-  build-tools:
-              alex
-            , happy
+  build-tool-depends:
+              alex:alex
+            , happy:happy
   ghc-options:
     -Wall
     -- -Werror
