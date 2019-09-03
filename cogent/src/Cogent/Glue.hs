@@ -42,6 +42,7 @@ import           Cogent.Common.Types
 import           Cogent.Compiler
 import qualified Cogent.Context   as Ctx
 import qualified Cogent.Core      as CC
+import           Cogent.Dargent.TypeCheck
 import qualified Cogent.Desugar   as DS
 import qualified Cogent.Inference as IN
 import qualified Cogent.Mono      as MN
@@ -137,6 +138,7 @@ parseFile' filename = do
 data TcState = TcState { _tfuncs :: Map FunName (SF.Polytype TC.TCType)
                        , _ttypes :: TC.TypeDict
                        , _consts :: Map VarName (TC.TCType, TC.TCExpr, SourcePos)
+                       , _dldefs :: NamedDataLayouts
                        }
 
 data DsState = DsState { _typedefs  :: DS.Typedefs
@@ -209,10 +211,10 @@ parseAnti s parsec loc offset' = do
 
 tcAnti :: (a -> TC.TcM b) -> a -> GlDefn t b
 tcAnti f a = lift . lift $
-  StateT $ \s -> let state = TC.TcState { TC._knownFuns    = view (tcState.tfuncs) s
-                                        , TC._knownTypes   = view (tcState.ttypes) s
-                                        , TC._knownConsts  = view (tcState.consts) s
-                                        , TC._knownDataLayouts   = (__fixme M.empty) -- TODO(dargent), FIXME: Not sure what I'm doing here /liamoc
+  StateT $ \s -> let state = TC.TcState { TC._knownFuns        = view (tcState.tfuncs) s
+                                        , TC._knownTypes       = view (tcState.ttypes) s
+                                        , TC._knownConsts      = view (tcState.consts) s
+                                        , TC._knownDataLayouts = view (tcState.dldefs) s
                                         }
                      turn :: s -> (Maybe b, TC.TcLogState) -> Either String (b,s)
                      turn s (Just x, TC.TcLogState l _) = Right (x,s)  -- FIXME: ignore warnings atm / zilinc
@@ -642,9 +644,10 @@ mkGlState :: [SF.TopLevel SF.RawType TC.TypedPatn TC.TypedExpr]
           -> GlState
 mkGlState tced tcState (Last (Just (typedefs, constdefs, _))) ftypes (funMono, typeMono) genState =
   GlState { _tcDefs  = tced
-          , _tcState = TcState { _tfuncs = view TC.knownFuns   tcState
-                               , _ttypes = view TC.knownTypes  tcState
-                               , _consts = view TC.knownConsts tcState
+          , _tcState = TcState { _tfuncs = view TC.knownFuns        tcState
+                               , _ttypes = view TC.knownTypes       tcState
+                               , _consts = view TC.knownConsts      tcState
+                               , _dldefs = view TC.knownDataLayouts tcState
                                }
           , _dsState = DsState typedefs constdefs
           , _coreTcState = CoreTcState ftypes

@@ -168,8 +168,8 @@ normaliseT d (T (TLayout l t)) = do
         then normPartT . Boxed p $ Just l
         else logErrExit (LayoutDoesNotMatchType l t)
 #ifdef BUILTIN_ARRAYS
-    (T (TArray t n (Boxed p Nothing))) -> do
-      let normPartT = normaliseT d . T . TArray t n
+    (T (TArray telt n (Boxed p Nothing))) -> do
+      let normPartT = normaliseT d . T . TArray telt n
       t'' <- normPartT Unboxed
       if isTypeLayoutExprCompatible env t'' l
         then normPartT . Boxed p $ Just l
