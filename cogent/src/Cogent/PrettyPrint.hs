@@ -497,7 +497,7 @@ instance (Pretty t, TypeType t, Pretty e) => Pretty (Type e t) where
   pretty (TArray t l s) =
     let (sigilPretty, layoutPretty) = case s of
           Unboxed     -> ((typesymbol "#" <>), id)
-          Boxed rw ml -> (if rw then  (<> typesymbol "!") else id, case ml of Just l -> (<+> pretty l); _ -> id)
+          Boxed ro ml -> (if ro then (<> typesymbol "!") else id, case ml of Just l -> (<+> pretty l); _ -> id)
      in prettyT' t <> (layoutPretty . sigilPretty $ brackets (pretty l))
 #endif
   pretty (TRecord ts s) =
@@ -601,7 +601,7 @@ instance Pretty SourcePos where
            | otherwise = position $ show $ setSourceName p (takeFileName $ sourceName p)
 
 instance Pretty DataLayoutDecl where
-  pretty (DataLayoutDecl _ n e) = keyword "repr" <+> reprname n <+> indent (symbol "=" </> pretty e)
+  pretty (DataLayoutDecl _ n e) = keyword "layout" <+> reprname n <+> indent (symbol "=" </> pretty e)
 
 instance Pretty DataLayoutSize where
   pretty (Bits b) = literal (string (show b ++ "b"))

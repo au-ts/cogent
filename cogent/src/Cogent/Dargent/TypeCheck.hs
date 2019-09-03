@@ -120,6 +120,7 @@ normaliseDataLayoutExpr env (DLRecord fields) =
 normaliseDataLayoutExpr env (DLVariant tag alts) =
   DLVariant tag (fmap (\(tn, pos, size, expr) -> (tn, pos, size, normaliseDataLayoutExpr env expr)) alts)
 normaliseDataLayoutExpr env (DLOffset expr size) = DLOffset (unDataLayoutExpr $ normaliseDataLayoutExpr env (DL expr)) size
+normaliseDataLayoutExpr env (DLArray e pos) = DLArray (normaliseDataLayoutExpr env e) pos
 normaliseDataLayoutExpr _ r = r
 
 {- * Types -}
