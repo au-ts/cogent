@@ -18,7 +18,7 @@ import Control.Exception (SomeException, catch)
 import Distribution.PackageDescription
 import Distribution.Simple
 #if MIN_VERSION_Cabal (2,0,0)
-import Distribution.Simple.BuildPaths (autogenModulesDir, autogenPackageModulesDir)
+import Distribution.Simple.BuildPaths (autogenPackageModulesDir)
 #else
 import Distribution.Simple.BuildPaths (autogenModulesDir)
 #endif
