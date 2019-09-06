@@ -68,12 +68,6 @@ data Inline = Inline
             | NoInline
             deriving (Data, Eq, Ord, Show)
 
-allRepRefs :: DataLayoutExpr -> [RepName]
-allRepRefs (DL (Record fs)) = concatMap (allRepRefs . thd3) fs
-allRepRefs (DL (Variant _ cs)) = concatMap (\(_,_,_,e) -> allRepRefs e) cs
-allRepRefs (DL (RepRef n)) = [n]
-allRepRefs _ = []
-
 data Expr t p ip e = PrimOp OpName [e]
                    | Var VarName
                    | Match e [VarName] [Alt p e]
@@ -391,6 +385,9 @@ instance Functor (Flip2 TopLevel e p) where
 
 -- -----------------------------------------------------------------------------
 
+-- FIXME: Many of the following folder functions are not exhaustive, esp.
+-- as we are adding more constructors to the AST. / zilinc
+
 fvA :: Alt RawPatn RawExpr -> [VarName]
 fvA (Alt p _ e) = let locals = fvP p
                    in filter (`notElem` locals) (fvE e)
@@ -459,6 +456,7 @@ fcE :: RawExpr -> [TagName]
 fcE (RE (Let bs e)) = fcE e ++ foldMap fcB bs
 fcE (RE (Match e _ as)) = fcE e ++ foldMap fcA as
 fcE (RE (TypeApp _ ts _)) = foldMap fcT (Compose ts)
+fcE (RE (Annot e t)) = fcE e ++ fcT t
 fcE (RE e) = foldMap fcE e
 
 fcT :: RawType -> [TagName]
@@ -522,6 +520,39 @@ tvB (BindingAlts _ mt e _ alts) = foldMap tvT mt ++ tvE e ++ foldMap tvA alts
 
 tvA :: Alt p RawExpr -> [TyVarName]
 tvA (Alt _ _ e) = tvE e
+
+-- Dargent variables
+
+dvA :: Alt v RawExpr -> [RepName]
+dvA (Alt _ _ e) = dvE e
+
+dvB :: Binding RawType RawPatn RawIrrefPatn RawExpr -> [RepName]
+dvB (Binding _ mt e _) = foldMap dvT mt ++ dvE e
+dvB (BindingAlts _ mt e _ alts) = foldMap dvT mt ++ dvE e ++ foldMap dvA alts
+
+dvT :: RawType -> [RepName]
+dvT _ = []
+
+dvE :: RawExpr -> [RepName]
+dvE (RE (Let bs e)) = dvE e ++ foldMap dvB bs
+dvE (RE (Match e _ as)) = dvE e ++ foldMap dvA as
+dvE (RE (TypeApp _ ts _)) = foldMap dvT (Compose ts)
+dvE (RE (Annot e t)) = dvE e ++ dvT t
+dvE (RE e) = foldMap dvE e
+
+allRepRefs :: DataLayoutExpr -> [RepName]
+allRepRefs (DL d) = allRepRefs' d
+  where
+    allRepRefs' (Prim _) = []
+    allRepRefs' (Record fs) = concatMap (allRepRefs . thd3) fs
+    allRepRefs' (Variant tag cs) = allRepRefs' tag ++ concatMap (\(_,_,_,e) -> allRepRefs e) cs
+#ifdef BUILTIN_ARRAYS
+    allRepRefs' (Array e _) = allRepRefs e
+#endif
+    allRepRefs' (Offset e _) = allRepRefs' e
+    allRepRefs' (RepRef n) = [n]
+    allRepRefs' Ptr = []
+
 
 -- -----------------------------------------------------------------------------
 
