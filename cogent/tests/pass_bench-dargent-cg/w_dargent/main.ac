@@ -1,0 +1,20 @@
+$esc:(#include <stdio.h>)
+$esc:(#include <stdlib.h>)
+
+#include "generated.c"
+
+
+$ty:(()) freeS ($ty:(S take g1) s) {
+  free (s);
+  return $exp:(());
+}
+
+int main () {
+  $ty:(S) s = malloc (sizeof ($ty:(#S)));
+  ((u32*)s)[2] = 134;
+  ((u32*)s)[0] = 42;
+  ((bool_t*)s)[4] = $exp:(True);
+  $ty:(#R) r = $exp:foo (s);
+  printf("r.f1 = %u; r.f2 = %u\n", *(u32*)&r, *((u8*)&r+4));
+  return 0;
+}
