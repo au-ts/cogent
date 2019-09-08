@@ -52,7 +52,7 @@ fizzbuzz (env, last) =
   -- Each step we show the appropriate text folloed by a newline and
   -- then increment the value.
   and step : IterStep (Env, U32, U32)
-    = \(env, n, last) =>
+    = \(env, n, last) =>in iterator (cu
       let env = if
         | (n % 3 == 0) && (n % 5 == 0) -> show_string (env, "FizzBuzz")
         | (n % 3 == 0)                 -> show_string (env, "Fizz")
@@ -65,7 +65,7 @@ fizzbuzz (env, last) =
     = \(env, n, last) =>
       if n <= last then Continue else Stop
   -- Build and return the iterator
-   in iterator (curr, step, condition)
+  in iterator (curr, step, condition)
 
 -- An iterator over the fibbonaci sequence
 type Fib = #{ p1 : U32, p2 : U32 }
@@ -81,15 +81,15 @@ fib env =
   -- value becomes the sum of the previous two.
   and step : IterStep (Env, Fib)
     = \(env, #{ p1, p2 }) =>
-      let env = show_u32 (env, p1)
-	  and env = newline env
+      let env1 = show_u32 (env, p1)
+	    and env2 = newline env1
       and n = p1 + p2
-       in (env, #{ p1 = n, p2 = p1 })
+      in (env2, #{ p1 = n, p2 = p1 })
   -- We stop when the current value would be greater than 1000.
   and complete : IterCondition (Env, Fib)
     = \(_, fib) =>
       if fib.p1 < 1000 then Continue else Stop
-   in iterator (curr, step, complete)
+  in iterator (curr, step, complete)
 
 -- This is the main program.
 prog : Env -> Env
