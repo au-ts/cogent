@@ -65,7 +65,7 @@ fizzbuzz (env, last) =
     = \(env, n, last) =>
       if n <= last then Continue else Stop
   -- Build and return the iterator
-   in iterator (curr, step, condition)
+   in iterator[(Env, U32, U32)] (curr, step, condition)
 
 -- An iterator over the fibbonaci sequence
 type Fib = #{ p1 : U32, p2 : U32 }
@@ -89,7 +89,7 @@ fib env =
   and complete : IterCondition (Env, Fib)
     = \(_, fib) =>
       if fib.p1 < 1000 then Continue else Stop
-   in iterator (curr, step, complete)
+   in iterator[(Env, Fib)] (curr, step, complete)
 
 -- This is the main program.
 prog : Env -> Env
