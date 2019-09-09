@@ -89,11 +89,7 @@ fib env =
   and complete : IterCondition (Env, Fib)
     = \(_, fib) =>
       if fib.p1 < 1000 then Continue else Stop
-<<<<<<< HEAD
-  in iterator (curr, step, complete)
-=======
    in iterator[(Env, Fib)] (curr, step, complete)
->>>>>>> master
 
 -- This is the main program.
 prog : Env -> Env
