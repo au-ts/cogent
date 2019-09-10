@@ -32,11 +32,10 @@ import Lens.Micro
 
 sinkfloat :: Rewrite.Rewrite' TcSolvM [Goal]
 sinkfloat = Rewrite.rewrite' $ \gs -> do {- MaybeT TcSolvM -}
-  a <- MaybeT (do {- TcSolvM -}
+  a <- MaybeT $ do {- TcSolvM -}
     let genGoalSubst = uncurry genStructSubst <=< splitConstraint . _goal
-    (msigmas :: [Maybe Subst.Subst]) <- traverse (runMaybeT . genGoalSubst) gs
-    let msigma = getFirst . mconcat $ First <$> msigmas
-    return msigma)
+    msubsts <- traverse (runMaybeT . genGoalSubst) gs  -- a list of 'Maybe' substitutions.
+    return . getFirst . mconcat $ First <$> msubsts  -- only return the first 'Just' substitution.
   tell [a]
   return $ map (goal %~ Subst.applyC a) gs
  where
