@@ -32,7 +32,7 @@ env:
   global:
     - SANDBOX=".cabal-sandbox"
     - REPO=$TRAVIS_BUILD_DIR
-    - TRAVIS_BUILD_APT_RETRIES_PERCENTAGE=5
+    - TRAVIS_BUILD_APT_RETRIES_PERCENTAGE=100
 
 matrix:
   include:
