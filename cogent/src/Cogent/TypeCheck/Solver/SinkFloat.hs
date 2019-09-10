@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -Werror -Wall #-}
 module Cogent.TypeCheck.Solver.SinkFloat ( sinkfloat ) where 
 
+import Cogent.Surface (Type(..))
 import Cogent.TypeCheck.Base 
 import Cogent.TypeCheck.Solver.Goal 
 import Cogent.TypeCheck.Solver.Monad
@@ -32,22 +33,27 @@ sinkfloat = Rewrite.rewrite' $ \cs -> do
 
   try_one g = case _goal g of
     R r s :< v
-     | fs <- discard_common v $ get_taken r
-     , not $ M.null fs
-     -> make_constraints (flip R s) (:<) fs g v
+      | fs <- discard_common v $ get_taken r
+      , not $ M.null fs
+      -> make_constraints (flip R s) (:<) fs g v
     v :< R r s
-     | fs <- discard_common v $ get_present r
-     , not $ M.null fs
-     -> make_constraints (flip R s) (flip (:<)) fs g v
+      | fs <- discard_common v $ get_present r
+      , not $ M.null fs
+      -> make_constraints (flip R s) (flip (:<)) fs g v
 
     V r :< v
-     | fs <- discard_common v $ get_present r
-     , not $ M.null fs
-     -> make_constraints V (:<) fs g v
+      | fs <- discard_common v $ get_present r
+      , not $ M.null fs
+      -> make_constraints V (:<) fs g v
     v :< V r
-     | fs <- discard_common v $ get_taken r
-     , not $ M.null fs
-     -> make_constraints V (flip (:<)) fs g v
+      | fs <- discard_common v $ get_taken r
+      , not $ M.null fs
+      -> make_constraints V (flip (:<)) fs g v
+
+    T (TTuple ts) :< U i
+      -> makeTupleConstraints (>:) ts g i
+    U i :< T (TTuple ts)
+      -> makeTupleConstraints (>:) ts g i
 
     _ -> empty
 
@@ -58,6 +64,14 @@ sinkfloat = Rewrite.rewrite' $ \cs -> do
     as <- subst_of v frow r'
     let cs = fmap (\(_,((_,(t,_)),u)) -> fsub t (U u)) $ M.toList ts
     pure (g : fmap (derivedGoal g) cs, as)
+
+  makeTupleConstraints fsub ts g i = do
+    tus <- traverse (\t -> (,) t <$> lift solvFresh) ts
+    let cs = (\(t,u) -> fsub t (U u)) <$> tus
+        t' = T (TTuple (U . snd <$> tus))
+        as = [Subst.ofType i t']
+    return (g : fmap (derivedGoal g) cs, as)
+
 
   subst_of (U v) frow t
    = pure [Subst.ofType v (frow t)]

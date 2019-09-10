@@ -82,7 +82,7 @@ solve ks c = let gs     = makeGoals [] c
                  stages = debugL "Simplify" (Rewrite.untilFixedPoint $ simplify ks) <>
                           debug  "Unify"    unify <>
                           debugL "Equate" equate <>
-                          debug  "Sink/float" sinkfloat <>
+                          debug  "Sink/Float" sinkfloat <>
                           debug  "JoinMeet" joinMeet <>
                           debugL "Defaults" defaults
   -- [amos] Type-solver changes I made:
