@@ -1,6 +1,20 @@
 {-# OPTIONS_GHC -Werror -Wall #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module Cogent.TypeCheck.Solver.SinkFloat ( sinkfloat ) where 
 
+--
+-- Sink/Float is a type inference phase which pushes structural information
+-- through subtyping constraints (sinking it down or floating it up).
+--
+-- In particular, this means adding missing fields to record and variant rows
+-- and breaking single unification variables unified with a tuple into a tuple
+-- of unification variables. Note that type operators do not change the
+-- structure of a type, and so this phase propagates this information through
+-- these.
+--
+
+import Cogent.Surface (Type(..))
 import Cogent.TypeCheck.Base 
 import Cogent.TypeCheck.Solver.Goal 
 import Cogent.TypeCheck.Solver.Monad
@@ -8,8 +22,7 @@ import qualified Cogent.TypeCheck.Solver.Rewrite as Rewrite
 import qualified Cogent.TypeCheck.Row as Row
 import qualified Cogent.TypeCheck.Subst as Subst
 
-import Control.Applicative
-import Control.Arrow (first)
+import Control.Applicative (empty)
 import Control.Monad.Writer
 import Control.Monad.Trans.Maybe
 
@@ -18,57 +31,99 @@ import qualified Data.Map as M
 import Lens.Micro
 
 sinkfloat :: Rewrite.Rewrite' TcSolvM [Goal]
-sinkfloat = Rewrite.rewrite' $ \cs -> do
-  (cs',as) <- try_each cs
-  tell as
-  pure (foldr (\a -> map (goal %~ Subst.applyC a)) cs' as)
+sinkfloat = Rewrite.rewrite' $ \gs -> do {- MaybeT TcSolvM -}
+  a <- MaybeT $ do {- TcSolvM -}
+    let genGoalSubst = uncurry genStructSubst <=< splitConstraint . _goal
+    msubsts <- traverse (runMaybeT . genGoalSubst) gs  -- a list of 'Maybe' substitutions.
+    return . getFirst . mconcat $ First <$> msubsts  -- only return the first 'Just' substitution.
+  tell [a]
+  return $ map (goal %~ Subst.applyC a) gs
  where
-  try_each [] = empty
-  try_each (c:cs) = MaybeT $ do
-    m <- runMaybeT (try_one c)
-    case m of
-      Nothing       -> fmap (first (c:)) <$> runMaybeT (try_each cs)
-      Just (cs',as) -> pure $ Just (cs' ++ cs, as)
+  splitConstraint :: Constraint -> MaybeT TcSolvM (TCType, TCType)
+  splitConstraint (ta :<  tb) = return (ta, tb)
+  splitConstraint (ta :=: tb) = return (ta, tb)
+  splitConstraint _           = empty
 
-  try_one g = case _goal g of
-    R r s :< v
-     | fs <- discard_common v $ get_taken r
-     , not $ M.null fs
-     -> make_constraints (flip R s) (:<) fs g v
-    v :< R r s
-     | fs <- discard_common v $ get_present r
-     , not $ M.null fs
-     -> make_constraints (flip R s) (flip (:<)) fs g v
+  genStructSubst :: TCType -> TCType -> MaybeT TcSolvM Subst.Subst
+  -- remove type operators first
+  genStructSubst (T (TBang t))   v               = genStructSubst t v
+  genStructSubst v               (T (TBang t))   = genStructSubst t v
+  genStructSubst (T (TUnbox t))  v               = genStructSubst t v
+  genStructSubst v               (T (TUnbox t))  = genStructSubst t v
+  genStructSubst (T (TTake _ t)) v               = genStructSubst t v
+  genStructSubst v               (T (TTake _ t)) = genStructSubst t v
+  genStructSubst (T (TPut _ t))  v               = genStructSubst t v
+  genStructSubst v               (T (TPut _ t))  = genStructSubst t v
 
-    V r :< v
-     | fs <- discard_common v $ get_present r
-     , not $ M.null fs
-     -> make_constraints V (:<) fs g v
-    v :< V r
-     | fs <- discard_common v $ get_taken r
-     , not $ M.null fs
-     -> make_constraints V (flip (:<)) fs g v
+  -- record rows
+  genStructSubst (R r _) v
+    | fs <- discard_common v $ get_taken r
+    , not $ M.null fs
+    = do
+      sigilI <- lift solvFresh
+      makeRowStructureSubsts (flip R (Right sigilI)) fs v
+  genStructSubst v (R r _)
+    | fs <- discard_common v $ get_taken r
+    , not $ M.null fs
+    = do
+      sigilI <- lift solvFresh
+      makeRowStructureSubsts (flip R (Right sigilI)) fs v
 
-    _ -> empty
+  -- variant rows
+  genStructSubst (V r) v
+    | fs <- discard_common v $ get_present r
+    , not $ M.null fs
+    = makeRowStructureSubsts V fs v
+  genStructSubst v (V r)
+    | fs <- discard_common v $ get_present r
+    , not $ M.null fs
+    = makeRowStructureSubsts V fs v
 
-  make_constraints frow fsub fs g v = do
+  -- tuples
+  genStructSubst (T (TTuple ts)) v = genStructSubstTuple ts v
+  genStructSubst v (T (TTuple ts)) = genStructSubstTuple ts v
+
+  -- tcon
+  genStructSubst (T (TCon n ts s)) v = genStructSubstTCon n ts s v
+  genStructSubst v (T (TCon n ts s)) = genStructSubstTCon n ts s v
+
+  -- default
+  genStructSubst _ _ = empty
+
+
+  makeRowStructureSubsts frow fs v = do
     v' <- lift solvFresh
-    ts <- mapM (\t -> (,) t <$> lift solvFresh) fs
-    let r' = Row.Row (fmap (\((fn,(_,tk)),u) -> (fn, (U u, tk))) ts) (Just v')
-    as <- subst_of v frow r'
-    let cs = fmap (\(_,((_,(t,_)),u)) -> fsub t (U u)) $ M.toList ts
-    pure (g : fmap (derivedGoal g) cs, as)
+    ts <- traverse (secondFirstF (const (U <$> lift solvFresh))) fs
+    let r' = Row.Row ts (Just v')
+    substOf_row frow v r'
+    where
+      secondFirstF :: forall f a b c b'. Functor f => (b -> f b') -> (a,(b,c)) -> f (a,(b',c))
+      secondFirstF f (a,(b,c)) = (\b' -> (a,(b',c))) <$> f b
 
-  subst_of (U v) frow t
-   = pure [Subst.ofType v (frow t)]
-  subst_of (R r _) _ t
-   | Just v <- Row.var r
-   = pure [Subst.ofRow v t]
-  subst_of (V r) _ t
-   | Just v <- Row.var r
-   = pure [Subst.ofRow v t]
-  subst_of _ _ _
-   = MaybeT $ pure Nothing
+  substOf_row frow (U v') t
+    = return (Subst.ofType v' (frow t))
+  substOf_row _ (R r _) t
+    | Just v' <- Row.var r
+    = return (Subst.ofRow v' t)
+  substOf_row _ (V r) t
+    | Just v' <- Row.var r
+    = return (Subst.ofRow v' t)
+  substOf_row _ _ _
+    = empty
+
+  genStructSubstTuple ts v = do
+    tus <- traverse (const (U <$> lift solvFresh)) ts
+    let t = T (TTuple tus)
+    case v of
+      U v' -> return $ Subst.ofType v' t
+      _    -> empty
+
+  genStructSubstTCon n ts s v = do
+    tus <- traverse (const (U <$> lift solvFresh)) ts
+    let t = T (TCon n tus s) -- FIXME: n.b. only one type of sigil, so this is fine?
+    case v of
+      U v' -> return $ Subst.ofType v' t
+      _    -> empty
 
   get_taken    = get_fields True
   get_present  = get_fields False
