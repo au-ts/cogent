@@ -36,6 +36,7 @@ import Control.Monad.Identity
 import Control.Monad.Trans.Maybe
 import qualified Control.Monad.Trans as T
 import Control.Applicative
+import Data.Monoid ((<>))
 import Debug.Trace
 
 -- | Intuitively a @Rewrite a@ is a partial function from @a@ to @a@.
@@ -50,13 +51,18 @@ newtype Rewrite' m a = Rewrite { run' :: a -> MaybeT m a }
 -- | Disjunctive composition, that is: @r <> s@ will first attempt to rewrite with @r@.
 --   If @r@ successfully rewrites, then the result of @r@ is returned. If @r@ does not
 --   rewrite (i.e. it returns @Nothing@), then the second rewrite @s@ is attempted instead.
+--   The 'mempty' is the rewrite that never successfully rewrites any term.
+#if __GLASGOW_HASKELL__ < 803
+instance Monad m => Monoid (Rewrite' m a) where
+  mempty = Rewrite (const empty)
+  Rewrite f `mappend` Rewrite g = Rewrite (\a -> f a <|> g a)
+#else
 instance Monad m => Semigroup (Rewrite' m a) where
   Rewrite f <> Rewrite g = Rewrite (\a -> f a <|> g a)
 
--- | The 'mempty' is the rewrite that never successfully rewrites any term.
 instance Monad m => Monoid (Rewrite' m a) where
   mempty = Rewrite (const empty)
-
+#endif
 
 -- | Run a function to pre-process a rewrite's input.
 pre :: (Monad m) => (a -> m a) -> Rewrite' m a -> Rewrite' m a
