@@ -14,6 +14,7 @@ module Cogent.TypeCheck.Solver.SinkFloat ( sinkfloat ) where
 -- these.
 --
 
+import Cogent.Compiler (__impossible)
 import Cogent.Surface (Type(..))
 import Cogent.TypeCheck.Base 
 import Cogent.TypeCheck.Solver.Goal 
@@ -57,77 +58,89 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do {- MaybeT TcSolvM -}
 
   -- record rows
   genStructSubst (R r _) v
-    | fs <- discard_common v $ get_taken r
+    | fs <- discard_common v $ Row.entries r
     , not $ M.null fs
+    , rowTypeRelOk v
     = do
       sigilI <- lift solvFresh
       makeRowStructureSubsts (flip R (Right sigilI)) fs v
   genStructSubst v (R r _)
-    | fs <- discard_common v $ get_taken r
+    | fs <- discard_common v $ Row.entries r
     , not $ M.null fs
+    , rowTypeRelOk v
     = do
       sigilI <- lift solvFresh
       makeRowStructureSubsts (flip R (Right sigilI)) fs v
 
   -- variant rows
   genStructSubst (V r) v
-    | fs <- discard_common v $ get_present r
+    | fs <- discard_common v $ Row.entries r
     , not $ M.null fs
+    , rowTypeRelOk v
     = makeRowStructureSubsts V fs v
   genStructSubst v (V r)
-    | fs <- discard_common v $ get_present r
+    | fs <- discard_common v $ Row.entries r
     , not $ M.null fs
+    , rowTypeRelOk v
     = makeRowStructureSubsts V fs v
 
   -- tuples
-  genStructSubst (T (TTuple ts)) v = genStructSubstTuple ts v
-  genStructSubst v (T (TTuple ts)) = genStructSubstTuple ts v
+  genStructSubst (T (TTuple ts)) v | tupleTypeRelOk v = genStructSubstTuple ts v
+  genStructSubst v (T (TTuple ts)) | tupleTypeRelOk v = genStructSubstTuple ts v
 
   -- tcon
-  genStructSubst (T (TCon n ts s)) v = genStructSubstTCon n ts s v
-  genStructSubst v (T (TCon n ts s)) = genStructSubstTCon n ts s v
+  genStructSubst (T (TCon n ts s)) v | tconTypeRelOk v = genStructSubstTCon n ts s v
+  genStructSubst v (T (TCon n ts s)) | tconTypeRelOk v = genStructSubstTCon n ts s v
+
+  -- tunit
+  genStructSubst t@(T TUnit) (U i) = return $ Subst.ofType i t
+  genStructSubst (U i) t@(T TUnit) = return $ Subst.ofType i t
 
   -- default
   genStructSubst _ _ = empty
 
 
+  rowTypeRelOk (U _)   = True
+  rowTypeRelOk (R r _) | Just _ <- Row.var r = True
+  rowTypeRelOk (V r)   | Just _ <- Row.var r = True
+  rowTypeRelOk _       = False
+
   makeRowStructureSubsts frow fs v = do
-    v' <- lift solvFresh
+    rowI <- lift solvFresh
     ts <- traverse (secondFirstF (const (U <$> lift solvFresh))) fs
-    let r' = Row.Row ts (Just v')
-    substOf_row frow v r'
+    let r' = Row.Row ts (Just rowI)
+    return $ case v of
+      U v' -> Subst.ofType v' (frow r')
+      R r _ | Just v' <- Row.var r -> Subst.ofRow v' r'
+      V r   | Just v' <- Row.var r -> Subst.ofRow v' r'
+      _ -> __impossible "makeRowStructureSubsts: case on v got a bad case which is not banned by rowTypeRelOk"
     where
       secondFirstF :: forall f a b c b'. Functor f => (b -> f b') -> (a,(b,c)) -> f (a,(b',c))
       secondFirstF f (a,(b,c)) = (\b' -> (a,(b',c))) <$> f b
 
-  substOf_row frow (U v') t
-    = return (Subst.ofType v' (frow t))
-  substOf_row _ (R r _) t
-    | Just v' <- Row.var r
-    = return (Subst.ofRow v' t)
-  substOf_row _ (V r) t
-    | Just v' <- Row.var r
-    = return (Subst.ofRow v' t)
-  substOf_row _ _ _
-    = empty
+  tupleTypeRelOk (U _) = True
+  tupleTypeRelOk _     = False
 
-  genStructSubstTuple ts v = do
+  genStructSubstTuple ts (U v') = do
     tus <- traverse (const (U <$> lift solvFresh)) ts
     let t = T (TTuple tus)
-    case v of
-      U v' -> return $ Subst.ofType v' t
-      _    -> empty
+    return $ Subst.ofType v' t
+  genStructSubstTuple _ _ =
+    __impossible "genStructSubstTuple: case on v got a bad case which is not banned by tupleTypeRelOk"
 
-  genStructSubstTCon n ts s v = do
+  tconTypeRelOk (U _) = True
+  tconTypeRelOk _     = False
+
+  genStructSubstTCon n ts s (U v') = do
     tus <- traverse (const (U <$> lift solvFresh)) ts
     let t = T (TCon n tus s) -- FIXME: n.b. only one type of sigil, so this is fine?
-    case v of
-      U v' -> return $ Subst.ofType v' t
-      _    -> empty
+    return $ Subst.ofType v' t
+  genStructSubstTCon _ _ _ _ =
+    __impossible "genStructSubstTCon: case on v got a bad case which is not banned by tconTypeRelOk"
 
-  get_taken    = get_fields True
-  get_present  = get_fields False
-  get_fields t = M.filter (\(_,(_,t')) -> t == t') . Row.entries
+  -- get_taken    = get_fields True
+  -- get_present  = get_fields False
+  -- get_fields t = M.filter (\(_,(_,t')) -> t == t') . Row.entries
 
   discard_common (U _) fs   = fs
   discard_common (R r _) fs = M.difference fs $ Row.entries r
