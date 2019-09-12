@@ -498,7 +498,7 @@ shallowExpr (TE _ (CC.Variable (_,v))) = do
              Just v' -> v'
   pure . mkVarE . mkName $ snm v'
 
-shallowExpr (TE _ (CC.Fun fn ts _)) = pure $ mkVarE $ mkName $ snm $ coreFunName fn  -- only prints the fun name
+shallowExpr (TE _ (CC.Fun fn ts _)) = pure $ mkVarE $ mkName $ snm $  unCoreFunName fn  -- only prints the fun name
 
 shallowExpr (TE _ (CC.Op opr es)) = shallowPrimOp <$> pure opr <*> (mapM shallowExpr es)
 
