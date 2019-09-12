@@ -222,14 +222,14 @@ pragmaToNote (_:pragmas) fn note = pragmaToNote pragmas fn note
 
 lamLftTlv :: S.TopLevel S.RawType B.TypedPatn B.TypedExpr
           -> DS t v (S.TopLevel S.RawType B.TypedPatn B.TypedExpr)
-lamLftTlv (S.FunDef fn sigma alts) = S.FunDef fn sigma <$> mapM (lamLftAlt fn) alts
+lamLftTlv (S.FunDef fn sigma@(S.PT tvs _) alts) = S.FunDef fn sigma <$> mapM (lamLftAlt tvs fn) alts
 lamLftTlv d = return d
 
-lamLftAlt :: FunName -> S.Alt B.TypedPatn B.TypedExpr -> DS t v (S.Alt B.TypedPatn B.TypedExpr)
-lamLftAlt f (S.Alt p l e) = S.Alt p l <$> lamLftExpr f e
+lamLftAlt :: [(TyVarName, Kind)] -> FunName -> S.Alt B.TypedPatn B.TypedExpr -> DS t v (S.Alt B.TypedPatn B.TypedExpr)
+lamLftAlt tvs f (S.Alt p l e) = S.Alt p l <$> lamLftExpr tvs f e
 
-lamLftExpr :: FunName -> B.TypedExpr -> DS t v B.TypedExpr
-lamLftExpr f (B.TE t (S.Lam p mt e) l) = do
+lamLftExpr :: [(TyVarName, Kind)] -> FunName -> B.TypedExpr -> DS t v B.TypedExpr
+lamLftExpr tvs f (B.TE t (S.Lam p mt e) l) = do
   f' <- freshFun f
   -- v <- freshVar
   -- let S.RT (S.TFun ti to) = t
@@ -238,11 +238,12 @@ lamLftExpr f (B.TE t (S.Lam p mt e) l) = do
       -- ps = B.TIP ti (S.PVar (v, ti)) : map (\(v,t) -> B.TIP t (S.PVar (v,t) noPos)) fvs
       -- p' = B.TP (S.PIrrefutable $ B.TIP (PTuple ps) noPos) noPos
   -- sigma <- sel1 <$> get
-  e' <- lamLftExpr f e
-  let fn = S.FunDef f' (S.PT [] t) [S.Alt (B.TP (S.PIrrefutable p) noPos) Regular e']  -- no let-generalisation
+  e' <- lamLftExpr tvs f e
+  let fn = S.FunDef f' (S.PT tvs t) [S.Alt (B.TP (S.PIrrefutable p) noPos) Regular e']  -- no let-generalisation
   lftFun %= (fn:)
-  return $ B.TE t (S.TypeApp f' [] S.NoInline) l
-lamLftExpr f (B.TE t e l) = B.TE t <$> traverse (lamLftExpr f) e <*> pure l
+  let tvs' = map (Just . S.RT . flip S.TVar False . fst) tvs
+  return $ B.TE t (S.TypeApp f' tvs' S.NoInline) l
+lamLftExpr sigma f (B.TE t e l) = B.TE t <$> traverse (lamLftExpr sigma f) e <*> pure l
 
 -- freeVars :: B.TypedExpr -> Vec v VarName -> [(VarName, S.RawType)]
 -- freeVars (B.TE t (S.Var v) _) vs = maybeToList $ case findIx v vs of Just i -> Nothing; Nothing -> Just (v,t)
@@ -597,7 +598,7 @@ desugarExpr (B.TE t (S.Comp f g) l) = do
       v' = B.TE tv (S.Var v) (B.getLocTE g)
       g' = B.TE t2 (S.App g v' False) (B.getLocTE f)
       e = B.TE t3 (S.App f g' False) l
-  e' <- lamLftExpr compf (B.TE t (S.Lam p Nothing e) l)
+  e' <- lamLftExpr [] compf (B.TE t (S.Lam p Nothing e) l)
   desugarExpr e'
 desugarExpr (B.TE _ (S.If c [] th el) _) = E <$> (If <$> desugarExpr c <*> desugarExpr th <*> desugarExpr el)
 desugarExpr (B.TE _ (S.If c vs th el) _) = do

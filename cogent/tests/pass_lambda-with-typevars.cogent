@@ -1,0 +1,4 @@
+
+foo : all a. a -> #{ x : a,  y : a -> a }
+foo a = #{ x = a , y = (\a => a) }
+
