@@ -194,7 +194,7 @@ findTypeSyn t = findType t >>= \(TCon nm _ _) -> pure nm
 
 shallowExpr :: TypedExpr t v VarName -> SG Term
 shallowExpr (TE _ (Variable (_,v))) = pure $ mkId (snm v)
-shallowExpr (TE _ (Fun fn ts _)) = pure $ mkId $ snm $ coreFunNameToIsabelleName fn  -- only prints the fun name
+shallowExpr (TE _ (Fun fn ts _)) = pure $ mkId $ snm $ (unIsabelleName $ mkIsabelleName fn)  -- only prints the fun name
 shallowExpr (TE _ (Op opr es)) = shallowPrimOp <$> pure opr <*> (mapM shallowExpr es)
 shallowExpr (TE _ (App f arg)) = mkApp <$> shallowExpr f <*> (mapM shallowExpr [arg])
 shallowExpr (TE t (Con cn e _))  = do

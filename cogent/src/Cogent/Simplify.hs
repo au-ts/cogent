@@ -120,7 +120,7 @@ markOcc sv (TE tau (Variable (v, n))) = do
   modify $ second $ modifyAt v (OnceSafe <>)
   return . TE tau $ Variable (v, (n, OnceSafe))
 markOcc sv (TE tau (Fun fn ts note)) = do
-  modify (first $ M.adjust (second $ (OnceSafe <>)) (coreFunNameToIsabelleName fn))
+  modify (first $ M.adjust (second $ (OnceSafe <>)) (unIsabelleName $ mkIsabelleName fn))
   return . TE tau $ Fun fn ts note
 markOcc sv (TE tau (Op opr es)) = TE tau . Op opr <$> mapM (markOcc sv) es
 markOcc sv (TE tau (App f e)) = TE tau <$> (App <$> markOcc sv f <*> markOcc sv e)
@@ -305,14 +305,14 @@ simplExpr sv subst ins (TE tau (Op opr es)) cont = TE tau . Op opr <$> mapM (fli
 simplExpr sv subst ins (TE tau (App (TE tau1 (Fun fn tys note)) e2)) cont
   | note `elem` [InlineMe, InlinePlease], ExI (Flip tys') <- V.fromList tys = do
   e2' <- simplExpr sv subst ins e2 cont
-  def <- fst . fromJust . M.lookup (coreFunNameToIsabelleName fn) <$> use funcEnv
+  def <- fst . fromJust . M.lookup (unIsabelleName $ mkIsabelleName fn) <$> use funcEnv
   case def of
     FunDef attr fn ts ti to fb -> do
       env <- get
       fb' <- return $ evalSimp (SimpEnv (env^.funcEnv) (fmap snd ts) (env^.varCount)) $
                simplExpr s1 (emptySubst s1) (emptyInScopeSet s1) (evalOcc (env^.funcEnv, emptyOccVec s1) $ markOcc s1 fb) Stop
       betaR fb' s0 sv e2' (unsafeCoerce tys')  -- FIXME
-    AbsDecl attr fn ts ti to    -> return $ TE tau $ App (TE tau1 (Fun (unsafeIsabelleNameToCoreFunName fn) tys note)) e2'
+    AbsDecl attr fn ts ti to    -> return $ TE tau $ App (TE tau1 (Fun (unsafeCoreFunName fn) tys note)) e2'
     _ -> __impossible "simplExpr"
 simplExpr sv subst ins (TE tau (App e1 e2))  cont = TE tau <$> (App <$> simplExpr sv subst ins e1 cont <*> simplExpr sv subst ins e2 cont)
 simplExpr sv subst ins (TE tau (Con cn e t)) cont = TE tau <$> (Con cn <$> simplExpr sv subst ins e cont <*> pure t)

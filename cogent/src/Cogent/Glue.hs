@@ -320,7 +320,7 @@ tcFnCall e = do
 
 genFn :: CC.TypedExpr 'Zero 'Zero VarName -> Gl CS.Exp
 genFn = genAnti $ \case
-  CC.TE t (CC.Fun fn _ _) -> return (CS.Var (CS.Id (CG.funEnum (coreFunName fn)) noLoc) noLoc)
+  CC.TE t (CC.Fun fn _ _) -> return (CS.Var (CS.Id (CG.funEnum (unCoreFunName fn)) noLoc) noLoc)
   _ -> __impossible "genFn"
 
 genFnCall :: CC.Type 'Zero -> Gl CS.Exp
@@ -694,7 +694,7 @@ analyseFuncId :: [(String, SrcLoc)] -> GlDefn t [(FunName, MN.Instance)]
 analyseFuncId ss = forM ss $ \(fn, loc) -> flip runReaderT (MonoState ([], Nothing)) $ do
   (CC.TE _ (CC.Fun fn' ts _)) <- monoExp =<< lift . coreTcExp =<< lift . desugarExp =<<
                                  lift . tcFnCall =<< (lift . lift) (parseFnCall fn loc)
-  return (coreFunName fn', ts)
+  return (unCoreFunName fn', ts)
 
 collectOneFunc :: CS.Definition -> Gl ()
 collectOneFunc d = do

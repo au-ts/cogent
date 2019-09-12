@@ -210,7 +210,7 @@ useVariable v = TC $ do ret <- (`at` v) <$> get
                             return ret
 
 funType :: CoreFunName -> TC t v (Maybe FunctionType)
-funType v = TC $ (M.lookup (coreFunName v) . snd) <$> ask
+funType v = TC $ (M.lookup (unCoreFunName v) . snd) <$> ask
 
 runTC :: TC t v a -> (Vec t Kind, Map FunName FunctionType) -> Vec v (Maybe (Type t))
       -> Either String (Vec v (Maybe (Type t)), a)
@@ -359,15 +359,19 @@ infer (E (Variable v))
         return (TE t (Variable v))
 infer (E (Fun f ts note))
    | ExI (Flip ts') <- Vec.fromList ts
-   = do Just (FT ks ti to) <- funType f
-        case Vec.length ts' =? Vec.length ks
-          of Just Refl -> let ti' = substitute ts' ti
-                              to' = substitute ts' to
-                           in do forM_ (Vec.zip ts' ks) $ \(t, k) -> do
-                                   k' <- kindcheck t
-                                   when ((k <> k') /= k) $ __impossible "kind not matched in type instantiation"
-                                 return $ TE (TFun ti' to') (Fun f ts note)
-             Nothing -> __impossible "lengths don't match"
+   = do myMap <- ask
+        x <- funType f
+        case x of
+          Just (FT ks ti to) -> 
+            ( case Vec.length ts' =? Vec.length ks
+                of Just Refl -> let ti' = substitute ts' ti
+                                    to' = substitute ts' to
+                                in do forM_ (Vec.zip ts' ks) $ \(t, k) -> do
+                                        k' <- kindcheck t
+                                        when ((k <> k') /= k) $ __impossible "kind not matched in type instantiation"
+                                      return $ TE (TFun ti' to') (Fun f ts note)
+                   Nothing -> __impossible "lengths don't match")
+          _        -> error $ "Something went wrong in lookup of function type: '" ++ unCoreFunName f ++ "'"
 infer (E (App e1 e2))
    = do e1'@(TE (TFun ti to) _) <- infer e1
         e2'@(TE ti' _) <- infer e2
@@ -447,7 +451,8 @@ infer (E (Member e f))
 infer (E (Struct fs))
    = do let (ns,es) = unzip fs
         es' <- mapM infer es
-        return $ TE (TRecord (sortBy (compare `on` fst) $ zipWith (\n e' -> (n, (exprType e', False))) ns es') Unboxed) $ Struct $ zip ns es'
+        let ts' = zipWith (\n e' -> (n, (exprType e', False))) ns es'
+        return $ TE (TRecord (sortBy (compare `on` fst) ts') Unboxed) $ Struct $ zip ns es'
 infer (E (Take a e f e2))
    = do e'@(TE t _) <- infer e
         let TRecord ts s = t

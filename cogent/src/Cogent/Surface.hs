@@ -115,7 +115,7 @@ data Expr t p ip e = PrimOp OpName [e]
                    | ArrayLit [e]
                    | ArrayIndex e AExpr
 #endif
-                   | Tuple [e]
+                   | Tuple [e]  -- When desugared into tuples, it's right associative.
                    | UnboxedRecord [(FieldName, e)]
                    | Let [Binding t p ip e] e
                    | Put e [Maybe (FieldName, e)]  -- Note: `Nothing' will be desugared to `Just' in TypeCheck / zilinc

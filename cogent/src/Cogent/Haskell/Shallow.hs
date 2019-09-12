@@ -709,7 +709,7 @@ shallowSetter rec fnms idx rec' rect' e' = do
 
 
 -- | prefix for internally introduced variables
-internalVar = "__shallow_v"
+internalVar = "x__shallow_v"
 
 
 -- ----------------------------------------------------------------------------
