@@ -538,7 +538,8 @@ subtyping'' k (TProduct t1 u1) (TProduct t2 u2) =
 subtyping'' k (TSum v1s)       (TSum v2s)  =
   tacSequence [
     return [rule "subty_tsum"],
-    (++ [rule "list_all2_nil"]) . join . (([rule "list_all2_cons", simp] ++) <$>)
+    (++ [rule "list_all2_nil"]) . join . (([rule "list_all2_cons", 
+                                            rule "snd_conv", rule "snd_conv", rule "fst_conv", rule "fst_conv"] ++) <$>)
       <$> zipWithM (subtyping' k) (fst . snd <$> v1s) (fst . snd <$> v2s),
     return [simp_solve],
     return [force_simp []]
