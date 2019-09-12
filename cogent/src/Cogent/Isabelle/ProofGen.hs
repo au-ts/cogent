@@ -69,6 +69,7 @@ data Thms = Thms String
           | ThmList [Thm]
 
 data Tactic = RuleTac Thm
+            | SubstTac Thm
             | Simplifier Thms Thms
             | SimpSolve Thms Thms
             | Force Thms
@@ -88,6 +89,7 @@ instance Show Thms where
 
 instance Show Tactic where
   show (RuleTac thm) = "(RTac " ++ show thm ++ ")"
+  show (SubstTac thm) = "(SubstTac " ++ show thm ++ ")"
   show (Simplifier adds dels) = "(SimpTac " ++ show (adds, dels) ++ ")"
   show (SimpSolve adds dels) = "(SimpSolveTac " ++ show (adds, dels) ++ ")"
   show (Force adds) = "(ForceTac " ++ show adds ++ ")"
@@ -95,8 +97,11 @@ instance Show Tactic where
   show (SplitsTac tacs) = "(SplitsTac " ++ show tacs ++ ")"
   show (SubtypingTac tacs) = "(SubtypingTac " ++ show tacs ++ ")"
 
+
 rule thm = RuleTac (Thm thm)
 rule_tac thm insts = RuleTac (ThmInst thm insts)
+
+subst thm = SubstTac (Thm thm)
 
 simp                 = simp_add_del [] []
 simp_add thms        = simp_add_del thms []
@@ -539,9 +544,12 @@ subtyping'' k (TSum v1s)       (TSum v2s)  =
   tacSequence [
     return [rule "subty_tsum"],
     (++ [rule "list_all2_nil"]) . join . (([rule "list_all2_cons", 
-                                            rule "snd_conv", rule "snd_conv", rule "fst_conv", rule "fst_conv"] ++) <$>)
+                                            subst "snd_conv", subst "snd_conv",
+                                            subst "fst_conv", subst "fst_conv"] ++) <$>)
       <$> zipWithM (subtyping' k) (fst . snd <$> v1s) (fst . snd <$> v2s),
-    return [simp_solve],
+    -- assumes length v1s == length v2s
+    return ((concat $ replicate (length v1s * 2) [subst "List.list.map(2)", subst "fst_conv"]) 
+                    ++ [subst "List.list.map(1)", subst "List.list.map(1)", rule "refl"]),
     return [force_simp []]
     ]
 

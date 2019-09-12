@@ -258,6 +258,7 @@ fun cogent_guided_ttsplits_tac ctxt sz script =
 
 
 datatype tac = RTac of thm
+             | SubstTac of thm
              | SimpSolveTac of thm list * thm list
              | SimpTac of thm list * thm list
              | ForceTac of thm list
@@ -304,6 +305,7 @@ fun apply_splits ((sp, t) :: sp_ts) hints = let
   | apply_splits [] hints = (([], []), hints)
 
 fun interpret_tac (RTac r) _ = rtac r
+  | interpret_tac (SubstTac r) ctxt = subst_tac ctxt r
   | interpret_tac (SimpTac (a, d)) ctxt = asm_full_simp_tac (ctxt addsimps a delsimps d)
   | interpret_tac (SimpSolveTac (a, d)) ctxt = SOLVED' (asm_full_simp_tac (ctxt addsimps a delsimps d))
   | interpret_tac (ForceTac a) ctxt = force_tac (ctxt addsimps a)
