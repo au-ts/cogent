@@ -24,7 +24,6 @@ type VarName     = String
 type TyVarName   = String
 type TypeName    = String
 
--- FIXME: `coreFunName` should be named to `unCoreFunName` / zilinc
 newtype CoreFunName = CoreFunName { unCoreFunName :: String }
   deriving (Eq, Show, Ord)
 
