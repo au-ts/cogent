@@ -595,7 +595,7 @@ prettyGraph (Graph []) = ""
 prettyNode :: GraphNode -> String
 prettyNode (GBasic nn es) = "Basic " ++ prettyNN nn ++ " " ++ show(Prelude.length es) ++ " " ++ prettyBindings es
 prettyNode (GCond n1 n2 e) = "Cond " ++ prettyNN n1 ++ " " ++ prettyNN n2 ++ " " ++ prettyE e
-prettyNode (GCall nn s gs vs) = "Call " ++ prettyNN nn ++ " " ++ prettyFName (CS.coreFunName s) ++ " " ++ prettyList prettyE gs ++ "  " ++ prettyVars vs
+prettyNode (GCall nn s gs vs) = "Call " ++ prettyNN nn ++ " " ++ prettyFName (CS.unCoreFunName s) ++ " " ++ prettyList prettyE gs ++ "  " ++ prettyVars vs
 
 prettyFName :: CS.FunName -> String
 prettyFName s = "Cogent." ++ s

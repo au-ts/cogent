@@ -533,9 +533,9 @@ eval (TE _ (Fun fn ts _)) = do
   funmap <- use fundefs
   absfunmap <- use absfuns
   case M.lookup fn funmap of
-    Just (FunDef  _ _ _ ti to e) -> return $ VFunction  (coreFunName fn) (specialise ts e) ts
+    Just (FunDef  _ _ _ ti to e) -> return $ VFunction  (unCoreFunName fn) (specialise ts e) ts
     Nothing  -> case M.lookup fn absfunmap of
-      Just af -> return $ VThunk $ VAFunction (coreFunName fn) () ts
+      Just af -> return $ VThunk $ VAFunction (unCoreFunName fn) () ts
       Nothing -> __impossible $ "eval: function name " ++ show fn ++ " not found"
 eval (TE _ (Op op [e])) = evalUnOp op <$> eval e
 eval (TE _ (Op op [e1,e2])) = evalBinOp op <$> eval e1 <*> eval e2

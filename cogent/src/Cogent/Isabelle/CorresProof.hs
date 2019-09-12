@@ -10,7 +10,7 @@
 
 module Cogent.Isabelle.CorresProof where
 
-import Cogent.Common.Syntax (CoreFunName, coreFunName)
+import Cogent.Common.Syntax (CoreFunName, unCoreFunName)
 import Cogent.Compiler
 import Cogent.Util (toCName)
 
@@ -23,7 +23,7 @@ import qualified Text.PrettyPrint.ANSI.Leijen as L
 
 corresProof :: String -> String -> [CoreFunName] -> Maybe [CoreFunName] -> String -> L.Doc
 corresProof thy cfile fns ent log =
-  let fns' = map (toCName . coreFunName) fns
+  let fns' = map (toCName . unCoreFunName) fns
       header = (L.string ("(*\n" ++ log ++ "\n*)\n") L.<$>)
       theory = O.Theory { thyName = thy ++ __cogent_suffix_of_corres_proof
                         , thyImports = imports thy
@@ -218,7 +218,7 @@ cogentMainTree thy ent =
   ] ++ (case ent of
          Nothing ->   [ "val entry_func_names = Cogent_functions (* all functions *)" ]
          Just tlfs -> [ "val entry_func_names = [" ] ++
-                      lines (intercalate ",\n" (map (\tlf -> "      \"" ++ tlf ++ "\"") (map coreFunName tlfs))) ++
+                      lines (intercalate ",\n" (map (\tlf -> "      \"" ++ tlf ++ "\"") (map unCoreFunName tlfs))) ++
                       [ "]" ]
        ) ++
   [ "val entry_funcs = Symtab.dest Cogent_main_tree"

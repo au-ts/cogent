@@ -1,0 +1,2 @@
+foo : all (a:<DS,b:<DS). (U8,U8,U8,U8,U8,U8,U8,U8,U8,a,b) -> (U8, a, b)
+foo (a,b,c,d,e,f,g,h,i,j,k) = (a,j,k)

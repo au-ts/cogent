@@ -1,0 +1,26 @@
+{
+    "name": "cogent-lang",
+    "displayName": "Cogent Language Support",
+    "description": "IDE support for cogent",
+    "version": "0.0.1",
+    "engines": {
+        "vscode": "^1.32.0"
+    },
+    "categories": [
+        "Programming Languages"
+    ],
+    "contributes": {
+        "languages": [{
+            "id": "cogent",
+            "aliases": ["cogent", "Cogent"],
+            "extensions": [".cogent"],
+            "configuration": "./language-configuration.json"
+        }],
+        "grammars": [{
+            "language": "cogent",
+            "scopeName": "source.cogent",
+            "path": "./syntaxes/cogent.tmLanguage.json"
+        }]
+    }
+}
+
