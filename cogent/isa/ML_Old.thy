@@ -45,7 +45,7 @@ ML {*
   fun rtac rl = resolve0_tac [rl];
   fun etac rl = eresolve0_tac [rl];
 
-  fun subst_tac ctxt rl = EqSubst.eqsubst_asm_tac ctxt [0] [rl]
+  fun subst_tac ctxt rl = EqSubst.eqsubst_tac ctxt [1] [rl]
 
   fun atac i = PRIMSEQ (Thm.assumption NONE i);
 
