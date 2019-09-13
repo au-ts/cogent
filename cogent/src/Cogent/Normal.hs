@@ -54,7 +54,7 @@ isAtom (E (ALit es)) | all isVar es = True
 isAtom (E (ArrayIndex e i)) | isVar e && isVar i = True
 isAtom (E (ArrayMap2 (_,f) (e1,e2)))
   | isNormal f && isVar e1 && isVar e2 = True
-  -- ^^^ FIXME: does it make sense? @ArrayMap@ cannot be made an expression.
+  -- \ ^^^ FIXME: does it make sense? @ArrayMap@ cannot be made an expression.
   -- Does the atom-expression / normal-statement correspondence still hold?
 isAtom (E (Singleton e)) | isVar e = True
 #endif
