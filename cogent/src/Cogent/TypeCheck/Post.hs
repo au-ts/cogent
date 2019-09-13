@@ -184,8 +184,7 @@ normaliseT d (T (TCon n ts b)) =
     Just (ts', Just b) -> normaliseT d (substType (zip ts' ts) b)
     _ -> do
       ts' <- mapM (normaliseT d) ts
-      s'  <- normaliseS s
-      return $ T (TCon n ts' s')
+      return $ T (TCon n ts' b)
 
 normaliseT d (T (TRecord l s)) = do
   s' <- normaliseS s

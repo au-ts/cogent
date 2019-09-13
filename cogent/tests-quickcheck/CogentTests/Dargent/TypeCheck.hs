@@ -15,23 +15,22 @@
 {-# LANGUAGE TemplateHaskell #-}
 module CogentTests.Dargent.TypeCheck where
 
-import Data.Set (Set, union, empty, intersection)
-import qualified Data.Set as S
-
+import Control.Monad (guard)
 import Data.Map (Map)
 import qualified Data.Map as M
-
-import Control.Monad (guard)
-
+import Data.Set (Set, union, empty, intersection)
+import qualified Data.Set as S
 import Test.QuickCheck
 import Test.QuickCheck.All
 import Text.Parsec.Pos (SourcePos)
 
+import Cogent.Common.Syntax (DataLayoutName, Size)
+import Cogent.Dargent.Allocation
 import Cogent.Dargent.Surface
 import Cogent.Dargent.Core
 import Cogent.Dargent.TypeCheck
+import Cogent.Dargent.Util
 import CogentTests.Dargent.Core
-import Cogent.Common.Syntax (DataLayoutName, Size)
 
 {- PROPERTIES -}
 
@@ -47,8 +46,8 @@ prop_overlaps a b = overlaps a b == not (toSet a `disjoint` toSet b)
 
 prop_typeCheckValidGivesNoErrors :: Property
 prop_typeCheckValidGivesNoErrors =
-  forAll (genDataLayout size) $ \(layout, alloc) ->
-    case typeCheckDataLayoutExpr M.empty (undesugarDataLayout layout) of
+  forAll (genDataLayout size) $ \(Layout layout, alloc) ->  -- FIXME: not considering CLayout for now / zilinc
+    case tcDataLayoutExpr M.empty (undesugarDataLayout layout) of
       ([], alloc')  -> toSet alloc == toSet alloc'
       _             -> False
   where size = 30
@@ -71,16 +70,16 @@ bitSizeToDataLayoutSize size =
     
 undesugarBitRange :: BitRange -> DataLayoutExpr
 undesugarBitRange (BitRange size offset) =
-  Offset (Prim (bitSizeToDataLayoutSize size)) (bitSizeToDataLayoutSize offset)
+  DL $ Offset (Prim (bitSizeToDataLayoutSize size)) (bitSizeToDataLayoutSize offset)
     
-undesugarDataLayout  :: DataLayout BitRange -> DataLayoutExpr
-undesugarDataLayout UnitLayout = Prim (Bits 0)
+undesugarDataLayout  :: DataLayout' BitRange -> DataLayoutExpr
+undesugarDataLayout UnitLayout = DL $ Prim (Bits 0)
 undesugarDataLayout (PrimLayout bitRange) = undesugarBitRange bitRange
 undesugarDataLayout (RecordLayout fields) =
-  Record $ fmap (\(name, (layout, pos)) -> (name, pos, (undesugarDataLayout  layout))) (M.toList fields)
+  DL . Record $ fmap (\(name, (layout, pos)) -> (name, pos, (undesugarDataLayout  layout))) (M.toList fields)
 undesugarDataLayout (SumLayout tagBitRange alternatives) =
-  Variant
-    (undesugarBitRange tagBitRange)
+  DL $ Variant
+    (unDataLayoutExpr $ undesugarBitRange tagBitRange)
     (fmap (\(tagName, (tagValue, altLayout, altPos)) -> (tagName, altPos, tagValue, (undesugarDataLayout  altLayout))) (M.toList alternatives))
     
 {- ARBITRARY INSTANCES -}
