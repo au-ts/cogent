@@ -849,13 +849,16 @@ instance Pretty a => Pretty (I.IntMap a) where
 
 instance Pretty DataLayoutTcError where
   pretty (UnknownDataLayout r ctx)
-     =  err "Undeclared data layout" <+> reprname r <$$> pretty ctx
+    =  err "Undeclared data layout" <+> reprname r <$$> pretty ctx
+  pretty (BadDataLayout r ctx)
+    =  err "Referenced a bad data layout" <+> reprname r <$$> pretty ctx
   pretty (TagNotSingleBlock ctx)
-     = err "Variant tag must be a single block of bits" <$$> pretty ctx
-  pretty (OverlappingBlocks (range1, c1) (range2, c2))
-     = err "Declared data blocks" <+> parens (pretty range1) <+> err "and" <+> parens (pretty range2) <+> err " which cannot overlap" <$$>
-       indent (pretty c1) <$$>
-       indent (pretty c2)
+    = err "Variant tag must be a single block of bits" <$$> pretty ctx
+  pretty (OverlappingBlocks blks)
+    = let ((range1, c1),(range2, c2)) = unOverlappingAllocationBlocks blks
+       in err "Declared data blocks" <+> parens (pretty range1) <+> err "and" <+> parens (pretty range2) <+> err " which cannot overlap" <$$>
+          indent (pretty c1) <$$>
+          indent (pretty c2)
   pretty (SameTagValues context name1 name2 value) =
     err "Alternatives" <+> tagname name1 <+> err "and" <+> tagname name2 <+> err "of same variant cannot have the same tag value" <+> literal (pretty value) <$$>
     indent (pretty context)
@@ -896,7 +899,7 @@ instance Pretty a => Pretty (DataLayout' a) where
     where prettyField (f,(l,_)) = fieldname f <> colon <> pretty l
 
 instance Pretty BitRange where
-  pretty BitRange {bitSizeBR, bitOffsetBR} = literal (pretty bitSizeBR) <> symbol "b" <+> symbol "at" <+> literal (pretty bitOffsetBR) <> symbol "b"
+  pretty br = literal (pretty $ bitSizeBR br) <> symbol "b" <+> symbol "at" <+> literal (pretty $ bitOffsetBR br) <> symbol "b"
 
 
 -- helper functions

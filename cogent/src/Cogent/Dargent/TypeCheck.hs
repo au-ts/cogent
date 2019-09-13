@@ -19,8 +19,10 @@ module Cogent.Dargent.TypeCheck where
 
 import Data.Map (Map)
 import qualified Data.Map as M
+import Data.Maybe (fromJust)
 
 import Control.Monad (guard, foldM)
+import Control.Monad.Trans.Except
 
 import Cogent.Common.Syntax (FieldName, TagName, DataLayoutName, Size)
 import Cogent.Common.Types (Sigil)
@@ -28,9 +30,10 @@ import Cogent.Compiler (__fixme, __impossible)
 import Cogent.Dargent.Allocation
 import Cogent.Dargent.Surface
 import Cogent.Dargent.Util
+import Cogent.Util (WriterMaybe, tellEmpty, mapTells)
 import Cogent.Surface (Type(..))
 
-import Data.Bifunctor (second)
+import Data.Bifunctor (bimap, first, second)
 import Text.Parsec.Pos (SourcePos)
 
 import Debug.Trace
@@ -41,74 +44,73 @@ import Debug.Trace
 --
 -- This includes that relevant blocks of bits don't overlap
 -- And tag values are in the right ranges
-tcDataLayoutExpr :: NamedDataLayouts -> DataLayoutExpr -> ([DataLayoutTcError], Allocation)
+tcDataLayoutExpr :: NamedDataLayouts -> DataLayoutExpr -> Except [DataLayoutTcError] Allocation
 tcDataLayoutExpr env (DLRepRef n) =
   case M.lookup n env of
-    Just (_, allocation) -> mapPaths (InDecl n) $ return allocation
-    Nothing              -> returnError $ UnknownDataLayout n PathEnd
+    Just (_, Just allocation) -> mapPaths (InDecl n) $ return allocation
+    Just (_, Nothing)         -> throwE [BadDataLayout n PathEnd]
+    Nothing                   -> throwE [UnknownDataLayout n PathEnd]
 
-tcDataLayoutExpr _ (DLPrim size) = return [(bitRange, PathEnd)]
+tcDataLayoutExpr _ (DLPrim size) = return $ singletonAllocation (bitRange, PathEnd)
   where
-    bitSize = evalSize size
-    bitRange = BitRange bitSize 0
+    bitSize  = evalSize size
+    bitRange = fromJust $ newBitRangeBaseSize 0 bitSize {- 0 <= bitSize -}
 
 tcDataLayoutExpr env (DLOffset dataLayoutExpr offsetSize) =
   offset (evalSize offsetSize) <$> tcDataLayoutExpr env (DL dataLayoutExpr)
 
-tcDataLayoutExpr env (DLRecord fields) =
-  let (errs, alloc) = foldM tcField [] fields
-  in case errs of
-    [] -> if isZeroSizedAllocation alloc
-          then returnError $ ZeroSizedBitRange PathEnd
-          else (errs, alloc)
-    _  -> (errs, [])
+tcDataLayoutExpr env (DLRecord fields) = do
+  alloc <- foldM tcField emptyAllocation fields
+  if isZeroSizedAllocation alloc
+  then throwE [ZeroSizedBitRange PathEnd]
+  else return alloc
   where
     tcField
       :: Allocation -- The accumulated allocation from previous alternatives
       -> (FieldName, SourcePos, DataLayoutExpr)
-      -> ([DataLayoutTcError], Allocation)
+      -> Except [DataLayoutTcError] Allocation
 
     tcField accumAlloc (fieldName, pos, dataLayoutExpr) = do
       fieldsAlloc <- mapPaths (InField fieldName pos) (tcDataLayoutExpr env dataLayoutExpr)
-      accumAlloc /\ fieldsAlloc
+      except $ first (fmap OverlappingBlocks) $ accumAlloc /\ fieldsAlloc
 
 tcDataLayoutExpr env (DLVariant tagExpr alternatives) =
   case primitiveBitRange (DL tagExpr) of
     Just tagBits ->
       do
-        altsAlloc <- fst <$> foldM (tcAlternative tagBits) ([], M.empty) alternatives
-        [(tagBits, InTag PathEnd)] /\ altsAlloc
-    Nothing       -> returnError $ TagNotSingleBlock (InTag PathEnd)
+        altsAlloc <- fst <$> foldM (tcAlternative tagBits) (emptyAllocation, M.empty) alternatives
+        except $ first (fmap OverlappingBlocks) $ singletonAllocation (tagBits, InTag PathEnd) /\ altsAlloc
+    Nothing      -> throwE [TagNotSingleBlock (InTag PathEnd)]
   where
     tcAlternative
       :: BitRange -- Of the variant's tag
       -> (Allocation, Map Size TagName)  -- The accumulated (allocation, set of used tag values) from already evaluated alternatives
       -> (TagName, SourcePos, Size, DataLayoutExpr) -- The alternative to evaluate
-      -> ([DataLayoutTcError], (Allocation, Map Size TagName))
+      -> Except [DataLayoutTcError] (Allocation, Map Size TagName)
 
     tcAlternative range (accumAlloc, accumTagValues) (tagName, pos, tagValue, dataLayoutExpr) = do
-      alloc     <- (accumAlloc ++) <$> mapPaths (InAlt tagName pos) (tcDataLayoutExpr env dataLayoutExpr)
+      alloc     <- (\/) accumAlloc <$> mapPaths (InAlt tagName pos) (tcDataLayoutExpr env dataLayoutExpr)
       tagValues <- checkedTagValues
       return $ (alloc, tagValues)
       where
-        checkedTagValues :: ([DataLayoutTcError], Map Size TagName)
+        checkedTagValues :: Except [DataLayoutTcError] (Map Size TagName)
         checkedTagValues
-          | tagValue < 0 || tagValue >= 2^(bitSizeBR range) =
-              returnError $ OversizedTagValue (InAlt tagName pos PathEnd) range tagName tagValue
+          | tagValue < 0 || tagValue >= 2 ^ bitSizeBR range =
+            throwE [OversizedTagValue (InAlt tagName pos PathEnd) range tagName tagValue]
           | Just conflictingTagName <- tagValue `M.lookup` accumTagValues =
-              returnError $ SameTagValues (InAlt tagName pos PathEnd) conflictingTagName tagName tagValue
+            throwE [SameTagValues (InAlt tagName pos PathEnd) conflictingTagName tagName tagValue]
           | otherwise =
-              return $ M.insert tagValue tagName accumTagValues
+            return $ M.insert tagValue tagName accumTagValues
 
     primitiveBitRange :: DataLayoutExpr -> Maybe BitRange
-    primitiveBitRange (DLPrim size)        = Just $ BitRange (evalSize size) 0
+    primitiveBitRange (DLPrim size)        = newBitRangeBaseSize 0 (evalSize size)
     primitiveBitRange (DLOffset expr size) = offset (evalSize size) <$> primitiveBitRange (DL expr)
     primitiveBitRange _                    = Nothing
 
 #ifdef BUILTIN_ARRAYS
 tcDataLayoutExpr env (DLArray e p) = mapPaths (InElmt p) $ tcDataLayoutExpr env e
 #endif
-tcDataLayoutExpr env DLPtr = ([], [(pointerBitRange, PathEnd)])
+tcDataLayoutExpr env DLPtr = return $ singletonAllocation (pointerBitRange, PathEnd)
 
 
 -- NOTE: the check for type-layout compatibility is in Cogent.TypeCheck.Base
@@ -130,7 +132,7 @@ normaliseDataLayoutExpr env (DLArray e pos) = DLArray (normaliseDataLayoutExpr e
 normaliseDataLayoutExpr _ r = r
 
 {- * Types -}
-type NamedDataLayouts = Map DataLayoutName (DataLayoutExpr, Allocation)
+type NamedDataLayouts = Map DataLayoutName (DataLayoutExpr, Maybe Allocation)
 type DataLayoutTcError = DataLayoutTcErrorP DataLayoutPath
 -- type DataLayoutTypeMatchError = DataLayoutTcErrorP DataLayoutPath -- TODO: needed to implement `tcDataLayoutTypeMatch`
 
@@ -140,12 +142,15 @@ type DataLayoutTcError = DataLayoutTcErrorP DataLayoutPath
 -- The type parameter @p@ is the type of the path to the error (@DataLayoutPath@)
 -- We parameterise by @p@ so we can use the functor instance to map changes to the path
 data DataLayoutTcErrorP p
-  = OverlappingBlocks       (BitRange, p) (BitRange, p)
+  = OverlappingBlocks       (OverlappingAllocationBlocks p)
     -- ^ Have declared two overlapping bit ranges which shouldn't overlap
 
   | UnknownDataLayout       DataLayoutName p
     -- ^ Have referenced a data layout which hasn't been declared
     -- The path is the path to the use of that Rep in the DataLayoutExpr being checked
+
+  | BadDataLayout           DataLayoutName p
+  -- ^ Have referenced a data layout which isn't correct
 
   | TagNotSingleBlock       p
 
@@ -188,7 +193,7 @@ data DataLayoutTypeMatchErrorP p
 
 
 {- * Other exported functions -}
-tcDataLayoutDecl :: NamedDataLayouts -> DataLayoutDecl -> ([DataLayoutTcError], Allocation)
+tcDataLayoutDecl :: NamedDataLayouts -> DataLayoutDecl -> Except [DataLayoutTcError] Allocation
 tcDataLayoutDecl env (DataLayoutDecl pos name expr) =
   mapPaths (InDecl name) (tcDataLayoutExpr env expr)
 
@@ -200,51 +205,14 @@ normaliseDataLayoutDecl env (DataLayoutDecl pos name expr) =
 normaliseSigil :: NamedDataLayouts -> Sigil (Maybe DataLayoutExpr) -> Sigil (Maybe DataLayoutExpr)
 normaliseSigil env = fmap (fmap (normaliseDataLayoutExpr env))
 
-returnError :: Monoid a => DataLayoutTcError -> ([DataLayoutTcError], a)
-returnError e = ([e], mempty)
-
-
 {- * Other functions -}
 evalSize :: DataLayoutSize -> Size
 evalSize (Bytes b) = b * 8
 evalSize (Bits b)  = b
 evalSize (Add a b) = evalSize a + evalSize b
 
-
--- | Conjunction of allocations
---
--- Used when the two allocations could be used simultaneously, and so they must not overlap.
--- For example, if they are allocations for two fields of the same record.
--- An @OverlappingBlocks DataLayoutTcError@ is returned if the two allocations overlap.
-(/\) :: Allocation -> Allocation -> ([DataLayoutTcError], Allocation)
-a1 /\ a2 =
-  case allOverlappingBlocks a1 a2 of
-    overlappingBlocks@(_ : _) -> (overlappingBlocks, [])
-    []                          -> return (a1 ++ a2)
-  where
-    allOverlappingBlocks :: Allocation -> Allocation -> [DataLayoutTcError]
-    allOverlappingBlocks a b = do
-      pair1@(block1, _) <- a
-      pair2@(block2, _) <- b
-      guard $ overlaps block1 block2
-      return $ OverlappingBlocks pair1 pair2
-
-overlaps :: BitRange -> BitRange -> Bool
-overlaps (BitRange s1 o1) (BitRange s2 o2) =
-  s1 > 0 &&
-  s2 > 0 &&
-  ((o1 >= o2 && o1 < (o2 + s2)) ||
-   (o2 >= o1 && o2 < (o1 + s1)))
-
-mapOntoPaths
-  :: (DataLayoutPath -> DataLayoutPath)
-  -> Allocation
-  -> Allocation
-mapOntoPaths = fmap . fmap
-
 mapPaths
   :: (DataLayoutPath -> DataLayoutPath)
-  -> ([DataLayoutTcError], Allocation)
-  -> ([DataLayoutTcError], Allocation)
-mapPaths f (errors, alloc) = (fmap (fmap f) errors, mapOntoPaths f alloc)
-
+  -> Except [DataLayoutTcError] Allocation
+  -> Except [DataLayoutTcError] Allocation
+mapPaths f = mapExcept (bimap (fmap (fmap f)) (fmap f))
