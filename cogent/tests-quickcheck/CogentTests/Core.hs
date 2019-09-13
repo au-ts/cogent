@@ -19,10 +19,14 @@ import Cogent.Common.Syntax (FieldName, TagName, RepName, Size)
 import Cogent.Common.Types (Sigil (..), PrimInt (..))
 import Cogent.Compiler (__fixme)
 
+genConName :: Gen TagName
+genConName = (:) <$> elements ['A'..'Z'] <*> listOf (elements (['A'..'Z'] ++ ['a'..'z'] ++ ['0'..'9']))
+
+
 genLayoutableType :: Int -> Gen (Type 'Zero)
 genLayoutableType size = 
 	oneof
-	[ TCon     <$> arbitrary <*> pure [] <*> (Boxed <$> arbitrary <*> pure ())
+	[ TCon     <$> genConName <*> pure [] <*> (Boxed <$> arbitrary <*> pure ())
 	, TPrim    <$> arbitrary
 	, TSum     <$> resize size (listOf (genLayoutableAlternative size))
 	, TRecord  <$> resize size (listOf (genLayoutableField size)) <*> pure (__fixme Unboxed)
