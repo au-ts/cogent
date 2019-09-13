@@ -23,7 +23,7 @@ wordSizeBits = 32
 data Architecture = X86_64 | X86_32 | ARM32
 
 architecture :: Architecture
-architecture = ARM32
+architecture = ARM32 -- TODO(dargent): compiler flag
 
 pointerSizeBits :: Size
 pointerSizeBits = case architecture of

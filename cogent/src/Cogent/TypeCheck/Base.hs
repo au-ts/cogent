@@ -38,12 +38,12 @@ import qualified Cogent.TypeCheck.Row as Row
 -- import Cogent.TypeCheck.Util
 import Cogent.Util
 
-import Control.Arrow (first, second)
 import Control.Monad.State
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
 import Control.Monad.Writer hiding (Alt)
 import Control.Monad.Reader
+import Data.Bifunctor (bimap, first, second)
 import Data.Maybe (fromJust, isJust)
 import Data.Either (either, isLeft)
 import qualified Data.IntMap as IM
@@ -492,10 +492,10 @@ validateType' vs (RT t) = do
                     then
                       case s of
                         Boxed _ (Just dlexpr)
-                          | (anError : _) <- fst $ tcDataLayoutExpr layouts dlexpr
+                          | Left (anError : _) <- runExcept $ tcDataLayoutExpr layouts dlexpr
                           -> throwE $ DataLayoutError anError
-                        otherwise ->
-                          (toRow . T . ffmap toSExpr) <$> mapM (validateType' vs) t
+                        Unboxed{} ->
+                          toRow . T . ffmap toSExpr <$> mapM (validateType' vs) t
                     else throwE (DuplicateRecordFields (fields \\ fields'))
 
     TVariant fs  -> do let tuplize [] = T TUnit
@@ -509,10 +509,8 @@ validateType' vs (RT t) = do
 #endif
     TLayout l t  -> do
       layouts <- use knownDataLayouts
-      let (errs, alloc) = tcDataLayoutExpr layouts l
-      () <- (case errs of
-              (err : _) -> throwE (DataLayoutError err)
-              _         -> pure ())
+      -- run tcDataLayoutExpr, and if it errors, convert that error to the error type of the monad we are in
+      _ <- except . first (DataLayoutError . head) . runExcept $ tcDataLayoutExpr layouts l
       t' <- validateType' vs t
       pure (T $ TLayout l t')
     _ -> __fixme $

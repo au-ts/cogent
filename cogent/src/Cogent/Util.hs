@@ -21,32 +21,36 @@
 
 {-# LANGUAGE DataKinds, FlexibleContexts, LambdaCase, PolyKinds, TupleSections, ViewPatterns #-}
 {-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Cogent.Util where
 
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
 import Data.Monoid
+#elif __GLASGOW_HASKELL__ < 803
+import Data.Monoid ((<>))
 #endif
+
+import Control.Applicative (Alternative, empty)
 import Control.Arrow ((&&&))
-import Data.List
 import Control.Monad
+import Control.Monad.Writer
+import Control.Monad.Trans.Maybe
+import Control.Monad.Trans.Except (ExceptT(ExceptT))
+import Data.Bifunctor (second)
 import Data.Char
 import Data.Foldable (foldrM)
 import qualified Data.Map as M
-#if __GLASGOW_HASKELL__ < 803
-import Data.Monoid ((<>))
-#endif
-import qualified Data.List as L
 import Data.Version (showVersion)
+import qualified Data.List as L
 import System.Environment
 import System.FilePath.Posix
-import Control.Monad.Trans.Except (ExceptT(ExceptT))
-import Paths_cogent
-import Version_cogent (gitHash, configFlags)
 import Lens.Micro
 import Lens.Micro.Mtl
 
+import Version_cogent (gitHash, configFlags)
+import Paths_cogent
 
 (<<+=) l n = l <<%= (+ n)
 
@@ -165,6 +169,10 @@ relDir src dst pwd
 
 --
 -- misc.
+
+(==>) :: Bool -> Bool -> Bool
+(==>) = (<=)
+infixr 2 ==>
 
 type Warning = String
 
@@ -292,6 +300,21 @@ unionWithKeyM f m1 m2 =
   where
     f' k mx my = mx >>= \x -> my >>= \y -> f k x y
 
+--
+-- useful monad things
+--
+
+type WriterMaybe e a = MaybeT (Writer e) a
+
+tellEmpty :: Monoid e => e -> WriterMaybe e a
+tellEmpty e = lift (tell e) >> empty
+
+mapTells :: forall e1 e2 a. (Monoid e1, Monoid e2) =>
+  (e1 -> e2) ->
+  WriterMaybe e1 a ->
+  WriterMaybe e2 a
+mapTells f = mapMaybeT (mapWriter (second f))
+
 -- stdoutPath = "/dev/stdout"
 -- nullPath = "/dev/null"
 
@@ -376,7 +399,7 @@ breakList func = spanList (not . func)
 split :: Eq a => [a] -> [a] -> [[a]]
 split _ [] = []
 split delim str =
-    let (firstline, remainder) = breakList (isPrefixOf delim) str
+    let (firstline, remainder) = breakList (L.isPrefixOf delim) str
      in firstline : case remainder of
           [] -> []
           x -> if x == delim
@@ -384,11 +407,7 @@ split delim str =
                  else split delim (drop (length delim) x)
 
 replace :: Eq a => [a] -> [a] -> [a] -> [a]
-replace old new l = joinWith new . split old $ l
-
-joinWith :: [a] -> [[a]] -> [a]
-joinWith delim l = concat (intersperse delim l)
-
+replace old new l = L.intercalate new . split old $ l
 
 -- the following are from the extra library, BSD3
 -- http://hackage.haskell.org/package/extra-1.6.13/docs/Control-Monad-Extra.html

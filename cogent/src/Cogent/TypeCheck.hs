@@ -41,9 +41,8 @@ import Cogent.Util (firstM)
 
 import Control.Arrow (first, second)
 
--- import Control.Monad.Except
 import Control.Monad.State
-import Control.Monad.Trans.Maybe
+import Control.Monad.Trans.Except
 -- import Control.Monad.Writer hiding (censor)
 -- import Data.Either (lefts)
 -- import qualified Data.IntMap as IM
@@ -114,10 +113,9 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
   (RepDef decl@(DataLayoutDecl pos name expr)) -> do
     traceTc "tc" (text "typecheck rep decl" <+> pretty name)
     namedLayouts            <- lift . lift $ use knownDataLayouts
-    let (errors, allocation) = tcDataLayoutDecl namedLayouts decl
-    case errors of
-      (anError : _) -> logErr $ DataLayoutError anError
-      _             -> return ()
+    allocation <- case runExcept $ tcDataLayoutDecl namedLayouts decl of
+                    Left es     -> (logErr . DataLayoutError . head $ es) >> return Nothing
+                    Right alloc -> return $ Just alloc
     -- We add the decl to the knownDataLayouts regarldess of error, so we can continue
     -- typechecking DataLayoutExprs which might contain the decl.
     lift . lift $ knownDataLayouts %= M.insert name (expr, allocation)
