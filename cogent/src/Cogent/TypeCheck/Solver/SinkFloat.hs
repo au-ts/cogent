@@ -41,9 +41,8 @@ import Control.Monad.Writer
 import Control.Monad.Trans.Maybe
 import qualified Data.Map as M
 import Lens.Micro
-import Text.PrettyPrint.ANSI.Leijen (text, pretty, (<+>))
 
-sinkfloat :: Rewrite.Rewrite' TcSolvM [Goal]
+sinkfloat :: Rewrite.RewriteT TcSolvM [Goal]
 sinkfloat = Rewrite.rewrite' $ \gs -> do {- MaybeT TcSolvM -}
   a <- MaybeT $ do {- TcSolvM -}
     msubsts <- traverse (runMaybeT . genStructSubst . _goal) gs  -- a list of 'Maybe' substitutions.
