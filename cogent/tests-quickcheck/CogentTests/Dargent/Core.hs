@@ -14,33 +14,36 @@
 {-# LANGUAGE TemplateHaskell #-}
 module CogentTests.Dargent.Core where
 
+import Control.Arrow (first)
 import Data.Map (Map)
 import qualified Data.Map as M
-
 import Text.Parsec.Pos (SourcePos, newPos)
 import Test.QuickCheck
 
-import Cogent.Dargent.Core
-import Cogent.Dargent.TypeCheck
 import Cogent.Common.Syntax (FieldName, TagName, RepName, Size)
+import Cogent.Dargent.Allocation
+import Cogent.Dargent.Core
+-- import Cogent.Dargent.Surface
+import Cogent.Dargent.TypeCheck
+import Cogent.Dargent.Util
 
 {- PROPERTIES -}
 
 prop_sizePreserved range =
   foldr (\x -> (+) (bitSizeABR x)) 0 (rangeToAlignedRanges range) == bitSizeBR range
-  
+
 prop_roundTrip range =
   case (alignedRangesToRanges . rangeToAlignedRanges) range of
     [range'] -> range == range'
     _        -> False
-  
+
 {- FUNCTIONS -}
 
 -- A partial inverse to rangeToAlignedRanges
 alignedRangesToRanges
   :: [AlignedBitRange]
   -> [BitRange]
-alignedRangesToRanges = merge . fmap alignedRangeToRange 
+alignedRangesToRanges = merge . fmap alignedRangeToRange
   where
     alignedRangeToRange :: AlignedBitRange -> BitRange
     alignedRangeToRange AlignedBitRange { bitSizeABR, wordOffsetABR, bitOffsetABR } =
@@ -48,7 +51,7 @@ alignedRangesToRanges = merge . fmap alignedRangeToRange
       { bitSizeBR = bitSizeABR
       , bitOffsetBR = wordOffsetABR * wordSizeBits + bitOffsetABR
       }
-      
+
     merge :: [BitRange] -> [BitRange]
     merge [] = []
     merge (range1 : rest) = case merge rest of
@@ -61,7 +64,7 @@ alignedRangesToRanges = merge . fmap alignedRangeToRange
             }
             : rest'
         | otherwise -> range1 : range2 : rest'
-    
+
 {- ARBITRARY INSTANCES -}
 instance Arbitrary BitRange where
   arbitrary = sized $ \totalSize -> do
@@ -75,14 +78,14 @@ instance Arbitrary BitRange where
 genDataLayout
   :: Size -- For sizing
   -> Gen (DataLayout BitRange, Allocation)
-genDataLayout n = genDataLayout' (fromIntegral n) n []
+genDataLayout n = first Layout <$> genDataLayout' (fromIntegral n) n []
 
 genDataLayout'
   :: Size -- max allowed allocated bit index
   -> Size -- max allowed total bit size of the layout
   -> Allocation -- existing allocation
-  -> Gen (DataLayout BitRange, Allocation)
-genDataLayout' maxBitIndex maxSize alloc = 
+  -> Gen (DataLayout' BitRange, Allocation)
+genDataLayout' maxBitIndex maxSize alloc =
   if maxSize == 0
   then return (UnitLayout, alloc)
   else oneof
@@ -90,21 +93,21 @@ genDataLayout' maxBitIndex maxSize alloc =
     , genSumLayout    maxBitIndex maxSize alloc
     , genRecordLayout maxBitIndex maxSize alloc
     ]
-        
+
 genPrimLayout
   :: Size -- max allowed allocated bit index
   -> Size -- max allowed bit size for the range
   -> Allocation -- Existing allocation
-  -> Gen (DataLayout BitRange, Allocation)
+  -> Gen (DataLayout' BitRange, Allocation)
 genPrimLayout maxBitIndex maxSize alloc = do
   (range, alloc') <- genBitRange maxBitIndex maxSize alloc
   return (PrimLayout range, alloc')
-    
+
 genSumLayout
   :: Size -- max allowed allocated bit index
   -> Size -- max allowed total bit size for the records fields
   -> Allocation -- Existing allocation
-  -> Gen (DataLayout BitRange, Allocation)
+  -> Gen (DataLayout' BitRange, Allocation)
 genSumLayout maxBitIndex maxSize alloc =
   do
     let maxTagSize = min 4 maxSize
@@ -119,11 +122,11 @@ genSumLayout maxBitIndex maxSize alloc =
       -> Size -- tag value for alternative
       -> Size -- max number of alternatives
       -> Allocation -- existing allocation
-      -> Gen (Map TagName (Size, DataLayout BitRange, SourcePos), Allocation)
-            
+      -> Gen (Map TagName (Size, DataLayout' BitRange, SourcePos), Allocation)
+
     genAlts 0 _ _ alloc          = return (M.empty, alloc)
     genAlts _ m n alloc | m == n = return (M.empty, alloc)
-        
+
     genAlts maxSize tagValue maxTagValue alloc = do
       sourcePos <- arbitrary
       altSize <- choose (1, maxSize)
@@ -133,12 +136,12 @@ genSumLayout maxBitIndex maxSize alloc =
       let altAlloc' = mapOntoPaths (InAlt altName sourcePos) altAlloc
       return $ (M.insert altName (tagValue, altLayout, sourcePos) remainingAlts, altAlloc' ++ remainingAlloc)
 
-    
+
 genRecordLayout
   :: Size -- max allowed allocated bit index
   -> Size -- max allowed total bit size for the records fields
   -> Allocation -- Existing allocation
-  -> Gen (DataLayout BitRange, Allocation)
+  -> Gen (DataLayout' BitRange, Allocation)
 genRecordLayout maxBitIndex maxSize alloc =
   do
     (fields, alloc') <- genFields maxSize 0 alloc
@@ -148,8 +151,8 @@ genRecordLayout maxBitIndex maxSize alloc =
       :: Size -- max allowed total bit size for remaining fields
       -> Size -- for generating unique field names
       -> Allocation -- existing allocation
-      -> Gen (Map FieldName (DataLayout BitRange, SourcePos), Allocation)
-            
+      -> Gen (Map FieldName (DataLayout' BitRange, SourcePos), Allocation)
+
     genFields 0 _ alloc = return (M.empty, alloc)
     genFields maxSize name alloc = do
       fieldSize <- choose (1, maxSize)
@@ -181,7 +184,7 @@ allNonEmptyRanges maxBitIndex = do
   size          <- [1 .. lastBitIndex]
   let offset    =  lastBitIndex - size
   return $ BitRange size offset
-  
+
 -- Enumerates all ranges which are not allocated in the given Allocation
 allNonAllocatedRanges
   :: Size -- Max allowed bit index
