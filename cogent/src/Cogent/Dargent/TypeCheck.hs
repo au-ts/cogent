@@ -33,6 +33,8 @@ import Cogent.Surface (Type(..))
 import Data.Bifunctor (second)
 import Text.Parsec.Pos (SourcePos)
 
+import Debug.Trace
+
 {- * Important exported functions -}
 
 -- | Checks that the layout structure is valid
@@ -55,9 +57,11 @@ tcDataLayoutExpr env (DLOffset dataLayoutExpr offsetSize) =
 
 tcDataLayoutExpr env (DLRecord fields) =
   let (errs, alloc) = foldM tcField [] fields
-  in if isZeroSizedAllocation alloc
-        then returnError $ ZeroSizedBitRange PathEnd
-        else (errs, alloc)
+  in case errs of
+    [] -> if isZeroSizedAllocation alloc
+          then returnError $ ZeroSizedBitRange PathEnd
+          else (errs, alloc)
+    _  -> (errs, [])
   where
     tcField
       :: Allocation -- The accumulated allocation from previous alternatives
@@ -68,7 +72,7 @@ tcDataLayoutExpr env (DLRecord fields) =
       fieldsAlloc <- mapPaths (InField fieldName pos) (tcDataLayoutExpr env dataLayoutExpr)
       accumAlloc /\ fieldsAlloc
 
-tcDataLayoutExpr env (DLVariant tagExpr alternatives) = do
+tcDataLayoutExpr env (DLVariant tagExpr alternatives) =
   case primitiveBitRange (DL tagExpr) of
     Just tagBits ->
       do
