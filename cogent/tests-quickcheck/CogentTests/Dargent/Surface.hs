@@ -11,7 +11,7 @@
 --
 
 module CogentTests.Dargent.Surface where
-  
+
 import Data.Set (Set, union, empty, intersection)
 import qualified Data.Set as S
 
@@ -44,11 +44,11 @@ genDataLayoutExpr size = oneof
   ]
   where
     genPrim :: Int -> Gen DataLayoutExpr
-    genPrim size = Prim <$> arbitrary
-    
+    genPrim size = DL . Prim <$> arbitrary
+
     genRecord :: Int -> Gen DataLayoutExpr
-    genRecord size = Record <$> genFields size
-      
+    genRecord size = DL . Record <$> genFields size
+
     genFields :: Int -> Gen [(FieldName, SourcePos, DataLayoutExpr)]
     genFields size = do
       fieldSize <- choose (0, size)
@@ -60,16 +60,14 @@ genDataLayoutExpr size = oneof
           fieldDataLayoutExpr <- genDataLayoutExpr fieldSize
           sourcePos <- arbitrary
           return $ (fieldName, sourcePos, fieldDataLayoutExpr) : otherFields
-        
-    
+
     genVariant :: Int -> Gen DataLayoutExpr
     genVariant size = do
       tagSize <- choose (0, size)
-      tagExpr <- genPrim tagSize
+      DL tagExpr <- genPrim tagSize
       alternatives <- genAlternatives (size - tagSize)
-      return $ Variant tagExpr alternatives
-      
-    
+      return $ DL $ Variant tagExpr alternatives
+
     genAlternatives :: Int -> Gen [(TagName, SourcePos, Size, DataLayoutExpr)]
     genAlternatives size = do
       altSize <- choose (0, size)
@@ -82,6 +80,7 @@ genDataLayoutExpr size = oneof
           altDataLayoutExpr <- genDataLayoutExpr altSize
           sourcePos <- arbitrary
           return $ (altName, sourcePos, altValue, altDataLayoutExpr) : otherAlts
-    
+
     genOffset :: Int -> Gen DataLayoutExpr
-    genOffset size = Offset <$> (genDataLayoutExpr size) <*> arbitrary
+    genOffset size = DL <$> (Offset <$> (unDataLayoutExpr <$> genDataLayoutExpr size) <*> arbitrary)
+
