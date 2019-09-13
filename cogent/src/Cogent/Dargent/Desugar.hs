@@ -24,6 +24,7 @@ module Cogent.Dargent.Desugar
 
 import Data.Map (Map)
 import Data.Map as M
+import Data.Maybe (fromJust)
 import Data.Traversable (mapAccumL)
 
 import Text.Parsec.Pos (SourcePos, newPos)
@@ -105,7 +106,10 @@ desugarDataLayout l = Layout $ desugarDataLayout' l
     desugarDataLayout' (DLPrim size)
       | bitSize <- desugarSize size
       , bitSize > 0
-        = PrimLayout (BitRange bitSize 0)
+        = PrimLayout (fromJust $ newBitRangeBaseSize 0 bitSize) {- 0 <= bitSize -}
+      | bitSize <- desugarSize size
+      , bitSize < 0
+        = __impossible "desugarDataLayout: DLPrim has a negative size"
       | otherwise = UnitLayout
 
     desugarDataLayout' (DLOffset dataLayoutExpr offsetSize) =
@@ -137,7 +141,7 @@ constructDataLayout' (TSum alternatives)
   | length alternatives > 2 ^ wordSizeBits = __impossible $ "constructDataLayout' (Type check should prevent more alternatives than can fit in a word for sum types embedded in a boxed type with default layout)"
   | otherwise                              = SumLayout tagLayout alternativesLayout
       where
-        tagLayout          = BitRange { bitSizeBR = wordSizeBits, bitOffsetBR = 0}
+        tagLayout          = fromJust $ newBitRangeBaseSize 0 wordSizeBits {- 0 <= wordSizeBits -}
         alternativesLayout = fromList . snd $ mapAccumL constructAlternativeLayout (wordSizeBits, 0) alternatives
 
         constructAlternativeLayout
