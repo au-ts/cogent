@@ -668,7 +668,7 @@ fun mk_ttsplit_tacs_final nm k ctxt hint_tree
 
 
 (* The same as mk_ttsplit_tacs_final, but it logs the timing of tactics *)
-fun mk_ttsplit_tacs_debug nm k ctxt hint_tree
+fun mk_ttsplit_tacs_timing_debug nm k ctxt hint_tree
     = let
         val runTac = fn term => fn tac => fn a => fn b => fn c =>
                               logTacticOnUse (tacName tac ^ ":" ^ termName term) 

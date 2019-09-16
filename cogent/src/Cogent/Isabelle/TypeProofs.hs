@@ -128,9 +128,10 @@ formatSubproof ta name (schematic, prop) steps =
 
 formatMLTreeGen :: String -> [TheoryDecl I.Type I.Term]
 formatMLTreeGen name =
-  let safeName = unIsabelleName $ mkIsabelleName name
+  let safeName = unIsabelleName $ unsafeMakeIsabelleName name
   in [ TheoryString ( "ML_quiet \\<open>\nval " ++ safeName ++ "_ttyping_details_future"
-    ++ " = get_all_typing_details_future @{context} \"" ++ safeName ++ "\"\n"
+    ++ " = get_all_typing_details_future" ++ (if __cogent_proof_timing then " true " else " false ")
+    ++ "@{context} \"" ++ safeName ++ "\"\n"
     ++ "   " ++ safeName ++ "_typecorrect_script"
     ++ "\n\\<close>\n"
   ) ]
