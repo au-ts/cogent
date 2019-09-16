@@ -491,10 +491,10 @@ validateType' vs (RT t) = do
                     if fields' == fields
                     then
                       case s of
-                        Boxed _ (Just dlexpr)
+                        Boxed _ (Just dlexpr) -- the layout is bad
                           | Left (anError : _) <- runExcept $ tcDataLayoutExpr layouts dlexpr
                           -> throwE $ DataLayoutError anError
-                        Unboxed{} ->
+                        _ -> -- the layout is good, or it doesn't have a layout
                           toRow . T . ffmap toSExpr <$> mapM (validateType' vs) t
                     else throwE (DuplicateRecordFields (fields \\ fields'))
 
