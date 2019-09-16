@@ -67,7 +67,7 @@ ML {*
 ML {*
 fun debug_print_to_file pathstr s = File.write (Path.explode pathstr) s
 
-val LOG_FILE = Path.basic "TypeProofTactic.log"
+val LOG_FILE = Path.basic "TypeProofTactic.json"
 fun log_to_file strs = File.append LOG_FILE (YXML.content_of (strs^"\n"))
 fun log_error str = log_to_file ("!!! " ^ str)
 fun log_info str  = log_to_file ("    " ^ str)
@@ -78,6 +78,35 @@ fun raise_error err =
      raise ERROR err
   end
 
+(* 
+ * Logs a Timing.timing in LOG_FILE in JSON format:
+ * {
+ *   tacticName: "string"
+ *   time: { elapsed: float, cpu: float, gc: float }
+ * }
+ *)
+fun logTime tacName ({elapsed, cpu, gc} : Timing.timing) =
+  File.append LOG_FILE (
+    "{ \"tacticName\": \"" ^ tacName ^ "\"," ^
+    " \"time\": { "
+      ^ "\"elapsed\": " ^ (Int.toString (Time.toMicroseconds elapsed)) ^ ", "
+      ^ "\"cpu\": "     ^ (Int.toString (Time.toMicroseconds cpu)) ^ ", "
+      ^ "\"gc\": "      ^ (Int.toString (Time.toMicroseconds gc))
+      ^ "}"
+  ^ "}\n"
+  )
+
+(* 
+ * Runs a tactic, logging it's total time in LOG_FILE
+ *)
+fun logTacticOnUse (tacName : string) (tac : unit -> 'a) =
+  let 
+    val s = Timing.start ();
+    val res = tac ();
+    val _ = logTime tacName (Timing.result s)
+  in
+     res
+  end
 *}
 
 end
