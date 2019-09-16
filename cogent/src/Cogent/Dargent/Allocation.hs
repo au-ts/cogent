@@ -147,13 +147,13 @@ singletonAllocation b = Allocation [b]
       do
         xb <- xbs
         yb <- ybs
-        guard $ overlaps (fst xb) (fst yb) -- if they overlap, no errors
+        guard $ overlaps (fst xb) (fst yb) -- if they overlap, continue
         return $ OverlappingAllocationBlocks (xb,yb)
 
 overlaps :: BitRange -> BitRange -> Bool
 overlaps (BitRange s1 o1) (BitRange s2 o2) =
-  not ((s1 <= s2  ==>  s1 + o1 <= s2) &&
-       (s2 <= s1  ==>  s2 + o1 <= s1))
+  not $ (o1 <= o2  ==>  o1 + s1 <= o2) &&
+        (o2 <= o1  ==>  o2 + s1 <= o1)
 
 isZeroSizedAllocation :: Allocation' p -> Bool
 isZeroSizedAllocation = all (isZeroSizedBR . fst) . unAllocation
