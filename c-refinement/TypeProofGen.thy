@@ -150,7 +150,7 @@ fun get_typing_bucket ctxt f proof =
 type details = (thm list * thm tree list * thm list)
 
 
-fun get_all_typing_details ctxt name script : details = let
+fun get_all_typing_details timing_debug ctxt name script : details = let
     val _ = (@{print tracing} ("solving " ^ name))
     val time_total = Timing.start ()
 
@@ -162,8 +162,13 @@ fun get_all_typing_details ctxt name script : details = let
     val _ = (@{print tracing} (name ^ "|phase: parse script"); @{print tracing} time_res)
 
     val time = Timing.start ()
-    val tacs = TTyping_Tactics.mk_ttsplit_tacs_final name
-        @{term "[] :: kind env"} ctxt script_tree
+    
+    (* If we've been told to time tactics, make tactics with timing logging *)
+    val tacfun = if timing_debug 
+                then TTyping_Tactics.mk_ttsplit_tacs_timing_debug
+                else TTyping_Tactics.mk_ttsplit_tacs_final
+
+    val tacs = tacfun name @{term "[] :: kind env"} ctxt script_tree
     val tacs' = map (fn (tac, f) => (tac, fn ctxt => f ctxt 1)) tacs
     val time_res = Timing.result time
     val _ = (@{print tracing} (name ^ "|phase: make tacs"); @{print tracing} time_res)
@@ -189,8 +194,8 @@ fun get_all_typing_details ctxt name script : details = let
     val _ = (@{print tracing} (name ^ "|phase: solve time total"); @{print tracing} time_res)
   in (typecorrect_thms, typing_tree, bucket) end
 
-fun get_all_typing_details_future ctxt name script
-    = Future.fork (fn () => get_all_typing_details ctxt name script)
+fun get_all_typing_details_future debug ctxt name script
+    = Future.fork (fn () => get_all_typing_details debug ctxt name script)
 
 fun resolve_future_typecorrect ctxt details
     = resolve_tac ctxt (#1 (Future.join details : details)) 1
