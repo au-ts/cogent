@@ -173,7 +173,7 @@ script:
  # - echo 'Installing Cogent'
  - cabal install --force-reinstalls --flags="haskell-backend docgent" # --enable-tests
  # - cabal build   # this builds all libraries and executables (including tests/benchmarks)
- # - cabal test  # this rarely changes, so disabled for now to save some time / zilinc
+ - cabal test test-quickcheck  # the other test is rarely affacted, so not enabled / zilinc
  # - cabal check
  - cabal haddock
  # Check if Cogent has been correctly installed
