@@ -494,7 +494,7 @@ validateType' vs (RT t) = do
                         Boxed _ (Just dlexpr) -- the layout is bad
                           | Left (anError : _) <- runExcept $ tcDataLayoutExpr layouts dlexpr
                           -> throwE $ DataLayoutError anError
-                        _ -> -- the layout is good, or it doesn't have a layout
+                        _ -> -- the layout is good, or it or a layout
                           toRow . T . ffmap toSExpr <$> mapM (validateType' vs) t
                     else throwE (DuplicateRecordFields (fields \\ fields'))
 
@@ -509,8 +509,9 @@ validateType' vs (RT t) = do
 #endif
     TLayout l t  -> do
       layouts <- use knownDataLayouts
-      -- run tcDataLayoutExpr, and if it errors, convert that error to the error type of the monad we are in
-      _ <- except . first (DataLayoutError . head) . runExcept $ tcDataLayoutExpr layouts l
+      _ <- case runExcept $ tcDataLayoutExpr layouts l of
+        Left (e:_) -> throwE $ DataLayoutError e
+        Right _    -> return ()
       t' <- validateType' vs t
       pure (T $ TLayout l t')
     _ -> __fixme $
