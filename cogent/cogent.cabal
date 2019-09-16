@@ -146,7 +146,6 @@ library
               , Cogent.Dargent.Surface
               , Cogent.Dargent.TypeCheck
               , Cogent.Dargent.Desugar
-              , Cogent.Dargent.CoreTypeCheck
               , Cogent.Dargent.CodeGen
               , Cogent.Dargent.Util
               , Cogent.Desugar
