@@ -25,6 +25,8 @@ import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.ReprCheck as R
 import Cogent.Surface
+import Cogent.TypeCheck.Row (Row)
+import qualified Cogent.TypeCheck.Row as Row
 -- import Cogent.TypeCheck.Util
 import Cogent.Util
 
@@ -33,6 +35,7 @@ import Control.Monad.State
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
 import Control.Monad.Writer hiding (Alt)
+import Control.Monad.Reader
 import Data.Either (either, isLeft)
 import qualified Data.IntMap as IM
 import Data.List (nub, (\\))
@@ -61,7 +64,7 @@ data TypeError = FunctionNotFound VarName
                | UnknownTypeVariable VarName
                | UnknownTypeConstructor TypeName
                | TypeArgumentMismatch TypeName Int Int
-               | TypeMismatch (TypeFragment TCType) (TypeFragment TCType)
+               | TypeMismatch TCType TCType
                | RequiredTakenField FieldName TCType
                | TypeNotShareable TCType Metadata
                | TypeNotEscapable TCType Metadata
@@ -123,7 +126,7 @@ isCtxConstraint (SolvingConstraint _) = True
 isCtxConstraint _ = False
 
 data VarOrigin = ExpressionAt SourcePos
-               | BoundOf (TypeFragment TCType) (TypeFragment TCType) Bound
+               | BoundOf TCType TCType Bound
                | EqualIn SExpr SExpr TCType TCType
                deriving (Eq, Show, Ord)
 
@@ -148,21 +151,26 @@ data Metadata = Reused { varName :: VarName, boundAt :: SourcePos, usedAt :: Seq
               | Constant { constName :: ConstName }
               deriving (Eq, Show, Ord)
 
-data Constraint = (:<) (TypeFragment TCType) (TypeFragment TCType)
-                | (:&) Constraint Constraint
-                | Upcastable TCType TCType
-                | Share TCType Metadata
-                | Drop TCType Metadata
-                | Escape TCType Metadata
-                | (:@) Constraint ErrorContext
-                | Unsat TypeError
-                | SemiSat TypeWarning
-                | Sat
-                | Exhaustive TCType [RawPatn]
+(>:) = flip (:<)
+
+data Constraint' t = (:<) t t
+                   | (:=:) t t 
+                   | (:&) (Constraint' t) (Constraint' t)
+                   | Upcastable t t
+                   | Share t Metadata
+                   | Drop t Metadata
+                   | Escape t Metadata
+                   | (:@) (Constraint' t) ErrorContext
+                   | Unsat TypeError
+                   | SemiSat TypeWarning
+                   | Sat
+                   | Exhaustive t [RawPatn]
+                   | Solved t
 #ifdef BUILTIN_ARRAYS
-                | Arith SExpr
+                   | Arith SExpr
 #endif
-                deriving (Eq, Show, Ord)
+                   deriving (Eq, Show, Ord, Functor, Foldable, Traversable)
+type Constraint = Constraint' TCType
 
 #ifdef BUILTIN_ARRAYS
 arithTCType :: TCType -> Bool
@@ -197,7 +205,7 @@ andSExprs (e:es) = SE $ PrimOp "&&" [e, andSExprs es]
 #endif
 
 #if __GLASGOW_HASKELL__ < 803	
-instance Monoid Constraint where	
+instance Monoid (Constraint' x) where	
   mempty = Sat	
   mappend Sat x = x	
   mappend x Sat = x	
@@ -205,11 +213,11 @@ instance Monoid Constraint where
   -- mappend x (Unsat r) = Unsat r	
   mappend x y = x :& y	
 #else
-instance Semigroup Constraint where
+instance Semigroup (Constraint' x) where
   Sat <> x = x
   x <> Sat = x
   x <> y = x :& y
-instance Monoid Constraint where
+instance Monoid (Constraint' x) where
   mempty = Sat
 #endif
 
@@ -227,19 +235,26 @@ warnToConstraint f w | f = SemiSat w
 -- -----------------------------------------------------------------------------
 
 
-data TypeFragment t = F t
-                    | FRecord [(FieldName, (t, Taken))]
-                    | FVariant (M.Map TagName ([t], Taken))
-                    deriving (Eq, Show, Functor, Foldable, Traversable, Ord)
-
 data TCType         = T (Type SExpr TCType)
                     | U Int  -- unifier
+                    | R (Row TCType) (Either (Sigil ()) Int)
+                    | V (Row TCType) 
+                    | Synonym TypeName [TCType]
                     deriving (Show, Eq, Ord)
 
 data SExpr          = SE (Expr RawType RawPatn RawIrrefPatn SExpr)
                     | SU Int
                     deriving (Show, Eq, Ord)
 
+rigid :: TCType -> Bool 
+rigid (T (TBang {})) = False
+rigid (T (TTake {})) = False
+rigid (T (TPut {})) = False
+rigid (U {}) = False
+rigid (Synonym {}) = False
+rigid (R r _) = not $ Row.justVar r
+rigid (V r) = not $ Row.justVar r
+rigid _ = True
 data FuncOrVar = MustFunc | MustVar | FuncOrVar deriving (Eq, Ord, Show)
 
 funcOrVar :: TCType -> FuncOrVar
@@ -390,7 +405,7 @@ runTc s ma = flip runStateT s
 
 
 type TcM a = MaybeT (StateT TcLogState (StateT TcState IO)) a    
-type TcConsM lcl a = StateT  lcl (StateT TcState IO) a
+type TcConsM lcl a  = StateT lcl (StateT TcState IO) a
 type TcErrM  err a = ExceptT err (StateT TcState IO) a
 type TcBaseM     a =              StateT TcState IO  a
 
@@ -435,6 +450,9 @@ exitOnErr ma = do a <- ma
 
 substType :: [(VarName, TCType)] -> TCType -> TCType
 substType vs (U x) = U x
+substType vs (V x) = V (fmap (substType vs) x)
+substType vs (R x s) = R (fmap (substType vs) x) s
+substType vs (Synonym n ts) = Synonym n (fmap (substType vs) ts)
 substType vs (T (TVar v False )) | Just x <- lookup v vs = x
 substType vs (T (TVar v True  )) | Just x <- lookup v vs = T (TBang x)
 substType vs (T t) = T (fmap (substType vs) t)
@@ -450,30 +468,30 @@ validateType' vs (RT t) = do
   case t of
     TVar v _    | v `notElem` vs         -> throwE (UnknownTypeVariable v)
     TCon t as _ | Nothing <- lookup t ts -> throwE (UnknownTypeConstructor t)
-                | Just (vs, _) <- lookup t ts
+                | Just (vs', _) <- lookup t ts
                 , provided <- length as
-                , required <- length vs
+                , required <- length vs'
                 , provided /= required
                -> throwE (TypeArgumentMismatch t provided required)
-    TRecord fs _ | fields  <- map fst fs
+                |  Just (_, Just x) <- lookup t ts
+               -> Synonym t <$> mapM (validateType' vs) as  
+    TRecord fs s | fields  <- map fst fs
                  , fields' <- nub fields
-                -> if fields' == fields
-                   then T <$> (mmapM (return . toSExpr) <=< mapM (validateType' vs)) t
+                -> let toRow (T (TRecord fs s)) = R (Row.fromList fs) (Left (fmap (const ()) s)) 
+                   in if fields' == fields
+                   then (toRow . T . ffmap toSExpr) <$> mapM (validateType' vs) t
                    else throwE (DuplicateRecordFields (fields \\ fields'))
+    TVariant fs  -> do let tuplize [] = T TUnit
+                           tuplize [x] = x 
+                           tuplize xs  = T (TTuple xs)
+                       TVariant fs' <- ffmap toSExpr <$> mapM (validateType' vs) t 
+                       pure (V (Row.fromMap (fmap (first tuplize) fs')))
     -- TArray te l -> check l >= 0  -- TODO!!!
     _ -> T <$> (mmapM (return . toSExpr) <=< mapM (validateType' vs)) t
 
 validateTypes' :: (Traversable t) => [VarName] -> t RawType -> TcErrM TypeError (t TCType)
 validateTypes' vs = mapM (validateType' vs)
 
-
--- Remove a pattern from a type, for case expressions.
-removeCase :: LocPatn -> TCType -> TCType
-removeCase (LocPatn _ (PIrrefutable _)) _ = (T (TVariant M.empty))
-removeCase (LocPatn _ (PIntLit  _))     x = x
-removeCase (LocPatn _ (PCharLit _))     x = x
-removeCase (LocPatn _ (PBoolLit _))     x = x
-removeCase (LocPatn _ (PCon t _))       x = (T (TTake (Just [t]) x))
 
 flexOf (U x) = Just x
 flexOf (T (TTake _ t))  = flexOf t
@@ -501,3 +519,17 @@ isMonoType :: RawType -> Bool
 isMonoType (RT (TVar {})) = False
 isMonoType (RT t) = getAll $ foldMap (All . isMonoType) t
 
+unifVars :: TCType -> [Int]
+unifVars (U v) = [v]
+unifVars (Synonym n ts) = concatMap unifVars ts
+unifVars (V r)  
+  | Just x <- Row.var r = [x] ++ concatMap unifVars (Row.allTypes r)
+  | otherwise = concatMap unifVars (Row.allTypes r)
+unifVars (R r s) 
+  | Just x <- Row.var r = [x] ++ concatMap unifVars (Row.allTypes r)
+                       ++ case s of Left s -> [] 
+                                    Right y -> [y] 
+  | otherwise = concatMap unifVars (Row.allTypes r)
+                       ++ case s of Left s -> [] 
+                                    Right y -> [y] 
+unifVars (T x) = foldMap unifVars x

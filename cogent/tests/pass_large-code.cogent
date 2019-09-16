@@ -77,15 +77,25 @@ malloc_Chain: ExState -> RR ExState (Chain take (..)) ()
 type BlockPtr = U32
 
 eNoMem : U32
+eNoMem = 0
 eIO : U32
+eIO = 0
 eInval : U32
+eInval = 0
 const_blockSizeBits : U32
+const_blockSizeBits = 0
 const_blockSize : U32
+const_blockSize = 0
 const_ext2LinkMax : U32
+const_ext2LinkMax = 0
 const_ext2Magic : U16
+const_ext2Magic = 0
 maxChainSize : U32
+maxChainSize = 0
 const_sizeof_Inode : U32
+const_sizeof_Inode = 0
 const_maxIndexPathSize : U32
+const_maxIndexPathSize = 0
 
 u8_to_u32 : U8 -> U32
 u16_to_u64 : U16 -> U64

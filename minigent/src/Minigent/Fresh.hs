@@ -42,7 +42,7 @@ import Control.Monad.Cont.Class
 import Control.Monad.Except
 import Control.Monad.Reader
 import Control.Monad.Writer
-import Control.Monad.State
+import Control.Monad.State.Strict
 import Control.Monad.Identity
 
 -- | A @FreshT s m a@ is a monadic action that, on top of the underlying monad @m@, also may create

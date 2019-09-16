@@ -22,9 +22,11 @@ fun enumerate xs = let
     | enum n (x::xs) = (n, x) :: enum (n+1) xs
   in enum 0 xs end
 
+fun removedups f (x :: y :: xs) = if f x <> f y then x :: removedups f (y :: xs) else removedups f (x :: xs)
+  | removedups _ xs = xs
+
 fun nubBy _ [] = []
   | nubBy f (x::xs) = x :: filter (fn y => f x <> f y) (nubBy f xs)
-
 
 (* either *)
 datatype ('l, 'r) Either = Left of 'l | Right of 'r

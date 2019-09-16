@@ -1,0 +1,8 @@
+myfree : {f1 : U32 take, f2 : U8 take} -> Unit;
+
+foo : {f1 : U32, f2 : U8} -> Unit;
+foo a = let! (a) x = a.f1 
+        in let! (a) y = a.f2 
+           in myfree a
+           end
+        end;

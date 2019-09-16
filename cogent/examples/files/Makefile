@@ -16,6 +16,7 @@ SRC=FileFFI.cogent
 STDGUM=$(shell cogent --stdgum-dir)
 
 ACFILES=main.ac
+AHFILES=file.ah
 
 PP=$(ACFILES:.ac=_pp.ac)
 PPINFER=$(ACFILES:.ac=_pp_inferred.c)
@@ -24,7 +25,7 @@ ABSDIR=./abstract
 
 OBJ=$(PPINFER:.c=.o)
 
-CFLAGS+=-I. -I$(STDGUM) -I$(STDGUM)/gum/anti -std=gnu99
+CFLAGS+=-I. -I$(STDGUM) -I$(STDGUM)/gum/anti -std=gnu99 -I$(ABSDIR)
 
 .PHONY: default clean gen-anti test
 .SECONDARY:
@@ -40,12 +41,14 @@ $(OBJ): $(PPINFER)
 
 gen-anti:
 	mkdir -p $(ABSDIR)
-	cogent-master $(SRC) -g -Od -ogenerated --fno-fncall-as-macro --ffunc-purity-attr \
-                --infer-c-types="$(AHFILES)" \
-                --Wno-warn --infer-c-funcs="$(ACFILES)" \
-                --cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
-                --ext-types=types.cfg \
-                --entry-funcs=entrypoints.cfg \
+	cogent $(SRC) -g -Od -ogenerated --fno-fncall-as-macro --ffunc-purity-attr \
+								--infer-c-types="$(AHFILES)" \
+								--Wno-warn --infer-c-funcs="$(ACFILES)" \
+								--infer-c-types="$(AHFILES)" \
+								--cpp-args="-x c \$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
+								--cpp=$(CPP) \
+								--ext-types=types.cfg \
+								--entry-funcs=entrypoints.cfg \
 
 clean:
 	rm -f $(COUTPUT) $(HOUTPUT) $(PP) $(PPINFER) $(OBJ)

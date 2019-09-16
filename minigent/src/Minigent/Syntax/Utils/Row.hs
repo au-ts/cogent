@@ -16,10 +16,12 @@ module Minigent.Syntax.Utils.Row
   , incomplete
   , -- * Queries
     entries
+  , entriesMap
   , compatible
   , null
   , untakenTypes
   , typesFor
+  , justVar
   , -- * Manipulating
     mapEntries
   , take
@@ -69,6 +71,10 @@ withoutCommon (Row e1 v1) (Row e2 v2) = ( Row (e1 `M.withoutKeys` M.keysSet e2) 
 typesFor :: S.Set FieldName -> Row -> [Type]
 typesFor fs (Row m _) = map (\(Entry _ t _ ) -> t) (M.elems (M.restrictKeys m fs))
 
+-- | Does a row have no concrete entries and a unification variable, which is effectively an unconstrained unification variable
+justVar :: Row -> Bool
+justVar (Row es (Just _)) = M.null es
+justVar _ = False
 
 -- | Returns true iff the row has no entries and no unification variable.
 null :: Row -> Bool
@@ -78,8 +84,8 @@ null _ = False
 -- | Returns true iff the two rows could be considered equal after unification.
 compatible :: Row -> Row -> Bool
 compatible (Row m1 Nothing) (Row m2 Nothing) = M.keysSet m1 == M.keysSet m2
-compatible (Row m1 Nothing) (Row m2 (Just _)) = M.keysSet m1 `S.isSubsetOf` M.keysSet m2
-compatible (Row m1 (Just _)) (Row m2 Nothing) = M.keysSet m2 `S.isSubsetOf` M.keysSet m1
+compatible (Row m1 Nothing) (Row m2 (Just _)) = M.keysSet m2 `S.isSubsetOf` M.keysSet m1
+compatible (Row m1 (Just _)) (Row m2 Nothing) = M.keysSet m1 `S.isSubsetOf` M.keysSet m2
 compatible (Row m1 (Just x)) (Row m2 (Just y)) = x /= y || M.keysSet m1 == M.keysSet m2
 
 -- | Returns all types not marked as 'Taken' in the row.
@@ -89,6 +95,10 @@ untakenTypes = mapMaybe (\(Entry _ t x) -> guard (not x) >> Just t) . M.elems . 
 -- | Returns all known entries inside the row.
 entries :: Row -> [Entry]
 entries = M.elems . rowEntries
+
+-- | Returns the row entries as a map from variable name to entry:
+entriesMap :: Row -> M.Map VarName Entry
+entriesMap = rowEntries
 
 -- | Manipulate each entry inside a row. It is assumed that the given function
 --   does not change the field or constructor name in the entry. Don't do that.

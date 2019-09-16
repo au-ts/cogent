@@ -76,8 +76,11 @@ unorderedType t = rigid t
 -- | Return all of the unification type variables inside a type.
 typeUVs :: Type -> [VarName]
 typeUVs (UnifVar v) = [v]
-typeUVs (Record r _) = concatMap (\(Entry _ t _) -> typeUVs t) (Row.entries r)
+typeUVs (Record r s) = concatMap (\(Entry _ t _) -> typeUVs t) (Row.entries r)
+                    ++ maybe [] pure (rowVar r)
+                    ++ (case s of UnknownSigil s' -> [s']; _ -> [])
 typeUVs (Variant r)  = concatMap (\(Entry _ t _) -> typeUVs t) (Row.entries r)
+                    ++ maybe [] pure (rowVar r)
 typeUVs (AbsType _ _ ts) = concatMap typeUVs ts
 typeUVs (Function t1 t2) = typeUVs t1 ++ typeUVs t2
 typeUVs (Bang t) = typeUVs t
@@ -99,6 +102,8 @@ typeVariables _ = []
 rigid :: Type -> Bool
 rigid (UnifVar _)  = False
 rigid (Bang _)     = False
+rigid (Record r _) = not $ Row.justVar r
+rigid (Variant r)  = not $ Row.justVar r
 rigid _            = True
 
 -- | Return the unification variable in a non-rigid type.
@@ -164,6 +169,7 @@ constraintTypes func constraint = go constraint
     go (Exhausted t)  = Exhausted (func t)
     go (t1  :<  t2 )  = func t1 :< func t2
     go (t1  :=: t2 )  = func t1 :=: func t2
+    go (Solved t)     = Solved $ func t
     go Sat            = Sat
     go Unsat          = Unsat
 
@@ -256,6 +262,7 @@ substTV (x, t) = RW.rewrite $ \ t' -> case t' of
 substTVs :: [(VarName, Type)] -> RW.Rewrite Type
 substTVs = foldMap substTV
 
+
 -- | A convenience that allows multiple substitutions to unification type variables to be made
 --   simulatenously.
 substUVs :: [(VarName, Type)] -> RW.Rewrite Type
@@ -291,3 +298,4 @@ unifVars = S.fromList names
   where
     names = [ g:n | n <- nums, g <- "𝛂𝛃𝛄𝛅𝛆𝛇𝛈𝛉𝛊𝛋𝛍𝛎𝛏𝛑𝛖𝛗𝛘𝛙" ]
     nums = "":map show [1 :: Integer ..]
+

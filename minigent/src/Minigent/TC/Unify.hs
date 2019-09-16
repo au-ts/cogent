@@ -12,31 +12,18 @@
 module Minigent.TC.Unify
   ( -- * Unify Phase
     unify
-  , -- * Assigns
-    Assign (..)
-  , substAssign
   ) where
 
 import Minigent.Syntax
 import Minigent.Syntax.Utils
+import qualified Minigent.Syntax.Utils.Row as Row
 import qualified Minigent.Syntax.Utils.Rewrite as Rewrite
-
+import Minigent.TC.Assign
 import Minigent.Fresh
 import Control.Monad.Writer
 import Control.Monad.Trans.Maybe
 import Control.Applicative
 import Data.Foldable (asum)
-
--- | An assignment to a unification variable (standing for various things)
-data Assign = TyAssign VarName Type
-            | RowAssign VarName Row
-            | SigilAssign VarName Sigil
-
--- | Apply an assignment to a unification variable to a type.
-substAssign :: Assign -> Rewrite.Rewrite Type
-substAssign (TyAssign v t) = substUV (v, t)
-substAssign (RowAssign v t) = substRowV (v, t)
-substAssign (SigilAssign v t) = substSigilV (v, t)
 
 
 -- | The unify phase, which seeks out equality constraints to solve via substitution.
@@ -65,6 +52,7 @@ assignOf (Record _ s :< Record _ (UnknownSigil v))
 -- N.B. we know from the previous phase that common alternatives have been factored out.
 assignOf (Variant r1 :=: Variant r2)
   | rowVar r1 /= rowVar r2
+  , [] <- Row.common r1 r2
   = case (rowVar r1, rowVar r2) of
     (Just x, Nothing) -> pure [RowAssign x r2]
     (Nothing, Just x) -> pure [RowAssign x r1]
@@ -76,6 +64,7 @@ assignOf (Variant r1 :=: Variant r2)
 -- N.B. we know from the previous phase that common fields have been factored out.
 assignOf (Record r1 s1 :=: Record r2 s2)
   | rowVar r1 /= rowVar r2, s1 == s2
+  , [] <- Row.common r1 r2
   = case (rowVar r1, rowVar r2) of
     (Just x, Nothing) -> pure [RowAssign x r2]
     (Nothing, Just x) -> pure [RowAssign x r1]

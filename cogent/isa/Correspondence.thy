@@ -777,7 +777,8 @@ next case (drop t)
   with Cons drop show ?thesis
     apply (safe elim!: u_v_matches_consE weakening_comp.cases dest!: Cons(3))
     apply clarsimp
-    apply (frule(1) u_v_discardable_not_writable[OF Set.singletonI])
+    apply (frule u_v_discardable_not_writable[OF Set.singletonI])
+    apply (force dest: kinding_in_kind_helper)
     apply (rule_tac x = "r'a" in exI)
     apply (force)
   done
@@ -903,7 +904,8 @@ using assms proof(induction rule: u_v_matches.induct)
 next case u_v_matches_none  then show ?case by (simp add: empty_def weakening_def)
 next case u_v_matches_some  then show ?case by (auto simp: weakening_def empty_def
                                                      elim: weakening_comp.cases
-                                                     dest: u_v_discardable_not_writable[OF Set.singletonI])
+                                                     dest: kinding_in_kind_helper
+                                                     u_v_discardable_not_writable[OF Set.singletonI])
 qed
 
 

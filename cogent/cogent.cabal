@@ -19,8 +19,8 @@ bug-reports:         https://github.com/NICTA/cogent/issues
 build-type:          Custom
 cabal-version:       >=2.0
 tested-with:         GHC==8.2.1, GHC==8.2.2, GHC==8.4.1, GHC==8.4.2, GHC==8.4.3,
-                     GHC==8.4.4, GHC==8.6.1, GHC==8.6.2, GHC==8.6.3, GHC==8.6.4
-
+                     GHC==8.4.4, GHC==8.6.1, GHC==8.6.2, GHC==8.6.3, GHC==8.6.4,
+                     GHC==8.6.5
 
 data-files:
   static/jquery.min.js
@@ -101,12 +101,23 @@ library
               , Cogent.SuParser
               , Cogent.Surface
               , Cogent.TypeCheck
+              , Cogent.TypeCheck.Row
               , Cogent.TypeCheck.Assignment
               , Cogent.TypeCheck.Base
               , Cogent.TypeCheck.Generator
-              , Cogent.TypeCheck.GoalSet
               , Cogent.TypeCheck.Post
               , Cogent.TypeCheck.Solver
+              , Cogent.TypeCheck.Solver.Simplify
+              , Cogent.TypeCheck.Solver.Unify
+              , Cogent.TypeCheck.Solver.JoinMeet
+              , Cogent.TypeCheck.Solver.Normalise
+              , Cogent.TypeCheck.Errors
+              , Cogent.TypeCheck.Solver.Equate
+              , Cogent.TypeCheck.Solver.Goal
+              , Cogent.TypeCheck.Solver.Monad
+              , Cogent.TypeCheck.Solver.Rewrite
+              , Cogent.TypeCheck.Solver.SinkFloat
+              , Cogent.TypeCheck.Solver.Default
               , Cogent.TypeCheck.Subst
               , Cogent.TypeCheck.Util
               , Cogent.Util

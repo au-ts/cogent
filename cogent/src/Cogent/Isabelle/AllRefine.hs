@@ -50,7 +50,7 @@ typeProof thy = TheoryString $ unlines
   , "    val tt_thm = Proof_Context.get_thm ctxt (typeproof_thy ^ \".\" ^ f ^ \"_typecorrect\")"
   , "    val f_type = Syntax.read_term ctxt (typeproof_thy ^ \".\" ^ f ^ \"_type\")"
   , "    val f_type_def = Proof_Context.get_thm ctxt (typeproof_thy ^ \".\" ^ f ^ \"_type_def\")"
-  , "    val k_empty = Goal.prove ctxt [] [] (@{mk_term \"fst ?t \\<equiv> []\" t} f_type)"
+  , "    val k_empty = Goal.prove ctxt [] [] (@{mk_term \"prod.fst ?t \\<equiv> []\" t} f_type)"
   , "                    (K (simp_tac (ctxt addsimps [f_type_def]) 1))"
   , "    val t_thm = (tt_thm RS @{thm ttyping_imp_typing})"
   , "                |> rewrite_rule ctxt [@{thm snd_conv[THEN eq_reflection]}, k_empty]"

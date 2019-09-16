@@ -53,14 +53,16 @@ fun trace_solve_tac (ctxt : Proof.context)
   if null subgoals0 then (data0, TraceSuccess { goal = goal0, theorem = goal0, succeeded = [] } |> Right) else
   let
     fun solve data goal subproofs_rev =
-        case 1 upto (Thm.nprems_of goal) |> map (fn i => Thm.cprem_of goal i) of
-          [] => (data, TraceSuccess { goal = goal0
+        case Thm.nprems_of goal of
+          0 => (data, TraceSuccess { goal = goal0
                                     , theorem = goal
                                     , succeeded = rev subproofs_rev
                                     } |> Right)
-        | (subgoal_term :: _) =>
-              let (* Try all results from all tactics until we obtain a successful proof.
-                   * NB: tactics should return finite results! *)
+        | _ =>
+              let
+                val subgoal_term = Thm.cprem_of goal 1
+                (* Try all results from all tactics until we obtain a successful proof.
+                 * NB: tactics should return finite results! *)
                 val subgoal = Goal.init subgoal_term
                 (* try all the tactics in the list to solve subgoal *)
                 val (data', tag, tactic) = get_tacs data

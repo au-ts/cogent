@@ -56,7 +56,7 @@ import Control.Monad.RWS.Strict hiding (forM)
 import Data.Bits
 import Data.Char (ord)
 -- import Data.Foldable
-import Data.List as L (elemIndex)
+import Data.List as L (elemIndex, sortOn)
 import Data.Map as M hiding (filter, map, (\\))
 import Data.Maybe
 import Data.Word (Word32)
@@ -167,8 +167,8 @@ desugar' tls constdefs ctygen pragmas = do
 
 noPos = __fixme S.noPos  -- FIXME! / zilinc
 
-freshVarPrefix = "__ds_var_"
-freshFunPrefix = "__lft_f_"
+freshVarPrefix = "x__ds_var_"
+freshFunPrefix = "x__lft_f_"
 
 
 freshVar :: DS t v VarName
@@ -222,14 +222,14 @@ pragmaToNote (_:pragmas) fn note = pragmaToNote pragmas fn note
 
 lamLftTlv :: S.TopLevel S.RawType B.TypedPatn B.TypedExpr
           -> DS t v (S.TopLevel S.RawType B.TypedPatn B.TypedExpr)
-lamLftTlv (S.FunDef fn sigma alts) = S.FunDef fn sigma <$> mapM (lamLftAlt fn) alts
+lamLftTlv (S.FunDef fn sigma@(S.PT tvs _) alts) = S.FunDef fn sigma <$> mapM (lamLftAlt tvs fn) alts
 lamLftTlv d = return d
 
-lamLftAlt :: FunName -> S.Alt B.TypedPatn B.TypedExpr -> DS t v (S.Alt B.TypedPatn B.TypedExpr)
-lamLftAlt f (S.Alt p l e) = S.Alt p l <$> lamLftExpr f e
+lamLftAlt :: [(TyVarName, Kind)] -> FunName -> S.Alt B.TypedPatn B.TypedExpr -> DS t v (S.Alt B.TypedPatn B.TypedExpr)
+lamLftAlt tvs f (S.Alt p l e) = S.Alt p l <$> lamLftExpr tvs f e
 
-lamLftExpr :: FunName -> B.TypedExpr -> DS t v B.TypedExpr
-lamLftExpr f (B.TE t (S.Lam p mt e) l) = do
+lamLftExpr :: [(TyVarName, Kind)] -> FunName -> B.TypedExpr -> DS t v B.TypedExpr
+lamLftExpr tvs f (B.TE t (S.Lam p mt e) l) = do
   f' <- freshFun f
   -- v <- freshVar
   -- let S.RT (S.TFun ti to) = t
@@ -238,11 +238,12 @@ lamLftExpr f (B.TE t (S.Lam p mt e) l) = do
       -- ps = B.TIP ti (S.PVar (v, ti)) : map (\(v,t) -> B.TIP t (S.PVar (v,t) noPos)) fvs
       -- p' = B.TP (S.PIrrefutable $ B.TIP (PTuple ps) noPos) noPos
   -- sigma <- sel1 <$> get
-  e' <- lamLftExpr f e
-  let fn = S.FunDef f' (S.PT [] t) [S.Alt (B.TP (S.PIrrefutable p) noPos) Regular e']  -- no let-generalisation
+  e' <- lamLftExpr tvs f e
+  let fn = S.FunDef f' (S.PT tvs t) [S.Alt (B.TP (S.PIrrefutable p) noPos) Regular e']  -- no let-generalisation
   lftFun %= (fn:)
-  return $ B.TE t (S.TypeApp f' [] S.NoInline) l
-lamLftExpr f (B.TE t e l) = B.TE t <$> traverse (lamLftExpr f) e <*> pure l
+  let tvs' = map (Just . S.RT . flip S.TVar False . fst) tvs
+  return $ B.TE t (S.TypeApp f' tvs' S.NoInline) l
+lamLftExpr sigma f (B.TE t e l) = B.TE t <$> traverse (lamLftExpr sigma f) e <*> pure l
 
 -- freeVars :: B.TypedExpr -> Vec v VarName -> [(VarName, S.RawType)]
 -- freeVars (B.TE t (S.Var v) _) vs = maybeToList $ case findIx v vs of Just i -> Nothing; Nothing -> Just (v,t)
@@ -268,8 +269,12 @@ desugarTlv (S.AbsTypeDec tn vs _) _ | ExI (Flip vs') <- Vec.fromList vs = return
 desugarTlv (S.AbsDec fn sigma) pragmas | S.PT vs t <- sigma
                                        , ExI (Flip vs') <- Vec.fromList vs
                                        , Refl <- zeroPlusNEqualsN $ Vec.length vs'
-  = do TFun ti' to' <- withTypeBindings (fmap fst vs') $ desugarType t
-       return $ AbsDecl (pragmaToAttr pragmas fn mempty) fn vs' ti' to'
+  = do
+      t <- withTypeBindings (fmap fst vs') $ desugarType t
+      case t of
+        TFun ti' to' ->
+          return $ AbsDecl (pragmaToAttr pragmas fn mempty) fn vs' ti' to'
+        _ -> error "Cogent does not allow FFI constants"
 desugarTlv (S.FunDef fn sigma alts) pragmas | S.PT vs t <- sigma
                                             , ExI (Flip vs') <- Vec.fromList vs
                                             , Refl <- zeroPlusNEqualsN $ Vec.length vs'
@@ -359,7 +364,7 @@ desugarAlt' (B.TE t e0 l) (S.PCon tag ps) e =  -- B2)
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PVar v) _)) e =
   E <$> (Let (fst v) <$> desugarExpr e0 <*> (withBinding (fst v) $ desugarExpr e))
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple []) p)) e = desugarAlt' e0 (S.PIrrefutable (B.TIP S.PUnitel p)) e
-desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple [irf]) _)) e = __impossible "desugarAlt' (Tuple-2)"
+desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple [irf]) _)) e = __impossible "desugarAlt' (singleton tuple)"
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple [B.TIP (S.PVar tn1) _, B.TIP (S.PVar tn2) _]) _)) e
   | not __cogent_ftuples_as_sugar =
   -- NOTE: This does not work! / zilinc
@@ -389,10 +394,10 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple [p1,p2]) _)) e | not __cogent_ft
       b1 = S.Binding p1 Nothing (B.TE t1 (S.Var v1) (B.getLocTIP p1)) []
       b2 = S.Binding p2 Nothing (B.TE t2 (S.Var v2) (B.getLocTIP p2)) []
   desugarExpr $ B.TE (B.getTypeTE e) (S.Let [b0,b1,b2] e) noPos  -- Mutual recursion here
-desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple (p1:p2:ps)) _)) e | not __cogent_ftuples_as_sugar = __impossible "desugarAlt'"
-  -- let p' = S.PIrrefutable $ S.PTuple [p1, p2']
-  --     p2' = S.PTuple $ p2:ps
-  -- in desugarAlt' e0 p' e
+desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple (p1:p2:ps)) pos)) e | not __cogent_ftuples_as_sugar = 
+  let p2' = B.TIP (S.PTuple (p2:ps)) pos
+      p'  = S.PIrrefutable $ B.TIP (S.PTuple [p1, p2']) pos
+  in desugarAlt' e0 p' e
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple ps) _)) e | __cogent_ftuples_as_sugar, all isPVar ps = do
   -- Idea: PTuple ps = e0 in e
   --   Base case: PTuple [PVar v1, PVar v2, ..., PVar vn] = e0 in e ~~>
@@ -404,7 +409,8 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple ps) _)) e | __cogent_ftuples_as_
   --              and pn = vn
   --              in e  -- The implemention is optimised so that PVars in ps don't need to assign to new vars again
   e0' <- desugarExpr e0
-  let vs = P.map (fst . getPVar) ps
+  -- vvv See NOTE [sorting tuple fields] in this file.
+  let vs = P.map (fst . getPVar . snd) $ L.sortOn fst $ P.zip (map (('p':) . show) [1::Int ..]) ps
   mkTake e0' vs e 0
   where isPVar (B.TIP (S.PVar _) _) = True; isPVar _ = False
         getPVar (B.TIP (S.PVar v) _) = v; getPVar _ = __impossible "getPVar (in desugarAlt')"
@@ -512,7 +518,8 @@ desugarType = \case
   S.RT (S.TCon "Bool"   [] Unboxed) -> return $ TPrim Boolean
   S.RT (S.TCon "String" [] Unboxed) -> return $ TString
   S.RT (S.TCon tn tvs s) -> TCon tn <$> mapM desugarType tvs <*> pure (desugarSigil s)
-  S.RT (S.TVar vn b)     -> (findIx vn <$> use typCtx) >>= \(Just v) -> return $ if b then TVarBang v else TVar v
+  S.RT (S.TVar vn b)     ->
+    (findIx vn <$> use typCtx) >>= \(Just v) -> return $ if b then TVarBang v else TVar v
   S.RT (S.TFun ti to)    -> TFun <$> desugarType ti <*> desugarType to
   S.RT (S.TRecord fs s)  -> TRecord <$> mapM (\(f,(t,x)) -> (f,) . (,x) <$> desugarType t) fs <*> pure (desugarSigil s)
   S.RT (S.TVariant alts) -> TSum <$> mapM (\(c,(ts,x)) -> (c,) . (,x) <$> desugarType (group ts)) (M.toList alts)
@@ -522,8 +529,15 @@ desugarType = \case
   S.RT (S.TTuple [])     -> __impossible "desugarType (TTuple 0)"
   S.RT (S.TTuple (t:[])) -> __impossible "desugarType (TTuple 1)"
   S.RT (S.TTuple (t1:t2:[])) | not __cogent_ftuples_as_sugar -> TProduct <$> desugarType t1 <*> desugarType t2
-  S.RT (S.TTuple (t1:t2:ts)) | not __cogent_ftuples_as_sugar -> __impossible "desugarType"  -- desugarType $ S.RT $ S.TTuple [t1, S.RT $ S.TTuple (t2:ts)]
-  S.RT (S.TTuple ts) | __cogent_ftuples_as_sugar -> TRecord <$> (P.zipWith (\t n -> (n,(t, False))) <$> forM ts desugarType <*> pure (P.map (('p':) . show) [1 :: Integer ..])) <*> pure Unboxed
+  S.RT (S.TTuple ts@(_:_:_)) | not __cogent_ftuples_as_sugar ->
+    foldr1 (liftA2 TProduct) $ map desugarType ts  -- right associative product repr of a list
+  S.RT (S.TTuple ts) | __cogent_ftuples_as_sugar -> do
+    let ns = P.map (('p':) . show) [1 :: Integer ..]
+    -- vvv NOTE [sorting tuple fields] / zilinc
+    --     We assume that the field names are *lexicographically* sorted! We need to
+    --     explicitly sort them here, otherwise @p10@ will be following @p9@ instead of @p1@.
+    fs <- L.sortOn fst . P.zipWith (\n t -> (n,(t, False))) ns <$> forM ts desugarType
+    return $ TRecord fs Unboxed
   S.RT (S.TUnit)   -> return TUnit
 #ifdef BUILTIN_ARRAYS
   S.RT (S.TArray t l) -> TArray <$> desugarType t <*> evalAExpr l  -- desugarExpr' l
@@ -584,7 +598,7 @@ desugarExpr (B.TE t (S.Comp f g) l) = do
       v' = B.TE tv (S.Var v) (B.getLocTE g)
       g' = B.TE t2 (S.App g v' False) (B.getLocTE f)
       e = B.TE t3 (S.App f g' False) l
-  e' <- lamLftExpr compf (B.TE t (S.Lam p Nothing e) l)
+  e' <- lamLftExpr [] compf (B.TE t (S.Lam p Nothing e) l)
   desugarExpr e'
 desugarExpr (B.TE _ (S.If c [] th el) _) = E <$> (If <$> desugarExpr c <*> desugarExpr th <*> desugarExpr el)
 desugarExpr (B.TE _ (S.If c vs th el) _) = do
@@ -619,14 +633,12 @@ desugarExpr (B.TE _ (S.ArrayIndex e i) _) = do
 #endif
 desugarExpr (B.TE _ (S.Tuple []) _) = return $ E Unit
 desugarExpr (B.TE _ (S.Tuple [e]) _) = __impossible "desugarExpr (Tuple)"
-desugarExpr (B.TE _ (S.Tuple (e1:e2:[])) _) | not __cogent_ftuples_as_sugar = E <$> (Tuple <$> desugarExpr e1 <*> desugarExpr e2)
-desugarExpr (B.TE t (S.Tuple (e1:e2:es)) _) | not __cogent_ftuples_as_sugar = __impossible "desugarExpr"  -- do
-  -- S.RT (S.TTuple (t1:t2:ts)) <- typeWHNF t
-  -- let t2' = S.RT $ S.TTuple (t2:ts)
-  --     e2' = B.TE t2' $ S.Tuple (e2:es)
-  -- desugarExpr $ B.TE (S.RT $ S.TTuple [t1,t2']) $ S.Tuple [e1,e2']
--- desugarExpr (B.TE _ (S.Tuple (reverse -> (e:es)))) | B.TE _ (S.Tuple _) <- e = __impossible "desugarExpr"
-desugarExpr (B.TE _ (S.Tuple es) _) = E . Struct <$> (P.zip (P.map (('p':) . show) [1 :: Integer ..]) <$> mapM desugarExpr es)  -- \| __cogent_ftuples_as_sugar
+desugarExpr (B.TE _ (S.Tuple es@(_:_:_)) _) | not __cogent_ftuples_as_sugar = do
+  foldr1 (liftA2 $ E .* Tuple) $ map desugarExpr es  -- right associative product repr of a list
+desugarExpr (B.TE _ (S.Tuple es) _) = do
+  -- vvv See NOTE [sorting tuple fields] above.
+  fs <- L.sortOn fst . P.zip (P.map (('p':) . show) [1 :: Integer ..]) <$> mapM desugarExpr es
+  return . E $ Struct fs  -- \| __cogent_ftuples_as_sugar
 desugarExpr (B.TE _ (S.UnboxedRecord fs) _) = E . Struct <$> mapM (\(f,e) -> (f,) <$> desugarExpr e) fs
 desugarExpr (B.TE _ (S.Let [] e) _) = __impossible "desugarExpr (Let)"
 desugarExpr (B.TE _ (S.Let [S.Binding p mt e0 []] e) _) = desugarAlt' e0 (S.PIrrefutable p) e

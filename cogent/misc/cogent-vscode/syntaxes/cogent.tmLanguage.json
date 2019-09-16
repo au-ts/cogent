@@ -1,0 +1,105 @@
+{
+    "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+    "name": "Cogent",
+    "patterns": [
+        {
+            "include": "#comments"
+        },
+        {
+            "include": "#string-double"
+        },
+        {
+            "include": "#string-single"
+        },
+        {
+            "include": "#constants"
+        },
+        {
+            "include": "#keywords"
+        },
+        {
+            "include": "#types"
+        },
+        {
+            "include": "#variables"
+        }
+    ],
+    "repository": {
+        "comments": {
+            "patterns": [
+                {
+                    "captures": {
+                        "1": {
+                            "name": "punctuation.definition.comment.cogent"
+                        }
+                    },
+                    "begin": "--",
+                    "end": "$",
+                    "name": "comment.line.double-dash.cogent"
+				}
+            ]
+        },
+        "string-double": {
+            "name": "string.quoted.double.cogent",
+            "begin": "\"",
+            "beginCaptures": {
+                "0": {
+                    "name": "punctuation.definition.string.begin.cogent"
+                }
+            },
+            "end": "\"",
+            "endCaptures": {
+                "0": {
+                    "name": "punctuation.definition.string.end.cogent"
+                }
+            },
+            "patterns": [
+                {
+                    "name": "constant.character.escape.cogent",
+                    "match": "\\\\."
+                }
+            ]
+        },
+        "keywords": {
+            "patterns": [
+                {
+                    "name": "keyword.cogent",
+					"match": "\\b(let|in|type|include|all|take|put|inline|upcast|repr|variant|record|at|if|then|else|not|complement|and|True|False|o)\\b"
+                }
+            ]
+        },
+        "constants": {
+            "patterns": [
+                {
+                    "name": "constant.numeric.cogent",
+                    "match": "\\b[0-9]+\\b"
+                },
+                {
+                    "name": "constant.language",
+                    "match": "\\b(True|False)\\b"
+                }
+            ]
+        },
+        "types": {
+            "patterns": [
+                {
+                    "name": "entity.name.type.cogent",
+                    "match": "\\b(U8|U16|U32|U64|Bool|Unit)\\b"
+                },
+                {
+                    "name": "entity.name.type.cogent",
+                    "match": "\\b[A-Z][a-zA-Z]*\\b"
+                }
+            ]
+        },
+        "variables": {
+            "patterns": [
+                {
+                    "name": "variable.name",
+                    "match": "\\b[a-z][a-zA-Z0-9]*\\b"
+                }
+            ]
+        }
+    },
+    "scopeName": "source.cogent"
+}

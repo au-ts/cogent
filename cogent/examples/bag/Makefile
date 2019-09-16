@@ -43,11 +43,10 @@ mk-c:
 	cogent $(SRC) -g -Od -ogenerated --fno-fncall-as-macro --ffunc-purity-attr \
 		--infer-c-types="$(AHFILES)" \
 		--Wno-warn --infer-c-funcs="$(ACFILES)" \
-		--cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
-		--cpp="$(CC)" \
+		--cpp="$(CPP)" \
+		--cpp-args="-x c -P \$$CPPIN -o \$$CPPOUT $(CFLAGS)" \
 		--ext-types=types.cfg \
 		--entry-funcs=entrypoints.cfg
-	# Not using --cpp=$(CPP) as it's default is `$(CC) -E'
 
 clean:
 	rm -f $(COUTPUT) $(HOUTPUT) $(PP) $(PPINFER) $(OBJ)
