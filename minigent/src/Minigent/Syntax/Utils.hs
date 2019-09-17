@@ -82,9 +82,9 @@ unorderedType t            = rigid t
 -- | Return all of the unification type variables inside a type.
 typeUVs :: Type -> [VarName]
 typeUVs (UnifVar v) = [v]
-typeUVs (Record _ r s) = concatMap (\(Entry _ t _) -> typeUVs t) (Row.entries r)
+typeUVs (Record n r s) = concatMap (\(Entry _ t _) -> typeUVs t) (Row.entries r)
                     ++ maybe [] pure (rowVar r)
-                    ++ (case s of UnknownSigil s' -> [s']; _ -> [])
+                    ++ (case s of UnknownSigil s' -> [s'] ++ maybeToList n; _ -> [])
 typeUVs (Variant r)  = concatMap (\(Entry _ t _) -> typeUVs t) (Row.entries r)
                     ++ maybe [] pure (rowVar r)
 typeUVs (AbsType _ _ ts) = concatMap typeUVs ts
@@ -251,8 +251,8 @@ normaliseType func ty =
   let t' = fromMaybe ty (RW.run func ty)
   in
     case t' of
-      Record _ es s ->
-        Record Nothing (Row.mapEntries (entryTypes (normaliseType func)) es) s
+      Record n es s ->
+        Record n (Row.mapEntries (entryTypes (normaliseType func)) es) s
       AbsType n s ts -> AbsType n s (map (normaliseType func) ts)
       Variant es ->
         Variant (Row.mapEntries (entryTypes (normaliseType func)) es)

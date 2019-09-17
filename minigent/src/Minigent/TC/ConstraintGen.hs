@@ -179,23 +179,26 @@ cg e tau = case e of
   (Member e f) -> do
     row <- Row.incomplete [Entry f tau False]
     sigil <- fresh
-    let alpha = Record undefined row (UnknownSigil sigil)
+    let alpha = Record Nothing row (UnknownSigil sigil)
     (e', c1) <- cg e alpha
-    let c2 = Drop (Record undefined (Row.take f row) (UnknownSigil sigil))
+    let c2 = Drop (Record Nothing (Row.take f row) (UnknownSigil sigil))
     withSig (Member e' f, c1 :&: c2)
 
   (Take x f y e1 e2) -> do
     beta <- UnifVar <$> fresh
     row <- Row.incomplete [Entry f beta False]
-    sigil <- fresh
-    let alpha = Record undefined row (UnknownSigil sigil)
+    sigil  <- fresh
+    recPar <- fresh
+    -- TODO: Just recPar here okay?
+    let alpha = Record (Just recPar) row (UnknownSigil sigil)
 
     (e1', c1) <- cg e1 alpha
     modify (push (y, beta))
-    modify (push (x, Record undefined (Row.take f row) (UnknownSigil sigil)))
+    -- TODO: New recPar here?
+    modify (push (x, Record (Just recPar) (Row.take f row) (UnknownSigil sigil)))
     (e2', c2) <- cg e2 tau
     xUsed <- topUsed <$> get
-    let c3 = if xUsed then Sat else Drop (Record undefined (Row.take f row) (UnknownSigil sigil))
+    let c3 = if xUsed then Sat else Drop (Record (Just recPar) (Row.take f row) (UnknownSigil sigil))
     modify pop
     yUsed <- topUsed <$> get
     let c4 = if yUsed then Sat else Drop beta
@@ -206,15 +209,16 @@ cg e tau = case e of
     beta <- UnifVar <$> fresh
     row  <- Row.incomplete [Entry f beta True]
     sigil <- fresh
-    let alpha = Record undefined row (UnknownSigil sigil)
+    recPar <- fresh
+    let alpha = Record (Just recPar) row (UnknownSigil sigil)
     (e1', c1) <- cg e1 alpha
     (e2', c2) <- cg e2 beta
-    let c3 = Record undefined (Row.put f row) (UnknownSigil sigil) :< tau
+    let c3 = Record (Just recPar) (Row.put f row) (UnknownSigil sigil) :< tau
     withSig (Put e1' f e2', c1 :&: c2 :&: c3)
 
   (Struct fs) -> do
     (fs', ts, cs) <- cgStruct fs
-    withSig (Struct fs', conjunction cs :&: Record undefined (Row.fromList ts) Unboxed :< tau )
+    withSig (Struct fs', conjunction cs :&: Record Nothing (Row.fromList ts) Unboxed :< tau )
 
   where
 
@@ -230,16 +234,19 @@ cg e tau = case e of
     withSig :: (Expr, Constraint) -> CG (Expr, Constraint)
     withSig (e, c) = pure (Sig e tau, c)
 
+    -- | Looks up a variable and increases it's usage count, adding the
+    --   constraint that it is shareable if it's been used more than once
     lookupVar :: VarName -> CG (Type, Constraint)
     lookupVar v = do
       (rho, used, ctx') <- use v <$> get
       put ctx'
       return (rho, if used then Share rho else Sat)
 
+
 -- | Used for constraint generation for top-level functions.
 --   Given a function name, argument name and a function body expression,
 --   return an annotated function body along with the constraint that would make
---   it well typed. Also included in the first componenet of the return value
+--   it well typed. Also included in the first component of the return value
 --   are the axioms (constraints placed by the user in the type signature)
 --   about polymorphic type variables.
 cgFunction :: FunName -> VarName -> Expr -> CG ([Constraint], Expr, Constraint)
@@ -249,13 +256,14 @@ cgFunction f x e = do
   let proposedType = Function alpha beta
   modify (push (x,alpha))
   (e', c) <- cg e beta
-  -- TODO: Check this is the argument to the function we are checking
   used <- topUsed <$> get
   let c' = if used then Sat else Drop alpha
-  -- TODO: Why pop here? remove top level (alpha -> beta) function? 
   modify pop
   envs <- ask
   let (c'',axs) = case M.lookup f (types envs) of
                        Nothing -> (Sat, []) -- TODO: Why sat if not in env?
                        Just (Forall vs cs tau) -> (proposedType :< tau, cs)
+  -- Inferred constraints for return type 
+  -- && proposed function type is subtype of inferred function type
+  -- && Argument to function is used or droppable
   pure (axs, e', c :&: c'' :&: c')

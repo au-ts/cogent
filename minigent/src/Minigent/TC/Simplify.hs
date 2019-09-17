@@ -48,13 +48,13 @@ simplify axs = Rewrite.pickOne $ \c -> case c of
                                       >> Just (map Drop   ts)
   Escape (AbsType n s ts)             -> guard (s == Writable || s == Unboxed)
                                       >> Just (map Escape ts)
-  Share  (Record _ es s)                -> guard (s == ReadOnly || s == Unboxed)
+  Share  (Record n es s)              -> guard (s == ReadOnly || s == Unboxed)
                                       >> guard (rowVar es == Nothing)
                                       >> Just (map Share (Row.untakenTypes es))
-  Drop   (Record _ es s)                -> guard (s == ReadOnly || s == Unboxed)
+  Drop   (Record n es s)              -> guard (s == ReadOnly || s == Unboxed)
                                       >> guard (rowVar es == Nothing)
                                       >> Just (map Drop (Row.untakenTypes es))
-  Escape (Record _ es s)                -> guard (s == Writable || s == Unboxed)
+  Escape (Record n es s)              -> guard (s == Writable || s == Unboxed)
                                       >> guard (rowVar es == Nothing)
                                       >> Just (map Escape (Row.untakenTypes es))
   Exhausted (Variant es)              -> guard (null (Row.untakenTypes es) && rowVar es == Nothing)
@@ -79,11 +79,11 @@ simplify axs = Rewrite.pickOne $ \c -> case c of
         c   = Variant r1' :< Variant r2'
     Just (c:cs)
 
-  Record _ r1 s1   :< Record _ r2 s2 ->
-    if Row.null r1 && Row.null r2 && s1 == s2 then Just []
+  Record n1 r1 s1  :< Record n2 r2 s2 ->
+    if Row.null r1 && Row.null r2 && s1 == s2 && n1 == n2 then Just []
     else if Row.null r1 && null (Row.entries r2)
          || Row.null r2 && null (Row.entries r1)  
-         then Just [Record undefined r1 s1 :=: Record undefined r2 s2]
+         then Just [Record n1 r1 s1 :=: Record n2 r2 s2]
     else do
     let commons  = Row.common r1 r2
         (ls, rs) = unzip commons
@@ -92,7 +92,7 @@ simplify axs = Rewrite.pickOne $ \c -> case c of
     let (r1',r2') = Row.withoutCommon r1 r2
         cs = map (\(Entry _ t _, Entry _ t' _) -> t :< t') commons
         ds = map Drop (Row.typesFor (untakenLabels ls S.\\ untakenLabels rs) r1)
-        c   = Record undefined r1' s1 :< Record undefined r2' s2
+        c   = Record n1 r1' s1 :< Record n2 r2' s2
     Just (c:cs ++ ds)
 
   t :< t'  -> guard (unorderedType t || unorderedType t') >> Just [t :=: t']
@@ -113,10 +113,10 @@ simplify axs = Rewrite.pickOne $ \c -> case c of
         c   = Variant r1' :=: Variant r2'
     Just (c:cs)
 
-  Record _ r1 s1   :=: Record _ r2 s2 ->
-    if Row.null r1 && Row.null r2 && s1 == s2 then Just []
-    else if Row.justVar r1 && Row.justVar r2 && s1 == s2 && r1 == r2 
-         then Just [Solved (Record undefined r1 s1)]
+  Record n1 r1 s1   :=: Record n2 r2 s2 ->
+    if Row.null r1 && Row.null r2 && s1 == s2 && n1 == n2 then Just []
+    else if Row.justVar r1 && Row.justVar r2 && s1 == s2 && r1 == r2 && n1 == n2
+         then Just [Solved (Record n1 r1 s1)]
     else do
     let commons  = Row.common r1 r2
         (ls, rs) = unzip commons
@@ -124,7 +124,7 @@ simplify axs = Rewrite.pickOne $ \c -> case c of
     guard (untakenLabels rs == untakenLabels ls)
     let (r1',r2') = Row.withoutCommon r1 r2
         cs = map (\(Entry _ t _, Entry _ t' _) -> t :=: t') commons
-        c   = Record undefined r1' s1 :=: Record undefined r2' s2
+        c   = Record n1 r1' s1 :=: Record n2 r2' s2
     Just (c:cs)
   
   t :=: t' -> guard (t == t') >> if typeUVs t == [] then Just [] 
