@@ -18,10 +18,12 @@ import Minigent.Fresh
 import Minigent.Environment
 
 import Control.Monad.Reader
-import Control.Monad.State
+import Control.Monad.State.Strict
 
 import qualified Data.Map as M
 import Data.Stream (Stream)
+
+import Debug.Trace
 
 -- | A monad that is a combination of a state monad for the current type context,
 --   a reader monad for the global environments, and fresh variables.
@@ -158,19 +160,18 @@ cg e tau = case e of
     withSig (Esac e1' k x e2', c1 :&: c2 :&: c3 :&: c4)
 
   (LetBang ys x e1 e2) -> do
-    alpha <- UnifVar <$> fresh
-    (rhos, g1) <- factor ys <$> get
-    put (fmap Bang rhos <> g1)
+    alpha <- UnifVar . (++"letba") <$> fresh
+    modify (alter ys (\(t,u) -> (Bang t, 0)))
     (e1', c1) <- cg e1 alpha
-    (bangRhos', g2) <- factor ys <$> get
+    bangRhos' <- factor ys <$> get
     let c3 = conjunction (map Drop (unused bangRhos'))
-    put (rhos <> g2)
+    modify (alter ys (\(Bang t, u) -> (t,0)))
     modify (push (x, alpha))
     (e2', c2) <- cg e2 tau
     xUsed <- topUsed <$> get
     let c5 = if xUsed then Sat else Drop alpha
     modify pop
-    rhos' <- fst . factor ys <$> get
+    rhos' <- factor ys <$> get
     let c4 = conjunction (map Drop (unused rhos'))
         c6 = Escape alpha
     withSig (LetBang ys x e1' e2', c1 :&: c2 :&: c3 :&: c4 :&: c5 :&: c6)
@@ -257,4 +258,4 @@ cgFunction f x e = do
   let (c'',axs) = case M.lookup f (types envs) of
                        Nothing -> (Sat, []) -- TODO: Why sat if not in env?
                        Just (Forall vs cs tau) -> (proposedType :< tau, cs)
-  pure (axs, e', c :&: c' :&: c'')
+  pure (axs, e', c :&: c'' :&: c')

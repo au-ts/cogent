@@ -1040,8 +1040,8 @@ shows   "w = {}"
 using assms proof(induction rule: matches_ptrs.induct)
   case (matches_ptrs_some \<Xi> \<sigma> x t r w xs ts r' w')
   then have "[] \<turnstile> t :\<kappa> {D}"
-    by (auto simp: weakening_def empty_def 
-            elim: weakening_comp.cases)
+    by (auto simp: weakening_def empty_def kinding_def
+            elim!: weakening_comp.cases)
   then have "w = {}"
     using matches_ptrs_some(1,7) discardable_not_writable
     by blast

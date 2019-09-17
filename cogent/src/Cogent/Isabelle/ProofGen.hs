@@ -278,7 +278,7 @@ typing xi k (EE t (Variable i) env) = tacSequence [
   return [simp_solve]                     -- i < length Γ
   ]
 
-typing xi k (EE t' (Fun f ts _) env) = case findfun (coreFunNameToIsabelleName f) xi of
+typing xi k (EE t' (Fun f ts _) env) = case findfun (unCoreFunName f) xi of
     AbsDecl _ _ ks' t u ->
       let ks = fmap snd ks' in tacSequence [
         return [rule "typing_afun'"],  -- Ξ, K, Γ ⊢ AFun f ts : TFun t' u'
@@ -286,7 +286,7 @@ typing xi k (EE t' (Fun f ts _) env) = case findfun (coreFunNameToIsabelleName f
            mod <- use nameMod
            let unabbrev | M.null (fst ta) = ""
                         | otherwise = "[unfolded " ++ typeAbbrevBucketName ++ "]"
-           return [simp_add ["\\<Xi>_def", mod (coreFunNameToIsabelleName f) ++ "_type_def" ++ unabbrev]],  -- Ξ f = (K', t, u)
+           return [simp_add ["\\<Xi>_def", mod (unIsabelleName $ mkIsabelleName f) ++ "_type_def" ++ unabbrev]],  -- Ξ f = (K', t, u)
         allKindCorrect k ts ks,    -- list_all2 (kinding K) ts ks
         return [simp_solve,        -- t' = instantiate ts t
                 simp_solve],       -- u' = instantiate ts u
@@ -300,7 +300,7 @@ typing xi k (EE t' (Fun f ts _) env) = case findfun (coreFunNameToIsabelleName f
         do ta <- use tsTypeAbbrevs
            mod <- use nameMod
            let unabbrev | M.null (fst ta) = "" | otherwise = " " ++ typeAbbrevBucketName
-           return [rule (fn_proof (mod (coreFunNameToIsabelleName f)) unabbrev)],  -- Ξ, K', (TT, [Some t]) ⊢T f : u
+           return [rule (fn_proof (mod (unIsabelleName $ mkIsabelleName f)) unabbrev)],  -- Ξ, K', (TT, [Some t]) ⊢T f : u
         allKindCorrect k ts ks,  -- list_all2 (kinding K) ts K'
         return [simp_solve,      -- t' = instantiate ts t
                 simp_solve],     -- u' = instantiate ts u
@@ -492,8 +492,7 @@ subtyping' k t1 t2 =
   if t1 == t2
   then
     tacSequence [
-      return [rule "subtyping_refl"],
-      wellformed k t1
+      return [rule "subtyping_refl"]
       ]
   else subtyping'' k t1 t2
 
@@ -748,7 +747,7 @@ mostGeneralKind k (TVar v)         = k `at` v
 mostGeneralKind k (TVarBang v)     = k0
 mostGeneralKind k (TUnit)          = mempty
 mostGeneralKind k (TProduct t1 t2) = mostGeneralKind k t1 <> mostGeneralKind k t2
-mostGeneralKind k (TSum ts)        = foldl (<>) mempty $ map (mostGeneralKind k . fst . snd) ts
+mostGeneralKind k (TSum ts)        = foldl (<>) mempty $ map (mostGeneralKind k) [t | (_, (t, b)) <- ts, not b]
 mostGeneralKind k (TFun ti to)     = mempty
 mostGeneralKind k (TRecord ts s)   = foldl (<>) (sigilKind s) $ map (mostGeneralKind k) [t | (_, (t, b)) <- ts, not b]
 mostGeneralKind k (TPrim i)        = mempty

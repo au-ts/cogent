@@ -581,7 +581,7 @@ lemma split_bang_Cons:
 inductive weakening_comp :: "kind env \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> bool" where
   none : "weakening_comp K None None"
 | keep : "\<lbrakk> K \<turnstile> t wellformed \<rbrakk> \<Longrightarrow> weakening_comp K (Some t) (Some t)"
-| drop : "\<lbrakk> K \<turnstile> t :\<kappa> {D} \<rbrakk> \<Longrightarrow> weakening_comp K (Some t) None"
+| drop : "\<lbrakk> K \<turnstile> t :\<kappa> k; D \<in> k \<rbrakk> \<Longrightarrow> weakening_comp K (Some t) None"
 
 definition weakening :: "kind env \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool" ("_ \<turnstile> _ \<leadsto>w _" [30,0,20] 60) where
   "weakening K \<equiv> list_all2 (weakening_comp K)"
@@ -1048,6 +1048,14 @@ lemma kinding_typelist_wellformed_elem:
   shows "K \<turnstile> t wellformed"
   using assms kinding_all_set kinding_def by auto
 
+lemma kinding_in_kind_helper:
+  assumes
+    "x \<in> k"
+    "K \<turnstile> t :\<kappa> k"
+  shows "K \<turnstile> t :\<kappa> {x}"
+  using assms
+  unfolding kinding_def
+  by blast
 
 lemma kinding_variant_cons:
   shows "(K \<turnstile>* t # ts :\<kappa>v k) \<longleftrightarrow> (case snd (snd t) of Checked \<Rightarrow> K \<turnstile> fst (snd t) wellformed | Unchecked \<Rightarrow> K \<turnstile> fst (snd t) :\<kappa> k) \<and> (K \<turnstile>* ts :\<kappa>v k)"
@@ -1296,19 +1304,16 @@ lemma subtyping_simps:
   "K \<turnstile> TUnit \<sqsubseteq> TUnit"
   by (auto simp: subtyping.intros intro!: subtyping.intros elim!: subtyping.cases)
 
-lemma subtyping_refl:
-  assumes "K \<turnstile> t wellformed"
-  shows "K \<turnstile> t \<sqsubseteq> t"
-  using assms
+lemma subtyping_refl: "K \<turnstile> t \<sqsubseteq> t"
 proof (induct t)
   case (TSum ts)
-  moreover then have "\<And>i. i < length ts \<Longrightarrow> K \<turnstile> fst (snd (ts ! i)) wellformed \<Longrightarrow> K \<turnstile> fst (snd (ts ! i)) \<sqsubseteq> fst (snd (ts ! i))"
+  moreover then have "\<And>i. i < length ts \<Longrightarrow> K \<turnstile> fst (snd (ts ! i)) \<sqsubseteq> fst (snd (ts ! i))"
     using fsts.intros snds.intros nth_mem by blast
   ultimately show ?case
     by (fastforce intro!: subtyping.intros simp add: list_all2_conv_all_nth list_all_length)
 next
   case (TRecord ts s)
-  moreover then have "\<And>i. i < length ts \<Longrightarrow> K \<turnstile> fst (snd (ts ! i)) wellformed \<Longrightarrow> K \<turnstile> fst (snd (ts ! i)) \<sqsubseteq> fst (snd (ts ! i))"
+  moreover then have "\<And>i. i < length ts \<Longrightarrow> K \<turnstile> fst (snd (ts ! i)) \<sqsubseteq> fst (snd (ts ! i))"
     using fsts.intros snds.intros nth_mem by blast
   ultimately show ?case
     by (fastforce intro!: subtyping.intros simp add: list_all2_conv_all_nth list_all_length)

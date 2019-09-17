@@ -66,6 +66,9 @@ simplify axs = Rewrite.pickOne $ \c -> case c of
 
   Variant r1     :< Variant r2        ->
     if Row.null r1 && Row.null r2 then Just []
+    else if Row.null r1 && null (Row.entries r2)
+         || Row.null r2 && null (Row.entries r1)  
+         then Just [Variant r1 :=: Variant r2]
     else do
     let commons  = Row.common r1 r2
         (ls, rs) = unzip commons
@@ -78,6 +81,9 @@ simplify axs = Rewrite.pickOne $ \c -> case c of
 
   Record _ r1 s1   :< Record _ r2 s2 ->
     if Row.null r1 && Row.null r2 && s1 == s2 then Just []
+    else if Row.null r1 && null (Row.entries r2)
+         || Row.null r2 && null (Row.entries r1)  
+         then Just [Record undefined r1 s1 :=: Record undefined r2 s2]
     else do
     let commons  = Row.common r1 r2
         (ls, rs) = unzip commons
@@ -95,6 +101,8 @@ simplify axs = Rewrite.pickOne $ \c -> case c of
 
   Variant r1     :=: Variant r2        ->
     if Row.null r1 && Row.null r2 then Just []
+    else if Row.justVar r1 && Row.justVar r2 && r1 == r2 
+         then Just [Solved (Variant r1)]
     else do
     let commons  = Row.common r1 r2
         (ls, rs) = unzip commons
@@ -107,6 +115,8 @@ simplify axs = Rewrite.pickOne $ \c -> case c of
 
   Record _ r1 s1   :=: Record _ r2 s2 ->
     if Row.null r1 && Row.null r2 && s1 == s2 then Just []
+    else if Row.justVar r1 && Row.justVar r2 && s1 == s2 && r1 == r2 
+         then Just [Solved (Record undefined r1 s1)]
     else do
     let commons  = Row.common r1 r2
         (ls, rs) = unzip commons
@@ -116,8 +126,10 @@ simplify axs = Rewrite.pickOne $ \c -> case c of
         cs = map (\(Entry _ t _, Entry _ t' _) -> t :=: t') commons
         c   = Record undefined r1' s1 :=: Record undefined r2' s2
     Just (c:cs)
-
-  t :=: t' -> guard (rigid t && rigid t' && t == t') >> Just []
+  
+  t :=: t' -> guard (t == t') >> if typeUVs t == [] then Just [] 
+                                                    else Just [Solved t] 
+  Solved t -> guard (typeUVs t == []) >> Just []
 
   _ -> Nothing
 

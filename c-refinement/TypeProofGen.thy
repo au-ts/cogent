@@ -66,9 +66,9 @@ fun is_typing t = head_of t |>
            is_const "Cogent.kinding" h);
 
 (* remove consecutive duplicates *)
-fun uniq cmp (x::y::xs) = (case cmp (x,y) of EQUAL => uniq cmp (x::xs)
-                                           | _ => x::uniq cmp (y::xs))
-  | uniq _ xs = xs
+fun squash cmp (x::y::xs) = (case cmp (x,y) of EQUAL => squash cmp (x::xs)
+                                           | _ => x::squash cmp (y::xs))
+  | squash _ xs = xs
 
 fun get_typing_tree ctxt f proof : thm tree list =
   let val abbrev_defs = Proof_Context.get_thms ctxt "abbreviated_type_defs"
@@ -145,7 +145,7 @@ fun get_typing_bucket ctxt f proof =
     |> List.concat
     |> map (cleanup_typing_tree_thm ctxt)
     |> sort Thm.thm_ord
-    |> uniq Thm.thm_ord
+    |> squash Thm.thm_ord
 
 type details = (thm list * thm tree list * thm list)
 

@@ -156,6 +156,7 @@ data Constraint
   | Drop Type      -- ^ The given type can go out of scope without being used
   | Escape Type    -- ^ The given type can be safely bound in a 'LetBang' expression
   | Exhausted Type -- ^ The given type is a variant type where all entries are 'Taken'.
+  | Solved Type    -- ^ Constraint is satisfied when the type has no unification variables.
   | Sat            -- ^ Trivially true.
   | Unsat          -- ^ Trivially false.
   deriving (Show, Eq)

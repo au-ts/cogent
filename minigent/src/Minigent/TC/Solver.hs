@@ -22,6 +22,8 @@ import Minigent.TC.Simplify
 import Minigent.TC.Unify
 import Minigent.TC.Equate
 import Minigent.TC.JoinMeet
+import Minigent.TC.SinkFloat
+import Minigent.TC.Assign
 import Minigent.Fresh
 import Minigent.Syntax
 import Minigent.Syntax.Utils
@@ -60,11 +62,12 @@ solve axs cs = do
   where
     solverRewrites :: Rewrite.Rewrite' Solver [Constraint]
     solverRewrites = Rewrite.untilFixedPoint $
-      -- Rewrite.debug "SOLV" debugPrettyConstraints <>
+    --  Rewrite.debug "SOLV" debugPrettyConstraints <>
       Rewrite.pre normaliseConstraints (Rewrite.lift (simplify axs)
                                      <> unify
-                                     <> joinMeet
-                                     <> Rewrite.lift equate)
+                                     <> Rewrite.lift equate 
+                                     <> sinkFloat
+                                     <> joinMeet)
 
 -- | Run a solver computation.
 runSolver :: Solver a -> Fresh VarName (a,[Assign])

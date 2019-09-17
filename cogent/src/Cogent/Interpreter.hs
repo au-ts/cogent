@@ -44,6 +44,7 @@ import qualified Cogent.TypeCheck.Base      as Tc
 import           Cogent.TypeCheck.Generator as Tc hiding (validateType)
 import qualified Cogent.TypeCheck.Post      as Tc
 import           Cogent.TypeCheck.Solver    as Tc
+import           Cogent.TypeCheck.Errors    as Tc
 import qualified Cogent.TypeCheck.Subst     as Subst
 import           Cogent.Util
 import           Data.Nat hiding (toInt)
@@ -364,14 +365,18 @@ parseExpr :: Parser.Parser S.LocExpr
 parseExpr = Parser.expr 0 <* eof
 
 tcExpr :: IORef PreloadS -> S.LocExpr -> IO ((Maybe Tc.TypedExpr, Tc.TcLogState), Tc.TcState)
-tcExpr r e = readIORef r >>= \st -> Tc.runTc (tcState st) $ do
-    ((c,e'),flx,os) <- runCG Ctx.empty [] $ do
-      let ?loc = S.posOfE e
-      t <- freshTVar
-      cg e t
-    (logs, subst, assn, _) <- runSolver (solve c) [] flx os
-    Tc.exitOnErr $ mapM_ Tc.logTc logs
-    Tc.postE $ Subst.applyE subst e'
+tcExpr r e = do
+  st <- readIORef r
+  Tc.runTc (tcState st) $
+    do
+      ((c,e'), flx, os) <- (Tc.runCG Ctx.empty [] (do
+        let ?loc = S.posOfE e
+        t <- freshTVar
+        y <- Tc.cg e t
+        pure y))
+      (cs, subst) <- runSolver (solve [] c) flx
+      Tc.exitOnErr $ Tc.toErrors os cs
+      Tc.postE $ Subst.applyE subst e'
   where 
     knownTypes = map (, ([], Nothing)) $ words "U8 U16 U32 U64 String Bool"
 
@@ -528,9 +533,9 @@ eval (TE _ (Fun fn ts _)) = do
   funmap <- use fundefs
   absfunmap <- use absfuns
   case M.lookup fn funmap of
-    Just (FunDef  _ _ _ ti to e) -> return $ VFunction  (coreFunName fn) (specialise ts e) ts
+    Just (FunDef  _ _ _ ti to e) -> return $ VFunction  (unCoreFunName fn) (specialise ts e) ts
     Nothing  -> case M.lookup fn absfunmap of
-      Just af -> return $ VThunk $ VAFunction (coreFunName fn) () ts
+      Just af -> return $ VThunk $ VAFunction (unCoreFunName fn) () ts
       Nothing -> __impossible $ "eval: function name " ++ show fn ++ " not found"
 eval (TE _ (Op op [e])) = evalUnOp op <$> eval e
 eval (TE _ (Op op [e1,e2])) = evalBinOp op <$> eval e1 <*> eval e2

@@ -177,8 +177,8 @@ isDefinitionId :: String -> Definition e a -> Bool
 isDefinitionId n d = n == getDefinitionId d
 
 isFuncId :: CoreFunName -> Definition e a -> Bool
-isFuncId n (FunDef  _ fn _ _ _ _) = coreFunName n == fn
-isFuncId n (AbsDecl _ fn _ _ _  ) = coreFunName n == fn
+isFuncId n (FunDef  _ fn _ _ _ _) = unCoreFunName n == fn
+isFuncId n (AbsDecl _ fn _ _ _  ) = unCoreFunName n == fn
 isFuncId _ _ = False
 
 isAbsFun :: Definition e a -> Bool
@@ -388,7 +388,7 @@ instance (Pretty a, Prec (e t v a), Pretty (e t v a), Pretty (e t ('Suc v) a), P
   pretty (Singleton e) = keyword "singleton" <+> parens (pretty e)
 #endif
   pretty (Variable x) = pretty (snd x) L.<> angles (prettyV $ fst x)
-  pretty (Fun fn ins nt) = pretty nt L.<> funname (coreFunName fn) <+> pretty ins
+  pretty (Fun fn ins nt) = pretty nt L.<> funname (unCoreFunName fn) <+> pretty ins
   pretty (App a b) = prettyPrec 2 a <+> prettyPrec 1 b
   pretty (Let a e1 e2) = align (keyword "let" <+> pretty a <+> symbol "=" <+> pretty e1 L.<$>
                                 keyword "in" <+> pretty e2)
@@ -444,10 +444,6 @@ prettyTaken :: Bool -> Doc
 prettyTaken True  = symbol "*"
 prettyTaken False = empty
 
-instance Pretty (Sigil r) where
-  pretty (Boxed False _) = keyword "[W]"
-  pretty (Boxed True  _) = keyword "[R]"
-  pretty Unboxed  = keyword "[U]"
 
 #if __GLASGOW_HASKELL__ < 709
 instance Pretty (TyVarName, Kind) where

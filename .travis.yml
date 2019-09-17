@@ -32,45 +32,45 @@ env:
   global:
     - SANDBOX=".cabal-sandbox"
     - REPO=$TRAVIS_BUILD_DIR
+    - TRAVIS_BUILD_APT_RETRIES_PERCENTAGE=100
 
 matrix:
   include:
     - env: CABALVER=2.4 GHCVER=8.6.5
       compiler: "ghc-8.6.5"
-      addons: {apt: {packages: [cabal-install-2.4,ghc-8.6.5,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
+      addons: {apt: {packages: [cabal-install-2.4,ghc-8.6.5,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc], config: {retries: true}}}
     - env: CABALVER=2.4 GHCVER=8.6.4
       compiler: "ghc-8.6.4"
-      addons: {apt: {packages: [cabal-install-2.4,ghc-8.6.4,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
+      addons: {apt: {packages: [cabal-install-2.4,ghc-8.6.4,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc], config: {retries: true}}}
     - env: CABALVER=2.4 GHCVER=8.6.3
       compiler: "ghc-8.6.3"
-      addons: {apt: {packages: [cabal-install-2.4,ghc-8.6.3,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
+      addons: {apt: {packages: [cabal-install-2.4,ghc-8.6.3,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc], config: {retries: true}}}
     - env: CABALVER=2.2 GHCVER=8.6.2
       compiler: "ghc-8.6.2"
-      addons: {apt: {packages: [cabal-install-2.2,ghc-8.6.2,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
+      addons: {apt: {packages: [cabal-install-2.2,ghc-8.6.2,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc], config: {retries: true}}}
     - env: CABALVER=2.2 GHCVER=8.6.1
       compiler: "ghc-8.6.1"
-      addons: {apt: {packages: [cabal-install-2.2,ghc-8.6.1,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
+      addons: {apt: {packages: [cabal-install-2.2,ghc-8.6.1,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc], config: {retries: true}}}
     - env: CABALVER=2.2 GHCVER=8.4.4
       compiler: "ghc-8.4.4"
-      addons: {apt: {packages: [cabal-install-2.2,ghc-8.4.4,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
+      addons: {apt: {packages: [cabal-install-2.2,ghc-8.4.4,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc], config: {retries: true}}}
     - env: CABALVER=2.2 GHCVER=8.4.3
       compiler: "ghc-8.4.3"
-      addons: {apt: {packages: [cabal-install-2.2,ghc-8.4.3,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
+      addons: {apt: {packages: [cabal-install-2.2,ghc-8.4.3,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc], config: {retries: true}}}
     - env: CABALVER=2.2 GHCVER=8.4.2
       compiler: "ghc-8.4.2"
-      addons: {apt: {packages: [cabal-install-2.2,ghc-8.4.2,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
+      addons: {apt: {packages: [cabal-install-2.2,ghc-8.4.2,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc], config: {retries: true}}}
     - env: CABALVER=2.2 GHCVER=8.4.1
       compiler: "ghc-8.4.1"
-      addons: {apt: {packages: [cabal-install-2.2,ghc-8.4.1,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
+      addons: {apt: {packages: [cabal-install-2.2,ghc-8.4.1,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc], config: {retries: true}}}
     - env: CABALVER=2.2 GHCVER=8.2.2
       compiler: "ghc-8.2.2"
-      addons: {apt: {packages: [cabal-install-2.2,ghc-8.2.2,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
+      addons: {apt: {packages: [cabal-install-2.2,ghc-8.2.2,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc], config: {retries: true}}}
     - env: CABALVER=2.2 GHCVER=8.2.1
       compiler: "ghc-8.2.1"
-      addons: {apt: {packages: [cabal-install-2.2,ghc-8.2.1,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
+      addons: {apt: {packages: [cabal-install-2.2,ghc-8.2.1,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc], config: {retries: true}}}
+
   allow_failures:
-    # - compiler: "ghc-8.6.1"
-    # - compiler: "ghc-8.6.2"
   fast_finish: true
 
 before_install:
@@ -103,7 +103,7 @@ install:
  - cp misc/cabal.config.d/cabal.config-$GHCVER cabal.config
  - |
    # In the future, the nix-style thingy might be helpful
-   if cabal install --only-dependencies --force-reinstalls --enable-tests --dry -v --flags="builtin-arrays haskell-backend docgent" > installplan.txt;
+   if cabal install --only-dependencies --force-reinstalls --enable-tests --dry -v --flags="haskell-backend docgent" > installplan.txt;
    then
      sed -i -e '1,/^Resolving /d' installplan.txt;
      echo "==== Succeeded to generate an install plan. ====";
@@ -124,7 +124,7 @@ install:
      echo "==== cabal build-cache MISS (or error) ====";
      rm -rf $HOME/.cabsnap;
      # mkdir -p $HOME/.ghc $HOME/.cabal/lib $HOME/.cabal/share $HOME/.cabal/bin;
-     cabal install --only-dependencies --force-reinstalls --flags="builtin-arrays haskell-backend docgent";  # --enable-tests;
+     cabal install --only-dependencies --force-reinstalls --flags="haskell-backend docgent";  # --enable-tests;
    fi
 
 # snapshot package-db on cache miss
@@ -158,9 +158,9 @@ install:
 script:
  - cd $REPO/cogent
  # - echo 'Configuring Cogent'
- - cabal configure --flags="builtin-arrays haskell-backend docgent"  # --enable-tests  # or -v2 to provide useful information for debugging
+ - cabal configure --flags="haskell-backend docgent"  # --enable-tests  # or -v2 to provide useful information for debugging
  # - echo 'Installing Cogent'
- - cabal install --force-reinstalls --flags="builtin-arrays haskell-backend docgent" # --enable-tests
+ - cabal install --force-reinstalls --flags="haskell-backend docgent" # --enable-tests
  # - cabal build   # this builds all libraries and executables (including tests/benchmarks)
  # - cabal test  # this rarely changes, so disabled for now to save some time / zilinc
  # - cabal check

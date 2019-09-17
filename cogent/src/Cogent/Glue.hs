@@ -53,6 +53,7 @@ import qualified Cogent.TypeCheck.Generator  as TC hiding (validateType)
 import qualified Cogent.TypeCheck.Post       as TC
 import qualified Cogent.TypeCheck.Solver     as TC
 import qualified Cogent.TypeCheck.Subst      as TC
+import qualified Cogent.TypeCheck.Errors     as TC
 -- import qualified Cogent.TypeCheck.Util      as TC
 import           Cogent.Util
 import qualified Data.DList as DList
@@ -319,7 +320,7 @@ tcFnCall e = do
 
 genFn :: CC.TypedExpr 'Zero 'Zero VarName -> Gl CS.Exp
 genFn = genAnti $ \case
-  CC.TE t (CC.Fun fn _ _) -> return (CS.Var (CS.Id (CG.funEnum (coreFunName fn)) noLoc) noLoc)
+  CC.TE t (CC.Fun fn _ _) -> return (CS.Var (CS.Id (CG.funEnum (unCoreFunName fn)) noLoc) noLoc)
   _ -> __impossible "genFn"
 
 genFnCall :: CC.Type 'Zero -> Gl CS.Exp
@@ -363,8 +364,10 @@ tcExp e mt = do
     do let ?loc = SF.posOfE e
        TC.errCtx %= (TC.AntiquotedExpr e :)
        ((c,e'),flx,os) <- TC.runCG ctx (L.map fst vs) (TC.cg e =<< maybe TC.freshTVar return mt)
-       (logs,subst,assign,_) <- TC.runSolver (TC.solve c) vs flx os
-       TC.exitOnErr $ mapM_ TC.logTc logs
+       (cs, subst) <- TC.runSolver (TC.solve vs c) flx
+       TC.exitOnErr $ TC.toErrors os cs
+       let assign = mempty 
+       -- TC.exitOnErr $ mapM_ TC.logTc logs
        TC.postE $ TC.applyE subst $ TC.assignE assign e'
 
 desugarExp :: TC.TypedExpr -> GlDefn t (CC.UntypedExpr t 'Zero VarName)
@@ -691,7 +694,7 @@ analyseFuncId :: [(String, SrcLoc)] -> GlDefn t [(FunName, MN.Instance)]
 analyseFuncId ss = forM ss $ \(fn, loc) -> flip runReaderT (MonoState ([], Nothing)) $ do
   (CC.TE _ (CC.Fun fn' ts _)) <- monoExp =<< lift . coreTcExp =<< lift . desugarExp =<<
                                  lift . tcFnCall =<< (lift . lift) (parseFnCall fn loc)
-  return (coreFunName fn', ts)
+  return (unCoreFunName fn', ts)
 
 collectOneFunc :: CS.Definition -> Gl ()
 collectOneFunc d = do

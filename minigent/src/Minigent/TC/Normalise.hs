@@ -9,7 +9,7 @@
 --
 -- May be used qualified or unqualified.
 module Minigent.TC.Normalise (normaliseConstraints) where
-
+import Data.List (nub)
 import Minigent.Syntax
 import Minigent.Syntax.Utils
 import Minigent.Syntax.Utils.Rewrite
@@ -34,4 +34,4 @@ bangRW = rewrite $ \t -> case t of
 
 -- | Normalise all types within a set of constraints
 normaliseConstraints :: [Constraint] -> [Constraint]
-normaliseConstraints = map (constraintTypes (normaliseType bangRW))
+normaliseConstraints = nub . map (constraintTypes (normaliseType bangRW))

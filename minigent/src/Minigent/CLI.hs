@@ -27,6 +27,7 @@ import Minigent.Syntax.PrettyPrint
 import Minigent.Environment
 import Minigent.Reorganiser
 import Minigent.TC
+import Minigent.CG
 import Control.Monad
 import Control.Applicative
 import Control.Monad.Except
@@ -46,7 +47,7 @@ import Data.Text.Prettyprint.Doc (unAnnotateS, unAnnotate, defaultLayoutOptions,
 
 
 -- | The phases of the compiler, ordered in the order listed.
-data Phase = Lex | Parse | Reorg | TC deriving (Ord, Enum, Eq)
+data Phase = Lex | Parse | Reorg | TC | CG deriving (Ord, Enum, Eq)
 
 -- | The way a dump should be formatted when printed.
 data Format = PrettyColour -- ^ Print with a pretty printer and ANSI colours if printing to stdout
@@ -83,6 +84,7 @@ parsePhase "lexer" = pure Lex
 parsePhase "parse" = pure Parse
 parsePhase "reorg" = pure Reorg
 parsePhase "tc"    = pure TC
+parsePhase "cg"    = pure CG
 parsePhase _       = throwError "invalid phase"
 
 parseExtantFilePath :: (MonadError String m, MonadIO m) => String -> m FilePath
@@ -132,7 +134,7 @@ printHelp = putStrLn $ unlines
   , ""
   , " Compiles up to a given phase, carrying out any relevant directives for each file."
   , ""
-  , "  PHASE - one of: lexer, parse, reorg, tc. "
+  , "  PHASE - one of: lexer, parse, reorg, tc, cg. "
   , ""
   , "  DIRECTIVES - one of: "
   , "    --dump PHASE [FORMAT] FILE     (writes the output of the given phase to the given file)"
@@ -197,6 +199,8 @@ tcPhase colour envs
       pure []
     go (Right b) = pure [b]
 
+cgPhase :: GlobalEnvironments -> IO String
+cgPhase gs = pure (cg gs)
 
 lexerDump :: [Token] -> Directive -> IO ()
 lexerDump toks (Dump Lex out fmt) =
@@ -268,6 +272,13 @@ tcDump tops (Dump TC out fmt) =
                         . prettyGlobalEnvs
 tcDump _ _ = return ()
 
+cgDump :: String -> Directive -> IO ()
+cgDump s (Dump CG out fmt) = write out s
+  where
+    write (File f) = writeFile f
+    write (Stdout) = putStrLn
+   
+
 -- | Compile the given files up to the given phase, dumping
 --   output according to the given directives.
 compiler :: Phase -> [Directive] -> [FilePath] -> IO ()
@@ -286,5 +297,8 @@ compiler phase dirs files = do
     upTo TC
     binds <- tcPhase (NoColour `elem` dirs) envs
     mapM_ (tcDump binds) dirs
+    upTo CG
+    barf <- cgPhase binds
+    mapM_ (cgDump barf) dirs
   where
     upTo p = unless (p <= phase) exitSuccess
