@@ -605,7 +605,7 @@ rigid _ = True
 --
 
 isTypeLayoutExprCompatible :: NamedDataLayouts -> TCType -> DataLayoutExpr -> Bool
-isTypeLayoutExprCompatible env (T (TCon n [] (Boxed {}))) DLPtr = True
+isTypeLayoutExprCompatible env (T (TCon n [] Boxed{})) DLPtr = True
 isTypeLayoutExprCompatible env (T (TCon n [] Unboxed)) (DLPrim rs) =
   let s  = evalSize rs
       s' = (case n of
@@ -613,9 +613,9 @@ isTypeLayoutExprCompatible env (T (TCon n [] Unboxed)) (DLPrim rs) =
             "U16" -> 16
             "U32" -> 32
             "U64" -> 64
-            "Bool" -> 1)  -- TODO(dargent): check that booleans are allowed only a bit
-   in s' <= s -- TODO(dargent): do we want this to be equality?
-isTypeLayoutExprCompatible env (T (TRecord fs1 (Boxed {}))) DLPtr = True
+            "Bool" -> 1)
+   in s' <= s
+isTypeLayoutExprCompatible env (T (TRecord fs1 Boxed{})) DLPtr = True
 isTypeLayoutExprCompatible env (T (TRecord fs1 Unboxed)) (DLRecord fs2) =
   all
     (\((n1,(t,_)),(n2,_,l)) -> n1 == n2 && isTypeLayoutExprCompatible env t l)

@@ -59,11 +59,7 @@ tcDataLayoutExpr _ (DLPrim size) = return $ singletonAllocation (bitRange, PathE
 tcDataLayoutExpr env (DLOffset dataLayoutExpr offsetSize) =
   offset (evalSize offsetSize) <$> tcDataLayoutExpr env (DL dataLayoutExpr)
 
-tcDataLayoutExpr env (DLRecord fields) = do
-  alloc <- foldM tcField emptyAllocation fields
-  if isZeroSizedAllocation alloc
-  then throwE [ZeroSizedBitRange PathEnd]
-  else return alloc
+tcDataLayoutExpr env (DLRecord fields) = foldM tcField emptyAllocation fields
   where
     tcField
       :: Allocation -- The accumulated allocation from previous alternatives
@@ -76,7 +72,8 @@ tcDataLayoutExpr env (DLRecord fields) = do
 
 tcDataLayoutExpr env (DLVariant tagExpr alternatives) =
   case primitiveBitRange (DL tagExpr) of
-    Just tagBits ->
+    Just tagBits | isZeroSizedBR tagBits -> throwE [ZeroSizedBitRange (InTag PathEnd)]
+                 | otherwise ->
       do
         altsAlloc <- fst <$> foldM (tcAlternative tagBits) (emptyAllocation, M.empty) alternatives
         except $ first (fmap OverlappingBlocks) $ singletonAllocation (tagBits, InTag PathEnd) /\ altsAlloc
@@ -91,7 +88,7 @@ tcDataLayoutExpr env (DLVariant tagExpr alternatives) =
     tcAlternative range (accumAlloc, accumTagValues) (tagName, pos, tagValue, dataLayoutExpr) = do
       alloc     <- (\/) accumAlloc <$> mapPaths (InAlt tagName pos) (tcDataLayoutExpr env dataLayoutExpr)
       tagValues <- checkedTagValues
-      return $ (alloc, tagValues)
+      return (alloc, tagValues)
       where
         checkedTagValues :: Except [DataLayoutTcError] (Map Size TagName)
         checkedTagValues
@@ -111,6 +108,7 @@ tcDataLayoutExpr env (DLVariant tagExpr alternatives) =
 tcDataLayoutExpr env (DLArray e p) = mapPaths (InElmt p) $ tcDataLayoutExpr env e
 #endif
 tcDataLayoutExpr env DLPtr = return $ singletonAllocation (pointerBitRange, PathEnd)
+tcDataLayoutExpr env l = __impossible $ "tcDataLayoutExpr; tried to typecheck unexpected layout: " ++ show l
 
 
 -- NOTE: the check for type-layout compatibility is in Cogent.TypeCheck.Base
