@@ -124,6 +124,7 @@ desugarDataLayout l = Layout $ desugarDataLayout' l
       where
         tagBitRange = case desugarDataLayout' (DL tagExpr) of
           PrimLayout range -> range
+          UnitLayout       -> __impossible $ "desugarDataLayout: zero sized bit range for a tag"
           _                -> __impossible $ "desugarDataLayout (Called after typecheck, tag layouts known to be single range)"
 
         alts' = fmap (\(aname, pos, size, layout) -> (aname, (size, desugarDataLayout' layout, pos))) alts
@@ -185,7 +186,7 @@ constructDataLayout' (TRecord fields Unboxed) = RecordLayout . fromList . snd $ 
 
 constructDataLayout' (TCon _  _ (Boxed {})) = PrimLayout pointerBitRange
 constructDataLayout' (TCon tn _ Unboxed) = __impossible "constructDataLayout': unboxed TCon not yet supported"
-
+constructDataLayout' _ = __impossible "constructDataLayout': unhandled type"
 
 -- constructs a default layout
 constructDataLayout :: Type t -> DataLayout BitRange
