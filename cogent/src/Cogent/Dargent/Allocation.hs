@@ -22,6 +22,7 @@ module Cogent.Dargent.Allocation
   ( BitRange(bitSizeBR,bitOffsetBR)
   , newBitRangeFromTo
   , newBitRangeBaseSize
+  , emptyBitRange
   , primBitRange
   , pointerBitRange
   , isZeroSizedBR
@@ -87,6 +88,9 @@ newBitRangeBaseSize bitOffsetBR bitSizeBR = if 0 <= bitSizeBR && 0 <= bitOffsetB
                                 else Nothing
 
 {- basic layout constructors for BitRange -}
+
+emptyBitRange :: BitRange
+emptyBitRange = BitRange { bitSizeBR = 0, bitOffsetBR = 0 }
 
 primBitRange :: PrimInt -> BitRange
 primBitRange primInt = BitRange { bitSizeBR = primIntSizeBits primInt, bitOffsetBR = 0 }
