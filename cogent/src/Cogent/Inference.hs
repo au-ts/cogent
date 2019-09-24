@@ -183,7 +183,21 @@ infixl 4 <||>
                              put x
                              arg <- b
                              x2 <- get
-                             unTC $ guardShow "<||>" $ x1 == x2
+                             -- XXX | unTC $ guardShow "<||>" $ x1 == x2
+                             -- \ ^^^ NOTE: This check is taken out to fix
+                             -- #296.  The issue here is that, if we define a
+                             -- variable of permission D alone (w/o S), it will
+                             -- be marked as used after it's been used, which
+                             -- is correct. But when it is used in one branch
+                             -- but not in the other one, which is allowed as
+                             -- it's droppable, it will be marked as used in
+                             -- the context of one branch but not the other and
+                             -- render the two contexts different. The formal
+                             -- specification requires that both contexts are
+                             -- the same, but it is tantamount to merging two
+                             -- differerent (correct) contexts correctly, which
+                             -- can be established in the typing proof.
+                             -- / v.jackson, zilinc
                              return (f arg)
 
 opType :: Op -> [Type t] -> Maybe (Type t)
