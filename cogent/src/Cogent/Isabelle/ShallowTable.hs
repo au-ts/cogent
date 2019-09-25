@@ -39,11 +39,13 @@ import Cogent.Compiler (__fixme)
 
 data TypeStr = RecordStr  [FieldName]
              | VariantStr [TagName]
+           -- | ArrayStr
              deriving (Eq, Ord)
 
 instance Show TypeStr where
   show (RecordStr  fs) = "{" ++ intercalate ", " fs ++ "}"
   show (VariantStr as) = "<" ++ intercalate "| " as ++ ">"
+  -- show (ArrayStr)      = "array"
 
 -- | Collects type structures from a Cogent type.
 toTypeStr :: Type t -> [TypeStr]
@@ -58,6 +60,9 @@ toTypeStr (TRecord ts _)   = nub $ RecordStr (P.map fst ts) : concatMap (toTypeS
 toTypeStr (TPrim i)        = []
 toTypeStr (TString)        = []
 toTypeStr (TCon n ts _)    = nub $ concatMap toTypeStr ts
+#ifdef BUILTIN_ARRAYS
+toTypeStr (TArray {})      = []
+#endif
 
 -- | Given a map for type synonyms, the table, and a type @t@, returns
 --   a type in the form of a 'TCon', which means that if there's a type
@@ -114,7 +119,16 @@ stExpr (TE t e) = stExpr' e >> stType t
     stExpr' (Unit)         = return ()
     stExpr' (ILit i pt)    = return ()
     stExpr' (SLit s)       = return ()
-    stExpr' (Let a e1 e2)  = stExpr e1 >> stExpr e2
+#ifdef BUILTIN_ARRAYS
+    stExpr' (ALit es)      = mapM_ stExpr es
+    stExpr' (ArrayIndex e1 e2) = mapM_ stExpr [e1,e2]
+    stExpr' (Pop _ e1 e2)  = stExpr e1 >> stExpr e2
+    stExpr' (Singleton e)  = stExpr e
+    stExpr' (ArrayMap2 (_,e) (e1,e2)) = stExpr e >> mapM_ stExpr [e1,e2]
+    stExpr' (ArrayTake _ e1 _ e2)     = stExpr e1 >> stExpr e2
+    stExpr' (ArrayPut e1 e2 e3)       = mapM_ stExpr [e1,e2,e3]
+#endif
+    stExpr' (Let a e1 e2) = stExpr e1 >> stExpr e2
     stExpr' (LetBang vs a e1 e2) = stExpr e1 >> stExpr e2
     stExpr' (Tuple e1 e2) = stExpr e1 >> stExpr e2
     stExpr' (Struct fs)   = mapM_ (stExpr . snd) fs
