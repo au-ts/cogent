@@ -122,6 +122,9 @@ shallowType (TRecord fs s) = do
   else
     shallowTypeWithName (TRecord fs s)
 shallowType (TUnit) = return $ I.AntiType "unit"
+#ifdef BUILTIN_ARRAYS
+shallowType (TArray t _ _) = I.TyDatatype "list" <$> mapM shallowType [t]
+#endif
 
 shallowPrimType :: PrimInt -> I.Type
 shallowPrimType U8  = I.TyDatatype "word" [I.AntiType "8"]
@@ -193,6 +196,15 @@ shallowExpr (TE t (Con cn e _))  = do
 shallowExpr (TE _ (Unit)) = pure $ mkId "()"
 shallowExpr (TE _ (ILit n pt)) = pure $ shallowILit n pt
 shallowExpr (TE _ (SLit s)) = pure $ mkString s
+#ifdef BUILTIN_ARRAYS
+shallowExpr (TE _ (ALit es)) = __todo "shallowExpr: alit"
+shallowExpr (TE _ (ArrayIndex arr idx)) = __todo "shallowExpr: array index"
+shallowExpr (TE _ (Pop _ arr e)) = __todo "shallowExpr: pop"
+shallowExpr (TE _ (Singleton e)) = __todo "shallowExpr: singleton"
+shallowExpr (TE _ (ArrayMap2 ((v1,v2), fbody) (arr1,arr2))) = undefined
+shallowExpr (TE _ (ArrayTake _ arr idx e)) = __todo "shallowExpr: array take"
+shallowExpr (TE _ (ArrayPut arr idx val)) = __todo "shallowExpr: array put"
+#endif
 shallowExpr (TE _ (Let nm e1 e2)) = shallowLet nm e1 e2
 shallowExpr (TE _ (LetBang vs nm e1 e2)) = shallowLet nm e1 e2
 shallowExpr (TE _ (Tuple e1 e2)) = mkApp <$> (pure $ mkId "Pair") <*> (mapM shallowExpr [e1, e2])
