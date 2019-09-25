@@ -27,6 +27,10 @@ import Control.Applicative
 import Data.Foldable (asum)
 import qualified Data.Map as M
 
+-- TODO: Find out what this does
+
+-- | The sinkFloat phase propagates the structure of types containing
+--   rows (i.e. Records and Variants) through subtyping/equality constraints
 sinkFloat :: forall m. (MonadFresh VarName m, MonadWriter [Assign] m) => Rewrite.Rewrite' m [Constraint]
 sinkFloat = Rewrite.rewrite' $ \cs -> do 
                (cs',as) <- tryEach cs
@@ -39,12 +43,12 @@ sinkFloat = Rewrite.rewrite' $ \cs -> do
                  <|> fmap (\(cs,x) -> (c:cs,x)) (tryEach cs)
     
     tryOne :: Constraint -> MaybeT m ([Constraint], [Assign])
-    tryOne c@(Record _ r s :< v)
+    tryOne c@(Record n r s :< v)
       | fs <- discardCommon v (getTaken r)
-      , not (M.null fs) = rowConstraints (\r' -> Record undefined r' s) (:<) fs c v
-    tryOne c@(v :< Record _ r s) 
+      , not (M.null fs) = rowConstraints (\r' -> Record n r' s) (:<) fs c v
+    tryOne c@(v :< Record n r s) 
       | fs <- discardCommon v (getPresent r)
-      , not (M.null fs) = rowConstraints (\r' -> Record undefined r' s) (flip (:<)) fs c v
+      , not (M.null fs) = rowConstraints (\r' -> Record n r' s) (flip (:<)) fs c v
     tryOne c@(Variant r :< v)
       | fs <- discardCommon v (getPresent r)
       , not (M.null fs) = rowConstraints Variant (:<) fs c v
