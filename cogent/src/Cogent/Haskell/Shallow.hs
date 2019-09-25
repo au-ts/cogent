@@ -64,13 +64,6 @@ module Cogent.Haskell.Shallow (
 , shallowLet
 , shallowILit
 , getRecordFieldName
-  -- * Smart constructors
-, mkName
-, mkDeclHead
-, mkTyConT, mkVarT, mkConT, mkAppT, mkTupleT
-, mkVarE, mkConE, mkAppE, mkLetE
-, mkVarOp
-, mkVarP
   -- * Naming convensions
 , keywords
 , snm
@@ -266,7 +259,7 @@ shallowDefinition (CC.AbsDecl _ fn ps ti to) =
         ti'' = mkAppT (TyCon () (mkQName tiname)) (map (TyVar ()) tyvars)
         to'' = mkAppT (TyCon () (mkQName toname)) (map (TyVar ()) tyvars)
         sig = TypeSig () [mkName fn'] (TyFun () ti'' to'')
-        dec = FunBind () [Match () (mkName fn') [] (UnGuardedRhs () $ mkVarE $ mkName "undefined") Nothing]
+        dec = FunBind () [Match () (mkName fn') [] (UnGuardedRhs () $ var $ mkName "undefined") Nothing]
         tidef = TypeDecl () (mkDeclHead (mkName tiname) tyvars) ti'
         todef = TypeDecl () (mkDeclHead (mkName toname) tyvars) to'
     pure [tidef,todef,sig,dec]
@@ -477,6 +470,9 @@ shallowType (CC.TRecord fs s) = do
   else
     shallowTypeNominal (CC.TRecord fs s)
 shallowType (CC.TUnit) = pure $ TyCon () $ Special () $ UnitCon ()
+#ifdef BUILTIN_ARRAYS
+shallowType (CC.TArray t _ _) = mkListT <$> shallowType t
+#endif
 
 -- | generate a Haskell shallow embedding of a primitive Cogent type
 shallowPrimType :: PrimInt -> HS.Type ()
@@ -496,26 +492,41 @@ shallowExpr (TE _ (CC.Variable (_,v))) = do
   let v' = case M.lookup v (M.unions bs) of  -- also heap-top-biased unions
              Nothing -> v
              Just v' -> v'
-  pure . mkVarE . mkName $ snm v'
+  pure . var . mkName $ snm v'
 
-shallowExpr (TE _ (CC.Fun fn ts _)) = pure $ mkVarE $ mkName $ snm $  unCoreFunName fn  -- only prints the fun name
+shallowExpr (TE _ (CC.Fun fn ts _)) = pure $ var $ mkName $ snm $  unCoreFunName fn  -- only prints the fun name
 
 shallowExpr (TE _ (CC.Op opr es)) = shallowPrimOp <$> pure opr <*> (mapM shallowExpr es)
 
-shallowExpr (TE _ (CC.App f arg)) = mkAppE <$> shallowExpr f <*> (mapM shallowExpr [arg])
+shallowExpr (TE _ (CC.App f arg)) = appFun <$> shallowExpr f <*> (mapM shallowExpr [arg])
 
 shallowExpr (TE t (CC.Con cn e _))  = do
   e' <- shallowExpr e
   (tn,_) <- nominalType t
-  pure $ mkAppE (mkConE $ mkName (tagName tn cn)) [e']
+  pure $ appFun (mkConE $ mkName (tagName tn cn)) [e']
 
 shallowExpr (TE _ (CC.Unit)) = pure $ HS.Con () $ Special () $ UnitCon ()
 shallowExpr (TE _ (CC.ILit n pt)) = pure $ shallowILit n pt
 shallowExpr (TE _ (CC.SLit s)) = pure $ Lit () $ String () s s
 
+#ifdef BUILTIN_ARRAYS
+shallowExpr (TE _ (CC.ALit es)) = listE <$> mapM shallowExpr es
+shallowExpr (TE _ (CC.ArrayIndex arr idx)) = infixApp <$> shallowExpr arr <*> pure (op $ sym "!!") <*> shallowExpr idx
+shallowExpr (TE _ (CC.Pop {})) = __todo "shallowExpr: array pop"
+shallowExpr (TE _ (CC.Singleton {})) = __todo "shallowExpr: array singleton"
+shallowExpr (TE _ (CC.ArrayMap2 ((v1,v2),fbody) (arr1,arr2))) = do
+  fbody' <- shallowExpr fbody
+  arr1'  <- shallowExpr arr1
+  arr2'  <- shallowExpr arr2
+  let f = lamE (map (pvar . name) [v1,v2]) fbody'
+  return $ appFun (var $ name "map2") [f, tuple [arr1',arr2']]
+shallowExpr (TE _ (CC.ArrayTake {})) = __todo "shallowExpr: array take"
+shallowExpr (TE _ (CC.ArrayPut {})) = __todo "shallowExpr: array put"
+#endif
+
 shallowExpr (TE _ (CC.Let       nm e1 e2)) = do
   nm' <- getSafeBinder nm
-  shallowLet s1 [(nm,nm')] (mkVarP $ mkName $ snm nm') e1 e2
+  shallowLet s1 [(nm,nm')] (pvar $ mkName $ snm nm') e1 e2
 
 shallowExpr (TE t (CC.LetBang _ nm e1 e2)) = shallowExpr (TE t $ CC.Let nm e1 e2)
 
@@ -544,8 +555,8 @@ shallowExpr (TE t (CC.Case e tag (_,n1,e1) (_,n2,e2))) = do
   e1' <- local (addBindings [(n1,n1')] . pushScope) $ shallowExpr e1
   e2' <- local (addBindings [(n2,n2')] . pushScope) $ shallowExpr e2
   (tn,_) <- nominalType (exprType e)
-  let c1 = HS.Alt () (PApp () (UnQual () $ mkName (tagName tn tag)) [mkVarP $ mkName $ snm n1']) (UnGuardedRhs () e1') Nothing
-      c2 = HS.Alt () (mkVarP . mkName $ snm n2') (UnGuardedRhs () e2') Nothing
+  let c1 = HS.Alt () (PApp () (UnQual () $ mkName (tagName tn tag)) [pvar $ mkName $ snm n1']) (UnGuardedRhs () e1') Nothing
+      c2 = HS.Alt () (pvar . mkName $ snm n2') (UnGuardedRhs () e2') Nothing
   pure $ HS.Case () e' [c1,c2]
 
 shallowExpr (TE t (CC.Esac e)) = do
@@ -554,14 +565,14 @@ shallowExpr (TE t (CC.Esac e)) = do
   (tn,_) <- nominalType te
   vn <- freshInt <<+= 1
   let v = mkName $ internalVar ++ show vn
-  mkAppE (Lambda () [PApp () (UnQual () . mkName $ snm (tagName tn tag)) [mkVarP v]] (mkVarE v)) <$>
+  appFun (Lambda () [PApp () (UnQual () . mkName $ snm (tagName tn tag)) [pvar v]] (var v)) <$>
     ((:[]) <$> shallowExpr e)
 
 shallowExpr (TE _ (CC.Split (n1,n2) e1 e2)) = do
   n1' <- getSafeBinder n1
   n2' <- getSafeBinder n2
-  let p1 = mkVarP . mkName $ snm n1'
-      p2 = mkVarP . mkName $ snm n2'
+  let p1 = pvar . mkName $ snm n1'
+      p2 = pvar . mkName $ snm n2'
   shallowLet s2 [(n1,n1'),(n2,n2')] (PTuple () Boxed [p1,p2]) e1 e2
 
 shallowExpr (TE _ (CC.Member rec fld)) = do
@@ -572,8 +583,8 @@ shallowExpr (TE _ (CC.Take (n1,n2) rec fld e)) = do
   rec' <- shallowExpr rec
   n1' <- getSafeBinder n1
   n2' <- getSafeBinder n2
-  let pf = mkVarP . mkName $ snm n1'  -- taken field
-      pr = mkVarP . mkName $ snm n2'  -- new record
+  let pf = pvar . mkName $ snm n1'  -- taken field
+      pr = pvar . mkName $ snm n2'  -- new record
       rect@(CC.TRecord fs _) = exprType rec
   f' <- shallowGetter' rec (map fst fs) fld rec'
   e' <- local (addBindings [(n1,n1'),(n2,n2')]) $ shallowExpr e
@@ -593,31 +604,31 @@ shallowExpr (TE _ (CC.Promote _ e)) = shallowExpr e
 shallowExpr (TE _ (CC.Cast    t e)) = do
   e' <- shallowExpr e
   t' <- shallowType t
-  pure $ ExpTypeSig () (mkAppE (mkVarE $ mkName "fromIntegral") [e']) t'
+  pure $ ExpTypeSig () (appFun (var $ mkName "fromIntegral") [e']) t'
 
 
 -- | __NOTE:__ add parens because the precendence is different from Haskell's
 shallowPrimOp :: CS.Op -> [Exp ()] -> Exp ()
-shallowPrimOp CS.Plus   [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "+"     ) e2
-shallowPrimOp CS.Minus  [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "-"     ) e2
-shallowPrimOp CS.Times  [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "*"     ) e2
-shallowPrimOp CS.Divide [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "div"   ) e2
-shallowPrimOp CS.Mod    [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "mod"   ) e2
-shallowPrimOp CS.And    [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "&&"    ) e2
-shallowPrimOp CS.Or     [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "||"    ) e2
-shallowPrimOp CS.Gt     [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName ">"     ) e2
-shallowPrimOp CS.Lt     [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "<"     ) e2
-shallowPrimOp CS.Le     [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "<="    ) e2
-shallowPrimOp CS.Ge     [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName ">="    ) e2
-shallowPrimOp CS.Eq     [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "=="    ) e2
-shallowPrimOp CS.NEq    [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "/="    ) e2
-shallowPrimOp CS.BitAnd [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName ".&."   ) e2
-shallowPrimOp CS.BitOr  [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName ".|."   ) e2
-shallowPrimOp CS.BitXor [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "xor"   ) e2
-shallowPrimOp CS.LShift [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "shiftL") (mkAppE (mkVarE $ mkName "fromIntegral") [e2])
-shallowPrimOp CS.RShift [e1,e2] = Paren () $ InfixApp () e1 (mkVarOp $ mkName "shiftR") (mkAppE (mkVarE $ mkName "fromIntegral") [e2])
-shallowPrimOp CS.Not        [e] = HS.App () (mkVarE $ mkName "not"       ) e
-shallowPrimOp CS.Complement [e] = HS.App () (mkVarE $ mkName "complement") e
+shallowPrimOp CS.Plus   [e1,e2] = Paren () $ InfixApp () e1 (op $ mkName "+"     ) e2
+shallowPrimOp CS.Minus  [e1,e2] = Paren () $ InfixApp () e1 (op $ mkName "-"     ) e2
+shallowPrimOp CS.Times  [e1,e2] = Paren () $ InfixApp () e1 (op $ mkName "*"     ) e2
+shallowPrimOp CS.Divide [e1,e2] = Paren () $ InfixApp () e1 (op $ mkName "div"   ) e2
+shallowPrimOp CS.Mod    [e1,e2] = Paren () $ InfixApp () e1 (op $ mkName "mod"   ) e2
+shallowPrimOp CS.And    [e1,e2] = Paren () $ InfixApp () e1 (op $ mkName "&&"    ) e2
+shallowPrimOp CS.Or     [e1,e2] = Paren () $ InfixApp () e1 (op $ mkName "||"    ) e2
+shallowPrimOp CS.Gt     [e1,e2] = Paren () $ InfixApp () e1 (op $ mkName ">"     ) e2
+shallowPrimOp CS.Lt     [e1,e2] = Paren () $ InfixApp () e1 (op $ mkName "<"     ) e2
+shallowPrimOp CS.Le     [e1,e2] = Paren () $ InfixApp () e1 (op $ mkName "<="    ) e2
+shallowPrimOp CS.Ge     [e1,e2] = Paren () $ InfixApp () e1 (op $ mkName ">="    ) e2
+shallowPrimOp CS.Eq     [e1,e2] = Paren () $ InfixApp () e1 (op $ mkName "=="    ) e2
+shallowPrimOp CS.NEq    [e1,e2] = Paren () $ InfixApp () e1 (op $ mkName "/="    ) e2
+shallowPrimOp CS.BitAnd [e1,e2] = Paren () $ InfixApp () e1 (op $ mkName ".&."   ) e2
+shallowPrimOp CS.BitOr  [e1,e2] = Paren () $ InfixApp () e1 (op $ mkName ".|."   ) e2
+shallowPrimOp CS.BitXor [e1,e2] = Paren () $ InfixApp () e1 (op $ mkName "xor"   ) e2
+shallowPrimOp CS.LShift [e1,e2] = Paren () $ InfixApp () e1 (op $ mkName "shiftL") (appFun (var $ mkName "fromIntegral") [e2])
+shallowPrimOp CS.RShift [e1,e2] = Paren () $ InfixApp () e1 (op $ mkName "shiftR") (appFun (var $ mkName "fromIntegral") [e2])
+shallowPrimOp CS.Not        [e] = HS.App () (var $ mkName "not"       ) e
+shallowPrimOp CS.Complement [e] = HS.App () (var $ mkName "complement") e
 shallowPrimOp _ _ = __impossible "PrimOP arity wrong"
 
 shallowILit :: Integer -> PrimInt -> Exp ()
@@ -662,8 +673,8 @@ getRecordFieldName _ _ = __impossible "input should be of record type"
 shallowGetter :: TypedExpr t v VarName -> [FieldName] -> FieldIndex -> Exp () -> SG (Exp ())
 shallowGetter rec fnms idx rec' = do
   tuples <- view recoverTuples
-  return $ if | tuples, isRecTuple fnms -> mkAppE (mkQVarE "Tup" . mkName $ "sel" ++ show (idx+1)) [rec']
-              | otherwise -> mkAppE (mkVarE . mkName . snm $ getRecordFieldName rec idx) [rec']
+  return $ if | tuples, isRecTuple fnms -> appFun (mkQVarE "Tup" . mkName $ "sel" ++ show (idx+1)) [rec']
+              | otherwise -> appFun (var . mkName . snm $ getRecordFieldName rec idx) [rec']
 
 -- | Another way to extract a field from a record. E.g.:
 --
@@ -683,8 +694,8 @@ shallowGetter' rec fnms idx rec' = do
          (tn,_) <- nominalType t
          let bs = P.map (\v -> mkName $ internalVar ++ show v) vs
              p' = PRec () (UnQual () $ mkName tn)
-                       (P.zipWith (\(f,_) b -> PFieldPat () (UnQual () . mkName $ snm f) (mkVarP b)) fs bs)
-         pure $ mkLetE [(p',rec')] $ mkVarE (bs !! idx)
+                       (P.zipWith (\(f,_) b -> PFieldPat () (UnQual () . mkName $ snm f) (pvar b)) fs bs)
+         pure $ mkLetE [(p',rec')] $ var (bs !! idx)
 
 -- | @'shallowSetter' rec idx rec\' rect\' e\'@:
 --
@@ -703,7 +714,7 @@ shallowGetter' rec fnms idx rec' = do
 shallowSetter :: TypedExpr t v VarName -> [FieldName] -> FieldIndex -> Exp () -> HS.Type () -> Exp () -> SG (Exp ())
 shallowSetter rec fnms idx rec' rect' e' = do
   tuples <- view recoverTuples
-  return $ if | tuples, isRecTuple fnms -> mkAppE (mkQVarE "Tup" . mkName $ "upd" ++ show (idx+1)) [e', rec']
+  return $ if | tuples, isRecTuple fnms -> appFun (mkQVarE "Tup" . mkName $ "upd" ++ show (idx+1)) [e', rec']
               | otherwise -> RecUpdate () (Paren () $ ExpTypeSig () rec' rect')
                                [FieldUpdate () (UnQual () . mkName . snm $ getRecordFieldName rec idx) e']
 
@@ -745,23 +756,14 @@ mkAppT t ts = foldl' (TyApp ()) t ts
 mkTupleT :: [HS.Type ()] -> HS.Type ()
 mkTupleT ts = TyTuple () Boxed ts
 
-mkVarE :: Name () -> Exp ()
-mkVarE = var
+mkListT :: HS.Type () -> HS.Type ()
+mkListT t = TyList () t
 
 mkQVarE :: String -> Name () -> Exp ()
 mkQVarE mod v = Var () (Qual () (ModuleName () mod) v)
 
 mkConE :: Name () -> Exp ()
 mkConE = HS.Con () . UnQual ()
-
-mkVarP :: Name () -> Pat ()
-mkVarP = pvar
-
-mkVarOp :: Name () -> QOp ()
-mkVarOp = op
-
-mkAppE :: Exp () -> [Exp ()] -> Exp ()
-mkAppE = appFun
 
 mkLetE :: [(Pat (), Exp ())] -> Exp () -> Exp ()
 mkLetE bs e =
