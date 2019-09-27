@@ -111,7 +111,7 @@ normaliseT d (T (TUnbox t)) = do
 normaliseT d (T (TBang t)) = do
    t' <- normaliseT d t
    case t' of
-     (T (TCon x ps s)) -> mapM (normaliseT d) ps >>= \ps' ->
+     (T (TCon x ps s)) -> mapM (normaliseT d . T . TBang) ps >>= \ps' ->
                           normaliseT d (T (TCon x ps' (bangSigil s)))
      (T (TRecord l s)) -> mapM ((secondM . firstM) (normaliseT d . T . TBang)) l >>= \l' ->
                           normaliseT d (T (TRecord l' (bangSigil s)))
