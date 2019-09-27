@@ -29,7 +29,7 @@ import Lens.Micro
 
 normaliseRW :: Rewrite' TcSolvM TCType
 normaliseRW = rewrite' $ \t -> case t of
-    T (TBang (T (TCon t ts s))) -> pure (T (TCon t ts (bangSigil s)))
+    T (TBang (T (TCon t ts s))) -> pure (T (TCon t (fmap (T . TBang) ts) (bangSigil s)))
     T (TBang (T (TVar v b))) -> pure (T (TVar v True))
     T (TBang (T (TFun x y))) -> pure (T (TFun x y))
     T (TBang (R row (Left s))) 

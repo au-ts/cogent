@@ -15,6 +15,7 @@ import Control.Applicative
 import Data.Foldable (asum)
 import Lens.Micro
 import Lens.Micro.Mtl
+
 -- | The unify phase, which seeks out equality constraints to solve via substitution.
 unify ::  Rewrite.Rewrite' TcSolvM [Goal]
 unify = Rewrite.rewrite' $ \cs -> do

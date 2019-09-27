@@ -23,6 +23,7 @@ onGoal f g = fmap (map (derivedGoal g)) (f (g ^. goal))
 
 unsat :: TypeError -> Maybe [Constraint]
 unsat x = Just [Unsat x]
+
 elseDie :: Bool -> TypeError -> Maybe [Constraint]
 elseDie b e = (guard b >> Just []) <|> unsat e 
 
