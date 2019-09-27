@@ -512,15 +512,12 @@ subtyping'' k (TRecord f1s _)  (TRecord f2s _)  =
     return [rule "subty_trecord"],
     (++ [rule "list_all2_nil"]) . join <$>
       zipWithM
-        (\t1 t2 -> tacSequence [return ([rule "list_all2_cons"] ++ replicate 2 (subst "snd_conv") 
-                                ++ replicate 2 (subst "fst_conv")),
-                                subtyping' k t1 t2])
+        (\t1 t2 -> tacSequence [return [rule "list_all2_cons", subst "snd_conv", subst "fst_conv"], subtyping' k t1 t2])
         (fst . snd <$> f1s)
         (fst . snd <$> f2s),
     
     -- Assumes length f1s == length f2s
-    return $ concat (replicate (2 * length f1s) [subst "List.list.map(2)", subst "fst_conv"]) 
-              ++ replicate 2 (subst "List.list.map(1)") ++ [rule "refl"] ,
+    return $ [subst "List.list.map(2)", subst "fst_conv", subst "List.list.map(1)", rule "refl"],
 
     (++ [rule "list_all2_nil"]) . join <$>
       zipWithM
@@ -529,7 +526,7 @@ subtyping'' k (TRecord f1s _)  (TRecord f2s _)  =
           then
             tacSequence [
               return [rule "list_all2_record_kind_subty_cons_nodrop"],
-              return $ (replicate 4 (subst "snd_conv")) ++ [rule "refl"]
+              return [subst "snd_conv", rule "refl"]
               ]
           else
             tacSequence [
@@ -543,19 +540,17 @@ subtyping'' k (TRecord f1s _)  (TRecord f2s _)  =
         f1s
         f2s,
     return [rule "refl"]
-    ]
+  ]
 subtyping'' k (TProduct t1 u1) (TProduct t2 u2) =
   (rule "subty_tprod" :) <$> liftM2 (++) (subtyping' k t1 t2) (subtyping' k u1 u2)
 subtyping'' k (TSum v1s)       (TSum v2s)  =
   tacSequence [
     return [rule "subty_tsum"],
     (++ [rule "list_all2_nil"]) . join . (([rule "list_all2_cons", 
-                                            subst "snd_conv", subst "snd_conv",
-                                            subst "fst_conv", subst "fst_conv"] ++) <$>)
+                                            subst "snd_conv", subst "fst_conv"] ++) <$>)
       <$> zipWithM (subtyping' k) (fst . snd <$> v1s) (fst . snd <$> v2s),
     -- assumes length v1s == length v2s
-    return ((concat $ replicate (length v1s * 2) [subst "List.list.map(2)", subst "fst_conv"]) 
-                    ++ [subst "List.list.map(1)", subst "List.list.map(1)", rule "refl"]),
+    return [subst "List.list.map(2)", subst "fst_conv", subst "List.list.map(1)", rule "refl"],
     return [force_simp []]
     ]
 

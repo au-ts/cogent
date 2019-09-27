@@ -45,7 +45,27 @@ ML {*
   fun rtac rl = resolve0_tac [rl];
   fun etac rl = eresolve0_tac [rl];
 
-  fun subst_tac ctxt rl = EqSubst.eqsubst_tac ctxt [1] [rl]
+(* 
+   A modified implementation of EqSubst.eq_subst.
+   This implementation substitutes all occurences it finds, as well as
+   not merging identical subgoals.
+ *)
+fun cogent_subst_tac ctxt thms i st =
+  let val nprems = Thm.nprems_of st in
+    if nprems < i then Seq.empty else
+    let
+      val thmseq = Seq.of_list thms;
+      fun apply_occ occ st =
+        thmseq |> Seq.maps (fn r =>
+          EqSubst.eqsubst_tac' ctxt
+            (EqSubst.skip_first_occs_search occ EqSubst.searchf_lr_unify_valid) r
+            (i + (Thm.nprems_of st - nprems)) st);
+    in
+      Seq.REPEAT1 (apply_occ 0) st
+    end
+  end;
+
+  fun subst_tac ctxt rl = cogent_subst_tac ctxt [rl]
 
   fun atac i = PRIMSEQ (Thm.assumption NONE i);
 

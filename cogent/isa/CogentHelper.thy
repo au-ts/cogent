@@ -257,14 +257,14 @@ fun cogent_guided_ttsplits_tac ctxt sz script =
   end
 
 (* Our own every, for performance *)
-fun EVERY_DETERM _ [] st =
+fun EVERY_DETERM_' _ [] st =
         Seq.single st
-  | EVERY_DETERM x (tac :: tacs) st =
+  | EVERY_DETERM_' x (tac :: tacs) st =
         (case Seq.pull ((tac x) st) of
           NONE => Seq.empty
-        | SOME (st', _) => EVERY_DETERM x tacs st')
+        | SOME (st', _) => EVERY_DETERM_' x tacs st')
 
-fun EVERY_DETERM' tacs i = EVERY_DETERM i tacs;
+fun EVERY_DETERM' tacs i = EVERY_DETERM_' i tacs;
 
 datatype tac = RTac of thm
              | SubstTac of thm
@@ -357,13 +357,13 @@ fun interpret_tac (RTac r) _ = rtac r
 
 
   | interpret_tac (SubtypingTac tacs) ctxt = let 
-        (*val runTac = fn tac => fn a => fn b => fn c =>
+        val runTac = fn tac => fn a => fn b => fn c =>
                               logTacticOnUse ("!SubtypingTac:" ^ tacName tac) 
-                                     (fn () => (interpret_tac tac) a b c)
+                                     (fn () => interpret_tac tac a b c)
         val everyTac = fn a => fn b => fn c =>
                               logTacticOnUse ("!SubtypingTac:EVERY" ) 
-                                     (fn () => a b c) *)
-      in EVERY_DETERM' (map (fn hint => interpret_tac hint ctxt) tacs) end
+                                     (fn () => a b c)
+      in everyTac (EVERY_DETERM' (map (fn hint => interpret_tac hint ctxt) tacs)) end
 
 
   | interpret_tac (BlackBoxTac tac) ctxt = tac ctxt
