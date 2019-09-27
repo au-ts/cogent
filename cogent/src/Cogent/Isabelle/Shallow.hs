@@ -198,15 +198,21 @@ shallowExpr (TE _ (ILit n pt)) = pure $ shallowILit n pt
 shallowExpr (TE _ (SLit s)) = pure $ mkString s
 #ifdef BUILTIN_ARRAYS
 shallowExpr (TE _ (ALit es)) = mkList <$> mapM shallowExpr es
-shallowExpr (TE _ (ArrayIndex arr idx)) = mkApp (mkId "nth") <$> mapM shallowExpr [arr,idx]
+shallowExpr (TE _ (ArrayIndex arr idx)) = do
+  arr' <- shallowExpr arr
+  idx' <- mkApp (mkId "unat") <$> mapM shallowExpr [idx]
+  return $ mkApp (mkId "nth") [arr', idx']
 shallowExpr (TE _ (Pop _ arr e)) = __todo "shallowExpr: pop"
 shallowExpr (TE _ (Singleton e)) = __todo "shallowExpr: singleton"
-shallowExpr (TE _ (ArrayMap2 ((v1,v2), fbody) (arr1,arr2))) = do
+shallowExpr (TE _ (ArrayMap2 ((v1, v2), fbody) (arr1,arr2))) = do
   fbody' <- shallowExpr fbody
-  let f = mkLambda [v1,v2] fbody'
+  let f = mkLambda [snm v1, snm v2] fbody'
   arr1' <- shallowExpr arr1
   arr2' <- shallowExpr arr2
-  return $ mkApp (mkId "map2") [f, mkPair arr1' arr2']
+  tuples <- asks recoverTuples
+  if tuples then return $ mkApp (mkId "map2") [f, mkPair arr1' arr2']
+            else shallowMaker (exprType fbody)
+                              [("p1" ++ subSymStr "f", arr1), ("p2" ++ subSymStr "f", arr2)]
 shallowExpr (TE _ (ArrayTake _ arr idx e)) = __todo "shallowExpr: array take"
 shallowExpr (TE _ (ArrayPut arr idx val)) = __todo "shallowExpr: array put"
 #endif
@@ -329,7 +335,7 @@ shallowSetter rec idx e = do
 shallowGetter :: TypedExpr t v VarName -> Int -> Term -> SG Term
 shallowGetter rec idx rect = mkApp <$> (mkId <$> getRecordFieldName (exprType rec) idx) <*> pure [rect]
 
-getRecordFieldName :: CC.Type t -> Int -> SG String
+getRecordFieldName :: CC.Type t -> Int -> SG FieldName
 getRecordFieldName t@(TRecord fs _) ind = do
   tn <- findTypeSyn t
   let fnms = map fst fs
