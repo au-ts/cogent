@@ -42,9 +42,9 @@ safeName (IsabelleName nm) = IsabelleName $
         Just nb -> "an" ++ subSymStr nb
         -- Add debug note
         Nothing -> case "_" `isPrefixOf` nm of
-          True  -> dropWhile (== '_') nm ++ subSymStr "d"
+          True  -> dropWhile (== '_') nm ++ "_d"
           False -> case "_" `isSuffixOf` nm of
-            True  -> nm ++ subSymStr "x"
+            True  -> nm ++ "_x"
             False -> nm
 
 isReserved :: String -> Bool
