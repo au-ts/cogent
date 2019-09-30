@@ -27,8 +27,6 @@ import Control.Applicative
 import Data.Foldable (asum)
 import qualified Data.Map as M
 
--- TODO: Find out what this does
-
 -- | The sinkFloat phase propagates the structure of types containing
 --   rows (i.e. Records and Variants) through subtyping/equality constraints
 sinkFloat :: forall m. (MonadFresh VarName m, MonadWriter [Assign] m) => Rewrite.Rewrite' m [Constraint]

@@ -83,9 +83,8 @@ findEquateCandidates mentions (c:cs) = let
                        , Row.justVar r1 
                        , canEquate fst a t
                       -> (c:sups, subs, others)
-      -- TODO: I'm quite sure I don't, but do I need to add a recursive parameter here?
        Record n r1 s :< t | Just a <- rowVar r1
-                        , Row.justVar r1 
+                        , Row.justVar r1
                         , canEquate fst a t
                        -> (c:sups, subs, others)
        t :< Variant r1 | Just a <- rowVar r1

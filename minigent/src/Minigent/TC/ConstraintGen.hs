@@ -184,17 +184,18 @@ cg e tau = case e of
     let c2 = Drop (Record Nothing (Row.take f row) (UnknownSigil sigil))
     withSig (Member e' f, c1 :&: c2)
 
+  -- Remaining record, field name, extracted contents var, record extrating from, following expression 
   (Take x f y e1 e2) -> do
     beta <- UnifVar <$> fresh
     row <- Row.incomplete [Entry f beta False]
     sigil  <- fresh
     recPar <- fresh
-    -- TODO: Just recPar here okay?
+    -- TODO: Just recPar here okay? If records are boxed/unboxed, should I be giving a unification variable
+    -- for the recursive parameter?
     let alpha = Record (Just recPar) row (UnknownSigil sigil)
 
     (e1', c1) <- cg e1 alpha
     modify (push (y, beta))
-    -- TODO: New recPar here?
     modify (push (x, Record (Just recPar) (Row.take f row) (UnknownSigil sigil)))
     (e2', c2) <- cg e2 tau
     xUsed <- topUsed <$> get
@@ -210,6 +211,7 @@ cg e tau = case e of
     row  <- Row.incomplete [Entry f beta True]
     sigil <- fresh
     recPar <- fresh
+    -- TODO: As above in Take
     let alpha = Record (Just recPar) row (UnknownSigil sigil)
     (e1', c1) <- cg e1 alpha
     (e2', c2) <- cg e2 beta

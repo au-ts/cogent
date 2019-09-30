@@ -33,8 +33,6 @@ unify = Rewrite.rewrite' $ \cs -> do
            tell a
            pure (map (constraintTypes (traverseType (foldMap substAssign a))) cs)
 
--- TODO: Fix up recursive parameter names. Check that generated names in `cg` can be appropriately assigned
-
 assignOf :: (MonadFresh VarName m, MonadWriter [Assign] m) => Constraint -> MaybeT m [Assign]
 assignOf (UnifVar a :=: tau) | rigid tau && (a `notOccurs` tau) = pure [TyAssign a tau]
 assignOf (tau :=: UnifVar a) | rigid tau && (a `notOccurs` tau) = pure [TyAssign a tau]
