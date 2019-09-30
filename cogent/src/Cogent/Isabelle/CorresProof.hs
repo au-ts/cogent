@@ -18,6 +18,7 @@ import Data.List (intercalate)
 -- import Isabelle.ExprTH
 import Isabelle.InnerAST as I
 import Isabelle.OuterAST as O
+import Cogent.Isabelle.IsabelleName
 import System.FilePath ((</>))
 import qualified Text.PrettyPrint.ANSI.Leijen as L
 
@@ -218,7 +219,8 @@ cogentMainTree thy ent =
   ] ++ (case ent of
          Nothing ->   [ "val entry_func_names = Cogent_functions (* all functions *)" ]
          Just tlfs -> [ "val entry_func_names = [" ] ++
-                      lines (intercalate ",\n" (map (\tlf -> "      \"" ++ tlf ++ "\"") (map unCoreFunName tlfs))) ++
+                      lines (intercalate ",\n" (map (\tlf -> "      \"" ++ tlf ++ "\"") 
+                      (map (unIsabelleName . mkIsabelleName . unCoreFunName) tlfs))) ++
                       [ "]" ]
        ) ++
   [ "val entry_funcs = Symtab.dest Cogent_main_tree"

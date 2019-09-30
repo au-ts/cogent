@@ -89,6 +89,7 @@ library
               , Cogent.Isabelle.Shallow
               , Cogent.Isabelle.ShallowTable
               , Cogent.Isabelle.TypeProofs
+              , Cogent.Isabelle.IsabelleName
               , Cogent.Mono
               , Cogent.Normal
               , Cogent.Parser
