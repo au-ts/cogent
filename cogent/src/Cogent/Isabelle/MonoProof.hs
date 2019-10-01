@@ -48,15 +48,15 @@ monoProof source funMono log =
 
 monoRename :: TheoryDecl I.Type I.Term
 monoRename = TheoryString $ unlines
-  [ "local_setup {*"
+  [ "local_setup \\<open>"
   , "gen_mono_rename Cogent_functions @{thm rename__assocs_def} \"rename\""
-  , "*}"
+  , "\\<close>"
   ]
 
 monoExprThms :: String -> TheoryDecl I.Type I.Term
 monoExprThms src = ContextDecl $ Context "value_sem" $ ctxBody
   where ctxBody = [TheoryString $ unlines
-                     [ "ML {*"
+                     [ "ML \\<open>"
                      , "local"
                      , "  (* Get mono-to-poly mapping from the assoc-list for @{term rename} *)"
                      , "  val rename_inverse ="
@@ -84,7 +84,7 @@ monoExprThms src = ContextDecl $ Context "value_sem" $ ctxBody
                      , "       Cogent_functions []"
                      , "  |> (fn thms => Symtab.make (Cogent_functions ~~ rev thms))"
                      , "end"
-                     , "*}"
+                     , "\\<close>"
                      ]]
 
 {-

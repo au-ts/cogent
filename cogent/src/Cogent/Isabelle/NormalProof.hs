@@ -163,13 +163,13 @@ genDesugarNormalProof sdthy snthy typeMap defs =
   in promoteProofs ++
      caseProofs ++
      [ O.TheoryString $ unlines
-       [ "ML {*"
+       [ "ML \\<open>"
        , "val Cogent_functions = " ++ show fns
-       , "*}"
+       , "\\<close>"
        , ""
-       , "ML {*"
+       , "ML \\<open>"
        , "val normalisation_thms = normalisation_tac_all @{context} \"" ++
             sdthy ++ "\" \"" ++ snthy ++ "\" " ++ promoteThms ++ " " ++ caseThms ++ " Cogent_functions"
-       , "*}"
+       , "\\<close>"
        ]
      ]

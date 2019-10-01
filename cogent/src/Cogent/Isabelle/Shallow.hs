@@ -135,7 +135,7 @@ shallowPrimType Boolean = I.TyPrim I.BoolT
 shallowPrimOp :: Op -> [Term] -> Term
 shallowPrimOp CS.Plus   es = mkApp (mkId "(+)") es
 shallowPrimOp CS.Minus  es = mkApp (mkId "(-)") es
-shallowPrimOp CS.Times  es = mkApp (mkId "( * )") es
+shallowPrimOp CS.Times  es = mkApp (mkId "(*)") es
 shallowPrimOp CS.Divide es = mkApp (mkId "checked_div") es
 shallowPrimOp CS.Mod    es = mkApp (mkId "checked_mod") es
 shallowPrimOp CS.Not    es = mkApp (mkId "HOL.Not") es
@@ -526,11 +526,11 @@ lemmaBuckets is =
 
 
 mlFragment theoryNm stg = unlines
-  [ "local_setup {*"
+  [ "local_setup \\<open>"
   , "gen_scorres_lemmas \"" ++ theoryNm ++ __cogent_suffix_of_shallow_shared ++ "\" " ++
               "\"" ++ theoryNm ++ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage stg ++ "\" " ++
               "\"" ++ theoryNm ++ __cogent_suffix_of_deep    ++ __cogent_suffix_of_stage stg ++ "\" Cogent_abstract_functions Cogent_functions"
-  , "*}"
+  , "\\<close>"
   ]
 
 
@@ -885,14 +885,14 @@ shallowTuplesProof baseName sharedDefThy defThy tupSharedDefThy tupDefThy typeMa
       , TheoryString $ setupBucket proofBucket
       ]
     setupBucket name = unlines
-      [ "ML {*"
+      [ "ML \\<open>"
       , "structure " ++ name ++ " ="
       , "  Named_Thms ("
       , "    val name = Binding.name \"" ++ name ++ "\""
       , "    val description = \"\""
       , "  )"
-      , "*}"
-      , "setup {* " ++ name ++ ".setup *}"
+      , "\\<close>"
+      , "setup \\<open> " ++ name ++ ".setup \\<close>"
       ]
 
     {- Define shallow_tuples_rel instances and proof rules for all our types.

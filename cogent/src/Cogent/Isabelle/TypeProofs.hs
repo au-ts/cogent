@@ -80,7 +80,7 @@ deepTypeProof mod withDecls withBodies thy decls log =
                                 ++ funTypeEnv mod decls ++ funDefEnv decls
                                 ++ funTypeTrees mod ta decls
                  | otherwise = []
-      proofBodies | withBodies = [TheoryString "ML {* open TTyping_Tactics *}"] ++
+      proofBodies | withBodies = [TheoryString "ML \\<open> open TTyping_Tactics \\<close>"] ++
                                  concatMap (\(proofId, prop, script) ->
                                               formatSubproof ta (typingSubproofPrefix ++ show proofId) prop script) subproofs ++
                                  proofScript
@@ -110,10 +110,10 @@ formatMLProof name typ lines =
   [ TheoryString $ stepsML $ splitEveryW (length . filter (=='@')) 300 lines ]
   where stepsML (steps:stepss) =
           (if null stepss then "" else stepsML stepss) ++
-          "ML_quiet {*\nval " ++ name ++ " : " ++ typ ++ " list = [\n" ++
+          "ML_quiet \\<open>\nval " ++ name ++ " : " ++ typ ++ " list = [\n" ++
           intercalate ",\n" steps ++ "\n]" ++
-          (if null stepss then "" else " @ " ++ name) ++ " *}\n"
-        stepsML [] = "ML_quiet {* val " ++ name ++ " : " ++ typ ++ " list = [] *}\n"
+          (if null stepss then "" else " @ " ++ name) ++ " \\<close>\n"
+        stepsML [] = "ML_quiet \\<open> val " ++ name ++ " : " ++ typ ++ " list = [] \\<close>\n"
 
 formatSubproof :: TypeAbbrevs -> String -> (Bool, I.Term) -> [Tactic] -> [TheoryDecl I.Type I.Term]
 formatSubproof ta name (schematic, prop) steps =
@@ -121,25 +121,25 @@ formatSubproof ta name (schematic, prop) steps =
   [ LemmaDecl (Lemma schematic (Just $ TheoremDecl (Just name)
                                          [Attribute "unfolded" ["abbreviated_type_defs"]]) [prop]
                (Proof ([MethodModified (Method "unfold" ["abbreviated_type_defs"]) MMOptional] ++
-                       [ Method "tactic" ["{* map (fn t => DETERM (interpret_tac t @{context} 1)) " ++
-                                          name ++ "_script |> EVERY *}"]])
+                       [ Method "tactic" ["\\<open> map (fn t => DETERM (interpret_tac t @{context} 1)) " ++
+                                          name ++ "_script |> EVERY \\<close>"]])
                 ProofDone)) ]
 
 formatMLTreeGen :: String -> [TheoryDecl I.Type I.Term]
 formatMLTreeGen name =
   let safeName = unIsabelleName $ unsafeMakeIsabelleName name
-  in [ TheoryString ( "ML_quiet {*\nval " ++ safeName ++ "_ttyping_details_future"
+  in [ TheoryString ( "ML_quiet \\<open>\nval " ++ safeName ++ "_ttyping_details_future"
     ++ " = get_all_typing_details_future @{context} \"" ++ safeName ++ "\"\n"
     ++ "   " ++ safeName ++ "_typecorrect_script"
-    ++ "\n*}\n"
+    ++ "\n\\<close>\n"
   ) ]
 
 formatMLTreeFinalise :: String -> [TheoryDecl I.Type I.Term]
 formatMLTreeFinalise name =
   let safeName = unIsabelleName $ unsafeMakeIsabelleName name
-  in [ TheoryString ( "ML_quiet {*\nval (_, "
+  in [ TheoryString ( "ML_quiet \\<open>\nval (_, "
     ++ safeName ++ "_typing_tree, " ++ safeName ++ "_typing_bucket)\n"
-    ++ "= Future.join " ++ safeName ++ "_ttyping_details_future\n*}\n"
+    ++ "= Future.join " ++ safeName ++ "_ttyping_details_future\n\\<close>\n"
   ) ]
 
 formatTypecorrectProof :: String -> [TheoryDecl I.Type I.Term]
@@ -148,12 +148,12 @@ formatTypecorrectProof fn =
   in [ LemmaDecl (Lemma False (Just $ TheoremDecl (Just (safeFn ++ "_typecorrect")) [])
           [mkId $ "\\<Xi>, prod.fst " ++ safeFn ++ "_type, (" ++ safeFn ++ "_typetree, [Some (prod.fst (prod.snd " ++ safeFn ++ "_type))]) T\\<turnstile> " ++
                   safeFn ++ " : prod.snd (prod.snd " ++ safeFn ++ "_type)"]
-    (Proof (if __cogent_fml_typing_tree then [Method "tactic" ["{* resolve_future_typecorrect @{context} " ++ safeFn ++ "_ttyping_details_future *}"]]
+    (Proof (if __cogent_fml_typing_tree then [Method "tactic" ["\\<open> resolve_future_typecorrect @{context} " ++ safeFn ++ "_ttyping_details_future \\<close>"]]
       else [Method "simp" ["add: " ++ safeFn ++ "_type_def " ++ safeFn ++ "_def " ++
                            safeFn ++ "_typetree_def replicate_unfold"
                            ++ " abbreviated_type_defs"],
-            Method "tactic" ["{* apply_ttsplit_tacs_simple \"" ++ safeFn ++ "\"\n"
-                    ++ "    @{context} " ++ safeFn ++ "_typecorrect_script *}"]])
+            Method "tactic" ["\\<open> apply_ttsplit_tacs_simple \"" ++ safeFn ++ "\"\n"
+                    ++ "    @{context} " ++ safeFn ++ "_typecorrect_script \\<close>"]])
      ProofDone)) ]
 
 data TreeSteps a = StepDown | StepUp | Val a
