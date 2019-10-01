@@ -53,7 +53,7 @@ lemma length_eval_simps:
 
 
 (* Generate type system lemma buckets *)
-ML {*
+ML \<open>
 
 (* identify judgements related to typing *)
 fun is_typing t = head_of t |>
@@ -201,6 +201,6 @@ fun get_all_typing_details_future ctxt name script
 
 fun resolve_future_typecorrect ctxt details
     = resolve_tac ctxt (#1 (Future.join details : details)) 1
-*}
+\<close>
 
 end

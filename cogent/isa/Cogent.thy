@@ -680,7 +680,7 @@ where
   | "eval_prim_op (NEq _) xs = LBool (hd xs \<noteq> xs ! 1)"
   | "eval_prim_op (Plus _) xs = prim_word_op (+) (+) (+) (+) xs"
   | "eval_prim_op (Minus _) xs = prim_word_op (-) (-) (-) (-) xs"
-  | "eval_prim_op (Times _) xs = prim_word_op ( * ) ( * ) ( * ) ( * ) xs"
+  | "eval_prim_op (Times _) xs = prim_word_op (*) (*) (*) (*) xs"
   | "eval_prim_op (Divide _) xs = prim_word_op checked_div checked_div checked_div checked_div  xs"
   | "eval_prim_op (Mod _) xs = prim_word_op checked_mod checked_mod checked_mod checked_mod xs"
   | "eval_prim_op (Gt _) xs = prim_word_comp greater greater greater greater xs"
