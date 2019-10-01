@@ -167,7 +167,7 @@ lemma corres_shallow_C_intro:
 
 (* Generate an end-to-end refinement theorem using corres_shallow_C.
  * Resolve as many of its premises as we can. *)
-ML {*
+ML \<open>
 fun Cogent_to_C_name str =
       (String.explode str
        |> map (fn c => if c = #"'" then "_prime" else String.implode [c])
@@ -205,7 +205,7 @@ fun make_corres_shallow_C desugar_thy deep_thy ctxt f = let
            \<rbrakk> \<Longrightarrow>
            corres_shallow_C ?rename ?state_rel
               (?f_desugar vv\<^sub>s) ?f_deep (?f_C uv\<^sub>C)
-              (* \<xi> is schematic; instantiated by resolving corres_thm *)
+              \<comment> \<open> \<xi> is schematic; instantiated by resolving corres_thm \<close>
               ?\<xi> \<xi>\<^sub>m \<xi>\<^sub>p [uv\<^sub>m] [vv\<^sub>m] ?\<Xi> [option.Some (fst (snd ?f_deep_type))] \<sigma> s"
       (f_desugar,
            f_deep,
@@ -298,7 +298,7 @@ fun make_corres_shallow_C desugar_thy deep_thy ctxt f = let
   in
     locale_thm RS thm_with_assm
   end
-*}
+\<close>
 
 end
 

@@ -99,7 +99,7 @@ lemma corres_def':
 
 (* Syntax-directed rules for Cogent *)
 lemma corres_var:
-  "val_rel (\<gamma>!x) (v'::'a::cogent_C_val) \<Longrightarrow>  (*type_rel t TYPE('a) \<Longrightarrow> *)
+  "val_rel (\<gamma>!x) (v'::'a::cogent_C_val) \<Longrightarrow>  \<comment> \<open> type_rel t TYPE('a) \<Longrightarrow> \<close>
    corres srel (Var x) (gets (\<lambda>_. v')) \<xi> \<gamma> \<Xi> \<Gamma> \<sigma> s"
   by (fastforce simp: fst_return corres_def snd_return intro: u_sem_var)
 
@@ -677,7 +677,7 @@ lemma map2_nth_eq:
 
 lemma map_list_update_id:
   "\<lbrakk> xs ! i = v; i < length xs; f v = f' v \<rbrakk> \<Longrightarrow>
-   map f xs[i := f' v] = map f xs"
+   (map f xs)[i := f' v] = map f xs"
   apply (induct i arbitrary: xs)
    apply (case_tac xs, simp)
    apply simp
@@ -942,7 +942,7 @@ proof (clarsimp simp: corres_def in_monad snd_bind snd_modify snd_state_assert, 
     by blast
 
   have typing_var_elim_lems':
-    "[] \<turnstile> \<Gamma>3' \<leadsto>w Cogent.empty (length \<Gamma>3')[x := Some (TRecord typ' sgl)]"
+    "[] \<turnstile> \<Gamma>3' \<leadsto>w (Cogent.empty (length \<Gamma>3'))[x := Some (TRecord typ' sgl)]"
     "x < length \<Gamma>3'"
     using typing_put_elim_lems' by blast+
 

@@ -92,7 +92,7 @@ lemma unknown_bind_if_True:
    = condition (\<lambda>_. True) T (F undefined) >>= R"
   by monad_eq
 
-ML {*
+ML \<open>
 fun tidy_C_fun_def f ctxt = let
   val fun_term = Syntax.read_term ctxt (f ^ "'")
   (* Guess whether the function is recursive.
@@ -140,6 +140,6 @@ fun tidy_C_fun_def f ctxt = let
 
 fun tidy_C_fun_def' f ctxt =
   Utils.define_lemmas (f ^ "'_def'") [tidy_C_fun_def f ctxt] ctxt |> snd
-*}
+\<close>
 
 end

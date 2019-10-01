@@ -19,11 +19,11 @@ begin
 context update_sem_init
 begin
 
-text{* lemma-generation for URecord (Member, Take, and Put).*}
+text\<open> lemma-generation for URecord (Member, Take, and Put).\<close>
 
 (* TODO: mk_specialised_corres_take and mk_specialised_corres_put have code-duplication
  *       Refactor it.*)
-ML{* fun mk_specialised_corres_take (field_num:int) uval file_nm ctxt =
+ML\<open> fun mk_specialised_corres_take (field_num:int) uval file_nm ctxt =
 (* Generate specialised Take lemmas for the Writables and Unboxeds.*)
  let
   (* define auxiliary values and functions.*)
@@ -117,9 +117,9 @@ ML{* fun mk_specialised_corres_take (field_num:int) uval file_nm ctxt =
   val _ = tracing ("    finished mk_spec_corres_take for struct " ^ (get_uval_name uval) ^ " " ^  Int.toString field_num);
  in take_term
  end;
-*}
+\<close>
 
-ML{* fun mk_specialised_corres_put (field_num:int) uval file_nm ctxt =
+ML\<open> fun mk_specialised_corres_put (field_num:int) uval file_nm ctxt =
 (* Generate specialised Put lemmas.*)
  let
   (* define auxiliary values and functions.*)
@@ -179,9 +179,9 @@ ML{* fun mk_specialised_corres_put (field_num:int) uval file_nm ctxt =
           Int.toString field_num);
  in put_term
  end;
-*}
+\<close>
 
-ML{* fun mk_specialised_corres_let_put (field_num:int) uval file_nm ctxt =
+ML\<open> fun mk_specialised_corres_let_put (field_num:int) uval file_nm ctxt =
 (* Generate specialised Let-Put lemmas.*)
  let
   (* define auxiliary values and functions.*)
@@ -253,9 +253,9 @@ ML{* fun mk_specialised_corres_let_put (field_num:int) uval file_nm ctxt =
           Int.toString field_num);
  in  put_term
  end;
-*}
+\<close>
 
-ML{* fun mk_specialised_corres_member (field_num:int) uval file_nm ctxt =
+ML\<open> fun mk_specialised_corres_member (field_num:int) uval file_nm ctxt =
 (* Generate specialised lemmas for Member.*)
  let
   (* define auxiliary values and functions.*)
@@ -321,9 +321,9 @@ ML{* fun mk_specialised_corres_member (field_num:int) uval file_nm ctxt =
   val _ = tracing ("    finished mk_spec_corres_member for struct " ^ get_uval_name uval ^ " " ^
    Int.toString field_num);
  in member_term end;
-*}
+\<close>
 
-ML{* fun mk_urecord_lems_for_uval file_nm ctxt (uval:uval) =
+ML\<open> fun mk_urecord_lems_for_uval file_nm ctxt (uval:uval) =
 (* specialised-lemma generation for nth struct.*)
 (* All uvals can reach this function. I have to filter them at some point.*)
  let
@@ -406,7 +406,7 @@ ML{* fun mk_urecord_lems_for_uval file_nm ctxt (uval:uval) =
  in
   urecord_lems_for_nth_struct : lem list
  end;
-*}
+\<close>
 
 end
 

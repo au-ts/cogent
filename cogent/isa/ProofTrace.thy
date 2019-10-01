@@ -20,7 +20,7 @@ begin
 
 (* begin: tactic trace code *)
 (* Proof of concept implementation. DO NOT USE THIS CODE *)
-ML {*
+ML \<open>
 datatype 'tag TraceSuccess = TraceSuccess of { goal : thm
                                              , succeeded : 'tag TraceSubgoal list
                                              , theorem : thm
@@ -35,10 +35,10 @@ datatype 'tag TraceSuccess = TraceSuccess of { goal : thm
                                              }
 
 fun TraceSuccess_erase_backtracking x = x
-*}
+\<close>
 
 
-ML {*
+ML \<open>
 
 type ttag = TTyping_Tactics.tac option
 
@@ -113,11 +113,11 @@ fun trace_solve_tac (ctxt : Proof.context)
                end
     in solve data0 goal0 [] end
   end
-*}
+\<close>
 (* end: tactic trace code *)
 
 (* extract relevant subproofs *)
-ML {*
+ML \<open>
 fun filter_trace PSuccess PSubgoal (TraceSuccess tr) =
       if not (PSuccess tr) then [] else
         [ Tree (#theorem tr,
@@ -139,9 +139,9 @@ fun unprop (Const (@{const_name Pure.prop}, _) $ t) = unprop t
   | unprop (Const (@{const_name Pure.all}, _) $ t) = unprop t
   | unprop (Const (@{const_name HOL.Trueprop}, _) $ t) = unprop t
   | unprop t = t;
-*}
+\<close>
 
-ML {*
+ML \<open>
 fun extract_subproofs goal tactics is_interesting ctxt =
   trace_solve_tac ctxt
     (fn n => (if n >= length tactics
@@ -153,6 +153,6 @@ fun extract_subproofs goal tactics is_interesting ctxt =
         mapEitherR
           (fn tr => filter_trace (is_interesting o unprop o Thm.prop_of o #theorem) (K true) tr)
           result)
-*}
+\<close>
 
 end

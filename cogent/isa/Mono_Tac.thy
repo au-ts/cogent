@@ -27,7 +27,7 @@ context value_sem begin
  *   mapping :: (string \<times> type list) \<Rightarrow> string
  * If x \<notin> mapping_assocs, mapping x = ''''.
  *)
-ML {*
+ML \<open>
 fun gen_mono_rename
       (Cogent_functions: string list) (* exclude these non-abstract functions, for performance *)
       (mapping_assocs: thm)
@@ -44,7 +44,7 @@ fun gen_mono_rename
      else AssocLookup.make_assoc_fun assocs @{term "[] :: string"}
              mapping_name (replicate (length assocs) (mapping_name ^ "_simps"))
   end
-*}
+\<close>
 
 (*
  * Prove equalities of the form
@@ -57,7 +57,7 @@ fun gen_mono_rename
  *  - simps for rename_fn
  *  - type abbreviations used in mono_f and poly_f
  *)
-ML {*
+ML \<open>
 fun gen_monoexpr_thm
       (poly_thy: string) (mono_thy: string)
       (rename_fn: term)
@@ -79,7 +79,7 @@ fun gen_monoexpr_thm
               (Goal.prove ctxt [] [] (HOLogic.mk_Trueprop prop))
               (K (simp_tac (ctxt addsimps ([poly_def, mono_def] @ extra_simps @ callees)) 1))
   in thm end
-*}
+\<close>
 
 end
 

@@ -14,7 +14,7 @@ theory Heap_Relation_Generation
 imports Read_Table
 begin
 
-ML{* (* local_setup_heap_rel *)
+ML\<open> (* local_setup_heap_rel *)
 local
 
 fun mk_heap_rel ctxt (uvals:uval list) =
@@ -58,5 +58,5 @@ fun local_setup_heap_rel file_nm lthy =
  in lthy' end;
 
 end;
-*}
+\<close>
 end
