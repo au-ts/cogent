@@ -189,7 +189,7 @@ genBoxedGetterSetter boxType TUnit UnitLayout path getOrSet = do
   return (CVar functionName Nothing)
 
 #ifdef BUILTIN_ARRAYS
-genBoxedGetterSetter box tau@(TArray t l (Boxed {})) (PrimLayout ranges) path getOrSet =
+genBoxedGetterSetter box tau@(TArray t l (Boxed {}) _) (PrimLayout ranges) path getOrSet =
   genComposedAlignedRangeGetterSetter ranges box tau path getOrSet
 #endif
 
