@@ -14,9 +14,9 @@ theory Cogent_C_Heap_Auto
 imports Read_Table
 begin
 
-text{* Instantiation of cogent_C_heap. is_valid_def and heap_def. *}
+text\<open> Instantiation of cogent_C_heap. is_valid_def and heap_def. \<close>
 
-ML{* fun is_valid_def uval ctxt =
+ML\<open> fun is_valid_def uval ctxt =
  let
   val ty_name_C    = get_ty_nm_C uval;
   val lhs          = Syntax.read_term ctxt "is_valid";
@@ -29,9 +29,9 @@ ML{* fun is_valid_def uval ctxt =
   val lthy'    = IsValidSimp.add_local thm lthy;
   val _ = tracing ("generating is_valid_def for " ^ (get_uval_name uval))
  in lthy' end;
-*}
+\<close>
 
-ML{* fun heap_def uval ctxt =
+ML\<open> fun heap_def uval ctxt =
  let
   val ty_name_C = get_ty_nm_C uval;
   val lhs       = Syntax.read_term ctxt "heap";
@@ -44,9 +44,9 @@ ML{* fun heap_def uval ctxt =
   val lthy'    = HeapSimp.add_local thm lthy;
   val _ = tracing ("generating heap_def for " ^ (get_uval_name uval))
  in lthy' end;
-*}
+\<close>
 
-ML{* fun local_setup_instantiate_cogent_C_heaps_store_them_in_buckets file_nm lthy =
+ML\<open> fun local_setup_instantiate_cogent_C_heaps_store_them_in_buckets file_nm lthy =
  let
   fun define_cogent_C_heap uval ctxt = ctxt |> is_valid_def uval |> heap_def uval;
 
@@ -63,6 +63,6 @@ ML{* fun local_setup_instantiate_cogent_C_heaps_store_them_in_buckets file_nm lt
  in
   local_setup' file_nm (List.rev uvals) lthy
  end;
-*}
+\<close>
 
 end

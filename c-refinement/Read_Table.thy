@@ -26,7 +26,7 @@ begin
  * C_type is a C identifier so parsing it is trivial.
  *)
 
-ML {*
+ML \<open>
 fun read_table (file_name:string) thy =
   let
     val path_to_c = (Resources.master_directory thy |> File.platform_path) ^ "/" ^ file_name;
@@ -38,9 +38,9 @@ fun read_table (file_name:string) thy =
     fun report pos = path_to_table ^ ":" ^ string_of_int pos ^ ": ";
 
     val tymap = pos_lines
-                |> filter (fn (pos, l) => not (String.isPrefix "--" l) andalso
-                                          not (String.isPrefix " " l) andalso
-                                          not (String.size l = 0))
+                |> filter (fn (_, l) => not (String.isPrefix "--" l) andalso
+                                        not (String.isPrefix " " l) andalso
+                                        not (String.size l = 0))
                 |> map (fn (pos, l) =>
                     case split_on " :=: " l of
                         [cogentT, cT] => (pos, cogentT, cT)
@@ -62,20 +62,20 @@ fun read_table (file_name:string) thy =
       | decode_sigil _   (Const (@{const_name Unboxed},  _)) = Unboxed
       | decode_sigil pos t = raise TERM (report pos ^ "bad sigil", [t]);
 
-    fun decode_type (pos, Const (@{const_name TCon}, _) $ _ $ _ $ sigil, cT) =
+    fun decode_type (_, Const (@{const_name TCon}, _) $ _ $ _ $ _, cT) =
             UAbstract cT
       | decode_type (pos, Const (@{const_name TRecord}, _) $ _ $ sigil, cT) =
             URecord (cT, decode_sigil pos sigil)
-      | decode_type (pos, Const (@{const_name TSum}, _) $ variants, cT) =
+      | decode_type (_, Const (@{const_name TSum}, _) $ variants, cT) =
             USum (cT, variants)
-      | decode_type (pos, Const (@{const_name TProduct}, _) $ _ $ _, cT) =
+      | decode_type (_, Const (@{const_name TProduct}, _) $ _ $ _, cT) =
             UProduct cT
-      | decode_type (pos, t, cT) =
+      | decode_type (pos, t, _) =
             raise TERM (report pos ^ "unrecognised type", [t]);
 
     val uvals = map decode_type tymap |> rm_redundancy
    in
     uvals
    end : uval list;
-*}
+\<close>
 end

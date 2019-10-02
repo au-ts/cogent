@@ -977,7 +977,7 @@ proof -
             case 0       with matches_ptrs_none show ?thesis by ( cases "length \<Gamma>"
                                                                 , simp_all add: empty_def )
        next case (Suc n)
-         moreover with matches_ptrs_none have "\<Gamma>' = empty (length \<Gamma> - 1) [n := Some \<tau>]"
+         moreover with matches_ptrs_none have "\<Gamma>' = (empty (length \<Gamma> - 1))[n := Some \<tau>]"
                                          by (cases "length \<Gamma>", simp_all add: empty_def)
          moreover with matches_ptrs_none have "length \<Gamma> = Suc (length \<Gamma>')"
                                          by (simp add: empty_def)
@@ -2401,7 +2401,7 @@ next
     then obtain r1'' w1'' r1''' w1'''
       where utype_record_take_lemmas:
         "\<Xi>, \<sigma>'' \<turnstile> fst (fs ! f') :u instantiate \<tau>s t \<langle>r1'', w1''\<rangle>"
-        "\<Xi>, \<sigma>'' \<turnstile>* fs :ur map (\<lambda>(n, t, y). (n, instantiate \<tau>s t, y)) ts[f' := (n, instantiate \<tau>s t, Taken)] \<langle>r1''', w1'''\<rangle>"
+        "\<Xi>, \<sigma>'' \<turnstile>* fs :ur (map (\<lambda>(n, t, y). (n, instantiate \<tau>s t, y)) ts)[f' := (n, instantiate \<tau>s t, Taken)] \<langle>r1''', w1'''\<rangle>"
         "r1' = r1'' \<union> r1'''"
         "w1' = w1'' \<union> w1'''"
         "w1'' \<inter> w1''' = {}"
@@ -2431,12 +2431,12 @@ next
 
       have "\<Xi>, \<sigma>'' \<turnstile> fst (fs ! f') # UPtr pa ra # \<gamma>
             matches Some (instantiate \<tau>s t)
-              # Some (TRecord (map (\<lambda>(n, t, y). (n, instantiate \<tau>s t, y)) ts[f' := (n, instantiate \<tau>s t, Taken)]) (Boxed Writable ptrl))
+              # Some (TRecord ((map (\<lambda>(n, t, y). (n, instantiate \<tau>s t, y)) ts)[f' := (n, instantiate \<tau>s t, Taken)]) (Boxed Writable ptrl))
               # instantiate_ctx \<tau>s \<Gamma>2
             \<langle>r1'' \<union> (r1''' \<union> r2), w1'' \<union> (insert pa w1''' \<union> w2)\<rangle>"
         using utype_record_take_lemmas u_sem_take.hyps(3) \<sigma>''_matches2
       proof (intro matches_ptrs_some[OF _ matches_ptrs_some[OF u_t_p_rec_w']])
-        show "ra = RRecord (map (type_repr \<circ> fst \<circ> snd) (map (\<lambda>(n, t, y). (n, instantiate \<tau>s t, y)) ts[f' := (n, instantiate \<tau>s t, Taken)]))"
+        show "ra = RRecord (map (type_repr \<circ> fst \<circ> snd) ((map (\<lambda>(n, t, y). (n, instantiate \<tau>s t, y)) ts)[f' := (n, instantiate \<tau>s t, Taken)]))"
           using type_repr_inst_ts_taken_same IH1_uptr_elim_lemmas
           by (simp add: map_update)
       next
@@ -2453,7 +2453,7 @@ next
           using pointers_disjoint
           by blast+
       next
-        show "distinct (map fst (map (\<lambda>(n, t, y). (n, instantiate \<tau>s t, y)) ts[f' := (n, instantiate \<tau>s t, Taken)]))"
+        show "distinct (map fst ((map (\<lambda>(n, t, y). (n, instantiate \<tau>s t, y)) ts)[f' := (n, instantiate \<tau>s t, Taken)]))"
           using IH1_uptr_elim_lemmas typing_e_elim_lemmas
           by (auto simp add: distinct_map map_update intro: distinct_list_update)
       qed clarsimp+

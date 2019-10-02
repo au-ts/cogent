@@ -14,11 +14,11 @@ theory Specialised_Lemma_Utils
 imports Utils
 begin
 
-text{* This theory file contains utility functions that are specific to the generation and proof of
+text\<open> This theory file contains utility functions that are specific to the generation and proof of
  the specialised lemmas.
-*}
+\<close>
 
-ML{* datatype bucket =
+ML\<open> datatype bucket =
   TakeBoxed
 | TakeUnboxed
 | PutBoxed
@@ -32,9 +32,9 @@ ML{* datatype bucket =
 | ValRelSimp
 | IsValidSimp
 | TypeRelSimp
-| HeapSimp *}
+| HeapSimp \<close>
 
-ML{* fun bucket_to_string bucket = case bucket of
+ML\<open> fun bucket_to_string bucket = case bucket of
   TakeBoxed   => "TakeBoxed"
 | TakeUnboxed => "TakeUnboxed"
 | PutBoxed    => "PutBoxed"
@@ -49,74 +49,74 @@ ML{* fun bucket_to_string bucket = case bucket of
 | IsValidSimp => "IsValidSimp"
 | TypeRelSimp => "TypeRelSimp"
 | HeapSimp    => "HeapSimp"
-*}
+\<close>
 
-ML{* structure Unborn_Thms = Proof_Data
+ML\<open> structure Unborn_Thms = Proof_Data
 (* Unborn_Thms is a list of thm-names which I tried to prove but failed to do so.
  * Note that I do not include thm-names if I tried to cheat.*)
  (type T = string list;
   fun init _ = [];)
-*}
+\<close>
 
-ML{* fun add_unborns unborn_thm = Unborn_Thms.map (fn unborn_thms => unborn_thm::unborn_thms); *}
+ML\<open> fun add_unborns unborn_thm = Unborn_Thms.map (fn unborn_thms => unborn_thm::unborn_thms); \<close>
 
-text{* Lemma buckets. *}
+text\<open> Lemma buckets. \<close>
 
-ML {* structure TakeBoxed = Named_Thms_Ext
+ML \<open> structure TakeBoxed = Named_Thms_Ext
  (val name = @{binding "TakeBoxed"}
-  val description = "Theorems for boxed takes.") *}
+  val description = "Theorems for boxed takes.") \<close>
 
-ML {* structure TakeUnboxed = Named_Thms_Ext
+ML \<open> structure TakeUnboxed = Named_Thms_Ext
  (val name = @{binding "TakeUnboxed"}
-  val description = "Theorems for unboxed takes.") *}
+  val description = "Theorems for unboxed takes.") \<close>
 
-ML {* structure PutBoxed = Named_Thms_Ext
+ML \<open> structure PutBoxed = Named_Thms_Ext
  (val name = @{binding "PutBoxed"}
-  val description = "Theorems for boxed puts.") *}
+  val description = "Theorems for boxed puts.") \<close>
 
-ML {* structure LetPutBoxed = Named_Thms_Ext
+ML \<open> structure LetPutBoxed = Named_Thms_Ext
  (val name = @{binding "LetPutBoxed"}
-  val description = "Theorems for boxed let-puts.") *}
+  val description = "Theorems for boxed let-puts.") \<close>
 
-ML {* structure PutUnboxed = Named_Thms_Ext
+ML \<open> structure PutUnboxed = Named_Thms_Ext
  (val name = @{binding "PutUnboxed"}
-  val description = "Theorems for unboxed puts.") *}
+  val description = "Theorems for unboxed puts.") \<close>
 
-ML {* structure MemberReadOnly = Named_Thms_Ext
+ML \<open> structure MemberReadOnly = Named_Thms_Ext
  (val name = @{binding "MemberReadOnly"}
-  val description = "Theorems for read-only member.") *}
+  val description = "Theorems for read-only member.") \<close>
 
-ML {* structure MemberBoxed = Named_Thms_Ext
+ML \<open> structure MemberBoxed = Named_Thms_Ext
  (val name = @{binding "MemberBoxed"}
-  val description = "Theorems for boxed member.") *}
+  val description = "Theorems for boxed member.") \<close>
 
-ML {* structure Case = Named_Thms_Ext
+ML \<open> structure Case = Named_Thms_Ext
  (val name = @{binding "Case"}
-  val description = "Theorems for case.") *}
+  val description = "Theorems for case.") \<close>
 
-ML {* structure ValRelSimp = Named_Thms_Ext
+ML \<open> structure ValRelSimp = Named_Thms_Ext
  (val name = @{binding "ValRelSimp"}
-  val description = "Simplification rules about value relation.") *}
+  val description = "Simplification rules about value relation.") \<close>
 
-ML {* structure IsValidSimp = Named_Thms_Ext
+ML \<open> structure IsValidSimp = Named_Thms_Ext
  (val name = @{binding "IsValidSimp"}
-  val description = "Simplification rules about is_valid.") *}
+  val description = "Simplification rules about is_valid.") \<close>
 
-ML {* structure TypeRelSimp = Named_Thms_Ext
+ML \<open> structure TypeRelSimp = Named_Thms_Ext
  (val name = @{binding "TypeRelSimp"}
-  val description = "Simplification rules about type relation.") *}
+  val description = "Simplification rules about type relation.") \<close>
 
-ML {* structure HeapSimp = Named_Thms_Ext
+ML \<open> structure HeapSimp = Named_Thms_Ext
  (val name = @{binding "HeapSimp"}
-  val description = "Simplification rules about heap relation.") *}
+  val description = "Simplification rules about heap relation.") \<close>
 
-setup{* (* Set up lemma buckets.*)
+setup\<open> (* Set up lemma buckets.*)
  TakeBoxed.setup o TakeUnboxed.setup o PutUnboxed.setup o PutBoxed.setup o
  MemberReadOnly.setup o MemberBoxed.setup o Case.setup o
  ValRelSimp.setup o IsValidSimp.setup o
- TypeRelSimp.setup o HeapSimp.setup *}
+ TypeRelSimp.setup o HeapSimp.setup \<close>
 
-ML{* fun local_setup_add_thm bucket thm = case bucket of
+ML\<open> fun local_setup_add_thm bucket thm = case bucket of
   TakeBoxed     => TakeBoxed.add_local thm
 | TakeUnboxed   => TakeUnboxed.add_local thm
 | PutBoxed      => PutBoxed.add_local thm
@@ -130,9 +130,9 @@ ML{* fun local_setup_add_thm bucket thm = case bucket of
 | HeapSimp      => HeapSimp.add_local thm
 | Case          => Case.add_local thm
 | _             => error "add_thm in Value_Relation_Generation.thy failed."
-*}
+\<close>
 
-ML{* fun setup_add_thm bucket thm = case bucket of
+ML\<open> fun setup_add_thm bucket thm = case bucket of
   TakeBoxed     => TakeBoxed.add_thm thm   |> Context.theory_map
 | TakeUnboxed   => TakeUnboxed.add_thm thm |> Context.theory_map
 | PutBoxed      => PutBoxed.add_thm thm    |> Context.theory_map
@@ -146,9 +146,9 @@ ML{* fun setup_add_thm bucket thm = case bucket of
 | TypeRelSimp   => TypeRelSimp.add_thm thm |> Context.theory_map
 | HeapSimp      => HeapSimp.add_thm thm    |> Context.theory_map
 | _             => error "add_thm in SpecialisedLemmaForTakePut.thy failed."
-*}
+\<close>
 
-ML{* val local_setup_put_lemmas_in_bucket =
+ML\<open> val local_setup_put_lemmas_in_bucket =
   let
     fun note (name:string) (getter) lthy = Local_Theory.note ((Binding.make (name, @{here}), []), getter lthy) lthy |> snd;
   in
@@ -165,106 +165,106 @@ ML{* val local_setup_put_lemmas_in_bucket =
     note "is_valid_simp" IsValidSimp.get #>
     note "heap_simp" HeapSimp.get
   end;
-*}
+\<close>
 
-ML{* type lem = { name: string, bucket: bucket, prop: term, mk_tactic: Proof.context -> tactic }; *}
+ML\<open> type lem = { name: string, bucket: bucket, prop: term, mk_tactic: Proof.context -> tactic }; \<close>
 
-ML{* val cheat_specialised_lemmas =
+ML\<open> val cheat_specialised_lemmas =
  Attrib.setup_config_bool @{binding "cheat_specialised_lemmas"} (K false);
-*}
+\<close>
 (* An example to show how to manupulate this flag.*)
 declare [[ cheat_specialised_lemmas = false ]]
 
-ML{* (* type definition on the ML-level.*)
+ML\<open> (* type definition on the ML-level.*)
 datatype sigil = ReadOnly | Writable | Unboxed
 datatype uval = UProduct of string
               | USum of string * term (* term contains argument to TSum (excluding TSum itself) *)
               | URecord of string * sigil
               | UAbstract of string;
 ;
-type uvals = uval list;*}
+type uvals = uval list;\<close>
 
-ML{* (* unify_sigils to remove certain kind of duplication.*)
+ML\<open> (* unify_sigils to remove certain kind of duplication.*)
 fun unify_sigils (URecord (ty_name,_)) = URecord (ty_name,Writable)
   | unify_sigils uval                  = uval
   (* value-relations and type-relations are independent of sigils.
    * If we have multiple uvals with different sigils but with the same type and name,
    * we should count them as one to avoid trying to instantiate the same thing multiple times.*)
-*}
+\<close>
 
-ML{* (* unify_usum_tys *)
+ML\<open> (* unify_usum_tys *)
 fun unify_usum_tys (USum (ty_name,_)) = USum (ty_name, Term.dummy)
   | unify_usum_tys uval               = uval
-*}
+\<close>
 
-ML{* (* unify_uabstract *)
+ML\<open> (* unify_uabstract *)
 fun unify_uabstract (UAbstract _) = UAbstract "dummy"
  |  unify_uabstract uval          = uval;
-*}
+\<close>
 
-ML{* (* get_usums, get_uproducts, get_urecords *)
+ML\<open> (* get_usums, get_uproducts, get_urecords *)
 fun get_usums uvals = filter (fn uval => case uval of  (USum _) => true | _ => false) uvals
 fun get_uproducts uvals = filter (fn uval => case uval of  (UProduct _) => true | _ => false) uvals
 fun get_urecords uvals = filter (fn uval => case uval of  (URecord _) => true | _ => false) uvals
-*}
+\<close>
 
-ML{* (* get_uval_name *)
+ML\<open> (* get_uval_name *)
 fun get_uval_name (URecord (ty_name, _)) = ty_name
  |  get_uval_name (USum    (ty_name, _)) = ty_name
  |  get_uval_name (UProduct ty_name) = ty_name
  |  get_uval_name (UAbstract ty_name) = ty_name
-*}
+\<close>
 
-ML{* fun get_uval_names uvals = map get_uval_name uvals;*}
+ML\<open> fun get_uval_names uvals = map get_uval_name uvals;\<close>
 
-ML{* (* get_uval_sigil *)
+ML\<open> (* get_uval_sigil *)
 fun get_uval_sigil (URecord (_, sigil)) = sigil
  |  get_uval_sigil _ = error "get_uval_sigil failed. The tyep of this argument is not URecord."
-*}
+\<close>
 
-ML{* val get_uval_writable_records =
+ML\<open> val get_uval_writable_records =
  filter (fn uval => case uval of (URecord (_, Writable)) => true | _ => false);
-*}
+\<close>
 
-ML{* val get_uval_unbox_records =
+ML\<open> val get_uval_unbox_records =
  filter (fn uval => case uval of (URecord (_, Unboxed)) => true | _ => false);
-*}
+\<close>
 
-ML{* val get_uval_readonly_records =
+ML\<open> val get_uval_readonly_records =
  filter (fn uval => case uval of (URecord (_, ReadOnly)) => true | _ => false);
-*}
+\<close>
 
-ML{* fun usum_list_of_types ctxt uval = case uval of
+ML\<open> fun usum_list_of_types _ uval = case uval of
     USum (_, variants) => HOLogic.dest_list variants
   | _ => error ("usum_list_of_types: not USum")
-*}
+\<close>
 
-ML{* fun is_UAbstract (UAbstract _) = true
+ML\<open> fun is_UAbstract (UAbstract _) = true
       |  is_UAbstract  _            = false;
-*}
+\<close>
 
-ML{* fun get_ty_nm_C uval = uval |> get_uval_name |> (fn nm => nm ^ "_C"); *}
+ML\<open> fun get_ty_nm_C uval = uval |> get_uval_name |> (fn nm => nm ^ "_C"); \<close>
 
-ML{* fun heap_info_uval_to_struct_info (heap:HeapLiftBase.heap_info) (uval:uval) =
+ML\<open> fun heap_info_uval_to_struct_info (heap:HeapLiftBase.heap_info) (uval:uval) =
  let
   val uval_C_nm = get_uval_name uval ^ "_C";
  in
   Symtab.lookup (#structs heap) uval_C_nm
   |> Utils.the' ("This heap_info does not have structs." ^ uval_C_nm)
  end : HeapLiftBase.struct_info;
-*}
+\<close>
 
-ML{* fun heap_info_uval_to_field_names heap_info uval =
+ML\<open> fun heap_info_uval_to_field_names heap_info uval =
  heap_info_uval_to_struct_info heap_info uval |> #field_info |> map #name;
-*}
+\<close>
 
-ML{* fun heap_info_uval_to_field_types heap_info uval =
+ML\<open> fun heap_info_uval_to_field_types heap_info uval =
  heap_info_uval_to_struct_info heap_info uval |> #field_info |> map #field_type;
-*}
+\<close>
 
-text{* The functions related to AutoCorres.*}
+text\<open> The functions related to AutoCorres.\<close>
 
-ML{* fun ac_mk_struct_info_for file_nm thy uval =
+ML\<open> fun ac_mk_struct_info_for file_nm thy uval =
 (* checks if autocorres generates struct_info for a given uval. Returns a boolean value.*)
  let
   val st_C_nm   = get_ty_nm_C uval;
@@ -273,15 +273,15 @@ ML{* fun ac_mk_struct_info_for file_nm thy uval =
                  |> #heap_info;
   val flag      = Symtab.lookup (#structs heap_info) st_C_nm |> is_some;
  in flag end;
-*}
+\<close>
 
-ML{* fun get_uvals_for_which_ac_mk_st_info file_nm thy uvals =
+ML\<open> fun get_uvals_for_which_ac_mk_st_info file_nm thy uvals =
  (* returns a list of uvals for which autocorres creates struct info.*)
  filter (ac_mk_struct_info_for file_nm thy) uvals;
-*}
+\<close>
 
-ML{* fun get_uvals_for_which_ac_mk_heap_getters file_nm thy uvals =
+ML\<open> fun get_uvals_for_which_ac_mk_heap_getters file_nm thy uvals =
  (* returns a list of uvals for which autocorres creates #heap_getters info.*)
  filter (fn uval => ac_mk_heap_getters_for file_nm thy (get_ty_nm_C uval)) uvals;
-*}
+\<close>
 end

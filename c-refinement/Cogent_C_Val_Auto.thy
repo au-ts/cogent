@@ -16,7 +16,7 @@ imports
  Type_Relation_Generation
 begin
 
-ML{* fun local_setup_val_rel_type_rel_put_them_in_buckets file_nm ctxt =
+ML\<open> fun local_setup_val_rel_type_rel_put_them_in_buckets file_nm ctxt =
 (* local_setup_val_rel_type_rel defines and registers all the necessary val_rels and type_rels.*)
  let
   fun val_rel_type_rel_def uval lthy = lthy |> type_rel_def file_nm uval |> val_rel_def file_nm uval;
@@ -37,6 +37,6 @@ ML{* fun local_setup_val_rel_type_rel_put_them_in_buckets file_nm ctxt =
  in
   lthy'
  end;
-*}
+\<close>
 
 end

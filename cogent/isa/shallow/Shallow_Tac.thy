@@ -19,7 +19,7 @@ locale shallow = value_sem
 context shallow
 begin
 
-ML {*
+ML \<open>
 val scorres_abs_assmsN = "scorres_abs_assms"
 
 fun SOLVE_GOAL tac = tac THEN_MAYBE no_tac
@@ -157,7 +157,7 @@ let
 in lthy end
 
 val gen_scorres_lemmas = gen_scorres_lemmas' false
-*}
+\<close>
 
 (* TODO:
 

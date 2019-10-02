@@ -139,7 +139,7 @@ fun funcall_sem :: "'f InValue env \<Rightarrow> 'f expr \<Rightarrow> ('f FunCa
 | "funcall_sem \<gamma> _ = ([], [])"
 
 (* Use the simplifier to extract higher-order function call information. *)
-ML {*
+ML \<open>
 structure CogentHigherOrder = struct
 (* ML representation of InData type *)
 datatype InData = InRecord of int
@@ -225,6 +225,6 @@ fun make_HO_call_hints ctxt C_src f = let
          end
 
 end
-*}
+\<close>
 
 end

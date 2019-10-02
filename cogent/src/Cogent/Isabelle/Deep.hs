@@ -228,10 +228,10 @@ deepDefinition _ _ _ _ decls = decls
 deepDefinitions :: NameMod -> TypeAbbrevs -> [Definition TypedExpr a] -> [TheoryDecl I.Type I.Term]
 deepDefinitions mod ta defs = foldr (deepDefinition mod ta defs) [] defs ++
                               [TheoryString $
-                               "ML {*\n" ++
+                               "ML \\<open>\n" ++
                                "val Cogent_functions = [" ++ showStrings (map (unIsabelleName . mkIsabelleName) $ cogentFuns defs) ++ "]\n" ++
                                "val Cogent_abstract_functions = [" ++ showStrings (map mod $ absFuns defs) ++ "]\n" ++
-                               "*}"
+                               "\\<close>"
                               ]
   where absFuns [] = []
         absFuns (AbsDecl _ fn _ _ _ : fns) = fn : absFuns fns
