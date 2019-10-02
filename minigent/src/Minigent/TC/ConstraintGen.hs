@@ -179,9 +179,12 @@ cg e tau = case e of
   (Member e f) -> do
     row <- Row.incomplete [Entry f tau False]
     sigil <- fresh
-    let alpha = Record Nothing row (UnknownSigil sigil)
+    recPar <- fresh
+    -- TODO: Member is supposed to be on nonlinear records, will these ever have a recursive parameter
+    -- (i.e. are they unboxed records?)
+    let alpha = Record None row (UnknownSigil sigil)
     (e', c1) <- cg e alpha
-    let c2 = Drop (Record Nothing (Row.take f row) (UnknownSigil sigil))
+    let c2 = Drop (Record None (Row.take f row) (UnknownSigil sigil))
     withSig (Member e' f, c1 :&: c2)
 
   -- Remaining record, field name, extracted contents var, record extrating from, following expression 
@@ -190,16 +193,14 @@ cg e tau = case e of
     row <- Row.incomplete [Entry f beta False]
     sigil  <- fresh
     recPar <- fresh
-    -- TODO: Just recPar here okay? If records are boxed/unboxed, should I be giving a unification variable
-    -- for the recursive parameter?
-    let alpha = Record (Just recPar) row (UnknownSigil sigil)
+    let alpha = Record (UnknownParameter recPar) row (UnknownSigil sigil)
 
     (e1', c1) <- cg e1 alpha
     modify (push (y, beta))
-    modify (push (x, Record (Just recPar) (Row.take f row) (UnknownSigil sigil)))
+    modify (push (x, Record (UnknownParameter recPar) (Row.take f row) (UnknownSigil sigil)))
     (e2', c2) <- cg e2 tau
     xUsed <- topUsed <$> get
-    let c3 = if xUsed then Sat else Drop (Record (Just recPar) (Row.take f row) (UnknownSigil sigil))
+    let c3 = if xUsed then Sat else Drop (Record (UnknownParameter recPar) (Row.take f row) (UnknownSigil sigil))
     modify pop
     yUsed <- topUsed <$> get
     let c4 = if yUsed then Sat else Drop beta
@@ -211,16 +212,16 @@ cg e tau = case e of
     row  <- Row.incomplete [Entry f beta True]
     sigil <- fresh
     recPar <- fresh
-    -- TODO: As above in Take
-    let alpha = Record (Just recPar) row (UnknownSigil sigil)
+
+    let alpha = Record (UnknownParameter recPar) row (UnknownSigil sigil)
     (e1', c1) <- cg e1 alpha
     (e2', c2) <- cg e2 beta
-    let c3 = Record (Just recPar) (Row.put f row) (UnknownSigil sigil) :< tau
+    let c3 = Record (UnknownParameter recPar) (Row.put f row) (UnknownSigil sigil) :< tau
     withSig (Put e1' f e2', c1 :&: c2 :&: c3)
 
   (Struct fs) -> do
     (fs', ts, cs) <- cgStruct fs
-    withSig (Struct fs', conjunction cs :&: Record Nothing (Row.fromList ts) Unboxed :< tau )
+    withSig (Struct fs', conjunction cs :&: Record None (Row.fromList ts) Unboxed :< tau )
 
   where
 
@@ -263,7 +264,7 @@ cgFunction f x e = do
   modify pop
   envs <- ask
   let (c'',axs) = case M.lookup f (types envs) of
-                       Nothing -> (Sat, []) -- TODO: Why sat if not in env?
+                       Nothing -> (Sat, [])
                        Just (Forall vs cs tau) -> (proposedType :< tau, cs)
   -- Inferred constraints for return type 
   -- && proposed function type is subtype of inferred function type

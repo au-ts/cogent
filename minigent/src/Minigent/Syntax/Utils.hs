@@ -33,6 +33,7 @@ module Minigent.Syntax.Utils
   , substTV
   , substUVs
   , substTVs
+  , substRecPar
   , -- ** Queries for type inference
     fits
   , unorderedType
@@ -84,7 +85,8 @@ typeUVs :: Type -> [VarName]
 typeUVs (UnifVar v) = [v]
 typeUVs (Record n r s) = concatMap (\(Entry _ t _) -> typeUVs t) (Row.entries r)
                     ++ maybe [] pure (rowVar r)
-                    ++ (case s of UnknownSigil s' -> [s'] ++ maybeToList n; _ -> [])
+                    ++ (case s of UnknownSigil     s' -> [s']; _ -> [])
+                    ++ (case n of UnknownParameter n' -> [n']; _ -> [])
 typeUVs (Variant r)  = concatMap (\(Entry _ t _) -> typeUVs t) (Row.entries r)
                     ++ maybe [] pure (rowVar r)
 typeUVs (AbsType _ _ ts) = concatMap typeUVs ts
@@ -96,12 +98,12 @@ typeUVs _                = []
 typeVariables :: Type -> [VarName]
 typeVariables t = typeVariables' t []
  where
-    -- Ensures variables are not included in type variables
+    -- Ensures recursive parameters are not included in type variables
   typeVariables' :: Type -> [VarName] -> [VarName]
   typeVariables' (TypeVar     v) mvs = if elem v mvs then [] else [v]
   typeVariables' (TypeVarBang v) mvs = if elem v mvs then [] else [v]
   typeVariables' (Record mt r _) mvs = concatMap
-    (\(Entry _ t _) -> typeVariables' t (maybeToList mt ++ mvs))
+    (\(Entry _ t _) -> typeVariables' t ((case mt of Rec x -> [x]; _ -> []) ++ mvs))
     (Row.entries r)
   typeVariables' (Variant r) mvs      = concatMap (\(Entry _ t _) -> typeVariables' t mvs) (Row.entries r)
   typeVariables' (AbsType _ _ ts) mvs = concatMap (\x -> typeVariables' x mvs) ts
@@ -110,7 +112,7 @@ typeVariables t = typeVariables' t []
   typeVariables' _                _   = []
 
 muTypeVariables :: Type -> [VarName]
-muTypeVariables (Record mt r _) = maybeToList mt
+muTypeVariables (Record mt r _) = case mt of Rec x -> [x]; _ -> []
   ++ concatMap (\(Entry _ t _) -> muTypeVariables t) (Row.entries r)
 muTypeVariables (Variant r) =
   concatMap (\(Entry _ t _) -> muTypeVariables t) (Row.entries r)
@@ -230,8 +232,8 @@ traverseType :: (RW.Rewrite Type) -> Type -> Type
 traverseType func ty = case RW.run func ty of
   Just t' -> t'
   Nothing -> case ty of
-    Record _ es s ->
-      Record Nothing (Row.mapEntries (entryTypes (traverseType func)) es) s
+    Record n es s ->
+      Record n (Row.mapEntries (entryTypes (traverseType func)) es) s
     AbsType n s ts -> AbsType n s (map (traverseType func) ts)
     Variant es -> Variant (Row.mapEntries (entryTypes (traverseType func)) es)
     Function t1 t2 -> Function (traverseType func t1) (traverseType func t2)
@@ -271,14 +273,14 @@ substUV (x, t) = RW.rewrite $ \t' -> case t' of
 substRowV :: (VarName, Row) -> RW.Rewrite Type
 substRowV (x, (Row m' q)) = RW.rewrite $ \t' -> case t' of
   Variant (Row m (Just v)) | x == v -> Just (Variant (Row (M.union m m') q))
-  Record _ (Row m (Just v)) s | x == v ->
-    Just (Record Nothing (Row (M.union m m') q) s)
+  Record n (Row m (Just v)) s | x == v ->
+    Just (Record n (Row (M.union m m') q) s)
   _ -> Nothing
 
 -- | A rewrite that substitutes a given unification sigil variable for a sigil in a type.
 substSigilV :: (VarName, Sigil) -> RW.Rewrite Type
 substSigilV (x, s) = RW.rewrite $ \t' -> case t' of
-  Record _ r (UnknownSigil v) | x == v -> Just (Record Nothing r s)
+  Record n r (UnknownSigil v) | x == v -> Just (Record n r s)
   _ -> Nothing
 
 -- | A rewrite that substitutes a rigid type variable for a type term in a type.
@@ -288,10 +290,16 @@ substTV (x, t) = RW.rewrite $ \t' -> case t' of
   (TypeVarBang v) | x == v -> Just (Bang t)
   _                        -> Nothing
 
+-- | A rewrite that substitutes the unkown recursive parameter on a boxed record for a parameter
+substRecPar :: (VarName, VarName) -> RW.Rewrite Type
+substRecPar (v1, v2) = RW.rewrite $ \t' -> case t' of
+  Record (UnknownParameter n) r s | n == v1 -> 
+    Just (Record (Rec v2) r s)
+  _ -> Nothing
+
 -- | A convenience that allows multiple substitutions to type variables to be made simulatenously.
 substTVs :: [(VarName, Type)] -> RW.Rewrite Type
 substTVs = foldMap substTV
-
 
 -- | A convenience that allows multiple substitutions to unification type variables to be made
 --   simulatenously.

@@ -142,7 +142,7 @@ nonStrictlyPositiveVars t = sp t M.empty
     -- Records are special - only here can we pick up recursive parameters
     sp (Record m r _) vs =
       let vs' = case m of
-                  (Just mt) -> M.insert mt False vs
+                  (Rec mt) -> M.insert mt False vs
                   _         -> vs
       -- Shadow old recursive variables if they exist too
       in concatMap (\(Entry _ t _) -> sp t vs') (Row.entries r)

@@ -35,6 +35,8 @@ data Candidate = Meet Type Type Type
 joinMeet :: (Monad m, MonadFresh VarName m) => Rewrite.Rewrite' m [Constraint]
 joinMeet = Rewrite.withTransform find $ \c -> case c of
 
+-- TODO: Fix this
+
   Meet v (Function t1 t2) (Function r1 r2) -> do
     b1 <- UnifVar <$> fresh
     b2 <- UnifVar <$> fresh

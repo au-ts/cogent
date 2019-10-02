@@ -250,10 +250,10 @@ toplevel = mdo
                     <|> (:[]) <$> typeVar
                     <|> pure []
     
-                -- mu a
-    recTy <- rule $ Just <$> (token (L.Keyword L.Mu) *> typeVar)
+                -- mu t
+    recTy <- rule $ Rec <$> (token (L.Keyword L.Mu) *> typeVar)
                 -- recursive parameter ommitted
-                 <|> pure Nothing
+                 <|> pure None 
                  <?> "recursive type"
 
     constraint <- rule $  Share  . TypeVar <$ token (L.UpperIdent "Share")  <*> typeVar

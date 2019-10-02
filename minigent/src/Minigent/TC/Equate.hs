@@ -83,6 +83,7 @@ findEquateCandidates mentions (c:cs) = let
                        , Row.justVar r1 
                        , canEquate fst a t
                       -> (c:sups, subs, others)
+      -- TODO: Rethink record equation with recpars
        Record n r1 s :< t | Just a <- rowVar r1
                         , Row.justVar r1
                         , canEquate fst a t

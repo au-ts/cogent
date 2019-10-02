@@ -72,6 +72,15 @@ assignOf (Record _ r1 s1 :=: Record _ r2 s2)
                             pure [ RowAssign x (r2 { rowVar = Just v })
                                  , RowAssign y (r1 { rowVar = Just v })
                                  ]
+
+assignOf (Record n1 _ _ :=: Record n2 _ _)
+  -- Prevent recursive assignment to self
+  | n1 /= n2
+  -- We can only perform assignment to recursive parameters when we have two parameters
+  = case (n1,n2) of
+      (Rec x, Rec y) -> pure [RecParAssign x y]
+      _              -> empty 
+
 assignOf _ = empty
 
 

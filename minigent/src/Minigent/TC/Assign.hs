@@ -21,9 +21,11 @@ import qualified Minigent.Syntax.Utils.Rewrite as Rewrite
 data Assign = TyAssign VarName Type
             | RowAssign VarName Row
             | SigilAssign VarName Sigil
+            | RecParAssign VarName VarName -- Assign first to second
 
 -- | Apply an assignment to a unification variable to a type.
 substAssign :: Assign -> Rewrite.Rewrite Type
 substAssign (TyAssign v t) = substUV (v, t)
 substAssign (RowAssign v t) = substRowV (v, t)
 substAssign (SigilAssign v t) = substSigilV (v, t)
+substAssign (RecParAssign v1 v2) = substRecPar (v1, v2)
