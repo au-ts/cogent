@@ -43,30 +43,27 @@ import Cogent.Util
 import Data.Ex
 import Data.Nat
 import Data.PropEq
-import Data.Vec hiding (splitAt, length, zipWith, zip, unzip)
+import Data.Vec hiding (repeat, splitAt, length, zipWith, zip, unzip)
 import qualified Data.Vec as Vec
 
 import Control.Applicative
 import Control.Arrow
-import Lens.Micro (_2)
-import Lens.Micro.Mtl (view)
 import Control.Monad.Except hiding (fmap, forM_)
 import Control.Monad.Reader hiding (fmap, forM_)
 import Control.Monad.State hiding (fmap, forM_)
 import Control.Monad.Trans.Maybe
--- import Data.Data hiding (Refl)
 import Data.Foldable (forM_)
 import Data.Function (on)
+import Data.IntMap as IM (elems, fromList, unionWith)
 import Data.List (sortBy)
+import Data.Map (Map)
+import qualified Data.Map as M
+import Data.Monoid
 #if __GLASGOW_HASKELL__ < 709
 import Data.Traversable(traverse)
 #endif
-import Data.Map (Map)
-import qualified Data.Map as M
--- import Data.Maybe (fromJust, isJust)
-import Data.Monoid
--- import Data.Monoid.Cancellative
--- import qualified Data.Set as S
+import Lens.Micro (_2)
+import Lens.Micro.Mtl (view)
 import Text.PrettyPrint.ANSI.Leijen (pretty)
 import qualified Unsafe.Coerce as Unsafe (unsafeCoerce)  -- NOTE: used safely to coerce phantom types only
 
@@ -116,7 +113,16 @@ bound b (TProduct t11 t12) (TProduct t21 t22) = TProduct <$> bound b t11 t21 <*>
 bound b (TCon c1 t1 s1) (TCon c2 t2 s2) | c1 == c2, s1 == s2 = TCon c1 <$> zipWithM (bound b) t1 t2 <*> pure s1
 bound b (TFun t1 s1) (TFun t2 s2) = TFun <$> bound (theOtherB b) t1 t2 <*> bound b s1 s2
 #ifdef BUILTIN_ARRAYS
-bound b (TArray t1 l1 s1) (TArray t2 l2 s2) | l1 == l2, s1 == s2 = TArray <$> bound b t1 t2 <*> pure l1 <*> pure s1
+bound b (TArray t1 l1 s1 takens1) (TArray t2 l2 s2 takens2)
+  | l1 == l2, s1 == s2 = do
+      let op = case b of LUB -> (||); GLB -> (&&)
+      t <- bound b t1 t2
+      oks <- lift $ flip3 zipWithM (elems takens2) (elems takens1) $ \tk1 tk2 ->
+               (if tk1 == tk2 then return True else
+                   kindcheck t >>= \k -> return (canDiscard k))
+      let takens = flip3 unionWith takens2 takens1 $ \tk1 tk2 -> tk1 `op` tk2
+      if and oks then return $ TArray t l1 s1 takens
+                 else MaybeT (return Nothing)
 #endif
 bound _ t1 t2 = __impossible ("bound: not comparable: " ++ show (t1,t2))
 
@@ -144,7 +150,7 @@ bang (TProduct t1 t2) = TProduct (bang t1) (bang t2)
 bang (TRecord ts s)   = TRecord (map (second $ first bang) ts) (bangSigil s)
 bang (TUnit)          = TUnit
 #ifdef BUILTIN_ARRAYS
-bang (TArray t l s)   = TArray (bang t) l (bangSigil s)
+bang (TArray t l s tkns) = TArray (bang t) l (bangSigil s) tkns
 #endif
 
 substitute :: Vec t (Type u) -> Type t -> Type u
@@ -159,7 +165,7 @@ substitute vs (TRecord ts s)   = TRecord (map (second (first $ substitute vs)) t
 substitute vs (TSum ts)        = TSum (map (second (first $ substitute vs)) ts)
 substitute _  (TUnit)          = TUnit
 #ifdef BUILTIN_ARRAYS
-substitute vs (TArray t l s)   = TArray (substitute vs t) l s
+substitute vs (TArray t l s tkns) = TArray (substitute vs t) l s tkns
 #endif
 
 remove :: (Eq a) => a -> [(a,b)] -> [(a,b)]
@@ -311,7 +317,7 @@ kindcheck_ f (TSum ts)        = mconcat <$> mapM (kindcheck_ f . fst . snd) (fil
 kindcheck_ f (TUnit)          = return mempty
 
 #ifdef BUILTIN_ARRAYS
-kindcheck_ f (TArray t l s)   = mappend <$> kindcheck_ f t <*> pure (sigilKind s)
+kindcheck_ f (TArray t l s _) = mappend <$> kindcheck_ f t <*> pure (sigilKind s)
 #endif
 
 kindcheck = kindcheck_ lookupKind
@@ -340,7 +346,7 @@ infer (E (ALit es))
             n = fromIntegral $ length es
         t <- lubAll ts
         isSub <- allM (`isSubtype` t) ts
-        return (TE (TArray t n Unboxed) (ALit es'))
+        return (TE (TArray t n Unboxed (IM.fromList $ zip [1..fromIntegral n] (repeat False))) (ALit es'))
   where
     lubAll :: [Type t] -> TC t v (Type t)
     lubAll [] = __impossible "lubAll: empty list"
@@ -349,7 +355,7 @@ infer (E (ALit es))
                            lubAll (t:ts)
 infer (E (ArrayIndex arr idx))
    = do arr'@(TE ta _) <- infer arr
-        let TArray te l _ = ta
+        let TArray te l _ _ = ta
         idx' <- infer idx
         -- guardShow ("arr-idx out of bound") $ idx >= 0 && idx < l  -- no way to check it. need ref types. / zilinc
         guardShow ("arr-idx on non-linear") . canShare =<< kindcheck ta
@@ -357,8 +363,8 @@ infer (E (ArrayIndex arr idx))
 infer (E (ArrayMap2 (as,f) (e1,e2)))
    = do e1'@(TE t1 _) <- infer e1
         e2'@(TE t2 _) <- infer e2
-        let TArray te1 l1 _ = t1
-            TArray te2 l2 _ = t2
+        let TArray te1 l1 _ _ = t1
+            TArray te2 l2 _ _ = t2
         f' <- withBindings (Cons te2 (Cons te1 Nil)) $ infer f
         let t = case __cogent_ftuples_as_sugar of
                   False -> TProduct t1 t2
@@ -366,15 +372,15 @@ infer (E (ArrayMap2 (as,f) (e1,e2)))
         return $ TE t $ ArrayMap2 (as,f') (e1',e2')
 infer (E (Pop a e1 e2))
    = do e1'@(TE t1 _) <- infer e1
-        let TArray te l s = t1
+        let TArray te l s tkns = t1
             thd = te
-            ttl = TArray te (l - 1) s
+            ttl = TArray te (l - 1) s tkns
         guardShow "arr-pop on a singleton array" $ l > 1
         e2'@(TE t2 _) <- withBindings (Cons thd (Cons ttl Nil)) $ infer e2
         return (TE t2 (Pop a e1' e2'))
 infer (E (Singleton e))
    = do e'@(TE t _) <- infer e
-        let TArray te l _ = t
+        let TArray te l _ _ = t
         guardShow "singleton on a non-singleton array" $ l == 1
         return (TE te (Singleton e'))
 #endif

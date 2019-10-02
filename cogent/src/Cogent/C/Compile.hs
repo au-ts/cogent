@@ -64,6 +64,7 @@ import           Data.Char                    (isAlphaNum, toUpper)
 import           Data.Foldable                (mapM_)
 #endif
 import           Data.Functor.Compose
+import           Data.IntMap         as IM    (delete, mapKeys)
 import qualified Data.List           as L
 import           Data.Loc                     (noLoc)  -- FIXME: remove
 import qualified Data.Map            as M
@@ -386,7 +387,7 @@ genExpr mv (TE t (SLit s)) = do
 #ifdef BUILTIN_ARRAYS
 genExpr mv (TE t (ALit es)) = do
   blob <- mapM genExpr_ es
-  let TArray telt _ _ = t
+  let TArray telt _ _ _ = t
   t' <- genType t
   telt' <- genType telt
   (v,vdecl,vstm) <- maybeDecl mv t'
@@ -409,8 +410,8 @@ genExpr mv (TE t (ArrayMap2 (_,f) (e1,e2))) = do  -- FIXME: varpool - as above
   t' <- genType t
   (v,vdecl,vstm) <- maybeDecl mv t'
   (i,idecl,istm) <- declareInit u32 (mkConst U32 0) M.empty
-  let tarr1@(TArray telt1 l1 s1) = exprType e1
-      tarr2@(TArray telt2 l2 s2) = exprType e2
+  let tarr1@(TArray telt1 l1 s1 _) = exprType e1
+      tarr2@(TArray telt2 l2 s2 _) = exprType e2
       l1' = mkConst U32 l1
       l2' = mkConst U32 l2
       min = CCondExpr (CBinOp C.Lt l1' l2') l1' l2'
@@ -437,9 +438,9 @@ genExpr mv (TE t (Pop _ e1 e2)) = do  -- FIXME: varpool - as above
   -- Idea:
   --   v :@ vs = e1 in e2 ~~> v1 = e1[0]; t v2[l-1]; v2 = e1[1]; e2
   (e1',e1decl,e1stm,e1p) <- genExpr_ e1
-  let t1@(TArray telt l s) = exprType e1
+  let t1@(TArray telt l s tkns) = exprType e1
   (v1,v1decl,v1stm,v1p) <- flip3 aNewVar e1p (mkArrIdx e1' 0) =<< genType telt
-  let trest = TArray telt (l-1) s
+  let trest = TArray telt (l-1) s $ IM.mapKeys ((-) 1) $ IM.delete 1 tkns
   trest' <- genTypeP trest
   (v2,v2decl,v2stm) <- declare trest'
   -- recycleVars v1p

@@ -56,6 +56,8 @@ import qualified Data.Vec as Vec
 
 import Control.Arrow hiding ((<+>))
 -- import Data.Data hiding (Refl)
+import Data.Function ((&))
+import Data.IntMap as IM (IntMap, null, filter, keys)
 #if __GLASGOW_HASKELL__ < 709
 import Data.Traversable(traverse)
 #endif
@@ -75,7 +77,7 @@ data Type t
     -- True means taken, Layout will be nothing for abstract types
   | TUnit
 #ifdef BUILTIN_ARRAYS
-  | TArray (Type t) ArraySize (Sigil (DataLayout BitRange))
+  | TArray (Type t) ArraySize (Sigil (DataLayout BitRange)) (IntMap Bool)  -- which indices are taken
     -- ^^ use Int for now
     -- XXX | ^^^ (UntypedExpr t 'Zero VarName)  -- stick to UntypedExpr to be simple / zilinc
     -- The sigil specifies the layout of the element
@@ -96,7 +98,7 @@ isUnboxed :: Type t -> Bool
 isUnboxed (TCon _ _ Unboxed) = True
 isUnboxed (TRecord _ Unboxed) =  True
 #ifdef BUILTIN_ARRAYS
-isUnboxed (TArray _ _ Unboxed) = True
+isUnboxed (TArray _ _ Unboxed _) = True
 #endif
 isUnboxed _ = False
 
@@ -475,7 +477,9 @@ instance Pretty (Type t) where
   pretty (TCon tn [] s) = typename tn <> pretty s
   pretty (TCon tn ts s) = typename tn <> pretty s <+> typeargs (map pretty ts)
 #ifdef BUILTIN_ARRAYS
-  pretty (TArray t l s) = pretty t <> brackets (pretty l) <+> pretty s
+  pretty (TArray t l s takens) = (pretty t <> brackets (pretty l) <+> pretty s) &
+                                 (if IM.null takens then id else
+                                    (<+> keyword "take" <+> tupled (map pretty . IM.keys $ IM.filter id takens)))
 #endif
 
 prettyTaken :: Bool -> Doc

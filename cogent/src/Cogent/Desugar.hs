@@ -56,6 +56,7 @@ import Control.Monad.RWS.Strict hiding (forM)
 import Data.Bits
 import Data.Char (ord)
 -- import Data.Foldable
+import Data.IntMap as IM (fromList)
 import Data.List as L (elemIndex, sortOn)
 import Data.Map as M hiding (filter, map, (\\))
 import Data.Maybe
@@ -544,10 +545,16 @@ desugarType = \case
     return $ TRecord fs Unboxed
   S.RT (S.TUnit)   -> return TUnit
 #ifdef BUILTIN_ARRAYS
-  S.RT (S.TArray t l Unboxed) -> TArray <$> desugarType t <*> evalAExpr l <*> pure Unboxed -- desugarExpr' l
+  S.RT (S.TArray t l Unboxed) -> do
+    t' <- desugarType t
+    l' <- evalAExpr l
+    return $ TArray t' l' Unboxed $ __fixme (IM.fromList $ P.zip [1..fromIntegral l'] (P.repeat False))
   S.RT (S.TArray t l sigil  ) -> do
-    unboxedDesugared@(TArray t' l' Unboxed) <- desugarType $ S.RT (S.TArray t l Unboxed)
-    TArray <$> pure t' <*> pure l' <*> pure (desugarSigil unboxedDesugared sigil)
+    unboxedDesugared@(TArray t' l' Unboxed tkns) <- desugarType $ S.RT (S.TArray t l Unboxed)
+    TArray <$> pure t'
+           <*> pure l'
+           <*> pure (desugarSigil unboxedDesugared sigil)
+           <*> pure tkns
 #endif
   notInWHNF -> __impossible $ "desugarType (type " ++ show (pretty notInWHNF) ++ " is not in WHNF)"
 

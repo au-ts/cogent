@@ -230,8 +230,8 @@ lookupTypeCId (TRecord fs (Boxed _ CLayout)) =
     Record <$> (mapM (\(a,(b,_)) -> (a,) <$> (Compose . lookupType) b) fs))
 lookupTypeCId cogentType@(TRecord _ (Boxed _ _)) = __impossible "lookupTypeCId: record with non-record layout"
 #ifdef BUILTIN_ARRAYS
-lookupTypeCId (TArray t n Unboxed) = getCompose (Compose . lookupStrlTypeCId =<< Array <$> (Compose . lookupType) t <*> pure (Just $ fromIntegral n))
-lookupTypeCId (TArray t n (Boxed _ l)) = lookupStrlTypeCId (ArrayL l (Just $ fromIntegral n))
+lookupTypeCId (TArray t n Unboxed _) = getCompose (Compose . lookupStrlTypeCId =<< Array <$> (Compose . lookupType) t <*> pure (Just $ fromIntegral n))
+lookupTypeCId (TArray t n (Boxed _ l) _) = lookupStrlTypeCId (ArrayL l (Just $ fromIntegral n))
 #endif
 lookupTypeCId t = Just <$> typeCId t
 
@@ -290,8 +290,8 @@ typeCId t = use custTypeGen >>= \ctg ->
         _ -> __impossible "Tried to get the c-type of a record with a non-record layout"
     typeCId' (TUnit) = return unitT
 #ifdef BUILTIN_ARRAYS
-    typeCId' (TArray t l Unboxed) = getStrlTypeCId =<< Array <$> genType t <*> pure (Just $ fromIntegral l)
-    typeCId' (TArray t l (Boxed _ _)) = __todo "typeCId'"
+    typeCId' (TArray t l Unboxed _) = getStrlTypeCId =<< Array <$> genType t <*> pure (Just $ fromIntegral l)
+    typeCId' (TArray t l (Boxed _ _) _) = __todo "typeCId'"
 #endif
 
     typeCIdFlat :: CC.Type 'Zero -> Gen v CId
@@ -337,16 +337,16 @@ absTypeCId _ = __impossible "absTypeCId"
 
 -- Returns the right C type
 genType :: CC.Type 'Zero -> Gen v CType
-genType t@(TRecord _ s) | s /= Unboxed = CPtr . CIdent <$> typeCId t
+genType t@(TRecord _ s)  | s /= Unboxed = CPtr . CIdent <$> typeCId t
   -- c.f. genTypeA
   -- This puts the pointer around boxed cogent-types
-genType t@(TString)                    = CPtr . CIdent <$> typeCId t
-genType t@(TCon _ _ s)  | s /= Unboxed = CPtr . CIdent <$> typeCId t
+genType t@(TString)                     = CPtr . CIdent <$> typeCId t
+genType t@(TCon _ _ s)   | s /= Unboxed = CPtr . CIdent <$> typeCId t
 #ifdef BUILTIN_ARRAYS
-genType (TArray t l s) | s /= Unboxed  = CPtr <$> genType t  -- If it's heap-allocated, we don't care about the size / zilinc
-                       | otherwise     = CArray <$> genType t <*> pure (CArraySize (mkConst U32 l))  -- c.f. genTypeP
+genType (TArray t l s _) | s /= Unboxed = CPtr <$> genType t  -- If it's heap-allocated, we don't care about the size / zilinc
+                         | otherwise    = CArray <$> genType t <*> pure (CArraySize (mkConst U32 l))  -- c.f. genTypeP
 #endif
-genType t                              = CIdent <$> typeCId t
+genType t                               = CIdent <$> typeCId t
 
 -- The following two functions have different behaviours than the `genType' function
 -- in certain scenarios
@@ -359,21 +359,21 @@ genTypeA t = genType t
 -- It will generate a pointer type for an array, instead of the static-sized array type
 genTypeP :: CC.Type 'Zero -> Gen v CType
 #ifdef BUILTIN_ARRAYS
-genTypeP (TArray telm l Unboxed) = CPtr <$> genTypeP telm  -- FIXME: what about boxed? / zilinc
+genTypeP (TArray telm l Unboxed _) = CPtr <$> genTypeP telm  -- FIXME: what about boxed? / zilinc
 #endif
 genTypeP t = genType t
 
 
 -- TODO(dagent): this seems wrong with respect to Dargent
 lookupType :: CC.Type 'Zero -> Gen v (Maybe CType)
-lookupType t@(TRecord _ s) | s /= Unboxed = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
-lookupType t@(TString)                    = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
-lookupType t@(TCon _ _ s)  | s /= Unboxed = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
+lookupType t@(TRecord _ s)    | s /= Unboxed = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
+lookupType t@(TString)                       = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
+lookupType t@(TCon _ _ s)     | s /= Unboxed = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
 #ifdef BUILTIN_ARRAYS
-lookupType t@(TArray _ _ s) | s /= Unboxed = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
-                            | otherwise    = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
+lookupType t@(TArray _ _ s _) | s /= Unboxed = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
+                              | otherwise    = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
 #endif
-lookupType t                              = getCompose (       CIdent <$> Compose (lookupTypeCId t))
+lookupType t                                 = getCompose (       CIdent <$> Compose (lookupTypeCId t))
 
 -- *****************************************************************************
 -- * Helper functions to build C syntax

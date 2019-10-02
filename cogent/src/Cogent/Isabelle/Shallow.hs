@@ -121,7 +121,7 @@ shallowType (TRecord fs s) = do
     shallowTypeWithName (TRecord fs s)
 shallowType (TUnit) = return $ I.AntiType "unit"
 #ifdef BUILTIN_ARRAYS
-shallowType (TArray t _ _) = I.TyDatatype "list" <$> mapM shallowType [t]
+shallowType (TArray t _ _ _) = I.TyDatatype "list" <$> mapM shallowType [t]
 #endif
 
 shallowPrimType :: PrimInt -> I.Type
