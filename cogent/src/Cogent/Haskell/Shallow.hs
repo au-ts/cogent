@@ -471,7 +471,7 @@ shallowType (CC.TRecord fs s) = do
     shallowTypeNominal (CC.TRecord fs s)
 shallowType (CC.TUnit) = pure $ TyCon () $ Special () $ UnitCon ()
 #ifdef BUILTIN_ARRAYS
-shallowType (CC.TArray t _ _) = mkListT <$> shallowType t
+shallowType (CC.TArray t _ _ _) = mkListT <$> shallowType t
 #endif
 
 -- | generate a Haskell shallow embedding of a primitive Cogent type

@@ -175,7 +175,7 @@ constructDataLayout' (TRecord fields Unboxed) = RecordLayout . fromList . snd $ 
     go' (TFun         _ _) = __impossible $ "go' (Type check should fail on boxed types containing functions)"
     go' (TString         ) = __impossible $ "go' (Type check should fail on boxed types containing strings)"
 #if BUILTIN_ARRAYS
-    go' (TArray     _ _ _) = __impossible $ "go' (Type check should fail on boxed types containing arrays)"
+    go' (TArray   _ _ _ _) = __impossible $ "go' (Type check should fail on boxed types containing arrays)"
 #endif
     go' (TProduct     _ _) = __impossible $ "go' (Type check should fail on boxed types containing pairs)"
       -- TODO(dargent): implement matching data layouts with types so that the above mentioned type check fails actually occur /mdimeglio
