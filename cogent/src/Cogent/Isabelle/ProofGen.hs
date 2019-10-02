@@ -40,6 +40,7 @@ import Data.Map (Map)
 import Data.Maybe (catMaybes)
 import qualified Data.Map as M
 import Isabelle.InnerAST hiding (Type)
+import Cogent.Isabelle.IsabelleName
 import Text.PrettyPrint.ANSI.Leijen hiding ((<$>))
 
 type Xi a = [Definition TypedExpr a]
@@ -286,7 +287,8 @@ typing xi k (EE t' (Fun f ts _) env) = case findfun (unCoreFunName f) xi of
            mod <- use nameMod
            let unabbrev | M.null (fst ta) = ""
                         | otherwise = "[unfolded " ++ typeAbbrevBucketName ++ "]"
-           return [simp_add ["\\<Xi>_def", mod (unIsabelleName $ mkIsabelleName f) ++ "_type_def" ++ unabbrev]],  -- Ξ f = (K', t, u)
+           return [simp_add ["\\<Xi>_def", mod (unIsabelleName $ mkIsabelleName $ unCoreFunName f) 
+                   ++ "_type_def" ++ unabbrev]],  -- Ξ f = (K', t, u)
         allKindCorrect k ts ks,    -- list_all2 (kinding K) ts ks
         return [simp_solve,        -- t' = instantiate ts t
                 simp_solve],       -- u' = instantiate ts u
@@ -300,7 +302,7 @@ typing xi k (EE t' (Fun f ts _) env) = case findfun (unCoreFunName f) xi of
         do ta <- use tsTypeAbbrevs
            mod <- use nameMod
            let unabbrev | M.null (fst ta) = "" | otherwise = " " ++ typeAbbrevBucketName
-           return [rule (fn_proof (mod (unIsabelleName $ mkIsabelleName f)) unabbrev)],  -- Ξ, K', (TT, [Some t]) ⊢T f : u
+           return [rule (fn_proof (mod (unIsabelleName $ mkIsabelleName $ unCoreFunName f)) unabbrev)],  -- Ξ, K', (TT, [Some t]) ⊢T f : u
         allKindCorrect k ts ks,  -- list_all2 (kinding K) ts K'
         return [simp_solve,      -- t' = instantiate ts t
                 simp_solve],     -- u' = instantiate ts u

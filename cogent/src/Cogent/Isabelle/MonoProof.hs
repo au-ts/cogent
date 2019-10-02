@@ -23,6 +23,7 @@ import Cogent.Mono
 import Cogent.Util
 import Data.Nat (Nat(Zero, Suc))
 import Data.Vec
+import Cogent.Isabelle.IsabelleName
 import Isabelle.ExprTH
 import Isabelle.InnerAST as I
 import Isabelle.OuterAST as O hiding (Instance)
@@ -103,9 +104,10 @@ rename funMono = [isaDecl| definition $alist_name :: "$sig" where "$(mkId alist_
 
     subscript fn num =  fn ++ "_" ++ show num
     mkInst :: (FunName, [(Instance, Int)]) -> [(Term, Term, Term)]
-    mkInst (fn,insts) = if null insts
-                          then [([isaTerm| $(mkString fn) |], [isaTerm| Nil |], [isaTerm| $(mkString fn) |])]
-                          else map (\(tys,num) -> ([isaTerm| $(mkString fn) |], mkTyList tys, [isaTerm| $(mkString (subscript fn num)) |])) insts
+    mkInst (fn,insts) = let safeName = unIsabelleName $ mkIsabelleName fn
+      in  if null insts
+            then [([isaTerm| $(mkString safeName) |], [isaTerm| Nil |], [isaTerm| $(mkString safeName) |])]
+            else map (\(tys,num) -> ([isaTerm| $(mkString safeName) |], mkTyList tys, [isaTerm| $(mkString (subscript safeName num)) |])) insts
 
     mkTyList :: [CC.Type 'Zero] -> Term
     mkTyList = I.mkList . map (deepType id (empty, 0))

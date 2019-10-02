@@ -20,6 +20,7 @@ import Cogent.Isabelle.ShallowTable (TypeStr (..))
 import Cogent.Util
 import Isabelle.InnerAST as I
 import Isabelle.OuterAST as O
+import Cogent.Isabelle.IsabelleName
 
 import Data.List
 import qualified Data.Map as M
@@ -164,7 +165,7 @@ genDesugarNormalProof sdthy snthy typeMap defs =
      caseProofs ++
      [ O.TheoryString $ unlines
        [ "ML \\<open>"
-       , "val Cogent_functions = " ++ show fns
+       , "val Cogent_functions = " ++ (show $ map (unIsabelleName . mkIsabelleName) fns)
        , "\\<close>"
        , ""
        , "ML \\<open>"
