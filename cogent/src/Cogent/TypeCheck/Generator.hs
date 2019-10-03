@@ -32,6 +32,7 @@ import Cogent.Compiler
 import qualified Cogent.Context as C
 import Cogent.PrettyPrint (prettyC)
 import Cogent.Surface
+import Cogent.TypeCheck.ARow as ARow
 import Cogent.TypeCheck.Base hiding (validateType)
 import Cogent.TypeCheck.Util
 import Cogent.Util hiding (Warning)
@@ -102,10 +103,11 @@ validateType rt@(RT t) = do
                        (c, TVariant fs') <- second (ffmap toSExpr) <$> fmapFoldM validateType t
                        pure (c, V (Row.fromMap (fmap (first tuplize) fs')))
 #ifdef BUILTIN_ARRAYS
-    TArray te l s -> do let l' = toSExpr l
-                            cl = Arith (SE $ PrimOp ">" [l', SE $ IntLit 0])
-                        (c,te') <- validateType te
-                        return (c <> cl, A te' l' $ Left s)
+    TArray te l s tkns -> do let l' = toSExpr l
+                                 tkns' = unevaluated $ map (first toSExpr) tkns
+                                 cl = Arith (SE $ PrimOp ">" [l', SE $ IntLit 0])
+                             (c,te') <- validateType te
+                             return (c <> cl, A te' l' (Left s) tkns')
 #endif
     _ -> second (T . ffmap toSExpr) <$> fmapFoldM validateType t
 
@@ -261,12 +263,14 @@ cg' (ArrayLit es) t = do
   let (cs,es') = unzip blob
       n = SE . IntLit . fromIntegral $ length es
       cz = Arith (SE $ PrimOp ">" [n, SE (IntLit 0)])
-  return (mconcat cs <> cz <> (A alpha n $ Left Unboxed) :< t, ArrayLit es')
+  beta <- freshVar
+  return (mconcat cs <> cz <> (A alpha n (Left Unboxed) (ARow.empty beta)) :< t, ArrayLit es')
 
 cg' (ArrayIndex e i) t = do
   alpha <- freshTVar
   n <- freshEVar
-  let ta = A alpha n (__fixme $ Left Unboxed)  -- FIXME: we need to create a new TCType for arrays / zilinc
+  r <- freshVar
+  let ta = A alpha n (__fixme $ Left Unboxed) (ARow.fromTaken r $ toSExpr $ stripLocE i) -- FIXME: we need to create a new TCType for arrays / zilinc
   (ce, e') <- cg e ta
   (ci, i') <- cg i (T $ TCon "U32" [] Unboxed)
   let c = alpha :< t <> Share ta UsedInArrayIndexing
@@ -291,8 +295,8 @@ cg' (ArrayMap2 ((p1,p2), fbody) (arr1,arr2)) t = __fixme $ do  -- FIXME: more ac
   (cbody, fbody') <- cg fbody (T $ TTuple [alpha1, alpha2])
   -- TODO: also need to check that all other variables `fbody` refers to must be non-linear / zilinc
   rs <- context %%= C.dropScope
-  let tarr1 = A alpha1 len1 $ Right x1
-      tarr2 = A alpha2 len2 $ Right x2
+  let tarr1 = A alpha1 len1 (Right x1) ARow.allPut
+      tarr2 = A alpha2 len2 (Right x2) ARow.allPut
   (carr1, arr1') <- cg arr1 tarr1
   (carr2, arr2') <- cg arr2 tarr2
   let unused = flip foldMap (M.toList rs) $ \(v,(_,_,us)) ->
@@ -641,9 +645,10 @@ match' (PTake r fs) t | not (any isNothing fs) = do
 match' (PArray ps) t = do
   alpha <- freshTVar
   blob <- mapM (`match` alpha) ps
+  r <- freshVar
   let (ss,cs,ps') = unzip3 blob
       l = SE . IntLit . fromIntegral $ length ps
-      c = t :< (A alpha l (__fixme $ Left Unboxed))  -- FIXME: can be boxed as well / zilinc
+      c = t :< (A alpha l (__fixme $ Left Unboxed) (ARow.empty r))  -- FIXME: can be boxed as well / zilinc
   return (M.unions ss, mconcat cs <> c, PArray ps')
 #endif
 

@@ -59,7 +59,7 @@ assignT a (T t) = T $ ffmap (assign a) $ fmap (assignT a) t
 assignT a (V x) = V $ fmap (assignT a) x
 assignT a (R x s) = flip R s $ fmap (assignT a) x
 #ifdef BUILTIN_ARRAYS
-assignT a (A t l s) = A (assignT a t) (assign a l) s
+assignT a (A t l s tkns) = A (assignT a t) (assign a l) s (fmap (assign a) tkns)
 #endif
 assignT a (U n) = U n
 assignT a (Synonym n ts) = Synonym n $ fmap (assignT a) ts
