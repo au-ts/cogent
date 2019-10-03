@@ -10,6 +10,7 @@
 -- @TAG(DATA61_GPL)
 --
 {-# LANGUAGE FlexibleContexts, DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
+
 module Cogent.TypeCheck.Row
   ( Row (..)
   , -- * Constructors

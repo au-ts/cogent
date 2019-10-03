@@ -39,8 +39,8 @@
 
 module Cogent.C.Compile where
 
-import           Cogent.C.Syntax       as C hiding (BinOp (..), UnOp (..))
-import qualified Cogent.C.Syntax       as C (BinOp (..), UnOp (..))
+import           Cogent.C.Syntax       as C   hiding (BinOp (..), UnOp (..))
+import qualified Cogent.C.Syntax       as C   (BinOp (..), UnOp (..))
 import           Cogent.C.GenState
 import           Cogent.Compiler
 import           Cogent.Common.Syntax  as Syn
@@ -51,10 +51,10 @@ import           Cogent.Inference             (kindcheck_)
 import           Cogent.Isabelle.Deep
 import           Cogent.Mono                  (Instance)
 import           Cogent.Normal                (isAtom)
-import           Cogent.Util           (decap, extTup2l, extTup3r, first3, secondM, toCName, whenM, flip3)
+import           Cogent.Util                  (behead, decap, extTup2l, extTup3r, first3, secondM, toCName, whenM, flip3)
 import qualified Data.DList          as DList
 import           Data.Nat            as Nat
-import           Data.Vec            as Vec hiding (repeat, zipWith)
+import           Data.Vec            as Vec   hiding (repeat, zipWith)
 
 import           Control.Applicative          hiding (empty)
 import           Control.Arrow                       ((***), (&&&), second)
@@ -77,14 +77,14 @@ import           Data.String
 import           Data.Traversable             (mapM)
 import           Data.Tuple                   (swap)
 #if __GLASGOW_HASKELL__ < 709
-import           Prelude             as P    hiding (mapM, mapM_)
+import           Prelude             as P     hiding (mapM, mapM_)
 #else
-import           Prelude             as P    hiding (mapM)
+import           Prelude             as P     hiding (mapM)
 #endif
 import           System.IO (Handle, hPutChar)
 import qualified Text.PrettyPrint.ANSI.Leijen as PP hiding ((<$>), (<>))
-import           Lens.Micro hiding (at)
-import           Lens.Micro.Mtl hiding (assign)
+import           Lens.Micro                   hiding (at)
+import           Lens.Micro.Mtl               hiding (assign)
 import           Lens.Micro.TH
 import           Control.Monad.Identity (runIdentity)
 -- import Debug.Trace
@@ -440,7 +440,7 @@ genExpr mv (TE t (Pop _ e1 e2)) = do  -- FIXME: varpool - as above
   (e1',e1decl,e1stm,e1p) <- genExpr_ e1
   let t1@(TArray telt l s tkns) = exprType e1
   (v1,v1decl,v1stm,v1p) <- flip3 aNewVar e1p (mkArrIdx e1' 0) =<< genType telt
-  let trest = TArray telt (l-1) s $ IM.mapKeys ((-) 1) $ IM.delete 1 tkns
+  let trest = TArray telt (l-1) s $ behead tkns
   trest' <- genTypeP trest
   (v2,v2decl,v2stm) <- declare trest'
   -- recycleVars v1p

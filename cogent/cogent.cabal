@@ -109,17 +109,18 @@ library
               , Cogent.SuParser
               , Cogent.Surface
               , Cogent.TypeCheck
-              , Cogent.TypeCheck.Row
+              , Cogent.TypeCheck.ARow
               , Cogent.TypeCheck.Assignment
               , Cogent.TypeCheck.Base
+              , Cogent.TypeCheck.Errors
               , Cogent.TypeCheck.Generator
               , Cogent.TypeCheck.Post
+              , Cogent.TypeCheck.Row
               , Cogent.TypeCheck.Solver
               , Cogent.TypeCheck.Solver.Simplify
               , Cogent.TypeCheck.Solver.Unify
               , Cogent.TypeCheck.Solver.JoinMeet
               , Cogent.TypeCheck.Solver.Normalise
-              , Cogent.TypeCheck.Errors
               , Cogent.TypeCheck.Solver.Equate
               , Cogent.TypeCheck.Solver.Goal
               , Cogent.TypeCheck.Solver.Monad

@@ -27,10 +27,11 @@ import Cogent.Compiler
 import Cogent.Reorganizer (ReorganizeError(..), SourceObject(..))
 import Cogent.Surface
 -- import Cogent.TypeCheck --hiding (context)
-import Cogent.TypeCheck.Assignment
+import Cogent.TypeCheck.Assignment hiding (null)
 import Cogent.TypeCheck.Base
-import Cogent.TypeCheck.Subst
+import Cogent.TypeCheck.Subst hiding (null)
 import qualified Cogent.TypeCheck.Row as Row
+import Cogent.TypeCheck.ARow as ARow (ARow(..))
 
 import Cogent.Dargent.Allocation
 import Cogent.Dargent.Core
@@ -41,7 +42,7 @@ import Control.Arrow (second)
 import qualified Data.Foldable as F
 import Data.Function ((&))
 import Data.IntMap as I (IntMap, toList, lookup)
-import Data.List(intercalate,nub)
+import Data.List (intercalate, nub, partition)
 import qualified Data.Map as M hiding (foldr)
 #if __GLASGOW_HASKELL__ < 709
 import Data.Monoid (mconcat)
@@ -494,11 +495,26 @@ instance (Pretty t, TypeType t, Pretty e) => Pretty (Type e t) where
   pretty (TTuple ts) = tupled (map pretty ts)
   pretty (TUnit)     = typesymbol "()" & (if __cogent_fdisambiguate_pp then (<+> comment "{- unit -}") else id)
 #ifdef BUILTIN_ARRAYS
-  pretty (TArray t l s) =
+  pretty (TArray t l s tkns) =
     let (sigilPretty, layoutPretty) = case s of
           Unboxed     -> ((typesymbol "#" <>), id)
           Boxed ro ml -> (if ro then (<> typesymbol "!") else id, case ml of Just l -> (<+> pretty l); _ -> id)
-     in prettyT' t <> (layoutPretty . sigilPretty $ brackets (pretty l))
+        (takes,puts) = partition (not . snd) tkns
+        pTakens = if null takes then id else
+                (<+> typesymbol "take" <+> tupled (map (pretty . fst) takes))
+        pPuts   = if null puts  then id else
+                (<+> typesymbol "put"  <+> tupled (map (pretty . fst) puts ))
+     in prettyT' t <> (layoutPretty . sigilPretty $ brackets (pretty l)) & (pPuts . pTakens)
+  pretty (TATake idxs t)
+    | null idxs = pretty t
+    | otherwise = (prettyT' t <+> typesymbol "take"
+                              <+> tupled (map pretty idxs))
+                  & (if __cogent_fdisambiguate_pp then (<+> comment "{- take -}") else id)
+  pretty (TAPut  idxs t)
+    | null idxs = pretty t
+    | otherwise = (prettyT' t <+> typesymbol "put"
+                              <+> tupled (map pretty idxs))
+                  & (if __cogent_fdisambiguate_pp then (<+> comment "{- put -}") else id)
 #endif
   pretty (TRecord ts s) =
       let recordPretty = record (map (\(a,(b,c)) -> fieldname a <+> symbol ":" <+> pretty b) ts) -- all untaken
@@ -545,11 +561,13 @@ instance Pretty TCType where
                         Left s -> pretty s
                         Right n -> symbol $ "(?" ++ show n ++ ")"
      in symbol "R {" <+> pretty v <+> symbol "}" <+> sigilPretty
-  pretty (A t l s) =
+#ifdef BUILTIN_ARRAYS
+  pretty (A t l s row) =
     let sigilPretty = case s of
                         Left s -> pretty s
                         Right n -> symbol $ "(?" ++ show n ++ ")"
-     in symbol "A" <+> pretty t <+> symbol "[" <> pretty l <> symbol "]" <+> sigilPretty
+     in (symbol "A" <+> pretty t <+> symbol "[" <> pretty l <> symbol "]" <+> sigilPretty <+> pretty row)
+#endif
   pretty (U v) = warn ('?':show v)
   pretty (Synonym n []) = warn ("syn:" ++ n)
   pretty (Synonym n ts) = warn ("syn:" ++ n) <+> spaceList (map pretty ts)
@@ -833,6 +851,14 @@ instance (Pretty t) => Pretty (Row.Row t) where
           in text n <+> text ":" <+> pretty ty <+> text "(" <> text tkStr <> text ")"
         rowFieldsDoc = hsep $ punctuate (text ",") $ map rowFieldToDoc (M.toList m)
      in rowFieldsDoc <> (case t of Just x -> symbol " |" <+> text "?" <> pretty x; _ -> empty)
+
+instance (Pretty e) => Pretty (ARow e) where
+  pretty (ARow m u a v) = typesymbol "A-row" <+> brackets (pretty m <+> symbol "|" <+> pretty u <> all <> var)
+    where var = case v of Nothing -> empty; Just x -> (symbol " |" <+> text "?" <> pretty x)
+          all = case a of Nothing -> empty
+                          Just True  -> (symbol " |" <+> text "all taken")
+                          Just False -> (symbol " |" <+> text "all put"  )
+
 instance Pretty Assignment where
   pretty (Assignment m) = pretty m
 

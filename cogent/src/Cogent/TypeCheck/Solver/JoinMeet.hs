@@ -107,8 +107,8 @@ joinMeet = Rewrite.withTransform find $ \c -> case c of
     pure [Goal c1 (R r1 s1 :< v) ]
 
 #ifdef BUILTIN_ARRAYS
-  Meet c1 c2 v (A t1 l1 s1) (A t2 l2 s2) -> __todo "Meet: array"
-  Join c1 c2 v (A t1 l1 s1) (A t2 l2 s2) -> __todo "Join: array"
+  Meet c1 c2 v (A t1 l1 s1 _) (A t2 l2 s2 _) -> __todo "Meet: array"
+  Join c1 c2 v (A t1 l1 s1 _) (A t2 l2 s2 _) -> __todo "Join: array"
 #endif
 
   _ -> empty

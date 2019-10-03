@@ -55,13 +55,13 @@ assignOf (R _ (Left s) :< R _ (Right v))
 -- [NOTE: solving 'A' types]
 -- For 'A' types, we need to first solve the sigil, and later it can get
 -- simplified to constraints about the element types and lengths. / zilinc
-assignOf (A _ _ (Left s) :=: A _ _ (Right v))
+assignOf (A _ _ (Left s) _ :=: A _ _ (Right v) _)
   = pure [ Subst.ofSigil v s ]
-assignOf (A _ _ (Right v) :=: A _ _ (Left s))
+assignOf (A _ _ (Right v) _ :=: A _ _ (Left s) _)
   = pure [ Subst.ofSigil v s ]
-assignOf (A _ _ (Left s) :< A _ _ (Right v))
+assignOf (A _ _ (Left s) _ :< A _ _ (Right v) _)
   = pure [ Subst.ofSigil v s ]
-assignOf (A _ _ (Right v) :< A _ _ (Left s))
+assignOf (A _ _ (Right v) _ :< A _ _ (Left s) _)
   = pure [ Subst.ofSigil v s ]
 #endif
 -- N.B. we know from the previous phase that common alternatives have been factored out.

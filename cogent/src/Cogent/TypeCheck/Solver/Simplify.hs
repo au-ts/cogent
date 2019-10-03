@@ -96,9 +96,9 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
     , not (readonly s) -> Just (map (flip Escape m) (Row.untakenTypes r))
 
 #ifdef BUILTIN_ARRAYS
-  Share  (A t _ (Left s)) m | not (writable s) -> Just [Share  t m]
-  Drop   (A t _ (Left s)) m | not (writable s) -> Just [Drop   t m]
-  Escape (A t _ (Left s)) m | not (readonly s) -> Just [Escape t m]
+  Share  (A t _ (Left s) _) m | not (writable s) -> Just [Share  t m]  -- TODO: deal with the taken fields!!! / zilinc
+  Drop   (A t _ (Left s) _) m | not (writable s) -> Just [Drop   t m]  -- TODO
+  Escape (A t _ (Left s) _) m | not (readonly s) -> Just [Escape t m]  -- TODO
 #endif
 
   Exhaustive t ps | any isIrrefutable ps -> Just []
@@ -184,8 +184,9 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
 
 #ifdef BUILTIN_ARRAYS
   -- See [NOTE: solving 'A' types] in Cogent.Solver.Unify
-  A t1 l1 s1 :<  A t2 l2 s2 | s1 == s2 -> Just [t1 :<  t2, Arith (SE $ PrimOp "==" [l1,l2])]
-  A t1 l1 s1 :=: A t2 l2 s2 | s1 == s2 -> Just [t1 :=: t2, Arith (SE $ PrimOp "==" [l1,l2])]
+  -- TODO: taken fields / zilinc
+  A t1 l1 s1 _ :<  A t2 l2 s2 _ | s1 == s2 -> Just [t1 :<  t2, Arith (SE $ PrimOp "==" [l1,l2])]
+  A t1 l1 s1 _ :=: A t2 l2 s2 _ | s1 == s2 -> Just [t1 :=: t2, Arith (SE $ PrimOp "==" [l1,l2])]
 
   -- TODO: Here we will call a SMT procedure to simplify all the Arith constraints.
   -- The only things left will be non-trivial predicates. / zilinc

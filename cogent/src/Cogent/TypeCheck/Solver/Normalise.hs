@@ -40,12 +40,12 @@ normaliseRW = rewrite' $ \t -> case t of
     T (TBang (T (TTuple ts))) -> pure (T (TTuple (map (T . TBang) ts)))
     T (TBang (T TUnit)) -> pure (T TUnit)
 #ifdef BUILTIN_ARRAYS
-    T (TBang (A t l (Left s))) -> pure (A (T . TBang $ t) l (Left (bangSigil s)))
+    T (TBang (A t l (Left s) tkns)) -> pure (A (T . TBang $ t) l (Left (bangSigil s)) tkns)
 #endif
     T (TUnbox (T (TCon t ts s))) -> pure (T (TCon t ts Unboxed))
     T (TUnbox (R row _)) -> pure (R row (Left Unboxed))
 #ifdef BUILTIN_ARRAYS
-    T (TUnbox (A t l _)) -> pure (A t l (Left Unboxed))
+    T (TUnbox (A t l _ tkns)) -> pure (A t l (Left Unboxed) tkns)
 #endif
     Synonym n as -> do
         table <- view knownTypes
@@ -74,9 +74,9 @@ normaliseRW = rewrite' $ \t -> case t of
     T (TLayout l (R row (Right i))) ->
       __impossible "normaliseRW: TLayout over a sigil variable (R)"
 #ifdef BUILTIN_ARRAYS
-    T (TLayout l (A t n (Left (Boxed p _)))) ->
-      pure $ A t n $ Left $ Boxed p (Just l)
-    T (TLayout l (A t n (Right i))) ->
+    T (TLayout l (A t n (Left (Boxed p _)) tkns)) ->
+      pure $ A t n (Left (Boxed p (Just l))) tkns
+    T (TLayout l (A t n (Right i) tkns)) ->
       __impossible "normaliseRW: TLayout over a sigil variable (A)"
 #endif
     T (TLayout l _) -> -- TODO(dargent): maybe handle this later

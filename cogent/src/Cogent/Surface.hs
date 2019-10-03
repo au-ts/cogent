@@ -23,6 +23,7 @@ import Cogent.Common.Types
 import Cogent.Util
 
 import Control.Applicative
+import Control.Arrow (first)
 import Data.Data
 import Data.Functor.Compose
 import Data.Functor.Identity
@@ -30,6 +31,7 @@ import Data.Functor.Identity
 import Data.Foldable hiding (elem)
 import Data.Traversable
 #endif
+import Data.IntMap as IM (IntMap)
 import qualified Data.Map as M
 import Text.Parsec.Pos
 
@@ -116,7 +118,11 @@ data Type e t =
               | TTuple [t]
               | TUnit
 #ifdef BUILTIN_ARRAYS
-              | TArray t e (Sigil (Maybe DataLayoutExpr))
+              | TArray t e (Sigil (Maybe DataLayoutExpr)) [(e, Taken)]
+                                                     -- \ ^^^ a list of taken/put indices
+              -- The TATake and TAPut type-operators will be normalised away.
+              | TATake [e] t
+              | TAPut  [e] t
 #endif
               -- In TypeCheck.Post, the TUnbox and TBang type-operators
               -- are normalised out of the syntax tree by altering the Sigil
@@ -327,7 +333,9 @@ instance Traversable (Flip Type t) where  -- e
   traverse _ (Flip (TTuple ts))          = pure $ Flip (TTuple ts)
   traverse _ (Flip (TUnit))              = pure $ Flip (TUnit)
 #ifdef BUILTIN_ARRAYS
-  traverse f (Flip (TArray t e s))       = Flip <$> (TArray t <$> f e <*> pure s)
+  traverse f (Flip (TArray t e s tkns))  = Flip <$> (TArray t <$> f e <*> pure s <*> traverse (firstM f) tkns)
+  traverse f (Flip (TATake idxs t))      = Flip <$> (TATake <$> traverse f idxs <*> pure t)
+  traverse f (Flip (TAPut  idxs t))      = Flip <$> (TAPut  <$> traverse f idxs <*> pure t)
 #endif
   traverse _ (Flip (TUnbox t))           = pure $ Flip (TUnbox t)
   traverse _ (Flip (TBang t))            = pure $ Flip (TBang t)
@@ -438,7 +446,9 @@ fvT (RT (TVariant alts)) = foldMap (foldMap fvT . fst) alts
 fvT (RT (TTuple ts)) = foldMap fvT ts
 fvT (RT (TUnit)) = []
 #ifdef BUILTIN_ARRAYS
-fvT (RT (TArray t e _)) = fvT t ++ fvE e
+fvT (RT (TArray t e _ tkns)) = fvT t ++ fvE e ++ foldMap (fvE . fst) tkns
+fvT (RT (TATake idxs t)) = fvT t ++ foldMap fvE idxs
+fvT (RT (TAPut  idxs t)) = fvT t ++ foldMap fvE idxs
 #endif
 fvT (RT (TUnbox   t)) = fvT t
 fvT (RT (TBang    t)) = fvT t
@@ -463,7 +473,9 @@ fcE (RE e) = foldMap fcE e
 fcT :: RawType -> [TagName]
 fcT (RT (TCon n ts _)) = n : foldMap fcT ts
 #ifdef BUILTIN_ARRAYS
-fcT (RT (TArray t e _)) = fcT t ++ fcE e
+fcT (RT (TArray t e _ tkns)) = fcT t ++ fcE e ++ foldMap (fcE . fst) tkns
+fcT (RT (TATake idxs t)) = foldMap fcE idxs ++ fcT t
+fcT (RT (TAPut  idxs t)) = foldMap fcE idxs ++ fcT t
 #endif
 fcT (RT t) = foldMap fcT t
 
@@ -476,7 +488,9 @@ tvT (RT (TVariant alts)) = foldMap (foldMap tvT . fst) alts
 tvT (RT (TTuple ts)) = foldMap tvT ts
 tvT (RT (TUnit)) = []
 #ifdef BUILTIN_ARRAYS
-tvT (RT (TArray t e _)) = tvT t  -- TODO: tvE
+tvT (RT (TArray t e _ tkns)) = tvT t  -- TODO: tvE
+tvT (RT (TATake idxs t)) = tvT t   -- TODO: tvE
+tvT (RT (TAPut  idxs t)) = tvT t   -- TODO: tvE
 #endif
 tvT (RT (TUnbox   t)) = tvT t
 tvT (RT (TBang    t)) = tvT t

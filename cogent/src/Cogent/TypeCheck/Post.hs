@@ -23,19 +23,22 @@ import Cogent.Compiler
 import Cogent.Dargent.TypeCheck (normaliseSigil)
 import Cogent.PrettyPrint ()
 import Cogent.Surface
+import Cogent.TypeCheck.ARow as ARow
 import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Util
 import qualified Cogent.TypeCheck.Row as Row
 import Cogent.Util
 
--- import Control.Arrow (first)
+import Control.Arrow (first)
 import Control.Monad
-import Lens.Micro
-import Lens.Micro.Mtl
+import Data.Word (Word32)
 -- import Control.Monad.Except
 -- import Control.Monad.Writer hiding (Alt)
 import Control.Monad.Trans.Class
+import Data.IntMap as IM (fromList, null, toList, union, intersection)
 import qualified Data.Map as M
+import Lens.Micro
+import Lens.Micro.Mtl
 import Text.PrettyPrint.ANSI.Leijen as P hiding ((<>), (<$>))
 
 -- import Debug.Trace
@@ -168,8 +171,8 @@ normaliseT d (T (TLayout l t)) = do
         then normPartT . Boxed p $ Just l
         else logErrExit (LayoutDoesNotMatchType l t)
 #ifdef BUILTIN_ARRAYS
-    (T (TArray telt n (Boxed p Nothing))) -> do
-      let normPartT = normaliseT d . T . TArray telt n
+    (T (TArray telt n (Boxed p Nothing) tkns)) -> do
+      let normPartT s = normaliseT d . T $ TArray telt n s tkns
       t'' <- normPartT Unboxed
       if isTypeLayoutExprCompatible env t'' l
         then normPartT . Boxed p $ Just l
@@ -192,11 +195,11 @@ normaliseT d (T (TRecord l s)) = do
   return (T (TRecord l' s'))
 
 #ifdef BUILTIN_ARRAYS
-normaliseT d (T (TArray t n s)) = do
+normaliseT d (T (TArray t n s tkns)) = do
   t' <- normaliseT d t
   s' <- normaliseS   s
   -- n' <- normaliseE d n
-  return $ T $ TArray t' n s'
+  return $ T $ TArray t' n s' tkns
 #endif
 
 normaliseT d (Synonym n ts) = 
@@ -208,12 +211,29 @@ normaliseT d (V x) = T . TVariant . M.fromList . Row.toEntryList . fmap (:[]) <$
 normaliseT d (R x (Left s)) = T . flip TRecord s . Row.toEntryList <$> traverse (normaliseT d) x
 normaliseT d (R x (Right s)) =  __impossible ("normaliseT: invalid sigil (?" ++ show s ++ ")")
 #ifdef BUILTIN_ARRAYS
-normaliseT d (A t n (Left s)) = T <$> (TArray <$> normaliseT d t <*> pure n <*> pure s)
-normaliseT d (A t n (Right s)) = __impossible ("normaliseT: invalid sigil (?" ++ show s ++ ")")
+normaliseT d (A t n (Left s) (ARow m [] Nothing Nothing)) = do
+  t' <- normaliseT d t
+  s' <- normaliseS s
+  let tkns = map (first $ SE . IntLit . fromIntegral) $ IM.toList m
+  return $ T $ TArray t' n s' tkns
+-- vvv @all@ takes lower priority than the explcit constriants.
+normaliseT d (A t n (Left s) (ARow m us (Just b) Nothing)) = __todo "normaliseT: a-row with all"
+-- vvv If we have unevaluated entries, then we need to evaluate them.
+normaliseT d (A t n (Left s) (ARow m us Nothing Nothing)) = do
+  let us' = IM.fromList $ fmap (first $ evalAExpr . toRawExpr') us
+  if IM.null (IM.intersection us' m) then
+     let m' = union m us'
+      in normaliseT d (A t n (Left s) (ARow m' [] Nothing Nothing))
+  else __impossible $ "normaliseT: invalid a-row: not disjoint"
+normaliseT d (A t n (Left s) (ARow _ _ _ (Just x))) = __impossible $ "normaliseT: invalid a-row (?" ++ show x ++ ")"
+normaliseT d (A t n (Right s) tkns) = __impossible ("normaliseT: invalid sigil (?" ++ show s ++ ")")
 #endif
 normaliseT d (U x) = __impossible ("normaliseT: invalid type (?" ++ show x ++ ")")
 normaliseT d (T x) = T <$> traverse (normaliseT d) x
 
+
+evalAExpr :: AExpr -> Int
+evalAExpr _ = __fixme 0
 
 -- Normalises the layouts in sigils to remove `DataLayoutRefs`
 normaliseS :: Sigil (Maybe DataLayoutExpr) -> Post (Sigil (Maybe DataLayoutExpr))

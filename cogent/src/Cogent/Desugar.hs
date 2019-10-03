@@ -46,7 +46,7 @@ import Data.PropEq ((:=:)(Refl))
 import Data.Vec as Vec
 
 import Control.Applicative
-import Control.Arrow ((&&&))
+import Control.Arrow ((&&&), first)
 import Lens.Micro as Lens
 import Lens.Micro.TH as Lens
 import Lens.Micro.Mtl as Lens
@@ -56,7 +56,7 @@ import Control.Monad.RWS.Strict hiding (forM)
 import Data.Bits
 import Data.Char (ord)
 -- import Data.Foldable
-import Data.IntMap as IM (fromList)
+import Data.IntMap as IM (fromList, filterWithKey)
 import Data.List as L (elemIndex, sortOn)
 import Data.Map as M hiding (filter, map, (\\))
 import Data.Maybe
@@ -477,7 +477,7 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArray [p]) pos)) e = do
   --    e0 | [p] in e ~~> let [v] = e0; p = v in e
   v <- freshVar
   let B.TE te0 _ _ = e0
-      S.RT (S.TArray telt l _) = te0
+      S.RT (S.TArray telt l _ _) = te0
       b1 = S.Binding (B.TIP (S.PVar (v,telt)) pos) Nothing e0 []
       b2 = S.Binding p Nothing (B.TE telt (S.Var v) pos) []
   desugarExpr $ B.TE (B.getTypeTE e) (S.Let [b1,b2] e) pos
@@ -487,15 +487,15 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArray (B.TIP (S.PVar (v,_)) _ : ps)) p
   --   Ind. case: e0 | p:@ps in e ==> let v:@ps = e0; p = v in e
   vs <- freshVar
   e0' <- desugarExpr e0
-  let S.RT (S.TArray te le s) = B.getTypeTE e0
-      tvs = S.RT (S.TArray te (S.RE (S.PrimOp "-" [le, S.RE (S.IntLit 1)])) s)
+  let S.RT (S.TArray te le s tkns) = B.getTypeTE e0
+      tvs = S.RT (S.TArray te (minus1 le) s (map (first minus1) tkns))
       e10 = B.TE tvs (S.Var vs) pos
       p1 = S.PIrrefutable $ B.TIP (S.PArray ps) pos
   e1' <- withBindings (Cons v (Cons vs Nil)) $ desugarAlt' e10 p1 e
   return $ E (Pop (v,vs) e0' e1')
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArray (p:ps)) pos)) e = do
   v <- freshVar
-  let S.RT (S.TArray te l _) = B.getTypeTE e0
+  let S.RT (S.TArray te l _ _) = B.getTypeTE e0
       b1 = S.Binding (B.TIP (S.PArray ((B.TIP (S.PVar (v,te)) pos):ps)) pos) Nothing e0 []
       b2 = S.Binding p Nothing (B.TE te (S.Var v) pos) []
   desugarExpr $ B.TE (B.getTypeTE e) (S.Let [b1,b2] e) pos
@@ -545,16 +545,18 @@ desugarType = \case
     return $ TRecord fs Unboxed
   S.RT (S.TUnit)   -> return TUnit
 #ifdef BUILTIN_ARRAYS
-  S.RT (S.TArray t l Unboxed) -> do
+  S.RT (S.TArray t l Unboxed tkns) -> do
     t' <- desugarType t
     l' <- evalAExpr l
-    return $ TArray t' l' Unboxed $ __fixme (IM.fromList $ P.zip [1..fromIntegral l'] (P.repeat False))
-  S.RT (S.TArray t l sigil  ) -> do
-    unboxedDesugared@(TArray t' l' Unboxed tkns) <- desugarType $ S.RT (S.TArray t l Unboxed)
+    tkns' <- IM.filterWithKey (\k _ -> k >= 0) . IM.fromList <$>
+             traverse (firstM $ return . fromIntegral <=< evalAExpr) tkns
+    return $ TArray t' l' Unboxed tkns'
+  S.RT (S.TArray t l sigil tkns) -> do
+    unboxedDesugared@(TArray t' l' Unboxed tkns') <- desugarType $ S.RT (S.TArray t l Unboxed tkns)
     TArray <$> pure t'
            <*> pure l'
            <*> pure (desugarSigil unboxedDesugared sigil)
-           <*> pure tkns
+           <*> pure tkns'
 #endif
   notInWHNF -> __impossible $ "desugarType (type " ++ show (pretty notInWHNF) ++ " is not in WHNF)"
 
@@ -795,6 +797,9 @@ evalAExprBop = \case
 evalAExprUop = \case
   -- "not" -> not
   "complement" -> complement
+
+minus1 :: S.AExpr -> S.AExpr
+minus1 e = (S.RE (S.PrimOp "-" [e, S.RE (S.IntLit 1)]))
 
 -- ----------------------------------------------------------------------------
 -- custTyGen

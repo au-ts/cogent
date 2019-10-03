@@ -33,6 +33,7 @@ import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Surface
+import Cogent.TypeCheck.ARow hiding (all)
 import Cogent.TypeCheck.Row (Row)
 import qualified Cogent.TypeCheck.Row as Row
 -- import Cogent.TypeCheck.Util
@@ -184,6 +185,7 @@ data Constraint' t = (:<) t t
                    | Arith SExpr
 #endif
                    deriving (Eq, Show, Ord, Functor, Foldable, Traversable)
+
 type Constraint = Constraint' TCType
 
 arithTCType :: TCType -> Bool
@@ -251,7 +253,9 @@ data TCType         = T (Type SExpr TCType)
                     | U Int  -- unifier
                     | R (Row TCType) (Either (Sigil (Maybe DataLayoutExpr)) Int)
                     | V (Row TCType)
-                    | A TCType SExpr (Either (Sigil (Maybe DataLayoutExpr)) Int)
+#ifdef BUILTIN_ARRAYS
+                    | A TCType SExpr (Either (Sigil (Maybe DataLayoutExpr)) Int) (ARow SExpr)
+#endif
                     | Synonym TypeName [TCType]
                     deriving (Show, Eq, Ord)
 
@@ -457,7 +461,7 @@ substType vs (U x) = U x
 substType vs (V x) = V (fmap (substType vs) x)
 substType vs (R x s) = R (fmap (substType vs) x) s
 #ifdef BUILTIN_ARRAYS
-substType vs (A t l s) = A (substType vs t) l s
+substType vs (A t l s tkns) = A (substType vs t) l s tkns
 #endif
 substType vs (Synonym n ts) = Synonym n (fmap (substType vs) ts)
 substType vs (T (TVar v False )) | Just x <- lookup v vs = x
@@ -504,8 +508,8 @@ validateType' vs (RT t) = do
                        TVariant fs' <- ffmap toSExpr <$> mapM (validateType' vs) t
                        pure (V (Row.fromMap (fmap (first tuplize) fs')))
 #ifdef BUILTIN_ARRAYS
-    TArray te l s -> -- TODO: do the checks
-      A <$> validateType' vs te <*> pure (toSExpr l) <*> pure (Left s)
+    TArray te l s tkns -> -- TODO: do the checks
+      A <$> validateType' vs te <*> pure (toSExpr l) <*> pure (Left s) <*> pure (unevaluated $ undefined)
 #endif
     TLayout l t  -> do
       layouts <- use knownDataLayouts
@@ -532,6 +536,10 @@ flexOf (T (TPut  _ t))   = flexOf t
 flexOf (T (TLayout _ t)) = flexOf t
 flexOf (T (TBang  t))    = flexOf t
 flexOf (T (TUnbox t))    = flexOf t
+#ifdef BUILTIN_ARRAYS
+flexOf (T (TATake _ t))  = flexOf t
+flexOf (T (TAPut  _ t))  = flexOf t
+#endif
 flexOf _ = Nothing
 
 isSynonym :: RawType -> TcBaseM Bool
@@ -567,7 +575,7 @@ unifVars (R r s)
                        ++ case s of Left s -> []
                                     Right y -> [y]
 #ifdef BUILTIN_ARRAYS
-unifVars (A t l s) = unifVars t ++ (case s of Left s -> []; Right y -> [y])
+unifVars (A t l s tkns) = unifVars t ++ (case s of Left s -> []; Right y -> [y])
 #endif
 unifVars (T x) = foldMap unifVars x
 
@@ -577,7 +585,7 @@ unknowns (U _) = []
 unknowns (Synonym n ts) = concatMap unknowns ts
 unknowns (V r) = concatMap unknowns (Row.allTypes r)
 unknowns (R r s) = concatMap unknowns (Row.allTypes r)
-unknowns (A t l s) = unknowns t ++ unknownsE l
+unknowns (A t l s tkns) = unknowns t ++ unknownsE l ++ foldMap unknownsE tkns
 unknowns (T x) = foldMap unknowns x
 
 unknownsE :: SExpr -> [Int]
@@ -596,7 +604,7 @@ rigid (Synonym {}) = False  -- why? / zilinc
 rigid (R r _) = not $ Row.justVar r
 rigid (V r) = not $ Row.justVar r
 #ifdef BUILTIN_ARRAYS
-rigid (A t l _) = True -- rigid t && null (unknownsE l) -- FIXME: is it correct? / zilinc
+rigid (A t l _ _) = True -- rigid t && null (unknownsE l) -- FIXME: is it correct? / zilinc
 #endif
 rigid _ = True
 
@@ -632,8 +640,8 @@ isTypeLayoutExprCompatible env (T (TVariant ts1)) (DLVariant _ ts2) =
     tuplise [t] = t
     tuplise ts = T (TTuple ts)
 #ifdef BUILTIN_ARRAYS
-isTypeLayoutExprCompatible env (T (TArray t _ (Boxed {}))) DLPtr = True
-isTypeLayoutExprCompatible env (T (TArray t _ Unboxed)) (DLArray l _) = isTypeLayoutExprCompatible env t l
+isTypeLayoutExprCompatible env (T (TArray t _ (Boxed {}) _)) DLPtr = True
+isTypeLayoutExprCompatible env (T (TArray t _ Unboxed _)) (DLArray l _) = isTypeLayoutExprCompatible env t l
 #endif
 isTypeLayoutExprCompatible env t (DLOffset l _) = isTypeLayoutExprCompatible env t (DL l)
 isTypeLayoutExprCompatible env t (DLRepRef n)   =
