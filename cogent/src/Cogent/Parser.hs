@@ -376,7 +376,7 @@ monotype = do avoidInitial
                          ; mb <- optionMaybe bang
                          ; let fu = case mu of Nothing -> id; Just u -> u
                                fb = case mb of Nothing -> id; Just b -> b
-                         ; return . fb . fu $ (LocType (posOfT t) $ TArray t l $ Boxed False Nothing)
+                         ; return . fb . fu $ (LocType (posOfT t) $ TArray t l (Boxed False Nothing) [])
                          } )
 #endif
            <|>  (atomtype >>= \t -> optionMaybe bang >>= \op -> case op of Nothing -> return t; Just f -> return (f t)))
