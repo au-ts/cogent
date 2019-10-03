@@ -41,6 +41,7 @@ import Control.Monad.Trans.Except (ExceptT(ExceptT))
 import Data.Bifunctor (second)
 import Data.Char
 import Data.Foldable (foldrM)
+import Data.IntMap as IM (IntMap, mapKeys, delete)
 import qualified Data.Map as M
 import Data.Version (showVersion)
 import qualified Data.List as L
@@ -445,3 +446,9 @@ infixr 8 .**
 
 (.**) :: (d -> e) -> (a -> b -> c -> d) -> a -> b -> c -> e
 (de .** abcd) a b c = de (abcd a b c)
+
+-- Drop the 0-indexed entry and shift everything down by 1.
+behead :: IntMap a -> IntMap a
+behead = IM.mapKeys ((-) 1) . IM.delete 1
+
+

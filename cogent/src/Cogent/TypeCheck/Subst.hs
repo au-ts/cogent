@@ -86,9 +86,9 @@ apply (Subst f) (R r (Right x))
 apply f (V x) = V (applyToRow f x)
 apply f (R x s) = R (applyToRow f x) s
 #ifdef BUILTIN_ARRAYS
-apply (Subst f) (A t l (Right x))
-  | Just (Sigil s) <- M.lookup x f = apply (Subst f) (A t l (Left s))
-apply f (A x l s) = A (apply f x) (assign (substToAssign f) l) s
+apply (Subst f) (A t l (Right x) tkns)
+  | Just (Sigil s) <- M.lookup x f = apply (Subst f) (A t l (Left s) tkns)
+apply f (A x l s tkns) = A (apply f x) (assign (substToAssign f) l) s (fmap (assign $ substToAssign f) tkns)
 #endif
 apply f (T x) = T (fmap (apply f) x)
 apply f (Synonym n ts) = Synonym n (fmap (apply f) ts)
