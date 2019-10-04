@@ -501,20 +501,18 @@ instance (Pretty t, TypeType t, Pretty e) => Pretty (Type e t) where
           Boxed ro ml -> (if ro then (<> typesymbol "!") else id, case ml of Just l -> (<+> pretty l); _ -> id)
         (takes,puts) = partition (not . snd) tkns
         pTakens = if null takes then id else
-                (<+> typesymbol "take" <+> tupled (map (pretty . fst) takes))
+                (<+> typesymbol "@take" <+> tupled (map (pretty . fst) takes))
         pPuts   = if null puts  then id else
-                (<+> typesymbol "put"  <+> tupled (map (pretty . fst) puts ))
+                (<+> typesymbol "@put"  <+> tupled (map (pretty . fst) puts ))
      in prettyT' t <> (layoutPretty . sigilPretty $ brackets (pretty l)) & (pPuts . pTakens)
   pretty (TATake idxs t)
-    | null idxs = pretty t
-    | otherwise = (prettyT' t <+> typesymbol "take"
-                              <+> tupled (map pretty idxs))
-                  & (if __cogent_fdisambiguate_pp then (<+> comment "{- take -}") else id)
+    = (prettyT' t <+> typesymbol "@take"
+                  <+> tupled (map pretty idxs))
+      & (if __cogent_fdisambiguate_pp then (<+> comment "{- @take -}") else id)
   pretty (TAPut  idxs t)
-    | null idxs = pretty t
-    | otherwise = (prettyT' t <+> typesymbol "put"
-                              <+> tupled (map pretty idxs))
-                  & (if __cogent_fdisambiguate_pp then (<+> comment "{- put -}") else id)
+    = (prettyT' t <+> typesymbol "@put"
+                  <+> tupled (map pretty idxs))
+      & (if __cogent_fdisambiguate_pp then (<+> comment "{- @put -}") else id)
 #endif
   pretty (TRecord ts s) =
       let recordPretty = record (map (\(a,(b,c)) -> fieldname a <+> symbol ":" <+> pretty b) ts) -- all untaken
