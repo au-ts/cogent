@@ -25,6 +25,9 @@ import Control.Monad.Trans.Maybe
 import Control.Applicative
 import Data.Foldable (asum)
 
+-- TODO: REMOVE
+import Debug.Trace
+
 
 -- | The unify phase, which seeks out equality constraints to solve via substitution.
 unify :: (MonadFresh VarName m, MonadWriter [Assign] m) => Rewrite.Rewrite' m [Constraint]
@@ -49,6 +52,8 @@ assignOf (Record _ _ (UnknownSigil v) :< Record _ _ s)
 assignOf (Record _ _ s :< Record _ _ (UnknownSigil v))
   | s `elem` [ReadOnly, Unboxed, Writable]
   = pure [ SigilAssign v s ]
+assignOf (Record (UnknownParameter x) _ s :< Record _ _ Unboxed) 
+  = pure [RecParAssign x None]
 -- N.B. we know from the previous phase that common alternatives have been factored out.
 assignOf (Variant r1 :=: Variant r2)
   | rowVar r1 /= rowVar r2
@@ -82,6 +87,9 @@ assignOf (Record n1 _ _ :=: Record n2 _ _)
       (UnknownParameter x, None)  -> pure [RecParAssign x None]
       (None, UnknownParameter x)  -> pure [RecParAssign x None]
       _              -> empty 
+
+assignOf (UnboxedNoRecurse (Record (UnknownParameter x) _ _))
+    = trace "We did it" $ pure [RecParAssign x None]
 
 assignOf _ = empty
 

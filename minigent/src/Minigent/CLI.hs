@@ -277,7 +277,7 @@ cgDump s (Dump CG out fmt) = write out s
   where
     write (File f) = writeFile f
     write (Stdout) = putStrLn
-   
+cgDump _ _ = mempty
 
 -- | Compile the given files up to the given phase, dumping
 --   output according to the given directives.

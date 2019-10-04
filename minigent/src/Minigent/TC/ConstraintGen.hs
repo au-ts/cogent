@@ -194,6 +194,7 @@ cg e tau = case e of
     sigil  <- fresh
     recPar <- fresh
     let alpha = Record (UnknownParameter recPar) row (UnknownSigil sigil)
+    let c0    = UnboxedNoRecurse alpha
 
     (e1', c1) <- cg e1 alpha
     modify (push (y, beta))

@@ -187,17 +187,18 @@ entryTypes func (Entry f t k) = Entry f (func t) k
 constraintTypes :: (Type -> Type) -> Constraint -> Constraint
 constraintTypes func constraint = go constraint
   where
-    go (c1 :&: c2)    = go c1 :&: go c2
-    go (i :<=: t)     = i :<=: func t
-    go (Share     t)  = Share     (func t)
-    go (Drop      t)  = Drop      (func t)
-    go (Escape    t)  = Escape    (func t)
-    go (Exhausted t)  = Exhausted (func t)
-    go (t1  :<  t2 )  = func t1 :< func t2
-    go (t1  :=: t2 )  = func t1 :=: func t2
-    go (Solved t)     = Solved $ func t
-    go Sat            = Sat
-    go Unsat          = Unsat
+    go (c1 :&: c2)          = go c1 :&: go c2
+    go (i :<=: t)           = i :<=: func t
+    go (Share     t)        = Share     (func t)
+    go (Drop      t)        = Drop      (func t)
+    go (Escape    t)        = Escape    (func t)
+    go (Exhausted t)        = Exhausted (func t)
+    go (t1  :<  t2 )        = func t1 :< func t2
+    go (t1  :=: t2 )        = func t1 :=: func t2
+    go (Solved t)           = Solved $ func t
+    go Sat                  = Sat
+    go (UnboxedNoRecurse t) = UnboxedNoRecurse $ func t
+    go Unsat                = Unsat
 
 -- | Given a function that acts on 'Type' values, produce a function
 --   that acts on the types inside an 'Expr'.

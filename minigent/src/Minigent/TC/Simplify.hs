@@ -131,6 +131,8 @@ simplify axs = Rewrite.pickOne $ \c -> case c of
                                                     else Just [Solved t] 
   Solved t -> guard (typeUVs t == []) >> Just []
 
+  UnboxedNoRecurse (Record None _ Unboxed) -> Just [Sat]
+
   _ -> Nothing
 
   where

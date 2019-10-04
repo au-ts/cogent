@@ -203,6 +203,7 @@ prettySimpleConstraint c = case c of
   (t1 :=:   t2) -> prettyType t1 <+> annotate S.constraintKeyword ":=:" <+> prettyType t2
   (Sat)         -> annotate S.constraintKeyword "Sat"
   (Unsat)       -> annotate S.constraintKeyword "Unsat"
+  (UnboxedNoRecurse t)       -> annotate S.constraintKeyword "UnboxedNoRecurse" <+> prettyType t
   _             -> error "prettySimpleConstraint called on non-simple constraint"
 
 prettyConstraint cs  = vsep (punctuate (space <> annotate S.constraintKeyword ":&:")

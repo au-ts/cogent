@@ -158,11 +158,12 @@ data Constraint
   | Type :=: Type -- ^ Type equality.
   | Integer :<=: Type -- ^ The 'fits in' relation, that says a given literal fits in the given
                       --   type. Only satisfiable if the type is a numeric type.
-  | Share Type     -- ^ The given type can be duplicated or shared freely
-  | Drop Type      -- ^ The given type can go out of scope without being used
-  | Escape Type    -- ^ The given type can be safely bound in a 'LetBang' expression
-  | Exhausted Type -- ^ The given type is a variant type where all entries are 'Taken'.
-  | Solved Type    -- ^ Constraint is satisfied when the type has no unification variables.
+  | Share Type                    -- ^ The given type can be duplicated or shared freely
+  | Drop Type                     -- ^ The given type can go out of scope without being used
+  | Escape Type                   -- ^ The given type can be safely bound in a 'LetBang' expression
+  | Exhausted Type                -- ^ The given type is a variant type where all entries are 'Taken'.
+  | Solved Type                   -- ^ Constraint is satisfied when the type has no unification variables.
+  | UnboxedNoRecurse Type         -- ^ Satisfied when either Sigil is Unboxed, or is boxed and RecPar is None
   | Sat            -- ^ Trivially true.
   | Unsat          -- ^ Trivially false.
   deriving (Show, Eq)
