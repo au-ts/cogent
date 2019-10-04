@@ -248,11 +248,15 @@ basicExpr m = do e <- basicExpr'
                   <|> pure e
 basicExpr' = avoidInitial >> buildExpressionParser
             [ [postfix ((\f e -> LocExpr (posOfE e) (Member e f)) <$ reservedOp "." <*> variableName)]
-            , [Prefix (getPosition >>= \p -> reserved "upcast" *> pure (LocExpr p . Upcast)),
-               Prefix (getPosition >>= \p -> reserved "complement" *> pure (LocExpr p . PrimOp "complement" . (:[]))),
-               Prefix (getPosition >>= \p -> reserved "not" *> pure (LocExpr p . PrimOp "not" . (:[]))),
-               Infix funapp AssocLeft,
-               Postfix ((\rs x -> LocExpr (posOfE x) (Put x rs)) <$> braces recAssignsAndOrWildcard)]
+            , [ Prefix (getPosition >>= \p -> reserved "upcast" *> pure (LocExpr p . Upcast))
+              , Prefix (getPosition >>= \p -> reserved "complement" *> pure (LocExpr p . PrimOp "complement" . (:[])))
+              , Prefix (getPosition >>= \p -> reserved "not" *> pure (LocExpr p . PrimOp "not" . (:[])))
+              , Infix funapp AssocLeft
+              , Postfix ((\rs x -> LocExpr (posOfE x) (Put x rs)) <$> braces recAssignsAndOrWildcard)
+#ifdef BUILTIN_ARRAYS
+              , Postfix ((\rs x -> LocExpr (posOfE x) (ArrayPut x rs)) <$> (string "@" >> braces arrayAssigns))
+#endif
+              ]
 
 #ifdef BUILTIN_ARRAYS
             , [Infix (reservedOp "@" *> pure (\e i -> LocExpr (posOfE e) (ArrayIndex e i))) AssocLeft,
@@ -321,6 +325,16 @@ recAssignsAndOrWildcard = ((:[]) <$> wildcard)
                                <*> ((++) <$> many (try (comma >> recAssign))
                                          <*> (liftM maybeToList . optionMaybe) (comma >> wildcard)))
 
+arrayAssignment = do p <- getPosition
+                     _ <- string "@"
+                     idx <- expr 1
+                     reservedOp "="
+                     e <- expr 1
+                     return (idx, e)
+                  <?> "array assignment"
+
+arrayAssigns = commaSep arrayAssignment
+                
 
 -- monotype ::= typeA1 ("->" typeA1)?
 -- typeA1   ::= Con typeA2*
