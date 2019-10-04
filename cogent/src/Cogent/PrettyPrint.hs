@@ -157,6 +157,7 @@ instance Prec (Expr t p ip e) where
   prec (Put {}) = 9
 #ifdef BUILTIN_ARRAYS
   prec (ArrayIndex {}) = 10
+  prec (ArrayPut {}) = 9
 #endif
   prec (Comp {}) = 10
   prec (PrimOp n _) = prec (associativity n)  -- range 11 - 19
@@ -291,6 +292,10 @@ instance TypeType (Type e t) where
   isFun     _          = False
   isTakePut (TTake {}) = True
   isTakePut (TPut  {}) = True
+#ifdef BUILTIN_ARRAYS
+  isTakePut (TATake {}) = True
+  isTakePut (TAPut  {}) = True
+#endif
   isTakePut _          = False
   isAtomic t | isFun t || isTakePut t = False
              | TCon _ (_:_) _ <- t = False
@@ -420,6 +425,8 @@ instance (ExprType e, Prec e, Pretty t, PatnType p, Pretty p, PatnType ip, Prett
   pretty (ArrayMap2 ((p1,p2),f) (e1,e2)) = keyword "map2"
                                        <+> parens (string "\\" <> pretty p1 <+> pretty p2 <+> symbol "=>" <+> pretty f)
                                        <+> prettyPrec 1 e1 <+> prettyPrec 1 e2
+  pretty (ArrayPut e es)     = prettyPrec 10 e <+> symbol "@" 
+                            <> record (map (\(i,e) -> symbol "@" <> pretty i <+> symbol "=" <+> pretty e) es)
 #endif
   pretty (Unitel)            = string "()"
   pretty (PrimOp n [a,b])

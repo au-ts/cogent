@@ -94,6 +94,7 @@ data Expr t p ip e = PrimOp OpName [e]
                    | ArrayLit [e]
                    | ArrayIndex e e
                    | ArrayMap2 ((ip, ip), e) (e, e)
+                   | ArrayPut e [(e, e)]
 #endif
                    | Tuple [e]  -- When desugared into tuples, it's right associative.
                    | UnboxedRecord [(FieldName, e)]
@@ -243,6 +244,7 @@ instance Traversable (Flip (Expr t p) e) where  -- ip
   traverse _ (Flip (ArrayLit es))       = pure $ Flip (ArrayLit es)
   traverse _ (Flip (ArrayIndex e i))    = pure $ Flip (ArrayIndex e i)
   traverse f (Flip (ArrayMap2 m es))    = Flip <$> (ArrayMap2 <$> firstM (bothM f) m <*> pure es)
+  traverse _ (Flip (ArrayPut e es))     = pure $ Flip (ArrayPut e es)
 #endif
   traverse _ (Flip (Tuple es))          = pure $ Flip (Tuple es)
   traverse _ (Flip (UnboxedRecord es))  = pure $ Flip (UnboxedRecord es)
@@ -274,6 +276,7 @@ instance Traversable (Flip2 (Expr t) e ip) where  -- p
   traverse _ (Flip2 (ArrayLit es))      = pure $ Flip2 (ArrayLit es)
   traverse _ (Flip2 (ArrayIndex e i))   = pure $ Flip2 (ArrayIndex e i)
   traverse _ (Flip2 (ArrayMap2 f es))   = pure $ Flip2 (ArrayMap2 f es)
+  traverse _ (Flip2 (ArrayPut e es))    = pure $ Flip2 (ArrayPut e es)
 #endif
   traverse _ (Flip2 (Tuple es))         = pure $ Flip2 (Tuple es)
   traverse _ (Flip2 (UnboxedRecord es)) = pure $ Flip2 (UnboxedRecord es)
@@ -304,7 +307,8 @@ instance Traversable (Flip3 Expr e ip p) where  -- t
 #ifdef BUILTIN_ARRAYS
   traverse _ (Flip3 (ArrayLit es))       = pure $ Flip3 (ArrayLit es)
   traverse _ (Flip3 (ArrayIndex e i))    = pure $ Flip3 (ArrayIndex e i)
-  traverse _ (Flip3 (ArrayMap2 f es))    = pure $ Flip3 (ArrayMap2 f es)
+  traverse _ (Flip3 (ArrayMap2 f es))    = pure $ Flip3 (ArrayMap2 f es) 
+  traverse _ (Flip3 (ArrayPut e es))     = pure $ Flip3 (ArrayPut e es)
 #endif
   traverse _ (Flip3 (Tuple es))          = pure $ Flip3 (Tuple es)
   traverse _ (Flip3 (UnboxedRecord es))  = pure $ Flip3 (UnboxedRecord es)
