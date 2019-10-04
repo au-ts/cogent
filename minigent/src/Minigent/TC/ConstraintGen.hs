@@ -181,7 +181,7 @@ cg e tau = case e of
     sigil <- fresh
     recPar <- fresh
     -- TODO: Member is supposed to be on nonlinear records, will these ever have a recursive parameter
-    -- (i.e. are they unboxed records?)
+    -- (i.e. are they *always* unboxed records?)
     let alpha = Record None row (UnknownSigil sigil)
     (e', c1) <- cg e alpha
     let c2 = Drop (Record None (Row.take f row) (UnknownSigil sigil))
@@ -206,7 +206,7 @@ cg e tau = case e of
     yUsed <- topUsed <$> get
     let c4 = if yUsed then Sat else Drop beta
     modify pop
-    withSig (Take x f y e1' e2', c1 :&: c2 :&: c3 :&: c4)
+    withSig (Take x f y e1' e2', c0 :&: c1 :&: c2 :&: c3 :&: c4)
 
   (Put e1 f e2) -> do
     beta <- UnifVar <$> fresh

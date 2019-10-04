@@ -131,7 +131,10 @@ simplify axs = Rewrite.pickOne $ \c -> case c of
                                                     else Just [Solved t] 
   Solved t -> guard (typeUVs t == []) >> Just []
 
+  -- If an unboxed record has no recursive parameter, sat
   UnboxedNoRecurse (Record None _ Unboxed) -> Just [Sat]
+  -- If a boxed record, sat
+  UnboxedNoRecurse (Record _ _ c) | (c == ReadOnly || c == Writable) -> Just [Sat]
 
   _ -> Nothing
 

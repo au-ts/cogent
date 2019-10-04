@@ -88,8 +88,8 @@ assignOf (Record n1 _ _ :=: Record n2 _ _)
       (None, UnknownParameter x)  -> pure [RecParAssign x None]
       _              -> empty 
 
-assignOf (UnboxedNoRecurse (Record (UnknownParameter x) _ _))
-    = trace "We did it" $ pure [RecParAssign x None]
+assignOf (UnboxedNoRecurse (Record (UnknownParameter x) _ Unboxed))
+    = pure [RecParAssign x None]
 
 assignOf _ = empty
 
