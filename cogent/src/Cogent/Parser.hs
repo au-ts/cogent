@@ -66,7 +66,7 @@ language = haskellStyle
                                  ,"variant","record","at","layout","pointer"
                                  ,"if","then","else","not","complement","and","True","False","o"
 #ifdef BUILTIN_ARRAYS
-                                 ,"array","map2"]
+                                 ,"array","map2","@take","@put"]
 #else
                                   ]
 #endif
@@ -360,11 +360,15 @@ monotype = do avoidInitial
                          op <- optionMaybe takeput
                          let t' = (case op of
                                       Nothing -> t
-                                      Just f -> f t)
+                                      Just f  -> f t)
+                         aop <- optionMaybe arrTakeput
+                         let ta = (case aop of
+                                     Nothing -> t'
+                                     Just f  -> f t')
                          l <- optionMaybe layout
                          let t'' = (case l of
-                                      Nothing -> t'
-                                      Just fl -> fl t')
+                                      Nothing -> ta
+                                      Just fl -> fl ta)
                          return t''
                      )
     typeA2' = avoidInitial >>
@@ -393,6 +397,10 @@ monotype = do avoidInitial
     takeput = avoidInitial >>
              ((reservedOp "take" >> fList >>= \fs -> return (\x -> LocType (posOfT x) (TTake fs x)))
           <|> (reservedOp "put"  >> fList >>= \fs -> return (\x -> LocType (posOfT x) (TPut  fs x))))
+    -- vvv TODO: add the @take(..) syntax for taking all elements / zilinc
+    arrTakeput = avoidInitial >>
+              ((reservedOp "@take" >> parens (commaSep (expr 1)) >>= \idxs -> return (\x -> LocType (posOfT x) (TATake idxs x))) 
+           <|> (reservedOp "@put"  >> parens (commaSep (expr 1)) >>= \idxs -> return (\x -> LocType (posOfT x) (TAPut  idxs x))))
     -- either we have an actual layout, or the name of a layout synonym
     layout = avoidInitial >> reservedOp "layout" >> repExpr
       >>= \l -> return (\x -> LocType (posOfT x) (TLayout l x))

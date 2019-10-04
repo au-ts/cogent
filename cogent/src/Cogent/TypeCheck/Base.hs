@@ -509,7 +509,7 @@ validateType' vs (RT t) = do
                        pure (V (Row.fromMap (fmap (first tuplize) fs')))
 #ifdef BUILTIN_ARRAYS
     TArray te l s tkns -> -- TODO: do the checks
-      A <$> validateType' vs te <*> pure (toSExpr l) <*> pure (Left s) <*> pure (unevaluated $ undefined)
+      A <$> validateType' vs te <*> pure (toSExpr l) <*> pure (Left s) <*> pure (unevaluated $ map (first toSExpr) tkns)
 #endif
     TLayout l t  -> do
       layouts <- use knownDataLayouts
