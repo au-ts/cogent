@@ -25,9 +25,6 @@ import Control.Monad.Trans.Maybe
 import Control.Applicative
 import Data.Foldable (asum)
 
--- TODO: REMOVE
-import Debug.Trace
-
 
 -- | The unify phase, which seeks out equality constraints to solve via substitution.
 unify :: (MonadFresh VarName m, MonadWriter [Assign] m) => Rewrite.Rewrite' m [Constraint]
