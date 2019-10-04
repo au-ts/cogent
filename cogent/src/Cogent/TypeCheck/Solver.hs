@@ -79,7 +79,6 @@ solve ks c = let gs     = makeGoals [] c
                           debug  "Unify"      unify <>
                           debugL "Equate"     equate <>
                           debug  "Sink/Float" sinkfloat <>
-                          debug  "Sink/float" sinkfloat <>
                           debug  "JoinMeet"   joinMeet <>
                           debugL "Defaults"   defaults
   -- [amos] Type-solver changes I made:
