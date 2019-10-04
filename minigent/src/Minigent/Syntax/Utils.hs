@@ -291,10 +291,10 @@ substTV (x, t) = RW.rewrite $ \t' -> case t' of
   _                        -> Nothing
 
 -- | A rewrite that substitutes the unkown recursive parameter on a boxed record for a parameter
-substRecPar :: (VarName, VarName) -> RW.Rewrite Type
+substRecPar :: (VarName, RecPar) -> RW.Rewrite Type
 substRecPar (v1, v2) = RW.rewrite $ \t' -> case t' of
   Record (UnknownParameter n) r s | n == v1 -> 
-    Just (Record (Rec v2) r s)
+    Just (Record v2 r s)
   _ -> Nothing
 
 -- | A convenience that allows multiple substitutions to type variables to be made simulatenously.

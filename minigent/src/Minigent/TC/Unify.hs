@@ -76,9 +76,11 @@ assignOf (Record _ r1 s1 :=: Record _ r2 s2)
 assignOf (Record n1 _ _ :=: Record n2 _ _)
   -- Prevent recursive assignment to self
   | n1 /= n2
-  -- We can only perform assignment to recursive parameters when we have two parameters
   = case (n1,n2) of
-      (Rec x, Rec y) -> pure [RecParAssign x y]
+      (Rec _, UnknownParameter x) -> pure [RecParAssign x n1]
+      (UnknownParameter x, Rec _) -> pure [RecParAssign x n2]
+      (UnknownParameter x, None)  -> pure [RecParAssign x None]
+      (None, UnknownParameter x)  -> pure [RecParAssign x None]
       _              -> empty 
 
 assignOf _ = empty
