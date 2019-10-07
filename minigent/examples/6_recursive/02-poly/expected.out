@@ -1,0 +1,14 @@
+allocNode : [a] . Unit -> mu t {l : <Cons {data : a,rest : t}#|Nil Unit> take};
+createEmptyList : [a] . U8 -> mu t {l : <Cons {data : a,rest : t}#|Nil Unit>};
+createEmptyList a = let node = (allocNode[a] : Unit
+                                               -> mu t {l : <Cons {data : a
+                                                                  ,rest : t}#
+                                                            |Nil Unit> take}) (Unit : Unit) : mu t {l : <Cons {data : a
+                                                                                                              ,rest : t}#
+                                                                                                        |Nil Unit> take}
+                    in put node : mu t {l : <Cons {data : a,rest : t}#
+                                            |Nil Unit> take}.l := Nil (Unit : Unit) : <Cons {data : a
+                                                                                            ,rest : t}#
+                                                                                      |Nil Unit>
+                       end : mu t {l : <Cons {data : a,rest : t}#|Nil Unit>}
+                    end : mu t {l : <Cons {data : a,rest : t}#|Nil Unit>};

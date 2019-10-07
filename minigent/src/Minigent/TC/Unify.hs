@@ -85,6 +85,8 @@ assignOf (Record n1 _ _ :=: Record n2 _ _)
       (None, UnknownParameter x)  -> pure [RecParAssign x None]
       _              -> empty 
 
+-- If it is discovered that a record is unboxed, we can assign it's
+-- unknown parameter to None
 assignOf (UnboxedNoRecurse (Record (UnknownParameter x) _ Unboxed))
     = pure [RecParAssign x None]
 
