@@ -1,0 +1,13 @@
+alloc : Unit -> mu t {l : <Cons {d : U8,r : t}#|End Unit> take};
+makeEmptyList : Unit -> mu t {l : <Cons {d : U8,r : t}#|End Unit>};
+makeEmptyList a = let r = (alloc[] : Unit
+                                     -> mu t {l : <Cons {d : U8,r : t}#
+                                                  |End Unit> take}) (Unit : Unit) : mu t {l : <Cons {d : U8
+                                                                                                    ,r : t}#
+                                                                                              |End Unit> take}
+                  in put r : mu t {l : <Cons {d : U8,r : t}#
+                                       |End Unit> take}.l := End (Unit : Unit) : <Cons {d : U8
+                                                                                       ,r : t}#
+                                                                                 |End Unit>
+                     end : mu t {l : <Cons {d : U8,r : t}#|End Unit>}
+                  end : mu t {l : <Cons {d : U8,r : t}#|End Unit>};
