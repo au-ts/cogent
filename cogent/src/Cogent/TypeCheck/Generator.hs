@@ -304,6 +304,21 @@ cg' (ArrayMap2 ((p1,p2), fbody) (arr1,arr2)) t = __fixme $ do  -- FIXME: more ac
       t' = T $ TTuple [tarr1,tarr2]
       e' = ArrayMap2 ((p1',p2'), fbody') (arr1',arr2')
   return (t' :< t <> cp1 <> cp2 <> cbody <> carr1 <> carr2 <> dropConstraintFor rs <> unused, e')
+
+cg' (ArrayPut arr es) t = do
+  alpha <- freshTVar  -- the element type
+  l <- freshEVar  -- the length of the array
+  s <- freshVar   -- the unifier for the sigil
+  r <- freshVar   -- the unifier for the a-row
+  let tarr = A alpha l (Left s) (fromTakens r idxs)
+  (carr,arr') <- cg arr tarr
+  let (idxs,vs) = unzip es
+  blob <- mapM (flip cg alpha) vs
+  let c = [tarr :< t] <> carr
+       <> map fst blob
+       <> map (\i -> Arith (SE $ PrimOp ">=" [i, SE (IntLit 0)])) idxs
+       <> map (\i -> Arith (SE $ PrimOp "<" [i, l])) idxs
+  return (c, ArrayPut arr' (zip idxs $ map snd blob))
 #endif
 
 cg' exp@(Lam pat mt e) t = do
