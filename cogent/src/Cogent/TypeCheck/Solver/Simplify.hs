@@ -20,10 +20,13 @@ import qualified Data.Map as M
 import           Data.Maybe
 import           Data.List (elemIndex, null)
 import qualified Data.Set as S
+import           Data.Word (Word32)
 import           Lens.Micro
 
 import           Cogent.Common.Syntax
 import           Cogent.Common.Types
+import           Cogent.Compiler
+import           Cogent.TypeCheck.ARow as ARow
 import           Cogent.TypeCheck.Base
 import qualified Cogent.TypeCheck.Row as Row
 import           Cogent.TypeCheck.Solver.Goal
@@ -184,9 +187,25 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
 
 #ifdef BUILTIN_ARRAYS
   -- See [NOTE: solving 'A' types] in Cogent.Solver.Unify
-  -- TODO: taken fields / zilinc
-  A t1 l1 s1 _ :<  A t2 l2 s2 _ | s1 == s2 -> Just [t1 :<  t2, Arith (SE $ PrimOp "==" [l1,l2])]
-  A t1 l1 s1 _ :=: A t2 l2 s2 _ | s1 == s2 -> Just [t1 :=: t2, Arith (SE $ PrimOp "==" [l1,l2])]
+  A t1 l1 s1 r1 :<  A t2 l2 s2 r2 | s1 == s2, isKnown l1, isKnown l2 -> do
+    let -- ASSUME that they are always statically computable
+        Just l1' = normaliseSExpr l1
+        Just l2' = normaliseSExpr l2
+        r1' = unfoldAll l1' $ ARow.eval normaliseSExpr r1
+        r2' = unfoldAll l2' $ ARow.eval normaliseSExpr r2
+    guard (reduced r1')
+    guard (reduced r2')
+    guard (null $ ARow.conflicts r1' r2')
+    let (cs,ls,rs) = ARow.clr r1' r2'
+        r1'' = ARow.updateEntries (const ls) r1'
+        r2'' = ARow.updateEntries (const rs) r2'
+    Just [A t1 l1 s1 r1'' :< A t2 l2 s2 r2'']
+
+  A t1 l1 s1 r1 :<  A t2 l2 s2 r2 | s1 == s2 -> 
+    Just [t1 :<  t2, Arith (SE $ PrimOp "==" [l1,l2])]
+  A t1 l1 s1 r1 :=: A t2 l2 s2 r2 | s1 == s2 -> do
+    undefined  -- TODO
+    Just [t1 :=: t2, Arith (SE $ PrimOp "==" [l1,l2])]
 
   -- TODO: Here we will call a SMT procedure to simplify all the Arith constraints.
   -- The only things left will be non-trivial predicates. / zilinc
@@ -236,3 +255,9 @@ isSolved t = null (unifVars t)
 #ifdef BUILTIN_ARRAYS
           && null (unknowns t)
 #endif
+
+
+normaliseSExpr :: SExpr -> Maybe Int
+normaliseSExpr (SU x) = Nothing
+normaliseSExpr (SE (IntLit n)) = Just $ fromIntegral n
+normaliseSExpr (SE _) = __todo "normaliseSExpr"

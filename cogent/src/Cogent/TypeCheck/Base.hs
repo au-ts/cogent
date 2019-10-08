@@ -45,6 +45,7 @@ import Control.Monad.Trans.Maybe
 import Control.Monad.Writer hiding (Alt)
 import Control.Monad.Reader
 import Data.Bifunctor (bimap, first, second)
+import Data.Foldable (all)
 import Data.Maybe (fromJust, isJust)
 import Data.Either (either, isLeft)
 import qualified Data.IntMap as IM
@@ -591,6 +592,10 @@ unknowns (T x) = foldMap unknowns x
 unknownsE :: SExpr -> [Int]
 unknownsE (SU x) = [x]
 unknownsE (SE e) = foldMap unknownsE e
+
+isKnown :: SExpr -> Bool
+isKnown (SU _) = False
+isKnown (SE e) = all isKnown e
 #endif
 
 -- What's the spec of this function? / zilinc

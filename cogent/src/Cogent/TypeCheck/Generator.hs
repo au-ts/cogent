@@ -310,15 +310,18 @@ cg' (ArrayPut arr es) t = do
   l <- freshEVar  -- the length of the array
   s <- freshVar   -- the unifier for the sigil
   r <- freshVar   -- the unifier for the a-row
-  let tarr = A alpha l (Left s) (fromTakens r idxs)
-  (carr,arr') <- cg arr tarr
   let (idxs,vs) = unzip es
-  blob <- mapM (flip cg alpha) vs
-  let c = [tarr :< t] <> carr
+      idxs' = map (toSExpr . stripLocE) idxs
+      tarr = A alpha l (Right s) (fromTakens r idxs')
+  (carr,arr') <- cg arr tarr
+  blob  <- mapM (flip cg $ T (TCon "U32" [] Unboxed)) idxs
+  blob' <- mapM (flip cg alpha) vs
+  let c = [tarr :< t, carr]
        <> map fst blob
-       <> map (\i -> Arith (SE $ PrimOp ">=" [i, SE (IntLit 0)])) idxs
-       <> map (\i -> Arith (SE $ PrimOp "<" [i, l])) idxs
-  return (c, ArrayPut arr' (zip idxs $ map snd blob))
+       <> map fst blob'
+       <> map (\i -> Arith (SE $ PrimOp ">=" [i, SE (IntLit 0)])) idxs'
+       <> map (\i -> Arith (SE $ PrimOp "<" [i, l])) idxs'
+  return (mconcat c, ArrayPut arr' (zip (map snd blob) (map snd blob')))
 #endif
 
 cg' exp@(Lam pat mt e) t = do
@@ -508,6 +511,7 @@ cg' (Put e ls) t | not (any isNothing ls) = do
   return (c1 <> c' <> cs <> c2, r)
 
   | otherwise = first (<> Unsat RecordWildcardsNotSupported) <$> cg' (Put e (filter isJust ls)) t
+
 cg' (Let bs e) t = do
   (c, bs', e') <- withBindings bs e t
   return (c, Let bs' e')

@@ -10,11 +10,14 @@
 -- @TAG(DATA61_GPL)
 --
 
+{-# LANGUAGE TupleSections #-}
+
 module Cogent.TypeCheck.Solver.Normalise where
 
 import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Surface
+import Cogent.TypeCheck.ARow as AR (ARow(..))
 import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Solver.Goal
 import Cogent.TypeCheck.Solver.Monad
@@ -40,12 +43,12 @@ normaliseRW = rewrite' $ \t -> case t of
     T (TBang (T (TTuple ts))) -> pure (T (TTuple (map (T . TBang) ts)))
     T (TBang (T TUnit)) -> pure (T TUnit)
 #ifdef BUILTIN_ARRAYS
-    T (TBang (A t l (Left s) tkns)) -> pure (A (T . TBang $ t) l (Left (bangSigil s)) tkns)
+    T (TBang (A t l (Left s) tkns)) -> pure (A (T . TBang $ t) l (Left (bangSigil s)) tkns)  -- FIXME
 #endif
     T (TUnbox (T (TCon t ts s))) -> pure (T (TCon t ts Unboxed))
     T (TUnbox (R row _)) -> pure (R row (Left Unboxed))
 #ifdef BUILTIN_ARRAYS
-    T (TUnbox (A t l _ tkns)) -> pure (A t l (Left Unboxed) tkns)
+    T (TUnbox (A t l _ tkns)) -> pure (A t l (Left Unboxed) tkns)  -- FIXME
 #endif
     Synonym n as -> do
         table <- view knownTypes
@@ -69,6 +72,15 @@ normaliseRW = rewrite' $ \t -> case t of
       | isNothing (Row.var row) -> case fs of
         Nothing -> pure $ V (Row.putAll row)
         Just fs -> pure $ V (Row.putMany fs row)
+#ifdef BUILTIN_ARRAYS
+    -- Don't normliase ARows. That's done in Cogent.TypeCheck.Solver.Simplify
+    T (TATake idxs (A t l s (ARow knowns unevals mall mv))) -> 
+      let unevals' = unevals ++ map (,True) idxs   -- FIXME: it's wrong!! We cannot simply append. We need to overwrite previous conflicting entries / zilinc
+       in pure $ A t l s (ARow knowns unevals' mall mv)
+    T (TAPut idxs (A t l s (ARow knowns unevals mall mv))) -> 
+      let unevals' = unevals ++ map (,False) idxs
+       in pure $ A t l s (ARow knowns unevals' mall mv)
+#endif
     T (TLayout l (R row (Left (Boxed p _)))) ->
       pure $ R row $ Left $ Boxed p (Just l)
     T (TLayout l (R row (Right i))) ->
@@ -92,6 +104,10 @@ whnf input = do
     step <- case input of
         T (TTake  fs t') -> T . TTake fs  <$> whnf t'
         T (TPut   fs t') -> T . TPut  fs  <$> whnf t'
+#ifdef BUILTIN_ARRAYS
+        T (TATake fs t') -> T . TATake fs <$> whnf t'
+        T (TAPut  fs t') -> T . TAPut  fs <$> whnf t'
+#endif
         T (TBang     t') -> T . TBang     <$> whnf t'
         T (TUnbox    t') -> T . TUnbox    <$> whnf t'
         T (TLayout l t') -> T . TLayout l <$> whnf t'
