@@ -15,9 +15,14 @@
 
 module Cogent.TypeCheck.ARow where
 
+import Cogent.Common.Syntax
 import Cogent.Compiler
 import Cogent.Surface
-import Data.IntMap as IM
+import Cogent.Util (for)
+
+import Data.Either (partitionEithers)
+import Data.IntMap as IM hiding (null)
+import Data.Maybe (isNothing)
 
 data ARow e = ARow { entries  :: IntMap Taken
                    , uneval   :: [(e, Taken)]  -- unevaluated taken/put indices
@@ -46,3 +51,44 @@ allTaken = ARow IM.empty [] (Just True) Nothing
 
 allPut :: ARow e
 allPut = ARow IM.empty [] (Just False) Nothing
+
+-- We assume that there's no duplicate indices in 'es' and in 'us'. They should be
+-- checked at other places. / zilinc
+eval :: (e -> Maybe Int) -> ARow e -> ARow e
+eval f (ARow es us ma mv) =
+  let blob = for us $ \(u,b) -> case f u of Nothing -> Left (u,b); Just u' -> Right (u',b)
+      (ls,rs) = partitionEithers blob
+   in ARow (es `IM.union` IM.fromList rs) ls ma mv
+
+unfoldAll :: Int -> ARow e -> ARow e
+unfoldAll l r
+  | ARow es us Nothing mv <- r = r
+  | ARow es us (Just a) mv <- r =
+      let a' = IM.fromList $ zip [0..l - 1] (repeat a)
+       in ARow (es `IM.union` a') us Nothing mv
+               --- \ ^^^ Left-biased
+
+reduced :: ARow e -> Bool
+reduced (ARow _ [] Nothing _) = True
+reduced _ = False
+
+conflicts :: ARow e -> ARow e -> [Int]
+conflicts r1 r2 | reduced r1, reduced r2 = 
+  let ARow es1 _ _ _ = r1
+      ARow es2 _ _ _ = r2
+      cs = IM.intersectionWith (\a b -> a /= b) es1 es2
+   in IM.keys $ IM.filter id cs
+
+-- common, left, right
+clr :: ARow e -> ARow e -> (IntMap Taken, IntMap Taken, IntMap Taken)
+clr r1 r2 | reduced r1, reduced r2, null (conflicts r1 r2) = 
+  let ARow es1 _ _ _ = r1
+      ARow es2 _ _ _ = r2
+      cs = IM.intersection es1 es2
+      ls = IM.difference es1 es2
+      rs = IM.difference es2 es1
+   in (cs,ls,rs)
+
+updateEntries :: (IntMap Taken -> IntMap Taken) -> ARow e -> ARow e
+updateEntries f (ARow es us ma mv) = ARow (f es) us ma mv
+
