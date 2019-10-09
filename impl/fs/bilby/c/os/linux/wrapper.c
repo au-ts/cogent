@@ -8,6 +8,7 @@
  * @TAG(NICTA_GPL)
  */
 
+#include <linux/version.h>
 #include <linux/init.h>
 #include <linux/slab.h>
 #include <linux/module.h>
@@ -17,6 +18,13 @@
 #include <linux/seq_file.h>
 #include <linux/mount.h>
 #include <bilbyfs.h>
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,6,0)
+#define put_page(page) page_cache_release(page)
+#endif
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,18,0)
+#define timespec64_trunc timespec_trunc
+#endif
 
 static int init_inode_by_type(struct backing_dev_info *bdi, struct inode *inode)
 {
@@ -39,7 +47,10 @@ static int init_inode_by_type(struct backing_dev_info *bdi, struct inode *inode)
                 inode->i_size = BILBYFS_INODE_SZ;
                 break;
         case S_IFLNK:
+	  /* Symlinks have data blocks handled through the page cache */
+	  //	        inode->i_mapping->a_ops = &bilbyfs_file_address_operations;
                 inode->i_op = &bilbyfs_symlink_inode_operations;
+		inode->i_link = NULL;
                 break;
         case S_IFBLK:
         case S_IFCHR:
@@ -306,19 +317,27 @@ static int bilbyfs_symlink(struct inode *dir, struct dentry *dentry,
                 insert_inode_hash(inode);
                 d_instantiate(dentry, inode);
                 return 0;
-        } else
-          bilbyfs_err("BilbyFsError: bilbyfs_symlink() = %d\n", err);
+        }
+	bilbyfs_err("BilbyFsError: bilbyfs_symlink() = %d\n", err);
         make_bad_inode(inode);
         iput(inode);
         return err;
 }
 
 static int bilbyfs_rename(struct inode *old_dir, struct dentry *old_dentry,
-                          struct inode *new_dir, struct dentry *new_dentry)
+                          struct inode *new_dir, struct dentry *new_dentry
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0)
+                          , unsigned int flags
+#endif
+    )
 {
         struct bilbyfs_info *bi = old_dir->i_sb->s_fs_info;
         int err;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,8,0)
+	if (flags & ~RENAME_NOREPLACE)
+		return -EINVAL;
+#endif
         down(&bi->wd.lock);
         err = fsop_rename(bi, old_dir, old_dentry->d_name.name,
                           old_dentry->d_inode, new_dir, new_dentry->d_name.name,
@@ -412,7 +431,7 @@ static int bilbyfs_write_begin(struct file *filp, struct address_space *mapping,
                         SetPageError(page);
                         kunmap(page);
                         unlock_page(page);
-                        page_cache_release(page);
+                        put_page(page);
                         bilbyfs_err("BilbyFsError: bilbyfs_write_begin() = %d\n", err);
                         return err;
                 }
@@ -436,7 +455,7 @@ static int bilbyfs_write_end(struct file *filp, struct address_space *mapping,
 
         bilbyfs_debug("[S] bilbyfs_write_end()\n");
         BUG_ON(!PageUptodate(page));
-        /* if len > PAGE_CACHE_SIZE then some data hasn't been copied by
+        /* if len > PAGE_SIZE then some data hasn't been copied by
          * bilbyfs
          */
         if (copied < len) {
@@ -446,13 +465,13 @@ static int bilbyfs_write_end(struct file *filp, struct address_space *mapping,
                  * FIXME Or should we just write the provided data ?
                  */
                 /* 23/10/2013: This can safely be ignored because BilbyFs
-                 * always read a PAGE_CACHE_SIZE data block in write_begin
-                 * which means that as long as @len is < PAGE_CACHE_SIZE
+                 * always read a PAGE_SIZE data block in write_begin
+                 * which means that as long as @len is < PAGE_SIZE
                  * we have read enough data.
                  * FIXME: Can this ever happen without concurrency?
                  */
                 bilbyfs_debug("copied < len : %u < %u. But it's safe to ignore as write_begin read %lu bytes.\n",
-                              copied, len, PAGE_CACHE_SIZE);
+                              copied, len, PAGE_SIZE);
                 /* return 0; */
         }
         addr = kmap(page);
@@ -462,14 +481,14 @@ static int bilbyfs_write_end(struct file *filp, struct address_space *mapping,
         if (!err) {
                 kunmap(page);
                 unlock_page(page);
-                page_cache_release(page);
+                put_page(page);
                 bilbyfs_debug("[1] bilbyfs_write_end() = %d\n", copied);
                 return copied;
         }
         SetPageError(page);
         kunmap(page);
         unlock_page(page);
-        page_cache_release(page);
+        put_page(page);
         bilbyfs_err("BilbyFsError: bilbyfs_write_end() = %d\n", err);
         return err;
 }
@@ -482,19 +501,19 @@ static int bilbyfs_write_end_writeback(struct file *filp, struct address_space *
         loff_t end_pos = pos + len;
         int appending = !!(end_pos > inode->i_size);
 
-        bilbyfs_assert(PAGE_CACHE_SIZE == BILBYFS_BLOCK_SIZE);
+        bilbyfs_assert(PAGE_SIZE == BILBYFS_BLOCK_SIZE);
         bilbyfs_debug("[S] bilbyfs_write_end_writeback(pos = %llu, len =%u, copied = %u)\n",pos, len, copied);
         BUG_ON(!PageUptodate(page));
-        bilbyfs_assert(len <= PAGE_CACHE_SIZE);
+        bilbyfs_assert(len <= PAGE_SIZE);
         if (copied < len) {
                 /* 23/10/2013: This can safely be ignored because BilbyFs
-                 * always read a PAGE_CACHE_SIZE data block in write_begin
-                 * which means that as long as @len is < PAGE_CACHE_SIZE
+                 * always read a PAGE_SIZE data block in write_begin
+                 * which means that as long as @len is < PAGE_SIZE
                  * we have read enough data.
                  * FIXME: Can this ever happen without concurrency?
                  */
                 bilbyfs_debug("copied < len : %u < %u. But it's safe to ignore as write_begin read %lu bytes.\n",
-                              copied, len, PAGE_CACHE_SIZE);
+                              copied, len, PAGE_SIZE);
         }
         __set_page_dirty_nobuffers(page);
         if (appending) {
@@ -507,7 +526,7 @@ static int bilbyfs_write_end_writeback(struct file *filp, struct address_space *
                 __mark_inode_dirty(inode, I_DIRTY_DATASYNC);
         }
         unlock_page(page);
-        page_cache_release(page);
+        put_page(page);
         bilbyfs_debug("[1] bilbyfs_write_end_writeback() = %d (nb bytes copied)\n", copied);
         return copied;
 }
@@ -517,9 +536,9 @@ static int bilbyfs_writepage(struct page *page, struct writeback_control *wbc)
         struct inode *inode = page->mapping->host;
         struct bilbyfs_info *bi = inode->i_sb->s_fs_info;
         loff_t i_size =  i_size_read(inode);
-        pgoff_t end_index = i_size >> PAGE_CACHE_SHIFT;
-        loff_t pos = page->index << PAGE_CACHE_SHIFT;
-        int err, len = i_size & (PAGE_CACHE_SIZE - 1);
+        pgoff_t end_index = i_size >> PAGE_SHIFT;
+        loff_t pos = page->index << PAGE_SHIFT;
+        int err, len = i_size & (PAGE_SIZE - 1);
         void *kaddr;
 
         bilbyfs_debug("bilbyfs_writepage()\n");
@@ -531,10 +550,10 @@ static int bilbyfs_writepage(struct page *page, struct writeback_control *wbc)
         }
         bilbyfs_debug("write-to-disk\n");
         if (page->index != end_index)
-                len = PAGE_CACHE_SIZE;
+                len = PAGE_SIZE;
         set_page_writeback(page);
         kaddr = kmap_atomic(page);
-        memset(kaddr + len, 0, PAGE_CACHE_SIZE - len);
+        memset(kaddr + len, 0, PAGE_SIZE - len);
         flush_dcache_page(page);
         kunmap_atomic(kaddr);
 
@@ -572,6 +591,7 @@ static void *bilbyfs_follow_link(struct dentry *dentry, struct nameidata *nd)
                         kfree(inode->i_private);
                         return ERR_PTR(err);
                 }
+
         }
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4,2,0)
         nd_set_link(nd, inode->i_private);
@@ -582,18 +602,25 @@ static void *bilbyfs_follow_link(struct dentry *dentry, struct nameidata *nd)
 const char *bilbyfs_get_link(struct dentry *dentry, struct inode *inode,
                              struct delayed_call *done)
 {
-        struct wrapper_data *wd = dentry->d_inode->i_sb->s_fs_info;
-        int err;
-        const char *link = page_get_link(dentry, inode, done);
+        struct bilbyfs_info *bi = dentry->d_inode->i_sb->s_fs_info;
+	int err;
 
-        bilbyfs_debug("bilbyfs_get_link() \n");
-        if (!IS_ERR(link) && !*link) {
-                do_delayed_call(done);
-                clear_delayed_call(done);
-                link = ERR_PTR(-ENOENT);
-        }
+	if (!inode->i_link) {
+		inode->i_link = kmalloc(PATH_MAX);
+		if (!inode->i_link)
+			return ERR_PTR(-ENOMEM);
+		down(&bi->wd.lock);
+		err = fsop_follow_link(bi, dentry->d_inode, inode->i_link);
+		up(&bi->wd.lock);
 
-        return link;
+		if (err) {
+			bilbyfs_err("BilbyFsError: bilbyfs_follow_link() = %d\n", err);
+			kfree(inode->i_link);
+			inode->i_link = NULL;
+			return ERR_PTR(err);
+		}
+	}
+	return inode->i_link;
 }
 #endif
 
@@ -631,13 +658,13 @@ static int bilbyfs_setattr(struct dentry *dentry, struct iattr *attr)
         if (attr->ia_valid & ATTR_SIZE)
                 truncate_setsize(inode, inode->i_size);
         if (attr->ia_valid & ATTR_ATIME)
-                inode->i_atime = timespec_trunc(inode->i_atime,
+                inode->i_atime = timespec64_trunc(inode->i_atime,
                                                 inode->i_sb->s_time_gran);
         if (attr->ia_valid & ATTR_MTIME)
-                inode->i_mtime = timespec_trunc(inode->i_mtime,
+                inode->i_mtime = timespec64_trunc(inode->i_mtime,
                                                 inode->i_sb->s_time_gran);
         if (attr->ia_valid & ATTR_CTIME)
-                inode->i_ctime = timespec_trunc(inode->i_ctime,
+                inode->i_ctime = timespec64_trunc(inode->i_ctime,
                                                 inode->i_sb->s_time_gran);
         return 0;
 }
@@ -666,12 +693,15 @@ static int bilbyfs_getattr(struct vfsmount *mnt, struct dentry *dentry,
 int bilbyfs_getattr(const struct path *path, struct kstat *stat,
                     u32 mask, unsigned int flags)
 {
-        struct dentry *dentry = path->dentry;
-        struct inode *inode = d_inode(dentry);
-        int err;
+       struct dentry *dentry = path->dentry;
+       struct inode *inode = d_inode(dentry);
+       int err;
+       struct bilbyfs_info *bi = inode->i_sb->s_fs_info;
+
        down(&bi->wd.lock);
        err = fsop_getattr(bi, inode, stat);
        up(&bi->wd.lock);
+
        if (!err) {
                stat->dev = dentry->d_sb->s_dev;
                stat->rdev = inode->i_rdev;
@@ -916,8 +946,8 @@ static int bilbyfs_fill_super(struct super_block *sb, void *options, int silent,
 {
         struct bilbyfs_info *bi = sb->s_fs_info;
         struct inode *root;
-        ino_t rootino;
         int err;
+        ino_t rootino;
 
         err = bilbyfs_parse_options(bi, options);
         if (err)
@@ -927,6 +957,7 @@ static int bilbyfs_fill_super(struct super_block *sb, void *options, int silent,
          * Read-ahead will be disabled because bdi->ra_pages is 0.
          */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4,0,0)
+
         sb->s_bdi = &bi->wd.bdi;
         sb->s_bdi->name = "bilbyfs";
         sb->s_bdi->capabilities = BDI_CAP_MAP_COPY;
@@ -964,11 +995,11 @@ static int bilbyfs_fill_super(struct super_block *sb, void *options, int silent,
         }
 #else
         super_setup_bdi(sb);
-        sb->s_fs_info = wd;
+	//        sb->s_fs_info = wd;
         root = bilbyfs_new_inode(sb, NULL, S_IFDIR | S_IRUGO | S_IWUSR | S_IXUGO);
         if (root) {
                 set_nlink(root, 2);
-                err = ffsop_fill_super(wd, sb, silent, root);
+                err = fsop_fill_super(bi, sb, silent, &rootino, root);
                 iput(root);
         } else {
                 err = PTR_ERR(root);
@@ -976,7 +1007,7 @@ static int bilbyfs_fill_super(struct super_block *sb, void *options, int silent,
 
         if (!err) {
                 /* Reads the root inode */
-                root = bilbyfs_iget(wd, root->i_ino);
+                root = bilbyfs_iget(bi, root->i_ino);
                 if (!IS_ERR(root)) {
                         sb->s_root = d_make_root(root);
                         if (sb->s_root)
@@ -985,7 +1016,7 @@ static int bilbyfs_fill_super(struct super_block *sb, void *options, int silent,
                 } else {
                         err = PTR_ERR(root);
                 }
-                bilbyfs_unmount(wd);
+                bilbyfs_unmount(bi);
         }
 #endif
         sb->s_bdi = NULL;
@@ -1103,14 +1134,16 @@ static void bilbyfs_free_inode(struct rcu_head *head)
         struct bilbyfs_inode *binode = inode_to_binode(inode);
 
         bilbyfs_debug("bilbyfs_free_inode(ino = %lu)\n", inode->i_ino);
+
+	kfree(inode->i_link);
         kmem_cache_free(bilbyfs_inode_slab, binode);
 }
 
 static void bilbyfs_destroy_inode(struct inode *inode)
 {
         bilbyfs_debug("bilbyfs_destroy_inode(ino=%lu)\n", inode->i_ino);
-        kfree(inode->i_private);
-        inode->i_private = NULL;
+	kfree(inode->i_private);
+	inode->i_private = NULL;
 
         call_rcu(&inode->i_rcu, bilbyfs_free_inode);
 }
@@ -1131,9 +1164,9 @@ static void bilbyfs_evict_inode(struct inode *inode)
         clear_inode(inode);
 }
 
-struct timespec inode_current_time(struct inode *inode)
+struct timespec64 inode_current_time(struct inode *inode)
 {
-        return current_time(inode);
+  return current_time(inode);
 }
 
 static const struct super_operations bilbyfs_super_operations =
@@ -1188,8 +1221,8 @@ static int __init bilbyfs_init(void)
         /* All obj types fit in 3 bits */
         BUILD_BUG_ON(BILBYFS_OBJ_TYPES_CNT > 7);
 
-        BUILD_BUG_ON(PAGE_CACHE_SIZE != BILBYFS_BLOCK_SIZE);
-        BUILD_BUG_ON(PAGE_CACHE_SHIFT != BILBYFS_BLOCK_SHIFT);
+        BUILD_BUG_ON(PAGE_SIZE != BILBYFS_BLOCK_SIZE);
+        BUILD_BUG_ON(PAGE_SHIFT != BILBYFS_BLOCK_SHIFT);
 
         bilbyfs_inode_slab = kmem_cache_create("bilbyfs_inode_slab",
                                 sizeof(struct bilbyfs_inode), 0,
