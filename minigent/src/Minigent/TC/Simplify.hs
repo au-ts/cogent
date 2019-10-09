@@ -95,6 +95,11 @@ simplify axs = Rewrite.pickOne $ \c -> case c of
         c   = Record n1 r1' s1 :< Record n2 r2' s2
     Just (c:cs ++ ds)
 
+  Roll t v t' :< t''  -> guard (typeUVs t' == []) >> Just [roll t v t' :< t'']
+  t'' :< Roll t v t'  -> guard (typeUVs t' == []) >> Just [t'' :< roll t v t']
+  Roll t v t' :=: t'' -> guard (typeUVs t' == []) >> Just [roll t v t' :=: t'']
+  t'' :=: Roll t v t' -> guard (typeUVs t' == []) >> Just [t'' :=: roll t v t' ]
+
   t :< t'  -> guard (unorderedType t || unorderedType t') >> Just [t :=: t']
 
   AbsType n s ts :=: AbsType n' s' ts' -> guard (n == n' && s == s') >> Just (zipWith (:=:) ts ts')
@@ -126,7 +131,7 @@ simplify axs = Rewrite.pickOne $ \c -> case c of
         cs = map (\(Entry _ t _, Entry _ t' _) -> t :=: t') commons
         c   = Record n1 r1' s1 :=: Record n2 r2' s2
     Just (c:cs)
-  
+    
   t :=: t' -> guard (t == t') >> if typeUVs t == [] then Just [] 
                                                     else Just [Solved t] 
   Solved t -> guard (typeUVs t == []) >> Just []
@@ -135,12 +140,6 @@ simplify axs = Rewrite.pickOne $ \c -> case c of
   UnboxedNoRecurse (Record None _ Unboxed) -> Just [Sat]
   -- If a boxed record, sat
   UnboxedNoRecurse (Record _ _ c) | (c == ReadOnly || c == Writable) -> Just [Sat]
-
-  Roll t v t' :< t''  -> guard (typeUVs t' == []) >> Just [roll t v t' :< t'']
-  Roll t v t' :=: t'' -> guard (typeUVs t' == []) >> Just [roll t v t' :=: t'']
-  t'' :< Roll t v t'  -> guard (typeUVs t' == []) >> Just [t'' :< roll t v t']
-  t'' :=: Roll t v t' -> guard (typeUVs t' == []) >> Just [t'' :=: roll t v t' ]
-    
 
   _ -> Nothing
 

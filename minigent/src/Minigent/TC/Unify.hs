@@ -96,7 +96,7 @@ assignOf (Roll t v t' :<  t'') = assignOf (t'  :<  t'')
 assignOf (t'' :<  Roll t v t') = assignOf (t'' :<  t')
 
 assignOf (Roll t v t' :=: t'') = assignOf (t'  :=: t'')
-assignOf (t'' :=: Roll t v t') = trace ("assignOf:\n  t'': " ++ show t'' ++ "\n  t':" ++ show t') $ 
+assignOf (t'' :=: Roll t v t') = --trace ("assignOf:\n  t'': " ++ show t'' ++ "\n  t':" ++ show t') $ 
                                  assignOf (t'' :=: t')
 
 assignOf _ = empty
