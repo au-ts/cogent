@@ -62,12 +62,18 @@ solve axs cs = do
   where
     solverRewrites :: Rewrite.Rewrite' Solver [Constraint]
     solverRewrites = Rewrite.untilFixedPoint $
-    --  Rewrite.debug "SOLV" debugPrettyConstraints <>
-      Rewrite.pre normaliseConstraints (Rewrite.lift (simplify axs)
-                                     <> unify
-                                     <> Rewrite.lift equate 
-                                     <> sinkFloat
-                                     <> joinMeet)
+      -- Rewrite.debugNewline "SOLV" debugPrettyConstraints <>
+      Rewrite.pre normaliseConstraints (
+          -- Rewrite.debugNewline "[simp]" debugPrettyConstraints <>
+          Rewrite.lift (simplify axs) <>
+          -- Rewrite.debugNewline "[unify]" debugPrettyConstraints <>
+          unify <>
+          -- Rewrite.debugNewline "[equate]" debugPrettyConstraints <>
+          Rewrite.lift equate <>
+          -- Rewrite.debugNewline "[sink/float]" debugPrettyConstraints <>
+          sinkFloat <>
+          -- Rewrite.debugNewline "[join/meet]" debugPrettyConstraints <>
+          joinMeet)
 
 -- | Run a solver computation.
 runSolver :: Solver a -> Fresh VarName (a,[Assign])
