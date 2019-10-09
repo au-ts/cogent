@@ -21,11 +21,14 @@ import qualified Minigent.Syntax.Utils.Rewrite as Rewrite
 
 import Minigent.TC.Assign
 import Minigent.Fresh
-import Control.Monad.Writer
+import Control.Monad.Writer hiding (First(..))
 import Control.Monad.Trans.Maybe
 import Control.Applicative
-import Data.Foldable (asum)
 import qualified Data.Map as M
+import qualified Data.Map.Merge.Lazy as MMg
+import Data.Maybe (catMaybes)
+
+import Data.Semigroup (First(..))
 
 sinkFloat :: forall m. (MonadFresh VarName m, MonadWriter [Assign] m) => Rewrite.Rewrite' m [Constraint]
 sinkFloat = Rewrite.rewrite' $ \cs -> do 
@@ -34,44 +37,119 @@ sinkFloat = Rewrite.rewrite' $ \cs -> do
                pure (map (constraintTypes (traverseType (foldMap substAssign as))) cs')
   where 
     tryEach :: [Constraint] -> MaybeT m ([Constraint], [Assign])
-    tryEach [] = empty
-    tryEach (c:cs) = (tryOne c >>= \(cs',as) -> pure (cs' ++ cs, as))
-                 <|> fmap (\(cs,x) -> (c:cs,x)) (tryEach cs)
-    
-    tryOne :: Constraint -> MaybeT m ([Constraint], [Assign])
-    tryOne c@(Record r s :< v)
-      | fs <- discardCommon v (getTaken r)
-      , not (M.null fs) = rowConstraints (\r' -> Record r' s) (:<) fs c v
-    tryOne c@(v :< Record r s) 
-      | fs <- discardCommon v (getPresent r)
-      , not (M.null fs) = rowConstraints (\r' -> Record r' s) (flip (:<)) fs c v
-    tryOne c@(Variant r :< v)
-      | fs <- discardCommon v (getPresent r)
-      , not (M.null fs) = rowConstraints Variant (:<) fs c v
-    tryOne c@(v :< Variant r)
-      | fs <- discardCommon v (getTaken r)
-      , not (M.null fs) = rowConstraints Variant (flip (:<)) fs c v
-    tryOne _                 = empty
+    tryEach cs =
+      MaybeT $ do
+        (mas :: [Maybe [Assign]]) <- traverse (runMaybeT . genStructSubst) cs
+        let as :: Maybe [Assign]
+            as = getFirst <$> (mconcat $ fmap (fmap First) mas :: Maybe (First [Assign]))
+        return ((,) cs <$> as)
 
-    rowConstraints fRow fSub fs c v = do 
-        v' <- fresh
-        ts <- mapM (\x -> (x,) . UnifVar <$> fresh) fs
-        let r' = Row (fmap (\(Entry n _ tk, u) -> (Entry n u tk)) ts) (Just v')
-        as <- substOf v fRow r'
-        let cs = map (\(Entry _ t _, u) -> t `fSub` u) $ M.elems ts
-        pure (c : cs, as)
+    genStructSubst :: Constraint -> MaybeT m [Assign]
+    -- remove type operators first
+    genStructSubst (Bang t :< v)  = genStructSubst (t :< v)
+    genStructSubst (v :< Bang t)  = genStructSubst (v :< t)
+    genStructSubst (Bang t :=: v) = genStructSubst (t :=: v)
+    genStructSubst (v :=: Bang t) = genStructSubst (v :=: t)
 
-    substOf (UnifVar v) fRow t = pure [TyAssign v (fRow t)]
-    substOf (Variant r) fRow t | Just v <- rowVar r 
-                               = pure [RowAssign v t]
-    substOf (Record r s) fRow t | Just v <- rowVar r 
-                                = pure [RowAssign v t]
-    substOf _ fRow t = empty
+    -- records
+    genStructSubst (Record r _ :< UnifVar i) = do
+      s' <- UnknownSigil <$> fresh
+      rowUnifRowSubs (flip Record s') i r
 
-    discardCommon (UnifVar _)  fs = fs
-    discardCommon (Record r _) fs = M.difference fs $ Row.entriesMap r
-    discardCommon (Variant r)  fs = M.difference fs $ Row.entriesMap r
-    discardCommon _ _             = M.empty
+    genStructSubst (UnifVar i :< Record r _) = do
+      s' <- UnknownSigil <$> fresh
+      rowUnifRowSubs (flip Record s') i r
+
+    genStructSubst (Record r1 s1 :< Record r2 s2) = do
+      {-
+        The most tricky case.
+        Taken is the bottom of the order, Untaken is the top.
+        If taken things are in r2, then we can infer they must be in r1.
+        If untaken things are in r1, then we can infer they must be in r2.
+      -}
+      let fs1 = rowEntries r1
+          fs2 = rowEntries r2
+      -- construct the missing parts of fs1
+      (row1' :: M.Map FieldName Entry) <- makeMissingUnifRow id  fs1 fs2
+      -- construct the missing parts of fs2
+      (row2' :: M.Map FieldName Entry) <- makeMissingUnifRow not fs2 fs1
+      v1' <- fresh
+      v2' <- fresh
+      let as = catMaybes [ RowAssign <$> rowVar r1 <*> pure (Row row1' (Just v1'))
+                         , RowAssign <$> rowVar r2 <*> pure (Row row2' (Just v2'))
+                         ]
+      if null as
+        then empty
+        else pure as
+
+    -- abstypes
+    genStructSubst (AbsType n s ts :< UnifVar i) = absTypeSubs n s ts i
+    genStructSubst (UnifVar i :< AbsType n s ts) = absTypeSubs n s ts i
+    genStructSubst (AbsType n s ts :=: UnifVar i) = absTypeSubs n s ts i
+    genStructSubst (UnifVar i :=: AbsType n s ts) = absTypeSubs n s ts i
+
+    -- variants
+    genStructSubst (Variant r :< UnifVar i) = rowUnifRowSubs Variant i r
+    genStructSubst (UnifVar i :< Variant r) = rowUnifRowSubs Variant i r
+    genStructSubst (Variant r1 :< Variant r2) = do
+      {-
+        The most tricky case.
+        Untaken is the bottom of the order, Taken is the top.
+        If untaken things are in r2, then we can infer they must be in r1.
+        If taken things are in r1, then we can infer they must be in r2.
+      -}
+      let fs1 = rowEntries r1
+          fs2 = rowEntries r2
+      -- construct the missing parts of fs1
+      (row1' :: M.Map FieldName Entry) <- makeMissingUnifRow not fs1 fs2
+      -- construct the missing parts of fs2
+      (row2' :: M.Map FieldName Entry) <- makeMissingUnifRow id  fs2 fs1
+      v1' <- fresh
+      v2' <- fresh
+      let as = catMaybes [ RowAssign <$> rowVar r1 <*> pure (Row row1' (Just v1'))
+                         , RowAssign <$> rowVar r2 <*> pure (Row row2' (Just v2'))
+                         ]
+      if null as
+        then empty
+        else pure as
+
+
+    -- primitive types
+    genStructSubst (t@(PrimType p) :< UnifVar i) = pure [TyAssign i t]
+    genStructSubst (UnifVar i :< t@(PrimType p)) = pure [TyAssign i t]
+
+    -- default
+    genStructSubst _ = empty
+
+    --
+    -- helper functions
+    --
+    rowUnifRowSubs tConstr i r = do
+      let es = rowEntries r
+      v' <- traverse (const fresh) (rowVar r)
+      es' <- traverse (\(Entry n _ tk) -> Entry n <$> (UnifVar <$> fresh) <*> pure tk) es
+      s' <- UnknownSigil <$> fresh
+      pure [TyAssign i (tConstr (Row es' v'))]
+
+    makeMissingUnifRow :: forall k. Ord k => (Bool -> Bool) -> M.Map k Entry -> M.Map k Entry -> MaybeT m (M.Map k Entry)
+    makeMissingUnifRow tkIsOkay mInto mFrom = (MMg.mergeA
+      -- handle when mFrom is missing keys from mInto
+      MMg.dropMissing
+      -- handle when mInto is missing keys from mFrom
+      (MMg.traverseMaybeMissing $ \k (Entry n t tk) ->
+        if tkIsOkay tk
+          -- we want to transfer the field
+          then (\i -> Just (Entry n (UnifVar i) tk)) <$> fresh
+          -- we don't want to transfer the field
+          else pure Nothing)
+      -- handle when they are in both
+      (MMg.zipWithMaybeAMatched $ \_ _ _ -> pure Nothing)
+      mInto
+      mFrom)
+
+    absTypeSubs n s ts i = do 
+      ts <- mapM (const (UnifVar <$> fresh)) ts
+      return [TyAssign i (AbsType n s ts)]
 
     getTaken   = M.filter (\(Entry _ _ t) -> t)     . Row.entriesMap
     getPresent = M.filter (\(Entry _ _ t) -> not t) . Row.entriesMap
