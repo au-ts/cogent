@@ -316,7 +316,7 @@ static inline void inode_init_perm(struct inode *inode, const struct inode *dir,
 
 /* struct bilbyfs_dirent: Generic directory entry structure used for readdir
  * The structure allows to abstract away the Linux VFS filldir callback.
- * @d_ino: lnode number the directory entry is pointing to
+ * @d_ino: inode number the directory entry is pointing to
  * @d_off: offset of the directory entry in the directory
  * @d_reclen: length of the name
  * @d_type: type of inode (DT_REG, DT_DIR, DT_LNK...)
@@ -848,7 +848,7 @@ static inline u32 next_inum(struct bilbyfs_info *bi)
  * inode_current_time - round current time to time granularity.
  * @inode: inode
  */
-struct timespec inode_current_time(struct inode *inode);
+struct timespec64 inode_current_time(struct inode *inode);
 
 /* ReadDir ConteXt: This component helps to list a inline diretory by sequentially
  * reading all directory entries in a directory. 
@@ -995,18 +995,19 @@ void fsop_dir_release(struct fsop_readdir_ctx *rdx);
 /* fsop_symlink: Create a symbolic link
  * @bi: global fs info
  * @dir: directory inode in which we create symlink
- * @dentry: directory entry containing the name of the symlink
+ * @name: the name of the symlink
  * @symname: path to which the symlink points
  * @inode: inode to fill
  *
  * If the function is successful it creates a symlink inode on disk
- * and fill in information about the symlink in @inode.
+ * and fill in information about the symlink in @inode.  The new symlink's 
+ * path is put into a data object pointed to by the inode.
  * The function returns a negative error code if unsuccessful and zero
  * otherwise.
  */
 int fsop_symlink(struct bilbyfs_info *bi, struct inode *dir, const char *name, const char *symname, struct inode *inode);
 
-/* fsop_renmae: Change the name and parent for an inode
+/* fsop_rename: Change the name and parent for an inode
  * @bi: global fs info
  * @old_dir: parent directory inode of the source inode
  * @old_name: source inode to be renamed
