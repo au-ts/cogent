@@ -26,6 +26,7 @@ module Minigent.Syntax.Utils
     -- ** Applying rewrites
     traverseType
   , normaliseType
+  , roll
   , -- ** Rewrites
     substUV
   , substRowV
@@ -200,6 +201,7 @@ constraintTypes func constraint = go constraint
     go (UnboxedNoRecurse t) = UnboxedNoRecurse $ func t
     go Unsat                = Unsat
 
+
 -- | Given a function that acts on 'Type' values, produce a function
 --   that acts on the types inside an 'Expr'.
 exprTypes :: (Type -> Type) -> Expr -> Expr
@@ -263,6 +265,29 @@ normaliseType func ty =
         Function (normaliseType func t1) (normaliseType func t2)
       Bang t -> Bang (normaliseType func t)
       _      -> t'
+
+-- | Performs a roll on a given type (TODO better documentation)
+roll :: Type -> RecPar -> Type -> Type
+roll t None t' = t'
+roll t (Rec n) t' = 
+  case t' of
+    TypeVar     v | v == n -> t
+    TypeVarBang v | v == n -> t
+
+    Record p r s -> Record p (rollRow r) s
+    Variant r    -> Variant  (rollRow r)
+
+    AbsType x y ts -> AbsType x y $ map (roll t (Rec n)) ts
+
+    -- N.B: At this point, we know that functions are strictly positive, so our 
+    -- recursive parameter will not appear in the function argument type
+    Function a b -> Function a $ roll t (Rec n) b
+
+    _  -> t'
+  where
+    rollRow = Row.mapEntries (\(Entry s x y) -> Entry s (roll t (Rec n) x) y)
+roll _ _ _ = error "roll called on unfinished record"
+
 
 -- | A rewrite that substitutes a given unification type variable for a type term in a type.
 substUV :: (VarName, Type) -> RW.Rewrite Type

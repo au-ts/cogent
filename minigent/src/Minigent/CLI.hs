@@ -295,7 +295,7 @@ compiler phase dirs files = do
     envs <- reorgPhase ast
     mapM_ (reorgDump envs) dirs
     upTo TC
-    binds <- tcPhase (NoColour `elem` dirs) envs
+    binds <- tcPhase (NoColour `notElem` dirs) envs
     mapM_ (tcDump binds) dirs
     upTo CG
     barf <- cgPhase binds

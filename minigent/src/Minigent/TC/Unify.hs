@@ -25,6 +25,8 @@ import Control.Monad.Trans.Maybe
 import Control.Applicative
 import Data.Foldable (asum)
 
+import Debug.Trace
+
 
 -- | The unify phase, which seeks out equality constraints to solve via substitution.
 unify :: (MonadFresh VarName m, MonadWriter [Assign] m) => Rewrite.Rewrite' m [Constraint]
@@ -89,6 +91,13 @@ assignOf (Record n1 _ _ :=: Record n2 _ _)
 -- unknown parameter to None
 assignOf (UnboxedNoRecurse (Record (UnknownParameter x) _ Unboxed))
     = pure [RecParAssign x None]
+
+assignOf (Roll t v t' :<  t'') = assignOf (t'  :<  t'')
+assignOf (t'' :<  Roll t v t') = assignOf (t'' :<  t')
+
+assignOf (Roll t v t' :=: t'') = assignOf (t'  :=: t'')
+assignOf (t'' :=: Roll t v t') = trace ("assignOf:\n  t'': " ++ show t'' ++ "\n  t':" ++ show t') $ 
+                                 assignOf (t'' :=: t')
 
 assignOf _ = empty
 

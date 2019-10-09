@@ -210,14 +210,14 @@ cg e tau = case e of
 
   (Put e1 f e2) -> do
     beta <- UnifVar <$> fresh
-    row  <- Row.incomplete [Entry f beta True]
     sigil <- fresh
-    recPar <- fresh
+    recPar <- UnknownParameter  <$> fresh
+    row  <- Row.incomplete [Entry f beta True]
 
-    let alpha = Record (UnknownParameter recPar) row (UnknownSigil sigil)
+    let alpha = Record recPar row (UnknownSigil sigil)
     (e1', c1) <- cg e1 alpha
-    (e2', c2) <- cg e2 beta
-    let c3 = Record (UnknownParameter recPar) (Row.put f row) (UnknownSigil sigil) :< tau
+    (e2', c2) <- cg e2 (Roll alpha recPar beta)
+    let c3 = Record recPar (Row.put f row) (UnknownSigil sigil) :< tau
     withSig (Put e1' f e2', c1 :&: c2 :&: c3)
 
   (Struct fs) -> do

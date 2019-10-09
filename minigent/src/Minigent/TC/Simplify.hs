@@ -136,7 +136,15 @@ simplify axs = Rewrite.pickOne $ \c -> case c of
   -- If a boxed record, sat
   UnboxedNoRecurse (Record _ _ c) | (c == ReadOnly || c == Writable) -> Just [Sat]
 
+  Roll t v t' :< t''  -> guard (typeUVs t' == []) >> Just [roll t v t' :< t'']
+  Roll t v t' :=: t'' -> guard (typeUVs t' == []) >> Just [roll t v t' :=: t'']
+  t'' :< Roll t v t'  -> guard (typeUVs t' == []) >> Just [t'' :< roll t v t']
+  t'' :=: Roll t v t' -> guard (typeUVs t' == []) >> Just [t'' :=: roll t v t' ]
+    
+
   _ -> Nothing
+
+  
 
   where
 
