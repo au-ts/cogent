@@ -49,14 +49,6 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do {- MaybeT TcSolvM -}
   genStructSubst (v              :<  T (TUnbox t))  = genStructSubst (v :< t)
   genStructSubst (T (TUnbox t)   :=: v          )   = genStructSubst (t :=: v)
   genStructSubst (v              :=: T (TUnbox t))  = genStructSubst (v :=: t)
-  genStructSubst (T (TTake _ t)  :<  v            ) = genStructSubst (t :< v)
-  genStructSubst (v              :<  T (TTake _ t)) = genStructSubst (v :< t)
-  genStructSubst (T (TTake _ t)  :=: v            ) = genStructSubst (t :=: v)
-  genStructSubst (v              :=: T (TTake _ t)) = genStructSubst (v :=: t)
-  genStructSubst (T (TPut _ t)   :<  v            ) = genStructSubst (t :< v)
-  genStructSubst (v              :<  T (TPut _ t))  = genStructSubst (v :< t)
-  genStructSubst (T (TPut _ t)   :=: v            ) = genStructSubst (t :=: v)
-  genStructSubst (v              :=: T (TPut _ t))  = genStructSubst (v :=: t)
 
   -- record rows
   genStructSubst (R r _ :< U i) = do
