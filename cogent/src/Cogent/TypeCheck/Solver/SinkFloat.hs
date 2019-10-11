@@ -14,6 +14,7 @@ module Cogent.TypeCheck.Solver.SinkFloat ( sinkfloat ) where
 -- these.
 --
 
+import Cogent.Common.Types
 import Cogent.Surface (Type(..))
 import Cogent.TypeCheck.Base 
 import Cogent.TypeCheck.Solver.Goal 
@@ -51,13 +52,17 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do {- MaybeT TcSolvM -}
   genStructSubst (v              :=: T (TUnbox t))  = genStructSubst (v :=: t)
 
   -- record rows
-  genStructSubst (R r _ :< U i) = do
-    s' <- Right <$> lift solvFresh
+  genStructSubst (R r s :< U i) = do
+    s' <- case s of
+            Left Unboxed -> return $ Left Unboxed -- unboxed is preserved by bang and TUnbox, so we may propagate it
+            _            ->  Right <$> lift solvFresh
     makeRowUnifSubsts (flip R s') r i
-  genStructSubst (U i :< R r _) = do
-    s' <- Right <$> lift solvFresh
+  genStructSubst (U i :< R r s) = do
+    s' <- case s of
+            Left Unboxed -> return $ Left Unboxed -- unboxed is preserved by bang and TUnbox, so we may propagate it
+            _            ->  Right <$> lift solvFresh
     makeRowUnifSubsts (flip R s') r i
-  genStructSubst (R r1 _ :< R r2 _)
+  genStructSubst (R r1 s1 :< R r2 s2)
     {-
       The most tricky case.
       For Records, Taken is the bottom of the order, Untaken is the top.
@@ -72,6 +77,8 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do {- MaybeT TcSolvM -}
     , not $ M.null r2new
     , Just r2var <- Row.var r2
       = makeRowRowVarSubsts r2new r2var
+    | Left Unboxed <- s1 , Right i <- s2 = return $ Subst.ofSigil i Unboxed
+    | Right i <- s1 , Left Unboxed <- s2 = return $ Subst.ofSigil i Unboxed
 
   -- variant rows
   genStructSubst (V r :< U i) = makeRowUnifSubsts V r i
