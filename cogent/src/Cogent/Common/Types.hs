@@ -41,6 +41,10 @@ readonly :: Sigil r -> Bool
 readonly (Boxed True _) = True
 readonly _ = False
 
+unboxed :: Sigil r -> Bool
+unboxed Unboxed = True
+unboxed _ = False
+
 data PrimInt = U8 | U16 | U32 | U64 | Boolean deriving (Show, Data, Eq, Ord)
 
 isSubtypePrim :: PrimInt -> PrimInt -> Bool
