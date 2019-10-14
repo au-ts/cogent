@@ -180,14 +180,17 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
     guard (reduced r2')
     guard (null $ ARow.conflicts r1' r2')
     let (cs,ls,rs) = ARow.clr r1' r2'
-        r1'' = ARow.updateEntries (const ls) r1'
-        r2'' = ARow.updateEntries (const rs) r2'
-    Just [A t1 l1 s1 r1'' :< A t2 l2 s2 r2'']
+    if IM.null (ls `IM.union` rs)
+      then Nothing
+      else
+        let r1'' = ARow.updateEntries (const ls) r1'
+            r2'' = ARow.updateEntries (const rs) r2'
+         in Just [t1 :=: t2] -- [A t1 l1 s1 r1'' :< A t2 l2 s2 r2'']
 
   A t1 l1 s1 r1 :<  A t2 l2 s2 r2 | s1 == s2 -> 
     Just [t1 :<  t2, Arith (SE $ PrimOp "==" [l1,l2])]
   A t1 l1 s1 r1 :=: A t2 l2 s2 r2 | s1 == s2 -> do
-    undefined  -- TODO
+    -- TODO
     Just [t1 :=: t2, Arith (SE $ PrimOp "==" [l1,l2])]
 
   -- TODO: Here we will call a SMT procedure to simplify all the Arith constraints.
