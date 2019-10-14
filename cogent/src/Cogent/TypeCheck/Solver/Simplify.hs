@@ -10,6 +10,8 @@
 -- @TAG(DATA61_GPL)
 --
 
+{-# LANGUAGE MultiWayIf #-}
+
 module Cogent.TypeCheck.Solver.Simplify where
 
 import           Cogent.Common.Syntax
@@ -118,11 +120,19 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
 
   Exhaustive t ps | any isIrrefutable ps -> Just []
   Exhaustive (V r) []
+<<<<<<< HEAD
     | Row.isComplete r ->
       null (Row.presentPayloads r) 
         `elseDie` PatternsNotExhaustive (V r) (Row.presentLabels r) 
   Exhaustive (V r) (RP (PCon t _):ps) 
     | isNothing (Row.var r) -> 
+=======
+    | isNothing (Row.var r) ->
+      L.null (Row.untakenTypes r)
+        `elseDie` PatternsNotExhaustive (V r) (Row.untakenLabels r)
+  Exhaustive (V r) (RP (PCon t _):ps)
+    | isNothing (Row.var r) ->
+>>>>>>> compiler: manage to tc simple array put ops
       Just [Exhaustive (V (Row.take t r)) ps]
 
   Exhaustive tau@(T (TCon "Bool" [] Unboxed)) [RP (PBoolLit t), RP (PBoolLit f)]
@@ -151,6 +161,7 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
   T (TTuple ts) :<  T (TTuple us) | length ts == length us -> Just (zipWith (:< ) ts us)
   T (TTuple ts) :=: T (TTuple us) | length ts == length us -> Just (zipWith (:=:) ts us)
 
+<<<<<<< HEAD
   V r1 :< V r2 | Row.isEmpty r1 && Row.isEmpty r2 -> Just []
                | Row.isComplete r1 && Row.isComplete r2 && psub r1 r2 ->
     let commons  = Row.common r1 r2 in
@@ -178,25 +189,77 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
        let cs = map (\ (e,e') -> Row.payload e :=: Row.payload e') commons
            ds = map (flip Drop ImplicitlyTaken) $ Row.extract (pdiff r1 r2) r1
        Just (cs ++ ds)
+=======
+  V r1 :< V r2 | Row.null r1 && Row.null r2 -> Just []
+               | Just (r1',r2') <- extractVariableEquality r1 r2 -> Just [V r1' :=: V r2']
+               | otherwise -> do
+    let commons  = Row.common r1 r2
+        (ls, rs) = unzip commons
+    guard (not (L.null commons))
+    guard (untakenLabelsSet ls `S.isSubsetOf` untakenLabelsSet rs)
+    let (r1',r2') = Row.withoutCommon r1 r2
+        cs = map (\ ((_, e),(_,e')) -> fst e :< fst e') commons
+        c   = V r1' :< V r2'
+    Just (c:cs)
+
+  V r1 :=: V r2 | Row.null r1 && Row.null r2 -> Just []
+                | otherwise -> do
+    let commons  = Row.common r1 r2
+        (ls, rs) = unzip commons
+    guard (not (L.null commons))
+    guard (untakenLabelsSet ls == untakenLabelsSet rs)
+    let (r1',r2') = Row.withoutCommon r1 r2
+        cs = map (\ ((_, e),(_,e')) -> fst e :=: fst e') commons
+        c   = V r1' :=: V r2'
+    Just (c:cs)
+
+  R r1 s1 :< R r2 s2 | Row.null r1 && Row.null r2 && s1 == s2 -> Just []
+                     | Just (r1',r2') <- extractVariableEquality r1 r2 -> Just [R r1' s1 :=: R r2' s2]
+                     | otherwise -> do
+    let commons  = Row.common r1 r2
+        (ls, rs) = unzip commons
+    guard (not (L.null commons))
+    guard (untakenLabelsSet rs `S.isSubsetOf` untakenLabelsSet ls)
+    let (r1',r2') = Row.withoutCommon r1 r2
+        cs = map (\ ((_, e),(_,e')) -> fst e :< fst e') commons
+        ds = map (flip Drop ImplicitlyTaken) $ Row.typesFor (untakenLabelsSet ls S.\\ untakenLabelsSet rs) r1
+        c  = R r1' s1 :< R r2' s2
+    Just (c:cs ++ ds)
+
+  R r1 s1 :=: R r2 s2 | Row.null r1 && Row.null r2 && s1 == s2 -> Just []
+                      | otherwise -> do
+    let commons  = Row.common r1 r2
+        (ls, rs) = unzip commons
+    guard (not (L.null commons))
+    guard (untakenLabelsSet rs == untakenLabelsSet ls)
+    let (r1',r2') = Row.withoutCommon r1 r2
+        cs = map (\ ((_, e),(_,e')) -> fst e :=: fst e') commons
+        ds = map (flip Drop ImplicitlyTaken) $ Row.typesFor (untakenLabelsSet ls S.\\ untakenLabelsSet rs) r1
+        c  = R r1' s1 :=: R r2' s2
+    Just (c:cs ++ ds)
+>>>>>>> compiler: manage to tc simple array put ops
 
 #ifdef BUILTIN_ARRAYS
   -- See [NOTE: solving 'A' types] in Cogent.Solver.Unify
-  A t1 l1 s1 r1 :<  A t2 l2 s2 r2 | s1 == s2, isKnown l1, isKnown l2 -> do
-    let -- ASSUME that they are always statically computable
-        Just l1' = normaliseSExpr l1
-        Just l2' = normaliseSExpr l2
-        r1' = unfoldAll l1' $ ARow.eval normaliseSExpr r1
-        r2' = unfoldAll l2' $ ARow.eval normaliseSExpr r2
-    guard (reduced r1')
-    guard (reduced r2')
-    let (r1'',r2'') = ARow.withoutCommon r1' r2'
-        commons = ARow.common r1' r2'
-    guard (any (\(l,r) -> l <= r) commons)  -- @True >= False@
-    let drop = if any (\(l,r) -> l < r) commons then Drop t1 ImplicitlyTaken else Sat
-    Just [A t1 l1 s1 r1'' :< A t2 l2 s2 r2'', drop]
+  A t1 l1 s1 r1 :<  A t2 l2 s2 r2
+      | s1 == s2 && ARow.null r1 && ARow.null r2 && t1 == t2 && l1 == l2 -> Just []
+      | s1 == s2 && l1 /= l2 && (not (isKnown l1) || not (isKnown l2))
+      -> Just [A t1 l1 s1 r1 :< A t2 l1 s2 r2, Arith (SE $ PrimOp "==" [l1,l2])]
+      | s1 == s2 && l1 == l2 && isKnown l1 && isKnown l2 -> do
+        let -- ASSUME that they are always statically computable
+            Just l1' = normaliseSExpr l1
+            Just l2' = normaliseSExpr l2
+            r1' = unfoldAll l1' $ ARow.eval normaliseSExpr r1
+            r2' = unfoldAll l2' $ ARow.eval normaliseSExpr r2
+        guard (reduced r1')
+        guard (reduced r2')
+        let (r1'',r2'') = ARow.withoutCommon r1' r2'
+            commons = ARow.common r1' r2'
+        guard (any (\(l,r) -> l <= r) commons)  -- @True >= False@
+        let drop = if any (\(l,r) -> l < r) commons then Drop t1 ImplicitlyTaken else Sat
+        Just [A t1 l1 s1 r1'' :< A t2 l2 s2 r2'', drop]
+      | s1 == s2 && r1 == r2 && l1 == l2 -> Just [t1 :< t2]
 
-  A t1 l1 s1 r1 :<  A t2 l2 s2 r2 | s1 == s2 -> 
-    Just [t1 :<  t2, Arith (SE $ PrimOp "==" [l1,l2])]
   A t1 l1 s1 r1 :=: A t2 l2 s2 r2 | s1 == s2 -> do
     -- TODO
     Just [t1 :=: t2, Arith (SE $ PrimOp "==" [l1,l2])]
@@ -239,9 +302,9 @@ isIrrefutable (RP (PIrrefutable _)) = True
 isIrrefutable _ = False
 
 isSolved :: TCType -> Bool
-isSolved t = null (unifVars t)
+isSolved t = L.null (unifVars t)
 #ifdef BUILTIN_ARRAYS
-          && null (unknowns t)
+          && L.null (unknowns t)
 #endif
 
 
