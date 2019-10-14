@@ -11,7 +11,7 @@
 --
 
 {-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE LambdaCase #-}
@@ -92,10 +92,10 @@ solve ks c = let gs     = makeGoals [] c
                           debug  "Sink/Float" sinkfloat <>
                           debugL "Defaults"   defaults
                  rw     = debugF "Initial constraints" <>
-                          Rewrite.untilFixedPoint (Rewrite.pre normaliseTypes $ stages)
+                          Rewrite.untilFixedPoint (debug "Normalise types" $ Rewrite.pre normaliseTypes $ stages)
               in fmap (fromMaybe gs) (runMaybeT (Rewrite.runRewrite rw gs))
  where
-  debug  nm rw = rw `Rewrite.andThen` Rewrite.debugPass ("After " ++ nm ++ " the Rewrite is:") printC
+  debug  nm rw = rw `Rewrite.andThen` Rewrite.debugPass ("After " ++ nm ++ " the constraints are:") printC
   debugL nm rw = debug nm (Rewrite.lift rw)
   debugF nm = Rewrite.debugFail ("=== " ++ nm ++ " ===") printC
 
