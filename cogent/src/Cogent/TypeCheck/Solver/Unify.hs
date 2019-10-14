@@ -94,9 +94,9 @@ assignOf (R r1 s1 :=: R r2 s2)
 -- N.B. we know from the previous phase that common entries have been factored out.
 assignOf (A t1 l1 s1 r1 :<  A t2 l2 s2 r2)
   | ARow.var r1 /= ARow.var r2
-  , IM.null (ARow.common r1 r2)
   , ARow.reduced r1
   , ARow.reduced r2
+  , IM.null (ARow.common r1 r2)
   = case (ARow.var r1, ARow.var r2) of
       (Just x , Nothing) -> pure [Subst.ofARow x r2]
       (Nothing, Just y ) -> pure [Subst.ofARow y r1]

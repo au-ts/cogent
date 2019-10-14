@@ -33,7 +33,7 @@ import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Surface
-import Cogent.TypeCheck.ARow hiding (all)
+import Cogent.TypeCheck.ARow hiding (all, null)
 import Cogent.TypeCheck.Row (Row)
 import qualified Cogent.TypeCheck.Row as Row
 -- import Cogent.TypeCheck.Util
