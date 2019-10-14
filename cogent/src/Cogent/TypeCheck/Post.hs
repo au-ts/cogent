@@ -222,7 +222,7 @@ normaliseT d (A t n (Left s) (ARow m us (Just b) Nothing)) = __todo "normaliseT:
 normaliseT d (A t n (Left s) (ARow m us Nothing Nothing)) = do
   let us' = IM.fromList $ fmap (first $ evalAExpr . toRawExpr') us
   if IM.null (IM.intersection us' m) then
-     let m' = union m us'
+     let m' = IM.union m us'
       in normaliseT d (A t n (Left s) (ARow m' [] Nothing Nothing))
   else __impossible $ "normaliseT: invalid a-row: not disjoint"
 normaliseT d (A t n (Left s) (ARow _ _ _ (Just x))) = __impossible $ "normaliseT: invalid a-row (?" ++ show x ++ ")"

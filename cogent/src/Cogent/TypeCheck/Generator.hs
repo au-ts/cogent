@@ -307,16 +307,18 @@ cg' (ArrayMap2 ((p1,p2), fbody) (arr1,arr2)) t = __fixme $ do  -- FIXME: more ac
 
 cg' (ArrayPut arr es) t = do
   alpha <- freshTVar  -- the element type
+  sigma <- freshTVar  -- the original array type
   l <- freshEVar  -- the length of the array
   s <- freshVar   -- the unifier for the sigil
-  r <- freshVar   -- the unifier for the a-row
+  rest <- freshVar   -- the unifier for in the A-row for the rest entries
   let (idxs,vs) = unzip es
       idxs' = map (toSExpr . stripLocE) idxs
-      tarr = A alpha l (Right s) (fromTakens r idxs')
-  (carr,arr') <- cg arr tarr
+  (carr,arr') <- cg arr sigma
   blob  <- mapM (flip cg $ T (TCon "U32" [] Unboxed)) idxs
   blob' <- mapM (flip cg alpha) vs
-  let c = [tarr :< t, carr]
+  let c = [ A alpha l (Right s) (fromPuts rest idxs') :< t
+          , sigma :< A alpha l (Right s) (fromTakens rest idxs')
+          , carr ]
        <> map fst blob
        <> map fst blob'
        <> map (\i -> Arith (SE $ PrimOp ">=" [i, SE (IntLit 0)])) idxs'
