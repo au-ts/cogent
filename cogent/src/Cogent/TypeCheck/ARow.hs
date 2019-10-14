@@ -12,6 +12,7 @@
 
 {-# LANGUAGE FlexibleContexts, DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Cogent.TypeCheck.ARow where
 
@@ -21,8 +22,11 @@ import Cogent.Surface
 import Cogent.Util (for)
 
 import Data.Either (partitionEithers)
-import Data.IntMap as IM hiding (null)
+import Data.IntMap as IM
+import Data.IntSet as IS (isSubsetOf)
 import Data.Maybe (isNothing)
+
+import Debug.Trace
 
 data ARow e = ARow { entries  :: IntMap Taken
                    , uneval   :: [(e, Taken)]  -- unevaluated taken/put indices
@@ -41,10 +45,13 @@ fromTaken :: Int -> e -> ARow e
 fromTaken x i = fromTakens x [i]
 
 fromTakens :: Int -> [e] -> ARow e
-fromTakens x is = ARow IM.empty (Prelude.map ((,True)) is) Nothing (Just x)
+fromTakens x is = ARow IM.empty (Prelude.map (,True) is) Nothing (Just x)
 
 fromPut :: Int -> e -> ARow e
-fromPut x i = ARow IM.empty [(i, False)] Nothing (Just x)
+fromPut x i = fromPuts x [i]
+
+fromPuts :: Int -> [e] -> ARow e
+fromPuts x is = ARow IM.empty (Prelude.map (,False) is) Nothing (Just x)
 
 allTaken :: ARow e
 allTaken = ARow IM.empty [] (Just True) Nothing
@@ -58,13 +65,17 @@ eval :: (e -> Maybe Int) -> ARow e -> ARow e
 eval f (ARow es us ma mv) =
   let blob = for us $ \(u,b) -> case f u of Nothing -> Left (u,b); Just u' -> Right (u',b)
       (ls,rs) = partitionEithers blob
-   in ARow (es `IM.union` IM.fromListWith (flip const) rs) ls ma mv  -- entries later in 'es' will overwrite earlier ones
+      es' = es `IM.union` IM.fromListWith const rs  -- FIXME: what if 'es' and 'rs' conflict? / zilinc
+                          -- \ ^^^ entries later in 'es' will overwrite earlier ones
+                          -- Note that the list is scanned from the back thus the combining function's
+                          -- first argument is the entry earlier in the list.
+   in ARow es' ls ma mv
 
 unfoldAll :: Int -> ARow e -> ARow e
-unfoldAll l r
-  | ARow es us Nothing mv <- r = r
-  | ARow es us (Just a) mv <- r =
-      let a' = IM.fromList $ zip [0..l - 1] (repeat a)
+unfoldAll l a
+  | ARow es us Nothing mv <- a = a
+  | ARow es us (Just b) mv <- a =
+      let a' = IM.fromList $ zip [0..l - 1] (repeat b)
        in ARow (es `IM.union` a') us Nothing mv
                --- \ ^^^ Left-biased
 
@@ -72,23 +83,29 @@ reduced :: ARow e -> Bool
 reduced (ARow _ [] Nothing _) = True
 reduced _ = False
 
-conflicts :: ARow e -> ARow e -> [Int]
-conflicts r1 r2 | reduced r1, reduced r2 = 
-  let ARow es1 _ _ _ = r1
-      ARow es2 _ _ _ = r2
-      cs = IM.intersectionWith (\a b -> a /= b) es1 es2
-   in IM.keys $ IM.filter id cs
+compatible :: ARow e -> ARow e -> Bool
+compatible a1 a2 | reduced a1, reduced a2 = compatible' a1 a2
+  where 
+    compatible' (ARow es1 _ _ Nothing ) (ARow es2 _ _ Nothing ) = IM.keys es1 == IM.keys es2
+    compatible' (ARow es1 _ _ (Just _)) (ARow es2 _ _ Nothing ) = IM.keysSet es1 `IS.isSubsetOf` IM.keysSet es2
+    compatible' (ARow es1 _ _ Nothing ) (ARow es2 _ _ (Just _)) = IM.keysSet es2 `IS.isSubsetOf` IM.keysSet es1
+    compatible' (ARow es1 _ _ (Just x)) (ARow es2 _ _ (Just y)) = x /= y || IM.keys es1 == IM.keys es2
 
--- common, left, right
-clr :: ARow e -> ARow e -> (IntMap Taken, IntMap Taken, IntMap Taken)
-clr r1 r2 | reduced r1, reduced r2, null (conflicts r1 r2) = 
-  let ARow es1 _ _ _ = r1
-      ARow es2 _ _ _ = r2
-      cs = IM.intersection es1 es2
-      ls = IM.difference es1 es2
-      rs = IM.difference es2 es1
-   in (cs,ls,rs)
+withoutCommon :: ARow e -> ARow e -> (ARow e, ARow e)
+withoutCommon a1@(entries -> es1) a2@(entries -> es2) | reduced a1, reduced a2 = 
+  let es1' = es1 `IM.withoutKeys` (IM.keysSet es2)
+      es2' = es2 `IM.withoutKeys` (IM.keysSet es1)
+   in (updateEntries (const es1') a1, updateEntries (const es2') a2)
+
+common :: ARow e -> ARow e -> IntMap (Taken, Taken)
+common a1@(entries -> es1) a2@(entries -> es2) | reduced a1, reduced a2 =
+  IM.intersectionWith (,) es1 es2
 
 updateEntries :: (IntMap Taken -> IntMap Taken) -> ARow e -> ARow e
 updateEntries f (ARow es us ma mv) = ARow (f es) us ma mv
 
+union :: ARow e -> ARow e -> ARow e
+union a1 a2 | IM.null (common a1 a2)
+            , reduced a1
+            , reduced a2
+            = ARow (entries a1 `IM.union` entries a2) [] Nothing (var a2)
