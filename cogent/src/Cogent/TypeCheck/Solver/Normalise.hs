@@ -75,7 +75,8 @@ normaliseRW = rewrite' $ \t -> case t of
 #ifdef BUILTIN_ARRAYS
     -- Don't normliase ARows. That's done in Cogent.TypeCheck.Solver.Simplify
     T (TATake idxs (A t l s (ARow knowns unevals mall mv))) -> 
-      let unevals' = unevals ++ map (,True) idxs   -- FIXME: it's wrong!! We cannot simply append. We need to overwrite previous conflicting entries / zilinc
+      let unevals' = unevals ++ map (,True) idxs   -- NOTE: it may contain conflicting entries in 'unevals', but they
+                                                   -- should get resolved when evaluated. / zilinc
        in pure $ A t l s (ARow knowns unevals' mall mv)
     T (TAPut idxs (A t l s (ARow knowns unevals mall mv))) -> 
       let unevals' = unevals ++ map (,False) idxs
