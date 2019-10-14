@@ -13,6 +13,7 @@ module Cogent.TypeCheck.Subst where
 import Cogent.Common.Types
 import Cogent.Compiler (__impossible)
 import Cogent.Surface
+import qualified Cogent.TypeCheck.ARow as ARow
 import Cogent.TypeCheck.Assignment
 import Cogent.TypeCheck.Base
 import qualified Cogent.TypeCheck.Row as Row
@@ -27,6 +28,9 @@ import Prelude hiding (lookup)
 data AssignResult = Type TCType
                   | Sigil (Sigil (Maybe DataLayoutExpr))
                   | Row (Row.Row TCType)
+#ifdef BUILTIN_ARRAYS
+                  | ARow (ARow.ARow SExpr)
+#endif
                   | Expr SExpr
                   deriving Show
 
@@ -38,6 +42,9 @@ ofType i t = Subst (M.fromList [(i, Type t)])
 
 ofRow :: Int -> Row.Row TCType -> Subst
 ofRow i t = Subst (M.fromList [(i, Row t)])
+
+ofARow :: Int -> ARow.ARow SExpr -> Subst
+ofARow i t = Subst (M.fromList [(i, ARow t)])
 
 ofSigil :: Int -> Sigil (Maybe DataLayoutExpr) -> Subst
 ofSigil i t = Subst (M.fromList [(i, Sigil t)])
@@ -79,6 +86,9 @@ apply (Subst f) (R r (Right x))
 #ifdef BUILTIN_ARRAYS
 apply (Subst f) (A t l (Right x) tkns)
   | Just (Sigil s) <- M.lookup x f = apply (Subst f) (A t l (Left s) tkns)
+apply (Subst f) (A t l s r)
+  | Just x <- ARow.var r
+  , Just (ARow r') <- M.lookup x f = apply (Subst f) (A t l s $ ARow.union r r')
 #endif
 apply f (V x) = V (fmap (apply f) x)
 apply f (R x s) = R (fmap (apply f) x) s
