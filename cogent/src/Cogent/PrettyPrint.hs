@@ -30,8 +30,8 @@ import Cogent.Surface
 import Cogent.TypeCheck.Assignment hiding (null)
 import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Subst hiding (null)
+import qualified Cogent.TypeCheck.ARow as ARow
 import qualified Cogent.TypeCheck.Row as Row
-import Cogent.TypeCheck.ARow as ARow (ARow(..))
 
 import Cogent.Dargent.Allocation
 import Cogent.Dargent.Core
@@ -841,6 +841,7 @@ instance Pretty AssignResult where
   pretty (Row (Left r)) = pretty r
   pretty (Row (Right sh)) = pretty sh
 #ifdef BUILTIN_ARRAYS
+  pretty (ARow r) = pretty r
   pretty (Expr e) = pretty e
 #endif
 
@@ -863,8 +864,8 @@ instance Pretty t => Pretty (Row.Entry t) where
     in text (Row.fname e) <+> text ":" <+> pretty (Row.payload e) <+>
        text "(" <> tkDoc <> text ")"
 
-instance (Pretty e) => Pretty (ARow e) where
-  pretty (ARow m u a v) = typesymbol "A-row" <+> brackets (pretty m <+> symbol "|" <+> pretty u <> all <> var)
+instance (Pretty e, Show e) => Pretty (ARow.ARow e) where
+  pretty (ARow.ARow m u a v) = typesymbol "A-row" <+> brackets (pretty m <+> symbol "|" <+> pretty u <> all <> var)
     where var = case v of Nothing -> empty; Just x -> (symbol " |" <+> text "?" <> pretty x)
           all = case a of Nothing -> empty
                           Just True  -> (symbol " |" <+> text "all taken")

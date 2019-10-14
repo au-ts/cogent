@@ -15,6 +15,7 @@ module Cogent.TypeCheck.Subst where
 import Cogent.Common.Types
 import Cogent.Compiler (__impossible)
 import Cogent.Surface
+import qualified Cogent.TypeCheck.ARow as ARow
 import Cogent.TypeCheck.Assignment
 import Cogent.TypeCheck.Base
 import qualified Cogent.TypeCheck.Row as Row
@@ -31,6 +32,9 @@ data AssignResult = Type TCType
                   | Sigil (Sigil (Maybe DataLayoutExpr))
                   | Row (Either (Row.Row TCType) Row.Shape)
                   | Taken Taken
+#ifdef BUILTIN_ARRAYS
+                  | ARow (ARow.ARow SExpr)
+#endif
                   | Expr SExpr
                   deriving Show
 
@@ -42,6 +46,9 @@ ofType i t = Subst (M.fromList [(i, Type t)])
 
 ofRow :: Int -> Row.Row TCType -> Subst 
 ofRow i t = Subst (M.fromList [(i, Row $ Left t)])
+
+ofARow :: Int -> ARow.ARow SExpr -> Subst
+ofARow i t = Subst (M.fromList [(i, ARow t)])
 
 ofSigil :: Int -> Sigil (Maybe DataLayoutExpr) -> Subst
 ofSigil i t = Subst (M.fromList [(i, Sigil t)])

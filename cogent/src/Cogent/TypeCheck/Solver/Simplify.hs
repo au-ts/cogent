@@ -12,6 +12,17 @@
 
 module Cogent.TypeCheck.Solver.Simplify where
 
+import           Cogent.Common.Syntax
+import           Cogent.Common.Types
+import           Cogent.Compiler
+import           Cogent.TypeCheck.ARow as ARow
+import           Cogent.TypeCheck.Base
+import qualified Cogent.TypeCheck.Row as Row
+import           Cogent.TypeCheck.Solver.Goal
+import           Cogent.TypeCheck.Solver.Monad
+import qualified Cogent.TypeCheck.Solver.Rewrite as Rewrite
+import           Cogent.Surface
+
 import           Control.Applicative
 import           Control.Monad
 import           Control.Monad.Trans.Maybe
@@ -178,14 +189,11 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
         r2' = unfoldAll l2' $ ARow.eval normaliseSExpr r2
     guard (reduced r1')
     guard (reduced r2')
-    guard (null $ ARow.conflicts r1' r2')
-    let (cs,ls,rs) = ARow.clr r1' r2'
-    if IM.null (ls `IM.union` rs)
-      then Nothing
-      else
-        let r1'' = ARow.updateEntries (const ls) r1'
-            r2'' = ARow.updateEntries (const rs) r2'
-         in Just [t1 :=: t2] -- [A t1 l1 s1 r1'' :< A t2 l2 s2 r2'']
+    let (r1'',r2'') = ARow.withoutCommon r1' r2'
+        commons = ARow.common r1' r2'
+    guard (any (\(l,r) -> l <= r) commons)  -- @True >= False@
+    let drop = if any (\(l,r) -> l < r) commons then Drop t1 ImplicitlyTaken else Sat
+    Just [A t1 l1 s1 r1'' :< A t2 l2 s2 r2'', drop]
 
   A t1 l1 s1 r1 :<  A t2 l2 s2 r2 | s1 == s2 -> 
     Just [t1 :<  t2, Arith (SE $ PrimOp "==" [l1,l2])]
