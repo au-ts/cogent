@@ -10,6 +10,8 @@
 -- @TAG(DATA61_GPL)
 --
 
+{-# LANGUAGE MultiWayIf #-}
+
 module Cogent.TypeCheck.Solver.Simplify where
 
 import           Cogent.Common.Syntax
@@ -28,10 +30,10 @@ import           Control.Monad
 import           Control.Monad.Trans.Maybe
 import           Control.Monad.Trans.Class (lift)
 import qualified Data.Foldable as F (any)
-import qualified Data.IntMap as IM (null, union)
+import qualified Data.IntMap as IM (null)
 import qualified Data.Map as M
 import           Data.Maybe
-import           Data.List (elemIndex, null)
+import           Data.List as L (elemIndex, null)
 import qualified Data.Set as S
 import           Data.Word (Word32)
 import           Lens.Micro
@@ -111,7 +113,7 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
   Exhaustive t ps | any isIrrefutable ps -> Just []
   Exhaustive (V r) []
     | isNothing (Row.var r) ->
-      null (Row.untakenTypes r)
+      L.null (Row.untakenTypes r)
         `elseDie` PatternsNotExhaustive (V r) (Row.untakenLabels r)
   Exhaustive (V r) (RP (PCon t _):ps)
     | isNothing (Row.var r) ->
@@ -146,7 +148,7 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
                | otherwise -> do
     let commons  = Row.common r1 r2
         (ls, rs) = unzip commons
-    guard (not (null commons))
+    guard (not (L.null commons))
     guard (untakenLabelsSet ls `S.isSubsetOf` untakenLabelsSet rs)
     let (r1',r2') = Row.withoutCommon r1 r2
         cs = map (\ ((_, e),(_,e')) -> fst e :< fst e') commons
@@ -157,7 +159,7 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
                 | otherwise -> do
     let commons  = Row.common r1 r2
         (ls, rs) = unzip commons
-    guard (not (null commons))
+    guard (not (L.null commons))
     guard (untakenLabelsSet ls == untakenLabelsSet rs)
     let (r1',r2') = Row.withoutCommon r1 r2
         cs = map (\ ((_, e),(_,e')) -> fst e :=: fst e') commons
@@ -169,7 +171,7 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
                      | otherwise -> do
     let commons  = Row.common r1 r2
         (ls, rs) = unzip commons
-    guard (not (null commons))
+    guard (not (L.null commons))
     guard (untakenLabelsSet rs `S.isSubsetOf` untakenLabelsSet ls)
     let (r1',r2') = Row.withoutCommon r1 r2
         cs = map (\ ((_, e),(_,e')) -> fst e :< fst e') commons
@@ -181,7 +183,7 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
                       | otherwise -> do
     let commons  = Row.common r1 r2
         (ls, rs) = unzip commons
-    guard (not (null commons))
+    guard (not (L.null commons))
     guard (untakenLabelsSet rs == untakenLabelsSet ls)
     let (r1',r2') = Row.withoutCommon r1 r2
         cs = map (\ ((_, e),(_,e')) -> fst e :=: fst e') commons
@@ -191,22 +193,25 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
 
 #ifdef BUILTIN_ARRAYS
   -- See [NOTE: solving 'A' types] in Cogent.Solver.Unify
-  A t1 l1 s1 r1 :<  A t2 l2 s2 r2 | s1 == s2, isKnown l1, isKnown l2 -> do
-    let -- ASSUME that they are always statically computable
-        Just l1' = normaliseSExpr l1
-        Just l2' = normaliseSExpr l2
-        r1' = unfoldAll l1' $ ARow.eval normaliseSExpr r1
-        r2' = unfoldAll l2' $ ARow.eval normaliseSExpr r2
-    guard (reduced r1')
-    guard (reduced r2')
-    let (r1'',r2'') = ARow.withoutCommon r1' r2'
-        commons = ARow.common r1' r2'
-    guard (any (\(l,r) -> l <= r) commons)  -- @True >= False@
-    let drop = if any (\(l,r) -> l < r) commons then Drop t1 ImplicitlyTaken else Sat
-    Just [A t1 l1 s1 r1'' :< A t2 l2 s2 r2'', drop]
+  A t1 l1 s1 r1 :<  A t2 l2 s2 r2
+      | s1 == s2 && ARow.null r1 && ARow.null r2 && t1 == t2 && l1 == l2 -> Just []
+      | s1 == s2 && l1 /= l2 && (not (isKnown l1) || not (isKnown l2))
+      -> Just [A t1 l1 s1 r1 :< A t2 l1 s2 r2, Arith (SE $ PrimOp "==" [l1,l2])]
+      | s1 == s2 && l1 == l2 && isKnown l1 && isKnown l2 -> do
+        let -- ASSUME that they are always statically computable
+            Just l1' = normaliseSExpr l1
+            Just l2' = normaliseSExpr l2
+            r1' = unfoldAll l1' $ ARow.eval normaliseSExpr r1
+            r2' = unfoldAll l2' $ ARow.eval normaliseSExpr r2
+        guard (reduced r1')
+        guard (reduced r2')
+        let (r1'',r2'') = ARow.withoutCommon r1' r2'
+            commons = ARow.common r1' r2'
+        guard (any (\(l,r) -> l <= r) commons)  -- @True >= False@
+        let drop = if any (\(l,r) -> l < r) commons then Drop t1 ImplicitlyTaken else Sat
+        Just [A t1 l1 s1 r1'' :< A t2 l2 s2 r2'', drop]
+      | s1 == s2 && r1 == r2 && l1 == l2 -> Just [t1 :< t2]
 
-  A t1 l1 s1 r1 :<  A t2 l2 s2 r2 | s1 == s2 -> 
-    Just [t1 :<  t2, Arith (SE $ PrimOp "==" [l1,l2])]
   A t1 l1 s1 r1 :=: A t2 l2 s2 r2 | s1 == s2 -> do
     -- TODO
     Just [t1 :=: t2, Arith (SE $ PrimOp "==" [l1,l2])]
@@ -255,9 +260,9 @@ extractVariableEquality (Row.Row m1 v1) (Row.Row m2 v2)
  = Nothing
 
 isSolved :: TCType -> Bool
-isSolved t = null (unifVars t)
+isSolved t = L.null (unifVars t)
 #ifdef BUILTIN_ARRAYS
-          && null (unknowns t)
+          && L.null (unknowns t)
 #endif
 
 

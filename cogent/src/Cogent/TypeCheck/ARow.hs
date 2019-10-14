@@ -79,12 +79,13 @@ unfoldAll l a
        in ARow (es `IM.union` a') us Nothing mv
                --- \ ^^^ Left-biased
 
-reduced :: ARow e -> Bool
-reduced (ARow _ [] Nothing _) = True
-reduced _ = False
+updateEntries :: (IntMap Taken -> IntMap Taken) -> ARow e -> ARow e
+updateEntries f (ARow es us ma mv) = ARow (f es) us ma mv
 
 compatible :: ARow e -> ARow e -> Bool
-compatible a1 a2 | reduced a1, reduced a2 = compatible' a1 a2
+compatible a1 a2 
+  | reduced a1, reduced a2 = compatible' a1 a2
+  | otherwise = __impossible "ARow.compatible: some of the argumetns are not reduced yet"
   where 
     compatible' (ARow es1 _ _ Nothing ) (ARow es2 _ _ Nothing ) = IM.keys es1 == IM.keys es2
     compatible' (ARow es1 _ _ (Just _)) (ARow es2 _ _ Nothing ) = IM.keysSet es1 `IS.isSubsetOf` IM.keysSet es2
@@ -92,20 +93,23 @@ compatible a1 a2 | reduced a1, reduced a2 = compatible' a1 a2
     compatible' (ARow es1 _ _ (Just x)) (ARow es2 _ _ (Just y)) = x /= y || IM.keys es1 == IM.keys es2
 
 withoutCommon :: ARow e -> ARow e -> (ARow e, ARow e)
-withoutCommon a1@(entries -> es1) a2@(entries -> es2) | reduced a1, reduced a2 = 
-  let es1' = es1 `IM.withoutKeys` (IM.keysSet es2)
-      es2' = es2 `IM.withoutKeys` (IM.keysSet es1)
-   in (updateEntries (const es1') a1, updateEntries (const es2') a2)
+withoutCommon a1@(entries -> es1) a2@(entries -> es2)
+  | reduced a1, reduced a2 = 
+    let es1' = es1 `IM.withoutKeys` (IM.keysSet es2)
+        es2' = es2 `IM.withoutKeys` (IM.keysSet es1)
+     in (updateEntries (const es1') a1, updateEntries (const es2') a2)
+  | otherwise = __impossible "ARow.withoutCommon: some of the arguments are not reduced yet"
 
 common :: ARow e -> ARow e -> IntMap (Taken, Taken)
-common a1@(entries -> es1) a2@(entries -> es2) | reduced a1, reduced a2 =
-  IM.intersectionWith (,) es1 es2
+common a1@(entries -> es1) a2@(entries -> es2)
+  | reduced a1, reduced a2 = IM.intersectionWith (,) es1 es2
+  | otherwise = __impossible "ARow.common: some of the arguments are not reduced yet"
 
-updateEntries :: (IntMap Taken -> IntMap Taken) -> ARow e -> ARow e
-updateEntries f (ARow es us ma mv) = ARow (f es) us ma mv
+null :: ARow e -> Bool
+null a | reduced a = IM.null (entries a) && isNothing (var a)
+       | otherwise = False
 
-union :: ARow e -> ARow e -> ARow e
-union a1 a2 | IM.null (common a1 a2)
-            , reduced a1
-            , reduced a2
-            = ARow (entries a1 `IM.union` entries a2) [] Nothing (var a2)
+reduced :: ARow e -> Bool
+reduced (ARow _ [] Nothing _) = True
+reduced _ = False
+

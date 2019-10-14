@@ -219,12 +219,12 @@ normaliseT d (A t n (Left s) (ARow m [] Nothing Nothing)) = do
 -- vvv @all@ takes lower priority than the explcit constriants.
 normaliseT d (A t n (Left s) (ARow m us (Just b) Nothing)) = __todo "normaliseT: a-row with all"
 -- vvv If we have unevaluated entries, then we need to evaluate them.
-normaliseT d (A t n (Left s) (ARow m us Nothing Nothing)) = do
+normaliseT d (A t n (Left s) a@(ARow m us Nothing Nothing)) = do
   let us' = IM.fromList $ fmap (first $ evalAExpr . toRawExpr') us
   if IM.null (IM.intersection us' m) then
      let m' = IM.union m us'
       in normaliseT d (A t n (Left s) (ARow m' [] Nothing Nothing))
-  else __impossible $ "normaliseT: invalid a-row: not disjoint"
+  else __impossible $ "normaliseT: invalid a-row: not disjoint: " ++ show (pretty a)
 normaliseT d (A t n (Left s) (ARow _ _ _ (Just x))) = __impossible $ "normaliseT: invalid a-row (?" ++ show x ++ ")"
 normaliseT d (A t n (Right s) tkns) = __impossible ("normaliseT: invalid sigil (?" ++ show s ++ ")")
 #endif
@@ -233,7 +233,8 @@ normaliseT d (T x) = T <$> traverse (normaliseT d) x
 
 
 evalAExpr :: AExpr -> Int
-evalAExpr _ = __fixme 0
+evalAExpr (RE (IntLit n)) = fromIntegral n
+evalAExpr (RE _) = __todo "Post.evalAExpr"
 
 -- Normalises the layouts in sigils to remove `DataLayoutRefs`
 normaliseS :: Sigil (Maybe DataLayoutExpr) -> Post (Sigil (Maybe DataLayoutExpr))

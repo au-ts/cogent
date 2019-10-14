@@ -75,7 +75,7 @@ import           Lens.Micro.Mtl
 solve :: [(TyVarName, Kind)] -> Constraint -> TcSolvM [Goal]
 solve ks c = let gs     = makeGoals [] c
                           -- Simplify does a lot of very small steps so it's slightly nicer for tracing to run it in a nested fixpoint
-                 stages = debugL "Simplify"   (Rewrite.untilFixedPoint $ simplify ks) <>
+                 stages = (Rewrite.untilFixedPoint $ debugL "Simplify" $ simplify ks) <>
                           debug  "Unify"      unify <>
                           debugL "Equate"     equate <>
                           debug  "Sink/Float" sinkfloat <>

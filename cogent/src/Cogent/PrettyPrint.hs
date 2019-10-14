@@ -506,7 +506,7 @@ instance (Pretty t, TypeType t, Pretty e) => Pretty (Type e t) where
     let (sigilPretty, layoutPretty) = case s of
           Unboxed     -> ((typesymbol "#" <>), id)
           Boxed ro ml -> (if ro then (<> typesymbol "!") else id, case ml of Just l -> (<+> pretty l); _ -> id)
-        (takes,puts) = partition (not . snd) tkns
+        (takes,puts) = partition snd tkns
         pTakens = if null takes then id else
                 (<+> typesymbol "@take" <+> tupled (map (pretty . fst) takes))
         pPuts   = if null puts  then id else
@@ -869,7 +869,7 @@ instance Pretty Assignment where
   pretty (Assignment m) = pretty m
 
 instance Pretty a => Pretty (I.IntMap a) where
-  pretty = vcat . map (\(k,v) -> pretty k <+> text "|->" <+> pretty v) . I.toList
+  pretty = align . vcat . map (\(k,v) -> pretty k <+> text "|->" <+> pretty v) . I.toList
 
 
 instance Pretty DataLayoutTcError where

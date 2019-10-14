@@ -44,7 +44,7 @@ equate = Rewrite.withTransform findEquatable (pure . map toEquality)
          -- Thus, we convert LHS constraints if possible first, and only convert RHS if there are no available
          -- LHSes.
          allEqs = if null sups then subs else sups
-         allOthers = (if not (null sups) then subs else []) ++ others
+         allOthers = (if null sups then [] else subs) ++ others
       in guard (not (null allEqs)) >> pure (allEqs, allOthers)
 
     toEquality :: Goal -> Goal
