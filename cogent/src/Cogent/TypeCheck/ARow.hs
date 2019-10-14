@@ -58,7 +58,7 @@ eval :: (e -> Maybe Int) -> ARow e -> ARow e
 eval f (ARow es us ma mv) =
   let blob = for us $ \(u,b) -> case f u of Nothing -> Left (u,b); Just u' -> Right (u',b)
       (ls,rs) = partitionEithers blob
-   in ARow (es `IM.union` IM.fromList rs) ls ma mv
+   in ARow (es `IM.union` IM.fromListWith (flip const) rs) ls ma mv  -- entries later in 'es' will overwrite earlier ones
 
 unfoldAll :: Int -> ARow e -> ARow e
 unfoldAll l r
