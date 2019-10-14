@@ -34,9 +34,8 @@ data AssignResult = Type TCType
                   | Taken Taken
 #ifdef BUILTIN_ARRAYS
                   | ARow (ARow.ARow SExpr)
-#endif
                   | Expr SExpr
-                  deriving Show
+#endif
 
 newtype Subst = Subst (M.IntMap AssignResult)
               deriving Show
@@ -95,6 +94,17 @@ apply f (R x s) = R (applyToRow f x) s
 #ifdef BUILTIN_ARRAYS
 apply (Subst f) (A t l (Right x) tkns)
   | Just (Sigil s) <- M.lookup x f = apply (Subst f) (A t l (Left s) tkns)
+<<<<<<< HEAD
+=======
+apply (Subst f) (A t l s (ARow.ARow es us ma (Just x)))
+  | Just (ARow r'@(ARow.ARow es' _ _ mv')) <- M.lookup x f
+  -- It's guaranteed that 'r\'' is reduced.
+  = apply (Subst f) (A t l s $ ARow.ARow (M.union es es') us ma mv')
+#endif
+apply f (V x) = V (fmap (apply f) x)
+apply f (R x s) = R (fmap (apply f) x) s
+#ifdef BUILTIN_ARRAYS
+>>>>>>> compiler: manage to tc simple array put ops
 apply f (A x l s tkns) = A (apply f x) (assign (substToAssign f) l) s (fmap (assign $ substToAssign f) tkns)
 #endif
 apply f (T x) = T (fmap (apply f) x)
