@@ -32,7 +32,7 @@ import Cogent.Compiler
 import qualified Cogent.Context as C
 import Cogent.PrettyPrint (prettyC)
 import Cogent.Surface
-import Cogent.TypeCheck.ARow as ARow
+import Cogent.TypeCheck.ARow as ARow hiding (null)
 import Cogent.TypeCheck.Base hiding (validateType)
 import Cogent.TypeCheck.Util
 import Cogent.Util hiding (Warning)
