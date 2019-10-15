@@ -426,6 +426,7 @@ instance (Pretty a, Prec (e t v a), Pretty (e t v a), Pretty (e t ('Suc v) a), P
   pretty (Pop (v1,v2) e1 e2) = align (keyword "pop" <+> pretty v1 <> symbol ":@" <> pretty v2 <+> symbol "=" <+> pretty e1 L.<$>
                                 keyword "in"  <+> pretty e2)
   pretty (Singleton e) = keyword "singleton" <+> parens (pretty e)
+  pretty (ArrayPut arr i e) = prettyPrec 1 arr <+> symbol "@" <> record [symbol "@" <> pretty i <+> symbol "=" <+> pretty e]
 #endif
   pretty (Variable x) = pretty (snd x) L.<> angles (prettyV $ fst x)
   pretty (Fun fn ins nt) = pretty nt L.<> funname (unCoreFunName fn) <+> pretty ins

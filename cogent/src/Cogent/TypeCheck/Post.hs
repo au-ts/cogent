@@ -154,6 +154,20 @@ normaliseT d (T (TPut fs t)) = do
      forM fs' $ \(f,(t,b)) -> do when (f `elem` fs && not b && __cogent_wdodgy_take_put) $ logWarn (PutUntakenField f t')
                                  return (f, (t,  (f `notElem` fs) && b))
 
+#ifdef BUILTIN_ARRAYS
+normaliseT d (T (TATake is t)) = do
+  t' <- normaliseT d t
+  case t' of
+    (T (TArray elt l s tkns)) -> normaliseT d (T (TArray elt l s $ tkns ++ zip is (repeat True)))
+    _ -> logErrExit (TakeElementsFromNonArrayType is t')
+
+normaliseT d (T (TAPut is t)) = do
+  t' <- normaliseT d t
+  case t' of
+    (T (TArray elt l s tkns)) -> normaliseT d (T (TArray elt l s $ tkns ++ zip is (repeat False)))
+    _ -> logErrExit (PutElementsToNonArrayType is t')
+#endif
+
 normaliseT d (T (TLayout l t)) = do
   t' <- normaliseT d t
   env <- lift . lift $ use knownDataLayouts

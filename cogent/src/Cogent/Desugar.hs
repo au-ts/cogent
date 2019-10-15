@@ -655,6 +655,16 @@ desugarExpr (B.TE _ (S.ArrayMap2 ((p1,p2), fbody) (e1,e2)) _) = do
   fbody' <- withBindings (Cons v2 $ Cons v1 Nil) $
               desugarExpr $ B.TE (S.RT $ S.TTuple [telt1, telt2]) (S.Let [b1,b2] fbody) (B.getLocTE fbody)
   return $ E (ArrayMap2 ((v1,v2), fbody') (e1',e2'))
+desugarExpr (B.TE _ (S.ArrayPut arr []) _) = desugarExpr arr
+desugarExpr (B.TE _ (S.ArrayPut arr [(i,e)]) _) = do
+  arr' <- desugarExpr arr
+  i'   <- desugarExpr i
+  e'   <- desugarExpr e
+  return $ E (ArrayPut arr' i' e')
+desugarExpr (B.TE t (S.ArrayPut arr (e:es)) l) =
+  let t' = S.RT $ S.TAPut [B.toRawExpr $ fst e] (B.getTypeTE arr)
+      arr' = B.TE t' (S.ArrayPut arr [e]) l
+   in desugarExpr $ B.TE t (S.ArrayPut arr' es) l
 #endif
 desugarExpr (B.TE _ (S.Tuple []) _) = return $ E Unit
 desugarExpr (B.TE _ (S.Tuple [e]) _) = __impossible "desugarExpr (Tuple)"
