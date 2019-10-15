@@ -9,9 +9,9 @@ group: edge
 git:
   submodules: false
 
-# branches:
-#   except:
-#   - branch-name
+branches:
+  except:
+  - array
 
 cache:
   directories:
