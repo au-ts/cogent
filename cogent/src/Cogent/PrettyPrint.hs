@@ -738,6 +738,10 @@ instance Pretty TypeError where
                                               <$> indent' (vsep (map ((<> semi) . pretty) es))
                                               <$> err "The SMT-solver comments" <> colon
                                               <$> indent' (pretty msg)
+  pretty (TakeElementsFromNonArrayType is t) = err "Taking elements" <+> commaList (map pretty is)
+                                           <$> err "from a non-array type" <+> pretty t
+  pretty (PutElementsToNonArrayType is t)    = err "Putting elements" <+> commaList (map pretty is)
+                                           <$> err "to a non-array type" <+> pretty t
 #endif
   pretty (CustTyGenIsSynonym t)     = err "Type synonyms have to be fully expanded in --cust-ty-gen file:" <$> indent' (pretty t)
   pretty (CustTyGenIsPolymorphic t) = err "Polymorphic types are not allowed in --cust-ty-gen file:" <$> indent' (pretty t)

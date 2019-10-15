@@ -99,6 +99,8 @@ data TypeError = FunctionNotFound VarName
                | RequiredTakenTag TagName
 #ifdef BUILTIN_ARRAYS
                | ArithConstraintsUnsatisfiable [SExpr] String
+               | TakeElementsFromNonArrayType [SExpr] TCType
+               | PutElementsToNonArrayType [SExpr] TCType
 #endif
                | CustTyGenIsPolymorphic TCType
                | CustTyGenIsSynonym TCType
