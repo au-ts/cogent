@@ -134,7 +134,7 @@ shallowPrimType Boolean = I.TyPrim I.BoolT
 shallowPrimOp :: Op -> [Term] -> Term
 shallowPrimOp CS.Plus   es = mkApp (mkId "(+)") es
 shallowPrimOp CS.Minus  es = mkApp (mkId "(-)") es
-shallowPrimOp CS.Times  es = mkApp (mkId "(*)") es
+shallowPrimOp CS.Times  es = mkApp (mkId "( * )") es  -- We DO NEED the space between "(" and "*", otherwise it becomes a comment! / zilinc
 shallowPrimOp CS.Divide es = mkApp (mkId "checked_div") es
 shallowPrimOp CS.Mod    es = mkApp (mkId "checked_mod") es
 shallowPrimOp CS.Not    es = mkApp (mkId "HOL.Not") es
