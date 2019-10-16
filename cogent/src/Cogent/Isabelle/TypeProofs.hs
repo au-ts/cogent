@@ -50,6 +50,7 @@ import Isabelle.ExprTH
 import qualified Isabelle.InnerAST as I
 import Isabelle.InnerAST hiding (Type)
 import Isabelle.OuterAST as O
+import Cogent.Isabelle.IsabelleName
 import Numeric
 #if __GLASGOW_HASKELL__ >= 709
 import Prelude hiding ((<$>))
@@ -80,7 +81,7 @@ deepTypeProof mod withDecls withBodies thy decls log =
                                 ++ funTypeEnv mod decls ++ funDefEnv decls
                                 ++ funTypeTrees mod ta decls
                  | otherwise = []
-      proofBodies | withBodies = [TheoryString "ML {* open TTyping_Tactics *}"] ++
+      proofBodies | withBodies = [TheoryString "ML \\<open> open TTyping_Tactics \\<close>"] ++
                                  concatMap (\(proofId, prop, script) ->
                                               formatSubproof ta (typingSubproofPrefix ++ show proofId) prop script) subproofs ++
                                  proofScript
@@ -110,10 +111,10 @@ formatMLProof name typ lines =
   [ TheoryString $ stepsML $ splitEveryW (length . filter (=='@')) 300 lines ]
   where stepsML (steps:stepss) =
           (if null stepss then "" else stepsML stepss) ++
-          "ML_quiet {*\nval " ++ name ++ " : " ++ typ ++ " list = [\n" ++
+          "ML_quiet \\<open>\nval " ++ name ++ " : " ++ typ ++ " list = [\n" ++
           intercalate ",\n" steps ++ "\n]" ++
-          (if null stepss then "" else " @ " ++ name) ++ " *}\n"
-        stepsML [] = "ML_quiet {* val " ++ name ++ " : " ++ typ ++ " list = [] *}\n"
+          (if null stepss then "" else " @ " ++ name) ++ " \\<close>\n"
+        stepsML [] = "ML_quiet \\<open> val " ++ name ++ " : " ++ typ ++ " list = [] \\<close>\n"
 
 formatSubproof :: TypeAbbrevs -> String -> (Bool, I.Term) -> [Tactic] -> [TheoryDecl I.Type I.Term]
 formatSubproof ta name (schematic, prop) steps =
@@ -121,39 +122,39 @@ formatSubproof ta name (schematic, prop) steps =
   [ LemmaDecl (Lemma schematic (Just $ TheoremDecl (Just name)
                                          [Attribute "unfolded" ["abbreviated_type_defs"]]) [prop]
                (Proof ([MethodModified (Method "unfold" ["abbreviated_type_defs"]) MMOptional] ++
-                       [ Method "tactic" ["{* map (fn t => DETERM (interpret_tac t @{context} 1)) " ++
-                                          name ++ "_script |> EVERY *}"]])
+                       [ Method "tactic" ["\\<open> map (fn t => DETERM (interpret_tac t @{context} 1)) " ++
+                                          name ++ "_script |> EVERY \\<close>"]])
                 ProofDone)) ]
 
 formatMLTreeGen :: String -> [TheoryDecl I.Type I.Term]
 formatMLTreeGen name =
-  let safeName = unIsabelleName $ unsafeMakeIsabelleName name
-  in [ TheoryString ( "ML_quiet {*\nval " ++ safeName ++ "_ttyping_details_future"
+  let safeName = unIsabelleName $ mkIsabelleName name
+  in [ TheoryString ( "ML_quiet \\<open>\nval " ++ safeName ++ "_ttyping_details_future"
     ++ " = get_all_typing_details_future @{context} \"" ++ safeName ++ "\"\n"
     ++ "   " ++ safeName ++ "_typecorrect_script"
-    ++ "\n*}\n"
+    ++ "\n\\<close>\n"
   ) ]
 
 formatMLTreeFinalise :: String -> [TheoryDecl I.Type I.Term]
 formatMLTreeFinalise name =
-  let safeName = unIsabelleName $ unsafeMakeIsabelleName name
-  in [ TheoryString ( "ML_quiet {*\nval (_, "
+  let safeName = unIsabelleName $ mkIsabelleName name
+  in [ TheoryString ("ML_quiet \\<open>\nval (_, "
     ++ safeName ++ "_typing_tree, " ++ safeName ++ "_typing_bucket)\n"
-    ++ "= Future.join " ++ safeName ++ "_ttyping_details_future\n*}\n"
-  ) ]
+    ++ "= Future.join " ++ safeName ++ "_ttyping_details_future\n\\<close>\n"
+  )]
 
 formatTypecorrectProof :: String -> [TheoryDecl I.Type I.Term]
 formatTypecorrectProof fn =
-  let safeFn = unIsabelleName $ unsafeMakeIsabelleName fn
+  let safeFn = unIsabelleName $ mkIsabelleName fn
   in [ LemmaDecl (Lemma False (Just $ TheoremDecl (Just (safeFn ++ "_typecorrect")) [])
           [mkId $ "\\<Xi>, prod.fst " ++ safeFn ++ "_type, (" ++ safeFn ++ "_typetree, [Some (prod.fst (prod.snd " ++ safeFn ++ "_type))]) T\\<turnstile> " ++
                   safeFn ++ " : prod.snd (prod.snd " ++ safeFn ++ "_type)"]
-    (Proof (if __cogent_fml_typing_tree then [Method "tactic" ["{* resolve_future_typecorrect @{context} " ++ safeFn ++ "_ttyping_details_future *}"]]
+    (Proof (if __cogent_fml_typing_tree then [Method "tactic" ["\\<open> resolve_future_typecorrect @{context} " ++ safeFn ++ "_ttyping_details_future \\<close>"]]
       else [Method "simp" ["add: " ++ safeFn ++ "_type_def " ++ safeFn ++ "_def " ++
                            safeFn ++ "_typetree_def replicate_unfold"
                            ++ " abbreviated_type_defs"],
-            Method "tactic" ["{* apply_ttsplit_tacs_simple \"" ++ safeFn ++ "\"\n"
-                    ++ "    @{context} " ++ safeFn ++ "_typecorrect_script *}"]])
+            Method "tactic" ["\\<open> apply_ttsplit_tacs_simple \"" ++ safeFn ++ "\"\n"
+                    ++ "    @{context} " ++ safeFn ++ "_typecorrect_script \\<close>"]])
      ProofDone)) ]
 
 data TreeSteps a = StepDown | StepUp | Val a
@@ -166,7 +167,7 @@ flattenHintTree (Leaf h) = [Val h]
 proveSorry :: (Pretty a) => Definition TypedExpr a -> State TypingSubproofs [TheoryDecl I.Type I.Term]
 proveSorry (FunDef _ fn k ti to e) = do
   mod <- use nameMod
-  let safeFn = unIsabelleName $ unsafeMakeIsabelleName fn
+  let safeFn = unIsabelleName $ mkIsabelleName fn
   let prf = [ LemmaDecl (Lemma False (Just $ TheoremDecl (Just (mod safeFn ++ "_typecorrect")) [])
           [mkId $ "\\<Xi>, prod.fst " ++ safeFn ++ "_type, (" ++ safeFn ++ "_typetree, [Some (prod.fst (prod.snd " ++ safeFn ++ "_type))]) T\\<turnstile> " ++
                   safeFn ++ " : prod.snd (prod.snd " ++ safeFn ++ "_type)"]
@@ -181,7 +182,7 @@ prove decls (FunDef _ fn k ti to e) = do
   let eexpr = pushDown (Cons (Just ti) Nil) (splitEnv (Cons (Just ti) Nil) e)
   proofSteps' <- proofSteps decls (fmap snd k) ti eexpr
   ta <- use tsTypeAbbrevs
-  let typecorrect_script = formatMLProof (mod (unIsabelleName $ unsafeMakeIsabelleName fn) ++ "_typecorrect_script") "hints treestep" (map show $ flattenHintTree proofSteps')
+  let typecorrect_script = formatMLProof (mod (unIsabelleName $ mkIsabelleName fn) ++ "_typecorrect_script") "hints treestep" (map show $ flattenHintTree proofSteps')
   let fn_typecorrect_proof = typecorrect_script ++ (if __cogent_fml_typing_tree then formatMLTreeGen (mod fn) else []) ++ formatTypecorrectProof (mod fn)
   return (fn_typecorrect_proof, if __cogent_fml_typing_tree then formatMLTreeFinalise (mod fn) else [])
 prove _ _ = return ([], [])
@@ -214,7 +215,7 @@ badHackSplitOnSorryBefore decls =
   should_sorry _ = False
 
 deepTyTreeDef :: NameMod -> TypeAbbrevs -> FunName -> TypingTree t -> TheoryDecl I.Type I.Term
-deepTyTreeDef mod ta fn e = let ttfn = mkId $ mod (unIsabelleName $ unsafeMakeIsabelleName fn) ++ "_typetree"
+deepTyTreeDef mod ta fn e = let ttfn = mkId $ mod (unIsabelleName $ mkIsabelleName fn) ++ "_typetree"
                                 tt = deepCtxTree mod ta e
                              in [isaDecl| definition "$ttfn \<equiv> $tt" |]
 
@@ -255,11 +256,11 @@ escapedFunName fn | '\'' `elem` fn = "[" ++ intercalate "," (repr fn) ++ "]"
   
 isaTypeName n = 
   unIsabelleName $ 
-    case editIsabelleName (mkIsabelleName $ funNameToCoreFunName n) (++ "_type") of
+    case editIsabelleName (mkIsabelleName n) (++ "_type") of
       Just n' -> n'
       Nothing -> error ("Error generating isabelle name for " ++ n)
 
-isaName n = unIsabelleName (mkIsabelleName $ funNameToCoreFunName n)
+isaName = unIsabelleName . mkIsabelleName
 
 funTypeCase :: NameMod -> Definition TypedExpr a -> Maybe Term
 funTypeCase mod (FunDef  _ fn _ _ _ _) =

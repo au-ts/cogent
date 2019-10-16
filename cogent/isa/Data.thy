@@ -4,7 +4,7 @@ begin
 
 (* ideally, would be a pure ML file, but it seems to break polymorphism later *)
 
-ML {*
+ML \<open>
 
 (* list things *)
 
@@ -101,6 +101,6 @@ fun isNone NONE = true
 
 val option_decr = Option.map (fn x => x - 1)
 
-*}
+\<close>
 
 end

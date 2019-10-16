@@ -33,7 +33,7 @@ unify :: (MonadFresh VarName m, MonadWriter [Assign] m) => Rewrite.Rewrite' m [C
 unify = Rewrite.rewrite' $ \cs -> do
            a <- asum (map assignOf cs)
            tell a
-           pure (map (constraintTypes (traverseType (foldMap substAssign a))) cs)
+           pure (map (constraintTypes (normaliseType (foldMap substAssign a))) cs)
 
 assignOf :: (MonadFresh VarName m, MonadWriter [Assign] m) => Constraint -> MaybeT m [Assign]
 assignOf (UnifVar a :=: tau) | rigid tau && (a `notOccurs` tau) = pure [TyAssign a tau]
@@ -92,12 +92,11 @@ assignOf (Record n1 _ _ :=: Record n2 _ _)
 assignOf (UnboxedNoRecurse (Record (UnknownParameter x) _ Unboxed))
     = pure [RecParAssign x None]
 
-assignOf (Roll t v t' :<  t'') = assignOf (t'  :<  t'')
-assignOf (t'' :<  Roll t v t') = assignOf (t'' :<  t')
+assignOf (UnRoll t v t' :<  t'') = assignOf (t'  :<  t'')
+assignOf (t'' :<  UnRoll t v t') = assignOf (t'' :<  t')
 
-assignOf (Roll t v t' :=: t'') = assignOf (t'  :=: t'')
-assignOf (t'' :=: Roll t v t') = --trace ("assignOf:\n  t'': " ++ show t'' ++ "\n  t':" ++ show t') $ 
-                                 assignOf (t'' :=: t')
+assignOf (UnRoll t v t' :=: t'') = assignOf (t'  :=: t'')
+assignOf (t'' :=: UnRoll t v t') = assignOf (t'' :=: t')
 
 assignOf _ = empty
 

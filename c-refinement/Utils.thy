@@ -16,27 +16,27 @@ imports
 keywords "foobar_prove" :: thy_goal (* from Cookbook.*)
 begin
 
-text{* This theory file contains utility functions that are not specific to the trustworthy file
- system project. *}
+text\<open> This theory file contains utility functions that are not specific to the trustworthy file
+ system project. \<close>
 
-text{* basics *}
+text\<open> basics \<close>
 
-ML{* fun uncurry_triple f (x, y, z) = f x y z; *}
+ML\<open> fun uncurry_triple f (x, y, z) = f x y z; \<close>
 
-text{* Operations on string.*}
+text\<open> Operations on string.\<close>
 
-ML{* fun cut_C str_C = unsuffix "_C" str_C;*}
+ML\<open> fun cut_C str_C = unsuffix "_C" str_C;\<close>
 
-ML{* (*rm_redundancy [1,2,3,4,2,3] = [1,2,3,4]*)
+ML\<open> (*rm_redundancy [1,2,3,4,2,3] = [1,2,3,4]*)
 fun rm_redundancy [] = []
   | rm_redundancy (x::xs) = x::(rm_redundancy (List.filter (fn y => y <> x) xs));
-*}
+\<close>
 
-ML{* fun get_somes xs = xs
+ML\<open> fun get_somes xs = xs
      |> filter (fn x => case x of NONE => false | _ => true)
-     |> map (Utils.the' "get_somes failed");*}
+     |> map (Utils.the' "get_somes failed");\<close>
 
-ML{* fun remove_nth n xs =
+ML\<open> fun remove_nth n xs =
 (*  (counts from 0)*)
 let
  fun remove_nth'  0 []      = error "cannot remove anything from an empty list."
@@ -49,16 +49,16 @@ end;
 
 (* test *)
 remove_nth 3 [0,1,2,3,4,5] = [0,1,2,4,5];
-*}
+\<close>
 
-ML{* fun nth_is_missing nth froms tos =
+ML\<open> fun nth_is_missing nth froms tos =
  let
   val nth_elem = List.nth (froms, nth);
   val test = List.find (fn to => nth_elem = to) tos |> is_none
  in test end;
-*}
+\<close>
 
-ML{* fun which_is_missing froms tos =
+ML\<open> fun which_is_missing froms tos =
 (* counts from 0*)
 (* TODO: this does not work well if multiple elements are missing.
   But for our purpose, this is fine. Future work.*)
@@ -75,33 +75,33 @@ end;
 
 (* test *)
 which_is_missing [2,4,6,1,2,5,4,3] [1,2,3,4,5];
-*}
+\<close>
 
 (* FIXME: These functions probably exist in library.ML. Remove code-duplication!*)
-ML{* infix is_in
+ML\<open> infix is_in
 fun (x is_in ys) = List.find (fn y => x = y) ys |> is_some;
 (* test *)
 (4 is_in [1,2,3,4,5]) = true;
 (9 is_in [1,2,3,4,5]) = false;
-*}
+\<close>
 
-ML{* infix is_subset_of
+ML\<open> infix is_subset_of
 fun (xs is_subset_of ys) = List.all (fn x => x is_in ys) xs;
 (* test *)
 ([4,3] is_subset_of [1,2,3,4,5]) = true;
 ([4,6,1,2,5,4,3] is_subset_of [1,2,3,4,5]) = false;
 ([1,2,3,4,5] is_subset_of [4,6,1,2,5,4,3]) = true;
-*}
+\<close>
 
-ML{* infix is_superset_of
+ML\<open> infix is_superset_of
 fun (xs is_superset_of ys) = List.all (fn y => y is_in xs) ys;
 (* test *)
 ([4,3] is_superset_of [1,2,3,4,5]) = false;
 ([4,6,1,2,5,4,3] is_superset_of [1,2,3,4,5]) = true;
 ([1,2,3,4,5] is_superset_of [4,6,1,2,5,4,3]) = false;
-*}
+\<close>
 
-ML{* infix is_smaller_than_by_one
+ML\<open> infix is_smaller_than_by_one
 fun (xs is_smaller_than_by_one ys) =
  let
 (* why should I remove redundancy?
@@ -115,26 +115,26 @@ fun (xs is_smaller_than_by_one ys) =
 
 (* test *)
 ([4,5,3,2,4,1,2,3,4,5] is_smaller_than_by_one [4,6,1,2,5,3]) = true;
-*}
+\<close>
 
-text{* Operations on terms.*}
+text\<open> Operations on terms.\<close>
 
-ML{* val strip_type = Term.map_types (K dummyT);*}
+ML\<open> val strip_type = Term.map_types (K dummyT);\<close>
 
-ML{* val strip_atype = Term.map_types (map_atyps (K dummyT)) *}
+ML\<open> val strip_atype = Term.map_types (map_atyps (K dummyT)) \<close>
 
-ML{* fun mk_Some thg = strip_atype @{term "\<lambda> thg . Some thg"} $ thg *}
+ML\<open> fun mk_Some thg = strip_atype @{term "\<lambda> thg . Some thg"} $ thg \<close>
 
-ML{* fun clean_check_typ_of ctxt tm = tm
+ML\<open> fun clean_check_typ_of ctxt tm = tm
  |> strip_atype
  |> Syntax.check_term ctxt;
-*}
+\<close>
 
-ML{* fun clean_check_mkprop ctxt tm =
+ML\<open> fun clean_check_mkprop ctxt tm =
  clean_check_typ_of ctxt tm |> HOLogic.mk_Trueprop;
-*}
+\<close>
 
-ML{* (* mk_HOL_disjs makes nested disjunctions from a list of disjuncts.*)
+ML\<open> (* mk_HOL_disjs makes nested disjunctions from a list of disjuncts.*)
 fun mk_HOL_disjs tms = case tms of
  [] => error "The function mk_disjs should not be applied to an empty list."
 |(tm::[]) => tm
@@ -142,69 +142,69 @@ fun mk_HOL_disjs tms = case tms of
 
 (* Test *)
 mk_HOL_disjs [@{term "False"}, @{term "True"}, @{term "True"}] = @{term "False \<or> True \<or> True"}
-*}
+\<close>
 
-ML{* (* mk_HOL_conjs make nested conjunctions from a list of conjuncts*)
+ML\<open> (* mk_HOL_conjs make nested conjunctions from a list of conjuncts*)
 fun mk_HOL_conjs [] = error "error! The list of terms is empty."
  |  mk_HOL_conjs (tm::[]) = tm
  |  mk_HOL_conjs (tm::tms)= HOLogic.mk_conj (tm, mk_HOL_conjs tms);
 
 (* Test *)
  mk_HOL_conjs [@{term "False"}, @{term "True"}, @{term "True"}] = @{term "False \<and> True \<and> True"}
-*}
+\<close>
 
-ML{* fun encode_isa_pair (fst,snd) = Const ("Product_Type.Pair", dummyT) $ fst $ snd; *}
+ML\<open> fun encode_isa_pair (fst,snd) = Const ("Product_Type.Pair", dummyT) $ fst $ snd; \<close>
 
-ML{*
+ML\<open>
 fun encode_isa_int (ctxt:Proof.context) int =
  Int.toString int |> Syntax.read_term ctxt |> strip_type;
-*}
+\<close>
 
-ML{* (* mk_isa_list takes a ml-list of isa-terms and returns isa-list of isa-terms.
+ML\<open> (* mk_isa_list takes a ml-list of isa-terms and returns isa-list of isa-terms.
  * Unlike Utils.encode_isa_list, mk_isa_list does not check types. *)
 fun mk_isa_list [] = Const ("List.list.Nil", dummyT)
  |  mk_isa_list (x::xs:term list) = Const ("List.list.Cons", dummyT) $ x $ mk_isa_list xs;
-*}
+\<close>
 
-ML{* fun mk_eq_tm lhs rhs ctxt = Const ("Pure.eq", dummyT) $ lhs $ rhs |> clean_check_typ_of ctxt;*}
+ML\<open> fun mk_eq_tm lhs rhs ctxt = Const ("Pure.eq", dummyT) $ lhs $ rhs |> clean_check_typ_of ctxt;\<close>
 
-ML{* fun mk_meta_imps (prems:term list) (cncl:term) (ctxt:Proof.context) =
+ML\<open> fun mk_meta_imps (prems:term list) (cncl:term) (ctxt:Proof.context) =
 let
  fun mk_meta_imps' (prems:term list) (cncl:term) = case prems of
    [] => cncl
  | (prem::prems) => mk_meta_imps' prems (Logic.mk_implies (prem, cncl));
  val prop = mk_meta_imps' (List.rev prems) (cncl) |> clean_check_typ_of ctxt;
 in prop end;
-*}
+\<close>
 
-ML{* (* strip_qnt strips terms of quantifiers.*)
+ML\<open> (* strip_qnt strips terms of quantifiers.*)
 fun strip_qnt (Const (_, _) $ Abs (_, _, t)) = strip_qnt t
  |  strip_qnt tm = tm
-*}
+\<close>
 
-ML{* (* strip_qnt strips terms of quantifiers.*)
+ML\<open> (* strip_qnt strips terms of quantifiers.*)
 fun strip_1qnt (Const (_, _) $ Abs (_, _, t)) = t
  |  strip_1qnt tm = tm
-*}
+\<close>
 
 (* Term.ML has a function similar to this. But we need the names to be "a", and
    I always want to use dummyT.*)
-ML{* fun abs_dummy body = Abs ("a", dummyT, body); *}
+ML\<open> fun abs_dummy body = Abs ("a", dummyT, body); \<close>
 
-ML{* val undefined = Const ("HOL.undefined", dummyT); *}
+ML\<open> val undefined = Const ("HOL.undefined", dummyT); \<close>
 
-ML{* (* n_abs_dummy *)
+ML\<open> (* n_abs_dummy *)
 local
   fun n_abs_dummy' 0 body = body
    |  n_abs_dummy' n body = abs_dummy (n_abs_dummy' (n - 1) body)
 in
  fun n_abs_dummy n body =
   if n < 0 then error "n_abs_dummy failed. n is smaller than 0." else n_abs_dummy' n body;
-end; *}
+end; \<close>
 
-ML{* fun n_abs_undef n = n_abs_dummy n undefined; *}
+ML\<open> fun n_abs_undef n = n_abs_dummy n undefined; \<close>
 
-ML{* fun apply_x_n_times_to_f x n f ctxt =
+ML\<open> fun apply_x_n_times_to_f x n f ctxt =
 let
  fun apply_n_times 1 = f $ x
    | apply_n_times n = (apply_n_times (n - 1)) $ x
@@ -216,10 +216,10 @@ end;
 
 (* test *)
 apply_x_n_times_to_f @{term "0"} 3 @{term "y"} @{context} = @{term "y 0 0 0"};
-*}
+\<close>
 
 
-ML{* (* update the type of a quantified variable.*)
+ML\<open> (* update the type of a quantified variable.*)
 (* Warning: this function is a little bit unreliable: it strips all the types in the body. *)
 fun up_ty_of_qnt var_nm new_abs_qnt_ty ctxt trm =
  let
@@ -231,77 +231,77 @@ fun up_ty_of_qnt var_nm new_abs_qnt_ty ctxt trm =
  in
   up_ty_of_qnt' trm |> Syntax.check_term ctxt
  end;
-*}
+\<close>
 
-ML{* (* get_names takes a term and returns its name if it is well-defined.*)
+ML\<open> (* get_names takes a term and returns its name if it is well-defined.*)
 fun get_name (Const (name, _)) = name
   | get_name (Free (name, _)) = name
   | get_name (Var ((name, _), _)) = name
   | get_name (Bound _) = error "Bound variables have no names."
   | get_name (Abs (name, _, _)) = name
   | get_name _ = error "get_name is not defined for function applications ($).";
-*}
+\<close>
 
-ML{* (* generate n-nested abstraction.*)
+ML\<open> (* generate n-nested abstraction.*)
 fun mk_exists [] body = body
  |  mk_exists (var_nm::var_nms) body =
      Const ("HOL.Ex", dummyT) $ Abs (var_nm, dummyT, mk_exists var_nms body);
-*}
+\<close>
 
-ML{* (* mk_meta_conjncts [thm1, thm2, thm3] = thm1 &&& thm2 &&& thm3. *)
+ML\<open> (* mk_meta_conjncts [thm1, thm2, thm3] = thm1 &&& thm2 &&& thm3. *)
 fun mk_meta_conjncts [] = error "cannot make meta conjunctions."
  |  mk_meta_conjncts (thm::[]) = thm
- |  mk_meta_conjncts (thm::thms) = Conjunction.intr thm (mk_meta_conjncts thms)*}
+ |  mk_meta_conjncts (thm::thms) = Conjunction.intr thm (mk_meta_conjncts thms)\<close>
 
-ML{* (* add_simps adds simplification-rules into a given context. *)
+ML\<open> (* add_simps adds simplification-rules into a given context. *)
 fun add_simps [] ctxt = ctxt
  |  add_simps (thm::thms) ctxt = add_simps thms (Simplifier.add_simp thm ctxt)
-*}
+\<close>
 
-text{* Option.*}
+text\<open> Option.\<close>
 
-ML{* infix 1 ?> ??> +>;
+ML\<open> infix 1 ?> ??> +>;
 (* ?> is just >>= for option, I use the different symbol. *)
 fun ((x:'a option) ?>  (f:'a -> 'b option)) = case x of NONE => NONE | SOME sth => f sth;
 fun ((x:'a option, y:'b option ) ??> (f:'a -> 'b -> 'c option)) =
   case (x, y) of (SOME x, SOME y) => f x y | _ => NONE
 (* (x +> f) lifts a normal function to the option level.*)
 fun (x +> f) = Option.map f x;
-*}
+\<close>
 
-ML{* fun is_some_true (bopt:bool option) = case bopt of NONE => false | SOME b => b; *}
+ML\<open> fun is_some_true (bopt:bool option) = case bopt of NONE => false | SOME b => b; \<close>
 
-text{* AutoCorres related opearations.*}
+text\<open> AutoCorres related opearations.\<close>
 
 (* Returns the list of structs generated by the C parser *)
-ML{* fun get_struct_name_from_c_parser c_file thy ctxt =
+ML\<open> fun get_struct_name_from_c_parser c_file thy ctxt =
  CalculateState.get_csenv thy c_file
  |> the
  |> ProgramAnalysis.get_senv
  |> map fst
  |> map (Proof_Context.read_typ ctxt)
-*}
+\<close>
 
-ML{* fun get_struct_info thy file_name =
+ML\<open> fun get_struct_info thy file_name =
  Symtab.lookup (HeapInfo.get thy) file_name
 |> Utils.the' "get_struct_info failed."
 |> #heap_info
 |> #structs
-*}
+\<close>
 
-ML{* fun get_field_info (struct_info:HeapLiftBase.struct_info Symtab.table) ty_name =
+ML\<open> fun get_field_info (struct_info:HeapLiftBase.struct_info Symtab.table) ty_name =
  Symtab.lookup struct_info (ty_name ^ "_C")
 |> Utils.the' "get_field_info failed."
 |> #field_info ;
-*}
+\<close>
 
-ML{* fun get_field_names (field_info:HeapLiftBase.field_info list) =
+ML\<open> fun get_field_names (field_info:HeapLiftBase.field_info list) =
  field_info |> (map (cut_C o Long_Name.base_name o get_name o #getter));
-*}
+\<close>
 
-ML{* fun get_getters (field_info:HeapLiftBase.field_info list) = field_info |> map #getter;*}
+ML\<open> fun get_getters (field_info:HeapLiftBase.field_info list) = field_info |> map #getter;\<close>
 
-ML{* fun ac_mk_heap_getters_for file_nm thy (st_C_nm : string) =
+ML\<open> fun ac_mk_heap_getters_for file_nm thy (st_C_nm : string) =
 (* checks if autocorres generates heap_getters for a given uval. Returns a boolean value.*)
  let
   val opt_hinfo                    = Option.map #heap_info (Symtab.lookup (HeapInfo.get thy) file_nm);
@@ -311,27 +311,27 @@ ML{* fun ac_mk_heap_getters_for file_nm thy (st_C_nm : string) =
   val opt_heap_getters             = (opt_hinfo, opt_sinfo) ??> get_heap_getters
   val flag                         = is_some opt_heap_getters;
  in flag end;
-*}
+\<close>
 
 (* Currently, this function get_c_file_name_from_path is not used.*)
-ML{* fun get_c_file_name_from_path path =
+ML\<open> fun get_c_file_name_from_path path =
  String.tokens (fn splitter => splitter = #"/") path |> List.last;
  (* Test *)
  get_c_file_name_from_path "~/l4.verified/autocorres/AutoCorres"
-*}
+\<close>
 
 (* Japheth recommended to use mk_term developed by David.G. *)
-ML{* val example_of_dynamic_antiquotation =
+ML\<open> val example_of_dynamic_antiquotation =
  @{mk_term "a ?b \<Longrightarrow> ?c" (b, c )} (@{term "id"}, @{term "Suc 0"});
 (*
 (* The mk_term anti-quotation does not check the types.*)
 Syntax.check_term @{context} example_of_dynamic_antiquotation;
 *)
-*}
+\<close>
 
-text{* tacticals *}
+text\<open> tacticals \<close>
 
-ML{* fun SOLVE_ONE (tac:tactic) (thm:thm) =
+ML\<open> fun SOLVE_ONE (tac:tactic) (thm:thm) =
 (* SOLVE_ONE is a specialization of SOLVE. *)
 let
  val result = tac thm |> Seq.pull;
@@ -343,14 +343,14 @@ in
     then Seq.cons thm_changed Seq.empty
     else Seq.empty (* tac did not discharge a subgoal. *))
 end;
-*}
+\<close>
 
 (*
 fun DETERM_TIMEOUT delay tac st =
   Seq.of_list (the_list (Timeout.apply delay (fn () => SINGLE tac st) ()))
 *)
 
-ML{* (* TIMEOUT and TIMEOUT_in *)
+ML\<open> (* TIMEOUT and TIMEOUT_in *)
 local
  (* DETERM_TIMEOUT was written by Jasmin Blanchette in nitpick_util.ML.
   * This version has exception handling on top of his version.*)
@@ -363,9 +363,9 @@ in
  (* I am not sure if I implemented exception handling correctly.*)
  fun TIMEOUT_in real tac = DETERM_TIMEOUT (seconds real) tac;
  fun TIMEOUT tac         = DETERM_TIMEOUT (seconds 3.14) tac;
-end*}
+end\<close>
 
-ML{* (* Taken from Cookbook. *)
+ML\<open> (* Taken from Cookbook. *)
 structure Result = Proof_Data
   (type T = unit -> term
    fun init _ () = error "Result")
@@ -387,11 +387,11 @@ in
      "proving a proposition"
        (parser >> setup_proof)
 end;
-*}
+\<close>
 
-text{* Lemma buckets written by Dan.*}
+text\<open> Lemma buckets written by Dan.\<close>
 
-ML {* signature NAMED_THMS_EXT =
+ML \<open> signature NAMED_THMS_EXT =
 sig
   include NAMED_THMS
   val add_local : thm -> local_theory -> local_theory
@@ -407,24 +407,24 @@ struct
   fun del_local thm = Local_Theory.notes [((Binding.empty,[Attrib.internal (K del)]),[([thm],[])])] #> snd
 
 end
-*}
+\<close>
 
-text{* Instantiation of type class.*}
+text\<open> Instantiation of type class.\<close>
 
-ML{* fun local_setup_instantion arities lthy=
- Class.instantiation_cmd arities (Local_Theory.exit_global lthy);*}
+ML\<open> fun local_setup_instantion arities lthy=
+ Class.instantiation_cmd arities (Local_Theory.exit_global lthy);\<close>
 
-ML{* fun local_setup_instance lthy =
- Class.prove_instantiation_instance (fn ctxt => Class.intro_classes_tac ctxt []) lthy;*}
+ML\<open> fun local_setup_instance lthy =
+ Class.prove_instantiation_instance (fn ctxt => Class.intro_classes_tac ctxt []) lthy;\<close>
 
-ML{* fun local_setup_instantiation_definition_instance arities local_setup_definition lthy = lthy |>
+ML\<open> fun local_setup_instantiation_definition_instance arities local_setup_definition lthy = lthy |>
  local_setup_instantion arities |>
  local_setup_definition |>
- local_setup_instance;*}
+ local_setup_instance;\<close>
 
-text{* Auxiliary functions for writing tactic.*}
+text\<open> Auxiliary functions for writing tactic.\<close>
 
-ML{* fun scrape_C_types_term t = let
+ML\<open> fun scrape_C_types_term t = let
     fun filter_Const P (Const (c_name, _)) = if P c_name then [c_name] else []
       | filter_Const P (f $ x) = filter_Const P f @ filter_Const P x
       | filter_Const P (Abs (_, _, t)) = filter_Const P t
@@ -436,20 +436,20 @@ ML{* fun scrape_C_types_term t = let
      |> map c_type_name |> List.concat
      |> distinct (op =)
   end;
-*}
+\<close>
 
-ML{* val scrape_C_types = scrape_C_types_term o Thm.concl_of; *}
+ML\<open> val scrape_C_types = scrape_C_types_term o Thm.concl_of; \<close>
 
-ML{* fun make_thm_index guess thms =
+ML\<open> fun make_thm_index guess thms =
  let
   val nmths = map swap (maps (fn t => map (pair t) (guess t)) thms)
  in Symtab.make_list nmths end;
-*}
+\<close>
 
-ML{* fun lookup_thm_index table = maps (Symtab.lookup_list table) #> distinct Thm.eq_thm *}
+ML\<open> fun lookup_thm_index table = maps (Symtab.lookup_list table) #> distinct Thm.eq_thm \<close>
 
 
-ML {*
+ML \<open>
 (* Inverse of space_implode *)
 fun split_on (sep: string) (s: string) =
       if sep = "" then error "split_on: empty separator" else let
@@ -464,7 +464,7 @@ fun split_on (sep: string) (s: string) =
         in split 0 0 end;
 
 assert (split_on ".." "..a..b..c.....d" = ["", "a", "b", "c", "", ".d"]) "test split_on"
-*}
+\<close>
 
 
 end

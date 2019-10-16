@@ -34,38 +34,40 @@ import Lens.Micro
 sinkfloat :: Rewrite.Rewrite' TcSolvM [Goal]
 sinkfloat = Rewrite.rewrite' $ \gs -> do {- MaybeT TcSolvM -}
   a <- MaybeT $ do {- TcSolvM -}
-    let genGoalSubst = uncurry genStructSubst <=< splitConstraint . _goal
-    msubsts <- traverse (runMaybeT . genGoalSubst) gs  -- a list of 'Maybe' substitutions.
+    msubsts <- traverse (runMaybeT . genStructSubst . _goal) gs  -- a list of 'Maybe' substitutions.
     return . getFirst . mconcat $ First <$> msubsts  -- only return the first 'Just' substitution.
   tell [a]
   return $ map (goal %~ Subst.applyC a) gs
  where
-  splitConstraint :: Constraint -> MaybeT TcSolvM (TCType, TCType)
-  splitConstraint (ta :<  tb) = return (ta, tb)
-  splitConstraint (ta :=: tb) = return (ta, tb)
-  splitConstraint _           = empty
-
-  genStructSubst :: TCType -> TCType -> MaybeT TcSolvM Subst.Subst
+  genStructSubst :: Constraint -> MaybeT TcSolvM Subst.Subst
   -- remove type operators first
-  genStructSubst (T (TBang t))   v               = genStructSubst t v
-  genStructSubst v               (T (TBang t))   = genStructSubst t v
-  genStructSubst (T (TUnbox t))  v               = genStructSubst t v
-  genStructSubst v               (T (TUnbox t))  = genStructSubst t v
-  genStructSubst (T (TTake _ t)) v               = genStructSubst t v
-  genStructSubst v               (T (TTake _ t)) = genStructSubst t v
-  genStructSubst (T (TPut _ t))  v               = genStructSubst t v
-  genStructSubst v               (T (TPut _ t))  = genStructSubst t v
+  genStructSubst (T (TBang t)    :<  v          )   = genStructSubst (t :< v)
+  genStructSubst (v              :<  T (TBang t))   = genStructSubst (v :< t)
+  genStructSubst (T (TBang t)    :=: v          )   = genStructSubst (t :=: v)
+  genStructSubst (v              :=: T (TBang t))   = genStructSubst (v :=: t)
+  genStructSubst (T (TUnbox t)   :<  v          )   = genStructSubst (t :< v)
+  genStructSubst (v              :<  T (TUnbox t))  = genStructSubst (v :< t)
+  genStructSubst (T (TUnbox t)   :=: v          )   = genStructSubst (t :=: v)
+  genStructSubst (v              :=: T (TUnbox t))  = genStructSubst (v :=: t)
+  genStructSubst (T (TTake _ t)  :<  v            ) = genStructSubst (t :< v)
+  genStructSubst (v              :<  T (TTake _ t)) = genStructSubst (v :< t)
+  genStructSubst (T (TTake _ t)  :=: v            ) = genStructSubst (t :=: v)
+  genStructSubst (v              :=: T (TTake _ t)) = genStructSubst (v :=: t)
+  genStructSubst (T (TPut _ t)   :<  v            ) = genStructSubst (t :< v)
+  genStructSubst (v              :<  T (TPut _ t))  = genStructSubst (v :< t)
+  genStructSubst (T (TPut _ t)   :=: v            ) = genStructSubst (t :=: v)
+  genStructSubst (v              :=: T (TPut _ t))  = genStructSubst (v :=: t)
 
   -- record rows
-  genStructSubst (R r _) v
-    | fs <- discard_common v $ Row.entries r
+  genStructSubst (R r _ :< v)
+    | fs <- discard_common v $ Row.takenEntries r
     , not $ M.null fs
     , rowTypeRelOk v
     = do
       sigilI <- lift solvFresh
       makeRowStructureSubsts (flip R (Right sigilI)) fs v
-  genStructSubst v (R r _)
-    | fs <- discard_common v $ Row.entries r
+  genStructSubst (v :< R r _)
+    | fs <- discard_common v $ Row.untakenEntries r
     , not $ M.null fs
     , rowTypeRelOk v
     = do
@@ -73,31 +75,37 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do {- MaybeT TcSolvM -}
       makeRowStructureSubsts (flip R (Right sigilI)) fs v
 
   -- variant rows
-  genStructSubst (V r) v
-    | fs <- discard_common v $ Row.entries r
+  genStructSubst (V r :< v)
+    | fs <- discard_common v $ Row.untakenEntries r
     , not $ M.null fs
     , rowTypeRelOk v
     = makeRowStructureSubsts V fs v
-  genStructSubst v (V r)
-    | fs <- discard_common v $ Row.entries r
+  genStructSubst (v :< V r)
+    | fs <- discard_common v $ Row.takenEntries r
     , not $ M.null fs
     , rowTypeRelOk v
     = makeRowStructureSubsts V fs v
 
   -- tuples
-  genStructSubst (T (TTuple ts)) v | tupleTypeRelOk v = genStructSubstTuple ts v
-  genStructSubst v (T (TTuple ts)) | tupleTypeRelOk v = genStructSubstTuple ts v
+  genStructSubst (T (TTuple ts) :< v) | tupleTypeRelOk v = genStructSubstTuple ts v
+  genStructSubst (v :< T (TTuple ts)) | tupleTypeRelOk v = genStructSubstTuple ts v
+  genStructSubst (T (TTuple ts) :=: v) | tupleTypeRelOk v = genStructSubstTuple ts v
+  genStructSubst (v :=: T (TTuple ts)) | tupleTypeRelOk v = genStructSubstTuple ts v
 
   -- tcon
-  genStructSubst (T (TCon n ts s)) v | tconTypeRelOk v = genStructSubstTCon n ts s v
-  genStructSubst v (T (TCon n ts s)) | tconTypeRelOk v = genStructSubstTCon n ts s v
+  genStructSubst (T (TCon n ts s) :< v) | tconTypeRelOk v = genStructSubstTCon n ts s v
+  genStructSubst (v :< T (TCon n ts s)) | tconTypeRelOk v = genStructSubstTCon n ts s v
+  genStructSubst (T (TCon n ts s) :=: v) | tconTypeRelOk v = genStructSubstTCon n ts s v
+  genStructSubst (v :=: T (TCon n ts s)) | tconTypeRelOk v = genStructSubstTCon n ts s v
 
   -- tunit
-  genStructSubst t@(T TUnit) (U i) = return $ Subst.ofType i t
-  genStructSubst (U i) t@(T TUnit) = return $ Subst.ofType i t
+  genStructSubst (t@(T TUnit) :< U i) = return $ Subst.ofType i t
+  genStructSubst (U i :< t@(T TUnit)) = return $ Subst.ofType i t
+  genStructSubst (t@(T TUnit) :=: U i) = return $ Subst.ofType i t
+  genStructSubst (U i :=: t@(T TUnit)) = return $ Subst.ofType i t
 
   -- default
-  genStructSubst _ _ = empty
+  genStructSubst _ = empty
 
 
   rowTypeRelOk (U _)   = True

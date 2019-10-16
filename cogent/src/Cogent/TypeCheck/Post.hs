@@ -158,12 +158,6 @@ normaliseT d (Synonym n ts) =
   case lookup n d of
     Just (ts', Just b) -> normaliseT d (substType (zip ts' ts) b)
     _ -> __impossible ("normaliseT: unresolved synonym " ++ show n)
--- normaliseT d (RemoveCase p t) = do
---   t' <- normaliseT d t
---   p' <- traverse (traverse (normaliseT d)) p
---   case removeCase p' t' of
---     Just t'' -> normaliseT d t''
---     Nothing  -> Left (RemoveCaseFromNonVariant p t)
 normaliseT d (V x) = T . TVariant . M.fromList . Row.toEntryList . fmap (:[]) <$> traverse (normaliseT d) x
 normaliseT d (R x (Left s)) = T . flip TRecord (fmap (const noRepE) s) . Row.toEntryList <$> traverse (normaliseT d) x
 normaliseT d (R x (Right s)) =  __impossible ("normaliseT: invalid sigil (?" ++ show s ++ ")")

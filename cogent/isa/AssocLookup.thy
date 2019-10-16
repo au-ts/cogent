@@ -43,7 +43,7 @@ declare assoc_lookup.simps[simp del]
  * Main interface.
  * Note that all types in "assocs" and "default" need to match,
  * this procedure doesn't do type unification. *)
-ML {*
+ML \<open>
 structure AssocLookup = struct
 
 fun make_assoc_fun
@@ -77,18 +77,18 @@ fun make_assoc_fun
   in ctxt end
 
 end
-*}
+\<close>
 
 (* Test: *)
 (*
-local_setup {*
+local_setup \<open>
 AssocLookup.make_assoc_fun
   [(@{term "(''S'', 1::nat)"}, @{term "2::nat"}),
    (@{term "(''P'', 2::nat)"}, @{term "1::nat"}),
    (@{term "(''S'', 3::nat)"}, @{term "2+2::nat"})]
   @{term "42::nat"}
   "foo" ("foo1_simp" :: replicate 2 "foo23_simps")
-*}
+\<close>
 print_theorems
 *)
 

@@ -8,7 +8,6 @@
 -- @TAG(NICTA_GPL)
 --
 
-
 {-
  - Shallow.hs: shallow Isabelle embedding, SCorres proof and shallow-tuples proof.
  -}
@@ -38,6 +37,8 @@ import Cogent.Core as CC
 import Cogent.Desugar as D (freshVarPrefix)
 import Cogent.Isabelle.Compound (takeFlatCase)
 import Cogent.Isabelle.ShallowTable (TypeStr(..), st, getStrlType, toTypeStr)
+import Cogent.Isabelle.IsabelleName
+
 import Cogent.Normal as N (freshVarPrefix)
 import Cogent.Util (NameMod, Stage(..), Warning)
 import Data.Nat (Nat(Zero,Suc))
@@ -70,8 +71,6 @@ import Lens.Micro.Mtl
 import Debug.Trace
 
 _fixHighlighting = x where x = ()
-
-isaReservedNames = ["o", "value", "from"]
 
 type MapTypeName = M.Map TypeStr TypeName
 
@@ -135,7 +134,7 @@ shallowPrimType Boolean = I.TyPrim I.BoolT
 shallowPrimOp :: Op -> [Term] -> Term
 shallowPrimOp CS.Plus   es = mkApp (mkId "(+)") es
 shallowPrimOp CS.Minus  es = mkApp (mkId "(-)") es
-shallowPrimOp CS.Times  es = mkApp (mkId "( * )") es
+shallowPrimOp CS.Times  es = mkApp (mkId "(*)") es
 shallowPrimOp CS.Divide es = mkApp (mkId "checked_div") es
 shallowPrimOp CS.Mod    es = mkApp (mkId "checked_mod") es
 shallowPrimOp CS.Not    es = mkApp (mkId "HOL.Not") es
@@ -157,20 +156,8 @@ shallowPrimOp CS.RShift _ = __impossible "shallowPrimOp"
 shallowPrimOp CS.Complement [e] = mkApp (mkId "NOT") [e]
 shallowPrimOp CS.Complement _ = __impossible "shallowPrimOp"
 
--- | Strip names and format them for Isabelle
 snm :: NameMod
-snm nm = case nm `elem` isaReservedNames of
-  True -> nm ++ I.subSym ++ "r"
-  _ -> case stripPrefix D.freshVarPrefix nm of
-    Just nb -> "ds" ++ subSymStr nb
-    Nothing -> case stripPrefix N.freshVarPrefix nm of
-      Just nb -> "an" ++ subSymStr nb
-      -- Add debug note
-      Nothing -> case "_" `isPrefixOf` nm of
-        True  -> dropWhile (== '_') nm ++ subSymStr "d"
-        False -> case "_" `isSuffixOf` nm of
-          True  -> nm ++ subSymStr "x"
-          False -> nm
+snm = unIsabelleName . mkIsabelleName
 
 list2 a b = [a,b]
 
@@ -194,7 +181,7 @@ findTypeSyn t = findType t >>= \(TCon nm _ _) -> pure nm
 
 shallowExpr :: TypedExpr t v VarName -> SG Term
 shallowExpr (TE _ (Variable (_,v))) = pure $ mkId (snm v)
-shallowExpr (TE _ (Fun fn ts _)) = pure $ mkId $ snm $ (unIsabelleName $ mkIsabelleName fn)  -- only prints the fun name
+shallowExpr (TE _ (Fun fn ts _)) = pure $ mkId $ snm $ unCoreFunName fn  -- only prints the fun name
 shallowExpr (TE _ (Op opr es)) = shallowPrimOp <$> pure opr <*> (mapM shallowExpr es)
 shallowExpr (TE _ (App f arg)) = mkApp <$> shallowExpr f <*> (mapM shallowExpr [arg])
 shallowExpr (TE t (Con cn e _))  = do
@@ -526,11 +513,11 @@ lemmaBuckets is =
 
 
 mlFragment theoryNm stg = unlines
-  [ "local_setup {*"
+  [ "local_setup \\<open>"
   , "gen_scorres_lemmas \"" ++ theoryNm ++ __cogent_suffix_of_shallow_shared ++ "\" " ++
               "\"" ++ theoryNm ++ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage stg ++ "\" " ++
               "\"" ++ theoryNm ++ __cogent_suffix_of_deep    ++ __cogent_suffix_of_stage stg ++ "\" Cogent_abstract_functions Cogent_functions"
-  , "*}"
+  , "\\<close>"
   ]
 
 
@@ -885,14 +872,14 @@ shallowTuplesProof baseName sharedDefThy defThy tupSharedDefThy tupDefThy typeMa
       , TheoryString $ setupBucket proofBucket
       ]
     setupBucket name = unlines
-      [ "ML {*"
+      [ "ML \\<open>"
       , "structure " ++ name ++ " ="
       , "  Named_Thms ("
       , "    val name = Binding.name \"" ++ name ++ "\""
       , "    val description = \"\""
       , "  )"
-      , "*}"
-      , "setup {* " ++ name ++ ".setup *}"
+      , "\\<close>"
+      , "setup \\<open> " ++ name ++ ".setup \\<close>"
       ]
 
     {- Define shallow_tuples_rel instances and proof rules for all our types.

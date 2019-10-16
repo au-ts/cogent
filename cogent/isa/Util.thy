@@ -14,7 +14,7 @@ theory Util
   imports Main "HOL-Word.Word"
 begin
 
-section {* Word related lemmas *}
+section \<open> Word related lemmas \<close>
 
 definition
   checked_shift :: "(('a :: len) word \<Rightarrow> nat \<Rightarrow> 'a word) \<Rightarrow> 'a word \<Rightarrow> 'a word \<Rightarrow> 'a word"
@@ -34,7 +34,7 @@ definition
     "checked_mod x y = (if y = 0 then 0 else x mod y)"
 
 
-section {* Tuple lemmas *}
+section \<open> Tuple lemmas \<close>
 
 lemma map_snd_app [simp]:
   shows "map (snd \<circ> (\<lambda> (a , b). (a , f b))) l  =  map (f \<circ> snd) l"
@@ -118,7 +118,7 @@ lemma if_args_cong_weak[cong]: "ab = bb \<Longrightarrow> at = bt \<Longrightarr
   by blast
 
 
-section {* list related lemmas *}
+section \<open> list related lemmas \<close>
 
 lemma map_eq_iff_nth_eq: "(map f xs = map g ys) = (length xs = length ys \<and> (\<forall>i < length xs. f (xs ! i) = g (ys ! i)))"
   by (force simp add: list_eq_iff_nth_eq)
@@ -231,7 +231,7 @@ lemma distinct_fst_tags_update:
 lemma list_all_nil: "list_all P []" by simp
 lemma list_all_cons: "P x \<Longrightarrow> list_all P xs \<Longrightarrow> list_all P (x # xs)" by simp
 
-subsection {* list_all2 *}
+subsection \<open> list_all2 \<close>
 
 lemmas list_all2_nil = List.list.rel_intros(1)
 lemmas list_all2_cons = List.list.rel_intros(2)
@@ -278,7 +278,7 @@ lemma list_all_zip_iff_list_all2:
   by (induct xs ys rule: list_induct2) simp+
 
 
-subsection {* list_all3 *}
+subsection \<open> list_all3 \<close>
 
 inductive list_all3 :: "('a \<Rightarrow> 'b \<Rightarrow> 'c \<Rightarrow> bool) \<Rightarrow> 'a list \<Rightarrow> 'b list \<Rightarrow> 'c list \<Rightarrow> bool" where
   all3Nil : "list_all3 P [] [] []"
@@ -417,7 +417,7 @@ lemma list_all3_product_over_list_all2:
   using assms
   by (induct arbitrary: as rule: list_all3_induct, (clarsimp simp add: list_all2_Cons2)+)
 
-subsection {* list_all4 *}
+subsection \<open> list_all4 \<close>
 
 inductive list_all4 :: "('a \<Rightarrow> 'b \<Rightarrow> 'c \<Rightarrow> 'd \<Rightarrow> bool) \<Rightarrow> 'a list \<Rightarrow> 'b list \<Rightarrow> 'c list \<Rightarrow> 'd list \<Rightarrow> bool" where
   all4Nil : "list_all4 P [] [] [] []"
@@ -539,7 +539,7 @@ lemma list_all4_impD:
   using assms
   by (induct rule: list_all4_induct, simp+)
 
-section {* Misc lemmas *}
+section \<open> Misc lemmas \<close>
 
 lemma distinct_fst:
   assumes "distinct (map fst xs)"
@@ -657,7 +657,7 @@ lemma all_imp_conj_distrib: "(\<forall>x. P x \<longrightarrow> Q x \<and> R x) 
 lemma imp2_conj_pull_out_common: "(A \<longrightarrow> B \<longrightarrow> C) \<and> (A' \<longrightarrow> B \<longrightarrow> C') \<longleftrightarrow> (B \<longrightarrow> (A \<longrightarrow> C) \<and> (A' \<longrightarrow> C'))"
   by blast
 
-section {* TSum as map lemmas *}
+section \<open> TSum as map lemmas \<close>
 
 abbreviation map_pairs :: "('a \<rightharpoonup> 'b) \<Rightarrow> ('a \<times> 'b) set" where
   "map_pairs m \<equiv> { z. m (fst z) = Some (snd z)}"
@@ -691,9 +691,9 @@ lemma append_filter_fst_eqiv_map_update:
   done
 
 
-section {* Tagged List lemmas *}
+section \<open> Tagged List lemmas \<close>
 
-subsection {* Tagged list update *}
+subsection \<open> Tagged list update \<close>
 
 primrec tagged_list_update :: "'a \<Rightarrow> 'b \<Rightarrow> ('a \<times> 'b) list \<Rightarrow> ('a \<times> 'b) list" where
   "tagged_list_update a' b' [] = []"

@@ -35,6 +35,8 @@ type Error = String
 
 sanityCheckType :: [VarName] -> Type -> Writer [Error] ()
 sanityCheckType tvs t = do 
+  -- TODO: Potentially do a single pass over the type and change all recursive parameters from TV's to
+  --   Recursive Parameter variables
   let leftovers = nub (typeVariables t) \\ tvs
   let nsp = nonStrictlyPositiveVars t
   if leftovers /= [] then

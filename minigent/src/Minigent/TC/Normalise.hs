@@ -15,8 +15,12 @@ import Minigent.Syntax.Utils
 import Minigent.Syntax.Utils.Rewrite
 import qualified Minigent.Syntax.Utils.Row as Row
 
-bangRW :: Rewrite Type
-bangRW = rewrite $ \t -> case t of
+
+-- TODO: Remove
+import Debug.Trace
+
+normaliseRW :: Rewrite Type
+normaliseRW = rewrite $ \t -> case t of
     Bang (Function t1 t2)  -> Just (Function t1 t2)
     Bang (AbsType n s ts)  -> Just (AbsType n (bangSigil s) (map Bang ts))
     Bang (TypeVar a)       -> Just (TypeVarBang a)
@@ -26,12 +30,17 @@ bangRW = rewrite $ \t -> case t of
       -> Just (Variant (Row.mapEntries (entryTypes Bang) r))
     Bang (Record n r s) | rowVar r == Nothing, s == ReadOnly || s == Writable || s == Unboxed
       -> Just (Record n (Row.mapEntries (entryTypes Bang) r) (bangSigil s))
-    _                      -> Nothing
+
+    UnRoll tau (Rec n) t' | null (typeUVs t')
+      -> Just $ unRoll tau (Rec n) t'
+    UnRoll tau None t'       
+      -> Just t'
+
+    _ -> Nothing
   where
     bangSigil Writable = ReadOnly
     bangSigil x        = x
 
-
 -- | Normalise all types within a set of constraints
 normaliseConstraints :: [Constraint] -> [Constraint]
-normaliseConstraints = nub . map (constraintTypes (normaliseType bangRW))
+normaliseConstraints = nub . map (constraintTypes (normaliseType normaliseRW))

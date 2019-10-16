@@ -92,13 +92,8 @@ simplify axs = Rewrite.pickOne $ \c -> case c of
     let (r1',r2') = Row.withoutCommon r1 r2
         cs = map (\(Entry _ t _, Entry _ t' _) -> t :< t') commons
         ds = map Drop (Row.typesFor (untakenLabels ls S.\\ untakenLabels rs) r1)
-        c   = Record n1 r1' s1 :< Record n2 r2' s2
+        c  = Record n1 r1' s1 :< Record n2 r2' s2
     Just (c:cs ++ ds)
-
-  Roll t v t' :< t''  -> guard (typeUVs t' == []) >> Just [roll t v t' :< t'']
-  t'' :< Roll t v t'  -> guard (typeUVs t' == []) >> Just [t'' :< roll t v t']
-  Roll t v t' :=: t'' -> guard (typeUVs t' == []) >> Just [roll t v t' :=: t'']
-  t'' :=: Roll t v t' -> guard (typeUVs t' == []) >> Just [t'' :=: roll t v t' ]
 
   t :< t'  -> guard (unorderedType t || unorderedType t') >> Just [t :=: t']
 

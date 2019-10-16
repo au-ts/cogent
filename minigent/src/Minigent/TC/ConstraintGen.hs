@@ -18,11 +18,13 @@ import Minigent.Fresh
 import Minigent.Environment
 
 import Control.Monad.Reader
+import Control.Monad.Fail
 import Control.Monad.State.Strict
 
 import qualified Data.Map as M
 import Data.Stream (Stream)
 
+import Minigent.Syntax.PrettyPrint
 import Debug.Trace
 
 -- | A monad that is a combination of a state monad for the current type context,
@@ -109,7 +111,10 @@ cg e tau = case e of
         withSig (PrimOp o [e1', e2'], 0 :<=: tau :&: c1 :&: c2)
 
   (TypeApp f ts) -> do
-    Just (Forall vs cs t) <- M.lookup f . types <$> ask
+    pt <- M.lookup f . types <$> ask
+    let (vs, cs, t) = case pt of
+                        Just (Forall vs cs t) -> (vs, cs, t)
+                        _ -> error "cg: TypeApp did not have a type in types"
     as <- freshes (length vs - length ts)
     let ts'   = ts ++ map UnifVar as
         subst = zip vs ts'
@@ -216,7 +221,10 @@ cg e tau = case e of
 
     let alpha = Record recPar row (UnknownSigil sigil)
     (e1', c1) <- cg e1 alpha
-    (e2', c2) <- cg e2 (Roll alpha recPar beta)
+    (e2', c2) <- cg e2 beta
+    
+    traceM (debugPrettyConstraints [c2])
+
     let c3 = Record recPar (Row.put f row) (UnknownSigil sigil) :< tau
     withSig (Put e1' f e2', c1 :&: c2 :&: c3)
 

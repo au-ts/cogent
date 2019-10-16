@@ -25,9 +25,9 @@ import qualified Cogent.TypeCheck.Row as Row
 
 data AssignResult = Type TCType | Sigil (Sigil ()) | Row (Row.Row TCType)
  deriving Show
+
 newtype Subst = Subst (M.IntMap AssignResult)
  deriving Show
-
 
 ofType :: Int -> TCType -> Subst
 ofType i t = Subst (M.fromList [(i, Type t)])

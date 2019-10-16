@@ -29,3 +29,4 @@ substAssign (TyAssign v t) = substUV (v, t)
 substAssign (RowAssign v t) = substRowV (v, t)
 substAssign (SigilAssign v t) = substSigilV (v, t)
 substAssign (RecParAssign v1 v2) = substRecPar (v1, v2)
+

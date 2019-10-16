@@ -28,6 +28,7 @@ import Data.Vec (cvtToList, Fin, finInt)
 import Isabelle.ExprTH
 import Isabelle.InnerAST as I
 import Isabelle.OuterAST as O
+import Cogent.Isabelle.IsabelleName
 
 #if __GLASGOW_HASKELL__ >= 709
 import Prelude hiding ((<$>))
@@ -131,8 +132,8 @@ deepPrimOp CS.Complement t = mkApp (mkId "Complement") [deepNumType t]
 deepExpr :: (Pretty a) => NameMod -> TypeAbbrevs -> [Definition TypedExpr a] -> TypedExpr t v a -> Term
 deepExpr mod ta defs (TE _ (Variable v)) = mkApp (mkId "Var") [deepIndex (fst v)]
 deepExpr mod ta defs (TE _ (Fun fn ts _))
-  | concreteFun fn = mkApp (mkId "Fun")  [mkId (mod (unIsabelleName $ mkIsabelleName fn)), mkList (map (deepType mod ta) ts)]
-  | otherwise      = mkApp (mkId "AFun") [mkString (unIsabelleName $ mkIsabelleName fn), mkList (map (deepType mod ta) ts)]
+  | concreteFun fn = mkApp (mkId "Fun")  [mkId (mod (unIsabelleName $ mkIsabelleName $ unCoreFunName fn)), mkList (map (deepType mod ta) ts)]
+  | otherwise      = mkApp (mkId "AFun") [mkString (unIsabelleName $ mkIsabelleName $ unCoreFunName fn), mkList (map (deepType mod ta) ts)]
   where
     concreteFun :: CoreFunName -> Bool
     concreteFun f = any (\def -> isFuncId f def && case def of FunDef{} -> True; _ -> False) defs
@@ -204,19 +205,19 @@ deepDefinition :: NameMod -> TypeAbbrevs -> [Definition TypedExpr a] -> Definiti
                     [TheoryDecl I.Type I.Term] -> [TheoryDecl I.Type I.Term]
 deepDefinition mod ta defs (FunDef _ fn ks ti to e) decls =
   let ty = deepPolyType mod ta $ FT (fmap snd ks) ti to
-      tn = case editIsabelleName (mkIsabelleName $ unsafeNameToCoreFunName fn) (++ "_type")  of
+      tn = case editIsabelleName (mkIsabelleName fn) (++ "_type")  of
             Just n  -> unIsabelleName n
             Nothing -> error "Error - unable to generate name for isabelle function " ++ fn
       tysig = [isaType| Cogent.kind list \<times> Cogent.type \<times> Cogent.type |]
       tydecl = [isaDecl| definition $tn :: "$tysig" where "$(mkId tn) \<equiv> $ty" |]
       e' = deepExpr mod ta defs e
       fntysig = AntiType "string Cogent.expr"
-      fn' = unIsabelleName (mkIsabelleName $ unsafeNameToCoreFunName fn)
+      fn' = unIsabelleName (mkIsabelleName fn)
       decl = [isaDecl| definition $fn' :: "$fntysig" where "$(mkId fn') \<equiv> $e'" |]
      in tydecl:decl:decls
 deepDefinition mod ta _ (AbsDecl _ fn ks ti to) decls =
     let ty = deepPolyType mod ta $ FT (fmap snd ks) ti to
-        tn = case editIsabelleName (mkIsabelleName $ unsafeNameToCoreFunName fn) (++ "_type") of 
+        tn = case editIsabelleName (mkIsabelleName fn) (++ "_type") of 
             Just n  -> unIsabelleName n
             Nothing -> error "Error - unable to generate name for isabelle function " ++ fn
         tysig = [isaType| Cogent.kind list \<times> Cogent.type \<times> Cogent.type |]
@@ -227,10 +228,10 @@ deepDefinition _ _ _ _ decls = decls
 deepDefinitions :: NameMod -> TypeAbbrevs -> [Definition TypedExpr a] -> [TheoryDecl I.Type I.Term]
 deepDefinitions mod ta defs = foldr (deepDefinition mod ta defs) [] defs ++
                               [TheoryString $
-                               "ML {*\n" ++
-                               "val Cogent_functions = [" ++ showStrings (map mod $ cogentFuns defs) ++ "]\n" ++
+                               "ML \\<open>\n" ++
+                               "val Cogent_functions = [" ++ showStrings (map (unIsabelleName . mkIsabelleName) $ cogentFuns defs) ++ "]\n" ++
                                "val Cogent_abstract_functions = [" ++ showStrings (map mod $ absFuns defs) ++ "]\n" ++
-                               "*}"
+                               "\\<close>"
                               ]
   where absFuns [] = []
         absFuns (AbsDecl _ fn _ _ _ : fns) = fn : absFuns fns

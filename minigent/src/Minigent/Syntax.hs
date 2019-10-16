@@ -106,7 +106,7 @@ data Type
   -- used in type inference:
   | UnifVar VarName -- ^ Stands for an unknown type
   | Bang Type -- ^ Eliminated by type normalisation.
-  | Roll Type RecPar Type -- ^ Expands all VarName type variables in Type 2 with Type 1
+  | UnRoll Type RecPar Type -- ^ Expands all VarName type variables in Type 2 with Type 1
   deriving (Show, Eq)
 
 -- | Used for literals.

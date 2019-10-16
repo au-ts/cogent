@@ -26,7 +26,7 @@ module Minigent.Syntax.Utils
     -- ** Applying rewrites
     traverseType
   , normaliseType
-  , roll
+  , unRoll
   , -- ** Rewrites
     substUV
   , substRowV
@@ -65,10 +65,14 @@ import           Control.Applicative
 import           Control.Monad                  ( guard )
 import           Data.Maybe                     ( fromMaybe
                                                 , maybeToList
+                                                , isNothing
                                                 )
 
 import qualified Data.Stream                   as S
 import qualified Data.Map                      as M
+
+-- TODO: Remove
+import Debug.Trace
 
 
 -- | Returns true iff the given argument type is not subject to subtyping. That is, if @a :\< b@
@@ -93,6 +97,7 @@ typeUVs (Variant r)  = concatMap (\(Entry _ t _) -> typeUVs t) (Row.entries r)
 typeUVs (AbsType _ _ ts) = concatMap typeUVs ts
 typeUVs (Function t1 t2) = typeUVs t1 ++ typeUVs t2
 typeUVs (Bang t        ) = typeUVs t
+typeUVs (UnRoll _ _ t  ) = typeUVs t
 typeUVs _                = []
 
 -- | Return all of the (rigid, non-unification) type variables in a type. Does not include mu variables
@@ -241,6 +246,7 @@ traverseType func ty = case RW.run func ty of
     Variant es -> Variant (Row.mapEntries (entryTypes (traverseType func)) es)
     Function t1 t2 -> Function (traverseType func t1) (traverseType func t2)
     Bang t         -> Bang (traverseType func t)
+    UnRoll a n t   -> UnRoll (traverseType func a) n (traverseType func t)
     _              -> ty
 
 -- | Given a 'RW.Rewrite' on types, apply it over every subterm in a type, i.e. recursively applying
@@ -264,12 +270,13 @@ normaliseType func ty =
       Function t1 t2 ->
         Function (normaliseType func t1) (normaliseType func t2)
       Bang t -> Bang (normaliseType func t)
+      UnRoll a n t   -> UnRoll (normaliseType func a) n (normaliseType func t)
       _      -> t'
 
 -- | Performs a roll on a given type (TODO better documentation)
-roll :: Type -> RecPar -> Type -> Type
-roll t None t' = t'
-roll t (Rec n) t' = 
+unRoll :: Type -> RecPar -> Type -> Type
+unRoll t None t' = t'
+unRoll t (Rec n) t' | typeUVs t' == [] = 
   case t' of
     TypeVar     v | v == n -> t
     TypeVarBang v | v == n -> t
@@ -277,51 +284,59 @@ roll t (Rec n) t' =
     Record p r s -> Record p (rollRow r) s
     Variant r    -> Variant  (rollRow r)
 
-    AbsType x y ts -> AbsType x y $ map (roll t (Rec n)) ts
+    AbsType x y ts -> AbsType x y $ map (unRoll t (Rec n)) ts
 
     -- N.B: At this point, we know that functions are strictly positive, so our 
     -- recursive parameter will not appear in the function argument type
-    Function a b -> Function a $ roll t (Rec n) b
+    Function a b -> Function a $ unRoll t (Rec n) b
 
     _  -> t'
   where
-    rollRow = Row.mapEntries (\(Entry s x y) -> Entry s (roll t (Rec n) x) y)
-roll _ _ _ = error "roll called on unfinished record"
-
+    rollRow = Row.mapEntries (\(Entry s x y) -> Entry s (unRoll t (Rec n) x) y)
+unRoll _ _ _ = error "unroll called with non-unified recursive parameter or on term containing unification variables"
 
 -- | A rewrite that substitutes a given unification type variable for a type term in a type.
 substUV :: (VarName, Type) -> RW.Rewrite Type
-substUV (x, t) = RW.rewrite $ \t' -> case t' of
-  (UnifVar v) | x == v -> Just t
-  _                    -> Nothing
+substUV (x, t) = RW.rewrite $
+  \t' -> case t' of
+    (UnifVar v) | x == v -> Just t
+    _                    -> Nothing
 
 -- | A rewrite that substitutes a given unification row variable for a row in a type.
 substRowV :: (VarName, Row) -> RW.Rewrite Type
-substRowV (x, (Row m' q)) = RW.rewrite $ \t' -> case t' of
-  Variant (Row m (Just v)) | x == v -> Just (Variant (Row (M.union m m') q))
-  Record n (Row m (Just v)) s | x == v ->
-    Just (Record n (Row (M.union m m') q) s)
-  _ -> Nothing
+substRowV (x, (Row m' q)) = RW.rewrite $
+  \t' -> case t' of
+    Variant (Row m (Just v)) | x == v -> Just (Variant (Row (M.union m m') q))
+    Record n (Row m (Just v)) s | x == v ->
+      Just (Record n (Row (M.union m m') q) s)
+    _ -> Nothing
 
 -- | A rewrite that substitutes a given unification sigil variable for a sigil in a type.
 substSigilV :: (VarName, Sigil) -> RW.Rewrite Type
-substSigilV (x, s) = RW.rewrite $ \t' -> case t' of
-  Record n r (UnknownSigil v) | x == v -> Just (Record n r s)
-  _ -> Nothing
+substSigilV (x, s) = RW.rewrite $
+  \t' -> case t' of
+    Record n r (UnknownSigil v) | x == v -> Just (Record n r s)
+    _ -> Nothing
 
 -- | A rewrite that substitutes a rigid type variable for a type term in a type.
 substTV :: (VarName, Type) -> RW.Rewrite Type
-substTV (x, t) = RW.rewrite $ \t' -> case t' of
-  (TypeVar v) | x == v     -> Just t
-  (TypeVarBang v) | x == v -> Just (Bang t)
-  _                        -> Nothing
+substTV (x, t) = RW.rewrite $
+  \t' -> case t' of
+    (TypeVar v) | x == v     -> Just t
+    (TypeVarBang v) | x == v -> Just (Bang t)
+    _                        -> Nothing
 
 -- | A rewrite that substitutes the unkown recursive parameter on a boxed record for a parameter
 substRecPar :: (VarName, RecPar) -> RW.Rewrite Type
-substRecPar (v1, v2) = RW.rewrite $ \t' -> case t' of
-  Record (UnknownParameter n) r s | n == v1 -> 
-    Just (Record v2 r s)
-  _ -> Nothing
+substRecPar (v1, v2) = RW.rewrite $
+  \t' -> case t' of
+    Record (UnknownParameter n) r s | n == v1 -> 
+      Just (Record v2 r s)
+    UnRoll a (UnknownParameter n) t ->
+        if (n == v1) then
+          Just (UnRoll a v2 t)
+        else Nothing
+    _ -> Nothing
 
 -- | A convenience that allows multiple substitutions to type variables to be made simulatenously.
 substTVs :: [(VarName, Type)] -> RW.Rewrite Type

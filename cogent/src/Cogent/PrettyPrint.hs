@@ -643,8 +643,9 @@ instance Pretty TypeError where
   pretty (NotInScope fov vn)             = pretty fov <+> varname vn <+> err "not in scope"
   pretty (UnknownTypeVariable vn)        = err "Unknown type variable" <+> typevar vn
   pretty (UnknownTypeConstructor tn)     = err "Unknown type constructor" <+> typename tn
-  pretty (TypeArgumentMismatch tn i1 i2) = typename tn <+> err "expects"
-                                           <+> int i1 <+> err "arguments, but has been given" <+> int i2
+  pretty (TypeArgumentMismatch tn provided required)
+                                         = typename tn <+> err "expects"
+                                           <+> int required <+> err "arguments, but has been given" <+> int provided
   pretty (TypeMismatch t1 t2)            = err "Mismatch between" <$> indent' (pretty t1)
                                            <$> err "and" <$> indent' (pretty t2)
   pretty (RequiredTakenField f t)        = err "Field" <+> fieldname f <+> err "of type" <+> pretty t

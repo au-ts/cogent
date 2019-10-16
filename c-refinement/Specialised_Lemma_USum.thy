@@ -4,7 +4,7 @@
  * ABN 41 687 119 230.
  *
  * This software may be distributed and modified according to the terms of
- * the BSD 2-Clause license. Note that NO WARRANTY is provided.
+ * the BSD 2-Clause license. Note that NO WARRANTY is provided.                                               
  * See "LICENSE_BSD2.txt" for details.
  *
  * @TAG(DATA61_BSD)
@@ -19,7 +19,7 @@ begin
 context update_sem_init
 begin
 
-ML {*
+ML \<open>
 
 fun bool_of_variant_state @{term Checked} = true
 | bool_of_variant_state @{term Unchecked} = false
@@ -32,9 +32,9 @@ fun get_checkeds_of_usum_uval ctxt uval =
     usum_list_of_types ctxt uval |>
     map (fn x => x |> HOLogic.dest_prod |> snd |> HOLogic.dest_prod |> snd |> bool_of_variant_state)
 
-*}
+\<close>
 
-ML{* (* get_castable_uvals_from *)
+ML\<open> (* get_castable_uvals_from *)
 local
 
 infix can_be_casted_to
@@ -79,10 +79,10 @@ fun get_castable_uvals_from ctxt heap from tos =
     get_castable_uvals_from' ctxt heap from (get_usums tos) |> get_somes
 
 end;
-*}
+\<close>
 
 
-ML{* fun mk_case_prop from_uval to_uval variant_ctor_num file_nm ctxt =
+ML\<open> fun mk_case_prop from_uval to_uval variant_ctor_num file_nm ctxt =
 (* field_num is the number of the field that is being tested for matching.*)
  let
   val struct_field_num = variant_ctor_num + 1
@@ -164,9 +164,9 @@ ML{* fun mk_case_prop from_uval to_uval variant_ctor_num file_nm ctxt =
 in
   mk_meta_imps prms cncl ctxt |> Syntax.check_term ctxt
 end
-*}
+\<close>
 
-ML{* (* mk_case_lem_for_uval *)
+ML\<open> (* mk_case_lem_for_uval *)
 local
 
 fun mk_case_lem_name (from:uval) field_num ctxt =
@@ -200,9 +200,9 @@ fun mk_case_lems_for_uval file_nm ctxt uvals from =
  end;
 
 end;
-*}
+\<close>
 
-ML{* (* local_setup_specialised_esacs *)
+ML\<open> (* local_setup_specialised_esacs *)
 local
 
 fun specialise_esac_thm ctxt trm =
@@ -259,7 +259,7 @@ fun local_setup_specialised_esacs file_nm lthy =
  in lthy' end;
 
 end;
-*}
+\<close>
 
 end
 

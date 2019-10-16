@@ -58,7 +58,7 @@ instance
 
 end
 
-ML {*
+ML \<open>
 
 structure StringMap = struct
 
@@ -71,15 +71,15 @@ fun define_string_map name assocs ctxt =
   end
 end
 
-*}
+\<close>
 
-text {* Testing *}
+text \<open> Testing \<close>
 
 (*
-local_setup {* StringMap.define_string_map @{binding foo}
+local_setup \<open> StringMap.define_string_map @{binding foo}
   [("x", @{term "1 :: nat"}), ("y", @{term "2 :: nat"})]
   #> snd
-*}
+\<close>
 *)
 
 end

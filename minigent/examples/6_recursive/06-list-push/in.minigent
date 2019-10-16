@@ -1,4 +1,4 @@
-allocNode : [a]. Unit -> mu t { l: < Nil Unit | Cons { data: a, rest: t}# > take };
+allocNode : [a]. Unit -> mu t { l: < Nil Unit | Cons { data: a, rest: t }# > take };
 
 push : [a]. {val: a, list: mu t { l: < Nil Unit | Cons { data: a, rest: t }# >} }!
             -> mu t { l: < Nil Unit | Cons { data: a, rest: t }# >}; 
