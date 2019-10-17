@@ -230,11 +230,15 @@ normaliseT d (A t n (Left s) (ARow m [] Nothing Nothing)) = do
   s' <- normaliseS s
   let tkns = map (first $ SE . IntLit . fromIntegral) $ IM.toList m
   return $ T $ TArray t' n s' tkns
--- vvv @all@ takes lower priority than the explcit constriants.
-normaliseT d (A t n (Left s) (ARow m us (Just b) Nothing)) = __todo "normaliseT: a-row with all"
+-- vvv @all@ takes lower priority than the explicit constriants, thus they should
+-- be prepended to the @us@.
+normaliseT d (A t n (Left s) (ARow m us (Just b) Nothing)) | isKnown n = do
+  let n'  = evalSExpr n
+      us' = zip (map (SE . IntLit) [1..fromIntegral n']) (repeat b)
+  normaliseT d $ A t n (Left s) (ARow m (us' ++ us) Nothing Nothing)
 -- vvv If we have unevaluated entries, then we need to evaluate them.
 normaliseT d (A t n (Left s) a@(ARow m us Nothing Nothing)) = do
-  let us' = IM.fromList $ fmap (first $ evalAExpr . toRawExpr') us
+  let us' = IM.fromList $ fmap (first evalSExpr) us
   if IM.null (IM.intersection us' m) then
      let m' = IM.union m us'
       in normaliseT d (A t n (Left s) (ARow m' [] Nothing Nothing))
@@ -246,9 +250,9 @@ normaliseT d (U x) = __impossible ("normaliseT: invalid type (?" ++ show x ++ ")
 normaliseT d (T x) = T <$> traverse (normaliseT d) x
 
 
-evalAExpr :: AExpr -> Int
-evalAExpr (RE (IntLit n)) = fromIntegral n
-evalAExpr (RE _) = __todo "Post.evalAExpr"
+evalSExpr :: SExpr -> Int
+evalSExpr (SE (IntLit n)) = fromIntegral n
+evalSExpr (SE _) = __todo "Post.evalSExpr"
 
 -- Normalises the layouts in sigils to remove `DataLayoutRefs`
 normaliseS :: Sigil (Maybe DataLayoutExpr) -> Post (Sigil (Maybe DataLayoutExpr))
