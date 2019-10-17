@@ -54,14 +54,16 @@ import Control.Monad.State hiding (fmap, forM_)
 import Control.Monad.Trans.Maybe
 import Data.Foldable (forM_)
 import Data.Function (on)
-import Data.IntMap as IM (elems, fromList, unionWith)
+import qualified Data.IntMap as IM
 import Data.List (sortBy)
 import Data.Map (Map)
+import Data.Maybe (isJust)
 import qualified Data.Map as M
 import Data.Monoid
 #if __GLASGOW_HASKELL__ < 709
 import Data.Traversable(traverse)
 #endif
+import Data.Word (Word32)
 import Lens.Micro (_2)
 import Lens.Micro.Mtl (view)
 import Text.PrettyPrint.ANSI.Leijen (pretty)
@@ -113,14 +115,14 @@ bound b (TProduct t11 t12) (TProduct t21 t22) = TProduct <$> bound b t11 t21 <*>
 bound b (TCon c1 t1 s1) (TCon c2 t2 s2) | c1 == c2, s1 == s2 = TCon c1 <$> zipWithM (bound b) t1 t2 <*> pure s1
 bound b (TFun t1 s1) (TFun t2 s2) = TFun <$> bound (theOtherB b) t1 t2 <*> bound b s1 s2
 #ifdef BUILTIN_ARRAYS
-bound b (TArray t1 l1 s1 takens1) (TArray t2 l2 s2 takens2)
+bound b (TArray t1 l1 s1 tkns1) (TArray t2 l2 s2 tkns2)
   | l1 == l2, s1 == s2 = do
       let op = case b of LUB -> (||); GLB -> (&&)
       t <- bound b t1 t2
-      oks <- lift $ flip3 zipWithM (elems takens2) (elems takens1) $ \tk1 tk2 ->
-               (if tk1 == tk2 then return True else
+      oks <- lift $ flip3 zipWithM (IM.elems tkns2) (IM.elems tkns1) $ \tkn1 tkn2 ->
+               (if tkn1 == tkn2 then return True else
                    kindcheck t >>= \k -> return (canDiscard k))
-      let takens = flip3 unionWith takens2 takens1 $ \tk1 tk2 -> tk1 `op` tk2
+      let takens = IM.unionWith op tkns1 tkns2
       if and oks then return $ TArray t l1 s1 takens
                  else MaybeT (return Nothing)
 #endif
@@ -383,6 +385,20 @@ infer (E (Singleton e))
         let TArray te l _ _ = t
         guardShow "singleton on a non-singleton array" $ l == 1
         return (TE te (Singleton e'))
+infer (E (ArrayPut arr i e))
+   = do arr'@(TE tarr _) <- infer arr
+        i'   <- infer i
+        e'@(TE te _)   <- infer e
+        let TArray telm len s tkns = tarr
+        mi <- evalExpr i'
+        guardShow "@put index not a integral constant" $ isJust mi
+        let Just i'' = mi
+        guardShow "@put index is out of range" $ i'' `IM.member` tkns
+        let Just itkn = IM.lookup i'' tkns
+        k <- kindcheck telm
+        unless itkn $ guardShow "@put a non-Discardable untaken element" $ canDiscard k
+        let tarr' = TArray telm len s (IM.adjust (const False) i'' tkns)
+        return (TE tarr' (ArrayPut arr' i' e'))
 #endif
 infer (E (Variable v))
    = do Just t <- useVariable (fst v)
@@ -561,4 +577,8 @@ promote t (TE t' e) = case e of
   Promote _ e'        -> promote t e'
   -- Otherwise, no simplification is necessary; construct a Promote expression as usual.
   _                   -> TE t $ Promote t (TE t' e)
+
+evalExpr :: TypedExpr t v a -> TC t v (Maybe Int)
+evalExpr (TE _ (ILit n _)) = return $ Just $ fromIntegral n
+evalExpr _ = return Nothing
 

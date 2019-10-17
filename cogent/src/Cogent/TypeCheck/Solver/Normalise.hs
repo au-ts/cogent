@@ -22,6 +22,7 @@ import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Solver.Goal
 import Cogent.TypeCheck.Solver.Monad
 import Cogent.TypeCheck.Solver.Rewrite
+import Cogent.TypeCheck.Solver.Util
 import qualified Cogent.TypeCheck.Row as Row
 
 import Control.Applicative
@@ -113,7 +114,7 @@ whnf input = do
         T (TUnbox    t') -> T . TUnbox    <$> whnf t'
         T (TLayout l t') -> T . TLayout l <$> whnf t'
         _                -> pure input
-    fromMaybe step <$> runMaybeT (runRewrite (untilFixedPoint normaliseRW) step)
+    fromMaybe step <$> runMaybeT (runRewrite (untilFixedPoint $ debug "Normalise Type" printPretty normaliseRW) step)
 
 -- | Normalise all types within a set of constraints
 normaliseTypes :: [Goal] -> TcSolvM [Goal]
