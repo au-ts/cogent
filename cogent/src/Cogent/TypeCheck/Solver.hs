@@ -38,6 +38,7 @@ import           Cogent.TypeCheck.Solver.JoinMeet
 import           Cogent.TypeCheck.Solver.Equate
 import           Cogent.TypeCheck.Solver.Default
 import           Cogent.TypeCheck.Solver.SinkFloat
+import           Cogent.TypeCheck.Solver.Util
 import qualified Cogent.TypeCheck.Subst as Subst
 import           Cogent.TypeCheck.Subst (Subst(..))
 import           Cogent.TypeCheck.Util
@@ -75,12 +76,12 @@ import           Lens.Micro.Mtl
 solve :: [(TyVarName, Kind)] -> Constraint -> TcSolvM [Goal]
 solve ks c = let gs     = makeGoals [] c
                           -- Simplify does a lot of very small steps so it's slightly nicer for tracing to run it in a nested fixpoint
-                 stages = (Rewrite.untilFixedPoint $ debugL "Simplify" $ simplify ks) <>
-                          debug  "Unify"      unify <>
-                          debugL "Equate"     equate <>
-                          debug  "Sink/Float" sinkfloat <>
-                          debug  "JoinMeet"   joinMeet <>
-                          debugL "Defaults"   defaults
+                 stages = (Rewrite.untilFixedPoint $ debugL "Simplify" printC $ simplify ks) <>
+                          debug  "Unify"      printC unify <>
+                          debugL "Equate"     printC equate <>
+                          debug  "Sink/Float" printC sinkfloat <>
+                          debug  "JoinMeet"   printC joinMeet <>
+                          debugL "Defaults"   printC defaults
   -- [amos] Type-solver changes I made:
   -- - Simplify rule for `t :=: t` to `Solved t` (see Solver/Simplify.hs)
   --    A constraint like "?a :=: ?a" is almost trivial, except that you need the `Solved` constraint to make sure ?a is given a concrete assignment eventually
@@ -90,15 +91,7 @@ solve ks c = let gs     = makeGoals [] c
   --    Choosing the smallest size for integer literals, when there are multiple upcast constraints on same unification variable
   -- - Reorder Equate stage before JoinMeet:
   --    The new Sink/float stage can apply when Equate does, but Sink/float introduces potentially many new constraints, while Equate is simpler and just replaces a subtyping constraint with equality.
-                 rw     = debugF "Initial constraints" <>
-                          Rewrite.untilFixedPoint (debug "Normalise types" $ Rewrite.pre normaliseTypes $ stages)
+                 rw     = debugF "Initial constraints" printC <>
+                          Rewrite.untilFixedPoint (Rewrite.pre normaliseTypes stages)
               in fmap (fromMaybe gs) (runMaybeT (Rewrite.runRewrite rw gs))
- where
-  debug  nm rw = rw `Rewrite.andThen` Rewrite.debugPass ("After " ++ nm ++ " the constraints are:") printC
-  debugL nm rw = debug nm (Rewrite.lift rw)
-  debugF nm = Rewrite.debugFail ("=== " ++ nm ++ " ===") printC
-
-  printC gs =
-   let gs' = map (P.nest 2 . pretty . _goal) gs
-   in show (P.line <> P.indent 2 (P.list gs'))
 

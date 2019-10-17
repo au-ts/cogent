@@ -127,6 +127,7 @@ library
               , Cogent.TypeCheck.Solver.Rewrite
               , Cogent.TypeCheck.Solver.SinkFloat
               , Cogent.TypeCheck.Solver.Default
+              , Cogent.TypeCheck.Solver.Util
               , Cogent.TypeCheck.Subst
               , Cogent.TypeCheck.Util
               , Cogent.Util
