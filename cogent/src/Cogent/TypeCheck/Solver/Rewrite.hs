@@ -35,13 +35,13 @@ module Cogent.TypeCheck.Solver.Rewrite
   , debugStr
   ) where
 
+import Control.Applicative
 import Control.Monad.Identity
 import Control.Monad.Trans.Maybe
 import qualified Control.Monad.Trans as T
-import Text.PrettyPrint.ANSI.Leijen (text, (<+>), (<$$>))
-import Control.Applicative
-import Cogent.TypeCheck.Util
 import Data.Monoid ((<>))
+import Text.PrettyPrint.ANSI.Leijen (text, (<+>), (<$$>))
+
 import Debug.Trace
 
 -- | Intuitively a @Rewrite a@ is a partial function from @a@ to @a@.
