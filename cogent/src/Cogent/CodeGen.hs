@@ -65,7 +65,7 @@ import qualified Data.List           as L
 import           Data.Loc                    (noLoc)
 import qualified Data.Map            as M
 import           Data.Maybe                  (fromJust)
-import           Data.Semigroup              ((<>))
+import           Data.Monoid                 ((<>))
 import           Data.Semigroup.Monad
 -- import           Data.Semigroup.Reducer      (foldReduce)
 import qualified Data.Set            as S

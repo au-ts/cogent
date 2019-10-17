@@ -567,12 +567,20 @@ scorresCaseExpr m = S.foldEPre unwrap scorresCaseExpr'
 
 data CaseLemmaBuckets = CaseLemmaBuckets [String] [String] [String] [String]
 
+
+#if __GLASGOW_HASKELL__ < 803	
+instance Monoid CaseLemmaBuckets where
+  mempty = CaseLemmaBuckets [] [] [] []
+  mappend (CaseLemmaBuckets as bs cs ds) (CaseLemmaBuckets as' bs' cs' ds') =
+    CaseLemmaBuckets (as ++ as') (bs ++ bs') (cs ++ cs') (ds ++ ds')
+#else
 instance Semigroup CaseLemmaBuckets where
   (<>) (CaseLemmaBuckets as bs cs ds) (CaseLemmaBuckets as' bs' cs' ds') =
     CaseLemmaBuckets (as ++ as') (bs ++ bs') (cs ++ cs') (ds ++ ds')
 
 instance Monoid CaseLemmaBuckets where
   mempty = CaseLemmaBuckets [] [] [] []
+#endif
 
 caseLemmaBuckets :: CaseLemmaBuckets -> [TheoryDecl I.Type I.Term]
 caseLemmaBuckets (CaseLemmaBuckets cases esacs cons promotes) =
