@@ -29,18 +29,15 @@ module Cogent.TypeCheck.Solver.Rewrite
   , rewrite'
   , pickOne'
   , withTransform
-  , -- * Debugging
-    debugFail
-  , debugPass
   ) where
 
+import Control.Applicative
 import Control.Monad.Identity
 import Control.Monad.Trans.Maybe
 import qualified Control.Monad.Trans as T
-import Text.PrettyPrint.ANSI.Leijen (text, (<+>), (<$$>))
-import Control.Applicative
-import Cogent.TypeCheck.Util
 import Data.Monoid ((<>))
+import Text.PrettyPrint.ANSI.Leijen (text, (<+>), (<$$>))
+
 import Debug.Trace
 
 -- | Intuitively a @Rewrite a@ is a partial function from @a@ to @a@.
@@ -138,14 +135,4 @@ pickOne' f = Rewrite each
 -- | Given a pure 'Rewrite', produce an effectful rewrite in any monad.
 lift :: Applicative m => Rewrite a -> RewriteT m a
 lift (Rewrite f) = rewrite (runIdentity . runMaybeT . f)
-
--- | For debugging, prints the contents of the rewrite to the console, with a string prefix.
---   Returns empty result and counts as no progress.
-debugFail :: (T.MonadIO m) => String -> (a -> String) -> RewriteT m a
-debugFail pfx show = Rewrite (\cs -> traceTc "rewrite" (text pfx <$$> text (show cs)) >> empty)
-
--- | Print debugging information as above, but counts as a successful rewrite.
---   Useful for putting debugging after another rewrite, if you only want to print on success.
-debugPass :: (T.MonadIO m) => String -> (a -> String) -> RewriteT m a
-debugPass pfx show = Rewrite (\cs -> traceTc "rewrite" (text pfx <$$> text (show cs)) >> return cs)
 
