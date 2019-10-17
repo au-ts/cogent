@@ -146,6 +146,7 @@ set_flag_fnoMlTypingTree = writeIORef __cogent_fml_typing_tree_ref False
 set_flag_fnoNormalisation = writeIORef __cogent_fnormalisation_ref NoNF
 set_flag_fnoPragmas = writeIORef __cogent_fpragmas_ref False
 set_flag_fnoPrettyErrmsgs = writeIORef __cogent_fpretty_errmsgs_ref False
+set_flag_fnoRecordsPermutation = writeIORef __cogent_frecords_permutation_ref False
 set_flag_fnoReverseTcErrors = writeIORef __cogent_freverse_tc_errors_ref False
 set_flag_fnormalisation Nothing = writeIORef __cogent_fnormalisation_ref ANF
 set_flag_fnormalisation (Just s) | s' <- map toLower s =
@@ -164,6 +165,7 @@ set_flag_fnoUseCompoundLiterals = writeIORef __cogent_fuse_compound_literals_ref
 set_flag_fnoWrapPutInLet = writeIORef __cogent_fwrap_put_in_let_ref False
 set_flag_fpragmas = writeIORef __cogent_fpragmas_ref True
 set_flag_fprettyErrmsgs = writeIORef __cogent_fpretty_errmsgs_ref True
+set_flag_frecordsPermutation = writeIORef __cogent_frecords_permutation_ref True
 set_flag_freverseTcErrors = writeIORef __cogent_freverse_tc_errors_ref True
 set_flag_fshareLinearVars = writeIORef __cogent_fshare_linear_vars_ref True
 set_flag_fshowTypesInPretty = writeIORef __cogent_fshow_types_in_pretty_ref True
@@ -508,6 +510,13 @@ __cogent_fpretty_errmsgs = unsafePerformIO $ readIORef __cogent_fpretty_errmsgs_
 __cogent_fpretty_errmsgs_ref :: IORef Bool
 {-# NOINLINE __cogent_fpretty_errmsgs_ref #-}
 __cogent_fpretty_errmsgs_ref = unsafePerformIO $ newIORef True
+
+__cogent_frecords_permutation :: Bool
+__cogent_frecords_permutation = unsafePerformIO $ readIORef __cogent_frecords_permutation_ref
+
+__cogent_frecords_permutation_ref :: IORef Bool
+{-# NOINLINE __cogent_frecords_permutation_ref #-}
+__cogent_frecords_permutation_ref = unsafePerformIO $ newIORef False
 
 __cogent_freverse_tc_errors :: Bool
 __cogent_freverse_tc_errors = unsafePerformIO $ readIORef __cogent_freverse_tc_errors_ref

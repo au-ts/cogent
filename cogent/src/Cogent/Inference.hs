@@ -56,6 +56,7 @@ import Control.Monad.State hiding (fmap, forM_)
 import Control.Monad.Trans.Maybe
 -- import Data.Data hiding (Refl)
 import Data.Foldable (forM_)
+import Data.List (sortOn)
 #if __GLASGOW_HASKELL__ < 709
 import Data.Traversable(traverse)
 #endif
@@ -67,9 +68,6 @@ import Data.Monoid
 -- import qualified Data.Set as S
 import Text.PrettyPrint.ANSI.Leijen (pretty)
 import qualified Unsafe.Coerce as Unsafe (unsafeCoerce)  -- NOTE: used safely to coerce phantom types only
-
-import Data.List (sortBy)
-import Data.Function (on)
 
 import Debug.Trace
 
@@ -466,7 +464,8 @@ infer (E (Struct fs))
    = do let (ns,es) = unzip fs
         es' <- mapM infer es
         let ts' = zipWith (\n e' -> (n, (exprType e', False))) ns es'
-        return $ TE (TRecord (sortBy (compare `on` fst) ts') Unboxed) $ Struct $ zip ns es'
+            sts' = if __cogent_frecords_permutation then sortOn fst ts' else ts'
+        return $ TE (TRecord sts' Unboxed) $ Struct $ zip ns es'
 infer (E (Take a e f e2))
    = do e'@(TE t _) <- infer e
         let TRecord ts s = t

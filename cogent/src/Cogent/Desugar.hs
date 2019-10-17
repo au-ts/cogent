@@ -410,7 +410,9 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple ps) _)) e | __cogent_ftuples_as_
   --              in e  -- The implemention is optimised so that PVars in ps don't need to assign to new vars again
   e0' <- desugarExpr e0
   -- vvv See NOTE [sorting tuple fields] in this file.
-  let vs = P.map (fst . getPVar . snd) $ L.sortOn fst $ P.zip (map (('p':) . show) [1::Int ..]) ps
+  let vs = if __cogent_frecords_permutation
+            then P.map (fst . getPVar . snd) $ L.sortOn fst $ P.zip (map (('p':) . show) [1::Int ..]) ps
+            else P.map (fst . getPVar) ps
   mkTake e0' vs e 0
   where isPVar (B.TIP (S.PVar _) _) = True; isPVar _ = False
         getPVar (B.TIP (S.PVar v) _) = v; getPVar _ = __impossible "getPVar (in desugarAlt')"
@@ -536,7 +538,8 @@ desugarType = \case
     -- vvv NOTE [sorting tuple fields] / zilinc
     --     We assume that the field names are *lexicographically* sorted! We need to
     --     explicitly sort them here, otherwise @p10@ will be following @p9@ instead of @p1@.
-    fs <- L.sortOn fst . P.zipWith (\n t -> (n,(t, False))) ns <$> forM ts desugarType
+    fs <- (if __cogent_frecords_permutation then (L.sortOn fst) else id) .
+            P.zipWith (\n t -> (n,(t, False))) ns <$> forM ts desugarType
     return $ TRecord fs Unboxed
   S.RT (S.TUnit)   -> return TUnit
 #ifdef BUILTIN_ARRAYS
@@ -637,7 +640,8 @@ desugarExpr (B.TE _ (S.Tuple es@(_:_:_)) _) | not __cogent_ftuples_as_sugar = do
   foldr1 (liftA2 $ E .* Tuple) $ map desugarExpr es  -- right associative product repr of a list
 desugarExpr (B.TE _ (S.Tuple es) _) = do
   -- vvv See NOTE [sorting tuple fields] above.
-  fs <- L.sortOn fst . P.zip (P.map (('p':) . show) [1 :: Integer ..]) <$> mapM desugarExpr es
+  fs <- (if __cogent_frecords_permutation then (L.sortOn fst) else id) .
+          P.zip (P.map (('p':) . show) [1 :: Integer ..]) <$> mapM desugarExpr es
   return . E $ Struct fs  -- \| __cogent_ftuples_as_sugar
 desugarExpr (B.TE _ (S.UnboxedRecord fs) _) = E . Struct <$> mapM (\(f,e) -> (f,) <$> desugarExpr e) fs
 desugarExpr (B.TE _ (S.Let [] e) _) = __impossible "desugarExpr (Let)"
