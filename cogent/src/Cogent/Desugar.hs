@@ -39,7 +39,7 @@ import Cogent.Vec as Vec
 
 import Control.Applicative
 import Control.Arrow (second, (&&&))
-import Control.Lens
+import Control.Lens hiding (Refl)
 import Control.Monad.Reader hiding (forM)
 import Control.Monad.RWS.Strict hiding (forM)
 import Data.Char (ord)

@@ -45,7 +45,7 @@ import Control.Applicative
 import Control.Arrow
 import Control.Monad
 import Control.Monad.State
-import Control.Lens hiding (Context)
+import Control.Lens hiding (Context, Refl)
 import Data.Biapplicative ((<<*>>))
 -- import qualified Data.Bifunctor as B
 import Data.Function.Flippers
@@ -169,6 +169,17 @@ branchFuncEnv, concatFuncEnv :: FuncEnv -> FuncEnv -> FuncEnv
 branchFuncEnv = M.unionWith $ (<<*>>) . ((const, parOcc) <<*>>)
 concatFuncEnv = M.unionWith $ (<<*>>) . ((const, seqOcc) <<*>>)
 
+#if __GLASGOW_HASKELL__ < 803	
+instance Monoid OccInfo where
+  mempty = Dead
+  mappend x y | x > y   = y <> x
+  mappend _ LetBanged   = LetBanged
+  mappend Dead        x = x
+  mappend OnceSafe    _ = MultiUnsafe
+  mappend MultiSafe   _ = MultiUnsafe
+  mappend MultiUnsafe _ = MultiUnsafe
+  mappend _ _ = __exhaustivity "<> (in Semigroup OccInfo)"
+#else
 instance Semigroup OccInfo where
   (<>) x y | x > y   = y <> x
   (<>) _ LetBanged   = LetBanged
@@ -180,6 +191,7 @@ instance Semigroup OccInfo where
 
 instance Monoid OccInfo where
   mempty = Dead
+#endif
 
 seqOcc, parOcc :: OccInfo -> OccInfo -> OccInfo
 seqOcc = (<>)

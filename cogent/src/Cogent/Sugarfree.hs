@@ -137,11 +137,17 @@ deriving instance Show FunctionType
 
 data Attr = Attr { inlineDef :: Bool, fnMacro :: Bool } deriving (Eq, Ord, Show)
 
+#if __GLASGOW_HASKELL__ < 803	
+instance Monoid Attr where
+  mempty = Attr False False
+  mappend (Attr a1 a2) (Attr a1' a2') = Attr (a1 || a1') (a2 || a2')
+#else
 instance Semigroup Attr where
   (Attr a1 a2) <> (Attr a1' a2') = Attr (a1 || a1') (a2 || a2')
 
 instance Monoid Attr where
   mempty = Attr False False
+#endif
 
 data Definition e a
   = forall t. (Pretty a, Pretty (e t ('Suc 'Zero) a)) => FunDef  Attr FunName (Vec t (TyVarName, Kind)) (Type t) (Type t) (e t ('Suc 'Zero) a)

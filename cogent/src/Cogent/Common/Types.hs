@@ -53,6 +53,12 @@ k1 = K True  False False
 k2 = mempty
 -- kAll = K False False False
 
+
+#if __GLASGOW_HASKELL__ < 803	
+instance Monoid Kind where
+  mempty = K True True True  -- 2-kind
+  mappend (K a b c) (K a' b' c') = K (a && a') (b && b') (c && c')
+#else
 instance Semigroup Kind where
   (<>) (K a b c) (K a' b' c') = K (a && a') (b && b') (c && c')
     -- mappend   ka   0    1    2
@@ -65,6 +71,7 @@ instance Semigroup Kind where
 
 instance Monoid Kind where
   mempty = K True True True  -- 2-kind
+#endif
 
 bangKind :: Kind -> Kind
 bangKind (K e s d) = K (e && s && d) True True

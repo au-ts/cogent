@@ -77,6 +77,15 @@ instance Pretty Op where
 
 data Likelihood = Unlikely | Regular | Likely deriving (Show, Eq, Ord)
 
+#if __GLASGOW_HASKELL__ < 803	
+instance Monoid Likelihood where
+  mempty = Regular
+  mappend Unlikely Likely   = Regular
+  mappend Unlikely _        = Unlikely
+  mappend Likely   Unlikely = Regular
+  mappend Likely   _        = Likely
+  mappend Regular  l        = l
+#else
 instance Semigroup Likelihood where
   (<>) Unlikely Likely   = Regular
   (<>) Unlikely _        = Unlikely
@@ -86,7 +95,7 @@ instance Semigroup Likelihood where
 
 instance Monoid Likelihood where
   mempty = Regular
-
+#endif
 instance Group Likelihood where
   invert Regular  = Regular
   invert Likely   = Unlikely
