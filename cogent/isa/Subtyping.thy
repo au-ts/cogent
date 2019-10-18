@@ -1,5 +1,7 @@
 theory Subtyping
-  imports Cogent
+  imports
+    Cogent
+    ValueSemantics
 begin
 
 text \<open>
@@ -7,6 +9,8 @@ text \<open>
   compiler computes subtyping (as of late 2018), and these proofs give assurance we've formalised
   the correct relation.
 \<close>
+
+section \<open>Subtyping As An Order and As A Lattice\<close>
 
 inductive type_lub :: "kind env \<Rightarrow> type \<Rightarrow> type \<Rightarrow> type \<Rightarrow> bool" ("_ \<turnstile> _ \<leftarrow> _ \<squnion> _" [60,0,0,60] 60)
   and type_glb :: "kind env \<Rightarrow> type \<Rightarrow> type \<Rightarrow> type \<Rightarrow> bool" ("_ \<turnstile> _ \<leftarrow> _ \<sqinter> _" [60,0,0,60] 60)
@@ -530,5 +534,164 @@ theorem type_glb_type_lub_subtyping_equivalent:
     "K \<turnstile> a \<leftarrow> a \<squnion> b \<longleftrightarrow> K \<turnstile> b \<sqsubseteq> a"
     "K \<turnstile> b \<leftarrow> a \<sqinter> b \<longleftrightarrow> K \<turnstile> b \<sqsubseteq> a"
   using subtyping_to_type_lub type_lub_type_glb_to_subtyping subtyping_to_type_glb by blast+
+
+lemmas weakening_append1 = list_all2_append1[where P="weakening_comp K" for K, simplified weakening_def[symmetric]]
+lemmas weakening_append2 = list_all2_append2[where P="weakening_comp K" for K, simplified weakening_def[symmetric]]
+
+lemma take_empty:
+  assumes \<open>m < n\<close>
+  shows \<open>take m (empty n) = empty m\<close>
+  unfolding empty_def
+  using assms by auto
+
+lemma drop_empty:
+  assumes \<open>m < n\<close>
+  shows \<open>drop m (empty n) = empty (n - m)\<close>
+  unfolding empty_def
+  using assms by auto
+
+lemma weaken_to_singleton_split:
+  assumes
+    \<open>i < length \<Gamma>\<close>
+  shows
+    \<open>(K \<turnstile> \<Gamma> \<leadsto>w (singleton (length \<Gamma>) i t))
+     \<longleftrightarrow>
+     (\<exists>\<Gamma>a \<Gamma>b.
+       \<Gamma> = \<Gamma>a @ [\<Gamma> ! i] @ \<Gamma>b \<and>
+       (K \<turnstile> \<Gamma>a \<leadsto>w empty i) \<and>
+       weakening_comp K (\<Gamma> ! i) (Some t) \<and>
+       (K \<turnstile> \<Gamma>b \<leadsto>w empty (length \<Gamma> - Suc i)))\<close>
+  using assms
+  apply (clarsimp simp add:
+      singleton_def upd_conv_take_nth_drop empty_length
+      weakening_append2 weakening_Cons2 min_absorb2 take_empty drop_empty)
+  apply safe
+   apply (metis Cogent.empty_def drop_replicate nth_append_length)
+  apply (metis (mono_tags, lifting) Cogent.empty_def drop_replicate empty_length length_Cons weakening_length)
+  done
+
+section \<open>Subtyping and Value Semantics\<close>
+
+fun strip_promote :: \<open>'f expr \<Rightarrow> 'f expr\<close> where
+  \<open>strip_promote (Var i) = (Var i)\<close>
+| \<open>strip_promote (AFun n ts) = (AFun n ts)\<close>
+| \<open>strip_promote (Fun e ts) = (Fun (strip_promote e) ts)\<close>
+| \<open>strip_promote (Prim p es) = (Prim p (map strip_promote es))\<close>
+| \<open>strip_promote (App ef ea) = (App (strip_promote ef) (strip_promote ea))\<close>
+| \<open>strip_promote (Con vs n e) = (Con vs n (strip_promote e))\<close>
+| \<open>strip_promote (Struct fs es) = (Struct fs (map strip_promote es))\<close>
+| \<open>strip_promote (Member e n) = (Member (strip_promote e) n)\<close>
+| \<open>strip_promote Unit = Unit\<close>
+| \<open>strip_promote (Lit l) = Lit l\<close>
+| \<open>strip_promote (SLit s) = SLit s\<close>
+| \<open>strip_promote (Cast m e) = (Cast m (strip_promote e))\<close>
+| \<open>strip_promote (Tuple ea eb) = (Tuple (strip_promote ea) (strip_promote eb))\<close>
+| \<open>strip_promote (Put er n ec) = (Put (strip_promote er) n (strip_promote ec))\<close>
+| \<open>strip_promote (Let ea ec) = (Let (strip_promote ea) (strip_promote ec))\<close>
+| \<open>strip_promote (LetBang is ea ec) = (LetBang is (strip_promote ea) (strip_promote ec))\<close>
+| \<open>strip_promote (Case ev n ecm ecnm) = (Case (strip_promote ev) n (strip_promote ecm) (strip_promote ecnm))\<close>
+| \<open>strip_promote (Esac ec n) = (Esac (strip_promote ec) n)\<close>
+| \<open>strip_promote (If ec et ef) = (If (strip_promote ec) (strip_promote et) (strip_promote ef))\<close>
+| \<open>strip_promote (Take er n ec) = (Take (strip_promote er) n (strip_promote ec))\<close>
+| \<open>strip_promote (Split et ec) = (Split (strip_promote et) (strip_promote ec))\<close>
+| \<open>strip_promote (Promote type e) = strip_promote e\<close>
+
+
+fun strip_promote_val :: \<open>('a, 'b) vval \<Rightarrow> ('a, 'b) vval\<close> where
+  \<open>strip_promote_val (VPrim l) = VPrim l\<close>
+| \<open>strip_promote_val (VProduct v1 v2) = VProduct (strip_promote_val v1) (strip_promote_val v2)\<close>
+| \<open>strip_promote_val (VSum n v) = VSum n (strip_promote_val v)\<close>
+| \<open>strip_promote_val (VRecord vs) = VRecord (map strip_promote_val vs)\<close>
+| \<open>strip_promote_val (VAbstract a) = (VAbstract a)\<close>
+| \<open>strip_promote_val (VFunction f ts) = VFunction (strip_promote f) ts\<close>
+| \<open>strip_promote_val (VAFunction n ts) = VAFunction n ts\<close>
+| \<open>strip_promote_val VUnit = VUnit\<close>
+
+lemma typing_promote_idem:
+  "\<Xi>, K, \<Gamma> \<turnstile> e' : t \<Longrightarrow> e' = Promote t1 (Promote t2 e) \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Promote t1 e : t"
+  "\<Xi>, K, \<Gamma> \<turnstile>* es : ts \<Longrightarrow> True"
+  using subtyping_trans typing_promote
+  by (induct arbitrary: t1 t2 e rule: typing_typing_all.inducts) blast+
+
+context value_sem
+begin
+
+lemma strip_promote_val_eval_prim:
+  shows "strip_promote_val (eval_prim p vs) = eval_prim p (map strip_promote_val vs)"
+  unfolding eval_prim_def
+  apply clarsimp
+  apply (rule_tac f=\<open>\<lambda>f. eval_prim_op p (map f vs)\<close> in cong, simp)
+  apply (rule ext)
+  apply (rename_tac v)
+  apply (case_tac v; clarsimp)
+  done
+
+lemma specialise_strip_promote_eq_stip_promote_specialise:
+  shows "specialise ts (strip_promote e) = strip_promote (specialise ts e)"
+  by (induct e; clarsimp)
+
+lemma
+  assumes xi_relates_stripped_vals:
+    \<open>\<And>f a r. \<xi> f a r \<Longrightarrow> \<xi> f (strip_promote_val a) (strip_promote_val r)\<close>
+  shows
+    \<open>\<xi> , \<gamma> \<turnstile> e \<Down> v \<Longrightarrow>
+     \<xi> , map strip_promote_val \<gamma> \<turnstile> strip_promote e \<Down> strip_promote_val v\<close>
+    \<open>\<xi> , \<gamma> \<turnstile>* es \<Down> vs \<Longrightarrow>
+     \<xi> , map strip_promote_val \<gamma> \<turnstile>* map strip_promote es \<Down> map strip_promote_val vs\<close>
+  using assms
+proof (induct rule: v_sem_v_sem_all.inducts)
+  case v_sem_prim then show ?case
+    by (force intro: v_sem_v_sem_all.intros simp add: strip_promote_val_eval_prim)
+next
+  case v_sem_app then show ?case
+    by (force intro: v_sem_v_sem_all.intros simp add: specialise_strip_promote_eq_stip_promote_specialise)
+next
+  case (v_sem_take \<xi> \<gamma> x fs f e e')
+  then show ?case
+    apply clarsimp
+    apply (rule v_sem_v_sem_all.intros)
+     apply assumption
+
+    sorry
+next
+  case (v_sem_put \<xi> \<gamma> x fs e e' f)
+  then show ?case
+    sorry
+qed (force intro: v_sem_member_mapped_fields v_sem_var_mapped_ctx v_sem_v_sem_all.intros)+
+
+lemma
+  shows
+    \<open>\<Xi> , K , \<Gamma> \<turnstile> e : \<tau> \<Longrightarrow>
+     \<Xi> , K , \<Gamma> \<turnstile> e' : \<tau>' \<Longrightarrow>
+     strip_promote e' = strip_promote e \<Longrightarrow>
+     \<xi> , \<gamma> \<turnstile> e \<Down> v \<Longrightarrow>
+     \<xi> , \<gamma> \<turnstile> e' \<Down> v' \<Longrightarrow>
+     \<Xi> \<turnstile> v :v \<tau> \<Longrightarrow>
+     \<Xi> \<turnstile> v' :v \<tau>' \<Longrightarrow>
+     \<xi> matches \<Xi> \<Longrightarrow>
+     \<Xi> \<turnstile> \<gamma> matches \<Gamma> \<Longrightarrow>
+     v = v'\<close>
+    \<open>\<Xi> , K , \<Gamma> \<turnstile>* es : \<tau>s \<Longrightarrow>
+     \<Xi> , K , \<Gamma> \<turnstile>* es' : \<tau>s' \<Longrightarrow>
+     map strip_promote es' = map strip_promote es \<Longrightarrow>
+     \<xi> , \<gamma> \<turnstile>* es \<Down> vs \<Longrightarrow>
+     \<xi> , \<gamma> \<turnstile>* es' \<Down> vs' \<Longrightarrow>
+     \<Xi> \<turnstile>* vs :v \<tau>s \<Longrightarrow>
+     \<Xi> \<turnstile>* vs' :v \<tau>s' \<Longrightarrow>
+     \<xi> matches \<Xi> \<Longrightarrow>
+     \<Xi> \<turnstile> \<gamma> matches \<Gamma> \<Longrightarrow>
+     v = v'\<close>
+   apply (induct e arbitrary: \<tau> e' \<tau>' v v' \<Gamma> \<Xi> K \<xi> \<gamma>; case_tac e'; simp)
+                      apply clarsimp
+                      apply (clarsimp elim!: v_sem_varE)
+                      apply (clarsimp elim!: v_sem_varE v_sem_promoteE)
+                      apply (rename_tac t e'')
+                      apply (case_tac e''; clarsimp)
+                      apply (clarsimp elim!: v_sem_promoteE v_sem_varE typing_varE typing_promoteE)
+                      apply (clarsimp elim!: v_sem_promoteE v_sem_varE typing_varE typing_promoteE)
+                      apply (clarsimp simp add: weaken_to_singleton_split)
+  oops
+
+end
 
 end

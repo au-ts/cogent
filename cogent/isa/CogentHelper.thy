@@ -15,6 +15,10 @@ theory CogentHelper
 keywords "ML_quiet" :: thy_decl % "ML"
 begin
 
+(* This was in Cogent.thy, but it was removed to make some proofs nicer. Add it here in case
+   the automation depends on it *)
+declare singleton_def[simp]
+
 (* Rewrite rules to get expressions in the assumptions *)
 
 lemma typing_lit': "\<lbrakk> K \<turnstile> \<Gamma> consumed; t = lit_type l \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Lit l : TPrim t"

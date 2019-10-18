@@ -533,8 +533,6 @@ definition empty :: "nat \<Rightarrow> ctx" where
 definition singleton :: "nat \<Rightarrow> index \<Rightarrow> type \<Rightarrow> ctx" where
   "singleton n i t \<equiv> (empty n)[i := Some t]"
 
-declare singleton_def [simp]
-
 definition instantiate_ctx :: "type substitution \<Rightarrow> ctx \<Rightarrow> ctx" where
   "instantiate_ctx \<delta> \<Gamma> \<equiv> map (map_option (instantiate \<delta>)) \<Gamma>"
 
@@ -593,6 +591,9 @@ lemmas weakening_nil = List.list.rel_intros(1)[where R="weakening_comp K" for K,
 lemmas weakening_cons =  List.list.rel_intros(2)[where R="weakening_comp K" for K, simplified weakening_def[symmetric]]
 
 lemmas weakening_Cons = list_all2_Cons[where P="weakening_comp K" for K, simplified weakening_def[symmetric]]
+
+lemmas weakening_Cons1 = list_all2_Cons1[where P="weakening_comp K" for K, simplified weakening_def[symmetric]]
+lemmas weakening_Cons2 = list_all2_Cons2[where P="weakening_comp K" for K, simplified weakening_def[symmetric]]
 
 lemmas weakening_conv_all_nth = list_all2_conv_all_nth[where P="weakening_comp K" for K, simplified weakening_def[symmetric]]
 
@@ -1796,6 +1797,7 @@ lemma instantiate_ctx_singleton [simplified, simp]:
 shows "instantiate_ctx \<delta> (singleton l i \<tau>) = singleton l i (instantiate \<delta> \<tau>)"
 by (induct l arbitrary: i, simp_all add:   instantiate_ctx_def
                                            empty_def
+                                           singleton_def
                                     split: nat.split)
 
 lemma instantiate_ctx_length [simp]:
@@ -2090,7 +2092,7 @@ shows "\<Xi>, K, \<Gamma> \<turnstile>  e  : t  \<Longrightarrow> K \<turnstile>
 and   "\<Xi>, K, \<Gamma> \<turnstile>* es : ts \<Longrightarrow> K \<turnstile>* ts wellformed"
 proof (induct rule: typing_typing_all.inducts)
   case typing_var then show ?case
-    by (fastforce dest: weakening_nth elim: weakening_comp.cases simp add: kinding_defs empty_def)
+    by (fastforce dest: weakening_nth elim: weakening_comp.cases simp add: kinding_defs singleton_def empty_def)
 next case typing_afun then show ?case
     by (clarsimp simp add: kinding_defs instantiate_wellformed list_all2_kinding_wellformedD list_all2_lengthD)
 next case typing_fun then show ?case

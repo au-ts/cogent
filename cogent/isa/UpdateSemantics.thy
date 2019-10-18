@@ -970,29 +970,29 @@ proof -
   from assms obtain env where "singleton (length \<Gamma>) i \<tau> = env" by simp
   from I [simplified this] S assms(3-) this
   show ?thesis proof (induct arbitrary: i \<Gamma> rule: matches_ptrs.inducts )
-       case matches_ptrs_empty then moreover   have "\<Gamma> = []" by (simp add: empty_def)
+       case matches_ptrs_empty then moreover   have "\<Gamma> = []" by (simp add: empty_def singleton_def)
                                     ultimately show ?case    by simp
   next case (matches_ptrs_none  \<Xi> \<sigma> xs \<Gamma>' r w x i \<Gamma>)
        show ?case proof (cases i)
             case 0       with matches_ptrs_none show ?thesis by ( cases "length \<Gamma>"
-                                                                , simp_all add: empty_def )
+                                                                , simp_all add: empty_def singleton_def)
        next case (Suc n)
          moreover with matches_ptrs_none have "\<Gamma>' = (empty (length \<Gamma> - 1))[n := Some \<tau>]"
-                                         by (cases "length \<Gamma>", simp_all add: empty_def)
+                                         by (cases "length \<Gamma>", simp_all add: empty_def singleton_def)
          moreover with matches_ptrs_none have "length \<Gamma> = Suc (length \<Gamma>')"
-                                         by (simp add: empty_def)
+                                         by (simp add: empty_def singleton_def)
          ultimately show ?thesis apply -
                                  apply (insert matches_ptrs_none)
-                                 apply (auto).
+                                 apply (auto simp add: singleton_def) .
        qed
   next case (matches_ptrs_some)
        show ?case proof (cases i)
             case 0 with matches_ptrs_some show ?thesis
-              apply (cases "length \<Gamma>", simp_all add: empty_def)
-              apply (clarsimp dest!:matches_ptrs_empty_env(2) [simplified empty_def])
+              apply (cases "length \<Gamma>", simp_all add: empty_def singleton_def)
+              apply (clarsimp dest!:matches_ptrs_empty_env(2)[simplified empty_def])
               apply (blast).
        next case (Suc n) with matches_ptrs_some show ?thesis by ( cases "length \<Gamma>"
-                                                                , simp_all add: empty_def )
+                                                                , simp_all add: empty_def singleton_def)
        qed
   qed
 qed

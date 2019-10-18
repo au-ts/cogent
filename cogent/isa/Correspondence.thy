@@ -832,29 +832,29 @@ proof -
   from assms obtain env where "singleton (length \<Gamma>) i \<tau> = env" by simp
   from I [simplified this] S assms(3-) this
   show ?thesis proof (induct arbitrary: i \<Gamma> rule: u_v_matches.inducts )
-       case u_v_matches_empty then moreover   have "\<Gamma> = []" by (simp add: empty_def)
+       case u_v_matches_empty then moreover   have "\<Gamma> = []" by (simp add: empty_def singleton_def)
                                     ultimately show ?case    by simp
   next case (u_v_matches_none  \<Xi> \<sigma> xs xs' \<Gamma>' r w x x' i \<Gamma>)
        show ?case proof (cases i)
             case 0       with u_v_matches_none show ?thesis by ( cases "length \<Gamma>"
-                                                               , simp_all add: empty_def )
+                                                               , simp_all add: empty_def singleton_def)
        next case (Suc n)
          moreover with u_v_matches_none have "\<Gamma>' = (empty (length \<Gamma> - 1))[n := Some \<tau>]"
-                                         by (cases "length \<Gamma>", simp_all add: empty_def)
+                                         by (cases "length \<Gamma>", simp_all add: empty_def singleton_def)
          moreover with u_v_matches_none have "length \<Gamma> = Suc (length \<Gamma>')"
-                                         by (simp add: empty_def)
+                                         by (simp add: empty_def singleton_def)
          ultimately show ?thesis apply -
                                  apply (insert u_v_matches_none)
-                                 apply (auto).
+                                 apply (auto simp add: singleton_def).
        qed
   next case (u_v_matches_some)
        show ?case proof (cases i)
             case 0 with u_v_matches_some show ?thesis
-              apply (cases "length \<Gamma>", simp_all add: empty_def)
+              apply (cases "length \<Gamma>", simp_all add: empty_def singleton_def)
               apply (clarsimp dest!:u_v_matches_empty_env(2) [simplified empty_def])
               apply (blast).
        next case (Suc n) with u_v_matches_some show ?thesis by ( cases "length \<Gamma>"
-                                                                , simp_all add: empty_def )
+                                                                , simp_all add: empty_def singleton_def)
        qed
   qed
 qed
@@ -2259,6 +2259,12 @@ and     "\<lbrakk> \<xi> , \<gamma>  \<turnstile>* (\<sigma>, es) \<Down>! (\<si
   using assms proof (induct "(\<sigma>,e)" "(\<sigma>',v)"
     and "(\<sigma>,es)" "(\<sigma>', vs)" arbitrary: \<Gamma> r w \<sigma> e v \<tau> \<sigma>' \<gamma>' and \<Gamma> r w  \<sigma> es vs \<tau>s' \<sigma>'  \<gamma>'
     rule: u_sem_u_sem_all.inducts)
+  case (u_sem_var \<xi> \<gamma> \<sigma> i)
+  then show ?case
+    apply (clarsimp elim!: typing_varE)
+    sledgehammer
+    sorry
+next
      case u_sem_cast
   note IH   = this(2)
   and  rest = this(1,3-)

@@ -55,7 +55,7 @@ inductive v_sem :: "('f,'a) vabsfuns \<Rightarrow> ('f, 'a) vval env \<Rightarro
 and       v_sem_all  :: "('f,'a) vabsfuns \<Rightarrow> ('f, 'a) vval list \<Rightarrow> 'f expr list \<Rightarrow> ('f, 'a) vval list \<Rightarrow> bool"
           ("_ , _ \<turnstile>* _ \<Down> _" [30,0,0,20] 60)
 where
-  v_sem_var     : "\<xi> , \<gamma> \<turnstile> (Var i) \<Down> (\<gamma> ! i)"
+  v_sem_var     : "i < length \<gamma> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (Var i) \<Down> (\<gamma> ! i)"
 
 | v_sem_lit     : "\<xi> , \<gamma> \<turnstile> (Lit l) \<Down> VPrim l"
 
@@ -83,7 +83,9 @@ where
 | v_sem_con     : "\<lbrakk> \<xi> , \<gamma> \<turnstile> x \<Down> x'
                    \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (Con _ t x) \<Down> VSum t x'"
 
-| v_sem_member  : "\<lbrakk> \<xi> , \<gamma> \<turnstile> e \<Down> VRecord fs
+| v_sem_member  : "\<lbrakk> f < length fs
+                   ; \<xi> , \<gamma> \<turnstile> e \<Down> VRecord fs
+                   ; f < length fs
                    \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> Member e f \<Down> fs ! f"
 
 | v_sem_unit    : "\<xi> , \<gamma> \<turnstile> Unit \<Down> VUnit"
@@ -121,10 +123,12 @@ where
 
 | v_sem_take    : "\<lbrakk> \<xi> , \<gamma> \<turnstile> x \<Down> VRecord fs
                    ; \<xi> , (fs ! f # VRecord fs # \<gamma>) \<turnstile> e \<Down> e'
+                   ; f < length fs
                    \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> Take x f e \<Down> e'"
 
 | v_sem_put     : "\<lbrakk> \<xi> , \<gamma> \<turnstile> x \<Down> VRecord fs
                    ; \<xi> , \<gamma> \<turnstile> e \<Down> e'
+                   ; f < length fs
                    \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> Put x f e \<Down> VRecord (fs [ f := e' ])"
 
 | v_sem_split   : "\<lbrakk> \<xi> , \<gamma> \<turnstile> x \<Down> VProduct a b
@@ -141,11 +145,19 @@ where
                      ; \<xi> , \<gamma> \<turnstile>* xs \<Down> vs
                      \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile>* (x # xs) \<Down> (v # vs)"
 
-inductive_cases v_sem_varE  [elim] : "\<xi> , \<gamma> \<turnstile> Var i \<Down> v"
-inductive_cases v_sem_funE  [elim] : "\<xi> , \<gamma> \<turnstile> Fun f ts \<Down> v"
-inductive_cases v_sem_afunE [elim] : "\<xi> , \<gamma> \<turnstile> AFun f ts \<Down> v"
-inductive_cases v_sem_appE  [elim] : "\<xi> , \<gamma> \<turnstile> App a b \<Down> v"
+inductive_cases v_sem_varE    [elim] : "\<xi> , \<gamma> \<turnstile> Var i \<Down> v"
+inductive_cases v_sem_funE    [elim] : "\<xi> , \<gamma> \<turnstile> Fun f ts \<Down> v"
+inductive_cases v_sem_afunE   [elim] : "\<xi> , \<gamma> \<turnstile> AFun f ts \<Down> v"
+inductive_cases v_sem_appE    [elim] : "\<xi> , \<gamma> \<turnstile> App a b \<Down> v"
+inductive_cases v_sem_promoteE[elim] : "\<xi> , \<gamma> \<turnstile> Promote t e \<Down> v"
 
+lemma v_sem_var_mapped_ctx:
+  shows "i < length \<gamma> \<Longrightarrow> \<xi>' , map f \<gamma> \<turnstile> Var i \<Down> f (\<gamma> ! i)"
+  by (metis length_map nth_map v_sem_var)
+
+lemma v_sem_member_mapped_fields:
+  shows "f < length fs \<Longrightarrow> \<xi> , \<gamma> \<turnstile> e \<Down> VRecord (map g fs) \<Longrightarrow> \<xi> , \<gamma> \<turnstile> Member e f \<Down> g (fs ! f)"
+  by (metis length_map nth_map v_sem_member)
 
 locale value_sem =
   fixes abs_typing :: "'a \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> bool"
@@ -812,7 +824,7 @@ using assms proof (induct "specialise \<tau>s e"        v
      case v_sem_var     then show ?case by ( case_tac e, simp_all
                                            , fastforce dest:  matches_weakening
                                                        intro: matches_proj
-                                                       simp:  empty_length empty_def)
+                                                       simp:  empty_length empty_def singleton_def)
 next case v_sem_lit     then show ?case by ( case_tac e, simp_all
                                            , fastforce intro: vval_typing_vval_typing_record.intros)
 next case v_sem_prim    then show ?case by ( case_tac e, simp_all
@@ -960,7 +972,7 @@ next
       "spec_x = specialise \<tau>s x"
       "f' = f"
       "spec_y = specialise \<tau>s y"
-      using v_sem_take(5) Take by simp+
+      using v_sem_take.hyps Take by simp+
     
     obtain \<Gamma>1 \<Gamma>2 ts s n t k taken
       where typing_elims:
@@ -1233,7 +1245,7 @@ then show ?case
   apply (rule v_sem_v_sem_all.v_sem_abs_app, erule(5) IH1 [OF _ _ _ matches_split'(1), simplified], erule(5) IH2 [OF _ _ _ matches_split'(2), simplified])
   apply (simp add: monoprog_def)
 done
-next case v_sem_var then show ?case by (simp, metis matches_length nth_map typing_varE v_sem_v_sem_all.v_sem_var)
+next case v_sem_var then show ?case by (fastforce intro: v_sem_var_mapped_ctx)
 next case v_sem_lit then show ?case by (fastforce intro!: v_sem_v_sem_all.v_sem_lit)
 next case v_sem_fun then show ?case by (fastforce intro!: v_sem_v_sem_all.v_sem_fun)
 next case v_sem_afun then show ?case by (fastforce intro!: v_sem_v_sem_all.v_sem_afun)
@@ -1297,11 +1309,7 @@ from rest show ?case
                 elim: v_t_productE)
 done
 next case v_sem_member then show ?case
-  apply (clarsimp elim!: typing_memberE)
-  apply (subst member_nth_map
-        , (force dest:preservation [where \<tau>s = "[]" and K = "[]", simplified] elim!: v_t_recordE dest: vval_typing_record_length intro: v_sem_v_sem_all.intros)+
-        )
-done
+    by (force intro: v_sem_member_mapped_fields elim!: typing_memberE)
 next case v_sem_prim
 note IH = this(2)
 and rest = this(1,3-)
