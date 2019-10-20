@@ -94,11 +94,11 @@ ostore_init (ex, mount_st, ostore_st) =
                 | Success fsm_st ->
                   let max_nb_sum_entry = leb_size / (bilbyFsObjHeaderSize + 8)
                   and max_nb_sum_entry = if mount_st.no_summary then 1 else max_nb_sum_entry
-                  and _ = _cogent_debug "max_nb_sum_entry = "
-                  and _ = _cogent_debug_u32 max_nb_sum_entry
-                  and _ = _cogent_debug ", sum_size = "
-                  and _ = _cogent_debug_u32 (serialise_size_ObjSummary max_nb_sum_entry)
-                  and _ = _cogent_debug "\n"
+                  and _ = cogent_debug "max_nb_sum_entry = "
+                  and _ = cogent_debug_u32 max_nb_sum_entry
+                  and _ = cogent_debug ", sum_size = "
+                  and _ = cogent_debug_u32 (serialise_size_ObjSummary max_nb_sum_entry)
+                  and _ = cogent_debug "\n"
                   in summary_init (ex, max_nb_sum_entry) -- minimum Obj size is ObjHeader + id
                   | Error ex ->
                     let ex = buf_free(ex, rbuf)
@@ -135,16 +135,16 @@ ostore_read_sum_extra_pages (ex, mount_st, ostore_st {rbuf}, ebnum, sum_offs) =
   let io_size = mount_st.super.io_size
   and offs = mount_st.super.eb_size - io_size
   in if sum_offs > mount_st.super.eb_size || sum_offs < io_size then
-    _cogent_debug "ostore_read_sum_extra_pages: invalid sum_offs=" ;
-    _cogent_debug_u32 sum_offs ;
-    _cogent_debug "\n" ;
+    cogent_debug "ostore_read_sum_extra_pages: invalid sum_offs=" ;
+    cogent_debug_u32 sum_offs ;
+    cogent_debug "\n" ;
     ((ex, ostore_st {rbuf}), Error eInval)
   else if sum_offs < offs then
     let offs = sum_offs - (sum_offs % io_size)
     and nb_pages = ((mount_st.super.eb_size - offs) / io_size) - 1
-    and _ = _cogent_debug "ostore_read_sum_extra_pages: nb_pages = "
-    and _ = _cogent_debug_u32 nb_pages
-    and _ = _cogent_debug "\n"
+    and _ = cogent_debug "ostore_read_sum_extra_pages: nb_pages = "
+    and _ = cogent_debug_u32 nb_pages
+    and _ = cogent_debug "\n"
     and ((ex, rbuf, _), r) =
           seq32[(SysState, Buffer, BufOffs), (U32,U32,UbiVol), ErrCode]
             #{frm=0, to=nb_pages, step=1, f=ostore_read_sum_f,
@@ -167,9 +167,9 @@ ostore_read_sum(ex, mount_st, ostore_st {rbuf}, ebnum) =
     ((ex, ostore_st {rbuf}), Error e)
   | Success () ->
     let sum_offs = deserialise_le32(rbuf, mount_st.super.eb_size - 4) !rbuf
-    and _ = _cogent_debug "Reading summary, sum_offset = "
-    and _ = _cogent_debug_u32 sum_offs
-    and _ = _cogent_debug "\n"
+    and _ = cogent_debug "Reading summary, sum_offset = "
+    and _ = cogent_debug_u32 sum_offs
+    and _ = cogent_debug "\n"
     and ((ex, ostore_st), r) = ostore_read_sum_extra_pages (ex, mount_st, ostore_st {rbuf}, ebnum, sum_offs)
     in r
     | Error e -> ((ex, ostore_st), Error e)
@@ -184,7 +184,7 @@ ostore_read_sum(ex, mount_st, ostore_st {rbuf}, ebnum) =
         ((ex, ostore_st), Success sum_offs)
 
 ostore_clean: (SysState, OstoreState) -> SysState
-ostore_clean(ex, ostore_st {rbuf,wbuf,opad,pools,fsm_st,index_st,ubi_vol,summary,sum_obj,..}) =
+ostore_clean(ex, ostore_st {rbuf,wbuf,opad,pools,fsm_st,index_st,ubi_vol,summary,sum_obj}) =
   let ex = buf_free(ex, rbuf)
   and ex = buf_free(ex, wbuf)
   and ex = deep_freeObj(ex, opad)
@@ -203,22 +203,22 @@ ostore_clean(ex, ostore_st {rbuf,wbuf,opad,pools,fsm_st,index_st,ubi_vol,summary
 get_obj_oid: (Obj!) -> ObjId
 get_obj_oid(obj) =
   obj.ounion
-  | TObjInode o -> o.id
-  | TObjData o -> o.id
-  | TObjDentarr o -> o.id
-  | TObjDel o -> o.id
+  | TObjInode obj -> obj.id
+  | TObjData obj -> obj.id
+  | TObjDentarr obj -> obj.id
+  | TObjDel obj -> obj.id
   | _ -> nilObjId
 
 print_obj_type: (Obj!) -> ()
 print_obj_type(obj) =
   obj.ounion
-  | TObjInode o -> _cogent_debug "inode"
-  | TObjData o -> _cogent_debug "data"
-  | TObjDentarr o -> _cogent_debug "dentarr"
-  | TObjDel o -> _cogent_debug "del"
-  | TObjPad o -> _cogent_debug "pad"
-  | TObjSuper o -> _cogent_debug "super"
-  | TObjSummary o -> _cogent_debug "summary"
+  | TObjInode obj -> cogent_debug "inode"
+  | TObjData obj -> cogent_debug "data"
+  | TObjDentarr obj -> cogent_debug "dentarr"
+  | TObjDel obj -> cogent_debug "del"
+  | TObjPad obj -> cogent_debug "pad"
+  | TObjSuper obj -> cogent_debug "super"
+  | TObjSummary obj -> cogent_debug "summary"
 
 ostore_alloc_inode: OstoreState -> RR OstoreState U32 ErrCode
 ostore_alloc_inode(ostore_st) =
@@ -241,11 +241,11 @@ ostore_new_wbuf(mount_st, ostore_st {fsm_st}, osw_flags) =
 -- It also, reinitialises ostore_st.summary
   let (fsm_st, r) = fsm_alloc_eb(mount_st, fsm_st, osw_flags)
   in r
-  | Error err -> _cogent_assert False ; _bilbyfs_error "ostore_new_wbuf: fsm_alloc_eb failed\n" ; (ostore_st {fsm_st}, Error err)
+  | Error err -> cogent_assert False ; bilbyfs_error "ostore_new_wbuf: fsm_alloc_eb failed\n" ; (ostore_st {fsm_st}, Error err)
   | Success wbuf_eb ->
-    _cogent_debug "ostore_new_wbuf: Allocated eb=" ;
-    _cogent_debug_u32 wbuf_eb ;
-    _cogent_debug "\n" ;
+    cogent_debug "ostore_new_wbuf: Allocated eb=" ;
+    cogent_debug_u32 wbuf_eb ;
+    cogent_debug "\n" ;
     let ostore_st {used, sync_offs, wbuf, wbuf_eb=_, summary} = ostore_st {fsm_st}
     and summary = reinit_summary summary
     and ostore_st = ostore_st {used=0, sync_offs=0, wbuf, wbuf_eb, summary}
@@ -253,7 +253,7 @@ ostore_new_wbuf(mount_st, ostore_st {fsm_st}, osw_flags) =
 
 get_obj_trans: (U32, U32) -> ObjTrans
 get_obj_trans(i, nb_objs) =
- _cogent_assert(nb_objs > 0) ;
+ cogent_assert(nb_objs > 0) ;
  if i == nb_objs - 1 then
    bilbyFsTransCommit
  else
@@ -274,7 +274,7 @@ ostore_update_padding_obj(obj {sqnum=_,len,trans}, sqnum, pad_sz) =
 padding_to: (MountState!, OstoreState!, U32) -> U32
 padding_to(mount_st, ostore_st, osw_flags) =
   if is_set(osw_flags, ostoreWriteNewEb) then
-    _cogent_debug "prepare_wbuf: ostoreWriteNewEb\n" ;
+    cogent_debug "prepare_wbuf: ostoreWriteNewEb\n" ;
     if not mount_st.no_summary && ostore_st.used /= mount_st.super.eb_size then
       mount_st.super.eb_size - serialise_size_summary_Obj_with_extra (ostore_st.summary, 0)
     else
@@ -288,9 +288,9 @@ prepare_wbuf(ex, mount_st, ostore_st {wbuf}, pad_to) =
   in if pad_sz < bilbyFsObjHeaderSize then
     let wbuf = buf_memset(wbuf, ostore_st.used, pad_sz, bilbyFsPadByte) !ostore_st
     and used = pad_to
-    and _ = _cogent_debug "prepare_wbuf: Success, added padding (used="
-    and _ = _cogent_debug_u32 used
-    and _ = _cogent_debug ")\n"
+    and _ = cogent_debug "prepare_wbuf: Success, added padding (used="
+    and _ = cogent_debug_u32 used
+    and _ = cogent_debug ")\n"
     in ((ex, ostore_st {wbuf, used}), Success ())
   else
     let ostore_st {next_sqnum=sqnum} = ostore_st
@@ -302,10 +302,10 @@ prepare_wbuf(ex, mount_st, ostore_st {wbuf}, pad_to) =
       and opad = ostore_update_padding_obj(opad, sqnum, pad_sz - bilbyFsObjHeaderSize)
       and used = ostore_st.used !ostore_st
       and (wbuf, offs) = serialise_Obj (wbuf, used, opad) !opad
-      and _ = _cogent_assert (offs == pad_to)
-      and _ = _cogent_debug "prepare_wbuf: Success (used="
-      and _ = _cogent_debug_u32 pad_to
-      and _ = _cogent_debug ")\n"
+      and _ = cogent_assert (offs == pad_to)
+      and _ = cogent_debug "prepare_wbuf: Success (used="
+      and _ = cogent_debug_u32 pad_to
+      and _ = cogent_debug ")\n"
       and ostore_st {summary,oaddr} = ostore_st {wbuf, opad, used=pad_to, next_sqnum}
       and oaddr = oaddr {ebnum = ostore_st.wbuf_eb, len=pad_sz, offs = used, sqnum} !ostore_st
       and (ex, ostore_st) = update_obj_pad(ex, mount_st, ostore_st, oaddr)
@@ -332,7 +332,7 @@ ostore_sync_summary_if_eb_new(ex, mount_st, ostore_st, osw_flags) =
   in if not mount_st.no_summary && is_set (osw_flags, ostoreWriteNewEb) &&
         used /= mount_st.super.eb_size then
     if sqnum + 1 < sqnum then
-      _cogent_debug "ostore_sync_summary_if_eb_new: ran out of sequence numbers\n" ;
+      cogent_debug "ostore_sync_summary_if_eb_new: ran out of sequence numbers\n" ;
       ((ex, ostore_st), Error eOverflow)
     else
       let ostore_st {wbuf, sum_obj, used} = ostore_st
@@ -341,7 +341,7 @@ ostore_sync_summary_if_eb_new(ex, mount_st, ostore_st, osw_flags) =
       and ostore_st {summary} = ostore_st
       and summary = summary {sum_offs = used}
       and (sum_obj, wbuf, offs) = serialise_ObjSummary_crc(wbuf, used, sum_obj, summary) !summary
-      and _ = _cogent_assert (used + len == offs)
+      and _ = cogent_assert (used + len == offs)
       and ostore_st = ostore_st {next_sqnum = sqnum+1, wbuf, used=used+len, sum_obj, summary}
       in ((ex, ostore_st), Success ())
   else
@@ -361,13 +361,13 @@ ostore_sync(ex, mount_st, ostore_st, osw_flags) =
 
   let sync_offs = ostore_st.sync_offs !ostore_st
   and used = ostore_st.used !ostore_st
-  and _ = _cogent_debug "ostore_sync: used="
-  and _ = _cogent_debug_u32 used
-  and _ = _cogent_debug " sync_offs="
-  and _ = _cogent_debug_u32 sync_offs
-  and _ = _cogent_debug " osw_flags ="
-  and _ = _cogent_debug_u32 osw_flags
-  and _ = _cogent_debug "\n"
+  and _ = cogent_debug "ostore_sync: used="
+  and _ = cogent_debug_u32 used
+  and _ = cogent_debug " sync_offs="
+  and _ = cogent_debug_u32 sync_offs
+  and _ = cogent_debug " osw_flags ="
+  and _ = cogent_debug_u32 osw_flags
+  and _ = cogent_debug "\n"
   in if sync_offs == used && not (is_set (osw_flags, ostoreWriteNewEb)) then
     -- we are in sync with the buffer
     ((ex, ostore_st), Success ())
@@ -378,23 +378,23 @@ ostore_sync(ex, mount_st, ostore_st, osw_flags) =
     -- depending on whether mount_st.no_summary, ostore.used is aligned or ostore.used + sum_size == eb_size
     in r
     | Error e ->
-      _bilbyfs_error "ostore_sync: prepare_wbuf failed\n" ;
+      bilbyfs_error "ostore_sync: prepare_wbuf failed\n" ;
       ((ex, ostore_st), Error e)
     | Success () ->
       let ((ex, ostore_st), r) = ostore_sync_summary_if_eb_new(ex, mount_st, ostore_st, osw_flags)
       -- at this point ostore_st.used must be aligned to io_size
-      and _ = _cogent_assert(align32(ostore_st.used, mount_st.super.io_size) == ostore_st.used) !ostore_st
+      and _ = cogent_assert(align32(ostore_st.used, mount_st.super.io_size) == ostore_st.used) !ostore_st
       -- if not no_summary, summary information must be consistent with contents of erase-block
       in r
       | Error e ->
-        _bilbyfs_error "ostore_sync: ostore_sync_summary failed\n" ;
+        bilbyfs_error "ostore_sync: ostore_sync_summary failed\n" ;
         ((ex, ostore_st), Error e)
       | Success () ->
         let nb_bytes = ostore_st.used - sync_offs !ostore_st
         and ((ex, ostore_st), r) = ostore_write_buf (ex, mount_st, ostore_st, sync_offs, nb_bytes, osw_flags) !mount_st
         in r
         | Error e ->
-          _bilbyfs_error("ostore_sync: ostore_write_buf failed\n") ;
+          bilbyfs_error("ostore_sync: ostore_write_buf failed\n") ;
           ((ex, ostore_st), Error e)
         | Success () ->
           let used = ostore_st.used !ostore_st
@@ -410,7 +410,7 @@ ostore_sync_new_eb(ex, mount_st, ostore_st, osw_flags) =
     let (ostore_st, r) = ostore_new_wbuf(mount_st, ostore_st, osw_flags)
     in r
     | Error e ->
-      _bilbyfs_error("ostore_sync_new_eb: ostore_new_wbuf failed\n") ;
+      bilbyfs_error("ostore_sync_new_eb: ostore_new_wbuf failed\n") ;
       ((ex, ostore_st), Error e)
     | Success () -> ((ex, ostore_st), Success ())
   else
@@ -439,11 +439,11 @@ sync_if_trans_too_big(ex, mount_st, ostore_st, osw_flags, trans_size) =
   in if mount_st.no_summary then
   -- Function guarantees that the transaction will fit in ostore_st.wbuf_eb
     if trans_size > mount_st.super.eb_size then
-      _cogent_debug "sync_if_trans_too_big: trans_size > eb_size (" ;
-      _cogent_debug_u32 trans_size ;
-      _cogent_debug " < " ;
-      _cogent_debug_u32  mount_st.super.eb_size ;
-      _cogent_debug ")\n" ;
+      cogent_debug "sync_if_trans_too_big: trans_size > eb_size (" ;
+      cogent_debug_u32 trans_size ;
+      cogent_debug " < " ;
+      cogent_debug_u32  mount_st.super.eb_size ;
+      cogent_debug ")\n" ;
       ((ex, ostore_st), Error eInval)
     else if trans_size > mount_st.super.eb_size - used ||
             is_set (osw_flags, ostoreWriteForceSync) then
@@ -454,7 +454,7 @@ sync_if_trans_too_big(ex, mount_st, ostore_st, osw_flags, trans_size) =
    -- FIXME This only account for 1 extra summary entry, worst case should be 1 for each object in the
    -- trans
     let sum_size = serialise_size_summary_Obj_with_extra (ostore_st.summary, 0) !ostore_st
-    and _ = _cogent_assert (used + sum_size <= mount_st.super.eb_size)
+    and _ = cogent_assert (used + sum_size <= mount_st.super.eb_size)
     in if used + trans_size + sum_size + bilbyFsObjSumEntrySize > mount_st.super.eb_size then
       ostore_sync_new_eb(ex, mount_st, ostore_st, osw_flags .|. ostoreWriteNewEb)
     else if is_set (osw_flags, ostoreWriteForceSync) then
@@ -483,7 +483,7 @@ sync_if_no_trans_fit(ex, mount_st, ostore_st, osw_flags) =
 
   -- No extra summary entry accounted for because best case scenario, we reuse an existing entry.
     let sum_size = serialise_size_summary_Obj_with_extra (ostore_st.summary, 0) !ostore_st
-    and _ = _cogent_assert (used + sum_size <= mount_st.super.eb_size)
+    and _ = cogent_assert (used + sum_size <= mount_st.super.eb_size)
     in if used + min_useful_trans + sum_size > mount_st.super.eb_size then
       ostore_sync(ex, mount_st, ostore_st, osw_flags .|. ostoreWriteNewEb)
     else if is_set (osw_flags, ostoreWriteForceSync) then
@@ -502,7 +502,7 @@ write_objects_loop_body #{elem=obj, acc=(buf, used, sqnum, i), obsv=nb_objs} =
     and (buf, offs, obj) = serialise_Obj_crc(buf, used, obj)
 
     and obj {ounion} = obj
-    and _ = _print_ObjHeader obj !obj
+    and _ = print_ObjHeader obj !obj
     and obj = obj {ounion}
 
     in Iterate #{elem=obj, acc=(buf, offs, sqnum+1, i+1)}
@@ -520,7 +520,7 @@ write_objects(buf, used, next_sqnum, arr) =
 {-# cinline set_node #-}
 set_node: (RbtIndexNode, ObjId, ObjAddr!) -> RbtIndexNode
 set_node(node, oid, oaddr) =
-  _cogent_debug "set_node: Found it, updating node\n" ;
+  cogent_debug "set_node: Found it, updating node\n" ;
   let node = rbtnode_put_key[ObjId, ObjAddr](node, oid)
   in rbtnode_put_val[ObjId, ObjAddr](node, oaddr)
 
@@ -529,25 +529,25 @@ update_obj_modifier #{elem=oldnode, acc=(gimpool, fsm_st, ex), obsv=(mount_st, o
   let val = rbtnode_get_val[ObjId, ObjAddr] oldnode !oldnode
   and oldsqnum = val.sqnum
   in if oldsqnum < oaddr.sqnum then
-    _cogent_debug "update_obj_modifier (oldsqnum < newsqnum) " ;
-    _cogent_debug_u64_hex oid ;
-    _cogent_debug "\n" ;
+    cogent_debug "update_obj_modifier (oldsqnum < newsqnum) " ;
+    cogent_debug_u64_hex oid ;
+    cogent_debug "\n" ;
     -- If the node in the tree is older than @oaddr,
     -- we replace it by @oaddr.
     let (ex, fsm_st, gimpool) = fsm_mark_dirty(ex, mount_st, fsm_st, gimpool, oid, oaddr)
     and oldnode = set_node(oldnode, oid, oaddr)
     in (oldnode, (gimpool,fsm_st,ex))
   else
-    _cogent_debug "update_obj_modifier keep oldsqnum " ;
-    _cogent_debug_u64_hex oid ;
-    _cogent_debug "\n" ;
+    cogent_debug "update_obj_modifier keep oldsqnum " ;
+    cogent_debug_u64_hex oid ;
+    cogent_debug "\n" ;
     (oldnode, (gimpool,fsm_st,ex))
 
 update_obj_use: #{elem:RbtIndexNode, acc:(Rbt ObjId ObjAddr, AllocPool RbtGimNode, FsmState, SysState), obsv:(MountState, ObjId, ObjAddr)!} -> (Rbt ObjId ObjAddr, AllocPool RbtGimNode, FsmState, SysState)
 update_obj_use #{elem=node, acc=(addrs, gimpool,  fsm_st, ex), obsv=(mount_st, oid, oaddr)} =
-  _cogent_debug "update_obj_use " ;
-  _cogent_debug_u64_hex oid ;
-  _cogent_debug "\n" ;
+  cogent_debug "update_obj_use " ;
+  cogent_debug_u64_hex oid ;
+  cogent_debug "\n" ;
   let node = rbtnode_put_val[ObjId, ObjAddr](node, mkObjAddr)
   and #{rbt=addrs, optnode, acc=(gimpool, fsm_st, ex)} =
         rbt_modify[ObjId, ObjAddr,(AllocPool RbtGimNode, FsmState, SysState),(MountState, ObjId, ObjAddr)]
@@ -571,21 +571,21 @@ type DeleteObjAccs = (SysState, FsmState, AllocPool RbtGimNode)
 
 should_delete: (#{elem:RbtIndexNode, acc:DeleteObjAccs, obsv:(MountState, ObjAddr)!})! -> Bool
 should_delete #{elem = node, acc=(ex, fsm_st, gimpool), obsv=(mount_st, oaddr)} =
-  _cogent_debug "should_delete: val.sqnum < oaddr.sqnum " ;
+  cogent_debug "should_delete: val.sqnum < oaddr.sqnum " ;
   let val = rbtnode_get_val[ObjId, ObjAddr] node
-  and _ = _cogent_debug_u64 val.sqnum
-  and _ = _cogent_debug " < "
-  and _ = _cogent_debug_u64 oaddr.sqnum
-  and _ = _cogent_debug "\n"
+  and _ = cogent_debug_u64 val.sqnum
+  and _ = cogent_debug " < "
+  and _ = cogent_debug_u64 oaddr.sqnum
+  and _ = cogent_debug "\n"
   in val.sqnum < oaddr.sqnum
 
 delete_single_obj: #{elem:RbtIndexNode, acc:DeleteObjAccs, obsv:(MountState, ObjAddr)!} -> DeleteObjAccs
 delete_single_obj #{elem = node, acc=(ex, fsm_st, gimpool), obsv=(mount_st, oaddr)} =
-  _cogent_debug "deleting node " ;
+  cogent_debug "deleting node " ;
   let val = rbtnode_get_val[ObjId, ObjAddr] node !node
   and oid = rbtnode_get_key[ObjId, ObjAddr] node !node
-  and _ = _cogent_debug_u64_hex oid
-  and _ = _cogent_debug "\n"
+  and _ = cogent_debug_u64_hex oid
+  and _ = cogent_debug "\n"
   and (ex, fsm_st) = fsm_mark_dirty_recycle(ex, mount_st, fsm_st, oid, val, idx_to_gim_node node)
   in (ex, fsm_st, gimpool)
 
@@ -620,21 +620,25 @@ update_obj_pad(ex, mount_st, ostore_st {fsm_st,pools}, oaddr) =
   and ostore_st = ostore_st {fsm_st,pools}
   in (ex, ostore_st {oaddr})
 
+#ifdef SUBTYPING
+trimObjSuper: ObjUnion! -> (ObjUnion take (TObjSummary, TObjSuper))!
+#else
 trimObjSuper: ObjUnion! -> <TObjDentarr ObjDentarr| TObjInode ObjInode | TObjData ObjData | TObjDel ObjDel | TObjPad ()>!
+#endif
 trimObjSuper u = u
   | TObjSummary _   -> TObjPad ()
   | TObjSuper _ -> TObjPad ()
-  | o -> o
+  | obj -> obj
 
 proc_obj: (SysState, MountState!, OstoreState take (summary), Obj!, U32) -> (SysState, OstoreState take (summary))
 proc_obj(ex, mount_st, ostore_st {oaddr}, obj, ebnum) =
   let oaddr {ebnum=_,sqnum=_,offs=_,len=_} = oaddr
   and oaddr = oaddr {ebnum, sqnum=obj.sqnum, offs=obj.offs, len=obj.len} !ostore_st
-  and _ = _cogent_debug "proc_obj (oid="
-  and _ = _cogent_debug_u64_hex (get_obj_oid obj)
-  and _ = _cogent_debug ",type="
+  and _ = cogent_debug "proc_obj (oid="
+  and _ = cogent_debug_u64_hex (get_obj_oid obj)
+  and _ = cogent_debug ",type="
   and _ = print_obj_type obj
-  and _ = _cogent_debug ")\n"
+  and _ = cogent_debug ")\n"
   in trimObjSuper obj.ounion
     | TObjInode v -> update_obj(ex, mount_st, ostore_st, v.id, oaddr)
     | TObjDentarr v -> update_obj(ex, mount_st, ostore_st, v.id, oaddr)
@@ -694,11 +698,11 @@ find_sum_entry(summary, oid, sqnum, otype) =
 proc_obj_sum: (SysState, MountState!, OstoreState, Obj!) -> (SysState, OstoreState)
 proc_obj_sum(ex, mount_st, ostore_st, obj) =
 -- This is a totally unoptimised version of summary processing, but it should be functionally correct.
-  let _ = _cogent_debug "proc_obj_sum (oid="
-  and _ = _cogent_debug_u64_hex (get_obj_oid obj)
-  and _ = _cogent_debug ",type="
+  let _ = cogent_debug "proc_obj_sum (oid="
+  and _ = cogent_debug_u64_hex (get_obj_oid obj)
+  and _ = cogent_debug ",type="
   and _ = print_obj_type obj
-  and _ = _cogent_debug ")\n"
+  and _ = cogent_debug ")\n"
   and id = get_obj_oid obj !obj
   in if id == nilObjId then
     (ex, ostore_st)
@@ -740,8 +744,8 @@ proc_sum_entry(ex, mount_st, ostore_st, entry, ebnum) =
   and oaddr = oaddr {ebnum, offs=obj_sum_entry_offs entry, len=entry.len, sqnum=entry.sqnum}
   and (ex, ostore_st) = update_obj (ex, mount_st, ostore_st, entry.id, oaddr)
   and _ = (if inum_from_obj_id entry.id == 24 then
-            _cogent_debug "proc_sum_entry: root inode eb=" ; _cogent_debug_u32 ebnum ; 
-            _cogent_debug " offs=" ; _cogent_debug_u32 oaddr.offs ; _cogent_debug "\n"
+            cogent_debug "proc_sum_entry: root inode eb=" ; cogent_debug_u32 ebnum ; 
+            cogent_debug " offs=" ; cogent_debug_u32 oaddr.offs ; cogent_debug "\n"
            else
             ())
   in (ex, ostore_st {oaddr})
@@ -756,9 +760,9 @@ ostore_update_loop_body #{elem=obj, acc=(ex, ostore_st), obsv=mount_st} =
 
 ostore_update: (SysState, MountState!, OstoreState, (Array Obj)!) -> (SysState, OstoreState)
 ostore_update(ex, mount_st, ostore_st, arr) =
-  _cogent_debug "ostore_update arr.len = " ;
-  _cogent_debug_u32 (array_length[Obj] arr) ;
-  _cogent_debug "\n" ;
+  cogent_debug "ostore_update arr.len = " ;
+  cogent_debug_u32 (array_length[Obj] arr) ;
+  cogent_debug "\n" ;
   array_fold_no_break[Obj, (SysState,OstoreState), MountState]
     #{arr, f=ostore_update_loop_body, acc=(ex, ostore_st), obsv=mount_st}
 
@@ -801,9 +805,9 @@ ostore_write(ex, mount_st, ostore_st, arr, osw_flags) =
   | Error e -> ((ex, ostore_st, arr), Error e)
   | Success () ->
     let ostore_st {wbuf} = ostore_st
-    and _ = _cogent_debug "call write_objects (eb="
-    and _ = _cogent_debug_u32 ostore_st.wbuf_eb !ostore_st
-    and _ = _cogent_debug ")\n"
+    and _ = cogent_debug "call write_objects (eb="
+    and _ = cogent_debug_u32 ostore_st.wbuf_eb !ostore_st
+    and _ = cogent_debug ")\n"
     and ((wbuf, arr, used), r) = write_objects(wbuf, ostore_st.used, next_sqnum, arr) !ostore_st
     in r
     -- have objects serialised if successful
@@ -826,15 +830,15 @@ ostore_write(ex, mount_st, ostore_st, arr, osw_flags) =
           let (ex, ostore_st) = ostore_update(ex, mount_st, ostore_st, arr) !arr
           and ostore_st {used=_} = ostore_st
           and ostore_st = ostore_st {used}
-          and _ = _cogent_debug "ostore_update done\n"
+          and _ = cogent_debug "ostore_update done\n"
           and (ex, ostore_st) = ostore_free_pools(ex, ostore_st)
           in ((ex, ostore_st, arr), Success ())
 
 ostore_alloc_pools: (SysState, OstoreState, U32) -> RR (SysState, OstoreState) () ErrCode
 ostore_alloc_pools(ex, ostore_st {pools}, nb_nodes) =
-  _cogent_debug "preallocating " ;
-  _cogent_debug_u32 nb_nodes ; 
-  _cogent_debug " nodes in each pool\n" ;
+  cogent_debug "preallocating " ;
+  cogent_debug_u32 nb_nodes ; 
+  cogent_debug " nodes in each pool\n" ;
   let pools {idx, gim} = pools
   and ((ex, idx), r) = allocpool_prealloc[RbtIndexNode]#{ex, pool=idx, nb=nb_nodes}
   in r
@@ -864,9 +868,9 @@ ostore_read: (SysState, MountState!, OstoreState, ObjId) -> RR (SysState, Ostore
 ostore_read(ex, mount_st, ostore_st, oid) =
   index_get_addr (ostore_st.index_st, oid) !ostore_st
   | Error err ->
-    _cogent_debug "Obj not found in index " ;
-    _cogent_debug_u64_hex oid ;
-    _cogent_debug "\n" ;
+    cogent_debug "Obj not found in index " ;
+    cogent_debug_u64_hex oid ;
+    cogent_debug "\n" ;
     ((ex, ostore_st), Error err) 
   | Success addr ->
     let wbuf_eb = ostore_st.wbuf_eb !ostore_st
@@ -876,26 +880,44 @@ ostore_read(ex, mount_st, ostore_st, oid) =
       and wbuf = wbuf {bound=ostore_st.used} !ostore_st
       in deserialise_Obj (ex, wbuf, addr.offs) !wbuf
       | Error (e, ex) ->
-        _cogent_debug "ostore_read: deserialise_Obj_crc from buffer failed\n" ;
+        cogent_debug "ostore_read: deserialise_Obj_crc from buffer failed\n" ;
         let wbuf = wbuf {bound=mount_st.super.eb_size}
+#ifdef SUBTYPING
+        in ((ex, ostore_st {wbuf}), error[Obj] e)
+#else
         in ((ex, ostore_st {wbuf}), Error e)
+#endif
       | Success (ex, obj, sz) ->
         let wbuf = wbuf {bound=mount_st.super.eb_size}
+#ifdef SUBTYPING
+        in ((ex, ostore_st {wbuf}), success[Obj, ErrCode] obj)
+#else
         in ((ex, ostore_st {wbuf}), Success obj)
+#endif
      else
     -- We need to read the object from medium
        let ostore_st {rbuf} = ostore_st
        and ((ex, rbuf), r) = read_obj_pages_in_buf (ex, mount_st, ostore_st.ubi_vol, rbuf, addr) !ostore_st
        in r
        | Error e ->
-         _cogent_debug "ostore_read: read_obj_pages_in_buf failed.\n" ;
+         cogent_debug "ostore_read: read_obj_pages_in_buf failed.\n" ;
+#ifdef SUBTYPING
+         ((ex, ostore_st {rbuf}), error[Obj] e)
+#else
          ((ex, ostore_st {rbuf}), Error e)
+#endif
        | Success () ->
          deserialise_Obj (ex, rbuf, addr.offs) !rbuf
          | Error (e, ex) ->
-           _cogent_debug "ostore_read: deserialise_Obj_crc from flash failed.\n" ;
+           cogent_debug "ostore_read: deserialise_Obj_crc from flash failed.\n" ;
+#ifdef SUBTYPING
+           ((ex, ostore_st {rbuf}), error[Obj] e)
+	 | Success (ex, obj, sz) -> ((ex, ostore_st {rbuf}), success[Obj, ErrCode] obj)
+
+#else
            ((ex, ostore_st {rbuf}), Error e)
          | Success (ex, obj, sz) -> ((ex, ostore_st {rbuf}), Success obj)
+#endif
     )
     in r
     | Success obj ->
@@ -904,9 +926,9 @@ ostore_read(ex, mount_st, ostore_st, oid) =
       in if oid == oid' then
         ((ex, ostore_st), Success obj)
       else
-        _print_field_u64 ("oid" ,oid) ;
-        _print_field_u64 ("oid'" ,oid') ;
-        _cogent_assert False ;
+        print_field_u64 ("oid" ,oid) ;
+        print_field_u64 ("oid'" ,oid') ;
+        cogent_assert False ;
         -- Fs should go in read-only mode as we have detected
         -- an inconsistency between index and medium
         ((deep_freeObj(ex, obj), ostore_st), Error eRoFs)
@@ -956,9 +978,9 @@ deep_opt_freeObj: (SysState, Option Obj) -> SysState
 deep_opt_freeObj(ex, opt_obj) =
   opt_obj
   | None () -> ex
-  | Some o ->
-    _cogent_assert False ;
-    deep_freeObj(ex, o)
+  | Some obj ->
+    cogent_assert False ;
+    deep_freeObj(ex, obj)
 
 scan_trans_obj: #{oelem:Option Obj, acc:(SysState, U32), obsv:(MountState, Buffer)!} -> LoopResult (Option Obj, (SysState, U32)) (Option Obj, R (SysState, U32) (ErrCode, SysState))
 scan_trans_obj #{oelem=obj_opt, acc=(ex, offs), obsv=(mount_st, buf)} =
@@ -1020,7 +1042,7 @@ scan_transaction(ex, mount_st, ostore_st, objsdel, objs, eb, offs) =
        #{arr=objs, frm=0, to=len, f=scan_trans_obj, acc=(ex, offs), obsv=(mount_st, ostore_st.rbuf)} !ostore_st
   -- has to set objs.offs correctly
   | Iterate (objs, (ex, offs)) ->
-    _cogent_debug "Too many objects in transaction" ;
+    cogent_debug "Too many objects in transaction" ;
     -- Not eRecover because this does not look like a crash symptom
     ((ex, ostore_st, objsdel, objs), Error eInval)
   | Break (objs, res) ->
@@ -1060,21 +1082,21 @@ scan_transaction_loop #{acc=(ex, ostore_st, objsdel, objs, offs), obsv=(mount_st
   let ((ex, ostore_st, objsdel, objs), r) = scan_transaction(ex, mount_st, ostore_st, objsdel, objs, eb, offs)
   in r
   | Error err ->
-    _cogent_debug "scan_transaction_loop: could not parse transaction at offset " ;
-    _cogent_debug_u32 offs ;
-    _cogent_debug " err=" ;
-    _cogent_debug_u32 err ;
-    _cogent_debug "\n" ;
+    cogent_debug "scan_transaction_loop: could not parse transaction at offset " ;
+    cogent_debug_u32 offs ;
+    cogent_debug " err=" ;
+    cogent_debug_u32 err ;
+    cogent_debug "\n" ;
     let #{arr=objs, acc=ex} = array_filter[Obj, SysState, ()] #{arr=objs, f=object_eraser, acc=ex, obsv=()}
     -- Could not parse transaction at offset offs
     -- Check if we landed in a padding area (i.e. area of padding too small for an ObjPad)
     and aligned_offs = align32(offs, mount_st.super.io_size)
     in if aligned_offs - offs < bilbyFsObjHeaderSize then
        if aligned_offs == mount_st.super.eb_size then
-         _cogent_debug "scan_transaction_loop: We hit padding at end of block, onto next block\n" ;
+         cogent_debug "scan_transaction_loop: We hit padding at end of block, onto next block\n" ;
          ((ex, ostore_st, objsdel, objs, 0), Break (Success ())) -- offs is ignore on break
        else
-         _cogent_debug "scan_transaction_loop: We hit padding, next trans in block\n" ;
+         cogent_debug "scan_transaction_loop: We hit padding, next trans in block\n" ;
          if aligned_offs == offs then
            -- We found a non-finished block with 0xff, schedule recovery
            ((ex, ostore_st, objsdel, objs, aligned_offs), Break (Error eRecover))
@@ -1085,17 +1107,17 @@ scan_transaction_loop #{acc=(ex, ostore_st, objsdel, objs, offs), obsv=(mount_st
     -- provide the offset of the beginning of the invalid transaction
     -- This could potentially be an empty page too, the recovery process is in
     -- charge of figuring this out.
-      let _ = _cogent_debug "Detected invalid transaction on flash, this might be recoverable\n"
+      let _ = cogent_debug "Detected invalid transaction on flash, this might be recoverable\n"
       in ((ex, ostore_st, objsdel, objs, offs), Break (Error err))
   | Success offs' ->
     let #{arr=objs, acc=ex} = array_filter[Obj, SysState, ()] #{arr=objs, f=object_eraser, acc=ex, obsv=()}
     -- We successfully parsed and processed transaction
     in if offs' < mount_st.super.eb_size then
-      _cogent_debug "scan_transaction_loop: OK, next trans in block\n" ;
+      cogent_debug "scan_transaction_loop: OK, next trans in block\n" ;
     -- We simply provide the offset to try for the next transaction.
       ((ex, ostore_st, objsdel, objs, offs'), Iterate ())
     else
-      _cogent_debug "scan_transaction_loop: OK, we reached end of erase-block\n" ;
+      cogent_debug "scan_transaction_loop: OK, we reached end of erase-block\n" ;
       ((ex, ostore_st, objsdel, objs, 0), Break (Success ())) -- offs is unused when we break
 
 mount_scan_rbuf: (SysState, MountState!, OstoreState, DelObjs, Array Obj, U32) -> RR (SysState, OstoreState, DelObjs, Array Obj) () (ErrCode, U32)
@@ -1109,7 +1131,7 @@ mount_scan_rbuf(ex, mount_st, ostore_st, objsdel, objs, eb) =
           #{frm=0, to=max_nb_trans + 1, step=1, f=scan_transaction_loop, acc=(ex, ostore_st, objsdel, objs, offs), obsv=(mount_st, eb)}
   in r
   | Iterate () ->
-    _cogent_assert False ; -- Cannot happen, too many transactions to fit in the buffer
+    cogent_assert False ; -- Cannot happen, too many transactions to fit in the buffer
     ((ex, ostore_st, objsdel, objs), Error (eInval, offs))
   | Break res -> 
     res
@@ -1194,25 +1216,25 @@ mount_scan_full_eb #{acc=(ex, mount_st, ostore_st, objsdel, objs), obsv=_, idx=e
     in r
     | Error (err, offs) ->
       if err /= eRecover then
-        _cogent_debug "mount_can_rbuf returned: unrecoverable error\n" ;
+        cogent_debug "mount_can_rbuf returned: unrecoverable error\n" ;
         ((ex, mount_st, ostore_st, objsdel, objs), Break err)
       else
-        _cogent_debug "mount_can_rbuf returned: recoverable error\n" ;
+        cogent_debug "mount_can_rbuf returned: recoverable error\n" ;
         let eb_recovery = mount_st.eb_recovery  !mount_st
         and has_eb_to_recover = eb_recovery /= 0
         in if has_eb_to_recover then
-          _cogent_debug "Multiple erase-blocks are invalid (" ;
-          _cogent_debug_u32 eb_recovery ;
-          _cogent_debug "," ;
-          _cogent_debug_u32 eb ;
-          _cogent_debug "), can't recover more than 1 erase-block, please run fsck\n" ;
+          cogent_debug "Multiple erase-blocks are invalid (" ;
+          cogent_debug_u32 eb_recovery ;
+          cogent_debug "," ;
+          cogent_debug_u32 eb ;
+          cogent_debug "), can't recover more than 1 erase-block, please run fsck\n" ;
           let mount_st = mount_st {eb_recovery = 0}
           in ((ex, mount_st, ostore_st, objsdel, objs), Break eBadF)
         else
           let mount_st = mount_st {eb_recovery = eb, eb_recovery_offs = offs}
           in ((ex, mount_st, ostore_st, objsdel, objs), Iterate ())
     | Success () ->
-       _cogent_debug "mount_can_rbuf returned: success\n" ;
+       cogent_debug "mount_can_rbuf returned: success\n" ;
        ((ex, mount_st, ostore_st, objsdel, objs), Iterate ())
 
 
@@ -1222,28 +1244,28 @@ mount_scan_loop #{acc=(ex, mount_st, ostore_st, objsdel, objs), obsv=(), idx=eb}
   and no_summary = mount_st.no_summary !mount_st
   in r
   | Error err ->
-    _cogent_debug "wubi_is_mapped error " ;
-    _cogent_debug_u32 err ;
-    _cogent_debug "\n" ;
+    cogent_debug "wubi_is_mapped error " ;
+    cogent_debug_u32 err ;
+    cogent_debug "\n" ;
     ((ex, mount_st, ostore_st, objsdel, objs), Break err)
   | Success is_mapped ->
     if not is_mapped then
       ((ex, mount_st, ostore_st, objsdel, objs), Iterate ())
     else if no_summary then 
-      _cogent_debug "mount_scan_loop: is mapped, no summary option, reading the whole erase-block\n" ;
+      cogent_debug "mount_scan_loop: is mapped, no summary option, reading the whole erase-block\n" ;
       mount_scan_full_eb #{acc=(ex, mount_st, ostore_st, objsdel, objs), obsv=(), idx=eb}
     else
-      _cogent_debug "mount_scan_loop: is mapped, reading summary\n" ;
+      cogent_debug "mount_scan_loop: is mapped, reading summary\n" ;
       let ((ex, mount_st, ostore_st, objsdel), r) = mount_scan_summary #{acc=(ex, mount_st, ostore_st, objsdel), obsv=(), idx=eb}
       in r
       | Break e ->
         if e == eNoMem then
-          _cogent_debug "Error with summary, could not allocate memory, can't recover form this.\n" ;
+          cogent_debug "Error with summary, could not allocate memory, can't recover form this.\n" ;
           ((ex, mount_st, ostore_st, objsdel, objs), Break eNoMem)
         else
-          _cogent_debug "Error with summary in eb = ";
-          _cogent_debug_u32 eb ;
-          _cogent_debug ", Scanning full erase-block \n" ;
+          cogent_debug "Error with summary in eb = ";
+          cogent_debug_u32 eb ;
+          cogent_debug ", Scanning full erase-block \n" ;
           mount_scan_full_eb #{acc=(ex, mount_st, ostore_st, objsdel, objs), obsv=(), idx=eb}
       | Iterate () ->
         ((ex, mount_st, ostore_st, objsdel, objs), Iterate ())
@@ -1271,15 +1293,15 @@ eb_empty_pages_from(buf, offs) =
 
 mount_recover: (SysState, MountState, OstoreState) -> RR (SysState, MountState, OstoreState) Bool ErrCode
 mount_recover(ex, mount_st, ostore_st) =
-  -- _cogent_assert (mount_st.eb_recovery_offs == align32(mount_st.eb_recovery_offs)) !mount_st ; 
-  -- _cogent_assert (mount_st.eb_recovery_offs /= mount_st.eb_size) !mount_st ; 
+  -- cogent_assert (mount_st.eb_recovery_offs == align32(mount_st.eb_recovery_offs)) !mount_st ; 
+  -- cogent_assert (mount_st.eb_recovery_offs /= mount_st.eb_size) !mount_st ; 
   -- eb_recovery_offs is always on the next page and cannot be at the end of the buffer.
   let eb_recovery = mount_st.eb_recovery !mount_st
   in if eb_recovery == 0 then
-    _cogent_debug "mount_recover: no inconsistent erase-block\n" ;
+    cogent_debug "mount_recover: no inconsistent erase-block\n" ;
     ((ex, mount_st, ostore_st), Success True)
   else
-    _cogent_debug "mount_recover: an erase-block is inconsistent, we recover\n" ;
+    cogent_debug "mount_recover: an erase-block is inconsistent, we recover\n" ;
     let ostore_st {used, sync_offs, wbuf, wbuf_eb=_} = ostore_st
     and eb_size = mount_st.super.eb_size !mount_st
     and wbuf = wbuf {bound=eb_size}
@@ -1295,9 +1317,9 @@ mount_recover(ex, mount_st, ostore_st) =
       -- FIXME when summary are enabled, we need to rebuild the summary up to the invalid transaction
       let has_empty_pages = eb_empty_pages_from(wbuf, used) !wbuf
       in if has_empty_pages then
-        _cogent_debug "mount_recover: We detected that pages after offset " ;
-        _cogent_debug_u32 used ;
-        _cogent_debug " are all empty, we don't need to rewrite this erase-block\n" ;
+        cogent_debug "mount_recover: We detected that pages after offset " ;
+        cogent_debug_u32 used ;
+        cogent_debug " are all empty, we don't need to rewrite this erase-block\n" ;
         let mount_st {eb_recovery, eb_recovery_offs} = mount_st
         and mount_st = mount_st {eb_recovery=0, eb_recovery_offs=0}
         in ((ex, mount_st, ostore_st {wbuf}), Success False)
@@ -1404,14 +1426,14 @@ mount_read_super(ex, mount_st, ostore_st {rbuf}) =
   let ((ex, rbuf), r) = wbuf_read_leb(ex, mount_st, ostore_st.ubi_vol, rbuf, bilbyFsSuperEbNum) !mount_st !ostore_st
   in r
   | Error err ->
-    _cogent_debug "mount_read_super: failed to read leb\n" ;
+    cogent_debug "mount_read_super: failed to read leb\n" ;
     ((ex, mount_st, ostore_st {rbuf}), Error err)
   | Success () ->
-    _cogent_debug "mount_read_super: read leb\n" ;
+    cogent_debug "mount_read_super: read leb\n" ;
     deserialise_Obj_crc(ex, rbuf, 0) !rbuf
     | Error (err, ex) ->
       -- If superblock is invalid, we need to run fsck
-      _cogent_debug "mount_read_super: No super-block found at all, please run fsck.\n" ;
+      cogent_debug "mount_read_super: No super-block found at all, please run fsck.\n" ;
       ((ex, mount_st, ostore_st {rbuf}), Error err)
     | Success (ex, obj, offs) ->
       let ostore_st = ostore_st {rbuf}
@@ -1423,26 +1445,26 @@ mount_read_super(ex, mount_st, ostore_st {rbuf}) =
               #{frm=0, to=max_nb_trans + 1, step=1, f=read_super_loop, acc=(ex, obj, offs), obsv=(mount_st, ostore_st.rbuf)} !ostore_st !mount_st
       in r
       | Iterate () ->
-        _cogent_assert False ; -- Cannot happen, too many transactions to fit in the buffer
+        cogent_assert False ; -- Cannot happen, too many transactions to fit in the buffer
         let ex = deep_freeObj(ex, obj)
         in ((ex, mount_st, ostore_st), Error eInval)
       | Break () ->
-        _cogent_debug "mount_read_super() : after loop " ;
+        cogent_debug "mount_read_super() : after loop " ;
         let obj {ounion} = obj
-        and _ = _print_ObjHeader obj !obj
+        and _ = print_ObjHeader obj !obj
         and obj {offs} = obj
         and obj {crc,magic,sqnum,len,trans,otype} = obj
         and ex = freeObj(ex, obj)
         in extract_super_from_union(ex, ounion)
         | Error ex ->
-          _cogent_debug "mount_read_super: object found not a ObjSuper\n" ;
+          cogent_debug "mount_read_super: object found not a ObjSuper\n" ;
           ((ex, mount_st, ostore_st), Error eInval)
         | Success (ex, super') ->
           let mount_st {super,super_offs=_} = mount_st
           and ex = deep_freeObjSuper(ex, super)
           -- if we reached the end of the erase-block, restart from 0
           and super_offs = if offs == super'.eb_size then 0 else offs !super'
-          and _ = _print_ObjSuper super' !super'
+          and _ = print_ObjSuper super' !super'
           and mount_st = mount_st {super=super',super_offs}
           and ostore_st = ostore_st {next_sqnum = mount_st.super.next_sqnum,
                                      next_inum = mount_st.super.last_inum + 1} !mount_st
@@ -1452,16 +1474,16 @@ ostore_next_obj_id: (MountState!, OstoreState!, ObjId) -> R ObjId ()
 ostore_next_obj_id(mount_st, ostore_st, oid) =
   rbt_next[ObjId, ObjAddr](ostore_st.index_st.addrs, oid)
   | Error () ->
-    _cogent_debug "Nothing found in the tree\n" ;
+    cogent_debug "Nothing found in the tree\n" ;
     Error ()
   | Success next_oid ->
-     _cogent_debug "found next " ; _cogent_debug_u64_hex next_oid ;
+     cogent_debug "found next " ; cogent_debug_u64_hex next_oid ;
   -- We make sure that next_oid and oid are attached to the same inode number
     if inum_from_obj_id(oid) == inum_from_obj_id(next_oid) then
-      _cogent_debug ", OK\n" ;
+      cogent_debug ", OK\n" ;
       Success next_oid
     else
-      _cogent_debug "but is for another inode\n" ;
+      cogent_debug "but is for another inode\n" ;
       Error ()
 
 ostore_mount: (SysState, MountState, OstoreState) -> RR (SysState, MountState, OstoreState) () ErrCode
@@ -1526,14 +1548,13 @@ ostore_write_super (ex, mount_st, ostore_st) =
 
       and ostore_st = ostore_st {wbuf_eb=bilbyFsSuperEbNum,
             used=mount_st.super_offs, sync_offs=mount_st.super_offs} !mount_st
-      and obj {..} = obj
       and obj = obj_init_super(obj, next_sqnum, mount_st.super_offs) !mount_st
       and ostore_st = ostore_st {next_sqnum = next_sqnum+1} 
       and ostore_st {wbuf} = ostore_st
       and (ex, wbuf, used, obj) = serialise_Obj_Super_crc(ex, wbuf, mount_st.super_offs, obj, super) !mount_st !super
-      and _ = _cogent_debug "ostore_write_super() : "
-      and _ = _print_ObjHeader obj !obj
-      and _ = _print_ObjSuper super !super
+      and _ = cogent_debug "ostore_write_super() : "
+      and _ = print_ObjHeader obj !obj
+      and _ = print_ObjSuper super !super
       and ostore_st = ostore_st {wbuf, used}
       and mount_st = mount_st {super, obj_sup = obj}
       and oswf = if mount_st.super_offs == 0 then ostoreWriteAtomEb else ostoreWriteNone !mount_st
@@ -1541,7 +1562,7 @@ ostore_write_super (ex, mount_st, ostore_st) =
       and mount_st = mount_st {super_offs = ostore_st.used} !ostore_st
       in r
       | Error err ->
-        _cogent_debug "Could not write super object\n" ;
+        cogent_debug "Could not write super object\n" ;
         ((ex, mount_st, ostore_st), Error err)
       | Success () ->
         ((ex, mount_st, ostore_st), Success ())
@@ -1554,7 +1575,7 @@ ostore_umount(ex, mount_st, ostore_st) =
     let ((ex, ostore_st), r) = ostore_sync(ex, mount_st, ostore_st, ostoreWriteNewEb) !mount_st
     in r
     | Error err ->
-      _cogent_debug "Could not synchronize FS when unmounting\n" ;
+      cogent_debug "Could not synchronize FS when unmounting\n" ;
       ((ex, mount_st, ostore_st), Error err)
     | Success () ->
       ostore_write_super(ex, mount_st, ostore_st)

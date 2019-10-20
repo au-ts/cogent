@@ -7,7 +7,6 @@
 --
 -- @TAG(NICTA_GPL)
 --
-
 include "bilbyfs.cogent"
 include "ostore.cogent"
 
@@ -41,9 +40,9 @@ init_vnode(ex, ostore_st, vdir, vnode, mode) =
   let (ostore_st, r) = ostore_alloc_inode(ostore_st)
   in r
   | Success v_ino ->
-    _cogent_debug "init_vnode allocate ino " ;
-    _cogent_debug_u32 v_ino ;
-    _cogent_debug "\n" ;
+    cogent_debug "init_vnode allocate ino " ;
+    cogent_debug_u32 v_ino ;
+    cogent_debug "\n" ;
     let vnode = vnode { fs = #{a=u8_to_u32 0} }
     and (ex, vnode) = vnode_init_perm(ex, vdir, vnode, mode)
     and v_flags:VfsMode = 0
@@ -169,8 +168,8 @@ set_obj #{oelem=opt_obj, acc=(ex, newopt_obj)} =
   newopt_obj
   | Some newo ->
     opt_obj
-    | Some o ->
-      let ex = deep_freeObj(ex, o)
+    | Some obj ->
+      let ex = deep_freeObj(ex, obj)
       in #{oelem=Some newo, acc=(ex, None ())}
     | None () ->
       #{oelem=Some newo, acc=(ex, None ())}
@@ -181,7 +180,7 @@ free_opt_obj: (SysState, Option Obj) -> SysState
 free_opt_obj (ex, opt_obj) =
   opt_obj
   | None () -> ex
-  | Some o -> deep_freeObj (ex, o)
+  | Some obj -> deep_freeObj (ex, obj)
 
 arrayobj_create1: (SysState, Obj) -> R (SysState, Array Obj) SysState
 {-
@@ -332,7 +331,7 @@ dentarr_calculate_sz_change(created, objdent) =
   in if not created then
     safe_sub32(sz, objdent.len) !objdent
     | Error () ->
-      _cogent_debug "dentarr_calculate_sz_change underflow " ;
+      cogent_debug "dentarr_calculate_sz_change underflow " ;
       (objdent, Error eOverflow)
     | Success sz_change ->
       (objdent {len=sz}, Success sz_change)
@@ -427,10 +426,10 @@ dentarr_read_and_add (ex, mount_st, ostore_st, vdir, name, vnode, dt) =
       | Success sz_change ->
         safe_add64(vfs_inode_get_size vdir, u32_to_u64(sz_change))
         | Error () ->
-          _cogent_debug "create dir inode size increase overflow" ;
-          _cogent_debug " sz_change = " ;
-          _cogent_debug_u32_hex (sz_change) ;
-          _cogent_debug "\n" ;
+          cogent_debug "create dir inode size increase overflow" ;
+          cogent_debug " sz_change = " ;
+          cogent_debug_u32_hex (sz_change) ;
+          cogent_debug "\n" ;
           let ex = deep_freeObj(ex, dentarr_obj)
           in ((ex, ostore_st), Error eOverflow)
         | Success new_v_size ->
@@ -507,24 +506,23 @@ dentarr_read_and_del (ex, mount_st, ostore_st, vdir, name) =
     extract_dentarr_from_union(ex, ounion)
     | Error ex ->
        -- invariant on ostore_read
-       _cogent_assert False ;
-       let dentarr_obj {..} = dentarr_obj
-       and ex = freeObj(ex, dentarr_obj)
+       cogent_assert False ;
+       let  ex = freeObj(ex, dentarr_obj)
        in ((ex, ostore_st), Error eInval)
     | Success (ex, dentarr) ->
       let (ex, dentarr) = dentarr_del_dentry(ex, dentarr, name)
       and ((ex, dentarr_obj), r) = dentarr_del_calculate_sz_change(ex, dentarr_obj, dentarr)
       in r
       | Error e ->
-        _cogent_debug "dentarr_read_and_del: dentarr_del_calculate_sz_change: failed\n" ;
-        let dentarr_obj {ounion,..} = dentarr_obj
+        cogent_debug "dentarr_read_and_del: dentarr_del_calculate_sz_change: failed\n" ;
+        let dentarr_obj {ounion} = dentarr_obj
         and ex = deep_freeObjUnion(ex, ounion)
         and ex = freeObj(ex, dentarr_obj)
         in ((ex, ostore_st), Error e)
       | Success sz_change ->
         safe_sub64(vfs_inode_get_size vdir, u32_to_u64 sz_change)
         | Error () ->
-          _cogent_debug "dentarr_read_and_del: dir size substraction failed\n" ;
+          cogent_debug "dentarr_read_and_del: dir size substraction failed\n" ;
           let ex = deep_freeObj(ex, dentarr_obj)
           in ((ex, ostore_st), Error eOverflow)
         | Success new_v_size ->
@@ -546,7 +544,7 @@ fsop_unlink #{ex, fs_st = fs_st {ostore_st}, vdir, name, vnode} =
     let ((ex, ostore_st), r) = dentarr_read_and_del (ex, fs_st.mount_st, ostore_st, vdir, name) !fs_st !vdir
     in r
     | Error err ->
-      _cogent_debug "fsop_unlink: dentarr_read_and_del failed\n" ;
+      cogent_debug "fsop_unlink: dentarr_read_and_del failed\n" ;
       (#{ex, fs_st = fs_st {ostore_st}, vdir, vnode}, Error err)
     | Success (new_v_size, dentarr_obj) ->
       -- assumption v_nlink > 0 for fsop_unlink
@@ -732,7 +730,7 @@ fsop_rmdir #{ex, fs_st = fs_st {ostore_st}, vdir, name, vnode} =
                     let ((ex, ostore_st, arr), r) = ostore_write(ex, fs_st.mount_st, ostore_st, arr, ostoreWriteNone) !fs_st
                     in r
                     | Error err ->
-                      _cogent_debug "fsop_rmdir: ostore_write : failed.\n";
+                      cogent_debug "fsop_rmdir: ostore_write : failed.\n";
                       let vdir = vfs_inode_set_size(vdir, v_size')
                       and vdir = vfs_inode_set_mtime(vdir, v_mtime')
                       and vdir = vfs_inode_set_ctime(vdir, v_ctime')
@@ -796,7 +794,7 @@ fsop_fill_super #{ex, fs_st = fs_st {mount_st}, vsup, is_silent, root} =
   and vol_id = wubi_vol_vol_id mount_st.vol !mount_st
   in wubi_open_volume #{ex, ubi_num, vol_id, mode=ubiReadWrite}
   | Error ex ->
-    _cogent_debug "Could not Open UBI device" ;
+    cogent_debug "Could not Open UBI device" ;
     (#{ex, vsup, root}, Error #{err=eNoEnt, fs_st = fs_st {mount_st}}) 
   | Success (ex, ubi_vol) ->
     let s_magic = u32_to_u64 bilbyFsMagic
@@ -908,7 +906,7 @@ read_next_dentry(ex, mount_st, ostore_st, rdctx) =
   in if cur_dentry + 1 >= len_dentarr then
    -- We iterated through all dentries of rdctx.dentarr
    -- let's get the next one.
-    _cogent_debug "readdir next_obj_id(" ; _cogent_debug_u64_hex did ; _cogent_debug ")\n" ;
+    cogent_debug "readdir next_obj_id(" ; cogent_debug_u64_hex did ; cogent_debug ")\n" ;
     ostore_next_obj_id(mount_st, ostore_st, rdctx.dentarr.id) !ostore_st !rdctx
     | Error () -> ((ex, ostore_st, rdctx), Success True)
     | Success nxt ->
@@ -956,9 +954,9 @@ vtype_to_dtype vt =
 
 emit_dir: #{elem:ObjDentry!, acc:(VfsDirContext, Bool), obsv:()} -> (VfsDirContext, Bool)
 emit_dir #{elem=dentry, acc=(vctx, _), obsv=()} =
-  _cogent_debug "emit_dir " ;
-  -- _cogent_debug dentry.name ;
-  _cogent_debug "\n" ;
+  cogent_debug "emit_dir " ;
+  -- cogent_debug dentry.name ;
+  cogent_debug "\n" ;
   vfs_dir_emit #{dirctx=vctx , name=dentry.name, ino=dentry.ino, ftype=dtype_to_vtype(dentry.dtype)}
   | Break #{dirctx=vctx} -> (vctx, True)
   | Iterate #{dirctx=vctx} -> (vctx, False)
@@ -967,27 +965,27 @@ type ReadDirLoopParams = (SysState, OstoreState, VfsDirContext, BilbyFsReaddirCo
 readdir_loop: #{acc:ReadDirLoopParams, obsv:MountState!, idx:U64} ->
     LRR ReadDirLoopParams (R Bool ErrCode)
 readdir_loop #{acc=(ex, ostore_st, vctx, rdctx), obsv=mount_st, idx} =
-  _cogent_debug "readdir_loop " ; _cogent_debug_u64_hex idx ; _cogent_debug "\n";
+  cogent_debug "readdir_loop " ; cogent_debug_u64_hex idx ; cogent_debug "\n";
   let ((ex, ostore_st, rdctx), r) = read_next_dentry(ex, mount_st, ostore_st, rdctx)
   in r
   | Error err ->
     ((ex, ostore_st, vctx, rdctx), Break (Error err))
   | Success no_more_dentry ->
     if no_more_dentry then
-      _cogent_debug "readdir no more entries" ;
+      cogent_debug "readdir no more entries" ;
       let vctx {pos} = vctx
       and vctx = vctx {pos=2}
       in ((ex, ostore_st, vctx, rdctx), Break (Success no_more_dentry))
     else
       let vctx {pos} = vctx
       and vctx = vctx {pos=pos+1}
-      and _ = _cogent_debug "readdir_loop use "
-      and _ = _cogent_debug_u32 rdctx.cur_dentry !rdctx
-      and _ = _cogent_debug "\n"
+      and _ = cogent_debug "readdir_loop use "
+      and _ = cogent_debug_u32 rdctx.cur_dentry !rdctx
+      and _ = cogent_debug "\n"
       and (vctx, over) = array_use_value[ObjDentry, (VfsDirContext, Bool), ()]
                            #{arr=rdctx.dentarr.entries, idx=rdctx.cur_dentry, f=emit_dir, acc=(vctx, False), obsv=()} !rdctx
       in if over then
-        _cogent_debug "readdir emit dir said over\n" ;
+        cogent_debug "readdir emit dir said over\n" ;
         ((ex, ostore_st, vctx, rdctx), Break (Success no_more_dentry))
       else -- We can keep going
         ((ex, ostore_st, vctx, rdctx), Iterate ())
@@ -1007,7 +1005,7 @@ fsop_readdir (#{ex, fs_st, vctx, opt_rdctx}, vdir) =
               step=1, f=readdir_loop, acc=(ex, ostore_st, vctx, rdctx), obsv=fs_st.mount_st} !fs_st
     in r
     | Iterate () ->
-      _cogent_assert False ;
+      cogent_assert False ;
       let fs_st = fs_st {ostore_st}
       in (#{ex, fs_st, vctx, opt_rdctx=Some rdctx}, Error eInval)
     | Break res ->
@@ -1024,7 +1022,7 @@ fsop_dir_release (ex, opt_rdctx) =
   opt_rdctx
   | None () ->
   ex
-  | Some (v {dentarr,..}) ->
+  | Some (v {dentarr}) ->
     let ex = deep_freeObjDentarr(ex, dentarr)
     in freeBilbyFsReaddirContext(ex, v)
 
@@ -1055,7 +1053,7 @@ type FsopDoMoveHelperP = #{ex:SysState, mount_st:MountState!, ostore_st:OstoreSt
 type FsopDoMoveHelperRR = #{ex:SysState, ostore_st:OstoreState, old_vdir:VfsInode, old_vnode: VfsInode, new_vdir: VfsInode, opt_new_vnode: Option VfsInode}
 fsop_do_move_helper: FsopDoMoveHelperP -> RR FsopDoMoveHelperRR () ErrCode
 fsop_do_move_helper #{ex, mount_st, ostore_st, old_dent_size, new_dent_size, new_o, old_o, old_vdir, old_vnode, new_vdir, opt_new_vnode} =
-  _cogent_debug "fsop_do_move_helper\n" ;
+  cogent_debug "fsop_do_move_helper\n" ;
   -- update old_vdir.v_size
   let old_dent_size' = serialise_size_Obj(old_o) !old_o
   and old_o = old_o {len=old_dent_size'}
@@ -1134,7 +1132,7 @@ fsop_do_move_helper #{ex, mount_st, ostore_st, old_dent_size, new_dent_size, new
 
 move_read_or_create_dentarrs: (SysState, MountState!, OstoreState, VfsInode!, VfsInode!, CString!, CString!) -> RR (SysState, OstoreState) (Obj take (ounion), Obj take (ounion), ObjDentarr, ObjDentarr, U32, U32) ErrCode
 move_read_or_create_dentarrs(ex, mount_st, ostore_st, old_vdir, new_vdir, old_name, new_name) =
-  _cogent_debug "move_read_or_create_dentarrs\n" ;
+  cogent_debug "move_read_or_create_dentarrs\n" ;
   let oldoid = obj_id_dentarr_mk (vfs_inode_get_ino old_vdir, old_name)
   and newoid = obj_id_dentarr_mk (vfs_inode_get_ino new_vdir, new_name)
   and ((ex, ostore_st), r) = read_or_create_dentarr(ex, mount_st, ostore_st, oldoid)
@@ -1160,7 +1158,7 @@ type FsopDoMoveDelRR = #{ex:SysState, fs_st:FsState, old_vdir:VfsInode, old_vnod
 fsop_do_move_del: FsopDoMoveDelP -> RR FsopDoMoveDelRR () ErrCode
 -- we need to delete the new_vnode
 fsop_do_move_del #{ex, fs_st = fs_st {ostore_st}, old_vdir, old_name, old_vnode, new_vdir, new_name, new_vnode} = 
-  _cogent_debug "fsop_do_move_del\n" ;
+  cogent_debug "fsop_do_move_del\n" ;
   let opt_new_vnode:Option VfsInode = Some new_vnode
   and ((ex, ostore_st), r) = move_read_or_create_dentarrs(ex, fs_st.mount_st, ostore_st, old_vdir, new_vdir, old_name, new_name) !fs_st !old_vdir !new_vdir
   in r
@@ -1199,7 +1197,7 @@ type FsopDoMoveP = #{ex:SysState, fs_st:FsState, old_vdir:VfsInode, old_name:(Wo
 type FsopDoMoveRR = #{ex:SysState, fs_st:FsState, old_vdir:VfsInode, old_vnode:VfsInode, new_vdir: VfsInode}
 fsop_do_move: FsopDoMoveP -> RR FsopDoMoveRR () ErrCode
 fsop_do_move #{ex, fs_st = fs_st {ostore_st}, old_vdir, old_name, old_vnode, new_vdir, new_name} =
-  _cogent_debug "fsop_do_move\n" ;
+  cogent_debug "fsop_do_move\n" ;
   let ((ex, ostore_st), r) = move_read_or_create_dentarrs(ex, fs_st.mount_st, ostore_st, old_vdir, new_vdir, old_name, new_name) !fs_st !old_vdir !new_vdir
   in r
   | Error err ->
@@ -1239,7 +1237,7 @@ newVfsInode: SysState -> R (SysState, VfsInode take (..)) SysState
 freeVfsInode: (SysState, VfsInode take (..)) -> SysState
 
 deep_freeVfsInode: (SysState, VfsInode) -> SysState
-deep_freeVfsInode(ex, v) = let v {..} = v in freeVfsInode(ex, v)
+deep_freeVfsInode(ex, v) = freeVfsInode(ex, v)
 
 -- when we call this function we know that opt_vnode = None ()
 -- see fsop_do_move
@@ -1260,7 +1258,7 @@ type FsopMoveP = #{ex:SysState, fs_st:FsState, old_vdir:VfsInode, old_name:(Word
 type FsopMoveRR = #{ex:SysState, fs_st:FsState, old_vdir:VfsInode, old_vnode:VfsInode, new_vdir: VfsInode, opt_new_vnode: Option VfsInode}
 fsop_move: FsopMoveP -> RR FsopMoveRR () ErrCode
 fsop_move #{ex, fs_st = fs_st {ostore_st}, old_vdir, old_name, old_vnode, new_vdir, new_name, opt_new_vnode} =
-  _cogent_debug "fsop_move\n" ;
+  cogent_debug "fsop_move\n" ;
   let is_ro = fs_st.fsop_st.is_ro !fs_st
   in if is_ro then
     (#{ex, fs_st = fs_st {ostore_st}, old_vdir, old_vnode, new_vdir, opt_new_vnode}, Error eRoFs) 
@@ -1345,7 +1343,7 @@ type FsopDoRenameHelper1R = #{ex:SysState, ostore_st:OstoreState, vdir:VfsInode,
 fsop_do_rename_helper1: FsopDoRenameHelper1P -> RR FsopDoRenameHelper1R () ErrCode
 fsop_do_rename_helper1 #{ex, mount_st, ostore_st, dent_size, obj, vdir, old_vnode, opt_new_vnode} =
 -- old and new are stored in the same dentarr
-  _cogent_debug "fsop_do_rename_helper1\n" ;
+  cogent_debug "fsop_do_rename_helper1\n" ;
   -- update old_vdir.v_size
   let dent_size' = serialise_size_Obj(obj) !obj
   and obj = obj {len=dent_size'}
@@ -1410,7 +1408,7 @@ type FsopDoRenameHelperRR = #{ex:SysState, ostore_st:OstoreState, vdir:VfsInode,
 fsop_do_rename_helper: FsopDoRenameHelperP -> RR FsopDoRenameHelperRR () ErrCode
 fsop_do_rename_helper #{ex, mount_st, ostore_st, old_dent_size, new_dent_size, new_o, old_o, vdir, old_vnode, opt_new_vnode} =
 -- old and new are stored in two different dentarr
-  _cogent_debug "fsop_do_rename_helper\n" ;
+  cogent_debug "fsop_do_rename_helper\n" ;
   -- update old_vdir.v_size
   let old_dent_size' = serialise_size_Obj(old_o) !old_o
   and old_o = old_o {len=old_dent_size'}
@@ -1480,7 +1478,7 @@ fsop_do_rename_helper #{ex, mount_st, ostore_st, old_dent_size, new_dent_size, n
 
 rename_read_or_create_dentarrs: (SysState, MountState!, OstoreState, ObjId, ObjId) -> RR (SysState, OstoreState) (Obj take (ounion), Obj take (ounion), ObjDentarr, ObjDentarr, U32, U32) ErrCode
 rename_read_or_create_dentarrs(ex, mount_st, ostore_st, oldoid, newoid) =
-  _cogent_debug "rename_read_or_create_dentarrs\n" ;
+  cogent_debug "rename_read_or_create_dentarrs\n" ;
 -- we know that oldoid and newoid have to be different.
   let ((ex, ostore_st), r) = read_or_create_dentarr(ex, mount_st, ostore_st, oldoid)
   in r
@@ -1503,7 +1501,7 @@ type FsopDoRenameP = #{ex:SysState, fs_st:FsState, vdir:VfsInode, old_name:(Word
 type FsopDoRenameRR = #{ex:SysState, fs_st:FsState, vdir:VfsInode, old_vnode:VfsInode}
 fsop_do_rename: FsopDoRenameP -> RR FsopDoRenameRR () ErrCode
 fsop_do_rename #{ex, fs_st, vdir, old_name, old_vnode, new_name} =
-  _cogent_debug "fsop_do_rename\n" ;
+  cogent_debug "fsop_do_rename\n" ;
   let oldoid = obj_id_dentarr_mk (vfs_inode_get_ino vdir, old_name) !vdir
   and newoid = obj_id_dentarr_mk (vfs_inode_get_ino vdir, new_name) !vdir
   and fs_st {ostore_st} = fs_st
@@ -1579,7 +1577,7 @@ type FsopDoRenameDelP = #{ex:SysState, fs_st:FsState, vdir:VfsInode, old_name:(W
 type FsopDoRenameDelRR = #{ex:SysState, fs_st:FsState, vdir:VfsInode, old_vnode:VfsInode, opt_new_vnode: Option VfsInode}
 fsop_do_rename_del: FsopDoRenameDelP -> RR FsopDoRenameDelRR () ErrCode
 fsop_do_rename_del #{ex, fs_st, vdir, old_name, old_vnode, new_name, new_vnode} =
-  _cogent_debug "fsop_do_rename_del\n" ;
+  cogent_debug "fsop_do_rename_del\n" ;
   let oldoid = obj_id_dentarr_mk (vfs_inode_get_ino vdir, old_name) !vdir
   and newoid = obj_id_dentarr_mk (vfs_inode_get_ino vdir, new_name) !vdir
   and fs_st {ostore_st} = fs_st
@@ -1651,7 +1649,7 @@ type FsopRenameP = #{ex:SysState, fs_st:FsState, vdir:VfsInode, old_name:(WordAr
 type FsopRenameRR = #{ex:SysState, fs_st:FsState, vdir:VfsInode, old_vnode:VfsInode, opt_new_vnode: Option VfsInode}
 fsop_rename: FsopRenameP -> RR FsopRenameRR () ErrCode
 fsop_rename #{ex, fs_st = fs_st {ostore_st}, vdir, old_name, old_vnode, new_name, opt_new_vnode} =
-  _cogent_debug "fsop_rename\n" ;
+  cogent_debug "fsop_rename\n" ;
   let is_ro = fs_st.fsop_st.is_ro !fs_st
   in if is_ro then
     (#{ex, fs_st = fs_st {ostore_st}, vdir, old_vnode, opt_new_vnode}, Error eRoFs)
@@ -1666,9 +1664,9 @@ fsop_rename #{ex, fs_st = fs_st {ostore_st}, vdir, old_name, old_vnode, new_name
     | Some new_vnode ->
       let new_is_dir = vmode_is_dir (vfs_inode_get_mode (new_vnode)) !new_vnode
       and is_empty = check_dir_empty #{mount_st = fs_st.mount_st, ostore_st, vdir=new_vnode} !fs_st !ostore_st !new_vnode
-      and _ = _cogent_debug "fsop_rename: check_dir_empty "
-      and _ = _cogent_debug_u32 (if is_empty then 1 else 0)
-      and _ = _cogent_debug "\n"
+      and _ = cogent_debug "fsop_rename: check_dir_empty "
+      and _ = cogent_debug_u32 (if is_empty then 1 else 0)
+      and _ = cogent_debug "\n"
       -- True if not a directory
       in if not is_empty then
         let fs_st = fs_st {ostore_st}
@@ -1748,9 +1746,8 @@ fsop_iget #{ex, fs_st = fs_st {ostore_st}, inum, vnode} =
     let fs_st = fs_st {ostore_st}
     in extract_inode_from_union (ex, ounion)
     | Error ex ->
-      _cogent_assert False ;
-      let obj {..} = obj
-      and ex = freeObj(ex, obj)
+      cogent_assert False ;
+      let ex = freeObj(ex, obj)
       in (#{ex, fs_st, vnode}, Error eInval) 
     | Success (ex, oi) ->
       let vnode = vfs_inode_set_ino (vnode, inum_from_obj_id oi.id) !oi
@@ -1792,16 +1789,14 @@ read_block(ex, fs_st {ostore_st}, vnode, buf, block) =
     let fs_st = fs_st {ostore_st}
     in extract_data_from_union(ex, ounion)
     | Error ex ->
-      _cogent_assert False ;
-      let obj {..} = obj
-      and ex = freeObj(ex, obj)
+      cogent_assert False ;
+      let ex = freeObj(ex, obj)
       in ((ex, fs_st, buf), Error eInval) 
     | Success (ex, od) ->
-      let obj {..} = obj
-      and ex = freeObj(ex, obj)
+      let ex = freeObj(ex, obj)
       and size = wordarray_length[U8] (od.odata) !od
       in if size > bilbyFsBlockSize then
-        _cogent_debug "bad object data" ;
+        cogent_debug "bad object data" ;
         let ex = deep_freeObjData(ex, od)
         in ((ex, fs_st, buf), Error eInval)
       else
@@ -1848,7 +1843,7 @@ fsop_write_begin #{ex, fs_st, vnode, pos, len, addr} =
       if err == eNoEnt then
         (#{ex, fs_st, vnode, addr}, Success ())
       else
-        _bilbyfs_error "fsop_write_begin: Error\n" ;
+        bilbyfs_error "fsop_write_begin: Error\n" ;
         (#{ex, fs_st, vnode, addr}, Error err)
     | Success () ->
       (#{ex, fs_st, vnode, addr}, Success ())
@@ -1857,14 +1852,14 @@ get_data_back: (SysState, WordArray U8, Option Obj) -> (SysState, WordArray U8)
 get_data_back (ex, dummy_data, opto) =
   opto
   | None () ->
-    _cogent_assert False ;
+    cogent_assert False ;
     (ex, dummy_data)
-  | Some obj {ounion, ..} ->
+  | Some obj {ounion} ->
     extract_data_from_union (ex, ounion)
     | Error ex ->
       let ex = freeObj(ex, obj)
       in (ex, dummy_data)
-    | Success (ex, od {odata,..}) ->
+    | Success (ex, od {odata}) ->
       let ex = freeObjData(ex, od)
       and ex = freeObj(ex, obj)
       and ex = wordarray_free[U8] (ex, dummy_data)
@@ -2096,9 +2091,9 @@ truncate_deletion_obj #{ex, fs_st, vnode, newsize} =
 type FsopTruncateP = #{ex:SysState, fs_st: FsState, vnode: VfsInode, newsize: U64}
 fsop_do_truncate: FsopTruncateP -> RR FsopSetattrRR () ErrCode
 fsop_do_truncate #{ex, fs_st, vnode, newsize} =
-  _cogent_debug "fsop_do_truncate " ;
-  _cogent_debug_u64 newsize ;
-  _cogent_debug "\n" ;
+  cogent_debug "fsop_do_truncate " ;
+  cogent_debug_u64 newsize ;
+  cogent_debug "\n" ;
   let oldsize = vfs_inode_get_size vnode !vnode
   and v_mtime = vfs_inode_get_mtime vnode !vnode
   and v_ctime = vfs_inode_get_ctime vnode !vnode
@@ -2324,7 +2319,7 @@ fsop_link #{ex, fs_st = fs_st {ostore_st}, vdir, name, vnode} =
 
 fsop_format_default: FsopVfsInodeP -> RR FsopVfsInodeP () ErrCode
 fsop_format_default #{ex, fs_st, vnode=root} =
-  _bilbyfs_error "Empty flash memory detected, we format it with BilbyFs\n"  ;
+  bilbyfs_error "Empty flash memory detected, we format it with BilbyFs\n"  ;
   let is_ro = fs_st.fsop_st.is_ro !fs_st
   in if is_ro then
     (#{ex, fs_st, vnode=root}, Error eRoFs)
@@ -2460,10 +2455,8 @@ fsop_init #{ex,fs_st,name} =
                     and ex = wubi_close (ex, ubivol)
                     in ostore_init(ex, mount_st, ostore_st) !mount_st
                     | Error (err, ex, ostore_st) ->
-                      let mount_st {obj_sup,vol,dev,super,..} = mount_st
-                      and fsop_st {..} = fsop_st
+                      let mount_st {obj_sup,vol,dev,super} = mount_st
                       and ex = deep_freeObjSuper(ex, super)
-                      and obj_sup {..} = obj_sup
                       and ex = freeObj(ex, obj_sup)
                       and ex = freeMountState(ex, mount_st)
                       and ex = freeFsopState(ex, fsop_st)
@@ -2492,15 +2485,13 @@ fsop_unmount #{ex,fs_st} =
 fsop_clean: FsopFsP -> SysState
 fsop_clean #{ex,fs_st} =
   let fs_st {fsop_st, mount_st, ostore_st} = fs_st
-  and mount_st {vol,dev,obj_sup,super,..} = mount_st
+  and mount_st {vol,dev,obj_sup,super} = mount_st
   and ex = deep_freeObjSuper(ex, super)
-  and obj_sup {..} = obj_sup
   and ex = freeObj(ex, obj_sup)
   and ex = freeUbiVolInfo(ex, vol)
   and ex = freeUbiDevInfo(ex, dev)
   and ex = freeMountState(ex, mount_st)
   and ex = ostore_clean(ex, ostore_st)
-  and fsop_st {..} = fsop_st
   and ex = freeFsopState(ex, fsop_st)
   and ex = freeFsState(ex, fs_st)
   in ex

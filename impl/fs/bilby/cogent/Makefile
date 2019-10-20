@@ -24,6 +24,7 @@ PROOF_ID=BilbyFs
 
 # Standard Gum Directory
 STDGUM=$(COGENT_STD_GUM_DIR)
+$(WARNING stdgum = $(COGENT_STD_GUM_DIR))
 ifeq ($(STDGUM),)
 STDGUM=$(shell cogent --stdgum-dir)
 endif
@@ -52,8 +53,14 @@ ifeq ($(KERNELRELEASE),)
 PWD:= $(shell pwd)
 endif
 ifneq ($(DEBUG),)
+ifneq ($(BENCH),)
+$(WARNING Debug and Bench both set)
+endif
 EXTRA_CFLAGS+= -DBILBYFS_DEBUG
 COGENT_FLAGS+= --debug
+endif
+ifneq ($(BENCH),)
+EXTRA_CFLAGS += -DBENCH
 endif
 
 # flags to ignores COGENT's compiler messy C code gen
@@ -62,14 +69,14 @@ LINUX_EXTRA_CFLAGS := -I$(PWD)/plat/linux/ -I$(PWD) -I$(PWD)/src -I$(PWD)/lib -I
 VERIF_EXTRA_CFLAGS := -I$(PWD)/plat/verification/ -I$(PWD) -I$(PWD)/src -I$(PWD)/lib -I$(PWD)/abstract -I$(STDGUM) $(COMMON_CFLAGS)
 
 # COGENT flags
-COGENT_FLAGS+= -Od --fno-static-inline --fno-fncall-as-macro --fnormalisation=knf --ffunc-purity-attr
+COGENT_FLAGS+= -Od --fno-static-inline --fno-fncall-as-macro --fnormalisation=knf --ffunc-purity-attr --fno-pretty-errmsgs -DSUBTYPING
 # end of configuration
 
 override COGENT_FLAGS+= -o$(OUTPUT) \
 			--root-dir=$(ROOT_DIR) \
 			--entry-funcs=$(DEFNS) \
 			--infer-c-types="$(AHFILES)" \
-			--abs-type-dir=$(PWD)
+			--abs-type-dir=$(PWD) 
 
 COUTPUT=$(addsuffix .c, $(OUTPUT))
 HOUTPUT=$(addsuffix .h, $(OUTPUT))
@@ -98,10 +105,10 @@ linux: DIST_DIR = plat/linux
 verification: DIST_DIR = plat/verification
 .verif-gen: DIST_DIR = plat/verification
 # EXTRA_CFLAGS
-linux: EXTRA_CFLAGS = $(LINUX_EXTRA_CFLAGS)
-.c-gen: EXTRA_CFLAGS = $(LINUX_EXTRA_CFLAGS)
-verification: EXTRA_CFLAGS = $(VERIF_EXTRA_CFLAGS)
-.verif-gen: EXTRA_CFLAGS = $(VERIF_EXTRA_CFLAGS)
+linux: EXTRA_CFLAGS += $(LINUX_EXTRA_CFLAGS)
+.c-gen: EXTRA_CFLAGS += $(LINUX_EXTRA_CFLAGS)
+verification: EXTRA_CFLAGS += $(VERIF_EXTRA_CFLAGS)
+.verif-gen: EXTRA_CFLAGS += $(VERIF_EXTRA_CFLAGS)
 
 
 # call from kernel build system
@@ -130,11 +137,11 @@ all: .c-gen $(OBJ)
 #       So we use c99 mode here and when building the generated C code(make modules), we
 #       use `gnu99` mode.
 .c-gen:
-	$(Q)cogent $(SRC) -g $(COGENT_FLAGS) \
+	$(Q)COGENT_STD_GUM_DIR=${STDGUM} cogent $(SRC) -g $(COGENT_FLAGS)  --cogent-pp-args='-DSUBTYPING' \
                 --cpp-args="-std=c99 \$$CPPIN -o \$$CPPOUT -E -P $(EXTRA_CFLAGS)" \
                 --dist-dir=$(DIST_DIR) \
                 --infer-c-funcs="$(ACFILES)" \
-								--ext-types="$(LINUX_TYPES)"
+		--ext-types="$(LINUX_TYPES)"
 
 .verif-gen:
 	$(Q)cogent $(SRC) -A $(COGENT_FLAGS) \

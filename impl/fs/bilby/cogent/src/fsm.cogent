@@ -12,8 +12,8 @@ include "bilbyfs.cogent"
 
 fsm_init : (SysState, MountState!, FsmState take (..)) -> RR SysState FsmState (ErrCode, FsmState take(..)) 
 fsm_init(ex, mount_st, fsm_st) =
-  _cogent_debug "fsm_init " ;
-  _print_obj_super mount_st.super ;
+  cogent_debug "fsm_init " ;
+  print_obj_super mount_st.super ;
   let nb_eb = mount_st.super.nb_eb
   in wordarray_create[U8] (ex, nb_eb)
   | Error ex -> (ex, Error (eNoMem, fsm_st))
@@ -29,7 +29,7 @@ fsm_init(ex, mount_st, fsm_st) =
         and ex = wordarray_free[U32](ex, dirty_space)
         in (ex, Error (eNoMem, fsm_st))
       | Success (ex, gim) ->
-        _print_obj_super mount_st.super ;
+        print_obj_super mount_st.super ;
         let nb_free_eb = mount_st.super.nb_eb - bilbyFsFirstLogEbNum
         in (ex, Success (fsm_st {used_eb, dirty_space, gim, nb_free_eb}))
 
@@ -47,13 +47,13 @@ fsm_check_free_space(mount_st, fsm_st, osw_flags) =
   and n_free = fsm_st.nb_free_eb in
   if n_free < n_gc &&
      (osw_flags .&. ostoreWriteGC) == 0 then
-    _cogent_debug "Warning: Number of free blocks extremely low, only the garbage collector is allowed to allocate erase-blocks." ;
+    cogent_debug "Warning: Number of free blocks extremely low, only the garbage collector is allowed to allocate erase-blocks." ;
     Error eNoSpc
   else -- n_del + n_gc should be sanity checked with deser
     if n_free < (n_del + n_gc) &&
        (osw_flags .&. ostoreWriteDel) == 0 &&
        (osw_flags .&. ostoreWriteGC) == 0 then
-      _cogent_debug "Warning: Number of free blocks is very low, only operations that delete data are permitted." ;
+      cogent_debug "Warning: Number of free blocks is very low, only operations that delete data are permitted." ;
       Error eNoSpc
     else
       Success ()
@@ -70,7 +70,7 @@ fsm_mark_used(mount_st, fsm_st {used_eb, nb_free_eb}, ebnum) =
 
 fsm_alloc_eb_loop_body: #{elem: U8, acc: U32, obsv: FsmState!} -> LoopResult U32 U32
 fsm_alloc_eb_loop_body #{elem=is_used, acc=ebnum, obsv=fsm_st} =
-  _cogent_debug "." ;
+  cogent_debug "." ;
   if is_used /= 0 then
     Iterate (ebnum+1)
   else
@@ -81,19 +81,19 @@ fsm_alloc_eb(mount_st, fsm_st, osw_flags) =
   fsm_check_free_space(mount_st, fsm_st, osw_flags) !fsm_st
   | Error err -> (fsm_st, Error err)
   | Success () ->
-    _cogent_debug "fsm_alloc_eb " ;
-    _cogent_debug_u32 mount_st.super.nb_eb ;
-    _cogent_debug "\n" ;
+    cogent_debug "fsm_alloc_eb " ;
+    cogent_debug_u32 mount_st.super.nb_eb ;
+    cogent_debug "\n" ;
     wordarray_fold[U8, U32, FsmState, U32]
        #{arr=fsm_st.used_eb, frm=bilbyFsFirstLogEbNum, to=mount_st.super.nb_eb,
          f=fsm_alloc_eb_loop_body, acc=bilbyFsFirstLogEbNum, obsv=fsm_st} !fsm_st
     | Iterate _ ->
-      _cogent_debug "\n" ;
-      _cogent_assert False ; -- FIXME remove this
-      _cogent_debug "Error: All erase-blocks are used, cannot allocate a new one." ;
+      cogent_debug "\n" ;
+      cogent_assert False ; -- FIXME remove this
+      cogent_debug "Error: All erase-blocks are used, cannot allocate a new one." ;
       (fsm_st, Error eNoSpc)
     | Break ebnum ->
-      _cogent_debug "fsm_alloc_eb Break\n" ;
+      cogent_debug "fsm_alloc_eb Break\n" ;
       let fsm_st = fsm_mark_used(mount_st, fsm_st, ebnum)
       in (fsm_st, Success ebnum)
 

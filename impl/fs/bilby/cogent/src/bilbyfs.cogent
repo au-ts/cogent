@@ -8,6 +8,7 @@
 -- @TAG(NICTA_GPL)
 --
 
+include <gum/common/log.cogent>
 include <gum/common/common.cogent>
 include <gum/kernel/linux/errno.cogent>
 include <gum/fs/linux/vfs.cogent>
@@ -193,33 +194,33 @@ bilbyFsDefaultNbReservedDel = 3
 bilbyFsRootIno : U32
 bilbyFsRootIno = 24
 
-_print_field_u32: (String, U32) -> ()
-_print_field_u32 (f, v) =
-  _cogent_debug f ;
-  _cogent_debug " " ;
-  _cogent_debug_u32 v ;
-  _cogent_debug "\n"
+print_field_u32: (String, U32) -> ()
+print_field_u32 (f, v) =
+  cogent_debug f ;
+  cogent_debug " " ;
+  cogent_debug_u32 v ;
+  cogent_debug "\n"
+  
+print_field_u64: (String, U64) -> ()
+print_field_u64 (f, v) =
+  cogent_debug f ;
+  cogent_debug " " ;
+  cogent_debug_u64 v ;
+  cogent_debug "\n"
 
-_print_field_u64: (String, U64) -> ()
-_print_field_u64 (f, v) =
-  _cogent_debug f ;
-  _cogent_debug " " ;
-  _cogent_debug_u64 v ;
-  _cogent_debug "\n"
-
-_print_obj_super: ObjSuper! -> ()
-_print_obj_super o =
-  _cogent_debug "ObjSuper\n" ;
-  _print_field_u32 ("eb_size", o.eb_size) ;
-  _print_field_u32 ("io_size", o.io_size) ;
-  _print_field_u32 ("cur_eb", o.cur_eb) ;
-  _print_field_u32 ("cur_offs", o.cur_offs) ;
-  _print_field_u64 ("next_sqnum", o.next_sqnum) ;
-  _print_field_u32 ("last_inum", o.last_inum) ;
-  _print_field_u32 ("nb_reserved_gc", o.nb_reserved_gc) ;
-  _print_field_u32 ("nb_reserved_del", o.nb_reserved_del) ;
-  _cogent_debug "end\n"
+print_obj_super: ObjSuper! -> ()
+print_obj_super obj =
+  cogent_debug "ObjSuper\n" ;
+  print_field_u32 ("eb_size", obj.eb_size) ;
+  print_field_u32 ("io_size", obj.io_size) ;
+  print_field_u32 ("cur_eb", obj.cur_eb) ;
+  print_field_u32 ("cur_offs", obj.cur_offs) ;
+  print_field_u64 ("next_sqnum", obj.next_sqnum) ;
+  print_field_u32 ("last_inum", obj.last_inum) ;
+  print_field_u32 ("nb_reserved_gc", obj.nb_reserved_gc) ;
+  print_field_u32 ("nb_reserved_del", obj.nb_reserved_del) ;
+  cogent_debug "end\n"
   
 
-_bilbyfs_error: String -> ()
-_bilbyfs_error_u32: U32 -> ()
+bilbyfs_error: String -> ()
+bilbyfs_error_u32: U32 -> ()
