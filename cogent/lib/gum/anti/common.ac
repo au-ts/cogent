@@ -194,10 +194,130 @@ u16 u64_to_u16(u64 x)
         return (u16)x;
 }
 
-struct unit_t $id:(_cogent_assert)($ty:(Bool) arg)
-{
+
+$esc:(#ifdef __KERNEL__)
+unit_t cogent_assert ($ty:(Bool) arg) {
        unit_t ret;
        BUG_ON(!arg.boolean);
        return ret;
 }
 
+unit_t cogent_warn (char* str) {
+        unit_t ret;
+        pr_warning("%s", str);
+        return ret;
+}
+
+unit_t cogent_warn_u32 (u32 arg) {
+        unit_t ret;
+        pr_warning("%u", arg);
+        return ret;
+}
+
+unit_t cogent_warn_u64 (u64 arg) {
+        unit_t ret;
+        pr_warning("%llu", arg);
+        return ret;
+}
+
+unit_t cogent_debug (char* str) {
+        unit_t ret;
+        pr_debug("%s", str);
+        return ret;
+}
+
+unit_t cogent_debug_u32 (u32 arg) {
+        unit_t ret;
+        pr_debug("%u", arg);
+        return ret;
+}
+
+unit_t cogent_debug_u64 (u64 arg) {
+        unit_t ret;
+        pr_debug("%llu", arg);
+        return ret;
+}
+
+unit_t cogent_debug_u32_hex (u32 arg) {
+        unit_t ret;
+        pr_debug("%x", arg);
+        return ret;
+}
+
+unit_t cogent_debug_u64_hex (u64 arg) {
+        unit_t ret;
+        pr_debug("%llx", arg);
+        return ret;
+}
+unit_t cogent_debug_bool ($ty:(Bool) arg) {
+        unit_t ret;
+        if (arg.boolean)
+          pr_debug("true");
+        else
+          pr_debug("false");
+        return ret;
+}
+
+$esc:(#else)
+unit_t cogent_assert ($ty:(Bool) arg) {
+       unit_t ret;
+       BUG_ON(!arg.boolean);
+       return ret;
+}
+
+unit_t cogent_warn (char* str) {
+        unit_t ret;
+        printf("%s", str);
+        return ret;
+}
+
+unit_t cogent_warn_u32 (u32 arg) {
+        unit_t ret;
+        printf("%u", arg);
+        return ret;
+}
+
+unit_t cogent_warn_u64 (u64 arg) {
+        unit_t ret;
+        printf("%llu", arg);
+        return ret;
+}
+
+unit_t cogent_debug (char* str) {
+        unit_t ret;
+        printf("%s", str);
+        return ret;
+}
+
+unit_t cogent_debug_u32 (u32 arg) {
+        unit_t ret;
+        printf("%u", arg);
+        return ret;
+}
+
+unit_t cogent_debug_u64 (u64 arg) {
+        unit_t ret;
+        printf("%llu", arg);
+        return ret;
+}
+
+unit_t cogent_debug_u32_hex (u32 arg) {
+        unit_t ret;
+        printf("%x", arg);
+        return ret;
+}
+
+unit_t cogent_debug_u64_hex (u64 arg) {
+        unit_t ret;
+        printf("%llx", arg);
+        return ret;
+}
+unit_t cogent_debug_bool ($ty:(Bool) arg) {
+        unit_t ret;
+        if (arg.boolean)
+          printf("true");
+        else
+          printf("false");
+        return ret;
+}
+$esc:(#endif)
