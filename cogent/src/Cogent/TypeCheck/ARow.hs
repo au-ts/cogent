@@ -28,8 +28,9 @@ import Data.Maybe (isNothing)
 
 import Debug.Trace
 
+-- INVARIANT: 'entries' and 'unevals' have to be disjoint, and 'unevals' should be distinct.
 data ARow e = ARow { entries  :: IntMap Taken
-                   , uneval   :: [(e, Taken)]  -- unevaluated taken/put indices
+                   , unevals  :: [(e, Taken)]  -- unevaluated taken/put indices
                    , all      :: Maybe Taken
                    , var      :: Maybe Int
                    }
@@ -61,24 +62,20 @@ allPut = ARow IM.empty [] (Just False) Nothing
 
 -- We assume that there's no duplicate indices in 'es' and in 'us'. They should be
 -- checked at other places. / zilinc
-eval :: (e -> Maybe Int) -> ARow e -> ARow e
-eval f (ARow es us ma mv) =
+reduce :: Int -> (e -> Maybe Int) -> ARow e -> ARow e
+reduce l f (ARow es us Nothing mv) =
   let blob = for us $ \(u,b) -> case f u of Nothing -> Left (u,b); Just u' -> Right (u',b)
       (ls,rs) = partitionEithers blob
-      es' = es `IM.union` IM.fromListWith const rs  -- FIXME: what if 'es' and 'rs' conflict? / zilinc
-                          -- \ ^^^ entries later in 'es' will overwrite earlier ones
-                          -- Note that the list is scanned from the back thus the combining function's
-                          -- first argument is the entry earlier in the list.
-   in ARow es' ls ma mv
+      es' = IM.fromList rs `IM.union` es 
+              -- \ ^^^ Left-biased, as it's possible that @es@ contains @all@-expanded
+              -- entries which need to be overwritten.
+   in ARow es' ls Nothing mv
+reduce l f (ARow es us (Just b) mv) = 
+  let a' = IM.fromList $ zip [0..l - 1] (repeat b)
+   in reduce l f $ ARow (es `IM.union` a') us Nothing mv
+                         --- \ ^^^ Left-biased, as @all@-expanded entries take lower priority.
 
-unfoldAll :: Int -> ARow e -> ARow e
-unfoldAll l a
-  | ARow es us Nothing mv <- a = a
-  | ARow es us (Just b) mv <- a =
-      let a' = IM.fromList $ zip [0..l - 1] (repeat b)
-       in ARow (es `IM.union` a') us Nothing mv
-               --- \ ^^^ Left-biased
-
+-- ASSUME function @f@ maintains 'ARow'\'s invariant.
 updateEntries :: (IntMap Taken -> IntMap Taken) -> ARow e -> ARow e
 updateEntries f (ARow es us ma mv) = ARow (f es) us ma mv
 
