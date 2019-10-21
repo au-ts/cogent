@@ -95,6 +95,8 @@ newtype SG a = SG { runSG :: RWS SGTables [Warning] StateGen a }
                          MonadWriter [Warning],
                          MonadState  StateGen)
 
+isaReservedNames = ["o", "value", "from"]
+
 shallowTVar :: Int -> String
 shallowTVar v = [chr $ ord 'a' + fromIntegral v]
 
@@ -157,7 +159,18 @@ shallowPrimOp CS.Complement [e] = mkApp (mkId "NOT") [e]
 shallowPrimOp CS.Complement _ = __impossible "shallowPrimOp"
 
 snm :: NameMod
-snm = unIsabelleName . mkIsabelleName
+snm nm = case nm `elem` isaReservedNames of
+  True -> nm ++ I.subSym ++ "r"
+  _ -> case stripPrefix D.freshVarPrefix nm of
+    Just nb -> "ds" ++ subSymStr nb
+    Nothing -> case stripPrefix N.freshVarPrefix nm of
+      Just nb -> "an" ++ subSymStr nb
+      -- Add debug note
+      Nothing -> case "_" `isPrefixOf` nm of
+        True  -> dropWhile (== '_') nm ++ subSymStr "d"
+        False -> case "_" `isSuffixOf` nm of
+          True  -> nm ++ subSymStr "x"
+          False -> nm
 
 list2 a b = [a,b]
 
