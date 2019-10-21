@@ -222,17 +222,22 @@ cg e tau = case e of
     let alpha = Record recPar row (UnknownSigil sigil)
     (e1', c1) <- cg e1 alpha
     (e2', c2) <- cg e2 beta
-    
-    traceM (debugPrettyConstraints [c2])
 
     let c3 = Record recPar (Row.put f row) (UnknownSigil sigil) :< tau
-    withSig (Put e1' f e2', c1 :&: c2 :&: c3)
+
+    --traceM (debugPrettyConstraints [c2])
+    withSig (Put e1' f e2', c1 :&: runOver alpha recPar c2 :&: c3)
 
   (Struct fs) -> do
     (fs', ts, cs) <- cgStruct fs
     withSig (Struct fs', conjunction cs :&: Record None (Row.fromList ts) Unboxed :< tau )
 
   where
+
+    runOver :: Type -> RecPar -> Constraint -> Constraint
+    runOver t n (a :&: b) = a :&: runOver t n b
+    runOver t n (x :< y) = trace (debugPrettyConstraints [x :< y]) (x :< UnRoll t n y)
+
 
     cgStruct :: [(FieldName, Expr)] -> CG ([(FieldName, Expr)], [Entry], [Constraint])
     cgStruct [] = return ([], [], [])
