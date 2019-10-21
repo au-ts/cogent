@@ -35,7 +35,7 @@ import Data.Word (Word32)
 -- import Control.Monad.Except
 -- import Control.Monad.Writer hiding (Alt)
 import Control.Monad.Trans.Class
-import Data.IntMap as IM (fromList, null, toList, union, intersection)
+import qualified Data.IntMap as IM
 import qualified Data.Map as M
 import Lens.Micro
 import Lens.Micro.Mtl
@@ -158,14 +158,38 @@ normaliseT d (T (TPut fs t)) = do
 normaliseT d (T (TATake is t)) = do
   t' <- normaliseT d t
   case t' of
-    (T (TArray elt l s tkns)) -> normaliseT d (T (TArray elt l s $ tkns ++ zip is (repeat True)))
+    (T (TArray elt l s tkns)) ->
+      -- PRECONDITION: @tkns@ should contain entries for all the elements
+      let tkns' = map (first $ SE . IntLit . fromIntegral) . IM.toList . takeEntries is . IM.fromList $ map (first evalSExpr) tkns
+       in normaliseT d (T (TArray elt l s tkns'))
     _ -> logErrExit (TakeElementsFromNonArrayType is t')
+  where
+    takeEntries :: [SExpr] -> IM.IntMap Taken -> IM.IntMap Taken
+    takeEntries [] tkns = tkns
+    takeEntries (i:is) tkns = let i' = evalSExpr i
+                                  tkns' = case IM.lookup i' tkns of
+                                            Nothing -> __impossible "takeEntries: no entry found"
+                                            Just False -> IM.adjust (const True) i' tkns
+                                            Just True  -> __impossible "takeEntries: take taken. Will be a warning"
+                               in takeEntries is tkns'
 
 normaliseT d (T (TAPut is t)) = do
   t' <- normaliseT d t
   case t' of
-    (T (TArray elt l s tkns)) -> normaliseT d (T (TArray elt l s $ tkns ++ zip is (repeat False)))
+    (T (TArray elt l s tkns)) ->
+      -- PRECONDITION: @tkns@ should contain entries for all the elements
+      let tkns' = map (first $ SE . IntLit . fromIntegral) . IM.toList . putEntries is . IM.fromList $ map (first evalSExpr) tkns
+       in normaliseT d (T (TArray elt l s tkns'))
     _ -> logErrExit (PutElementsToNonArrayType is t')
+  where
+    putEntries :: [SExpr] -> IM.IntMap Taken -> IM.IntMap Taken
+    putEntries [] tkns = tkns
+    putEntries (i:is) tkns = let i' = evalSExpr i
+                                 tkns' = case IM.lookup i' tkns of
+                                           Nothing -> __impossible "takeEntries: no entry found"
+                                           Just True  -> IM.adjust (const False) i' tkns
+                                           Just False -> __impossible "takeEntries: put untaken. Will be a warning"
+                              in putEntries is tkns'
 #endif
 
 normaliseT d (T (TLayout l t)) = do
@@ -234,7 +258,7 @@ normaliseT d (A t n (Left s) (ARow m [] Nothing Nothing)) = do
 -- be prepended to the @us@.
 normaliseT d (A t n (Left s) (ARow m us (Just b) Nothing)) | isKnown n = do
   let n'  = evalSExpr n
-      us' = zip (map (SE . IntLit) [1..fromIntegral n']) (repeat b)
+      us' = zip (map (SE . IntLit) [0..fromIntegral n' - 1]) (repeat b)
   normaliseT d $ A t n (Left s) (ARow m (us' ++ us) Nothing Nothing)
 -- vvv If we have unevaluated entries, then we need to evaluate them.
 normaliseT d (A t n (Left s) a@(ARow m us Nothing Nothing)) = do

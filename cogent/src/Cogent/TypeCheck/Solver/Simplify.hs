@@ -197,12 +197,12 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
       | s1 == s2 && ARow.null r1 && ARow.null r2 && t1 == t2 && l1 == l2 -> Just []
       | s1 == s2 && l1 /= l2 && (not (isKnown l1) || not (isKnown l2))
       -> Just [A t1 l1 s1 r1 :< A t2 l1 s2 r2, Arith (SE $ PrimOp "==" [l1,l2])]
-      | s1 == s2 && l1 == l2 && isKnown l1 && isKnown l2 -> do
+      | s1 == s2 && l1 == l2 && isKnown l1 -> do
         let -- ASSUME that they are always statically computable
             Just l1' = normaliseSExpr l1
             Just l2' = normaliseSExpr l2
-            r1' = unfoldAll l1' $ ARow.eval normaliseSExpr r1
-            r2' = unfoldAll l2' $ ARow.eval normaliseSExpr r2
+            r1' = ARow.eval normaliseSExpr $ unfoldAll l1' r1
+            r2' = ARow.eval normaliseSExpr $ unfoldAll l2' r2
         guard (reduced r1')
         guard (reduced r2')
         let (r1'',r2'') = ARow.withoutCommon r1' r2'

@@ -331,7 +331,8 @@ typecheck e t = do
   isSub <- isSubtype t' t
   if | t == t' -> return e
      | isSub -> return (promote t e)
-     | otherwise -> __impossible "Inferred type doesn't agree with the given type signature"
+     | otherwise -> __impossible $ "Inferred type doesn't agree with the given type signature:\n" ++
+                                   "Inferred type:\n" ++ show (pretty t') ++ "\nGiven type:\n" ++ show (pretty t)
 
 infer :: UntypedExpr t v a -> TC t v (TypedExpr t v a)
 infer (E (Op o es))
