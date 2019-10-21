@@ -141,7 +141,7 @@ transformRecPars (Forall vs cs t) = Forall vs cs $ trp S.empty t
                                 (Row.mapEntries (\(Entry n t tk) -> Entry n (trp (addRecPar par) t) tk) row) 
                                 s
       where addRecPar p = case p of Rec v -> (S.insert v rp); _ -> rp
-    trp rp (Function a b) = Function a $ trp rp b
+    trp rp (Function a b) = Function (trp rp a) (trp rp b)
     trp _ t = t
 
 nonStrictlyPositiveVars :: Type -> [VarName] 

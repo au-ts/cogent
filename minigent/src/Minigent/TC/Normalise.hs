@@ -25,6 +25,8 @@ normaliseRW = rewrite $ \t -> case t of
     Bang (AbsType n s ts)  -> Just (AbsType n (bangSigil s) (map Bang ts))
     Bang (TypeVar a)       -> Just (TypeVarBang a)
     Bang (TypeVarBang a)   -> Just (TypeVarBang a)
+    Bang (RecPar a)        -> Just (RecParBang a)
+    Bang (RecParBang a)    -> Just (RecParBang a)
     Bang (PrimType t)      -> Just (PrimType t)
     Bang (Variant r)  | rowVar r == Nothing
       -> Just (Variant (Row.mapEntries (entryTypes Bang) r))
