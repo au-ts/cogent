@@ -274,7 +274,8 @@ next
       "K \<turnstile> TSum ts1 wellformed"
       "K \<turnstile> TSum ts2 wellformed"
       using lub_tsum.hyps type_lub_type_glb_wellformed_produce_wellformed
-      by (metis (mono_tags, lifting) list_all3_conv_all_nth list_all_length type_wellformed.simps(6) type_wellformed_pretty_def)+
+      by (metis (mono_tags, lifting) list_all3_conv_all_nth list_all_length 
+                type_wellformed.simps(6) type_wellformed_pretty_def)+
     have "K \<turnstile> TSum ts1 :\<kappa> {D}"
       using lub_tsum
     proof (clarsimp simp: kinding_variant_conv_all_nth kinding_simps)
@@ -630,68 +631,266 @@ lemma specialise_strip_promote_eq_stip_promote_specialise:
   shows "specialise ts (strip_promote e) = strip_promote (specialise ts e)"
   by (induct e; clarsimp)
 
-lemma
-  assumes xi_relates_stripped_vals:
-    \<open>\<And>f a r. \<xi> f a r \<Longrightarrow> \<xi> f (strip_promote_val a) (strip_promote_val r)\<close>
-  shows
+lemma strip_promote_eval_same: 
     \<open>\<xi> , \<gamma> \<turnstile> e \<Down> v \<Longrightarrow>
+      (\<And>f a r. \<xi> f a r \<Longrightarrow> \<xi> f (strip_promote_val a) (strip_promote_val r)) \<Longrightarrow>
      \<xi> , map strip_promote_val \<gamma> \<turnstile> strip_promote e \<Down> strip_promote_val v\<close>
     \<open>\<xi> , \<gamma> \<turnstile>* es \<Down> vs \<Longrightarrow>
+     (\<And>f a r. \<xi> f a r \<Longrightarrow> \<xi> f (strip_promote_val a) (strip_promote_val r)) \<Longrightarrow>
      \<xi> , map strip_promote_val \<gamma> \<turnstile>* map strip_promote es \<Down> map strip_promote_val vs\<close>
-  using assms
 proof (induct rule: v_sem_v_sem_all.inducts)
-  case v_sem_prim then show ?case
-    by (force intro: v_sem_v_sem_all.intros simp add: strip_promote_val_eval_prim)
+  case (v_sem_var i \<gamma> \<xi>)
+  then show ?case 
+    by (simp add: v_sem_var_mapped_ctx)
 next
-  case v_sem_app then show ?case
-    by (force intro: v_sem_v_sem_all.intros simp add: specialise_strip_promote_eq_stip_promote_specialise)
+  case (v_sem_prim \<xi> \<gamma> as as' p)
+  then show ?case 
+    by (simp add: strip_promote_val_eval_prim v_sem_v_sem_all.v_sem_prim)
 next
-  case (v_sem_take \<xi> \<gamma> x fs f e e')
-  then show ?case
-    apply clarsimp
-    apply (rule v_sem_v_sem_all.intros)
-     apply assumption
-
-    sorry
+  case (v_sem_app \<xi> \<gamma> x e ts y a r)
+  then show ?case 
+    by (fastforce 
+        simp: specialise_strip_promote_eq_stip_promote_specialise 
+        intro!:v_sem_v_sem_all.v_sem_app) 
+next
+  case (v_sem_member f fs \<xi> \<gamma> e)
+  then show ?case 
+    by (simp add: v_sem_member_mapped_fields) 
+next
+  case (v_sem_if \<xi> \<gamma> x b t e r)
+  then show ?case 
+    by (fastforce intro!:v_sem_v_sem_all.intros)
 next
   case (v_sem_put \<xi> \<gamma> x fs e e' f)
-  then show ?case
-    sorry
-qed (force intro: v_sem_member_mapped_fields v_sem_var_mapped_ctx v_sem_v_sem_all.intros)+
+  then show ?case 
+    by (simp add: map_update v_sem_v_sem_all.v_sem_put)
+qed (simp_all add: v_sem_v_sem_all.intros)
 
-lemma
-  shows
-    \<open>\<Xi> , K , \<Gamma> \<turnstile> e : \<tau> \<Longrightarrow>
-     \<Xi> , K , \<Gamma> \<turnstile> e' : \<tau>' \<Longrightarrow>
-     strip_promote e' = strip_promote e \<Longrightarrow>
-     \<xi> , \<gamma> \<turnstile> e \<Down> v \<Longrightarrow>
+lemma val_eval_deterministic:
+shows   "\<xi>, \<gamma> \<turnstile> e \<Down> v \<Longrightarrow> \<xi>, \<gamma> \<turnstile> e \<Down> v' \<Longrightarrow> v = v'"
+and     "\<xi>, \<gamma> \<turnstile>* es \<Down> vs \<Longrightarrow>  \<xi>, \<gamma> \<turnstile>* es \<Down> vs' \<Longrightarrow> vs = vs' "
+proof (induct rule: v_sem_v_sem_all.inducts) 
+  case (v_sem_prim \<xi> \<gamma> as as' p)
+  then show ?case apply (clarsimp elim!: v_sem_primE)sorry
+next
+  case (v_sem_abs_app \<xi> \<gamma> x f ts y a r)
+  then show ?case  apply ( elim v_sem_appE; clarsimp) sorry
+next
+  case (v_sem_cast \<xi> \<gamma> e l \<tau> l')
+  then show ?case sorry
+next
+  case (v_sem_app \<xi> \<gamma> x e ts y a r)
+  then show ?case sorry
+next
+  case (v_sem_con \<xi> \<gamma> x x' uu t)
+  then show ?case sorry
+next
+  case (v_sem_member f fs \<xi> \<gamma> e)
+  then show ?case sorry
+next
+  case (v_sem_unit \<xi> \<gamma>)
+  then show ?case sorry
+next
+  case (v_sem_tuple \<xi> \<gamma> x x' y y')
+  then show ?case sorry
+next
+  case (v_sem_esac \<xi> \<gamma> t ts v)
+  then show ?case sorry
+next
+  case (v_sem_let \<xi> \<gamma> a a' b b')
+  then show ?case sorry
+next
+  case (v_sem_letbang \<xi> \<gamma> a a' b b' vs)
+then show ?case sorry
+next
+  case (v_sem_case_m \<xi> \<gamma> x t v m m' n)
+  then show ?case sorry
+next
+  case (v_sem_case_nm \<xi> \<gamma> x t' v t n n' m)
+  then show ?case sorry
+next
+  case (v_sem_if \<xi> \<gamma> x b t e r)
+then show ?case sorry
+next
+  case (v_sem_struct \<xi> \<gamma> xs vs ts)
+then show ?case sorry
+next
+  case (v_sem_take \<xi> \<gamma> x fs f e e')
+  then show ?case sorry
+next
+  case (v_sem_put \<xi> \<gamma> x fs e e' f)
+  then show ?case sorry
+next
+  case (v_sem_split \<xi> \<gamma> x a b e e')
+  then show ?case sorry
+next
+  case (v_sem_all_cons \<xi> \<gamma> x v xs vs)
+  then show ?case sorry
+qed (fastforce intro!: v_sem_v_sem_all.intros)+
+
+
+lemma coherence_of_subsumption:
+  assumes  
+     \<open> \<xi> , \<gamma> \<turnstile> e \<Down> v \<close>
+     \<open> \<xi> , \<gamma> \<turnstile> e' \<Down> v' \<close>
+     \<open> strip_promote e' = strip_promote e \<close>
+     \<open> \<And>f a r. \<xi> f a r \<Longrightarrow> \<xi> f (strip_promote_val a) (strip_promote_val r) \<close>
+(*     \<open> \<Xi> , K , \<Gamma> \<turnstile> e : \<tau> \<close>
+     \<open> \<Xi> , K , \<Gamma> \<turnstile> e' : \<tau>' \<close>
+     \<open> \<Xi> \<turnstile> v :v \<tau> \<close>
+     \<open> \<Xi> \<turnstile> v' :v \<tau>' \<close>
+     \<open> \<xi> matches \<Xi> \<close>
+     \<open> \<Xi> \<turnstile> \<gamma> matches \<Gamma> \<close>*)
+   shows  \<open> strip_promote_val v = strip_promote_val v' \<close>
+  apply (insert assms)
+  apply (drule strip_promote_eval_same(1), simp)
+  apply (drule strip_promote_eval_same(1), simp)
+  by (fastforce intro: val_eval_deterministic)
+
+lemma coherence_of_subsumption_list:
+  assumes  
+     \<open> \<xi> , \<gamma> \<turnstile>* es \<Down> vs \<close>
+     \<open> \<xi> , \<gamma> \<turnstile>* es' \<Down> vs' \<close>
+     \<open> map strip_promote es' = map strip_promote es \<close>
+     \<open> \<And>f a r. \<xi> f a r \<Longrightarrow> \<xi> f (strip_promote_val a) (strip_promote_val r) \<close>
+(*     \<open> \<Xi> , K , \<Gamma> \<turnstile> e : \<tau> \<close>
+     \<open> \<Xi> , K , \<Gamma> \<turnstile> e' : \<tau>' \<close>
+     \<open> \<Xi> \<turnstile> v :v \<tau> \<close>
+     \<open> \<Xi> \<turnstile> v' :v \<tau>' \<close>
+     \<open> \<xi> matches \<Xi> \<close>
+     \<open> \<Xi> \<turnstile> \<gamma> matches \<Gamma> \<close>*)
+   shows  \<open> map strip_promote_val vs = map strip_promote_val vs' \<close>
+  apply (insert assms)
+  apply (drule strip_promote_eval_same(2), simp)
+  apply (drule strip_promote_eval_same(2), simp)
+  by (fastforce intro: val_eval_deterministic)
+
+ (*     \<open>\<xi> , \<gamma> \<turnstile> e \<Down> v \<Longrightarrow>
      \<xi> , \<gamma> \<turnstile> e' \<Down> v' \<Longrightarrow>
+     strip_promote e' = strip_promote e \<Longrightarrow>
+     \<Xi> , K , \<Gamma> \<turnstile> e : \<tau> \<Longrightarrow>
+     \<Xi> , K , \<Gamma> \<turnstile> e' : \<tau>' \<Longrightarrow>
      \<Xi> \<turnstile> v :v \<tau> \<Longrightarrow>
      \<Xi> \<turnstile> v' :v \<tau>' \<Longrightarrow>
      \<xi> matches \<Xi> \<Longrightarrow>
      \<Xi> \<turnstile> \<gamma> matches \<Gamma> \<Longrightarrow>
      v = v'\<close>
-    \<open>\<Xi> , K , \<Gamma> \<turnstile>* es : \<tau>s \<Longrightarrow>
-     \<Xi> , K , \<Gamma> \<turnstile>* es' : \<tau>s' \<Longrightarrow>
-     map strip_promote es' = map strip_promote es \<Longrightarrow>
-     \<xi> , \<gamma> \<turnstile>* es \<Down> vs \<Longrightarrow>
+  \<open>\<xi> , \<gamma> \<turnstile>* es \<Down> vs \<Longrightarrow>
      \<xi> , \<gamma> \<turnstile>* es' \<Down> vs' \<Longrightarrow>
+     map strip_promote es' = map strip_promote es \<Longrightarrow>
+     \<Xi> , K , \<Gamma> \<turnstile>* es : \<tau>s \<Longrightarrow>
+     \<Xi> , K , \<Gamma> \<turnstile>* es' : \<tau>s' \<Longrightarrow>
      \<Xi> \<turnstile>* vs :v \<tau>s \<Longrightarrow>
      \<Xi> \<turnstile>* vs' :v \<tau>s' \<Longrightarrow>
      \<xi> matches \<Xi> \<Longrightarrow>
      \<Xi> \<turnstile> \<gamma> matches \<Gamma> \<Longrightarrow>
-     v = v'\<close>
-   apply (induct e arbitrary: \<tau> e' \<tau>' v v' \<Gamma> \<Xi> K \<xi> \<gamma>; case_tac e'; simp)
-                      apply clarsimp
-                      apply (clarsimp elim!: v_sem_varE)
-                      apply (clarsimp elim!: v_sem_varE v_sem_promoteE)
+     v = v'\<close>*)
+(*
+proof (induct rule: v_sem_v_sem_all.inducts)
+  case (v_sem_var i \<gamma> \<xi>)
+   then show ?case
+   proof (cases e')
+    case (Promote t e'')
+    then show ?thesis
+      
+sorry
+qed (fastforce simp add: v_sem_var.prems)+
+    apply (fastforce)
+    apply (clarsimp elim!: v_sem_varE v_sem_promoteE)
+apply (rename_tac t e'')
+                      apply (case_tac e''; clarsimp)
+                      apply (clarsimp elim!: v_sem_promoteE v_sem_varE typing_varE typing_promoteE)
+                      apply (clarsimp elim!: v_sem_promoteE v_sem_varE typing_varE typing_promoteE)
+                    
+
+  next
+    
+    apply(clarsimp elim: v_sem_v_sem_all.cases) sorry
+next
+  case (v_sem_lit \<xi> \<gamma> l)
+  then show ?case sorry
+next
+  case (v_sem_prim \<xi> \<gamma> as as' p)
+  then show ?case sorry
+next
+  case (v_sem_fun \<xi> \<gamma> f ts)
+  then show ?case sorry
+next
+  case (v_sem_afun \<xi> \<gamma> f ts)
+then show ?case sorry
+next
+  case (v_sem_abs_app \<xi> \<gamma> x f ts y a r)
+  then show ?case sorry
+next
+  case (v_sem_cast \<xi> \<gamma> e l \<tau> l')
+  then show ?case sorry
+next
+  case (v_sem_app \<xi> \<gamma> x e ts y a r)
+  then show ?case sorry
+next
+  case (v_sem_con \<xi> \<gamma> x x' uu t)
+  then show ?case sorry
+next
+  case (v_sem_member f fs \<xi> \<gamma> e)
+then show ?case sorry
+next
+  case (v_sem_unit \<xi> \<gamma>)
+  then show ?case sorry
+next
+  case (v_sem_tuple \<xi> \<gamma> x x' y y')
+  then show ?case sorry
+next
+case (v_sem_esac \<xi> \<gamma> t ts v)
+  then show ?case sorry
+next
+  case (v_sem_let \<xi> \<gamma> a a' b b')
+  then show ?case sorry
+next
+  case (v_sem_letbang \<xi> \<gamma> a a' b b' vs)
+  then show ?case sorry
+next
+  case (v_sem_case_m \<xi> \<gamma> x t v m m' n)
+  then show ?case sorry
+next
+  case (v_sem_case_nm \<xi> \<gamma> x t' v t n n' m)
+  then show ?case sorry
+next
+  case (v_sem_if \<xi> \<gamma> x b t e r)
+  then show ?case sorry
+next
+  case (v_sem_struct \<xi> \<gamma> xs vs ts)
+  then show ?case sorry
+next
+  case (v_sem_take \<xi> \<gamma> x fs f e e')
+  then show ?case sorry
+next
+  case (v_sem_put \<xi> \<gamma> x fs e e' f)
+  then show ?case sorry
+next
+  case (v_sem_split \<xi> \<gamma> x a b e e')
+  then show ?case sorry
+next
+  case (v_sem_promote \<xi> \<gamma> e e' t')
+  then show ?case sorry
+next
+  case (v_sem_all_empty \<xi> \<gamma>)
+  then show ?case sorry
+next
+  case (v_sem_all_cons \<xi> \<gamma> x v xs vs)
+  then show ?case sorry
+qed
+(*   apply (induct e arbitrary: \<tau> e' \<tau>' v v' \<Gamma> \<Xi> K \<xi> \<gamma>; case_tac e'; simp)
+                      
+                      apply fastforce
+   
+                      apply (clarsimp elim!: v_sem_varE v_sem_promoteE) 
                       apply (rename_tac t e'')
                       apply (case_tac e''; clarsimp)
                       apply (clarsimp elim!: v_sem_promoteE v_sem_varE typing_varE typing_promoteE)
                       apply (clarsimp elim!: v_sem_promoteE v_sem_varE typing_varE typing_promoteE)
-                      apply (clarsimp simp add: weaken_to_singleton_split)
+                      apply (clarsimp simp add: weaken_to_singleton_split)*)
   oops
-
+*)
 end
 
 end
