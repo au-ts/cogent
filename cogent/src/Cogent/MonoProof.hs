@@ -103,7 +103,7 @@ rename funMono = [isaDecl| definition $alist_name :: "$sig" where "$(mkId alist_
     mkInst :: (FunName, [(Instance, Int)]) -> [(Term, Term, Term)]
     mkInst (fn,insts) = if null insts
                           then [([isaTerm| $(mkString fn) |], [isaTerm| Nil |], [isaTerm| $(mkString fn) |])]
-                          else map (\(tys,num) -> ([isaTerm| $(mkString fn) |], mkTyList tys, [isaTerm| $(mkString $ fn ++ "_" ++ show num) |])) insts
+                          else map (\(tys,num) -> let fn' = fn ++ "_" ++ show num in ([isaTerm| $(mkString fn) |], mkTyList tys, [isaTerm| $(mkString fn') |])) insts
 
     mkTyList :: [SF.Type 'Zero] -> Term
     mkTyList = I.mkList . map (deepType id (empty, 0))
