@@ -34,7 +34,7 @@ $esc:(#include <linux/timex.h>)
 #define BENCH_DECL cycles_t s, e
 #define BENCH_START() s = get_cycles()
 #define BENCH_END()   e = get_cycles()
-#define BENCH_REPORT(func)  pr_debug(func ## " %llu\n", e - s)
+#define BENCH_REPORT(func)  pr_debug(func " %llu\n", e - s)
 #else
 #define BENCH_DECL 
 #define BENCH_START()
@@ -232,7 +232,7 @@ static int bilbyfs_rmdir(struct inode *dir, struct dentry *dentry)
         fret = $exp:fsop_rmdir(fargs);
         BENCH_END();
         up(&wd->lock);
-        BENCH_REPORT();
+        BENCH_REPORT("bilfs_rmdir:");
         if (fret.p2.tag == TAG_ENUM_Error) {
                 bilbyfs_err("BilbyFsError: fsop_rmdir() = %d\n", fret.p2.Error);
                 return -fret.p2.Error;
@@ -275,7 +275,7 @@ static int bilbyfs_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
         err = wfsop_mkdir(wd, dir, dentry->d_name.name, mode, inode);
         BENCH_END();
         up(&wd->lock);
-        BENCH_REPORT();
+        BENCH_REPORT("bilbyfs_mkdir:");
         if (!err) {
                 insert_inode_hash(inode);
                 d_instantiate(dentry, inode);
@@ -1496,7 +1496,7 @@ static int wfsop_fill_super(struct wrapper_data *wd, struct super_block *sb, int
     fret = $exp:fsop_fill_super(fargs);
     BENCH_END();
     up(&wd->lock);
-    BENCH_REPORT()
+    BENCH_REPORT("wfsop_fill_super:");
     VfsMountInfo_to_super_block(fret.p1.vsup, sb);
     if (fret.p2.tag == TAG_ENUM_Error) {
             /* when fsop_fill_super returns an error, ubi_vol remains taken.
