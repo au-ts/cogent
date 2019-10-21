@@ -667,66 +667,18 @@ next
 qed (simp_all add: v_sem_v_sem_all.intros)
 
 lemma val_eval_deterministic:
-shows   "\<xi>, \<gamma> \<turnstile> e \<Down> v \<Longrightarrow> \<xi>, \<gamma> \<turnstile> e \<Down> v' \<Longrightarrow> v = v'"
-and     "\<xi>, \<gamma> \<turnstile>* es \<Down> vs \<Longrightarrow>  \<xi>, \<gamma> \<turnstile>* es \<Down> vs' \<Longrightarrow> vs = vs' "
-proof (induct rule: v_sem_v_sem_all.inducts) 
-  case (v_sem_prim \<xi> \<gamma> as as' p)
-  then show ?case apply (clarsimp elim!: v_sem_primE)sorry
-next
+shows   "\<xi>, \<gamma> \<turnstile> e \<Down> v \<Longrightarrow> \<xi>, \<gamma> \<turnstile> e \<Down> v' \<Longrightarrow> v' = v"
+and     "\<xi>, \<gamma> \<turnstile>* es \<Down> vs \<Longrightarrow>  \<xi>, \<gamma> \<turnstile>* es \<Down> vs' \<Longrightarrow> vs' = vs"
+proof (induct arbitrary: v' and vs' rule: v_sem_v_sem_all.inducts)
   case (v_sem_abs_app \<xi> \<gamma> x f ts y a r)
-  then show ?case  apply ( elim v_sem_appE; clarsimp) sorry
+  then show ?case
+    apply -
+    apply (erule_tac ?a3.0=\<open>App _ _\<close> in v_sem.cases; clarify)
+    sorry
 next
-  case (v_sem_cast \<xi> \<gamma> e l \<tau> l')
-  then show ?case sorry
-next
-  case (v_sem_app \<xi> \<gamma> x e ts y a r)
-  then show ?case sorry
-next
-  case (v_sem_con \<xi> \<gamma> x x' uu t)
-  then show ?case sorry
-next
-  case (v_sem_member f fs \<xi> \<gamma> e)
-  then show ?case sorry
-next
-  case (v_sem_unit \<xi> \<gamma>)
-  then show ?case sorry
-next
-  case (v_sem_tuple \<xi> \<gamma> x x' y y')
-  then show ?case sorry
-next
-  case (v_sem_esac \<xi> \<gamma> t ts v)
-  then show ?case sorry
-next
-  case (v_sem_let \<xi> \<gamma> a a' b b')
-  then show ?case sorry
-next
-  case (v_sem_letbang \<xi> \<gamma> a a' b b' vs)
-then show ?case sorry
-next
-  case (v_sem_case_m \<xi> \<gamma> x t v m m' n)
-  then show ?case sorry
-next
-  case (v_sem_case_nm \<xi> \<gamma> x t' v t n n' m)
-  then show ?case sorry
-next
-  case (v_sem_if \<xi> \<gamma> x b t e r)
-then show ?case sorry
-next
-  case (v_sem_struct \<xi> \<gamma> xs vs ts)
-then show ?case sorry
-next
-  case (v_sem_take \<xi> \<gamma> x fs f e e')
-  then show ?case sorry
-next
-  case (v_sem_put \<xi> \<gamma> x fs e e' f)
-  then show ?case sorry
-next
-  case (v_sem_split \<xi> \<gamma> x a b e e')
-  then show ?case sorry
-next
-  case (v_sem_all_cons \<xi> \<gamma> x v xs vs)
-  then show ?case sorry
-qed (fastforce intro!: v_sem_v_sem_all.intros)+
+  case v_sem_cast then show ?case
+    by (fastforce elim: v_sem.cases)+
+qed blast+
 
 
 lemma coherence_of_subsumption:
