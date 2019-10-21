@@ -608,8 +608,8 @@ next
         intro: u_sem_var[where \<gamma>="x # xs" and i=0 for x xs, simplified]
         dest: u_tt_sem_pres_type_wellformed2
         simp add: composite_anormal_expr_def empty_def weakening_def weakening_comp.simps
-        list_all2_same kinding_iff_wellformed)
-    apply (frule u_tt_sem_pres_preservation, (simp+)[3])
+                  singleton_def list_all2_same kinding_iff_wellformed)
+     apply (frule u_tt_sem_pres_preservation, (simp+)[3])
     apply (force dest: u_tt_sem_pres_length intro: matches_ptrs_some matches_ptrs_replicate_None)
     done
 next

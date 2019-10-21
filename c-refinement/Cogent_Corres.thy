@@ -19,6 +19,8 @@ imports
   "../cogent/isa/AssocLookup"
 begin
 
+declare singleton_def[simp]
+
 locale update_sem_init = update_sem +
 constrains abs_typing :: "abstyp \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> sigil \<Rightarrow> ptrtyp set \<Rightarrow> ptrtyp set \<Rightarrow> bool"
        and abs_repr :: "abstyp \<Rightarrow> name \<times> repr list"
@@ -592,6 +594,8 @@ shows "corres srel (Take (Var x) f e) (do z \<leftarrow> gets f'; e' z od) \<xi>
   apply (insert split\<Gamma>)
   apply (erule uval_typing.cases; simp)
   apply (rename_tac \<Xi>' \<sigma>' fs' typ' r1' w1)
+  apply clarsimp
+  thm same_type_as_split_weakened_left
   apply (drule(2) same_type_as_split_weakened_left)
   apply clarsimp
   apply (insert x_unboxed[unfolded corres_def] typing_x)
@@ -944,7 +948,8 @@ proof (clarsimp simp: corres_def in_monad snd_bind snd_modify snd_state_assert, 
   have typing_var_elim_lems':
     "[] \<turnstile> \<Gamma>3' \<leadsto>w (Cogent.empty (length \<Gamma>3'))[x := Some (TRecord typ' sgl)]"
     "x < length \<Gamma>3'"
-    using typing_put_elim_lems' by blast+
+    using typing_put_elim_lems' singleton_def
+    by fastforce+
 
   have ftag'_fty'_is:
     "ftag' = fst (typ!f)"
