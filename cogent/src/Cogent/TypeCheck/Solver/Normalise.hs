@@ -17,7 +17,7 @@ module Cogent.TypeCheck.Solver.Normalise where
 import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Surface
-import Cogent.TypeCheck.ARow as AR (ARow(..))
+import qualified Cogent.TypeCheck.ARow as ARow
 import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Solver.Goal
 import Cogent.TypeCheck.Solver.Monad
@@ -26,6 +26,7 @@ import Cogent.TypeCheck.Solver.Util
 import qualified Cogent.TypeCheck.Row as Row
 
 import Control.Applicative
+import qualified Data.IntMap as IM
 import Data.Maybe
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
@@ -74,14 +75,22 @@ normaliseRW = rewrite' $ \t -> case t of
         Nothing -> pure $ V (Row.putAll row)
         Just fs -> pure $ V (Row.putMany fs row)
 #ifdef BUILTIN_ARRAYS
-    -- Don't normliase ARows. That's done in Cogent.TypeCheck.Solver.Simplify
-    T (TATake idxs (A t l s (ARow knowns unevals mall mv))) -> 
-      let unevals' = unevals ++ map (,True) idxs   -- NOTE: it may contain conflicting entries in 'unevals', but they
-                                                   -- should get resolved when evaluated. / zilinc
-       in pure $ A t l s (ARow knowns unevals' mall mv)
-    T (TAPut idxs (A t l s (ARow knowns unevals mall mv))) -> 
-      let unevals' = unevals ++ map (,False) idxs
-       in pure $ A t l s (ARow knowns unevals' mall mv)
+    A t l s r | not (ARow.reduced r) -> 
+      let l' = normaliseSExpr l
+          r' = ARow.reduce l' (Just . normaliseSExpr) r
+       in pure $ A t l s r'
+    T (TATake idxs (A t l s r)) | isNothing (ARow.var r) -> 
+      let l' = normaliseSExpr l
+          r' = ARow.reduce l' (Just . normaliseSExpr) r
+          es' = IM.fromList $ map ((,True) . normaliseSExpr) idxs
+          r'' = ARow.updateEntries (\es -> es' `IM.union` es) r'
+       in pure $ A t l s r''
+    T (TAPut idxs (A t l s r)) | isNothing (ARow.var r) -> 
+      let l' = normaliseSExpr l
+          r' = ARow.reduce l' (Just . normaliseSExpr) r
+          es' = IM.fromList $ map ((,False) . normaliseSExpr) idxs
+          r'' = ARow.updateEntries (\es -> es' `IM.union` es) r'
+       in pure $ A t l s r''
 #endif
     T (TLayout l (R row (Left (Boxed p _)))) ->
       pure $ R row $ Left $ Boxed p (Just l)
@@ -122,3 +131,6 @@ normaliseTypes = mapM $ \g -> do
    c' <- traverse whnf (g ^. goal)
    pure $ set goal c' g
 
+normaliseSExpr :: SExpr -> Int
+normaliseSExpr (SE (IntLit n)) = fromIntegral n
+normaliseSExpr _ = __todo "normaliseSExpr"

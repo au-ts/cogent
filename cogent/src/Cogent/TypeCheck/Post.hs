@@ -254,19 +254,11 @@ normaliseT d (A t n (Left s) (ARow m [] Nothing Nothing)) = do
   s' <- normaliseS s
   let tkns = map (first $ SE . IntLit . fromIntegral) $ IM.toList m
   return $ T $ TArray t' n s' tkns
--- vvv @all@ takes lower priority than the explicit constriants, thus they should
--- be prepended to the @us@.
-normaliseT d (A t n (Left s) (ARow m us (Just b) Nothing)) | isKnown n = do
+-- If the A-row is not reduced, reduce it first.
+normaliseT d (A t n (Left s) r@(ARow _ _ _ Nothing)) | isKnown n = do
   let n'  = evalSExpr n
-      us' = zip (map (SE . IntLit) [0..fromIntegral n' - 1]) (repeat b)
-  normaliseT d $ A t n (Left s) (ARow m (us' ++ us) Nothing Nothing)
--- vvv If we have unevaluated entries, then we need to evaluate them.
-normaliseT d (A t n (Left s) a@(ARow m us Nothing Nothing)) = do
-  let us' = IM.fromList $ fmap (first evalSExpr) us
-  if IM.null (IM.intersection us' m) then
-     let m' = IM.union m us'
-      in normaliseT d (A t n (Left s) (ARow m' [] Nothing Nothing))
-  else __impossible $ "normaliseT: invalid a-row: not disjoint: " ++ show (pretty a)
+      r'  = ARow.reduce n' (Just . evalSExpr) r
+   in normaliseT d (A t n (Left s) r')
 normaliseT d (A t n (Left s) (ARow _ _ _ (Just x))) = __impossible $ "normaliseT: invalid a-row (?" ++ show x ++ ")"
 normaliseT d (A t n (Right s) tkns) = __impossible ("normaliseT: invalid sigil (?" ++ show s ++ ")")
 #endif
