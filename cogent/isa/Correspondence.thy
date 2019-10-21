@@ -2262,7 +2262,7 @@ and     "\<lbrakk> \<xi> , \<gamma>  \<turnstile>* (\<sigma>, es) \<Down>! (\<si
   case (u_sem_var \<xi> \<gamma> \<sigma> i)
   then show ?case
     apply (clarsimp elim!: typing_varE)
-    sledgehammer
+    
     sorry
 next
      case u_sem_cast
