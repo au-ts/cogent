@@ -509,8 +509,9 @@ instance (Pretty t, TypeType t, Pretty e) => Pretty (Type e t) where
         (takes,puts) = partition snd tkns
         pTakens = if null takes then id else
                 (<+> typesymbol "@take" <+> tupled (map (pretty . fst) takes))
-        pPuts   = if null puts  then id else
-                (<+> typesymbol "@put"  <+> tupled (map (pretty . fst) puts ))
+        pPuts = id  -- default is put
+        -- pPuts   = if null puts  then id else
+        --         (<+> typesymbol "@put"  <+> tupled (map (pretty . fst) puts ))
      in prettyT' t <> (layoutPretty . sigilPretty $ brackets (pretty l)) & (pPuts . pTakens)
   pretty (TATake idxs t)
     = (prettyT' t <+> typesymbol "@take"
