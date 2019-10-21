@@ -26,8 +26,16 @@ PROOF_ID=BilbyFs
 STDGUM=$(COGENT_STD_GUM_DIR)
 $(WARNING stdgum = $(COGENT_STD_GUM_DIR))
 ifeq ($(STDGUM),)
-STDGUM=$(shell cogent --stdgum-dir)
+STDGUM:=$(shell cogent --stdgum-dir)
 endif
+
+COGENT_VERSION:=$(shell cogent --version | sed 's/.*: 2\.\([0-9]*\)\..*/\1/')
+ifeq (${COGENT_VERSION},9)
+COGENT_CPP:=--cogent-pp-args='-DSUBTYPING'
+else
+COGENT_CPP:=
+endif
+
 # ADT headers required by BilbyFs
 AHFILES=$(wildcard $(STDGUM)/gum/anti/abstract/*.ah)
 # ADT C files required by BilbyFs
@@ -69,7 +77,7 @@ LINUX_EXTRA_CFLAGS := -I$(PWD)/plat/linux/ -I$(PWD) -I$(PWD)/src -I$(PWD)/lib -I
 VERIF_EXTRA_CFLAGS := -I$(PWD)/plat/verification/ -I$(PWD) -I$(PWD)/src -I$(PWD)/lib -I$(PWD)/abstract -I$(STDGUM) $(COMMON_CFLAGS)
 
 # COGENT flags
-COGENT_FLAGS+= -Od --fno-static-inline --fno-fncall-as-macro --fnormalisation=knf --ffunc-purity-attr --fno-pretty-errmsgs -DSUBTYPING
+COGENT_FLAGS+= -Od --fno-static-inline --fno-fncall-as-macro --fnormalisation=knf --ffunc-purity-attr --fno-pretty-errmsgs
 # end of configuration
 
 override COGENT_FLAGS+= -o$(OUTPUT) \
@@ -137,8 +145,9 @@ all: .c-gen $(OBJ)
 #       So we use c99 mode here and when building the generated C code(make modules), we
 #       use `gnu99` mode.
 .c-gen:
-	$(Q)COGENT_STD_GUM_DIR=${STDGUM} cogent $(SRC) -g $(COGENT_FLAGS)  --cogent-pp-args='-DSUBTYPING' \
+	$(Q)COGENT_STD_GUM_DIR=${STDGUM} cogent $(SRC) -g $(COGENT_FLAGS)   \
                 --cpp-args="-std=c99 \$$CPPIN -o \$$CPPOUT -E -P $(EXTRA_CFLAGS)" \
+		${COGENT_CPP} \
                 --dist-dir=$(DIST_DIR) \
                 --infer-c-funcs="$(ACFILES)" \
 		--ext-types="$(LINUX_TYPES)"
