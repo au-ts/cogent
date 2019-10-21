@@ -29,6 +29,7 @@ import qualified Minigent.Syntax.Utils.Row as Row
 
 import Control.Monad.Trans.Writer.Strict
 import qualified Data.Map as M
+import qualified Data.Set as S
 import Data.List (nub, (\\), intersperse )
 
 type Error = String
@@ -114,7 +115,7 @@ reorganiseTopLevel (TypeSig f pt@(Forall tvs c t)) envs = do
      then tell ["Duplicate quantified type variable in type signature for " ++ f] 
      else return ()
    sanityCheckType (nub tvs) t
-   return (envs { types = M.insert f pt (types envs) })
+   return (envs { types = M.insert f (transformRecPars pt) (types envs) })
 
 reorganiseTopLevel (Equation f x e) envs = do 
    case M.lookup f (defns envs) of 
@@ -125,6 +126,23 @@ reorganiseTopLevel (Equation f x e) envs = do
             Nothing -> tell ["No type given for " ++ f] >> return []
    e' <- sanityCheckExpr envs tvs [x] e
    return (envs { defns = M.insert f (x,e') (defns envs) })
+
+-- | Given a PolyType definition, changes all recursive parameter references from TypeVar to RecPar 
+transformRecPars :: PolyType -> PolyType
+transformRecPars (Forall vs cs t) = Forall vs cs $ trp S.empty t
+  where
+    trp :: S.Set VarName -> Type -> Type
+    trp rp (AbsType n s ts) = AbsType n s $ map (trp rp) ts
+    trp rp (Variant row) = Variant $ Row.mapEntries (\(Entry n t tk) -> Entry n (trp rp t) tk) row
+    trp rp (Bang t) = Bang $ trp rp t
+    trp rp tv@(TypeVar v) = if S.member v rp then (RecPar v) else tv
+    trp rp tv@(TypeVarBang v) = if S.member v rp then (RecParBang v) else tv
+    trp rp (Record par row s) = Record par
+                                (Row.mapEntries (\(Entry n t tk) -> Entry n (trp (addRecPar par) t) tk) row) 
+                                s
+      where addRecPar p = case p of Rec v -> (S.insert v rp); _ -> rp
+    trp rp (Function a b) = Function a $ trp rp b
+    trp _ t = t
 
 nonStrictlyPositiveVars :: Type -> [VarName] 
 nonStrictlyPositiveVars t = sp t M.empty

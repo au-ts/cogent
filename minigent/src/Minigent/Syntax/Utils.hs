@@ -278,8 +278,8 @@ unRoll :: Type -> RecPar -> Type -> Type
 unRoll t None t' = t'
 unRoll t (Rec n) t' | typeUVs t' == [] = 
   case t' of
-    TypeVar     v | v == n -> t
-    TypeVarBang v | v == n -> t
+    RecPar      v | v == n -> t
+    RecParBang  v | v == n -> Bang t
 
     Record p r s -> Record p (rollRow r) s
     Variant r    -> Variant  (rollRow r)
@@ -333,7 +333,7 @@ substRecPar (v1, v2) = RW.rewrite $
     Record (UnknownParameter n) r s | n == v1 -> 
       Just (Record v2 r s)
     UnRoll a (UnknownParameter n) t ->
-        if (n == v1) then
+        if n == v1 then
           Just (UnRoll a v2 t)
         else Nothing
     _ -> Nothing

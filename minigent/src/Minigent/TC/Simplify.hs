@@ -36,6 +36,7 @@ simplify axs = Rewrite.pickOne $ \c -> case c of
   Escape (Function _ _)               -> Just []
   Drop   (TypeVarBang _)              -> Just []
   Share  (TypeVarBang _)              -> Just []
+  -- TODO: Drop/Share RecParBang?
   Share  (Variant es)                 -> guard (rowVar es == Nothing)
                                       >> Just (map Share  (Row.untakenTypes es))
   Drop   (Variant es)                 -> guard (rowVar es == Nothing)
