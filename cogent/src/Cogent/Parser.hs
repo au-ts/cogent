@@ -254,7 +254,7 @@ basicExpr' = avoidInitial >> buildExpressionParser
               , Infix funapp AssocLeft
               , Postfix ((\rs x -> LocExpr (posOfE x) (Put x rs)) <$> braces recAssignsAndOrWildcard)
 #ifdef BUILTIN_ARRAYS
-              , Postfix ((\rs x -> LocExpr (posOfE x) (ArrayPut x rs)) <$> (string "@" >> braces arrayAssigns))
+              , Postfix ((\rs x -> LocExpr (posOfE x) (ArrayPut x rs)) <$> between (reservedOp "@{") (symbol "}") arrayAssigns)
 #endif
               ]
 
