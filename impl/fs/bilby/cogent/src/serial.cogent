@@ -327,15 +327,17 @@ deserialise_Obj(ex, buf, offs) =
     let (obj, r) = deserialise_ObjHeader(buf, offs, obj)
     in r
     | Error e ->
-      let ex = freeObj(ex, obj)
+      let obj {magic, crc, sqnum, offs, len, trans, otype} = obj
+      and ex = freeObj(ex, obj)
       in Error (e, ex)
     | Success offs ->
-      deserialise_ObjUnion(ex, buf, offs, (obj.otype,obj.len)) !obj
+      deserialise_ObjUnion(ex, buf, offs, (obj.otype, obj.len)) !obj
       | Error (e, ex) ->
         cogent_debug "Could not deserialise Obj_union at " ;
         cogent_debug_u32 (offs+bilbyFsObjHeaderSize);
         cogent_debug "\n" ;
-        let ex = freeObj(ex, obj)
+        let obj {magic, crc, sqnum, offs, len, trans, otype} = obj
+	and ex = freeObj(ex, obj)
         in Error (e, ex)
       | Success (ex, ounion, offs') ->
         cogent_debug "deserialise_Obj: otype =" ; 
@@ -391,7 +393,7 @@ serialise_ObjUnion(buf, offs, ou, olen) =
 
 {-# cinline deep_freeObjDentry #-}
 deep_freeObjDentry: (SysState, ObjDentry) -> SysState
-deep_freeObjDentry(ex, obj {name}) =
+deep_freeObjDentry(ex, obj {name, ino, dtype, nlen}) =
   let ex = freeObjDentry(ex, obj)
   in wordarray_free[U8](ex, name)
 
@@ -745,7 +747,7 @@ summary_init(ex, max_nb_sum_entry) =
         in Success (ex, sum {nb_sum_entry=0, entries, sum_offs}, sum_obj)
 
 summary_clean: (SysState, ObjSummary) -> SysState
-summary_clean(ex, sum {entries}) =
+summary_clean(ex, sum {entries, nb_sum_entry, sum_offs}) =
   let ex = wordarray_free[ObjSumEntry] (ex, entries)
   in freeObjSummary(ex, sum)
 
@@ -1316,7 +1318,9 @@ serialise_size_ObjUnion  ounion =
 
 {-# cinline deep_freeObjInode #-}
 deep_freeObjInode: (SysState, ObjInode) -> SysState
-deep_freeObjInode(ex, v) = freeObjInode(ex, v)
+deep_freeObjInode(ex, v) =
+    let v {id, size, atime_sec, ctime_sec, mtime_sec, nlink, uid, gid, mode, flags} = v
+    in freeObjInode(ex, v)
 
 {-# cinline deep_freeObjData #-}
 deep_freeObjData: (SysState, ObjData) -> SysState
@@ -1327,7 +1331,9 @@ deep_freeObjData(ex, v) =
 
 {-# cinline deep_freeObjSuper #-}
 deep_freeObjSuper: (SysState, ObjSuper) -> SysState
-deep_freeObjSuper(ex, v) = freeObjSuper(ex, v)
+deep_freeObjSuper(ex, v) =
+	let v {nb_eb, eb_size, io_size, nb_reserved_gc, nb_reserved_del, cur_eb, cur_offs, last_inum, next_sqnum} = v
+	in freeObjSuper(ex, v)
 
 serialise_Obj_crc: (Buffer, U32, Obj) -> (Buffer, U32, Obj)
 serialise_Obj_crc (buf, offs, obj) =

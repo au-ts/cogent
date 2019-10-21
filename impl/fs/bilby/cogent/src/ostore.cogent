@@ -184,7 +184,8 @@ ostore_read_sum(ex, mount_st, ostore_st {rbuf}, ebnum) =
         ((ex, ostore_st), Success sum_offs)
 
 ostore_clean: (SysState, OstoreState) -> SysState
-ostore_clean(ex, ostore_st {rbuf,wbuf,opad,pools,fsm_st,index_st,ubi_vol,summary,sum_obj}) =
+ostore_clean(ex, ostore_st {rbuf,wbuf,opad,pools,fsm_st,index_st,ubi_vol,summary,sum_obj,
+		 next_inum, next_sqnum, wbuf_eb, used, sync_offs, oaddr }) =
   let ex = buf_free(ex, rbuf)
   and ex = buf_free(ex, wbuf)
   and ex = deep_freeObj(ex, opad)
@@ -1548,6 +1549,7 @@ ostore_write_super (ex, mount_st, ostore_st) =
 
       and ostore_st = ostore_st {wbuf_eb=bilbyFsSuperEbNum,
             used=mount_st.super_offs, sync_offs=mount_st.super_offs} !mount_st
+      and obj {magic, crc, sqnum, offs, len, trans, otype } = obj
       and obj = obj_init_super(obj, next_sqnum, mount_st.super_offs) !mount_st
       and ostore_st = ostore_st {next_sqnum = next_sqnum+1} 
       and ostore_st {wbuf} = ostore_st
