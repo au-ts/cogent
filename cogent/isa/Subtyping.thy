@@ -673,7 +673,7 @@ lemma val_eval_deterministic:
   using assms
 proof (induct arbitrary: v' and vs' rule: v_sem_v_sem_all.inducts)
   case (v_sem_cast \<xi> \<gamma> e l \<tau> l')
-  then show ?case by fastforce+
+  then show ?case by fastforce
 next
   case (v_sem_case_nm \<xi> \<gamma> x t' v t n n' m)
   then show ?case 

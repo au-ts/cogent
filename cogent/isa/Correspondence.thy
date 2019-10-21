@@ -128,6 +128,21 @@ and upd_val_rel_record :: "('f \<Rightarrow> poly_type)
                   ; upd.uval_repr_deep x = rp
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile>* ((x,rp) # xs) \<sim> (x' # xs') :r ((n, t, Taken) # ts) \<langle>r, w\<rangle>"
 
+lemmas upd_val_rel_record_simple_induct =
+  upd_val_rel_upd_val_rel_record.inducts(2)[where ?P1.0=\<open>\<lambda>_ _ _ _ _ _ _. True\<close>, simplified, consumes 1]
+
+inductive_cases u_v_primE     [elim] : "\<Xi>, \<sigma> \<turnstile> UPrim l \<sim> VPrim l' : TPrim \<tau> \<langle>r, w\<rangle>"
+inductive_cases u_v_functionE [elim] : "\<Xi>, \<sigma> \<turnstile> UFunction f ts \<sim> VFunction f' ts' : TFun \<tau> \<rho> \<langle>r, w\<rangle>"
+inductive_cases u_v_afunE     [elim] : "\<Xi>, \<sigma> \<turnstile> UAFunction f ts \<sim> VAFunction f' ts' : TFun \<tau> \<rho> \<langle>r, w\<rangle>"
+inductive_cases u_v_sumE      [elim] : "\<Xi>, \<sigma> \<turnstile> u \<sim> v : TSum \<tau>s \<langle>r, w\<rangle>"
+inductive_cases u_v_productE  [elim] : "\<Xi>, \<sigma> \<turnstile> UProduct a b \<sim> VProduct a' b' : TProduct \<tau> \<rho> \<langle>r, w\<rangle>"
+inductive_cases u_v_recE      [elim] : "\<Xi>, \<sigma> \<turnstile> URecord fs \<sim> VRecord fs' : \<tau> \<langle>r, w\<rangle>"
+inductive_cases u_v_p_recE    [elim] : "\<Xi>, \<sigma> \<turnstile> UPtr p rp \<sim> VRecord fs' : TRecord fs s \<langle>r, w\<rangle>"
+inductive_cases u_v_r_emptyE  [elim] : "\<Xi>, \<sigma> \<turnstile>* [] \<sim> [] :r \<tau>s \<langle>r, w\<rangle>"
+inductive_cases u_v_r_consE   [elim] : "\<Xi>, \<sigma> \<turnstile>* (a # b) \<sim> (a' # b') :r \<tau>s \<langle>r, w\<rangle>"
+inductive_cases u_v_r_consE'  [elim] : "\<Xi>, \<sigma> \<turnstile>* (a # b) \<sim> xx :r \<tau>s \<langle>r, w\<rangle>"
+
+
 lemma upd_val_rel_to_vval_typing:
 shows "\<Xi>, \<sigma> \<turnstile>  u  \<sim> v  :  \<tau>  \<langle>r, w\<rangle> \<Longrightarrow> val.vval_typing \<Xi> v \<tau>"
 and   "\<Xi>, \<sigma> \<turnstile>* us \<sim> vs :r \<tau>s \<langle>r, w\<rangle> \<Longrightarrow> val.vval_typing_record \<Xi> vs \<tau>s"
@@ -164,19 +179,13 @@ next
 qed (auto intro!: upd.uval_typing_uval_typing_record.intros)
 
 
+lemma upd_val_rel_record_length_same:
+  "\<Xi>, \<sigma> \<turnstile>* us \<sim> vs :r ts \<langle>r, w\<rangle> \<Longrightarrow> length us = length ts \<and> length vs = length ts"
+  by (induct rule: upd_val_rel_record_simple_induct) force+
+
+
 lemma u_v_prim' : "\<tau> = lit_type l \<Longrightarrow> l = l' \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPrim l \<sim> VPrim l' : TPrim \<tau> \<langle>{}, {}\<rangle>"
    by (simp add: u_v_prim)
-
-inductive_cases u_v_primE     [elim] : "\<Xi>, \<sigma> \<turnstile> UPrim l \<sim> VPrim l' : TPrim \<tau> \<langle>r, w\<rangle>"
-inductive_cases u_v_functionE [elim] : "\<Xi>, \<sigma> \<turnstile> UFunction f ts \<sim> VFunction f' ts' : TFun \<tau> \<rho> \<langle>r, w\<rangle>"
-inductive_cases u_v_afunE     [elim] : "\<Xi>, \<sigma> \<turnstile> UAFunction f ts \<sim> VAFunction f' ts' : TFun \<tau> \<rho> \<langle>r, w\<rangle>"
-inductive_cases u_v_sumE      [elim] : "\<Xi>, \<sigma> \<turnstile> u \<sim> v : TSum \<tau>s \<langle>r, w\<rangle>"
-inductive_cases u_v_productE  [elim] : "\<Xi>, \<sigma> \<turnstile> UProduct a b \<sim> VProduct a' b' : TProduct \<tau> \<rho> \<langle>r, w\<rangle>"
-inductive_cases u_v_recE      [elim] : "\<Xi>, \<sigma> \<turnstile> URecord fs \<sim> VRecord fs' : \<tau> \<langle>r, w\<rangle>"
-inductive_cases u_v_p_recE    [elim] : "\<Xi>, \<sigma> \<turnstile> UPtr p rp \<sim> VRecord fs' : TRecord fs s \<langle>r, w\<rangle>"
-inductive_cases u_v_r_emptyE  [elim] : "\<Xi>, \<sigma> \<turnstile>* [] \<sim> [] :r \<tau>s \<langle>r, w\<rangle>"
-inductive_cases u_v_r_consE   [elim] : "\<Xi>, \<sigma> \<turnstile>* (a # b) \<sim> (a' # b') :r \<tau>s \<langle>r, w\<rangle>"
-inductive_cases u_v_r_consE'  [elim] : "\<Xi>, \<sigma> \<turnstile>* (a # b) \<sim> xx :r \<tau>s \<langle>r, w\<rangle>"
 
 lemma u_v_p_abs_ro': "\<lbrakk> s = Boxed ReadOnly ptrl
                       ; abs_upd_val a a' n ts s r w
@@ -251,6 +260,10 @@ inductive u_v_matches :: "('f \<Rightarrow> poly_type)
                        \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> (x # xs) \<sim> (x' # xs') matches (Some t # ts) \<langle>r \<union> r', w \<union> w'\<rangle>"
 
 inductive_cases u_v_matches_consE: "\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches (\<tau> # \<tau>s) \<langle> r , w \<rangle>"
+
+lemma u_v_matches_length_same:
+  "\<Xi>, \<sigma> \<turnstile> us \<sim> vs matches \<Gamma> \<langle>r, w\<rangle> \<Longrightarrow> length us = length \<Gamma> \<and> length vs = length \<Gamma>"
+  by (induct rule: u_v_matches.inducts) force+
 
 lemma u_v_matches_to_matches:
 assumes "\<Xi>, \<sigma> \<turnstile> us \<sim> vs matches \<Gamma> \<langle>r, w\<rangle>"
@@ -1243,7 +1256,6 @@ lemma value_subtyping:
     and "\<Xi>, \<sigma> \<turnstile>* vs \<sim> vs' :r ts \<langle>r, w\<rangle>
           \<Longrightarrow> [] \<turnstile> TRecord ts s \<sqsubseteq> TRecord ts' s
           \<Longrightarrow> \<exists>r'. r' \<subseteq> r \<and> \<Xi>, \<sigma> \<turnstile>* vs \<sim> vs' :r ts' \<langle>r', w\<rangle>"
-(* TODO clean up and rewrite as Isar proof *)
 proof (induct arbitrary: t' and ts' s rule: upd_val_rel_upd_val_rel_record.inducts)
   case (u_v_product \<Xi> \<sigma> a a' t r w b b' u r' w')
   then show ?case
@@ -1323,7 +1335,7 @@ next
     apply -
     apply (erule subtyping.cases; clarsimp)
     apply (rule_tac V="[] \<turnstile> TRecord ts (Boxed ReadOnly ptrl) \<sqsubseteq> TRecord ts2 (Boxed ReadOnly ptrl)" in revcut_rl)
-     using u_v_p_rec_ro.prems apply blast
+    apply (fast intro!: subtyping.intros)
     apply (rule_tac V="\<exists>r'\<subseteq>r. \<Xi>, \<sigma> \<turnstile>* fs \<sim> fs' :r ts2 \<langle>r', {}\<rangle>" in revcut_rl, blast)
     apply (erule exE)
     apply (erule conjE)
@@ -1338,7 +1350,7 @@ next
     apply -
     apply (erule subtyping.cases; clarsimp)
     apply (rule_tac V="[] \<turnstile> TRecord ts (Boxed Writable ptrl) \<sqsubseteq> TRecord ts2 (Boxed Writable ptrl)" in revcut_rl)
-     using u_v_p_rec_w.prems apply blast
+    apply (fast intro!: subtyping.intros)
     apply (rule_tac V="\<exists>r'\<subseteq>r. \<Xi>, \<sigma> \<turnstile>* fs \<sim> fs' :r ts2 \<langle>r', w\<rangle>" in revcut_rl, blast)
     apply (erule exE)
     apply (erule conjE)
@@ -1373,17 +1385,16 @@ next
     apply (elim exE)
     apply (elim conjE)
     apply (case_tac b; simp)
-     apply (rule_tac V="w = {}" in revcut_rl)
-      using u_v_discardable_not_writable(1) apply fastforce
-     apply (rule_tac x="r'aa" in exI)
-     apply (intro conjI, blast)
-     apply (intro upd_val_rel_upd_val_rel_record.intros)
-         apply simp
-        apply (metis kinding_to_wellformedD(1) record_state.distinct(1) snd_conv subtyping_wellformed_preservation(1))
-       apply (simp add: subtyping_preserves_type_repr)
-      apply (metis subtyping_preserves_type_repr upd.type_repr_uval_repr(1) upd_val_rel_to_uval_typing(1))
-     apply (metis subtyping_preserves_type_repr upd.type_repr_uval_repr_deep(1) upd_val_rel_to_uval_typing(1))
-
+     apply (subgoal_tac "w = {}")
+      apply (rule_tac x="r'aa" in exI)
+      apply (intro conjI, blast)
+      apply (intro upd_val_rel_upd_val_rel_record.intros)
+          apply simp
+         apply (metis kinding_to_wellformedD(1) record_state.distinct(1) snd_conv subtyping_wellformed_preservation(1))
+        apply (simp add: subtyping_preserves_type_repr)
+       apply (metis subtyping_preserves_type_repr upd.type_repr_uval_repr(1) upd_val_rel_to_uval_typing(1))
+      apply (metis subtyping_preserves_type_repr upd.type_repr_uval_repr_deep(1) upd_val_rel_to_uval_typing(1))
+    apply (meson singletonI u_v_discardable_not_writable(1))
     apply (rule_tac x="r'a \<union> r'aa" in exI)
     apply (intro conjI, blast)
     apply (intro upd_val_rel_upd_val_rel_record.intros; (simp add: subtyping_preserves_type_repr)?; blast?)
@@ -1399,8 +1410,8 @@ next
     apply (rule_tac x="r'" in exI)
     apply (intro conjI, blast)
     apply (case_tac b; clarsimp)
-    using subtyping_wellformed_preservation(1)
     apply (fastforce
+        dest: subtyping_wellformed_preservation
         intro!: upd_val_rel_upd_val_rel_record.intros
         simp add: subtyping_preserves_type_repr)
     done
@@ -2259,11 +2270,8 @@ and     "\<lbrakk> \<xi> , \<gamma>  \<turnstile>* (\<sigma>, es) \<Down>! (\<si
   using assms proof (induct "(\<sigma>,e)" "(\<sigma>',v)"
     and "(\<sigma>,es)" "(\<sigma>', vs)" arbitrary: \<Gamma> r w \<sigma> e v \<tau> \<sigma>' \<gamma>' and \<Gamma> r w  \<sigma> es vs \<tau>s' \<sigma>'  \<gamma>'
     rule: u_sem_u_sem_all.inducts)
-  case (u_sem_var \<xi> \<gamma> \<sigma> i)
-  then show ?case
-    apply (clarsimp elim!: typing_varE)
-    
-    sorry
+  case u_sem_var then show ?case
+    by (force dest: u_v_matches_length_same intro: v_sem_v_sem_all.intros)
 next
      case u_sem_cast
   note IH   = this(2)
@@ -2323,15 +2331,19 @@ next case (u_sem_abs_app _ _ _ _ _ f)
     apply (rule,erule(2) v_sem_abs_app)
     done
 next case u_sem_con then show ?case by (force intro!: v_sem_v_sem_all.intros)
-next case u_sem_member
+next case (u_sem_member \<xi> \<gamma> \<sigma> e \<sigma>' fs f)
   note IH = this(2)
   and rest = this(1,3-)
   from rest show ?case
-    apply (clarsimp elim!: typing_memberE)
+    apply -
+    apply (erule typing_memberE)
     apply (frule(3) IH, clarsimp)
     apply (frule(5) mono_correspondence, clarsimp)
-    apply (force elim: upd_val_rel.cases intro!: v_sem_v_sem_all.intros)
-  done
+    apply (force
+        intro!: v_sem_v_sem_all.intros
+        dest: upd_val_rel_record_length_same
+        elim: upd_val_rel.cases)
+    done
 next case u_sem_memb_b
   note IH = this(2)
   and rest = this(1,3-)
@@ -2339,7 +2351,10 @@ next case u_sem_memb_b
     apply (clarsimp elim!: typing_memberE)
     apply (frule(3) IH, clarsimp)
     apply (frule(5) mono_correspondence, clarsimp)
-    apply (force elim: upd_val_rel.cases intro!: v_sem_v_sem_all.intros)
+    apply (force
+        intro!: v_sem_v_sem_all.intros
+        dest: upd_val_rel_record_length_same
+        elim: upd_val_rel.cases)
   done
 next case u_sem_esac
   note IH = this(2)
@@ -2599,8 +2614,13 @@ next case u_sem_take
        apply (blast)
       apply (blast)
      apply (blast)
-    apply (force intro: v_sem_v_sem_all.intros)
-  done
+    apply (frule upd_val_rel_record_length_same; clarsimp)
+    apply (rule exI)
+    apply (rule v_sem_v_sem_all.intros)
+      apply blast
+     apply blast
+    apply argo
+    done
 next case u_sem_take_ub
   note IH1 = this(2)
   and  IH2 = this(4)
@@ -2653,7 +2673,12 @@ next case u_sem_take_ub
        apply (blast)
       apply (blast)
      apply (blast)
-    apply (force intro: v_sem_v_sem_all.intros)
+    apply (frule upd_val_rel_record_length_same; clarsimp)
+    apply (rule exI)
+    apply (rule v_sem_v_sem_all.intros)
+      apply blast
+     apply blast
+    apply argo
   done
 next case u_sem_put
   note IH1 = this(2)
@@ -2667,7 +2692,12 @@ next case u_sem_put
     apply (drule(5) mono_correspondence [rotated -1], clarsimp)
     apply (frule(5) IH2 [OF _ _ u_v_matches_frame,rotated -1],force)
     apply (erule upd_val_rel.cases,simp_all)
-    apply (force intro: v_sem_v_sem_all.intros)
+    apply (frule upd_val_rel_record_length_same; clarsimp)
+    apply (rule exI)
+    apply (rule v_sem_v_sem_all.intros)
+      apply blast
+     apply blast
+    apply argo
   done
 next case u_sem_put_ub
   note IH1 = this(2)
@@ -2681,7 +2711,12 @@ next case u_sem_put_ub
     apply (drule(5) mono_correspondence [rotated -1], clarsimp)
     apply (frule(5) IH2 [OF _ _ u_v_matches_frame,rotated -1],force)
     apply (erule upd_val_rel.cases,simp_all)
-    apply (force intro: v_sem_v_sem_all.intros)
+    apply (frule upd_val_rel_record_length_same; clarsimp)
+    apply (rule exI)
+    apply (rule v_sem_v_sem_all.intros)
+      apply blast
+     apply blast
+    apply argo
     done
 next
   case (u_sem_promote \<xi> \<gamma> \<sigma> e t')

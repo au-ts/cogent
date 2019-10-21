@@ -83,8 +83,7 @@ where
 | v_sem_con     : "\<lbrakk> \<xi> , \<gamma> \<turnstile> x \<Down> x'
                    \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (Con _ t x) \<Down> VSum t x'"
 
-| v_sem_member  : "\<lbrakk> f < length fs
-                   ; \<xi> , \<gamma> \<turnstile> e \<Down> VRecord fs
+| v_sem_member  : "\<lbrakk> \<xi> , \<gamma> \<turnstile> e \<Down> VRecord fs
                    ; f < length fs
                    \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> Member e f \<Down> fs ! f"
 
