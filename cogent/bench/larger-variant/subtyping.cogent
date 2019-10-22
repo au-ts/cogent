@@ -1,0 +1,12 @@
+type V = <A U32 | B Bool | C () | D U32 | E U64 | F U64 U32>
+
+{-
+foo : V -> V take (A)
+foo | A x -> B (x /= 42)
+    | x -> x
+-}
+
+foo : V -> <B Bool | C () | D U32 | E U64 | F U64 U32>
+foo | A x -> B (x /= 42)
+    | x -> x
+
