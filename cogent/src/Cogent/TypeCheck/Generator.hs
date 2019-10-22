@@ -270,7 +270,8 @@ cg' (ArrayIndex e i) t = do
   alpha <- freshTVar
   n <- freshEVar
   r <- freshVar
-  let ta = A alpha n (__fixme $ Left Unboxed) (ARow.fromTaken r $ toSExpr $ stripLocE i) -- FIXME: we need to create a new TCType for arrays / zilinc
+  s <- freshVar
+  let ta = A alpha n (Right s) (ARow.fromTaken r $ toSExpr $ stripLocE i) -- FIXME: we need to create a new TCType for arrays / zilinc
   (ce, e') <- cg e ta
   (ci, i') <- cg i (T $ TCon "U32" [] Unboxed)
   let c = alpha :< t <> Share ta UsedInArrayIndexing
