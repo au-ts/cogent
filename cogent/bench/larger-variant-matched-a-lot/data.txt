@@ -4,10 +4,8 @@
 * GCC compilation: gcc -c sub-{yes|no}.c -O{0|2} -I../../lib
 * Measured using `size'.
 
-
-   text	   data	    bss	    dec	    hex	filename
-    585	      0	      0	    585	    249	sub-yes-O0.o
-    160	      0	      0	    160	     a0	sub-yes-O2.o
-    457	      0	      0	    457	    1c9	sub-no-O0.o
-    144	      0	      0	    144	     90	sub-no-O2.o
+   1535	      0	      0	   1535	    5ff	sub-yes-O0.o
+    827	      0	      0	    827	    33b	sub-no-O0.o
+    268	      0	      0	    268	    10c	sub-yes-O2.o
+    221	      0	      0	    221	     dd	sub-no-O2.o
 
