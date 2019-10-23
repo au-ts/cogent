@@ -1,7 +1,7 @@
 * Comment/uncomment the relevant function in subtyping.cogent for each version of the compiler.
 * Cogent compilation: cogent -g subtyping.cogent -o sub-{yes|no}
 * Then manually changed `static inline' to `extern' in the `foo' function definition in both the .h and .c files.
-* GCC compilation: gcc -c sub-{yes|no}.c -O{0|2}
+* GCC compilation: gcc -c sub-{yes|no}.c -O{0|2} -I../../lib
 * Measured using `size'.
 
 -- with -O0

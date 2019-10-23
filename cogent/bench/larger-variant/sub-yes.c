@@ -13,13 +13,10 @@ extern t2 foo(t2 a1)
         
         r5 = (t2) {.tag = TAG_ENUM_B, .B = r4};
         
-        t2 r6 = r5;
-        
-        r2 = r6;
+        r2 = r5;
     } else {
-        t2 r7 = a1;
         
-        r2 = r7;
+        r2 = a1;
     }
     
     t2 r8 = r2;

@@ -5,8 +5,8 @@
 * Measured using `size'.
 
    text	   data	    bss	    dec	    hex	filename
-   1535	      0	      0	   1535	    5ff	sub-yes-O0.o
-    827	      0	      0	    827	    33b	sub-no-O0.o
-    268	      0	      0	    268	    10c	sub-yes-O2.o
-    221	      0	      0	    221	     dd	sub-no-O2.o
+    179	      0	      0	    179	     b3	sub-yes-O2.o
+    184	      0	      0	    184	     b8	sub-no-O2.o
+    367	      0	      0	    367	    16f	sub-yes-O0.o
+    653	      0	      0	    653	    28d	sub-no-O0.o
 

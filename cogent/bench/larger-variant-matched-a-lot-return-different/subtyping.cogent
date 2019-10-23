@@ -1,0 +1,11 @@
+type V = <A U32 | B Bool | C () | D U32 | E U64 | F Bool U32>
+
+
+foo : V -> (Bool, U32)
+foo | A x -> (True, x)
+    | B x -> (x, 127)
+    | C _ -> (True, 127)
+    | D x -> (False, x)
+    | E x -> (x /= 42, 0)
+    | x -> (False, 1)
+
