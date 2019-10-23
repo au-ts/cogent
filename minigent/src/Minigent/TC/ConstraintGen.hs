@@ -197,16 +197,16 @@ cg e tau = case e of
     beta <- UnifVar <$> fresh
     row <- Row.incomplete [Entry f beta False]
     sigil  <- fresh
-    recPar <- fresh
-    let alpha = Record (UnknownParameter recPar) row (UnknownSigil sigil)
+    recPar <- UnknownParameter <$> fresh
+    let alpha = Record recPar row (UnknownSigil sigil)
     let c0    = UnboxedNoRecurse alpha
 
     (e1', c1) <- cg e1 alpha
-    modify (push (y, beta))
-    modify (push (x, Record (UnknownParameter recPar) (Row.take f row) (UnknownSigil sigil)))
+    modify (push (y, UnRoll alpha recPar beta))
+    modify (push (x, Record recPar (Row.take f row) (UnknownSigil sigil)))
     (e2', c2) <- cg e2 tau
     xUsed <- topUsed <$> get
-    let c3 = if xUsed then Sat else Drop (Record (UnknownParameter recPar) (Row.take f row) (UnknownSigil sigil))
+    let c3 = if xUsed then Sat else Drop (Record recPar (Row.take f row) (UnknownSigil sigil))
     modify pop
     yUsed <- topUsed <$> get
     let c4 = if yUsed then Sat else Drop beta
@@ -223,10 +223,11 @@ cg e tau = case e of
     (e1', c1) <- cg e1 alpha
     (e2', c2) <- cg e2 beta
 
+    recRow <- Row.incomplete [Entry f (UnRoll alpha recPar beta) False]
     let c3 = Record recPar (Row.put f row) (UnknownSigil sigil) :< tau
 
     --traceM (debugPrettyConstraints [c2])
-    withSig (Put e1' f e2', c1 :&: runOver alpha recPar c2 :&: c3)
+    withSig (Put e1' f e2', c1 :&: c2 :&: c3)
 
   (Struct fs) -> do
     (fs', ts, cs) <- cgStruct fs
