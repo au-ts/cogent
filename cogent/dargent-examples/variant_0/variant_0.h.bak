@@ -7,7 +7,7 @@
 #ifndef VARIANT_0_H__
 #define VARIANT_0_H__
 
-#include "cogent-defns.h"
+#include <cogent-defns.h>
 
 enum {
     LET_TRUE = 1,
