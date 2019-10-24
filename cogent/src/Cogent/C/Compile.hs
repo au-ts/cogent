@@ -454,7 +454,19 @@ genExpr mv (TE t (Singleton e)) = do
   t' <- genType t
   (v,adecl,astm,vp) <- flip (maybeAssign t' mv) ep $ mkArrIdx e' 0
   return (v, edecl++adecl, estm++astm, vp)
+
+genExpr mv (TE t (ArrayPut arr i e)) = do
+  (arr',arrdecl,arrstm,arrp) <- genExpr_ arr
+  (i',idecl,istm,ip) <- genExpr_ i
+  (e',edecl,estm,ep) <- genExpr_ e
+  t' <- genType t
+  let (TArray telt _ _ _) = t
+  telt' <- genType telt
+  (assdecl,assstm) <- assign telt' (CArrayDeref arr' i') e'
+  (v,vdecl,vstm,vp) <- maybeAssign t' mv arr' M.empty
+  return (v, arrdecl++idecl++edecl++assdecl++vdecl, arrstm++istm++estm++assstm++vstm, M.empty)
 #endif
+
 genExpr mv (TE t (Unit)) = do
   t' <- genType t
   let e' = CCompLit t' [([CDesignFld dummyField], CInitE (CConst $ CNumConst 0 (CInt True CIntT) DEC))]
