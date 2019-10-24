@@ -115,6 +115,7 @@ set_flag_ddumpTcCtx = writeIORef __cogent_ddump_tc_ctx_ref True
 set_flag_ddumpTcFilter = writeIORef __cogent_ddump_tc_filter_ref . Just . words
 set_flag_ddumpToFile = writeIORef __cogent_ddump_to_file_ref . Just
 set_flag_ddumpPrettyDsNoTc = writeIORef __cogent_ddump_pretty_ds_no_tc_ref True
+set_flag_ddumpPrettyNormalNoTc = writeIORef __cogent_ddump_pretty_normal_no_tc_ref True
 set_flag_distDir = writeIORef __cogent_dist_dir_ref
 set_flag_entryFuncs = writeIORef __cogent_entry_funcs_ref . Just
 set_flag_extTypes = writeIORef __cogent_ext_types_ref . Just
@@ -305,6 +306,13 @@ __cogent_ddump_pretty_ds_no_tc = unsafePerformIO $ readIORef __cogent_ddump_pret
 __cogent_ddump_pretty_ds_no_tc_ref :: IORef Bool
 {-# NOINLINE __cogent_ddump_pretty_ds_no_tc_ref #-}
 __cogent_ddump_pretty_ds_no_tc_ref = unsafePerformIO $ newIORef False
+
+__cogent_ddump_pretty_normal_no_tc :: Bool
+__cogent_ddump_pretty_normal_no_tc = unsafePerformIO $ readIORef __cogent_ddump_pretty_normal_no_tc_ref
+
+__cogent_ddump_pretty_normal_no_tc_ref :: IORef Bool
+{-# NOINLINE __cogent_ddump_pretty_normal_no_tc_ref #-}
+__cogent_ddump_pretty_normal_no_tc_ref = unsafePerformIO $ newIORef False
 
 __cogent_dist_dir :: FilePath
 __cogent_dist_dir = unsafePerformIO $ readIORef __cogent_dist_dir_ref

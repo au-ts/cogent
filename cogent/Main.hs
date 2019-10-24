@@ -457,6 +457,7 @@ flags =
   , Option []         ["ddump-tc-filter"]  3 (ReqArg set_flag_ddumpTcFilter "KEYWORDS")    "a space-separated list of keywords to indicate which groups of info to display (gen, sol, post, tc)"
   , Option []         ["ddump-to-file"]    3 (ReqArg set_flag_ddumpToFile "FILE")          "dump debugging output to specific file instead of terminal"
   , Option []         ["ddump-pretty-ds-no-tc"]  3 (NoArg set_flag_ddumpPrettyDsNoTc)                "dump the pretty printed desugared expression before typechecking"
+  , Option []         ["ddump-pretty-normal-no-tc"]  3 (NoArg set_flag_ddumpPrettyNormalNoTc)        "dump the pretty printed normalised expression before typechecking"
   -- behaviour
   , Option []         ["fcheck-undefined"]    2 (NoArg set_flag_fcheckUndefined)           "(default) check for undefined behaviours in C"
   , Option ['B']      ["fdisambiguate-pp"]    3 (NoArg set_flag_fdisambiguatePp)           "when pretty-printing, also display internal representation as comments"
@@ -691,7 +692,8 @@ parseArgs args = case getOpt' Permute options args of
                  let nfed = NF.normal $ map untypeD desugared
                  if not $ verifyNormal nfed
                    then hPutStrLn stderr "Normalisation failed!" >> exitFailure
-                   else do putProgressLn "Re-typing NF..."
+                   else do when __cogent_ddump_pretty_normal_no_tc $ pretty stdout desugared
+                           putProgressLn "Re-typing NF..."
                            case IN.tc_ nfed of
                              Left err -> hPutStrLn stderr ("Re-typing NF failed: " ++ err) >> exitFailure
                              Right nfed' -> return nfed'

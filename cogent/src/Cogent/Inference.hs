@@ -66,7 +66,7 @@ import Data.Traversable(traverse)
 import Data.Word (Word32)
 import Lens.Micro (_2)
 import Lens.Micro.Mtl (view)
-import Text.PrettyPrint.ANSI.Leijen (pretty)
+import Text.PrettyPrint.ANSI.Leijen (Pretty, pretty)
 import qualified Unsafe.Coerce as Unsafe (unsafeCoerce)  -- NOTE: used safely to coerce phantom types only
 
 import Debug.Trace
@@ -334,7 +334,7 @@ typecheck e t = do
      | otherwise -> __impossible $ "Inferred type doesn't agree with the given type signature:\n" ++
                                    "Inferred type:\n" ++ show (pretty t') ++ "\nGiven type:\n" ++ show (pretty t)
 
-infer :: UntypedExpr t v a -> TC t v (TypedExpr t v a)
+infer :: (Pretty a) => UntypedExpr t v a -> TC t v (TypedExpr t v a)
 infer (E (Op o es))
    = do es' <- mapM infer es
         let Just t = opType o (map exprType es')
@@ -579,7 +579,7 @@ promote t (TE t' e) = case e of
   -- Otherwise, no simplification is necessary; construct a Promote expression as usual.
   _                   -> TE t $ Promote t (TE t' e)
 
-evalExpr :: TypedExpr t v a -> TC t v (Maybe Int)
+evalExpr :: (Pretty a) => TypedExpr t v a -> TC t v (Maybe Int)
 evalExpr (TE _ (ILit n _)) = return $ Just $ fromIntegral n
-evalExpr _ = return Nothing
+evalExpr e = trace ("e = " ++ show (pretty e)) $ return Nothing
 
