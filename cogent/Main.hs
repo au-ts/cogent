@@ -692,7 +692,7 @@ parseArgs args = case getOpt' Permute options args of
                  let nfed = NF.normal $ map untypeD desugared
                  if not $ verifyNormal nfed
                    then hPutStrLn stderr "Normalisation failed!" >> exitFailure
-                   else do when __cogent_ddump_pretty_normal_no_tc $ pretty stdout desugared
+                   else do when __cogent_ddump_pretty_normal_no_tc $ pretty stdout nfed
                            putProgressLn "Re-typing NF..."
                            case IN.tc_ nfed of
                              Left err -> hPutStrLn stderr ("Re-typing NF failed: " ++ err) >> exitFailure
