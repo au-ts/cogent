@@ -180,6 +180,7 @@ monoExpr (TE t e) = TE <$> monoType t <*> monoExpr' e
       return $ ArrayMap2 (as,f') (e1',e2')
     monoExpr' (Pop     a e1 e2    ) = Pop a <$> monoExpr e1 <*> monoExpr e2
     monoExpr' (Singleton e        ) = Singleton <$> monoExpr e
+    monoExpr' (ArrayPut arr i e   ) = ArrayPut <$> monoExpr arr <*> monoExpr i <*> monoExpr e
 #endif
     monoExpr' (Let     a e1 e2    ) = Let a <$> monoExpr e1 <*> monoExpr e2
     monoExpr' (LetBang vs a e1 e2 ) = LetBang vs a <$> monoExpr e1 <*> monoExpr e2
