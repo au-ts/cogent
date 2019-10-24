@@ -39,6 +39,18 @@ isVar :: UntypedExpr t v a -> Bool
 isVar (E (Variable _)) = True
 isVar _ = False
 
+
+-- FIXME: I used to think that an atom corresponds to a Cogent construct which can be
+-- generated to a single C expression, whereas a NF corresponds to that which has to be
+-- generated as statements. But this is not accurately reflected in the code below, which
+-- made me to rethink what the criteria were. Another possibility is that if the Cogent
+-- construct takes a continuation as argument, then it's going to be a NF. This view more closely
+-- matches what the code is doing, however it's less justifiable as far as I can see.
+-- This matter might be important if we want to carefully study the performance of the
+-- generated code, as it should affact if the C code can be generated in SSA form or
+-- something that gcc has a better chance to see optimisation candidates. / zilinc (24-Oct-19)
+
+
 isAtom :: UntypedExpr t v a -> Bool
 isAtom (E (Variable x)) = True
 isAtom (E (Fun fn ts _)) = True
@@ -57,6 +69,7 @@ isAtom (E (ArrayMap2 (_,f) (e1,e2)))
   -- \ ^^^ FIXME: does it make sense? @ArrayMap@ cannot be made an expression.
   -- Does the atom-expression / normal-statement correspondence still hold?
 isAtom (E (Singleton e)) | isVar e = True
+isAtom (E (ArrayPut arr i e)) | isVar arr && isVar i && isVar e = True
 #endif
 isAtom (E (Tuple e1 e2)) | isVar e1 && isVar e2 = True
 isAtom (E (Struct fs)) | all (isVar . snd) fs = True
@@ -159,6 +172,17 @@ normalise v   (E (Pop a e1 e2)) k
         Refl -> E <$> (Pop a e1' <$> (normalise (sadd (SSuc (SSuc v)) n) (upshiftExpr n (SSuc $ SSuc v) f2 e2) $ \n' ->
           withAssocSS v n n' $ \Refl -> k (SSuc (SSuc (sadd n n')))))
 normalise v   (E (Singleton e)) k = normaliseName v e $ \n e' -> k n (E $ Singleton e')
+normalise v   (E (ArrayPut arr i e)) k
+  = normaliseName v arr $ \n arr' ->
+    normaliseName (sadd v n) (upshiftExpr n v f0 i) $ \n' i' ->
+      withAssoc v n n' $ \Refl ->
+      normaliseName (sadd (sadd v n) n') (upshiftExpr (sadd n n') v f0 e) $ \n'' e' ->
+        case sym $ assoc v (sadd n n') n'' of
+          Refl -> case assoc (sadd v n) n' n'' of
+            Refl -> k (sadd (sadd n n') n'') $ E $
+                      ArrayPut (upshiftExpr (sadd n' n'') (sadd v n) (maxFin $ sadd v n) arr')
+                               (upshiftExpr n'' (sadd v n `sadd` n') (maxFin $ sadd v n `sadd` n') i')
+                               e'
 #endif
 normalise v   (E (Let a e1 e2)) k
   | __cogent_fnormalisation `elem` [KNF, LNF]  -- \ || (__cogent_fnormalisation == ANF && __cogent_fcondition_knf && isCondition e1)
@@ -281,6 +305,7 @@ insertIdxAt cut (E e) = E $ insertIdxAt' cut e
     insertIdxAt' cut (ArrayIndex e l) = ArrayIndex (insertIdxAt cut e) (insertIdxAt cut l)
     insertIdxAt' cut (Pop a e1 e2) = Pop a (insertIdxAt cut e1) (insertIdxAt (FSuc (FSuc cut)) e2)
     insertIdxAt' cut (Singleton e) = Singleton (insertIdxAt cut e)
+    insertIdxAt' cut (ArrayPut arr i e) = ArrayPut (insertIdxAt cut arr) (insertIdxAt cut i) (insertIdxAt cut e)
 #endif
     insertIdxAt' cut (Let a e1 e2) = Let a (insertIdxAt cut e1) (insertIdxAt (FSuc cut) e2)
     insertIdxAt' cut (LetBang vs a e1 e2) = LetBang (map (first $ liftIdx cut) vs) a (insertIdxAt cut e1) (insertIdxAt (FSuc cut) e2)
