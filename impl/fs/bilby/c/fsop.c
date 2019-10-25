@@ -8,7 +8,12 @@
  * @TAG(NICTA_GPL)
  */
 
+#include <linux/version.h>
 #include <bilbyfs.h>
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,0,0)
+#include <uapi/linux/mount.h>
+#endif
 
 /**
  * bilbyfs_set_inode_flags - set VFS inode flags.

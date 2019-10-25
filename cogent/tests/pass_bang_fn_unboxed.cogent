@@ -1,0 +1,10 @@
+
+type A = U32
+type B = U8
+
+foo : all (a). a! -> a!
+foo a = a
+
+bar : #{a:A,b:B} -> #{a:A,b:B}
+bar a = foo a
+

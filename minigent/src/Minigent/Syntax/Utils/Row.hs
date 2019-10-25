@@ -17,6 +17,8 @@ module Minigent.Syntax.Utils.Row
   , -- * Queries
     entries
   , entriesMap
+  , rowTakenEntries
+  , rowUntakenEntries
   , compatible
   , null
   , untakenTypes
@@ -88,9 +90,19 @@ compatible (Row m1 Nothing) (Row m2 (Just _)) = M.keysSet m2 `S.isSubsetOf` M.ke
 compatible (Row m1 (Just _)) (Row m2 Nothing) = M.keysSet m1 `S.isSubsetOf` M.keysSet m2
 compatible (Row m1 (Just x)) (Row m2 (Just y)) = x /= y || M.keysSet m1 == M.keysSet m2
 
+
+-- | Returns a list of all mappings marked as 'Taken' in the row.
+rowTakenEntries :: Row -> M.Map FieldName Entry
+rowTakenEntries = M.filter (\(Entry _ _ tk) -> tk) . rowEntries
+
+-- | Returns all mappings not marked as 'Taken' in the row.
+rowUntakenEntries :: Row -> M.Map FieldName Entry
+rowUntakenEntries = M.filter (\(Entry _ _ tk) -> not tk) . rowEntries
+
+
 -- | Returns all types not marked as 'Taken' in the row.
 untakenTypes :: Row -> [Type]
-untakenTypes = mapMaybe (\(Entry _ t x) -> guard (not x) >> Just t) . M.elems . rowEntries
+untakenTypes = fmap (\(Entry _ t _) -> t) . M.elems . rowUntakenEntries
 
 -- | Returns all known entries inside the row.
 entries :: Row -> [Entry]

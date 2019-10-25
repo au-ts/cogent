@@ -19,6 +19,10 @@
 #include <linux/mount.h>
 #include <bilbyfs.h>
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,0,0)
+#include <uapi/linux/mount.h>
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4,6,0)
 #define put_page(page) page_cache_release(page)
 #endif

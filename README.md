@@ -54,7 +54,7 @@ See [impl/fs/ext2/README](./impl/fs/ext2/README) and [impl/fs/bilby/README](./im
 
 ## Proofs
 
-Firstly, download the AutoCorres release from [http://ts.data61.csiro.au/projects/TS/autocorres/](http://ts.data61.csiro.au/projects/TS/autocorres/autocorres-1.6.tar.gz),
+Firstly, download the AutoCorres release from [http://ts.data61.csiro.au/projects/TS/autocorres/](http://ts.data61.csiro.au/projects/TS/autocorres/),
 move the extracted folder to this directory, and rename the folder to `autocorres`.
 
 To build the proofs, it is recommended that your machine (or virtual machine)
