@@ -1,8 +1,17 @@
+layout Slayout =
+  record {
+    f1 : 4B at 0B,
+    f2 : 8B at 4B
+  }
+
 type T = <A U8 | B (S!)>
+-- At the moment, layouts can't go on variants, because they are allocated
+-- on the stack. To add a layout for this variant, we would have to wrap it
+-- in a struct.
+
 type S = { f1 : U32, f2 : U64 }
+	layout Slayout
 
 foo : T -> U64
 foo | A x -> upcast x
     | B x -> upcast (x.f1) + x.f2
-
-

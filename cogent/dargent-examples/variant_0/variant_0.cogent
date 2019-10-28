@@ -14,7 +14,17 @@ type Simple = {
 	a: <A U8>,
 	b: <A U8 | B U16 | C U32 | D U64 | E Bool>
 }
-
+	layout
+		record {
+			a : variant (1B at 0B) { A(1) : 1B at 1B },
+			b : variant (1B at 0B) {
+						A(1) : 1B at 1B,
+						B(2) : 2B at 2B,
+						C(3) : 4B at 4B,
+						D(4) : 8B at 8B,
+						E(5) : 1B at 16B
+				} at 2B
+		}
 putVals: Simple take (a, b) -> Simple
 putVals simple = simple { a = A 0x12, b = C 0x7890abcd }
 
