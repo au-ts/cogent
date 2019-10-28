@@ -1,6 +1,9 @@
 
 type SArr
-type CanId = { id : U32, eff : U32, rtr : U32, err : U32 }
+type CanId =
+  { id : U32, eff : U32, rtr : U32, err : U32 }
+    layout 
+      record { id : 4B at 0B, eff : 4B at 4B, rtr : 4B at 8B, err : 4B at 12B }
 type CanFrame = { ident : CanId, prio : U8, dlc : U8, data : SArr }
 
 can_EID_BITS : U32
