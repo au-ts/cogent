@@ -21,10 +21,14 @@ import qualified Data.Set as S
 import qualified Data.Map as M
 import Data.Foldable (toList)
 
+import Minigent.Syntax.PrettyPrint
+import Debug.Trace 
+
 -- | Rewrite a set of constraints, removing all trivially satisfiable constraints
 --   and breaking down large constraints into smaller ones.
 simplify :: [Constraint] -> Rewrite.Rewrite [Constraint]
-simplify axs = Rewrite.pickOne $ \c -> case c of
+simplify axs = Rewrite.pickOne $ \c -> -- trace ("About to simpliy:\n" ++ debugPrettyConstraints [c]) $ 
+  case c of
   c | c `elem` axs                    -> Just []
   Sat                                 -> Just []
   c1 :&: c2                           -> Just [c1,c2]

@@ -27,12 +27,15 @@ import Data.Foldable (asum)
 
 import Debug.Trace
 
+import Minigent.Syntax.PrettyPrint
+
 
 -- | The unify phase, which seeks out equality constraints to solve via substitution.
 unify :: (MonadFresh VarName m, MonadWriter [Assign] m) => Rewrite.Rewrite' m [Constraint]
 unify = Rewrite.rewrite' $ \cs -> do
            a <- asum (map assignOf cs)
            tell a
+           --traceM ("About to perform the substitutions:\n" ++ "[\n" ++ debugAssigns a ++ "]")
            pure (map (constraintTypes (normaliseType (foldMap substAssign a))) cs)
 
 assignOf :: (MonadFresh VarName m, MonadWriter [Assign] m) => Constraint -> MaybeT m [Assign]

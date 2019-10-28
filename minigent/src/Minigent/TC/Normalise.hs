@@ -18,9 +18,11 @@ import qualified Minigent.Syntax.Utils.Row as Row
 
 -- TODO: Remove
 import Debug.Trace
+import Minigent.Syntax.PrettyPrint
 
 normaliseRW :: Rewrite Type
-normaliseRW = rewrite $ \t -> case t of
+normaliseRW = rewrite $ \t -> --trace ("Norm about to look at type:\n" ++ debugPrettyType t) $ 
+  case t of
     Bang (Function t1 t2)  -> Just (Function t1 t2)
     Bang (AbsType n s ts)  -> Just (AbsType n (bangSigil s) (map Bang ts))
     Bang (TypeVar a)       -> Just (TypeVarBang a)

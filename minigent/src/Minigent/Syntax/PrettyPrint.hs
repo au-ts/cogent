@@ -26,6 +26,8 @@ import Data.Text.Prettyprint.Doc.Render.Terminal
 import qualified Data.Text as T
 import qualified Data.Map as M
 
+import Minigent.TC.Assign
+
 prettyPrimType t = annotate S.primType (viaShow (t :: PrimType))
 
 prettyREntry (Entry v x tk)
@@ -220,7 +222,27 @@ prettyPolyType (Forall ts c t) = align (sep [ list (map (prettyType . TypeVar) t
                                               <> annotate S.sym "."
                                             , prettyType t ] )
 
+debugAssigns
+   = T.unpack . renderStrict
+   . layoutPretty defaultLayoutOptions
+   . vcat .  map (newl . prettyAssign)
+  where
+    prettyAssign (TyAssign v t)     
+      = parens $ annotate S.con "TyAssign"     <+> annotate S.unifVar (pretty v) <+> prettyType t
+    prettyAssign (RowAssign v r)    
+      = parens $ annotate S.con "RowAssign"    <+> annotate S.unifVar (pretty v) <+> prettyRRow r
+    prettyAssign (SigilAssign v s)  
+      = parens $ annotate S.con "SigilAssign"  <+> annotate S.unifVar (pretty v) <+> prettySigil s
+    prettyAssign (RecParAssign v rp)
+      = parens $ annotate S.con "RecParAssign" <+> annotate S.unifVar (pretty v) <+> prettyRecPar rp
 
+    newl s = s <> pretty (",\n" :: String)
+   
+
+debugPrettyType
+   = T.unpack . renderStrict
+   . layoutPretty defaultLayoutOptions
+   . prettyType
 
 debugPrettyConstraints
    = T.unpack . renderStrict

@@ -97,7 +97,7 @@ typeUVs (Variant r)  = concatMap (\(Entry _ t _) -> typeUVs t) (Row.entries r)
 typeUVs (AbsType _ _ ts) = concatMap typeUVs ts
 typeUVs (Function t1 t2) = typeUVs t1 ++ typeUVs t2
 typeUVs (Bang t        ) = typeUVs t
-typeUVs (UnRoll _ _ t  ) = typeUVs t
+typeUVs (UnRoll r _ t  ) = typeUVs t ++ typeUVs r
 typeUVs _                = []
 
 -- | Return all of the (rigid, non-unification) type variables in a type. Does not include mu variables

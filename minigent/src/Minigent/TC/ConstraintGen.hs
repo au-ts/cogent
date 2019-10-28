@@ -223,11 +223,13 @@ cg e tau = case e of
     (e1', c1) <- cg e1 alpha
     (e2', c2) <- cg e2 beta
 
-    recRow <- Row.incomplete [Entry f (UnRoll alpha recPar beta) False]
-    let c3 = Record recPar (Row.put f row) (UnknownSigil sigil) :< tau
+    let c0 = UnboxedNoRecurse alpha
 
-    --traceM (debugPrettyConstraints [c2])
-    withSig (Put e1' f e2', c1 :&: c2 :&: c3)
+    recRow <- Row.incomplete [Entry f (UnRoll alpha recPar beta) True]
+    let c3 = Record recPar (Row.put f recRow) (UnknownSigil sigil) :< tau
+
+    --traceM (debugPrettyConstraints [c3])
+    withSig (Put e1' f e2', c0 :&: c1 :&: c2 :&: c3)
 
   (Struct fs) -> do
     (fs', ts, cs) <- cgStruct fs

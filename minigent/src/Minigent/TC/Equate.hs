@@ -26,9 +26,15 @@ import qualified Data.Map as M
 
 import Debug.Trace
 
+import Minigent.Syntax.PrettyPrint
+
 -- | The equate phase, which finds subtyping constraints that can be safely converted to equalities.
 equate :: Rewrite.Rewrite [Constraint]
 equate = Rewrite.withTransform findEquatable (pure . map toEquality)
+                          --  (\x -> 
+                          --   let c = toEquality x 
+                          --   in trace ("About to simpliy:\n" ++ debugPrettyConstraints [c]) c)
+                          --  )
   where
     findEquatable cs = let
          mentions             = getMentions cs

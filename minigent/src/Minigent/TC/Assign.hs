@@ -22,6 +22,7 @@ data Assign = TyAssign VarName Type
             | RowAssign VarName Row
             | SigilAssign VarName Sigil
             | RecParAssign VarName RecPar
+            deriving (Show)
 
 -- | Apply an assignment to a unification variable to a type.
 substAssign :: Assign -> Rewrite.Rewrite Type

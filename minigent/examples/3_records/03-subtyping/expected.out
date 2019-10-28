@@ -1,6 +1,6 @@
 allowed : {baz : U8,foo : {bar : U8,foo : U8}#}
           -> {baz : U8,foo : {bar : U8,foo : U8}# take};
-allowed r = take s { foo = x } = r : {baz : U8 take,foo : {bar : U8,foo : U8}#}
+allowed r = take s { foo = x } = r : {baz : U8,foo : {bar : U8,foo : U8}#}
             in put s : {baz : U8 take
                        ,foo : {bar : U8,foo : U8}# take}.baz := ((x : {bar : U8
                                                                       ,foo : U8}#).bar : U8) + ((x : {bar : U8
@@ -13,3 +13,4 @@ simple : {baz : U8,foo : {bar : U8,foo : U8}#}#
 simple blah = blah : {baz : U8 take,foo : {bar : U8 take,foo : U8 take}#}#;
 simpleWrong : {baz : U8 take,foo : {bar : U8 take,foo : U8 take}#}#
               -> {baz : U8,foo : {bar : U8,foo : U8}#}#;
+
