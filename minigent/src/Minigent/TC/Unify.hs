@@ -80,9 +80,16 @@ assignOf (Record _ r1 s1 :=: Record _ r2 s2)
                                  , RowAssign y (r1 { rowVar = Just v })
                                  ]
 
+-- TODO: Generalise
 assignOf (Record n1 _ _ :=: Record n2 _ _)
-  -- Prevent recursive assignment to self
-  | n1 /= n2
+  = case (n1,n2) of
+      (Rec _, UnknownParameter x) -> pure [RecParAssign x n1]
+      (UnknownParameter x, Rec _) -> pure [RecParAssign x n2]
+      (UnknownParameter x, None)  -> pure [RecParAssign x None]
+      (None, UnknownParameter x)  -> pure [RecParAssign x None]
+      _              -> empty 
+
+assignOf (Record n1 _ _ :< Record n2 _ _)
   = case (n1,n2) of
       (Rec _, UnknownParameter x) -> pure [RecParAssign x n1]
       (UnknownParameter x, Rec _) -> pure [RecParAssign x n2]

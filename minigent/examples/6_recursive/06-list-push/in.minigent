@@ -1,12 +1,13 @@
-allocNode : [a]. Unit -> mu t { l: < Nil Unit | Cons { data: a, rest: t }# > take };
+allocNode : Unit -> mu t { l: < Nil Unit | Cons { data: U8, rest: t }# > take };
 
-push : [a]. {val: a, list: mu t { l: < Nil Unit | Cons { data: a, rest: t }# >} }!
-            -> mu t { l: < Nil Unit | Cons { data: a, rest: t }# >}; 
+push : 
+    mu t { 
+            l: < Nil Unit 
+                | Cons { data: U8, rest: t }# 
+               >
+        }
+         -> mu t { l: < Nil Unit | Cons { data: U8, rest: t }# >}; 
 push r = 
     let node = allocNode Unit in
-        take r2 { val = x } = r
-        in take r3 { list = y } = r2
-            in put node.l := Cons { data = x, rest = y } end
-            end
-        end
+        put node.l := Cons { data = 10, rest = r } end
     end;

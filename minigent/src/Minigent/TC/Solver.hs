@@ -62,7 +62,7 @@ solve axs cs = do
   where
     solverRewrites :: Rewrite.Rewrite' Solver [Constraint]
     solverRewrites = Rewrite.untilFixedPoint $
-      -- Rewrite.debugNewline "SOLV" debugPrettyConstraints <>
+      Rewrite.debugNewline "SOLV" debugPrettyConstraints <>
       Rewrite.pre normaliseConstraints (
           -- Rewrite.debugNewline "[simp]" debugPrettyConstraints <>
           Rewrite.lift (simplify axs) <>

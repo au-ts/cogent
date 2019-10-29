@@ -200,9 +200,10 @@ cg e tau = case e of
     recPar <- UnknownParameter <$> fresh
     let alpha = Record recPar row (UnknownSigil sigil)
     let c0    = UnboxedNoRecurse alpha
+    --let c5    = beta :=: UnRoll alpha recPar beta
 
     (e1', c1) <- cg e1 alpha
-    modify (push (y, UnRoll alpha recPar beta))
+    modify (push (y, beta))
     modify (push (x, Record recPar (Row.take f row) (UnknownSigil sigil)))
     (e2', c2) <- cg e2 tau
     xUsed <- topUsed <$> get
@@ -211,12 +212,12 @@ cg e tau = case e of
     yUsed <- topUsed <$> get
     let c4 = if yUsed then Sat else Drop beta
     modify pop
-    withSig (Take x f y e1' e2', c0 :&: c1 :&: c2 :&: c3 :&: c4)
+    withSig (Take x f y e1' e2', c0 :&: c1 :&: c2 :&: c3 :&: c4 )-- :&: c5)
 
   (Put e1 f e2) -> do
     beta <- UnifVar <$> fresh
     sigil <- fresh
-    recPar <- UnknownParameter  <$> fresh
+    recPar <- UnknownParameter <$> fresh
     row  <- Row.incomplete [Entry f beta True]
 
     let alpha = Record recPar row (UnknownSigil sigil)
@@ -225,10 +226,8 @@ cg e tau = case e of
 
     let c0 = UnboxedNoRecurse alpha
 
-    recRow <- Row.incomplete [Entry f (UnRoll alpha recPar beta) True]
-    let c3 = Record recPar (Row.put f recRow) (UnknownSigil sigil) :< tau
+    let c3 = Record recPar (Row.put f row) (UnknownSigil sigil) :< tau
 
-    --traceM (debugPrettyConstraints [c3])
     withSig (Put e1' f e2', c0 :&: c1 :&: c2 :&: c3)
 
   (Struct fs) -> do
@@ -236,11 +235,6 @@ cg e tau = case e of
     withSig (Struct fs', conjunction cs :&: Record None (Row.fromList ts) Unboxed :< tau )
 
   where
-
-    runOver :: Type -> RecPar -> Constraint -> Constraint
-    runOver t n (a :&: b) = a :&: runOver t n b
-    runOver t n (x :< y) = trace (debugPrettyConstraints [x :< y]) (x :< UnRoll t n y)
-
 
     cgStruct :: [(FieldName, Expr)] -> CG ([(FieldName, Expr)], [Entry], [Constraint])
     cgStruct [] = return ([], [], [])
