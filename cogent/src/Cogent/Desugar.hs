@@ -548,9 +548,11 @@ desugarType = \case
   S.RT (S.TArray t l Unboxed tkns) -> do
     t' <- desugarType t
     l' <- evalAExpr l
-    tkns' <- IM.filterWithKey (\k _ -> k >= 0) . IM.fromList <$>
-             traverse (firstM $ return . fromIntegral <=< evalAExpr) tkns
-    return $ TArray t' l' Unboxed tkns'
+    mhole <- case tkns of
+               [] -> return Nothing
+               [(idx,True)] -> Just <$> desugarExpr' idx
+               _ -> __impossible "desugarType: TArray should not have more than 1 element taken"
+    return $ TArray t' l' Unboxed mhole
   S.RT (S.TArray t l sigil tkns) -> do
     unboxedDesugared@(TArray t' l' Unboxed tkns') <- desugarType $ S.RT (S.TArray t l Unboxed tkns)
     TArray <$> pure t'
@@ -730,7 +732,7 @@ desugarExpr (B.TE t (S.Con c es) p) = __impossible "desugarExpr (Con)"
 desugarExpr (B.TE _ (S.Put _ _) _) = __impossible "desugarExpr (Put)"
 
 
-desugarExpr' :: S.AExpr -> DS t v (UntypedExpr t 'Zero VarName)
+desugarExpr' :: S.AExpr -> DS t v (UntypedExpr 'Zero 'Zero VarName)
 desugarExpr' (S.RE (S.PrimOp opr es)) = E . Op (symbolOp opr) <$> mapM desugarExpr' es
 desugarExpr' (S.RE (S.Var vn)) = __impossible "desugarExpr'"
 desugarExpr' (S.RE (S.If c [] th el)) = E <$> (If <$> desugarExpr' c <*> desugarExpr' th <*> desugarExpr' el)
@@ -747,7 +749,7 @@ desugarExpr' (S.RE (S.ArrayIndex e i)) = do
   return $ E (ArrayIndex e' i')
 #endif
 desugarExpr' (S.RE (S.Upcast e)) = E <$> (Cast (TPrim U32) <$> desugarExpr' e)  -- FIXME: U32!!! / zilinc
-desugarExpr' (S.RE (S.Annot e tau)) = E <$> (Promote <$> desugarType tau <*> desugarExpr' e)
+desugarExpr' (S.RE (S.Annot e tau)) = E <$> (Promote <$> desugarType' tau <*> desugarExpr' e)
 desugarExpr' _ = __todo "desugarExpr': we don't support these expressions in types right now"
 
 desugarConst :: (VarName, B.TypedExpr) -> DS 'Zero 'Zero (CoreConst UntypedExpr)
@@ -756,6 +758,58 @@ desugarConst (n,e) = (n,) <$> desugarExpr e
 -- NOTE: assume the first argument consists of constants only
 desugarConsts :: [S.TopLevel S.RawType B.TypedPatn B.TypedExpr] -> DS 'Zero 'Zero [CoreConst UntypedExpr]
 desugarConsts = mapM desugarConst . P.map (\(S.ConstDef v _ e) -> (v,e))
+
+desugarType' :: S.RawType -> DS t v (Type 'Zero)
+desugarType' = \case
+  S.RT (S.TCon "U8"     [] Unboxed) -> return $ TPrim U8
+  S.RT (S.TCon "U16"    [] Unboxed) -> return $ TPrim U16
+  S.RT (S.TCon "U32"    [] Unboxed) -> return $ TPrim U32
+  S.RT (S.TCon "U64"    [] Unboxed) -> return $ TPrim U64
+  S.RT (S.TCon "Bool"   [] Unboxed) -> return $ TPrim Boolean
+  S.RT (S.TCon "String" [] Unboxed) -> return $ TString
+  S.RT (S.TCon tn tvs s) -> TCon tn <$> mapM desugarType' tvs <*> pure (desugarAbstractTypeSigil s)
+  S.RT (S.TVar {}) -> __impossible "desugarType': cannot be a type var"
+  S.RT (S.TFun ti to)    -> TFun <$> desugarType' ti <*> desugarType' to
+  S.RT (S.TRecord fs Unboxed) -> TRecord <$> mapM (\(f,(t,x)) -> (f,) . (,x) <$> desugarType' t) fs <*> pure Unboxed
+  S.RT (S.TRecord fs sigil)  -> do
+    -- Making an unboxed record is necessary here because of how `desugarSigil`
+    -- is defined.
+    unboxedDesugared@(TRecord fs' Unboxed) <- desugarType' $ S.RT (S.TRecord fs Unboxed)
+    TRecord <$> pure fs' <*> pure (desugarSigil unboxedDesugared sigil)
+  S.RT (S.TVariant alts) -> TSum <$> mapM (\(c,(ts,x)) -> (c,) . (,x) <$> desugarType' (group ts)) (M.toList alts)
+    where group [] = S.RT S.TUnit
+          group (t:[]) = t
+          group ts = S.RT $ S.TTuple ts
+  S.RT (S.TTuple [])     -> __impossible "desugarType' (TTuple 0)"
+  S.RT (S.TTuple (t:[])) -> __impossible "desugarType' (TTuple 1)"
+  S.RT (S.TTuple (t1:t2:[])) | not __cogent_ftuples_as_sugar -> TProduct <$> desugarType' t1 <*> desugarType' t2
+  S.RT (S.TTuple ts@(_:_:_)) | not __cogent_ftuples_as_sugar ->
+    foldr1 (liftA2 TProduct) $ map desugarType' ts  -- right associative product repr of a list
+  S.RT (S.TTuple ts) | __cogent_ftuples_as_sugar -> do
+    let ns = P.map (('p':) . show) [1 :: Integer ..]
+    -- vvv NOTE [sorting tuple fields] / zilinc
+    --     We assume that the field names are *lexicographically* sorted! We need to
+    --     explicitly sort them here, otherwise @p10@ will be following @p9@ instead of @p1@.
+    fs <- L.sortOn fst . P.zipWith (\n t -> (n,(t, False))) ns <$> forM ts desugarType'
+    return $ TRecord fs Unboxed
+  S.RT (S.TUnit)   -> return TUnit
+#ifdef BUILTIN_ARRAYS
+  S.RT (S.TArray t l Unboxed tkns) -> do
+    t' <- desugarType' t
+    l' <- evalAExpr l
+    mhole <- case tkns of
+               [] -> return Nothing
+               [(idx,True)] -> Just <$> desugarExpr' idx
+               _ -> __impossible "desugarType': TArray should not have more than 1 element taken"
+    return $ TArray t' l' Unboxed mhole
+  S.RT (S.TArray t l sigil tkns) -> do
+    unboxedDesugared@(TArray t' l' Unboxed tkns') <- desugarType' $ S.RT (S.TArray t l Unboxed tkns)
+    TArray <$> pure t'
+           <*> pure l'
+           <*> pure (desugarSigil unboxedDesugared sigil)
+           <*> pure tkns'
+#endif
+  notInWHNF -> __impossible $ "desugarType' (type " ++ show (pretty notInWHNF) ++ " is not in WHNF)"
 
 
 -- ----------------------------------------------------------------------------

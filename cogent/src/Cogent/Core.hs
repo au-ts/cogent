@@ -77,7 +77,7 @@ data Type t
     -- True means taken, Layout will be nothing for abstract types
   | TUnit
 #ifdef BUILTIN_ARRAYS
-  | TArray (Type t) ArraySize (Sigil (DataLayout BitRange)) (IntMap Bool)  -- which indices are taken
+  | TArray (Type t) ArraySize (Sigil (DataLayout BitRange)) (Maybe (UntypedExpr 'Zero 'Zero VarName))  -- the hole
     -- ^^ use Int for now
     -- XXX | ^^^ (UntypedExpr t 'Zero VarName)  -- stick to UntypedExpr to be simple / zilinc
     -- The sigil specifies the layout of the element
@@ -354,6 +354,7 @@ instance (Functor (e t v), Functor (e t ('Suc v)), Functor (e t ('Suc ('Suc v)))
 instance Functor (TypedExpr t v) where
   fmap f (TE t e) = TE t $ ffmap f e
 
+
 -- instance Functor (Definition TypedExpr) where
 --   fmap f (FunDef  attr fn ts ti to e) = FunDef  attr fn ts ti to (fmap f e)
 --   fmap f (AbsDecl attr fn ts ti to)   = AbsDecl attr fn ts ti to
@@ -478,9 +479,8 @@ instance Pretty (Type t) where
   pretty (TCon tn [] s) = typename tn <> pretty s
   pretty (TCon tn ts s) = typename tn <> pretty s <+> typeargs (map pretty ts)
 #ifdef BUILTIN_ARRAYS
-  pretty (TArray t l s takens) = (pretty t <> brackets (pretty l) <+> pretty s) &
-                                 (if IM.null takens then id else
-                                    (<+> keyword "take" <+> tupled (map pretty . IM.keys $ IM.filter id takens)))
+  pretty (TArray t l s mhole) = (pretty t <> brackets (pretty l) <+> pretty s) &
+    (case mhole of Nothing -> id; Just hole -> (<+> keyword "take" <+> parens (pretty hole)))
 #endif
 
 prettyTaken :: Bool -> Doc

@@ -107,6 +107,7 @@ data TypeError = FunctionNotFound VarName
                | DataLayoutError DataLayoutTcError
                | LayoutOnNonRecordOrCon TCType
                | LayoutDoesNotMatchType DataLayoutExpr TCType
+               | OtherTypeError String
                deriving (Eq, Show, Ord)
 
 isWarnAsError :: TypeError -> Bool
@@ -257,7 +258,7 @@ data TCType         = T (Type SExpr TCType)
                     | R (Row TCType) (Either (Sigil (Maybe DataLayoutExpr)) Int)
                     | V (Row TCType)
 #ifdef BUILTIN_ARRAYS
-                    | A TCType SExpr (Either (Sigil (Maybe DataLayoutExpr)) Int) (ARow SExpr)
+                    | A TCType SExpr (Either (Sigil (Maybe DataLayoutExpr)) Int) (Maybe SExpr)
 #endif
                     | Synonym TypeName [TCType]
                     deriving (Show, Eq, Ord)
@@ -512,7 +513,7 @@ validateType' vs (RT t) = do
                        pure (V (Row.fromMap (fmap (first tuplize) fs')))
 #ifdef BUILTIN_ARRAYS
     TArray te l s [] -> -- TODO: do the checks
-      A <$> validateType' vs te <*> pure (toSExpr l) <*> pure (Left s) <*> pure allPut
+      A <$> validateType' vs te <*> pure (toSExpr l) <*> pure (Left s) <*> pure Nothing
 #endif
     TLayout l t  -> do
       layouts <- use knownDataLayouts

@@ -115,16 +115,21 @@ bound b (TProduct t11 t12) (TProduct t21 t22) = TProduct <$> bound b t11 t21 <*>
 bound b (TCon c1 t1 s1) (TCon c2 t2 s2) | c1 == c2, s1 == s2 = TCon c1 <$> zipWithM (bound b) t1 t2 <*> pure s1
 bound b (TFun t1 s1) (TFun t2 s2) = TFun <$> bound (theOtherB b) t1 t2 <*> bound b s1 s2
 #ifdef BUILTIN_ARRAYS
-bound b (TArray t1 l1 s1 tkns1) (TArray t2 l2 s2 tkns2)
+bound b (TArray t1 l1 s1 mhole1) (TArray t2 l2 s2 mhole2)
   | l1 == l2, s1 == s2 = do
-      let op = case b of LUB -> (||); GLB -> (&&)
       t <- bound b t1 t2
-      oks <- lift $ flip3 zipWithM (IM.elems tkns2) (IM.elems tkns1) $ \tkn1 tkn2 ->
-               (if tkn1 == tkn2 then return True else
-                   kindcheck t >>= \k -> return (canDiscard k))
-      let takens = IM.unionWith op tkns1 tkns2
-      if and oks then return $ TArray t l1 s1 takens
-                 else MaybeT (return Nothing)
+      ok <- lift $ case (mhole1, mhole2) of
+                     (Nothing, Nothing) -> return True
+                     (Just i1, Just i2) -> return $ i1 == i2  -- FIXME: change to propositional equality / zilinc
+                     _ -> kindcheck t >>= \k -> return (canDiscard k)
+      let mhole = combineHoles b mhole1 mhole2
+      if ok then return $ TArray t l1 s1 mhole
+            else MaybeT (return Nothing)
+  where
+    combineHoles b Nothing   Nothing   = Nothing
+    combineHoles b (Just i1) (Just _ ) = Just i1
+    combineHoles b Nothing   (Just i2) = case b of GLB -> Nothing; LUB -> Just i2
+    combineHoles b (Just i1) Nothing   = case b of GLB -> Nothing; LUB -> Just i1
 #endif
 bound _ t1 t2 = __impossible ("bound: not comparable: " ++ show (t1,t2))
 
@@ -167,8 +172,43 @@ substitute vs (TRecord ts s)   = TRecord (map (second (first $ substitute vs)) t
 substitute vs (TSum ts)        = TSum (map (second (first $ substitute vs)) ts)
 substitute _  (TUnit)          = TUnit
 #ifdef BUILTIN_ARRAYS
-substitute vs (TArray t l s tkns) = TArray (substitute vs t) l s tkns
+substitute vs (TArray t l s mhole) = TArray (substitute vs t) l s mhole
 #endif
+
+substituteE :: Vec t (Type u) -> UntypedExpr t v a -> UntypedExpr u v a
+substituteE vs (E e) = E $ substE' vs e
+  where
+    substE' vs (Variable va) = Variable va
+    substE' vs (Fun fn ts notes) = undefined
+    substE' vs (Op op es) = Op op $ fmap (substituteE vs) es
+    substE' vs (App e1 e2) = undefined
+    substE' vs (Con tn e t) = undefined
+    substE' vs (Unit) = Unit
+    substE' vs (ILit n t) = ILit n t
+    substE' vs (SLit s) = SLit s
+#ifdef BUILTIN_ARRAYS
+    substE' vs (ALit es) = ALit $ fmap (substituteE vs) es
+    substE' vs (ArrayIndex e1 e2) = undefined
+    substE' vs (Pop as e1 e2) = undefined
+    substE' vs (Singleton e) = Singleton $ substituteE vs e
+    substE' vs (ArrayMap2 (as, fbody) (e1,e2)) = undefined
+    substE' vs (ArrayTake as e i e') = undefined
+    substE' vs (ArrayPut arr i e) = undefined
+#endif
+    substE' vs (Let a e e') = undefined
+    substE' vs (LetBang bs a e e') = undefined
+    substE' vs (Tuple e1 e2) = undefined
+    substE' vs (Struct fs) = undefined
+    substE' vs (If c th el) = undefined
+    substE' vs (Case e tn (l1,a1,e1) (l2,a2,e2)) = undefined
+    substE' vs (Esac e) = Esac $ substituteE vs e
+    substE' vs (Split as e e') = undefined
+    substE' vs (Member e f) = undefined
+    substE' vs (Take as rec f e') = undefined
+    substE' vs (Put rec f e) = undefined
+    substE' vs (Promote t e) = undefined
+    substE' vs (Cast t e) = undefined
+
 
 remove :: (Eq a) => a -> [(a,b)] -> [(a,b)]
 remove k = filter ((/= k) . fst)
@@ -349,7 +389,7 @@ infer (E (ALit es))
             n = fromIntegral $ length es
         t <- lubAll ts
         isSub <- allM (`isSubtype` t) ts
-        return (TE (TArray t n Unboxed (IM.fromList $ zip [1..fromIntegral n] (repeat False))) (ALit es'))
+        return (TE (TArray t n Unboxed Nothing) (ALit es'))
   where
     lubAll :: [Type t] -> TC t v (Type t)
     lubAll [] = __impossible "lubAll: empty list"
@@ -390,16 +430,20 @@ infer (E (ArrayPut arr i e))
    = do arr'@(TE tarr _) <- infer arr
         i'   <- infer i
         e'@(TE te _)   <- infer e
-        let TArray telm len s tkns = tarr
-        mi <- evalExpr i'
-        guardShow "@put index not a integral constant" $ isJust mi
-        let Just i'' = mi
-        guardShow "@put index is out of range" $ i'' `IM.member` tkns
-        let Just itkn = IM.lookup i'' tkns
-        k <- kindcheck telm
-        unless itkn $ guardShow "@put a non-Discardable untaken element" $ canDiscard k
-        let tarr' = TArray telm len s (IM.adjust (const False) i'' tkns)
-        return (TE tarr' (ArrayPut arr' i' e'))
+        -- FIXME: all the checks are disabled here, for the lack of a proper
+        -- refinement type system. Also, we cannot know the exact index that
+        -- is being put, thus there's no way that we can infer the precise type
+        -- for the new array (tarr').
+        -- XXX | let TArray telm len s tkns = tarr
+        -- XXX | mi <- evalExpr i'
+        -- XXX | guardShow "@put index not a integral constant" $ isJust mi
+        -- XXX | let Just i'' = mi
+        -- XXX | guardShow "@put index is out of range" $ i'' `IM.member` tkns
+        -- XXX | let Just itkn = IM.lookup i'' tkns
+        -- XXX | k <- kindcheck telm
+        -- XXX | unless itkn $ guardShow "@put a non-Discardable untaken element" $ canDiscard k
+        -- XXX | let tarr' = TArray telm len s (IM.adjust (const False) i' tkns)
+        return (TE tarr (ArrayPut arr' i' e'))
 #endif
 infer (E (Variable v))
    = do Just t <- useVariable (fst v)

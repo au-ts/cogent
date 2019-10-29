@@ -84,12 +84,8 @@ apply (Subst f) (R (Row.Row m' (Just x)) s)
 apply (Subst f) (R r (Right x))
   | Just (Sigil s) <- M.lookup x f = apply (Subst f) (R r (Left s))
 #ifdef BUILTIN_ARRAYS
-apply (Subst f) (A t l (Right x) tkns)
-  | Just (Sigil s) <- M.lookup x f = apply (Subst f) (A t l (Left s) tkns)
-apply (Subst f) (A t l s (ARow.ARow es us ma (Just x)))
-  | Just (ARow r'@(ARow.ARow es' _ _ mv')) <- M.lookup x f
-  -- It's guaranteed that @r'@ is reduced.
-  = apply (Subst f) (A t l s $ ARow.ARow (M.union es es') us ma mv')
+apply (Subst f) (A t l (Right x) mhole)
+  | Just (Sigil s) <- M.lookup x f = apply (Subst f) (A t l (Left s) mhole)
 #endif
 apply f (V x) = V (fmap (apply f) x)
 apply f (R x s) = R (fmap (apply f) x) s

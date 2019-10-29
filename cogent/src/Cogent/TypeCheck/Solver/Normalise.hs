@@ -75,22 +75,12 @@ normaliseRW = rewrite' $ \t -> case t of
         Nothing -> pure $ V (Row.putAll row)
         Just fs -> pure $ V (Row.putMany fs row)
 #ifdef BUILTIN_ARRAYS
-    A t l s r | not (ARow.reduced r) -> 
+    T (TATake [idx] (A t l s Nothing)) -> 
       let l' = normaliseSExpr l
-          r' = ARow.reduce l' (Just . normaliseSExpr) r
-       in pure $ A t l s r'
-    T (TATake idxs (A t l s r)) | isNothing (ARow.var r) -> 
+       in pure $ A t l s (Just idx)
+    T (TAPut [idx] (A t l s (Just idx'))) | idx == idx' -> 
       let l' = normaliseSExpr l
-          r' = ARow.reduce l' (Just . normaliseSExpr) r
-          es' = IM.fromList $ map ((,True) . normaliseSExpr) idxs
-          r'' = ARow.updateEntries (\es -> es' `IM.union` es) r'
-       in pure $ A t l s r''
-    T (TAPut idxs (A t l s r)) | isNothing (ARow.var r) -> 
-      let l' = normaliseSExpr l
-          r' = ARow.reduce l' (Just . normaliseSExpr) r
-          es' = IM.fromList $ map ((,False) . normaliseSExpr) idxs
-          r'' = ARow.updateEntries (\es -> es' `IM.union` es) r'
-       in pure $ A t l s r''
+       in pure $ A t l s Nothing
 #endif
     T (TLayout l (R row (Left (Boxed p _)))) ->
       pure $ R row $ Left $ Boxed p (Just l)

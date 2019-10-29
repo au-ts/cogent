@@ -249,18 +249,12 @@ normaliseT d (V x) = T . TVariant . M.fromList . Row.toEntryList . fmap (:[]) <$
 normaliseT d (R x (Left s)) = T . flip TRecord s . Row.toEntryList <$> traverse (normaliseT d) x
 normaliseT d (R x (Right s)) =  __impossible ("normaliseT: invalid sigil (?" ++ show s ++ ")")
 #ifdef BUILTIN_ARRAYS
-normaliseT d (A t n (Left s) (ARow m [] Nothing Nothing)) = do
+normaliseT d (A t n (Left s) mhole) = do
   t' <- normaliseT d t
   s' <- normaliseS s
-  let tkns = map (first $ SE . IntLit . fromIntegral) $ IM.toList m
+  let tkns = case mhole of Nothing -> []; Just idx -> [(idx,True)]
   return $ T $ TArray t' n s' tkns
--- If the A-row is not reduced, reduce it first.
-normaliseT d (A t n (Left s) r@(ARow _ _ _ Nothing)) | isKnown n = do
-  let n'  = evalSExpr n
-      r'  = ARow.reduce n' (Just . evalSExpr) r
-   in normaliseT d (A t n (Left s) r')
-normaliseT d (A t n (Left s) (ARow _ _ _ (Just x))) = __impossible $ "normaliseT: invalid a-row (?" ++ show x ++ ")"
-normaliseT d (A t n (Right s) tkns) = __impossible ("normaliseT: invalid sigil (?" ++ show s ++ ")")
+normaliseT d (A t n (Right s) mhole) = __impossible ("normaliseT: invalid sigil (?" ++ show s ++ ")")
 #endif
 normaliseT d (U x) = __impossible ("normaliseT: invalid type (?" ++ show x ++ ")")
 normaliseT d (T x) = T <$> traverse (normaliseT d) x

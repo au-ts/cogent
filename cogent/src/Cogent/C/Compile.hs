@@ -438,9 +438,9 @@ genExpr mv (TE t (Pop _ e1 e2)) = do  -- FIXME: varpool - as above
   -- Idea:
   --   v :@ vs = e1 in e2 ~~> v1 = e1[0]; t v2[l-1]; v2 = e1[1]; e2
   (e1',e1decl,e1stm,e1p) <- genExpr_ e1
-  let t1@(TArray telt l s tkns) = exprType e1
+  let t1@(TArray telt l s mhole) = exprType e1  -- ASSERTION: @mhole@ cannot be a hole in its head
   (v1,v1decl,v1stm,v1p) <- flip3 aNewVar e1p (mkArrIdx e1' 0) =<< genType telt
-  let trest = TArray telt (l-1) s $ behead tkns
+  let trest = TArray telt (l-1) s mhole
   trest' <- genTypeP trest
   (v2,v2decl,v2stm) <- declare trest'
   -- recycleVars v1p
