@@ -194,12 +194,12 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
 #ifdef BUILTIN_ARRAYS
   -- See [NOTE: solving 'A' types] in Cogent.Solver.Unify
   A t1 l1 s1 r1 :<  A t2 l2 s2 r2 | s1 == s2 -> do
-    guard (isNothing r1 && isJust r2)
+    guard (not $ isJust r1 && isNothing r2)
     let drop = case (r1,r2) of
                  (r1, r2) | r1 == r2 -> Sat
-                 (Just i1, Nothing) -> Drop t1 ImplicitlyTaken
+                 (Nothing, Just i2) -> Drop t1 ImplicitlyTaken
                  (Just i1, Just i2) -> Arith (SE $ PrimOp "==" [i1,i2])
-     in Just [Arith (SE $ PrimOp "==" [l1,l2]), t1 :< t2, drop]
+    Just [Arith (SE $ PrimOp "==" [l1,l2]), t1 :< t2, drop]
 
   A t1 l1 s1 r1 :=: A t2 l2 s2 r2 | s1 == s2 -> do
     Nothing
