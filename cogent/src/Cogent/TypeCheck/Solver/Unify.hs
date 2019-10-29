@@ -90,21 +90,6 @@ assignOf (R r1 s1 :=: R r2 s2)
                                  , Subst.ofRow y (r1 { Row.var = Just v })
                                  ]
 #ifdef BUILTIN_ARRAYS
--- unify A-rows
--- N.B. we know from the previous phase that common entries have been factored out.
-assignOf (A t1 l1 s1 r1 :<  A t2 l2 s2 r2)
-  | ARow.var r1 /= ARow.var r2
-  , ARow.reduced r1
-  , ARow.reduced r2
-  , IM.null (ARow.common r1 r2)
-  = case (ARow.var r1, ARow.var r2) of
-      (Just x , Nothing) -> pure [Subst.ofARow x r2]
-      (Nothing, Just y ) -> pure [Subst.ofARow y r1]
-      (Just x , Just y ) -> do v <- lift solvFresh
-                               pure [ Subst.ofARow x (r2 { ARow.var = Just v })
-                                    , Subst.ofARow y (r1 { ARow.var = Just v })
-                                    ]
-assignOf (A t1 l1 s1 r1 :=: A t2 l2 s2 r2) = undefined
 -- TODO: This will be moved to a separately module for SMT-solving. Eventually the results
 -- returned from the solver will be a Subst object. / zilinc
 assignOf (Arith (SE (PrimOp "==" [SU x, e]))) | null (unknownsE e)
