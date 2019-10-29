@@ -103,11 +103,15 @@ validateType rt@(RT t) = do
                        (c, TVariant fs') <- second (ffmap toSExpr) <$> fmapFoldM validateType t
                        pure (c, V (Row.fromMap (fmap (first tuplize) fs')))
 #ifdef BUILTIN_ARRAYS
-    TArray te l s tkns -> do let l' = toSExpr l
-                                 tkns' = unevaluated $ map (first toSExpr) tkns
-                                 cl = Arith (SE $ PrimOp ">" [l', SE $ IntLit 0])
-                             (c,te') <- validateType te
-                             return (c <> cl, A te' l' (Left s) tkns')
+    TArray te l s tkns -> do
+      let l' = toSExpr l
+      (ctkn,mhole) <- case tkns of
+                        [] -> return (Sat, Nothing)
+                        [(i,True)] -> return (Sat, Just $ toSExpr i)
+                        _  -> return (Unsat $ OtherTypeError "taking more than one element from arrays not supported", Nothing)
+      let cl = Arith (SE $ PrimOp ">" [l', SE $ IntLit 0])
+      (c,te') <- validateType te
+      return (c <> ctkn <> cl, A te' l' (Left s) mhole)
 #endif
     _ -> second (T . ffmap toSExpr) <$> fmapFoldM validateType t
 
@@ -264,18 +268,21 @@ cg' (ArrayLit es) t = do
       n = SE . IntLit . fromIntegral $ length es
       cz = Arith (SE $ PrimOp ">" [n, SE (IntLit 0)])
   beta <- freshVar
-  return (mconcat cs <> cz <> (A alpha n (Left Unboxed) (ARow.empty beta)) :< t, ArrayLit es')
+  return (mconcat cs <> cz <> (A alpha n (Left Unboxed) Nothing) :< t, ArrayLit es')
 
 cg' (ArrayIndex e i) t = do
   alpha <- freshTVar
   n <- freshEVar
   r <- freshVar
   s <- freshVar
-  let ta = A alpha n (Right s) (ARow.fromTaken r $ toSExpr $ stripLocE i) -- FIXME: we need to create a new TCType for arrays / zilinc
+  idx <- freshEVar
+  let ta = A alpha n (Right s) (Just idx)  -- FIXME: we need to create a new TCType for arrays / zilinc
   (ce, e') <- cg e ta
   (ci, i') <- cg i (T $ TCon "U32" [] Unboxed)
-  let c = alpha :< t <> Share ta UsedInArrayIndexing
+  let c = alpha :< t
+        <> Share ta UsedInArrayIndexing
         <> Arith (SE (PrimOp "<" [toSExpr $ stripLocE i, n]))  -- FIXME!
+        <> Arith (SE (PrimOp "/=" [toSExpr $ stripLocE i, idx]))
         -- <> Arith (SE (PrimOp ">=" [toSExpr i, SE (IntLit 0)]))  -- as we don't have negative values
   traceTc "gen" (text "array indexing" <> colon
                  L.<$> text "index is" <+> pretty (stripLocE i) <> semi
@@ -296,8 +303,8 @@ cg' (ArrayMap2 ((p1,p2), fbody) (arr1,arr2)) t = __fixme $ do  -- FIXME: more ac
   (cbody, fbody') <- cg fbody (T $ TTuple [alpha1, alpha2])
   -- TODO: also need to check that all other variables `fbody` refers to must be non-linear / zilinc
   rs <- context %%= C.dropScope
-  let tarr1 = A alpha1 len1 (Right x1) ARow.allPut
-      tarr2 = A alpha2 len2 (Right x2) ARow.allPut
+  let tarr1 = A alpha1 len1 (Right x1) Nothing
+      tarr2 = A alpha2 len2 (Right x2) Nothing
   (carr1, arr1') <- cg arr1 tarr1
   (carr2, arr2') <- cg arr2 tarr2
   let unused = flip foldMap (M.toList rs) $ \(v,(_,_,us)) ->
@@ -306,25 +313,23 @@ cg' (ArrayMap2 ((p1,p2), fbody) (arr1,arr2)) t = __fixme $ do  -- FIXME: more ac
       e' = ArrayMap2 ((p1',p2'), fbody') (arr1',arr2')
   return (t' :< t <> cp1 <> cp2 <> cbody <> carr1 <> carr2 <> dropConstraintFor rs <> unused, e')
 
-cg' (ArrayPut arr es) t = do
+cg' (ArrayPut arr [(idx,v)]) t = do
   alpha <- freshTVar  -- the element type
   sigma <- freshTVar  -- the original array type
   l <- freshEVar  -- the length of the array
   s <- freshVar   -- the unifier for the sigil
-  rest <- freshVar   -- the unifier for in the A-row for the rest entries
-  let (idxs,vs) = unzip es
-      idxs' = map (toSExpr . stripLocE) idxs
   (carr,arr') <- cg arr sigma
-  blob  <- mapM (flip cg $ T (TCon "U32" [] Unboxed)) idxs
-  blob' <- mapM (flip cg alpha) vs
-  let c = [ A alpha l (Right s) (fromPuts rest idxs') :< t
-          , sigma :< A alpha l (Right s) (fromTakens rest idxs')
-          , carr ]
-       <> map fst blob
-       <> map fst blob'
-       <> map (\i -> Arith (SE $ PrimOp ">=" [i, SE (IntLit 0)])) idxs'
-       <> map (\i -> Arith (SE $ PrimOp "<" [i, l])) idxs'
-  return (mconcat c, ArrayPut arr' (zip (map snd blob) (map snd blob')))
+  (cidx,idx') <- cg idx $ T (TCon "U32" [] Unboxed)
+  (cv,v') <- cg v alpha
+  let idx'' = tcToSExpr idx'
+      c = [ A alpha l (Right s) (Just idx'') :< t
+          , sigma :< A alpha l (Right s) Nothing
+          , carr, cidx, cv
+          , Arith (SE $ PrimOp ">=" [idx'', SE (IntLit 0)])
+          , Arith (SE $ PrimOp "<" [idx'', l])
+          ]
+  return (mconcat c, ArrayPut arr' [(idx',v')])
+cg' (ArrayPut _ _) _ = __todo "cg': currently array put only supports one element at a time"
 #endif
 
 cg' exp@(Lam pat mt e) t = do
@@ -670,7 +675,7 @@ match' (PArray ps) t = do
   r <- freshVar
   let (ss,cs,ps') = unzip3 blob
       l = SE . IntLit . fromIntegral $ length ps
-      c = t :< (A alpha l (__fixme $ Left Unboxed) (ARow.empty r))  -- FIXME: can be boxed as well / zilinc
+      c = t :< (A alpha l (__fixme $ Left Unboxed) Nothing)  -- FIXME: can be boxed as well / zilinc
   return (M.unions ss, mconcat cs <> c, PArray ps')
 #endif
 
