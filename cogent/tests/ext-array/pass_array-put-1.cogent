@@ -1,0 +1,4 @@
+type A = U8[3]
+
+foo : A @take(x) -> A
+foo arr = arr @{ @x = 3 }
