@@ -322,8 +322,8 @@ cg' (ArrayPut arr [(idx,v)]) t = do
   (cidx,idx') <- cg idx $ T (TCon "U32" [] Unboxed)
   (cv,v') <- cg v alpha
   let idx'' = tcToSExpr idx'
-      c = [ A alpha l (Right s) (Just idx'') :< t
-          , sigma :< A alpha l (Right s) Nothing
+      c = [ A alpha l (Right s) Nothing :< t
+          , sigma :< A alpha l (Right s) (Just idx'')
           , carr, cidx, cv
           , Arith (SE $ PrimOp ">=" [idx'', SE (IntLit 0)])
           , Arith (SE $ PrimOp "<" [idx'', l])
