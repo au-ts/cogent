@@ -184,12 +184,12 @@ cg e tau = case e of
   (Member e f) -> do
     row <- Row.incomplete [Entry f tau False]
     sigil <- fresh
-    recPar <- fresh
+    recPar <- UnknownParameter <$> fresh
     -- TODO: Member is supposed to be on nonlinear records, will these ever have a recursive parameter
     -- (i.e. are they *always* unboxed records?)
-    let alpha = Record None row (UnknownSigil sigil)
+    let alpha = Record recPar row (UnknownSigil sigil)
     (e', c1) <- cg e alpha
-    let c2 = Drop (Record None (Row.take f row) (UnknownSigil sigil))
+    let c2 = Drop (Record recPar (Row.take f row) (UnknownSigil sigil))
     withSig (Member e' f, c1 :&: c2)
 
   -- Remaining record, field name, extracted contents var, record extrating from, following expression 

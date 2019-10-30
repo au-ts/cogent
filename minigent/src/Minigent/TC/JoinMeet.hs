@@ -61,25 +61,28 @@ joinMeet = Rewrite.withTransform find $ \c -> case c of
   Join v (Variant r1) (Variant r2) | r1 == r2 -> do
     pure [Variant r1 :< v ]
 
-  Meet v (Record _ r1 s1) (Record _ r2 s2) | r1 /= r2 -> do
+  Meet v (Record n1 r1 s1) (Record n2 r2 s2) | r1 /= r2 -> do
     guard (Row.compatible r1 r2)
     guard (sigilsCompatible s1 s2)
     r <- Row.union Row.leastTaken r1 r2
     s <- UnknownSigil <$> fresh
-    pure [v :< Record undefined r s, Record undefined r s :< Record undefined r1 s1, Record undefined r s :< Record undefined r2 s2 ]
+    n <- UnknownParameter <$> fresh
+    pure [v :< Record n r s, Record n r s :< Record n1 r1 s1, Record n r s :< Record n2 r2 s2 ]
 
-  Meet v (Record _ r1 s1) (Record _ r2 s2) | r1 == r2 && s1 == s2 -> do
-    pure [v :< Record undefined r1 s1]
+  Meet v (Record n1 r1 s1) (Record n2 r2 s2) | r1 == r2 && s1 == s2 && n1 == n2 -> do
+    pure [v :< Record n1 r1 s1]
 
-  Join v (Record _ r1 s1) (Record _ r2 s2) | r1 /= r2 -> do
+  Join v (Record n1 r1 s1) (Record n2 r2 s2) | r1 /= r2 -> do
     guard (Row.compatible r1 r2)
     guard (sigilsCompatible s1 s2)
     r <- Row.union Row.mostTaken r1 r2
     s <- UnknownSigil <$> fresh
-    pure [Record undefined r s :< v, Record undefined r1 s1 :< Record undefined r s, Record undefined r2 s2 :< Record undefined r s]
+    n <- UnknownParameter <$> fresh
+    pure [Record n r s :< v, Record n1 r1 s1 :< Record n r s, Record n2 r2 s2 :< Record n r s]
 
-  Join v (Record _ r1 s1) (Record _ r2 s2) | r1 == r2 && s1 == s2 -> do
-    pure [Record undefined r1 s1 :< v ]
+  -- TODO: Check if the recursive parameters need to be compared?
+  Join v (Record n1 r1 s1) (Record n2 r2 s2) | r1 == r2 && s1 == s2 && n1 == n2 -> do
+    pure [Record n1 r1 s1 :< v]
 
   Join v (Function t1 t2) (Function r1 r2) -> do
     b1 <- UnifVar <$> fresh
@@ -111,14 +114,14 @@ find (c:cs) = case c of
            ([]         , rs ) -> fmap (c:) <$> find cs
            (rho :< _:rs, rs') -> pure (Join (Variant (Row m (Just v))) tau rho , rs ++ rs')
 
-  (Record _ (Row m (Just v)) s) :< tau@(Record _ (Row m' Nothing) s')
+  (Record n (Row m (Just v)) s) :< tau@(Record n' (Row m' Nothing) s')
     | M.null m -> case partition (flexRowSub v) cs of
            ([]          , rs ) -> fmap (c:) <$> find cs
-           (_ :< rho :rs, rs') -> pure (Meet (Record undefined (Row m (Just v)) s) tau rho , rs ++ rs')
-  tau@(Record _ (Row m' Nothing) s') :< (Record _ (Row m (Just v)) s)
+           (_ :< rho :rs, rs') -> pure (Meet (Record n (Row m (Just v)) s) tau rho , rs ++ rs')
+  tau@(Record n' (Row m' Nothing) s') :< (Record n (Row m (Just v)) s)
     | M.null m -> case partition (flexRowSup v) cs of
            ([]          , rs ) -> fmap (c:) <$> find cs
-           (rho :< _:rs, rs') -> pure (Join (Record undefined (Row m (Just v)) s) tau rho , rs ++ rs')
+           (rho :< _:rs, rs') -> pure (Join (Record n (Row m (Just v)) s) tau rho , rs ++ rs')
 
 
   _ -> fmap (c:) <$> find cs

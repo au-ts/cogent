@@ -102,13 +102,31 @@ simplify axs = Rewrite.pickOne $ \c -> -- trace ("About to simpliy:\n" ++ debugP
         c  = Record n1 r1' s1 :< Record n2 r2' s2
     Just (c:cs ++ ds)
 
+  {-
+   - Recursive Parameters:
+   - If we are reasoning about two recursive parameters, check if their context references
+   - are equal
+   -}
   RecPar n ctxt :< RecPar n' ctxt' ->  guard (ctxt M.! n == ctxt M.! n') >> Just []
   RecPar n ctxt :=: RecPar n' ctxt' -> guard (ctxt M.! n == ctxt M.! n') >> Just []
 
+  RecParBang n ctxt :< RecParBang n' ctxt' ->  guard (ctxt M.! n == ctxt M.! n') >> Just []
+  RecParBang n ctxt :=: RecParBang n' ctxt' -> guard (ctxt M.! n == ctxt M.! n') >> Just []
+
+  {-
+   - otherwise:
+   - If we are reasoning about a recursive parameter and a type, unroll the parameter
+   - and reason about the type and the unrolled parameter
+   -}
   RecPar n ctxt :< t  -> Just [mapRecPars ctxt (ctxt M.! n) :< t]
   t :< RecPar n ctxt  -> Just [t :< mapRecPars ctxt (ctxt M.! n)]
   RecPar n ctxt :=: t -> Just [mapRecPars ctxt (ctxt M.! n) :=: t]
   t :=: RecPar n ctxt -> Just [t :=: mapRecPars ctxt (ctxt M.! n)]
+
+  RecParBang n ctxt :< t  -> Just [Bang (mapRecPars ctxt (ctxt M.! n)) :< t]
+  t :< RecParBang n ctxt  -> Just [t :< Bang (mapRecPars ctxt (ctxt M.! n))]
+  RecParBang n ctxt :=: t -> Just [Bang (mapRecPars ctxt (ctxt M.! n)) :=: t]
+  t :=: RecParBang n ctxt -> Just [t :=: Bang (mapRecPars ctxt (ctxt M.! n))]
 
   t :< t'  -> guard (unorderedType t || unorderedType t') >> Just [t :=: t']
 
