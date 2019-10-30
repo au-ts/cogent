@@ -175,6 +175,9 @@ instance Prec (Expr t p ip e) where
 instance Prec RawExpr where
   prec (RE e) = prec e
 
+instance Prec LocExpr where
+  prec (LocExpr _ e) = prec e
+
 instance Prec (TExpr t) where
   prec (TE _ e _) = prec e
 
@@ -207,6 +210,9 @@ instance ExprType (Expr t p ip e) where
 instance ExprType RawExpr where
   isVar (RE e) = isVar e
 
+instance ExprType LocExpr where
+  isVar (LocExpr _ e) = isVar e
+
 instance ExprType (TExpr t) where
   isVar (TE _ e _) = isVar e
 
@@ -221,7 +227,7 @@ class PatnType a where
   prettyP :: a -> Doc
   prettyB :: (Pretty t, Pretty e, Prec e) => (a, Maybe t, e) -> Bool -> Doc  -- binding
 
-instance (PrettyName pv, PatnType ip, Pretty ip) => PatnType (IrrefutablePattern pv ip) where
+instance (PrettyName pv, PatnType ip, Pretty ip, Pretty e) => PatnType (IrrefutablePattern pv ip e) where
   isPVar (PVar pv) = isName pv
   isPVar _ = const False
 
@@ -348,7 +354,7 @@ instance Pretty Likelihood where
   pretty Unlikely = symbol "~>"
   pretty Regular  = symbol "->"
 
-instance (PrettyName pv, PatnType ip, Pretty ip) => Pretty (IrrefutablePattern pv ip) where
+instance (PrettyName pv, PatnType ip, Pretty ip, Pretty e) => Pretty (IrrefutablePattern pv ip e) where
   pretty (PVar v) = prettyName v
   pretty (PTuple ps) = tupled (map pretty ps)
   pretty (PUnboxedRecord fs) = string "#" <> record (fmap handleTakeAssign fs)
@@ -357,6 +363,8 @@ instance (PrettyName pv, PatnType ip, Pretty ip) => Pretty (IrrefutablePattern p
   pretty (PTake v fs) = prettyName v <+> record (fmap handleTakeAssign fs)
 #ifdef BUILTIN_ARRAYS
   pretty (PArray ps) = array $ map pretty ps
+  pretty (PArrayTake v ips) = prettyName v <+> string "@" <>
+                              record (map (\(i,p) -> symbol "@" <> pretty i <+> symbol "=" <+> pretty p) ips)
 #endif
 
 instance Pretty RawIrrefPatn where
@@ -477,6 +485,9 @@ instance (ExprType e, Prec e, Pretty t, PatnType p, Pretty p, PatnType ip, Prett
 
 instance Pretty RawExpr where
   pretty (RE e) = pretty e
+
+instance Pretty LocExpr where
+  pretty (LocExpr _ e) = pretty e
 
 instance Pretty t => Pretty (TExpr t) where
   pretty (TE t e _) | __cogent_fshow_types_in_pretty = parens $ pretty e <+> comment "::" <+> pretty t
