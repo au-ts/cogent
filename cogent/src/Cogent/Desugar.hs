@@ -499,6 +499,19 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArray (p:ps)) pos)) e = do
       b1 = S.Binding (B.TIP (S.PArray ((B.TIP (S.PVar (v,te)) pos):ps)) pos) Nothing e0 []
       b2 = S.Binding p Nothing (B.TE te (S.Var v) pos) []
   desugarExpr $ B.TE (B.getTypeTE e) (S.Let [b1,b2] e) pos
+desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArrayTake arr []) pos)) e = __impossible "desugarAlt': PArrayTake"
+desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArrayTake (arr,_) [(i, B.TIP (S.PVar (v,_)) _)]) pos)) e = do
+  e0' <- desugarExpr e0
+  i'  <- desugarExpr i
+  e'  <- withBindings (Cons v $ Cons arr Nil) $ desugarExpr e
+  return $ E (ArrayTake (v,arr) e0' i' e')
+desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArrayTake arr [(i,ip)]) pos)) e = do
+  v <- freshVar
+  let S.RT (S.TArray telt _ _ _) = snd arr
+      b1 = S.Binding (B.TIP (S.PArrayTake arr [(i, B.TIP (S.PVar (v,telt)) (getLocTIP ip))]) pos) Nothing e []
+      b2 = S.Binding ip Nothing (B.TE telt (S.Var v) pos) []
+  desugarExpr $ B.TE (B.getTypeTE e) (S.Let [b1,b2] e) pos
+desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArrayTake arr ips) pos)) e = __todo "desugarAlts': taking multiple elements out of an array is currently not supported"
 #endif
 desugarAlt' _ _ _ = __impossible "desugarAlt' (_)"  -- literals
 

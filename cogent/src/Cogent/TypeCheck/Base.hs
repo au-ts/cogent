@@ -278,6 +278,8 @@ funcOrVar (T (TFun {})) = MustFunc
 funcOrVar _ = MustVar
 
 data TExpr      t = TE { getTypeTE :: t, getExpr :: Expr t (TPatn t) (TIrrefPatn t) (TExpr t), getLocTE :: SourcePos }
+deriving instance Eq   t => Eq   (TExpr t)
+deriving instance Ord  t => Ord  (TExpr t)
 deriving instance Show t => Show (TExpr t)
 
 data TPatn      t = TP { getPatn :: Pattern (TIrrefPatn t), getLocTP :: SourcePos }
@@ -285,7 +287,7 @@ deriving instance Eq   t => Eq   (TPatn t)
 deriving instance Ord  t => Ord  (TPatn t)
 deriving instance Show t => Show (TPatn t)
 
-data TIrrefPatn t = TIP { getIrrefPatn :: IrrefutablePattern (VarName, t) (TIrrefPatn t), getLocTIP :: SourcePos }
+data TIrrefPatn t = TIP { getIrrefPatn :: IrrefutablePattern (VarName, t) (TIrrefPatn t) (TExpr t), getLocTIP :: SourcePos }
 deriving instance Eq   t => Eq   (TIrrefPatn t)
 deriving instance Ord  t => Ord  (TIrrefPatn t)
 deriving instance Show t => Show (TIrrefPatn t)
@@ -295,7 +297,7 @@ instance Functor TExpr where
 instance Functor TPatn where
   fmap f (TP p l) = TP (fmap (fmap f) p) l
 instance Functor TIrrefPatn where
-  fmap f (TIP ip l) = TIP (ffmap (second f) $ fmap (fmap f) ip) l
+  fmap f (TIP ip l) = TIP (fffmap (second f) $ ffmap (fmap f) $ fmap (fmap f) ip) l
 
 type TCName = (VarName, TCType)
 type TCExpr = TExpr TCType
@@ -333,7 +335,7 @@ toLocPatn :: (SourcePos -> t -> LocType) -> TPatn t -> LocPatn
 toLocPatn f (TP p l) = LocPatn l (fmap (toLocIrrefPatn f) p)
 
 toLocIrrefPatn :: (SourcePos -> t -> LocType) -> TIrrefPatn t -> LocIrrefPatn
-toLocIrrefPatn f (TIP p l) = LocIrrefPatn l (ffmap fst $ fmap (toLocIrrefPatn f) p)
+toLocIrrefPatn f (TIP p l) = LocIrrefPatn l (fffmap fst $ ffmap (toLocIrrefPatn f) $ fmap (toLocExpr f) p)
 
 toTypedExpr :: TCExpr -> TypedExpr
 toTypedExpr = fmap toRawType
@@ -356,7 +358,7 @@ toRawPatn :: TypedPatn -> RawPatn
 toRawPatn (TP p _) = RP (fmap toRawIrrefPatn p)
 
 toRawIrrefPatn :: TypedIrrefPatn -> RawIrrefPatn
-toRawIrrefPatn (TIP ip _) = RIP (ffmap fst $ fmap toRawIrrefPatn ip)
+toRawIrrefPatn (TIP ip _) = RIP (fffmap fst $ ffmap toRawIrrefPatn $ fmap toRawExpr ip)
 
 
 

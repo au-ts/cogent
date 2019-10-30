@@ -61,6 +61,7 @@ language = haskellStyle
                                  ,".&.",".|.",".^.",">>","<<"
                                  ,":","=","!",":<",".","_","..","#","$","::"
                                  ,"@","@@"  -- DocGent
+                                 ,"@{"
                                  ,"->","=>","~>","<=","|","|>"]
            , T.reservedNames   = ["let","in","type","include","all","take","put","inline","upcast"
                                  ,"variant","record","at","layout","pointer"
@@ -68,7 +69,7 @@ language = haskellStyle
 #ifdef BUILTIN_ARRAYS
                                  ,"array","map2","@take","@put"]
 #else
-                                  ]
+                                 ]
 #endif
            , T.identStart = letter
            }
@@ -130,7 +131,7 @@ repExpr = DL <$> repExpr'
 -- TODO: add support for patterns like `_ {f1, f2}', where the record name is anonymous / zilinc
 irrefutablePattern :: Parser LocIrrefPatn
 irrefutablePattern = avoidInitial >> LocIrrefPatn <$> getPosition <*>
-             (variableOrRecord <$> variableName <*> optionMaybe (braces recAssignsAndOrWildcard)
+            (variableOrRecordOrArray <$> variableName <*> optionMaybe recOrArray
          <|> tuple <$> parens (commaSep irrefutablePattern)
 #ifdef BUILTIN_ARRAYS
          <|> PArray <$> brackets (commaSep1 irrefutablePattern)
@@ -141,8 +142,18 @@ irrefutablePattern = avoidInitial >> LocIrrefPatn <$> getPosition <*>
   where tuple [] = PUnitel
         tuple [LocIrrefPatn _ p] = p
         tuple ps  = PTuple ps
-        variableOrRecord v Nothing = PVar v
-        variableOrRecord v (Just rs) = PTake v rs
+
+        recOrArray = do { x <- between (reservedOp "@{") (symbol "}") arrayAssigns
+                        ; return $ Right x
+                        }
+                     <|>
+                     do { x <- braces recAssignsAndOrWildcard
+                        ; return $ Left x
+                        }
+
+        variableOrRecordOrArray v Nothing = PVar v
+        variableOrRecordOrArray v (Just (Left  x)) = PTake v x
+        variableOrRecordOrArray v (Just (Right x)) = PArrayTake v x
         recordAssignment = (\p n m -> (n, fromMaybe (LocIrrefPatn p $ PVar n) m))
                         <$> getPosition <*> variableName <*> optionMaybe (reservedOp "=" *> irrefutablePattern)
                         <?> "record assignment pattern"
@@ -151,6 +162,14 @@ irrefutablePattern = avoidInitial >> LocIrrefPatn <$> getPosition <*>
         recAssignsAndOrWildcard = ((:[]) <$> wildcard)
                               <|> ((:) <$> recAssign <*> ((++) <$> many (try (comma >> recAssign))
                                                                <*> (liftM maybeToList . optionMaybe) (comma >> wildcard)))
+        arrayAssigns = commaSep arrayAssignment
+        arrayAssignment = do p <- getPosition
+                             _ <- symbol "@"
+                             idx <- expr 1
+                             reservedOp "="
+                             p <- irrefutablePattern
+                             return (idx, p)
+                          <?> "array assignment (pattern)"
 
 pattern = avoidInitial >> LocPatn <$> getPosition <*>
             (PBoolLit <$> boolean
@@ -326,7 +345,7 @@ recAssignsAndOrWildcard = ((:[]) <$> wildcard)
                                          <*> (liftM maybeToList . optionMaybe) (comma >> wildcard)))
 
 arrayAssignment = do p <- getPosition
-                     _ <- string "@"
+                     _ <- symbol "@"
                      idx <- expr 1
                      reservedOp "="
                      e <- expr 1

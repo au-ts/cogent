@@ -20,6 +20,7 @@ module Cogent.Surface
 
 import Cogent.Common.Syntax
 import Cogent.Common.Types
+import Cogent.Compiler
 import Cogent.Util
 
 import Control.Applicative
@@ -41,17 +42,18 @@ type DocString = String
 
 type AExpr = RawExpr  -- the expression type for statically-known array indices
 
-data IrrefutablePattern pv ip = PVar pv
-                              | PTuple [ip]
-                              | PUnboxedRecord [Maybe (FieldName, ip)]
-                              | PUnderscore
-                              | PUnitel
-                              | PTake pv [Maybe (FieldName, ip)]
-                                  -- ^^^ Note: `Nothing' will be desugared to `Just' in TypeCheck / zilinc
+data IrrefutablePattern pv ip e = PVar pv
+                                | PTuple [ip]
+                                | PUnboxedRecord [Maybe (FieldName, ip)]
+                                | PUnderscore
+                                | PUnitel
+                                | PTake pv [Maybe (FieldName, ip)]
+                                    -- ^^^ Note: `Nothing' will be desugared to `Just' in TypeCheck / zilinc
 #ifdef BUILTIN_ARRAYS
-                              | PArray [ip]
+                                | PArray [ip]
+                                | PArrayTake pv [(e, ip)]
 #endif
-                              deriving (Data, Eq, Ord, Show, Functor, Foldable, Traversable)
+                                deriving (Data, Eq, Ord, Show, Functor, Foldable, Traversable)
 
 data Pattern ip = PCon TagName [ip]
                 | PIntLit Integer
@@ -160,11 +162,15 @@ absTyDeclId x (AbsTypeDec tn _ _) = x == tn
 absTyDeclId _ _ = False
 
 
-data LocExpr = LocExpr { posOfE :: SourcePos, exprOfLE :: Expr LocType LocPatn LocIrrefPatn LocExpr } deriving (Data, Eq, Show)
-data LocPatn = LocPatn { posOfP :: SourcePos, patnOfLP :: Pattern LocIrrefPatn } deriving (Data, Eq, Show)
-data LocIrrefPatn = LocIrrefPatn { posOfIP :: SourcePos, irpatnOfLIP :: IrrefutablePattern VarName LocIrrefPatn } deriving (Data, Eq, Show)
+data LocExpr = LocExpr { posOfE :: SourcePos, exprOfLE :: Expr LocType LocPatn LocIrrefPatn LocExpr }
+             deriving (Data, Eq, Show)
+data LocPatn = LocPatn { posOfP :: SourcePos, patnOfLP :: Pattern LocIrrefPatn }
+             deriving (Data, Eq, Show)
+data LocIrrefPatn = LocIrrefPatn { posOfIP :: SourcePos, irpatnOfLIP :: IrrefutablePattern VarName LocIrrefPatn LocExpr }
+                  deriving (Data, Eq, Show)
 data LocType = LocType { posOfT :: SourcePos, typeOfLT' :: Type LocExpr LocType }
-             | Documentation String LocType deriving (Data, Eq, Show)
+             | Documentation String LocType
+             deriving (Data, Eq, Show)
 
 typeOfLT (LocType _ t) = t
 typeOfLT (Documentation s t) = typeOfLT t
@@ -175,7 +181,7 @@ posOfLT (Documentation _ t) = posOfLT t
 data RawType = RT { unRT :: Type RawExpr RawType } deriving (Data, Eq, Ord, Show)
 data RawExpr = RE { unRE :: Expr RawType RawPatn RawIrrefPatn RawExpr } deriving (Data, Eq, Ord, Show)
 data RawPatn = RP { unRP :: Pattern RawIrrefPatn } deriving (Data, Eq, Ord, Show)
-data RawIrrefPatn = RIP { unRIP :: IrrefutablePattern VarName RawIrrefPatn } deriving (Data, Eq, Ord, Show)
+data RawIrrefPatn = RIP { unRIP :: IrrefutablePattern VarName RawIrrefPatn RawExpr } deriving (Data, Eq, Ord, Show)
 
 -- -----------------------------------------------------------------------------
 
@@ -196,8 +202,11 @@ instance Foldable (Flip2 (Expr t) e ip) where  -- p
 instance Foldable (Flip3 Expr e ip p) where  -- t
   foldMap f a = getConst $ traverse (Const . f) a
 
-instance Foldable (Flip IrrefutablePattern pv) where  -- ip
+instance Foldable (Flip (IrrefutablePattern pv) e) where  -- ip
   foldMap f a = getConst $ traverse (Const . f) a
+instance Foldable (Flip2 IrrefutablePattern e ip) where  -- pv
+  foldMap f a = getConst $ traverse (Const . f) a
+
 
 instance Foldable (Flip Type t) where  -- e
   foldMap f a = getConst $ traverse (Const . f) a
@@ -317,15 +326,28 @@ instance Traversable (Flip3 Expr e ip p) where  -- t
   traverse _ (Flip3 (Upcast e))          = pure $ Flip3 (Upcast e)
   traverse f (Flip3 (Annot e t))         = Flip3 <$> (Annot <$> pure e <*> f t)
 
-instance Traversable (Flip IrrefutablePattern ip) where  -- pv
-  traverse f (Flip (PVar pv))            = Flip <$> (PVar <$> f pv)
-  traverse _ (Flip (PTuple ips))         = pure $ Flip (PTuple ips)
-  traverse _ (Flip (PUnboxedRecord mfs)) = pure $ Flip (PUnboxedRecord mfs)
-  traverse _ (Flip PUnderscore)          = pure $ Flip PUnderscore
-  traverse _ (Flip PUnitel)              = pure $ Flip PUnitel
-  traverse f (Flip (PTake pv mfs))       = Flip <$> (PTake <$> f pv <*> pure mfs)
+instance Traversable (Flip (IrrefutablePattern pv) e) where  -- ip
+  traverse f (Flip (PVar pv))             = pure $ Flip (PVar pv)
+  traverse f (Flip (PTuple ips))          = Flip <$> (PTuple <$> traverse f ips)
+  traverse f (Flip (PUnboxedRecord mfs))  = Flip <$> (PUnboxedRecord <$> traverse (traverse $ traverse f) mfs)
+  traverse _ (Flip (PUnderscore))         = pure $ Flip PUnderscore
+  traverse f (Flip (PUnitel))             = pure $ Flip (PUnitel)
+  traverse f (Flip (PTake pv mfs))        = Flip <$> (PTake pv <$> traverse (traverse $ traverse f) mfs)
 #ifdef BUILTIN_ARRAYS
-  traverse _ (Flip (PArray ips))         = pure $ Flip (PArray ips)
+  traverse f (Flip (PArray ips))          = Flip <$> (PArray <$> traverse f ips)
+  traverse f (Flip (PArrayTake pv eps))   = Flip <$> (PArrayTake pv <$> traverse (traverse f) eps)
+#endif
+
+instance Traversable (Flip2 IrrefutablePattern e ip) where  -- pv
+  traverse f (Flip2 (PVar pv))            = Flip2 <$> (PVar <$> f pv)
+  traverse _ (Flip2 (PTuple ips))         = pure $ Flip2 (PTuple ips)
+  traverse _ (Flip2 (PUnboxedRecord mfs)) = pure $ Flip2 (PUnboxedRecord mfs)
+  traverse _ (Flip2 PUnderscore)          = pure $ Flip2 PUnderscore
+  traverse _ (Flip2 PUnitel)              = pure $ Flip2 PUnitel
+  traverse f (Flip2 (PTake pv mfs))       = Flip2 <$> (PTake <$> f pv <*> pure mfs)
+#ifdef BUILTIN_ARRAYS
+  traverse _ (Flip2 (PArray ips))         = pure $ Flip2 (PArray ips)
+  traverse f (Flip2 (PArrayTake pv ivs))  = Flip2 <$> (PArrayTake <$> f pv <*> pure ivs)
 #endif
 
 instance Traversable (Flip Type t) where  -- e
@@ -385,7 +407,9 @@ instance Functor (Flip2 (Expr t) e ip) where
 instance Functor (Flip3 Expr e ip p) where
   fmap f x = runIdentity (traverse (Identity . f) x)
 
-instance Functor (Flip IrrefutablePattern ip) where  -- pv
+instance Functor (Flip (IrrefutablePattern pv) e) where  -- ip
+  fmap f x = runIdentity (traverse (Identity . f) x)
+instance Functor (Flip2 IrrefutablePattern e ip) where  -- pv
   fmap f x = runIdentity (traverse (Identity . f) x)
 
 instance Functor (Flip Type e) where  -- t
@@ -545,7 +569,7 @@ stripLocP :: LocPatn -> RawPatn
 stripLocP = RP . fmap stripLocIP . patnOfLP
 
 stripLocIP :: LocIrrefPatn -> RawIrrefPatn
-stripLocIP = RIP . fmap stripLocIP . irpatnOfLIP
+stripLocIP = RIP . ffmap stripLocIP . fmap stripLocE . irpatnOfLIP
 
 stripLocE :: LocExpr -> RawExpr
 stripLocE = RE . ffffmap stripLocT . fffmap stripLocP . ffmap stripLocIP . fmap stripLocE . exprOfLE
@@ -575,7 +599,7 @@ rawToLocP :: SourcePos -> RawPatn -> LocPatn
 rawToLocP l (RP p) = LocPatn l (fmap (rawToLocIP l) p)
 
 rawToLocIP :: SourcePos -> RawIrrefPatn -> LocIrrefPatn
-rawToLocIP l (RIP ip) = LocIrrefPatn l (fmap (rawToLocIP l) ip)
+rawToLocIP l (RIP ip) = LocIrrefPatn l (ffmap (rawToLocIP l) $ fmap (rawToLocE l) ip)
 
 rawToLocE :: SourcePos -> RawExpr -> LocExpr
 rawToLocE l (RE e) = LocExpr l ( ffffmap (rawToLocT  l)

@@ -100,8 +100,10 @@ normaliseIP d tip@(TIP ip l) = do
   lift $ errCtx %= (ctx:)
   TIP <$> normaliseIP' d ip <*> pure l
   where ctx = InIrrefutablePattern (toLocIrrefPatn toLocType tip)
-        normaliseIP' :: TypeDict -> IrrefutablePattern TCName TCIrrefPatn -> Post (IrrefutablePattern TCName TCIrrefPatn)
-        normaliseIP' d = traverse (normaliseIP d) >=> ttraverse (secondM (normaliseT d))
+        normaliseIP' :: TypeDict
+                     -> IrrefutablePattern TCName TCIrrefPatn TCExpr
+                     -> Post (IrrefutablePattern TCName TCIrrefPatn TCExpr)
+        normaliseIP' d = traverse (normaliseE d) >=> ttraverse (normaliseIP d) >=> tttraverse (secondM (normaliseT d))
 
 normaliseT :: TypeDict -> TCType -> Post TCType
 normaliseT d (T (TUnbox t)) = do
