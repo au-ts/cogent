@@ -101,9 +101,10 @@ data Type
   | AbsType AbsTypeName Sigil [Type]
   | Variant Row
   | TypeVar VarName -- ^ Refers to a rigid type variable bound with a forall.
-  | RecPar VarName -- ^ Refers to a recursive parameter bound with a recursive record. Inserted during reorganisation
   | TypeVarBang VarName -- ^ A 'TypeVar' with 'Bang' applied.
-  | RecParBang VarName -- ^ A 'RecPar' with 'Bang' applied.
+  -- ^ Refers to a recursive parameter, with the context of it's recursive references for Unrolling
+  | RecPar VarName (M.Map VarName Type)  
+  | RecParBang VarName (M.Map VarName Type) -- ^ A 'RecPar' with 'Bang' applied.
   | Function Type Type
   -- used in type inference:
   | UnifVar VarName -- ^ Stands for an unknown type

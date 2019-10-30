@@ -40,8 +40,8 @@ simplify axs = Rewrite.pickOne $ \c -> -- trace ("About to simpliy:\n" ++ debugP
   Escape (Function _ _)               -> Just []
   Drop   (TypeVarBang _)              -> Just []
   Share  (TypeVarBang _)              -> Just []
-  Drop   (RecParBang _)               -> Just []
-  Share  (RecParBang _)               -> Just []
+  Drop   (RecParBang _ _)             -> Just []
+  Share  (RecParBang _ _)             -> Just []
   -- TODO: Drop/Share RecParBang?
   Share  (Variant es)                 -> guard (rowVar es == Nothing)
                                       >> Just (map Share  (Row.untakenTypes es))
@@ -101,6 +101,14 @@ simplify axs = Rewrite.pickOne $ \c -> -- trace ("About to simpliy:\n" ++ debugP
         ds = map Drop (Row.typesFor (untakenLabels ls S.\\ untakenLabels rs) r1)
         c  = Record n1 r1' s1 :< Record n2 r2' s2
     Just (c:cs ++ ds)
+
+  RecPar n ctxt :< RecPar n' ctxt' ->  guard (ctxt M.! n == ctxt M.! n') >> Just []
+  RecPar n ctxt :=: RecPar n' ctxt' -> guard (ctxt M.! n == ctxt M.! n') >> Just []
+
+  RecPar n ctxt :< t  -> Just [mapRecPars ctxt (ctxt M.! n) :< t]
+  t :< RecPar n ctxt  -> Just [t :< mapRecPars ctxt (ctxt M.! n)]
+  RecPar n ctxt :=: t -> Just [mapRecPars ctxt (ctxt M.! n) :=: t]
+  t :=: RecPar n ctxt -> Just [t :=: mapRecPars ctxt (ctxt M.! n)]
 
   t :< t'  -> guard (unorderedType t || unorderedType t') >> Just [t :=: t']
 

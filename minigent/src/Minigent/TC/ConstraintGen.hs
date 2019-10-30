@@ -200,7 +200,6 @@ cg e tau = case e of
     recPar <- UnknownParameter <$> fresh
     let alpha = Record recPar row (UnknownSigil sigil)
     let c0    = UnboxedNoRecurse alpha
-    --let c5    = beta :=: UnRoll alpha recPar beta
 
     (e1', c1) <- cg e1 alpha
     modify (push (y, beta))
@@ -212,7 +211,7 @@ cg e tau = case e of
     yUsed <- topUsed <$> get
     let c4 = if yUsed then Sat else Drop beta
     modify pop
-    withSig (Take x f y e1' e2', c0 :&: c1 :&: c2 :&: c3 :&: c4 )-- :&: c5)
+    withSig (Take x f y e1' e2', c0 :&: c1 :&: c2 :&: c3 :&: c4)-- :&: c5)
 
   (Put e1 f e2) -> do
     beta <- UnifVar <$> fresh

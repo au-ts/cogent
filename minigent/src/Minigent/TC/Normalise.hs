@@ -15,6 +15,8 @@ import Minigent.Syntax.Utils
 import Minigent.Syntax.Utils.Rewrite
 import qualified Minigent.Syntax.Utils.Row as Row
 
+import qualified Data.Map as M
+
 
 -- TODO: Remove
 import Debug.Trace
@@ -27,8 +29,8 @@ normaliseRW = rewrite $ \t -> --trace ("Norm about to look at type:\n" ++ debugP
     Bang (AbsType n s ts)  -> Just (AbsType n (bangSigil s) (map Bang ts))
     Bang (TypeVar a)       -> Just (TypeVarBang a)
     Bang (TypeVarBang a)   -> Just (TypeVarBang a)
-    Bang (RecPar a)        -> Just (RecParBang a)
-    Bang (RecParBang a)    -> Just (RecParBang a)
+    Bang (RecPar a ctxt)        -> Just (RecParBang a ctxt)
+    Bang (RecParBang a ctxt)    -> Just (RecParBang a ctxt)
     Bang (PrimType t)      -> Just (PrimType t)
     Bang (Variant r)  | rowVar r == Nothing
       -> Just (Variant (Row.mapEntries (entryTypes Bang) r))

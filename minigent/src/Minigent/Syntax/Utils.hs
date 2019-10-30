@@ -27,6 +27,8 @@ module Minigent.Syntax.Utils
     traverseType
   , normaliseType
   , unRoll
+  , mapRecPars
+  , mapRecParsPT
   , -- ** Rewrites
     substUV
   , substRowV
@@ -273,13 +275,14 @@ normaliseType func ty =
       UnRoll a n t   -> UnRoll (normaliseType func a) n (normaliseType func t)
       _      -> t'
 
+
 -- | Performs a roll on a given type (TODO better documentation)
 unRoll :: Type -> RecPar -> Type -> Type
 unRoll t None t' = t'
 unRoll t (Rec n) t' | typeUVs t' == [] = 
   case t' of
-    RecPar      v | v == n -> t
-    RecParBang  v | v == n -> Bang t
+    RecPar      v _ | v == n -> t
+    RecParBang  v _ | v == n -> Bang t
 
     Record p r s -> Record p (rollRow r) s
     Variant r    -> Variant  (rollRow r)
@@ -294,6 +297,28 @@ unRoll t (Rec n) t' | typeUVs t' == [] =
   where
     rollRow = Row.mapEntries (\(Entry s x y) -> Entry s (unRoll t (Rec n) x) y)
 unRoll _ _ _ = error "unroll called with non-unified recursive parameter or on term containing unification variables"
+
+
+-- | Given a PolyType definition, changes all recursive parameter references from TypeVar to RecPar 
+mapRecParsPT :: PolyType -> PolyType
+mapRecParsPT (Forall vs cs t) = Forall vs cs $ mapRecPars M.empty t
+
+-- | Given a context, changes all recursive parameter references from TypeVar to RecPar according to the context
+mapRecPars :: M.Map VarName Type -> Type -> Type
+mapRecPars rp (AbsType n s ts)   = AbsType n s $ map (mapRecPars rp) ts
+mapRecPars rp (Variant row)      = Variant $ Row.mapEntries (\(Entry n t tk) -> Entry n (mapRecPars rp t) tk) row
+mapRecPars rp (Bang t)           = Bang $ mapRecPars rp t
+mapRecPars rp tv@(TypeVar v)     = if M.member v rp then (RecPar     v rp) else tv
+mapRecPars rp tv@(TypeVarBang v) = if M.member v rp then (RecParBang v rp) else tv
+mapRecPars rp r@(Record par row s) = Record par
+                            (Row.mapEntries (\(Entry n t tk) -> Entry n (mapRecPars (addRecPar par) t) tk) row) 
+                            s
+  where addRecPar p = case p of
+                        Rec v -> (M.insert v r rp)
+                        _ -> rp
+mapRecPars rp (Function a b) = Function (mapRecPars rp a) (mapRecPars rp b)
+mapRecPars _ t = t
+
 
 -- | A rewrite that substitutes a given unification type variable for a type term in a type.
 substUV :: (VarName, Type) -> RW.Rewrite Type

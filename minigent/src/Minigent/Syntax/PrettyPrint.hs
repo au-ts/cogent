@@ -66,10 +66,10 @@ prettyType ty = case ty of
     _              -> pretty' ty
   where
     prettyA (TypeVar n) = annotate S.typeVar (pretty n)
-    prettyA (RecPar n) =  annotate S.keyword "rec" <+> annotate S.typeVar (pretty n)
+    prettyA (RecPar n _) =  annotate S.keyword "rec" <+> annotate S.typeVar (pretty n)
     prettyA (UnifVar n) = annotate S.unifVar (pretty n)
     prettyA (TypeVarBang n) = annotate S.typeVar (pretty n) <> annotate S.sigil "!"
-    prettyA (RecParBang n) = annotate S.keyword "rec" <+> annotate S.typeVar (pretty n) <> annotate S.sigil "!"
+    prettyA (RecParBang n _) = annotate S.keyword "rec" <+> annotate S.typeVar (pretty n) <> annotate S.sigil "!"
     prettyA (PrimType t) = prettyPrimType t
     prettyA (Record n r s) = prettyRecPar n <> align (prettyRRow r) <> prettySigil s
     prettyA (Variant r)  = align (prettyVRow r)

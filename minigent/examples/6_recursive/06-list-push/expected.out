@@ -1,0 +1,18 @@
+allocNode : Unit -> mu t {l : <Cons {data : U8,rest : rec t}#|Nil Unit> take};
+push : mu t {l : <Cons {data : U8,rest : rec t}#|Nil Unit>}
+       -> mu t {l : <Cons {data : U8,rest : rec t}#|Nil Unit>};
+push r = let node = (allocNode[] : Unit
+                                   -> mu t {l : <Cons {data : U8,rest : rec t}#
+                                                |Nil Unit> take}) (Unit : Unit) : mu t {l : <Cons {data : U8
+                                                                                                  ,rest : rec t}#
+                                                                                            |Nil Unit> take}
+         in put node : mu t {l : <Cons {data : U8,rest : rec t}#
+                                 |Nil Unit> take}.l := Cons ({data = 10 : U8
+                                                             ,rest = r : mu t {l : <Cons {data : U8
+                                                                                         ,rest : rec t}#
+                                                                                   |Nil Unit>}} : {data : U8
+                                                                                                  ,rest : rec t}#) : <Cons {data : U8
+                                                                                                                           ,rest : rec t}#
+                                                                                                                     |Nil Unit>
+            end : mu t {l : <Cons {data : U8,rest : rec t}#|Nil Unit>}
+         end : mu t {l : <Cons {data : U8,rest : rec t}#|Nil Unit>};
