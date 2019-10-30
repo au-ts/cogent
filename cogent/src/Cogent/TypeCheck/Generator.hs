@@ -597,8 +597,9 @@ match x@(LocIrrefPatn l ip) t = do
   return (s, c :@ InIrrefutablePattern x, TIP ip' l)
 
 match' :: (?loc :: SourcePos)
-      => IrrefutablePattern VarName LocIrrefPatn -> TCType
-      -> CG (M.Map VarName (C.Assumption TCType), Constraint, IrrefutablePattern TCName TCIrrefPatn)
+       => IrrefutablePattern VarName LocIrrefPatn LocExpr
+       -> TCType
+       -> CG (M.Map VarName (C.Assumption TCType), Constraint, IrrefutablePattern TCName TCIrrefPatn TCExpr)
 
 match' (PVar x) t = do
   let p = PVar (x,t)
@@ -671,12 +672,29 @@ match' (PTake r fs) t | not (any isNothing fs) = do
 #ifdef BUILTIN_ARRAYS
 match' (PArray ps) t = do
   alpha <- freshTVar
-  blob <- mapM (`match` alpha) ps
+  blob  <- mapM (`match` alpha) ps
   r <- freshVar
   let (ss,cs,ps') = unzip3 blob
       l = SE . IntLit . fromIntegral $ length ps
       c = t :< (A alpha l (__fixme $ Left Unboxed) Nothing)  -- FIXME: can be boxed as well / zilinc
   return (M.unions ss, mconcat cs <> c, PArray ps')
+
+match' (PArrayTake arr [(idx,p)]) t = do
+  alpha <- freshTVar  -- array elmt type
+  len   <- freshEVar  -- array length
+  sigil <- freshVar   -- sigil
+  (cidx,idx') <- cg idx $ T (TCon "U32" [] Unboxed)
+  (sp,cp,p') <- match p alpha
+  let idx'' = tcToSExpr idx'
+      tarr = A alpha len (Right sigil) (Just idx'')  -- type of the newly introduced @arr'@ variable
+      s = M.fromList [(arr, (tarr, ?loc, Seq.empty))]
+      c = [ t :< A alpha len (Right sigil) Nothing
+          , Arith (SE $ PrimOp ">=" [idx'', SE (IntLit 0)])
+          , Arith (SE $ PrimOp "<" [idx'', len])
+          ]
+  return (s `M.union` sp, cp `mappend` mconcat c, PArrayTake (arr, tarr) [(idx',p')])
+
+match' (PArrayTake arr _) t = __todo "match': taking multiple elements from array is not supported"
 #endif
 
 -- -----------------------------------------------------------------------------
@@ -808,7 +826,7 @@ prettyE = pretty
 -- prettyP :: Pattern TCIrrefPatn -> Doc
 -- prettyP = pretty
 
-prettyIP :: IrrefutablePattern TCName TCIrrefPatn -> Doc
+prettyIP :: IrrefutablePattern TCName TCIrrefPatn TCExpr -> Doc
 prettyIP = pretty
 
 
