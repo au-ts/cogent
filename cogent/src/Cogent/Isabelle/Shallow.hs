@@ -95,6 +95,8 @@ newtype SG a = SG { runSG :: RWS SGTables [Warning] StateGen a }
                          MonadWriter [Warning],
                          MonadState  StateGen)
 
+isaReservedNames = ["o", "value", "from"]
+
 shallowTVar :: Int -> String
 shallowTVar v = [chr $ ord 'a' + fromIntegral v]
 

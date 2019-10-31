@@ -42,9 +42,9 @@ type Cat
 -- A sealed box
 type Box = < Alive Cat | Dead Cat >
 
-open : Box -> Cat
-open | Alive c -> c
-     | Dead  c -> c
+openBox : Box -> Cat
+openBox | Alive c -> c
+        | Dead  c -> c
 
 openAndHandle : Box -> < Keep Cat | Nothing >
 openAndHandle b = b | Alive c -> Keep c
@@ -52,4 +52,3 @@ openAndHandle b = b | Alive c -> Keep c
 
 -- Bury something linear
 bury : all (c :< E). c -> ()
-
