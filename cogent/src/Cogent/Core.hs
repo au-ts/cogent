@@ -78,7 +78,7 @@ data Type t
   | TUnit
 #ifdef BUILTIN_ARRAYS
   | TArray (Type t) ArraySize (Sigil (DataLayout BitRange)) (Maybe (UntypedExpr 'Zero 'Zero VarName))  -- the hole
-    -- ^^ use Int for now
+                 -- \ ^^^ use Int for now
     -- XXX | ^^^ (UntypedExpr t 'Zero VarName)  -- stick to UntypedExpr to be simple / zilinc
     -- The sigil specifies the layout of the element
 #endif
@@ -121,6 +121,7 @@ data Expr t v a e
   | Singleton (e t v a)  -- extracting the element out of a singleton array
   | ArrayMap2 ((a, a), e t ('Suc ('Suc v)) a) (e t v a, e t v a)
   | ArrayTake (a, a) (e t v a) (e t v a) (e t ('Suc ('Suc v)) a)
+          -- \ ^^^ The first is the array, and the second is the taken object
   | ArrayPut (e t v a) (e t v a) (e t v a)
 #endif
   | Let a (e t v a) (e t ('Suc v) a)
@@ -133,6 +134,7 @@ data Expr t v a e
   | Split (a, a) (e t v a) (e t ('Suc ('Suc v)) a)
   | Member (e t v a) FieldIndex
   | Take (a, a) (e t v a) FieldIndex (e t ('Suc ('Suc v)) a)
+     -- \ ^^^ The first is the record, and the second is the taken field
   | Put (e t v a) FieldIndex (e t v a)
   | Promote (Type t) (e t v a)  -- only for guiding the tc. rep. unchanged.
   | Cast (Type t) (e t v a)  -- only for integer casts. rep. changed

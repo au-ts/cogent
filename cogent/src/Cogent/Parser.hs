@@ -61,7 +61,9 @@ language = haskellStyle
                                  ,".&.",".|.",".^.",">>","<<"
                                  ,":","=","!",":<",".","_","..","#","$","::"
                                  ,"@","@@"  -- DocGent
+#ifdef BUILTIN_ARRAYS
                                  ,"@{"
+#endif
                                  ,"->","=>","~>","<=","|","|>"]
            , T.reservedNames   = ["let","in","type","include","all","take","put","inline","upcast"
                                  ,"variant","record","at","layout","pointer"
@@ -432,8 +434,9 @@ monotype = do avoidInitial
           <|> (reservedOp "put"  >> fList >>= \fs -> return (\x -> LocType (posOfT x) (TPut  fs x))))
     -- vvv TODO: add the @take(..) syntax for taking all elements / zilinc
     arrTakeput = avoidInitial >>
-              ((reservedOp "@take" >> parens (commaSep (expr 1)) >>= \idxs -> return (\x -> LocType (posOfT x) (TATake idxs x))) 
-           <|> (reservedOp "@put"  >> parens (commaSep (expr 1)) >>= \idxs -> return (\x -> LocType (posOfT x) (TAPut  idxs x))))
+              ((reservedOp "@take" >> parens (commaSep (expr 1)) >>= \idxs -> return (\x -> LocType (posOfT x) (TATake idxs x))))
+           -- Currently disable @\@put@ as it's not very useful / zilinc
+           -- XXX | <|> (reservedOp "@put"  >> parens (commaSep (expr 1)) >>= \idxs -> return (\x -> LocType (posOfT x) (TAPut  idxs x))))
     -- either we have an actual layout, or the name of a layout synonym
     layout = avoidInitial >> reservedOp "layout" >> repExpr
       >>= \l -> return (\x -> LocType (posOfT x) (TLayout l x))

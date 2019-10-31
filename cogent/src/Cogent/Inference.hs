@@ -426,6 +426,13 @@ infer (E (Singleton e))
         let TArray te l _ _ = t
         guardShow "singleton on a non-singleton array" $ l == 1
         return (TE te (Singleton e'))
+infer (E (ArrayTake as arr i e))
+   = do arr'@(TE tarr _) <- infer arr
+        i' <- infer i
+        let TArray telt len s Nothing = tarr
+            tarr' = TArray telt len s (Just $ untypeE i')
+        e'@(TE te _) <- withBindings (Cons telt (Cons tarr' Nil)) $ infer e
+        return (TE te $ ArrayTake as arr' i' e')
 infer (E (ArrayPut arr i e))
    = do arr'@(TE tarr _) <- infer arr
         i'   <- infer i

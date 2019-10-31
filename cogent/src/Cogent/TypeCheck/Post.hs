@@ -160,38 +160,9 @@ normaliseT d (T (TPut fs t)) = do
 normaliseT d (T (TATake is t)) = do
   t' <- normaliseT d t
   case t' of
-    (T (TArray elt l s tkns)) ->
-      -- PRECONDITION: @tkns@ should contain entries for all the elements
-      let tkns' = map (first $ SE . IntLit . fromIntegral) . IM.toList . takeEntries is . IM.fromList $ map (first evalSExpr) tkns
-       in normaliseT d (T (TArray elt l s tkns'))
+    (T (TArray elt l s [])) -> normaliseT d (T (TArray elt l s $ map (,True) is))
+    (T (TArray _ _ _ _)) -> __impossible "normaliseT: TArray can have at most one taken element"
     _ -> logErrExit (TakeElementsFromNonArrayType is t')
-  where
-    takeEntries :: [SExpr] -> IM.IntMap Taken -> IM.IntMap Taken
-    takeEntries [] tkns = tkns
-    takeEntries (i:is) tkns = let i' = evalSExpr i
-                                  tkns' = case IM.lookup i' tkns of
-                                            Nothing -> __impossible "takeEntries: no entry found"
-                                            Just False -> IM.adjust (const True) i' tkns
-                                            Just True  -> __impossible "takeEntries: take taken. Will be a warning"
-                               in takeEntries is tkns'
-
-normaliseT d (T (TAPut is t)) = do
-  t' <- normaliseT d t
-  case t' of
-    (T (TArray elt l s tkns)) ->
-      -- PRECONDITION: @tkns@ should contain entries for all the elements
-      let tkns' = map (first $ SE . IntLit . fromIntegral) . IM.toList . putEntries is . IM.fromList $ map (first evalSExpr) tkns
-       in normaliseT d (T (TArray elt l s tkns'))
-    _ -> logErrExit (PutElementsToNonArrayType is t')
-  where
-    putEntries :: [SExpr] -> IM.IntMap Taken -> IM.IntMap Taken
-    putEntries [] tkns = tkns
-    putEntries (i:is) tkns = let i' = evalSExpr i
-                                 tkns' = case IM.lookup i' tkns of
-                                           Nothing -> __impossible "takeEntries: no entry found"
-                                           Just True  -> IM.adjust (const False) i' tkns
-                                           Just False -> __impossible "takeEntries: put untaken. Will be a warning"
-                              in putEntries is tkns'
 #endif
 
 normaliseT d (T (TLayout l t)) = do
