@@ -89,6 +89,9 @@ data Row
     , rowVar :: Maybe VarName -- ^ Used only in type inference.
     } deriving (Show, Eq)
 
+-- | A recursive parameter type, for embedding in front of records.
+-- Uses of the parameter inside the embedded record can be treated as recursively
+-- referencing the record
 data RecPar
   = None | Rec VarName
   | UnknownParameter VarName -- ^ Used only in type inference
@@ -109,7 +112,6 @@ data Type
   -- used in type inference:
   | UnifVar VarName -- ^ Stands for an unknown type
   | Bang Type -- ^ Eliminated by type normalisation.
-  | UnRoll Type RecPar Type -- ^ Expands all VarName type variables in Type 2 with Type 1
   deriving (Show, Eq)
 
 -- | Used for literals.

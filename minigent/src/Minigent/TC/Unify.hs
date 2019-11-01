@@ -102,12 +102,6 @@ assignOf (Record n1 _ _ :< Record n2 _ _)
 assignOf (UnboxedNoRecurse (Record (UnknownParameter x) _ Unboxed))
     = pure [RecParAssign x None]
 
-assignOf (UnRoll t v t' :<  t'') = assignOf (t'  :<  t'')
-assignOf (t'' :<  UnRoll t v t') = assignOf (t'' :<  t')
-
-assignOf (UnRoll t v t' :=: t'') = assignOf (t'  :=: t'')
-assignOf (t'' :=: UnRoll t v t') = assignOf (t'' :=: t')
-
 assignOf _ = empty
 
 

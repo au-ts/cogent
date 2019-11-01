@@ -26,7 +26,7 @@ module Minigent.Syntax.Utils
     -- ** Applying rewrites
     traverseType
   , normaliseType
-  , unRoll
+  , unroll
   , mapRecPars
   , mapRecParsPT
   , -- ** Rewrites
@@ -73,9 +73,7 @@ import           Data.Maybe                     ( fromMaybe
 import qualified Data.Stream                   as S
 import qualified Data.Map                      as M
 
--- TODO: Remove
 import Debug.Trace
-
 
 -- | Returns true iff the given argument type is not subject to subtyping. That is, if @a :\< b@
 --   (subtyping) is equivalent to @a :=: b@ (equality), then this function returns true.
@@ -99,7 +97,6 @@ typeUVs (Variant r)  = concatMap (\(Entry _ t _) -> typeUVs t) (Row.entries r)
 typeUVs (AbsType _ _ ts) = concatMap typeUVs ts
 typeUVs (Function t1 t2) = typeUVs t1 ++ typeUVs t2
 typeUVs (Bang t        ) = typeUVs t
-typeUVs (UnRoll r _ t  ) = typeUVs t ++ typeUVs r
 typeUVs _                = []
 
 -- | Return all of the (rigid, non-unification) type variables in a type. Does not include mu variables
@@ -248,7 +245,6 @@ traverseType func ty = case RW.run func ty of
     Variant es -> Variant (Row.mapEntries (entryTypes (traverseType func)) es)
     Function t1 t2 -> Function (traverseType func t1) (traverseType func t2)
     Bang t         -> Bang (traverseType func t)
-    UnRoll a n t   -> UnRoll (traverseType func a) n (traverseType func t)
     _              -> ty
 
 -- | Given a 'RW.Rewrite' on types, apply it over every subterm in a type, i.e. recursively applying
@@ -272,32 +268,14 @@ normaliseType func ty =
       Function t1 t2 ->
         Function (normaliseType func t1) (normaliseType func t2)
       Bang t -> Bang (normaliseType func t)
-      UnRoll a n t   -> UnRoll (normaliseType func a) n (normaliseType func t)
       _      -> t'
 
 
--- | Performs a roll on a given type (TODO better documentation)
-unRoll :: Type -> RecPar -> Type -> Type
-unRoll t None t' = t'
-unRoll t (Rec n) t' | typeUVs t' == [] = 
-  case t' of
-    RecPar      v _ | v == n -> t
-    RecParBang  v _ | v == n -> Bang t
-
-    Record p r s -> Record p (rollRow r) s
-    Variant r    -> Variant  (rollRow r)
-
-    AbsType x y ts -> AbsType x y $ map (unRoll t (Rec n)) ts
-
-    -- N.B: At this point, we know that functions are strictly positive, so our 
-    -- recursive parameter will not appear in the function argument type
-    Function a b -> Function a $ unRoll t (Rec n) b
-
-    _  -> t'
-  where
-    rollRow = Row.mapEntries (\(Entry s x y) -> Entry s (unRoll t (Rec n) x) y)
-unRoll _ _ _ = error "unroll called with non-unified recursive parameter or on term containing unification variables"
-
+-- | Unrolls a recursive parameter to the record it references
+unroll :: Type -> Type
+unroll (RecPar n ctxt) = mapRecPars ctxt (ctxt M.! n)
+-- TODO: Should this be an error?
+unroll t = trace "Warning: Unroll called on type that is not a recursive parameter" t
 
 -- | Given a PolyType definition, changes all recursive parameter references from TypeVar to RecPar 
 mapRecParsPT :: PolyType -> PolyType
@@ -310,9 +288,8 @@ mapRecPars rp (Variant row)      = Variant $ Row.mapEntries (\(Entry n t tk) -> 
 mapRecPars rp (Bang t)           = Bang $ mapRecPars rp t
 mapRecPars rp tv@(TypeVar v)     = if M.member v rp then (RecPar     v rp) else tv
 mapRecPars rp tv@(TypeVarBang v) = if M.member v rp then (RecParBang v rp) else tv
-mapRecPars rp r@(Record par row s) = Record par
-                            (Row.mapEntries (\(Entry n t tk) -> Entry n (mapRecPars (addRecPar par) t) tk) row) 
-                            s
+mapRecPars rp r@(Record par row s) = 
+  Record par (Row.mapEntries (\(Entry n t tk) -> Entry n (mapRecPars (addRecPar par) t) tk) row) s
   where addRecPar p = case p of
                         Rec v -> (M.insert v r rp)
                         _ -> rp
@@ -357,10 +334,6 @@ substRecPar (v1, v2) = RW.rewrite $
   \t' -> case t' of
     Record (UnknownParameter n) r s | n == v1 -> 
       Just (Record v2 r s)
-    UnRoll a (UnknownParameter n) t ->
-        if n == v1 then
-          Just (UnRoll a v2 t)
-        else Nothing
     _ -> Nothing
 
 -- | A convenience that allows multiple substitutions to type variables to be made simulatenously.

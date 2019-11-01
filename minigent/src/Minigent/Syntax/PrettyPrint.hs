@@ -74,8 +74,6 @@ prettyType ty = case ty of
     prettyA (Record n r s) = prettyRecPar n <> align (prettyRRow r) <> prettySigil s
     prettyA (Variant r)  = align (prettyVRow r)
     prettyA (AbsType n s []) = annotate S.absType (pretty n) <> prettySigil s
-    prettyA (UnRoll t v t') = annotate S.constraintKeyword "UnRoll" <+> parens (prettyType t')
-                            <+> brackets (prettyType t <> annotate S.op "/" <> prettyRecPar v)
     prettyA ty = parens (prettyType ty)
 
     pretty' ty = case ty of

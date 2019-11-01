@@ -37,11 +37,6 @@ normaliseRW = rewrite $ \t -> --trace ("Norm about to look at type:\n" ++ debugP
     Bang (Record n r s) | rowVar r == Nothing, s == ReadOnly || s == Writable || s == Unboxed
       -> Just (Record n (Row.mapEntries (entryTypes Bang) r) (bangSigil s))
 
-    UnRoll tau (Rec n) t' | null (typeUVs t')
-      -> Just $ unRoll tau (Rec n) t'
-    UnRoll tau None t'       
-      -> Just t'
-
     _ -> Nothing
   where
     bangSigil Writable = ReadOnly
