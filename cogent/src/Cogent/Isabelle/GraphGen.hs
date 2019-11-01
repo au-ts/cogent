@@ -139,7 +139,7 @@ graphDefinition te@(FunDef _ fn _ ti to _) gs = fg : gs
 
 graphDefinition _ gs = gs
 
-graphTypeHelper :: Type t -> Type t -> GM ([(String, GTyp)], [(String, GTyp)])
+graphTypeHelper :: Show a => DType t v a -> DType t v a -> GM ([(String, GTyp)], [(String, GTyp)])
 graphTypeHelper ti to = do
     let v = "a@0"
     gti <- graphType ti
@@ -159,7 +159,7 @@ graphHelper (FunDef _ fn ks ti to e) = do
     return (FunctionGraph fn input output g)
 graphHelper _ = undefined
 
-graphType :: Type t -> GM GExprGroup
+graphType :: Show a => DType t v a -> GM GExprGroup
 graphType (TPrim Boolean) = return $ GEGSingle GBoolT
 graphType (TPrim U8)      = return $ GEGSingle (GWordT 8)
 graphType (TPrim U16)     = return $ GEGSingle (GWordT 16)
@@ -305,8 +305,10 @@ graph g te@(TE _ (Case x tag (_, _, m) (_, _, nom))) n ret vs = do
     g5 <- graph g4 nom n' ret ((v2, smallerGTy) : vs)
     return g5
 
-graph g te@(TE ty (App fn arg)) n ret vs = graph g (TE ty (Let undefined te (TE ty (Variable (FZero, undefined))))) n ret vs
-graph g te@(TE ty (Put rec fld v)) n ret vs = graph g (TE ty (Let undefined te (TE ty (Variable (FZero, undefined))))) n ret vs
+graph g te@(TE ty (App fn arg)) n ret vs =
+  graph g (TE ty (Let undefined te (TE (insertIdxAtT f0 ty) (Variable (FZero, undefined))))) n ret vs
+graph g te@(TE ty (Put rec fld v)) n ret vs =
+  graph g (TE ty (Let undefined te (TE (insertIdxAtT f0 ty) (Variable (FZero, undefined))))) n ret vs
 
 graph g te n ret vs = case isAtom (untypeE te) of
     True -> do

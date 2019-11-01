@@ -48,7 +48,7 @@ instance Show TypeStr where
   -- show (ArrayStr)      = "array"
 
 -- | Collects type structures from a Cogent type.
-toTypeStr :: Type t -> [TypeStr]
+toTypeStr :: DType t v a -> [TypeStr]
 toTypeStr (TVar v)         = []
 toTypeStr (TVarBang v)     = []
 toTypeStr (TUnit)          = []
@@ -69,7 +69,7 @@ toTypeStr (TArray {})      = []
 --   synonym, it will be used; otherwise we will create a unique name
 --   for the type according to the position of that type in the table.
 --   This will make the generated Isabelle files more readable by humans.
-getStrlType :: M.Map TypeStr TypeName -> [TypeStr] -> Type t -> Type t
+getStrlType :: M.Map TypeStr TypeName -> [TypeStr] -> DType t v a -> DType t v a
 getStrlType tsmap table (TSum ts) =
   let tstr = VariantStr (P.map fst ts)
       tps = P.map (fst . snd) ts
@@ -143,7 +143,7 @@ stExpr (TE t e) = stExpr' e >> stType t
     stExpr' (Cast    ty e)   = stExpr e
 
 -- | Add types to the table if not existing.
-stType :: Type t -> ST ()
+stType :: DType t v a -> ST ()
 stType (toTypeStr -> ts) = forM_ ts $ \t -> do
   table <- get
   case lookupTypeStr t table of
