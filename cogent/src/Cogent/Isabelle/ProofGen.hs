@@ -638,17 +638,17 @@ allKindCorrect' _ [] Nil = return []
 allKindCorrect' _ _ _ = error "kind mismatch"
 
 splits :: Vec t Kind
-       -> Vec v (Maybe (DType t v VarName))
-       -> Vec v (Maybe (DType t v VarName))
-       -> Vec v (Maybe (DType t v VarName))
+       -> Vec n (Maybe (DType t v VarName))
+       -> Vec n (Maybe (DType t v VarName))
+       -> Vec n (Maybe (DType t v VarName))
        -> State TypingSubproofs [Tactic]
 splits k g g1 g2 = (:[]) . SplitsTac <$> splitsHint False k g g1 g2
 
 splitsHint :: Bool
            -> Vec t Kind
-           -> Vec v (Maybe (DType t v VarName))
-           -> Vec v (Maybe (DType t v VarName))
-           -> Vec v (Maybe (DType t v VarName))
+           -> Vec n (Maybe (DType t v VarName))
+           -> Vec n (Maybe (DType t v VarName))
+           -> Vec n (Maybe (DType t v VarName))
            -> State TypingSubproofs [MLOption [Tactic]]
 splitsHint b k (Cons Nothing gs) (Cons Nothing xs) (Cons Nothing ys) =
   if b then splitsHint b k gs xs ys else (NONE :) <$> splitsHint True k gs xs ys
@@ -669,8 +669,8 @@ splitHint k (Just t) Nothing  (Just _) = (\wf -> SOME $ rule "split_comp.right" 
 splitHint k (Just t) (Just _) (Just _) = (\wf -> SOME $ rule "split_comp.share" : wf) <$> kinding k t
 splitHint k g x y = error $ "bad split: " ++ show (g, x, y)
 
-ttsplit_bang :: Vec t Kind -> Int -> [Int] -> Vec v (Maybe (DType t v VarName))
-             -> Vec v (Maybe (DType t v VarName)) -> State TypingSubproofs [LeafTree Hints]
+ttsplit_bang :: Vec t Kind -> Int -> [Int] -> Vec n (Maybe (DType t v VarName))
+             -> Vec n (Maybe (DType t v VarName)) -> State TypingSubproofs [LeafTree Hints]
 ttsplit_bang k ix ixs (Cons g gs) (Cons (Just x) xs) = do
     this <- if ix `elem` ixs then Just <$> kindingHint k x else pure Nothing
     rest <- ttsplit_bang k (ix + 1) ixs gs xs
