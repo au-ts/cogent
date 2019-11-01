@@ -106,7 +106,7 @@ newtype DS (t :: Nat) (v :: Nat) a = DS { runDS :: RWS (Typedefs, Constants, [Pr
 desugar :: [S.TopLevel S.RawType B.TypedPatn B.TypedExpr]
         -> [(S.RawType, String)]
         -> [Pragma]
-        -> ( ([Definition UntypedExpr VarName], [(SupposedlyMonoType, String)])
+        -> ( ([Definition UntypedExpr VarName], [(SupposedlyMonoType VarName, String)])
            , Last (Typedefs, Constants, [CoreConst UntypedExpr]) )
 desugar tls ctygen pragmas =
   let fundefs    = filter isFunDef     tls where isFunDef     S.FunDef     {} = True; isFunDef     _ = False
@@ -133,7 +133,7 @@ desugar' :: [S.TopLevel S.RawType B.TypedPatn B.TypedExpr]
          -> [S.TopLevel S.RawType B.TypedPatn B.TypedExpr]  -- constants
          -> [(S.RawType, String)]
          -> [Pragma]
-         -> DS 'Zero 'Zero ([Definition UntypedExpr VarName], [(SupposedlyMonoType, String)])
+         -> DS 'Zero 'Zero ([Definition UntypedExpr VarName], [(SupposedlyMonoType VarName, String)])
 desugar' tls constdefs ctygen pragmas = do
   defs' <- concat <$> mapM go tls
   write <- ask
@@ -523,7 +523,7 @@ desugarPrimInt (S.RT (S.TCon "U64"  [] Unboxed)) = U64
 desugarPrimInt (S.RT (S.TCon "Bool" [] Unboxed)) = Boolean
 desugarPrimInt _ = __impossible "desugarPrimInt"
 
-desugarType :: S.RawType -> DS t v (Type t)
+desugarType :: S.RawType -> DS t v (DType t v a)
 desugarType = \case
   S.RT (S.TCon "U8"     [] Unboxed) -> return $ TPrim U8
   S.RT (S.TCon "U16"    [] Unboxed) -> return $ TPrim U16
@@ -744,8 +744,8 @@ desugarExpr (B.TE t (S.Con c es) p) = __impossible "desugarExpr (Con)"
 --   E . Con c <$> desugarExpr (B.TE tes (S.Tuple es) p)
 desugarExpr (B.TE _ (S.Put _ _) _) = __impossible "desugarExpr (Put)"
 
-
-desugarExpr' :: S.AExpr -> DS t v (UntypedExpr 'Zero 'Zero VarName)
+-- FIXME: Can we just use @desugarExpr@? / zilinc
+desugarExpr' :: S.AExpr -> DS t v (UntypedExpr t v a)
 desugarExpr' (S.RE (S.PrimOp opr es)) = E . Op (symbolOp opr) <$> mapM desugarExpr' es
 desugarExpr' (S.RE (S.Var vn)) = __impossible "desugarExpr'"
 desugarExpr' (S.RE (S.If c [] th el)) = E <$> (If <$> desugarExpr' c <*> desugarExpr' th <*> desugarExpr' el)
@@ -772,7 +772,7 @@ desugarConst (n,e) = (n,) <$> desugarExpr e
 desugarConsts :: [S.TopLevel S.RawType B.TypedPatn B.TypedExpr] -> DS 'Zero 'Zero [CoreConst UntypedExpr]
 desugarConsts = mapM desugarConst . P.map (\(S.ConstDef v _ e) -> (v,e))
 
-desugarType' :: S.RawType -> DS t v (Type 'Zero)
+desugarType' :: S.RawType -> DS t v (DType t v a)
 desugarType' = \case
   S.RT (S.TCon "U8"     [] Unboxed) -> return $ TPrim U8
   S.RT (S.TCon "U16"    [] Unboxed) -> return $ TPrim U16
@@ -881,6 +881,6 @@ minus1 e = (S.RE (S.PrimOp "-" [e, S.RE (S.IntLit 1)]))
 -- ----------------------------------------------------------------------------
 -- custTyGen
 
-desugarCustTyGen :: [(S.RawType, String)] -> DS t v [(SupposedlyMonoType, String)]
+desugarCustTyGen :: [(S.RawType, String)] -> DS t v [(SupposedlyMonoType VarName, String)]
 desugarCustTyGen = mapM $ firstM (return . SMT <=< desugarType)
 

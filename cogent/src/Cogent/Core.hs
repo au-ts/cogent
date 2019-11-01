@@ -84,7 +84,7 @@ data Type t v a e
 #endif
   deriving (Show, Eq, Ord)
 
-data SupposedlyMonoType v a e = forall (t :: Nat). SMT (Type t v a e)
+data SupposedlyMonoType a = forall (t :: Nat) (v :: Nat). SMT (DType t v a)
 
 isTVar :: Type t v a e -> Bool
 isTVar (TVar _) = True
@@ -107,10 +107,10 @@ data FunNote = NoInline | InlineMe | MacroCall | InlinePlease  -- order is impor
 
 data Expr t v a e
   = Variable (Fin v, a)
-  | Fun CoreFunName [Type t v a e] FunNote  -- here do we want to keep partial application and infer again? / zilinc
+  | Fun CoreFunName [DType t v a] FunNote  -- here do we want to keep partial application and infer again? / zilinc
   | Op Op [e t v a]
   | App (e t v a) (e t v a)
-  | Con TagName (e t v a) (Type t v a e)
+  | Con TagName (e t v a) (DType t v a)
   | Unit
   | ILit Integer PrimInt
   | SLit String
@@ -136,8 +136,8 @@ data Expr t v a e
   | Take (a, a) (e t v a) FieldIndex (e t ('Suc ('Suc v)) a)
      -- \ ^^^ The first is the record, and the second is the taken field
   | Put (e t v a) FieldIndex (e t v a)
-  | Promote (Type t v a e) (e t v a)  -- only for guiding the tc. rep. unchanged.
-  | Cast (Type t v a e) (e t v a)  -- only for integer casts. rep. changed
+  | Promote (DType t v a) (e t v a)  -- only for guiding the tc. rep. unchanged.
+  | Cast (DType t v a) (e t v a)  -- only for integer casts. rep. changed
 deriving instance (Show a, Show (e t v a), Show (e t ('Suc v) a), Show (e t ('Suc ('Suc v)) a))
   => Show (Expr t v a e)
 deriving instance (Eq a, Eq (e t v a), Eq (e t ('Suc v) a), Eq (e t ('Suc ('Suc v)) a))
@@ -152,8 +152,8 @@ data UntypedExpr t v a = E  (Expr t v a UntypedExpr) deriving (Show, Eq, Ord)
 data TypedExpr   t v a = TE { exprType :: DType t v a , exprExpr :: Expr t v a TypedExpr }
                        deriving (Show, Eq, Ord)
 
-data FunctionType t v a = forall t. FT (Vec t Kind) (DType t v a) (DType t v a)
-deriving instance Show a => Show (FunctionType t v a)
+data FunctionType v a = forall t. FT (Vec t Kind) (DType t v a) (DType t v a)
+deriving instance Show a => Show (FunctionType v a)
 
 data Attr = Attr { inlineDef :: Bool, fnMacro :: Bool } deriving (Eq, Ord, Show)
 
@@ -221,6 +221,61 @@ isAbsTyp (TypeDef _ _ Nothing) = True
 isAbsTyp _ = False
 
 
+
+insertIdxAtUntypedExpr :: Fin ('Suc v) -> UntypedExpr t v a -> UntypedExpr t ('Suc v) a
+insertIdxAtUntypedExpr cut (E e) = E $ insertIdxAtE cut insertIdxAtUntypedExpr e
+
+insertIdxAtTypedExpr :: Fin ('Suc v) -> TypedExpr t v a -> TypedExpr t ('Suc v) a
+insertIdxAtTypedExpr cut (TE t e) = TE (insertIdxAtT cut t) (insertIdxAtE cut insertIdxAtTypedExpr e)
+
+insertIdxAtE :: Fin ('Suc v)
+             -> (forall v. Fin ('Suc v) -> e t v a -> e t ('Suc v) a)
+             -> (Expr t v a e -> Expr t ('Suc v) a e)
+insertIdxAtE cut f (Variable v) = Variable $ first (liftIdx cut) v
+insertIdxAtE cut f (Fun fn ts nt) = Fun fn (fmap (insertIdxAtT cut) ts) nt
+insertIdxAtE cut f (Op opr es) = Op opr $ map (f cut) es
+insertIdxAtE cut f (App e1 e2) = App (f cut e1) (f cut e2)
+insertIdxAtE cut f (Con tag e t) = Con tag (f cut e) (insertIdxAtT cut t)
+insertIdxAtE cut f (Unit) = Unit
+insertIdxAtE cut f (ILit n pt) = ILit n pt
+insertIdxAtE cut f (SLit s) = SLit s
+#ifdef BUILTIN_ARRAYS
+insertIdxAtE cut f (ALit es) = ALit $ map (f cut) es
+insertIdxAtE cut f (ArrayIndex e l) = ArrayIndex (f cut e) (f cut l)
+insertIdxAtE cut f (Pop a e1 e2) = Pop a (f cut e1) (f (FSuc (FSuc cut)) e2)
+insertIdxAtE cut f (Singleton e) = Singleton (f cut e)
+insertIdxAtE cut f (ArrayPut arr i e) = ArrayPut (f cut arr) (f cut i) (f cut e)
+#endif
+insertIdxAtE cut f (Let a e1 e2) = Let a (f cut e1) (f (FSuc cut) e2)
+insertIdxAtE cut f (LetBang vs a e1 e2) = LetBang (map (first $ liftIdx cut) vs) a (f cut e1) (f (FSuc cut) e2)
+insertIdxAtE cut f (Tuple e1 e2) = Tuple (f cut e1) (f cut e2)
+insertIdxAtE cut f (Struct fs) = Struct $ map (second $ f cut) fs
+insertIdxAtE cut f (If c e1 e2) = If (f cut c) (f cut e1) (f cut e2)
+insertIdxAtE cut f (Case c tag (l1,a1,alt) (l2,a2,alts)) =
+  Case (f cut c) tag (l1, a1, f (FSuc cut) alt) (l2, a2, f (FSuc cut) alts)
+insertIdxAtE cut f (Esac e) = Esac (f cut e)
+insertIdxAtE cut f (Split a e1 e2) = Split a (f cut e1) (f (FSuc (FSuc cut)) e2)
+insertIdxAtE cut f (Member e fld) = Member (f cut e) fld
+insertIdxAtE cut f (Take a rec fld e) = Take a (f cut rec) fld (f (FSuc (FSuc cut)) e)
+insertIdxAtE cut f (Put rec fld e) = Put (f cut rec) fld (f cut e)
+insertIdxAtE cut f (Promote ty e) = Promote (insertIdxAtT cut ty) (f cut e)
+insertIdxAtE cut f (Cast ty e) = Cast (insertIdxAtT cut ty) (f cut e)
+
+insertIdxAtT :: Fin ('Suc v) -> Type t v a UntypedExpr -> Type t ('Suc v) a UntypedExpr
+insertIdxAtT cut (TVar v) = TVar v
+insertIdxAtT cut (TVarBang v) = TVarBang v
+insertIdxAtT cut (TCon tn ts s) = TCon tn (fmap (insertIdxAtT cut) ts) s
+insertIdxAtT cut (TFun t1 t2) = TFun (insertIdxAtT cut t1) (insertIdxAtT cut t2)
+insertIdxAtT cut (TPrim pt) = TPrim pt
+insertIdxAtT cut (TString) = TString
+insertIdxAtT cut (TSum alts) = TSum (fmap (second $ first $ insertIdxAtT cut) alts)
+insertIdxAtT cut (TProduct t1 t2) = TProduct (insertIdxAtT cut t1) (insertIdxAtT cut t2)
+insertIdxAtT cut (TRecord fs s) = TRecord (fmap (second $ first $ insertIdxAtT cut) fs) s
+#ifdef BUILTIN_ARRAYS
+insertIdxAtT cut (TArray t l s mh) = TArray (insertIdxAtT cut t) l s (fmap (insertIdxAtUntypedExpr cut) mh)
+#endif
+
+
 -- pre-order fold over Expr wrapper
 foldEPre :: (Monoid b) => (forall t v. e1 t v a -> Expr t v a e1) -> (forall t v. e1 t v a -> b) -> e1 t v a -> b
 foldEPre unwrap f e = case unwrap e of
@@ -272,10 +327,10 @@ fmapT f (TArray t l s mh)    = TArray (fmapT f t) l s (fmap f mh)
 
 fmapE :: (forall t v. e1 t v a -> e2 t v a) -> Expr t v a e1 -> Expr t v a e2
 fmapE f (Variable v)         = Variable v
-fmapE f (Fun fn tys nt)      = Fun fn (fmap (fmapT f) tys) nt
+fmapE f (Fun fn tys nt)      = Fun fn tys nt
 fmapE f (Op opr es)          = Op opr (map f es)
 fmapE f (App e1 e2)          = App (f e1) (f e2)
-fmapE f (Con cn e t)         = Con cn (f e) (fmapT f t)
+fmapE f (Con cn e t)         = Con cn (f e) t
 fmapE f (Unit)               = Unit
 fmapE f (ILit i pt)          = ILit i pt
 fmapE f (SLit s)             = SLit s
@@ -299,8 +354,8 @@ fmapE f (Split a e1 e2)      = Split a (f e1) (f e2)
 fmapE f (Member rec fld)     = Member (f rec) fld
 fmapE f (Take a rec fld e)   = Take a (f rec) fld (f e)
 fmapE f (Put rec fld v)      = Put (f rec) fld (f v)
-fmapE f (Promote ty e)       = Promote (fmapT f ty) (f e)
-fmapE f (Cast ty e)          = Cast (fmapT f ty) (f e)
+fmapE f (Promote ty e)       = Promote ty (f e)
+fmapE f (Cast ty e)          = Cast ty (f e)
 
 
 untypeE :: TypedExpr t v a -> UntypedExpr t v a

@@ -177,7 +177,7 @@ data StrlType = Record  [(CId, CType)] -- ^ @(fieldname &#x21A6; fieldtype)@
 -- Custom equality for `BoxedRecord` case of `StrlType`
 -- Needed to allow us to ignore whether fields/alternatives are/aren't "taken"
 -- when deciding whether two cogent types should go to the same C type
-newtype StrlCogentType = StrlCogentType (CC.Type 'Zero)
+newtype StrlCogentType = StrlCogentType (CC.DType 'Zero 'Zero VarName)
                        deriving Show
 
 instance Eq StrlCogentType where
@@ -190,7 +190,7 @@ instance Ord StrlCogentType where
 {- |
 Compares cogent types ignoring whether fields are or aren't taken
 -}
-strlCogentTypeEq :: CC.Type 'Zero -> CC.Type 'Zero -> Bool
+strlCogentTypeEq :: CC.DType 'Zero v VarName -> CC.DType 'Zero v VarName -> Bool
 strlCogentTypeEq (TCon n1 ts1 s1) (TCon n2 ts2 s2) = n1 == n2 && ts1 == ts2 && strlSigilEq s1 s2
 strlCogentTypeEq (TPrim p1)       (TPrim p2)       = p1 == p2
 strlCogentTypeEq (TSum alts1)     (TSum alts2)     = all (\((n1, (t1, _)), (n2, (t2, _))) -> n1 == n2 && strlCogentTypeEq t1 t2) $ zip alts1 alts2

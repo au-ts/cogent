@@ -217,10 +217,11 @@ adjust :: (Eq a) => a -> (b -> b) -> [(a,b)] -> [(a,b)]
 adjust k f = map (\(a,b) -> (a,) $ if a == k then f b else b)
 
 newtype TC (t :: Nat) (v :: Nat) a = TC {unTC :: ExceptT String
-                                                         (ReaderT (Vec t Kind, Map FunName FunctionType)
-                                                                  (State (Vec v (Maybe (Type t)))))
+                                                         (ReaderT (Vec t Kind, Map FunName (FunctionType v a))
+                                                                  (State (Vec v (Maybe (DType t v a)))))
                                                          a}
-                                   deriving (Functor, Applicative, Alternative, Monad, MonadPlus, MonadReader (Vec t Kind, Map FunName FunctionType))
+                                   deriving (Functor, Applicative, Alternative, Monad, MonadPlus,
+                                             MonadReader (Vec t Kind, Map FunName (FunctionType v a)))
 
 infixl 4 <||>
 (<||>) :: TC t v (a -> b) -> TC t v a -> TC t v b

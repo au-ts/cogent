@@ -47,7 +47,7 @@ import Cogent.Dargent.Surface       ( DataLayoutSize(Bytes, Bits, Add)
                                     )
 import Cogent.Dargent.TypeCheck     ( evalSize )
 import Cogent.Dargent.Util
-import Cogent.Core                  ( Type (..) )
+import Cogent.Core                  ( DType, Type(..) )
 
 {- * Desugaring 'Sigil's -}
 
@@ -69,7 +69,7 @@ desugarAbstractTypeSigil = fmap desugarMaybeLayout
 --
 --   Should not be used to desugar sigils associated with @TCon _ _ _@ types, ie. abstract types.
 desugarSigil
-  :: (Type t)
+  :: (DType t v a)
       -- ^ This type should be obtained by
       --
       --   1. Start with the raw type that the 'Sigil' is attached to
@@ -135,7 +135,7 @@ desugarDataLayout l = Layout $ desugarDataLayout' l
 
 {- * CONSTRUCTING 'DataLayout's -}
 
-constructDataLayout' :: Type t -> DataLayout' BitRange
+constructDataLayout' :: Show a => DType t v a -> DataLayout' BitRange
 constructDataLayout' (TUnit        ) = UnitLayout
 constructDataLayout' (TPrim primInt) = PrimLayout $ primBitRange primInt
 constructDataLayout' (TSum alternatives)
@@ -146,8 +146,9 @@ constructDataLayout' (TSum alternatives)
         alternativesLayout = fromList . snd $ mapAccumL constructAlternativeLayout (wordSizeBits, 0) alternatives
 
         constructAlternativeLayout
-          :: (Size, Integer) -- ^ Offset and tag value for this alternative.
-          -> (TagName, (Type t, Bool))
+          :: Show a 
+          => (Size, Integer) -- ^ Offset and tag value for this alternative.
+          -> (TagName, (DType t v a, Bool))
           -> ((Size, Integer) -- Offset and tag value for next alternative.
             ,(TagName, (Integer, DataLayout' BitRange, SourcePos)))
 
@@ -159,12 +160,13 @@ constructDataLayout' (TSum alternatives)
 constructDataLayout' (TRecord _ (Boxed {})) = PrimLayout pointerBitRange
 constructDataLayout' (TRecord fields Unboxed) = RecordLayout . fromList . snd $ mapAccumL go 0 fields
   where
-    go :: Size -> (FieldName, (Type t, Bool)) -> (Size, (FieldName, (DataLayout' BitRange, SourcePos)))
+    go :: Show a => Size -> (FieldName, (DType t v a, Bool)) -> (Size, (FieldName, (DataLayout' BitRange, SourcePos)))
     go minBitOffset (name, (coreType, _)) =
       let layout = alignOffsettable wordSizeBits minBitOffset $ go' coreType
       in (endAllocatedBits' layout, (name, (layout, dummyPos)))
 
     -- Equations for boxed embedded types
+    go' :: Show a => DType t v a -> DataLayout' BitRange
     go' (TRecord _      (Boxed _ _)) = PrimLayout pointerBitRange
     go' (TCon    _ _    (Boxed _ _)) = PrimLayout pointerBitRange
 
@@ -189,7 +191,7 @@ constructDataLayout' (TCon tn _ Unboxed) = __impossible "constructDataLayout': u
 constructDataLayout' _ = __impossible "constructDataLayout': unhandled type"
 
 -- constructs a default layout
-constructDataLayout :: Type t -> DataLayout BitRange
+constructDataLayout :: Show a => DType t v a -> DataLayout BitRange
 constructDataLayout = Layout . constructDataLayout'
 
 dummyPos = __fixme $ newPos "Dummy Pos" 0 0 -- FIXME: Not sure what SourcePos to give for layouts generated automatically.

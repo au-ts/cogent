@@ -129,7 +129,11 @@ normaliseExpr v e = normalise v e (\_ x -> return x)
 upshiftExpr :: SNat n -> SNat v -> Fin ('Suc v) -> UntypedExpr t v a -> UntypedExpr t (v :+: n) a
 upshiftExpr SZero _ _ e = e
 upshiftExpr (SSuc n) sv v e | Refl <- addSucLeft sv n
-  = let a = upshiftExpr n sv v e in insertIdxAt (widenN v n) a
+  = let a = upshiftExpr n sv v e in insertIdxAtUntypedExpr (widenN v n) a
+
+upshiftType :: SNat n -> SNat v -> Fin ('Suc v) -> Type t v a UntypedExpr -> Type t (v :+: n) a UntypedExpr
+upshiftType SZero _ _ t = t
+upshiftType (SSuc n) sv v t = undefined
 
 normalise :: SNat v
           -> UntypedExpr t v VarName
@@ -139,14 +143,14 @@ normalise v e@(E (Variable var)) k = k s0 (E (Variable var))
 normalise v e@(E (Fun fn ts _)) k = k s0 e
 normalise v   (E (Op opr es)) k = normaliseNames v es $ \n es' -> k n (E $ Op opr es')
 normalise v e@(E (App (E (Fun fn ts nt)) arg)) k
-  = normaliseName v arg $ \n' arg' ->
-          k n' (E $ App (E (Fun fn ts nt)) arg')
+  = normaliseName v arg $ \n arg' ->
+      k n (E $ App (E (Fun fn (fmap (upshiftType n v f0) ts) nt)) arg')
 normalise v e@(E (App f arg)) k
   = normaliseName v f $ \n f' ->
       normaliseName (sadd v n) (upshiftExpr n v f0 arg) $ \n' arg' ->
         withAssoc v n n' $ \Refl ->
           k (sadd n n') (E $ App (upshiftExpr n' (sadd v n) f0 f') arg')
-normalise v   (E (Con cn e t)) k = normaliseName v e $ \n e' -> k n (E $ Con cn e' t)
+normalise v   (E (Con cn e t)) k = normaliseName v e $ \n e' -> k n (E $ Con cn e' (upshiftType n v f0 t))
 normalise v e@(E (Unit)) k = k s0 e
 normalise v e@(E (ILit {})) k = k s0 e
 normalise v e@(E (SLit {})) k = k s0 e
@@ -239,8 +243,8 @@ normalise v (E (Put rec fld e)) k
     normaliseName (sadd v n) (upshiftExpr n v f0 e) $ \n' e' ->
     withAssoc v n n' $ \Refl ->
     k (sadd n n') (E $ Put (upshiftExpr n' (sadd v n) f0 rec') fld e')
-normalise v (E (Promote ty e)) k = normaliseName v e $ \n e' -> k n (E $ Promote ty e')
-normalise v (E (Cast ty e)) k = normaliseName v e $ \n e' -> k n (E $ Cast ty e')
+normalise v (E (Promote ty e)) k = normaliseName v e $ \n e' -> k n (E $ Promote (upshiftType n v f0 ty) e')
+normalise v (E (Cast ty e)) k = normaliseName v e $ \n e' -> k n (E $ Cast (upshiftType n v f0 ty) e')
 
 normaliseAtom :: SNat v -> UntypedExpr t v VarName
               -> (forall n. SNat n -> UntypedExpr t (v :+: n) VarName -> AN (UntypedExpr t (v :+: n) VarName))
@@ -286,40 +290,6 @@ normaliseNames v (e:es) k
   = normaliseName v e $ \n e' ->
       normaliseNames (sadd v n) (map (upshiftExpr n v f0) es) $ \n' es' ->
         withAssoc v n n' $ \Refl -> k (sadd n n') (upshiftExpr n' (sadd v n) f0 e':es')
-
-insertIdxAt :: Fin ('Suc v) -> UntypedExpr t v a -> UntypedExpr t ('Suc v) a
-insertIdxAt cut (E e) = E $ insertIdxAt' cut e
-  where
-    insertIdxAt' :: Fin ('Suc v) -> Expr t v a UntypedExpr -> Expr t ('Suc v) a UntypedExpr
-    insertIdxAt' cut (Variable v) = Variable $ first (liftIdx cut) v
-    insertIdxAt' cut (Fun fn ty nt) = Fun fn ty nt
-    insertIdxAt' cut (Op opr es) = Op opr $ map (insertIdxAt cut) es
-    insertIdxAt' cut (App e1 e2) = App (insertIdxAt cut e1) (insertIdxAt cut e2)
-    insertIdxAt' cut (Con tag e t) = Con tag (insertIdxAt cut e) t
-    insertIdxAt' cut (Unit) = Unit
-    insertIdxAt' cut (ILit n pt) = ILit n pt
-    insertIdxAt' cut (SLit s) = SLit s
-#ifdef BUILTIN_ARRAYS
-    insertIdxAt' cut (ALit es) = ALit $ map (insertIdxAt cut) es
-    insertIdxAt' cut (ArrayIndex e l) = ArrayIndex (insertIdxAt cut e) (insertIdxAt cut l)
-    insertIdxAt' cut (Pop a e1 e2) = Pop a (insertIdxAt cut e1) (insertIdxAt (FSuc (FSuc cut)) e2)
-    insertIdxAt' cut (Singleton e) = Singleton (insertIdxAt cut e)
-    insertIdxAt' cut (ArrayPut arr i e) = ArrayPut (insertIdxAt cut arr) (insertIdxAt cut i) (insertIdxAt cut e)
-#endif
-    insertIdxAt' cut (Let a e1 e2) = Let a (insertIdxAt cut e1) (insertIdxAt (FSuc cut) e2)
-    insertIdxAt' cut (LetBang vs a e1 e2) = LetBang (map (first $ liftIdx cut) vs) a (insertIdxAt cut e1) (insertIdxAt (FSuc cut) e2)
-    insertIdxAt' cut (Tuple e1 e2) = Tuple (insertIdxAt cut e1) (insertIdxAt cut e2)
-    insertIdxAt' cut (Struct fs) = Struct $ map (second $ insertIdxAt cut) fs
-    insertIdxAt' cut (If c e1 e2) = If (insertIdxAt cut c) (insertIdxAt cut e1) (insertIdxAt cut e2)
-    insertIdxAt' cut (Case c tag (l1,a1,alt) (l2,a2,alts)) =
-      Case (insertIdxAt cut c) tag (l1, a1, insertIdxAt (FSuc cut) alt) (l2, a2, insertIdxAt (FSuc cut) alts)
-    insertIdxAt' cut (Esac e) = Esac (insertIdxAt cut e)
-    insertIdxAt' cut (Split a e1 e2) = Split a (insertIdxAt cut e1) (insertIdxAt (FSuc (FSuc cut)) e2)
-    insertIdxAt' cut (Member e fld) = Member (insertIdxAt cut e) fld
-    insertIdxAt' cut (Take a rec fld e) = Take a (insertIdxAt cut rec) fld (insertIdxAt (FSuc (FSuc cut)) e)
-    insertIdxAt' cut (Put rec fld e) = Put (insertIdxAt cut rec) fld (insertIdxAt cut e)
-    insertIdxAt' cut (Promote ty e) = Promote ty (insertIdxAt cut e)
-    insertIdxAt' cut (Cast ty e) = Cast ty (insertIdxAt cut e)
 
 isCondition :: UntypedExpr t v a -> Bool
 isCondition (E (If {})) = True

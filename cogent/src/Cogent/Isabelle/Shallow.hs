@@ -98,13 +98,13 @@ newtype SG a = SG { runSG :: RWS SGTables [Warning] StateGen a }
 shallowTVar :: Int -> String
 shallowTVar v = [chr $ ord 'a' + fromIntegral v]
 
-shallowTypeWithName :: CC.Type t -> SG I.Type
+shallowTypeWithName :: CC.DType t v VarName -> SG I.Type
 shallowTypeWithName t = shallowType =<< findShortType t
 
-shallowRecTupleType :: [(FieldName, (CC.Type t, Bool))] -> SG I.Type
+shallowRecTupleType :: [(FieldName, (CC.DType t v VarName, Bool))] -> SG I.Type
 shallowRecTupleType fs = shallowTupleType <$> mapM shallowType (map (fst . snd) fs)
 
-shallowType :: CC.Type t -> SG I.Type
+shallowType :: CC.DType t v VarName -> SG I.Type
 shallowType (TVar v) = I.TyVar <$> ((!!) <$> asks typeVars <*> pure (finInt v))
 shallowType (TVarBang v) = shallowType (TVar v)
 shallowType (TCon tn ts _) = I.TyDatatype tn <$> mapM shallowType ts
@@ -168,18 +168,18 @@ shallowILit :: Integer -> PrimInt -> Term
 shallowILit n Boolean = if n > 0 then mkTru else mkFls
 shallowILit n v = TermWithType (mkId $ show n) (shallowPrimType v)
 
-findType :: CC.Type t -> SG (CC.Type t)
+findType :: CC.DType t v VarName -> SG (CC.DType t v VarName)
 findType t = getStrlType <$> asks typeNameMap <*> asks typeStrs <*> pure t
 
 -- | Reverse engineer the type synonym of a algebraic data type
-findShortType :: CC.Type t -> SG (CC.Type t)
+findShortType :: CC.DType t v VarName -> SG (CC.DType t v VarName)
 findShortType t = do
   map <- use concTypeSyns
   case M.lookup (hashType t) map of
    Nothing -> findType t
    Just tn -> pure $ TCon tn [] (__impossible "findShortType")
 
-findTypeSyn :: CC.Type t -> SG String
+findTypeSyn :: CC.DType t v VarName -> SG String
 findTypeSyn t = findType t >>= \(TCon nm _ _) -> pure nm
 
 shallowExpr :: TypedExpr t v VarName -> SG Term
@@ -314,7 +314,7 @@ isRecTuple fs =
   P.length fs > 1 &&
   filter (\xs -> xs!!0 == 'p' && let ys = drop 1 xs in filter isDigit ys == ys) fs == fs
 
-shallowMaker :: CC.Type t -> [(FieldName, TypedExpr t v VarName)] -> SG Term
+shallowMaker :: CC.DType t v' VarName -> [(FieldName, TypedExpr t v VarName)] -> SG Term
 shallowMaker t fs = do
   let fs' = sortOn fst fs
   tn <- findTypeSyn t
@@ -333,7 +333,7 @@ shallowSetter rec idx e = do
 shallowGetter :: TypedExpr t v VarName -> Int -> Term -> SG Term
 shallowGetter rec idx rect = mkApp <$> (mkId <$> getRecordFieldName (exprType rec) idx) <*> pure [rect]
 
-getRecordFieldName :: CC.Type t -> Int -> SG FieldName
+getRecordFieldName :: CC.DType t v VarName -> Int -> SG FieldName
 getRecordFieldName t@(TRecord fs _) ind = do
   tn <- findTypeSyn t
   let fnms = map fst fs
@@ -345,7 +345,7 @@ getRecordFieldName _ _ = __impossible "getRecordFieldName"
 typarUpd typar v = v {typeVars = typar}
 
 -- Clear out all taken annotations and mark all sigil as unboxed.
-sanitizeType :: CC.Type t -> CC.Type t
+sanitizeType :: CC.DType t v VarName -> CC.DType t v VarName
 sanitizeType (TSum ts) = TSum (map (\(tn,(t,_)) -> (tn,(sanitizeType t,False))) ts)
 sanitizeType (TRecord ts _) = TRecord (map (\(tn, (t,_)) -> (tn, (sanitizeType t, False))) ts) Unboxed
 sanitizeType (TCon tn ts _) = TCon tn (map sanitizeType ts) Unboxed
@@ -355,7 +355,7 @@ sanitizeType t = t
 
 -- | Produce a hash for a record or variant type. Only the structure of the type matters;
 --   taken entries or sigils do not.
-hashType :: CC.Type t -> String
+hashType :: CC.DType t v VarName -> String
 hashType (TSum ts)      = show (sanitizeType $ TSum ts)
 hashType (TRecord ts s) = show (sanitizeType $ TRecord ts s)
 hashType _              = error "hashType: should only pass Variant and Record types"
@@ -363,7 +363,7 @@ hashType _              = error "hashType: should only pass Variant and Record t
 -- | A subscript @T@ will be added when generating type synonyms.
 --   Also adds an entry to the type synonyms table if it's not parameterised so that
 --   a shorter (and hence more readable) name can be retrieved when a type is used.
-shallowTypeDefSaveSyn:: TypeName -> [TyVarName] -> CC.Type t -> SG [TheoryDecl I.Type I.Term]
+shallowTypeDefSaveSyn:: TypeName -> [TyVarName] -> CC.DType t v VarName -> SG [TheoryDecl I.Type I.Term]
 shallowTypeDefSaveSyn tn ps r = do
   st <- shallowType r
   let syname = tn ++ subSymStr "T"
@@ -373,7 +373,7 @@ shallowTypeDefSaveSyn tn ps r = do
   pure [TypeSynonym (TypeSyn syname st ps)]
 
 -- | Generates @type_synonym@ definitions for types.
-shallowTypeDef :: TypeName -> [TyVarName] -> CC.Type t -> SG [TheoryDecl I.Type I.Term]
+shallowTypeDef :: TypeName -> [TyVarName] -> CC.DType t v VarName -> SG [TheoryDecl I.Type I.Term]
 shallowTypeDef tn ps (TPrim p)      = pure [TypeSynonym (TypeSyn tn (shallowPrimType p) ps)]
 shallowTypeDef tn ps (TRecord fs s) = shallowTypeDefSaveSyn tn ps (TRecord fs s)
 shallowTypeDef tn ps (TSum ts)      = shallowTypeDefSaveSyn tn ps (TSum ts)
