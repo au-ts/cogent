@@ -28,6 +28,7 @@ module Cogent.Isabelle.Compound
 
 import Cogent.Common.Syntax
 import Cogent.Core
+import Cogent.Util (firstM, secondM)
 
 import Control.Applicative
 import qualified Data.Map as M
@@ -96,13 +97,18 @@ takeFlatCase (TE _ e) = case e of
 -- If the variable is mentioned, return Nothing.
 --
 -- This function is pretty trivial, but it's a bit tedious because of the de Bruijn indices.
-expDiscardVar :: Fin ('Suc v) -> TypedExpr t ('Suc v) VarName -> Maybe (TypedExpr t v VarName)
-expDiscardVar rm0 (TE t0 e0) = TE t0 <$> case e0 of
+expDiscardVar :: Fin ('Suc v) -> TypedExpr t ('Suc v) a -> Maybe (TypedExpr t v a)
+expDiscardVar rm0 (TE t0 e0) = TE <$> typDiscardVar rm0 t0 <*> expDiscardVar' rm0 expDiscardVar e0
+
+expDiscardVar' :: Fin ('Suc v)
+               -> (forall v. Fin ('Suc v) -> e t ('Suc v) a -> Maybe (e t v a))
+               -> Expr t ('Suc v) a e -> Maybe (Expr t v a e)
+expDiscardVar' rm0 f e = case e of
   Variable (v, a)     -> Variable <$> ((,) <$> discardVar rm0 v <*> pure a)
-  Fun a b c           -> pure $ Fun a b c
+  Fun fn ts notes     -> Fun fn <$> traverse (typDiscardVar rm0) ts <*> pure notes
   Op o ls             -> Op o <$> mapM go ls
   App e1 e2           -> App <$> go e1 <*> go e2
-  Con tag e ty        -> Con <$> pure tag <*> go e <*> pure ty
+  Con tag e ty        -> Con <$> pure tag <*> go e <*> typDiscardVar rm0 ty
   Unit                -> pure Unit
   ILit i j            -> pure $ ILit i j
   SLit s              -> pure $ SLit s
@@ -120,8 +126,8 @@ expDiscardVar rm0 (TE t0 e0) = TE t0 <$> case e0 of
   Member e1 f         -> Member <$> go e1 <*> pure f
   Take (n,n') es f et -> Take (n,n') <$> go es <*> pure f <*> goSuc2 et
   Put e1 f e2         -> Put <$> go e1 <*> pure f <*> go e2
-  Promote t e1        -> Promote t <$> go e1
-  Cast t e1           -> Cast t <$> go e1
+  Promote t e1        -> Promote <$> typDiscardVar rm0 t <*> go e1
+  Cast t e1           -> Cast <$> typDiscardVar rm0 t <*> go e1
 #ifdef BUILTIN_ARRAYS
   ALit es             -> ALit <$> mapM go es
   ArrayIndex e1 e2    -> ArrayIndex <$> go e1 <*> go e2
@@ -129,11 +135,31 @@ expDiscardVar rm0 (TE t0 e0) = TE t0 <$> case e0 of
   Singleton e1        -> Singleton <$> go e1
 #endif
  where
-  go     = expDiscardVar rm0
-  goSuc  = expDiscardVar (FSuc rm0)
-  goSuc2 = expDiscardVar (FSuc $ FSuc rm0)
-  mfirst  f (a,b) = (,) <$> f    a <*> pure b
-  msecond f (a,b) = (,) <$> pure a <*> f    b
+  go     = f rm0
+  goSuc  = f (FSuc rm0)
+  goSuc2 = f (FSuc $ FSuc rm0)
+  mfirst  g (a,b) = (,) <$> g    a <*> pure b
+  msecond g (a,b) = (,) <$> pure a <*> g    b
+
+typDiscardVar :: Fin ('Suc v) -> DType t ('Suc v) a -> Maybe (DType t v a)
+typDiscardVar rm0 t = case t of
+  TVar v            -> pure $ TVar v
+  TVarBang v        -> pure $ TVarBang v
+  TCon tn ts s      -> TCon tn <$> traverse go ts <*> pure s
+  TFun t1 t2        -> TFun <$> go t1 <*> go t2
+  TPrim pt          -> pure $ TPrim pt
+  TString           -> pure TString
+  TSum alts         -> TSum <$> mapM (secondM $ firstM go) alts
+  TProduct t1 t2    -> TProduct <$> go t1 <*> go t2
+  TRecord fs s      -> TRecord <$> mapM (secondM $ firstM go) fs <*> pure s
+  TUnit             -> pure TUnit
+#ifdef BUILTIN_ARRAYS
+  TArray t l s mh   -> TArray <$> go t <*> pure l <*> pure s <*> mapM (uexpDiscardVar rm0) mh
+#endif
+ where
+  go   = typDiscardVar rm0
+  uexpDiscardVar :: Fin ('Suc v) -> UntypedExpr t ('Suc v) a -> Maybe (UntypedExpr t v a)
+  uexpDiscardVar rm (E e) = E <$> expDiscardVar' rm uexpDiscardVar e
 
 
 -- | Check if two variables are different: if so, remove first variable from second's context
