@@ -150,7 +150,8 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     let vs' = map fst vs
         xs = vs' \\ nub vs'
     unless (null xs) $ logErrExit $ DuplicateTypeVariable xs
-    let tvs = nub (tvT t)  -- type variables appearing to `t'
+    let tvs = nub (tvT t ++ foldMap tvA (fmap (fmap stripLocE) alts))
+    -- \ ^^^ type variables appearing to `t' and in the body of the function definition. see #308.
         ys = vs' \\ tvs    -- we know `vs' has no duplicates
     unless (null ys) $ logErrExit $ SuperfluousTypeVariable ys
     base <- lift . lift $ use knownConsts

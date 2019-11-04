@@ -492,6 +492,44 @@ tvT (RT (TBang    t)) = tvT t
 tvT (RT (TTake  _ t)) = tvT t
 tvT (RT (TPut   _ t)) = tvT t
 
+tvE :: RawExpr -> [TyVarName]
+tvE (RE (PrimOp op es))     = foldMap tvE es
+tvE (RE (Var v))            = []
+tvE (RE (Match e v alts))   = tvE e ++ foldMap tvA alts
+tvE (RE (TypeApp v ts nt))  = foldMap (foldMap tvT) ts
+tvE (RE (Con n es))         = foldMap tvE es
+tvE (RE (Seq e e'))         = tvE e ++ tvE e'
+tvE (RE (Lam  ip mt e))     = foldMap tvT mt ++ tvE e
+tvE (RE (LamC ip mt e vs))  = foldMap tvT mt ++ tvE e
+tvE (RE (App  e e' i))      = tvE e ++ tvE e'
+tvE (RE (Comp f g))         = tvE f ++ tvE g
+tvE (RE (AppC e e'))        = tvE e ++ tvE e'
+tvE (RE (If c vs e e'))     = tvE c ++ tvE e ++ tvE e'
+tvE (RE (MultiWayIf es el)) = foldMap (\(e1,_,_,e2) -> tvE e1 ++ tvE e2) es ++ tvE el
+tvE (RE (Member e f))       = tvE e
+tvE (RE Unitel)             = []
+tvE (RE (IntLit l))         = []
+tvE (RE (BoolLit l))        = []
+tvE (RE (CharLit l))        = []
+tvE (RE (StringLit l))      = []
+#ifdef BUILTIN_ARRAYS
+tvE (RE (ArrayLit es))      = foldMap tvE es
+tvE (RE (ArrayIndex e i))   = tvE e ++ tvE i
+#endif
+tvE (RE (Tuple es))         = foldMap tvE es
+tvE (RE (UnboxedRecord es)) = foldMap (foldMap tvE) es
+tvE (RE (Let bs e))         = foldMap tvB bs ++ tvE e
+tvE (RE (Put e es))         = tvE e ++ foldMap (foldMap $ foldMap tvE) es
+tvE (RE (Upcast e))         = tvE e
+tvE (RE (Annot e t))        = tvE e ++ tvT t
+
+tvB :: Binding RawType p ip RawExpr -> [TyVarName]
+tvB (Binding _ mt e _) = foldMap tvT mt ++ tvE e
+tvB (BindingAlts _ mt e _ alts) = foldMap tvT mt ++ tvE e ++ foldMap tvA alts
+
+tvA :: Alt p RawExpr -> [TyVarName]
+tvA (Alt _ _ e) = tvE e
+
 -- -----------------------------------------------------------------------------
 
 stripLocT :: LocType -> RawType
