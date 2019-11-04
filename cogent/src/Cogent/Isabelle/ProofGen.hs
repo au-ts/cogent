@@ -13,6 +13,8 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeOperators #-}
 
@@ -43,10 +45,14 @@ import Isabelle.InnerAST hiding (Type)
 import Cogent.Isabelle.IsabelleName
 import Text.PrettyPrint.ANSI.Leijen hiding ((<$>))
 
+data SomeDType t = forall v. SomeDType { exDType :: DType t v VarName }
+deriving instance Show (SomeDType t)
+
+
 type Xi a = [Definition TypedExpr a]
 data EnvExpr t v a = EE { eexprType :: DType t v VarName
                         , eexprExpr :: Expr t v a EnvExpr
-                        , eexprEnv :: Vec v (Maybe (DType t v VarName))
+                        , eexprEnv  :: Vec v (Maybe (DType t v VarName))
                         } deriving (Show)
 
 instance Functor (EnvExpr t v) where
@@ -207,8 +213,11 @@ kindingHint k t = (pure . KindingTacs) `fmap` kinding k t
 wellformedHint :: Vec t Kind -> DType t v VarName -> State TypingSubproofs (LeafTree Hints)
 wellformedHint k t = (pure . KindingTacs) `fmap` wellformed k t
 
-follow_tt :: Vec t Kind -> Vec v (Maybe (DType t v VarName)) -> Vec vx (Maybe (DType t v VarName))
-          -> Vec vy (Maybe (DType t v VarName)) -> State TypingSubproofs (LeafTree Hints)
+follow_tt :: Vec t Kind
+          -> Vec v  (Maybe (DType t v  VarName))
+          -> Vec vx (Maybe (DType t vx VarName))
+          -> Vec vy (Maybe (DType t vy VarName))
+          -> State TypingSubproofs (LeafTree Hints)
 follow_tt k env env_x env_y = hintListSequence $ map (kindingHint k) new
   where
     l = Nat.toInt (Vec.length env)
