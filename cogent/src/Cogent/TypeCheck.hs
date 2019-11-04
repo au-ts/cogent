@@ -40,7 +40,6 @@ import Cogent.TypeCheck.Util
 import Cogent.Util (firstM)
 
 import Control.Arrow (first, second)
-
 -- import Control.Monad.Except
 import Control.Monad.State
 import Control.Monad.Trans.Maybe
@@ -56,6 +55,7 @@ import qualified Text.PrettyPrint.ANSI.Leijen as L
 import Text.PrettyPrint.ANSI.Leijen hiding ((<>), (<$>))
 import Lens.Micro
 import Lens.Micro.Mtl
+
 -- import Debug.Trace
 
 tc :: [(SourcePos, TopLevel LocType LocPatn LocExpr)]

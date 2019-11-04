@@ -56,6 +56,7 @@ normaliseRW = rewrite' $ \t -> case t of
       | isNothing (Row.var row) -> case fs of 
         Nothing -> pure $ V (Row.takeAll row)
         Just fs -> pure $ V (Row.takeMany fs row)
+    T (TTake fs t) | __cogent_flax_take_put -> return t
     T (TPut fs (R row s)) 
       | isNothing (Row.var row) -> case fs of 
         Nothing -> pure $ R (Row.putAll row) s
@@ -64,6 +65,7 @@ normaliseRW = rewrite' $ \t -> case t of
       | isNothing (Row.var row) -> case fs of 
         Nothing -> pure $ V (Row.putAll row)
         Just fs -> pure $ V (Row.putMany fs row)
+    T (TPut fs t) | __cogent_flax_take_put -> return t
     _ -> empty 
 
 #ifdef BUILTIN_ARRAYS

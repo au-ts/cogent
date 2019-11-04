@@ -162,7 +162,6 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
         c  = R r1' s1 :=: R r2' s2
     Just (c:cs ++ ds)
 
-
   T t1 :< x | unorderedType t1 -> Just [T t1 :=: x]
   x :< T t2 | unorderedType t2 -> Just [x :=: T t2]
 
@@ -187,10 +186,9 @@ unorderedType (TArray {}) = False
 #endif
 unorderedType _ = True 
 
-
-
 untakenLabelsSet :: [Entry TCType] -> S.Set FieldName
 untakenLabelsSet = S.fromList . mapMaybe (\(l, (_,t)) -> guard (not t) >> pure l)
+
 isIrrefutable :: RawPatn -> Bool
 isIrrefutable (RP (PIrrefutable _)) = True
 isIrrefutable _ = False

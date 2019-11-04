@@ -542,7 +542,7 @@ desugarType = \case
 #ifdef BUILTIN_ARRAYS
   S.RT (S.TArray t l) -> TArray <$> desugarType t <*> evalAExpr l  -- desugarExpr' l
 #endif
-  notInWHNF -> __impossible $ "desugarType (type" ++ show (pretty notInWHNF) ++ "is not in WHNF)"
+  notInWHNF -> __impossible $ "desugarType (type " ++ show (pretty notInWHNF) ++ " is not in WHNF)"
 
 desugarSigil :: Sigil S.RepExpr -> Sigil Representation
 desugarSigil Unboxed = Unboxed

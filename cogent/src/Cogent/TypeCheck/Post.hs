@@ -163,4 +163,4 @@ normaliseT d (R x (Left s)) = T . flip TRecord (fmap (const noRepE) s) . Row.toE
 normaliseT d (R x (Right s)) =  __impossible ("normaliseT: invalid sigil (?" ++ show s ++ ")")
 normaliseT d (U x) = __impossible ("normaliseT: invalid type (?" ++ show x ++ ")")
 normaliseT d (T x) = T <$> traverse (normaliseT d) x
-normaliseT d what = error (show what)
+
