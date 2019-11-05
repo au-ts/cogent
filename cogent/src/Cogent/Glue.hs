@@ -535,7 +535,7 @@ traverseOneFunc fn d loc = do
               
               -- If the type arguments are omitted, we add them back
               let targs' = L.zipWith
-                             (\tv mta -> Just $ fromMaybe (SF.dummyLocT . SF.RT $ SF.TVar tv False) mta)
+                             (\tv mta -> Just $ fromMaybe (SF.dummyLocT . SF.RT $ SF.TVar tv False False) mta)
                              (L.map fst ts)
                              (targs ++ repeat Nothing)
 

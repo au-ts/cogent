@@ -480,7 +480,7 @@ instance (Pretty t, TypeType t, Pretty e) => Pretty (Type e t) where
                              | s == Unboxed -> ((typesymbol "#" <>) . parens)
                              | otherwise -> id) $
                          typename n <+> hsep (map prettyT' as)
-  pretty (TVar n b)  = typevar n <> (if b then typesymbol "!" else empty)
+  pretty (TVar n b u) = (if u then typesymbol "#" else empty) <> typevar n <> (if b then typesymbol "!" else empty)
   pretty (TTuple ts) = tupled (map pretty ts)
   pretty (TUnit)     = typesymbol "()" & (if __cogent_fdisambiguate_pp then (<+> comment "{- unit -}") else id)
 #ifdef BUILTIN_ARRAYS

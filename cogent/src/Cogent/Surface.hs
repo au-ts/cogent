@@ -123,15 +123,16 @@ data Expr t p ip e = PrimOp OpName [e]
                    | Annot e t
                    deriving (Data, Eq, Ord, Show, Functor, Foldable, Traversable)
 
-type Banged = Bool
-type Taken  = Bool
+type Banged  = Bool
+type Unboxed = Bool
+type Taken   = Bool
 
 type Entry t = (FieldName, (t, Taken))
 
 data Type e t =
               -- They are in WHNF
                 TCon TypeName [t] (Sigil RepExpr)  -- FIXME: can polymorphise the `Representation`
-              | TVar VarName Banged
+              | TVar VarName Banged Unboxed
               | TFun t t
               | TRecord [(FieldName, (t, Taken))] (Sigil RepExpr)
               | TVariant (M.Map TagName ([t], Taken))
@@ -336,7 +337,7 @@ instance Traversable (Flip IrrefutablePattern ip) where  -- pv
 
 instance Traversable (Flip Type t) where  -- e
   traverse _ (Flip (TCon n ts s))        = pure $ Flip (TCon n ts s)
-  traverse _ (Flip (TVar v b))           = pure $ Flip (TVar v b)
+  traverse _ (Flip (TVar v b u))         = pure $ Flip (TVar v b u)
   traverse _ (Flip (TFun t1 t2))         = pure $ Flip (TFun t1 t2)
   traverse _ (Flip (TRecord fs s))       = pure $ Flip (TRecord fs s)
   traverse _ (Flip (TVariant alts))      = pure $ Flip (TVariant alts)
@@ -442,7 +443,7 @@ fvE (RE e) = foldMap fvE e
 
 fvT :: RawType -> [VarName]
 fvT (RT (TCon _ ts _)) = foldMap fvT ts
-fvT (RT (TVar _ _)) = []
+fvT (RT (TVar {})) = []
 fvT (RT (TFun t1 t2)) = fvT t1 ++ fvT t2
 fvT (RT (TRecord fs _)) = foldMap (fvT . fst . snd) fs
 fvT (RT (TVariant alts)) = foldMap (foldMap fvT . fst) alts
@@ -478,7 +479,7 @@ fcT (RT t) = foldMap fcT t
 
 tvT :: RawType -> [TyVarName]
 tvT (RT (TCon _ ts _)) = foldMap tvT ts
-tvT (RT (TVar v _)) = [v]
+tvT (RT (TVar v _ _)) = [v]
 tvT (RT (TFun t1 t2)) = tvT t1 ++ tvT t2
 tvT (RT (TRecord fs _)) = foldMap (tvT . fst . snd) fs
 tvT (RT (TVariant alts)) = foldMap (foldMap tvT . fst) alts
@@ -576,3 +577,4 @@ rawToLocE l (RE e) = LocExpr l ( ffffmap (rawToLocT  l)
                                $ fffmap  (rawToLocP  l)
                                $ ffmap   (rawToLocIP l)
                                $ fmap    (rawToLocE  l) e)
+

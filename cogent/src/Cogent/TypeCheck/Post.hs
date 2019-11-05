@@ -105,6 +105,7 @@ normaliseT d (T (TUnbox t)) = do
    case t' of
      (T (TCon x ps _)) -> normaliseT d (T (TCon x ps Unboxed))
      (T (TRecord l _)) -> normaliseT d (T (TRecord l Unboxed))
+     (T (TVar v b u))  -> normaliseT d (T (TVar v b True))
      (T o)             -> normaliseT d =<< normaliseT d (T $ fmap (T . TUnbox) o)
      _                 -> __impossible "normaliseT (TUnbox)"
 
@@ -115,7 +116,7 @@ normaliseT d (T (TBang t)) = do
                           normaliseT d (T (TCon x ps' (bangSigil s)))
      (T (TRecord l s)) -> mapM ((secondM . firstM) (normaliseT d . T . TBang)) l >>= \l' ->
                           normaliseT d (T (TRecord l' (bangSigil s)))
-     (T (TVar b _))    -> normaliseT d (T (TVar b True))
+     (T (TVar v b u))  -> normaliseT d (T (TVar v True u))
      (T (TFun a b))    -> T <$> (TFun <$> normaliseT d a <*> normaliseT d b)
      (T o)             -> normaliseT d =<< normaliseT d (T $ fmap (T . TBang) o)
      _                 -> __impossible "normaliseT (TBang)"

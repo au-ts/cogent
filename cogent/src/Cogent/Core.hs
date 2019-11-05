@@ -61,6 +61,7 @@ import qualified Text.PrettyPrint.ANSI.Leijen as L ((<$>))
 data Type t
   = TVar (Fin t)
   | TVarBang (Fin t)
+  | TVarUnboxed (Fin t)
   | TCon TypeName [Type t] (Sigil Representation)
   | TFun (Type t) (Type t)
   | TPrim PrimInt
@@ -77,6 +78,7 @@ data Type t
 
 data SupposedlyMonoType = forall (t :: Nat). SMT (Type t)
 
+-- See Glue.hs. But I don't know why it's defined this way. / zilinc
 isTVar :: Type t -> Bool
 isTVar (TVar _) = True
 isTVar _ = False
@@ -424,6 +426,7 @@ instance Pretty FunNote where
 instance Pretty (Type t) where
   pretty (TVar v) = prettyT v
   pretty (TVarBang v) = prettyT v L.<> typesymbol "!"
+  pretty (TVarUnboxed v) = typesymbol "#" <> prettyT v
   pretty (TPrim pt) = pretty pt
   pretty (TString) = typename "String"
   pretty (TUnit) = typename "()"

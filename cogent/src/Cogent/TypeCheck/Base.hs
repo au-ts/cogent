@@ -453,8 +453,11 @@ substType vs (U x) = U x
 substType vs (V x) = V (fmap (substType vs) x)
 substType vs (R x s) = R (fmap (substType vs) x) s
 substType vs (Synonym n ts) = Synonym n (fmap (substType vs) ts)
-substType vs (T (TVar v False )) | Just x <- lookup v vs = x
-substType vs (T (TVar v True  )) | Just x <- lookup v vs = T (TBang x)
+substType vs (T (TVar v b u)) | Just x <- lookup v vs
+  = case (b,u) of
+      (False, False) -> x
+      (True , False) -> T (TBang x)
+      (_    , True ) -> T (TUnbox x)
 substType vs (T t) = T (fmap (substType vs) t)
 
 -- Check for type well-formedness
@@ -466,7 +469,7 @@ validateType' :: [VarName] -> RawType -> TcErrM TypeError TCType
 validateType' vs (RT t) = do
   ts <- use knownTypes
   case t of
-    TVar v _    | v `notElem` vs         -> throwE (UnknownTypeVariable v)
+    TVar v _ _  | v `notElem` vs         -> throwE (UnknownTypeVariable v)
     TCon t as _ | Nothing <- lookup t ts -> throwE (UnknownTypeConstructor t)
                 | Just (vs', _) <- lookup t ts
                 , provided <- length as

@@ -33,6 +33,9 @@ bangSigil :: Sigil r -> Sigil r
 bangSigil (Boxed _ r)  = Boxed True r
 bangSigil Unboxed      = Unboxed
 
+unboxSigil :: Sigil r -> Sigil r
+unboxSigil _ = Unboxed
+
 writable :: Sigil r -> Bool
 writable (Boxed False _) = True
 writable _ = False
