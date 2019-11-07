@@ -153,17 +153,12 @@ unbox :: Type t -> Type t
 unbox (TVar v)         = TVarUnboxed v
 unbox (TVarBang v)     = TVarUnboxed v
 unbox (TVarUnboxed v)  = TVarUnboxed v
-unbox (TCon n ts s)    = TCon n (map unbox ts) (unboxSigil s)
-unbox (TFun ti to)     = TFun (unbox ti) (unbox to)
-unbox (TPrim i)        = TPrim i
-unbox (TString)        = TString
-unbox (TSum ts)        = TSum (map (second $ first unbox) ts)
-unbox (TProduct t1 t2) = TProduct (unbox t1) (unbox t2)
-unbox (TRecord ts s)   = TRecord (map (second $ first unbox) ts) (unboxSigil s)
-unbox (TUnit)          = TUnit
-#ifdef BUILTIN_ARRARY
-unbox (TArray t l)     = TArray (unbox t) l
-#endif
+unbox (TCon n ts s)    = TCon n ts (unboxSigil s)
+unbox (TRecord ts s)   = TRecord ts (unboxSigil s)
+unbox t                = t  -- NOTE that @#@ type operator behaves differently to @!@.
+                            -- The application of @#@ should NOT be pushed inside of a
+                            -- data type. / zilinc
+
 
 substitute :: Vec t (Type u) -> Type t -> Type u
 substitute vs (TVar v)         = vs `at` v
@@ -321,7 +316,7 @@ kindcheck_ :: (Monad m) => (Fin t -> m Kind) -> Type t -> m Kind
 kindcheck_ f (TVar v)         = f v
 kindcheck_ f (TVarBang v)     = bangKind <$> f v
 kindcheck_ f (TVarUnboxed v)  = return mempty
-kindcheck_ f (TCon n vs s)    = mconcat <$> ((sigilKind s :) <$> mapM (kindcheck_ f) vs)
+kindcheck_ f (TCon n vs s)    = return $ sigilKind s
 kindcheck_ f (TFun ti to)     = return mempty
 kindcheck_ f (TPrim i)        = return mempty
 kindcheck_ f (TString)        = return mempty
