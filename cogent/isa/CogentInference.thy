@@ -609,6 +609,17 @@ fun "assign_app_constr" :: "(nat \<Rightarrow> type) \<Rightarrow> constraint \<
 definition assign_app_ctx :: "(nat \<Rightarrow> type) \<Rightarrow> ctx \<Rightarrow> ctx" where
   "assign_app_ctx S G = map (map_option (assign_app_ty S)) G"
 
+lemma assign_app_ctx_none_iff:
+  assumes "i < length G"
+  shows "assign_app_ctx S G ! i = None \<longleftrightarrow> G ! i = None"
+  using assms assign_app_ctx_def by simp
+
+lemma assign_app_ctx_nth:
+  assumes
+    "i < length G"
+  shows "assign_app_ctx S G ! i = map_option (assign_app_ty S) (G ! i)"
+  using assms assign_app_ctx_def by simp
+
 lemma assign_app_ctx_len:
   "length (assign_app_ctx S G) = length G"
   by (induct G arbitrary: S; simp add: assign_app_ctx_def)
