@@ -335,6 +335,10 @@ definition weakening :: "axm_set \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarro
            ("_ \<turnstile> _ \<leadsto>w _" [40,0,40] 60) where
   "weakening K \<equiv> list_all2 (weakening_comp K)"
 
+lemma weak_keep_refl: "weakening_comp K (Some \<tau>) (Some \<rho>) \<Longrightarrow> \<tau> = \<rho>"
+  using weakening_comp.cases by auto
+
+
 section {* Typing Rules (Fig 3.3) *}
 inductive typing :: "axm_set \<Rightarrow> ctx \<Rightarrow> 'fnname expr \<Rightarrow> type \<Rightarrow> bool"
           ("_ \<ddagger> _ \<turnstile> _ : _" [40,0,0,40] 60) where
