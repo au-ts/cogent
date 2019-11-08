@@ -158,10 +158,16 @@ datatype 'f expr = Var index
                  | Sig "'f expr" type
 
 type_synonym cg_ctx = "(type \<times> nat) list"
-
 type_synonym ctx = "(type option) list"
+
+
 definition empty :: "nat \<Rightarrow> ctx" where
   "empty \<equiv> (\<lambda> x. replicate x None)"
+
+lemma empty_none:
+  "i < n \<Longrightarrow> (empty n) ! i = None"
+  by (simp add: local.empty_def)
+
 
 definition singleton :: "nat \<Rightarrow> index \<Rightarrow> type \<Rightarrow> ctx" where
   "singleton n i t \<equiv> (empty n)[i := Some t]"
