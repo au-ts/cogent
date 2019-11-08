@@ -318,6 +318,14 @@ definition context_splitting :: "axm_set \<Rightarrow> ctx \<Rightarrow> ctx \<R
            ("_ \<turnstile> _ \<leadsto> _ \<box> _" [30,0,0,30] 60) where
   "context_splitting K \<equiv> list_all3 (ctx_split_comp K)"
 
+lemma context_splitting_none:
+  assumes "A \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 \<box> \<Gamma>2"
+    and "i < length \<Gamma>"
+    and "\<Gamma> ! i = None"
+  shows "\<Gamma>1 ! i = None \<and> \<Gamma>2 ! i = None"
+  using assms ctx_split_comp.simps 
+  by (clarsimp simp add: context_splitting_def list_all3_conv_all_nth; auto)
+
 inductive weakening_comp :: "axm_set \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> bool" where
   none : "weakening_comp K None None"
 | keep : "weakening_comp K (Some \<tau>) (Some \<tau>)"
