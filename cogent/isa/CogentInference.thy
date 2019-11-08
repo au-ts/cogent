@@ -624,6 +624,27 @@ lemma assign_app_ctx_len:
   "length (assign_app_ctx S G) = length G"
   by (induct G arbitrary: S; simp add: assign_app_ctx_def)
 
+lemma assign_app_ty_subst_ty_commute: 
+  assumes "known_ty \<tau>"
+  shows "assign_app_ty S (subst_ty xs \<tau>) = subst_ty (map (assign_app_ty S) xs) \<tau>"
+  using assms
+proof (induct \<tau>)
+  case (known_tfun t1 t2)
+  then show ?case
+    using known_tfunE by auto
+next
+  case (known_tproduct t1 t2)
+  then show ?case
+    using known_tproductE by auto
+qed (simp)+
+
+lemma assign_app_constr_subst_ct_commute: 
+  assumes "known_ct C"
+  shows "assign_app_constr S (subst_ct xs C) = subst_ct (map (assign_app_ty S) xs) C"
+  using assms
+proof (induct C)
+qed (auto simp add: subst_ct_def assign_app_ty_subst_ty_commute)+
+
 lemma assign_app_ctx_nth:
   assumes
     "i < length G"
