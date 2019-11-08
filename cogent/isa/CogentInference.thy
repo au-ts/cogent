@@ -645,11 +645,30 @@ lemma assign_app_constr_subst_ct_commute:
 proof (induct C)
 qed (auto simp add: subst_ct_def assign_app_ty_subst_ty_commute)+
 
-lemma assign_app_ctx_nth:
-  assumes
-    "i < length G"
-  shows "assign_app_ctx S G ! i = map_option (assign_app_ty S) (G ! i)"
-  using assms assign_app_ctx_def by simp
+lemma ct_sem_assign_conj_foldr:
+  assumes "A \<turnstile> assign_app_constr S (foldr CtConj Cs CtTop)"
+    and  "i < length Cs" 
+  shows "A \<turnstile> assign_app_constr S (Cs ! i)"
+  using assms
+proof (induct Cs arbitrary: i)
+  case (Cons a Cs)
+  then show ?case
+  proof -
+    have constr_sem_rearrange: "A \<turnstile> assign_app_constr S (CtConj a ((foldr CtConj Cs) CtTop))"
+      using Cons.prems by auto
+    then show ?thesis
+    proof (cases "i = 0")
+      case True
+      then show ?thesis
+        using constr_sem_rearrange ct_sem_conj_iff by force
+    next
+      case False
+      then show ?thesis
+        using Cons.hyps Cons.prems assign_app_constr.simps constr_sem_rearrange ct_sem_conj_iff
+        by auto
+    qed
+  qed
+qed (simp)
 
 inductive is_known_type :: "type \<Rightarrow> bool" where
 known_tvar:
