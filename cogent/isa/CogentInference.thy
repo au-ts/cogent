@@ -41,12 +41,11 @@ datatype type = TVar index
 datatype lit = LBool bool
              | LNat nat
 
-fun abs :: "prim_type \<Rightarrow> nat" where
-  "abs Bool = 2"
-| "abs (Num U8) = 256"
-| "abs (Num U16) = 512"
-| "abs (Num U32) = 1024"
-| "abs (Num U64) = 2048"
+fun abs :: "num_type \<Rightarrow> nat" where
+"abs U8 = 256"
+| "abs U16 = 512"
+| "abs U32 = 1024"
+| "abs U64 = 2048"
 
 fun subst_ty :: "type list \<Rightarrow> type \<Rightarrow> type" where
   "subst_ty \<delta> (TVar i)       = \<delta> ! i"
@@ -177,7 +176,7 @@ ct_sem_share:
    ; A \<turnstile> C2
    \<rbrakk> \<Longrightarrow> A \<turnstile> CtConj C1 C2"
 | ct_sem_int:
-  "m < abs pt \<Longrightarrow> A \<turnstile> CtIBound (LNat m) (TPrim pt)"
+  "m < abs n \<Longrightarrow> A \<turnstile> CtIBound (LNat m) (TPrim (Num n))"
 | ct_sem_top:
   "A \<turnstile> CtTop"
 | ct_sem_refl:
@@ -226,26 +225,26 @@ section {* Typing Rules (Fig 3.3) *}
 inductive typing :: "axm_set \<Rightarrow> ctx \<Rightarrow> 'fnname expr \<Rightarrow> type \<Rightarrow> bool"
           ("_ \<ddagger> _ \<turnstile> _ : _" [40,0,0,40] 60) where
 typing_var:
-  "\<lbrakk> A \<turnstile> \<Gamma> \<leadsto>w singleton (length \<Gamma>) i \<tau>
+  "\<lbrakk> A \<turnstile> \<Gamma>  \<leadsto>w singleton (length \<Gamma>) i \<tau>
    ; i < length \<Gamma>
    \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> (Var i) : \<tau>"
 | typing_sig:
-  "A \<turnstile> CtSub \<tau>' \<tau> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> e : \<tau>' \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Sig e \<tau> : \<tau>" 
+  "A \<ddagger> \<Gamma> \<turnstile> e : \<tau>' \<Longrightarrow> A \<turnstile> CtSub \<tau>' \<tau> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Sig e \<tau> : \<tau>"
 | typing_app:
   "\<lbrakk> A \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 \<box> \<Gamma>2
    ; A \<ddagger> \<Gamma>1 \<turnstile> e1 : (TFun \<tau>1 \<tau>2)
    ; A \<ddagger> \<Gamma>2 \<turnstile> e2 : \<tau>1  
    \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> App e1 e2 : \<tau>2"
 | typing_tapp:
-  "\<lbrakk> A \<turnstile> \<Gamma> \<leadsto>w []
-   ; (C, \<tau>) = type_of name
+  "\<lbrakk> A \<turnstile> \<Gamma> \<leadsto>w empty (length \<Gamma>)
+   ; type_of name = (C, \<tau>)
    ; A \<turnstile> subst_ct ts C
    ; \<tau>' = subst_ty ts \<tau>
    \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> TypeApp name ts : \<tau>'"
 | typing_let:
   "\<lbrakk> A \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 \<box> \<Gamma>2
    ; A \<ddagger> \<Gamma>1 \<turnstile> e1 : \<tau>1
-   ; A \<ddagger> ((Some \<tau>2) # \<Gamma>2) \<turnstile> e2 : \<tau>2
+   ; A \<ddagger> ((Some \<tau>1) # \<Gamma>2) \<turnstile> e2 : \<tau>2
   \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Let e1 e2 : \<tau>2"
 | typing_if:
   "\<lbrakk> A \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 \<box> \<Gamma>2
@@ -261,7 +260,8 @@ typing_var:
    ; A \<ddagger> \<Gamma>2 \<turnstile> e2 : T
    \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Prim x [e1, e2] : T"
 | typing_cop:
-  "\<lbrakk> T \<noteq> TPrim Bool
+  "\<lbrakk> A \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 \<box> \<Gamma>2
+   ; T \<noteq> TPrim Bool
    ; x \<in> {Eq (Num nt), NEq (Num nt), Lt nt, Gt nt, Le nt, Ge nt}
    ; A \<ddagger> \<Gamma>1 \<turnstile> e1 : T 
    ; A \<ddagger> \<Gamma>2 \<turnstile> e2 : T
@@ -275,12 +275,12 @@ typing_var:
    ; \<tau> = TPrim Bool
    \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Prim x [e1, e2] : \<tau>"
 | typing_ilit:
-  "\<lbrakk> A \<turnstile> \<Gamma> \<leadsto>w []
-   ; l < abs T
-   ; \<tau> = TPrim T
+  "\<lbrakk> A \<turnstile> \<Gamma> \<leadsto>w empty (length \<Gamma>)
+   ; l < abs n
+   ; \<tau> = TPrim (Num n)
    \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Lit (LNat l) : \<tau>"
 | typing_blit:
-  "\<lbrakk> A \<turnstile> \<Gamma> \<leadsto>w []
+  "\<lbrakk> A \<turnstile> \<Gamma> \<leadsto>w empty (length \<Gamma>)
    ; \<tau> = TPrim Bool
    \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Lit (LBool l) : \<tau>"
 
