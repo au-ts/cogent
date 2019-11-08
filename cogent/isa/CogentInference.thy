@@ -918,6 +918,173 @@ next
   qed
 qed (simp)+
 
+lemma cg_gen_output_type_used_inc:
+  assumes "G1,n1 \<turnstile> e : \<tau> \<leadsto> G2,n2 | C1 | e1'"
+      and "i \<in> fv(e)"
+  shows "snd (G2 ! i) > snd (G1 ! i)"
+  using assms
+proof (induct arbitrary: i rule: constraint_gen_elab.induct)
+  case (cg_app \<alpha> n1 G1 e1 \<tau> G2 n2 C1 e1' e2 G3 n3 C2 e2' C3)
+  then show ?case
+  proof -
+    consider (i_in_e1) "i \<in> fv e1" | (i_in_e2) "i \<in> fv e2"
+      using cg_app.prems by auto
+    then show ?thesis
+    proof cases
+      case i_in_e1
+      then show ?thesis
+        using cg_app.hyps cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size 
+          constraint_gen_elab.cg_app 
+        by (metis (no_types, lifting) dual_order.strict_iff_order leD)
+    next
+      case i_in_e2
+      then show ?thesis 
+        using cg_app.hyps cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size 
+          constraint_gen_elab.cg_app
+        by (metis dual_order.strict_iff_order leD)
+    qed
+  qed
+next
+  case (cg_let \<alpha> n1 G1 e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4)
+  then show ?case
+  proof -
+    have i_in_e1e2: "i \<in> fv' 0 e1 \<or> i \<in> fv' (Suc 0) e2"
+      using fv'_let cg_let.prems by blast
+    consider (i_in_e1) "i \<in> fv e1" | (i_in_e2) "i \<in> fv' (Suc 0) e2"
+      using i_in_e1e2 by blast
+    then show ?thesis
+    proof cases
+      case i_in_e1
+      then have "snd (G1 ! i) < snd (G2 ! i)"
+        using cg_let.hyps by blast
+      moreover  have "snd (G2 ! i) \<le> snd (G3 ! i)"
+        using i_in_e1e2 cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size cg_let
+          i_fv'_suc_iff_suc_i_fv' by (metis Suc_less_eq length_Cons nth_Cons_Suc)
+      ultimately show ?thesis
+        by simp
+    next
+      case i_in_e2
+      have "snd (G1 ! i) \<le> snd (G2 ! i)"
+        using i_in_e1e2 cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size cg_let.hyps
+        by (metis i_fv'_suc_iff_suc_i_fv' length_Cons not_less_eq)
+      moreover have "snd (G2 ! i) < snd (G3 ! i)"
+        using cg_let.hyps i_fv'_suc_iff_suc_i_fv' i_in_e2 by fastforce
+      ultimately show ?thesis
+        using le_less_trans by blast
+    qed
+  qed
+next
+  case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
+  then show ?case
+  proof -
+    have i_in_e1e2e3: "i \<in> fv e1 \<or> i \<in> fv e2 \<or> i \<in> fv e3"
+      using cg_if.prems by auto
+    have snd_G1_le_G2: "snd (G1 ! i) \<le> snd (G2 ! i)"
+      using i_in_e1e2e3 cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size cg_if.hyps
+      by metis
+    have snd_G2_le_G3: "snd (G2 ! i) \<le> snd (G3 ! i)"
+      using i_in_e1e2e3 cg_ctx_type_used_nondec cg_gen_fv_elem_size cg_if.hyps
+        type_infer.cg_ctx_length type_infer_axioms by metis
+    have snd_G3_le_G4: "snd (G3 ! i) \<le> snd (G4 ! i)"
+      using i_in_e1e2e3 alg_ctx_jn_type_used_nondec_1 cg_gen_fv_elem_size cg_if.hyps 
+        cg_ctx_length type_infer_axioms by metis
+    have snd_G3'_le_G4: "snd (G3' ! i) \<le> snd (G4 ! i)"
+      using i_in_e1e2e3 alg_ctx_jn_type_used_nondec_2 cg_gen_fv_elem_size cg_if.hyps 
+        cg_ctx_length type_infer_axioms by metis
+    consider (i_in_e1) "i \<in> fv e1" | (i_in_e2) "i \<in> fv e2" | (i_in_e3) "i \<in> fv e3"
+      using i_in_e1e2e3 by blast
+    then show ?thesis
+    proof cases
+      case i_in_e1
+      then show ?thesis
+        using cg_if.hyps snd_G2_le_G3 snd_G3_le_G4 by force
+    next
+      case i_in_e2
+      then show ?thesis
+        using cg_if.hyps snd_G1_le_G2 snd_G3_le_G4 by force
+    next
+      case i_in_e3
+      then show ?thesis 
+        using cg_if.hyps snd_G1_le_G2 snd_G3'_le_G4 by force
+    qed
+  qed
+next
+  case (cg_iop x nt G1 n1 e1 \<tau> G2 n2 C1 e1' e2 G3 n3 C2 e2' C5)
+  then show ?case
+  proof -
+    have i_in_e1e2: "i \<in> fv e1 \<or> i \<in> fv e2"
+      using cg_iop.prems by auto
+    consider (i_in_e1) "i \<in> fv e1" | (i_in_e2) "i \<in> fv e2"
+      using i_in_e1e2 by blast
+    then show ?thesis
+    proof cases
+      case i_in_e1
+      have "snd (G2 ! i) \<le> snd (G3 ! i)"      
+        using i_in_e1e2 cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size cg_iop.hyps
+        by metis
+      then show ?thesis
+        using cg_iop.hyps i_in_e1 by fastforce
+    next
+      case i_in_e2
+      have "snd (G1 ! i) \<le> snd (G2 ! i)"
+        using i_in_e1e2 cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size cg_iop.hyps
+        by metis
+      then show ?thesis
+        using cg_iop.hyps i_in_e2 by fastforce
+    qed
+  qed
+next
+  case (cg_cop \<alpha> n1 x nt G1 e1 G2 n2 C1 e1' e2 G3 n3 C2 e2' C3 \<tau>)
+  then show ?case
+  proof -
+    have i_in_e1e2: "i \<in> fv e1 \<or> i \<in> fv e2"
+      using cg_cop.prems by auto
+    consider (i_in_e1) "i \<in> fv e1" | (i_in_e2) "i \<in> fv e2"
+      using i_in_e1e2 by blast
+    then show ?thesis
+    proof cases
+      case i_in_e1
+      have "snd (G2 ! i) \<le> snd (G3 ! i)" 
+        using i_in_e1e2 cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size cg_cop.hyps
+        by metis
+      then show ?thesis
+        using i_in_e1 cg_cop.hyps by force
+    next
+      case i_in_e2
+      have "snd (G1 ! i) \<le> snd (G2 ! i)"      
+        using i_in_e1e2 cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size cg_cop.hyps
+        by metis
+      then show ?thesis
+        using i_in_e2 cg_cop.hyps by force    
+    qed
+  qed
+next
+  case (cg_bop x nt G1 n1 e1 \<tau> G2 n2 C1 e1' e2 G3 n3 C2 e2' C3)
+  then show ?case 
+  proof -
+    have i_in_e1e2: "i \<in> fv e1 \<or> i \<in> fv e2"
+      using cg_bop.prems by auto
+    consider (i_in_e1) "i \<in> fv e1" | (i_in_e2) "i \<in> fv e2"
+      using i_in_e1e2 by blast
+    then show ?thesis
+    proof cases
+      case i_in_e1
+      have "snd (G2 ! i) \<le> snd (G3 ! i)"      
+        using i_in_e1e2 cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size cg_bop.hyps
+        by metis
+      then show ?thesis
+        using i_in_e1 cg_bop.hyps by force
+    next
+      case i_in_e2
+        have "snd (G1 ! i) \<le> snd (G2 ! i)"      
+          using i_in_e1e2 cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size cg_bop.hyps
+          by metis
+        then show ?thesis
+          using i_in_e2 cg_bop.hyps by force
+      qed
+  qed 
+qed (simp)+
+
 lemma cg_gen_type_used_nonzero_imp_share:
   assumes "G1,n1 \<turnstile> e : \<tau> \<leadsto> G2,n2 | C1 | e1'"
       and "i \<in> fv(e)"
