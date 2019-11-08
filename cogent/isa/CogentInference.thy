@@ -143,6 +143,7 @@ inductive_cases known_ctsubE: "known_ct (CtSub C1 C2)"
 
 locale type_infer =
   fixes type_of :: "'fnname \<Rightarrow> constraint \<times> type"
+  assumes type_of_known: "type_of e = (C, \<rho>) \<Longrightarrow> known_ct C \<and> known_ty \<rho>"
 begin
 
 datatype 'f expr = Var index
@@ -167,15 +168,15 @@ definition singleton :: "nat \<Rightarrow> index \<Rightarrow> type \<Rightarrow
 
 lemma singleton_len:
   "length (singleton n i t) = n"
-  by (simp add: local.empty_def type_infer.singleton_def)
+  by (simp add: local.empty_def singleton_def)
 
 lemma singleton_some:
   "i < n \<Longrightarrow> (singleton n i t) ! i = Some t"
-  by (simp add: type_infer.empty_def type_infer.singleton_def)
+  by (simp add: empty_def singleton_def)
 
 lemma singleton_none:
   "j < n \<Longrightarrow> j \<noteq> i \<Longrightarrow> (singleton n i t) ! j = None"
-  by (simp add: type_infer.empty_def type_infer.singleton_def)
+  by (simp add: empty_def singleton_def)
 
 section {* Algorithmic Context Join (Fig 3.5) *}
 inductive alg_ctx_jn :: "cg_ctx \<Rightarrow> cg_ctx \<Rightarrow> cg_ctx \<Rightarrow> constraint \<Rightarrow> bool"
@@ -420,7 +421,7 @@ lemma cg_ctx_length:
 proof (induct rule: constraint_gen_elab.inducts)
   case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
   then show ?case
-    using type_infer.alg_ctx_jn_length(2) by auto
+    using alg_ctx_jn_length(2) by auto
 qed (simp+)
 
 lemma cg_ctx_type_same:
@@ -442,7 +443,7 @@ next
 next
   case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
   then show ?case
-    using cg_ctx_length type_infer.alg_ctx_jn_type_same by auto
+    using cg_ctx_length alg_ctx_jn_type_same by auto
 next
 qed (auto simp add: cg_ctx_length)+
 
@@ -604,7 +605,7 @@ proof (induct n arbitrary: i m)
   then show ?case
   proof (case_tac "i = n - m")
     show "i = n - m \<Longrightarrow> local.range m (Suc n) ! i = m + i"
-      using type_infer.range.simps type_infer.range_length
+      using range.simps range_length
       by (metis Suc.prems(1) diff_is_0_eq' le_add_diff_inverse less_Suc_eq_le not_less nth_append_length)
     have "i < Suc n - m \<Longrightarrow> i \<noteq> n - m \<Longrightarrow> i < n -m "
       using range_length
@@ -1053,7 +1054,7 @@ proof -
         using cg_ctx_type_same ctx_restrict_len ctx_restrict_nth_some
         by (metis (no_types, lifting) nth_map)
       ultimately show "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
-        using G1_G2_length i_in_e2 i_size ctx_restrict_len ctx_restrict_nth_some type_infer.share by auto
+        using G1_G2_length i_in_e2 i_size ctx_restrict_len ctx_restrict_nth_some share by auto
     qed
     ultimately show "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
       by blast
