@@ -1439,7 +1439,7 @@ lemma split_used:
     and "G1,n1 \<turnstile> e1 : \<tau> \<leadsto> G2,n2 | C1 | e1'"
     and "G2,n2 \<turnstile> e2 : \<rho> \<leadsto> G3,n3 | C2 | e2'"
     and "A \<turnstile> assign_app_constr S C2"
-    and "\<forall>i. is_known_type (S i)"
+    and "\<forall>i. known_ty (S i)"
   shows "A \<turnstile> assign_app_ctx S (G1\<bar>(fv e)) \<leadsto> assign_app_ctx S (G1\<bar>(fv e1)) \<box> assign_app_ctx S (G2\<bar>(fv e2))"
   using assms   
 proof -
@@ -1518,7 +1518,6 @@ proof -
     using G1_G2_length context_splitting_def assign_app_ctx_len ctx_restrict_len
     by (metis (full_types) list_all3_conv_all_nth)
 qed
-thm constraint_gen_elab.inducts
 
 section {* Soundness of Generation (Thm 3.2) *}
 lemma cg_sound:
