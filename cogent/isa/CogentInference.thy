@@ -1227,6 +1227,23 @@ next
   qed
 qed (simp)+
 
+lemma cg_gen_output_type_unused_same:
+  assumes "G1,n1 \<turnstile> e : \<tau> \<leadsto> G2,n2 | C1 | e1'"
+      and "i \<notin> fv(e)"
+      and "i < length G1"
+  shows "snd (G2 ! i) = snd (G1 ! i)"
+  using assms
+proof (induct arbitrary: i rule: constraint_gen_elab.induct)
+  case (cg_let \<alpha> n1 G1 e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4)
+  then show ?case
+    using cg_ctx_length i_fv'_suc_iff_suc_i_fv' fv'_let
+    by (metis Un_iff length_Cons less_eq_Suc_le not_less nth_Cons_Suc)
+next
+  case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
+  then show ?case     
+    using alg_ctx_jn_type_used_max cg_ctx_idx_size by simp
+qed (simp add: cg_ctx_idx_size)+
+
 lemma cg_assign_type_used_nonzero_imp_share:
   assumes "G1,n1 \<turnstile> e : \<tau> \<leadsto> G2,n2 | C1 | e1'"
       and "i \<in> fv(e)"
