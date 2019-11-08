@@ -606,17 +606,18 @@ fun "assign_app_constr" :: "(nat \<Rightarrow> type) \<Rightarrow> constraint \<
 | "assign_app_constr S (CtShare t) = CtShare (assign_app_ty S t)"
 | "assign_app_constr S (CtDrop t) = CtDrop (assign_app_ty S t)"
 
-fun "assign_app_ctx" :: "(nat \<Rightarrow> type) \<Rightarrow> ctx \<Rightarrow> ctx" where
-  "assign_app_ctx S G = map (\<lambda>x. if x = None then None else Some (assign_app_ty S (the x))) G"
+definition assign_app_ctx :: "(nat \<Rightarrow> type) \<Rightarrow> ctx \<Rightarrow> ctx" where
+  "assign_app_ctx S G = map (map_option (assign_app_ty S)) G"
 
 lemma assign_app_ctx_len:
   "length (assign_app_ctx S G) = length G"
-  by (induct G arbitrary: S; simp)
+  by (induct G arbitrary: S; simp add: assign_app_ctx_def)
 
 lemma assign_app_ctx_nth:
-  "\<And>i. i < length G \<Longrightarrow> 
-   (assign_app_ctx S G) ! i = (\<lambda>x. if x = None then None else Some (assign_app_ty S (the x))) (G ! i)"
-  by simp
+  assumes
+    "i < length G"
+  shows "assign_app_ctx S G ! i = map_option (assign_app_ty S) (G ! i)"
+  using assms assign_app_ctx_def by simp
 
 inductive is_known_type :: "type \<Rightarrow> bool" where
 known_tvar:
@@ -1072,17 +1073,17 @@ proof -
   have G1_G2_length: "length G1 = length G2"
     using assms cg_ctx_length by blast
   have no_i_in_e_SG1e_none: "\<And>i. i < length G1 \<Longrightarrow> i \<notin> fv e \<Longrightarrow> ?SG1e ! i = None"
-    using ctx_restrict_len ctx_restrict_nth_none by auto
-  have i_in_e_SG1e_some: "\<And>i. i < length G1 \<Longrightarrow> i \<in> fv e \<Longrightarrow> \<exists>a. ?SG1e ! i = Some (assign_app_ty S (fst (G1!i)))"
-    using ctx_restrict_len ctx_restrict_nth_some by auto
+    using ctx_restrict_len ctx_restrict_nth_none assign_app_ctx_def by auto
+  have i_in_e_SG1e_some: "\<And>i. i < length G1 \<Longrightarrow> i \<in> fv e \<Longrightarrow> ?SG1e ! i = Some (assign_app_ty S (fst (G1!i)))"
+    using ctx_restrict_len ctx_restrict_nth_some assign_app_ctx_def by auto
   have no_i_in_e1_SG1e1_none: "\<And>i. i < length G1 \<Longrightarrow> i \<notin> fv e1 \<Longrightarrow> ?SG1e1 ! i = None"
-    using ctx_restrict_len ctx_restrict_nth_none by auto
-  have i_in_e1_SG1e1_some: "\<And>i. i < length G1 \<Longrightarrow> i \<in> fv e1 \<Longrightarrow> \<exists>a. ?SG1e1 ! i = Some (assign_app_ty S (fst (G1!i)))"
-    using ctx_restrict_len ctx_restrict_nth_some by auto
+    using ctx_restrict_len ctx_restrict_nth_none assign_app_ctx_def by auto
+  have i_in_e1_SG1e1_some: "\<And>i. i < length G1 \<Longrightarrow> i \<in> fv e1 \<Longrightarrow> ?SG1e1 ! i = Some (assign_app_ty S (fst (G1!i)))"
+    using ctx_restrict_len ctx_restrict_nth_some assign_app_ctx_def by auto
   have no_i_in_e2_SG2e2_none: "\<And>i. i < length G1 \<Longrightarrow> i \<notin> fv e2 \<Longrightarrow> ?SG2e2 ! i = None"
-    using G1_G2_length ctx_restrict_len ctx_restrict_nth_none by auto
-  have i_in_e2_SG2e2_some: "\<And>i. i < length G1 \<Longrightarrow> i \<in> fv e2 \<Longrightarrow> \<exists>a. ?SG2e2 ! i = Some (assign_app_ty S (fst (G2!i)))"
-    using G1_G2_length ctx_restrict_len ctx_restrict_nth_some by auto
+    using G1_G2_length ctx_restrict_len ctx_restrict_nth_none assign_app_ctx_def by auto
+  have i_in_e2_SG2e2_some: "\<And>i. i < length G1 \<Longrightarrow> i \<in> fv e2 \<Longrightarrow> ?SG2e2 ! i = Some (assign_app_ty S (fst (G2!i)))"
+    using G1_G2_length ctx_restrict_len ctx_restrict_nth_some assign_app_ctx_def by auto
   have "\<And>i. i < length G1 \<Longrightarrow> i \<notin> (fv e) \<Longrightarrow> ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
   proof -
     fix i :: nat 
@@ -1106,17 +1107,16 @@ proof -
       assume i_in_e1: "i \<in> (fv e1)"
       assume i_not_in_e2: "i \<notin> (fv e2)"
       then show "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
-        using ctx_split_comp.left
-        using i_in_e i_in_e1 i_size no_i_in_e2_SG2e2_none ctx_restrict_len ctx_restrict_nth_some by auto
+        using ctx_split_comp.left i_in_e i_in_e1 i_size no_i_in_e2_SG2e2_none ctx_restrict_len 
+          ctx_restrict_nth_some assign_app_ctx_def by auto
     qed
     moreover have "i \<notin> (fv e1) \<and> i \<in> (fv e2) \<Longrightarrow> ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
     proof (erule conjE)
       assume i_not_in_e1: "i \<notin> (fv e1)"
       assume i_in_e2: "i \<in> (fv e2)"
       then show "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
-        using assms ctx_split_comp.right
-        using i_in_e i_size i_not_in_e1 no_i_in_e1_SG1e1_none ctx_restrict_len ctx_restrict_nth_some
-        by (metis (no_types, lifting) G1_G2_length cg_ctx_type_same assign_app_ctx_nth)
+        using assms cg_ctx_type_same i_in_e i_in_e2_SG2e2_some i_in_e_SG1e_some i_not_in_e1 i_size
+          no_i_in_e1_SG1e1_none right by auto
     qed
     moreover have "i \<in> (fv e1) \<and> i \<in> (fv e2) \<Longrightarrow> ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
     proof (erule conjE)
@@ -1127,13 +1127,13 @@ proof -
       then have i_type_share: "A \<turnstile> CtShare (assign_app_ty S (fst (G2!i)))"
         using assms i_in_e2 cg_assign_type_used_nonzero_imp_share by simp
       moreover have "(?SG1e ! i) = (?SG1e1 ! i)"
-        using i_in_e i_in_e1 i_size ctx_restrict_len ctx_restrict_nth_some by auto
+        using i_in_e i_in_e1 i_size ctx_restrict_len ctx_restrict_nth_some assign_app_ctx_def by auto
       moreover have "(?SG1e1 ! i) = (?SG2e2 ! i)"
-        using assms assign_app_ctx.elims i_in_e1 i_in_e2 i_size G1_G2_length
-        using cg_ctx_type_same ctx_restrict_len ctx_restrict_nth_some
-        by (metis (no_types, lifting) nth_map)
+        using assms assign_app_ctx_def i_in_e1 i_in_e2 i_size G1_G2_length cg_ctx_type_same 
+          ctx_restrict_len ctx_restrict_nth_some by (metis (no_types, lifting) nth_map)
       ultimately show "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
-        using G1_G2_length i_in_e2 i_size ctx_restrict_len ctx_restrict_nth_some share by auto
+        using G1_G2_length i_in_e2 i_size ctx_restrict_len ctx_restrict_nth_some share assign_app_ctx_def
+        by auto
     qed
     ultimately show "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
       by blast
