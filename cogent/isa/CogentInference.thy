@@ -737,41 +737,6 @@ proof -
     by blast
 qed
 
-
-fun range :: "nat \<Rightarrow> nat \<Rightarrow> nat list" where
-  "range m 0 = []"
-| "range m (Suc n) = (if m \<ge> (Suc n) then [] else (range m n) @ [n])"
-
-lemma range_length:
-  "length (range m n) = (if m \<ge> n then 0 else (n - m))"
-proof (induct n arbitrary: m)
-  case (Suc n)
-  then show ?case
-    by (case_tac "m \<ge> (Suc n)"; simp add: Suc_diff_le)
-qed (simp)
-
-lemma range_elem:
-  assumes "n > m"
-    and "i < n - m"
-  shows "(range m n) ! i = m + i"
-  using assms
-proof (induct n arbitrary: i m)
-  case (Suc n)
-  then show ?case
-  proof (case_tac "i = n - m")
-    show "i = n - m \<Longrightarrow> local.range m (Suc n) ! i = m + i"
-      using range.simps range_length
-      by (metis Suc.prems(1) diff_is_0_eq' le_add_diff_inverse less_Suc_eq_le not_less nth_append_length)
-    have "i < Suc n - m \<Longrightarrow> i \<noteq> n - m \<Longrightarrow> i < n -m "
-      using range_length
-      by (simp add: less_diff_conv nth_append)
-    then show "i < Suc n - m \<Longrightarrow> i \<noteq> n - m \<Longrightarrow> range m (Suc n) ! i = m + i"
-      using assms
-      using range.simps range_length
-      by (metis Suc.hyps Suc.prems(1) add.commute le_less_Suc_eq less_diff_conv not_add_less1 not_less nth_append)
-  qed
-qed (simp)
-
 fun ctx_restrict :: "cg_ctx \<Rightarrow> index set \<Rightarrow> ctx" (infixr "\<bar>" 60) where
 "(G\<bar>ns) = List.map2 (\<lambda>g i. (if i \<in> ns then Some (fst g) else None)) G [0..<length G]"
 
