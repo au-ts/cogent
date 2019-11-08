@@ -47,6 +47,7 @@ fun abs :: "num_type \<Rightarrow> nat" where
 | "abs U32 = 1024"
 | "abs U64 = 2048"
 
+
 fun subst_ty :: "type list \<Rightarrow> type \<Rightarrow> type" where
   "subst_ty \<delta> (TVar i)       = (if i < length \<delta> then \<delta> ! i else TVar i)"
 | "subst_ty \<delta> (TFun a b)     = TFun (subst_ty \<delta> a) (subst_ty \<delta> b)"
@@ -1023,8 +1024,7 @@ lemma cg_sound:
     and "\<Gamma> = map (\<lambda> (\<rho>, n). if n = 0 then None else Some \<rho>) G"
   shows "A \<ddagger> \<Gamma> \<turnstile> (assign_app_expr S e') : (assign_app_ty S \<tau>)"
   using assms
-proof -
   sorry
-
+                    
 end
 end                            
