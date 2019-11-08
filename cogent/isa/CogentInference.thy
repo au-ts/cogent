@@ -267,6 +267,8 @@ ct_sem_share:
   "A \<turnstile> CtDrop (TPrim pt)"
 
 inductive_cases ct_sem_conjE: "A \<turnstile> CtConj C1 C2"
+inductive_cases ct_sem_intE: "A \<turnstile> CtIBound (LNat m) (TPrim pt)"
+inductive_cases ct_sem_funE: "A \<turnstile> CtSub (TFun \<tau>1 \<tau>2) (TFun \<rho>1 \<rho>2)"
 
 lemma ct_sem_conj_iff: "A \<turnstile> CtConj C1 C2 \<longleftrightarrow> A \<turnstile> C1 \<and> A \<turnstile> C2"
   using ct_sem_conj ct_sem_conjE by blast
