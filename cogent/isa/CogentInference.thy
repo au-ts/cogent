@@ -428,13 +428,13 @@ cg_var1:
    ; C' = CtConj C (CtSub \<tau>' \<tau>)
    \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> (Sig e \<tau>') : \<tau> \<leadsto> G2,n2 | C' | Sig (Sig e' \<tau>') \<tau>"
 | cg_app:
-  "\<lbrakk> \<alpha> = TUnknown (Suc n1)
+  "\<lbrakk> \<alpha> = TUnknown n1
    ; G1,(Suc n1) \<turnstile> e1 : TFun \<alpha> \<tau> \<leadsto> G2,n2 | C1 | e1'
    ; G2,n2 \<turnstile> e2 : \<alpha> \<leadsto> G3,n3 | C2 | e2'
    ; C3 = CtConj C1 C2
    \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> App e1 e2 : \<tau> \<leadsto> G3,n3 | C3 | Sig (App e1' e2') \<tau>"
 | cg_let:
-  "\<lbrakk> \<alpha> = TUnknown (Suc n1)
+  "\<lbrakk> \<alpha> = TUnknown n1
    ; G1,(Suc n1) \<turnstile> e1 : \<alpha> \<leadsto> G2,n2 | C1 | e1'
    ; ((\<alpha>, 0) # G2),n2 \<turnstile> e2 : \<tau> \<leadsto> ((\<alpha>, m) # G3),n3 | C2 | e2' 
    ; if m = 0 then C3 = CtDrop \<alpha> else C3 = CtTop
@@ -458,7 +458,7 @@ cg_var1:
    ; C5 = CtConj (CtConj (CtIBound (LNat 0) \<tau>) C1) C2
    \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> Prim x [e1, e2] : \<tau> \<leadsto> G3,n3 | C5 | Sig (Prim x [e1', e2']) \<tau>"
 | cg_cop:
-  "\<lbrakk> \<alpha> = TUnknown (Suc n1)
+  "\<lbrakk> \<alpha> = TUnknown n1
    ; x \<in> {Eq (Num nt), NEq (Num nt), Lt nt, Gt nt, Le nt, Ge nt}
    ; G1,(Suc n1) \<turnstile> e1 : \<alpha> \<leadsto> G2,n2 | C1 | e1'
    ; G2,n2 \<turnstile> e2 : \<alpha> \<leadsto> G3,n3 | C2 | e2'
@@ -471,7 +471,7 @@ cg_var1:
    ; C3 = CtConj (CtConj (CtEq \<tau> (TPrim Bool)) C1) C2
   \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> Prim x [e1, e2] : \<tau> \<leadsto> G3,n3 | C3 | Sig (Prim x [e1', e2']) \<tau>"
 | cg_tapp:
-  "\<lbrakk> (C, \<rho>) = type_of name
+  "\<lbrakk> type_of name = (C, \<rho>)
    (* make fresh unknown \<beta>s for each variable past those we are substituting into the type *)
    ; m = Suc (max_type_var \<rho>) - length ts
    ; \<beta>s = map (TUnknown \<circ> (+) (Suc n1)) [0..<m]
