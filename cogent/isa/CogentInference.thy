@@ -273,6 +273,40 @@ inductive_cases ct_sem_funE: "A \<turnstile> CtSub (TFun \<tau>1 \<tau>2) (TFun 
 lemma ct_sem_conj_iff: "A \<turnstile> CtConj C1 C2 \<longleftrightarrow> A \<turnstile> C1 \<and> A \<turnstile> C2"
   using ct_sem_conj ct_sem_conjE by blast
 
+lemma ct_sem_conj_fold: 
+  assumes"A \<turnstile> foldr CtConj Cs CtTop"
+    and "i < length Cs"
+  shows "A \<turnstile> (Cs ! i)"
+  using assms
+proof (induct Cs arbitrary: i)
+  case (Cons a Cs)
+  then show ?case
+  proof -
+    have "A \<turnstile> ((CtConj a) \<circ> (foldr CtConj Cs)) CtTop"
+      using Cons.prems by auto
+    then show ?thesis
+      using Cons.prems Cons.hyps One_nat_def Suc_less_eq Suc_pred comp_apply ct_sem_conjE 
+      by (metis length_Cons less_nat_zero_code linorder_neqE_nat nth_Cons')
+  qed
+qed (simp)
+
+lemma ct_sem_eq_iff: "A \<turnstile> CtEq \<tau> \<rho> \<longleftrightarrow> \<tau> = \<rho>"
+  using constraint_sem.cases ct_sem_refl by fastforce
+
+lemma ct_sem_int_iff: "A \<turnstile> CtIBound (LNat m) (TPrim pt) \<longleftrightarrow> (\<exists>n. pt = Num n \<and> m < abs n)"
+  using ct_sem_intE ct_sem_int by blast
+
+lemma ct_sem_int_exI: "A \<turnstile> CtIBound (LNat m) \<tau> \<Longrightarrow> \<exists>pt. \<tau> = TPrim pt"
+proof (induct \<tau>)
+qed (fastforce intro: constraint_sem.cases)+
+
+lemma ct_sem_int_imp: "A \<turnstile> CtIBound (LNat m) \<tau> \<Longrightarrow> \<exists>n. \<tau> = TPrim (Num n) \<and> m < abs n"
+  using ct_sem_int_iff ct_sem_int_exI by metis
+
+lemma ct_sem_int_not_bool: "A \<turnstile> CtIBound (LNat m) \<tau> \<Longrightarrow> \<tau> \<noteq> TPrim Bool"
+  using ct_sem_intE by blast
+
+
 section {* Context relations (Fig 3.2) *}
 inductive ctx_split_comp :: "axm_set \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> bool" where
   none  : "ctx_split_comp K None None None"
