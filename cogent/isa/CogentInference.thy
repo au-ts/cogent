@@ -1085,6 +1085,12 @@ next
   qed 
 qed (simp)+
 
+lemma cg_gen_output_type_used_diff:
+  assumes "G1,n1 \<turnstile> e : \<tau> \<leadsto> G2,n2 | C1 | e1'"
+      and "i \<in> fv(e)"
+  shows "snd (G2 ! i) \<noteq> snd (G1 ! i)"
+  using assms cg_gen_output_type_used_inc by fastforce
+
 lemma cg_gen_type_used_nonzero_imp_share:
   assumes "G1,n1 \<turnstile> e : \<tau> \<leadsto> G2,n2 | C1 | e1'"
       and "i \<in> fv(e)"
