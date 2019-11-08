@@ -695,22 +695,6 @@ proof -
     using alg_ctx_jn_type_same assms by auto
 qed
 
-inductive is_known_type :: "type \<Rightarrow> bool" where
-known_tvar:
-  "is_known_type (TVar n)"
-| known_tfun:
-  "\<lbrakk> is_known_type t1
-   ; is_known_type t2
-   \<rbrakk> \<Longrightarrow> is_known_type (TFun t1 t2)"
-| known_tprim:
-  "is_known_type (TPrim pt)"
-| known_tproduct:
-  "\<lbrakk> is_known_type t1
-   ; is_known_type t2
-   \<rbrakk> \<Longrightarrow> is_known_type (TProduct t1 t2)"
-| known_tunit:
-  "is_known_type TUnit"
-
 section {* split_used (Lemma 3.1) *}
 (* Free Variables *)
 fun fv' :: "nat \<Rightarrow> 'f expr \<Rightarrow> index set" where
