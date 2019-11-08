@@ -1381,6 +1381,58 @@ next
   qed
 qed (simp)+
 
+lemma split_unionR:
+  assumes "ns = ns1 \<union> ns2"
+    and "\<And>i. i < length G1 \<Longrightarrow> fst (G1 ! i) = fst (G2 ! i)"
+    and "A \<turnstile> assign_app_ctx S (G1\<bar>ns) \<leadsto> assign_app_ctx S (G1\<bar>ns1) \<box> assign_app_ctx S (G2\<bar>ns2)"
+    and "\<forall>i\<in>I. i < length G1 \<and> i \<notin> ns"
+  shows "A \<turnstile> assign_app_ctx S (G1\<bar>(ns \<union> I)) \<leadsto> assign_app_ctx S (G1\<bar>ns1) \<box> assign_app_ctx S (G2\<bar>ns2 \<union> I)"
+  using assms
+proof -
+  let ?SG1ns = "assign_app_ctx S (G1\<bar>ns)"
+  let ?SG1ns' = "assign_app_ctx S (G1\<bar>(ns \<union> I))"
+  let ?SG1ns1 = "assign_app_ctx S (G1\<bar>ns1)"
+  let ?SG2ns2 = "assign_app_ctx S (G2\<bar>ns2)"
+  let ?SG2ns2' = "assign_app_ctx S (G2\<bar>(ns2 \<union> I))"
+  {
+    fix j :: nat
+    assume j_size: "j < length G1"
+    assume j_not_in_I: "j \<notin> I"
+    have "ctx_split_comp A (?SG1ns ! j) (?SG1ns1 ! j) (?SG2ns2 ! j)"
+      using j_size j_not_in_I assms assign_app_ctx_len context_splitting_def ctx_restrict_len 
+        list_all3_conv_all_nth by metis
+    moreover have "(?SG2ns2 ! j) = (?SG2ns2' ! j)"
+      using j_size j_not_in_I assign_app_ctx_len assign_app_ctx_nth assms context_splitting_def 
+        ctx_restrict_len ctx_restrict_un_elem_same by (metis (full_types) list_all3_conv_all_nth)
+    ultimately have "ctx_split_comp A (?SG1ns ! j) (?SG1ns1 ! j) (?SG2ns2' ! j)"
+      using ctx_restrict_len ctx_restrict_un_elem_same assign_app_ctx_def type_infer_axioms
+      by (metis)
+    moreover have "(?SG1ns ! j) = (?SG1ns' ! j)"
+      using j_size j_not_in_I assign_app_ctx_len assign_app_ctx_nth assms context_splitting_def 
+        ctx_restrict_len ctx_restrict_un_elem_same by (metis (full_types))
+    ultimately have "ctx_split_comp A (?SG1ns' ! j) (?SG1ns1 ! j) (?SG2ns2' ! j)"
+      by auto
+  }
+  moreover {
+    fix i :: nat
+    assume i_in_I: "i \<in> I"
+    have SG1ns1_none: "?SG1ns1 ! i = None"
+      using i_in_I assms ctx_restrict_len ctx_restrict_nth_none assign_app_ctx_def by auto
+    have "(G1\<bar>(ns \<union> I)) ! i = (G2\<bar>(ns2 \<union> I)) ! i"
+      using i_in_I assign_app_ctx_len assms  context_splitting_def ctx_restrict_len 
+        ctx_restrict_nth_some by (metis UnCI list_all3_conv_all_nth)
+    then have "?SG1ns' ! i =  ?SG2ns2' ! i"
+      using i_in_I assign_app_ctx_len assign_app_ctx_nth assms context_splitting_def 
+        ctx_restrict_len by (metis list_all3_conv_all_nth)
+    then have "ctx_split_comp A (?SG1ns' ! i) (?SG1ns1 ! i) (?SG2ns2' ! i)"
+      using SG1ns1_none ctx_split_comp.simps by auto
+  }
+  ultimately show ?thesis
+    using assign_app_ctx_len assms context_splitting_def ctx_restrict_len 
+    by (metis (full_types) list_all3_conv_all_nth)
+qed
+
+
 section {* Lemma 3.1 *}
 lemma split_used:
   assumes "fv e = (fv e1) \<union> (fv e2)"
