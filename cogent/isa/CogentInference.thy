@@ -484,8 +484,7 @@ cg_var1:
 lemma cg_num_fresh_nondec:
   assumes "G,n \<turnstile> e : \<tau> \<leadsto> G',n' | C | e'"
   shows "n \<le> n'"
-  using assms
-  by (induct rule: constraint_gen_elab.inducts) force+
+  using assms by (induct rule: constraint_gen_elab.inducts) force+
 
 lemma cg_ctx_length:
   assumes "G,n \<turnstile> e : \<tau> \<leadsto> G',n' | C | e'"
@@ -494,8 +493,14 @@ lemma cg_ctx_length:
 proof (induct rule: constraint_gen_elab.inducts)
   case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
   then show ?case
-    using alg_ctx_jn_length(2) by auto
+    using alg_ctx_jn_length by auto
 qed (simp+)
+
+lemma cg_ctx_idx_size:
+  assumes "G,n \<turnstile> e : \<tau> \<leadsto> G',n' | C | e'"
+    and "i < length G"
+  shows "i < length G'"
+  using assms cg_ctx_length by auto
 
 lemma cg_ctx_type_same:
   assumes "G,n \<turnstile> e : \<tau> \<leadsto> G',n' | C | e'"
