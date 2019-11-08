@@ -737,6 +737,7 @@ proof -
     by blast
 qed
 
+
 fun ctx_restrict :: "cg_ctx \<Rightarrow> index set \<Rightarrow> ctx" (infixr "\<bar>" 60) where
 "(G\<bar>ns) = List.map2 (\<lambda>g i. (if i \<in> ns then Some (fst g) else None)) G [0..<length G]"
 
@@ -775,6 +776,16 @@ proof -
   then show ?thesis
     using assms ctx_restrict_len by auto
 qed
+
+lemma ctx_restrict_nth_none_iff:
+  assumes "i < length G"
+  shows "(G\<bar>ns) ! i = None \<longleftrightarrow> i \<notin> ns"
+  using assms ctx_restrict_nth_none ctx_restrict_nth_some by auto
+
+lemma ctx_restrict_nth_some_iff:
+  assumes "i < length G"
+  shows "(G\<bar>ns) ! i \<noteq> None \<longleftrightarrow> i \<in> ns"
+  using assms ctx_restrict_nth_none_iff by auto
 
 lemma cg_gen_fv_elem_size:
   assumes
