@@ -1708,14 +1708,978 @@ qed
 
 
 section {* Soundness of Generation (Thm 3.2) *}
-lemma cg_sound:
-  assumes "G,0 \<turnstile> e : \<tau> \<leadsto> G',n | C | e'"
+lemma cg_sound_induction:
+  assumes "G,n \<turnstile> e : \<tau> \<leadsto> G',n' | C | e'"
     and "A \<turnstile> assign_app_constr S C" 
-    and "\<forall>i. is_known_type (S i)" 
-    and "\<Gamma> = map (\<lambda> (\<rho>, n). if n = 0 then None else Some \<rho>) G"
+    and "\<forall>i. known_ty (S i)"
+    and "\<And>i. i < length G \<Longrightarrow>
+            if i \<in> fv e
+              then \<Gamma> ! i = Some (assign_app_ty S (fst (G ! i)))
+              else \<Gamma> ! i = None \<or>
+                (\<Gamma> ! i = Some (assign_app_ty S (fst (G ! i))) \<and> A \<turnstile> assign_app_constr S (CtDrop (fst (G ! i))))"
+    and "length G = length \<Gamma>"
   shows "A \<ddagger> \<Gamma> \<turnstile> (assign_app_expr S e') : (assign_app_ty S \<tau>)"
-  using assms
-  sorry
+  using assms 
+proof (induct arbitrary: S \<Gamma> rule: constraint_gen_elab.inducts)
+case (cg_var1 G i \<rho> G' C \<tau> n)
+  then show ?case
+ proof -
+    have "A \<ddagger> \<Gamma> \<turnstile> Var i : (assign_app_ty S \<rho>)"
+    proof -
+      have "A \<turnstile> \<Gamma> \<leadsto>w singleton (length \<Gamma>) i (assign_app_ty S \<rho>)"
+      proof -
+        have "length \<Gamma> = length (singleton (length \<Gamma>) i (assign_app_ty S \<rho>))"
+          by (simp add: singleton_len)
+        moreover have "(\<And>ia. ia < length \<Gamma> \<Longrightarrow>
+                        weakening_comp A (\<Gamma> ! ia) 
+                        (singleton (length \<Gamma>) i (assign_app_ty S \<rho>) ! ia))"
+        proof -
+          have "\<Gamma> ! i = Some (assign_app_ty S (fst (G ! i)))"
+            using cg_var1.hyps cg_var1.prems by fastforce
+          moreover have "\<And>ia. ia < length \<Gamma> \<Longrightarrow> ia \<noteq> i \<Longrightarrow> ?thesis ia"
+            using cg_var1.prems singleton_none weakening_comp.simps by fastforce
+          ultimately show "\<And>ia. ia < length \<Gamma> \<Longrightarrow> ?thesis ia"
+            using cg_var1.hyps(1) keep singleton_some by fastforce
+        qed
+        ultimately show ?thesis
+          using cg_var1.hyps cg_var1.prems weakening_def
+          by (metis list_all2_all_nthI)
+      qed
+      then show ?thesis
+        using cg_var1.prems cg_var1.hyps typing_var by auto
+    qed
+    moreover have "A \<turnstile> CtSub (assign_app_ty S \<rho>) (assign_app_ty S \<tau>)"
+      using cg_var1.prems cg_var1.hyps ct_sem_conjE assign_app_constr.simps by metis
+    ultimately show ?thesis
+      using typing_sig by simp
+  qed
+next
+  case (cg_var2 G i \<rho> n G' C \<tau>)
+  then show ?case
+  proof -
+    have "A \<ddagger> \<Gamma> \<turnstile> Var i : (assign_app_ty S \<rho>)"
+    proof -
+      have "A \<turnstile> \<Gamma> \<leadsto>w singleton (length \<Gamma>) i (assign_app_ty S \<rho>)"
+      proof -
+        have "length \<Gamma> = length (singleton (length \<Gamma>) i (assign_app_ty S \<rho>))"
+          by (simp add: singleton_len)
+        moreover have "(\<And>ia. ia < length \<Gamma> \<Longrightarrow>
+                        weakening_comp A (\<Gamma> ! ia) 
+                        (singleton (length \<Gamma>) i (assign_app_ty S \<rho>) ! ia))"
+        proof -
+          have "\<Gamma> ! i = Some (assign_app_ty S (fst (G ! i)))"
+            using cg_var2 by fastforce
+          moreover have "\<And>ia. ia < length \<Gamma> \<Longrightarrow> ia \<noteq> i \<Longrightarrow> 
+                               singleton (length \<Gamma>) i (assign_app_ty S \<rho>) ! ia = None"
+            by (simp add: singleton_none)
+          moreover have "\<And>ia. ia < length \<Gamma> \<Longrightarrow> ia \<noteq> i \<Longrightarrow> ?thesis ia"
+            using assign_app_constr.simps(8) calculation cg_var2.hyps cg_var2.prems diff_zero drop 
+              weakening_comp.none fv'_var by (metis leI less_nat_zero_code singletonD)
+          ultimately show "\<And>ia. ia < length \<Gamma> \<Longrightarrow> ?thesis ia"
+            using cg_var2.hyps keep singleton_some by fastforce
+        qed
+        ultimately show ?thesis
+          using cg_var2.hyps cg_var2.prems weakening_def by (metis list_all2_all_nthI)
+      qed
+      then show ?thesis
+        using cg_var2.hyps cg_var2.prems ct_sem_conj_iff type_infer.typing_sig type_infer_axioms
+          typing_var by fastforce
+    qed
+    moreover have "A \<turnstile> CtSub (assign_app_ty S \<rho>) (assign_app_ty S \<tau>)"
+      using cg_var2.prems cg_var2.hyps ct_sem_conjE assign_app_constr.simps by metis
+    ultimately show ?thesis
+      using typing_sig by simp
+  qed
+next
+  case (cg_sig G1 n1 e \<tau>' G2 n2 C e' C' \<tau>)
+  then show ?case
+  proof -
+    have "A \<ddagger> \<Gamma> \<turnstile> Sig (assign_app_expr S e') (assign_app_ty S \<tau>') : (assign_app_ty S \<tau>')"
+    proof -
+      have "A \<turnstile> (assign_app_constr S C)"
+        using cg_sig.prems cg_sig.hyps ct_sem_conjE assign_app_constr.simps by metis
+      then have "A \<ddagger> \<Gamma> \<turnstile> assign_app_expr S e' : (assign_app_ty S \<tau>')"
+        using cg_sig.prems cg_sig.hyps(2) by auto
+      then show ?thesis
+        using typing_sig_refl by simp
+    qed
+    moreover have "A \<turnstile> CtSub (assign_app_ty S \<tau>') (assign_app_ty S \<tau>)"
+      using cg_sig.prems cg_sig.hyps ct_sem_conjE assign_app_constr.simps by metis
+    ultimately show ?thesis 
+      using typing_sig by simp
+  qed
+next
+  case (cg_app \<alpha> n1 G1 e1 \<tau> G2 n2 C1 e1' e2 G3 n3 C2 e2' C3)
+  then show ?case
+      proof -
+    let ?e="App e1 e2"
+    let ?idxs="Set.filter (\<lambda>x. x \<notin> fv ?e \<and> \<Gamma> ! x \<noteq> None) {0..<length G1}"
+    have fv_e: "fv ?e = fv e1 \<union> fv e2"
+      by simp
+    have "A \<turnstile> \<Gamma> \<leadsto> assign_app_ctx S (G1\<bar>fv e1) \<box> assign_app_ctx S (G2\<bar>fv e2 \<union> ?idxs)"
+    proof -
+      have "A \<turnstile> assign_app_ctx S (G1\<bar>fv ?e) \<leadsto> assign_app_ctx S (G1\<bar>fv e1) \<box> assign_app_ctx S (G2\<bar>fv e2)"
+      proof -
+        have "A \<turnstile> assign_app_constr S C2"
+          using cg_app.prems cg_app.hyps ct_sem_conjE assign_app_constr.simps by metis
+        then show ?thesis
+          using split_used cg_app.hyps cg_app.prems fv_e by metis
+      qed
+      then have "A \<turnstile> assign_app_ctx S (G1\<bar>fv ?e \<union> ?idxs) \<leadsto> assign_app_ctx S (G1\<bar>fv e1) \<box> assign_app_ctx S (G2\<bar>fv e2 \<union> ?idxs)"
+        by (rule_tac split_unionR; force intro: fv_e cg_app.hyps cg_ctx_type_same)
+      moreover have "\<Gamma> = assign_app_ctx S (G1\<bar>fv ?e \<union> ?idxs)"
+      proof (rule nth_equalityI)
+        show "length \<Gamma> = length (assign_app_ctx S (G1\<bar>fv ?e \<union> ?idxs))"
+          using assign_app_ctx_len cg_app.prems ctx_restrict_len by presburger
+        moreover {
+          fix i :: nat
+          assume i_size: "i < length G1"
+          have "\<Gamma> ! i = assign_app_ctx S (G1\<bar>fv ?e \<union> ?idxs) ! i"
+          proof (cases "i \<in> fv ?e")
+            case True
+            then show ?thesis
+              using assign_app_ctx_restrict_some cg_app.prems i_size
+              by (metis (no_types, lifting) Un_iff)
+          next
+            case False
+            then show ?thesis
+            proof (cases "\<Gamma> ! i = None")
+              case True
+              have "i \<notin> fv ?e \<union> ?idxs"
+                using False True by simp
+              then show ?thesis
+                using True assign_app_ctx_none_iff ctx_restrict_len ctx_restrict_nth_none i_size
+                by (metis (no_types, lifting))
+            next
+              case False
+              have "i \<in> fv ?e \<union> ?idxs"
+                using False i_size by force
+              then show ?thesis
+                using False assign_app_ctx_restrict_some cg_app.prems i_size 
+                by (metis (no_types, lifting))
+            qed
+          qed
+        }
+        then show "\<forall>i < length \<Gamma>. \<Gamma> ! i = assign_app_ctx S (G1 \<bar> fv ?e \<union> ?idxs) ! i"
+          using cg_app.prems by presburger
+      qed
+      ultimately show ?thesis
+        by auto
+    qed
+    moreover have "A \<ddagger>  assign_app_ctx S (G1 \<bar> fv e1) \<turnstile> assign_app_expr S e1' : assign_app_ty S (TFun \<alpha> \<tau>)"
+      using cg_app
+    proof (intro cg_app.hyps(3))
+      {
+        fix i
+        assume i_size: "i < length G1"
+        show "if i \<in> fv' 0 e1 then assign_app_ctx S (G1 \<bar> fv' 0 e1) ! i = Some (assign_app_ty S (fst (G1 ! i)))
+         else assign_app_ctx S (G1 \<bar> fv' 0 e1) ! i = None \<or>
+              assign_app_ctx S (G1 \<bar> fv' 0 e1) ! i = Some (assign_app_ty S (fst (G1 ! i))) \<and>
+              A \<turnstile> assign_app_constr S (CtDrop (fst (G1 ! i)))"
+          using assign_app_ctx_restrict_some i_size assign_app_ctx_none_iff ctx_restrict_len 
+            and ctx_restrict_nth_none_iff i_size by auto
+        }
+      qed (simp add: ct_sem_conj_iff ctx_restrict_len assign_app_ctx_def)+
+      moreover have "A \<ddagger> assign_app_ctx S (G2 \<bar> fv e2 \<union> ?idxs) \<turnstile> assign_app_expr S e2' : assign_app_ty S \<alpha>"
+        using cg_app
+      proof (intro cg_app.hyps(5))
+        fix i
+        assume i_size: "i < length G2"
+        have "if i \<in> fv e2
+         then map_option (assign_app_ty S) ((G2 \<bar> fv e2 \<union> ?idxs) ! i) =
+              Some (assign_app_ty S (fst (G2 ! i)))
+         else map_option (assign_app_ty S) ((G2 \<bar> fv e2 \<union> ?idxs) ! i) =
+              None \<or>
+              map_option (assign_app_ty S) ((G2 \<bar> fv e2 \<union> ?idxs) ! i) =
+              Some (assign_app_ty S (fst (G2 ! i))) \<and>
+              A \<turnstile> assign_app_constr S (CtDrop (fst (G2 ! i)))"
+          using cg_app cg_ctx_type_same i_size by fastforce
+        then show "if i \<in> fv e2
+         then assign_app_ctx S (G2 \<bar> fv e2 \<union> ?idxs) ! i =
+              Some (assign_app_ty S (fst (G2 ! i)))
+         else assign_app_ctx S (G2 \<bar> fv e2 \<union> ?idxs) ! i =
+              None \<or>
+              assign_app_ctx S (G2 \<bar> fv e2 \<union> ?idxs) ! i =
+              Some (assign_app_ty S (fst (G2 ! i))) \<and>
+              A \<turnstile> assign_app_constr S (CtDrop (fst (G2 ! i)))"
+          by (simp add: assign_app_ctx_nth i_size)
+      qed (simp add: ct_sem_conj_iff ctx_restrict_len assign_app_ctx_len)+
+    ultimately show ?thesis
+      using typing_sig_refl typing_app by simp
+  qed
+next
+  case (cg_let \<alpha> n1 G1 e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4)
+  then show ?case
+  proof -
+    let ?e="Let e1 e2"
+    let ?dec_fv_e2="image (\<lambda>x. x-1) (fv e2 - {0})"
+    let ?idxs="Set.filter (\<lambda>x. x \<notin> fv ?e \<and> \<Gamma> ! x \<noteq> None) {0..<length G1}"
+    have fv_e: "fv ?e = fv e1 \<union> ?dec_fv_e2"
+      by (simp add: fv'_suc_eq_minus_fv')
+    moreover have ctx_split_choice: 
+      "A \<turnstile> \<Gamma> \<leadsto> assign_app_ctx S (G1\<bar>fv e1) \<box> assign_app_ctx S (G2\<bar>?dec_fv_e2 \<union> ?idxs)"
+    proof -
+      have "A \<turnstile> assign_app_ctx S (G1\<bar>fv ?e) \<leadsto> assign_app_ctx S (G1\<bar>fv e1) \<box> assign_app_ctx S (G2\<bar>?dec_fv_e2)"
+      proof -
+        have "A \<turnstile> assign_app_constr S C2"
+          using cg_let.prems cg_let.hyps ct_sem_conjE assign_app_constr.simps by metis
+        then show ?thesis
+          using split_used_let cg_let.hyps cg_let.prems fv_e by metis
+      qed
+      then have "A \<turnstile> assign_app_ctx S (G1\<bar>fv ?e \<union> ?idxs) \<leadsto> assign_app_ctx S (G1\<bar>fv e1) \<box> assign_app_ctx S (G2\<bar>?dec_fv_e2 \<union> ?idxs)"
+        using cg_ctx_type_same cg_let.hyps fv_e by (rule_tac split_unionR; force)
+      moreover have "\<Gamma> = assign_app_ctx S (G1\<bar>fv ?e \<union> ?idxs)"
+      proof (rule nth_equalityI)
+        show "length \<Gamma> = length (assign_app_ctx S (G1\<bar>fv ?e \<union> ?idxs))"
+          using assign_app_ctx_len cg_let.prems ctx_restrict_len by presburger
+        moreover { 
+          fix i :: nat
+          assume i_size: "i < length G1"
+          have "\<Gamma> ! i = assign_app_ctx S (G1\<bar>fv ?e \<union> ?idxs) ! i"
+          proof (cases "i \<in> fv ?e")
+            case True
+            then show ?thesis
+              using Un_iff assign_app_ctx_restrict_some cg_let.prems i_size
+              by (metis (no_types, lifting))
+          next
+            case False
+            assume i_not_in_e: "i \<notin> fv ?e"
+            then show ?thesis
+            proof (cases "\<Gamma> ! i = None")
+              case True
+              then have "i \<notin> fv ?e \<union> ?idxs"
+                using i_not_in_e by simp
+              then show ?thesis
+                using True assign_app_ctx_none_iff ctx_restrict_len ctx_restrict_nth_none i_size
+                by (metis (no_types, lifting))
+            next
+              case False
+              then have "i \<in> fv ?e \<union> ?idxs"
+                using i_size by auto
+              then show ?thesis
+                using False assign_app_ctx_restrict_some cg_let.prems i_size
+                by (metis (no_types, lifting))
+            qed
+          qed
+        }
+        ultimately show "\<forall>i < length \<Gamma>. \<Gamma> ! i = assign_app_ctx S (G1 \<bar> fv ?e \<union> ?idxs) ! i"
+          using cg_let.prems by presburger
+      qed
+      ultimately show ?thesis
+        by auto
+    qed
+    moreover have "A \<ddagger> assign_app_ctx S (G1 \<bar> fv e1) \<turnstile> assign_app_expr S e1' : assign_app_ty S \<alpha>"
+      using cg_let
+    proof (intro cg_let.hyps(3))
+      fix i :: nat
+      assume i_size: "i < length G1"
+      show "if i \<in> fv e1 
+        then assign_app_ctx S (G1 \<bar> fv e1) ! i = 
+             Some (assign_app_ty S (fst (G1 ! i)))
+        else assign_app_ctx S (G1 \<bar> fv e1) ! i = None \<or>
+             assign_app_ctx S (G1 \<bar> fv e1) ! i = Some (assign_app_ty S (fst (G1 ! i))) \<and> 
+             A \<turnstile> assign_app_constr S (CtDrop (fst (G1 ! i)))"
+        using assign_app_ctx_none_iff assign_app_ctx_restrict_some i_size by auto
+    qed (simp add: ct_sem_conj_iff assign_app_ctx_len)+
+    moreover have "A \<ddagger> Some (S n1) # assign_app_ctx S (G2 \<bar> ?dec_fv_e2 \<union> ?idxs) \<turnstile> assign_app_expr S e2' : assign_app_ty S \<tau>"
+      using cg_let
+    proof (intro cg_let.hyps(5))
+      fix i :: nat
+      assume i_size: "i < length ((\<alpha>, 0) # G2)"
+      show "if i \<in> fv e2
+        then (Some (S n1) # assign_app_ctx S (G2 \<bar> ?dec_fv_e2 \<union> ?idxs)) ! i =
+              Some (assign_app_ty S (fst (((\<alpha>, 0) # G2) ! i)))
+        else (Some (S n1) # assign_app_ctx S (G2 \<bar> ?dec_fv_e2 \<union> ?idxs)) ! i = None \<or>
+             (Some (S n1) # assign_app_ctx S (G2 \<bar> ?dec_fv_e2 \<union> ?idxs)) ! i =
+              Some (assign_app_ty S (fst (((\<alpha>, 0) # G2) ! i))) \<and>
+              A \<turnstile> assign_app_constr S (CtDrop (fst (((\<alpha>, 0) # G2) ! i)))"
+      proof (cases "i \<in> fv e2")
+        case True
+        then show ?thesis
+        proof (cases "i = 0")
+          case False
+          have "i - 1 \<in> ?dec_fv_e2 \<union> ?idxs"
+            using True False by blast
+          then show ?thesis  
+            using True False assign_app_ctx_restrict_some i_size One_nat_def Suc_less_eq 
+            by (metis (no_types, lifting) Suc_pred length_Cons neq0_conv nth_Cons')
+        qed (simp add: cg_let.hyps)
+      next
+        case False
+        assume i_not_in_e2: "i \<notin> fv e2"
+        then show ?thesis
+        proof (cases "i = 0")
+          case True
+          have "C3 = CtDrop (TUnknown n1)"
+            using True cg_gen_output_type_unused_same cg_let.hyps i_not_in_e2
+            by (metis i_size nth_Cons_0 snd_conv)
+          then show ?thesis
+            using True cg_let ct_sem_conj_iff assign_app_constr.simps by auto
+        next
+          case False
+          assume i_nonzero: "i \<noteq> 0"
+          then show ?thesis
+          proof (cases "i - 1 \<in> ?idxs")
+            case True
+            have "(Some (S n1) # assign_app_ctx S (G2 \<bar> ?dec_fv_e2 \<union> ?idxs)) ! i =
+                   Some (assign_app_ty S (fst (((\<alpha>, 0) # G2) ! i)))"
+              using True assign_app_ctx_restrict_some cg_ctx_length cg_let.hyps i_nonzero inf_sup_ord
+              by (metis (no_types, lifting) atLeastLessThan_iff member_filter nth_Cons' subsetCE)
+            moreover have "A \<turnstile> assign_app_constr S (CtDrop (fst (((\<alpha>, 0) # G2) ! i)))"
+              using True cg_let i_nonzero cg_ctx_type_same type_infer_axioms
+              by (metis (mono_tags, lifting) atLeastLessThan_iff member_filter nth_Cons')
+            ultimately show ?thesis
+              by simp
+          next
+            case False
+            have "i - 1 \<notin> ?dec_fv_e2 \<union> ?idxs"
+              using False i_nonzero fv'_suc_eq_minus_fv' i_fv'_suc_iff_suc_i_fv' i_not_in_e2
+              by (metis (no_types, lifting) One_nat_def Suc_pred UnE neq0_conv)
+            then show ?thesis
+              using assign_app_ctx_none_iff i_nonzero i_not_in_e2 i_size by auto
+          qed
+        qed
+      qed
+    qed (simp add: ct_sem_conj_iff assign_app_ctx_len)+
+    ultimately show ?thesis
+      using typing_sig_refl typing_let cg_let.hyps by simp
+  qed
+next
+  case (cg_blit C \<tau> G n l)
+  then show ?case
+  proof -
+    have "A \<turnstile> \<Gamma> \<leadsto>w empty (length \<Gamma>)"
+    proof -
+      {
+        fix i :: nat
+        assume i_size: "i < length \<Gamma>"
+        have "weakening_comp A (\<Gamma> ! i) (empty (length \<Gamma>) ! i)"
+        proof (cases "\<Gamma> ! i = None")
+          case False
+          assume \<Gamma>i_not_none: "\<Gamma> ! i \<noteq> None"
+          then show ?thesis
+          proof (cases "snd (G ! i) = 0")
+            case True
+            then show ?thesis
+              using \<Gamma>i_not_none cg_blit.prems drop empty_none i_size by fastforce
+          next
+            case False
+            have "i \<notin> fv (Lit (LBool l))"
+              by simp
+            then show ?thesis
+              using \<Gamma>i_not_none cg_blit.prems drop empty_none i_size by fastforce
+          qed
+        qed (simp add: local.empty_def weakening_comp.none i_size)
+      }
+      then show ?thesis
+        by (simp add: list_all2_all_nthI empty_def weakening_def)
+    qed
+    moreover have "assign_app_ty S \<tau> = TPrim Bool"
+      using cg_blit ct_sem_eq_iff by auto
+    ultimately show ?thesis
+      using typing_sig_refl typing_blit by force
+  qed
+next
+  case (cg_ilit C m \<tau> G n)  
+  then show ?case
+  proof -
+    obtain n where n_def: "(assign_app_ty S \<tau>) = TPrim (Num n)"
+      using cg_ilit ct_sem_int_imp by fastforce 
+    have "A \<turnstile> \<Gamma> \<leadsto>w local.empty (length \<Gamma>)"
+    proof -
+      {
+        fix i :: nat
+        assume i_size: "i < length \<Gamma>"
+        have "weakening_comp A (\<Gamma> ! i) (empty (length \<Gamma>) ! i)"
+        proof (cases "\<Gamma> ! i = None")
+          case True
+          then show ?thesis 
+            by (simp add: local.empty_def weakening_comp.none i_size)
+        next
+          case False
+          assume \<Gamma>i_not_none: "\<Gamma> ! i \<noteq> None"
+          then show ?thesis
+          proof (cases "snd (G ! i) = 0")
+            case True
+            then show ?thesis
+              using \<Gamma>i_not_none True cg_ilit.prems drop empty_none i_size by fastforce
+          next
+            case False
+            have "i \<notin> fv' 0 (Lit (LBool l))"
+              by simp
+            then show ?thesis
+              using \<Gamma>i_not_none False cg_ilit.prems drop empty_none i_size by fastforce
+          qed
+        qed
+      }
+      then show ?thesis
+        by (simp add: list_all2_all_nthI empty_def weakening_def)
+    qed
+    moreover have "m < abs n"
+      using cg_ilit ct_sem_int_imp n_def by force
+    moreover have "assign_app_ty S \<tau> = TPrim (Num n)"
+      using cg_ilit ct_sem_int_imp n_def by fast
+    ultimately show ?thesis
+      using typing_sig_refl typing_ilit by simp
+  qed
+next
+  case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
+  then show ?case
+  proof -
+    let ?e="If e1 e2 e3"
+    let ?fve2e3="fv e2 \<union> fv e3"
+    let ?idxs="Set.filter (\<lambda>x. x \<notin> fv ?e \<and> \<Gamma> ! x \<noteq> None) {0..<length G1}"
+    have "A \<turnstile> \<Gamma> \<leadsto> assign_app_ctx S (G1\<bar>fv e1) \<box> assign_app_ctx S (G2\<bar>(fv e2 \<union> fv e3) \<union> ?idxs)"
+    proof -
+      have "A \<turnstile> assign_app_ctx S (G1\<bar>fv ?e) \<leadsto> assign_app_ctx S (G1\<bar>fv e1) \<box> assign_app_ctx S (G2\<bar>(fv e2 \<union> fv e3))"
+      proof -
+        have "A \<turnstile> assign_app_constr S C2 \<and> A \<turnstile> assign_app_constr S C3"
+          using cg_if.prems cg_if.hyps ct_sem_conjE assign_app_constr.simps by metis
+        then show ?thesis
+          using cg_if.hyps cg_if.prems split_used_if by metis     
+      qed
+      then have "A \<turnstile> assign_app_ctx S (G1\<bar>fv ?e \<union> ?idxs) \<leadsto> assign_app_ctx S (G1\<bar>fv e1) \<box> assign_app_ctx S (G2\<bar>(fv e2 \<union> fv e3) \<union> ?idxs)"
+        by (rule_tac split_unionR; force intro: cg_if.hyps cg_ctx_type_same)
+      moreover have "\<Gamma> = assign_app_ctx S (G1\<bar>fv ?e \<union> ?idxs)"
+      proof (intro nth_equalityI)
+        show "length \<Gamma> = length (assign_app_ctx S (G1\<bar>fv ?e \<union> ?idxs))"
+          using assign_app_ctx_len cg_if.prems by auto
+        { 
+          fix i :: nat
+          assume i_size: "i < length \<Gamma>"
+          have "\<Gamma> ! i = assign_app_ctx S (G1 \<bar> fv ?e \<union> ?idxs) ! i"
+          proof (cases "i \<in> fv ?e")
+            case True
+            then show ?thesis
+              using cg_if.prems i_size 
+              by (metis (no_types, lifting) Un_iff assign_app_ctx_restrict_some)
+          next
+            case False
+            assume i_not_in_e: "i \<notin> fv ?e"
+            then show ?thesis
+            proof (cases "\<Gamma> ! i = None")
+              case True
+              have "i \<notin> fv ?e \<union> ?idxs"
+                using True i_not_in_e by auto
+              then show ?thesis
+                using True assign_app_ctx_none_iff cg_if.prems ctx_restrict_len
+                  ctx_restrict_nth_none i_size by (metis (no_types, lifting))
+            next
+              case False
+              have "i \<in> fv ?e \<union> ?idxs"
+                using False i_not_in_e cg_if.prems i_size by auto 
+              then show ?thesis
+                using False i_size cg_if.prems assign_app_ctx_restrict_some
+                by (metis (no_types, lifting))
+            qed
+          qed
+        }
+        then show "\<forall>i < length \<Gamma>. \<Gamma> ! i = assign_app_ctx S (G1 \<bar> fv ?e \<union> ?idxs) ! i"
+          by blast
+      qed
+      ultimately show ?thesis
+        by auto
+    qed
+    moreover have "A \<ddagger> assign_app_ctx S (G1\<bar>fv e1) \<turnstile> assign_app_expr S e1' : assign_app_ty S (TPrim Bool)"
+      using cg_if
+    proof (intro cg_if.hyps(2))
+      {
+        fix i :: nat
+        assume i_size : "i < length G1"
+        show "if i \<in> fv e1 
+          then assign_app_ctx S (G1 \<bar> fv e1) ! i = Some (assign_app_ty S (fst (G1 ! i)))
+          else assign_app_ctx S (G1 \<bar> fv e1) ! i = None \<or>
+               assign_app_ctx S (G1 \<bar> fv e1) ! i = Some (assign_app_ty S (fst (G1 ! i))) \<and> 
+               A \<turnstile> assign_app_constr S (CtDrop (fst (G1 ! i)))"
+          using assign_app_ctx_nth i_size by simp
+      }
+    qed (simp add: ct_sem_conj_iff assign_app_ctx_len)+
+    moreover have "A \<ddagger> assign_app_ctx S (G2\<bar>(fv e2 \<union> fv e3) \<union> ?idxs) \<turnstile> assign_app_expr S e2' : assign_app_ty S \<tau>"
+      using cg_if
+    proof (intro cg_if.hyps(4))
+      {
+        fix i :: nat
+        assume i_size: "i < length G2"
+        show "if i \<in> fv e2
+         then assign_app_ctx S (G2 \<bar> ?fve2e3 \<union> ?idxs) ! i = Some (assign_app_ty S (fst (G2 ! i)))
+         else assign_app_ctx S (G2 \<bar> ?fve2e3 \<union> ?idxs) ! i = None \<or>
+              assign_app_ctx S (G2 \<bar> ?fve2e3 \<union> ?idxs) ! i = Some (assign_app_ty S (fst (G2 ! i))) \<and>
+              A \<turnstile> assign_app_constr S (CtDrop (fst (G2 ! i)))"
+        proof (cases "i \<in> fv e2")
+          case True
+          then show ?thesis
+            using assign_app_ctx_restrict_some i_size by (meson UnCI)
+        next
+          case False
+          assume i_not_in_e2: "i \<notin> fv e2"
+          then show ?thesis
+          proof (cases "i \<in> fv e3 \<or> i \<in> ?idxs")
+            case True
+            assume i_in_e3idxs: "i \<in> fv e3 \<or> i \<in> ?idxs"
+            then show ?thesis
+            proof (cases "i \<in> ?idxs")
+              case True
+              then show ?thesis
+                using cg_if assign_app_ctx_restrict_some cg_ctx_length cg_ctx_type_same i_size
+                by (metis (mono_tags, lifting) Un_iff member_filter)
+            next
+              case False
+              have "assign_app_ctx S (G2 \<bar> ?fve2e3 \<union> ?idxs) ! i = Some (assign_app_ty S (fst (G2 ! i)))"
+                using i_in_e3idxs i_size assign_app_ctx_restrict_some
+                by (metis (no_types, lifting) UnI1 inf_sup_ord(4) subsetCE)
+              moreover have "A \<turnstile> CtDrop (assign_app_ty S (fst (G4 ! i)))"
+                using cg_if
+              proof (rule_tac alg_ctx_jn_type_used_diff[where ?G1.0=G3 and ?G1'=G3' and ?C=C4])
+                have "i \<in> fv e3"
+                  using False i_in_e3idxs by blast
+                then show "snd (G3 ! i) \<noteq> snd (G3' ! i)"
+                  using i_not_in_e2 i_size cg_if.hyps cg_gen_output_type_used_diff
+                    cg_gen_output_type_unused_same by (metis) 
+                show "i < length G3'"
+                  using cg_ctx_length cg_if.hyps i_size by metis
+              qed (simp add: ct_sem_conj_iff)+
+              ultimately show ?thesis
+                using alg_ctx_jn_type_same cg_ctx_length cg_ctx_type_same cg_if.hyps i_size by auto
+            qed
+          next
+            case False
+            then show ?thesis
+              using assign_app_ctx_none_iff i_not_in_e2 i_size by auto
+          qed
+        qed
+      }
+    qed (simp add: ct_sem_conj_iff assign_app_ctx_len)+
+    moreover have "A \<ddagger> assign_app_ctx S (G2\<bar>(fv e2 \<union> fv e3) \<union> ?idxs) \<turnstile> assign_app_expr S e3' : assign_app_ty S \<tau>"
+      using cg_if
+    proof (intro cg_if.hyps(6))
+      {
+        fix i :: nat
+        assume i_size: "i < length G2"
+        show "if i \<in> fv e3
+         then assign_app_ctx S (G2 \<bar> ?fve2e3 \<union> ?idxs) ! i = Some (assign_app_ty S (fst (G2 ! i)))
+         else assign_app_ctx S (G2 \<bar> ?fve2e3 \<union> ?idxs) ! i = None \<or>
+              assign_app_ctx S (G2 \<bar> ?fve2e3 \<union> ?idxs) ! i = Some (assign_app_ty S (fst (G2 ! i))) \<and>
+              A \<turnstile> assign_app_constr S (CtDrop (fst (G2 ! i)))"
+        proof (cases "i \<in> fv e3")
+          case True
+          then show ?thesis
+            using assign_app_ctx_restrict_some i_size by (meson UnCI)
+        next
+          case False
+          assume i_not_in_e3: "i \<notin> fv e3"
+          then show ?thesis
+          proof (cases "i \<in> fv e2 \<or> i \<in> ?idxs")
+            case True
+            assume i_in_e2idxs: "i \<in> fv e2 \<or> i \<in> ?idxs"
+            then show ?thesis
+            proof (cases "i \<in> ?idxs")
+              case True
+              then show ?thesis
+                using cg_if assign_app_ctx_restrict_some cg_ctx_length cg_ctx_type_same i_size
+                by (metis (mono_tags, lifting) Un_iff member_filter)
+            next
+              case False
+              have "assign_app_ctx S (G2 \<bar> ?fve2e3 \<union> ?idxs) ! i = Some (assign_app_ty S (fst (G2 ! i)))"
+                using i_in_e2idxs i_size assign_app_ctx_restrict_some
+                by (metis (no_types, lifting) UnI1 inf_sup_ord(4) subsetCE)
+              moreover have "A \<turnstile> CtDrop (assign_app_ty S (fst (G4 ! i)))"
+                using cg_if
+              proof (rule_tac alg_ctx_jn_type_used_diff[where ?G1.0=G3 and ?G1'=G3' and ?C=C4])
+                have "i \<in> fv e2"
+                  using False i_in_e2idxs by blast
+                then show "snd (G3 ! i) \<noteq> snd (G3' ! i)"
+                  using i_not_in_e3 i_size cg_if.hyps cg_gen_output_type_used_diff
+                    cg_gen_output_type_unused_same by (metis) 
+                show "i < length G3'"
+                  using cg_ctx_length cg_if.hyps i_size by metis
+              qed (simp add: ct_sem_conj_iff)+
+              ultimately show ?thesis
+                using alg_ctx_jn_type_same cg_ctx_length cg_ctx_type_same cg_if.hyps i_size by auto
+            qed
+          next
+            case False
+            then show ?thesis
+              using assign_app_ctx_none_iff i_not_in_e3 i_size by auto
+          qed
+        qed
+      }
+    qed (simp add: ct_sem_conj_iff assign_app_ctx_len)+
+    ultimately show ?thesis
+      using typing_sig_refl typing_if by simp
+  qed
+next
+  case (cg_iop x nt G1 n1 e1 \<tau> G2 n2 C1 e1' e2 G3 n3 C2 e2' C5)
+  then show ?case
+  proof -
+    let ?e="Prim x [e1, e2]"
+    let ?idxs="Set.filter (\<lambda>x. x \<notin> fv ?e \<and> \<Gamma> ! x \<noteq> None) {0..<length G1}"
+    have fv_e: "fv ?e = fv e1 \<union> fv e2"
+      by simp
+    have "A \<turnstile> \<Gamma> \<leadsto> assign_app_ctx S (G1\<bar>fv e1) \<box> assign_app_ctx S (G2\<bar>fv e2 \<union> ?idxs)"
+    proof -
+      have "A \<turnstile> assign_app_ctx S (G1\<bar>fv ?e) \<leadsto> assign_app_ctx S (G1\<bar>fv e1) \<box> assign_app_ctx S (G2\<bar>fv e2)"
+      proof -
+        have "A \<turnstile> assign_app_constr S C2"
+          using cg_iop ct_sem_conj_iff assign_app_constr.simps by metis
+        then show ?thesis
+          using split_used cg_iop fv_e by metis
+      qed
+      then have "A \<turnstile> assign_app_ctx S (G1\<bar>fv ?e \<union> ?idxs) \<leadsto> assign_app_ctx S (G1\<bar>fv e1) \<box> assign_app_ctx S (G2\<bar>fv e2 \<union> ?idxs)"
+        by (rule_tac split_unionR; force intro: fv_e cg_iop.hyps cg_ctx_type_same)
+      moreover have "\<Gamma> = assign_app_ctx S (G1\<bar>fv ?e \<union> ?idxs)" 
+      proof (rule nth_equalityI)
+        show "length \<Gamma> = length (assign_app_ctx S (G1\<bar>fv ?e \<union> ?idxs))"
+          using assign_app_ctx_len cg_iop.prems ctx_restrict_len by presburger
+        moreover {
+          fix i :: nat
+          assume i_size: "i < length G1"
+          have "\<Gamma> ! i = assign_app_ctx S (G1\<bar>fv ?e \<union> ?idxs) ! i"
+          proof (cases "i \<in> fv ?e")
+            case True
+            then show ?thesis
+              using assign_app_ctx_restrict_some cg_iop.prems i_size
+              by (metis (no_types, lifting) Un_iff)
+          next
+            case False
+            then show ?thesis
+            proof (cases "\<Gamma> ! i = None")
+              case True
+              have "i \<notin> fv ?e \<union> ?idxs"
+                using False True by simp
+              then show ?thesis
+                using True assign_app_ctx_none_iff ctx_restrict_len ctx_restrict_nth_none i_size
+                by (metis (no_types, lifting))
+            next
+              case False
+              have "i \<in> fv ?e \<union> ?idxs"
+                using False i_size by force
+              then show ?thesis
+                using False assign_app_ctx_restrict_some cg_iop.prems i_size 
+                by (metis (no_types, lifting))
+            qed
+          qed
+        }
+        then show "\<forall>i < length \<Gamma>. \<Gamma> ! i = assign_app_ctx S (G1 \<bar> fv ?e \<union> ?idxs) ! i"
+          using cg_iop.prems by presburger
+      qed
+      ultimately show ?thesis
+        by auto
+    qed
+    moreover have "assign_app_ty S \<tau> \<noteq> TPrim Bool"
+      using ct_sem_int_not_bool cg_iop ct_sem_conj_iff assign_app_constr.simps by metis
+    moreover have "x \<in> {Plus nt, Minus nt, Times nt, Divide nt}"
+      using cg_iop.hyps by simp
+    moreover have "A \<ddagger> assign_app_ctx S (G1\<bar>fv e1) \<turnstile> assign_app_expr S e1' : assign_app_ty S \<tau>"
+      using cg_iop assign_app_ctx_nth ct_sem_conj_iff assign_app_ctx_len
+      by (intro cg_iop.hyps(3); simp)
+    moreover have "A \<ddagger> assign_app_ctx S (G2\<bar>fv e2 \<union> ?idxs) \<turnstile> assign_app_expr S e2' : assign_app_ty S \<tau>"
+      using cg_iop
+   proof (intro cg_iop.hyps(5))
+     {
+       fix i :: nat
+       assume i_size: "i < length G2"
+       have "if i \<in> fv e2
+         then map_option (assign_app_ty S) ((G2 \<bar> fv e2 \<union> ?idxs) ! i) =
+              Some (assign_app_ty S (fst (G2 ! i)))
+         else map_option (assign_app_ty S) ((G2 \<bar> fv e2 \<union> ?idxs) ! i) =
+              None \<or>
+              map_option (assign_app_ty S) ((G2 \<bar> fv e2 \<union> ?idxs) ! i) =
+              Some (assign_app_ty S (fst (G2 ! i))) \<and>
+              A \<turnstile> assign_app_constr S (CtDrop (fst (G2 ! i)))"
+          using cg_iop cg_ctx_type_same i_size by fastforce
+        then show "if i \<in> fv e2
+         then assign_app_ctx S (G2 \<bar> fv e2 \<union> ?idxs) ! i =
+              Some (assign_app_ty S (fst (G2 ! i)))
+         else assign_app_ctx S (G2 \<bar> fv e2 \<union> ?idxs) ! i =
+              None \<or>
+              assign_app_ctx S (G2 \<bar> fv e2 \<union> ?idxs) ! i =
+              Some (assign_app_ty S (fst (G2 ! i))) \<and>
+              A \<turnstile> assign_app_constr S (CtDrop (fst (G2 ! i)))"
+          using assign_app_ctx_nth i_size by simp
+      }
+    qed (simp add: ct_sem_conj_iff assign_app_ctx_len)+
+    ultimately show ?thesis
+      using typing_sig_refl typing_iop by force
+  qed
+next
+  case (cg_cop \<alpha> n1 x nt G1 e1 G2 n2 C1 e1' e2 G3 n3 C2 e2' C3 \<tau>)
+  then show ?case
+  proof -
+    let ?e="Prim x [e1, e2]"
+    let ?idxs="Set.filter (\<lambda>x. x \<notin> fv ?e \<and> \<Gamma> ! x \<noteq> None) {0..<length G1}"
+    have fv_e: "fv ?e = fv e1 \<union> fv e2"
+      by simp
+    have "A \<turnstile> \<Gamma> \<leadsto> assign_app_ctx S (G1\<bar>fv e1) \<box> assign_app_ctx S (G2\<bar>fv e2 \<union> ?idxs)"
+    proof -
+      have "A \<turnstile> assign_app_ctx S (G1\<bar>fv ?e) \<leadsto> assign_app_ctx S (G1\<bar>fv e1) \<box> assign_app_ctx S (G2\<bar>fv e2)"
+      proof -
+        have "A \<turnstile> assign_app_constr S C2"
+          using cg_cop ct_sem_conj_iff assign_app_constr.simps by metis
+        then show ?thesis
+          using split_used cg_cop fv_e by metis
+      qed
+      then have "A \<turnstile> assign_app_ctx S (G1\<bar>fv ?e \<union> ?idxs) \<leadsto> assign_app_ctx S (G1\<bar>fv e1) \<box> assign_app_ctx S (G2\<bar>fv e2 \<union> ?idxs)"
+        by (rule_tac split_unionR; force intro: fv_e cg_cop.hyps cg_ctx_type_same)
+      moreover have "\<Gamma> = assign_app_ctx S (G1\<bar>fv ?e \<union> ?idxs)"
+      proof (rule nth_equalityI)
+        show "length \<Gamma> = length (assign_app_ctx S (G1\<bar>fv ?e \<union> ?idxs))"
+          using assign_app_ctx_len cg_cop.prems ctx_restrict_len by presburger
+        moreover {
+          fix i :: nat
+          assume i_size: "i < length G1"
+          have "\<Gamma> ! i = assign_app_ctx S (G1\<bar>fv ?e \<union> ?idxs) ! i"
+          proof (cases "i \<in> fv ?e")
+            case True
+            then show ?thesis
+              using assign_app_ctx_restrict_some cg_cop.prems i_size
+              by (metis (no_types, lifting) Un_iff)
+          next
+            case False
+            then show ?thesis
+            proof (cases "\<Gamma> ! i = None")
+              case True
+              have "i \<notin> fv ?e \<union> ?idxs"
+                using False True by simp
+              then show ?thesis
+                using True assign_app_ctx_none_iff ctx_restrict_len ctx_restrict_nth_none i_size
+                by (metis (no_types, lifting))
+            next
+              case False
+              have "i \<in> fv ?e \<union> ?idxs"
+                using False i_size by force
+              then show ?thesis
+                using False assign_app_ctx_restrict_some cg_cop.prems i_size 
+                by (metis (no_types, lifting))
+            qed
+          qed
+        }
+        then show "\<forall>i < length \<Gamma>. \<Gamma> ! i = assign_app_ctx S (G1 \<bar> fv ?e \<union> ?idxs) ! i"
+          using cg_cop.prems by presburger
+      qed
+      ultimately show ?thesis
+        by auto
+    qed
+    moreover have "S n1 \<noteq> TPrim Bool" 
+      using ct_sem_int_not_bool cg_cop ct_sem_conj_iff assign_app_constr.simps by auto
+    moreover have "x \<in> {Eq (Num nt), NEq (Num nt), Lt nt, Gt nt, Le nt, Ge nt}"
+      using cg_cop.hyps by simp
+    moreover have "A \<ddagger> assign_app_ctx S (G1\<bar>fv e1) \<turnstile> assign_app_expr S e1' : assign_app_ty S \<alpha>"
+      using cg_cop assign_app_ctx_nth ct_sem_conj_iff assign_app_ctx_len ctx_restrict_len
+      by (intro cg_cop(4); simp)
+    moreover have "A \<ddagger> assign_app_ctx S (G2\<bar>fv e2 \<union> ?idxs) \<turnstile> assign_app_expr S e2' : assign_app_ty S \<alpha>"
+      using cg_cop
+    proof (intro cg_cop(6))
+      {
+        fix i :: nat
+        assume i_size: "i < length G2"
+        show "if i \<in> fv e2
+         then assign_app_ctx S (G2\<bar>fv e2 \<union> ?idxs) ! i =
+              Some (assign_app_ty S (fst (G2 ! i)))
+         else assign_app_ctx S (G2\<bar>fv e2 \<union> ?idxs) ! i = None \<or>
+              assign_app_ctx S (G2 \<bar>fv e2 \<union> ?idxs) ! i =
+              Some (assign_app_ty S (fst (G2 ! i))) \<and>
+              A \<turnstile> assign_app_constr S (CtDrop (fst (G2 ! i)))"
+        proof (cases "i \<in> fv e2")
+          case True
+          then show ?thesis
+            using assign_app_ctx_restrict_some i_size by (meson UnI1)
+        next
+          case False
+          assume i_not_in_e2: "i \<notin> fv e2"
+          then show ?thesis
+          proof (cases "i \<in> ?idxs")
+            case True
+            then show ?thesis
+              using cg_cop assign_app_ctx_restrict_some cg_ctx_length cg_ctx_type_same i_size
+              by (metis (mono_tags, lifting) Un_iff member_filter)
+          next
+            case False
+            then show ?thesis
+              using assign_app_ctx_none_iff i_not_in_e2 i_size by auto
+          qed
+        qed
+      }
+    qed (simp add: ct_sem_conj_iff assign_app_ctx_len ctx_restrict_len)+
+    moreover have "assign_app_ty S \<tau> = TPrim Bool"
+      using cg_cop ct_sem_conj_iff ct_sem_eq_iff by simp
+    ultimately show ?thesis
+      using typing_sig_refl typing_cop cg_cop.hyps by force
+  qed
+next
+  case (cg_bop x nt G1 n1 e1 \<tau> G2 n2 C1 e1' e2 G3 n3 C2 e2' C3)
+  then show ?case
+  proof -
+    let ?e="Prim x [e1, e2]"
+    let ?idxs="Set.filter (\<lambda>x. x \<notin> fv ?e \<and> \<Gamma> ! x \<noteq> None) {0..<length G1}"
+    have fv_e: "fv ?e = fv e1 \<union> fv e2"
+      by simp
+    have "A \<turnstile> \<Gamma> \<leadsto> assign_app_ctx S (G1\<bar>fv e1) \<box> assign_app_ctx S (G2\<bar>fv e2 \<union> ?idxs)"
+    proof -
+      have "A \<turnstile> assign_app_ctx S (G1\<bar>fv ?e) \<leadsto> assign_app_ctx S (G1\<bar>fv e1) \<box> assign_app_ctx S (G2\<bar>fv e2)"
+      proof -
+        have "A \<turnstile> assign_app_constr S C2"
+          using cg_bop ct_sem_conj_iff assign_app_constr.simps by metis
+        then show ?thesis
+          using split_used cg_bop fv_e by metis
+      qed
+      then have "A \<turnstile> assign_app_ctx S (G1\<bar>fv ?e \<union> ?idxs) \<leadsto> assign_app_ctx S (G1\<bar>fv e1) \<box> assign_app_ctx S (G2\<bar>fv e2 \<union> ?idxs)"
+        by (rule_tac split_unionR; force intro: fv_e cg_bop.hyps cg_ctx_type_same)
+      moreover have "\<Gamma> = assign_app_ctx S (G1\<bar>fv ?e \<union> ?idxs)"
+      proof (rule nth_equalityI)
+        show "length \<Gamma> = length (assign_app_ctx S (G1\<bar>fv ?e \<union> ?idxs))"
+          using assign_app_ctx_len cg_bop.prems ctx_restrict_len by presburger
+        moreover {
+          fix i :: nat
+          assume i_size: "i < length G1"
+          have "\<Gamma> ! i = assign_app_ctx S (G1\<bar>fv ?e \<union> ?idxs) ! i"
+          proof (cases "i \<in> fv ?e")
+            case True
+            then show ?thesis
+              using assign_app_ctx_restrict_some cg_bop.prems i_size
+              by (metis (no_types, lifting) Un_iff)
+          next
+            case False
+            then show ?thesis
+            proof (cases "\<Gamma> ! i = None")
+              case True
+              have "i \<notin> fv ?e \<union> ?idxs"
+                using False True by simp
+              then show ?thesis
+                using True assign_app_ctx_none_iff ctx_restrict_len ctx_restrict_nth_none i_size
+                by (metis (no_types, lifting))
+            next
+              case False
+              have "i \<in> fv ?e \<union> ?idxs"
+                using False i_size by force
+              then show ?thesis
+                using False assign_app_ctx_restrict_some cg_bop.prems i_size 
+                by (metis (no_types, lifting))
+            qed
+          qed
+        }
+        then show "\<forall>i < length \<Gamma>. \<Gamma> ! i = assign_app_ctx S (G1 \<bar> fv ?e \<union> ?idxs) ! i"
+          using cg_bop.prems by presburger
+      qed
+      ultimately show ?thesis
+        by auto
+    qed
+    moreover have "x \<in> {BitAnd nt, BitOr nt}"
+      using cg_bop.hyps by simp
+    moreover have "A \<ddagger> assign_app_ctx S (G1\<bar>fv e1) \<turnstile> assign_app_expr S e1' : assign_app_ty S \<tau>"
+      using cg_bop
+    proof (intro cg_bop.hyps(3))
+      {
+        fix i :: nat
+        assume i_size: "i < length G1"
+        show "if i \<in> fv' 0 e1
+         then assign_app_ctx S (G1 \<bar> fv' 0 e1) ! i = Some (assign_app_ty S (fst (G1 ! i)))
+         else assign_app_ctx S (G1 \<bar> fv' 0 e1) ! i = None \<or>
+              assign_app_ctx S (G1 \<bar> fv' 0 e1) ! i = Some (assign_app_ty S (fst (G1 ! i))) \<and> 
+              A \<turnstile> assign_app_constr S (CtDrop (fst (G1 ! i)))"
+          using assign_app_ctx_none_iff assign_app_ctx_restrict_some i_size by simp
+      }
+    qed (simp add: ct_sem_conj_iff assign_app_ctx_len ctx_restrict_len)+
+    moreover have "A \<ddagger> assign_app_ctx S (G2\<bar>fv e2 \<union> ?idxs) \<turnstile> assign_app_expr S e2' : assign_app_ty S \<tau>"
+      using cg_bop
+    proof (intro cg_bop.hyps(5))
+      {
+        fix i :: nat
+        assume i_size: "i < length G2"
+        show "if i \<in> fv e2
+          then assign_app_ctx S (G2 \<bar> fv e2 \<union> ?idxs) ! i =
+               Some (assign_app_ty S (fst (G2 ! i)))
+          else assign_app_ctx S (G2 \<bar> fv e2 \<union> ?idxs) ! i = None \<or>
+               assign_app_ctx S (G2 \<bar> fv e2 \<union> ?idxs) ! i =
+               Some (assign_app_ty S (fst (G2 ! i))) \<and>
+               A \<turnstile> assign_app_constr S (CtDrop (fst (G2 ! i)))"
+        proof (cases "i \<in> fv e2")
+          case True
+          then show ?thesis
+            using i_size assign_app_ctx_restrict_some by (meson UnCI)
+        next
+          case False
+          assume i_not_in_e2: "i \<notin> fv e2"
+          then show ?thesis
+          proof (cases "i \<in> ?idxs")
+            case True
+            have "i \<in> fv e2 \<union> ?idxs"
+              using True by simp
+            then show ?thesis
+              using True i_size cg_bop assign_app_ctx_restrict_some cg_ctx_length cg_ctx_type_same 
+                type_infer_axioms by (metis (mono_tags, lifting) member_filter)
+          next
+            case False
+            have "i \<notin> fv e2 \<union> ?idxs"
+              using False i_not_in_e2 by simp
+            then show ?thesis
+              using assign_app_ctx_none_iff i_size by auto
+          qed
+        qed
+      }
+    qed (simp add: ct_sem_conj_iff assign_app_ctx_len ctx_restrict_len)+
+    moreover have "assign_app_ty S \<tau> = TPrim Bool"
+      using cg_bop ct_sem_conj_iff ct_sem_eq_iff by auto
+    ultimately show ?thesis
+      using typing_sig_refl typing_bop by force
+  qed
+next
+  case (cg_tapp name C \<rho> m ts \<beta>s n1 \<rho>' C' C2 \<tau> n' n G)
+  then show ?case
+      proof -
+    have "A \<ddagger> \<Gamma> \<turnstile> assign_app_expr S (TypeApp name (ts @ \<beta>s)) : (assign_app_ty S \<rho>')"
+    proof -
+      have "A \<turnstile> \<Gamma> \<leadsto>w empty (length \<Gamma>)"
+      proof -
+        {
+          fix i :: nat
+          assume i_size: "i < length \<Gamma>"
+          have "weakening_comp A (\<Gamma> ! i) (empty (length \<Gamma>) ! i)"
+          proof (cases "\<Gamma> ! i = None")
+            case True
+            then show ?thesis 
+              by (simp add: local.empty_def weakening_comp.none i_size)
+          next
+            case False
+            assume \<Gamma>i_not_none: "\<Gamma> ! i \<noteq> None"
+            then show ?thesis
+            proof (cases "snd (G ! i) = 0")
+              case True
+              then show ?thesis
+                using \<Gamma>i_not_none True cg_tapp.prems drop empty_none i_size by fastforce
+            next
+              case False
+              then show ?thesis
+                using \<Gamma>i_not_none False cg_tapp.prems drop empty_none i_size by fastforce
+            qed
+          qed
+        }
+        then show ?thesis
+          by (simp add: list_all2_all_nthI empty_def weakening_def)
+      qed
+      moreover have "type_of name = (C, \<rho>)"
+        using cg_tapp.hyps by simp
+      moreover have "A \<turnstile> assign_app_constr S (subst_ct (ts @ \<beta>s) C)"
+        using cg_tapp.hyps cg_tapp.prems ct_sem_conjE by auto
+      moreover have "assign_app_ty S \<rho>' = assign_app_ty S (subst_ty (ts @ \<beta>s) \<rho>)"
+        using cg_tapp.hyps by blast
+      ultimately show ?thesis
+        using assign_app_constr_subst_ct_commute assign_app_ty_subst_ty_commute type_of_known
+          typing_tapp by auto
+    qed
+    moreover have "A \<turnstile> CtSub (assign_app_ty S \<rho>') (assign_app_ty S \<tau>)"
+      using cg_tapp.hyps cg_tapp.prems ct_sem_conj_iff by auto
+    ultimately show ?thesis
+      using typing_sig by simp
+  qed                                        
+qed
+
+lemma cg_sound:
+  assumes "G,n \<turnstile> e : \<tau> \<leadsto> G',n' | C | e'"
+    and "G = []"
+    and "A \<turnstile> assign_app_constr S C"      
+    and "\<forall>i. known_ty (S i)" 
+  shows "A \<ddagger> [] \<turnstile> (assign_app_expr S e') : (assign_app_ty S \<tau>)"
+  using assms cg_sound_induction by force
 
 end
-end                            
+end
