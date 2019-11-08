@@ -670,6 +670,31 @@ proof (induct Cs arbitrary: i)
   qed
 qed (simp)
 
+lemma alg_ctx_jn_type_used_diff:
+  assumes "G1 \<Join> G1' \<leadsto> G2 | C"
+    and "i < length G1'"
+    and "snd (G1 ! i) \<noteq> snd (G1' ! i)"
+    and "A \<turnstile> assign_app_constr S C" 
+  shows "A \<turnstile> CtDrop (assign_app_ty S (fst (G2 ! i)))"
+  using assms
+proof -
+  let ?Cs = "List.map2 (\<lambda>x y. if snd x = snd y then CtTop else CtDrop (fst x)) G1 G1'"
+  have "length G1' = length G1"
+    using alg_ctx_jn_length assms by auto
+  moreover have "length ?Cs = min (length G1) (length G1')"
+    by simp
+  moreover have i_size: "i < length ?Cs"
+    using calculation assms by simp
+  moreover have "A \<turnstile> assign_app_constr S (foldr CtConj ?Cs CtTop)"
+    using assms by (simp add: alg_ctx_jn.simps; metis map2_def)
+  moreover have "A \<turnstile> assign_app_constr S (?Cs ! i)"
+    using calculation ct_sem_assign_conj_foldr by blast
+  moreover then have "A \<turnstile> assign_app_constr S ((\<lambda>x y. if snd x = snd y then CtTop else CtDrop (fst x)) (G1 ! i) (G1' ! i))"
+    using i_size by (clarsimp simp add: map2_nth)
+  ultimately show ?thesis
+    using alg_ctx_jn_type_same assms by auto
+qed
+
 inductive is_known_type :: "type \<Rightarrow> bool" where
 known_tvar:
   "is_known_type (TVar n)"
