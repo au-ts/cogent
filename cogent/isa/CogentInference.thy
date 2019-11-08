@@ -715,13 +715,28 @@ lemmas fv'_induct = fv'.induct[case_names fv'_var fv'_typeapp fv'_prim fv'_app f
 abbreviation fv :: "'s expr \<Rightarrow> index set" where
   "fv t \<equiv> fv' 0 t" 
 
-lemma i_fv'_suc_eq_suc_i_fv':
+lemma i_fv'_suc_iff_suc_i_fv':
   "i \<in> fv' (Suc m) e \<longleftrightarrow> Suc i \<in> fv' m e"
 proof (induct m e arbitrary: i rule: fv'_induct)
   case (fv'_var n i)
   then show ?case
     by (force split: if_splits)
 qed auto
+
+lemma fv'_suc_eq_minus_fv':
+  "fv' (Suc m) e = image (\<lambda>x. x - 1) (fv' m e - {0})"
+proof -
+  have "\<forall>i \<in> fv' (Suc m) e.  i \<in> image (\<lambda>x. x - 1) (fv' m e - {0})"
+    using i_fv'_suc_iff_suc_i_fv'
+    by (metis Diff_empty Diff_insert0 diff_Suc_1 image_iff insertE insert_Diff nat.simps(3))
+  moreover have "\<forall>i \<in> image (\<lambda>x. x - 1) (fv' m e - {0}). Suc i \<in> (fv' m e - {0})"
+    by simp
+  moreover have "\<forall>i \<in> image (\<lambda>x. x - 1) (fv' m e - {0}). i \<in> fv' (Suc m) e"
+    by (simp add: i_fv'_suc_iff_suc_i_fv')
+  ultimately show ?thesis
+    by blast
+qed
+
 
 fun range :: "nat \<Rightarrow> nat \<Rightarrow> nat list" where
   "range m 0 = []"
@@ -811,7 +826,7 @@ proof -
   proof (induct arbitrary: i m rule: constraint_gen_elab.induct)
     case (cg_let \<alpha> n1 G1 e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4)
     then show ?case
-      by (force simp add: i_fv'_suc_eq_suc_i_fv' cg_ctx_length)
+      by (force simp add: i_fv'_suc_iff_suc_i_fv' cg_ctx_length)
   qed (auto simp add: cg_ctx_length split: if_splits)
 qed
 
@@ -835,7 +850,7 @@ next
       using cg_ctx_type_used_nondec cg_ctx_length cg_gen_fv_elem_size cg_let cg_let.hyps
       by (metis Suc_mono gt_or_eq_0 length_Cons not_le nth_Cons_Suc)
     moreover have "i \<in> fv' (Suc 0) e2 \<Longrightarrow> ?thesis"
-      using cg_let.hyps i_fv'_suc_eq_suc_i_fv' by fastforce
+      using cg_let.hyps i_fv'_suc_iff_suc_i_fv' by fastforce
     ultimately show ?thesis
       by blast
   qed
@@ -934,7 +949,7 @@ next
       using cg_let.hyps cg_let.prems ct_sem_conj_iff by metis
     moreover have "i \<in> fv' (Suc 0) e2 \<Longrightarrow> ?thesis"
       using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
-      using ct_sem_conjE i_fv'_suc_eq_suc_i_fv'
+      using ct_sem_conjE i_fv'_suc_iff_suc_i_fv'
       using cg_let.prems cg_let.hyps
       by (metis Suc_less_eq gt_or_eq_0 leD length_Cons cg_let nth_Cons_Suc)
     ultimately show ?thesis
@@ -1040,7 +1055,7 @@ next
       using cg_let.hyps cg_let.prems ct_sem_conj_iff assign_app_constr.simps by metis
     moreover have "i \<in> fv' (Suc 0) e2 \<Longrightarrow> ?thesis"
       using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
-      using ct_sem_conjE i_fv'_suc_eq_suc_i_fv'
+      using ct_sem_conjE i_fv'_suc_iff_suc_i_fv'
       using cg_let.prems cg_let.hyps assign_app_constr.simps
       by (metis (no_types, lifting) Suc_less_eq gr0I leD length_Cons nth_Cons_Suc)
     ultimately show ?thesis
