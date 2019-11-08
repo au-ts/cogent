@@ -1085,7 +1085,7 @@ next
   qed 
 qed (simp)+
 
-lemma r:
+lemma cg_gen_output_type_used_diff:
   assumes "G1,n1 \<turnstile> e : \<tau> \<leadsto> G2,n2 | C1 | e1'"
       and "i \<in> fv(e)"
   shows "snd (G2 ! i) \<noteq> snd (G1 ! i)"
@@ -1250,7 +1250,7 @@ lemma cg_assign_type_used_nonzero_imp_share:
       and "snd (G1 ! i) > 0"
       and "\<rho> = fst (G1 ! i)"
       and "A \<turnstile> assign_app_constr S C1"
-      and "\<forall>i. is_known_type (S i)"
+      and "\<forall>i. known_ty (S i)"
     shows "A \<turnstile> CtShare (assign_app_ty S \<rho>)"
   using assms
 proof (induct arbitrary: i rule: constraint_gen_elab.induct)
@@ -1265,88 +1265,119 @@ next
   case (cg_app \<alpha> n1 G1 e1 \<tau> G2 n2 C1 e1' e2 G3 n3 C2 e2' C3)
   then show ?case
   proof -
-    have "i \<in> fv e1 \<Longrightarrow> ?thesis"
-      using cg_app.hyps cg_app.prems ct_sem_conjE  by (simp, blast)
-    moreover have "i \<in> fv e2 \<Longrightarrow> ?thesis"
-      using cg_ctx_type_same cg_ctx_type_used_nondec cg_ctx_length cg_gen_fv_elem_size
-      using cg_app.hyps cg_app.prems assign_app_constr.simps
-      by (metis (no_types, lifting) gt_or_eq_0 leD ct_sem_conjE)
-    ultimately show ?thesis
+    consider (i_in_e1) "i \<in> fv e1" | (i_in_e2) "i \<in> fv e2"
       using fv'_app cg_app.prems by blast
+    then show ?thesis
+    proof cases
+      case i_in_e1
+      then show ?thesis 
+        using cg_app ct_sem_conjE  by (simp, blast)
+    next
+      case i_in_e2
+      then show ?thesis 
+        using cg_ctx_type_same cg_ctx_type_used_nondec cg_ctx_length cg_gen_fv_elem_size
+          cg_app assign_app_constr.simps by (metis (no_types, lifting) gt_or_eq_0 leD ct_sem_conjE)
+    qed
   qed
 next
   case (cg_let \<alpha> n1 G1 e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4)
   then show ?case
   proof -
-    have " i \<in> fv e1 \<Longrightarrow> ?thesis"
-      using cg_let.hyps cg_let.prems ct_sem_conj_iff assign_app_constr.simps by metis
-    moreover have "i \<in> fv' (Suc 0) e2 \<Longrightarrow> ?thesis"
-      using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
-      using ct_sem_conjE i_fv'_suc_iff_suc_i_fv'
-      using cg_let.prems cg_let.hyps assign_app_constr.simps
-      by (metis (no_types, lifting) Suc_less_eq gr0I leD length_Cons nth_Cons_Suc)
-    ultimately show ?thesis
+    consider (i_in_e1) "i \<in> fv e1" | (i_in_e2) "i \<in> fv' (Suc 0) e2"
       using fv'_let cg_let.prems by blast
+    then show ?thesis
+    proof cases
+      case i_in_e1
+      then show ?thesis
+        using cg_let ct_sem_conj_iff assign_app_constr.simps by metis
+    next
+      case i_in_e2
+      then show ?thesis 
+        using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+          ct_sem_conjE i_fv'_suc_iff_suc_i_fv' cg_let assign_app_constr.simps
+        by (metis (no_types, lifting) Suc_less_eq gr0I leD length_Cons nth_Cons_Suc)
+    qed
   qed
 next
   case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
   then show ?case
   proof -
-    have "i \<in> fv e1 \<Longrightarrow> ?thesis"
-      using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
-      using cg_if.prems cg_if.hyps ct_sem_conjE assign_app_constr.simps by metis
-    moreover have "i \<in> fv e2 \<Longrightarrow> ?thesis"
-      using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
-      using cg_if.prems cg_if.hyps ct_sem_conjE assign_app_constr.simps
-      by (metis (no_types, lifting) leD not_gr_zero)
-    moreover have "i \<in> fv e3 \<Longrightarrow> ?thesis"
-      using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
-      using cg_if.prems cg_if.hyps ct_sem_conjE assign_app_constr.simps
-      by (metis (no_types, lifting) gt_or_eq_0 leD)
-    ultimately show ?thesis
+    consider (i_in_e1) "i \<in> fv e1" | (i_in_e2) "i \<in> fv e2" | (i_in_e3) "i \<in> fv e3"  
       using fv'_if cg_if.prems by blast
+    then show ?thesis
+    proof cases
+      case i_in_e1
+      then show ?thesis 
+        using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+          cg_if ct_sem_conjE assign_app_constr.simps by metis
+    next
+      case i_in_e2
+      then show ?thesis 
+        using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+          cg_if ct_sem_conjE assign_app_constr.simps by (metis (no_types, lifting) leD not_gr_zero)
+    next
+      case i_in_e3
+      then show ?thesis 
+        using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+          cg_if ct_sem_conjE assign_app_constr.simps by (metis (no_types, lifting) gt_or_eq_0 leD)
+    qed
   qed
 next
   case (cg_iop x nt G1 n1 e1 \<tau> G2 n2 C1 e1' e2 G3 n3 C2 e2' C5)
   then show ?case
   proof -
-    have "i \<in> fv e1 \<Longrightarrow> ?thesis"
-      using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
-      using cg_iop.prems cg_iop.hyps ct_sem_conjE assign_app_constr.simps by metis
-    moreover have "i \<in> fv e2 \<Longrightarrow> ?thesis"
-      using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
-      using cg_iop.prems cg_iop.hyps ct_sem_conjE assign_app_constr.simps
-      by (metis (mono_tags, lifting) gt_or_eq_0 leD)
-    ultimately show ?thesis
+    consider (i_in_e1) "i \<in> fv e1" | (i_in_e2) "i \<in> fv e2"  
       using cg_iop.prems fv'_prim by auto
+    then show ?thesis
+    proof cases
+      case i_in_e1
+      then show ?thesis 
+        using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+          cg_iop ct_sem_conjE assign_app_constr.simps by metis
+    next
+      case i_in_e2
+      then show ?thesis 
+        using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+          cg_iop ct_sem_conjE assign_app_constr.simps by (metis (mono_tags, lifting) gt_or_eq_0 leD)
+    qed
   qed
 next
   case (cg_cop \<alpha> n1 x nt G1 e1 G2 n2 C1 e1' e2 G3 n3 C2 e2' C3 \<tau>)
   then show ?case
   proof -
-    have "i \<in> fv e1 \<Longrightarrow> ?thesis"
-      using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
-      using cg_cop.prems cg_cop.hyps ct_sem_conjE assign_app_constr.simps by metis
-    moreover have "i \<in> fv e2 \<Longrightarrow> ?thesis"
-      using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
-      using cg_cop.prems cg_cop.hyps ct_sem_conjE assign_app_constr.simps
-      by (metis (mono_tags, lifting) gt_or_eq_0 leD)
-    ultimately show ?thesis
+    consider (i_in_e1) "i \<in> fv e1" | (i_in_e2) "i \<in> fv e2"  
       using cg_cop.prems fv'_prim by auto
+    then show ?thesis
+    proof cases
+      case i_in_e1
+      then show ?thesis 
+        using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+          cg_cop ct_sem_conjE assign_app_constr.simps by metis
+    next
+      case i_in_e2
+      then show ?thesis 
+        using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+          cg_cop ct_sem_conjE assign_app_constr.simps by (metis (mono_tags, lifting) gt_or_eq_0 leD)
+    qed
   qed
 next
   case (cg_bop x nt G1 n1 e1 \<tau> G2 n2 C1 e1' e2 G3 n3 C2 e2' C3)
   then show ?case
   proof -
-    have "i \<in> fv e1 \<Longrightarrow> ?thesis"
-      using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
-      using cg_bop.prems cg_bop.hyps ct_sem_conjE assign_app_constr.simps by metis
-    moreover have "i \<in> fv e2 \<Longrightarrow> ?thesis"
-      using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
-      using cg_bop.prems cg_bop.hyps ct_sem_conjE assign_app_constr.simps
-      by (metis (mono_tags, lifting) gt_or_eq_0 leD)
-    ultimately show ?thesis
+    consider (i_in_e1) "i \<in> fv e1" | (i_in_e2) "i \<in> fv e2"  
       using cg_bop.prems fv'_prim by auto
+    then show ?thesis
+    proof cases
+      case i_in_e1
+      then show ?thesis 
+        using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+          cg_bop ct_sem_conjE assign_app_constr.simps by metis
+    next
+      case i_in_e2
+      then show ?thesis 
+        using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+          cg_bop ct_sem_conjE assign_app_constr.simps by (metis (mono_tags, lifting) gt_or_eq_0 leD)
+    qed
   qed
 qed (simp)+
 
