@@ -787,6 +787,18 @@ lemma ctx_restrict_nth_some_iff:
   shows "(G\<bar>ns) ! i \<noteq> None \<longleftrightarrow> i \<in> ns"
   using assms ctx_restrict_nth_none_iff by auto
 
+lemma ctx_restrict_un_elem_same:
+  assumes "i \<notin> ns'"
+    and "i < length G"
+  shows "(G\<bar>ns) ! i = (G\<bar>ns \<union> ns') ! i"
+  by (metis Un_iff assms(1) assms(2) ctx_restrict_nth_none ctx_restrict_nth_some)
+
+lemma assign_app_ctx_restrict_some:
+  assumes "i \<in> ns"
+    and "i < length G"
+  shows "assign_app_ctx S (G\<bar>ns) ! i = Some (assign_app_ty S (fst (G ! i)))"
+  using assms ctx_restrict_len ctx_restrict_nth_some assign_app_ctx_def by auto
+
 lemma cg_gen_fv_elem_size:
   assumes
     "G1,n1 \<turnstile> e : \<tau> \<leadsto> G2,n2 | C1 | e1'"
