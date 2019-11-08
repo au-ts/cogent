@@ -174,7 +174,7 @@ definition singleton :: "nat \<Rightarrow> index \<Rightarrow> type \<Rightarrow
 
 lemma singleton_len:
   "length (singleton n i t) = n"
-  by (simp add: local.empty_def singleton_def)
+  by (simp add: empty_def singleton_def)
 
 lemma singleton_some:
   "i < n \<Longrightarrow> (singleton n i t) ! i = Some t"
@@ -184,10 +184,11 @@ lemma singleton_none:
   "j < n \<Longrightarrow> j \<noteq> i \<Longrightarrow> (singleton n i t) ! j = None"
   by (simp add: empty_def singleton_def)
 
+
 section {* Algorithmic Context Join (Fig 3.5) *}
 inductive alg_ctx_jn :: "cg_ctx \<Rightarrow> cg_ctx \<Rightarrow> cg_ctx \<Rightarrow> constraint \<Rightarrow> bool"
-          ("_ \<Join> _ \<leadsto> _ | _" [30,0,0,30] 60) where
-alg_ctx_jn: 
+  ("_ \<Join> _ \<leadsto> _ | _" [30,0,0,30] 60) where
+  alg_ctx_jn: 
   "\<lbrakk> map fst G = map fst G'
    ; list_all3 (\<lambda>m g g'. m = max (snd g) (snd g')) M G G'
    ; list_all3 (\<lambda>g2 g m. g2 = (fst g, m)) G2 G M
@@ -199,26 +200,25 @@ lemma alg_ctx_jn_length:
   assumes "G1 \<Join> G1' \<leadsto> G2 | C"
   shows "length G1 = length G1'"
    and  "length G1 = length G2"
-  using assms
-  by (metis (no_types, lifting) alg_ctx_jn.simps list_all3_conv_all_nth)+
+  using assms by (metis (no_types, lifting) alg_ctx_jn.simps list_all3_conv_all_nth)+
 
 lemma alg_ctx_jn_type_same:
   assumes "G1 \<Join> G1' \<leadsto> G2 | C"
-  shows "\<And>i. i < length G1 \<Longrightarrow> fst (G1 ! i) = fst (G2 ! i)"
-  using assms
-  by (clarsimp simp add: alg_ctx_jn.simps list_all3_conv_all_nth)
+    and "i < length G1"
+  shows "fst (G1 ! i) = fst (G2 ! i)"
+  using assms by (clarsimp simp add: alg_ctx_jn.simps list_all3_conv_all_nth)
 
 lemma alg_ctx_jn_type_used_nondec_1:
   assumes "G1 \<Join> G1' \<leadsto> G2 | C"
-  shows "\<And>i. i < length G1 \<Longrightarrow> snd (G1 ! i) \<le> snd (G2 ! i)"
-  using assms
-  by (clarsimp simp add: alg_ctx_jn.simps list_all3_conv_all_nth)
+    and "i < length G1" 
+  shows "snd (G1 ! i) \<le> snd (G2 ! i)"
+  using assms by (clarsimp simp add: alg_ctx_jn.simps list_all3_conv_all_nth)
 
 lemma alg_ctx_jn_type_used_nondec_2:
   assumes "G1 \<Join> G1' \<leadsto> G2 | C"
-  shows "\<And>i. i < length G1' \<Longrightarrow> snd (G1' ! i) \<le> snd (G2 ! i)"
-  using assms
-  by (clarsimp simp add: alg_ctx_jn.simps list_all3_conv_all_nth)
+    and "i < length G1'"
+  shows "snd (G1' ! i) \<le> snd (G2 ! i)"
+  using assms by (clarsimp simp add: alg_ctx_jn.simps list_all3_conv_all_nth)
 
 section {* Constraint Semantics (Fig 3.6) *}
 inductive constraint_sem :: "axm_set \<Rightarrow> constraint \<Rightarrow> bool"
